@@ -71,6 +71,16 @@ export async function applyDesktopChromiumNetworkPolicies(
       // 否则需要代理才能访问的站点只会拿到 ERR_CONNECTION_TIMED_OUT，用户无从下手。
       fallbackProxyMode: "system" as const,
     },
+    {
+      // 自动更新（electron-updater）跑在自己的 session（partition "electron-updater"，
+      // 见 electron-updater 的 NET_SESSION_NAME），默认只跟随系统代理。
+      // 这里复用设置页的代理配置：显式配置时代理生效，未配置时仍跟随系统代理——
+      // 否则会出现「应用能联网、更新却下载不下来」且用户无从配置的情况。
+      name: "electron-updater",
+      session: sessionProvider.fromPartition("electron-updater"),
+      allowInsecure: false,
+      fallbackProxyMode: "system" as const,
+    },
   ] as const;
 
   await Promise.all(
