@@ -450,9 +450,9 @@ export default {
   extraMetadata: {
     version: buildMetadata.appVersion,
     zcodeProductFlavor: desktopProductIdentity.flavor,
-    homepage: "https://zcodium-project.github.io/",
+    homepage: "https://github.com/eafenzhang/Mode",
     author: {
-      name: "ZCodium",
+      name: "Mode",
       email: "daiqianghaha@foxmail.com",
     },
   },
@@ -772,10 +772,10 @@ export default {
   },
   detectUpdateChannel: false,
   publish: {
-    // 我们的发布都是 GitHub Pre-release：generic 的 /releases/latest 会 404；
-    // 用 GitHub provider 走 Releases API，运行时配合 allowPrerelease。
+    // 发布到本项目的 GitHub Releases（fork 后不再走原组织仓库）；
+    // 用 GitHub provider 走 Releases API，运行时配合 allowPrerelease（见 autoUpdater.ts）。
     provider: "github",
-    owner: "ZCodium-project",
-    repo: "ZCodium",
+    owner: "eafenzhang",
+    repo: "Mode",
   },
 };

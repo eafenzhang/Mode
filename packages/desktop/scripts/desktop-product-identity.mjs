@@ -7,19 +7,19 @@ export const ZCODE_PREVIEW_IDENTITY_ENV = "ZCODE_PREVIEW_IDENTITY";
 
 const PRODUCTION_IDENTITY = Object.freeze({
   flavor: "production",
-  appId: "dev.zcodium.app",
-  productName: "ZCodium",
-  linuxExecutableName: "zcodium",
-  linuxPackageName: "zcodium",
+  appId: "dev.mode.app",
+  productName: "Mode",
+  linuxExecutableName: "mode",
+  linuxPackageName: "mode",
   cuaHelperInstallVariant: null,
 });
 
 const PREVIEW_IDENTITY = Object.freeze({
   flavor: "preview",
-  appId: "dev.zcodium.app.preview",
-  productName: "ZCodium Preview",
-  linuxExecutableName: "zcodium-preview",
-  linuxPackageName: "zcodium-preview",
+  appId: "dev.mode.app.preview",
+  productName: "Mode Preview",
+  linuxExecutableName: "mode-preview",
+  linuxPackageName: "mode-preview",
   cuaHelperInstallVariant: "preview",
 });
 

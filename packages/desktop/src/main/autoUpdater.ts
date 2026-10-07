@@ -88,6 +88,10 @@ type UpdateDownloadedInfoLike = {
   > | null;
 };
 
+/** 更新源仓库：本项目的 GitHub 仓库（fork 自 ZCodium 后由仓库所有者维护发布）。 */
+export const UPDATE_FEED_GITHUB_OWNER = "eafenzhang";
+export const UPDATE_FEED_GITHUB_REPO = "Mode";
+
 type RuntimeUpdateFeedSource = { url: string };
 
 type AutoUpdaterMenuState = UpdateStatePayload;
@@ -742,15 +746,21 @@ function applyUpdateProvider(options: InitAutoUpdaterOptions): void {
     logger.info(`[auto-update] generic provider (custom feed) url=${redactUpdateFeedUrlForLog(customUrl)}`);
     return;
   }
-  // 我们所有发布（audit.x）都是 GitHub Pre-release：generic 的 /releases/latest 会 404。
-  // 这里改用 GitHub provider 走 Releases API（列表包含 Pre-release），并允许预发布版本。
+  // 更新源 = 本项目自己的 GitHub Releases（fork 后不再走原组织仓库）；
+  // 走 GitHub provider 的 Releases API，发布即使标记为 Pre-release 也能取到，并允许预发布版本。
   autoUpdater.allowPrerelease = true;
   autoUpdater.setFeedURL({
     provider: "github",
-    owner: "ZCodium-project",
-    repo: "ZCodium",
+    owner: UPDATE_FEED_GITHUB_OWNER,
+    repo: UPDATE_FEED_GITHUB_REPO,
   });
-  logger.info("[auto-update] github provider applied (prereleases allowed)");
+  logger.info(
+    "[auto-update] github provider applied (" +
+      UPDATE_FEED_GITHUB_OWNER +
+      "/" +
+      UPDATE_FEED_GITHUB_REPO +
+      ", prereleases allowed)",
+  );
 }
 
 function pickFallbackReleaseNotesMarkdown(
@@ -1480,8 +1490,11 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   autoUpdater.autoDownload = false;
   // Windows/NSIS 在窗口关闭后会异步启动安装；如果用户紧接着关机，安装器可能被系统中断，
   // 留下半更新状态并导致下次启动失败。
-  // 这里仅在 Windows 关闭“退出即自动安装”，要求用户显式点更新；其他平台保持原有行为，避免改动既有升级链路。
-  autoUpdater.autoInstallOnAppQuit = process.platform !== "win32";
+  // 默认在 Windows 关闭“退出即自动安装”，要求用户显式点更新；但用户在设置里开启
+  // 「自动下载并安装更新」后按静默更新语义走：下载完成，退出应用时自动完成安装。
+  autoUpdater.autoInstallOnAppQuit =
+    process.platform !== "win32" ||
+    (await shouldAutoDownloadAndInstallUpdates(options.settingService));
   autoUpdater.logger = logger;
   applyUpdateProvider(options);
 
