@@ -7,6 +7,7 @@ import type {
   WSLDistro,
 } from "@zcode/shared";
 import { DEFAULT_REMOTE_ASSET_INSTALL_MODE } from "@zcode/shared";
+import { useLanConnectionForm } from "@/hooks/useLanConnectionForm.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import {
   loadRemoteConnectionDockerOptions,
@@ -27,6 +28,8 @@ function buildAvailableKinds(options: { isWindowsDesktop: boolean }): RemoteKind
   // 当探测能力暂时不可用、或用户还没切到 Docker 时，入口会直接消失，
   // 用户甚至不知道这里支持 Docker 连接。改为始终展示入口，切换后再懒加载探测结果。
   kinds.push("docker");
+  // 局域网：连接同一网段内已开启「允许局域网访问」的 Mode 实例。
+  kinds.push("lan");
   return kinds;
 }
 
@@ -43,6 +46,7 @@ export function useRemoteConnectionForm({
 }) {
   const platform = usePlatform();
   const [kind, setKind] = useState<RemoteKind>("ssh");
+  const lan = useLanConnectionForm({ open, kind });
   const [host, setHostState] = useState("");
   const [port, setPortState] = useState("22");
   const [username, setUsernameState] = useState("");
@@ -338,6 +342,7 @@ export function useRemoteConnectionForm({
     wslUser,
     dockerContainer,
     manualDockerContainer,
+    ...lan,
     sshConfigAliases,
     sshConfigAliasesLoading,
     sshConfigAliasesError,
@@ -359,6 +364,7 @@ export function useRemoteConnectionForm({
     setWslUser,
     setDockerContainer,
     setManualDockerContainer,
+    ...lan,
     // Docker 容器列表是运行态数据，之前只在进入 Docker 页时拉一次。
     // 下拉每次打开都通过这个回调按需刷新，避免用户看到已过期的容器列表。
     refreshDockerContainers: () => refreshDockerContainers({ clearContainersOnError: false }),

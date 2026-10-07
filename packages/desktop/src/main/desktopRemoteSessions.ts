@@ -364,7 +364,12 @@ export function createRemoteWorkspaceSessionManager(options: {
         executeProviderProvisioning(child, descriptor.remoteSessionId, environmentKey, trigger),
     );
     route.providerProvisioningDispose = registration.dispose;
-    void registration.initialSync
+    // 局域网对端是另一个完整的 Mode 实例，自己管理 Provider 凭据与模型配置：
+    // 本机不做「把本地 Provider 凭据同步到对端」的发布屏障。该屏障依赖对端的
+    // provisioning target 通道，桌面端实例并不提供它——等待会让连接永久停在「正在连接」。
+    const provisioningBarrier =
+      descriptor.target.kind === "lan" ? Promise.resolve() : registration.initialSync;
+    void provisioningBarrier
       .then(() => attachRendererPort(pending.win, route, "connect"))
       .then(() => {
         emitConnectionLog(pending.win, {

@@ -6,7 +6,11 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { PluginDiagnostic, PluginManifest, PluginStoreListing } from "@zcode/contracts";
 import { isOfficialMarketplaceId, ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
-import { resolveDefaultPluginMarketplaces, sanitizeZCodeRuntimeEnv } from "@zcode/shared";
+import {
+  RETIRED_DEFAULT_MARKETPLACES,
+  resolveDefaultPluginMarketplaces,
+  sanitizeZCodeRuntimeEnv,
+} from "@zcode/shared";
 import { loadPluginMcpServerDefinitions, resolvePluginMcpServers } from "./mcp.js";
 import {
   appendPluginSourceCleanupError,
@@ -21,6 +25,7 @@ import { enumeratePluginComponents, type PluginComponentGroup } from "./plugin-c
 import { applyNetworkEgressEnv } from "../network/subprocess-env.js";
 import { createNodeWebFetchHttpClientAdapter } from "../http/index.js";
 import { writeCdnOfficialMarketplacePartitionSync } from "./official-marketplace.js";
+import { enrichMarketplaceManifestWithPluginIcons } from "./marketplace-plugin-icons.js";
 import {
   isZipPluginUrlSource,
   readZipPluginSourceSha256,
@@ -51,6 +56,14 @@ const MARKETPLACE_JSON_MAX_BYTES = 10 * 1024 * 1024;
 const MARKETPLACE_JSON_MAX_REDIRECTS = 5;
 const MARKETPLACE_JSON_TIMEOUT_MS = 180_000;
 const CLAUDE_MARKETPLACE_FILE = join(".claude-plugin", "marketplace.json");
+// Codex 插件市场的约定位置（codex plugin marketplace add 生成的市场仓库用它声明目录）。
+const CODEX_MARKETPLACE_FILE = join(".agents", "plugins", "marketplace.json");
+// manifest 约定位置的相对形式（POSIX 分隔符）：raw.githubusercontent 取目录时用同一套顺序。
+const MARKETPLACE_MANIFEST_RELATIVE_CANDIDATES = [
+  ".claude-plugin/marketplace.json",
+  "marketplace.json",
+  ".agents/plugins/marketplace.json",
+] as const;
 const ZCODE_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
 const CLAUDE_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
@@ -277,7 +290,7 @@ export function loadKnownMarketplacesSync(storageRoot: string): KnownMarketplace
 }
 
 export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarketplaceRecord[] {
-  const known = loadKnownMarketplacesSync(storageRoot);
+  const known = pruneRetiredDefaultMarketplaces(storageRoot, loadKnownMarketplacesSync(storageRoot));
   const existingIds = new Set(known.map((record) => record.id));
   const now = new Date().toISOString();
   // 官方来源是否进入默认集合由 marketplace 开关（agent 进程策略）决定；
@@ -296,6 +309,29 @@ export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarke
   if (missing.length === 0) return known;
   const next = [...known, ...missing];
   writeKnownMarketplacesSync(storageRoot, next);
+  return next;
+}
+
+/** 清理已退役的默认源：只在 id 与 source 都与退役声明完全一致时移除。 */
+function pruneRetiredDefaultMarketplaces(
+  storageRoot: string,
+  known: KnownMarketplaceRecord[],
+): KnownMarketplaceRecord[] {
+  if (RETIRED_DEFAULT_MARKETPLACES.length === 0) {
+    return known;
+  }
+  const retired = RETIRED_DEFAULT_MARKETPLACES.map((entry) => ({
+    id: entry.id,
+    source: defaultMarketplaceSourceFromString(entry.source),
+  }));
+  const next = known.filter((record) => {
+    const match = retired.find((entry) => entry.id === record.id);
+    if (!match) return true;
+    return JSON.stringify(match.source) !== JSON.stringify(record.source);
+  });
+  if (next.length !== known.length) {
+    writeKnownMarketplacesSync(storageRoot, next);
+  }
   return next;
 }
 
@@ -444,7 +480,31 @@ export async function addMarketplace(input: {
   }
 }
 
-async function requestMarketplaceJson(
+/**
+ * 图标等静态资源的轻量存在性探测：只取前若干字节，避免为一张图拉整包。
+ * 与目录/清单请求共用同一 HTTP 客户端，保持代理与超时策略一致。
+ */
+export async function requestMarketplaceAssetExists(
+  url: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const client = createNodeWebFetchHttpClientAdapter({
+    env: process.env,
+    maxResponseBytes: 4096,
+    timeoutMs: 15_000,
+  });
+  try {
+    const response = await client.request(
+      { headers: { range: "bytes=0-64" }, method: "GET", redirect: "manual", url },
+      { signal },
+    );
+    return (response.status >= 200 && response.status < 400) || response.status === 416;
+  } catch {
+    return false;
+  }
+}
+
+export async function requestMarketplaceJson(
   url: string,
   headers?: Record<string, string>,
   signal?: AbortSignal,
@@ -1234,6 +1294,26 @@ async function resolvePluginSourceRoot(input: {
       if (directoryExists(path)) return { path };
       throw new Error(`Plugin source directory does not exist: ${path}`);
     }
+    if (sourceKind === "local") {
+      // Codex 格式市场的条目写法：{ source: "local", path: "./plugins/<owner>/<name>" }。
+      const sourcePath = readRequiredPluginSourceString(source, "path", "local path").replace(
+        /^\.\//,
+        "",
+      );
+      const local = resolveInside(pluginBaseDir, sourcePath);
+      if (local && directoryExists(local)) {
+        return { path: local };
+      }
+      // manifest-only 市场（大 catalog 只拉了目录）没有落盘插件源码：按需稀疏检出这一个插件目录。
+      const fetched = await fetchMarketplacePluginFromRepo({
+        marketplace: input.marketplace,
+        pluginPath: sourcePath,
+        signal: input.signal,
+        storageRoot: input.storageRoot,
+      });
+      if (fetched) return fetched;
+      throw new Error(`Plugin source directory does not exist: ${sourcePath}`);
+    }
     if (sourceKind === "github") {
       const repo = readRequiredPluginSourceString(source, "repo", "GitHub repo");
       const url = `https://github.com/${repo}.git`;
@@ -1543,6 +1623,32 @@ async function loadMarketplaceFromSource(
       return { manifest: parseRequiredMarketplaceManifest(parsed) };
     }
     case "github": {
+      // 目录只需要 marketplace.json。聚合市场（awesome-codex-plugins 等）整仓归档几十 MB，
+      // 在受限链路上必然超过归档预算，导致"插件源加了但一个插件都列不出来"。
+      // 这里先用 raw 直取 manifest；拿不到再退回归档/稀疏克隆的既有链路。
+      const rawManifest = await requestGitHubRawMarketplaceManifest(source, options.signal);
+      if (rawManifest) {
+        const manifest = parseRequiredMarketplaceManifest(
+          await enrichManifestWithPluginIcons({
+            manifest: rawManifest,
+            ref: source.ref,
+            repo: source.repo,
+            signal: options.signal,
+            storageRoot,
+          }),
+        );
+        if (options.persist) {
+          const activation = await stageMarketplaceManifest(
+            storageRoot,
+            manifest.name,
+            manifest.raw,
+            options.signal,
+          );
+          await activation.finalize();
+        }
+        // 无 sourceRoot：插件源码改为安装时按需稀疏检出（resolvePluginSourceRoot 的 local 分支）。
+        return { manifest };
+      }
       const resolved = await resolveRepositoryMarketplaceSource(
         `https://github.com/${source.repo}.git`,
         source.ref,
@@ -1554,7 +1660,15 @@ async function loadMarketplaceFromSource(
         const file = findMarketplaceManifestPath(resolved.path, source.path);
         if (!file) throw new Error(`Marketplace manifest not found in GitHub repo: ${source.repo}`);
         const parsed = JSON.parse(await readFile(file, "utf8")) as unknown;
-        const manifest = parseRequiredMarketplaceManifest(parsed);
+        const manifest = parseRequiredMarketplaceManifest(
+          await enrichManifestWithPluginIcons({
+            manifest: parsed,
+            ref: source.ref,
+            repo: source.repo,
+            signal: options.signal,
+            storageRoot,
+          }),
+        );
         if (options.persist) {
           const activation = await stageMarketplaceDirectoryPlugins(
             resolved.path,
@@ -1607,6 +1721,109 @@ async function loadMarketplaceFromSource(
     case "pathPattern":
       throw new UnsupportedMarketplaceSourceError("pathPattern");
   }
+}
+
+/**
+ * GitHub 市场的 raw manifest 快路径：走 raw.githubusercontent 直取 marketplace.json，
+ * 避免为了一个目录文件下载几十 MB 的整仓归档。找不到（404/网络失败）返回 undefined，
+ * 由调用方回退到归档 / 稀疏克隆链路。
+ */
+/**
+ * 目录条目自带图标直链（插件 manifest 里的 composerIcon/logo）。补图标是展示层增益，
+ * 拉取失败/超时都不能让市场刷新失败——拿不到的插件退回字母图标。
+ */
+async function enrichManifestWithPluginIcons(input: {
+  manifest: unknown;
+  ref?: string;
+  repo: string;
+  signal?: AbortSignal;
+  storageRoot: string;
+}): Promise<unknown> {
+  if (!input.manifest || typeof input.manifest !== "object" || Array.isArray(input.manifest)) {
+    return input.manifest;
+  }
+  try {
+    return await enrichMarketplaceManifestWithPluginIcons({
+      manifest: input.manifest as Record<string, unknown>,
+      marketplace: input.repo,
+      ref: input.ref,
+      repo: input.repo,
+      signal: input.signal,
+      storageRoot: input.storageRoot,
+    });
+  } catch {
+    return input.manifest;
+  }
+}
+
+async function requestGitHubRawMarketplaceManifest(
+  source: { path?: string; ref?: string; repo: string },
+  signal?: AbortSignal,
+): Promise<unknown | undefined> {
+  const ref = source.ref?.trim() || "HEAD";
+  const explicit = source.path?.trim().replace(/^\.\//, "");
+  const candidates = [
+    ...(explicit ? [explicit] : []),
+    ...MARKETPLACE_MANIFEST_RELATIVE_CANDIDATES,
+  ];
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    const url = `https://raw.githubusercontent.com/${source.repo}/${ref}/${candidate}`;
+    try {
+      return await requestMarketplaceJson(url, undefined, signal);
+    } catch (error) {
+      // 单个候选 404 是正常的（多数仓库只有其中一个位置）；全部候选都失败时交给归档链路兜底。
+      lastError = error;
+    }
+  }
+  if (isMarketplaceNotFoundError(lastError)) {
+    return undefined;
+  }
+  return undefined;
+}
+
+function isMarketplaceNotFoundError(error: unknown): boolean {
+  return error instanceof Error && /HTTP 404|not found/i.test(error.message);
+}
+
+/**
+ * manifest-only 市场里安装单个插件：按市场记录的仓库地址做一次稀疏检出，
+ * 只拉这个插件目录（几百 KB 级），而不是整仓。仅支持 github/git 源，其他返回 undefined。
+ */
+async function fetchMarketplacePluginFromRepo(input: {
+  marketplace: string;
+  pluginPath: string;
+  signal?: AbortSignal;
+  storageRoot: string;
+}): Promise<ResolvedPluginSourceRoot | undefined> {
+  const record = loadKnownMarketplacesSync(input.storageRoot).find(
+    (item) => item.id === input.marketplace,
+  );
+  const source = record?.source;
+  if (!source) return undefined;
+  let url: string;
+  let ref: string | undefined;
+  if (source.source === "github") {
+    url = `https://github.com/${source.repo}.git`;
+    ref = source.ref;
+  } else if (source.source === "git") {
+    url = normalizeGitUrl(source.url);
+    ref = source.ref;
+  } else {
+    return undefined;
+  }
+  const dir = await cloneMarketplaceSource(url, ref, [input.pluginPath], input.signal);
+  const path = resolveInside(dir, input.pluginPath);
+  if (!path || !directoryExists(path)) {
+    await rm(dir, { force: true, recursive: true }).catch(() => undefined);
+    return undefined;
+  }
+  return {
+    cleanup: async () => {
+      await rm(dir, { force: true, recursive: true });
+    },
+    path,
+  };
 }
 
 async function resolveRepositoryMarketplaceSource(
@@ -2139,6 +2356,8 @@ function findMarketplaceManifestPath(rootPath: string, explicitPath?: string): s
     ...(explicitPath ? [explicitPath] : []),
     CLAUDE_MARKETPLACE_FILE,
     MARKETPLACE_FILE,
+    // Codex 布局放在最后：已按 ZCode/Claude 布局分发的仓库解析顺序完全不变。
+    CODEX_MARKETPLACE_FILE,
   ];
   for (const candidate of candidates) {
     const path = resolveInside(rootPath, candidate);

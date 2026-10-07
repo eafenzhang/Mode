@@ -2,15 +2,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DockerContainerInfo,
+  LanDiscoveredPeer,
   RemoteAssetInstallMode,
   RemoteTarget,
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
   WSLDistro,
 } from "@zcode/shared";
-import { AlertTriangleIcon, CheckIcon, ChevronDownIcon, LoaderIcon, Plus } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  LoaderIcon,
+  Plus,
+  RefreshCwIcon,
+} from "lucide-react";
 import {
   TID_DOCKER_CONTAINER_INPUT,
+  TID_LAN_HOST_INPUT,
+  TID_LAN_PAIR_BUTTON,
+  TID_LAN_PAIR_CODE_INPUT,
+  TID_LAN_PEER_ITEM,
+  TID_LAN_PEER_LIST,
+  TID_LAN_PORT_INPUT,
   TID_DOCKER_CONTAINER_SELECT,
   TID_SSH_CONFIG_ALIAS_SELECT,
   TID_SSH_AUTH_PASSWORD,
@@ -49,6 +63,27 @@ import {
 } from "@/components/ui/select.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
+/** 局域网页字段：发现结果、地址、配对码与配对状态。 */
+export interface RemoteConnectionLanFieldsProps {
+  host: string;
+  port: string;
+  pairCode: string;
+  serverId: string;
+  serverName: string;
+  token: string;
+  peers: LanDiscoveredPeer[];
+  scanning: boolean;
+  scanError: string;
+  pairing: boolean;
+  pairError: string;
+  onHostChange: (value: string) => void;
+  onPortChange: (value: string) => void;
+  onPairCodeChange: (value: string) => void;
+  onRescan: () => void;
+  onSelectPeer: (peer: LanDiscoveredPeer) => void;
+  onPair: () => void;
+}
+
 const DEFAULT_WSL_DISTRO_VALUE = "__default_wsl_distro__";
 const NO_SSH_CONFIG_ALIAS_VALUE = "__ssh_config_alias_none__";
 
@@ -61,6 +96,7 @@ function formatSshConfigAliasSummary(aliasOption: SSHConfigAliasOption): string 
 
 export function RemoteConnectionFields({
   kind,
+  lanFields,
   host,
   port,
   username,
@@ -99,6 +135,8 @@ export function RemoteConnectionFields({
   setManualDockerContainer,
 }: {
   kind: RemoteTarget["kind"];
+  /** 局域网页的全部字段状态与回调（单独成组，避免再往这个组件塞十个平铺 prop）。 */
+  lanFields: RemoteConnectionLanFieldsProps;
   host: string;
   port: string;
   username: string;
@@ -221,6 +259,160 @@ export function RemoteConnectionFields({
   }, [sshAliasPopoverOpen, selectedSshConfigAlias, sshConfigAliases.length]);
 
   switch (kind) {
+    case "lan": {
+      const paired = Boolean(lanFields.token.trim());
+      const pairedLabel = lanFields.serverName.trim() || lanFields.serverId.trim();
+      return (
+        <div className="space-y-3">
+          <p className="text-ui-base text-foreground-subtle">
+            {intl.formatMessage({ id: "remote.lan.description" })}
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-ui-base text-foreground-subtle">
+              {intl.formatMessage({ id: "remote.lan.discoveredTitle" })}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2"
+              disabled={lanFields.scanning}
+              onClick={lanFields.onRescan}
+            >
+              {lanFields.scanning ? (
+                <LoaderIcon className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCwIcon className="size-3.5" />
+              )}
+              {intl.formatMessage({ id: "remote.lan.rescan" })}
+            </Button>
+          </div>
+          {lanFields.peers.length > 0 ? (
+            <div className="space-y-2" data-testid={TID_LAN_PEER_LIST}>
+              {lanFields.peers.map((peer) => {
+                const selected =
+                  peer.host === lanFields.host.trim() && String(peer.port) === lanFields.port.trim();
+                return (
+                  <button
+                    key={`${peer.serverId}@${peer.host}:${peer.port}`}
+                    type="button"
+                    data-testid={TID_LAN_PEER_ITEM}
+                    onClick={() => lanFields.onSelectPeer(peer)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-start transition-colors",
+                      selected
+                        ? "border-input-border-focused bg-surface-hover"
+                        : "border-card-border bg-card hover:border-input-border-hover hover:bg-surface-hover",
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-ui-base text-foreground">
+                        {peer.name?.trim() || peer.serverId}
+                      </span>
+                      <span className="block truncate text-ui-xs text-foreground-subtle">
+                        {`${peer.host}:${peer.port}`}
+                      </span>
+                    </span>
+                    {selected ? <CheckIcon className="size-4 shrink-0 text-primary" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-border px-3 py-2 text-ui-base text-foreground-subtle">
+              {lanFields.scanning
+                ? intl.formatMessage({ id: "remote.lan.scanning" })
+                : intl.formatMessage({ id: "remote.lan.empty" })}
+            </p>
+          )}
+          {lanFields.scanError ? (
+            <p className="flex items-center gap-1.5 text-ui-base text-warning">
+              <AlertTriangleIcon className="size-3.5 shrink-0" />
+              {lanFields.scanError}
+            </p>
+          ) : null}
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+            <div>
+              <label className="mb-1 block text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "remote.lan.hostLabel" })}
+              </label>
+              <Input
+                size="lg"
+                data-testid={TID_LAN_HOST_INPUT}
+                value={lanFields.host}
+                onChange={(event) => lanFields.onHostChange(event.target.value)}
+                placeholder="192.168.1.20"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "remote.lan.portLabel" })}
+              </label>
+              <Input
+                size="lg"
+                inputMode="numeric"
+                data-testid={TID_LAN_PORT_INPUT}
+                value={lanFields.port}
+                onChange={(event) =>
+                  lanFields.onPortChange(event.target.value.replace(/[^\d]/gu, ""))
+                }
+              />
+            </div>
+          </div>
+          {paired ? (
+            <p className="flex items-center gap-1.5 text-ui-base text-foreground-subtle">
+              <CheckIcon className="size-3.5 shrink-0 text-success" />
+              {intl.formatMessage(
+                { id: "remote.lan.paired" },
+                { name: pairedLabel || `${lanFields.host}:${lanFields.port}` },
+              )}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <label className="mb-1 block text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "remote.lan.pairCodeLabel" })}
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  size="lg"
+                  data-testid={TID_LAN_PAIR_CODE_INPUT}
+                  className="max-w-40 tracking-[0.3em] uppercase"
+                  value={lanFields.pairCode}
+                  onChange={(event) =>
+                    lanFields.onPairCodeChange(
+                      event.target.value.replace(/[^0-9a-fA-F]/gu, "").slice(0, 6).toUpperCase(),
+                    )
+                  }
+                  placeholder="A1B2C3"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  data-testid={TID_LAN_PAIR_BUTTON}
+                  disabled={lanFields.pairing || lanFields.pairCode.trim().length < 4}
+                  onClick={lanFields.onPair}
+                >
+                  {lanFields.pairing ? (
+                    <LoaderIcon className="size-3.5 animate-spin" />
+                  ) : null}
+                  {intl.formatMessage({ id: "remote.lan.pair" })}
+                </Button>
+              </div>
+              <p className="text-ui-xs text-foreground-subtlest">
+                {intl.formatMessage({ id: "remote.lan.pairCodeHint" })}
+              </p>
+              {lanFields.pairError ? (
+                <p className="flex items-center gap-1.5 text-ui-base text-destructive">
+                  <AlertTriangleIcon className="size-3.5 shrink-0" />
+                  {lanFields.pairError}
+                </p>
+              ) : null}
+            </div>
+          )}
+        </div>
+      );
+    }
     case "ssh":
       return (
         <div className="space-y-3">

@@ -525,8 +525,13 @@ export function SessionPane({
     fileChanges,
     fileRewindPreview,
   } = useV4Conversation();
-  const { conversationShareService, modelSelectionService, zcodeSessionService, zcodeTaskService } =
-    useServices();
+  const {
+    conversationShareService,
+    modelSelectionService,
+    zcodeSessionService,
+    zcodeTaskService,
+    botsService,
+  } = useServices();
   const { intl, locale } = useZCodeIntl();
   const slashCommands = useSlashCommands(workspacePath, workspaceIdentity);
   const baseWorkspaceServices = useBaseWorkspaceServices();
@@ -2309,6 +2314,34 @@ export function SessionPane({
     [dispatchCommand, intl, settleCurrentQueueInputs],
   );
 
+  /**
+   * 桌面输入镜像（双向实时同步的桌面→IM 方向）：
+   * 绑定到 IM 机器人的会话里，用户从桌面发出的内容同步到 IM 聊天。
+   * 只在渲染层用户主动发送时触发，机器人自身产生的回合不经过这里，天然没有回声。
+   */
+  const mirrorDesktopPromptToIm = useCallback(
+    (targetTaskId: string, text: string) => {
+      if (!targetTaskId || !text.trim()) {
+        return;
+      }
+      void botsService
+        .notifyDesktopUserMessage({
+          taskId: targetTaskId,
+          workspacePath,
+          ...(workspaceIdentity ? { workspaceIdentity } : {}),
+          text,
+        })
+        .catch((error: unknown) => {
+          logger.warn(
+            `[v4-pane] desktop prompt mirror failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+    },
+    [botsService, workspaceIdentity, workspacePath],
+  );
+
   const dispatchSendTextAfterConfig = useCallback(
     async (
       text: string,
@@ -2623,6 +2656,7 @@ export function SessionPane({
         if (sendAck.status !== "accepted") {
           throw new Error(sendAck.reasonCode ?? "sendText 被拒绝");
         }
+        mirrorDesktopPromptToIm(newSessionId, effectiveText);
         handleDraftSessionCreated(newSessionId, groupedDraftTaskAtSend);
         return;
       }
@@ -2655,6 +2689,7 @@ export function SessionPane({
       if (ack.status !== "accepted") {
         throw new Error(ack.reasonCode ?? "sendText 被拒绝");
       }
+      mirrorDesktopPromptToIm(sessionId, effectiveText);
       if (heldQueueDisposition === "clearQueueAndSend") {
         settleCurrentQueueInputs(sessionId);
       }
@@ -2675,6 +2710,7 @@ export function SessionPane({
       lease,
       resolveInitialDraftConfig,
       createSubmissionFromComposer,
+      mirrorDesktopPromptToIm,
       sessionId,
       settleCurrentQueueInputs,
       workspaceIdentity,

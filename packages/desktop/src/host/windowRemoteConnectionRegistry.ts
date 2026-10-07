@@ -122,6 +122,9 @@ function buildConnectionKey(target: RemoteTarget, remoteSessionId: string): stri
     case "docker":
       // Docker 保持现有 dedicated logical session 生命周期，不按 target 复用。
       return `${target.kind}:dedicated:${remoteSessionId}`;
+    case "lan":
+      // 同一台对端复用一条 WS 通道，多个工作区会话共享（与 SSH 按 host 复用同构）。
+      return `lan:${target.host.trim().toLowerCase()}:${target.port}`;
   }
 }
 

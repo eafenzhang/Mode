@@ -14,6 +14,7 @@ import {
   SocketProtocol,
   ChannelServer,
   LoggingChannelServer,
+  ProxyChannel,
   type ISocket,
 } from "@zcode/rpc";
 import {
@@ -31,7 +32,9 @@ import {
   botProviders,
   formatLogPrefix,
   formatZodError,
+  lanAccessPairRequestSchema,
   remoteTargetSchema,
+  type LanAccessPairingEndpoint,
   SERVER_REMOTE_PROTOCOL_VERSION,
   ZCODE_RPC_HOST_CAPABILITY_HEADER,
   ZCODE_VERSION,
@@ -108,15 +111,31 @@ function setupChannelServer(
   }
   // Provisioning 携带跨 Environment 凭据，只允许 Desktop trusted host 使用；普通 Web
   // remote/replayable 客户端即使知道频道名，也不能获得 target 写入接口。
-  if (
-    clientMode !== "desktop-continuous" &&
-    services.getOptional(IProviderProvisioningTargetService)
-  ) {
+  // Provider Provisioning 的「写入凭据」接口永远不通过 HTTP/WS 服务暴露：
+  // 非受信客户端一律拒绝；受信客户端（局域网对端）拿到的是一个会立即失败的实现——
+  // 一是对端环境本就不该被写入我们的凭据，二是缺省会让调用方的 initialSync 永久挂起
+  // （ChannelClient 对未注册频道会排队等待，局域网连接实测踩到过）。
+  if (services.getOptional(IProviderProvisioningTargetService)) {
     overrides.set(IProviderProvisioningTargetService.channelName, {
       apply: async () => {
-        throw new Error("Provider Provisioning 仅支持受信 Desktop Host");
+        throw new Error(
+          clientMode === "desktop-continuous"
+            ? "Provider Provisioning 目标不可用：该环境不支持写入凭据"
+            : "Provider Provisioning 仅支持受信 Desktop Host",
+        );
       },
     });
+  } else {
+    // 本地 host 没有注册 provisioning target 服务，overrides 只能替换已注册服务、无法新增频道；
+    // 这里显式注册一个占位通道：否则客户端会一直排队等这个频道（ChannelClient 对未注册频道不报错）。
+    server.registerChannel(
+      IProviderProvisioningTargetService.channelName,
+      ProxyChannel.fromService({
+        apply: async () => {
+          throw new Error("Provider Provisioning 目标不可用：该环境不支持写入凭据");
+        },
+      }),
+    );
   }
   services.exposeOnChannelServer(server, overrides);
   socket.onClose(() => {
@@ -138,9 +157,17 @@ interface HttpServerOptions {
   host?: string;
   authRequired?: boolean;
   authToken?: string;
+  /**
+   * 多客户端令牌校验：局域网访问下每个已配对设备各有令牌，服务端逐令牌校验；
+   * 提供时优先于单一 authToken 比较。
+   */
+  verifyAuthToken?: (token: string) => boolean;
+  /** 局域网配对端点：提供时暴露 POST /api/lan/pair（该路由用一次性配对码自证，不要求既有令牌）。 */
+  lanPairing?: LanAccessPairingEndpoint;
   spaFallback?: boolean;
   staticRoot?: string;
-  workspaces?: ServerRemoteWorkspaceInfo[];
+  /** 工作区列表：静态数组或按请求求值（局域网服务端要反映「刚刚打开的工作区」）。 */
+  workspaces?: ServerRemoteWorkspaceInfo[] | (() => Promise<ServerRemoteWorkspaceInfo[]>);
 }
 
 function readTrimmedEnv(name: string): string | undefined {
@@ -154,7 +181,14 @@ function resolveServerId(options: HttpServerOptions): string {
   );
 }
 
-function resolveServerWorkspaces(options: HttpServerOptions): ServerRemoteWorkspaceInfo[] {
+async function resolveServerWorkspaces(options: HttpServerOptions): Promise<ServerRemoteWorkspaceInfo[]> {
+  if (typeof options.workspaces === "function") {
+    try {
+      return await options.workspaces();
+    } catch {
+      return [];
+    }
+  }
   if (options.workspaces) {
     return options.workspaces;
   }
@@ -167,7 +201,7 @@ function resolveServerWorkspaces(options: HttpServerOptions): ServerRemoteWorksp
   ];
 }
 
-function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
+async function createServerInfo(options: HttpServerOptions): Promise<ServerRemoteInfo> {
   return {
     serverId: resolveServerId(options),
     ...(options.name?.trim() || readTrimmedEnv("ZCODE_SERVER_NAME")
@@ -176,7 +210,7 @@ function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
     version: ZCODE_VERSION,
     protocolVersion: SERVER_REMOTE_PROTOCOL_VERSION,
     authRequired: options.authRequired ?? Boolean(readTrimmedEnv("ZCODE_SERVER_TOKEN")),
-    workspaces: resolveServerWorkspaces(options),
+    workspaces: await resolveServerWorkspaces(options),
     capabilities: {
       desktopContinuous: true,
       websocketRpc: true,
@@ -224,16 +258,24 @@ function parseCookieHeader(header: string | undefined): Map<string, string> {
   return cookies;
 }
 
-function hasValidLiteToken(c: Context, token: string): boolean {
+function readPresentedLiteToken(c: Context): { token: string | undefined; fromQuery: boolean } {
   const url = new URL(c.req.url);
-  if (url.searchParams.get("token") === token) {
-    c.header(
-      "Set-Cookie",
-      `${zcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
-    );
-    return true;
+  const queryToken = url.searchParams.get("token");
+  if (queryToken) {
+    return { token: queryToken, fromQuery: true };
   }
-  return parseCookieHeader(c.req.header("cookie")).get(zcodeLiteTokenCookieName) === token;
+  return {
+    token: parseCookieHeader(c.req.header("cookie")).get(zcodeLiteTokenCookieName),
+    fromQuery: false,
+  };
+}
+
+/** 校验通过且令牌来自 query 时落一次 Cookie；局域网多客户端场景复用同一入口。 */
+function rememberLiteTokenCookie(c: Context, token: string): void {
+  c.header(
+    "Set-Cookie",
+    `${zcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
+  );
 }
 
 function isTokenProtectedPath(pathname: string): boolean {
@@ -305,10 +347,22 @@ export function createHttpServer(
   const hostCapabilities = createHostCapabilityStore();
 
   const authToken = options.authToken?.trim();
-  if (authToken) {
+  const verifyAuthToken = options.verifyAuthToken;
+  if (authToken || verifyAuthToken) {
     app.use("*", async (c, next) => {
       const pathname = new URL(c.req.url).pathname;
-      const validToken = hasValidLiteToken(c, authToken);
+      // 配对接口是「登录前引导」：客户端此时没有令牌，凭一次性配对码换取。
+      if (pathname === "/api/lan/pair") {
+        await next();
+        return;
+      }
+      const presented = readPresentedLiteToken(c);
+      const validToken =
+        presented.token !== undefined &&
+        (verifyAuthToken ? verifyAuthToken(presented.token) : presented.token === authToken);
+      if (validToken && presented.fromQuery && presented.token) {
+        rememberLiteTokenCookie(c, presented.token);
+      }
       if (!isTokenProtectedPath(pathname) || validToken) {
         await next();
         return;
@@ -317,8 +371,31 @@ export function createHttpServer(
     });
   }
 
-  app.get("/api/server-info", (c) => c.json(createServerInfo(options)));
+  app.get("/api/server-info", async (c) => c.json(await createServerInfo(options)));
   app.post("/api/rpc-host-capability", (c) => c.json(hostCapabilities.issue()));
+
+  // 局域网配对：一次性配对码 → 该设备专属长期令牌。失败不区分「码错/过期」，
+  // 避免给扫描者提供探测信号。
+  if (options.lanPairing) {
+    const lanPairing = options.lanPairing;
+    app.post("/api/lan/pair", async (c) => {
+      let rawBody: unknown;
+      try {
+        rawBody = await c.req.json();
+      } catch {
+        return c.json({ error: "Invalid JSON body" }, 400);
+      }
+      const parsedBody = lanAccessPairRequestSchema.safeParse(rawBody);
+      if (!parsedBody.success) {
+        return c.json({ error: `Invalid request body: ${formatZodError(parsedBody.error)}` }, 400);
+      }
+      const result = await lanPairing.redeem(parsedBody.data);
+      if (!result) {
+        return c.json({ error: "Invalid or expired pair code" }, 401);
+      }
+      return c.json(result);
+    });
+  }
 
   // 普通 `/ws` 永远是 terminal-client；浏览器/任意客户端设置旧 mode header
   // 都不能再把自己提升为 trusted host。

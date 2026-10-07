@@ -22,6 +22,13 @@ interface RemoteConnectionFormSnapshot {
   wslUser?: string;
   dockerContainer: string;
   manualDockerContainer?: string;
+  // 局域网：地址可来自发现列表或手动输入；配对成功后带 serverId/name 与令牌。
+  lanHost: string;
+  lanPort: string;
+  lanServerId: string;
+  lanServerName: string;
+  lanToken: string;
+  lanPairCode: string;
 }
 
 export function getRemoteWizardStepCopy(
@@ -68,6 +75,29 @@ export function buildRemoteTarget(
   snapshot: RemoteConnectionFormSnapshot,
 ): { target?: RemoteTarget; errorMessage?: string } {
   switch (snapshot.kind) {
+    case "lan": {
+      const host = snapshot.lanHost.trim();
+      if (!host) {
+        return { errorMessage: intl.formatMessage({ id: "remote.lan.validation.hostRequired" }) };
+      }
+      if (host.includes(":")) {
+        return { errorMessage: intl.formatMessage({ id: "remote.lan.validation.hostInvalid" }) };
+      }
+      const port = Number.parseInt(snapshot.lanPort.trim(), 10);
+      if (!Number.isFinite(port) || port <= 0 || port > 65535) {
+        return { errorMessage: intl.formatMessage({ id: "remote.lan.validation.portInvalid" }) };
+      }
+      return {
+        target: {
+          kind: "lan",
+          host,
+          port,
+          ...(snapshot.lanServerId.trim() ? { serverId: snapshot.lanServerId.trim() } : {}),
+          ...(snapshot.lanServerName.trim() ? { serverName: snapshot.lanServerName.trim() } : {}),
+          ...(snapshot.lanToken.trim() ? { token: snapshot.lanToken.trim() } : {}),
+        },
+      };
+    }
     case "ssh":
       if (!snapshot.host || !snapshot.username) {
         return {

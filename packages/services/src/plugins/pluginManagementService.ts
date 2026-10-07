@@ -42,8 +42,8 @@ export function createPluginManagementService(
       agent.onDynamicPluginOperationProgress(operationId),
     async getPluginsOverview(params) {
       const result = await agent.getPluginsOverview(params);
-      // 官方市场开关关闭时，公开市场投影必须为空并显式标记：UI 的“公开”分段据此不展示
-      // 缓存过的官方市场/插件（它们仍保留在本地，重新打开开关后可见），同时引导用户去设置打开。
+      // 官方平台服务已整体下线：公开市场投影恒为空并显式标记，UI 的“公开”分段据此
+      // 不展示缓存过的官方市场/插件，只显示“已下线”提示（没有开关可以恢复）。
       // 已安装插件列表不受过滤，用户仍可管理本地已安装的插件。
       if (isOfficialServiceEnabled("marketplace")) {
         return { ...result, officialMarketplaceEnabled: true };

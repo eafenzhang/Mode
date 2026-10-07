@@ -1,10 +1,17 @@
 /* eslint-disable max-lines -- 跨端 platform contract 集中声明 renderer 能力；OAuth 与 browser lifecycle 必须保持 desktop/web 类型合同，本 MR 不拆分平台边界。 */
 import type {
   DockerConnectOptions,
+  LanConnectOptions,
   RemoteTarget,
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
+import type {
+  LanAccessPairResult,
+  LanAccessState,
+  LanDiscoveredPeer,
+  LanPairPeerRequest,
+} from "./lanAccess.js";
 import type {
   LoadCliMcpFromUserDirectoryRequest,
   LoadCliMcpFromUserDirectoryResult,
@@ -222,7 +229,9 @@ export interface ApplicationIconRequest {
 export type OpenInEditorRemoteTarget =
   | Pick<SSHConnectOptions, "kind" | "host" | "port" | "username" | "sshConfigAlias">
   | Pick<WSLConnectOptions, "kind" | "distro" | "user">
-  | Pick<DockerConnectOptions, "kind" | "container">;
+  | Pick<DockerConnectOptions, "kind" | "container">
+  // 局域网对端没有可直连的 shell 通道，主进程会明确拒绝（本地编辑器 Remote-SSH 表达不了它）。
+  | Pick<LanConnectOptions, "kind" | "host" | "port">;
 
 export interface OpenInEditorOptions {
   remoteTarget?: OpenInEditorRemoteTarget;
@@ -294,6 +303,12 @@ export function createOpenInEditorRemoteTarget(target: RemoteTarget): OpenInEdit
         kind: "docker",
         container: target.container,
       };
+    case "lan":
+      return {
+        kind: "lan",
+        host: target.host,
+        port: target.port,
+      };
   }
 }
 
@@ -329,13 +344,6 @@ export interface ZCodeStdioTapDevState {
 }
 
 export type DesktopTitleBarTheme = "light" | "dark" | "system";
-
-export interface WindowScreenshotResult {
-  dataBase64: string;
-  filename: string;
-  contentType: string;
-  size: number;
-}
 
 export type ChromeBrowserDataImportError =
   | "chrome_profile_not_found"
@@ -480,7 +488,6 @@ export const DesktopCommandIds = {
   OpenChangelog: "openChangelog",
   CheckForUpdates: "checkForUpdates",
   RelaunchApp: "relaunchApp",
-  OpenFeedback: "openFeedback",
   OpenCommunity: "openCommunity",
   ExportLogs: "exportLogs",
   ToggleDevTools: "toggleDevTools",
@@ -603,6 +610,20 @@ export interface IPlatformService {
 
   /** 检查本机 Docker daemon 是否可用 */
   isDockerAvailable(): Promise<boolean>;
+  /** 读取局域网访问状态（服务端视角：监听端口、可达地址、配对码、已配对客户端）。 */
+  getLanAccessState(): Promise<LanAccessState>;
+  /** 开关局域网访问；返回最新状态。 */
+  setLanAccessEnabled(enabled: boolean): Promise<LanAccessState>;
+  /** 生成/刷新一次性配对码（5 分钟有效）；返回最新状态。 */
+  createLanAccessPairCode(): Promise<LanAccessState>;
+  /** 移除一个已配对客户端（其令牌同时失效）。 */
+  removeLanAccessClient(clientId: string): Promise<LanAccessState>;
+  /** 重置全部客户端令牌（所有已配对设备需重新配对）。 */
+  resetLanAccessTokens(): Promise<LanAccessState>;
+  /** 广播探测局域网内的 Mode 实例（1~2 秒窗口，返回去重后的设备列表）。 */
+  discoverLanPeers(): Promise<LanDiscoveredPeer[]>;
+  /** 用对端显示的配对码换取长期令牌（令牌写入凭据服务，不回传任务负载）。 */
+  pairLanPeer(request: LanPairPeerRequest): Promise<LanAccessPairResult>;
 
   /** 列出本机可用的 WSL 发行版 */
   listWSLDistros(): Promise<WSLDistro[]>;
@@ -635,15 +656,6 @@ export interface IPlatformService {
   getApplicationIcon?(
     request: string | ApplicationIconRequest,
   ): Promise<ApplicationIconInfo | null>;
-
-  /** 打开反馈入口，由平台自行解析最终地址 */
-  openFeedback(): Promise<void>;
-
-  /** 订阅 main 进程打开内置反馈对话框事件（Desktop） */
-  onOpenFeedbackDialog?(handler: () => void): () => void;
-
-  /** 订阅 main 进程打开我的工单面板事件（Desktop） */
-  onOpenTicketsPanel?(handler: () => void): () => void;
 
   /** 打开用户社群入口，由平台自行解析当前语言对应渠道 */
   openCommunity(): Promise<void>;
@@ -818,9 +830,6 @@ export interface IPlatformService {
 
   /** 导出日志：打包 ~/.zcodium/v2 及外部 agent 日志为 zip 并在系统文件浏览器中显示 */
   exportLogs(): Promise<{ success: boolean; path?: string; error?: string }>;
-
-  /** 截取当前窗口，用于错误反馈携带现场画面；Web fallback 可返回 null */
-  captureWindowScreenshot?(): Promise<WindowScreenshotResult | null>;
 
   /** `<webview>` guest 上报；active=true 表示 agent 无 tabId 命令优先读取当前可见页。 */
   browserViewAttachGuest?(payload: {

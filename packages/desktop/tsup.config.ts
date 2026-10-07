@@ -133,6 +133,9 @@ const desktopNodeRuntimeExternals = [
   "node-forge",
   // ZIP 解包器内部依赖 CommonJS require("fs")，不能内联到 ESM main/host 产物。
   "yauzl",
+  // 企业微信机器人 SDK 依赖 axios → form-data → combined-stream，链路上有 require("util")
+  // 动态加载；内联后 Electron 加载 host ESM 产物会报 Dynamic require of "util" is not supported。
+  "@wecom/aibot-node-sdk",
 ];
 
 function createDevReadyMarkerHook(target: "main" | "host" | "preload"): string {

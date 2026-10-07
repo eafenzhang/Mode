@@ -1,5 +1,6 @@
 import {
   Monitor,
+  Radar,
   Moon,
   Settings,
   Settings2,
@@ -18,7 +19,6 @@ import {
   WandSparkles,
   Keyboard,
   FileSearch,
-  ShieldCheck,
 } from "lucide-react";
 import { isSettingsSectionEnabled, type SettingsSectionId } from "@/lib/settingsNavigation.js";
 import type { Theme } from "@/useTheme.js";
@@ -129,6 +129,14 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.browser.title",
     groupId: "basics",
   },
+  // 局域网访问：把本机工作区开放给同网段的其它 Mode（配对码授权），
+  // 与「电脑控制」同属本机能力开放，收在基础设置里相邻展示。
+  {
+    id: "lanAccess",
+    icon: Radar,
+    titleId: "settings.lanAccess.title",
+    groupId: "basics",
+  },
   // 电脑控制紧跟「浏览器」：两者都是给 Agent 用的本机操控入口，
   // 放在基础设置里让用户在同一处理解「控制浏览器 / 控制整台电脑」的关系。
   {
@@ -155,12 +163,6 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "usage",
     icon: BarChart3,
     titleId: "settings.usageTitle",
-    groupId: "dataAndStats",
-  },
-  {
-    id: "officialServices",
-    icon: ShieldCheck,
-    titleId: "settings.officialServicesTitle",
     groupId: "dataAndStats",
   },
 ];

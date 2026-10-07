@@ -4,6 +4,7 @@ import { WorkspaceLastActivity } from "@/WorkspaceHeaderSections/WorkspaceLastAc
 import {
   TID_WORKSPACE_MORE_BUTTON,
   TID_WORKSPACE_PATH,
+  TID_WORKSPACE_BOT_CHANNELS,
   TID_WORKSPACE_TITLE,
   type RemoteTarget,
   type ZCodeTaskMeta,
@@ -18,6 +19,9 @@ import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
 import { useBaseWorkspaceServices, useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { TaskActionMenuContent } from "@/TaskActionMenuContent.js";
+import { BotBindingMenuItems, DROPDOWN_MENU_PRIMITIVES } from "@/botBindingMenu.js";
+import { ProviderIcon } from "@/BotsDialog/shared.js";
+import { useBotTaskBinding } from "@/store/botTaskBindingsStore.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,9 +36,7 @@ import {
 } from "@/lib/remoteWorkspaceHistory.js";
 import { resolveWorkspaceHeaderProvider } from "@/lib/workspaceHeaderProvider.js";
 import { toast } from "@/components/ui/toast.js";
-import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import { useModelTrajectoryStore } from "@/store/modelTrajectoryStore.js";
-import { buildTaskFeedbackDescription } from "@/lib/taskFeedbackDraft.js";
 import { resolveGitBranchTriggerLabel } from "@/git-branch-switcher/display.js";
 import type {
   WorkspaceHeaderState,
@@ -104,7 +106,6 @@ export function WorkspaceHeaderTitleSection({
   compact = false,
 }: WorkspaceHeaderTitleSectionProps) {
   const { intl } = useZCodeIntl();
-  const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
   const confirmDialog = useConfirmDialog();
   const services = useWorkspaceServices(workspaceAbsPath, remoteSessionId, workspaceIdentity);
   const baseServices = useBaseWorkspaceServices();
@@ -154,6 +155,12 @@ export function WorkspaceHeaderTitleSection({
     activeTaskId && pinnedTasks.some((task) => task.taskId === activeTaskId),
   );
   const resolvedTaskActionTaskId = activeTaskMeta?.taskId ?? activeTaskId;
+  // 标题栏的机器人标识：读取当前会话的绑定投影（无绑定时为空数组，不渲染任何东西）。
+  const headerBotBindings = useBotTaskBinding(
+    workspaceAbsPath,
+    workspaceIdentity,
+    resolvedTaskActionTaskId ?? "",
+  );
   // 新建任务在第一次写入数据库前没有稳定 taskId。
   // 之前 Header 更多菜单虽然点击后会被回调里的空 id guard 拦住，但 UI 仍显示为可点，
   // 用户会感知成“菜单无响应”；这里只禁用依赖已落库 task 的动作，保留 workspace 级入口。
@@ -218,39 +225,6 @@ export function WorkspaceHeaderTitleSection({
   // 新任务草稿还没有稳定 task 作用域，header 再展示 workspace/分支会和空态主文案重复抢焦点。
   // 草稿态继续隐藏上下文入口；已有 task 将工作区与分支收进名称前的图标提示。
   const isDraftNewTask = variant ? variant === "draft" : activeTaskId === null;
-
-  const handleOpenTaskFeedback = async () => {
-    const taskTitle =
-      activeTaskTitle ||
-      intl.formatMessage({
-        id: activeTaskMeta?.forkedFromTaskId ? "taskList.forkedUntitled" : "taskList.untitled",
-      });
-    // Header 更多菜单缺少当前任务的反馈入口，用户只能复制日志再手动新建反馈。
-    // 这里打开反馈表单时预填任务标题、路径和日志线索，截图和诊断日志由用户主动选择。
-    openFeedbackSubmit({
-      title: intl
-        .formatMessage(
-          { id: "feedback.submit.template.section.taskFeedbackTitle" },
-          { title: taskTitle },
-        )
-        .slice(0, 80),
-      type: "bug",
-      module: "Agent任务执行失败",
-      severity: "P2-中",
-      includeLogs: false,
-      description: buildTaskFeedbackDescription({
-        taskTitle,
-        taskId: resolvedTaskActionTaskId ?? undefined,
-        workspacePath: workspaceAbsPath,
-        taskSessionPath: taskSessionFile.path,
-        taskLogPath: taskNativeSessionLogFile.path,
-        formatMessage: (id: string, values?: Record<string, string>) =>
-          intl.formatMessage({ id }, values),
-      }),
-      screenshots: [],
-    });
-    toast(intl.formatMessage({ id: "taskList.feedbackOpened" }));
-  };
 
   const handleStartRenameTask = () => {
     if (!resolvedTaskActionTaskId) {
@@ -465,6 +439,50 @@ export function WorkspaceHeaderTitleSection({
           </Button>
         </ControlHintTooltip>
       ) : null}
+      {headerBotBindings.length > 0 ? (
+        <ControlHintTooltip
+          title={intl.formatMessage(
+            { id: "taskList.botBound" },
+            {
+              channel: headerBotBindings
+                .map((binding) =>
+                  intl.formatMessage(
+                    { id: "taskList.botBound.entry" },
+                    {
+                      channel: intl.formatMessage({ id: `bots.channel.${binding.provider}` }),
+                      conversation:
+                        binding.conversationKind === "group"
+                          ? intl.formatMessage(
+                              { id: "taskList.botBind.conversation.group" },
+                              { id: binding.conversationId },
+                            )
+                          : intl.formatMessage(
+                              { id: "taskList.botBind.conversation.private" },
+                              {
+                                name:
+                                  binding.conversationLabel?.trim() ||
+                                  binding.conversationId,
+                              },
+                            ),
+                    },
+                  ),
+                )
+                .join("、"),
+            },
+          )}
+          side="bottom"
+          align="center"
+        >
+          <span
+            data-testid={TID_WORKSPACE_BOT_CHANNELS}
+            className="flex shrink-0 items-center gap-1 text-foreground-subtle"
+          >
+            {headerBotBindings.map((binding) => (
+              <ProviderIcon key={binding.botId} provider={binding.provider} className="size-3.5" />
+            ))}
+          </span>
+        </ControlHintTooltip>
+      ) : null}
       <h1
         data-testid={TID_WORKSPACE_TITLE}
         className={cn(
@@ -669,9 +687,6 @@ export function WorkspaceHeaderTitleSection({
                       });
                     });
                 }}
-                onOpenTaskFeedback={() => {
-                  void handleOpenTaskFeedback();
-                }}
                 onOpenTaskPathInFileManager={() => {
                   void handleOpenTaskPathInFileManager();
                 }}
@@ -711,6 +726,20 @@ export function WorkspaceHeaderTitleSection({
                     : undefined
                 }
               />
+              {/* 标题右侧「···」也要能绑定 IM 机器人：与任务行右键菜单同一份子菜单（右键菜单只是多一个入口）。 */}
+              {resolvedTaskActionTaskId ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <BotBindingMenuItems
+                    task={{
+                      taskId: resolvedTaskActionTaskId,
+                      workspacePath: workspaceAbsPath,
+                      ...(workspaceIdentity ? { workspaceIdentity } : {}),
+                    }}
+                    primitives={DROPDOWN_MENU_PRIMITIVES}
+                  />
+                </>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}

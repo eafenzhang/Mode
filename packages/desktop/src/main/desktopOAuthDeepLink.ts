@@ -144,8 +144,8 @@ export function resolveExternalWorkspaceOpenDialogCopy(
   if (locale === "zh-CN") {
     return {
       buttons: ["打开文件夹", "取消"],
-      title: "打开外部 ZCodium 链接？",
-      message: "是否在 ZCodium 中打开此文件夹？",
+      title: "打开外部 Mode 链接？",
+      message: "是否在 Mode 中打开此文件夹？",
       detail: (path) => `${path}\n\n只打开你信任来源的文件夹。项目设置可能影响 agent runtime。`,
     };
   }
@@ -153,8 +153,8 @@ export function resolveExternalWorkspaceOpenDialogCopy(
   if (locale === "fa-IR") {
     return {
       buttons: ["باز کردن پوشه", "لغو"],
-      title: "باز کردن پیوند خارجی ZCodium؟",
-      message: "این پوشه در ZCodium باز شود؟",
+      title: "باز کردن پیوند خارجی Mode؟",
+      message: "این پوشه در Mode باز شود؟",
       detail: (path) =>
         `${path}\n\nفقط پوشه‌های منبع‌هایی را باز کنید که به آن‌ها اعتماد دارید. تنظیمات پروژه ممکن است روی runtime ایجنت اثر بگذارد.`,
     };
@@ -162,8 +162,8 @@ export function resolveExternalWorkspaceOpenDialogCopy(
 
   return {
     buttons: ["Open folder", "Cancel"],
-    title: "Open external ZCodium link?",
-    message: "Open this folder in ZCodium?",
+    title: "Open external Mode link?",
+    message: "Open this folder in Mode?",
     detail: (path) =>
       `${path}\n\nOnly open folders from sources you trust. Project settings may affect the agent runtime.`,
   };
@@ -289,7 +289,7 @@ export function handleDeepLink(
       ? options.resolveApplicationWindow()
       : (BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null);
     // zcodium://workspace/open 来自浏览器/IM 等外部应用，不能等同于用户在
-    // ZCodium 内部选择目录；确认必须发生在 statSync 之前，避免项目配置被静默信任。
+    // Mode 内部选择目录；确认必须发生在 statSync 之前，避免项目配置被静默信任。
     if (
       !confirmExternalWorkspaceOpen(workspacePath, logger, targetWindow, options.confirmationCopy)
     ) {

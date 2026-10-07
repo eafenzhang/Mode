@@ -11,7 +11,6 @@ import {
   appSettingsSchema,
   formatLogPrefix,
   formatZodError,
-  setOfficialServiceSwitches,
 } from "@zcode/shared";
 import type { ISettingService } from "./setting.js";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
@@ -280,10 +279,6 @@ export function createSettingServiceWithMigrations(): {
       await updateQueue;
       const result = await readSettingsWithMeta();
       if (!result.needsMigrationPersist) {
-        // 官方服务开关是进程级策略，磁盘设置是唯一事实源：
-        // Host/Server/main 没有各自的初始化路径，任何进程首次读取设置后都在这里恢复用户选择。
-        // 读取失败或字段缺失时 normalize 为全关，保持审计版 fail-closed。
-        setOfficialServiceSwitches(result.settings.officialServices);
         return result.settings;
       }
 
@@ -299,7 +294,6 @@ export function createSettingServiceWithMigrations(): {
       });
 
       const settings = await readSettings();
-      setOfficialServiceSwitches(settings.officialServices);
       return settings;
     },
 
@@ -307,9 +301,6 @@ export function createSettingServiceWithMigrations(): {
       const runUpdate = async (shouldCommit: () => boolean, enterCommitPhase: () => void) => {
         const validatedPatch = appSettingsPatchSchema.parse(normalizeSettingsPatch(patch));
         // 官方服务开关变更后立即生效：刷新进程级策略，供各服务短路点与网络拦截读取。
-        if (Object.hasOwn(validatedPatch, "officialServices")) {
-          setOfficialServiceSwitches(validatedPatch.officialServices);
-        }
         const current = await readSettings();
         if (expectedAccountSettings) {
           // 账号查询期间用户可能已手动切换。必须在同一写队列内校验，不能靠调用方先读再写。

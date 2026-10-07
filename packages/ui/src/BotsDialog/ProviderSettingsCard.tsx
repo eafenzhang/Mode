@@ -19,10 +19,15 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { cn } from "@/components/lib/utils.js";
 import { logger } from "@/logger.js";
-import type { BindCodeState, FeishuRegistrationState, WeixinRegistrationState } from "./shared.js";
+import type {
+  BindCodeState,
+  FeishuRegistrationState,
+  WecomRegistrationState,
+  WeixinRegistrationState,
+} from "./shared.js";
 import { TELEGRAM_BOTFATHER_URL, formatBindCountdown } from "./shared.js";
 
-function DetailPanel({ children }: { children: ReactNode }) {
+export function DetailPanel({ children }: { children: ReactNode }) {
   return <div className="rounded-lg bg-background p-3">{children}</div>;
 }
 
@@ -109,6 +114,182 @@ function TelegramBotFatherQrPanel({
   );
 }
 
+/**
+ * 企业微信配置面板：两条并行的接入路径。
+ * - 扫码：调用企业微信智能机器人一键创建接口，扫码后自动拿到 botId + secret；
+ * - 手动：用户在企业微信管理后台自建机器人后，手动填写 botId 与 secret。
+ */
+function WeComSetupPanel({
+  bot,
+  registration,
+  registrationLoading,
+  credentialValue,
+  secretSaving,
+  onCredentialValueChange,
+  onStartRegistration,
+  onSaveManual,
+}: {
+  bot: BotConfig;
+  registration: WecomRegistrationState | null;
+  registrationLoading: boolean;
+  credentialValue: string;
+  secretSaving: boolean;
+  onCredentialValueChange: (value: string) => void;
+  onStartRegistration: () => void;
+  onSaveManual: (wecomBotId: string, secret: string) => void;
+}) {
+  const { intl } = useZCodeIntl();
+  const [botIdDraft, setBotIdDraft] = useState(bot.wecomBotId ?? "");
+  const active = registration?.botId === bot.id ? registration : null;
+  const canSaveManual = Boolean(botIdDraft.trim() && credentialValue.trim()) && !secretSaving;
+
+  return (
+    <DetailPanel>
+      <div className="space-y-4 text-ui-base text-foreground-subtle">
+        <div className="flex flex-wrap items-start gap-4">
+          {active?.qrDataUrl ? (
+            <img
+              src={active.qrDataUrl}
+              alt={intl.formatMessage({ id: "bots.wecom.registrationQrAlt" })}
+              className="size-40 shrink-0 rounded-lg border border-border bg-surface p-2"
+            />
+          ) : (
+            <div className="flex size-40 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-surface">
+              <QrCode className="size-8 text-foreground-subtle" />
+            </div>
+          )}
+          <div className="min-w-52 flex-1 space-y-2">
+            <div className="text-foreground">
+              {intl.formatMessage({ id: "bots.wecom.registrationTitle" })}
+            </div>
+            <div>{intl.formatMessage({ id: "bots.wecom.registrationDescription" })}</div>
+            {active ? (
+              <div className="text-foreground-subtle">
+                {active.status === "pending" || active.status === "scanned"
+                  ? intl.formatMessage({ id: `bots.wecom.registration.${active.status}` })
+                  : (active.message ??
+                    intl.formatMessage({ id: `bots.wecom.registration.${active.status}` }))}
+              </div>
+            ) : null}
+            <Button variant="outline" size="lg" onClick={onStartRegistration} disabled={registrationLoading}>
+              {registrationLoading ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <QrCode className="size-4" />
+              )}
+              {intl.formatMessage({
+                id: active
+                  ? "bots.wecom.registrationRefresh"
+                  : "bots.wecom.registrationAction",
+              })}
+            </Button>
+          </div>
+        </div>
+
+        <div className="border-t border-border pt-3">
+          <div className="text-foreground">
+            {intl.formatMessage({ id: "bots.wecom.manualTitle" })}
+          </div>
+          <div className="mt-1">{intl.formatMessage({ id: "bots.wecom.manualDescription" })}</div>
+          <div className="mt-2 grid gap-2">
+            <Input
+              size="lg"
+              value={botIdDraft}
+              onChange={(event) => setBotIdDraft(event.target.value)}
+              placeholder={intl.formatMessage({ id: "bots.wecom.botIdPlaceholder" })}
+              disabled={secretSaving}
+            />
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <Input
+                size="lg"
+                type="password"
+                value={credentialValue}
+                onChange={(event) => onCredentialValueChange(event.target.value)}
+                placeholder={intl.formatMessage({ id: "bots.wecom.secretPlaceholder" })}
+                className="min-w-0 flex-1"
+                disabled={secretSaving}
+              />
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => onSaveManual(botIdDraft.trim(), credentialValue)}
+                disabled={!canSaveManual}
+              >
+                {secretSaving ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <KeyRound className="size-4" />
+                )}
+                {intl.formatMessage({ id: "bots.wecom.saveManual" })}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </DetailPanel>
+  );
+}
+
+/**
+ * 钉钉凭据面板：AppKey（clientId，明文）+ AppSecret（加密凭据）。
+ * robotCode 与 clientId 相同，由服务层的发送路径直接复用 clientId。
+ */
+function DingTalkCredentialPanel({
+  bot,
+  credentialValue,
+  secretSaving,
+  onCredentialValueChange,
+  onSave,
+}: {
+  bot: BotConfig;
+  credentialValue: string;
+  secretSaving: boolean;
+  onCredentialValueChange: (value: string) => void;
+  onSave: (clientId: string, secret: string) => void;
+}) {
+  const { intl } = useZCodeIntl();
+  const [clientIdDraft, setClientIdDraft] = useState(bot.dingtalkClientId ?? "");
+  const canSave = Boolean(clientIdDraft.trim() && credentialValue.trim()) && !secretSaving;
+  return (
+    <DetailPanel>
+      <div className="space-y-3 text-ui-base text-foreground-subtle">
+        <div>{intl.formatMessage({ id: "bots.dingtalk.credentialHint" })}</div>
+        <Input
+          size="lg"
+          value={clientIdDraft}
+          onChange={(event) => setClientIdDraft(event.target.value)}
+          placeholder={intl.formatMessage({ id: "bots.dingtalk.clientIdPlaceholder" })}
+          disabled={secretSaving}
+        />
+        <div className="flex w-full min-w-0 items-center gap-2">
+          <Input
+            size="lg"
+            type="password"
+            value={credentialValue}
+            onChange={(event) => onCredentialValueChange(event.target.value)}
+            placeholder={intl.formatMessage({ id: "bots.dingtalk.secretPlaceholder" })}
+            className="min-w-0 flex-1"
+            disabled={secretSaving}
+          />
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => onSave(clientIdDraft.trim(), credentialValue)}
+            disabled={!canSave}
+          >
+            {secretSaving ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <KeyRound className="size-4" />
+            )}
+            {intl.formatMessage({ id: "bots.saveSecret" })}
+          </Button>
+        </div>
+      </div>
+    </DetailPanel>
+  );
+}
+
 /** 绑定码面板：官方 provider 与 AstrBot 桥接共用（发送 /bind <code> 完成绑定）。 */
 export function BindCodePanel({
   bindCode,
@@ -131,8 +312,15 @@ export function BindCodePanel({
     <DetailPanel>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-ui-base font-medium text-foreground">
-            {intl.formatMessage({ id: "bots.bindCommand" })}
+          <div className="flex min-w-0 items-center gap-2 text-ui-base font-medium text-foreground">
+            <span className="shrink-0">{intl.formatMessage({ id: "bots.bindCommand" })}</span>
+            {/* 绑定码属于哪个 bot：名称可能重复或为空，这里直接亮出 ID。 */}
+            <span
+              className="min-w-0 truncate font-mono text-ui-sm font-normal text-foreground-subtle"
+              title={bindCode.botId}
+            >
+              {bindCode.botId}
+            </span>
           </div>
           <div className="mt-1 text-ui-base leading-5 text-foreground-subtle">
             {intl.formatMessage({ id: "bots.bindCommandGuide" })}
@@ -201,15 +389,14 @@ export function ProviderSettingsCard({
   bot,
   runtime,
   credentialValue,
-  bindCode,
-  bindExpired,
-  bindRemainingMs,
-  bindCountdownProgress,
   feishuRegistration,
   feishuRegistrationLoading,
   weixinRegistration,
   weixinRegistrationLoading,
   weixinActivated,
+  wecomRegistration,
+  wecomRegistrationLoading,
+  onSaveDingtalkManual,
   secretSaving,
   onCredentialValueChange,
   onSaveSecret,
@@ -217,22 +404,22 @@ export function ProviderSettingsCard({
   onOpenTelegramBotFather,
   onStartWeixinRegistration,
   onStartFeishuRegistration,
-  onCreateBindCode,
-  onUnbind,
-  onCopyBindCommand,
+  onStartWecomRegistration,
+  onSaveWecomManual,
 }: {
   bot: BotConfig;
   runtime: BotServiceStatus["botRuntime"][number] | undefined;
   credentialValue: string;
-  bindCode: BindCodeState | null;
-  bindExpired: boolean;
-  bindRemainingMs: number;
-  bindCountdownProgress: number;
   feishuRegistration: FeishuRegistrationState | null;
   feishuRegistrationLoading: boolean;
   weixinRegistration: WeixinRegistrationState | null;
   weixinRegistrationLoading: boolean;
   weixinActivated: boolean;
+  wecomRegistration: WecomRegistrationState | null;
+  onSaveDingtalkManual: (clientId: string, secret: string) => void;
+  wecomRegistrationLoading: boolean;
+  onStartWecomRegistration: () => void;
+  onSaveWecomManual: (wecomBotId: string, secret: string) => void;
   secretSaving: boolean;
   onCredentialValueChange: (value: string) => void;
   onSaveSecret: () => void;
@@ -240,9 +427,6 @@ export function ProviderSettingsCard({
   onOpenTelegramBotFather: () => void;
   onStartWeixinRegistration: () => void;
   onStartFeishuRegistration: () => void;
-  onCreateBindCode: () => void;
-  onUnbind: () => void;
-  onCopyBindCommand: () => void;
 }) {
   const { intl } = useZCodeIntl();
   if (bot.provider === "webhook") {
@@ -265,7 +449,6 @@ export function ProviderSettingsCard({
         });
   const hasActiveFeishuRegistration = feishuRegistration?.botId === bot.id;
   const hasActiveWeixinRegistration = weixinRegistration?.botId === bot.id;
-  const showBindCode = bindCode?.botId === bot.id;
 
   let control: ReactNode = null;
   let detail: ReactNode = null;
@@ -281,9 +464,9 @@ export function ProviderSettingsCard({
             id: hasRuntimeError ? "bots.runtime.boundConnectionInterrupted" : "bots.connected",
           })}
         </span>
-        <Button variant="outline" size="lg" onClick={isWeixin ? onRemoveSecret : onUnbind}>
+        <Button variant="outline" size="lg" onClick={onRemoveSecret}>
           <Unlink className="size-4" />
-          {intl.formatMessage({ id: "bots.unbind" })}
+          {intl.formatMessage({ id: "bots.removeSecret" })}
         </Button>
       </div>
     );
@@ -311,6 +494,43 @@ export function ProviderSettingsCard({
         onSaveSecret={onSaveSecret}
       />
     );
+  } else if (bot.provider === "dingtalk" && (!hasSecret || !bot.dingtalkClientId)) {
+    control = (
+      <div className="flex items-center gap-2">
+        <span className="text-ui-base text-foreground-subtle">
+          {intl.formatMessage({ id: "bots.dingtalk.credentialsMissing" })}
+        </span>
+      </div>
+    );
+    detail = (
+      <DingTalkCredentialPanel
+        bot={bot}
+        credentialValue={credentialValue}
+        secretSaving={secretSaving}
+        onCredentialValueChange={onCredentialValueChange}
+        onSave={onSaveDingtalkManual}
+      />
+    );
+  } else if (bot.provider === "wecom" && !hasSecret) {
+    control = (
+      <div className="flex items-center gap-2">
+        <span className="text-ui-base text-foreground-subtle">
+          {intl.formatMessage({ id: "bots.wecom.credentialsMissing" })}
+        </span>
+      </div>
+    );
+    detail = (
+      <WeComSetupPanel
+        bot={bot}
+        registration={wecomRegistration}
+        registrationLoading={wecomRegistrationLoading}
+        credentialValue={credentialValue}
+        secretSaving={secretSaving}
+        onCredentialValueChange={onCredentialValueChange}
+        onStartRegistration={onStartWecomRegistration}
+        onSaveManual={onSaveWecomManual}
+      />
+    );
   } else if ((isFeishuLike && !hasSecret) || (isWeixin && !hasSecret)) {
     const loading = isWeixin ? weixinRegistrationLoading : feishuRegistrationLoading;
     control = (
@@ -327,11 +547,6 @@ export function ProviderSettingsCard({
   } else {
     control = (
       <div className="flex w-full flex-wrap justify-end gap-2">
-        {!showBindCode && !hasRuntimeError ? (
-          <Button variant="outline" size="lg" onClick={onCreateBindCode}>
-            {intl.formatMessage({ id: "bots.bind" })}
-          </Button>
-        ) : null}
         <Button variant="outline" size="lg" onClick={onRemoveSecret}>
           {intl.formatMessage({ id: "bots.removeSecret" })}
         </Button>
@@ -385,17 +600,6 @@ export function ProviderSettingsCard({
           </div>
         </div>
       </DetailPanel>
-    );
-  } else if (showBindCode) {
-    detail = (
-      <BindCodePanel
-        bindCode={bindCode}
-        bindExpired={bindExpired}
-        bindRemainingMs={bindRemainingMs}
-        bindCountdownProgress={bindCountdownProgress}
-        onCreateBindCode={onCreateBindCode}
-        onCopyBindCommand={onCopyBindCommand}
-      />
     );
   } else if (hasActiveFeishuRegistration) {
     detail = (

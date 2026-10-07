@@ -1,8 +1,6 @@
-import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
-/* eslint-disable max-lines -- 商店列表页把标题/搜索/已安装条/公开-个人分段/Featured/分类折叠聚合成一个连贯浏览面，拆散反而难以维持 1:1 布局。 */
 import { useMemo, useState } from "react";
 import { Download, Loader2, Settings2 } from "lucide-react";
-import type { PluginStoreOrder, ZCodePluginMarketplaceSummary } from "@zcode/shared";
+import type { ZCodePluginMarketplaceSummary } from "@zcode/shared";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
@@ -12,13 +10,9 @@ import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import { PluginStoreCard, type PluginStoreActions } from "@/settings/PluginStoreCard.js";
 import { SettingsSearchInput } from "@/settings/SettingsSearchInput.js";
 import {
-  FALLBACK_CATEGORY,
-  KNOWN_CATEGORY_LABEL_IDS,
   canUpdatePluginItem,
-  groupItemsByCategory,
   isPublicStoreMarketplaceId,
   resolveItemDisplayName,
-  selectFeaturedItems,
   sortInstalledStripItems,
   sortPersonalMarketplaceGroups,
   storeItemMatches,
@@ -31,37 +25,22 @@ import { resolveMarketplaceDisplayName } from "@/settings/pluginSourceLabel.js";
 const CATEGORY_VISIBLE_LIMIT = 6;
 const RETIRED_STORE_PLUGIN_ID = `restore-legacy-sessions@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`;
 
-export type PluginStoreSegment = "public" | "personal";
-
 export function PluginStoreListView({
   items: allItems,
-  order,
   marketplaces,
   actions,
-  loading,
   query,
   onQueryChange,
-  segment,
-  onSegmentChange,
   onOpenManage,
-  officialMarketplaceEnabled = true,
 }: {
   items: StorePluginItem[];
-  order?: PluginStoreOrder | null;
   marketplaces: ZCodePluginMarketplaceSummary[];
   actions: PluginStoreActions;
-  loading: boolean;
   query: string;
   onQueryChange: (query: string) => void;
-  segment: PluginStoreSegment;
-  onSegmentChange: (segment: PluginStoreSegment) => void;
   onOpenManage: () => void;
-  /** Host 注入的官方市场开关；关闭时“公开”分段为空并引导用户去设置打开。 */
-  officialMarketplaceEnabled?: boolean;
 }) {
   const { intl, locale } = useZCodeIntl();
-  const isOfficeMode = useIsOfficeMode();
-  const modeOrder = isOfficeMode ? order?.work : order?.code;
   const keyword = query.trim().toLowerCase();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   // 旧版会话恢复入口退出市场；统一过滤所有浏览投影，旧缓存/精选也不能重新露出。
@@ -79,35 +58,9 @@ export function PluginStoreListView({
       ),
     [items, locale],
   );
-  const officialMarketplaceDisabled = officialMarketplaceEnabled === false;
-  const publicItems = useMemo(
-    // 关闭官方市场开关时“公开”分段整体为空：缓存的市场/插件不再展示，
-    // 已安装列表（installedItems）不受影响，仍是用户可管理的本地资产。
-    () =>
-      officialMarketplaceDisabled
-        ? []
-        : items.filter((item) => isPublicStoreMarketplaceId(item.marketplace)),
-    [items, officialMarketplaceDisabled],
-  );
   const personalItems = useMemo(
     () => items.filter((item) => !isPublicStoreMarketplaceId(item.marketplace)),
     [items],
-  );
-
-  const resolveCategoryLabel = useMemo(() => {
-    return (category: string): string => {
-      const labelId = KNOWN_CATEGORY_LABEL_IDS[category];
-      return labelId ? intl.formatMessage({ id: labelId }) : category;
-    };
-  }, [intl]);
-
-  const featuredItems = useMemo(
-    () => selectFeaturedItems(publicItems, marketplaces),
-    [marketplaces, publicItems],
-  );
-  const categoryGroups = useMemo(
-    () => groupItemsByCategory(publicItems, locale, modeOrder),
-    [locale, publicItems, modeOrder],
   );
 
   // 个人分段：按市场分组，最近刷新的市场排最前（见 sortPersonalMarketplaceGroups）。
@@ -238,26 +191,7 @@ export function PluginStoreListView({
         </section>
       ) : null}
 
-      {/* 公开 / 个人分段。 */}
-      <div className="flex items-center gap-1.5">
-        <SegmentPill
-          active={segment === "public"}
-          testId="plugin-store-segment-public"
-          label={intl.formatMessage({
-            id: "settings.plugins.store.segment.public",
-          })}
-          onClick={() => onSegmentChange("public")}
-        />
-        <SegmentPill
-          active={segment === "personal"}
-          testId="plugin-store-segment-personal"
-          label={intl.formatMessage({
-            id: "settings.plugins.store.segment.personal",
-          })}
-          onClick={() => onSegmentChange("personal")}
-        />
-      </div>
-
+      {/* 通道只保留个人来源：不再有公开/个人分段。 */}
       {keyword ? (
         <StoreSection
           key="search"
@@ -274,18 +208,6 @@ export function PluginStoreListView({
             <CardGrid items={searchResults} actions={actions} locale={locale} />
           )}
         </StoreSection>
-      ) : segment === "public" ? (
-        <PublicSegment
-          actions={actions}
-          categoryGroups={categoryGroups}
-          expandedGroups={expandedGroups}
-          featuredItems={featuredItems}
-          loading={loading}
-          locale={locale}
-          officialMarketplaceDisabled={officialMarketplaceDisabled}
-          resolveCategoryLabel={resolveCategoryLabel}
-          onToggleGroup={toggleGroup}
-        />
       ) : (
         <PersonalSegment
           actions={actions}
@@ -435,82 +357,6 @@ function CollapsibleCardGroup({
           {intl.formatMessage({ id: "settings.plugins.store.showLess" })}
         </button>
       ) : null}
-    </div>
-  );
-}
-
-function PublicSegment({
-  actions,
-  categoryGroups,
-  expandedGroups,
-  featuredItems,
-  loading,
-  locale,
-  officialMarketplaceDisabled,
-  resolveCategoryLabel,
-  onToggleGroup,
-}: {
-  actions: PluginStoreActions;
-  categoryGroups: ReturnType<typeof groupItemsByCategory>;
-  expandedGroups: Record<string, boolean>;
-  featuredItems: StorePluginItem[];
-  loading: boolean;
-  locale: string;
-  officialMarketplaceDisabled: boolean;
-  resolveCategoryLabel: (category: string) => string;
-  onToggleGroup: (key: string) => void;
-}) {
-  const { intl } = useZCodeIntl();
-  const isEmpty = featuredItems.length === 0 && categoryGroups.length === 0;
-  if (isEmpty) {
-    return (
-      <p className="rounded-xl border border-dashed border-border px-4 py-3 text-ui-base text-foreground-subtle">
-        {loading
-          ? intl.formatMessage({
-              id: "settings.plugins.marketplace.catalogLoading",
-            })
-          : officialMarketplaceDisabled
-            ? intl.formatMessage({
-                id: "settings.plugins.store.officialMarketplaceDisabled",
-              })
-            : intl.formatMessage({
-                id: "settings.plugins.marketplacePlugins.empty",
-              })}
-      </p>
-    );
-  }
-  return (
-    <div>
-      {featuredItems.length > 0 ? (
-        <StoreSection
-          title={intl.formatMessage({ id: "settings.plugins.store.featured" })}
-          className="py-4 first:pt-0 last:pb-0"
-        >
-          <CardGrid items={featuredItems} actions={actions} locale={locale} />
-        </StoreSection>
-      ) : null}
-      {categoryGroups.map((group) => (
-        <StoreSection
-          key={group.category}
-          className="py-4 first:pt-0 last:pb-0"
-          title={
-            group.category === FALLBACK_CATEGORY
-              ? intl.formatMessage({
-                  id: "settings.plugins.store.category.other",
-                })
-              : resolveCategoryLabel(group.category)
-          }
-        >
-          <CollapsibleCardGroup
-            groupKey={`category:${group.category}`}
-            items={group.items}
-            expanded={expandedGroups[`category:${group.category}`] ?? true}
-            onToggle={onToggleGroup}
-            actions={actions}
-            locale={locale}
-          />
-        </StoreSection>
-      ))}
     </div>
   );
 }

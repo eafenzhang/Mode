@@ -31,8 +31,20 @@ export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
   // bootstrap 的「Settings 默认启用集合与 CLI 的官方插件声明一致」单测机械对照两者。
 ]);
 
-// 官方市场来源定义保留在这里；是否进入默认市场集合由 marketplace 开关决定
-// （见 resolveDefaultPluginMarketplaces）。关闭时不 seed，保持审计版默认断连。
+/**
+ * Codex 插件市场（`.agents/plugins/marketplace.json` 约定，codex plugin marketplace add 生成）。
+ * id 必须与市场 manifest 里声明的 name 一致：addMarketplace 以 manifest.name 作为市场 id，
+ * 预声明的 id 对不上会在刷新时多出一个挂空记录。
+ *
+ * 默认指向社区聚合目录（awesome-codex-plugins，272 个插件）：用户要的是"Codex 生态的全部插件"，
+ * 单个插件作者的仓库只能看到一两个。聚合仓体量大（>100MB），目录读取走 raw manifest 快路径
+ * （见 CLI 侧 requestGitHubRawMarketplaceManifest），插件源码在安装时按需稀疏检出。
+ */
+export const CODEX_PLUGIN_MARKETPLACE_ID = "awesome-codex-plugins";
+export const CODEX_PLUGIN_MARKETPLACE_SOURCE = "hashgraph-online/awesome-codex-plugins";
+
+// 官方市场来源定义保留在表里只为让 id/顺序等结构兼容；官方平台服务已整体下线，
+// 它永远不进入默认市场集合（见 resolveDefaultPluginMarketplaces），也不会被 seed。
 export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
   {
     // ZCode 官方唯一市场：本地 seed 分片与 CDN 分片在 Agent storage 内合并。
@@ -43,12 +55,30 @@ export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
     description: "Official ZCode plugins marketplace: built-in and community plugins for ZCode.",
     pluginCount: 0,
   },
+  {
+    // Codex 格式插件市场默认预置：ZCodium 能读 .codex-plugin/plugin.json，
+    // 默认挂上 Codex 生态的聚合目录，用户开箱即可浏览/安装 Codex 插件。
+    // 该来源不是官方来源，不受 marketplace 开关影响（保持默认可用）。
+    id: CODEX_PLUGIN_MARKETPLACE_ID,
+    source: CODEX_PLUGIN_MARKETPLACE_SOURCE,
+    name: CODEX_PLUGIN_MARKETPLACE_ID,
+    description: "Community Codex plugin catalog (.agents/plugins/marketplace.json, .codex-plugin format).",
+    pluginCount: 0,
+  },
 ];
 
 /**
- * 默认插件市场集合按官方服务开关过滤：
- * 官方来源只在 marketplace 开启时进入集合；本地内置插件与个人来源不受影响。
- * agent 进程的开关来自 Desktop 的 env 投影或 CLI 手动的 ZCODIUM_ENABLE_OFFICIAL_*。
+ * 已退役的默认市场：曾作为默认源预置、但被更好的来源取代。种子阶段按"id + 完全相同的 source"
+ * 精确清理，避免把用户自己添加的同 id 市场误删。
+ */
+export const RETIRED_DEFAULT_MARKETPLACES: ReadonlyArray<{ id: string; source: string }> = [
+  // 早期默认源：只有一个插件的示例仓库，已换成聚合目录。
+  { id: "xiu86-codex-plugins", source: "xiu86/codex-plugins" },
+];
+
+/**
+ * 默认插件市场集合：官方来源恒被剔除（官方平台服务已下线，没有开关可以恢复），
+ * 只保留 Codex 聚合目录等非官方来源；本地内置插件与个人来源不受影响。
  */
 export function resolveDefaultPluginMarketplaces(): DefaultPluginMarketplace[] {
   return DEFAULT_PLUGIN_MARKETPLACES.filter(
@@ -63,4 +93,21 @@ export const PUBLIC_STORE_MARKETPLACE_IDS = [ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_I
 
 export function isPublicStoreMarketplaceId(id: string): boolean {
   return (PUBLIC_STORE_MARKETPLACE_IDS as readonly string[]).includes(id);
+}
+
+/**
+ * 随应用预置的市场（官方 + Codex 格式源）。它们由 ensureDefaultPluginMarketplaces
+ * 在每次 overview 时补种：允许删除只会造成「删了又在刷新后回来」的困惑，UI 因此不给移除入口。
+ */
+export const BUILTIN_DEFAULT_MARKETPLACE_IDS = [
+  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  CODEX_PLUGIN_MARKETPLACE_ID,
+] as const;
+
+export function isBuiltinDefaultMarketplaceId(id: string): boolean {
+  return (BUILTIN_DEFAULT_MARKETPLACE_IDS as readonly string[]).includes(id);
+}
+
+export function isCodexPluginMarketplaceId(id: string): boolean {
+  return id === CODEX_PLUGIN_MARKETPLACE_ID;
 }

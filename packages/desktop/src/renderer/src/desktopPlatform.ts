@@ -31,11 +31,17 @@ export function createDesktopPlatform(options: {
     listWSLDistros: () => window.zcode.listWSLDistros(),
     listDockerContainers: () => window.zcode.listDockerContainers(),
     listSSHConfigAliases: () => window.zcode.listSSHConfigAliases(),
+    getLanAccessState: () => window.zcode.getLanAccessState(),
+    setLanAccessEnabled: (enabled) => window.zcode.setLanAccessEnabled(enabled),
+    createLanAccessPairCode: () => window.zcode.createLanAccessPairCode(),
+    removeLanAccessClient: (clientId) => window.zcode.removeLanAccessClient(clientId),
+    resetLanAccessTokens: () => window.zcode.resetLanAccessTokens(),
+    discoverLanPeers: () => window.zcode.discoverLanPeers(),
+    pairLanPeer: (request) => window.zcode.pairLanPeer(request),
     loadMcpFromUserDirectory: (payload) => window.zcode.loadMcpFromUserDirectory(payload),
     saveMcpToUserDirectory: (payload) => window.zcode.saveMcpToUserDirectory(payload),
     migrateLegacyCommonMcp: (payload) => window.zcode.migrateLegacyCommonMcp(payload),
     openExternal: (url) => window.zcode.openExternal(url),
-    openFeedback: () => window.zcode.executeDesktopCommand(DesktopCommandIds.OpenFeedback),
     openCommunity: () => window.zcode.executeDesktopCommand(DesktopCommandIds.OpenCommunity),
     canOpenCommunity: (locale) => window.zcode.canOpenCommunity(locale),
     openInFileManager: (path) => window.zcode.openInFileManager(path),
@@ -84,8 +90,6 @@ export function createDesktopPlatform(options: {
       return window.zcode.onOpenWorkspace?.(handler) ?? (() => {});
     },
     onOpenWorkspacePath: (handler) => window.zcode.onOpenWorkspacePath?.(handler) ?? (() => {}),
-    onOpenFeedbackDialog: (handler) => window.zcode.onOpenFeedbackDialog?.(handler) ?? (() => {}),
-    onOpenTicketsPanel: (handler) => window.zcode.onOpenTicketsPanel?.(handler) ?? (() => {}),
     onWindowFullscreenChanged: (handler) => window.zcode.onWindowFullscreenChanged(handler),
     getDesktopWindowChromeState: window.zcode.getDesktopWindowChromeState
       ? () => window.zcode.getDesktopWindowChromeState!()
@@ -102,8 +106,6 @@ export function createDesktopPlatform(options: {
       window.zcode.onDesktopZoomLevelChanged?.(handler) ?? (() => {}),
     onTaskNotificationClick: (handler) => window.zcode.onTaskNotificationClick(handler),
     exportLogs: () => window.zcode.exportLogs(),
-    captureWindowScreenshot: () =>
-      window.zcode.captureWindowScreenshot?.() ?? Promise.resolve(null),
     onUpdateReady: (callback) => window.zcode.onUpdateReady(callback),
     onUpdateCheckResult: (callback) => window.zcode.onUpdateCheckResult(callback),
     onUpdateStateChanged: (callback) => window.zcode.onUpdateStateChanged?.(callback) ?? (() => {}),

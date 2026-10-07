@@ -30,18 +30,16 @@ function readBundledRemoteAssetBaseUrl(): string {
 }
 
 export function resolveRemoteCdnBaseUrls(options: ResolveRemoteCdnOptions = {}): string[] {
-  // 1) 用户显式覆盖：自有源，不受官方服务开关影响。
-  // 放在第一位，避免默认关闭的 marketplace 把自建源一起拦掉
-  //（表现为“连 WSL/SSH 需要先打开插件市场开关”）。
+  // 1) 用户显式覆盖：自有源，官方平台策略不涉及（表现为“连 WSL/SSH 不需要任何开关”）。
   const override = options.overrideBaseUrl?.trim();
   if (override) return [normalizeBaseUrl(override)];
 
   // 2) 发布构建内置的自有源（本仓库 GitHub Release 资产）：同样不是官方平台，
-  //    不受开关影响，安装后的客户端开箱即可连接 WSL/SSH，无需用户配置环境变量。
+  //    安装后的客户端开箱即可连接 WSL/SSH，无需用户配置环境变量。
   const bundled = options.bundledBaseUrl?.trim() || readBundledRemoteAssetBaseUrl();
   if (bundled) return [normalizeBaseUrl(bundled)];
 
-  // 3) 默认（或构建注入）的官方 CDN 仍由 marketplace 开关把关：审计版不自动连接官方 CDN。
+  // 3) 默认（或构建注入）的官方 CDN：官方平台服务已整体下线，恒不连接。
   if (!isOfficialServiceEnabled("marketplace")) return [];
   const baseUrl =
     process.env.ZCODE_CDN_BASE_URL?.trim() ||

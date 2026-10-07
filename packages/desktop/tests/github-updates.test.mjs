@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { transpileModule, ModuleKind } from "typescript";
 
 const require = createRequire(import.meta.url);
-const feed = "https://github.com/ZCodium-project/ZCodium/releases/latest/download/";
+const feed = "https://github.com/eafenzhang/Mode/releases/latest/download/";
 async function load(relative, imports = {}) {
   const source = await readFile(new URL(`../src/main/${relative}.ts`, import.meta.url), "utf8");
   const output = transpileModule(source, {
@@ -46,7 +46,7 @@ test("force guard never fetches, blocks or invokes callbacks", async () => {
   );
 });
 
-test("generic feed, overrides, manual check and native download/install remain wired", async () => {
+test("github default feed, generic overrides, manual check and native download/install remain wired", async () => {
   const updater = new EventEmitter();
   let checks = 0,
     downloads = 0,
@@ -123,9 +123,13 @@ test("generic feed, overrides, manual check and native download/install remain w
     },
   });
   await new Promise(setImmediate);
-  assert.equal(configured.provider, "generic");
-  assert.equal(configured.url, feed);
-  assert.equal(configured.channel, "latest");
+  // 默认更新源 = 本项目 GitHub 仓库的 Releases，走 GitHub provider 并允许预发布。
+  assert.deepEqual(configured, {
+    provider: "github",
+    owner: "eafenzhang",
+    repo: "Mode",
+  });
+  assert.equal(updater.allowPrerelease, true);
   assert.equal(checks, 1);
   module.refreshAutoUpdaterReleaseChannel(true);
   assert.equal(checks, 1);
@@ -147,7 +151,10 @@ test("generic feed, overrides, manual check and native download/install remain w
   assert.equal(installs, 1);
   assert.ok(sent.length > 0);
   await module.initAutoUpdater({ updateFeedSource: { url: "https://example.invalid/custom/" } });
+  // 显式覆盖仍走 generic provider（测试/开发用）。
+  assert.equal(configured.provider, "generic");
   assert.equal(configured.url, "https://example.invalid/custom/");
+  assert.equal(configured.channel, "latest");
   await module.initAutoUpdater({ enabled: false });
 });
 

@@ -19,6 +19,15 @@ export interface BotProviderDownloadedAttachment {
   data: Uint8Array;
 }
 
+/** 出站媒体（服务层完成路径校验与大小上限后交 provider 上传）。 */
+export interface BotOutboundMedia {
+  kind: "image" | "file";
+  filename: string;
+  mimeType: string;
+  data: Uint8Array;
+  caption?: string;
+}
+
 export type BotStreamingReplyCardBlock =
   | {
       type: "message";
@@ -105,6 +114,15 @@ export interface BotProviderAdapter {
     attachment: BotInboundAttachment,
     actor?: BotActor,
   ): Promise<BotProviderDownloadedAttachment | null>;
+  /**
+   * 出站媒体（图片/文件）。未实现的 provider 视为"该通道不支持发送文件"。
+   * target 的 providerUserId 已是最终投递目标（单聊 userid 或群 chatid）。
+   */
+  sendMedia?(
+    bot: BotConfig,
+    target: BotTypingTarget,
+    media: BotOutboundMedia,
+  ): Promise<void>;
   /**
    * 任务流生命周期通知（可选）。仅在 provider 需要把官方轮次映射成自有传输信号时实现，
    * 不改变任何业务状态。

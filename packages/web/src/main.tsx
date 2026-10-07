@@ -13,9 +13,8 @@ import "@zcode/ui/styles.css";
 import { connectViaWebSocket } from "@zcode/client";
 import { WebCallbackPage } from "./auth/WebCallbackPage.js";
 import { createWebAuthService } from "./auth/webAuthService.js";
-import { WEB_ZAI_OAUTH_CONFIG, resolveWebAuthDevReturnTo } from "./auth/webZaiOAuthConfig.js";
 import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.js";
-import { resolveWebCommunityUrl, resolveWebHelpConfig } from "./communityUrl.js";
+import { resolveWebCommunityUrl } from "./communityUrl.js";
 import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 
@@ -51,10 +50,6 @@ function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): The
   document.documentElement.classList.toggle("theme-zai-dark", appliedTheme === "zai-dark");
 }
 
-async function resolveFeedbackUrl(): Promise<string | undefined> {
-  return (await resolveWebHelpConfig()).feedback_url;
-}
-
 const root = createRoot(document.getElementById("root")!);
 const webAuthService = createWebAuthService();
 
@@ -81,7 +76,7 @@ function isWebOAuthCallback(params: URLSearchParams): boolean {
 }
 
 function renderWebAuthCallbackPage(): void {
-  document.title = "ZCodium - Sign In";
+  document.title = "Mode - Sign In";
   const callbackState = parseOAuthState(
     new URLSearchParams(window.location.search).get("state") ?? "",
   );
@@ -130,6 +125,17 @@ function createWebPlatform(): IPlatformService {
     listWSLDistros: () => Promise.resolve([]),
     listDockerContainers: () => Promise.resolve([]),
     listSSHConfigAliases: () => Promise.resolve([]),
+    // 局域网访问是桌面端「服务方」能力：Web 端只报告关闭状态，动作一律拒绝。
+    getLanAccessState: () =>
+      Promise.resolve({ enabled: false, port: null, addresses: [], pairCode: null, clients: [] }),
+    setLanAccessEnabled: () => Promise.reject(new Error("Web mode does not serve LAN access")),
+    createLanAccessPairCode: () =>
+      Promise.reject(new Error("Web mode does not serve LAN access")),
+    removeLanAccessClient: () =>
+      Promise.reject(new Error("Web mode does not serve LAN access")),
+    resetLanAccessTokens: () => Promise.reject(new Error("Web mode does not serve LAN access")),
+    discoverLanPeers: () => Promise.resolve([]),
+    pairLanPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
     loadMcpFromUserDirectory: () => Promise.resolve({ servers: [] }),
     saveMcpToUserDirectory: () =>
       Promise.resolve({
@@ -145,13 +151,6 @@ function createWebPlatform(): IPlatformService {
       }),
     openExternal: (url) => {
       window.open(url, "_blank", "noopener,noreferrer");
-    },
-    openFeedback: async () => {
-      const feedbackUrl = await resolveFeedbackUrl();
-      if (!feedbackUrl) {
-        return;
-      }
-      window.open(feedbackUrl, "_blank", "noopener,noreferrer");
     },
     openCommunity: async () => {
       // fa-IR 等非中文语言跟随英文社区入口。
@@ -210,7 +209,6 @@ function createWebPlatform(): IPlatformService {
     onWindowFullscreenChanged: () => () => {},
     onTaskNotificationClick: () => () => {},
     exportLogs: () => Promise.resolve({ success: false, error: "Not supported in web mode" }),
-    captureWindowScreenshot: () => Promise.resolve(null),
     importChromeBrowserData: (_options) =>
       Promise.resolve({
         success: false,
@@ -327,7 +325,7 @@ function WebBootstrapErrorScreen({ message }: { message: string }) {
 }
 
 function renderWebBootstrapError(error: unknown): void {
-  document.title = "ZCodium - Web";
+  document.title = "Mode - Web";
   root.render(
     <WebBootstrapErrorScreen message={error instanceof Error ? error.message : String(error)} />,
   );
@@ -353,7 +351,7 @@ async function bootstrapWebApp() {
       onClose: () => {},
     });
     const platform = createWebPlatform();
-    document.title = "ZCodium - Web + Server";
+    document.title = "Mode - Web + Server";
 
     root.render(
       <AppErrorBoundary>

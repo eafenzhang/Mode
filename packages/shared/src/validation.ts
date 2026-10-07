@@ -1,4 +1,5 @@
 import { databaseStartupControlSchema, databaseStartupStateSchema } from "./database-startup.js";
+import { lanAccessStateSchema } from "./lanAccess.js";
 /* eslint-disable max-lines -- 运行时 schema 当前集中在共享包入口，外部 relay payload 校验加入后先保持单一导出面。 */
 import { z } from "zod";
 import { zcodeProcessDiagnosticSchema } from "./process-diagnostic.js";
@@ -86,10 +87,20 @@ export const dockerConnectOptionsSchema = z.object({
   container: nonEmptyStringSchema,
 });
 
+export const lanConnectOptionsSchema = z.object({
+  kind: z.literal("lan"),
+  host: nonEmptyStringSchema,
+  port: z.number().int().positive().max(65535),
+  serverId: nonEmptyStringSchema.optional(),
+  serverName: z.string().optional(),
+  token: z.string().optional(),
+});
+
 export const remoteTargetSchema = z.discriminatedUnion("kind", [
   sshConnectOptionsSchema,
   wslConnectOptionsSchema,
   dockerConnectOptionsSchema,
+  lanConnectOptionsSchema,
 ]);
 
 export const helloMessageSchema = z.object({
@@ -149,7 +160,6 @@ export const hostInitLocalMessageSchema = z.object({
   hostId: nonEmptyStringSchema.optional(),
   deliveryKind: taskRealtimeHostDeliveryKindSchema.optional(),
   deviceMid: z.string().optional(),
-  feedbackApiBase: z.string().url().optional(),
   workspacePath: nonEmptyStringSchema.optional(),
   workspaceIdentity: nonEmptyStringSchema.optional(),
   agentWarmupTargets: z.array(hostAgentWarmupTargetSchema).max(3).optional(),
@@ -342,15 +352,6 @@ export const hostSessionMessageDeliveryResultMessageSchema = z.object({
   result: sessionMessageDeliveryResultSchema,
 });
 
-export const hostFeedbackLogArchiveResultMessageSchema = z.object({
-  type: z.literal("feedback-log-archive-result"),
-  requestId: nonEmptyStringSchema,
-  ok: z.boolean(),
-  path: z.string().optional(),
-  size: z.number().int().nonnegative().optional(),
-  error: z.string().optional(),
-});
-
 // main → host：定时任务到点派发。会话内 cron 带 targetTaskId 时直接 sendPrompt 到当前会话；
 // 历史未绑定任务才 fallback createTask + sendPrompt 建 session。
 export const hostCronRunMessageSchema = z.object({
@@ -423,6 +424,38 @@ export const hostProviderProvisioningExecuteMessageSchema = z
   })
   .strict();
 
+/**
+ * 局域网访问控制（main → host）：一条 schema 覆盖五个动作，
+ * 只有 set-enabled 带 enabled、只有 remove-client 带 clientId。
+ */
+export const hostLanAccessMessageSchema = z
+  .object({
+    type: z.enum([
+      "lan-access-get-state",
+      "lan-access-set-enabled",
+      "lan-access-create-pair-code",
+      "lan-access-remove-client",
+      "lan-access-reset-tokens",
+    ]),
+    requestId: nonEmptyStringSchema,
+    enabled: z.boolean().optional(),
+    clientId: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+export type HostLanAccessMessage = z.infer<typeof hostLanAccessMessageSchema>;
+
+export const hostLanPairPeerMessageSchema = z
+  .object({
+    type: z.literal("lan-pair-peer"),
+    requestId: nonEmptyStringSchema,
+    host: nonEmptyStringSchema,
+    port: z.number().int().positive().max(65535),
+    code: nonEmptyStringSchema,
+    label: z.string().optional(),
+  })
+  .strict();
+export type HostLanPairPeerMessage = z.infer<typeof hostLanPairPeerMessageSchema>;
+
 export const hostResourceUsageSnapshotRequestMessageSchema = z
   .object({
     type: z.literal("resource-usage-snapshot-request"),
@@ -438,6 +471,8 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
     .object({ type: z.literal("database-startup-control"), control: databaseStartupControlSchema })
     .strict(),
   hostResourceUsageSnapshotRequestMessageSchema,
+  hostLanAccessMessageSchema,
+  hostLanPairPeerMessageSchema,
   z
     .object({ type: z.literal("resource-usage-snapshot-cancel"), requestId: nonEmptyStringSchema })
     .strict(),
@@ -460,7 +495,6 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostBotRemoteWorkspaceRuntimePortMessageSchema,
   hostSessionMessageDeliverMessageSchema,
   hostSessionMessageDeliveryResultMessageSchema,
-  hostFeedbackLogArchiveResultMessageSchema,
   hostCronRunMessageSchema,
   hostOffPeakRunMessageSchema,
   hostBrowserExecuteResultMessageSchema,
@@ -802,12 +836,6 @@ export const hostSessionMessageDeliverResultResponseSchema = z.object({
   result: sessionMessageDeliveryResultSchema,
 });
 
-export const hostFeedbackLogArchiveRequestResponseSchema = z.object({
-  type: z.literal("feedback-log-archive-request"),
-  requestId: nonEmptyStringSchema,
-  sourceDir: nonEmptyStringSchema,
-});
-
 // host → main：定时任务派发结果。ok=已成功创建 session 且 prompt 已发出。
 export const hostCronRunResultResponseSchema = z.object({
   type: z.literal("cron-run-result"),
@@ -909,11 +937,39 @@ export type HostResourceUsageSnapshotResultResponse = z.infer<
   typeof hostResourceUsageSnapshotResultResponseSchema
 >;
 
+export const hostLanAccessStateResponseSchema = z
+  .object({
+    type: z.literal("lan-access-state-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    error: z.string().optional(),
+    state: lanAccessStateSchema.nullable().optional(),
+  })
+  .strict();
+export type HostLanAccessStateResponse = z.infer<typeof hostLanAccessStateResponseSchema>;
+
+export const hostLanPairPeerResultResponseSchema = z
+  .object({
+    type: z.literal("lan-pair-peer-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    error: z.string().optional(),
+    token: z.string().optional(),
+    serverId: z.string().optional(),
+    name: z.string().optional(),
+  })
+  .strict();
+export type HostLanPairPeerResultResponse = z.infer<
+  typeof hostLanPairPeerResultResponseSchema
+>;
+
 export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("database-startup-state"), state: databaseStartupStateSchema })
     .strict(),
   hostResourceUsageSnapshotResultResponseSchema,
+  hostLanAccessStateResponseSchema,
+  hostLanPairPeerResultResponseSchema,
   hostRemoteWorkspaceConnectionLogResponseSchema,
   hostRemoteWorkspaceConnectedResponseSchema,
   hostRemoteWorkspaceConnectFailedResponseSchema,
@@ -947,7 +1003,6 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostSessionMessageSendRequestedResponseSchema,
   hostSessionRouteAnnounceResponseSchema,
   hostSessionMessageDeliverResultResponseSchema,
-  hostFeedbackLogArchiveRequestResponseSchema,
   hostBrowserExecuteRequestResponseSchema,
   hostLocalMediaPreviewPathAuthorizeRequestResponseSchema,
   hostProviderProvisioningSourceChangedResponseSchema,

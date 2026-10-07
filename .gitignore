@@ -72,3 +72,15 @@ packages/desktop/.e2e-network-capture/
 # OrcaRouter GUI 证据产物：由 `pnpm orca:evidence` 在本地渲染真实组件后生成，
 # 属于可再生的验证输出，随环境变化且不应入库。
 /orca-evidence/
+
+# 本工作区的 Agent 计划/临时状态目录
+.zcode/
+
+# tsup 生成的临时 bundled config
+packages/desktop/tsup.config.bundled_*.mjs
+
+# tsc 误落在 src 下的编译产物（schedulerProtocol 由 out/ 提供运行时代码）
+packages/desktop/src/scheduler/schedulerProtocol.js
+packages/desktop/src/scheduler/schedulerProtocol.js.map
+packages/desktop/src/scheduler/schedulerProtocol.d.ts
+packages/desktop/src/scheduler/schedulerProtocol.d.ts.map

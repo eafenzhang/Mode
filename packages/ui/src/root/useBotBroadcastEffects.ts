@@ -13,6 +13,9 @@ import {
   resolveBotTaskBroadcastRuntimeStatus,
 } from "@/root/botsTaskBroadcast.js";
 import { resolveBotTaskStreamBroadcast } from "@/root/botsTaskStreamBroadcast.js";
+import { logger } from "@/logger.js";
+import { refreshBotTaskBindings } from "@/store/botTaskBindingsStore.js";
+import { BOT_TASK_BROADCAST_CHANNEL } from "@zcode/shared";
 import {
   insertTaskIntoTaskCaches,
   syncTaskMetaToTaskCaches,
@@ -74,7 +77,33 @@ export function useBotBroadcastEffects(
   tabStoreApi: ReturnType<typeof useTabStoreApi>,
 ) {
   useEffect(() => {
+    // 任务 ↔ 机器人绑定表：挂载拉取一次，随后由 bots:task 广播驱动刷新。
+    let refreshTimer: number | undefined;
+    const refreshBindings = () => {
+      void refreshBotTaskBindings(services.botsService).catch((error: unknown) => {
+        logger.warn(
+          `[BotTaskBindings] listBotTaskBindings failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+    };
+    const scheduleBindingsRefresh = () => {
+      if (refreshTimer !== undefined) {
+        return;
+      }
+      // 广播可能连发（created/prompt_sent/…），合并为一次拉取。
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined;
+        refreshBindings();
+      }, 300);
+    };
+    refreshBindings();
+
     const disposable = services.broadcastService.onMessage((message) => {
+      if (message.channel === BOT_TASK_BROADCAST_CHANNEL) {
+        scheduleBindingsRefresh();
+      }
       const stream = resolveBotTaskStreamBroadcast(
         message,
         tabStoreApi.getState().tabs,
@@ -239,6 +268,30 @@ export function useBotBroadcastEffects(
       if (!refresh) {
         return;
       }
+      if (refresh.event === "active_task_changed") {
+        if (refresh.source !== "bot") {
+          return;
+        }
+        // bot 侧切换了目标会话（/task.set、bot 新建任务）：该工作区 tab 已在本窗口
+        // 打开时跟随跳转。跳转引发的 notifyUiSessionFocus 会在 service 层幂等短路。
+        const zcodeSessionStoreState = useZCodeSessionStore.getState();
+        const targetWorkspaceState = zcodeSessionStoreState.getWorkspaceState(
+          refresh.workspacePath,
+          refresh.workspaceIdentity,
+        );
+        if (targetWorkspaceState.activeTaskId === refresh.taskId) {
+          return;
+        }
+        tabStoreApi.getState().activateTabByPath(refresh.workspacePath, {
+          workspaceIdentity: refresh.workspaceIdentity,
+        });
+        zcodeSessionStoreState.setActiveTaskId(
+          refresh.workspacePath,
+          refresh.taskId,
+          refresh.workspaceIdentity,
+        );
+        return;
+      }
       // Bots 在 host 侧创建/推进 task，不会挂载聊天视图里的 stream 订阅。
       // 因此除了刷新列表，还要同步 task 运行态；否则 sidebar 能看到新 task，却不会显示进行中状态。
       const zcodeSessionStore = useZCodeSessionStore.getState();
@@ -343,6 +396,11 @@ export function useBotBroadcastEffects(
         zcodeSessionStore.bumpTaskListVersion(refresh.workspacePath, refresh.workspaceIdentity);
       }
     });
-    return () => disposable.dispose();
+    return () => {
+      if (refreshTimer !== undefined) {
+        window.clearTimeout(refreshTimer);
+      }
+      disposable.dispose();
+    };
   }, [services.broadcastService, tabStoreApi]);
 }

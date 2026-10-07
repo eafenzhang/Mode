@@ -19,7 +19,7 @@ import {
   PluginWarningList,
 } from "@/settings/InstalledPluginManagement.js";
 import { AddMarketplaceSourceDialog } from "@/settings/AddMarketplaceSourceDialog.js";
-import { PluginStoreListView, type PluginStoreSegment } from "@/settings/PluginStoreListView.js";
+import { PluginStoreListView } from "@/settings/PluginStoreListView.js";
 import {
   PluginStoreAdvancedSection,
   PluginStoreDetailView,
@@ -30,11 +30,15 @@ import {
   buildStoreItems,
   canUpdatePluginItem,
   isPluginUpdatePending,
+  isTrustedImageUrl,
   resolveItemDisplayName,
   resolvePluginDisplayName,
   type StorePluginItem,
 } from "@/settings/pluginStoreListing.js";
-import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@zcode/shared";
+import {
+  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  isBuiltinDefaultMarketplaceId,
+} from "@zcode/shared";
 import { PluginUninstallConfirmDialog } from "@/settings/PluginUninstallConfirmDialog.js";
 import { usePluginUninstall } from "@/settings/usePluginUninstall.js";
 import { claimMarketplaceAutoRefresh } from "@/settings/officialMarketplaceAutoRefresh.js";
@@ -61,7 +65,7 @@ export function PluginStorePage({
   onManageInstalled,
 }: PluginStorePageProps) {
   const { intl, locale } = useZCodeIntl();
-  const { order: storeOrder, refresh: refreshStoreOrder } = usePluginStoreOrder();
+  const { refresh: refreshStoreOrder } = usePluginStoreOrder();
   const { pluginManagementService, skillsService } = useServices();
   const zcodeSessionService = useZCodeSessionService(
     workspacePath ?? undefined,
@@ -73,9 +77,6 @@ export function PluginStorePage({
   const marketplaces = usePluginManagementStore((state) => state.marketplaces);
   const marketplaceAvailabilityKnown = usePluginManagementStore(
     (state) => state.marketplaceAvailabilityKnown,
-  );
-  const officialMarketplaceEnabled = usePluginManagementStore(
-    (state) => state.officialMarketplaceEnabled,
   );
   const availablePlugins = usePluginManagementStore((state) => state.availablePlugins);
   const installedPlugins = usePluginManagementStore((state) => state.installedPlugins);
@@ -97,7 +98,6 @@ export function PluginStorePage({
 
   const [view, setView] = useState<PluginStoreView>("store");
   const [detailPluginId, setDetailPluginId] = useState<string | null>(null);
-  const [segment, setSegment] = useState<PluginStoreSegment>("public");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -128,18 +128,33 @@ export function PluginStorePage({
     });
   }, [initialize, pluginManagementService, workspaceIdentity, workspacePath]);
 
-  // 目录自动刷新（Catalog Auto-Refresh）：只针对 ZCode 官方市场。每次进入商店页都刷新 CDN 目录，
+  // 目录自动刷新（Catalog Auto-Refresh）：官方市场每次进入商店页都刷新 CDN 目录，
   // 否则新上架插件要等用户手动点刷新才可见；以 10 分钟窗口节流，并在发起时占位防抖（失败/在飞不重复），
   // 判据见 officialMarketplaceAutoRefresh。状态放模块级而非组件 ref，因为每次进入都是重新挂载。
+  // 预置的 Codex 源在两种情况下也自动刷新：从未物化（没有 lastUpdated），或已物化但条目一个图标都没有
+  // （旧缓存；刷新时会把插件自带图标补进目录）。物化且有图标后不再自动刷新（用户仍可手动刷新）。
   useEffect(() => {
-    const official = marketplaces.find((item) => item.id === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID);
-    if (
-      official &&
-      claimMarketplaceAutoRefresh(ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID, official.lastUpdated)
-    ) {
-      void updateMarketplace(ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID, pluginManagementService);
+    for (const marketplace of marketplaces) {
+      const isOfficial = marketplace.id === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID;
+      const isDefaultSource = isBuiltinDefaultMarketplaceId(marketplace.id);
+      const isUnmaterializedDefault = isDefaultSource && !marketplace.lastUpdated;
+      const needsIconBackfill =
+        isDefaultSource &&
+        Boolean(marketplace.lastUpdated) &&
+        marketplace.pluginCount > 0 &&
+        // 判定"可渲染"而不是"非空"：旧缓存里的相对路径（./plugins/x/assets/icon.svg）
+        // 渲染侧不认，刷新一次才会被解析成仓库直链。
+        !availablePlugins.some(
+          (plugin) => plugin.marketplace === marketplace.id && isTrustedImageUrl(plugin.listing?.icon),
+        );
+      if (!isOfficial && !isUnmaterializedDefault && !needsIconBackfill) {
+        continue;
+      }
+      if (claimMarketplaceAutoRefresh(marketplace.id, marketplace.lastUpdated)) {
+        void updateMarketplace(marketplace.id, pluginManagementService);
+      }
     }
-  }, [marketplaces, pluginManagementService, updateMarketplace]);
+  }, [availablePlugins, marketplaces, pluginManagementService, updateMarketplace]);
 
   const items = useMemo(
     () =>
@@ -336,8 +351,6 @@ export function PluginStorePage({
       setAddMarketplaceError(
         succeeded ? null : (usePluginManagementStore.getState().error ?? null),
       );
-      // 自定义市场不属于公开分段；添加成功后直接切到「个人」，让用户立刻看到刚加的来源。
-      if (succeeded) setSegment("personal");
       return succeeded;
     },
     [addMarketplace, pluginManagementService],
@@ -542,17 +555,12 @@ export function PluginStorePage({
         />
       ) : (
         <PluginStoreListView
-          order={storeOrder}
           items={items}
           marketplaces={marketplaces}
           actions={actions}
-          loading={loading || (operationId?.startsWith("marketplace:update:") ?? false)}
           query={query}
           onQueryChange={setQuery}
-          segment={segment}
-          onSegmentChange={setSegment}
           onOpenManage={onManageInstalled}
-          officialMarketplaceEnabled={officialMarketplaceEnabled}
         />
       )}
 

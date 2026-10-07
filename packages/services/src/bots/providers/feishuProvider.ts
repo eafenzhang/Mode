@@ -8,6 +8,7 @@ import type {
   SelectionPrompt,
 } from "@zcode/shared";
 import type {
+  BotOutboundMedia,
   BotProviderAdapter,
   BotStreamingReplyCardHandle,
   BotStreamingReplyCardState,
@@ -542,6 +543,52 @@ function parseJsonRecord(value: unknown): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** 机器人自身 open_id 缓存（按 appId）：群聊 @ 检测需要它来匹配 mentions。 */
+const feishuBotOpenIdCache = new Map<string, string>();
+
+interface FeishuBotInfoResponse {
+  code?: number;
+  bot?: { open_id?: string };
+  data?: { bot?: { open_id?: string } };
+}
+
+/**
+ * 拉取并缓存机器人 open_id（/open-apis/bot/v3/info）。
+ * 失败不抛出：调用方按"身份未知"处理，mention 模式会保守放行而不是丢消息。
+ */
+async function warmFeishuBotOpenId(
+  bot: BotConfig,
+  deps: FeishuProviderDeps,
+): Promise<void> {
+  const appId = bot.feishuAppId?.trim();
+  if (!appId || feishuBotOpenIdCache.has(appId)) {
+    return;
+  }
+  const token = await readTenantAccessToken(bot, deps);
+  if (!token) {
+    return;
+  }
+  const response = await fetchBotProviderJson<FeishuBotInfoResponse>(
+    `${getFeishuBaseUrl(bot)}/open-apis/bot/v3/info`,
+    { method: "GET", headers: { authorization: `Bearer ${token}` } },
+  );
+  const openId = response.payload?.bot?.open_id ?? response.payload?.data?.bot?.open_id;
+  if (response.ok && openId) {
+    feishuBotOpenIdCache.set(appId, openId);
+  }
+}
+
+/** 从回调负载提取 mentions 里的 open_id 列表（群聊 @ 检测)。 */
+function readFeishuMentionOpenIds(payload: Record<string, unknown>): string[] {
+  const event = isRecord(payload.event) ? payload.event : payload;
+  const message = isRecord(event.message) ? event.message : null;
+  const mentions = Array.isArray(message?.mentions) ? message.mentions : [];
+  return mentions
+    .filter(isRecord)
+    .map((mention) => (isRecord(mention.id) ? readString(mention.id, "open_id") : ""))
+    .filter(Boolean);
 }
 
 function stripFeishuMentions(text: string): string {
@@ -1133,6 +1180,120 @@ function resolveFeishuReceiveIdType(receiveId: string): "chat_id" | "open_id" {
   return receiveId.startsWith("oc_") ? "chat_id" : "open_id";
 }
 
+/** 出站媒体上传：图片走 /im/v1/images，文件走 /im/v1/files，返回可发送的 key。 */
+async function uploadFeishuMedia(
+  bot: BotConfig,
+  deps: FeishuProviderDeps,
+  media: BotOutboundMedia,
+): Promise<{ msgType: "image" | "file"; contentKey: string; contentValue: string } | null> {
+  const token = await readTenantAccessToken(bot, deps);
+  if (!token) {
+    return null;
+  }
+  const baseUrl = getFeishuBaseUrl(bot);
+  const form = new FormData();
+  if (media.kind === "image") {
+    form.append("image_type", "message");
+    form.append(
+      "image",
+      // 复制为 ArrayBuffer 支撑的视图：Uint8Array<ArrayBufferLike> 与 BlobPart 的泛型不兼容。
+      new Blob([Uint8Array.from(media.data)], { type: media.mimeType }),
+      media.filename,
+    );
+    const response = await fetchBotProviderJson<{
+      code?: number;
+      msg?: string;
+      data?: { image_key?: string };
+    }>(`${baseUrl}/open-apis/im/v1/images`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: form,
+    });
+    const imageKey = response.payload?.data?.image_key;
+    if (!response.ok || !imageKey) {
+      throw new Error(
+        `Feishu image upload failed: ${response.payload?.msg ?? `HTTP ${response.status}`}`,
+      );
+    }
+    return { msgType: "image", contentKey: "image_key", contentValue: imageKey };
+  }
+  form.append("file_type", resolveFeishuFileType(media.filename, media.mimeType));
+  form.append("file_name", media.filename);
+  form.append(
+    "file",
+    // 复制为 ArrayBuffer 支撑的视图：Uint8Array<ArrayBufferLike> 与 BlobPart 的泛型不兼容。
+      new Blob([Uint8Array.from(media.data)], { type: media.mimeType }),
+    media.filename,
+  );
+  const response = await fetchBotProviderJson<{
+    code?: number;
+    msg?: string;
+    data?: { file_key?: string };
+  }>(`${baseUrl}/open-apis/im/v1/files`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const fileKey = response.payload?.data?.file_key;
+  if (!response.ok || !fileKey) {
+    throw new Error(
+      `Feishu file upload failed: ${response.payload?.msg ?? `HTTP ${response.status}`}`,
+    );
+  }
+  return { msgType: "file", contentKey: "file_key", contentValue: fileKey };
+}
+
+/** 飞书文件类型枚举（上传接口必填）：按扩展名归类，未知归 stream。 */
+function resolveFeishuFileType(filename: string, mimeType: string): string {
+  const extension = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (mimeType.startsWith("video/") || ["mp4", "mov", "avi"].includes(extension)) {
+    return "mp4";
+  }
+  if (mimeType.startsWith("audio/") || ["mp3", "wav", "ogg", "m4a"].includes(extension)) {
+    return "opus";
+  }
+  if (["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(extension)) {
+    return extension;
+  }
+  return "stream";
+}
+
+/** 发送任意 msg_type 的飞书消息（出站媒体使用；content 按飞书协议序列化）。 */
+async function sendFeishuRawMessage(
+  bot: BotConfig,
+  token: string,
+  receiveId: string,
+  msgType: "image" | "file",
+  content: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetchBotProviderJson<FeishuSendMessageResponse>(
+    `${getFeishuBaseUrl(bot)}/open-apis/im/v1/messages?receive_id_type=${resolveFeishuReceiveIdType(receiveId)}`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      signal,
+      body: JSON.stringify({
+        receive_id: receiveId,
+        msg_type: msgType,
+        content: JSON.stringify(content),
+      }),
+    },
+  );
+  if (!response.ok || (response.payload?.code ?? 0) !== 0) {
+    throw createFeishuMessageError(
+      `send ${msgType}`,
+      response.status,
+      response.payload,
+      response.responseLogId,
+      resolveFeishuReceiveIdType(receiveId),
+    );
+  }
+}
+
 function createFeishuMessageError(
   operation: string,
   status: number,
@@ -1707,6 +1868,21 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
       }
     },
 
+    async sendMedia(bot, target, media) {
+      const uploaded = await uploadFeishuMedia(bot, deps, media);
+      if (!uploaded) {
+        throw new Error("Feishu credentials are unavailable for media upload.");
+      }
+      const token = await readTenantAccessToken(bot, deps);
+      if (!token) {
+        throw new Error("Feishu tenant access token is unavailable.");
+      }
+      const receiveId = target.providerUserId;
+      await sendFeishuRawMessage(bot, token, receiveId, uploaded.msgType, {
+        [uploaded.contentKey]: uploaded.contentValue,
+      });
+    },
+
     async createStreamingReplyCard(bot, state, signal) {
       const token = await readTenantAccessToken(bot, deps, signal);
       if (!token) {
@@ -1849,6 +2025,19 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
       return message?.elicitation ? { handled: true } : undefined;
     },
 
+    async prepareCallbackPayload(bot, payload) {
+      // 群聊 @ 检测需要机器人自身 open_id：首次回调时拉取并缓存，后续直接命中。
+      if (isRecord(payload)) {
+        await warmFeishuBotOpenId(bot, deps).catch(() => undefined);
+        const appId = bot.feishuAppId?.trim();
+        const botOpenId = appId ? feishuBotOpenIdCache.get(appId) : undefined;
+        if (botOpenId) {
+          return { ...payload, zcodeFeishuBotOpenId: botOpenId };
+        }
+      }
+      return payload;
+    },
+
     async downloadAttachment(bot, attachment, actor) {
       const token = await readTenantAccessToken(bot, deps);
       if (!token || !attachment.providerFileId || !actor?.providerMessageId) {
@@ -1896,7 +2085,20 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
         return [];
       }
       const message = readFeishuTextMessage(botId, payload) ?? readFeishuCardAction(botId, payload);
-      return message ? [message] : [];
+      if (!message) {
+        return [];
+      }
+      if (message.actor.chatType === "group") {
+        const botOpenId =
+          typeof payload.zcodeFeishuBotOpenId === "string" ? payload.zcodeFeishuBotOpenId : "";
+        const mentionedOpenIds = readFeishuMentionOpenIds(payload);
+        // 身份未知时保守放行（mention 模式宁可多响应一次，也不能静默丢消息）。
+        const isMention = botOpenId
+          ? mentionedOpenIds.includes(botOpenId)
+          : true;
+        return [{ ...message, actor: { ...message.actor, isMention } }];
+      }
+      return [message];
     },
   };
 }

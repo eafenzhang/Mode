@@ -129,7 +129,10 @@ export function WorkspaceEditorButtonGroup({
   }
 
   return (
-    <div className="flex items-center h-7 rounded-lg border border-border bg-input overflow-hidden p-0 hover:border-border-hover">
+    // 右侧留白与图标按钮之间的视觉节奏对齐：图标按钮 28px 内居中 16px 字形（两侧各 6px 内边距），
+    // 而胶囊是有边框/底色的实体，紧贴下一个图标时只剩 9px 视觉间隔。这里补 6px，让
+    // 「胶囊边缘 → 首个字形」与其他「字形 → 字形」间距一致。
+    <div className="flex items-center h-7 me-1.5 rounded-lg border border-border bg-input overflow-hidden p-0 hover:border-border-hover">
       <Button
         type="button"
         variant="ghost"

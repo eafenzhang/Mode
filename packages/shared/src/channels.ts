@@ -9,6 +9,7 @@ import type {
 } from "./index.js";
 import type { OAuthStateRegistration } from "./oauth.js";
 import type { AppSettings, Locale } from "./protocol.js";
+import type { LanAccessPairResult, LanAccessState, LanDiscoveredPeer, LanPairPeerRequest } from "./lanAccess.js";
 import type { StorageCleanRequest, StorageCleanResult, StorageUsageSnapshot } from "./storage.js";
 import type {
   CancelPendingRemoteConnectionRequest,
@@ -133,8 +134,6 @@ export const ServiceChannels = {
   Bots: "bots",
   /** AstrBot 桥接传输控制面（官方 BotsService 的 astrbot provider） */
   AstrBotBridge: "bots-astrbot-bridge",
-  /** 用户反馈工单服务 */
-  Feedback: "feedback",
   /** Composer 附件在 host-local 与 remote runtime 之间的预传服务 */
   PromptAttachmentTransfer: "prompt-attachment-transfer",
   /** 闲时任务管理服务（与 automation 服务面独立） */
@@ -189,6 +188,20 @@ export const PlatformChannels = {
   ListDockerContainers: "zcode:list-docker-containers",
   /** Renderer → Main：列出 SSH config 里可用于快速填表的 alias */
   ListSSHConfigAliases: "zcode:list-ssh-config-aliases",
+  /** Renderer → Main：读取局域网访问状态（服务端视角） */
+  GetLanAccessState: "zcode:get-lan-access-state",
+  /** Renderer → Main：开关局域网访问 */
+  SetLanAccessEnabled: "zcode:set-lan-access-enabled",
+  /** Renderer → Main：生成一次性配对码 */
+  CreateLanAccessPairCode: "zcode:create-lan-access-pair-code",
+  /** Renderer → Main：移除一个已配对客户端 */
+  RemoveLanAccessClient: "zcode:remove-lan-access-client",
+  /** Renderer → Main：重置全部已配对客户端令牌 */
+  ResetLanAccessTokens: "zcode:reset-lan-access-tokens",
+  /** Renderer → Main：广播探测局域网内的 Mode 实例 */
+  DiscoverLanPeers: "zcode:discover-lan-peers",
+  /** Renderer → Main：用配对码换取对端长期令牌（Host 侧执行并落凭据） */
+  PairLanPeer: "zcode:pair-lan-peer",
   /** Renderer → Main：从用户目录加载 CLI MCP 配置 */
   LoadMcpFromUserDirectory: "zcode:load-mcp-from-user-directory",
   /** Renderer → Main：保存 CLI MCP 配置到用户目录 */
@@ -239,10 +252,6 @@ export const PlatformChannels = {
   OpenWorkspace: "zcode:open-workspace",
   /** Main → Renderer：deep link 直接打开指定本地工作区目录 */
   OpenWorkspacePath: "zcode:open-workspace-path",
-  /** Main → Renderer：打开内置反馈对话框 */
-  OpenFeedbackDialog: "zcode:open-feedback-dialog",
-  /** Main → Renderer：打开我的工单面板 */
-  OpenTicketsPanel: "zcode:open-tickets-panel",
   /** Main → Renderer：窗口全屏状态变化 */
   WindowFullscreenChanged: "zcode:window-fullscreen-changed",
   /** Renderer → Main：读取窗口最大化状态与系统原生圆角能力 */
@@ -316,8 +325,6 @@ export const PlatformChannels = {
   TaskNotificationClick: "zcode:task-notification-click",
   /** Renderer → Main：导出日志（打包 ~/.zcodium/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "zcode:export-logs",
-  /** Renderer → Main：截取当前窗口作为反馈附件 */
-  CaptureWindowScreenshot: "zcode:capture-window-screenshot",
   /**
    * Renderer → Main：`<webview>` guest dom-ready 后上报 webContentsId，
    * main 用 BrowserGuestManager attach 该 guest（fire-and-forget）。CDP-on-guest pivot。
@@ -520,8 +527,6 @@ export const HostMessageTypes = {
   SessionMessageDeliver: "session-message-deliver",
   /** main → host：把 session message 投递结果回写到源 session */
   SessionMessageDeliveryResult: "session-message-delivery-result",
-  /** main → host：反馈日志归档创建结果 */
-  FeedbackLogArchiveResult: "feedback-log-archive-result",
   /** main → host：定时任务到点派发；会话内 cron 复用 targetTaskId，历史未绑定任务才建 session */
   CronRun: "cron-run",
   /** main → host：闲时任务派发；首跑 createTask 新建 session，续跑带 conversationId/sessionId resume */
@@ -534,6 +539,14 @@ export const HostMessageTypes = {
   CuaPipFocusChanged: "cua-pip-focus-changed",
   /** main → host：要求 Host 现读本地 Source，并同步指定 Remote Environment。 */
   ProviderProvisioningExecute: "provider-provisioning-execute",
+  /** main → host：局域网客户端配对（用配对码换长期令牌） */
+  LanPairPeer: "lan-pair-peer",
+  /** main → host：局域网访问控制（读取状态 / 开关 / 生成配对码 / 移除客户端 / 重置令牌） */
+  LanAccessGetState: "lan-access-get-state",
+  LanAccessSetEnabled: "lan-access-set-enabled",
+  LanAccessCreatePairCode: "lan-access-create-pair-code",
+  LanAccessRemoveClient: "lan-access-remove-client",
+  LanAccessResetTokens: "lan-access-reset-tokens",
   /** main → host：资源管理器请求 Host 采样其后代进程（Agent / MCP / 终端）的 CPU 与内存 */
   ResourceUsageSnapshotRequest: "resource-usage-snapshot-request",
   ResourceUsageSnapshotCancel: "resource-usage-snapshot-cancel",
@@ -570,6 +583,10 @@ export const HostResponseTypes = {
   ToolExecResource: "tool-exec-resource",
   /** host → main：资源管理器采样结果（按 requestId 关联） */
   ResourceUsageSnapshotResult: "resource-usage-snapshot-result",
+  /** host → main：局域网访问状态（按 requestId 关联） */
+  LanAccessStateResult: "lan-access-state-result",
+  /** host → main：局域网配对结果（按 requestId 关联） */
+  LanPairPeerResult: "lan-pair-peer-result",
   /** host 内当前正在执行 prompt 的 agent session 数量变化 */
   AgentRunningTaskCountChanged: "agent-running-task-count-changed",
   /** host 内指定 workspace 当前仍未 terminal 的 task 数量变化 */
@@ -610,8 +627,6 @@ export const HostResponseTypes = {
   SessionRouteAnnounce: "session-route-announce",
   /** host → main：目标 host 完成本地 session message 投递 */
   SessionMessageDeliverResult: "session-message-deliver-result",
-  /** host → main：请求 main 复用导出日志逻辑创建反馈日志归档 */
-  FeedbackLogArchiveRequest: "feedback-log-archive-request",
   /** host → main：定时任务派发结果（成功回填 taskId/sessionId，失败带 transient/permanent） */
   CronRunResult: "cron-run-result",
   /** host → main：闲时任务派发结果（成功回填 conversationId/sessionId，失败带 transient/permanent） */
@@ -723,6 +738,34 @@ export interface PlatformChannelMap {
   [PlatformChannels.ListSSHConfigAliases]: {
     request: void;
     response: SSHConfigAliasOption[];
+  };
+  [PlatformChannels.GetLanAccessState]: {
+    request: void;
+    response: LanAccessState;
+  };
+  [PlatformChannels.SetLanAccessEnabled]: {
+    request: boolean;
+    response: LanAccessState;
+  };
+  [PlatformChannels.CreateLanAccessPairCode]: {
+    request: void;
+    response: LanAccessState;
+  };
+  [PlatformChannels.RemoveLanAccessClient]: {
+    request: string;
+    response: LanAccessState;
+  };
+  [PlatformChannels.ResetLanAccessTokens]: {
+    request: void;
+    response: LanAccessState;
+  };
+  [PlatformChannels.DiscoverLanPeers]: {
+    request: void;
+    response: LanDiscoveredPeer[];
+  };
+  [PlatformChannels.PairLanPeer]: {
+    request: LanPairPeerRequest;
+    response: LanAccessPairResult;
   };
   [PlatformChannels.LoadMcpFromUserDirectory]: {
     request: LoadCliMcpFromUserDirectoryRequest;
@@ -927,15 +970,6 @@ export interface PlatformChannelMap {
   [PlatformChannels.ExportLogs]: {
     request: void;
     response: { success: boolean; path?: string; error?: string };
-  };
-  [PlatformChannels.CaptureWindowScreenshot]: {
-    request: void;
-    response: {
-      dataBase64: string;
-      filename: string;
-      contentType: string;
-      size: number;
-    } | null;
   };
   // CDP-on-guest pivot：renderer `<webview>` 上报 guest webContentsId → main attach。
   [PlatformChannels.BrowserViewAttachGuest]: {

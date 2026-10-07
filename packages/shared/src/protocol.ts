@@ -1,4 +1,3 @@
-import type { OfficialServiceSwitches } from "./officialPlatformPolicy.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
@@ -157,10 +156,19 @@ export interface DockerRemoteTargetSnapshot {
   container: string;
 }
 
+export interface LanRemoteTargetSnapshot {
+  kind: "lan";
+  host: string;
+  port: number;
+  serverId?: string;
+  serverName?: string;
+}
+
 export type RemoteTargetSnapshot =
   | SSHRemoteTargetSnapshot
   | WSLRemoteTargetSnapshot
-  | DockerRemoteTargetSnapshot;
+  | DockerRemoteTargetSnapshot
+  | LanRemoteTargetSnapshot;
 
 export interface RemoteWorkspaceSessionSnapshot {
   /** 远程 workspace 的真实绝对路径 */
@@ -236,12 +244,6 @@ export interface ResourceUsageSnapshot {
 }
 
 export interface AppSettings {
-  /**
-   * 官方平台服务开关；缺省全部关闭（不连接官方平台）。
-   * 键定义见 officialPlatformPolicy.ts；对话分享已永久下线，不在此列。
-   * 字段允许缺省：读取/投影方用 normalizeOfficialServiceSwitches 补全为全关。
-   */
-  officialServices?: Partial<OfficialServiceSwitches>;
   /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */
   startPlanRecommendationDismissed?: boolean;
   recentProjects: string[]; // 最近项目列表，最多保留 10 个
@@ -287,6 +289,11 @@ export interface AppSettings {
   closeToTrayOnWindows?: boolean;
   /** 存在执行中的闲时任务时阻止系统闲置休眠（手动开关，防不了合盖）。 */
   keepAwakeWhileRunning?: boolean;
+  /**
+   * 允许局域网内的其它 Mode 实例连接本机：开启后监听局域网并提供工作区列表与受信 RPC 通道，
+   * 客户端需用配对码换取长期令牌。默认关闭。
+   */
+  lanAccessEnabled?: boolean;
   /** Windows 关闭到托盘默认值是否已执行过一次性迁移；只用于设置迁移，不参与业务判断。 */
   closeToTrayOnWindowsMigrationInitialized?: boolean;
   /** 桌面端全局页面缩放档位；用于重启后恢复界面缩放，Web/手机端忽略。 */
@@ -355,6 +362,8 @@ export interface AppSettings {
   lastActiveTabIndex?: number;
   /** 每个 workspace 的最后活跃 taskId，下次打开自动恢复 */
   lastActiveTaskByWorkspace?: Record<string, string>;
+  /** 工作区 → bot 绑定表；key 为 workspaceKey（workspaceIdentity 优先于 workspacePath），value 为 botId */
+  botBindingByWorkspace?: Record<string, string>;
   /** 数据目录的根路径（替代 homedir），默认为 os.homedir()；.zcode/v2 后缀不变 */
   dataBaseDir?: string;
   /** 自动更新安装完成后，等待首次启动展示的版本说明 */

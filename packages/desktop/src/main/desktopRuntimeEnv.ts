@@ -61,10 +61,19 @@ function isTruthyRuntimeEnvOverride(name: string): boolean {
 export const runtimeApplicationName =
   readRuntimeEnvOverride("ZCODE_DESKTOP_APPLICATION_NAME") ??
   (isLocalDevelopmentRuntime
-    ? "ZCodium Dev"
+    ? "Mode Dev"
     : isPreviewPackagedRuntime
-      ? "ZCodium Preview"
-      : "ZCodium");
+      ? "Mode Preview"
+      : "Mode");
+// userData 目录名固定沿用更名前的 ZCodium：它存放登录态、窗口状态与各类缓存，
+// 跟着显示名改成 Mode* 会让既有数据留在旧目录里“消失”（Electron 不做迁移）。
+// flavor 后缀保留，dev/preview/正式版继续各自独立。
+const USER_DATA_DIRECTORY_BASE_NAME = "ZCodium";
+export const runtimeUserDataDirectoryName = isLocalDevelopmentRuntime
+  ? `${USER_DATA_DIRECTORY_BASE_NAME} Dev`
+  : isPreviewPackagedRuntime
+    ? `${USER_DATA_DIRECTORY_BASE_NAME} Preview`
+    : USER_DATA_DIRECTORY_BASE_NAME;
 // Electron 的 app.getPath("home") 不一定跟随测试进程里的 HOME 覆盖。
 // e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 ~/ZCodeProject。
 export const runtimeHomePath = readRuntimeEnvOverride("ZCODE_DESKTOP_HOME_DIR");
@@ -76,7 +85,7 @@ export const runtimeUserDataPath =
   readRuntimeEnvOverride("ZCODE_DESKTOP_USER_DATA_DIR") ??
   (shouldUseElectronDefaultUserDataPath
     ? undefined
-    : join(getElectronAppPath("appData"), runtimeApplicationName));
+    : join(getElectronAppPath("appData"), runtimeUserDataDirectoryName));
 export const runtimeSessionDataPath =
   readRuntimeEnvOverride("ZCODE_DESKTOP_SESSION_DATA_DIR") ??
   (runtimeUserDataPath ? join(runtimeUserDataPath, "session") : undefined);

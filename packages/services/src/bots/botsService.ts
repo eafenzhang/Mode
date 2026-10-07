@@ -1,8 +1,9 @@
 /* eslint-disable max-lines -- Bots 服务仍复用原 RPC 文件名，先把鉴权、命令路由、ZCode Agent 桥接收口集中在同一服务内。 */
 import { Buffer } from "node:buffer";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
 import type { IDisposable } from "@zcode/rpc";
 import { completeNewModelSelection } from "@zcode/provider";
 import {
@@ -36,7 +37,10 @@ import {
   type BotTaskBroadcastPayload,
   type BotTaskStreamBroadcastPayload,
   type BotConfig,
+  type BotChannelState,
   type BotContextState,
+  type BotConversationKind,
+  type BotConversationState,
   type BotDraftOptions,
   type BotCommand,
   type BotInboundAttachment,
@@ -45,13 +49,23 @@ import {
   type BotPendingElicitation,
   type BotStructuredElicitationResponse,
   isFeishuBotProvider,
+  isBotEligibleForSessionBinding,
+  normalizeBotWorkspaceBindings,
+  BOT_BINDINGS_FILE_VERSION,
   type BotProvider,
   type BotProviderCallbackResult,
   type BotReplyGranularity,
   type BotRuntimeInfo,
   type BotWorkspaceRef,
+  type BotsStateFile,
   type ModelSelection,
   type BotsConfigFile,
+  BOT_HEARTBEAT_PROMPT_MARKER_EN,
+  BOT_HEARTBEAT_PROMPT_MARKER_ZH,
+  BOT_LEGACY_CONVERSATION_KEY,
+  getBotActorConversation,
+  makeBotConversationKey,
+  parseBotConversationKey,
   type Locale,
   type SelectionPrompt,
 } from "@zcode/shared";
@@ -75,7 +89,11 @@ import type {
   BotListWorkspaceRefsParams,
   BotSaveBotParams,
   BotTestResult,
+  BotSendMediaParams,
+  BotUiFocusParams,
   BotUserConfigOptionsParams,
+  BotWorkspaceBindingInfo,
+  BotWorkspaceBindingParams,
   IBotsService,
 } from "./bots.js";
 import {
@@ -103,12 +121,60 @@ import type {
 import { createTelegramBotProvider } from "./providers/telegramProvider.js";
 import { createWebhookBotProvider } from "./providers/webhookProvider.js";
 import { createWeixinBotProvider } from "./providers/weixinProvider.js";
+import { createWeComBotProvider } from "./providers/wecomProvider.js";
+import {
+  createDingtalkBotProvider,
+  isDingtalkAiCardEnabled,
+} from "./providers/dingtalkProvider.js";
+import {
+  beginWeComRegistration as beginWeComQrRegistration,
+  pollWeComRegistration as pollWeComQrRegistration,
+} from "./providers/wecomRegistration.js";
+import { createWeComChannelRuntime } from "./wecomChannelRuntime.js";
+import { createDingtalkChannelRuntime } from "./dingtalkChannelRuntime.js";
+import { createWeComConnectionRegistry } from "./wecomConnection.js";
 import {
   beginWeixinRegistration as beginWeixinQrRegistration,
   pollWeixinRegistration as pollWeixinQrRegistration,
 } from "./providers/weixinRegistration.js";
 import { createFeishuBotProvider } from "./providers/feishuProvider.js";
 import { formatBotMessage, type BotMessageId } from "./messages.js";
+import { hasSentenceBoundary } from "./botText.js";
+import {
+  createGroupHistoryBuffer,
+  formatGroupHistoryContext,
+} from "./groupHistory.js";
+import {
+  buildGroupTurnPrompt,
+  formatBotProviderLabel,
+  GROUP_CHAT_TOOL_DENYLIST,
+  isGroupSilenceReply,
+  type GroupTurnPromptInput,
+} from "./groupPrompt.js";
+import {
+  isHeartbeatDue,
+  isHeartbeatOkOnly,
+  normalizeBotHeartbeat,
+} from "./botHeartbeat.js";
+import {
+  BOT_MEDIA_FILE_LIMIT_BYTES,
+  BOT_MEDIA_IMAGE_LIMIT_BYTES,
+  isPathInside,
+  resolveOutboundMediaKind,
+} from "./botMedia.js";
+import {
+  enqueueQueuedMessage,
+  dequeueQueuedMessage,
+  type EnqueueQueuedMessageResult,
+} from "./messageQueue.js";
+import {
+  getWorkspaceBoundBots,
+  removeBotFromOtherWorkspaces,
+  removeWorkspaceBinding,
+  resolveBoundWorkspaceRefs,
+  setWorkspaceBinding,
+  type BotWorkspaceBindings,
+} from "./botsBinding.js";
 import {
   extractBotAssistantResponseMessages,
   formatBotAssistantReplyBlocks,
@@ -209,13 +275,28 @@ const BOT_REPLY_GRANULARITY_OPTIONS = [
   aliases: readonly string[];
 }>;
 
-const BOT_EXCLUSIVE_CREDENTIAL_PROVIDERS = new Set<BotProvider>(["telegram", "feishu", "lark"]);
+const BOT_EXCLUSIVE_CREDENTIAL_PROVIDERS = new Set<BotProvider>([
+  "telegram",
+  "feishu",
+  "lark",
+  // 钉钉：一个 AppKey/AppSecret 只应有一个启用的机器人消费 Stream 长连接。
+  "dingtalk",
+]);
 const FEISHU_STREAMING_CARD_MIN_UPDATE_INTERVAL_MS = 1_000;
 const FEISHU_STREAMING_CARD_REQUEST_TIMEOUT_MS = 15_000;
 const FEISHU_STREAMING_CARD_FAILURE_BACKOFF_BASE_MS = 1_000;
 const FEISHU_STREAMING_CARD_FAILURE_CIRCUIT_THRESHOLD = 3;
 const BOT_ELICITATION_PROGRESS_BROADCAST_TIMEOUT_MS = 1_000;
 const BOT_PROVIDER_CALLBACK_ACK_TIMEOUT_MS = 3_000;
+
+
+
+/** 各 provider 的流式回复最小编辑间隔；Telegram 编辑有速率压力，与飞书保持同一档。 */
+const STREAMING_CARD_MIN_UPDATE_INTERVAL_MS_BY_PROVIDER: Partial<Record<BotProvider, number>> = {
+  telegram: 1_000,
+  feishu: FEISHU_STREAMING_CARD_MIN_UPDATE_INTERVAL_MS,
+  lark: FEISHU_STREAMING_CARD_MIN_UPDATE_INTERVAL_MS,
+};
 
 type StreamingCardTimelineBlock =
   | {
@@ -478,7 +559,16 @@ function createOutbound(
 function resolveAutomationBotDeliveryTarget(
   actor: BotActor,
 ): ZCodeAutomationBotDeliveryTarget | undefined {
-  if (actor.provider !== "feishu" && actor.provider !== "lark" && actor.provider !== "weixin") {
+  // 具备主动推送能力的平台：飞书/Lark、微信、Telegram、企业微信智能机器人。
+  // webhook 是入站协议、AstrBot 由桥接自行回推，均不作为投递目标。
+  // 注意：用直接条件而不是布尔别名，TS 需要它来完成联合类型窄化。
+  if (
+    actor.provider !== "feishu" &&
+    actor.provider !== "lark" &&
+    actor.provider !== "weixin" &&
+    actor.provider !== "telegram" &&
+    actor.provider !== "wecom"
+  ) {
     return undefined;
   }
   const providerUserId = actor.chatId?.trim() || actor.providerUserId.trim();
@@ -490,6 +580,7 @@ function resolveAutomationBotDeliveryTarget(
     chatType: actor.chatType,
   };
 }
+
 
 function formatSelectionFallback(selection: SelectionPrompt, locale?: Locale): string {
   const lines = selection.options.map((option, index) => {
@@ -660,6 +751,24 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * 任务流订阅 key。必须带 botId：一个会话可以同时绑定多个 bot（同一工作区多机器人），
+ * 只按 workspace+task 记键会让后绑定的 bot 被当成重复订阅而拿不到流事件。
+ */
+/** 打字指示器 key：同一会话可被多个 bot 服务，必须按 bot 分开记。 */
+function buildTypingKey(taskId: string, botId: string): string {
+  return [taskId, botId].join("::");
+}
+
+function buildTaskStreamSubscriptionKey(
+  workspacePath: string,
+  workspaceIdentity: string | undefined,
+  taskId: string,
+  botId: string,
+): string {
+  return [getWorkspaceKey(workspacePath, workspaceIdentity), taskId, botId].join("::");
+}
+
 const DEFAULT_BOT_ZCODE_PROVIDER: ZCodeProvider = ZCODE_AGENT_PROVIDER;
 // Bot 模式硬锁 yolo：所有 bot task 一律免交互权限，且禁止通过 /mode 切换运行模式。
 const BOT_FORCED_MODE = "yolo";
@@ -727,6 +836,13 @@ export function createBotsService(
     { expiresAt: number; value: BotWorkspaceRef[] }
   >();
   let cachedLocale: Locale | undefined;
+  // 企微连接注册表：provider（出站发送/流式）与 channel runtime（长连接维护）共用。
+  // 必须在 providers 之前创建，runtime 在其后创建时复用同一实例。
+  const wecomConnection = createWeComConnectionRegistry();
+  // 群聊历史：未被 @ / 非绑定用户的消息按会话暂存，触发时作为上下文注入。
+  const groupHistory = createGroupHistoryBuffer();
+  /** 一次性迁移标记：旧绑定表曾存于 AppSettings。 */
+  let bindingsMigrationChecked = false;
   const providers: Record<BotProvider, BotProviderAdapter | null> = {
     telegram: createTelegramBotProvider({
       loadCredential: (key) => deps.credentialService.load(key),
@@ -746,7 +862,13 @@ export function createBotsService(
       loadCredential: (key) => deps.credentialService.load(key),
     }),
     discord: null,
-    wecom: null,
+    wecom: createWeComBotProvider({
+      loadCredential: (key) => deps.credentialService.load(key),
+      connection: wecomConnection,
+    }),
+    dingtalk: createDingtalkBotProvider({
+      loadCredential: (key) => deps.credentialService.load(key),
+    }),
     // AstrBot 桥接 provider 由组合根注入；入站经 handleProviderCallback("astrbot", frame)。
     astrbot: deps.astrBotProvider ?? null,
   };
@@ -814,37 +936,86 @@ export function createBotsService(
     summarizeCallbackPayload,
     processProviderCallback,
   });
+  const wecomRuntime = createWeComChannelRuntime({
+    runBackgroundTasks: runStartupBackgroundTasks,
+    credentialService: deps.credentialService,
+    logger: botsLogger,
+    statusSink,
+    ensureBotStorageMigrated,
+    readConfig: () => repo.readConfig(),
+    connection: wecomConnection,
+    readWecomDedup,
+    writeWecomDedup,
+    processProviderCallback,
+  });
+
+  const dingtalkRuntime = createDingtalkChannelRuntime({
+    runBackgroundTasks: runStartupBackgroundTasks,
+    credentialService: deps.credentialService,
+    logger: botsLogger,
+    statusSink,
+    ensureBotStorageMigrated,
+    readConfig: () => repo.readConfig(),
+    readDingtalkDedup,
+    writeDingtalkDedup,
+    processProviderCallback,
+  });
+
+  /** 通道级状态（游标/去重表）：与对话无关，按 bot 唯一。 */
+  function ensureBotChannelState(state: BotsStateFile, botId: string): BotChannelState {
+    const existing = state.bots[botId];
+    if (existing) {
+      return existing;
+    }
+    const created: BotChannelState = { botId, conversations: {}, updatedAt: Date.now() };
+    state.bots[botId] = created;
+    return created;
+  }
+
+  /** 写通道级字段：只认这些字段，绝不在这里伪造对话上下文。 */
+  async function patchBotChannelState(
+    botId: string,
+    patch: Partial<Omit<BotChannelState, "botId" | "conversations">>,
+  ): Promise<void> {
+    const state = await repo.readState();
+    const channel = ensureBotChannelState(state, botId);
+    Object.assign(channel, patch, { updatedAt: Date.now() });
+    await repo.writeState(state);
+  }
 
   async function readTelegramOffset(botId: string): Promise<number | undefined> {
     return (await repo.readState()).bots[botId]?.telegramOffset;
   }
 
+  async function readWecomDedup(
+    botId: string,
+  ): Promise<Array<{ id: string; at: number }>> {
+    return (await repo.readState()).bots[botId]?.wecomRecentMessageIds ?? [];
+  }
+
+  /** 钉钉 Stream 回调的 msgId 去重表（与企微同机制，持久化在 bot 状态里）。 */
+  async function readDingtalkDedup(
+    botId: string,
+  ): Promise<Array<{ id: string; at: number }>> {
+    return (await repo.readState()).bots[botId]?.dingtalkRecentMessageIds ?? [];
+  }
+
+  async function writeDingtalkDedup(
+    botId: string,
+    entries: Array<{ id: string; at: number }>,
+  ): Promise<void> {
+    await patchBotChannelState(botId, { dingtalkRecentMessageIds: entries });
+  }
+
+  async function writeWecomDedup(
+    botId: string,
+    entries: Array<{ id: string; at: number }>,
+  ): Promise<void> {
+    await patchBotChannelState(botId, { wecomRecentMessageIds: entries });
+  }
+
   async function writeTelegramOffset(botId: string, offset: number): Promise<void> {
-    const state = await repo.readState();
-    const existing = state.bots[botId];
-    if (existing) {
-      state.bots[botId] = {
-        ...existing,
-        telegramOffset: offset,
-        updatedAt: Date.now(),
-      };
-    } else {
-      const bot = findBot(await repo.readConfig(), botId);
-      const workspace = bot ? firstAllowedWorkspace(await listWorkspaceRefs(), bot) : null;
-      if (bot && workspace) {
-        state.bots[botId] = {
-          botId: botId,
-          workspacePath: workspace.workspacePath,
-          workspaceIdentity: workspace.workspaceIdentity,
-          workspaceId: workspace.id,
-          mode: "draft",
-          activeTaskId: null,
-          telegramOffset: offset,
-          updatedAt: Date.now(),
-        };
-      }
-    }
-    await repo.writeState(state);
+    await patchBotChannelState(botId, { telegramOffset: offset });
   }
 
   async function readWeixinGetUpdatesBuf(botId: string): Promise<string | undefined> {
@@ -852,38 +1023,39 @@ export function createBotsService(
   }
 
   async function writeWeixinGetUpdatesBuf(botId: string, buf: string): Promise<void> {
-    const state = await repo.readState();
-    const existing = state.bots[botId];
-    if (existing) {
-      state.bots[botId] = {
-        ...existing,
-        weixinGetUpdatesBuf: buf,
-        updatedAt: Date.now(),
-      };
-    } else {
-      const bot = findBot(await repo.readConfig(), botId);
-      const workspace = bot ? firstAllowedWorkspace(await listWorkspaceRefs(), bot) : null;
-      if (bot && workspace) {
-        state.bots[botId] = {
-          botId,
-          workspacePath: workspace.workspacePath,
-          workspaceIdentity: workspace.workspaceIdentity,
-          workspaceId: workspace.id,
-          mode: "draft",
-          activeTaskId: null,
-          weixinGetUpdatesBuf: buf,
-          updatedAt: Date.now(),
-        };
-      }
-    }
-    await repo.writeState(state);
+    await patchBotChannelState(botId, { weixinGetUpdatesBuf: buf });
   }
 
-  async function readContext(_actor: BotActor, bot: BotConfig): Promise<BotContextState | null> {
+  async function readContext(actor: BotActor, bot: BotConfig): Promise<BotContextState | null> {
     await ensureBotStorageMigrated();
     const state = await repo.readState();
-    const existing = state.bots[getContextKey(bot)];
+    const conversation = getBotActorConversation(actor);
+    const existing = state.bots[bot.id]?.conversations[conversation.key];
     if (existing) {
+      // 绑定优先：bot 被绑定到工作区时，上下文必须落在绑定集内。
+      // UI 焦点通知会把上下文切到用户正在看的绑定工作区；这里只纠正漂移出绑定集的情况。
+      const boundWorkspaces = await resolveBotBoundWorkspaces(bot.id);
+      if (boundWorkspaces.length > 0) {
+        const currentKey = getWorkspaceKey(existing.workspacePath, existing.workspaceIdentity);
+        const pinned = boundWorkspaces.find((ref) => ref.id === currentKey) ?? boundWorkspaces[0]!;
+        if (pinned.id === currentKey) {
+          return existing;
+        }
+        // activeTaskId/pending interactions 属于旧工作区，不能跨工作区沿用。
+        const pinnedContext: BotContextState = {
+          ...existing,
+          workspacePath: pinned.workspacePath,
+          workspaceIdentity: pinned.workspaceIdentity,
+          workspaceId: pinned.id,
+          mode: "draft",
+          activeTaskId: null,
+          pendingPermissionOptions: undefined,
+          pendingElicitation: undefined,
+          queuedMessages: undefined,
+        };
+        await writeContext(pinnedContext);
+        return pinnedContext;
+      }
       const latestWorkspaces = await listWorkspaceRefs();
       const canonicalWorkspace = resolveCanonicalContextWorkspace(existing, latestWorkspaces);
       if (!canonicalWorkspace) {
@@ -916,12 +1088,18 @@ export function createBotsService(
       await writeContext(nextContext);
       return nextContext;
     }
-    const workspace = firstAllowedWorkspace(await listWorkspaceRefs(), bot);
+    const workspace =
+      (await resolveBotPinnedWorkspace(bot)) ??
+      firstAllowedWorkspace(await listWorkspaceRefs(), bot);
     if (!workspace) {
       return null;
     }
     return {
       botId: bot.id,
+      conversationKey: conversation.key,
+      conversationKind: conversation.kind,
+      conversationId: conversation.id,
+      ...(actor.displayName?.trim() ? { conversationLabel: actor.displayName.trim() } : {}),
       workspacePath: workspace.workspacePath,
       workspaceIdentity: workspace.workspaceIdentity,
       workspaceId: workspace.id,
@@ -934,8 +1112,741 @@ export function createBotsService(
 
   async function writeContext(context: BotContextState): Promise<void> {
     const state = await repo.readState();
-    state.bots[context.botId] = { ...context, updatedAt: Date.now() };
+    const channel = ensureBotChannelState(state, context.botId);
+    const previous = channel.conversations[context.conversationKey];
+    // 一个对话只能绑定一个会话：该对话离开旧会话时撤掉旧会话的流订阅，
+    // 否则旧会话的助手回复会继续推到 IM（表现为"绑定新会话后旧会话还在同步"）。
+    // 每个对话各写各的槽位：其他对话的订阅与排队消息不受影响（多会话并发的前提）。
+    if (
+      previous?.activeTaskId &&
+      (previous.activeTaskId !== context.activeTaskId ||
+        getWorkspaceKey(previous.workspacePath, previous.workspaceIdentity) !==
+          getWorkspaceKey(context.workspacePath, context.workspaceIdentity))
+    ) {
+      disposeTaskStreamSubscription(
+        previous.workspacePath,
+        previous.workspaceIdentity,
+        previous.activeTaskId,
+        context.botId,
+      );
+      stopTyping(previous.activeTaskId, context.botId);
+    }
+    channel.conversations[context.conversationKey] = { ...context, updatedAt: Date.now() };
+    channel.updatedAt = Date.now();
     await repo.writeState(state);
+  }
+
+  /** 撤掉某个会话上该 bot 的流订阅（换绑/切换/解绑/终态共用）。 */
+  function disposeTaskStreamSubscription(
+    workspacePath: string,
+    workspaceIdentity: string | undefined,
+    taskId: string,
+    botId: string,
+  ): void {
+    const key = buildTaskStreamSubscriptionKey(workspacePath, workspaceIdentity, taskId, botId);
+    streamSubscriptions.get(key)?.dispose();
+    streamSubscriptions.delete(key);
+  }
+
+  /** 任务运行中收到的纯文本消息入队；带附件的消息不排队（附件下载是瞬时的，暂存会失效）。 */
+  async function queueContextMessage(
+    context: BotContextState,
+    message: BotInboundMessage,
+  ): Promise<EnqueueQueuedMessageResult> {
+    const state = await repo.readState();
+    const channel = state.bots[context.botId];
+    const existing = channel?.conversations[context.conversationKey];
+    if (!channel || !existing) {
+      return { queue: [], position: 1 };
+    }
+    const result = enqueueQueuedMessage(existing.queuedMessages, {
+      text: message.text,
+      providerUserId: message.actor.providerUserId,
+      displayName: message.actor.displayName,
+      chatId: message.actor.chatId,
+    });
+    channel.conversations[context.conversationKey] = {
+      ...existing,
+      queuedMessages: result.queue,
+      updatedAt: Date.now(),
+    };
+    channel.updatedAt = Date.now();
+    await repo.writeState(state);
+    return result;
+  }
+
+  /**
+   * 任务终态后按序投递运行期间排队的消息。每次只投一条：递归的 handleMessage 会把
+   * 任务重新标为 running 并建立新的 stream 订阅，该回合终态时再取下一条。
+   * 上下文已离开该任务时不投递，避免把旧指令打进用户刚切换的会话。
+   */
+  async function drainQueuedMessages(bot: BotConfig, taskId: string): Promise<void> {
+    for (;;) {
+      const state = await repo.readState();
+      const channel = state.bots[bot.id];
+      // 一个 bot 可能同时有多个对话各自绑着会话；这里只处理"当前正持有该会话"的那个对话。
+      const conversationKey = Object.keys(channel?.conversations ?? {}).find(
+        (key) => channel?.conversations[key]?.activeTaskId === taskId,
+      );
+      const context = conversationKey ? channel?.conversations[conversationKey] : undefined;
+      if (!channel || !conversationKey || !context || context.mode !== "task") {
+        return;
+      }
+      if (runningTasks.has(taskId)) {
+        return;
+      }
+      const { next, message: queued } = dequeueQueuedMessage(context.queuedMessages);
+      if (!queued) {
+        return;
+      }
+      channel.conversations[conversationKey] = {
+        ...context,
+        queuedMessages: next,
+        updatedAt: Date.now(),
+      };
+      channel.updatedAt = Date.now();
+      await repo.writeState(state);
+      if (!queued.providerUserId) {
+        return;
+      }
+      const actor: BotActor = {
+        provider: bot.provider,
+        botId: bot.id,
+        providerUserId: queued.providerUserId,
+        ...(queued.displayName ? { displayName: queued.displayName } : {}),
+        chatType: context.conversationKind === "group" ? "group" : "private",
+        ...(queued.chatId
+          ? { chatId: queued.chatId }
+          : context.conversationKind === "group"
+            ? { chatId: context.conversationId }
+            : {}),
+      };
+      try {
+        await handleMessage({
+          botId: bot.id,
+          actor,
+          text: queued.text,
+          receivedAt: queued.receivedAt,
+        });
+      } catch (error) {
+        botsLogger.warn(
+          undefined,
+          `queued message drain failed bot=${bot.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+    }
+  }
+
+  // ===== 工作区 → bot 绑定（持久化在 bot-bindings.v3.json）=====
+
+  /**
+   * 绑定表存放在 bot-bindings.v3.json（repo 自带文件锁 + 原子写），一个工作区可绑定多个 bot。
+   * 读侧兼容 v1 的单 bot 字符串形式；历史版本曾写入 AppSettings.botBindingByWorkspace，
+   * 首次读取时一次性迁移到新文件。
+   */
+  async function readBotBindings(): Promise<BotWorkspaceBindings> {
+    const file = await repo.readBindings();
+    const normalized = normalizeBotWorkspaceBindings(file.bindings);
+    if (bindingsMigrationChecked) {
+      return pruneUnknownBotBindings(normalized);
+    }
+    bindingsMigrationChecked = true;
+    if (Object.keys(normalized).length > 0 || !deps.settingService) {
+      return pruneUnknownBotBindings(normalized);
+    }
+    const legacy = (await deps.settingService.get().catch(() => null))?.botBindingByWorkspace;
+    const migrated = normalizeBotWorkspaceBindings(legacy);
+    if (Object.keys(migrated).length > 0) {
+      // 迁移写入失败不阻塞读取：下次再试（内存里先用旧值，行为与迁移前一致）。
+      await repo.writeBindings({ version: BOT_BINDINGS_FILE_VERSION, bindings: migrated }).catch(() => undefined);
+      return pruneUnknownBotBindings(migrated);
+    }
+    return pruneUnknownBotBindings(normalized);
+  }
+
+  /**
+   * 绑定表自愈：bot 被删除后表里可能残留它的 id（旧版本删除不清理，或删除中途崩溃）。
+   * 指向已不存在 bot 的条目对 UI 只会变成"幽灵机器人"（显示裸 id、挡住空态引导），
+   * 这里按当前配置统一清掉；有变化时落盘。
+   */
+  async function pruneUnknownBotBindings(
+    bindings: BotWorkspaceBindings,
+  ): Promise<BotWorkspaceBindings> {
+    if (Object.keys(bindings).length === 0) {
+      return bindings;
+    }
+    const config = await repo.readConfig().catch(() => null);
+    if (!config) {
+      // 配置读不到时不动绑定表（可能只是暂时性 IO 失败，清表会把用户绑定一起弄丢）。
+      return bindings;
+    }
+    const knownBotIds = new Set(config.bots.map((bot) => bot.id));
+    let next: BotWorkspaceBindings | null = null;
+    const boundWorkspacesByBot = new Map<string, string>();
+    for (const [workspaceKey, botIds] of Object.entries(bindings)) {
+      // 一个 bot 只能绑一个工作区：历史数据里出现在多个工作区的，保留第一次出现的那条。
+      const kept = botIds.filter((botId) => {
+        if (!knownBotIds.has(botId)) {
+          return false;
+        }
+        if (boundWorkspacesByBot.has(botId)) {
+          return false;
+        }
+        boundWorkspacesByBot.set(botId, workspaceKey);
+        return true;
+      });
+      if (kept.length === botIds.length) {
+        continue;
+      }
+      next ??= { ...bindings };
+      if (kept.length === 0) {
+        delete next[workspaceKey];
+      } else {
+        next[workspaceKey] = kept;
+      }
+    }
+    if (!next) {
+      return bindings;
+    }
+    await writeBotBindings(next).catch(() => undefined);
+    return next;
+  }
+
+  async function writeBotBindings(bindings: BotWorkspaceBindings): Promise<void> {
+    await repo.writeBindings({ version: BOT_BINDINGS_FILE_VERSION, bindings });
+  }
+
+  /** bot 当前被绑定的已知工作区；绑定 key 指向的工作区已从列表消失时自愈为未绑定。 */
+  async function resolveBotBoundWorkspaces(botId: string): Promise<BotWorkspaceRef[]> {
+    const [bindings, refs] = await Promise.all([readBotBindings(), listWorkspaceRefs()]);
+    return resolveBoundWorkspaceRefs(bindings, botId, refs);
+  }
+
+  /**
+   * 把 bot 的 allowedWorkspaces 收敛为它的全部绑定工作区（绑定即授权）。
+   * 绑定集为空时保持原值：不能让"没有任何绑定"被 normalize 成 "*"（等于放开全部）。
+   */
+  async function convergeBotAllowedWorkspaces(
+    bot: BotConfig,
+    bindings: BotWorkspaceBindings,
+  ): Promise<void> {
+    const boundKeys = Object.entries(bindings)
+      .filter(([, botIds]) => botIds.includes(bot.id))
+      .map(([workspaceKey]) => workspaceKey.trim())
+      .filter(Boolean);
+    if (boundKeys.length === 0) {
+      return;
+    }
+    const nextAllowed = normalizeAllowedWorkspaces(boundKeys);
+    if (JSON.stringify(nextAllowed) === JSON.stringify(bot.allowedWorkspaces)) {
+      return;
+    }
+    await service.saveBot({ bot: { ...bot, allowedWorkspaces: nextAllowed } });
+  }
+
+  /** bot 被绑定时返回钉定工作区（多绑定取第一个已知项，UI 焦点通知会校正）；未绑定返回 null。 */
+  async function resolveBotPinnedWorkspace(bot: BotConfig): Promise<BotWorkspaceRef | null> {
+    if (!deps.settingService) {
+      return null;
+    }
+    const bound = await resolveBotBoundWorkspaces(bot.id);
+    return bound[0] ?? null;
+  }
+
+  /**
+   * UI 工作区/会话焦点同步入口。只影响绑定到该工作区的 bot——未绑定的 bot 保持
+   * 自由切换语义，不被 UI 焦点劫持。
+   *
+   * 关键约束：**不改写已有的会话绑定**。会话绑定（activeTaskId）是显式状态（右键菜单 /
+   * 标题栏「···」/ IM 侧 /task），如果桌面切换会话就把它挪走，绿点会跟着选中跑，
+   * 用户会看到"绑定的会话只在选中时才显示"。这里只把**没有会话绑定的 bot**（草稿）
+   * 钉到当前工作区，保证它的下一条 IM 消息落在这个工作区；已有绑定的 bot 原地不动。
+   */
+  async function applyUiFocus(params: BotUiFocusParams): Promise<void> {
+    if (!deps.settingService) {
+      return;
+    }
+    const workspaceKey = getWorkspaceKey(params.workspacePath, params.workspaceIdentity);
+    const bindings = await readBotBindings();
+    const botIds = getWorkspaceBoundBots(bindings, workspaceKey);
+    if (botIds.length === 0) {
+      return;
+    }
+    const config = await repo.readConfig();
+    const state = await repo.readState();
+    // 一个工作区可以绑定多个 bot，各自维护自己的上下文与投递目标。
+    // 不做 allowedWorkspaces 检查：botId 就是从该工作区的绑定表里解析出来的，
+    // 绑定即授权；这里再查 ACL 只会让收敛失败的旧数据把绑定功能一起挡掉。
+    for (const botId of botIds) {
+      const bot = findBot(config, botId);
+      if (!bot || !bot.enabled) {
+        continue;
+      }
+      // 每个对话各自判断：已绑定会话的对话不被焦点夺走（绿点稳定），
+      // 仍处于草稿的对话跟随用户当前工作区，保证下一条 IM 消息落在正确的项目里。
+      for (const conversation of listConversations(state, botId)) {
+        if (conversation.activeTaskId) {
+          continue;
+        }
+        await focusBotOnWorkspace(
+          botId,
+          conversation.conversationKey,
+          params.workspacePath,
+          params.workspaceIdentity,
+          null,
+        );
+      }
+    }
+  }
+
+  /**
+   * 删除 bot 时撤掉它的运行期绑定：流订阅、打字指示、临时交互卡片、挂起的选择态。
+   * 否则删除后旧订阅仍会按老 bot 配置往渠道发消息（例如已失效 token 的 Telegram）。
+   */
+  function disposeBotRuntimeBindings(botId: string): void {
+    const suffix = `::${botId}`;
+    // 遍历时删除当前项是 Map 的合法用法（规范保证可见条目集合的迭代语义），无需先复制。
+    for (const [key, subscription] of streamSubscriptions) {
+      if (!key.endsWith(suffix)) {
+        continue;
+      }
+      subscription.dispose();
+      streamSubscriptions.delete(key);
+    }
+    for (const [key, intervalId] of typingIntervals) {
+      if (!key.endsWith(suffix)) {
+        continue;
+      }
+      clearInterval(intervalId);
+      typingIntervals.delete(key);
+    }
+    for (const [key, typing] of typingTargets) {
+      if (!key.endsWith(suffix)) {
+        continue;
+      }
+      const adapter = providers[typing.bot.provider];
+      void adapter?.stopTyping?.(typing.bot, typing.target).catch(() => undefined);
+      typingTargets.delete(key);
+    }
+    for (const [key, card] of transientInteractionCards) {
+      if (card.bot.id === botId) {
+        transientInteractionCards.delete(key);
+      }
+    }
+    clearPendingSelectionsForBot(botId);
+  }
+
+  /** 删除 bot 时把它从所有工作区绑定表里摘掉（该工作区没有其他 bot 时整条记录删除）。 */
+  async function pruneBotFromWorkspaceBindings(botId: string): Promise<void> {
+    const bindings = await readBotBindings();
+    const boundKeys = Object.entries(bindings)
+      .filter(([, botIds]) => botIds.includes(botId))
+      .map(([workspaceKey]) => workspaceKey);
+    if (boundKeys.length === 0) {
+      return;
+    }
+    let next = bindings;
+    for (const workspaceKey of boundKeys) {
+      next = removeWorkspaceBinding(next, workspaceKey, botId);
+    }
+    await writeBotBindings(next);
+  }
+
+  /**
+   * 把 bot 上下文切换到指定工作区（绑定动作 / UI 焦点共用）。
+   * taskId 为 null 时进入该工作区的草稿；上下文已在目标时幂等返回；
+   * 任务运行中拒绝切换，与 /task.set 的运行中保护保持一致。
+   */
+  async function focusBotOnWorkspace(
+    botId: string,
+    conversationKey: string,
+    workspacePath: string,
+    workspaceIdentity: string | undefined,
+    taskId: string | null,
+  ): Promise<void> {
+    const state = await repo.readState();
+    const context = readConversation(state, botId, conversationKey);
+    if (context) {
+      const sameWorkspace =
+        getWorkspaceKey(context.workspacePath, context.workspaceIdentity) ===
+        getWorkspaceKey(workspacePath, workspaceIdentity);
+      const sameTask = taskId ? context.activeTaskId === taskId : true;
+      if (sameWorkspace && sameTask) {
+        // 幂等短路：UI↔bot 双向联动的防循环核心
+        return;
+      }
+      if (context.activeTaskId && (await isContextActiveTaskRunning(context))) {
+        botsLogger.info(
+          undefined,
+          `ui focus ignored while task running bot=${botId} task=${context.activeTaskId}`,
+        );
+        return;
+      }
+    }
+    const config = await repo.readConfig();
+    const bot = findBot(config, botId);
+    if (!bot) {
+      return;
+    }
+    const identity = buildConversationIdentity(conversationKey, context);
+    if (taskId) {
+      const nextContext: BotContextState = {
+        ...(context ?? { botId, workspacePath, workspaceIdentity, workspaceId: undefined }),
+        ...identity,
+        botId,
+        workspacePath,
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+        workspaceId: getWorkspaceKey(workspacePath, workspaceIdentity),
+        mode: "task",
+        activeTaskId: taskId,
+        // pending interactions 与排队消息属于旧任务，切换时一并清除
+        pendingPermissionOptions: undefined,
+        pendingElicitation: undefined,
+        queuedMessages: undefined,
+        updatedAt: Date.now(),
+      };
+      await writeContext(nextContext);
+      // UI 焦点带来的任务上下文也要建立流观看，保证 UI 发起的回合实时流转到 IM。
+      await ensureContextStreamWatch(bot, nextContext);
+      // 换绑/焦点跟随改变了 bot 的会话归属：广播一次让侧栏绿点/右键菜单的绑定投影立刻刷新。
+      // source "ui" 表示这是界面自身驱动，消费端只刷新投影、不反向跳转（不会成环）。
+      await broadcastTaskListChange(nextContext, taskId, "active_task_changed", {
+        source: "ui",
+      });
+      return;
+    }
+    if (
+      !context ||
+      getWorkspaceKey(context.workspacePath, context.workspaceIdentity) !==
+        getWorkspaceKey(workspacePath, workspaceIdentity)
+    ) {
+      await writeDraftContext(
+        {
+          ...(context ?? { botId }),
+          ...identity,
+          botId,
+          workspacePath,
+          ...(workspaceIdentity ? { workspaceIdentity } : {}),
+          workspaceId: getWorkspaceKey(workspacePath, workspaceIdentity),
+          mode: "draft",
+          activeTaskId: null,
+          updatedAt: Date.now(),
+        },
+        await buildInitializedDraftOptions({ workspacePath, workspaceIdentity }),
+      );
+    }
+  }
+
+  /**
+   * 出站媒体核心：路径白名单校验 → 大小上限 → 交给 provider 上传。
+   * 允许的根目录：当前工作区、应用数据目录、系统临时目录（截图/导出常落在这里）。
+   * 用 realpath 解析符号链接后再比较，避免通过链接绕出白名单。
+   */
+  async function deliverBotMedia(params: {
+    bot: BotConfig;
+    filePath: string;
+    caption?: string;
+    chatId?: string;
+  }): Promise<void> {
+    const adapter = providers[params.bot.provider];
+    if (!adapter?.sendMedia) {
+      throw new Error("This channel does not support sending files.");
+    }
+    const state = await repo.readState();
+    // 群聊发文件按群对话取工作区；私聊按对方（缺省用绑定用户）取；都取不到时退回最近活跃对话。
+    const channel = state.bots[params.bot.id];
+    const conversations = listConversations(state, params.bot.id);
+    const targetId = params.chatId?.trim();
+    const conversation =
+      (targetId
+        ? conversations.find((item) => item.conversationId === targetId)
+        : undefined) ??
+      conversations.find(
+        (item) =>
+          item.conversationKind === "private" &&
+          item.conversationId === params.bot.providerUserId?.trim(),
+      ) ??
+      conversations[0];
+    void channel;
+    const workspaceRoot = conversation?.workspacePath;
+    const rawPath = params.filePath.trim();
+    const candidate = isAbsolute(rawPath)
+      ? rawPath
+      : workspaceRoot
+        ? resolvePath(workspaceRoot, rawPath)
+        : null;
+    if (!candidate) {
+      throw new Error("No workspace context to resolve the file path.");
+    }
+    const real = await realpath(candidate).catch(() => null);
+    if (!real) {
+      throw new Error(`File not found: ${rawPath}`);
+    }
+    const allowedRoots = [workspaceRoot, getAppConfigDir(), tmpdir()].filter(
+      (root): root is string => Boolean(root?.trim()),
+    );
+    // 根目录本身也可能是符号链接（macOS 的 /tmp→/private/tmp），realpath 后再比较。
+    const resolvedRoots = await Promise.all(
+      allowedRoots.map((root) => realpath(root).catch(() => resolvePath(root))),
+    );
+    if (!resolvedRoots.some((root) => isPathInside(root, real))) {
+      throw new Error("Path is outside the allowed directories (workspace / app data / temp).");
+    }
+    const fileStat = await stat(real);
+    if (!fileStat.isFile()) {
+      throw new Error("The path is not a regular file.");
+    }
+    const filename = basename(real);
+    const { kind, mimeType } = resolveOutboundMediaKind(filename);
+    const limit = kind === "image" ? BOT_MEDIA_IMAGE_LIMIT_BYTES : BOT_MEDIA_FILE_LIMIT_BYTES;
+    if (fileStat.size > limit) {
+      throw new Error(
+        `File is too large (${Math.round(fileStat.size / 1024 / 1024)}MB > ${Math.round(limit / 1024 / 1024)}MB).`,
+      );
+    }
+    const data = await readFile(real);
+    const target = params.chatId?.trim() || params.bot.providerUserId?.trim();
+    if (!target) {
+      throw new Error("Bot has no bound chat to send to.");
+    }
+    await adapter.sendMedia(
+      params.bot,
+      { providerUserId: target },
+      {
+        kind,
+        filename,
+        mimeType,
+        data: new Uint8Array(data),
+        ...(params.caption?.trim() ? { caption: params.caption.trim() } : {}),
+      },
+    );
+  }
+
+    /**
+   * 主动消息（心跳 / 流订阅 / 桌面镜像）的投递目标：
+   * 绑定用户优先；私聊方式=全部用户时回落到最近一次私聊的用户（没有就跳过本轮）。
+   */
+  function resolveBotProactiveUserId(
+    bot: BotConfig,
+    conversation: BotConversationState | undefined,
+    state?: BotsStateFile,
+  ): string | undefined {
+    const boundUserId = bot.providerUserId?.trim();
+    if (boundUserId) {
+      return boundUserId;
+    }
+    if ((bot.privateChatMode ?? "bound_users") === "all_users") {
+      if (conversation?.conversationKind === "private") {
+        return conversation.conversationId;
+      }
+      // 群聊主动投递：回最近说话的私聊用户（原来记在 lastPrivateUserId，现在按对话表推导）。
+      const recentPrivate = state
+        ? listConversations(state, bot.id).find(
+            (item) => item.conversationKind === "private",
+          )
+        : undefined;
+      const lastSeen = recentPrivate?.conversationId?.trim();
+      if (lastSeen) {
+        return lastSeen;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * 心跳目标对话：优先"绑定了桌面会话"的对话（用户正在桌面用它），其次最近活跃的私聊对话，
+   * 再次最近活跃的群对话。心跳是主动打扰，必须打在用户真正在用的那个对话上。
+   */
+  function pickHeartbeatConversation(
+    state: BotsStateFile,
+    bot: BotConfig,
+  ): BotConversationState | undefined {
+    const conversations = listConversations(state, bot.id);
+    const bound = conversations.filter(
+      (item) => item.mode === "task" && item.activeTaskId,
+    );
+    const pool = bound.length > 0 ? bound : conversations;
+    return (
+      pool.find((item) => item.conversationKind === "private") ??
+      pool.find((item) => item.conversationKind === "group") ??
+      conversations[0]
+    );
+  }
+
+  /**
+   * 心跳回合：合成一条来自绑定用户的消息走正常管线（创建/复用任务、建流、排队），
+   * 但以 heartbeat 标记强制摘要模式，且整段回复仅 HEARTBEAT_OK 时保持安静。
+   * 工作区存在 HEARTBEAT.md 时把其内容作为检查指引（截断到 4KB）。
+   */
+  async function runHeartbeatTurn(bot: BotConfig): Promise<void> {
+    const state = await repo.readState();
+    const context = pickHeartbeatConversation(state, bot);
+    const heartbeatUserId = resolveBotProactiveUserId(bot, context, state);
+    if (!context || !heartbeatUserId) {
+      return;
+    }
+    await writeHeartbeatTimestamp(bot.id);
+    const locale = await readMessageLocale();
+    const instructions = await readHeartbeatInstructions(context.workspacePath);
+    const prompt =
+      locale === "en-US"
+        ? [
+            `${BOT_HEARTBEAT_PROMPT_MARKER_EN}. Review the current workspace for anything the user should know about.`,
+            instructions ? `Follow these project-specific instructions:\n${instructions}` : "",
+            "If there is something worth reporting, reply with a concise summary. If everything is fine, reply with exactly HEARTBEAT_OK and nothing else.",
+          ]
+            .filter(Boolean)
+            .join("\n\n")
+        : [
+            `${BOT_HEARTBEAT_PROMPT_MARKER_ZH}。请查看当前工作区是否有用户需要关注的变化。`,
+            instructions ? `按以下项目指引执行：\n${instructions}` : "",
+            "有需要汇报的内容时用简洁的语言说明；一切正常时只回复 HEARTBEAT_OK，不要输出其他任何内容。",
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+    const actor: BotActor =
+      context.conversationKind === "group"
+        ? {
+            provider: bot.provider,
+            botId: bot.id,
+            providerUserId: heartbeatUserId,
+            chatType: "group",
+            chatId: context.conversationId,
+            isMention: true,
+          }
+        : {
+            provider: bot.provider,
+            botId: bot.id,
+            providerUserId: heartbeatUserId,
+            chatType: "private",
+          };
+    // 与用户消息共用同一串行队列：心跳不会与刚落地的用户回合并发写同一任务。
+    await enqueueInboundProcessing(actor, async () => {
+      await handleMessage({ botId: bot.id, text: prompt, actor }, { heartbeat: true });
+    });
+  }
+
+  /** 读取工作区 HEARTBEAT.md 作为心跳检查指引（缺失/空文件返回 null；截断 4KB）。 */
+  async function readHeartbeatInstructions(workspacePath: string): Promise<string | null> {
+    const filePath = join(workspacePath, "HEARTBEAT.md");
+    const content = await readFile(filePath, "utf8").catch(() => null);
+    const trimmed = content?.trim();
+    if (!trimmed) {
+      return null;
+    }
+    return trimmed.length > 4_096 ? trimmed.slice(0, 4_096) : trimmed;
+  }
+
+  async function writeHeartbeatTimestamp(botId: string): Promise<void> {
+    await patchBotChannelState(botId, { lastHeartbeatAt: Date.now() });
+  }
+
+  /** 心跳巡检：60 秒粒度检查间隔；任务运行中或未绑定用户时跳过本轮。 */
+  async function tickBotHeartbeats(): Promise<void> {
+    const config = await repo.readConfig();
+    const now = new Date();
+    const state = await repo.readState();
+    for (const bot of config.bots) {
+      const heartbeat = normalizeBotHeartbeat(bot.heartbeat);
+      const context = pickHeartbeatConversation(state, bot);
+      if (
+        !heartbeat ||
+        !bot.enabled ||
+        !context ||
+        !resolveBotProactiveUserId(bot, context, state)
+      ) {
+        continue;
+      }
+      if (
+        !isHeartbeatDue(now.getTime(), {
+          lastHeartbeatAt: state.bots[bot.id]?.lastHeartbeatAt,
+          intervalMinutes: heartbeat.intervalMinutes,
+        })
+      ) {
+        continue;
+      }
+      if (context.activeTaskId && (await isContextActiveTaskRunning(context))) {
+        continue;
+      }
+      try {
+        await runHeartbeatTurn(bot);
+      } catch (error) {
+        botsLogger.warn(
+          undefined,
+          `bot heartbeat failed bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  function startBotHeartbeatScheduler(): void {
+    if (heartbeatTimer) {
+      return;
+    }
+    heartbeatTimer = setInterval(() => {
+      void tickBotHeartbeats().catch((error: unknown) => {
+        botsLogger.warn(
+          undefined,
+          `bot heartbeat tick failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }, 60_000);
+    heartbeatTimer.unref?.();
+  }
+
+  function stopBotHeartbeatScheduler(): void {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  }
+
+/**
+   * 确保 bot 上下文指向的任务建立了流观看——不管回合由 IM 还是 UI 发起，
+   * AI 的回复都会实时流转到 IM。bot 是单用户模型（providerUserId 即绑定用户），
+   * 没有绑定用户就无法确定投递目标，跳过。watchTaskStream 自带订阅去重。
+   */
+  async function ensureContextStreamWatch(
+    bot: BotConfig,
+    context: BotContextState,
+  ): Promise<void> {
+    if (context.mode !== "task" || !context.activeTaskId) {
+      return;
+    }
+    const actor = buildConversationActor(bot, context);
+    const user = findBoundUser(bot, actor);
+    if (!user) {
+      return;
+    }
+    await watchTaskStream(bot, actor, context, user);
+  }
+
+  /**
+   * 由对话上下文重建入站 actor：群聊回群、私聊回本人。
+   * 群聊用机器人自己的绑定用户身份做授权目标（与入站判定一致）。
+   */
+  function buildConversationActor(bot: BotConfig, context: BotConversationState): BotActor {
+    if (context.conversationKind === "group") {
+      return {
+        provider: bot.provider,
+        botId: bot.id,
+        providerUserId: bot.providerUserId?.trim() || context.conversationId,
+        chatType: "group",
+        chatId: context.conversationId,
+        isMention: true,
+      };
+    }
+    return {
+      provider: bot.provider,
+      botId: bot.id,
+      providerUserId: context.conversationId,
+      ...(context.conversationLabel ? { displayName: context.conversationLabel } : {}),
+      chatType: "private",
+    };
   }
 
   async function writeDraftContext(
@@ -952,6 +1863,8 @@ export function createBotsService(
       draftOptions,
       pendingPermissionOptions: undefined,
       pendingElicitation: undefined,
+      // 排队消息绑定在旧任务/旧工作区上；进入新草稿意味着用户要重新开始，旧队列一并清除。
+      queuedMessages: undefined,
     };
     clearPendingSelectionsForBot(context.botId);
     await writeContext(draftContext);
@@ -966,13 +1879,14 @@ export function createBotsService(
       return null;
     }
     const state = await repo.readState();
-    const existing = state.bots[message.botId];
+    const conversation = getBotActorConversation(message.actor);
+    const existingConversation = readConversation(state, message.botId, conversation.key);
     if (
-      existing?.weixinActivatedAt ||
-      existing?.draftOptions ||
-      existing?.activeTaskId ||
-      existing?.pendingPermissionOptions ||
-      existing?.pendingElicitation
+      state.bots[message.botId]?.weixinActivatedAt ||
+      existingConversation?.draftOptions ||
+      existingConversation?.activeTaskId ||
+      existingConversation?.pendingPermissionOptions ||
+      existingConversation?.pendingElicitation
     ) {
       return null;
     }
@@ -980,21 +1894,15 @@ export function createBotsService(
     if (!auth.ok) {
       return auth.reply;
     }
-    if (auth.context.weixinActivatedAt) {
-      return null;
-    }
     // Bugfix: 微信扫码登录只返回 bot token/id，不返回可投递的用户 id。
     // 第一条微信入站消息用于建立会话目标，因此只回激活说明，不把“你好”这类激活文本误当成任务 prompt。
-    await writeContext({
-      ...auth.context,
-      weixinActivatedAt: Date.now(),
-    });
+    // 激活标记是通道级（每个 bot 只激活一次），会话上下文由 readContext 正常建立。
+    await patchBotChannelState(message.botId, { weixinActivatedAt: Date.now() });
     return [
       createOutbound(
         message.actor,
-        [msg(auth.locale, "weixinActivatedWelcome"), buildHelpText(auth.locale, auth.bot)].join(
-          "\n\n",
-        ),
+        // 激活说明保留（它提示了 /帮助 入口），但不再自动附带整份命令清单。
+        msg(auth.locale, "weixinActivatedWelcome"),
       ),
     ];
   }
@@ -1372,13 +2280,121 @@ export function createBotsService(
     // 单向导入已收口到 Repo；这里只等待初始化，不再读取旧模型字段或重写当前状态。
     if (!botStorageMigrationPromise) {
       botStorageMigrationPromise = Promise.all([repo.readConfig(), repo.readState()])
-        .then(() => undefined)
+        .then(() => rekeyLegacyConversations())
         .catch((error: unknown) => {
           botStorageMigrationPromise = null;
           throw error;
         });
     }
     await botStorageMigrationPromise;
+  }
+
+  /**
+   * v3 单上下文迁移时无法判定归属的对话会落在 legacy 占位键上。
+   * 这里拿到 bot 配置后把绑定用户的私聊对话重映射到真正的键（private:<userId>），
+   * 保住用户已有的"桌面会话 ↔ 机器人"绑定与工作区上下文；群聊归属无法从旧状态判定，
+   * 首次入站消息会为对应群建立新对话。
+   */
+  async function rekeyLegacyConversations(): Promise<void> {
+    const [config, state] = await Promise.all([repo.readConfig(), repo.readState()]);
+    for (const bot of config.bots) {
+      const channel = state.bots[bot.id];
+      const legacy = channel?.conversations[BOT_LEGACY_CONVERSATION_KEY];
+      if (!channel || !legacy) {
+        continue;
+      }
+      const boundUserId = bot.providerUserId?.trim();
+      const targetKey = boundUserId
+        ? makeBotConversationKey("private", boundUserId)
+        : undefined;
+      delete channel.conversations[BOT_LEGACY_CONVERSATION_KEY];
+      if (targetKey && !channel.conversations[targetKey]) {
+        channel.conversations[targetKey] = {
+          ...legacy,
+          conversationKey: targetKey,
+          conversationKind: "private",
+          conversationId: boundUserId!,
+        };
+      }
+      channel.updatedAt = Date.now();
+    }
+    // 无论是否重映射都写一次：把磁盘上的 v3 形状固化成本次进程实际使用的 v4，
+    // 避免"内存 v4 / 磁盘 v3"长期并存（迁移是幂等的，重复读不会产生额外改动）。
+    await repo.writeState(state);
+  }
+
+  /** 由对话键（可能来自 UI 绑定/自动化目标）补齐对话身份字段。 */
+  function buildConversationIdentity(
+    conversationKey: string,
+    existing?: BotConversationState,
+    label?: string,
+  ): Pick<
+    BotConversationState,
+    "conversationKey" | "conversationKind" | "conversationId" | "conversationLabel"
+  > {
+    const parsed =
+      parseBotConversationKey(conversationKey) ?? {
+        kind: "private" as const,
+        id: conversationKey,
+      };
+    const trimmedLabel = label?.trim() || existing?.conversationLabel?.trim();
+    return {
+      conversationKey,
+      conversationKind: parsed.kind,
+      conversationId: parsed.id,
+      ...(trimmedLabel ? { conversationLabel: trimmedLabel } : {}),
+    };
+  }
+
+  /** 某对话的 bot 状态（不存在返回 undefined）。 */
+  function readConversation(
+    state: BotsStateFile,
+    botId: string,
+    conversationKey: string,
+  ): BotConversationState | undefined {
+    return state.bots[botId]?.conversations[conversationKey];
+  }
+
+  /** 列出该 bot 的所有对话上下文（按最近更新排序）。 */
+  function listConversations(
+    state: BotsStateFile,
+    botId: string,
+  ): BotConversationState[] {
+    return Object.values(state.bots[botId]?.conversations ?? {}).sort(
+      (left, right) => right.updatedAt - left.updatedAt,
+    );
+  }
+
+  /** 该 bot 持有指定会话（activeTaskId）的全部对话。 */
+  function listConversationsByTask(
+    state: BotsStateFile,
+    botId: string,
+    taskId: string,
+  ): BotConversationState[] {
+    return listConversations(state, botId).filter(
+      (conversation) => conversation.activeTaskId === taskId,
+    );
+  }
+
+  /** 把某 bot 仍处于草稿的所有对话钉到指定工作区（工作区绑定/UI 焦点共用）。 */
+  async function focusBotDraftConversationsOnWorkspace(
+    botId: string,
+    workspacePath: string,
+    workspaceIdentity: string | undefined,
+  ): Promise<void> {
+    const state = await repo.readState();
+    for (const conversation of listConversations(state, botId)) {
+      if (conversation.activeTaskId) {
+        continue;
+      }
+      await focusBotOnWorkspace(
+        botId,
+        conversation.conversationKey,
+        workspacePath,
+        workspaceIdentity,
+        null,
+      );
+    }
   }
 
   async function listActiveTaskConfigOptions(
@@ -2118,7 +3134,9 @@ export function createBotsService(
   function startTyping(bot: BotConfig, actor: BotActor, taskId: string): void {
     const adapter = providers[bot.provider];
     const targetId = actor.chatId ?? actor.providerUserId;
-    if (!adapter || !targetId || typingTargets.has(taskId) || typingIntervals.has(taskId)) {
+    // key 带 botId：一个会话可以绑定多个机器人，各渠道各自显示"正在输入"。
+    const typingKey = buildTypingKey(taskId, bot.id);
+    if (!adapter || !targetId || typingTargets.has(typingKey) || typingIntervals.has(typingKey)) {
       return;
     }
     const target: BotTypingTarget = {
@@ -2127,14 +3145,14 @@ export function createBotsService(
       providerContextToken: actor.providerContextToken,
     };
     if (adapter.startTyping) {
-      typingTargets.set(taskId, { bot, target });
+      typingTargets.set(typingKey, { bot, target });
       void adapter.startTyping(bot, target).catch(() => undefined);
       return;
     }
     if (adapter.sendTyping) {
       void adapter.sendTyping(bot, target).catch(() => undefined);
       typingIntervals.set(
-        taskId,
+        typingKey,
         setInterval(() => {
           void adapter.sendTyping?.(bot, target).catch(() => undefined);
         }, BOT_TYPING_INTERVAL_MS),
@@ -2142,19 +3160,20 @@ export function createBotsService(
     }
   }
 
-  function stopTyping(taskId: string): void {
-    const activeTyping = typingTargets.get(taskId);
+  function stopTyping(taskId: string, botId: string): void {
+    const typingKey = buildTypingKey(taskId, botId);
+    const activeTyping = typingTargets.get(typingKey);
     if (activeTyping) {
-      typingTargets.delete(taskId);
+      typingTargets.delete(typingKey);
       const adapter = providers[activeTyping.bot.provider];
       void adapter?.stopTyping?.(activeTyping.bot, activeTyping.target).catch(() => undefined);
     }
-    const intervalId = typingIntervals.get(taskId);
+    const intervalId = typingIntervals.get(typingKey);
     if (!intervalId) {
       return;
     }
     clearInterval(intervalId);
-    typingIntervals.delete(taskId);
+    typingIntervals.delete(typingKey);
   }
 
   function updateLiveStatusProgress(event: ZCodeStreamEvent): void {
@@ -2196,6 +3215,7 @@ export function createBotsService(
         | "elicitationRequest"
         | "requestId"
         | "error"
+        | "source"
       >
     > = {},
   ): Promise<void> {
@@ -3598,7 +4618,7 @@ export function createBotsService(
     event: Extract<ZCodeStreamEvent, { type: "elicitation_request" }>,
   ): Promise<void> {
     const locale = await readMessageLocale();
-    stopTyping(event.taskId);
+    stopTyping(event.taskId, bot.id);
     const pendingElicitation: BotPendingElicitation = {
       taskId: event.taskId,
       requestId: event.requestId,
@@ -3640,24 +4660,39 @@ export function createBotsService(
     actor: BotActor,
     context: BotContextState,
     user: BotConfig,
+    /** 心跳回合：强制摘要模式，并在整段回复仅含 HEARTBEAT_OK 时保持安静。 */
+    heartbeat = false,
   ): Promise<void> {
     if (!context.activeTaskId) {
       return;
     }
-    const streamSubscriptionKey = [
-      getWorkspaceKey(context.workspacePath, context.workspaceIdentity),
+    const streamSubscriptionKey = buildTaskStreamSubscriptionKey(
+      context.workspacePath,
+      context.workspaceIdentity,
       context.activeTaskId,
-    ].join("::");
+      bot.id,
+    );
     if (streamSubscriptions.has(streamSubscriptionKey)) {
       return;
     }
+    // 只撤自己这条订阅（key 在建立时确定；上下文若已迁走，writeContext 已把它撤掉）。
+    const disposeOwnSubscription = () => {
+      streamSubscriptions.get(streamSubscriptionKey)?.dispose();
+      streamSubscriptions.delete(streamSubscriptionKey);
+    };
     let assistantParts: ZCodeAssistantMessagePart[] = [];
     let assistantReplyBuffer = "";
     let sentAnyAssistantReply = false;
     const assistantPartToolIds = new Set<string>();
     const toolCalls = new Map<string, BotReplyToolCallState>();
     const sentToolCallReplyIds = new Set<string>();
-    const getMode = () => normalizeBotReplyGranularity(bot.provider, user.replyMode);
+    // 群聊「全部消息」模式：模型可用 <NO_REPLY> 主动保持沉默。
+    // 这类回合不出流式卡片、也不发中途工具摘要，沉默时用户侧完全无痕
+    // （无需撤回任何中间态；代价是这类回合没有打字机效果）。
+    const groupSilenceCapable =
+      actor.chatType === "group" && (bot.groupChat?.activation ?? "disabled") === "always";
+    const getMode = () =>
+      heartbeat ? "summary_changes" : normalizeBotReplyGranularity(bot.provider, user.replyMode);
     let streamingCardHandle: BotStreamingReplyCardHandle | null = null;
     let streamingCardSegmentIndex = 0;
     const streamingCardBlocks: StreamingCardTimelineBlock[] = [];
@@ -3669,12 +4704,21 @@ export function createBotsService(
     let streamingCardQueue: Promise<void> = Promise.resolve();
     const supportsStreamingCardReply = () => {
       const adapter = providers[bot.provider];
-      return (
-        getMode() === "streaming_card" &&
-        isFeishuBotProvider(bot.provider) &&
-        Boolean(adapter?.createStreamingReplyCard) &&
-        Boolean(adapter?.updateStreamingReplyCard)
-      );
+      // 可能沉默的回合（群聊「全部消息」）不建卡片：沉默时不留下需要撤回的空卡片。
+      if (groupSilenceCapable) {
+        return false;
+      }
+      // 能力协商由 adapter 决定：飞书走 Card JSON 2.0，Telegram 走 sendMessage+editMessageText
+      // 的打字机编辑，企微走 replyStream，钉钉走 AI 卡片。
+      if (getMode() !== "streaming_card") {
+        return false;
+      }
+      // 钉钉卡片流式依赖「开关 + 模板 ID」；未配置时回退 Markdown 摘要，
+      // 而不是让 create 返回 null 进入失败退避（那会把终稿一起熔断掉）。
+      if (bot.provider === "dingtalk" && !isDingtalkAiCardEnabled(bot)) {
+        return false;
+      }
+      return Boolean(adapter?.createStreamingReplyCard) && Boolean(adapter?.updateStreamingReplyCard);
     };
     const buildStreamingToolSummaryTitle = (locale: Locale | undefined): string =>
       msg(locale, "streamingToolSummaries");
@@ -3716,6 +4760,9 @@ export function createBotsService(
       streamingCardBlocks.push({ type: "tools", toolIds: [toolId] });
     };
     const buildStreamingCardBlocks = (locale: Locale | undefined): BotStreamingReplyCardBlock[] => {
+      // 工具摘要只作为"进行中"的过程提示：终稿（completed/sealed）里不再出现，
+      // 交付内容与「标准回复」保持一致（只留助手正文与文件变更摘要）。
+      const running = streamingCardStatus === "running";
       const toolSummaryTitle = buildStreamingToolSummaryTitle(locale);
       const latestToolBlockIndex = streamingCardBlocks.reduce(
         (latestIndex, block, index) => (block.type === "tools" ? index : latestIndex),
@@ -3728,6 +4775,9 @@ export function createBotsService(
           if (text) {
             blocks.push({ type: "message", text });
           }
+          continue;
+        }
+        if (!running) {
           continue;
         }
         const summaries = block.toolIds
@@ -3752,7 +4802,9 @@ export function createBotsService(
       if (blocks.length === 0) {
         blocks.push({
           type: "message",
-          text: msg(locale, "streamingWorking"),
+          // 进行中且还没输出正文：保留"正在处理"；终稿没有任何内容（纯工具回合且无变更）：
+          // 用完成提示兜底，避免把最后一条过程提示当成终稿。
+          text: msg(locale, running ? "streamingWorking" : "taskCompleted"),
         });
       }
       return blocks;
@@ -3767,10 +4819,24 @@ export function createBotsService(
       if (streamingCardCircuitOpen || now < streamingCardNextAttemptAt) {
         return;
       }
+      // 首帧门槛：纯文本增量还没成形时先不创建流式消息，避免出现只有一两个字符的首帧；
+      // 工具活动（tool_call 等）不受此限——它本身就要立刻给出"正在处理"的反馈。
+      // 任务结束时 force=true 会绕过门槛，短回复因此不会丢内容。
+      if (!streamingCardHandle && !force && trigger === "agent_message_chunk") {
+        const accumulatedText = streamingCardBlocks
+          .filter((block): block is { type: "message"; text: string } => block.type === "message")
+          .map((block) => block.text)
+          .join("");
+        if (!hasSentenceBoundary(accumulatedText)) {
+          return;
+        }
+      }
       if (
         streamingCardHandle &&
         !force &&
-        now - streamingCardLastUpdateAt < FEISHU_STREAMING_CARD_MIN_UPDATE_INTERVAL_MS
+        now - streamingCardLastUpdateAt <
+          (STREAMING_CARD_MIN_UPDATE_INTERVAL_MS_BY_PROVIDER[bot.provider] ??
+            FEISHU_STREAMING_CARD_MIN_UPDATE_INTERVAL_MS)
       ) {
         return;
       }
@@ -3970,7 +5036,9 @@ export function createBotsService(
         event.type === "tool_call_update" &&
         getMode() === "assistant_toolcalls_changes" &&
         isBotToolCallReplyTerminal(event.status) &&
-        !sentToolCallReplyIds.has(event.toolId)
+        !sentToolCallReplyIds.has(event.toolId) &&
+        // 可能沉默的群聊回合不中途发言：工具摘要会先于 <NO_REPLY> 判断落到群里。
+        !groupSilenceCapable
       ) {
         const toolCall = toolCalls.get(event.toolId);
         if (toolCall) {
@@ -3990,7 +5058,7 @@ export function createBotsService(
       }
       if (event.type === "permission_request") {
         const locale = await readMessageLocale();
-        stopTyping(event.taskId);
+        stopTyping(event.taskId, bot.id);
         await sealStreamingCardReply();
         await broadcastTaskListChange(context, event.taskId, "permission_request", {
           permissionRequest: event,
@@ -4062,7 +5130,7 @@ export function createBotsService(
       if (event.type === "task_complete" || event.type === "task_error") {
         runningTasks.delete(event.taskId);
         liveStatusProgressByTaskId.delete(event.taskId);
-        stopTyping(event.taskId);
+        stopTyping(event.taskId, bot.id);
         // 终态收口放在 finally：notifyTaskLifecycle 的终态分支会发出 status 终止符并删除
         // 任务流，若在分支开头调用，后面的失败原因、变更摘要、「任务已完成。」与 transient
         // card 收尾都会因找不到 stream 而落到 idFactory() 的新流上（orphan stream）。
@@ -4110,8 +5178,7 @@ export function createBotsService(
               ...(event.type === "task_error" ? { error: event.error } : {}),
             },
           );
-          streamSubscriptions.get(streamSubscriptionKey)?.dispose();
-          streamSubscriptions.delete(streamSubscriptionKey);
+          disposeOwnSubscription();
           if (event.type === "task_error") {
             if (supportsStreamingCardReply()) {
               streamingCardStatus = "error";
@@ -4137,6 +5204,28 @@ export function createBotsService(
             return;
           }
 
+          // 心跳回合的安静回执：整段回复只有 HEARTBEAT_OK 时不打扰用户。
+          if (heartbeat) {
+            const heartbeatText = assistantParts
+              .filter((part) => part.type === "content")
+              .map((part) => (part.type === "content" ? part.content : ""))
+              .join("");
+            if (isHeartbeatOkOnly(heartbeatText)) {
+              disposeOwnSubscription();
+              return;
+            }
+          }
+          // 群聊「全部消息」模式的沉默回执：整段回复只有 <NO_REPLY> 时不发任何消息。
+          // 该回合没有卡片、没有中途摘要，因此群里完全无痕。
+          if (groupSilenceCapable) {
+            const groupText = assistantParts
+              .filter((part) => part.type === "content")
+              .map((part) => (part.type === "content" ? part.content : ""))
+              .join("");
+            if (isGroupSilenceReply(groupText)) {
+              return;
+            }
+          }
           const mode = getMode();
           const locale = await readMessageLocale();
           const completedSnapshot = await zcodeTaskService
@@ -4201,6 +5290,15 @@ export function createBotsService(
           }
         } finally {
           providers[bot.provider]?.notifyTaskLifecycle?.(bot, actor, terminalPhase);
+          // 运行期间排队的消息在终态收口后按序投递；fire-and-forget，不阻塞流事件队列。
+          void drainQueuedMessages(bot, event.taskId).catch((error: unknown) => {
+            botsLogger.warn(
+              undefined,
+              `queued message drain failed bot=${bot.id}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          });
         }
       }
     };
@@ -4472,6 +5570,7 @@ export function createBotsService(
     const locale = await readMessageLocale();
     const config = await repo.readConfig();
     const bot = findAuthorizedBot(config, message.actor);
+    const privateChatAllUsers = (bot?.privateChatMode ?? "bound_users") === "all_users";
     if (!bot || bot.id !== message.botId) {
       return {
         ok: false,
@@ -4479,12 +5578,38 @@ export function createBotsService(
       };
     }
     if (message.actor.chatType !== "private") {
-      return {
-        ok: false,
-        reply: [createOutbound(message.actor, msg(locale, "privateChatOnly"))],
-      };
+      const activation = bot.groupChat?.activation ?? "disabled";
+      if (activation === "disabled") {
+        return {
+          ok: false,
+          reply: [createOutbound(message.actor, msg(locale, "privateChatOnly"))],
+        };
+      }
+      // 群聊服务哪些人：私聊方式=全部用户时任何群成员都可以驱动；否则只服务绑定用户。
+      // 未授权成员的消息记入上下文后静默忽略，既不外泄"这不是私聊"的提示，也不给别人刷机器人的机会。
+      const boundUserId = bot.providerUserId?.trim();
+      const isBoundSender =
+        privateChatAllUsers ||
+        (Boolean(boundUserId) && boundUserId === message.actor.providerUserId);
+      if (!isBoundSender) {
+        groupHistory.append(bot.id, message.actor.chatId ?? "", {
+          ...(message.actor.displayName ? { senderName: message.actor.displayName } : {}),
+          text: message.text,
+        });
+        return { ok: false, reply: [] };
+      }
+      // 群白名单已下线：群聊默认不限制任何群——服务谁由「私聊方式」与「群聊方式」共同决定。
+      // mention 模式：未被 @ 的消息静默忽略（仅记入上下文，供下次被 @ 时参考）。
+      if (activation === "mention" && message.actor.isMention !== true) {
+        groupHistory.append(bot.id, message.actor.chatId ?? "", {
+          ...(message.actor.displayName ? { senderName: message.actor.displayName } : {}),
+          text: message.text,
+        });
+        return { ok: false, reply: [] };
+      }
     }
-    const user = findBoundUser(bot, message.actor);
+    // 私聊方式=全部用户：不要求绑定，任何私聊用户都能驱动（命令权限按 bot 自身配置）。
+    const user = privateChatAllUsers ? bot : findBoundUser(bot, message.actor);
     if (!user) {
       return {
         ok: false,
@@ -4504,6 +5629,8 @@ export function createBotsService(
         reply: [createOutbound(message.actor, msg(locale, "noWorkspaceAllowed"))],
       };
     }
+    // 全部用户模式没有绑定用户：主动消息（心跳/镜像）的投递目标按对话表推导
+    // （最近活跃的私聊对话），不再单独记 lastPrivateUserId。
     const synced = await normalizeBotWorkspaceConfig(config, bot, {
       id: context.workspaceId ?? getWorkspaceKey(context.workspacePath, context.workspaceIdentity),
       label: getWorkspaceLabel(context.workspacePath),
@@ -4514,10 +5641,17 @@ export function createBotsService(
       context.workspaceId &&
       !isWorkspaceAllowed(context.workspaceId, synced.user.allowedWorkspaces)
     ) {
-      return {
-        ok: false,
-        reply: [createOutbound(message.actor, msg(locale, "workspaceOutOfScope"))],
-      };
+      // 绑定即授权：绑定工作区即使不在 allowedWorkspaces 里也必须放行。
+      // 否则用户在工作区 B 打开面板把访问范围改成"已选 B"后，绑定在 A 的 bot
+      // 会在每条消息上被误判越权（且提示的 /项目 切换同样被拒绝，形成死循环）。
+      const boundWorkspaces = await resolveBotBoundWorkspaces(bot.id);
+      const isBoundWorkspace = boundWorkspaces.some((ref) => ref.id === context.workspaceId);
+      if (!isBoundWorkspace) {
+        return {
+          ok: false,
+          reply: [createOutbound(message.actor, msg(locale, "workspaceOutOfScope"))],
+        };
+      }
     }
     const remoteDisconnectedReply = await blockDisconnectedRemoteWorkspace({
       message,
@@ -4578,12 +5712,52 @@ export function createBotsService(
       bots: config.bots.map((item) => (item.id === nextBot.id ? nextBot : item)),
     });
     bindCodes.delete(record.code);
-    return [
-      createOutbound(
-        message.actor,
-        [msg(locale, "bindSuccess"), buildHelpText(locale, nextBot)].join("\n\n"),
-      ),
-    ];
+    // 绑定成功不再自动回复"绑定成功 + 命令清单"：绑定是用户主动发起的动作，
+    // 后续命令清单可由 **/帮助** 主动索取（这里保持静默，避免每条绑定都刷一屏帮助）。
+    return [];
+  }
+
+  /** `/send <path> | caption`：把受信目录内的文件作为媒体发到当前会话。 */
+  async function handleSendMedia(
+    message: BotInboundMessage,
+    value: string,
+  ): Promise<BotOutboundMessage[]> {
+    const auth = await withAuthorizedContext(message, "message");
+    if (!auth.ok) {
+      return auth.reply;
+    }
+    const separator = value.indexOf("|");
+    const filePath = (separator >= 0 ? value.slice(0, separator) : value).trim();
+    const caption = separator >= 0 ? value.slice(separator + 1).trim() : "";
+    if (!filePath) {
+      return [createOutbound(message.actor, msg(auth.locale, "sendMediaMissing"))];
+    }
+    try {
+      await deliverBotMedia({
+        bot: auth.bot,
+        filePath,
+        ...(caption ? { caption } : {}),
+        // 群聊回复到群；私聊默认发给绑定用户（deliverBotMedia 内部兜底）。
+        ...(message.actor.chatType === "group" && message.actor.chatId
+          ? { chatId: message.actor.chatId }
+          : {}),
+      });
+      return [
+        createOutbound(
+          message.actor,
+          msg(auth.locale, "sendMediaSent", { file: basename(filePath) }),
+        ),
+      ];
+    } catch (error) {
+      return [
+        createOutbound(
+          message.actor,
+          msg(auth.locale, "sendMediaFailed", {
+            message: formatUserFacingBotError(error, auth.locale),
+          }),
+        ),
+      ];
+    }
   }
 
   async function handleStatus(message: BotInboundMessage): Promise<BotOutboundMessage[]> {
@@ -4766,6 +5940,8 @@ export function createBotsService(
       }
       lines.push(msg(locale, helpMessageByCommand[command]));
     }
+    // /send 走消息权限（恒允许），不属于策略菜单，单独追加。
+    lines.push(msg(locale, "helpSend"));
     return lines.join("\n");
   }
 
@@ -4779,6 +5955,7 @@ export function createBotsService(
     attachments: ZCodePromptAttachment[],
     botDeliveryTarget?: ZCodeAutomationBotDeliveryTarget,
     modelSelection?: ModelSelection,
+    toolDenylist?: readonly string[],
   ): void {
     // Bugfix: Telegram polling 是单循环顺序处理 update。如果这里 await session/prompt，
     // 权限按钮 callback 会一直排队到整轮任务结束，导致用户点 inline keyboard 没反应。
@@ -4792,6 +5969,9 @@ export function createBotsService(
           attachments: attachments.length > 0 ? attachments : undefined,
           botDeliveryTarget,
           modelSelection,
+          ...(toolDenylist && toolDenylist.length > 0
+            ? { toolDenylist: [...toolDenylist] }
+            : {}),
         }),
       )
       .catch(async (error) => {
@@ -4799,7 +5979,7 @@ export function createBotsService(
         const locale = await readMessageLocale();
         const userFacingMessage = formatUserFacingBotError(error, locale);
         runningTasks.delete(taskId);
-        stopTyping(taskId);
+        stopTyping(taskId, bot.id);
         await broadcastTaskListChange(context, taskId, "error", {
           error: message,
         });
@@ -4815,7 +5995,10 @@ export function createBotsService(
       });
   }
 
-  async function handleMessage(message: BotInboundMessage): Promise<BotOutboundMessage[]> {
+  async function handleMessage(
+    message: BotInboundMessage,
+    options: { heartbeat?: boolean } = {},
+  ): Promise<BotOutboundMessage[]> {
     const auth = await withAuthorizedContext(message, "message");
     if (!auth.ok) {
       return auth.reply;
@@ -4844,7 +6027,26 @@ export function createBotsService(
       auth.context.activeTaskId &&
       (await isContextActiveTaskRunning(auth.context))
     ) {
-      return [createOutbound(message.actor, msg(auth.locale, "taskRunning"))];
+      // 心跳回合遇到运行中的任务直接跳过：它不是用户消息，不能进排队队列。
+      if (options.heartbeat) {
+        return [];
+      }
+      // 任务运行中：纯文本消息入队，任务终态后自动按序投递。
+      // 带附件的消息不排队（附件下载链接是瞬时的，重投递时会失效），仍请用户稍后重发。
+      if (message.attachments && message.attachments.length > 0) {
+        return [createOutbound(message.actor, msg(auth.locale, "taskRunning"))];
+      }
+      const queued = await queueContextMessage(auth.context, message);
+      const replies = [
+        createOutbound(
+          message.actor,
+          msg(auth.locale, "taskQueued", { position: String(queued.position) }),
+        ),
+      ];
+      if (queued.dropped) {
+        replies.push(createOutbound(message.actor, msg(auth.locale, "taskQueuedDropped")));
+      }
+      return replies;
     }
     let preparedMessage: PreparedBotMessageContent;
     try {
@@ -4858,6 +6060,37 @@ export function createBotsService(
           }),
         ),
       ];
+    }
+    // 群聊被触发：注入群身份/回复规则 + 未参与期间的历史 + 带发送者与 @ 标记的当前消息。
+    // 「全部消息」模式下模型可用 <NO_REPLY> 保持沉默（回复侧收口见 watchTaskStream）。
+    const isGroupTurn = message.actor.chatType === "group";
+    const groupActivation = isGroupTurn
+      ? (auth.bot.groupChat?.activation ?? "disabled")
+      : "disabled";
+    if (isGroupTurn && message.actor.chatId) {
+      const historyContext = formatGroupHistoryContext(
+        groupHistory.drain(auth.bot.id, message.actor.chatId),
+        auth.locale,
+      );
+      const groupPromptInput: GroupTurnPromptInput = {
+        ...(auth.bot.name?.trim() ? { botName: auth.bot.name.trim() } : {}),
+        activation: groupActivation === "always" ? "always" : "mention",
+        // 无法识别 @ 的平台（微信/Webhook/AstrBot）按"定向消息"处理：mention 判定缺失时不静默丢消息。
+        isMention: message.actor.isMention !== false,
+        ...(message.actor.displayName?.trim()
+          ? { senderName: message.actor.displayName.trim() }
+          : {}),
+        chatId: message.actor.chatId,
+        providerLabel: formatBotProviderLabel(message.actor.provider),
+        receivedAt: message.receivedAt ?? Date.now(),
+        locale: auth.locale,
+        historyContext,
+        content: preparedMessage.content,
+      };
+      preparedMessage = {
+        ...preparedMessage,
+        content: buildGroupTurnPrompt(groupPromptInput),
+      };
     }
     if (auth.context.mode === "draft" || !auth.context.activeTaskId) {
       const draftOptions =
@@ -4895,7 +6128,11 @@ export function createBotsService(
         // v4 draft，再沿既有能力校验应用配置，最后通过 v4 sendText 首发。
         v4Create: true,
       });
-      const taskTitle = deriveTaskTitle(preparedMessage.content, preparedMessage.zcodeAttachments);
+      // 心跳回合不写会话：新建任务时也不用心跳提示词当标题，
+      // 否则侧栏会冒出"[心跳] 主动检查…"这种任务名。
+      const taskTitle = options.heartbeat
+        ? msg(auth.locale, "heartbeatTaskTitle")
+        : deriveTaskTitle(preparedMessage.content, preparedMessage.zcodeAttachments);
       const broadcastTask = taskTitle ? { ...task, title: taskTitle } : task;
       const traceId = generateTraceId(task.taskId);
       try {
@@ -4928,6 +6165,10 @@ export function createBotsService(
       await broadcastTaskListChange(context, task.taskId, "created", {
         task: broadcastTask,
       });
+      // bot 侧新建了会话：通知 UI 跟随（消费端只在目标工作区 tab 已打开时跳转）。
+      await broadcastTaskListChange(context, task.taskId, "active_task_changed", {
+        source: "bot",
+      });
       if (deletedTaskId) {
         botsLogger.info(
           undefined,
@@ -4945,7 +6186,7 @@ export function createBotsService(
         });
       }
       runningTasks.add(task.taskId);
-      await watchTaskStream(auth.bot, message.actor, context, auth.user);
+      await watchTaskStream(auth.bot, message.actor, context, auth.user, options.heartbeat === true);
       await broadcastTaskListChange(context, task.taskId, "prompt_sent", {
         task: broadcastTask,
         prompt: {
@@ -4968,6 +6209,7 @@ export function createBotsService(
         preparedMessage.zcodeAttachments,
         resolveAutomationBotDeliveryTarget(message.actor),
         submissionDraftOptions.modelSelection,
+        isGroupTurn ? GROUP_CHAT_TOOL_DENYLIST : undefined,
       );
       return [];
     }
@@ -4991,7 +6233,7 @@ export function createBotsService(
     }
     await broadcastTaskListChange(auth.context, auth.context.activeTaskId, "resumed");
     runningTasks.add(auth.context.activeTaskId);
-    await watchTaskStream(auth.bot, message.actor, auth.context, auth.user);
+    await watchTaskStream(auth.bot, message.actor, auth.context, auth.user, options.heartbeat === true);
     const traceId = generateTraceId(auth.context.activeTaskId);
     await broadcastTaskListChange(auth.context, auth.context.activeTaskId, "prompt_sent", {
       prompt: {
@@ -5014,6 +6256,7 @@ export function createBotsService(
       preparedMessage.zcodeAttachments,
       resolveAutomationBotDeliveryTarget(message.actor),
       effectiveSelection,
+      isGroupTurn ? GROUP_CHAT_TOOL_DENYLIST : undefined,
     );
     return [];
   }
@@ -5131,7 +6374,7 @@ export function createBotsService(
       // ZCode Agent 历史任务的 status 为空也可能只是旧数据，不代表 UI 仍在运行；只有本进程确实发起
       // 且尚未观察到终态的 task 才阻止 /task、/new 等上下文切换。
       runningTasks.delete(context.activeTaskId);
-      stopTyping(context.activeTaskId);
+      stopTyping(context.activeTaskId, context.botId);
       return false;
     }
     return true;
@@ -5173,8 +6416,12 @@ export function createBotsService(
       providerUserId: params.target.providerUserId,
       chatType: params.target.chatType,
     };
+    const automationConversation = getBotActorConversation(actor);
     const context: BotContextState = {
       botId: bot.id,
+      conversationKey: automationConversation.key,
+      conversationKind: automationConversation.kind,
+      conversationId: automationConversation.id,
       workspacePath: params.workspacePath,
       ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
       mode: "task",
@@ -5199,7 +6446,11 @@ export function createBotsService(
       return {
         botsCount: config.bots.length,
         enabledBotsCount: config.bots.filter((bot) => bot.enabled).length,
-        contextsCount: Object.keys(state.bots).length,
+        // contexts 现在是"对话上下文"总数（一个 bot 可以有多个对话各自一个会话）。
+        contextsCount: Object.values(state.bots).reduce(
+          (total, channel) => total + Object.keys(channel.conversations).length,
+          0,
+        ),
         botRuntime: config.bots.map((bot) => {
           const runtime = runtimeByBotId.get(bot.id);
           return (
@@ -5209,6 +6460,9 @@ export function createBotsService(
               status: bot.enabled ? "idle" : "disabled",
               message: bot.enabled ? "Bot is configured." : "Bot is disabled.",
               offset: state.bots[bot.id]?.telegramOffset,
+              ...(state.bots[bot.id]?.weixinActivatedAt !== undefined
+                ? { weixinActivatedAt: state.bots[bot.id]!.weixinActivatedAt }
+                : {}),
             }
           );
         }),
@@ -5229,12 +6483,20 @@ export function createBotsService(
     pollWeixinRegistration(params) {
       return pollWeixinQrRegistration(params);
     },
+    beginWecomRegistration() {
+      return beginWeComQrRegistration();
+    },
+    pollWecomRegistration(params) {
+      return pollWeComQrRegistration(params);
+    },
     async saveConfig(config) {
       const savedConfig = await repo.writeConfig(normalizeConfigBots(config));
       clearCandidateCaches();
       telegramRuntime.scheduleRefresh(savedConfig);
       weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
+      wecomRuntime.scheduleRefresh(savedConfig);
+      dingtalkRuntime.scheduleRefresh(savedConfig);
       return savedConfig;
     },
     async listBots() {
@@ -5298,6 +6560,8 @@ export function createBotsService(
       telegramRuntime.scheduleRefresh(savedConfig);
       weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
+      wecomRuntime.scheduleRefresh(savedConfig);
+      dingtalkRuntime.scheduleRefresh(savedConfig);
       return bot;
     },
     async removeBotSecret(botId: string) {
@@ -5336,6 +6600,8 @@ export function createBotsService(
       telegramRuntime.scheduleRefresh(savedConfig);
       weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
+      wecomRuntime.scheduleRefresh(savedConfig);
+      dingtalkRuntime.scheduleRefresh(savedConfig);
       if (bot.credentialRef) {
         await deps.credentialService.delete(bot.credentialRef);
       }
@@ -5356,6 +6622,12 @@ export function createBotsService(
       if (bot?.provider === "weixin") {
         weixinRuntime.stopPolling(bot.id);
       }
+      if (bot?.provider === "wecom") {
+        wecomRuntime.stopConnection(bot.id);
+      }
+      if (bot?.provider === "dingtalk") {
+        dingtalkRuntime.stopConnection(bot.id);
+      }
       await repo.writeConfig({
         ...config,
         bots: config.bots.filter((item) => item.id !== botId),
@@ -5363,9 +6635,28 @@ export function createBotsService(
       clearCandidateCaches();
       telegramRuntime.scheduleRefresh();
       weixinRuntime.scheduleRefresh();
+      wecomRuntime.scheduleRefresh();
+      dingtalkRuntime.scheduleRefresh();
       const state = await repo.readState();
+      const removedConversations = listConversations(state, botId);
       delete state.bots[botId];
       await repo.writeState(state);
+      // 删除即解绑：会话归属与工作区绑定都随 bot 一起消失，运行期订阅一并撤掉。
+      // 否则绑定表里会留下无法解析的"幽灵机器人"（UI 只能显示裸 id，且会挡住空态引导）。
+      disposeBotRuntimeBindings(botId);
+      await pruneBotFromWorkspaceBindings(botId);
+      for (const removedContext of removedConversations) {
+        if (!removedContext.activeTaskId) {
+          continue;
+        }
+        // 该对话刚失去绑定：广播一次让任务行绿点/标题栏通道图标/右键菜单立刻刷新（source ui 不反向跳转）。
+        await broadcastTaskListChange(
+          removedContext,
+          removedContext.activeTaskId,
+          "active_task_changed",
+          { source: "ui" },
+        ).catch(() => undefined);
+      }
       if (bot?.credentialRef) {
         await deps.credentialService.delete(bot.credentialRef);
       }
@@ -5412,12 +6703,406 @@ export function createBotsService(
       });
       return { code, expiresAt };
     },
-    async getBotStates() {
-      return Object.values((await repo.readState()).bots);
+    async bindBotToWorkspace(params: BotWorkspaceBindingParams): Promise<void> {
+      const config = await repo.readConfig();
+      const bot = findBot(config, params.botId);
+      if (!bot) {
+        throw new Error(`Bot not found: ${params.botId}`);
+      }
+      const workspaceKey = getWorkspaceKey(params.workspacePath, params.workspaceIdentity);
+      const bindings = await readBotBindings();
+      // 一个工作区可绑定多个 bot，但一个 bot 只能绑一个工作区：先把它从其他工作区摘掉再追加。
+      const nextBindings = setWorkspaceBinding(
+        removeBotFromOtherWorkspaces(bindings, workspaceKey, bot.id),
+        workspaceKey,
+        bot.id,
+      );
+      await writeBotBindings(nextBindings);
+      // 绑定即授权：绑定时访问范围收敛为该 bot 的全部绑定工作区（不再是"原范围 + 新工作区"）。
+      // 否则"工作区访问范围"与"工作区绑定"会演化成两个互相矛盾的授权来源：
+      // 已绑定的 bot 仍可能因访问范围不含绑定工作区而在每条消息上被判越权。
+      await convergeBotAllowedWorkspaces(bot, nextBindings);
+      // 绑定动作本身视作一次 UI 工作区焦点：立即把该 bot 仍处于草稿的对话钉到该工作区
+      // （已有会话绑定的对话不动，避免绑定工作区时把正在进行的对话从会话上摘掉）。
+      await focusBotDraftConversationsOnWorkspace(
+        bot.id,
+        params.workspacePath,
+        params.workspaceIdentity,
+      );
     },
+    async unbindBotFromWorkspace(params: BotWorkspaceBindingParams): Promise<void> {
+      const workspaceKey = getWorkspaceKey(params.workspacePath, params.workspaceIdentity);
+      const bindings = await readBotBindings();
+      // 只摘掉这个 bot；该工作区的其他 bot 绑定不受影响。
+      const nextBindings = removeWorkspaceBinding(bindings, workspaceKey, params.botId);
+      await writeBotBindings(nextBindings);
+      // 仍有剩余绑定时继续收敛；全部解绑后保持现状——不自动放开为"所有工作区"，
+      // 避免解绑动作悄悄扩大授权（用户可在 UI 里显式调整）。
+      const config = await repo.readConfig();
+      const bot = findBot(config, params.botId);
+      if (bot) {
+        await convergeBotAllowedWorkspaces(bot, nextBindings);
+      }
+    },
+    async listBotWorkspaceBindings(params: { botId: string }): Promise<BotWorkspaceRef[]> {
+      const bindings = await readBotBindings();
+      const boundKeys = Object.entries(bindings)
+        .filter(([, botIds]) => botIds.includes(params.botId))
+        .map(([workspaceKey]) => workspaceKey);
+      if (boundKeys.length === 0) {
+        return [];
+      }
+      const refs = await listWorkspaceRefs();
+      const byId = new Map(refs.map((ref) => [ref.id, ref]));
+      // 绑定 key 可能指向当前不在列表里的工作区（已关闭/归档）：仍如实返回，
+      // 用 key 本身构造显示信息，避免 UI 显示"未绑定"而服务端按已绑定处理。
+      return boundKeys.map((workspaceKey) => byId.get(workspaceKey) ?? createWorkspaceRef(workspaceKey));
+    },
+    async getWorkspaceBotBinding(
+      params: Omit<BotWorkspaceBindingParams, "botId">,
+    ): Promise<BotWorkspaceBindingInfo> {
+      const bindings = await readBotBindings();
+      return {
+        botIds: getWorkspaceBoundBots(
+          bindings,
+          getWorkspaceKey(params.workspacePath, params.workspaceIdentity),
+        ),
+      };
+    },
+    async notifyUiSessionFocus(params: BotUiFocusParams): Promise<void> {
+      await applyUiFocus(params);
+    },
+    /**
+     * 该 bot 的候选对话：已存在的上下文 + 绑定用户的私聊。
+     * 绑定菜单据此让用户选择"把哪个 IM 对话绑到这个会话"。
+     */
+    async listBotConversations(params: { botId: string }): Promise<
+      Array<{
+        botId: string;
+        conversationKey: string;
+        conversationKind: BotConversationKind;
+        conversationId: string;
+        conversationLabel?: string;
+        taskId: string | null;
+        workspacePath?: string;
+      }>
+    > {
+      const [config, state] = await Promise.all([repo.readConfig(), repo.readState()]);
+      const bot = findBot(config, params.botId);
+      if (!bot) {
+        return [];
+      }
+      const result: Array<{
+        botId: string;
+        conversationKey: string;
+        conversationKind: BotConversationKind;
+        conversationId: string;
+        conversationLabel?: string;
+        taskId: string | null;
+        workspacePath?: string;
+      }> = [];
+      const seen = new Set<string>();
+      const push = (conversation: {
+        conversationKey: string;
+        conversationKind: BotConversationKind;
+        conversationId: string;
+        conversationLabel?: string;
+        taskId?: string | null;
+        workspacePath?: string;
+      }): void => {
+        if (seen.has(conversation.conversationKey)) {
+          return;
+        }
+        seen.add(conversation.conversationKey);
+        result.push({
+          botId: params.botId,
+          conversationKey: conversation.conversationKey,
+          conversationKind: conversation.conversationKind,
+          conversationId: conversation.conversationId,
+          ...(conversation.conversationLabel
+            ? { conversationLabel: conversation.conversationLabel }
+            : {}),
+          taskId: conversation.taskId ?? null,
+          ...(conversation.workspacePath ? { workspacePath: conversation.workspacePath } : {}),
+        });
+      };
+      // 1) 已有上下文的对话（按最近更新排序）
+      for (const context of listConversations(state, params.botId)) {
+        push({
+          conversationKey: context.conversationKey,
+          conversationKind: context.conversationKind,
+          conversationId: context.conversationId,
+          ...(context.conversationLabel ? { conversationLabel: context.conversationLabel } : {}),
+          taskId: context.mode === "task" ? context.activeTaskId : null,
+          workspacePath: context.workspacePath,
+        });
+      }
+      // 2) 还没说过话但可预判的对话：绑定用户的私聊
+      const boundUserId = bot.providerUserId?.trim();
+      if (boundUserId) {
+        push({
+          conversationKey: makeBotConversationKey("private", boundUserId),
+          conversationKind: "private",
+          conversationId: boundUserId,
+        });
+      }
+      return result;
+    },
+
+    async listBotTaskBindings(): Promise<
+      Array<{
+        botId: string;
+        provider: BotProvider;
+        conversationKey: string;
+        conversationKind: BotConversationKind;
+        conversationId: string;
+        conversationLabel?: string;
+        workspacePath: string;
+        workspaceIdentity?: string;
+        taskId: string;
+      }>
+    > {
+      const [config, state] = await Promise.all([repo.readConfig(), repo.readState()]);
+      const result: Array<{
+        botId: string;
+        provider: BotProvider;
+        conversationKey: string;
+        conversationKind: BotConversationKind;
+        conversationId: string;
+        conversationLabel?: string;
+        workspacePath: string;
+        workspaceIdentity?: string;
+        taskId: string;
+      }> = [];
+      for (const [botId, channel] of Object.entries(state.bots)) {
+        const bot = findBot(config, botId);
+        if (!bot || !bot.enabled) {
+          continue;
+        }
+        for (const context of Object.values(channel.conversations)) {
+          if (context.mode !== "task" || !context.activeTaskId) {
+            continue;
+          }
+          result.push({
+            botId,
+            provider: bot.provider,
+            conversationKey: context.conversationKey,
+            conversationKind: context.conversationKind,
+            conversationId: context.conversationId,
+            ...(context.conversationLabel
+              ? { conversationLabel: context.conversationLabel }
+              : {}),
+            workspacePath: context.workspacePath,
+            ...(context.workspaceIdentity
+              ? { workspaceIdentity: context.workspaceIdentity }
+              : {}),
+            taskId: context.activeTaskId,
+          });
+        }
+      }
+      return result;
+    },
+
+    /** 把机器人绑定到指定桌面会话（对齐 /task set 的语义；桌面右键菜单入口）。 */
+    async bindBotToTask(params: {
+      botId: string;
+      /** 绑定哪个 IM 对话到该会话；省略时用该 bot 当前唯一/最近活跃的对话。 */
+      conversationKey?: string;
+      workspacePath: string;
+      workspaceIdentity?: string;
+      taskId: string;
+    }): Promise<{ ok: boolean; reason?: "busy" | "missing" | "workspace" | "conversation" }> {
+      const config = await repo.readConfig();
+      const bot = findBot(config, params.botId);
+      if (!bot) {
+        return { ok: false, reason: "missing" };
+      }
+      const workspaceKey = getWorkspaceKey(params.workspacePath, params.workspaceIdentity);
+      // 会话只能绑定属于当前工作区的机器人（工作区绑定的那些，或显式授权本工作区的 bot）。
+      // 通配范围的全局 bot 不算归属：否则任意 bot 都能绑进任意工作区，这条约束形同虚设。
+      const botBindings = await readBotBindings();
+      if (
+        !isBotEligibleForSessionBinding({
+          bot,
+          workspaceKey,
+          workspaceBoundBotIds: getWorkspaceBoundBots(botBindings, workspaceKey),
+        })
+      ) {
+        return { ok: false, reason: "workspace" };
+      }
+      // 绑定到任务同样隐含工作区访问（与工作区绑定一致：绑定即授权）。
+      // 走到这里 bot 必然已授权本工作区或正是工作区绑定的 bot，这一步只兜底收敛失败的历史数据。
+      if (!isWorkspaceAllowed(workspaceKey, bot.allowedWorkspaces)) {
+        await service.saveBot({
+          bot: {
+            ...bot,
+            allowedWorkspaces: normalizeAllowedWorkspaces([...bot.allowedWorkspaces, workspaceKey]),
+          },
+        });
+      }
+      const state = await repo.readState();
+      const conversations = listConversations(state, params.botId);
+      const requestedKey = params.conversationKey?.trim();
+      if (requestedKey && !parseBotConversationKey(requestedKey)) {
+        return { ok: false, reason: "conversation" };
+      }
+      // 未指定对话时：优先该 bot 已有对话里最近活跃的那个；还没有任何对话时按配置推导默认对话
+      // （绑定用户的私聊）——与 listBotConversations 的候选口径一致，桌面菜单总能拿到一个对话键。
+      const defaultKey = (() => {
+        const existing = conversations[0]?.conversationKey;
+        if (existing) {
+          return existing;
+        }
+        const boundUserId = bot.providerUserId?.trim();
+        return boundUserId ? makeBotConversationKey("private", boundUserId) : undefined;
+      })();
+      const targetKey = requestedKey ?? defaultKey;
+      if (!targetKey) {
+        return { ok: false, reason: "conversation" };
+      }
+      const targetContext = readConversation(state, params.botId, targetKey);
+      if (
+        targetContext?.activeTaskId &&
+        targetContext.activeTaskId !== params.taskId &&
+        (await isContextActiveTaskRunning(targetContext))
+      ) {
+        // 该对话正在别的任务上工作：此时换绑会让回复串线，交给用户先 /stop 或等结束。
+        return { ok: false, reason: "busy" };
+      }
+      // 一个会话可以同时绑定多个机器人（同一工作区的其他 bot 不受影响）：各自镜像到自己的渠道。
+      // 同一个 bot 的其他对话也不受影响：各对话各持一个会话，互不打断。
+      await focusBotOnWorkspace(
+        params.botId,
+        targetKey,
+        params.workspacePath,
+        params.workspaceIdentity,
+        params.taskId,
+      );
+      return { ok: true };
+    },
+
+    /**
+     * 解除机器人与任务的绑定：回到草稿并停止向该会话继续投递。
+     * 指定 conversationKey 时只解绑该对话；省略时解绑该 bot 所有指向此任务的对话。
+     */
+    async unbindBotFromTask(params: {
+      botId: string;
+      taskId: string;
+      conversationKey?: string;
+    }): Promise<void> {
+      const state = await repo.readState();
+      const requestedKey = params.conversationKey?.trim();
+      const targets = listConversationsByTask(state, params.botId, params.taskId).filter(
+        (conversation) => !requestedKey || conversation.conversationKey === requestedKey,
+      );
+      for (const context of targets) {
+        // 回到草稿：writeContext 会撤掉该会话上这个 bot 的流订阅（避免解绑后正文继续推到 IM），
+        // key 含 botId + 对话键，同一会话的其他机器人与该 bot 的其他对话订阅都不受影响。
+        await writeDraftContext(context, undefined);
+      }
+    },
+
+    /**
+     * 桌面输入镜像（对齐 MyAgents 的 im-mirror）：绑定会话里由桌面端发出的 prompt
+     * 转发到 IM 会话，与 IM→桌面方向合起来构成双向实时同步。
+     * 由渲染层在用户主动发送时调用（天然排除机器人自身产生的回合，不会回声）。
+     */
+    async notifyDesktopUserMessage(params: {
+      taskId: string;
+      workspacePath: string;
+      workspaceIdentity?: string;
+      text: string;
+    }): Promise<void> {
+      const text = params.text.trim();
+      if (!text) {
+        return;
+      }
+      const state = await repo.readState();
+      const config = await repo.readConfig();
+      const workspaceKey = getWorkspaceKey(params.workspacePath, params.workspaceIdentity);
+      const locale = await readMessageLocale();
+      for (const [botId, channel] of Object.entries(state.bots)) {
+        const bot = findBot(config, botId);
+        if (!bot || !bot.enabled) {
+          continue;
+        }
+        for (const context of Object.values(channel.conversations)) {
+          if (
+            context.mode !== "task" ||
+            context.activeTaskId !== params.taskId ||
+            getWorkspaceKey(context.workspacePath, context.workspaceIdentity) !== workspaceKey
+          ) {
+            continue;
+          }
+          // 谁持有这个会话就往谁的对话镜像：群聊回群、私聊回本人。
+          const mirrorUserId =
+            context.conversationKind === "private"
+              ? context.conversationId
+              : resolveBotProactiveUserId(bot, context, state);
+          if (!mirrorUserId) {
+            continue;
+          }
+          const adapter = providers[bot.provider];
+          if (!adapter) {
+            continue;
+          }
+          try {
+            await adapter.send(bot, {
+              botId: bot.id,
+              provider: bot.provider,
+              providerUserId: mirrorUserId,
+              text: formatBotMessage(locale, "desktopPromptMirror", { text }),
+            });
+          } catch (error) {
+            botsLogger.warn(
+              undefined,
+              `desktop prompt mirror failed bot=${botId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }
+        }
+      }
+    },
+
+    async sendBotMedia(params: BotSendMediaParams): Promise<void> {
+      const config = await repo.readConfig();
+      const bot = findBot(config, params.botId);
+      if (!bot) {
+        throw new Error(`Bot not found: ${params.botId}`);
+      }
+      await deliverBotMedia({
+        bot,
+        filePath: params.filePath,
+        ...(params.caption ? { caption: params.caption } : {}),
+        ...(params.chatId ? { chatId: params.chatId } : {}),
+      });
+    },
+    /** 所有对话上下文（展平）：UI 用它显示每个 bot 当前挂着的会话/工作区。 */
+    async getBotStates() {
+      const state = await repo.readState();
+      return Object.values(state.bots).flatMap((channel) =>
+        Object.values(channel.conversations),
+      );
+    },
+    /**
+     * 重置状态：键是对话键时只清该对话；是 botId 时清该 bot 的全部对话
+     * （保留通道级游标，避免重置后 Telegram 重投旧更新）。
+     */
     async resetBotState(contextKey: string) {
       const state = await repo.readState();
-      delete state.bots[contextKey];
+      const parsed = parseBotConversationKey(contextKey);
+      if (parsed) {
+        for (const channel of Object.values(state.bots)) {
+          if (channel.conversations[contextKey]) {
+            delete channel.conversations[contextKey];
+            channel.updatedAt = Date.now();
+          }
+        }
+      } else if (state.bots[contextKey]) {
+        state.bots[contextKey].conversations = {};
+        state.bots[contextKey].updatedAt = Date.now();
+      }
       await repo.writeState(state);
     },
     watchAutomationRun,
@@ -5440,6 +7125,23 @@ export function createBotsService(
         if (weixinActivationReply) {
           return weixinActivationReply;
         }
+        if (
+          message.actor.chatType === "group" &&
+          command.type !== "message" &&
+          command.type !== "help" &&
+          command.type !== "stop" &&
+          command.type !== "selection.cancel" &&
+          command.type !== "approve" &&
+          command.type !== "deny"
+        ) {
+          // 群聊只开对话类能力：管理命令（/model、/task 等）在群里会改变所有成员的会话上下文。
+          return [
+            createOutbound(
+              message.actor,
+              msg(await readMessageLocale(), "groupCommandUnsupported"),
+            ),
+          ];
+        }
         switch (command.type) {
           case "selection.cancel":
             return handleSelectionCancel(message);
@@ -5461,6 +7163,10 @@ export function createBotsService(
               auth.context,
               await buildActiveTaskDraftOptions(auth.context),
             );
+            // /new 开新会话：该群的旧历史不再作为上下文（否则会把上一话题带进新会话）。
+            if (message.actor.chatType === "group" && message.actor.chatId) {
+              groupHistory.clear(message.botId, message.actor.chatId);
+            }
             return createStatusReply(message.actor, context, auth.locale);
           }
           case "workspace.list": {
@@ -5475,10 +7181,13 @@ export function createBotsService(
               auth.bot,
               createCurrentWorkspaceRef(auth.context),
             );
-            const visibleWorkspaces = filterAllowedWorkspaces(
-              synced.workspaces,
-              synced.user.allowedWorkspaces,
-            );
+            // 绑定的 bot 菜单只展示绑定集：与 /workspace.set 的接受范围保持一致，
+            // 避免菜单列出会被拒绝（或按序号落到另一个工作区）的选项。
+            const boundWorkspaces = await resolveBotBoundWorkspaces(auth.bot.id);
+            const visibleWorkspaces =
+              boundWorkspaces.length > 0
+                ? boundWorkspaces
+                : filterAllowedWorkspaces(synced.workspaces, synced.user.allowedWorkspaces);
             const options = visibleWorkspaces.map((workspace) => ({
               id: workspace.id,
               // Bugfix: Telegram/飞书等按钮通道只展示 label，不展示 description。
@@ -5517,6 +7226,34 @@ export function createBotsService(
             if (!auth.ok) return auth.reply;
             if (await isContextActiveTaskRunning(auth.context)) {
               return [createOutbound(message.actor, msg(auth.locale, "taskRunning"))];
+            }
+            // 绑定的 bot 由工作区侧管理：上下文钉定在绑定集内，IM 侧 /workspace 不能跳出。
+            // 绑定集只有一个元素时显式拒绝；多绑定工作区仍可在绑定集内切换。
+            const boundWorkspaces = await resolveBotBoundWorkspaces(auth.bot.id);
+            const selectedPinned =
+              boundWorkspaces.length > 0
+                ? resolveWorkspaceByValue(
+                    boundWorkspaces,
+                    command.value,
+                    boundWorkspaces.map((ref) => ref.id),
+                  )
+                : null;
+            if (boundWorkspaces.length > 0) {
+              if (!selectedPinned) {
+                return [createOutbound(message.actor, msg(auth.locale, "workspacePinned"))];
+              }
+              const context = {
+                ...auth.context,
+                workspacePath: selectedPinned.workspacePath,
+                workspaceIdentity: selectedPinned.workspaceIdentity,
+                workspaceId: selectedPinned.id,
+              };
+              const draftContext = await writeDraftContext(
+                context,
+                await buildInitializedDraftOptions(context),
+              );
+              pendingWorkspaceSelectionsByContext.delete(getActorContextKey(message.actor));
+              return createStatusReply(message.actor, draftContext, auth.locale);
             }
             const synced = await normalizeBotWorkspaceConfig(
               auth.config,
@@ -6086,6 +7823,12 @@ export function createBotsService(
             } satisfies BotContextState;
             await writeContext(nextContext);
             pendingTaskSelectionsByContext.delete(getActorContextKey(message.actor));
+            // bot 侧切换了目标会话：建立流观看，并通知 UI 跟随跳转。
+            // UI 执行跳转后会回调 notifyUiSessionFocus，命中 focusBotOnWorkspace 的幂等短路，不会成环。
+            await ensureContextStreamWatch(auth.bot, nextContext);
+            await broadcastTaskListChange(nextContext, task.taskId, "active_task_changed", {
+              source: "bot",
+            });
             return createStatusReply(message.actor, nextContext, auth.locale);
           }
           case "reply.list": {
@@ -6127,6 +7870,9 @@ export function createBotsService(
             });
             return createStatusReply(message.actor, auth.context, auth.locale);
           }
+          case "send": {
+            return handleSendMedia(message, command.value);
+          }
           case "stop": {
             const auth = await withAuthorizedContext(message, "stop");
             if (!auth.ok) return auth.reply;
@@ -6148,7 +7894,7 @@ export function createBotsService(
               ];
             }
             runningTasks.delete(auth.context.activeTaskId);
-            stopTyping(auth.context.activeTaskId);
+            stopTyping(auth.context.activeTaskId, auth.bot.id);
             await broadcastTaskListChange(auth.context, auth.context.activeTaskId, "updated");
             return createStatusReply(message.actor, auth.context, auth.locale);
           }
@@ -6337,6 +8083,7 @@ export function createBotsService(
       if (shutdownPromise) {
         return shutdownPromise;
       }
+      stopBotHeartbeatScheduler();
       memoryDiagnostics.dispose();
       for (const controller of streamingCardRequestControllers) {
         controller.abort(new Error("Bot service disposed."));
@@ -6351,9 +8098,11 @@ export function createBotsService(
         clearInterval(intervalId);
       }
       typingIntervals.clear();
-      for (const [taskId] of typingTargets) {
-        stopTyping(taskId);
+      for (const activeTyping of typingTargets.values()) {
+        const adapter = providers[activeTyping.bot.provider];
+        void adapter?.stopTyping?.(activeTyping.bot, activeTyping.target).catch(() => undefined);
       }
+      typingTargets.clear();
       runningTasks.clear();
       liveStatusProgressByTaskId.clear();
       pendingRemoteReconnectsByKey.clear();
@@ -6368,6 +8117,8 @@ export function createBotsService(
         telegramRuntime.dispose(),
         weixinRuntime.dispose(),
         feishuRuntime.dispose(),
+        wecomRuntime.dispose(),
+        dingtalkRuntime.dispose(),
       ]).then(() => undefined);
       return shutdownPromise;
     },
@@ -6376,6 +8127,9 @@ export function createBotsService(
     void telegramRuntime.refresh();
     void weixinRuntime.refresh();
     void feishuRuntime.refresh();
+    void wecomRuntime.refresh();
+    void dingtalkRuntime.refresh();
+    startBotHeartbeatScheduler();
     void ensureBotStorageMigrated().catch((error: unknown) => {
       // 首次读取失败必须可见，不能产生未处理 rejection；交互入口仍直接收到该错误。
       botsLogger.error(

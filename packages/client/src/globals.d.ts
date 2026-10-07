@@ -40,7 +40,6 @@ import type {
   RendererHeapSample,
   TelemetryRendererContext,
   TaskNotificationPayload,
-  WindowScreenshotResult,
   EmbeddedBrowserDataClearResult,
   WSLDistro,
   UpdateCheckResultPayload,
@@ -83,6 +82,22 @@ declare global {
       listDockerContainers(): Promise<DockerContainerInfo[]>;
       /** 列出当前机器 SSH config 里可用于快速填表的 alias */
       listSSHConfigAliases(): Promise<SSHConfigAliasOption[]>;
+      /** 读取局域网访问状态（服务端视角） */
+      getLanAccessState(): Promise<import("@zcode/shared").LanAccessState>;
+      /** 开关局域网访问 */
+      setLanAccessEnabled(enabled: boolean): Promise<import("@zcode/shared").LanAccessState>;
+      /** 生成一次性配对码 */
+      createLanAccessPairCode(): Promise<import("@zcode/shared").LanAccessState>;
+      /** 移除一个已配对客户端 */
+      removeLanAccessClient(clientId: string): Promise<import("@zcode/shared").LanAccessState>;
+      /** 重置全部已配对客户端令牌 */
+      resetLanAccessTokens(): Promise<import("@zcode/shared").LanAccessState>;
+      /** 广播探测局域网内的 Mode 实例 */
+      discoverLanPeers(): Promise<import("@zcode/shared").LanDiscoveredPeer[]>;
+      /** 用配对码换取对端长期令牌 */
+      pairLanPeer(
+        request: import("@zcode/shared").LanPairPeerRequest,
+      ): Promise<import("@zcode/shared").LanAccessPairResult>;
       /** renderer 日志通过 IPC 传到 main 进程统一存储 */
       log(level: "info" | "warn" | "error", args: unknown[]): void;
       /** 打开系统目录选择框，返回选中路径或 null */
@@ -233,8 +248,6 @@ declare global {
         path?: string;
         error?: string;
       }>;
-      /** 截取当前窗口，用于错误反馈携带现场画面 */
-      captureWindowScreenshot?(): Promise<WindowScreenshotResult | null>;
       browserViewAttachGuest?(payload: {
         key: string;
         webContentsId: number;

@@ -1,11 +1,13 @@
 import {
   ALL_BOT_WORKSPACES,
+  getBotWorkspaceKey,
   type BotConfig,
   type BotWorkspaceRef,
 } from "@zcode/shared";
 
 export function getWorkspaceKey(workspacePath: string, workspaceIdentity?: string): string {
-  return workspaceIdentity?.trim() || workspacePath;
+  // 薄包装：真正的实现在 @zcode/shared，UI 侧算会话绑定资格时必须得到同一个 key。
+  return getBotWorkspaceKey(workspacePath, workspaceIdentity);
 }
 
 export function getWorkspaceLabel(workspacePath: string): string {

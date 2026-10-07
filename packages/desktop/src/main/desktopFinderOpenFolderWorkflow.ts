@@ -1,16 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import type { Locale } from "@zcode/shared";
 
-const WORKFLOW_NAME = "Open in ZCodium.workflow";
+const WORKFLOW_NAME = "Open in Mode.workflow";
+/** 更名前安装的 Finder 服务目录：不清掉会在「服务」菜单里长期显示旧应用名。 */
+const LEGACY_WORKFLOW_NAMES = ["Open in ZCodium.workflow"] as const;
 const WORKFLOW_BUNDLE_ID = "dev.zcode.app.finder-open-workflow";
 const WORKFLOW_VERSION = "5";
 const SERVICES_MENU_LABELS: Record<Locale, string> = {
-  "zh-CN": "在ZCode中打开",
-  "en-US": "Open in ZCodium",
-  "fa-IR": "باز کردن در ZCodium",
+  "zh-CN": "在 Mode 中打开",
+  "en-US": "Open in Mode",
+  "fa-IR": "باز کردن در Mode",
 };
 
 const workflowScript = `first=""
@@ -258,6 +260,9 @@ export function installFinderOpenFolderWorkflow(options: {
   }
 
   const servicesDir = join(options.homeDir ?? homedir(), "Library", "Services");
+  for (const legacyName of LEGACY_WORKFLOW_NAMES) {
+    rmSync(join(servicesDir, legacyName), { recursive: true, force: true });
+  }
   const workflowDir = join(servicesDir, WORKFLOW_NAME);
   const contentsDir = join(workflowDir, "Contents");
   const resourcesDir = join(contentsDir, "Resources");

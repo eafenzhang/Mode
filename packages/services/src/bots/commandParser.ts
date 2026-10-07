@@ -75,6 +75,11 @@ export function parseBotCommand(text: string): BotCommand {
     case "stop":
     case "停止":
       return { type: "stop" };
+    case "send":
+    case "发送":
+      return rest
+        ? { type: "send", value: rest }
+        : { type: "unknown", name, raw: text };
     case "permission":
       return rest ? { type: "permission.respond", value: rest } : { type: "unknown", name, raw: text };
     case "elicitation":

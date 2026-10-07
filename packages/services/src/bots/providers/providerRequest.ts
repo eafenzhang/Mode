@@ -34,10 +34,48 @@ async function runBotProviderRequest<T>(
     // 修复原因：收到响应头不代表请求完成。必须在同一个 AbortSignal 和 deadline 下
     // 消费响应体，否则服务端 headers 后停滞仍会永久堵住 Bot actor 队列。
     return await consume(response);
+  } catch (error) {
+    // 纵深防御：出站 URL 里可能带 token（如 Telegram 的 /bot<id>:<token>/），
+    // 任何被抛出的错误在离开本层前先脱敏，避免凭证随错误日志扩散。
+    throw sanitizeBotProviderError(error);
   } finally {
     clearTimeout(timeout);
     externalSignal?.removeEventListener("abort", onAbort);
   }
+}
+
+/**
+ * 从错误消息中移除凭证：
+ * - Telegram bot token（`bot<数字>:<token>`）
+ * - query 参数中的 token / secret 类字段（access_token、corpsecret、aeskey 等）
+ */
+export function sanitizeBotProviderMessage(message: string): string {
+  return message
+    .replace(/(bot\d+:)[A-Za-z0-9_-]+/gu, "$1***")
+    .replace(
+      /([?&](?:token|access_token|corpsecret|corp_secret|encodingaeskey|aeskey|secret)=)[^&\s"'#]+/giu,
+      "$1***",
+    );
+}
+
+function sanitizeBotProviderError(error: unknown): unknown {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+  const sanitized = sanitizeBotProviderMessage(error.message);
+  if (sanitized === error.message) {
+    return error;
+  }
+  const clone = new Error(sanitized);
+  clone.name = error.name;
+  if (error.stack) {
+    clone.stack = error.stack.split(error.message).join(sanitized);
+  }
+  const cause = (error as { cause?: unknown }).cause;
+  if (cause !== undefined) {
+    (clone as { cause?: unknown }).cause = cause;
+  }
+  return clone;
 }
 
 /**

@@ -47,7 +47,7 @@ ZCodium 是去智谱化的社区 fork，但剥离不彻底：模型设置仍保�
 
 ### 移除的开关
 
-`account`、`feedback`、`codingPlan`、`officialMcp`、`offPeak` 全部移除，只保留
+`account`、`codingPlan`、`officialMcp`、`offPeak` 全部移除，只保留
 `marketplace` 与 `clientConfig`。
 
 **原因**：这 5 个能力全部依赖智谱套餐/官方账号体系。`config/provider/zcode-builtin.json`

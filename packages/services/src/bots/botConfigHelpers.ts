@@ -46,18 +46,36 @@ export function findAuthorizedBot(
   if (actor.provider === "weixin") {
     return config.bots.find((bot) => bot.enabled && bot.provider === "weixin" && bot.id === actor.botId) ?? null;
   }
+  const bound = config.bots.find(
+    (bot) =>
+      bot.enabled && bot.provider === actor.provider && bot.providerUserId === actor.providerUserId,
+  );
+  if (bound) {
+    return bound;
+  }
+  // 私聊方式=全部用户：机器人没有绑定用户，按入站消息携带的 botId 定位（渠道运行时知道自己属于哪个 bot）。
   return (
     config.bots.find(
       (bot) =>
         bot.enabled &&
         bot.provider === actor.provider &&
-        bot.providerUserId === actor.providerUserId,
+        bot.id === actor.botId &&
+        (bot.privateChatMode ?? "bound_users") === "all_users",
     ) ?? null
   );
 }
 
 export function findBoundUser(bot: BotConfig, actor: BotActor): BotConfig | null {
-  return actor.provider === "weixin" || bot.providerUserId === actor.providerUserId ? bot : null;
+  // 微信（iLink）没有用户 ID 模型，保持放行；其余平台：绑定用户或被显式授权的额外用户。
+  // allowedUsers 对齐 MyAgents 的白名单：绑定一个主用户后仍可授权其他同事操控。
+  if (actor.provider === "weixin" || bot.providerUserId === actor.providerUserId) {
+    return bot;
+  }
+  // 私聊方式=全部用户：私聊不再要求绑定（群聊是否放行由调用方按群聊方式决定）。
+  if (actor.chatType === "private" && (bot.privateChatMode ?? "bound_users") === "all_users") {
+    return bot;
+  }
+  return bot.allowedUsers?.includes(actor.providerUserId) ? bot : null;
 }
 
 export function normalizeBotConfig(bot: BotConfig): BotConfig {

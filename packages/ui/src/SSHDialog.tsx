@@ -111,6 +111,23 @@ export function RemoteConnectionDialog({
     wslUser,
     dockerContainer,
     manualDockerContainer,
+    lanHost,
+    lanPort,
+    lanPairCode,
+    lanServerId,
+    lanServerName,
+    lanToken,
+    lanPeers,
+    lanScanning,
+    lanScanError,
+    lanPairing,
+    lanPairError,
+    scanLanPeers,
+    pairLanWithCode,
+    selectLanPeer,
+    setLanHost,
+    setLanPort,
+    setLanPairCode,
     sshConfigAliases,
     sshConfigAliasesLoading,
     sshConfigAliasesError,
@@ -318,6 +335,12 @@ export function RemoteConnectionDialog({
       wslUser,
       dockerContainer,
       manualDockerContainer,
+      lanHost,
+      lanPort,
+      lanServerId,
+      lanServerName,
+      lanToken,
+      lanPairCode,
     });
     if (!nextTarget) {
       // 必填项缺失属于表单校验，不应该和真实连接失败共用 destructive 错误样式。
@@ -503,6 +526,25 @@ export function RemoteConnectionDialog({
                 {currentStep === "settings" ? (
                   <RemoteConnectionSettingsStep
                     kind={kind}
+                    lanFields={{
+                      host: lanHost,
+                      port: lanPort,
+                      pairCode: lanPairCode,
+                      serverId: lanServerId,
+                      serverName: lanServerName,
+                      token: lanToken,
+                      peers: lanPeers,
+                      scanning: lanScanning,
+                      scanError: lanScanError,
+                      pairing: lanPairing,
+                      pairError: lanPairError,
+                      onHostChange: setLanHost,
+                      onPortChange: setLanPort,
+                      onPairCodeChange: setLanPairCode,
+                      onRescan: () => void scanLanPeers(),
+                      onSelectPeer: selectLanPeer,
+                      onPair: () => void pairLanWithCode(),
+                    }}
                     host={host}
                     port={port}
                     username={username}

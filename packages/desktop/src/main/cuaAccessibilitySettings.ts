@@ -189,7 +189,7 @@ async function verifyHelperPermissionIdentityUnchanged(
   await options.verifyHelperInstalled?.(identity.appPath);
   if (!cuaHelperBundleFingerprintUnchanged(identity.appPath, fingerprint)) {
     throw new Error(
-      `ZCodium Computer Use changed while its ${phase} signature was being verified`,
+      `Mode Computer Use changed while its ${phase} signature was being verified`,
     );
   }
   const currentIdentity = await (
@@ -197,12 +197,12 @@ async function verifyHelperPermissionIdentityUnchanged(
   )(identity.appPath);
   if (!sameHelperPermissionIdentity(identity, currentIdentity)) {
     throw new Error(
-      `ZCodium Computer Use permission identity changed during ${phase} verification`,
+      `Mode Computer Use permission identity changed during ${phase} verification`,
     );
   }
   if (!cuaHelperBundleFingerprintUnchanged(identity.appPath, fingerprint)) {
     throw new Error(
-      `ZCodium Computer Use changed while its ${phase} permission identity was being resolved`,
+      `Mode Computer Use changed while its ${phase} permission identity was being resolved`,
     );
   }
   return fingerprint;
@@ -508,7 +508,7 @@ export async function openCuaPermissionOnboarding(
   if (platform !== "darwin") {
     return {
       success: false,
-      error: "ZCodium Computer Use permissions are only available on macOS.",
+      error: "Mode Computer Use permissions are only available on macOS.",
     };
   }
   const env = options.env ?? process.env;
@@ -532,7 +532,7 @@ export async function openCuaPermissionOnboarding(
     // 根本不会进到这个 catch；只有真正校验失败才会到这里。
     return {
       success: false,
-      error: `ZCodium Computer Use is unavailable (install/verification failed): ${messageOf(error)}`,
+      error: `Mode Computer Use is unavailable (install/verification failed): ${messageOf(error)}`,
     };
   }
 
@@ -545,7 +545,7 @@ export async function openCuaPermissionOnboarding(
     return {
       success: false,
       returnedFromSettings: false,
-      error: `ZCodium Computer Use permission identity verification failed: ${messageOf(error)}`,
+      error: `Mode Computer Use permission identity verification failed: ${messageOf(error)}`,
     };
   }
   const verifiedOptions: OpenCuaAccessibilitySettingsOptions = {
@@ -602,7 +602,7 @@ export async function prepareCuaHelperPermissionDrag(
   if (platform !== "darwin") {
     return {
       success: false,
-      error: "ZCodium Computer Use permissions are only available on macOS.",
+      error: "Mode Computer Use permissions are only available on macOS.",
     };
   }
   const env = options.env ?? process.env;
@@ -625,7 +625,7 @@ export async function prepareCuaHelperPermissionDrag(
     await (options.verifyHelperInstalled ?? defaultInstaller?.verifyInstalled)?.(helperAppPath);
     if (!cuaHelperBundleFingerprintUnchanged(helperAppPath, verifiedFingerprint)) {
       throw new Error(
-        "ZCodium Computer Use changed while its drag signature was being verified",
+        "Mode Computer Use changed while its drag signature was being verified",
       );
     }
     const identity = await (
@@ -633,7 +633,7 @@ export async function prepareCuaHelperPermissionDrag(
     )(helperAppPath);
     if (!cuaHelperBundleFingerprintUnchanged(helperAppPath, verifiedFingerprint)) {
       throw new Error(
-        "ZCodium Computer Use changed while its drag identity was being resolved",
+        "Mode Computer Use changed while its drag identity was being resolved",
       );
     }
     return {

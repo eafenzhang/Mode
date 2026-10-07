@@ -31,5 +31,10 @@ export async function createRemoteBackend(target: RemoteTarget): Promise<IRemote
       const { DockerBackend } = await import("./docker-backend.js");
       return new DockerBackend(target);
     }
+    case "lan": {
+      // 局域网对端是「已经在跑的实例」：客户端走 attachLanRemoteConnection
+      // （HTTP /api/server-info + /ws/host），不做上传/启动 stdio server，因此没有 backend。
+      throw new Error("LAN 目标没有 stdio backend；请使用局域网挂接路径");
+    }
   }
 }

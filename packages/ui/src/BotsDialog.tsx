@@ -6,7 +6,6 @@ import type {
   BotConfig,
   BotProvider,
   BotServiceStatus,
-  BotState,
   BotWorkspaceRef,
   BotsConfigFile,
 } from "@zcode/shared";
@@ -47,7 +46,13 @@ import {
 } from "@/BotsDialog/BotSummaryCard.js";
 import { AstrBotSettingsCard, ASTRBOT_PLUGIN_URL } from "@/BotsDialog/AstrBotSettingsCard.js";
 import { ProviderSettingsCard } from "@/BotsDialog/ProviderSettingsCard.js";
-import { WorkspaceAccessCard } from "@/BotsDialog/WorkspaceAccessCard.js";
+import { BotHeartbeatCard } from "@/BotsDialog/BotHeartbeatCard.js";
+import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { BotGroupChatCard } from "@/BotsDialog/BotGroupChatCard.js";
+import { BotPrivateChatCard } from "@/BotsDialog/BotPrivateChatCard.js";
+import { BotDingtalkCardConfigCard } from "@/BotsDialog/BotDingtalkCardConfigCard.js";
+import { WorkspaceManagementCard } from "@/BotsDialog/WorkspaceManagementCard.js";
+import { refreshBotTaskBindings } from "@/store/botTaskBindingsStore.js";
 import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
 import {
   BIND_CODE_TTL_MS,
@@ -55,10 +60,10 @@ import {
   TELEGRAM_BOTFATHER_URL,
   createDefaultCommands,
   formatBotDisplayName,
-  isAllWorkspacesAllowed,
   runtimeDot,
   type BindCodeState,
   type FeishuRegistrationState,
+  type WecomRegistrationState,
   type WeixinRegistrationState,
 } from "@/BotsDialog/shared.js";
 
@@ -100,9 +105,7 @@ export function BotsDialog({
   const confirmDialog = useConfirmDialog();
   const { botsService } = useServices();
   const [config, setConfig] = useState<BotsConfigFile>(() => createEmptyConfig());
-  const [workspaceRefs, setWorkspaceRefs] = useState<BotWorkspaceRef[]>([]);
   const [status, setStatus] = useState<BotServiceStatus | null>(null);
-  const [botStates, setBotStates] = useState<BotState[]>([]);
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [creatingBot, setCreatingBot] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -116,10 +119,15 @@ export function BotsDialog({
     null,
   );
   const [weixinRegistrationLoading, setWeixinRegistrationLoading] = useState(false);
+  const [wecomRegistration, setWecomRegistration] = useState<WecomRegistrationState | null>(null);
+  const [wecomRegistrationLoading, setWecomRegistrationLoading] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [credentialValue, setCredentialValue] = useState("");
   const [secretSaving, setSecretSaving] = useState(false);
-  const [workspaceAccessSaving, setWorkspaceAccessSaving] = useState(false);
+  const [workspaceBindingSaving, setWorkspaceBindingSaving] = useState(false);
+  const [botWorkspaceBindings, setBotWorkspaceBindings] = useState<BotWorkspaceRef[]>([]);
+  // 工作区管理下拉的可选项：当前已知的全部工作区（含远端）。
+  const [availableWorkspaces, setAvailableWorkspaces] = useState<BotWorkspaceRef[]>([]);
   const [botNameDraft, setBotNameDraft] = useState<{
     botId: string;
     value: string;
@@ -144,7 +152,10 @@ export function BotsDialog({
     [currentWorkspaceId, workspaceIdentity, workspacePath],
   );
   const selectedBot = config.bots.find((bot) => bot.id === selectedBotId) ?? null;
-  const selectedBotState = botStates.find((state) => state.botId === selectedBotId) ?? null;
+  // 微信激活标记属于通道级状态，从 status 投影读（对话级状态不再携带它）。
+  const selectedBotWeixinActivated = Boolean(
+    status?.botRuntime.find((runtime) => runtime.botId === selectedBotId)?.weixinActivatedAt,
+  );
   const selectedBotName =
     selectedBot && botNameDraft?.botId === selectedBot.id
       ? botNameDraft.value
@@ -214,9 +225,9 @@ export function BotsDialog({
   useEffect(() => {
     setCredentialValue("");
     setSecretSaving(false);
-    setWorkspaceAccessSaving(false);
     setFeishuRegistration(null);
     setWeixinRegistration(null);
+    setWecomRegistration(null);
   }, [selectedBotId, selectedBot?.provider]);
 
   useEffect(() => {
@@ -243,16 +254,13 @@ export function BotsDialog({
 
   const refresh = useCallback(async () => {
     try {
-      const [nextConfig, nextStatus, nextWorkspaces, nextBotStates] = await Promise.all([
+      // 微信激活标记等通道级状态都在 status 投影里；对话级状态这里不再单独拉取。
+      const [nextConfig, nextStatus] = await Promise.all([
         botsService.getConfig(),
         botsService.getStatus(),
-        botsService.listWorkspaceRefs({ currentWorkspace }),
-        botsService.getBotStates(),
       ]);
       setConfig(nextConfig);
       setStatus(nextStatus);
-      setWorkspaceRefs(nextWorkspaces);
-      setBotStates(nextBotStates);
       setConfigLoaded(true);
       setSelectedBotId((current) =>
         creatingBot ? current : (current ?? nextConfig.bots[0]?.id ?? null),
@@ -262,23 +270,158 @@ export function BotsDialog({
       logger.error("[BotsDialog] 加载 Bots 配置失败", message);
       toast(intl.formatMessage({ id: "bots.loadFailed" }, { error: message }));
     }
-  }, [botsService, creatingBot, currentWorkspace, intl]);
+  }, [botsService, creatingBot, currentWorkspace, intl, workspaceIdentity, workspacePath]);
+
+  const refreshBotWorkspaceBindings = useCallback(
+    async (botId: string | null) => {
+      if (!botId) {
+        setBotWorkspaceBindings([]);
+        return;
+      }
+      try {
+        setBotWorkspaceBindings(await botsService.listBotWorkspaceBindings({ botId }));
+      } catch (error) {
+        logger.warn(
+          "[BotsDialog] 读取 Bot 工作区绑定失败",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    },
+    [botsService],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    void refreshBotWorkspaceBindings(selectedBotId);
+  }, [open, refreshBotWorkspaceBindings, selectedBotId]);
+
+  // 工作区管理下拉的可选项来源：每次打开/绑定后刷新一次，覆盖远端工作区新增/断开的场景。
+  const updateAvailableWorkspaces = useCallback(async () => {
+    try {
+      setAvailableWorkspaces(await botsService.listWorkspaceRefs());
+    } catch (error) {
+      logger.warn(
+        "[BotsDialog] 读取工作区列表失败",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }, [botsService]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    void updateAvailableWorkspaces();
+  }, [open, updateAvailableWorkspaces]);
+
+  const handleBindToWorkspace = useCallback(
+    async (target: BotWorkspaceRef) => {
+      if (!selectedBot) return;
+      setWorkspaceBindingSaving(true);
+      const targetPath = target.workspacePath;
+      const targetIdentity = target.workspaceIdentity;
+      try {
+        await botsService.bindBotToWorkspace({
+          botId: selectedBot.id,
+          workspacePath: targetPath,
+          ...(targetIdentity ? { workspaceIdentity: targetIdentity } : {}),
+        });
+      // 绑定动作要落到"用户正在看的那个对话"：绑工作区只把 bot 钉到工作区，
+      // 这里紧接着做一次**显式会话绑定**（而不是靠 UI 焦点跟随），否则 bot 停在草稿、
+      // 下一条 IM 消息会另起新会话；显式绑定也让绿点稳定停在这个会话上。
+      // 只有选中的就是当前打开的工作区时才同步会话；选别的工作区时本窗口没有它的会话。
+      const isCurrentWorkspace =
+        targetPath === workspacePath && (targetIdentity ?? "") === (workspaceIdentity ?? "");
+      const activeTaskId = isCurrentWorkspace
+        ? useZCodeSessionStore.getState().getWorkspaceState(targetPath, targetIdentity)
+            .activeTaskId
+        : null;
+      if (activeTaskId) {
+        await botsService
+          .bindBotToTask({
+            botId: selectedBot.id,
+            workspacePath: targetPath,
+            ...(targetIdentity ? { workspaceIdentity: targetIdentity } : {}),
+            taskId: activeTaskId,
+          })
+          .then((result) => {
+            if (!result.ok) {
+              logger.warn("[BotsDialog] 绑定时同步当前会话被拒绝", result.reason);
+            }
+          })
+          .catch((error: unknown) => {
+            logger.warn(
+              "[BotsDialog] 绑定时同步当前会话失败",
+              error instanceof Error ? error.message : String(error),
+            );
+          });
+      }
+      // 工作区绑定会把该工作区的 bot 钉到"用户正在看的会话"上：立即刷新任务行绑定投影，
+      // 否则会话右键菜单/绿点要等下一次 bots:task 广播才反映。
+      void refreshBotTaskBindings(botsService).catch((error: unknown) => {
+        logger.warn(
+          "[BotsDialog] 刷新任务绑定投影失败",
+          error instanceof Error ? error.message : String(error),
+        );
+      });
+      void refresh();
+      void refreshBotWorkspaceBindings(selectedBot.id);
+      void updateAvailableWorkspaces();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("[BotsDialog] 绑定工作区失败", message);
+        toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+      } finally {
+        setWorkspaceBindingSaving(false);
+      }
+    },
+    [botsService, intl, refresh, selectedBot, updateAvailableWorkspaces, workspaceIdentity, workspacePath],
+  );
+
+  const handleUnbindFromWorkspace = useCallback(async () => {
+    if (!selectedBot) return;
+    setWorkspaceBindingSaving(true);
+    try {
+      await botsService.unbindBotFromWorkspace({
+        botId: selectedBot.id,
+        workspacePath,
+        workspaceIdentity,
+      });
+      // 只摘掉当前 bot：该工作区的其他机器人绑定保持不变。
+      void refreshBotTaskBindings(botsService).catch((error: unknown) => {
+        logger.warn(
+          "[BotsDialog] 刷新任务绑定投影失败",
+          error instanceof Error ? error.message : String(error),
+        );
+      });
+      void refresh();
+      void refreshBotWorkspaceBindings(selectedBot.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("[BotsDialog] 解除工作区绑定失败", message);
+      toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+    } finally {
+      setWorkspaceBindingSaving(false);
+    }
+  }, [botsService, intl, refresh, selectedBot, workspaceIdentity, workspacePath]);
 
   useEffect(() => {
     if (
       !open ||
       selectedBot?.provider !== "weixin" ||
       !selectedBot.credentialRef ||
-      selectedBotState?.weixinActivatedAt
+      selectedBotWeixinActivated
     ) {
       return undefined;
     }
     let cancelled = false;
     const pollActivationState = async () => {
       try {
-        const nextBotStates = await botsService.getBotStates();
+        const nextStatus = await botsService.getStatus();
         if (!cancelled) {
-          setBotStates(nextBotStates);
+          setStatus(nextStatus);
         }
       } catch (error) {
         logger.warn(
@@ -301,7 +444,7 @@ export function BotsDialog({
     selectedBot?.credentialRef,
     selectedBot?.id,
     selectedBot?.provider,
-    selectedBotState?.weixinActivatedAt,
+    selectedBotWeixinActivated,
   ]);
 
   useEffect(() => {
@@ -521,6 +664,7 @@ export function BotsDialog({
             // Bugfix: 微信扫码成功即完成连接，保留 QR registration 会让用户看到过期的扫码区域。
             // 清掉临时状态后，Bot token 行会切到已连通的 Unbind 操作。
             setWeixinRegistration(null);
+    setWecomRegistration(null);
             toast(intl.formatMessage({ id: "bots.weixinRegistrationSuccess" }));
           }
           cancelled = true;
@@ -562,6 +706,182 @@ export function BotsDialog({
       }
     };
   }, [botsService, intl, open, saveBot, selectedBot, weixinRegistration]);
+
+  const handleStartWecomRegistration = useCallback(async () => {
+    if (!selectedBot || selectedBot.provider !== "wecom") return;
+    setWecomRegistrationLoading(true);
+    try {
+      const result = await botsService.beginWecomRegistration();
+      let qrDataUrl: string | null = null;
+      try {
+        qrDataUrl = await QRCode.toDataURL(result.authUrl, {
+          margin: 1,
+          width: 220,
+        });
+      } catch (error) {
+        logger.error(
+          "[BotsDialog] 生成企业微信扫码二维码失败",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      setWecomRegistration({
+        botId: selectedBot.id,
+        scode: result.scode,
+        authUrl: result.authUrl,
+        qrDataUrl,
+        interval: result.interval,
+        expiresAt: result.expiresAt,
+        status: "pending",
+      });
+      toast(intl.formatMessage({ id: "bots.wecom.registrationStarted" }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("[BotsDialog] 启动企业微信扫码创建失败", message);
+      toast(intl.formatMessage({ id: "bots.wecom.registrationFailed" }, { error: message }));
+    } finally {
+      setWecomRegistrationLoading(false);
+    }
+  }, [botsService, intl, selectedBot]);
+
+  const handleSaveDingtalkManual = useCallback(
+    async (clientId: string, secret: string) => {
+      if (!selectedBot || selectedBot.provider !== "dingtalk") return;
+      if (!clientId.trim() || !secret.trim()) return;
+      setSecretSaving(true);
+      try {
+        await saveBot(
+          { ...selectedBot, dingtalkClientId: clientId.trim() },
+          { credentialValue: secret },
+        );
+        toast(intl.formatMessage({ id: "bots.dingtalk.manualSaved" }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("[BotsDialog] 保存钉钉凭据失败", message);
+        toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+      } finally {
+        setSecretSaving(false);
+      }
+    },
+    [intl, saveBot, selectedBot],
+  );
+
+  const handleSaveWecomManual = useCallback(
+    async (wecomBotId: string, secret: string) => {
+      if (!selectedBot || selectedBot.provider !== "wecom") return;
+      if (!wecomBotId.trim() || !secret.trim()) return;
+      setSecretSaving(true);
+      try {
+        await saveBot(
+          { ...selectedBot, wecomBotId: wecomBotId.trim() },
+          { credentialValue: secret },
+        );
+        setWecomRegistration(null);
+        toast(intl.formatMessage({ id: "bots.wecom.manualSaved" }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("[BotsDialog] 保存企业微信手动凭据失败", message);
+        toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+      } finally {
+        setSecretSaving(false);
+      }
+    },
+    [intl, saveBot, selectedBot],
+  );
+
+  useEffect(() => {
+    const registration = wecomRegistration;
+    if (!open || !selectedBot || selectedBot.provider !== "wecom" || !registration) {
+      return undefined;
+    }
+    if (registration.status !== "pending" && registration.status !== "scanned") {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let timer: number | undefined;
+    const pollIntervalMs = Math.max(1, registration.interval) * 1000;
+
+    const scheduleNextPoll = () => {
+      if (cancelled) {
+        return;
+      }
+      timer = window.setTimeout(() => {
+        void runPoll();
+      }, pollIntervalMs);
+    };
+
+    const pollRegistration = async () => {
+      try {
+        const result = await botsService.pollWecomRegistration({
+          scode: registration.scode,
+        });
+        if (cancelled) {
+          return;
+        }
+        if (result.status === "pending" || result.status === "scanned") {
+          setWecomRegistration((current) => {
+            if (current?.scode !== registration.scode) {
+              return current;
+            }
+            if (current.interval === result.interval && current.status === result.status) {
+              return current;
+            }
+            return { ...current, interval: result.interval, status: result.status };
+          });
+          return;
+        }
+        if (result.status === "success") {
+          // 扫码即完成创建：botId 写入配置，secret 进加密凭据；随后进入 /bind 阶段。
+          await saveBot(
+            {
+              ...selectedBot,
+              wecomBotId: result.botId,
+              displayName: result.botId,
+            },
+            { credentialValue: result.secret },
+          );
+          if (!cancelled) {
+            setWecomRegistration(null);
+            toast(intl.formatMessage({ id: "bots.wecom.registrationSuccess" }));
+          }
+          cancelled = true;
+          return;
+        }
+        setWecomRegistration((current) =>
+          current?.scode === registration.scode
+            ? {
+                ...current,
+                status: result.status,
+                message:
+                  ("message" in result ? result.message : undefined) ??
+                  intl.formatMessage({
+                    id: `bots.wecom.registration.${result.status}`,
+                  }),
+              }
+            : current,
+        );
+        cancelled = true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("[BotsDialog] 企业微信扫码轮询失败", message);
+      }
+    };
+
+    const runPoll = async () => {
+      await pollRegistration();
+      scheduleNextPoll();
+    };
+
+    // 与微信一致：串行轮询，避免上一次请求未返回时叠加上新请求。
+    void runPoll();
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [botsService, intl, open, saveBot, selectedBot, wecomRegistration]);
 
   const patchSelectedBot = useCallback(
     (patch: Partial<BotConfig>) => {
@@ -631,52 +951,6 @@ export function BotsDialog({
     [renamingBotId],
   );
 
-  const patchAllowedWorkspaces = useCallback(
-    async (allowedWorkspaces: string[]) => {
-      if (!selectedBot) return;
-      setWorkspaceAccessSaving(true);
-      const normalizedAllowedWorkspaces =
-        allowedWorkspaces.length > 0 ? allowedWorkspaces : [ALL_BOT_WORKSPACES];
-      const previousBot = selectedBot;
-      const optimisticBot = {
-        ...selectedBot,
-        allowedWorkspaces: normalizedAllowedWorkspaces,
-      };
-      setConfig((previous) => ({
-        ...previous,
-        bots: previous.bots.map((bot) => (bot.id === optimisticBot.id ? optimisticBot : bot)),
-      }));
-      try {
-        await saveBot(optimisticBot);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.error("[BotsDialog] 保存工作区访问范围失败", message);
-        setConfig((previous) => ({
-          ...previous,
-          bots: previous.bots.map((bot) => (bot.id === previousBot.id ? previousBot : bot)),
-        }));
-        toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
-      } finally {
-        setWorkspaceAccessSaving(false);
-      }
-    },
-    [intl, saveBot, selectedBot],
-  );
-
-  const toggleWorkspaceAccess = useCallback(
-    async (workspaceId: string, checked: boolean) => {
-      if (!selectedBot) return;
-      const currentAllowed = isAllWorkspacesAllowed(selectedBot.allowedWorkspaces)
-        ? workspaceRefs.map((workspace) => workspace.id)
-        : selectedBot.allowedWorkspaces;
-      const nextAllowed = checked
-        ? [...new Set([...currentAllowed, workspaceId])]
-        : currentAllowed.filter((id) => id !== workspaceId);
-      await patchAllowedWorkspaces(nextAllowed);
-    },
-    [patchAllowedWorkspaces, selectedBot, workspaceRefs],
-  );
-
   const handleBeginAddBot = () => {
     setCreatingBot(true);
     setCreatingProvider(null);
@@ -684,6 +958,7 @@ export function BotsDialog({
     setCredentialValue("");
     setFeishuRegistration(null);
     setWeixinRegistration(null);
+    setWecomRegistration(null);
   };
 
   const handleAddBot = useCallback(
@@ -723,6 +998,7 @@ export function BotsDialog({
     setCredentialValue("");
     setFeishuRegistration(null);
     setWeixinRegistration(null);
+    setWecomRegistration(null);
 
     if (entry.mode === "select") {
       setCreatingBot(false);
@@ -898,6 +1174,60 @@ export function BotsDialog({
       return;
     }
 
+    if (selectedBot.provider === "wecom") {
+      // 企微与飞书一致分两阶段：先扫码/手动拿到 botId+secret，再 /bind 绑定聊天身份。
+      if (!selectedBot.credentialRef || !selectedBot.wecomBotId) {
+        if (wecomRegistrationLoading) {
+          return;
+        }
+        if (wecomRegistration?.botId === selectedBot.id) {
+          return;
+        }
+        const autoKey = `${selectedBot.id}:wecom-registration`;
+        if (autoQrStartedBotIdsRef.current.has(autoKey)) {
+          return;
+        }
+        // 未配置凭据时自动展示扫码面板，让“扫码创建机器人”成为默认可操作路径。
+        autoQrStartedBotIdsRef.current.add(autoKey);
+        void handleStartWecomRegistration();
+        return;
+      }
+      if (!selectedBot.providerUserId) {
+        if (bindCode?.botId === selectedBot.id && !bindExpired) {
+          return;
+        }
+        if (autoBindCreatingBotIdsRef.current.has(selectedBot.id)) {
+          return;
+        }
+        autoBindCreatingBotIdsRef.current.add(selectedBot.id);
+        void createBindCodeForBot(selectedBot).finally(() => {
+          autoBindCreatingBotIdsRef.current.delete(selectedBot.id);
+        });
+      }
+      return;
+    }
+
+    if (selectedBot.provider === "dingtalk") {
+      // 钉钉与 Telegram 同构：凭据接入后自动展示 /bind，绑定码过期自动续码。
+      if (!selectedBot.credentialRef || !selectedBot.dingtalkClientId) {
+        return;
+      }
+      if (selectedBot.providerUserId) {
+        return;
+      }
+      if (bindCode?.botId === selectedBot.id && !bindExpired) {
+        return;
+      }
+      if (autoBindCreatingBotIdsRef.current.has(selectedBot.id)) {
+        return;
+      }
+      autoBindCreatingBotIdsRef.current.add(selectedBot.id);
+      void createBindCodeForBot(selectedBot).finally(() => {
+        autoBindCreatingBotIdsRef.current.delete(selectedBot.id);
+      });
+      return;
+    }
+
     if (selectedBot.provider !== "weixin") {
       return;
     }
@@ -926,10 +1256,13 @@ export function BotsDialog({
     createBindCodeForBot,
     handleStartFeishuRegistration,
     handleStartWeixinRegistration,
+    handleStartWecomRegistration,
     open,
     selectedBot,
     weixinRegistration,
     weixinRegistrationLoading,
+    wecomRegistration,
+    wecomRegistrationLoading,
   ]);
 
   const handleOpenTelegramBotFather = () => {
@@ -996,6 +1329,13 @@ export function BotsDialog({
     try {
       await botsService.deleteBot(selectedBot.id);
       setSelectedBotId(null);
+      // 删除即解绑：会话绑定投影与工作区绑定列表都要立刻反映（绿点/标题栏图标/菜单随即消失）。
+      void refreshBotTaskBindings(botsService).catch((error: unknown) => {
+        logger.warn(
+          "[BotsDialog] 刷新任务绑定投影失败",
+          error instanceof Error ? error.message : String(error),
+        );
+      });
       void refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1093,8 +1433,16 @@ export function BotsDialog({
                           <span className="block text-foreground truncate text-ui-base font-medium">
                             {formatBotDisplayName(bot.name, fallbackBotName)}
                           </span>
-                          <span className="mt-0.5 flex min-w-0 text-ui-base text-foreground-subtle">
-                            {renderChannelName(bot.provider)}
+                          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-ui-base text-foreground-subtle">
+                            <span className="shrink-0">{renderChannelName(bot.provider)}</span>
+                            <span aria-hidden="true">·</span>
+                            {/* 名称可重复或为空，bot ID 是唯一身份：绑定/排障都要能直接对上。 */}
+                            <span
+                              className="min-w-0 truncate font-mono text-ui-sm"
+                              title={bot.id}
+                            >
+                              {bot.id}
+                            </span>
                           </span>
                         </span>
                         <span
@@ -1123,7 +1471,7 @@ export function BotsDialog({
                   </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {BOT_PROVIDERS.filter((provider) => provider.id !== "webhook").map((provider) => {
+                  {BOT_PROVIDERS.map((provider) => {
                     const implemented = provider.implemented;
                     const isCreatingThisProvider = creatingProvider === provider.id;
                     const isCreatingAnyProvider = creatingProvider !== null;
@@ -1221,15 +1569,13 @@ export function BotsDialog({
                     bot={selectedBot}
                     runtime={selectedRuntime}
                     credentialValue={credentialValue}
-                    bindCode={bindCode}
-                    bindExpired={bindExpired}
-                    bindRemainingMs={bindRemainingMs}
-                    bindCountdownProgress={bindCountdownProgress}
                     feishuRegistration={feishuRegistration}
                     feishuRegistrationLoading={feishuRegistrationLoading}
                     weixinRegistration={weixinRegistration}
                     weixinRegistrationLoading={weixinRegistrationLoading}
-                    weixinActivated={Boolean(selectedBotState?.weixinActivatedAt)}
+                    weixinActivated={selectedBotWeixinActivated}
+                    wecomRegistration={wecomRegistration}
+                    wecomRegistrationLoading={wecomRegistrationLoading}
                     secretSaving={secretSaving}
                     onCredentialValueChange={setCredentialValue}
                     onSaveSecret={() => void handleSaveSecret()}
@@ -1237,27 +1583,51 @@ export function BotsDialog({
                     onOpenTelegramBotFather={handleOpenTelegramBotFather}
                     onStartWeixinRegistration={() => void handleStartWeixinRegistration()}
                     onStartFeishuRegistration={() => void handleStartFeishuRegistration()}
-                    onCreateBindCode={() => void handleCreateBindCode()}
-                    onUnbind={() => void handleUnbind()}
-                    onCopyBindCommand={() => void copyBindCommand()}
+                    onStartWecomRegistration={() => void handleStartWecomRegistration()}
+                    onSaveWecomManual={(wecomBotId, secret) =>
+                      void handleSaveWecomManual(wecomBotId, secret)
+                    }
+                    onSaveDingtalkManual={(clientId, secret) =>
+                      void handleSaveDingtalkManual(clientId, secret)
+                    }
                   />
                 )}
 
                 <SettingsGroupCard>
                   <BotReplyGranularityCard bot={selectedBot} onPatchBot={patchSelectedBot} />
 
+                  <BotHeartbeatCard bot={selectedBot} onPatchBot={patchSelectedBot} />
+
+                  <BotGroupChatCard bot={selectedBot} onPatchBot={patchSelectedBot} />
+
+                  {selectedBot.provider === "dingtalk" ? (
+                    <BotDingtalkCardConfigCard bot={selectedBot} onPatchBot={patchSelectedBot} />
+                  ) : null}
+
+                  <BotPrivateChatCard
+                    bot={selectedBot}
+                    bindCode={bindCode}
+                    bindExpired={bindExpired}
+                    bindRemainingMs={bindRemainingMs}
+                    bindCountdownProgress={bindCountdownProgress}
+                    onCreateBindCode={() => void handleCreateBindCode()}
+                    onCopyBindCommand={() => void copyBindCommand()}
+                    onUnbind={() => void handleUnbind()}
+                    onPatchBot={patchSelectedBot}
+                  />
+
                   {/*
                     暂不暴露命令权限编辑入口，避免用户在 bot 可用前把关键命令关掉。
                     如果要恢复 UI，重新渲染 selectedBot.allowedCommands 的列表并用 patchSelectedBot 保存。
                   */}
 
-                  <WorkspaceAccessCard
+                  <WorkspaceManagementCard
                     bot={selectedBot}
-                    workspaceRefs={workspaceRefs}
-                    currentWorkspace={currentWorkspace}
-                    loading={workspaceAccessSaving}
-                    onPatchAllowedWorkspaces={patchAllowedWorkspaces}
-                    onToggleWorkspaceAccess={toggleWorkspaceAccess}
+                    boundWorkspace={botWorkspaceBindings[0] ?? null}
+                    availableWorkspaces={availableWorkspaces}
+                    loading={workspaceBindingSaving}
+                    onSelectWorkspace={(target) => handleBindToWorkspace(target)}
+                    onUnbind={() => handleUnbindFromWorkspace()}
                   />
                 </SettingsGroupCard>
 

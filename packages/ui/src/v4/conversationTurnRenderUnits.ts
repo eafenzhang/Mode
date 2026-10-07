@@ -1,3 +1,4 @@
+import { isBotHeartbeatPromptText } from "@zcode/shared";
 import type {
   AssistantTextRow,
   ConversationRow,
@@ -372,6 +373,11 @@ function createDraftUnit(turnId: string): DraftTurnRenderUnit {
 }
 
 function shouldKeepRenderUnit(unit: ConversationTurnRenderUnit): boolean {
+  // 心跳回合不写会话：BotsService 注入的"[心跳] 主动检查"整轮（提示词 + HEARTBEAT_OK 答复）
+  // 直接从渲染单元里剔除；IM 侧仍按原规则投递（仅发现问题时汇报）。
+  if (unit.visibleUserInputs.some((row) => isBotHeartbeatPromptText(row.text))) {
+    return false;
+  }
   // 隐形行清零后（投影不再产不可渲染 marker），任何工作行都可渲染；
   // 「哪些 marker 可渲染」不再是 UI 的判断。
   return (

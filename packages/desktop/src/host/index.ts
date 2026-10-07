@@ -18,6 +18,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  Emitter,
   MessagePortProtocol,
   ChannelServer,
   type IChannelServer,
@@ -29,6 +30,8 @@ import {
   ServiceCollection,
   IBotsService,
   IFileService,
+  IPromptAttachmentTransferService,
+  type PromptAttachmentTransferProgress,
   IClientConfigService,
   IMediaPreviewService,
   IOffPeakTaskService,
@@ -65,6 +68,9 @@ import {
 } from "@zcode/services/node";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
 import { startBotsBridgeServer, type BotsBridgeServerHandle } from "./botsBridgeServer.js";
+import { startLanAccessServer, type LanAccessServerHandle } from "./lanAccessServer.js";
+import { attachLanRemoteConnection, loadLanPeerToken, pairLanPeer } from "./lanRemoteAttach.js";
+import { hostname } from "node:os";
 import {
   assertBoundSessionDispatchable,
   resolveOffPeakDispatchKind,
@@ -75,6 +81,10 @@ import {
   DEFAULT_BOT_COMMANDS,
   DEFAULT_BOT_REPLY_GRANULARITY,
   ZCODE_VERSION,
+  type HostLanAccessMessage,
+  type HostLanPairPeerMessage,
+  type LanAccessPairResult,
+  type LanAccessState,
   formatLogPrefix,
   formatZCodeHostProcessName,
   formatZodError,
@@ -190,19 +200,11 @@ process.title = formatZCodeHostProcessName(process.env["ZCODE_PROCESS_LABEL"]);
 
 type HostLogLevel = "info" | "warn" | "error";
 
-interface PendingFeedbackLogArchiveRequest {
-  resolve: (archive: { path: string; size: number }) => void;
-  reject: (error: Error) => void;
-  onProgress?: (event: { processedBytes: number; totalBytes: number }) => void;
-}
-
 interface PendingLocalMediaPreviewPathAuthorization {
   resolve: (path: string) => void;
   reject: (error: Error) => void;
 }
 
-const pendingFeedbackLogArchiveRequests = new Map<string, PendingFeedbackLogArchiveRequest>();
-let nextFeedbackLogArchiveRequestSeq = 0;
 const pendingLocalMediaPreviewPathAuthorizations = new Map<
   string,
   PendingLocalMediaPreviewPathAuthorization
@@ -307,37 +309,6 @@ function writeHostLog(level: HostLogLevel, ...args: unknown[]): void {
     level === "error" ? rawConsole.error : level === "warn" ? rawConsole.warn : rawConsole.log;
   consoleFn(prefix, ...args);
   reportHostLog(level, [prefix, ...args]);
-}
-
-function createFullFeedbackLogArchiveViaMain(
-  sourceDir: string,
-  options?: {
-    onProgress?: (event: { processedBytes: number; totalBytes: number }) => void;
-  },
-): Promise<{ path: string; size: number }> {
-  const requestId = `feedback-log-archive-${Date.now()}-${nextFeedbackLogArchiveRequestSeq++}`;
-  options?.onProgress?.({ processedBytes: 0, totalBytes: 0 });
-
-  return new Promise((resolve, reject) => {
-    pendingFeedbackLogArchiveRequests.set(requestId, {
-      resolve,
-      reject,
-      onProgress: options?.onProgress,
-    });
-    // 问题反馈以前在 host service 内走 compactLogArchive 的 full fallback，
-    // 收集范围和“导出日志”不一致，缺少 zcode-cli 日志、rollout/debug 以及导出链路脱敏。
-    // 这里把完整日志打包委托给 main process 的导出日志同源逻辑，host 只拿 zip 路径继续上传。
-    try {
-      parentPort.postMessage({
-        type: HostResponseTypes.FeedbackLogArchiveRequest,
-        requestId,
-        sourceDir,
-      });
-    } catch (error) {
-      pendingFeedbackLogArchiveRequests.delete(requestId);
-      reject(error instanceof Error ? error : new Error(String(error)));
-    }
-  });
 }
 
 const logger = {
@@ -1533,6 +1504,8 @@ function formatRemoteTargetForLog(target: RemoteTarget): string {
     }
     case "docker":
       return `docker:${target.container}`;
+    case "lan":
+      return `lan:${target.host}:${target.port}`;
   }
 }
 
@@ -1608,12 +1581,134 @@ async function disposeHostRemoteConnection(connection: HostRemoteConnection): Pr
   await connection.disposeAndWait({ timeoutMs: 5_000 });
 }
 
+/**
+ * 局域网连接句柄：对端是已在运行的 Mode 实例，因此没有 stdio backend——
+ * 附件上传/资源部署这类依赖 backend 的能力在 v1 明确不支持（给出可读错误），
+ * 文件/Git/终端/会话等全部经同一个受信 RPC 通道照常可用。
+ */
+async function createWindowLanRemoteConnectionHandle(
+  target: Extract<RemoteTarget, { kind: "lan" }>,
+  signal: AbortSignal,
+): Promise<WindowRemoteConnectionHandle<ServiceCollection, HostRemoteConnectionCapabilities>> {
+  if (!activeServices) throw new Error("Local Host services are not initialized.");
+  const credentials = activeServices.getOptional(ICredentialService);
+  if (!credentials) {
+    throw new Error("凭据服务不可用，无法读取局域网配对令牌");
+  }
+  const token = target.token?.trim() || (await loadLanPeerToken(credentials, target.serverId));
+  if (!token) {
+    throw new Error("这台设备还没有配对：请在局域网页输入对端显示的配对码完成配对");
+  }
+  const clientConfigService = activeServices.get(IClientConfigService);
+  const closeListeners = new Set<(event: WindowRemoteConnectionCloseEvent) => void>();
+  const notifyClose = (event: WindowRemoteConnectionCloseEvent) => {
+    for (const listener of closeListeners) {
+      listener(event);
+    }
+  };
+
+  const connection = await attachLanRemoteConnection({
+    host: target.host,
+    port: target.port,
+    token,
+    signal,
+    onClose: () => notifyClose({ exitCode: null, signal: null }),
+  });
+  if (signal.aborted) {
+    await connection.dispose();
+    throw new Error("远程连接已取消");
+  }
+
+  const unsupportedAttachmentError = () => {
+    throw new Error("局域网连接暂不支持随消息上传附件；请改用文本描述，或把文件放到对端工作区后再引用。");
+  };
+  const materializePromptAttachments = async (request: {
+    taskId: string;
+    traceId: TraceId | string;
+    content: string;
+    attachments?: ZCodePromptAttachment[];
+  }) => {
+    if (request.attachments && request.attachments.length > 0) {
+      unsupportedAttachmentError();
+    }
+    return { content: request.content, attachments: request.attachments };
+  };
+  const progressEmitter = new Emitter<PromptAttachmentTransferProgress>();
+  const promptAttachmentTransferService: IPromptAttachmentTransferService = {
+    stage: async () => unsupportedAttachmentError(),
+    adopt: async () => undefined,
+    cancel: async () => undefined,
+    cleanup: async () => undefined,
+    onDynamicProgress: () => progressEmitter.event,
+  };
+
+  const services = createRemoteWorkspaceServiceCollection({
+    clientConfigService,
+    connectionServices: connection.services,
+    sourceServices: activeServices ?? undefined,
+    parentPort,
+    createRemotePromptAttachmentSessionService: (service) =>
+      createRemotePromptAttachmentSessionService(service, {
+        materializePromptAttachments,
+      }),
+    createRemotePromptAttachmentTaskService: (service) =>
+      createRemotePromptAttachmentTaskService(service, {
+        materializePromptAttachments,
+      }),
+    createReportingRemoteZCodeTaskService: (service) =>
+      createReportingRemoteZCodeTaskService(service, {
+        taskRealtimePort: activeSessionRealtimePort ?? undefined,
+      }),
+    promptAttachmentTransferService,
+    runtimePreferencesBridge: {
+      onError: (error: unknown) => logger.warn("remote runtime preferences bridge failed", error),
+    },
+  });
+
+  let disposed = false;
+  const remoteMediaPreviewFactory = !remoteMediaRangePreviewEnabled
+    ? undefined
+    : (scope: Extract<WindowHostAttachmentScope, { kind: "remote" }>) =>
+        createRemoteMediaPreviewProxy({
+          fileService: services.get(IFileService),
+          logger: {
+            debug: (message, metadata) => {
+              if (process.env.NODE_ENV !== "production") logger.info(message, metadata);
+            },
+            warn: (message, metadata) => logger.warn(message, metadata),
+          },
+          scope,
+          requestLimiter: hostRemoteMediaRequestLimiter,
+        });
+  return {
+    services,
+    capabilities: {
+      ...(remoteMediaPreviewFactory ? { remoteMediaPreviewFactory } : {}),
+    },
+    onDidClose(listener) {
+      closeListeners.add(listener);
+      return { dispose: () => closeListeners.delete(listener) };
+    },
+    async dispose() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      closeListeners.clear();
+      await disposeServiceResourcesAndWait(services);
+      await connection.dispose();
+    },
+  };
+}
 async function createWindowRemoteConnectionHandle(params: {
   target: RemoteTarget;
   remoteAssets: RemoteAssetDirs;
   signal: AbortSignal;
 }): Promise<WindowRemoteConnectionHandle<ServiceCollection, HostRemoteConnectionCapabilities>> {
   if (!activeServices) throw new Error("Local Host services are not initialized.");
+  if (params.target.kind === "lan") {
+    return await createWindowLanRemoteConnectionHandle(params.target, params.signal);
+  }
   const clientConfigService = activeServices.get(IClientConfigService);
   if (params.signal.aborted) {
     throw new Error("远程连接已取消");
@@ -1917,9 +2012,9 @@ async function startBotsBridge(services: ServiceCollection): Promise<void> {
   });
   const attachment = astrBotProvider.attachTransport(handle.transport);
   activeBotsBridge = { attachment, handle };
-  // 还没有任何 bot 上下文时生成一次性绑定码，写进运行时文件供用户在聊天里 /bind。
+  // 该 bot 还没有任何对话（也就没有绑定用户）时生成一次性绑定码，写进运行时文件供聊天里 /bind。
   const bindCode =
-    (await botsService.getBotStates()).length === 0
+    (await botsService.listBotConversations({ botId })).length === 0
       ? await botsService.createBindCode({ botId })
       : null;
   const dir = getAppConfigDir();
@@ -1938,6 +2033,186 @@ async function startBotsBridge(services: ServiceCollection): Promise<void> {
     )}\n`,
     { encoding: "utf-8", mode: 0o600 },
   );
+}
+
+let activeLanAccess: LanAccessServerHandle | null = null;
+
+/**
+ * 局域网访问：唯一监听实例。工作区列表现取（用户刚打开的工作区要能被对端选到），
+ * 令牌逐设备校验，配对码一次性。
+ */
+async function ensureLanAccessStarted(
+  services: ServiceCollection,
+): Promise<LanAccessServerHandle | null> {
+  if (activeLanAccess) {
+    return activeLanAccess;
+  }
+  const credentials = services.getOptional(ICredentialService);
+  if (!credentials) {
+    logger.warn("lan access unavailable: credential service missing");
+    return null;
+  }
+  activeLanAccess = await startLanAccessServer({
+    services,
+    credentials,
+    getWorkspaces: () => collectLanAccessWorkspaces(services),
+    appVersion: ZCODE_VERSION,
+    machineName: hostname() || "Mode",
+  });
+  return activeLanAccess;
+}
+
+async function stopLanAccess(): Promise<void> {
+  const current = activeLanAccess;
+  activeLanAccess = null;
+  if (!current) {
+    return;
+  }
+  await current.dispose().catch((error: unknown) => {
+    logger.warn("dispose lan access failed", error);
+  });
+}
+
+/** 供对端在「选择工作区」里挑选：最近打开的本机工作区 + 最近项目，去重后截断。 */
+async function collectLanAccessWorkspaces(
+  services: ServiceCollection,
+): Promise<Array<{ path: string; label: string; workspaceIdentity?: string }>> {
+  const settingService = services.getOptional(ISettingService);
+  const settings = await settingService?.get().catch(() => null);
+  const byPath = new Map<string, { path: string; label: string; workspaceIdentity?: string }>();
+  const add = (workspacePath: string, workspaceIdentity?: string) => {
+    const trimmed = workspacePath.trim();
+    if (!trimmed || byPath.has(trimmed)) {
+      return;
+    }
+    const label = trimmed.replace(/[\\/]+$/u, "").split(/[\\/]/u).pop() || trimmed;
+    byPath.set(trimmed, {
+      path: trimmed,
+      label,
+      ...(workspaceIdentity?.trim() ? { workspaceIdentity: workspaceIdentity.trim() } : {}),
+    });
+  };
+  for (const entry of settings?.lastWorkspaceSession ?? []) {
+    if (entry.kind !== "local") {
+      continue;
+    }
+    add(entry.workspacePath);
+  }
+  for (const recent of settings?.recentProjects ?? []) {
+    add(recent);
+  }
+  return [...byPath.values()].slice(0, 20);
+}
+
+/** 重启后自动恢复：设置里开着就监听，关着就不监听。 */
+async function restoreLanAccessIfEnabled(services: ServiceCollection): Promise<void> {
+  const settingService = services.getOptional(ISettingService);
+  const settings = await settingService?.get().catch(() => null);
+  if (!settings?.lanAccessEnabled) {
+    return;
+  }
+  await ensureLanAccessStarted(services);
+}
+
+function disabledLanAccessState(): LanAccessState {
+  return { enabled: false, port: null, addresses: [], pairCode: null, clients: [] };
+}
+
+/** main → host 的局域网配对：HTTP 换令牌 + 落凭据服务（令牌不回传 renderer）。 */
+async function handleLanPairPeerMessage(
+  msg: HostLanPairPeerMessage,
+  services: ServiceCollection,
+): Promise<void> {
+  const reply = (payload: { ok: boolean; error?: string; result?: LanAccessPairResult }) => {
+    parentPort.postMessage({
+      type: HostResponseTypes.LanPairPeerResult,
+      requestId: msg.requestId,
+      ok: payload.ok,
+      ...(payload.error ? { error: payload.error } : {}),
+      ...(payload.result
+        ? {
+            token: payload.result.token,
+            serverId: payload.result.serverId,
+            ...(payload.result.name ? { name: payload.result.name } : {}),
+          }
+        : {}),
+    });
+  };
+  const credentials = services.getOptional(ICredentialService);
+  if (!credentials) {
+    reply({ ok: false, error: "凭据服务不可用" });
+    return;
+  }
+  try {
+    const result = await pairLanPeer({
+      credentials,
+      host: msg.host,
+      port: msg.port,
+      code: msg.code,
+      ...(msg.label ? { label: msg.label } : {}),
+    });
+    reply({ ok: true, result });
+  } catch (error) {
+    logger.warn("lan pair failed", error);
+    reply({ ok: false, error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+/** main → host 的局域网控制：动作完成后统一回帖最新状态（UI 只消费状态）。 */
+async function handleLanAccessMessage(
+  msg: HostLanAccessMessage,
+  services: ServiceCollection,
+): Promise<void> {
+  const reply = (ok: boolean, state: LanAccessState | null, error?: string) => {
+    parentPort.postMessage({
+      type: HostResponseTypes.LanAccessStateResult,
+      requestId: msg.requestId,
+      ok,
+      ...(error ? { error } : {}),
+      state,
+    });
+  };
+  try {
+    if (msg.type === HostMessageTypes.LanAccessSetEnabled) {
+      const enabled = msg.enabled === true;
+      await services.getOptional(ISettingService)?.update({ lanAccessEnabled: enabled });
+      if (enabled) {
+        const handle = await ensureLanAccessStarted(services);
+        reply(Boolean(handle), handle ? handle.getState() : disabledLanAccessState());
+        return;
+      }
+      await stopLanAccess();
+      reply(true, disabledLanAccessState());
+      return;
+    }
+
+    if (msg.type === HostMessageTypes.LanAccessGetState) {
+      reply(true, activeLanAccess ? activeLanAccess.getState() : disabledLanAccessState());
+      return;
+    }
+
+    const handle = activeLanAccess;
+    if (!handle) {
+      reply(false, disabledLanAccessState(), "lan access disabled");
+      return;
+    }
+    if (msg.type === HostMessageTypes.LanAccessCreatePairCode) {
+      reply(true, handle.createPairCode());
+      return;
+    }
+    if (msg.type === HostMessageTypes.LanAccessRemoveClient) {
+      reply(true, await handle.removeClient(msg.clientId ?? ""));
+      return;
+    }
+    reply(true, await handle.resetTokens());
+  } catch (error) {
+    logger.warn("lan access action failed", error);
+    reply(
+      false,
+      activeLanAccess ? activeLanAccess.getState() : disabledLanAccessState(),
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }
 
 async function disposeBotsBridge(): Promise<void> {
@@ -2230,6 +2505,7 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
     offPeakTaskRepo.close();
 
     await disposeBotsBridge();
+    await stopLanAccess();
 
     if (activeSessionRealtimePort) {
       activeSessionRealtimePort.dispose();
@@ -2402,19 +2678,38 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
     hostResourceUsageResponder.cancelRequest(msg.requestId);
     return;
   }
+  if (msg.type === HostMessageTypes.LanPairPeer) {
+    if (!activeServices) {
+      parentPort.postMessage({
+        type: HostResponseTypes.LanPairPeerResult,
+        requestId: msg.requestId,
+        ok: false,
+        error: "host services not ready",
+      });
+      return;
+    }
+    await handleLanPairPeerMessage(msg, activeServices);
+    return;
+  }
 
-  if (msg.type === HostMessageTypes.FeedbackLogArchiveResult) {
-    const pending = pendingFeedbackLogArchiveRequests.get(msg.requestId);
-    if (!pending) {
+  if (
+    msg.type === HostMessageTypes.LanAccessGetState ||
+    msg.type === HostMessageTypes.LanAccessSetEnabled ||
+    msg.type === HostMessageTypes.LanAccessCreatePairCode ||
+    msg.type === HostMessageTypes.LanAccessRemoveClient ||
+    msg.type === HostMessageTypes.LanAccessResetTokens
+  ) {
+    if (!activeServices) {
+      parentPort.postMessage({
+        type: HostResponseTypes.LanAccessStateResult,
+        requestId: msg.requestId,
+        ok: false,
+        error: "host services not ready",
+        state: null,
+      });
       return;
     }
-    pendingFeedbackLogArchiveRequests.delete(msg.requestId);
-    if (msg.ok && msg.path && typeof msg.size === "number") {
-      pending.onProgress?.({ processedBytes: msg.size, totalBytes: msg.size });
-      pending.resolve({ path: msg.path, size: msg.size });
-      return;
-    }
-    pending.reject(new Error(msg.error ?? "反馈日志归档创建失败"));
+    await handleLanAccessMessage(msg, activeServices);
     return;
   }
 
@@ -2924,11 +3219,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               zcodeBuiltinProviderConfigFilePath: msg.zcodeBuiltinProviderConfigFilePath,
               processLifecycleReporter: runtimeProcessLifecycleReporter,
               taskRuntimeReporter: runtimeTaskReporter,
-              feedback: {
-                getDeviceMid: () => msg.deviceMid,
-                apiBaseUrl: msg.feedbackApiBase,
-                createFullLogArchive: createFullFeedbackLogArchiveViaMain,
-              },
               forwardSessionMessageSendRequested: (request) => {
                 parentPort?.postMessage({
                   type: HostResponseTypes.SessionMessageSendRequested,
@@ -2969,6 +3259,9 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         }
         await startBotsBridge(services).catch((error) => {
           logger.warn("start bots bridge failed", error);
+        });
+        await restoreLanAccessIfEnabled(services).catch((error) => {
+          logger.warn("restore lan access failed", error);
         });
         hasDisposedHostResources = false;
         disposeHostResourcesInFlight = null;

@@ -3,7 +3,10 @@ import { Blocks } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { resolvePluginIconSource } from "@/lib/pluginIconSource.js";
 
-/** Plugin 原始图标；支持官方内置图标与 HTTPS，缺失或失败时使用调用方兜底，默认回退 Blocks。 */
+/**
+ * Plugin 原始图标：优先官方内置资源与目录条目自带的 https 图标；
+ * 目录/插件都没有提供图标时用默认图标（Blocks），不再另外生成。
+ */
 export function PluginIcon({
   src,
   pluginId,
@@ -37,10 +40,8 @@ export function PluginIcon({
           className="h-2/3 w-2/3 object-contain"
           onError={() => setImageFailed(true)}
         />
-      ) : fallbackIcon ? (
-        fallbackIcon
       ) : (
-        <Blocks className={cn("size-4", iconClassName)} />
+        (fallbackIcon ?? <Blocks className={cn("size-4", iconClassName)} />)
       )}
     </span>
   );

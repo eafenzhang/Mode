@@ -15,8 +15,6 @@ import {
   ZCODE_PRODUCT_FLAVOR,
   buildZCodeEndpointUrls,
   getCommunityUrlFromConfigs,
-  getFeedbackUrlFromConfig,
-  resolveHelpAppConfig,
   normalizeZCodeEndpointOrigin,
   resolveZCodeEndpointOrigin,
 } from "@zcode/shared";
@@ -176,7 +174,7 @@ async function resolveRemoteAppConfigValue(options: {
   fetchRemoteConfig?: () => Promise<unknown>;
   readLocalConfig?: () => unknown;
   resolveFromConfig: (config: unknown) => string | undefined;
-  logPrefix: "feedback" | "community";
+  logPrefix: "community";
   logger: {
     warn: (...args: unknown[]) => void;
   };
@@ -204,20 +202,6 @@ async function resolveRemoteAppConfigValue(options: {
   return undefined;
 }
 
-export async function resolveFeedbackUrl(options: {
-  fetchRemoteConfig?: () => Promise<unknown>;
-  readLocalConfig?: () => unknown;
-  logger: {
-    warn: (...args: unknown[]) => void;
-  };
-}): Promise<string | undefined> {
-  return resolveRemoteAppConfigValue({
-    ...options,
-    logPrefix: "feedback",
-    resolveFromConfig: getFeedbackUrlFromConfig,
-  });
-}
-
 export async function resolveCommunityUrl(options: {
   locale: Locale;
   fetchRemoteConfig?: () => Promise<unknown>;
@@ -241,31 +225,6 @@ export async function resolveCommunityUrl(options: {
   }
 
   return getCommunityUrlFromConfigs(remoteConfig, localConfig, options.locale);
-}
-
-async function openFeedback(
-  logger: { warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void },
-  targetWindow?: BrowserWindow | null,
-  fetchRemoteConfig?: () => Promise<unknown>,
-) {
-  let remoteConfig: unknown;
-  let localConfig: unknown;
-  try {
-    remoteConfig = await fetchRemoteAppConfig(fetchRemoteConfig);
-  } catch (error) {
-    logger.warn("[feedback] failed to fetch remote config:", error);
-  }
-  try {
-    localConfig = await readLocalAppConfig();
-  } catch (error) {
-    logger.warn("[feedback] failed to read local config:", error);
-  }
-  const config = resolveHelpAppConfig(remoteConfig, localConfig);
-  if (!config.feedback_use_external_form) {
-    resolveTargetWindow(targetWindow)?.webContents.send(PlatformChannels.OpenFeedbackDialog);
-    return;
-  }
-  if (config.feedback_url) await shell.openExternal(config.feedback_url);
 }
 
 async function openCommunity(
@@ -308,7 +267,7 @@ function buildZCodeEndpointPromptHtml(currentValue: string): string {
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>ZCodium Endpoint</title>
+    <title>Mode Endpoint</title>
     <style>
       :root { color-scheme: light dark; }
       body { margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
@@ -321,7 +280,7 @@ function buildZCodeEndpointPromptHtml(currentValue: string): string {
   </head>
   <body>
     <form id="form">
-      <label for="endpoint">ZCodium endpoint origin</label>
+      <label for="endpoint">Mode endpoint origin</label>
       <input id="endpoint" value="${value}" placeholder="https://endpoint.example.com" spellcheck="false" />
       <div class="hint">Use an http or https origin, for example https://endpoint.example.com.</div>
       <div class="actions">
@@ -360,7 +319,7 @@ function showZCodeEndpointPromptWindow(options: {
       resizable: false,
       minimizable: false,
       maximizable: false,
-      title: "ZCodium Endpoint",
+      title: "Mode Endpoint",
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -599,9 +558,6 @@ export async function executeDesktopCommand(options: {
     case DesktopCommandIds.RelaunchApp:
       await options.onRelaunchApp();
       return;
-    case DesktopCommandIds.OpenFeedback:
-      await openFeedback(options.logger, targetWindow, options.fetchHelpConfig);
-      return;
     case DesktopCommandIds.OpenCommunity:
       await openCommunity(
         options.currentApplicationLocale,
@@ -657,7 +613,7 @@ export async function executeDesktopCommand(options: {
       } catch (error) {
         await showMessageBoxWithOptionalParent(targetWindow, {
           type: "error",
-          title: "ZCodium Endpoint",
+          title: "Mode Endpoint",
           message: "Endpoint 无效",
           detail: error instanceof Error ? error.message : String(error),
         });

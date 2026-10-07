@@ -157,6 +157,14 @@ export function unregisterSchedulerProcess(child: ElectronUtilityProcess): void 
   schedulerProcesses.delete(child);
 }
 
+/** main 侧需要按 label 找到存活 host（局域网访问 owner 路由等）的调用方使用。 */
+export function listLiveHostProcesses(): Array<{
+  label: string;
+  child: ElectronUtilityProcess;
+}> {
+  return [...hostProcesses].map(([label, child]) => ({ label, child }));
+}
+
 export function registerHostProcess(label: string, child: ElectronUtilityProcess): void {
   hostProcesses.set(label, child);
 }

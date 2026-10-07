@@ -1,7 +1,7 @@
 import { isOfficialServiceEnabled, ZCODIUM_ISSUES_URL } from "./officialPlatformPolicy.js";
 import { z } from "zod";
 import { buildZCodeEndpointUrls } from "./zcodeEndpoint.js";
-import { getCommunityUrlFromConfigs, getFeedbackUrlFromConfig } from "./remoteAppConfig.js";
+import { getCommunityUrlFromConfigs } from "./remoteAppConfig.js";
 
 const helpConfigSchema = z.object({
   community_urls: z
@@ -12,12 +12,10 @@ const helpConfigSchema = z.object({
     })
     .optional()
     .catch(undefined),
-  feedback_url: z.string().optional().catch(undefined),
-  feedback_use_external_form: z.boolean().optional().catch(undefined),
 });
 const envelopeSchema = z.object({
   code: z.literal(0),
-  data: z.object({ configs: z.object({ feedbackUrl: helpConfigSchema }) }),
+  data: z.object({ configs: z.object({ helpConfig: helpConfigSchema }) }),
 });
 export type HelpAppConfig = z.infer<typeof helpConfigSchema>;
 
@@ -42,10 +40,6 @@ export function resolveHelpAppConfig(remote: unknown, local: unknown): HelpAppCo
       // fa-IR 暂无独立社区站点，跟随英文入口。
       "fa-IR": getCommunityUrlFromConfigs(remoteConfig, localConfig, "en-US"),
     },
-    feedback_url: getFeedbackUrlFromConfig(remoteConfig) ?? getFeedbackUrlFromConfig(localConfig),
-    // false 是远端明确配置，不能按 truthy 判断后回退到本地 true。
-    feedback_use_external_form:
-      remoteConfig?.feedback_use_external_form ?? localConfig?.feedback_use_external_form ?? false,
   };
 }
 
@@ -60,7 +54,7 @@ export function createHelpAppConfigReader(options: {
   >();
   const now = options.now ?? Date.now;
   return async (url: string, headers?: RequestInit["headers"]): Promise<HelpAppConfig> => {
-    // 审计版不拉取官方帮助配置，反馈交给用户主动打开 GitHub Issues。
+    // 审计版不拉取官方帮助配置：直接给社区入口的兜底地址。
     if (!isOfficialServiceEnabled("clientConfig"))
       return {
         community_urls: {
@@ -68,8 +62,6 @@ export function createHelpAppConfigReader(options: {
           "en-US": ZCODIUM_ISSUES_URL,
           "fa-IR": ZCODIUM_ISSUES_URL,
         },
-        feedback_url: ZCODIUM_ISSUES_URL,
-        feedback_use_external_form: true,
       };
     for (const [key, entry] of entries) {
       if (!entry.pending && entry.expiresAt <= now()) entries.delete(key);
@@ -90,7 +82,7 @@ export function createHelpAppConfigReader(options: {
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) throw new Error(`Help config HTTP ${response.status}`);
-      const value = envelopeSchema.parse(await response.json()).data.configs.feedbackUrl;
+      const value = envelopeSchema.parse(await response.json()).data.configs.helpConfig;
       entry.value = value;
       entry.expiresAt = now() + 60 * 60 * 1000;
       return value;

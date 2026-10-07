@@ -2,13 +2,16 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
 import {
+  botBindingsFileSchema,
   botsConfigFileSchema,
   botsStateFileSchema,
+  type BotBindingsFile,
   type BotsConfigFile,
   type BotsStateFile,
 } from "@zcode/shared";
 import { getAppConfigDir } from "../paths.js";
 import {
+  BOTS_BINDINGS_FILE,
   BOTS_CONFIG_FILE,
   BOTS_LEGACY_CONFIG_FILE,
   BOTS_LEGACY_STATE_FILE,
@@ -71,6 +74,29 @@ export class BotsRepo {
       await writeJson(path, state);
       return state;
     });
+  }
+
+  /**
+   * 工作区 → bot 绑定表。独立文件 + 文件锁：绑定曾被写进 setting.json，
+   * 而设置文件有多个写入方（tab 持久化、settings-sync、迁移提交），
+   * 任一持有过期快照的写入都会把绑定整块覆盖成 {}，导致"绑定后又变未绑定"。
+   */
+  async readBindings(): Promise<BotBindingsFile> {
+    const path = join(getAppConfigDir(), BOTS_BINDINGS_FILE);
+    return withFileLock(path, async () => {
+      const current = await readOptionalJson(path);
+      if (current !== undefined) {
+        return botBindingsFileSchema.parse(current);
+      }
+      return { version: 1, bindings: {} } satisfies BotBindingsFile;
+    });
+  }
+
+  async writeBindings(bindings: BotBindingsFile): Promise<BotBindingsFile> {
+    const parsed = botBindingsFileSchema.parse(bindings);
+    const path = join(getAppConfigDir(), BOTS_BINDINGS_FILE);
+    await withFileLock(path, () => writeJson(path, parsed));
+    return parsed;
   }
 
   async writeState(state: BotsStateFile): Promise<BotsStateFile> {

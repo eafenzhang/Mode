@@ -26,10 +26,9 @@ import { getTaskListAttention, getTaskListRowActivity } from "@/v4/taskListRowAc
 import { TaskListItemContextMenu } from "@/TaskListItemContextMenu.js";
 import { TaskInteractionBadge } from "@/TaskInteractionBadge.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
-import { useFeedbackStore } from "@/feedback/feedbackStore.js";
+import { BotBindingMenuItems } from "@/botBindingMenu.js";
+import { useBotTaskBinding } from "@/store/botTaskBindingsStore.js";
 import { useModelTrajectoryStore } from "@/store/modelTrajectoryStore.js";
-import { buildTaskFeedbackDescription } from "@/lib/taskFeedbackDraft.js";
-import { toast } from "@/components/ui/toast.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { useV4SplitPaneEntry } from "@/v4/splitPaneEntryContext.js";
 import { buildWorkbenchSessionKey, useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
@@ -367,6 +366,8 @@ export const MemoTaskItem = memo(function TaskListItem({
   });
   const taskTitleWithChanges = formatTaskTitleWithChanges(taskTitle, taskChangeSummary, intl);
   const workspaceLabel = getPathLeaf(task.workspacePath);
+  // 会话 ↔ IM 机器人绑定：命中时标题前显示绿点（数据由 bots:task 广播驱动刷新）。
+  const botBinding = useBotTaskBinding(task.workspacePath, task.workspaceIdentity, task.taskId);
   const taskItemKey = `${buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity)}:${task.taskId}`;
   // 工作流运行行：标题下的第二条通道，
   // 与前置 16px 槽（error > unread > spinner）互不占位。只在会话带 run 摘要时挂组件。
@@ -493,6 +494,44 @@ export const MemoTaskItem = memo(function TaskListItem({
   // 触屏端的错误、未读和 loading 状态会被 Pin 永久替换。
   const shouldRenderPinAction =
     showPinAction && (showPinnedState || shouldSuppressWorkspaceTaskMetadata);
+  // 绑定 IM 机器人的会话：绿点只在槽位空闲（或原本显示未读蓝点）时占用槽位，取代蓝点。
+  // 置顶 Pin、运行中 spinner、错误红点、手机远控图标都是更该保留的原始状态显示——
+  // 它们出现时绿点让位（不做角标叠加，避免和 icon 糊在一起）。
+  const isBotBound = botBinding.length > 0;
+  const botDotInLeadingSlot =
+    isBotBound &&
+    leadingIndicator !== "error" &&
+    leadingIndicator !== "loading" &&
+    !shouldRenderPinAction &&
+    !isMobileActive;
+  const botBoundLabel = intl.formatMessage(
+    { id: "taskList.botBound" },
+    {
+      channel: botBinding
+        .map((binding) =>
+          intl.formatMessage(
+            { id: "taskList.botBound.entry" },
+            {
+              channel: intl.formatMessage({ id: `bots.channel.${binding.provider}` }),
+              conversation:
+                binding.conversationKind === "group"
+                  ? intl.formatMessage(
+                      { id: "taskList.botBind.conversation.group" },
+                      { id: binding.conversationId },
+                    )
+                  : intl.formatMessage(
+                      { id: "taskList.botBind.conversation.private" },
+                      {
+                        name:
+                          binding.conversationLabel?.trim() || binding.conversationId,
+                      },
+                    ),
+            },
+          ),
+        )
+        .join("、"),
+    },
+  );
   return (
     <li
       ref={itemRef}
@@ -555,13 +594,22 @@ export const MemoTaskItem = memo(function TaskListItem({
         >
           {leadingIndicator === "error" ? (
             <span data-error-indicator="true" className="h-1.5 w-1.5 rounded-full bg-destructive" />
+          ) : leadingIndicator === "loading" ? (
+            <LoaderIcon className="size-4 animate-spin text-foreground-subtle" />
+          ) : botDotInLeadingSlot ? (
+            // 会话已绑定 IM 机器人（可多个）：绿点占位这一格，并取代未读蓝点（两者不并存）。
+            <ControlHintTooltip title={botBoundLabel} side="right" align="center">
+              <span
+                data-bot-bound-task="true"
+                className="h-1.5 w-1.5 rounded-full bg-success"
+                aria-label={botBoundLabel}
+              />
+            </ControlHintTooltip>
           ) : leadingIndicator === "unread" ? (
             <span
               data-unread-indicator="true"
               className="h-1.5 w-1.5 rounded-full bg-sky-500 dark:bg-sky-400"
             />
-          ) : leadingIndicator === "loading" ? (
-            <LoaderIcon className="size-4 animate-spin text-foreground-subtle" />
           ) : showTimelineIdleIndicator ? (
             <span data-idle-indicator="true" className="h-1.5 w-1.5 rounded-full bg-border" />
           ) : null}
@@ -814,7 +862,6 @@ export function TaskListItemContextMenuContent({
   );
   // 当前 focused session、已有 group 与 pane 上限统一由 shell owner 裁决；row 不再直接写 layout store。
   const canOpenInSplitPane = splitPaneEntry.canOpenSession(splitPaneTarget);
-  const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
   const {
     taskSessionFile,
     taskNativeSessionLogFile,
@@ -838,44 +885,9 @@ export function TaskListItemContextMenuContent({
       id: task.forkedFromTaskId ? "taskList.forkedUntitled" : "taskList.untitled",
     });
 
-  const handleOpenTaskFeedback = useCallback(async () => {
-    // 任务右键菜单之前只能复制日志/路径，反馈时缺少任务上下文。
-    // 这里复用反馈中心 draft，只预填脱敏后的任务线索，附件由用户主动选择。
-    openFeedbackSubmit({
-      title: intl
-        .formatMessage(
-          { id: "feedback.submit.template.section.taskFeedbackTitle" },
-          { title: taskTitle },
-        )
-        .slice(0, 80),
-      type: "bug",
-      module: "Agent任务执行失败",
-      severity: "P2-中",
-      includeLogs: false,
-      description: buildTaskFeedbackDescription({
-        taskTitle,
-        taskId: task.taskId,
-        workspacePath,
-        taskSessionPath: taskSessionFile.path,
-        taskLogPath: taskNativeSessionLogFile.path,
-        formatMessage: (id: string, values?: Record<string, string>) =>
-          intl.formatMessage({ id }, values),
-      }),
-      screenshots: [],
-    });
-    toast(intl.formatMessage({ id: "taskList.feedbackOpened" }));
-  }, [
-    intl,
-    openFeedbackSubmit,
-    task.taskId,
-    taskNativeSessionLogFile.path,
-    taskSessionFile.path,
-    taskTitle,
-    workspacePath,
-  ]);
-
   return (
     <TaskListItemContextMenu
+      botMenu={<BotBindingMenuItems task={task} />}
       intl={intl}
       isPinned={isPinned}
       fileManagerLabel={fileManagerLabel}
@@ -906,9 +918,6 @@ export function TaskListItemContextMenuContent({
           : undefined
       }
       openInSplitPaneDisabled={workspaceActionsDisabled || !canOpenInSplitPane}
-      onOpenTaskFeedback={() => {
-        void handleOpenTaskFeedback();
-      }}
       onOpenTaskPathInFileManager={() => {
         void handleOpenTaskPathInFileManager();
       }}

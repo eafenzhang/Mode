@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    Mode 应用图标（源文件）：沿用原图标的品牌视觉——黑色圆角方（squircle）底 +
+    青→紫渐变描边字形；字形由 X 换成 M（"Mode"），笔画粗细/圆头收笔与旧图标一致。
+    改图后重新生成各尺寸 PNG/ICO/ICNS：见本目录 README 中的说明或 scripts 里的生成流程。
+  -->
+  <defs>
+    <linearGradient id="mode-gradient" x1="236" y1="228" x2="788" y2="804" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2CC0F7"/>
+      <stop offset="1" stop-color="#7D86F0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="232" fill="#0B0B0F"/>
+  <path
+    d="M268 736V336L512 592L756 336V736"
+    fill="none"
+    stroke="url(#mode-gradient)"
+    stroke-width="132"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

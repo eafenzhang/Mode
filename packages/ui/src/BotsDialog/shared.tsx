@@ -1,5 +1,5 @@
 import { Bot, Webhook } from "lucide-react";
-import type { BotConfig, BotServiceStatus, BotWorkspaceRef } from "@zcode/shared";
+import type { BotConfig, BotServiceStatus } from "@zcode/shared";
 import { ALL_BOT_WORKSPACES, BOT_BIND_CODE_TTL_MS } from "@zcode/shared";
 import {
   AstrBotChannelIcon,
@@ -46,6 +46,18 @@ export type WeixinRegistrationState = {
   message?: string;
 };
 
+export type WecomRegistrationState = {
+  botId: string;
+  /** 轮询凭据（企业微信 QR 接口的 scode） */
+  scode: string;
+  authUrl: string;
+  qrDataUrl: string | null;
+  interval: number;
+  expiresAt: number;
+  status: "pending" | "scanned" | "expired" | "cancelled" | "denied" | "error";
+  message?: string;
+};
+
 export const BIND_CODE_TTL_MS = BOT_BIND_CODE_TTL_MS;
 export const TELEGRAM_BOTFATHER_URL = "https://t.me/BotFather";
 
@@ -56,6 +68,31 @@ export function isAllWorkspacesAllowed(allowedWorkspaces: readonly string[]): bo
 export function formatBotDisplayName(name: string, fallbackName: string): string {
   return name.trim() || fallbackName;
 }
+
+/**
+ * 各渠道图标的原始资源自带不同留白（可见内容只占 128 画布的 75%–85%），
+ * 同一尺寸并排时视觉大小会不一致。这里按"可见内容统一占 92%"做等比缩放：
+ * 系数 = 0.92 × 128 ÷ 资源内可见内容的最大边（实测值，见下方注释）。
+ * 只改渲染尺寸，不改动原始图标文件本身。
+ */
+const CHANNEL_ICON_SCALE: Record<string, string> = {
+  // telegram 内容 100/128
+  telegram: "scale-[1.18]",
+  // feishu / lark 内容 98/128
+  feishu: "scale-[1.2]",
+  lark: "scale-[1.2]",
+  // 钉钉 96/128
+  dingding: "scale-[1.23]",
+  dingtalk: "scale-[1.23]",
+  // 企业微信 102/128
+  wecom: "scale-[1.16]",
+  // 微信 109/128
+  weixin: "scale-[1.08]",
+  // Discord 102/128
+  discord: "scale-[1.16]",
+  // AstrBot 是满幅磁贴，反向缩到同一占位
+  astrbot: "scale-[0.92]",
+};
 
 export function ProviderIcon({
   provider,
@@ -73,7 +110,7 @@ export function ProviderIcon({
           ? WeixinChannelIcon
           : provider === "feishu" || provider === "lark"
             ? FeishuChannelIcon
-            : provider === "dingding"
+            : provider === "dingding" || provider === "dingtalk"
               ? DingDingChannelIcon
               : provider === "discord"
                 ? DiscordChannelIcon
@@ -87,7 +124,11 @@ export function ProviderIcon({
         src={iconSrc}
         alt=""
         aria-hidden="true"
-        className={cn("size-4 object-contain", className)}
+        className={cn(
+          "size-4 object-contain",
+          provider ? CHANNEL_ICON_SCALE[provider] : undefined,
+          className,
+        )}
       />
     );
   }

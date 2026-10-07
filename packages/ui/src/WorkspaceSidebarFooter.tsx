@@ -56,7 +56,7 @@ function getSidebarProfileName(user?: UserInfo | null): string {
     return username;
   }
 
-  return "ZCodium";
+  return "Mode";
 }
 
 function getSidebarProfileBadge(user: UserInfo | null | undefined): string {

@@ -53,6 +53,7 @@ import { useDesktopNativeThemeSync } from "@/root/useDesktopNativeThemeSync.js";
 import { useRootPlatformEffects } from "@/root/useRootPlatformEffects.js";
 import { useRootWorkspaceActions } from "@/root/useRootWorkspaceActions.js";
 import { useBotBroadcastEffects } from "@/root/useBotBroadcastEffects.js";
+import { useBotSessionFocusSync } from "@/root/useBotSessionFocusSync.js";
 import { registerBaseWorkspaceServices } from "@/store/remoteWorkspaceSessionStore.js";
 import type { RootProps } from "@/root/types.js";
 import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
@@ -458,6 +459,7 @@ function RootInner({
   }, [services]);
 
   useBotBroadcastEffects(services, tabStoreApi);
+  useBotSessionFocusSync(services, tabStoreApi);
 
   const handleOpenRemoteConnection = useCallback((preference?: RemoteConnectionOpenPreference) => {
     setRemoteConnectionOpenPreference(preference ?? null);
@@ -974,7 +976,6 @@ function RootInner({
         ) : (
           <RootWorkspaceContent
             workspaceScopedServices={workspaceScopedServices}
-            baseFeedbackService={services.feedbackService}
             workspaceShellPath={workspaceShellPath}
             workspaceIdentity={workspaceShellIdentity}
             workspaceRemoteSessionId={workspaceShellRemoteSessionId}

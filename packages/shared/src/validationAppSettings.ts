@@ -100,6 +100,13 @@ const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
     kind: z.literal("docker"),
     container: nonEmptyStringSchema,
   }),
+  z.object({
+    kind: z.literal("lan"),
+    host: nonEmptyStringSchema,
+    port: z.number().int().positive().max(65535),
+    serverId: nonEmptyStringSchema.optional(),
+    serverName: z.string().optional(),
+  }),
 ]);
 
 const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [
@@ -417,15 +424,6 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
   return migrated;
 }
 
-/** 官方平台服务开关；缺省全部关闭。
- * 对话分享已永久下线；account / feedback / codingPlan / officialMcp / offPeak 随去智谱化移除，
- * 不再登记字段——存量用户已存的这些键会在写盘时被 zod strip，属于预期的 BREAKING 行为。
- */
-export const officialServiceSwitchesSchema = z.object({
-  marketplace: z.boolean().optional(),
-  clientConfig: z.boolean().optional(),
-});
-
 const appSettingsObjectSchema = z.object({
   recentProjects: z.array(z.string()).default([]),
   locale: localeSchema.default("zh-CN"),
@@ -450,6 +448,7 @@ const appSettingsObjectSchema = z.object({
   closeToTrayOnWindows: z.boolean().default(true),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().default(true),
   keepAwakeWhileRunning: z.boolean().default(false),
+  lanAccessEnabled: z.boolean().default(false),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
   desktopChromiumHardwareAccelerationEnabled: z.boolean().default(true),
@@ -477,6 +476,7 @@ const appSettingsObjectSchema = z.object({
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).default([]),
   lastActiveTabIndex: z.number().int().nonnegative().default(0),
   lastActiveTaskByWorkspace: z.record(z.string(), z.string()).optional(),
+  botBindingByWorkspace: z.record(z.string(), z.string()).optional(),
   dataBaseDir: z.string().trim().min(1).optional(),
   pendingPostUpdateReleaseNotes: postUpdateReleaseNotesPayloadSchema.optional(),
   receivePreviewUpdates: z.boolean().default(false),
@@ -484,9 +484,6 @@ const appSettingsObjectSchema = z.object({
   skippedElectronUpdateVersions: skippedElectronUpdateVersionsSchema,
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
   zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
-  // 官方服务开关必须登记在存储 schema 里：只进 patch schema 会在写盘时被 zod strip，
-  // 开关看起来能切但永远读不回来，UI 表现为点击后立刻回弹。
-  officialServices: officialServiceSwitchesSchema.optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -506,7 +503,6 @@ export const appSettingsSchema = z.preprocess(
 );
 
 export const appSettingsPatchSchema = z.object({
-  officialServices: officialServiceSwitchesSchema.optional(),
   recentProjects: z.array(z.string()).optional(),
   locale: localeSchema.optional(),
   shortcutBindings: z.record(z.string(), z.array(z.string())).optional(),
@@ -524,6 +520,7 @@ export const appSettingsPatchSchema = z.object({
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),
   closeToTrayOnWindows: z.boolean().optional(),
   keepAwakeWhileRunning: z.boolean().optional(),
+  lanAccessEnabled: z.boolean().optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().optional(),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
@@ -567,6 +564,7 @@ export const appSettingsPatchSchema = z.object({
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).optional(),
   lastActiveTabIndex: z.number().int().nonnegative().optional(),
   lastActiveTaskByWorkspace: z.record(z.string(), z.string()).optional(),
+  botBindingByWorkspace: z.record(z.string(), z.string()).optional(),
   dataBaseDir: z.string().trim().min(1).optional(),
   pendingPostUpdateReleaseNotes: postUpdateReleaseNotesPayloadSchema.optional(),
   receivePreviewUpdates: z.boolean().optional(),

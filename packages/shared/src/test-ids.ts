@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- TID 常量集中在一个文件里便于检索；按功能拆分会打散「同一交互的多个 testid」的邻接关系。 */
 /**
  * 统一管理所有 data-testid，UI 组件和 E2E 测试共用此单一来源。
  * 新增 testid 时请在此文件添加，不要在组件中硬编码字符串。
@@ -157,6 +158,20 @@ export const TID_REMOTE_KIND_SSH = "remote-kind-ssh";
 export const TID_REMOTE_KIND_WSL = "remote-kind-wsl";
 /** 远程连接方式切换到 Docker */
 export const TID_REMOTE_KIND_DOCKER = "remote-kind-docker";
+/** 远程连接方式切换到局域网 */
+export const TID_REMOTE_KIND_LAN = "remote-kind-lan";
+/** 局域网：已发现设备列表 */
+export const TID_LAN_PEER_LIST = "lan-peer-list";
+/** 局域网：单个已发现设备 */
+export const TID_LAN_PEER_ITEM = "lan-peer-item";
+/** 局域网：手动地址输入 */
+export const TID_LAN_HOST_INPUT = "lan-host-input";
+/** 局域网：端口输入 */
+export const TID_LAN_PORT_INPUT = "lan-port-input";
+/** 局域网：配对码输入 */
+export const TID_LAN_PAIR_CODE_INPUT = "lan-pair-code-input";
+/** 局域网：配对按钮 */
+export const TID_LAN_PAIR_BUTTON = "lan-pair-button";
 /** SSH 主机地址输入框 */
 export const TID_SSH_HOST_INPUT = "ssh-host-input";
 /** SSH 端口号输入框 */
@@ -523,12 +538,12 @@ export const TID_WORKSPACE_HEADER = "workspace-header";
 export const TID_WORKSPACE_TITLE = "workspace-title";
 /** 工作区路径 */
 export const TID_WORKSPACE_PATH = "workspace-path";
+/** 工作区标题旁已绑定 IM 机器人的通道图标 */
+export const TID_WORKSPACE_BOT_CHANNELS = "workspace-bot-channels";
 /** 工作区 Header 更多菜单按钮 */
 export const TID_WORKSPACE_MORE_BUTTON = "workspace-more-button";
-/** 右上角问号帮助菜单触发按钮 */
+/** 右上角资源管理器入口按钮（原帮助菜单，仅桌面端） */
 export const TID_WORKSPACE_HELP_MENU_TRIGGER = "workspace-help-menu-trigger";
-/** 问号帮助菜单里的「资源管理器」项（仅桌面端） */
-export const TID_WORKSPACE_HELP_MENU_RESOURCE_MANAGER = "workspace-help-menu-resource-manager";
 /** 侧边栏打开工作区文件树按钮（动态后缀为 workspacePath） */
 export const TID_WORKSPACE_FILE_TREE_BUTTON = "workspace-file-tree-button";
 /** 工作区文件树面板 */
@@ -760,4 +775,3 @@ export function testId(base: string, suffix: string): string {
 export const TID_START_PLAN_RECOMMENDATION_DIALOG = "start-plan-recommendation-dialog";
 
 /** 用户反馈的诊断日志授权开关 */
-export const TID_FEEDBACK_LOGS_OPT_IN = "feedback-logs-opt-in";

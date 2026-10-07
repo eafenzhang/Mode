@@ -1,6 +1,6 @@
 # 远程资源：GitHub Release 发布与自建源加载
 
-审计版不把 remote runtime 打进安装包，也不默认连官方 CDN。发布方可以把 mock-cdn 的产物以扁平布局发布到 GitHub Release，客户端用显式自建源（`ZCODE_REMOTE_ASSET_CDN_BASE_URL`）加载。源解析与官方开关的解耦见 [official-service-switches.md](../../services/specs/official-service-switches.md)。
+审计版不把 remote runtime 打进安装包，也不默认连官方 CDN。发布方可以把 mock-cdn 的产物以扁平布局发布到 GitHub Release，客户端用显式自建源（`ZCODE_REMOTE_ASSET_CDN_BASE_URL`）加载。官方平台来源已整体下线（见 [no-official-platform.md](no-official-platform.md)），默认官方 CDN 来源直接返回空集合。
 
 ## 所有权
 

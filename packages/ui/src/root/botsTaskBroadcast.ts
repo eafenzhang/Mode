@@ -27,6 +27,7 @@ function isBotTaskBroadcastPayload(
     "updated",
     "completed",
     "error",
+    "active_task_changed",
   ]);
   return (
     typeof value.workspacePath === "string" &&
@@ -103,6 +104,10 @@ export function resolveBotTaskBroadcastRuntimeStatus(
       // Bugfix: /model、/mode、/think 这类 Bot 配置更新只同步 task 元数据/configOptions，
       // 并没有启动一次 assistant streaming。之前把 updated 映射成 streaming，
       // 会让当前对话一直显示 loading。
+      return "ready";
+    case "active_task_changed":
+      // active_task_changed 在 useBotBroadcastEffects 里提前返回，不会走到运行态同步；
+      // 这里仅为类型穷尽兜底。
       return "ready";
   }
 }

@@ -7,7 +7,12 @@ import type {
   SelectionPrompt,
 } from "@zcode/shared";
 import { BOT_MENU_COMMAND_ORDER } from "../commandOrder.js";
-import type { BotProviderAdapter } from "./types.js";
+import { splitBotText } from "../botText.js";
+import type {
+  BotProviderAdapter,
+  BotStreamingReplyCardState,
+} from "./types.js";
+import type { BotProviderJsonResponse } from "#src/bots/providers/providerRequest.js";
 import {
   fetchBotProvider,
   fetchBotProviderJson,
@@ -23,11 +28,70 @@ interface TelegramBotCommand {
 }
 
 const TELEGRAM_ATTACHMENT_DOWNLOAD_TIMEOUT_MS = 30_000;
+/** editMessageText 的文本上限与 sendMessage 一致（4096 UTF-16 code units 上再留余量）。 */
+const TELEGRAM_EDIT_TEXT_LIMIT = 3800;
+/** 媒体上传超时：图片/文档体积可能较大，单独放宽。 */
+const TELEGRAM_MEDIA_UPLOAD_TIMEOUT_MS = 60_000;
+
+interface TelegramSendMessageResponse {
+  ok?: boolean;
+  description?: string;
+  error_code?: number;
+  parameters?: {
+    retry_after?: number;
+  };
+  result?: {
+    message_id?: number;
+  };
+}
+
+/** 限流重试上限与单次最大等待：长睡眠会占住 Bot 的串行出站队列，超出按上限截断。 */
+const TELEGRAM_RATE_LIMIT_MAX_RETRIES = 2;
+const TELEGRAM_RATE_LIMIT_MAX_SLEEP_SECONDS = 30;
+
+function readTelegramRetryAfter(payload: unknown): number | null {
+  if (typeof payload !== "object" || payload === null) {
+    return null;
+  }
+  const retryAfter = (payload as TelegramSendMessageResponse).parameters?.retry_after;
+  return typeof retryAfter === "number" && retryAfter > 0 ? retryAfter : null;
+}
+
+/**
+ * Telegram JSON 调用统一入口：处理 429 的 retry_after 重试。
+ * Telegram 在超限响应里明确给出等待秒数（parameters.retry_after），照它等待后重试；
+ * body 是已序列化的字符串，可安全重放。
+ */
+async function telegramJsonCall<T>(
+  url: string,
+  init: RequestInit,
+): Promise<BotProviderJsonResponse<T>> {
+  let response = await fetchBotProviderJson<T>(url, init);
+  for (
+    let attempt = 0;
+    attempt < TELEGRAM_RATE_LIMIT_MAX_RETRIES && !response.ok;
+    attempt += 1
+  ) {
+    const retryAfter = readTelegramRetryAfter(response.payload);
+    if (response.status !== 429 || retryAfter === null) {
+      return response;
+    }
+    await new Promise((resolveSleep) =>
+      setTimeout(
+        resolveSleep,
+        Math.min(retryAfter, TELEGRAM_RATE_LIMIT_MAX_SLEEP_SECONDS) * 1000,
+      ),
+    );
+    response = await fetchBotProviderJson<T>(url, init);
+  }
+  return response;
+}
 
 interface TelegramGetMeResponse {
   ok?: boolean;
   description?: string;
   result?: {
+    id?: number | string;
     username?: string;
     first_name?: string;
   };
@@ -70,13 +134,47 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function splitTelegramText(text: string): string[] {
-  const limit = 3900;
-  const chunks: string[] = [];
-  for (let index = 0; index < text.length; index += limit) {
-    chunks.push(text.slice(index, index + limit));
+interface TelegramBotIdentity {
+  username?: string;
+  userId?: string;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\function splitTelegramText(text: string): string[] {");
+}
+
+/**
+ * 群聊 @ 检测：文本命中 @botusername，或回复了机器人自己的消息。
+ * 身份缺失（getMe 尚未成功）时返回 false——mention 模式会因此静默忽略群消息，
+ * 属于安全侧失败；telegram runtime 会在启动时预热身份，正常不会长时间缺失。
+ */
+function computeTelegramMention(
+  message: Record<string, unknown>,
+  identity: TelegramBotIdentity | null,
+): boolean {
+  const text =
+    typeof message.text === "string"
+      ? message.text
+      : typeof message.caption === "string"
+        ? message.caption
+        : "";
+  const username = identity?.username;
+  if (username && new RegExp(`@${escapeRegExp(username)}\\b`, "iu").test(text)) {
+    return true;
   }
-  return chunks.length > 0 ? chunks : [text];
+  const replyTo = isRecord(message.reply_to_message) ? message.reply_to_message : null;
+  const replyFrom = replyTo && isRecord(replyTo.from) ? replyTo.from : null;
+  const replyFromId =
+    replyFrom && (typeof replyFrom.id === "number" || typeof replyFrom.id === "string")
+      ? String(replyFrom.id)
+      : "";
+  return Boolean(identity?.userId && replyFromId && replyFromId === identity.userId);
+}
+
+function splitTelegramText(text: string): string[] {
+  // Telegram 上限 4096 字节；留出余量，并按段落/行边界切分而不是硬切，
+  // 避免把代码块、列表或单词拦腰截断（与企微共用同一份分片实现）。
+  return splitBotText(text, 3900);
 }
 
 function truncateCallbackToast(text: string): string {
@@ -84,7 +182,11 @@ function truncateCallbackToast(text: string): string {
   return normalized.length > 180 ? `${normalized.slice(0, 177)}...` : normalized;
 }
 
-function readTelegramPrivateMessage(botId: string, update: Record<string, unknown>): BotInboundMessage | null {
+function readTelegramPrivateMessage(
+  botId: string,
+  update: Record<string, unknown>,
+  identity: TelegramBotIdentity | null,
+): BotInboundMessage | null {
   const message = isRecord(update.message) ? update.message : null;
   if (!message) {
     return null;
@@ -118,6 +220,9 @@ function readTelegramPrivateMessage(botId: string, update: Record<string, unknow
             ? from.first_name
             : undefined,
       chatType,
+      ...(chatType === "group"
+        ? { isMention: computeTelegramMention(message, identity) }
+        : {}),
       chatId:
         typeof chat?.id === "number" || typeof chat?.id === "string"
           ? String(chat.id)
@@ -317,12 +422,54 @@ function buildTelegramCommands(bot: BotConfig): TelegramBotCommand[] {
     }));
 }
 
+/**
+ * 把流式回复卡片的 blocks 渲染成 Telegram 纯文本。message 块是正文，tools 块
+ * （summaries 已在 service 层格式化）渲染为 Markdown 列表；running 状态追加指示符。
+ * 导出供单测：节流编辑的正确性完全取决于这份渲染的确定性。不在此截断——
+ * 运行中的编辑由调用方截断，终稿超长时走“删除流式消息 + 分段发送全文”。
+ */
+export function renderStreamingCardStateToText(state: BotStreamingReplyCardState): string {
+  const parts: string[] = [];
+  for (const block of state.blocks) {
+    if (block.type === "message") {
+      const text = block.text.trim();
+      if (text) {
+        parts.push(text);
+      }
+      continue;
+    }
+    if (block.summaries.length === 0) {
+      continue;
+    }
+    parts.push(
+      [`**${block.title ?? "Tool summaries"}**`, ...block.summaries.map((line) => `- ${line}`)].join(
+        "\n",
+      ),
+    );
+  }
+  const body = parts.join("\n\n");
+  if (state.status === "running" && body) {
+    return `${body}\n\n⏳`;
+  }
+  if (state.status === "error" && body) {
+    return `${body}\n\n❌`;
+  }
+  return body;
+}
+
+function truncateTelegramEditText(text: string): string {
+  return text.length > TELEGRAM_EDIT_TEXT_LIMIT ? `${text.slice(0, TELEGRAM_EDIT_TEXT_LIMIT)}...` : text;
+}
+
 export function createTelegramBotProvider(
   deps: TelegramProviderDeps,
 ): BotProviderAdapter {
   async function loadToken(bot: BotConfig): Promise<string | null> {
     return bot.credentialRef ? deps.loadCredential(bot.credentialRef) : null;
   }
+
+  // 群聊 @ 检测依赖机器人自身身份（username / user id）；getMe 成功即缓存。
+  let cachedBotIdentity: TelegramBotIdentity | null = null;
 
   async function getMe(bot: BotConfig): Promise<TelegramGetMeResponse | null> {
     const token = await loadToken(bot);
@@ -335,7 +482,96 @@ export function createTelegramBotProvider(
     if (!response.ok) {
       return null;
     }
-    return response.payload ?? {};
+    const payload = response.payload ?? {};
+    const result = payload.result;
+    if (result && (result.username || result.id !== undefined)) {
+      cachedBotIdentity = {
+        ...(result.username ? { username: result.username } : {}),
+        ...(result.id !== undefined ? { userId: String(result.id) } : {}),
+      };
+    }
+    return payload;
+  }
+
+  /** 上传媒体（sendPhoto/sendDocument 的 multipart）；带超时，失败抛错由服务层呈现。 */
+  async function sendMediaMultipart(
+    bot: BotConfig,
+    method: "sendPhoto" | "sendDocument",
+    fields: Record<string, string>,
+    fileField: string,
+    media: { filename: string; mimeType: string; data: Uint8Array },
+  ): Promise<void> {
+    const token = await loadToken(bot);
+    if (!token?.trim()) {
+      throw new Error("Telegram bot token is missing.");
+    }
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) {
+      form.append(key, value);
+    }
+    form.append(
+      fileField,
+      // 复制为 ArrayBuffer 支撑的视图：Uint8Array<ArrayBufferLike> 与 BlobPart 的泛型不兼容。
+      new Blob([Uint8Array.from(media.data)], { type: media.mimeType }),
+      media.filename,
+    );
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TELEGRAM_MEDIA_UPLOAD_TIMEOUT_MS);
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(
+          `Telegram ${method} failed: HTTP ${response.status}${detail ? ` ${detail.slice(0, 200)}` : ""}`,
+        );
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  /** 发送自动分段的 Markdown 文本（解析失败回退纯文本）；send 与流式终稿降级共用。 */
+  async function sendSegmentedText(
+    bot: BotConfig,
+    providerUserId: string,
+    text: string,
+    replyMarkup?: Record<string, unknown>,
+  ): Promise<void> {
+    const token = await loadToken(bot);
+    if (!token?.trim()) {
+      return;
+    }
+    const chunks = splitTelegramText(text);
+    for (const [index, chunk] of chunks.entries()) {
+      const shouldAttachReplyMarkup = index === chunks.length - 1 && replyMarkup;
+      const response = await fetchBotProvider(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chat_id: providerUserId,
+          text: chunk,
+          parse_mode: "Markdown",
+          ...(shouldAttachReplyMarkup ? { reply_markup: replyMarkup } : {}),
+        }),
+      });
+      if (!response.ok) {
+        // Bugfix: Telegram Markdown 对未闭合的 `_*[]()` 很敏感，模型输出偶尔会被拒收。
+        // 解析失败时退回纯文本重发，既优先支持 Markdown，也保证消息不会丢。
+        await fetchBotProvider(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            chat_id: providerUserId,
+            text: chunk,
+            ...(shouldAttachReplyMarkup ? { reply_markup: replyMarkup } : {}),
+          }),
+        });
+      }
+    }
   }
 
   return {
@@ -385,41 +621,25 @@ export function createTelegramBotProvider(
     },
 
     async send(bot: BotConfig, message: BotOutboundMessage) {
-      const token = await loadToken(bot);
-      if (!token?.trim()) {
-        return;
-      }
       const selection = message.selection;
       const replyMarkup = selection ? buildSelectionReplyMarkup(selection) : undefined;
-      const chunks = splitTelegramText(message.text);
-      for (const [index, text] of chunks.entries()) {
-        // Bugfix: 长 Plan 会被拆成多条消息，审批提示位于最后一条。
-        // 按钮必须跟随最终决策上下文，不能挂在尚未发送完整正文的第一条上。
-        const shouldAttachReplyMarkup = index === chunks.length - 1 && replyMarkup;
-        const response = await fetchBotProvider(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            chat_id: message.providerUserId,
-            text,
-            parse_mode: "Markdown",
-            ...(shouldAttachReplyMarkup ? { reply_markup: replyMarkup } : {}),
-          }),
-        });
-        if (!response.ok) {
-          // Bugfix: Telegram Markdown 对未闭合的 `_*[]()` 很敏感，模型输出偶尔会被拒收。
-          // 解析失败时退回纯文本重发，既优先支持 Markdown，也保证消息不会丢。
-          await fetchBotProvider(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              chat_id: message.providerUserId,
-              text,
-              ...(shouldAttachReplyMarkup ? { reply_markup: replyMarkup } : {}),
-            }),
-          });
-        }
+      await sendSegmentedText(bot, message.providerUserId, message.text, replyMarkup);
+    },
+
+    async sendMedia(bot, target, media) {
+      const fields: Record<string, string> = { chat_id: target.providerUserId };
+      if (media.caption?.trim()) {
+        fields.caption = media.caption;
       }
+      // 图片走 sendPhoto（内联预览），其余走 sendDocument 保留原文件；
+      // 大小上限已由服务层按平台能力校验。
+      await sendMediaMultipart(
+        bot,
+        media.kind === "image" ? "sendPhoto" : "sendDocument",
+        fields,
+        media.kind === "image" ? "photo" : "document",
+        media,
+      );
     },
 
     async sendTyping(bot: BotConfig, target) {
@@ -435,6 +655,114 @@ export function createTelegramBotProvider(
           action: "typing",
         }),
       });
+    },
+
+    // 流式回复：Telegram 没有卡片 API，用「sendMessage 拿 message_id + editMessageText 节流编辑」
+    // 实现打字机效果。blocks 渲染与超长终稿的分段降级都收口在这里，service 层复用既有节流状态机。
+    async createStreamingReplyCard(bot, state, signal) {
+      const token = await loadToken(bot);
+      if (!token?.trim()) {
+        return null;
+      }
+      const text = truncateTelegramEditText(renderStreamingCardStateToText(state));
+      if (!text.trim()) {
+        return null;
+      }
+      const body = {
+        chat_id: state.providerUserId,
+        text,
+        parse_mode: "Markdown",
+      };
+      const response = await telegramJsonCall<TelegramSendMessageResponse>(
+        `https://api.telegram.org/bot${token}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal,
+          body: JSON.stringify(body),
+        },
+      );
+      let messageId = response.payload?.result?.message_id;
+      if (!response.ok) {
+        // Bugfix: 同 send() 的 Markdown 回退——模型输出里未闭合的语法会被 Bot API 拒收。
+        const plain = await telegramJsonCall<TelegramSendMessageResponse>(
+          `https://api.telegram.org/bot${token}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            signal,
+            body: JSON.stringify({ chat_id: state.providerUserId, text }),
+          },
+        );
+        messageId = plain.payload?.result?.message_id;
+      }
+      return messageId !== undefined ? { providerMessageId: String(messageId) } : null;
+    },
+
+    async updateStreamingReplyCard(bot, handle, state, signal) {
+      const token = await loadToken(bot);
+      if (!token?.trim()) {
+        return;
+      }
+      const messageId = Number.parseInt(handle.providerMessageId, 10);
+      if (!Number.isFinite(messageId)) {
+        return;
+      }
+      const fullText = renderStreamingCardStateToText(state);
+      if (state.status !== "running" && fullText.length > TELEGRAM_EDIT_TEXT_LIMIT) {
+        // 终稿超出单条上限：删除流式占位消息，改走 send() 的自动分段全文。
+        // 删除失败不阻塞——编辑截断版兜底，内容以随后 send 的全文为准。
+        await fetchBotProvider(
+          `https://api.telegram.org/bot${token}/deleteMessage`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            signal,
+            body: JSON.stringify({ chat_id: state.providerUserId, message_id: messageId }),
+          },
+        ).catch(() => undefined);
+        await sendSegmentedText(bot, state.providerUserId, fullText);
+        return;
+      }
+      const text = truncateTelegramEditText(fullText);
+      if (!text.trim()) {
+        return;
+      }
+      const response = await telegramJsonCall<TelegramSendMessageResponse>(
+        `https://api.telegram.org/bot${token}/editMessageText`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal,
+          body: JSON.stringify({
+            chat_id: state.providerUserId,
+            message_id: messageId,
+            text,
+            parse_mode: "Markdown",
+          }),
+        },
+      );
+      if (response.ok) {
+        return;
+      }
+      const description = response.payload?.description ?? "";
+      // Bugfix: 节流间隔内内容未变化时 Telegram 返回 400 "message is not modified"，
+      // 这是幂等成功而非错误；Markdown 拒收才回退纯文本。
+      if (description.includes("message is not modified")) {
+        return;
+      }
+      if (description.includes("can't parse entities")) {
+        await fetchBotProvider(`https://api.telegram.org/bot${token}/editMessageText`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal,
+          body: JSON.stringify({
+            chat_id: state.providerUserId,
+            message_id: messageId,
+            text,
+          }),
+        }).catch(() => undefined);
+      }
     },
 
     async acknowledgeCallback(bot: BotConfig, payload: unknown, text?: string, _message?: BotOutboundMessage, signal?: AbortSignal) {
@@ -527,7 +855,9 @@ export function createTelegramBotProvider(
       if (!botId) {
         return [];
       }
-      const message = readTelegramPrivateMessage(botId, update) ?? readTelegramCallbackMessage(botId, update);
+      const message =
+        readTelegramPrivateMessage(botId, update, cachedBotIdentity) ??
+        readTelegramCallbackMessage(botId, update);
       return message ? [message] : [];
     },
   };

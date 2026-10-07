@@ -30,6 +30,7 @@
     "@babel/runtime": "^7.24.5",
     "@fiahfy/icns": "^0.0.7",
     "@larksuiteoapi/node-sdk": "1.61.1",
+    "@wecom/aibot-node-sdk": "1.0.7",
     "@lydell/node-pty-linux-arm64": "1.2.0-beta.10",
     "@lydell/node-pty-linux-x64": "1.2.0-beta.10",
     "@zcode/client": "workspace:*",
@@ -76,5 +77,5 @@
     "typescript": "^6.0.2",
     "vite": "^8.0.2"
   },
-  "productName": "ZCodium"
+  "productName": "Mode"
 }

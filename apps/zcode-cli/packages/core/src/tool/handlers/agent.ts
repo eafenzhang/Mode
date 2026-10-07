@@ -286,7 +286,7 @@ function canReadBackgroundOutputFile(toolNames: readonly string[] | undefined): 
 
 export const taskToolEntry: ToolEntry = {
   ...agentToolEntry,
-  capability: "Claude Code-compatible alias for launching a ZCode subagent",
+  capability: "Claude Code-compatible alias for launching a Mode subagent",
   metadata: {
     ...agentToolEntry.metadata,
     name: TASK_TOOL_NAME,

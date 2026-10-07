@@ -3,6 +3,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu.js";
+import type { ReactNode } from "react";
 import { TaskActionMenuContent } from "@/TaskActionMenuContent.js";
 
 export function TaskListItemContextMenu({
@@ -18,13 +19,13 @@ export function TaskListItemContextMenu({
   onMarkTaskAsUnread,
   onOpenInSplitPane,
   openInSplitPaneDisabled,
-  onOpenTaskFeedback,
   onOpenTaskPathInFileManager,
   onCopyWorkspacePath,
   onCopyTaskPath,
   onCopyTaskLogPath,
   onCopySessionId,
   onViewModelTrajectory,
+  botMenu,
   disableTaskActions = false,
   disabledReason,
 }: {
@@ -48,7 +49,6 @@ export function TaskListItemContextMenu({
   onOpenInSplitPane?: () => void;
   /** 叶子数达上限且该 session 未在任何 pane 时禁用。 */
   openInSplitPaneDisabled?: boolean;
-  onOpenTaskFeedback: () => void;
   onOpenTaskPathInFileManager: () => void;
   onCopyWorkspacePath: () => void;
   onCopyTaskPath: () => void;
@@ -57,6 +57,8 @@ export function TaskListItemContextMenu({
   onViewModelTrajectory?: () => void;
   disableTaskActions?: boolean;
   disabledReason?: string;
+  /** 会话 ↔ IM 机器人绑定子菜单（由内容组件构建，菜单文件保持通用）。 */
+  botMenu?: ReactNode;
 }) {
   return (
     <ContextMenuContent className="w-52">
@@ -75,7 +77,6 @@ export function TaskListItemContextMenu({
         onMarkTaskAsUnread={onMarkTaskAsUnread}
         onOpenInSplitPane={onOpenInSplitPane}
         openInSplitPaneDisabled={openInSplitPaneDisabled}
-        onOpenTaskFeedback={onOpenTaskFeedback}
         onOpenTaskPathInFileManager={onOpenTaskPathInFileManager}
         onCopyWorkspacePath={onCopyWorkspacePath}
         onCopyTaskPath={onCopyTaskPath}
@@ -85,6 +86,12 @@ export function TaskListItemContextMenu({
         disableTaskActions={disableTaskActions}
         disabledReason={disabledReason}
       />
+      {botMenu ? (
+        <>
+          <ContextMenuSeparator />
+          {botMenu}
+        </>
+      ) : null}
     </ContextMenuContent>
   );
 }

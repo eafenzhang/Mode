@@ -1105,7 +1105,7 @@ export function ConversationShareReadonlyTimeline({
           artifactPreview: "下载文件",
           markerCompact: "上下文已压缩",
           markerModelChange: "模型已切换",
-          unsupportedRows: "部分内容需要更新 ZCodium 查看",
+          unsupportedRows: "部分内容需要更新 Mode 查看",
         }
       : {
           history: "Reasoning",

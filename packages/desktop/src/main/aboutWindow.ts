@@ -184,19 +184,19 @@ export function createCustomAboutDialogHtml(input: CustomAboutDialogHtmlInput): 
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="118"
-              height="100"
+              height="102"
               fill="none"
-              viewBox="176 224 712 608"
+              viewBox="190 258 644 556"
               class="app-logo"
               focusable="false"
             >
               <defs>
                 <linearGradient
-                  id="zcode-brand-z-gradient"
-                  x1="712"
-                  y1="224"
+                  id="mode-brand-m-gradient"
+                  x1="756"
+                  y1="336"
                   x2="300"
-                  y2="800"
+                  y2="736"
                   gradientUnits="userSpaceOnUse"
                 >
                   <stop offset="0" stop-color="#38bdf8" />
@@ -204,13 +204,12 @@ export function createCustomAboutDialogHtml(input: CustomAboutDialogHtmlInput): 
                 </linearGradient>
               </defs>
               <path
-                fill="url(#zcode-brand-z-gradient)"
-                d="M184 224H512L453 308Q439 328 415 328H184Z"
-              />
-              <path fill="url(#zcode-brand-z-gradient)" d="M584 224H832L424 800H176Z" />
-              <path
-                fill="url(#zcode-brand-z-gradient)"
-                d="M536 720L600 656L648 704L824 528L888 592L648 832Z"
+                d="M268 736V336L512 592L756 336V736"
+                fill="none"
+                stroke="url(#mode-brand-m-gradient)"
+                stroke-width="132"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               />
             </svg>
           </div>

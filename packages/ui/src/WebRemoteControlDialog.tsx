@@ -17,18 +17,17 @@ import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
 
 type RemoteControlBotProvider = Extract<
   BotProvider,
-  "weixin" | "feishu" | "lark" | "telegram" | "astrbot"
+  "weixin" | "wecom" | "feishu" | "dingtalk"
 >;
 
-const REMOTE_CONTROL_BOT_ENTRIES: Array<{
+// 通道只保留微信 / 企业微信 / 飞书（中国域）/ 钉钉，且全部一次展示（不再折叠）。
+const REMOTE_CONTROL_ENTRIES: Array<{
   provider: RemoteControlBotProvider;
 }> = [
-  // 当前仅 AstrBot 可用；其余渠道入口保留，待与桥接统一后再开放。
-  { provider: "astrbot" },
   { provider: "weixin" },
+  { provider: "wecom" },
   { provider: "feishu" },
-  { provider: "lark" },
-  { provider: "telegram" },
+  { provider: "dingtalk" },
 ];
 
 export const WebRemoteControlDialog = memo(function WebRemoteControlDialogComponent({
@@ -119,7 +118,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                   </div>
                 </div>
                 <div className="grid min-h-0 flex-1 gap-3">
-                  {REMOTE_CONTROL_BOT_ENTRIES.map((entry) => {
+                  {REMOTE_CONTROL_ENTRIES.map((entry) => {
                     const regionTagLabelId = getBotProviderRegionTagLabelId(entry.provider);
 
                     return (

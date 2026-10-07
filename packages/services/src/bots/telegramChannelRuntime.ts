@@ -77,6 +77,8 @@ export function createTelegramChannelRuntime(deps: TelegramChannelRuntimeDeps) {
       // 删除或禁用 bot 时也不能为了清命令访问第三方 API。
       return;
     }
+    // 预热机器人身份（getMe）：群聊 @ 检测需要 username/user id，缺失会漏判被 @ 的消息。
+    await deps.telegramProvider?.resolveName?.(bot).catch(() => undefined);
     await deps.telegramProvider?.syncCommands?.(bot).catch((error: unknown) => {
       deps.logger.warn(
         undefined,

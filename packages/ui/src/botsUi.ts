@@ -3,21 +3,22 @@ import { getSupportedBotReplyGranularities } from "@zcode/shared";
 
 export type BotProviderEntryId = BotProvider | "dingding";
 
-type BotProviderEntry =
-  | { id: BotProvider; label: string; implemented: true }
-  | { id: BotProviderEntryId; label: string; implemented: false };
+/**
+ * 通道目录：只保留微信 / 企业微信 / 飞书（中国域）/ 钉钉，且全部一次展示（不再折叠）。
+ * 其余 provider（Lark / Telegram / AstrBot / Webhook / Discord）不再出现在新建面板，
+ * 已有这些通道的机器人仍照常展示、编辑与删除。
+ */
+type BotProviderEntry = {
+  id: BotProvider;
+  label: string;
+  implemented: boolean;
+};
 
 export const BOT_PROVIDERS: BotProviderEntry[] = [
-  // AstrBot 走官方 provider 化后的桥接；官方已实现适配器的平台同步开放。
-  { id: "astrbot", label: "AstrBot", implemented: true },
   { id: "weixin", label: "Weixin", implemented: true },
+  { id: "wecom", label: "WeCom", implemented: true },
   { id: "feishu", label: "Feishu", implemented: true },
-  { id: "lark", label: "Lark", implemented: true },
-  { id: "telegram", label: "Telegram", implemented: true },
-  { id: "dingding", label: "DingTalk", implemented: false },
-  { id: "discord", label: "Discord", implemented: false },
-  { id: "wecom", label: "WeCom", implemented: false },
-  { id: "webhook", label: "Webhook", implemented: true },
+  { id: "dingtalk", label: "DingTalk", implemented: true },
 ];
 
 export const BOT_REPLY_GRANULARITIES: Array<{

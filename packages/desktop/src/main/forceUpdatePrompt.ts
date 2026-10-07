@@ -42,14 +42,14 @@ function buildForceUpdatePromptMessages(locale: Locale) {
   if (locale === "zh-CN") {
     return {
       checkingTitle: "正在检查更新",
-      checkingMessage: "请保持此窗口打开，ZCodium 正在查找可用更新。",
+      checkingMessage: "请保持此窗口打开，Mode 正在查找可用更新。",
       downloadingTitle: "正在下载更新",
       downloadingVersionTitle: "正在下载更新 v{version}",
       downloadingMessage: "下载完成后会自动安装，请勿关闭应用。",
       readyTitle: "更新已下载",
-      readyMessage: "ZCodium 正在准备重启并安装更新。",
+      readyMessage: "Mode 正在准备重启并安装更新。",
       installingTitle: "正在安装更新",
-      installingMessage: "ZCodium 即将重启完成安装。",
+      installingMessage: "Mode 即将重启完成安装。",
       errorTitle: "自动升级失败",
       errorMessage: "你可以重试自动升级，或改用手动升级。",
       devSkippedTitle: "调试环境无法自动升级",
@@ -68,14 +68,14 @@ function buildForceUpdatePromptMessages(locale: Locale) {
 
   return {
     checkingTitle: "Checking for updates",
-    checkingMessage: "Keep this window open while ZCodium checks for updates.",
+    checkingMessage: "Keep this window open while Mode checks for updates.",
     downloadingTitle: "Downloading update",
     downloadingVersionTitle: "Downloading update v{version}",
-    downloadingMessage: "ZCodium will install the update automatically after download.",
+    downloadingMessage: "Mode will install the update automatically after download.",
     readyTitle: "Update downloaded",
-    readyMessage: "ZCodium is preparing to restart and install the update.",
+    readyMessage: "Mode is preparing to restart and install the update.",
     installingTitle: "Installing update",
-    installingMessage: "ZCodium will restart to finish installing the update.",
+    installingMessage: "Mode will restart to finish installing the update.",
     errorTitle: "Auto update failed",
     errorMessage: "You can retry auto update or use manual update.",
     devSkippedTitle: "Auto update unavailable in development",
@@ -307,7 +307,7 @@ function renderForceUpdatePromptHtml(text: ForceUpdateDialogText, locale: Locale
       <header class="titlebar">
         <div class="brand">
           <div class="brand-icon">${icon ? `<img src="${icon}" alt="" />` : "Z"}</div>
-          <div class="brand-title">ZCodium</div>
+          <div class="brand-title">Mode</div>
         </div>
         <button class="close" type="button" data-action="quit" aria-label="${escapeHtml(text.quitButton)}">×</button>
       </header>

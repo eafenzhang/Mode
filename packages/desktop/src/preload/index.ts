@@ -242,6 +242,15 @@ contextBridge.exposeInMainWorld("zcode", {
   disposeRemoteSession: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.DisposeRemoteSession, sessionId),
   isDockerAvailable: (): Promise<boolean> => ipcRenderer.invoke(PlatformChannels.IsDockerAvailable),
+  getLanAccessState: () => ipcRenderer.invoke(PlatformChannels.GetLanAccessState),
+  setLanAccessEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke(PlatformChannels.SetLanAccessEnabled, enabled),
+  createLanAccessPairCode: () => ipcRenderer.invoke(PlatformChannels.CreateLanAccessPairCode),
+  removeLanAccessClient: (clientId: string) =>
+    ipcRenderer.invoke(PlatformChannels.RemoveLanAccessClient, clientId),
+  resetLanAccessTokens: () => ipcRenderer.invoke(PlatformChannels.ResetLanAccessTokens),
+  discoverLanPeers: () => ipcRenderer.invoke(PlatformChannels.DiscoverLanPeers),
+  pairLanPeer: (request: unknown) => ipcRenderer.invoke(PlatformChannels.PairLanPeer, request),
   listWSLDistros: () => ipcRenderer.invoke(PlatformChannels.ListWSLDistros),
   listDockerContainers: () => ipcRenderer.invoke(PlatformChannels.ListDockerContainers),
   listSSHConfigAliases: (): Promise<SSHConfigAliasOption[]> =>
@@ -483,16 +492,6 @@ contextBridge.exposeInMainWorld("zcode", {
     }
     return () => openWorkspacePathCallbacks.delete(callback);
   },
-  onOpenFeedbackDialog: (callback: () => void): (() => void) => {
-    const handler = () => callback();
-    ipcRenderer.on(PlatformChannels.OpenFeedbackDialog, handler);
-    return () => ipcRenderer.removeListener(PlatformChannels.OpenFeedbackDialog, handler);
-  },
-  onOpenTicketsPanel: (callback: () => void): (() => void) => {
-    const handler = () => callback();
-    ipcRenderer.on(PlatformChannels.OpenTicketsPanel, handler);
-    return () => ipcRenderer.removeListener(PlatformChannels.OpenTicketsPanel, handler);
-  },
   /** 注册窗口全屏状态变化回调，返回 disposer */
   onWindowFullscreenChanged: (callback: (isFullscreen: boolean) => void): (() => void) => {
     const handler = (_event: unknown, isFullscreen: boolean) => callback(isFullscreen);
@@ -610,7 +609,6 @@ contextBridge.exposeInMainWorld("zcode", {
     error?: string;
   }> => ipcRenderer.invoke(PlatformChannels.ExportLogs),
   /** 截取当前窗口，用于错误反馈携带现场画面 */
-  captureWindowScreenshot: () => ipcRenderer.invoke(PlatformChannels.CaptureWindowScreenshot),
   // CDP-on-guest pivot：`<webview>` guest dom-ready 后上报 webContentsId 给 main attach。
   browserViewAttachGuest: (payload: {
     key: string;

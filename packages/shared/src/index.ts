@@ -38,6 +38,7 @@ export type {
 } from "./remoteResourcePackages.js";
 export type {
   DockerConnectOptions,
+  LanConnectOptions,
   RemoteTarget,
   SSHConnectOptions,
   WSLConnectOptions,
@@ -117,7 +118,6 @@ export * from "./channels.js";
 export * from "./storage.js";
 export * from "./oauth.js";
 export * from "./desktopMenu.js";
-export * from "./feedback.js";
 export * from "./e2e-test-bridge.js";
 export * from "./remoteAppConfig.js";
 export * from "./helpAppConfig.js";
@@ -272,9 +272,9 @@ export * from "./pluginStoreOrder.js";
 export * from "./clientConfig.js";
 export * from "./pluginStoreOrdering.js";
 export * from "./session-debug.js";
-export { redactFeedbackText } from "./feedbackPrivacy.js";
 
 export * from "./remoteWorkspaceConnection.js";
+export * from "./lanAccess.js";
 export * from "./data-root.js";
 export * from "./data-root-decision.js";
 export * from "./env-names.js";

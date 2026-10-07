@@ -178,6 +178,13 @@ export default defineConfig(({ mode }) => {
     plugins,
     resolve: {
       alias: {
+        // 修复渲染端黑屏：packages/services 以 TS 源码形式进入浏览器模块图，
+        // orcarouter/connect.ts 顶层 `import { createHash } from "node:crypto"`。
+        // Vite 会把 node:crypto 外部化成"访问属性即抛错"的 stub，模块求值阶段
+        // 解构导出就直接 Uncaught Error，React 永远无法挂载（开发模式黑屏）。
+        // shim 让求值成功，真调用时抛出带指引的错误（该能力只在 Host 进程存在）。
+        // 见 src/renderer/src/nodeCryptoBrowserShim.ts 的详细说明。
+        "node:crypto": resolve(__dirname, "src/renderer/src/nodeCryptoBrowserShim.ts"),
         // 修复 UI 组件库中的 @ 别名解析失败。
         // 问题原因：desktop 会直接打包 packages/ui 的源码，但当前 Vite 配置不知道 @ 应该指向 packages/ui/src，
         // 导致 spinner、alert 等组件里的内部导入在构建时全部失效。

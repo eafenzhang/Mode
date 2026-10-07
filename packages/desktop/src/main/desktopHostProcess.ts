@@ -40,11 +40,15 @@ import {
 } from "./resourceManagerWindow.js";
 import { resolveHostResourceUsageResult } from "./resourceManagerHostSampling.js";
 import {
+  forgetLanAccessHost,
+  resolveLanAccessStateResult,
+  resolveLanPairPeerResult,
+} from "./desktopLanAccess.js";
+import {
   buildHostProcessEnv,
   hostModulePath,
   resolveBundledGlmBinaryPath,
 } from "./desktopRuntimeEnv.js";
-import { createFeedbackLogArchiveFromExportLogs } from "./exportLogs.js";
 import { buildHostE2ECoverageEnv } from "./e2eCoverage.js";
 
 export interface WindowBootstrapOptions {
@@ -63,7 +67,6 @@ export interface HostInitMessage {
   databaseStartupId?: string;
   deliveryKind?: TaskRealtimeHostDeliveryKind;
   deviceMid?: string;
-  feedbackApiBase?: string;
   workspacePath?: string;
   workspaceIdentity?: string;
   agentWarmupTargets?: Array<{
@@ -313,6 +316,14 @@ export function spawnHostProcess(
       resolveHostResourceUsageResult(label, result.data);
       return;
     }
+    if (result.data.type === HostResponseTypes.LanAccessStateResult) {
+      resolveLanAccessStateResult(label, result.data);
+      return;
+    }
+    if (result.data.type === HostResponseTypes.LanPairPeerResult) {
+      resolveLanPairPeerResult(label, result.data);
+      return;
+    }
     if (result.data.type === HostResponseTypes.LocalMediaPreviewPathAuthorizeRequest) {
       const request = result.data;
       const authorize = dependencies.authorizeLocalMediaPreviewPath;
@@ -348,29 +359,6 @@ export function spawnHostProcess(
     if (result.data.type === HostResponseTypes.CuaOperationState) {
       // Main 只投影 Host 已经判定的 turn 状态，不在这里重复解析 session/tool 业务事件。
       dependencies.onCuaOperationStateChanged?.(child, result.data);
-      return;
-    }
-
-    if (result.data.type === HostResponseTypes.FeedbackLogArchiveRequest) {
-      const request = result.data;
-      void createFeedbackLogArchiveFromExportLogs(request.sourceDir)
-        .then((archive) => {
-          child.postMessage({
-            type: HostMessageTypes.FeedbackLogArchiveResult,
-            requestId: request.requestId,
-            ok: true,
-            path: archive.path,
-            size: archive.size,
-          });
-        })
-        .catch((error) => {
-          child.postMessage({
-            type: HostMessageTypes.FeedbackLogArchiveResult,
-            requestId: request.requestId,
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
       return;
     }
 
@@ -705,6 +693,7 @@ export function spawnHostProcess(
       dependencies.broadcastHub.unregister(windowId);
     }
     unregisterHostProcess(label);
+    forgetLanAccessHost(label);
     for (const [wcId, process] of dependencies.windowHostProcessMap) {
       if (process === child) {
         dependencies.windowHostProcessMap.delete(wcId);

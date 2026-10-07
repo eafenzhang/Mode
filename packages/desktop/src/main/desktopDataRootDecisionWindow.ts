@@ -33,7 +33,7 @@ export function createDataRootDecisionWindow(
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    title: "ZCodium",
+    title: "Mode",
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#101014" : "#f5f5f7",
     show: false,
     webPreferences: {

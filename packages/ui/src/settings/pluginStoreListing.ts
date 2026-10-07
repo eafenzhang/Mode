@@ -16,6 +16,7 @@ import {
   resolvePluginDisplayName,
   ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
 } from "@zcode/shared";
+import { resolvePluginDescriptionZh } from "@/settings/pluginDescriptionTranslations.js";
 import { pluginSearchMatches } from "@/settings/pluginSearch.js";
 
 export {
@@ -109,7 +110,15 @@ export function resolveItemDisplayName(item: StorePluginItem, locale: string): s
 export function resolveItemDescription(item: StorePluginItem, locale: string): string | undefined {
   const base =
     item.summary?.description ?? item.info?.description ?? item.installedMeta?.description;
-  return resolveLocalizedText(locale, base, item.listing?.descriptionI18n);
+  // 本地化优先：目录自带 descriptionI18n > 内置中文翻译（Codex 聚合目录）> 原文。
+  const provided = item.listing?.descriptionI18n
+    ? resolveLocalizedText(locale, undefined, item.listing.descriptionI18n)
+    : undefined;
+  return (
+    provided ??
+    resolvePluginDescriptionZh(item.id, locale) ??
+    resolveLocalizedText(locale, base, item.listing?.descriptionI18n)
+  );
 }
 
 /** 管理列表与商店复用完整 ID 关联的展示信息，避免英文 manifest 绕过本地化。 */

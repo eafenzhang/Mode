@@ -79,6 +79,8 @@ export function formatRemoteWorkspaceTargetSubtitle(
     }
     case "docker":
       return `Docker · ${target.container}`;
+    case "lan":
+      return `LAN · ${target.host}:${target.port}`;
   }
 }
 
@@ -92,6 +94,8 @@ export function formatRemoteWorkspaceHeaderHostLabel(
       return formatWslRemoteTargetAuthority(target);
     case "docker":
       return `docker:${target.container}`;
+    case "lan":
+      return `${target.host}:${target.port}`;
   }
 }
 
@@ -131,6 +135,8 @@ function getRemoteWorkspaceAuthorityKey(target: RemoteTarget | RemoteTargetSnaps
     }
     case "docker":
       return ["docker", target.container].join(":");
+    case "lan":
+      return ["lan", target.host.trim().toLowerCase(), target.port].join(":");
   }
 }
 
@@ -214,6 +220,15 @@ function createRemoteTargetSnapshot(
         kind: "docker",
         container: target.container,
       };
+    case "lan":
+      // 局域网令牌不进快照：只留地址与对端标识，恢复时从凭据服务取回令牌。
+      return {
+        kind: "lan",
+        host: target.host,
+        port: target.port,
+        ...(target.serverId?.trim() ? { serverId: target.serverId.trim() } : {}),
+        ...(target.serverName?.trim() ? { serverName: target.serverName.trim() } : {}),
+      };
   }
 }
 
@@ -249,6 +264,14 @@ export function createRemoteTargetFromSnapshot(
       return {
         kind: "docker",
         container: snapshot.container,
+      };
+    case "lan":
+      return {
+        kind: "lan",
+        host: snapshot.host,
+        port: snapshot.port,
+        ...(snapshot.serverId ? { serverId: snapshot.serverId } : {}),
+        ...(snapshot.serverName ? { serverName: snapshot.serverName } : {}),
       };
   }
 }
