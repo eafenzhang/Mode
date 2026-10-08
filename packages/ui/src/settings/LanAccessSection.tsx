@@ -42,21 +42,18 @@ export function LanAccessSection() {
     setError("");
   };
 
-  const run = useCallback(
-    async (action: () => Promise<LanAccessState>, failureMessage: string) => {
-      setBusy(true);
-      try {
-        applyState(await action());
-      } catch (caught) {
-        const message = caught instanceof Error ? caught.message : String(caught);
-        setError(message);
-        toast(`${failureMessage}：${message}`);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [],
-  );
+  const run = useCallback(async (action: () => Promise<LanAccessState>, failureMessage: string) => {
+    setBusy(true);
+    try {
+      applyState(await action());
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : String(caught);
+      setError(message);
+      toast(`${failureMessage}：${message}`);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +90,11 @@ export function LanAccessSection() {
   const statusText = state.enabled
     ? intl.formatMessage(
         { id: "settings.lanAccess.statusEnabled" },
-        { address: state.addresses[0] ?? `:${state.port ?? ""}` },
+        {
+          // 本机信息的展示归宿：全部监听地址（含 Tailscale）一次给全——
+          // 发现列表已过滤本机，这里就是看本机地址的地方。
+          address: state.addresses.length > 0 ? state.addresses.join("、") : `:${state.port ?? ""}`,
+        },
       )
     : intl.formatMessage({ id: "settings.lanAccess.statusDisabled" });
 
@@ -266,9 +267,7 @@ export function LanAccessSection() {
           <Radar className="size-3.5 shrink-0" />
         )}
         {intl.formatMessage({
-          id: state.enabled
-            ? "settings.lanAccess.firewallHint"
-            : "settings.lanAccess.description",
+          id: state.enabled ? "settings.lanAccess.firewallHint" : "settings.lanAccess.description",
         })}
       </p>
       {error ? <p className="px-1 text-ui-base text-destructive">{error}</p> : null}

@@ -289,8 +289,12 @@ export function RemoteConnectionFields({
           {lanFields.peers.length > 0 ? (
             <div className="space-y-2" data-testid={TID_LAN_PEER_LIST}>
               {lanFields.peers.map((peer) => {
+                // 同一设备的多地址已合并为一张卡（主地址 + extraHosts）；
+                // 手动填写任一副地址时该卡仍算选中。
+                const addresses = [peer.host, ...(peer.extraHosts ?? [])];
                 const selected =
-                  peer.host === lanFields.host.trim() && String(peer.port) === lanFields.port.trim();
+                  addresses.includes(lanFields.host.trim()) &&
+                  String(peer.port) === lanFields.port.trim();
                 return (
                   <button
                     key={`${peer.serverId}@${peer.host}:${peer.port}`}
@@ -309,7 +313,7 @@ export function RemoteConnectionFields({
                         {peer.name?.trim() || peer.serverId}
                       </span>
                       <span className="block truncate text-ui-xs text-foreground-subtle">
-                        {`${peer.host}:${peer.port}`}
+                        {addresses.map((address) => `${address}:${peer.port}`).join(" · ")}
                       </span>
                     </span>
                     {selected ? <CheckIcon className="size-4 shrink-0 text-primary" /> : null}
@@ -373,7 +377,10 @@ export function RemoteConnectionFields({
                   value={lanFields.pairCode}
                   onChange={(event) =>
                     lanFields.onPairCodeChange(
-                      event.target.value.replace(/[^0-9a-fA-F]/gu, "").slice(0, 6).toUpperCase(),
+                      event.target.value
+                        .replace(/[^0-9a-fA-F]/gu, "")
+                        .slice(0, 6)
+                        .toUpperCase(),
                     )
                   }
                   placeholder="A1B2C3"
@@ -386,9 +393,7 @@ export function RemoteConnectionFields({
                   disabled={lanFields.pairing || lanFields.pairCode.trim().length < 4}
                   onClick={lanFields.onPair}
                 >
-                  {lanFields.pairing ? (
-                    <LoaderIcon className="size-3.5 animate-spin" />
-                  ) : null}
+                  {lanFields.pairing ? <LoaderIcon className="size-3.5 animate-spin" /> : null}
                   {intl.formatMessage({ id: "remote.lan.pair" })}
                 </Button>
               </div>

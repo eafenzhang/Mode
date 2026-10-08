@@ -95,6 +95,68 @@ export interface DiscoverLanPeersOptions {
   timeoutMs?: number;
   /** 可注入（测试/诊断）：返回 tailnet 内 IPv4 列表；默认跑本地 tailscale CLI。 */
   tailscaleStatusRunner?: () => Promise<string[]>;
+  /** 默认 false：本机应答（应答地址命中本机网卡集）不进结果——本机信息归设置页展示。 */
+  includeSelf?: boolean;
+}
+
+/** 本机 IPv4 地址集（含回环）：应答命中即为「自己」。 */
+function collectLocalIPv4Addresses(): Set<string> {
+  const local = new Set<string>(["127.0.0.1"]);
+  for (const infos of Object.values(networkInterfaces())) {
+    for (const info of infos ?? []) {
+      if (info.family === "IPv4") {
+        local.add(info.address);
+      }
+    }
+  }
+  return local;
+}
+
+/** 100.64.0.0/10（Tailscale CGNAT 段）判定：主地址优先物理局域网用。 */
+function isTailscaleRangeAddress(host: string): boolean {
+  const [first, second] = host.split(".");
+  return first === "100" && Number(second) >= 64 && Number(second) <= 127;
+}
+
+/**
+ * 单卡合并（纯函数，spec: docs/specs/lan-discovery.md）：
+ * 同一 serverId+port 的多地址合并为一条；主地址优先物理局域网（非 100.64.0.0/10），
+ * 其余按序进 extraHosts；端口不同不合并。
+ */
+export function mergeLanDiscoveredPeers(entries: LanDiscoveredPeer[]): LanDiscoveredPeer[] {
+  const groups = new Map<string, LanDiscoveredPeer[]>();
+  for (const entry of entries) {
+    const key = `${entry.serverId}|${entry.port}`;
+    const group = groups.get(key);
+    if (group) {
+      group.push(entry);
+    } else {
+      groups.set(key, [entry]);
+    }
+  }
+  const merged: LanDiscoveredPeer[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      merged.push(group[0]);
+      continue;
+    }
+    const byHost = new Map<string, LanDiscoveredPeer>();
+    for (const entry of group) {
+      byHost.set(entry.host, entry);
+    }
+    const ordered = [...byHost.values()].sort(
+      (left, right) =>
+        Number(isTailscaleRangeAddress(left.host)) - Number(isTailscaleRangeAddress(right.host)) ||
+        left.host.localeCompare(right.host),
+    );
+    const [{ host, ...rest }] = ordered;
+    merged.push({
+      ...rest,
+      host,
+      ...(ordered.length > 1 ? { extraHosts: ordered.slice(1).map((entry) => entry.host) } : {}),
+    });
+  }
+  return merged;
 }
 
 function ipv4ToInt(address: string): number | null {
@@ -152,10 +214,15 @@ export async function discoverLanPeers(
   const startedAt = Date.now();
   // tailnet 状态读取（≤800ms）与广播探测并行启动，拿到 IP 后在同一窗口内补单播。
   const tailscaleIpsPromise = (options.tailscaleStatusRunner ?? runTailscaleStatusIps)();
+  const localAddresses = options.includeSelf ? null : collectLocalIPv4Addresses();
 
   socket.on("message", (message, rinfo) => {
     const announcement = parseLanAnnouncement(message.toString("utf8"));
     if (!announcement) {
+      return;
+    }
+    // 本机应答（含回环与自身网卡地址）默认过滤：本机信息归「设置 → 局域网访问」。
+    if (localAddresses?.has(rinfo.address)) {
       return;
     }
     const key = `${announcement.serverId}@${rinfo.address}:${announcement.port}`;
@@ -215,7 +282,7 @@ export async function discoverLanPeers(
     }
   }
 
-  return [...peers.values()].sort((left, right) =>
+  return mergeLanDiscoveredPeers([...peers.values()]).sort((left, right) =>
     (left.name ?? left.serverId).localeCompare(right.name ?? right.serverId),
   );
 }

@@ -41,6 +41,11 @@ export type LanPeerAnnouncement = z.infer<typeof lanPeerAnnouncementSchema>;
 /** 客户端侧填充 host 后的发现结果。 */
 export interface LanDiscoveredPeer extends LanPeerAnnouncement {
   host: string;
+  /**
+   * 同一 serverId+port 的其它可达地址（多网卡/多通道，如 LAN + Tailscale），
+   * 端口与 host 相同；发现侧已按「主地址优先物理局域网」排序合并。
+   */
+  extraHosts?: string[];
 }
 
 export function buildLanProbePayload(): string {
@@ -50,7 +55,11 @@ export function buildLanProbePayload(): string {
 export function buildLanAnnouncementPayload(
   info: Omit<LanPeerAnnouncement, "magic" | "protocolVersion">,
 ): string {
-  return JSON.stringify({ magic: "mode-lan", protocolVersion: LAN_ACCESS_PROTOCOL_VERSION, ...info });
+  return JSON.stringify({
+    magic: "mode-lan",
+    protocolVersion: LAN_ACCESS_PROTOCOL_VERSION,
+    ...info,
+  });
 }
 
 export function parseLanAnnouncement(text: string): LanPeerAnnouncement | null {
