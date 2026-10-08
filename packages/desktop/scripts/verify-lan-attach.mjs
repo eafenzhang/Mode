@@ -64,12 +64,9 @@ const ws = new WebSocket(`ws://${host}:${port}/ws/host`, {
     cookie: `mode_lite_token=${encodeURIComponent(pair.token)}`,
   },
 });
-await new Promise((resolve, reject) => {
-  ws.once("open", () => resolve());
-  ws.once("error", reject);
-});
-console.log("5) /ws/host 已升级为受信通道");
-
+// 与 lanRemoteAttach.ts 同款时序：message 监听与协议层必须在 await open 之前
+// 同步挂好——服务端只在建连瞬间发一帧 Initialize，晚挂监听会把它静默丢弃，
+// ChannelClient 永久排队，第 6 步 RPC 会无报错地悬空。
 const onData = new Emitter();
 const socket = {
   onData: onData.event,
@@ -89,8 +86,14 @@ ws.on("message", (data, isBinary) => {
   const bytes = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data);
   onData.fire(VSBuffer.wrap(new Uint8Array(bytes)));
 });
-
 const services = connectViaProtocol(new SocketProtocol(socket));
+
+await new Promise((resolve, reject) => {
+  ws.once("open", () => resolve());
+  ws.once("error", reject);
+});
+console.log("5) /ws/host 已升级为受信通道");
+
 const fileService = services.fileService;
 const entries = await fileService.readdir({ path: dir });
 console.log(`6) RPC 往返成功 — readdir(${dir}) 返回 ${entries.length} 项`);

@@ -207,6 +207,12 @@ export async function attachLanRemoteConnection(params: {
       cookie: `mode_lite_token=${encodeURIComponent(params.token)}`,
     },
   });
+  // 修复依据：服务端 ChannelServer 只在建连瞬间发一帧 Initialize，且常与握手回包
+  // 同批到达——Node ws 会在同一回调里先 emit open、紧接着处理该帧。若等 open 之后
+  // 再挂 message 监听/建协议层，Initialize 会被静默丢弃且不重发，ChannelClient 永久
+  // 停在 Uninitialized，所有 RPC 无报错无日志地排队（目录浏览器卡「加载中…」）。
+  // 因此 wrap、SocketProtocol 与 ChannelClient 必须在 await open 之前同步构造。
+  const services = connectViaProtocol(new SocketProtocol(wrapNodeWebSocket(ws)));
   await new Promise<void>((resolve, reject) => {
     const onOpen = () => {
       ws.off("error", onError);
@@ -224,7 +230,6 @@ export async function attachLanRemoteConnection(params: {
   ws.once("close", () => params.onClose?.());
   ws.once("error", () => params.onClose?.());
 
-  const services = connectViaProtocol(new SocketProtocol(wrapNodeWebSocket(ws)));
   return {
     services,
     info,
