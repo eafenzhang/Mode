@@ -1,0 +1,27 @@
+[package]
+name = "mode-cua-ax"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+# rlib 是编译器强制的适配：crate-type 只有 cdylib 时集成测试（tests/*.rs）无法链接本 crate。
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+napi = { version = "2", features = ["serde"] }
+napi-derive = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+windows = { version = "0.58", features = [
+  "Win32_Foundation", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_System_Threading",
+  "Win32_System_LibraryLoader", "Win32_UI_Shell", "Win32_System_Com",
+  "Win32_System_DataExchange", "Win32_Security",
+  # windows 0.58 里 GetApplicationUserModelId 位于 Storage::Packaging::Appx（不在 UI_Shell），编译强制新增。
+  "Win32_Storage_Packaging_Appx",
+] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+[build-dependencies]
+napi-build = "2"
