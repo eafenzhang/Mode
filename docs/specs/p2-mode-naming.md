@@ -31,10 +31,10 @@
 ## 必须保留（不得改动）
 
 - `LICENSE-APACHE` 与 `scripts/license-texts/Apache-2.0.txt` 的 Z.AI / 占位符署名（Apache-2.0 §4）。
-- `NOTICE.md` / `NOTICE.zh-CN.md` 的衍生作品段落（`zai-org/ZCode` 链接、Apache-2.0 说明、"版权与署名声明原样保留"），它是仓库级 §4(b) 修改声明的法律机制本体。
+- `NOTICE.md` / `NOTICE.zh-CN.md` 的衍生作品段落（`zai-org/ZCode` 链接、Apache-2.0 说明、"版权与署名声明原样保留"），它是仓库级 §4(b) 修改声明的法律机制本体。2026-10-09 修正过段落内的追溯措辞：仓库历史自单次上游快照导入起算，与上游的差异改为「对照上游仓库 diff 追溯」，链接与 Apache-2.0 说明未动；README 中被 P2 改名扫描误伤的上游链接（`zai-org/Mode`、"forked from Mode"）同步改回 `zai-org/ZCode`。
 - `THIRD-PARTY-NOTICES.md` 与 `third-party/**` 的全部第三方原文与哈希台账。
 - `packages/ui/src/components/ai-elements/*` 头部 Vercel 版权与上游修改标注。
-- `.github/workflows/upstream-audit.yml` 里的真实远端仓库名 `ZCodium-project/ZCodium`（功能依赖，非品牌）。
+- `.github/workflows/upstream-audit.yml` 里的真实远端仓库名 `zai-org/ZCode`（功能依赖，非品牌）。
 - `.zcode-plugin` / `.claude-plugin` / `.codex-plugin` 的**读取兼容**（旧路径仍可被发现）。
 
 ## 验收

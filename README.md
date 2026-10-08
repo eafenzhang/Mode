@@ -2,7 +2,7 @@
 
 <div align="center">
   <img src="packages/desktop/build/icons/512x512.png" alt="Mode" width="96" height="96" />
-  <p><strong>An AI coding workspace for desktop, browser and terminal — forked from Mode, maintained independently.</strong></p>
+  <p><strong>An AI coding workspace for desktop, browser and terminal — forked from ZCode, maintained independently.</strong></p>
 </div>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-Mode keeps the product itself — an agent that plans, edits, runs and verifies code with you — and rebuilds it from the public source with monitoring and telemetry removed and the vendor platform retired. It continues the Mode audit fork of [zai-org/Mode](https://github.com/zai-org/Mode); the lineage is recorded in [NOTICE.md](NOTICE.md) and the git history.
+Mode keeps the product itself — an agent that plans, edits, runs and verifies code with you — and rebuilds it from the public source with monitoring and telemetry removed and the vendor platform retired. It is an independent audit fork of [zai-org/ZCode](https://github.com/zai-org/ZCode); the lineage is recorded in [NOTICE.md](NOTICE.md), and changes against the upstream baseline are traced by diffing this repository against that repo.
 
 ## What this fork is about
 
@@ -96,7 +96,7 @@ Pushing to `main` builds and publishes a new version automatically: `.github/wor
 
 ## License and provenance
 
-First-party code in this repository is MIT licensed ([LICENSE](LICENSE)); the upstream Mode source it forks is Apache-2.0 ([LICENSE-APACHE](LICENSE-APACHE)). Third-party components and their licenses are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); what the app may do on your machine — file access, commands, hooks, browser automation, background tasks — is described in [NOTICE.md](NOTICE.md) (also available as [NOTICE.zh-CN.md](NOTICE.zh-CN.md)).
+First-party code in this repository is MIT licensed ([LICENSE](LICENSE)); the upstream ZCode source it forks is Apache-2.0 ([LICENSE-APACHE](LICENSE-APACHE)). Third-party components and their licenses are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); what the app may do on your machine — file access, commands, hooks, browser automation, background tasks — is described in [NOTICE.md](NOTICE.md) (also available as [NOTICE.zh-CN.md](NOTICE.zh-CN.md)).
 
 The telemetry removals that started this fork are documented, with their limits, in the [desktop](packages/desktop/specs/telemetry-removal-report.md), [CLI](apps/mode-cli/specs/telemetry-removal-report.md) and [UI](packages/ui/specs/telemetry-removal-report.md) reports.
 

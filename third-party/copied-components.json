@@ -308,5 +308,30 @@
       ".agents/skills/xlsx/scripts/office/helpers/simplify_redlines.py",
       ".agents/skills/xlsx/scripts/office/validators/redlining.py"
     ]
+  },
+  {
+    "id": "Vazirmatn font",
+    "source": "https://github.com/rastikerdar/vazirmatn/blob/master/OFL.txt",
+    "file": "third-party/upstream/17e355067c8284f47743a1ee3b1ef7ff684ff0601eda357f9353b10b3016ab31.txt",
+    "sha256": "17e355067c8284f47743a1ee3b1ef7ff684ff0601eda357f9353b10b3016ab31",
+    "importRevision": null,
+    "provenance": "The woff2 files and the OFL.txt beside them under packages/ui/src/fonts arrive with the upstream ZCode repository for RTL/Arabic-script UI text; the original import revision is not recorded. OFL.txt names the Vazirmatn Project Authors (https://github.com/rastikerdar/vazirmatn) as the copyright holders.",
+    "roots": [
+      "packages/ui/src/fonts"
+    ],
+    "scope": "RTL UI typeface files (Regular/Medium/Bold) and the SIL Open Font License 1.1 text shipped next to them; first-party CSS only references the font-family.",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "Official plugin marketplace icons",
+    "source": "Icon URLs of marketplace.json entries in the local official plugin marketplace caches (mode-plugins-official / claude-plugins-official), downloaded by scripts/fetch-plugin-icons-by-name.mjs; no per-icon license reference is recorded",
+    "importRevision": null,
+    "provenance": "PNG copies of third-party plugin brand icons downloaded from the catalog icon URLs; per-icon origin and redistribution terms are not pinned in this repository.",
+    "roots": [
+      "packages/ui/src/assets/plugin-icons/mode-plugins-official"
+    ],
+    "scope": "Bundled plugin catalog icons that packages/ui/src/settings/modeOfficialPluginIcons.generated.ts maps to third-party plugins by name for offline display (matched across marketplaces).",
+    "license": "not established",
+    "reviewRequired": "278 third-party plugin brand icons are redistributed without a recorded per-icon license; verify each icon's terms or switch to on-demand fetch / generic icons before commercial distribution."
   }
 ]

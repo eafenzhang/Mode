@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets and native tools; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "7fa3cbce8f8fa50d0a8c4084755126071e2dfcd1eb08e92062da64cc10a6c7eb",
+  "noticesSha256": "61903337cfe7ce4028534989ff802e88a933ee1c65bb8e65fd7d66ae576c84ee",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "dd710caa186742b6aebaccca4ce9d28bdc7a0e04a20c20891daad9d6703a5878",
     ".agents/skills/agent-browser/references/commands.md": "a7efdc0e2b22dab2a52adaead8ac80043e6b400cc5154bdc5c81f43542b9e49d",
@@ -1572,7 +1572,7 @@
     "packages/desktop/src/renderer/public/material-icons/zig.svg": "37be0ce02cf471b18d86150b3c38e80caa7c16c49a15078e7db6f1f41788d101",
     "packages/desktop/src/renderer/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
     "packages/formal-proof/package.json": "caf173192785f020f30f6325abfe590d99c5db4198b6a47250bd26d8ea29dcc3",
-    "packages/mode-cua/package.json": "1ef1efc7455da65cc707e02bd288a2171bb7f75f4b955b18be254749837a4202",
+    "packages/mode-cua/package.json": "be3c0a33639ac012a9fcccdff53bb647cdc2ca2e776fb61497c106f7207dcd1a",
     "packages/mode-server-cli/package.json": "0fa6f769a9482f6d0c86bf8bbfeb98d8cec2936e5842da992135617fbf5d5197",
     "packages/model-option-map/package.json": "be3ae92e97de7fdfab617780a34e38f9812486e33cae1771eabe1923c7485a27",
     "packages/provider-node/package.json": "4323d40ff77f97f006b066079fb914c13922e112aaa1c4831bc6225a16f26f89",
@@ -1600,9 +1600,287 @@
     "packages/rpc/src/serialization.ts": "3b85533bafdc7508f8a79d104f1b7b6682714394b8b2458d6f4f53663c3de2b5",
     "packages/server/package.json": "c828ba3ec7ef56f9cf4284d108396e1d10e590ec038fe97d5c1718cf2e7299bc",
     "packages/services/package.json": "d87838f77ccb04e695b7d468e14e4ed3786297dbd01c9f0e4a9181c724918600",
-    "packages/shared/package.json": "e0d2741c2143ae4d6f3a902c5f82d900bf608c87a7f22527b3e743b00045cff9",
+    "packages/shared/package.json": "b0d90d8bb3770cf4f4af3372a044d82b57bc7d913c2388510df50aea97ef796c",
     "packages/shared/src/mode-protocol-v4/wire-codec.ts": "e41d82d19646b5da0cf1e4135a88df2a0d24f578d94e6e84f48ce076e39b4cae",
     "packages/ui/package.json": "058657b6b19b656c9d028535716534d96591738952a221b5235abb6799ceda9a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/42crunch-api-security-testing.png": "b333be8d6ecaafc447835dedc68171cce9c84e72d296c42d4e6093c9bdf6ae81",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/accounting-and-reporting.png": "b0d10848ea7eb5439c49a2a25f82438a3205c5a4194a8c82f5585262facf8c0a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/adobe-for-creativity.png": "88adb0e8cb80582571f111be7dc5873dcc524a5c663ff7b4236d2f460aa92e87",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/agent-sdk-dev.png": "a7d051ab030d4e10c3d819341cf0d3589fd15a7335e8ff865f25b0840752c620",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/agentforce-adlc.png": "6cd81776d4be1f24326c00460b87c8f66243ee5121e176c02105e99e71521c24",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/ai-plugins.png": "8d5f1dcd96755bfb5fe66b85f70c1c3e7733e07500ef58e2bbbf53bb57d944de",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aikido.png": "2034d454b8813ea37fb940409b91b2f36462964e46b4c70d1c7698b52cfe5db9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/airtable.png": "c30e135726e1341e113b502505a1c46c9f1c949c858e4fc3cb812c4d7267c92c",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/airwallex-agentos.png": "502eebcee962963ed7b47d6e59c5471df7a1cbd96a5b1d729f4b3e2e854397c9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/alibaba-cloud-cli.png": "fc9a6847c2b89234c17ce2ed96726ed0e44cb907d4113d3854cc740174b4fa4d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/alloydb-omni.png": "155401d52fdbff72a47c397a6211793eb7d3d1a34fe9e8e117e7af39ce57bb4d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/alloydb.png": "155401d52fdbff72a47c397a6211793eb7d3d1a34fe9e8e117e7af39ce57bb4d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/amazon-location-service.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/amd-skills.png": "d0929908a1977a137bd18a80ce4bd98d3a214215307609f6efb1843827333b61",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/amplitude.png": "81cbaece30bf36002b880c8b2e8459124828cbdd496e5b205f127545a1f3ddbe",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/android-emulator.png": "e845d5becd367e7086279d91820811b305859a1e9a7037353b8b2bb252e9db98",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/apollo-skills.png": "053820d2a66f1a300a0ba1cfd4139c3d27a8a6e1c30eb53e060cd92727f757e2",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/apollo.png": "718fd066da4cce746bf87f767b1ebc6d10997f90ecd1e1bf4f1eea902d4de20a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/appwrite.png": "3a4fa778a50a49bc8271125cfcf625675e8c6a31e23845ffab0c7062046559a9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/asana.png": "da6b63533357f0decf674d884b3fd130b46d0ccc06ee07b206591a9ee0358573",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/assess-credit.png": "e5b1d268278428f688ecb83574d4f6ae7a8d615663216282827227072a0b8486",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/astronomer-data-agents.png": "63db82e97889b1de4e13daf566af545e9eda414ce6283bb14416452413f3fa0e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/atlan.png": "0a268df31416e4ecaedc7b68d84c15ab14895f0c70331508a15d25f3d9633b41",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/atlassian.png": "c796e149d5d287ea3b97dfb4f21f358e83a5cce3e818d476e25ee2713225fce1",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/atomic-agents.png": "0acbdc6c786b0b6b5d46ac70e1dea886db1712ac40f1c06e0d58b7035b1ca2bf",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/auth0.png": "5f227f5915775c75d74f78abb3ff6fae5d790df924e8ce5f2ebc79a35e05482f",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-agents-for-devsecops.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-agents.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-amplify.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-core.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-data-analytics.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-dev-toolkit.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-serverless.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-startup-advisor.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-transform.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/azure-cosmos-db-assistant.png": "11182e3336af211b7e4024e41ba001c6ba92d35d8f6d9925cc472aa3e1a063a4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/azure.png": "66e8ada55d2a58798e65a249d2198e1e9f84c0bb8c703279edd92d8c69f637cb",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/base44.png": "58abefc4054c6f6c784620f427ec4b560e9e165c08a8a4ec88118fc8f629d17d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/bigdata-com.png": "265aadfcd7f0ac7d2edc9a9355a4ffcbe021cb06a77a38936221a4dfa54f90b0",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/bigquery-data-analytics.png": "da9ed3506a38011e5977c8cff49fc8ce0032b722ca3f1fa60c0a91f89a8135a6",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/boltz.png": "740ca93a156ccdfe1f1133aad34a5c9b0f1f1c693589569ba667e0ea2d92bebd",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/box.png": "2393f4179e4b8cd8a376a8ee81cd226a20309336fa02be8f979a8a28b592cab4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/brightdata-plugin.png": "1facdbcd2ea2c8521aff458676504bc79d7e598f159d736d61abc9abf6705c42",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/browser-use.png": "e7b4bc0e91d2d7ef65d85f2e9a68d815ec255e00d553b7480fda14833a475dab",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/build-with-wordpress.png": "9877cab9ef78966300778b4a064c55fa893f695be82af5266eb292c493fece42",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/buildkite.png": "8ab23ba6061434c3803e07f268a00cdae24c2beff89c3781ba6de7ca0a7acb6a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/canva.png": "abd013cd3deeded6f0b0a8e8cc28086d9febe97fb5214f7fc0065532064bd4ac",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/carta-cap-table.png": "1cf52c5a67914cbce4bb524778a07512f293e66d41071da5a9b2c18d64d8c467",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/carta-crm.png": "1cf52c5a67914cbce4bb524778a07512f293e66d41071da5a9b2c18d64d8c467",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/carta-investors.png": "1cf52c5a67914cbce4bb524778a07512f293e66d41071da5a9b2c18d64d8c467",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cds-mcp.png": "4ff74c7279da3a0b1e2ffdd7e600169b43d0c31d2a1b5b858acf1e7db4ffc6b4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/chrome-devtools-mcp.png": "dfa7112ae98b066daaf54b245c4505cb5d151e450b1f18848d95a3e14cbd0b32",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/circle-skills.png": "d9bd2cc42d2311f8925b41c8fa6ed0d588ddcf5a5636f97f326d93e7008eb415",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/circleback.png": "84f25ac3163993c476ec7658e36c0c92c944101e5785a22837d01dd6f2436d37",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/clangd-lsp.png": "4890b5d8fb28a5d5a3b7a6f2c353d309637492f510fdf677f67f429b6ab1e6b4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/claude-code-setup.png": "454f9dd625e50113ab2e0a578f55264ae9d63999eba588ea1c5c29ad576b718d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/claude-md-management.png": "454f9dd625e50113ab2e0a578f55264ae9d63999eba588ea1c5c29ad576b718d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/clickhouse-best-practices.png": "03d2b7634f3e259137241402fa2c1a9d577993021bb7600d095646195195eb17",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/clickhouse.png": "83f8631ca93b5f6d6b96a53e62fbcfead3c038dc4df9d46998b607015fbe15c5",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloud-sql-mysql.png": "a408415c98a50a3bc925f5af1111435d22bf4bc7800d24ad1dc8bd2f354c5eb2",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloud-sql-postgresql.png": "a408415c98a50a3bc925f5af1111435d22bf4bc7800d24ad1dc8bd2f354c5eb2",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloud-sql-sqlserver.png": "a408415c98a50a3bc925f5af1111435d22bf4bc7800d24ad1dc8bd2f354c5eb2",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloudbase-skills.png": "1e113edb853424fb0996b4555b233820df21c6e6b36d99ee17fa8277f0073ba4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloudflare.png": "986151757e8ec7d93e8cff736c1816e3af957071530accc1eabb445542839523",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloudinary.png": "77aab93731aeab4b67cb2e71118315b729f7122563d97e9b01d9bdadc23778cf",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cockroachdb.png": "73cc14283df481e415cd1480e5ba03d1946865e62e677ee393fb2cc124bfc2f8",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/code-modernization.png": "58178fa7550611d61da1e9c56788fcdf73f22321eeb98ebda50aba377c1233f7",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/code-review.png": "58178fa7550611d61da1e9c56788fcdf73f22321eeb98ebda50aba377c1233f7",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/code-simplifier.png": "58178fa7550611d61da1e9c56788fcdf73f22321eeb98ebda50aba377c1233f7",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/coderabbit.png": "24ba9dc497c5e45771b2c891ba8e83fd279e9711075c2bd0677732fd06800533",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/codspeed.png": "e603deaac515b38003a44547c84fc4b87d2a67b0f3d320958334a47f45922995",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/commit-commands.png": "486862c27eb4f98b60f02896154aeb0b246fba8272e3a58d2c299edb33452f6a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/computer-use.png": "6b01f5979a8fd66d7c4e2873812811b62bcd4d40a7224d5ce59f63b9980639b9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/confidence.png": "b662cebe1d96120f15ffb4eed3b6f1dd0a2dbe861b9bbf8933760fd291a7fee9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/context7.png": "c83c4a5cfaa3d9251a8ded19aadb8f9d77aca4df1256336628ecc462a579c869",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/convex.png": "89b0a22e3cdf5782973b32fd4c4df2ee85b76b5f235789454c5fc8e7ce13af89",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/crowdstrike-falcon-foundry.png": "a73833235a255bec3d745b239b869a83a18674518d757a5908e177db388502d0",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/csharp-lsp.png": "4393b3f5e8ece27e6ffdfbe0a02722b55d2d8855c93244ecc8ea860dd9a0b8ec",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/cwc-makers.png": "ba849f64a433f4558638d8f6aeaf4db94884b26be0c58e477ad0a171c512437b",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/dash0.png": "9101e4514a65ec073380f40ba0a7936801aa8699c0a8f5568a1ef08b0054a322",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/data-agent-kit-starter-pack.png": "854ee821410eba5e4f9605d0b9b194e972953abd9f042d29c4e3ac0de0d04d37",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/data-engineering.png": "63db82e97889b1de4e13daf566af545e9eda414ce6283bb14416452413f3fa0e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/data.png": "63db82e97889b1de4e13daf566af545e9eda414ce6283bb14416452413f3fa0e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/databases-on-aws.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/databricks.png": "f173165514826f4edd12dd1914c5e0a02562f7697b680f911cb49f330286e060",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/datadog.png": "ced2cb13eefecd56c21ba4bd1666cab8afe66b75e98a9adf1bf1053eedd1bef2",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/datahub-skills.png": "2afb7d9e6c6d9539be77dee9c3f55bf6a1cffc5f7b3aa781306ca5fa0f6b1145",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/dataproc.png": "854ee821410eba5e4f9605d0b9b194e972953abd9f042d29c4e3ac0de0d04d37",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/datarobot-agent-skills.png": "6ed75d409a69eaf48dfe3d5ab79779432b715544e26c93ed07807350cd9ee1b5",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/dataverse.png": "20930f66b68e50799e0e37b075582d6575838d430ce4da8897c9068efec8d0b3",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/deepeval.png": "c3af8029b2ee05145020fa604dae6c878072f8de136310a232178ee582868048",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/deploy-on-aws.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/desktop-commander.png": "f28ea8647ea60e9a63d76eb4bd87e4f31b9e6a847a91f75ffeabfceaea9addbb",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/dingtalk-cli.png": "4814b60a4fafd44a78f8c63c0b12f9a6b7b014746eeef709bafb74113f6a79c7",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/discord.png": "faa964911d77c1180bfac5010e0a412e80bd980b79918fe4ba0d550226f4526d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/documents.png": "81340afb8f24ce0fd55360daa62b67da962718c35047fc0925f8769b651241c4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/dominodatalab.png": "ef7eeab940ca539245cab690f1c5ed164dc9d54e5f34650c53861cc134c940b6",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/dropbox.png": "9768d81122605f7f4d391b77a9cbb0814d8c05661c7e5b6dc92fb6431c1122e8",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/duckdb-skills.png": "c792001cac9f76a3de239c86a1249182664f2e8672c7f09efbb31c3f4faa0445",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/duende-skills.png": "b6b809c9cc5faa1783745678706097db43c08f5e8c675c01d987c95f2e595b79",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/exa.png": "67b5456a1f562a2d535dd2e96f0a23cbe1896dca2d83e48fded9deaef4459094",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/expo.png": "cc4061f53ed764cdf49cbf4767ab9f7e9f9a32e073e888c63ffd7a58c2a68ed8",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/fastly-agent-toolkit.png": "19ea2e406350bfd1ce70b7b26a6b4b04237852ab6e474e537cf87ee4358fd84c",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/feature-dev.png": "ab91b33c2c70bc594d08a2e36b3b4a19a1136064a90ec8b9866d0ea2003e9849",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/fiftyone.png": "85072c151730fb38a54726c9040bc6b70f46647342596adc44f3ee0e8c9ab19d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/figma.png": "350ab5e93b1e180db60c4ad73b8d024490e93c122495ce63d755d05a5352df94",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/finance-search.png": "932a66dfe263f7a6f6e91b7f2da3be97fb6698130297ad3558016d1d1f9d83e5",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/find-clients.png": "4ce55efd2852afb2a661f16e29d592088dcdac43699a5b23b6284da6098c1782",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/firebase.png": "eceeffe1dd3bf6deec0485ba31c372189f36fb20de008b754e2968d198937544",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/firecrawl.png": "8ccbf00baafc50634b33e16c133a9432b27540790f21a757b17e3e79e63d6abb",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/firestore-native.png": "854ee821410eba5e4f9605d0b9b194e972953abd9f042d29c4e3ac0de0d04d37",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/forge-skills.png": "c796e149d5d287ea3b97dfb4f21f358e83a5cce3e818d476e25ee2713225fce1",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/fullstory.png": "35f5433192926864e821d813289740b673486ddf04ef4bd352013249fe49629a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/github.png": "8be4ab7e0547ece64a5cc929238bd48a842baa0facdf81c340fda9c20fb1cd84",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/gitlab.png": "0c521f9cc881b7837c081bb1a1986b904edf96f3c63b2025487e8a2e10769ff5",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/gopls-lsp.png": "c70e1914edff4c9d8a852e53437a12bc81124bb17a894017fd2f035546f08850",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/grafana-assistant.png": "567b24d0e9556b00d2c5220e10a7d4f286ee97a0fefce4297cb614b2c3915bb4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/grafana-cloud-mcp.png": "567b24d0e9556b00d2c5220e10a7d4f286ee97a0fefce4297cb614b2c3915bb4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/grafana-mcp.png": "567b24d0e9556b00d2c5220e10a7d4f286ee97a0fefce4297cb614b2c3915bb4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/greptile.png": "8dc8ddb8de6c4a4ef575bfe6dbca6f4cc693e88c7d4e1777c857e96b76938dde",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/hexin.png": "a7fe3718f9e0212a54adcba5e95463742b655c2dc35d188db32f9ec3d67345ec",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/honeycomb.png": "4e871e80b6ca9997fb0a48eb104d6497c65d62f98a8acab55ef40840abe19993",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/hostinger.png": "96821e3d9651a6f16f0b3a56339f80102dd9c49fb517f3f87652ea3f861af798",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/huggingface-skills.png": "5b8c14523d4f8d6dcd15d1f776c17502d795e5cb00b6de9411cb2e5bc5c73725",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/hunter.png": "8ad53984890f016c73f9934022a97c8ce99c51e045246e4f1567f5f6edb3c11c",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/hyperframes.png": "7225474fb23e93b9e3b5fee01548b1b0cccdbdd1eafa7c92fb42dae3f6206550",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/idmp-plugin.png": "6da7a983d5a47cac428c6738d0e338aa39f9a3fe058a13623d56d68d15621e7c",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/imessage.png": "73c5871ae404598c6d5b13b75dce89075d37d427a84e64fb7072e1861aabfe38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/intercom.png": "f9cfaf6b47e69967e939d7c4bcc8a0bd0d121ddd33efb83cc5502b328aed1fe9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/ios-simulator.png": "d26f9cedfba62b6d4d92ce2ac9ec623aabdc15dda6346de29c3b94298b2e1bf7",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/jdtls-lsp.png": "169dee795cfdafb9ffc30a0adec86fc4e906c1d6cc18c93396b8114be67835a2",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/jfrog.png": "e6e74bc1413c0c039dc5376695a027c0448c43685f6784bc86e04ffccb97a7ea",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/knowledge-catalog.png": "854ee821410eba5e4f9605d0b9b194e972953abd9f042d29c4e3ac0de0d04d37",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/kotlin-lsp.png": "2daf5fc6ed231d2368f6706218dfbf5414b52f73034d4cb282edcb873ad32277",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/langfuse-observability.png": "6ff779b52dbac7d9a1481e40ce1afe92aff86a6f373d8b5d27fb68e21b9f42cd",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/langfuse.png": "6ff779b52dbac7d9a1481e40ce1afe92aff86a6f373d8b5d27fb68e21b9f42cd",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/laravel-boost.png": "49da55b20100b31f88d598533451f20957290f4cd60ceb800c9737a6d3f1c0a4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/lark-cli.png": "7da4f19fdcff51f02f70b1916633d19131647339065ba30359ec8dc15dc952c6",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/learn-with-coursera.png": "d9a66f9e8d00f577a980c66a585ed13c84b9d426946523abc3d86a01e3a594af",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/legalzoom.png": "360a8cd4b9b7733633d5b923069cc291727a7ebfc538800cc9993401ed10ece9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/linear.png": "4bf7f78a94492322ef393daad1e4b976ae7c6c54ff5222c0f4db4eb644a981b3",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/liquid-lsp.png": "e0632c0549327b1da3e5f901e674b7aabb00c05c612d7bb65d49fd0bc0bc704e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/liquid-skills.png": "e0632c0549327b1da3e5f901e674b7aabb00c05c612d7bb65d49fd0bc0bc704e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/logfire.png": "9e3c61209a6bb9110f7819229b21e86ba8a58660b4aafaf200acc264c517621d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/logrocket.png": "b192c04a158eb6ad9921acdc3e79abfe384bb60b03b3b0223209e2aedffa6d38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/looker.png": "b6b467f86d086c12c8796660a41e6299ee8b461d3374ee58ac4d78f939daed91",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/lovable.png": "a00719560d6e2bb23cfd6d8351aca78fcca16e9f0cd3c9502c6aa6e4b4394fa5",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/lua-lsp.png": "8837172a9c9e77b89905d909ff37c08bb7311c5d975ed99804dea7f6bec8ddfd",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/lumen.png": "c35f679ad8dc2d53ed2640ceff3ecc197d7829db64e14c334be2f1638a01f539",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/lusha.png": "f3d7db88c0141e36b55474f2dfe6ef617900e37057a03220008b534897a136f6",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mapbox.png": "9659559e2cd919afa48258eac30cae7c1761cbb91ff0b0fa4bcb7238903c4a56",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mcp-apps.png": "735a96f778cee99835beb77f3decd28c80083068402ec60cd674588f5d494cad",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mcp-server-dev.png": "b1b6339359cf4268670fa87713bd5ee88edf4e1ac61321fd44e4678e4c34d672",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mcp-tunnels.png": "b1b6339359cf4268670fa87713bd5ee88edf4e1ac61321fd44e4678e4c34d672",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mercadopago.png": "d1285234dd31c9688ed09188caf4b4e91523ff8eb8bf7515b4cd8878c590a398",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mergify.png": "81c922911480a0473f89c8149e441603b6b9ee46f43a48bf2e241a71b9997411",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/microsoft-docs.png": "6845a1cc987c7e3e2487626a2856301f0cc110e9c7059ce12e57851177f75b04",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/migration-to-aws.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mimosa.png": "bf87bafe18c9cb3f92e13b0ab0304a539734141db82306932dbd7ddc0fbbdbda",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mintlify.png": "16c0e00615171fe74a3c86d5e8b0d688298148d21723034c06132ca513ecdfe9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/miro.png": "78afce3f687e40ae48b4d0369dc2b7513ffa235835b2ad79efade3ca56bec4e6",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mode-guide.png": "8bb2860fc3a801de3acb0f7a9d5c4fe6477578372fcdc9282728981210ed5746",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/model-deals.png": "af3ce3f0c706c5a89c93380d52d7083745671459a12f1636922bbb5356f237ee",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/monday-crm.png": "145bf49a3c0de899fa6c512223c192a50f620a899338bf92048ff5d1141d0425",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/mongodb.png": "0155e37d2c8937c3edeeaf209d28a47d24194c8f9801f1e6991a15ecfa70b929",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/neon.png": "c9969b9008dd06616357f2b0e04442da50c7c01211fc77b93b6ce6328c5c56bb",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/netlify-skills.png": "d9b29b0743e317c3ec43f3d2ae5d1dc7e8eeed2f49d32985a7e25a4e6dbac3ce",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/netsuite-suitecloud.png": "e1cf851966a2b222f82c8064e2046ecb12054767d90b1981bcbc9efb54a1bb94",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/newrelic.png": "1f6af762ff8c36e0ef9e5feb119c7d34b49e59ad5a7293832230df26e80451af",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/nightvision.png": "dc7e616879e4fa5a0e49f3cc571c20534e7dc79f081a4d34e64ea833baed0cfa",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/nimble.png": "9fc58a40dc38f0d2fc2e65735a8d0a9f010d73c9dd5360f74c566b7214b43c7a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/notion.png": "203bca8ee2f183745ba48ae196c2d6ad211697679117e2a063113c4a263aa639",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/nvidia-skills.png": "edbf209bfce1bd3513d9d2694ff4834938a6de4b0e19caf4d371ccb1b75b027d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/obsidian.png": "a5f0d394b854989e36322e0d9b6144f541dc3bd2b7506ed19d0dd7ce6bfd1231",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/oracle-ai-data-platform-workbench-databricks-migrator.png": "f371b77a203a5b63b0847c7c6b6042a5813a0c5a06fc6b85ae159297f463f00f",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/oracle-ai-data-platform-workbench-engineer-agent.png": "f371b77a203a5b63b0847c7c6b6042a5813a0c5a06fc6b85ae159297f463f00f",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/oracle-ai-data-platform-workbench-spark-connectors.png": "f371b77a203a5b63b0847c7c6b6042a5813a0c5a06fc6b85ae159297f463f00f",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/oracledb.png": "854ee821410eba5e4f9605d0b9b194e972953abd9f042d29c4e3ac0de0d04d37",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/outputai.png": "3adca39d24e486d3558d9b9621b76081d0a213451dc72be8acc198b57b88d664",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pagerduty.png": "e7dbcb3b579086b6069aba75633d226f16c4db3ff0ce235e13242f816350e3d0",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pdf.png": "81340afb8f24ce0fd55360daa62b67da962718c35047fc0925f8769b651241c4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/php-lsp.png": "47633ccc8052c95c4d0a7b603227b2fe3c0c8a8a9258aaf6d9d64f74c153d0d2",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pick-funds.png": "cf1de37bdd8db13a831b9dae1ac79a4657310dbf2158867b98bd1a3c7718b2bf",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pigment.png": "46852a61584555ac68d8ffeca1f87c69d8c517fa9d12fac324840cf739bab613",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pinecone.png": "2c2b0a32d12c1b92e6c3fa64779768c4cc42d818297e72609b34ab15d5f1d2d4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pixeltable.png": "7bcd7b82977e4116e77c56c5545a2dfdf8b8c9b16dcf906a98dc9abf27c53915",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/planetscale.png": "9be8dbc11856d1899a8dc998e3cb73b901e464c6075066680eb56d18cf2826be",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/playwright.png": "20930f66b68e50799e0e37b075582d6575838d430ce4da8897c9068efec8d0b3",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/posthog.png": "fa6f55a770f677dbc669f0b98c1426bdf3406ec25f978cc87b2d137272dbedcd",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/postiz.png": "ed9cef353e2c2252623adf05fd9074f58d763cd87d8ca9a597daffca3b6c8288",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/postman.png": "96e49465614562847516f0d1b095b277d3ec6fe2d0800d68aa6c3aec087eed38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pr-review-toolkit.png": "486862c27eb4f98b60f02896154aeb0b246fba8272e3a58d2c299edb33452f6a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/presentations.png": "81340afb8f24ce0fd55360daa62b67da962718c35047fc0925f8769b651241c4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/preset-cli-skills.png": "73b5aef39043991ae520b28fbe14b18e5887f39353020e71ad561e5ab1045f2a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/prisma.png": "adcfe64ae78395d6fd128d007f0d0d6a42c2b84d5c59216defe4b1038852f4a0",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pydantic-ai.png": "9e3c61209a6bb9110f7819229b21e86ba8a58660b4aafaf200acc264c517621d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/pyright-lsp.png": "20930f66b68e50799e0e37b075582d6575838d430ce4da8897c9068efec8d0b3",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/qdrant-skills.png": "468f0fff3eb27427fb8793439e1d6e42d840c050ac4f526002d455631ce41749",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/qt-development-skills.png": "48f2fce03bd19d72bf035e294c0a08fb32dc669648d9359b27e77a4c776f1a47",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/quarkus-agent.png": "ffa8e2bd10446790cd1808d05544ac6aef82e29bb9b8ad0328094eed881b04b1",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/railway.png": "d31fa2f769c1de9a6641291a0066806549cb1add017ea7c5a65cf48aa8f94161",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/rc.png": "8f762b4bb9f2b0928a7aa8334c6c0a325b550975c2b301057615e9fc0a01495d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/read-macro.png": "779bc1c2a782fd25f5412e94819416d59fe3321ddd783f28381ca8fef176cd95",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/redis-development.png": "08210d458c4e9aff1c68826ade795311b57431fc5daa884dce9cd5cd29703db3",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/remember.png": "81fae63ce61407b7b8228476d6addd9ed90f412aec697708ab73f2e2bd0540c5",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/render.png": "d91bf32821ce6886c6bdf3fd2f5f2fb5760a4be01f33eccb344b3414316a2ef1",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/resend.png": "2edbbaccd1c56fd653b172eb6f9b7e8fa4763497319c9928409c306ed9cfa9ca",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/restore-legacy-sessions.png": "1029afc691778a5e15f989930939902320f5d42788061d2845d7bfe71b2aa515",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/revenuecat.png": "8f762b4bb9f2b0928a7aa8334c6c0a325b550975c2b301057615e9fc0a01495d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/rill.png": "c468e83a8a5a3e24fba5f32944338feb09d4f522e8c23b769d22678b95dbc4cf",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/rootly.png": "04468d23bae0dbe198a663ab855d192f52a6ee0fbfa628b9114f06ec377bf6fc",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/ruby-lsp.png": "ee0354bd25c42b241f2b2d1517ccdd7ee3664ad736483776f848d49d12e0673b",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/run-fpa.png": "d64219b6f50a0382350515e5bacbb86f40acb10e369d36e66d653c1b1cb14504",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/runway-api.png": "9f6ca556d82f18abdd42060ed1d0944c304cc58936c557a89a904625688c37d6",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/rust-analyzer-lsp.png": "1c654d517e54a6eaed65dacafb26bf7a22755e7a51e40ceea4f373e4d5d558d5",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sagemaker-ai.png": "d287b21da2b0ea9917f227067e6693a80687c2acff02ee12a048910319685b38",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sanity.png": "2cd159efd6980b3c290fe5dfcf78e63e1f2c1a4d7fffedea97b028337df4d848",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sap-cds-mcp.png": "4ff74c7279da3a0b1e2ffdd7e600169b43d0c31d2a1b5b858acf1e7db4ffc6b4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sap-fiori-mcp-server.png": "4d98183a934149f0dba2e09c7235454649e1a4fbd52074c6346a201595ea545e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sap-hana-cli.png": "4d98183a934149f0dba2e09c7235454649e1a4fbd52074c6346a201595ea545e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sap-mdk-server.png": "7f7046144a0dfbae8aaf02dfc3dcbb80625fac53e81f5e9aae0e18aafbb1e554",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/save-to-spotify.png": "fcf25785bcfb0187f79c802b78aca0d4e86c5f6a3b77561ffed6d8dc429ec029",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/semgrep.png": "33cb6ef2089657847dd27ff2389397041059291beff78925aa7cf2b97775a946",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sentry-cli.png": "56137e3594ba1f8d125ad0a235e72414f3e70f41838b433d3c753c558da6d921",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sentry.png": "56137e3594ba1f8d125ad0a235e72414f3e70f41838b433d3c753c558da6d921",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/serena.png": "50d4e644c2f70b5d1e65cde19853b3768b9219bece4d8b49851d02e263d8a014",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/servicenow-sdk.png": "db75235e5d3734895bc2ae4ca919877009c56d0d5b3a0feb7a498da34a95730d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/shopify-ai-toolkit.png": "e0632c0549327b1da3e5f901e674b7aabb00c05c612d7bb65d49fd0bc0bc704e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/skill-creator.png": "ededffa38ca0080e759d2daa79c8d6109b2299b39a2447c04ca247ae8aabe883",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/slack.png": "a8038600ebbe26de9c4064947165ee0515598bd6d28bc44bfa79f411ab4e6e7e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/snowflake-cortex-code.png": "be7aa26ed2476e7c5b0e2136a825fb1d66cebae85ff979bdf1e94ad8963f09c2",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sonarqube.png": "9af7d5683c07f2cf610f093e7e99de906ff0ebc71011e5d5086e854248d4e4de",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sonatype-guide.png": "883c81f2d5e419f997ee5582c3af1bbb8a4137ee359b830c968f33523af29ed3",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sourcegraph.png": "62ddbf8944cd8359298c90a74cfe9c58cb28e4e55ececcec151ad5a4c6d18417",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/spanner.png": "da70a30a4dbc53dee31573949e75ea13deba9f4b72310b43962b81a31f18a111",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/spotify-ads-api.png": "fcf25785bcfb0187f79c802b78aca0d4e86c5f6a3b77561ffed6d8dc429ec029",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/spreadsheets.png": "81340afb8f24ce0fd55360daa62b67da962718c35047fc0925f8769b651241c4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/stripe.png": "b5c97527ec98fc85d9599b8287cad3fe6105cc1632fe9c940ef1ce5a097841ff",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/sumup.png": "ae3f76fb3c4df27784e237d57e3e6f8ff51fbb90ed6bad4cd4c79742edcdc60a",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/supabase.png": "e47a04a83fcb20f65df952ce294fc9c2a95a2c999efac9bfe7aaf24ddaea4868",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/superpowers.png": "5d43e09abfe021f1485c991e21fa75506a24aa4aad7f4274ee7956716d9030d6",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/swift-lsp.png": "720bb608f4d44c3ce2b7e89a128357b3e9a5bc82625c4824d3a152a3d65b18fe",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/tavily.png": "af23565730e67d24c2a3642bb13dd10227153c3b58a196958283808eda20080b",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/teamcity-cli.png": "86a62e1ab69a2a383c3244320b1e21b74234c6c28a7a1d1650915988b4ff381d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/telegram.png": "5f03a9ed9ee9ee5986db3a6db4a4860c9cd9de4737e76dc1c12a1b576f9a5907",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/tencent-meeting-cli.png": "e4b68607401191b421274f1c0096565556d2d346903f4b4e597fe87149ed163c",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/terraform.png": "2ebee82b2c50f274f30a08a052d5bc79172b34527df93542ad050849c61bc849",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/tianyancha.png": "743764c191ad0429fff82b5f00498781180784168c0a0328af330e4ac744b185",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/togetherai-skills.png": "1d9aa066c8262a5041e93cbe85dad5aee52b3b3f246982f7483d58af30708623",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/twilio-developer-kit.png": "b3654dc880261179c7fc63c849d17361a683ae95cd3e00c7310e96632e7c2cf8",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/typescript-lsp.png": "20930f66b68e50799e0e37b075582d6575838d430ce4da8897c9068efec8d0b3",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/ui5-modernization.png": "032dc20cf150ebbb3613e68dfc29cd09d2a07850f26cc969b6be0ca436f7d9d0",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/ui5-typescript-conversion.png": "032dc20cf150ebbb3613e68dfc29cd09d2a07850f26cc969b6be0ca436f7d9d0",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/ui5.png": "032dc20cf150ebbb3613e68dfc29cd09d2a07850f26cc969b6be0ca436f7d9d0",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/unreal-engine-skills-for-claude-code.png": "88e72cc16801ec2a66e360cbc92a9d542aa30878ace0304806076ea03d22140c",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/valtown.png": "0a9993df76813dcefd18242d45a4a70ae7276565fd720ee88739034fb6ad9f20",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/vanta-mcp-plugin.png": "adb6182b905ed9820d2f34e354056bd98e018f8c4c1da7f77fe486b4f2825e4e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/vanta.png": "adb6182b905ed9820d2f34e354056bd98e018f8c4c1da7f77fe486b4f2825e4e",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/vercel.png": "b98ff8cb10c147d2320c06fba7181f977521d773c553fa5cf930e0b3885273d4",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/vet-companies.png": "08cdc736e096ef3c2b6e74c93a3fedd64a672493a2635b0658530438200cd60d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/vibe-prospecting.png": "6a988b684190e8b359c9a8ffb4bf79da2e86dd97abb1dd7289c9c8a523637a04",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/video-agent-kit.png": "f2a9cac2b167bc573f663eda297e5ed64871c11fdb97a1f3d6107e9667af96df",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/video2code.png": "e0ac2ca6074fddf05250ea55257b6f60f169e2ec97935b9e949e6e3ffe77fd89",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/vsql-extension-builder.png": "7e6b703d0d523ce6299967b3e5e66a6babfb8b06934c5a17d80ece0e1acff02f",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/watch-positions.png": "802ad2280798d3d38a962baeec96f17a17ebc6c6f7113360c2d6a8476a584242",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/wecom-cli.png": "718de6f8184f65708c846552ac1f9693bdf6bb334e064dddaf292afa482af2c9",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/wind.png": "12e9de6619bafc984925f906cd58e5d9d75458a8022b00b6dfb5032d8e135064",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/windsor-ai.png": "7e7213741726a629f6907f8e1f84836ac31760d68c42b16c30c196435f05c540",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/wix.png": "1a8466966546465238d3e13e1ea2a17fb2a9e7e25086d03d4978f8d1bde4f3fa",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/workos.png": "6fff56d87dd0dffa20f24cb5ace35a64dc3f00b9ee89022e1266dad46b9c3c44",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/write-research.png": "b9fb2a4a9863eacd52fee6bb62c09b378c397b45abfc858c71651f30ea9cf406",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/youdotcom-agent-skills.png": "0c6b1269860f6a5944ebed5daa80223d1c78190c16ca0cfff9881478082a8dd1",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/zapier.png": "2b12195863ceca17dd3760942e0b6b5d14c713dcf7eec2c8fe478f4b01877b7b",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/zilliz.png": "623d5aeaba1b8d677c53d832e725e6b24326a308cd376934f553c05938d2968d",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/zoom-plugin.png": "3fef97192252b37b1f6eff6bd7747839f90e5106463ed84a198bad8afbe47aab",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/zoominfo.png": "97b064ba7ae323c4f57eff7c4e08fca7c92c370833d183cb9e22bf2e3a048ea3",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/zscaler.png": "6c566ada0d4f53c7373093ad7aa716d00284d6343a4c2e769f00d0fb4845d7e5",
+    "packages/ui/src/assets/plugin-icons/mode-plugins-official/zyte-web-data.png": "7a0cda1cd7e69238dcf12ec11c70a774f10d83720243a42e88bf32cea118a4ea",
     "packages/ui/src/components/ai-elements/agent.tsx": "1ef89070d6c642a7897582c8f59b2897cdd433c962be3e0c55a1e64ce55f70be",
     "packages/ui/src/components/ai-elements/artifact.tsx": "a29173642fe9e396387abc04e1e4ff4173204d5e15e503fe6d400fecb4a08095",
     "packages/ui/src/components/ai-elements/attachments.tsx": "0990e2b2390f99ac8ba047bede3841ca07d8a88c0c0089ccf5a1ed8f06c27388",
@@ -1694,6 +1972,10 @@
     "packages/ui/src/components/ui/toast.tsx": "0db4400f5f9ee92ca3ae80f6318e2a45bb9e4d07ad472f1cb0b37d9f53ba16a9",
     "packages/ui/src/components/ui/tooltip.tsx": "e2ac29740bffbe1484eef44e660d43d3ee117f1fb26890bd771b8caaf64d2e77",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
+    "packages/ui/src/fonts/OFL.txt": "17e355067c8284f47743a1ee3b1ef7ff684ff0601eda357f9353b10b3016ab31",
+    "packages/ui/src/fonts/Vazirmatn-Bold.woff2": "389db90ee3b9b43c86ea08a07cc262b1d0fd05424e6fd591ad3c12bd0d9b4fa7",
+    "packages/ui/src/fonts/Vazirmatn-Medium.woff2": "7e839541ecc1519057830ad6d18abc41ca29f16da371e3d832ca5ec6272d8419",
+    "packages/ui/src/fonts/Vazirmatn-Regular.woff2": "369424e212c17abb0604319c26b510e6a9a8fd7f2e1e6803b6e0e6de893ed65b",
     "packages/ui/src/lib/builtinSkillI18n.ts": "e98949cbad3babbc11b3cc790659a87ab2c348b16ea5cce9b61cde54b54134a0",
     "packages/ui/src/styles.css": "006a418c956269999235b073d9cae06850a5bfe390fed8b35c8476c9462ca961",
     "packages/web/package.json": "3b25ac26cd34cf343465d91e2ee30bf04e5df4d86785769e2cc42d5221220d31",
@@ -2850,7 +3132,7 @@
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "ac5a105e4c707848f5db4d1a82b809ee57e12037b07193758ab4b13c328682b9",
     "scripts/remote-native-search-tools-config.mjs": "472322a66f84c7452f96aa9e16e9c4e0600f7c2588a03dc6bc869229161b1cb2",
-    "third-party/copied-components.json": "5dfdc24d6a7b4e457c5bc6d67b63aced76b491901c61a10b8b28b5d2f7caebff",
+    "third-party/copied-components.json": "68aba2bc2c86d2cb6ee2484491fcb5cc69cea74bf0642c02fa811b4837f1fbd5",
     "third-party/embedded-components.json": "9586ccca15897f56d4ca1d703dffe9e02880fedd766c1dff93f7ac1f52ea891a",
     "third-party/native-search/licenses/00373c9bf56a894b2ed67586596bc1e8b0630cabbaf1ab46c75fc754b6bcd1ce.txt": "00373c9bf56a894b2ed67586596bc1e8b0630cabbaf1ab46c75fc754b6bcd1ce",
     "third-party/native-search/licenses/01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f.txt": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
@@ -2980,6 +3262,7 @@
     "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
     "third-party/upstream/1564074e13439397221ffd522e2e504d56561994a23d371aa5e3ad43e4f5423f.txt": "1564074e13439397221ffd522e2e504d56561994a23d371aa5e3ad43e4f5423f",
     "third-party/upstream/17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee.txt": "17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee",
+    "third-party/upstream/17e355067c8284f47743a1ee3b1ef7ff684ff0601eda357f9353b10b3016ab31.txt": "17e355067c8284f47743a1ee3b1ef7ff684ff0601eda357f9353b10b3016ab31",
     "third-party/upstream/1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d.txt": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d",
     "third-party/upstream/1b8910ad1a22011c632f7ff544708be6cf08818ef80e8d4b45b6808ee8b05c17.txt": "1b8910ad1a22011c632f7ff544708be6cf08818ef80e8d4b45b6808ee8b05c17",
     "third-party/upstream/23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3.txt": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
@@ -29954,6 +30237,1163 @@
           "sha256": "483cf07b175e8de51bcd3e3dcc61f02c67915269065843bd034b04597df73608"
         }
       ]
+    },
+    {
+      "id": "Vazirmatn font",
+      "source": "https://github.com/rastikerdar/vazirmatn/blob/master/OFL.txt",
+      "file": "third-party/upstream/17e355067c8284f47743a1ee3b1ef7ff684ff0601eda357f9353b10b3016ab31.txt",
+      "sha256": "17e355067c8284f47743a1ee3b1ef7ff684ff0601eda357f9353b10b3016ab31",
+      "importRevision": null,
+      "provenance": "The woff2 files and the OFL.txt beside them under packages/ui/src/fonts arrive with the upstream ZCode repository for RTL/Arabic-script UI text; the original import revision is not recorded. OFL.txt names the Vazirmatn Project Authors (https://github.com/rastikerdar/vazirmatn) as the copyright holders.",
+      "roots": [
+        "packages/ui/src/fonts"
+      ],
+      "scope": "RTL UI typeface files (Regular/Medium/Bold) and the SIL Open Font License 1.1 text shipped next to them; first-party CSS only references the font-family.",
+      "license": "OFL-1.1",
+      "files": [
+        {
+          "file": "packages/ui/src/fonts/OFL.txt",
+          "sha256": "17e355067c8284f47743a1ee3b1ef7ff684ff0601eda357f9353b10b3016ab31"
+        },
+        {
+          "file": "packages/ui/src/fonts/Vazirmatn-Bold.woff2",
+          "sha256": "836fae7d42d83faa249bc00e0099592be98a1fa260d22d82f269b6091e585627"
+        },
+        {
+          "file": "packages/ui/src/fonts/Vazirmatn-Medium.woff2",
+          "sha256": "3333e31188a2b628db8780ca22fd5aad85bc083ccee9beb8d4d52db18cb98d48"
+        },
+        {
+          "file": "packages/ui/src/fonts/Vazirmatn-Regular.woff2",
+          "sha256": "e382101336c6eb32cfb31381c027d02d2e0354bad08f6a395d4088beb3db3d91"
+        }
+      ]
+    },
+    {
+      "id": "Official plugin marketplace icons",
+      "source": "Icon URLs of marketplace.json entries in the local official plugin marketplace caches (mode-plugins-official / claude-plugins-official), downloaded by scripts/fetch-plugin-icons-by-name.mjs; no per-icon license reference is recorded",
+      "importRevision": null,
+      "provenance": "PNG copies of third-party plugin brand icons downloaded from the catalog icon URLs; per-icon origin and redistribution terms are not pinned in this repository.",
+      "roots": [
+        "packages/ui/src/assets/plugin-icons/mode-plugins-official"
+      ],
+      "scope": "Bundled plugin catalog icons that packages/ui/src/settings/modeOfficialPluginIcons.generated.ts maps to third-party plugins by name for offline display (matched across marketplaces).",
+      "license": "not established",
+      "reviewRequired": "278 third-party plugin brand icons are redistributed without a recorded per-icon license; verify each icon's terms or switch to on-demand fetch / generic icons before commercial distribution.",
+      "files": [
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/42crunch-api-security-testing.png",
+          "sha256": "1d5e062d6d35dc158e39bc77c6a849afa2703279afd5e39bc6c79106449180cd"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/accounting-and-reporting.png",
+          "sha256": "e9e3215b0f0710b51b3c847a1c5b1ba74ab1ef1e0bd696c1fb571fc7c7e73f00"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/adobe-for-creativity.png",
+          "sha256": "3b0327200d2f47b111874852b68ac30ce31b858e2d52f01c206fb8688d1cd61a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/agent-sdk-dev.png",
+          "sha256": "2a754905cddc1366c11b1e5e7f6ec782739505a4a75e124257f53c279e6db1a6"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/agentforce-adlc.png",
+          "sha256": "894bce89f578bbad5b2f7c000131d23ac5d4d3caa5fa52fef5a862635b904e7c"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/ai-plugins.png",
+          "sha256": "c09266885efa78c1ae0779582aa8a59ff09b638c300286d91bcbb942ee5e697a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aikido.png",
+          "sha256": "74a058369a7c56c742094b290c0035333efde2fa8b9f6047fd96de14843d5538"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/airtable.png",
+          "sha256": "1f22f653035618cc024c7c4bdf180a0ad16e0db96fe07dabb20bcd7256fef7e0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/airwallex-agentos.png",
+          "sha256": "63039fda32a14604a62d298a3ac48783dcba478fc2a2b09f2c18636dfd5f3225"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/alibaba-cloud-cli.png",
+          "sha256": "37c636a4890e30a7ae7c3654144757b89c7d1a31d61c1b87ef40962d39e2b33c"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/alloydb-omni.png",
+          "sha256": "df7e229e5a4bc2e5b792dc564ee98e65bf06fb5b8d0ccd12b0e6c6000275c487"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/alloydb.png",
+          "sha256": "df7e229e5a4bc2e5b792dc564ee98e65bf06fb5b8d0ccd12b0e6c6000275c487"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/amazon-location-service.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/amd-skills.png",
+          "sha256": "4c35c832609bc77c908f47150b34c4755ff8c23d19d5fd78f7a39df9978110eb"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/amplitude.png",
+          "sha256": "4ab8dff145da9ac1bb15e0cebdbd8c183cbaf9e42255236be2805dce1be01717"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/android-emulator.png",
+          "sha256": "ead629480a3a5c6d50a2133690e7917e70bb64d51ee48cd905ae498afdc75d6b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/apollo-skills.png",
+          "sha256": "fc8e9b3eb6560c0dc2bbc10a781db931ddd385e6afc7c38742172e8617fff6f4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/apollo.png",
+          "sha256": "623f08d10569205126db67e52a66365e96560273ce74906c47780df61628bb83"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/appwrite.png",
+          "sha256": "b718dfa9b92c42535d01515da4ec6e63c7e2984f2df7ffced3c4753cf0ead5a9"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/asana.png",
+          "sha256": "d3dcb5989752fb78ce7b489f1149ededac2bb588e8ff1557ab51c19361a76309"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/assess-credit.png",
+          "sha256": "66ec223808968fa6eff069e51b7270b400dcf96e89590ce0db1bcb31ff1102ce"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/astronomer-data-agents.png",
+          "sha256": "ad7a2d585b444c8f1f161b66969c5e9f9901b72e1ffa21b89635930fc8aab649"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/atlan.png",
+          "sha256": "5d04397aba5bf6be2cf57fcef4df9435e45440c326ce205f2ca700c96e801e69"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/atlassian.png",
+          "sha256": "a5507644eb467760548bcb57b9c45ea7a5a2e22e905ad944c7a11e82443b9743"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/atomic-agents.png",
+          "sha256": "64030862bd2b61cbd29c0f853e037f44bac90574cde2b962b8923e27b53af1d1"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/auth0.png",
+          "sha256": "0f7bde3ac13b431b55354af1265813af370dadb13094d4f581831e43509fbce4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-agents-for-devsecops.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-agents.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-amplify.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-core.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-data-analytics.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-dev-toolkit.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-serverless.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-startup-advisor.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/aws-transform.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/azure-cosmos-db-assistant.png",
+          "sha256": "664e3c403dbcef17364d359e3e31baef14daa8050228fb73e6adb0aa55cd40ea"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/azure.png",
+          "sha256": "469176393d838fc77ec73777db5e5cf2ad4825c3371fe099896891e37e237571"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/base44.png",
+          "sha256": "c4c8188c23e1fb6aeab7f3a1258426210b735fab94fda69f8ce2d84c9fcdce86"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/bigdata-com.png",
+          "sha256": "33749594cf8c975b08793021cfc9ea076e23fe635609d1afd4e73812725caea2"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/bigquery-data-analytics.png",
+          "sha256": "15260d714e046cc492d9d93dcb4eef282561785ae220b1754b8a54159681d1af"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/boltz.png",
+          "sha256": "69fafb05286f3d397c889368215f7ff0b23ca8597002191e42604879acd03f82"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/box.png",
+          "sha256": "d2bc920ca38f083e46c394174f99aec3fb625c23c9870d4615a474420cb0007a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/brightdata-plugin.png",
+          "sha256": "ab8d9c77864ca627099778f01b260ba3e83d1547de5f992af49a756a8776c063"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/browser-use.png",
+          "sha256": "995cb91204c5b0bab250909b6478d176c80f3abfff0fb3117c65c094ee78bf99"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/build-with-wordpress.png",
+          "sha256": "7aca6aa61da6929719afb34f03c81eca02dbe5dc9f9e2422e990b104eb054c4b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/buildkite.png",
+          "sha256": "f6323ff79fbe5e7d1470a0b78ffd49305a0fe5d63132b87c2419e2c3fa7c0667"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/canva.png",
+          "sha256": "bdd766d00eeed4223119ff20431572bd02d2cd446a7378351189bdfbaebe7929"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/carta-cap-table.png",
+          "sha256": "fe70263c45223aa6bf25cd4bb103a69ae5e471b1f636d31836bdc0e4bd0f3704"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/carta-crm.png",
+          "sha256": "fe70263c45223aa6bf25cd4bb103a69ae5e471b1f636d31836bdc0e4bd0f3704"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/carta-investors.png",
+          "sha256": "fe70263c45223aa6bf25cd4bb103a69ae5e471b1f636d31836bdc0e4bd0f3704"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cds-mcp.png",
+          "sha256": "fc19bee2a2cfe113d319792a92e4a6abf5fb86b68b7c76c4a6bc617d3d44e455"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/chrome-devtools-mcp.png",
+          "sha256": "fd3a2b169f68a7c55f321dc4ed38ac4100ab6ad60f121c40e03ba1f19318c54a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/circle-skills.png",
+          "sha256": "98bb33248f4803973a27e674752ade8f1217fd9b53cebfbf796cb1c9702fb8ae"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/circleback.png",
+          "sha256": "a8cdf26a9e3918b2166dc8a6a198764b4cce9a76e984683d0386049ac20e85fe"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/clangd-lsp.png",
+          "sha256": "d9c0f3783c837ebb629938ac74ab9151caaf93de9fc898ce7c1312a618d71cdb"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/claude-code-setup.png",
+          "sha256": "abcb28f62668114c54593f477a444744f57ec09763ef8e775cf7231e3a2270d3"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/claude-md-management.png",
+          "sha256": "abcb28f62668114c54593f477a444744f57ec09763ef8e775cf7231e3a2270d3"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/clickhouse-best-practices.png",
+          "sha256": "d42dd2dfdbd972529ffcd307512308f33d90ab1f1084ac37df16b44367322bde"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/clickhouse.png",
+          "sha256": "70b4d2a079cb79576409e0deef2fdf7f3b1ecff66ed6c76b20d3555ce13eb853"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloud-sql-mysql.png",
+          "sha256": "5696e7578af109a6347075547ef95c7ffe7ee9a6bede097cc59caef7b93070cc"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloud-sql-postgresql.png",
+          "sha256": "5696e7578af109a6347075547ef95c7ffe7ee9a6bede097cc59caef7b93070cc"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloud-sql-sqlserver.png",
+          "sha256": "5696e7578af109a6347075547ef95c7ffe7ee9a6bede097cc59caef7b93070cc"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloudbase-skills.png",
+          "sha256": "873d688c49b620a432147c45e94ce9bee919ba8893c2e757ccf1034f88f4e46b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloudflare.png",
+          "sha256": "a247738e52687dab528b551485ca0f4f91675bb7ba378b3492f3fac8613e6ec5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cloudinary.png",
+          "sha256": "300678f156b7d6ddeefa560428e526c720a5698957f3c9c17d8d650a50b7eb0b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cockroachdb.png",
+          "sha256": "0aaaccd5b00781b5e8931e1ab2ce77435674db28dfd98c80227f5ae8103443bf"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/code-modernization.png",
+          "sha256": "baba99aaeaddd92d12cf09d4e885bffc4125c65c0b8ec3aac6df2cfb591c4d64"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/code-review.png",
+          "sha256": "baba99aaeaddd92d12cf09d4e885bffc4125c65c0b8ec3aac6df2cfb591c4d64"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/code-simplifier.png",
+          "sha256": "baba99aaeaddd92d12cf09d4e885bffc4125c65c0b8ec3aac6df2cfb591c4d64"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/coderabbit.png",
+          "sha256": "1fb4f75c50ead31b138353aa91d01c3989acf37ae79348f6fdb3c1285dca98cc"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/codspeed.png",
+          "sha256": "fbd90eb17798191d6cd443439fe98d35cf21f712700f7cb759d60603717131d1"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/commit-commands.png",
+          "sha256": "06a952c4d511b4d43cfbc9faf4fdabb53561d5c624346d224e2c066b9d09617e"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/computer-use.png",
+          "sha256": "dd6624d39a0e36f579c794542dc7506ec22f3ccd352e7c36187d173522f54d4b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/confidence.png",
+          "sha256": "7ef7dfcca86d3f3692dcc0454b0564c88235cec53d20d5dbfbb8ce9749f2e8e4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/context7.png",
+          "sha256": "4cb2a8c95a51df844a8dc135bd4b8a3d90b51254f668655d71d562e4a7e75dc7"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/convex.png",
+          "sha256": "00a52c9040f16e47c8f4a45f73f6cdbfb7d32e37ac4e1ea8fc7f3693346a55dd"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/crowdstrike-falcon-foundry.png",
+          "sha256": "2132b627ba78ed1db9e7486d64112c3facc39fcbef83a6db226bcd6d26b68097"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/csharp-lsp.png",
+          "sha256": "dfc9cafd8a1f0b133b25b522fed926e84236f73acd3dce38d2a6e5aa1270cf3f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/cwc-makers.png",
+          "sha256": "48f7f44f8d7144dac26b61411f436884e25bc7735ad2536bc874f6d5bf0e1cb0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/dash0.png",
+          "sha256": "de1c2148622d960ee37c01ed2e033f0c03c7d7630bfd2abe504072537886a5f4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/data-agent-kit-starter-pack.png",
+          "sha256": "eef4dd92ecb62211ac4b05e681f92990996cdb91a888afae579fe4ba17e7db38"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/data-engineering.png",
+          "sha256": "ad7a2d585b444c8f1f161b66969c5e9f9901b72e1ffa21b89635930fc8aab649"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/data.png",
+          "sha256": "ad7a2d585b444c8f1f161b66969c5e9f9901b72e1ffa21b89635930fc8aab649"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/databases-on-aws.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/databricks.png",
+          "sha256": "21854eeb998852f371432fb804769c7dc79c219d5cafacf6ea61b03b6d936cc6"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/datadog.png",
+          "sha256": "848e902b7ef9930f15ff6178eeb5a7487cfe4447888334b549e3ab121bf5f484"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/datahub-skills.png",
+          "sha256": "ba0c3c6a696bc85b598ff96151915003048c6524a19273af0fc75f5e74966ba0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/dataproc.png",
+          "sha256": "eef4dd92ecb62211ac4b05e681f92990996cdb91a888afae579fe4ba17e7db38"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/datarobot-agent-skills.png",
+          "sha256": "758573dfdce0f24ff76e78db4b62681013d77f0be190eecd3cac4bc9caa120d6"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/dataverse.png",
+          "sha256": "45cbf30a0ff55e2f0c0672f0c86621cc9a7f0642c69523c6f144d3f16cb6b9c4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/deepeval.png",
+          "sha256": "d60e4c71c5cf533c28067f8ee17755f9a321d3d776e144c0bbafac7defbd3611"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/deploy-on-aws.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/desktop-commander.png",
+          "sha256": "5c83bd5e6dea6e97e81404b4e8d69a1fdd5e12724af8b83eda9aaf08fd031a58"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/dingtalk-cli.png",
+          "sha256": "b3fb0715857df5d23213b5265166fabcb7f7b4b290890d7b5682a027cf39c85d"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/discord.png",
+          "sha256": "a4ba1b905dbe29cfc9885a0315623ba583767077a1342c831ad50fda93eaf0e0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/documents.png",
+          "sha256": "f75e45a5aab06df80aca5cf33a3426f2fbd609c4739f75e65960072b310582df"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/dominodatalab.png",
+          "sha256": "4db30233e770929fc74ab501d8f70c880b16fd08cbd723a328180c87abcd64ba"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/dropbox.png",
+          "sha256": "949c38bc4913b395db0b0312aa47b4b18045e2f1d6ce73e0b17b8217b03a290b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/duckdb-skills.png",
+          "sha256": "b7136de05733b001c624966be1098a57605eb15e2a7eb3afb480dfca64264915"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/duende-skills.png",
+          "sha256": "c632379c45e0223d7e820d35c0412056e319dcd6b04263df91794b223ffd720a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/exa.png",
+          "sha256": "664c23544fed43e89ad720b5f638dbabc634d31a4d4424cb6876814c5bea0ee8"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/expo.png",
+          "sha256": "07dc6db41c80323b517bb3db8a86141ebbbbddf9ac266c0f68dc231c42e54848"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/fastly-agent-toolkit.png",
+          "sha256": "81f1b3d4c96acf470560f31147f0b9ccfa92430da29b208cdcb1059c9066ab44"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/feature-dev.png",
+          "sha256": "100eda1c4171478e11ce4393631cda03a34a54980197a4dc81a34ba5af0e68ed"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/fiftyone.png",
+          "sha256": "e0a051413e8d9086352b4b5a93ef47c3defc311e50358042ab564ca45193cae2"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/figma.png",
+          "sha256": "367f418dd011e05884a0e44294c0cae609a6c9558c4e2fe04750b705c1ca4939"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/finance-search.png",
+          "sha256": "525792b656ab1256b1ea96620e0b8f1597cd2a67a565d09b1e2401f04249dafe"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/find-clients.png",
+          "sha256": "14c41eae9e44018f0b838894bcf5f41eaa82f5956bda6f98b72308222e5a9076"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/firebase.png",
+          "sha256": "08f8a66c0a0d149599b08e4e9310108bb5bce27338f6374c6fef5957e51cd24d"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/firecrawl.png",
+          "sha256": "1564fd561c988b94248ba7a51503c418e57be05a5bb3988900f9263967843e0d"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/firestore-native.png",
+          "sha256": "eef4dd92ecb62211ac4b05e681f92990996cdb91a888afae579fe4ba17e7db38"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/forge-skills.png",
+          "sha256": "a5507644eb467760548bcb57b9c45ea7a5a2e22e905ad944c7a11e82443b9743"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/fullstory.png",
+          "sha256": "aa6b18f83256e08d1c2c28e555ebedcacefd9c5b00fcba923fba7bdfa66fdb2b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/github.png",
+          "sha256": "916da4b4e72d9e80df2b2162ae47d01db372caadaaaad2e3a26339284965a548"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/gitlab.png",
+          "sha256": "b67e1ff07805a95f62f01a8ce1797ae3e25be22d79252f074a73056d249c62d5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/gopls-lsp.png",
+          "sha256": "804a72cf5b21671c7b30bb37c3f57ddcb09dd29ea33d42ca48482d041528d716"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/grafana-assistant.png",
+          "sha256": "1477d618fabc0bf9487d6fddb1d99afe38963099aa6e73ad842b1b826791797a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/grafana-cloud-mcp.png",
+          "sha256": "1477d618fabc0bf9487d6fddb1d99afe38963099aa6e73ad842b1b826791797a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/grafana-mcp.png",
+          "sha256": "1477d618fabc0bf9487d6fddb1d99afe38963099aa6e73ad842b1b826791797a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/greptile.png",
+          "sha256": "3425209f63d943c80f6d5829d33685317ce8bb5aabc389a62a56d1509ac15050"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/hexin.png",
+          "sha256": "7d4d20eda949c72f565814320118d32cb4e0d2a21cebdb73dc93eda202505d28"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/honeycomb.png",
+          "sha256": "4964e6de849ef3d6332a5d41f814373601c46d828760bc76bfeaf623bfc67372"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/hostinger.png",
+          "sha256": "ba877ab1d25a44f58e7d7370d4728a95cc92a459016c4fc9755eb3fd5ba88213"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/huggingface-skills.png",
+          "sha256": "c34e28c9fd123545adfe4595dc0a08099e35c0950cfd31bc79956c2eee5a132a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/hunter.png",
+          "sha256": "ab6309b2d88ae9844cc126c769d607a268166229554f168f9e8a1a1f079ed821"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/hyperframes.png",
+          "sha256": "26e317d2963e12b09286329e3d6598700dba3c63f710b2fd5b269371d74b27c3"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/idmp-plugin.png",
+          "sha256": "bfa2b9093c883b6a4c3b7a14e548b89488aef234a6eb66d82fec4cb3198400de"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/imessage.png",
+          "sha256": "4b8a2a78071492fe3d2f037e39c2326c5c8f96a586fb2af31e22c6d3ff833d05"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/intercom.png",
+          "sha256": "2c01836bfac25fd52b8c901b9b50a7076e40d7645d6392cec2e4a4f6b7a7e460"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/ios-simulator.png",
+          "sha256": "455d34704f7a0a6759b68270419498f09bd98af2a1ec8e4cddfb93c97cc55b04"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/jdtls-lsp.png",
+          "sha256": "f3bf2586e751e0eda745db93c4c0f2a241df6d82a69febc1b4f70b3197abe179"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/jfrog.png",
+          "sha256": "2fc93cc1addd10477d0981c07c9b27790a19e5eff3004b6e95ab60c6decd5a4e"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/knowledge-catalog.png",
+          "sha256": "eef4dd92ecb62211ac4b05e681f92990996cdb91a888afae579fe4ba17e7db38"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/kotlin-lsp.png",
+          "sha256": "fc788fb54fdef5418c52f1e46408db35b1227dacca0b3565cbce652bb43ef8a3"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/langfuse-observability.png",
+          "sha256": "7522145deabf481758ecd1b164ce5a61f0c8a47dd6c16cfd72b56fdd36a72593"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/langfuse.png",
+          "sha256": "7522145deabf481758ecd1b164ce5a61f0c8a47dd6c16cfd72b56fdd36a72593"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/laravel-boost.png",
+          "sha256": "6988c9dc368db46bfc4c3b8aebacfa87276c022fece7ae08feab37969f85c122"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/lark-cli.png",
+          "sha256": "ed459fb792bdd0abef88ee91f1ec82925d9c04fdbfcb3b72cf8d67b02f6f2748"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/learn-with-coursera.png",
+          "sha256": "3ca16ec0c28015bb72fa98f71d813801fc46277ba1c11b755a9acdf130106e7b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/legalzoom.png",
+          "sha256": "9de13e0d75f13a5ce08fe2b60b2cc113bb37c22f6de70e64001ec249eb598668"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/linear.png",
+          "sha256": "8c5c11999eac63b993db39116308d97b26084cb093c4adc362967e41d2399a0e"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/liquid-lsp.png",
+          "sha256": "37873587ad01c059a072fdbd70208bbb61eef725db1135a44957d3f5d64b20d2"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/liquid-skills.png",
+          "sha256": "37873587ad01c059a072fdbd70208bbb61eef725db1135a44957d3f5d64b20d2"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/logfire.png",
+          "sha256": "f4c01ece1bc1383d64f819db10f5cc97d1842f392c71a97e17fb33396fcc21bd"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/logrocket.png",
+          "sha256": "6a68e03b628cbd0f62de6a12cf5a0961b50544e06a87b6b4327df9dda9716ab6"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/looker.png",
+          "sha256": "a70d2ea577704cda6a9ffa65403d1c79a71b15ab5fad72569f18d273a1f9c8c8"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/lovable.png",
+          "sha256": "60ed872fe9e9133f7555675e2ff0dd8621e70e7f1e4e7169e18ad2501f70609b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/lua-lsp.png",
+          "sha256": "ae31a2ba42d8df5bfea323c673883da85275020324fb4e229ea1f40bb3fa2a4b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/lumen.png",
+          "sha256": "2399e03f23ed8f814949528c4a97c441d7f9ac6dfa6ba5d68f95fcd04df6c049"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/lusha.png",
+          "sha256": "086487b5c40f6a99fb4f712fc80a1cc33311062a5365e3836fbfe9f51cc63b52"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mapbox.png",
+          "sha256": "803aab15cce30947cdee2f84f3130efba03103b33c42e61c8b7bf9cda360e4d8"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mcp-apps.png",
+          "sha256": "add8c249fb04f337fc503c4d8bcb807c36e5ba0dcdc3e63abfabe74d70c2003c"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mcp-server-dev.png",
+          "sha256": "bf7a5a8d52fe292c6964ea4361018ecb346a065d8a374d0e1ea6fe56170fb566"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mcp-tunnels.png",
+          "sha256": "bf7a5a8d52fe292c6964ea4361018ecb346a065d8a374d0e1ea6fe56170fb566"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mercadopago.png",
+          "sha256": "130bf3f850bab8cfee4e9f50fb95eb13f5267bb6d2854e8dfc4372c8d5e0cda1"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mergify.png",
+          "sha256": "109392ddbd7053b565d1906c07c9ccf4eb7c02c7d32fb180b8ecb17bda40f702"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/microsoft-docs.png",
+          "sha256": "c29fbd690c640d135409c312e382c687001b3bd8a6fc973142b46937da6a8c30"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/migration-to-aws.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mimosa.png",
+          "sha256": "05466a98ac49aa40fd96cd1f371ee3ff8574d76668f5649b24c62dd1dfd6361e"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mintlify.png",
+          "sha256": "4849496dea6c3b61ad901745d37e9c11a65248af4a95d8c55359aefaf4870a8e"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/miro.png",
+          "sha256": "de668480a77327a55ef6680d89a83b3d8facab2e9ac19e974870932b164c6c29"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mode-guide.png",
+          "sha256": "5dcd237200ded7360ed97eef45d4362886c9ba1177597d2e4e8ea1cc8c31f47d"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/model-deals.png",
+          "sha256": "015b6077de431ed10934b0be6c6778f4184e747ec117c9ce163b62137e26bf8d"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/monday-crm.png",
+          "sha256": "52b5a1cbaf7ed2bc1e27bb682f1c89d221a0bfdd59648b3b63554564ea56642b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/mongodb.png",
+          "sha256": "0799e2be62f258564d08a16f1cbc56f88f7edfe0bdea7e217bae72275c75f24f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/neon.png",
+          "sha256": "7ffd14ae400e5f25bd2a0cd2cd905098ad4afb692c9e139d8d651ec46748b693"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/netlify-skills.png",
+          "sha256": "4aea971a7b110568de19d7ff0d894494d37e284f2c02286207d77a3a58d88d43"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/netsuite-suitecloud.png",
+          "sha256": "6fb6b04b5e3b510f8660ceb73544d310b96bafe8a8c87779dbb2d200db12609c"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/newrelic.png",
+          "sha256": "af8cc472c4f64d73ee225d0405f9479ca1ce2da8e455105319e05608089a9587"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/nightvision.png",
+          "sha256": "9a6970d5b23b4488879743748c76c947da9fc1f67d13eeea4764b38674df2a9f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/nimble.png",
+          "sha256": "2261bad5313e471879b2843057d3cb60b76362d5d8174887d7af29783e62dcb0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/notion.png",
+          "sha256": "d871f2bd184cd62e0579792a4260f9df1577183317a6eea1f45326b2255446ad"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/nvidia-skills.png",
+          "sha256": "29a6ede33f370301db496f40170c0afa585f6a4d5a8c68c372fd83e2d441606f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/obsidian.png",
+          "sha256": "6e4b6881c3e3c304cbcaa53ffb202aa68fece3a0082a451f1638ff2c730a1285"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/oracle-ai-data-platform-workbench-databricks-migrator.png",
+          "sha256": "fa33ba895317fc0c1b7c0429ae23e2b9568e0f0af45b58fc4dab36b05fc1456f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/oracle-ai-data-platform-workbench-engineer-agent.png",
+          "sha256": "fa33ba895317fc0c1b7c0429ae23e2b9568e0f0af45b58fc4dab36b05fc1456f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/oracle-ai-data-platform-workbench-spark-connectors.png",
+          "sha256": "fa33ba895317fc0c1b7c0429ae23e2b9568e0f0af45b58fc4dab36b05fc1456f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/oracledb.png",
+          "sha256": "eef4dd92ecb62211ac4b05e681f92990996cdb91a888afae579fe4ba17e7db38"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/outputai.png",
+          "sha256": "349a0c4830421fb7795d6b2dd620a24458eb7366a82e4817d973e838a3b1c23c"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pagerduty.png",
+          "sha256": "ff65dda71e15dbb920e4999b68e36f4bbf7e7c99767ec44270cb8b4fa92c7d23"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pdf.png",
+          "sha256": "f75e45a5aab06df80aca5cf33a3426f2fbd609c4739f75e65960072b310582df"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/php-lsp.png",
+          "sha256": "49ed0803fa1c770a00575dd01c411e930c67fd258378c69952a580a26548cbcb"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pick-funds.png",
+          "sha256": "c5746366fa63ff929cf1d79ac9df558cd1e877733ec1b6182fd2e32cb7f42bf6"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pigment.png",
+          "sha256": "6b1a9144c3aaf31225bbedae8e10406632d5ce70c42f627a86aeec93380c281f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pinecone.png",
+          "sha256": "2df0317beed00b5d842b7c12227369dfe38de779c828ebb8933ef582d9f1fdcf"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pixeltable.png",
+          "sha256": "5ce0c254f76d2e140c4d7218a33017241c9adb18167c82655e4f34636bc57857"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/planetscale.png",
+          "sha256": "30f37c5eda51c673377c41797eaf3ad925489b77ad2a51835c3a2637cbcd72b0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/playwright.png",
+          "sha256": "45cbf30a0ff55e2f0c0672f0c86621cc9a7f0642c69523c6f144d3f16cb6b9c4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/posthog.png",
+          "sha256": "f767649a1d4b06864c7ae5ea542c91e471cd24f7f0e160b8829cea8a4c54a7fd"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/postiz.png",
+          "sha256": "5c8829fecaa68efff5e44c6c11807e157c266edb42cc87206d6cff21bde12d00"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/postman.png",
+          "sha256": "c25a9000041ef6a851852cd90f195c42bfea6ef0e9969f694e5fdead88a4636a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pr-review-toolkit.png",
+          "sha256": "06a952c4d511b4d43cfbc9faf4fdabb53561d5c624346d224e2c066b9d09617e"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/presentations.png",
+          "sha256": "f75e45a5aab06df80aca5cf33a3426f2fbd609c4739f75e65960072b310582df"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/preset-cli-skills.png",
+          "sha256": "9705d376418bfbb6328c219680bfcd32f2087e0734b0fccb6d415666f1e49bc8"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/prisma.png",
+          "sha256": "000f610e2b99de3e23e76a0ba169fae9aece953d9112a08046a62ffeeb36137b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pydantic-ai.png",
+          "sha256": "f4c01ece1bc1383d64f819db10f5cc97d1842f392c71a97e17fb33396fcc21bd"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/pyright-lsp.png",
+          "sha256": "45cbf30a0ff55e2f0c0672f0c86621cc9a7f0642c69523c6f144d3f16cb6b9c4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/qdrant-skills.png",
+          "sha256": "4191e38fe0e0de93dfb04b6c3b5e4ec63d47320f422a8853fa72ef6fd98a363a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/qt-development-skills.png",
+          "sha256": "a94ec80bfa10fb1d132b43c30664e608ba99221d56b27988ace3691facc3e966"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/quarkus-agent.png",
+          "sha256": "f446f2acceaad6675da368201c4c935296e556a2a05cdbf666927e96629172e0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/railway.png",
+          "sha256": "9849675090fcfee733fbcd60bae2f6c77b100a6cd267bbb5204f03e152c30347"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/rc.png",
+          "sha256": "38fecf1bdab75567607eaa6f6c76521bc2603b91f7e8f90239d6ffce4a44f98b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/read-macro.png",
+          "sha256": "5ab1d6446237b06cd53a15094ecbff6aedf1f494a7623963d87abf1cef2e6fce"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/redis-development.png",
+          "sha256": "efd276caeb25d92ce6751ba7255b0e578ae43cfdbf031181c6f1061879189d92"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/remember.png",
+          "sha256": "ed3f09d78410fc13a25a556ee7cd0e6c3c990f32d691671ad976d6b00b61875d"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/render.png",
+          "sha256": "a8e2d8d9c86a14299f78d7781872aeecac63d270723c6822eae926f64791edfc"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/resend.png",
+          "sha256": "08481b8305e60e382eff73c84b2f2e67524d3e9a9f0151922fd74171728bf9e0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/restore-legacy-sessions.png",
+          "sha256": "f25a869f54f5c2369f8848f022af9a0adcaff1319f0fcdd0608496df62fa23b7"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/revenuecat.png",
+          "sha256": "38fecf1bdab75567607eaa6f6c76521bc2603b91f7e8f90239d6ffce4a44f98b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/rill.png",
+          "sha256": "a85fe202dd75b49d52bc6dcd1b147b5262bdcc30d62bd92e00d93287d49cd6fd"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/rootly.png",
+          "sha256": "b7fdb42e8109afd2af75a8f3e83a71a0e3ef6fae94b24305f4ab6794edc0ec52"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/ruby-lsp.png",
+          "sha256": "eb7adda44c7f9ec2c9c467c52afbe8b76186a65f351f6cd5f4e36b37d7f344f5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/run-fpa.png",
+          "sha256": "a9cc929ecadd10b65f14d791badcc362d0f98ed401d7e703effdd7e9d54d55b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/runway-api.png",
+          "sha256": "e3b6219a38e848346582ccf4c87cee1867a6451ab30b77a1df9c1863225694c5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/rust-analyzer-lsp.png",
+          "sha256": "036f33fec5b5a6d1dba9d65871c2852d150bf1988c3ba539e45a66be50236b19"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sagemaker-ai.png",
+          "sha256": "461bba96760190de10cdafb2fbb05fdb18699ddc44ea57c1f363a304b16c92b5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sanity.png",
+          "sha256": "a6abffc0358385bcf15abc149e45c5931575d8d333e90b312cb477944c673969"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sap-cds-mcp.png",
+          "sha256": "fc19bee2a2cfe113d319792a92e4a6abf5fb86b68b7c76c4a6bc617d3d44e455"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sap-fiori-mcp-server.png",
+          "sha256": "c976fe54a6bdf19a309f2e96ae52d62045bea8d627919d31f11001ebaf447977"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sap-hana-cli.png",
+          "sha256": "c976fe54a6bdf19a309f2e96ae52d62045bea8d627919d31f11001ebaf447977"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sap-mdk-server.png",
+          "sha256": "46c6b2dea3974371244bacb4c823311474e51fe35212737fb47a860cd8c6ef10"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/save-to-spotify.png",
+          "sha256": "7666ace0b6a6432b821ff7969d3ba751e07e8ef82c16bcd577789fafd3b05eac"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/semgrep.png",
+          "sha256": "16bfe5756df40304c29cdef272dd0a40c286d67b3b8762f4fd8c3ff6a5806f3d"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sentry-cli.png",
+          "sha256": "67cd1b9db04a38c6e78cd63f4b3721f3cfcd332c37e1c7c246347eab150fa0b9"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sentry.png",
+          "sha256": "67cd1b9db04a38c6e78cd63f4b3721f3cfcd332c37e1c7c246347eab150fa0b9"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/serena.png",
+          "sha256": "96c7d717431722e69c66dbd268aaed456a0065c23d6f998e8e2b6ffdbbb07353"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/servicenow-sdk.png",
+          "sha256": "8ff601944d6b92a3d6170b532e9aaa05a867809c3815b539fef2ff0880ac6d51"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/shopify-ai-toolkit.png",
+          "sha256": "37873587ad01c059a072fdbd70208bbb61eef725db1135a44957d3f5d64b20d2"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/skill-creator.png",
+          "sha256": "7501368309eeaa25e95b2249170367a22af0e95a8afb4f438f94ba2637700d86"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/slack.png",
+          "sha256": "95fc65954cfb1283038796fa5b19bd2745e05ede190af50b71fa781491ae9606"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/snowflake-cortex-code.png",
+          "sha256": "7d62420ff28f0c115a2aed16a93f5eb339d42d3085100ee91ba2bd0030c690d9"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sonarqube.png",
+          "sha256": "1419d9cc7955a1cd6a1158972970bf54a703e3342f47c4c4f8eab701cf5f845d"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sonatype-guide.png",
+          "sha256": "8528ac6d8d2c967f30e71c09df6bd8e310502183b0b675dc04b1bae18c95d671"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sourcegraph.png",
+          "sha256": "71ff7af343f53c04787fb97f294bf2e31804b3228bd949e5f3ae184698e463eb"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/spanner.png",
+          "sha256": "231b8c6eded6a392c6369a7d7ae962c72f291db0939eb9d2fc59b9425e2f59b4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/spotify-ads-api.png",
+          "sha256": "7666ace0b6a6432b821ff7969d3ba751e07e8ef82c16bcd577789fafd3b05eac"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/spreadsheets.png",
+          "sha256": "f75e45a5aab06df80aca5cf33a3426f2fbd609c4739f75e65960072b310582df"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/stripe.png",
+          "sha256": "cc11a9a66a5d826bf072495c51ca1e425c09754726fa41fe6b3766449d675bcb"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/sumup.png",
+          "sha256": "4e343f67ab98d13bf2474921ba37328f192282369f4a9662b25374debb7082a4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/supabase.png",
+          "sha256": "c316111b7cfa527a9ecbd7c32fb6f9f0c6c78b5e21dfdde6c870a4a05d1d1d60"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/superpowers.png",
+          "sha256": "4b324e9796754eaf5801f5b2f48be626a7e36ecf91f793fb6fdf1b8a7d4a30b9"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/swift-lsp.png",
+          "sha256": "d4193b1a34ae790dc2b043bf7ac1c4946a47228f77d97a8219541248e89e0489"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/tavily.png",
+          "sha256": "a71b6bfce7777a2dfb8f04ecbcc296f9b837b5286e26e0d97bee2b52e220f40f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/teamcity-cli.png",
+          "sha256": "c4384a706c75f6781e8f7cd0808d4e6cbe859167bf7683439b2f92a33ef3124c"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/telegram.png",
+          "sha256": "73e1e9f7cde285a436b35071a8083ae613bbc52d42b0aa2a225c00cf9ca9997e"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/tencent-meeting-cli.png",
+          "sha256": "40f08c632268086cff8bbbbe6c292b95ccf5effbb1f7dfa9966592ed40df48c9"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/terraform.png",
+          "sha256": "6240c58d7aa7da1b4b68aee22934f727566558911cd2dc5b9070038aba40392a"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/tianyancha.png",
+          "sha256": "a870dabe0aca143d01ca44bf7e6030d8dbec74f5ad8cb0631edb633b81319ba1"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/togetherai-skills.png",
+          "sha256": "fae7e309cbc0bde28eab6ea19403cdf78722e543ab630d98c8694703b7d38d82"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/twilio-developer-kit.png",
+          "sha256": "befaa7bde2dd24405328eb390d5dcb4548aa4a7f34a95bb99603904d0e5d86d0"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/typescript-lsp.png",
+          "sha256": "45cbf30a0ff55e2f0c0672f0c86621cc9a7f0642c69523c6f144d3f16cb6b9c4"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/ui5-modernization.png",
+          "sha256": "a8384578a86e4e7ae1fe273572ffff566d748c98b7eb6eff1321294005bd8b2b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/ui5-typescript-conversion.png",
+          "sha256": "a8384578a86e4e7ae1fe273572ffff566d748c98b7eb6eff1321294005bd8b2b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/ui5.png",
+          "sha256": "a8384578a86e4e7ae1fe273572ffff566d748c98b7eb6eff1321294005bd8b2b"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/unreal-engine-skills-for-claude-code.png",
+          "sha256": "75e7f1221c7d6c0e74e121841b333968fef0fdb313667be2dd0f742e189852cf"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/valtown.png",
+          "sha256": "e26708d2b5d20a6c519168dbeb84981172657dc2a78a089b407fe82e139d2ef7"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/vanta-mcp-plugin.png",
+          "sha256": "89cc24c65356d26e4e3576e8a2d7d0f60c92c847f4ebe4acb824a7e7a8159e11"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/vanta.png",
+          "sha256": "89cc24c65356d26e4e3576e8a2d7d0f60c92c847f4ebe4acb824a7e7a8159e11"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/vercel.png",
+          "sha256": "b0a1e1448cba37213ff09d46e872695ae6f0167f420a699a79695a1b24cf3fc5"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/vet-companies.png",
+          "sha256": "4fe92a15d5e3c484949aaa3aca387771580f1b41bb27a6a6b2d593b71c042d07"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/vibe-prospecting.png",
+          "sha256": "bfb51c8f57030633d119fd85cf61149d191a213d6e2f0f7f6bc2eb3b22e2dcbc"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/video-agent-kit.png",
+          "sha256": "1e810b27ce9dfa630627d7f9203d6f24e160d5f90f81633f2d5366cdcfb87b91"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/video2code.png",
+          "sha256": "d90515535bf9615f848c80f56d234d606be7cc8e513f31b8564d1895298769e1"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/vsql-extension-builder.png",
+          "sha256": "3bc9628c8e6cc8962860e2159eb723532dbe418316c8964b210745f4b8475440"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/watch-positions.png",
+          "sha256": "4002f708ba7a2943429fa8f17ae42d9349d6dbe6211333c94a51ee7fad81ee57"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/wecom-cli.png",
+          "sha256": "f89d5976ca6382cb1cab856bfd572daa543bd855e39431825cff0b14c1fbd1be"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/wind.png",
+          "sha256": "f114698c09b13f2cade40ffece960347cd533219d7fd8fdaa20269980d93c264"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/windsor-ai.png",
+          "sha256": "1d6d4987e823cae684d8afeec94178fdd0596dfb532c659f869ae58efdbf4680"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/wix.png",
+          "sha256": "cf86ec81c50ea7683a43ad0d5f6bc58a19b42388cb987de92121f85084e1f601"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/workos.png",
+          "sha256": "474189460985042ea1ca2e582bebac273d5c842923499fe7f24ceb90a7eb7d13"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/write-research.png",
+          "sha256": "5947aa436837bb087362bb56e4f3c8345e0703c24fd7cb43625e322d3112c50f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/youdotcom-agent-skills.png",
+          "sha256": "96906c2f20d2d1e00f4d750542e6146701b47d12ea4c5daa8bb3bf684c7bbaa2"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/zapier.png",
+          "sha256": "740df7689eade977d33551041e362e7cf8ed3d06c3c94f863bb80df76824623c"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/zilliz.png",
+          "sha256": "a0001d2f7d8de81c7055d9294865838ba93430d9fe2a9fe56ac76d0aefcc279f"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/zoom-plugin.png",
+          "sha256": "07d2ffd11e3debc12056a6862185b6fc1096ea29935cdcdf7e274dabc1664788"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/zoominfo.png",
+          "sha256": "6d932af97b871dbdad8852808fb18b1da2b3348ce66502440ce05a5bcc968bcc"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/zscaler.png",
+          "sha256": "08e64e01254fd333948c7563d255e4e76786d420e4ca28d1f420036524a805e8"
+        },
+        {
+          "file": "packages/ui/src/assets/plugin-icons/mode-plugins-official/zyte-web-data.png",
+          "sha256": "8613b1dc383a3b6090a8a81aefc13f4867667fbf1902dc35471f8d554e69a1cd"
+        }
+      ]
     }
   ],
   "patches": [
@@ -30480,6 +31920,10 @@
     {
       "id": "React Best Practices skill",
       "reason": "Pinned upstream README and skill declare MIT, but a complete original copyright/license notice has not been obtained."
+    },
+    {
+      "id": "Official plugin marketplace icons",
+      "reason": "278 third-party plugin brand icons are redistributed without a recorded per-icon license; verify each icon's terms or switch to on-demand fetch / generic icons before commercial distribution."
     },
     {
       "id": "unsafe-pointer@0.2.0",
