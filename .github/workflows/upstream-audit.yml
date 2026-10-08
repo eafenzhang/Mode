@@ -4,7 +4,7 @@
 #   随后自动触发 release.yml 在同步分支上构建 draft 测试版（不公开、不进入自动更新，说明中带测试版警示）。
 # - 没有新 commit：不创建任何 issue / PR，也不触发构建（正常退出）。
 # 增量基准记录在审计 issue 正文的「审计范围」行中；无历史 issue 时以 fork 分叉点（merge-base）为基准。
-# 同时支持 workflow_dispatch 手动触发。
+# 支持 workflow_dispatch 手动触发。
 name: upstream-audit
 
 on:
@@ -19,7 +19,7 @@ jobs:
       issues: write
       actions: write # 供 action 内置缓存使用 + 触发 release.yml 的 draft 构建
     steps:
-      # 高频定时运行的前置检查：上游 HEAD 与最近审计范围一致时直接跳过，不启动 agent、不做完整 checkout。
+      # 上游审计的前置检查：上游 HEAD 与最近审计范围一致时直接跳过，不启动 agent、不做完整 checkout。
       - name: Check upstream head
         id: check
         env:
