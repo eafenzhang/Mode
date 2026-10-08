@@ -6,13 +6,13 @@ import type { ConnectOptions } from "@zcode/server/remote";
 import { listSSHConfigAliasesFromLocalConfig } from "@zcode/services/node";
 import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@zcode/zcode-cua/broker/helperConstants";
 import {
-  ZCODE_APP_VERSION_ENV,
-  ZCODE_AGENT_RUNTIME,
-  ZCODE_DYNAMIC_WORKFLOW_MODE_ENV,
-  ZCODE_ENV,
-  ZCODE_PRODUCT_FLAVOR,
-  ZCODE_RUNTIME_ENV_KEY,
-  ZCODE_VERSION,
+  MODE_APP_VERSION_ENV,
+  MODE_AGENT_RUNTIME,
+  MODE_DYNAMIC_WORKFLOW_MODE_ENV,
+  MODE_ENV,
+  MODE_PRODUCT_FLAVOR,
+  MODE_RUNTIME_ENV_KEY,
+  MODE_VERSION,
   buildZCodeToolEnvPassthroughEnv,
   resolveRuntimeZCodeEndpointOrigin,
   readProductEndpointEnv,
@@ -28,8 +28,8 @@ import { resolvePlatformKeyForPackagedApp } from "../../scripts/target-platform.
 import {
   getAppConfigDir,
   getDataBaseDir,
-  ZCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV,
-  ZCODE_WINDOWS_APP_INSTALL_DIR_ENV,
+  MODE_CUA_BUNDLED_HELPER_APP_PATH_ENV,
+  MODE_WINDOWS_APP_INSTALL_DIR_ENV,
 } from "@zcode/services/node";
 import {
   resolveRemoteCdnBaseUrls as resolveOrderedRemoteCdnBaseUrls,
@@ -42,9 +42,9 @@ const isLocalDevelopmentRuntime = !isElectronAppPackaged();
 export const desktopRuntimeEnv: ZCodeRuntimeEnv = isLocalDevelopmentRuntime
   ? "development"
   : "production";
-// 身份看编译期 flavor 而不是 ZCODE_ENV：ZCODE_PREVIEW_IDENTITY=1 的生产后端构建同样是 Preview，
+// 身份看编译期 flavor 而不是 MODE_ENV：MODE_PREVIEW_IDENTITY=1 的生产后端构建同样是 Preview，
 // 需要独立的应用名、Electron 数据目录和 Helper 安装子目录才能与正式版并排运行。
-const isPreviewPackagedRuntime = !isLocalDevelopmentRuntime && ZCODE_PRODUCT_FLAVOR === "preview";
+const isPreviewPackagedRuntime = !isLocalDevelopmentRuntime && MODE_PRODUCT_FLAVOR === "preview";
 
 function readRuntimeEnvOverride(name: string): string | undefined {
   return process.env[name]?.trim() || undefined;
@@ -59,7 +59,7 @@ function isTruthyRuntimeEnvOverride(name: string): boolean {
 // 触发 Electron 单实例锁后只激活已有窗口，Chromedriver 无法接管测试进程。
 // 这里允许测试显式隔离运行时身份，正常桌面/远控路径保持原来的默认值。
 export const runtimeApplicationName =
-  readRuntimeEnvOverride("ZCODE_DESKTOP_APPLICATION_NAME") ??
+  readRuntimeEnvOverride("MODE_DESKTOP_APPLICATION_NAME") ??
   (isLocalDevelopmentRuntime
     ? "Mode Dev"
     : isPreviewPackagedRuntime
@@ -76,18 +76,18 @@ export const runtimeUserDataDirectoryName = isLocalDevelopmentRuntime
     : USER_DATA_DIRECTORY_BASE_NAME;
 // Electron 的 app.getPath("home") 不一定跟随测试进程里的 HOME 覆盖。
 // e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 ~/ZCodeProject。
-export const runtimeHomePath = readRuntimeEnvOverride("ZCODE_DESKTOP_HOME_DIR");
+export const runtimeHomePath = readRuntimeEnvOverride("MODE_DESKTOP_HOME_DIR");
 // Chromedriver 管理 Electron 时会注入临时 userData；e2e 默认路径模式下导入期不能提前读取 appData。
 export const shouldUseElectronDefaultUserDataPath = isTruthyRuntimeEnvOverride(
-  "ZCODE_DESKTOP_USE_ELECTRON_DEFAULT_USER_DATA",
+  "MODE_DESKTOP_USE_ELECTRON_DEFAULT_USER_DATA",
 );
 export const runtimeUserDataPath =
-  readRuntimeEnvOverride("ZCODE_DESKTOP_USER_DATA_DIR") ??
+  readRuntimeEnvOverride("MODE_DESKTOP_USER_DATA_DIR") ??
   (shouldUseElectronDefaultUserDataPath
     ? undefined
     : join(getElectronAppPath("appData"), runtimeUserDataDirectoryName));
 export const runtimeSessionDataPath =
-  readRuntimeEnvOverride("ZCODE_DESKTOP_SESSION_DATA_DIR") ??
+  readRuntimeEnvOverride("MODE_DESKTOP_SESSION_DATA_DIR") ??
   (runtimeUserDataPath ? join(runtimeUserDataPath, "session") : undefined);
 // Chromedriver 会注入临时 --user-data-dir，并在该目录等待 DevToolsActivePort。
 // e2e 如果再用 app.setPath 覆盖 userData/sessionData，端口文件会被写到另一个目录，
@@ -217,7 +217,7 @@ function resolveDevelopmentMockCdnDir(): string {
 
 function resolveAvailableDevelopmentMockCdnDir(): string | undefined {
   const mockCdnDir = resolveDevelopmentMockCdnDir();
-  const releaseDir = join(mockCdnDir, "releases", ZCODE_VERSION);
+  const releaseDir = join(mockCdnDir, "releases", MODE_VERSION);
   // 开发态 mock-cdn 是可选离线缓存。当前版本目录不存在时继续传 mockCdnDir，
   // 会让 WSL/SSH 重连先命中一个必然缺失的本地路径，遮蔽已有的 CDN/cache fallback。
   return existsSync(releaseDir) ? mockCdnDir : undefined;
@@ -233,19 +233,19 @@ function isTruthyEnvFlag(value: string | undefined): boolean {
 }
 
 function shouldUseRemoteCdnInDevelopment(localEnv: LocalRuntimeEnv = {}): boolean {
-  return isTruthyEnvFlag(resolveEnvValue("ZCODE_DEV_REMOTE_ASSET_USE_CDN", localEnv));
+  return isTruthyEnvFlag(resolveEnvValue("MODE_DEV_REMOTE_ASSET_USE_CDN", localEnv));
 }
 
 function resolveRemoteCdnBaseUrls(
   options: ResolveRemoteCdnOptions = {},
   localEnv: LocalRuntimeEnv = {},
 ): string[] {
-  const raw = resolveEnvValue("ZCODE_REMOTE_ASSET_CDN_BASE_URL", localEnv);
+  const raw = resolveEnvValue("MODE_REMOTE_ASSET_CDN_BASE_URL", localEnv);
   return resolveOrderedRemoteCdnBaseUrls({
     ...options,
-    env: ZCODE_ENV,
+    env: MODE_ENV,
     overrideBaseUrl: raw,
-    version: ZCODE_VERSION,
+    version: MODE_VERSION,
   });
 }
 
@@ -259,12 +259,12 @@ export function resolveZCodeEndpointEnvBaseOrigin(
   const buildEnv = readProductEndpointEnv();
   // main 进程临时验证更新服务时不会重新写 .env，命令行传入的 endpoint 必须优先于本地文件。
   return (
-    process.env["ZCODE_BASE_URL"]?.trim() ||
-    process.env["ZCODE_ENDPOINT_ORIGIN"]?.trim() ||
-    localEnv.ZCODE_BASE_URL?.trim() ||
-    localEnv.ZCODE_ENDPOINT_ORIGIN?.trim() ||
-    buildEnv.ZCODE_BASE_URL?.trim() ||
-    buildEnv.ZCODE_ENDPOINT_ORIGIN?.trim() ||
+    process.env["MODE_BASE_URL"]?.trim() ||
+    process.env["MODE_ENDPOINT_ORIGIN"]?.trim() ||
+    localEnv.MODE_BASE_URL?.trim() ||
+    localEnv.MODE_ENDPOINT_ORIGIN?.trim() ||
+    buildEnv.MODE_BASE_URL?.trim() ||
+    buildEnv.MODE_ENDPOINT_ORIGIN?.trim() ||
     undefined
   );
 }
@@ -283,13 +283,13 @@ function applySelectedZCodeEnvLinks(env: Record<string, string>): Record<string,
   const endpointEnv = {
     ...readProductEndpointEnv(),
     ...env,
-    ZCODE_ENV,
+    MODE_ENV,
   };
 
   return {
     ...pickProductEndpointEnv(endpointEnv),
     ...env,
-    ZCODE_BASE_URL: env.ZCODE_BASE_URL ?? resolveRuntimeZCodeEndpointOrigin(endpointEnv),
+    MODE_BASE_URL: env.MODE_BASE_URL ?? resolveRuntimeZCodeEndpointOrigin(endpointEnv),
     ZAI_OAUTH_ORIGIN: env.ZAI_OAUTH_ORIGIN ?? resolveZaiOAuthOrigin(endpointEnv),
     ZAI_BUSINESS_BASE_URL: env.ZAI_BUSINESS_BASE_URL ?? resolveZaiBusinessBaseUrl(endpointEnv),
     ZAI_OAUTH_CLIENT_ID: env.ZAI_OAUTH_CLIENT_ID ?? resolveZaiOAuthClientId(endpointEnv),
@@ -301,7 +301,7 @@ function resolveHostProcessNodeEnv(): ZCodeRuntimeEnv {
 }
 
 function resolveRemoteAssetCacheDir(localEnv: LocalRuntimeEnv = {}): string {
-  const overrideCacheDir = resolveEnvValue("ZCODE_REMOTE_ASSET_CACHE_DIR", localEnv);
+  const overrideCacheDir = resolveEnvValue("MODE_REMOTE_ASSET_CACHE_DIR", localEnv);
   if (overrideCacheDir) {
     // 开发态需要复用正式版 remote cache 验证下载判断，但不能整体切换 Electron userData。
     // 因此只允许覆盖 remote assets cache 目录，避免污染登录态、窗口状态等其它开发数据。
@@ -342,7 +342,7 @@ export function resolveRemoteAssetDirs(
 }
 
 function resolveBundledZCodeAgentBinaryPath(): string | undefined {
-  const runtime = ZCODE_AGENT_RUNTIME;
+  const runtime = MODE_AGENT_RUNTIME;
   const entrySegments = runtime.resolveEntrySegments(process.platform);
   const platformKey = resolvePlatformKeyForPackagedApp();
   const candidates = [
@@ -466,10 +466,10 @@ function resolveDynamicWorkflowModeHostEnv(options: {
 }): Record<string, string> {
   if (!options.isPackaged) {
     const mode = normalizeDynamicWorkflowMode(options.inheritedValue);
-    return mode ? { [ZCODE_DYNAMIC_WORKFLOW_MODE_ENV]: mode } : {};
+    return mode ? { [MODE_DYNAMIC_WORKFLOW_MODE_ENV]: mode } : {};
   }
   if (options.isPreview) {
-    return { [ZCODE_DYNAMIC_WORKFLOW_MODE_ENV]: "alwaysOn" };
+    return { [MODE_DYNAMIC_WORKFLOW_MODE_ENV]: "alwaysOn" };
   }
   return {};
 }
@@ -483,7 +483,7 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
     glmBinaryPath,
   );
   const resolvedLarkCliBinaryPath = resolveHostProcessBinaryEnv(
-    "ZCODE_LARK_CLI_BINARY",
+    "MODE_LARK_CLI_BINARY",
     hostProcessLocalEnv,
     larkCliBinaryPath,
   );
@@ -502,11 +502,11 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
           // (1|true|on, case-insensitive). Accepting only the literal "1" silently
           // ignored `true`/`on` set by scripts following the documented dev flow.
           ["1", "true", "on"].includes(
-              rawInheritedEnv.ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL?.trim().toLowerCase() ?? "",
+              rawInheritedEnv.MODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL?.trim().toLowerCase() ?? "",
             )
-          ? rawInheritedEnv.ZCODE_CUA_BUNDLED_HELPER_APP_PATH?.trim() ||
+          ? rawInheritedEnv.MODE_CUA_BUNDLED_HELPER_APP_PATH?.trim() ||
             join(
-              rawInheritedEnv.ZCODE_HOME?.trim() || join(homedir(), ".zcodium"),
+              rawInheritedEnv.MODE_HOME?.trim() || join(homedir(), ".zcodium"),
               "computer-use",
               "dev",
               DEV_HELPER_APP_NAME,
@@ -521,41 +521,46 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
   // Otherwise a developer shell/launchctl variable can make the signed app
   // reject its verified bundled Helper and route onboarding to a stale dev app.
   if (packagedDesktop) {
-    delete inheritedEnv.ZCODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL;
+    delete inheritedEnv.MODE_CUA_HELPER_ALLOW_UNSIGNED_LOCAL;
   }
   const dynamicWorkflowModeHostEnv = resolveDynamicWorkflowModeHostEnv({
-    inheritedValue: rawInheritedEnv[ZCODE_DYNAMIC_WORKFLOW_MODE_ENV],
+    inheritedValue: rawInheritedEnv[MODE_DYNAMIC_WORKFLOW_MODE_ENV],
     isPackaged: packagedDesktop,
     isPreview: isPreviewPackagedRuntime,
   });
   // 三层里有两层不写这个键，空对象无法覆盖 inheritedEnv，所以先无条件删掉继承值再按决策 spread 回去。
   // 少了这一行，production 包和 dev 的非法取值都会原样穿透到 Host。
-  delete inheritedEnv[ZCODE_DYNAMIC_WORKFLOW_MODE_ENV];
+  delete inheritedEnv[MODE_DYNAMIC_WORKFLOW_MODE_ENV];
 
   return {
     ...inheritedEnv,
     // ZCode 运行时不再使用 NODE_ENV；它会被用户 shell、包管理器和测试框架复用。
-    // 这里显式下发 ZCODE_RUNTIME_ENV，并在继承环境里清掉 NODE_ENV，避免 host/agent/Bash 被污染。
-    [ZCODE_RUNTIME_ENV_KEY]: resolveHostProcessNodeEnv(),
+    // 这里显式下发 MODE_RUNTIME_ENV，并在继承环境里清掉 NODE_ENV，避免 host/agent/Bash 被污染。
+    [MODE_RUNTIME_ENV_KEY]: resolveHostProcessNodeEnv(),
     // 显式注入编译期产品身份，保证主进程与 host 的身份语义一致；地址独立解析。
     // inheritedEnv 从 .env 通用变量补齐 ZCode/ZAI 链接，未覆盖时统一使用线上默认值。
-    ZCODE_ENV,
+    MODE_ENV,
     // Preview 与生产版共享任务、配置和凭据，但不同版本的 Helper 不能互相覆盖或触发降级保护。
-    // 只隔离 computer-use 下的运行组件，不改写 ZCODE_HOME / ZCODE_DATA_BASE_DIR 业务数据根。
-    ...(isPreviewPackagedRuntime ? { ZCODE_CUA_HELPER_INSTALL_VARIANT: "preview" } : {}),
+    // 只隔离 computer-use 下的运行组件，不改写 MODE_HOME / MODE_DATA_BASE_DIR 业务数据根。
+    ...(isPreviewPackagedRuntime ? { MODE_CUA_HELPER_INSTALL_VARIANT: "preview" } : {}),
     // Dynamic Workflow 灰度的本地覆盖：Main 决策后写入，production 包为空对象（继承值已在上面删除）。
     ...dynamicWorkflowModeHostEnv,
     // 模型请求默认 header 由 agent 进程构造，过去只继承 shell env 导致桌面启动时拿不到 app 版本。
     // 这里从 main 进程显式下发，agent 子进程继承 host env 后即可稳定写入请求 header。
-    [ZCODE_APP_VERSION_ENV]: ZCODE_VERSION,
+    [MODE_APP_VERSION_ENV]: MODE_VERSION,
+    // 数据根三代名写回：当前名 + P1a 名 + 上游名，覆盖新旧二进制混布（SSH 远端旧 agent 只认旧名）。
     ...(dataBaseDir !== homedir()
-      ? { ZCODIUM_DATA_BASE_DIR: dataBaseDir, ZCODE_DATA_BASE_DIR: dataBaseDir }
+      ? {
+          MODE_DATA_BASE_DIR: dataBaseDir,
+          ZCODIUM_DATA_BASE_DIR: dataBaseDir,
+          ZCODE_DATA_BASE_DIR: dataBaseDir,
+        }
       : {}),
-    ...(windowsAppInstallDir ? { [ZCODE_WINDOWS_APP_INSTALL_DIR_ENV]: windowsAppInstallDir } : {}),
+    ...(windowsAppInstallDir ? { [MODE_WINDOWS_APP_INSTALL_DIR_ENV]: windowsAppInstallDir } : {}),
     ...(bundledCuaHelperAppPath
-      ? { [ZCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV]: bundledCuaHelperAppPath }
+      ? { [MODE_CUA_BUNDLED_HELPER_APP_PATH_ENV]: bundledCuaHelperAppPath }
       : {}),
     ...(resolvedGlmBinaryPath ? { GLM_BINARY_PATH: resolvedGlmBinaryPath } : {}),
-    ...(resolvedLarkCliBinaryPath ? { ZCODE_LARK_CLI_BINARY: resolvedLarkCliBinaryPath } : {}),
+    ...(resolvedLarkCliBinaryPath ? { MODE_LARK_CLI_BINARY: resolvedLarkCliBinaryPath } : {}),
   };
 }

@@ -6,8 +6,8 @@ import { ensureRetiredProviderFamilySettingsPurge } from "../src/lib/providerFam
 
 // 迁移成功会打一条 info 日志；测试不需要它。
 (
-  globalThis as { __ZCODE_RENDERER_DISABLE_LOGGING__?: boolean }
-).__ZCODE_RENDERER_DISABLE_LOGGING__ = true;
+  globalThis as { __MODE_RENDERER_DISABLE_LOGGING__?: boolean }
+).__MODE_RENDERER_DISABLE_LOGGING__ = true;
 
 type PurgeServices = Parameters<typeof ensureRetiredProviderFamilySettingsPurge>[0];
 

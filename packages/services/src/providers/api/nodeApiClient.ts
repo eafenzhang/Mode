@@ -1,7 +1,7 @@
 import { assertNoOfficialPlatformUrl } from "@zcode/shared";
 import {
   ApiError,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  DEFAULT_MODE_ENDPOINT_ORIGIN,
   normalizeZCodeEndpointOrigin,
   rewriteZCodeEndpointUrl,
   type ApiClient,
@@ -54,7 +54,7 @@ function withZCodeEndpointHeaders(
     });
   }
 
-  if (next.get("HTTP-Referer") === DEFAULT_ZCODE_ENDPOINT_ORIGIN) {
+  if (next.get("HTTP-Referer") === DEFAULT_MODE_ENDPOINT_ORIGIN) {
     next.set("HTTP-Referer", endpointOrigin);
   }
   return next;
@@ -94,7 +94,7 @@ export class NodeApiClient implements ApiClient {
     const endpointOrigin = this.resolveZCodeEndpointOrigin
       ? await this.resolveZCodeEndpointOrigin()
       : undefined;
-    const activeEndpointOrigin = endpointOrigin ?? DEFAULT_ZCODE_ENDPOINT_ORIGIN;
+    const activeEndpointOrigin = endpointOrigin ?? DEFAULT_MODE_ENDPOINT_ORIGIN;
     const requestInput = rewriteZCodeEndpointUrl(input, activeEndpointOrigin);
     assertNoOfficialPlatformUrl(requestInput);
     const url = resolveUrl(requestInput);

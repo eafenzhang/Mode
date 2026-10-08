@@ -2,8 +2,8 @@ import { isOfficialServiceEnabled } from "@zcode/shared";
 import {
   buildZCodeEndpointUrls,
   buildZCodeSourceHeadersFromContext,
-  ZCODE_ENV,
-  ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
+  MODE_ENV,
+  MODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
 } from "@zcode/shared";
 import {
   createSingleFeatureRollout,
@@ -11,7 +11,7 @@ import {
   type SingleFeatureRolloutLogger,
 } from "./singleFeatureRollout.js";
 
-export { ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV };
+export { MODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV };
 
 type DesktopContextPromptRolloutLogger = SingleFeatureRolloutLogger;
 export const DESKTOP_CONTEXT_PROMPT_CACHE_TTL_MS = 60 * 60 * 1_000;
@@ -119,7 +119,7 @@ export function createElectronDesktopContextPromptConfigFetcher(options: {
         deviceMid: options.deviceMid,
         endpointOrigin,
         platform: process.platform,
-        releaseChannel: ZCODE_ENV,
+        releaseChannel: MODE_ENV,
         sourceTitle: "electron",
       });
       for (const [name, value] of Object.entries(sourceHeaders)) {

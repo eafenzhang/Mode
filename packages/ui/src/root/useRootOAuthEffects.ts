@@ -9,7 +9,7 @@ import type {
 import {
   DesktopCommandIds,
   resolveProviderFamilyDomainFromOAuthProvider,
-  ZCODE_JWT_INVALID_BROADCAST_CHANNEL,
+  MODE_JWT_INVALID_BROADCAST_CHANNEL,
 } from "@zcode/shared";
 import type { IServiceAccessor } from "@zcode/services";
 import { useAlertDialog } from "@/hooks/useAlertDialog.js";
@@ -188,7 +188,7 @@ export function useRootOAuthEffects({
   useEffect(() => {
     let disposed = false;
     const disposable = services.broadcastService.onMessage((message) => {
-      if (message.channel !== ZCODE_JWT_INVALID_BROADCAST_CHANNEL || disposed) {
+      if (message.channel !== MODE_JWT_INVALID_BROADCAST_CHANNEL || disposed) {
         return;
       }
       void (async () => {

@@ -4,7 +4,7 @@ import pdfIconUrl from "@/assets/plugin-icons/pdf.png";
 import pluginCreatorIconUrl from "@/assets/plugin-icons/plugin-creator.png";
 import presentationsIconUrl from "@/assets/plugin-icons/presentations.png";
 import spreadsheetsIconUrl from "@/assets/plugin-icons/spreadsheets.png";
-import { ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME } from "@/settings/zcodeOfficialPluginIcons.generated.js";
+import { MODE_OFFICIAL_PLUGIN_ICON_BY_NAME } from "@/settings/zcodeOfficialPluginIcons.generated.js";
 import { isTrustedImageUrl } from "@/lib/trustedImageUrl.js";
 
 const OFFICIAL_PLUGIN_ICON_BY_ID: Readonly<Record<string, string>> = {
@@ -22,7 +22,7 @@ const OFFICIAL_PLUGIN_ICON_BY_ID: Readonly<Record<string, string>> = {
  * 也复用同一份原版图标。内置六件套按 id 维护，这里取出短名并入。
  */
 const BUNDLED_PLUGIN_ICON_BY_NAME: Readonly<Record<string, string>> = {
-  ...ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME,
+  ...MODE_OFFICIAL_PLUGIN_ICON_BY_NAME,
   ...Object.fromEntries(
     Object.entries(OFFICIAL_PLUGIN_ICON_BY_ID).map(([id, url]) => [
       id.slice(0, id.lastIndexOf("@")),

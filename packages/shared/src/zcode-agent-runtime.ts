@@ -23,7 +23,7 @@ export function resolvePlatformBinaryName(binaryName: string, platform: string):
   return platform === "win32" ? `${binaryName}.exe` : binaryName;
 }
 
-export const ZCODE_AGENT_RUNTIME: ZCodeAgentRuntimeDescriptor = {
+export const MODE_AGENT_RUNTIME: ZCodeAgentRuntimeDescriptor = {
   binaryKind: "native-binary",
   binaryEnvVar: "GLM_BINARY_PATH",
   bundledResourceDir: "glm",
@@ -41,5 +41,5 @@ export const ZCODE_AGENT_RUNTIME: ZCodeAgentRuntimeDescriptor = {
 };
 
 export function getZCodeAgentRuntime(): ZCodeAgentRuntimeDescriptor {
-  return ZCODE_AGENT_RUNTIME;
+  return MODE_AGENT_RUNTIME;
 }

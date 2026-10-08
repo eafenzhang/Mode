@@ -6,7 +6,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { MinusIcon, PlusIcon } from "lucide-react";
-import { ZCODE_AGENT_PROVIDER, type ZCodeConfigOption } from "@zcode/shared";
+import { MODE_AGENT_PROVIDER, type ZCodeConfigOption } from "@zcode/shared";
 import { ThoughtLevelCycleControl } from "@/chat-input-toolbar/ThoughtLevelCycleControl.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -120,7 +120,7 @@ export function WorkflowRunSettingsModelField({
           <ThoughtLevelCycleControl
             intl={intl}
             option={thoughtOption}
-            provider={ZCODE_AGENT_PROVIDER}
+            provider={MODE_AGENT_PROVIDER}
             onCurrentValueCommit={onLevelChange}
             showInvalidCurrentValue
             disabled={disabled}

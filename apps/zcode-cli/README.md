@@ -92,10 +92,10 @@ Example `.zcode-plugin/plugin.json` with inline MCP config:
   "mcpServers": {
     "ios-simulator": {
       "command": "node",
-      "args": ["${ZCODE_PLUGIN_ROOT}/dist/mcp/server.js"],
-      "cwd": "${ZCODE_PROJECT_DIR}",
+      "args": ["${MODE_PLUGIN_ROOT}/dist/mcp/server.js"],
+      "cwd": "${MODE_PROJECT_DIR}",
       "env": {
-        "PLUGIN_DATA": "${ZCODE_PLUGIN_DATA}",
+        "PLUGIN_DATA": "${MODE_PLUGIN_DATA}",
         "DEFAULT_DEVICE": "${user_config.default_device}"
       }
     }
@@ -113,13 +113,13 @@ Example `.zcode-plugin/plugin.json` with inline MCP config:
 
 Plugin MCP config can use these variable names:
 
-- `${ZCODE_PLUGIN_ROOT}`
-- `${ZCODE_PLUGIN_DATA}`
-- `${ZCODE_PROJECT_DIR}`
+- `${MODE_PLUGIN_ROOT}`
+- `${MODE_PLUGIN_DATA}`
+- `${MODE_PROJECT_DIR}`
 - `${user_config.key}`
-- `${ZCODE_SOME_ENV}`
+- `${MODE_SOME_ENV}`
 
-Only environment variables with the `ZCODE_` prefix are expanded. Missing variables disable the affected MCP server and produce a plugin diagnostic.
+Only environment variables with the `MODE_` prefix are expanded. Missing variables disable the affected MCP server and produce a plugin diagnostic.
 
 ### Recommended Layout
 

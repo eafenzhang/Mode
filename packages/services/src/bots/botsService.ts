@@ -10,7 +10,7 @@ import {
   ALL_BOT_WORKSPACES,
   generateTraceId,
   normalizeAgentProviderToZCodeAgent,
-  ZCODE_AGENT_PROVIDER,
+  MODE_AGENT_PROVIDER,
   BOT_TASK_BROADCAST_CHANNEL,
   BOT_TASK_STREAM_BROADCAST_CHANNEL,
   appendAssistantMessagePart,
@@ -228,7 +228,7 @@ const botsLogger = createServiceLogger("bots");
 
 function formatBotModelSelectionValue(selection: ModelSelection | undefined): string | undefined {
   if (!selection) return undefined;
-  return selection.providerId === ZCODE_AGENT_PROVIDER
+  return selection.providerId === MODE_AGENT_PROVIDER
     ? selection.modelId
     : encodeCustomModelValue(selection.providerId, selection.modelId);
 }
@@ -245,7 +245,7 @@ function parseBotModelOptionValue(value: string): ModelSelection | undefined {
       modelId: value.slice(separatorIndex + 1),
     };
   }
-  return value.trim() ? { providerId: ZCODE_AGENT_PROVIDER, modelId: value.trim() } : undefined;
+  return value.trim() ? { providerId: MODE_AGENT_PROVIDER, modelId: value.trim() } : undefined;
 }
 
 const BOT_REPLY_GRANULARITY_OPTIONS = [
@@ -768,7 +768,7 @@ function buildTaskStreamSubscriptionKey(
   return [getWorkspaceKey(workspacePath, workspaceIdentity), taskId, botId].join("::");
 }
 
-const DEFAULT_BOT_ZCODE_PROVIDER: ZCodeProvider = ZCODE_AGENT_PROVIDER;
+const DEFAULT_BOT_MODE_PROVIDER: ZCodeProvider = MODE_AGENT_PROVIDER;
 // Bot 模式硬锁 yolo：所有 bot task 一律免交互权限，且禁止通过 /mode 切换运行模式。
 const BOT_FORCED_MODE = "yolo";
 const BOT_TYPING_INTERVAL_MS = 4_000;
@@ -2713,7 +2713,7 @@ export function createBotsService(
     provider?: ZCodeProvider,
   ): Promise<BotDraftOptions> {
     const requestedProvider = normalizeAgentProviderToZCodeAgent(
-      provider ?? DEFAULT_BOT_ZCODE_PROVIDER,
+      provider ?? DEFAULT_BOT_MODE_PROVIDER,
     );
     if (context.workspaceIdentity && !(await isRemoteWorkspaceConnected(context))) {
       // Bugfix: 远端断连时初始化草稿也不能偷偷申请远端 ZCode Agent runtime。

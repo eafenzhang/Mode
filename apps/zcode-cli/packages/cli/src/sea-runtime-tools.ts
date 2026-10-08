@@ -66,7 +66,7 @@ export async function ensureSeaRuntimeTools(
   }
 
   const env = options.env ?? process.env;
-  const configuredStorageRoot = options.storageRoot ?? readExternalEnvVar(env, "ZCODE_STORAGE_DIR");
+  const configuredStorageRoot = options.storageRoot ?? readExternalEnvVar(env, "MODE_STORAGE_DIR");
   const storageRoot = configuredStorageRoot || join(homedir(), ".zcodium");
   const runtimeEnv: CliEnv = {};
 

@@ -18,14 +18,14 @@ test('legacy telemetry credentials are discarded without retaining a capture API
   const runtimeEnv = await import('../../../packages/shared/src/runtimeEnv.ts');
   const source = {
     PATH: '/test/bin',
-    ZCODE_HTTP_PROXY: 'http://localhost:8080',
+    MODE_HTTP_PROXY: 'http://localhost:8080',
     OTEL_EXPORTER_OTLP_HEADERS: 'synthetic-secret',
-    ZCODE_TELEMETRY_DEVICE_MID: 'synthetic-device',
+    MODE_TELEMETRY_DEVICE_MID: 'synthetic-device',
   };
   const cleaned = runtimeEnv.sanitizeZCodeRuntimeEnv(source);
   assert.equal(cleaned.PATH, source.PATH);
   assert.equal(cleaned.OTEL_EXPORTER_OTLP_HEADERS, undefined);
-  assert.equal(cleaned.ZCODE_TELEMETRY_DEVICE_MID, undefined);
+  assert.equal(cleaned.MODE_TELEMETRY_DEVICE_MID, undefined);
   assert.equal(runtimeEnv.getCapturedZCodeAgentTelemetryEnv, undefined);
   runtimeEnv.sanitizeZCodeRuntimeEnvInPlace(source);
   assert.equal(source.OTEL_EXPORTER_OTLP_HEADERS, undefined);

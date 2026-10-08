@@ -3,7 +3,7 @@ import type { ApiClient } from "@zcode/shared";
 import {
   buildRuntimeZCodeEndpointUrls,
   normalizeOfficialGlmModelId,
-  ZCODE_VERSION,
+  MODE_VERSION,
 } from "@zcode/shared";
 import { readApiJson } from "../providers/api/apiJson.js";
 
@@ -65,7 +65,7 @@ export function buildZaiStartPlanBalanceUrl(): string {
   const url = new URL(ZAI_START_PLAN_BALANCE_URL);
   // Start Plan balance 接口按真实 app_version 判定能力；
   // 开发环境也不能固定 3.0.0，否则本地验证会绕过当前 App 版本的后端策略。
-  url.searchParams.set("app_version", ZCODE_VERSION);
+  url.searchParams.set("app_version", MODE_VERSION);
   return url.toString();
 }
 

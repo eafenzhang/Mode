@@ -29,7 +29,7 @@ import { createServiceLogger } from "#src/logger/serviceLogger.js";
 
 const log = createServiceLogger("official-mcp");
 
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const MODE_JWT_TOKEN_KEY = "zcodejwttoken";
 const ACTIVE_OAUTH_PROVIDER_KEY = "oauth:active_provider";
 
 /**
@@ -229,7 +229,7 @@ async function readIdentitySnapshot(
   const [registry, activeProviderValue, jwtValue] = await Promise.all([
     deps.modelSelectionService.getView(),
     deps.credentialService.load(ACTIVE_OAUTH_PROVIDER_KEY),
-    deps.credentialService.load(ZCODE_JWT_TOKEN_KEY),
+    deps.credentialService.load(MODE_JWT_TOKEN_KEY),
   ]);
   const activeProvider = activeProviderValue?.trim();
   const jwt = jwtValue?.trim() ?? "";

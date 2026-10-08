@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { PluginDiagnostic, PluginManifest, PluginStoreListing } from "@zcode/contracts";
-import { isOfficialMarketplaceId, ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
+import { isOfficialMarketplaceId, MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
 import {
   RETIRED_DEFAULT_MARKETPLACES,
   resolveDefaultPluginMarketplaces,
@@ -64,7 +64,7 @@ const MARKETPLACE_MANIFEST_RELATIVE_CANDIDATES = [
   "marketplace.json",
   ".agents/plugins/marketplace.json",
 ] as const;
-const ZCODE_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
+const MODE_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
 const CLAUDE_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const DEFAULT_VERSION = "0.0.0";
@@ -400,15 +400,15 @@ export async function addMarketplace(input: {
       );
     }
     if (
-      input.trustedId === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE &&
-      loaded.manifest.name !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE
+      input.trustedId === MODE_OFFICIAL_PLUGIN_MARKETPLACE &&
+      loaded.manifest.name !== MODE_OFFICIAL_PLUGIN_MARKETPLACE
     ) {
       throw new Error(
-        `Official marketplace source must provide ${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}, received ${loaded.manifest.name}`,
+        `Official marketplace source must provide ${MODE_OFFICIAL_PLUGIN_MARKETPLACE}, received ${loaded.manifest.name}`,
       );
     }
     const persistedManifest =
-      loaded.manifest.name === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE
+      loaded.manifest.name === MODE_OFFICIAL_PLUGIN_MARKETPLACE
         ? parseRequiredMarketplaceManifest(
             writeCdnOfficialMarketplacePartitionSync({
               manifest: loaded.manifest.raw,
@@ -426,7 +426,7 @@ export async function addMarketplace(input: {
         persistedManifest.raw,
         operationSignal,
       );
-    } else if (loaded.manifest.name !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE) {
+    } else if (loaded.manifest.name !== MODE_OFFICIAL_PLUGIN_MARKETPLACE) {
       marketplaceActivation = await stageMarketplaceManifest(
         input.storageRoot,
         loaded.manifest.name,
@@ -1919,7 +1919,7 @@ async function execGitCommand(args: string[], signal?: AbortSignal): Promise<voi
   try {
     // 显式二进制覆盖既支持非标准 Git 安装位置，也让跨进程 E2E 能把 Git 指向不存在的
     // 绝对路径，真实证明 Archive 主链路不依赖开发机上偶然存在的 Git。
-    const gitBinary = process.env.ZCODE_GIT_BINARY?.trim() || "git";
+    const gitBinary = process.env.MODE_GIT_BINARY?.trim() || "git";
     await execFileAsync(gitBinary, args, {
       env: buildMarketplaceGitEnv(),
       killSignal: "SIGTERM",
@@ -2377,7 +2377,7 @@ function findMarketplaceManifestPath(rootPath: string, explicitPath?: string): s
 }
 
 function findPluginManifestPath(rootPath: string): string | null {
-  for (const candidate of [ZCODE_MANIFEST_PATH, CLAUDE_MANIFEST_PATH, CODEX_MANIFEST_PATH]) {
+  for (const candidate of [MODE_MANIFEST_PATH, CLAUDE_MANIFEST_PATH, CODEX_MANIFEST_PATH]) {
     const path = join(rootPath, candidate);
     if (fileExists(path)) return path;
   }

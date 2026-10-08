@@ -4,15 +4,15 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { ZCODE_COMMIT, ZCODE_VERSION } from "@zcode/shared";
+import { MODE_COMMIT, MODE_VERSION } from "@zcode/shared";
 import {
   createEncodedPowerShellArgs,
   createWindowsPowerShellSecurityArgs,
 } from "../../scripts/powershell-command.mjs";
 import { isElectronAppPackaged } from "./desktopElectronApp.js";
 
-const HELPER_PROTOCOL = "ZCODE_BROWSER_IMPORT_V1";
-const HELPER_VERSION_PROTOCOL = "ZCODE_BROWSER_IMPORT_HELPER";
+const HELPER_PROTOCOL = "MODE_BROWSER_IMPORT_V1";
+const HELPER_VERSION_PROTOCOL = "MODE_BROWSER_IMPORT_HELPER";
 const HELPER_VERSION = "2";
 const HELPER_TIMEOUT_MS = 90_000;
 const HELPER_MAX_OUTPUT_BYTES = 128 * 1024;
@@ -361,8 +361,8 @@ async function verifyHelper(helperPath: string, options: ReadAppBoundKeyOptions)
         })
       : await runHelper(helperPath, ["--version"]);
     const fields = version.stdout.split("\t");
-    const expectedAppVersion = options.expectedAppVersion ?? ZCODE_VERSION;
-    const expectedBuildCommit = options.expectedBuildCommit ?? ZCODE_COMMIT;
+    const expectedAppVersion = options.expectedAppVersion ?? MODE_VERSION;
+    const expectedBuildCommit = options.expectedBuildCommit ?? MODE_COMMIT;
     if (
       version.exitCode !== 0 ||
       fields.length !== 5 ||

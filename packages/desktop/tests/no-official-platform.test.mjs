@@ -293,7 +293,7 @@ test("historical built-in platform model endpoints cannot escape the model trans
   const fetch = gateway.createOfficialCodingPlanGatewayFetch({
     fetch: () => assert.fail("must not request"),
   });
-  const config = JSON.parse(await read("config/provider/zcode-builtin.json"));
+  const config = JSON.parse(await read("config/provider/mode-builtin.json"));
   const urls = [];
   function visit(value) {
     if (typeof value === "string" && policy.isOfficialPlatformUrl(value)) urls.push(value);
@@ -311,7 +311,7 @@ test("Node API blocks official endpoints before resolving settings or calling fe
   const { NodeApiClient } = await load("packages/services/src/providers/api/nodeApiClient.ts", {
     "@zcode/shared": {
       ...policy,
-      DEFAULT_ZCODE_ENDPOINT_ORIGIN: "https://zcode.z.ai",
+      DEFAULT_MODE_ENDPOINT_ORIGIN: "https://zcode.z.ai",
       ApiError: Error,
     },
     "#src/logger/serviceLogger.js": { createServiceLogger: () => ({}) },

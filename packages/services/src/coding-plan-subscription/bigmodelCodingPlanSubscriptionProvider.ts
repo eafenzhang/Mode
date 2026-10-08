@@ -63,13 +63,13 @@ import {
   resolveBigModelApiOrigin,
   resolveZaiBusinessBaseUrl,
   ZAI_PROVIDER_ID,
-  ZCODE_VERSION,
-  DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
+  MODE_VERSION,
+  DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   createDynamicWorkflowClientConfig,
   normalizeDynamicWorkflowMode,
   resolveDynamicWorkflowClientConfig,
   DEFAULT_DYNAMIC_WORKFLOW_MODE,
-  ZCODE_DYNAMIC_WORKFLOW_MODE_ENV,
+  MODE_DYNAMIC_WORKFLOW_MODE_ENV,
 } from "@zcode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import { readApiJson } from "../providers/api/apiJson.js";
@@ -82,11 +82,11 @@ import {
 
 const BIGMODEL_CODING_PLAN_API_PREFIX = "/api/biz";
 const ZAI_CODING_PLAN_PAY_API_PREFIX = "/api/pay";
-const ZCODE_CLIENT_CONFIG_API_PREFIX = "/api/v1/client/configs";
+const MODE_CLIENT_CONFIG_API_PREFIX = "/api/v1/client/configs";
 const REQUEST_TIMEOUT_MS = 15_000;
 const CLIENT_CONFIG_CACHE_TTL_MS = 60 * 60 * 1000;
 const CODING_PLAN_ZAI_OVERSEAS_PAYMENT_REQUIRED = "coding_plan_zai_overseas_payment_required";
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const MODE_JWT_TOKEN_KEY = "zcodejwttoken";
 const log = createServiceLogger("codingPlanSubscription");
 
 interface RemoteEnvelope<T> {
@@ -220,7 +220,7 @@ export class BigModelCodingPlanSubscriptionProvider {
    * forceRefresh 供"打开 Automations 入口补拉"（1h 快照否则灰度翻转最长 1h 不可见）。
    */
   async getOffPeakClientConfig(options?: { forceRefresh?: boolean }): Promise<OffPeakClientConfig> {
-    if (process.env["ZCODE_OFFPEAK_MOCK"] === "1") {
+    if (process.env["MODE_OFFPEAK_MOCK"] === "1") {
       // mock 已经明确替代远端曝光配置，不能再先等待 /client/configs：
       // 离线 Desktop E2E 会一直停在 Loading，根本无法进入闲时执行链。
       const modelSelectionView = await this.resolveOffPeakModelSelectionView?.();
@@ -238,7 +238,7 @@ export class BigModelCodingPlanSubscriptionProvider {
   /**
    * 动态工作流灰度快照：与闲时任务同走
    * client/configs，零新增请求。三条边界：
-   *   1. 本地覆盖（ZCODE_DYNAMIC_WORKFLOW_MODE）在任何网络动作之前裁决，命中即返回——
+   *   1. 本地覆盖（MODE_DYNAMIC_WORKFLOW_MODE）在任何网络动作之前裁决，命中即返回——
    *      preview 构建和开发者手测因此不受 1h 快照与首次 Host 竞态影响；
    *   2. forceRefresh 与 Off-Peak 同义，清掉快照后重拉（灰度翻转最长 1h 不可见）；
    *   3. 请求失败 fail-closed：返回 default（disabled）并 warn，绝不把异常抛给调用方——
@@ -248,7 +248,7 @@ export class BigModelCodingPlanSubscriptionProvider {
     forceRefresh?: boolean;
   }): Promise<DynamicWorkflowClientConfig> {
     // 覆盖合法即短路：判据（normalize）与快照构造（resolve）都留在 shared，这里不复述取值域。
-    if (normalizeDynamicWorkflowMode(process.env[ZCODE_DYNAMIC_WORKFLOW_MODE_ENV])) {
+    if (normalizeDynamicWorkflowMode(process.env[MODE_DYNAMIC_WORKFLOW_MODE_ENV])) {
       return resolveDynamicWorkflowClientConfig({ remote: undefined, env: process.env });
     }
     if (options?.forceRefresh) {
@@ -271,7 +271,7 @@ export class BigModelCodingPlanSubscriptionProvider {
 
   async getModelContextBudgetStrategy(): Promise<ZCodeModelContextBudgetStrategy> {
     // 3.12.2：预算统一为 preflight-v1；保留兼容方法，但不能再为每次建会话等待远端配置。
-    return DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY;
+    return DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY;
   }
 
   async getForceUpdateConfig(): Promise<ForceUpdateConfig | null> {
@@ -606,9 +606,9 @@ export class BigModelCodingPlanSubscriptionProvider {
     }
 
     // client/configs 和其他 ZCode 平台接口必须共享运行时 endpoint；
-    // E2E/测试环境会通过 ZCODE_BASE_URL 指向本地 mock，硬编码线上域名会让套餐状态不可控。
+    // E2E/测试环境会通过 MODE_BASE_URL 指向本地 mock，硬编码线上域名会让套餐状态不可控。
     const url = resolveCodingPlanClientConfigUrl(process.env);
-    url.searchParams.set("app_version", ZCODE_VERSION);
+    url.searchParams.set("app_version", MODE_VERSION);
     url.searchParams.set("platform", resolveClientPlatformKey());
     // StartPlanCard 和套餐列表都来自同一个 client/configs。
     // 同屏分别读取 preview/products 时必须合并请求，避免未登录设置页重复打远端配置。
@@ -659,7 +659,7 @@ export class BigModelCodingPlanSubscriptionProvider {
     if (!token) {
       throw new Error("bigmodel_oauth_required");
     }
-    const zcodeJwtToken = (await this.credentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim();
+    const zcodeJwtToken = (await this.credentialService.load(MODE_JWT_TOKEN_KEY))?.trim();
     if (zcodeJwtToken && token === zcodeJwtToken) {
       // 旧版 BigModel OAuth callback 曾把 zcode JWT 同时写进
       // oauth:bigmodel:access_token，付费套餐预览会拿它去打 bigmodel.cn 并报令牌过期。
@@ -815,7 +815,7 @@ export class BigModelCodingPlanSubscriptionProvider {
 }
 
 function resolveCodingPlanClientConfigUrl(env: NodeJS.ProcessEnv): URL {
-  return new URL(buildRuntimeZCodeApiUrl(env, ZCODE_CLIENT_CONFIG_API_PREFIX));
+  return new URL(buildRuntimeZCodeApiUrl(env, MODE_CLIENT_CONFIG_API_PREFIX));
 }
 
 function resolveFallbackEnterpriseTeamPlanProduct(
@@ -1327,7 +1327,7 @@ function dropUndefined(value: Record<string, unknown>): Record<string, unknown> 
 /**
  * 闲时任务灰度判据（纯函数供单测）：远端只提供曝光开关，模型成员和事实
  * 来自 ZCode Built-in Provider / Model Config。
- * mock 模式（ZCODE_OFFPEAK_MOCK=1）只替代产品曝光与套餐状态；模型候选仍来自 Registry。
+ * mock 模式（MODE_OFFPEAK_MOCK=1）只替代产品曝光与套餐状态；模型候选仍来自 Registry。
  */
 export function resolveOffPeakClientConfig(
   payload: ZCodeClientConfigEnvelope,
@@ -1335,12 +1335,12 @@ export function resolveOffPeakClientConfig(
   modelSelectionView: ModelSelectionView = EMPTY_OFF_PEAK_MODEL_SELECTION_VIEW,
 ): OffPeakClientConfig {
   const hasModels = modelSelectionView.providers.some((provider) => provider.models.length > 0);
-  if (env["ZCODE_OFFPEAK_MOCK"] === "1") {
+  if (env["MODE_OFFPEAK_MOCK"] === "1") {
     return {
       enabled: hasModels,
       modelSelectionView,
-      // ZCODE_OFFPEAK_MOCK_NO_PLAN=1 演示「非 coding plan 锁定」态；缺省视为已订阅。
-      codingPlanActive: env["ZCODE_OFFPEAK_MOCK_NO_PLAN"] !== "1",
+      // MODE_OFFPEAK_MOCK_NO_PLAN=1 演示「非 coding plan 锁定」态；缺省视为已订阅。
+      codingPlanActive: env["MODE_OFFPEAK_MOCK_NO_PLAN"] !== "1",
     };
   }
   const raw = payload.data?.configs?.offPeak;

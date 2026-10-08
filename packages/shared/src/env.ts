@@ -3,20 +3,20 @@ export type ZCodeEnv = "test" | "production";
 export type ZCodeProductFlavor = "production" | "preview";
 
 // 非构建环境（如 e2e 测试的 mocha）下 define 不存在，用 typeof 检查 + fallback 避免 ReferenceError
-declare const __ZCODE_ENV__: string;
-declare const __ZCODE_PRODUCT_FLAVOR__: string;
+declare const __MODE_ENV__: string;
+declare const __MODE_PRODUCT_FLAVOR__: string;
 
 export function normalizeZCodeEnv(value: string | undefined): ZCodeEnv {
   return value?.trim().toLowerCase() === "production" ? "production" : "test";
 }
 
-export const ZCODE_ENV = normalizeZCodeEnv(
-  typeof __ZCODE_ENV__ !== "undefined" ? __ZCODE_ENV__ : undefined,
+export const MODE_ENV = normalizeZCodeEnv(
+  typeof __MODE_ENV__ !== "undefined" ? __MODE_ENV__ : undefined,
 );
 
 /**
  * 身份缺省跟随后端环境（test → preview，production → production）。
- * 桌面构建通过 `ZCODE_PREVIEW_IDENTITY=1` 显式注入 preview，得到连接生产后端的 Preview 包；
+ * 桌面构建通过 `MODE_PREVIEW_IDENTITY=1` 显式注入 preview，得到连接生产后端的 Preview 包；
  * 未注入 define 的 bundle（web、CLI、测试）沿用旧的单轴语义。
  */
 export function normalizeZCodeProductFlavor(
@@ -30,14 +30,14 @@ export function normalizeZCodeProductFlavor(
   return zcodeEnv === "production" ? "production" : "preview";
 }
 
-export const ZCODE_PRODUCT_FLAVOR = normalizeZCodeProductFlavor(
-  typeof __ZCODE_PRODUCT_FLAVOR__ !== "undefined" ? __ZCODE_PRODUCT_FLAVOR__ : undefined,
-  ZCODE_ENV,
+export const MODE_PRODUCT_FLAVOR = normalizeZCodeProductFlavor(
+  typeof __MODE_PRODUCT_FLAVOR__ !== "undefined" ? __MODE_PRODUCT_FLAVOR__ : undefined,
+  MODE_ENV,
 );
-export const ZCODE_APP_VERSION_ENV = "ZCODE_APP_VERSION" as const;
-export const ZCODE_BUILD_COMMIT_ID_ENV = "ZCODE_BUILD_COMMIT_ID" as const;
+export const MODE_APP_VERSION_ENV = "MODE_APP_VERSION" as const;
+export const MODE_BUILD_COMMIT_ID_ENV = "MODE_BUILD_COMMIT_ID" as const;
 
 // ── 运行时环境变量（不经过编译打包，启动时从 process.env 读取） ──
-// 启用调试模式，值为 inspect-brk 的端口号，如 ZCODE_DEBUG=9230
-export const RUNTIME_ZCODE_DEBUG =
-  typeof process !== "undefined" ? process.env.ZCODE_DEBUG : undefined;
+// 启用调试模式，值为 inspect-brk 的端口号，如 MODE_DEBUG=9230
+export const RUNTIME_MODE_DEBUG =
+  typeof process !== "undefined" ? process.env.MODE_DEBUG : undefined;

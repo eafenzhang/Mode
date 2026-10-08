@@ -152,7 +152,7 @@ export function createDesktopPlatform(options: {
       ),
     setTitleBarTheme: (theme) => window.zcode.setTitleBarTheme(theme),
     getDeviceId: () =>
-      (window as Window & { __ZCODE_DEVICE_ID__?: string }).__ZCODE_DEVICE_ID__ ?? "",
+      (window as Window & { __MODE_DEVICE_ID__?: string }).__MODE_DEVICE_ID__ ?? "",
     // 共享平台协议仍要求这两个方法；审计版不采集、不转发，避免业务 hook 调用失败。
   };
 }

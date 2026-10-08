@@ -361,9 +361,9 @@ function pathExportLines(pathValue: string): string[] {
   return [
     "",
     "# Add PATH to the file",
-    "cat >> \"$SNAPSHOT_FILE\" << 'PATH_END_ZCODE_SHELL_INIT_SNAPSHOT'",
+    "cat >> \"$SNAPSHOT_FILE\" << 'PATH_END_MODE_SHELL_INIT_SNAPSHOT'",
     `export PATH=${shellQuoteAlways(pathValue)}`,
-    "PATH_END_ZCODE_SHELL_INIT_SNAPSHOT",
+    "PATH_END_MODE_SHELL_INIT_SNAPSHOT",
   ];
 }
 

@@ -6,8 +6,8 @@ import { stageThirdPartyNotices } from "../../scripts/third-party-notices.mjs";
 
 const { version: packageVersion } = JSON.parse(readFileSync("../../package.json", "utf-8"));
 // 与 tsup.config.ts 同一版本注入规则：CI 发布时 server bundle 必须跟随
-// ZCODE_APP_VERSION（审计版本），否则远端部署的版本检查永远不匹配。
-const version = process.env.ZCODE_APP_VERSION?.trim() || packageVersion;
+// MODE_APP_VERSION（审计版本），否则远端部署的版本检查永远不匹配。
+const version = process.env.MODE_APP_VERSION?.trim() || packageVersion;
 const { content: zcodeBuiltinProviderConfigJson } = await loadBuiltinProviderConfig();
 
 /**
@@ -46,8 +46,8 @@ const buildResult = await build({
   define: {
     "import.meta.url": "__import_meta_url",
     "import.meta.dirname": "__import_meta_dirname",
-    __ZCODE_VERSION__: JSON.stringify(version),
-    __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(zcodeBuiltinProviderConfigJson),
+    __MODE_VERSION__: JSON.stringify(version),
+    __MODE_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(zcodeBuiltinProviderConfigJson),
   },
   metafile: true,
 });

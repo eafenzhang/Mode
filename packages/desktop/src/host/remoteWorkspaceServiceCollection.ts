@@ -70,7 +70,7 @@ import {
 import {
   BIGMODEL_PROVIDER_ID,
   buildRuntimeZCodeApiUrl,
-  DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
+  DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   type ProviderFamilyDomain,
   type ZCodeSessionRuntimePreferencesResult,
   ZAI_PROVIDER_ID,
@@ -82,7 +82,7 @@ import {
 } from "./remoteProviderProvisioningService.js";
 
 const runtimePreferencesLogger = createServiceLogger("remote-runtime-preferences");
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const MODE_JWT_TOKEN_KEY = "zcodejwttoken";
 
 export function createRemoteWorkspaceServiceCollection(params: {
   clientConfigService: IClientConfigService;
@@ -185,7 +185,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     apiClient: localApiClient,
     baseUrl: buildRuntimeZCodeApiUrl(process.env, "/api/v1"),
     tokenProvider: async () =>
-      (await localCredentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || null,
+      (await localCredentialService.load(MODE_JWT_TOKEN_KEY))?.trim() || null,
   });
   const conversationShareService = new ConversationShareService({
     zcodeAgentService: params.connectionServices.zcodeAgentService,
@@ -261,7 +261,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
         try {
           // 与本地 Host 同源：固定预算不依赖配置网关，远程/手机偏好响应不再串行等待网络。
           const settings = await trackStage("settings", localSettingService.get());
-          const modelContextBudgetStrategy = DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY;
+          const modelContextBudgetStrategy = DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY;
           resolution = {
             status: "resolved",
             preferences: {

@@ -14,17 +14,17 @@ import {
   initializeDataRootNonInteractive,
   resolveDataRootActionFromEnv,
 } from "@zcode/services/node";
-import { ZCODE_VERSION } from "@zcode/shared";
+import { MODE_VERSION } from "@zcode/shared";
 
 void main();
 
 async function main(): Promise<void> {
   // 任何 CLI 子命令（含 Host Worker）都可能读取数据目录；先完成数据根初始化与合法化。
-  // CLI 没有决策窗口，按 ZCODIUM_DATA_ROOT_ACTION 非交互处置（默认备份冲突目录 + 全新初始化）。
+  // CLI 没有决策窗口，按 MODE_DATA_ROOT_ACTION 非交互处置（默认备份冲突目录 + 全新初始化）。
   try {
     await initializeDataRootNonInteractive({
       createdBy: "cli",
-      appVersion: ZCODE_VERSION,
+      appVersion: MODE_VERSION,
       action: resolveDataRootActionFromEnv(),
     });
   } catch (error) {

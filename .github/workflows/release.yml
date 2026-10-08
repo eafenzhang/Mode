@@ -116,7 +116,7 @@ jobs:
             exit 1
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          # 桌面构建用完整版本（不带 v 前缀）注入 ZCODE_APP_VERSION，让安装包文件名带审计序号。
+          # 桌面构建用完整版本（不带 v 前缀）注入 MODE_APP_VERSION，让安装包文件名带审计序号。
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       # tag 在构建前就推送，但 release 先建为 draft：
@@ -130,9 +130,9 @@ jobs:
           NOTICE: ${{ inputs.notice }}
         run: |
           set -euo pipefail
-          # 产品名从产品身份模块取（正式身份要 ZCODE_ENV=production，否则解析成 Preview）。
+          # 产品名从产品身份模块取（正式身份要 MODE_ENV=production，否则解析成 Preview）。
           # 不写死在这里：改名时标题与说明跟着变，别再让旧名字卡住发版。
-          PRODUCT_NAME=$(ZCODE_ENV=production node -e "import('./packages/desktop/scripts/desktop-product-identity.mjs').then((m) => process.stdout.write(m.resolveDesktopProductIdentity(process.env).productName))")
+          PRODUCT_NAME=$(MODE_ENV=production node -e "import('./packages/desktop/scripts/desktop-product-identity.mjs').then((m) => process.stdout.write(m.resolveDesktopProductIdentity(process.env).productName))")
           echo "产品名：$PRODUCT_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -269,12 +269,12 @@ jobs:
 
       - name: Bundle desktop app
         env:
-          ZCODE_ENV: production
+          MODE_ENV: production
           # 文件名与应用版本带上完整审计版本（如 3.14.0-audit.20260922.6），不再只写 3.14.0。
-          ZCODE_APP_VERSION: ${{ needs.release.outputs.version }}
+          MODE_APP_VERSION: ${{ needs.release.outputs.version }}
           # 本仓库不再发布远端运行资源（zz-*），桌面安装包既不打包也不依赖它们；
-          # 需要时自己本地 prepare:remote-assets 并指定 ZCODE_REMOTE_ASSET_CDN_BASE_URL。
-          ZCODE_SKIP_REMOTE_ASSETS: "1"
+          # 需要时自己本地 prepare:remote-assets 并指定 MODE_REMOTE_ASSET_CDN_BASE_URL。
+          MODE_SKIP_REMOTE_ASSETS: "1"
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: pnpm bundle:desktop -- --os ${{ matrix.target }} --arch ${{ matrix.arch }}
 

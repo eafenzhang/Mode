@@ -9,7 +9,7 @@ export interface DefaultPluginMarketplace {
   lastUpdated?: string;
 }
 
-export const ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "zcode-plugins-official";
+export const MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "zcode-plugins-official";
 
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
@@ -54,9 +54,9 @@ export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
   {
     // ZCode 官方唯一市场：本地 seed 分片与 CDN 分片在 Agent storage 内合并。
     // CDN manifest 的 name 必须与该 canonical id 一致。
-    id: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+    id: MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
     source: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
-    name: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+    name: MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
     description: "Official ZCode plugins marketplace: built-in and community plugins for ZCode.",
     pluginCount: 0,
   },
@@ -84,13 +84,13 @@ export const RETIRED_DEFAULT_MARKETPLACES: ReadonlyArray<{ id: string; source: s
 export function resolveDefaultPluginMarketplaces(): DefaultPluginMarketplace[] {
   return DEFAULT_PLUGIN_MARKETPLACES.filter(
     (marketplace) =>
-      marketplace.id !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID ||
+      marketplace.id !== MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID ||
       isOfficialServiceEnabled("marketplace"),
   );
 }
 
 // 商店「公开」分段只有一个 ZCode 官方市场 id，内置与 CDN 不再拆分身份。
-export const PUBLIC_STORE_MARKETPLACE_IDS = [ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID] as const;
+export const PUBLIC_STORE_MARKETPLACE_IDS = [MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID] as const;
 
 export function isPublicStoreMarketplaceId(id: string): boolean {
   return (PUBLIC_STORE_MARKETPLACE_IDS as readonly string[]).includes(id);
@@ -100,7 +100,7 @@ export function isPublicStoreMarketplaceId(id: string): boolean {
  * 随应用预置的市场（官方 + Codex 格式源）。它们由 ensureDefaultPluginMarketplaces
  * 在每次 overview 时补种：允许删除只会造成「删了又在刷新后回来」的困惑，UI 因此不给移除入口。
  */
-export const BUILTIN_DEFAULT_MARKETPLACE_IDS = [ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID] as const;
+export const BUILTIN_DEFAULT_MARKETPLACE_IDS = [MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID] as const;
 
 export function isBuiltinDefaultMarketplaceId(id: string): boolean {
   return (BUILTIN_DEFAULT_MARKETPLACE_IDS as readonly string[]).includes(id);

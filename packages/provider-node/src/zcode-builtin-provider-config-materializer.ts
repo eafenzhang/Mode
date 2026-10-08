@@ -26,7 +26,7 @@ export async function materializeZCodeBuiltinProviderConfig(
     "runtime",
     "provider",
     "bundled",
-    "zcode-builtin.json",
+    "mode-builtin.json",
   );
   await withFileLock(filePath, async () => {
     if ((await readOptionalFile(filePath)) !== content) {

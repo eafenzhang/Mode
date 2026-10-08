@@ -9,15 +9,15 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Emitter } from "@zcode/rpc";
 import {
   parseZCodeProcessDiagnostic,
-  ZCODE_AGENT_LIFECYCLE_LOG_MARKER,
-  ZCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-  ZCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-  ZCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
+  MODE_AGENT_LIFECYCLE_LOG_MARKER,
+  MODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
+  MODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
+  MODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
 } from "@zcode/shared/process-diagnostic";
 import {
-  ZCODE_AGENT_RUNTIME,
-  ZCODE_AGENT_PROVIDER,
-  ZCODE_RUNTIME_ENV_KEY,
+  MODE_AGENT_RUNTIME,
+  MODE_AGENT_PROVIDER,
+  MODE_RUNTIME_ENV_KEY,
   resolveWorkspaceKey,
   resolveZCodeRuntimeEnv,
   sanitizeZCodeRuntimeEnv,
@@ -182,8 +182,8 @@ if (coverageDirectory) {
 `;
 
 function buildE2EAgentCoverageEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
-  const artifactDir = env.ZCODE_E2E_ARTIFACT_DIR?.trim();
-  if (env.ZCODE_E2E_COVERAGE !== "1" || !artifactDir) {
+  const artifactDir = env.MODE_E2E_ARTIFACT_DIR?.trim();
+  if (env.MODE_E2E_COVERAGE !== "1" || !artifactDir) {
     return {};
   }
   const directory = resolve(artifactDir, "coverage", "raw", "cli");
@@ -300,7 +300,7 @@ function parseArgsJson(raw: string | undefined): string[] | undefined {
   }
   const parsed = JSON.parse(trimmed) as unknown;
   if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string")) {
-    throw new Error("ZCODE_AGENT_SERVER_ARGS_JSON must be a JSON string array");
+    throw new Error("MODE_AGENT_SERVER_ARGS_JSON must be a JSON string array");
   }
   return parsed;
 }
@@ -356,7 +356,7 @@ function resolveBundledWorkspaceZCodeAgentCommand(
   const distEntrypoint = findUpward("apps/zcode-cli/packages/cli/dist/zcode.cjs");
   if (distEntrypoint) {
     const useBytecode =
-      process.versions.electron && process.env.ZCODE_DESKTOP_AGENT_BYTECODE === "1";
+      process.versions.electron && process.env.MODE_DESKTOP_AGENT_BYTECODE === "1";
     const entrypoint = useBytecode
       ? join(dirname(distEntrypoint), "zcode.bytecode.cjs")
       : distEntrypoint;
@@ -391,7 +391,7 @@ function resolveBundledWorkspaceZCodeAgentCommand(
 function resolveDeployedZCodeAgentBinaryCommand(
   context: ZCodeAgentCommandResolverContext,
 ): ZCodeAgentCommand | null {
-  // 旧 resolver 只识别 ZCODE_AGENT_SERVER_COMMAND env 和 monorepo 源码树。
+  // 旧 resolver 只识别 MODE_AGENT_SERVER_COMMAND env 和 monorepo 源码树。
   // SSH 远端把 zcode-server.cjs 单文件部署到 ~/.zcodium/server/，宿主进程的 cwd 不在仓库内、
   // env 也不会被 ssh exec 继承，即使 zcode-agent 已经部署到 ~/.zcodium/server/agents/glm/，
   // resolver 也找不到，第一次 getClient 就抛 "ZCode agent server command is not configured"。
@@ -404,7 +404,7 @@ function resolveDeployedZCodeAgentBinaryCommand(
   }
   return {
     command: binaryPath,
-    args: ZCODE_AGENT_RUNTIME.spawnArgs,
+    args: MODE_AGENT_RUNTIME.spawnArgs,
     cwd: context.workspacePath,
   };
 }
@@ -427,7 +427,7 @@ function resolveElectronRuntimeZCodeAgentCommand(
   }
   return {
     command: process.execPath,
-    args: [bundlePath, ...ZCODE_AGENT_RUNTIME.spawnArgs],
+    args: [bundlePath, ...MODE_AGENT_RUNTIME.spawnArgs],
     storagePreparationEntry: bundlePath,
     cwd: context.workspacePath,
     // 关键：必须以纯 Node 模式启动，否则子进程会被当成 Electron/Chromium 子进程卡在 GPU 初始化。
@@ -438,13 +438,13 @@ function resolveElectronRuntimeZCodeAgentCommand(
 export function resolveDefaultZCodeAgentCommand(
   context: ZCodeAgentCommandResolverContext,
 ): ZCodeAgentCommand | null {
-  const command = process.env.ZCODE_AGENT_SERVER_COMMAND?.trim();
+  const command = process.env.MODE_AGENT_SERVER_COMMAND?.trim();
   if (command) {
     return applyPresentationSurfaceToCommand(
       {
         command,
-        args: parseArgsJson(process.env.ZCODE_AGENT_SERVER_ARGS_JSON) ?? ["app-server", "--stdio"],
-        cwd: process.env.ZCODE_AGENT_SERVER_CWD?.trim() || context.workspacePath,
+        args: parseArgsJson(process.env.MODE_AGENT_SERVER_ARGS_JSON) ?? ["app-server", "--stdio"],
+        cwd: process.env.MODE_AGENT_SERVER_CWD?.trim() || context.workspacePath,
       },
       context.presentationSurface,
     );
@@ -720,7 +720,7 @@ export class ZCodeAgentProcessManager {
     this.reportProcessLifecycle((reporter) =>
       reporter.onReady?.({
         pid: managed.child.pid!,
-        provider: ZCODE_AGENT_PROVIDER,
+        provider: MODE_AGENT_PROVIDER,
         ...(this.lane ? { lane: this.lane } : {}),
         workspacePath: managed.workspace.workspacePath,
         readyAt: managed.readyAt!,
@@ -961,7 +961,7 @@ export class ZCodeAgentProcessManager {
     const resolveCommandDurationMs = Date.now() - resolveCommandStartedAt;
     if (!command) {
       throw new Error(
-        "ZCode agent server command is not configured. Set ZCODE_AGENT_SERVER_COMMAND before integration.",
+        "ZCode agent server command is not configured. Set MODE_AGENT_SERVER_COMMAND before integration.",
       );
     }
     if (admissionSignal.aborted) {
@@ -1008,7 +1008,7 @@ export class ZCodeAgentProcessManager {
     if ((this.restartGenerationByWorkspaceKey.get(workspaceKey) ?? 0) !== startGeneration) {
       throw new Error("ZCode agent process start was cancelled.");
     }
-    // app 以本地开发方式启动时，让 agent 子进程也带上 ZCODE_RUNTIME_ENV=development；
+    // app 以本地开发方式启动时，让 agent 子进程也带上 MODE_RUNTIME_ENV=development；
     // 不再传 NODE_ENV，避免用户 shell/runtime 变量影响 ZCode 运行模式或泄漏到 Bash 工具。
     const runtimeEnv = resolveZCodeRuntimeEnv(process.env);
     log("ZCode agent spawn preflight", {
@@ -1023,7 +1023,7 @@ export class ZCodeAgentProcessManager {
       detached: shouldSpawnInDetachedProcessGroup(),
       env: {
         ...sanitizeZCodeRuntimeEnv(process.env),
-        [ZCODE_RUNTIME_ENV_KEY]: runtimeEnv,
+        [MODE_RUNTIME_ENV_KEY]: runtimeEnv,
         ...spawnEnv,
         ...effectiveCommand.env,
         // 身份/隔离语义使用 workspaceIdentity；cwd 继续使用 workspacePath。
@@ -1043,7 +1043,7 @@ export class ZCodeAgentProcessManager {
           this.reportProcessLifecycle((reporter) =>
             reporter.onException?.({
               pid: child.pid!,
-              provider: ZCODE_AGENT_PROVIDER,
+              provider: MODE_AGENT_PROVIDER,
               ...(this.lane ? { lane: this.lane } : {}),
               workspacePath: params.workspacePath,
               runtimeGeneration,
@@ -1053,17 +1053,17 @@ export class ZCodeAgentProcessManager {
                 // 脱敏占位符可能比原文长，必须再次限长，避免 IPC schema 拒绝合法异常。
                 name: redactAgentDiagnostic(diagnostic.name).slice(
                   0,
-                  ZCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
+                  MODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
                 ),
                 message: redactAgentDiagnostic(diagnostic.message).slice(
                   0,
-                  ZCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
+                  MODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
                 ),
                 ...(diagnostic.stack !== undefined
                   ? {
                       stack: redactAgentDiagnostic(diagnostic.stack).slice(
                         0,
-                        ZCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
+                        MODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
                       ),
                     }
                   : {}),
@@ -1157,7 +1157,7 @@ export class ZCodeAgentProcessManager {
         this.reportProcessLifecycle((reporter) =>
           reporter.onSpawn({
             pid: child.pid!,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: MODE_AGENT_PROVIDER,
             ...(this.lane ? { lane: this.lane } : {}),
             workspacePath: params.workspacePath,
             command: effectiveCommand.command,
@@ -1179,7 +1179,7 @@ export class ZCodeAgentProcessManager {
     });
     child.once("error", (error) => {
       errorLog(
-        `ZCode agent process error${this.processLifecycleReporter?.onError ? ` ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
+        `ZCode agent process error${this.processLifecycleReporter?.onError ? ` ${MODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
         {
           workspaceKey,
           pid: child.pid,
@@ -1194,7 +1194,7 @@ export class ZCodeAgentProcessManager {
       this.reportProcessLifecycle((reporter) =>
         reporter.onError?.({
           pid: typeof child.pid === "number" ? child.pid : null,
-          provider: ZCODE_AGENT_PROVIDER,
+          provider: MODE_AGENT_PROVIDER,
           ...(this.lane ? { lane: this.lane } : {}),
           workspacePath: params.workspacePath,
           command: effectiveCommand.command,
@@ -1242,7 +1242,7 @@ export class ZCodeAgentProcessManager {
         // 和长期运行的 Agent 自行 exit 0 同样是非预期退出。
         // 已有独立生命周期事件，显式标记包装日志，避免 Electron 将其再计为 JS 异常。
         errorLog(
-          `ZCode agent process exited unexpectedly${this.processLifecycleReporter ? ` ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
+          `ZCode agent process exited unexpectedly${this.processLifecycleReporter ? ` ${MODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
           {
             ...exitContext,
             stderr,
@@ -1253,7 +1253,7 @@ export class ZCodeAgentProcessManager {
         this.reportProcessLifecycle((reporter) =>
           reporter.onExit({
             pid: child.pid!,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: MODE_AGENT_PROVIDER,
             ...(this.lane ? { lane: this.lane } : {}),
             workspacePath: params.workspacePath,
             exitCode: code,
@@ -1365,7 +1365,7 @@ export class ZCodeAgentProcessManager {
         : {
             available: false,
             workspaceKey,
-            reason: "ZCODE_AGENT_SERVER_COMMAND is not configured",
+            reason: "MODE_AGENT_SERVER_COMMAND is not configured",
           };
     } catch (error) {
       return {

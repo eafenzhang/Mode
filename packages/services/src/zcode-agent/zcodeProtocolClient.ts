@@ -45,7 +45,7 @@ interface ZCodeProtocolClientRequestOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_ZCODE_PROTOCOL_REQUEST_TIMEOUT_MS = 3 * 60_000;
+const DEFAULT_MODE_PROTOCOL_REQUEST_TIMEOUT_MS = 3 * 60_000;
 
 class ZCodeProtocolClientError extends Error {
   constructor(
@@ -115,7 +115,7 @@ export class ZCodeProtocolClient implements IDisposable {
     options?: ZCodeProtocolClientOptions,
   ) {
     this.storageStartup = new ZCodeStorageStartupGate(options?.requireStorageStartup ?? false);
-    this.requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_ZCODE_PROTOCOL_REQUEST_TIMEOUT_MS;
+    this.requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_MODE_PROTOCOL_REQUEST_TIMEOUT_MS;
     this.disposables.push(
       transport.onMessage((message) => this.handleMessage(message)),
       transport.onClose((event) => {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { homedir } from "node:os";
 
-// 未注入 ZCODE_DATA_BASE_DIR 时保持既有语义：设置文件发现的 dataBaseDir
+// 未注入 MODE_DATA_BASE_DIR 时保持既有语义：设置文件发现的 dataBaseDir
 // （setDataBaseDir）继续生效，正式用户重定位数据目录的能力不受影响。
 // node:test 每个文件独立进程，本文件不会读到其他文件设置的 env。
 

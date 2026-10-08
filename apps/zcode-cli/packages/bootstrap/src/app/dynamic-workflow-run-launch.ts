@@ -14,7 +14,7 @@ import { randomUUID } from "node:crypto";
 import {
   boundDynamicWorkflowRunEventPayload,
   CoreErrorType,
-  ZCODE_DWF_CHILD_COMMAND,
+  MODE_DWF_CHILD_COMMAND,
   type CreateSessionTaskLinkInput,
   type DynamicWorkflowRunEvent,
   type DynamicWorkflowRunProgressPayload,
@@ -385,7 +385,7 @@ export function launchDynamicWorkflowRun(
 export function dynamicWorkflowChildSpawn(
   isSea: boolean = isSeaRuntime(),
 ): { argsPrefix: readonly string[] } | undefined {
-  return isSea ? { argsPrefix: [ZCODE_DWF_CHILD_COMMAND] } : undefined;
+  return isSea ? { argsPrefix: [MODE_DWF_CHILD_COMMAND] } : undefined;
 }
 
 /** SEA 运行时探针（official-plugin-runtime.ts 私有同名 helper 的本地镜像，刻意不跨文件复用）。 */

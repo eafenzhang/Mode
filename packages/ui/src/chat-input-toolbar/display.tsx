@@ -40,7 +40,7 @@ import {
   ShieldCheckIcon,
   type LucideIcon,
 } from "lucide-react";
-import { ZCODE_MODE_OPTION_DESCRIPTION_IDS, ZCODE_MODE_OPTION_LABEL_IDS } from "./display-help.js";
+import { MODE_MODE_OPTION_DESCRIPTION_IDS, MODE_MODE_OPTION_LABEL_IDS } from "./display-help.js";
 import { RollingToolbarLabel } from "@/chat-input-toolbar/RollingToolbarLabel.js";
 
 export {
@@ -154,7 +154,7 @@ function getModeOptionLabelMessageId(
     return null;
   }
 
-  return ZCODE_MODE_OPTION_LABEL_IDS[provider]?.[entry.value] ?? null;
+  return MODE_MODE_OPTION_LABEL_IDS[provider]?.[entry.value] ?? null;
 }
 
 export function getModeOptionDescriptionMessageId(
@@ -165,7 +165,7 @@ export function getModeOptionDescriptionMessageId(
     return null;
   }
 
-  return ZCODE_MODE_OPTION_DESCRIPTION_IDS[provider]?.[entry.value] ?? null;
+  return MODE_MODE_OPTION_DESCRIPTION_IDS[provider]?.[entry.value] ?? null;
 }
 
 export function getConfigOptionEntryLabel(

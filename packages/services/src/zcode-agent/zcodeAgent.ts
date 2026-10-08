@@ -176,7 +176,7 @@ export interface ZCodeAgentWorkspaceRuntimeIdentity {
   workspaceKey: string;
 }
 
-export const ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE = "ZCODE_AGENT_RUNTIME_UNAVAILABLE";
+export const MODE_AGENT_RUNTIME_UNAVAILABLE_CODE = "MODE_AGENT_RUNTIME_UNAVAILABLE";
 
 export type ZCodeAgentRuntimePolicy = "start-if-needed" | "existing-only";
 

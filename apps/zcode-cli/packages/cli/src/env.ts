@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import {
-  ZCODE_RUNTIME_ENV_KEY,
+  MODE_RUNTIME_ENV_KEY,
   buildZCodeToolEnvPassthroughEnv,
   normalizeZCodeRuntimeEnv,
   sanitizeZCodeRuntimeEnv,
@@ -113,12 +113,12 @@ export function shouldLoadCliDotenvForProtocolServer(env: CliEnv): boolean {
 }
 
 function applyCliRuntimeEnvDefaults(env: CliEnv, argv: readonly string[]): void {
-  env[ZCODE_RUNTIME_ENV_KEY] = resolveCliRuntimeEnv(env, argv);
+  env[MODE_RUNTIME_ENV_KEY] = resolveCliRuntimeEnv(env, argv);
   applyBetaStorageDefault(env, argv);
 }
 
 function resolveCliRuntimeEnv(env: CliEnv, argv: readonly string[]): ZCodeRuntimeEnv {
-  const explicit = normalizeZCodeRuntimeEnv(env[ZCODE_RUNTIME_ENV_KEY]);
+  const explicit = normalizeZCodeRuntimeEnv(env[MODE_RUNTIME_ENV_KEY]);
   if (explicit) {
     return explicit;
   }
@@ -132,10 +132,10 @@ function resolveCliRuntimeEnv(env: CliEnv, argv: readonly string[]): ZCodeRuntim
 }
 
 function applyBetaStorageDefault(env: CliEnv, argv: readonly string[]): void {
-  if (readExternalEnvVar(env, "ZCODE_STORAGE_DIR")) return;
-  const explicitBeta = env.ZCODE_BETA === "1" || env.ZCODE_ENV === "beta";
+  if (readExternalEnvVar(env, "MODE_STORAGE_DIR")) return;
+  const explicitBeta = env.MODE_BETA === "1" || env.MODE_ENV === "beta";
   const invokedAsBeta = argv.some((arg) => /(^|[/\\])zcode-beta(?:$|\.)/u.test(arg));
   if (!explicitBeta && !invokedAsBeta) return;
   // 新名 + 旧名双写：覆盖新旧二进制混布（例如 SSH 远端旧 agent 仍读旧名）。
-  writeExternalEnvVar(env, "ZCODE_STORAGE_DIR", join(homedir(), ".zcode-beta"));
+  writeExternalEnvVar(env, "MODE_STORAGE_DIR", join(homedir(), ".zcode-beta"));
 }

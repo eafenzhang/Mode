@@ -6,8 +6,8 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  ZCODE_PROTOCOL_NAME,
-  ZCODE_PROTOCOL_VERSION,
+  MODE_PROTOCOL_NAME,
+  MODE_PROTOCOL_VERSION,
   zcodeSessionStateSnapshotSchema,
 } from "@zcode/shared";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
@@ -143,7 +143,7 @@ test("missing sessions report the owner error even when a valid ACP snapshot exi
 
 test("current session recovery preserves Desktop and replayable projections", async () => {
   const snapshot = zcodeSessionStateSnapshotSchema.parse({
-    protocol: { name: ZCODE_PROTOCOL_NAME, version: ZCODE_PROTOCOL_VERSION },
+    protocol: { name: MODE_PROTOCOL_NAME, version: MODE_PROTOCOL_VERSION },
     session: {
       sessionId: meta.taskId,
       workspace: { workspacePath: meta.workspacePath, workspaceKey: meta.workspacePath },
@@ -227,7 +227,7 @@ test("current Provider configuration starts without an old config migration call
   const dir = await mkdtemp(join(tmpdir(), "zcode-provider-current-"));
   const runtime = createProviderConfigRuntime({
     zcodeBuiltinFilePath: fileURLToPath(
-      new URL("../../../config/provider/zcode-builtin.json", import.meta.url),
+      new URL("../../../config/provider/mode-builtin.json", import.meta.url),
     ),
     personalFilePath: join(dir, "personal.json"),
     personalPollingIntervalMs: false,

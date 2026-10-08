@@ -1,7 +1,7 @@
 import type { ISkillsService } from "@zcode/services";
 import {
   normalizeAgentProviderToZCodeAgent,
-  ZCODE_AGENT_PROVIDER,
+  MODE_AGENT_PROVIDER,
   type ZCodeProvider,
 } from "@zcode/shared";
 import { useSkillStore } from "@/store/skillStore.js";
@@ -19,7 +19,7 @@ export async function refreshSharedSkillStoreForWorkspace(params: {
   const skillStore = useSkillStore.getState();
   const normalizedWorkspaceIdentity = params.workspaceIdentity?.trim() || null;
   const normalizedProvider = normalizeAgentProviderToZCodeAgent(
-    params.provider ?? ZCODE_AGENT_PROVIDER,
+    params.provider ?? MODE_AGENT_PROVIDER,
   );
   const refreshes: Promise<void>[] = [];
 

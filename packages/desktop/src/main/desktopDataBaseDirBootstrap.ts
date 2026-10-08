@@ -9,7 +9,7 @@ import {
   setDataBaseDir,
   type DataRootStatus,
 } from "@zcode/services/node";
-import { ZCODE_VERSION } from "@zcode/shared";
+import { MODE_VERSION } from "@zcode/shared";
 
 type DataRootPendingStatus = Extract<DataRootStatus, { kind: "absent" | "unowned" | "corrupt" }>;
 
@@ -58,7 +58,7 @@ function readBootstrapDataBaseDirFromDisk(
 }
 
 function isAutomatedTestRun(): boolean {
-  return process.env["ZCODE_ENV"]?.trim().toLowerCase() === "test";
+  return process.env["MODE_ENV"]?.trim().toLowerCase() === "test";
 }
 
 /**
@@ -70,7 +70,7 @@ function settlePendingForAutomatedTest(
 ): Extract<DesktopDataRootStartupResult, { state: "initialized" }> {
   const { forfeitedRoot } = initializeFreshDataRoot({
     createdBy: "desktop",
-    appVersion: ZCODE_VERSION,
+    appVersion: MODE_VERSION,
     baseDir,
   });
   releasePendingDiagnosticMode();
@@ -84,7 +84,7 @@ function settlePendingForAutomatedTest(
 /**
  * 启动早期数据根判定（模块加载期同步执行，先于 logger / 窗口 / Host）：
  *
- * 1. 对默认 base（HOME，尊重 ZCODE_DATA_BASE_DIR）完成合法性判定或初始化；
+ * 1. 对默认 base（HOME，尊重 MODE_DATA_BASE_DIR）完成合法性判定或初始化；
  * 2. normal 且设置里有自定义 dataBaseDir 时，切换到该 base 再判定一次；
  * 3. 任一环节 pending → 进入诊断模式，由 index.ts 打开决策窗口并推迟主窗口/Host。
  *
@@ -94,7 +94,7 @@ function settlePendingForAutomatedTest(
 export function applyEarlyDataBaseDirBootstrap(): DesktopDataRootStartupResult {
   const homeResult = initializeDataRootInteractive({
     createdBy: "desktop",
-    appVersion: ZCODE_VERSION,
+    appVersion: MODE_VERSION,
   });
   if (homeResult.state === "pending") {
     return isAutomatedTestRun()
@@ -106,7 +106,7 @@ export function applyEarlyDataBaseDirBootstrap(): DesktopDataRootStartupResult {
         };
   }
 
-  // ZCODE_DATA_BASE_DIR 显式注入时是隔离硬边界：真实 HOME 的 setting.json 里若带
+  // MODE_DATA_BASE_DIR 显式注入时是隔离硬边界：真实 HOME 的 setting.json 里若带
   // dataBaseDir 会把隔离实例拉回真实数据目录（曾把 dev 实例写进开发者真实凭据），直接跳过。
   if (isDataBaseDirEnvOverrideActive()) {
     return homeResult.state === "ready"
@@ -125,7 +125,7 @@ export function applyEarlyDataBaseDirBootstrap(): DesktopDataRootStartupResult {
   setDataBaseDir(dataBaseDir);
   const customResult = initializeDataRootInteractive({
     createdBy: "desktop",
-    appVersion: ZCODE_VERSION,
+    appVersion: MODE_VERSION,
   });
   if (customResult.state === "pending") {
     return isAutomatedTestRun()

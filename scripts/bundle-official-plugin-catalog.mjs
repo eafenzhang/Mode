@@ -11,7 +11,7 @@
 // 截图/条目顺序都跟随官方清单，diff 时能一眼看出上游新增了哪个插件。
 //
 // 用法：node scripts/bundle-official-plugin-catalog.mjs
-//   ZCODE_OFFICIAL_CATALOG_PATH 可指定清单来源（默认取本机市场缓存）。
+//   MODE_OFFICIAL_CATALOG_PATH 可指定清单来源（默认取本机市场缓存）。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -19,9 +19,9 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const catalogPath =
-  process.env.ZCODE_OFFICIAL_CATALOG_PATH ??
+  process.env.MODE_OFFICIAL_CATALOG_PATH ??
   join(
-    process.env.ZCODE_MARKETPLACES_DIR ??
+    process.env.MODE_MARKETPLACES_DIR ??
       join(homedir(), ".zcode", "cli", "plugins", "marketplaces"),
     "zcode-plugins-official",
     "marketplace.json",
@@ -33,7 +33,7 @@ const manifestModule = join(
 
 if (!existsSync(catalogPath)) {
   console.error(`官方目录清单不存在：${catalogPath}`);
-  console.error("先在桌面端/CLI 里刷新一次 zcode-plugins-official，或设置 ZCODE_OFFICIAL_CATALOG_PATH。");
+  console.error("先在桌面端/CLI 里刷新一次 zcode-plugins-official，或设置 MODE_OFFICIAL_CATALOG_PATH。");
   process.exit(1);
 }
 

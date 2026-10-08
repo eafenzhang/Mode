@@ -5,7 +5,7 @@ import {
   resolveDataRootActionFromEnv,
 } from "@zcode/services/node";
 import {
-  ZCODE_VERSION,
+  MODE_VERSION,
   SERVICE_AUTHORITY_MODE_ENV,
   formatLogPrefix,
   formatZodError,
@@ -37,7 +37,7 @@ console.debug = stderrConsoleLog;
 
 // --version flag: print version and exit (used by deploy version check)
 if (process.argv.includes("--version")) {
-  process.stdout.write(ZCODE_VERSION + "\n");
+  process.stdout.write(MODE_VERSION + "\n");
   process.exit(0);
 }
 
@@ -45,7 +45,7 @@ async function main() {
   // Phase 1: Send hello message
   const hello: HelloMessage = {
     type: "zcode-hello",
-    version: ZCODE_VERSION,
+    version: MODE_VERSION,
     platform: process.platform,
     arch: process.arch,
     pid: process.pid,
@@ -57,10 +57,10 @@ async function main() {
   log(`client connected: ${ack.clientId} (v${ack.version})`);
 
   // Phase 2.5: 数据根必须在 deviceMid / services 之前完成初始化与合法化：
-  // 远端主机没有桌面决策窗口，按 ZCODIUM_DATA_ROOT_ACTION 非交互处置（默认备份+全新）。
+  // 远端主机没有桌面决策窗口，按 MODE_DATA_ROOT_ACTION 非交互处置（默认备份+全新）。
   await initializeDataRootNonInteractive({
     createdBy: "server",
-    appVersion: ZCODE_VERSION,
+    appVersion: MODE_VERSION,
     action: resolveDataRootActionFromEnv(),
   });
 

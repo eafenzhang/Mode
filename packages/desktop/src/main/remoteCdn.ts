@@ -1,7 +1,7 @@
-import { isOfficialServiceEnabled, ZCODE_VERSION, type ZCodeEnv } from "@zcode/shared";
+import { isOfficialServiceEnabled, MODE_VERSION, type ZCodeEnv } from "@zcode/shared";
 
-declare const __ZCODE_CDN_BASE_URL__: string | undefined;
-declare const __ZCODIUM_REMOTE_ASSET_CDN_BASE_URL__: string | undefined;
+declare const __MODE_CDN_BASE_URL__: string | undefined;
+declare const __MODE_REMOTE_ASSET_CDN_BASE_URL__: string | undefined;
 const DEFAULT_CDN_BASE_URL = "";
 
 export interface ResolveRemoteCdnOptions {
@@ -24,9 +24,9 @@ function normalizeBaseUrl(value: string): string {
 
 function readBundledRemoteAssetBaseUrl(): string {
   // 发布构建注入本仓库该 tag 的 GitHub Release 资产地址；dev/本地构建为空串。
-  return typeof __ZCODIUM_REMOTE_ASSET_CDN_BASE_URL__ === "undefined"
+  return typeof __MODE_REMOTE_ASSET_CDN_BASE_URL__ === "undefined"
     ? ""
-    : __ZCODIUM_REMOTE_ASSET_CDN_BASE_URL__.trim();
+    : __MODE_REMOTE_ASSET_CDN_BASE_URL__.trim();
 }
 
 export function resolveRemoteCdnBaseUrls(options: ResolveRemoteCdnOptions = {}): string[] {
@@ -42,10 +42,10 @@ export function resolveRemoteCdnBaseUrls(options: ResolveRemoteCdnOptions = {}):
   // 3) 默认（或构建注入）的官方 CDN：官方平台服务已整体下线，恒不连接。
   if (!isOfficialServiceEnabled("marketplace")) return [];
   const baseUrl =
-    process.env.ZCODE_CDN_BASE_URL?.trim() ||
-    (typeof __ZCODE_CDN_BASE_URL__ === "undefined" ? "" : __ZCODE_CDN_BASE_URL__) ||
+    process.env.MODE_CDN_BASE_URL?.trim() ||
+    (typeof __MODE_CDN_BASE_URL__ === "undefined" ? "" : __MODE_CDN_BASE_URL__) ||
     DEFAULT_CDN_BASE_URL;
   return [
-    `${normalizeBaseUrl(baseUrl)}/zcode/electron/releases/${options.version ?? ZCODE_VERSION}`,
+    `${normalizeBaseUrl(baseUrl)}/zcode/electron/releases/${options.version ?? MODE_VERSION}`,
   ];
 }

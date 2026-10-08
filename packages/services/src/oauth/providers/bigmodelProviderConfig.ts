@@ -17,7 +17,7 @@ const BIGMODEL_OAUTH_PROVIDER_CONFIG: Omit<OAuthProviderRuntimeConfig, "appSecre
   order: 0,
   authorizeUrl: "https://bigmodel.cn/login",
   tokenUrl: "",
-  userinfoUrl: buildBigModelApiUrl({ ZCODE_ENV: "production" }, BIGMODEL_USERINFO_PATH),
+  userinfoUrl: buildBigModelApiUrl({ MODE_ENV: "production" }, BIGMODEL_USERINFO_PATH),
   appId: "zcode",
   redirectUri: "zcodium://oauth/callback",
 };

@@ -11,7 +11,7 @@
  */
 import { Emitter, SocketProtocol, VSBuffer } from "@zcode/rpc";
 import { connectViaProtocol } from "@zcode/client";
-import { serverRemoteInfoSchema, ZCODE_RPC_HOST_CAPABILITY_HEADER } from "@zcode/shared";
+import { serverRemoteInfoSchema, MODE_RPC_HOST_CAPABILITY_HEADER } from "@zcode/shared";
 import { WebSocket } from "ws";
 
 const [host, portRaw, code, dir = process.cwd()] = process.argv.slice(2);
@@ -60,7 +60,7 @@ if (!capability.capability) {
 
 const ws = new WebSocket(`ws://${host}:${port}/ws/host`, {
   headers: {
-    [ZCODE_RPC_HOST_CAPABILITY_HEADER]: capability.capability,
+    [MODE_RPC_HOST_CAPABILITY_HEADER]: capability.capability,
     cookie: `zcode_lite_token=${encodeURIComponent(pair.token)}`,
   },
 });

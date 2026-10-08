@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { availableParallelism, totalmem } from "node:os";
 import {
-  ZCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS,
+  MODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS,
   type ZCodeProcessResourceSample,
 } from "@zcode/shared";
 
 /** 采样周期与 app 侧聚合共用 shared 的同一个常量，避免两侧节拍各自漂移。 */
-const ZCODE_PROCESS_RESOURCE_SAMPLE_INTERVAL_MS = ZCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS;
+const MODE_PROCESS_RESOURCE_SAMPLE_INTERVAL_MS = MODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS;
 
 let processInstanceToken: string | undefined;
 
@@ -185,7 +185,7 @@ export function createZCodeProcessResourceSampler(
         baseline = undefined;
       }
       try {
-        timerHandle = timer.setInterval(sample, ZCODE_PROCESS_RESOURCE_SAMPLE_INTERVAL_MS);
+        timerHandle = timer.setInterval(sample, MODE_PROCESS_RESOURCE_SAMPLE_INTERVAL_MS);
       } catch {
         timerHandle = undefined;
         return;

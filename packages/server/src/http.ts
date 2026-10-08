@@ -36,8 +36,8 @@ import {
   remoteTargetSchema,
   type LanAccessPairingEndpoint,
   SERVER_REMOTE_PROTOCOL_VERSION,
-  ZCODE_RPC_HOST_CAPABILITY_HEADER,
-  ZCODE_VERSION,
+  MODE_RPC_HOST_CAPABILITY_HEADER,
+  MODE_VERSION,
   type BotProvider,
   type ServerRemoteInfo,
   type ServerRemoteWorkspaceInfo,
@@ -177,7 +177,7 @@ function readTrimmedEnv(name: string): string | undefined {
 
 function resolveServerId(options: HttpServerOptions): string {
   return (
-    options.serverId?.trim() || readTrimmedEnv("ZCODE_SERVER_ID") || hostname() || "zcode-server"
+    options.serverId?.trim() || readTrimmedEnv("MODE_SERVER_ID") || hostname() || "zcode-server"
   );
 }
 
@@ -192,7 +192,7 @@ async function resolveServerWorkspaces(options: HttpServerOptions): Promise<Serv
   if (options.workspaces) {
     return options.workspaces;
   }
-  const workspacePath = readTrimmedEnv("ZCODE_SERVER_WORKSPACE") || process.cwd();
+  const workspacePath = readTrimmedEnv("MODE_SERVER_WORKSPACE") || process.cwd();
   return [
     {
       path: workspacePath,
@@ -204,12 +204,12 @@ async function resolveServerWorkspaces(options: HttpServerOptions): Promise<Serv
 async function createServerInfo(options: HttpServerOptions): Promise<ServerRemoteInfo> {
   return {
     serverId: resolveServerId(options),
-    ...(options.name?.trim() || readTrimmedEnv("ZCODE_SERVER_NAME")
-      ? { name: options.name?.trim() || readTrimmedEnv("ZCODE_SERVER_NAME") }
+    ...(options.name?.trim() || readTrimmedEnv("MODE_SERVER_NAME")
+      ? { name: options.name?.trim() || readTrimmedEnv("MODE_SERVER_NAME") }
       : {}),
-    version: ZCODE_VERSION,
+    version: MODE_VERSION,
     protocolVersion: SERVER_REMOTE_PROTOCOL_VERSION,
-    authRequired: options.authRequired ?? Boolean(readTrimmedEnv("ZCODE_SERVER_TOKEN")),
+    authRequired: options.authRequired ?? Boolean(readTrimmedEnv("MODE_SERVER_TOKEN")),
     workspaces: await resolveServerWorkspaces(options),
     capabilities: {
       desktopContinuous: true,
@@ -414,7 +414,7 @@ export function createHttpServer(
     },
   }));
   app.use("/ws/host", async (c, next) => {
-    const capability = c.req.header(ZCODE_RPC_HOST_CAPABILITY_HEADER);
+    const capability = c.req.header(MODE_RPC_HOST_CAPABILITY_HEADER);
     if (!hostCapabilities.consume(capability)) {
       return c.json({ error: "Invalid or expired host capability" }, 401);
     }

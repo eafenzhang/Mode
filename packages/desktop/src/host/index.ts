@@ -76,7 +76,7 @@ import {
 import {
   HostMessageTypes,
   HostResponseTypes,
-  ZCODE_VERSION,
+  MODE_VERSION,
   type HostLanAccessMessage,
   type HostLanPairPeerMessage,
   type LanAccessPairResult,
@@ -181,7 +181,7 @@ const hostRemoteMediaRequestLimiter = {
   getState: () => ({ active: activeRemoteMediaRequests, limit: 4 }),
 };
 const remoteMediaRangePreviewEnabled =
-  process.env["ZCODE_REMOTE_MEDIA_RANGE_PREVIEW_ENABLED"] !== "0";
+  process.env["MODE_REMOTE_MEDIA_RANGE_PREVIEW_ENABLED"] !== "0";
 
 type RemoteAssetDirs = Pick<
   ConnectOptions,
@@ -192,7 +192,7 @@ const { parentPort } = process;
 
 // 进程检索体验优化：host 由 utilityProcess 拉起时外壳仍是 Electron Helper，
 // 这里根据 main 传入的窗口 label 补一层稳定的 zcode-* title，方便系统进程列表过滤。
-process.title = formatZCodeHostProcessName(process.env["ZCODE_PROCESS_LABEL"]);
+process.title = formatZCodeHostProcessName(process.env["MODE_PROCESS_LABEL"]);
 
 type HostLogLevel = "info" | "warn" | "error";
 
@@ -1951,7 +1951,7 @@ async function ensureLanAccessStarted(
     services,
     credentials,
     getWorkspaces: () => collectLanAccessWorkspaces(services),
-    appVersion: ZCODE_VERSION,
+    appVersion: MODE_VERSION,
     machineName: hostname() || "Mode",
   });
   return activeLanAccess;
@@ -3206,8 +3206,8 @@ async function setupRemoteConnection(
     remoteRuntimeNetwork,
     signal,
     // SSH/Docker 远端 server 由 host process 单独启动，不能依赖桌面 main 的环境继承。
-    // 这里显式透传编译期版本，避免漏导入后生成裸 ZCODE_VERSION 引用导致 SSH 初始化直接 ReferenceError。
-    appVersion: ZCODE_VERSION,
+    // 这里显式透传编译期版本，避免漏导入后生成裸 MODE_VERSION 引用导致 SSH 初始化直接 ReferenceError。
+    appVersion: MODE_VERSION,
     // 远端 zcode-server/agent 是独立进程，不能继承 host 里的测试/生产 endpoint 选择。
     // 这里只透传 server 侧白名单允许的公开环境变量，避免把 credential/token 带到远端机器。
     remoteRuntimeEnv: pickRemoteRuntimeEnv(process.env),

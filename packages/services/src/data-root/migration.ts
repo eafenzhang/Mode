@@ -1,7 +1,7 @@
 /**
  * 旧数据根（{base}/.zcode）探测与复制迁移。
  *
- * 迁移只在用户确认（桌面决策/再次导入）或显式非交互策略（ZCODIUM_DATA_ROOT_ACTION=migrate）
+ * 迁移只在用户确认（桌面决策/再次导入）或显式非交互策略（MODE_DATA_ROOT_ACTION=migrate）
  * 下执行；复制而非移动，旧根保留。复制先进入同卷 staging，成功后 rename 原子落位。
  */
 import { randomUUID } from "node:crypto";
@@ -13,8 +13,8 @@ import {
   DATA_ROOT_MANIFEST_FILE_NAME,
   DATA_ROOT_MANIFEST_SCHEMA_VERSION,
   DATA_ROOT_PRODUCT_ID,
-  LEGACY_ZCODE_DATA_ROOT_DIR_NAME,
-  ZCODE_DATA_ROOT_DIR_NAME,
+  LEGACY_MODE_DATA_ROOT_DIR_NAME,
+  MODE_DATA_ROOT_DIR_NAME,
   type DataRootManifest,
   type DataRootManifestCreatedBy,
 } from "@zcode/shared";
@@ -61,7 +61,7 @@ function expandHomeDir(value: string): string {
 export function discoverLegacyDataRootCandidates(baseDir: string): LegacyDataRootCandidate[] {
   const candidates: LegacyDataRootCandidate[] = [];
   const seen = new Set<string>();
-  const primaryLegacyRoot = join(baseDir, LEGACY_ZCODE_DATA_ROOT_DIR_NAME);
+  const primaryLegacyRoot = join(baseDir, LEGACY_MODE_DATA_ROOT_DIR_NAME);
   if (existsSync(primaryLegacyRoot)) {
     candidates.push({ baseDir, legacyRoot: primaryLegacyRoot, isPrimaryBase: true });
     seen.add(resolve(primaryLegacyRoot));
@@ -70,7 +70,7 @@ export function discoverLegacyDataRootCandidates(baseDir: string): LegacyDataRoo
   const configuredBaseDir = readLegacyDataBaseDirFromSettings(primaryLegacyRoot);
   if (configuredBaseDir) {
     const customBase = resolve(expandHomeDir(configuredBaseDir));
-    const customLegacyRoot = join(customBase, LEGACY_ZCODE_DATA_ROOT_DIR_NAME);
+    const customLegacyRoot = join(customBase, LEGACY_MODE_DATA_ROOT_DIR_NAME);
     if (!seen.has(resolve(customLegacyRoot)) && existsSync(customLegacyRoot)) {
       candidates.push({ baseDir: customBase, legacyRoot: customLegacyRoot, isPrimaryBase: false });
       seen.add(resolve(customLegacyRoot));
@@ -203,7 +203,7 @@ export function cleanupStaleMigrationStaging(baseDir: string): void {
       for await (const entry of entries) {
         if (
           !entry.isDirectory() ||
-          !entry.name.startsWith(`${ZCODE_DATA_ROOT_DIR_NAME}.migrating-`)
+          !entry.name.startsWith(`${MODE_DATA_ROOT_DIR_NAME}.migrating-`)
         ) {
           continue;
         }
@@ -268,7 +268,7 @@ export async function executeDataRootCopyMigration(
       const targetRoot = resolveDataRootDir(candidate.baseDir);
       const stagingRoot = join(
         candidate.baseDir,
-        `${ZCODE_DATA_ROOT_DIR_NAME}.migrating-${randomUUID()}`,
+        `${MODE_DATA_ROOT_DIR_NAME}.migrating-${randomUUID()}`,
       );
       stagingPaths.push(stagingRoot);
 

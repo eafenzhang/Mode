@@ -10,8 +10,8 @@
  * - 缺失 / product 不匹配 → unowned（先备份让路）；
  * - 不可解析 / schemaVersion 过新 → corrupt（不静默复用）。
  */
-export const ZCODE_DATA_ROOT_DIR_NAME = ".zcodium";
-export const LEGACY_ZCODE_DATA_ROOT_DIR_NAME = ".zcode";
+export const MODE_DATA_ROOT_DIR_NAME = ".zcodium";
+export const LEGACY_MODE_DATA_ROOT_DIR_NAME = ".zcode";
 
 /** 归属文件名；放在数据根目录（不放 v2/），清除数据不会重置归属。 */
 export const DATA_ROOT_MANIFEST_FILE_NAME = ".zcodium-root.json";

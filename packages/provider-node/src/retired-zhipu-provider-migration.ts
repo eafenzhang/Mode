@@ -12,7 +12,7 @@ import {
 import type { ModelSelection } from "@zcode/shared/model-selection";
 
 /**
- * 去智谱化下线的 Provider 实体清单，依据是 `config/provider/zcode-builtin.json`
+ * 去智谱化下线的 Provider 实体清单，依据是 `config/provider/mode-builtin.json`
  * revision 30→31 删除的 8 条 `account:*` providerRules（access=zhipu-account）。
  *
  * 必须显式列举，不能写成「不在 builtin 里就算下线」：Personal 层保存的是用户与历史

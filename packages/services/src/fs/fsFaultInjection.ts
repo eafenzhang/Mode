@@ -1,5 +1,5 @@
-export const ZCODE_E2E_FS_FAULTS_ENV = "ZCODE_E2E_FS_FAULTS";
-export const ZCODE_E2E_FS_FAULTS_ALLOW_ENV = "ZCODE_E2E_FS_FAULTS_ALLOW";
+export const MODE_E2E_FS_FAULTS_ENV = "MODE_E2E_FS_FAULTS";
+export const MODE_E2E_FS_FAULTS_ALLOW_ENV = "MODE_E2E_FS_FAULTS_ALLOW";
 
 export type FsFaultOperation =
   | "any"
@@ -284,14 +284,14 @@ export function parseFsFaultRulesFromEnvValue(rawValue: string): FsFaultRuleConf
     parsed = JSON.parse(rawValue);
   } catch (error) {
     throw new Error(
-      `Invalid ${ZCODE_E2E_FS_FAULTS_ENV}: ${
+      `Invalid ${MODE_E2E_FS_FAULTS_ENV}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
   }
 
   if (!Array.isArray(parsed)) {
-    throw new Error(`Invalid ${ZCODE_E2E_FS_FAULTS_ENV}: expected a JSON array`);
+    throw new Error(`Invalid ${MODE_E2E_FS_FAULTS_ENV}: expected a JSON array`);
   }
   return parsed.map((value, index) => {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -304,13 +304,13 @@ export function parseFsFaultRulesFromEnvValue(rawValue: string): FsFaultRuleConf
 function createFsFaultInjectorFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): FsFaultInjector {
-  const rawValue = env[ZCODE_E2E_FS_FAULTS_ENV]?.trim();
+  const rawValue = env[MODE_E2E_FS_FAULTS_ENV]?.trim();
   if (!rawValue) {
     return createFsFaultInjector();
   }
 
   // 测试故障注入必须默认被生产环境隔离，避免用户机器残留环境变量后误伤真实配置和会话落盘。
-  if (env.ZCODE_ENV !== "test" && env[ZCODE_E2E_FS_FAULTS_ALLOW_ENV] !== "1") {
+  if (env.MODE_ENV !== "test" && env[MODE_E2E_FS_FAULTS_ALLOW_ENV] !== "1") {
     return createFsFaultInjector();
   }
 

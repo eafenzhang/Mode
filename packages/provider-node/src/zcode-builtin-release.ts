@@ -7,7 +7,7 @@ import {
   type ProviderTemplateMap,
 } from "@zcode/provider";
 
-export const ZCODE_BUILTIN_RELEASE_SCHEMA_VERSION = 1 as const;
+export const MODE_BUILTIN_RELEASE_SCHEMA_VERSION = 1 as const;
 const RETIRED_ZAPI_PROVIDER_ID = "builtin:zapi";
 
 export interface ZCodeBuiltinConfigContent {
@@ -17,14 +17,14 @@ export interface ZCodeBuiltinConfigContent {
 }
 
 export interface ZCodeBuiltinRelease {
-  readonly schemaVersion: typeof ZCODE_BUILTIN_RELEASE_SCHEMA_VERSION;
+  readonly schemaVersion: typeof MODE_BUILTIN_RELEASE_SCHEMA_VERSION;
   readonly revision: number;
   readonly config: ZCodeBuiltinConfigContent;
 }
 
 const releaseSchema = z
   .object({
-    schemaVersion: z.literal(ZCODE_BUILTIN_RELEASE_SCHEMA_VERSION),
+    schemaVersion: z.literal(MODE_BUILTIN_RELEASE_SCHEMA_VERSION),
     revision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     config: z
       .object({
@@ -46,7 +46,7 @@ export function decodeZCodeBuiltinRelease(input: unknown): ZCodeBuiltinRelease {
     throw new Error(`ZCode Built-in Release 包含已退出的 Provider: ${RETIRED_ZAPI_PROVIDER_ID}`);
   }
   return Object.freeze({
-    schemaVersion: ZCODE_BUILTIN_RELEASE_SCHEMA_VERSION,
+    schemaVersion: MODE_BUILTIN_RELEASE_SCHEMA_VERSION,
     revision: parsed.revision,
     config: Object.freeze({
       providers,
@@ -58,7 +58,7 @@ export function decodeZCodeBuiltinRelease(input: unknown): ZCodeBuiltinRelease {
 
 export function encodeZCodeBuiltinRelease(release: ZCodeBuiltinRelease): object {
   return {
-    schemaVersion: ZCODE_BUILTIN_RELEASE_SCHEMA_VERSION,
+    schemaVersion: MODE_BUILTIN_RELEASE_SCHEMA_VERSION,
     revision: release.revision,
     config: {
       providerConfigRules: {

@@ -15,7 +15,7 @@ import {
   listingRequiresPaidPlan,
   resolveLocalizedText,
   resolvePluginDisplayName,
-  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
 } from "@zcode/shared";
 import { resolvePluginDescriptionZh } from "@/settings/pluginDescriptionTranslations.js";
 import { pluginSearchMatches } from "@/settings/pluginSearch.js";
@@ -166,7 +166,7 @@ export interface PersonalMarketplaceGroup {
   items: StorePluginItem[];
 }
 
-const OFFICIAL_MARKETPLACE_ORDER: readonly string[] = [ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID];
+const OFFICIAL_MARKETPLACE_ORDER: readonly string[] = [MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID];
 
 /**
  * 市场源管理排序：官方源固定置顶；自定义源按最近刷新时间倒序，未刷新过的沉底。

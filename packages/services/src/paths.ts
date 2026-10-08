@@ -7,16 +7,16 @@ import { basename, join, win32 } from "node:path";
 import { homedir } from "node:os";
 import {
   DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE,
-  ZCODE_DATA_ROOT_DIR_NAME,
+  MODE_DATA_ROOT_DIR_NAME,
 } from "@zcode/shared";
 
 let _dataBaseDir: string | null = null;
-export const ZCODE_WINDOWS_APP_INSTALL_DIR_ENV = "ZCODE_WINDOWS_APP_INSTALL_DIR";
-const envDataBaseDir = readExternalEnvVar(process.env, "ZCODE_DATA_BASE_DIR") ?? null;
+export const MODE_WINDOWS_APP_INSTALL_DIR_ENV = "MODE_WINDOWS_APP_INSTALL_DIR";
+const envDataBaseDir = readExternalEnvVar(process.env, "MODE_DATA_BASE_DIR") ?? null;
 const defaultDataBaseDir = process.env.HOME?.trim() || homedir();
 
 /**
- * 显式注入的 ZCODE_DATA_BASE_DIR 是 dev test / e2e 的数据目录隔离硬边界：
+ * 显式注入的 MODE_DATA_BASE_DIR 是 dev test / e2e 的数据目录隔离硬边界：
  * 一旦生效，设置文件里发现的自定义 dataBaseDir（来自真实 HOME）不得再把
  * 运行时拉回真实数据目录，否则隔离实例会读写开发者的真实凭据与配置。
  */
@@ -45,7 +45,7 @@ export function setDataBaseDir(dir: string | null): void {
   _dataBaseDir = dir?.trim() || null;
 }
 
-/** Get the current base directory. Priority: env ZCODE_DATA_BASE_DIR > setDataBaseDir() > homedir(). */
+/** Get the current base directory. Priority: env MODE_DATA_BASE_DIR > setDataBaseDir() > homedir(). */
 export function getDataBaseDir(): string {
   if (_dataBaseDir) return _dataBaseDir;
   if (envDataBaseDir) return envDataBaseDir;
@@ -68,7 +68,7 @@ export function setDataRootPathOverride(dir: string | null): void {
 /** {dataBaseDir}/.zcodium —— 与官方 ZCode 客户端的 ~/.zcode 命名空间隔离。 */
 export function getZCodeDataRootDir(): string {
   if (_dataRootOverride) return _dataRootOverride;
-  return join(getDataBaseDir(), ZCODE_DATA_ROOT_DIR_NAME);
+  return join(getDataBaseDir(), MODE_DATA_ROOT_DIR_NAME);
 }
 
 /** 非项目对话共享的真实工作目录；默认 ~/.zcodium/workspace/default。 */
@@ -139,7 +139,7 @@ function collectWindowsForbiddenAppInstallDirs(
   const localAppData = readEnvValue(env, "LOCALAPPDATA");
   const candidates = [
     options.appInstallDir,
-    readEnvValue(env, ZCODE_WINDOWS_APP_INSTALL_DIR_ENV),
+    readEnvValue(env, MODE_WINDOWS_APP_INSTALL_DIR_ENV),
     programFiles ? win32.join(programFiles, "ZCode") : null,
     programFilesX86 ? win32.join(programFilesX86, "ZCode") : null,
     programW6432 ? win32.join(programW6432, "ZCode") : null,
@@ -244,8 +244,8 @@ export function getLegacyDeletedTaskSessionSnapshotPath(
  * state must only live at the default homedir location.
  */
 export async function copyDataDirectory(oldBaseDir: string, newBaseDir: string): Promise<void> {
-  const oldDir = join(oldBaseDir, ZCODE_DATA_ROOT_DIR_NAME, "v2");
-  const newDir = join(newBaseDir, ZCODE_DATA_ROOT_DIR_NAME, "v2");
+  const oldDir = join(oldBaseDir, MODE_DATA_ROOT_DIR_NAME, "v2");
+  const newDir = join(newBaseDir, MODE_DATA_ROOT_DIR_NAME, "v2");
   await cp(oldDir, newDir, {
     recursive: true,
     force: false,

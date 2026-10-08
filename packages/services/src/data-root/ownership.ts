@@ -10,7 +10,7 @@ import {
   DATA_ROOT_MANIFEST_FILE_NAME,
   DATA_ROOT_MANIFEST_SCHEMA_VERSION,
   DATA_ROOT_PRODUCT_ID,
-  ZCODE_DATA_ROOT_DIR_NAME,
+  MODE_DATA_ROOT_DIR_NAME,
   parseDataRootManifest,
   type DataRootManifest,
 } from "@zcode/shared";
@@ -22,7 +22,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** 数据根目录绝对路径（{base}/.zcodium）。 */
 export function resolveDataRootDir(baseDir: string): string {
-  return join(baseDir, ZCODE_DATA_ROOT_DIR_NAME);
+  return join(baseDir, MODE_DATA_ROOT_DIR_NAME);
 }
 
 /**
@@ -104,13 +104,13 @@ function formatBackupTimestamp(date: Date): string {
  * 返回备份落点；目录不存在返回 null。
  */
 export function forfeitDataRootByLabel(baseDir: string, label: string): string | null {
-  const rootDir = join(baseDir, ZCODE_DATA_ROOT_DIR_NAME);
+  const rootDir = join(baseDir, MODE_DATA_ROOT_DIR_NAME);
   if (!existsSync(rootDir)) return null;
   const stamp = formatBackupTimestamp(new Date());
-  let target = join(baseDir, `${ZCODE_DATA_ROOT_DIR_NAME}.${label}-${stamp}`);
+  let target = join(baseDir, `${MODE_DATA_ROOT_DIR_NAME}.${label}-${stamp}`);
   let attempt = 1;
   while (existsSync(target)) {
-    target = join(baseDir, `${ZCODE_DATA_ROOT_DIR_NAME}.${label}-${stamp}-${attempt}`);
+    target = join(baseDir, `${MODE_DATA_ROOT_DIR_NAME}.${label}-${stamp}-${attempt}`);
     attempt += 1;
     if (attempt > 100) {
       throw new Error(`无法为冲突数据根生成唯一备份目录: ${rootDir}`);

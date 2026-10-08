@@ -7,7 +7,7 @@ import {
   CLAUDE_PLUGIN_MARKETPLACE_SOURCE,
   CODEX_PLUGIN_MARKETPLACE_ID,
   CODEX_PLUGIN_MARKETPLACE_SOURCE,
-  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
   DEFAULT_PLUGIN_MARKETPLACES,
   RETIRED_DEFAULT_MARKETPLACES,
   isBuiltinDefaultMarketplaceId,
@@ -49,10 +49,10 @@ test("Codex / Claude 默认源已退役：都不再默认预置；只有 Codex �
 });
 
 test("预置源判据：官方目录是唯一预置源，且属于「公开」分段", () => {
-  assert.equal(isBuiltinDefaultMarketplaceId(ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID), true);
-  assert.equal(isPublicStoreMarketplaceId(ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID), true);
+  assert.equal(isBuiltinDefaultMarketplaceId(MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID), true);
+  assert.equal(isPublicStoreMarketplaceId(MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID), true);
   assert.equal(isPublicStoreMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), false);
-  assert.deepEqual([...BUILTIN_DEFAULT_MARKETPLACE_IDS], [ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID]);
+  assert.deepEqual([...BUILTIN_DEFAULT_MARKETPLACE_IDS], [MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID]);
   assert.equal(isCodexPluginMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), true);
 });
 
@@ -99,7 +99,7 @@ test("插件图标按插件名随包兜底", async () => {
     new URL("../../../packages/ui/src/lib/pluginIconSource.ts", import.meta.url),
     "utf8",
   );
-  assert.ok(iconSource.includes("ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME"), "图标必须按插件名匹配随包资源");
+  assert.ok(iconSource.includes("MODE_OFFICIAL_PLUGIN_ICON_BY_NAME"), "图标必须按插件名匹配随包资源");
   // 曾经踩过：兜底查的是按完整 id（name@marketplace）索引的总表，裸插件名永远查不到，
   // 官方源靠 id 精确命中看着正常、用户自加目录一律退回字母占位。锁住兜底查的表。
   assert.ok(
@@ -109,7 +109,7 @@ test("插件图标按插件名随包兜底", async () => {
     "同名兜底必须查按插件名索引的表，不能拿按 id 索引的总表当兜底",
   );
   assert.ok(
-    iconSource.includes("...ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME,"),
+    iconSource.includes("...MODE_OFFICIAL_PLUGIN_ICON_BY_NAME,"),
     "按插件名的表必须由生成的随包图标映射构成",
   );
 });
@@ -237,7 +237,7 @@ test("官方市场投影：随包清单并入候选，总览不再过滤官方�
     "官方市场投影必须照常下发（目录随包、浏览零网络）",
   );
   assert.ok(
-    !service.includes("plugin.marketplace !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID"),
+    !service.includes("plugin.marketplace !== MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID"),
     "总览不得再过滤官方插件，否则公开分段又变成空",
   );
 });

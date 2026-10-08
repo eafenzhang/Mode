@@ -47,7 +47,7 @@ Installers are attached to the [Releases](https://github.com/eafenzhang/Mode/rel
 
 Installed desktop clients update themselves from this repository's releases.
 
-Remote workspaces over SSH, WSL or Docker reuse a runtime that already exists on the host; this repository does not publish the prebuilt runtime bundles. To provision a host that has none, build them locally with `pnpm prepare:remote-assets` and point `ZCODE_REMOTE_ASSET_CDN_BASE_URL` at wherever you host them.
+Remote workspaces over SSH, WSL or Docker reuse a runtime that already exists on the host; this repository does not publish the prebuilt runtime bundles. To provision a host that has none, build them locally with `pnpm prepare:remote-assets` and point `MODE_REMOTE_ASSET_CDN_BASE_URL` at wherever you host them.
 
 ## Build and run from source
 
@@ -60,7 +60,7 @@ pnpm dev:web                   # browser workspace
 pnpm --filter @zcode/cli dev   # agent CLI
 ```
 
-Set `ZCODE_DATA_BASE_DIR` to develop against an isolated data directory instead of your real one.
+Set `MODE_DATA_BASE_DIR` to develop against an isolated data directory instead of your real one.
 
 Useful checks before committing:
 

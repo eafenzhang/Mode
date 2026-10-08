@@ -1,7 +1,7 @@
 // 按插件名下载并生成随包图标映射：图标取自本机已拉取的插件市场目录里各插件的条目图标，
 // 客户端在渲染时按「插件名」兜底匹配（跨市场：官方源与用户添加的 Claude 源都能命中）。
 // 用法：node scripts/fetch-plugin-icons-by-name.mjs [--force]
-// 前置：本机曾拉取过这些市场（ZCODE_MARKETPLACES_DIR 可指向市场缓存目录，默认
+// 前置：本机曾拉取过这些市场（MODE_MARKETPLACES_DIR 可指向市场缓存目录，默认
 // <home>/.zcode/cli/plugins/marketplaces）。
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -13,7 +13,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 // 先到先得顺序：官方目录的图标优先，其余目录（Claude 等）只补官方没有的名字。
 const catalogs = ["zcode-plugins-official", "claude-plugins-official"].map((id) =>
   join(
-    process.env.ZCODE_MARKETPLACES_DIR ?? join(homedir(), ".zcode", "cli", "plugins", "marketplaces"),
+    process.env.MODE_MARKETPLACES_DIR ?? join(homedir(), ".zcode", "cli", "plugins", "marketplaces"),
     id,
     "marketplace.json",
   ),
@@ -100,7 +100,7 @@ available.forEach((name, index) => {
 });
 lines.push("");
 lines.push("/** 插件名 → 随包图标（同名跨市场复用）。 */");
-lines.push("export const ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME: Readonly<Record<string, string>> = {");
+lines.push("export const MODE_OFFICIAL_PLUGIN_ICON_BY_NAME: Readonly<Record<string, string>> = {");
 available.forEach((name, index) => {
   lines.push(`  ${JSON.stringify(name)}: icon${index},`);
 });

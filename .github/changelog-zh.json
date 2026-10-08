@@ -4,7 +4,7 @@
   "50ebc74": "远程资源在发布页排到最后：为 remote assets 统一加 zz- 前缀，安装包与更新元数据保持在前面。",
   "91e53e7": "新增波斯语（fa-IR）本地化，覆盖 UI、桌面端与 CLI/TUI（#5）。",
   "fcf05d9": "UI 支持 RTL 从右到左布局：文档方向、波斯字体与逻辑布局工具类（#6）。",
-  "fffecaa": "修复远程资源与桌面构建的版本对齐：审计版应用（ZCODE_APP_VERSION）不再因 manifest appVersion 不一致而拒绝资源，远端 server 版本检查也不再反复重部署。",
+  "fffecaa": "修复远程资源与桌面构建的版本对齐：审计版应用（MODE_APP_VERSION）不再因 manifest appVersion 不一致而拒绝资源，远端 server 版本检查也不再反复重部署。",
   "1d60d39": "版本号提升至 3.14.5。",
   "ad2c7d0": "CI：在 GitHub 工作流中自动批准 opencode 工具权限。",
   "aadb483": "安装包内置远程资源源：连接 WSL/SSH 开箱即用，无需配置环境变量，也无需打开官方插件市场开关；显式环境变量仍优先。",

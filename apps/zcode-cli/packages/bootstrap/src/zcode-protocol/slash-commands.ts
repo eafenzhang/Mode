@@ -1,4 +1,4 @@
-import { BUILTIN_ZCODE_SLASH_COMMAND_HELP_ENTRIES, type ZCodeSlashCommand } from "@zcode/shared";
+import { BUILTIN_MODE_SLASH_COMMAND_HELP_ENTRIES, type ZCodeSlashCommand } from "@zcode/shared";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
 import {
   listZCodeCustomCommands,
@@ -54,7 +54,7 @@ export async function listProtocolSlashCommands(
 /** App `/` 面板按本目录顺序展示；内置段的顺序由 APP_PROTOCOL_VISIBLE_BUILTIN_SLASH_COMMAND_NAMES 决定。 */
 function listAppProtocolBuiltinSlashCommands(): ZCodeSlashCommand[] {
   const sharedBuiltins = APP_PROTOCOL_VISIBLE_BUILTIN_SLASH_COMMAND_NAMES.flatMap((name) => {
-    const command = BUILTIN_ZCODE_SLASH_COMMAND_HELP_ENTRIES.find((entry) => entry.name === name);
+    const command = BUILTIN_MODE_SLASH_COMMAND_HELP_ENTRIES.find((entry) => entry.name === name);
     if (!command) return [];
     return [
       {

@@ -5481,9 +5481,9 @@ const zhCN: Record<string, string> = {
     "当前图片附件过大，请移除部分图片或压缩后重试。",
   "zcode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
     "当前视频附件过大，请移除部分视频或压缩后重试。",
-  "zcode.error.ZCODE_RUNTIME_MODEL_UNAVAILABLE":
+  "zcode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
     "当前使用的模型已不可用，请从当前模型列表中选择一个可用模型后继续。",
-  "zcode.error.ZCODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
+  "zcode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "当前模型不可用，请检查是否已将该 API Key 添加到项目成员列表",
   "zcode.error.providerBusiness.1006": "API Key 已失效，请重新配置后再试。",
   "zcode.error.providerBusiness.1005": "今日免费计划额度已用完。请切换模型或等待额度恢复。",

@@ -1,7 +1,7 @@
 import type { WebZaiOAuthProviderConfig } from "./zaiWebOAuthProvider.js";
 import {
   buildZCodeEndpointUrls,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  DEFAULT_MODE_ENDPOINT_ORIGIN,
   resolveBigModelApiOrigin,
 } from "@zcode/shared";
 
@@ -11,8 +11,8 @@ interface WebImportMetaEnv {
   VITE_ZAI_OAUTH_ORIGIN?: string;
   VITE_BIGMODEL_OAUTH_ORIGIN?: string;
   VITE_BIGMODEL_OAUTH_APP_ID?: string;
-  VITE_ZCODE_BASE_URL?: string;
-  VITE_ZCODE_ENDPOINT_ORIGIN?: string;
+  VITE_MODE_BASE_URL?: string;
+  VITE_MODE_ENDPOINT_ORIGIN?: string;
   VITE_WEB_REMOTE_ALLOW_DEV_RETURN_TO?: string;
 }
 
@@ -45,9 +45,9 @@ function buildBigModelAuthorizeUrl(origin: string | undefined): string {
 function createWebZaiOAuthConfig(env: WebImportMetaEnv = {}): WebZaiOAuthConfig {
   const devOrigin = env.VITE_DEV_ORIGIN?.trim().replace(/\/$/, "");
   const zcodeEndpointUrls = buildZCodeEndpointUrls(
-    env.VITE_ZCODE_BASE_URL?.trim() ||
-      env.VITE_ZCODE_ENDPOINT_ORIGIN?.trim() ||
-      DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+    env.VITE_MODE_BASE_URL?.trim() ||
+      env.VITE_MODE_ENDPOINT_ORIGIN?.trim() ||
+      DEFAULT_MODE_ENDPOINT_ORIGIN,
   );
 
   return {

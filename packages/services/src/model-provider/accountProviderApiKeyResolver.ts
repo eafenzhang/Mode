@@ -3,7 +3,7 @@ import { ZAI_API_HOST } from "../providers/api/apiEndpoints.js";
 import {
   DEFAULT_ORG_NAME,
   DEFAULT_PROJECT_NAME,
-  ZCODE_API_KEY_NAME,
+  MODE_API_KEY_NAME,
   type AccountApiProviderId,
   type RemoteApiKeySecret,
   type RemoteApiKeySummary,
@@ -120,13 +120,13 @@ export class AccountProviderApiKeyResolver {
         headers: createBizAuthHeaders(authorization),
       })) ?? [];
 
-    let apiKeyEntry = apiKeys.find((item) => item.name === ZCODE_API_KEY_NAME) ?? null;
+    let apiKeyEntry = apiKeys.find((item) => item.name === MODE_API_KEY_NAME) ?? null;
 
     if (!apiKeyEntry) {
       apiKeyEntry = await this.fetchRemoteData<RemoteApiKeySummary>(listUrl, {
         method: "POST",
         headers: createBizAuthHeaders(authorization),
-        body: JSON.stringify({ name: ZCODE_API_KEY_NAME }),
+        body: JSON.stringify({ name: MODE_API_KEY_NAME }),
       });
     }
 

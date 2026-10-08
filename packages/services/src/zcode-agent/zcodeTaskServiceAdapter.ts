@@ -31,7 +31,7 @@ import {
   resolveWorkspaceKey,
   resolveZCodeVisibleSessionTitle,
   textFromZCodeMessageParts,
-  ZCODE_AGENT_PROVIDER,
+  MODE_AGENT_PROVIDER,
   zcodeBackgroundTaskNotificationToolUpdateStatus,
   appendZCodeStreamingToolInputDelta,
   buildZCodeStreamingToolInputPreview,
@@ -206,7 +206,7 @@ type ZCodeTerminalStreamEvent =
   | Extract<ZCodeStreamEvent, { type: "task_complete" }>
   | Extract<ZCodeStreamEvent, { type: "task_error" }>;
 
-const GLM_PROVIDER: ZCodeProvider = ZCODE_AGENT_PROVIDER;
+const GLM_PROVIDER: ZCodeProvider = MODE_AGENT_PROVIDER;
 const EMPTY_SLASH_COMMANDS: ZCodeSlashCommand[] = [];
 const logger = createServiceLogger("zcode-task-service");
 const ASK_USER_QUESTION_TOOL_NAME = "AskUserQuestion";
@@ -243,7 +243,7 @@ function formatZCodeAgentLogDate(now: Date): string {
 }
 
 function resolveZCodeAgentCurrentLogFilePath(now = new Date()): string {
-  const configuredLogDir = process.env.ZCODE_LOG_DIR?.trim();
+  const configuredLogDir = process.env.MODE_LOG_DIR?.trim();
   const logDir = configuredLogDir || join(homedir(), ".zcodium", "cli", "log");
   return join(logDir, `zcode-${formatZCodeAgentLogDate(now)}.jsonl`);
 }
@@ -289,7 +289,7 @@ export function createZCodeTaskServiceAdapter(
     throw Object.assign(
       new Error(`ZCode task service adapter does not support IZCodeTaskService.${name} yet.`),
       {
-        code: "ZCODE_AGENT_UNSUPPORTED_LEGACY_TASK_METHOD",
+        code: "MODE_AGENT_UNSUPPORTED_LEGACY_TASK_METHOD",
       },
     );
   }
@@ -983,7 +983,7 @@ export function createZCodeTaskServiceAdapter(
     const target = taskTargets.get(taskId);
     if (!target) {
       throw Object.assign(new Error(`ZCode session target is not loaded: ${taskId}`), {
-        code: "ZCODE_SESSION_TARGET_NOT_FOUND",
+        code: "MODE_SESSION_TARGET_NOT_FOUND",
       });
     }
     return target;

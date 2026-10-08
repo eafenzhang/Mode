@@ -5,23 +5,23 @@ import {
   getAppConfigDir,
   initializeDataRootNonInteractive,
   resolveDataRootActionFromEnv,
-  ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
+  MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
 } from "@zcode/services/node";
 import { IZCodeAgentService } from "@zcode/services";
 import { readExternalEnvVar } from "@zcode/shared";
-import { ZCODE_VERSION } from "@zcode/shared";
+import { MODE_VERSION } from "@zcode/shared";
 import { createCoreHttpServer } from "./http.js";
 import { installParentDisconnectHandler } from "./parentDisconnect.js";
 import { resolveCoreServerId } from "./serverIdentity.js";
 import { createTaskActivityTracker } from "./taskActivityTracker.js";
 
-declare const __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__: string | undefined;
+declare const __MODE_BUILTIN_PROVIDER_CONFIG_JSON__: string | undefined;
 
 export async function runServerCore(generation: number): Promise<void> {
   // 数据根必须先于任何路径写入完成初始化/合法化（materialize 会写 getAppConfigDir()）。
   await initializeDataRootNonInteractive({
     createdBy: "server",
-    appVersion: ZCODE_VERSION,
+    appVersion: MODE_VERSION,
     action: resolveDataRootActionFromEnv(),
   });
   let shutdown: ((reason: string) => Promise<void>) | undefined;
@@ -32,18 +32,18 @@ export async function runServerCore(generation: number): Promise<void> {
     else parentDisconnected = true;
   });
   const explicitZCodeBuiltinProviderConfigFilePath =
-    process.env[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]?.trim();
+    process.env[MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]?.trim();
   const zcodeBuiltinProviderConfigFilePath = explicitZCodeBuiltinProviderConfigFilePath
     ? explicitZCodeBuiltinProviderConfigFilePath
-    : typeof __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__ === "string"
+    : typeof __MODE_BUILTIN_PROVIDER_CONFIG_JSON__ === "string"
       ? await materializeZCodeBuiltinProviderConfig({
           environmentConfigRoot: getAppConfigDir(),
-          content: __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__,
+          content: __MODE_BUILTIN_PROVIDER_CONFIG_JSON__,
         })
       : undefined;
   if (!zcodeBuiltinProviderConfigFilePath) {
     throw new Error(
-      `当前构建未嵌入 ZCode Built-in Provider Config，且未设置 ${ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV}`,
+      `当前构建未嵌入 ZCode Built-in Provider Config，且未设置 ${MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV}`,
     );
   }
   const services = createLocalServices({
@@ -69,7 +69,7 @@ export async function runServerCore(generation: number): Promise<void> {
     type: "ready",
     host: http.host,
     port: http.port,
-    version: ZCODE_VERSION,
+    version: MODE_VERSION,
     generation,
   });
   let shutdownStarted = false;

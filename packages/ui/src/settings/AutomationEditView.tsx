@@ -37,7 +37,7 @@ import {
   TID_AUTOMATION_YEAR_DAY_OPTION,
   TID_AUTOMATION_YEAR_MONTH_OPTION,
   TID_AUTOMATION_YEAR_MONTHDAY,
-  ZCODE_AGENT_PROVIDER,
+  MODE_AGENT_PROVIDER,
   type ZCodeAutomation,
   type ZCodeAutomationRun,
   type ZCodeAutomationScheduleRule,
@@ -1484,7 +1484,7 @@ export function AutomationEditView({
   const modelSelectGroups = useMemo(() => {
     if (!modelSelectionView) return [];
     return buildAutomationModelSelectGroups({
-      selectedProvider: ZCODE_AGENT_PROVIDER,
+      selectedProvider: MODE_AGENT_PROVIDER,
       labels: {
         apiKeyLabel: intl.formatMessage({ id: "settings.modelProvider.apiKey" }),
         apiKeyBadgeLabel: intl.formatMessage({
@@ -2642,7 +2642,7 @@ export function AutomationEditView({
                         "w-fit max-w-56 min-w-0 shrink justify-start gap-1 px-2",
                       )}
                       labelVisibilityClassName="inline-flex min-w-0 truncate text-start"
-                      provider={ZCODE_AGENT_PROVIDER}
+                      provider={MODE_AGENT_PROVIDER}
                       restoreFocusSelector={null}
                     />
                   </div>
@@ -2689,7 +2689,7 @@ export function AutomationEditView({
                       <ThoughtLevelCycleControl
                         intl={intl}
                         option={thoughtLevelOption}
-                        provider={ZCODE_AGENT_PROVIDER}
+                        provider={MODE_AGENT_PROVIDER}
                         triggerRef={thoughtTriggerRef}
                         indicatorClassName="hidden @xl/composer:block"
                         triggerClassName={cn(

@@ -26,7 +26,7 @@ test("update modules have no official endpoint or custom manifest dependency", a
     const source = await readFile(new URL(`../src/main/${name}.ts`, import.meta.url), "utf8");
     assert.doesNotMatch(
       source,
-      /DEFAULT_ZCODE_ENDPOINT_ORIGIN|resolveRuntimeZCodeEndpointOrigin|manifestUpdateProvider|zcode\.z\.ai|\/api\/v1\/client\/configs/,
+      /DEFAULT_MODE_ENDPOINT_ORIGIN|resolveRuntimeZCodeEndpointOrigin|manifestUpdateProvider|zcode\.z\.ai|\/api\/v1\/client\/configs/,
     );
   }
 });
@@ -82,7 +82,7 @@ test("github default feed, generic overrides, manual check and native download/i
     },
     "@zcode/shared": {
       DEFAULT_LOCALE: "en-US",
-      ZCODE_VERSION: "1.0.0",
+      MODE_VERSION: "1.0.0",
       PlatformChannels: new Proxy({}, { get: (_, key) => key }),
       desktopMenuMessageIds: {},
       getDesktopMenuMessage: () => "",
@@ -101,7 +101,7 @@ test("github default feed, generic overrides, manual check and native download/i
   assert.deepEqual(
     module.resolveUpdateFeedSourceFromStartupConfig({
       argv: [],
-      env: { ZCODE_UPDATE_FEED_URL: "https://example.invalid/feed/" },
+      env: { MODE_UPDATE_FEED_URL: "https://example.invalid/feed/" },
     }),
     { url: "https://example.invalid/feed/" },
   );
@@ -112,7 +112,7 @@ test("github default feed, generic overrides, manual check and native download/i
     assert.deepEqual(
       module.resolveUpdateFeedSourceFromStartupConfig({
         argv,
-        env: { ZCODE_UPDATE_FEED_URL: feed },
+        env: { MODE_UPDATE_FEED_URL: feed },
       }),
       { url: "https://example.invalid/cli/" },
     );

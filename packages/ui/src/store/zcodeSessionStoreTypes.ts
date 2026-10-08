@@ -6,7 +6,7 @@
  */
 import {
   buildNativeSupplierKey,
-  ZCODE_AGENT_PROVIDER,
+  MODE_AGENT_PROVIDER,
   type ZCodeApiRetryStatus,
   type ModelSelectionGhostReason,
   type ModelSelectionResolution,
@@ -482,7 +482,7 @@ export const DEFAULT_WORKSPACE_INIT_STATE: WorkspaceInitState = {
   attempts: 0,
 };
 
-const FALLBACK_PROVIDER: ZCodeProvider = ZCODE_AGENT_PROVIDER;
+const FALLBACK_PROVIDER: ZCodeProvider = MODE_AGENT_PROVIDER;
 
 export const DEFAULT_TASK_UI_STATE: TaskUiState = {
   permissionRequest: null,

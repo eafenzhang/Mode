@@ -8,14 +8,14 @@ import { dirname, join, resolve } from "node:path";
 import {
   materializeZCodeBuiltinProviderConfig,
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
-  ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
-  ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
-  ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
+  MODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
+  MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
+  MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
   type ZCodeBuiltinRefreshEvent,
 } from "@zcode/provider-node";
 import type { CliEnv } from "./env.js";
 
-export const SEA_ZCODE_BUILTIN_PROVIDER_CONFIG_ASSET_KEY = "zcode-provider/zcode-builtin.json";
+export const SEA_MODE_BUILTIN_PROVIDER_CONFIG_ASSET_KEY = "mode-provider/mode-builtin.json";
 
 export function createCliProviderRefreshReporter(
   stderr: Pick<NodeJS.WriteStream, "write"> = process.stderr,
@@ -55,14 +55,14 @@ export async function prepareCliProviderRuntimeEnv(
 ): Promise<Record<string, string>> {
   if (!requiresProviderRuntime(options.argv)) return {};
 
-  const explicitZCodeBuiltin = options.env[ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]?.trim();
-  const explicitPersonal = options.env[ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]?.trim();
+  const explicitZCodeBuiltin = options.env[MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]?.trim();
+  const explicitPersonal = options.env[MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]?.trim();
   const dataBaseDir =
-    options.dataBaseDir ?? readExternalEnvVar(options.env, "ZCODE_DATA_BASE_DIR") ?? homedir();
+    options.dataBaseDir ?? readExternalEnvVar(options.env, "MODE_DATA_BASE_DIR") ?? homedir();
   if (explicitZCodeBuiltin && explicitPersonal) {
     return {
-      [ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]: explicitZCodeBuiltin,
-      [ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]: explicitPersonal,
+      [MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]: explicitZCodeBuiltin,
+      [MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]: explicitPersonal,
     };
   }
 
@@ -79,9 +79,9 @@ export async function prepareCliProviderRuntimeEnv(
   // 的套餐模板）不再参与；builtin 配置唯一事实源是 bundled 仓库文件，由上游
   // 同步人工维护。
   return {
-    [ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]: zcodeBuiltinFilePath,
-    [ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV]: zcodeBuiltinFilePath,
-    [ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]: personalFilePath,
+    [MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]: zcodeBuiltinFilePath,
+    [MODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV]: zcodeBuiltinFilePath,
+    [MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]: personalFilePath,
   };
 }
 
@@ -118,7 +118,7 @@ async function resolveBundledZCodeBuiltinProviderConfig(input: {
   readonly sea: SeaProviderConfigAssets | undefined;
 }): Promise<string> {
   if (input.sea?.isSea()) {
-    const content = input.sea.getAsset(SEA_ZCODE_BUILTIN_PROVIDER_CONFIG_ASSET_KEY, "utf8");
+    const content = input.sea.getAsset(SEA_MODE_BUILTIN_PROVIDER_CONFIG_ASSET_KEY, "utf8");
     return materializeZCodeBuiltinProviderConfig({
       environmentConfigRoot: join(input.dataBaseDir, ".zcodium", "v2"),
       content,
@@ -130,8 +130,8 @@ async function resolveBundledZCodeBuiltinProviderConfig(input: {
   // 全局 bin 可以是软链接，随包配置必须相对真实入口定位。
   const entryDirectory = dirname(realpathSync(resolve(entrypoint)));
   const candidates = [
-    join(entryDirectory, "provider", "zcode-builtin.json"),
-    resolve(entryDirectory, "../../../../../config/provider/zcode-builtin.json"),
+    join(entryDirectory, "provider", "mode-builtin.json"),
+    resolve(entryDirectory, "../../../../../config/provider/mode-builtin.json"),
   ];
   const candidate = candidates.find((filePath) => existsSync(filePath));
   if (candidate) return candidate;

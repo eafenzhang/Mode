@@ -28,7 +28,7 @@ export type {
 } from "./protocol.js";
 export type { WorkspacePurpose } from "./workspacePurpose.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
-export { ZCODE_VERSION, ZCODE_COMMIT, ZCODE_BUILD_TIME } from "./version.js";
+export { MODE_VERSION, MODE_COMMIT, MODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
 export type { ZCodeEnv, ZCodeProductFlavor } from "./env.js";
 export type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
@@ -61,11 +61,11 @@ export {
   serializeShortcutBinding,
 } from "./shortcutCommands.js";
 export {
-  ZCODE_ENV,
-  ZCODE_PRODUCT_FLAVOR,
-  ZCODE_APP_VERSION_ENV,
-  ZCODE_BUILD_COMMIT_ID_ENV,
-  RUNTIME_ZCODE_DEBUG,
+  MODE_ENV,
+  MODE_PRODUCT_FLAVOR,
+  MODE_APP_VERSION_ENV,
+  MODE_BUILD_COMMIT_ID_ENV,
+  RUNTIME_MODE_DEBUG,
   normalizeZCodeEnv,
   normalizeZCodeProductFlavor,
 } from "./env.js";

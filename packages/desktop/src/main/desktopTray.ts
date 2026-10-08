@@ -4,7 +4,7 @@ import {
   DesktopCommandIds,
   desktopMenuMessageIds,
   getDesktopMenuMessage,
-  ZCODE_PRODUCT_FLAVOR,
+  MODE_PRODUCT_FLAVOR,
   type DesktopCommandId,
   type Locale,
 } from "@zcode/shared";
@@ -73,7 +73,7 @@ export function createWindowsDesktopTray(options: {
         },
         { type: "separator" },
         // 更新入口跟随产品身份：Preview（含生产后端的 Preview）禁用更新器，托盘也不能露出入口。
-        ...(ZCODE_PRODUCT_FLAVOR === "production"
+        ...(MODE_PRODUCT_FLAVOR === "production"
           ? [
               {
                 label: getLabel(desktopMenuMessageIds.helpCheckForUpdates),

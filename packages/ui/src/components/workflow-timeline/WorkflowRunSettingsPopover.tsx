@@ -11,7 +11,7 @@
 
 import { useCallback, useMemo, useRef, useState, type RefObject } from "react";
 import { completeNewModelSelection } from "@zcode/provider";
-import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
+import { MODE_AGENT_PROVIDER } from "@zcode/shared";
 import type { CommandAck, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTitle } from "@/components/ui/popover.js";
@@ -152,7 +152,7 @@ function WorkflowRunSettingsForm({
     () =>
       view === null
         ? []
-        : buildRegistryModelSelectGroups(ZCODE_AGENT_PROVIDER, view, {
+        : buildRegistryModelSelectGroups(MODE_AGENT_PROVIDER, view, {
             apiKeyLabel: format("settings.modelProvider.apiKey"),
             apiKeyBadgeLabel: format("settings.modelProvider.connectionMode.apiKeyBadge"),
             codingPlanLabel: format("settings.modelProvider.connectionMode.codingPlan"),

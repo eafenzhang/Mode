@@ -3,7 +3,7 @@ import {
   BUILTIN_MODEL_PROVIDER_IDS,
   createUuid,
   type OAuthProviderId,
-  ZCODE_ENV,
+  MODE_ENV,
   type BuiltinModelProviderId,
   type UsageQuotaLimit,
   type UsageEntitlementSubscriptionDetail,
@@ -17,7 +17,7 @@ export function generateId(): string {
 }
 
 export const PRESET_SUBSCRIPTION_TIMEOUT_MS = 2 * 60 * 1000;
-export const BIGMODEL_REGISTRATION_URL = buildBigModelApiUrl({ ZCODE_ENV }, "/login");
+export const BIGMODEL_REGISTRATION_URL = buildBigModelApiUrl({ MODE_ENV }, "/login");
 export interface PresetProviderSpec {
   id: BuiltinModelProviderId;
   displayName: string;

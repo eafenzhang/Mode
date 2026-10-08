@@ -15,17 +15,17 @@ import type {
 import { completeNewModelSelection } from "@zcode/provider";
 import type { OffPeakClientConfig } from "#src/coding-plan-subscription/codingPlanSubscription.js";
 import {
-  ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+  MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
   formatLogPrefix,
   resolveWorkspaceKey,
   type TraceId,
-  ZCODE_AGENT_PROVIDER,
-  ZCODE_AGENT_PROVIDER_NOT_READY_CODE,
-  ZCODE_AGENT_PROVIDER_NOT_READY_REASON,
-  ZCODE_MODEL_REASONING_SEPARATOR,
+  MODE_AGENT_PROVIDER,
+  MODE_AGENT_PROVIDER_NOT_READY_CODE,
+  MODE_AGENT_PROVIDER_NOT_READY_REASON,
+  MODE_MODEL_REASONING_SEPARATOR,
   isRemoteWorkspaceIdentity,
-  ZCODE_PROTOCOL_NAME,
-  ZCODE_PROTOCOL_VERSION,
+  MODE_PROTOCOL_NAME,
+  MODE_PROTOCOL_VERSION,
   zcodeMcpListResultSchema,
   zcodePermissionRequestParamsSchema,
   zcodeBrowserListParamsSchema,
@@ -119,7 +119,7 @@ import {
   mergeAutomationMutationToolDenylist,
   mergeOffPeakMutationToolDenylist,
 } from "#src/zcode-agent/automationToolPolicy.js";
-import { ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./zcodeAgent.js";
+import { MODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./zcodeAgent.js";
 import type {
   ZCodeProtocolRequestId,
   ModelSelection,
@@ -273,7 +273,7 @@ import {
   workspaceConfigTopic,
   workspaceConfigTopicWireCandidateSchema,
   utf8JsonByteLength,
-  ZCODE_ATTACHMENT_FAULT_CODES,
+  MODE_ATTACHMENT_FAULT_CODES,
   ZCodeAttachmentFaultError,
   type CommandAck,
   type ConversationTopicWireCandidate,
@@ -744,7 +744,7 @@ function formatModelSelectionForLog(ref: ModelSelection | undefined): string | n
 
   const base = `${ref.providerId}/${ref.modelId}`;
   const reasoningLevel = ref.options?.reasoningLevel;
-  return reasoningLevel ? `${base}${ZCODE_MODEL_REASONING_SEPARATOR}${reasoningLevel}` : base;
+  return reasoningLevel ? `${base}${MODE_MODEL_REASONING_SEPARATOR}${reasoningLevel}` : base;
 }
 
 function sessionEventKey(params: ZCodeAgentSessionTarget): string {
@@ -842,14 +842,14 @@ interface ActiveWorkspaceClient {
 }
 
 function createRuntimeUnavailableError(params: ZCodeAgentWorkspaceTarget): Error & {
-  code: typeof ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE;
+  code: typeof MODE_AGENT_RUNTIME_UNAVAILABLE_CODE;
   workspaceKey: string;
 } {
   const error = new Error("ZCode Agent runtime is not running.") as Error & {
-    code: typeof ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE;
+    code: typeof MODE_AGENT_RUNTIME_UNAVAILABLE_CODE;
     workspaceKey: string;
   };
-  error.code = ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE;
+  error.code = MODE_AGENT_RUNTIME_UNAVAILABLE_CODE;
   error.workspaceKey = resolveWorkspaceKey(params);
   return error;
 }
@@ -1333,7 +1333,7 @@ export function createZCodeAgentService(
       requestId,
       scope: pending.request.scope,
       sessionId: pending.request.sessionId,
-      timeoutMs: ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+      timeoutMs: MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
       workspaceKey: pending.workspaceKey,
     });
     void pending.client
@@ -1341,7 +1341,7 @@ export function createZCodeAgentService(
         code: -32022,
         message: "Session runtime preferences request timed out",
         data: {
-          timeoutMs: ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+          timeoutMs: MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
         },
       })
       .catch((error: unknown) => {
@@ -2154,7 +2154,7 @@ export function createZCodeAgentService(
             request: dynamicRequest,
             timeout: setTimeout(
               () => expireSessionRuntimePreferencesRequest(requestId),
-              ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+              MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
             ),
             workspaceKey: resolveWorkspaceKey(workspace),
           });
@@ -2833,10 +2833,10 @@ export function createZCodeAgentService(
     snapshot?: ZCodeAgentProviderReadinessSnapshot;
     workspace: ZCodeAgentWorkspaceTarget;
   }): Error & {
-    code: typeof ZCODE_AGENT_PROVIDER_NOT_READY_CODE;
+    code: typeof MODE_AGENT_PROVIDER_NOT_READY_CODE;
     data: {
       providerCount: number;
-      reason: typeof ZCODE_AGENT_PROVIDER_NOT_READY_REASON;
+      reason: typeof MODE_AGENT_PROVIDER_NOT_READY_REASON;
       revision: string | null;
       workspaceKey: string;
       workspacePath: string;
@@ -2844,19 +2844,19 @@ export function createZCodeAgentService(
   } {
     const workspaceKey = resolveWorkspaceKey(params.workspace);
     const error = new Error("当前没有可用的模型供应商和模型，请先登录或配置 API Key。") as Error & {
-      code: typeof ZCODE_AGENT_PROVIDER_NOT_READY_CODE;
+      code: typeof MODE_AGENT_PROVIDER_NOT_READY_CODE;
       data: {
         providerCount: number;
-        reason: typeof ZCODE_AGENT_PROVIDER_NOT_READY_REASON;
+        reason: typeof MODE_AGENT_PROVIDER_NOT_READY_REASON;
         revision: string | null;
         workspaceKey: string;
         workspacePath: string;
       };
     };
-    error.code = ZCODE_AGENT_PROVIDER_NOT_READY_CODE;
+    error.code = MODE_AGENT_PROVIDER_NOT_READY_CODE;
     error.data = {
       providerCount: params.snapshot?.providerCount ?? 0,
-      reason: ZCODE_AGENT_PROVIDER_NOT_READY_REASON,
+      reason: MODE_AGENT_PROVIDER_NOT_READY_REASON,
       revision: params.snapshot?.revision ?? null,
       workspaceKey,
       workspacePath: params.workspace.workspacePath,
@@ -2866,10 +2866,10 @@ export function createZCodeAgentService(
 
   function isProviderNotReadyError(
     error: unknown,
-  ): error is Error & { code: typeof ZCODE_AGENT_PROVIDER_NOT_READY_CODE } {
+  ): error is Error & { code: typeof MODE_AGENT_PROVIDER_NOT_READY_CODE } {
     return (
       error instanceof Error &&
-      (error as { code?: unknown }).code === ZCODE_AGENT_PROVIDER_NOT_READY_CODE
+      (error as { code?: unknown }).code === MODE_AGENT_PROVIDER_NOT_READY_CODE
     );
   }
 
@@ -3352,8 +3352,8 @@ export function createZCodeAgentService(
         return {
           available: true,
           workspaceKey,
-          protocolName: ZCODE_PROTOCOL_NAME,
-          protocolVersion: ZCODE_PROTOCOL_VERSION,
+          protocolName: MODE_PROTOCOL_NAME,
+          protocolVersion: MODE_PROTOCOL_VERSION,
           transportKind: client.transportKind === "websocket" ? "websocket" : "stdio",
         };
       } catch (error) {
@@ -3373,10 +3373,10 @@ export function createZCodeAgentService(
         return {
           available: false,
           workspaceKey,
-          protocolName: ZCODE_PROTOCOL_NAME,
-          protocolVersion: ZCODE_PROTOCOL_VERSION,
+          protocolName: MODE_PROTOCOL_NAME,
+          protocolVersion: MODE_PROTOCOL_VERSION,
           reason: error instanceof Error ? error.message : String(error),
-          ...(providerNotReady ? { reasonCode: ZCODE_AGENT_PROVIDER_NOT_READY_REASON } : {}),
+          ...(providerNotReady ? { reasonCode: MODE_AGENT_PROVIDER_NOT_READY_REASON } : {}),
         };
       }
     },
@@ -4024,7 +4024,7 @@ export function createZCodeAgentService(
           }
           return {
             pid: runtime.pid,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: MODE_AGENT_PROVIDER,
             workspacePath: runtime.workspacePath,
             ...(runtime.lane ? { lane: runtime.lane } : {}),
             children,
@@ -5189,7 +5189,7 @@ export function createZCodeAgentService(
     async conversationAttachmentReadV4(params: ZCodeAgentConversationAttachmentReadParams) {
       if (!readTrustedZCodeAgentV4Connection(params)) {
         throw new ZCodeAttachmentFaultError(
-          ZCODE_ATTACHMENT_FAULT_CODES.shareReadConnectionUntrusted,
+          MODE_ATTACHMENT_FAULT_CODES.shareReadConnectionUntrusted,
         );
       }
       const wireParams = v4ConversationAttachmentReadParamsSchema.parse({
@@ -5211,7 +5211,7 @@ export function createZCodeAgentService(
     async conversationAttachmentStatV4(params: ZCodeAgentConversationAttachmentStatParams) {
       if (!readTrustedZCodeAgentV4Connection(params)) {
         throw new ZCodeAttachmentFaultError(
-          ZCODE_ATTACHMENT_FAULT_CODES.shareStatConnectionUntrusted,
+          MODE_ATTACHMENT_FAULT_CODES.shareStatConnectionUntrusted,
         );
       }
       const wireParams = v4ConversationAttachmentStatParamsSchema.parse({
@@ -5419,7 +5419,7 @@ export function createZCodeAgentService(
         if (
           error instanceof Error &&
           "code" in error &&
-          error.code === ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE
+          error.code === MODE_AGENT_RUNTIME_UNAVAILABLE_CODE
         ) {
           return { kind: "unavailable", workId: params.workId };
         }

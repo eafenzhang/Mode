@@ -8,7 +8,7 @@ import {
 import {
   isBuiltinModelProviderId,
   resolveRuntimeZCodeEndpointOrigin,
-  ZCODE_VERSION,
+  MODE_VERSION,
 } from "@zcode/shared";
 import { dirname, join } from "node:path";
 import {
@@ -17,7 +17,7 @@ import {
   resolveNodeProviderRuntimePaths,
   downloadZCodeBuiltinRelease,
   resolveZCodeBuiltinClientPlatform,
-  ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
+  MODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
   type ZCodeBuiltinRefreshEvent,
 } from "@zcode/provider-node";
 import {
@@ -57,7 +57,7 @@ export async function startProcessProviderRegistryRuntime(
     : undefined;
   let standaloneAccount: AccountProviderService | undefined;
   const bundledFile = options.standalone
-    ? env[ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV]?.trim()
+    ? env[MODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV]?.trim()
     : undefined;
   const runtime = new NodeProviderRegistryRuntime({
     ...paths,

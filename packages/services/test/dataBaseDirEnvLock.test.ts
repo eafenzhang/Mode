@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-// 本文件必须在 ZCODE_DATA_BASE_DIR 已设置的前提下加载 paths 模块：
+// 本文件必须在 MODE_DATA_BASE_DIR 已设置的前提下加载 paths 模块：
 // 模块加载期捕获 env，动态 import 保证捕获顺序。node:test 每个文件独立进程，
 // 不会污染其他测试文件的模块状态。
 
-process.env.ZCODE_DATA_BASE_DIR = "/isolated-data-root";
+process.env.MODE_DATA_BASE_DIR = "/isolated-data-root";
 
-test("ZCODE_DATA_BASE_DIR 生效时 setDataBaseDir 是 no-op（隔离硬边界）", async () => {
+test("MODE_DATA_BASE_DIR 生效时 setDataBaseDir 是 no-op（隔离硬边界）", async () => {
   const paths = await import("../src/paths.js");
   assert.equal(paths.isDataBaseDirEnvOverrideActive(), true);
   // 曾发生的事故：桌面 bootstrap 用真实 HOME 的 setting.json 覆盖隔离目录，

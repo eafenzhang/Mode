@@ -4,7 +4,7 @@ import {
   createCliOAuthClient,
   createCliOAuthPollToken,
   openUrlInBrowser,
-  SHARED_ZCODE_CREDENTIAL_KEYS,
+  SHARED_MODE_CREDENTIAL_KEYS,
   type BrowserOpenResult,
   type SharedZCodeCredentialStore,
   type CliOAuthClient,
@@ -20,7 +20,7 @@ import {
   NodeModelSelectionConfigRepository,
   NodePersonalProviderConfigRepository,
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
-  ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
+  MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
 } from "@zcode/provider-node";
 import { readLegacyCliPersonalProviderConfig } from "./app/legacy-cli-personal-provider-config-importer.js";
 import { dirname, join } from "node:path";
@@ -194,13 +194,13 @@ export async function loginZCodeCli(
         });
       } else {
         await credentialStore.saveMany({
-          [SHARED_ZCODE_CREDENTIAL_KEYS.activeProvider]: providerId,
-          [SHARED_ZCODE_CREDENTIAL_KEYS.zcodeJwtToken]: readyData.token,
-          [SHARED_ZCODE_CREDENTIAL_KEYS.bigmodelAccessToken]: readyData.accessToken,
+          [SHARED_MODE_CREDENTIAL_KEYS.activeProvider]: providerId,
+          [SHARED_MODE_CREDENTIAL_KEYS.zcodeJwtToken]: readyData.token,
+          [SHARED_MODE_CREDENTIAL_KEYS.bigmodelAccessToken]: readyData.accessToken,
           ...(readyData.refreshToken
-            ? { [SHARED_ZCODE_CREDENTIAL_KEYS.bigmodelRefreshToken]: readyData.refreshToken }
+            ? { [SHARED_MODE_CREDENTIAL_KEYS.bigmodelRefreshToken]: readyData.refreshToken }
             : {}),
-          [SHARED_ZCODE_CREDENTIAL_KEYS.bigmodelUserInfo]: JSON.stringify({
+          [SHARED_MODE_CREDENTIAL_KEYS.bigmodelUserInfo]: JSON.stringify({
             id: readyData.user.user_id,
             username: readyData.user.name || readyData.user.email || readyData.user.user_id,
             displayName: readyData.user.name || readyData.user.email || readyData.user.user_id,
@@ -301,7 +301,7 @@ export async function logoutZCodeCli(
       : [];
   });
   const keys = [
-    ...Object.values(SHARED_ZCODE_CREDENTIAL_KEYS),
+    ...Object.values(SHARED_MODE_CREDENTIAL_KEYS),
     ...identityKeys,
     ...dynamicApiKeyKeys,
   ];
@@ -342,7 +342,7 @@ async function persistStandaloneCodingPlanConnection(input: {
   });
   const path =
     input.personalProviderConfigPath ??
-    input.env[ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]?.trim() ??
+    input.env[MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]?.trim() ??
     join(dirname(input.credentialStore.filePath), PERSONAL_PROVIDER_CONFIG_FILE_NAME);
   // 登录与运行时共享文件和事务；首次写入仍先保留旧用户 Provider，不能仅写默认值。
   const personalRepository = new NodePersonalProviderConfigRepository({

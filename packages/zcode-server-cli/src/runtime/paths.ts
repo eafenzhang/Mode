@@ -22,7 +22,7 @@ export interface ServerLayout {
 }
 
 function getDefaultServerDataRoot(): string {
-  const configured = readExternalEnvVar(process.env, "ZCODE_DATA_BASE_DIR");
+  const configured = readExternalEnvVar(process.env, "MODE_DATA_BASE_DIR");
   return join(configured || homedir(), ".zcodium", "server");
 }
 

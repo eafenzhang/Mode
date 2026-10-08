@@ -56,8 +56,8 @@ test("Host environment discards exporter settings while retaining business confi
   );
   const input = {
     OTEL_EXPORTER_OTLP_ENDPOINT: "https://example.invalid",
-    ZCODE_TELEMETRY_DEVICE_MID: "test",
-    ZCODE_MODEL_TELEMETRY_ENABLED: "true",
+    MODE_TELEMETRY_DEVICE_MID: "test",
+    MODE_MODEL_TELEMETRY_ENABLED: "true",
     HTTPS_PROXY: "http://localhost:8080",
     PATH: "/test/bin",
   };
@@ -65,7 +65,7 @@ test("Host environment discards exporter settings while retaining business confi
     HTTPS_PROXY: input.HTTPS_PROXY,
     PATH: input.PATH,
   });
-  assert.equal(input.ZCODE_MODEL_TELEMETRY_ENABLED, "true");
+  assert.equal(input.MODE_MODEL_TELEMETRY_ENABLED, "true");
 });
 
 test("database startup still forwards ordered state, starts ready listeners and accepts controls", async () => {

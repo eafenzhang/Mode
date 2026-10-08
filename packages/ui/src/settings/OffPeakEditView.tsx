@@ -11,7 +11,7 @@ import {
   TID_OFFPEAK_EDIT_VIEW,
   TID_OFFPEAK_FORM_INSTRUCTIONS,
   TID_OFFPEAK_FORM_TITLE,
-  ZCODE_AGENT_PROVIDER,
+  MODE_AGENT_PROVIDER,
   type ZCodeConfigOption,
   type ZCodeOffPeakTask,
   type ModelSelection,
@@ -618,7 +618,7 @@ export function OffPeakEditView({
                       复用 ConfigSelect，避免两处样式再次分叉。 */}
                   <ConfigSelect
                     option={modeOption}
-                    provider={ZCODE_AGENT_PROVIDER}
+                    provider={MODE_AGENT_PROVIDER}
                     onValueChange={setMode}
                     disabled={readOnly}
                     tooltipTitle={intl.formatMessage({
@@ -666,7 +666,7 @@ export function OffPeakEditView({
                     <ThoughtLevelCycleControl
                       intl={intl}
                       option={thoughtLevelOption}
-                      provider={ZCODE_AGENT_PROVIDER}
+                      provider={MODE_AGENT_PROVIDER}
                       disabled={readOnly}
                       triggerRef={thoughtTriggerRef}
                       triggerClassName={AUTOMATION_INSTRUCTIONS_TOOLBAR_TRIGGER_CLASSNAME}

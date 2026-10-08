@@ -5705,9 +5705,9 @@ const enUS: Record<string, string> = {
     "Current image attachments are too large. Remove or compress images and try again.",
   "zcode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
     "Current video attachments are too large. Remove or compress videos and try again.",
-  "zcode.error.ZCODE_RUNTIME_MODEL_UNAVAILABLE":
+  "zcode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
     "The current model is no longer available. Select an available model from the current model list to continue.",
-  "zcode.error.ZCODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
+  "zcode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "This model is unavailable. Check whether the API key has been added to the project member list.",
   "zcode.error.providerBusiness.1006": "The API key has expired. Configure it again and retry.",
   "zcode.error.providerBusiness.1005":

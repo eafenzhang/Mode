@@ -14,27 +14,38 @@ if (requestedEnv !== "test" && requestedEnv !== "production") {
 }
 
 // dev 实例的数据目录隔离不能只依赖 mise 任务层注入：绕过 mise 直接运行
-// pnpm dev:desktop:test 时若没有 ZCODE_DATA_BASE_DIR，实例会读写开发者真实的
+// pnpm dev:desktop:test 时若没有 MODE_DATA_BASE_DIR，实例会读写开发者真实的
 // ~/.zcode（曾因此重写真实 credentials.json）。test 模式在此兜底注入与 mise
 // 任务一致的默认隔离目录；production 保持 dogfood 语义不注入。
 const DEFAULT_ISOLATED_DATA_BASE_DIR = join(homedir(), ".zcode-dev-home");
 const legacyDataBaseDirSet =
-  process.env.ZCODIUM_DATA_BASE_DIR?.trim() || process.env.ZCODE_DATA_BASE_DIR?.trim();
+  process.env.MODE_DATA_BASE_DIR?.trim() ||
+  process.env.ZCODIUM_DATA_BASE_DIR?.trim() ||
+  process.env.ZCODE_DATA_BASE_DIR?.trim();
 if (requestedEnv === "test" && !legacyDataBaseDirSet) {
   // 新旧名双写：新旧二进制混布（SSH 远端旧 agent）也能读到隔离目录。
+  process.env.MODE_DATA_BASE_DIR = DEFAULT_ISOLATED_DATA_BASE_DIR;
   process.env.ZCODIUM_DATA_BASE_DIR = DEFAULT_ISOLATED_DATA_BASE_DIR;
   process.env.ZCODE_DATA_BASE_DIR = DEFAULT_ISOLATED_DATA_BASE_DIR;
 }
 // 同上：剔除宿主 CLI 泄漏的 builtin 配置路径，Host env 解析不得命中宿主运行时副本。
-delete process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE;
-delete process.env.ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE;
-// 宿主 ZCode 给自己启动的进程注入 ZCODE_APP_VERSION（宿主的版本号），dev 构建读到后
+for (const key of [
+  "MODE_BUILTIN_PROVIDER_CONFIG_FILE",
+  "MODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE",
+]) {
+  delete process.env[key];
+  delete process.env[`ZCODIUM_${key.slice("MODE_".length)}`];
+  delete process.env[`ZCODE_${key.slice("MODE_".length)}`];
+}
+// 宿主 ZCode 给自己启动的进程注入 MODE_APP_VERSION（宿主的版本号），dev 构建读到后
 // About、更新检查会显示成宿主版本（曾出现 41.0.3）。CI 发布时才该有这个变量，dev 一律删掉，
 // 让版本回落到仓库 package.json。
+delete process.env.MODE_APP_VERSION;
+delete process.env.ZCODIUM_APP_VERSION;
 delete process.env.ZCODE_APP_VERSION;
 console.log(
-  `[dev] ZCODE_ENV=${requestedEnv} 数据目录: ${
-    process.env.ZCODE_DATA_BASE_DIR?.trim() || "(未注入 — 将使用真实 HOME，dogfood 模式)"
+  `[dev] MODE_ENV=${requestedEnv} 数据目录: ${
+    process.env.MODE_DATA_BASE_DIR?.trim() || "(未注入 — 将使用真实 HOME，dogfood 模式)"
   }`,
 );
 
@@ -51,8 +62,8 @@ function run(command, args) {
       env: withPinnedNodePath(
         {
           ...process.env,
-          ZCODE_ENV: requestedEnv,
-          ZCODE_DESKTOP_AGENT_BYTECODE: agentBytecode ? "1" : "0",
+          MODE_ENV: requestedEnv,
+          MODE_DESKTOP_AGENT_BYTECODE: agentBytecode ? "1" : "0",
         },
         process.execPath,
       ),

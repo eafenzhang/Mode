@@ -49,10 +49,10 @@ import type {
   PluginMetadata,
   PluginStoreListing,
 } from "@zcode/contracts";
-import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE, isOfficialMarketplaceId } from "@zcode/contracts";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE, isOfficialMarketplaceId } from "@zcode/contracts";
 import { BUNDLED_OFFICIAL_PLUGIN_CATALOG } from "./app/official-plugin-catalog.generated.js";
 import {
-  ZCODE_CUA_OFFICIAL_PLUGIN_ID,
+  MODE_CUA_OFFICIAL_PLUGIN_ID,
   isZCodeCuaInternalFeatureEnabled,
   listingRequiresPaidPlan,
 } from "@zcode/shared";
@@ -249,7 +249,7 @@ function countVisibleMarketplacePlugins(
   plugins: readonly { name: string }[] | undefined,
 ): number | undefined {
   if (!plugins) return undefined;
-  if (marketplaceId !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE) return plugins.length;
+  if (marketplaceId !== MODE_OFFICIAL_PLUGIN_MARKETPLACE) return plugins.length;
   return plugins.filter((entry) => entry.name !== OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME).length;
 }
 
@@ -347,7 +347,7 @@ export function getZCodePluginsOverview(
   {
     const seenIds = new Set(availablePlugins.map((plugin) => plugin.id));
     for (const rawEntry of BUNDLED_OFFICIAL_PLUGIN_CATALOG.plugins) {
-      const id = `${rawEntry.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
+      const id = `${rawEntry.name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
       if (seenIds.has(id)) continue;
       const entry = rawEntry as unknown as PluginMarketplaceEntry;
       const listing = parseEntryStoreListing(entry as unknown as Record<string, unknown>);
@@ -356,7 +356,7 @@ export function getZCodePluginsOverview(
         bundledCatalogPlugins.push({
           id,
           name: rawEntry.name,
-          marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+          marketplace: MODE_OFFICIAL_PLUGIN_MARKETPLACE,
           ...("description" in rawEntry && typeof rawEntry.description === "string"
             ? { description: rawEntry.description }
             : {}),
@@ -367,7 +367,7 @@ export function getZCodePluginsOverview(
           ...(listing ? { listing } : {}),
           ...(hasBundledPluginPackage({
             storageRoot: pluginStorageRoot,
-            marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+            marketplace: MODE_OFFICIAL_PLUGIN_MARKETPLACE,
             entry,
           })
             ? {}
@@ -395,7 +395,7 @@ export function getZCodePluginsOverview(
   const suppressed = new Set(configResult.config.plugins.suppressedBuiltins);
   const restorableBuiltins: ZCodeAvailablePluginData[] = OFFICIAL_PLUGIN_DEFINITIONS.filter(
     (def) =>
-      suppressed.has(`${def.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`) &&
+      suppressed.has(`${def.name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`) &&
       // computer-use 的恢复入口需要 internal 特性开启（与 restoreBuiltinPluginCore 同口径）。
       (def.name !== "computer-use" || isZCodeCuaInternalFeatureEnabled(options.env ?? process.env)),
   ).map((def) => {
@@ -403,9 +403,9 @@ export function getZCodePluginsOverview(
       ? parseEntryStoreListing({ name: def.name, ...def.listing })
       : undefined;
     return {
-      id: `${def.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
+      id: `${def.name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
       name: def.name,
-      marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+      marketplace: MODE_OFFICIAL_PLUGIN_MARKETPLACE,
       version: def.version,
       installed: false,
       ...(listing ? { listing } : {}),
@@ -475,7 +475,7 @@ function loadPluginListingsById(storageRoot: string): Record<string, PluginStore
     if (!definition.listing) continue;
     const listing = parseEntryStoreListing({ name: definition.name, ...definition.listing });
     if (listing) {
-      listings.set(`${definition.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`, listing);
+      listings.set(`${definition.name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`, listing);
     }
   }
 
@@ -696,7 +696,7 @@ export async function installZCodeMarketplacePlugin(
     options.marketplace,
   )?.plugins.find((entry) => entry.name === options.pluginName);
   const isSuppressedBundledOfficial =
-    options.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE &&
+    options.marketplace === MODE_OFFICIAL_PLUGIN_MARKETPLACE &&
     configResult.config.plugins.suppressedBuiltins.includes(pluginId) &&
     (bundledEntry?.source === "filesystem" || bundledEntry?.source === "sea");
   if (isSuppressedBundledOfficial) {
@@ -777,7 +777,7 @@ export async function installZCodeMarketplacePlugin(
       ],
     };
   }
-  if (options.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE) {
+  if (options.marketplace === MODE_OFFICIAL_PLUGIN_MARKETPLACE) {
     // 官方 marketplace 复用内置插件的 id 空间。若同名 CDN 插件重新安装，
     // 清掉历史内置 suppression，否则 Runtime 仍会把已拥有的安装误判为 suppressed。
     for (const record of installed.installed) {
@@ -943,14 +943,14 @@ function applySparsePaths(
  * 因此核心不能再次获取 promise-chain lock；公开入口再负责提供锁保护。
  */
 async function restoreBuiltinPluginCore(options: RestoreBuiltinPluginOptions): Promise<void> {
-  const zcodeCuaPluginId = ZCODE_CUA_OFFICIAL_PLUGIN_ID;
+  const zcodeCuaPluginId = MODE_CUA_OFFICIAL_PLUGIN_ID;
   if (
     options.pluginId === zcodeCuaPluginId &&
     !isZCodeCuaInternalFeatureEnabled(options.env ?? process.env)
   ) {
     // overview 虽然隐藏了恢复入口，但协议调用仍可绕过 UI 写用户配置。
     // 功能开关关闭时在写盘前失败，确保用户配置与插件缓存都保持零痕迹。
-    throw new Error("computer-use built-in plugin requires ZCODE_CUA_PRODUCT_HELPER to be enabled");
+    throw new Error("computer-use built-in plugin requires MODE_CUA_PRODUCT_HELPER to be enabled");
   }
   const { configResult } = resolvePluginContext(options);
   await removeSuppressedBuiltinInFileConfig(configResult.sources.user.path, options.pluginId);

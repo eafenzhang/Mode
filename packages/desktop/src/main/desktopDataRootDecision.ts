@@ -10,7 +10,7 @@ import { statfs } from "node:fs/promises";
 import { homedir } from "node:os";
 import {
   DataRootDecisionChannels,
-  ZCODE_VERSION,
+  MODE_VERSION,
   type DataRootDecisionAction,
   type DataRootDecisionCandidate,
   type DataRootDecisionResult,
@@ -155,7 +155,7 @@ async function handleAction(
       const result = executeDesktopFreshStart({
         baseDir: session.baseDir,
         createdBy: "desktop",
-        appVersion: ZCODE_VERSION,
+        appVersion: MODE_VERSION,
       });
       logger.info(`${LOG_SCOPE} fresh start completed`, result.forfeitedRoot ?? "");
       scheduleRelaunch();
@@ -180,7 +180,7 @@ async function handleAction(
           baseDir: session.baseDir,
           candidates: session.candidates,
           createdBy: "desktop",
-          appVersion: ZCODE_VERSION,
+          appVersion: MODE_VERSION,
           onProgress,
         });
         if (!result.ok) {
@@ -200,7 +200,7 @@ async function handleAction(
         baseDir: session.baseDir,
         candidates: session.candidates,
         createdBy: "desktop",
-        appVersion: ZCODE_VERSION,
+        appVersion: MODE_VERSION,
         onProgress,
       });
       if (!result.ok) {

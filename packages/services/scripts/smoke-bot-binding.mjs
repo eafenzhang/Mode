@@ -11,8 +11,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const dataBaseDir = mkdtempSync(join(tmpdir(), "zcodium-bot-smoke-"));
-process.env.ZCODE_DATA_BASE_DIR = dataBaseDir;
-process.env.ZCODIUM_DATA_BASE_DIR = dataBaseDir;
+process.env.MODE_DATA_BASE_DIR = dataBaseDir;
+process.env.MODE_DATA_BASE_DIR = dataBaseDir;
 
 const { IBotsService, collectServiceMemoryDiagnostics } = await import("@zcode/services");
 const { createLocalServices } = await import("@zcode/services/node");

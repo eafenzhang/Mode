@@ -3,7 +3,7 @@ import { connectViaProtocol } from "@zcode/client";
 import {
   buildLanPeerTokenKey,
   serverRemoteInfoSchema,
-  ZCODE_RPC_HOST_CAPABILITY_HEADER,
+  MODE_RPC_HOST_CAPABILITY_HEADER,
   type LanAccessPairResult,
   type LanAccessState,
   type ServerRemoteInfo,
@@ -203,7 +203,7 @@ export async function attachLanRemoteConnection(params: {
 
   const ws = new WebSocket(buildLanWsUrl(params.host, params.port), {
     headers: {
-      [ZCODE_RPC_HOST_CAPABILITY_HEADER]: capabilityPayload.capability,
+      [MODE_RPC_HOST_CAPABILITY_HEADER]: capabilityPayload.capability,
       cookie: `zcode_lite_token=${encodeURIComponent(params.token)}`,
     },
   });

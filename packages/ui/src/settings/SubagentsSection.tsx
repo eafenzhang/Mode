@@ -7,7 +7,7 @@ import { completeNewModelSelection } from "@zcode/provider";
 import {
   TID_SUBAGENT_BUILT_IN_MODEL_TRIGGER,
   TID_SUBAGENT_ROW,
-  ZCODE_AGENT_PROVIDER,
+  MODE_AGENT_PROVIDER,
   testId,
   type AgentColor,
   type AgentsCapability,
@@ -1314,7 +1314,7 @@ export function SubagentsSection({ onManageModels }: SubagentsSectionProps) {
   const pluginInventoryWorkspacePath = targetWorkspacePath || workspaceTabs[0]?.workspacePath;
   const chatModelSelectGroups = useMemo(() => {
     if (!modelSelectionView) return [];
-    return buildRegistryModelSelectGroups(ZCODE_AGENT_PROVIDER, modelSelectionView, {
+    return buildRegistryModelSelectGroups(MODE_AGENT_PROVIDER, modelSelectionView, {
       startPlanBadgeLabel: intl.formatMessage({
         id: "settings.modelProvider.connectionMode.startPlanBadge",
       }),
@@ -1337,7 +1337,7 @@ export function SubagentsSection({ onManageModels }: SubagentsSectionProps) {
         const result = await subagentsService.list({
           workspacePath: targetWorkspacePath ?? "",
           workspaceIdentity: targetWorkspaceIdentity,
-          provider: ZCODE_AGENT_PROVIDER,
+          provider: MODE_AGENT_PROVIDER,
           mode: activeScope === "user" ? "settingsUserOnly" : "allRuntimeScopes",
         });
         if (requestId !== latestRequestIdRef.current) {
@@ -1416,7 +1416,7 @@ export function SubagentsSection({ onManageModels }: SubagentsSectionProps) {
             agentId: editingAgent.id,
             config,
             oldFilePath: editingAgent.path,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: MODE_AGENT_PROVIDER,
             scope: editingAgent.scope === "workspace" ? "workspace" : "user",
             workspacePath: editingAgent.projectPath ?? targetWorkspacePath ?? undefined,
             workspaceIdentity: targetWorkspaceIdentity,
@@ -1424,7 +1424,7 @@ export function SubagentsSection({ onManageModels }: SubagentsSectionProps) {
         } else {
           await subagentsService.createAgent({
             config,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: MODE_AGENT_PROVIDER,
             scope: activeScope,
             workspacePath: targetWorkspacePath ?? undefined,
             workspaceIdentity: targetWorkspaceIdentity,

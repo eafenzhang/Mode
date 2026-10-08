@@ -10,8 +10,8 @@ import type {
   PluginManifest,
   PluginOptionValues,
 } from "@zcode/contracts";
-import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
-import { ZCODE_PLUGIN_ID_ENV_KEY } from "@zcode/shared";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
+import { MODE_PLUGIN_ID_ENV_KEY } from "@zcode/shared";
 import type { LoadedPlugin } from "./types.js";
 import { isNotFoundError, isPluginOptionValue, isRecord, resolveInside } from "./helpers.js";
 import { buildOfficialProvenance, parseZCodeOfficialAuth } from "./mcp-official-auth.js";
@@ -185,7 +185,7 @@ function resolveMcpServerConfig(
   // ZCode 官方市场同时包含随应用装载的 Builtin Plugin 与按需安装的 CDN Plugin；后者运行时
   // source 为 `cache`，因此必须按 marketplace 身份归类，不能只看 loader source。
   const source: McpServerRuntimeSource = {
-    kind: context.loaded.marketplace === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE ? "builtin" : "plugin",
+    kind: context.loaded.marketplace === MODE_OFFICIAL_PLUGIN_MARKETPLACE ? "builtin" : "plugin",
   };
 
   // zcode_official 允许 http 与 stdio，sse 出现即禁用该 MCP，不静默忽略——静默会让配置作者以为鉴权已生效。
@@ -210,9 +210,9 @@ function resolveMcpServerConfig(
     const env = resolveStringRecord(
       {
         CLAUDE_PROJECT_DIR: context.workingDirectory,
-        ZCODE_PLUGIN_DATA: context.dataPath,
-        ZCODE_PLUGIN_ROOT: context.loaded.rootPath,
-        ZCODE_PROJECT_DIR: context.workingDirectory,
+        MODE_PLUGIN_DATA: context.dataPath,
+        MODE_PLUGIN_ROOT: context.loaded.rootPath,
+        MODE_PROJECT_DIR: context.workingDirectory,
         CLAUDE_PLUGIN_DATA: context.dataPath,
         CLAUDE_PLUGIN_ROOT: context.loaded.rootPath,
         ...(isRecord(server.env) ? server.env : {}),
@@ -223,7 +223,7 @@ function resolveMcpServerConfig(
     // 插件 manifest 可自定义 env，但插件身份必须由 resolver 权威写入（loaded.id 来自本地 plugin
     // registry，不是可序列化配置），不能让第三方伪造 official zcode-cua 身份后获得只应定向注入给
     // 内置插件的 broker 凭据。manifest env spread 之后覆写，确保 user/manifest 无法覆盖。
-    env[ZCODE_PLUGIN_ID_ENV_KEY] = context.loaded.id;
+    env[MODE_PLUGIN_ID_ENV_KEY] = context.loaded.id;
     return {
       type: "stdio",
       command: resolveTemplate(command, context, { allowSensitive: false }),
@@ -390,22 +390,22 @@ function resolveTemplate(
   return value.replace(TEMPLATE_PATTERN, (match, name: string) => {
     switch (name) {
       case "CLAUDE_PLUGIN_ROOT":
-      case "ZCODE_PLUGIN_ROOT":
+      case "MODE_PLUGIN_ROOT":
         return context.loaded.rootPath;
       case "CLAUDE_PLUGIN_DATA":
-      case "ZCODE_PLUGIN_DATA":
+      case "MODE_PLUGIN_DATA":
         return context.dataPath;
       case "CLAUDE_PROJECT_DIR":
-      case "ZCODE_PROJECT_DIR":
+      case "MODE_PROJECT_DIR":
         return context.workingDirectory;
       case "CLAUDE_CODE_SESSION_ID":
       case "CLAUDE_SESSION_ID":
-      case "ZCODE_SESSION_ID":
+      case "MODE_SESSION_ID":
         throw new PluginVariableError(
           `Plugin variable requires a runtime session context: ${name}`,
         );
       case "CLAUDE_SKILL_DIR":
-      case "ZCODE_SKILL_DIR":
+      case "MODE_SKILL_DIR":
         throw new PluginVariableError(`Plugin variable requires a skill context: ${name}`);
       default:
         break;
@@ -427,7 +427,7 @@ function resolveTemplate(
       }
       return String(configValue);
     }
-    if (name.startsWith("ZCODE_")) {
+    if (name.startsWith("MODE_")) {
       const envValue = context.env[name];
       if (envValue === undefined)
         throw new PluginVariableError(`Missing environment variable: ${name}`);

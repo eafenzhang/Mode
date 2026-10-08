@@ -5,10 +5,10 @@ import { join } from "node:path";
 import {
   DEFAULT_LOCALE,
   type Locale,
-  ZCODE_BUILD_TIME,
-  ZCODE_COMMIT,
-  ZCODE_ENV,
-  ZCODE_VERSION,
+  MODE_BUILD_TIME,
+  MODE_COMMIT,
+  MODE_ENV,
+  MODE_VERSION,
 } from "@zcode/shared";
 import { createCustomAboutDialogHtml } from "./aboutWindow.js";
 
@@ -161,10 +161,10 @@ export function createAboutSnapshot(options: AboutSnapshotOptions = {}): AboutSn
   };
 
   return {
-    appVersion: normalizeValue(options.appVersion ?? buildMetadata?.appVersion ?? ZCODE_VERSION),
-    buildCommitId: normalizeValue(buildMetadata?.buildCommitId ?? ZCODE_COMMIT),
-    buildTime: normalizeValue(buildMetadata?.buildTime ?? ZCODE_BUILD_TIME),
-    environment: normalizeValue(options.environment ?? ZCODE_ENV),
+    appVersion: normalizeValue(options.appVersion ?? buildMetadata?.appVersion ?? MODE_VERSION),
+    buildCommitId: normalizeValue(buildMetadata?.buildCommitId ?? MODE_COMMIT),
+    buildTime: normalizeValue(buildMetadata?.buildTime ?? MODE_BUILD_TIME),
+    environment: normalizeValue(options.environment ?? MODE_ENV),
     electronVersion: normalizeValue(runtimeVersions.electron),
     electronBuilderVersion: resolveElectronBuilderVersion(buildMetadata),
     chromiumVersion: normalizeValue(runtimeVersions.chrome),
@@ -231,10 +231,10 @@ export async function showAboutDialog(
 ): Promise<MessageBoxReturnValue> {
   const { app, BrowserWindow } = await import("electron");
   // 未打包（dev）运行时 app.getVersion() 返回的是 Electron 自身的版本（曾把关于窗口显示成
-  // 41.0.3），构建注入的 ZCODE_VERSION 才是应用版本；打包后两者一致，这里优先用它，
+  // 41.0.3），构建注入的 MODE_VERSION 才是应用版本；打包后两者一致，这里优先用它，
   // 与 index.ts 里同一份 payload 的口径保持一致。
   const snapshot = createAboutSnapshot({
-    appVersion: ZCODE_VERSION || app.getVersion(),
+    appVersion: MODE_VERSION || app.getVersion(),
     buildMetadata: readBuildMetadata(),
   });
   const aboutMessages = getAboutMessages(locale);

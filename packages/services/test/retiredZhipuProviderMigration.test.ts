@@ -15,8 +15,8 @@ import {
 import { encodeProviderConfigFile } from "@zcode/provider-node";
 import { createProviderConfigRuntime } from "../src/model-provider/providerConfigRuntime.js";
 
-const ZCODE_BUILTIN_PATH = fileURLToPath(
-  new URL("../../../config/provider/zcode-builtin.json", import.meta.url),
+const MODE_BUILTIN_PATH = fileURLToPath(
+  new URL("../../../config/provider/mode-builtin.json", import.meta.url),
 );
 
 const RETIRED_ZAI_PROVIDER = "account:zai-team-coding-plan";
@@ -44,7 +44,7 @@ async function setup(personal?: ProviderConfigLayerUpdate) {
     await writeFile(personalFilePath, JSON.stringify(encodeProviderConfigFile(personal), null, 2));
   }
   const runtime = createProviderConfigRuntime({
-    zcodeBuiltinFilePath: ZCODE_BUILTIN_PATH,
+    zcodeBuiltinFilePath: MODE_BUILTIN_PATH,
     personalFilePath,
     personalPollingIntervalMs: false,
     watch: false,

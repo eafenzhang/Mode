@@ -20,8 +20,8 @@ import type {
 import {
   HookEventName as HookEventNameValue,
   HookMatcherConfigSchema,
-  ZCODE_INLINE_PLUGIN_MARKETPLACE,
-  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+  MODE_INLINE_PLUGIN_MARKETPLACE,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE,
 } from "@zcode/contracts";
 import {
   directoryExists,
@@ -98,7 +98,7 @@ export {
   type PluginUpdateStatus,
 } from "./version-compare.js";
 
-const ZCODE_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
+const MODE_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
 const CLAUDE_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const DEFAULT_VERSION = "0.0.0";
@@ -242,7 +242,7 @@ export class NodePluginAdapter implements PluginPort {
     for (const rootPath of request.config.dirs) {
       candidates.push({
         defaultEnabled: true,
-        marketplace: ZCODE_INLINE_PLUGIN_MARKETPLACE,
+        marketplace: MODE_INLINE_PLUGIN_MARKETPLACE,
         rootPath: resolve(rootPath),
         source: "inline",
       });
@@ -250,7 +250,7 @@ export class NodePluginAdapter implements PluginPort {
     for (const rootPath of request.officialPluginRoots ?? []) {
       candidates.push({
         defaultEnabled: false,
-        marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+        marketplace: MODE_OFFICIAL_PLUGIN_MARKETPLACE,
         rootPath: resolve(rootPath),
         source: "official",
       });
@@ -258,7 +258,7 @@ export class NodePluginAdapter implements PluginPort {
     candidates.push(
       ...scanOfficialCache(request.storageRoot, diagnostics, options).map((rootPath) => ({
         defaultEnabled: false,
-        marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+        marketplace: MODE_OFFICIAL_PLUGIN_MARKETPLACE,
         rootPath,
         source: "official" as const,
       })),
@@ -867,7 +867,7 @@ function scanOfficialCache(
     return bundledRoots;
   }
 
-  const cacheRoot = join(storageRoot, "cache", ZCODE_OFFICIAL_PLUGIN_MARKETPLACE);
+  const cacheRoot = join(storageRoot, "cache", MODE_OFFICIAL_PLUGIN_MARKETPLACE);
   try {
     const roots: string[] = [];
     for (const pluginEntry of readdirSync(cacheRoot, { withFileTypes: true })) {
@@ -929,7 +929,7 @@ function loadPlugin(
 }
 
 function findManifest(rootPath: string): string | null {
-  const zcodePath = join(rootPath, ZCODE_MANIFEST_PATH);
+  const zcodePath = join(rootPath, MODE_MANIFEST_PATH);
   if (fileExists(zcodePath)) {
     return zcodePath;
   }

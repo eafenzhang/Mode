@@ -36,7 +36,7 @@ import {
   type StorePluginItem,
 } from "@/settings/pluginStoreListing.js";
 import {
-  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
   isBuiltinDefaultMarketplaceId,
 } from "@zcode/shared";
 import { PluginUninstallConfirmDialog } from "@/settings/PluginUninstallConfirmDialog.js";
@@ -137,7 +137,7 @@ export function PluginStorePage({
   // （旧缓存；刷新时会把插件自带图标补进目录）。物化且有图标后不再自动刷新（用户仍可手动刷新）。
   useEffect(() => {
     for (const marketplace of marketplaces) {
-      const isOfficial = marketplace.id === ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID;
+      const isOfficial = marketplace.id === MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID;
       const isDefaultSource = isBuiltinDefaultMarketplaceId(marketplace.id);
       const isUnmaterializedDefault = isDefaultSource && !marketplace.lastUpdated;
       const needsIconBackfill =

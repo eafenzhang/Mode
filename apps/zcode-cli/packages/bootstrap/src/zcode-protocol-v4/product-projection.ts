@@ -70,7 +70,7 @@ import {
   parseZCodeBackgroundTaskNotificationText,
   resolveZCodeBackgroundTaskControlKind,
   WORKFLOW_REFINE_PERMISSION_OPTION_ID,
-  ZCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS,
+  MODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS,
   zcodeBackgroundTaskNotificationToolUpdateStatus,
 } from "@zcode/shared";
 import type {
@@ -526,7 +526,7 @@ export class ProductProjection {
         if (
           state.lastPublishedAt !== null &&
           this.ms(event) - state.lastPublishedAt <
-            ZCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS
+            MODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS
         ) {
           return "";
         }
@@ -2813,7 +2813,7 @@ export class ProductProjection {
     const now = this.ms(event);
     if (
       state.lastPublishedAt !== null &&
-      now - state.lastPublishedAt < ZCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS
+      now - state.lastPublishedAt < MODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS
     ) {
       return [];
     }

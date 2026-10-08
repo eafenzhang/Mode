@@ -5617,9 +5617,9 @@ const faIR: Record<string, string> = {
     "پیوست‌های تصویری فعلی بیش از حد بزرگ‌اند. تصاویر را حذف یا فشرده کنید و دوباره تلاش کنید.",
   "zcode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
     "پیوست‌های ویدیویی فعلی بیش از حد بزرگ‌اند. ویدیوها را حذف یا فشرده کنید و دوباره تلاش کنید.",
-  "zcode.error.ZCODE_RUNTIME_MODEL_UNAVAILABLE":
+  "zcode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
     "مدل فعلی دیگر در دسترس نیست. برای ادامه، یک مدل در دسترس را از فهرست مدل‌های فعلی انتخاب کنید.",
-  "zcode.error.ZCODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
+  "zcode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "این مدل در دسترس نیست. بررسی کنید که کلید API به فهرست اعضای پروژه اضافه شده باشد.",
   "zcode.error.providerBusiness.1006":
     "کلید API منقضی شده است. آن را دوباره پیکربندی کنید و تلاش دوباره داشته باشید.",

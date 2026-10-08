@@ -28,7 +28,7 @@ export function isOfficialServiceEnabled(_key: OfficialServiceKey): boolean {
 }
 
 export function assertOfficialServiceAvailable(_key: OfficialServiceKey): void {
-  throw new Error(`官方平台服务已下线，不再连接 Z.AI；反馈请访问 ${ZCODIUM_ISSUES_URL}`);
+  throw new Error(`官方平台服务已下线，不再连接 Z.AI；反馈请访问 ${MODE_ISSUES_URL}`);
 }
 
 /** 对话分享已下线：不提供开关，任何组合都不能恢复。 */
@@ -37,10 +37,10 @@ export function isConversationShareAvailable(): boolean {
 }
 
 export function assertConversationShareRemoved(): void {
-  throw new Error(`对话分享已在 Mode 下线。反馈请访问 ${ZCODIUM_ISSUES_URL}`);
+  throw new Error(`对话分享已在 Mode 下线。反馈请访问 ${MODE_ISSUES_URL}`);
 }
 
-export const ZCODIUM_ISSUES_URL = "https://github.com/eafenzhang/Mode/issues";
+export const MODE_ISSUES_URL = "https://github.com/eafenzhang/Mode/issues";
 
 /**
  * 已下线功能的中文名：只用于报错文案。
@@ -75,12 +75,12 @@ export function isOfficialServiceRemoved(key: OfficialServiceKey | RemovedOffici
 /** 已下线功能：恒抛异常，与对话分享同构——不存在“开关打开后恢复”的路径。 */
 export function assertOfficialServiceRemoved(key: RemovedOfficialServiceKey): void {
   throw new Error(
-    `“${REMOVED_OFFICIAL_SERVICE_LABELS[key]}”功能已在 Mode 下线，无法再开启。反馈请访问 ${ZCODIUM_ISSUES_URL}`,
+    `“${REMOVED_OFFICIAL_SERVICE_LABELS[key]}”功能已在 Mode 下线，无法再开启。反馈请访问 ${MODE_ISSUES_URL}`,
   );
 }
 
 export function assertOfficialPlatformAvailable(): void {
-  throw new Error(`官方平台服务已下线，不再连接 Z.AI；反馈请访问 ${ZCODIUM_ISSUES_URL}`);
+  throw new Error(`官方平台服务已下线，不再连接 Z.AI；反馈请访问 ${MODE_ISSUES_URL}`);
 }
 
 /** 仅阻断平台域名，保留用户自配的模型 API、代理和本地地址。 */
@@ -211,13 +211,13 @@ export function assertOfficialPlatformAccessible(input: string | URL): void {
   const key = resolveOfficialServiceForUrl(input);
   if (key !== null && isRemovedOfficialServiceKey(key)) {
     throw new Error(
-      `“${REMOVED_OFFICIAL_SERVICE_LABELS[key]}”功能已在 Mode 下线，该官方平台地址不能访问。反馈请访问 ${ZCODIUM_ISSUES_URL}`,
+      `“${REMOVED_OFFICIAL_SERVICE_LABELS[key]}”功能已在 Mode 下线，该官方平台地址不能访问。反馈请访问 ${MODE_ISSUES_URL}`,
     );
   }
   if (key) {
     throw new Error(
-      `官方平台服务已下线，${key} 功能不再可用；反馈请访问 ${ZCODIUM_ISSUES_URL}`,
+      `官方平台服务已下线，${key} 功能不再可用；反馈请访问 ${MODE_ISSUES_URL}`,
     );
   }
-  throw new Error(`该官方平台地址在 Mode 已下线或未登记，不能访问。反馈请访问 ${ZCODIUM_ISSUES_URL}`);
+  throw new Error(`该官方平台地址在 Mode 已下线或未登记，不能访问。反馈请访问 ${MODE_ISSUES_URL}`);
 }

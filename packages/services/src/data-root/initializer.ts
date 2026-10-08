@@ -4,7 +4,7 @@
  * 规则（详见 docs/specs/zcodium-data-root.md）：
  * - 归属文件落盘前，正式根零写入：pending 时所有数据根路径重定向到进程诊断根；
  * - 桌面交互：absent+旧根 / unowned / corrupt → pending，由决策窗口处置；
- * - CLI / server：非交互，按 ZCODIUM_DATA_ROOT_ACTION（fresh|migrate|fail）处置；
+ * - CLI / server：非交互，按 MODE_DATA_ROOT_ACTION（fresh|migrate|fail）处置；
  * - 冲突目录整体备份让路，不删除、不合并。
  */
 import { chmodSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
@@ -192,16 +192,16 @@ export interface InitializeDataRootNonInteractiveInput extends InitializeDataRoo
 }
 
 /**
- * 非交互入口策略：ZCODIUM_DATA_ROOT_ACTION=migrate|fresh|fail，缺省 fresh。
+ * 非交互入口策略：MODE_DATA_ROOT_ACTION=migrate|fresh|fail，缺省 fresh。
  * 非法值回退 fresh 并记录日志（不因环境变量拼写阻塞启动）。
  */
 export function resolveDataRootActionFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): DataRootNonInteractiveAction {
-  const raw = env["ZCODIUM_DATA_ROOT_ACTION"]?.trim().toLowerCase();
+  const raw = env["MODE_DATA_ROOT_ACTION"]?.trim().toLowerCase();
   if (raw === "migrate" || raw === "fail" || raw === "fresh") return raw;
   if (raw) {
-    log.warn(undefined, `未知 ZCODIUM_DATA_ROOT_ACTION=${raw}，按 fresh 处理`);
+    log.warn(undefined, `未知 MODE_DATA_ROOT_ACTION=${raw}，按 fresh 处理`);
   }
   return "fresh";
 }
@@ -230,7 +230,7 @@ export async function initializeDataRootNonInteractive(
   const candidates = discoverLegacyDataRootCandidates(baseDir);
   if (action === "fail") {
     throw new Error(
-      `数据根 ${baseDir} 状态异常（${status.kind}），ZCODIUM_DATA_ROOT_ACTION=fail 下拒绝启动`,
+      `数据根 ${baseDir} 状态异常（${status.kind}），MODE_DATA_ROOT_ACTION=fail 下拒绝启动`,
     );
   }
 

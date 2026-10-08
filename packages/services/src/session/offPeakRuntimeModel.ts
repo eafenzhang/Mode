@@ -57,7 +57,7 @@ export class OffPeakModelUnavailableError extends OffPeakPermanentDispatchError 
   }
 }
 
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const MODE_JWT_TOKEN_KEY = "zcodejwttoken";
 const ACTIVE_OAUTH_PROVIDER_KEY = "oauth:active_provider";
 
 export interface OffPeakCredentialSnapshot {
@@ -140,8 +140,8 @@ export async function resolveOffPeakCredentials(
   assertOfficialServiceRemoved("offPeak");
 
   const env = deps.env ?? process.env;
-  if (options.allowMockCredentials !== false && env["ZCODE_OFFPEAK_MOCK"] === "1") {
-    if (env["ZCODE_OFFPEAK_MOCK_NO_PLAN"] === "1") {
+  if (options.allowMockCredentials !== false && env["MODE_OFFPEAK_MOCK"] === "1") {
+    if (env["MODE_OFFPEAK_MOCK_NO_PLAN"] === "1") {
       throw new OffPeakCodingPlanUnavailableError("connection_unavailable");
     }
     // mock 网关不校验凭证；使用确定性 metadata 让 UI 和 ticket/runtime 仍共享同一 support 形状。
@@ -165,7 +165,7 @@ export async function resolveOffPeakCredentials(
       // ZAI JWT 与 BigModel key（或反向）拼到同一请求，服务端只能在取号时才拒绝。
       throw new OffPeakCodingPlanUnavailableError("provider_identity_mismatch");
     }
-    const jwt = (await deps.credentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() ?? "";
+    const jwt = (await deps.credentialService.load(MODE_JWT_TOKEN_KEY))?.trim() ?? "";
     if (!jwt) {
       throw new OffPeakCredentialsUnavailableError("jwt");
     }

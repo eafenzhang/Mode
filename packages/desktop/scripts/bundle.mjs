@@ -41,7 +41,7 @@ const runtimeModuleLookupRoots = [
 const pnpmCommand = "pnpm";
 const DEFAULT_TARGET_OS = "mac";
 const DEFAULT_TARGET_ARCH = "arm64";
-const desktopDistDir = process.env.ZCODE_DESKTOP_DIST_DIR || "dist";
+const desktopDistDir = process.env.MODE_DESKTOP_DIST_DIR || "dist";
 const desktopDistRoot = resolve(desktopRoot, desktopDistDir);
 const desktopProductIdentity = resolveDesktopProductIdentity(process.env);
 
@@ -140,7 +140,7 @@ export function resolveElectronMirror(env = process.env) {
 
 export function createElectronRuntimeMirrorEnv(mirror) {
   return {
-    ZCODE_ELECTRON_RUNTIME_MIRROR: mirror,
+    MODE_ELECTRON_RUNTIME_MIRROR: mirror,
     // @electron/get 的 Electron runtime 环境变量是全局读取的。
     // 如果传给 electron-builder 主进程，会覆盖 dmg-builder 等 generic artifact 的 mirrorOptions。
     ELECTRON_MIRROR: "",
@@ -151,7 +151,7 @@ export function createElectronRuntimeMirrorEnv(mirror) {
 }
 
 function resolveDefaultElectronBuilderBinariesMirror(env = process.env) {
-  return env.ZCODE_DEPS_BASE_URL?.trim() || env.INTRANET_MACHINE_HOST?.trim()
+  return env.MODE_DEPS_BASE_URL?.trim() || env.INTRANET_MACHINE_HOST?.trim()
     ? `${resolveIntranetDepsBaseUrl(env)}/electron-builder-binaries/`
     : NPMMIRROR_ELECTRON_BUILDER_BINARIES_MIRROR;
 }
@@ -250,8 +250,8 @@ function printHelp() {
   -h, --help                   查看帮助
 
 环境变量:
-  ZCODE_TARGET_OS              与 --os 等价
-  ZCODE_TARGET_ARCH            与 --arch 等价
+  MODE_TARGET_OS              与 --os 等价
+  MODE_TARGET_ARCH            与 --arch 等价
 `);
 }
 
@@ -273,10 +273,10 @@ function normalizeArch(rawArch) {
 
 function parseArgs(argv) {
   const options = {
-    os: process.env.ZCODE_TARGET_OS ?? null,
-    arch: process.env.ZCODE_TARGET_ARCH ?? null,
-    skipPrepare: process.env.ZCODE_SKIP_PREPARE === "1",
-    skipBuild: process.env.ZCODE_SKIP_BUILD === "1",
+    os: process.env.MODE_TARGET_OS ?? null,
+    arch: process.env.MODE_TARGET_ARCH ?? null,
+    skipPrepare: process.env.MODE_SKIP_PREPARE === "1",
+    skipBuild: process.env.MODE_SKIP_BUILD === "1",
     dryRun: false,
     positionals: [],
   };
@@ -710,8 +710,8 @@ async function main() {
   console.log(`[bundle] skipPrepare=${skipPrepare} skipBuild=${skipBuild}`);
 
   const buildEnv = {
-    ZCODE_TARGET_OS: os,
-    ZCODE_TARGET_ARCH: arch,
+    MODE_TARGET_OS: os,
+    MODE_TARGET_ARCH: arch,
     ...createElectronRuntimeMirrorEnv(resolveElectronMirror()),
     ...createElectronBuilderBinariesMirrorEnv(resolveElectronBuilderBinariesMirror()),
   };

@@ -35,7 +35,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const log = createServiceLogger("coding-plan-availability");
 const BIGMODEL_SUBSCRIPTION_LIST_PATH = "/api/biz/subscription/list";
 
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const MODE_JWT_TOKEN_KEY = "zcodejwttoken";
 
 export type CodingPlanUnavailableReason =
   | "coding_plan_not_authenticated"
@@ -45,7 +45,7 @@ export type CodingPlanUnavailableReason =
 
 function buildZaiSubscriptionListUrl(): string {
   // ZAI 测试环境业务 token 只能请求配置的 ZAI Business origin。
-  // availability 校验必须和 OAuth business login 共用同一套 ZCODE_ENV 域名分流，只允许 origin 不同。
+  // availability 校验必须和 OAuth business login 共用同一套 MODE_ENV 域名分流，只允许 origin 不同。
   return buildRuntimeZaiBusinessUrl(process.env, "/api/biz/subscription/list");
 }
 
@@ -243,7 +243,7 @@ async function validateSelectedTeamPlanAvailability(
   if (!token) {
     return { kind: "unavailable", reason: "coding_plan_not_connected" };
   }
-  const zcodeJwtToken = (await context.credentialService?.load(ZCODE_JWT_TOKEN_KEY))?.trim();
+  const zcodeJwtToken = (await context.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim();
   // BigModel 旧版本可能把 zcodejwttoken 误写进 oauth access token；
   // 但 Z.ai 的 business JWT 本身就是合法 Bearer token，不能套用这个 stale-token 防御。
   if (family === "bigmodel" && zcodeJwtToken && token === zcodeJwtToken) {
@@ -511,7 +511,7 @@ function resolveStartPlanBalanceAvailability(
 async function loadZaiProviderConnectionZcodeJwtToken(
   context: CodingPlanAvailabilityContext,
 ): Promise<string> {
-  return (await context.credentialService?.load(ZCODE_JWT_TOKEN_KEY))?.trim() || "";
+  return (await context.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim() || "";
 }
 
 function classifyAvailabilityError(error: unknown): CodingPlanAvailabilityResult {

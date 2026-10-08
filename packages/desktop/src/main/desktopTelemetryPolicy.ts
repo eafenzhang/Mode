@@ -6,7 +6,7 @@ export function omitDesktopTelemetryEnvironment(
     Object.entries(env).filter(
       (entry): entry is [string, string] =>
         entry[1] !== undefined &&
-        !/^(?:OTEL_|ZCODE_TELEMETRY_|ZCODE_MODEL_TELEMETRY_ENABLED$)/i.test(entry[0]),
+        !/^(?:OTEL_|MODE_TELEMETRY_|MODE_MODEL_TELEMETRY_ENABLED$)/i.test(entry[0]),
     ),
   );
 }

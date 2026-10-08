@@ -282,7 +282,7 @@ import icon276 from "@/assets/plugin-icons/zcode-plugins-official/zscaler.png";
 import icon277 from "@/assets/plugin-icons/zcode-plugins-official/zyte-web-data.png";
 
 /** 插件名 → 随包图标（同名跨市场复用）。 */
-export const ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME: Readonly<Record<string, string>> = {
+export const MODE_OFFICIAL_PLUGIN_ICON_BY_NAME: Readonly<Record<string, string>> = {
   "42crunch-api-security-testing": icon0,
   "accounting-and-reporting": icon1,
   "adobe-for-creativity": icon2,

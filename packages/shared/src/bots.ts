@@ -1,7 +1,7 @@
 /* oxlint-disable eslint(max-lines) -- Bot 共享合约集中维护 provider、状态和 schema，保持类型与校验就近。 */
 import { z } from "zod";
 import { modelSelectionSchema, type ModelSelection } from "./model-selection.js";
-import { ZCODE_AGENT_PROVIDER, ZCODE_AGENT_PROVIDER_LABEL } from "./zcode-agent-policy.js";
+import { MODE_AGENT_PROVIDER, MODE_AGENT_PROVIDER_LABEL } from "./zcode-agent-policy.js";
 import type {
   ZCodeConfigOption,
   ZCodeElicitationRequest,
@@ -648,13 +648,13 @@ export const botCurrentOptionsSchema = z
     sandboxMode: z.string().min(1).optional(),
     approvalPolicy: z.string().min(1).optional(),
     // 兼容旧 bot-config.json；CLI provider 现在统一由 ZCode Protocol 侧配置决定。
-    cli: z.literal(ZCODE_AGENT_PROVIDER).optional(),
+    cli: z.literal(MODE_AGENT_PROVIDER).optional(),
   })
   .strict();
 
 export const botDraftOptionsSchema = z
   .object({
-    provider: z.literal(ZCODE_AGENT_PROVIDER),
+    provider: z.literal(MODE_AGENT_PROVIDER),
     modelSelection: modelSelectionSchema.optional(),
     mode: z.string().min(1).optional(),
   })
@@ -1075,7 +1075,7 @@ export function normalizeBotReplyGranularity(
   return supported.includes(candidate) ? candidate : supported[0]!;
 }
 
-export const BOT_ZCODE_PROVIDER_OPTIONS: Array<{
+export const BOT_MODE_PROVIDER_OPTIONS: Array<{
   id: ZCodeProvider;
   label: string;
-}> = [{ id: ZCODE_AGENT_PROVIDER, label: ZCODE_AGENT_PROVIDER_LABEL }];
+}> = [{ id: MODE_AGENT_PROVIDER, label: MODE_AGENT_PROVIDER_LABEL }];

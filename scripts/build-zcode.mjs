@@ -14,7 +14,7 @@ import { installScriptSource } from "./zcode-distribution/installer.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const defaultOutDir = resolve(root, "dist", "zcode");
-const defaultBaseUrl = (await loadEndpointEnv()).ZCODE_DIST_BASE_URL?.trim() || "";
+const defaultBaseUrl = (await loadEndpointEnv()).MODE_DIST_BASE_URL?.trim() || "";
 const packageDirName = "zcodium";
 const usage = `Usage:
   pnpm build:zcode
@@ -164,7 +164,7 @@ async function stageZCodePackage({ packageRoot, version }) {
   await assertDirectory(serverDist, "server dist");
   await assertFile(resolve(serverDist, "entry-http.js"), "server HTTP entry");
   await assertFile(agentBundle, "agent app-server bundle");
-  await assertFile(resolve(agentProvider, "zcode-builtin.json"), "Agent provider config");
+  await assertFile(resolve(agentProvider, "mode-builtin.json"), "Agent provider config");
 
   await rm(packageRoot, {
     force: true,
@@ -237,7 +237,7 @@ async function createTarball({ packageParent, releaseDir, tarballName }) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (!options.help && !options.baseUrl)
-    throw new Error("Configure ZCODE_DIST_BASE_URL in .env or pass --base-url");
+    throw new Error("Configure MODE_DIST_BASE_URL in .env or pass --base-url");
   if (options.help) {
     console.log(usage);
     return;
