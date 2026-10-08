@@ -39,15 +39,13 @@ Mode 保留产品本身——一个陪你规划、改代码、跑命令、自我
 
 安装包都在 [Releases](https://github.com/eafenzhang/Mode/releases) 页面。产物**没有代码签名**，各系统首次启动都会拦一次——这是预期行为，下载后可以对照同页面的 `sha256.txt` 自行校验（Windows `certutil -hashfile <文件> SHA256`，macOS `shasum -a 256 <文件>`，Linux `sha256sum <文件>`）。
 
-| 平台 | 产物 | 首次启动 |
-| --- | --- | --- |
-| Windows x64 | `Mode-<版本>-win-x64.exe` | SmartScreen 提示时点「更多信息」→「仍要运行」 |
-| macOS Apple Silicon | `Mode-<版本>-mac-arm64.dmg` | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"` |
-| macOS Intel | `Mode-<版本>-mac-x64.dmg` | 同上 |
-| Linux x86_64 / arm64 | `Mode-<版本>-linux-x86_64.AppImage` / `-linux-arm64.AppImage` | `chmod +x` 后直接运行 |
-| CLI | `zcodium-<版本>.tar.gz`（需要 Node.js 24） | 解压后 `./install.sh`（命令名沿用 `zcodium`） |
+| 平台                | 产物                                | 首次启动                                                                                  |
+| ------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| Windows x64         | `Mode-<版本>-win-x64.exe`           | SmartScreen 提示时点「更多信息」→「仍要运行」                                             |
+| macOS Apple Silicon | `Mode-<版本>-mac-arm64.dmg`         | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"` |
+| Linux x86_64        | `Mode-<版本>-linux-x86_64.AppImage` | `chmod +x` 后直接运行                                                                     |
 
-已安装的桌面端会从本仓库的 Releases 自动更新；CLI 通过安装更新的压缩包升级。
+已安装的桌面端会从本仓库的 Releases 自动更新。
 
 ## 从源码运行
 
@@ -80,19 +78,19 @@ pnpm bundle:desktop -- --os win --arch x64
 
 ## 发版自动化
 
-推送 `main` 就会自动构建并发布新版本：`.github/workflows/release.yml` 取最近一个正式版 tag 把 patch 号 +1（例如 `v0.0.1` → `v0.0.2`），先跑 `verify` 闸门（类型检查、Lint、服务与桌面端测试），再构建 CLI 发行包与 macOS / Windows / Linux 桌面客户端，全部上传进一个 **draft** Release，等所有产物齐了才公开——构建失败就停在 draft，下载页永远不会解析到一个半成品版本。提交信息里带 `[skip release]` 可以只推代码不发版；需要指定版本号或发预发布时，手工触发这个 workflow。
+推送 `main` 就会自动构建并发布新版本：`.github/workflows/release.yml` 取最近一个正式版 tag 把 patch 号 +1（例如 `v0.0.1` → `v0.0.2`），先跑 `verify` 闸门（类型检查、Lint、服务与桌面端测试），再构建 Windows x64 / macOS Apple Silicon / Linux x64 三个桌面客户端，全部上传进一个 **draft** Release，等所有产物齐了才公开——构建失败就停在 draft，下载页永远不会解析到一个半成品版本。提交信息里带 `[skip release]` 可以只推代码不发版；需要指定版本号或发预发布时，手工触发这个 workflow。
 
 ## 仓库结构
 
-| 路径 | 内容 |
-| --- | --- |
-| `packages/desktop` | Electron 主进程、host 与渲染端；局域网访问服务与发现 |
-| `packages/ui` | 共享 React 组件、hooks 与 Zustand store（设置页、插件商店） |
-| `packages/services` | 业务服务（Agent 会话、机器人、插件、远程连接） |
-| `packages/server`、`packages/web` | 浏览器工作区的服务端与客户端 |
-| `packages/client`、`packages/rpc`、`packages/shared` | Agent 客户端 SDK、RPC 框架、共享契约 |
-| `apps/zcode-cli` | Agent CLI 与运行时（桌面端也内嵌这套） |
-| `harness/lan` | 两台机器上试局域网远程连接的操作步骤 |
+| 路径                                                 | 内容                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| `packages/desktop`                                   | Electron 主进程、host 与渲染端；局域网访问服务与发现        |
+| `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand store（设置页、插件商店） |
+| `packages/services`                                  | 业务服务（Agent 会话、机器人、插件、远程连接）              |
+| `packages/server`、`packages/web`                    | 浏览器工作区的服务端与客户端                                |
+| `packages/client`、`packages/rpc`、`packages/shared` | Agent 客户端 SDK、RPC 框架、共享契约                        |
+| `apps/zcode-cli`                                     | Agent CLI 与运行时（桌面端也内嵌这套）                      |
+| `harness/lan`                                        | 两台机器上试局域网远程连接的操作步骤                        |
 
 ## 许可与来源
 

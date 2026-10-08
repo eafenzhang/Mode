@@ -150,14 +150,12 @@ jobs:
           - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
           - **macOS（.dmg）**：`<PRODUCT>-<VERSION>-mac-arm64.dmg`（Apple Silicon）/ `<PRODUCT>-<VERSION>-mac-x64.dmg`（Intel），拖进「应用程序」；未签名会被 Gatekeeper 拦一次，放行命令：`sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`。
           - **Linux（.AppImage）**：`<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`，`chmod +x` 后直接运行。
-          - **CLI（.tar.gz）**：`zcodium-<VERSION>.tar.gz`，需要 Node.js 24；CLI 命令名沿用 `zcodium`，解压后 `./install.sh` 安装。
-          - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包与 CLI 包；`latest*.yml`、`latest.json` 供应用内自动更新使用。
+          - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包；`latest*.yml` 供应用内自动更新使用。
 
           - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
           - **macOS (.dmg)**: `<PRODUCT>-<VERSION>-mac-arm64.dmg` (Apple Silicon) / `<PRODUCT>-<VERSION>-mac-x64.dmg` (Intel); drag it into Applications. Unsigned, so Gatekeeper blocks the first launch once: `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`.
           - **Linux (.AppImage)**: `<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`; `chmod +x` then run it directly.
-          - **CLI (.tar.gz)**: `zcodium-<VERSION>.tar.gz` needs Node.js 24; the CLI command is still named `zcodium` - extract and run `./install.sh`.
-          - **Checksums and update metadata**: `sha256.txt` covers the installers and the CLI package; `latest*.yml` and `latest.json` drive in-app updates.
+          - **Checksums and update metadata**: `sha256.txt` covers the installers; `latest*.yml` drives in-app updates.
 
           ## 反馈 / Feedback
 
@@ -230,97 +228,19 @@ jobs:
           pnpm --filter @zcode/services test
           node --test packages/desktop/tests/*.test.mjs
 
-  build:
-    needs: [release, verify]
-    if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.2
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build project references
-        run: pnpm typecheck
-
-      - name: Build ZCode CLI distribution
-        env:
-          ZCODE_DIST_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.release.outputs.tag }}/
-          RELEASE_TAG: ${{ needs.release.outputs.tag }}
-        run: |
-          set -euo pipefail
-          pnpm build:zcode -- --version "${RELEASE_TAG#v}"
-
-      - name: Upload assets to release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release.outputs.tag }}
-        run: |
-          set -euo pipefail
-          # GitHub API 偶发连接失败（runner 网络抖动），上传重试 3 次；--clobber 让重试可安全覆盖。
-          for attempt in 1 2 3; do
-            if gh release upload "$TAG" \
-              dist/zcode/releases/*/zcodium-*.tar.gz \
-              dist/zcode/releases/*/sha256.txt \
-              dist/zcode/install.sh \
-              dist/zcode/latest.json \
-              --clobber; then
-              exit 0
-            fi
-            echo "::warning::gh release upload failed (attempt $attempt/3), retrying in 10s"
-            sleep 10
-          done
-          echo "::error::gh release upload failed after 3 attempts"
-          exit 1
-
-      # 校验片段：各构建 job 只上传自己产出的文件哈希，由 checksums job 合并成
-      # release 的 sha256.txt。CLI 侧沿用 build-zcode 生成的 tarball sha256.txt，
-      # 并补上由用户直接下载执行的 install.sh。
-      # 用 node 计算（各 runner 都有），避免 sha256sum / shasum / certutil 的平台差异；
-      # 输出格式 `<hash>  <file>`（两个空格）与 sha256sum -c 兼容。
-      - name: Generate CLI checksums
-        run: |
-          set -euo pipefail
-          mkdir -p dist/release-checksums
-          {
-            cat dist/zcode/releases/*/sha256.txt
-            (cd dist/zcode && node -e '
-          const { createHash } = require("node:crypto");
-          const { readFileSync } = require("node:fs");
-          for (const file of process.argv.slice(1)) {
-            console.log(createHash("sha256").update(readFileSync(file)).digest("hex") + "  " + file);
-          }
-          ' install.sh)
-          } > dist/release-checksums/cli.txt
-          cat dist/release-checksums/cli.txt
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-checksums-cli
-          path: dist/release-checksums/cli.txt
-          retention-days: 1
-
   desktop:
     needs: [release, verify]
     if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
     strategy:
       fail-fast: false
       matrix:
+        # 只发常用平台：Windows x64 / macOS Apple Silicon / Linux x64。
+        # 想加回来时按下面格式补一行即可（Intel mac 用 macos-15-intel + mac/x64，
+        # Linux arm64 用 ubuntu-24.04-arm + linux/arm64），记得同步远端资源平台列表。
         include:
           - runner: macos-14
             target: mac
             arch: arm64
-            glob: "*.dmg"
-          - runner: macos-15-intel
-            target: mac
-            arch: x64
             glob: "*.dmg"
           - runner: windows-latest
             target: win
@@ -329,13 +249,6 @@ jobs:
           - runner: ubuntu-latest
             target: linux
             arch: x64
-            glob: "*.AppImage"
-          # GitHub 公开仓库免费的 ARM64 runner（ubuntu-24.04-arm）；electron-builder 在原生 arm64 上
-          # 打包 linux arm64 的 AppImage/deb，无需 QEMU 交叉仿真。
-          # 更新元数据生成 latest-linux-arm64.yml，与 x64 的 latest-linux.yml 不冲突，可并行上传。
-          - runner: ubuntu-24.04-arm
-            target: linux
-            arch: arm64
             glob: "*.AppImage"
     runs-on: ${{ matrix.runner }}
     steps:
@@ -463,8 +376,8 @@ jobs:
         env:
           ZCODE_APP_VERSION: ${{ needs.release.outputs.version }}
         # 平台列表与 scripts/prepare-prebuilds.mjs 的 remotePlatforms 保持一致：
-        # 只发常用远端目标（Linux x64/arm64），darwin 两套不再构建上传。
-        run: node scripts/publish-remote-assets.mjs --out dist/remote-assets-github --platforms linux-x64,linux-arm64
+        # 只发最常用的远端目标（Linux x64，即 WSL 与 x64 Linux 主机）。
+        run: node scripts/publish-remote-assets.mjs --out dist/remote-assets-github --platforms linux-x64
 
       - name: Upload remote assets to release
         env:
@@ -495,7 +408,7 @@ jobs:
   # 覆盖范围：全部安装包（dmg / zip / exe / AppImage）、CLI 包与 install.sh。
   # latest*.yml、latest.json、*.blockmap、zz-* 远端资产不在其中（各自有校验机制）。
   checksums:
-    needs: [release, build, desktop]
+    needs: [release, desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -523,13 +436,11 @@ jobs:
           fi
           mv sha256-merged.txt sha256.txt
           cat sha256.txt
-          # 回归保护：清单必须覆盖每个平台的安装包与 CLI 侧文件；缺任一类都说明
+          # 回归保护：清单必须覆盖每个已发布平台的安装包；缺任一类都说明
           # （断言只看扩展名、不看产品名前缀：改名 ZCodium → Mode 时硬编码前缀让一次
           #   五个平台全部构建成功的发版卡在这里，别再把产品名写进判据。）
           # 上传或片段生成出了问题，阻止发布而不是发布不完整的清单。
           for pattern in \
-            '^[0-9a-f]{64}  [^ ]+\.tar\.gz$' \
-            '^[0-9a-f]{64}  install\.sh$' \
             '^[0-9a-f]{64}  [^ ]+\.dmg$' \
             '^[0-9a-f]{64}  [^ ]+\.zip$' \
             '^[0-9a-f]{64}  [^ ]+\.exe$' \
@@ -562,8 +473,8 @@ jobs:
   # 由人工排查后重跑或删除，避免不完整的版本出现在 Releases 与官网下载页。
   # keep_draft=true（上游审计自动构建的测试版）：即使全部成功也保持 draft，不公开、不进入自动更新。
   publish:
-    needs: [release, verify, build, desktop, remote-assets, checksums]
-    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') && (needs['remote-assets'].result == 'success' || needs['remote-assets'].result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') }}
+    needs: [release, verify, desktop, remote-assets, checksums]
+    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') && (needs['remote-assets'].result == 'success' || needs['remote-assets'].result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

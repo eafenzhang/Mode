@@ -39,15 +39,13 @@ Mode keeps the product itself — an agent that plans, edits, runs and verifies 
 
 Installers are attached to the [Releases](https://github.com/eafenzhang/Mode/releases) page. Builds are **not code-signed**, so each system blocks the first launch once — that is expected, and the download can be verified against `sha256.txt` on the same release page (`certutil -hashfile <file> SHA256` on Windows, `shasum -a 256 <file>` on macOS, `sha256sum <file>` on Linux).
 
-| Platform | Asset | First launch |
-| --- | --- | --- |
-| Windows x64 | `Mode-<version>-win-x64.exe` | SmartScreen warns: **More info** → **Run anyway** |
-| macOS Apple Silicon | `Mode-<version>-mac-arm64.dmg` | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"` |
-| macOS Intel | `Mode-<version>-mac-x64.dmg` | same as above |
-| Linux x86_64 / arm64 | `Mode-<version>-linux-x86_64.AppImage` / `-linux-arm64.AppImage` | `chmod +x` the file, then run it |
-| CLI | `zcodium-<version>.tar.gz` (needs Node.js 24) | extract, then `./install.sh` (the command is still named `zcodium`) |
+| Platform            | Asset                                  | First launch                                                                              |
+| ------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Windows x64         | `Mode-<version>-win-x64.exe`           | SmartScreen warns: **More info** → **Run anyway**                                         |
+| macOS Apple Silicon | `Mode-<version>-mac-arm64.dmg`         | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"` |
+| Linux x86_64        | `Mode-<version>-linux-x86_64.AppImage` | `chmod +x` the file, then run it                                                          |
 
-Installed desktop clients update themselves from this repository's releases; the CLI is updated by installing a newer tarball.
+Installed desktop clients update themselves from this repository's releases.
 
 ## Build and run from source
 
@@ -80,19 +78,19 @@ pnpm bundle:desktop -- --os win --arch x64
 
 ## Release automation
 
-Pushing to `main` builds and publishes a new version automatically: `.github/workflows/release.yml` takes the latest stable tag, bumps its patch (for example `v0.0.1` → `v0.0.2`), runs the `verify` gate (typecheck, lint, service and desktop tests), builds the CLI distribution and the desktop clients for macOS, Windows and Linux, uploads everything into a **draft** release, and publishes it only after every artifact is in place — a failed build leaves the release as a draft, so download pages never resolve to a half-built version. Put `[skip release]` in the commit message to push without releasing, or trigger the workflow manually to pick an explicit version or a pre-release.
+Pushing to `main` builds and publishes a new version automatically: `.github/workflows/release.yml` takes the latest stable tag, bumps its patch (for example `v0.0.1` → `v0.0.2`), runs the `verify` gate (typecheck, lint, service and desktop tests), builds the desktop clients for Windows x64, macOS Apple Silicon and Linux x64, uploads everything into a **draft** release, and publishes it only after every artifact is in place — a failed build leaves the release as a draft, so download pages never resolve to a half-built version. Put `[skip release]` in the commit message to push without releasing, or trigger the workflow manually to pick an explicit version or a pre-release.
 
 ## Repository layout
 
-| Path | Contents |
-| --- | --- |
-| `packages/desktop` | Electron main process, host and renderer; LAN access server and discovery |
-| `packages/ui` | Shared React components, hooks and Zustand stores (settings, plugin store) |
-| `packages/services` | Business services (agent sessions, bots, plugins, remote connections) |
-| `packages/server`, `packages/web` | Browser workspace server and client |
-| `packages/client`, `packages/rpc`, `packages/shared` | Agent client SDK, RPC framework, shared contracts |
-| `apps/zcode-cli` | Agent CLI and runtime (also embedded by the desktop app) |
-| `harness/lan` | How to try the LAN remote connection between two machines |
+| Path                                                 | Contents                                                                   |
+| ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| `packages/desktop`                                   | Electron main process, host and renderer; LAN access server and discovery  |
+| `packages/ui`                                        | Shared React components, hooks and Zustand stores (settings, plugin store) |
+| `packages/services`                                  | Business services (agent sessions, bots, plugins, remote connections)      |
+| `packages/server`, `packages/web`                    | Browser workspace server and client                                        |
+| `packages/client`, `packages/rpc`, `packages/shared` | Agent client SDK, RPC framework, shared contracts                          |
+| `apps/zcode-cli`                                     | Agent CLI and runtime (also embedded by the desktop app)                   |
+| `harness/lan`                                        | How to try the LAN remote connection between two machines                  |
 
 ## License and provenance
 

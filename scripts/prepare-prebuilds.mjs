@@ -54,10 +54,10 @@ const ZCODE_AGENT_RUNTIME = {
 const releaseDir = join(mockCdnDir, "releases", version);
 const nodeVersion = "v22.16.0";
 const componentSchemaVersion = 1;
-// 远端运行资源只发布常用目标：WSL 与 Linux 主机（x64/arm64）、Apple Silicon 上的 arm64 容器。
-// darwin 两套（把 Mac 当远端主机连过去）使用概率极低，不再构建和发布；
-// 需要时把它加回这个列表即可（发布脚本的 --platforms 与这里保持同步）。
-const remotePlatforms = ["linux-x64", "linux-arm64"];
+// 远端运行资源只发布最常用的目标：Linux x64（WSL 与 x64 Linux 主机）。
+// 需要更多平台时把键加回这个列表即可（发布脚本的 --platforms 与这里保持同步）：
+// linux-arm64 = ARM 主机 / Apple Silicon 上的 arm64 容器，darwin-* = 把 Mac 当远端主机。
+const remotePlatforms = ["linux-x64"];
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const isBootstrapWithRemote = process.env.ZCODE_BOOTSTRAP_WITH_REMOTE === "1";
 
