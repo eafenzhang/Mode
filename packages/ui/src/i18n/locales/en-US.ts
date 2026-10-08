@@ -3786,6 +3786,9 @@ const enUS: Record<string, string> = {
   "settings.plugins.store.viewMore": "See {names}, and {count} more",
   "settings.plugins.store.viewMoreFew": "See {names}",
   "settings.plugins.store.showLess": "Show less",
+  "settings.plugins.store.bundledUnavailable": "Not bundled",
+  "settings.plugins.store.bundledUnavailableHint":
+    "This plugin ships inside the official client, which this fork does not bundle, so it cannot be installed here.",
   "settings.plugins.store.install": "Install",
   "settings.plugins.store.tryNow": "Try now",
   "settings.plugins.store.sourceMissing":

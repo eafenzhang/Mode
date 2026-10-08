@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
+import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import {
@@ -161,6 +162,28 @@ export function PluginStoreInstallButton({
   size?: "sm" | "default" | "lg";
 }) {
   const { intl } = useZCodeIntl();
+  // 官方客户端内置、本仓库没有安装包的第一方插件：按钮不可点，用提示说明原因，
+  // 而不是让用户点了之后收到「Bundled plugin cache directory missing」。
+  if (item.bundledUnavailable) {
+    const hint = intl.formatMessage({ id: "settings.plugins.store.bundledUnavailableHint" });
+    return (
+      <ControlHintTooltip title={hint}>
+        <span className="inline-flex shrink-0">
+          <Button
+            type="button"
+            data-testid="plugin-store-bundled-unavailable"
+            data-plugin-id={item.id}
+            variant="ghost"
+            size={size}
+            className="rounded-full text-foreground-subtle"
+            disabled
+          >
+            {intl.formatMessage({ id: "settings.plugins.store.bundledUnavailable" })}
+          </Button>
+        </span>
+      </ControlHintTooltip>
+    );
+  }
   const installing =
     actions.operationId === `plugin:install:${item.name}@${item.marketplace}` ||
     actions.operationId === `plugin:restore:${item.id}`;

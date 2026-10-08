@@ -3087,6 +3087,8 @@ export const zcodeAvailablePluginSummarySchema = z
     installed: z.boolean(),
     componentTypes: z.array(z.string()).optional(),
     listing: zcodePluginStoreListingSchema.optional(),
+    /** 目录里列着、但本分支没有随包安装包（官方客户端内置的第一方插件）：不提供安装。 */
+    bundledUnavailable: z.boolean().optional(),
   })
   .strict();
 export type ZCodeAvailablePluginSummary = z.infer<typeof zcodeAvailablePluginSummarySchema>;

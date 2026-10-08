@@ -282,3 +282,43 @@ test("需编程套餐的插件不进候选与商店列表", async () => {
     "随包官方清单必须原样保留 requiresPaidPlan 标记：清掉标记等于把过滤放空",
   );
 });
+
+// 官方目录里有一批随包内置的第一方插件（computer-use、documents、pdf 等）是打进官方客户端的，
+// 本仓库只随包了 browser-use / node-repl-host：条目照官方展示，但不能给一个点了才报
+// 「Bundled plugin cache directory missing」的安装入口。
+test("未随包的第一方插件标为不可安装，而不是让用户点了报错", async () => {
+  const adapter = await readFile(
+    new URL("../../../apps/zcode-cli/packages/adapters/src/plugins/marketplace.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    adapter.includes("export function hasBundledPluginPackage("),
+    "适配器要提供「随包安装包是否存在」的判据（filesystem/sea 来源按 cachePath 与约定缓存目录两处查）",
+  );
+  assert.ok(
+    adapter.includes("ships inside the official client and is not bundled in this fork"),
+    "缓存缺失时的报错要说清原因，别只丢一句 directory missing",
+  );
+
+  const bootstrap = await readFile(
+    new URL("../../../apps/zcode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
+    "utf8",
+  );
+  const callSites = bootstrap.split("hasBundledPluginPackage({").length - 1;
+  assert.ok(callSites >= 2, `候选插件的两条路径（市场目录 + 随包清单）都要打标，实际 ${callSites} 处`);
+
+  const card = await readFile(
+    new URL("../../../packages/ui/src/settings/PluginStoreCard.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    card.includes('data-testid="plugin-store-bundled-unavailable"') &&
+      card.includes("if (item.bundledUnavailable)"),
+    "商店卡片遇到这类条目要换成不可点的说明，而不是安装按钮",
+  );
+  const protocol = await readFile(
+    new URL("../../../packages/shared/src/zcode-protocol/index.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(protocol.includes("bundledUnavailable: z.boolean().optional()"), "协议要带上这个标记");
+});

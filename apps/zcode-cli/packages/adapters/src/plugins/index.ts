@@ -55,6 +55,7 @@ export {
   addMarketplace,
   describeMarketplacePlugin,
   ensureDefaultPluginMarketplaces,
+  hasBundledPluginPackage,
   ensureMarketplaceManifestAvailable,
   getPluginDataDir,
   installMarketplacePlugin,

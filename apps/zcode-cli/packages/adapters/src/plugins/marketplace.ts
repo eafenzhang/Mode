@@ -1277,7 +1277,7 @@ async function resolvePluginSourceRoot(input: {
     );
     if (directoryExists(computed)) return { path: computed };
     throw new Error(
-      `Bundled plugin cache directory missing: ${input.entry.name}@${input.marketplace}`,
+      `Bundled plugin cache directory missing: ${input.entry.name}@${input.marketplace} (this plugin ships inside the official client and is not bundled in this fork)`,
     );
   }
   if (typeof source === "string") {
@@ -2855,7 +2855,7 @@ async function writeJsonFile(path: string, value: unknown): Promise<void> {
   await writeFileAtomically(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function getPluginCacheDir(
+export function getPluginCacheDir(
   storageRoot: string,
   marketplace: string,
   name: string,
@@ -2867,6 +2867,36 @@ function getPluginCacheDir(
     sanitizePluginId(marketplace),
     sanitizePluginId(name),
     sanitizePluginId(version),
+  );
+}
+
+/**
+ * 随包内置插件（source 为 "filesystem"/"sea"）的安装包是否真的存在。
+ *
+ * 官方目录里有一批第一方插件（computer-use、documents、pdf、image-search 等）是直接打进
+ * 官方客户端的，本仓库只随包了其中少数几个：目录条目照官方原样保留，但装不上。调用方据此
+ * 把这类条目标成「未随包提供」，商店不给安装入口，而不是点了之后报目录缺失。
+ */
+export function hasBundledPluginPackage(input: {
+  storageRoot: string;
+  marketplace: string;
+  entry: Pick<PluginMarketplaceEntry, "name" | "version" | "source" | "cachePath">;
+}): boolean {
+  const source = input.entry.source;
+  const kind = typeof source === "string" ? source : isRecord(source) ? source.source : undefined;
+  if (kind !== "filesystem" && kind !== "sea") {
+    return true;
+  }
+  if (input.entry.cachePath && directoryExists(input.entry.cachePath)) {
+    return true;
+  }
+  return directoryExists(
+    getPluginCacheDir(
+      input.storageRoot,
+      input.marketplace,
+      input.entry.name,
+      input.entry.version ?? DEFAULT_VERSION,
+    ),
   );
 }
 

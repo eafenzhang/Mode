@@ -62,6 +62,8 @@ export interface StorePluginItem {
   restorable: boolean;
   /** 已安装但原 marketplace 已移除；仍可运行和管理，但不能更新。 */
   orphaned: boolean;
+  /** 目录里列着、但本分支没有随包安装包（官方客户端内置的第一方插件）：不提供安装。 */
+  bundledUnavailable?: boolean;
   listing?: ZCodePluginStoreListing;
   summary?: ZCodeAvailablePluginSummary;
   /** 运行时信息（仅已发现的已安装插件有）：启用态、组件、manifest 回退字段。 */
@@ -242,6 +244,7 @@ export function buildStoreItems(input: {
       id: summary.id,
       name: summary.name,
       marketplace: summary.marketplace,
+      ...(summary.bundledUnavailable ? { bundledUnavailable: true } : {}),
       installed:
         info?.packageStatus === "missing" ? false : summary.installed || info !== undefined,
       restorable: false,

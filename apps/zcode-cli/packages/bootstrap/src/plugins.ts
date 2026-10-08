@@ -18,6 +18,7 @@ import {
   comparePluginUpdate,
   describeMarketplacePlugin,
   ensureDefaultPluginMarketplaces,
+  hasBundledPluginPackage,
   discoverNodePluginsSync,
   ensureMarketplaceManifestAvailable,
   getPluginSourceDiagnosticCode,
@@ -327,7 +328,7 @@ export function getZCodePluginsOverview(
   const listingByPluginId = new Map<string, PluginStoreListing>();
   const availablePlugins = catalogs.flatMap((catalog) =>
     catalog.entries.flatMap((entry) => {
-      const data = toAvailablePluginData(entry, catalog.summary.id, installedIds);
+      const data = toAvailablePluginData(entry, catalog.summary.id, installedIds, pluginStorageRoot);
       latestPinByPluginId.set(data.id, {
         ...(entry.version ? { version: entry.version } : {}),
         ...(readPluginSourceIdentityPin(entry.source)
@@ -364,6 +365,13 @@ export function getZCodePluginsOverview(
             : {}),
           installed: installedIds.has(id),
           ...(listing ? { listing } : {}),
+          ...(hasBundledPluginPackage({
+            storageRoot: pluginStorageRoot,
+            marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+            entry,
+          })
+            ? {}
+            : { bundledUnavailable: true }),
         });
       }
       if (listing) {
@@ -1245,6 +1253,7 @@ function toAvailablePluginData(
   entry: PluginMarketplaceEntry,
   marketplace: string,
   installedIds: ReadonlySet<string>,
+  storageRoot: string,
 ): ZCodeAvailablePluginData {
   const id = `${entry.name}@${marketplace}`;
   return {
@@ -1256,6 +1265,10 @@ function toAvailablePluginData(
     installed: installedIds.has(id),
     componentTypes: inferComponentTypes(entry.raw),
     ...(entry.listing ? { listing: entry.listing } : {}),
+    // 官方目录里随包内置、但本分支没有安装包的条目：照官方展示，但不给安装入口。
+    ...(hasBundledPluginPackage({ storageRoot, marketplace, entry })
+      ? {}
+      : { bundledUnavailable: true }),
   };
 }
 
