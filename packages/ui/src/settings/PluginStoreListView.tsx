@@ -76,7 +76,7 @@ export function PluginStoreListView({
       ),
     [items, locale],
   );
-  // 公开分段 = 随包内置的插件源（zcode-plugins-official，本地 filesystem 源，不需要网络）；
+  // 公开分段 = 随包内置的插件源（mode-plugins-official，本地 filesystem 源，不需要网络）；
   // 用户自己添加的源都归到个人分段。
   const publicItems = useMemo(
     () => items.filter((item) => isPublicStoreMarketplaceId(item.marketplace)),

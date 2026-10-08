@@ -19,7 +19,9 @@ import {
   type UserCommand,
   type ModeCommand,
 } from "@mode/shared";
-import { DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS } from "@mode/shared";
+import { canonicalPluginId, isDefaultEnabledOfficialPluginId } from "@mode/shared";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@mode/shared";
+import { resolveOfficialPluginCacheRoot } from "@mode/shared/node";
 import type { ICommandsService } from "./commands.js";
 import { CommandFileParser, type CommandFileFormat } from "./commandFileParser.js";
 import { readInstalledPluginRoots } from "#src/plugins/installedPluginRoots.js";
@@ -44,7 +46,6 @@ const DEFAULT_COMMAND_AGENT_SOURCE: CommandAgentSource = MODE_COMMAND_AGENT_SOUR
 const COMMAND_AGENT_SOURCE_ORDER: readonly CommandAgentSource[] = MODE_COMMAND_AGENT_SOURCES;
 const ENABLE_OVERRIDE_KEY = "enable";
 const HOME_PREFIX = "~/";
-const MODE_OFFICIAL_PLUGIN_MARKETPLACE = "zcode-plugins-official";
 const MODE_INLINE_PLUGIN_MARKETPLACE = "inline";
 const MODE_PLUGIN_MANIFEST_PATH = join(".mode-plugin", "plugin.json");
 /** 改名前的清单目录（.zcode-plugin）：继续可读。 */
@@ -213,9 +214,17 @@ function readPluginConfigFromConfig(config: Record<string, unknown>): PluginConf
   return {
     dirs: readStringArray(plugins.dirs),
     enabled: typeof plugins.enabled === "boolean" ? plugins.enabled : true,
-    enabledPlugins: readBooleanRecord(plugins.enabledPlugins),
+    // 读时归一：官方插件存量 id（旧市场段 / mode-cua 旧名）统一成当前写法，与运行时一致。
+    enabledPlugins: Object.fromEntries(
+      Object.entries(readBooleanRecord(plugins.enabledPlugins)).map(([id, value]) => [
+        canonicalPluginId(id),
+        value,
+      ]),
+    ),
     storageDir: readStorageDirFromConfig(config),
-    suppressedBuiltins: readStringArray(plugins.suppressedBuiltins),
+    suppressedBuiltins: readStringArray(plugins.suppressedBuiltins).map((id) =>
+      canonicalPluginId(id),
+    ),
   };
 }
 
@@ -258,7 +267,8 @@ function resolveInside(rootPath: string, rawPath: string): string | null {
 }
 
 async function scanOfficialPluginCacheRoots(pluginStorageRoot: string): Promise<string[]> {
-  const cacheRoot = join(pluginStorageRoot, "cache", MODE_OFFICIAL_PLUGIN_MARKETPLACE);
+  // 官方市场改名后缓存根有新旧两个位置，resolveOfficialPluginCacheRoot 负责回退（旧目录存量文件原地可用）。
+  const cacheRoot = resolveOfficialPluginCacheRoot(pluginStorageRoot);
   let pluginEntries: string[] = [];
   try {
     pluginEntries = await readdir(cacheRoot);
@@ -367,7 +377,7 @@ async function resolvePluginCommandRootDescriptors(): Promise<PluginCommandRootD
     })),
     ...officialCacheRoots.map((rootPath) => ({
       defaultEnabled: false,
-      marketplace: MODE_OFFICIAL_PLUGIN_MARKETPLACE,
+      marketplace: MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
       rootPath,
     })),
     ...installedRoots,
@@ -385,7 +395,7 @@ async function resolvePluginCommandRootDescriptors(): Promise<PluginCommandRootD
     // 官方 cache 时不经过 CLI resolve 的过滤，需要在这里同样跳过，否则被卸载的内置插件
     // 仍会从 cache 贡献命令。
     if (
-      candidate.marketplace === MODE_OFFICIAL_PLUGIN_MARKETPLACE &&
+      candidate.marketplace === MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID &&
       config.suppressedBuiltins.includes(pluginId)
     ) {
       continue;
@@ -395,7 +405,7 @@ async function resolvePluginCommandRootDescriptors(): Promise<PluginCommandRootD
     }
     seenPluginIds.add(pluginId);
     const defaultEnabled =
-      candidate.defaultEnabled || DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS.has(pluginId);
+      candidate.defaultEnabled || isDefaultEnabledOfficialPluginId(pluginId);
     const enabled = config.enabledPlugins[pluginId] ?? defaultEnabled;
     if (!enabled) {
       continue;

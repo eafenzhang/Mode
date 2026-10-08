@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "tsup --watch --onSuccess 'node dist/entry-http.js'",
     "build": "tsup && pnpm run build:remote",
+  "test": "tsx --test test/*.test.ts",
     "build:remote": "tsx build-remote.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix"

@@ -25,6 +25,9 @@ const OFFICIAL_BUILTIN_PLUGIN_NAMES = new Set([
 ]);
 
 const OFFICIAL_PLUGIN_PATH_MARKERS = [
+  "/mode-plugins-official/",
+  "\\mode-plugins-official\\",
+  // 改名前的缓存根：存量内置插件的 skill 路径仍在旧目录名（cache/zcode-plugins-official/…）。
   "/zcode-plugins-official/",
   "\\zcode-plugins-official\\",
   "/android-emulator-plugin/",

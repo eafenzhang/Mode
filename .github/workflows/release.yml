@@ -226,6 +226,7 @@ jobs:
         run: |
           set -euo pipefail
           pnpm --filter @mode/services test
+          pnpm --filter @mode/server test
           node --test packages/desktop/tests/*.test.mjs
 
   desktop:

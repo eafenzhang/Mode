@@ -1,5 +1,9 @@
 const DEEP_LINK_SCHEME = "mode";
-const DEEP_LINK_RE = /\bzcode:(?:\/\/|\/)?[^\s"'<>]+/i;
+// 改名（ZCODIUM → Mode）前的 scheme：只做「处理传入链接」，不注册、也不作为默认 handler
+// 争抢（见 registerDeepLinkProtocol）。旧版本发出的邮件/IM 链接仍会以 zcode:// 形式回传。
+const LEGACY_DEEP_LINK_SCHEME = "zcode";
+const ACCEPTED_DEEP_LINK_SCHEMES = new Set([DEEP_LINK_SCHEME, LEGACY_DEEP_LINK_SCHEME]);
+const DEEP_LINK_RE = /\b(?:mode|zcode):(?:\/\/|\/)?[^\s"'<>]+/i;
 const OAUTH_CALLBACK_HOSTS = new Set(["oauth"]);
 const PAYMENT_CALLBACK_HOST = "payment";
 const WORKSPACE_OPEN_HOST = "workspace";
@@ -15,7 +19,7 @@ function normalizeOAuthCallbackPath(pathname: string): string {
 }
 
 export function isOAuthCallbackUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (!ACCEPTED_DEEP_LINK_SCHEMES.has(parsedUrl.protocol.slice(0, -1))) {
     return false;
   }
 
@@ -35,7 +39,7 @@ export function isOAuthCallbackUrl(parsedUrl: URL): boolean {
 }
 
 export function isPaymentCallbackUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (!ACCEPTED_DEEP_LINK_SCHEMES.has(parsedUrl.protocol.slice(0, -1))) {
     return false;
   }
 
@@ -53,7 +57,7 @@ export function isPaymentCallbackUrl(parsedUrl: URL): boolean {
 }
 
 export function isWorkspaceOpenUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (!ACCEPTED_DEEP_LINK_SCHEMES.has(parsedUrl.protocol.slice(0, -1))) {
     return false;
   }
 
@@ -81,7 +85,7 @@ export function extractWorkspaceOpenPath(parsedUrl: URL): string | null {
 
 export function isShareImportUrl(parsedUrl: URL): boolean {
   return (
-    parsedUrl.protocol === `${DEEP_LINK_SCHEME}:` &&
+    ACCEPTED_DEEP_LINK_SCHEMES.has(parsedUrl.protocol.slice(0, -1)) &&
     parsedUrl.hostname === SHARE_IMPORT_HOST &&
     normalizeOAuthCallbackPath(parsedUrl.pathname) === "/import"
   );

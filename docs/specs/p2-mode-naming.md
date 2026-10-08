@@ -65,10 +65,70 @@ desktop 25/25、architecture 0/0/0）：
 - **S5a** 清单目录 `.mode-plugin` 与忽略文件 `.modeignore` 新名+旧名兼容读取。
 - **S5b** 随包插件（browser-use、node-repl-host）清单目录 git mv 到 `.mode-plugin`；
   services 三处清单探测、plugin-sync 候选、server 远端资产白名单同步为双名兼容。
+- **S5c** 市场 id 切到 `mode-plugins-official`（详见下方"S5c 落地记录"）。
+- **S6** 协议名、LAN cookie、MCP `_meta`、deep link 的"改名 + 接受旧值"（详见下方"S6 落地记录"）。
 - **S7** LICENSE 版权主体 `Copyright (c) 2026 Mode`；maintainer、反馈链接、DMG 说明改 Mode。
   台账输入已变更，需在 CI（Linux）用 `licenses-notices` workflow_dispatch 重生成后入库。
 
-## 剩余工作（S5c / S6 / S8）
+## S5c 落地记录（已完成）
+
+1. **常量切换**：`MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID`（shared）与
+   `MODE_OFFICIAL_PLUGIN_MARKETPLACE`（contracts）取值改为 `mode-plugins-official`；
+   旧值保留为 `*_LEGACY_ID`，`isOfficialMarketplaceId` / `isPublicStoreMarketplaceId` 同时接受。
+2. **清单名覆盖**：随包快照（`official-plugin-catalog.generated.ts`）与
+   `writeOfficialMarketplace` 分片写新 id；`assertOfficialManifest` 接受两个 id（CDN 清单
+   声明的仍是旧名）；`rebuildOfficialMarketplaceSync` 的 canonical 名取新 id；
+   `scripts/bundle-official-plugin-catalog.mjs` 与 `fetch-plugin-icons-by-name.mjs`
+   优先读新目录名、回退旧目录名并强制写出新 id（Sea 资产键与 manifest 的 marketplace 同步）。
+3. **插件 id 归一**：shared 与 contracts 各提供 `canonicalPluginId`（`…@zcode-plugins-official`
+   → `…@mode-plugins-official`）；adapters 的 `canonicalizePluginId` 归一"市场段 + mode-cua 旧名"，
+   `pluginIdAliases` 覆盖四种存量写法。读时归一点：`parseConfigFileToRuntimePatchWithDiagnostics`
+   （enabledPlugins / options 键 + suppressedBuiltins 值）、`listInstalledPluginRecords`、
+   services 的三个 `readPluginConfigFromConfig`/`readInstalledPluginRoots`/`readPluginRecords`。
+   写路径（enable / options / suppression / 安装启用默认）一律落新 id；落盘迁移仍只针对
+   `mode-cua@…` 旧名，不动市场段（不直接改写用户数据）。
+4. **目录兜底**：`getPluginCacheDir`（cache）、`loadMarketplaceManifestSync`（marketplaces 清单）、
+   `getPluginDataDir`（data）、`resolveOfficialPluginCacheRoot`（settings 侧扫 cache 共用）
+   统一"新目录不存在 → 沿用旧目录"；`scanOfficialCache`（adapter 发现链）同口径。
+5. **图标与 UI 字面量**：随包图标目录已是 `packages/ui/src/assets/plugin-icons/mode-plugins-official`，
+   `resolvePluginIconSource` 查找前先归一 id；官方插件 id 字面量（mcp.ts 的 CUA id、
+   BrowserSettingsSection、pluginCreatorPrefill、featureSuggestedPrompts 的 plugin:// 链接、
+   builtinSkillI18n 的路径标记）全部切新 id 或双认。
+6. **验证**：新增 `packages/services/test/plugin-marketplace-id-compat.test.ts`（id 归一、
+   缓存根回退、协议名双认、`_meta` 双读）；adapters 侧读时归一/写时新 id 用一次性 tsx 脚本
+   逐条断言（canonicalizePluginId、键冲突优先级、旧键清理、suppression 迁移）。
+
+## S6 落地记录（已完成）
+
+- **协议名**：`MODE_PROTOCOL_NAME = "Mode Protocol"`；新增 `MODE_PROTOCOL_LEGACY_NAME`
+  与 `MODE_PROTOCOL_ACCEPTED_NAMES`，`modeSessionStateSnapshotSchema` 用
+  `z.enum(MODE_PROTOCOL_ACCEPTED_NAMES)` 校验（远端旧 agent 的 snapshot 仍可握手），
+  写入与回显一律新名。单测覆盖"旧名接受、未知名拒绝"。
+- **LAN cookie**：服务端读 `mode_lite_token` 优先、`zcode_lite_token` 兜底（老客户端不用重新配对），
+  `Set-Cookie` 只写新名。新增 `packages/server/test/lan-cookie-compat.test.ts` 用真实 HTTP 服务
+  验证四态（无令牌 401 / 旧 cookie 200 / 新 cookie 200 / 错误令牌 401），并已接入 release.yml
+  的 verify 闸门（`pnpm --filter @mode/server test`）。
+- **MCP `_meta`**：命名空间已是 `com.mode/*`；读取侧（node-repl-host 的
+  `com.mode/request-context`）新增旧键 `com.zcode/request-context` 兜底，
+  生产侧改用共享常量 `MODE_MCP_REQUEST_CONTEXT_META_KEY`。身份头键
+  `com.mode/official-mcp-auth` 的读取方是官方插件的 server 进程（仓库外），
+  故只记录历史值、不做双读。
+- **deep link**：只注册 `mode`（未注册旧 scheme）；`desktopDeepLinkUrl.ts` 的提取正则与
+  四个回调判据（oauth / payment / workspace / share）同时接受 `zcode://`，
+  新增 `packages/desktop/tests/deep-link-scheme-compat.test.mjs` 钉住。
+- **对外标识**：`WECOM_QR_SOURCE = "mode"`、HTTP 客户端 `appName = "Mode"` 均已是新值
+  （无改动）。企业微信二维码是否被平台接受需要实机建立一次二维码，属于 S8 的实机项。
+
+## S8 剩余验收（未完成部分）
+
+- 实机：数据迁移后设置 / 机器人 / 凭证仍在、插件商店两段、已装插件启停卸载、局域网连接
+  （本次已完成的替换见上；实机复核受 dev 实例数据目录迁移选择态影响时如实标注）。
+- 本地打一次 Windows 安装包，验产物名、图标、安装器文案；改名后的 CLI 产物跑冒烟。
+- 台账：`licenses-notices` workflow_dispatch（Linux）重生成后入库。
+- 已完成的小尾巴：dev 启动脚本（`scripts/dev-desktop-env.mjs`）里内置配置旧前缀与
+  `ZCODE_/ZCODIUM_` 泄漏变量的剔除已核对；lint 多的 1 条 warning 已消除（77 警告 0 错误）。
+
+### 附：S5c 的原始落地顺序（参考）
 
 ### S5c 市场 id `zcode-plugins-official` → `mode-plugins-official`
 

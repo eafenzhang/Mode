@@ -46,9 +46,9 @@ Plugin state lives under `~/.mode/cli/plugins`:
 
 - `cache/`: installed marketplace plugin code and static files.
 - `data/<plugin-id>/`: persistent plugin data. MCP servers should write runtime output here, not into the plugin source directory.
-- `marketplaces/zcode-plugins-official/`: bundled and CDN partitions plus the merged metadata for the single official marketplace.
+- `marketplaces/mode-plugins-official/`: bundled and CDN partitions plus the merged metadata for the single official marketplace (the pre-rename `zcode-plugins-official/` directory is still readable).
 
-This repository also ships built-in official plugins as workspace packages. The bundled Browser Use, Document Skills, Skill Creator, and Mode Guide content plugins are default-enabled and appear as `browser-use@zcode-plugins-official`, `document-skills@zcode-plugins-official`, `skill-creator@zcode-plugins-official`, and `mode-guide@zcode-plugins-official`. Runtime-heavy official plugins, and local-data migration plugins such as `ios-simulator@zcode-plugins-official`, `android-emulator@zcode-plugins-official`, and `restore-legacy-sessions@zcode-plugins-official`, are discovered by mode but stay disabled until the user enables them.
+This repository also ships built-in official plugins as workspace packages. The bundled Browser Use, Document Skills, Skill Creator, and Mode Guide content plugins are default-enabled and appear as `browser-use@mode-plugins-official`, `document-skills@mode-plugins-official`, `skill-creator@mode-plugins-official`, and `mode-guide@mode-plugins-official`. Runtime-heavy official plugins, and local-data migration plugins such as `ios-simulator@mode-plugins-official`, `android-emulator@mode-plugins-official`, and `restore-legacy-sessions@mode-plugins-official`, are discovered by mode but stay disabled until the user enables them.
 
 ```sh
 mode plugins list

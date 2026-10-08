@@ -41,7 +41,7 @@ export function createPluginManagementService(
       agent.onDynamicPluginOperationProgress(operationId),
     async getPluginsOverview(params) {
       const result = await agent.getPluginsOverview(params);
-      // 官方市场（zcode-plugins-official）的目录随包内置、浏览零网络，因此照常投影到
+      // 官方市场（mode-plugins-official）的目录随包内置、浏览零网络，因此照常投影到
       // 「公开」分段：官方平台服务（账号/套餐/遥测/闲时任务）整体下线，不影响这份
       // 离线目录的展示——公开分段要显示的就是官方那份插件清单。
       return { ...result, officialMarketplaceEnabled: true };

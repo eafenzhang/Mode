@@ -1,6 +1,5 @@
 /* eslint-disable max-lines -- HTTP、WebSocket 与静态资源路由集中注册，保持同一鉴权顺序。 */
 import { randomUUID } from "node:crypto";
-import { readExternalEnvVar } from "@mode/shared";
 import { readFile, stat } from "node:fs/promises";
 import { basename, extname, relative, resolve, sep } from "node:path";
 import { hostname } from "node:os";
@@ -219,6 +218,9 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
 }
 
 const modeLiteTokenCookieName = "mode_lite_token";
+// 改名（ZCODIUM → Mode）前的 cookie 名：老客户端/手机浏览器里可能还留着它，
+// 读时兜底一次，避免升级后每次都要重新走 ?token= 链接。
+const legacyLiteTokenCookieName = "zcode_lite_token";
 
 const staticMimeTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -264,8 +266,9 @@ function readPresentedLiteToken(c: Context): { token: string | undefined; fromQu
   if (queryToken) {
     return { token: queryToken, fromQuery: true };
   }
+  const cookies = parseCookieHeader(c.req.header("cookie"));
   return {
-    token: parseCookieHeader(c.req.header("cookie")).get(modeLiteTokenCookieName),
+    token: cookies.get(modeLiteTokenCookieName) ?? cookies.get(legacyLiteTokenCookieName),
     fromQuery: false,
   };
 }

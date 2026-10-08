@@ -249,7 +249,7 @@ function countVisibleMarketplacePlugins(
   plugins: readonly { name: string }[] | undefined,
 ): number | undefined {
   if (!plugins) return undefined;
-  if (marketplaceId !== MODE_OFFICIAL_PLUGIN_MARKETPLACE) return plugins.length;
+  if (!isOfficialMarketplaceId(marketplaceId)) return plugins.length;
   return plugins.filter((entry) => entry.name !== OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME).length;
 }
 
@@ -297,7 +297,7 @@ export function getModePluginsOverview(
   const installedIds = new Set(installed.map((record) => record.id));
 
   // 每个市场的 manifest 只读一次：同时取 entries（目录条目）与 featured（策展名单）。
-  // zcode-plugins-official 的内置与 CDN 分片已在 adapter 层合并为唯一 canonical manifest。
+  // mode-plugins-official 的内置与 CDN 分片已在 adapter 层合并为唯一 canonical manifest。
   const catalogs: Array<{
     summary: ModeMarketplaceSummaryData;
     entries: PluginMarketplaceEntry[];
@@ -341,7 +341,7 @@ export function getModePluginsOverview(
       return listingRequiresPaidPlan(entry.listing) ? [] : [data];
     }),
   );
-  // 随包内置的官方插件目录快照（zcode-plugins-official）：公开分段的浏览面完全离线，
+  // 随包内置的官方插件目录快照（mode-plugins-official）：公开分段的浏览面完全离线，
   // 与内置插件定义同口径，直接按 available 形态并入，不依赖官方市场记录是否在声明集合里。
   const bundledCatalogPlugins: ModeAvailablePluginData[] = [];
   {
@@ -811,7 +811,7 @@ export async function uninstallModeMarketplacePlugin(
   return withPluginStorageLock(pluginStorageRoot, async () => {
     const pluginId = resolvePluginIdForMutation(options);
 
-    // 官方 CDN marketplace 与内置插件共享 zcode-plugins-official id 空间，且其缓存
+    // 官方 CDN marketplace 与内置插件共享 mode-plugins-official id 空间，且其缓存
     // 也位于 official cache 下。若先看 runtime source="official"，会把已有
     // installed_plugins.json 记录的 CDN 插件误判成内置插件，只写 suppression 却不删安装记录，
     // 导致 UI 永远保持 installed、无法重装。持久化安装记录是 marketplace 所有权的权威证据，

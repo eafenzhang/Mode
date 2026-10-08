@@ -3,6 +3,7 @@
 // 且 plugins.ts 已接近 max-lines 门禁。
 import {
   MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID,
   modeProtocolNotifications,
   modePluginsReferenceCatalogParamsSchema,
   modePluginsResolveSuggestedReferenceParamsSchema,
@@ -72,7 +73,12 @@ export async function resolveSuggestedPluginReference(
   const stableId = params.stableId.trim();
   const at = stableId.lastIndexOf("@");
   const pluginName = at > 0 ? stableId.slice(0, at) : "";
-  const marketplace = at > 0 ? stableId.slice(at + 1) : "";
+  // 官方市场改名后旧链接（…@zcode-plugins-official）仍被接受：比较前先归一到当前 id，回显保持原样。
+  const rawMarketplace = at > 0 ? stableId.slice(at + 1) : "";
+  const marketplace =
+    rawMarketplace === MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID
+      ? MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID
+      : rawMarketplace;
   const diagnostic = (code: string, message: string): SharedPluginDiagnostic => ({
     code,
     message,
@@ -92,7 +98,7 @@ export async function resolveSuggestedPluginReference(
   ) {
     return unavailable(
       "plugin_suggested_reference_untrusted_source",
-      "推荐插件不是受信任的官方 zcode-plugins-official 来源",
+      "推荐插件不是受信任的官方 mode-plugins-official 来源",
     );
   }
 
@@ -163,7 +169,7 @@ export async function resolveSuggestedPluginReference(
       // 刷新超时必须中止底层网络/进程；仅结束协议等待会让旧 operation 继续改写目录快照。
       refreshTimeout = setTimeout(() => {
         refreshTimedOut = true;
-        const timeoutError = new Error("刷新 zcode-plugins-official 超时（10000 ms）");
+        const timeoutError = new Error(`刷新 ${SUGGESTED_PLUGIN_MARKETPLACE} 超时（10000 ms）`);
         timeoutError.name = "TimeoutError";
         refreshController.abort(timeoutError);
         reject(timeoutError);

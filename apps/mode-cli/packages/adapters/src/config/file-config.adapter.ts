@@ -15,7 +15,7 @@ import { z } from "zod";
 import {
   CANONICAL_CUA_PLUGIN_ID,
   canonicalizePluginId,
-  LEGACY_CUA_PLUGIN_ID,
+  isLegacyCuaPluginId,
   parseConfigFileToRuntimePatchWithDiagnostics,
   pluginIdAliases,
   type ConfigDiagnostic,
@@ -126,7 +126,7 @@ function migratePluginConfigInFile(value: unknown): Record<string, unknown> | un
   if (isRecord(plugins.enabledPlugins)) {
     const enabledPlugins = { ...plugins.enabledPlugins };
     for (const [id, enabled] of Object.entries(plugins.enabledPlugins)) {
-      if (id === LEGACY_CUA_PLUGIN_ID) {
+      if (isLegacyCuaPluginId(id)) {
         const canonicalId = CANONICAL_CUA_PLUGIN_ID;
         if (enabledPlugins[canonicalId] === undefined) enabledPlugins[canonicalId] = enabled;
         delete enabledPlugins[id];
@@ -138,7 +138,7 @@ function migratePluginConfigInFile(value: unknown): Record<string, unknown> | un
 
   if (Array.isArray(plugins.suppressedBuiltins)) {
     const suppressedBuiltins = plugins.suppressedBuiltins.map((id) =>
-      id === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : id,
+      typeof id === "string" && isLegacyCuaPluginId(id) ? CANONICAL_CUA_PLUGIN_ID : id,
     );
     if (JSON.stringify(suppressedBuiltins) !== JSON.stringify(plugins.suppressedBuiltins)) {
       nextPlugins.suppressedBuiltins = suppressedBuiltins;
@@ -149,7 +149,7 @@ function migratePluginConfigInFile(value: unknown): Record<string, unknown> | un
   if (isRecord(plugins.options)) {
     const options = { ...plugins.options };
     for (const [id, pluginOptions] of Object.entries(plugins.options)) {
-      if (id === LEGACY_CUA_PLUGIN_ID) {
+      if (isLegacyCuaPluginId(id)) {
         const canonicalId = CANONICAL_CUA_PLUGIN_ID;
         if (options[canonicalId] === undefined) options[canonicalId] = pluginOptions;
         delete options[id];
@@ -530,12 +530,11 @@ function patchPluginOptions(
   const currentOptions = isRecord(plugins.options) ? plugins.options : {};
   const canonicalPluginId = canonicalizePluginId(pluginId);
   const aliases = pluginIdAliases(canonicalPluginId);
-  const legacyPluginId = aliases.length > 1 ? aliases[1] : undefined;
   const currentPluginOptions = isRecord(currentOptions[canonicalPluginId])
     ? currentOptions[canonicalPluginId]
-    : legacyPluginId && isRecord(currentOptions[legacyPluginId])
-      ? currentOptions[legacyPluginId]
-      : {};
+    : ((aliases.map((id) => currentOptions[id]).find(isRecord) as
+        | Record<string, unknown>
+        | undefined) ?? {});
   const nextOptions = { ...currentOptions };
   for (const id of aliases) delete nextOptions[id];
   const clearedOptionKeySet = new Set(clearOptionKeys);

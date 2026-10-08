@@ -44,6 +44,7 @@ import {
 } from "./official-auth.js";
 import {
   OFFICIAL_MCP_AUTH_META_KEY,
+  MODE_MCP_REQUEST_CONTEXT_META_KEY,
   MODE_OFFICIAL_MCP_AUTH_TYPE,
   type McpServerFailureKind,
   type OfficialMcpAuthFailureKind,
@@ -1766,7 +1767,7 @@ function mcpRequestMeta(request: McpCallToolRequest): Record<string, unknown> {
   };
   return {
     ...requestContext,
-    "com.mode/request-context": requestContext,
+    [MODE_MCP_REQUEST_CONTEXT_META_KEY]: requestContext,
   };
 }
 

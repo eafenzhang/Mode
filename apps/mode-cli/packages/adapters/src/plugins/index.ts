@@ -23,6 +23,7 @@ import {
   MODE_INLINE_PLUGIN_MARKETPLACE,
   MODE_OFFICIAL_PLUGIN_MARKETPLACE,
 } from "@mode/contracts";
+import { resolveOfficialPluginCacheRoot } from "@mode/shared/node";
 import {
   directoryExists,
   fileExists,
@@ -869,7 +870,8 @@ function scanOfficialCache(
     return bundledRoots;
   }
 
-  const cacheRoot = join(storageRoot, "cache", MODE_OFFICIAL_PLUGIN_MARKETPLACE);
+  // 官方市场改名后缓存根有新旧两个位置：新目录不存在时沿用旧目录（存量插件原地可用）。
+  const cacheRoot = resolveOfficialPluginCacheRoot(storageRoot);
   try {
     const roots: string[] = [];
     for (const pluginEntry of readdirSync(cacheRoot, { withFileTypes: true })) {

@@ -4,16 +4,17 @@ import pdfIconUrl from "@/assets/plugin-icons/pdf.png";
 import pluginCreatorIconUrl from "@/assets/plugin-icons/plugin-creator.png";
 import presentationsIconUrl from "@/assets/plugin-icons/presentations.png";
 import spreadsheetsIconUrl from "@/assets/plugin-icons/spreadsheets.png";
+import { canonicalPluginId } from "@mode/shared";
 import { MODE_OFFICIAL_PLUGIN_ICON_BY_NAME } from "@/settings/modeOfficialPluginIcons.generated.js";
 import { isTrustedImageUrl } from "@/lib/trustedImageUrl.js";
 
 const OFFICIAL_PLUGIN_ICON_BY_ID: Readonly<Record<string, string>> = {
-  "documents@zcode-plugins-official": documentsIconUrl,
-  "image-search@zcode-plugins-official": imageSearchIconUrl,
-  "pdf@zcode-plugins-official": pdfIconUrl,
-  "plugin-creator@zcode-plugins-official": pluginCreatorIconUrl,
-  "presentations@zcode-plugins-official": presentationsIconUrl,
-  "spreadsheets@zcode-plugins-official": spreadsheetsIconUrl,
+  "documents@mode-plugins-official": documentsIconUrl,
+  "image-search@mode-plugins-official": imageSearchIconUrl,
+  "pdf@mode-plugins-official": pdfIconUrl,
+  "plugin-creator@mode-plugins-official": pluginCreatorIconUrl,
+  "presentations@mode-plugins-official": presentationsIconUrl,
+  "spreadsheets@mode-plugins-official": spreadsheetsIconUrl,
 };
 
 /**
@@ -31,10 +32,10 @@ const BUNDLED_PLUGIN_ICON_BY_NAME: Readonly<Record<string, string>> = {
   ),
 };
 
-/** 官方市场的 id 形态：`<插件名>@zcode-plugins-official`。 */
+/** 官方市场的 id 形态：`<插件名>@mode-plugins-official`（改名前的旧 id 由查找时归一覆盖）。 */
 const CATALOG_ICON_BY_ID: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(BUNDLED_PLUGIN_ICON_BY_NAME).map(([name, url]) => [
-    `${name}@zcode-plugins-official`,
+    `${name}@mode-plugins-official`,
     url,
   ]),
 );
@@ -53,7 +54,10 @@ export function resolvePluginIconSource(
   icon?: string,
 ): string | undefined {
   if (pluginId) {
-    const bundledIcon = ALL_BUNDLED_PLUGIN_ICONS[pluginId];
+    // 官方市场改名后，会话与存量设置里仍可能出现旧 id（name@zcode-plugins-official）：
+    // 先按原样查，再按归一后的当前 id 查，两者共用同一份随包资源。
+    const bundledIcon =
+      ALL_BUNDLED_PLUGIN_ICONS[pluginId] ?? ALL_BUNDLED_PLUGIN_ICONS[canonicalPluginId(pluginId)];
     if (bundledIcon) return bundledIcon;
     // 同名兜底：用户自行添加的目录（如 Claude Code 插件）没有自带图标时，
     // 复用随包资源里的原版图标；同名不同源会共用同一个图标，这是有意的取舍。

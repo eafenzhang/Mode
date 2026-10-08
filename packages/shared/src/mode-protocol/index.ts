@@ -71,6 +71,13 @@ export {
 } from "../mode-protocol-v4/rows.js";
 
 export const MODE_PROTOCOL_NAME = "Mode Protocol" as const;
+/** 改名（ZCODIUM → Mode）前的协议名：SSH 远端旧 agent 混布时仍要能握手，只做接受、不再对外声明。 */
+export const MODE_PROTOCOL_LEGACY_NAME = "ZCode Protocol" as const;
+/** 握手校验接受的协议名（新名在前，回显与写入一律用新名）。 */
+export const MODE_PROTOCOL_ACCEPTED_NAMES = [
+  MODE_PROTOCOL_NAME,
+  MODE_PROTOCOL_LEGACY_NAME,
+] as const;
 export const MODE_PROTOCOL_VERSION = 1 as const;
 // V4 wire 与 legacy 主协议并存；禁止为了 V4 physical framing 改写 legacy 版本。
 export const MODE_PROTOCOL_V4_WIRE_VERSION = 3 as const;
@@ -1017,7 +1024,9 @@ export const modeSessionStateSnapshotSchema = z
   .object({
     protocol: z
       .object({
-        name: z.literal(MODE_PROTOCOL_NAME),
+        // 改名后服务端同时接受旧名（MODE_PROTOCOL_LEGACY_NAME）：远端旧 agent 的 snapshot
+        // 仍是旧名，校验把它判成非法会让混布连接直接失败。
+        name: z.enum(MODE_PROTOCOL_ACCEPTED_NAMES),
         version: z.literal(MODE_PROTOCOL_VERSION),
       })
       .strict(),

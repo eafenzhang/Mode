@@ -5,7 +5,8 @@ import {
   createAgentStateId,
   createPluginAgentStateId,
   parsePluginSubagentModelSelectionOverrides,
-  DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
+  canonicalPluginId,
+  isDefaultEnabledOfficialPluginId,
   MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
   modelSelectionSchema,
   type AgentCreateParams,
@@ -403,13 +404,16 @@ async function readPluginConfig(options?: SubagentStorageOptions): Promise<Plugi
     const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
     const enabledPlugins = isRecord(plugins.enabledPlugins) ? plugins.enabledPlugins : {};
     return {
+      // 读时归一：官方插件存量 id（旧市场段 / mode-cua 旧名）统一成当前写法，与运行时一致。
       enabledPlugins: Object.fromEntries(
-        Object.entries(enabledPlugins).filter(
-          (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
-        ),
+        Object.entries(enabledPlugins)
+          .filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean")
+          .map(([id, value]) => [canonicalPluginId(id), value]),
       ),
       suppressedBuiltins: Array.isArray(plugins.suppressedBuiltins)
-        ? plugins.suppressedBuiltins.filter((id): id is string => typeof id === "string")
+        ? plugins.suppressedBuiltins
+            .filter((id): id is string => typeof id === "string")
+            .map((id) => canonicalPluginId(id))
         : [],
     };
   } catch {
@@ -436,7 +440,7 @@ async function readEnabledPluginRecords(
   for (const cacheRoot of await scanOfficialPluginCacheRoots(pluginStorageRoot)) {
     const id = `${cacheRoot.name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`;
     if (seenIds.has(id) || config.suppressedBuiltins.includes(id)) continue;
-    const enabled = config.enabledPlugins[id] ?? DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS.has(id);
+    const enabled = config.enabledPlugins[id] ?? isDefaultEnabledOfficialPluginId(id);
     if (!enabled) continue;
     for (const versionRoot of cacheRoot.versionRoots) {
       const manifest = await readPluginManifest(versionRoot);
@@ -456,7 +460,11 @@ async function readInstalledPluginRecords(
     const raw = await readFile(join(pluginStorageRoot, "installed_plugins.json"), "utf-8");
     const parsed = JSON.parse(raw) as InstalledPluginsStateFile;
     if (!Array.isArray(parsed.plugins)) return [];
-    return parsed.plugins.filter(isInstalledPluginRecord);
+    // 安装记录的官方市场段读时归一：存量记录仍是旧 id（name@zcode-plugins-official），
+    // 归一到当前写法后才能与归一后的 config.enabledPlugins / suppressedBuiltins 对上。
+    return parsed.plugins
+      .filter(isInstalledPluginRecord)
+      .map((record) => ({ ...record, id: canonicalPluginId(record.id) }));
   } catch {
     return [];
   }

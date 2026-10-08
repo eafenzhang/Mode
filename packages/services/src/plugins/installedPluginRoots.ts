@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+import { canonicalPluginId } from "@mode/shared";
 
 interface InstalledPluginRoot {
   defaultEnabled: boolean;
@@ -55,7 +56,15 @@ async function readInstalledPluginRecords(
     if (!id || !marketplace || !installPath || !isAbsolute(installPath)) {
       continue;
     }
-    records.push({ id, installPath, marketplace });
+    // 官方市场改名后，存量记录的 marketplace 还是旧 id：读时归一（id 与 marketplace 一起），
+    // 调用方按当前 id 拼 `${name}@${marketplace}` 才能与归一后的 config.enabledPlugins 对上。
+    const canonicalId = canonicalPluginId(id);
+    const canonicalMarketplace = canonicalId.slice(canonicalId.lastIndexOf("@") + 1);
+    records.push({
+      id: canonicalId,
+      installPath,
+      marketplace: canonicalMarketplace || marketplace,
+    });
   }
   return records;
 }

@@ -175,7 +175,6 @@ const pluginsSchema = z.object({
   suppressedBuiltins: z.array(z.string().min(1)).optional(),
 });
 
-export const LEGACY_CUA_PLUGIN_ID = "mode-cua@zcode-plugins-official";
 export const CANONICAL_CUA_PLUGIN_ID = "computer-use@mode-plugins-official";
 
 /** 拆出官方插件的 `<name>@<marketplace>`；非官方市场返回 undefined（不参与归一）。 */
@@ -206,6 +205,11 @@ export function canonicalizePluginId(pluginId: string): string {
   if (!parsed) return pluginId;
   const name = parsed.name === "mode-cua" ? "computer-use" : parsed.name;
   return `${name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
+}
+
+/** computer-use 的历史名（mode-cua@…，市场段新旧两种写法都算）：落盘迁移的判据。 */
+export function isLegacyCuaPluginId(pluginId: string): boolean {
+  return splitOfficialPluginId(pluginId)?.name === "mode-cua";
 }
 
 /** 同一插件在用户配置里可能出现的全部存量写法（含改名前的名字与市场段）。 */
@@ -469,30 +473,27 @@ function normalizePluginConfig(
   plugins: ModeConfigFile["plugins"],
 ): NonNullable<RuntimeConfigPatch["plugins"]> {
   if (!plugins) return {};
-  const enabledPlugins = plugins.enabledPlugins ? { ...plugins.enabledPlugins } : undefined;
-  if (enabledPlugins?.[LEGACY_CUA_PLUGIN_ID] !== undefined) {
-    if (enabledPlugins[CANONICAL_CUA_PLUGIN_ID] === undefined) {
-      enabledPlugins[CANONICAL_CUA_PLUGIN_ID] = enabledPlugins[LEGACY_CUA_PLUGIN_ID];
+  // 读时归一：官方插件的存量 id（旧市场段 / mode-cua 旧名）统一成当前写法——
+  // enabledPlugins、options 的键与 suppressedBuiltins 的值都走同一个归一，运行时不再关心旧写法。
+  // 用户配置本身不改写（写路径见 file-config.adapter 的 patchPlugin*）。
+  // 键冲突时以已经写成当前 id 的那份为准（新写法是后写的显式选择）。
+  const canonicalizeRecord = <T>(record: Record<string, T>): Record<string, T> => {
+    const next: Record<string, T> = {};
+    for (const [id, value] of Object.entries(record)) {
+      const canonicalId = canonicalizePluginId(id);
+      if (canonicalId === id || next[canonicalId] === undefined) {
+        next[canonicalId] = value;
+      }
     }
-    delete enabledPlugins[LEGACY_CUA_PLUGIN_ID];
-  }
-  const suppressedBuiltins = plugins.suppressedBuiltins
-    ? plugins.suppressedBuiltins.reduce<string[]>((ids, id) => {
-        const canonicalId = id === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : id;
-        if (canonicalId === CANONICAL_CUA_PLUGIN_ID && ids.includes(CANONICAL_CUA_PLUGIN_ID)) {
-          return ids;
-        }
-        ids.push(canonicalId);
-        return ids;
-      }, [])
+    return next;
+  };
+  const enabledPlugins = plugins.enabledPlugins
+    ? canonicalizeRecord(plugins.enabledPlugins)
     : undefined;
-  const options = plugins.options ? { ...plugins.options } : undefined;
-  if (options?.[LEGACY_CUA_PLUGIN_ID] !== undefined) {
-    if (options[CANONICAL_CUA_PLUGIN_ID] === undefined) {
-      options[CANONICAL_CUA_PLUGIN_ID] = options[LEGACY_CUA_PLUGIN_ID];
-    }
-    delete options[LEGACY_CUA_PLUGIN_ID];
-  }
+  const suppressedBuiltins = plugins.suppressedBuiltins
+    ? [...new Set(plugins.suppressedBuiltins.map((id) => canonicalizePluginId(id)))]
+    : undefined;
+  const options = plugins.options ? canonicalizeRecord(plugins.options) : undefined;
   return {
     ...plugins,
     ...(enabledPlugins ? { enabledPlugins } : {}),
