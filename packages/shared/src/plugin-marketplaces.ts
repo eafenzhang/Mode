@@ -10,6 +10,8 @@ export interface DefaultPluginMarketplace {
 }
 
 export const MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "zcode-plugins-official";
+/** 改名后的官方市场 id（切换时旧 id 继续可识别，见 docs/specs/p2-mode-naming.md S5c）。 */
+export const MODE_OFFICIAL_PLUGIN_MARKETPLACE_MODE_ID = "mode-plugins-official";
 
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
@@ -92,8 +94,12 @@ export function resolveDefaultPluginMarketplaces(): DefaultPluginMarketplace[] {
 // 商店「公开」分段只有一个 Mode 官方市场 id，内置与 CDN 不再拆分身份。
 export const PUBLIC_STORE_MARKETPLACE_IDS = [MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID] as const;
 
+/** 公开分段判据：官方市场（含改名前的旧 id，存量条目照旧归入公开）。 */
 export function isPublicStoreMarketplaceId(id: string): boolean {
-  return (PUBLIC_STORE_MARKETPLACE_IDS as readonly string[]).includes(id);
+  return (
+    (PUBLIC_STORE_MARKETPLACE_IDS as readonly string[]).includes(id) ||
+    id === MODE_OFFICIAL_PLUGIN_MARKETPLACE_MODE_ID
+  );
 }
 
 /**

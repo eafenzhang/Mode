@@ -5,6 +5,14 @@ import type { SkillRoot } from "../skills/index.js";
 import type { ExecutionContext, TraceContext } from "../tracing/tracer.js";
 
 export const MODE_OFFICIAL_PLUGIN_MARKETPLACE = "zcode-plugins-official";
+/** 改名（ZCODIUM → Mode）后的官方市场 id：切换常量时旧 id 必须继续被接受，
+ * 否则用户设置里已登记的插件 id（name@zcode-plugins-official）会全部对不上。
+ * 计划见 docs/specs/p2-mode-naming.md 的 S5c。 */
+export const MODE_OFFICIAL_PLUGIN_MARKETPLACE_MODE_ID = "mode-plugins-official";
+const OFFICIAL_MARKETPLACE_IDS: readonly string[] = [
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE_MODE_ID,
+];
 export const MODE_INLINE_PLUGIN_MARKETPLACE = "inline";
 export const MODE_PLUGIN_HOST_COMMAND = "__mode-plugin-host";
 /**
@@ -20,7 +28,12 @@ export const MODE_PLUGIN_HOST_COMMAND = "__mode-plugin-host";
 export const MODE_DWF_CHILD_COMMAND = "__mode-dwf-child";
 
 export function isOfficialMarketplaceId(id: string): boolean {
-  return id === MODE_OFFICIAL_PLUGIN_MARKETPLACE;
+  return OFFICIAL_MARKETPLACE_IDS.includes(id);
+}
+
+/** 把插件 id 里的官方市场段归一到当前取值（读时归一；不改写用户数据）。 */
+export function canonicalOfficialMarketplaceId(id: string): string {
+  return id === MODE_OFFICIAL_PLUGIN_MARKETPLACE_MODE_ID ? MODE_OFFICIAL_PLUGIN_MARKETPLACE : id;
 }
 
 export type PluginSource = "official" | "inline" | "cache";
