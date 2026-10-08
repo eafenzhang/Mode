@@ -9,3 +9,8 @@ third-party/upstream/** -text -whitespace
 third-party/native-search/licenses/** -text -whitespace
 third-party/runtime/*.txt -text -whitespace
 third-party/inventory.json linguist-generated=true
+
+# .agents/skills 是按 third-party/copied-components.json 台账跟踪的第三方复制件
+# （MIT/Apache-2.0，含其自带的 C#/Python/XSD 等原生语言文件），在代码语言统计
+# 中标记为 vendored，不计入产品语言占比。
+.agents/skills/** linguist-vendored
