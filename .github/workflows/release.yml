@@ -26,6 +26,10 @@ on:
         description: "插入 Release 说明顶部的警示文本（可选，支持多行；用于测试版提示）"
         required: false
         type: string
+  # 推送 main 即自动发版：版本号取「最近一个正式版 tag 的 patch + 1」（已被占用就继续 +1），
+  # 提交信息里带 [skip release] 时整条流水线跳过。需要指定版本（正式版 / 预发布）时仍用上面的手工触发。
+  push:
+    branches: [main]
 
 permissions:
   contents: write
@@ -37,6 +41,8 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # 推送触发时，提交信息含 [skip release] 就跳过整条流水线（下游 job 依赖本 job，跟着一起跳过）。
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip release]') }}
     outputs:
       tag: ${{ steps.validate.outputs.tag }}
       version: ${{ steps.validate.outputs.version }}
@@ -44,6 +50,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Validate version
         id: validate
@@ -51,8 +58,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
           PRERELEASE: ${{ inputs.prerelease }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
+          # 推送触发的自动发版：无需输入版本，取「最近一个正式版 tag 的 patch + 1」；
+          # 该版本已被占用（同一次推送重跑、或并发）就继续 +1，保证 tag 不冲突、版本单调递增，
+          # 应用内自动更新（electron-updater 比版本号大小）才能一路升上去。
+          if [ "$EVENT_NAME" = "push" ]; then
+            # 只认正式版 tag（v<major>.<minor>.<patch>）：预发布/审计 tag 不参与基线，
+            # 否则自动版本会被推进到预发布序列上。
+            LATEST="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
+            if [ -n "$LATEST" ]; then PRE="${LATEST#v}"; else PRE="0.0.0"; fi
+            IFS=. read -r MA MI PA <<< "$PRE"
+            PA=$((PA + 1))
+            while git ls-remote --tags origin "refs/tags/v$MA.$MI.$PA" | grep -q .; do
+              PA=$((PA + 1))
+            done
+            TAG="v$MA.$MI.$PA"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "version=$MA.$MI.$PA" >> "$GITHUB_OUTPUT"
+            echo "推送触发的自动版本：$TAG（基线 ${LATEST:-无}）"
+            exit 0
+          fi
           # 版本命名：
           #   3.14.0 + 勾选预发布 -> 3.14.0-audit.<YYYYMMDD>（同一天重复构建自动追加 .2/.3/...）
           #   3.14.0 + 不勾选     -> v3.14.0（正式版，成为 GitHub Latest，/releases/latest 可用）
@@ -108,86 +135,30 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
           cat > /tmp/release-notes.md <<'NOTES'
-          # ZCodium <VERSION>
+          # Mode <VERSION>
 
-          ## English
+          Mode 是基于公开发布的 ZCode 持续维护的独立分支（延续 ZCodium 审计分支）：桌面端、浏览器工作区与终端 TUI 共享同一个 Agent 运行时，移除监控与遥测、不再连接官方平台服务，并补上 IM 机器人、局域网远程连接与随包离线插件目录。
 
-          ### What changed vs ZCode
+          Mode is an independently maintained fork of the open-source ZCode (continuing the ZCodium audit fork): desktop, browser workspace and terminal TUI still share one agent runtime, with monitoring and telemetry removed, official platform services retired, plus IM bots, LAN remote connections and an offline bundled plugin catalog.
 
-          - **All monitoring and telemetry removed** (~26k lines): ARMS RUM, OTLP reporting, crash collection, resource and network sampling, UI analytics - with regression checks so they cannot be reintroduced.
-          - **Official platform services are opt-in and off by default**: account login, feedback upload, coding plans, official MCP credentials, plugin marketplace and remote client config stay disconnected until you enable the matching switch under Settings -> Z.AI services. With every switch off (the default), the app never contacts the official platform and reports nothing; feedback points to GitHub Issues. You can turn any switch off again at any time.
-          - **No mandatory account**: no sign-up wall and no forced login. New users configure their own API key or a custom model provider and start working; a browser sign-in entry appears only after you enable "Z.AI API configuration".
-          - **No purchase or upgrade prompts by default**: nothing pushes you to buy a plan; plan cards and purchase entries appear only after you enable the coding-plan switch, and can be turned off again at any time.
-          - **No repository upload behavior**: snapshot packaging and upload logic removed, with guards against reintroduction.
-          - **Open source and reviewable**: first-party code MIT, upstream Apache-2.0; removal reports for desktop, CLI and UI ship in the repository.
-          - **Transparent builds**: installers are built by GitHub Actions from this repository, and in-app updates point to this repository's GitHub Releases.
-          - **Honest limitations**: Computer Use is an unavailable placeholder; installers are not signed by ZCode.
+          ## 安装与升级 / Install and update
 
-          ### Install
+          - **Windows（.exe）**：`Mode-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
+          - **macOS（.dmg）**：`Mode-<VERSION>-mac-arm64.dmg`（Apple Silicon）/ `Mode-<VERSION>-mac-x64.dmg`（Intel），拖进「应用程序」；未签名会被 Gatekeeper 拦一次，放行命令：`sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"`。
+          - **Linux（.AppImage）**：`Mode-<VERSION>-linux-x86_64.AppImage` / `Mode-<VERSION>-linux-arm64.AppImage`，`chmod +x` 后直接运行。
+          - **CLI（.tar.gz）**：`zcodium-<VERSION>.tar.gz`，需要 Node.js 24；CLI 命令名沿用 `zcodium`，解压后 `./install.sh` 安装。
+          - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包与 CLI 包；`latest*.yml`、`latest.json` 供应用内自动更新使用。
 
-          - **macOS (.dmg)**: download `ZCodium-<VERSION>-mac-arm64.dmg` (Apple Silicon) or `ZCodium-<VERSION>-mac-x64.dmg` (Intel), open it, drag ZCodium into Applications. The app is not signed by ZCode, so Gatekeeper blocks the first launch - this system block is macOS only. Allow it once with the command below (enter your login password when asked; nothing is shown while typing; the command launches the app and exits immediately):
+          - **Windows (.exe)**: `Mode-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
+          - **macOS (.dmg)**: `Mode-<VERSION>-mac-arm64.dmg` (Apple Silicon) / `Mode-<VERSION>-mac-x64.dmg` (Intel); drag it into Applications. Unsigned, so Gatekeeper blocks the first launch once: `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"`.
+          - **Linux (.AppImage)**: `Mode-<VERSION>-linux-x86_64.AppImage` / `Mode-<VERSION>-linux-arm64.AppImage`; `chmod +x` then run it directly.
+          - **CLI (.tar.gz)**: `zcodium-<VERSION>.tar.gz` needs Node.js 24; the CLI command is still named `zcodium` - extract and run `./install.sh`.
+          - **Checksums and update metadata**: `sha256.txt` covers the installers and the CLI package; `latest*.yml` and `latest.json` drive in-app updates.
 
-            ```bash
-            sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/ZCodium.app" && open -a "ZCodium"
-            ```
+          ## 反馈 / Feedback
 
-            The absolute `/usr/bin/xattr` path avoids shadowing by other tools with the same name. You can also right-click (Control-click) the app in Finder -> Open -> Open.
-          - **Windows (.exe)**: run `ZCodium-<VERSION>-win-x64.exe`. The installer is not signed by ZCode, so SmartScreen shows a warning - a warning, not a system block; click **More info** -> **Run anyway**. This is expected, not a corrupted file.
-          - **Linux x64 (.AppImage)**: `chmod +x ZCodium-<VERSION>-linux-x86_64.AppImage && ./ZCodium-<VERSION>-linux-x86_64.AppImage`.
-          - **Linux arm64 (.AppImage)**: `chmod +x ZCodium-<VERSION>-linux-arm64.AppImage && ./ZCodium-<VERSION>-linux-arm64.AppImage`.
-          - **CLI (.tar.gz)**: requires Node.js 24. Extract and run:
-
-            ```bash
-            tar -xzf zcodium-<VERSION>.tar.gz
-            cd zcodium
-            ./install.sh        # installs the zcode command into ~/.zcode/runtime
-            zcode --help        # or run: node bin/zcode.mjs --help
-            ```
-
-          ## 中文
-
-          ### 相对 ZCode 的改动
-
-          - **移除全部监控与遥测**（约 2.6 万行）：ARMS RUM、OTLP 上报、崩溃采集、资源与网络采样、UI 埋点，并加了防回归检查，防止重新引入。
-          - **官方平台服务默认全部关闭，按开关选择开启**：账号登录、反馈上传、编码套餐、官方 MCP 凭证、插件市场与客户端远端配置在对应开关打开前保持断开；默认全关时应用不会连接官方平台，也不会上报任何数据。开关可在“设置 → Z.AI 服务”里随时打开或关闭。
-          - **没有强制账号体系**：不弹注册墙、不强制登录。首次启动可直接配置自己的 API Key 或自定义模型开始使用；只有打开“Z.AI API 配置”开关后，才会出现浏览器授权登录入口。
-          - **默认没有购买与升级引导**：不会主动引导你购买套餐；只有打开“套餐与额度”开关后才会显示套餐卡片与购买入口，并可随时关闭。
-          - **移除仓库上传行为**：快照打包与上传逻辑已删除，并加了防回归保护。
-          - **开源可复核**：第一方代码 MIT，上游代码 Apache-2.0；桌面端、CLI、UI 的移除报告随仓库发布。
-          - **构建透明**：安装包由 GitHub Actions 从本仓库构建；应用内更新指向本仓库的 GitHub Releases。
-          - **如实说明限制**：Computer Use 为不可用占位；安装包没有 ZCode 官方签名。
-
-          ### 安装说明
-
-          - **macOS（.dmg）**：按机型下载 `ZCodium-<VERSION>-mac-arm64.dmg`（Apple Silicon）或 `ZCodium-<VERSION>-mac-x64.dmg`（Intel），打开后把 ZCodium 拖进“应用程序”。没有 ZCode 官方签名，Gatekeeper 会拦截首次打开——这是 macOS 独有的系统拦截。用下面命令放行一次（输入密码时不显示字符；命令会自动启动应用并立即退出）：
-
-            ```bash
-            sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/ZCodium.app" && open -a "ZCodium"
-            ```
-
-            使用 `/usr/bin/xattr` 绝对路径，避免 PATH 中同名工具干扰。也可以在“访达”里右键（Control-点击）应用 -> 打开 -> 弹窗里再点“打开”。
-          - **Windows（.exe）**：运行 `ZCodium-<VERSION>-win-x64.exe`。没有 ZCode 官方签名，SmartScreen 会显示警告——只是警告，不是系统拦截；点“**更多信息**” -> “**仍要运行**”。这是预期提示，不是文件损坏。
-          - **Linux x64（.AppImage）**：`chmod +x ZCodium-<VERSION>-linux-x86_64.AppImage && ./ZCodium-<VERSION>-linux-x86_64.AppImage`。
-          - **Linux arm64（.AppImage）**：`chmod +x ZCodium-<VERSION>-linux-arm64.AppImage && ./ZCodium-<VERSION>-linux-arm64.AppImage`。
-          - **CLI（.tar.gz）**：需要 Node.js 24。解压后运行：
-
-            ```bash
-            tar -xzf zcodium-<VERSION>.tar.gz
-            cd zcodium
-            ./install.sh        # 安装 zcode 命令到 ~/.zcode/runtime
-            zcode --help        # 或直接运行：node bin/zcode.mjs --help
-            ```
-
-          ## Downloads / 产物
-
-          - macOS Apple Silicon: `ZCodium-<VERSION>-mac-arm64.dmg` / `.zip`
-          - macOS Intel: `ZCodium-<VERSION>-mac-x64.dmg` / `.zip`
-          - Windows x64: `ZCodium-<VERSION>-win-x64.exe`
-          - Linux x64: `ZCodium-<VERSION>-linux-x86_64.AppImage`
-          - Linux arm64: `ZCodium-<VERSION>-linux-arm64.AppImage`
-          - CLI: `zcodium-<VERSION>.tar.gz`
-          - Checksums: `sha256.txt`（覆盖上方安装包与 CLI 包 / covers the installers and CLI package above）
-          - Update metadata: `latest*.yml`, `latest.json`
+          - 问题与建议请开 Issue：https://github.com/eafenzhang/Mode/issues
+          - Issues and suggestions: https://github.com/eafenzhang/Mode/issues
           NOTES
           sed -i "s/<VERSION>/${TAG#v}/g" /tmp/release-notes.md
           # 自动生成版本差异 Changelog：对比最近的正式 tag（排除 ci 类提交），插入到标题之后。
@@ -228,9 +199,35 @@ jobs:
           fi
           gh release create "$TAG" "${args[@]}"
 
-  build:
+  # 发版前的验收闸门：类型检查、Lint 与关键回归测试全绿才继续构建并发布。
+  # 推送触发的自动发版没有人工复核环节，这道闸门用来挡住「一次坏提交把不可用的安装包推进更新通道」。
+  verify:
     needs: release
-    if: ${{ inputs.build_artifacts }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Service and desktop tests
+        run: |
+          set -euo pipefail
+          pnpm --filter @zcode/services test
+          node --test packages/desktop/tests/*.test.mjs
+
+  build:
+    needs: [release, verify]
+    if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -306,8 +303,8 @@ jobs:
           retention-days: 1
 
   desktop:
-    needs: release
-    if: ${{ inputs.build_artifacts }}
+    needs: [release, verify]
+    if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
     strategy:
       fail-fast: false
       matrix:
@@ -431,8 +428,8 @@ jobs:
   # 扁平布局上传，客户端用显式自建源（ZCODE_REMOTE_ASSET_CDN_BASE_URL）加载。
   # 与其他产物一致：上传失败则 release 保持 draft，避免出现半套资产。
   remote-assets:
-    needs: release
-    if: ${{ inputs.build_artifacts }}
+    needs: [release, verify]
+    if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -553,8 +550,8 @@ jobs:
   # 由人工排查后重跑或删除，避免不完整的版本出现在 Releases 与官网下载页。
   # keep_draft=true（上游审计自动构建的测试版）：即使全部成功也保持 draft，不公开、不进入自动更新。
   publish:
-    needs: [release, build, desktop, remote-assets, checksums]
-    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') && (needs['remote-assets'].result == 'success' || needs['remote-assets'].result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') }}
+    needs: [release, verify, build, desktop, remote-assets, checksums]
+    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') && (needs['remote-assets'].result == 'success' || needs['remote-assets'].result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

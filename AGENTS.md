@@ -37,6 +37,9 @@
 
 ## GitHub 流程
 
+- **推送由人发起**：agent 只做本地提交，不执行 `git push`（含 `git push --tags`）；要上传时先说明本地有哪些未推送的提交，由用户自己决定什么时候推。
+- 推送 `main` 会自动发版：`.github/workflows/release.yml` 由 push 触发时取「最近一个正式版 tag 的 patch + 1」建 tag，先跑 `verify`（typecheck / lint / services 与 desktop 测试），全绿才继续构建全平台产物并发布 Release；提交信息里带 `[skip release]` 则整条流水线跳过。
+- 需要指定版本号或发预发布时用 workflow_dispatch 手工触发。Release 说明里的文件名必须与实际产物一致：桌面端 `Mode-<版本>-<平台>-<架构>.<扩展名>`，CLI 仍为 `zcodium-<版本>.tar.gz`。
 - 每个 PR 必须关联至少一个 Issue：在 PR 正文写 `Closes #<编号>`（合并后自动关闭），或在 PR 右侧 Development 手动关联。
 - 关联与否以 GitHub 原生语义为准（`closingIssuesReferences`），由 `.github/workflows/require-issue.yml` 的 `linked-issue` 检查执行；该检查已加入 `main-protection` ruleset 的必需状态检查，无豁免，机器人 / draft PR 同样适用。
 - 动手前先创建或认领对应 Issue，再开 PR；未关联 Issue 的 PR 无法合并。
