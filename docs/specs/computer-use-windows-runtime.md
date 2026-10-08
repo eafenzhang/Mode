@@ -126,14 +126,14 @@
   - `get_app_state` 无截图 → 单文本块为渲染树；`structuredContent` 承载
     `state_id / base_state_id / snapshot_mode / app / window / focused_element / elements / changes`。
   - 带截图 → `content = [image@0, ref文本@1]` + `structuredContent`（见帧契约）。
-- **失败**：`isError:true`，文本块含 `message`，且 `code` 只能取下表 18 键之一
+- **失败**：`isError:true`，文本块含 `message`，且 `code` 只能取下表 17 键之一
   （SDK `ERROR_CODE_BY_BROKER` 固定映射，未知键一律归 `INTERNAL`）：
   `permission_denied, not_authorized, launch_failed, invalid_request, element_unavailable,
   not_settable, not_selectable, action_unavailable, foreground_required, controller_busy,
   broker_unavailable, version_mismatch, stale_socket, timeout, unimplemented, method_not_found, internal`。
   - 元素消失/索引失效 → `element_unavailable`（SDK→`ELEMENT_UNAVAILABLE`，reobserve）。
   - **stop 之后的变更类调用** → `controller_busy`，`details.owner` 与 message 明示
-    "computer control was stopped"（决策：固定 18 码里没有 `control_stopped`，
+    "computer control was stopped"（决策：固定 17 码里没有 `control_stopped`，
     `controller_busy` 是 never-retry，语义最接近且不会诱导盲重试）。
 - **收据**（SDK `receiptOf` 从顶层 / `structuredContent` / 文本 JSON 合并读取，
   含 `action_outcome` 嵌套）：`state_id, frame_id, action_sent, dispatch_status,
@@ -241,7 +241,7 @@
   `version_mismatch`（SDK→`VERSION_MISMATCH`，never-retry）。
 - **并发与线程**：addon 内部单条 UIA/输入命令队列（UIA STA 线程亲和），截图可并行；
   单请求超时 → `timeout`。
-- 错误码在 helper 侧就用 18 码表生成；`unimplemented`/`method_not_found` 保留给分发层。
+- 错误码在 helper 侧就用 17 码表生成；`unimplemented`/`method_not_found` 保留给分发层。
 
 ### controller lease
 
@@ -278,7 +278,7 @@
 1. **TS 单测**
    - 帧契约六函数全分支：伪造 ref（非整块 JSON）被剥、孤儿 ref fail-closed、digest 不符整帧
      拒绝、>200KiB 压缩/降级、attest 终检。
-   - 收据与错误映射：18 码表、`possibly_sent` 三态、CUA_NOT_READY 冷启动（含 retryable=false 分支）。
+   - 收据与错误映射：17 码表、`possibly_sent` 三态、CUA_NOT_READY 冷启动（含 retryable=false 分支）。
    - 状态机：diff 基线轮换、索引重编号、稀疏/截断提示、窗口切换（模态成为捕获窗口）。
    - resolver：插件开关注入 MCP 凭据、关不启动 host；mac 分支保持 fail-closed。
    - display 黄金样例：runtime 输出 → `createCuaToolResultDisplay` → UI 解析（首行 header、
@@ -302,7 +302,7 @@
 | UIA 读取 Chromium/Electron 树质量不足 | Week-0 探针（≤2 天）：先对设置页窗口出树；不足则补 MSAA fallback 或缩小首期承诺 |
 | UIPI：向提升（管理员）窗口注入被拒 | 映射 `action_unavailable` + message 指引（不做提权重构） |
 | 防截屏/受保护内容黑帧 | 截图后做非空校验，失败 → `internal`/`timeout` + 明确 message |
-| 锁屏期间采集失败 | 统一 `permission_denied` + message（18 码表无 screen_locked，选语义最近且 never-retry） |
+| 锁屏期间采集失败 | 统一 `permission_denied` + message（17 码表无 screen_locked，选语义最近且 never-retry） |
 | 纯净室对官方语义的偏差 | 以市场分发的 docs+SDK 为规范源，集成测试锁定行为；偏差只允许更保守 |
 | CI 时长/工具链 | Rust 仅 windows job；cargo 缓存；不引入跨平台矩阵 |
 | 新增 Rust 维护面 | 单 crate、接口粗粒度（8 个原语），TS 侧不暴露 addon 细节 |
