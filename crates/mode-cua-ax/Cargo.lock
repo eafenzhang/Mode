@@ -187,6 +187,7 @@ dependencies = [
  "napi-sys",
  "once_cell",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

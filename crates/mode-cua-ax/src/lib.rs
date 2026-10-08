@@ -1,8 +1,9 @@
 #![deny(clippy::unwrap_used)]
 // 模块必须 pub：集成测试（tests/*.rs）直接调用纯逻辑函数，napi 包装只做错误转码。
-// capture 已落地（Task 4）；perform/launch/screen/input/clipboard 由 Task 5-6
+// capture/perform/input/clipboard 已落地（Task 4/5）；launch/screen 由 Task 6
 // 创建各自文件时追加自己的 pub mod 行——提前声明会编译失败。
-pub mod apps; pub mod capture; pub mod error; pub mod observe; pub mod uia_thread;
+pub mod apps; pub mod capture; pub mod clipboard; pub mod error; pub mod input; pub mod observe;
+pub mod perform; pub mod uia_thread;
 use napi_derive::napi;
 use error::AxResult;
 
@@ -50,6 +51,31 @@ pub fn list_windows(pid: Option<u32>) -> napi::Result<Vec<WindowRowNapi>> { to_n
 pub fn observe(req: ObserveRequestNapi) -> napi::Result<ObserveResultNapi> {
   to_napi(observe::observe(req.window_id,
     req.max_elements.unwrap_or(observe::DEFAULT_MAX_ELEMENTS)))
+}
+
+// payload 是入参面的自由 JSON（形状随 kind 变），serde_json::Value 经 napi serde 特性互转；
+// 不加 use_nullable（入参口径同 ObserveRequestNapi）。
+#[napi(object)]
+pub struct PerformRequestNapi {
+  pub kind: String,
+  pub window_id: u32,
+  pub payload: serde_json::Value,
+}
+
+// use_nullable：结果面口径（Task 2/4），字段恒在时为无害一致。
+#[napi(object, use_nullable = true)]
+pub struct PerformResultNapi {
+  /// "dispatched" | "not_dispatched" | "unknown"
+  pub dispatched: String,
+}
+
+#[napi(js_name = "perform")]
+pub fn perform_napi(req: PerformRequestNapi) -> napi::Result<PerformResultNapi> {
+  to_napi(
+    perform::parse_req(&req.kind, &req.payload)
+      .and_then(|parsed| perform::perform(&parsed, req.window_id))
+      .map(|dispatched| PerformResultNapi { dispatched }),
+  )
 }
 
 fn to_napi<T>(r: AxResult<T>) -> napi::Result<T> {

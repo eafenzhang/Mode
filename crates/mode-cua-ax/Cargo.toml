@@ -9,7 +9,9 @@ license = "MIT"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-napi = { version = "2", features = ["serde"] }
+# serde-json：napi 的 serde_json::Value ⇄ JS 互转实现由该 feature 门控（serde 本身不够，
+# Task 5 的 perform.payload 需要——编译期实测）。
+napi = { version = "2", features = ["serde", "serde-json"] }
 napi-derive = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -24,6 +26,8 @@ windows = { version = "0.58", features = [
   "Win32_Storage_Packaging_Appx",
   # Task 4：windows 0.58 把 PrintWindow/PRINT_WINDOW_FLAGS 归在 Storage::Xps（不在 UI_Shell），编译强制新增。
   "Win32_Storage_Xps",
+  # Task 5：剪贴板 GlobalAlloc/GlobalLock/GlobalUnlock（Win32::System::Memory），编译强制新增。
+  "Win32_System_Memory",
 ] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 

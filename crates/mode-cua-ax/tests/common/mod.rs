@@ -19,7 +19,7 @@ use std::thread::JoinHandle;
 
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::LibraryLoader::{GetModuleHandleW, LoadLibraryW};
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 /// NUL 结尾的 UTF-16 序列；调用方保证其存活期覆盖 Win32 调用。
@@ -78,7 +78,11 @@ impl Drop for Fixture {
   }
 }
 
-/// 建一个顶层窗口，内嵌 EDIT + BUTTON；独立线程跑消息泵；返回 hwnd。
+/// 建一个顶层窗口，内嵌 EDIT + BUTTON + RichEdit50W；独立线程跑消息泵；返回 hwnd。
+/// （Task 5 追加 RichEdit：单行 EDIT 实测只暴露 UIA ValuePattern，`select_text` 的
+/// TextPattern 路径需要一个原生 UIA 文本提供者——msftedit.dll 的 RichEdit50W（实测
+/// 暴露 TextPattern；riched20.dll 的 RichEdit20W 不暴露）。既有用例按 kind/value
+/// 定位控件，新增子窗口不影响它们的断言。）
 pub fn spawn_fixture() -> Fixture {
   let (ready_tx, ready_rx) = mpsc::channel();
   let class = wide("ModeCuaTest");
@@ -139,6 +143,28 @@ pub fn spawn_fixture() -> Fixture {
       28,
       hwnd,
       HMENU(std::ptr::without_provenance_mut(2)),
+      None,
+      None,
+    )
+    .unwrap();
+    // Task 5：RichEdit50W = UIA TextPattern 宿主（select_text 用例）。类由 msftedit.dll
+    // 注册：LoadLibrary 引用计数常驻到进程结束；创建失败直接 panic（夹具不完整即失败）。
+    // WHY msftedit 而非 riched20 的 RichEdit20W：pattern 探针实测 RichEdit20W 不暴露
+    // TextPattern（GetCurrentPatternAs 失败），RichEdit50W 暴露（text=true）。
+    let rich_cls = wide("RichEdit50W");
+    let rich_dll = wide("msftedit.dll");
+    let _ = LoadLibraryW(PCWSTR(rich_dll.as_ptr()));
+    CreateWindowExW(
+      WINDOW_EX_STYLE::default(),
+      PCWSTR(rich_cls.as_ptr()),
+      PCWSTR(wide("rich text").as_ptr()),
+      WS_CHILD | WS_VISIBLE,
+      10,
+      90,
+      200,
+      40,
+      hwnd,
+      HMENU(std::ptr::without_provenance_mut(3)),
       None,
       None,
     )

@@ -26,7 +26,13 @@ use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
 /// 单请求超时（spec「单请求超时 → timeout」）。
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// 发往 STA 线程的命令。GDI 截图（Task 4）与 observe 串行共线程；Task 5 的 perform 在此追加变体。
+/// `Cmd::Perform` 的命令体：在 STA 线程上执行、接收 automation 获取结果（创建失败以
+/// `Err` 进入，结果经闭包捕获的 reply 通道回传）。`for<'a>` 高阶界让闭包接受任意
+/// 生命周期借用的 automation（借用仅在单次命令调用内成立）。
+type PerformRun = Box<dyn for<'a> FnOnce(AxResult<&'a IUIAutomation>) + Send>;
+
+/// 发往 STA 线程的命令。GDI 截图（Task 4）与 observe 串行共线程；Task 5 的 perform
+/// 在此追加变体。
 enum Cmd {
   Observe {
     window_id: u32,
@@ -39,6 +45,11 @@ enum Cmd {
     full_screen: bool,
     reply: Sender<AxResult<CaptureResultNapi>>,
   },
+  /// Task 5：perform 的 UIA pattern 调用（ValuePattern/TextPattern/Invoke 等跨进程
+  /// 消息目标）。闭包在 STA 线程执行；**泛型结果不进 Cmd**——work 的 reply 通道由
+  /// `submit_perform` 装进闭包捕获，Cmd 本身保持非泛型（Rust 枚举变体不能带泛型参数）。
+  /// automation 创建失败也交由闭包按 `Err` 处理（保住 internal 而非降级成断连 timeout）。
+  Perform { run: PerformRun },
 }
 
 /// 单例槽：(世代号, 命令 sender)；Some 即「线程已 spawn」。
@@ -121,6 +132,19 @@ pub(crate) fn submit_capture(
   })
 }
 
+/// perform 的 UIA pattern 命令投递（语义见 `submit`）：30s 超时/discard 同一条路径。
+/// `work` 收 `automation` 的获取结果——拿到 `&IUIAutomation` 即在 STA 线程执行 UIA 调用；
+/// 拿不到（COM 创建失败）以 `Err` 进入 `work`，原样回传错误码。
+pub(crate) fn submit_perform<T: Send + 'static>(
+  work: impl for<'a> FnOnce(AxResult<&'a IUIAutomation>) -> AxResult<T> + Send + 'static,
+) -> AxResult<T> {
+  submit(move |reply| Cmd::Perform {
+    run: Box::new(move |auto| {
+      let _ = reply.send(work(auto));
+    }),
+  })
+}
+
 /// STA 线程主体：初始化 COM → 串行消费命令。
 fn sta_loop(rx: Receiver<Cmd>) {
   // 全新线程上必为 S_OK；即便失败也继续——后续 UIA 调用会自带错误并被映射。
@@ -166,6 +190,17 @@ fn sta_loop(rx: Receiver<Cmd>) {
           Err(_) => Err(AxError::internal("capture 命令处理 panic")),
         };
         let _ = reply.send(outcome);
+      }
+      Cmd::Perform { run } => {
+        // pattern 调用触碰 COM 对象，panic 后缓存不可信——与 observe 同口径丢弃重建；
+        // reply 通道活在闭包里，panic 展开即断连 → submit 侧映射 timeout（与 observe 一致）。
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+          run(with_automation(&mut automation));
+        }))
+        .is_err();
+        if panicked {
+          automation = None;
+        }
       }
     }
   }
