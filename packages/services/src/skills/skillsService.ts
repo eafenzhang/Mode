@@ -54,7 +54,9 @@ const GIT_MARKER = ".git";
 const HOME_PREFIX = "~/";
 const MODE_OFFICIAL_PLUGIN_MARKETPLACE = "zcode-plugins-official";
 const MODE_INLINE_PLUGIN_MARKETPLACE = "inline";
-const MODE_PLUGIN_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
+const MODE_PLUGIN_MANIFEST_PATH = join(".mode-plugin", "plugin.json");
+/** 改名前的清单目录（.zcode-plugin）：继续可读。 */
+const MODE_LEGACY_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
 const CLAUDE_PLUGIN_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_PLUGIN_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 
@@ -743,6 +745,7 @@ async function readPluginManifest(rootPath: string): Promise<PluginManifestSumma
 async function findPluginManifestPath(rootPath: string): Promise<string | null> {
   for (const manifestPath of [
     join(rootPath, MODE_PLUGIN_MANIFEST_PATH),
+    join(rootPath, MODE_LEGACY_MANIFEST_PATH),
     join(rootPath, CLAUDE_PLUGIN_MANIFEST_PATH),
     join(rootPath, CODEX_PLUGIN_MANIFEST_PATH),
   ]) {

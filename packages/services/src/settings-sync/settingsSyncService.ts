@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- settings-sync 需要集中维护外部 skills/commands/plugins/MCP 扫描、去重和导入状态机，后续按资源类别拆分 */
+import { existsSync } from "node:fs";
 import type {
   McpServerConfig,
   SettingsSyncAgent,
@@ -411,7 +412,9 @@ const SUPPORTED_MCP_AGENT_SOURCES: ExternalAgentMcpPathSource[] = [
   },
 ];
 
-const MODE_PLUGIN_MANIFEST_PATH = [".zcode-plugin", "plugin.json"] as const;
+const MODE_PLUGIN_MANIFEST_PATH = [".mode-plugin", "plugin.json"] as const;
+/** 改名前的清单目录（.zcode-plugin）：继续可读。 */
+const MODE_LEGACY_PLUGIN_MANIFEST_PATH = [".zcode-plugin", "plugin.json"] as const;
 const CLAUDE_PLUGIN_MANIFEST_PATH = [".claude-plugin", "plugin.json"] as const;
 const CODEX_PLUGIN_MANIFEST_PATH = [".codex-plugin", "plugin.json"] as const;
 const INLINE_PLUGIN_MARKETPLACE = "inline";
@@ -778,7 +781,10 @@ async function collectCommandMarkdownPaths(rootPath: string): Promise<string[]> 
 }
 
 async function findPluginManifestPath(pluginPath: string): Promise<string | null> {
-  const modeManifestPath = join(pluginPath, ...MODE_PLUGIN_MANIFEST_PATH);
+  const modeManifestPath =
+    [MODE_PLUGIN_MANIFEST_PATH, MODE_LEGACY_PLUGIN_MANIFEST_PATH]
+      .map((parts) => join(pluginPath, ...parts))
+      .find((candidate) => existsSync(candidate)) ?? join(pluginPath, ...MODE_PLUGIN_MANIFEST_PATH);
   if (await pathExists(modeManifestPath)) {
     return modeManifestPath;
   }
