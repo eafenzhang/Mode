@@ -3769,6 +3769,9 @@ const enUS: Record<string, string> = {
   "settings.plugins.store.subtitle":
     "Extend Mode with skills, commands, and MCP servers from plugins",
   "settings.plugins.store.searchPlaceholder": "Search plugins",
+  "settings.plugins.store.segment.public": "Public",
+  "settings.plugins.store.segment.personal": "Personal",
+  "settings.plugins.store.featured": "Featured",
   "settings.plugins.store.searchResults": "Search results ({count})",
   "settings.plugins.store.searchEmpty": "No plugins match your search",
   "settings.plugins.store.installedStrip": "Installed",
@@ -3844,6 +3847,8 @@ const enUS: Record<string, string> = {
   "settings.plugins.marketplaces.plugins": "{count} plugins",
   "settings.plugins.marketplaces.refreshCatalogHint": "Refresh to load the official catalog.",
   "settings.plugins.marketplacePlugins.title": "Marketplace plugins",
+  "settings.plugins.marketplacePlugins.empty": "No marketplace plugins found",
+  "settings.plugins.marketplace.catalogLoading": "Loading plugins…",
   "settings.plugins.marketplacePlugins.install": "Install",
   "settings.plugins.marketplacePlugins.installed": "Installed",
   "settings.plugins.marketplace.searchPlaceholder": "Search Plugins, Skills, MCPs...",

@@ -2661,6 +2661,13 @@ export function SessionPane({
         return;
       }
       // 附件 ref 已在 composer 预传状态机中收口。
+      // 订阅只从武装那一刻起收事件、且每轮终态释放，所以必须在提示进入 Agent 之前武装；
+      // 提问回显仍等 ACK（被拒的发送不该在 IM 侧留下幽灵提问）。
+      await botsService.armConversationReplyMirror({
+        taskId: sessionId,
+        workspacePath,
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+      });
       const ack = await dispatchSubmissionCommand(
         "sendText",
         {

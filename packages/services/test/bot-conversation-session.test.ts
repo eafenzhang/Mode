@@ -174,6 +174,37 @@ test("服务层契约：上下文按对话槽位读写，绑定/投影/镜像都
     source.includes("async listBotConversations("),
     "必须提供候选对话列表供绑定菜单选择",
   );
+  // 4.5) 桌面端发起回合也必须武装助手回复的镜像订阅：
+  // 订阅在每个回合终态都会释放，只在 IM 入站路径武装会让 UI 发起的回复永远推不到 IM。
+  const armBlock = source.slice(
+    source.indexOf("async armConversationReplyMirror(params: {"),
+    source.indexOf("async armConversationReplyMirror(params: {") + 2000,
+  );
+  assert.ok(
+    armBlock.includes("await ensureContextStreamWatch(bot, context);"),
+    "armConversationReplyMirror 必须按对话武装 ensureContextStreamWatch",
+  );
+  const notifyBlock = source.slice(
+    source.indexOf("async notifyDesktopUserMessage(params: {"),
+    source.indexOf("async notifyDesktopUserMessage(params: {") + 1400,
+  );
+  assert.ok(
+    notifyBlock.includes("await this.armConversationReplyMirror(params);"),
+    "提问回显路径也必须幂等武装同一订阅",
+  );
+  // 订阅只从武装那一刻起收事件：UI 必须在提示进入 Agent 之前 await 武装。
+  const sessionPane = await import("node:fs/promises").then((fs) =>
+    fs.readFile(new URL("../../../packages/ui/src/v4/SessionPane.tsx", import.meta.url), "utf8"),
+  );
+  const armIndex = sessionPane.indexOf("await botsService.armConversationReplyMirror({");
+  assert.ok(armIndex > 0, "UI 发送路径缺少 armConversationReplyMirror");
+  // 武装之后紧接着才是同一段里的 sendText 派发（同一函数体内）。
+  const dispatchIndex = sessionPane.indexOf("dispatchSubmissionCommand(", armIndex);
+  assert.ok(
+    dispatchIndex > armIndex && dispatchIndex - armIndex < 800,
+    "武装必须紧邻且早于 sendText 派发：晚于 ACK 会整轮漏收事件（短回合直接静默）",
+  );
+
   // 5) 桌面镜像：谁持有会话就往谁的对话发
   assert.ok(
     source.includes("const mirrorUserId =") &&

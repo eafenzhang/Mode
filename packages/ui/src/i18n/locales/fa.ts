@@ -3727,6 +3727,9 @@ const faIR: Record<string, string> = {
   "settings.plugins.store.subtitle":
     "Mode را با مهارت‌ها، دستورها و سرورهای MCP از افزونه‌ها گسترش دهید",
   "settings.plugins.store.searchPlaceholder": "جستجوی افزونه‌ها",
+  "settings.plugins.store.segment.public": "عمومی",
+  "settings.plugins.store.segment.personal": "شخصی",
+  "settings.plugins.store.featured": "برگزیده",
   "settings.plugins.store.searchResults": "نتایج جستجو ({count})",
   "settings.plugins.store.searchEmpty": "هیچ افزونه‌ای با جستجوی شما مطابقت ندارد",
   "settings.plugins.store.installedStrip": "نصب‌شده",
@@ -3802,6 +3805,8 @@ const faIR: Record<string, string> = {
   "settings.plugins.marketplaces.plugins": "{count} افزونه",
   "settings.plugins.marketplaces.refreshCatalogHint": "برای بارگذاری کاتالوگ رسمی تازه‌سازی کنید.",
   "settings.plugins.marketplacePlugins.title": "افزونه‌های بازار",
+  "settings.plugins.marketplacePlugins.empty": "افزونه‌ای در بازار یافت نشد",
+  "settings.plugins.marketplace.catalogLoading": "در حال بارگذاری افزونه‌ها…",
   "settings.plugins.marketplacePlugins.install": "نصب",
   "settings.plugins.marketplacePlugins.installed": "نصب‌شده",
   "settings.plugins.marketplace.searchPlaceholder": "جستجوی افزونه‌ها، مهارت‌ها، MCPها...",

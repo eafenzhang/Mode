@@ -1285,6 +1285,16 @@ async function resolvePluginSourceRoot(input: {
     if (local && directoryExists(local)) return { path: local };
     const fallback = resolve(source);
     if (directoryExists(fallback)) return { path: fallback };
+    // manifest-only 市场（大 catalog 只拉了目录）没有落盘插件源码：
+    // Claude Code 官方目录用裸相对路径（"./plugins/x"）指向同仓插件，
+    // 这里与 { source: "local", path } 走同一条按需稀疏检出路径。
+    const fetchedFromRepo = await fetchMarketplacePluginFromRepo({
+      marketplace: input.marketplace,
+      pluginPath: source.startsWith("./") ? source.slice(2) : source,
+      signal: input.signal,
+      storageRoot: input.storageRoot,
+    });
+    if (fetchedFromRepo) return fetchedFromRepo;
     throw new Error(`Unsupported or missing plugin source: ${source}`);
   }
   if (isRecord(source)) {

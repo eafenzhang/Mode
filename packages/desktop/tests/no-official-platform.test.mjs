@@ -42,6 +42,9 @@ test("runtime official URL literals are restricted to identity and user-opened l
     // 官方插件市场来源：只在 officialServices.marketplace 开关开启（Desktop env 投影或 CLI env）时
     // 才进入默认市场集合，网络出口仍受 assertOfficialPlatformAccessible 与开关裁决。
     "packages/shared/src/plugin-marketplaces.ts",
+    // 随包内置的官方插件目录快照：URL 只是目录数据（插件的下载地址），
+    // 仅在用户主动安装该插件时才被请求；浏览、图标与描述全部离线。
+    "apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
   ]);
   for (const dir of [
     "packages/services/src",

@@ -20,6 +20,7 @@ import {
   removeOfficialPluginCacheDirectory,
   renameOfficialPluginCachePath,
 } from "./official-plugin-cache-fs.js";
+import { BUNDLED_OFFICIAL_PLUGIN_CATALOG } from "./official-plugin-catalog.generated.js";
 import {
   OFFICIAL_PLUGIN_DEFINITIONS,
   type OfficialPluginDefinition,
@@ -407,10 +408,19 @@ function readSeedFileBytes(
 }
 
 function writeOfficialMarketplace(storageRoot: string, source: OfficialPluginSeedSource): void {
+  // 随包内置的官方目录快照（url/filesystem 条目）与随包插件包条目合并成一个本地分片：
+  // 官方 CDN 目录已下线，公开分段的浏览面完全来自这份随包快照，离线可用。
+  const bundledPackageNames = new Set(source.plugins.map((plugin) => plugin.definition.name));
+  const catalogEntries = (BUNDLED_OFFICIAL_PLUGIN_CATALOG.plugins as readonly Record<string, unknown>[])
+    .filter((entry) => {
+      const name = typeof entry.name === "string" ? entry.name : "";
+      return name.length > 0 && !bundledPackageNames.has(name);
+    })
+    .map((entry) => ({ ...entry }));
   writeBundledOfficialMarketplacePartitionSync({
     manifest: {
       name: OFFICIAL_PLUGIN_MARKETPLACE,
-      plugins: source.plugins.map((plugin) => {
+      plugins: [...catalogEntries, ...source.plugins.map((plugin) => {
         // 商店信息（listing）与描述随目录条目下发：键名与 CDN 目录 schema 一致，
         // 由 adapter 的同一套 parseEntryStoreListing 解析，UI 才能给内置插件渲染
         // 显示名/分类/作者/示例提示词。描述取自插件包内 plugin.json（单一事实源）。
@@ -424,6 +434,7 @@ function writeOfficialMarketplace(storageRoot: string, source: OfficialPluginSee
           ...(plugin.definition.listing ?? {}),
         };
       }),
+      ],
       version: 1,
     },
     storageRoot,

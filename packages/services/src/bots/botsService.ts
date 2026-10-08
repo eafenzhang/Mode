@@ -7006,6 +7006,36 @@ export function createBotsService(
      * 转发到 IM 会话，与 IM→桌面方向合起来构成双向实时同步。
      * 由渲染层在用户主动发送时调用（天然排除机器人自身产生的回合，不会回声）。
      */
+    /**
+     * 桌面端发送前的镜像武装：给绑定到该 task 的每个对话挂上助手回复流订阅。
+     * 与提问回显分开，是因为订阅必须早于提示进入 Agent（晚一轮就整轮收不到事件）。
+     */
+    async armConversationReplyMirror(params: {
+      taskId: string;
+      workspacePath: string;
+      workspaceIdentity?: string;
+    }): Promise<void> {
+      const state = await repo.readState();
+      const config = await repo.readConfig();
+      const workspaceKey = getWorkspaceKey(params.workspacePath, params.workspaceIdentity);
+      for (const [botId, channel] of Object.entries(state.bots)) {
+        const bot = findBot(config, botId);
+        if (!bot || !bot.enabled) {
+          continue;
+        }
+        for (const context of Object.values(channel.conversations)) {
+          if (
+            context.mode !== "task" ||
+            context.activeTaskId !== params.taskId ||
+            getWorkspaceKey(context.workspacePath, context.workspaceIdentity) !== workspaceKey
+          ) {
+            continue;
+          }
+          await ensureContextStreamWatch(bot, context);
+        }
+      }
+    },
+
     async notifyDesktopUserMessage(params: {
       taskId: string;
       workspacePath: string;
@@ -7016,6 +7046,8 @@ export function createBotsService(
       if (!text) {
         return;
       }
+      // 幂等复用同一条武装逻辑，覆盖「回显先于武装」的调用顺序。
+      await this.armConversationReplyMirror(params);
       const state = await repo.readState();
       const config = await repo.readConfig();
       const workspaceKey = getWorkspaceKey(params.workspacePath, params.workspaceIdentity);

@@ -279,6 +279,17 @@ export interface IBotsService {
     text: string;
   }): Promise<void>;
 
+  /**
+   * 桌面端发送前的镜像武装：为绑定到该 task 的对话挂上助手回复的流订阅。
+   * 流订阅只从武装那一刻开始收事件（且每轮终态会释放），因此必须在提示进入 Agent 之前调用；
+   * 提问回显仍走 notifyDesktopUserMessage（ACK 之后），避免被拒的发送在 IM 侧留下幽灵提问。
+   */
+  armConversationReplyMirror(params: {
+    taskId: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<void>;
+
   /** 在 automation prompt 派发前订阅终态，并把结果回推到创建它的 Bot 会话。 */
   watchAutomationRun(params: BotAutomationRunWatchParams): Promise<void>;
   handleInboundMessage(message: BotInboundMessage): Promise<BotOutboundMessage[]>;

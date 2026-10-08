@@ -4,6 +4,7 @@ import pdfIconUrl from "@/assets/plugin-icons/pdf.png";
 import pluginCreatorIconUrl from "@/assets/plugin-icons/plugin-creator.png";
 import presentationsIconUrl from "@/assets/plugin-icons/presentations.png";
 import spreadsheetsIconUrl from "@/assets/plugin-icons/spreadsheets.png";
+import { ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME } from "@/settings/zcodeOfficialPluginIcons.generated.js";
 import { isTrustedImageUrl } from "@/lib/trustedImageUrl.js";
 
 const OFFICIAL_PLUGIN_ICON_BY_ID: Readonly<Record<string, string>> = {
@@ -15,7 +16,24 @@ const OFFICIAL_PLUGIN_ICON_BY_ID: Readonly<Record<string, string>> = {
   "spreadsheets@zcode-plugins-official": spreadsheetsIconUrl,
 };
 
-const TRUSTED_BUNDLED_PLUGIN_ICONS = new Set(Object.values(OFFICIAL_PLUGIN_ICON_BY_ID));
+/**
+ * ZCode 官方目录（zcode-plugins-official）随包内置的插件图标：
+ * 目录清单里的 icon 指向 CDN，客户端一律用随包资源覆盖，离线也能显示原版图标。
+ */
+const ZCODE_OFFICIAL_CATALOG_ICON_BY_ID: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME).map(([name, url]) => [
+    `${name}@zcode-plugins-official`,
+    url,
+  ]),
+);
+
+/** 内置图标总表：官方目录随包快照 + 客户端自带的六个官方插件图标。 */
+const ALL_BUNDLED_PLUGIN_ICONS: Readonly<Record<string, string>> = {
+  ...ZCODE_OFFICIAL_CATALOG_ICON_BY_ID,
+  ...OFFICIAL_PLUGIN_ICON_BY_ID,
+};
+
+const TRUSTED_BUNDLED_PLUGIN_ICONS = new Set(Object.values(ALL_BUNDLED_PLUGIN_ICONS));
 
 /** 按完整身份解析客户端自有图标，避免商店、候选和消息各自维护不同例外。 */
 export function resolvePluginIconSource(
@@ -23,7 +41,7 @@ export function resolvePluginIconSource(
   icon?: string,
 ): string | undefined {
   if (pluginId) {
-    const bundledIcon = OFFICIAL_PLUGIN_ICON_BY_ID[pluginId];
+    const bundledIcon = ALL_BUNDLED_PLUGIN_ICONS[pluginId];
     if (bundledIcon) return bundledIcon;
   }
   return isTrustedImageUrl(icon) ? icon : undefined;

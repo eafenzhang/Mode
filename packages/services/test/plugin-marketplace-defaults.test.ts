@@ -3,8 +3,11 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import {
   BUILTIN_DEFAULT_MARKETPLACE_IDS,
+  CLAUDE_PLUGIN_MARKETPLACE_ID,
+  CLAUDE_PLUGIN_MARKETPLACE_SOURCE,
   CODEX_PLUGIN_MARKETPLACE_ID,
   CODEX_PLUGIN_MARKETPLACE_SOURCE,
+  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
   DEFAULT_PLUGIN_MARKETPLACES,
   RETIRED_DEFAULT_MARKETPLACES,
   isBuiltinDefaultMarketplaceId,
@@ -13,43 +16,55 @@ import {
   resolveDefaultPluginMarketplaces,
 } from "@zcode/shared";
 
-// 需求：插件市场默认带上 Codex 插件源（.agents/plugins/marketplace.json 约定），
-// 并且这个默认源要能在刷新后自动补种（不会被页面刷新/重启清掉），插件自带图标缺失时
-// 由 UI 用市场品牌图标兜底。这里钉住默认集合与「预置源不可移除」的判据。
+// 需求演进：Codex 聚合目录与 Claude 官方目录都不再作为默认源（改为退役清单精确清理），
+// 公开分段固定为随包内置的 ZCode 官方插件目录（zcode-plugins-official）。
+// 这里钉住默认集合、退役清单与「预置源不可移除」的判据。
 
-test("默认市场集合包含 Codex 插件源，且不受官方市场开关影响", () => {
-  const codex = DEFAULT_PLUGIN_MARKETPLACES.find((item) => item.id === CODEX_PLUGIN_MARKETPLACE_ID);
-  assert.ok(codex, "缺少 Codex 默认市场");
-  assert.equal(codex.source, CODEX_PLUGIN_MARKETPLACE_SOURCE);
-  // id 必须与目标市场 manifest 声明的 name 一致，否则刷新时会多出一条挂空记录。
-  assert.equal(codex.id, codex.name);
+test("Codex / Claude 默认源已退役：不在默认集合，且登记为精确清理", () => {
+  const defaultIds = DEFAULT_PLUGIN_MARKETPLACES.map((item) => item.id);
+  assert.ok(!defaultIds.includes(CODEX_PLUGIN_MARKETPLACE_ID), "Codex 源不应再默认预置");
+  assert.ok(!defaultIds.includes(CLAUDE_PLUGIN_MARKETPLACE_ID), "Claude 源不应再默认预置");
 
-  // 官方源受 isOfficialServiceEnabled 过滤；Codex 源是普通来源，任何开关下都在默认集合里。
-  const resolvedIds = resolveDefaultPluginMarketplaces().map((item) => item.id);
-  assert.ok(resolvedIds.includes(CODEX_PLUGIN_MARKETPLACE_ID), "Codex 源应始终进入默认集合");
-});
-
-test("预置源判据：Codex 源不可移除，且不算「公开」分段", () => {
-  assert.equal(isBuiltinDefaultMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), true);
-  assert.equal(isCodexPluginMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), true);
-  // 公开分段仍只有官方市场：Codex 源不改变商店分段语义。
-  assert.equal(isPublicStoreMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), false);
-  assert.ok(
-    (BUILTIN_DEFAULT_MARKETPLACE_IDS as readonly string[]).includes(CODEX_PLUGIN_MARKETPLACE_ID),
+  const retiredCodex = RETIRED_DEFAULT_MARKETPLACES.find(
+    (entry) => entry.id === CODEX_PLUGIN_MARKETPLACE_ID,
   );
-});
-
-// 默认源指向的是社区聚合目录（codex 生态全部插件），不是单个作者仓库：
-// 早期默认源只有一个插件，用户反馈"添加了 codex 源却看不到所有插件"。
-test("默认 Codex 源是聚合目录，且旧默认源进入退役清单", () => {
+  assert.ok(retiredCodex, "Codex 源应登记为退役");
+  assert.equal(retiredCodex.source, CODEX_PLUGIN_MARKETPLACE_SOURCE);
   assert.equal(CODEX_PLUGIN_MARKETPLACE_SOURCE, "hashgraph-online/awesome-codex-plugins");
-  const retired = RETIRED_DEFAULT_MARKETPLACES.find((entry) => entry.id === "xiu86-codex-plugins");
-  assert.ok(retired, "旧默认源应登记为退役，种子阶段精确清理");
-  assert.equal(retired.source, "xiu86/codex-plugins");
-  assert.ok(
-    !DEFAULT_PLUGIN_MARKETPLACES.some((entry) => entry.id === retired.id),
-    "退役源不应再出现在默认集合里",
+
+  const retiredClaude = RETIRED_DEFAULT_MARKETPLACES.find(
+    (entry) => entry.id === CLAUDE_PLUGIN_MARKETPLACE_ID,
   );
+  assert.ok(retiredClaude, "Claude 源应登记为退役");
+  assert.equal(retiredClaude.source, CLAUDE_PLUGIN_MARKETPLACE_SOURCE);
+
+  assert.ok(RETIRED_DEFAULT_MARKETPLACES.some((entry) => entry.id === "xiu86-codex-plugins"));
+  const resolvedIds = resolveDefaultPluginMarketplaces().map((item) => item.id);
+  assert.ok(!resolvedIds.includes(CODEX_PLUGIN_MARKETPLACE_ID));
+});
+
+test("预置源判据：官方目录是唯一预置源，且属于「公开」分段", () => {
+  assert.equal(isBuiltinDefaultMarketplaceId(ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID), true);
+  assert.equal(isPublicStoreMarketplaceId(ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID), true);
+  assert.equal(isPublicStoreMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), false);
+  assert.deepEqual([...BUILTIN_DEFAULT_MARKETPLACE_IDS], [ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID]);
+  assert.equal(isCodexPluginMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), true);
+});
+
+// 公开分段的浏览面来自随包内置的官方目录快照（离线可用，不连 CDN）。
+test("随包官方目录快照存在，id 与市场常量一致且条目充足", async () => {
+  const source = await readFile(
+    new URL(
+      "../../../apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.ok(source.includes('"name": "zcode-plugins-official"'), "快照 name 必须等于市场 id");
+  const entryCount = (source.match(/"name": "/gu) ?? []).length;
+  assert.ok(entryCount >= 20, `随包目录条目过少：${entryCount}`);
+  assert.ok(source.includes('"source": "url"'), "应保留 url 来源条目");
+  assert.ok(!source.includes("\"cachePath\":"), "快照不得写入 per-install 的 cachePath");
 });
 
 // 源码契约：加载器必须认识 Codex 市场的约定位置，否则默认源永远拉不出目录。

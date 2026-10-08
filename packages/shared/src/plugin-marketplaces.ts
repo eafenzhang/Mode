@@ -43,6 +43,11 @@ export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
 export const CODEX_PLUGIN_MARKETPLACE_ID = "awesome-codex-plugins";
 export const CODEX_PLUGIN_MARKETPLACE_SOURCE = "hashgraph-online/awesome-codex-plugins";
 
+
+/** 已退役的第三方默认源 id/来源（仅用于退役清理）。 */
+export const CLAUDE_PLUGIN_MARKETPLACE_ID = "claude-plugins-official";
+export const CLAUDE_PLUGIN_MARKETPLACE_SOURCE = "anthropics/claude-plugins-official";
+
 // 官方市场来源定义保留在表里只为让 id/顺序等结构兼容；官方平台服务已整体下线，
 // 它永远不进入默认市场集合（见 resolveDefaultPluginMarketplaces），也不会被 seed。
 export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
@@ -55,16 +60,8 @@ export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
     description: "Official ZCode plugins marketplace: built-in and community plugins for ZCode.",
     pluginCount: 0,
   },
-  {
-    // Codex 格式插件市场默认预置：ZCodium 能读 .codex-plugin/plugin.json，
-    // 默认挂上 Codex 生态的聚合目录，用户开箱即可浏览/安装 Codex 插件。
-    // 该来源不是官方来源，不受 marketplace 开关影响（保持默认可用）。
-    id: CODEX_PLUGIN_MARKETPLACE_ID,
-    source: CODEX_PLUGIN_MARKETPLACE_SOURCE,
-    name: CODEX_PLUGIN_MARKETPLACE_ID,
-    description: "Community Codex plugin catalog (.agents/plugins/marketplace.json, .codex-plugin format).",
-    pluginCount: 0,
-  },
+
+
 ];
 
 /**
@@ -74,6 +71,10 @@ export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
 export const RETIRED_DEFAULT_MARKETPLACES: ReadonlyArray<{ id: string; source: string }> = [
   // 早期默认源：只有一个插件的示例仓库，已换成聚合目录。
   { id: "xiu86-codex-plugins", source: "xiu86/codex-plugins" },
+  // Codex 聚合目录与 Claude 官方目录不再是默认源：种子阶段按 id + 完全相同的 source 精确清理，
+  // 用户自己添加的同 id 市场不会被误删。
+  { id: CODEX_PLUGIN_MARKETPLACE_ID, source: CODEX_PLUGIN_MARKETPLACE_SOURCE },
+  { id: CLAUDE_PLUGIN_MARKETPLACE_ID, source: CLAUDE_PLUGIN_MARKETPLACE_SOURCE },
 ];
 
 /**
@@ -99,10 +100,7 @@ export function isPublicStoreMarketplaceId(id: string): boolean {
  * 随应用预置的市场（官方 + Codex 格式源）。它们由 ensureDefaultPluginMarketplaces
  * 在每次 overview 时补种：允许删除只会造成「删了又在刷新后回来」的困惑，UI 因此不给移除入口。
  */
-export const BUILTIN_DEFAULT_MARKETPLACE_IDS = [
-  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
-  CODEX_PLUGIN_MARKETPLACE_ID,
-] as const;
+export const BUILTIN_DEFAULT_MARKETPLACE_IDS = [ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID] as const;
 
 export function isBuiltinDefaultMarketplaceId(id: string): boolean {
   return (BUILTIN_DEFAULT_MARKETPLACE_IDS as readonly string[]).includes(id);
@@ -111,3 +109,4 @@ export function isBuiltinDefaultMarketplaceId(id: string): boolean {
 export function isCodexPluginMarketplaceId(id: string): boolean {
   return id === CODEX_PLUGIN_MARKETPLACE_ID;
 }
+

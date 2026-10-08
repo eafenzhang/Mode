@@ -19,7 +19,7 @@ import {
   PluginWarningList,
 } from "@/settings/InstalledPluginManagement.js";
 import { AddMarketplaceSourceDialog } from "@/settings/AddMarketplaceSourceDialog.js";
-import { PluginStoreListView } from "@/settings/PluginStoreListView.js";
+import { PluginStoreListView, type PluginStoreSegment } from "@/settings/PluginStoreListView.js";
 import {
   PluginStoreAdvancedSection,
   PluginStoreDetailView,
@@ -65,7 +65,7 @@ export function PluginStorePage({
   onManageInstalled,
 }: PluginStorePageProps) {
   const { intl, locale } = useZCodeIntl();
-  const { refresh: refreshStoreOrder } = usePluginStoreOrder();
+  const { order: storeOrder, refresh: refreshStoreOrder } = usePluginStoreOrder();
   const { pluginManagementService, skillsService } = useServices();
   const zcodeSessionService = useZCodeSessionService(
     workspacePath ?? undefined,
@@ -98,6 +98,8 @@ export function PluginStorePage({
 
   const [view, setView] = useState<PluginStoreView>("store");
   const [detailPluginId, setDetailPluginId] = useState<string | null>(null);
+  // 公开 = 随包内置的 ZCode 插件源；个人 = 用户自己添加的市场源。
+  const [segment, setSegment] = useState<PluginStoreSegment>("public");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -351,6 +353,8 @@ export function PluginStorePage({
       setAddMarketplaceError(
         succeeded ? null : (usePluginManagementStore.getState().error ?? null),
       );
+      // 自定义市场属个人分段；添加成功后直接切过去，让用户立刻看到刚加的来源。
+      if (succeeded) setSegment("personal");
       return succeeded;
     },
     [addMarketplace, pluginManagementService],
@@ -555,11 +559,15 @@ export function PluginStorePage({
         />
       ) : (
         <PluginStoreListView
+          order={storeOrder}
           items={items}
           marketplaces={marketplaces}
           actions={actions}
           query={query}
           onQueryChange={setQuery}
+          segment={segment}
+          onSegmentChange={setSegment}
+          loading={loading || (operationId?.startsWith("marketplace:update:") ?? false)}
           onOpenManage={onManageInstalled}
         />
       )}
