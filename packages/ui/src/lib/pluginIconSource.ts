@@ -17,10 +17,11 @@ const OFFICIAL_PLUGIN_ICON_BY_ID: Readonly<Record<string, string>> = {
 };
 
 /**
- * ZCode 官方目录（zcode-plugins-official）随包内置的插件图标：
- * 目录清单里的 icon 指向 CDN，客户端一律用随包资源覆盖，离线也能显示原版图标。
+ * 随包内置的插件图标（按插件名索引）：
+ * 官方目录清单里的 icon 指向 CDN，客户端一律用随包资源覆盖；
+ * 用户自行添加的 Claude 等目录若插件同名，也复用同一份原版图标。
  */
-const ZCODE_OFFICIAL_CATALOG_ICON_BY_ID: Readonly<Record<string, string>> = Object.fromEntries(
+const CATALOG_ICON_BY_ID: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME).map(([name, url]) => [
     `${name}@zcode-plugins-official`,
     url,
@@ -29,7 +30,7 @@ const ZCODE_OFFICIAL_CATALOG_ICON_BY_ID: Readonly<Record<string, string>> = Obje
 
 /** 内置图标总表：官方目录随包快照 + 客户端自带的六个官方插件图标。 */
 const ALL_BUNDLED_PLUGIN_ICONS: Readonly<Record<string, string>> = {
-  ...ZCODE_OFFICIAL_CATALOG_ICON_BY_ID,
+  ...CATALOG_ICON_BY_ID,
   ...OFFICIAL_PLUGIN_ICON_BY_ID,
 };
 
@@ -43,6 +44,11 @@ export function resolvePluginIconSource(
   if (pluginId) {
     const bundledIcon = ALL_BUNDLED_PLUGIN_ICONS[pluginId];
     if (bundledIcon) return bundledIcon;
+    // 同名兜底：用户自行添加的目录（如 Claude Code 插件）没有自带图标时，
+    // 复用随包资源里的原版图标；同名不同源会共用同一个图标，这是有意的取舍。
+    const at = pluginId.lastIndexOf("@");
+    const byName = ALL_BUNDLED_PLUGIN_ICONS[at > 0 ? pluginId.slice(0, at) : pluginId];
+    if (byName) return byName;
   }
   return isTrustedImageUrl(icon) ? icon : undefined;
 }

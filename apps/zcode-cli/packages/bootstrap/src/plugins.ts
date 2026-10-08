@@ -49,7 +49,6 @@ import type {
   PluginStoreListing,
 } from "@zcode/contracts";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE, isOfficialMarketplaceId } from "@zcode/contracts";
-import { BUNDLED_OFFICIAL_PLUGIN_CATALOG } from "./app/official-plugin-catalog.generated.js";
 import { ZCODE_CUA_OFFICIAL_PLUGIN_ID, isZCodeCuaInternalFeatureEnabled } from "@zcode/shared";
 import { resolveOfficialPluginRoots } from "./app/bundled-plugins.js";
 import {
@@ -334,43 +333,6 @@ export function getZCodePluginsOverview(
       return data;
     }),
   );
-  // 随包内置的官方插件目录快照（zcode-plugins-official）：公开分段的浏览面完全离线，
-  // 与内置插件定义同口径，直接按 available 形态并入，不依赖官方市场记录是否在声明集合里。
-  const bundledCatalogPlugins: ZCodeAvailablePluginData[] = [];
-  {
-    const seenIds = new Set(availablePlugins.map((plugin) => plugin.id));
-    for (const rawEntry of BUNDLED_OFFICIAL_PLUGIN_CATALOG.plugins) {
-      const id = `${rawEntry.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
-      if (seenIds.has(id)) continue;
-      const entry = rawEntry as unknown as PluginMarketplaceEntry;
-      const listing = parseEntryStoreListing(entry as unknown as Record<string, unknown>);
-      seenIds.add(id);
-      bundledCatalogPlugins.push({
-        id,
-        name: rawEntry.name,
-        marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
-        ...("description" in rawEntry && typeof rawEntry.description === "string"
-          ? { description: rawEntry.description }
-          : {}),
-        ...("version" in rawEntry && typeof rawEntry.version === "string"
-          ? { version: rawEntry.version }
-          : {}),
-        installed: installedIds.has(id),
-        ...(listing ? { listing } : {}),
-      });
-      if (listing) {
-        listingByPluginId.set(id, listing);
-      }
-      const pinSha = readPluginSourceIdentityPin(entry.source);
-      latestPinByPluginId.set(id, {
-        ...("version" in rawEntry && typeof rawEntry.version === "string"
-          ? { version: rawEntry.version }
-          : {}),
-        ...(pinSha ? { sha: pinSha } : {}),
-      });
-    }
-  }
-
   const loadedById = new Map(outcome.plugins.map((plugin) => [plugin.id, plugin]));
 
   // 被抑制（uninstall）的内置（官方）插件可一键恢复：从 OFFICIAL_PLUGIN_DEFINITIONS
@@ -398,7 +360,7 @@ export function getZCodePluginsOverview(
 
   return {
     marketplaces: catalogs.map((catalog) => catalog.summary),
-    availablePlugins: [...bundledCatalogPlugins, ...availablePlugins],
+    availablePlugins,
     installedPlugins: installed.map((record) => {
       const enabled = configResult.config.plugins.enabledPlugins[record.id] ?? false;
       const data = toInstalledPluginData(record, enabled, loadedById.get(record.id));

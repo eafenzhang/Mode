@@ -51,22 +51,28 @@ test("预置源判据：官方目录是唯一预置源，且属于「公开」�
   assert.equal(isCodexPluginMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), true);
 });
 
-// 公开分段的浏览面来自随包内置的官方目录快照（离线可用，不连 CDN）。
-test("随包官方目录快照存在，id 与市场常量一致且条目充足", async () => {
-  const source = await readFile(
+// 公开分段与官方目录保持一致：不再用随包裁剪快照替换官方源内容，
+// 公开条目直接来自 zcode-plugins-official 这个市场的候选清单；
+// 图标则由随包资源按插件名兜底（官方清单里的 icon 指向 CDN，客户端不使用）。
+test("公开分段只认官方市场，且图标按插件名随包兜底", async () => {
+  const iconSource = await readFile(
+    new URL("../../../packages/ui/src/lib/pluginIconSource.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(iconSource.includes("ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME"), "图标必须按插件名匹配随包资源");
+
+  const listView = await readFile(
     new URL(
-      "../../../apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
+      "../../../packages/ui/src/settings/PluginStoreListView.tsx",
       import.meta.url,
     ),
     "utf8",
   );
-  assert.ok(source.includes('"name": "zcode-plugins-official"'), "快照 name 必须等于市场 id");
-  const entryCount = (source.match(/"name": "/gu) ?? []).length;
-  assert.ok(entryCount >= 20, `随包目录条目过少：${entryCount}`);
-  assert.ok(source.includes('"source": "url"'), "应保留 url 来源条目");
-  assert.ok(!source.includes("\"cachePath\":"), "快照不得写入 per-install 的 cachePath");
+  assert.ok(
+    listView.includes("items.filter((item) => isPublicStoreMarketplaceId(item.marketplace))"),
+    "公开分段必须直接取官方市场的候选条目，不能再用快照/开关裁剪",
+  );
 });
-
 // 源码契约：加载器必须认识 Codex 市场的约定位置，否则默认源永远拉不出目录。
 test("CLI 加载器搜索 .agents/plugins/marketplace.json（Codex 约定）", async () => {
   const source = await readFile(
