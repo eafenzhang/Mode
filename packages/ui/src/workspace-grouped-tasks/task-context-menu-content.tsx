@@ -1,4 +1,4 @@
-import type { ZCodeTaskMeta } from "@mode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -27,7 +27,7 @@ export function GroupedTaskContextMenuContent({
   onCopyText,
   disabledReason,
 }: {
-  task: ZCodeTaskMeta;
+  task: ModeTaskMeta;
   currentGroupId?: string;
   groups: TaskGroupMenuItem[];
   intl: {
@@ -36,11 +36,11 @@ export function GroupedTaskContextMenuContent({
   fileManagerLabel: string;
   taskSessionFile: { loading: boolean; path: string | null };
   taskNativeSessionLogFile: { loading: boolean; path: string | null };
-  onMoveTaskToGroup: (task: ZCodeTaskMeta, groupId: string | null) => void;
-  onMoveTaskToTop: (task: ZCodeTaskMeta) => void;
-  onStartRenameTask: (task: ZCodeTaskMeta) => void;
-  onArchiveTask: (task: ZCodeTaskMeta) => void;
-  onMarkTaskAsUnread: (task: ZCodeTaskMeta) => void;
+  onMoveTaskToGroup: (task: ModeTaskMeta, groupId: string | null) => void;
+  onMoveTaskToTop: (task: ModeTaskMeta) => void;
+  onStartRenameTask: (task: ModeTaskMeta) => void;
+  onArchiveTask: (task: ModeTaskMeta) => void;
+  onMarkTaskAsUnread: (task: ModeTaskMeta) => void;
   onOpenTaskPathInFileManager: () => void;
   onCopyText: (label: string, text: string | null) => void;
   disabledReason?: string;

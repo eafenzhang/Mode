@@ -26,7 +26,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { toast } from "@/components/ui/toast.js";
 import {
@@ -96,7 +96,7 @@ export function BotBindingMenuItems({
   primitives?: BotBindingMenuPrimitives;
 }): ReactNode {
   const { Sub, SubTrigger, SubContent, Item } = primitives;
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const services = useServices();
   const taskBindings = useBotTaskBinding(task.workspacePath, task.workspaceIdentity, task.taskId);
   const boundBotIds = useMemo(() => taskBindings.map((binding) => binding.botId), [taskBindings]);

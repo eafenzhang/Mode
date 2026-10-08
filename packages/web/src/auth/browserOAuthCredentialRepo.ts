@@ -47,7 +47,7 @@ interface BrowserOAuthCredentialRepoOptions {
 }
 
 interface WebZaiTokenSet {
-  zcodeJwtToken: string;
+  modeJwtToken: string;
   zaiAccessToken: string;
   expiresAt?: number;
 }
@@ -81,11 +81,11 @@ export class BrowserOAuthCredentialRepo {
   saveTokenSet(tokenSet: WebZaiTokenSet | OAuthTokenSet, provider: WebOAuthProviderId): void {
     const accessToken =
       "zaiAccessToken" in tokenSet ? tokenSet.zaiAccessToken : tokenSet.accessToken;
-    const zcodeJwtToken = tokenSet.zcodeJwtToken;
+    const modeJwtToken = tokenSet.modeJwtToken;
 
     this.localStorage.setItem(providerKeys(provider).accessToken, accessToken);
-    if (zcodeJwtToken) {
-      this.localStorage.setItem(MODE_JWT_TOKEN_KEY, zcodeJwtToken);
+    if (modeJwtToken) {
+      this.localStorage.setItem(MODE_JWT_TOKEN_KEY, modeJwtToken);
     } else {
       this.localStorage.removeItem(MODE_JWT_TOKEN_KEY);
     }
@@ -116,20 +116,20 @@ export class BrowserOAuthCredentialRepo {
 
   loadCachedSessionState(): OAuthCachedSessionRestoreResult {
     const activeProvider = this.localStorage.getItem(ACTIVE_PROVIDER_KEY);
-    const zcodeJwtToken = this.localStorage.getItem(MODE_JWT_TOKEN_KEY);
+    const modeJwtToken = this.localStorage.getItem(MODE_JWT_TOKEN_KEY);
     // 一次只有一个 activeProvider（切换 provider = 重新登录并覆盖），所以按它选 key 段读。
     const keys = isWebOAuthProviderId(activeProvider) ? providerKeys(activeProvider) : null;
     const accessToken = keys ? this.localStorage.getItem(keys.accessToken) : null;
     const rawUserInfo = keys ? this.localStorage.getItem(keys.userInfo) : null;
 
-    if (!keys || !hasText(zcodeJwtToken) || !hasText(accessToken) || !hasText(rawUserInfo)) {
+    if (!keys || !hasText(modeJwtToken) || !hasText(accessToken) || !hasText(rawUserInfo)) {
       if (this.hasAnyStoredCredential()) {
         this.clearAll();
       }
       return { status: "signed-out" };
     }
 
-    if (resolveJwtExpiration(zcodeJwtToken, this.now()).kind === "expired") {
+    if (resolveJwtExpiration(modeJwtToken, this.now()).kind === "expired") {
       // Web localStorage 之前只检查 JWT 是否存在，过期后仍会恢复伪登录态。
       this.clearAll();
       return { status: "reauthentication-required", reason: "jwt-expired" };
@@ -149,7 +149,7 @@ export class BrowserOAuthCredentialRepo {
     return { status: "signed-out" };
   }
 
-  loadZCodeJwtToken(): string | null {
+  loadModeJwtToken(): string | null {
     const session = this.loadCachedSessionState();
     if (session.status !== "authenticated") return null;
     return this.localStorage.getItem(MODE_JWT_TOKEN_KEY)?.trim() || null;

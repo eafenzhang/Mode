@@ -13,16 +13,16 @@ import {
   MODE_PRODUCT_FLAVOR,
   MODE_RUNTIME_ENV_KEY,
   MODE_VERSION,
-  buildZCodeToolEnvPassthroughEnv,
-  resolveRuntimeZCodeEndpointOrigin,
+  buildModeToolEnvPassthroughEnv,
+  resolveRuntimeModeEndpointOrigin,
   readProductEndpointEnv,
   pickProductEndpointEnv,
   resolveZaiBusinessBaseUrl,
   resolveZaiOAuthClientId,
   resolveZaiOAuthOrigin,
   normalizeDynamicWorkflowMode,
-  sanitizeZCodeRuntimeEnv,
-  type ZCodeRuntimeEnv,
+  sanitizeModeRuntimeEnv,
+  type ModeRuntimeEnv,
 } from "@mode/shared";
 import { resolvePlatformKeyForPackagedApp } from "../../scripts/target-platform.mjs";
 import {
@@ -39,7 +39,7 @@ import { getElectronAppPath, isElectronAppPackaged } from "./desktopElectronApp.
 import { omitDesktopTelemetryEnvironment } from "./desktopTelemetryPolicy.js";
 
 const isLocalDevelopmentRuntime = !isElectronAppPackaged();
-export const desktopRuntimeEnv: ZCodeRuntimeEnv = isLocalDevelopmentRuntime
+export const desktopRuntimeEnv: ModeRuntimeEnv = isLocalDevelopmentRuntime
   ? "development"
   : "production";
 // 身份看编译期 flavor 而不是 MODE_ENV：MODE_PREVIEW_IDENTITY=1 的生产后端构建同样是 Preview，
@@ -55,7 +55,7 @@ function isTruthyRuntimeEnvOverride(name: string): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
-// e2e 运行的是生产构建，默认会和本机正式版 ZCode 共用 app name / userData，
+// e2e 运行的是生产构建，默认会和本机正式版 Mode 共用 app name / userData，
 // 触发 Electron 单实例锁后只激活已有窗口，Chromedriver 无法接管测试进程。
 // 这里允许测试显式隔离运行时身份，正常桌面/远控路径保持原来的默认值。
 export const runtimeApplicationName =
@@ -75,7 +75,7 @@ export const runtimeUserDataDirectoryName = isLocalDevelopmentRuntime
     ? `${USER_DATA_DIRECTORY_BASE_NAME} Preview`
     : USER_DATA_DIRECTORY_BASE_NAME;
 // Electron 的 app.getPath("home") 不一定跟随测试进程里的 HOME 覆盖。
-// e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 ~/ZCodeProject。
+// e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 ~/ModeProject。
 export const runtimeHomePath = readRuntimeEnvOverride("MODE_DESKTOP_HOME_DIR");
 // Chromedriver 管理 Electron 时会注入临时 userData；e2e 默认路径模式下导入期不能提前读取 appData。
 export const shouldUseElectronDefaultUserDataPath = isTruthyRuntimeEnvOverride(
@@ -208,7 +208,7 @@ export function loadHostProcessEnvFromLocalFiles(): Record<string, string> {
     Object.assign(merged, parsed);
   }
 
-  return applySelectedZCodeEnvLinks(merged);
+  return applySelectedModeEnvLinks(merged);
 }
 
 function resolveDevelopmentMockCdnDir(): string {
@@ -253,7 +253,7 @@ function resolveEnvValue(envName: string, localEnv: LocalRuntimeEnv = {}): strin
   return process.env[envName]?.trim() || localEnv[envName]?.trim() || undefined;
 }
 
-export function resolveZCodeEndpointEnvBaseOrigin(
+export function resolveModeEndpointEnvBaseOrigin(
   localEnv: LocalRuntimeEnv = {},
 ): string | undefined {
   const buildEnv = readProductEndpointEnv();
@@ -279,7 +279,7 @@ function readDefinedProcessEnv(): Record<string, string> {
   return values;
 }
 
-function applySelectedZCodeEnvLinks(env: Record<string, string>): Record<string, string> {
+function applySelectedModeEnvLinks(env: Record<string, string>): Record<string, string> {
   const endpointEnv = {
     ...readProductEndpointEnv(),
     ...env,
@@ -289,14 +289,14 @@ function applySelectedZCodeEnvLinks(env: Record<string, string>): Record<string,
   return {
     ...pickProductEndpointEnv(endpointEnv),
     ...env,
-    MODE_BASE_URL: env.MODE_BASE_URL ?? resolveRuntimeZCodeEndpointOrigin(endpointEnv),
+    MODE_BASE_URL: env.MODE_BASE_URL ?? resolveRuntimeModeEndpointOrigin(endpointEnv),
     ZAI_OAUTH_ORIGIN: env.ZAI_OAUTH_ORIGIN ?? resolveZaiOAuthOrigin(endpointEnv),
     ZAI_BUSINESS_BASE_URL: env.ZAI_BUSINESS_BASE_URL ?? resolveZaiBusinessBaseUrl(endpointEnv),
     ZAI_OAUTH_CLIENT_ID: env.ZAI_OAUTH_CLIENT_ID ?? resolveZaiOAuthClientId(endpointEnv),
   };
 }
 
-function resolveHostProcessNodeEnv(): ZCodeRuntimeEnv {
+function resolveHostProcessNodeEnv(): ModeRuntimeEnv {
   return desktopRuntimeEnv;
 }
 
@@ -341,7 +341,7 @@ export function resolveRemoteAssetDirs(
   };
 }
 
-function resolveBundledZCodeAgentBinaryPath(): string | undefined {
+function resolveBundledModeAgentBinaryPath(): string | undefined {
   const runtime = MODE_AGENT_RUNTIME;
   const entrySegments = runtime.resolveEntrySegments(process.platform);
   const platformKey = resolvePlatformKeyForPackagedApp();
@@ -406,7 +406,7 @@ function resolveBundledLarkCliBinaryPath(): string | undefined {
 }
 
 export function resolveBundledGlmBinaryPath(): string | undefined {
-  return resolveBundledZCodeAgentBinaryPath();
+  return resolveBundledModeAgentBinaryPath();
 }
 
 function resolveHostProcessBinaryEnv(
@@ -414,7 +414,7 @@ function resolveHostProcessBinaryEnv(
   hostProcessLocalEnv: Record<string, string>,
   bundledPath: string | undefined,
 ): string | undefined {
-  // ZCode Agent 与 app 协议适配强绑定版本，生产包必须优先使用随包携带的固定 runtime。
+  // Mode Agent 与 app 协议适配强绑定版本，生产包必须优先使用随包携带的固定 runtime。
   // 用户机器或本地 .env 里残留的 GLM_BINARY_PATH 即使存在，也可能版本不兼容。
   // 只有 bundled runtime 缺失时才把显式路径作为兜底，避免用户本机 CLI 覆盖内嵌版本。
   if (bundledPath) {
@@ -513,9 +513,9 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
             )
           : undefined;
   const windowsAppInstallDir = resolveWindowsAppInstallDirForDataBaseDirGuard();
-  const inheritedEnv = applySelectedZCodeEnvLinks({
-    ...sanitizeZCodeRuntimeEnv(rawInheritedEnv),
-    ...buildZCodeToolEnvPassthroughEnv(rawInheritedEnv),
+  const inheritedEnv = applySelectedModeEnvLinks({
+    ...sanitizeModeRuntimeEnv(rawInheritedEnv),
+    ...buildModeToolEnvPassthroughEnv(rawInheritedEnv),
   });
   // A release app must never inherit the local unsigned-Helper escape hatch.
   // Otherwise a developer shell/launchctl variable can make the signed app
@@ -534,11 +534,11 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
 
   return {
     ...inheritedEnv,
-    // ZCode 运行时不再使用 NODE_ENV；它会被用户 shell、包管理器和测试框架复用。
+    // Mode 运行时不再使用 NODE_ENV；它会被用户 shell、包管理器和测试框架复用。
     // 这里显式下发 MODE_RUNTIME_ENV，并在继承环境里清掉 NODE_ENV，避免 host/agent/Bash 被污染。
     [MODE_RUNTIME_ENV_KEY]: resolveHostProcessNodeEnv(),
     // 显式注入编译期产品身份，保证主进程与 host 的身份语义一致；地址独立解析。
-    // inheritedEnv 从 .env 通用变量补齐 ZCode/ZAI 链接，未覆盖时统一使用线上默认值。
+    // inheritedEnv 从 .env 通用变量补齐 Mode/ZAI 链接，未覆盖时统一使用线上默认值。
     MODE_ENV,
     // Preview 与生产版共享任务、配置和凭据，但不同版本的 Helper 不能互相覆盖或触发降级保护。
     // 只隔离 computer-use 下的运行组件，不改写 MODE_HOME / MODE_DATA_BASE_DIR 业务数据根。

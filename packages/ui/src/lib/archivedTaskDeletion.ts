@@ -1,4 +1,4 @@
-import type { IZCodeTaskService } from "@mode/services";
+import type { IModeTaskService } from "@mode/services";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { logger } from "@/logger.js";
 
@@ -12,7 +12,7 @@ export interface ArchivedTaskDeletionWorkspace {
   workspacePath: string;
   workspaceIdentity?: string;
   label: string;
-  service?: Pick<IZCodeTaskService, "listArchivedTasks" | "deleteArchivedTasks">;
+  service?: Pick<IModeTaskService, "listArchivedTasks" | "deleteArchivedTasks">;
 }
 
 export async function collectArchivedTaskDeletion(workspaces: ArchivedTaskDeletionWorkspace[]) {
@@ -66,7 +66,7 @@ export async function deleteArchivedTaskSelection(
   await Promise.all(
     selection.groups.map(async ({ workspace, targets }) => {
       if (!targets?.length) return;
-      let result: Awaited<ReturnType<IZCodeTaskService["deleteArchivedTasks"]>>;
+      let result: Awaited<ReturnType<IModeTaskService["deleteArchivedTasks"]>>;
       try {
         result = await workspace.service!.deleteArchivedTasks({
           workspacePath: workspace.workspacePath,

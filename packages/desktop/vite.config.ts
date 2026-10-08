@@ -5,7 +5,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 // 见 tsup.config.ts 同名注释：构建配置需要相对路径导入 shared 源码，避免 Node 原生加载 .ts。
-import { resolveZCodeEndpointOrigin, pickProductEndpointEnv } from "../shared/src/zcodeEndpoint.js";
+import { resolveModeEndpointOrigin, pickProductEndpointEnv } from "../shared/src/modeEndpoint.js";
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { resolveDesktopProductFlavor } from "./scripts/desktop-product-identity.mjs";
@@ -47,7 +47,7 @@ export const desktopRendererDependencyAliases = {
   "lucide-react": resolveInstalledPackageRoot("lucide-react"),
 } as const;
 
-function resolveZCodeEnv(value: string | undefined): "test" | "production" {
+function resolveModeEnv(value: string | undefined): "test" | "production" {
   return value?.trim().toLowerCase() === "production" ? "production" : "test";
 }
 
@@ -73,7 +73,7 @@ function createE2EUIRendererCoveragePlugin(repoRoot: string): Plugin {
   );
 
   return {
-    name: "zcode:e2e-ui-source-coverage",
+    name: "mode:e2e-ui-source-coverage",
     enforce: "pre",
     transform(sourceCode, id, options) {
       if (options?.ssr || id.startsWith("\0")) {
@@ -145,19 +145,19 @@ export default defineConfig(({ mode }) => {
   // `.env*` 只提供链接常量；当前产品环境由启动脚本或 CI 注入 MODE_ENV。
   const env = { ...loadEnv(mode, "../..", ""), ...process.env };
   const repoRoot = resolve(__dirname, "../..");
-  const zcodeEnv = resolveZCodeEnv(env.MODE_ENV);
+  const modeEnv = resolveModeEnv(env.MODE_ENV);
   // 安装包身份与后端环境分轴；renderer 用它决定是否展示更新入口。
-  const zcodeProductFlavor = resolveDesktopProductFlavor({
+  const modeProductFlavor = resolveDesktopProductFlavor({
     ...process.env,
     ...env,
-    MODE_ENV: zcodeEnv,
+    MODE_ENV: modeEnv,
   });
   const e2eCoverageEnabled =
     env.MODE_E2E_COVERAGE === "1" || process.env.MODE_E2E_COVERAGE === "1";
   const e2eStoreBridgeEnabled =
     env.VITE_MODE_E2E_STORE_BRIDGE === "1" || process.env.VITE_MODE_E2E_STORE_BRIDGE === "1";
-  const zcodeEndpointOrigin = resolveZCodeEndpointOrigin({
-    env: zcodeEnv,
+  const modeEndpointOrigin = resolveModeEndpointOrigin({
+    env: modeEnv,
     envBaseOrigin:
       env.MODE_BASE_URL ??
       env.MODE_BASE_URL ??
@@ -204,12 +204,12 @@ export default defineConfig(({ mode }) => {
       __MODE_VERSION__: JSON.stringify(buildMetadata.appVersion),
       __MODE_COMMIT__: JSON.stringify(buildMetadata.buildCommitId),
       __MODE_BUILD_TIME__: JSON.stringify(buildMetadata.buildTime),
-      __MODE_ENV__: JSON.stringify(zcodeEnv),
-      __MODE_PRODUCT_FLAVOR__: JSON.stringify(zcodeProductFlavor),
+      __MODE_ENV__: JSON.stringify(modeEnv),
+      __MODE_PRODUCT_FLAVOR__: JSON.stringify(modeProductFlavor),
       __MODE_LOCAL_DEVELOPMENT_RUNTIME__: JSON.stringify(mode !== "production"),
-      "import.meta.env.VITE_MODE_BASE_URL": JSON.stringify(zcodeEndpointOrigin),
+      "import.meta.env.VITE_MODE_BASE_URL": JSON.stringify(modeEndpointOrigin),
       // 兼容旧 renderer 读取名；新代码统一读 VITE_MODE_BASE_URL。
-      "import.meta.env.VITE_MODE_ENDPOINT_ORIGIN": JSON.stringify(zcodeEndpointOrigin),
+      "import.meta.env.VITE_MODE_ENDPOINT_ORIGIN": JSON.stringify(modeEndpointOrigin),
       "import.meta.env.VITE_CODING_PLAN_WEBVIEW_ORIGIN": JSON.stringify(codingPlanWebviewOrigin),
       "import.meta.env.VITE_REWARDS_WEBVIEW_ORIGIN": JSON.stringify(
         env.VITE_REWARDS_WEBVIEW_ORIGIN ?? process.env.VITE_REWARDS_WEBVIEW_ORIGIN ?? "",

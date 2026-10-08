@@ -338,7 +338,7 @@ export class ZaiProviderAdapter implements OAuthProviderAdapter {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // zcode OAuth token 后端现在同时服务 Z.ai 和 BigModel。
+          // mode OAuth token 后端现在同时服务 Z.ai 和 BigModel。
           // 显式传 provider 枚举值，避免只依赖 redirect_uri 推断登录域导致兑换错路由。
           body: JSON.stringify({
             provider: ZAI_PROVIDER_ID,
@@ -362,8 +362,8 @@ export class ZaiProviderAdapter implements OAuthProviderAdapter {
       throw new Error(tokenPayload.msg?.trim() || "ZAI 后端 token 交换失败");
     }
 
-    const zcodeJwtToken = tokenPayload.data?.token;
-    if (!zcodeJwtToken) {
+    const modeJwtToken = tokenPayload.data?.token;
+    if (!modeJwtToken) {
       throw new Error("Token 交换失败：响应缺少 data.token");
     }
 
@@ -390,7 +390,7 @@ export class ZaiProviderAdapter implements OAuthProviderAdapter {
 
     return {
       accessToken: businessAccessToken,
-      zcodeJwtToken,
+      modeJwtToken,
       ...(expiresAt ? { expiresAt } : {}),
     };
   }

@@ -4,7 +4,7 @@ import type { ICredentialService } from "../credential/credential.js";
 /**
  * OrcaRouter 凭据在 Credential Store 中的物理 key。
  *
- * 只使用项目既有的加密凭据存储（Desktop host 与 CLI 共用 `~/.zcode/v2/credentials.json`），
+ * 只使用项目既有的加密凭据存储（Desktop host 与 CLI 共用 `~/.mode/v2/credentials.json`），
  * 不新建密钥库，也不把密钥写进日志、错误、遥测或提交。
  */
 export const ORCAROUTER_CREDENTIAL_KEY = "provider:orcarouter:api-key";

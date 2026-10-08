@@ -67,8 +67,8 @@ export interface LoginEntryAttempt {
   status: LoginEntryAttemptStatus;
 }
 
-const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
-const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
+const CODE_PREVIEW_SETTINGS_KEY = "mode-code-preview-settings";
+const PERFORMANCE_MODE_STORAGE_KEY = "mode-performance-mode";
 
 function loadCodePreviewSettings(): CodePreviewSettings {
   try {
@@ -99,7 +99,7 @@ function loadPerformanceMode(): boolean {
 // State 定义
 // ============================================================================
 
-export interface ZCodeState {
+export interface ModeState {
   /** 展示详情偏好，不改变 Agent 权限或执行能力。 */
   interfaceMode: InterfaceMode;
   setInterfaceMode: (mode: InterfaceMode) => void;
@@ -227,7 +227,7 @@ const STATE_CHANNEL_PREFIX = "state:";
  *
  * @param broadcastService - 广播服务。Desktop 走 RPC，Web 可传 no-op 实现
  */
-export function createZCodeStore(
+export function createModeStore(
   broadcastService: IBroadcastService,
   options: {
     initialIsRestoringOAuthSession?: boolean;
@@ -239,7 +239,7 @@ export function createZCodeStore(
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
 
-  const useStore = create<ZCodeState>()((set, get) => ({
+  const useStore = create<ModeState>()((set, get) => ({
     interfaceMode: normalizeInterfaceMode(readSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY)),
     setInterfaceMode: (mode) => {
       const interfaceMode = normalizeInterfaceMode(mode);
@@ -254,19 +254,19 @@ export function createZCodeStore(
     },
     // 默认主题统一收敛到 Zai dark，避免首次启动时 store 与其他主题入口表现不一致。
     // 仍然优先尊重 localStorage 中已保存的用户选择，不覆盖已有偏好。
-    theme: normalizeThemePreference((readSafeLocalStorage("zcode-theme") as Theme) || "zai-dark"),
+    theme: normalizeThemePreference((readSafeLocalStorage("mode-theme") as Theme) || "zai-dark"),
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
-      writeSafeLocalStorage("zcode-theme", normalizedTheme);
+      writeSafeLocalStorage("mode-theme", normalizedTheme);
       syncSystemThemeListener(normalizedTheme);
       applyTheme(normalizedTheme);
 
       set({ theme: normalizedTheme });
     },
 
-    locale: readSafeLocalStorage("zcode-locale") || "zh-CN",
+    locale: readSafeLocalStorage("mode-locale") || "zh-CN",
     setLocale: (locale: string) => {
-      writeSafeLocalStorage("zcode-locale", locale);
+      writeSafeLocalStorage("mode-locale", locale);
       set({ locale });
     },
 
@@ -499,4 +499,4 @@ export function createZCodeStore(
   return useStore;
 }
 
-export type ZCodeStore = ReturnType<typeof createZCodeStore>;
+export type ModeStore = ReturnType<typeof createModeStore>;

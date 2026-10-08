@@ -5,7 +5,7 @@ import type {
   CommandSetEnabledParams,
   CommandUpdateParams,
   UserCommand,
-  ZCodeCommand,
+  ModeCommand,
 } from "@mode/shared";
 import type { ICommandsService } from "@mode/services";
 
@@ -14,9 +14,9 @@ interface CommandsStoreState {
   workspaceIdentity: string | null;
   loadedWorkspacePath: string | null;
   loadedWorkspaceIdentity: string | null;
-  commands: ZCodeCommand[];
+  commands: ModeCommand[];
   userCommands: UserCommand[];
-  pluginCommands: ZCodeCommand[];
+  pluginCommands: ModeCommand[];
   capability: { userScopeAvailable: boolean };
   loading: boolean;
   error: string | null;

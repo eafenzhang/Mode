@@ -12,8 +12,8 @@ import {
   TID_OFFPEAK_FORM_INSTRUCTIONS,
   TID_OFFPEAK_FORM_TITLE,
   MODE_AGENT_PROVIDER,
-  type ZCodeConfigOption,
-  type ZCodeOffPeakTask,
+  type ModeConfigOption,
+  type ModeOffPeakTask,
   type ModelSelection,
 } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
@@ -40,7 +40,7 @@ import { OffPeakHistoryTab } from "@/settings/OffPeakHistoryTab.js";
 import { AutomationSwitchToggle } from "@/settings/AutomationSwitchToggle.js";
 import { cn } from "@/components/lib/utils.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import {
@@ -84,7 +84,7 @@ export interface OffPeakEditSubmit {
 }
 
 interface OffPeakEditViewProps {
-  editing: ZCodeOffPeakTask | null;
+  editing: ModeOffPeakTask | null;
   /** 创建态预填（New task 页模板卡跳转）；编辑态忽略。 */
   initialDraft?: { title?: string; prompt?: string } | null;
   modelSelectionView: ModelSelectionView;
@@ -101,10 +101,10 @@ interface OffPeakEditViewProps {
     workspacePath: string;
     workspaceIdentity?: string;
   }) => void;
-  onDelete?: (task: ZCodeOffPeakTask) => void;
-  onDeleteHistory?: (task: ZCodeOffPeakTask) => void;
-  onPause?: (task: ZCodeOffPeakTask) => void;
-  onContinue?: (task: ZCodeOffPeakTask) => void;
+  onDelete?: (task: ModeOffPeakTask) => void;
+  onDeleteHistory?: (task: ModeOffPeakTask) => void;
+  onPause?: (task: ModeOffPeakTask) => void;
+  onContinue?: (task: ModeOffPeakTask) => void;
   showToast?: typeof toast;
 }
 
@@ -130,7 +130,7 @@ export function OffPeakEditView({
   onContinue,
   showToast = toast,
 }: OffPeakEditViewProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const { settings, update: updateSettings } = useSettings();
   const confirmDialog = useConfirmDialog();
   const localWorkspaceOptions = useAutomationProjectOptions();
@@ -222,7 +222,7 @@ export function OffPeakEditView({
   }, [createWorkspacePath, editing, localWorkspaceOptions, preferredLocalWorkspace?.workspacePath]);
   // 闲时任务模型和 reasoning 档位只读取 Host 投影的 Built-in Config，
   // 避免 Renderer 按模型名重建第二份模型事实。
-  const thoughtLevelOption = useMemo<ZCodeConfigOption | null>(
+  const thoughtLevelOption = useMemo<ModeConfigOption | null>(
     () =>
       resolveModelThoughtOption({
         modelSelectionView,
@@ -471,7 +471,7 @@ export function OffPeakEditView({
           task={editing}
           {...(onOpenSession
             ? {
-                onOpenSession: (task: ZCodeOffPeakTask) =>
+                onOpenSession: (task: ModeOffPeakTask) =>
                   task.sessionId
                     ? onOpenSession({
                         sessionId: task.sessionId,

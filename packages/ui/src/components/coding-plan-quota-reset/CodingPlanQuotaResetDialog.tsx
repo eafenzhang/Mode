@@ -4,7 +4,7 @@ import type { CodingPlanResetType } from "@mode/shared";
 import { CheckIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { getContextQuotaMeterGridClass } from "@/chat-input-toolbar/contextQuotaMeterGrid.js";
 import { burstCodingPlanQuotaResetConfetti } from "@/lib/codingPlanQuotaResetConfetti.js";
 
@@ -115,7 +115,7 @@ export function CodingPlanQuotaResetDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [now, setNow] = useState(() => Date.now());
   const [resettingType, setResettingType] = useState<CodingPlanResetType | null>(null);
   const [successfulType, setSuccessfulType] = useState<CodingPlanResetType | null>(null);

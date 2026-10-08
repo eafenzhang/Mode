@@ -134,7 +134,7 @@ export interface OAuthTokenSet {
   accessToken: string;
   refreshToken?: string;
   expiresAt?: number;
-  zcodeJwtToken?: string;
+  modeJwtToken?: string;
 }
 
 export interface UserInfo {
@@ -149,8 +149,8 @@ export type OAuthCachedSessionRestoreResult =
   | { status: "signed-out" }
   | { status: "reauthentication-required"; reason: "jwt-expired" };
 
-/** Host 在检测到 ZCode JWT 失效后通知 Renderer 展示确认并重启。 */
-export const MODE_JWT_INVALID_BROADCAST_CHANNEL = "auth:zcode-jwt-invalid";
+/** Host 在检测到 Mode JWT 失效后通知 Renderer 展示确认并重启。 */
+export const MODE_JWT_INVALID_BROADCAST_CHANNEL = "auth:mode-jwt-invalid";
 
 export type JwtExpirationResult =
   | { kind: "valid"; expiresAt: number }

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 
 const EMPTY_STATE: LanAccessState = {
@@ -28,7 +28,7 @@ function formatRemaining(expiresAt: number, now: number): string {
  * 开关 → 监听局域网；配对码 → 供对端换长期令牌；已配对设备可逐个移除或整体重置。
  */
 export function LanAccessSection() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const platform = usePlatform();
   const [state, setState] = useState<LanAccessState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);

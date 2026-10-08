@@ -61,7 +61,7 @@ import {
   DEFAULT_MODE_ENDPOINT_ORIGIN,
   DEFAULT_LOCALE,
   MODE_VERSION,
-  resolveZCodeEndpointOrigin,
+  resolveModeEndpointOrigin,
   type UpdateStatePayload,
   HostMessageTypes,
 } from "@mode/shared";
@@ -101,7 +101,7 @@ import {
   getDesktopMenuLabel as getDesktopMenuLabelByLocale,
   rebuildApplicationMenu,
   resolveSystemApplicationLocale,
-  updateZCodeStdioTapDevMenuState,
+  updateModeStdioTapDevMenuState,
 } from "./desktopApplicationMenu.js";
 import { applyAppIcon } from "./desktopWindowChrome.js";
 import { resolveWindowsAppUserModelIdForFlavor } from "../../scripts/desktop-product-identity.mjs";
@@ -118,7 +118,7 @@ import {
   syncApplicationUnreadBadge,
   handleDesktopWindowCloseRequest,
 } from "./desktopWindowLifecycle.js";
-import { resolveZCodeBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
+import { resolveModeBuiltinProviderConfigFilePath } from "./desktopProviderConfig.js";
 import {
   getCredentialsDir,
   isDockerDaemonAvailable,
@@ -128,7 +128,7 @@ import {
   loadHostProcessEnvFromLocalFiles,
   resolveBundledGlmBinaryPath,
   resolveRemoteAssetDirs,
-  resolveZCodeEndpointEnvBaseOrigin,
+  resolveModeEndpointEnvBaseOrigin,
   runtimeApplicationName,
   runtimeHomePath,
   runtimeSessionDataPath,
@@ -183,7 +183,7 @@ registerLocalMediaPreviewScheme(protocol);
 const localMediaPreviewPathRegistry = createLocalMediaPreviewPathRegistry();
 
 // e2e 由 Chromedriver 管理远程调试端口；如果这里继续固定到 9229，
-// 会和开发态已打开的 ZCode Dev 抢端口，导致 WebDriver session 创建前白屏超时。
+// 会和开发态已打开的 Mode Dev 抢端口，导致 WebDriver session 创建前白屏超时。
 // 仅本地开发运行默认开启远程调试端口，并允许 e2e 通过环境变量交给 Chromedriver 接管。
 if (!app.isPackaged && process.env.MODE_DISABLE_FIXED_REMOTE_DEBUGGING_PORT !== "1") {
   app.commandLine.appendSwitch("remote-debugging-port", "9229");
@@ -599,11 +599,11 @@ void mainSettingService.get().catch((error) => {
   logger.warn("[settings] initial official service switches read failed", error);
 });
 
-async function resolveCurrentZCodeEndpointOrigin() {
-  return resolveZCodeEndpointOrigin({
+async function resolveCurrentModeEndpointOrigin() {
+  return resolveModeEndpointOrigin({
     env: MODE_ENV,
-    envBaseOrigin: resolveZCodeEndpointEnvBaseOrigin(hostProcessLocalEnv),
-    overrideOrigin: (await mainSettingService.get()).zcodeEndpointOrigin,
+    envBaseOrigin: resolveModeEndpointEnvBaseOrigin(hostProcessLocalEnv),
+    overrideOrigin: (await mainSettingService.get()).modeEndpointOrigin,
   });
 }
 let desktopContextPromptRollout: ReturnType<typeof createDesktopContextPromptRollout> | undefined;
@@ -655,7 +655,7 @@ function awaitFirstHostSpawnDecision(): Promise<void> {
 
 app.on("browser-window-focus", (_event, win) => {
   rebuildMenu();
-  // 设置/更新等无 Host 的 ZCode 窗口也算前台：router 会先把旧 workspace Host 清成 null，
+  // 设置/更新等无 Host 的 Mode 窗口也算前台：router 会先把旧 workspace Host 清成 null，
   // 再把无 Host 的新窗口事实静默丢弃，避免旧会话 PiP 继续显示。
   cuaPipFocusRouter.focusWindow(resolveCuaPipWindowKey(win));
 });
@@ -680,12 +680,12 @@ const deviceMid = ensureDesktopDeviceMidSync();
 const readHelpConfig = createDesktopHelpConfigReader({
   appVersion: MODE_VERSION || app.getVersion(),
   deviceMid,
-  resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
+  resolveEndpointOrigin: resolveCurrentModeEndpointOrigin,
 });
 const electronClientConfigsFetcher = createElectronDesktopContextPromptConfigFetcher({
   appVersion: MODE_VERSION || app.getVersion(),
   deviceMid,
-  resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
+  resolveEndpointOrigin: resolveCurrentModeEndpointOrigin,
 });
 desktopContextPromptRollout = createDesktopContextPromptRollout({
   fetchConfig: electronClientConfigsFetcher,
@@ -922,7 +922,7 @@ async function prepareAppQuit(reason: string, kind: AppShutdownKind = "normal"):
     })
     .finally(() => {
       // before-quit 是同步事件。只发 Dispose 就继续退出 main 的话，
-      // host 还没等到 agent 进程树的 SIGTERM/SIGKILL 兜底完成就被带走，zcode-cli 会被 init 接管成残留进程。
+      // host 还没等到 agent 进程树的 SIGTERM/SIGKILL 兜底完成就被带走，mode-cli 会被 init 接管成残留进程。
       // 这里先拦截第一次退出，等待 host 清理完成后再放行第二次 app.quit。
       hasPreparedAppQuit = true;
       appQuitPreparationInFlight = null;
@@ -1192,14 +1192,14 @@ async function executeDesktopCommandForApp(
     command,
     senderWindow,
     logger,
-    updateZCodeStdioTapDevMenuState,
+    updateModeStdioTapDevMenuState,
     onDesktopZoomChanged: (zoomLevel) => {
       currentDesktopZoomLevel = clampDesktopZoomLevel(zoomLevel);
       rebuildMenu();
     },
     settingService: mainSettingService,
-    onZCodeEndpointChanged: handleZCodeEndpointChanged,
-    zcodeEndpointEnvBaseOrigin: resolveZCodeEndpointEnvBaseOrigin(hostProcessLocalEnv),
+    onModeEndpointChanged: handleModeEndpointChanged,
+    modeEndpointEnvBaseOrigin: resolveModeEndpointEnvBaseOrigin(hostProcessLocalEnv),
     onRelaunchApp: async () => {
       await prepareAppQuit("desktop-command-relaunch");
       app.relaunch();
@@ -1210,18 +1210,18 @@ async function executeDesktopCommandForApp(
   });
 }
 
-async function resolveZCodeEndpointSelection(): Promise<"production" | "test" | "custom"> {
+async function resolveModeEndpointSelection(): Promise<"production" | "test" | "custom"> {
   if (MODE_ENV === "production") {
     return "production";
   }
-  const origin = await resolveCurrentZCodeEndpointOrigin();
+  const origin = await resolveCurrentModeEndpointOrigin();
   if (origin === DEFAULT_MODE_ENDPOINT_ORIGIN) {
     return "production";
   }
   return "custom";
 }
 
-async function handleZCodeEndpointChanged() {
+async function handleModeEndpointChanged() {
   rebuildMenu();
 }
 
@@ -1260,11 +1260,11 @@ function resetShortcutRecordingForWebContents(webContentsId: number) {
 }
 
 function rebuildMenu() {
-  void Promise.all([resolveZCodeEndpointSelection(), mainSettingService.get()]).then(
-    ([zcodeEndpointSelection, settings]) => {
+  void Promise.all([resolveModeEndpointSelection(), mainSettingService.get()]).then(
+    ([modeEndpointSelection, settings]) => {
       rebuildApplicationMenu({
         currentApplicationLocale,
-        zcodeEndpointSelection,
+        modeEndpointSelection,
         executeDesktopCommand: executeDesktopCommandForApp,
         currentZoomLevel: resolveFocusedDesktopZoomLevel(),
         // 菜单 accelerator 跟随用户快捷键设置（shortcutBindings 用户覆盖）
@@ -1539,7 +1539,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
         label,
         {
           ...initMessage,
-          zcodeBuiltinProviderConfigFilePath: resolveZCodeBuiltinProviderConfigFilePath({
+          modeBuiltinProviderConfigFilePath: resolveModeBuiltinProviderConfigFilePath({
             env: { ...hostProcessLocalEnv, ...process.env },
           }),
         },
@@ -1850,7 +1850,7 @@ app.whenReady().then(async () => {
   logWindowsBundledRuntimeIntegrityDiagnostic();
 
   // 启动自动更新检查（后台执行，不阻塞主界面）
-  // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 ZCode 安装包，
+  // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 Mode 安装包，
   // 不向 Preview 渠道提供更新。
   void initAutoUpdater({
     enabled: MODE_PRODUCT_FLAVOR === "production",
@@ -2022,7 +2022,7 @@ app.whenReady().then(async () => {
       ? await maybeBlockStartupForForceUpdate({
           locale: currentApplicationLocale,
           logger,
-          endpointOrigin: await resolveCurrentZCodeEndpointOrigin(),
+          endpointOrigin: await resolveCurrentModeEndpointOrigin(),
           onBlocked: () => {
             forceUpdateMainWindowCreationBlocked = true;
           },

@@ -1,15 +1,15 @@
 import { z } from "zod";
 
 // 启动早期或协议故障时 stdout 尚不可用，进程诊断使用独立的 stderr 单行契约。
-export const MODE_PROCESS_DIAGNOSTIC_PREFIX = "[zcode-process-exception] ";
+export const MODE_PROCESS_DIAGNOSTIC_PREFIX = "[mode-process-exception] ";
 export const MODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS = 128;
 export const MODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS = 4_000;
 export const MODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS = 16_000;
 export const MODE_PROCESS_DIAGNOSTIC_MAX_LINE_CHARS = 128 * 1024;
-export const MODE_AGENT_LIFECYCLE_LOG_MARKER = "[zcode-agent-lifecycle-reported]";
+export const MODE_AGENT_LIFECYCLE_LOG_MARKER = "[mode-agent-lifecycle-reported]";
 
 const processErrorKindSchema = z.enum(["uncaughtException", "unhandledRejection"]);
-export const zcodeProcessDiagnosticSchema = z
+export const modeProcessDiagnosticSchema = z
   .object({
     version: z.literal(1),
     errorId: z.uuid(),
@@ -21,9 +21,9 @@ export const zcodeProcessDiagnosticSchema = z
     occurredAt: z.number().int().nonnegative(),
   })
   .strict();
-export type ZCodeProcessDiagnostic = z.infer<typeof zcodeProcessDiagnosticSchema>;
+export type ModeProcessDiagnostic = z.infer<typeof modeProcessDiagnosticSchema>;
 
-export function parseZCodeProcessDiagnostic(line: string): ZCodeProcessDiagnostic | undefined {
+export function parseModeProcessDiagnostic(line: string): ModeProcessDiagnostic | undefined {
   if (
     !line.startsWith(MODE_PROCESS_DIAGNOSTIC_PREFIX) ||
     line.length > MODE_PROCESS_DIAGNOSTIC_MAX_LINE_CHARS
@@ -31,7 +31,7 @@ export function parseZCodeProcessDiagnostic(line: string): ZCodeProcessDiagnosti
     return undefined;
   }
   try {
-    const result = zcodeProcessDiagnosticSchema.safeParse(
+    const result = modeProcessDiagnosticSchema.safeParse(
       JSON.parse(line.slice(MODE_PROCESS_DIAGNOSTIC_PREFIX.length)),
     );
     return result.success ? result.data : undefined;

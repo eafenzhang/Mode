@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readdir, rename, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, normalize, resolve, sep } from "node:path";
-import type { ZCodeImportableSessionCandidate } from "@mode/shared";
+import type { ModeImportableSessionCandidate } from "@mode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { getAppConfigDir, getDataBaseDir, getWorkspaceHash } from "#src/paths.js";
 import {
@@ -60,8 +60,8 @@ class ClaudeNativeSessionImportRepo {
       homes.add(dataBaseDir);
     }
 
-    // 关键业务逻辑：扫描 Claude Code 原生历史目录 ~/.claude/projects，不是 zcode 自己的数据目录。
-    // 当 MODE_DATA_BASE_DIR 把 .zcode 放到别处时，原生 .claude 往往仍在真实用户 HOME 下。
+    // 关键业务逻辑：扫描 Claude Code 原生历史目录 ~/.claude/projects，不是 mode 自己的数据目录。
+    // 当 MODE_DATA_BASE_DIR 把 .mode 放到别处时，原生 .claude 往往仍在真实用户 HOME 下。
     return [...homes].map((homePath) => join(homePath, ".claude", "projects"));
   }
 
@@ -129,7 +129,7 @@ class ClaudeNativeSessionImportRepo {
     workspacePath?: string;
     modifiedSince?: number;
     limit?: number;
-  }): Promise<ZCodeImportableSessionCandidate[]> {
+  }): Promise<ModeImportableSessionCandidate[]> {
     const workspaceKey = params.workspacePath
       ? normalizePathForComparison(params.workspacePath)
       : null;
@@ -142,7 +142,7 @@ class ClaudeNativeSessionImportRepo {
         ).flat(),
       ),
     ];
-    const candidates: ZCodeImportableSessionCandidate[] = [];
+    const candidates: ModeImportableSessionCandidate[] = [];
 
     for (const filePath of sessionFiles) {
       let fileStat;
@@ -209,7 +209,7 @@ class ClaudeNativeSessionImportRepo {
   async findImportableSession(params: {
     workspacePath?: string;
     sessionId: string;
-  }): Promise<ZCodeImportableSessionCandidate | null> {
+  }): Promise<ModeImportableSessionCandidate | null> {
     const workspaceKey = params.workspacePath
       ? normalizePathForComparison(params.workspacePath)
       : null;

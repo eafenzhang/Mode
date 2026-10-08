@@ -5,9 +5,9 @@ import {
   TID_CHAT_MODE_SELECT_ITEM,
   TID_V4_COMPOSER_INPUT,
   MODE_AGENT_PROVIDER,
-  getZCodeAgentAvailableModes,
+  getModeAgentAvailableModes,
   testId,
-  type ZCodeConfigOption,
+  type ModeConfigOption,
 } from "@mode/shared";
 import {
   DropdownMenu,
@@ -25,7 +25,7 @@ import {
   getModeOptionDescriptionMessageId,
   resolveModeOptionIcon,
 } from "@/chat-input-toolbar/display.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -56,10 +56,10 @@ function V4ComposerModeSwitchImpl({
   | "onConfigPickerOpenChange"
   | "onSwitchMode"
 >) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const displayProvider = provider ?? MODE_AGENT_PROVIDER;
   const modeShortcutLabel = useShortcutCommandLabel("cycleSessionMode");
-  const modes = getZCodeAgentAvailableModes();
+  const modes = getModeAgentAvailableModes();
   const permissions = modes.filter((mode) => mode.id !== "plan");
   const selected = permissions.find((mode) => mode.id === draftConfig?.mode);
   const label = (mode: (typeof modes)[number]) =>
@@ -68,14 +68,14 @@ function V4ComposerModeSwitchImpl({
   const planLabel = label(plan);
   // Plan 拆成独立勾选项后仍需保留原菜单说明，复用相同的国际化映射。
   const planDescriptionId = getModeOptionDescriptionMessageId(displayProvider, { value: plan.id });
-  const modeOption = useMemo<ZCodeConfigOption>(
+  const modeOption = useMemo<ModeConfigOption>(
     () => ({
       id: "mode",
       name: "Mode",
       category: "mode",
       type: "select",
       currentValue: draftConfig?.mode ?? "build",
-      options: getZCodeAgentAvailableModes()
+      options: getModeAgentAvailableModes()
         .filter((mode) => mode.id !== "plan")
         .map((mode) => ({ value: mode.id, name: mode.name })),
     }),

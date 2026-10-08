@@ -631,7 +631,7 @@ const faIR: Record<string, string> = {
   "bots.setup.guide.webhook.bind.1":
     "یک فراخوانی برگشتی پیام خصوصی را با POST به نقطه پایانی `/api/bots/webhook` در Mode بفرستید.",
   "bots.setup.guide.webhook.bind.3":
-    "اگر بات رمز دارد، `x-zcode-bot-secret` را هم بفرستید؛ سپس پس از موفقیت پیوند به اینجا بازگردید.",
+    "اگر بات رمز دارد، `x-mode-bot-secret` را هم بفرستید؛ سپس پس از موفقیت پیوند به اینجا بازگردید.",
   "bots.setup.footer.choose": "برای ادامه یک بات پشتیبانی‌شده انتخاب کنید.",
   "bots.setup.footer.create": "پیش از پیوند، آزمایش اتصال باید موفق باشد.",
   "bots.setup.testSuccess": "آزمایش اتصال موفق بود",
@@ -1611,7 +1611,7 @@ const faIR: Record<string, string> = {
   "titleBar.menu.help.exportLogs": "برون‌برد لاگ‌ها",
   "titleBar.menu.help.toggleDevTools": "تغییر وضعیت ابزارهای توسعه‌دهنده",
   "titleBar.menu.help.resourceManager": "مدیریت منابع",
-  "titleBar.menu.help.toggleZCodeStdioTap": "ضبط ترافیک stdio ایجنت",
+  "titleBar.menu.help.toggleModeStdioTap": "ضبط ترافیک stdio ایجنت",
   "titleBar.menu.help.clearAllData": "پاک کردن همه داده‌ها",
   "directoryBrowser.title": "مرور پوشه",
   "directoryBrowser.pathPlaceholder": "مسیر را وارد کنید",
@@ -2324,11 +2324,11 @@ const faIR: Record<string, string> = {
   "settings.toolGroupingChanges": "گروه‌بندی تغییرات فایل",
   "settings.toolGroupingChangesDescription":
     "فراخوانی‌های متوالی Write، Edit و ApplyPatch را در یک بخش Changes گروه‌بندی می‌کند.",
-  "settings.zcodeInteractionBehavior": "رفتار تعامل",
-  "settings.zcodeInteractionBehaviorDescription":
+  "settings.modeInteractionBehavior": "رفتار تعامل",
+  "settings.modeInteractionBehaviorDescription":
     "در حین اجرای Mode، اقدام‌های بعدی را به صف اضافه کنید یا هدایت کنید تا پس از فراخوانی بعدی ابزار اجرا شوند.",
-  "settings.zcodeInteractionBehavior.option.queue": "صف",
-  "settings.zcodeInteractionBehavior.option.guide": "هدایت",
+  "settings.modeInteractionBehavior.option.queue": "صف",
+  "settings.modeInteractionBehavior.option.guide": "هدایت",
   "settings.askUserQuestionAutoResolution": "ادامه خودکار پرسش‌ها",
   "settings.askUserQuestionAutoResolutionDescription":
     "با فعال‌سازی، پرسش‌های ایجنت پس از 5 دقیقه بدون پاسخ به‌طور خودکار ادامه می‌یابند. با غیرفعال‌سازی، پرسش‌های فعلی و آینده در انتظار پاسخ شما می‌مانند.",
@@ -3285,8 +3285,8 @@ const faIR: Record<string, string> = {
   "sidebar.usage.plan.weekly": "هفتگی",
   "sidebar.usage.plan.toolCalls": "فراخوانی‌های ابزار",
   "sidebar.usage.plan.mcp": "Mode MCP",
-  "sidebar.usage.plan.zcodeMcp": "Mode MCP",
-  "sidebar.usage.plan.zcodeMcpDescription": "سهمیه تجمیعی روزانه برای افزونه‌های MCP داخلی Mode",
+  "sidebar.usage.plan.modeMcp": "Mode MCP",
+  "sidebar.usage.plan.modeMcpDescription": "سهمیه تجمیعی روزانه برای افزونه‌های MCP داخلی Mode",
   "chat.planUsage.title": "مصرف طرح",
   "chat.planUsage.titleWithPlan": "مصرف طرح {plan}",
   "chat.planUsage.providerFallback": "فراهم‌کننده فعلی",
@@ -3947,7 +3947,7 @@ const faIR: Record<string, string> = {
   "settings.commands.description":
     "فایل‌های دستور .md مربوط به Mode Agent را مدیریت کنید. دستورها را می‌توان با /command-name در گفتگو فراخوانی کرد.",
   "settings.commands.sourceFilterLabel": "فیلتر منبع",
-  "settings.commands.source.zcodeAgent": "Mode Agent",
+  "settings.commands.source.modeAgent": "Mode Agent",
   "settings.commands.add": "جدید",
   "settings.commands.addNew": "دستور جدید",
   "settings.commands.addDescription":
@@ -4108,7 +4108,7 @@ const faIR: Record<string, string> = {
   "settingsSync.action.importSelected": "درون‌برد موارد انتخاب‌شده",
   "settingsSync.action.importing": "در حال درون‌برد...",
   "settingsSync.action.finish": "شروع استفاده از Mode",
-  "settingsSync.agent.zcode": "ایجنت Mode",
+  "settingsSync.agent.mode": "ایجنت Mode",
   "settingsSync.agent.claudeCode": "Claude Code",
   "settingsSync.agent.codexCli": "Codex CLI",
   "settingsSync.agent.openCode": "OpenCode",
@@ -5604,48 +5604,48 @@ const faIR: Record<string, string> = {
   "planTool.panel.syncing": "در حال همگام‌سازی برنامه…",
   "planTool.guidance.enterMode": "وارد حالت برنامه‌ریزی شد",
   "chat.permission.switchMode.placeholder": "برنامه پیاده‌سازی",
-  "zcode.unavailable": "ایجنت هوش مصنوعی در دسترس نیست",
-  "zcode.initFailed": "راه‌اندازی ایجنت هوش مصنوعی ناموفق بود",
-  "zcode.error.TASK_OWNED_BY_OTHER_HOST": "این وظیفه هم‌اکنون در نمای متصل دیگری در حال اجراست.",
-  "zcode.error.STALE_TASK_OWNER_COMMAND":
+  "mode.unavailable": "ایجنت هوش مصنوعی در دسترس نیست",
+  "mode.initFailed": "راه‌اندازی ایجنت هوش مصنوعی ناموفق بود",
+  "mode.error.TASK_OWNED_BY_OTHER_HOST": "این وظیفه هم‌اکنون در نمای متصل دیگری در حال اجراست.",
+  "mode.error.STALE_TASK_OWNER_COMMAND":
     "این اقدام متعلق به اجرای قدیمی‌تری بود و نادیده گرفته شد.",
-  "zcode.error.NO_ACTIVE_TASK_OWNER": "برای این اقدام، دارنده فعالی برای وظیفه در دسترس نیست.",
-  "zcode.error.OWNER_COMMAND_FAILED": "دارنده وظیفه نتوانست این اقدام را انجام دهد.",
-  "zcode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
+  "mode.error.NO_ACTIVE_TASK_OWNER": "برای این اقدام، دارنده فعالی برای وظیفه در دسترس نیست.",
+  "mode.error.OWNER_COMMAND_FAILED": "دارنده وظیفه نتوانست این اقدام را انجام دهد.",
+  "mode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
     "پیوست‌های فعلی برای یک درخواست بیش از حد بزرگ‌اند. پیوست‌ها را حذف یا فشرده کنید و دوباره تلاش کنید.",
-  "zcode.error.MEDIA_BUDGET_CURRENT_IMAGE_TOO_LARGE":
+  "mode.error.MEDIA_BUDGET_CURRENT_IMAGE_TOO_LARGE":
     "پیوست‌های تصویری فعلی بیش از حد بزرگ‌اند. تصاویر را حذف یا فشرده کنید و دوباره تلاش کنید.",
-  "zcode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
+  "mode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
     "پیوست‌های ویدیویی فعلی بیش از حد بزرگ‌اند. ویدیوها را حذف یا فشرده کنید و دوباره تلاش کنید.",
-  "zcode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
+  "mode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
     "مدل فعلی دیگر در دسترس نیست. برای ادامه، یک مدل در دسترس را از فهرست مدل‌های فعلی انتخاب کنید.",
-  "zcode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
+  "mode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "این مدل در دسترس نیست. بررسی کنید که کلید API به فهرست اعضای پروژه اضافه شده باشد.",
-  "zcode.error.providerBusiness.1006":
+  "mode.error.providerBusiness.1006":
     "کلید API منقضی شده است. آن را دوباره پیکربندی کنید و تلاش دوباره داشته باشید.",
-  "zcode.error.providerBusiness.1005":
+  "mode.error.providerBusiness.1005":
     "سهمیه طرح رایگان امروز به پایان رسیده است. مدل را عوض کنید یا منتظر بازنشانی سهمیه بمانید.",
-  "zcode.error.providerBusiness.3006":
+  "mode.error.providerBusiness.3006":
     "مدل فعلی در این طرح گنجانده نشده است. به یک مدل مجاز سوئیچ کنید و دوباره تلاش کنید.",
-  "zcode.error.providerBusiness.3002":
+  "mode.error.providerBusiness.3002":
     "درخواست‌ها را بیش از حد سریع می‌فرستید. لطفاً بعداً دوباره تلاش کنید.",
-  "zcode.error.providerBusiness.3001":
+  "mode.error.providerBusiness.3001":
     "پارامترهای درخواست نامعتبر هستند. ورودی را بررسی کنید و دوباره تلاش کنید.",
-  "zcode.error.providerBusiness.3007":
+  "mode.error.providerBusiness.3007":
     "درخواست توسط بررسی امنیتی دروازه رد شد. لطفاً بعداً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.",
-  "zcode.error.providerBusiness.3008":
+  "mode.error.providerBusiness.3008":
     "سیستم شلوغ است. لطفاً مدل را عوض کنید، حساب خود را ارتقا دهید یا بعداً دوباره تلاش کنید.",
-  "zcode.error.providerBusiness.3009":
+  "mode.error.providerBusiness.3009":
     "سیستم شلوغ است. لطفاً مدل را عوض کنید، حساب خود را ارتقا دهید یا بعداً دوباره تلاش کنید.",
-  "zcode.error.providerBusiness.3010":
+  "mode.error.providerBusiness.3010":
     "سیستم شلوغ است. لطفاً مدل را عوض کنید، حساب خود را ارتقا دهید یا بعداً دوباره تلاش کنید.",
-  "zcode.error.providerBusiness.3102":
+  "mode.error.providerBusiness.3102":
     "این اجرا از حداکثر زمان یک اجرای واحد فراتر رفت. برای ادامه، یک وظیفه جدید در ساعات کم‌بارگیری ایجاد کنید.",
-  "zcode.error.modelSuspiciousEmpty":
+  "mode.error.modelSuspiciousEmpty":
     "مدل هیچ محتوایی برنگرداند (اغلب به‌دلیل توکن منقضی‌شده یا مشکلات طرح است). لطفاً دوباره ارسال کنید.",
-  "zcode.error.providerBusiness.2007":
+  "mode.error.providerBusiness.2007":
     "سرویس بالادستی موقتاً در دسترس نیست. لطفاً بعداً دوباره تلاش کنید.",
-  "zcode.error.providerBusiness.429":
+  "mode.error.providerBusiness.429":
     "درخواست‌ها را بیش از حد سریع می‌فرستید. لطفاً بعداً دوباره تلاش کنید.",
   "debugInfo.taskId": "ID وظیفه",
   "debugInfo.traceId": "ID ردیابی",
@@ -6224,7 +6224,7 @@ const faIR: Record<string, string> = {
   "dataRoot.loading": "در حال آماده‌سازی…",
   "dataRoot.title": "محل ذخیره داده‌ها",
   "dataRoot.status.absentWithLegacy":
-    "داده‌های نسخه قدیمی Mode / ZCode پیدا شد. می‌توانید آن را به پوشه داده جدید کپی کنید یا از نو شروع کنید؛ در هر دو حالت پوشه قدیمی دست‌نخورده می‌ماند.",
+    "داده‌های نسخه قدیمی Mode / Mode پیدا شد. می‌توانید آن را به پوشه داده جدید کپی کنید یا از نو شروع کنید؛ در هر دو حالت پوشه قدیمی دست‌نخورده می‌ماند.",
   "dataRoot.status.unowned":
     "پوشه داده فعلی متعلق به این محصول نیست (ممکن است از شاخه دیگری یا به‌صورت دستی ساخته شده باشد). ابتدا یک نسخه پشتیبان گرفته می‌شود؛ چیزی حذف یا ادغام نمی‌شود.",
   "dataRoot.status.corrupt":
@@ -6233,7 +6233,7 @@ const faIR: Record<string, string> = {
   "dataRoot.candidates.title": "داده‌های قدیمی قابل انتقال",
   "dataRoot.candidate.size": "حجم",
   "dataRoot.candidate.modified": "آخرین تغییر",
-  "dataRoot.candidate.empty": "داده قدیمی ~/.zcode پیدا نشد. فقط شروع از نو امکان‌پذیر است.",
+  "dataRoot.candidate.empty": "داده قدیمی ~/.mode پیدا نشد. فقط شروع از نو امکان‌پذیر است.",
   "dataRoot.disk.insufficient":
     "فضای دیسک کافی نیست: حدود {required} لازم است، {free} در دسترس است. فضا آزاد کنید و دوباره تلاش کنید.",
   "dataRoot.progress.preparing": "در حال آماده‌سازی برای کپی…",

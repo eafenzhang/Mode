@@ -14,7 +14,7 @@ import { useCancelPendingRemoteConnection } from "@/hooks/useCancelPendingRemote
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useRemoteConnectionForm } from "@/hooks/useRemoteConnectionForm.js";
 import { useRemoteConnectionLogs } from "@/hooks/useRemoteConnectionLogs.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
 import {
   buildRemoteTarget,
@@ -82,7 +82,7 @@ export function RemoteConnectionDialog({
   preferredKind,
   preferredWslDistro,
 }: RemoteConnectionDialogProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const confirmDialog = useConfirmDialog();
   const cancelPendingRemoteConnection = useCancelPendingRemoteConnection();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -633,8 +633,8 @@ export function RemoteConnectionDialog({
                       remoteMcpSyncService={directoryBrowserServices?.mcpSyncService ?? null}
                       localPluginSyncService={baseServices.pluginSyncService}
                       remotePluginSyncService={directoryBrowserServices?.pluginSyncService ?? null}
-                      localZCodeAgentService={baseServices.zcodeAgentService}
-                      remoteZCodeAgentService={directoryBrowserServices?.zcodeAgentService ?? null}
+                      localModeAgentService={baseServices.modeAgentService}
+                      remoteModeAgentService={directoryBrowserServices?.modeAgentService ?? null}
                       localWorkspacePath={localWorkspacePath}
                       selecting={selectingDirectory}
                       onSelect={(path) => {

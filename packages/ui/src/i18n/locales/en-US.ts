@@ -631,7 +631,7 @@ const enUS: Record<string, string> = {
   "bots.setup.guide.webhook.bind.2":
     'The payload should at least include this botId, a stable userId, `chatType: "private"`, and set text to {command}.',
   "bots.setup.guide.webhook.bind.3":
-    "If the bot uses a secret, also send `x-zcode-bot-secret`; then return here after the bind succeeds.",
+    "If the bot uses a secret, also send `x-mode-bot-secret`; then return here after the bind succeeds.",
   "bots.setup.footer.choose": "Choose a supported bot to continue.",
   "bots.setup.footer.create": "Connectivity must pass before binding.",
   "bots.setup.testSuccess": "Connectivity test passed",
@@ -1615,7 +1615,7 @@ const enUS: Record<string, string> = {
   "titleBar.menu.help.exportLogs": "Export logs",
   "titleBar.menu.help.toggleDevTools": "Toggle developer tools",
   "titleBar.menu.help.resourceManager": "Resource manager",
-  "titleBar.menu.help.toggleZCodeStdioTap": "Capture agent stdio traffic",
+  "titleBar.menu.help.toggleModeStdioTap": "Capture agent stdio traffic",
   "titleBar.menu.help.clearAllData": "Clear all data",
 
   // Directory browser
@@ -2352,11 +2352,11 @@ const enUS: Record<string, string> = {
   "settings.toolGroupingChanges": "Group file changes",
   "settings.toolGroupingChangesDescription":
     "Group consecutive Write, Edit, and ApplyPatch calls into a Changes section.",
-  "settings.zcodeInteractionBehavior": "Interaction behavior",
-  "settings.zcodeInteractionBehaviorDescription":
+  "settings.modeInteractionBehavior": "Interaction behavior",
+  "settings.modeInteractionBehaviorDescription":
     "While Mode is running, add follow-up actions to the queue or guide them to run after the next tool call.",
-  "settings.zcodeInteractionBehavior.option.queue": "Queue",
-  "settings.zcodeInteractionBehavior.option.guide": "Guide",
+  "settings.modeInteractionBehavior.option.queue": "Queue",
+  "settings.modeInteractionBehavior.option.guide": "Guide",
   "settings.askUserQuestionAutoResolution": "Automatically continue questions",
   "settings.askUserQuestionAutoResolutionDescription":
     "When enabled, Agent questions automatically continue after 5 minutes without an answer. When disabled, current and future questions wait for your response.",
@@ -3320,8 +3320,8 @@ const enUS: Record<string, string> = {
   "sidebar.usage.plan.weekly": "Weekly",
   "sidebar.usage.plan.toolCalls": "Tool calls",
   "sidebar.usage.plan.mcp": "Mode MCP",
-  "sidebar.usage.plan.zcodeMcp": "Mode MCP",
-  "sidebar.usage.plan.zcodeMcpDescription":
+  "sidebar.usage.plan.modeMcp": "Mode MCP",
+  "sidebar.usage.plan.modeMcpDescription":
     "Daily aggregate quota for Mode built-in plugin MCPs",
   "chat.planUsage.title": "Plan usage",
   "chat.planUsage.titleWithPlan": "{plan} Plan usage",
@@ -3989,7 +3989,7 @@ const enUS: Record<string, string> = {
   "settings.commands.description":
     "Manage Mode Agent .md command files. Commands can be invoked with /command-name in chat.",
   "settings.commands.sourceFilterLabel": "Source filter",
-  "settings.commands.source.zcodeAgent": "Mode Agent",
+  "settings.commands.source.modeAgent": "Mode Agent",
   "settings.commands.add": "New",
   "settings.commands.addNew": "New command",
   "settings.commands.addDescription":
@@ -4149,7 +4149,7 @@ const enUS: Record<string, string> = {
   "settingsSync.action.importSelected": "Import selected",
   "settingsSync.action.importing": "Importing...",
   "settingsSync.action.finish": "Start using Mode",
-  "settingsSync.agent.zcode": "Mode Agent",
+  "settingsSync.agent.mode": "Mode Agent",
   "settingsSync.agent.claudeCode": "Claude Code",
   "settingsSync.agent.codexCli": "Codex CLI",
   "settingsSync.agent.openCode": "OpenCode",
@@ -5693,46 +5693,46 @@ const enUS: Record<string, string> = {
   "chat.permission.switchMode.placeholder": "Implementation plan",
 
   // Mode Agent
-  "zcode.unavailable": "AI agent not available",
-  "zcode.initFailed": "Failed to start AI agent",
-  "zcode.error.TASK_OWNED_BY_OTHER_HOST": "This task is already running in another connected view.",
-  "zcode.error.STALE_TASK_OWNER_COMMAND": "This action belongs to an older run and was ignored.",
-  "zcode.error.NO_ACTIVE_TASK_OWNER": "No active task owner is available for this action.",
-  "zcode.error.OWNER_COMMAND_FAILED": "The task owner could not complete this action.",
-  "zcode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
+  "mode.unavailable": "AI agent not available",
+  "mode.initFailed": "Failed to start AI agent",
+  "mode.error.TASK_OWNED_BY_OTHER_HOST": "This task is already running in another connected view.",
+  "mode.error.STALE_TASK_OWNER_COMMAND": "This action belongs to an older run and was ignored.",
+  "mode.error.NO_ACTIVE_TASK_OWNER": "No active task owner is available for this action.",
+  "mode.error.OWNER_COMMAND_FAILED": "The task owner could not complete this action.",
+  "mode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
     "Current attachments are too large for one request. Remove or compress attachments and try again.",
-  "zcode.error.MEDIA_BUDGET_CURRENT_IMAGE_TOO_LARGE":
+  "mode.error.MEDIA_BUDGET_CURRENT_IMAGE_TOO_LARGE":
     "Current image attachments are too large. Remove or compress images and try again.",
-  "zcode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
+  "mode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
     "Current video attachments are too large. Remove or compress videos and try again.",
-  "zcode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
+  "mode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
     "The current model is no longer available. Select an available model from the current model list to continue.",
-  "zcode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
+  "mode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "This model is unavailable. Check whether the API key has been added to the project member list.",
-  "zcode.error.providerBusiness.1006": "The API key has expired. Configure it again and retry.",
-  "zcode.error.providerBusiness.1005":
+  "mode.error.providerBusiness.1006": "The API key has expired. Configure it again and retry.",
+  "mode.error.providerBusiness.1005":
     "Today's free plan quota is used up. Switch models or wait for the quota to reset.",
-  "zcode.error.providerBusiness.3006":
+  "mode.error.providerBusiness.3006":
     "The current model is not included in this plan. Switch to an allowed model and try again.",
-  "zcode.error.providerBusiness.3002":
+  "mode.error.providerBusiness.3002":
     "You're sending requests too quickly. Please try again later.",
-  "zcode.error.providerBusiness.3001":
+  "mode.error.providerBusiness.3001":
     "The request parameters are invalid. Check the input and try again.",
-  "zcode.error.providerBusiness.3007":
+  "mode.error.providerBusiness.3007":
     "The request was rejected by the gateway security check. Please try again later or contact support.",
-  "zcode.error.providerBusiness.3008":
+  "mode.error.providerBusiness.3008":
     "The system is busy. Please switch models, upgrade your account, or try again later.",
-  "zcode.error.providerBusiness.3009":
+  "mode.error.providerBusiness.3009":
     "The system is busy. Please switch models, upgrade your account, or try again later.",
-  "zcode.error.providerBusiness.3010":
+  "mode.error.providerBusiness.3010":
     "The system is busy. Please switch models, upgrade your account, or try again later.",
-  "zcode.error.providerBusiness.3102":
+  "mode.error.providerBusiness.3102":
     "This run exceeded the maximum single-run time. Create a new off-peak task to continue.",
-  "zcode.error.modelSuspiciousEmpty":
+  "mode.error.modelSuspiciousEmpty":
     "The model returned no content (often caused by an expired token or plan issues). Please send again.",
-  "zcode.error.providerBusiness.2007":
+  "mode.error.providerBusiness.2007":
     "The upstream service is temporarily unavailable. Please try again later.",
-  "zcode.error.providerBusiness.429":
+  "mode.error.providerBusiness.429":
     "You're sending requests too quickly. Please try again later.",
 
   // Debug info bar
@@ -6285,7 +6285,7 @@ const enUS: Record<string, string> = {
   "dataRoot.loading": "Preparing…",
   "dataRoot.title": "Data storage",
   "dataRoot.status.absentWithLegacy":
-    "Legacy Mode / ZCode data was found. You can copy it into the new data directory, or start fresh; either way the old directory is kept as is.",
+    "Legacy Mode / Mode data was found. You can copy it into the new data directory, or start fresh; either way the old directory is kept as is.",
   "dataRoot.status.unowned":
     "The current data directory is not owned by this product (it may come from another branch or was created manually). It will be backed up first; nothing is deleted or merged.",
   "dataRoot.status.corrupt":
@@ -6294,7 +6294,7 @@ const enUS: Record<string, string> = {
   "dataRoot.candidates.title": "Legacy data available",
   "dataRoot.candidate.size": "Size",
   "dataRoot.candidate.modified": "Modified",
-  "dataRoot.candidate.empty": "No legacy ~/.zcode data found. Only a fresh start is available.",
+  "dataRoot.candidate.empty": "No legacy ~/.mode data found. Only a fresh start is available.",
   "dataRoot.disk.insufficient":
     "Not enough disk space: about {required} required, {free} available. Free some space and retry.",
   "dataRoot.progress.preparing": "Preparing to copy…",

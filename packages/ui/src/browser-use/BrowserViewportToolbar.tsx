@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 type ViewportDimension = "height" | "width";
 
@@ -52,7 +52,7 @@ export function BrowserViewportToolbar({
   viewportSize: BrowserViewportSize;
   zoom: BrowserViewportZoom;
 }): React.JSX.Element {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [widthDraft, setWidthDraft] = useState(String(viewportSize.width));
   const [heightDraft, setHeightDraft] = useState(String(viewportSize.height));
   const [invalidDrafts, setInvalidDrafts] = useState<Record<ViewportDimension, boolean>>({

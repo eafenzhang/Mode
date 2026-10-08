@@ -1,5 +1,5 @@
 import type { IPluginManagementService } from "@mode/services";
-import type { ZCodePluginScope } from "@mode/shared";
+import type { ModePluginScope } from "@mode/shared";
 import { logger } from "@/logger.js";
 import { loadInto } from "@/store/pluginManagementStoreLoading.js";
 import type { PluginManagementState } from "@/store/pluginManagementStore.js";
@@ -14,7 +14,7 @@ const activeToggleRequests = new Map<string, number>();
 function buildToggleRequestKey(input: {
   workspacePath: string;
   workspaceIdentity: string | null;
-  configScope: ZCodePluginScope | null;
+  configScope: ModePluginScope | null;
   pluginId: string;
 }): string {
   const workspaceKey = input.workspaceIdentity?.trim() || input.workspacePath;
@@ -27,7 +27,7 @@ export async function setPluginEnabledOptimistically(
   pluginId: string,
   enabled: boolean,
   pluginService: IPluginManagementService,
-  scope: ZCodePluginScope = "user",
+  scope: ModePluginScope = "user",
 ): Promise<boolean> {
   const { workspacePath, workspaceIdentity, configScope } = get();
   if (!workspacePath) return false;

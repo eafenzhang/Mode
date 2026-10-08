@@ -1,4 +1,4 @@
-import type { ConversationRow, ToolCallRow } from "@mode/shared/zcode-protocol-v4";
+import type { ConversationRow, ToolCallRow } from "@mode/shared/mode-protocol-v4";
 import type { OfficialMcpToolErrorCode } from "@mode/shared";
 
 /**

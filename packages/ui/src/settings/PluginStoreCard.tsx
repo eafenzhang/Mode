@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import {
   canUpdatePluginItem,
@@ -63,7 +63,7 @@ export function PluginStoreItemMenu({
   triggerVariant?: "ghost" | "outline";
   triggerSize?: "icon-md" | "icon-lg";
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const enabled = item.info?.enabled ?? false;
   const updatePending = canUpdatePluginItem(item);
   const busy = isItemBusy(item, actions);
@@ -161,7 +161,7 @@ export function PluginStoreInstallButton({
   actions: PluginStoreActions;
   size?: "sm" | "default" | "lg";
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   // 官方客户端内置、本仓库没有安装包的第一方插件：按钮不可点，用提示说明原因，
   // 而不是让用户点了之后收到「Bundled plugin cache directory missing」。
   if (item.bundledUnavailable) {
@@ -215,7 +215,7 @@ export function PluginStoreUpdateBadge({
 }: {
   item: Pick<StorePluginItem, "id" | "installedMeta" | "orphaned"> | null | undefined;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   if (!canUpdatePluginItem(item)) return null;
   const label = intl.formatMessage({ id: "settings.plugins.list.updateAvailable" });
   return (
@@ -241,7 +241,7 @@ export function PluginStoreUpdateButton({
   actions: PluginStoreActions;
   size?: "sm" | "default" | "lg";
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   if (!item || !canUpdatePluginItem(item)) return null;
   const updating = actions.operationId === `plugin:update:${item.id}`;
   return (
@@ -281,7 +281,7 @@ export function PluginStoreCard({
   actions: PluginStoreActions;
   locale: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const displayName = resolveItemDisplayName(item, locale);
   const description = resolveItemDescription(item, locale);
   return (

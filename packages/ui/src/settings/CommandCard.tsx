@@ -1,20 +1,20 @@
 import { Terminal } from "lucide-react";
-import type { UserCommand, ZCodeCommand } from "@mode/shared";
+import type { UserCommand, ModeCommand } from "@mode/shared";
 import { isPluginCommand, isUserCommand } from "@mode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { Switch } from "@/components/ui/switch.js";
 import { settingsResourceRowInteraction } from "@/settings/settingsResourceRowInteraction.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import type { StorePluginItem } from "@/settings/pluginStoreListing.js";
 
-export function isEditableUserCommand(command: ZCodeCommand): command is UserCommand {
-  return isUserCommand(command) && command.location.source === "zcode";
+export function isEditableUserCommand(command: ModeCommand): command is UserCommand {
+  return isUserCommand(command) && command.location.source === "mode";
 }
 
 interface CommandCardProps {
-  command: ZCodeCommand;
-  onEdit?: (command: ZCodeCommand) => void;
-  onToggle?: (command: ZCodeCommand, enabled: boolean) => void;
+  command: ModeCommand;
+  onEdit?: (command: ModeCommand) => void;
+  onToggle?: (command: ModeCommand, enabled: boolean) => void;
   isOperating?: boolean;
   pluginIconItem?: Pick<StorePluginItem, "name" | "listing">;
 }
@@ -26,7 +26,7 @@ export function CommandCard({
   isOperating,
   pluginIconItem,
 }: CommandCardProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const canEdit = isEditableUserCommand(command);
   const editable = canEdit && Boolean(onEdit) && !isOperating;
 

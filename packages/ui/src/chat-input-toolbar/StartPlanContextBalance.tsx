@@ -1,7 +1,7 @@
 import { Loader2Icon } from "lucide-react";
 import type { UsageEntitlementSnapshot, UsageQuotaLimit } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { useModeIntl } from "@/i18n/IntlProvider.js";
 import { getContextQuotaMeterGridClass } from "@/chat-input-toolbar/contextQuotaMeterGrid.js";
 import { formatStartPlanBucketResetTime } from "@/lib/codingPlanQuotaPresentation.js";
 import { formatQuotaModelDisplayName } from "@/settings/model-provider-section/quotaModelDisplayName.js";
@@ -114,7 +114,7 @@ export function ChatStartPlanBalancePanel({
   separated = false,
 }: {
   config: ChatStartPlanBalanceConfig;
-  intl: ReturnType<typeof useZCodeIntl>["intl"];
+  intl: ReturnType<typeof useModeIntl>["intl"];
   locale: string;
   separated?: boolean;
 }) {

@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 
 /**
@@ -23,7 +23,7 @@ export function BotGroupChatCard({
   bot: BotConfig;
   onPatchBot: (patch: Partial<BotConfig>) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const capabilities = resolveBotGroupChatCapabilities(bot.provider);
   // 平台只有 mention 语义时（企微），存量配置里的 always 不会再收到未 @ 的消息：
   // 显示层收敛到 mention，避免用户以为自己在用"全部消息"。

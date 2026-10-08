@@ -64,7 +64,7 @@ function addPlatformFixture(sourceDir, platform, { componentVersion, binaryConte
 }
 
 function createFixture() {
-  const root = mkdtempSync(join(tmpdir(), "zcode-remote-assets-"));
+  const root = mkdtempSync(join(tmpdir(), "mode-remote-assets-"));
   const sourceDir = join(root, "mock-cdn");
   addPlatformFixture(sourceDir, "linux-x64", {
     componentVersion: "v9.9.9+aaa111bbb222",

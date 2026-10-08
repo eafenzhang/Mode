@@ -1,4 +1,4 @@
-import type { InputRouting } from "@mode/shared/zcode-protocol-v4";
+import type { InputRouting } from "@mode/shared/mode-protocol-v4";
 import type { ConversationComposerSendOptions } from "@/v4/ConversationComposer.js";
 
 interface PromptScrollFocusPolicyInput {

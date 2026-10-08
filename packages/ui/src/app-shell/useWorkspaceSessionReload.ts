@@ -1,15 +1,15 @@
 import { useCallback, useRef, useState } from "react";
 import type { IServiceAccessor } from "@mode/services";
-import type { ZCodeProvider } from "@mode/shared";
+import type { ModeProvider } from "@mode/shared";
 import { toast } from "@/components/ui/toast.js";
 import {
   buildWorkspaceSessionReloadDraftError,
   shouldDebounceWorkspaceSessionReload,
 } from "@/lib/workspaceSessionReloadPlan.js";
 import { resolveWorkspaceModelConfigSyncScope } from "@/lib/modelConfigSync.js";
-import { prepareWorkspaceWithZCodeSessionService } from "@/hooks/useWorkspacePrepare.js";
+import { prepareWorkspaceWithModeSessionService } from "@/hooks/useWorkspacePrepare.js";
 import { logger } from "@/logger.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 
@@ -40,7 +40,7 @@ export function useWorkspaceSessionReload({
   const lastReloadSessionTriggeredAtRef = useRef<number | null>(null);
 
   const handleReloadSession = useCallback(
-    async (options?: { resumeTaskId?: string | null; provider?: ZCodeProvider | null }) => {
+    async (options?: { resumeTaskId?: string | null; provider?: ModeProvider | null }) => {
       if (reloadSessionDisabled || reloadSessionPending) {
         return;
       }
@@ -55,13 +55,13 @@ export function useWorkspaceSessionReload({
       lastReloadSessionTriggeredAtRef.current = now;
       setReloadSessionPending(true);
 
-      const zcodeSessionStore = useZCodeSessionStore.getState();
-      const latestWorkspaceState = zcodeSessionStore.getWorkspaceState(
+      const modeSessionStore = useModeSessionStore.getState();
+      const latestWorkspaceState = modeSessionStore.getWorkspaceState(
         workspaceAbsPath,
         workspaceIdentity,
       );
       const actionScope = resolveWorkspaceModelConfigSyncScope(latestWorkspaceState);
-      const provider: ZCodeProvider = options?.provider ?? actionScope.provider;
+      const provider: ModeProvider = options?.provider ?? actionScope.provider;
       const resumeTaskId =
         options?.resumeTaskId?.trim() || latestWorkspaceState.activeTaskId || undefined;
       const shouldPrepareWorkspace = !resumeTaskId;
@@ -69,22 +69,22 @@ export function useWorkspaceSessionReload({
       // Reload session 之前只调用了服务层重建流程，没有同步 workspaceInit 状态到 UI store。
       // 草稿态下后续准备流程会继续读到旧状态，用户会误判本次重建没有生效。
       // 这里显式写入 initializing/ready/failed，保证重建状态和会话流程保持一致。
-      zcodeSessionStore.setWorkspaceInitState(
+      modeSessionStore.setWorkspaceInitState(
         workspaceAbsPath,
         "initializing",
         null,
         workspaceIdentity,
       );
       if (shouldPrepareWorkspace) {
-        zcodeSessionStore.setConfigOptionsStatus(workspaceAbsPath, "loading", workspaceIdentity);
+        modeSessionStore.setConfigOptionsStatus(workspaceAbsPath, "loading", workspaceIdentity);
         // 草稿态点击 reload 后若不清空旧错误，输入区会继续显示上一轮失败提示，
         // 用户会误判本次重建仍失败。这里在新一轮重建开始时先清空草稿错误。
-        zcodeSessionStore.setDraftError(workspaceAbsPath, null, workspaceIdentity);
-        zcodeSessionStore.setTaskState(workspaceAbsPath, "idle", null, workspaceIdentity);
+        modeSessionStore.setDraftError(workspaceAbsPath, null, workspaceIdentity);
+        modeSessionStore.setTaskState(workspaceAbsPath, "idle", null, workspaceIdentity);
       }
 
       try {
-        await services.zcodeTaskService.restartWorkspaceProcess({
+        await services.modeTaskService.restartWorkspaceProcess({
           workspacePath: workspaceAbsPath,
           ...(workspaceIdentity ? { workspaceIdentity } : {}),
           provider,
@@ -92,45 +92,45 @@ export function useWorkspaceSessionReload({
         });
 
         if (shouldPrepareWorkspace) {
-          const prepareResult = await prepareWorkspaceWithZCodeSessionService({
+          const prepareResult = await prepareWorkspaceWithModeSessionService({
             workspacePath: workspaceAbsPath,
             workspaceIdentity,
             provider,
-            zcodeSessionService: services.zcodeSessionService,
+            modeSessionService: services.modeSessionService,
           });
 
-          const latestAfterPrepare = zcodeSessionStore.getWorkspaceState(
+          const latestAfterPrepare = modeSessionStore.getWorkspaceState(
             workspaceAbsPath,
             workspaceIdentity,
           );
           if (latestAfterPrepare.selectedProvider === provider) {
-            const latestAfterResolve = zcodeSessionStore.getWorkspaceState(
+            const latestAfterResolve = modeSessionStore.getWorkspaceState(
               workspaceAbsPath,
               workspaceIdentity,
             );
             if (latestAfterResolve.selectedProvider === provider) {
-              zcodeSessionStore.setConfigOptions(
+              modeSessionStore.setConfigOptions(
                 workspaceAbsPath,
                 prepareResult.configOptions ?? [],
                 workspaceIdentity,
               );
-              zcodeSessionStore.setConfigOptionsStatus(
+              modeSessionStore.setConfigOptionsStatus(
                 workspaceAbsPath,
                 "ready",
                 workspaceIdentity,
               );
-              zcodeSessionStore.setSlashCommands(
+              modeSessionStore.setSlashCommands(
                 workspaceAbsPath,
                 prepareResult.slashCommands ?? [],
                 workspaceIdentity,
               );
-              zcodeSessionStore.setDraftError(workspaceAbsPath, null, workspaceIdentity);
+              modeSessionStore.setDraftError(workspaceAbsPath, null, workspaceIdentity);
             }
           }
         }
 
-        zcodeSessionStore.setWorkspaceInitAttempts(workspaceAbsPath, 0, workspaceIdentity);
-        zcodeSessionStore.setWorkspaceInitState(workspaceAbsPath, "ready", null, workspaceIdentity);
+        modeSessionStore.setWorkspaceInitAttempts(workspaceAbsPath, 0, workspaceIdentity);
+        modeSessionStore.setWorkspaceInitState(workspaceAbsPath, "ready", null, workspaceIdentity);
 
         logger.info(
           `[App] workspace session 重建完成 workspace=${workspaceAbsPath} provider=${provider} resumeTaskId=${resumeTaskId ?? "<none>"}`,
@@ -149,17 +149,17 @@ export function useWorkspaceSessionReload({
             message,
           },
         );
-        zcodeSessionStore.setWorkspaceInitState(
+        modeSessionStore.setWorkspaceInitState(
           workspaceAbsPath,
           "failed",
           message,
           workspaceIdentity,
         );
         if (shouldPrepareWorkspace) {
-          zcodeSessionStore.setConfigOptionsStatus(workspaceAbsPath, "error", workspaceIdentity);
+          modeSessionStore.setConfigOptionsStatus(workspaceAbsPath, "error", workspaceIdentity);
           // 草稿态下 reload 前会先清空旧错误；如果失败后不回填 draftError，
           // 聊天区只剩 toast，用户看不到可重试的详细报错。这里统一回填标准化错误到输入区。
-          zcodeSessionStore.setDraftError(workspaceAbsPath, reloadDraftError, workspaceIdentity);
+          modeSessionStore.setDraftError(workspaceAbsPath, reloadDraftError, workspaceIdentity);
         }
         toast(intl.formatMessage({ id: "appHeader.reloadSessionFailed" }));
       } finally {
@@ -170,8 +170,8 @@ export function useWorkspaceSessionReload({
       intl,
       reloadSessionDisabled,
       reloadSessionPending,
-      services.zcodeTaskService,
-      services.zcodeSessionService,
+      services.modeTaskService,
+      services.modeSessionService,
       workspaceAbsPath,
       workspaceIdentity,
     ],

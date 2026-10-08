@@ -70,7 +70,7 @@ export function buildNativeSearchToolsWindows({
     arch: config.arch,
     outputDir,
   });
-  const workDir = mkdtempSync(join(tmpdir(), "zcode-native-search-build-"));
+  const workDir = mkdtempSync(join(tmpdir(), "mode-native-search-build-"));
   const cmakeBuildDir = join(workDir, "cmake-build");
   const cmakeOutputDir = join(workDir, "cmake-output");
   const env = {
@@ -79,7 +79,7 @@ export function buildNativeSearchToolsWindows({
     LC_ALL: "C",
   };
 
-  console.log("==> ZCode native search build");
+  console.log("==> Mode native search build");
   console.log(`    target:  ${plan.platformKey}`);
   console.log(`    output:  ${plan.outputDir}`);
   console.log(`    workdir: ${workDir}`);

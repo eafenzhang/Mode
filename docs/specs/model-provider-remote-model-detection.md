@@ -18,7 +18,7 @@
   → UI hook 组装 { apiType, baseUrl, apiKey, headers }（当前草稿值）
   → RPC: IProviderSettingsService.listRemoteModels（ProxyChannel 泛化转发）
   → Host: 注入的 executor 执行 HTTP GET 并解析
-      → buildRemoteModelListRequest / parseRemoteModelList（@zcode/provider 纯函数）
+      → buildRemoteModelListRequest / parseRemoteModelList（@mode/provider 纯函数）
   ← 返回只读快照 { models: [{ id }] } 或 { success: false, message }
   → UI 渲染列表；点选仅写入 draft.idValue（本地草稿），保存仍走既有 addPersonalModel 链
 ```
@@ -31,7 +31,7 @@
 
 ## URL 与鉴权语义（与正式执行链一致）
 
-检测结果的 URL 语义必须与 `apps/zcode-cli/packages/adapters` 中正式模型执行链一致：
+检测结果的 URL 语义必须与 `apps/mode-cli/packages/adapters` 中正式模型执行链一致：
 
 | apiType | 请求 URL | 鉴权头 |
 | --- | --- | --- |

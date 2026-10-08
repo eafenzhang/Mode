@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { version as readOsVersion } from "node:os";
 import { join } from "node:path";
 import {
-  buildZCodeSourceHeadersFromContext,
-  normalizeZCodeSourceHeaderValue,
+  buildModeSourceHeadersFromContext,
+  normalizeModeSourceHeaderValue,
   MODE_ENV,
   MODE_SOURCE_HEADERS,
   MODE_VERSION,
@@ -12,7 +12,7 @@ import { getAppConfigDir } from "../paths.js";
 
 export { MODE_SOURCE_HEADERS };
 
-interface ZCodeSourceHeaderOptions {
+interface ModeSourceHeaderOptions {
   appVersion?: string;
   arch?: string;
   clientLanguage?: string;
@@ -25,7 +25,7 @@ interface ZCodeSourceHeaderOptions {
 let cachedDeviceMid: { stateFile: string; value: string } | null = null;
 
 function normalizePrintableHeaderValue(value: string | undefined): string | undefined {
-  return normalizeZCodeSourceHeaderValue(value);
+  return normalizeModeSourceHeaderValue(value);
 }
 
 function resolveClientLanguage(): string {
@@ -62,8 +62,8 @@ function readExistingDeviceMid(): string | undefined {
   }
 }
 
-export function buildZCodeSourceHeaders(
-  options: ZCodeSourceHeaderOptions = {},
+export function buildModeSourceHeaders(
+  options: ModeSourceHeaderOptions = {},
 ): Record<string, string> {
   const platform = options.platform ?? process.platform;
   const arch = options.arch ?? process.arch;
@@ -76,7 +76,7 @@ export function buildZCodeSourceHeaders(
   const osVersion = normalizePrintableHeaderValue(options.osVersion ?? readOsVersion());
   const deviceMid = readExistingDeviceMid();
 
-  return buildZCodeSourceHeadersFromContext({
+  return buildModeSourceHeadersFromContext({
     appVersion,
     arch,
     clientLanguage,

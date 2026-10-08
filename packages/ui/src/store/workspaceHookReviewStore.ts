@@ -3,7 +3,7 @@ import type {
   CommandAck,
   CommandEnvelope,
   WorkspaceHookReviewRequestPayload,
-} from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 // review 单调性裁决单一来源；store 的应用策略是 cross_flow 接受新 Runtime 权威
 // （renderer 服从 canonical snapshot 的最新投递）。
 import { verdictWorkspaceHookReviewRequest } from "@mode/shared/workspace-hook-review-monotonicity";

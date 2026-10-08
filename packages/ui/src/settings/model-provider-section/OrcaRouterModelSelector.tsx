@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { TID_ORCAROUTER_SPEC, type OrcaCapability } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import {
   reconcileOrcaSelection,
@@ -33,7 +33,7 @@ export function OrcaRouterModelSelector({
   onSelectModel: (modelId: string | null) => void;
   disabled?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const { orcaRouterService } = useServices();
   const [models, setModels] = useState<readonly OrcaCatalogModel[]>([]);
   const [source, setSource] = useState<CatalogSource>("live");

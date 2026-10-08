@@ -17,7 +17,7 @@ run = "mise exec -- node scripts/mise-run.mjs pnpm bootstrap"
 
 [tasks.dev]
 description = "Start the desktop app in an isolated local test environment."
-env = { MODE_DATA_BASE_DIR = "{{env.HOME}}/.zcode-dev-home", MODE_DATA_BASE_DIR = "{{env.HOME}}/.zcode-dev-home" }
+env = { MODE_DATA_BASE_DIR = "{{env.HOME}}/.mode-dev-home", MODE_DATA_BASE_DIR = "{{env.HOME}}/.mode-dev-home" }
 run = "mise exec -- node scripts/mise-run.mjs pnpm dev:desktop:test"
 
 [tasks.dev-desktop-prod]

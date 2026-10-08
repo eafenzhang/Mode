@@ -1,7 +1,7 @@
 // 构建配置必须从相对路径加载 shared 源码：tsup/vite 会把相对依赖交给 esbuild 打包，
 // 而 workspace 包（@mode/shared）会被 externalize 交给 Node 原生加载 .ts——Node 24 的
-// strip-types 不做 .js→.ts 重映射，P1a 后 zcodeEndpoint 内部的 "./env-names.js" 会解析失败。
-import { pickProductEndpointEnv } from "../shared/src/zcodeEndpoint.js";
+// strip-types 不做 .js→.ts 重映射，P1a 后 modeEndpoint 内部的 "./env-names.js" 会解析失败。
+import { pickProductEndpointEnv } from "../shared/src/modeEndpoint.js";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -62,10 +62,10 @@ function loadEnvFiles(): Record<string, string> {
 }
 
 const env = loadEnvFiles();
-const { environment: zcodeEnv } = await loadBuiltinProviderConfig();
-// 安装包身份与后端环境分轴：MODE_PREVIEW_IDENTITY=1 让生产后端的构建仍以 ZCode Preview 身份打包运行。
-const zcodeProductFlavor = resolveDesktopProductFlavor({ ...process.env, MODE_ENV: zcodeEnv });
-console.log(`[tsup] MODE_ENV=${zcodeEnv} MODE_PRODUCT_FLAVOR=${zcodeProductFlavor}`);
+const { environment: modeEnv } = await loadBuiltinProviderConfig();
+// 安装包身份与后端环境分轴：MODE_PREVIEW_IDENTITY=1 让生产后端的构建仍以 Mode Preview 身份打包运行。
+const modeProductFlavor = resolveDesktopProductFlavor({ ...process.env, MODE_ENV: modeEnv });
+console.log(`[tsup] MODE_ENV=${modeEnv} MODE_PRODUCT_FLAVOR=${modeProductFlavor}`);
 
 export function resolveDesktopTsupBundleSecurityOptions(
   runtimeEnv: Record<string, string | undefined> = process.env,
@@ -102,11 +102,11 @@ function createSharedDefines() {
     __MODE_VERSION__: JSON.stringify(buildMetadata.appVersion),
     __MODE_COMMIT__: JSON.stringify(buildMetadata.buildCommitId),
     __MODE_BUILD_TIME__: JSON.stringify(buildMetadata.buildTime),
-    __MODE_ENV__: JSON.stringify(zcodeEnv),
+    __MODE_ENV__: JSON.stringify(modeEnv),
     __MODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
-    __MODE_PRODUCT_FLAVOR__: JSON.stringify(zcodeProductFlavor),
+    __MODE_PRODUCT_FLAVOR__: JSON.stringify(modeProductFlavor),
     // Computer Use Helper build identity — helperInstaller 读它决定下载哪个 Helper bundle。
-    // 缺失时 installer 抛 "Packaged ZCode is missing its embedded Computer Use Helper build identity"。
+    // 缺失时 installer 抛 "Packaged Mode is missing its embedded Computer Use Helper build identity"。
     // CI 构建时通过 MODE_CUA_HELPER_BUILD_ID env 注入；dev 为空串走兜底（dev helper 不走下载）。
     __MODE_CUA_HELPER_BUILD_ID__: JSON.stringify(
       process.env.MODE_CUA_HELPER_BUILD_ID?.trim() ?? "",
@@ -151,7 +151,7 @@ export default defineConfig([
     entry: {
       "main/index": "src/main/index.ts",
       "main/browserWebmRecorder": "src/main/browserView/electronBrowserWebmRecorder.ts",
-      "main/zcodeDataSizeWorker": "src/main/zcodeDataSizeWorker.ts",
+      "main/modeDataSizeWorker": "src/main/modeDataSizeWorker.ts",
       // 资源管理器「存储」tab 的扫描 Worker：main 持有 StorageService，遍历放独立线程，供 new Worker(new URL()) 解析。
       "main/storageScanWorker": "src/main/storageScanWorker.ts",
     },
@@ -174,7 +174,7 @@ export default defineConfig([
       "@mode/provider",
       "@mode/provider-node",
       // services 已内联进 main，但其 producer import 曾被保留为裸包引用；
-      // electron-builder 又会排除 node_modules/@zcode，导致安装包启动即 ERR_MODULE_NOT_FOUND。
+      // electron-builder 又会排除 node_modules/@mode，导致安装包启动即 ERR_MODULE_NOT_FOUND。
       // producer 的 JS broker 必须跟随 services 一起内联，原生 addon 仍只存在于独立 Helper。
       "@mode/cua",
     ],

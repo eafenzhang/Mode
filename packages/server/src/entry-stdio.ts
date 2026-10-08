@@ -17,13 +17,13 @@ import { registerStdioProcessLifecycle } from "./stdio-lifecycle.js";
 import { createStdioServices } from "./stdioServices.js";
 import { ensureRemoteServerDeviceMid } from "./stdioDeviceMid.js";
 import {
-  materializeBundledZCodeBuiltinProviderConfig,
-  readBundledZCodeBuiltinProviderConfig,
-} from "./bundledZCodeBuiltinProviderConfig.js";
+  materializeBundledModeBuiltinProviderConfig,
+  readBundledModeBuiltinProviderConfig,
+} from "./bundledModeBuiltinProviderConfig.js";
 
 // In stdio mode, all logging goes to stderr
 const log = (...args: unknown[]) =>
-  console.error(formatLogPrefix("zcode-server:stdio", process.pid), ...args);
+  console.error(formatLogPrefix("mode-server:stdio", process.pid), ...args);
 const stderrConsoleLog = (...args: unknown[]) => console.error(...args);
 
 // stdio 模式下 stdout 只能承载 RPC 帧。
@@ -44,7 +44,7 @@ if (process.argv.includes("--version")) {
 async function main() {
   // Phase 1: Send hello message
   const hello: HelloMessage = {
-    type: "zcode-hello",
+    type: "mode-hello",
     version: MODE_VERSION,
     platform: process.platform,
     arch: process.arch,
@@ -69,13 +69,13 @@ async function main() {
   await ensureRemoteServerDeviceMid({ log });
 
   // Phase 3: Initialize services and start stdio RPC server
-  const zcodeBuiltinProviderConfigFilePath = await materializeBundledZCodeBuiltinProviderConfig({
+  const modeBuiltinProviderConfigFilePath = await materializeBundledModeBuiltinProviderConfig({
     environmentConfigRoot: getAppConfigDir(),
-    content: readBundledZCodeBuiltinProviderConfig(),
+    content: readBundledModeBuiltinProviderConfig(),
   });
   const { authorityModeParseResult, services } = createStdioServices({
     env: process.env,
-    zcodeBuiltinProviderConfigFilePath,
+    modeBuiltinProviderConfigFilePath,
   });
   if (authorityModeParseResult.invalidRawValue) {
     log(

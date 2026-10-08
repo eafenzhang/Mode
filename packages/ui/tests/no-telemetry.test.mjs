@@ -32,7 +32,7 @@ test("platform and server do not expose or initialize reporting", async () => {
     await readFile(root + "packages/shared/src/platform.ts", "utf8"),
     /reportTelemetryEvent|reportArmsCustomEvent|RendererActionTrace/,
   );
-  for (const dir of ["packages/server/src", "packages/zcode-server-cli/src"]) {
+  for (const dir of ["packages/server/src", "packages/mode-server-cli/src"]) {
     for (const file of await sources(root + dir))
       assert.doesNotMatch(await readFile(file, "utf8"), /processResourceTelemetry\s*:/, file);
   }
@@ -59,12 +59,12 @@ test("purchase WebView retains authentication, theme and locale without injectin
   const { runInNewContext } = await import("node:vm");
   const helpers = await loadWebviewHelpers();
   for (const provider of ["zai", "bigmodel"]) {
-    const values = new Map([["zcode:coding-plan:report-context", "legacy context"]]);
+    const values = new Map([["mode:coding-plan:report-context", "legacy context"]]);
     const events = [];
     const classes = new Map();
     const host = {
       localStorage: { setItem: (k, v) => values.set(k, v), removeItem: (k) => values.delete(k) },
-      window: { __zcodeReportContext__: {}, dispatchEvent: (e) => events.push(e) },
+      window: { __modeReportContext__: {}, dispatchEvent: (e) => events.push(e) },
       document: { documentElement: { classList: { toggle: (k, v) => classes.set(k, v) } } },
       CustomEvent: class {
         constructor(type, options) {
@@ -80,7 +80,7 @@ test("purchase WebView retains authentication, theme and locale without injectin
         credentials: {
           zaiAccessToken: "test-zai",
           bigmodelAccessToken: "test-bigmodel",
-          zcodeJwtToken: "test-jwt",
+          modeJwtToken: "test-jwt",
         },
         theme: "zai-dark",
         locale: "zh-CN",
@@ -93,11 +93,11 @@ test("purchase WebView retains authentication, theme and locale without injectin
       values.has(`oauth:${provider === "zai" ? "bigmodel" : "zai"}:access_token`),
       false,
     );
-    assert.equal(host.window.__zcodeLang__, "zh-CN");
+    assert.equal(host.window.__modeLang__, "zh-CN");
     assert.equal(classes.get("dark"), true);
-    assert.equal(events[0].type, "zcode-coding-plan-auth-ready");
+    assert.equal(events[0].type, "mode-coding-plan-auth-ready");
     assert.deepEqual(JSON.parse(JSON.stringify(events[0].detail)), { provider, locale: "zh-CN" });
-    assert.equal(values.has("zcode:coding-plan:report-context"), false);
-    assert.equal("__zcodeReportContext__" in host.window, false);
+    assert.equal(values.has("mode:coding-plan:report-context"), false);
+    assert.equal("__modeReportContext__" in host.window, false);
   }
 });

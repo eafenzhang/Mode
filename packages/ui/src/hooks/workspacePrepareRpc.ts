@@ -4,33 +4,33 @@
  * 拆出原因：useWorkspacePrepare.ts 只保留可单测的轻量判定入口；
  * 这里只读取 workspace presentation（mode/slash commands）；模型选择事实由目标 Host View 提供。
  */
-import type { IZCodeSessionService } from "@mode/services";
-import { type ZCodeProvider, type ZCodeWorkspacePrepareResult } from "@mode/shared";
+import type { IModeSessionService } from "@mode/services";
+import { type ModeProvider, type ModeWorkspacePrepareResult } from "@mode/shared";
 import { getChatErrorMessage } from "@/lib/chatPrepareError.js";
 import { logger } from "@/logger.js";
-import { zcodeWorkspacePresentationToConfigOptions } from "@/lib/zcodeSessionProjection.js";
+import { modeWorkspacePresentationToConfigOptions } from "@/lib/modeSessionProjection.js";
 
-export async function prepareWorkspaceWithZCodeSessionService(params: {
+export async function prepareWorkspaceWithModeSessionService(params: {
   workspacePath: string;
   workspaceIdentity?: string;
-  provider: ZCodeProvider;
-  zcodeSessionService: Pick<IZCodeSessionService, "readWorkspacePresentation">;
-}): Promise<ZCodeWorkspacePrepareResult> {
+  provider: ModeProvider;
+  modeSessionService: Pick<IModeSessionService, "readWorkspacePresentation">;
+}): Promise<ModeWorkspacePrepareResult> {
   const startedAt = Date.now();
-  logger.info("[zcode-workspace-presentation] workspace prepare start", {
+  logger.info("[mode-workspace-presentation] workspace prepare start", {
     workspacePath: params.workspacePath,
     workspaceIdentity: params.workspaceIdentity ?? null,
     provider: params.provider,
   });
 
-  let presentation: Awaited<ReturnType<IZCodeSessionService["readWorkspacePresentation"]>>;
+  let presentation: Awaited<ReturnType<IModeSessionService["readWorkspacePresentation"]>>;
   try {
-    presentation = await params.zcodeSessionService.readWorkspacePresentation({
+    presentation = await params.modeSessionService.readWorkspacePresentation({
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
     });
   } catch (error) {
-    logger.warn("[zcode-workspace-presentation] readWorkspacePresentation failed", {
+    logger.warn("[mode-workspace-presentation] readWorkspacePresentation failed", {
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity ?? null,
       provider: params.provider,
@@ -41,9 +41,9 @@ export async function prepareWorkspaceWithZCodeSessionService(params: {
   }
 
   const readPresentationDurationMs = Date.now() - startedAt;
-  const configOptions = zcodeWorkspacePresentationToConfigOptions(presentation.mode);
+  const configOptions = modeWorkspacePresentationToConfigOptions(presentation.mode);
   const totalDurationMs = Date.now() - startedAt;
-  logger.info("[zcode-workspace-presentation] readWorkspacePresentation done", {
+  logger.info("[mode-workspace-presentation] readWorkspacePresentation done", {
     workspacePath: params.workspacePath,
     workspaceIdentity: params.workspaceIdentity ?? null,
     provider: params.provider,
@@ -56,7 +56,7 @@ export async function prepareWorkspaceWithZCodeSessionService(params: {
   return {
     workspacePath: params.workspacePath,
     preparedSessionId: "",
-    version: "ZCode Protocol/1",
+    version: "Mode Protocol/1",
     provider: params.provider,
     configOptions,
     slashCommands: presentation.slashCommands,

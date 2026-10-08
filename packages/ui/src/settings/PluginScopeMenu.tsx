@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { getWorkspaceKey } from "@/lib/workspaceKey.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 
@@ -58,7 +58,7 @@ export function PluginScopeMenu({
   workspaceTabs?: WorkspaceTabState[];
   onScopeKeyChange: (scopeKey: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const scopeWorkspaces =
     workspaceOptions ??
     workspaceTabs.filter(isPluginScopeWorkspaceConnected).map((tab) => ({

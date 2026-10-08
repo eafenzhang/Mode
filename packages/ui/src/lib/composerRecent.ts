@@ -1,10 +1,10 @@
 import { modelSelectionSchema, type ModelSelection } from "@mode/shared/model-selection";
-import { submissionModeSchema, type SubmissionMode } from "@mode/shared/zcode-protocol-v4";
+import { submissionModeSchema, type SubmissionMode } from "@mode/shared/mode-protocol-v4";
 import type { ModelSelectionView } from "@mode/services";
 import { logger } from "@/logger.js";
 
 // 沿用旧 key，读取时兼容只保存 ModelSelection 的历史记录。
-const COMPOSER_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
+const COMPOSER_RECENT_KEY_PREFIX = "mode-model-selection-recent-v1";
 
 interface StorageLike {
   getItem(key: string): string | null;

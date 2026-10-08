@@ -23,7 +23,7 @@
 
 - 根 `pnpm typecheck`：分阶段及最终检查均退出 0。
 - 根 `pnpm lint`：分阶段及最终检查均退出 0；52 warnings、0 errors，未将警告表述为全部清零。
-- CLI adapters：`tsc --noEmit -p apps/zcode-cli/packages/adapters/tsconfig.json` 退出 0。
+- CLI adapters：`tsc --noEmit -p apps/mode-cli/packages/adapters/tsconfig.json` 退出 0。
 - Desktop 全部回归 18/18 通过：新增断连测试 10 项、原 no-telemetry 4 项、GitHub Releases 更新 4 项。包括源码 grep 风格扫描、运行实际方法体确认副作用前短路、CLI OAuth 网络替身、Electron Session 拦截、历史内置模型 endpoint 拦截及用户模型请求参数保留。
 - 架构检查：0 violations、0 baseline、0 new；`git diff --check` 通过。
 - 额外 Electron main 类型检查未通过：75 项错误。使用当前 HEAD 源码覆盖编译器读取并比对诊断，基线同为 75 项，归一化联合类型显示顺序后新增 0 项。根 typecheck 本身不包含这个子工程；本轮未扩展修改这些无关错误。
@@ -39,19 +39,19 @@ node scripts/architecture/architecture-check.mjs check --changed
 
 ## 边界与未验证项
 
-- 未发现仍可主动调用官方平台的内置服务路径。`config/provider/zcode-builtin.json` 的历史平台模型 URL 和共享 endpoint 常量仍保留用于结构兼容，实际发送会被拒绝，回归测试覆盖这些配置 URL。
+- 未发现仍可主动调用官方平台的内置服务路径。`config/provider/mode-builtin.json` 的历史平台模型 URL 和共享 endpoint 常量仍保留用于结构兼容，实际发送会被拒绝，回归测试覆盖这些配置 URL。
 - 用户主动打开系统浏览器的文档链接、用户自配模型 API 按需求保留，不计为平台后台连接。用户自行安装的插件或通过终端执行的任意程序不等于应用内置平台调用，本轮未改写这些外部程序。
 - 没有执行完整 Electron 应用 E2E 或真实启动抓包；网络零调用证明来自方法体执行、网络替身和请求拦截测试，不宣称已有打包应用的实机抓包证明。
 - 工作区 freshness 脚本已运行，但 git fetch 因无法写入 `.git/FETCH_HEAD` 失败；无法证明当前检出与远端最新提交一致。
 
 ## 完整改动文件
 
-- [apps/zcode-cli/packages/adapters/src/auth/bigmodel-oauth.ts](../../../apps/zcode-cli/packages/adapters/src/auth/bigmodel-oauth.ts)
-- [apps/zcode-cli/packages/adapters/src/auth/cli-oauth.ts](../../../apps/zcode-cli/packages/adapters/src/auth/cli-oauth.ts)
-- [apps/zcode-cli/packages/adapters/src/auth/coding-plan-api-key.ts](../../../apps/zcode-cli/packages/adapters/src/auth/coding-plan-api-key.ts)
-- [apps/zcode-cli/packages/adapters/src/http/index.ts](../../../apps/zcode-cli/packages/adapters/src/http/index.ts)
-- [apps/zcode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts](../../../apps/zcode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts)
-- [apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts](../../../apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts)
+- [apps/mode-cli/packages/adapters/src/auth/bigmodel-oauth.ts](../../../apps/mode-cli/packages/adapters/src/auth/bigmodel-oauth.ts)
+- [apps/mode-cli/packages/adapters/src/auth/cli-oauth.ts](../../../apps/mode-cli/packages/adapters/src/auth/cli-oauth.ts)
+- [apps/mode-cli/packages/adapters/src/auth/coding-plan-api-key.ts](../../../apps/mode-cli/packages/adapters/src/auth/coding-plan-api-key.ts)
+- [apps/mode-cli/packages/adapters/src/http/index.ts](../../../apps/mode-cli/packages/adapters/src/http/index.ts)
+- [apps/mode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts](../../../apps/mode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts)
+- [apps/mode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts](../../../apps/mode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts)
 - [packages/desktop/specs/no-official-platform-report.md](../../../packages/desktop/specs/no-official-platform-report.md)
 - [packages/desktop/specs/no-official-platform.md](../../../packages/desktop/specs/no-official-platform.md)
 - [packages/desktop/src/main/desktopContextPromptRollout.ts](../../../packages/desktop/src/main/desktopContextPromptRollout.ts)
@@ -59,7 +59,7 @@ node scripts/architecture/architecture-check.mjs check --changed
 - [packages/desktop/src/main/index.ts](../../../packages/desktop/src/main/index.ts)
 - [packages/desktop/src/main/remoteCdn.ts](../../../packages/desktop/src/main/remoteCdn.ts)
 - [packages/desktop/tests/no-official-platform.test.mjs](../../../packages/desktop/tests/no-official-platform.test.mjs)
-- [packages/provider-node/src/zcode-builtin-download.ts](../../../packages/provider-node/src/zcode-builtin-download.ts)
+- [packages/provider-node/src/mode-builtin-download.ts](../../../packages/provider-node/src/mode-builtin-download.ts)
 - [packages/services/src/bigmodel/codingPlanEntitlement.ts](../../../packages/services/src/bigmodel/codingPlanEntitlement.ts)
 - [packages/services/src/bigmodel/teamPlanApiKey.ts](../../../packages/services/src/bigmodel/teamPlanApiKey.ts)
 - [packages/services/src/client-config/clientConfigService.ts](../../../packages/services/src/client-config/clientConfigService.ts)
@@ -84,7 +84,7 @@ node scripts/architecture/architecture-check.mjs check --changed
 - [packages/services/src/session/offPeakRuntimeModel.ts](../../../packages/services/src/session/offPeakRuntimeModel.ts)
 - [packages/services/src/session/offPeakServerClient.ts](../../../packages/services/src/session/offPeakServerClient.ts)
 - [packages/services/src/usage-stats/providers/bigmodelUsageQuotaProvider.ts](../../../packages/services/src/usage-stats/providers/bigmodelUsageQuotaProvider.ts)
-- [packages/services/src/usage-stats/providers/zcodeMcpQuotaProvider.ts](../../../packages/services/src/usage-stats/providers/zcodeMcpQuotaProvider.ts)
+- [packages/services/src/usage-stats/providers/modeMcpQuotaProvider.ts](../../../packages/services/src/usage-stats/providers/modeMcpQuotaProvider.ts)
 - [packages/shared/src/helpAppConfig.ts](../../../packages/shared/src/helpAppConfig.ts)
 - [packages/shared/src/index.ts](../../../packages/shared/src/index.ts)
 - [packages/shared/src/officialPlatformPolicy.ts](../../../packages/shared/src/officialPlatformPolicy.ts)

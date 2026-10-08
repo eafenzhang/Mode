@@ -849,11 +849,11 @@ body {
  * 会命中上面的全局滚动条样式，在幻灯片内部露出滚动条。幻灯片内容不存在用户滚动交互，
  * 这里整体隐藏渲染表面内部的原生滚动条。
  */
-[data-zcode-pptx-render-surface] * {
+[data-mode-pptx-render-surface] * {
   scrollbar-width: none;
 }
 
-[data-zcode-pptx-render-surface] *::-webkit-scrollbar {
+[data-mode-pptx-render-surface] *::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
@@ -946,7 +946,7 @@ body {
   }
 }
 
-@keyframes zcode-stream-text-in {
+@keyframes mode-stream-text-in {
   0% {
     opacity: 0;
   }
@@ -956,7 +956,7 @@ body {
   }
 }
 
-@keyframes zcode-draft-prompt-waterfall {
+@keyframes mode-draft-prompt-waterfall {
   from {
     opacity: 0;
     clip-path: inset(0 0 100% 0);
@@ -970,13 +970,13 @@ body {
   }
 }
 
-.zcode-draft-prompt-waterfall {
-  animation: zcode-draft-prompt-waterfall 260ms cubic-bezier(0.22, 1, 0.36, 1)
-    var(--zcode-draft-prompt-waterfall-delay, 0ms) both;
+.mode-draft-prompt-waterfall {
+  animation: mode-draft-prompt-waterfall 260ms cubic-bezier(0.22, 1, 0.36, 1)
+    var(--mode-draft-prompt-waterfall-delay, 0ms) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .zcode-draft-prompt-waterfall {
+  .mode-draft-prompt-waterfall {
     animation: none;
   }
 }
@@ -1009,7 +1009,7 @@ body {
   }
 }
 
-@keyframes zcode-stream-marker-in {
+@keyframes mode-stream-marker-in {
   0% {
     color: transparent;
   }
@@ -1019,35 +1019,35 @@ body {
   }
 }
 
-[data-zcode-stream-animate="true"] {
-  animation: zcode-stream-text-in 900ms cubic-bezier(0.16, 1, 0.3, 1)
-    var(--zcode-stream-animation-delay, 0ms) both;
+[data-mode-stream-animate="true"] {
+  animation: mode-stream-text-in 900ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--mode-stream-animation-delay, 0ms) both;
   will-change: opacity;
 }
 
-[data-zcode-stream-marker-animate="true"]::marker {
-  animation: zcode-stream-marker-in 900ms cubic-bezier(0.16, 1, 0.3, 1)
-    var(--zcode-stream-animation-delay, 0ms) both;
+[data-mode-stream-marker-animate="true"]::marker {
+  animation: mode-stream-marker-in 900ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--mode-stream-animation-delay, 0ms) both;
 }
 
-[data-zcode-tool-stream-animate="true"],
-[data-zcode-chat-loading-animate="true"] {
-  animation: zcode-stream-text-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+[data-mode-tool-stream-animate="true"],
+[data-mode-chat-loading-animate="true"] {
+  animation: mode-stream-text-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
   will-change: opacity;
 }
 
 /*  Radix Collapsible 在测量 closed 高度时会写入 inline animation-name:none。
    assistant 历史区自动结束收起需要在延迟卸载期间继续播放高度动画，
    所以这里用 !important 覆盖 Radix 的 inline style，只作用于显式标记的收起窗口。 */
-[data-zcode-collapsible-animate-close="true"][data-state="closed"] {
-  animation: zcode-collapsible-up 300ms ease-in-out forwards !important;
+[data-mode-collapsible-animate-close="true"][data-state="closed"] {
+  animation: mode-collapsible-up 300ms ease-in-out forwards !important;
 }
 
-[data-zcode-collapsible-animate-close="true"][data-state="closed"] > * {
-  animation: zcode-collapsible-fade-out 300ms ease-in-out forwards !important;
+[data-mode-collapsible-animate-close="true"][data-state="closed"] > * {
+  animation: mode-collapsible-fade-out 300ms ease-in-out forwards !important;
 }
 
-@keyframes zcode-collapsible-up {
+@keyframes mode-collapsible-up {
   from {
     height: var(--radix-collapsible-content-height);
   }
@@ -1057,7 +1057,7 @@ body {
   }
 }
 
-@keyframes zcode-collapsible-fade-out {
+@keyframes mode-collapsible-fade-out {
   from {
     opacity: 1;
   }
@@ -1068,28 +1068,28 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-zcode-stream-animate="true"],
-  [data-zcode-stream-marker-animate="true"]::marker,
-  [data-zcode-tool-stream-animate="true"],
-  [data-zcode-chat-loading-animate="true"],
-  [data-zcode-collapsible-animate-close="true"][data-state="closed"],
-  [data-zcode-collapsible-animate-close="true"][data-state="closed"] > * {
+  [data-mode-stream-animate="true"],
+  [data-mode-stream-marker-animate="true"]::marker,
+  [data-mode-tool-stream-animate="true"],
+  [data-mode-chat-loading-animate="true"],
+  [data-mode-collapsible-animate-close="true"][data-state="closed"],
+  [data-mode-collapsible-animate-close="true"][data-state="closed"] > * {
     animation: none;
   }
 }
 
 /* 点赞/点踩选中时的反馈动画：参考微信/X 的做法，只做图标回弹 + 细小粒子飞散两段，
    粒子用 box-shadow 画在 ::after 上且跟随 currentColor，零额外 DOM、不引入新颜色。 */
-.zcode-reaction-burst {
+.mode-reaction-burst {
   position: relative;
   display: inline-flex;
 }
 
-.zcode-reaction-burst > svg {
-  animation: zcode-reaction-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1);
+.mode-reaction-burst > svg {
+  animation: mode-reaction-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.zcode-reaction-burst::after {
+.mode-reaction-burst::after {
   content: "";
   position: absolute;
   top: 50%;
@@ -1101,14 +1101,14 @@ body {
   background: transparent;
   opacity: 0;
   pointer-events: none;
-  animation: zcode-reaction-particles 560ms cubic-bezier(0.16, 1, 0.3, 1) 60ms forwards;
+  animation: mode-reaction-particles 560ms cubic-bezier(0.16, 1, 0.3, 1) 60ms forwards;
 }
 
-.animate-zcode-alarm-ring {
-  animation: zcode-alarm-ring 600ms ease-in-out infinite;
+.animate-mode-alarm-ring {
+  animation: mode-alarm-ring 600ms ease-in-out infinite;
 }
 
-@keyframes zcode-alarm-ring {
+@keyframes mode-alarm-ring {
   0%,
   100% {
     transform: rotate(-10deg);
@@ -1119,7 +1119,7 @@ body {
   }
 }
 
-@keyframes zcode-reaction-pop {
+@keyframes mode-reaction-pop {
   0% {
     transform: scale(0);
   }
@@ -1137,7 +1137,7 @@ body {
   }
 }
 
-@keyframes zcode-reaction-particles {
+@keyframes mode-reaction-particles {
   0% {
     opacity: 0;
     box-shadow:
@@ -1166,8 +1166,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .zcode-reaction-burst > svg,
-  .zcode-reaction-burst::after {
+  .mode-reaction-burst > svg,
+  .mode-reaction-burst::after {
     animation: none;
   }
 }
@@ -1185,24 +1185,24 @@ body {
   }
 }
 
-@keyframes zcode-task-interaction-countdown {
+@keyframes mode-task-interaction-countdown {
   from {
-    transform: scaleX(var(--zcode-interaction-progress, 1));
+    transform: scaleX(var(--mode-interaction-progress, 1));
   }
   to {
     transform: scaleX(0);
   }
 }
 
-.zcode-task-interaction-countdown-fill {
-  animation: zcode-task-interaction-countdown var(--zcode-interaction-remaining-ms, 240000ms) linear
+.mode-task-interaction-countdown-fill {
+  animation: mode-task-interaction-countdown var(--mode-interaction-remaining-ms, 240000ms) linear
     forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .zcode-task-interaction-countdown-fill {
+  .mode-task-interaction-countdown-fill {
     animation: none;
-    transform: scaleX(var(--zcode-interaction-progress, 1));
+    transform: scaleX(var(--mode-interaction-progress, 1));
   }
 }
 
@@ -1210,12 +1210,12 @@ body {
   animation: workspace-remote-connecting-breathe 1.8s ease-in-out infinite;
 }
 
-.zcode-update-charge-progress [data-slot="progress-indicator"] {
+.mode-update-charge-progress [data-slot="progress-indicator"] {
   position: relative;
   overflow: hidden;
 }
 
-.zcode-update-charge-progress [data-slot="progress-indicator"]::after {
+.mode-update-charge-progress [data-slot="progress-indicator"]::after {
   content: "";
   position: absolute;
   bottom: 0;
@@ -1228,11 +1228,11 @@ body {
     color-mix(in oklab, var(--color-primary-foreground) 62%, transparent),
     transparent
   );
-  animation: zcode-update-charge-sweep 1.15s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  animation: mode-update-charge-sweep 1.15s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   transform: translateX(-120%);
 }
 
-@keyframes zcode-update-charge-sweep {
+@keyframes mode-update-charge-sweep {
   0% {
     opacity: 0.35;
     transform: translateX(-120%);
@@ -1249,7 +1249,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .zcode-update-charge-progress [data-slot="progress-indicator"]::after {
+  .mode-update-charge-progress [data-slot="progress-indicator"]::after {
     animation: none;
     opacity: 0.2;
     transform: none;

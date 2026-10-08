@@ -498,7 +498,7 @@ function appendSubscribedTeamPlanItems({
           subscriptionBillingCycle: null,
           subscriptionRenewTime: null,
           subscriptionExpireTime: null,
-          // Team Plan 项目没有可用 zcode-team-api-key 时，不能继续当作已启用连接方式。
+          // Team Plan 项目没有可用 mode-team-api-key 时，不能继续当作已启用连接方式。
           // 服务端会按组织/项目返回 apiKeyStatus；UI 需要在连接项和状态卡中明确标成不可用。
           statusActive: !teamPlanUnavailable,
         },

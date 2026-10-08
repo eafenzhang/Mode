@@ -50,7 +50,7 @@ import type {
   BotRemoteWorkspaceReconnectedEvent,
   UpdateCheckResultPayload,
   UpdateStatePayload,
-  ZCodeStdioTapDevState,
+  ModeStdioTapDevState,
   LoadCliMcpFromUserDirectoryRequest,
   MigrateLegacyCommonMcpRequest,
   SaveCliMcpToUserDirectoryRequest,
@@ -64,7 +64,7 @@ import type {
   CreateTempTextAttachmentRequest,
   OpenCuaPermissionOnboardingOptions,
 } from "@mode/shared";
-import { InternalChannels, PlatformChannels, formatZCodeRendererProcessName } from "@mode/shared";
+import { InternalChannels, PlatformChannels, formatModeRendererProcessName } from "@mode/shared";
 import { createOAuthCallbackHandler } from "./oauthCallbackBridge.js";
 const updateReadyCallbacks = new Set<(version: string) => void>();
 const updateStateCallbacks = new Set<(payload: UpdateStatePayload) => void>();
@@ -173,7 +173,7 @@ ipcRenderer.on(PlatformChannels.ShareImport, (_event: unknown, payload: { shareC
 });
 
 function updateRendererProcessTitle(): void {
-  process.title = formatZCodeRendererProcessName(document.title);
+  process.title = formatModeRendererProcessName(document.title);
 }
 
 function notifyUpdateReadyCallbacks(version: string): void {
@@ -202,7 +202,7 @@ function notifyUpdateStateCallbacks(payload: UpdateStatePayload): void {
 }
 
 // 进程检索体验优化：renderer 在系统里通常只会显示成通用 helper 名称，
-// 这里在 preload 阶段补上 zcode-* title，便于按窗口角色筛选。
+// 这里在 preload 阶段补上 mode-* title，便于按窗口角色筛选。
 updateRendererProcessTitle();
 window.addEventListener("DOMContentLoaded", updateRendererProcessTitle, {
   once: true,
@@ -214,7 +214,7 @@ window.addEventListener("DOMContentLoaded", updateRendererProcessTitle, {
  * 凭据管理已迁移到 host process 的 ICredentialService，
  * 通过 MessagePort RPC 访问，不再经过此 bridge。
  */
-contextBridge.exposeInMainWorld("zcode", {
+contextBridge.exposeInMainWorld("mode", {
   connectRemote: (
     options: RemoteTarget,
     requestId?: string,
@@ -558,7 +558,7 @@ contextBridge.exposeInMainWorld("zcode", {
   openInFileManager: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenInFileManager, path),
   /** 使用系统默认应用打开本地文件 */
   openExternalFile: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenExternalFile, path),
-  /** 打开 ZCode Computer Use 完整权限引导 */
+  /** 打开 Mode Computer Use 完整权限引导 */
   openCuaPermissionOnboarding: (options?: OpenCuaPermissionOnboardingOptions) =>
     ipcRenderer.invoke(PlatformChannels.OpenCuaPermissionOnboarding, options),
   /** 只取消当前 renderer 以 operationId 发起的 onboarding participant。 */
@@ -645,8 +645,8 @@ contextBridge.exposeInMainWorld("zcode", {
   clearEmbeddedBrowserData: (mode: "cache" | "all") =>
     ipcRenderer.invoke(PlatformChannels.ClearEmbeddedBrowserData, mode),
   /** 读取开发态 stdio tap proxy 开关状态 */
-  getZCodeStdioTapDevState: (): Promise<ZCodeStdioTapDevState> =>
-    ipcRenderer.invoke(PlatformChannels.GetZCodeStdioTapDevState),
+  getModeStdioTapDevState: (): Promise<ModeStdioTapDevState> =>
+    ipcRenderer.invoke(PlatformChannels.GetModeStdioTapDevState),
   /** 注册 main 进程修改 settings 后的通知，返回 disposer */
   onSettingsChanged: (callback: () => void): (() => void) => {
     const handler = () => callback();

@@ -13,7 +13,7 @@ import {
   type SavePersonalModelDraftInput,
 } from "@mode/provider";
 import { logger } from "@/logger.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { Switch } from "@/components/ui/switch.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -190,7 +190,7 @@ export function InlineEditableProviderCard({
   headerActionsVisible?: boolean;
   settingsRevision?: number;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const { dismissFeedback, showFeedback } = useProviderDetailFeedback();
   const { providerSettingsService } = useServices();
   const [editingName, setEditingName] = useState(false);

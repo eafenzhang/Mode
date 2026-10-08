@@ -1,6 +1,6 @@
 import type { WebZaiOAuthProviderConfig } from "./zaiWebOAuthProvider.js";
 import {
-  buildZCodeEndpointUrls,
+  buildModeEndpointUrls,
   DEFAULT_MODE_ENDPOINT_ORIGIN,
   resolveBigModelApiOrigin,
 } from "@mode/shared";
@@ -44,7 +44,7 @@ function buildBigModelAuthorizeUrl(origin: string | undefined): string {
 
 function createWebZaiOAuthConfig(env: WebImportMetaEnv = {}): WebZaiOAuthConfig {
   const devOrigin = env.VITE_DEV_ORIGIN?.trim().replace(/\/$/, "");
-  const zcodeEndpointUrls = buildZCodeEndpointUrls(
+  const modeEndpointUrls = buildModeEndpointUrls(
     env.VITE_MODE_BASE_URL?.trim() ||
       env.VITE_MODE_ENDPOINT_ORIGIN?.trim() ||
       DEFAULT_MODE_ENDPOINT_ORIGIN,
@@ -57,10 +57,10 @@ function createWebZaiOAuthConfig(env: WebImportMetaEnv = {}): WebZaiOAuthConfig 
     // client_id 会出现在授权 URL 中，属于公开配置；这里允许 VITE_ 注入，但不能放 secret/token。
     clientId: env.VITE_ZAI_OAUTH_CLIENT_ID?.trim() || "client_P8X5CMWmlaRO9gyO-KSqtg",
     bigmodelAuthorizeUrl: buildBigModelAuthorizeUrl(env.VITE_BIGMODEL_OAUTH_ORIGIN),
-    // BigModel 用 appId 而不是 client_id，且默认值就是桌面端在用的 "zcode"。
-    bigmodelAppId: env.VITE_BIGMODEL_OAUTH_APP_ID?.trim() || "zcode",
-    redirectUri: zcodeEndpointUrls.webShareCallbackUrl,
-    shareRedirectUri: zcodeEndpointUrls.webShareCallbackUrl,
+    // BigModel 用 appId 而不是 client_id，且默认值就是桌面端在用的 "mode"。
+    bigmodelAppId: env.VITE_BIGMODEL_OAUTH_APP_ID?.trim() || "mode",
+    redirectUri: modeEndpointUrls.webShareCallbackUrl,
+    shareRedirectUri: modeEndpointUrls.webShareCallbackUrl,
     ...(devOrigin ? { devOrigin } : {}),
     allowDevReturnToRedirect: env.VITE_WEB_REMOTE_ALLOW_DEV_RETURN_TO === "true",
   };

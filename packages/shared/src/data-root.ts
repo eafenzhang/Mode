@@ -1,8 +1,8 @@
 /**
  * ZCodium 用户级数据根（~/.zcodium）与归属文件契约。
  *
- * 与官方 ZCode 客户端的 ~/.zcode 命名空间隔离，双方互不读写。
- * 旧值 .zcode 仅供一次性迁移逻辑使用；工作区项目级 .zcode 目录
+ * 与官方 Mode 客户端的 ~/.mode 命名空间隔离，双方互不读写。
+ * 旧值 .mode 仅供一次性迁移逻辑使用；工作区项目级 .mode 目录
  * （项目内 skills/commands/plugins/config）属于项目命名空间，不受本常量影响。
  *
  * 归属文件 {base}/.zcodium/.zcodium-root.json 是数据根合法性的唯一依据：
@@ -11,7 +11,7 @@
  * - 不可解析 / schemaVersion 过新 → corrupt（不静默复用）。
  */
 export const MODE_DATA_ROOT_DIR_NAME = ".zcodium";
-export const LEGACY_MODE_DATA_ROOT_DIR_NAME = ".zcode";
+export const LEGACY_MODE_DATA_ROOT_DIR_NAME = ".mode";
 
 /** 归属文件名；放在数据根目录（不放 v2/），清除数据不会重置归属。 */
 export const DATA_ROOT_MANIFEST_FILE_NAME = ".zcodium-root.json";

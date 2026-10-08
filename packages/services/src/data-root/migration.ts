@@ -1,5 +1,5 @@
 /**
- * 旧数据根（{base}/.zcode）探测与复制迁移。
+ * 旧数据根（{base}/.mode）探测与复制迁移。
  *
  * 迁移只在用户确认（桌面决策/再次导入）或显式非交互策略（MODE_DATA_ROOT_ACTION=migrate）
  * 下执行；复制而非移动，旧根保留。复制先进入同卷 staging，成功后 rename 原子落位。
@@ -55,7 +55,7 @@ function expandHomeDir(value: string): string {
 
 /**
  * 探测可迁移的旧数据根候选：
- * 1. 当前 base 的 {base}/.zcode（主候选）；
+ * 1. 当前 base 的 {base}/.mode（主候选）；
  * 2. 旧根 setting.json 中 dataBaseDir 指向的其它 base（一层，不递归）。
  */
 export function discoverLegacyDataRootCandidates(baseDir: string): LegacyDataRootCandidate[] {
@@ -66,7 +66,7 @@ export function discoverLegacyDataRootCandidates(baseDir: string): LegacyDataRoo
     candidates.push({ baseDir, legacyRoot: primaryLegacyRoot, isPrimaryBase: true });
     seen.add(resolve(primaryLegacyRoot));
   }
-  // 旧版设置里的自定义数据目录：其 .zcode 同样是用户真实数据，纳入候选。
+  // 旧版设置里的自定义数据目录：其 .mode 同样是用户真实数据，纳入候选。
   const configuredBaseDir = readLegacyDataBaseDirFromSettings(primaryLegacyRoot);
   if (configuredBaseDir) {
     const customBase = resolve(expandHomeDir(configuredBaseDir));

@@ -6,8 +6,8 @@ import type {
   RunningSubagentSummary,
   ToolCallRow,
   WorkflowRunState,
-} from "@mode/shared/zcode-protocol-v4";
-import { workflowRunStepCounts } from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
+import { workflowRunStepCounts } from "@mode/shared/mode-protocol-v4";
 import { extractPlanToolCallContent, getPlanDirectoryTitle } from "@/lib/planToolCall.js";
 
 export interface ConversationStatusPanelGitModel {

@@ -6,9 +6,9 @@ import {
 } from "@mode/services/node";
 import { MODE_VERSION } from "@mode/shared";
 import {
-  materializeBundledZCodeBuiltinProviderConfig,
-  readBundledZCodeBuiltinProviderConfig,
-} from "./bundledZCodeBuiltinProviderConfig.js";
+  materializeBundledModeBuiltinProviderConfig,
+  readBundledModeBuiltinProviderConfig,
+} from "./bundledModeBuiltinProviderConfig.js";
 import { createHttpServer } from "./http.js";
 
 async function main(): Promise<void> {
@@ -18,16 +18,16 @@ async function main(): Promise<void> {
     appVersion: MODE_VERSION,
     action: resolveDataRootActionFromEnv(),
   });
-  const zcodeBuiltinProviderConfigFilePath = await materializeBundledZCodeBuiltinProviderConfig({
+  const modeBuiltinProviderConfigFilePath = await materializeBundledModeBuiltinProviderConfig({
     environmentConfigRoot: getAppConfigDir(),
-    content: readBundledZCodeBuiltinProviderConfig(),
+    content: readBundledModeBuiltinProviderConfig(),
   });
   const port = Number(process.env["PORT"]) || 3030;
   const host = process.env["MODE_SERVER_HOST"]?.trim() || process.env["HOST"]?.trim() || undefined;
   const staticRoot = process.env["MODE_WEB_STATIC_ROOT"]?.trim() || undefined;
   const authToken = process.env["MODE_SERVER_AUTH_TOKEN"]?.trim() || undefined;
   const services = createLocalServices({
-    zcodeBuiltinProviderConfigFilePath,
+    modeBuiltinProviderConfigFilePath,
     providerProvisioningTargetEnabled: Boolean(authToken),
   });
 
@@ -39,6 +39,6 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  console.error("[zcode-server:http] startup failed", error);
+  console.error("[mode-server:http] startup failed", error);
   process.exitCode = 1;
 });

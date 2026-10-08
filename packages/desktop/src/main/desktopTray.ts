@@ -59,7 +59,7 @@ export function createWindowsDesktopTray(options: {
     desktopTray?.setContextMenu(
       Menu.buildFromTemplate([
         {
-          label: getLabel(desktopMenuMessageIds.trayOpenZCode),
+          label: getLabel(desktopMenuMessageIds.trayOpenMode),
           click: showTrayWindow,
         },
         { type: "separator" },

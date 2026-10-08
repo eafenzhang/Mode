@@ -1,17 +1,17 @@
-export interface ZCodeStreamingToolInputState {
+export interface ModeStreamingToolInputState {
   deltaCount?: number;
   lastPreviewAt?: number;
   lastPreviewRawInputLength?: number;
   rawInput: string;
 }
 
-export interface ZCodeStreamingToolInputPreview {
+export interface ModeStreamingToolInputPreview {
   complete: boolean;
   input: unknown;
   rawInput: string;
 }
 
-export type ZCodeStreamingToolInputPreviewMode = "active-live" | "background-summary";
+export type ModeStreamingToolInputPreviewMode = "active-live" | "background-summary";
 
 export const MODE_ACTIVE_STREAMING_TOOL_INPUT_EAGER_DELTA_COUNT = 1;
 export const MODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS = 750;
@@ -51,10 +51,10 @@ const PARTIAL_JSON_STRING_FIELD_KEYS = [
   "script",
 ] as const;
 
-export function appendZCodeStreamingToolInputDelta(
-  state: ZCodeStreamingToolInputState | undefined,
+export function appendModeStreamingToolInputDelta(
+  state: ModeStreamingToolInputState | undefined,
   delta: string,
-): ZCodeStreamingToolInputState {
+): ModeStreamingToolInputState {
   return {
     ...state,
     deltaCount: (state?.deltaCount ?? 0) + 1,
@@ -62,10 +62,10 @@ export function appendZCodeStreamingToolInputDelta(
   };
 }
 
-export function buildZCodeStreamingToolInputPreview(
+export function buildModeStreamingToolInputPreview(
   rawInput: string,
   completeInput?: unknown,
-): ZCodeStreamingToolInputPreview {
+): ModeStreamingToolInputPreview {
   if (completeInput !== undefined) {
     return {
       complete: true,
@@ -90,10 +90,10 @@ export function buildZCodeStreamingToolInputPreview(
   };
 }
 
-export function shouldMaterializeZCodeStreamingToolInputPreview(
-  state: ZCodeStreamingToolInputState,
+export function shouldMaterializeModeStreamingToolInputPreview(
+  state: ModeStreamingToolInputState,
   options: {
-    mode?: ZCodeStreamingToolInputPreviewMode;
+    mode?: ModeStreamingToolInputPreviewMode;
     now?: number;
     toolName?: string;
   } = {},
@@ -106,7 +106,7 @@ export function shouldMaterializeZCodeStreamingToolInputPreview(
     return true;
   }
   const lastPreviewAt = state.lastPreviewAt ?? 0;
-  if (isZCodeFileStreamingToolInputPreviewTool(options.toolName)) {
+  if (isModeFileStreamingToolInputPreviewTool(options.toolName)) {
     // 性能修复：Write/Edit 的半截 JSON 会触发全量内容恢复和行级 diff。
     // 大字节 chunk 不能绕过一秒窗口，否则模型输出越快，UI 反而更新越频繁。
     return (
@@ -130,13 +130,13 @@ export function shouldMaterializeZCodeStreamingToolInputPreview(
   return state.rawInput.length <= MODE_ACTIVE_STREAMING_TOOL_INPUT_TIME_BUDGET_MAX_RAW_INPUT;
 }
 
-export function isZCodeFileStreamingToolInputPreviewTool(toolName?: string): boolean {
+export function isModeFileStreamingToolInputPreviewTool(toolName?: string): boolean {
   const normalized = toolName?.trim().toLowerCase();
   return normalized === "write" || normalized === "edit";
 }
 
-export function markZCodeStreamingToolInputPreviewMaterialized(
-  state: ZCodeStreamingToolInputState,
+export function markModeStreamingToolInputPreviewMaterialized(
+  state: ModeStreamingToolInputState,
   now = Date.now(),
 ): void {
   state.lastPreviewAt = now;

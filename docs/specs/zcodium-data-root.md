@@ -1,4 +1,4 @@
-# Spec：用户级数据根归属、初始化与迁移（`.zcode` → `.zcodium`）
+# Spec：用户级数据根归属、初始化与迁移（`.mode` → `.zcodium`）
 
 > 本 spec 取代旧版“自动迁移”方案。旧方案在 `~/.zcodium` 已存在（其它分支/产品遗留）
 > 时静默跳过迁移，且迁移失败后会被 logger 抢先创建新根导致永不重试；本方案以
@@ -6,8 +6,8 @@
 
 ## 背景与目标
 
-1. ZCodium 与官方 ZCode 客户端、其它分支曾共用 `~/.zcode` / `~/.zcodium`，存在数据互踩。
-2. 数据根从 `.zcode` 收敛到 `.zcodium`，并满足：
+1. ZCodium 与官方 ZCode 客户端、其它分支曾共用 `~/.mode` / `~/.zcodium`，存在数据互踩。
+2. 数据根从 `.mode` 收敛到 `.zcodium`，并满足：
    - **归属识别**：`~/.zcodium` 是否属于本产品，不能凭“目录存在”判断；
    - **用户知情**：旧数据是否带入由用户选择，只复制、不删除；
    - **零污染**：归属文件落盘前，正式根不允许任何写入；
@@ -26,7 +26,7 @@
   "createdBy": "desktop",
   "createdAt": "2026-10-03T00:00:00.000Z",
   "firstSeenVersion": "3.15.0",
-  "migration": { "from": "~/.zcode", "at": "2026-10-03T00:00:00.000Z", "mode": "copy" }
+  "migration": { "from": "~/.mode", "at": "2026-10-03T00:00:00.000Z", "mode": "copy" }
 }
 ```
 
@@ -109,7 +109,7 @@ main 模块加载
 
 1. 冲突目录（unowned/corrupt 的 `.zcodium`）先整体重命名为
    `{base}/.zcodium.unowned-<timestamp>`（corrupt 用 `.corrupt-`），不删除、不合并。
-2. 迁移源：默认 base 与旧 `setting.json` 中 `dataBaseDir` 指向的 base 下存在的 `.zcode`；
+2. 迁移源：默认 base 与旧 `setting.json` 中 `dataBaseDir` 指向的 base 下存在的 `.mode`；
    V1 支持多候选逐一复制，候选为空则不显示“迁移”。
 3. 复制：同卷 staging `{base}/.zcodium.migrating-<uuid>` → `renameSync` 落位；
    目标已存在时保留已知安全结果并发方完成；复制保留源文件权限（凭据文件 `0600`
@@ -132,7 +132,7 @@ main 模块加载
 | 入口                      | unowned / corrupt                                   | absent（有旧根）     | normal |
 | ------------------------- | --------------------------------------------------- | -------------------- | ------ |
 | CLI                       | 备份 + 全新初始化                                   | 全新初始化（不迁移） | 复用   |
-| server / zcode-server-cli | 备份 + 全新初始化                                   | 全新初始化（不迁移） | 复用   |
+| server / mode-server-cli | 备份 + 全新初始化                                   | 全新初始化（不迁移） | 复用   |
 | E2E / dev 隔离 base       | 自动全新初始化，不弹窗                              | 自动全新初始化       | 复用   |
 | 手机远控                  | 跟随宿主桌面；宿主 pending 时提示“请在桌面完成设置” | 同左                 | 复用   |
 
@@ -142,7 +142,7 @@ main 模块加载
 ## 与现有机制的关系
 
 - 移除 `migrateLegacyZCodeDataRoot()` 及其四处自动调用（desktop bootstrap、main、
-  CLI main、server 入口、zcode-server-cli core）；迁移只能在决策/导入流程中执行。
+  CLI main、server 入口、mode-server-cli core）；迁移只能在决策/导入流程中执行。
 - `LEGACY_MIGRATION_MARKER_FILE`（`.migrated-to-zcodium`）废弃，由归属文件承担完成标记。
 - 路径字面量收敛：所有用户级数据根拼接统一走初始化器 API，禁止模块内直接拼 `.zcodium`。
 
@@ -150,16 +150,16 @@ main 模块加载
 
 - Preview（`dev.zcodium.app.preview`）与正式版共用 `~/.zcodium` 且归属互认；
   渠道数据隔离不在本期范围。
-- 官方 ZCode 客户端继续使用 `~/.zcode`；复制后两边数据各自演化，不提供自动同步。
+- 官方 ZCode 客户端继续使用 `~/.mode`；复制后两边数据各自演化，不提供自动同步。
 - 远端 SSH 主机：由远端 agent 供给的新二进制执行远端初始化/迁移；
-  旧版已安装的 `~/.zcode/server` 不保证被带走，供给流程会重新布局。
+  旧版已安装的 `~/.mode/server` 不保证被带走，供给流程会重新布局。
 - 迁移期间旧客户端若正在写 sqlite（WAL），快照可能缺最后几笔事务。
 - `ZCODE_HOME` 显式指向旧根时，相关 CUA 路径继续使用该目录（不在本期收敛）。
 
 ## 验收场景
 
-1. 全新机器（无 `.zcode`、无 `.zcodium`）→ 无弹窗，直接初始化，归属文件正确。
-2. 正常升级（`.zcode` 有数据、`.zcodium` 不存在）→ 弹窗 → 迁移 → 数据完整、
+1. 全新机器（无 `.mode`、无 `.zcodium`）→ 无弹窗，直接初始化，归属文件正确。
+2. 正常升级（`.mode` 有数据、`.zcodium` 不存在）→ 弹窗 → 迁移 → 数据完整、
    旧根保留、归属含 migration 记录。
 3. 升级选全新 → 新根干净、旧根保留、设置可再次导入。
 4. 他产品残留（`.zcodium` 无归属文件）→ 弹窗 → 迁移/全新都先备份 `unowned-<ts>`。

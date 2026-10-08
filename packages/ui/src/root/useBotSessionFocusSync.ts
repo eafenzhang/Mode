@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { IServiceAccessor } from "@mode/services";
 import { logger } from "@/logger.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 
@@ -30,7 +30,7 @@ export function useBotSessionFocusSync(
         lastSignature = null;
         return;
       }
-      const workspaceState = useZCodeSessionStore
+      const workspaceState = useModeSessionStore
         .getState()
         .getWorkspaceState(activeTab.workspacePath, activeTab.workspaceIdentity);
       const workspaceKey = activeTab.workspaceIdentity?.trim() || activeTab.workspacePath;
@@ -68,7 +68,7 @@ export function useBotSessionFocusSync(
     // 挂载时同步一次当前焦点；bot 上下文已是目标时 service 幂等短路。
     run();
     const unsubscribeTab = tabStoreApi.subscribe(schedule);
-    const unsubscribeSession = useZCodeSessionStore.subscribe(schedule);
+    const unsubscribeSession = useModeSessionStore.subscribe(schedule);
     return () => {
       unsubscribeTab();
       unsubscribeSession();

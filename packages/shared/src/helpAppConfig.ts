@@ -1,6 +1,6 @@
 import { isOfficialServiceEnabled, MODE_ISSUES_URL } from "./officialPlatformPolicy.js";
 import { z } from "zod";
-import { buildZCodeEndpointUrls } from "./zcodeEndpoint.js";
+import { buildModeEndpointUrls } from "./modeEndpoint.js";
 import { getCommunityUrlFromConfigs } from "./remoteAppConfig.js";
 
 const helpConfigSchema = z.object({
@@ -24,7 +24,7 @@ export function buildHelpAppConfigUrl(
   version: string,
   platform?: string,
 ): string {
-  const url = new URL("/api/v1/client/configs", buildZCodeEndpointUrls(endpoint).origin);
+  const url = new URL("/api/v1/client/configs", buildModeEndpointUrls(endpoint).origin);
   url.searchParams.set("app_version", version);
   if (platform) url.searchParams.set("platform", platform);
   return url.toString();

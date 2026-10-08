@@ -1,4 +1,4 @@
-import type { Locale, ZCodeTaskMeta } from "@mode/shared";
+import type { Locale, ModeTaskMeta } from "@mode/shared";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -103,7 +103,7 @@ function serializeTaskTimelineGroupKey(groupKey: TaskTimelineGroupKey): string {
 }
 
 export function groupTaskTimelineItems<
-  TTask extends Pick<ZCodeTaskMeta, "createdAt" | "updatedAt">,
+  TTask extends Pick<ModeTaskMeta, "createdAt" | "updatedAt">,
 >(
   items: TTask[],
   options: {

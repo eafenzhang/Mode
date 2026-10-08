@@ -1,8 +1,8 @@
 import { SelectionActionMenu } from "@/v4/SelectionActionMenu.js";
 import { useTextSelection } from "@/hooks/useTextSelection.js";
 import { useCallback, useRef, type RefObject } from "react";
-import type { ConversationRow } from "@mode/shared/zcode-protocol-v4";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ConversationRow } from "@mode/shared/mode-protocol-v4";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   createConversationSelectionReference,
   type ConversationSelectionContentType,
@@ -53,7 +53,7 @@ export function ConversationSelectionTooltip({
   onAddToCurrentTask: (reference: ConversationSelectionReference) => void;
   onAskInSideChat: (reference: ConversationSelectionReference) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const inspectSelection = useCallback((): TooltipState | null => {

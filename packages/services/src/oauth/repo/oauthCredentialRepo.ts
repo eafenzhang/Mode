@@ -298,7 +298,7 @@ export class OAuthCredentialRepo {
 
       const refreshToken = await this.credentialService.load(refreshTokenKey(provider));
 
-      const zcodeJwtToken =
+      const modeJwtToken =
         provider === ZAI_PROVIDER_ID || provider === BIGMODEL_PROVIDER_ID
           ? await this.credentialService.load(MODE_JWT_TOKEN_KEY)
           : null;
@@ -306,7 +306,7 @@ export class OAuthCredentialRepo {
       return {
         accessToken,
         ...(refreshToken ? { refreshToken } : {}),
-        ...(zcodeJwtToken ? { zcodeJwtToken } : {}),
+        ...(modeJwtToken ? { modeJwtToken } : {}),
       };
     } catch (error) {
       if (!isCredentialDecryptError(error)) {
@@ -328,11 +328,11 @@ export class OAuthCredentialRepo {
     }
 
     if (provider === ZAI_PROVIDER_ID || provider === BIGMODEL_PROVIDER_ID) {
-      if (tokenSet.zcodeJwtToken) {
-        // BigModel Start Plan 与 Z.ai Start Plan 一样消费 zcode JWT。
+      if (tokenSet.modeJwtToken) {
+        // BigModel Start Plan 与 Z.ai Start Plan 一样消费 mode JWT。
         // JWT 必须在 OAuth callback 阶段随 tokenSet 落盘，后续 balance/runtime 只读取它，
         // 不能再拿 BigModel access token 拼另一个 /oauth/token body 临时兑换。
-        await this.credentialService.save(MODE_JWT_TOKEN_KEY, tokenSet.zcodeJwtToken);
+        await this.credentialService.save(MODE_JWT_TOKEN_KEY, tokenSet.modeJwtToken);
       } else {
         await this.credentialService.delete(MODE_JWT_TOKEN_KEY);
       }
@@ -416,7 +416,7 @@ export class OAuthCredentialRepo {
     await this.credentialService.delete(accessTokenKey(provider));
     await this.credentialService.delete(refreshTokenKey(provider));
     await this.credentialService.delete(userInfoKey(provider));
-    if (shouldClearZcodeJwtOnLogout(provider)) {
+    if (shouldClearModeJwtOnLogout(provider)) {
       await this.credentialService.delete(MODE_JWT_TOKEN_KEY);
     }
   }
@@ -431,7 +431,7 @@ export class OAuthCredentialRepo {
 
   private async clearCorruptOAuthSession(): Promise<void> {
     // AES-GCM 解密失败说明当前运行时已经无法信任本地 OAuth 登录态。
-    // 等价于强制登出已注册 OAuth provider：先清 provider 命名空间与共享 zcode JWT，
+    // 等价于强制登出已注册 OAuth provider：先清 provider 命名空间与共享 mode JWT，
     // 再通知 service 层清理 Start/Coding Plan 这类派生模型凭据，同时避免误删 SSH 等其他独立凭据。
     for (const provider of this.knownProviderIds) {
       await this.clearProvider(provider);
@@ -447,6 +447,6 @@ export class OAuthCredentialRepo {
   }
 }
 
-function shouldClearZcodeJwtOnLogout(provider: OAuthProviderId): boolean {
+function shouldClearModeJwtOnLogout(provider: OAuthProviderId): boolean {
   return provider === ZAI_PROVIDER_ID || provider === BIGMODEL_PROVIDER_ID;
 }

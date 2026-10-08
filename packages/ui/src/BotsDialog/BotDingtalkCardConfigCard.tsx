@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { BotConfig } from "@mode/shared";
 import { Input } from "@/components/ui/input.js";
 import { Switch } from "@/components/ui/switch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 
 /**
@@ -17,7 +17,7 @@ export function BotDingtalkCardConfigCard({
   bot: BotConfig;
   onPatchBot: (patch: Partial<BotConfig>) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const enabled = bot.dingtalkUseAiCard === true;
   const [templateDraft, setTemplateDraft] = useState<string | null>(null);
   const templateValue = templateDraft ?? bot.dingtalkCardTemplateId ?? "";

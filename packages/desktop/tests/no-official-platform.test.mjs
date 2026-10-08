@@ -36,7 +36,7 @@ async function sources(dir) {
 }
 test("runtime official URL literals are restricted to identity and user-opened links", async () => {
   const allowed = new Set([
-    "packages/shared/src/zcodeEndpoint.ts",
+    "packages/shared/src/modeEndpoint.ts",
     "packages/ui/src/lib/productDocs.ts",
     "packages/web/src/share/ConversationShareLandingPage.tsx",
     // 官方插件市场来源：只在 officialServices.marketplace 开关开启（Desktop env 投影或 CLI env）时
@@ -44,7 +44,7 @@ test("runtime official URL literals are restricted to identity and user-opened l
     "packages/shared/src/plugin-marketplaces.ts",
     // 随包内置的官方目录快照：URL 只是目录数据（插件条目的下载地址），
     // 仅在用户主动安装该插件时才被请求；浏览、图标与描述全部离线。
-    "apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
+    "apps/mode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
   ]);
   for (const dir of [
     "packages/services/src",
@@ -52,13 +52,13 @@ test("runtime official URL literals are restricted to identity and user-opened l
     "packages/ui/src",
     "packages/web/src",
     "packages/shared/src",
-    "apps/zcode-cli/packages",
+    "apps/mode-cli/packages",
   ]) {
     for (const file of await sources(dir)) {
       if (!allowed.has(file))
         assert.doesNotMatch(
           await read(file),
-          /https?:\/\/(?:[\w.-]+\.)?(?:zcode\.z\.ai|cdn-zcode\.z\.ai)(?:[/:]|\b)/,
+          /https?:\/\/(?:[\w.-]+\.)?(?:mode\.z\.ai|cdn-mode\.z\.ai)(?:[/:]|\b)/,
           file,
         );
     }
@@ -85,7 +85,7 @@ test("audit policy is unconditional and distinguishes platform from model provid
 test("user model requests keep URL, credentials and body without the official gateway", async () => {
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
   const gateway = await load(
-    "apps/zcode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts",
+    "apps/mode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts",
     { "@mode/shared": policy },
   );
   let calls = 0;
@@ -104,7 +104,7 @@ test("user model requests keep URL, credentials and body without the official ga
   });
   assert.equal((await fetch(input)).status, 200);
   assert.equal(calls, 1);
-  await assert.rejects(fetch("https://zcode.z.ai/api/v1/zcode-plan"), /Mode/);
+  await assert.rejects(fetch("https://zcode.z.ai/api/v1/mode-plan"), /Mode/);
   assert.equal(calls, 1);
 });
 test("client config is local and cannot invoke injected network or endpoint resolver", async () => {
@@ -127,7 +127,7 @@ test("client config is local and cannot invoke injected network or endpoint reso
 
 test("CLI OAuth cannot call even an injected HTTP client", async () => {
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
-  const oauth = await load("apps/zcode-cli/packages/adapters/src/auth/cli-oauth.ts", {
+  const oauth = await load("apps/mode-cli/packages/adapters/src/auth/cli-oauth.ts", {
     "@mode/shared": policy,
     "node:crypto": await import("node:crypto"),
   });
@@ -287,7 +287,7 @@ test("all platform service boundaries guard before touching credentials, state o
 test("historical built-in platform model endpoints cannot escape the model transport", async () => {
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
   const gateway = await load(
-    "apps/zcode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts",
+    "apps/mode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts",
     { "@mode/shared": policy },
   );
   const fetch = gateway.createOfficialCodingPlanGatewayFetch({
@@ -302,7 +302,7 @@ test("historical built-in platform model endpoints cannot escape the model trans
   visit(config);
   // 去智谱化后 builtin 已不含平台端点（account:* 全部移除）；显式补一个历史样本，
   // 保证「平台端点不得逃逸 transport」这条拦截路径始终被覆盖，不随数据变化失效。
-  if (urls.length === 0) urls.push("https://zcode.z.ai/api/v1/zcode-plan/anthropic");
+  if (urls.length === 0) urls.push("https://zcode.z.ai/api/v1/mode-plan/anthropic");
   for (const url of urls) await assert.rejects(fetch(url), /Mode/);
 });
 
@@ -320,7 +320,7 @@ test("Node API blocks official endpoints before resolving settings or calling fe
   });
   const unexpected = () => assert.fail("must not resolve or request");
   const client = new NodeApiClient({
-    resolveZCodeEndpointOrigin: unexpected,
+    resolveModeEndpointOrigin: unexpected,
     fetchImpl: unexpected,
   });
   await assert.rejects(client.request("https://zcode.z.ai/api/v1/client/configs"), /Mode/);

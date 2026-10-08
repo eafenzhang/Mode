@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-// 桌面打包态的 agent 运行时资产：把 agent 的 JS bundle（zcode.cjs）放进 bundled-agents/<platform>/glm，
+// 桌面打包态的 agent 运行时资产：把 agent 的 JS bundle（mode.cjs）放进 bundled-agents/<platform>/glm，
 // 由 app 内置的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行，替代以前随包内置的独立 Node 二进制。
 //
 // 为什么这么做：
 // - agent 没有任何原生 NAPI 插件（ripgrep 是 WASM，其余纯 JS），可直接跑在 Electron 的 Node 上；
-// - Electron 41 内置 Node 24.x，与 zcode-cli 的目标运行时一致；
+// - Electron 41 内置 Node 24.x，与 mode-cli 的目标运行时一致；
 // - 单平台体积从 ~180MB 降到 ~16MB，且同一份 JS 跨平台通用；
 // - app-server 命令路径不会加载 @mode/tui，所以这里天然不打包 TUI。
 //
@@ -22,11 +22,11 @@ import { stageAgentBundle } from "./stage-agent-bundle.mjs";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(desktopRoot, "..", "..");
-const cliBundlePath = resolve(repoRoot, "apps/zcode-cli/packages/cli/dist/zcode.cjs");
-const adaptersRoot = resolve(repoRoot, "apps/zcode-cli/packages/adapters");
+const cliBundlePath = resolve(repoRoot, "apps/mode-cli/packages/cli/dist/mode.cjs");
+const adaptersRoot = resolve(repoRoot, "apps/mode-cli/packages/adapters");
 const pnpmRunEnv = {
   ...process.env,
-  // pnpm 11 会在 apps/zcode-cli 子 workspace 执行 run 前触发 install；
+  // pnpm 11 会在 apps/mode-cli 子 workspace 执行 run 前触发 install；
   // 子 workspace 不能解析根 workspace 的 @mode/shared，Docker/web app 打包会因此卡在插件 runtime 构建。
   PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
 };
@@ -71,7 +71,7 @@ const arch = normalizeArch(process.env.MODE_TARGET_ARCH || "") || process.arch;
 const platformKey = `${platform}-${arch}`;
 
 const glmDir = resolve(desktopRoot, "bundled-agents", platformKey, "glm");
-// zcode.cjs / .node-bundle-meta.json 的落点由 stage-agent-bundle.mjs 自己解析（同源）。
+// mode.cjs / .node-bundle-meta.json 的落点由 stage-agent-bundle.mjs 自己解析（同源）。
 // node_repl 宿主抽成独立包
 // @mode/node-repl-host 之后，browser-use 不再产出 dist/mcp/server.js，CUA 资产
 // （docs/computer-use.md、scripts/computer-use-client.mjs）也已归 @mode/cua-plugin。
@@ -94,7 +94,7 @@ const officialPluginPackages = [
     // browser-use 只携带自己的 client script 与 skill/docs；node_repl MCP runtime 归
     // @mode/node-repl-host（见上方常量注释）。
     packageName: "@mode/browser-use-plugin",
-    relativePath: "apps/zcode-cli/packages/browser-use-plugin",
+    relativePath: "apps/mode-cli/packages/browser-use-plugin",
     requiresRuntime: true,
     requiredRuntimePaths: browserUseRequiredRuntimePaths,
     runtimeBuildScript: "scripts/build.mjs",
@@ -106,7 +106,7 @@ const officialPluginPackages = [
     // 它没有 listing（不进插件市场展示面），但生产包首启 seed 必须拿到它的 dist runtime，
     // 否则 bua/cua 任一开启时都会连不上 node_repl。
     packageName: "@mode/node-repl-host",
-    relativePath: "apps/zcode-cli/packages/node-repl-host",
+    relativePath: "apps/mode-cli/packages/node-repl-host",
     requiresRuntime: true,
     requiredRuntimePaths: ["dist/mcp/server.js"],
     runtimeBuildScript: "scripts/build.mjs",
@@ -114,10 +114,10 @@ const officialPluginPackages = [
   },
 ];
 // 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
-// 在 zcode.cjs 旁找 packages/bundled-skills 并原地读取。漏 stage 它，桌面包的 /workflow 会展开成
+// 在 mode.cjs 旁找 packages/bundled-skills 并原地读取。漏 stage 它，桌面包的 /workflow 会展开成
 // 「先加载 dynamic-workflows 技能」而技能文件不存在，因此必须随 Agent 一起打包。
 const bundledSkillPack = {
-  relativePath: "apps/zcode-cli/packages/bundled-skills",
+  relativePath: "apps/mode-cli/packages/bundled-skills",
   requiredPaths: [
     "skills/dynamic-workflows/SKILL.md",
     "skills/dynamic-workflows/patterns.md",
@@ -156,7 +156,7 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
 const isBootstrapWithRemote = process.env.MODE_BOOTSTRAP_WITH_REMOTE === "1";
 
 function buildCliBundle() {
-  console.log("[prepare:agent-bundle] building zcode-cli app-server bundle ...");
+  console.log("[prepare:agent-bundle] building mode-cli app-server bundle ...");
   // 复用仓库根脚本（turbo build:desktop-agent --filter=@mode/cli），命中缓存时几乎瞬时。
   runCommand(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs")], {
     cwd: repoRoot,
@@ -181,7 +181,7 @@ function buildOfficialPluginRuntimes() {
 
     runCommand(
       "pnpm",
-      ["--dir", resolve(repoRoot, "apps/zcode-cli"), "--filter", plugin.packageName, "build"],
+      ["--dir", resolve(repoRoot, "apps/mode-cli"), "--filter", plugin.packageName, "build"],
       {
         cwd: repoRoot,
         env: pnpmRunEnv,
@@ -282,10 +282,10 @@ async function stageBundledSkillPack() {
   console.log(`[prepare:agent-bundle] staged bundled skill pack ${bundledSkillPack.stagedPath}`);
 }
 
-// Electron 生产包只带 resources/glm/zcode.cjs 时，app-server 进程的
+// Electron 生产包只带 resources/glm/mode.cjs 时，app-server 进程的
 // __dirname 附近没有官方插件目录，启动时 seed 找不到 source，用户侧不会自动得到内置插件。
 // 这里把官方插件按 bootstrap 的 rootCandidates 期望放到 glm/packages/*-plugin，
-// 让 Electron Node 运行 zcode.cjs 时复用同一套 filesystem seed 逻辑。
+// 让 Electron Node 运行 mode.cjs 时复用同一套 filesystem seed 逻辑。
 // browser-use runtime 的声明生成依赖 @mode/core/dist。CI 干净检出没有该产物，
 // 必须先构建 CLI 依赖，再构建官方插件；开发机残留的 dist 曾掩盖这个顺序问题。
 buildCliBundle();

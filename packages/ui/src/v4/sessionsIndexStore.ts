@@ -9,8 +9,8 @@ import {
   type SessionSummary,
   type SessionsIndexTopicFrame,
   type TopicFrameDeliveryKind,
-} from "@mode/shared/zcode-protocol-v4";
-import { isZCodeFileLockTimeoutError } from "@mode/shared";
+} from "@mode/shared/mode-protocol-v4";
+import { isModeFileLockTimeoutError } from "@mode/shared";
 import { MODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "@mode/services";
 import { logger } from "@/logger.js";
 import type { SessionsIndexTransport } from "@/v4/agentSessionsIndexTransport.js";
@@ -41,7 +41,7 @@ const TRANSIENT_SUBSCRIBE_RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
 const ERROR_RECOVERY_RETRY_DELAYS_MS = [5_000, 15_000, 60_000] as const;
 
 function isTransientSubscribeError(error: unknown): boolean {
-  if (isZCodeFileLockTimeoutError(error)) {
+  if (isModeFileLockTimeoutError(error)) {
     return true;
   }
   const code =

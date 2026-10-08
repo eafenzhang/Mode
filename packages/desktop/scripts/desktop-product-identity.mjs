@@ -1,7 +1,7 @@
 /**
  * 构建期开关：为真时安装包使用 Preview 身份，而后端环境仍由 `MODE_ENV` 单独决定。
  * 典型用法是 `MODE_ENV=production MODE_PREVIEW_IDENTITY=1`，得到一个连接生产后端、
- * 可与正式版并排安装的 `ZCode Preview`。
+ * 可与正式版并排安装的 `Mode Preview`。
  */
 export const MODE_PREVIEW_IDENTITY_ENV = "MODE_PREVIEW_IDENTITY";
 
@@ -28,7 +28,7 @@ export const desktopProductIdentities = Object.freeze({
   preview: PREVIEW_IDENTITY,
 });
 
-function normalizeDesktopZCodeEnv(env) {
+function normalizeDesktopModeEnv(env) {
   return env.MODE_ENV?.trim().toLowerCase() === "production" ? "production" : "test";
 }
 
@@ -52,15 +52,15 @@ export function isPreviewIdentityRequested(env = process.env) {
 
 /**
  * 产品身份（flavor）与后端环境（`MODE_ENV`）是两个轴：
- * - `MODE_ENV=test` 一律是 Preview，测试后端不能顶着正式 `ZCode` 身份覆盖用户的正式安装；
+ * - `MODE_ENV=test` 一律是 Preview，测试后端不能顶着正式 `Mode` 身份覆盖用户的正式安装；
  * - `MODE_ENV=production` 默认是正式身份，显式 `MODE_PREVIEW_IDENTITY=1` 时改用 Preview 身份。
- * 未知 `MODE_ENV` 继续按 test 处理，和共享层 normalizeZCodeEnv 的 fail-safe 默认值一致。
+ * 未知 `MODE_ENV` 继续按 test 处理，和共享层 normalizeModeEnv 的 fail-safe 默认值一致。
  */
 export function resolveDesktopProductFlavor(env = process.env) {
   if (isPreviewIdentityRequested(env)) {
     return "preview";
   }
-  return normalizeDesktopZCodeEnv(env) === "production" ? "production" : "preview";
+  return normalizeDesktopModeEnv(env) === "production" ? "production" : "preview";
 }
 
 export function resolveDesktopProductIdentity(env = process.env) {
@@ -69,10 +69,10 @@ export function resolveDesktopProductIdentity(env = process.env) {
 
 /**
  * 产物文件名后缀标记的是后端环境而不是身份：`_TEST` 只出现在测试后端的安装包上。
- * 生产后端的 Preview 包靠 productName（`ZCode Preview-<version>-...`）与正式包区分。
+ * 生产后端的 Preview 包靠 productName（`Mode Preview-<version>-...`）与正式包区分。
  */
 export function resolveDesktopArtifactSuffix(env = process.env) {
-  return normalizeDesktopZCodeEnv(env) === "test" ? "_TEST" : "";
+  return normalizeDesktopModeEnv(env) === "test" ? "_TEST" : "";
 }
 
 /**
@@ -84,7 +84,7 @@ export function resolveDesktopArtifactSuffix(env = process.env) {
  */
 export function resolveWindowsAppUserModelIdForFlavor(flavor, runtime = { isPackaged: true }) {
   if (runtime.isPackaged === false) {
-    return "cn.aminer.zcode";
+    return "cn.aminer.mode";
   }
   return desktopProductIdentities[flavor === "preview" ? "preview" : "production"].appId;
 }

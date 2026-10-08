@@ -22,7 +22,7 @@ import {
   type PluginSubagentModelSelectionOverrides,
   type SubAgentConfig,
   type SubagentsListMode,
-  type ZCodeProvider,
+  type ModeProvider,
 } from "@mode/shared";
 import { normalizeSubagentModelSelection } from "./subagentModelSelection.js";
 import { serializeSubagentMarkdown, parseSubagentMarkdown } from "./subagentMarkdown.js";
@@ -31,7 +31,7 @@ import {
   resolveUserHomeDir,
   resolveUserSubagentRoot,
   resolveWorkspaceSubagentRoot,
-  resolveZCodeStorageRoot,
+  resolveModeStorageRoot,
   type SubagentStorageOptions,
 } from "./subagentStorage.js";
 import type { ISubagentsService } from "./subagents.js";
@@ -302,7 +302,7 @@ async function discoverPluginAgents(params: {
   reservedNames: Iterable<string>;
   storageOptions?: SubagentStorageOptions;
 }): Promise<PluginAgentDiscovery> {
-  const storageRoot = await resolveZCodeStorageRoot(params.storageOptions);
+  const storageRoot = await resolveModeStorageRoot(params.storageOptions);
   const cliStorageRoot = basename(storageRoot) === "cli" ? storageRoot : join(storageRoot, "cli");
   const pluginConfig = await readPluginConfig(params.storageOptions);
   const records = await readEnabledPluginRecords(join(cliStorageRoot, "plugins"), pluginConfig);
@@ -566,7 +566,7 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
     async list(params: {
       workspacePath: string;
       workspaceIdentity?: string;
-      provider?: ZCodeProvider;
+      provider?: ModeProvider;
       mode?: SubagentsListMode;
     }): Promise<AgentsListResult> {
       const capability = resolveCapabilities(options);
@@ -692,7 +692,7 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
       await queued;
     },
 
-    async getPrimaryUserAgentsDirectory(_params: { provider: ZCodeProvider }): Promise<{
+    async getPrimaryUserAgentsDirectory(_params: { provider: ModeProvider }): Promise<{
       path: string;
     }> {
       const path = await resolveUserSubagentRoot(storageOptions);

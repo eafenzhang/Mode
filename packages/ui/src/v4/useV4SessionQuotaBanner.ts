@@ -3,7 +3,7 @@ import { buildStartPlanEntitlementOptions } from "@/lib/startPlanEntitlementOpti
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { BUILTIN_MODEL_PROVIDER_IDS, isStartPlanModelProviderId } from "@mode/shared";
 import type { IUsageStatsService } from "@mode/services";
-import type { SessionErrorInfo, SessionPhase } from "@mode/shared/zcode-protocol-v4";
+import type { SessionErrorInfo, SessionPhase } from "@mode/shared/mode-protocol-v4";
 import { useUsageEntitlementWithService } from "@/hooks/useUsageEntitlement.js";
 import {
   resolveGlmQuotaBannerBusinessCode,

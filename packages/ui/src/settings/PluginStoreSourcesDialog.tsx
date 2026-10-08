@@ -1,24 +1,24 @@
 import { AlertTriangle, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import type { ZCodePluginMarketplaceSummary } from "@mode/shared";
+import type { ModePluginMarketplaceSummary } from "@mode/shared";
 import { isBuiltinDefaultMarketplaceId } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { resolveMarketplaceDisplayName } from "@/settings/pluginSourceLabel.js";
 import { sortMarketplaceSources } from "@/settings/pluginStoreListing.js";
 
 // 预置市场（官方 + Codex 格式源）不可移除：移除后下次 overview 会被重新补种，
 // 只会造成「删了又回来」的困惑。
-function isRemovableMarketplace(marketplace: ZCodePluginMarketplaceSummary): boolean {
+function isRemovableMarketplace(marketplace: ModePluginMarketplaceSummary): boolean {
   return !isBuiltinDefaultMarketplaceId(marketplace.id);
 }
 
 function PluginStoreSourceRefreshFailure({
   failure,
 }: {
-  failure: NonNullable<ZCodePluginMarketplaceSummary["refreshFailure"]>;
+  failure: NonNullable<ModePluginMarketplaceSummary["refreshFailure"]>;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   return (
     <div
       className="mt-1 flex min-w-0 items-start gap-1 text-ui-base text-destructive"
@@ -47,12 +47,12 @@ export function PluginStoreSourcesDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  marketplaces: ZCodePluginMarketplaceSummary[];
+  marketplaces: ModePluginMarketplaceSummary[];
   onUpdateMarketplace: (marketplace: string) => void;
   onRemoveMarketplace: (marketplace: string) => void;
   operationId: string | null;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const sortedMarketplaces = sortMarketplaceSources(marketplaces, locale);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -4,7 +4,7 @@ import type {
   ConversationShareTurnPreflightResult,
 } from "@mode/services";
 import { extractConversationPreviewFileReferences } from "@mode/shared";
-import type { ConversationRow } from "@mode/shared/zcode-protocol-v4";
+import type { ConversationRow } from "@mode/shared/mode-protocol-v4";
 
 function hashString(value: string): string {
   let hash = 2166136261;

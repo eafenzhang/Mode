@@ -4,7 +4,7 @@ import type {
   AccountRequestAuthMaterial,
   AccountRequestAuthResolver,
 } from "./accountProviderRequestAuthService.js";
-import type { ZCodeAccountAccess, ZCodeProviderAccountAccess } from "@mode/shared";
+import type { ModeAccountAccess, ModeProviderAccountAccess } from "@mode/shared";
 
 /**
  * 请求期 Account 鉴权边界。
@@ -13,7 +13,7 @@ import type { ZCodeAccountAccess, ZCodeProviderAccountAccess } from "@mode/share
  * 它不保存 Provider Config，也不提供 Registry fallback。
  */
 export interface IAccountRequestAuthService {
-  resolveAccessCurrent(access: ZCodeProviderAccountAccess): Promise<ZCodeAccountAccess | null>;
+  resolveAccessCurrent(access: ModeProviderAccountAccess): Promise<ModeAccountAccess | null>;
   resolveCurrent(input: AccountRequestAuthInput): Promise<AccountRequestAuthMaterial>;
   assertCurrent(input: AccountAccessIdentityInput): Promise<void>;
 }

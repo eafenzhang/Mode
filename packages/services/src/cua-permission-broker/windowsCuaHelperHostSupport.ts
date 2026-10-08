@@ -188,7 +188,7 @@ type WindowsDevHelperControlMessage =
   | { protocol: typeof CONTROL_PROTOCOL; type: "error"; message: string };
 
 /**
- * Parse a `zcode-cua-windows-dev/v1` control message from the helper child.
+ * Parse a `mode-cua-windows-dev/v1` control message from the helper child.
  *
  * "transport_ready" means the named pipe is bound and authenticated, while
  * "ready" remains the full health handshake. "error" is the helper's OWN startup-failure

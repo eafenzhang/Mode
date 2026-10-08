@@ -1,7 +1,7 @@
 /**
  * ChatErrorBanner — 错误提示组件
  *
- * 显示 ZCode Agent 链路中的错误，带 traceId 方便排查。
+ * 显示 Mode Agent 链路中的错误，带 traceId 方便排查。
  */
 import { useState } from "react";
 import {
@@ -13,7 +13,7 @@ import {
   TID_CHAT_ERROR_HOOK_ICON,
 } from "@mode/shared";
 import { AnchorIcon, CopyIcon, InfoIcon, SettingsIcon, X } from "lucide-react";
-import { useZCodeIntl } from "./i18n/IntlProvider.js";
+import { useModeIntl } from "./i18n/IntlProvider.js";
 import type { IntlInstance } from "./i18n/IntlProvider.js";
 import { Button } from "./components/ui/button.js";
 import {
@@ -30,7 +30,7 @@ import {
   isSuspiciousEmptyModelResultMessage,
   resolveOffPeakTicketExpiredBusinessCode,
 } from "@/lib/providerBusinessError.js";
-import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
+import type { ModeUiError } from "@/lib/modeUiError.js";
 
 const HISTORICAL_MODEL_UNAVAILABLE_MESSAGES = [
   "历史任务使用的模型已不可用",
@@ -57,7 +57,7 @@ const MODEL_CONFIG_MISSING_CODES = new Set([
   "ModelConfigMissing",
 ]);
 
-function isModelConfigMissingError(error: Pick<ZCodeUiError, "code" | "message">): boolean {
+function isModelConfigMissingError(error: Pick<ModeUiError, "code" | "message">): boolean {
   // 桌面端发送前 registry 为空时，agent 会退回 CLI config 并抛 Model config is missing。
   // 真实原因是“当前没有可用模型”，不能把 CLI 配置路径直接暴露给桌面用户。
   // 这里只按结构化 code 识别，避免 UNKNOWN/SEND_FAILED 等包装错误的可读 message
@@ -66,7 +66,7 @@ function isModelConfigMissingError(error: Pick<ZCodeUiError, "code" | "message">
 }
 
 export function resolveChatErrorBannerDisplayMessage(
-  error: ZCodeUiError,
+  error: ModeUiError,
   intl: IntlInstance,
 ): string {
   if (isModelConfigMissingError(error)) {
@@ -81,16 +81,16 @@ export function resolveChatErrorBannerDisplayMessage(
   }
 
   if (isSuspiciousEmptyModelResultMessage(error.message)) {
-    return intl.formatMessage({ id: "zcode.error.modelSuspiciousEmpty" });
+    return intl.formatMessage({ id: "mode.error.modelSuspiciousEmpty" });
   }
 
   return error.code && LOCALIZED_ERROR_CODES.has(error.code)
-    ? intl.formatMessage({ id: `zcode.error.${error.code}` })
+    ? intl.formatMessage({ id: `mode.error.${error.code}` })
     : error.message;
 }
 
 export function shouldSuppressChatErrorBanner(
-  error: Pick<ZCodeUiError, "code" | "message">,
+  error: Pick<ModeUiError, "code" | "message">,
 ): boolean {
   // 只有历史恢复残留的模型不可用提示才隐藏；当前发送/草稿报错需要展示，
   // 否则 registry 移除模型后用户会看到“请求没返回”而没有任何可操作反馈。
@@ -108,7 +108,7 @@ export function ChatErrorBanner({
   onDismiss,
   onOpenModelSettings,
 }: {
-  error: ZCodeUiError;
+  error: ModeUiError;
   onRetry?: () => void;
   retryLabel?: string;
   retryDisabled?: boolean;
@@ -116,7 +116,7 @@ export function ChatErrorBanner({
   onOpenModelSettings?: () => void;
   onOpenUpgrade?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const actionButtonClassName = "shrink-0";
   const iconButtonClassName = "shrink-0";

@@ -130,7 +130,7 @@ const REMOVED_OFFICIAL_SERVICE_PATH_RULES: ReadonlyArray<{
   {
     key: "codingPlan",
     patterns: [
-      /^\/api\/v1\/(coding-plan|subscription|balance|billing|order|orders|claim|enterprise|pay|usage|zcode-plan)/,
+      /^\/api\/v1\/(coding-plan|subscription|balance|billing|order|orders|claim|enterprise|pay|usage|mode-plan)/,
     ],
   },
   { key: "officialMcp", patterns: [/^\/api\/v1\/mcp/] },

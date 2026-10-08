@@ -1,12 +1,12 @@
-import type { ZCodeConfigOption } from "@mode/shared";
+import type { ModeConfigOption } from "@mode/shared";
 
 function areJsonEquivalent(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export function areConfigOptionsEquivalent(
-  left: readonly ZCodeConfigOption[] | null | undefined,
-  right: readonly ZCodeConfigOption[] | null | undefined,
+  left: readonly ModeConfigOption[] | null | undefined,
+  right: readonly ModeConfigOption[] | null | undefined,
 ): boolean {
   if (left === right) {
     return true;

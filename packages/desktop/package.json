@@ -1,8 +1,8 @@
 {
   "name": "@mode/desktop",
   "private": true,
-  "description": "ZCode Desktop App",
-  "author": "ZCode",
+  "description": "Mode Desktop App",
+  "author": "Mode",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {

@@ -5,25 +5,25 @@
 // task-realtime.ts 保留旧协议兼容接口；本文件集中定义对应的运行时 schema。
 
 import { z } from "zod";
-import type { ZCodeTaskMigrationSource, ZCodeTaskMode } from "./zcode-task-types-core.js";
-import { zcodeAgentProviderSchema } from "./zcode-agent-policy.js";
-import { zcodePermissionResponseSchema } from "./zcode-protocol-legacy-types.js";
-import { workspaceHookReviewDecisionSchema } from "./zcode-protocol-v4/workspace-hook-review.js";
-import { errorAttributionSchema } from "./zcode-protocol-v4/snapshot.js";
+import type { ModeTaskMigrationSource, ModeTaskMode } from "./mode-task-types-core.js";
+import { modeAgentProviderSchema } from "./mode-agent-policy.js";
+import { modePermissionResponseSchema } from "./mode-protocol-legacy-types.js";
+import { workspaceHookReviewDecisionSchema } from "./mode-protocol-v4/workspace-hook-review.js";
+import { errorAttributionSchema } from "./mode-protocol-v4/snapshot.js";
 
 const nonEmptyString = z.string().trim().min(1);
-const zcodeTaskModeRealtimeValues = [
+const modeTaskModeRealtimeValues = [
   "yolo",
   "plan",
   "edit",
   "auto",
   "autoEdit",
   "build",
-] as const satisfies readonly ZCodeTaskMode[];
-const zcodeTaskMigrationSourceRealtimeValues = [
+] as const satisfies readonly ModeTaskMode[];
+const modeTaskMigrationSourceRealtimeValues = [
   "claudeCode",
-] as const satisfies readonly ZCodeTaskMigrationSource[];
-const zcodeTaskChangeSummaryRealtimeSchema = z
+] as const satisfies readonly ModeTaskMigrationSource[];
+const modeTaskChangeSummaryRealtimeSchema = z
   .object({
     fileCount: z.number().int().nonnegative(),
     added: z.number().int().nonnegative(),
@@ -51,12 +51,12 @@ const taskMetaRealtimeSchema = z.object({
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
   // realtime deliver 的运行时 schema 之前把 mode 放宽成 string，
-  // schema 推导类型因此无法回到 ZCodeTaskMeta，host typecheck 也就无法覆盖这条链路。
-  mode: z.enum(zcodeTaskModeRealtimeValues),
+  // schema 推导类型因此无法回到 ModeTaskMeta，host typecheck 也就无法覆盖这条链路。
+  mode: z.enum(modeTaskModeRealtimeValues),
   model: z.string().optional(),
   runtimeEpoch: z.number().int().nonnegative().optional(),
-  provider: zcodeAgentProviderSchema.optional(),
-  migrationSource: z.enum(zcodeTaskMigrationSourceRealtimeValues).optional(),
+  provider: modeAgentProviderSchema.optional(),
+  migrationSource: z.enum(modeTaskMigrationSourceRealtimeValues).optional(),
   forkedFromTaskId: nonEmptyString.optional(),
   unreadAt: z.number().int().nonnegative().optional(),
   status: z.enum(["running", "completed", "error"]).optional(),
@@ -71,7 +71,7 @@ const taskMetaRealtimeSchema = z.object({
       attribution: errorAttributionSchema.optional(),
     })
     .optional(),
-  changeSummary: zcodeTaskChangeSummaryRealtimeSchema.optional(),
+  changeSummary: modeTaskChangeSummaryRealtimeSchema.optional(),
 });
 export function resolveWorkspaceKey(params: {
   workspacePath: string;
@@ -156,7 +156,7 @@ export const workspaceTaskListInvalidatedEventSchema = taskRealtimeInvalidationB
     taskMeta: taskMetaRealtimeSchema.optional(),
   })
   .strict();
-const zcodePromptAttachmentSchema = z.discriminatedUnion("kind", [
+const modePromptAttachmentSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("image"),
@@ -221,7 +221,7 @@ const taskStreamMirrorUserMessagePublishOpSchema = z
     kind: z.literal("user_message"),
     messageId: nonEmptyString,
     content: z.string(),
-    attachments: z.array(zcodePromptAttachmentSchema).optional(),
+    attachments: z.array(modePromptAttachmentSchema).optional(),
     timestamp: z.number().finite(),
   })
   .strict();
@@ -326,7 +326,7 @@ const taskRespondPermissionOwnerCommandRequestSchema = taskOwnerCommandBaseSchem
     type: z.literal("respond_permission"),
     permissionRequestId: nonEmptyString,
     optionId: nonEmptyString,
-    response: zcodePermissionResponseSchema,
+    response: modePermissionResponseSchema,
   })
   .strict();
 const taskRespondElicitationOwnerCommandRequestSchema = taskOwnerCommandBaseSchema
@@ -358,7 +358,7 @@ const taskRespondWorkspaceHookReviewOwnerCommandRequestSchema = taskOwnerCommand
       });
     }
   });
-const zcodeTaskRuntimeCommandBaseSchema = z
+const modeTaskRuntimeCommandBaseSchema = z
   .object({
     commandId: nonEmptyString,
     taskId: nonEmptyString,
@@ -374,12 +374,12 @@ const zcodeTaskRuntimeCommandBaseSchema = z
     error: z.string().optional(),
   })
   .strict();
-const zcodeTaskRuntimeCommandSchema = z.discriminatedUnion("type", [
-  zcodeTaskRuntimeCommandBaseSchema
+const modeTaskRuntimeCommandSchema = z.discriminatedUnion("type", [
+  modeTaskRuntimeCommandBaseSchema
     .extend({
       type: z.literal("send_prompt"),
       content: z.string(),
-      attachments: z.array(zcodePromptAttachmentSchema).optional(),
+      attachments: z.array(modePromptAttachmentSchema).optional(),
       automationId: nonEmptyString.optional(),
     })
     .strict(),
@@ -387,7 +387,7 @@ const zcodeTaskRuntimeCommandSchema = z.discriminatedUnion("type", [
 const taskEnqueueCommandOwnerCommandRequestSchema = taskOwnerCommandBaseSchema
   .extend({
     type: z.literal("enqueue_task_command"),
-    taskCommand: zcodeTaskRuntimeCommandSchema,
+    taskCommand: modeTaskRuntimeCommandSchema,
   })
   .strict();
 const taskPromoteCommandOwnerCommandRequestSchema = taskOwnerCommandBaseSchema
@@ -468,7 +468,7 @@ export const taskOwnerCommandResultSchema = z.discriminatedUnion("success", [
     .object({
       commandRequestId: nonEmptyString,
       success: z.literal(true),
-      taskCommand: zcodeTaskRuntimeCommandSchema.optional(),
+      taskCommand: modeTaskRuntimeCommandSchema.optional(),
     })
     .strict(),
   z

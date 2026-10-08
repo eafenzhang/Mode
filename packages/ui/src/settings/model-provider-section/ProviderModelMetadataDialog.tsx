@@ -10,7 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { ModelConfigObject } from "@mode/provider";
 import type {
   ProviderModelDraftValues,
@@ -87,7 +87,7 @@ export function ProviderModelMetadataDialog({
   onModelIdBlur?: () => void;
   remoteModelDetection?: RemoteModelDetectionControl;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [validationAttempt, setValidationAttempt] = useState(0);
   const commit = async () => {
     const result = await onCommit();

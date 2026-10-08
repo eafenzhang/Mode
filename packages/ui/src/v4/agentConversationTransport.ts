@@ -1,9 +1,9 @@
 import { sendWithConversationDelayE2E } from "@/v4/conversationTransportDelayE2E.js";
 /* oxlint-disable eslint(max-lines) -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
-// ConversationTransport 的 desktop/host 实现：桥到 IZCodeAgentService 的 v4 转发面
+// ConversationTransport 的 desktop/host 实现：桥到 IModeAgentService 的 v4 转发面
 // （依赖注入原则——数据层不感知 host 细节，
 // web 直连 ws relay 时换一个实现即可）。
-import type { IZCodeAgentService } from "@mode/services";
+import type { IModeAgentService } from "@mode/services";
 import {
   conversationTopicFrameSchema,
   PROTOCOL_V4_LIMITS,
@@ -30,7 +30,7 @@ import {
   type V4ConversationRowsRangeResult,
   type V4ConversationSubscribeResult,
   type V4ConversationResyncResult,
-} from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 import type { ConversationTransport } from "@/v4/transport.js";
 import { ensureAgentV4ConnectionHandshake } from "@/v4/agentV4ConnectionHandshake.js";
 import { createWorkflowRunTransportMethods } from "@/v4/agentConversationTransportWorkflowRuns.js";
@@ -50,7 +50,7 @@ interface AgentConversationTransportTarget {
 }
 
 type ConversationV4AgentService = Pick<
-  IZCodeAgentService,
+  IModeAgentService,
   | "subscribeConversationV4"
   | "resyncConversationV4"
   | "helloConversationV4"
@@ -78,7 +78,7 @@ type ConversationV4AgentService = Pick<
   | "onDynamicConversationFrame"
   | "onAgentRuntimeRestarted"
 > &
-  Partial<Pick<IZCodeAgentService, "onAgentRuntimeLifecycle">>;
+  Partial<Pick<IModeAgentService, "onAgentRuntimeLifecycle">>;
 
 /**
  * 一条 host 连接（= 一个 workspace）上的 v4 conversation 传输面。

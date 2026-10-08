@@ -3,11 +3,11 @@ import type {
   McpServerConfig,
   McpSource,
   NativeMcpServerRecord,
-  ZCodeMcpServer,
+  ModeMcpServer,
 } from "@mode/shared";
 
-const MCP_CONFIG_KEY = "zcode-mcp-config";
-export const MCP_DELETED_PRELOAD_KEY = "zcode-mcp-deleted-preload";
+const MCP_CONFIG_KEY = "mode-mcp-config";
+export const MCP_DELETED_PRELOAD_KEY = "mode-mcp-deleted-preload";
 
 export const DEFAULT_MCP_CONFIG: McpConfig = {
   mcp: { mcpServers: {} },
@@ -90,7 +90,7 @@ export function makeServerId(
   directorySource?: NonNullable<NativeMcpServerRecord["location"]>["source"],
 ): string {
   const sourceKey =
-    source === "zcodeagentmcp" && directorySource && directorySource !== "zcode"
+    source === "zcodeagentmcp" && directorySource && directorySource !== "mode"
       ? `${source}-${directorySource}`
       : source;
   return `${sourceKey}-${toIdKey(toScopeKey(projectPath))}-${toIdKey(name)}`;
@@ -101,8 +101,8 @@ export function buildServerList(
   nativeServers: NativeMcpServerRecord[],
   enabledStates: Record<string, boolean>,
   deletedPreload: Set<string>,
-  existingServers: ZCodeMcpServer[],
-): ZCodeMcpServer[] {
+  existingServers: ModeMcpServer[],
+): ModeMcpServer[] {
   const existingById = new Map(existingServers.map((s) => [s.id, s]));
 
   function makeServer(
@@ -110,12 +110,12 @@ export function buildServerList(
     name: string,
     serverConfig: McpServerConfig,
     source: McpSource,
-    scope: ZCodeMcpServer["scope"],
+    scope: ModeMcpServer["scope"],
     enabledBySource?: boolean,
     projectPath?: string,
-    file?: ZCodeMcpServer["file"],
-    location?: ZCodeMcpServer["location"],
-  ): ZCodeMcpServer {
+    file?: ModeMcpServer["file"],
+    location?: ModeMcpServer["location"],
+  ): ModeMcpServer {
     const prev = existingById.get(serverId);
     const configChanged = prev ? !isSameMcpServerConfig(prev.config, serverConfig) : true;
     return {
@@ -138,7 +138,7 @@ export function buildServerList(
     };
   }
 
-  const servers: ZCodeMcpServer[] = [];
+  const servers: ModeMcpServer[] = [];
 
   for (const server of nativeServers) {
     const serverId = makeServerId(
@@ -171,7 +171,7 @@ function isSameMcpServerConfig(left: McpServerConfig, right: McpServerConfig): b
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function getServerPriority(server: ZCodeMcpServer): number {
+export function getServerPriority(server: ModeMcpServer): number {
   if (server.scope === "workspace") return 2;
   if (server.scope === "user") return 1;
   return 0;

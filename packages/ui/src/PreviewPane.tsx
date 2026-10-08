@@ -28,7 +28,7 @@ import type { FileBinaryPreview, FileMediaPreview, FileTextSlice } from "@mode/s
 import { TID_PREVIEW_PANE } from "@mode/shared";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { usePptxFileWatch } from "@/hooks/usePptxFileWatch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { usePdfViewerLabels, usePptxViewerLabels } from "@/hooks/usePreviewViewerLabels.js";
 import {
   FILE_VIEWER_MAX_TEXT_BYTES,
@@ -49,7 +49,7 @@ import { usePlatform } from "@/hooks/usePlatform.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
 import { logger } from "@/logger.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useModeStore } from "@/store/StoreProvider.js";
 import { useCodeCommentPreviewStore } from "@/store/codeCommentPreviewStore.js";
 import { resolveTheme } from "@/useTheme.js";
 import {
@@ -494,9 +494,9 @@ export function PreviewPane({
   markdownSelectionTarget?: MarkdownSelectionTarget;
 }) {
   const platform = usePlatform();
-  const { intl } = useZCodeIntl();
-  const theme = useZCodeStore((state) => state.theme);
-  const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
+  const { intl } = useModeIntl();
+  const theme = useModeStore((state) => state.theme);
+  const codePreviewSettings = useModeStore((state) => state.codePreviewSettings);
   const source = useMemo(
     () => (rawSource ? normalizeCodeViewerSource(rawSource) : null),
     [rawSource],

@@ -7,7 +7,7 @@ import type { Locale } from "@mode/shared";
 const WORKFLOW_NAME = "Open in Mode.workflow";
 /** 更名前安装的 Finder 服务目录：不清掉会在「服务」菜单里长期显示旧应用名。 */
 const LEGACY_WORKFLOW_NAMES = ["Open in ZCodium.workflow"] as const;
-const WORKFLOW_BUNDLE_ID = "dev.zcode.app.finder-open-workflow";
+const WORKFLOW_BUNDLE_ID = "dev.mode.app.finder-open-workflow";
 const WORKFLOW_VERSION = "5";
 const SERVICES_MENU_LABELS: Record<Locale, string> = {
   "zh-CN": "在 Mode 中打开",

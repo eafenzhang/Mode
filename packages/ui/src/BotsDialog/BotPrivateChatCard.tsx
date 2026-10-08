@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select.js";
 import { BindCodePanel, DetailPanel } from "@/BotsDialog/ProviderSettingsCard.js";
 import type { BindCodeState } from "@/BotsDialog/shared.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 
 /**
@@ -39,7 +39,7 @@ export function BotPrivateChatCard({
   onUnbind: () => void;
   onPatchBot: (patch: Partial<BotConfig>) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const mode: BotPrivateChatMode = bot.privateChatMode ?? "bound_users";
   const boundUsers = bot.allowedUsers ?? [];
   const primaryUserId = bot.providerUserId?.trim() ?? "";

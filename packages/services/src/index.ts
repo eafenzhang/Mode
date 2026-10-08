@@ -94,36 +94,36 @@ export type {
   BroadcastMessage,
 } from "./broadcast/broadcast.js";
 
-// ZCode task wrapper service — task 列表/置顶/归档等 app 侧包装状态入口。
-export { IZCodeTaskService } from "./session/zcodeTaskService.js";
+// Mode task wrapper service — task 列表/置顶/归档等 app 侧包装状态入口。
+export { IModeTaskService } from "./session/modeTaskService.js";
 export type {
-  ZCodeArchivedTaskDeletionResult,
-  ZCodeModelTrajectory,
-  ZCodeModelTrajectoryCallSource,
-  ZCodeModelTrajectoryCallSourceKind,
-  ZCodeModelTrajectoryContentPart,
-  ZCodeModelTrajectoryMessage,
-  ZCodeModelTrajectoryRecord,
-  ZCodeModelTrajectoryUsage,
-  ZCodeTaskListKind,
-  ZCodeTaskListQuery,
-  ZCodeTaskListResult,
-  ZCodeTaskListSortBy,
-  ZCodeTaskListWorkspaceScope,
-  ZCodeTaskReadyOutcome,
-  ZCodeGroupedTaskRef,
-  ZCodeGroupedTaskView,
-  ZCodeGroupedTaskViewNode,
-  ZCodeGroupedTaskViewOrderInput,
-  ZCodeGroupedTaskViewQuery,
-  ZCodeGroupedTaskViewStructure,
-  ZCodeGroupedTaskViewStructureMember,
-  ZCodeGroupedTaskViewStructureTopOrder,
-  ZCodeGroupedTaskViewTopLevelNodeRef,
-  ZCodeTaskGroup,
-  ZCodeTaskGroupColor,
-} from "./session/zcodeTaskService.js";
-export type { ZCodeTaskListItem } from "./session/zcodeTaskListTypes.js";
+  ModeArchivedTaskDeletionResult,
+  ModeModelTrajectory,
+  ModeModelTrajectoryCallSource,
+  ModeModelTrajectoryCallSourceKind,
+  ModeModelTrajectoryContentPart,
+  ModeModelTrajectoryMessage,
+  ModeModelTrajectoryRecord,
+  ModeModelTrajectoryUsage,
+  ModeTaskListKind,
+  ModeTaskListQuery,
+  ModeTaskListResult,
+  ModeTaskListSortBy,
+  ModeTaskListWorkspaceScope,
+  ModeTaskReadyOutcome,
+  ModeGroupedTaskRef,
+  ModeGroupedTaskView,
+  ModeGroupedTaskViewNode,
+  ModeGroupedTaskViewOrderInput,
+  ModeGroupedTaskViewQuery,
+  ModeGroupedTaskViewStructure,
+  ModeGroupedTaskViewStructureMember,
+  ModeGroupedTaskViewStructureTopOrder,
+  ModeGroupedTaskViewTopLevelNodeRef,
+  ModeTaskGroup,
+  ModeTaskGroupColor,
+} from "./session/modeTaskService.js";
+export type { ModeTaskListItem } from "./session/modeTaskListTypes.js";
 
 export { IWindowControllerService } from "./window-controller/windowController.js";
 export type {
@@ -133,68 +133,68 @@ export type {
   WindowHostControllerTaskListResult,
 } from "./window-controller/windowController.js";
 
-// ZCode agent service — IZCodeAgentService is both a type (interface) and value (descriptor)
+// Mode agent service — IModeAgentService is both a type (interface) and value (descriptor)
 export {
-  IZCodeAgentService,
-  type ZCodeAgentLocalRuntimeChildProcesses,
+  IModeAgentService,
+  type ModeAgentLocalRuntimeChildProcesses,
   MODE_AGENT_RUNTIME_UNAVAILABLE_CODE,
-} from "./zcode-agent/zcodeAgent.js";
+} from "./mode-agent/modeAgent.js";
 export {
-  isZCodeAgentMcpStatusModeUnsupportedError,
+  isModeAgentMcpStatusModeUnsupportedError,
   MODE_AGENT_MCP_STATUS_MODE_UNSUPPORTED_ERROR_CODE,
-  ZCodeAgentMcpStatusModeUnsupportedError,
-} from "./zcode-agent/zcodeAgentErrors.js";
+  ModeAgentMcpStatusModeUnsupportedError,
+} from "./mode-agent/modeAgentErrors.js";
 export {
-  createZCodeAgentConnectionScope,
-  readTrustedZCodeAgentV4Connection,
-} from "./zcode-agent/zcodeAgentConnectionScope.js";
+  createModeAgentConnectionScope,
+  readTrustedModeAgentV4Connection,
+} from "./mode-agent/modeAgentConnectionScope.js";
 export type {
-  ZCodeAgentConnectionScope,
-  ZCodeAgentV4ClientMode,
-  ZCodeAgentV4ConnectionContext,
-} from "./zcode-agent/zcodeAgentConnectionScope.js";
+  ModeAgentConnectionScope,
+  ModeAgentV4ClientMode,
+  ModeAgentV4ConnectionContext,
+} from "./mode-agent/modeAgentConnectionScope.js";
 export type {
-  ZCodeAgentAttachmentBeginParams,
-  ZCodeAgentAttachmentChunkParams,
-  ZCodeAgentAttachmentTerminalParams,
-  ZCodeAgentCreateSessionParams,
-  ZCodeAgentCuaPermissionObservation,
-  ZCodeAgentInitializeResult,
-  ZCodeAgentStorageStartupSnapshot,
-  ZCodeAgentRuntimeLifecycleEvent,
-  ZCodeAgentRuntimePolicy,
-  ZCodeAgentReadSessionParams,
-  ZCodeAgentResumeSessionParams,
-  ZCodeAgentRunAutomationNowResult,
-  ZCodeAgentSavedWorkflowTarget,
-  ZCodeAgentSendPromptParams,
-  ZCodeAgentServiceEvent,
-  ZCodeAgentSessionSubscribeParams,
-  ZCodeAgentSessionTarget,
-  ZCodeAgentSetModeParams,
-  ZCodeAgentSetModelParams,
-  ZCodeAgentSetThoughtLevelParams,
-  ZCodeAgentWorkspaceTarget,
-} from "./zcode-agent/zcodeAgent.js";
+  ModeAgentAttachmentBeginParams,
+  ModeAgentAttachmentChunkParams,
+  ModeAgentAttachmentTerminalParams,
+  ModeAgentCreateSessionParams,
+  ModeAgentCuaPermissionObservation,
+  ModeAgentInitializeResult,
+  ModeAgentStorageStartupSnapshot,
+  ModeAgentRuntimeLifecycleEvent,
+  ModeAgentRuntimePolicy,
+  ModeAgentReadSessionParams,
+  ModeAgentResumeSessionParams,
+  ModeAgentRunAutomationNowResult,
+  ModeAgentSavedWorkflowTarget,
+  ModeAgentSendPromptParams,
+  ModeAgentServiceEvent,
+  ModeAgentSessionSubscribeParams,
+  ModeAgentSessionTarget,
+  ModeAgentSetModeParams,
+  ModeAgentSetModelParams,
+  ModeAgentSetThoughtLevelParams,
+  ModeAgentWorkspaceTarget,
+} from "./mode-agent/modeAgent.js";
 
-// ZCode session service — app-facing session facade without ZCode Agent naming.
-export { IZCodeSessionService } from "./zcode-session/zcodeSession.js";
+// Mode session service — app-facing session facade without Mode Agent naming.
+export { IModeSessionService } from "./mode-session/modeSession.js";
 export type {
-  ZCodeSessionCreateParams,
-  ZCodeSessionEventsParams,
-  ZCodeSessionInitializeResult,
-  ZCodeSessionListParams,
-  ZCodeSessionMessagesParams,
-  ZCodeSessionReadParams,
-  ZCodeSessionResumeParams,
-  ZCodeSessionServiceEvent,
-  ZCodeSessionSetModeParams,
-  ZCodeSessionSetModelParams,
-  ZCodeSessionSetThoughtLevelParams,
-  ZCodeSessionSubscribeParams,
-  ZCodeTaskTarget,
-  ZCodeSessionWorkspaceTarget,
-} from "./zcode-session/zcodeSession.js";
+  ModeSessionCreateParams,
+  ModeSessionEventsParams,
+  ModeSessionInitializeResult,
+  ModeSessionListParams,
+  ModeSessionMessagesParams,
+  ModeSessionReadParams,
+  ModeSessionResumeParams,
+  ModeSessionServiceEvent,
+  ModeSessionSetModeParams,
+  ModeSessionSetModelParams,
+  ModeSessionSetThoughtLevelParams,
+  ModeSessionSubscribeParams,
+  ModeTaskTarget,
+  ModeSessionWorkspaceTarget,
+} from "./mode-session/modeSession.js";
 
 // Bots service — IBotsService is both a type (interface) and value (descriptor).
 export { IBotsService } from "./bots/bots.js";
@@ -273,7 +273,7 @@ export {
 
 // Plugins service — IPluginsService is both a type (interface) and value (descriptor)
 export { IPluginsService } from "./plugins/plugins.js";
-// 设置页插件管理薄服务（UI 平台能力面不再直触 zcodeAgentService）
+// 设置页插件管理薄服务（UI 平台能力面不再直触 modeAgentService）
 export { IPluginManagementService } from "./plugins/pluginManagement.js";
 
 // Subagents service — ISubagentsService is both a type (interface) and value (descriptor)

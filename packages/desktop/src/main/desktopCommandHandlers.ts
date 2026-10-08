@@ -10,15 +10,15 @@ import {
   type AppSettings,
   type DesktopCommandId,
   type Locale,
-  resolveRuntimeZCodeEndpointOrigin,
+  resolveRuntimeModeEndpointOrigin,
   MODE_ENV,
   MODE_PRODUCT_FLAVOR,
-  buildZCodeEndpointUrls,
+  buildModeEndpointUrls,
   getCommunityUrlFromConfigs,
-  normalizeZCodeEndpointOrigin,
-  resolveZCodeEndpointOrigin,
+  normalizeModeEndpointOrigin,
+  resolveModeEndpointOrigin,
 } from "@mode/shared";
-import { readZCodeStdioTapDevState, setZCodeStdioTapDevEnabled } from "@mode/services/node";
+import { readModeStdioTapDevState, setModeStdioTapDevEnabled } from "@mode/services/node";
 import { showAboutDialog } from "./about.js";
 import { checkForUpdateMenuClick } from "./autoUpdater.js";
 import { exportLogs } from "./exportLogs.js";
@@ -36,10 +36,10 @@ import {
 } from "./desktopZoom.js";
 
 export const HELP_TOGGLE_DEV_TOOLS_MENU_ID = "help.toggle-dev-tools";
-export const HELP_TOGGLE_MODE_STDIO_TAP_MENU_ID = "help.toggle-zcode-stdio-tap";
+export const HELP_TOGGLE_MODE_STDIO_TAP_MENU_ID = "help.toggle-mode-stdio-tap";
 const MODE_ENDPOINT_PROMPT_WIDTH = 460;
 const MODE_ENDPOINT_PROMPT_HEIGHT = 210;
-const CODING_PLAN_WEBVIEW_PARTITION = "persist:zcode-coding-plan";
+const CODING_PLAN_WEBVIEW_PARTITION = "persist:mode-coding-plan";
 
 function resolveTargetWindow(senderWindow?: BrowserWindow | null) {
   if (senderWindow && !senderWindow.isDestroyed()) {
@@ -243,11 +243,11 @@ async function openCommunity(
   await shell.openExternal(communityUrl);
 }
 
-async function promptCustomZCodeEndpoint(
+async function promptCustomModeEndpoint(
   targetWindow: BrowserWindow | null | undefined,
   currentValue: string,
 ): Promise<string | undefined> {
-  return showZCodeEndpointPromptWindow({
+  return showModeEndpointPromptWindow({
     currentValue,
     parentWindow: targetWindow && !targetWindow.isDestroyed() ? targetWindow : undefined,
   });
@@ -261,7 +261,7 @@ function escapeHtmlAttribute(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function buildZCodeEndpointPromptHtml(currentValue: string): string {
+function buildModeEndpointPromptHtml(currentValue: string): string {
   const value = escapeHtmlAttribute(currentValue);
   return `<!doctype html>
 <html>
@@ -290,13 +290,13 @@ function buildZCodeEndpointPromptHtml(currentValue: string): string {
     </form>
     <script>
       const input = document.getElementById("endpoint");
-      const submit = (value) => { document.title = "zcode-endpoint-submit:" + encodeURIComponent(value); };
+      const submit = (value) => { document.title = "mode-endpoint-submit:" + encodeURIComponent(value); };
       document.getElementById("form").addEventListener("submit", (event) => {
         event.preventDefault();
         submit(input.value);
       });
       document.getElementById("cancel").addEventListener("click", () => {
-        document.title = "zcode-endpoint-cancel";
+        document.title = "mode-endpoint-cancel";
       });
       input.focus();
       input.select();
@@ -305,7 +305,7 @@ function buildZCodeEndpointPromptHtml(currentValue: string): string {
 </html>`;
 }
 
-function showZCodeEndpointPromptWindow(options: {
+function showModeEndpointPromptWindow(options: {
   currentValue: string;
   parentWindow?: BrowserWindow;
 }): Promise<string | undefined> {
@@ -340,40 +340,40 @@ function showZCodeEndpointPromptWindow(options: {
 
     promptWindow.on("closed", () => finish(undefined));
     promptWindow.on("page-title-updated", (event, title) => {
-      if (title === "zcode-endpoint-cancel") {
+      if (title === "mode-endpoint-cancel") {
         event.preventDefault();
         finish(undefined);
         return;
       }
-      if (!title.startsWith("zcode-endpoint-submit:")) {
+      if (!title.startsWith("mode-endpoint-submit:")) {
         return;
       }
       event.preventDefault();
-      finish(decodeURIComponent(title.slice("zcode-endpoint-submit:".length)));
+      finish(decodeURIComponent(title.slice("mode-endpoint-submit:".length)));
     });
 
     // Electron 菜单命令在主进程触发，调用 renderer 的 window.prompt 可能被禁用或没有焦点，表现为点击无反应。
     // 这里改为主进程创建受控 modal 输入窗，确保 Custom... 始终有可见交互入口。
     void promptWindow.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
-        buildZCodeEndpointPromptHtml(options.currentValue),
+        buildModeEndpointPromptHtml(options.currentValue),
       )}`,
     );
   });
 }
 
-async function setZCodeEndpointOverride(options: {
+async function setModeEndpointOverride(options: {
   value: string | undefined;
-  settingService: { update(patch: { zcodeEndpointOrigin?: string | undefined }): Promise<void> };
-  onZCodeEndpointChanged: () => Promise<void> | void;
+  settingService: { update(patch: { modeEndpointOrigin?: string | undefined }): Promise<void> };
+  onModeEndpointChanged: () => Promise<void> | void;
   logger: { warn: (...args: unknown[]) => void };
 }) {
   if (MODE_ENV === "production") {
     return;
   }
-  const normalized = options.value ? normalizeZCodeEndpointOrigin(options.value) : undefined;
-  await options.settingService.update({ zcodeEndpointOrigin: normalized });
-  await options.onZCodeEndpointChanged();
+  const normalized = options.value ? normalizeModeEndpointOrigin(options.value) : undefined;
+  await options.settingService.update({ modeEndpointOrigin: normalized });
+  await options.onModeEndpointChanged();
 }
 
 async function persistDesktopZoomLevel(options: {
@@ -390,13 +390,13 @@ async function persistDesktopZoomLevel(options: {
   }
 }
 
-function toggleZCodeStdioTapDevProxy(options: {
+function toggleModeStdioTapDevProxy(options: {
   logger: { info: (...args: unknown[]) => void };
-  updateZCodeStdioTapDevMenuState: () => void;
+  updateModeStdioTapDevMenuState: () => void;
 }) {
-  const current = readZCodeStdioTapDevState();
-  const next = setZCodeStdioTapDevEnabled(!current.enabled);
-  options.updateZCodeStdioTapDevMenuState();
+  const current = readModeStdioTapDevState();
+  const next = setModeStdioTapDevEnabled(!current.enabled);
+  options.updateModeStdioTapDevMenuState();
   options.logger.info("[stdio-tap] dev proxy toggled", {
     enabled: next.enabled,
     visible: next.visible,
@@ -410,7 +410,7 @@ function resolveChangelogUrl(
 ): string {
   // 帮助菜单里的外链以前只有固定英文地址，切到中文界面后仍会落到英文 changelog。
   // 这里统一收口到主进程按当前应用语言分流，避免菜单模板里手写分支后续再出现多处不一致。
-  const origin = buildZCodeEndpointUrls(endpointOrigin).origin;
+  const origin = buildModeEndpointUrls(endpointOrigin).origin;
   return locale === "zh-CN" ? `${origin}/cn/changelog` : `${origin}/en/changelog`;
 }
 
@@ -421,15 +421,15 @@ export async function openChangelog(
   await shell.openExternal(resolveChangelogUrl(locale, endpointOrigin));
 }
 
-async function resolveCurrentZCodeEndpointOrigin(settingService: {
-  get(): Promise<{ zcodeEndpointOrigin?: string }>;
+async function resolveCurrentModeEndpointOrigin(settingService: {
+  get(): Promise<{ modeEndpointOrigin?: string }>;
   envBaseOrigin?: string | null;
 }): Promise<string> {
   const settings = await settingService.get();
-  return resolveZCodeEndpointOrigin({
+  return resolveModeEndpointOrigin({
     env: MODE_ENV,
     envBaseOrigin: settingService.envBaseOrigin,
-    overrideOrigin: settings.zcodeEndpointOrigin,
+    overrideOrigin: settings.modeEndpointOrigin,
   });
 }
 
@@ -442,17 +442,17 @@ export async function executeDesktopCommand(options: {
     warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
   };
-  updateZCodeStdioTapDevMenuState: () => void;
+  updateModeStdioTapDevMenuState: () => void;
   onDesktopZoomChanged?: (zoomLevel: number) => Promise<void> | void;
-  onZCodeEndpointChanged: () => Promise<void> | void;
+  onModeEndpointChanged: () => Promise<void> | void;
   onRelaunchApp: () => Promise<void>;
   settingService: {
-    get(): Promise<Pick<AppSettings, "zcodeEndpointOrigin" | "desktopZoomLevel">>;
+    get(): Promise<Pick<AppSettings, "modeEndpointOrigin" | "desktopZoomLevel">>;
     update(
-      patch: Partial<Pick<AppSettings, "zcodeEndpointOrigin" | "desktopZoomLevel">>,
+      patch: Partial<Pick<AppSettings, "modeEndpointOrigin" | "desktopZoomLevel">>,
     ): Promise<void>;
   };
-  zcodeEndpointEnvBaseOrigin?: string | null;
+  modeEndpointEnvBaseOrigin?: string | null;
   credentialsDir: string;
   currentApplicationLocale: Locale;
 }) {
@@ -541,9 +541,9 @@ export async function executeDesktopCommand(options: {
     case DesktopCommandIds.OpenChangelog:
       await openChangelog(
         options.currentApplicationLocale,
-        await resolveCurrentZCodeEndpointOrigin({
+        await resolveCurrentModeEndpointOrigin({
           ...options.settingService,
-          envBaseOrigin: options.zcodeEndpointEnvBaseOrigin,
+          envBaseOrigin: options.modeEndpointEnvBaseOrigin,
         }),
       );
       return;
@@ -574,40 +574,40 @@ export async function executeDesktopCommand(options: {
     case DesktopCommandIds.OpenResourceManager:
       openResourceManager();
       return;
-    case DesktopCommandIds.ToggleZCodeStdioTapDevProxy:
-      toggleZCodeStdioTapDevProxy({
+    case DesktopCommandIds.ToggleModeStdioTapDevProxy:
+      toggleModeStdioTapDevProxy({
         logger: options.logger,
-        updateZCodeStdioTapDevMenuState: options.updateZCodeStdioTapDevMenuState,
+        updateModeStdioTapDevMenuState: options.updateModeStdioTapDevMenuState,
       });
       return;
-    case DesktopCommandIds.SetZCodeEndpointProduction:
-      await setZCodeEndpointOverride({
+    case DesktopCommandIds.SetModeEndpointProduction:
+      await setModeEndpointOverride({
         value: DEFAULT_MODE_ENDPOINT_ORIGIN,
         settingService: options.settingService,
-        onZCodeEndpointChanged: options.onZCodeEndpointChanged,
+        onModeEndpointChanged: options.onModeEndpointChanged,
         logger: options.logger,
       });
       return;
-    case DesktopCommandIds.SetZCodeEndpointTest:
-      await setZCodeEndpointOverride({
-        value: options.zcodeEndpointEnvBaseOrigin ?? resolveRuntimeZCodeEndpointOrigin(),
+    case DesktopCommandIds.SetModeEndpointTest:
+      await setModeEndpointOverride({
+        value: options.modeEndpointEnvBaseOrigin ?? resolveRuntimeModeEndpointOrigin(),
         settingService: options.settingService,
-        onZCodeEndpointChanged: options.onZCodeEndpointChanged,
+        onModeEndpointChanged: options.onModeEndpointChanged,
         logger: options.logger,
       });
       return;
-    case DesktopCommandIds.SetZCodeEndpointCustom: {
+    case DesktopCommandIds.SetModeEndpointCustom: {
       const current =
-        (await options.settingService.get()).zcodeEndpointOrigin ?? DEFAULT_MODE_ENDPOINT_ORIGIN;
-      const value = await promptCustomZCodeEndpoint(targetWindow, current);
+        (await options.settingService.get()).modeEndpointOrigin ?? DEFAULT_MODE_ENDPOINT_ORIGIN;
+      const value = await promptCustomModeEndpoint(targetWindow, current);
       if (!value) {
         return;
       }
       try {
-        await setZCodeEndpointOverride({
+        await setModeEndpointOverride({
           value,
           settingService: options.settingService,
-          onZCodeEndpointChanged: options.onZCodeEndpointChanged,
+          onModeEndpointChanged: options.onModeEndpointChanged,
           logger: options.logger,
         });
       } catch (error) {
@@ -620,11 +620,11 @@ export async function executeDesktopCommand(options: {
       }
       return;
     }
-    case DesktopCommandIds.ResetZCodeEndpoint:
-      await setZCodeEndpointOverride({
+    case DesktopCommandIds.ResetModeEndpoint:
+      await setModeEndpointOverride({
         value: undefined,
         settingService: options.settingService,
-        onZCodeEndpointChanged: options.onZCodeEndpointChanged,
+        onModeEndpointChanged: options.onModeEndpointChanged,
         logger: options.logger,
       });
       return;

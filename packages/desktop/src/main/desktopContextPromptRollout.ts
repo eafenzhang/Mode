@@ -1,7 +1,7 @@
 import { isOfficialServiceEnabled } from "@mode/shared";
 import {
-  buildZCodeEndpointUrls,
-  buildZCodeSourceHeadersFromContext,
+  buildModeEndpointUrls,
+  buildModeSourceHeadersFromContext,
   MODE_ENV,
   MODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
 } from "@mode/shared";
@@ -88,7 +88,7 @@ export function createElectronDesktopContextPromptConfigFetcher(options: {
     if (!isOfficialServiceEnabled("clientConfig")) return {};
     const { net } = await import("electron");
     const endpointOrigin = await options.resolveEndpointOrigin();
-    const url = new URL(`${buildZCodeEndpointUrls(endpointOrigin).origin}/api/v1/client/configs`);
+    const url = new URL(`${buildModeEndpointUrls(endpointOrigin).origin}/api/v1/client/configs`);
     url.searchParams.set("app_version", options.appVersion);
     url.searchParams.set("platform", `${process.platform}-${process.arch}`);
 
@@ -113,7 +113,7 @@ export function createElectronDesktopContextPromptConfigFetcher(options: {
       };
       signal.addEventListener("abort", onAbort, { once: true });
 
-      const sourceHeaders = buildZCodeSourceHeadersFromContext({
+      const sourceHeaders = buildModeSourceHeadersFromContext({
         appVersion: options.appVersion,
         arch: process.arch,
         deviceMid: options.deviceMid,

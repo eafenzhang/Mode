@@ -30,7 +30,7 @@ function makeBase() {
 }
 
 function seedLegacyRoot(base: string): string {
-  const legacy = join(base, ".zcode");
+  const legacy = join(base, ".mode");
   mkdirSync(join(legacy, "v2"), { recursive: true });
   mkdirSync(join(legacy, "cli", "db"), { recursive: true });
   writeFileSync(join(legacy, "v2", "setting.json"), '{"marker":"legacy"}');
@@ -89,8 +89,8 @@ test("interactive：absent + 旧根 → pending，正式根零写入且路径重
     assert.equal(existsSync(join(base, ".zcodium")), false);
     const diagnosticRoot = init.getActiveDiagnosticRoot();
     assert.ok(diagnosticRoot);
-    assert.equal(paths.getZCodeDataRootDir(), diagnosticRoot);
-    assert.equal(paths.getZCodeDataRootDir().startsWith(base), false);
+    assert.equal(paths.getModeDataRootDir(), diagnosticRoot);
+    assert.equal(paths.getModeDataRootDir().startsWith(base), false);
   } finally {
     init.resetDataRootInitializerForTest();
     rmSync(base, { recursive: true, force: true });

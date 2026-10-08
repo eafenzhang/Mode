@@ -51,7 +51,7 @@ export type DataRootInitResult =
 
 export interface LegacyDataRootCandidate {
   baseDir: string;
-  /** {baseDir}/.zcode */
+  /** {baseDir}/.mode */
   legacyRoot: string;
   /** 当前启动 base（迁移目的地）；其余为旧 setting.json 发现的自定义 base。 */
   isPrimaryBase: boolean;

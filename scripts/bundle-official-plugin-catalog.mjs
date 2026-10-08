@@ -1,5 +1,5 @@
-// 把 ZCode 官方插件目录（zcode-plugins-official）随包内置：生成清单模块
-//   apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts
+// 把 Mode 官方插件目录（zcode-plugins-official）随包内置：生成清单模块
+//   apps/mode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts
 //
 // 关键约定：清单必须与官方逐条一致（"公开分段显示的插件与官方保持一致"）。这里
 // 不挑条目、不裁剪：官方目录里有几个插件，随包清单就是几个，字段原样保留
@@ -22,13 +22,13 @@ const catalogPath =
   process.env.MODE_OFFICIAL_CATALOG_PATH ??
   join(
     process.env.MODE_MARKETPLACES_DIR ??
-      join(homedir(), ".zcode", "cli", "plugins", "marketplaces"),
+      join(homedir(), ".mode", "cli", "plugins", "marketplaces"),
     "zcode-plugins-official",
     "marketplace.json",
   );
 const manifestModule = join(
   root,
-  "apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
+  "apps/mode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
 );
 
 if (!existsSync(catalogPath)) {
@@ -47,7 +47,7 @@ const kept = entries.map((entry) => {
 
 const manifestLines = [
   "// 本文件由 scripts/bundle-official-plugin-catalog.mjs 生成，请勿手改。",
-  `// 内容为 ZCode 官方插件目录（zcode-plugins-official）的随包快照，共 ${kept.length} 条，`,
+  `// 内容为 Mode 官方插件目录（zcode-plugins-official）的随包快照，共 ${kept.length} 条，`,
   "// 与官方清单逐条一致（不裁剪、不挑条目），只去掉 per-install 的 cachePath 与远端 icon：",
   "// 图标按插件名匹配随包资源，条目 source 保持原样，由既有安装链路解析。",
   "export const BUNDLED_OFFICIAL_PLUGIN_CATALOG = " +

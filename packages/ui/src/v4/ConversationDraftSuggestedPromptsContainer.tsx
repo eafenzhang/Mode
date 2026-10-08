@@ -24,11 +24,11 @@ import { cn } from "@/components/lib/utils.js";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import type { AutomationsNavigationTab } from "@/lib/taskNavigationHistory.js";
-import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSkillInvalidation.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/modeDraftSkillInvalidation.js";
+import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import {
   ConversationDraftSuggestedPrompts,
   type DraftSuggestedPromptItem,
@@ -85,7 +85,7 @@ export function ConversationDraftSuggestedPromptsContainer({
   remoteSessionId,
   onOpenAutomations,
 }: Props) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const platform = usePlatform();
   const isOfficeMode = useIsOfficeMode();
   const { update } = useSettings();
@@ -220,7 +220,7 @@ export function ConversationDraftSuggestedPromptsContainer({
       // 推荐流程的状态与展示图标都由目标 Host 的同一次可信解析返回；当前不存在
       // workspace 级 Plugin，再读取 referenceCatalog 会重复校验并引入额外 RPC。
       const mention = buildDraftSuggestedPluginMention(plugin, icon);
-      return useZCodeSessionStore
+      return useModeSessionStore
         .getState()
         .requestComposerTextInsert(
           workspacePath,
@@ -242,7 +242,7 @@ export function ConversationDraftSuggestedPromptsContainer({
       ) {
         return null;
       }
-      return useZCodeSessionStore
+      return useModeSessionStore
         .getState()
         .requestComposerTextInsert(workspacePath, prompt, workspaceIdentity);
     },
@@ -270,13 +270,13 @@ export function ConversationDraftSuggestedPromptsContainer({
         const text = hasTarget
           ? prompt
           : `${buildDraftSuggestedPluginMention(plugin, icon).markdown} ${prompt}`;
-        return useZCodeSessionStore
+        return useModeSessionStore
           .getState()
           .requestComposerTextInsert(workspacePath, text, workspaceIdentity);
       }
       const mention = buildDraftSuggestedPluginMention(plugin, icon);
       const text = prompt.trim() ? `${mention.markdown} ${prompt.trim()}` : mention.markdown;
-      return useZCodeSessionStore
+      return useModeSessionStore
         .getState()
         .requestComposerTextInsert(workspacePath, text, workspaceIdentity, mention);
     },
@@ -286,7 +286,7 @@ export function ConversationDraftSuggestedPromptsContainer({
   const revalidateAndPrependPlugin = useCallback(
     async (current: DraftSuggestedPluginFlow, requestVersion: number) => {
       await invalidateDeferredDraftSessionForSkillChange({
-        zcodeSessionService: resolution.services.zcodeSessionService,
+        modeSessionService: resolution.services.modeSessionService,
         workspacePath,
         workspaceIdentity,
         reason: "suggested-prompt-plugin-change",
@@ -307,7 +307,7 @@ export function ConversationDraftSuggestedPromptsContainer({
     [
       prependResolvedPlugin,
       resolution.services.pluginManagementService,
-      resolution.services.zcodeSessionService,
+      resolution.services.modeSessionService,
       targetParams,
       workspaceIdentity,
       workspacePath,

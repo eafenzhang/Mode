@@ -18,7 +18,7 @@ import type {
   UsageQuotaLimit,
   UsageStatsRequest,
   UsageStatsSnapshot,
-  ZCodeAccountAccess,
+  ModeAccountAccess,
 } from "@mode/shared";
 import {
   ApiError,
@@ -28,7 +28,7 @@ import {
   isZaiCodingPlanProviderId,
   buildBigModelApiUrl,
   buildRuntimeZaiBusinessUrl,
-  buildRuntimeZCodeApiUrl,
+  buildRuntimeModeApiUrl,
 } from "@mode/shared";
 import type { ProviderFamilyDomain } from "@mode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
@@ -66,7 +66,7 @@ import { fetchBigModelSubscriptionSummary } from "./bigmodelSubscriptionProvider
 import {
   fetchMcpQuotaSnapshot,
   type OfficialMcpCredentialSource,
-} from "./zcodeMcpQuotaProvider.js";
+} from "./modeMcpQuotaProvider.js";
 import type { BigModelUsageQuotaEnvelope } from "./bigmodelUsageQuotaMapper.js";
 import { normalizeLimits, pickPrimaryLimit } from "./bigmodelUsageQuotaMapper.js";
 
@@ -161,7 +161,7 @@ interface TeamPlanContext {
 }
 
 interface CodingPlanResetAuthorization {
-  zcodeAuthorization: string;
+  modeAuthorization: string;
   codingPlanAuthorization: string;
   teamContext: TeamPlanContext | null;
 }
@@ -316,7 +316,7 @@ export class BigModelUsageQuotaProvider {
 
   private async resolveRequestAccountAccess(
     accountAccess: UsageEntitlementRequest["accountAccess"],
-  ): Promise<ZCodeAccountAccess | undefined> {
+  ): Promise<ModeAccountAccess | undefined> {
     if (!accountAccess) return undefined;
     if (!("mode" in accountAccess)) return accountAccess;
     return (await this.accountRequestAuthService.resolveAccessCurrent(accountAccess)) ?? undefined;
@@ -351,7 +351,7 @@ export class BigModelUsageQuotaProvider {
 
   private async getStartPlanSnapshot(
     providerId: string,
-    accountAccess: ZCodeAccountAccess | undefined,
+    accountAccess: ModeAccountAccess | undefined,
     invalidateBalanceCache = false,
   ): Promise<UsageEntitlementSnapshot> {
     const generatedAt = Date.now();
@@ -453,7 +453,7 @@ export class BigModelUsageQuotaProvider {
 
   private async resolveStartPlanAuthorization(
     providerId: string,
-    accountAccess: ZCodeAccountAccess | undefined,
+    accountAccess: ModeAccountAccess | undefined,
   ): Promise<{
     authorization: string;
     provider: ResolvedQuotaAuthorization["provider"];
@@ -526,7 +526,7 @@ export class BigModelUsageQuotaProvider {
     const authorization = await this.resolveCodingPlanResetAuthorization(request);
     const payload = await readCodingPlanResetApiJson(
       this.apiClient,
-      buildRuntimeZCodeApiUrl(this.env, `${CODING_PLAN_RESET_BASE_PATH}/status`),
+      buildRuntimeModeApiUrl(this.env, `${CODING_PLAN_RESET_BASE_PATH}/status`),
       {
         method: "GET",
         timeoutMs: REQUEST_TIMEOUT_MS,
@@ -559,7 +559,7 @@ export class BigModelUsageQuotaProvider {
     const authorization = await this.resolveCodingPlanResetAuthorization(request);
     const payload = await readCodingPlanResetApiJson(
       this.apiClient,
-      buildRuntimeZCodeApiUrl(this.env, `${CODING_PLAN_RESET_BASE_PATH}/use`),
+      buildRuntimeModeApiUrl(this.env, `${CODING_PLAN_RESET_BASE_PATH}/use`),
       {
         method: "POST",
         timeoutMs: REQUEST_TIMEOUT_MS,
@@ -589,7 +589,7 @@ export class BigModelUsageQuotaProvider {
     try {
       payload = await readCodingPlanResetApiJson(
         this.apiClient,
-        buildRuntimeZCodeApiUrl(this.env, `${CODING_PLAN_RESET_BASE_PATH}/opportunity`),
+        buildRuntimeModeApiUrl(this.env, `${CODING_PLAN_RESET_BASE_PATH}/opportunity`),
         {
           method: "POST",
           timeoutMs: REQUEST_TIMEOUT_MS,
@@ -635,7 +635,7 @@ export class BigModelUsageQuotaProvider {
     const authorization = await this.resolveCodingPlanResetAuthorization(request);
     const payload = await readCodingPlanResetApiJson(
       this.apiClient,
-      buildRuntimeZCodeApiUrl(this.env, `${CODING_PLAN_RESET_BASE_PATH}/history/read`),
+      buildRuntimeModeApiUrl(this.env, `${CODING_PLAN_RESET_BASE_PATH}/history/read`),
       {
         method: "POST",
         timeoutMs: REQUEST_TIMEOUT_MS,
@@ -657,9 +657,9 @@ export class BigModelUsageQuotaProvider {
       providerId: request.preferredProviderId,
       accountAccess,
     });
-    const zcodeJwt = (await this.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim() ?? "";
-    if (!zcodeJwt) {
-      throw new Error("coding_plan_reset_zcode_jwt_required");
+    const modeJwt = (await this.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim() ?? "";
+    if (!modeJwt) {
+      throw new Error("coding_plan_reset_mode_jwt_required");
     }
     // reset 同时支持 Z.ai 与 BigModel Coding Plan。固定读取 oauth:bigmodel:access_token
     // 会让只登录 Z.ai 的用户在请求发出前失败；业务 JWT 必须跟随当前 provider family
@@ -671,7 +671,7 @@ export class BigModelUsageQuotaProvider {
       throw new Error("coding_plan_reset_maas_jwt_required");
     }
     return {
-      zcodeAuthorization: /^Bearer\s/i.test(zcodeJwt) ? zcodeJwt : `Bearer ${zcodeJwt}`,
+      modeAuthorization: /^Bearer\s/i.test(modeJwt) ? modeJwt : `Bearer ${modeJwt}`,
       codingPlanAuthorization: codingPlanJwt,
       teamContext: resolveTeamPlanContext(accountAccess),
     };
@@ -909,7 +909,7 @@ function createCodingPlanResetHeaders(
   includeTargetScope: boolean,
 ): Record<string, string> {
   const headers: Record<string, string> = {
-    Authorization: authorization.zcodeAuthorization,
+    Authorization: authorization.modeAuthorization,
     "X-Bigmodel-Authorization": authorization.codingPlanAuthorization,
   };
   if (!includeTargetScope) {
@@ -1029,7 +1029,7 @@ function readCodingPlanResetEnvelopeData<TSchema extends z.ZodType>(
   return result.data;
 }
 
-function resolveTeamPlanContext(accountAccess: ZCodeAccountAccess): TeamPlanContext | null {
+function resolveTeamPlanContext(accountAccess: ModeAccountAccess): TeamPlanContext | null {
   return accountAccess.planKind === "team-coding-plan"
     ? {
         organizationId: accountAccess.organizationId,

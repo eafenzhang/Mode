@@ -20,14 +20,14 @@ import type {
 import { isCodingPlanModelProviderId } from "@mode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import type { IAccountRequestAuthService } from "../model-provider/accountRequestAuthService.js";
-import type { IZCodeAgentService } from "../zcode-agent/zcodeAgent.js";
+import type { IModeAgentService } from "../mode-agent/modeAgent.js";
 import type { IUsageStatsService } from "./usageStats.js";
 import {
   BigModelUsageQuotaProvider,
   type UsageApiAuthorizationRequest,
   type UsageApiAuthorization,
 } from "./providers/bigmodelUsageQuotaProvider.js";
-import type { OfficialMcpCredentialSource } from "./providers/zcodeMcpQuotaProvider.js";
+import type { OfficialMcpCredentialSource } from "./providers/modeMcpQuotaProvider.js";
 import {
   ProviderBalanceProvider,
   type ProviderBalanceTarget,
@@ -49,8 +49,8 @@ interface UsageStatsServiceDependencies {
   resolveProviderBalanceTarget?: (providerId: string) => Promise<ProviderBalanceTarget | null>;
   credentialService?: Pick<ICredentialService, "load">;
   env?: NodeJS.ProcessEnv;
-  /** App Usage 经 ZCode Protocol 读取 agent 数据库真实统计。 */
-  zcodeAgentService: Pick<IZCodeAgentService, "getAppUsageStats">;
+  /** App Usage 经 Mode Protocol 读取 agent 数据库真实统计。 */
+  modeAgentService: Pick<IModeAgentService, "getAppUsageStats">;
   /**
    * 官方 Server MCP 额度的凭证来源（与 server MCP 调用同一套 5 个身份头）。
    * 缺省时 entitlement 快照不含 MCP 额度。
@@ -85,8 +85,8 @@ export function createUsageStatsService(
   return {
     async getAppUsageSnapshot(request: AppUsageRequest): Promise<AppUsageSnapshot> {
       // App Usage 现读取 agent 数据库真实统计（model_usage/turn_usage/tool_usage），
-      // 经 ZCode Protocol usage/stats 取回。不再读本地 session JSON 估算。
-      return dependencies.zcodeAgentService.getAppUsageStats({
+      // 经 Mode Protocol usage/stats 取回。不再读本地 session JSON 估算。
+      return dependencies.modeAgentService.getAppUsageStats({
         range: request.range,
         timeZone: request.timeZone,
       });

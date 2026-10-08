@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast.js";
 import { nanoid } from "nanoid";
-import type { AttachmentRef } from "@mode/shared/zcode-protocol-v4";
+import type { AttachmentRef } from "@mode/shared/mode-protocol-v4";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import {
   MAX_CHAT_ATTACHMENTS,
@@ -32,7 +32,7 @@ import type { IPromptAttachmentTransferService } from "@mode/services";
 import type { IPlatformService } from "@mode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
   exposeComposerAttachmentScopeKeyForE2E,
@@ -202,7 +202,7 @@ export function useComposerAttachments(
   } = options;
   const platform = usePlatform();
   const { promptAttachmentTransferService } = useServices();
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId);
   exposeComposerAttachmentScopeKeyForE2E(scopeKey);
 

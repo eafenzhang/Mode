@@ -6,11 +6,11 @@
 
 - **构建**：`scripts/prepare-prebuilds.mjs`（`pnpm prepare:remote-assets`）产出 `packages/desktop/mock-cdn` 的目录式布局：`releases/<version>/manifest-<arch>.json` + `components/<platform>/<component>/<version+sha>.tar.gz`。
 - **发布布局转换**：`scripts/publish-remote-assets.mjs` 是唯一 owner，把目录式布局转换成 GitHub Release 扁平资产，不改动 mock-cdn。产物是 `manifest-<arch>.json` + `<platformArch>__<componentId>__<safeVersion>.tar.gz`。
-- **消费方**：`@zcode/server` 的 remote asset 加载（`remoteAssetCache.ts`）按 manifest 的 `artifactPath` 拼 `<base>/<artifactPath>` 下载，不感知托管介质；sha256 校验针对文件内容，与文件名无关。
+- **消费方**：`@mode/server` 的 remote asset 加载（`remoteAssetCache.ts`）按 manifest 的 `artifactPath` 拼 `<base>/<artifactPath>` 下载，不感知托管介质；sha256 校验针对文件内容，与文件名无关。
 
 ## 版本对齐
 
-- manifest 的 `appVersion` 必须等于桌面 app 的 `ZCODE_VERSION`（客户端在 `parseRemoteAssetManifestFromResponse` 强校验）；远端 server bundle 的内部版本也必须一致（部署后按 `zcode-server.cjs --version` 比较），否则每次连接都会判定版本不匹配并重新部署。
+- manifest 的 `appVersion` 必须等于桌面 app 的 `ZCODE_VERSION`（客户端在 `parseRemoteAssetManifestFromResponse` 强校验）；远端 server bundle 的内部版本也必须一致（部署后按 `mode-server.cjs --version` 比较），否则每次连接都会判定版本不匹配并重新部署。
 - 构建链统一由 `ZCODE_APP_VERSION` 注入：桌面 app（`build-metadata.mjs`）、server bundle（`packages/server/tsup.config.ts` 与 `build-remote.ts`）、remote assets（`prepare-prebuilds.mjs`）与发布脚本默认值；本地开发未设置时回退 `package.json` 版本。
 - CI 的 `remote-assets` job 必须携带与 `desktop` job 相同的 `ZCODE_APP_VERSION`。
 

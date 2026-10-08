@@ -26,7 +26,7 @@ test("update modules have no official endpoint or custom manifest dependency", a
     const source = await readFile(new URL(`../src/main/${name}.ts`, import.meta.url), "utf8");
     assert.doesNotMatch(
       source,
-      /DEFAULT_MODE_ENDPOINT_ORIGIN|resolveRuntimeZCodeEndpointOrigin|manifestUpdateProvider|zcode\.z\.ai|\/api\/v1\/client\/configs/,
+      /DEFAULT_MODE_ENDPOINT_ORIGIN|resolveRuntimeModeEndpointOrigin|manifestUpdateProvider|mode\.z\.ai|\/api\/v1\/client\/configs/,
     );
   }
 });
@@ -106,8 +106,8 @@ test("github default feed, generic overrides, manual check and native download/i
     { url: "https://example.invalid/feed/" },
   );
   for (const argv of [
-    ["--zcode-update-feed-url=https://example.invalid/cli/"],
-    ["--zcode-update-feed-url", "https://example.invalid/cli/"],
+    ["--mode-update-feed-url=https://example.invalid/cli/"],
+    ["--mode-update-feed-url", "https://example.invalid/cli/"],
   ]) {
     assert.deepEqual(
       module.resolveUpdateFeedSourceFromStartupConfig({

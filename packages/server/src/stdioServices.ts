@@ -1,4 +1,4 @@
-import { createLocalServices, type ZCodeAgentCommandResolver } from "@mode/services/node";
+import { createLocalServices, type ModeAgentCommandResolver } from "@mode/services/node";
 import {
   parseServiceAuthorityMode,
   MODE_REMOTE_HTTP_PROXY_ENV_KEY,
@@ -8,8 +8,8 @@ import {
 
 interface CreateStdioServicesOptions {
   env?: Record<string, string | undefined>;
-  zcodeBuiltinProviderConfigFilePath: string;
-  zcodeAgentCommandResolver?: ZCodeAgentCommandResolver;
+  modeBuiltinProviderConfigFilePath: string;
+  modeAgentCommandResolver?: ModeAgentCommandResolver;
 }
 
 interface RemoteAgentNetworkOptions {
@@ -37,9 +37,9 @@ export function createStdioServices(options: CreateStdioServicesOptions) {
   // 测试注入 resolver 只用于在 spawn 前观察最终命令，不改变生产默认 resolver。
   // 数据根初始化由 stdio 入口（entry-stdio）在创建 services 前完成，这里不再执行。
   const services = createLocalServices({
-    zcodeBuiltinProviderConfigFilePath: options.zcodeBuiltinProviderConfigFilePath,
+    modeBuiltinProviderConfigFilePath: options.modeBuiltinProviderConfigFilePath,
     serviceAuthorityMode: authorityModeParseResult.mode,
-    zcodeAgentCommandResolver: options.zcodeAgentCommandResolver,
+    modeAgentCommandResolver: options.modeAgentCommandResolver,
     remoteAgentNetwork,
   });
 

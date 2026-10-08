@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { ILink, ILinkHandler, ITheme, IWindowsPty } from "@xterm/xterm";
 import type { IServiceAccessor } from "@mode/services";
 import type { IDisposable } from "@mode/rpc";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
   ContextMenu,
@@ -121,7 +121,7 @@ export function TerminalSession({
    */
   workspaceKey?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);

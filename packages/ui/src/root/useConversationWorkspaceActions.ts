@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { IServiceAccessor } from "@mode/services";
 import { logger } from "@/logger.js";
 import type { TabStoreState } from "@/store/tabStore.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { usePaneLayoutStore } from "@/v4/paneLayoutStore.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
 
@@ -52,7 +52,7 @@ export function useConversationWorkspaceActions({
       // “对话 +”是显式目标，不应被当前 split pane / workbench group 的项目绑定覆盖。
       useWorkbenchGroupStore.getState().deactivateActiveGroup();
       usePaneLayoutStore.getState().resetToPrimaryPane();
-      useZCodeSessionStore.getState().startDraft(path);
+      useModeSessionStore.getState().startDraft(path);
     } catch {
       // handleResolveConversationWorkspace 已记录错误并保留当前 workspace。
     }

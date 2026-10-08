@@ -2,7 +2,7 @@ import type { ProviderConfigObject } from "@mode/provider";
 import { PackageIcon } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
+import { useModeStoreWithDefault } from "@/store/StoreProvider.js";
 import { resolveTheme, type ResolvedTheme } from "@/useTheme.js";
 import alibabaModelStudioLogo from "@/assets/provider-icons/model-provider-alibaba-cloud.png";
 import anthropicLogo from "@/assets/provider-icons/model-provider-anthropic.png";
@@ -66,7 +66,7 @@ export function ProviderLogo({
   logo?: ProviderLogoRef | null;
   className?: string;
 }) {
-  const theme = useZCodeStoreWithDefault((state) => state.theme, "zai-dark");
+  const theme = useModeStoreWithDefault((state) => state.theme, "zai-dark");
   const src = resolveBuiltinProviderLogoAsset(logo, resolveTheme(theme));
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   if (!src || failedSrc === src) {

@@ -6,8 +6,8 @@ import type {
   CodingPlanUsageSnapshot,
   UsageStatsRange,
   UsageStatsSnapshot,
-  ZCodeAccountAccess,
-  ZCodeProviderAccountAccess,
+  ModeAccountAccess,
+  ModeProviderAccountAccess,
 } from "@mode/shared";
 import { logger } from "@/logger.js";
 import { useServices } from "@/hooks/useServices.js";
@@ -75,7 +75,7 @@ export function useUsageStats(
     dataSource?: "local" | "monitor";
     enabled?: boolean;
     preferredProviderId?: string;
-    accountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
+    accountAccess?: ModeProviderAccountAccess | ModeAccountAccess;
     requirePreferredProvider?: boolean;
     allowEnvApiKey?: boolean;
   } = {},
@@ -245,7 +245,7 @@ export function useCodingPlanUsageStats(
   options: {
     enabled?: boolean;
     preferredProviderId?: string;
-    accountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
+    accountAccess?: ModeProviderAccountAccess | ModeAccountAccess;
     customStartDate?: string | null;
     customEndDate?: string | null;
   },

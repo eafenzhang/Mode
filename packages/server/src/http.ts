@@ -19,8 +19,8 @@ import {
 } from "@mode/rpc";
 import {
   ServiceCollection,
-  IZCodeAgentService,
-  createZCodeAgentConnectionScope,
+  IModeAgentService,
+  createModeAgentConnectionScope,
   IFileService,
   IGitService,
   ISystemService,
@@ -85,7 +85,7 @@ function wrapWebSocket(ws: WebSocket): ISocket {
 }
 
 const log = (...args: unknown[]) =>
-  console.log(formatLogPrefix("zcode-server:http", process.pid), ...args);
+  console.log(formatLogPrefix("mode-server:http", process.pid), ...args);
 
 function setupChannelServer(
   ws: WebSocket,
@@ -97,9 +97,9 @@ function setupChannelServer(
   const rawServer = new ChannelServer(protocol, "server");
   // 用日志中间件包装，统一记录所有 RPC 调用
   const server = new LoggingChannelServer(rawServer, log);
-  const agentService = services.getOptional(IZCodeAgentService);
+  const agentService = services.getOptional(IModeAgentService);
   const connectionScope = agentService
-    ? createZCodeAgentConnectionScope(agentService, {
+    ? createModeAgentConnectionScope(agentService, {
         connectionId: `server-ws-${randomUUID()}`,
         clientMode,
         role: clientMode === "desktop-continuous" ? "trusted-host-relay" : "terminal-client",
@@ -107,7 +107,7 @@ function setupChannelServer(
     : undefined;
   const overrides = new Map<string, unknown>();
   if (connectionScope) {
-    overrides.set(IZCodeAgentService.channelName, connectionScope.service);
+    overrides.set(IModeAgentService.channelName, connectionScope.service);
   }
   // Provisioning 携带跨 Environment 凭据，只允许 Desktop trusted host 使用；普通 Web
   // remote/replayable 客户端即使知道频道名，也不能获得 target 写入接口。
@@ -177,7 +177,7 @@ function readTrimmedEnv(name: string): string | undefined {
 
 function resolveServerId(options: HttpServerOptions): string {
   return (
-    options.serverId?.trim() || readTrimmedEnv("MODE_SERVER_ID") || hostname() || "zcode-server"
+    options.serverId?.trim() || readTrimmedEnv("MODE_SERVER_ID") || hostname() || "mode-server"
   );
 }
 
@@ -218,7 +218,7 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
   };
 }
 
-const zcodeLiteTokenCookieName = "zcode_lite_token";
+const modeLiteTokenCookieName = "mode_lite_token";
 
 const staticMimeTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -265,7 +265,7 @@ function readPresentedLiteToken(c: Context): { token: string | undefined; fromQu
     return { token: queryToken, fromQuery: true };
   }
   return {
-    token: parseCookieHeader(c.req.header("cookie")).get(zcodeLiteTokenCookieName),
+    token: parseCookieHeader(c.req.header("cookie")).get(modeLiteTokenCookieName),
     fromQuery: false,
   };
 }
@@ -274,7 +274,7 @@ function readPresentedLiteToken(c: Context): { token: string | undefined; fromQu
 function rememberLiteTokenCookie(c: Context, token: string): void {
   c.header(
     "Set-Cookie",
-    `${zcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
+    `${modeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
   );
 }
 
@@ -465,7 +465,7 @@ export function createHttpServer(
         rawBody = { payload: rawBodyText };
       }
     }
-    const webhookSecret = c.req.header("x-zcode-bot-secret");
+    const webhookSecret = c.req.header("x-mode-bot-secret");
     const botId = c.req.param("botId");
     const result = await botsService.handleProviderCallbackResponse(provider, {
       ...(typeof rawBody === "object" && rawBody !== null ? rawBody : { payload: rawBody }),

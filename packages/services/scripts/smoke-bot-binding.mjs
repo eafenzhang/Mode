@@ -19,9 +19,9 @@ const { createLocalServices } = await import("@mode/services/node");
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const services = await createLocalServices({
-  zcodeBuiltinProviderConfigFilePath: join(
+  modeBuiltinProviderConfigFilePath: join(
     repoRoot,
-    "config/provider/zcode-builtin.json",
+    "config/provider/mode-builtin.json",
   ),
 });
 const botsService = services.get(IBotsService);

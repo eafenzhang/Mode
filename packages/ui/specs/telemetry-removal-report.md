@@ -11,7 +11,7 @@ connectTrigger 的类型移入 remoteWorkspaceConnection.ts；SessionCreateSourc
 - pnpm typecheck：通过，退出码 0。
 - pnpm lint：通过，退出码 0；52 warnings，0 errors。
 - pnpm architecture:check --changed：0 violations / 0 new。
-- node --test packages/ui/tests/no-telemetry.test.mjs packages/desktop/tests/no-telemetry.test.mjs apps/zcode-cli/tests/no-telemetry.test.mjs：11 通过，0 失败。
+- node --test packages/ui/tests/no-telemetry.test.mjs packages/desktop/tests/no-telemetry.test.mjs apps/mode-cli/tests/no-telemetry.test.mjs：11 通过，0 失败。
 - git diff --check：通过。
 - 63 个实际用户操作包装的业务回调已对照原源码核验，执行内容保留；设置页内部仅负责追踪的中转包装一并删除。
 - 实际执行购买 WebView 注入脚本，验证 Zai/BigModel 凭据、JWT、主题、语言与 auth-ready 事件保留，不注入上报上下文。
@@ -21,8 +21,8 @@ connectTrigger 的类型移入 remoteWorkspaceConnection.ts；SessionCreateSourc
 ## 保留的兼容命名
 
 - services 的 telemetry-state.json / telemetry-state.lock：设备身份持久化与跨进程锁，供业务 X-Device-Mid 使用；与同机 CLI/旧版本共享，不删除用户身份文件。
-- shared/zcode-protocol-v4/telemetry.ts 的 ConversationTelemetryFact、v4/telemetry/event 以及 onDynamicConversationTelemetryFact：服务端任务活跃状态仍消费的既有协议事实。server 的本地订阅变量已改为 facts；不变更跨版本 wire name，不附带 UI 上报。
-- shared/zcode-protocol/index.ts 的 ZCodeMcpTelemetryEvent 等旧协议类型、zcode-task-types-core.ts 的 skillMetadata：client/services 仍引用和解码，整体删除需另行迁移这些消费者。本轮已删除无人消费的 Host MCP/网络 telemetry 通道与 schema。
+- shared/mode-protocol-v4/telemetry.ts 的 ConversationTelemetryFact、v4/telemetry/event 以及 onDynamicConversationTelemetryFact：服务端任务活跃状态仍消费的既有协议事实。server 的本地订阅变量已改为 facts；不变更跨版本 wire name，不附带 UI 上报。
+- shared/mode-protocol/index.ts 的 ZCodeMcpTelemetryEvent 等旧协议类型、mode-task-types-core.ts 的 skillMetadata：client/services 仍引用和解码，整体删除需另行迁移这些消费者。本轮已删除无人消费的 Host MCP/网络 telemetry 通道与 schema。
 - shared/runtimeEnv.ts 的 isZCodeAgentTelemetryEnvKey：用于拒绝旧遥测环境变量继续进入 Agent，属于关闭遥测的过滤边界。
 
 ## 文件清单
@@ -146,8 +146,8 @@ connectTrigger 的类型移入 remoteWorkspaceConnection.ts；SessionCreateSourc
 - `packages/ui/src/v4/sessionDataLayer.ts`
 - `packages/ui/src/v4/workspaceConnectionRegistry.ts`
 - `packages/web/src/main.tsx`
-- `packages/zcode-server-cli/src/server-core/http.ts`
-- `packages/zcode-server-cli/src/server-core/taskActivityTracker.ts`
+- `packages/mode-server-cli/src/server-core/http.ts`
+- `packages/mode-server-cli/src/server-core/taskActivityTracker.ts`
 - `packages/desktop/specs/no-telemetry.md`
 
 ### 新增（5）

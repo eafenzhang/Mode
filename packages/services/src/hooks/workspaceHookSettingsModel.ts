@@ -175,7 +175,7 @@ export function fromProjectSnapshot(input: {
       source,
       id: entry.reviewItemId,
       location: {
-        source: "zcode",
+        source: "mode",
         scope: "project",
         directoryPath: dirname(source.canonicalPath),
         projectPath: input.workspacePath,
@@ -192,7 +192,7 @@ export function fromProjectSnapshot(input: {
   });
 }
 
-export function fromUserZCodeSource(input: {
+export function fromUserModeSource(input: {
   source: WorkspaceHookSourceInput | undefined;
   runtimeRoot: WorkspaceHookRuntimeRoot;
   workspacePath: string;
@@ -207,7 +207,7 @@ export function fromUserZCodeSource(input: {
     toHook({
       entry,
       source: input.source!,
-      id: `hook-zcode-user-${index}`,
+      id: `hook-mode-user-${index}`,
       location: input.location,
     }),
   );
@@ -248,7 +248,7 @@ export function fromLegacyHooksConfig(input: {
   return hooks;
 }
 
-export function toZCodeHooksEvents(hooks: Hook[]): WorkspaceHooksConfig["events"] {
+export function toModeHooksEvents(hooks: Hook[]): WorkspaceHooksConfig["events"] {
   const events: WorkspaceHooksConfig["events"] = {};
   for (const hook of hooks) {
     const eventMatchers = events[hook.event] ?? [];

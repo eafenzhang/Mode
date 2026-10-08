@@ -44,7 +44,7 @@ async function setup(personal?: ProviderConfigLayerUpdate) {
     await writeFile(personalFilePath, JSON.stringify(encodeProviderConfigFile(personal), null, 2));
   }
   const runtime = createProviderConfigRuntime({
-    zcodeBuiltinFilePath: MODE_BUILTIN_PATH,
+    modeBuiltinFilePath: MODE_BUILTIN_PATH,
     personalFilePath,
     personalPollingIntervalMs: false,
     watch: false,

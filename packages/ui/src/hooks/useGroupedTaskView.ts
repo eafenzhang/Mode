@@ -1,13 +1,13 @@
 /* eslint-disable max-lines -- Grouped 视图 hook 集中维护 optimistic overlay、排序保存和 ungroup 持久化，拆开会让同一份 view 状态在多个 hook 间漂移。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ZCodeTaskMeta } from "@mode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import type {
-  ZCodeGroupedTaskView,
-  ZCodeGroupedTaskViewOrderInput,
-  ZCodeGroupedTaskViewStructure,
-  ZCodeGroupedTaskViewTopLevelNodeRef,
-  ZCodeTaskGroup,
-  ZCodeTaskGroupColor,
+  ModeGroupedTaskView,
+  ModeGroupedTaskViewOrderInput,
+  ModeGroupedTaskViewStructure,
+  ModeGroupedTaskViewTopLevelNodeRef,
+  ModeTaskGroup,
+  ModeTaskGroupColor,
 } from "@mode/services";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useLocalWorkspaceScopes } from "@/hooks/useLocalWorkspaceScopes.js";
@@ -18,9 +18,9 @@ import { mergeTaskListMembershipFields } from "@/v4/taskListRowActivity.js";
 import { fetchTaskListMembershipSets } from "@/lib/taskListMembershipSets.js";
 import { useTaskListMembershipVersion } from "@/v4/taskListMembershipVersion.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
-import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { selectWorkspaceModeState, useModeSessionStore } from "@/store/modeSessionStore.js";
 import { buildTaskEntityKey, buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
-import { mergeTaskWithOptimisticMeta } from "@/lib/zcodeTaskMetaMerge.js";
+import { mergeTaskWithOptimisticMeta } from "@/lib/modeTaskMetaMerge.js";
 import {
   useWorkspaceTaskOptimisticOverlayByWorkspaceKey,
   type WorkspaceOptimisticTaskOverlay,
@@ -30,13 +30,13 @@ import { areStabilizedValuesEquivalent } from "@/v4/taskListItemStabilization.js
 import { taskKey as groupedTaskKey } from "@/workspace-grouped-tasks/ids.js";
 
 function applyPromotedGroupPlacements(
-  view: ZCodeGroupedTaskView,
+  view: ModeGroupedTaskView,
   promotedDraftByTaskKey: ReadonlyMap<
     string,
     WorkspaceOptimisticTaskOverlay["promotedGroupedDraftTaskByTaskId"][string]
   >,
-  optimisticTaskByKey: ReadonlyMap<string, ZCodeTaskMeta>,
-): ZCodeGroupedTaskView {
+  optimisticTaskByKey: ReadonlyMap<string, ModeTaskMeta>,
+): ModeGroupedTaskView {
   let nextView = view;
   for (const [taskKey, promotedDraft] of promotedDraftByTaskKey) {
     if (promotedDraft.placement.type === "top") {
@@ -68,9 +68,9 @@ function applyPromotedGroupPlacements(
 }
 
 function findTaskInGroupedView(
-  view: ZCodeGroupedTaskView,
+  view: ModeGroupedTaskView,
   taskEntityKey: string,
-): ZCodeTaskMeta | undefined {
+): ModeTaskMeta | undefined {
   for (const node of view.nodes) {
     if (node.type === "group") {
       const task = node.tasks.find((candidate) => buildTaskEntityKey(candidate) === taskEntityKey);
@@ -83,7 +83,7 @@ function findTaskInGroupedView(
 }
 
 function isTaskFirstInGroup(
-  view: ZCodeGroupedTaskView,
+  view: ModeGroupedTaskView,
   taskEntityKey: string,
   groupId: string,
 ): boolean {
@@ -104,10 +104,10 @@ function buildWorkspaceScopes(workspaceTabs: WorkspaceTabState[]) {
 }
 
 function collectViewWorkspaceScopes(
-  view: ZCodeGroupedTaskView,
+  view: ModeGroupedTaskView,
 ): Array<{ workspacePath: string; workspaceIdentity?: string }> {
   const workspaceScopes = new Map<string, { workspacePath: string; workspaceIdentity?: string }>();
-  const addTask = (task: ZCodeTaskMeta) => {
+  const addTask = (task: ModeTaskMeta) => {
     const workspaceKey = buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity);
     workspaceScopes.set(workspaceKey, {
       workspacePath: task.workspacePath,
@@ -127,12 +127,12 @@ function collectViewWorkspaceScopes(
 }
 
 function mergeGroupedTaskViewWithOptimistic(params: {
-  view: ZCodeGroupedTaskView;
+  view: ModeGroupedTaskView;
   optimisticOverlays: Iterable<WorkspaceOptimisticTaskOverlay>;
   visibleMissingTaskKeys: ReadonlySet<string>;
-}): ZCodeGroupedTaskView {
-  const optimisticTaskByKey = new Map<string, ZCodeTaskMeta>();
-  const placementTaskByKey = new Map<string, ZCodeTaskMeta>();
+}): ModeGroupedTaskView {
+  const optimisticTaskByKey = new Map<string, ModeTaskMeta>();
+  const placementTaskByKey = new Map<string, ModeTaskMeta>();
   const promotedDraftByTaskKey = new Map<
     string,
     WorkspaceOptimisticTaskOverlay["promotedGroupedDraftTaskByTaskId"][string]
@@ -242,8 +242,8 @@ function mergeGroupedTaskViewWithOptimistic(params: {
     );
   }
 
-  const groupMissingTasksByGroupId = new Map<string, ZCodeTaskMeta[]>();
-  const topMissingTasks: ZCodeTaskMeta[] = [];
+  const groupMissingTasksByGroupId = new Map<string, ModeTaskMeta[]>();
+  const topMissingTasks: ModeTaskMeta[] = [];
   for (const task of missingVisibleTasks) {
     const promotedDraft = promotedDraftByTaskKey.get(buildTaskEntityKey(task));
     if (promotedDraft?.placement.type === "group") {
@@ -291,7 +291,7 @@ function mergeGroupedTaskViewWithOptimistic(params: {
   );
 }
 
-function collectGroupedViewTaskKeys(view: ZCodeGroupedTaskView): Set<string> {
+function collectGroupedViewTaskKeys(view: ModeGroupedTaskView): Set<string> {
   const taskKeys = new Set<string>();
   for (const node of view.nodes) {
     if (node.type === "group") {
@@ -410,9 +410,9 @@ class GroupedRemoteDataSingleFlight<T> {
 }
 
 function prependTaskGroupToView(
-  view: ZCodeGroupedTaskView,
-  group: ZCodeTaskGroup,
-): ZCodeGroupedTaskView {
+  view: ModeGroupedTaskView,
+  group: ModeTaskGroup,
+): ModeGroupedTaskView {
   if (view.nodes.some((node) => node.type === "group" && node.group.id === group.id)) {
     return view;
   }
@@ -434,7 +434,7 @@ function prependTaskGroupToView(
 }
 
 function reconcileGroupedOptimisticTaskKeys(params: {
-  view: ZCodeGroupedTaskView;
+  view: ModeGroupedTaskView;
   optimisticOverlays: Iterable<WorkspaceOptimisticTaskOverlay>;
   previousVisibleMissingTaskKeys: ReadonlySet<string>;
 }): Set<string> {
@@ -462,7 +462,7 @@ function reconcileGroupedOptimisticTaskKeys(params: {
   return nextVisibleMissingTaskKeys;
 }
 
-function groupedNodeIdentityKey(node: ZCodeGroupedTaskView["nodes"][number]): string {
+function groupedNodeIdentityKey(node: ModeGroupedTaskView["nodes"][number]): string {
   if (node.type === "group") {
     return `group:${node.group.id}`;
   }
@@ -470,8 +470,8 @@ function groupedNodeIdentityKey(node: ZCodeGroupedTaskView["nodes"][number]): st
 }
 
 function areGroupedNodesEquivalent(
-  previous: ZCodeGroupedTaskView["nodes"][number],
-  next: ZCodeGroupedTaskView["nodes"][number],
+  previous: ModeGroupedTaskView["nodes"][number],
+  next: ModeGroupedTaskView["nodes"][number],
 ): boolean {
   if (previous.type !== next.type || previous.sortOrder !== next.sortOrder) {
     return false;
@@ -498,9 +498,9 @@ function areGroupedNodesEquivalent(
  * 这里做节点级引用稳定化：等价节点复用旧对象；整树等价时返回旧视图（setState 同引用直接 bail）。
  */
 function stabilizeGroupedView(
-  previous: ZCodeGroupedTaskView,
-  next: ZCodeGroupedTaskView,
-): ZCodeGroupedTaskView {
+  previous: ModeGroupedTaskView,
+  next: ModeGroupedTaskView,
+): ModeGroupedTaskView {
   if (previous.nodes.length === 0) {
     return next;
   }
@@ -521,8 +521,8 @@ function stabilizeGroupedView(
 }
 
 function nodeToTopLevelRef(
-  node: ZCodeGroupedTaskView["nodes"][number],
-): ZCodeGroupedTaskViewTopLevelNodeRef {
+  node: ModeGroupedTaskView["nodes"][number],
+): ModeGroupedTaskViewTopLevelNodeRef {
   if (node.type === "group") {
     return { type: "group", groupId: node.group.id };
   }
@@ -536,7 +536,7 @@ function nodeToTopLevelRef(
   };
 }
 
-function viewToOrderInput(params: { view: ZCodeGroupedTaskView }): ZCodeGroupedTaskViewOrderInput {
+function viewToOrderInput(params: { view: ModeGroupedTaskView }): ModeGroupedTaskViewOrderInput {
   return {
     workspaceScopes: collectViewWorkspaceScopes(params.view),
     topLevelNodes: params.view.nodes.map(nodeToTopLevelRef),
@@ -567,13 +567,13 @@ function viewToOrderInput(params: { view: ZCodeGroupedTaskView }): ZCodeGroupedT
  * 若后续收到点击脏行的反馈，再考虑给缓存条目加 TTL 或降级为占位，而不是扩大这个窗口。
  */
 const GROUPED_VIEW_CACHE_MAX_KEYS = 8;
-const groupedViewCacheBySignature = new Map<string, ZCodeGroupedTaskView>();
+const groupedViewCacheBySignature = new Map<string, ModeGroupedTaskView>();
 
-function readCachedGroupedView(signature: string): ZCodeGroupedTaskView | undefined {
+function readCachedGroupedView(signature: string): ModeGroupedTaskView | undefined {
   return groupedViewCacheBySignature.get(signature);
 }
 
-function writeCachedGroupedView(signature: string, view: ZCodeGroupedTaskView): void {
+function writeCachedGroupedView(signature: string, view: ModeGroupedTaskView): void {
   groupedViewCacheBySignature.delete(signature);
   groupedViewCacheBySignature.set(signature, view);
   while (groupedViewCacheBySignature.size > GROUPED_VIEW_CACHE_MAX_KEYS) {
@@ -630,7 +630,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       })),
     [scopes],
   );
-  const [view, setView] = useState<ZCodeGroupedTaskView>(
+  const [view, setView] = useState<ModeGroupedTaskView>(
     () => readCachedGroupedView(localWorkspaceScopeSignature) ?? { nodes: [] },
   );
   const viewRef = useRef(view);
@@ -641,11 +641,11 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
   );
   const [saving, setSaving] = useState(false);
   const requestIdRef = useRef(0);
-  const taskListVersionSignature = useZCodeSessionStore((state) =>
+  const taskListVersionSignature = useModeSessionStore((state) =>
     JSON.stringify(
       params.workspaceTabs.map((tab) => {
         const workspaceKey = buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity);
-        const workspaceState = selectWorkspaceZCodeState(
+        const workspaceState = selectWorkspaceModeState(
           state,
           tab.workspacePath,
           tab.workspaceIdentity,
@@ -685,12 +685,12 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
   const optimisticTaskOverlayByWorkspaceKey = useWorkspaceTaskOptimisticOverlayByWorkspaceKey(
     params.workspaceTabs,
   );
-  const clearPromotedGroupedDraftTask = useZCodeSessionStore(
+  const clearPromotedGroupedDraftTask = useModeSessionStore(
     (state) => state.clearPromotedGroupedDraftTask,
   );
   const visibleMissingTaskKeysRef = useRef<Set<string>>(new Set());
   const promotedGroupPersistenceRef = useRef<Set<string>>(new Set());
-  const displayedViewRef = useRef<ZCodeGroupedTaskView>({ nodes: [] });
+  const displayedViewRef = useRef<ModeGroupedTaskView>({ nodes: [] });
   const displayedView = useMemo(() => {
     const optimisticOverlays = [...optimisticTaskOverlayByWorkspaceKey.values()];
     const visibleMissingTaskKeys = reconcileGroupedOptimisticTaskKeys({
@@ -720,7 +720,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
   const [remoteDataLoader] = useState(
     () =>
       new GroupedRemoteDataSingleFlight<{
-        structure: ZCodeGroupedTaskViewStructure;
+        structure: ModeGroupedTaskViewStructure;
         membership: Awaited<ReturnType<typeof fetchTaskListMembershipSets>>;
       }>(),
   );
@@ -749,11 +749,11 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       ].join("::");
       const remoteData = await remoteDataLoader.load(remoteDataKey, async () => {
         const [structureResult, membershipResult] = await Promise.all([
-          services.zcodeTaskService.listGroupedTaskViewStructure({
+          services.modeTaskService.listGroupedTaskViewStructure({
             workspaceScopes: scopes,
           }),
           fetchTaskListMembershipSets({
-            service: services.zcodeTaskService,
+            service: services.modeTaskService,
             scopes: sessionsIndexScopes,
           }),
         ]);
@@ -801,7 +801,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     remoteDataLoader,
     scopes,
     sessionsIndexScopes,
-    services.zcodeTaskService,
+    services.modeTaskService,
     taskListVersionSignature,
   ]);
   const refreshRef = useRef(refresh);
@@ -809,8 +809,8 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
 
   useEffect(() => {
     const authoritativeTaskKeys = collectGroupedViewTaskKeys(view);
-    const promotedGroupTasks: ZCodeTaskMeta[] = [];
-    const settledRootTasks: ZCodeTaskMeta[] = [];
+    const promotedGroupTasks: ModeTaskMeta[] = [];
+    const settledRootTasks: ModeTaskMeta[] = [];
     for (const overlay of optimisticTaskOverlayByWorkspaceKey.values()) {
       for (const [taskId, promotedDraft] of Object.entries(
         overlay.promotedGroupedDraftTaskByTaskId ?? {},
@@ -849,7 +849,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     // group 内 New task 过去只在 optimistic view 继承草稿位置，SQLite 仍按 root
     // 新任务置顶，刷新后任务会掉出 group。task 已进入 optimistic index 后，将同一份展示
     // view 作为完整排序事务落库，使 membership 和组内第一位顺序一起收敛。
-    void services.zcodeTaskService
+    void services.modeTaskService
       .applyGroupedTaskViewOrder(viewToOrderInput({ view: displayedView }))
       .then(() => {
         invalidateRemoteData();
@@ -868,13 +868,13 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     displayedView,
     invalidateRemoteData,
     optimisticTaskOverlayByWorkspaceKey,
-    services.zcodeTaskService,
+    services.modeTaskService,
     view,
   ]);
 
   useEffect(() => {
     const disposables = scopes.map((scope) =>
-      services.zcodeTaskService.onDynamicWorkspaceEvent(scope)((event) => {
+      services.modeTaskService.onDynamicWorkspaceEvent(scope)((event) => {
         if (event.type !== "workspace_task_list_changed" || event.reason !== "task_created") {
           return;
         }
@@ -886,7 +886,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       }),
     );
     return () => disposables.forEach((disposable) => disposable.dispose());
-  }, [invalidateRemoteData, scopes, services.zcodeTaskService]);
+  }, [invalidateRemoteData, scopes, services.modeTaskService]);
 
   // 唯一的自动刷新入口。refresh 身份已经包含 membership/structure/scope 版本，
   // sessions-index 内容变化再触发内存 join；避免 mount effect 与 index effect 首帧重复发起请求。
@@ -894,10 +894,10 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     void refresh();
   }, [refresh, sessionsIndexItems]);
 
-  const createGroup = useCallback(async (): Promise<ZCodeTaskGroup> => {
+  const createGroup = useCallback(async (): Promise<ModeTaskGroup> => {
     setSaving(true);
     try {
-      const group = await services.zcodeTaskService.createTaskGroup();
+      const group = await services.modeTaskService.createTaskGroup();
       // 新 group 的 SQLite 顺序已经置顶，但等待异步 refresh 才展示会短暂沿用旧树并
       // 落到缺序节点末尾；先按同一 sort_order 语义乐观插顶，refresh 再以 SQLite 收敛。
       setView((current) => prependTaskGroupToView(current, group));
@@ -911,7 +911,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     } finally {
       setSaving(false);
     }
-  }, [invalidateRemoteData, refresh, services.zcodeTaskService]);
+  }, [invalidateRemoteData, refresh, services.modeTaskService]);
 
   const renameGroup = useCallback(
     async (groupId: string, title: string) => {
@@ -924,7 +924,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         return;
       }
 
-      const optimisticView: ZCodeGroupedTaskView = {
+      const optimisticView: ModeGroupedTaskView = {
         nodes: view.nodes.map((node) =>
           node.type === "group" && node.group.id === groupId
             ? {
@@ -941,7 +941,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       setView(optimisticView);
       setSaving(true);
       try {
-        const renamedGroup = await services.zcodeTaskService.renameTaskGroup({
+        const renamedGroup = await services.modeTaskService.renameTaskGroup({
           groupId,
           title: nextTitle,
           workspaceScopes: collectViewWorkspaceScopes(optimisticView),
@@ -962,11 +962,11 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         setSaving(false);
       }
     },
-    [invalidateRemoteData, scopes, services.zcodeTaskService, view],
+    [invalidateRemoteData, scopes, services.modeTaskService, view],
   );
 
   const updateGroupColor = useCallback(
-    async (groupId: string, color: ZCodeTaskGroupColor) => {
+    async (groupId: string, color: ModeTaskGroupColor) => {
       const previousView = view;
       const groupNode = view.nodes.find(
         (node) => node.type === "group" && node.group.id === groupId,
@@ -975,7 +975,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         return;
       }
 
-      const optimisticView: ZCodeGroupedTaskView = {
+      const optimisticView: ModeGroupedTaskView = {
         nodes: view.nodes.map((node) =>
           node.type === "group" && node.group.id === groupId
             ? {
@@ -992,7 +992,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       setView(optimisticView);
       setSaving(true);
       try {
-        const updatedGroup = await services.zcodeTaskService.updateTaskGroupColor({
+        const updatedGroup = await services.modeTaskService.updateTaskGroupColor({
           groupId,
           color,
           workspaceScopes: collectViewWorkspaceScopes(optimisticView),
@@ -1013,18 +1013,18 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         setSaving(false);
       }
     },
-    [invalidateRemoteData, scopes, services.zcodeTaskService, view],
+    [invalidateRemoteData, scopes, services.modeTaskService, view],
   );
 
   const applyOrder = useCallback(
-    async (nextView: ZCodeGroupedTaskView) => {
+    async (nextView: ModeGroupedTaskView) => {
       const previousView = view;
       setView(nextView);
       setSaving(true);
       try {
         // apply 回包的视图仍由 tasks 表 join（旧数据源），不再采信；
         // 持久化成功后以「结构 + sessions-index」重建收敛（refresh）。
-        await services.zcodeTaskService.applyGroupedTaskViewOrder(
+        await services.modeTaskService.applyGroupedTaskViewOrder(
           viewToOrderInput({
             view: nextView,
           }),
@@ -1041,7 +1041,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         setSaving(false);
       }
     },
-    [invalidateRemoteData, refresh, services.zcodeTaskService, view],
+    [invalidateRemoteData, refresh, services.modeTaskService, view],
   );
 
   const ungroupGroup = useCallback(
@@ -1052,7 +1052,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       if (!groupNode || groupNode.type !== "group") {
         return;
       }
-      const nextView: ZCodeGroupedTaskView = {
+      const nextView: ModeGroupedTaskView = {
         nodes: view.nodes.flatMap((node) =>
           node.type === "group" && node.group.id === groupId
             ? node.tasks.map((task) => ({ type: "task" as const, task }))
@@ -1063,7 +1063,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       setSaving(true);
       try {
         await applyOrder(nextView);
-        await services.zcodeTaskService.deleteTaskGroup({
+        await services.modeTaskService.deleteTaskGroup({
           groupId,
           workspaceScopes: collectViewWorkspaceScopes(nextView),
         });
@@ -1076,7 +1076,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         setSaving(false);
       }
     },
-    [applyOrder, invalidateRemoteData, refresh, scopes, services.zcodeTaskService, view],
+    [applyOrder, invalidateRemoteData, refresh, scopes, services.modeTaskService, view],
   );
 
   return {

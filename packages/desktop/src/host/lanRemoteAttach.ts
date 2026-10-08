@@ -188,8 +188,8 @@ export async function attachLanRemoteConnection(params: {
     new URL("/api/rpc-host-capability", buildLanHttpBase(params.host, params.port)).toString(),
     {
       method: "POST",
-      // 服务端只从 ?token= 或 zcode_lite_token Cookie 取令牌；这里用 Cookie，避免令牌进 URL/日志。
-      headers: { cookie: `zcode_lite_token=${encodeURIComponent(params.token)}` },
+      // 服务端只从 ?token= 或 mode_lite_token Cookie 取令牌；这里用 Cookie，避免令牌进 URL/日志。
+      headers: { cookie: `mode_lite_token=${encodeURIComponent(params.token)}` },
     },
     LAN_INFO_TIMEOUT_MS,
   );
@@ -204,7 +204,7 @@ export async function attachLanRemoteConnection(params: {
   const ws = new WebSocket(buildLanWsUrl(params.host, params.port), {
     headers: {
       [MODE_RPC_HOST_CAPABILITY_HEADER]: capabilityPayload.capability,
-      cookie: `zcode_lite_token=${encodeURIComponent(params.token)}`,
+      cookie: `mode_lite_token=${encodeURIComponent(params.token)}`,
     },
   });
   await new Promise<void>((resolve, reject) => {

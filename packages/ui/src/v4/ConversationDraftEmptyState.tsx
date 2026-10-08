@@ -1,12 +1,12 @@
 /**
- * 草稿态空态问候：时间问候语 + ZCode Logo。
+ * 草稿态空态问候：时间问候语 + Mode Logo。
  * 自旧版 ChatView/ChatViewEmptyState.tsx 恢复（该组件随旧 ChatView 删除，
  * i18n key `chat.empty.greeting.*` 一直保留）；边界时刻自动换档逻辑保真。
  * 手机远控复用同一组件，但继续保留 20px 紧凑标题；桌面草稿首页才按标题自身宽度适配。
  */
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { logger } from "@/logger.js";
 
@@ -77,7 +77,7 @@ function resolveGreetingFontSizePx({
 }
 
 export function ConversationDraftEmptyState({ className }: { className?: string }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const isOfficeMode = useIsOfficeMode();
   const [greetingDate, setGreetingDate] = useState(() => new Date());
   const [greetingFontSizePx, setGreetingFontSizePx] = useState(GREETING_MAX_FONT_SIZE_PX);
@@ -180,7 +180,7 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
           "-translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 text-foreground-subtlest",
         )}
       >
-        <ZCodeEmptyStateLogo className="h-full w-full" />
+        <ModeEmptyStateLogo className="h-full w-full" />
       </div>
       <p
         ref={greetingContainerRef}
@@ -208,7 +208,7 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
   );
 }
 
-function ZCodeEmptyStateLogo({ className }: { className?: string }) {
+function ModeEmptyStateLogo({ className }: { className?: string }) {
   return (
     <>
       {/* 夜间资源已自带渐变和透明度，公共容器叠加遮罩会让它重复变淡；渐隐效果只属于浅色线框。*/}
@@ -230,7 +230,7 @@ function ZCodeEmptyStateLogo({ className }: { className?: string }) {
       >
         <defs>
           <linearGradient
-            id="zcode-brand-z-gradient"
+            id="mode-brand-z-gradient"
             x1="712"
             y1="224"
             x2="300"
@@ -241,11 +241,11 @@ function ZCodeEmptyStateLogo({ className }: { className?: string }) {
             <stop offset="1" stopColor="#818cf8" />
           </linearGradient>
         </defs>
-        <path d="M184 224H512L453 308Q439 328 415 328H184Z" fill="url(#zcode-brand-z-gradient)" />
-        <path d="M584 224H832L424 800H176Z" fill="url(#zcode-brand-z-gradient)" />
+        <path d="M184 224H512L453 308Q439 328 415 328H184Z" fill="url(#mode-brand-z-gradient)" />
+        <path d="M584 224H832L424 800H176Z" fill="url(#mode-brand-z-gradient)" />
         <path
           d="M536 720L600 656L648 704L824 528L888 592L648 832Z"
-          fill="url(#zcode-brand-z-gradient)"
+          fill="url(#mode-brand-z-gradient)"
         />
       </svg>
     </>

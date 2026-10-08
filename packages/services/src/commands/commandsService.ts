@@ -17,7 +17,7 @@ import {
   type SettingsDirectoryLocation,
   type SettingsDirectorySource,
   type UserCommand,
-  type ZCodeCommand,
+  type ModeCommand,
 } from "@mode/shared";
 import { DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS } from "@mode/shared";
 import type { ICommandsService } from "./commands.js";
@@ -50,10 +50,10 @@ const MODE_PLUGIN_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
 const CLAUDE_PLUGIN_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_PLUGIN_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const MODE_COMMAND_DESCRIPTOR: CommandAgentSourceDescriptor = {
-  agentSource: "zcodeAgent",
-  directorySource: "zcode",
+  agentSource: "modeAgent",
+  directorySource: "mode",
   userDirectorySegments: [".zcodium", "commands"],
-  workspaceDirectorySegments: [".zcode", "commands"],
+  workspaceDirectorySegments: [".mode", "commands"],
   fileExtension: ".md",
   format: "markdown",
   namespaceSeparator: "/",
@@ -61,7 +61,7 @@ const MODE_COMMAND_DESCRIPTOR: CommandAgentSourceDescriptor = {
 };
 
 const COMMAND_AGENT_SOURCE_DESCRIPTORS: Record<CommandAgentSource, CommandAgentSourceDescriptor> = {
-  zcodeAgent: MODE_COMMAND_DESCRIPTOR,
+  modeAgent: MODE_COMMAND_DESCRIPTOR,
 };
 
 const COMMAND_DIRECTORY_SOURCE_DESCRIPTORS: readonly CommandAgentSourceDescriptor[] = [
@@ -523,8 +523,8 @@ export function createCommandsService(_options?: CommandsServiceOptions): IComma
     const agentSources = getCommandAgentSources(params.agentSource);
     const enabledOverrides = await readCommandEnabledOverridesFromUserConfig();
 
-    // ZCode Agent 需要先合并所有 workspace 目录，再合并所有 user 目录；
-    // 按每个目录交错读取 project/user 会让 user .zcode 抢在 workspace .agents 前面。
+    // Mode Agent 需要先合并所有 workspace 目录，再合并所有 user 目录；
+    // 按每个目录交错读取 project/user 会让 user .mode 抢在 workspace .agents 前面。
     for (const agentSource of agentSources) {
       const descriptors =
         agentSource === MODE_COMMAND_AGENT_SOURCE
@@ -560,7 +560,7 @@ export function createCommandsService(_options?: CommandsServiceOptions): IComma
         : [];
 
     return {
-      commands: [...dedupedUserCommands, ...pluginCommands] as ZCodeCommand[],
+      commands: [...dedupedUserCommands, ...pluginCommands] as ModeCommand[],
       userCommands: dedupedUserCommands,
       pluginCommands,
       capability: { userScopeAvailable: true },
@@ -996,8 +996,8 @@ async function discoverCommandsFromDirectorySources(params: {
       scope: params.scope,
       ...(params.projectPath ? { projectPath: params.projectPath } : {}),
     });
-    // `.zcode` 是强优先级来源；只要读到有效命令，同 scope 的 `.agents` 就不再参与。
-    if (descriptor.directorySource === "zcode" && discoveredCount > 0) {
+    // `.mode` 是强优先级来源；只要读到有效命令，同 scope 的 `.agents` 就不再参与。
+    if (descriptor.directorySource === "mode" && discoveredCount > 0) {
       break;
     }
   }

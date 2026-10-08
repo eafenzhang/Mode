@@ -19,7 +19,7 @@ import {
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { readApiJson } from "../providers/api/apiJson.js";
 import { normalizeApiKeyForHeader } from "../providers/api/index.js";
-import { resolveBigModelStartPlanZcodeJwt } from "./bigmodelStartPlanZcodeJwt.js";
+import { resolveBigModelStartPlanModeJwt } from "./bigmodelStartPlanModeJwt.js";
 import {
   buildZaiStartPlanBalanceUrl,
   fetchZaiStartPlanBalanceEnvelope,
@@ -243,10 +243,10 @@ async function validateSelectedTeamPlanAvailability(
   if (!token) {
     return { kind: "unavailable", reason: "coding_plan_not_connected" };
   }
-  const zcodeJwtToken = (await context.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim();
+  const modeJwtToken = (await context.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim();
   // BigModel 旧版本可能把 zcodejwttoken 误写进 oauth access token；
   // 但 Z.ai 的 business JWT 本身就是合法 Bearer token，不能套用这个 stale-token 防御。
-  if (family === "bigmodel" && zcodeJwtToken && token === zcodeJwtToken) {
+  if (family === "bigmodel" && modeJwtToken && token === modeJwtToken) {
     return { kind: "unavailable", reason: "coding_plan_not_connected" };
   }
 
@@ -446,17 +446,17 @@ async function resolveStartPlanAuthorization(
   context: CodingPlanAvailabilityContext,
 ): Promise<StartPlanAuthorization> {
   if (provider.family === "bigmodel") {
-    const zcodeJwtToken = await resolveBigModelStartPlanZcodeJwt({
+    const modeJwtToken = await resolveBigModelStartPlanModeJwt({
       credentialService: context.credentialService,
       provider,
     });
     return {
-      value: zcodeJwtToken ? `Bearer ${zcodeJwtToken}` : "",
+      value: modeJwtToken ? `Bearer ${modeJwtToken}` : "",
       missingReason: "coding_plan_not_authenticated",
     };
   }
 
-  const credentialJwt = await loadZaiProviderConnectionZcodeJwtToken(context);
+  const credentialJwt = await loadZaiProviderConnectionModeJwtToken(context);
   const providerJwt = normalizeApiKeyForHeader(provider.apiKey ?? "");
   return {
     value: credentialJwt || providerJwt ? `Bearer ${credentialJwt || providerJwt}` : "",
@@ -508,7 +508,7 @@ function resolveStartPlanBalanceAvailability(
     : { kind: "available" };
 }
 
-async function loadZaiProviderConnectionZcodeJwtToken(
+async function loadZaiProviderConnectionModeJwtToken(
   context: CodingPlanAvailabilityContext,
 ): Promise<string> {
   return (await context.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim() || "";
@@ -534,8 +534,8 @@ function hasActiveStartPlan(plans: ZaiStartPlanPlan[] | undefined): boolean {
       const status = plan.status?.trim().toLowerCase();
       const planId = plan.plan_id?.trim().toLowerCase();
       const name = plan.name?.trim().toLowerCase();
-      // billing/balance 的 plans 真实返回的是 `plan_id=zcode-v3-start-plan`
-      // 和 `name=ZCode V3 Start Plan`；只认 `name === "start plan"` 的话，
+      // billing/balance 的 plans 真实返回的是 `plan_id=mode-v3-start-plan`
+      // 和 `name=Mode V3 Start Plan`；只认 `name === "start plan"` 的话，
       // 已激活的 Start Plan 会被误写成 coding_plan_not_entitled。
       const identityMatches =
         !planId && !name ? true : isZaiStartPlanIdentity(planId) || isZaiStartPlanIdentity(name);

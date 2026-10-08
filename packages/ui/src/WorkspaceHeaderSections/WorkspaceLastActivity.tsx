@@ -1,11 +1,11 @@
 import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ZCodeTaskMeta } from "@mode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ModeTaskMeta } from "@mode/shared";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { getTaskListRowActivity } from "@/v4/taskListRowActivity.js";
 
-export function WorkspaceLastActivity({ task }: { task: ZCodeTaskMeta | null }) {
-  const { intl } = useZCodeIntl();
+export function WorkspaceLastActivity({ task }: { task: ModeTaskMeta | null }) {
+  const { intl } = useModeIntl();
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);

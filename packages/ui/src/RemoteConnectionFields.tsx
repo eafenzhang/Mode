@@ -61,7 +61,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 /** 局域网页字段：发现结果、地址、配对码与配对状态。 */
 export interface RemoteConnectionLanFieldsProps {
@@ -174,7 +174,7 @@ export function RemoteConnectionFields({
   setDockerContainer: (value: string) => void;
   setManualDockerContainer: (value: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const platform = usePlatform();
   const [sshAliasPopoverOpen, setSshAliasPopoverOpen] = useState(false);
   const [dockerContainerPopoverOpen, setDockerContainerPopoverOpen] = useState(false);

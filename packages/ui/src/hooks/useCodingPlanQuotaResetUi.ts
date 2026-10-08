@@ -5,13 +5,13 @@ import type {
   CodingPlanResetScopeRequest,
   CodingPlanResetStatusSnapshot,
   CodingPlanResetType,
-  ZCodeAccountAccess,
-  ZCodeProviderAccountAccess,
+  ModeAccountAccess,
+  ModeProviderAccountAccess,
 } from "@mode/shared";
 import { toast } from "@/components/ui/toast.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useStableAccountAccess } from "@/hooks/useStableAccountAccess.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
   requestCodingPlanResetOpportunityWhenDue,
@@ -34,7 +34,7 @@ import type {
   CodingPlanQuotaResetAutoPlayReservationAttempt,
   CodingPlanQuotaResetAutoPlayedSlot,
 } from "@/store/codingPlanQuotaResetState.js";
-import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
+import { useModeStoreWithDefault } from "@/store/StoreProvider.js";
 
 const STATUS_FRESHNESS_MS = 1_500;
 const USE_STATUS_RETRY_DELAYS_MS = [0, 250, 750, 1_500] as const;
@@ -366,11 +366,11 @@ export function useCodingPlanQuotaResetUi({
 }: {
   sourceKey: string | null | undefined;
   preferredProviderId?: string | null;
-  accountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess | null;
+  accountAccess?: ModeProviderAccountAccess | ModeAccountAccess | null;
   enabled?: boolean;
   onEntitlementRefresh?: () => void | Promise<void>;
 }): CodingPlanQuotaResetUiController {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const services = useOptionalBaseWorkspaceServices();
   const usageStatsService = services?.usageStatsService;
   const stableAccountAccess = useStableAccountAccess(accountAccess);
@@ -385,35 +385,35 @@ export function useCodingPlanQuotaResetUi({
     };
   }, [preferredProviderId, stableAccountAccess]);
   const enabled = Boolean(requestedEnabled && sourceKey?.trim() && usageStatsService && scope);
-  const entriesBySource = useZCodeStoreWithDefault(
+  const entriesBySource = useModeStoreWithDefault(
     (state) => state.codingPlanQuotaResetUiBySource,
     EMPTY_ENTRIES,
   );
-  const setEntry = useZCodeStoreWithDefault(
+  const setEntry = useModeStoreWithDefault(
     (state) => state.setCodingPlanQuotaResetUiEntry,
     NOOP_SET_ENTRY,
   );
-  const reserveAutoPlay = useZCodeStoreWithDefault(
+  const reserveAutoPlay = useModeStoreWithDefault(
     (state) => state.reserveCodingPlanQuotaResetAutoPlay,
     NOOP_RESERVE_AUTO_PLAY,
   );
-  const commitAutoPlay = useZCodeStoreWithDefault(
+  const commitAutoPlay = useModeStoreWithDefault(
     (state) => state.commitCodingPlanQuotaResetAutoPlay,
     NOOP_COMMIT_AUTO_PLAY,
   );
-  const releaseAutoPlay = useZCodeStoreWithDefault(
+  const releaseAutoPlay = useModeStoreWithDefault(
     (state) => state.releaseCodingPlanQuotaResetAutoPlay,
     NOOP_RELEASE_AUTO_PLAY,
   );
-  const observationsBySource = useZCodeStoreWithDefault(
+  const observationsBySource = useModeStoreWithDefault(
     (state) => state.codingPlanQuotaResetAutomaticObservationsBySource,
     EMPTY_AUTOMATIC_OBSERVATIONS,
   );
-  const playedBySource = useZCodeStoreWithDefault(
+  const playedBySource = useModeStoreWithDefault(
     (state) => state.codingPlanQuotaResetAutoPlayedBySource,
     EMPTY_PLAYED,
   );
-  const authSessionSeq = useZCodeStoreWithDefault((state) => state.authSessionSeq, 0);
+  const authSessionSeq = useModeStoreWithDefault((state) => state.authSessionSeq, 0);
   const authSessionSeqRef = useRef(authSessionSeq);
   authSessionSeqRef.current = authSessionSeq;
   const storedEntries = sourceKey ? entriesBySource[sourceKey] : undefined;

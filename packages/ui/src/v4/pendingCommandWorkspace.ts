@@ -1,5 +1,5 @@
 import type { SessionCreateSource } from "@mode/shared";
-import type { GroupedDraftTaskState } from "@/store/zcodeSessionStoreTypes.js";
+import type { GroupedDraftTaskState } from "@/store/modeSessionStoreTypes.js";
 
 export interface PendingCommandClientContext {
   workspace?: {

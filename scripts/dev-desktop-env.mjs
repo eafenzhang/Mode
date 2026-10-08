@@ -15,9 +15,9 @@ if (requestedEnv !== "test" && requestedEnv !== "production") {
 
 // dev 实例的数据目录隔离不能只依赖 mise 任务层注入：绕过 mise 直接运行
 // pnpm dev:desktop:test 时若没有 MODE_DATA_BASE_DIR，实例会读写开发者真实的
-// ~/.zcode（曾因此重写真实 credentials.json）。test 模式在此兜底注入与 mise
+// ~/.mode（曾因此重写真实 credentials.json）。test 模式在此兜底注入与 mise
 // 任务一致的默认隔离目录；production 保持 dogfood 语义不注入。
-const DEFAULT_ISOLATED_DATA_BASE_DIR = join(homedir(), ".zcode-dev-home");
+const DEFAULT_ISOLATED_DATA_BASE_DIR = join(homedir(), ".mode-dev-home");
 const legacyDataBaseDirSet =
   process.env.MODE_DATA_BASE_DIR?.trim() ||
   process.env.ZCODIUM_DATA_BASE_DIR?.trim() ||
@@ -37,7 +37,7 @@ for (const key of [
   delete process.env[`ZCODIUM_${key.slice("MODE_".length)}`];
   delete process.env[`ZCODE_${key.slice("MODE_".length)}`];
 }
-// 宿主 ZCode 给自己启动的进程注入 MODE_APP_VERSION（宿主的版本号），dev 构建读到后
+// 宿主 Mode 给自己启动的进程注入 MODE_APP_VERSION（宿主的版本号），dev 构建读到后
 // About、更新检查会显示成宿主版本（曾出现 41.0.3）。CI 发布时才该有这个变量，dev 一律删掉，
 // 让版本回落到仓库 package.json。
 delete process.env.MODE_APP_VERSION;

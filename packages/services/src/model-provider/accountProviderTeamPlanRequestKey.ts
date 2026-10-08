@@ -4,7 +4,7 @@ import {
   type ApiClient,
   resolveBigModelApiOrigin,
   resolveZaiBusinessBaseUrl,
-  type ZCodeAccountAccess,
+  type ModeAccountAccess,
   ZAI_PROVIDER_ID,
 } from "@mode/shared";
 import type { ICredentialService } from "#src/credential/credential.js";
@@ -25,7 +25,7 @@ const TEAM_PLAN_RUNTIME_KEY_REQUEST_TIMEOUT_MS = 15_000;
 interface TeamPlanRequestKeyDependencies {
   readonly apiClient: ApiClient;
   readonly credentialService?: Pick<ICredentialService, "load">;
-  readonly access: Extract<ZCodeAccountAccess, { planKind: "team-coding-plan" }>;
+  readonly access: Extract<ModeAccountAccess, { planKind: "team-coding-plan" }>;
 }
 
 export async function resolveAccountTeamPlanRuntimeApiKey(
@@ -45,10 +45,10 @@ export async function resolveAccountTeamPlanRuntimeApiKey(
     });
     return null;
   }
-  const zcodeJwtToken = (await params.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim() ?? "";
-  if (family === "bigmodel" && zcodeJwtToken && token === zcodeJwtToken) {
-    // BigModel /api/biz 只接受登录 access token，不能使用旧版本误存的 ZCode JWT。
-    log.warn(undefined, "Team Plan runtime key projection skipped: stale zcode JWT token", {
+  const modeJwtToken = (await params.credentialService?.load(MODE_JWT_TOKEN_KEY))?.trim() ?? "";
+  if (family === "bigmodel" && modeJwtToken && token === modeJwtToken) {
+    // BigModel /api/biz 只接受登录 access token，不能使用旧版本误存的 Mode JWT。
+    log.warn(undefined, "Team Plan runtime key projection skipped: stale mode JWT token", {
       family,
       projectId,
     });

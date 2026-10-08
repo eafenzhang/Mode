@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
 
@@ -41,7 +41,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   workspacePath: string;
   workspaceIdentity?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
 

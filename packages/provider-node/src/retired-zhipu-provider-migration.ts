@@ -68,7 +68,7 @@ const RETIRED_PROVIDER_FALLBACKS: readonly {
  */
 export function createRetiredZhipuProviderMigrationUpdate(
   current: ProviderConfigLayerSnapshot,
-  zcodeBuiltin: ProviderConfigLayerSnapshot,
+  modeBuiltin: ProviderConfigLayerSnapshot,
 ): ProviderConfigLayerUpdate | null {
   const providers = dropRetiredProviders(current.providers);
   const models = dropRetiredModelRules(current.models);
@@ -80,7 +80,7 @@ export function createRetiredZhipuProviderMigrationUpdate(
   const defaultModelSelection = resolveMigratedDefaultModelSelection(
     current.defaultModelSelection,
     current,
-    zcodeBuiltin,
+    modeBuiltin,
   );
   if (
     providers === current.providers &&
@@ -153,10 +153,10 @@ function dropRetiredTemplates(
 function resolveMigratedDefaultModelSelection(
   selection: ModelSelection | undefined,
   current: ProviderConfigLayerSnapshot,
-  zcodeBuiltin: ProviderConfigLayerSnapshot,
+  modeBuiltin: ProviderConfigLayerSnapshot,
 ): ModelSelection | undefined {
   if (!selection || !RETIRED_ZHIPU_PROVIDER_IDS.includes(selection.providerId)) return selection;
-  const fallback = resolveRetiredProviderFallback(selection.providerId, current, zcodeBuiltin);
+  const fallback = resolveRetiredProviderFallback(selection.providerId, current, modeBuiltin);
   // 解析不到替代 Provider 就清空：悬空 providerId 与迁移前一样不可用，还会继续挡住用户重新选择。
   // 不继承旧 options：reasoningLevel 属于账号套餐的模型清单，套到另一个 Provider 的同名模型上是伪造事实。
   return fallback
@@ -175,7 +175,7 @@ function resolveMigratedDefaultModelSelection(
 function resolveRetiredProviderFallback(
   retiredProviderId: ProviderId,
   current: ProviderConfigLayerSnapshot,
-  zcodeBuiltin: ProviderConfigLayerSnapshot,
+  modeBuiltin: ProviderConfigLayerSnapshot,
 ): { readonly providerId: ProviderId; readonly modelId: ModelId } | null {
   const templateId = RETIRED_PROVIDER_FALLBACKS.find((candidate) =>
     retiredProviderId.startsWith(candidate.prefix),
@@ -184,6 +184,6 @@ function resolveRetiredProviderFallback(
   if (!current.providers.has(templateId)) return null;
   const modelId =
     current.providers.get(templateId)?.builtinModelIds?.[0] ??
-    zcodeBuiltin.providerTemplates?.get(templateId)?.config.builtinModelIds?.[0];
+    modeBuiltin.providerTemplates?.get(templateId)?.config.builtinModelIds?.[0];
   return modelId ? { providerId: templateId, modelId } : null;
 }

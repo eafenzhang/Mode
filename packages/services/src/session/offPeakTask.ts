@@ -2,8 +2,8 @@ import type {
   OffPeakCodingPlanSupport,
   OffPeakTaskCreateResult,
   OffPeakTakeNumberAvailability,
-  ZCodeOffPeakTask,
-  ZCodeOffPeakTaskCreateParams,
+  ModeOffPeakTask,
+  ModeOffPeakTaskCreateParams,
   ModelSelection,
 } from "@mode/shared";
 import { ServiceChannels } from "@mode/shared";
@@ -27,19 +27,19 @@ export interface IOffPeakTaskService {
   /** 服务端取号额度即时快照；仅控制新建入口，POST /ticket 仍是最终准入权威。 */
   getTakeNumberAvailability(): Promise<OffPeakTakeNumberAvailability>;
   /** 创建即取号（成功才落库）；失败返回稳定分类，不跨 RPC 传 raw error。 */
-  createTask(params: ZCodeOffPeakTaskCreateParams): Promise<OffPeakTaskCreateResult>;
-  cancelTask(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null>;
-  pauseTask(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null>;
-  continueTask(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null>;
+  createTask(params: ModeOffPeakTaskCreateParams): Promise<OffPeakTaskCreateResult>;
+  cancelTask(offPeakTaskId: string): Promise<ModeOffPeakTask | null>;
+  pauseTask(offPeakTaskId: string): Promise<ModeOffPeakTask | null>;
+  continueTask(offPeakTaskId: string): Promise<ModeOffPeakTask | null>;
   deleteTask(offPeakTaskId: string): Promise<void>;
   /** 仅隐藏本地 History 行；不删除 task/session/执行字段。 */
-  deleteHistory(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null>;
+  deleteHistory(offPeakTaskId: string): Promise<ModeOffPeakTask | null>;
   updateTask(
     offPeakTaskId: string,
     params: OffPeakUpdateTaskParams,
-  ): Promise<ZCodeOffPeakTask | null>;
-  list(): Promise<ZCodeOffPeakTask[]>;
-  get(offPeakTaskId: string): Promise<ZCodeOffPeakTask | null>;
+  ): Promise<ModeOffPeakTask | null>;
+  list(): Promise<ModeOffPeakTask[]>;
+  get(offPeakTaskId: string): Promise<ModeOffPeakTask | null>;
 }
 
 export const IOffPeakTaskService = createServiceDescriptor<IOffPeakTaskService>(

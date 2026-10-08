@@ -1,4 +1,4 @@
-import type { CommandEnvelope } from "@mode/shared/zcode-protocol-v4";
+import type { CommandEnvelope } from "@mode/shared/mode-protocol-v4";
 
 export type PendingCommandReplay =
   | {

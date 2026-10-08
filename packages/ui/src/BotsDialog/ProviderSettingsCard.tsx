@@ -15,7 +15,7 @@ import type { BotConfig, BotServiceStatus } from "@mode/shared";
 import { isFeishuBotProvider } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { cn } from "@/components/lib/utils.js";
 import { logger } from "@/logger.js";
@@ -42,7 +42,7 @@ function TelegramBotFatherQrPanel({
   onCredentialValueChange: (value: string) => void;
   onSaveSecret: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -138,7 +138,7 @@ function WeComSetupPanel({
   onStartRegistration: () => void;
   onSaveManual: (wecomBotId: string, secret: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [botIdDraft, setBotIdDraft] = useState(bot.wecomBotId ?? "");
   const active = registration?.botId === bot.id ? registration : null;
   const canSaveManual = Boolean(botIdDraft.trim() && credentialValue.trim()) && !secretSaving;
@@ -247,7 +247,7 @@ function DingTalkCredentialPanel({
   onCredentialValueChange: (value: string) => void;
   onSave: (clientId: string, secret: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [clientIdDraft, setClientIdDraft] = useState(bot.dingtalkClientId ?? "");
   const canSave = Boolean(clientIdDraft.trim() && credentialValue.trim()) && !secretSaving;
   return (
@@ -306,7 +306,7 @@ export function BindCodePanel({
   onCreateBindCode: () => void;
   onCopyBindCommand: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const bindCommand = `/bind ${bindCode.code}`;
   return (
     <DetailPanel>
@@ -428,7 +428,7 @@ export function ProviderSettingsCard({
   onStartWeixinRegistration: () => void;
   onStartFeishuRegistration: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   if (bot.provider === "webhook") {
     return null;
   }

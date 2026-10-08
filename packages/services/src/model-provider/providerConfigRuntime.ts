@@ -13,11 +13,11 @@ import { importLegacyPersonalProviderConfig } from "./legacyPersonalProviderConf
 const log = createServiceLogger("provider-config-runtime");
 
 export interface ProviderConfigRuntimeOptions {
-  readonly zcodeBuiltinFilePath: string;
-  readonly zcodeBuiltinActiveFilePath?: string;
-  readonly zcodeBuiltinRemote?: NodeProviderConfigRuntimeOptions["zcodeBuiltinRemote"];
-  readonly zcodeBuiltinEnvironment?: NodeProviderConfigRuntimeOptions["zcodeBuiltinEnvironment"];
-  readonly onZCodeBuiltinRefreshError?: (error: unknown) => void;
+  readonly modeBuiltinFilePath: string;
+  readonly modeBuiltinActiveFilePath?: string;
+  readonly modeBuiltinRemote?: NodeProviderConfigRuntimeOptions["modeBuiltinRemote"];
+  readonly modeBuiltinEnvironment?: NodeProviderConfigRuntimeOptions["modeBuiltinEnvironment"];
+  readonly onModeBuiltinRefreshError?: (error: unknown) => void;
   readonly onPersonalConfigRecovery?: (event: PersonalProviderConfigRecoveryEvent) => void;
   readonly onPersonalConfigPollingError?: (error: unknown) => void;
   readonly personalFilePath?: string;
@@ -28,7 +28,7 @@ export interface ProviderConfigRuntimeOptions {
 
 /**
  * Services 装配层：提供 App 配置目录和已发布旧配置的一次性迁移入口。
- * 配置迁移保留 ZCode 用户的供应商数据，文件运行时由 @mode/provider-node 唯一实现。
+ * 配置迁移保留 Mode 用户的供应商数据，文件运行时由 @mode/provider-node 唯一实现。
  */
 export class ProviderConfigRuntime {
   readonly configService: NodeProviderConfigRuntime["configService"];
@@ -36,11 +36,11 @@ export class ProviderConfigRuntime {
 
   constructor(options: ProviderConfigRuntimeOptions) {
     const runtimeOptions: NodeProviderConfigRuntimeOptions = {
-      zcodeBuiltinFilePath: options.zcodeBuiltinFilePath,
-      zcodeBuiltinActiveFilePath: options.zcodeBuiltinActiveFilePath,
-      zcodeBuiltinRemote: options.zcodeBuiltinRemote,
-      zcodeBuiltinEnvironment: options.zcodeBuiltinEnvironment,
-      onZCodeBuiltinRefreshError: options.onZCodeBuiltinRefreshError,
+      modeBuiltinFilePath: options.modeBuiltinFilePath,
+      modeBuiltinActiveFilePath: options.modeBuiltinActiveFilePath,
+      modeBuiltinRemote: options.modeBuiltinRemote,
+      modeBuiltinEnvironment: options.modeBuiltinEnvironment,
+      onModeBuiltinRefreshError: options.onModeBuiltinRefreshError,
       onPersonalConfigRecovery: options.onPersonalConfigRecovery,
       onPersonalConfigPollingError: options.onPersonalConfigPollingError,
       // 去智谱化迁移失败是可恢复异常：Personal 数据仍能加载，只是残留条目暂不可用。
@@ -72,16 +72,16 @@ export class ProviderConfigRuntime {
     return this.#runtime.personalRepository;
   }
 
-  resolveZCodeBuiltinActiveFilePath(): Promise<string> {
-    return this.#runtime.resolveZCodeBuiltinActiveFilePath();
+  resolveModeBuiltinActiveFilePath(): Promise<string> {
+    return this.#runtime.resolveModeBuiltinActiveFilePath();
   }
 
-  refreshZCodeBuiltin(options?: { readonly force?: boolean }) {
-    return this.#runtime.refreshZCodeBuiltin(options);
+  refreshModeBuiltin(options?: { readonly force?: boolean }) {
+    return this.#runtime.refreshModeBuiltin(options);
   }
 
-  onDidCheckZCodeBuiltin(listener: () => Promise<void>): () => void {
-    return this.#runtime.onDidCheckZCodeBuiltin(listener);
+  onDidCheckModeBuiltin(listener: () => Promise<void>): () => void {
+    return this.#runtime.onDidCheckModeBuiltin(listener);
   }
 
   dispose(): void {

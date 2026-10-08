@@ -1,6 +1,6 @@
 import { LoaderCircle } from "lucide-react";
 import type { BotConfig, BotWorkspaceRef } from "@mode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   Select,
   SelectContent,
@@ -35,7 +35,7 @@ export function WorkspaceManagementCard({
   onSelectWorkspace: (workspace: BotWorkspaceRef) => Promise<void>;
   onUnbind: () => Promise<void>;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   // 已绑定但不在当前列表里的工作区（远端断开、历史路径）仍要作为选项出现，
   // 否则下拉会显示成"未绑定"，而 bot 实际还钉着那个工作区。
   const options = boundWorkspace

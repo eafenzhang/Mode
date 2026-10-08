@@ -1,8 +1,8 @@
 import type { ISkillsService } from "@mode/services";
 import {
-  normalizeAgentProviderToZCodeAgent,
+  normalizeAgentProviderToModeAgent,
   MODE_AGENT_PROVIDER,
-  type ZCodeProvider,
+  type ModeProvider,
 } from "@mode/shared";
 import { useSkillStore } from "@/store/skillStore.js";
 
@@ -10,7 +10,7 @@ export async function refreshSharedSkillStoreForWorkspace(params: {
   workspacePath: string | null | undefined;
   workspaceIdentity?: string | null;
   skillsService: ISkillsService;
-  provider?: ZCodeProvider;
+  provider?: ModeProvider;
 }): Promise<void> {
   const workspacePath = params.workspacePath;
   if (!workspacePath) {
@@ -18,7 +18,7 @@ export async function refreshSharedSkillStoreForWorkspace(params: {
   }
   const skillStore = useSkillStore.getState();
   const normalizedWorkspaceIdentity = params.workspaceIdentity?.trim() || null;
-  const normalizedProvider = normalizeAgentProviderToZCodeAgent(
+  const normalizedProvider = normalizeAgentProviderToModeAgent(
     params.provider ?? MODE_AGENT_PROVIDER,
   );
   const refreshes: Promise<void>[] = [];
@@ -28,7 +28,7 @@ export async function refreshSharedSkillStoreForWorkspace(params: {
     skillStore.workspaceIdentity === normalizedWorkspaceIdentity &&
     skillStore.loadedWorkspacePath === workspacePath &&
     skillStore.loadedWorkspaceIdentity === normalizedWorkspaceIdentity &&
-    normalizeAgentProviderToZCodeAgent(skillStore.provider) === normalizedProvider &&
+    normalizeAgentProviderToModeAgent(skillStore.provider) === normalizedProvider &&
     skillStore.loadedProvider === normalizedProvider
   ) {
     refreshes.push(

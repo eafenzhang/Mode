@@ -5,7 +5,7 @@ import type {
   PromptAttachmentStageResult,
   PromptAttachmentTransferProgress,
 } from "@mode/services";
-import type { ZCodePromptAttachment } from "@mode/shared";
+import type { ModePromptAttachment } from "@mode/shared";
 import {
   cleanupRemotePromptAttachment,
   cleanupStaleRemotePromptAttachments,
@@ -75,13 +75,13 @@ export function createRemotePromptAttachmentTransferService(
       let lastPercent = -1;
       let lastEmittedAt = 0;
       let lastUploadedBytes = 0;
-      const attachment: ZCodePromptAttachment = {
+      const attachment: ModePromptAttachment = {
         kind: params.mime.startsWith("image/") ? "image" : "file",
         filename: params.fileName,
         localPath: params.localPath,
         mimeType: params.mime,
         sizeBytes: params.sizeBytes ?? 0,
-      } as ZCodePromptAttachment;
+      } as ModePromptAttachment;
       const workspaceKey = params.workspaceIdentity?.trim() || params.workspacePath;
       try {
         const materialized = await materializeRemotePromptAttachments(

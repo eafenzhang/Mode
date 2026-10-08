@@ -5,13 +5,13 @@ import { RefreshCw, Settings } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { usePluginStoreOrder } from "@/hooks/usePluginStoreOrder.js";
-import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
+import { useModeSessionService } from "@/hooks/useModeSessionService.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
-import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSkillInvalidation.js";
+import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/modeDraftSkillInvalidation.js";
 import { refreshSharedSkillStoreForWorkspace } from "@/lib/skillStoreRefresh.js";
 import {
   PluginDetailRow,
@@ -64,10 +64,10 @@ export function PluginStorePage({
   onCreateTask,
   onManageInstalled,
 }: PluginStorePageProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const { order: storeOrder, refresh: refreshStoreOrder } = usePluginStoreOrder();
   const { pluginManagementService, skillsService } = useServices();
-  const zcodeSessionService = useZCodeSessionService(
+  const modeSessionService = useModeSessionService(
     workspacePath ?? undefined,
     undefined,
     workspaceIdentity,
@@ -98,7 +98,7 @@ export function PluginStorePage({
 
   const [view, setView] = useState<PluginStoreView>("store");
   const [detailPluginId, setDetailPluginId] = useState<string | null>(null);
-  // 公开 = 随包内置的 ZCode 插件源；个人 = 用户自己添加的市场源。
+  // 公开 = 随包内置的 Mode 插件源；个人 = 用户自己添加的市场源。
   const [segment, setSegment] = useState<PluginStoreSegment>("public");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -274,7 +274,7 @@ export function PluginStorePage({
   // 避免会话里残留悬挂或旧版本能力。
   const refreshAfterPluginChange = useCallback(async () => {
     await invalidateDeferredDraftSessionForSkillChange({
-      zcodeSessionService,
+      modeSessionService,
       workspacePath,
       workspaceIdentity: normalizedWorkspaceIdentity ?? undefined,
       reason: "settings-plugin-enabled",
@@ -284,7 +284,7 @@ export function PluginStorePage({
       workspaceIdentity: normalizedWorkspaceIdentity,
       skillsService,
     });
-  }, [normalizedWorkspaceIdentity, skillsService, workspacePath, zcodeSessionService]);
+  }, [normalizedWorkspaceIdentity, skillsService, workspacePath, modeSessionService]);
 
   const uninstall = usePluginUninstall({
     pluginService: pluginManagementService,

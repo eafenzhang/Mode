@@ -33,7 +33,7 @@ export interface IntlInstance {
   formatMessage(descriptor: { id: string }, values?: Record<string, string | number>): string;
 }
 
-const LOCALE_PREFERENCE_KEY = "zcode-locale-preference";
+const LOCALE_PREFERENCE_KEY = "mode-locale-preference";
 const STATE_LOCALE_CHANNEL = "state:locale";
 
 interface LocaleBroadcastPayload {
@@ -143,7 +143,7 @@ const IntlContext = createContext<IntlContextValue | null>(null);
  * 国际化 Provider —— 管理当前语言和 intl 实例。
  * 如果传入 settingService，会从设置中读取初始语言并在切换时持久化。
  */
-export function ZCodeIntlProvider({
+export function ModeIntlProvider({
   children,
   settingService,
   broadcastService,
@@ -386,10 +386,10 @@ export function ZCodeIntlProvider({
 }
 
 /** 获取 intl 上下文 */
-export function useZCodeIntl(): IntlContextValue {
+export function useModeIntl(): IntlContextValue {
   const ctx = useContext(IntlContext);
   if (!ctx) {
-    throw new Error("useZCodeIntl 必须在 ZCodeIntlProvider 内使用");
+    throw new Error("useModeIntl 必须在 ModeIntlProvider 内使用");
   }
   return ctx;
 }

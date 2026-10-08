@@ -20,7 +20,7 @@ ZCodium 是去智谱化的社区 fork，但剥离不彻底：模型设置仍保�
 
 ## 数据层（唯一事实源）
 
-`config/provider/zcode-builtin.json`（revision 30 → 31）：
+`config/provider/mode-builtin.json`（revision 30 → 31）：
 
 - 删除 8 条 `account:*` providerRules（zai-family / bigmodel-family 的全部实体，
   access=zhipu-account）；
@@ -50,7 +50,7 @@ ZCodium 是去智谱化的社区 fork，但剥离不彻底：模型设置仍保�
 `account`、`codingPlan`、`officialMcp`、`offPeak` 全部移除，只保留
 `marketplace` 与 `clientConfig`。
 
-**原因**：这 5 个能力全部依赖智谱套餐/官方账号体系。`config/provider/zcode-builtin.json`
+**原因**：这 5 个能力全部依赖智谱套餐/官方账号体系。`config/provider/mode-builtin.json`
 里对应的 `zhipu-coding-plan-api-key` 模板已删除，family 入口在数据与 spec 双重缺失下不可达，
 开关保留只会让用户以为功能可用。留下开关比删掉开关更糟：它把「能力不存在」伪装成
 「需要你打开开关」。
@@ -95,14 +95,14 @@ builtin 删除只改变「可选项」，不会回头修改用户磁盘上的数
 
 ### 悬空引用的来源
 
-`apps/zcode-cli/packages/bootstrap/src/auth-login.ts` 在登录成功后调用
+`apps/mode-cli/packages/bootstrap/src/auth-login.ts` 在登录成功后调用
 `repository.saveConfiguredDefault({ providerId, modelId })`，把选中的 provider/model
 写进 `defaultModelSelection`。登录激活的正是那批 `account:*` Provider，所以**任何
 登录过的老用户**，该字段的 `providerId` 都是本 PR 删除的 8 个 id 之一。
 
 ### 触发时机与状态所有者
 
-- 唯一状态所有者是 `NodeProviderConfigRuntime`（`@zcode/provider-node`）拥有的
+- 唯一状态所有者是 `NodeProviderConfigRuntime`（`@mode/provider-node`）拥有的
   `NodePersonalProviderConfigRepository`。桌面端、CLI、server 三个入口共用这一个
   Personal Repository 所有者，迁移挂在它的 `start()` 边界上，因此不存在
   「只有渲染进程才迁移」的缺口。放在 UI 会引入第二条写入路径，且桌面主进程与
@@ -138,7 +138,7 @@ offpeak-idle-plan,start-plan,team-coding-plan}`；
   builtin 里唯一稳定的分族信号。
 - **回退目标必须先证明存在**：`zai-standard-api` / `bigmodel-standard-api` 是 builtin
   模板而不是 Provider，Provider 要等用户在设置里用它创建才落进 personal 层，id 取
-  模板名归一化后的种子（见 `@zcode/provider` 的 `nextPersonalProviderId`）。因此存在性
+  模板名归一化后的种子（见 `@mode/provider` 的 `nextPersonalProviderId`）。因此存在性
   只在 personal 层查；去智谱化后 builtin 的 `providers` 已被清空，拿 builtin 兜底等于
   走进空集。用户没创建过该预设时把 `defaultModelSelection` 清为 `undefined`——回退成
   同名 providerId 只是把一个悬空引用换成另一个。

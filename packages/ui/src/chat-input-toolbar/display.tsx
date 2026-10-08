@@ -12,10 +12,10 @@ import {
   TID_CHAT_THOUGHT_LEVEL_SELECT_ITEM,
   TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER,
   testId,
-  type ZCodeApiRetryStatus,
-  type ZCodeConfigOption,
-  type ZCodeConfigSelectValue,
-  type ZCodeProvider,
+  type ModeApiRetryStatus,
+  type ModeConfigOption,
+  type ModeConfigSelectValue,
+  type ModeProvider,
 } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
@@ -30,7 +30,7 @@ import {
   shouldRestoreChatInputFocusAfterPickerClose,
 } from "@/lib/pickerFocus.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
   ChevronDownIcon,
@@ -55,11 +55,11 @@ type ConfigSelectTriggerVariant = ComponentProps<typeof SelectTrigger>["variant"
 /** Radix Select 在受控值与子项注册竞争时可能发出空值等未渲染值；直接上抛会把
  * 系统事件误当成用户选择（如 Automations 编辑页仅打开详情就被标记未保存修改）。
  * 用户只能点到已渲染的 option，值域外的选择回调一律丢弃。 */
-function isConfigSelectValueInOptions(option: ZCodeConfigOption, value: string): boolean {
+function isConfigSelectValueInOptions(option: ModeConfigOption, value: string): boolean {
   return option.options?.some((entry) => String(entry.value) === value) ?? false;
 }
 
-function getConfigSelectTriggerTestId(option: ZCodeConfigOption): string | undefined {
+function getConfigSelectTriggerTestId(option: ModeConfigOption): string | undefined {
   if (option.category === "thought_level") {
     return TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER;
   }
@@ -72,8 +72,8 @@ function getConfigSelectTriggerTestId(option: ZCodeConfigOption): string | undef
 }
 
 function getConfigSelectItemTestId(
-  option: ZCodeConfigOption,
-  entry: ZCodeConfigSelectValue,
+  option: ModeConfigOption,
+  entry: ModeConfigSelectValue,
 ): string | undefined {
   if (option.category === "thought_level") {
     return testId(TID_CHAT_THOUGHT_LEVEL_SELECT_ITEM, entry.value);
@@ -90,8 +90,8 @@ export function ChatApiRetryStatus({
   intl,
   locale,
 }: {
-  apiRetry: ZCodeApiRetryStatus | null;
-  intl: ReturnType<typeof useZCodeIntl>["intl"];
+  apiRetry: ModeApiRetryStatus | null;
+  intl: ReturnType<typeof useModeIntl>["intl"];
   locale: string;
 }) {
   const retryLabel = useMemo(() => {
@@ -99,7 +99,7 @@ export function ChatApiRetryStatus({
       return null;
     }
 
-    // 当前 ZCode Agent 只会推送某一刻的 retryDelayMs 快照，不会每秒递减。
+    // 当前 Mode Agent 只会推送某一刻的 retryDelayMs 快照，不会每秒递减。
     // 继续把这个值渲染成“X 秒后继续”会给用户造成倒计时在卡住的错觉。
     // 这里先收敛成稳定的重试状态文案，只展示第几次重试。
     const formatter = new Intl.NumberFormat(locale);
@@ -134,9 +134,9 @@ export function ChatApiRetryStatus({
 }
 
 export function getModeOptionDisplayLabel(
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
-  provider: ZCodeProvider | undefined,
-  entry: Pick<ZCodeConfigSelectValue, "name" | "value">,
+  intl: ReturnType<typeof useModeIntl>["intl"],
+  provider: ModeProvider | undefined,
+  entry: Pick<ModeConfigSelectValue, "name" | "value">,
 ): string {
   const labelMessageId = getModeOptionLabelMessageId(provider, entry);
   if (!labelMessageId) {
@@ -147,8 +147,8 @@ export function getModeOptionDisplayLabel(
 }
 
 function getModeOptionLabelMessageId(
-  provider: ZCodeProvider | undefined,
-  entry: Pick<ZCodeConfigSelectValue, "value">,
+  provider: ModeProvider | undefined,
+  entry: Pick<ModeConfigSelectValue, "value">,
 ): string | null {
   if (!provider) {
     return null;
@@ -158,8 +158,8 @@ function getModeOptionLabelMessageId(
 }
 
 export function getModeOptionDescriptionMessageId(
-  provider: ZCodeProvider | undefined,
-  entry: Pick<ZCodeConfigSelectValue, "value">,
+  provider: ModeProvider | undefined,
+  entry: Pick<ModeConfigSelectValue, "value">,
 ): string | null {
   if (!provider) {
     return null;
@@ -169,10 +169,10 @@ export function getModeOptionDescriptionMessageId(
 }
 
 export function getConfigOptionEntryLabel(
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
-  provider: ZCodeProvider | undefined,
-  option: ZCodeConfigOption,
-  entry: ZCodeConfigSelectValue,
+  intl: ReturnType<typeof useModeIntl>["intl"],
+  provider: ModeProvider | undefined,
+  option: ModeConfigOption,
+  entry: ModeConfigSelectValue,
 ): string {
   if (option.category === "mode") {
     return getModeOptionDisplayLabel(intl, provider, entry);
@@ -182,10 +182,10 @@ export function getConfigOptionEntryLabel(
 }
 
 function getConfigOptionEntryDescription(
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
-  provider: ZCodeProvider | undefined,
-  option: ZCodeConfigOption,
-  entry: ZCodeConfigSelectValue,
+  intl: ReturnType<typeof useModeIntl>["intl"],
+  provider: ModeProvider | undefined,
+  option: ModeConfigOption,
+  entry: ModeConfigSelectValue,
 ): string | undefined {
   if (option.category !== "mode") {
     return entry.description;
@@ -237,7 +237,7 @@ export function ConfigSelect({
   provider,
   restoreFocusSelector = '[data-testid="chat-input"]',
 }: {
-  option: ZCodeConfigOption;
+  option: ModeConfigOption;
   onValueChange: (value: string) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -251,10 +251,10 @@ export function ConfigSelect({
   triggerSize?: ConfigSelectTriggerSize;
   leadingIcon?: LucideIcon;
   labelVisibilityClassName?: string;
-  provider?: ZCodeProvider;
+  provider?: ModeProvider;
   restoreFocusSelector?: string | null;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
 
   // 注意：handleContentKeyDown 必须在 early return 之前调用。
   // 之前 `if (option.type !== "select" ...) return null` 写在 useCallback 之前，

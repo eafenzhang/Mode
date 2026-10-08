@@ -42,14 +42,14 @@ import { settingsResourceRowInteraction } from "@/settings/settingsResourceRowIn
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   buildRegistryModelSelectGroups,
   resolveModelDisplayName,
 } from "@/lib/modelSelectionGroups.js";
 import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
-import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
-import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
+import { parseModelPickerValue } from "@/lib/modeSessionProjection.js";
+import { encodeCustomModelValue } from "@/lib/modeCustomModelValue.js";
 import { SUBAGENT_COLORS, SUBAGENT_COLOR_CLASS } from "@/lib/subagentColors.js";
 import { SettingsResourceGroupHeader } from "@/settings/SettingsResourceGroupHeader.js";
 import { SettingsResourceHeaderActions } from "@/settings/SettingsResourceHeaderActions.js";
@@ -470,7 +470,7 @@ function AgentListRow({
   onEdit: (agent: AgentSummary) => void;
   onToggle: (agent: AgentSummary, enabled: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const editable = isEditableUserAgent(agent);
   const showEnabledToggle = supportsEnabledToggle(agent);
   const rowEditable = editable && !isOperating;
@@ -605,7 +605,7 @@ function SubagentModelOverrideControl({
   ) => Promise<void>;
 }) {
   const recommendStartPlan = useStartPlanRecommendation(modelSelectionView, "subagent");
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [pending, setPending] = useState(false);
   const [config, setConfig] = useState<{
     model?: string;
@@ -813,7 +813,7 @@ function SubagentForm({
   onScopeKeyChange: (scopeKey: string) => void;
 }) {
   const recommendStartPlan = useStartPlanRecommendation(modelSelectionView, "subagent");
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const initialFormStateKey = createSubagentFormInitialStateKey(initial);
   const initialFormState = useMemo(
     () => createSubagentFormInitialState(initial),
@@ -1264,7 +1264,7 @@ function SubagentForm({
 }
 
 export function SubagentsSection({ onManageModels }: SubagentsSectionProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const confirmDialog = useConfirmDialog();
   const plugins = usePluginManagementStore((state) => state.plugins);
   const availablePlugins = usePluginManagementStore((state) => state.availablePlugins);

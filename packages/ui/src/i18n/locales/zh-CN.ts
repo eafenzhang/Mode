@@ -567,7 +567,7 @@ const zhCN: Record<string, string> = {
   "bots.setup.guide.webhook.bind.2":
     '请求体至少带上当前 botId、稳定的 userId、`chatType: "private"`，并把 text 设成 {command}。',
   "bots.setup.guide.webhook.bind.3":
-    "如果配置了 secret，请同时在请求头里带上 `x-zcode-bot-secret`；绑定成功后再回到这里完成设置。",
+    "如果配置了 secret，请同时在请求头里带上 `x-mode-bot-secret`；绑定成功后再回到这里完成设置。",
   "bots.setup.footer.choose": "选择一个已支持的渠道后继续。",
   "bots.setup.footer.create": "测试通过后才会进入绑定步骤。",
   "bots.setup.testSuccess": "连通性测试通过",
@@ -1499,7 +1499,7 @@ const zhCN: Record<string, string> = {
   "titleBar.menu.help.exportLogs": "导出日志",
   "titleBar.menu.help.toggleDevTools": "切换开发者工具",
   "titleBar.menu.help.resourceManager": "资源管理器",
-  "titleBar.menu.help.toggleZCodeStdioTap": "抓取 Agent stdio 通信",
+  "titleBar.menu.help.toggleModeStdioTap": "抓取 Agent stdio 通信",
   "titleBar.menu.help.clearAllData": "清除所有数据",
 
   // 目录浏览
@@ -2212,11 +2212,11 @@ const zhCN: Record<string, string> = {
   "settings.toolGroupingChanges": "分组文件更改",
   "settings.toolGroupingChangesDescription":
     "将连续的 Write、Edit 和 ApplyPatch 调用聚合为 Changes 分组。",
-  "settings.zcodeInteractionBehavior": "交互行为",
-  "settings.zcodeInteractionBehaviorDescription":
+  "settings.modeInteractionBehavior": "交互行为",
+  "settings.modeInteractionBehaviorDescription":
     "在 Mode 运行时将后续操作加入队列，或引导至下一轮工具调用后运行。",
-  "settings.zcodeInteractionBehavior.option.queue": "队列",
-  "settings.zcodeInteractionBehavior.option.guide": "引导",
+  "settings.modeInteractionBehavior.option.queue": "队列",
+  "settings.modeInteractionBehavior.option.guide": "引导",
   "settings.askUserQuestionAutoResolution": "提问自动继续",
   "settings.askUserQuestionAutoResolutionDescription":
     "开启后，Agent 提问 5 分钟未回答会自动继续；关闭后，当前和后续提问会一直等待你的回答。",
@@ -3145,8 +3145,8 @@ const zhCN: Record<string, string> = {
   "sidebar.usage.plan.weekly": "每周",
   "sidebar.usage.plan.toolCalls": "工具调用",
   "sidebar.usage.plan.mcp": "Mode MCP",
-  "sidebar.usage.plan.zcodeMcp": "Mode MCP",
-  "sidebar.usage.plan.zcodeMcpDescription": "Mode 预置插件 MCP 每日合计额度",
+  "sidebar.usage.plan.modeMcp": "Mode MCP",
+  "sidebar.usage.plan.modeMcpDescription": "Mode 预置插件 MCP 每日合计额度",
   "chat.planUsage.title": "套餐用量",
   "chat.planUsage.titleWithPlan": "{plan} 套餐用量",
   "chat.planUsage.providerFallback": "当前供应商",
@@ -3746,7 +3746,7 @@ const zhCN: Record<string, string> = {
   "settings.commands.description":
     "管理 Mode Agent 的 .md 命令文件。命令可通过 /command-name 在聊天中调用。",
   "settings.commands.sourceFilterLabel": "来源筛选",
-  "settings.commands.source.zcodeAgent": "Mode Agent",
+  "settings.commands.source.modeAgent": "Mode Agent",
   "settings.commands.add": "新建",
   "settings.commands.addNew": "新建命令",
   "settings.commands.addDescription": "填写命令名称和提示词，保存后返回列表。",
@@ -3896,7 +3896,7 @@ const zhCN: Record<string, string> = {
   "settingsSync.action.importSelected": "一键导入已选内容",
   "settingsSync.action.importing": "导入进行中",
   "settingsSync.action.finish": "开始使用",
-  "settingsSync.agent.zcode": "Mode Agent",
+  "settingsSync.agent.mode": "Mode Agent",
   "settingsSync.agent.claudeCode": "Claude Code",
   "settingsSync.agent.codexCli": "Codex CLI",
   "settingsSync.agent.openCode": "OpenCode",
@@ -5469,35 +5469,35 @@ const zhCN: Record<string, string> = {
   "chat.permission.switchMode.placeholder": "实施计划",
 
   // Mode Agent
-  "zcode.unavailable": "AI 代理不可用",
-  "zcode.initFailed": "启动 AI 代理失败",
-  "zcode.error.TASK_OWNED_BY_OTHER_HOST": "该任务正在另一个已连接视图中运行。",
-  "zcode.error.STALE_TASK_OWNER_COMMAND": "该操作属于旧的运行轮次，已忽略。",
-  "zcode.error.NO_ACTIVE_TASK_OWNER": "当前没有可处理该操作的任务所有者。",
-  "zcode.error.OWNER_COMMAND_FAILED": "任务所有者未能完成该操作。",
-  "zcode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
+  "mode.unavailable": "AI 代理不可用",
+  "mode.initFailed": "启动 AI 代理失败",
+  "mode.error.TASK_OWNED_BY_OTHER_HOST": "该任务正在另一个已连接视图中运行。",
+  "mode.error.STALE_TASK_OWNER_COMMAND": "该操作属于旧的运行轮次，已忽略。",
+  "mode.error.NO_ACTIVE_TASK_OWNER": "当前没有可处理该操作的任务所有者。",
+  "mode.error.OWNER_COMMAND_FAILED": "任务所有者未能完成该操作。",
+  "mode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
     "当前附件总量过大，请移除部分附件或压缩后重试。",
-  "zcode.error.MEDIA_BUDGET_CURRENT_IMAGE_TOO_LARGE":
+  "mode.error.MEDIA_BUDGET_CURRENT_IMAGE_TOO_LARGE":
     "当前图片附件过大，请移除部分图片或压缩后重试。",
-  "zcode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
+  "mode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
     "当前视频附件过大，请移除部分视频或压缩后重试。",
-  "zcode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
+  "mode.error.MODE_RUNTIME_MODEL_UNAVAILABLE":
     "当前使用的模型已不可用，请从当前模型列表中选择一个可用模型后继续。",
-  "zcode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
+  "mode.error.MODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "当前模型不可用，请检查是否已将该 API Key 添加到项目成员列表",
-  "zcode.error.providerBusiness.1006": "API Key 已失效，请重新配置后再试。",
-  "zcode.error.providerBusiness.1005": "今日免费计划额度已用完。请切换模型或等待额度恢复。",
-  "zcode.error.providerBusiness.3006": "当前模型不在可用范围内，请切换到允许的模型后重试。",
-  "zcode.error.providerBusiness.3002": "请求过于频繁，请稍后重试。",
-  "zcode.error.providerBusiness.3001": "请求参数错误，请检查输入后重试。",
-  "zcode.error.providerBusiness.3007": "请求被网关安全校验拒绝，请稍后重试或联系支持。",
-  "zcode.error.providerBusiness.3008": "当前系统繁忙，请切换模型或稍后再试。",
-  "zcode.error.providerBusiness.3009": "当前系统繁忙，请切换模型或稍后再试。",
-  "zcode.error.providerBusiness.3010": "当前系统繁忙，请切换模型或稍后再试。",
-  "zcode.error.providerBusiness.3102": "已超过单次最长运行时间，请创建新的闲时任务继续。",
-  "zcode.error.modelSuspiciousEmpty": "模型未返回任何内容。",
-  "zcode.error.providerBusiness.2007": "上游服务暂时不可用，请稍后重试。",
-  "zcode.error.providerBusiness.429": "请求过于频繁，请稍后重试。",
+  "mode.error.providerBusiness.1006": "API Key 已失效，请重新配置后再试。",
+  "mode.error.providerBusiness.1005": "今日免费计划额度已用完。请切换模型或等待额度恢复。",
+  "mode.error.providerBusiness.3006": "当前模型不在可用范围内，请切换到允许的模型后重试。",
+  "mode.error.providerBusiness.3002": "请求过于频繁，请稍后重试。",
+  "mode.error.providerBusiness.3001": "请求参数错误，请检查输入后重试。",
+  "mode.error.providerBusiness.3007": "请求被网关安全校验拒绝，请稍后重试或联系支持。",
+  "mode.error.providerBusiness.3008": "当前系统繁忙，请切换模型或稍后再试。",
+  "mode.error.providerBusiness.3009": "当前系统繁忙，请切换模型或稍后再试。",
+  "mode.error.providerBusiness.3010": "当前系统繁忙，请切换模型或稍后再试。",
+  "mode.error.providerBusiness.3102": "已超过单次最长运行时间，请创建新的闲时任务继续。",
+  "mode.error.modelSuspiciousEmpty": "模型未返回任何内容。",
+  "mode.error.providerBusiness.2007": "上游服务暂时不可用，请稍后重试。",
+  "mode.error.providerBusiness.429": "请求过于频繁，请稍后重试。",
 
   // 调试信息栏
   "debugInfo.taskId": "Task ID",
@@ -6013,7 +6013,7 @@ const zhCN: Record<string, string> = {
   "dataRoot.loading": "正在准备…",
   "dataRoot.title": "数据存储设置",
   "dataRoot.status.absentWithLegacy":
-    "检测到旧版 Mode / ZCode 的数据。你可以把它复制到新的数据目录，也可以全新开始；无论选择哪种，旧目录都会原样保留。",
+    "检测到旧版 Mode / Mode 的数据。你可以把它复制到新的数据目录，也可以全新开始；无论选择哪种，旧目录都会原样保留。",
   "dataRoot.status.unowned":
     "当前数据目录包含无法识别归属的数据（可能来自其它分支或手动创建）。继续操作前会先整体备份该目录，不会删除或合并。",
   "dataRoot.status.corrupt":
@@ -6022,7 +6022,7 @@ const zhCN: Record<string, string> = {
   "dataRoot.candidates.title": "可迁移的旧数据",
   "dataRoot.candidate.size": "大小",
   "dataRoot.candidate.modified": "最后修改",
-  "dataRoot.candidate.empty": "未找到旧的 ~/.zcode 数据目录，只能全新开始。",
+  "dataRoot.candidate.empty": "未找到旧的 ~/.mode 数据目录，只能全新开始。",
   "dataRoot.disk.insufficient":
     "磁盘空间不足：需要约 {required}，当前可用 {free}。请清理空间后重试。",
   "dataRoot.progress.preparing": "正在准备复制…",

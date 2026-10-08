@@ -9,7 +9,7 @@ import {
 } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function DataBaseDirControl({
   dataBaseDir,
@@ -25,7 +25,7 @@ export function DataBaseDirControl({
   /** 打开“从旧数据目录再次导入”独立窗口；仅 Desktop 提供。 */
   onOpenDataRootImport?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const effectiveDir = dataBaseDir || defaultHomeDir;
   const [localDataBaseDir, setLocalDataBaseDir] = useState(effectiveDir);
   const [isPickingDataBaseDir, setIsPickingDataBaseDir] = useState(false);

@@ -10,9 +10,9 @@ import {
   ISettingService,
   ICredentialService,
   IBroadcastService,
-  IZCodeTaskService,
-  IZCodeAgentService,
-  IZCodeSessionService,
+  IModeTaskService,
+  IModeAgentService,
+  IModeSessionService,
   IConversationShareService,
   IBotsService,
   IFileWatcherService,
@@ -69,10 +69,10 @@ import {
 } from "@mode/services/node";
 import {
   BIGMODEL_PROVIDER_ID,
-  buildRuntimeZCodeApiUrl,
+  buildRuntimeModeApiUrl,
   DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   type ProviderFamilyDomain,
-  type ZCodeSessionRuntimePreferencesResult,
+  type ModeSessionRuntimePreferencesResult,
   ZAI_PROVIDER_ID,
 } from "@mode/shared";
 import { assertLegacyRemoteWorkspaceRpcContract } from "./legacyRemoteWorkspaceRpcContract.js";
@@ -89,7 +89,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
   connectionServices: IServiceAccessor;
   sourceServices?: ServiceCollection;
   parentPort: Parameters<typeof createBroadcastService>[0];
-  createReportingRemoteZCodeTaskService: <T extends object>(service: T) => T;
+  createReportingRemoteModeTaskService: <T extends object>(service: T) => T;
   createRemotePromptAttachmentTaskService: <T extends object>(service: T) => T;
   createRemotePromptAttachmentSessionService: <T extends object>(service: T) => T;
   promptAttachmentTransferService: IPromptAttachmentTransferService;
@@ -183,27 +183,27 @@ export function createRemoteWorkspaceServiceCollection(params: {
   const conversationShareClient = new ConversationShareHttpClient({
     // 远端 workspace 的分享也必须使用真实 API；本地 Mock 仅用于单测，不生成无法跨进程访问的链接。
     apiClient: localApiClient,
-    baseUrl: buildRuntimeZCodeApiUrl(process.env, "/api/v1"),
+    baseUrl: buildRuntimeModeApiUrl(process.env, "/api/v1"),
     tokenProvider: async () =>
       (await localCredentialService.load(MODE_JWT_TOKEN_KEY))?.trim() || null,
   });
   const conversationShareService = new ConversationShareService({
-    zcodeAgentService: params.connectionServices.zcodeAgentService,
+    modeAgentService: params.connectionServices.modeAgentService,
     client: conversationShareClient,
     artifactSource: createRemoteConversationShareArtifactSource(
       params.connectionServices.fileService,
     ),
   });
-  const reportingRemoteZCodeTaskService = params.createReportingRemoteZCodeTaskService(
-    params.connectionServices.zcodeTaskService,
+  const reportingRemoteModeTaskService = params.createReportingRemoteModeTaskService(
+    params.connectionServices.modeTaskService,
   );
   // 手机 remote 的 replayable mirror 在 reporting wrapper 中发布用户消息；
   // 附件物化必须包在 reporting 外层，确保 mirror 和真正发给远端 agent 的 prompt 使用同一份远端路径。
-  const remoteZCodeTaskService = params.createRemotePromptAttachmentTaskService(
-    reportingRemoteZCodeTaskService,
+  const remoteModeTaskService = params.createRemotePromptAttachmentTaskService(
+    reportingRemoteModeTaskService,
   );
-  const remoteZCodeSessionService = params.createRemotePromptAttachmentSessionService(
-    params.connectionServices.zcodeSessionService,
+  const remoteModeSessionService = params.createRemotePromptAttachmentSessionService(
+    params.connectionServices.modeSessionService,
   );
   const remoteProviderProvisioningService =
     createRemoteProviderProvisioningExecutorFromWorkspace(params);
@@ -211,11 +211,11 @@ export function createRemoteWorkspaceServiceCollection(params: {
   // desktop-attached remote 的 Agent 运行在远端，但 app-global 设置权威仍在
   // desktop shared Host。通过窄化的 runtime-preferences 请求原路返回，避免远端读取自己的 setting。
   const { onError } = params.runtimePreferencesBridge;
-  params.connectionServices.zcodeAgentService.onDynamicSessionRuntimePreferencesRequest()(
+  params.connectionServices.modeAgentService.onDynamicSessionRuntimePreferencesRequest()(
     (request) => {
       const startedAt = Date.now();
       const requestContext = {
-        event: "zcode_protocol.runtime_preferences.host_request_received",
+        event: "mode_protocol.runtime_preferences.host_request_received",
         module: "desktop.host.remote_workspace",
         requestId: request.requestId,
         scope: request.scope,
@@ -256,7 +256,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
           );
         };
         let resolution:
-          | { status: "resolved"; preferences: ZCodeSessionRuntimePreferencesResult }
+          | { status: "resolved"; preferences: ModeSessionRuntimePreferencesResult }
           | { status: "failed"; message: string };
         try {
           // 与本地 Host 同源：固定预算不依赖配置网关，远程/手机偏好响应不再串行等待网络。
@@ -288,7 +288,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
           });
         }
         // 只把设置读取失败编码为 -32603；发送失败交给最终 onError 记录，不能重试同一请求。
-        await params.connectionServices.zcodeAgentService.respondSessionRuntimePreferences({
+        await params.connectionServices.modeAgentService.respondSessionRuntimePreferences({
           requestId: request.requestId,
           resolution,
         });
@@ -310,7 +310,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
 
   // Web 手机远控进入 SSH task 时只连到 remote workspace host，
   // 没有桌面 renderer 那层 `baseServices + remoteServices` 合并。
-  // 因此这里为 remote workspace host 补齐本地全局 channel；文件、终端、ZCode Agent 仍来自远端，
+  // 因此这里为 remote workspace host 补齐本地全局 channel；文件、终端、Mode Agent 仍来自远端，
   // 设置、凭据、OAuth、模型供应商和 settings-sync 继续读写本机配置。
   const services = new ServiceCollection()
     .register(IFileService, params.connectionServices.fileService)
@@ -321,15 +321,15 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(ISettingService, localSettingService)
     .register(ICredentialService, localCredentialService)
     .register(IBroadcastService, localBroadcastService)
-    .register(IZCodeTaskService, remoteZCodeTaskService)
-    .register(IZCodeAgentService, params.connectionServices.zcodeAgentService)
-    .register(IZCodeSessionService, remoteZCodeSessionService)
+    .register(IModeTaskService, remoteModeTaskService)
+    .register(IModeAgentService, params.connectionServices.modeAgentService)
+    .register(IModeSessionService, remoteModeSessionService)
     .register(IConversationShareService, conversationShareService)
     .register(
       IBotsService,
       createBotsService({
         credentialService: localCredentialService,
-        zcodeTaskService: remoteZCodeTaskService,
+        modeTaskService: remoteModeTaskService,
         broadcastService: localBroadcastService,
         settingService: localSettingService,
         modelSelectionService: params.connectionServices.modelSelectionService,
@@ -356,7 +356,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
         apiClient: localApiClient,
         accountRequestAuthService: localAccountRequestAuthService,
         credentialService: localCredentialService,
-        zcodeAgentService: params.connectionServices.zcodeAgentService,
+        modeAgentService: params.connectionServices.modeAgentService,
         // 余额查询读取远端 Environment 自己的 Provider Settings，而不是 Desktop 本地配置。
         resolveProviderBalanceTarget: createProviderBalanceTargetResolver(
           params.connectionServices.providerSettingsService,

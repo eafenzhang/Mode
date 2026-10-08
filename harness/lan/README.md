@@ -44,7 +44,7 @@ node --import tsx packages/desktop/scripts/verify-lan-attach.mjs <host> <port> <
 ## 已知限制（v1）
 
 - 只做 **UDP 广播发现**（零依赖）；跨网段、VPN/Tailscale 等场景请用手动填地址。
-- 服务方目前只有 **Mode 桌面端**（设置里的开关）；`zcode serve`/Web 版协议兼容但还没有开关。
+- 服务方目前只有 **Mode 桌面端**（设置里的开关）；`mode serve`/Web 版协议兼容但还没有开关。
 - 局域网连接暂不支持随消息**上传附件**（会给出明确报错），也不提供依赖本地 stdio backend 的
   能力（打开本地编辑器等）；文件、Git、终端、会话都走同一条受信通道，正常可用。
 - 目前「选择远程目录」在局域网连接下仍停在加载中：通道本身可用（见上面的校验脚本），

@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import {
   getBotReplyGranularitiesForProvider,
@@ -48,7 +48,7 @@ export function BotSummaryCard({
   onNameInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
   onPatchBot: (patch: Partial<BotConfig>) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const nameMeasureButtonRef = useRef<HTMLButtonElement | null>(null);
   const [nameEditorWidth, setNameEditorWidth] = useState<number | null>(null);
   const isBound = Boolean(bot.providerUserId);
@@ -167,7 +167,7 @@ export function BotReplyGranularityCard({
   bot: BotConfig;
   onPatchBot: (patch: Partial<BotConfig>) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const replyGranularities = getBotReplyGranularitiesForProvider(bot.provider);
   const selectedGranularity = getBotReplyGranularityEntryForProvider(bot.provider, bot.replyMode);
 
@@ -199,7 +199,7 @@ export function BotReplyGranularityCard({
 }
 
 export function BotDangerCard({ onDelete }: { onDelete: () => void }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
 
   return (
     <SettingsGroupCard>

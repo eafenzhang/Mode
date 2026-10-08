@@ -76,7 +76,7 @@ test("公开分段只认官方市场，随包官方清单不裁剪", async () =>
 
   const snapshot = await readFile(
     new URL(
-      "../../../apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
+      "../../../apps/mode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
       import.meta.url,
     ),
     "utf8",
@@ -117,7 +117,7 @@ test("插件图标按插件名随包兜底", async () => {
 test("CLI 加载器搜索 .agents/plugins/marketplace.json（Codex 约定）", async () => {
   const source = await readFile(
     new URL(
-      "../../../apps/zcode-cli/packages/adapters/src/plugins/marketplace.ts",
+      "../../../apps/mode-cli/packages/adapters/src/plugins/marketplace.ts",
       import.meta.url,
     ),
     "utf8",
@@ -137,10 +137,10 @@ test("CLI 加载器搜索 .agents/plugins/marketplace.json（Codex 约定）", a
     findBlock.includes("CODEX_MARKETPLACE_FILE"),
     "manifest 搜索候选必须包含 Codex 约定位置",
   );
-  // 已有 ZCode/Claude 布局的解析顺序不能被改变：Codex 候选放在最后。
+  // 已有 Mode/Claude 布局的解析顺序不能被改变：Codex 候选放在最后。
   assert.ok(
     findBlock.indexOf("MARKETPLACE_FILE") < findBlock.indexOf("CODEX_MARKETPLACE_FILE"),
-    "Codex 候选必须排在 ZCode/Claude 布局之后",
+    "Codex 候选必须排在 Mode/Claude 布局之后",
   );
 });
 
@@ -148,7 +148,7 @@ test("CLI 加载器搜索 .agents/plugins/marketplace.json（Codex 约定）", a
 test("加载器支持 raw manifest 快路径与 Codex local 源按需检出", async () => {
   const source = await readFile(
     new URL(
-      "../../../apps/zcode-cli/packages/adapters/src/plugins/marketplace.ts",
+      "../../../apps/mode-cli/packages/adapters/src/plugins/marketplace.ts",
       import.meta.url,
     ),
     "utf8",
@@ -177,7 +177,7 @@ test("加载器支持 raw manifest 快路径与 Codex local 源按需检出", as
 test("目录条目自带 icon 解析成仓库直链；只有真的没有原始图标才用字母兜底", async () => {
   const source = await readFile(
     new URL(
-      "../../../apps/zcode-cli/packages/adapters/src/plugins/marketplace-plugin-icons.ts",
+      "../../../apps/mode-cli/packages/adapters/src/plugins/marketplace-plugin-icons.ts",
       import.meta.url,
     ),
     "utf8",
@@ -219,7 +219,7 @@ test("目录条目自带 icon 解析成仓库直链；只有真的没有原始�
 // 只剩「官方市场已下线」空状态，和「公开是官方插件」的诉求正相反）。
 test("官方市场投影：随包清单并入候选，总览不再过滤官方条目", async () => {
   const bootstrap = await readFile(
-    new URL("../../../apps/zcode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
+    new URL("../../../apps/mode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
     "utf8",
   );
   assert.ok(
@@ -252,7 +252,7 @@ test("需编程套餐的插件不进候选与商店列表", async () => {
   assert.equal(listingRequiresPaidPlan(undefined), false, "缺标记时不得误伤（fail open 会让过滤失效，必须判 false 而不报错）");
 
   const bootstrap = await readFile(
-    new URL("../../../apps/zcode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
+    new URL("../../../apps/mode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
     "utf8",
   );
   assert.ok(
@@ -272,7 +272,7 @@ test("需编程套餐的插件不进候选与商店列表", async () => {
 
   const snapshot = await readFile(
     new URL(
-      "../../../apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
+      "../../../apps/mode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
       import.meta.url,
     ),
     "utf8",
@@ -288,7 +288,7 @@ test("需编程套餐的插件不进候选与商店列表", async () => {
 // 「Bundled plugin cache directory missing」的安装入口。
 test("未随包的第一方插件标为不可安装，而不是让用户点了报错", async () => {
   const adapter = await readFile(
-    new URL("../../../apps/zcode-cli/packages/adapters/src/plugins/marketplace.ts", import.meta.url),
+    new URL("../../../apps/mode-cli/packages/adapters/src/plugins/marketplace.ts", import.meta.url),
     "utf8",
   );
   assert.ok(
@@ -301,7 +301,7 @@ test("未随包的第一方插件标为不可安装，而不是让用户点了�
   );
 
   const bootstrap = await readFile(
-    new URL("../../../apps/zcode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
+    new URL("../../../apps/mode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
     "utf8",
   );
   const callSites = bootstrap.split("hasBundledPluginPackage({").length - 1;
@@ -317,7 +317,7 @@ test("未随包的第一方插件标为不可安装，而不是让用户点了�
     "商店卡片遇到这类条目要换成不可点的说明，而不是安装按钮",
   );
   const protocol = await readFile(
-    new URL("../../../packages/shared/src/zcode-protocol/index.ts", import.meta.url),
+    new URL("../../../packages/shared/src/mode-protocol/index.ts", import.meta.url),
     "utf8",
   );
   assert.ok(protocol.includes("bundledUnavailable: z.boolean().optional()"), "协议要带上这个标记");

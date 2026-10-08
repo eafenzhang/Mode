@@ -121,12 +121,12 @@ if (process.platform === "darwin" && existsSync(electronBinary)) {
   const electronAppPath = resolve(electronBinary, "../../..");
   const devBundle = await prepareDevElectronAppBundle({
     electronAppPath,
-    runtimeRoot: resolve(root, "../../.zcode-runtime/desktop-dev"),
+    runtimeRoot: resolve(root, "../../.mode-runtime/desktop-dev"),
     electronVersion: electronPackage.version,
     arch: process.arch,
   });
   electronCommand = devBundle.executablePath;
-  console.log(`[dev] Prepared macOS ZCode Dev bundle: ${devBundle.appPath}`);
+  console.log(`[dev] Prepared macOS Mode Dev bundle: ${devBundle.appPath}`);
 }
 
 const electron = spawn(electronCommand, ["."], {

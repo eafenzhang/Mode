@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import {
-  normalizeAgentProviderToZCodeAgent,
+  normalizeAgentProviderToModeAgent,
   MODE_AGENT_PROVIDER,
-  type ZCodeProvider,
+  type ModeProvider,
   type SkillSummary,
   type SkillsCapability,
 } from "@mode/shared";
@@ -15,22 +15,22 @@ interface SkillStoreState {
   workspaceIdentity: string | null;
   loadedWorkspacePath: string | null;
   loadedWorkspaceIdentity: string | null;
-  provider: ZCodeProvider;
-  loadedProvider: ZCodeProvider | null;
+  provider: ModeProvider;
+  loadedProvider: ModeProvider | null;
   skills: SkillSummary[];
   capability: SkillsCapability | null;
   loading: boolean;
   error: string | null;
   initialize: (
     workspacePath: string,
-    providerOrSkillsService: ZCodeProvider | ISkillsService,
+    providerOrSkillsService: ModeProvider | ISkillsService,
     maybeSkillsService?: ISkillsService,
     workspaceIdentity?: string,
   ) => Promise<void>;
   refresh: (skillsService: ISkillsService, workspaceIdentity?: string) => Promise<void>;
   setEnabled: (
     skillId: string,
-    providerOrEnabled: ZCodeProvider | boolean,
+    providerOrEnabled: ModeProvider | boolean,
     scopeOrSkillsService: SkillSummary["scope"] | ISkillsService,
     enabledOrSkillsService?: boolean | ISkillsService,
     maybeSkillsService?: ISkillsService,
@@ -42,7 +42,7 @@ const inFlightSkillLoads = new Map<string, ReturnType<ISkillsService["list"]>>()
 
 function getSkillLoadKey(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: ModeProvider,
   workspaceIdentity?: string,
 ): string {
   return `${workspaceIdentity?.trim() || workspacePath}::${provider}`;
@@ -50,7 +50,7 @@ function getSkillLoadKey(
 
 function loadSkillsOnce(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: ModeProvider,
   skillsService: ISkillsService,
   workspaceIdentity?: string,
   options: { bypassCache?: boolean } = {},
@@ -87,13 +87,13 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
   error: null,
   async initialize(
     workspacePath: string,
-    providerOrSkillsService: ZCodeProvider | ISkillsService,
+    providerOrSkillsService: ModeProvider | ISkillsService,
     maybeSkillsService?: ISkillsService,
     workspaceIdentity?: string,
   ) {
     const currentState = get();
     const hasProvider = typeof providerOrSkillsService === "string";
-    const provider = normalizeAgentProviderToZCodeAgent(
+    const provider = normalizeAgentProviderToModeAgent(
       hasProvider ? providerOrSkillsService : MODE_AGENT_PROVIDER,
     );
     const skillsService = hasProvider ? maybeSkillsService : providerOrSkillsService;
@@ -168,7 +168,7 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
     }
     const workspaceIdentityFromState =
       workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    const provider = normalizeAgentProviderToZCodeAgent(get().provider);
+    const provider = normalizeAgentProviderToModeAgent(get().provider);
     const hasCachedSkills = get().skills.length > 0;
     // 开关技能后会触发 refresh，之前每次都把 loading 置 true，
     // Settings 列表会先切到“加载中”再切回数据，用户看到整列表闪烁。
@@ -211,7 +211,7 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
   },
   async setEnabled(
     skillId: string,
-    providerOrEnabled: ZCodeProvider | boolean,
+    providerOrEnabled: ModeProvider | boolean,
     scopeOrSkillsService: SkillSummary["scope"] | ISkillsService,
     enabledOrSkillsService?: boolean | ISkillsService,
     maybeSkillsService?: ISkillsService,
@@ -224,7 +224,7 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
     const workspaceIdentityFromState =
       workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
     const legacyCall = typeof providerOrEnabled === "boolean";
-    const provider = normalizeAgentProviderToZCodeAgent(
+    const provider = normalizeAgentProviderToModeAgent(
       legacyCall ? get().provider : providerOrEnabled,
     );
     const scope = legacyCall ? undefined : (scopeOrSkillsService as SkillSummary["scope"]);

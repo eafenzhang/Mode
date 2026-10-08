@@ -5,7 +5,7 @@ import type {
   SessionPhase,
   SessionSummary,
   UserInputRequestPayload,
-} from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 import type { IntlInstance } from "@/i18n/index.js";
 
 type FormatMessage = IntlInstance["formatMessage"];

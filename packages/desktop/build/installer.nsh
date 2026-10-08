@@ -15,7 +15,7 @@
 !endif
 
 !ifndef ZCODE_INSTALL_MANIFEST_NAME
-  !define ZCODE_INSTALL_MANIFEST_NAME ".zcode-install-manifest"
+  !define ZCODE_INSTALL_MANIFEST_NAME ".mode-install-manifest"
 !endif
 
 !ifndef ZCODE_UNINSTALLER_LOG_PATH
@@ -41,21 +41,21 @@
     Push $R1
     Push $R2
 
-    StrCmp $ZCodeUninstallerLogUnavailable "1" zcodeUninstallerLogDone
+    StrCmp $ZCodeUninstallerLogUnavailable "1" modeUninstallerLogDone
     ClearErrors
     FileOpen $R1 "${ZCODE_UNINSTALLER_LOG_PATH}" a
-    IfErrors zcodeUninstallerLogFailed zcodeUninstallerLogWrite
-    zcodeUninstallerLogWrite:
+    IfErrors modeUninstallerLogFailed modeUninstallerLogWrite
+    modeUninstallerLogWrite:
       System::Call "kernel32::GetCurrentProcessId() i.R0"
       FileSeek $R1 0 END
       FileWrite $R1 "[pid=$R0] $R9$\r$\n"
       FileClose $R1
-      Goto zcodeUninstallerLogDone
-    zcodeUninstallerLogFailed:
+      Goto modeUninstallerLogDone
+    modeUninstallerLogFailed:
       ; 日志不可写不应改变卸载结果，保留原始清理错误供外层处理。
       StrCpy $ZCodeUninstallerLogUnavailable "1"
       ClearErrors
-    zcodeUninstallerLogDone:
+    modeUninstallerLogDone:
       Pop $R2
       Pop $R1
       Pop $R0
@@ -80,25 +80,25 @@
     !endif
     ClearErrors
     FileOpen $R0 "$INSTDIR\${ZCODE_INSTALL_MANIFEST_NAME}" r
-    IfErrors zcodeManifestMissing
+    IfErrors modeManifestMissing
 
-    zcodeManifestRead:
+    modeManifestRead:
       ClearErrors
       FileRead $R0 $R1
-      IfErrors zcodeManifestClose
+      IfErrors modeManifestClose
       ; NSIS FileRead 保留行尾 CRLF；打包清单统一使用换行结尾，先去掉两个行尾字符。
       StrCpy $R1 $R1 -2
-      StrCmp $R1 "" zcodeManifestRead
+      StrCmp $R1 "" modeManifestRead
 
       ; 拒绝绝对路径和 .. 前缀，避免损坏或篡改清单越界删除。
       StrCpy $R2 $R1 1
-      StrCmp $R2 "\\" zcodeManifestRead
-      StrCmp $R2 "/" zcodeManifestRead
+      StrCmp $R2 "\\" modeManifestRead
+      StrCmp $R2 "/" modeManifestRead
       StrCpy $R2 $R1 2
-      StrCmp $R2 ".." zcodeManifestRead
-      StrCmp $R1 "${UNINSTALL_FILENAME}" zcodeManifestRead
+      StrCmp $R2 ".." modeManifestRead
+      StrCmp $R1 "${UNINSTALL_FILENAME}" modeManifestRead
       GetFullPathName $R2 "$INSTDIR\$R1"
-      StrCmp $R2 "$INSTDIR\$R1" 0 zcodeManifestRead
+      StrCmp $R2 "$INSTDIR\$R1" 0 modeManifestRead
 
       ; 当前版本卸载器与外层安装器是两个进程；逐项记录到卸载器日志，便于核对真正尝试删除的文件。
       !ifdef BUILD_UNINSTALLER
@@ -106,28 +106,28 @@
       !endif
       ClearErrors
       Delete "$INSTDIR\$R1"
-      IfErrors zcodeManifestDeleteFailed
-      Goto zcodeManifestRead
+      IfErrors modeManifestDeleteFailed
+      Goto modeManifestRead
 
-    zcodeManifestDeleteFailed:
+    modeManifestDeleteFailed:
       FileClose $R0
       !ifdef BUILD_UNINSTALLER
         !insertmacro ZCodeReportUninstallerStage "cleanup-failed reason=permission-or-disk-space"
       !endif
       Abort "无法删除旧版本文件：$INSTDIR\$R1"
 
-    zcodeManifestClose:
+    modeManifestClose:
       FileClose $R0
-      Goto zcodeManifestDone
+      Goto modeManifestDone
 
-    zcodeManifestMissing:
+    modeManifestMissing:
       ; 首次从旧版本升级时没有清单，不能猜测所有权并删除用户文件。
       !ifdef BUILD_UNINSTALLER
         !insertmacro ZCodeReportUninstallerStage "cleanup-skipped reason=manifest-missing action=preserve"
       !endif
       ClearErrors
 
-    zcodeManifestDone:
+    modeManifestDone:
       !ifdef BUILD_UNINSTALLER
         !insertmacro customRemoveFilesDiagnosticsComplete
       !endif
@@ -159,29 +159,29 @@
     Push $R1
     Push $R2
 
-    StrCmp $ZCodeInstallerLogPath "" zcodeInstallerLogDone
-    StrCmp $ZCodeInstallerLogUnavailable "1" zcodeInstallerLogDone
+    StrCmp $ZCodeInstallerLogPath "" modeInstallerLogDone
+    StrCmp $ZCodeInstallerLogUnavailable "1" modeInstallerLogDone
     StrCpy $R2 0
-    zcodeInstallerLogOpen:
+    modeInstallerLogOpen:
       ClearErrors
       FileOpen $R1 $ZCodeInstallerLogPath a
-      IfErrors zcodeInstallerLogRetry zcodeInstallerLogWrite
-    zcodeInstallerLogRetry:
+      IfErrors modeInstallerLogRetry modeInstallerLogWrite
+    modeInstallerLogRetry:
       IntOp $R2 $R2 + 1
-      IntCmp $R2 3 zcodeInstallerLogFailed zcodeInstallerLogWait zcodeInstallerLogFailed
-    zcodeInstallerLogWait:
+      IntCmp $R2 3 modeInstallerLogFailed modeInstallerLogWait modeInstallerLogFailed
+    modeInstallerLogWait:
       Sleep 50
-      Goto zcodeInstallerLogOpen
-    zcodeInstallerLogWrite:
+      Goto modeInstallerLogOpen
+    modeInstallerLogWrite:
       System::Call "kernel32::GetCurrentProcessId() i.R0"
       FileSeek $R1 0 END
       FileWrite $R1 "[pid=$R0] $R9$\r$\n"
       FileClose $R1
-      Goto zcodeInstallerLogDone
-    zcodeInstallerLogFailed:
+      Goto modeInstallerLogDone
+    modeInstallerLogFailed:
       StrCpy $ZCodeInstallerLogUnavailable "1"
       ClearErrors
-    zcodeInstallerLogDone:
+    modeInstallerLogDone:
       Pop $R2
       Pop $R1
       Pop $R0
@@ -192,15 +192,15 @@
     StrCpy $ZCodeUninstallerDetailsUnavailable ""
     ClearErrors
     FileOpen $R0 "${ZCODE_UNINSTALLER_LOG_PATH}" w
-    IfErrors zcodeUninstallerDetailsResetFailed zcodeUninstallerDetailsResetSucceeded
-    zcodeUninstallerDetailsResetSucceeded:
+    IfErrors modeUninstallerDetailsResetFailed modeUninstallerDetailsResetSucceeded
+    modeUninstallerDetailsResetSucceeded:
       FileClose $R0
-      Goto zcodeUninstallerDetailsResetDone
-    zcodeUninstallerDetailsResetFailed:
+      Goto modeUninstallerDetailsResetDone
+    modeUninstallerDetailsResetFailed:
       ; 外层详情不能读取旧卸载器日志时仍继续安装，文件日志和退出码仍是最终依据。
       StrCpy $ZCodeUninstallerDetailsUnavailable "1"
       ClearErrors
-    zcodeUninstallerDetailsResetDone:
+    modeUninstallerDetailsResetDone:
   FunctionEnd
 
   Function ZCodeShowUninstallerCleanupDetails
@@ -208,21 +208,21 @@
     Push $R1
     Push $R2
 
-    StrCmp $ZCodeUninstallerDetailsUnavailable "1" zcodeShowUninstallerDetailsDone
+    StrCmp $ZCodeUninstallerDetailsUnavailable "1" modeShowUninstallerDetailsDone
     ClearErrors
     FileOpen $R0 "${ZCODE_UNINSTALLER_LOG_PATH}" r
-    IfErrors zcodeShowUninstallerDetailsDone
-    zcodeShowUninstallerDetailsRead:
+    IfErrors modeShowUninstallerDetailsDone
+    modeShowUninstallerDetailsRead:
       ClearErrors
       FileRead $R0 $R1
-      IfErrors zcodeShowUninstallerDetailsClose
-      StrCmp $R1 "" zcodeShowUninstallerDetailsRead
+      IfErrors modeShowUninstallerDetailsClose
+      StrCmp $R1 "" modeShowUninstallerDetailsRead
       SetDetailsPrint listonly
       DetailPrint "ZCodium: cleanup-log $R1"
-      Goto zcodeShowUninstallerDetailsRead
-    zcodeShowUninstallerDetailsClose:
+      Goto modeShowUninstallerDetailsRead
+    modeShowUninstallerDetailsClose:
       FileClose $R0
-    zcodeShowUninstallerDetailsDone:
+    modeShowUninstallerDetailsDone:
       Pop $R2
       Pop $R1
       Pop $R0
@@ -233,13 +233,13 @@
   !macroend
 
   !macro customInit
-    IfSilent zcodeInstallerInitSilent zcodeInstallerInitInteractive
-    zcodeInstallerInitSilent:
+    IfSilent modeInstallerInitSilent modeInstallerInitInteractive
+    modeInstallerInitSilent:
       !insertmacro ZCodeReportInstallerStage "installer-initialized mode=silent"
-      Goto zcodeInstallerInitDone
-    zcodeInstallerInitInteractive:
+      Goto modeInstallerInitDone
+    modeInstallerInitInteractive:
       !insertmacro ZCodeReportInstallerStage "installer-initialized mode=interactive"
-    zcodeInstallerInitDone:
+    modeInstallerInitDone:
   !macroend
 
   ; 这些宏由打包时的 electron-builder installSection.nsh 补丁按安装顺序调用。
@@ -277,16 +277,16 @@
   Function ZCodeDetectPreviousUninstallerCapabilities
     StrCpy $ZCodePreviousUninstallerSupportsManifest "0"
     ; manifest 是卸载器能力标记：存在即表示旧卸载器会按清单选择性删除。
-    IfFileExists "$INSTDIR\${ZCODE_INSTALL_MANIFEST_NAME}" 0 zcodePreviousUninstallerCapabilityCheckNested
+    IfFileExists "$INSTDIR\${ZCODE_INSTALL_MANIFEST_NAME}" 0 modePreviousUninstallerCapabilityCheckNested
       StrCpy $ZCodePreviousUninstallerSupportsManifest "1"
       Return
 
-    zcodePreviousUninstallerCapabilityCheckNested:
+    modePreviousUninstallerCapabilityCheckNested:
       ; assisted installer 的目录页会在后续 instfilesPre 才补上 APP_FILENAME 子目录，提前兼容两种形态。
-      IfFileExists "$INSTDIR\${APP_FILENAME}\${ZCODE_INSTALL_MANIFEST_NAME}" 0 zcodePreviousUninstallerCapabilityDone
+      IfFileExists "$INSTDIR\${APP_FILENAME}\${ZCODE_INSTALL_MANIFEST_NAME}" 0 modePreviousUninstallerCapabilityDone
         StrCpy $ZCodePreviousUninstallerSupportsManifest "1"
 
-    zcodePreviousUninstallerCapabilityDone:
+    modePreviousUninstallerCapabilityDone:
   FunctionEnd
 
   !macro customUnInstallCheck
@@ -330,18 +330,18 @@
         StrCpy $R0 $CMDLINE
         ClearErrors
         ${GetOptions} $R0 "/LOG=" $R1
-        IfErrors zcodeInstallerLogUseDefault
-        StrCmp $R1 "" zcodeInstallerLogUseDefault
+        IfErrors modeInstallerLogUseDefault
+        StrCmp $R1 "" modeInstallerLogUseDefault
         StrCpy $ZCodeInstallerLogPath $R1
-        Goto zcodeInstallerLogPathReady
-        zcodeInstallerLogUseDefault:
+        Goto modeInstallerLogPathReady
+        modeInstallerLogUseDefault:
           StrCpy $ZCodeInstallerLogPath "${ZCODE_INSTALLER_DEFAULT_LOG_PATH}"
-        zcodeInstallerLogPathReady:
+        modeInstallerLogPathReady:
           ${GetParent} $ZCodeInstallerLogPath $R2
-          StrCmp $R2 "" zcodeInstallerLogInitialized
+          StrCmp $R2 "" modeInstallerLogInitialized
           CreateDirectory "$R2"
       ${EndIf}
-      zcodeInstallerLogInitialized:
+      modeInstallerLogInitialized:
         !insertmacro ZCodeReportInstallerStage "installer-process-started role=$ZCodeInstallerProcessRole"
       Pop $R2
       Pop $R1
@@ -371,15 +371,15 @@
 
     StrCpy $R2 ""
     System::Call 'Kernel32::SetEnvironmentVariableW(w "ZCODE_SHORTCUT_PATH", w "$R9") i.R1'
-    StrCmp $R1 "0" zcodeReadShortcutTargetDone 0
+    StrCmp $R1 "0" modeReadShortcutTargetDone 0
 
     nsExec::ExecToStack /TIMEOUT=5000 `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "[Console]::Out.Write(([Activator]::CreateInstance([type]::GetTypeFromProgID('WScript.Shell'))).CreateShortcut([Environment]::GetEnvironmentVariable('ZCODE_SHORTCUT_PATH')).TargetPath)"`
     Pop $R1
     Pop $R2
-    StrCmp $R1 "0" zcodeReadShortcutTargetDone 0
+    StrCmp $R1 "0" modeReadShortcutTargetDone 0
     StrCpy $R2 ""
 
-    zcodeReadShortcutTargetDone:
+    modeReadShortcutTargetDone:
       System::Call 'Kernel32::SetEnvironmentVariableW(w "ZCODE_SHORTCUT_PATH", p 0) i.R1'
       StrCpy $R9 "$R2"
       Pop $R2
@@ -419,11 +419,11 @@
   ${if} ${isUpdated}
   ${orIf} $keepShortcuts == "true"
     !ifndef DO_NOT_CREATE_START_MENU_SHORTCUT
-      !insertmacro ZCodeRepairShortcutIfNeeded "$newStartMenuLink" zcodeStartMenuShortcutRepair
+      !insertmacro ZCodeRepairShortcutIfNeeded "$newStartMenuLink" modeStartMenuShortcutRepair
     !endif
 
     !ifndef DO_NOT_CREATE_DESKTOP_SHORTCUT
-      !insertmacro ZCodeRepairShortcutIfNeeded "$newDesktopLink" zcodeDesktopShortcutRepair
+      !insertmacro ZCodeRepairShortcutIfNeeded "$newDesktopLink" modeDesktopShortcutRepair
     !endif
   ${endIf}
 
@@ -439,10 +439,10 @@
 !macro customPageAfterChangeDir
   Function ZCodeResizeInstallDirBackButton
     GetDlgItem $1 $HWNDPARENT 3
-    StrCmp $1 0 zcodeResizeInstallDirBackButtonDone 0
+    StrCmp $1 0 modeResizeInstallDirBackButtonDone 0
 
     System::Call "*(i 0, i 0, i 0, i 0) p.r2"
-    StrCmp $2 0 zcodeResizeInstallDirBackButtonDone 0
+    StrCmp $2 0 modeResizeInstallDirBackButtonDone 0
     System::Call "user32::GetWindowRect(p r1, p r2)"
     System::Call "user32::MapWindowPoints(p 0, p $HWNDPARENT, p r2, i 2)"
     System::Call "*$2(i.r3,i.r4,i.r5,i.r6)"
@@ -450,15 +450,15 @@
 
     IntOp $7 $5 - $3
     IntOp $8 $6 - $4
-    IntCmp $7 ${ZCODE_INSTALL_DIR_BACK_BUTTON_WIDTH} zcodeResizeInstallDirBackButtonDone zcodeResizeInstallDirBackButtonResize zcodeResizeInstallDirBackButtonDone
+    IntCmp $7 ${ZCODE_INSTALL_DIR_BACK_BUTTON_WIDTH} modeResizeInstallDirBackButtonDone modeResizeInstallDirBackButtonResize modeResizeInstallDirBackButtonDone
 
-    zcodeResizeInstallDirBackButtonResize:
+    modeResizeInstallDirBackButtonResize:
       ; 阻断页把“上一步”改成中文动作文案，NSIS 默认按钮宽度可能裁掉文字。
       ; 保持右边缘不动向左扩宽，避免和右侧“安装/取消”按钮重叠。
       IntOp $3 $5 - ${ZCODE_INSTALL_DIR_BACK_BUTTON_WIDTH}
       System::Call "user32::MoveWindow(p r1, i r3, i r4, i ${ZCODE_INSTALL_DIR_BACK_BUTTON_WIDTH}, i r8, i 1)"
 
-    zcodeResizeInstallDirBackButtonDone:
+    modeResizeInstallDirBackButtonDone:
   FunctionEnd
 
   Function ZCodeFindNestedDataDir
@@ -468,35 +468,35 @@
 
     StrCpy $R2 ""
 
-    IfFileExists "$R9\.zcode\*.*" 0 +2
-      StrCpy $R2 "$R9\.zcode"
-    StrCmp $R2 "" 0 zcodeFindNestedDataDirDone
-    IfFileExists "$R9\.zcode" 0 zcodeFindNestedDataDirListChildren
-      StrCpy $R2 "$R9\.zcode"
-    StrCmp $R2 "" 0 zcodeFindNestedDataDirDone
+    IfFileExists "$R9\.mode\*.*" 0 +2
+      StrCpy $R2 "$R9\.mode"
+    StrCmp $R2 "" 0 modeFindNestedDataDirDone
+    IfFileExists "$R9\.mode" 0 modeFindNestedDataDirListChildren
+      StrCpy $R2 "$R9\.mode"
+    StrCmp $R2 "" 0 modeFindNestedDataDirDone
 
-    zcodeFindNestedDataDirListChildren:
+    modeFindNestedDataDirListChildren:
       FindFirst $0 $1 "$R9\*"
-      IfErrors zcodeFindNestedDataDirDone
+      IfErrors modeFindNestedDataDirDone
 
-    zcodeFindNestedDataDirNext:
-      StrCmp $1 "" zcodeFindNestedDataDirClose
-      StrCmp $1 "." zcodeFindNestedDataDirContinue
-      StrCmp $1 ".." zcodeFindNestedDataDirContinue
-      IfFileExists "$R9\$1\*.*" 0 zcodeFindNestedDataDirContinue
+    modeFindNestedDataDirNext:
+      StrCmp $1 "" modeFindNestedDataDirClose
+      StrCmp $1 "." modeFindNestedDataDirContinue
+      StrCmp $1 ".." modeFindNestedDataDirContinue
+      IfFileExists "$R9\$1\*.*" 0 modeFindNestedDataDirContinue
         Push "$R9\$1"
         Call ZCodeFindNestedDataDir
-        StrCmp $R2 "" zcodeFindNestedDataDirContinue zcodeFindNestedDataDirClose
+        StrCmp $R2 "" modeFindNestedDataDirContinue modeFindNestedDataDirClose
 
-    zcodeFindNestedDataDirContinue:
+    modeFindNestedDataDirContinue:
       FindNext $0 $1
-      IfErrors zcodeFindNestedDataDirClose
-      Goto zcodeFindNestedDataDirNext
+      IfErrors modeFindNestedDataDirClose
+      Goto modeFindNestedDataDirNext
 
-    zcodeFindNestedDataDirClose:
+    modeFindNestedDataDirClose:
       FindClose $0
 
-    zcodeFindNestedDataDirDone:
+    modeFindNestedDataDirDone:
       Pop $1
       Pop $0
       Pop $R9
@@ -504,34 +504,34 @@
 
   Function ZCodeBlockInstallDirContainsData
     Call ZCodeDetectPreviousUninstallerCapabilities
-    StrCmp $ZCodePreviousUninstallerSupportsManifest "1" zcodeInstallDirDataBlockSkip
+    StrCmp $ZCodePreviousUninstallerSupportsManifest "1" modeInstallDirDataBlockSkip
 
-    ;  用户可能把数据存储目录放进安装目录，Windows 更新覆盖安装目录时会清掉 .zcode。
+    ;  用户可能把数据存储目录放进安装目录，Windows 更新覆盖安装目录时会清掉 .mode。
     ; assisted installer 会把不含应用名的选择目录补成 "$INSTDIR\${APP_FILENAME}"，所以这里按相同规则计算最终安装目录。
     ${StrContains} $R1 "${APP_FILENAME}" "$INSTDIR"
-    StrCmp $R1 "" 0 zcodeInstallDirDataBlockUseSelectedDir
+    StrCmp $R1 "" 0 modeInstallDirDataBlockUseSelectedDir
     StrCpy $R0 "$INSTDIR\${APP_FILENAME}"
-    Goto zcodeInstallDirDataBlockCheckDir
+    Goto modeInstallDirDataBlockCheckDir
 
-    zcodeInstallDirDataBlockUseSelectedDir:
+    modeInstallDirDataBlockUseSelectedDir:
       StrCpy $R0 "$INSTDIR"
 
-    zcodeInstallDirDataBlockCheckDir:
-      ; 旧阻断只检查最终安装目录直属的 .zcode，漏掉 data\.zcode 等子目录数据。
-      ; 安装器覆盖安装时会管理整个安装目录树，递归命中任意 .zcode 都必须阻断。
+    modeInstallDirDataBlockCheckDir:
+      ; 旧阻断只检查最终安装目录直属的 .mode，漏掉 data\.mode 等子目录数据。
+      ; 安装器覆盖安装时会管理整个安装目录树，递归命中任意 .mode 都必须阻断。
       Push "$R0"
       Call ZCodeFindNestedDataDir
-      StrCmp $R2 "" zcodeInstallDirDataBlockSkip zcodeInstallDirDataBlockFound
+      StrCmp $R2 "" modeInstallDirDataBlockSkip modeInstallDirDataBlockFound
 
-    zcodeInstallDirDataBlockFound:
-      IfSilent zcodeInstallDirDataBlockSilent
+    modeInstallDirDataBlockFound:
+      IfSilent modeInstallDirDataBlockSilent
 
       !insertmacro MUI_HEADER_TEXT "需要修改安装目录" "当前安装目录或其子目录包含 ZCodium 数据目录"
       nsDialogs::Create 1018
       Pop $0
-      StrCmp $0 error zcodeInstallDirDataBlockDialogFailed 0
+      StrCmp $0 error modeInstallDirDataBlockDialogFailed 0
 
-      ${NSD_CreateLabel} 0u 0u 300u 44u "检测到该安装目录或其子目录中存在 .zcode 数据目录：$\r$\n$R2"
+      ${NSD_CreateLabel} 0u 0u 300u 44u "检测到该安装目录或其子目录中存在 .mode 数据目录：$\r$\n$R2"
       Pop $1
       ${NSD_CreateLabel} 0u 54u 300u 70u "为避免历史会话和配置被安装器清理，请返回上一步选择其他安装目录。$\r$\n$\r$\n当前目录不能继续安装。"
       Pop $1
@@ -546,16 +546,16 @@
       nsDialogs::Show
       Return
 
-    zcodeInstallDirDataBlockDialogFailed:
-      MessageBox MB_OK|MB_ICONSTOP "检测到安装目录或其子目录中存在 .zcode 数据目录，安装已停止。请重新运行安装器并选择其他安装目录。"
+    modeInstallDirDataBlockDialogFailed:
+      MessageBox MB_OK|MB_ICONSTOP "检测到安装目录或其子目录中存在 .mode 数据目录，安装已停止。请重新运行安装器并选择其他安装目录。"
       SetErrorLevel 1
       Quit
 
-    zcodeInstallDirDataBlockSilent:
+    modeInstallDirDataBlockSilent:
       SetErrorLevel 1
       Quit
 
-    zcodeInstallDirDataBlockSkip:
+    modeInstallDirDataBlockSkip:
       Abort
   FunctionEnd
 

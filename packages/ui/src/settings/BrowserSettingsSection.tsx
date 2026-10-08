@@ -17,9 +17,9 @@ import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSkillInvalidation.js";
+import { useModeSessionService } from "@/hooks/useModeSessionService.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
+import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/modeDraftSkillInvalidation.js";
 import { logger } from "@/logger.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
@@ -78,10 +78,10 @@ export function BrowserSettingsSection({
   embeddedBrowserAllowInsecureCertificates = false,
   onEmbeddedBrowserAllowInsecureCertificatesChange = async () => {},
 }: BrowserSettingsSectionProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const platform = usePlatform();
   const { pluginManagementService, skillsService } = useServices();
-  const zcodeSessionService = useZCodeSessionService(
+  const modeSessionService = useModeSessionService(
     workspacePath ?? undefined,
     undefined,
     workspaceIdentity,
@@ -119,7 +119,7 @@ export function BrowserSettingsSection({
 
   const refreshAfterPluginChange = useCallback(async () => {
     await invalidateDeferredDraftSessionForSkillChange({
-      zcodeSessionService,
+      modeSessionService,
       workspacePath,
       workspaceIdentity: normalizedWorkspaceIdentity ?? undefined,
       reason: "settings-browser-use-plugin-enabled",
@@ -138,7 +138,7 @@ export function BrowserSettingsSection({
     skillStoreWorkspacePath,
     skillsService,
     workspacePath,
-    zcodeSessionService,
+    modeSessionService,
   ]);
 
   const handleBrowserEnabledChange = useCallback(

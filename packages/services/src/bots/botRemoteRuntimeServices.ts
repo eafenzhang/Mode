@@ -6,17 +6,17 @@ import {
   type MessagePortPayload,
 } from "@mode/rpc";
 import {
-  IZCodeTaskService,
-  type IZCodeTaskService as IZCodeTaskServiceShape,
-} from "#src/session/zcodeTaskService.js";
+  IModeTaskService,
+  type IModeTaskService as IModeTaskServiceShape,
+} from "#src/session/modeTaskService.js";
 import {
-  IZCodeAgentService,
-  type IZCodeAgentService as IZCodeAgentServiceShape,
-} from "#src/zcode-agent/zcodeAgent.js";
+  IModeAgentService,
+  type IModeAgentService as IModeAgentServiceShape,
+} from "#src/mode-agent/modeAgent.js";
 import {
-  IZCodeSessionService,
-  type IZCodeSessionService as IZCodeSessionServiceShape,
-} from "#src/zcode-session/zcodeSession.js";
+  IModeSessionService,
+  type IModeSessionService as IModeSessionServiceShape,
+} from "#src/mode-session/modeSession.js";
 import {
   IModelSelectionService,
   type IModelSelectionService as IModelSelectionServiceShape,
@@ -67,9 +67,9 @@ function toMessagePortLike(port: PortLike): MessagePortLike {
 }
 
 export interface RemoteBotWorkspaceRuntimeServices {
-  zcodeAgentService: IZCodeAgentServiceShape;
-  zcodeTaskService: IZCodeTaskServiceShape;
-  zcodeSessionService: IZCodeSessionServiceShape;
+  modeAgentService: IModeAgentServiceShape;
+  modeTaskService: IModeTaskServiceShape;
+  modeSessionService: IModeSessionServiceShape;
   modelSelectionService: IModelSelectionServiceShape;
 }
 
@@ -79,14 +79,14 @@ export function createRemoteRuntimeServicesFromPort(
   const protocol = new MessagePortProtocol(toMessagePortLike(port as PortLike));
   const client = new ChannelClient(protocol);
   return {
-    zcodeAgentService: ProxyChannel.toService<IZCodeAgentServiceShape>(
-      client.getChannel(IZCodeAgentService.channelName),
+    modeAgentService: ProxyChannel.toService<IModeAgentServiceShape>(
+      client.getChannel(IModeAgentService.channelName),
     ),
-    zcodeTaskService: ProxyChannel.toService<IZCodeTaskServiceShape>(
-      client.getChannel(IZCodeTaskService.channelName),
+    modeTaskService: ProxyChannel.toService<IModeTaskServiceShape>(
+      client.getChannel(IModeTaskService.channelName),
     ),
-    zcodeSessionService: ProxyChannel.toService<IZCodeSessionServiceShape>(
-      client.getChannel(IZCodeSessionService.channelName),
+    modeSessionService: ProxyChannel.toService<IModeSessionServiceShape>(
+      client.getChannel(IModeSessionService.channelName),
     ),
     modelSelectionService: ProxyChannel.toService<IModelSelectionServiceShape>(
       client.getChannel(IModelSelectionService.channelName),

@@ -11,20 +11,20 @@
 | --- | --- | --- | --- |
 | 对外环境变量 | `ZCODIUM_*`（旧名 `ZCODE_*`） | `MODE_*` | 三段链：读 `MODE_` → `ZCODIUM_` → `ZCODE_`；写全名 |
 | 内部进程间变量 | `ZCODE_*`（约 330 个） | `MODE_*` | 无（进程内自洽） |
-| 包名 | `@zcode/*`（29 个包） | `@mode/*` | 无（同一提交原子切换） |
-| 目录名 | `apps/zcode-cli`、`packages/zcode-*`、`scripts/zcode-distribution`、`src/zcode-protocol*`、`src/zcode-{agent,session}` | `mode-*` | 无 |
-| 产物名 | `dist/zcode.cjs`、`zcodium-<版本>.tar.gz` | `dist/mode.cjs`、`mode-<版本>.tar.gz` | 无（安装器与文档同步） |
+| 包名 | `@mode/*`（29 个包） | `@mode/*` | 无（同一提交原子切换） |
+| 目录名 | `apps/mode-cli`、`packages/mode-*`、`scripts/mode-distribution`、`src/mode-protocol*`、`src/mode-{agent,session}` | `mode-*` | 无 |
+| 产物名 | `dist/mode.cjs`、`zcodium-<版本>.tar.gz` | `dist/mode.cjs`、`mode-<版本>.tar.gz` | 无（安装器与文档同步） |
 | 命令名 | `zcodium` | `mode` | 无 alias（P0 已定过同一口径） |
-| 用户数据根 | `{base}/.zcodium` | `{base}/.mode` | 多代迁移：`.mode` ← `.zcodium` ← `.zcode`，迁移失败保留旧路径 |
+| 用户数据根 | `{base}/.zcodium` | `{base}/.mode` | 多代迁移：`.mode` ← `.zcodium` ← `.mode`，迁移失败保留旧路径 |
 | Electron userData | `ZCodium` | `Mode` | 首次启动迁移旧目录，失败则继续用旧目录 |
 | 插件市场 id | `zcode-plugins-official` | `mode-plugins-official` | 落盘数据迁移（设置 / 安装记录 / cache 目录） |
 | 插件清单目录 | `.zcode-plugin/plugin.json` | `.mode-plugin/plugin.json` | 新名为主，**继续读旧路径**，第三方插件不作废 |
 | 忽略文件 | `.zcodeignore` | `.modeignore` | 读新名，兼容旧名 |
-| 项目级配置目录 | `.zcode/` | `.mode/` | 读新名，兼容旧名 |
+| 项目级配置目录 | `.mode/` | `.mode/` | 读新名，兼容旧名 |
 | 协议名 | `ZCode Protocol` | `Mode Protocol` | 服务端**同时接受**旧名（SSH 远端旧 agent 混布） |
-| LAN cookie | `zcode_lite_token` | `mode_lite_token` | 读旧 cookie 兜底 |
-| MCP meta 前缀 | `com.zcode/*` | `com.mode/*` | 读旧 key 兜底 + 迁移已存认证 |
-| deep link | `zcode://` | `mode://` | 注册新 scheme，并处理旧 scheme 链接；不注册旧 scheme（避免与宿主 ZCode 争抢） |
+| LAN cookie | `mode_lite_token` | `mode_lite_token` | 读旧 cookie 兜底 |
+| MCP meta 前缀 | `com.mode/*` | `com.mode/*` | 读旧 key 兜底 + 迁移已存认证 |
+| deep link | `mode://` | `mode://` | 注册新 scheme，并处理旧 scheme 链接；不注册旧 scheme（避免与宿主 ZCode 争抢） |
 | 对外标识 | `WECOM_QR_SOURCE`、HTTP `appName` | `mode` / `Mode` | 企业微信侧实机验证，平台拒绝则回退 |
 | 版权主体 | `ZCodium contributors` | `Mode` | 只改第一方 LICENSE，上游署名不动 |
 

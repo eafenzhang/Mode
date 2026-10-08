@@ -44,7 +44,7 @@ const ALLOWED_EMBEDDED_BROWSER_PROTOCOLS = new Set([
   "data:",
   "http:",
   "https:",
-  "zcode-browser-restore:",
+  "mode-browser-restore:",
 ]);
 const ALLOWED_EMBEDDED_BROWSER_NEW_WINDOW_PROTOCOLS = new Set(["http:", "https:"]);
 const EXTERNAL_BROWSER_DISPOSITIONS = new Set(["background-tab"]);
@@ -53,7 +53,7 @@ const embeddedBrowserJavaScriptDialogPreloadPath = join(
   import.meta.dirname,
   "../preload/embeddedBrowserJavaScriptDialog.cjs",
 );
-// Coding Plan 官网页专用 preload：挂 window.zcodeBridge 供官网回传购买完成信号。
+// Coding Plan 官网页专用 preload：挂 window.modeBridge 供官网回传购买完成信号。
 const codingPlanWebviewPreloadPath = join(import.meta.dirname, "../preload/codingPlanWebview.cjs");
 
 /**
@@ -478,7 +478,7 @@ function attachEmbeddedBrowserWindowOpenHandler(options: {
     }
 
     // Coding Plan 专用 preload 会在后续主 frame 导航中继续存在。
-    // 离开可信购买页时必须阻断 guest 导航并交给系统浏览器，避免第三方页面继承 zcodeBridge。
+    // 离开可信购买页时必须阻断 guest 导航并交给系统浏览器，避免第三方页面继承 modeBridge。
     event.preventDefault();
     void shell.openExternal(url).catch((error: unknown) => {
       options.logger.warn("[browser-pane] failed to open coding-plan navigation externally", {
@@ -650,7 +650,7 @@ export function createBrowserWindow(options: {
     // Chromium NSAlert。固定 preload 在每个 frame 调用原生 API 前拦截，且隔离世界只
     // 暴露 alert/confirm 同步桥；网页主世界仍没有 Node 或任意 IPC 能力。
     //
-    // Coding Plan 官网页例外：它需要 window.zcodeBridge 回传购买完成信号，
+    // Coding Plan 官网页例外：它需要 window.modeBridge 回传购买完成信号，
     // 改用专用 preload（codingPlanWebview.ts），其余 webview 保持原生 Dialog 桥。
     const targetUrl = params.src ?? "about:blank";
     const isCodingPlanWebview = isCodingPlanEmbeddedWebviewSrc(targetUrl);
@@ -672,7 +672,7 @@ export function createBrowserWindow(options: {
     delete params.allowpopups;
 
     // webview 内 target=_blank/window.open 如果完全禁用 popup 会表现为点击无响应；
-    // 如果放任 Electron 默认处理，又会创建脱离 ZCode 的 BrowserWindow。这里由宿主重新打开
+    // 如果放任 Electron 默认处理，又会创建脱离 Mode 的 BrowserWindow。这里由宿主重新打开
     // allowpopups，并在 did-attach-webview 中用 setWindowOpenHandler 统一 deny 默认窗口创建，
     // 再把合法 URL 路由到内部 Browser tab 或系统浏览器。
     params.allowpopups = "true";

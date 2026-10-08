@@ -6,17 +6,17 @@ import test from "node:test";
 import {
   MODE_PROTOCOL_NAME,
   MODE_PROTOCOL_VERSION,
-  zcodeSessionStateSnapshotSchema,
-  type ZCodeSessionStateSnapshot,
+  modeSessionStateSnapshotSchema,
+  type ModeSessionStateSnapshot,
 } from "@mode/shared";
 import { getLegacyTaskSessionSnapshotPath, setDataBaseDir } from "../src/paths.js";
 import { parseLegacyTaskSessionFile } from "../src/session/legacyTaskSessionFile.js";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
-import { createZCodeTaskServiceAdapter } from "../src/zcode-agent/zcodeTaskServiceAdapter.js";
+import { createModeTaskServiceAdapter } from "../src/mode-agent/modeTaskServiceAdapter.js";
 
 for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as const) {
   test(`previously imported Claude history becomes a real session for ${clientMode}`, async () => {
-    const dir = await mkdtemp(join(tmpdir(), "zcode-import-recovery-"));
+    const dir = await mkdtemp(join(tmpdir(), "mode-import-recovery-"));
     setDataBaseDir(dir);
     const meta = {
       taskId: "claude-import-example",
@@ -48,21 +48,21 @@ for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as cons
     await writeFile(path, content);
     const taskIndexRepo = new TaskIndexRepo(join(dir, "tasks.sqlite"));
     await taskIndexRepo.syncTaskMeta({ meta });
-    type Options = Parameters<typeof createZCodeTaskServiceAdapter>[0];
-    type CreateInput = Parameters<Options["zcodeAgentService"]["createSession"]>[0];
+    type Options = Parameters<typeof createModeTaskServiceAdapter>[0];
+    type CreateInput = Parameters<Options["modeAgentService"]["createSession"]>[0];
     const created: CreateInput[] = [];
-    let session: ZCodeSessionStateSnapshot | undefined;
+    let session: ModeSessionStateSnapshot | undefined;
     const disposable = () => ({ dispose() {} });
-    const service = createZCodeTaskServiceAdapter({
+    const service = createModeTaskServiceAdapter({
       taskIndexRepo,
-      zcodeAgentService: {
+      modeAgentService: {
         async resumeSession() {
           if (!session) throw new Error(`Session not found: ${meta.taskId}`);
           return session;
         },
         async createSession(input: CreateInput) {
           created.push(input);
-          session = zcodeSessionStateSnapshotSchema.parse({
+          session = modeSessionStateSnapshotSchema.parse({
             protocol: { name: MODE_PROTOCOL_NAME, version: MODE_PROTOCOL_VERSION },
             session: {
               sessionId: input.sessionId,
@@ -101,7 +101,7 @@ for (const clientMode of ["desktop-continuous", "web-remote-replayable"] as cons
           return session;
         },
         disposeAll() {},
-      } as unknown as Options["zcodeAgentService"],
+      } as unknown as Options["modeAgentService"],
       taskIndexSyncer: {
         onSessionTerminalEvent: disposable,
         onSessionReadyEvent: disposable,

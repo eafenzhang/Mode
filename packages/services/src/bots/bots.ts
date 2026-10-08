@@ -1,8 +1,8 @@
 import { ServiceChannels } from "@mode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 import type {
-  ZCodeConfigOption,
-  ZCodeProvider,
+  ModeConfigOption,
+  ModeProvider,
   BotConfig,
   BotContextState,
   BotConversationKind,
@@ -14,9 +14,9 @@ import type {
   BotServiceStatus,
   BotWorkspaceRef,
   BotsConfigFile,
-  ZCodeAutomationBotDeliveryTarget,
+  ModeAutomationBotDeliveryTarget,
 } from "@mode/shared";
-import type { ZCodeAgentAppRuntimePreferences } from "../zcode-agent/zcodeAgent.js";
+import type { ModeAgentAppRuntimePreferences } from "../mode-agent/modeAgent.js";
 
 export interface BotCreateBindCodeParams {
   botId?: string;
@@ -61,11 +61,11 @@ export interface BotListWorkspaceRefsParams {
 export interface BotUserConfigOptionsParams {
   workspacePath: string;
   workspaceIdentity?: string;
-  provider: ZCodeProvider;
+  provider: ModeProvider;
 }
 
 export interface BotAutomationRunWatchParams {
-  target: ZCodeAutomationBotDeliveryTarget;
+  target: ModeAutomationBotDeliveryTarget;
   taskId: string;
   workspacePath: string;
   workspaceIdentity?: string;
@@ -194,11 +194,11 @@ export interface IBotsService {
   /**
    * 将 App 全局交互偏好同步给 Bot 已持有的远端 runtime；不得为此建立新的远端连接。
    */
-  syncAppRuntimePreferences(preferences: ZCodeAgentAppRuntimePreferences): Promise<void>;
+  syncAppRuntimePreferences(preferences: ModeAgentAppRuntimePreferences): Promise<void>;
   getStatus(): Promise<BotServiceStatus>;
   getConfig(): Promise<BotsConfigFile>;
   listWorkspaceRefs(params?: BotListWorkspaceRefsParams): Promise<BotWorkspaceRef[]>;
-  getUserConfigOptions(params: BotUserConfigOptionsParams): Promise<ZCodeConfigOption[]>;
+  getUserConfigOptions(params: BotUserConfigOptionsParams): Promise<ModeConfigOption[]>;
   /** 把 bot 绑定为某个工作区的专属 bot；绑定后 bot 上下文钉定该工作区，禁用 /workspace 切换。 */
   bindBotToWorkspace(params: BotWorkspaceBindingParams): Promise<void>;
   /** 解除工作区绑定；bot 恢复 allowedWorkspaces 自由切换。 */

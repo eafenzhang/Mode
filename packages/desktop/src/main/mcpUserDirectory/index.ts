@@ -36,9 +36,9 @@ interface DirectoryMcpDescriptor {
 
 const MODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
   source: "zcodeagentmcp",
-  directorySource: "zcode",
+  directorySource: "mode",
   userConfigDirSegments: [".zcodium", "cli"],
-  workspaceConfigDirSegments: [".zcode"],
+  workspaceConfigDirSegments: [".mode"],
   fileName: "config.json",
   format: "json",
   configKeyName: "mcp.servers",
@@ -335,19 +335,19 @@ async function readDirectoryServersFromPreferredSources(
   scope: Exclude<McpScope, "common">,
   workspacePath?: string,
 ): Promise<NativeMcpServerRecord[]> {
-  const zcodeServers = await readDirectoryServersFromFile(
+  const modeServers = await readDirectoryServersFromFile(
     MODE_MCP_DESCRIPTOR,
     scope,
     workspacePath,
   );
-  // `.zcode` 是强优先级来源；只要读到 MCP server，同 scope 的 `.agents` 就不再参与。
-  if (zcodeServers.length > 0) {
-    return zcodeServers;
+  // `.mode` 是强优先级来源；只要读到 MCP server，同 scope 的 `.agents` 就不再参与。
+  if (modeServers.length > 0) {
+    return modeServers;
   }
   return readDirectoryServersFromFile(AGENTS_MCP_DESCRIPTOR, scope, workspacePath);
 }
 
-async function writeZCodeServersToFile(
+async function writeModeServersToFile(
   scope: Exclude<McpScope, "common">,
   servers: Record<string, Record<string, unknown>>,
   workspacePath?: string,
@@ -363,7 +363,7 @@ export async function loadCliMcpFromUserDirectory(
 ): Promise<LoadCliMcpFromUserDirectoryResult> {
   const servers: NativeMcpServerRecord[] = [];
 
-  // 去掉其他 provider 后，ZCode Agent 只按目录约定读取；先 workspace，再 user。
+  // 去掉其他 provider 后，Mode Agent 只按目录约定读取；先 workspace，再 user。
   if (request?.workspacePath) {
     servers.push(
       ...(await readDirectoryServersFromPreferredSources("workspace", request.workspacePath)),
@@ -415,5 +415,5 @@ export async function saveCliMcpToUserDirectory(
     delete nextServers[payload.name];
   }
 
-  await writeZCodeServersToFile(scope, nextServers, payload.projectPath);
+  await writeModeServersToFile(scope, nextServers, payload.projectPath);
 }

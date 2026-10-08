@@ -1,9 +1,9 @@
 import type {
-  ZCodeAutomation,
-  ZCodeAutomationCreateParams,
-  ZCodeAutomationRun,
-  ZCodeAutomationScheduleRule,
-  ZCodeAutomationUpdateParams,
+  ModeAutomation,
+  ModeAutomationCreateParams,
+  ModeAutomationRun,
+  ModeAutomationScheduleRule,
+  ModeAutomationUpdateParams,
 } from "@mode/shared";
 import { resolveWorkspaceKey } from "@mode/shared";
 import { AutomationRepo } from "#src/session/automationRepo.js";
@@ -86,7 +86,7 @@ function hasOnlyIntegersInRange(values: number[] | undefined, min: number, max: 
   );
 }
 
-function assertValidAutomationScheduleRule(rule: ZCodeAutomationScheduleRule): void {
+function assertValidAutomationScheduleRule(rule: ModeAutomationScheduleRule): void {
   if (!AUTOMATION_SCHEDULE_RULE_UNITS.has(rule.unit)) {
     throw new InvalidAutomationScheduleRuleError("unit 不受支持");
   }
@@ -141,7 +141,7 @@ function assertValidAutomationScheduleRule(rule: ZCodeAutomationScheduleRule): v
 export class AutomationService {
   constructor(private readonly repo: AutomationRepo = new AutomationRepo()) {}
 
-  async create(params: ZCodeAutomationCreateParams): Promise<ZCodeAutomation> {
+  async create(params: ModeAutomationCreateParams): Promise<ModeAutomation> {
     const createdAt = Date.now();
     const relativeDelayMinutes = params.relativeDelayMinutes;
     if (
@@ -233,7 +233,7 @@ export class AutomationService {
   async list(scope?: {
     workspacePath?: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeAutomation[]> {
+  }): Promise<ModeAutomation[]> {
     return this.repo.list(scope);
   }
 
@@ -248,15 +248,15 @@ export class AutomationService {
   async get(
     automationId: string,
     scope?: AutomationWorkspaceScope,
-  ): Promise<ZCodeAutomation | null> {
+  ): Promise<ModeAutomation | null> {
     return this.repo.get(automationId, resolveScopeKey(scope));
   }
 
   async update(
     automationId: string,
-    params: ZCodeAutomationUpdateParams,
+    params: ModeAutomationUpdateParams,
     scope?: AutomationWorkspaceScope,
-  ): Promise<ZCodeAutomation | null> {
+  ): Promise<ModeAutomation | null> {
     const workspaceKey = resolveScopeKey(scope);
     const existing = await this.repo.get(automationId, workspaceKey);
     if (!existing) return null;
@@ -291,7 +291,7 @@ export class AutomationService {
     // 有限任务只提交 recurring=true 时，旧 maxRuns 会被 repo.update 原样保留，
     // 形成“无限循环 + 有限上限”的矛盾隐藏状态。领域层统一补 null，兼容旧客户端并原子清除旧上限；
     // 同时顺手修复历史上已经存在的同类脏数据。
-    const normalizedParams: ZCodeAutomationUpdateParams = hasIntervalCarrier
+    const normalizedParams: ModeAutomationUpdateParams = hasIntervalCarrier
       ? forceIntervalCarrierRecurring(restParams)
       : nextRecurring &&
           restParams.maxRuns === undefined &&
@@ -301,7 +301,7 @@ export class AutomationService {
 
     const options: {
       nextRunAt?: number | null;
-      lifecycleStatus?: ZCodeAutomation["lifecycleStatus"];
+      lifecycleStatus?: ModeAutomation["lifecycleStatus"];
       resetRetry?: boolean;
     } = {};
 
@@ -322,7 +322,7 @@ export class AutomationService {
     const effectiveDirectScheduleRule = hasDirectScheduleRule
       ? directScheduleRule
       : carrierScheduleRule;
-    const normalizedWithSchedule: ZCodeAutomationUpdateParams =
+    const normalizedWithSchedule: ModeAutomationUpdateParams =
       effectiveDirectScheduleRule !== undefined
         ? { ...normalizedParams, scheduleRule: effectiveDirectScheduleRule }
         : normalizedParams;
@@ -453,7 +453,7 @@ export class AutomationService {
   async runNow(
     automationId: string,
     scope?: AutomationWorkspaceScope,
-  ): Promise<{ automation: ZCodeAutomation; run: ZCodeAutomationRun } | null> {
+  ): Promise<{ automation: ModeAutomation; run: ModeAutomationRun } | null> {
     const workspaceKey = resolveScopeKey(scope);
     const existing = await this.repo.get(automationId, workspaceKey);
     if (!existing) return null;
@@ -463,7 +463,7 @@ export class AutomationService {
   async listRuns(
     automationId: string,
     scope?: AutomationWorkspaceScope,
-  ): Promise<ZCodeAutomationRun[]> {
+  ): Promise<ModeAutomationRun[]> {
     return this.repo.listRuns(automationId, resolveScopeKey(scope));
   }
   async deleteRun(runId: string, scope?: AutomationWorkspaceScope): Promise<void> {

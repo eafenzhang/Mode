@@ -79,7 +79,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       // 修复：集中 NOTICE 不能替代 Apache 4(b) 的文件内修改声明，重新生成时也不能抹掉这一义务。
       if (!files.some((entry) => entry.file === file))
         throw new Error(`Modified source outside copied roots: ${file}`);
-      if (!(await readFile(join(root, file), "utf8")).includes("Modified by ZCode:"))
+      if (!(await readFile(join(root, file), "utf8")).includes("Modified by Mode:"))
         throw new Error(`Missing file-local modification notice: ${file}`);
     }
     copiedInventory.push({ ...record, files });

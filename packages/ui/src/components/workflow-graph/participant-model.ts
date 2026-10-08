@@ -1,4 +1,4 @@
-import type { WorkflowRunState } from "@mode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@mode/shared/mode-protocol-v4";
 import { phaseBinder } from "./instance-phases.js";
 import { aggregateRunStatuses, statusOfRunNode } from "./run-status.js";
 import {

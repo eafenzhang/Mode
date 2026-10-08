@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { ZCodeModelTrajectoryMessage, ZCodeModelTrajectoryRecord } from "@mode/services";
+import type { ModeModelTrajectoryMessage, ModeModelTrajectoryRecord } from "@mode/services";
 import {
   trajectoryToolCallInputs,
   trajectoryToolMetadata,
@@ -27,8 +27,8 @@ interface TrajectorySearchIndex {
 
 export interface TrajectorySearchTimelineItem {
   key: string;
-  record: ZCodeModelTrajectoryRecord;
-  inputMessages: ZCodeModelTrajectoryMessage[];
+  record: ModeModelTrajectoryRecord;
+  inputMessages: ModeModelTrajectoryMessage[];
 }
 
 interface SearchTarget {
@@ -98,7 +98,7 @@ function messageTargets(
   callKey: string,
   callIndex: number,
   expansionKey: string,
-  message: ZCodeModelTrajectoryMessage,
+  message: ModeModelTrajectoryMessage,
 ): SearchTarget[] {
   const metadata = trajectoryToolMetadata(message);
   const content = message.parts.some((part) => part.kind === "tool-result")

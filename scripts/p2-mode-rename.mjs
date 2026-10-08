@@ -75,15 +75,15 @@ const STAGES = {
     [/ZCODE_APP_VERSION/g, "MODE_APP_VERSION"],
   ],
   packages: [
-    [/@zcode\//g, "@mode/"],
+    [/@mode\//g, "@mode/"],
   ],
   artifacts: [
     [/zcodium-(\$?\{?[A-Za-z0-9_.$}<>-]*)\.tar\.gz/g, "mode-$1.tar.gz"],
-    [/dist\/zcode\.cjs/g, "dist/mode.cjs"],
-    [/zcode\.cjs/g, "mode.cjs"],
+    [/dist\/mode\.cjs/g, "dist/mode.cjs"],
+    [/mode\.cjs/g, "mode.cjs"],
     [/CLI_COMMAND_NAME = "zcodium"/g, 'CLI_COMMAND_NAME = "mode"'],
     [/"zcodium": "\.\/dist\/mode\.cjs"/g, '"mode": "./dist/mode.cjs"'],
-    [/"bin": \{ "zcodium": "\.\/dist\/zcode\.cjs" \}/g, '"bin": { "mode": "./dist/mode.cjs" }'],
+    [/"bin": \{ "zcodium": "\.\/dist\/mode\.cjs" \}/g, '"bin": { "mode": "./dist/mode.cjs" }'],
   ],
   dataroot: [
     [/\.zcodium/g, ".mode"],
@@ -94,14 +94,37 @@ const STAGES = {
     [/\.zcode-plugin/g, ".mode-plugin"],
     [/\.zcodeignore/g, ".modeignore"],
   ],
+  // 模块与标识符命名：目录、文件名、符号统一到 mode-*（引用与文件名同批替换）
+  identifiers: [
+    [/mode-protocol/g, "mode-protocol"],
+    [/modeAgentService/g, "modeAgentService"],
+    [/modeSessionService/g, "modeSessionService"],
+    [/ZCodeAgentService/g, "ModeAgentService"],
+    [/ZCodeSessionService/g, "ModeSessionService"],
+    [/modeEndpoint/g, "modeEndpoint"],
+    [/modeUiError/g, "modeUiError"],
+    [/mode-agent/g, "mode-agent"],
+    [/mode-session/g, "mode-session"],
+    [/mode-cua/g, "mode-cua"],
+    [/mode-server-cli/g, "mode-server-cli"],
+    [/mode-distribution/g, "mode-distribution"],
+    [/mode-cli/g, "mode-cli"],
+    [/ZCodeBuiltin/g, "ModeBuiltin"],
+    [/mode-builtin/g, "mode-builtin"],
+    [/modeBuiltin/g, "modeBuiltin"],
+    [/Zcode/g, "Mode"],
+    [/ZCode/g, "Mode"],
+    [/window\.mode\b/g, "window.mode"],
+    [/exposeInMainWorld\(\s*\x22zcode\x22/g, "exposeInMainWorld(\x22mode\x22"],
+  ],
   protocols: [
     [/"ZCode Protocol"/g, '"Mode Protocol"'],
     [/ZCode Protocol\//g, "Mode Protocol/"],
-    [/zcode_lite_token/g, "mode_lite_token"],
-    [/com\.zcode\/official-mcp-auth/g, "com.mode/official-mcp-auth"],
-    [/com\.zcode\/request-context/g, "com.mode/request-context"],
-    [/const DEEP_LINK_SCHEME = "zcode"/g, 'const DEEP_LINK_SCHEME = "mode"'],
-    [/schemes: \["zcode"\]/g, 'schemes: ["mode"]'],
+    [/mode_lite_token/g, "mode_lite_token"],
+    [/com\.mode\/official-mcp-auth/g, "com.mode/official-mcp-auth"],
+    [/com\.mode\/request-context/g, "com.mode/request-context"],
+    [/const DEEP_LINK_SCHEME = "mode"/g, 'const DEEP_LINK_SCHEME = "mode"'],
+    [/schemes: \["mode"\]/g, 'schemes: ["mode"]'],
     [/zcodium:\/\//g, "mode://"],
     [/"WECOM_QR_SOURCE = "zcodium"/g, '"WECOM_QR_SOURCE = "mode"'],
     [/appName: "ZCodium"/g, 'appName: "Mode"'],
@@ -117,6 +140,7 @@ const EXCLUDED_FROM = {
     ...SELF,
   ],
   packages: [...SELF],
+  identifiers: [...SELF],
   artifacts: [...SELF],
   dataroot: [...SELF],
   plugins: [...SELF],
@@ -153,7 +177,7 @@ function runStage(name) {
   return touched;
 }
 
-const order = ["env", "packages", "artifacts", "dataroot", "plugins", "protocols"];
+const order = ["env", "packages", "identifiers", "artifacts", "dataroot", "plugins", "protocols"];
 for (const name of stage === "all" ? order : [stage]) {
   runStage(name);
 }

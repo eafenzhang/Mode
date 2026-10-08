@@ -1,5 +1,5 @@
 import type { IDisposable } from "@mode/rpc";
-import { MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, type IZCodeAgentService } from "@mode/services";
+import { MODE_AGENT_RUNTIME_UNAVAILABLE_CODE, type IModeAgentService } from "@mode/services";
 import {
   PROTOCOL_V4_LIMITS,
   sessionsIndexTopic,
@@ -8,21 +8,21 @@ import {
   type SessionsIndexTopicFrame,
   type SessionsIndexTopicWireCandidate,
   type SessionSummary,
-} from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 
 const SUBSCRIBER_SCOPE = "window-controller";
 const MAX_STAGED_WIRES = 1_024;
 const MAX_STAGED_BYTES = 32 * 1024 * 1024;
 
 type SessionsIndexAgentService = Pick<
-  IZCodeAgentService,
+  IModeAgentService,
   | "subscribeSessionsIndexV4"
   | "resyncSessionsIndexV4"
   | "unsubscribeSessionsIndexV4"
   | "onDynamicSessionsIndexFrame"
   | "onAgentRuntimeRestarted"
 > &
-  Partial<Pick<IZCodeAgentService, "onAgentRuntimeLifecycle">>;
+  Partial<Pick<IModeAgentService, "onAgentRuntimeLifecycle">>;
 
 export interface WindowHostSessionsIndexObserver {
   start(): Promise<void>;

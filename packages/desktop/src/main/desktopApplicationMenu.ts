@@ -9,7 +9,7 @@ import {
   type DesktopCommandId,
   type Locale,
 } from "@mode/shared";
-import { readZCodeStdioTapDevState } from "@mode/services/node";
+import { readModeStdioTapDevState } from "@mode/services/node";
 import { CHECK_FOR_UPDATE_MENU_ID, setAutoUpdaterMenuLocale } from "./autoUpdater.js";
 import {
   DESKTOP_ZOOM_MAX_LEVEL,
@@ -21,7 +21,7 @@ import {
   HELP_TOGGLE_DEV_TOOLS_MENU_ID,
 } from "./desktopCommandHandlers.js";
 
-const HELP_MODE_ENDPOINT_PRODUCTION_MENU_ID = "help.zcode-endpoint.production";
+const HELP_MODE_ENDPOINT_PRODUCTION_MENU_ID = "help.mode-endpoint.production";
 
 export function getDesktopMenuLabel(
   locale: Locale,
@@ -40,13 +40,13 @@ export function resolveSystemApplicationLocale(): Locale {
   return "en-US";
 }
 
-export function updateZCodeStdioTapDevMenuState() {
+export function updateModeStdioTapDevMenuState() {
   const menu = Menu.getApplicationMenu();
   const item = menu?.getMenuItemById(HELP_TOGGLE_MODE_STDIO_TAP_MENU_ID);
   if (!item) {
     return;
   }
-  const state = readZCodeStdioTapDevState();
+  const state = readModeStdioTapDevState();
   item.checked = state.enabled;
   item.visible = state.visible;
 }
@@ -85,7 +85,7 @@ function resolveMenuAccelerator(
 
 function buildApplicationMenuTemplate(options: {
   currentApplicationLocale: Locale;
-  zcodeEndpointSelection?: "production" | "test" | "custom";
+  modeEndpointSelection?: "production" | "test" | "custom";
   executeDesktopCommand: (
     command: DesktopCommandId,
     senderWindow?: BrowserWindow | null,
@@ -99,7 +99,7 @@ function buildApplicationMenuTemplate(options: {
     getDesktopMenuLabel(options.currentApplicationLocale, id);
   const getAppLabel = (id: (typeof desktopMenuMessageIds)[keyof typeof desktopMenuMessageIds]) =>
     getLabel(id).replaceAll("{appName}", app.name);
-  const stdioTapState = readZCodeStdioTapDevState();
+  const stdioTapState = readModeStdioTapDevState();
   const isLocalDevelopmentRuntime = !app.isPackaged;
   const currentZoomLevel = clampDesktopZoomLevel(options.currentZoomLevel ?? 0);
   const canResetZoom = currentZoomLevel !== 0;
@@ -284,11 +284,11 @@ function buildApplicationMenuTemplate(options: {
           ? [
               {
                 id: HELP_TOGGLE_MODE_STDIO_TAP_MENU_ID,
-                label: getLabel(desktopMenuMessageIds.helpToggleZCodeStdioTap),
+                label: getLabel(desktopMenuMessageIds.helpToggleModeStdioTap),
                 type: "checkbox" as const,
                 checked: stdioTapState.enabled,
                 click: () =>
-                  void options.executeDesktopCommand(DesktopCommandIds.ToggleZCodeStdioTapDevProxy),
+                  void options.executeDesktopCommand(DesktopCommandIds.ToggleModeStdioTapDevProxy),
               },
               { type: "separator" as const },
             ]
@@ -296,28 +296,28 @@ function buildApplicationMenuTemplate(options: {
         ...(MODE_ENV === "test"
           ? [
               {
-                label: getLabel(desktopMenuMessageIds.helpZCodeEndpoint),
+                label: getLabel(desktopMenuMessageIds.helpModeEndpoint),
                 submenu: [
                   {
                     id: HELP_MODE_ENDPOINT_PRODUCTION_MENU_ID,
-                    label: getLabel(desktopMenuMessageIds.helpZCodeEndpointProduction),
+                    label: getLabel(desktopMenuMessageIds.helpModeEndpointProduction),
                     type: "radio" as const,
-                    checked: (options.zcodeEndpointSelection ?? "production") === "production",
+                    checked: (options.modeEndpointSelection ?? "production") === "production",
                     click: () =>
                       void options.executeDesktopCommand(
-                        DesktopCommandIds.SetZCodeEndpointProduction,
+                        DesktopCommandIds.SetModeEndpointProduction,
                       ),
                   },
                   { type: "separator" as const },
                   {
-                    label: getLabel(desktopMenuMessageIds.helpZCodeEndpointCustom),
+                    label: getLabel(desktopMenuMessageIds.helpModeEndpointCustom),
                     click: () =>
-                      void options.executeDesktopCommand(DesktopCommandIds.SetZCodeEndpointCustom),
+                      void options.executeDesktopCommand(DesktopCommandIds.SetModeEndpointCustom),
                   },
                   {
-                    label: getLabel(desktopMenuMessageIds.helpZCodeEndpointReset),
+                    label: getLabel(desktopMenuMessageIds.helpModeEndpointReset),
                     click: () =>
-                      void options.executeDesktopCommand(DesktopCommandIds.ResetZCodeEndpoint),
+                      void options.executeDesktopCommand(DesktopCommandIds.ResetModeEndpoint),
                   },
                 ],
               },
@@ -352,7 +352,7 @@ function buildApplicationMenuTemplate(options: {
 
 export function rebuildApplicationMenu(options: {
   currentApplicationLocale: Locale;
-  zcodeEndpointSelection?: "production" | "test" | "custom";
+  modeEndpointSelection?: "production" | "test" | "custom";
   executeDesktopCommand: (
     command: DesktopCommandId,
     senderWindow?: BrowserWindow | null,
@@ -366,7 +366,7 @@ export function rebuildApplicationMenu(options: {
     Menu.buildFromTemplate(
       buildApplicationMenuTemplate({
         currentApplicationLocale: options.currentApplicationLocale,
-        zcodeEndpointSelection: options.zcodeEndpointSelection,
+        modeEndpointSelection: options.modeEndpointSelection,
         executeDesktopCommand: options.executeDesktopCommand,
         currentZoomLevel: options.currentZoomLevel,
         shortcutBindings: options.shortcutBindings,
@@ -376,6 +376,6 @@ export function rebuildApplicationMenu(options: {
   );
   setAutoUpdaterMenuLocale(options.currentApplicationLocale);
   if (!app.isPackaged) {
-    updateZCodeStdioTapDevMenuState();
+    updateModeStdioTapDevMenuState();
   }
 }

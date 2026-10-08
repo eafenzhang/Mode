@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -21,7 +21,7 @@ import {
 } from "@/settings/automationConfirmDialogPresentation.js";
 
 export function ConfirmDialogHost() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const pendingRequest = useConfirmDialogStore((state) => state.pendingRequest);
   const settleConfirmation = useConfirmDialogStore((state) => state.settleConfirmation);
 

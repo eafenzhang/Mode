@@ -7,7 +7,7 @@ import { ConversationProjectionStore } from "@/v4/conversationProjectionStore.js
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import { conversationTopic, type ConversationTransport } from "@/v4/transport.js";
 import { logger } from "@/logger.js";
-import type { CommandsQueryParams, CommandsQueryResult } from "@mode/shared/zcode-protocol-v4";
+import type { CommandsQueryParams, CommandsQueryResult } from "@mode/shared/mode-protocol-v4";
 
 /** 本地订阅诊断使用的投影缓存状态。 */
 type SessionOpenKind = "cold" | "warm" | "keep_warm";

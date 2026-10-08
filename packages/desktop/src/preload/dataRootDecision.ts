@@ -2,7 +2,7 @@
  * 数据根决策窗口的 preload。
  *
  * 只暴露决策需要的四个能力，不复用主窗口那个庞大的 preload —— 决策发生在 Host 启动前，
- * 攻击面越小越好，且窗口没有 zcode / services 依赖。
+ * 攻击面越小越好，且窗口没有 mode / services 依赖。
  */
 import { contextBridge, ipcRenderer } from "electron";
 import {

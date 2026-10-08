@@ -65,20 +65,20 @@ export function setDataRootPathOverride(dir: string | null): void {
   _dataRootOverride = dir?.trim() || null;
 }
 
-/** {dataBaseDir}/.zcodium —— 与官方 ZCode 客户端的 ~/.zcode 命名空间隔离。 */
-export function getZCodeDataRootDir(): string {
+/** {dataBaseDir}/.zcodium —— 与官方 Mode 客户端的 ~/.mode 命名空间隔离。 */
+export function getModeDataRootDir(): string {
   if (_dataRootOverride) return _dataRootOverride;
   return join(getDataBaseDir(), MODE_DATA_ROOT_DIR_NAME);
 }
 
 /** 非项目对话共享的真实工作目录；默认 ~/.zcodium/workspace/default。 */
 export function getConversationWorkspaceDir(): string {
-  return join(getZCodeDataRootDir(), "workspace", "default");
+  return join(getModeDataRootDir(), "workspace", "default");
 }
 
 /** {dataBaseDir}/.zcodium/v2 */
 export function getAppConfigDir(): string {
-  return join(getZCodeDataRootDir(), "v2");
+  return join(getModeDataRootDir(), "v2");
 }
 
 function readEnvValue(env: Record<string, string | undefined>, key: string): string | undefined {
@@ -140,10 +140,10 @@ function collectWindowsForbiddenAppInstallDirs(
   const candidates = [
     options.appInstallDir,
     readEnvValue(env, MODE_WINDOWS_APP_INSTALL_DIR_ENV),
-    programFiles ? win32.join(programFiles, "ZCode") : null,
-    programFilesX86 ? win32.join(programFilesX86, "ZCode") : null,
-    programW6432 ? win32.join(programW6432, "ZCode") : null,
-    localAppData ? win32.join(localAppData, "Programs", "ZCode") : null,
+    programFiles ? win32.join(programFiles, "Mode") : null,
+    programFilesX86 ? win32.join(programFilesX86, "Mode") : null,
+    programW6432 ? win32.join(programW6432, "Mode") : null,
+    localAppData ? win32.join(localAppData, "Programs", "Mode") : null,
   ];
   const seen = new Set<string>();
   const result: string[] = [];
@@ -186,15 +186,15 @@ export function validateDataBaseDirTarget(
 }
 
 export function getExportLogStageDir(): string {
-  return join(getZCodeDataRootDir(), "export-log-stage");
+  return join(getModeDataRootDir(), "export-log-stage");
 }
 
 export function getExportLogDir(): string {
-  return join(getZCodeDataRootDir(), "export-log");
+  return join(getModeDataRootDir(), "export-log");
 }
 
 export function getGitCheckpointIndexRootDir(): string {
-  return join(getZCodeDataRootDir(), "git-checkpoint-index");
+  return join(getModeDataRootDir(), "git-checkpoint-index");
 }
 
 /** ~/.zcodium/v2/tasks-index.sqlite */
@@ -207,7 +207,7 @@ function getWorkspaceKey(workspacePath: string, workspaceIdentity?: string): str
   return workspaceIdentity?.trim() || workspacePath;
 }
 
-/** 与 ZCode session 持久化一致：使用 workspaceKey 的 SHA-256 前 12 位 */
+/** 与 Mode session 持久化一致：使用 workspaceKey 的 SHA-256 前 12 位 */
 export function getWorkspaceHash(workspacePath: string, workspaceIdentity?: string): string {
   return createHash("sha256")
     .update(getWorkspaceKey(workspacePath, workspaceIdentity))
@@ -239,7 +239,7 @@ export function getLegacyDeletedTaskSessionSnapshotPath(
 }
 
 /**
- * Copy the .zcode/v2 data directory from one base dir to another.
+ * Copy the .mode/v2 data directory from one base dir to another.
  * Excludes setting.json and its transient atomic-write siblings — bootstrap
  * state must only live at the default homedir location.
  */

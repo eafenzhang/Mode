@@ -3,16 +3,16 @@ import type { UtilityProcess as ElectronUtilityProcess } from "electron";
 import os from "node:os";
 import { join } from "node:path";
 import {
-  formatZCodeAgentProcessName,
-  formatZCodeGpuProcessName,
-  formatZCodeHostProcessName,
-  formatZCodeMainProcessName,
-  formatZCodeRendererProcessName,
-  formatZCodeUtilityProcessName,
+  formatModeAgentProcessName,
+  formatModeGpuProcessName,
+  formatModeHostProcessName,
+  formatModeMainProcessName,
+  formatModeRendererProcessName,
+  formatModeUtilityProcessName,
   type HostResourceUsageProcess,
   type ResourceUsageProcess,
   type ResourceUsageSnapshot,
-  type ZCodeProvider,
+  type ModeProvider,
 } from "@mode/shared";
 import { logger } from "./logger.js";
 import { normalizeElectronCpuToMachinePercent } from "./electronCpuNormalization.js";
@@ -111,7 +111,7 @@ const hostProcesses = new Map<string, ElectronUtilityProcess>();
 
 interface RegisteredAgentProcess {
   pid: number;
-  provider: ZCodeProvider;
+  provider: ModeProvider;
   workspacePath: string;
   command: string;
   args: string[];
@@ -302,7 +302,7 @@ function collectElectronProcesses(): ResourceUsageProcess[] {
   push(
     baseProcess(
       process.pid,
-      formatZCodeMainProcessName(),
+      formatModeMainProcessName(),
       "main",
       mainMetrics.cpuPercent,
       mainMetrics.memoryBytes,
@@ -312,7 +312,7 @@ function collectElectronProcesses(): ResourceUsageProcess[] {
   for (const m of metrics) {
     if (m.type === "GPU") {
       const { cpuPercent, memoryBytes } = metricsOf(m.pid);
-      push(baseProcess(m.pid, formatZCodeGpuProcessName(), "gpu", cpuPercent, memoryBytes));
+      push(baseProcess(m.pid, formatModeGpuProcessName(), "gpu", cpuPercent, memoryBytes));
     }
   }
 
@@ -325,7 +325,7 @@ function collectElectronProcesses(): ResourceUsageProcess[] {
     push(
       baseProcess(
         rendererPid,
-        formatZCodeRendererProcessName(win.getTitle() || `Window ${win.id}`),
+        formatModeRendererProcessName(win.getTitle() || `Window ${win.id}`),
         "renderer",
         cpuPercent,
         memoryBytes,
@@ -362,7 +362,7 @@ function collectElectronProcesses(): ResourceUsageProcess[] {
     if (child.pid == null) continue;
     const { cpuPercent, memoryBytes } = metricsOf(child.pid);
     push(
-      baseProcess(child.pid, formatZCodeHostProcessName(label), "host", cpuPercent, memoryBytes),
+      baseProcess(child.pid, formatModeHostProcessName(label), "host", cpuPercent, memoryBytes),
     );
   }
 
@@ -373,8 +373,8 @@ function collectElectronProcesses(): ResourceUsageProcess[] {
       baseProcess(
         m.pid,
         m.type === "Utility"
-          ? formatZCodeUtilityProcessName(m.name || String(m.pid))
-          : formatZCodeUtilityProcessName(m.type, "process"),
+          ? formatModeUtilityProcessName(m.name || String(m.pid))
+          : formatModeUtilityProcessName(m.type, "process"),
         "utility",
         cpuPercent,
         memoryBytes,
@@ -404,7 +404,7 @@ function collectUnsampledAgentProcesses(sampledPids: Set<number>): ResourceUsage
       if (sampledPids.has(agent.pid)) continue;
       rows.push({
         pid: agent.pid,
-        name: formatZCodeAgentProcessName(agent.provider, agent.workspacePath),
+        name: formatModeAgentProcessName(agent.provider, agent.workspacePath),
         category: "base",
         groupKey: "cli",
         groupLabel: "cli",

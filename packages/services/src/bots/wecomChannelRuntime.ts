@@ -22,7 +22,7 @@ import {
  *
  * 使用腾讯官方 @wecom/aibot-node-sdk（wss://openws.work.weixin.qq.com）：
  * botId + secret 认证后维持一条 WebSocket 长连接，消息经回调帧推送（无需公网回调地址）。
- * 每个 bot 一条连接，并用跨进程文件锁保证同一 botId 只在一个 ZCode 窗口建立连接。
+ * 每个 bot 一条连接，并用跨进程文件锁保证同一 botId 只在一个 Mode 窗口建立连接。
  *
  * 帧缓存：流式回复（aibot_respond_msg）与附件下载都需要透传入站帧的 req_id，
  * 因此连接对象按 chatKey（单聊 userid / 群聊 chatid）保留最近一帧，供 provider 取用。
@@ -116,7 +116,7 @@ export function createWeComChannelRuntime(deps: WeComChannelRuntimeDeps) {
         botId: bot.id,
         provider: "wecom",
         status: "idle",
-        message: "WeCom connection is handled by another ZCode window.",
+        message: "WeCom connection is handled by another Mode window.",
       });
       // 锁被其他窗口持有：轮询重试，等对方退出后接管。
       while (!signal.aborted) {
@@ -318,7 +318,7 @@ export function createWeComChannelRuntime(deps: WeComChannelRuntimeDeps) {
       );
     });
     client.on("event.disconnected_event", () => {
-      // 同一 botId 在别处建立了新连接（例如另一个 ZCode 窗口）；停止本窗口连接避免互踢。
+      // 同一 botId 在别处建立了新连接（例如另一个 Mode 窗口）；停止本窗口连接避免互踢。
       kicked = true;
       deps.statusSink.setRuntimeStatus({
         botId: bot.id,

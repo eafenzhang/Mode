@@ -14,9 +14,9 @@ import {
   TriangleAlert,
   WandSparkles,
 } from "lucide-react";
-import type { ZCodePluginComponentKind, ZCodePluginsDescribeResult } from "@mode/shared";
+import type { ModePluginComponentKind, ModePluginsDescribeResult } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import { ThemeHeroVisual } from "@/openWorkspacePageThemeHero.js";
@@ -45,9 +45,9 @@ import type { PluginComponentDisplayGroup } from "@/settings/PluginComponentGrou
 import type { PluginDescribeEntry } from "@/store/pluginManagementStore.js";
 
 // 组件分区顺序与截图一致：MCP 服务器 → 技能 → 命令 → 子智能体 → Hooks。
-const SECTION_ORDER: ZCodePluginComponentKind[] = ["mcp", "skill", "command", "agent", "hook"];
+const SECTION_ORDER: ModePluginComponentKind[] = ["mcp", "skill", "command", "agent", "hook"];
 
-const SECTION_TITLE_IDS: Record<ZCodePluginComponentKind, string> = {
+const SECTION_TITLE_IDS: Record<ModePluginComponentKind, string> = {
   mcp: "settings.plugins.store.section.mcp",
   skill: "settings.plugins.store.section.skills",
   command: "settings.plugins.store.section.commands",
@@ -56,7 +56,7 @@ const SECTION_TITLE_IDS: Record<ZCodePluginComponentKind, string> = {
 };
 
 // 与各资源设置列表共用同一图标语义，避免详情页用近似图标造成识别不一致。
-const SECTION_ICONS: Record<ZCodePluginComponentKind, typeof Server> = {
+const SECTION_ICONS: Record<ModePluginComponentKind, typeof Server> = {
   mcp: Server,
   skill: WandSparkles,
   command: Terminal,
@@ -99,7 +99,7 @@ export function PluginStoreDetailView({
   /** 高级折叠区（rootPath/Hook 明细/配置项），仅已安装且有运行时信息时由父级注入。 */
   advanced?: ReactNode;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const displayName = resolveItemDisplayName(item, locale);
   const description = resolveItemDescription(item, locale);
   const heroImage = item.listing?.heroImage;
@@ -199,7 +199,7 @@ export function PluginStoreDetailView({
         />
       ) : null}
 
-      {/* 组件分区：已安装走权威枚举（ZCodePluginInfo.components），候选走 plugins/describe 按需拉取。 */}
+      {/* 组件分区：已安装走权威枚举（ModePluginInfo.components），候选走 plugins/describe 按需拉取。 */}
       {componentsLoading ? (
         <div
           className="flex items-center gap-2 py-2 text-ui-base text-foreground-subtle"
@@ -317,7 +317,7 @@ function HeroSection({
 }
 
 function ComponentSection({ group }: { group: PluginComponentDisplayGroup }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const Icon = SECTION_ICONS[group.kind];
   return (
     <section data-testid="plugin-store-component-section" data-component-kind={group.kind}>
@@ -358,9 +358,9 @@ function InfoSection({
   describeMetadata,
 }: {
   item: StorePluginItem;
-  describeMetadata: ZCodePluginsDescribeResult["metadata"];
+  describeMetadata: ModePluginsDescribeResult["metadata"];
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const platform = useOptionalPlatform();
   const listing = item.listing;
   const developer = listing?.author ?? item.info?.author ?? describeMetadata?.author;
@@ -471,7 +471,7 @@ function pickHttpsUrl(...candidates: Array<string | undefined>): string | undefi
 
 /** 高级折叠区外壳：详情页底部的「更多详情」，内容由父级注入（rootPath/Hook 明细/配置）。 */
 export function PluginStoreAdvancedSection({ children }: { children: ReactNode }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   return (
     <details
       className="group/advanced border-t border-border pt-4"

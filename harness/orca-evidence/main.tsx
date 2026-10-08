@@ -1,13 +1,13 @@
 /**
  * OrcaRouter GUI 证据页入口。
  *
- * 只挂载仓库里真实的 OrcaRouter 组件（不重实现），通过 ZCodeIntlProvider +
+ * 只挂载仓库里真实的 OrcaRouter 组件（不重实现），通过 ModeIntlProvider +
  * ServiceProvider 注入一个纯内存假服务。假服务不触网、不含任何真实凭据；
  * 模型目录数据与 manifest 计数同源（catalog.js）。
  */
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { ModeIntlProvider } from "@/i18n/IntlProvider.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { OrcaRouterProviderFields } from "@/settings/model-provider-section/OrcaRouterProviderFields.js";
 import { OrcaRouterModelSelector } from "@/settings/model-provider-section/OrcaRouterModelSelector.js";
@@ -23,7 +23,7 @@ const FAKE_CONNECT_STATE = Object.freeze({
   phase: "waiting",
   sessionId: "s1",
   authorizeUrl:
-    "https://www.orcarouter.ai/auth?response_type=code&client_id=zcode&code_challenge=FAKE&code_challenge_method=S256&state=FAKE&callback_url=oob",
+    "https://www.orcarouter.ai/auth?response_type=code&client_id=mode&code_challenge=FAKE&code_challenge_method=S256&state=FAKE&callback_url=oob",
   hint: "Open https://www.orcarouter.ai/auth and paste the code",
   error: null,
   busy: true,
@@ -202,11 +202,11 @@ function Harness() {
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <ZCodeIntlProvider initialLocale="en-US">
+    <ModeIntlProvider initialLocale="en-US">
       <ServiceProvider services={fakeAccessor}>
         <Harness />
       </ServiceProvider>
-    </ZCodeIntlProvider>
+    </ModeIntlProvider>
   </StrictMode>,
 );
 

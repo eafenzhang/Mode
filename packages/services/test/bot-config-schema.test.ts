@@ -16,7 +16,7 @@ test("botConfigSchema：包含全部可选字段的配置能通过严格校验�
     credentialRef: "bot:cred:1",
     webhookSecretRef: "bot:whsec:1",
     webhookUrl: "https://example.com/hook",
-    webhookAuthHeaderName: "x-zcode-bot-secret",
+    webhookAuthHeaderName: "x-mode-bot-secret",
     feishuAppId: "cli_xxx",
     providerUserId: "ZhangCongCong",
     privateChatMode: "all_users",

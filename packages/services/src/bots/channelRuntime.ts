@@ -262,7 +262,7 @@ export function acquireWeComWebSocketLock(
   wecomBotId: string,
 ): Promise<BotRuntimeLock | null> {
   // 企微机器人同一 botId 只允许一条长连接：后建立的连接会被服务端踢掉旧连接。
-  // 用 botId 维度加锁，避免多个 ZCode 窗口互相踢线。
+  // 用 botId 维度加锁，避免多个 Mode 窗口互相踢线。
   return acquireBotRuntimeLock("wecom-websocket", wecomBotId.trim(), botId);
 }
 

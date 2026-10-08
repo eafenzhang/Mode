@@ -1,8 +1,8 @@
 packages:
   - packages/*
-  - apps/zcode-cli
-  - apps/zcode-cli/packages/*
-  - apps/zcode-cli/tools/*
+  - apps/mode-cli
+  - apps/mode-cli/packages/*
+  - apps/mode-cli/tools/*
 supportedArchitectures:
   os:
     - current

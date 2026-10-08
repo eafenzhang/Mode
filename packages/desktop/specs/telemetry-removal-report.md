@@ -78,7 +78,7 @@
 - `packages/desktop/src/main/rendererActionTraceIpc.ts`
 - `packages/desktop/src/main/rendererActionTraceRollout.ts`
 - `packages/desktop/src/main/startupTelemetryDelivery.ts`
-- `packages/desktop/src/main/zcodeDataSizeTelemetryState.ts`
+- `packages/desktop/src/main/modeDataSizeTelemetryState.ts`
 - `packages/desktop/src/renderer/appTelemetryBridge.ts`
 - `packages/desktop/src/renderer/src/localTtftBootstrap.ts`
 - `packages/desktop/src/renderer/src/userActionTraceBootstrap.ts`

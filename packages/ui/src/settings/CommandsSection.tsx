@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import type { CommandConfig, UserCommand, ZCodeCommand } from "@mode/shared";
+import type { CommandConfig, UserCommand, ModeCommand } from "@mode/shared";
 import { isPluginCommand, isUserCommand, MODE_COMMAND_AGENT_SOURCE } from "@mode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { toast } from "@/components/ui/toast.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useCommands } from "@/hooks/useCommands.js";
@@ -61,7 +61,7 @@ export function CommandsSection({
   onEditorOpenChange,
   onFormScopeKeyChange,
 }: CommandsSectionProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const confirmDialog = useConfirmDialog();
 
   const currentWorkspaceKey = workspaceIdentity?.trim() || workspacePath || "";
@@ -218,7 +218,7 @@ export function CommandsSection({
   );
 
   const handleDelete = useCallback(
-    async (command: ZCodeCommand) => {
+    async (command: ModeCommand) => {
       if (!isEditableUserCommand(command)) {
         return;
       }
@@ -250,7 +250,7 @@ export function CommandsSection({
   );
 
   const handleToggle = useCallback(
-    async (command: ZCodeCommand, enabled: boolean) => {
+    async (command: ModeCommand, enabled: boolean) => {
       if (!isUserCommand(command)) {
         return;
       }
@@ -270,7 +270,7 @@ export function CommandsSection({
   );
 
   const handleEdit = useCallback(
-    (command: ZCodeCommand) => {
+    (command: ModeCommand) => {
       if (!isEditableUserCommand(command)) {
         return;
       }
@@ -341,7 +341,7 @@ export function CommandsSection({
   const directInstalledCommandCount = scopedCommands.filter(isUserCommand).length;
   const hideInstalledGroup = Boolean(searchQuery.trim()) && groupedCommands.local.length === 0;
 
-  const renderCommandList = (items: ZCodeCommand[]) => (
+  const renderCommandList = (items: ModeCommand[]) => (
     <SettingsResourceList
       items={items}
       getKey={(command) => command.id}

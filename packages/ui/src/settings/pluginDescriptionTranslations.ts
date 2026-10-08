@@ -160,7 +160,7 @@ const CODEX_PLUGIN_DESCRIPTION_ZH: Readonly<Record<string, string>> = {
   "writers-loop": "结构化 AI 写作流程：规划、批评、修订、翻译、文风提炼，可选本地偏好学习。",
   yylo: "编码智能体的命令行编排器：每个任务开独立分支/worktree，委派给 Pi 与 Codex 子智能体并强制完成标准。",
   "zagrosi-forge": "把宽泛项目简报拆成有调研支撑的计划，并用 TDD、质量关卡与可追溯性分段实现。",
-  "codex-zcode-bridge": "把开发任务从 Codex 委派给本机 ZCode 运行时：跟进进度并评审改动结果。",
+  "codex-mode-bridge": "把开发任务从 Codex 委派给本机 Mode 运行时：跟进进度并评审改动结果。",
   "amq-cli": "基于文件的智能体间消息：协作模式、跨项目联邦与编排器集成。",
   "agent-vision": "仅 macOS 的本地摄像头插件：显式快照、流控与文件形式输入图像。",
   agentdomains: "为 AI 智能体搭建的站点与 API 申请并管理 makes.fyi 或 agentdomains.co 下的免费子域名。",

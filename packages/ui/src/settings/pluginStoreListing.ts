@@ -1,10 +1,10 @@
 import type {
   PluginStoreModeOrder,
-  ZCodeAvailablePluginSummary,
-  ZCodeInstalledPluginSummary,
-  ZCodePluginInfo,
-  ZCodePluginMarketplaceSummary,
-  ZCodePluginStoreListing,
+  ModeAvailablePluginSummary,
+  ModeInstalledPluginSummary,
+  ModePluginInfo,
+  ModePluginMarketplaceSummary,
+  ModePluginStoreListing,
 } from "@mode/shared";
 import {
   sortPluginStoreEntries,
@@ -35,11 +35,11 @@ export { isPublicStoreMarketplaceId };
  * 会把第三方条目的品牌和图标误挂到另一个 marketplace，安全降级为 slug 更可靠。
  */
 export function resolveUniquePluginListingByName(
-  plugins: readonly Pick<ZCodeAvailablePluginSummary, "name" | "listing">[],
+  plugins: readonly Pick<ModeAvailablePluginSummary, "name" | "listing">[],
   name: string,
-): ZCodePluginStoreListing | undefined {
+): ModePluginStoreListing | undefined {
   const normalizedName = name.trim().toLocaleLowerCase();
-  let match: ZCodePluginStoreListing | undefined;
+  let match: ModePluginStoreListing | undefined;
   let count = 0;
   for (const plugin of plugins) {
     if (plugin.name.trim().toLocaleLowerCase() !== normalizedName) continue;
@@ -64,14 +64,14 @@ export interface StorePluginItem {
   orphaned: boolean;
   /** 目录里列着、但本分支没有随包安装包（官方客户端内置的第一方插件）：不提供安装。 */
   bundledUnavailable?: boolean;
-  listing?: ZCodePluginStoreListing;
-  summary?: ZCodeAvailablePluginSummary;
+  listing?: ModePluginStoreListing;
+  summary?: ModeAvailablePluginSummary;
   /** 运行时信息（仅已发现的已安装插件有）：启用态、组件、manifest 回退字段。 */
-  info?: ZCodePluginInfo;
-  installedMeta?: ZCodeInstalledPluginSummary;
+  info?: ModePluginInfo;
+  installedMeta?: ModeInstalledPluginSummary;
 }
 
-export type PluginUpdateStatus = NonNullable<ZCodeInstalledPluginSummary["updateStatus"]>;
+export type PluginUpdateStatus = NonNullable<ModeInstalledPluginSummary["updateStatus"]>;
 
 export function isPluginUpdatePending(
   updateStatus: PluginUpdateStatus | undefined,
@@ -126,7 +126,7 @@ export function resolveItemDescription(item: StorePluginItem, locale: string): s
 
 /** 管理列表与商店复用完整 ID 关联的展示信息，避免英文 manifest 绕过本地化。 */
 export function resolveManagedPluginDisplay(
-  plugin: ZCodePluginInfo,
+  plugin: ModePluginInfo,
   item: StorePluginItem | undefined,
   locale: string,
 ): { name: string; description: string | undefined } {
@@ -173,9 +173,9 @@ const OFFICIAL_MARKETPLACE_ORDER: readonly string[] = [MODE_OFFICIAL_PLUGIN_MARK
  * 同一时间使用本地化名称稳定兜底，避免市场源顺序随持久化数组历史漂移。
  */
 export function sortMarketplaceSources(
-  marketplaces: readonly ZCodePluginMarketplaceSummary[],
+  marketplaces: readonly ModePluginMarketplaceSummary[],
   locale: string,
-): ZCodePluginMarketplaceSummary[] {
+): ModePluginMarketplaceSummary[] {
   const officialRank = new Map(OFFICIAL_MARKETPLACE_ORDER.map((id, index) => [id, index]));
   return marketplaces.toSorted((left, right) => {
     const leftRank = officialRank.get(left.id);
@@ -201,7 +201,7 @@ export function sortMarketplaceSources(
  */
 export function sortPersonalMarketplaceGroups(
   groups: PersonalMarketplaceGroup[],
-  marketplaces: readonly ZCodePluginMarketplaceSummary[],
+  marketplaces: readonly ModePluginMarketplaceSummary[],
   locale: string,
 ): PersonalMarketplaceGroup[] {
   const lastUpdatedById = new Map(
@@ -223,12 +223,12 @@ export function sortPersonalMarketplaceGroups(
  * 条目宇宙 = availablePlugins ∪ restorableBuiltins ∪ 实际发现的插件包（覆盖 inline/孤儿插件）。
  */
 export function buildStoreItems(input: {
-  marketplaces: ZCodePluginMarketplaceSummary[];
+  marketplaces: ModePluginMarketplaceSummary[];
   marketplaceAvailabilityKnown: boolean;
-  availablePlugins: ZCodeAvailablePluginSummary[];
-  installedPlugins: ZCodeInstalledPluginSummary[];
-  plugins: ZCodePluginInfo[];
-  restorableBuiltins: ZCodeAvailablePluginSummary[];
+  availablePlugins: ModeAvailablePluginSummary[];
+  installedPlugins: ModeInstalledPluginSummary[];
+  plugins: ModePluginInfo[];
+  restorableBuiltins: ModeAvailablePluginSummary[];
 }): StorePluginItem[] {
   const infoById = new Map(input.plugins.map((plugin) => [plugin.id, plugin]));
   const metaById = new Map(input.installedPlugins.map((item) => [item.id, item]));
@@ -314,7 +314,7 @@ export function buildStoreItems(input: {
 /** 公开分段：Featured（CDN featured 名单按序）+ 分类聚合（无分类归 other，排最后）。 */
 export function selectFeaturedItems(
   publicItems: StorePluginItem[],
-  marketplaces: ZCodePluginMarketplaceSummary[],
+  marketplaces: ModePluginMarketplaceSummary[],
 ): StorePluginItem[] {
   const byName = new Map<string, StorePluginItem>();
   for (const item of publicItems) {

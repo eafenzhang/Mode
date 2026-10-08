@@ -28,7 +28,7 @@ import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
 import { logger } from "@/logger.js";
 import {
@@ -46,7 +46,7 @@ import {
 } from "@/BotsDialog/BotSummaryCard.js";
 import { ProviderSettingsCard } from "@/BotsDialog/ProviderSettingsCard.js";
 import { BotHeartbeatCard } from "@/BotsDialog/BotHeartbeatCard.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { BotGroupChatCard } from "@/BotsDialog/BotGroupChatCard.js";
 import { BotPrivateChatCard } from "@/BotsDialog/BotPrivateChatCard.js";
 import { BotDingtalkCardConfigCard } from "@/BotsDialog/BotDingtalkCardConfigCard.js";
@@ -99,7 +99,7 @@ export function BotsDialog({
   workspaceIdentity?: string;
   entryProvider?: BotProvider | null;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const platform = usePlatform();
   const confirmDialog = useConfirmDialog();
   const { botsService } = useServices();
@@ -334,7 +334,7 @@ export function BotsDialog({
       const isCurrentWorkspace =
         targetPath === workspacePath && (targetIdentity ?? "") === (workspaceIdentity ?? "");
       const activeTaskId = isCurrentWorkspace
-        ? useZCodeSessionStore.getState().getWorkspaceState(targetPath, targetIdentity)
+        ? useModeSessionStore.getState().getWorkspaceState(targetPath, targetIdentity)
             .activeTaskId
         : null;
       if (activeTaskId) {
@@ -971,7 +971,7 @@ export function BotsDialog({
         await saveBot({
           ...bot,
           name: "",
-          ...(provider === "webhook" ? { webhookAuthHeaderName: "x-zcode-bot-secret" } : {}),
+          ...(provider === "webhook" ? { webhookAuthHeaderName: "x-mode-bot-secret" } : {}),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

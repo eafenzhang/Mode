@@ -5,7 +5,7 @@ import {
   type ProviderFamilyDomain,
 } from "@mode/shared";
 import type { ModelSelectionView } from "@mode/services";
-import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
+import { encodeCustomModelValue } from "@/lib/modeCustomModelValue.js";
 
 export type ApiKeyProviderChoice = "zai" | "bigmodel";
 

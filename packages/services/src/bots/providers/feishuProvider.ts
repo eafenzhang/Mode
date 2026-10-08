@@ -305,7 +305,7 @@ function buildFeishuElicitationForm(
         type: "callback",
         value: {
           command: buildFeishuElicitationFormCommand(selection.token),
-          zcodeCardText: message.text,
+          modeCardText: message.text,
         },
       },
     ],
@@ -507,7 +507,7 @@ function getFeishuDomainProvider(bot: Pick<BotConfig, "provider">): "feishu" | "
 }
 
 function readFeishuPayloadProvider(payload: Record<string, unknown>): BotProvider {
-  return readString(payload, "zcodeProvider") === "lark" ? "lark" : "feishu";
+  return readString(payload, "modeProvider") === "lark" ? "lark" : "feishu";
 }
 
 function getFeishuBaseUrl(bot: Pick<BotConfig, "provider">): string {
@@ -870,9 +870,9 @@ function readFeishuCardOriginalText(payload: unknown): string | null {
   const behavior = Array.isArray(action?.behaviors) ? action.behaviors.find(isRecord) : null;
   const behaviorValue = isRecord(behavior?.value) ? behavior.value : null;
   return (
-    readString(value, "zcodeCardText") ||
+    readString(value, "modeCardText") ||
     readString(value, "cardText") ||
-    readString(behaviorValue, "zcodeCardText") ||
+    readString(behaviorValue, "modeCardText") ||
     readString(behaviorValue, "cardText") ||
     null
   );
@@ -926,7 +926,7 @@ function buildFeishuButtonElement(params: {
         type: "callback",
         value: {
           command: params.command,
-          zcodeCardText: params.originalText,
+          modeCardText: params.originalText,
         },
       },
     ],
@@ -1621,7 +1621,7 @@ export function createFeishuWebSocketEventHandlers(params: {
   const { bot, onPayload } = params;
   return {
     "im.message.receive_v1": async (payload: unknown) => {
-      await onPayload({ botId: bot.id, zcodeProvider: bot.provider, ...(isRecord(payload) ? payload : { payload }) });
+      await onPayload({ botId: bot.id, modeProvider: bot.provider, ...(isRecord(payload) ? payload : { payload }) });
     },
     // Bugfix: 我们用 Typing reaction 模拟输入中状态，飞书会把自己创建的 reaction 再推回长连接。
     // 业务不需要处理这个事件，但不注册 handler 时 SDK 会持续打印 warn 干扰排查。
@@ -1629,12 +1629,12 @@ export function createFeishuWebSocketEventHandlers(params: {
     "card.action.trigger": async (payload: unknown) => {
       const callbackPayload = {
         botId: bot.id,
-        zcodeProvider: bot.provider,
-        zcodeFeishuSynchronousCardAction: true,
+        modeProvider: bot.provider,
+        modeFeishuSynchronousCardAction: true,
         ...(isRecord(payload) ? payload : { payload }),
       };
       // 修复原因：飞书点击后的同步响应才是客户端可靠采用的卡片状态。传输层不能再从
-      // zcodeCardText 拼简化卡，也不能返回 undefined 后依赖旁路 PATCH；它必须消费业务层
+      // modeCardText 拼简化卡，也不能返回 undefined 后依赖旁路 PATCH；它必须消费业务层
       // 已推进完成的完整 outbound，并用同一份 elicitation 状态生成下一题卡片。
       const message = await onPayload(callbackPayload);
       if (!message) {
@@ -2032,7 +2032,7 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
         const appId = bot.feishuAppId?.trim();
         const botOpenId = appId ? feishuBotOpenIdCache.get(appId) : undefined;
         if (botOpenId) {
-          return { ...payload, zcodeFeishuBotOpenId: botOpenId };
+          return { ...payload, modeFeishuBotOpenId: botOpenId };
         }
       }
       return payload;
@@ -2090,7 +2090,7 @@ export function createFeishuBotProvider(deps: FeishuProviderDeps): BotProviderAd
       }
       if (message.actor.chatType === "group") {
         const botOpenId =
-          typeof payload.zcodeFeishuBotOpenId === "string" ? payload.zcodeFeishuBotOpenId : "";
+          typeof payload.modeFeishuBotOpenId === "string" ? payload.modeFeishuBotOpenId : "";
         const mentionedOpenIds = readFeishuMentionOpenIds(payload);
         // 身份未知时保守放行（mention 模式宁可多响应一次，也不能静默丢消息）。
         const isMention = botOpenId

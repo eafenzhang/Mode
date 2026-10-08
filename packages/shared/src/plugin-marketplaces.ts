@@ -25,7 +25,7 @@ export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
   "node-repl-host@zcode-plugins-official",
   "skill-creator@zcode-plugins-official",
   "plugin-creator@zcode-plugins-official",
-  "zcode-guide@zcode-plugins-official",
+  "mode-guide@zcode-plugins-official",
   // 电脑控制回退为默认关闭，故 computer-use 不在此名单内。
   // 该集合必须与 official-plugin-definitions.ts 里标了 defaultEnabled 的插件逐一对应，
   // bootstrap 的「Settings 默认启用集合与 CLI 的官方插件声明一致」单测机械对照两者。
@@ -52,12 +52,12 @@ export const CLAUDE_PLUGIN_MARKETPLACE_SOURCE = "anthropics/claude-plugins-offic
 // 它永远不进入默认市场集合（见 resolveDefaultPluginMarketplaces），也不会被 seed。
 export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
   {
-    // ZCode 官方唯一市场：本地 seed 分片与 CDN 分片在 Agent storage 内合并。
+    // Mode 官方唯一市场：本地 seed 分片与 CDN 分片在 Agent storage 内合并。
     // CDN manifest 的 name 必须与该 canonical id 一致。
     id: MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
-    source: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
+    source: "https://cdn-zcode.z.ai/mode/official-plugin/marketplace.json",
     name: MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
-    description: "Official ZCode plugins marketplace: built-in and community plugins for ZCode.",
+    description: "Official Mode plugins marketplace: built-in and community plugins for Mode.",
     pluginCount: 0,
   },
 
@@ -89,7 +89,7 @@ export function resolveDefaultPluginMarketplaces(): DefaultPluginMarketplace[] {
   );
 }
 
-// 商店「公开」分段只有一个 ZCode 官方市场 id，内置与 CDN 不再拆分身份。
+// 商店「公开」分段只有一个 Mode 官方市场 id，内置与 CDN 不再拆分身份。
 export const PUBLIC_STORE_MARKETPLACE_IDS = [MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID] as const;
 
 export function isPublicStoreMarketplaceId(id: string): boolean {

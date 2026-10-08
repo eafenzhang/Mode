@@ -6,7 +6,7 @@ export * from "./usage-quota.js";
 // 外部 API Key Provider 余额类型独立于官方套餐额度，见 provider-balance.ts 头部说明。
 export * from "./provider-balance.js";
 import type { UsageMcpQuotaSnapshot, UsageQuotaSnapshot } from "./usage-quota.js";
-import type { ZCodeAccountAccess, ZCodeProviderAccountAccess } from "./zcode-protocol/index.js";
+import type { ModeAccountAccess, ModeProviderAccountAccess } from "./mode-protocol/index.js";
 
 export const ESTIMATED_TOKEN_CHAR_DIVISOR = 3;
 
@@ -23,7 +23,7 @@ export interface UsageStatsRequest {
   /** 设置页可传入用户当前选中的 Z.AI / BigModel 来源，避免两边都配置时只隐式读取第一家。 */
   preferredProviderId?: string;
   /** Registry 静态访问类别，或调用边界已解析的动态账号访问上下文。 */
-  accountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
+  accountAccess?: ModeProviderAccountAccess | ModeAccountAccess;
   /** 指定来源的场景必须命中 preferredProviderId,否则不允许回退到其它 provider 或本地聚合。 */
   requirePreferredProvider?: boolean;
   /** 是否允许 host 环境变量覆盖 provider key。默认允许,显式 provider 场景可关闭。 */
@@ -42,7 +42,7 @@ export interface CodingPlanUsageRequest {
   customEndDate?: string | null;
   preferredProviderId: string;
   /** Registry 静态访问类别，或本次 Team 查询绑定的动态账号访问上下文。 */
-  accountAccess: ZCodeProviderAccountAccess | ZCodeAccountAccess;
+  accountAccess: ModeProviderAccountAccess | ModeAccountAccess;
   timeZone?: string;
 }
 
@@ -54,7 +54,7 @@ export interface UsageEntitlementRequest {
   /** 聊天输入区可传入当前选中的内置供应商,确保 BigModel/Z.AI 用量跟随模型选择。 */
   preferredProviderId?: string;
   /** 指定 Account Provider 的静态访问类别，或调用边界已解析的动态账号访问上下文。 */
-  accountAccess?: ZCodeProviderAccountAccess | ZCodeAccountAccess;
+  accountAccess?: ModeProviderAccountAccess | ModeAccountAccess;
   /** 当前模型已明确选中该内置供应商时，即使供应商列表里被隐藏也允许读取其 key。 */
   allowDisabledPreferredProvider?: boolean;
   /** 指定来源的场景必须命中 preferredProviderId,否则不允许回退到其它 provider。 */
@@ -81,7 +81,7 @@ export interface UsageEntitlementSnapshot {
   subscription: UsageEntitlementSubscription | null;
   quota: UsageQuotaSnapshot | null;
   /**
-   * ZCode 官方 Server MCP 的调用额度（`/api/v1/mcp/usage`）。
+   * Mode 官方 Server MCP 的调用额度（`/api/v1/mcp/usage`）。
    * 与 quota 同一份快照下发，是为了继承 entitlement 已有的缓存 / in-flight 合并 / TTL 策略；
    * 拉取失败、未开通 Coding Plan、或该额度不属于本次查询的连接时一律为 null（可选数据面）。
    */

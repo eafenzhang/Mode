@@ -1,4 +1,4 @@
-import type { SubagentRow, ToolCallRow } from "@mode/shared/zcode-protocol-v4";
+import type { SubagentRow, ToolCallRow } from "@mode/shared/mode-protocol-v4";
 import {
   isExecuteToolCall,
   isExploreToolCall,

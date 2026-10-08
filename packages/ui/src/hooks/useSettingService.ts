@@ -106,7 +106,7 @@ async function refreshSettingsStore(settingService: ISettingService | undefined)
 
 /** 获取和更新应用设置 */
 export function useSettings() {
-  const { botsService, broadcastService, settingService, zcodeAgentService } = useServices();
+  const { botsService, broadcastService, settingService, modeAgentService } = useServices();
   const platform = usePlatform();
   const settingsStore = getSettingsStore(settingService);
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>(settingsStore.snapshot);
@@ -155,7 +155,7 @@ export function useSettings() {
             settingsStore.snapshot.settings?.modelIoFullRetentionEnabled === true,
         };
         const syncResults = await Promise.allSettled([
-          zcodeAgentService.syncAppRuntimePreferences(preferences),
+          modeAgentService.syncAppRuntimePreferences(preferences),
           botsService.syncAppRuntimePreferences(preferences),
         ]);
         const syncError = syncResults.find(
@@ -175,7 +175,7 @@ export function useSettings() {
       broadcastService,
       settingService,
       settingsStore,
-      zcodeAgentService,
+      modeAgentService,
       platform,
       refresh,
     ],

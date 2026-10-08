@@ -87,6 +87,6 @@ export function normalizeUnknownError(error: unknown): NormalizedUnknownError {
   };
 }
 
-export function isZCodeFileLockTimeoutError(error: unknown): boolean {
+export function isModeFileLockTimeoutError(error: unknown): boolean {
   return normalizeUnknownError(error).code === MODE_FILE_LOCK_TIMEOUT_ERROR_CODE;
 }

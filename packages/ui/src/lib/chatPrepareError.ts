@@ -1,14 +1,14 @@
 import {
   normalizeUnknownError,
   MODE_AGENT_PROVIDER_NOT_READY_CODE,
-  type ZCodeProvider,
-  type ZCodeError,
+  type ModeProvider,
+  type ModeError,
 } from "@mode/shared";
-import { normalizeZCodeUiError } from "@/lib/zcodeUiError.js";
+import { normalizeModeUiError } from "@/lib/modeUiError.js";
 
 export const MODEL_CONFIG_MISSING_UI_ERROR_CODE = "model_config_missing";
 
-export type ModelConfigMissingUiError = ZCodeError & {
+export type ModelConfigMissingUiError = ModeError & {
   code: typeof MODEL_CONFIG_MISSING_UI_ERROR_CODE;
 };
 
@@ -27,7 +27,7 @@ export function isProviderNotReadyError(error: unknown): boolean {
 
 interface WorkspacePrepareErrorContext {
   workspacePath: string;
-  provider: ZCodeProvider;
+  provider: ModeProvider;
   reason:
     | "mount"
     | "retry"
@@ -128,8 +128,8 @@ function buildDisplayErrorInput(err: unknown, displayMessage: string | undefined
 export function buildWorkspacePrepareUiError(
   err: unknown,
   context: WorkspacePrepareErrorContext,
-): ZCodeError & { detail?: string } {
-  const normalizedError = normalizeZCodeUiError(
+): ModeError & { detail?: string } {
+  const normalizedError = normalizeModeUiError(
     buildDisplayErrorInput(err, context.displayMessage),
     {
       fallbackCode: "WORKSPACE_PREPARE_FAILED",

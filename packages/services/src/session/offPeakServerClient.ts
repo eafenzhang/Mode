@@ -10,7 +10,7 @@ import {
   withRequestIdHeader,
   REQUEST_ID_HEADER_NAME,
 } from "#src/providers/api/requestIdHeaders.js";
-import { buildZCodeSourceHeaders } from "#src/providers/sourceHeaders.js";
+import { buildModeSourceHeaders } from "#src/providers/sourceHeaders.js";
 import {
   buildOffPeakPlanIdentityHeaders,
   type OffPeakCredentialSnapshot,
@@ -160,7 +160,7 @@ export function createOffPeakServerClient(deps: OffPeakServerClientDeps): OffPea
       // test 服务端只能看到 user_agent=node，且客户端日志无法关联 2007/裸 429 的服务端请求。
       // 这里只补标准非敏感来源头和链路 id，JWT/API Key 仍禁止进入日志。
       const headers = withRequestIdHeader({
-        ...buildZCodeSourceHeaders(),
+        ...buildModeSourceHeaders(),
         ...(body === undefined ? {} : { "content-type": "application/json" }),
         authorization: `Bearer ${credentials.jwt}`,
         "x-coding-plan-api-key": credentials.codingPlanApiKey,

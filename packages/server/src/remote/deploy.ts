@@ -9,7 +9,7 @@ import {
   type RemoteResourcePackageSelection,
 } from "@mode/shared";
 import type { IRemoteBackend, RemoteEnvironment } from "./backend.js";
-import { deployZCodeAgentRuntime } from "./zcodeAgentDeploy.js";
+import { deployModeAgentRuntime } from "./modeAgentDeploy.js";
 import {
   deployNodePtyPrebuilds,
   deployNodeRuntime,
@@ -27,7 +27,7 @@ import {
 import { quotePosixPathArg } from "@mode/server/remote/posixShell.js";
 import { checkServerBundleRequiredMarkers } from "@mode/server/remote/serverBundleDeployCheck.js";
 import { deployRuntimeTools } from "@mode/server/remote/runtimeToolDeploy.js";
-import { REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS } from "@mode/server/remote/zcodeAgentOfficialPluginAssets.js";
+import { REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS } from "@mode/server/remote/modeAgentOfficialPluginAssets.js";
 import {
   ensureRemoteReleaseDirFromCdn,
   selectRemoteAssetManifestComponents,
@@ -87,7 +87,7 @@ export interface DeployOptions {
 }
 
 /**
- * Deploy the zcode server to the remote machine.
+ * Deploy the mode server to the remote machine.
  * Uploads Node.js binary, server bundle, and node-pty prebuild.
  *
  * Returns true if a deploy was performed, false if skipped (version matches).
@@ -274,7 +274,7 @@ export async function deployServer(
     // Check if deploy is needed
     if (!serverDeployDecision.shouldDeploy) {
       log("skipped — remote version matches");
-      // 主 server 版本相同只证明 node/zcode-server.cjs 可启动，不代表随包工具仍存在。
+      // 主 server 版本相同只证明 node/mode-server.cjs 可启动，不代表随包工具仍存在。
       // glm 内容跟随 app/server 版本刷新；但 wrapper/bundle 被清理或开发态 bundle 变化时仍要按实体检查修复。
       if (shouldDeployResourcePackage("node-pty")) {
         await deployNodePtyPrebuilds(
@@ -289,7 +289,7 @@ export async function deployServer(
           { log, logWarn },
         );
       }
-      await deployZCodeAgentRuntime(
+      await deployModeAgentRuntime(
         backend,
         env,
         {
@@ -335,8 +335,8 @@ export async function deployServer(
     });
     await installer.installFile({
       componentId: SERVER_BUNDLE_COMPONENT_ID,
-      sourceRelativePath: "server/zcode-server.cjs",
-      remotePath: `${REMOTE_BASE}/zcode-server.cjs`,
+      sourceRelativePath: "server/mode-server.cjs",
+      remotePath: `${REMOTE_BASE}/mode-server.cjs`,
       // App 版本变化是新的发布边界，不能只凭历史 cache 的 `.ready`
       // 判断 server-bundle 可复用；与 GLM 一致，必须重新下载并校验当前 manifest 制品。
       forceRefresh: shouldForceRefreshContentAddressedAssets,
@@ -370,8 +370,8 @@ export async function deployServer(
 
     log("all uploads complete");
 
-    // 部署 ZCode Agent runtime 到远程，历史资源包选择已在入口统一忽略。
-    await deployZCodeAgentRuntime(
+    // 部署 Mode Agent runtime 到远程，历史资源包选择已在入口统一忽略。
+    await deployModeAgentRuntime(
       backend,
       env,
       {
@@ -497,7 +497,7 @@ async function checkServerDeployDecision(
       };
     }
 
-    const serverPath = `${REMOTE_BASE}/zcode-server.cjs`;
+    const serverPath = `${REMOTE_BASE}/mode-server.cjs`;
     const serverExists = await backend.exists(serverPath);
     log("remote server exists:", serverExists);
     if (!serverExists) {
@@ -717,7 +717,7 @@ function resolveRequiredMockReleasePaths(
   for (const componentId of ids) {
     switch (componentId) {
       case SERVER_BUNDLE_COMPONENT_ID:
-        requiredPaths.add("server/zcode-server.cjs");
+        requiredPaths.add("server/mode-server.cjs");
         break;
       case "node-runtime":
         requiredPaths.add(`node/${platformArch}/node`);
@@ -729,7 +729,7 @@ function resolveRequiredMockReleasePaths(
         }
         break;
       case "glm":
-        requiredPaths.add(`glm/${platformArch}/zcode.cjs`);
+        requiredPaths.add(`glm/${platformArch}/mode.cjs`);
         for (const relativePath of REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS) {
           requiredPaths.add(`glm/${platformArch}/packages/${relativePath}`);
         }

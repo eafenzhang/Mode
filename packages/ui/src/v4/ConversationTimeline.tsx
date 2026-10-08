@@ -25,10 +25,10 @@ import type {
   ConversationRowTarget,
   QueueItem,
   SessionPhase,
-} from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { ConversationTurnGroup } from "@/v4/ConversationTurnGroup.js";
 import { ConversationPendingGuideList } from "@/v4/ConversationPendingGuideList.js";
@@ -379,7 +379,7 @@ function ConversationTimelineImpl({
   shareSelection,
   hideTurnNavigator = false,
 }: ConversationTimelineProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerSlotRef = useRef<HTMLDivElement>(null);
   // headerSlot 高度参与虚拟窗口换算（scrollMargin），必须随内容与宽度变化实时跟进，

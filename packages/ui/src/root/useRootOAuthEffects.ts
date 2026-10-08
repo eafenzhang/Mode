@@ -13,7 +13,7 @@ import {
 } from "@mode/shared";
 import type { IServiceAccessor } from "@mode/services";
 import { useAlertDialog } from "@/hooks/useAlertDialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { setProviderFamilyDomain } from "@/lib/providerFamilyDomainSettings.js";
 import type { ModelProviderFamilyConnectionSelection } from "@/lib/modelProviderFamilyConnectionSelection.js";
@@ -22,7 +22,7 @@ import {
   refreshRestoredOAuthProviderFamilyAfterStartup,
 } from "@/root/oauthProviderFamilySelectionRefresh.js";
 import { applyCachedOAuthSessionRestoreResult } from "@/root/oauthCachedSessionRestore.js";
-import { markZcodeJwtInvalidRestart } from "@/root/zcodeJwtInvalidRestartMarker.js";
+import { markModeJwtInvalidRestart } from "@/root/modeJwtInvalidRestartMarker.js";
 import { shouldApplyOAuthPollingFailure } from "@/root/oauthLoginAttemptGuard.js";
 import { useAccountConnectionLossNotification } from "@/root/useAccountConnectionLossNotification.js";
 
@@ -105,7 +105,7 @@ export function useRootOAuthEffects({
 }) {
   useAccountConnectionLossNotification(services, accountIntentKey, refreshAppSettings);
   const requestAlert = useAlertDialog();
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const oauthLoginSucceededRef = useRef(false);
   const oauthLoginSuccessInFlightRef = useRef(false);
   const oauthLoginSuccessOwnerRef = useRef<"polling" | "deep-link" | null>(null);
@@ -204,8 +204,8 @@ export function useRootOAuthEffects({
           onReauthenticationRequired();
           return;
         }
-        markZcodeJwtInvalidRestart();
-        if (typeof window !== "undefined" && !("zcode" in window)) {
+        markModeJwtInvalidRestart();
+        if (typeof window !== "undefined" && !("mode" in window)) {
           // Web 没有 Electron RelaunchApp；marker 写入后立即刷新，避免停留在僵尸登录态。
           window.location.reload();
           return;

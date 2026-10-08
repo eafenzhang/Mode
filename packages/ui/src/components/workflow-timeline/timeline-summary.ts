@@ -1,4 +1,4 @@
-import { workflowRunStepCounts, type WorkflowRunState } from "@mode/shared/zcode-protocol-v4";
+import { workflowRunStepCounts, type WorkflowRunState } from "@mode/shared/mode-protocol-v4";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import { workflowSubagentModelCardLabel } from "./subagent-model-label.js";
 import type { WorkflowTimelineModel } from "./timeline-model.js";

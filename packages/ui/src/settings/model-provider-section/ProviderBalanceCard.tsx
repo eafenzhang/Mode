@@ -1,6 +1,6 @@
 import type { ProviderBalanceEntry, ProviderBalanceSnapshot } from "@mode/shared";
 import { Loader2Icon, RefreshCwIcon } from "lucide-react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useProviderBalance } from "@/hooks/useProviderBalance.js";
 
 /**
@@ -22,7 +22,7 @@ export function ProviderBalanceCard({
    */
   recheckKey?: string;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const { snapshot, loading, refresh } = useProviderBalance(providerId, { enabled, recheckKey });
 
   if (!snapshot || snapshot.status === "unsupported") {
@@ -91,7 +91,7 @@ function ProviderBalanceEntryView({
 }
 
 function resolveStatusMessage(
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useModeIntl>["intl"],
   snapshot: ProviderBalanceSnapshot,
 ): string {
   if (snapshot.status === "not_configured") {

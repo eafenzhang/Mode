@@ -4,7 +4,7 @@ import { TID_SSH_ERROR, type RemoteTarget } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   isRemoteConnectionLogScrolledToLatest,
   scrollRemoteConnectionLogsToLatestIfFollowing,
@@ -24,7 +24,7 @@ export function RemoteConnectionConnectingStep({
   onBack: () => void;
   onRetry: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const logContainerRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowLatestLogRef = useRef(true);
   const latestLogId = logs.at(-1)?.id;

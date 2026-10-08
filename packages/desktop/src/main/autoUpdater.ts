@@ -22,11 +22,11 @@ const { autoUpdater } = pkg;
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
 const AUTO_UPDATE_POLL_INTERVAL_MS = 60 * 60 * 1000;
 const UPDATE_FEED_URL_ENV = "MODE_UPDATE_FEED_URL";
-const UPDATE_FEED_URL_SWITCH = "--zcode-update-feed-url";
+const UPDATE_FEED_URL_SWITCH = "--mode-update-feed-url";
 const DEV_AUTO_UPDATE_ENV = "MODE_AUTO_UPDATE_DEV";
-const DEV_AUTO_UPDATE_SWITCH = "--zcode-auto-update-dev";
+const DEV_AUTO_UPDATE_SWITCH = "--mode-auto-update-dev";
 const DEV_AUTO_UPDATE_VERSION_ENV = "MODE_AUTO_UPDATE_DEV_VERSION";
-const DEV_AUTO_UPDATE_VERSION_SWITCH = "--zcode-auto-update-dev-version";
+const DEV_AUTO_UPDATE_VERSION_SWITCH = "--mode-auto-update-dev-version";
 let readyUpdateVersion: string | null = null;
 let readyUpdateReleaseNotes: PostUpdateReleaseNotesPayload | null = null;
 let readyUpdateRestoredFromPendingReleaseNotes = false;
@@ -70,7 +70,7 @@ type UpdateDownloadedInfoLike = {
   path?: string | null;
   files?: Array<{ url?: string | null } | null> | null;
   packages?: Record<string, { path?: string | null } | null> | null;
-  zcodeReleaseChannel?: ElectronReleaseChannel | null;
+  modeReleaseChannel?: ElectronReleaseChannel | null;
   releaseName?: string | null;
   releaseNotes?: string | ReleaseNoteInfoLike[] | null;
   releaseDate?: string | Date | null;
@@ -240,8 +240,8 @@ function getAutoUpdaterReleaseChannelForCurrentState(): ElectronReleaseChannel {
 function readUpdateInfoReleaseChannel(
   info: UpdateDownloadedInfoLike,
 ): ElectronReleaseChannel | null {
-  return info.zcodeReleaseChannel === "preview" || info.zcodeReleaseChannel === "stable"
-    ? info.zcodeReleaseChannel
+  return info.modeReleaseChannel === "preview" || info.modeReleaseChannel === "stable"
+    ? info.modeReleaseChannel
     : null;
 }
 

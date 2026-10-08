@@ -4,11 +4,11 @@ import { assertOfficialServiceRemoved } from "@mode/shared";
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   resolveOffPeakProviderId,
-  buildRuntimeZCodeApiUrl,
+  buildRuntimeModeApiUrl,
   type OffPeakCodingPlanKind,
   type OffPeakCodingPlanSupport,
   type OffPeakCodingPlanUnsupportedReason,
-  type ZCodeAccountAccess,
+  type ModeAccountAccess,
 } from "@mode/shared";
 import { isOffPeakMockEnabled, startOffPeakMockGateway } from "./offPeakMockGateway.js";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
@@ -30,7 +30,7 @@ export class OffPeakCredentialsUnavailableError extends OffPeakPermanentDispatch
   constructor(readonly missing: "jwt" | "codingPlanApiKey") {
     super(
       missing === "jwt"
-        ? "off-peak requires zcode login (jwt missing)"
+        ? "off-peak requires mode login (jwt missing)"
         : "off-peak requires a coding plan provider api key",
     );
     this.name = "OffPeakCredentialsUnavailableError";
@@ -78,7 +78,7 @@ interface OffPeakCredentialResolverDeps {
   accountRequestAuthService: IAccountRequestAuthService;
   resolveAccountProvider(): Promise<{
     readonly providerId: string;
-    readonly access: ZCodeAccountAccess;
+    readonly access: ModeAccountAccess;
     readonly baseURL?: string;
   } | null>;
   env?: NodeJS.ProcessEnv;
@@ -161,7 +161,7 @@ export async function resolveOffPeakCredentials(
     const activeProvider =
       (await deps.credentialService.load(ACTIVE_OAUTH_PROVIDER_KEY))?.trim() ?? "";
     if (activeProvider !== selection.providerFamily) {
-      // zcode JWT 是当前 App 登录身份的全局镜像；只校验 selectedKey 会把
+      // mode JWT 是当前 App 登录身份的全局镜像；只校验 selectedKey 会把
       // ZAI JWT 与 BigModel key（或反向）拼到同一请求，服务端只能在取号时才拒绝。
       throw new OffPeakCodingPlanUnavailableError("provider_identity_mismatch");
     }
@@ -317,7 +317,7 @@ export async function resolveOffPeakMockUpstream(deps: {
 
 /**
  * origin 解析器（memoized）：mock 模式懒启动进程内网关（固定端口，多实例经 EADDRINUSE
- * 复用同一份票据状态），真实模式指向 zcode API origin。node 服务装配与 host 派发两侧
+ * 复用同一份票据状态），真实模式指向 mode API origin。node 服务装配与 host 派发两侧
  * 各持一个解析器也安全——谁先绑定谁持有网关，另一方外部复用。
  */
 export function createOffPeakOriginResolver(deps: {
@@ -333,7 +333,7 @@ export function createOffPeakOriginResolver(deps: {
       if (!originPromise) {
         originPromise = (async () => {
           if (!isOffPeakMockEnabled(env)) {
-            return new URL(buildRuntimeZCodeApiUrl(env, "/")).origin;
+            return new URL(buildRuntimeModeApiUrl(env, "/")).origin;
           }
           const gateway = await startOffPeakMockGateway({
             logger: deps.logger,

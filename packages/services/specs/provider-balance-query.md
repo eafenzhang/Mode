@@ -4,8 +4,8 @@
 
 ## 事实源与所有权
 
-- **Provider 配置所有者**：`@zcode/provider` 的 Provider Settings（`providerRuntime.providerSettings` / 远端 workspace 的 `providerSettingsService`）。余额查询只读 `effectiveConfig` 的 `access`（仅 `type === "api-key"`）与 `api.baseUrl`，不写入任何配置。
-- **余额查询所有者**：`@zcode/services` 的 `IUsageStatsService.getProviderBalanceSnapshot`，实现为 `ProviderBalanceProvider`（`packages/services/src/usage-stats/providers/`）。UI 只消费快照，不缓存、不推导余额。
+- **Provider 配置所有者**：`@mode/provider` 的 Provider Settings（`providerRuntime.providerSettings` / 远端 workspace 的 `providerSettingsService`）。余额查询只读 `effectiveConfig` 的 `access`（仅 `type === "api-key"`）与 `api.baseUrl`，不写入任何配置。
+- **余额查询所有者**：`@mode/services` 的 `IUsageStatsService.getProviderBalanceSnapshot`，实现为 `ProviderBalanceProvider`（`packages/services/src/usage-stats/providers/`）。UI 只消费快照，不缓存、不推导余额。
 - **供应商识别与解析所有者**：`providerBalanceSpecs.ts` 纯函数，按 `api.baseUrl` 主机名映射固定余额接口与解析器。网络请求由 `ProviderBalanceProvider` 发起。
 - 余额是可选数据面：不进入 entitlement 快照，不改变 Provider 的启用/可执行状态。
 

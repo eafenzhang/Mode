@@ -1,11 +1,11 @@
-import { isOfficialServiceEnabled, MODE_VERSION, type ZCodeEnv } from "@mode/shared";
+import { isOfficialServiceEnabled, MODE_VERSION, type ModeEnv } from "@mode/shared";
 
 declare const __MODE_CDN_BASE_URL__: string | undefined;
 declare const __MODE_REMOTE_ASSET_CDN_BASE_URL__: string | undefined;
 const DEFAULT_CDN_BASE_URL = "";
 
 export interface ResolveRemoteCdnOptions {
-  env?: ZCodeEnv;
+  env?: ModeEnv;
   locale?: string;
   timeZone?: string;
   overrideBaseUrl?: string;
@@ -46,6 +46,6 @@ export function resolveRemoteCdnBaseUrls(options: ResolveRemoteCdnOptions = {}):
     (typeof __MODE_CDN_BASE_URL__ === "undefined" ? "" : __MODE_CDN_BASE_URL__) ||
     DEFAULT_CDN_BASE_URL;
   return [
-    `${normalizeBaseUrl(baseUrl)}/zcode/electron/releases/${options.version ?? MODE_VERSION}`,
+    `${normalizeBaseUrl(baseUrl)}/mode/electron/releases/${options.version ?? MODE_VERSION}`,
   ];
 }

@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import {
-  normalizeAgentProviderToZCodeAgent,
+  normalizeAgentProviderToModeAgent,
   MODE_AGENT_PROVIDER,
-  type ZCodeProvider,
+  type ModeProvider,
   type AgentSummary,
   type AgentsCapability,
   type SubAgentConfig,
@@ -17,8 +17,8 @@ interface SubagentsStoreState {
   workspaceIdentity: string | null;
   loadedWorkspacePath: string | null;
   loadedWorkspaceIdentity: string | null;
-  provider: ZCodeProvider;
-  loadedProvider: ZCodeProvider | null;
+  provider: ModeProvider;
+  loadedProvider: ModeProvider | null;
   agents: AgentSummary[];
   capability: AgentsCapability | null;
   loading: boolean;
@@ -27,7 +27,7 @@ interface SubagentsStoreState {
   operatingAgentId: string | null;
   initialize: (
     workspacePath: string,
-    providerOrSubagentsService: ZCodeProvider | ISubagentsService,
+    providerOrSubagentsService: ModeProvider | ISubagentsService,
     maybeSubagentsService?: ISubagentsService,
     workspaceIdentity?: string,
   ) => Promise<void>;
@@ -40,7 +40,7 @@ interface SubagentsStoreState {
   ) => Promise<void>;
   createAgent: (
     config: SubAgentConfig,
-    provider: ZCodeProvider,
+    provider: ModeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) => Promise<AgentSummary | null>;
@@ -48,7 +48,7 @@ interface SubagentsStoreState {
     agentId: string,
     config: SubAgentConfig,
     oldFilePath: string | undefined,
-    provider: ZCodeProvider,
+    provider: ModeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) => Promise<AgentSummary | null>;
@@ -65,7 +65,7 @@ let latestAgentLoadRequestId = 0;
 
 function getAgentLoadKey(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: ModeProvider,
   workspaceIdentity?: string,
 ): string {
   return `${workspaceIdentity?.trim() || workspacePath}::${provider}`;
@@ -73,7 +73,7 @@ function getAgentLoadKey(
 
 function loadAgentsOnce(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: ModeProvider,
   subagentsService: ISubagentsService,
   workspaceIdentity?: string,
   options: { bypassCache?: boolean } = {},
@@ -121,13 +121,13 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
   operatingAgentId: null,
   async initialize(
     workspacePath: string,
-    providerOrSubagentsService: ZCodeProvider | ISubagentsService,
+    providerOrSubagentsService: ModeProvider | ISubagentsService,
     maybeSubagentsService?: ISubagentsService,
     workspaceIdentity?: string,
   ) {
     const currentState = get();
     const hasProvider = typeof providerOrSubagentsService === "string";
-    const provider = normalizeAgentProviderToZCodeAgent(
+    const provider = normalizeAgentProviderToModeAgent(
       hasProvider ? providerOrSubagentsService : MODE_AGENT_PROVIDER,
     );
     const subagentsService = hasProvider ? maybeSubagentsService : providerOrSubagentsService;
@@ -203,7 +203,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
     }
     const workspaceIdentityFromState =
       workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    const provider = normalizeAgentProviderToZCodeAgent(get().provider);
+    const provider = normalizeAgentProviderToModeAgent(get().provider);
     const hasCachedAgents = get().agents.length > 0;
     set({ loading: !hasCachedAgents, error: null });
     const requestId = nextAgentLoadRequestId();
@@ -273,7 +273,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
   },
   async createAgent(
     config: SubAgentConfig,
-    provider: ZCodeProvider,
+    provider: ModeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) {
@@ -287,7 +287,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
     try {
       const result = await subagentsService.createAgent({
         config,
-        provider: normalizeAgentProviderToZCodeAgent(provider),
+        provider: normalizeAgentProviderToModeAgent(provider),
       });
       await get().refresh(subagentsService, workspaceIdentityFromState);
       return result.agent;
@@ -304,7 +304,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
     agentId: string,
     config: SubAgentConfig,
     oldFilePath: string | undefined,
-    provider: ZCodeProvider,
+    provider: ModeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) {
@@ -320,7 +320,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
         agentId,
         config,
         oldFilePath,
-        provider: normalizeAgentProviderToZCodeAgent(provider),
+        provider: normalizeAgentProviderToModeAgent(provider),
       });
       await get().refresh(subagentsService, workspaceIdentityFromState);
       return result.agent;

@@ -1,7 +1,7 @@
 import { app } from "electron";
 import { join } from "node:path";
 
-export function resolveZCodeBuiltinProviderConfigFilePath(options?: {
+export function resolveModeBuiltinProviderConfigFilePath(options?: {
   readonly appPath?: string;
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly isPackaged?: boolean;

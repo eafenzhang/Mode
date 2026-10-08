@@ -1,5 +1,5 @@
 import type { BrowserWindow, NativeImage } from "electron";
-import { DEFAULT_MODE_ENDPOINT_ORIGIN, buildZCodeEndpointUrls, type Locale } from "@mode/shared";
+import { DEFAULT_MODE_ENDPOINT_ORIGIN, buildModeEndpointUrls, type Locale } from "@mode/shared";
 
 interface ArchitectureMismatch {
   /** 当前运行的二进制架构，例如 x64。 */
@@ -49,7 +49,7 @@ function resolveArchitectureDownloadUrl(
   endpointOrigin = DEFAULT_MODE_ENDPOINT_ORIGIN,
 ): string {
   // 与 changelog 等外链保持一致，按应用语言分流到官网下载页。
-  const origin = buildZCodeEndpointUrls(endpointOrigin).origin;
+  const origin = buildModeEndpointUrls(endpointOrigin).origin;
   return locale === "zh-CN" ? `${origin}/cn` : `${origin}/en`;
 }
 

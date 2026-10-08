@@ -1,9 +1,9 @@
 import type { ChromeBrowserDataImportResult } from "@mode/shared";
-import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function formatImportSummary(
   result: ChromeBrowserDataImportResult,
-  formatMessage: ReturnType<typeof useZCodeIntl>["intl"]["formatMessage"],
+  formatMessage: ReturnType<typeof useModeIntl>["intl"]["formatMessage"],
 ): string {
   if (!result.success) {
     const errorMessageId =

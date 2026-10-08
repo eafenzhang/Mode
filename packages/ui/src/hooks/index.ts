@@ -2,7 +2,7 @@
  * Hooks barrel export
  *
  * 所有服务和平台操作的 hooks 统一从此导出。
- * 组件应通过 hooks 访问服务，不再直接使用 services.* 或 window.zcode.*。
+ * 组件应通过 hooks 访问服务，不再直接使用 services.* 或 window.mode.*。
  */
 
 // 服务上下文
@@ -45,7 +45,7 @@ export { useAlertDialog } from "./useAlertDialog.js";
 
 // 凭据服务
 export { useCredentials, useAuthToken } from "./useCredentials.js";
-export { useZCodeAgentService } from "./useZCodeAgentService.js";
+export { useModeAgentService } from "./useModeAgentService.js";
 
 // Git pane
 export { useGitAutoRefresh } from "./useGitAutoRefresh.js";

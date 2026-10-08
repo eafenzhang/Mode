@@ -1,4 +1,4 @@
-import type { Hook, ZCodeWorkspaceHookTrustGrantResult } from "@mode/shared";
+import type { Hook, ModeWorkspaceHookTrustGrantResult } from "@mode/shared";
 import type { WorkspaceHookBundleSnapshotData } from "@mode/shared/workspace-hook-discovery";
 import { ServiceChannels } from "@mode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
@@ -33,7 +33,7 @@ export interface IHooksService {
     workspacePath: string;
     bundleDigest: string;
     hookDeclarationDigest: string;
-  }): Promise<ZCodeWorkspaceHookTrustGrantResult>;
+  }): Promise<ModeWorkspaceHookTrustGrantResult>;
 }
 
 export const IHooksService = createServiceDescriptor<IHooksService>(ServiceChannels.Hooks);

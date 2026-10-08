@@ -8,7 +8,7 @@ import {
 import type { IOrcaRouterService } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { ApiKeyInput } from "./ApiKeyInput.js";
 import { OrcaRouterCodeForm } from "./OrcaRouterCodeForm.js";
@@ -46,7 +46,7 @@ export function OrcaRouterProviderFields({
   providerId: string;
   readOnly?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const { orcaRouterService } = useServices();
   const [credential, setCredential] = useState<OrcaRouterCredentialState>(emptyState);
   const [apiKeyDraft, setApiKeyDraft] = useState("");

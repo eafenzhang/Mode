@@ -8,7 +8,7 @@ export type SidebarUsageCodingPlanProviderId =
   | typeof BUILTIN_MODEL_PROVIDER_IDS.bigmodelTeamCodingPlan;
 export type SidebarUsageCodingPlanSourceId = SidebarUsageCodingPlanProviderId | `team:${string}`;
 
-const SIDEBAR_USAGE_CODING_PLAN_PROVIDER_STORAGE_KEY = "zcode:sidebar-usage-coding-plan-provider";
+const SIDEBAR_USAGE_CODING_PLAN_PROVIDER_STORAGE_KEY = "mode:sidebar-usage-coding-plan-provider";
 
 const SIDEBAR_USAGE_CODING_PLAN_PROVIDER_IDS: SidebarUsageCodingPlanProviderId[] = [
   BUILTIN_MODEL_PROVIDER_IDS.zaiIndividualCodingPlan,

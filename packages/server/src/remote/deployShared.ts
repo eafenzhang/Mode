@@ -4,7 +4,7 @@ import type { StdioStream } from "@mode/server/remote/backend.js";
 import { quotePosixPathArg } from "@mode/server/remote/posixShell.js";
 import type { RemoteAssetNetworkPort } from "@mode/server/remote/remoteAssetNetwork.js";
 
-export const REMOTE_BASE = "~/.zcode/server";
+export const REMOTE_BASE = "~/.mode/server";
 
 export interface RemoteAssetDeployOptions {
   /** 取消当前连接初始化；共享 cache 仍可独立完成，但不得继续写入远端 staging。 */

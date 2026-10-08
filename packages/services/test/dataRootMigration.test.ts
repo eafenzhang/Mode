@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { DATA_ROOT_MANIFEST_FILE_NAME } from "@mode/shared";
 
 // 迁移函数单测：候选探测、大小统计、复制落位、取消清理。
-// 所有操作只发生在临时目录；不触碰真实 HOME 与 /.zcode。
+// 所有操作只发生在临时目录；不触碰真实 HOME 与 /.mode。
 
 async function loadMigration() {
   return import("../src/data-root/migration.js");
@@ -28,7 +28,7 @@ function makeBase() {
 }
 
 function seedLegacy(base: string): string {
-  const legacy = join(base, ".zcode");
+  const legacy = join(base, ".mode");
   mkdirSync(join(legacy, "v2"), { recursive: true });
   mkdirSync(join(legacy, "cli", "db"), { recursive: true });
   writeFileSync(join(legacy, "v2", "setting.json"), '{"marker":"legacy"}');

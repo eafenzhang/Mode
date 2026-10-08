@@ -1,6 +1,6 @@
 import { isOfficialServiceRemoved } from "@mode/shared";
 /*
- * ZCode 官方 Server MCP 的凭证解析与身份头构造。
+ * Mode 官方 Server MCP 的凭证解析与身份头构造。
  *
  * 本文件与 Off-Peak 的 offPeakRuntimeModel.ts **逻辑等价但完全独立**：
  * 不复用其函数、不修改其行为。理由是两者的套餐门槛、Team 支持范围与凭证通道预期会独立演进，
@@ -19,10 +19,10 @@ import { isOfficialServiceRemoved } from "@mode/shared";
 import {
   OFFICIAL_MCP_AUTH_HEADER_NAMES,
   getModelProviderFamilySpec,
-  zcodeProviderAccountAccessSchema,
+  modeProviderAccountAccessSchema,
   type OfficialMcpAuthFailureReason,
-  type ZCodeAccountAccess,
-  type ZCodeProviderAccountAccess,
+  type ModeAccountAccess,
+  type ModeProviderAccountAccess,
 } from "@mode/shared";
 import type { ModelSelectionView } from "@mode/provider";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
@@ -94,7 +94,7 @@ let lastCredentialResolvedLogKey: string | undefined;
 
 interface OfficialMcpCredentialResolverDeps {
   accountRequestAuthService: {
-    resolveAccessCurrent(access: ZCodeProviderAccountAccess): Promise<ZCodeAccountAccess | null>;
+    resolveAccessCurrent(access: ModeProviderAccountAccess): Promise<ModeAccountAccess | null>;
   };
   credentialService: { load(key: string): Promise<string | null | undefined> };
   modelSelectionService: {
@@ -136,7 +136,7 @@ type SelectedPlan = {
 
 type SelectedProvider = {
   providerId: string;
-  access: ZCodeProviderAccountAccess;
+  access: ModeProviderAccountAccess;
 };
 
 function fail(reason: OfficialMcpAuthFailureReason): {
@@ -154,7 +154,7 @@ function resolveSelectedProvider(
   registry: ModelSelectionView,
 ): { ok: true; provider: SelectedProvider } | { ok: false; reason: OfficialMcpAuthFailureReason } {
   const candidates = registry.providers.flatMap((provider) => {
-    const parsed = zcodeProviderAccountAccessSchema.safeParse(provider.config.access);
+    const parsed = modeProviderAccountAccessSchema.safeParse(provider.config.access);
     return parsed.success &&
       (parsed.data.mode === "individual-coding-plan" || parsed.data.mode === "team-coding-plan")
       ? [{ providerId: provider.providerId, access: parsed.data }]
@@ -168,7 +168,7 @@ function resolveSelectedProvider(
 
 function resolveSelectedPlan(
   selectedProvider: SelectedProvider,
-  access: ZCodeAccountAccess | null,
+  access: ModeAccountAccess | null,
 ): { ok: true; plan: SelectedPlan } | { ok: false; reason: OfficialMcpAuthFailureReason } {
   if (
     !access ||
@@ -277,9 +277,9 @@ function identityOnlyOutcome(identity: OfficialMcpIdentitySnapshot): OfficialMcp
 /**
  * 解析当前选中连接的官方 MCP 凭证。
  *
- * 防竞态：Registry、动态 Account Access、active provider、zcode JWT 与 MaaS JWT
+ * 防竞态：Registry、动态 Account Access、active provider、mode JWT 与 MaaS JWT
  * 都可能在解析期间变化。这里在前后各取一次并比对，任一不一致就整轮
- * 重来，绝不拼接两代凭证——既包括"zcode JWT 来自 ZAI 而 MaaS JWT 来自 BigModel"（跨 family 混搭），
+ * 重来，绝不拼接两代凭证——既包括"mode JWT 来自 ZAI 而 MaaS JWT 来自 BigModel"（跨 family 混搭），
  * 也包括"旧 JWT + 新 JWT"（同 family 的 token 轮换）。两轮仍不稳定则按不可用返回。
  */
 export async function resolveOfficialMcpCredentials(
@@ -312,7 +312,7 @@ export async function resolveOfficialMcpCredentials(
     const selected = resolveSelectedPlan(selectedProvider.provider, accountAccess);
     if (!selected.ok) return selected;
 
-    // zcode JWT 是全局登录身份镜像；只校验 selectedKey 会把 ZAI JWT 与 BigModel key 拼到同一请求。
+    // mode JWT 是全局登录身份镜像；只校验 selectedKey 会把 ZAI JWT 与 BigModel key 拼到同一请求。
     if (identity.snapshot.activeProvider !== selected.plan.providerFamily) {
       return fail("official_auth_unavailable");
     }
@@ -448,7 +448,7 @@ export function createOfficialMcpAuthHeadersResolver(deps: OfficialMcpCredential
   let pending: Promise<OfficialMcpAuthHeadersOutcome> | null = null;
 
   return {
-    // request 仅为契约对齐（host handler 已在此之前完成可信校验，见 zcodeAgentService）；
+    // request 仅为契约对齐（host handler 已在此之前完成可信校验，见 modeAgentService）；
     // 凭据是 host 全局状态，**不**按 plugin/mcpKey/workspace 分桶——分桶只会削弱 in-flight
     // 去重而不增加隔离。参数保留是为了将来审计需要时不必再改接口。
     resolveHeaders(_request?: OfficialMcpAuthHeadersRequestContext) {

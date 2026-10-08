@@ -14,7 +14,7 @@ import { CodingPlanUsageNotice } from "@/chat-input-toolbar/CodingPlanUsageNotic
 import { CodingPlanQuotaResetOpportunity } from "@/components/coding-plan-quota-reset/CodingPlanQuotaResetOpportunity.js";
 import { buildCodingPlanQuotaResetDialogConfig } from "@/components/coding-plan-quota-reset/buildCodingPlanQuotaResetDialogConfig.js";
 import { useCodingPlanQuotaResetUi } from "@/hooks/useCodingPlanQuotaResetUi.js";
-import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   findCodingPlanQuotaLimit,
   formatQuotaRemainingPercentage,
@@ -180,7 +180,7 @@ export function ChatCodingPlanUsageRemainingPanel({
   onQuotaResetDialogOpenChange,
 }: {
   config: ChatCodingPlanUsageRemainingConfig;
-  intl: ReturnType<typeof useZCodeIntl>["intl"];
+  intl: ReturnType<typeof useModeIntl>["intl"];
   locale: string;
   quotaResetDialogOpen?: boolean;
   separated?: boolean;
@@ -427,9 +427,9 @@ export function ChatCodingPlanUsageRemainingPanel({
           <ChatCodingPlanMcpUsageMeter
             color={mcpQuotaMeter.color}
             description={intl.formatMessage({
-              id: "sidebar.usage.plan.zcodeMcpDescription",
+              id: "sidebar.usage.plan.modeMcpDescription",
             })}
-            label={intl.formatMessage({ id: "sidebar.usage.plan.zcodeMcp" })}
+            label={intl.formatMessage({ id: "sidebar.usage.plan.modeMcp" })}
             percentage={getQuotaRemainingPercentage(mcpQuotaMeter.limit)}
             primaryQuotaCount={primaryQuotaMeters.length}
             resetTime={mcpQuotaMeter.resetTime}

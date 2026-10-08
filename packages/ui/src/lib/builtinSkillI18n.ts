@@ -21,7 +21,7 @@ const OFFICIAL_BUILTIN_PLUGIN_NAMES = new Set([
   "skill-creator",
   "plugin-creator",
   "superpowers",
-  "zcode-guide",
+  "mode-guide",
 ]);
 
 const OFFICIAL_PLUGIN_PATH_MARKERS = [
@@ -38,7 +38,7 @@ const OFFICIAL_PLUGIN_PATH_MARKERS = [
   "/skill-creator-plugin/",
   "/plugin-creator-plugin/",
   "/superpowers-plugin/",
-  "/zcode-guide-plugin/",
+  "/mode-guide-plugin/",
 ];
 
 const BUILTIN_SKILL_DESCRIPTIONS: Record<string, Record<Locale, string>> = {
@@ -58,11 +58,11 @@ const BUILTIN_SKILL_DESCRIPTIONS: Record<string, Record<Locale, string>> = {
       "پیش از هر کار خلاقانه استفاده شود: ساخت قابلیت، ساختن کامپوننت، افزودن عملکرد یا تغییر رفتار؛ پیش از پیاده‌سازی، هدف کاربر، نیازمندی‌ها و طراحی را بررسی می‌کند.",
   },
   "control-browser": {
-    "zh-CN": "控制 ZCode 内置浏览器，用于打开、检查、点击、输入、截图或验证网页和本地开发页面。",
+    "zh-CN": "控制 Mode 内置浏览器，用于打开、检查、点击、输入、截图或验证网页和本地开发页面。",
     "en-US":
-      "Control ZCode's built-in browser to open, inspect, click, type, screenshot, or verify webpages and local development targets.",
+      "Control Mode's built-in browser to open, inspect, click, type, screenshot, or verify webpages and local development targets.",
     "fa-IR":
-      "کنترل مرورگر داخلی ZCode برای باز کردن، بازرسی، کلیک، تایپ، اسکرین‌شات یا تأیید صفحه‌های وب و اهداف توسعه محلی.",
+      "کنترل مرورگر داخلی Mode برای باز کردن، بازرسی، کلیک، تایپ، اسکرین‌شات یا تأیید صفحه‌های وب و اهداف توسعه محلی.",
   },
   "dispatching-parallel-agents": {
     "zh-CN": "面对 2 个以上彼此独立、无共享状态或顺序依赖的任务时使用。",
@@ -132,9 +132,9 @@ const BUILTIN_SKILL_DESCRIPTIONS: Record<string, Record<Locale, string>> = {
       "برای درخواست بازبینی کد هنگام تکمیل وظیفه‌ها، پیاده‌سازی قابلیت‌های مهم یا پیش از ادغام استفاده شود تا مطابقت کار با نیازمندی‌ها تأیید شود.",
   },
   "plugin-creator": {
-    "zh-CN": "创建、校验 ZCode 插件，并指导本地安装与更新。",
-    "en-US": "Create and validate ZCode plugins, and guide local installation and updates.",
-    "fa-IR": "ساخت و اعتبارسنجی افزونه‌های ZCode و راهنمایی برای نصب و به‌روزرسانی محلی.",
+    "zh-CN": "创建、校验 Mode 插件，并指导本地安装与更新。",
+    "en-US": "Create and validate Mode plugins, and guide local installation and updates.",
+    "fa-IR": "ساخت و اعتبارسنجی افزونه‌های Mode و راهنمایی برای نصب و به‌روزرسانی محلی.",
   },
   "skill-creator": {
     "zh-CN":
@@ -188,11 +188,11 @@ const BUILTIN_SKILL_DESCRIPTIONS: Record<string, Record<Locale, string>> = {
   },
   "web-gui-tester": {
     "zh-CN":
-      "使用 ZCode Browser Use 对网页和本地 Web 前端执行纯 GUI 黑盒测试，通过真实用户交互、DOM 语义证据和截图验证功能、交互与响应式布局。",
+      "使用 Mode Browser Use 对网页和本地 Web 前端执行纯 GUI 黑盒测试，通过真实用户交互、DOM 语义证据和截图验证功能、交互与响应式布局。",
     "en-US":
-      "Run pure GUI black-box tests against websites and local web frontends with ZCode Browser Use, combining real user interactions, semantic DOM evidence, and inspected screenshots.",
+      "Run pure GUI black-box tests against websites and local web frontends with Mode Browser Use, combining real user interactions, semantic DOM evidence, and inspected screenshots.",
     "fa-IR":
-      "اجرای تست‌های جعبه‌سیاه صرفاً GUI روی وب‌سایت‌ها و فرانت‌ندهای وب محلی با ZCode Browser Use؛ ترکیبی از تعامل واقعی کاربر، شواهد معنایی DOM و اسکرین‌شات‌های بازرسی‌شده برای راستی‌آزمایی عملکرد، تعامل و چیدمان واکنش‌گرا.",
+      "اجرای تست‌های جعبه‌سیاه صرفاً GUI روی وب‌سایت‌ها و فرانت‌ندهای وب محلی با Mode Browser Use؛ ترکیبی از تعامل واقعی کاربر، شواهد معنایی DOM و اسکرین‌شات‌های بازرسی‌شده برای راستی‌آزمایی عملکرد، تعامل و چیدمان واکنش‌گرا.",
   },
   "writing-plans": {
     "zh-CN": "已有规格或多步骤任务需求，在动代码前用于编写实现计划。",

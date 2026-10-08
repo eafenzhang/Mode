@@ -1,5 +1,5 @@
 import { TID_CHAT_WORKFLOW_ARTIFACT_CHIP } from "@mode/shared";
-import type { WorkflowNotificationMeta } from "@mode/shared/zcode-protocol-v4";
+import type { WorkflowNotificationMeta } from "@mode/shared/mode-protocol-v4";
 import { WorkflowArtifactStrip } from "@/components/workflow-timeline/WorkflowArtifactStrip.js";
 
 /**

@@ -2,7 +2,7 @@ import type {
   ActiveWorkSummary,
   ConversationRow,
   PendingInteraction,
-} from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 
 /**
  * 等待用户操作时，弹窗/问答卡已经是唯一进度反馈，不能再显示 loading。

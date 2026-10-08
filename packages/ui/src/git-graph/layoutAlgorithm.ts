@@ -120,7 +120,7 @@ class LayoutVertex {
 }
 
 function createVertices(commits: readonly GitCommitGraphCommit[]) {
-  const missingParent = new LayoutVertex(MISSING_PARENT_ID, "__zcode_missing_parent__");
+  const missingParent = new LayoutVertex(MISSING_PARENT_ID, "__mode_missing_parent__");
   const vertices = commits.map((commit, index) => new LayoutVertex(index, commit.hash));
   const vertexByHash = new Map(vertices.map((vertex) => [vertex.hash, vertex]));
 

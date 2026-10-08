@@ -54,8 +54,8 @@ function decodeLegacySelection(row: LegacySelectionRow): ModelSelection | undefi
       if (!reasoningLevel) return undefined;
       model = model.slice(0, levelSeparator);
     }
-  } else if (["glm", "zcode"].includes(provider)) {
-    // 旧 provider=glm/zcode 是执行后端，不是供应商身份。
+  } else if (["glm", "mode"].includes(provider)) {
+    // 旧 provider=glm/mode 是执行后端，不是供应商身份。
     return undefined;
   }
   provider = provider.trim();

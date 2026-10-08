@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { V4ConversationWorkflowRunSummary } from "@mode/shared/zcode-protocol-v4";
+import type { V4ConversationWorkflowRunSummary } from "@mode/shared/mode-protocol-v4";
 import { logger } from "@/logger.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 

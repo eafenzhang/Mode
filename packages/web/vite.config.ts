@@ -9,22 +9,22 @@ import { thirdPartyNoticesVitePlugin } from "../../scripts/third-party-notices.m
 // Vite 配置在 Node 加载期执行，不能导入 @mode/shared 根入口。
 // 根入口包含 NodeNext 风格的源码 re-export，Node 会按真实文件查找 .js 并在 bootstrap 阶段失败。
 //
-// 子路径 @mode/shared/zcodeEndpoint 同样不行：它仍指向同一份 TS 源码，而该文件内部
+// 子路径 @mode/shared/modeEndpoint 同样不行：它仍指向同一份 TS 源码，而该文件内部
 // 相对 import 了 "./env-names.js"——Vite 把 workspace 包交给 Node 原生加载，Node 24 的
 // strip-types 不做 .js→.ts 重映射，bootstrap 阶段直接 ERR_MODULE_NOT_FOUND。
 // 与 packages/desktop/tsup.config.ts 同一处理：改从相对路径引源码，交给 Vite 自身打包。
 import {
-  resolveRuntimeZCodeEndpointOrigin,
+  resolveRuntimeModeEndpointOrigin,
   pickProductEndpointEnv,
   resolveZaiOAuthClientId,
   resolveZaiOAuthOrigin,
-} from "../shared/src/zcodeEndpoint.js";
+} from "../shared/src/modeEndpoint.js";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");
 const { version } = JSON.parse(readFileSync(resolve(REPO_ROOT, "package.json"), "utf-8"));
 
-function resolveZCodeEnv(value: string | undefined): "test" | "production" {
+function resolveModeEnv(value: string | undefined): "test" | "production" {
   return value?.trim().toLowerCase() === "production" ? "production" : "test";
 }
 
@@ -33,12 +33,12 @@ export default defineConfig(({ mode }) => {
   // 启动脚本通过 process.env 显式选择 test/production；它必须优先于 .env 文件，
   // 否则 share:test 可能被 mode 的旧配置误解析到错误 endpoint。
   const env = { ...loadEnv(mode, REPO_ROOT, ""), ...process.env };
-  const zcodeEnv = resolveZCodeEnv(env.MODE_ENV);
+  const modeEnv = resolveModeEnv(env.MODE_ENV);
   const endpointEnv = {
     ...env,
-    MODE_ENV: zcodeEnv,
+    MODE_ENV: modeEnv,
   };
-  const zcodeEndpointOrigin = resolveRuntimeZCodeEndpointOrigin(endpointEnv);
+  const modeEndpointOrigin = resolveRuntimeModeEndpointOrigin(endpointEnv);
   const zaiOAuthOrigin = resolveZaiOAuthOrigin(endpointEnv);
   // ZAI OAuth client_id 是公开标识，允许注入浏览器包；secret/token 不得走 VITE_。
   const zaiOAuthClientId = resolveZaiOAuthClientId(endpointEnv);
@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => {
         // Web 登录本地调试时，OAuth token 交换必须先命中线上同源接口。
         // 该专用代理放在 `/api` 通配代理之前，避免被转发到本地 server 导致 404。
         "/api/v1/oauth/token": {
-          target: zcodeEndpointOrigin,
+          target: modeEndpointOrigin,
           changeOrigin: true,
           secure: true,
         },
@@ -90,10 +90,10 @@ export default defineConfig(({ mode }) => {
       __MODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
       __MODE_VERSION__: JSON.stringify(version),
       __MODE_COMMIT__: JSON.stringify(env.MODE_COMMIT || "unknown"),
-      __MODE_ENV__: JSON.stringify(zcodeEnv),
-      "import.meta.env.VITE_MODE_BASE_URL": JSON.stringify(zcodeEndpointOrigin),
+      __MODE_ENV__: JSON.stringify(modeEnv),
+      "import.meta.env.VITE_MODE_BASE_URL": JSON.stringify(modeEndpointOrigin),
       // 兼容旧 Web runtime 读取名；新代码统一读 VITE_MODE_BASE_URL。
-      "import.meta.env.VITE_MODE_ENDPOINT_ORIGIN": JSON.stringify(zcodeEndpointOrigin),
+      "import.meta.env.VITE_MODE_ENDPOINT_ORIGIN": JSON.stringify(modeEndpointOrigin),
       // 明确注入 OAuth 公开配置，避免 Web 端在不同 mode 下隐式依赖源码 fallback。
       "import.meta.env.VITE_ZAI_OAUTH_CLIENT_ID": JSON.stringify(zaiOAuthClientId),
       "import.meta.env.VITE_ZAI_OAUTH_ORIGIN": JSON.stringify(zaiOAuthOrigin),

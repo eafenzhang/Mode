@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Loader2Icon, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { TID_MODEL_PROVIDER_DETECT_MODELS_BUTTON } from "@mode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 /** 检测状态由 ProviderModelsSection 持有；本组件只渲染按钮与候选列表。 */
 export interface RemoteModelDetectionControl {
@@ -23,7 +23,7 @@ export function RemoteModelDetectionSection({
   saving: boolean;
   onPick: (modelId: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   // 已输入文本作为过滤词：帮助用户在长列表中定位；精确匹配自身则不再重复展示。
   const detectedModelChoices = useMemo(() => {
     if (!control.models) return [];

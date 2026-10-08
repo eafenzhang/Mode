@@ -19,7 +19,7 @@ import {
   type ChatComposerPasteEvent,
   type LexicalChatInputHandle,
 } from "@/LexicalChatInput.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import {
   hasWorkspaceFileDragPayload,
@@ -149,7 +149,7 @@ export function ChatPromptEditor({
   /** mention 面板开关（透传 LexicalChatInput）。 */
   enableMentionPanel?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const toolbarRef = useComposerToolbarFit();
   const internalInputApiRef = useRef<LexicalChatInputHandle | null>(null);
   const resolvedInputApiRef = inputApiRef ?? internalInputApiRef;

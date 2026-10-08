@@ -173,7 +173,7 @@ export function useAppPanels(options: {
   } = options;
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
   const activeWorkspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
-  const { zcodeAgentService, zcodeSessionService } = useServices();
+  const { modeAgentService, modeSessionService } = useServices();
   const isOfficeMode = useIsOfficeMode();
   const sidePaneMemoryKey = useMemo(
     () =>
@@ -1125,7 +1125,7 @@ export function useAppPanels(options: {
         try {
           // 判据已经保证是本地 workspace（无 workspaceIdentity / remoteSessionId），
           // 这里只带 workspacePath。
-          const result = await zcodeAgentService.conversationWorkflowRunArtifactsV4({
+          const result = await modeAgentService.conversationWorkflowRunArtifactsV4({
             workspacePath: request.workspacePath,
             sessionId: request.parentSessionId,
             runId: request.runId,
@@ -1156,7 +1156,7 @@ export function useAppPanels(options: {
       commitOpenedSidePaneState,
       openFileUrlInBrowserSidePane,
       supportsEmbeddedBrowser,
-      zcodeAgentService,
+      modeAgentService,
     ],
   );
 
@@ -1164,7 +1164,7 @@ export function useAppPanels(options: {
     (tab: Extract<WorkspaceSidePaneTab, { type: "selection-side-chat" }>) => {
       clearSelectionSideChat(tab.childSessionId);
       clearConversationSelectionReferenceScope(tab.childSessionId, tab.workspaceKey);
-      void zcodeSessionService
+      void modeSessionService
         .closeSession({
           workspacePath: tab.workspacePath,
           ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
@@ -1178,7 +1178,7 @@ export function useAppPanels(options: {
           });
         });
     },
-    [zcodeSessionService],
+    [modeSessionService],
   );
 
   useEffect(() => {

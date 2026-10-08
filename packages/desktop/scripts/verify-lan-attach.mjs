@@ -50,7 +50,7 @@ for (const workspace of info.workspaces.slice(0, 5)) {
 
 const capabilityResponse = await fetch(`${base}/api/rpc-host-capability`, {
   method: "POST",
-  headers: { cookie: `zcode_lite_token=${encodeURIComponent(pair.token)}` },
+  headers: { cookie: `mode_lite_token=${encodeURIComponent(pair.token)}` },
 });
 const capability = await capabilityResponse.json();
 console.log("4) capability ticket:", capabilityResponse.status, Boolean(capability.capability));
@@ -61,7 +61,7 @@ if (!capability.capability) {
 const ws = new WebSocket(`ws://${host}:${port}/ws/host`, {
   headers: {
     [MODE_RPC_HOST_CAPABILITY_HEADER]: capability.capability,
-    cookie: `zcode_lite_token=${encodeURIComponent(pair.token)}`,
+    cookie: `mode_lite_token=${encodeURIComponent(pair.token)}`,
   },
 });
 await new Promise((resolve, reject) => {

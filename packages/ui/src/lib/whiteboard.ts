@@ -35,7 +35,7 @@ interface WhiteboardAddToChatPayload {
 const WHITEBOARD_CANVAS_WIDTH = 1280;
 const WHITEBOARD_CANVAS_HEIGHT = 800;
 export const WHITEBOARD_DEFAULT_COLOR = "#111827";
-export const WHITEBOARD_ADD_TO_CHAT_EVENT = "zcode:add-whiteboard-to-chat";
+export const WHITEBOARD_ADD_TO_CHAT_EVENT = "mode:add-whiteboard-to-chat";
 const WHITEBOARD_BACKGROUND_COLOR = "#ffffff";
 
 export function buildWhiteboardWorkspaceKey({

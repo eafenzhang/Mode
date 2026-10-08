@@ -6,7 +6,7 @@ import {
   Root,
   GlobalDatabaseStartupLoading,
   UpdateStatusWindowRoot,
-  ZCodeIntlProvider,
+  ModeIntlProvider,
   registerBaseWorkspaceServices,
   registerRemoteWorkspaceSession,
   createRemoteWorkspaceDisconnectedError,
@@ -70,7 +70,7 @@ function registerE2EStoreBridgesIfEnabled() {
 
 // 初始化主题：默认 Zai dark，后续由 useTheme hook 接管
 {
-  const saved = localStorage.getItem("zcode-theme") || "zai-dark";
+  const saved = localStorage.getItem("mode-theme") || "zai-dark";
   const resolved =
     saved === "system"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -154,7 +154,7 @@ const sendStartupControl = (control: DatabaseStartupControl) =>
 function renderDatabaseStartup(): void {
   appRoot?.render(
     <AppErrorBoundary isDesktop isMacDesktop={isMacDesktop} isWindowsDesktop={isWindowsDesktop}>
-      <ZCodeIntlProvider
+      <ModeIntlProvider
         initialLocale={initialLocaleFlag ? initialLocale : undefined}
         resolveSystemLocale={desktopPlatform.getSystemLocale}
       >
@@ -171,7 +171,7 @@ function renderDatabaseStartup(): void {
           onCopy={(details) => navigator.clipboard.writeText(details)}
           onExit={() => sendStartupControl({ action: "exit" })}
         />
-      </ZCodeIntlProvider>
+      </ModeIntlProvider>
     </AppErrorBoundary>,
   );
 }
@@ -241,7 +241,7 @@ function StartupReadyNotifier() {
       Date.now();
     // HTML 启动壳的弹出动画结束时，React 首屏可能还没 commit，直接移除壳会露出空白。
     // 这里在 React commit 后通知 index.html，再由启动壳统一判断动画和 React ready 两个条件后退场。
-    window.dispatchEvent(new Event("zcode-react-startup-ready"));
+    window.dispatchEvent(new Event("mode-react-startup-ready"));
   }, []);
 
   return null;
@@ -301,7 +301,7 @@ function initializeBusinessRoot(port: MessagePort): void {
 
   appRoot?.render(
     <AppErrorBoundary isDesktop isMacDesktop={isMacDesktop} isWindowsDesktop={isWindowsDesktop}>
-      <ZCodeIntlProvider
+      <ModeIntlProvider
         settingService={settingService}
         broadcastService={services.broadcastService}
         resolveSystemLocale={desktopPlatform.getSystemLocale}
@@ -322,7 +322,7 @@ function initializeBusinessRoot(port: MessagePort): void {
           }
           unavailableWorkspacePath={unavailableWorkspacePath}
         />
-      </ZCodeIntlProvider>
+      </ModeIntlProvider>
     </AppErrorBoundary>,
   );
 }

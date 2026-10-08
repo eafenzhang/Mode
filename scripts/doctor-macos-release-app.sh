@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-APP_PATH="${1:-${MODE_MACOS_RELEASE_APP_PATH:-/Applications/ZCode.app}}"
-# 安装包身份与后端环境分轴：MODE_PREVIEW_IDENTITY=1 让生产后端的构建仍是 ZCode Preview。
+APP_PATH="${1:-${MODE_MACOS_RELEASE_APP_PATH:-/Applications/Mode.app}}"
+# 安装包身份与后端环境分轴：MODE_PREVIEW_IDENTITY=1 让生产后端的构建仍是 Mode Preview。
 # 只认 "1"，与 CI workflow / release 门的精确比较同一套语义（其它拼写一律视为未开启）。
 is_preview_identity_requested() {
   [[ "${MODE_PREVIEW_IDENTITY:-}" = "1" ]]
@@ -15,8 +15,8 @@ APP_EXECUTABLE_NAME="${MODE_APP_EXECUTABLE_NAME:-$APP_DISPLAY_NAME}"
 if [ "${APP_PATH:-}" = "--help" ] || [ "${APP_PATH:-}" = "-h" ]; then
   cat <<'USAGE'
 Usage:
-  bash scripts/doctor-macos-release-app.sh /Applications/ZCode.app
-  MODE_MACOS_RELEASE_APP_PATH=/Applications/ZCode.app pnpm run doctor:macos-release
+  bash scripts/doctor-macos-release-app.sh /Applications/Mode.app
+  MODE_MACOS_RELEASE_APP_PATH=/Applications/Mode.app pnpm run doctor:macos-release
 
 Always validates the installed macOS release app with:
   codesign --verify --deep --strict <app>
@@ -73,7 +73,7 @@ run_quiet_validation() {
   local label="$1"
   shift
   local output_file
-  output_file="$(mktemp "${TMPDIR:-/tmp}/zcode-macos-release-doctor.XXXXXX")"
+  output_file="$(mktemp "${TMPDIR:-/tmp}/mode-macos-release-doctor.XXXXXX")"
   if "$@" >"$output_file" 2>&1; then
     rm -f "$output_file"
     return 0

@@ -14,14 +14,14 @@ import type {
   ConversationArtifactType,
   ConversationRow,
   TurnHeaderRow,
-} from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 import {
   PROTOCOL_V4_LIMITS,
   MODE_ATTACHMENT_FAULT_CODES,
-  readZCodeAttachmentFaultCode,
-} from "@mode/shared/zcode-protocol-v4";
+  readModeAttachmentFaultCode,
+} from "@mode/shared/mode-protocol-v4";
 
-import type { IZCodeAgentService } from "../zcode-agent/zcodeAgent.js";
+import type { IModeAgentService } from "../mode-agent/modeAgent.js";
 import type {
   ConversationShareFailureIssue,
   PublishTextConversationInput,
@@ -139,8 +139,8 @@ async function materializeRegisteredArtifacts(options: {
 }
 
 async function discoverPreviewArtifacts(options: {
-  zcodeAgentService: Pick<
-    IZCodeAgentService,
+  modeAgentService: Pick<
+    IModeAgentService,
     "conversationFileChangesV4" | "conversationAttachmentReadV4"
   >;
   artifactSource: ConversationShareArtifactSource;
@@ -206,9 +206,9 @@ async function discoverPreviewArtifacts(options: {
       if (!header.entityId || !header.productTurnId) {
         throwDiscoveryError("Conversation file changes are missing a stable turn identity");
       }
-      let result: Awaited<ReturnType<IZCodeAgentService["conversationFileChangesV4"]>>;
+      let result: Awaited<ReturnType<IModeAgentService["conversationFileChangesV4"]>>;
       try {
-        result = await options.zcodeAgentService.conversationFileChangesV4({
+        result = await options.modeAgentService.conversationFileChangesV4({
           workspacePath: options.input.workspacePath,
           ...(options.input.workspaceIdentity
             ? { workspaceIdentity: options.input.workspaceIdentity }
@@ -398,7 +398,7 @@ async function discoverPreviewArtifacts(options: {
 }
 
 async function readInputAttachment(options: {
-  zcodeAgentService: Pick<IZCodeAgentService, "conversationAttachmentReadV4">;
+  modeAgentService: Pick<IModeAgentService, "conversationAttachmentReadV4">;
   input: PublishTextConversationInput;
   row: Extract<ConversationRow, { kind: "userInput" }>;
   attachmentIndex: number;
@@ -416,7 +416,7 @@ async function readInputAttachment(options: {
   let totalBytes: number | undefined;
   let mediaType = attachment.mime;
   while (true) {
-    const result = await options.zcodeAgentService.conversationAttachmentReadV4({
+    const result = await options.modeAgentService.conversationAttachmentReadV4({
       workspacePath: options.input.workspacePath,
       ...(options.input.workspaceIdentity
         ? { workspaceIdentity: options.input.workspaceIdentity }
@@ -473,7 +473,7 @@ async function readInputAttachment(options: {
 }
 
 async function discoverInputAttachments(options: {
-  zcodeAgentService: Pick<IZCodeAgentService, "conversationAttachmentReadV4">;
+  modeAgentService: Pick<IModeAgentService, "conversationAttachmentReadV4">;
   input: PublishTextConversationInput;
   selectedRows: ConversationRow[];
   capabilities: ConversationShareCapabilities;
@@ -527,7 +527,7 @@ async function discoverInputAttachments(options: {
       }
       try {
         const materialized = await readInputAttachment({
-          zcodeAgentService: options.zcodeAgentService,
+          modeAgentService: options.modeAgentService,
           input: options.input,
           row,
           attachmentIndex,
@@ -535,7 +535,7 @@ async function discoverInputAttachments(options: {
         });
         const sourceRef = `input:${row.rowId}:${attachmentIndex}`;
         const artifactId = `share-input-artifact-${++artifactIndex}`;
-        const ref = `zcode-artifact://share/${artifactId}`;
+        const ref = `mode-artifact://share/${artifactId}`;
         const sha256 = createHash("sha256").update(materialized.bytes).digest("hex");
         artifacts.push({
           sourceRef,
@@ -562,7 +562,7 @@ async function discoverInputAttachments(options: {
           bytes: materialized.bytes.byteLength,
         });
       } catch (error) {
-        const faultCode = readZCodeAttachmentFaultCode(error);
+        const faultCode = readModeAttachmentFaultCode(error);
         if (
           faultCode === MODE_ATTACHMENT_FAULT_CODES.shareReadNotAuthorized ||
           faultCode === MODE_ATTACHMENT_FAULT_CODES.shareReadConnectionUntrusted
@@ -655,8 +655,8 @@ function insertDiscoveredArtifacts(
 }
 
 export async function buildConversationShareArtifactSnapshot(options: {
-  zcodeAgentService: Pick<
-    IZCodeAgentService,
+  modeAgentService: Pick<
+    IModeAgentService,
     "conversationFileChangesV4" | "conversationAttachmentReadV4"
   >;
   artifactSource: ConversationShareArtifactSource;
@@ -673,7 +673,7 @@ export async function buildConversationShareArtifactSnapshot(options: {
   const issues: ConversationShareFailureIssue[] = [];
   const warnings: ConversationShareFailureIssue[] = [];
   const inputAttachments = await discoverInputAttachments({
-    zcodeAgentService: options.zcodeAgentService,
+    modeAgentService: options.modeAgentService,
     input: options.input,
     selectedRows: options.selectedRows,
     capabilities: options.capabilities,

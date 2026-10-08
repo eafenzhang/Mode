@@ -6,7 +6,7 @@ import {
   BOT_HEARTBEAT_MIN_INTERVAL_MINUTES,
 } from "@mode/shared";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 
 /**
@@ -21,7 +21,7 @@ export function BotHeartbeatCard({
   bot: BotConfig;
   onPatchBot: (patch: Partial<BotConfig>) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const enabled = bot.heartbeat?.enabled === true;
   const intervalMinutes = bot.heartbeat?.intervalMinutes ?? BOT_HEARTBEAT_DEFAULT_INTERVAL_MINUTES;
   // 关闭时显示 0；上一次的间隔保留在配置里，重新填正数即可恢复同一节奏。

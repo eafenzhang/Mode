@@ -6,11 +6,11 @@ import {
   type V4AttachmentChunkResult,
   type V4AttachmentPutParams,
   type V4AttachmentPutResult,
-} from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 import type {
-  ZCodeAgentAttachmentBeginParams,
-  ZCodeAgentAttachmentChunkParams,
-  ZCodeAgentAttachmentTerminalParams,
+  ModeAgentAttachmentBeginParams,
+  ModeAgentAttachmentChunkParams,
+  ModeAgentAttachmentTerminalParams,
 } from "@mode/services";
 import { logger } from "@/logger.js";
 
@@ -18,10 +18,10 @@ import { logger } from "@/logger.js";
 const ATTACHMENT_UPLOAD_CHUNK_BYTES = 384 * 1024;
 
 interface AttachmentUploadAgent {
-  attachmentBeginV4(params: ZCodeAgentAttachmentBeginParams): Promise<V4AttachmentBeginResult>;
-  attachmentChunkV4(params: ZCodeAgentAttachmentChunkParams): Promise<V4AttachmentChunkResult>;
-  attachmentCommitV4(params: ZCodeAgentAttachmentTerminalParams): Promise<V4AttachmentPutResult>;
-  attachmentAbortV4(params: ZCodeAgentAttachmentTerminalParams): Promise<void>;
+  attachmentBeginV4(params: ModeAgentAttachmentBeginParams): Promise<V4AttachmentBeginResult>;
+  attachmentChunkV4(params: ModeAgentAttachmentChunkParams): Promise<V4AttachmentChunkResult>;
+  attachmentCommitV4(params: ModeAgentAttachmentTerminalParams): Promise<V4AttachmentPutResult>;
+  attachmentAbortV4(params: ModeAgentAttachmentTerminalParams): Promise<void>;
 }
 
 interface AttachmentUploadWorkspace {
@@ -108,7 +108,7 @@ function createUploadId(): string {
 function measureAttachmentChannelRequestBytes(method: string, params: unknown): number {
   const writer = new BufferWriter();
   // RequestType.Promise=100；max int id 比正常短生命周期 request id 更保守。
-  serialize(writer, [100, 2_147_483_647, ServiceChannels.ZCodeAgent, method]);
+  serialize(writer, [100, 2_147_483_647, ServiceChannels.ModeAgent, method]);
   serialize(writer, [params]);
   return writer.buffer.byteLength;
 }
@@ -135,7 +135,7 @@ export async function uploadAttachmentTransaction(
   const uploadId = createUploadId();
   const common = { ...workspace, sessionId: input.sessionId, uploadId };
   const totalChunks = Math.ceil(bytes.byteLength / ATTACHMENT_UPLOAD_CHUNK_BYTES);
-  const beginParams: ZCodeAgentAttachmentBeginParams = {
+  const beginParams: ModeAgentAttachmentBeginParams = {
     ...common,
     fileName: input.fileName,
     mime: input.mime,
@@ -172,7 +172,7 @@ export async function uploadAttachmentTransaction(
     for (let chunkIndex = begin.nextChunkIndex; chunkIndex < totalChunks; chunkIndex += 1) {
       throwIfAborted(options.signal);
       const start = chunkIndex * ATTACHMENT_UPLOAD_CHUNK_BYTES;
-      const chunkParams: ZCodeAgentAttachmentChunkParams = {
+      const chunkParams: ModeAgentAttachmentChunkParams = {
         ...common,
         chunkIndex,
         dataBase64: encodeBase64(
@@ -196,7 +196,7 @@ export async function uploadAttachmentTransaction(
       uploadedBytes: bytes.byteLength,
       totalBytes: bytes.byteLength,
     });
-    const terminal = common satisfies ZCodeAgentAttachmentTerminalParams;
+    const terminal = common satisfies ModeAgentAttachmentTerminalParams;
     assertAttachmentChannelRequest("attachmentCommitV4", terminal);
     return await agent.attachmentCommitV4(terminal);
   } catch (error) {

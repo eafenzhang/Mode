@@ -119,8 +119,8 @@ function normalizeTokenResponse(
     throw new Error(payload.msg?.trim() || "OAuth token exchange failed");
   }
 
-  const zcodeJwtToken = payload.data?.token?.trim();
-  if (!zcodeJwtToken) {
+  const modeJwtToken = payload.data?.token?.trim();
+  if (!modeJwtToken) {
     throw new Error("Token exchange response missing data.token");
   }
 
@@ -152,7 +152,7 @@ function normalizeTokenResponse(
   return {
     tokenSet: {
       accessToken,
-      zcodeJwtToken,
+      modeJwtToken,
       ...(expiresAt ? { expiresAt } : {}),
     },
     userInfo,

@@ -2,7 +2,7 @@
 
 <div align="center">
   <img src="packages/desktop/build/icons/512x512.png" alt="Mode" width="96" height="96" />
-  <p><strong>桌面端、浏览器与终端三端的 AI 编程工作区——源自 ZCode，独立维护。</strong></p>
+  <p><strong>桌面端、浏览器与终端三端的 AI 编程工作区——源自 Mode，独立维护。</strong></p>
 </div>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-Mode 保留产品本身——一个陪你规划、改代码、跑命令、自我验证的编程智能体——并从公开源码重新构建：监控与遥测全部移除，官方平台服务整体下线。它是 [zai-org/ZCode](https://github.com/zai-org/ZCode) 的 ZCodium 审计分支的延续，来龙去脉记在 [NOTICE.md](NOTICE.md) 与提交历史里。
+Mode 保留产品本身——一个陪你规划、改代码、跑命令、自我验证的编程智能体——并从公开源码重新构建：监控与遥测全部移除，官方平台服务整体下线。它是 [zai-org/Mode](https://github.com/zai-org/Mode) 的 ZCodium 审计分支的延续，来龙去脉记在 [NOTICE.md](NOTICE.md) 与提交历史里。
 
 ## 这个分支在做什么
 
@@ -91,14 +91,14 @@ pnpm bundle:desktop -- --os win --arch x64
 | `packages/services`                                  | 业务服务（Agent 会话、机器人、插件、远程连接）              |
 | `packages/server`、`packages/web`                    | 浏览器工作区的服务端与客户端                                |
 | `packages/client`、`packages/rpc`、`packages/shared` | Agent 客户端 SDK、RPC 框架、共享契约                        |
-| `apps/zcode-cli`                                     | Agent CLI 与运行时（桌面端也内嵌这套）                      |
+| `apps/mode-cli`                                     | Agent CLI 与运行时（桌面端也内嵌这套）                      |
 | `harness/lan`                                        | 两台机器上试局域网远程连接的操作步骤                        |
 
 ## 许可与来源
 
-本仓库第一方代码为 MIT（[LICENSE](LICENSE)），它 fork 的上游 ZCode 代码为 Apache-2.0（[LICENSE-APACHE](LICENSE-APACHE)）。第三方组件及许可见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；应用可能在你机器上做什么——文件读写、命令执行、钩子、浏览器自动化、后台任务——见 [NOTICE.zh-CN.md](NOTICE.zh-CN.md)（英文版 [NOTICE.md](NOTICE.md)）。
+本仓库第一方代码为 MIT（[LICENSE](LICENSE)），它 fork 的上游 Mode 代码为 Apache-2.0（[LICENSE-APACHE](LICENSE-APACHE)）。第三方组件及许可见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；应用可能在你机器上做什么——文件读写、命令执行、钩子、浏览器自动化、后台任务——见 [NOTICE.zh-CN.md](NOTICE.zh-CN.md)（英文版 [NOTICE.md](NOTICE.md)）。
 
-促成这个分支的遥测移除工作，连同它的验证边界，记录在[桌面端](packages/desktop/specs/telemetry-removal-report.md)、[CLI](apps/zcode-cli/specs/telemetry-removal-report.md) 与 [UI](packages/ui/specs/telemetry-removal-report.md) 三份报告里。
+促成这个分支的遥测移除工作，连同它的验证边界，记录在[桌面端](packages/desktop/specs/telemetry-removal-report.md)、[CLI](apps/mode-cli/specs/telemetry-removal-report.md) 与 [UI](packages/ui/specs/telemetry-removal-report.md) 三份报告里。
 
 ## 反馈
 

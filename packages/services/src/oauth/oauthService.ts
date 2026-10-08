@@ -32,7 +32,7 @@ import { OAuthCredentialRepo } from "./repo/oauthCredentialRepo.js";
 import { createOAuthRuntimeConfig } from "./runtimeConfig.js";
 import {
   buildDesktopOAuthRedirectUriFromEnv,
-  buildZCodeApiUrlFromEnv,
+  buildModeApiUrlFromEnv,
 } from "./providers/configUtils.js";
 
 /** OAuth 超时时间（5 分钟） */
@@ -219,18 +219,18 @@ export class OAuthService implements IOAuthService {
       return { status: "signed-out" };
     }
 
-    // 启动缓存恢复只需要检查共享 zcode JWT；若通过 loadActiveTokenSet 连带读取
+    // 启动缓存恢复只需要检查共享 mode JWT；若通过 loadActiveTokenSet 连带读取
     // provider access token，会把原本后台执行的 BigModel profile 迁移重新阻塞到首屏恢复链路。
-    const zcodeJwtToken = (await this.credentialService.load(MODE_JWT_TOKEN_KEY))?.trim() ?? "";
-    if (zcodeJwtToken && resolveJwtExpiration(zcodeJwtToken, this.now()).kind === "expired") {
-      serviceLog.info("cached session invalidated because zcode JWT expired", {
+    const modeJwtToken = (await this.credentialService.load(MODE_JWT_TOKEN_KEY))?.trim() ?? "";
+    if (modeJwtToken && resolveJwtExpiration(modeJwtToken, this.now()).kind === "expired") {
+      serviceLog.info("cached session invalidated because mode JWT expired", {
         provider: activeProvider,
       });
       const invalidated = await this.invalidateExpiredCachedSession(
         restoreGeneration,
         activeProvider,
         profile,
-        zcodeJwtToken,
+        modeJwtToken,
       );
       if (!invalidated) {
         return this.restoreCachedSessionState();
@@ -269,7 +269,7 @@ export class OAuthService implements IOAuthService {
     }
 
     if (activeProvider === ZAI_PROVIDER_ID) {
-      if (!zcodeJwtToken) {
+      if (!modeJwtToken) {
         // sidebar 登录入口之前只看缓存 user_info，会把“缺少 zcodejwttoken”的状态误判成已登录。
         // 这里补充 zcodejwttoken 门槛，确保没有后端 JWT 时统一按未登录处理。
         log("restoreCachedSession skipped: missing zcodejwttoken:", activeProvider);
@@ -629,7 +629,7 @@ export class OAuthService implements IOAuthService {
     this.oauthFlowStartProvider = provider;
     this.clearPendingState();
     const pollToken = randomBytes(32).toString("hex");
-    const initUrl = buildZCodeApiUrlFromEnv(this.env, "/api/v1/oauth/cli/init");
+    const initUrl = buildModeApiUrlFromEnv(this.env, "/api/v1/oauth/cli/init");
     const envelope = await readApiJson<OAuthFlowEnvelope>(this.apiClient, initUrl, {
       method: "POST",
       headers: {
@@ -706,7 +706,7 @@ export class OAuthService implements IOAuthService {
         nextPollAt: this.now(),
         pollIntervalMs,
         pollToken,
-        pollUrl: buildZCodeApiUrlFromEnv(
+        pollUrl: buildModeApiUrlFromEnv(
           this.env,
           `/api/v1/oauth/cli/poll/${encodeURIComponent(flowId)}`,
         ),
@@ -808,9 +808,9 @@ export class OAuthService implements IOAuthService {
           pending.provider === ZAI_PROVIDER_ID
             ? readTrimmedString(zai?.access_token)
             : readTrimmedString(bigmodel?.access_token) || readTrimmedString(bigmodel?.accessToken);
-        const zcodeJwtToken = readTrimmedString(ready.token);
+        const modeJwtToken = readTrimmedString(ready.token);
         const userId = readTrimmedString(user?.user_id);
-        if (!zcodeJwtToken || !providerAccessToken || !userId) {
+        if (!modeJwtToken || !providerAccessToken || !userId) {
           throw new Error("OAuth flow 查询响应无效");
         }
         const username = readTrimmedString(user?.name) || readTrimmedString(user?.email) || userId;
@@ -831,12 +831,12 @@ export class OAuthService implements IOAuthService {
         const tokenSet = adapter.normalizePolledTokenSet
           ? await adapter.normalizePolledTokenSet({
               accessToken: providerAccessToken,
-              zcodeJwtToken,
+              modeJwtToken,
               ...(refreshToken ? { refreshToken } : {}),
             })
           : {
               accessToken: providerAccessToken,
-              zcodeJwtToken,
+              modeJwtToken,
               ...(refreshToken ? { refreshToken } : {}),
             };
         return { tokenSet, profile };

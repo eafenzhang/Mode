@@ -41,10 +41,10 @@ interface UserMcpRecord {
 }
 
 const MODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
-  source: "zcode",
-  directorySource: "zcode",
+  source: "mode",
+  directorySource: "mode",
   userConfigDirSegments: [".zcodium", "cli"],
-  workspaceConfigDirSegments: [".zcode"],
+  workspaceConfigDirSegments: [".mode"],
   fileName: "config.json",
   configKeyName: "mcp.servers",
 };
@@ -134,7 +134,7 @@ export function createMcpSyncService(
       };
     },
     async checkRemoteUserMcpWriteAccess() {
-      return checkRemoteSyncDirectoryWriteAccess(dirname(getUserZcodeMcpConfigPath()));
+      return checkRemoteSyncDirectoryWriteAccess(dirname(getUserModeMcpConfigPath()));
     },
     async importMcpServers(params) {
       if (params.overwrite) {
@@ -169,7 +169,7 @@ function buildUserConfigPath(descriptor: DirectoryMcpDescriptor): string {
   return buildDirectoryConfigPath(descriptor, "user");
 }
 
-function getUserZcodeMcpConfigPath(): string {
+function getUserModeMcpConfigPath(): string {
   return buildUserConfigPath(MODE_MCP_DESCRIPTOR);
 }
 
@@ -198,9 +198,9 @@ function findDescriptorByLocation(location: SettingsDirectoryLocation): Director
 }
 
 async function collectEffectiveUserMcpRecords(): Promise<UserMcpRecord[]> {
-  const zcodeRecords = await readUserMcpRecordsFromFile(MODE_MCP_DESCRIPTOR);
-  if (zcodeRecords.length > 0) {
-    return sortMcpRecords(zcodeRecords);
+  const modeRecords = await readUserMcpRecordsFromFile(MODE_MCP_DESCRIPTOR);
+  if (modeRecords.length > 0) {
+    return sortMcpRecords(modeRecords);
   }
   return sortMcpRecords(await readUserMcpRecordsFromFile(AGENTS_MCP_DESCRIPTOR));
 }
@@ -267,7 +267,7 @@ async function saveMcpToUserDirectory(payload: SaveCliMcpToUserDirectoryRequest)
     delete nextServers[payload.name];
   }
 
-  await writeZCodeServersToFile(scope, nextServers, payload.projectPath);
+  await writeModeServersToFile(scope, nextServers, payload.projectPath);
 }
 
 function sortMcpRecords(records: UserMcpRecord[]): UserMcpRecord[] {
@@ -278,13 +278,13 @@ async function readDirectoryServersFromPreferredSources(
   scope: Exclude<McpScope, "common">,
   workspacePath?: string,
 ): Promise<NativeMcpServerRecord[]> {
-  const zcodeServers = await readDirectoryServersFromFile(
+  const modeServers = await readDirectoryServersFromFile(
     MODE_MCP_DESCRIPTOR,
     scope,
     workspacePath,
   );
-  if (zcodeServers.length > 0) {
-    return zcodeServers;
+  if (modeServers.length > 0) {
+    return modeServers;
   }
   return readDirectoryServersFromFile(AGENTS_MCP_DESCRIPTOR, scope, workspacePath);
 }
@@ -320,7 +320,7 @@ async function readDirectoryServersFromFile(
   }));
 }
 
-async function writeZCodeServersToFile(
+async function writeModeServersToFile(
   scope: Exclude<McpScope, "common">,
   servers: Record<string, Record<string, unknown>>,
   workspacePath?: string,
@@ -332,11 +332,11 @@ async function writeZCodeServersToFile(
 }
 
 async function readUserCliConfig(): Promise<Record<string, unknown>> {
-  return (await readJsonObject(getUserZcodeMcpConfigPath())) ?? {};
+  return (await readJsonObject(getUserModeMcpConfigPath())) ?? {};
 }
 
 async function writeUserCliConfig(config: Record<string, unknown>): Promise<void> {
-  await writeTextAtomic(getUserZcodeMcpConfigPath(), `${JSON.stringify(config, null, 2)}\n`);
+  await writeTextAtomic(getUserModeMcpConfigPath(), `${JSON.stringify(config, null, 2)}\n`);
 }
 
 function removeLegacyMcpEnabledOverride(
@@ -562,7 +562,7 @@ async function importMcpServers(params: {
   localWorkspacePath?: string;
   remoteWorkspacePath?: string;
 }): Promise<McpSyncImportResult> {
-  const targetPath = getUserZcodeMcpConfigPath();
+  const targetPath = getUserModeMcpConfigPath();
   const current = (await readJsonObject(targetPath)) ?? {};
   const targetServers = readServerMapFromJson(current, MODE_MCP_DESCRIPTOR.configKeyName);
   const existingByName = await collectEffectiveUserMcpRecordByName();
@@ -603,7 +603,7 @@ async function importMcpServers(params: {
         name: server.name,
         config: rewrittenConfig,
         enabled: server.enabled,
-        source: "zcode",
+        source: "mode",
         path: targetPath,
       });
       results.push({ name: server.name, status: "synced", path: targetPath });

@@ -8,7 +8,7 @@ import type {
   Locale,
 } from "@mode/shared";
 import { ServiceChannels } from "@mode/shared";
-import type { ConversationRow } from "@mode/shared/zcode-protocol-v4";
+import type { ConversationRow } from "@mode/shared/mode-protocol-v4";
 import { Event as RpcEvent, type Event } from "@mode/rpc";
 
 import { createServiceDescriptor } from "../descriptors.js";

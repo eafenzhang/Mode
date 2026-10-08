@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TID_ORCAROUTER_SPEC } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 /** PKCE 授权码输入：只负责收集用户粘贴的 OOB code，提交语义在面板层。 */
 export function OrcaRouterCodeForm({
@@ -12,7 +12,7 @@ export function OrcaRouterCodeForm({
   disabled?: boolean;
   onSubmit: (code: string) => Promise<void>;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [code, setCode] = useState("");
   return (
     <form

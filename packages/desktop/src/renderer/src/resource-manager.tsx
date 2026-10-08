@@ -3,7 +3,7 @@ import type { ResourceUsageSnapshot, StorageManagementBridge } from "@mode/share
 import "@mode/ui/styles.css";
 import {
   ResourceManagerApp,
-  ZCodeIntlProvider,
+  ModeIntlProvider,
   applyUiFontSizePx,
   loadUiFontSizePx,
   subscribeToUiFontSizeStorageChanges,
@@ -29,7 +29,7 @@ function resolveTheme(theme: Theme): "light" | "dark" {
 }
 
 function applyResourceManagerTheme(): void {
-  const savedTheme = (localStorage.getItem("zcode-theme") as Theme | null) ?? "zai-dark";
+  const savedTheme = (localStorage.getItem("mode-theme") as Theme | null) ?? "zai-dark";
   const resolvedTheme = resolveTheme(savedTheme);
   const appliedTheme =
     savedTheme === "system"
@@ -56,7 +56,7 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(
     // 语言沿用主窗口写入 localStorage 的偏好；不接 settingService，避免独立窗口再起一份 RPC。
-    <ZCodeIntlProvider>
+    <ModeIntlProvider>
       <ResourceManagerApp
         setSamplingActive={window.resourceManager?.setSamplingActive}
         getSnapshot={
@@ -64,6 +64,6 @@ if (root) {
         }
         storage={window.resourceManager?.storage}
       />
-    </ZCodeIntlProvider>,
+    </ModeIntlProvider>,
   );
 }

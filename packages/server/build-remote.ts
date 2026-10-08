@@ -8,7 +8,7 @@ const { version: packageVersion } = JSON.parse(readFileSync("../../package.json"
 // 与 tsup.config.ts 同一版本注入规则：CI 发布时 server bundle 必须跟随
 // MODE_APP_VERSION（审计版本），否则远端部署的版本检查永远不匹配。
 const version = process.env.MODE_APP_VERSION?.trim() || packageVersion;
-const { content: zcodeBuiltinProviderConfigJson } = await loadBuiltinProviderConfig();
+const { content: modeBuiltinProviderConfigJson } = await loadBuiltinProviderConfig();
 
 /**
  * Let esbuild bundle node-pty's JS code normally, but keep .node native
@@ -33,7 +33,7 @@ const nativeAddonPlugin: Plugin = {
 const buildResult = await build({
   entryPoints: ["src/entry-stdio.ts"],
   bundle: true,
-  outfile: "dist/remote/zcode-server.cjs",
+  outfile: "dist/remote/mode-server.cjs",
   platform: "node",
   format: "cjs",
   target: "node22",
@@ -47,15 +47,15 @@ const buildResult = await build({
     "import.meta.url": "__import_meta_url",
     "import.meta.dirname": "__import_meta_dirname",
     __MODE_VERSION__: JSON.stringify(version),
-    __MODE_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(zcodeBuiltinProviderConfigJson),
+    __MODE_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(modeBuiltinProviderConfigJson),
   },
   metafile: true,
 });
 
-const remoteBundleSource = readFileSync("dist/remote/zcode-server.cjs", "utf-8");
+const remoteBundleSource = readFileSync("dist/remote/mode-server.cjs", "utf-8");
 const bundledInputs = Object.keys(buildResult.metafile.inputs);
 validateRemoteServerBundle({ bundledInputs, source: remoteBundleSource });
 // 修复：remote 单文件 bundle 内联第三方代码，dist/remote 也必须附完整声明。
 await stageThirdPartyNotices("dist/remote");
 
-console.log("Built dist/remote/zcode-server.cjs");
+console.log("Built dist/remote/mode-server.cjs");

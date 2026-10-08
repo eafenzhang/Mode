@@ -26,21 +26,21 @@ import {
 import { createAboutSnapshot, formatAboutDetail, readBuildMetadata } from "./about.js";
 import { logger } from "./logger.js";
 
-function getZCodeDataDir() {
+function getModeDataDir() {
   return getAppConfigDir();
 }
 
-function getZCodeCliDir() {
+function getModeCliDir() {
   return join(homedir(), ".zcodium", "cli");
 }
 
-function getZCodeCliLogDir() {
-  return join(getZCodeCliDir(), "log");
+function getModeCliLogDir() {
+  return join(getModeCliDir(), "log");
 }
 
 /**
  * Computer Use Helper 的运行目录。macOS 上 Helper 由 LaunchServices 启动，stderr 被系统丢弃，
- * 所以它把生命周期与后台输入诊断 tee 到 `<socket>.exit.log`（见 zcode-cua
+ * 所以它把生命周期与后台输入诊断 tee 到 `<socket>.exit.log`（见 mode-cua
  * helperExitLogPathFor）。同目录下还有 `.tokens` broker 凭据，收集时必须按文件名白名单。
  */
 function getCuaHelperRunDir() {
@@ -74,7 +74,7 @@ interface LogArchiveSkippedFileEntry {
 
 interface ExportLogsDependencies {
   now?: () => Date;
-  getZCodeDataDir?: () => string;
+  getModeDataDir?: () => string;
   getExportLogStageDir?: () => string;
   getExportLogDir?: () => string;
   createLogArchiveArtifacts?: (
@@ -752,7 +752,7 @@ function shouldApplyLogExportRetention(archivePath: string): boolean {
   const normalizedArchivePath = normalizeArchivePath(archivePath);
   if (
     normalizedArchivePath.startsWith("logs/") ||
-    normalizedArchivePath.startsWith(".zcode/cli/log/")
+    normalizedArchivePath.startsWith(".mode/cli/log/")
   ) {
     return true;
   }
@@ -948,27 +948,27 @@ async function createLogArchiveArtifacts(
 
   await collectLogArchiveFilesFromDirectory(sourceDir, "", visitedDirs, files);
 
-  const zcodeCliLogDir = getZCodeCliLogDir();
-  // GLM / zcode-cli 的运行日志写在 ~/.zcodium/cli/log，不在应用主数据目录 ~/.zcodium/v2 下。
+  const modeCliLogDir = getModeCliLogDir();
+  // GLM / mode-cli 的运行日志写在 ~/.zcodium/cli/log，不在应用主数据目录 ~/.zcodium/v2 下。
   // 如果导出日志只扫描 v2，定位 agent CLI 启动、协议或崩溃问题时会缺少最关键的原生侧日志。
   await collectLogArchiveFilesFromDirectory(
-    zcodeCliLogDir,
+    modeCliLogDir,
     posix.join(".zcodium", "cli", "log"),
     visitedDirs,
     files,
   );
 
-  const zcodeCliDir = getZCodeCliDir();
+  const modeCliDir = getModeCliDir();
   // 排查 agent CLI 问题还需要它的运行配置与模型 IO 轨迹。
   // config.json 是当前生效配置；rollout 是 model-io 调用轨迹，
   // 二者都不在 ~/.zcodium/cli/log 下，需要额外收集才能完整还原现场。
   await collectLogArchiveFile(
-    join(zcodeCliDir, "config.json"),
+    join(modeCliDir, "config.json"),
     posix.join(".zcodium", "cli", "config.json"),
     files,
   );
   await collectLogArchiveFilesFromDirectory(
-    join(zcodeCliDir, "rollout"),
+    join(modeCliDir, "rollout"),
     posix.join(".zcodium", "cli", "rollout"),
     visitedDirs,
     files,
@@ -1130,7 +1130,7 @@ export async function exportLogs(
 ): Promise<{ success: boolean; path?: string; error?: string }> {
   try {
     const now = dependencies.now ?? (() => new Date());
-    const getSourceDir = dependencies.getZCodeDataDir ?? getZCodeDataDir;
+    const getSourceDir = dependencies.getModeDataDir ?? getModeDataDir;
     const buildArtifacts = dependencies.createLogArchiveArtifacts ?? createLogArchiveArtifacts;
     const writeZip = dependencies.writeLogArchiveZip ?? writeLogArchiveZip;
     const writeDirectory = dependencies.writeLogArchiveDirectory ?? writeLogArchiveDirectory;
@@ -1145,7 +1145,7 @@ export async function exportLogs(
 
     const sourceDir = getSourceDir();
     const timestamp = formatTimestamp(now());
-    const exportBaseName = `zcode-logs-${timestamp}`;
+    const exportBaseName = `mode-logs-${timestamp}`;
     const outputRootDir = getOutputRootDir();
     await mkdir(outputRootDir, { recursive: true });
     const outputDir = await mkdtemp(join(outputRootDir, `${exportBaseName}-`));

@@ -1,7 +1,7 @@
-import type { ZCodeTaskChangeSummary } from "@mode/shared";
+import type { ModeTaskChangeSummary } from "@mode/shared";
 
 export function formatGroupedTaskHoverChangeParts(
-  summary: ZCodeTaskChangeSummary | null,
+  summary: ModeTaskChangeSummary | null,
 ): string[] {
   if (!summary) {
     return [];

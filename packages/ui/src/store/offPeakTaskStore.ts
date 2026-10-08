@@ -5,7 +5,7 @@ import {
   type OffPeakCodingPlanSupport,
   type OffPeakTaskCreateResult,
   type OffPeakTakeNumberAvailability,
-  type ZCodeOffPeakTask,
+  type ModeOffPeakTask,
   type ModelSelection,
 } from "@mode/shared";
 import type {
@@ -45,7 +45,7 @@ export interface OffPeakCreateDraft {
 export type OffPeakTakeNumberAvailabilityStatus = "idle" | "loading" | "ready" | "error";
 
 interface OffPeakTaskState {
-  tasks: ZCodeOffPeakTask[];
+  tasks: ModeOffPeakTask[];
   loading: boolean;
   error: string | null;
   operationId: string | null;
@@ -176,7 +176,7 @@ export const useOffPeakTaskStore = create<OffPeakTaskState>((set, get) => ({
         }),
       offPeakTaskService.list().catch((error) => {
         logger.warn("[off-peak] list failed", toErrorMessage(error));
-        return [] as ZCodeOffPeakTask[];
+        return [] as ModeOffPeakTask[];
       }),
     ]).then(([grayConfig, tasks]) => {
       set({ grayConfig, tasks });

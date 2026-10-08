@@ -14,7 +14,7 @@ export type {
   IntegratedTerminalShellSelection,
   Locale,
   LocalePreference,
-  ZCodeInteractionBehavior,
+  ModeInteractionBehavior,
   TabId,
   TabState,
   ResourceUsageCategory,
@@ -30,7 +30,7 @@ export type { WorkspacePurpose } from "./workspacePurpose.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
 export { MODE_VERSION, MODE_COMMIT, MODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
-export type { ZCodeEnv, ZCodeProductFlavor } from "./env.js";
+export type { ModeEnv, ModeProductFlavor } from "./env.js";
 export type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 export type {
   RemoteResourcePackageId,
@@ -66,40 +66,40 @@ export {
   MODE_APP_VERSION_ENV,
   MODE_BUILD_COMMIT_ID_ENV,
   RUNTIME_MODE_DEBUG,
-  normalizeZCodeEnv,
-  normalizeZCodeProductFlavor,
+  normalizeModeEnv,
+  normalizeModeProductFlavor,
 } from "./env.js";
 export * from "./errors.js";
 export type { SessionCreateSource } from "./sessionCreateSource.js";
 export { resolveSafeEndpointHostname } from "./endpointHostname.js";
 export * from "./validation.js";
 export * from "./api.js";
-export * from "./zcode-protocol/index.js";
+export * from "./mode-protocol/index.js";
 export * from "./account-provider-state.js";
 // re-home：旧协议承重面的幸存文件（消费者继续走 barrel，零感知）
-export * from "./zcode-protocol-legacy-types.js";
-export * from "./zcode-task-types-core.js";
+export * from "./mode-protocol-legacy-types.js";
+export * from "./mode-task-types-core.js";
 export * from "./task-realtime-core.js";
 export * from "./remote-workspace-identity.js";
-export * from "./zcode-api-retry-status.js";
-export * from "./zcode-network-debug-status.js";
-export * from "./zcode-session-visible-content.js";
+export * from "./mode-api-retry-status.js";
+export * from "./mode-network-debug-status.js";
+export * from "./mode-session-visible-content.js";
 export * from "./official-mcp-auth.js";
 export * from "./official-mcp-tool-error.js";
 export * from "./conversation-message-projection-policy.js";
 export * from "./conversation-share.js";
 export * from "./officialPlatformPolicy.js";
 export * from "./conversation-preview-artifacts.js";
-export * from "./zcode-session-task-status.js";
-export * from "./zcode-tool-projection-memory.js";
-export * from "./zcode-slash-command-help.js";
-export * from "./zcodeEndpoint.js";
-export * from "./zcode-source-headers.js";
-export * from "./zcode-agent-policy.js";
-export * from "./zcode-media-policy.js";
+export * from "./mode-session-task-status.js";
+export * from "./mode-tool-projection-memory.js";
+export * from "./mode-slash-command-help.js";
+export * from "./modeEndpoint.js";
+export * from "./mode-source-headers.js";
+export * from "./mode-agent-policy.js";
+export * from "./mode-media-policy.js";
 export * from "./media-preview.js";
 export * from "./plugin-display-name.js";
-export * from "./zcode-agent-runtime.js";
+export * from "./mode-agent-runtime.js";
 export * from "./runtimeEnv.js";
 export * from "./dynamic-workflow-feature.js";
 export * from "./markdown-artifact-images.js";
@@ -185,7 +185,7 @@ export type {
   UpdateCheckResultPayload,
   UpdateStatePayload,
   WSLDistro,
-  ZCodeStdioTapDevState,
+  ModeStdioTapDevState,
 } from "./platform.js";
 export type {
   CuaAccessibilitySettingsResult,
@@ -193,15 +193,15 @@ export type {
   OpenCuaPermissionOnboardingOptions,
   PrepareCuaHelperPermissionDragResult,
 } from "./cuaAccessibilitySettings.js";
-export type { ZCodeTaskCreateResult } from "./zcode-task-types.js";
-export * from "./zcode-task-types.js";
+export type { ModeTaskCreateResult } from "./mode-task-types.js";
+export * from "./mode-task-types.js";
 export * from "./automation-types.js";
 export * from "./off-peak-types.js";
 export * from "./background-task-control-merge.js";
 export * from "./background-task-controls.js";
 export * from "./background-task-notifications.js";
 export * from "./background-bash-jobs.js";
-export * from "./zcode-agent-model-state.js";
+export * from "./mode-agent-model-state.js";
 export * from "./task-realtime.js";
 export { formatTimestamp, formatLogPrefix } from "./log-format.js";
 export * from "./model-provider-types.js";
@@ -233,7 +233,7 @@ export * from "./runtime-tool-runtime.js";
 export * from "./git.js";
 export * from "./bots.js";
 export * from "./assistant-message-parts.js";
-export * from "./zcodePersistedMessageMerge.js";
+export * from "./modePersistedMessageMerge.js";
 export * from "./assistant-presentation.js";
 export * from "./tool-call-summary.js";
 export * from "./tool-identity.js";

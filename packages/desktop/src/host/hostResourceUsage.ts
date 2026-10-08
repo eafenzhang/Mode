@@ -1,4 +1,4 @@
-import type { IZCodeAgentService } from "@mode/services";
+import type { IModeAgentService } from "@mode/services";
 import {
   attributeHostProcessTree,
   createProcessResourceSampler,
@@ -12,7 +12,7 @@ import {
 } from "@mode/shared";
 
 interface CreateHostResourceUsageResponderOptions {
-  getAgentService: () => Pick<IZCodeAgentService, "collectLocalRuntimeChildProcesses"> | undefined;
+  getAgentService: () => Pick<IModeAgentService, "collectLocalRuntimeChildProcesses"> | undefined;
   postMessage: (message: HostResourceUsageSnapshotResultResponse) => void;
   hostPid?: number;
   sampler?: ProcessResourceSampler;

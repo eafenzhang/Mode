@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   AppErrorBoundary,
   Root,
-  ZCodeIntlProvider,
+  ModeIntlProvider,
   generateMobileDeviceFingerprint,
   playTaskNotificationSound,
   setStreamClientId,
@@ -19,7 +19,7 @@ import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@mode/sha
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
-  const saved = localStorage.getItem("zcode-theme");
+  const saved = localStorage.getItem("mode-theme");
   return resolveWebInitialTheme({ storedTheme: saved, defaultTheme });
 }
 
@@ -355,7 +355,7 @@ async function bootstrapWebApp() {
 
     root.render(
       <AppErrorBoundary>
-        <ZCodeIntlProvider
+        <ModeIntlProvider
           settingService={services.settingService}
           broadcastService={services.broadcastService}
         >
@@ -371,7 +371,7 @@ async function bootstrapWebApp() {
             supportsEmbeddedBrowser={false}
             allowRemoteWorkspace={false}
           />
-        </ZCodeIntlProvider>
+        </ModeIntlProvider>
       </AppErrorBoundary>,
     );
   } catch (error) {

@@ -8,13 +8,13 @@ import { fileURLToPath } from "node:url";
 import {
   MODE_PROTOCOL_NAME,
   MODE_PROTOCOL_VERSION,
-  zcodeSessionStateSnapshotSchema,
+  modeSessionStateSnapshotSchema,
 } from "@mode/shared";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
-import { createZCodeTaskServiceAdapter } from "../src/zcode-agent/zcodeTaskServiceAdapter.js";
+import { createModeTaskServiceAdapter } from "../src/mode-agent/modeTaskServiceAdapter.js";
 import {
   getLegacyTaskSessionSnapshotPath,
-  getZCodeDataRootDir,
+  getModeDataRootDir,
   setDataBaseDir,
 } from "../src/paths.js";
 import { createMemoryService } from "../src/memory/memoryService.js";
@@ -33,12 +33,12 @@ const meta = {
 };
 
 test("current Project Memory catalog and files remain readable", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-current-memory-"));
+  const dir = await mkdtemp(join(tmpdir(), "mode-current-memory-"));
   setDataBaseDir(dir);
   try {
     const workspaceId = "example-0123456789abcdef";
     const memoryRoot = join(
-      getZCodeDataRootDir(),
+      getModeDataRootDir(),
       "cli",
       "memories",
       "projects",
@@ -65,7 +65,7 @@ test("current Project Memory catalog and files remain readable", async () => {
 });
 
 test("opening the task index leaves retired ACP IDs and user rows untouched", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-acp-index-"));
+  const dir = await mkdtemp(join(tmpdir(), "mode-acp-index-"));
   const path = join(dir, "tasks.sqlite");
   const repo = new TaskIndexRepo(path);
   try {
@@ -97,7 +97,7 @@ test("opening the task index leaves retired ACP IDs and user rows untouched", as
 });
 
 test("missing sessions report the owner error even when a valid ACP snapshot exists", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-acp-snapshot-"));
+  const dir = await mkdtemp(join(tmpdir(), "mode-acp-snapshot-"));
   setDataBaseDir(dir);
   const path = getLegacyTaskSessionSnapshotPath(meta.workspacePath, meta.taskId);
   const snapshot = parseLegacyTaskSessionFile({ meta, messages: [], toolCalls: [] });
@@ -106,14 +106,14 @@ test("missing sessions report the owner error even when a valid ACP snapshot exi
   await writeFile(path, content);
   const ownerError = new Error(`Session not found: ${meta.taskId}`);
   const disposable = () => ({ dispose() {} });
-  type Options = Parameters<typeof createZCodeTaskServiceAdapter>[0];
-  const service = createZCodeTaskServiceAdapter({
-    zcodeAgentService: {
+  type Options = Parameters<typeof createModeTaskServiceAdapter>[0];
+  const service = createModeTaskServiceAdapter({
+    modeAgentService: {
       async resumeSession() {
         throw ownerError;
       },
       disposeAll() {},
-    } as unknown as Options["zcodeAgentService"],
+    } as unknown as Options["modeAgentService"],
     taskIndexRepo: {
       async getTaskMeta() {
         return meta;
@@ -142,7 +142,7 @@ test("missing sessions report the owner error even when a valid ACP snapshot exi
 });
 
 test("current session recovery preserves Desktop and replayable projections", async () => {
-  const snapshot = zcodeSessionStateSnapshotSchema.parse({
+  const snapshot = modeSessionStateSnapshotSchema.parse({
     protocol: { name: MODE_PROTOCOL_NAME, version: MODE_PROTOCOL_VERSION },
     session: {
       sessionId: meta.taskId,
@@ -175,18 +175,18 @@ test("current session recovery preserves Desktop and replayable projections", as
     messages: [],
     slashCommands: [{ name: "compact", description: "Compact" }],
   });
-  type Options = Parameters<typeof createZCodeTaskServiceAdapter>[0];
+  type Options = Parameters<typeof createModeTaskServiceAdapter>[0];
   const disposable = () => ({ dispose() {} });
   const resumed: unknown[] = [];
   const indexed: unknown[] = [];
-  const service = createZCodeTaskServiceAdapter({
-    zcodeAgentService: {
+  const service = createModeTaskServiceAdapter({
+    modeAgentService: {
       async resumeSession(params: unknown) {
         resumed.push(params);
         return snapshot;
       },
       disposeAll() {},
-    } as unknown as Options["zcodeAgentService"],
+    } as unknown as Options["modeAgentService"],
     taskIndexRepo: {
       async getTaskMeta() {
         return meta;
@@ -224,9 +224,9 @@ test("current session recovery preserves Desktop and replayable projections", as
 });
 
 test("current Provider configuration starts without an old config migration callback", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-provider-current-"));
+  const dir = await mkdtemp(join(tmpdir(), "mode-provider-current-"));
   const runtime = createProviderConfigRuntime({
-    zcodeBuiltinFilePath: fileURLToPath(
+    modeBuiltinFilePath: fileURLToPath(
       new URL("../../../config/provider/mode-builtin.json", import.meta.url),
     ),
     personalFilePath: join(dir, "personal.json"),
@@ -236,7 +236,7 @@ test("current Provider configuration starts without an old config migration call
   try {
     await runtime.start();
     const config = await runtime.configService.read();
-    assert.ok(config.zcodeBuiltinRevision);
+    assert.ok(config.modeBuiltinRevision);
     assert.deepEqual(config.personalProviderOrder, []);
     assert.deepEqual(config.personalProviders.toJSON(), []);
   } finally {

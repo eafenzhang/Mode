@@ -8,7 +8,7 @@ import {
 } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   buildConversationTurnNavigatorItems,
   resolveConversationTurnNavigatorActiveUnitIndex,
@@ -54,7 +54,7 @@ function ConversationTurnNavigatorImpl({
   isHydratingDirectory = false,
   onJumpToQuery,
 }: ConversationTurnNavigatorProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const prefersReducedMotion = usePrefersReducedMotion();
   const [interactionItemIndex, setInteractionItemIndex] = useState<number | undefined>(undefined);
   const items = useMemo(

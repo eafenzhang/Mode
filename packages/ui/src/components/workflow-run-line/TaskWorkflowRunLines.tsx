@@ -7,8 +7,8 @@ import { Workflow } from "lucide-react";
 import type {
   SessionWorkflowActivity,
   SessionWorkflowRunSummary,
-} from "@mode/shared/zcode-protocol-v4";
-import { isSessionWorkflowRunLive } from "@mode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
+import { isSessionWorkflowRunLive } from "@mode/shared/mode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {

@@ -5,7 +5,7 @@ import { Loader2Icon, Trash2, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ModelInputCapabilityBadge } from "@/components/ModelInputCapabilityBadge.js";
 import { Switch } from "@/components/ui/switch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useProviderModelDraft } from "@/settings/model-provider-section/useProviderModelDraft.js";
 import { ProviderModelMetadataDialog } from "@/settings/model-provider-section/ProviderModelMetadataDialog.js";
 import { formatModelContextWindowLabel } from "@/lib/tokenNumberFormat.js";
@@ -48,7 +48,7 @@ export function ModelRowInput({
   /** OrcaRouter 的模型 ID 由目录下拉决定：编辑元数据时不得改写成另一个自由字符串。 */
   modelIdReadOnly?: boolean;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const { showFeedback } = useProviderDetailFeedback();
   const [isTesting, setIsTesting] = useState(false);
   const [metadataDialogOpen, setMetadataDialogOpen] = useState(false);
