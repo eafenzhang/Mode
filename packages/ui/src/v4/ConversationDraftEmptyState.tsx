@@ -224,28 +224,30 @@ function ModeEmptyStateLogo({ className }: { className?: string }) {
         )}
         width="400"
         height="320"
-        viewBox="176 224 712 608"
+        viewBox="190 258 644 556"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
           <linearGradient
-            id="mode-brand-z-gradient"
-            x1="712"
-            y1="224"
+            id="mode-brand-gradient"
+            x1="756"
+            y1="336"
             x2="300"
-            y2="800"
+            y2="736"
             gradientUnits="userSpaceOnUse"
           >
             <stop offset="0" stopColor="#38bdf8" />
             <stop offset="1" stopColor="#818cf8" />
           </linearGradient>
         </defs>
-        <path d="M184 224H512L453 308Q439 328 415 328H184Z" fill="url(#mode-brand-z-gradient)" />
-        <path d="M584 224H832L424 800H176Z" fill="url(#mode-brand-z-gradient)" />
         <path
-          d="M536 720L600 656L648 704L824 528L888 592L648 832Z"
-          fill="url(#mode-brand-z-gradient)"
+          d="M268 736V336L512 592L756 336V736"
+          fill="none"
+          stroke="url(#mode-brand-gradient)"
+          strokeWidth="132"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       </svg>
     </>

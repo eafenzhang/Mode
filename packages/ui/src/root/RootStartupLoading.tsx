@@ -46,7 +46,7 @@ function ModeStartupLogo({
       width="118"
       height="100"
       fill="none"
-      viewBox="176 224 712 608"
+      viewBox="190 258 644 556"
       className={cn("shrink-0 text-current", className)}
       aria-hidden="true"
       focusable="false"
@@ -60,14 +60,14 @@ function ModeStartupLogo({
           values="1;0.4;1"
         />
       ) : null}
-      {/* 品牌 Z 使用图标同款对角渐变，避免在深色启动底上呈现为纯白。 */}
+      {/* Mode 品牌标记：与应用图标同款的渐变 M（描边字重、圆头收笔），避免在深色启动底上呈现为纯白。 */}
       <defs>
         <linearGradient
-          id="mode-brand-z-gradient"
-          x1="712"
-          y1="224"
+          id="mode-brand-gradient"
+          x1="756"
+          y1="336"
           x2="300"
-          y2="800"
+          y2="736"
           gradientUnits="userSpaceOnUse"
         >
           <stop offset="0" stopColor="#38bdf8" />
@@ -75,13 +75,12 @@ function ModeStartupLogo({
         </linearGradient>
       </defs>
       <path
-        fill="url(#mode-brand-z-gradient)"
-        d="M184 224H512L453 308Q439 328 415 328H184Z"
-      />
-      <path fill="url(#mode-brand-z-gradient)" d="M584 224H832L424 800H176Z" />
-      <path
-        fill="url(#mode-brand-z-gradient)"
-        d="M536 720L600 656L648 704L824 528L888 592L648 832Z"
+        d="M268 736V336L512 592L756 336V736"
+        fill="none"
+        stroke="url(#mode-brand-gradient)"
+        strokeWidth="132"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
