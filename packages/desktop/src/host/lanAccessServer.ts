@@ -113,6 +113,9 @@ async function readClients(credentials: ICredentialService): Promise<LanAccessCl
         label: typeof record.label === "string" ? record.label : "",
         createdAt: typeof record.createdAt === "number" ? record.createdAt : Date.now(),
         lastUsedAt: typeof record.lastUsedAt === "number" ? record.lastUsedAt : null,
+        ...(typeof record.lastWorkspacePath === "string" && record.lastWorkspacePath
+          ? { lastWorkspacePath: record.lastWorkspacePath }
+          : {}),
       }));
   } catch {
     return [];
@@ -175,6 +178,31 @@ export async function startLanAccessServer(
     return false;
   };
 
+  /** 与鉴权同一令牌校验路径，供 /ws/host 升级时把连接归属到客户端记录（录制最近打开目录用）。 */
+  const resolveLanClientByToken = (presented: string): string | null => {
+    for (const [clientId, token] of clientTokens) {
+      if (constantTimeEqual(token, presented)) {
+        return clientId;
+      }
+    }
+    return null;
+  };
+
+  /**
+   * 该配对设备最近在本机打开的工作区目录（spec: docs/specs/lan-paired-devices.md）。
+   * 低频事件：命中即写 clients 记录并持久化；同路径重复上报直接忽略。
+   */
+  const recordClientWorkspace = (clientId: string, workspacePath: string): void => {
+    const target = clients.find((item) => item.id === clientId);
+    if (!target || target.lastWorkspacePath === workspacePath) {
+      return;
+    }
+    target.lastWorkspacePath = workspacePath;
+    void persistClients().catch((error: unknown) => {
+      warn("persist client lastWorkspacePath failed:", error instanceof Error ? error.message : error);
+    });
+  };
+
   const redeem = async (request: LanAccessPairRequest): Promise<LanAccessPairResult | null> => {
     const current = pairCode;
     if (!current || current.expiresAt <= Date.now()) {
@@ -206,6 +234,8 @@ export async function startLanAccessServer(
     authRequired: true,
     verifyAuthToken,
     lanPairing: { redeem },
+    resolveLanClientByToken,
+    onLanClientWorkspace: recordClientWorkspace,
     serverId,
     name: params.machineName,
     workspaces: () => params.getWorkspaces(),

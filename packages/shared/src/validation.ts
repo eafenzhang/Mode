@@ -1,5 +1,6 @@
 import { databaseStartupControlSchema, databaseStartupStateSchema } from "./database-startup.js";
-import { lanAccessStateSchema } from "./lanAccess.js";
+import { lanAccessStateSchema, lanPairedPeerSchema } from "./lanAccess.js";
+import { serverRemoteWorkspaceInfoSchema } from "./server-remote.js";
 /* eslint-disable max-lines -- 运行时 schema 当前集中在共享包入口，外部 relay payload 校验加入后先保持单一导出面。 */
 import { z } from "zod";
 import { modeProcessDiagnosticSchema } from "./process-diagnostic.js";
@@ -456,6 +457,23 @@ export const hostLanPairPeerMessageSchema = z
   .strict();
 export type HostLanPairPeerMessage = z.infer<typeof hostLanPairPeerMessageSchema>;
 
+/**
+ * 我配对的对端（main → host）：一条 schema 覆盖三个动作，
+ * 只有 workspaces/remove 带 serverId（list 靠凭据前缀枚举）。
+ */
+export const hostLanPairedPeerMessageSchema = z
+  .object({
+    type: z.enum([
+      "lan-paired-peers-list",
+      "lan-paired-peer-workspaces",
+      "lan-paired-peer-remove",
+    ]),
+    requestId: nonEmptyStringSchema,
+    serverId: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+export type HostLanPairedPeerMessage = z.infer<typeof hostLanPairedPeerMessageSchema>;
+
 export const hostResourceUsageSnapshotRequestMessageSchema = z
   .object({
     type: z.literal("resource-usage-snapshot-request"),
@@ -473,6 +491,7 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostResourceUsageSnapshotRequestMessageSchema,
   hostLanAccessMessageSchema,
   hostLanPairPeerMessageSchema,
+  hostLanPairedPeerMessageSchema,
   z
     .object({ type: z.literal("resource-usage-snapshot-cancel"), requestId: nonEmptyStringSchema })
     .strict(),
@@ -963,6 +982,45 @@ export type HostLanPairPeerResultResponse = z.infer<
   typeof hostLanPairPeerResultResponseSchema
 >;
 
+export const hostLanPairedPeersListResponseSchema = z
+  .object({
+    type: z.literal("lan-paired-peers-list-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    error: z.string().optional(),
+    peers: z.array(lanPairedPeerSchema).optional(),
+  })
+  .strict();
+export type HostLanPairedPeersListResponse = z.infer<
+  typeof hostLanPairedPeersListResponseSchema
+>;
+
+export const hostLanPairedPeerWorkspacesResponseSchema = z
+  .object({
+    type: z.literal("lan-paired-peer-workspaces-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    error: z.string().optional(),
+    name: z.string().optional(),
+    workspaces: z.array(serverRemoteWorkspaceInfoSchema).optional(),
+  })
+  .strict();
+export type HostLanPairedPeerWorkspacesResponse = z.infer<
+  typeof hostLanPairedPeerWorkspacesResponseSchema
+>;
+
+export const hostLanPairedPeerRemoveResponseSchema = z
+  .object({
+    type: z.literal("lan-paired-peer-remove-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    error: z.string().optional(),
+  })
+  .strict();
+export type HostLanPairedPeerRemoveResponse = z.infer<
+  typeof hostLanPairedPeerRemoveResponseSchema
+>;
+
 export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("database-startup-state"), state: databaseStartupStateSchema })
@@ -970,6 +1028,9 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostResourceUsageSnapshotResultResponseSchema,
   hostLanAccessStateResponseSchema,
   hostLanPairPeerResultResponseSchema,
+  hostLanPairedPeersListResponseSchema,
+  hostLanPairedPeerWorkspacesResponseSchema,
+  hostLanPairedPeerRemoveResponseSchema,
   hostRemoteWorkspaceConnectionLogResponseSchema,
   hostRemoteWorkspaceConnectedResponseSchema,
   hostRemoteWorkspaceConnectFailedResponseSchema,

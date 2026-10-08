@@ -6,6 +6,9 @@ import {
   PlatformChannels,
   type HostLanAccessStateResponse,
   type HostLanPairPeerResultResponse,
+  type HostLanPairedPeersListResponse,
+  type HostLanPairedPeerRemoveResponse,
+  type HostLanPairedPeerWorkspacesResponse,
   type LanAccessPairResult,
   type LanAccessState,
   type LanPairPeerRequest,
@@ -27,6 +30,30 @@ interface PendingLanAccessRequest {
 
 interface PendingLanPairRequest {
   resolve: (result: HostLanPairPeerResultResponse) => void;
+}
+
+export type LanPairedPeerOpResponse =
+  | HostLanPairedPeersListResponse
+  | HostLanPairedPeerWorkspacesResponse
+  | HostLanPairedPeerRemoveResponse;
+
+const pendingLanPeerOps = new Map<
+  string,
+  { resolve: (result: LanPairedPeerOpResponse) => void; reject: (error: Error) => void }
+>();
+
+/** host → main：「我配对的对端」三个动作的结果统一回收（按 requestId 关联）。 */
+export function resolveLanPairedPeerOpResult(result: LanPairedPeerOpResponse): void {
+  const pending = pendingLanPeerOps.get(result.requestId);
+  if (!pending) {
+    return;
+  }
+  pendingLanPeerOps.delete(result.requestId);
+  if (!result.ok) {
+    pending.reject(new Error(result.error ?? "局域网对端操作失败"));
+    return;
+  }
+  pending.resolve(result);
 }
 
 const pendingRequests = new Map<string, PendingLanAccessRequest>();
@@ -96,6 +123,48 @@ async function callLanPairHost(request: LanPairPeerRequest): Promise<LanAccessPa
     } catch (error) {
       clearTimeout(timer);
       pendingPairRequests.delete(requestId);
+      reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
+}
+
+/** 「我配对的对端」三动作：与局域网控制同款的 owner host 转发 + 超时回收。 */
+async function callLanPairedPeerHost(
+  type:
+    | typeof HostMessageTypes.LanPairedPeersList
+    | typeof HostMessageTypes.LanPairedPeerWorkspaces
+    | typeof HostMessageTypes.LanPairedPeerRemove,
+  serverId?: string,
+): Promise<LanPairedPeerOpResponse> {
+  const owner = pickOwner();
+  if (!owner) {
+    throw new Error("当前没有可用的窗口宿主进程");
+  }
+  const requestId = randomUUID();
+  return await new Promise<LanPairedPeerOpResponse>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingLanPeerOps.delete(requestId);
+      reject(new Error("局域网对端请求超时"));
+    }, LAN_ACCESS_REQUEST_TIMEOUT_MS);
+    pendingLanPeerOps.set(requestId, {
+      resolve: (result) => {
+        clearTimeout(timer);
+        resolve(result);
+      },
+      reject: (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    });
+    try {
+      owner.child.postMessage({
+        type,
+        requestId,
+        ...(serverId ? { serverId } : {}),
+      });
+    } catch (error) {
+      clearTimeout(timer);
+      pendingLanPeerOps.delete(requestId);
       reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
@@ -214,6 +283,57 @@ export function registerLanAccessIpcHandlers(options: {
   ipcMain.handle(PlatformChannels.ResetLanAccessTokens, handle("reset-tokens"));
   ipcMain.handle(PlatformChannels.SetLanAccessEnabled, async (_event, enabled: unknown) => {
     return await handle("set-enabled", { enabled: enabled === true })();
+  });
+  ipcMain.handle(PlatformChannels.GetLanPairedPeers, async () => {
+    try {
+      const result = await callLanPairedPeerHost(HostMessageTypes.LanPairedPeersList);
+      if (result.type !== "lan-paired-peers-list-result") {
+        throw new Error("局域网对端响应类型不匹配");
+      }
+      return result.peers ?? [];
+    } catch (error) {
+      options.logger.warn("[lan-access] list paired peers failed:", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  });
+  ipcMain.handle(PlatformChannels.GetLanPeerWorkspaces, async (_event, rawServerId: unknown) => {
+    const serverId = typeof rawServerId === "string" ? rawServerId.trim() : "";
+    if (!serverId) {
+      throw new Error("serverId 不能为空");
+    }
+    try {
+      const result = await callLanPairedPeerHost(HostMessageTypes.LanPairedPeerWorkspaces, serverId);
+      if (result.type !== "lan-paired-peer-workspaces-result") {
+        throw new Error("局域网对端响应类型不匹配");
+      }
+      return {
+        ...(result.name ? { name: result.name } : {}),
+        workspaces: result.workspaces ?? [],
+      };
+    } catch (error) {
+      options.logger.warn("[lan-access] get peer workspaces failed:", {
+        serverId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  });
+  ipcMain.handle(PlatformChannels.RemoveLanPairedPeer, async (_event, rawServerId: unknown) => {
+    const serverId = typeof rawServerId === "string" ? rawServerId.trim() : "";
+    if (!serverId) {
+      throw new Error("serverId 不能为空");
+    }
+    try {
+      await callLanPairedPeerHost(HostMessageTypes.LanPairedPeerRemove, serverId);
+    } catch (error) {
+      options.logger.warn("[lan-access] remove paired peer failed:", {
+        serverId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   });
   ipcMain.handle(PlatformChannels.RemoveLanAccessClient, async (_event, clientId: unknown) => {
     if (typeof clientId !== "string" || !clientId.trim()) {

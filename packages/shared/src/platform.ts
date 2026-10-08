@@ -11,6 +11,8 @@ import type {
   LanAccessState,
   LanDiscoveredPeer,
   LanPairPeerRequest,
+  LanPairedPeer,
+  LanPairedPeerWorkspaces,
 } from "./lanAccess.js";
 import type {
   LoadCliMcpFromUserDirectoryRequest,
@@ -624,6 +626,12 @@ export interface IPlatformService {
   discoverLanPeers(): Promise<LanDiscoveredPeer[]>;
   /** 用对端显示的配对码换取长期令牌（令牌写入凭据服务，不回传任务负载）。 */
   pairLanPeer(request: LanPairPeerRequest): Promise<LanAccessPairResult>;
+  /** 列出本机「我配对的对端」（Host 侧枚举凭据元数据，不暴露令牌）。 */
+  getLanPairedPeers(): Promise<LanPairedPeer[]>;
+  /** 拉取某个已配对对端提供的工作区目录（Host 用已存令牌访问对端 server-info）。 */
+  getLanPeerWorkspaces(serverId: string): Promise<LanPairedPeerWorkspaces>;
+  /** 删除某个已配对对端（清长期令牌与元数据，下次连接需重新配对）。 */
+  removeLanPairedPeer(serverId: string): Promise<void>;
 
   /** 列出本机可用的 WSL 发行版 */
   listWSLDistros(): Promise<WSLDistro[]>;

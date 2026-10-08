@@ -136,6 +136,9 @@ function createWebPlatform(): IPlatformService {
     resetLanAccessTokens: () => Promise.reject(new Error("Web mode does not serve LAN access")),
     discoverLanPeers: () => Promise.resolve([]),
     pairLanPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
+    getLanPairedPeers: () => Promise.resolve([]),
+    getLanPeerWorkspaces: () => Promise.reject(new Error("Web mode cannot reach LAN peers")),
+    removeLanPairedPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
     loadMcpFromUserDirectory: () => Promise.resolve({ servers: [] }),
     saveMcpToUserDirectory: () =>
       Promise.resolve({

@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
+import { LanAccessPairedPeersCard } from "@/settings/LanAccessPairedPeersCard.js";
 
 const EMPTY_STATE: LanAccessState = {
   enabled: false,
@@ -218,6 +219,14 @@ export function LanAccessSection() {
                                 )
                               : intl.formatMessage({ id: "settings.lanAccess.clientNeverUsed" })}
                           </span>
+                          <span className="block truncate text-ui-xs text-foreground-subtle">
+                            {client.lastWorkspacePath
+                              ? intl.formatMessage(
+                                  { id: "settings.lanAccess.lastWorkspace" },
+                                  { path: client.lastWorkspacePath },
+                                )
+                              : intl.formatMessage({ id: "settings.lanAccess.noLastWorkspace" })}
+                          </span>
                         </span>
                         <Button
                           type="button"
@@ -246,6 +255,9 @@ export function LanAccessSection() {
           </>
         ) : null}
       </SettingsGroupCard>
+
+      {/* 「我配对的对端」（客户端视角）：与上面的服务端分组分列展示；本机开关关闭时也显示。 */}
+      <LanAccessPairedPeersCard onError={setError} />
 
       <p className="flex items-center gap-1.5 px-1 text-ui-base text-foreground-subtle">
         {state.enabled ? (

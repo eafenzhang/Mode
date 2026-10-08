@@ -12,6 +12,11 @@ export interface ICredentialService {
   load(key: string): Promise<string | null>;
   save(key: string, value: string): Promise<void>;
   delete(key: string): Promise<void>;
+  /**
+   * 按键名前缀枚举（只返回键名，不触碰值）。
+   * 供「已配对设备」这类按前缀扫描的场景使用；不解密值，旧密钥条目也不会在此抛错。
+   */
+  list(prefix: string): Promise<string[]>;
 }
 
 export const ICredentialService = createServiceDescriptor<ICredentialService>(

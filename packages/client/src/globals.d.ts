@@ -98,6 +98,14 @@ declare global {
       pairLanPeer(
         request: import("@mode/shared").LanPairPeerRequest,
       ): Promise<import("@mode/shared").LanAccessPairResult>;
+      /** 列出本机「我配对的对端」 */
+      getLanPairedPeers(): Promise<import("@mode/shared").LanPairedPeer[]>;
+      /** 拉取某个已配对对端的工作区目录 */
+      getLanPeerWorkspaces(
+        serverId: string,
+      ): Promise<import("@mode/shared").LanPairedPeerWorkspaces>;
+      /** 删除某个已配对对端（清令牌与元数据） */
+      removeLanPairedPeer(serverId: string): Promise<void>;
       /** renderer 日志通过 IPC 传到 main 进程统一存储 */
       log(level: "info" | "warn" | "error", args: unknown[]): void;
       /** 打开系统目录选择框，返回选中路径或 null */

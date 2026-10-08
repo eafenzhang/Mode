@@ -15,6 +15,10 @@ import {
   LoggingChannelServer,
   ProxyChannel,
   type ISocket,
+  type IServerChannel,
+  type IChannelServer,
+  type CancellationToken,
+  type Event,
 } from "@mode/rpc";
 import {
   ServiceCollection,
@@ -86,16 +90,83 @@ function wrapWebSocket(ws: WebSocket): ISocket {
 const log = (...args: unknown[]) =>
   console.log(formatLogPrefix("mode-server:http", process.pid), ...args);
 
+/** 只有顶层对象上的 workspacePath 才算「打开工作区」信号；readdir/resolvePath 用 path，不录。 */
+function extractWorkspacePathArg(arg: unknown): string | null {
+  if (!arg || typeof arg !== "object") {
+    return null;
+  }
+  const path = (arg as { workspacePath?: unknown }).workspacePath;
+  return typeof path === "string" && path.trim() ? path : null;
+}
+
+class LanRecordingServerChannel<TContext> implements IServerChannel<TContext> {
+  constructor(
+    private inner: IServerChannel<TContext>,
+    private notify: (workspacePath: string) => void,
+  ) {}
+
+  call<T>(
+    ctx: TContext,
+    command: string,
+    arg?: unknown,
+    cancellationToken?: CancellationToken,
+  ): Promise<T> {
+    const workspacePath = extractWorkspacePathArg(arg);
+    if (workspacePath) {
+      this.notify(workspacePath);
+    }
+    return this.inner.call(ctx, command, arg, cancellationToken);
+  }
+
+  listen<T>(ctx: TContext, event: string, arg?: unknown): Event<T> {
+    const workspacePath = extractWorkspacePathArg(arg);
+    if (workspacePath) {
+      this.notify(workspacePath);
+    }
+    return this.inner.listen(ctx, event, arg);
+  }
+}
+
+/**
+ * 局域网「最近打开目录」录制（spec: docs/specs/lan-paired-devices.md）：
+ * 包装 registerChannel，对该连接上每个频道的 call/listen 入参检查 workspacePath。
+ * 录制在调用入口进行——只要对端发起了携带 workspacePath 的调用就视为「打开」，
+ * 调用成败不影响记录；纯目录浏览（path 字段）不会命中。
+ */
+class LanWorkspaceRecordingChannelServer<TContext> implements IChannelServer<TContext> {
+  constructor(
+    private inner: IChannelServer<TContext>,
+    private notify: (workspacePath: string) => void,
+  ) {}
+
+  registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
+    this.inner.registerChannel(
+      channelName,
+      new LanRecordingServerChannel(channel, this.notify),
+    );
+  }
+
+  ready(): void {
+    this.inner.ready?.();
+  }
+}
+
 function setupChannelServer(
   ws: WebSocket,
   services: ServiceCollection,
   clientMode: "desktop-continuous" | "web-remote-replayable",
+  lanRecording?: { clientId: string; onWorkspace: (clientId: string, workspacePath: string) => void },
 ) {
   const socket = wrapWebSocket(ws);
   const protocol = new SocketProtocol(socket);
   const rawServer = new ChannelServer(protocol, "server");
   // 用日志中间件包装，统一记录所有 RPC 调用
-  const server = new LoggingChannelServer(rawServer, log);
+  const loggedServer = new LoggingChannelServer(rawServer, log);
+  const server = lanRecording
+    ? new LanWorkspaceRecordingChannelServer(loggedServer, (workspacePath) =>
+        lanRecording.onWorkspace(lanRecording.clientId, workspacePath),
+      )
+    : loggedServer;
   const agentService = services.getOptional(IModeAgentService);
   const connectionScope = agentService
     ? createModeAgentConnectionScope(agentService, {
@@ -163,6 +234,13 @@ interface HttpServerOptions {
   verifyAuthToken?: (token: string) => boolean;
   /** 局域网配对端点：提供时暴露 POST /api/lan/pair（该路由用一次性配对码自证，不要求既有令牌）。 */
   lanPairing?: LanAccessPairingEndpoint;
+  /**
+   * 局域网多客户端：把 /ws/host 升级连接的长期令牌解析为客户端记录 id。
+   * 与鉴权走同一令牌校验路径；未提供或解析不到时该连接不参与录制。
+   */
+  resolveLanClientByToken?: (token: string) => string | null;
+  /** 局域网多客户端：该客户端连接上出现携带 workspacePath 的 RPC 时回调（最近在本机打开的目录）。 */
+  onLanClientWorkspace?: (clientId: string, workspacePath: string) => void;
   spaFallback?: boolean;
   staticRoot?: string;
   /** 工作区列表：静态数组或按请求求值（局域网服务端要反映「刚刚打开的工作区」）。 */
@@ -411,9 +489,23 @@ export function createHttpServer(
     })),
   );
 
-  const upgradeTrustedHostWebSocket = upgradeWebSocket(() => ({
+  const upgradeTrustedHostWebSocket = upgradeWebSocket((c) => ({
     onOpen(_event, ws) {
-      setupChannelServer(ws.raw as WebSocket, services, "desktop-continuous");
+      // 该升级连接对应哪台已配对客户端：cookie/query 令牌 → clientId（与鉴权同一校验路径），
+      // 解析成功才挂录制；普通或无 LAN 配置的连接行为不变。
+      const presented = readPresentedLiteToken(c).token;
+      const clientId =
+        presented && options.resolveLanClientByToken
+          ? options.resolveLanClientByToken(presented)
+          : null;
+      setupChannelServer(
+        ws.raw as WebSocket,
+        services,
+        "desktop-continuous",
+        clientId && options.onLanClientWorkspace
+          ? { clientId, onWorkspace: options.onLanClientWorkspace }
+          : undefined,
+      );
     },
   }));
   app.use("/ws/host", async (c, next) => {

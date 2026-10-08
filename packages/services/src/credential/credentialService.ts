@@ -126,5 +126,13 @@ export function createCredentialService(
       });
       dependencies.onDidMutate?.({ operation: "delete", key: validatedKey });
     },
+
+    async list(prefix: string): Promise<string[]> {
+      // 只读键名：绕过解密，避免展示性枚举被单条旧密文的解密失败连坐。
+      const creds = await readAll();
+      return Object.keys(creds)
+        .filter((key) => key.startsWith(prefix))
+        .sort();
+    },
   };
 }

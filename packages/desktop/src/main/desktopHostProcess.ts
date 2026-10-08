@@ -43,6 +43,7 @@ import {
   forgetLanAccessHost,
   resolveLanAccessStateResult,
   resolveLanPairPeerResult,
+  resolveLanPairedPeerOpResult,
 } from "./desktopLanAccess.js";
 import {
   buildHostProcessEnv,
@@ -322,6 +323,14 @@ export function spawnHostProcess(
     }
     if (result.data.type === HostResponseTypes.LanPairPeerResult) {
       resolveLanPairPeerResult(label, result.data);
+      return;
+    }
+    if (
+      result.data.type === HostResponseTypes.LanPairedPeersListResult ||
+      result.data.type === HostResponseTypes.LanPairedPeerWorkspacesResult ||
+      result.data.type === HostResponseTypes.LanPairedPeerRemoveResult
+    ) {
+      resolveLanPairedPeerOpResult(result.data);
       return;
     }
     if (result.data.type === HostResponseTypes.LocalMediaPreviewPathAuthorizeRequest) {

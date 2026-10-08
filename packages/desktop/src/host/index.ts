@@ -67,7 +67,12 @@ import {
 } from "@mode/services/node";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
 import { startLanAccessServer, type LanAccessServerHandle } from "./lanAccessServer.js";
-import { attachLanRemoteConnection, loadLanPeerToken, pairLanPeer } from "./lanRemoteAttach.js";
+import {
+  attachLanRemoteConnection,
+  fetchLanPeerInfo,
+  loadLanPeerToken,
+  pairLanPeer,
+} from "./lanRemoteAttach.js";
 import { hostname } from "node:os";
 import {
   assertBoundSessionDispatchable,
@@ -79,8 +84,15 @@ import {
   MODE_VERSION,
   type HostLanAccessMessage,
   type HostLanPairPeerMessage,
+  type HostLanPairedPeerMessage,
   type LanAccessPairResult,
   type LanAccessState,
+  buildLanPeerTokenKey,
+  buildLanPeerMetaKey,
+  lanPeerMetaSchema,
+  type LanPairedPeer,
+  type LanPeerMeta,
+  type ServerRemoteWorkspaceInfo,
   formatLogPrefix,
   formatModeHostProcessName,
   formatZodError,
@@ -2053,6 +2065,119 @@ async function handleLanPairPeerMessage(
   }
 }
 
+function parseLanPeerMeta(raw: string | null): LanPeerMeta | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = lanPeerMetaSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 「我配对的对端」三动作（设置页客户端组）：
+ * 枚举只读键名与元数据（令牌不回传）；拉工作区用已存令牌访问对端 server-info；
+ * 删除让 token 与 meta 同生命周期收口。全部失败以可读错误回帖，UI 转「无法获取」。
+ */
+async function handleLanPairedPeerMessage(
+  msg: HostLanPairedPeerMessage,
+  services: ServiceCollection,
+): Promise<void> {
+  const reply = (payload: {
+    ok: boolean;
+    error?: string;
+    peers?: LanPairedPeer[];
+    name?: string;
+    workspaces?: ServerRemoteWorkspaceInfo[];
+  }) => {
+    parentPort.postMessage({
+      type:
+        msg.type === "lan-paired-peers-list"
+          ? HostResponseTypes.LanPairedPeersListResult
+          : msg.type === "lan-paired-peer-workspaces"
+            ? HostResponseTypes.LanPairedPeerWorkspacesResult
+            : HostResponseTypes.LanPairedPeerRemoveResult,
+      requestId: msg.requestId,
+      ok: payload.ok,
+      ...(payload.error ? { error: payload.error } : {}),
+      ...(payload.peers ? { peers: payload.peers } : {}),
+      ...(payload.name ? { name: payload.name } : {}),
+      ...(payload.workspaces ? { workspaces: payload.workspaces } : {}),
+    });
+  };
+  const credentials = services.getOptional(ICredentialService);
+  if (!credentials) {
+    reply({ ok: false, error: "凭据服务不可用" });
+    return;
+  }
+  try {
+    if (msg.type === "lan-paired-peers-list") {
+      const keys = await credentials.list("lan:peer:");
+      const peers: LanPairedPeer[] = [];
+      for (const key of keys) {
+        if (!key.startsWith("lan:peer:") || !key.endsWith(":token")) {
+          continue;
+        }
+        const serverId = key.slice("lan:peer:".length, -":token".length);
+        if (!serverId) {
+          continue;
+        }
+        const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(serverId)));
+        peers.push(
+          meta
+            ? {
+                serverId,
+                host: meta.host,
+                port: meta.port,
+                ...(meta.name ? { name: meta.name } : {}),
+                ...(meta.pairedAt ? { pairedAt: meta.pairedAt } : {}),
+              }
+            : // 旧配对没有 meta：地址未知也保留一行，至少还能删除。
+              { serverId, host: "", port: 0 },
+        );
+      }
+      peers.sort((a, b) => (b.pairedAt ?? 0) - (a.pairedAt ?? 0));
+      reply({ ok: true, peers });
+      return;
+    }
+
+    const serverId = msg.serverId?.trim();
+    if (!serverId) {
+      reply({ ok: false, error: "缺少 serverId" });
+      return;
+    }
+    if (msg.type === "lan-paired-peer-remove") {
+      await credentials.delete(buildLanPeerTokenKey(serverId));
+      await credentials.delete(buildLanPeerMetaKey(serverId));
+      reply({ ok: true });
+      return;
+    }
+
+    const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(serverId)));
+    if (!meta) {
+      reply({ ok: false, error: "该配对缺少地址信息，无法获取工作区" });
+      return;
+    }
+    const token = await loadLanPeerToken(credentials, serverId);
+    if (!token) {
+      reply({ ok: false, error: "尚未配对" });
+      return;
+    }
+    const info = await fetchLanPeerInfo({ host: meta.host, port: meta.port, token });
+    reply({
+      ok: true,
+      ...(info.name ? { name: info.name } : {}),
+      workspaces: info.workspaces,
+    });
+  } catch (error) {
+    logger.warn("lan paired peer op failed", error);
+    reply({ ok: false, error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 /** main → host 的局域网控制：动作完成后统一回帖最新状态（UI 只消费状态）。 */
 async function handleLanAccessMessage(
   msg: HostLanAccessMessage,
@@ -2573,6 +2698,29 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
       return;
     }
     await handleLanPairPeerMessage(msg, activeServices);
+    return;
+  }
+
+  if (
+    msg.type === HostMessageTypes.LanPairedPeersList ||
+    msg.type === HostMessageTypes.LanPairedPeerWorkspaces ||
+    msg.type === HostMessageTypes.LanPairedPeerRemove
+  ) {
+    if (!activeServices) {
+      parentPort.postMessage({
+        type:
+          msg.type === HostMessageTypes.LanPairedPeersList
+            ? HostResponseTypes.LanPairedPeersListResult
+            : msg.type === HostMessageTypes.LanPairedPeerWorkspaces
+              ? HostResponseTypes.LanPairedPeerWorkspacesResult
+              : HostResponseTypes.LanPairedPeerRemoveResult,
+        requestId: msg.requestId,
+        ok: false,
+        error: "host services not ready",
+      });
+      return;
+    }
+    await handleLanPairedPeerMessage(msg, activeServices);
     return;
   }
 

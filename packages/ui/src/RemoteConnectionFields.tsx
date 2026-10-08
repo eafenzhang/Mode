@@ -261,7 +261,6 @@ export function RemoteConnectionFields({
   switch (kind) {
     case "lan": {
       const paired = Boolean(lanFields.token.trim());
-      const pairedLabel = lanFields.serverName.trim() || lanFields.serverId.trim();
       return (
         <div className="space-y-3">
           <p className="text-ui-base text-foreground-subtle">
@@ -359,15 +358,9 @@ export function RemoteConnectionFields({
               />
             </div>
           </div>
-          {paired ? (
-            <p className="flex items-center gap-1.5 text-ui-base text-foreground-subtle">
-              <CheckIcon className="size-3.5 shrink-0 text-success" />
-              {intl.formatMessage(
-                { id: "remote.lan.paired" },
-                { name: pairedLabel || `${lanFields.host}:${lanFields.port}` },
-              )}
-            </p>
-          ) : (
+          {/* 已配对状态不再在向导里展示：配对设备在「设置 → 局域网访问」分组管理。
+              已配对仅表现为不出现配对码输入，连接行为不变。 */}
+          {!paired ? (
             <div className="space-y-2">
               <label className="mb-1 block text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "remote.lan.pairCodeLabel" })}
@@ -409,7 +402,7 @@ export function RemoteConnectionFields({
                 </p>
               ) : null}
             </div>
-          )}
+          ) : null}
         </div>
       );
     }

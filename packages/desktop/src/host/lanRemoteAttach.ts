@@ -2,6 +2,7 @@ import { Emitter, SocketProtocol, VSBuffer, type ISocket } from "@mode/rpc";
 import { connectViaProtocol } from "@mode/client";
 import {
   buildLanPeerTokenKey,
+  buildLanPeerMetaKey,
   serverRemoteInfoSchema,
   MODE_RPC_HOST_CAPABILITY_HEADER,
   type LanAccessPairResult,
@@ -101,6 +102,17 @@ export async function pairLanPeer(params: {
   };
   if (result.serverId) {
     await params.credentials.save(buildLanPeerTokenKey(result.serverId), result.token);
+    // 配对元数据与令牌同生命周期：设置页「我配对的对端」凭它列出地址与名称，
+    // 枚举侧只读键名/元数据，不接触令牌本体。
+    await params.credentials.save(
+      buildLanPeerMetaKey(result.serverId),
+      JSON.stringify({
+        host: params.host.trim(),
+        port: params.port,
+        ...(result.name ? { name: result.name } : {}),
+        pairedAt: Date.now(),
+      }),
+    );
   }
   return result;
 }

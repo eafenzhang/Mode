@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { serverRemoteWorkspaceInfoSchema } from "./server-remote.js";
 
 /**
  * 局域网访问契约：对端发现（UDP 单播应答）、配对（一次性配对码 → 长期令牌）、
@@ -69,6 +70,8 @@ export interface LanAccessClientRecord {
   label: string;
   createdAt: number;
   lastUsedAt: number | null;
+  /** 该设备最近在本机打开过的工作区目录；老记录/从未打开时为 undefined，UI 显示「尚无」。 */
+  lastWorkspacePath?: string | null;
 }
 
 /** 配对码（服务端设置卡展示，客户端输入）。 */
@@ -83,6 +86,8 @@ export const lanAccessClientRecordSchema = z
     label: z.string(),
     createdAt: z.number().int().nonnegative(),
     lastUsedAt: z.number().int().nonnegative().nullable(),
+    // 可选以兼容改名前/未录制过的老记录。
+    lastWorkspacePath: z.string().min(1).nullable().optional(),
   })
   .strict();
 
@@ -155,6 +160,47 @@ export function buildLanAccessClientTokenKey(clientId: string): string {
 export function buildLanPeerTokenKey(serverId: string): string {
   return `lan:peer:${serverId}:token`;
 }
+
+/**
+ * 客户端侧配对元数据凭据键：与令牌同生命周期。
+ * 内容（lanPeerMetaSchema）让设置页在不接触令牌的前提下列出「我配对的对端」。
+ */
+export function buildLanPeerMetaKey(serverId: string): string {
+  return `lan:peer:${serverId}:meta`;
+}
+
+/** 配对时固化的对端元数据：地址与展示名，用于设置页列表与后续重连展示。 */
+export const lanPeerMetaSchema = z
+  .object({
+    host: lanTrimmedString,
+    port: z.number().int().positive().max(65535),
+    name: z.string().trim().optional(),
+    pairedAt: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+export type LanPeerMeta = z.infer<typeof lanPeerMetaSchema>;
+
+/** 设置页「我配对的对端」一行；host 为空表示该配对缺少元数据（地址未知，仍可删除）。 */
+export const lanPairedPeerSchema = z
+  .object({
+    serverId: lanTrimmedString,
+    host: z.string(),
+    port: z.number().int().nonnegative().max(65535),
+    name: z.string().optional(),
+    pairedAt: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type LanPairedPeer = z.infer<typeof lanPairedPeerSchema>;
+
+/** 对端工作区目录快照（按需拉取；拉取失败由调用方转成「无法获取」）。 */
+export const lanPairedPeerWorkspacesSchema = z
+  .object({
+    name: z.string().optional(),
+    workspaces: z.array(serverRemoteWorkspaceInfoSchema),
+  })
+  .strict();
+export type LanPairedPeerWorkspaces = z.infer<typeof lanPairedPeerWorkspacesSchema>;
 
 /** 6 位大写十六进制配对码格式校验（生成侧在 Host，避免把 node:crypto 带进 Web 包）。 */
 export function isLanAccessPairCodeFormat(code: string): boolean {
