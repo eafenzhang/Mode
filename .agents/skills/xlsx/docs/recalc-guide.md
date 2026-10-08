@@ -1,4 +1,4 @@
-Modified by ZCode: the macOS App Sandbox example named the upstream host product's daemon;
+Modified by Mode: the macOS App Sandbox example named the upstream host product's daemon;
 reworded to 'the host app'. No technical change.
 
 the macOS App Sandbox example named the upstream host product's daemon; reworded to 'the host

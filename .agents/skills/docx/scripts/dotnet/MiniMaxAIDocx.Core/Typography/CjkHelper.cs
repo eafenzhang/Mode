@@ -1,6 +1,6 @@
 using DocumentFormat.OpenXml.Wordprocessing;
 
-// Modified by ZCode: 增加 ContainsCjk / ApplyEastAsiaFontIfCjk，供 create 的 JSON 内容分支指定东亚字体。
+// Modified by Mode: 增加 ContainsCjk / ApplyEastAsiaFontIfCjk，供 create 的 JSON 内容分支指定东亚字体。
 
 namespace MiniMaxAIDocx.Core.Typography;
 

@@ -1,4 +1,4 @@
-# Modified by ZCode: new file. Centralises the redlining author name so it is not hardcoded to the
+# Modified by Mode: new file. Centralises the redlining author name so it is not hardcoded to the
 # upstream host product in four places; resolution order is --argument, ZCODE_REDLINING_AUTHOR,
 # then a neutral placeholder.
 

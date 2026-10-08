@@ -1,4 +1,4 @@
-# Modified by ZCode: the redlining author fallback was the upstream host product's name, which
+# Modified by Mode: the redlining author fallback was the upstream host product's name, which
 # would be stamped into the revision history of every document produced here. It now comes from
 # redlining_author.DEFAULT_REDLINING_AUTHOR (--author / ZCODE_REDLINING_AUTHOR / neutral default).
 

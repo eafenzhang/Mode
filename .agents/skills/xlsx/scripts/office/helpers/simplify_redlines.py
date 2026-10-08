@@ -1,4 +1,4 @@
-# Modified by ZCode: the infer_author default was the upstream host product's name; it now uses
+# Modified by Mode: the infer_author default was the upstream host product's name; it now uses
 # redlining_author.DEFAULT_REDLINING_AUTHOR.
 
 

@@ -13,7 +13,7 @@ license: MIT
 Copied from MiniMaxAI/minimax-code (packages/local-runtime/assets/skills/xlsx)
 at revision 564e9166d81f87b0b767b005e4779d4697b512be.
 Copyright (c) 2026 MiniMax Code. Licensed under MIT.
-Modified by ZCode: added the provenance notice; replaced a pointer into a different skill in the upstream host product with a self-contained Windows tool table (detect + install command), and stated that this fork ships no auto-installer. All other skill instructions unchanged.
+Modified by Mode: added the provenance notice; replaced a pointer into a different skill in the upstream host product with a self-contained Windows tool table (detect + install command), and stated that this fork ships no auto-installer. All other skill instructions unchanged.
 See THIRD-PARTY-NOTICES.md in the repository root for license and provenance.
 -->
 

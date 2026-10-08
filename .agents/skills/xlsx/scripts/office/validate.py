@@ -1,4 +1,4 @@
-# Modified by ZCode: --author now defaults to redlining_author.DEFAULT_REDLINING_AUTHOR and is
+# Modified by Mode: --author now defaults to redlining_author.DEFAULT_REDLINING_AUTHOR and is
 # overridable via ZCODE_REDLINING_AUTHOR, instead of the upstream host product's name.
 
 

@@ -1,4 +1,4 @@
-# Modified by ZCode: locale advisory messages referred to the upstream host product's daemon by
+# Modified by Mode: locale advisory messages referred to the upstream host product's daemon by
 # name; reworded to 'the host application' so the diagnostics stay accurate in ZCodium. No logic
 # change.
 

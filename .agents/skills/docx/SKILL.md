@@ -34,7 +34,7 @@ triggers:
 Copied from MiniMaxAI/minimax-code (packages/local-runtime/assets/skills/docx)
 at revision 564e9166d81f87b0b767b005e4779d4697b512be.
 Copyright (c) 2026 MiniMax Code. Licensed under MIT.
-Modified by ZCode: added the provenance notice; added a ZCodium capability-matrix section (read / render / full and what each level needs), and documented that setup.sh is report-only unless --install-dotnet is passed. Skill instructions are otherwise unchanged.
+Modified by Mode: added the provenance notice; added a ZCodium capability-matrix section (read / render / full and what each level needs), and documented that setup.sh is report-only unless --install-dotnet is passed. Skill instructions are otherwise unchanged.
 See THIRD-PARTY-NOTICES.md in the repository root for license and provenance.
 -->
 

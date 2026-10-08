@@ -1,4 +1,4 @@
-# Modified by ZCode: persist_macos_paths no longer appends to ~/.zprofile / ~/.zshrc -- it now
+# Modified by Mode: persist_macos_paths no longer appends to ~/.zprofile / ~/.zshrc -- it now
 # only affects the current process and prints the lines the user may choose to add. The helper
 # ensure_shell_export was removed as dead code. The .NET SDK install is now opt-in behind
 # --install-dotnet (it was curl | sh writing ~/.dotnet, which cannot work on an air-gapped host).

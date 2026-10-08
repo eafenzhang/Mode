@@ -5,7 +5,7 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using MiniMaxAIDocx.Core.OpenXml;
 using MiniMaxAIDocx.Core.Typography;
 
-// Modified by ZCode: content JSON 元素改用 TryGetProperty 读取（修复 pagebreak 缺 text 时的崩溃与静默截断），
+// Modified by Mode: content JSON 元素改用 TryGetProperty 读取（修复 pagebreak 缺 text 时的崩溃与静默截断），
 // 补根节点非数组防护，并为含 CJK 的 run 显式指定东亚字体。
 
 namespace MiniMaxAIDocx.Core.Commands;
