@@ -46,15 +46,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
+import { tmpdir } from "node:os";
 import {
   mintBrokerSocketPath, callBrokerMethod, probeHelperHealth,
   parseRequestLine, okResponse, errorResponseFromException,
   serializeResponse, dispatchRequest, isBrokerMethod, isReadOnlyBrokerMethod,
 } from "../broker.js";
 
-test("mintBrokerSocketPath returns unpredictable win32 pipe path", () => {
+// 平台分支：win32 铸命名管道，posix 落 tmpdir 下 .sock。repo 支持
+// Windows/macOS/Linux 开发，断言不能只认 win32 形态（mintBrokerSocketPath 默认入参）。
+const PIPE_PATH_RE = /^\\\\\.\\pipe\\mode-cua-[0-9a-f]{16}$/u;
+const SOCK_PATH_RE = /mode-cua-[0-9a-f]{16}\.sock$/u;
+
+function assertMintedSocketPath(p) {
+  if (process.platform === "win32") {
+    assert.match(p, PIPE_PATH_RE);
+  } else {
+    assert.match(p, SOCK_PATH_RE);
+    assert.ok(p.startsWith(tmpdir()), `expected path under tmpdir(): ${p}`);
+  }
+}
+
+test("mintBrokerSocketPath returns an unpredictable platform socket path", () => {
   const a = mintBrokerSocketPath(); const b = mintBrokerSocketPath();
-  assert.match(a, /^\\\\\.\\pipe\\mode-cua-[0-9a-f]{16}$/u);
+  assertMintedSocketPath(a);
   assert.notEqual(a, b);
 });
 
@@ -116,12 +131,14 @@ Expected: FAIL（`mintBrokerSocketPath` 等导出为 stub 或不存在）
 `broker.js` 保留既有错误类与工厂，替换/新增以下实现（要点，完整代码按此写）：
 
 ```js
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-export function mintBrokerSocketPath({ dir, env } = {}) {
+// socket 路径即凭据：win32 铸造随机命名管道（无口令连接），posix 落临时目录 .sock。
+// 16 hex = randomBytes(8)，不可枚举，路径泄露等价于凭据泄露。
+export function mintBrokerSocketPath({ dir } = {}) {
   const id = randomBytes(8).toString("hex");
   if (process.platform === "win32" && !dir) return `\\\\.\\pipe\\mode-cua-${id}`;
   return join(dir ?? tmpdir(), `mode-cua-${id}.sock`);

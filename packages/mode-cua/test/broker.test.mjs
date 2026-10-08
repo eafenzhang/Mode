@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
+import { tmpdir } from "node:os";
 import {
   BrokerError,
   mintBrokerSocketPath, resolveBrokerSocketPath,
@@ -10,9 +11,23 @@ import {
   isBrokerMethod, isReadOnlyBrokerMethod,
 } from "../broker.js";
 
-test("mintBrokerSocketPath returns unpredictable win32 pipe path", () => {
+// 平台分支：win32 铸命名管道，posix 落 tmpdir 下 .sock。repo 支持
+// Windows/macOS/Linux 开发，断言不能只认 win32 形态（mintBrokerSocketPath 默认入参）。
+const PIPE_PATH_RE = /^\\\\\.\\pipe\\mode-cua-[0-9a-f]{16}$/u;
+const SOCK_PATH_RE = /mode-cua-[0-9a-f]{16}\.sock$/u;
+
+function assertMintedSocketPath(p) {
+  if (process.platform === "win32") {
+    assert.match(p, PIPE_PATH_RE);
+  } else {
+    assert.match(p, SOCK_PATH_RE);
+    assert.ok(p.startsWith(tmpdir()), `expected path under tmpdir(): ${p}`);
+  }
+}
+
+test("mintBrokerSocketPath returns an unpredictable platform socket path", () => {
   const a = mintBrokerSocketPath(); const b = mintBrokerSocketPath();
-  assert.match(a, /^\\\\\.\\pipe\\mode-cua-[0-9a-f]{16}$/u);
+  assertMintedSocketPath(a);
   assert.notEqual(a, b);
 });
 
@@ -129,15 +144,11 @@ test("resolveBrokerSocketPath discovers injected env socket before minting", () 
     " X ",
   );
   // 空白值不算注入（与旧 stub 的 .trim() 判定一致）→ 回落铸造。
-  assert.match(
+  assertMintedSocketPath(
     resolveBrokerSocketPath({ env: { MODE_CUA_PERMISSION_BROKER_SOCKET: "   " } }),
-    /^\\\\\.\\pipe\\mode-cua-[0-9a-f]{16}$/u,
   );
   // 完全没有注入 → 回落铸造。
-  assert.match(
-    resolveBrokerSocketPath({ env: {} }),
-    /^\\\\\.\\pipe\\mode-cua-[0-9a-f]{16}$/u,
-  );
+  assertMintedSocketPath(resolveBrokerSocketPath({ env: {} }));
 });
 
 test("callBrokerMethod wraps malformed broker responses as BrokerError", async () => {
