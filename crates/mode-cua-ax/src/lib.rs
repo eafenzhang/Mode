@@ -17,12 +17,14 @@ pub struct AppInfoNapi { pub pid: u32, pub name: Option<String>, pub bundle_id: 
 pub struct WindowRowNapi { pub window_id: u32, pub pid: u32, pub title: Option<String>,
   pub bounds: Vec<i32>, pub main: bool, pub focused: bool, pub onscreen: bool }
 
-// napi 默认把 Rust 函数名转 camelCase（list_apps→listApps）；接口契约的导出面是
-// list_apps 与 listWindows，故 list_apps 用 js_name 钉住，list_windows 靠默认转换得 listWindows。
+// napi 默认把 Rust 函数名转 camelCase（list_apps→listApps、list_windows→listWindows），
+// 与 Task 8 后端映射表冲突（broker method 与 addon 函数同名 1:1 直调）。导出面统一钉为
+// snake_case：本任务 list_apps/list_windows 均用 js_name，后续 observe/capture/perform/
+// launch_app/screen_probe 同样加 js_name 钉住。
 #[napi(js_name = "list_apps")]
 pub fn list_apps() -> napi::Result<Vec<AppInfoNapi>> { to_napi(apps::list_apps()) }
 
-#[napi]
+#[napi(js_name = "list_windows")]
 pub fn list_windows(pid: Option<u32>) -> napi::Result<Vec<WindowRowNapi>> { to_napi(apps::list_windows(pid)) }
 
 fn to_napi<T>(r: AxResult<T>) -> napi::Result<T> {
