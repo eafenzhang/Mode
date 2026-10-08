@@ -60,6 +60,18 @@ test("公开分段只认官方市场，且图标按插件名随包兜底", async
     "utf8",
   );
   assert.ok(iconSource.includes("ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME"), "图标必须按插件名匹配随包资源");
+  // 曾经踩过：兜底查的是按完整 id（name@marketplace）索引的总表，裸插件名永远查不到，
+  // 同源图标当没事、用户自加目录一律退回字母占位。这里锁住兜底必须查「插件名 → 图标」表。
+  assert.ok(
+    iconSource.includes(
+      "const byName = BUNDLED_PLUGIN_ICON_BY_NAME[at > 0 ? pluginId.slice(0, at) : pluginId];",
+    ),
+    "同名兜底必须查按插件名索引的表，不能拿按 id 索引的总表当兜底",
+  );
+  assert.ok(
+    iconSource.includes("...ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME,"),
+    "按插件名的表必须由生成的随包图标映射构成",
+  );
 
   const listView = await readFile(
     new URL(

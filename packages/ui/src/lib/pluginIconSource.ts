@@ -17,18 +17,29 @@ const OFFICIAL_PLUGIN_ICON_BY_ID: Readonly<Record<string, string>> = {
 };
 
 /**
- * 随包内置的插件图标（按插件名索引）：
- * 官方目录清单里的 icon 指向 CDN，客户端一律用随包资源覆盖；
- * 用户自行添加的 Claude 等目录若插件同名，也复用同一份原版图标。
+ * 随包内置的插件图标（按插件名索引）：官方目录清单里的 icon 指向 CDN，
+ * 客户端一律用随包资源覆盖；用户自行添加的 Claude 等目录若插件同名，
+ * 也复用同一份原版图标。内置六件套按 id 维护，这里取出短名并入。
  */
+const BUNDLED_PLUGIN_ICON_BY_NAME: Readonly<Record<string, string>> = {
+  ...ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME,
+  ...Object.fromEntries(
+    Object.entries(OFFICIAL_PLUGIN_ICON_BY_ID).map(([id, url]) => [
+      id.slice(0, id.lastIndexOf("@")),
+      url,
+    ]),
+  ),
+};
+
+/** 官方市场的 id 形态：`<插件名>@zcode-plugins-official`。 */
 const CATALOG_ICON_BY_ID: Readonly<Record<string, string>> = Object.fromEntries(
-  Object.entries(ZCODE_OFFICIAL_PLUGIN_ICON_BY_NAME).map(([name, url]) => [
+  Object.entries(BUNDLED_PLUGIN_ICON_BY_NAME).map(([name, url]) => [
     `${name}@zcode-plugins-official`,
     url,
   ]),
 );
 
-/** 内置图标总表：官方目录随包快照 + 客户端自带的六个官方插件图标。 */
+/** 内置图标总表（按完整 id）：官方目录随包图标 + 客户端自带的六个官方插件图标。 */
 const ALL_BUNDLED_PLUGIN_ICONS: Readonly<Record<string, string>> = {
   ...CATALOG_ICON_BY_ID,
   ...OFFICIAL_PLUGIN_ICON_BY_ID,
@@ -47,7 +58,7 @@ export function resolvePluginIconSource(
     // 同名兜底：用户自行添加的目录（如 Claude Code 插件）没有自带图标时，
     // 复用随包资源里的原版图标；同名不同源会共用同一个图标，这是有意的取舍。
     const at = pluginId.lastIndexOf("@");
-    const byName = ALL_BUNDLED_PLUGIN_ICONS[at > 0 ? pluginId.slice(0, at) : pluginId];
+    const byName = BUNDLED_PLUGIN_ICON_BY_NAME[at > 0 ? pluginId.slice(0, at) : pluginId];
     if (byName) return byName;
   }
   return isTrustedImageUrl(icon) ? icon : undefined;
