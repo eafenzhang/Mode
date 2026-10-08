@@ -15,7 +15,7 @@
  */
 import { createHostDatabaseStartup } from "./hostDatabaseStartup.js";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   Emitter,
@@ -59,7 +59,6 @@ import {
   buildTaskChangeSummary,
   createHostApiNetworkTransport,
   createSettingServiceWithMigrations,
-  getAstrBotBridgeProvider,
   getAppConfigDir,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
@@ -67,7 +66,6 @@ import {
   type OffPeakRequestAuthBuilder,
 } from "@zcode/services/node";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
-import { startBotsBridgeServer, type BotsBridgeServerHandle } from "./botsBridgeServer.js";
 import { startLanAccessServer, type LanAccessServerHandle } from "./lanAccessServer.js";
 import { attachLanRemoteConnection, loadLanPeerToken, pairLanPeer } from "./lanRemoteAttach.js";
 import { hostname } from "node:os";
@@ -78,8 +76,6 @@ import {
 import {
   HostMessageTypes,
   HostResponseTypes,
-  DEFAULT_BOT_COMMANDS,
-  DEFAULT_BOT_REPLY_GRANULARITY,
   ZCODE_VERSION,
   type HostLanAccessMessage,
   type HostLanPairPeerMessage,
@@ -1917,124 +1913,23 @@ const BOTS_BRIDGE_LEGACY_CONFIG_FILE = "bots-bridge.v2.json";
 const BOTS_BRIDGE_LEGACY_BINDINGS_FILE = "bots-bindings.v2.json";
 
 /**
- * v2.0 → v2.1 迁移：读一次旧桥接配置（enabled/allowedWorkspaces），
- * 随后把旧配置/绑定文件备份为 .bak。会话/绑定不迁移（见 spec 迁移边界）。
+ * AstrBot 桥接下线收尾（幂等）：删除桥接运行时文件、历史 v2 配置/绑定文件与桥接令牌，
+ * 避免磁盘上继续留着只被旧通道使用的 url/token 与绑定信息。
  */
-async function readLegacyBotsBridgeConfig(): Promise<{
-  enabled: boolean;
-  allowedWorkspaces: string[];
-} | null> {
+async function retireAstrBotBridge(services: ServiceCollection): Promise<void> {
   const dir = getAppConfigDir();
-  let legacy: { enabled?: unknown; allowedWorkspaces?: unknown } | null = null;
-  try {
-    legacy = JSON.parse(await readFile(join(dir, BOTS_BRIDGE_LEGACY_CONFIG_FILE), "utf-8"));
-  } catch {
-    legacy = null;
-  }
-  for (const name of [BOTS_BRIDGE_LEGACY_CONFIG_FILE, BOTS_BRIDGE_LEGACY_BINDINGS_FILE]) {
-    await rename(join(dir, name), join(dir, `${name}.bak`)).catch(() => undefined);
-  }
-  if (!legacy) {
-    return null;
-  }
-  const allowedWorkspaces = Array.isArray(legacy.allowedWorkspaces)
-    ? legacy.allowedWorkspaces.filter(
-        (value): value is string => typeof value === "string" && value.trim().length > 0,
-      )
-    : [];
-  return {
-    enabled: legacy.enabled !== false,
-    allowedWorkspaces: allowedWorkspaces.length > 0 ? allowedWorkspaces : ["*"],
-  };
-}
-
-let activeBotsBridge: {
-  attachment: { dispose(): void };
-  handle: BotsBridgeServerHandle;
-} | null = null;
-
-/**
- * 启动 AstrBot 桥接：官方 BotsService 持业务状态，astrbotProvider 持传输。
- * inbound 帧走 handleProviderCallback("astrbot", ...)，outbound 由 provider 经 handle.transport 广播。
- * token 存 credential store；url/port/token/bindCode 另写 0600 运行时文件，方便插件配置。
- */
-async function startBotsBridge(services: ServiceCollection): Promise<void> {
-  const botsService = services.getOptional(IBotsService);
-  // 传输控制面走专用 getter，不经 ServiceCollection（否则会暴露到通用 RPC）。
-  const astrBotProvider = getAstrBotBridgeProvider(services);
-  if (!botsService || !astrBotProvider) {
-    return;
-  }
-  // 确保存在一个 astrbot BotConfig（首次启动时创建默认项）。
-  const legacy = await readLegacyBotsBridgeConfig();
-  let bot = (await botsService.getConfig()).bots.find((item) => item.provider === "astrbot");
-  if (!bot) {
-    bot = await botsService.saveBot({
-      bot: {
-        id: `astrbot-${randomUUID()}`,
-        name: "AstrBot",
-        provider: "astrbot",
-        enabled: legacy?.enabled ?? true,
-        allowedWorkspaces: legacy?.allowedWorkspaces ?? ["*"],
-        allowedCommands: { ...DEFAULT_BOT_COMMANDS },
-        currentOptions: {},
-        replyMode: DEFAULT_BOT_REPLY_GRANULARITY,
-      },
-    });
-  }
-  const botId = bot.id;
-  const credentials = services.getOptional(ICredentialService);
-  let token = credentials ? await credentials.load(BOTS_BRIDGE_TOKEN_KEY) : null;
-  if (!token) {
-    token = `${randomUUID()}${randomUUID()}`.replace(/-/gu, "");
-    if (credentials) {
-      await credentials.save(BOTS_BRIDGE_TOKEN_KEY, token);
+  for (const name of [
+    BOTS_BRIDGE_RUNTIME_FILE,
+    BOTS_BRIDGE_LEGACY_CONFIG_FILE,
+    BOTS_BRIDGE_LEGACY_BINDINGS_FILE,
+  ]) {
+    for (const candidate of [name, `${name}.bak`]) {
+      await rm(join(dir, candidate), { force: true }).catch(() => undefined);
     }
   }
-  const handle = await startBotsBridgeServer({
-    token,
-    service: {
-      isEnabled: async () =>
-        (await botsService.getConfig()).bots.some((item) => item.id === botId && item.enabled),
-      getWorkspaceCount: async () => (await botsService.listWorkspaceRefs()).length,
-      handleCommand: async (frame) => {
-        const bindingId = astrBotProvider.beginTurn(frame, botId);
-        try {
-          await botsService.handleProviderCallback("astrbot", { ...frame, zcodeBotId: botId });
-        } finally {
-          astrBotProvider.settleTurn(bindingId);
-        }
-      },
-      ackDeliveryByFrameId: (deliveryId) => astrBotProvider.ackDeliveryByFrameId(deliveryId),
-      resolveResume: (cursors) => astrBotProvider.resolveResume(cursors),
-      buildSnapshot: (bindingId) => astrBotProvider.buildSnapshot(bindingId),
-    },
-  });
-  const attachment = astrBotProvider.attachTransport(handle.transport);
-  activeBotsBridge = { attachment, handle };
-  // 该 bot 还没有任何对话（也就没有绑定用户）时生成一次性绑定码，写进运行时文件供聊天里 /bind。
-  const bindCode =
-    (await botsService.listBotConversations({ botId })).length === 0
-      ? await botsService.createBindCode({ botId })
-      : null;
-  const dir = getAppConfigDir();
-  await mkdir(dir, { recursive: true });
-  await writeFile(
-    join(dir, BOTS_BRIDGE_RUNTIME_FILE),
-    `${JSON.stringify(
-      {
-        url: handle.url,
-        port: handle.port,
-        token,
-        ...(bindCode ? { bindCode: bindCode.code, bindCodeExpiresAt: bindCode.expiresAt } : {}),
-      },
-      null,
-      2,
-    )}\n`,
-    { encoding: "utf-8", mode: 0o600 },
-  );
+  const credentials = services.getOptional(ICredentialService);
+  await credentials?.delete(BOTS_BRIDGE_TOKEN_KEY).catch(() => undefined);
 }
-
 let activeLanAccess: LanAccessServerHandle | null = null;
 
 /**
@@ -2213,16 +2108,6 @@ async function handleLanAccessMessage(
       error instanceof Error ? error.message : String(error),
     );
   }
-}
-
-async function disposeBotsBridge(): Promise<void> {
-  const current = activeBotsBridge;
-  activeBotsBridge = null;
-  if (!current) {
-    return;
-  }
-  current.attachment.dispose();
-  await current.handle.close().catch(() => undefined);
 }
 
 type ExposedServicePortHandle = {
@@ -2504,7 +2389,6 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
     disposeOffPeakRuntime();
     offPeakTaskRepo.close();
 
-    await disposeBotsBridge();
     await stopLanAccess();
 
     if (activeSessionRealtimePort) {
@@ -3257,8 +3141,9 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           );
           services.register(IZCodeTaskService, reportingZCodeTaskService);
         }
-        await startBotsBridge(services).catch((error) => {
-          logger.warn("start bots bridge failed", error);
+        // AstrBot 桥接已下线：清掉历史运行时文件与桥接令牌，避免磁盘上继续留着 url/token。
+        await retireAstrBotBridge(services).catch((error) => {
+          logger.warn("retire astrbot bridge failed", error);
         });
         await restoreLanAccessIfEnabled(services).catch((error) => {
           logger.warn("restore lan access failed", error);

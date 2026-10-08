@@ -290,7 +290,7 @@ function DingTalkCredentialPanel({
   );
 }
 
-/** 绑定码面板：官方 provider 与 AstrBot 桥接共用（发送 /bind <code> 完成绑定）。 */
+/** 绑定码面板：所有 provider 共用（发送 /bind <code> 完成绑定）。 */
 export function BindCodePanel({
   bindCode,
   bindExpired,

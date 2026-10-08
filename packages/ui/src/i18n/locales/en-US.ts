@@ -683,20 +683,6 @@ const enUS: Record<string, string> = {
     "Feishu/Lark, Telegram, and WeCom deliver typewriter replies as streaming messages.",
   "bots.add": "Add",
   "bots.channel.telegram": "Telegram",
-  "bots.astrbot.bridgeLabel": "AstrBot bridge",
-  "bots.astrbot.bridgeDescription":
-    "Connect through this repository's bridge plugin; AstrBot owns the per-platform adapters.",
-  "bots.astrbot.copyPath": "Copy config path",
-  "bots.astrbot.openPlugin": "Open bridge plugin",
-  "bots.astrbot.runtimeFilePath": "Bridge runtime file (url / port / token / bind code):",
-  "bots.astrbot.step.install": "Install the astrbot-zcodium-plugin.",
-  "bots.astrbot.step.configure": "Fill the url, port, and token from that file into the plugin.",
-  "bots.astrbot.step.bind": "Send /bind <code> in chat to finish binding.",
-  "bots.astrbot.boundDescription":
-    "AstrBot bridge is bound; messages go through the official Bots pipeline.",
-  "bots.astrbot.unboundDescription":
-    "Install and configure astrbot-zcodium-plugin, then generate a bind code to finish binding.",
-  "bots.channel.astrbot": "AstrBot",
   "bots.channel.weixin": "Weixin",
   "bots.channel.feishu": "Feishu",
   "bots.channel.lark": "Lark",

@@ -124,13 +124,18 @@ test("群聊方式：@提及 / 全部消息 选项按平台能力矩阵提供", 
   // 企微：平台只在被 @ 时下发回调 → 只有 mention，没有 always
   assert.deepEqual(resolveBotGroupChatCapabilities("wecom"), { mention: true, always: false });
   assert.equal(botProviderSupportsGroupMention("wecom"), true);
-  for (const provider of ["weixin", "webhook", "astrbot", "discord"]) {
+  for (const provider of ["weixin", "webhook", "discord"]) {
     assert.deepEqual(
       resolveBotGroupChatCapabilities(provider),
       { mention: false, always: true },
       provider + " 无法识别 @，只能「全部消息」",
     );
   }
+  // AstrBot 桥接已下线：字面量只为解析历史配置保留，不提供任何群聊模式
+  assert.deepEqual(resolveBotGroupChatCapabilities("astrbot"), {
+    mention: false,
+    always: false,
+  });
   // 兼容入口仍然只表达"能否识别 @"
   assert.equal(botProviderSupportsGroupMention("telegram"), true);
   assert.equal(botProviderSupportsGroupMention("weixin"), false);

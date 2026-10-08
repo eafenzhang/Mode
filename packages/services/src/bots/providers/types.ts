@@ -58,7 +58,7 @@ export interface BotProviderAcknowledgeResult {
 }
 
 /**
- * 官方任务流生命周期，供传输型 provider（如 astrbot）对齐 bridge 的 accepted→delivery→status 轮次收口。
+ * 官方任务流生命周期，供传输型 provider 对齐 accepted→delivery→status 轮次收口。
  * `started` 表示已进入任务流（此时不应提前收口）；其余为终态/等待交互。
  */
 export type BotTaskLifecyclePhase = "started" | "awaiting_input" | "completed" | "failed";

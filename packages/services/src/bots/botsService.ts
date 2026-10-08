@@ -361,8 +361,7 @@ interface BotsServiceDeps {
   settingService?: ISettingService;
   modelSelectionService: Pick<IModelSelectionService, "getView">;
   remoteWorkspaceService?: BotRemoteWorkspaceService;
-  /** 由组合根注入的 AstrBot 桥接 provider；未注入时 astrbot 出站为空。 */
-  astrBotProvider?: BotProviderAdapter;
+
   // 修复原因：desktop-attached 远端启动阶段不应抢跑 bot 轮询、runtime lock 和模型候选缓存；
   // 这些后台任务属于本地桌面 host，不属于 SSH/Docker 远端首屏连接路径。
   runStartupBackgroundTasks?: boolean;
@@ -560,7 +559,7 @@ function resolveAutomationBotDeliveryTarget(
   actor: BotActor,
 ): ZCodeAutomationBotDeliveryTarget | undefined {
   // 具备主动推送能力的平台：飞书/Lark、微信、Telegram、企业微信智能机器人。
-  // webhook 是入站协议、AstrBot 由桥接自行回推，均不作为投递目标。
+  // webhook 是入站协议，不作为投递目标。
   // 注意：用直接条件而不是布尔别名，TS 需要它来完成联合类型窄化。
   if (
     actor.provider !== "feishu" &&
@@ -844,6 +843,8 @@ export function createBotsService(
   /** 一次性迁移标记：旧绑定表曾存于 AppSettings。 */
   let bindingsMigrationChecked = false;
   const providers: Record<BotProvider, BotProviderAdapter | null> = {
+    // AstrBot 桥接已下线：字面量仅为历史配置解析保留，没有适配器。
+    astrbot: null,
     telegram: createTelegramBotProvider({
       loadCredential: (key) => deps.credentialService.load(key),
     }),
@@ -869,8 +870,6 @@ export function createBotsService(
     dingtalk: createDingtalkBotProvider({
       loadCredential: (key) => deps.credentialService.load(key),
     }),
-    // AstrBot 桥接 provider 由组合根注入；入站经 handleProviderCallback("astrbot", frame)。
-    astrbot: deps.astrBotProvider ?? null,
   };
   let service: IBotsService & {
     disposeAll(): void;
@@ -6075,7 +6074,7 @@ export function createBotsService(
       const groupPromptInput: GroupTurnPromptInput = {
         ...(auth.bot.name?.trim() ? { botName: auth.bot.name.trim() } : {}),
         activation: groupActivation === "always" ? "always" : "mention",
-        // 无法识别 @ 的平台（微信/Webhook/AstrBot）按"定向消息"处理：mention 判定缺失时不静默丢消息。
+        // 无法识别 @ 的平台（微信/Webhook）按"定向消息"处理：mention 判定缺失时不静默丢消息。
         isMention: message.actor.isMention !== false,
         ...(message.actor.displayName?.trim()
           ? { senderName: message.actor.displayName.trim() }
@@ -7951,7 +7950,7 @@ export function createBotsService(
             // 修复原因：权限应答成功后任务会立即恢复输出，但传输 provider 在
             // awaiting_input 时已把任务流标记为暂停。这里重新通知 started，
             // 让 provider 把当前轮次的 stream 提升为任务流并保留收口归属；
-            // 否则恢复后的每帧出站都落在新建的无主 stream 上（见 astrbotProvider）。
+            // 否则恢复后的每帧出站都落在新建的无主 stream 上（见 providers/types.ts 的 lifecycle 说明）。
             providers[auth.bot.provider]?.notifyTaskLifecycle?.(auth.bot, message.actor, "started");
             return [
               createOutbound(

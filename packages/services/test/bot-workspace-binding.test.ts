@@ -103,7 +103,7 @@ test("归一化绑定表：v1 单 bot 字符串读成数组，去空白/去重/�
 // 源码契约：绑定与访问范围的收敛不变量。
 //
 // 为什么不写成行为测试：workspace.list / withAuthorizedContext / bindBotToWorkspace
-// 都在 createBotsService 闭包内，需要整套 services 图才能驱动（见 astrbot-terminal-stream
+// 都在 createBotsService 闭包内，需要整套 services 图才能驱动（见 bot-conversation-session
 // 同类说明）。这三个不变量是「绑定优先 + 界面如实」的承重点，用源码契约低成本钉住：
 //   1. 绑定时访问范围收敛（bind/unbind 都调 convergeBotAllowedWorkspaces）；
 //   2. /project 菜单过滤到绑定集（与 /workspace.set 的接受范围一致）；

@@ -921,18 +921,6 @@ const faIR: Record<string, string> = {
     "هنوز کاربری پیوند نشده است. یک کد پیوند بسازید، سپس دستور پیوند را در گفت‌وگوی خصوصی بات بفرستید.",
   "bots.edit.userWorkspaces": "{count} فضای کاری مجاز",
   "bots.test": "تست",
-  "bots.astrbot.bridgeLabel": "پل AstrBot",
-  "bots.astrbot.boundDescription":
-    "پل AstrBot پیوند شده است؛ پیام‌ها از مسیر Bots رسمی پردازش می‌شوند.",
-  "bots.astrbot.unboundDescription":
-    "افزونه astrbot-zcodium-plugin را نصب و پیکربندی کنید، سپس کد پیوند بسازید تا پیوند کامل شود.",
-  "bots.astrbot.copyPath": "کپی مسیر پیکربندی",
-  "bots.astrbot.openPlugin": "باز کردن افزونه پل",
-  "bots.astrbot.runtimeFilePath": "فایل زمان اجرای پل (شامل url / port / token / کد پیوند):",
-  "bots.astrbot.step.install": "افزونه astrbot-zcodium-plugin را نصب کنید.",
-  "bots.astrbot.step.configure":
-    "مقادیر url، port و token این فایل را در پیکربندی افزونه وارد کنید.",
-  "bots.astrbot.step.bind": "برای تکمیل پیوند، /bind <کد پیوند> را در چت بفرستید.",
   "bots.bind": "پیوند",
   "bots.unbind": "لغو پیوند",
   "bots.delete": "حذف بات",

@@ -2,7 +2,6 @@ import { Bot, Webhook } from "lucide-react";
 import type { BotConfig, BotServiceStatus } from "@zcode/shared";
 import { ALL_BOT_WORKSPACES, BOT_BIND_CODE_TTL_MS } from "@zcode/shared";
 import {
-  AstrBotChannelIcon,
   DingDingChannelIcon,
   DiscordChannelIcon,
   FeishuChannelIcon,
@@ -90,8 +89,6 @@ const CHANNEL_ICON_SCALE: Record<string, string> = {
   weixin: "scale-[1.08]",
   // Discord 102/128
   discord: "scale-[1.16]",
-  // AstrBot 是满幅磁贴，反向缩到同一占位
-  astrbot: "scale-[0.92]",
 };
 
 export function ProviderIcon({
@@ -102,10 +99,8 @@ export function ProviderIcon({
   className?: string;
 }) {
   const iconSrc =
-    provider === "astrbot"
-      ? AstrBotChannelIcon
-      : provider === "telegram"
-        ? TelegramChannelIcon
+    provider === "telegram"
+      ? TelegramChannelIcon
         : provider === "weixin"
           ? WeixinChannelIcon
           : provider === "feishu" || provider === "lark"

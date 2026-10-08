@@ -231,7 +231,6 @@ export * from "./process-names.js";
 export * from "./mcp.js";
 export * from "./runtime-tool-runtime.js";
 export * from "./git.js";
-export * from "./bots/bridge.js";
 export * from "./bots.js";
 export * from "./assistant-message-parts.js";
 export * from "./zcodePersistedMessageMerge.js";

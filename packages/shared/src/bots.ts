@@ -30,6 +30,8 @@ export const botProviders = [
   "dingtalk",
   "discord",
   "wecom",
+  // 已下线通道：AstrBot 桥接整体移除。字面量只为解析历史 bot-config 文件保留，
+  // 读取配置时会连同记录一起丢弃（见 RETIRED_BOT_PROVIDERS），产品里不再可达。
   "astrbot",
 ] as const;
 
@@ -136,7 +138,7 @@ export interface BotGroupChatCapabilities {
  * - telegram / feishu / lark：自带 mentions / entities，可精确判定被 @（mention 模式据此静默）；
  * - dingtalk：平台在回调里给 isInAtList，同样可判定；
  * - wecom：平台只在被 @ 时下发群回调，天然只有 mention 语义，不提供「全部消息」；
- * - weixin / webhook / astrbot：拿不到 @ 状态，只能「全部消息」（或关闭）。
+ * - weixin / webhook：拿不到 @ 状态，只能「全部消息」（或关闭）；retired provider 一律不支持。
  */
 export function resolveBotGroupChatCapabilities(provider: BotProvider): BotGroupChatCapabilities {
   switch (provider) {
@@ -147,6 +149,9 @@ export function resolveBotGroupChatCapabilities(provider: BotProvider): BotGroup
       return { mention: true, always: true };
     case "wecom":
       return { mention: true, always: false };
+    // 已下线通道（AstrBot 桥接）：不提供任何群聊模式。
+    case "astrbot":
+      return { mention: false, always: false };
     default:
       return { mention: false, always: true };
   }
@@ -749,12 +754,35 @@ export const botConfigSchema = z
   })
   .strict();
 
-export const botsConfigFileSchema = z
-  .object({
-    version: z.literal(3),
-    bots: z.array(botConfigSchema),
-  })
-  .strict();
+/** 已下线通道：这些 provider 的机器人记录在配置解析阶段直接丢弃。 */
+export const RETIRED_BOT_PROVIDERS: readonly string[] = ["astrbot"];
+
+function stripRetiredBotProviders(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const candidate = value as { bots?: unknown };
+  if (!Array.isArray(candidate.bots)) {
+    return value;
+  }
+  return {
+    ...candidate,
+    bots: candidate.bots.filter((bot) => {
+      const provider = (bot as { provider?: unknown } | null)?.provider;
+      return typeof provider !== "string" || !RETIRED_BOT_PROVIDERS.includes(provider);
+    }),
+  };
+}
+
+export const botsConfigFileSchema = z.preprocess(
+  stripRetiredBotProviders,
+  z
+    .object({
+      version: z.literal(3),
+      bots: z.array(botConfigSchema),
+    })
+    .strict(),
+);
 
 /** 工作区 → bot 绑定表（bot-bindings.v3.json）：与设置文件分离，避免被其它设置写入方覆盖。 */
 export const BOT_BINDINGS_FILE_VERSION = 2;

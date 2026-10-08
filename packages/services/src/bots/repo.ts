@@ -4,6 +4,7 @@ import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
 import {
   botBindingsFileSchema,
   botsConfigFileSchema,
+  RETIRED_BOT_PROVIDERS,
   botsStateFileSchema,
   type BotBindingsFile,
   type BotsConfigFile,
@@ -20,6 +21,18 @@ import {
   createDefaultBotsConfig,
 } from "./config.js";
 import { importLegacyBotConfig, importLegacyBotState } from "./storageMigration.js";
+
+/** 统计原始配置里已被下线通道的机器人条数（解析时会被丢弃）。 */
+function countRetiredBotRecords(value: unknown): number {
+  const bots = (value as { bots?: unknown } | null)?.bots;
+  if (!Array.isArray(bots)) {
+    return 0;
+  }
+  return bots.filter((bot) => {
+    const provider = (bot as { provider?: unknown } | null)?.provider;
+    return typeof provider === "string" && RETIRED_BOT_PROVIDERS.includes(provider);
+  }).length;
+}
 
 async function readOptionalJson(path: string): Promise<unknown | undefined> {
   try {
@@ -40,7 +53,15 @@ export class BotsRepo {
     return withFileLock(path, async () => {
       const current = await readOptionalJson(path);
       // 回滚兼容：v3 已存在就只认 v3；损坏时暴露错误，绝不能恢复旧 Bot 或覆盖用户新修改。
-      if (current !== undefined) return botsConfigFileSchema.parse(current);
+      if (current !== undefined) {
+        const parsed = botsConfigFileSchema.parse(current);
+        // 已下线通道（AstrBot 桥接）的记录在解析阶段被丢弃；在同一把文件锁内把清理结果固定下来，
+        // 否则磁盘上会长期留着再也读不到的记录。
+        if (countRetiredBotRecords(current) > 0) {
+          await writeJson(path, parsed);
+        }
+        return parsed;
+      }
       const legacy = await readOptionalJson(join(getAppConfigDir(), BOTS_LEGACY_CONFIG_FILE));
       const config = botsConfigFileSchema.parse(
         legacy === undefined ? createDefaultBotsConfig() : importLegacyBotConfig(legacy),
