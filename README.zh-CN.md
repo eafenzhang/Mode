@@ -47,6 +47,8 @@ Mode 保留产品本身——一个陪你规划、改代码、跑命令、自我
 
 已安装的桌面端会从本仓库的 Releases 自动更新。
 
+SSH / WSL / Docker 远端工作区会复用主机上已有的运行时；本仓库不发布预构建的远端运行资源。要给一台什么都没有的主机做首次部署，可以本地执行 `pnpm prepare:remote-assets` 自己准备，并用 `ZCODE_REMOTE_ASSET_CDN_BASE_URL` 指向你的存放位置。
+
 ## 从源码运行
 
 前置：Git、Node.js **24.14.0**、pnpm **10.33.2**，版本以 [mise.toml](mise.toml) 为准。以下命令都在仓库根目录执行。

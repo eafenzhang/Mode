@@ -47,6 +47,8 @@ Installers are attached to the [Releases](https://github.com/eafenzhang/Mode/rel
 
 Installed desktop clients update themselves from this repository's releases.
 
+Remote workspaces over SSH, WSL or Docker reuse a runtime that already exists on the host; this repository does not publish the prebuilt runtime bundles. To provision a host that has none, build them locally with `pnpm prepare:remote-assets` and point `ZCODE_REMOTE_ASSET_CDN_BASE_URL` at wherever you host them.
+
 ## Build and run from source
 
 Prerequisites: Git, Node.js **24.14.0** and pnpm **10.33.2** — [mise.toml](mise.toml) is the source of truth for tool versions. Run everything from the repository root.
