@@ -64,6 +64,8 @@ export interface StorePluginItem {
   orphaned: boolean;
   /** 目录里列着、但本分支没有随包安装包（官方客户端内置的第一方插件）：不提供安装。 */
   bundledUnavailable?: boolean;
+  /** source 指向已下线官方平台（下载必然被拦）：可浏览但不提供安装，详情不发 describe。 */
+  sourceUnavailable?: boolean;
   listing?: ModePluginStoreListing;
   summary?: ModeAvailablePluginSummary;
   /** 运行时信息（仅已发现的已安装插件有）：启用态、组件、manifest 回退字段。 */
@@ -245,6 +247,7 @@ export function buildStoreItems(input: {
       name: summary.name,
       marketplace: summary.marketplace,
       ...(summary.bundledUnavailable ? { bundledUnavailable: true } : {}),
+      ...(summary.sourceUnavailable ? { sourceUnavailable: true } : {}),
       installed:
         info?.packageStatus === "missing" ? false : summary.installed || info !== undefined,
       restorable: false,

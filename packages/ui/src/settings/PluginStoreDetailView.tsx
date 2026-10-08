@@ -6,6 +6,7 @@ import {
   Bot,
   ChevronRight,
   ExternalLink,
+  Info,
   Loader2,
   MessagesSquare,
   RefreshCw,
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
+import { resolvePluginDetailComponentsState } from "@/settings/pluginDetailComponentsState.js";
 import { ThemeHeroVisual } from "@/openWorkspacePageThemeHero.js";
 import documentsIconUrl from "@/assets/document-skill-icons/documents@2x.png";
 import pdfIconUrl from "@/assets/document-skill-icons/pdf@2x.png";
@@ -117,8 +119,12 @@ export function PluginStoreDetailView({
   const orderedGroups = SECTION_ORDER.map((kind) =>
     componentGroups.find((group) => group.kind === kind),
   ).filter((group): group is PluginComponentDisplayGroup => group !== undefined);
-  const componentsLoading = !item.info && (describeEntry?.status ?? "loading") === "loading";
-  const componentsFailed = !item.info && describeEntry?.status === "error";
+  const componentsState = resolvePluginDetailComponentsState({
+    bundledUnavailable: item.bundledUnavailable,
+    sourceUnavailable: item.sourceUnavailable,
+    hasRuntimeInfo: item.info !== undefined,
+    describeStatus: describeEntry?.status,
+  });
 
   return (
     <div className="space-y-8" data-testid="plugin-store-detail" data-plugin-id={item.id}>
@@ -199,8 +205,11 @@ export function PluginStoreDetailView({
         />
       ) : null}
 
-      {/* 组件分区：已安装走权威枚举（ModePluginInfo.components），候选走 plugins/describe 按需拉取。 */}
-      {componentsLoading ? (
+      {/* 组件分区：已安装走权威枚举（ModePluginInfo.components），候选走 plugins/describe 按需拉取；
+          确定拿不到安装包的两类（未随包/源已下线）给固定说明，不给重试。 */}
+      {componentsState === "unbundled" || componentsState === "sourceUnavailable" ? (
+        <ComponentsStaticNotice state={componentsState} />
+      ) : componentsState === "loading" ? (
         <div
           className="flex items-center gap-2 py-2 text-ui-base text-foreground-subtle"
           data-testid="plugin-store-components-loading"
@@ -210,7 +219,7 @@ export function PluginStoreDetailView({
             {intl.formatMessage({ id: "settings.plugins.marketplace.componentsLoading" })}
           </span>
         </div>
-      ) : componentsFailed ? (
+      ) : componentsState === "error" ? (
         <div
           className="flex items-center justify-between gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-ui-base text-foreground-subtle"
           data-testid="plugin-store-components-error"
@@ -312,6 +321,31 @@ function HeroSection({
           {prompts}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** 拿不到组件清单的确定态（未随包/源已下线）：说明性文案，无重试入口。 */
+function ComponentsStaticNotice({ state }: { state: "unbundled" | "sourceUnavailable" }) {
+  const { intl } = useModeIntl();
+  return (
+    <div
+      className="flex items-start gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-ui-base text-foreground-subtle"
+      data-testid={
+        state === "unbundled"
+          ? "plugin-store-components-unbundled"
+          : "plugin-store-components-source-unavailable"
+      }
+    >
+      <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        {intl.formatMessage({
+          id:
+            state === "unbundled"
+              ? "settings.plugins.store.bundledUnavailableHint"
+              : "settings.plugins.store.sourceUnavailableHint",
+        })}
+      </span>
     </div>
   );
 }

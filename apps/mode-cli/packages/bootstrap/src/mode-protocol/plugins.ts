@@ -547,6 +547,7 @@ function toAvailablePluginSummary(input: {
   componentTypes?: string[];
   listing?: ModeAvailablePluginSummary["listing"];
   bundledUnavailable?: boolean;
+  sourceUnavailable?: boolean;
 }): ModeAvailablePluginSummary {
   return {
     id: input.id,
@@ -557,8 +558,9 @@ function toAvailablePluginSummary(input: {
     installed: input.installed,
     ...(input.componentTypes ? { componentTypes: input.componentTypes } : {}),
     ...(input.listing ? { listing: input.listing } : {}),
-    // 随包判定的结果必须原样透出：投影这里漏掉会让商店又给出必然失败的安装入口。
+    // 两个可用性判定都必须原样透出：投影这里漏掉，商店就会给出必然失败的安装入口。
     ...(input.bundledUnavailable ? { bundledUnavailable: true } : {}),
+    ...(input.sourceUnavailable ? { sourceUnavailable: true } : {}),
   };
 }
 

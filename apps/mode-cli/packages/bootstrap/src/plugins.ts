@@ -54,6 +54,7 @@ import { BUNDLED_OFFICIAL_PLUGIN_CATALOG } from "./app/official-plugin-catalog.g
 import {
   MODE_CUA_OFFICIAL_PLUGIN_ID,
   isModeCuaInternalFeatureEnabled,
+  isOfficialOfflinePluginSource,
   listingRequiresPaidPlan,
 } from "@mode/shared";
 import { resolveOfficialPluginRoots } from "./app/bundled-plugins.js";
@@ -119,6 +120,10 @@ export interface ModeAvailablePluginData {
   hookDetails?: PluginHookDetail[];
   // 商店信息（显示名/icon/分类/作者/链接/hero/示例提示词），来自目录条目。
   listing?: PluginStoreListing;
+  /** 随包官方目录里、但本分支没有安装包（filesystem/sea 来源且缓存缺失）：不提供安装。 */
+  bundledUnavailable?: boolean;
+  /** source 指向已下线官方平台（HTTP 出口必然拦截）：可浏览但不提供安装，详情不发 describe。 */
+  sourceUnavailable?: boolean;
 }
 
 export interface ModeInstalledPluginData {
@@ -372,6 +377,8 @@ export function getModePluginsOverview(
           })
             ? {}
             : { bundledUnavailable: true }),
+          // 与市场目录同口径：source 指向已下线官方平台的条目也标成不可获取。
+          ...(isOfficialOfflinePluginSource(entry.source) ? { sourceUnavailable: true } : {}),
         });
       }
       if (listing) {
@@ -1269,6 +1276,8 @@ function toAvailablePluginData(
     ...(hasBundledPluginPackage({ storageRoot, marketplace, entry })
       ? {}
       : { bundledUnavailable: true }),
+    // source 指向已下线官方平台的条目：describe/安装都会被 HTTP 出口拦截，同样不给安装入口。
+    ...(isOfficialOfflinePluginSource(entry.source) ? { sourceUnavailable: true } : {}),
   };
 }
 

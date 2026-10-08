@@ -3098,6 +3098,8 @@ export const modeAvailablePluginSummarySchema = z
     listing: modePluginStoreListingSchema.optional(),
     /** 目录里列着、但本分支没有随包安装包（官方客户端内置的第一方插件）：不提供安装。 */
     bundledUnavailable: z.boolean().optional(),
+    /** source 指向已下线官方平台（HTTP 出口必然拦截）：可浏览但不提供安装，详情不发 describe。 */
+    sourceUnavailable: z.boolean().optional(),
   })
   .strict();
 export type ModeAvailablePluginSummary = z.infer<typeof modeAvailablePluginSummarySchema>;

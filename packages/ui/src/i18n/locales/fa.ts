@@ -3747,6 +3747,9 @@ const faIR: Record<string, string> = {
   "settings.plugins.store.bundledUnavailable": "همراه برنامه نیست",
   "settings.plugins.store.bundledUnavailableHint":
     "این افزونه همراه کلاینت رسمی عرضه می‌شود و این شاخه بستهٔ آن را همراه ندارد؛ بنابراین اینجا نصب نمی‌شود.",
+  "settings.plugins.store.sourceUnavailable": "منبع غیرفعال است",
+  "settings.plugins.store.sourceUnavailableHint":
+    "منبع دانلود این افزونه روی پلتفرم رسمی است که Mode دیگر به آن وصل نمی‌شود؛ بنابراین اینجا نصب نمی‌شود.",
   "settings.plugins.store.install": "نصب",
   "settings.plugins.store.tryNow": "هم‌اکنون امتحان کنید",
   "settings.plugins.store.sourceMissing":

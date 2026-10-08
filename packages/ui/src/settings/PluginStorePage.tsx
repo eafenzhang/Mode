@@ -191,6 +191,9 @@ export function PluginStorePage({
   // 详情页数据补齐：无运行时信息的条目（未安装候选）按需 describe，拿组件清单 + manifest 回退字段。
   useEffect(() => {
     if (view !== "detail" || !detailItem || detailItem.info) return;
+    // 确定拿不到安装包的两类条目 describe 必然失败（未随包：本地没有包；
+    // 源已下线：下载被 HTTP 出口拦截），详情页改用固定说明，不再发必败的请求。
+    if (detailItem.bundledUnavailable || detailItem.sourceUnavailable) return;
     void describePlugin(
       detailItem.id,
       detailItem.name,

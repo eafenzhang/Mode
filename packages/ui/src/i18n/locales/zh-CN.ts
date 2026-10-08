@@ -3555,6 +3555,9 @@ const zhCN: Record<string, string> = {
   "settings.plugins.store.bundledUnavailable": "未随包提供",
   "settings.plugins.store.bundledUnavailableHint":
     "这个插件随官方客户端内置，本分支没有内置它的安装包，因此无法在这里安装。",
+  "settings.plugins.store.sourceUnavailable": "源已下线",
+  "settings.plugins.store.sourceUnavailableHint":
+    "这个插件的下载源位于已下线的官方平台，Mode 不再连接该平台，因此无法在这里安装。",
   "settings.plugins.store.install": "安装",
   "settings.plugins.store.tryNow": "立即试用",
   "settings.plugins.store.sourceMissing": "市场来源已缺失。插件仍可使用，但暂时无法更新。",

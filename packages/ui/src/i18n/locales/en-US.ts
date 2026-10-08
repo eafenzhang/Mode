@@ -3789,6 +3789,9 @@ const enUS: Record<string, string> = {
   "settings.plugins.store.bundledUnavailable": "Not bundled",
   "settings.plugins.store.bundledUnavailableHint":
     "This plugin ships inside the official client, which this fork does not bundle, so it cannot be installed here.",
+  "settings.plugins.store.sourceUnavailable": "Source offline",
+  "settings.plugins.store.sourceUnavailableHint":
+    "This plugin's download source is on the official platform, which Mode no longer connects to, so it cannot be installed here.",
   "settings.plugins.store.install": "Install",
   "settings.plugins.store.tryNow": "Try now",
   "settings.plugins.store.sourceMissing":

@@ -12,6 +12,7 @@ import {
   RETIRED_DEFAULT_MARKETPLACES,
   isBuiltinDefaultMarketplaceId,
   isCodexPluginMarketplaceId,
+  isOfficialOfflinePluginSource,
   isPublicStoreMarketplaceId,
   listingRequiresPaidPlan,
   resolveDefaultPluginMarketplaces,
@@ -312,8 +313,8 @@ test("未随包的第一方插件标为不可安装，而不是让用户点了�
     "utf8",
   );
   assert.ok(
-    card.includes('data-testid="plugin-store-bundled-unavailable"') &&
-      card.includes("if (item.bundledUnavailable)"),
+    card.includes('"plugin-store-bundled-unavailable"') &&
+      card.includes("item.bundledUnavailable"),
     "商店卡片遇到这类条目要换成不可点的说明，而不是安装按钮",
   );
   const protocol = await readFile(
@@ -321,4 +322,90 @@ test("未随包的第一方插件标为不可安装，而不是让用户点了�
     "utf8",
   );
   assert.ok(protocol.includes("bundledUnavailable: z.boolean().optional()"), "协议要带上这个标记");
+});
+
+// 官方目录里还有 26 个条目的 source 是 cdn-zcode.z.ai 的 zip 下载地址。官方平台已整体断连：
+// HTTP 出口对每个请求断言，describe（要下载 zip 枚举组件）和安装都必然报「官方平台服务已下线」。
+// 这类条目必须按「源已下线」呈现（禁用安装 + 详情固定说明 + 跳过 describe），
+// 而不是给一个点一次失败一次的入口 —— 用户看到的「组件清单加载失败，仅展示可得信息。」
+// （重试也永远失败）正是这条路径。
+test("下载源在已下线官方平台的插件标为不可安装，详情不发 describe", async () => {
+  // 判据：source 命中已下线官方域名（与 officialPlatformPolicy 同一张域名表）。
+  assert.equal(
+    isOfficialOfflinePluginSource({
+      source: "url",
+      type: "zip",
+      url: "https://cdn-zcode.z.ai/mode/official-plugin/plugins/x/0.1.0/plugin.zip",
+      sha256: "d60429f6ed70ef7e16b4f1a11b9afccd28dbef1118eb760f3d045bf7726c7f7c",
+    }),
+    true,
+    "官方 CDN 的 zip source 要判为源已下线",
+  );
+  assert.equal(
+    isOfficialOfflinePluginSource("https://zcode.z.ai/api/v1/marketplace.json"),
+    true,
+    "字符串形态的官方平台 URL 同样判为源已下线",
+  );
+  assert.equal(
+    isOfficialOfflinePluginSource({ source: "url", type: "zip", url: "https://example.com/x.zip" }),
+    false,
+    "第三方 URL 来源不受影响",
+  );
+  assert.equal(
+    isOfficialOfflinePluginSource({ source: "github", repo: "anthropics/claude-plugins-official" }),
+    false,
+    "github 仓库来源（无官方域名 url）不受影响",
+  );
+  assert.equal(isOfficialOfflinePluginSource("./plugins/x"), false, "本地相对路径不算 URL 来源");
+  assert.equal(isOfficialOfflinePluginSource("filesystem"), false, "裸 kind 字符串不是 URL");
+  assert.equal(isOfficialOfflinePluginSource(undefined), false, "缺 source 容错为可安装");
+
+  const bootstrap = await readFile(
+    new URL("../../../apps/mode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
+    "utf8",
+  );
+  const callSites = bootstrap.split("isOfficialOfflinePluginSource(entry.source)").length - 1;
+  assert.ok(
+    callSites >= 2,
+    `候选插件的两条路径（市场目录 + 随包清单）都要打这个标，实际 ${callSites} 处`,
+  );
+
+  const protocol = await readFile(
+    new URL("../../../packages/shared/src/mode-protocol/index.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    protocol.includes("sourceUnavailable: z.boolean().optional()"),
+    "协议（strict schema）要带上这个标记，否则 overview 整包校验会失败",
+  );
+
+  const projection = await readFile(
+    new URL(
+      "../../../apps/mode-cli/packages/bootstrap/src/mode-protocol/plugins.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.ok(
+    projection.includes("...(input.sourceUnavailable ? { sourceUnavailable: true } : {})"),
+    "投影必须原样透出，漏了就等于商店又给出必然失败的安装入口",
+  );
+
+  const page = await readFile(
+    new URL("../../../packages/ui/src/settings/PluginStorePage.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    page.includes("detailItem.bundledUnavailable || detailItem.sourceUnavailable"),
+    "详情页对两类确定拿不到包的条目都跳过 describe",
+  );
+
+  const detail = await readFile(
+    new URL("../../../packages/ui/src/settings/PluginStoreDetailView.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    detail.includes('"plugin-store-components-source-unavailable"'),
+    "详情页给源已下线的固定说明，而不是可重试的加载失败",
+  );
 });

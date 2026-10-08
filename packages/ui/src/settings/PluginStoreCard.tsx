@@ -162,23 +162,37 @@ export function PluginStoreInstallButton({
   size?: "sm" | "default" | "lg";
 }) {
   const { intl } = useModeIntl();
-  // 官方客户端内置、本仓库没有安装包的第一方插件：按钮不可点，用提示说明原因，
-  // 而不是让用户点了之后收到「Bundled plugin cache directory missing」。
-  if (item.bundledUnavailable) {
-    const hint = intl.formatMessage({ id: "settings.plugins.store.bundledUnavailableHint" });
+  // 目录里列着、但本分支确定拿不到安装包的条目：按钮换成不可点的说明，而不是让用户点了
+  // 之后收到必然失败的报错 —— 未随包：本地没有包（Bundled plugin cache directory missing）；
+  // 源已下线：下载源在不再连接的官方平台（官方平台服务已下线）。
+  const unavailable = item.bundledUnavailable
+    ? {
+        labelId: "settings.plugins.store.bundledUnavailable",
+        hintId: "settings.plugins.store.bundledUnavailableHint",
+        testId: "plugin-store-bundled-unavailable",
+      }
+    : item.sourceUnavailable
+      ? {
+          labelId: "settings.plugins.store.sourceUnavailable",
+          hintId: "settings.plugins.store.sourceUnavailableHint",
+          testId: "plugin-store-source-unavailable",
+        }
+      : null;
+  if (unavailable) {
+    const hint = intl.formatMessage({ id: unavailable.hintId });
     return (
       <ControlHintTooltip title={hint}>
         <span className="inline-flex shrink-0">
           <Button
             type="button"
-            data-testid="plugin-store-bundled-unavailable"
+            data-testid={unavailable.testId}
             data-plugin-id={item.id}
             variant="ghost"
             size={size}
             className="rounded-full text-foreground-subtle"
             disabled
           >
-            {intl.formatMessage({ id: "settings.plugins.store.bundledUnavailable" })}
+            {intl.formatMessage({ id: unavailable.labelId })}
           </Button>
         </span>
       </ControlHintTooltip>

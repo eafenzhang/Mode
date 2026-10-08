@@ -1,4 +1,4 @@
-import { isOfficialServiceEnabled } from "./officialPlatformPolicy.js";
+import { isOfficialPlatformUrl, isOfficialServiceEnabled } from "./officialPlatformPolicy.js";
 
 export interface DefaultPluginMarketplace {
   id: string;
@@ -151,3 +151,17 @@ export function listingRequiresPaidPlan(
   return listing?.requiresPaidPlan === true;
 }
 
+/**
+ * 插件 source 是否指向已下线的官方平台（zcode.z.ai / cdn-zcode.z.ai）。
+ *
+ * 官方平台已整体断连：HTTP 出口对每个请求断言（adapters 的 NodeHttpClientAdapter），
+ * 这类条目的 describe（要下载 zip 枚举组件）和安装必然报「官方平台服务已下线」。
+ * 商店必须按「源已下线」呈现（禁用安装、详情固定说明、跳过 describe），
+ * 而不是给出点一次失败一次的入口。域名表由 officialPlatformPolicy 统一维护，自动跟随。
+ */
+export function isOfficialOfflinePluginSource(source: unknown): boolean {
+  if (typeof source === "string") return isOfficialPlatformUrl(source);
+  if (typeof source !== "object" || source === null || Array.isArray(source)) return false;
+  const url = (source as { url?: unknown }).url;
+  return typeof url === "string" && isOfficialPlatformUrl(url);
+}
