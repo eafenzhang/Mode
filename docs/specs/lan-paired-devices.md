@@ -17,6 +17,10 @@
    - 空态：提示尚未配对任何对端。
 2. **「配对我的设备」（服务端视角，现有组）**
    - 保留：label、最近使用时间、逐个删除、重置全部令牌。
+   - **label = 配对方设备的主机名**：`pairLanPeer` 在 host 执行，未显式传 label 时用
+     `node:os` 的 `hostname()` 兜底；向导不再传 `navigator.platform`（Windows 上它是
+     `"Win32"`，就是设置页显示 win32 的根因）。显式传 label 的路径保留（验证脚本用）。
+     存量 "win32" 记录服务端无法回填名称，重新配对一次后更新为主机名。
    - 每行新增**最近在本机打开的目录**；无记录显示「尚无」（老数据向后兼容）。
 
 ### 数据与状态所有权
@@ -37,7 +41,9 @@
 2. 设置页两组同屏；本机 LAN 开关关闭时「我配对的对端」仍显示；对端离线时其工作区目录显示「无法获取」。
 3. 删除「我配对的对端」某行后，向导对该设备重新要求配对码。
 4. 服务端组：新配对设备显示「尚无」；对端在本机打开某目录后，该行显示此目录（server 包测试用真实 WS 打一条携带 `workspacePath` 的 RPC 断言录制回调）。
-5. `pnpm --filter @mode/services test`、`pnpm --filter @mode/server test`、desktop 测试、`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
+5. 配对成功后服务端组 label 显示配对方主机名（host 不传 label 时 `pairLanPeer` 默认
+   `hostname()`；desktop 夹具断言请求带上 label 而非 undefined）。
+6. `pnpm --filter @mode/services test`、`pnpm --filter @mode/server test`、desktop 测试、`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
 
 ## 不做
 

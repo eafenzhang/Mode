@@ -50,21 +50,56 @@ test("stripRemoteTargetSecrets 只去掉 lan 的 token，保留其余字段", ()
   assert.equal((sanitized as LanConnectOptions).port, 45880);
 });
 
-test("lan workspace identity 往返：host 小写、路径归一、address 段完整", () => {
+test("lan workspace identity 往返：Windows 盘符形态规范（不加前导斜杠）、host 小写", () => {
+  // 契约变更（docs/specs/remote-workspace-identity.md）：Windows 间 LAN 的规范形态是
+  // 盘符开头——`/D:/…` 在 Windows 上作工作目录 ENOENT，前导斜杠是 posix 假设。
   const identity = buildRemoteWorkspaceIdentity("D:\\Work\\Demo\\", {
     ...lanTarget,
     host: "192.168.1.20",
   } as LanConnectOptions);
-  assert.equal(identity, "remote:lan:192.168.1.20:45880:/D:/Work/Demo");
+  assert.equal(identity, "remote:lan:192.168.1.20:45880:D:/Work/Demo");
 
   const parsed = parseRemoteWorkspaceIdentity(identity);
-  assert.deepEqual(parsed, { kind: "lan", workspacePath: "/D:/Work/Demo" });
+  assert.deepEqual(parsed, { kind: "lan", workspacePath: "D:/Work/Demo" });
 });
 
-test("parseRemoteWorkspaceIdentity 拒绝缺段或路径不以 / 开头的 lan identity", () => {
+test("lan identity 解析野外形态（UI 手拷贝归一化产出的盘符形态）", () => {
+  // 这正是线上故障形态：无前导斜杠，旧解析器 fail-closed → 对端抛
+  // Invalid remote workspace identity → fault.command.executionFailed。
+  const parsed = parseRemoteWorkspaceIdentity("remote:lan:100.68.49.120:45880:D:/gas-hub-xp");
+  assert.deepEqual(parsed, { kind: "lan", workspacePath: "D:/gas-hub-xp" });
+});
+
+test("lan identity 解析旧规范形态 /D:/… 时归一为可用盘符路径", () => {
+  const parsed = parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:45880:/D:/Work/Demo");
+  assert.deepEqual(parsed, { kind: "lan", workspacePath: "D:/Work/Demo" });
+});
+
+test("lan identity 的 posix 对端形态保持不变", () => {
+  const identity = buildRemoteWorkspaceIdentity("/home/dev/proj/", {
+    ...lanTarget,
+    host: "192.168.1.20",
+  } as LanConnectOptions);
+  assert.equal(identity, "remote:lan:192.168.1.20:45880:/home/dev/proj");
+  assert.deepEqual(parseRemoteWorkspaceIdentity(identity), {
+    kind: "lan",
+    workspacePath: "/home/dev/proj",
+  });
+});
+
+test("parseRemoteWorkspaceIdentity 拒绝缺段或相对路径的 lan identity", () => {
   assert.equal(parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:/x"), null, "缺 port 段");
   assert.equal(parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:45880"), null, "缺路径段");
-  assert.equal(parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:45880:x"), null, "路径必须绝对");
+  assert.equal(
+    parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:45880:x"),
+    null,
+    "相对路径拒绝",
+  );
+  assert.equal(
+    parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:45880:1D:/x"),
+    null,
+    "非法盘符拒绝",
+  );
 });
 
 test("buildRemoteEnvironmentKey 为 lan 生成稳定环境键", () => {
@@ -85,9 +120,8 @@ test("createOpenInEditorRemoteTarget 透出 lan 地址供主进程判定不支�
 });
 
 test("lan 发现报文：编码可被解析，坏报文一律丢弃", async () => {
-  const { buildLanAnnouncementPayload, buildLanProbePayload, parseLanAnnouncement } = await import(
-    "../src/lanAccess.js"
-  );
+  const { buildLanAnnouncementPayload, buildLanProbePayload, parseLanAnnouncement } =
+    await import("../src/lanAccess.js");
   const payload = buildLanAnnouncementPayload({
     serverId: "server-1",
     name: "书房电脑",
@@ -128,7 +162,8 @@ test("lan 访问状态 schema 与配对码格式", async () => {
   };
   assert.equal(lanAccessStateSchema.safeParse(state).success, true);
   assert.equal(
-    lanAccessStateSchema.safeParse({ ...state, port: null, pairCode: null, enabled: false }).success,
+    lanAccessStateSchema.safeParse({ ...state, port: null, pairCode: null, enabled: false })
+      .success,
     true,
     "关闭态：port/pairCode 为 null 合法",
   );

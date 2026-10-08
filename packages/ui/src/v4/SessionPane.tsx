@@ -2654,7 +2654,17 @@ export function SessionPane({
           undefined,
         );
         if (sendAck.status !== "accepted") {
-          throw new Error(sendAck.reasonCode ?? "sendText 被拒绝");
+          // 失败 ACK 的 message 是网关原始错误（reasonCode 只是归一码）：
+          // 透传进 error.message，「展开详情」才看得到真实原因；同时留一条客户端 warn。
+          logger.warn("[v4-pane] sendText ack 失败（草稿首条）", {
+            sessionId: newSessionId,
+            status: sendAck.status,
+            reasonCode: sendAck.reasonCode,
+            message: sendAck.message,
+          });
+          throw new Error(
+            [sendAck.reasonCode, sendAck.message].filter(Boolean).join(": ") || "sendText 被拒绝",
+          );
         }
         mirrorDesktopPromptToIm(newSessionId, effectiveText);
         handleDraftSessionCreated(newSessionId, groupedDraftTaskAtSend);
@@ -2694,7 +2704,17 @@ export function SessionPane({
         return "confirmationRequired" as const;
       }
       if (ack.status !== "accepted") {
-        throw new Error(ack.reasonCode ?? "sendText 被拒绝");
+        // 同上：message 透传 + 客户端 warn——LAN 远端故障时对端日志不在手边，
+        // 展开详情里的网关原始错误是客户端唯一的线索。
+        logger.warn("[v4-pane] sendText ack 失败", {
+          sessionId,
+          status: ack.status,
+          reasonCode: ack.reasonCode,
+          message: ack.message,
+        });
+        throw new Error(
+          [ack.reasonCode, ack.message].filter(Boolean).join(": ") || "sendText 被拒绝",
+        );
       }
       mirrorDesktopPromptToIm(sessionId, effectiveText);
       if (heldQueueDisposition === "clearQueueAndSend") {

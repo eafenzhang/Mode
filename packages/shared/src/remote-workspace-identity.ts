@@ -1,17 +1,21 @@
 // 远程 workspace identity 的统一解析工具（Workspace Identity 约束：构造与解析
-// 必须复用统一工具，禁止业务代码手写拼接/拆解规则）。
-// 构造侧（对偶）：packages/ui/src/lib/remoteWorkspaceHistory.ts 的
-// buildRemoteWorkspaceIdentity —— 格式契约：
+// 必须复用统一工具，禁止业务代码手写拼接/拆解规则——UI 曾因手拷贝归一化产出
+// 无前导斜杠形态被解析端 fail-closed 拒绝，见 docs/specs/remote-workspace-identity.md）。
+// 格式契约：
 //   remote:ssh:<host>:<port>:<username>:<posixPath>
 //   remote:wsl:<distro>[:<user>]:<posixPath>
 //   remote:docker:<container>:<posixPath>
-//   remote:lan:<host>:<port>:<posixPath>
-// path 段经 normalizeWorkspacePathForIdentity 归一（分隔符 → "/"，去收尾斜杠，
-// 空 → "/"），因此恒以 "/" 开头；authority 各段不含 "/"（host 小写、port 数字、
-// docker 容器名/wsl 发行版名的合法字符集均不含 ":" 与 "/"）。
+//   remote:lan:<host>:<port>:<path>
+// path 归一（normalizeWorkspacePathForIdentity）：分隔符 → "/"、折叠重复、去首尾斜杠；
+// ssh/wsl/docker（posix 对端）恒以 "/" 开头；lan 双形态——Windows 对端为盘符开头
+// （`D:/…`，前导斜杠会让 Windows cwd ENOENT），posix 对端照旧 "/" 开头；解析侧对 lan
+// 额外接受旧规范形态 `/D:/…`（读出时归一为 `D:/…`）与野外形态。
+// authority 各段不含 "/"（host 小写、port 数字、docker 容器名/wsl 发行版名的合法
+// 字符集均不含 ":" 与 "/"）。
 // 消费方：CLI v4 createSession 的 workspaceId（远程 pane 里 workspaceKey =
 // identity）需要还原出真实 workspacePath 作为会话 workingDirectory。
 import type { RemoteTarget } from "./remoteTarget.js";
+import type { RemoteTargetSnapshot } from "./protocol.js";
 
 export type RemoteWorkspaceIdentityKind = "ssh" | "wsl" | "docker" | "lan";
 
@@ -39,6 +43,11 @@ function isRemoteWorkspaceIdentityKind(value: string): value is RemoteWorkspaceI
 function normalizeWorkspacePathForIdentity(workspacePath: string): string {
   const normalized = workspacePath.replace(/\\/g, "/").replace(/\/+/g, "/");
   const trimmed = normalized.replace(/^\/+|\/+$/g, "");
+  // Windows 盘符：规范形态保留 X:/（`/D:/…` 在 Windows 上作 cwd 为 ENOENT）。
+  // 旧输入 `/D:/x` 经上面去前导斜杠后同样收敛到 `D:/x`，天然幂等。
+  if (/^[A-Za-z]:(\/|$)/.test(trimmed)) {
+    return trimmed;
+  }
   return `/${trimmed}`;
 }
 
@@ -46,7 +55,10 @@ function normalizeWorkspacePathForIdentity(workspacePath: string): string {
  * 统一构造远程 workspace identity。Host、Main 和 UI 禁止自行拼接 authority；
  * `workspacePath` 只在这里归一后进入身份键，实际 IO 仍使用调用方原路径。
  */
-export function buildRemoteWorkspaceIdentity(workspacePath: string, target: RemoteTarget): string {
+export function buildRemoteWorkspaceIdentity(
+  workspacePath: string,
+  target: RemoteTarget | RemoteTargetSnapshot,
+): string {
   const normalizedPath = normalizeWorkspacePathForIdentity(workspacePath);
   switch (target.kind) {
     case "ssh":
@@ -106,6 +118,21 @@ export function parseRemoteWorkspaceIdentity(
     cursor = userEnd + 1;
   }
   const workspacePath = rest.slice(cursor);
+  if (kind === "lan") {
+    // lan 双形态（docs/specs/remote-workspace-identity.md）：
+    // 盘符开头（规范/野外形态）直接通过；`/D:/…` 旧规范形态归一为 `D:/…`；
+    // posix 对端照旧要求绝对路径；其余一律 fail-closed。
+    if (/^[A-Za-z]:(\/|$)/.test(workspacePath)) {
+      return { kind, workspacePath };
+    }
+    if (workspacePath.startsWith("/") && /^[A-Za-z]:(\/|$)/.test(workspacePath.slice(1))) {
+      return { kind, workspacePath: workspacePath.slice(1) };
+    }
+    if (workspacePath.startsWith("/")) {
+      return { kind, workspacePath };
+    }
+    return null;
+  }
   if (!workspacePath.startsWith("/")) {
     return null;
   }

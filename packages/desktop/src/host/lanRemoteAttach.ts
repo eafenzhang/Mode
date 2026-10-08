@@ -1,5 +1,6 @@
 import { Emitter, SocketProtocol, VSBuffer, type ISocket } from "@mode/rpc";
 import { connectViaProtocol } from "@mode/client";
+import { hostname } from "node:os";
 import {
   buildLanPeerTokenKey,
   buildLanPeerMetaKey,
@@ -31,7 +32,11 @@ function buildLanWsUrl(host: string, port: number): string {
   return `ws://${host}:${port}/ws/host`;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -80,7 +85,10 @@ export async function pairLanPeer(params: {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         code: params.code.trim().toUpperCase(),
-        ...(params.label?.trim() ? { label: params.label.trim() } : {}),
+        // label = 本机身份（对端「配对我的设备」按它显示设备名）：显式传入优先
+        //（验证脚本在用），缺省兜底本机主机名——向导不再传 navigator.platform
+        //（Windows 上是 "Win32"，对端列表就会显示 win32）。
+        label: params.label?.trim() || hostname(),
       }),
     },
     LAN_PAIR_TIMEOUT_MS,
@@ -191,7 +199,11 @@ export async function attachLanRemoteConnection(params: {
   /** 对端通道断开（含进程退出、网络中断）时回调：与 SSH backend.onDidDisconnect 语义一致。 */
   onClose?: () => void;
 }): Promise<LanRemoteConnection> {
-  const info = await fetchLanPeerInfo({ host: params.host, port: params.port, token: params.token });
+  const info = await fetchLanPeerInfo({
+    host: params.host,
+    port: params.port,
+    token: params.token,
+  });
   if (params.signal?.aborted) {
     throw new Error("远程连接已取消");
   }

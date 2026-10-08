@@ -61,8 +61,8 @@ export function useLanConnectionForm(options: { open: boolean; kind: string }) {
         host: targetHost,
         port: targetPort,
         code: lanPairCode.trim(),
-        label:
-          typeof navigator !== "undefined" && navigator.platform ? navigator.platform : undefined,
+        // 不传 label：host 侧缺省兜底本机主机名。此前传 navigator.platform
+        // （Windows 上是 "Win32"），对端「配对我的设备」列表会显示 win32。
       });
       setLanServerId(result.serverId);
       setLanServerName(result.name ?? "");
