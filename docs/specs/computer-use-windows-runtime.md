@@ -302,6 +302,7 @@
 | UIA 读取 Chromium/Electron 树质量不足 | Week-0 探针（≤2 天）：先对设置页窗口出树；不足则补 MSAA fallback 或缩小首期承诺 |
 | UIPI：向提升（管理员）窗口注入被拒 | 映射 `action_unavailable` + message 指引（不做提权重构） |
 | 防截屏/受保护内容黑帧 | 截图后做非空校验，失败 → `internal`/`timeout` + 明确 message |
+| 目标窗口挂起时 PrintWindow 占死共享 STA 队列 | IsHungAppWindow 预检 → 直接 BitBlt 回退；调用中途挂起的残余风险保留为已知限制 |
 | 锁屏期间采集失败 | 统一 `permission_denied` + message（17 码表无 screen_locked，选语义最近且 never-retry） |
 | 纯净室对官方语义的偏差 | 以市场分发的 docs+SDK 为规范源，集成测试锁定行为；偏差只允许更保守 |
 | CI 时长/工具链 | Rust 仅 windows job；cargo 缓存；不引入跨平台矩阵 |

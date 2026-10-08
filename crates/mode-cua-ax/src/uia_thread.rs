@@ -4,8 +4,10 @@
 //! 调用方（任意线程，含 napi 主线程与测试线程）`send` 命令 + `recv_timeout(30s)`。
 //!
 //! - 首次调用惰性 spawn；线程入口 `CoInitializeEx(COINIT_APARTMENTTHREADED)`。
-//! - 单请求 30s 超时 → `timeout`；命令处理 panic → 当次 `timeout`（brief 语义），
-//!   且丢弃可能处于不一致状态的 `IUIAutomation` 供下次重建——线程本身继续服务。
+//! - 单请求 30s 超时 → `timeout`。
+//! - 命令处理 panic 按命令区分映射：**observe** panic → 当次 `timeout`（brief 语义），且丢弃
+//!   可能处于不一致状态的 `IUIAutomation` 供下次重建；**capture** panic → `internal`，不丢弃
+//!   automation（截图不读写 UIA 缓存，无一致化问题）——两者线程本身均继续服务。
 //! - 线程死亡（send/disconnect 失败）→ `timeout` 并清掉单例 sender，下次调用重新 spawn。
 use crate::capture::{self, CaptureResultNapi};
 use crate::error::{AxError, AxResult};

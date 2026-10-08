@@ -1,8 +1,10 @@
 //! `capture` 原语：窗口 / 全屏截图（GDI → PNG），经 `uia_thread` 在 STA 线程串行执行。
 //!
 //! 语义（plan Task 4 Produces 节，spec「帧契约 / 风险表」）：
-//! - 窗口：`PrintWindow(hwnd, PW_RENDERFULLCONTENT)` 渲染进 32bpp 顶向 DIB；失败回退从
-//!   屏幕 DC 按窗口矩形 `BitBlt`（遮挡时抓到屏幕可见内容，兜底语义）。
+//! - 窗口：`PrintWindow(hwnd, PW_RENDERFULLCONTENT)` 渲染进 32bpp 顶向 DIB；调用前经
+//!   `IsHungAppWindow` 预检（`should_blit_first`），挂起目标跳过 PrintWindow 直接回退——
+//!   挂起窗口的 WM_PRINT 会占死与 observe 共享的 STA 队列；回退从屏幕 DC 按窗口矩形
+//!   `BitBlt`（遮挡时抓到屏幕可见内容，不触达目标窗口，兜底语义）。
 //! - `fullScreen`：屏幕 DC `BitBlt` 虚拟屏（多显示器整屏）。
 //! - `region`（相对窗口 / 屏幕左上角的 `[x,y,w,h]`）越界 clamp 到帧内并置 `clamped=true`；
 //!   clamp 后无像素（全空）→ blank 错误。
@@ -24,8 +26,8 @@ use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::Storage::Xps::{PrintWindow, PRINT_WINDOW_FLAGS};
 use windows::Win32::UI::WindowsAndMessaging::{
-  GetSystemMetrics, GetWindowRect, PW_RENDERFULLCONTENT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-  SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+  GetSystemMetrics, GetWindowRect, IsHungAppWindow, PW_RENDERFULLCONTENT, SM_CXVIRTUALSCREEN,
+  SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
 };
 
 // 入参是请求面：Option 字段由 napi 呈现为可选（Task 2 口径，不加 use_nullable）。
@@ -190,7 +192,20 @@ fn bgra_to_rgb(bgra: &[u8]) -> Vec<u8> {
   rgb
 }
 
+/// 路由预检：目标窗口挂起（消息泵停摆）→ true，`PrintWindow` 应跳过、直接走 BitBlt 回退。
+///
+/// WHY（评审 Important 项）：`PrintWindow` 会向目标窗口同步投递 `WM_PRINT` 并等待其处理；
+/// 挂起窗口永不应答 → 调用无限阻塞。capture 与 observe 共用同一条 STA 命令队列，一次阻塞
+/// 会连坐冻住进程内所有 observe/capture（30s 超时只放弃调用方，线程仍卡死）。
+/// BitBlt 回退只读屏幕 DC、不触达目标窗口，无此风险。
+/// 残余风险：窗口在调用**中途**挂起仍会阻塞（预检无法覆盖），见 spec 风险表。
+pub fn should_blit_first(hwnd: HWND) -> bool {
+  // unsafe 依据（块级）：windows 0.58 将 IsHungAppWindow 标为 unsafe（FFI 裸调用）。
+  unsafe { IsHungAppWindow(hwnd).as_bool() }
+}
+
 /// 截图窗口：`PrintWindow(PW_RENDERFULLCONTENT)` → 失败回退屏幕 DC 上的窗口矩形 BitBlt。
+/// 挂起目标经 `should_blit_first` 预检直接进回退路径（防 WM_PRINT 占死共享 STA 队列）。
 fn grab_window_frame(window_id: u32) -> AxResult<(Vec<u8>, i32, i32)> {
   // HWND 在 64 位进程里取低 32 位作窗口 id（与 apps::list_windows / observe 的截断互逆）。
   let hwnd = HWND(window_id as usize as *mut c_void);
@@ -208,11 +223,15 @@ fn grab_window_frame(window_id: u32) -> AxResult<(Vec<u8>, i32, i32)> {
     return Err(blank_err());
   }
   let target = GdiTarget::new(w, h)?;
+  // 挂起预检：挂起窗口的 WM_PRINT 永不应答会占死共享 STA 队列（连坐 observe/capture），
+  // 故跳过 PrintWindow 直接走不触达目标窗口的 BitBlt 回退。
+  let blit_first = should_blit_first(hwnd);
   // unsafe 依据（块级）：PrintWindow / BitBlt 均为 FFI；目标 DC 为本线程创建的内存 DC，
   // 位图节生命周期由 GdiTarget 守卫（Drop 先还原选入对象再释放）。
   unsafe {
-    if !PrintWindow(hwnd, target.mem_dc, PRINT_WINDOW_FLAGS(PW_RENDERFULLCONTENT)).as_bool() {
-      // 回退：屏幕 DC 按窗口屏幕坐标 Blt（PrintWindow 对个别窗口失效时的兜底）。
+    if blit_first || !PrintWindow(hwnd, target.mem_dc, PRINT_WINDOW_FLAGS(PW_RENDERFULLCONTENT)).as_bool()
+    {
+      // 回退：屏幕 DC 按窗口屏幕坐标 Blt（PrintWindow 失败或目标挂起时的兜底）。
       BitBlt(
         target.mem_dc,
         0,
@@ -225,7 +244,7 @@ fn grab_window_frame(window_id: u32) -> AxResult<(Vec<u8>, i32, i32)> {
         SRCCOPY,
       )
       .map_err(|e| {
-        AxError::internal(format!("PrintWindow 失败且窗口矩形 BitBlt 回退失败: {e}"))
+        AxError::internal(format!("窗口矩形 BitBlt 回退失败（PrintWindow 被跳过或失败）: {e}"))
       })?;
     }
   }
