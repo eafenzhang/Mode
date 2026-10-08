@@ -477,5 +477,25 @@
     "package": "khroma@2.1.0",
     "license": "MIT",
     "evidence": "The package does not declare a license field; its license contains the MIT grant and copyright notice."
+  },
+  {
+    "package": "@wecom/aibot-node-sdk@1.0.7",
+    "repo": "WecomTeam/aibot-node-sdk",
+    "refs": [
+      "80615b987ef69c6028ad764924609247c0725955"
+    ],
+    "file": "third-party/upstream/03b6eb98341d2b49260e4126ad165c0d882ac7ae7ebe7cca4c793da896424807.txt",
+    "sha256": "03b6eb98341d2b49260e4126ad165c0d882ac7ae7ebe7cca4c793da896424807",
+    "source": "https://registry.npmjs.org/@wecom%2faibot-node-sdk/1.0.7",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MIT",
+    "reviewEvidence": {
+      "checkedOn": "2026-10-08",
+      "result": "The versioned npm archive contains no standalone complete LICENSE; existing publisher declaration and original README license sections remain preserved. Upstream authorization/copyright material is still required to close this review.",
+      "npmArchiveSha256": "d30794828be97c2bdd1823e31ea835379b23322304a3fbe0d56d9ee46afedcde",
+      "sourceRevision": "80615b987ef69c6028ad764924609247c0725955",
+      "sourceTreeUrl": "https://api.github.com/repos/WecomTeam/aibot-node-sdk/git/trees/80615b987ef69c6028ad764924609247c0725955?recursive=1",
+      "upstreamLicenseFiles": []
+    }
   }
 ]
