@@ -357,6 +357,9 @@ jobs:
           # 内置远程资源默认源：指向本仓库该 tag 的 GitHub Release 资产（zz- 布局）。
           # 安装后的客户端开箱即可连接 WSL/SSH，不再要求用户配置环境变量。
           ZCODIUM_REMOTE_ASSET_CDN_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ needs.release.outputs.tag }}
+          # 桌面安装包既不打包也不依赖远端资源（只有 remote-assets job 需要），跳过可省掉
+          # 每个桌面平台 job 里串行的跨平台下载与打包。
+          ZCODE_SKIP_REMOTE_ASSETS: "1"
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: pnpm bundle:desktop -- --os ${{ matrix.target }} --arch ${{ matrix.arch }}
 
@@ -454,7 +457,9 @@ jobs:
       - name: Build GitHub release layout
         env:
           ZCODE_APP_VERSION: ${{ needs.release.outputs.version }}
-        run: node scripts/publish-remote-assets.mjs --out dist/remote-assets-github
+        # 平台列表与 scripts/prepare-prebuilds.mjs 的 remotePlatforms 保持一致：
+        # 只发常用远端目标（Linux x64/arm64），darwin 两套不再构建上传。
+        run: node scripts/publish-remote-assets.mjs --out dist/remote-assets-github --platforms linux-x64,linux-arm64
 
       - name: Upload remote assets to release
         env:
