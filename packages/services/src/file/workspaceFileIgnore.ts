@@ -1,4 +1,5 @@
 import { open, readFile, rename, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import ignoreFactory from "ignore";
 import type { Ignore } from "ignore";
@@ -16,7 +17,17 @@ import type { ServiceLogger } from "../logger/serviceLogger.js";
  * `**` 跨层、目录后缀 `/`、字符类与转义。禁止在本仓库手写 gitignore 解析。
  */
 
-export const WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME = ".zcodeignore";
+export const WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME = ".modeignore";
+/** 改名前的忽略文件名（.zcodeignore）：读取时继续兼容。 */
+export const LEGACY_WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME = ".zcodeignore";
+
+/** 解析忽略文件路径：新名优先，旧名兜底；两者都不存在时返回新名（新建一律用新名）。 */
+function resolveWorkspaceIgnorePath(rootPath: string): string {
+  const primary = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  if (existsSync(primary)) return primary;
+  const legacy = resolve(rootPath, LEGACY_WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  return existsSync(legacy) ? legacy : primary;
+}
 const GITIGNORE_FILE_NAME = ".gitignore";
 
 type WorkspaceFileIgnoreLogger = Pick<ServiceLogger, "info" | "warn">;
@@ -291,7 +302,7 @@ export async function loadWorkspaceFileSearchIgnoreRules(
   rootPath: string,
   logger?: WorkspaceFileIgnoreLogger,
 ): Promise<WorkspaceFileSearchIgnoreRules> {
-  const ignorePath = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  const ignorePath = resolveWorkspaceIgnorePath(rootPath);
 
   const degradeToInMemory = async (
     reason: string,
@@ -380,7 +391,7 @@ export function isWorkspaceFileSearchPathIgnored(
 export async function readWorkspaceFileSearchIgnore(
   rootPath: string,
 ): Promise<WorkspaceFileSearchIgnoreContent> {
-  const ignorePath = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  const ignorePath = resolveWorkspaceIgnorePath(rootPath);
   const existing = await readOptionalFile(ignorePath);
   if (existing !== null) {
     return { content: existing, source: "file" };
@@ -405,7 +416,7 @@ export async function transformWorkspaceFileSearchIgnore(
   rootPath: string,
   transform: WorkspaceFileSearchIgnoreTransform,
 ): Promise<{ content: string }> {
-  const ignorePath = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  const ignorePath = resolveWorkspaceIgnorePath(rootPath);
   const existing = await readOptionalFile(ignorePath).catch(() => null);
   const gitignoreContent = await readOptionalFile(resolve(rootPath, GITIGNORE_FILE_NAME)).catch(
     () => null,
@@ -423,6 +434,6 @@ export async function writeWorkspaceFileSearchIgnore(
   rootPath: string,
   content: string,
 ): Promise<void> {
-  const ignorePath = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
+  const ignorePath = resolveWorkspaceIgnorePath(rootPath);
   await atomicWriteIgnoreFile(ignorePath, content);
 }

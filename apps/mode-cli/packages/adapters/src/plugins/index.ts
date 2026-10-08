@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type {
   CustomCommandRoot,
@@ -98,7 +98,9 @@ export {
   type PluginUpdateStatus,
 } from "./version-compare.js";
 
-const MODE_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
+const MODE_MANIFEST_PATH = join(".mode-plugin", "plugin.json");
+/** 改名前的清单目录（.zcode-plugin）：继续可读，第三方插件不作废。 */
+const MODE_LEGACY_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
 const CLAUDE_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const DEFAULT_VERSION = "0.0.0";
@@ -929,7 +931,10 @@ function loadPlugin(
 }
 
 function findManifest(rootPath: string): string | null {
-  const modePath = join(rootPath, MODE_MANIFEST_PATH);
+  const modePath =
+    [MODE_MANIFEST_PATH, MODE_LEGACY_MANIFEST_PATH]
+      .map((relativePath) => join(rootPath, relativePath))
+      .find((candidate) => existsSync(candidate)) ?? join(rootPath, MODE_MANIFEST_PATH);
   if (fileExists(modePath)) {
     return modePath;
   }

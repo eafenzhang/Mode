@@ -64,7 +64,9 @@ const MARKETPLACE_MANIFEST_RELATIVE_CANDIDATES = [
   "marketplace.json",
   ".agents/plugins/marketplace.json",
 ] as const;
-const MODE_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
+const MODE_MANIFEST_PATH = join(".mode-plugin", "plugin.json");
+/** 改名前的清单目录（.zcode-plugin）：继续可读。 */
+const MODE_LEGACY_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
 const CLAUDE_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const DEFAULT_VERSION = "0.0.0";
@@ -2377,7 +2379,12 @@ function findMarketplaceManifestPath(rootPath: string, explicitPath?: string): s
 }
 
 function findPluginManifestPath(rootPath: string): string | null {
-  for (const candidate of [MODE_MANIFEST_PATH, CLAUDE_MANIFEST_PATH, CODEX_MANIFEST_PATH]) {
+  for (const candidate of [
+    MODE_MANIFEST_PATH,
+    MODE_LEGACY_MANIFEST_PATH,
+    CLAUDE_MANIFEST_PATH,
+    CODEX_MANIFEST_PATH,
+  ]) {
     const path = join(rootPath, candidate);
     if (fileExists(path)) return path;
   }
