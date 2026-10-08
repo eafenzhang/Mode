@@ -222,6 +222,8 @@ jobs:
         run: pnpm typecheck
       - name: Lint
         run: pnpm lint
+      - name: Language policy gate
+        run: node scripts/check-language-policy.mjs
       - name: Shared, service and desktop tests
         run: |
           set -euo pipefail
