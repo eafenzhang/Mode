@@ -24,7 +24,7 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", app
 
 const container = document.getElementById("root");
 const bridge = (window as Window & { modeDataRootDecision?: DataRootDecisionBridge })
-  .zcodiumDataRootDecision;
+  .modeDataRootDecision;
 
 if (container) {
   const root = createRoot(container);

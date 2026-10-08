@@ -86,7 +86,7 @@ const STAGES = {
     [/"bin": \{ "mode": "\.\/dist\/mode\.cjs" \}/g, '"bin": { "mode": "./dist/mode.cjs" }'],
   ],
   dataroot: [
-    [/\.zcodium/g, ".mode"],
+    [/\.mode/g, ".mode"],
     [/Mode/g, "Mode"],
   ],
   plugins: [

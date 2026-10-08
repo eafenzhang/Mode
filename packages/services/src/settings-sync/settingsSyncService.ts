@@ -426,7 +426,7 @@ function getWorkspaceModeSkillRoot(workspacePath: string): string {
 }
 
 function getUserModeSkillRoot(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "skills");
+  return join(resolveUserHomeDir(), ".mode", "skills");
 }
 
 function getWorkspaceModeCommandRoot(workspacePath: string): string {
@@ -434,7 +434,7 @@ function getWorkspaceModeCommandRoot(workspacePath: string): string {
 }
 
 function getUserModeCommandRoot(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "commands");
+  return join(resolveUserHomeDir(), ".mode", "commands");
 }
 
 function getWorkspaceModePluginRoot(workspacePath: string): string {
@@ -442,11 +442,11 @@ function getWorkspaceModePluginRoot(workspacePath: string): string {
 }
 
 function getUserModePluginRoot(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "plugins");
+  return join(resolveUserHomeDir(), ".mode", "plugins");
 }
 
 function getUserModeCliConfigPath(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "cli", "config.json");
+  return join(resolveUserHomeDir(), ".mode", "cli", "config.json");
 }
 
 function getWorkspaceModeConfigPath(workspacePath: string): string {
@@ -458,7 +458,7 @@ function getClaudeUserAgentsFileSourcePath(): string {
 }
 
 function getUserModeAgentsFilePath(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "AGENTS.md");
+  return join(resolveUserHomeDir(), ".mode", "AGENTS.md");
 }
 
 function resolveTargetRootForScope(

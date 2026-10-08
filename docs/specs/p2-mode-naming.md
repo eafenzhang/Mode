@@ -15,7 +15,7 @@
 | 目录名 | `apps/mode-cli`、`packages/mode-*`、`scripts/mode-distribution`、`src/mode-protocol*`、`src/mode-{agent,session}` | `mode-*` | 无 |
 | 产物名 | `dist/mode.cjs`、`mode-<版本>.tar.gz` | `dist/mode.cjs`、`mode-<版本>.tar.gz` | 无（安装器与文档同步） |
 | 命令名 | `mode` | `mode` | 无 alias（P0 已定过同一口径） |
-| 用户数据根 | `{base}/.zcodium` | `{base}/.mode` | 多代迁移：`.mode` ← `.zcodium` ← `.mode`，迁移失败保留旧路径 |
+| 用户数据根 | `{base}/.mode` | `{base}/.mode` | 多代迁移：`.mode` ← `.mode` ← `.mode`，迁移失败保留旧路径 |
 | Electron userData | `Mode` | `Mode` | 首次启动迁移旧目录，失败则继续用旧目录 |
 | 插件市场 id | `zcode-plugins-official` | `mode-plugins-official` | 落盘数据迁移（设置 / 安装记录 / cache 目录） |
 | 插件清单目录 | `.zcode-plugin/plugin.json` | `.mode-plugin/plugin.json` | 新名为主，**继续读旧路径**，第三方插件不作废 |

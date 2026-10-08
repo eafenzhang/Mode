@@ -1,5 +1,5 @@
 /**
- * 数据根归属文件（{base}/.zcodium/.zcodium-root.json）读写与冲突目录备份。
+ * 数据根归属文件（{base}/.mode/.mode-root.json）读写与冲突目录备份。
  *
  * 分层规则：本文件是唯一允许直接读写归属文件的位置；其它模块通过
  * initializer 暴露的接口获取状态，不得自行解析归属文件。
@@ -10,6 +10,7 @@ import {
   DATA_ROOT_MANIFEST_FILE_NAME,
   DATA_ROOT_MANIFEST_SCHEMA_VERSION,
   DATA_ROOT_PRODUCT_ID,
+  isAcceptedDataRootProduct,
   MODE_DATA_ROOT_DIR_NAME,
   parseDataRootManifest,
   type DataRootManifest,
@@ -20,7 +21,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** 数据根目录绝对路径（{base}/.zcodium）。 */
+/** 数据根目录绝对路径（{base}/.mode）。 */
 export function resolveDataRootDir(baseDir: string): string {
   return join(baseDir, MODE_DATA_ROOT_DIR_NAME);
 }
@@ -55,7 +56,9 @@ export function readDataRootStatus(baseDir: string): DataRootStatus {
   if (manifest.schemaVersion > DATA_ROOT_MANIFEST_SCHEMA_VERSION) {
     return { kind: "corrupt", reason: "schema-unsupported", rootDir };
   }
-  if (manifest.product !== DATA_ROOT_PRODUCT_ID) {
+  // 接受历史 product id：改名（ZCODIUM → Mode）前登记的根必须仍然算「自己人」，
+  // 否则存量用户的数据会被判 unowned 而备份让路。
+  if (!isAcceptedDataRootProduct(manifest.product)) {
     return { kind: "unowned", reason: "product-mismatch", rootDir };
   }
   return { kind: "normal", manifest };
@@ -79,7 +82,7 @@ export function writeDataRootManifestIntoRoot(rootDir: string, manifest: DataRoo
 }
 
 /**
- * 原子写归属文件到 {base}/.zcodium；归属文件已存在时覆盖（升级/导入场景由调用方决定语义）。
+ * 原子写归属文件到 {base}/.mode；归属文件已存在时覆盖（升级/导入场景由调用方决定语义）。
  */
 export function writeDataRootManifest(baseDir: string, manifest: DataRootManifest): string {
   return writeDataRootManifestIntoRoot(resolveDataRootDir(baseDir), manifest);
@@ -100,7 +103,7 @@ function formatBackupTimestamp(date: Date): string {
 }
 
 /**
- * 把 {base}/.zcodium 整体备份为 {base}/.zcodium.<label>-<ts>，不删除、不合并。
+ * 把 {base}/.mode 整体备份为 {base}/.mode.<label>-<ts>，不删除、不合并。
  * 返回备份落点；目录不存在返回 null。
  */
 export function forfeitDataRootByLabel(baseDir: string, label: string): string | null {
@@ -121,8 +124,8 @@ export function forfeitDataRootByLabel(baseDir: string, label: string): string |
 }
 
 /**
- * unowned/corrupt 冲突目录整体备份让路：重命名为 .zcodium.unowned-<ts> /
- * .zcodium.corrupt-<ts>，不删除、不合并。返回备份落点；目录不存在返回 null。
+ * unowned/corrupt 冲突目录整体备份让路：重命名为 .mode.unowned-<ts> /
+ * .mode.corrupt-<ts>，不删除、不合并。返回备份落点；目录不存在返回 null。
  */
 export function forfeitConflictingDataRoot(
   baseDir: string,

@@ -23,7 +23,7 @@ export interface ServerLayout {
 
 function getDefaultServerDataRoot(): string {
   const configured = readExternalEnvVar(process.env, "MODE_DATA_BASE_DIR");
-  return join(configured || homedir(), ".zcodium", "server");
+  return join(configured || homedir(), ".mode", "server");
 }
 
 export function resolveServerLayout(serverRoot = getDefaultServerDataRoot()): ServerLayout {
@@ -80,7 +80,7 @@ export async function resolveCanonicalServerLayout(
 
 function inferDataBaseDir(serverRoot: string): string {
   const parent = dirname(serverRoot);
-  if (basename(serverRoot) === "server" && basename(parent) === ".zcodium") {
+  if (basename(serverRoot) === "server" && basename(parent) === ".mode") {
     return dirname(parent);
   }
   // 非标准的显式 server root 仍保持隔离，不向其父目录扩散 Agent/SQLite 数据。

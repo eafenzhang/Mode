@@ -2236,7 +2236,7 @@ const zhCN: Record<string, string> = {
   "settings.taskAutoArchiveDays.option.30": "30 天后归档",
   "settings.dataBaseDir": "数据存储路径",
   "settings.dataBaseDirDescription":
-    "应用数据的根目录（默认为用户主目录），修改后会将现有数据复制到新位置。路径后缀 .zcodium/v2 不可更改。",
+    "应用数据的根目录（默认为用户主目录），修改后会将现有数据复制到新位置。路径后缀 .mode/v2 不可更改。",
   "settings.dataBaseDirPlaceholder": "默认：用户主目录",
   "settings.dataBaseDirBrowse": "选择文件夹",
   "settings.dataBaseDirSave": "保存",
@@ -6013,7 +6013,7 @@ const zhCN: Record<string, string> = {
   "dataRoot.loading": "正在准备…",
   "dataRoot.title": "数据存储设置",
   "dataRoot.status.absentWithLegacy":
-    "检测到旧版 Mode / Mode 的数据。你可以把它复制到新的数据目录，也可以全新开始；无论选择哪种，旧目录都会原样保留。",
+    "检测到旧版数据目录（Mode 改名前的 .zcodium，或更早上游的 .zcode）。你可以把它复制到新的数据目录，也可以全新开始；无论选择哪种，旧目录都会原样保留。",
   "dataRoot.status.unowned":
     "当前数据目录包含无法识别归属的数据（可能来自其它分支或手动创建）。继续操作前会先整体备份该目录，不会删除或合并。",
   "dataRoot.status.corrupt":

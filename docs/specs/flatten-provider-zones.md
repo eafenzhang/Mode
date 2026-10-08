@@ -89,7 +89,7 @@ Mode 是去智谱化的社区 fork，但剥离不彻底：模型设置仍保留�
 ## 存量数据一次性迁移
 
 builtin 删除只改变「可选项」，不会回头修改用户磁盘上的数据。个人 provider 配置
-（`.zcodium/v2/provider_config.json`）里可能残留三类悬空引用：Provider 排序项、
+（`.mode/v2/provider_config.json`）里可能残留三类悬空引用：Provider 排序项、
 按 Provider 命名的模型规则，以及 `defaultModelSelection`。因此本 PR 补一条显式的
 一次性对账，而不是依赖读取时的兼容兜底。
 

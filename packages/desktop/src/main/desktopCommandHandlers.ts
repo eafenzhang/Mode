@@ -91,7 +91,7 @@ async function clearAllDataAndRelaunch(options: {
     title: "Clear All Data",
     message: "确定要清除所有数据吗？",
     detail:
-      "将删除 ~/.zcodium/v2（配置、凭据、日志）和浏览器缓存（localStorage）。操作不可恢复，清除后应用将自动重启。",
+      "将删除 ~/.mode/v2（配置、凭据、日志）和浏览器缓存（localStorage）。操作不可恢复，清除后应用将自动重启。",
   });
   if (response !== 1) {
     return;
@@ -100,9 +100,9 @@ async function clearAllDataAndRelaunch(options: {
   const { rm } = await import("node:fs/promises");
   try {
     await rm(options.credentialsDir, { recursive: true, force: true });
-    options.logger.info("[clear-all-data] deleted ~/.zcodium/v2");
+    options.logger.info("[clear-all-data] deleted ~/.mode/v2");
   } catch (error) {
-    options.logger.error("[clear-all-data] failed to delete ~/.zcodium/v2:", error);
+    options.logger.error("[clear-all-data] failed to delete ~/.mode/v2:", error);
   }
 
   for (const win of BrowserWindow.getAllWindows()) {

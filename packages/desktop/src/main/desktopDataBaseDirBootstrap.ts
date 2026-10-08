@@ -25,7 +25,7 @@ export type DesktopDataRootStartupResult =
   | { state: "pending"; baseDir: string; status: DataRootPendingStatus };
 
 function resolveBootstrapSettingsFile(homePath: string = homedir()): string {
-  return join(homePath, ".zcodium", "v2", "setting.json");
+  return join(homePath, ".mode", "v2", "setting.json");
 }
 
 function extractBootstrapDataBaseDir(rawValue: unknown): string | null {

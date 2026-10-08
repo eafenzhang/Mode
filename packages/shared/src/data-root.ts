@@ -1,20 +1,31 @@
 /**
- * Mode 用户级数据根（~/.zcodium）与归属文件契约。
+ * Mode 用户级数据根（~/.mode）与归属文件契约。
  *
- * 与官方 Mode 客户端的 ~/.mode 命名空间隔离，双方互不读写。
- * 旧值 .mode 仅供一次性迁移逻辑使用；工作区项目级 .mode 目录
- * （项目内 skills/commands/plugins/config）属于项目命名空间，不受本常量影响。
+ * 历史沿革：`.zcode`（上游）→ `.zcodium`（改名期）→ `.mode`（当前）。旧根仅供一次性迁移
+ * 逻辑使用；工作区项目级 `.zcode/` 目录（项目内 skills/commands/plugins/config）属于项目
+ * 命名空间，不受本常量影响。
  *
- * 归属文件 {base}/.zcodium/.zcodium-root.json 是数据根合法性的唯一依据：
- * - 存在、可解析、product 匹配、schemaVersion 支持 → 复用；
+ * 归属文件 {base}/.mode/.mode-root.json 是数据根合法性的唯一依据：
+ * - 存在、可解析、product 匹配（含历史 product id）、schemaVersion 支持 → 复用；
  * - 缺失 / product 不匹配 → unowned（先备份让路）；
  * - 不可解析 / schemaVersion 过新 → corrupt（不静默复用）。
  */
-export const MODE_DATA_ROOT_DIR_NAME = ".zcodium";
-export const LEGACY_MODE_DATA_ROOT_DIR_NAME = ".mode";
+export const MODE_DATA_ROOT_DIR_NAME = ".mode";
+
+/** 迁移时按由新到旧探测的旧根目录名。 */
+export const LEGACY_MODE_DATA_ROOT_DIR_NAMES = [".zcodium", ".zcode"] as const;
+
+/** @deprecated 改用 LEGACY_MODE_DATA_ROOT_DIR_NAMES；保留导出避免破坏既有引用。 */
+export const LEGACY_MODE_DATA_ROOT_DIR_NAME = LEGACY_MODE_DATA_ROOT_DIR_NAMES[0];
 
 /** 归属文件名；放在数据根目录（不放 v2/），清除数据不会重置归属。 */
-export const DATA_ROOT_MANIFEST_FILE_NAME = ".zcodium-root.json";
+export const DATA_ROOT_MANIFEST_FILE_NAME = ".mode-root.json";
+
+/** 读取归属文件时额外接受的旧文件名（由新到旧）。 */
+export const LEGACY_DATA_ROOT_MANIFEST_FILE_NAMES = [
+  ".zcodium-root.json",
+  ".zcode-root.json",
+] as const;
 
 /** 归属文件/布局格式版本。读取到更高版本时按 corrupt 处理（禁止降级读取）。 */
 export const DATA_ROOT_MANIFEST_SCHEMA_VERSION = 1;
@@ -25,7 +36,10 @@ export const DATA_ROOT_MANIFEST_SCHEMA_VERSION = 1;
  * 取产品 appId 家族值（不含 Preview 渠道后缀）：Preview 与正式版共用数据根且
  * 归属互认，渠道隔离不在本期范围（见 docs/specs/mode-data-root.md）。
  */
-export const DATA_ROOT_PRODUCT_ID = "dev.zcodium.app";
+export const DATA_ROOT_PRODUCT_ID = "dev.mode.app";
+
+/** 归属互认的历史产品标识（改名前的 appId 家族值），避免存量根被判 unowned。 */
+export const LEGACY_DATA_ROOT_PRODUCT_IDS = ["dev.zcodium.app"] as const;
 
 export type DataRootManifestCreatedBy = "desktop" | "cli" | "server";
 
@@ -51,6 +65,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+/** 归属是否属于本产品家族（含改名前的 product id）。 */
+export function isAcceptedDataRootProduct(product: string): boolean {
+  return product === DATA_ROOT_PRODUCT_ID || LEGACY_DATA_ROOT_PRODUCT_IDS.includes(product as never);
 }
 
 /**

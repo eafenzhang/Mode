@@ -34,7 +34,7 @@ import {
 } from "./project-config.adapter.js";
 
 export interface ConfigFactoryOptions {
-  /** Path to user config file (default: ~/.zcodium/cli/config.json) */
+  /** Path to user config file (default: ~/.mode/cli/config.json) */
   userConfigPath?: string;
   /** Path to project config file */
   projectConfigPath?: string;
@@ -121,7 +121,7 @@ export interface PluginConfigSources {
  *
  * Priority (lowest to highest):
  * 1. System defaults
- * 2. User config file (~/.zcodium/cli/config.json)
+ * 2. User config file (~/.mode/cli/config.json)
  * 3. Project config files (root to cwd, then explicit projectConfigPath)
  * 4. Environment variables (MODE_*)
  * 5. CLI overrides

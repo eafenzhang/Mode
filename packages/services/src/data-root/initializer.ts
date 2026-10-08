@@ -289,7 +289,7 @@ export function executeDesktopFreshStart(input: InitializeDataRootInput) {
 }
 
 /**
- * 设置页再次导入：先备份现有根（整体改名 .zcodium.import-<ts>），
+ * 设置页再次导入：先备份现有根（整体改名 .mode.import-<ts>），
  * 再把旧根复制为新根（mode=import）。备份保留供回退。
  */
 export async function executeDataRootImport(

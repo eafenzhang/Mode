@@ -53,7 +53,7 @@ function resolveUserHomeDir() {
 }
 
 function getSettingsDir() {
-  return join(resolveUserHomeDir(), ".zcodium", "v2");
+  return join(resolveUserHomeDir(), ".mode", "v2");
 }
 
 function getSettingsFile() {

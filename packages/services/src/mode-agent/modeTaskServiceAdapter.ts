@@ -244,7 +244,7 @@ function formatModeAgentLogDate(now: Date): string {
 
 function resolveModeAgentCurrentLogFilePath(now = new Date()): string {
   const configuredLogDir = process.env.MODE_LOG_DIR?.trim();
-  const logDir = configuredLogDir || join(homedir(), ".zcodium", "cli", "log");
+  const logDir = configuredLogDir || join(homedir(), ".mode", "cli", "log");
   return join(logDir, `mode-${formatModeAgentLogDate(now)}.jsonl`);
 }
 

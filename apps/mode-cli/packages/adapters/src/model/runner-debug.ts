@@ -585,9 +585,9 @@ function sanitizeFileSegment(value?: string): string {
 }
 
 // storage profile 回滚删除了自定义 CLI 根模块，遗留 import 会让 adapters 无法构建。
-// 这里保持历史语义：开发态写 ~/.zcodium/cli/debug，生产态写 ~/.zcodium/cli/rollout。
+// 这里保持历史语义：开发态写 ~/.mode/cli/debug，生产态写 ~/.mode/cli/rollout。
 function getModelIOBaseDir(isDev: boolean): string {
-  return join(homedir(), ".zcodium", "cli", isDev ? "debug" : "rollout");
+  return join(homedir(), ".mode", "cli", isDev ? "debug" : "rollout");
 }
 
 function stringifyDebugRecord(record: Record<string, unknown>): string {

@@ -28,7 +28,7 @@ export interface DataRootDecisionStatus {
   reason?: string;
   /** 发送 pending 的 base 目录。 */
   baseDir: string;
-  /** unowned/corrupt 时的冲突目录 {base}/.zcodium；absent 时为 undefined。 */
+  /** unowned/corrupt 时的冲突目录 {base}/.mode；absent 时为 undefined。 */
   conflictingRoot?: string;
 }
 
@@ -74,7 +74,7 @@ export interface DataRootDecisionProgress {
   currentBaseDir?: string;
 }
 
-/** 决策窗口 preload 暴露的 API（window.zcodiumDataRootDecision）。 */
+/** 决策窗口 preload 暴露的 API（window.modeDataRootDecision）。 */
 export interface DataRootDecisionBridge {
   getState(): Promise<DataRootDecisionState>;
   decide(action: DataRootDecisionAction): Promise<DataRootDecisionResult>;

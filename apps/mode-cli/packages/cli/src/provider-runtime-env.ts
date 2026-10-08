@@ -74,7 +74,7 @@ export async function prepareCliProviderRuntimeEnv(
       sea: options.sea ?? getSeaProviderConfigAssets(),
     }));
   const personalFilePath =
-    explicitPersonal ?? join(dataBaseDir, ".zcodium", "v2", PERSONAL_PROVIDER_CONFIG_FILE_NAME);
+    explicitPersonal ?? join(dataBaseDir, ".mode", "v2", PERSONAL_PROVIDER_CONFIG_FILE_NAME);
   // Mode 去智谱化：停用官方 CDN builtin 源后，数据目录缓存（曾承载远端下发
   // 的套餐模板）不再参与；builtin 配置唯一事实源是 bundled 仓库文件，由上游
   // 同步人工维护。
@@ -120,7 +120,7 @@ async function resolveBundledModeBuiltinProviderConfig(input: {
   if (input.sea?.isSea()) {
     const content = input.sea.getAsset(SEA_MODE_BUILTIN_PROVIDER_CONFIG_ASSET_KEY, "utf8");
     return materializeModeBuiltinProviderConfig({
-      environmentConfigRoot: join(input.dataBaseDir, ".zcodium", "v2"),
+      environmentConfigRoot: join(input.dataBaseDir, ".mode", "v2"),
       content,
     });
   }

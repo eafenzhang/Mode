@@ -131,7 +131,7 @@ function resolveUserHomeDir(): string {
 }
 
 function getUserModeSkillRoot(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "skills");
+  return join(resolveUserHomeDir(), ".mode", "skills");
 }
 
 function getUserAgentsSkillRoot(): string {

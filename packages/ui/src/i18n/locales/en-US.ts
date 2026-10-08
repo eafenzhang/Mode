@@ -2377,7 +2377,7 @@ const enUS: Record<string, string> = {
   "settings.taskAutoArchiveDays.option.30": "Archive after 30 days",
   "settings.dataBaseDir": "Data storage path",
   "settings.dataBaseDirDescription":
-    "Root directory for app data (defaults to user home directory). Existing data will be copied to the new location. The .zcodium/v2 suffix cannot be changed.",
+    "Root directory for app data (defaults to user home directory). Existing data will be copied to the new location. The .mode/v2 suffix cannot be changed.",
   "settings.dataBaseDirPlaceholder": "Default: user home directory",
   "settings.dataBaseDirBrowse": "Choose folder",
   "settings.dataBaseDirSave": "Save",
@@ -6285,7 +6285,7 @@ const enUS: Record<string, string> = {
   "dataRoot.loading": "Preparing…",
   "dataRoot.title": "Data storage",
   "dataRoot.status.absentWithLegacy":
-    "Legacy Mode / Mode data was found. You can copy it into the new data directory, or start fresh; either way the old directory is kept as is.",
+    "Legacy data directories were found (.zcodium from before the Mode rename, or the older upstream .zcode). You can copy one into the new data directory, or start fresh; either way the old directory is kept as is.",
   "dataRoot.status.unowned":
     "The current data directory is not owned by this product (it may come from another branch or was created manually). It will be backed up first; nothing is deleted or merged.",
   "dataRoot.status.corrupt":

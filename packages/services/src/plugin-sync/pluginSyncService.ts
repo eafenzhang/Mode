@@ -217,11 +217,11 @@ function resolveUserHomeDir(): string {
 }
 
 function getUserModeConfigPath(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "cli", "config.json");
+  return join(resolveUserHomeDir(), ".mode", "cli", "config.json");
 }
 
 function getUserModePluginRoot(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "plugins");
+  return join(resolveUserHomeDir(), ".mode", "plugins");
 }
 
 async function collectLocalUserPluginCandidates(): Promise<PluginSyncCandidate[]> {

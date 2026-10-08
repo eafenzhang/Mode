@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- desktop runtime/env 解析需要集中维护 main/host/remote assets 的启动边界，拆分会扩大远程连接回归面。 */
+import { cpSync } from "node:fs";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, win32 } from "node:path";
@@ -65,15 +66,32 @@ export const runtimeApplicationName =
     : isPreviewPackagedRuntime
       ? "Mode Preview"
       : "Mode");
-// userData 目录名固定沿用更名前的 Mode：它存放登录态、窗口状态与各类缓存，
-// 跟着显示名改成 Mode* 会让既有数据留在旧目录里“消失”（Electron 不做迁移）。
-// flavor 后缀保留，dev/preview/正式版继续各自独立。
+// userData 目录名随产品名统一为 Mode（Dev/Preview 后缀保留，各自独立）。
 const USER_DATA_DIRECTORY_BASE_NAME = "Mode";
 export const runtimeUserDataDirectoryName = isLocalDevelopmentRuntime
   ? `${USER_DATA_DIRECTORY_BASE_NAME} Dev`
   : isPreviewPackagedRuntime
     ? `${USER_DATA_DIRECTORY_BASE_NAME} Preview`
     : USER_DATA_DIRECTORY_BASE_NAME;
+
+/**
+ * userData 里放的是登录态、窗口状态与各类缓存，Electron 自身不做迁移。改名（ZCodium → Mode）
+ * 后这里在新目录缺失时把同口径的旧目录整体复制过来；复制失败就继续用旧目录——
+ * 宁可用不上新名字，也不能让用户看起来「数据没了」。
+ */
+function resolveUserDataPathWithLegacyMigration(): string {
+  const appData = getElectronAppPath("appData");
+  const target = join(appData, runtimeUserDataDirectoryName);
+  if (existsSync(target)) return target;
+  const legacy = join(appData, runtimeUserDataDirectoryName.replace(/^Mode/, "ZCodium"));
+  if (!existsSync(legacy)) return target;
+  try {
+    cpSync(legacy, target, { recursive: true, errorOnExist: false });
+    return target;
+  } catch {
+    return legacy;
+  }
+}
 // Electron 的 app.getPath("home") 不一定跟随测试进程里的 HOME 覆盖。
 // e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 ~/ModeProject。
 export const runtimeHomePath = readRuntimeEnvOverride("MODE_DESKTOP_HOME_DIR");
@@ -85,7 +103,7 @@ export const runtimeUserDataPath =
   readRuntimeEnvOverride("MODE_DESKTOP_USER_DATA_DIR") ??
   (shouldUseElectronDefaultUserDataPath
     ? undefined
-    : join(getElectronAppPath("appData"), runtimeUserDataDirectoryName));
+    : resolveUserDataPathWithLegacyMigration());
 export const runtimeSessionDataPath =
   readRuntimeEnvOverride("MODE_DESKTOP_SESSION_DATA_DIR") ??
   (runtimeUserDataPath ? join(runtimeUserDataPath, "session") : undefined);
@@ -506,7 +524,7 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
             )
           ? rawInheritedEnv.MODE_CUA_BUNDLED_HELPER_APP_PATH?.trim() ||
             join(
-              rawInheritedEnv.MODE_HOME?.trim() || join(homedir(), ".zcodium"),
+              rawInheritedEnv.MODE_HOME?.trim() || join(homedir(), ".mode"),
               "computer-use",
               "dev",
               DEV_HELPER_APP_NAME,

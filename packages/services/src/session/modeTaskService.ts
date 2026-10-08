@@ -594,7 +594,7 @@ export interface IModeTaskService {
   }>;
 
   /**
-   * 读取 task 对应的模型调用轨迹（来自 ~/.zcodium/cli/{debug,rollout} 的 model-io JSONL）。
+   * 读取 task 对应的模型调用轨迹（来自 ~/.mode/cli/{debug,rollout} 的 model-io JSONL）。
    * taskId 即 Mode Agent 的 sessionId，按 sessionId 匹配 model-io 记录。
    */
   getModelTrajectory(params: {

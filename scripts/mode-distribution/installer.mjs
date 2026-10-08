@@ -5,7 +5,7 @@ export function installScriptSource(baseUrl) {
 set -eu
 
 BASE_URL="\${MODE_DIST_BASE_URL:-${baseUrl}}"
-INSTALL_DIR="\${MODE_DIST_HOME:-\${MODE_DIST_HOME:-$HOME/.zcodium/runtime}}"
+INSTALL_DIR="\${MODE_DIST_HOME:-\${MODE_DIST_HOME:-$HOME/.mode/runtime}}"
 BIN_DIR="\${MODE_DIST_BIN_DIR:-\${MODE_DIST_BIN_DIR:-$HOME/.local/bin}"
 
 need_cmd() {

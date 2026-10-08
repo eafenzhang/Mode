@@ -34,7 +34,7 @@ export async function resolveModeStorageRoot(options?: SubagentStorageOptions): 
   const storageDir =
     typeof storage.dir === "string" && storage.dir.trim().length > 0
       ? storage.dir.trim()
-      : "~/.zcodium";
+      : "~/.mode";
   return resolveConfigPath(storageDir, options);
 }
 
@@ -50,7 +50,7 @@ async function readUserCliConfig(
 ): Promise<Record<string, unknown>> {
   try {
     const raw = await readFile(
-      join(resolveUserHomeDir(options), ".zcodium", "cli", "config.json"),
+      join(resolveUserHomeDir(options), ".mode", "cli", "config.json"),
       "utf8",
     );
     const parsed = JSON.parse(raw) as unknown;

@@ -28,7 +28,7 @@ function makeBase() {
 }
 
 function writeManifestFile(base: string, raw: string): void {
-  const root = join(base, ".zcodium");
+  const root = join(base, ".mode");
   mkdirSync(root, { recursive: true });
   writeFileSync(join(root, DATA_ROOT_MANIFEST_FILE_NAME), raw);
 }
@@ -73,7 +73,7 @@ test("unowned：有目录但没有归属文件", async () => {
   const { readDataRootStatus } = await loadOwnership();
   const base = makeBase();
   try {
-    mkdirSync(join(base, ".zcodium", "v2"), { recursive: true });
+    mkdirSync(join(base, ".mode", "v2"), { recursive: true });
     const status = readDataRootStatus(base);
     assert.equal(status.kind, "unowned");
     if (status.kind === "unowned") {
@@ -145,13 +145,13 @@ test("writeDataRootManifest 原子写：内容完整且不残留临时文件", a
     };
     writeDataRootManifest(base, manifest);
     assert.equal(readDataRootStatus(base).kind, "normal");
-    const rootFiles = readdirSync(join(base, ".zcodium"));
+    const rootFiles = readdirSync(join(base, ".mode"));
     assert.equal(
       rootFiles.some((name) => name.endsWith(".tmp")),
       false,
     );
     const parsed = JSON.parse(
-      readFileSync(join(base, ".zcodium", DATA_ROOT_MANIFEST_FILE_NAME), "utf8"),
+      readFileSync(join(base, ".mode", DATA_ROOT_MANIFEST_FILE_NAME), "utf8"),
     );
     assert.equal(parsed.createdBy, "cli");
   } finally {
@@ -163,16 +163,16 @@ test("forfeitConflictingDataRoot：整体备份且原目录内容保留", async 
   const { forfeitConflictingDataRoot, readDataRootStatus } = await loadOwnership();
   const base = makeBase();
   try {
-    mkdirSync(join(base, ".zcodium", "v2"), { recursive: true });
-    writeFileSync(join(base, ".zcodium", "v2", "other-product.json"), "keep-me");
+    mkdirSync(join(base, ".mode", "v2"), { recursive: true });
+    writeFileSync(join(base, ".mode", "v2", "other-product.json"), "keep-me");
     const status = readDataRootStatus(base);
     assert.equal(status.kind, "unowned");
     if (status.kind !== "unowned") return;
     const backup = forfeitConflictingDataRoot(base, status);
     assert.ok(backup);
-    assert.equal(existsSync(join(base, ".zcodium")), false);
+    assert.equal(existsSync(join(base, ".mode")), false);
     assert.equal(readFileSync(join(backup, "v2", "other-product.json"), "utf8"), "keep-me");
-    assert.match(backup, /\.zcodium\.unowned-/u);
+    assert.match(backup, /\.mode\.unowned-/u);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }

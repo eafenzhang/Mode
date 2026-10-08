@@ -30,7 +30,7 @@ function makeBase() {
 }
 
 function seedLegacyRoot(base: string): string {
-  const legacy = join(base, ".mode");
+  const legacy = join(base, ".zcodium");
   mkdirSync(join(legacy, "v2"), { recursive: true });
   mkdirSync(join(legacy, "cli", "db"), { recursive: true });
   writeFileSync(join(legacy, "v2", "setting.json"), '{"marker":"legacy"}');
@@ -66,7 +66,7 @@ test("interactive：absent 且无旧根直接初始化", async () => {
       appVersion: "3.15.0",
     });
     assert.equal(result.state, "initialized");
-    assert.equal(existsSync(join(base, ".zcodium", DATA_ROOT_MANIFEST_FILE_NAME)), true);
+    assert.equal(existsSync(join(base, ".mode", DATA_ROOT_MANIFEST_FILE_NAME)), true);
   } finally {
     init.resetDataRootInitializerForTest();
     rmSync(base, { recursive: true, force: true });
@@ -86,7 +86,7 @@ test("interactive：absent + 旧根 → pending，正式根零写入且路径重
     });
     assert.equal(result.state, "pending");
     // 正式根没有产生任何写入（归属文件落盘前零写入）。
-    assert.equal(existsSync(join(base, ".zcodium")), false);
+    assert.equal(existsSync(join(base, ".mode")), false);
     const diagnosticRoot = init.getActiveDiagnosticRoot();
     assert.ok(diagnosticRoot);
     assert.equal(paths.getModeDataRootDir(), diagnosticRoot);
@@ -125,7 +125,7 @@ test("interactive：unowned 不静默复用", async () => {
   const init = await loadInitializer();
   const base = makeBase();
   try {
-    mkdirSync(join(base, ".zcodium", "v2"), { recursive: true });
+    mkdirSync(join(base, ".mode", "v2"), { recursive: true });
     const result = init.initializeDataRootInteractive({
       baseDir: base,
       createdBy: "desktop",
@@ -136,7 +136,7 @@ test("interactive：unowned 不静默复用", async () => {
       assert.equal(result.status.kind, "unowned");
     }
     // pending 阶段不备份、不写入：冲突处置只发生在用户做出选择之后。
-    assert.equal(existsSync(join(base, ".zcodium", DATA_ROOT_MANIFEST_FILE_NAME)), false);
+    assert.equal(existsSync(join(base, ".mode", DATA_ROOT_MANIFEST_FILE_NAME)), false);
   } finally {
     init.resetDataRootInitializerForTest();
     rmSync(base, { recursive: true, force: true });
@@ -147,8 +147,8 @@ test("nonInteractive：unowned 备份让路 + 全新初始化", async () => {
   const init = await loadInitializer();
   const base = makeBase();
   try {
-    mkdirSync(join(base, ".zcodium", "v2"), { recursive: true });
-    writeFileSync(join(base, ".zcodium", "v2", "other.json"), "other");
+    mkdirSync(join(base, ".mode", "v2"), { recursive: true });
+    writeFileSync(join(base, ".mode", "v2", "other.json"), "other");
     const result = await init.initializeDataRootNonInteractive({
       baseDir: base,
       createdBy: "cli",
@@ -159,7 +159,7 @@ test("nonInteractive：unowned 备份让路 + 全新初始化", async () => {
     assert.ok(result.forfeitedRoot);
     assert.equal(readFileSync(join(result.forfeitedRoot, "v2", "other.json"), "utf8"), "other");
     const manifest = JSON.parse(
-      readFileSync(join(base, ".zcodium", DATA_ROOT_MANIFEST_FILE_NAME), "utf8"),
+      readFileSync(join(base, ".mode", DATA_ROOT_MANIFEST_FILE_NAME), "utf8"),
     );
     assert.equal(manifest.createdBy, "cli");
   } finally {
@@ -172,7 +172,7 @@ test("nonInteractive：action=fail 时拒绝启动且不写状态", async () => 
   const init = await loadInitializer();
   const base = makeBase();
   try {
-    mkdirSync(join(base, ".zcodium", "v2"), { recursive: true });
+    mkdirSync(join(base, ".mode", "v2"), { recursive: true });
     await assert.rejects(
       init.initializeDataRootNonInteractive({
         baseDir: base,
@@ -182,7 +182,7 @@ test("nonInteractive：action=fail 时拒绝启动且不写状态", async () => 
       }),
       /拒绝启动/u,
     );
-    assert.equal(existsSync(join(base, ".zcodium", DATA_ROOT_MANIFEST_FILE_NAME)), false);
+    assert.equal(existsSync(join(base, ".mode", DATA_ROOT_MANIFEST_FILE_NAME)), false);
   } finally {
     init.resetDataRootInitializerForTest();
     rmSync(base, { recursive: true, force: true });
@@ -204,17 +204,17 @@ test("nonInteractive：action=migrate 复制旧数据并写 migration 归属", a
     assert.equal(result.initializedBy, "migration");
     // 数据完整 + deviceMid 带入 + 旧根保留。
     assert.equal(
-      readFileSync(join(base, ".zcodium", "cli", "db", "db.sqlite"), "utf8"),
+      readFileSync(join(base, ".mode", "cli", "db", "db.sqlite"), "utf8"),
       "db-bytes",
     );
     assert.equal(
-      JSON.parse(readFileSync(join(base, ".zcodium", "v2", "telemetry-state.json"), "utf8"))
+      JSON.parse(readFileSync(join(base, ".mode", "v2", "telemetry-state.json"), "utf8"))
         .deviceMid,
       "legacy-device",
     );
     assert.equal(existsSync(join(legacy, "v2", "setting.json")), true);
     const manifest = JSON.parse(
-      readFileSync(join(base, ".zcodium", DATA_ROOT_MANIFEST_FILE_NAME), "utf8"),
+      readFileSync(join(base, ".mode", DATA_ROOT_MANIFEST_FILE_NAME), "utf8"),
     );
     assert.equal(manifest.product, DATA_ROOT_PRODUCT_ID);
     assert.equal(manifest.migration.mode, "copy");
@@ -232,8 +232,8 @@ test("executeDataRootImport：备份现有根后以 import 模式导入", async 
     const legacy = seedLegacyRoot(base);
     // 现有合法根，含用户新数据。
     init.initializeFreshDataRoot({ baseDir: base, createdBy: "desktop", appVersion: "3.15.0" });
-    mkdirSync(join(base, ".zcodium", "v2"), { recursive: true });
-    writeFileSync(join(base, ".zcodium", "v2", "current.json"), "current");
+    mkdirSync(join(base, ".mode", "v2"), { recursive: true });
+    writeFileSync(join(base, ".mode", "v2", "current.json"), "current");
     const result = await init.executeDataRootImport({
       baseDir: base,
       candidates: [{ baseDir: base, legacyRoot: legacy, isPrimaryBase: true }],
@@ -245,7 +245,7 @@ test("executeDataRootImport：备份现有根后以 import 模式导入", async 
     assert.ok(result.backupRoot);
     assert.equal(readFileSync(join(result.backupRoot, "v2", "current.json"), "utf8"), "current");
     const manifest = JSON.parse(
-      readFileSync(join(base, ".zcodium", DATA_ROOT_MANIFEST_FILE_NAME), "utf8"),
+      readFileSync(join(base, ".mode", DATA_ROOT_MANIFEST_FILE_NAME), "utf8"),
     );
     assert.equal(manifest.migration.mode, "import");
   } finally {
@@ -289,7 +289,7 @@ test(
       assert.ok(result.backupRoot, "失败时必须返回备份落点");
       assert.equal(existsSync(result.backupRoot), true);
       // 现有根已让位到备份；正式根等待用户手动恢复或重新初始化。
-      assert.equal(existsSync(join(base, ".zcodium")), false);
+      assert.equal(existsSync(join(base, ".mode")), false);
     } finally {
       init.resetDataRootInitializerForTest();
       rmSync(base, { recursive: true, force: true });

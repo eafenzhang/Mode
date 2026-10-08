@@ -157,7 +157,7 @@ export const PlatformChannels = {
   SelectFiles: "mode:select-files",
   /** Renderer → Main：打开“从旧数据目录再次导入”独立窗口（设置页入口） */
   OpenDataRootImport: "mode:open-data-root-import",
-  /** Renderer → Main：写入宿主 ~/.zcodium 临时文本附件 */
+  /** Renderer → Main：写入宿主 ~/.mode 临时文本附件 */
   CreateTempTextAttachment: "mode:create-temp-text-attachment",
   /** Renderer → Main：通过原生另存为对话框保存文件 */
   SaveFile: "mode:save-file",
@@ -322,7 +322,7 @@ export const PlatformChannels = {
   TaskNotificationSound: "mode:task-notification-sound",
   /** Main → Preload：用户点击了系统通知，携带 taskId 让 renderer 跳转到对应任务 */
   TaskNotificationClick: "mode:task-notification-click",
-  /** Renderer → Main：导出日志（打包 ~/.zcodium/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
+  /** Renderer → Main：导出日志（打包 ~/.mode/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "mode:export-logs",
   /**
    * Renderer → Main：`<webview>` guest dom-ready 后上报 webContentsId，

@@ -3,7 +3,7 @@ import { quotePosixPathArg } from "@mode/server/remote/posixShell.js";
 import type { TraceId, ModePromptAttachment } from "@mode/shared";
 import { randomUUID } from "node:crypto";
 
-const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.zcodium/tmp/prompt-attachments";
+const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.mode/tmp/prompt-attachments";
 const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".mode/tmp/prompt-attachments";
 
 interface RemotePromptAttachmentMaterializeInput {

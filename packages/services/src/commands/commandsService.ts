@@ -52,7 +52,7 @@ const CODEX_PLUGIN_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const MODE_COMMAND_DESCRIPTOR: CommandAgentSourceDescriptor = {
   agentSource: "modeAgent",
   directorySource: "mode",
-  userDirectorySegments: [".zcodium", "commands"],
+  userDirectorySegments: [".mode", "commands"],
   workspaceDirectorySegments: [".mode", "commands"],
   fileExtension: ".md",
   format: "markdown",
@@ -86,7 +86,7 @@ function getUserCommandsRoot(agentSource?: CommandAgentSource): string {
 }
 
 function getUserCliConfigPath(): string {
-  return join(resolveUserHomeDir(), ".zcodium", "cli", "config.json");
+  return join(resolveUserHomeDir(), ".mode", "cli", "config.json");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -203,7 +203,7 @@ function readStorageDirFromConfig(config: Record<string, unknown>): string {
   const storage = isRecord(config.storage) ? config.storage : {};
   return typeof storage.dir === "string" && storage.dir.trim().length > 0
     ? storage.dir
-    : "~/.zcodium";
+    : "~/.mode";
 }
 
 function readPluginConfigFromConfig(config: Record<string, unknown>): PluginConfigSummary {

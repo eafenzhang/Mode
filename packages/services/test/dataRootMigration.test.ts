@@ -28,7 +28,7 @@ function makeBase() {
 }
 
 function seedLegacy(base: string): string {
-  const legacy = join(base, ".mode");
+  const legacy = join(base, ".zcodium");
   mkdirSync(join(legacy, "v2"), { recursive: true });
   mkdirSync(join(legacy, "cli", "db"), { recursive: true });
   writeFileSync(join(legacy, "v2", "setting.json"), '{"marker":"legacy"}');
@@ -96,7 +96,7 @@ test("executeDataRootCopyMigration：完整复制、跳过快照文件、旧根�
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    const nextRoot = join(base, ".zcodium");
+    const nextRoot = join(base, ".mode");
     assert.equal(readFileSync(join(nextRoot, "v2", "setting.json"), "utf8"), '{"marker":"legacy"}');
     assert.equal(readFileSync(join(nextRoot, "cli", "db", "db.sqlite"), "utf8"), "db-bytes");
     assert.equal(existsSync(join(nextRoot, "v2", "setting.json.lock")), false);
@@ -131,9 +131,9 @@ test("executeDataRootCopyMigration：取消时清理 staging 且目标不落位"
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.cancelled, true);
-    assert.equal(existsSync(join(base, ".zcodium")), false);
+    assert.equal(existsSync(join(base, ".mode")), false);
     assert.equal(
-      readdirSync(base).some((name) => name.startsWith(".zcodium.migrating-")),
+      readdirSync(base).some((name) => name.startsWith(".mode.migrating-")),
       false,
     );
   } finally {
@@ -159,7 +159,7 @@ test(
       });
       assert.equal(result.ok, true);
       if (!result.ok) return;
-      const copiedPath = join(base, ".zcodium", "v2", "credentials.json");
+      const copiedPath = join(base, ".mode", "v2", "credentials.json");
       assert.equal(statSync(copiedPath).mode & 0o777, 0o600);
     } finally {
       rmSync(base, { recursive: true, force: true });

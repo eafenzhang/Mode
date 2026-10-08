@@ -2717,7 +2717,7 @@ export const modeSavedWorkflowMetaSchema = z
   })
   .strict();
 export type ModeSavedWorkflowMeta = z.infer<typeof modeSavedWorkflowMetaSchema>;
-// 作用域两档：项目档落 `<cwd>/.mode/workflows/`、全局档落 agent 机器的 `~/.zcodium/workflows/`。作用域由文件所在目录推得，frontmatter 不存 scope。
+// 作用域两档：项目档落 `<cwd>/.mode/workflows/`、全局档落 agent 机器的 `~/.mode/workflows/`。作用域由文件所在目录推得，frontmatter 不存 scope。
 export const modeSavedWorkflowScopeSchema = z.enum(["project", "global"]);
 export type ModeSavedWorkflowScope = z.infer<typeof modeSavedWorkflowScopeSchema>;
 export const modeSavedWorkflowEntrySchema = z

@@ -43,7 +43,7 @@ interface UserMcpRecord {
 const MODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
   source: "mode",
   directorySource: "mode",
-  userConfigDirSegments: [".zcodium", "cli"],
+  userConfigDirSegments: [".mode", "cli"],
   workspaceConfigDirSegments: [".mode"],
   fileName: "config.json",
   configKeyName: "mcp.servers",

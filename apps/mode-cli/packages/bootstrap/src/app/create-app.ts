@@ -360,7 +360,7 @@ export async function createModeApp(options: ModeAppOptions): Promise<ModeApp> {
       (messageEnabled
         ? createNodeSessionMailboxAdapter({
             rootDir: resolvePath(
-              (options.env ?? process.env).MODE_MAILBOX_ROOT ?? "~/.zcodium/mailbox",
+              (options.env ?? process.env).MODE_MAILBOX_ROOT ?? "~/.mode/mailbox",
             ),
           })
         : undefined);

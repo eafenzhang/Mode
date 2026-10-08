@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import type { RootsResolverPort } from "../app/ports.js";
 import type { StorageRootSpec } from "@mode/shared";
 
-const MODE_DATA_DIR_NAME = ".zcodium";
+const MODE_DATA_DIR_NAME = ".mode";
 
 export function resolveStorageRoots(params: {
   homeDir: string;

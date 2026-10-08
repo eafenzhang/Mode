@@ -65,18 +65,18 @@ export function setDataRootPathOverride(dir: string | null): void {
   _dataRootOverride = dir?.trim() || null;
 }
 
-/** {dataBaseDir}/.zcodium —— 与官方 Mode 客户端的 ~/.mode 命名空间隔离。 */
+/** {dataBaseDir}/.mode —— 与官方 Mode 客户端的 ~/.mode 命名空间隔离。 */
 export function getModeDataRootDir(): string {
   if (_dataRootOverride) return _dataRootOverride;
   return join(getDataBaseDir(), MODE_DATA_ROOT_DIR_NAME);
 }
 
-/** 非项目对话共享的真实工作目录；默认 ~/.zcodium/workspace/default。 */
+/** 非项目对话共享的真实工作目录；默认 ~/.mode/workspace/default。 */
 export function getConversationWorkspaceDir(): string {
   return join(getModeDataRootDir(), "workspace", "default");
 }
 
-/** {dataBaseDir}/.zcodium/v2 */
+/** {dataBaseDir}/.mode/v2 */
 export function getAppConfigDir(): string {
   return join(getModeDataRootDir(), "v2");
 }
@@ -197,7 +197,7 @@ export function getGitCheckpointIndexRootDir(): string {
   return join(getModeDataRootDir(), "git-checkpoint-index");
 }
 
-/** ~/.zcodium/v2/tasks-index.sqlite */
+/** ~/.mode/v2/tasks-index.sqlite */
 export function getTasksIndexDatabasePath(): string {
   return join(getAppConfigDir(), "tasks-index.sqlite");
 }
@@ -215,12 +215,12 @@ export function getWorkspaceHash(workspacePath: string, workspaceIdentity?: stri
     .slice(0, 12);
 }
 
-/** ~/.zcodium/v2/sessions/{workspaceHash} */
+/** ~/.mode/v2/sessions/{workspaceHash} */
 function getTaskSessionDir(workspacePath: string, workspaceIdentity?: string): string {
   return join(getAppConfigDir(), "sessions", getWorkspaceHash(workspacePath, workspaceIdentity));
 }
 
-/** ~/.zcodium/v2/sessions/{workspaceHash}/{taskId}.json */
+/** ~/.mode/v2/sessions/{workspaceHash}/{taskId}.json */
 export function getLegacyTaskSessionSnapshotPath(
   workspacePath: string,
   taskId: string,
@@ -229,7 +229,7 @@ export function getLegacyTaskSessionSnapshotPath(
   return join(getTaskSessionDir(workspacePath, workspaceIdentity), `${taskId}.json`);
 }
 
-/** ~/.zcodium/v2/sessions/{workspaceHash}/{taskId}.deleted.json */
+/** ~/.mode/v2/sessions/{workspaceHash}/{taskId}.deleted.json */
 export function getLegacyDeletedTaskSessionSnapshotPath(
   workspacePath: string,
   taskId: string,
