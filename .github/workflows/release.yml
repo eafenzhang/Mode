@@ -514,14 +514,16 @@ jobs:
           mv sha256-merged.txt sha256.txt
           cat sha256.txt
           # 回归保护：清单必须覆盖每个平台的安装包与 CLI 侧文件；缺任一类都说明
+          # （断言只看扩展名、不看产品名前缀：改名 ZCodium → Mode 时硬编码前缀让一次
+          #   五个平台全部构建成功的发版卡在这里，别再把产品名写进判据。）
           # 上传或片段生成出了问题，阻止发布而不是发布不完整的清单。
           for pattern in \
-            '^[0-9a-f]{64}  zcodium-[^ ]+\.tar\.gz$' \
+            '^[0-9a-f]{64}  [^ ]+\.tar\.gz$' \
             '^[0-9a-f]{64}  install\.sh$' \
-            '^[0-9a-f]{64}  ZCodium-[^ ]+\.dmg$' \
-            '^[0-9a-f]{64}  ZCodium-[^ ]+\.zip$' \
-            '^[0-9a-f]{64}  ZCodium-[^ ]+\.exe$' \
-            '^[0-9a-f]{64}  ZCodium-[^ ]+\.AppImage$'; do
+            '^[0-9a-f]{64}  [^ ]+\.dmg$' \
+            '^[0-9a-f]{64}  [^ ]+\.zip$' \
+            '^[0-9a-f]{64}  [^ ]+\.exe$' \
+            '^[0-9a-f]{64}  [^ ]+\.AppImage$'; do
             if ! grep -Eq "$pattern" sha256.txt; then
               echo "::error::sha256.txt is missing an entry matching $pattern"
               exit 1
