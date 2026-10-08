@@ -13,11 +13,11 @@
 ## Global Constraints
 
 - **clean-room 纪律**：新代码只允许从本仓库 spec/协议/测试/公开文档出发编写；任何任务禁止阅读、引用、翻译 `zai-org/ZCode` 及本仓库中上游衍生的实现文件（例外：作为黑盒对拍的**运行行为**，不看实现）。
-- **语言政策**：新代码只允许 Rust、TypeScript、HTML、CSS；shell 仅限 4 个既有胶水文件，新增需 spec 批准；`.agents/skills/**` 视为第三方 vendored，不参与语言收窄。
+- **语言政策**：新代码只允许 Rust、TypeScript、HTML、CSS；shell 仅限 4 个既有胶水文件，新增需 spec 批准；`.agents/skills/**` 视为第三方 vendored，不参与语言收窄。存量 `.mjs`/`.js` 不做迁移；确需新增禁入扩展名的文件，经 `scripts/language-policy-allowlist.txt` 入清单（入清单 = spec 批准）。
 - **不推送**：agent 只做本地提交；push 由人发起（push main 会触发自动发版，带 `[skip release]` 可跳过）。
 - **合规不回退**：`LICENSE-APACHE`、`NOTICE.md` §4 衍生声明、`THIRD-PARTY-NOTICES.md` 台账在任何阶段不得削弱；M4 前所有发布物仍属 Apache-2.0 衍生作品，公告口径照实写。
 - **三平台**：Windows x64、macOS arm64、Linux x64 全程 CI 出包；体积口径统一按 NSIS/Tauri NSIS 安装包字节数对比。
-- **版本与工具**：Node 24.14.0、pnpm 10.33.2（`mise.toml` 为准）；Rust 工具链在 M0 钉版本（`rust-toolchain.toml`）。
+- **版本与工具**：Node 24.14.0、pnpm 10.33.2（`mise.toml` 为准）；Rust 工具链在 M0 钉版本（`rust-toolchain.toml`）〔M0 任务 6 经 DR-06 让行，未随首批落地——**M0 批次完成 ≠ M0 阶段关闭**，阶段关闭以任务 6 完成为准〕。
 - **既有语义不得丢失**：owner/lease、CommandInbox 串行准入、`desktop-continuous` 与 `web-remote-replayable` 双链路语义、workspaceIdentity 贯穿——每阶段对拍清单必须覆盖。
 
 ## 三目标的合并逻辑（为什么合成一张路线图）
@@ -75,7 +75,7 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - [ ] **mode-cua JS→TS（让行）**〔本批让行，待电脑控制一期收口〕：等电脑控制一期收口后再执行（该目录正在被并行会话开发）；`.d.ts` 手写声明删除，改由 tsc 产出。
 - [ ] **（可选）过渡版瘦身**〔本批未执行〕：按上轮结论修 `files` 白名单（echarts/mermaid/pdfjs/lucide/shiki/katex 等渲染层库已在 `out/renderer` bundle 内，asar 不再重复装其 node_modules）+ `compression: "max"`，本地出包对比体积并记录。**与 CUA 一期对 `electron-builder.config.js` 的改动错峰，同一窗口期只动一处。**
 
-**阶段验收：** 语言政策门禁在 CI 生效；`upstream/zcode-baseline` 存在；clean-room spec 合入；Rust helper 替换 C# 后三平台包可出；GitHub 语言条只剩 TS/TSX + JS（旧脚本）+ HTML/CSS。
+**阶段验收：** 语言政策门禁在 CI 生效；`upstream/zcode-baseline` 存在；clean-room spec 合入；Rust helper 替换 C# 后三平台包可出〔此项属任务 6，经 DR-06 让行后置〕；GitHub 语言条只剩 TS/TSX + JS（旧脚本）+ HTML/CSS。〔首批已验：门禁生效、基线存在、spec 合入；阶段关闭待任务 6〕
 
 ---
 
@@ -91,7 +91,7 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - Consumes: 存量 `packages/ui`（DR-02 挂载）、`packages/shared/src/platform.ts` 的 `IPlatformService` 方法清单（作为 Rust 命令面的**接口规格**，只读签名与文档，不读实现）。
 - Produces: `platform::commands`（`#[tauri::command]`，与 `IPlatformService` 逐方法同名同参）、`protocol` crate 导出的 TS 类型（`typeshare` 生成 `packages/shared/src/generated/tauri-protocol.ts`）、`ModeTauri.exe` 安装包（≤25MB 目标）。
 
-- [ ] **脚手架**：`cargo create-tauri-app`（react-ts 模板）落 `apps/desktop-tauri`，`rust-toolchain.toml` 已在 M0；CI 加 `cargo test` + `cargo clippy -D warnings`。
+- [ ] **脚手架**：`cargo create-tauri-app`（react-ts 模板）落 `apps/desktop-tauri`，`rust-toolchain.toml` 已在 M0〔若 M0 任务 6 未落地，M1 首任务先补钉工具链版本〕；CI 加 `cargo test` + `cargo clippy -D warnings`。
 - [ ] **平台命令面**：按 `IPlatformService` 签名清单逐个实现（文件对话框、剪贴板、通知、托盘、深链、代理设置、更新检查 stub、shell open）；每个命令先写 tauri::test / 集成测试再实现（红→绿）。
 - [ ] **协议双端**：新 Rust 结构体 `#[derive(schemars::JsonSchema, Serialize, Deserialize)]` → typeshare 导出 TS；CI 断言生成文件无漂移；存量 TS 协议保持真源，Rust 侧 serde 类型 + 契约测试对拍（复用 `packages/services` 的 contract 测试思路）。
 - [ ] **UI 挂载（DR-02）**：现有 renderer 产物以 `frontendDist` 方式挂进 Tauri；验证窗口内 UI 正常、RPC 走 `platform::commands` 适配层（`window.mode` shim → `invoke()`）。
