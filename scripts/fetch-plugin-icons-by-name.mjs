@@ -10,14 +10,18 @@ import { fileURLToPath } from "node:url";
 
 const force = process.argv.includes("--force");
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const marketplacesDir =
+  process.env.MODE_MARKETPLACES_DIR ??
+  [join(homedir(), ".mode", "cli", "plugins", "marketplaces"),
+   join(homedir(), ".zcodium", "cli", "plugins", "marketplaces")].find((dir) => existsSync(dir)) ??
+  join(homedir(), ".mode", "cli", "plugins", "marketplaces");
+// 改名后目录名与市场 id 同步（mode-plugins-official），切换前拉取的旧目录名继续可读。
+const officialCatalog = ["mode-plugins-official", "zcode-plugins-official"]
+  .map((id) => join(marketplacesDir, id, "marketplace.json"))
+  .find((path) => existsSync(path));
 // 先到先得顺序：官方目录的图标优先，其余目录（Claude 等）只补官方没有的名字。
-const catalogs = ["zcode-plugins-official", "claude-plugins-official"].map((id) =>
-  join(
-    process.env.MODE_MARKETPLACES_DIR ?? join(homedir(), ".mode", "cli", "plugins", "marketplaces"),
-    id,
-    "marketplace.json",
-  ),
-);
+const catalogs = [officialCatalog, join(marketplacesDir, "claude-plugins-official", "marketplace.json")]
+  .filter((path) => typeof path === "string");
 const iconsDir = join(root, "packages/ui/src/assets/plugin-icons/mode-plugins-official");
 const generated = join(root, "packages/ui/src/settings/modeOfficialPluginIcons.generated.ts");
 

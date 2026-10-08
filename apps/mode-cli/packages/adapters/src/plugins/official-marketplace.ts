@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@mode/contracts";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE, isOfficialMarketplaceId } from "@mode/contracts";
 
 const BUNDLED_PARTITION_FILE = "bundled-marketplace.json";
 const CDN_PARTITION_FILE = "cdn-marketplace.json";
@@ -119,7 +119,9 @@ function isStrictDescendant(parentPath: string, childPath: string): boolean {
 }
 
 function assertOfficialManifest(manifest: Record<string, unknown>): void {
-  if (manifest.name !== MODE_OFFICIAL_PLUGIN_MARKETPLACE) {
+  // CDN 清单（官方侧维护）声明的仍是改名前的旧 id；随包分片写的是当前 id。
+  // 两个分片都算官方清单，按 id 集合判定，合并后的 canonical 名统一取当前 id。
+  if (typeof manifest.name !== "string" || !isOfficialMarketplaceId(manifest.name)) {
     throw new Error(
       `Official marketplace manifest must be named ${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`,
     );

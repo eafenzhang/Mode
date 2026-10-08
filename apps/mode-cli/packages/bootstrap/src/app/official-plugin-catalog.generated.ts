@@ -1,9 +1,9 @@
 // 本文件由 scripts/bundle-official-plugin-catalog.mjs 生成，请勿手改。
-// 内容为 Mode 官方插件目录（zcode-plugins-official）的随包快照，共 40 条，
+// 内容为 Mode 官方插件目录（mode-plugins-official）的随包快照，共 40 条，
 // 与官方清单逐条一致（不裁剪、不挑条目），只去掉 per-install 的 cachePath 与远端 icon：
 // 图标按插件名匹配随包资源，条目 source 保持原样，由既有安装链路解析。
 export const BUNDLED_OFFICIAL_PLUGIN_CATALOG = {
-  "name": "zcode-plugins-official",
+  "name": "mode-plugins-official",
   "plugins": [
     {
       "name": "cloudbase-skills",

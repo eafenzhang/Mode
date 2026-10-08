@@ -9,29 +9,49 @@ export interface DefaultPluginMarketplace {
   lastUpdated?: string;
 }
 
-export const MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "zcode-plugins-official";
-/** 改名后的官方市场 id（切换时旧 id 继续可识别，见 docs/specs/p2-mode-naming.md S5c）。 */
-export const MODE_OFFICIAL_PLUGIN_MARKETPLACE_MODE_ID = "mode-plugins-official";
+/** 官方市场 id（改名后的当前取值）。 */
+export const MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID = "mode-plugins-official";
+/** 改名前的官方市场 id：存量设置、安装记录与缓存目录仍在用，读取路径必须继续识别。 */
+export const MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID = "zcode-plugins-official";
+
+/**
+ * 把插件 id 的官方市场段归一到当前取值（`<name>@zcode-plugins-official` →
+ * `<name>@mode-plugins-official`）：读时归一的统一入口，不改写用户数据。
+ */
+export function canonicalPluginId(id: string): string {
+  const suffix = `@${MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID}`;
+  return id.endsWith(suffix)
+    ? `${id.slice(0, -suffix.length)}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`
+    : id;
+}
 
 /** Settings 三类资源发现共用；Bootstrap 单测与官方 definition 的 defaultEnabled 机械对照。 */
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set([
-  "browser-use@zcode-plugins-official",
-  "image-search@zcode-plugins-official",
-  "documents@zcode-plugins-official",
-  "pdf@zcode-plugins-official",
-  "presentations@zcode-plugins-official",
-  "spreadsheets@zcode-plugins-official",
+  "browser-use@mode-plugins-official",
+  "image-search@mode-plugins-official",
+  "documents@mode-plugins-official",
+  "pdf@mode-plugins-official",
+  "presentations@mode-plugins-official",
+  "spreadsheets@mode-plugins-official",
   // node_repl 宿主：不进市场、不对用户露出，也不贡献任何 skill/command/subagent，但必须
   // 始终可用 —— node_repl 的注册门禁是「Browser Use 或 Computer Use 任一启用」，宿主自己
   // 不参与那个判断。Browser Use 默认开着，宿主若默认关就等于它上来就没有宿主。
-  "node-repl-host@zcode-plugins-official",
-  "skill-creator@zcode-plugins-official",
-  "plugin-creator@zcode-plugins-official",
-  "mode-guide@zcode-plugins-official",
+  "node-repl-host@mode-plugins-official",
+  "skill-creator@mode-plugins-official",
+  "plugin-creator@mode-plugins-official",
+  "mode-guide@mode-plugins-official",
   // 电脑控制回退为默认关闭，故 computer-use 不在此名单内。
   // 该集合必须与 official-plugin-definitions.ts 里标了 defaultEnabled 的插件逐一对应，
   // bootstrap 的「Settings 默认启用集合与 CLI 的官方插件声明一致」单测机械对照两者。
 ]);
+
+/** 默认启用判据：存量旧 id 形态先归一再查（settings 侧读到的是原样配置）。 */
+export function isDefaultEnabledOfficialPluginId(id: string): boolean {
+  return (
+    DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS.has(id) ||
+    DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS.has(canonicalPluginId(id))
+  );
+}
 
 /**
  * Codex 插件市场（`.agents/plugins/marketplace.json` 约定，codex plugin marketplace add 生成）。
@@ -55,7 +75,8 @@ export const CLAUDE_PLUGIN_MARKETPLACE_SOURCE = "anthropics/claude-plugins-offic
 export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
   {
     // Mode 官方唯一市场：本地 seed 分片与 CDN 分片在 Agent storage 内合并。
-    // CDN manifest 的 name 必须与该 canonical id 一致。
+    // CDN manifest 声明的是改名前的旧 id（官方清单本身改不了），合并后的 canonical
+    // manifest 与 known 记录统一用当前 id（见 adapters 的 assertOfficialManifest 双认）。
     id: MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
     source: "https://cdn-zcode.z.ai/mode/official-plugin/marketplace.json",
     name: MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
@@ -98,7 +119,7 @@ export const PUBLIC_STORE_MARKETPLACE_IDS = [MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID
 export function isPublicStoreMarketplaceId(id: string): boolean {
   return (
     (PUBLIC_STORE_MARKETPLACE_IDS as readonly string[]).includes(id) ||
-    id === MODE_OFFICIAL_PLUGIN_MARKETPLACE_MODE_ID
+    id === MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID
   );
 }
 

@@ -1,6 +1,10 @@
 /* eslint-disable max-lines -- mode-cli 配置 schema 需要集中维护文件解析和 provider 继承，拆散会让配置语义更难对齐。 */
 import { z } from "zod";
 import type { RuntimeConfigPatch } from "@mode/contracts";
+import {
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID,
+} from "@mode/contracts";
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const unknownRecordSchema = z.record(z.string(), z.unknown());
@@ -172,16 +176,54 @@ const pluginsSchema = z.object({
 });
 
 export const LEGACY_CUA_PLUGIN_ID = "mode-cua@zcode-plugins-official";
-export const CANONICAL_CUA_PLUGIN_ID = "computer-use@zcode-plugins-official";
+export const CANONICAL_CUA_PLUGIN_ID = "computer-use@mode-plugins-official";
 
-export function canonicalizePluginId(pluginId: string): string {
-  return pluginId === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : pluginId;
+/** 拆出官方插件的 `<name>@<marketplace>`；非官方市场返回 undefined（不参与归一）。 */
+function splitOfficialPluginId(
+  pluginId: string,
+): { marketplace: string; name: string } | undefined {
+  const at = pluginId.lastIndexOf("@");
+  if (at <= 0 || at === pluginId.length - 1) return undefined;
+  const name = pluginId.slice(0, at);
+  const marketplace = pluginId.slice(at + 1);
+  if (
+    marketplace !== MODE_OFFICIAL_PLUGIN_MARKETPLACE &&
+    marketplace !== MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID
+  ) {
+    return undefined;
+  }
+  return { marketplace, name };
 }
 
+/**
+ * 插件 id 归一（读时归一、写时用新 id）：
+ *   1. 官方市场段 `zcode-plugins-official` → `mode-plugins-official`（S5c）；
+ *   2. computer-use 的历史名 `mode-cua` → `computer-use`。
+ * 非官方市场的 id 原样返回。
+ */
+export function canonicalizePluginId(pluginId: string): string {
+  const parsed = splitOfficialPluginId(pluginId);
+  if (!parsed) return pluginId;
+  const name = parsed.name === "mode-cua" ? "computer-use" : parsed.name;
+  return `${name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
+}
+
+/** 同一插件在用户配置里可能出现的全部存量写法（含改名前的名字与市场段）。 */
 export function pluginIdAliases(pluginId: string): readonly string[] {
-  return canonicalizePluginId(pluginId) === CANONICAL_CUA_PLUGIN_ID
-    ? [CANONICAL_CUA_PLUGIN_ID, LEGACY_CUA_PLUGIN_ID]
-    : [pluginId];
+  const canonical = canonicalizePluginId(pluginId);
+  const parsed = splitOfficialPluginId(canonical);
+  if (!parsed) return [pluginId];
+  const names = parsed.name === "computer-use" ? ["computer-use", "mode-cua"] : [parsed.name];
+  const ids = new Set<string>([canonical]);
+  // 旧市场段排在同名旧名之前：patchPluginOptions 等按序取「第一个存在的历史键」，
+  // 市场段改名是机械替换、旧名改名才是真正的别名，优先复用市场段不同的那份。
+  for (const name of names) {
+    ids.add(`${name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID}`);
+  }
+  for (const name of names) {
+    ids.add(`${name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`);
+  }
+  return [...ids];
 }
 
 const skillToggleSchema = z.object({

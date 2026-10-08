@@ -5,7 +5,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { PluginDiagnostic, PluginManifest, PluginStoreListing } from "@mode/contracts";
-import { isOfficialMarketplaceId, MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@mode/contracts";
+import {
+  canonicalOfficialMarketplaceId,
+  isOfficialMarketplaceId,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE,
+  MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID,
+} from "@mode/contracts";
 import {
   RETIRED_DEFAULT_MARKETPLACES,
   resolveDefaultPluginMarketplaces,
@@ -391,26 +396,36 @@ export async function addMarketplace(input: {
       signal: operationSignal,
     });
     throwIfPluginOperationAborted(operationSignal);
-    if (isOfficialMarketplaceId(loaded.manifest.name) && loaded.manifest.name !== input.trustedId) {
+    // 官方市场改名后，CDN 清单声明的仍是旧 id（官方清单改不了），known 记录与本地分片目录
+    // 用当前 id；两侧比较前先归一，否则内部刷新会被自己的保留守卫拦下。
+    const declaredName = loaded.manifest.name;
+    const canonicalDeclaredName = canonicalOfficialMarketplaceId(declaredName);
+    const canonicalTrustedId = input.trustedId
+      ? canonicalOfficialMarketplaceId(input.trustedId)
+      : undefined;
+    if (isOfficialMarketplaceId(declaredName) && canonicalDeclaredName !== canonicalTrustedId) {
       throw new Error(
-        `Cannot add a marketplace named "${loaded.manifest.name}": that id is reserved for the official marketplace.`,
-      );
-    }
-    if (input.expectedId && loaded.manifest.name !== input.expectedId) {
-      throw new Error(
-        `Marketplace declaration id mismatch: expected ${input.expectedId}, received ${loaded.manifest.name}`,
+        `Cannot add a marketplace named "${declaredName}": that id is reserved for the official marketplace.`,
       );
     }
     if (
-      input.trustedId === MODE_OFFICIAL_PLUGIN_MARKETPLACE &&
-      loaded.manifest.name !== MODE_OFFICIAL_PLUGIN_MARKETPLACE
+      input.expectedId &&
+      canonicalDeclaredName !== canonicalOfficialMarketplaceId(input.expectedId)
     ) {
       throw new Error(
-        `Official marketplace source must provide ${MODE_OFFICIAL_PLUGIN_MARKETPLACE}, received ${loaded.manifest.name}`,
+        `Marketplace declaration id mismatch: expected ${input.expectedId}, received ${declaredName}`,
+      );
+    }
+    if (
+      canonicalTrustedId === MODE_OFFICIAL_PLUGIN_MARKETPLACE &&
+      canonicalDeclaredName !== MODE_OFFICIAL_PLUGIN_MARKETPLACE
+    ) {
+      throw new Error(
+        `Official marketplace source must provide ${MODE_OFFICIAL_PLUGIN_MARKETPLACE}, received ${declaredName}`,
       );
     }
     const persistedManifest =
-      loaded.manifest.name === MODE_OFFICIAL_PLUGIN_MARKETPLACE
+      canonicalDeclaredName === MODE_OFFICIAL_PLUGIN_MARKETPLACE
         ? parseRequiredMarketplaceManifest(
             writeCdnOfficialMarketplacePartitionSync({
               manifest: loaded.manifest.raw,
@@ -424,14 +439,14 @@ export async function addMarketplace(input: {
       marketplaceActivation = await stageMarketplaceDirectoryPlugins(
         loaded.sourceRoot,
         input.storageRoot,
-        loaded.manifest.name,
+        declaredName,
         persistedManifest.raw,
         operationSignal,
       );
-    } else if (loaded.manifest.name !== MODE_OFFICIAL_PLUGIN_MARKETPLACE) {
+    } else if (canonicalDeclaredName !== MODE_OFFICIAL_PLUGIN_MARKETPLACE) {
       marketplaceActivation = await stageMarketplaceManifest(
         input.storageRoot,
-        loaded.manifest.name,
+        declaredName,
         loaded.manifest.raw,
         operationSignal,
       );
@@ -439,9 +454,10 @@ export async function addMarketplace(input: {
     throwIfPluginOperationAborted(operationSignal);
     const now = new Date().toISOString();
     const record: KnownMarketplaceRecord = {
-      id: loaded.manifest.name,
+      // 官方市场的 known 记录统一用当前 id：本地分片目录、缓存根与商店分段判据都按它寻址。
+      id: canonicalDeclaredName,
       source: input.source,
-      name: loaded.manifest.name,
+      name: canonicalDeclaredName,
       ...(loaded.manifest.description ? { description: loaded.manifest.description } : {}),
       addedAt: now,
       lastUpdated: now,
@@ -612,12 +628,23 @@ export function loadMarketplaceManifestSync(
   storageRoot: string,
   marketplace: string,
 ): PluginMarketplaceManifest | null {
-  const manifestPath = getMarketplaceManifestPath(storageRoot, marketplace);
-  // 崩溃残留先恢复；若 writer 仍活跃，则在权威 known state 落盘前读 backup，
-  // 落盘后读新 target，避免 overview 看见跨代 manifest/summary。
-  const readableDirectory = recoverAtomicTargetSync(dirname(manifestPath));
-  const parsed = readJsonFileSync(join(readableDirectory, basename(manifestPath)));
-  return parseMarketplaceManifest(parsed);
+  const readAt = (id: string): PluginMarketplaceManifest | null => {
+    const manifestPath = getMarketplaceManifestPath(storageRoot, id);
+    // 崩溃残留先恢复；若 writer 仍活跃，则在权威 known state 落盘前读 backup，
+    // 落盘后读新 target，避免 overview 看见跨代 manifest/summary。
+    const readableDirectory = recoverAtomicTargetSync(dirname(manifestPath));
+    return parseMarketplaceManifest(
+      readJsonFileSync(join(readableDirectory, basename(manifestPath))),
+    );
+  };
+  const manifest = readAt(marketplace);
+  if (manifest) return manifest;
+  // 官方市场改名前的本地快照仍可能在旧目录名（marketplaces/zcode-plugins-official）下：
+  // 当前目录没有清单时回退读旧目录，已刷新过的快照不因改名而失效。
+  if (marketplace === MODE_OFFICIAL_PLUGIN_MARKETPLACE) {
+    return readAt(MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID);
+  }
+  return null;
 }
 
 function loadInstalledPluginsSync(storageRoot: string): InstalledPluginsState {
@@ -2146,8 +2173,19 @@ function normalizeInstalledPluginsState(value: unknown): InstalledPluginsState {
   const plugins = Array.isArray(rawPlugins) ? rawPlugins : [];
   return {
     version: 1,
-    plugins: plugins.filter(isInstalledPluginRecord),
+    plugins: plugins.filter(isInstalledPluginRecord).map(canonicalInstalledPluginRecord),
   };
+}
+
+/**
+ * 安装记录的官方市场段读时归一：存量记录写的还是旧 id（`name@zcode-plugins-official`），
+ * 上层（设置匹配、商店「已安装」、卸载定位）统一按当前 id 工作。只作用于内存视图，
+ * 不回写 installed_plugins.json——installPath 是绝对路径，物理目录留在原处即可用。
+ */
+function canonicalInstalledPluginRecord(record: InstalledPluginRecord): InstalledPluginRecord {
+  const marketplace = canonicalOfficialMarketplaceId(record.marketplace);
+  if (marketplace === record.marketplace) return record;
+  return { ...record, id: `${record.name}@${marketplace}`, marketplace };
 }
 
 function normalizeInstalledPluginRecordFromMap(
@@ -2167,7 +2205,7 @@ function normalizeInstalledPluginRecordFromMap(
     }
     const scope = item.scope === "project" || item.scope === "local" ? "workspace" : "user";
     return [
-      {
+      canonicalInstalledPluginRecord({
         id: pluginId,
         name: parsed.name,
         marketplace: parsed.marketplace,
@@ -2177,7 +2215,7 @@ function normalizeInstalledPluginRecordFromMap(
           typeof item.installedAt === "string" ? item.installedAt : new Date(0).toISOString(),
         ...(typeof item.lastUpdated === "string" ? { updatedAt: item.lastUpdated } : {}),
         scope,
-      },
+      }),
     ];
   });
 }
@@ -2863,8 +2901,8 @@ async function writeJsonFile(path: string, value: unknown): Promise<void> {
 }
 
 /** 官方市场改名（ZCODIUM → Mode）前的 id：缓存目录兜底用（见 docs/specs/p2-mode-naming.md S5c）。 */
-const LEGACY_OFFICIAL_MARKETPLACE_FOR_CACHE = "zcode-plugins-official";
-const MODE_OFFICIAL_MARKETPLACE_FOR_CACHE = "mode-plugins-official";
+const LEGACY_OFFICIAL_MARKETPLACE_FOR_CACHE = MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID;
+const MODE_OFFICIAL_MARKETPLACE_FOR_CACHE = MODE_OFFICIAL_PLUGIN_MARKETPLACE;
 
 export function getPluginCacheDir(
   storageRoot: string,
@@ -2918,10 +2956,10 @@ export function hasBundledPluginPackage(input: {
   if (kind !== "filesystem" && kind !== "sea") {
     return true;
   }
-  if (input.entry.cachePath && directoryExists(input.entry.cachePath)) {
+  if (input.entry.cachePath && hasPluginManifest(input.entry.cachePath)) {
     return true;
   }
-  return directoryExists(
+  return hasPluginManifest(
     getPluginCacheDir(
       input.storageRoot,
       input.marketplace,
@@ -2931,9 +2969,37 @@ export function hasBundledPluginPackage(input: {
   );
 }
 
+/**
+ * 目录里真的装着插件清单才算「随包可用」。只看目录存在会把空目录或半成品 cache 目录
+ * 误判成可用，进而让商店给出一个必然失败的安装入口（computer-use 就是这样漏出去的）。
+ */
+function hasPluginManifest(dir: string): boolean {
+  return (
+    directoryExists(dir) &&
+    (fileExists(join(dir, ".mode-plugin", "plugin.json")) ||
+      fileExists(join(dir, ".zcode-plugin", "plugin.json")))
+  );
+}
+
 export function getPluginDataDir(storageRoot: string, pluginId: string): string {
   // 与 NodePluginAdapter.discoverPluginsSync 的 dataPath 解析保持一致：<storageRoot>/data/<sanitized-id>。
-  return join(storageRoot, "data", sanitizePluginId(pluginId));
+  // 官方市场改名后，存量插件的 data 目录仍挂在旧 id 名下：新目录不存在而旧目录存在时沿用旧目录
+  // （与 getPluginCacheDir 同一兜底口径），删除/读取落在同一份文件上。
+  const current = join(storageRoot, "data", sanitizePluginId(pluginId));
+  const legacyId = legacyOfficialPluginId(pluginId);
+  if (legacyId) {
+    const legacy = join(storageRoot, "data", sanitizePluginId(legacyId));
+    if (!existsSync(current) && existsSync(legacy)) return legacy;
+  }
+  return current;
+}
+
+/** 当前官方 id → 改名前的旧 id（仅官方插件；其它市场返回 undefined）。 */
+function legacyOfficialPluginId(pluginId: string): string | undefined {
+  const suffix = `@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
+  return pluginId.endsWith(suffix)
+    ? `${pluginId.slice(0, -suffix.length)}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID}`
+    : undefined;
 }
 
 function isKnownMarketplaceRecord(value: unknown): value is KnownMarketplaceRecord {
