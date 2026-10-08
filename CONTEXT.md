@@ -32,16 +32,20 @@ _Avoid_: 刷新、检查更新（口语可用，文档统一"手动刷新"）
 
 ### 商店页结构
 
-**Public Segment（公开）**:
-商店列表页的分段之一，展示且仅展示官方市场的目录（Featured + 分类区块）。
-_Avoid_: 官方 tab、商店 tab
+**Public Segment（公开）— 已移除（2026-10-08）**:
+曾是列表页展示官方目录的分段（Featured + 分类区块）。官方目录条目在本分支全部不可安装（文件系统条目没有随包安装包、CDN 条目下载源已随官方平台断连），按用户决策删除该浏览分类；官方条目仍经搜索、已安装条、`plugin://` 深链与插件管理页可达，数据层（候选清单、协议、已装更新）不变。
+_Avoid_: 官方 tab、商店 tab；不要再往列表页加回公开分段入口
 
 **Personal Segment（个人）**:
-商店列表页的另一分段，展示全部个人来源的目录，按市场分组。
+商店列表页唯一的浏览分段，展示全部个人来源的目录，按市场分组。
 _Avoid_: 第三方 tab、我的 tab
 
-**Featured（精选）**:
-公开分段顶部的策展区，名单由官方 CDN 目录的 `featured` 字段远程控制。仅存在于公开分段。
+**Not-Bundled / Source-Offline Pill（未随包提供 / 源已下线）**:
+官方条目不可安装的两种确定态，卡片安装位显示为不可点说明胶囊，详情页给固定说明且不发 `plugins/describe`。判据与协议见 `docs/specs/plugin-store-availability.md`。
+_Avoid_: 把它们渲染成「组件清单加载失败 + 重试」
+
+**Featured（精选）— 已随公开分段移除**:
+曾是公开分段顶部的策展区，名单由官方 CDN 目录的 `featured` 字段远程控制。
 _Avoid_: 与 Recommended 混用
 
 **Installed Strip（已安装条）**:

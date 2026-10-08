@@ -51,6 +51,7 @@ import {
 } from "@/lib/assistantCodeComment.js";
 import { useAssistantPreviewCardsForAssistantTextRow } from "@/v4/useAssistantPreviewCardsForRow.js";
 import { shouldShowTurnChatLoading } from "@/v4/chatLoadingVisibility.js";
+import { shouldShowTypingBubble } from "@/v4/conversationTypingBubble.js";
 import {
   buildAssistantWorkRenderItems,
   ENABLE_CHANGES_TOOL_CALL_GROUPING,
@@ -142,9 +143,12 @@ function toRetryStatus(apiRetry: ApiRetryState): ModeApiRetryStatus {
 function TurnChatLoadingSlot({
   apiRetry,
   eligible,
+  typing = false,
 }: {
   apiRetry: ApiRetryState | null;
   eligible: boolean;
+  /** 回复首字前的空窗（running 且无任何助手内容）：改渲染「正在输入」三点气泡。 */
+  typing?: boolean;
 }) {
   const { intl, locale } = useModeIntl();
   const retryStatus = useMemo(() => (apiRetry ? toRetryStatus(apiRetry) : null), [apiRetry]);
@@ -158,11 +162,37 @@ function TurnChatLoadingSlot({
     <div data-mode-chat-loading-slot="true" className="min-h-5">
       {visibleRetryStatus ? (
         <ChatApiRetryStatus apiRetry={visibleRetryStatus} intl={intl} locale={locale} />
+      ) : typing ? (
+        <TypingIndicatorBubble label={intl.formatMessage({ id: "chat.typing" })} />
       ) : (
         // running 是 ChatLoading 的权威事实；额外静默计时会让 projection
         // 更新反复重启可见性，并使 UI 晚于真实状态。
         <ChatLoading loading data-testid={TID_CHAT_LOADING} size="sm" />
       )}
+    </div>
+  );
+}
+
+/** 助手侧「正在输入」三点气泡：只覆盖回复首字前的空窗，内容一到就让位给正文/加载条。 */
+function TypingIndicatorBubble({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      data-testid="conversation-typing-bubble"
+      className="flex w-fit items-center gap-1.5 rounded-2xl border border-border bg-surface px-3 py-2"
+    >
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          aria-hidden="true"
+          className={cn(
+            "size-1.5 rounded-full motion-safe:animate-pulse",
+            index === 2 ? "bg-brand" : "bg-foreground-subtle",
+          )}
+          style={{ animationDelay: `${index * 180}ms`, animationDuration: "1.2s" }}
+        />
+      ))}
     </div>
   );
 }
@@ -804,6 +834,11 @@ function ConversationTurnFlow({
     isRunning: unit.isRunning,
     rows: unit.assistantWorkRows,
   });
+  // 回复首字前的空窗：本轮在跑且没有任何助手内容 → 槽位渲染「正在输入」三点气泡。
+  const showTypingBubble = shouldShowTypingBubble({
+    isRunning: unit.isRunning,
+    assistantRowCount: unit.assistantWorkRows.length + unit.assistantTextRows.length,
+  });
   const assistantPreviewCards = useAssistantPreviewCardsForAssistantTextRow({
     row: unit.latestAssistantTextRow,
     assistantTextRows: unit.assistantTextRows,
@@ -826,7 +861,7 @@ function ConversationTurnFlow({
           stageTailIsRunning={unit.isRunning}
           assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
-        <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} />
+        <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} typing={showTypingBubble} />
       </div>
     );
   }
@@ -891,7 +926,7 @@ function ConversationTurnFlow({
           shareSelectionRowId={shareSelectionRowId}
         />
       ))}
-      <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} />
+      <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} typing={showTypingBubble} />
     </div>
   );
 }
@@ -971,6 +1006,11 @@ function ConversationBackgroundResultWork({
     isLastTurn: unit.isLastTurn,
     isRunning: unit.isRunning,
     rows: unit.assistantWorkRows,
+  });
+  // 回复首字前的空窗：本轮在跑且没有任何助手内容 → 槽位渲染「正在输入」三点气泡。
+  const showTypingBubble = shouldShowTypingBubble({
+    isRunning: unit.isRunning,
+    assistantRowCount: unit.assistantWorkRows.length + unit.assistantTextRows.length,
   });
   const latestAssistantTextRow = unit.latestAssistantTextRow;
   const assistantPreviewCards = useAssistantPreviewCardsForAssistantTextRow({
@@ -1093,7 +1133,7 @@ function ConversationBackgroundResultWork({
           assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
       ) : null}
-      <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} />
+      <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} typing={showTypingBubble} />
     </div>
   );
 }

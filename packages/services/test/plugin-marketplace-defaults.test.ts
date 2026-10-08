@@ -57,12 +57,12 @@ test("预置源判据：官方目录是唯一预置源，且属于「公开」�
   assert.equal(isCodexPluginMarketplaceId(CODEX_PLUGIN_MARKETPLACE_ID), true);
 });
 
-// 公开分段与官方目录保持一致，两件事缺一不可：
-//   1) 商店不做内容裁剪 —— 公开条目直接取 zcode-plugins-official 市场的候选清单；
-//   2) 随包官方清单与官方逐条一致 —— 官方目录里有哪些插件，随包快照就有哪些，
-//      曾经按「本仓库有没有该插件目录」挑条目，结果官方有的 android-emulator /
-//      ios-simulator 在商店里根本不出现，看着就像「和官方不一致」。
-test("公开分段只认官方市场，随包官方清单不裁剪", async () => {
+// 随包官方清单必须与官方逐条一致（曾经按「本仓库有没有该插件目录」挑条目，结果官方有的
+// android-emulator / ios-simulator 在商店里根本不出现，看着就像「和官方不一致」）。
+// 公开浏览分段已按用户决策移除（2026-10-08，官方条目全部不可安装，见
+// docs/specs/plugin-store-availability.md）：这里同时钉住分段入口确实删净、
+// 官方条目只从个人分组里排除而不再被裁剪出候选。
+test("官方清单不裁剪；公开浏览分段已移除，官方条目只排除出个人分组", async () => {
   const listView = await readFile(
     new URL(
       "../../../packages/ui/src/settings/PluginStoreListView.tsx",
@@ -71,8 +71,12 @@ test("公开分段只认官方市场，随包官方清单不裁剪", async () =>
     "utf8",
   );
   assert.ok(
-    listView.includes("items.filter((item) => isPublicStoreMarketplaceId(item.marketplace))"),
-    "公开分段必须直接取官方市场的候选条目，不能再做商店侧裁剪",
+    listView.includes("items.filter((item) => !isPublicStoreMarketplaceId(item.marketplace))"),
+    "个人分组必须排除官方市场条目；官方条目改经搜索/深链/已安装条可达，但不得被裁剪出候选",
+  );
+  assert.ok(
+    !listView.includes("plugin-store-segment-public") && !listView.includes("PublicSegment"),
+    "公开分段入口与组件已按用户决策移除",
   );
 
   const snapshot = await readFile(
