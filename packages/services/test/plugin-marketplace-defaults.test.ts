@@ -16,11 +16,11 @@ import {
   resolveDefaultPluginMarketplaces,
 } from "@zcode/shared";
 
-// 需求演进：Codex 聚合目录与 Claude 官方目录都不再作为默认源（改为退役清单精确清理），
-// 公开分段固定为随包内置的 ZCode 官方插件目录（zcode-plugins-official）。
-// 这里钉住默认集合、退役清单与「预置源不可移除」的判据。
+// 需求演进：Codex 聚合目录与 Claude 官方目录都不再作为默认源；公开分段的候选条目
+// 直接取 zcode-plugins-official 官方市场的清单，个人分段给用户放自己登记的源（Claude 等）。
+// 这里钉住默认集合、退役清理清单与「预置源不可移除」的判据。
 
-test("Codex / Claude 默认源已退役：不在默认集合，且登记为精确清理", () => {
+test("Codex / Claude 默认源已退役：都不再默认预置；只有 Codex 做退役清理", () => {
   const defaultIds = DEFAULT_PLUGIN_MARKETPLACES.map((item) => item.id);
   assert.ok(!defaultIds.includes(CODEX_PLUGIN_MARKETPLACE_ID), "Codex 源不应再默认预置");
   assert.ok(!defaultIds.includes(CLAUDE_PLUGIN_MARKETPLACE_ID), "Claude 源不应再默认预置");
@@ -32,11 +32,15 @@ test("Codex / Claude 默认源已退役：不在默认集合，且登记为精�
   assert.equal(retiredCodex.source, CODEX_PLUGIN_MARKETPLACE_SOURCE);
   assert.equal(CODEX_PLUGIN_MARKETPLACE_SOURCE, "hashgraph-online/awesome-codex-plugins");
 
-  const retiredClaude = RETIRED_DEFAULT_MARKETPLACES.find(
-    (entry) => entry.id === CLAUDE_PLUGIN_MARKETPLACE_ID,
+  // Claude 官方目录不登记退役清理：清理只看 id + source，分不清是当年自动种下的还是
+  // 用户自己刚登记的，一旦列入就会把个人分段要用的 Claude 源每次 overview 都删掉。
+  assert.ok(
+    !RETIRED_DEFAULT_MARKETPLACES.some(
+      (entry) => entry.id === CLAUDE_PLUGIN_MARKETPLACE_ID,
+    ),
+    "Claude 源不得进入退役清理清单",
   );
-  assert.ok(retiredClaude, "Claude 源应登记为退役");
-  assert.equal(retiredClaude.source, CLAUDE_PLUGIN_MARKETPLACE_SOURCE);
+  assert.equal(CLAUDE_PLUGIN_MARKETPLACE_SOURCE, "anthropics/claude-plugins-official");
 
   assert.ok(RETIRED_DEFAULT_MARKETPLACES.some((entry) => entry.id === "xiu86-codex-plugins"));
   const resolvedIds = resolveDefaultPluginMarketplaces().map((item) => item.id);

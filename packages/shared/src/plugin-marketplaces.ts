@@ -44,7 +44,7 @@ export const CODEX_PLUGIN_MARKETPLACE_ID = "awesome-codex-plugins";
 export const CODEX_PLUGIN_MARKETPLACE_SOURCE = "hashgraph-online/awesome-codex-plugins";
 
 
-/** 已退役的第三方默认源 id/来源（仅用于退役清理）。 */
+/** Claude Code 官方插件目录：不再是默认源；用户自己添加后必须长期保留（见退役清单说明）。 */
 export const CLAUDE_PLUGIN_MARKETPLACE_ID = "claude-plugins-official";
 export const CLAUDE_PLUGIN_MARKETPLACE_SOURCE = "anthropics/claude-plugins-official";
 
@@ -65,16 +65,16 @@ export const DEFAULT_PLUGIN_MARKETPLACES: DefaultPluginMarketplace[] = [
 ];
 
 /**
- * 已退役的默认市场：曾作为默认源预置、但被更好的来源取代。种子阶段按"id + 完全相同的 source"
- * 精确清理，避免把用户自己添加的同 id 市场误删。
+ * 已退役的默认市场：曾作为默认源预置、但不再预置的来源。种子阶段按"id + 完全相同的 source"
+ * 精确清理。清理分不清「当年自动种下的」和「用户自己按同一来源登记的」，所以只列那些
+ * 用户不该再看到的来源：Claude 官方目录不在此列 —— 它正是个人分段要给用户用的东西，
+ * 登记一次就得长期保留，否则每次 overview 都会把用户刚加回来的源删掉。
  */
 export const RETIRED_DEFAULT_MARKETPLACES: ReadonlyArray<{ id: string; source: string }> = [
   // 早期默认源：只有一个插件的示例仓库，已换成聚合目录。
   { id: "xiu86-codex-plugins", source: "xiu86/codex-plugins" },
-  // Codex 聚合目录与 Claude 官方目录不再是默认源：种子阶段按 id + 完全相同的 source 精确清理，
-  // 用户自己添加的同 id 市场不会被误删。
+  // Codex 聚合目录（272 个插件）不再预置：既不是官方目录，也不属于个人分段的既定内容。
   { id: CODEX_PLUGIN_MARKETPLACE_ID, source: CODEX_PLUGIN_MARKETPLACE_SOURCE },
-  { id: CLAUDE_PLUGIN_MARKETPLACE_ID, source: CLAUDE_PLUGIN_MARKETPLACE_SOURCE },
 ];
 
 /**
