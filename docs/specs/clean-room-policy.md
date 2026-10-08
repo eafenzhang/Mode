@@ -7,7 +7,7 @@
 
 为路线图的「产品自研」目标定义过程纪律：新增与重写代码只从允许输入出发编写，
 不参考上游 `zai-org/ZCode` 或本仓库上游衍生的实现，使 M4 终态能以
-「与 `upstream/zcode-baseline` 分支逐文件 diff = 0」验收。
+「与上游 `upstream/zcode-baseline` 分支逐文件重合度 = 0%」验收。
 
 ## 适用范围
 
@@ -35,6 +35,8 @@ M4 的 `scripts/upstream-overlap-check.mjs`（对基线分支逐文件哈希 + �
 - `DESIGN.md`；
 - 公开 API 文档与公开资料。
 
+**接口面优先级**：协议定义、类型、测试用例等允许输入若本身属于上游衍生文件，允许读取其**接口面**（导出签名、类型声明、协议帧结构、测试断言的输入输出），禁止读取实现体；「允许输入」与「禁止输入」两节口径冲突时，以本节的接口面口径为准。
+
 ### 禁止输入
 
 - 不读取、不打开、不搜索、不引用上游 `zai-org/ZCode` 的实现源码；
@@ -60,7 +62,7 @@ M4 的 `scripts/upstream-overlap-check.mjs`（对基线分支逐文件哈希 + �
 ## 与门禁的关系
 
 - M4 的 `pnpm verify:self-developed`（含 `upstream-overlap-check` 对 `upstream/zcode-baseline`
-  逐文件 diff = 0%）是**终态硬门禁**，事后判定；
+  逐文件重合度 = 0%）是**终态硬门禁**，事后判定；
 - 本 spec 是**过程纪律**，保证在到达终态前不再新增重合。门禁与纪律缺一不可：
   门禁兜底，纪律省掉返工。
 
@@ -76,4 +78,4 @@ M4 的 `scripts/upstream-overlap-check.mjs`（对基线分支逐文件哈希 + �
 
 1. 适用范围、允许输入、黑盒对拍、AI 规则、违规处置、终态门禁引用六项齐全且互不矛盾。
 2. `grep -c "clean-room-policy" AGENTS.md` 输出 1；指针行位于「核心原则」列表末尾。
-3. 终态：M4 运行 `verify:self-developed`，与 `upstream/zcode-baseline` 逐文件 diff = 0%。
+3. 终态：M4 运行 `verify:self-developed`，与 `upstream/zcode-baseline` 逐文件重合度 = 0%。
