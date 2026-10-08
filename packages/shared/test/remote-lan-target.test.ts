@@ -4,6 +4,7 @@ import {
   buildRemoteEnvironmentKey,
   buildRemoteWorkspaceIdentity,
   createOpenInEditorRemoteTarget,
+  isInternalConversationWorkspacePath,
   parseRemoteWorkspaceIdentity,
   remoteTargetSchema,
   stripRemoteTargetSecrets,
@@ -99,6 +100,47 @@ test("parseRemoteWorkspaceIdentity 拒绝缺段或相对路径的 lan identity",
     parseRemoteWorkspaceIdentity("remote:lan:192.168.1.20:45880:1D:/x"),
     null,
     "非法盘符拒绝",
+  );
+});
+
+test("对端工作区暴露过滤：本机默认对话工作区是内部目录，用户选择的路径保留", () => {
+  // spec: docs/specs/lan-paired-devices.md——对端只暴露用户选择的路径，
+  // 数据根下的默认对话工作区（非项目会话目录）不外发。
+  const conversationDir = "C:\\Users\\zhangeafen\\.mode\\workspace\\default";
+  assert.equal(
+    isInternalConversationWorkspacePath(conversationDir, conversationDir, {
+      caseInsensitive: true,
+    }),
+    true,
+    "默认对话工作区本身必须过滤",
+  );
+  assert.equal(
+    isInternalConversationWorkspacePath(`${conversationDir}\\`, conversationDir, {
+      caseInsensitive: true,
+    }),
+    true,
+    "收尾分隔符归一后仍相等",
+  );
+  assert.equal(
+    isInternalConversationWorkspacePath(conversationDir.toUpperCase(), conversationDir, {
+      caseInsensitive: true,
+    }),
+    true,
+    "win32 路径大小写不敏感",
+  );
+  assert.equal(
+    isInternalConversationWorkspacePath(conversationDir.toUpperCase(), conversationDir, {
+      caseInsensitive: false,
+    }),
+    false,
+    "POSIX 保持精确比较（大小写是不同目录）",
+  );
+  assert.equal(
+    isInternalConversationWorkspacePath("D:\\gas-hub-xp", conversationDir, {
+      caseInsensitive: true,
+    }),
+    false,
+    "用户选择的项目路径必须保留",
   );
 });
 

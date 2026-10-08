@@ -215,3 +215,20 @@ export type LanPairedPeerWorkspaces = z.infer<typeof lanPairedPeerWorkspacesSche
 export function isLanAccessPairCodeFormat(code: string): boolean {
   return /^[0-9A-F]{6}$/u.test(code.trim().toUpperCase());
 }
+
+/**
+ * 对端工作区暴露过滤（spec: docs/specs/lan-paired-devices.md）：
+ * 只把「用户选择的路径」暴露给局域网对端；本机默认对话工作区（数据根下的
+ * workspace/default，非项目会话目录）是内部目录，不外发。
+ * 纯函数：大小写比较策略由调用方传入（win32 不敏感、POSIX 精确），收尾分隔符先归一。
+ */
+export function isInternalConversationWorkspacePath(
+  workspacePath: string,
+  conversationWorkspaceDir: string,
+  options: { caseInsensitive?: boolean } = {},
+): boolean {
+  const normalize = (value: string): string => value.replace(/[\\/]+$/u, "");
+  const left = normalize(workspacePath);
+  const right = normalize(conversationWorkspaceDir);
+  return options.caseInsensitive ? left.toLowerCase() === right.toLowerCase() : left === right;
+}

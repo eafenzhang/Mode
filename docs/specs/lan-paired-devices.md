@@ -33,6 +33,11 @@
 - 服务端侧 `LanAccessClientRecord.lastWorkspacePath`：**唯一所有者 = lanAccessServer**（读写都在 host 进程，沿用 clients 记录的持久化路径）。
   - 更新时机：该客户端所持连接（`/ws/host` 升级请求 cookie 解析出 clientId）上出现**携带 `workspacePath` 的 RPC**（对 `registerChannel` 做通用录制，call/listen 均计；对端目录浏览的 `readdir`/`resolvePath` 用 `path` 字段，不会误录）。低频、直接持久化。
   - 事件顺序：升级（cookie → clientId）→ 客户端打开工作区 → 任务类 RPC 携带 `workspacePath` → 录制回调 → clients 记录更新 → 设置页下次拉取可见。
+- **对端暴露的工作区清单只含用户选择的路径**（`collectLanAccessWorkspaces` → server-info）：
+  本机默认对话工作区（数据根下 `workspace/default`，非项目会话目录）属内部目录，
+  不外发——由 `isInternalConversationWorkspacePath`（shared，纯函数，win32 大小写
+  不敏感、POSIX 精确、收尾分隔符归一）在收集入口过滤；最近项目与用户打开过的
+  会话目录照常暴露。
 - i18n：zh-CN / en-US / fa 三语同步。
 
 ## 验收场景
@@ -43,7 +48,11 @@
 4. 服务端组：新配对设备显示「尚无」；对端在本机打开某目录后，该行显示此目录（server 包测试用真实 WS 打一条携带 `workspacePath` 的 RPC 断言录制回调）。
 5. 配对成功后服务端组 label 显示配对方主机名（host 不传 label 时 `pairLanPeer` 默认
    `hostname()`；desktop 夹具断言请求带上 label 而非 undefined）。
-6. `pnpm --filter @mode/services test`、`pnpm --filter @mode/server test`、desktop 测试、`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
+6. 对端 lastWorkspaceSession 含默认对话工作区时，server-info.workspaces **不含**
+   该目录；用户打开过的项目/会话目录照常出现（shared 单测覆盖过滤判定各分支）。
+7. `pnpm --filter @mode/shared test`、`pnpm --filter @mode/services test`、
+   `pnpm --filter @mode/server test`、desktop 测试、`pnpm typecheck`、`pnpm lint`、
+   `pnpm architecture:check --changed` 全绿（shared 测试已入 CI 流水线）。
 
 ## 不做
 

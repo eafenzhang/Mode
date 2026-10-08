@@ -222,9 +222,10 @@ jobs:
         run: pnpm typecheck
       - name: Lint
         run: pnpm lint
-      - name: Service and desktop tests
+      - name: Shared, service and desktop tests
         run: |
           set -euo pipefail
+          pnpm --filter @mode/shared test
           pnpm --filter @mode/services test
           pnpm --filter @mode/server test
           node --test packages/desktop/tests/*.test.mjs

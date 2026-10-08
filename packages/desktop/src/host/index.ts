@@ -60,6 +60,7 @@ import {
   createHostApiNetworkTransport,
   createSettingServiceWithMigrations,
   getAppConfigDir,
+  getConversationWorkspaceDir,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
   type HostApiNetworkTransport,
@@ -100,6 +101,7 @@ import {
   buildRemoteEnvironmentKey,
   isOffPeakTicketExpiredError,
   isRemoteWorkspaceIdentity,
+  isInternalConversationWorkspacePath,
   resolveWorkspaceKey,
   formatModelPickerValue,
   type ModePromptAttachment,
@@ -1110,9 +1112,7 @@ function isModeTaskMeta(value: unknown): value is ModeTaskMeta {
   );
 }
 
-function isRemoteMirrorableStreamEvent(
-  event: ModeStreamEvent,
-): event is TaskStreamMirrorableEvent {
+function isRemoteMirrorableStreamEvent(event: ModeStreamEvent): event is TaskStreamMirrorableEvent {
   return event.type !== "task_stream_mirror_batch" && event.type !== "task_snapshot_updated";
 }
 
@@ -1628,7 +1628,9 @@ async function createWindowLanRemoteConnectionHandle(
   }
 
   const unsupportedAttachmentError = () => {
-    throw new Error("局域网连接暂不支持随消息上传附件；请改用文本描述，或把文件放到对端工作区后再引用。");
+    throw new Error(
+      "局域网连接暂不支持随消息上传附件；请改用文本描述，或把文件放到对端工作区后再引用。",
+    );
   };
   const materializePromptAttachments = async (request: {
     taskId: string;
@@ -1987,12 +1989,25 @@ async function collectLanAccessWorkspaces(
   const settingService = services.getOptional(ISettingService);
   const settings = await settingService?.get().catch(() => null);
   const byPath = new Map<string, { path: string; label: string; workspaceIdentity?: string }>();
+  // 只暴露用户选择的路径：本机默认对话工作区（数据根内，非项目会话目录）是内部
+  // 目录，不外发给局域网对端（spec: docs/specs/lan-paired-devices.md）。
+  const conversationWorkspaceDir = getConversationWorkspaceDir();
+  const caseInsensitive = process.platform === "win32";
   const add = (workspacePath: string, workspaceIdentity?: string) => {
     const trimmed = workspacePath.trim();
     if (!trimmed || byPath.has(trimmed)) {
       return;
     }
-    const label = trimmed.replace(/[\\/]+$/u, "").split(/[\\/]/u).pop() || trimmed;
+    if (
+      isInternalConversationWorkspacePath(trimmed, conversationWorkspaceDir, { caseInsensitive })
+    ) {
+      return;
+    }
+    const label =
+      trimmed
+        .replace(/[\\/]+$/u, "")
+        .split(/[\\/]/u)
+        .pop() || trimmed;
     byPath.set(trimmed, {
       path: trimmed,
       label,
@@ -3281,12 +3296,9 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         });
         const modeTaskService = services.getOptional(IModeTaskService);
         if (modeTaskService) {
-          const reportingModeTaskService = createReportingRemoteModeTaskService(
-            modeTaskService,
-            {
-              reportRunningPromptCount: false,
-            },
-          );
+          const reportingModeTaskService = createReportingRemoteModeTaskService(modeTaskService, {
+            reportRunningPromptCount: false,
+          });
           services.register(IModeTaskService, reportingModeTaskService);
         }
         // AstrBot 桥接已下线：清掉历史运行时文件与桥接令牌，避免磁盘上继续留着 url/token。
