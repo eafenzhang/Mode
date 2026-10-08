@@ -13,6 +13,7 @@ import {
   isBuiltinDefaultMarketplaceId,
   isCodexPluginMarketplaceId,
   isPublicStoreMarketplaceId,
+  listingRequiresPaidPlan,
   resolveDefaultPluginMarketplaces,
 } from "@zcode/shared";
 
@@ -238,5 +239,46 @@ test("官方市场投影：随包清单并入候选，总览不再过滤官方�
   assert.ok(
     !service.includes("plugin.marketplace !== ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID"),
     "总览不得再过滤官方插件，否则公开分段又变成空",
+  );
+});
+
+// 需要编程套餐（付费套餐）才好用的插件不进商店：Mode 里官方平台已整体下线，套餐无法开通，
+// 这类插件装上也只能报错。过滤发生在「候选层」（bootstrap 总览）与「展示层」（UI 商店列表），
+// 两处必须用同一个谓词，判据是目录条目自带的 requiresPaidPlan 标记。
+test("需编程套餐的插件不进候选与商店列表", async () => {
+  assert.equal(listingRequiresPaidPlan({ requiresPaidPlan: true }), true);
+  assert.equal(listingRequiresPaidPlan({ requiresPaidPlan: false }), false);
+  assert.equal(listingRequiresPaidPlan({}), false);
+  assert.equal(listingRequiresPaidPlan(undefined), false, "缺标记时不得误伤（fail open 会让过滤失效，必须判 false 而不报错）");
+
+  const bootstrap = await readFile(
+    new URL("../../../apps/zcode-cli/packages/bootstrap/src/plugins.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    bootstrap.includes("listingRequiresPaidPlan(entry.listing)") &&
+      bootstrap.includes("if (!listingRequiresPaidPlan(listing))"),
+    "总览的两条候选路径（市场目录 + 随包清单）都必须过滤需套餐条目",
+  );
+
+  const listing = await readFile(
+    new URL("../../../packages/ui/src/settings/pluginStoreListing.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    listing.includes("if (listingRequiresPaidPlan(summary.listing)) continue;"),
+    "商店列表必须用同一谓词再过滤一次（老版本 agent 的旧总览也不能漏出来）",
+  );
+
+  const snapshot = await readFile(
+    new URL(
+      "../../../apps/zcode-cli/packages/bootstrap/src/app/official-plugin-catalog.generated.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.ok(
+    snapshot.includes('"requiresPaidPlan": true'),
+    "随包官方清单必须原样保留 requiresPaidPlan 标记：清掉标记等于把过滤放空",
   );
 });

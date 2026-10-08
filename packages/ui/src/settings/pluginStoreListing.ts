@@ -12,6 +12,7 @@ import {
   resolvePluginStoreCategory as resolveStoreCategory,
   FALLBACK_PLUGIN_STORE_CATEGORY as FALLBACK_CATEGORY,
   isPublicStoreMarketplaceId,
+  listingRequiresPaidPlan,
   resolveLocalizedText,
   resolvePluginDisplayName,
   ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
@@ -233,6 +234,9 @@ export function buildStoreItems(input: {
   const items = new Map<string, StorePluginItem>();
 
   for (const summary of input.availablePlugins) {
+    // 需要编程套餐的插件在 Mode 里无法开通套餐（官方平台已下线），商店不展示；
+    // 判据与 bootstrap 总览用同一个谓词，两边不会各写一套。
+    if (listingRequiresPaidPlan(summary.listing)) continue;
     const info = infoById.get(summary.id);
     items.set(summary.id, {
       id: summary.id,

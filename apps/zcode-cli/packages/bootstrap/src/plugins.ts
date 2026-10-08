@@ -50,7 +50,11 @@ import type {
 } from "@zcode/contracts";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE, isOfficialMarketplaceId } from "@zcode/contracts";
 import { BUNDLED_OFFICIAL_PLUGIN_CATALOG } from "./app/official-plugin-catalog.generated.js";
-import { ZCODE_CUA_OFFICIAL_PLUGIN_ID, isZCodeCuaInternalFeatureEnabled } from "@zcode/shared";
+import {
+  ZCODE_CUA_OFFICIAL_PLUGIN_ID,
+  isZCodeCuaInternalFeatureEnabled,
+  listingRequiresPaidPlan,
+} from "@zcode/shared";
 import { resolveOfficialPluginRoots } from "./app/bundled-plugins.js";
 import {
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
@@ -322,7 +326,7 @@ export function getZCodePluginsOverview(
   // 同时按 id 收集目录条目的商店信息，供已安装插件 join（详情/图标条/管理视图共用）。
   const listingByPluginId = new Map<string, PluginStoreListing>();
   const availablePlugins = catalogs.flatMap((catalog) =>
-    catalog.entries.map((entry) => {
+    catalog.entries.flatMap((entry) => {
       const data = toAvailablePluginData(entry, catalog.summary.id, installedIds);
       latestPinByPluginId.set(data.id, {
         ...(entry.version ? { version: entry.version } : {}),
@@ -331,7 +335,9 @@ export function getZCodePluginsOverview(
           : {}),
       });
       if (entry.listing) listingByPluginId.set(data.id, entry.listing);
-      return data;
+      // 需要编程套餐的条目不进候选（套餐在 Mode 无法开通，装上也只能报错）；
+      // 上面的 pin 与 listing 仍然记录，已装过它的用户照常看到图标、详情与更新检测。
+      return listingRequiresPaidPlan(entry.listing) ? [] : [data];
     }),
   );
   // 随包内置的官方插件目录快照（zcode-plugins-official）：公开分段的浏览面完全离线，
@@ -345,19 +351,21 @@ export function getZCodePluginsOverview(
       const entry = rawEntry as unknown as PluginMarketplaceEntry;
       const listing = parseEntryStoreListing(entry as unknown as Record<string, unknown>);
       seenIds.add(id);
-      bundledCatalogPlugins.push({
-        id,
-        name: rawEntry.name,
-        marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
-        ...("description" in rawEntry && typeof rawEntry.description === "string"
-          ? { description: rawEntry.description }
-          : {}),
-        ...("version" in rawEntry && typeof rawEntry.version === "string"
-          ? { version: rawEntry.version }
-          : {}),
-        installed: installedIds.has(id),
-        ...(listing ? { listing } : {}),
-      });
+      if (!listingRequiresPaidPlan(listing)) {
+        bundledCatalogPlugins.push({
+          id,
+          name: rawEntry.name,
+          marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
+          ...("description" in rawEntry && typeof rawEntry.description === "string"
+            ? { description: rawEntry.description }
+            : {}),
+          ...("version" in rawEntry && typeof rawEntry.version === "string"
+            ? { version: rawEntry.version }
+            : {}),
+          installed: installedIds.has(id),
+          ...(listing ? { listing } : {}),
+        });
+      }
       if (listing) {
         listingByPluginId.set(id, listing);
       }

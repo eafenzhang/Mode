@@ -110,3 +110,17 @@ export function isCodexPluginMarketplaceId(id: string): boolean {
   return id === CODEX_PLUGIN_MARKETPLACE_ID;
 }
 
+/**
+ * 需要编程套餐（付费套餐）才好用的插件：官方目录条目用 `requiresPaidPlan: true` 标注
+ * （金融与企业那批，含同花顺/天眼查/Wind 等）。
+ *
+ * Mode 里官方平台已整体下线，套餐无法开通，这类插件装上也只能报错，因此商店不把它们
+ * 作为候选展示。判定只看条目自带的标记，不看来源市场：用户自己添加的目录若带同样标记，
+ * 一视同仁。清单本身保留这个字段（随包官方清单逐条照抄官方），过滤发生在展示/候选层。
+ */
+export function listingRequiresPaidPlan(
+  listing: { requiresPaidPlan?: boolean } | undefined | null,
+): boolean {
+  return listing?.requiresPaidPlan === true;
+}
+

@@ -3745,8 +3745,6 @@ const faIR: Record<string, string> = {
   "settings.plugins.store.viewMoreFew": "{names} را ببینید",
   "settings.plugins.store.showLess": "نمایش کمتر",
   "settings.plugins.store.install": "نصب",
-  "settings.plugins.store.paidPlanBadge": "Coding Plan",
-  "settings.plugins.store.requiresPaidPlan": "این افزونه با Coding Plan بهتر کار می‌کند",
   "settings.plugins.store.tryNow": "هم‌اکنون امتحان کنید",
   "settings.plugins.store.sourceMissing":
     "منبع بازار افزونه‌ها یافت نمی‌شود. این افزونه همچنان قابل استفاده است، اما به‌روزرسانی‌ها در دسترس نیستند.",
