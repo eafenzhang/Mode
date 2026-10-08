@@ -28,6 +28,10 @@ if (requestedEnv === "test" && !legacyDataBaseDirSet) {
 // 同上：剔除宿主 CLI 泄漏的 builtin 配置路径，Host env 解析不得命中宿主运行时副本。
 delete process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE;
 delete process.env.ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE;
+// 宿主 ZCode 给自己启动的进程注入 ZCODE_APP_VERSION（宿主的版本号），dev 构建读到后
+// About、更新检查会显示成宿主版本（曾出现 41.0.3）。CI 发布时才该有这个变量，dev 一律删掉，
+// 让版本回落到仓库 package.json。
+delete process.env.ZCODE_APP_VERSION;
 console.log(
   `[dev] ZCODE_ENV=${requestedEnv} 数据目录: ${
     process.env.ZCODE_DATA_BASE_DIR?.trim() || "(未注入 — 将使用真实 HOME，dogfood 模式)"

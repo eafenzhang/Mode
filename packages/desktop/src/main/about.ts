@@ -230,8 +230,11 @@ export async function showAboutDialog(
   locale: Locale = DEFAULT_LOCALE,
 ): Promise<MessageBoxReturnValue> {
   const { app, BrowserWindow } = await import("electron");
+  // 未打包（dev）运行时 app.getVersion() 返回的是 Electron 自身的版本（曾把关于窗口显示成
+  // 41.0.3），构建注入的 ZCODE_VERSION 才是应用版本；打包后两者一致，这里优先用它，
+  // 与 index.ts 里同一份 payload 的口径保持一致。
   const snapshot = createAboutSnapshot({
-    appVersion: app.getVersion(),
+    appVersion: ZCODE_VERSION || app.getVersion(),
     buildMetadata: readBuildMetadata(),
   });
   const aboutMessages = getAboutMessages(locale);
