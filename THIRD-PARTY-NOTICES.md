@@ -712,6 +712,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - @vercel/oidc@3.2.0 — Apache-2.0
 
+- @wecom/aibot-node-sdk@1.0.7 — MIT
+
 - @xterm/addon-clipboard@0.2.0 — MIT
 
 - @xterm/addon-fit@0.10.0 — MIT
@@ -2275,6 +2277,8 @@ Some publishers provide only a license identifier or a short README license sect
 - is-node-process@1.2.0: https://registry.npmjs.org/is-node-process/1.2.0
 
 - ansi-to-react@6.2.6: https://registry.npmjs.org/ansi-to-react/6.2.6
+
+- @wecom/aibot-node-sdk@1.0.7: https://registry.npmjs.org/@wecom%2faibot-node-sdk/1.0.7
 
 The original import revisions of copied components are not recorded in the current checkout. Pinned license references below do not establish the original copy revision. They cover upstream-derived portions only; local adaptations do not change the upstream terms.
 
@@ -6498,6 +6502,42 @@ Released under the MIT License.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+````
+
+### Notice 03b6eb98341d2b49260e4126ad165c0d882ac7ae7ebe7cca4c793da896424807
+
+- @wecom/aibot-node-sdk@1.0.7: https://registry.npmjs.org/@wecom%2faibot-node-sdk/1.0.7
+
+
+
+````text
+@wecom/aibot-node-sdk@1.0.7
+Publisher-declared license: MIT
+Evidence: https://registry.npmjs.org/@wecom%2faibot-node-sdk/1.0.7
+The published package/upstream snapshot did not supply a separate copyright notice.
+No copyright holder or year has been inferred from the npm author field.
+The following is the standard license text, not a claim that an upstream LICENSE file was published.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ````
 
