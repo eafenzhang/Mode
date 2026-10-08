@@ -333,9 +333,9 @@ pub type AxResult<T> = Result<T, AxError>;
 ```rust
 #![deny(clippy::unwrap_used)]
 // 模块必须 pub：集成测试（tests/*.rs）直接调用纯逻辑函数，napi 包装只做错误转码。
+// 本任务只声明 apps/error；observe/capture/perform/launch/screen/uia_thread/input/
+// clipboard 由 Task 3-6 创建各自文件时追加自己的 pub mod 行——提前声明会编译失败。
 pub mod apps; pub mod error;
-pub mod observe; pub mod capture; pub mod perform; pub mod launch; pub mod screen;
-pub mod uia_thread; pub mod input; pub mod clipboard;
 use napi_derive::napi;
 use error::{AxError, AxResult};
 
