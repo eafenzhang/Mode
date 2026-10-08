@@ -130,28 +130,32 @@ jobs:
           NOTICE: ${{ inputs.notice }}
         run: |
           set -euo pipefail
+          # 产品名从产品身份模块取（正式身份要 ZCODE_ENV=production，否则解析成 Preview）。
+          # 不写死在这里：改名时标题与说明跟着变，别再让旧名字卡住发版。
+          PRODUCT_NAME=$(ZCODE_ENV=production node -e "import('./packages/desktop/scripts/desktop-product-identity.mjs').then((m) => process.stdout.write(m.resolveDesktopProductIdentity(process.env).productName))")
+          echo "产品名：$PRODUCT_NAME"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "$TAG"
           git push origin "$TAG"
           cat > /tmp/release-notes.md <<'NOTES'
-          # Mode <VERSION>
+          # <PRODUCT> <VERSION>
 
-          Mode 是基于公开发布的 ZCode 持续维护的独立分支（延续 ZCodium 审计分支）：桌面端、浏览器工作区与终端 TUI 共享同一个 Agent 运行时，移除监控与遥测、不再连接官方平台服务，并补上 IM 机器人、局域网远程连接与随包离线插件目录。
+          <PRODUCT> 是基于公开发布的 ZCode 持续维护的独立分支（延续 ZCodium 审计分支）：桌面端、浏览器工作区与终端 TUI 共享同一个 Agent 运行时，移除监控与遥测、不再连接官方平台服务，并补上 IM 机器人、局域网远程连接与随包离线插件目录。
 
-          Mode is an independently maintained fork of the open-source ZCode (continuing the ZCodium audit fork): desktop, browser workspace and terminal TUI still share one agent runtime, with monitoring and telemetry removed, official platform services retired, plus IM bots, LAN remote connections and an offline bundled plugin catalog.
+          <PRODUCT> is an independently maintained fork of the open-source ZCode (continuing the ZCodium audit fork): desktop, browser workspace and terminal TUI still share one agent runtime, with monitoring and telemetry removed, official platform services retired, plus IM bots, LAN remote connections and an offline bundled plugin catalog.
 
           ## 安装与升级 / Install and update
 
-          - **Windows（.exe）**：`Mode-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
-          - **macOS（.dmg）**：`Mode-<VERSION>-mac-arm64.dmg`（Apple Silicon）/ `Mode-<VERSION>-mac-x64.dmg`（Intel），拖进「应用程序」；未签名会被 Gatekeeper 拦一次，放行命令：`sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"`。
-          - **Linux（.AppImage）**：`Mode-<VERSION>-linux-x86_64.AppImage` / `Mode-<VERSION>-linux-arm64.AppImage`，`chmod +x` 后直接运行。
+          - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
+          - **macOS（.dmg）**：`<PRODUCT>-<VERSION>-mac-arm64.dmg`（Apple Silicon）/ `<PRODUCT>-<VERSION>-mac-x64.dmg`（Intel），拖进「应用程序」；未签名会被 Gatekeeper 拦一次，放行命令：`sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`。
+          - **Linux（.AppImage）**：`<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`，`chmod +x` 后直接运行。
           - **CLI（.tar.gz）**：`zcodium-<VERSION>.tar.gz`，需要 Node.js 24；CLI 命令名沿用 `zcodium`，解压后 `./install.sh` 安装。
           - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包与 CLI 包；`latest*.yml`、`latest.json` 供应用内自动更新使用。
 
-          - **Windows (.exe)**: `Mode-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
-          - **macOS (.dmg)**: `Mode-<VERSION>-mac-arm64.dmg` (Apple Silicon) / `Mode-<VERSION>-mac-x64.dmg` (Intel); drag it into Applications. Unsigned, so Gatekeeper blocks the first launch once: `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"`.
-          - **Linux (.AppImage)**: `Mode-<VERSION>-linux-x86_64.AppImage` / `Mode-<VERSION>-linux-arm64.AppImage`; `chmod +x` then run it directly.
+          - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
+          - **macOS (.dmg)**: `<PRODUCT>-<VERSION>-mac-arm64.dmg` (Apple Silicon) / `<PRODUCT>-<VERSION>-mac-x64.dmg` (Intel); drag it into Applications. Unsigned, so Gatekeeper blocks the first launch once: `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`.
+          - **Linux (.AppImage)**: `<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`; `chmod +x` then run it directly.
           - **CLI (.tar.gz)**: `zcodium-<VERSION>.tar.gz` needs Node.js 24; the CLI command is still named `zcodium` - extract and run `./install.sh`.
           - **Checksums and update metadata**: `sha256.txt` covers the installers and the CLI package; `latest*.yml` and `latest.json` drive in-app updates.
 
@@ -160,7 +164,7 @@ jobs:
           - 问题与建议请开 Issue：https://github.com/eafenzhang/Mode/issues
           - Issues and suggestions: https://github.com/eafenzhang/Mode/issues
           NOTES
-          sed -i "s/<VERSION>/${TAG#v}/g" /tmp/release-notes.md
+          sed -i "s/<VERSION>/${TAG#v}/g; s/<PRODUCT>/${PRODUCT_NAME}/g" /tmp/release-notes.md
           # 自动生成版本差异 Changelog：对比最近的正式 tag（排除 ci 类提交），插入到标题之后。
           # 审计/预发布 tag（v3.14.4-audit.20260929.2 这类）会被 draft 构建打在 main 上；
           # 若让它们参与 describe，正式版的基线会切到 draft tag，Changelog 只剩一行。
@@ -193,7 +197,8 @@ jobs:
             { printf '%s\n\n' "$NOTICE"; cat /tmp/release-notes.md; } > /tmp/release-notes-with-notice.md
             mv /tmp/release-notes-with-notice.md /tmp/release-notes.md
           fi
-          args=(--draft --title "$TAG" --notes-file /tmp/release-notes.md)
+          # 标题跟随 0.0.1 的格式：`<产品名> <版本>`（不带 v 前缀）。
+          args=(--draft --title "$PRODUCT_NAME ${TAG#v}" --notes-file /tmp/release-notes.md)
           if [ "$PRERELEASE" = "true" ]; then
             args+=(--prerelease)
           fi
