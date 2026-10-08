@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import net from "node:net";
 import {
   BrokerError,
-  mintBrokerSocketPath, callBrokerMethod, probeHelperHealth,
+  mintBrokerSocketPath, resolveBrokerSocketPath,
+  callBrokerMethod, probeHelperHealth,
   parseRequestLine, okResponse, errorResponse, errorResponseFromException,
   serializeResponse, dispatchRequest, handleRequestLine,
   isBrokerMethod, isReadOnlyBrokerMethod,
@@ -117,6 +118,42 @@ test("callBrokerMethod rejects with timeout when server never answers", async ()
     await assert.rejects(
       callBrokerMethod({ socketPath, method: "ping", timeoutMs: 300 }),
       (e) => e instanceof BrokerError && e.code === "timeout",
+    );
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test("resolveBrokerSocketPath discovers injected env socket before minting", () => {
+  // 旧行为保持：注入值原样返回，不做 trim。
+  assert.equal(
+    resolveBrokerSocketPath({ env: { MODE_CUA_PERMISSION_BROKER_SOCKET: " X " } }),
+    " X ",
+  );
+  // 空白值不算注入（与旧 stub 的 .trim() 判定一致）→ 回落铸造。
+  assert.match(
+    resolveBrokerSocketPath({ env: { MODE_CUA_PERMISSION_BROKER_SOCKET: "   " } }),
+    /^\\\\\.\\pipe\\mode-cua-[0-9a-f]{16}$/u,
+  );
+  // 完全没有注入 → 回落铸造。
+  assert.match(
+    resolveBrokerSocketPath({ env: {} }),
+    /^\\\\\.\\pipe\\mode-cua-[0-9a-f]{16}$/u,
+  );
+});
+
+test("callBrokerMethod wraps malformed broker responses as BrokerError", async () => {
+  const socketPath = mintBrokerSocketPath();
+  const server = net.createServer((sock) => {
+    sock.on("error", () => {});
+    sock.on("data", () => sock.write("not json\n"));
+  });
+  await new Promise((r) => server.listen(socketPath, r));
+  try {
+    await assert.rejects(
+      callBrokerMethod({ socketPath, method: "health", timeoutMs: 2_000 }),
+      (e) =>
+        e instanceof BrokerError &&
+        e.code === "internal" &&
+        e.message.startsWith("invalid broker response:"),
     );
   } finally { await new Promise((r) => server.close(r)); }
 });

@@ -45,8 +45,13 @@ export function mintBrokerSocketPath({ dir } = {}) {
   return join(dir ?? tmpdir(), `mode-cua-${id}.sock`);
 }
 
-// 语义同源：路径即凭据——不另行解析口令或 env 覆盖，需要固定路径的调用方直接持有 socketPath。
-export function resolveBrokerSocketPath(options) {
+// env 发现优先：进程树里已有注入的 Helper socket 时复用它（services 的
+// probeStableCuaHelperSocket 与 macOS 懒启动注入都依赖这条语义）；
+// 没有注入才铸造新路径（路径即凭据）。
+export function resolveBrokerSocketPath(options = {}) {
+  const env = options.env ?? process.env;
+  const fromEnv = env[BROKER_SOCKET_ENV];
+  if (typeof fromEnv === "string" && fromEnv.trim()) return fromEnv;
   return mintBrokerSocketPath(options);
 }
 
@@ -148,7 +153,11 @@ export function callBrokerMethod({ socketPath, method, params, timeoutMs = 30_00
       try {
         resp = JSON.parse(buf.slice(0, nl));
       } catch (e) {
-        return finish(reject, e);
+        // 与头注释一致：对端响应不可解析也一律转 BrokerError（无独立码，归 internal）。
+        return finish(
+          reject,
+          new BrokerError(`invalid broker response: ${e.message}`, { code: "internal" }),
+        );
       }
       if (resp && resp.ok === true) return finish(resolve, resp.result);
       const err = resp && resp.error ? resp.error : {};
