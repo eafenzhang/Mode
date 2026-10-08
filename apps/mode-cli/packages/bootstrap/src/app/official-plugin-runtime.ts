@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   MODE_OFFICIAL_PLUGIN_MARKETPLACE,
@@ -15,6 +15,24 @@ import {
 type SeaModule = typeof import("node:sea");
 
 const MCP_SERVER_RELATIVE_PATH = ["dist", "mcp", "server.js"] as const;
+
+/**
+ * 随包插件清单相对路径：新名 `.mode-plugin` 为主，改名（ZCODIUM → Mode）前的
+ * `.zcode-plugin` 继续可读——旧 checkout / 旧缓存里的插件包仍是旧名。
+ */
+const PLUGIN_MANIFEST_RELATIVE_PATHS = [
+  join(".mode-plugin", "plugin.json"),
+  join(".zcode-plugin", "plugin.json"),
+] as const;
+
+/** 解析插件根目录下的清单文件；两个名字都不存在时返回 undefined。 */
+export function resolveOfficialPluginManifestPath(rootPath: string): string | undefined {
+  for (const relativePath of PLUGIN_MANIFEST_RELATIVE_PATHS) {
+    const manifestPath = join(rootPath, relativePath);
+    if (existsSync(manifestPath)) return manifestPath;
+  }
+  return undefined;
+}
 
 export function createBundledMcpRuntimeConfig(input: {
   cwd: string;
@@ -49,7 +67,8 @@ interface OfficialRuntimeManifestInput {
 }
 
 export function writeOfficialPluginRuntimeManifest(input: OfficialRuntimeManifestInput): void {
-  const manifestPath = join(input.rootPath, ".zcode-plugin", "plugin.json");
+  const manifestPath = resolveOfficialPluginManifestPath(input.rootPath);
+  if (!manifestPath) return;
   const currentContents = readFileSync(manifestPath, "utf8");
   const manifest = JSON.parse(currentContents) as Record<string, unknown>;
   // skill-only / command-only 类型的 official plugin 不带 mcpServers，直接跳过 rewrite。

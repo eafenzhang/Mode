@@ -327,6 +327,7 @@ function resolveZipRoot(input: {
 
 function hasPluginManifest(rootPath: string): boolean {
   return (
+    fileExists(join(rootPath, ".mode-plugin", "plugin.json")) ||
     fileExists(join(rootPath, ".zcode-plugin", "plugin.json")) ||
     fileExists(join(rootPath, ".claude-plugin", "plugin.json")) ||
     fileExists(join(rootPath, ".codex-plugin", "plugin.json"))

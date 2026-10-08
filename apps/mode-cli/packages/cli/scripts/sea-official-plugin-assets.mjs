@@ -130,8 +130,16 @@ export const collectSeaOfficialPluginAssets = async ({
   };
 };
 
+function hasPluginManifest(pluginRoot) {
+  // S5b 把随包插件清单目录改到 .mode-plugin：新名优先，改名前的旧名继续可读。
+  return (
+    existsSync(join(pluginRoot, ".mode-plugin", "plugin.json")) ||
+    existsSync(join(pluginRoot, ".zcode-plugin", "plugin.json"))
+  );
+}
+
 function assertPluginRoot(pluginRoot, plugin) {
-  if (!existsSync(join(pluginRoot, ".zcode-plugin", "plugin.json"))) {
+  if (!hasPluginManifest(pluginRoot)) {
     throw new Error(`Missing ${plugin.name} plugin manifest at ${pluginRoot}`);
   }
 }
@@ -185,6 +193,7 @@ const shouldSkipDirectory = (name) =>
 
 const includedTopLevelPaths = new Set([
   ".mcp.json",
+  ".mode-plugin",
   ".zcode-plugin",
   "README.md",
   // SEA 资源采集曾只允许 skills/commands，导致 document-skills 的 judge 子代理未进入可执行文件。

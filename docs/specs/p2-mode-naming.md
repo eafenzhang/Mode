@@ -97,6 +97,14 @@ desktop 25/25、architecture 0/0/0）：
 6. **验证**：新增 `packages/services/test/plugin-marketplace-id-compat.test.ts`（id 归一、
    缓存根回退、协议名双认、`_meta` 双读）；adapters 侧读时归一/写时新 id 用一次性 tsx 脚本
    逐条断言（canonicalizePluginId、键冲突优先级、旧键清理、suppression 迁移）。
+7. **随包插件清单目录双认（连带修复）**：S5b 把随包插件清单改到 `.mode-plugin`，但 seed 链与
+   构建脚本仍在找 `.zcode-plugin`，导致 seed 源解析不到任何插件（随包插件不再 seed、官方市场
+   分片停在旧内容、SEA/远端资源准备会报缺清单）。已统一为"新名优先、旧名兜底"：
+   `bundled-plugins.ts`（顶层白名单 / 根探测 / description / isSeedUsable）、
+   `official-plugin-runtime.ts`（`resolveOfficialPluginManifestPath`）、
+   `zip-source.ts`（zip 插件清单探测）、`subagentsService.ts`（插件子代理清单路径）、
+   `scripts/prepare-prebuilds.mjs`、`packages/desktop/scripts/prepare-agent-node-bundle.mjs`、
+   `apps/mode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs`。
 
 ## S6 落地记录（已完成）
 
@@ -119,16 +127,30 @@ desktop 25/25、architecture 0/0/0）：
 - **对外标识**：`WECOM_QR_SOURCE = "mode"`、HTTP 客户端 `appName = "Mode"` 均已是新值
   （无改动）。企业微信二维码是否被平台接受需要实机建立一次二维码，属于 S8 的实机项。
 
-## S8 剩余验收（未完成部分）
+## S8 验收记录（2026-10-08）
 
-- 实机：数据迁移后设置 / 机器人 / 凭证仍在、插件商店两段、已装插件启停卸载、局域网连接
-  （本次已完成的替换见上；实机复核受 dev 实例数据目录迁移选择态影响时如实标注）。
-- 本地打一次 Windows 安装包，验产物名、图标、安装器文案；改名后的 CLI 产物跑冒烟。
-- 台账：`licenses-notices` workflow_dispatch（Linux）重生成后入库。
-- 已完成的小尾巴：dev 启动脚本（`scripts/dev-desktop-env.mjs`）里内置配置旧前缀与
-  `ZCODE_/ZCODIUM_` 泄漏变量的剔除已核对；lint 多的 1 条 warning 已消除（77 警告 0 错误）。
+**门禁（全绿）**：`pnpm typecheck` 0 错误（含 mode-cli 的 contracts/adapters/bootstrap/node-repl-host）；
+`pnpm lint` 77 警告 0 错误（比基线少 1 条：清掉 `server/src/http.ts` 里改名遗留的未用 import）；
+services 203 测试（195 pass / 8 skip，含新增 5 条）、desktop 29（25 + 新增 4 条 deep link）、
+server 1（新增 LAN cookie）、ui 18；`architecture:check --changed` 0 violations。
+新增 `pnpm --filter @mode/server test` 已接入 release.yml 的 verify 闸门。
 
-### 附：S5c 的原始落地顺序（参考）
+**实机（dev 实例 + CDP）**：
+- 插件商店两段正常：公开 25 张卡、个人 315 张卡（Claude 目录），第三方条目状态未受影响。
+- 切换后首次启动生成了 `marketplaces/mode-plugins-official/{marketplace.json,bundled-marketplace.json}`
+  （`name = mode-plugins-official`，40 条目）与 `cache/mode-plugins-official/{browser-use/0.5.1,node-repl-host/0.6.0}`
+  （旧根 `cache/zcode-plugins-official/**` 保持可用，走兜底读取）。
+- `mode plugins list`（bundled CLI）输出 `browser-use@mode-plugins-official [enabled]`、
+  `node-repl-host@mode-plugins-official [enabled]`（来自新缓存根）、
+  `activecampaign@claude-plugins-official [enabled]`（第三方不受影响）；
+  `~/.mode/cli/config.json` 的 enabledPlugins 已是新 id。
+- 数据迁移：`MODE_DATA_BASE_DIR=<old dev home> MODE_DATA_ROOT_ACTION=migrate` 跑一次 CLI，
+  旧根 `.zcodium` 被识别为历史产品并迁移到 `.mode`（`.mode-root.json` 记录 migration.from），
+  机器人配置、凭证（bot credential、LAN 访问令牌）逐项仍在，旧根按 copy 语义保留。
+- 未覆盖（如实记录）：企业微信二维码 source=mode 的平台接受度、Windows 安装包与 CLI 产物的
+  本地冒烟、`licenses-notices` 台账重生成（CI/Linux），以及桌面端数据根迁移对话框的点击路径。
+
+## S5c/S6 的原始步骤（参考）
 
 ### S5c 市场 id `zcode-plugins-official` → `mode-plugins-official`
 

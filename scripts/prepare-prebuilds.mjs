@@ -139,6 +139,7 @@ const remoteBundledSkillPack = {
 };
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
+  ".mode-plugin",
   ".zcode-plugin",
   "README.md",
   // 生产远程预构建有独立顶层白名单，遗漏 agents 会在上传前永久裁掉子代理。
@@ -165,8 +166,8 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
 const remoteOfficialPluginRequiredPaths = [
-  "packages/browser-use-plugin/.zcode-plugin/plugin.json",
-  "packages/node-repl-host/.zcode-plugin/plugin.json",
+  "packages/browser-use-plugin/.mode-plugin/plugin.json",
+  "packages/node-repl-host/.mode-plugin/plugin.json",
 ];
 
 function readModeAgentRuntimeVersion() {
@@ -475,10 +476,12 @@ function assertRemoteOfficialPluginRuntime(plugin) {
 function stageRemoteOfficialPlugins(glmDir) {
   for (const plugin of remoteOfficialPluginPackages) {
     const sourceRoot = join(rootDir, plugin.relativePath);
-    const manifestPath = join(sourceRoot, ".zcode-plugin", "plugin.json");
-    if (!existsSync(manifestPath)) {
+    const manifestPath = [".mode-plugin", ".zcode-plugin"]
+      .map((directoryName) => join(sourceRoot, directoryName, "plugin.json"))
+      .find((candidate) => existsSync(candidate));
+    if (!manifestPath) {
       throw new Error(
-        `[prepare-prebuilds] missing remote official plugin manifest: ${manifestPath}`,
+        `[prepare-prebuilds] missing remote official plugin manifest under: ${sourceRoot}`,
       );
     }
 

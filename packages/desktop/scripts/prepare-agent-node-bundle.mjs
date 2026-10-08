@@ -128,6 +128,7 @@ const bundledSkillPack = {
 };
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
+  ".mode-plugin",
   ".zcode-plugin",
   "README.md",
   // Electron 生产资源复制有独立白名单，遗漏 agents 会让首启 filesystem seed 永久缺少子代理。
@@ -237,9 +238,11 @@ function stageBundle() {
 function stageOfficialPlugins() {
   for (const plugin of officialPluginPackages) {
     const sourceRoot = resolve(repoRoot, plugin.relativePath);
-    const manifestPath = resolve(sourceRoot, ".zcode-plugin", "plugin.json");
-    if (!existsSync(manifestPath)) {
-      throw new Error(`[prepare:agent-bundle] missing official plugin manifest: ${manifestPath}`);
+    const manifestPath = [".mode-plugin", ".zcode-plugin"]
+      .map((directoryName) => resolve(sourceRoot, directoryName, "plugin.json"))
+      .find((candidate) => existsSync(candidate));
+    if (!manifestPath) {
+      throw new Error(`[prepare:agent-bundle] missing official plugin manifest under: ${sourceRoot}`);
     }
 
     const targetRoot = resolve(glmDir, plugin.stagedPath);

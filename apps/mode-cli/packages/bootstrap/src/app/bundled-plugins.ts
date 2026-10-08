@@ -25,7 +25,10 @@ import {
   OFFICIAL_PLUGIN_DEFINITIONS,
   type OfficialPluginDefinition,
 } from "./official-plugin-definitions.js";
-import { writeOfficialPluginRuntimeManifest } from "./official-plugin-runtime.js";
+import {
+  resolveOfficialPluginManifestPath,
+  writeOfficialPluginRuntimeManifest,
+} from "./official-plugin-runtime.js";
 import {
   isOfficialPluginSeedLockTimeoutError,
   withOfficialPluginSeedLock,
@@ -39,6 +42,9 @@ const SEED_LOCK_TOTAL_BUDGET_MS = 15_000;
 
 const includedTopLevelPaths = new Set([
   ".mcp.json",
+  // 随包插件清单目录：新名 `.mode-plugin` 为主，改名前的 `.zcode-plugin` 继续可读
+  // （旧 checkout / 旧缓存里的插件包仍是旧名，seed 与探测必须两者都认）。
+  ".mode-plugin",
   ".zcode-plugin",
   "README.md",
   // 官方内容插件新增 agents 后，filesystem seed 的顶层白名单未同步，目录被静默裁掉。
@@ -347,7 +353,9 @@ function resolveFilesystemPluginRoot(definition: OfficialPluginDefinition): stri
   for (const baseDir of candidateBaseDirs()) {
     for (const relativePath of definition.rootCandidates) {
       const rootPath = resolve(baseDir, relativePath);
-      if (existsSync(join(rootPath, ".zcode-plugin", "plugin.json"))) return rootPath;
+      // S5b 把随包插件的清单目录改成了 `.mode-plugin`；这里必须新名优先、旧名兜底，
+      // 否则 seed 源解析不到任何插件（表现为随包插件不再 seed、官方市场分片停在旧内容）。
+      if (resolveOfficialPluginManifestPath(rootPath)) return rootPath;
     }
   }
   return undefined;
@@ -446,7 +454,9 @@ function readSeedPluginDescription(
   source: OfficialPluginSeedSource,
   plugin: OfficialPluginSeedPluginSource,
 ): string | undefined {
-  const manifestFile = plugin.files.find((file) => file.path === ".zcode-plugin/plugin.json");
+  const manifestFile =
+    plugin.files.find((file) => file.path === ".mode-plugin/plugin.json") ??
+    plugin.files.find((file) => file.path === ".zcode-plugin/plugin.json");
   if (!manifestFile) return undefined;
   try {
     const parsed = JSON.parse(readSeedFileBytes(source, plugin, manifestFile).toString("utf8")) as {
@@ -477,9 +487,9 @@ function isSeedCurrent(targetRoot: string, plugin: OfficialPluginSeedPluginSourc
  */
 function isSeedUsable(targetRoot: string, definition: OfficialPluginDefinition): boolean {
   try {
-    const manifest = JSON.parse(
-      readFileSync(join(targetRoot, ".zcode-plugin", "plugin.json"), "utf8"),
-    ) as { name?: unknown };
+    const manifestPath = resolveOfficialPluginManifestPath(targetRoot);
+    if (!manifestPath) return false;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { name?: unknown };
     if (manifest.name !== definition.name) return false;
   } catch {
     return false;
