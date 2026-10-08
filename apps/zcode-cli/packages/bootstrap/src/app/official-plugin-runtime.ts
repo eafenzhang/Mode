@@ -4,8 +4,8 @@ import {
   MODE_OFFICIAL_PLUGIN_MARKETPLACE,
   MODE_PLUGIN_HOST_COMMAND,
   type McpServerConfig,
-} from "@zcode/contracts";
-import { MODE_PLUGIN_ID_ENV_KEY } from "@zcode/shared";
+} from "@mode/contracts";
+import { MODE_PLUGIN_ID_ENV_KEY } from "@mode/shared";
 import {
   createOfficialPluginCacheRetryBudget,
   type OfficialPluginCacheRetryBudget,

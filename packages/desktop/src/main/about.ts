@@ -9,7 +9,7 @@ import {
   MODE_COMMIT,
   MODE_ENV,
   MODE_VERSION,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { createCustomAboutDialogHtml } from "./aboutWindow.js";
 
 interface DesktopBuildMetadata {

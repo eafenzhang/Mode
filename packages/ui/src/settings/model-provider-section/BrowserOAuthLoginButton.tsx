@@ -1,4 +1,4 @@
-import type { OAuthProviderId } from "@zcode/shared";
+import type { OAuthProviderId } from "@mode/shared";
 
 /**
  * 浏览器授权登录入口。

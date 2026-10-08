@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveWorkspaceHookTimeoutMs } from "@zcode/shared/workspace-hook-discovery";
+import { resolveWorkspaceHookTimeoutMs } from "@mode/shared/workspace-hook-discovery";
 import {
   CoreErrorType,
   HookEventName,
@@ -9,7 +9,7 @@ import {
   type HookConfig,
   type HookInput,
   type HookPluginContext,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 
 export async function createCompatibleHookStdin(input: HookInput): Promise<{
   cleanup: () => Promise<void>;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { BotConfig } from "@zcode/shared";
+import type { BotConfig } from "@mode/shared";
 import { Input } from "@/components/ui/input.js";
 import { Switch } from "@/components/ui/switch.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

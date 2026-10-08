@@ -17,8 +17,8 @@ import type {
   ToolArtifactStorePort,
   WorkflowEscalatePort,
   WorkflowSubmitPort,
-} from "@zcode/contracts";
-import type { AgentRuntime } from "@zcode/core";
+} from "@mode/contracts";
+import type { AgentRuntime } from "@mode/core";
 import type {
   ActorSubmitProfile,
   ActorRef,
@@ -28,7 +28,7 @@ import type {
   PersonaSpec,
   RunEvent,
   SessionRef,
-} from "@zcode/dynamic-workflow";
+} from "@mode/dynamic-workflow";
 import type { ActorTranscriptStore } from "./workflow-actor-transcript.js";
 import type { WorkflowConcurrencyPort } from "./workflow-concurrency-governor.js";
 import type { ActorModelActivity, WorkflowClock } from "./workflow-driver-concurrency.js";

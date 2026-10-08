@@ -5,13 +5,13 @@ import type {
   AppSettings,
   ProviderFamilyDomain,
   ProviderFamilyConnectionSelectionSettings,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   appSettingsPatchSchema,
   appSettingsSchema,
   formatLogPrefix,
   formatZodError,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ISettingService } from "./setting.js";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
 import { copyDataDirectory, getDataBaseDir, validateDataBaseDirTarget } from "../paths.js";

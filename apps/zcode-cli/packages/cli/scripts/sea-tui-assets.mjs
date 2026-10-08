@@ -118,19 +118,19 @@ const workspacePackageParentDirectories = (root) => {
 
   return [
     ...workspacePackageParentDirectoryNames.map((directoryName) => resolve(root, directoryName)),
-    // TUI runtime 闭包会经由 @zcode/contracts 依赖仓库根的 @zcode/shared；
+    // TUI runtime 闭包会经由 @mode/contracts 依赖仓库根的 @mode/shared；
     // 只扫描 apps/zcode-cli 子 workspace 会把这个合法 workspace 误判为缺失。
     resolve(repositoryRoot, "packages"),
   ];
 };
 
 const runtimePackageNames = async ({ root, target, workspacePackageDirectories }) => {
-  const tuiDirectory = workspacePackageDirectories.get("@zcode/tui");
+  const tuiDirectory = workspacePackageDirectories.get("@mode/tui");
   if (!tuiDirectory) {
-    throw new Error("Missing @zcode/tui workspace package.");
+    throw new Error("Missing @mode/tui workspace package.");
   }
   const queue = [
-    { fromDirectory: tuiDirectory, packageName: "@zcode/tui" },
+    { fromDirectory: tuiDirectory, packageName: "@mode/tui" },
     { fromDirectory: tuiDirectory, packageName: opentuiCorePackageName },
     { fromDirectory: tuiDirectory, packageName: opentuiReactPackageName },
     { fromDirectory: tuiDirectory, packageName: "react" },
@@ -157,7 +157,7 @@ const runtimePackageNames = async ({ root, target, workspacePackageDirectories }
       packageName,
       packageDirectory,
       placements,
-      fromAssetPath: entry.fromAssetPath ?? "node_modules/@zcode/tui",
+      fromAssetPath: entry.fromAssetPath ?? "node_modules/@mode/tui",
     });
     if (!assetPackagePath) continue;
     ordered.push({

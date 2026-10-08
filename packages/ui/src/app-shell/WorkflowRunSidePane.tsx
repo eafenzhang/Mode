@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type {
   WorkflowRunArtifactSummary,
   WorkflowRunPendingQuestion,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import { buildWorkflowTimeline } from "@/components/workflow-timeline/timeline-model.js";
 import { workflowSubagentModelCardLabel } from "@/components/workflow-timeline/subagent-model-label.js";

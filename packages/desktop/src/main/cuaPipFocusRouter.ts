@@ -1,4 +1,4 @@
-import type { PipSessionEvent } from "@zcode/zcode-cua/pip-session";
+import type { PipSessionEvent } from "@mode/cua/pip-session";
 
 type FocusEvent = Extract<PipSessionEvent, { kind: "focus-changed" }>;
 

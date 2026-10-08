@@ -1,17 +1,17 @@
 import { join } from "node:path";
-import { createNodeContextSourceAdapter } from "@zcode/adapters/context";
-import { createNodeExecutionAdapter } from "@zcode/adapters/exec";
-import { createNodeFileSystemAdapter } from "@zcode/adapters/fs";
-import { createNodeWebFetchHttpClientAdapter } from "@zcode/adapters/http";
-import { createNodeSkillAdapter } from "@zcode/adapters/skills";
-import type { ConfigResult } from "@zcode/adapters/config";
+import { createNodeContextSourceAdapter } from "@mode/adapters/context";
+import { createNodeExecutionAdapter } from "@mode/adapters/exec";
+import { createNodeFileSystemAdapter } from "@mode/adapters/fs";
+import { createNodeWebFetchHttpClientAdapter } from "@mode/adapters/http";
+import { createNodeSkillAdapter } from "@mode/adapters/skills";
+import type { ConfigResult } from "@mode/adapters/config";
 import {
   AgentRuntime,
   type AgentRuntimeConfig,
   type AgentRuntimeDeps,
   type ChildClientPortsContext,
   type PermissionService,
-} from "@zcode/core";
+} from "@mode/core";
 import {
   type ContextSourcePort,
   type FileSystemPort,
@@ -29,7 +29,7 @@ import {
   type WorkflowAgentCallInput,
   type WorkflowEscalatePort,
   type WorkflowSubmitPort,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
 import { parseProviderQualifiedModelSelection } from "./provider-registry-selection.js";
 import type { ZCodeAppOptions } from "./types.js";

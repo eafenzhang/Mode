@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { cpus, totalmem } from "node:os";
-import { MODE_MCP_RESOURCE_SAMPLE_INTERVAL_MS, type ZCodeMcpResourceSample } from "@zcode/shared";
+import { MODE_MCP_RESOURCE_SAMPLE_INTERVAL_MS, type ZCodeMcpResourceSample } from "@mode/shared";
 import {
   createProcessProbe,
   type ProcessProbe,

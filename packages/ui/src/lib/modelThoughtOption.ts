@@ -1,5 +1,5 @@
-import type { ZCodeConfigOption } from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/services";
+import type { ZCodeConfigOption } from "@mode/shared";
+import type { ModelSelectionView } from "@mode/services";
 
 /** 从 Registry 的 ModelConfig Option Specs 读取思考档位。 */
 export function resolveModelThoughtOption(params: {

@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- 钉钉 provider 集中处理 Stream 回调解析、Markdown 发送与 token 生命周期。 */
 import { randomUUID } from "node:crypto";
-import type { BotConfig, BotInboundMessage } from "@zcode/shared";
+import type { BotConfig, BotInboundMessage } from "@mode/shared";
 import type { BotProviderAdapter, BotStreamingReplyCardState } from "./types.js";
 import { splitBotText } from "../botText.js";
 import { formatBotMessage } from "../messages.js";

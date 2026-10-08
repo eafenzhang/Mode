@@ -80,7 +80,7 @@ test("github default feed, generic overrides, manual check and native download/i
       Menu: { getApplicationMenu: () => null },
       ipcMain: { handle: (key, fn) => handlers.set(key, fn), on() {} },
     },
-    "@zcode/shared": {
+    "@mode/shared": {
       DEFAULT_LOCALE: "en-US",
       MODE_VERSION: "1.0.0",
       PlatformChannels: new Proxy({}, { get: (_, key) => key }),

@@ -2,7 +2,7 @@
 
 import { type ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { createServiceLogger } from "@zcode/services/node";
+import { createServiceLogger } from "@mode/services/node";
 import {
   coreMessageSchema,
   SERVER_CLI_PROTOCOL_VERSION,

@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@mode/contracts";
 
 const BUNDLED_PARTITION_FILE = "bundled-marketplace.json";
 const CDN_PARTITION_FILE = "cdn-marketplace.json";

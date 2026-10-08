@@ -4,8 +4,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
-import type { IDisposable } from "@zcode/rpc";
-import { completeNewModelSelection } from "@zcode/provider";
+import type { IDisposable } from "@mode/rpc";
+import { completeNewModelSelection } from "@mode/provider";
 import {
   ALL_BOT_WORKSPACES,
   generateTraceId,
@@ -68,7 +68,7 @@ import {
   parseBotConversationKey,
   type Locale,
   type SelectionPrompt,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { IZCodeTaskService } from "../session/zcodeTaskService.js";
 import { resolveProviderModeIdFromConfigOptions } from "#src/session/sessionModeOptions.js";
 import { deriveSessionTitle as deriveTaskTitle } from "#src/session/sessionTitle.js";

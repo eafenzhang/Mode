@@ -1,5 +1,5 @@
-import { DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY, resolveExecutionState } from "@zcode/shared";
-import type { BackgroundBashOutputResult } from "@zcode/shared";
+import { DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY, resolveExecutionState } from "@mode/shared";
+import type { BackgroundBashOutputResult } from "@mode/shared";
 import {
   createDenyPermissionBroker,
   createRootTraceContext,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeBotWorkspaceBindings } from "@zcode/shared";
+import { normalizeBotWorkspaceBindings } from "@mode/shared";
 
 // 工作区 → bot[] 绑定表：追加/移除的纯函数语义、「绑定 key 指向的工作区
 // 已从已知列表消失时自愈为未绑定」、以及 v1 单 bot 字符串的兼容归一化。

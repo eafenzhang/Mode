@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { useEffect, useState, type ReactNode } from "react";
-import type { BotConfig, BotServiceStatus } from "@zcode/shared";
-import { isFeishuBotProvider } from "@zcode/shared";
+import type { BotConfig, BotServiceStatus } from "@mode/shared";
+import { isFeishuBotProvider } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

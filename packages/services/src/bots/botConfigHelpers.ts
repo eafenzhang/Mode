@@ -5,7 +5,7 @@ import {
   type BotConfig,
   type BotProvider,
   type BotsConfigFile,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   normalizeBotCommandPolicy,
   normalizeBotCurrentOptions,

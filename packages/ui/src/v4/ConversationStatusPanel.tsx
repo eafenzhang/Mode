@@ -40,20 +40,20 @@ import {
   TID_V4_BACKGROUND_WORK_CANCEL,
   TID_V4_BACKGROUND_WORK_ITEM,
   testId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   GitChangeSourceId,
   GitRepositorySummary,
   ZCodeSessionRunningSubagent,
   ZCodeTaskChangeSummary,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   BackgroundWorkSummary,
   GoalState,
   PlanState,
   ToolCallRow,
   WorkflowRunState,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import {

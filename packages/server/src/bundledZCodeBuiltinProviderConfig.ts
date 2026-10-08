@@ -1,4 +1,4 @@
-import { materializeZCodeBuiltinProviderConfig } from "@zcode/services/node";
+import { materializeZCodeBuiltinProviderConfig } from "@mode/services/node";
 
 declare const __MODE_BUILTIN_PROVIDER_CONFIG_JSON__: string | undefined;
 

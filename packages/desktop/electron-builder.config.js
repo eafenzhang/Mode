@@ -110,7 +110,7 @@ const asarCliPath = resolve(
 const REQUIRED_ASAR_RUNTIME_MODULES = [
   "module-details-from-path",
   "pngjs",
-  // @zcode/services 的代理连通性探测会动态 require("undici") 取 ProxyAgent。
+  // @mode/services 的代理连通性探测会动态 require("undici") 取 ProxyAgent。
   // tsup 虽然把 services 代码并进了主/host 产物，但不会把这个运行时 require 的包内联进去，
   // electron-builder 产物又可能漏掉 hoisted 的 undici，最终 mac 安装包启动即报 Cannot find module "undici"。
   // 这里把 undici 和其他兜底依赖一样强制注入 app.asar，避免用户在已安装应用里主进程直接崩溃。
@@ -484,7 +484,7 @@ export default {
     // 默认也会原样进入安装包。这里统一在主包层做一次裁剪，只移除非运行时文件，LICENSE 继续保留。
     ...PACKAGING_PRUNE_PATTERNS,
     ...createDesktopNativePackagePrunePatterns(targetPlatform.key),
-    "!node_modules/@zcode/**",
+    "!node_modules/@mode/**",
     "!node_modules/react/**",
     "!node_modules/react-dom/**",
   ],
@@ -695,7 +695,7 @@ export default {
     // 在未签名的 CI 流程里容易变脆；需要时再单独加回。
     target: ["AppImage", "deb"],
     artifactName: buildDesktopArtifactName("linux"),
-    // desktop 包名是 scoped package（@zcode/desktop），electron-builder 默认会把
+    // desktop 包名是 scoped package（@mode/desktop），electron-builder 默认会把
     // Linux executable/Icon 推成 @zcodedesktop。部分桌面环境无法按这个 icon name 命中
     // hicolor 图标，最终回退成系统齿轮。这里固定成稳定的小写名称，让 Icon=zcode
     // 与 /usr/share/icons/hicolor/*/apps/zcode.png 保持一致。

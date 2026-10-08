@@ -1,4 +1,4 @@
-import type { SupportedLocale, UiLocale } from "@zcode/contracts";
+import type { SupportedLocale, UiLocale } from "@mode/contracts";
 
 export const DEFAULT_LOCALE: SupportedLocale = "en-US";
 export const SUPPORTED_LOCALES = [

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterOrcaModels, buildOrcaV1Base, resolveOrcaOrigins } from "@zcode/shared";
+import { filterOrcaModels, buildOrcaV1Base, resolveOrcaOrigins } from "@mode/shared";
 import type { ICredentialService } from "../src/credential/credential.js";
 import { createOrcaCredentialStore } from "../src/orcarouter/credentialStore.js";
 import { createOrcaCredentialProvider } from "../src/orcarouter/credentials.js";

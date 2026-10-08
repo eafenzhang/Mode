@@ -1,6 +1,6 @@
-import { createNodeFileSystemAdapter } from "@zcode/adapters/fs";
-import type { FileSystemPort } from "@zcode/contracts";
-import type { TuiListWorkspacePathSuggestions, TuiWorkspacePathSuggestion } from "@zcode/tui";
+import { createNodeFileSystemAdapter } from "@mode/adapters/fs";
+import type { FileSystemPort } from "@mode/contracts";
+import type { TuiListWorkspacePathSuggestions, TuiWorkspacePathSuggestion } from "@mode/tui";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 const DEFAULT_WORKSPACE_PATH_SUGGESTION_LIMIT = 50;

@@ -8,8 +8,8 @@ import {
   MODE_PRODUCT_FLAVOR,
   type DesktopCommandId,
   type Locale,
-} from "@zcode/shared";
-import { readZCodeStdioTapDevState } from "@zcode/services/node";
+} from "@mode/shared";
+import { readZCodeStdioTapDevState } from "@mode/services/node";
 import { CHECK_FOR_UPDATE_MENU_ID, setAutoUpdaterMenuLocale } from "./autoUpdater.js";
 import {
   DESKTOP_ZOOM_MAX_LEVEL,

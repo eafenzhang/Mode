@@ -10,9 +10,9 @@ import {
   type ZCodePluginDiagnostic as SharedPluginDiagnostic,
   type ZCodePluginsReferenceCatalogResult,
   type ZCodePluginsResolveSuggestedReferenceResult,
-} from "@zcode/shared";
-import type { PluginReferenceCatalogEntry } from "@zcode/contracts";
-import { buildPluginReferenceCatalog } from "@zcode/core";
+} from "@mode/shared";
+import type { PluginReferenceCatalogEntry } from "@mode/contracts";
+import { buildPluginReferenceCatalog } from "@mode/core";
 import {
   getZCodePluginsOverview,
   resolveZCodePlugins,

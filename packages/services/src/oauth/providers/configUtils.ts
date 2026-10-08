@@ -2,7 +2,7 @@ import {
   MODE_VERSION,
   buildRuntimeZCodeApiUrl,
   buildRuntimeZCodeEndpointUrls,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 const DESKTOP_OAUTH_CALLBACK_URI = "zcodium://oauth/callback";
 

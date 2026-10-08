@@ -24,7 +24,7 @@ import {
   type ZCodeSessionTodoGroup,
   type ZCodeWorkspaceRef,
   isMainAgentToolProjectionSource,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   EventReducer,
   SessionEventType,
@@ -41,7 +41,7 @@ import {
   type SessionProjection,
   type TodoItem,
   type ToolState,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import type { ZCodeApp } from "../app/types.js";
 import { mapMessageWithParts } from "./message-mapper.js";
 import { formatProtocolModelSelection, optionalModelSelectionFromString } from "./model-mapper.js";

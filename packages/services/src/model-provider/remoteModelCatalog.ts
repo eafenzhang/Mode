@@ -3,7 +3,7 @@ import {
   parseRemoteModelListPage,
   type RemoteModelCatalogRequest,
   type RemoteModelCatalogResult,
-} from "@zcode/provider";
+} from "@mode/provider";
 
 /** 模型列表拉取的分页与超时上限；异常网关的死循环在这里被截断。 */
 const MAX_PAGES = 10;

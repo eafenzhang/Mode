@@ -57,7 +57,7 @@ SSH / WSL / Docker 远端工作区会复用主机上已有的运行时；本仓�
 pnpm bootstrap                 # 安装依赖并准备本地桌面运行时资源
 pnpm dev:desktop               # Electron 桌面端（默认生产配置；测试环境用 dev:desktop:test）
 pnpm dev:web                   # 浏览器工作区
-pnpm --filter @zcode/cli dev   # Agent CLI
+pnpm --filter @mode/cli dev   # Agent CLI
 ```
 
 设置 `MODE_DATA_BASE_DIR` 可以让开发实例使用独立的数据目录，不动你正在用的那份。
@@ -67,7 +67,7 @@ pnpm --filter @zcode/cli dev   # Agent CLI
 ```bash
 pnpm typecheck                                              # TypeScript 工程引用
 pnpm lint                                                   # oxlint
-pnpm --filter @zcode/services test                          # 服务与契约测试
+pnpm --filter @mode/services test                          # 服务与契约测试
 node --test packages/desktop/tests/*.test.mjs               # 桌面端 node 测试
 pnpm architecture:check -- --changed                        # 依赖方向策略检查
 ```

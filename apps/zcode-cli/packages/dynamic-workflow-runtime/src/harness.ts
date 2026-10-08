@@ -3,8 +3,8 @@
  *
  * 职责：把一份 workflow 脚本（或已 lowered 的函数体）在受控子进程里跑起来，用 NDJSON 桥接
  * 子进程的 `__host.*` 调用到一个 {@link WorkflowEngine} 实例，最终返回引擎的 {@link RunSettlement}。
- * 本包**只**依赖 `@zcode/dynamic-workflow` 与 node 内建——证明整条管线 app-free 可跑，
- * 绝不 import `@zcode/core`/`@zcode/contracts`/`@zcode/bootstrap`/`@zcode/adapters`。
+ * 本包**只**依赖 `@mode/dynamic-workflow` 与 node 内建——证明整条管线 app-free 可跑，
+ * 绝不 import `@mode/core`/`@mode/contracts`/`@mode/bootstrap`/`@mode/adapters`。
  *
  * 时序（happy path）：
  *
@@ -42,7 +42,7 @@ import {
   type ValidateFn,
   type WorkflowDriver,
   type WorkflowReportSink,
-} from "@zcode/dynamic-workflow";
+} from "@mode/dynamic-workflow";
 import { type ChildMessage, type ChildPayload, type ResponseMessage } from "./protocol.js";
 import { renderChildEntry } from "./child-source.js";
 import { writeChildEntryFile, type HarnessWarning } from "./child-entry-file.js";

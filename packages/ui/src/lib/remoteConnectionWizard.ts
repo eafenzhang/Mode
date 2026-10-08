@@ -1,5 +1,5 @@
-import type { RemoteAssetInstallMode, RemoteTarget } from "@zcode/shared";
-import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@zcode/shared";
+import type { RemoteAssetInstallMode, RemoteTarget } from "@mode/shared";
+import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@mode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
 import type { RemoteWizardStep } from "@/RemoteConnectionWizardChrome.js";
 

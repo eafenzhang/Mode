@@ -3,7 +3,7 @@
 import type { CommandCenterApp } from "./command-center.js";
 import { listAppEffortOptions } from "./command-center/effort-options.js";
 import type { TuiPromptHandler } from "./tui-command-state.js";
-import type { TuiSessionMetadata } from "@zcode/tui";
+import type { TuiSessionMetadata } from "@mode/tui";
 
 export async function readTuiSessionMetadata(app: CommandCenterApp): Promise<TuiSessionMetadata> {
   const modelOptions = (await app.listModels?.()) ?? [];

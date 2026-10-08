@@ -1,5 +1,5 @@
-import type { ModelRequestAuth } from "@zcode/contracts";
-import type { CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
+import type { ModelRequestAuth } from "@mode/contracts";
+import type { CommandPayloadMap } from "@mode/shared/zcode-protocol-v4";
 import type { SendInputOptions } from "../app/types.js";
 
 /** 两种输入协议共用执行材料投影；不把 Secret/Ticket 放入可持久化的 intent。 */

@@ -7,7 +7,7 @@
 
 import { Fragment } from "react";
 import { SlidersHorizontalIcon } from "lucide-react";
-import type { WorkflowSettingsAmendMeta } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowSettingsAmendMeta } from "@mode/shared/zcode-protocol-v4";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { workflowSettingsChangeSegments } from "./workflowSettingsChange.js";
 

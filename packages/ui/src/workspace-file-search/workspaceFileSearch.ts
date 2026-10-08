@@ -1,1 +1,1 @@
-export * from "@zcode/shared/workspaceFileSearch";
+export * from "@mode/shared/workspaceFileSearch";

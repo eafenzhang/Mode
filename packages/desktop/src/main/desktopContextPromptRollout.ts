@@ -1,10 +1,10 @@
-import { isOfficialServiceEnabled } from "@zcode/shared";
+import { isOfficialServiceEnabled } from "@mode/shared";
 import {
   buildZCodeEndpointUrls,
   buildZCodeSourceHeadersFromContext,
   MODE_ENV,
   MODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   createSingleFeatureRollout,
   type SingleFeatureRollout,

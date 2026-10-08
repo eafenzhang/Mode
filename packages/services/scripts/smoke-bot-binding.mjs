@@ -14,8 +14,8 @@ const dataBaseDir = mkdtempSync(join(tmpdir(), "zcodium-bot-smoke-"));
 process.env.MODE_DATA_BASE_DIR = dataBaseDir;
 process.env.MODE_DATA_BASE_DIR = dataBaseDir;
 
-const { IBotsService, collectServiceMemoryDiagnostics } = await import("@zcode/services");
-const { createLocalServices } = await import("@zcode/services/node");
+const { IBotsService, collectServiceMemoryDiagnostics } = await import("@mode/services");
+const { createLocalServices } = await import("@mode/services/node");
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const services = await createLocalServices({

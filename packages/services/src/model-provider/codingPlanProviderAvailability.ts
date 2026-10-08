@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 /* eslint-disable max-lines -- Coding Plan 登录、订阅与 Start/Coding 互斥校验需要集中维护，拆散会让系统禁用原因更难追踪。 */
 import {
   ApiError,
@@ -10,7 +10,7 @@ import {
   type ApiClient,
   type ProviderFamilyDomain,
   type ProviderFamilyConnectionSelectionSettings,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { type BigModelTeamPlanBizContext } from "#src/bigmodel/teamPlanApiKey.js";
 import {
   fetchPersonalCodingPlanEntitlement,

@@ -6,22 +6,22 @@ import { applyComposerPermissionGrant } from "@/v4/composer/composerPermissionGr
 // Workspace presentation 水合只提供 mode 与 slash commands；模型候选、能力和首选值
 // 统一来自目标 Host ModelSelectionView。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MODE_AGENT_PROVIDER, resolveExecutionState } from "@zcode/shared";
+import { MODE_AGENT_PROVIDER, resolveExecutionState } from "@mode/shared";
 import { applyComposerPlanTransition } from "@/v4/composer/composerPlanTransition.js";
 import type {
   ZCodeConfigOption,
   ModelSelection,
   ZCodeProvider,
   ZCodeSlashCommand,
-} from "@zcode/shared";
-import type { SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
-import type { IModelSelectionService } from "@zcode/services";
-import { completeNewModelSelection } from "@zcode/provider";
+} from "@mode/shared";
+import type { SessionConfigState } from "@mode/shared/zcode-protocol-v4";
+import type { IModelSelectionService } from "@mode/services";
+import { completeNewModelSelection } from "@mode/provider";
 import {
   useModelSelectionServiceView,
   type ModelSelectionRead,
 } from "@/hooks/useModelSelectionView.js";
-import { submissionModeSchema } from "@zcode/shared/zcode-protocol-v4";
+import { submissionModeSchema } from "@mode/shared/zcode-protocol-v4";
 import { prepareWorkspaceWithZCodeSessionService } from "@/hooks/useWorkspacePrepare.js";
 import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
 import { useSettings } from "@/hooks/useSettingService.js";

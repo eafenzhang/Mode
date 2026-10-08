@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 /* eslint-disable max-lines -- Off-Peak 凭证解析、支持矩阵与 Request Auth 共用同一组契约，拆散会让双凭证/Team 身份边界更难追踪。 */
 /* Host 派发时按当前票据构造逐请求鉴权材料；Provider/Model 静态事实由 Built-in Config 提供。 */
 import {
@@ -9,7 +9,7 @@ import {
   type OffPeakCodingPlanSupport,
   type OffPeakCodingPlanUnsupportedReason,
   type ZCodeAccountAccess,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { isOffPeakMockEnabled, startOffPeakMockGateway } from "./offPeakMockGateway.js";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import { AccountRequestCredentialUnavailableError } from "../model-provider/accountProviderRequestAuthService.js";

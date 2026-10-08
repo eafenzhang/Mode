@@ -1,5 +1,5 @@
 import { app, session, type Session } from "electron";
-import { shouldBlockOfficialPlatformUrl } from "@zcode/shared";
+import { shouldBlockOfficialPlatformUrl } from "@mode/shared";
 
 /** 审计版不连接官方平台：覆盖历史缓存图片、webview、重定向和 Electron net 请求。 */
 export function installOfficialPlatformNetworkPolicy(): void {

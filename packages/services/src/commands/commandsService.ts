@@ -18,8 +18,8 @@ import {
   type SettingsDirectorySource,
   type UserCommand,
   type ZCodeCommand,
-} from "@zcode/shared";
-import { DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS } from "@zcode/shared";
+} from "@mode/shared";
+import { DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS } from "@mode/shared";
 import type { ICommandsService } from "./commands.js";
 import { CommandFileParser, type CommandFileFormat } from "./commandFileParser.js";
 import { readInstalledPluginRoots } from "#src/plugins/installedPluginRoots.js";

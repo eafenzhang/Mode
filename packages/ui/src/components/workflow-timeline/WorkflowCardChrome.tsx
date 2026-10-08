@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronRightIcon, ListIcon, Maximize2Icon, Workflow } from "lucide-react";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@mode/shared/zcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import type { BotConfig } from "@zcode/shared";
+import type { BotConfig } from "@mode/shared";
 import {
   BOT_HEARTBEAT_DEFAULT_INTERVAL_MINUTES,
   BOT_HEARTBEAT_MAX_INTERVAL_MINUTES,
   BOT_HEARTBEAT_MIN_INTERVAL_MINUTES,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Input } from "@/components/ui/input.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";

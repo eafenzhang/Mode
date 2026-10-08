@@ -6,8 +6,8 @@
 //
 // 视图是 props 的纯函数（TUI 测试按函数式调用组件，不起终端）。
 import React from "react";
-import type { TuiCopy } from "@zcode/i18n";
-import type { WorkflowRunActor } from "@zcode/shared/zcode-protocol-v4";
+import type { TuiCopy } from "@mode/i18n";
+import type { WorkflowRunActor } from "@mode/shared/zcode-protocol-v4";
 import { palette } from "./app-model.js";
 import { DEFAULT_TUI_COPY } from "./app-locale.js";
 import { truncateDisplay } from "./app-terminal-width.js";

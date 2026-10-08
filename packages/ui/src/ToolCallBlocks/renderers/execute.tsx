@@ -1,7 +1,7 @@
 import {
   bashOutputDisplaySchema,
   executionOutputPreviewSchema,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import { ExecuteOutput } from "@/ToolCallBlocks/renderers/ExecuteOutput.js";
 import { SquareTerminalIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";

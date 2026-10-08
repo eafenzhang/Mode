@@ -1,5 +1,5 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@mode/services";
 import type { TaskChatMessage as TestChatMessage } from "@/lib/taskChatMessageTypes.js";
 import type { BrowserNavigationRequest } from "@/hooks/useAppPanels.js";
 import { logger } from "@/logger.js";

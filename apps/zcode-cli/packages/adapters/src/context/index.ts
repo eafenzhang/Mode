@@ -5,7 +5,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { arch, homedir, release } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { formatLocalIsoDate } from "@zcode/contracts";
+import { formatLocalIsoDate } from "@mode/contracts";
 import type {
   ContextSourceDiagnostic,
   ContextSourcePort,
@@ -18,7 +18,7 @@ import type {
   ResolvedUserInstructionSource,
   ResolvedUserInstructions,
   UserInstructionsOptions,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import { resolveGitSnapshot } from "./git-snapshot.js";
 
 const DEFAULT_PRIORITY_FILES = ["AGENTS.md"];

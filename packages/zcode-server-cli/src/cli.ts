@@ -3,7 +3,7 @@ import { fork } from "node:child_process";
 import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, isAbsolute, join } from "node:path";
-import { MODE_VERSION } from "@zcode/shared";
+import { MODE_VERSION } from "@mode/shared";
 import {
   controlRequestSchema,
   createStoppedServerStatus,

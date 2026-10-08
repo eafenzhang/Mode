@@ -10,7 +10,7 @@ import {
   type AmendWorkflowRunSettingsPayload,
   type CommandAck,
   type WorkflowRunState,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import { formatModelPickerValue, parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
 
 /**

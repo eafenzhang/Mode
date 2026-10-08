@@ -3,7 +3,7 @@
 // ============================================================
 // 从 dynamic-workflow-run.port.ts 拆出，理由与 dwf-journal-introspection.ts 同一条：那份契约
 // 已到 oxlint 的 max-lines 上限。公开面不变——主端口文件原地再导出这里的每一个名字，
-// `@zcode/contracts` 的导入路径逐字不动。
+// `@mode/contracts` 的导入路径逐字不动。
 //
 // 三组字段挂在 `DynamicWorkflowRunDetail` 上，由读面在 `getRunDetail` 里读时派生；
 // 契约与不变式见下方各类型的注释。

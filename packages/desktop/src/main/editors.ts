@@ -18,8 +18,8 @@ import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { join, win32 as pathWin32 } from "node:path";
 import { app, nativeImage } from "electron";
-import type { EditorInfo } from "@zcode/shared";
-import { getZCodeDataRootDir } from "@zcode/services/node";
+import type { EditorInfo } from "@mode/shared";
+import { getZCodeDataRootDir } from "@mode/services/node";
 import { logger } from "./logger.js";
 
 const require = createRequire(import.meta.url);

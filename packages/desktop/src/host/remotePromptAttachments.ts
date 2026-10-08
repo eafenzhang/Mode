@@ -1,6 +1,6 @@
-import type { IRemoteBackend, RemoteUploadOptions } from "@zcode/server/remote";
-import { quotePosixPathArg } from "@zcode/server/remote/posixShell.js";
-import type { TraceId, ZCodePromptAttachment } from "@zcode/shared";
+import type { IRemoteBackend, RemoteUploadOptions } from "@mode/server/remote";
+import { quotePosixPathArg } from "@mode/server/remote/posixShell.js";
+import type { TraceId, ZCodePromptAttachment } from "@mode/shared";
 import { randomUUID } from "node:crypto";
 
 const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.zcodium/tmp/prompt-attachments";

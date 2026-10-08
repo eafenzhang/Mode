@@ -9,7 +9,7 @@ import {
   type PermissionBrokerRequest,
   type PermissionBrokerRequestOptions,
   type PermissionBrokerResult,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 
 export interface ManualPermissionBrokerOptions {
   onRequest?: (request: PermissionBrokerRequest) => Promise<void> | void;

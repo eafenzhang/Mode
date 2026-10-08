@@ -1,4 +1,4 @@
-import { buildRuntimeZCodeApiUrl, resolveZaiBusinessBaseUrl } from "@zcode/shared";
+import { buildRuntimeZCodeApiUrl, resolveZaiBusinessBaseUrl } from "@mode/shared";
 
 export const MODE_CLIENT_SCENES_URL = buildRuntimeZCodeApiUrl(
   process.env,

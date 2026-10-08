@@ -10,7 +10,7 @@ import type {
   McpServerStatus,
   McpToolCallResult,
   McpToolDescriptor,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import type { McpTelemetryTracker } from "./telemetry.js";
 
 const DEFAULT_IDLE_GRACE_MS = 30_000;

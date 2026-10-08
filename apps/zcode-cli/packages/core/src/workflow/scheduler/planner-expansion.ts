@@ -4,7 +4,7 @@ import {
   type WorkflowGraphNode,
   type WorkflowGraphPlannerNode,
   type WorkflowRunSnapshot,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   collectionFrontier,
   collectionNodeIdsForGraph,

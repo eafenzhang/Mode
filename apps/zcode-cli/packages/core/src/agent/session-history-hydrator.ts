@@ -3,7 +3,7 @@ import { runtimeInputMetadata } from "./runtime-input-presentation.js";
 // Session History Hydration - rebuild provider-visible context
 // ============================================================
 
-import { modelMessageContentToText, selectActiveConversationBranch } from "@zcode/contracts";
+import { modelMessageContentToText, selectActiveConversationBranch } from "@mode/contracts";
 import type {
   FilePart,
   MessagePart,
@@ -14,7 +14,7 @@ import type {
   MessageId,
   ToolArtifactStorePort,
   ToolPart,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   getSystemReminderDescriptor,
   wrapSystemReminderForSource,

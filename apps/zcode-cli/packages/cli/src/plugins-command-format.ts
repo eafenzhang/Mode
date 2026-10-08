@@ -1,11 +1,11 @@
-import { formatJson } from "@zcode/core";
-import type { GlobalOptions, JsonValue, RunContext } from "@zcode/shared-types";
+import { formatJson } from "@mode/core";
+import type { GlobalOptions, JsonValue, RunContext } from "@mode/shared-types";
 import type {
   SetZCodePluginEnabledResult,
   ZCodeAvailablePluginData,
   ZCodeInstalledPluginData,
   ZCodeMarketplaceSummaryData,
-} from "@zcode/bootstrap";
+} from "@mode/bootstrap";
 import type { PluginDiagnostic, PluginListItem, PluginListOutcome } from "./plugins-command-shared.js";
 
 export function writeWarnings(ctx: RunContext, diagnostics: readonly PluginDiagnostic[]): void {

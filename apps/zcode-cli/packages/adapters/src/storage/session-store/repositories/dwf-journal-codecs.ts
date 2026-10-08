@@ -1,7 +1,7 @@
 /**
  * dwf_* journal 表的行 ↔ 记录映射。
  *
- * 记录类型只以 `import type` 从 @zcode/dynamic-workflow 引入：端口住在领域包里，
+ * 记录类型只以 `import type` 从 @mode/dynamic-workflow 引入：端口住在领域包里，
  * SQLite store 只是它的一个 adapter，运行时不得对领域包产生任何依赖。
  *
  * 解码规则：可空列为 NULL 时**不写出该键**（而不是写成 undefined 或 null）。
@@ -23,7 +23,7 @@ import type {
   StoredEvent,
   WorkflowErrorJson,
   WorldReadInput,
-} from "@zcode/dynamic-workflow";
+} from "@mode/dynamic-workflow";
 import { decodeJson, encodeJson } from "../json.js";
 
 /**

@@ -9,7 +9,7 @@ test("对话键：私聊按用户、群聊按群，缺 chatId 时退回发送者
     makeBotConversationKey,
     parseBotConversationKey,
     getBotActorConversation,
-  } = await import("@zcode/shared");
+  } = await import("@mode/shared");
 
   assert.equal(makeBotConversationKey("private", "u1"), "private:u1");
   assert.equal(makeBotConversationKey("group", "oc_1"), "group:oc_1");
@@ -35,7 +35,7 @@ test("对话键：私聊按用户、群聊按群，缺 chatId 时退回发送者
 });
 
 test("v3 → v4 迁移：上下文挂到可判定的对话上，通道级字段留在 bot 记录上", async () => {
-  const { migrateBotsStateFileV3, BOTS_STATE_FILE_VERSION } = await import("@zcode/shared");
+  const { migrateBotsStateFileV3, BOTS_STATE_FILE_VERSION } = await import("@mode/shared");
 
   const v3 = {
     version: 3,
@@ -91,7 +91,7 @@ test("v3 → v4 迁移：上下文挂到可判定的对话上，通道级字段�
 });
 
 test("schema：v3 文件可被解析（自动迁移），v4 原样通过，未知版本拒绝", async () => {
-  const { botsStateFileSchema } = await import("@zcode/shared");
+  const { botsStateFileSchema } = await import("@mode/shared");
 
   const v3 = {
     version: 3,

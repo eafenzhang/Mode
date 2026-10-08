@@ -7,7 +7,7 @@ import {
   resolveWorkspaceKey,
   testId,
   type ZCodeSavedWorkflowEntry,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

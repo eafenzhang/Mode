@@ -1,4 +1,4 @@
-import type { DatabaseMigrationFacts } from "@zcode/shared";
+import type { DatabaseMigrationFacts } from "@mode/shared";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createNodeRequire } from "../../nodeRequire.js";

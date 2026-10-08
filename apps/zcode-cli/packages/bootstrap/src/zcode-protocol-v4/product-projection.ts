@@ -1,4 +1,4 @@
-import { PERMISSION_FULL_ACCESS_OPTION_ID } from "@zcode/shared/zcode-protocol-v4";
+import { PERMISSION_FULL_ACCESS_OPTION_ID } from "@mode/shared/zcode-protocol-v4";
 // ProductProjection —— CLI 权威投影第二 reducer。
 // 输入：CLI 事件日志（SessionEvent，权威事实源）；输出：ConversationDelta[]。
 // 快照推进复用协议规范 apply（applyConversationDeltas）——投影演进与 delta 流
@@ -49,19 +49,19 @@ import type {
   WorkspaceHookReviewSettledPayload,
   WorkspaceHookReviewSupersededPayload,
   WorkspaceHookAdmissionUpdatedPayload,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   CoreErrorType,
   AMEND_WORKFLOW_TOOL_NAME,
   CREATE_WORKFLOW_TOOL_NAME,
   SessionEventType,
   getModelUsageContextTokens,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 // review 单调性裁决单一来源；projection 只实现“应用策略”（advance/no_current 接受，
 // 其余忽略；跨 flow 等 onSessionResumed 清空）。
 // （改直连 monotonicity subpath；discovery barrel 的该 re-export
 // 会在 packages/ui 的 Desktop 构建链解析失败，App 重启后打不开。）
-import { verdictWorkspaceHookReviewRequest } from "@zcode/shared/workspace-hook-review-monotonicity";
+import { verdictWorkspaceHookReviewRequest } from "@mode/shared/workspace-hook-review-monotonicity";
 import {
   extractPlanStepsFromToolInput,
   extractPlanStepsFromToolOutput,
@@ -72,7 +72,7 @@ import {
   WORKFLOW_REFINE_PERMISSION_OPTION_ID,
   MODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS,
   zcodeBackgroundTaskNotificationToolUpdateStatus,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   AssistantTextRow,
   ApiRetryState,
@@ -104,7 +104,7 @@ import type {
   QueueItem,
   MutableConversationSnapshotAccumulator,
   WorkflowRunProgressEnvelope,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import {
   parseListAppsSnapshot,
   readOfficialCuaAction,
@@ -118,7 +118,7 @@ import {
   diffWorkflowRunsState,
   reduceWorkflowRunsState,
   workspaceHookReviewRequestPayloadSchema,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import {
   buildToolOutput,
   buildTurnHeaderRow,
@@ -4319,7 +4319,7 @@ export class ProductProjection {
   // 一条引擎 RunEvent 一条会话事件，归约成键级整体替换的权威态。走 reducer 而不是侧通道，
   // 所以持久、可回放、冷恢复免费（先例：subagents 键）。
   //
-  // 归约本体在 @zcode/shared 的 workflow-runs-reducer（与状态 schema 同居）：TUI 镜像要用
+  // 归约本体在 @mode/shared 的 workflow-runs-reducer（与状态 schema 同居）：TUI 镜像要用
   // 同一份归约，两处各写一份就是两个时钟。
   // 留在这里的只有投影的非纯部分——从事件信封取载荷、把新旧状态之差发成键级增量。
   private onDynamicWorkflowRunProgress(event: SessionEvent): ConversationDelta[] {

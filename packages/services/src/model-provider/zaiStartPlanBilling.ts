@@ -1,10 +1,10 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
-import type { ApiClient } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
+import type { ApiClient } from "@mode/shared";
 import {
   buildRuntimeZCodeEndpointUrls,
   normalizeOfficialGlmModelId,
   MODE_VERSION,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { readApiJson } from "../providers/api/apiJson.js";
 
 const REQUEST_TIMEOUT_MS = 15_000;

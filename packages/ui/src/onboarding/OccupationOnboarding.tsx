@@ -17,7 +17,7 @@ import { useZCodeStore } from "@/store/StoreProvider.js";
 import type { InterfaceMode } from "@/lib/interfaceMode.js";
 import { logger } from "@/logger.js";
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
-import type { OnboardingRecordEntry } from "@zcode/shared";
+import type { OnboardingRecordEntry } from "@mode/shared";
 
 /** 追加本地引导记录（userId 由 host 补全）；channel 缺失挂起时 5 秒超时按写失败处理。 */
 async function appendOnboardingRecord(

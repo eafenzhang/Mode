@@ -1,4 +1,4 @@
-import type { DatabaseStartupErrorCode } from "@zcode/shared";
+import type { DatabaseStartupErrorCode } from "@mode/shared";
 export type SqliteSessionMigrationErrorKind = DatabaseStartupErrorCode;
 
 export interface SqliteSessionMigrationErrorOptions {

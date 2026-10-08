@@ -8,7 +8,7 @@ import {
   type UsageQuotaLimit,
   type UsageEntitlementSubscriptionDetail,
   type UsageEntitlementSnapshot,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ProviderSettingsFormProvider } from "@/lib/providerSettingsFormTypes.js";
 import { getProviderFormLabel } from "@/lib/providerSettingsFormTypes.js";
 

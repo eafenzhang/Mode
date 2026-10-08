@@ -1,4 +1,4 @@
-import type { TuiSubmitPromptResult } from "@zcode/tui";
+import type { TuiSubmitPromptResult } from "@mode/tui";
 import type {
   CommandCenterDeps,
   CommandCenterSkill,

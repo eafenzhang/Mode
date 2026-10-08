@@ -1,5 +1,5 @@
 import { LoaderCircle } from "lucide-react";
-import type { BotConfig, BotWorkspaceRef } from "@zcode/shared";
+import type { BotConfig, BotWorkspaceRef } from "@mode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   Select,

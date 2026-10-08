@@ -9,11 +9,11 @@ import type {
   FileMediaPreview,
   FileTextSlice,
   WorkspaceFileEntry,
-} from "@zcode/shared";
-import { getMediaPreviewFormat } from "@zcode/shared";
-import { packWorkspaceFileEntries } from "@zcode/shared/workspaceFileEntriesCodec";
+} from "@mode/shared";
+import { getMediaPreviewFormat } from "@mode/shared";
+import { packWorkspaceFileEntries } from "@mode/shared/workspaceFileEntriesCodec";
 import type { IFileService, WorkspaceFileSearchParams } from "./file.js";
-import { WORKSPACE_FILE_SEARCH_DISPLAY_CAP } from "@zcode/shared/workspaceFileSearch";
+import { WORKSPACE_FILE_SEARCH_DISPLAY_CAP } from "@mode/shared/workspaceFileSearch";
 import { buildHostFileSearchCandidates, searchHostFileCandidates } from "./workspaceFileSearch.js";
 import {
   defaultWorkspaceFileSearchFilter,

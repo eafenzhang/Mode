@@ -1,4 +1,4 @@
-import type { McpServerConfig, PluginLoadOutcome } from "@zcode/contracts";
+import type { McpServerConfig, PluginLoadOutcome } from "@mode/contracts";
 import { createBundledMcpRuntimeConfig } from "./official-plugin-runtime.js";
 import {
   OFFICIAL_BROWSER_USE_PLUGIN_ID,

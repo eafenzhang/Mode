@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 /* ZCode 官方 Server MCP 的调用额度读取（`GET /api/v1/mcp/usage`）。
  *
  * 单文件承载该接口的全部细节：路径、信封解析、总额度映射。**鉴权不在这里实现**——
@@ -15,7 +15,7 @@ import {
   type UsageMcpQuotaScope,
   type UsageMcpQuotaSnapshot,
   type UsageQuotaLimit,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   buildOfficialMcpAuthHeaders,

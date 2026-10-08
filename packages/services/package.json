@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/services",
+  "name": "@mode/services",
   "private": true,
   "type": "module",
   "imports": {
@@ -20,11 +20,11 @@
   "dependencies": {
     "@larksuiteoapi/node-sdk": "1.64.0",
     "@wecom/aibot-node-sdk": "1.0.7",
-    "@zcode/provider": "workspace:*",
-    "@zcode/provider-node": "workspace:*",
-    "@zcode/rpc": "workspace:*",
-    "@zcode/shared": "workspace:*",
-    "@zcode/zcode-cua": "workspace:*",
+    "@mode/provider": "workspace:*",
+    "@mode/provider-node": "workspace:*",
+    "@mode/rpc": "workspace:*",
+    "@mode/shared": "workspace:*",
+    "@mode/cua": "workspace:*",
     "croner": "^10.0.1",
     "ignore": "^5.3.2",
     "node-forge": "^1.4.0",

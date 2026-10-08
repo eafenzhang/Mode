@@ -1,5 +1,5 @@
 /**
- * `@zcode/dynamic-workflow-runtime`：沙箱 harness。
+ * `@mode/dynamic-workflow-runtime`：沙箱 harness。
  *
  * 对外暴露 harness 入口、线协议类型、入口文件的渲染与落盘（`renderChildEntry` /
  * `writeChildEntryFile`，测试与工具据此造出与生产同形的入口文件），以及子进程出口 `childMain`。

@@ -4,7 +4,7 @@
  * 端口是同步的、仓储式的，正好贴合 node:sqlite 的 DatabaseSync——引擎因此不必为持久化
  * 引入异步缝隙，replay 的确定性也就不受存储实现影响。
  *
- * 与 @zcode/dynamic-workflow 的依赖方向：只 `import type`。端口属于领域包，本文件是它的
+ * 与 @mode/dynamic-workflow 的依赖方向：只 `import type`。端口属于领域包，本文件是它的
  * 一个 adapter；运行时不得从领域包取任何值（`implements` 在编译期被抹除）。
  *
  * 事务性不在端口面上：需要与 session 写入同原子的场景由 driver 用 `begin immediate` 组合。
@@ -22,7 +22,7 @@ import type {
   RunSettlementRecord,
   RunStatus,
   StoredEvent,
-} from "@zcode/dynamic-workflow";
+} from "@mode/dynamic-workflow";
 import { encodeJson } from "../json.js";
 // 产物读面自成一个模块：它只要一个 db 句柄，与 run/actor/node/event 的写入-读取无共享状态，
 // 而它的两条查询各自带着一大段「为什么是这个取数源、这个排序、这个游标」的论证。

@@ -225,7 +225,7 @@ jobs:
       - name: Service and desktop tests
         run: |
           set -euo pipefail
-          pnpm --filter @zcode/services test
+          pnpm --filter @mode/services test
           node --test packages/desktop/tests/*.test.mjs
 
   desktop:

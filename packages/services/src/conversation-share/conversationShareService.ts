@@ -1,6 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- 发布、远端 staging、安全轮询和原子导入共享同一 attempt 生命周期，拆分会让清理与进度状态失去单一 owner。 */
 import { createHash, randomUUID } from "node:crypto";
-import { readExternalEnvVar } from "@zcode/shared";
+import { readExternalEnvVar } from "@mode/shared";
 import type { Dirent } from "node:fs";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -14,7 +14,7 @@ import type {
   ConversationShareContinuation,
   ConversationShareRecord,
   Locale,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   assertConversationShareRemoved,
   decodeConversationShareRows,
@@ -24,14 +24,14 @@ import {
   type ConversationPreviewArtifactCandidate,
   localizeConversationShareUrl,
   resolveRuntimeZCodeEndpointOrigin,
-} from "@zcode/shared";
-import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared";
+import type { ConversationRow } from "@mode/shared/zcode-protocol-v4";
 import {
   PROTOCOL_V4_LIMITS,
   MODE_ATTACHMENT_FAULT_CODES,
   readZCodeAttachmentFaultCode,
-} from "@zcode/shared/zcode-protocol-v4";
-import { Emitter } from "@zcode/rpc";
+} from "@mode/shared/zcode-protocol-v4";
+import { Emitter } from "@mode/rpc";
 
 import type { IZCodeAgentService } from "../zcode-agent/zcodeAgent.js";
 import type { IZCodeSessionService } from "#src/zcode-session/zcodeSession.js";

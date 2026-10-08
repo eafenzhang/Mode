@@ -7,7 +7,7 @@
 // resume/rewind 则随历史一起恢复该判据，不维护第二份会话状态。
 // 探针缺席表示当前装配未提供技能加载检查，此时不设置无法满足的前提。
 
-import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@zcode/contracts";
+import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@mode/contracts";
 import type { ToolHandlerFailure, ToolInputResolutionContext } from "../types.js";
 
 /**

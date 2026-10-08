@@ -29,8 +29,8 @@ import {
   type ConversationSharePreparationRequest,
   type ConversationSharePreview,
   type ConversationShareRecord,
-} from "@zcode/shared";
-import { assertConversationShareRemoved } from "@zcode/shared";
+} from "@mode/shared";
+import { assertConversationShareRemoved } from "@mode/shared";
 import type { z } from "zod";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { REQUEST_ID_HEADER_NAME, withRequestIdHeader } from "../providers/api/requestIdHeaders.js";

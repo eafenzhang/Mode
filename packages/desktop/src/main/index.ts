@@ -50,7 +50,7 @@ import {
   getConversationWorkspaceDir,
   normalizeRuntimeProcessEnv,
   setDataBaseDir,
-} from "@zcode/services/node";
+} from "@mode/services/node";
 import {
   desktopMenuMessageIds,
   type Locale,
@@ -64,7 +64,7 @@ import {
   resolveZCodeEndpointOrigin,
   type UpdateStatePayload,
   HostMessageTypes,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { logger } from "./logger.js";
 import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
 import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";

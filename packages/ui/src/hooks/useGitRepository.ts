@@ -11,7 +11,7 @@ import type {
   GitFileChange,
   GitIdentity,
   GitRepositorySummary,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { buildTurnChangeSummary, toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";
 import { logger } from "@/logger.js";
 import { shouldEnableWorkspaceRpc } from "@/lib/workspaceRpcAvailability.js";

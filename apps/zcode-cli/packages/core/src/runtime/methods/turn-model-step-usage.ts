@@ -160,7 +160,7 @@ export function recordMainTurnCacheHitUsage(
 function modelUsageInputWindowTokens(usage?: ModelUsage): number | undefined {
   if (!usage) return undefined;
 
-  // core test/runtime 通过包入口解析 @zcode/contracts，新增 contracts helper 在未构建时不可用。
+  // core test/runtime 通过包入口解析 @mode/contracts，新增 contracts helper 在未构建时不可用。
   // 这里保留同一算法：按 Anthropic 口径把 cache read 并入当前请求的 input window。
   const inputTokens = positiveInteger(usage.inputTokens);
   if (inputTokens !== undefined) {

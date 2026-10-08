@@ -3,7 +3,7 @@ import {
   TID_WORKFLOW_MOVE_DIALOG,
   TID_WORKFLOW_MOVE_DIALOG_SUBMIT,
   TID_WORKFLOW_MOVE_DIALOG_TARGET,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,

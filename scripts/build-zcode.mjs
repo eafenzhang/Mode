@@ -145,13 +145,13 @@ async function buildOutputs(skipBuild) {
     return;
   }
 
-  run("pnpm", ["--filter", "@zcode/cli...", "build"]);
+  run("pnpm", ["--filter", "@mode/cli...", "build"]);
   await rm(resolve(root, "packages", "server", "dist"), {
     force: true,
     recursive: true,
   });
-  run("pnpm", ["--filter", "@zcode/server", "build"]);
-  run("pnpm", ["--filter", "@zcode/web", "build"]);
+  run("pnpm", ["--filter", "@mode/server", "build"]);
+  run("pnpm", ["--filter", "@mode/web", "build"]);
 }
 
 async function stageZCodePackage({ packageRoot, version }) {

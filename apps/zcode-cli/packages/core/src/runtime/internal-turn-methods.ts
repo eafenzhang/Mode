@@ -1,5 +1,5 @@
-import type { BackgroundBashOutputResult } from "@zcode/shared";
-import type { RuntimeInputPresentation } from "@zcode/contracts";
+import type { BackgroundBashOutputResult } from "@mode/shared";
+import type { RuntimeInputPresentation } from "@mode/contracts";
 import type {
   CompactPhase,
   CompactReason,

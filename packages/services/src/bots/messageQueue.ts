@@ -1,4 +1,4 @@
-import type { BotQueuedMessage } from "@zcode/shared";
+import type { BotQueuedMessage } from "@mode/shared";
 
 /**
  * 任务运行中收到的入站消息队列。旧实现直接回复“任务运行中”并丢弃消息，

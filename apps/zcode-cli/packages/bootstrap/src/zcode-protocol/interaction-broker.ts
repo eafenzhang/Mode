@@ -11,7 +11,7 @@ import {
   type PermissionBrokerRequest,
   type PermissionBrokerRequestOptions,
   type PermissionBrokerResult,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   WORKFLOW_REFINE_PERMISSION_OPTION_ID,
   zcodePermissionResponseSchema,
@@ -21,7 +21,7 @@ import {
   type ZCodePermissionResponse,
   type ZCodeUserInputQuestion,
   type ZCodeUserInputResponse,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   V4InteractionAnswer,
   V4InteractionRegistrationOptions,

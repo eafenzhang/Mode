@@ -18,7 +18,7 @@ import {
   type ZCodeSessionStateSnapshot,
   type ZCodeWorkspaceEvent,
   type ZCodeWorkspaceTaskListChanged,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   PROTOCOL_V4_LIMITS,
   sessionsIndexTopic,
@@ -34,8 +34,8 @@ import {
   type V4WorkspaceConfigSubscribeResult,
   type WorkspaceConfigTopicFrame,
   type WorkspaceConfigTopicWireCandidate,
-} from "@zcode/shared/zcode-protocol-v4";
-import { Emitter, type Event, type IDisposable } from "@zcode/rpc";
+} from "@mode/shared/zcode-protocol-v4";
+import { Emitter, type Event, type IDisposable } from "@mode/rpc";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";
 import type { ZCodeWorkspaceEventSubscriptionParams } from "#src/session/zcodeTaskListTypes.js";

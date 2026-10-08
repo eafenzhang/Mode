@@ -1,4 +1,4 @@
-import { DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY as DEFAULT_BUDGET_STRATEGY } from "@zcode/shared";
+import { DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY as DEFAULT_BUDGET_STRATEGY } from "@mode/shared";
 import type { CompactModelMessage } from "./manual.js";
 import { estimateMessageTokens, hasEnoughMessagesToCompact } from "./manual.js";
 import type { LocalMicrocompactPolicyConfig } from "./microcompact.js";

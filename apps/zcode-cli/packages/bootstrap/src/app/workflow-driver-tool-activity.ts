@@ -31,9 +31,9 @@ import {
   type SessionId,
   type ToolCallScheduledPayload,
   type ToolCallStartedPayload,
-} from "@zcode/contracts";
-import type { AgentRuntime } from "@zcode/core";
-import type { AskLastTool } from "@zcode/dynamic-workflow";
+} from "@mode/contracts";
+import type { AgentRuntime } from "@mode/core";
+import type { AskLastTool } from "@mode/dynamic-workflow";
 import { summarizeToolCall } from "./workflow-driver-tool-target.js";
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import type { IPlatformService } from "@zcode/shared";
-import type { ZCodeOffPeakTaskStatus } from "@zcode/shared";
-import type { IOffPeakTaskService } from "@zcode/services";
+import type { IPlatformService } from "@mode/shared";
+import type { ZCodeOffPeakTaskStatus } from "@mode/shared";
+import type { IOffPeakTaskService } from "@mode/services";
 import type { IntlInstance } from "@/i18n/index.js";
 import { logger } from "@/logger.js";
 

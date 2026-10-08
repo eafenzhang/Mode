@@ -1,6 +1,6 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 import { randomBytes } from "node:crypto";
-import type { HttpClientPort, HttpClientRunOptions, TraceContext } from "@zcode/contracts";
+import type { HttpClientPort, HttpClientRunOptions, TraceContext } from "@mode/contracts";
 
 const DEFAULT_MODE_OAUTH_BASE_URL = "";
 export type CliOAuthProviderId = "zai" | "bigmodel";

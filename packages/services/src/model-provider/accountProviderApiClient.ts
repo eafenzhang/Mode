@@ -1,5 +1,5 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
-import { type ApiClient } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
+import { type ApiClient } from "@mode/shared";
 import { readApiJson } from "../providers/api/apiJson.js";
 import type { RemoteEnvelope } from "./accountProviderApiTypes.js";
 

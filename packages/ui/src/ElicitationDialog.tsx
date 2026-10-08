@@ -7,8 +7,8 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import type { ZCodeElicitationQuestion, ZCodeElicitationRequest } from "@zcode/shared";
-import type { InteractionAutoResolution } from "@zcode/shared/zcode-protocol-v4";
+import type { ZCodeElicitationQuestion, ZCodeElicitationRequest } from "@mode/shared";
+import type { InteractionAutoResolution } from "@mode/shared/zcode-protocol-v4";
 import { CheckIcon, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";

@@ -1,6 +1,6 @@
-import { formatJson } from "@zcode/core";
-import type { GlobalOptions, RunContext } from "@zcode/shared-types";
-import type { SetZCodePluginEnabledResult, ZCodePluginInstallData } from "@zcode/bootstrap";
+import { formatJson } from "@mode/core";
+import type { GlobalOptions, RunContext } from "@mode/shared-types";
+import type { SetZCodePluginEnabledResult, ZCodePluginInstallData } from "@mode/bootstrap";
 import {
   formatAvailablePluginJson,
   formatDiagnosticJson,

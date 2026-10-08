@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- workspace 行任务列表需要把分片查询、缓存展示和跨端 membership 订阅保持在同一 hook 内，拆分会增加缓存一致性风险。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { IServiceAccessor } from "@zcode/services";
-import type { ZCodeWorkspaceEvent } from "@zcode/shared";
+import type { IServiceAccessor } from "@mode/services";
+import type { ZCodeWorkspaceEvent } from "@mode/shared";
 import { logger } from "@/logger.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeSessionStore, selectWorkspaceZCodeState } from "@/store/zcodeSessionStore.js";
@@ -33,7 +33,7 @@ import {
 } from "@/hooks/workspaceTaskListRefreshSignatures.js";
 import { shouldRefetchTaskListMembershipForWorkspaceEvent } from "@/lib/taskListRefreshPolicy.js";
 import { syncTaskUnreadFromStatusWorkspaceEvent } from "@/lib/taskStatusUnreadSync.js";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeTaskMeta } from "@mode/shared";
 import { fetchTaskListMembershipSetsForEndpointsCached } from "@/lib/taskListMembershipSets.js";
 import { buildTaskListResult } from "@/v4/buildTaskListResultFromSessions.js";
 import {

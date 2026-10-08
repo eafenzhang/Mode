@@ -9,8 +9,8 @@ import type {
   ZCodePluginInfo,
   ZCodePluginComponentKind,
   ZCodePluginsDescribeResult,
-} from "@zcode/shared";
-import { isPluginCommand, isUserCommand, MODE_COMMAND_AGENT_SOURCE } from "@zcode/shared";
+} from "@mode/shared";
+import { isPluginCommand, isUserCommand, MODE_COMMAND_AGENT_SOURCE } from "@mode/shared";
 import type { PluginComponentDisplayGroup } from "@/settings/PluginComponentGroups.js";
 
 interface ResourceGroups<TLocal, TPlugin> {

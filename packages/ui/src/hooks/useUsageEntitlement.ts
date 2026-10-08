@@ -4,8 +4,8 @@ import type {
   UsageEntitlementSnapshot,
   ZCodeAccountAccess,
   ZCodeProviderAccountAccess,
-} from "@zcode/shared";
-import type { IUsageStatsService } from "@zcode/services";
+} from "@mode/shared";
+import type { IUsageStatsService } from "@mode/services";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useStableAccountAccess } from "@/hooks/useStableAccountAccess.js";
 import { logger } from "@/logger.js";

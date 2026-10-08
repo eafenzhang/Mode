@@ -6,8 +6,8 @@ import {
   type AgentSummary,
   type AgentsCapability,
   type SubAgentConfig,
-} from "@zcode/shared";
-import type { ISubagentsService } from "@zcode/services";
+} from "@mode/shared";
+import type { ISubagentsService } from "@mode/services";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import { logger } from "@/logger.js";
 import { getSubagentsContextKey, useSubagentsContextStore } from "@/store/subagentsContextStore.js";

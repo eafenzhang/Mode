@@ -1,4 +1,4 @@
-import type { WorkflowGraphCollection, WorkflowRunSnapshot } from "@zcode/contracts";
+import type { WorkflowGraphCollection, WorkflowRunSnapshot } from "@mode/contracts";
 import type { WorkflowCollectionPlannerRuntime } from "./collection-runtime.js";
 import { edgeId, updateGraphCollection } from "./graph.js";
 import type {

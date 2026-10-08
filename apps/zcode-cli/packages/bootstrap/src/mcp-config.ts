@@ -3,7 +3,7 @@ import type {
   McpServerConfig,
   McpServerStatus,
   McpStdioServerConfig,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   getCapturedZCodeCuaBrokerCredentials,
   isZCodeCuaMcpCommand,
@@ -13,9 +13,9 @@ import {
   MODE_CUA_OFFICIAL_PLUGIN_ID,
   MODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   MODE_PLUGIN_ID_ENV_KEY,
-} from "@zcode/shared";
+} from "@mode/shared";
 
-export { MODE_CUA_BROKER_SOCKET_ENV_KEY as MODE_CUA_BROKER_SOCKET_ENV } from "@zcode/shared";
+export { MODE_CUA_BROKER_SOCKET_ENV_KEY as MODE_CUA_BROKER_SOCKET_ENV } from "@mode/shared";
 // CLI 入口会先清理 broker 凭据；shared node_repl 的可信配置随后从进程内捕获快照恢复它们。
 function resolveZCodeCuaBrokerSocket(): string | undefined {
   // captured 优先；运行时残留的 stale socket 不能覆盖可信快照。
@@ -180,7 +180,7 @@ function isZCodeCuaStdioServer(
   ) {
     return true;
   }
-  // 判定与 desktop/services 共用 @zcode/shared 的单一事实源，避免两条注入入口漂移。
+  // 判定与 desktop/services 共用 @mode/shared 的单一事实源，避免两条注入入口漂移。
   if (isZCodeCuaMcpCommand(config.command)) return true;
   return (config.args ?? []).some(isZCodeCuaMcpPackageArg);
 }

@@ -229,7 +229,7 @@ async function main(): Promise<void> {
   const distDir = join(packageRoot, "dist");
   if (!(await pathExists(join(distDir, "server-cli.js")))) {
     throw new Error(
-      `Missing tsup output in ${distDir}; run pnpm --filter @zcode/server-cli build first`,
+      `Missing tsup output in ${distDir}; run pnpm --filter @mode/server-cli build first`,
     );
   }
 

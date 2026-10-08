@@ -9,7 +9,7 @@ import {
   testId,
   type ZCodeSavedWorkflowEntry,
   type ZCodeSavedWorkflowRun,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,

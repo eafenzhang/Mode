@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/client",
+  "name": "@mode/client",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,9 +11,9 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
-    "@zcode/rpc": "workspace:*",
-    "@zcode/services": "workspace:*",
-    "@zcode/shared": "workspace:*"
+    "@mode/rpc": "workspace:*",
+    "@mode/services": "workspace:*",
+    "@mode/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^6.0.2"

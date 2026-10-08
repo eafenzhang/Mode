@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import { readExternalEnvVar, writeExternalEnvVar } from "@zcode/shared";
+import { readExternalEnvVar, writeExternalEnvVar } from "@mode/shared";
 import { homedir } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
@@ -10,7 +10,7 @@ import {
   sanitizeZCodeRuntimeEnv,
   sanitizeZCodeRuntimeEnvInPlace,
   type ZCodeRuntimeEnv,
-} from "@zcode/shared/runtime-env";
+} from "@mode/shared/runtime-env";
 
 export type CliEnv = Record<string, string | undefined>;
 

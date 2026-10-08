@@ -1,4 +1,4 @@
-import { assertOfficialPlatformAccessible } from "@zcode/shared";
+import { assertOfficialPlatformAccessible } from "@mode/shared";
 import type { EnvRecord } from "./model-execution.js";
 
 export interface OfficialCodingPlanGatewayRoute {

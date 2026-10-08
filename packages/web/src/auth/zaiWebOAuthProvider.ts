@@ -1,6 +1,6 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
-import { BIGMODEL_PROVIDER_ID, ZAI_PROVIDER_ID } from "@zcode/shared";
-import type { OAuthTokenSet, UserInfo } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
+import { BIGMODEL_PROVIDER_ID, ZAI_PROVIDER_ID } from "@mode/shared";
+import type { OAuthTokenSet, UserInfo } from "@mode/shared";
 import type { WebOAuthProviderId } from "./browserOAuthCredentialRepo.js";
 
 export interface WebZaiOAuthProviderConfig {

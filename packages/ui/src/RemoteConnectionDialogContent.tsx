@@ -7,15 +7,15 @@ import type {
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
   WSLDistro,
-} from "@zcode/shared";
-import {TID_REMOTE_KIND_DOCKER, TID_REMOTE_KIND_LAN, TID_REMOTE_KIND_SSH, TID_REMOTE_KIND_WSL} from "@zcode/shared";
+} from "@mode/shared";
+import {TID_REMOTE_KIND_DOCKER, TID_REMOTE_KIND_LAN, TID_REMOTE_KIND_SSH, TID_REMOTE_KIND_WSL} from "@mode/shared";
 import type {
   IMcpSyncService,
   IPluginSyncService,
   IServiceAccessor,
   ISkillSyncService,
   IZCodeAgentService,
-} from "@zcode/services";
+} from "@mode/services";
 import { AlertTriangleIcon, ChevronRightIcon, LoaderIcon, MonitorCogIcon, RadarIcon, ServerIcon, TerminalIcon } from "lucide-react";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import {

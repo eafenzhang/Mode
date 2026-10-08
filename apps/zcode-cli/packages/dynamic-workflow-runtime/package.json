@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/dynamic-workflow-runtime",
+  "name": "@mode/dynamic-workflow-runtime",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,13 +14,13 @@
   "scripts": {
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
-    "pretypecheck": "pnpm --filter @zcode/dynamic-workflow build",
+    "pretypecheck": "pnpm --filter @mode/dynamic-workflow build",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src"
   },
   "dependencies": {
-    "@zcode/dynamic-workflow": "workspace:*"
+    "@mode/dynamic-workflow": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0"

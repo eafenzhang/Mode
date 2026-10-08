@@ -1,6 +1,6 @@
 import { Loader2Icon, RefreshCwIcon, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { TID_ORCAROUTER_SPEC, type OrcaCapability } from "@zcode/shared";
+import { TID_ORCAROUTER_SPEC, type OrcaCapability } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

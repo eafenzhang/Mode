@@ -1,4 +1,4 @@
-import { TID_WORKFLOW_ARTIFACT_CHIP, type ZCodeSavedWorkflowRun } from "@zcode/shared";
+import { TID_WORKFLOW_ARTIFACT_CHIP, type ZCodeSavedWorkflowRun } from "@mode/shared";
 import type { ArtifactPillSize } from "@/components/workflow-timeline/WorkflowArtifactPill.js";
 import { WorkflowArtifactStrip } from "@/components/workflow-timeline/WorkflowArtifactStrip.js";
 

@@ -22,8 +22,8 @@ import { dirname, join, resolve, sep } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { setTimeout as sleep } from "node:timers/promises";
-import { fileExists } from "@zcode/server/remote/deployShared.js";
-import { extractTarGzArchive } from "@zcode/server/remote/localTarGz.js";
+import { fileExists } from "@mode/server/remote/deployShared.js";
+import { extractTarGzArchive } from "@mode/server/remote/localTarGz.js";
 import {
   assertRemoteCdnBaseVersionMatches,
   buildComponentArtifactUrlCandidates,
@@ -31,11 +31,11 @@ import {
   buildReleaseBaseCandidates,
   normalizeRemoteAssetRelativePath,
   resolveRemoteCdnBaseUrls,
-} from "@zcode/server/remote/remoteAssetCdn.js";
+} from "@mode/server/remote/remoteAssetCdn.js";
 import {
   resolveRemoteAssetFetch,
   type RemoteAssetNetworkPort,
-} from "@zcode/server/remote/remoteAssetNetwork.js";
+} from "@mode/server/remote/remoteAssetNetwork.js";
 
 const MANIFEST_FILE_NAME_PREFIX = "manifest-";
 // GitHub Release 等托管按资产名（忽略大小写）排序；统一前缀把 remote assets 沉到发布页最后，

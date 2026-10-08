@@ -2,8 +2,8 @@ import type {
   CommandEnvelope,
   CommandPayloadMap,
   CommandResult,
-} from "@zcode/shared/zcode-protocol-v4";
-import type { MessageId, TurnId } from "@zcode/contracts";
+} from "@mode/shared/zcode-protocol-v4";
+import type { MessageId, TurnId } from "@mode/contracts";
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost } from "../types.js";
 import { V4RowTranslationError } from "./fork-edit-retry.js";

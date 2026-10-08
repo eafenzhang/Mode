@@ -12,7 +12,7 @@ import {
   type ModelProviderId,
   type ModelRequest,
   type ModelResult,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 
 export interface ModelExecutionRequest extends Omit<ModelRequest, "options"> {
   options: Required<ModelOptions>;

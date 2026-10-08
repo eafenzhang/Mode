@@ -46,7 +46,7 @@ export type {
   ConversationShareTurnPreflightResult,
   PublishTextConversationInput,
 } from "./conversation-share/conversationShare.js";
-// Conversation share 的具体实现依赖 Node 文件系统，只能从 @zcode/services/node 引入；
+// Conversation share 的具体实现依赖 Node 文件系统，只能从 @mode/services/node 引入；
 // 根入口必须保持 browser-safe，避免 renderer 解析到 node:* 模块。
 export {
   createConversationTelemetryService,
@@ -85,7 +85,7 @@ export type {
   OnboardingRecordServiceFactory,
 } from "./onboarding/onboardingRecord.js";
 // 这里只能导出 descriptor 和类型。根 index 会被 renderer 经 value import 拉进浏览器包，
-// 若 value 导出 createOnboardingRecordService，会连带 fs/atomicFileUtils → @zcode/shared/node →
+// 若 value 导出 createOnboardingRecordService，会连带 fs/atomicFileUtils → @mode/shared/node →
 // node:timers/promises 整条 Node 链进浏览器，模块加载直接抛错导致整个应用黑屏。
 // 工厂函数由 host 侧（node.ts）与测试从实现文件路径直接导入，与 createSettingService 同惯例。
 export type {
@@ -230,7 +230,7 @@ export { IOrcaRouterService } from "./orcarouter/service.js";
 // UsageStats service — IUsageStatsService is both a type (interface) and value (descriptor)
 export { IUsageStatsService } from "./usage-stats/usageStats.js";
 
-// Storage（资源管理器「存储」tab）：数据类型在 @zcode/shared；这里只导出服务接口与卷分组纯函数
+// Storage（资源管理器「存储」tab）：数据类型在 @mode/shared；这里只导出服务接口与卷分组纯函数
 export type { IStorageService } from "./storage/contract.js";
 
 // CodingPlanSubscription service — ICodingPlanSubscriptionService is both a type (interface) and value (descriptor)

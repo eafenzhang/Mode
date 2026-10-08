@@ -1,9 +1,9 @@
-import type { BotHeartbeatConfig } from "@zcode/shared";
+import type { BotHeartbeatConfig } from "@mode/shared";
 import {
   BOT_HEARTBEAT_DEFAULT_INTERVAL_MINUTES,
   BOT_HEARTBEAT_MAX_INTERVAL_MINUTES,
   BOT_HEARTBEAT_MIN_INTERVAL_MINUTES,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 /**
  * 机器人心跳的纯函数：调度判定与 HEARTBEAT_OK 抑制。

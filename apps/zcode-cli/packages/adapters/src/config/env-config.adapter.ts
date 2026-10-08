@@ -1,6 +1,6 @@
 // Env Config Adapter - Parse the intentionally small MODE_* environment surface.
 
-import type { RuntimeConfigPatch } from "@zcode/contracts";
+import type { RuntimeConfigPatch } from "@mode/contracts";
 
 interface EnvConfigOptions {
   prefix?: string;

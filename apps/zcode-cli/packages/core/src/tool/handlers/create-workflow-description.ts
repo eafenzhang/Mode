@@ -3,7 +3,7 @@
 // 字段语义由 `dynamic-workflows` 技能提供。resolveInput 的技能门保证提交脚本前已加载技能。
 // 调用条件必须保留在工具描述里，让模型在加载技能前就能判断是否应使用该工具。
 
-import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@zcode/contracts";
+import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@mode/contracts";
 
 const INTRO =
   "Create and run a dynamic workflow: a TypeScript script that orchestrates multiple model-driven subagents with plain control flow (loops, conditionals, fan-out) and typed intermediate results. The script is typechecked, the user is asked to confirm it, and the run starts in the background; you are notified with its final result when it settles. Compilation errors come back as diagnostics.";

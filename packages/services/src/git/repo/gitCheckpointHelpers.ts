@@ -1,6 +1,6 @@
 import { rm } from "node:fs/promises";
 import { isAbsolute, resolve, sep } from "node:path";
-import type { GitCheckpointDiff, GitCheckpointFileDiff } from "@zcode/shared";
+import type { GitCheckpointDiff, GitCheckpointFileDiff } from "@mode/shared";
 import { normalizeGitPath, toWorkspaceRelativeGitPath } from "../config.js";
 import { getWorkspaceHash } from "../../paths.js";
 

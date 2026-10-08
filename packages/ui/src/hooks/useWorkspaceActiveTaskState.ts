@@ -1,5 +1,5 @@
 import { useMemo, useRef } from "react";
-import type { ZCodeProvider, ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeProvider, ZCodeTaskMeta } from "@mode/shared";
 import { useActiveTaskSnapshotMeta } from "@/hooks/useActiveTaskSnapshotMeta.js";
 import { useTaskNativeSessionLogFile } from "@/hooks/useTaskNativeSessionLogFile.js";
 import { useTaskSessionFilePath } from "@/hooks/useTaskSessionFilePath.js";

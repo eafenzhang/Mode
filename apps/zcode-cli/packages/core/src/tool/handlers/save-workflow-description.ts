@@ -5,7 +5,7 @@
 // 规则——绝不主动保存。保存会在用户仓库里留下文件，而模型对「看起来挺通用」的判断远比用户
 // 宽松；这条门槛必须常驻，不能等到技能加载之后。
 
-import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@zcode/contracts";
+import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@mode/contracts";
 
 export const SAVE_WORKFLOW_TOOL_DESCRIPTION = [
   "Save a dynamic-workflow script with its metadata so it can be run again later by name (CreateWorkflow's `saved` source; ListSavedWorkflows lists them). The required `scope` decides whether it lives in this project or globally.",

@@ -35,7 +35,7 @@ export function measureTopicNotificationEnvelopeBytes(wire: TopicWireFrameCandid
     }) + 1;
 
   const wireJsonBytes = utf8JsonByteLength(wire);
-  // @zcode/rpc serialization：Array tag+length+[EventFire,id]，再加 Object tag+length+JSON。
+  // @mode/rpc serialization：Array tag+length+[EventFire,id]，再加 Object tag+length+JSON。
   // ChannelClient 的 id 无 31-bit wrap；超过 signed int 后 serialize 会走 Object JSON
   // fallback。因此按 Number.MAX_SAFE_INTEGER 的 16-byte JSON 形态计算最坏 header。
   const maxEventIdJsonBytes = String(Number.MAX_SAFE_INTEGER).length;

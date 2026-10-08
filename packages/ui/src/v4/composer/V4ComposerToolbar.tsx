@@ -31,12 +31,12 @@ import {
   type ZCodeProviderAccountAccess,
   type ZCodeConfigOption,
   type ZCodeProvider,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   SessionConfigState,
   SessionPhase,
   SessionUsageState,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import { ModelConfigSelect, type ModelSelectGroup } from "@/ModelConfigSelect.js";
 import { Button } from "@/components/ui/button.js";
 import { ChatContextUsage } from "@/chat-input-toolbar/display.js";
@@ -62,7 +62,7 @@ import {
   setPendingSettingsUsageCodingPlanIntent,
 } from "@/lib/settingsNavigation.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
-import type { ModelSelectionView } from "@zcode/services";
+import type { ModelSelectionView } from "@mode/services";
 import type { ModelSelectionState } from "@/hooks/useModelSelectionView.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -94,7 +94,7 @@ import {
   resolveDraftModelThoughtOption,
   resolveDraftThoughtCurrentValue,
 } from "@/v4/composer/draftWorkspaceDefaults.js";
-import { isApiKeyAccess } from "@zcode/provider";
+import { isApiKeyAccess } from "@mode/provider";
 
 // 拆分件再导出（模式选择移居 V4ComposerModeControls，超行数拆分）：
 // 既有消费方（ConversationComposer）继续从本模块入口 import，接口面不变。

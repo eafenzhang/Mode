@@ -15,7 +15,7 @@
 // 差异——broker 注册时自带各自的 resolve 回调（闭包已知 kind），本表对应答体透明。
 // 归属：本文件是 v4 原生基础设施（放 v4 目录），旧目录（broker/server）import 本文件
 // 合法（依赖方向只允许 旧目录 → v4 目录）。
-import { ASK_USER_QUESTION_E2E_CLOCK_SCALE_ENV } from "@zcode/shared";
+import { ASK_USER_QUESTION_E2E_CLOCK_SCALE_ENV } from "@mode/shared";
 
 export type V4InteractionAnswer = {
   optionId?: string;

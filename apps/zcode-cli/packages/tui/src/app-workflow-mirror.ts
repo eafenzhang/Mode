@@ -1,7 +1,7 @@
 // ============================================================
 // TUI 侧的 workflowRuns 镜像
 // ============================================================
-// 单时钟：运行态**只**由共享 reducer 逐事件归约维护（@zcode/shared 的
+// 单时钟：运行态**只**由共享 reducer 逐事件归约维护（@mode/shared 的
 // workflow-runs-reducer，与 v4 投影同一份实现），外加冷启动/恢复时的一次性补种。
 // 没有轮询、没有 setInterval——legacy workflow 面板每秒全量重拉是反面教材。
 //
@@ -21,7 +21,7 @@ import {
   type WorkflowRunProgressEnvelope,
   type WorkflowRunState,
   type WorkflowRunsState,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 
 /** log 尾的界：条数与单条长度都限，避免一个话多的 run 把镜像吃成无界。 */
 const TUI_WORKFLOW_LOG_TAIL_LIMITS = {
@@ -102,7 +102,7 @@ export function seedWorkflowMirror(
  *
  * 动态工作流没有静态总数，所以分母是已排程节点数，绝不冒充全程百分比。
  *
- * 数法只有一处——@zcode/shared 的 `workflowRunStepCounts`（run 卡、时间线摘要与这里共用）。
+ * 数法只有一处——@mode/shared 的 `workflowRunStepCounts`（run 卡、时间线摘要与这里共用）。
  * 这里此前自己数 `nodes`，于是一条撞过节点界的 run 在三个读面上显示三个数字，而且三个都比
  * 真实步数小：触界是**拒新**，被拒的实例根本不在 `nodes` 里，只在 usage 的两个计数器上。
  * 本函数只保留 TUI 的字段名（卡片与 i18n 说的是 nodesSettled / nodesTotal）。

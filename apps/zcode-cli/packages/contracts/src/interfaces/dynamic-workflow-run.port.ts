@@ -279,7 +279,7 @@ export type DynamicWorkflowRunSnapshot = Omit<WorkflowTaskSnapshot, "output"> & 
 
 /**
  * 一个用户面产物的一个版本（journal `dwf_node.result_json` 上 `ArtifactVersionRecord` 的
- * JSON 镜像）。**刻意在这里重新声明**而不是从 @zcode/dynamic-workflow import：端口只承载
+ * JSON 镜像）。**刻意在这里重新声明**而不是从 @mode/dynamic-workflow import：端口只承载
  * JSON 形状（与 {@link DynamicWorkflowRunLifecycleStatus} 同一条论证）。
  *
  * 内容产物（`file` / `markdown`）填 `contentType` / `bytes` / `uri` / `sourcePath`；预置看板
@@ -411,7 +411,7 @@ export interface DynamicWorkflowRunEventPage {
 /**
  * 一条 run 事件的**协议形态**：sequence + 事件种类 + JSON 载荷。
  *
- * 刻意不复用引擎的 `RunEvent`：那是领域包（@zcode/dynamic-workflow）的词汇表，把它
+ * 刻意不复用引擎的 `RunEvent`：那是领域包（@mode/dynamic-workflow）的词汇表，把它
  * import 进 contracts 会让每一个持有端口的层都编译期依赖引擎内部类型。端口只承载
  * JSON 形状，`type` 是不透明字符串，`payload` 由读端按需解释。
  */
@@ -531,12 +531,12 @@ function truncateSurrogateSafe(value: string, maxLength: number): string {
 
 /**
  * workflow run 里**任意脚本值**（顶层返回的产物、`report(item)` 的条目）→ 给模型或读者看的
- * 文本。实现已随共享 workflowRuns reducer 搬进 `@zcode/shared/zcode-protocol-v4`
+ * 文本。实现已随共享 workflowRuns reducer 搬进 `@mode/shared/zcode-protocol-v4`
  * （workflow-artifact.ts，规则与来龙去脉见那边的注释）：`reports[].preview` 的归约下沉到
  * shared 后成了第四个消费者，而依赖方向是 contracts → shared，只能函数跟着搬。这里保留
  * re-export，既有的三个消费者（完成通知、TaskOutput 的 resultText、v4 投影）一行不改。
  */
-export { serializeWorkflowArtifact } from "@zcode/shared/zcode-protocol-v4";
+export { serializeWorkflowArtifact } from "@mode/shared/zcode-protocol-v4";
 
 /**
  * workflow run 的窄端口。与 legacy {@link import("./workflow.port.js").WorkflowPort} 并列而非
@@ -732,7 +732,7 @@ export interface DynamicWorkflowRunPort {
 
 /**
  * run 的生命周期状态。字面与 journal 的 `dwf_run.status` 同集，但**刻意在这里重新声明**
- * 而不是从 @zcode/dynamic-workflow import：端口只承载 JSON 形状，引擎的词汇表一旦进
+ * 而不是从 @mode/dynamic-workflow import：端口只承载 JSON 形状，引擎的词汇表一旦进
  * contracts，每个持有端口的层都会编译期依赖引擎内部类型（与 {@link DynamicWorkflowRunEvent}
  * 的 `type` 同一条论证）。
  *
@@ -888,7 +888,7 @@ export interface DynamicWorkflowRunProviderStop {
 }
 
 // 情势截面（阶段 / 子代理 / 健康）的类型住在 dynamic-workflow-run-roster.port.ts（同上），
-// 此处原样再导出以保持 `@zcode/contracts` 的导入路径不变。
+// 此处原样再导出以保持 `@mode/contracts` 的导入路径不变。
 export type * from "./dynamic-workflow-run-roster.port.js";
 
 // retune（就地改在飞 run 的并发上界）的三个类型住在 dynamic-workflow-run-retune.port.ts，

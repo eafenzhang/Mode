@@ -9,9 +9,9 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { Direction as DirectionPrimitive } from "radix-ui";
-import type { Locale, LocalePreference } from "@zcode/shared";
-import { DEFAULT_LOCALE } from "@zcode/shared";
-import type { BroadcastMessage, IBroadcastService, ISettingService } from "@zcode/services";
+import type { Locale, LocalePreference } from "@mode/shared";
+import { DEFAULT_LOCALE } from "@mode/shared";
+import type { BroadcastMessage, IBroadcastService, ISettingService } from "@mode/services";
 import {
   readNavigatorLanguage,
   readSafeLocalStorage,

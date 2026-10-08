@@ -1,4 +1,4 @@
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeTaskMeta } from "@mode/shared";
 import type { CachedTaskListResult, TaskEntityKey } from "@/lib/taskQueryCache.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 

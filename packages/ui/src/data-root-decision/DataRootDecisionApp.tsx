@@ -9,7 +9,7 @@ import type {
   DataRootDecisionBridge,
   DataRootDecisionProgress,
   DataRootDecisionState,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import zhCN from "@/i18n/locales/zh-CN.js";
 import enUS from "@/i18n/locales/en-US.js";

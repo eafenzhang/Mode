@@ -6,7 +6,7 @@ import {
   DesktopCommandIds,
   appRuntimePreferencesChangedBroadcastPayloadSchema,
   type RemoteTarget,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";

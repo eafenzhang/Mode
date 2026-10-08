@@ -1,7 +1,7 @@
 import {
   MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
   type ZCodePluginsResolveSuggestedReferenceResult,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 export interface DraftSuggestedPluginFlow {
   anchorItemId: string;

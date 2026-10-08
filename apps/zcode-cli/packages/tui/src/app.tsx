@@ -1,5 +1,5 @@
-import type { ModelUsageSummary, TodoItem, TurnId } from "@zcode/contracts";
-import { getZCodeCopy } from "@zcode/i18n";
+import type { ModelUsageSummary, TodoItem, TurnId } from "@mode/contracts";
+import { getZCodeCopy } from "@mode/i18n";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { AppView } from "./app-view.js";
 import type { PromptInputEditor } from "./app-input-pane.js";

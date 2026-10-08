@@ -8,8 +8,8 @@ import type {
   ZCodeInstalledPluginSummary,
   ZCodePluginInfo,
   ZCodePluginScope,
-} from "@zcode/shared";
-import { compareDocumentPluginPriority, isPluginCommand, isUserCommand } from "@zcode/shared";
+} from "@mode/shared";
+import { compareDocumentPluginPriority, isPluginCommand, isUserCommand } from "@mode/shared";
 import { pluginSearchMatches } from "@/settings/pluginSearch.js";
 
 function canonicalPluginName(value: string): string {

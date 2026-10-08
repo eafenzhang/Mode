@@ -17,7 +17,7 @@ import {
   type ZCodeSessionMode,
   type ZCodeSessionSettingsState,
   type ZCodeSessionStateSnapshot,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 const MODEL_CONFIG_ID = "model";
 const THOUGHT_LEVEL_CONFIG_ID = "thought_level";

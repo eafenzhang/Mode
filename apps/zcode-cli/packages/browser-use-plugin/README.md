@@ -1,6 +1,6 @@
 # Browser Use
 
-The official built-in ZCode plugin for browser automation. It ships the browser-client bootstrap module, skills, and documentation/capability manifests; the `node_repl` MCP host that exposes the `js` tool lives in `@zcode/node-repl-host`.
+The official built-in ZCode plugin for browser automation. It ships the browser-client bootstrap module, skills, and documentation/capability manifests; the `node_repl` MCP host that exposes the `js` tool lives in `@mode/node-repl-host`.
 
 ## What it provides
 

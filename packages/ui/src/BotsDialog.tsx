@@ -8,14 +8,14 @@ import type {
   BotServiceStatus,
   BotWorkspaceRef,
   BotsConfigFile,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   ALL_BOT_WORKSPACES,
   createUuid,
   DEFAULT_BOT_REPLY_GRANULARITY,
   isFeishuBotProvider,
   normalizeBotReplyGranularity,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,

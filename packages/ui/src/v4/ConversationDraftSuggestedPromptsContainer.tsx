@@ -19,7 +19,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@zcode/shared";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";

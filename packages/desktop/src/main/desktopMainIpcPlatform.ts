@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- 桌面平台 IPC 集中装配，拆散会让权限边界更难审计；行数随平台能力增长。 */
 import { BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
-import { readZCodeStdioTapDevState } from "@zcode/services/node";
+import { readZCodeStdioTapDevState } from "@mode/services/node";
 import {
   DesktopCommandIds,
   appSettingsPatchSchema,
@@ -20,7 +20,7 @@ import {
   type CreateTempTextAttachmentRequest,
   type UpdateStatePayload,
   type WindowControlsOverlayReadyPayload,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { getInstalledEditors } from "./editors.js";
 import { getApplicationIcon } from "./applicationIcons.js";
 import { exportLogs } from "./exportLogs.js";

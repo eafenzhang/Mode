@@ -7,7 +7,7 @@ import {
   normalizeProviderFamilyDomain,
   resolveModelProviderFamilyIdByProviderId,
   TID_SIDEBAR_CODING_PLAN_USAGE_BUTTON,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { BarChart3Icon, RocketIcon } from "lucide-react";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu.js";
 import {

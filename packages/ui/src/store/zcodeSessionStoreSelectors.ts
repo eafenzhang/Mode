@@ -4,7 +4,7 @@
  * 从 zcodeSessionStore.ts 拆分出来，包含 workspace 状态读取/更新辅助函数，
  * 以及所有按 task 粒度的只读访问器和独立选择器。
  */
-import type { ZCodeTaskRuntimeStatus, ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeTaskRuntimeStatus, ZCodeTaskMeta } from "@mode/shared";
 import { mergeTaskWithOptimisticMeta } from "@/lib/zcodeTaskMetaMerge.js";
 import {
   DEFAULT_TASK_UI_STATE,

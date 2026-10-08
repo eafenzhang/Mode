@@ -1,4 +1,4 @@
-import type { ZCodeCommand, ZCodeSlashCommand } from "@zcode/shared";
+import type { ZCodeCommand, ZCodeSlashCommand } from "@mode/shared";
 
 function normalizeSlashCommandName(name: string): string {
   return name.trim().replace(/^\/+/, "");

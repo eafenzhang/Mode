@@ -6,10 +6,10 @@ import {
   initializeDataRootNonInteractive,
   resolveDataRootActionFromEnv,
   MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
-} from "@zcode/services/node";
-import { IZCodeAgentService } from "@zcode/services";
-import { readExternalEnvVar } from "@zcode/shared";
-import { MODE_VERSION } from "@zcode/shared";
+} from "@mode/services/node";
+import { IZCodeAgentService } from "@mode/services";
+import { readExternalEnvVar } from "@mode/shared";
+import { MODE_VERSION } from "@mode/shared";
 import { createCoreHttpServer } from "./http.js";
 import { installParentDisconnectHandler } from "./parentDisconnect.js";
 import { resolveCoreServerId } from "./serverIdentity.js";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getBotWorkspaceKey, isBotEligibleForSessionBinding } from "@zcode/shared";
+import { getBotWorkspaceKey, isBotEligibleForSessionBinding } from "@mode/shared";
 
 // 需求：会话只能绑定当前工作区的机器人。资格 = 工作区绑定表里的那个 bot，
 // 或 allowedWorkspaces 显式包含本工作区（非通配）的 bot；通配 "*"（含空数组）

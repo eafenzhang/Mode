@@ -1,7 +1,7 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 import { randomBytes } from "node:crypto";
-import type { HttpClientPort, HttpClientRunOptions, TraceContext } from "@zcode/contracts";
-import { buildBigModelApiUrl } from "@zcode/shared";
+import type { HttpClientPort, HttpClientRunOptions, TraceContext } from "@mode/contracts";
+import { buildBigModelApiUrl } from "@mode/shared";
 
 const BIGMODEL_AUTHORIZE_PATH = "/login";
 const BIGMODEL_TOKEN_PATH = "/api/auth/tokenByAuthCode";

@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import type { AgentRuntimeConfig } from "@zcode/core";
-import type { PluginLoadOutcome } from "@zcode/contracts";
+import type { AgentRuntimeConfig } from "@mode/core";
+import type { PluginLoadOutcome } from "@mode/contracts";
 import {
   OFFICIAL_BROWSER_USE_PLUGIN_ID,
   OFFICIAL_CUA_PLUGIN_ID,

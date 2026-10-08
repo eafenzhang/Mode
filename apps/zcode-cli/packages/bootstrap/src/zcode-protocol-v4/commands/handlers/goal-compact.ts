@@ -11,7 +11,7 @@ import type {
   CommandEnvelope,
   CommandPayloadMap,
   CommandResult,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import type { SteerTurnOptions, SubmitPromptOptions } from "../../../app/types.js";
 import { runWithSessionResidencyFinalization } from "../../../zcode-protocol/session-residency.js";
 import { inputIntentMetadata } from "../input-intent.js";

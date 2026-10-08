@@ -2149,7 +2149,7 @@ export const zcodeProviderUpdateAccountConfigParamsSchema = z
   .object({
     revision: nonEmptyString,
     basedOnZCodeBuiltinRevision: nonEmptyString,
-    // Provider Config 的字段校验由 @zcode/provider 负责；协议层只约束可传输信封。
+    // Provider Config 的字段校验由 @mode/provider 负责；协议层只约束可传输信封。
     providers: z.record(z.string(), z.unknown()),
     // 账号状态与 Overlay 必须一起传递，否则 Worker 会丢失非当前套餐的执行门禁。
     states: z.record(
@@ -2479,7 +2479,7 @@ export type ZCodeOfficialMcpAuthHeadersResponse = z.infer<
 >;
 
 // ── Plugin management (list + enable/disable) ──
-// 镜像 @zcode/contracts 的 PluginMetadata, 仅保留 UI 需要的可序列化字段。
+// 镜像 @mode/contracts 的 PluginMetadata, 仅保留 UI 需要的可序列化字段。
 export const zcodePluginOptionValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export type ZCodePluginOptionValue = z.infer<typeof zcodePluginOptionValueSchema>;
 export const zcodePluginScopeSchema = z.enum(["user", "workspace"]);
@@ -2686,7 +2686,7 @@ export type ZCodeSkillsReferenceCatalogResult = z.infer<
 
 // ── 已保存工作流的 GUI 中枢──
 // workspace 级、无会话的五个方法，照 skills/referenceCatalog 的先例：每次调用现扫
-// `<cwd>/.zcode/workflows/`（挂载时快照会漏掉手改的文件）。形状与 @zcode/contracts 的
+// `<cwd>/.zcode/workflows/`（挂载时快照会漏掉手改的文件）。形状与 @mode/contracts 的
 // saved-workflow.ts 逐字对齐——依赖方向是 contracts → shared，所以这里结构化地再声明一遍，
 // 而不是 import；两边的 strict 形状由 bootstrap 侧的协议测试互相钉住。
 export const zcodeSavedWorkflowArgTypeSchema = z.enum(["string", "number", "boolean", "json"]);

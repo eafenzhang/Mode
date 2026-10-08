@@ -1,4 +1,4 @@
-import { MODE_AGENT_PROVIDER_NOT_READY_CODE } from "@zcode/shared";
+import { MODE_AGENT_PROVIDER_NOT_READY_CODE } from "@mode/shared";
 
 type RpcLogLevel = "debug" | "info" | "warn";
 

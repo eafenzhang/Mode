@@ -175,7 +175,7 @@ export const collectSeaUploadFiles = async ({ distDir }) => {
   if (missing.length > 0) {
     throw new Error(
       `Missing SEA binaries in ${distDir}: ${missing.join(", ")}. ` +
-        "Run `pnpm --filter @zcode/cli build:sea` first.",
+        "Run `pnpm --filter @mode/cli build:sea` first.",
     );
   }
 

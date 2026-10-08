@@ -4,11 +4,11 @@ import {
   TASK_LIST_SESSION_TYPES,
   isTaskListSessionType,
 } from "../zcode-protocol-v4/task-list-session-membership.js";
-import { resolveEffectiveBashShellSelection } from "@zcode/adapters/exec";
+import { resolveEffectiveBashShellSelection } from "@mode/adapters/exec";
 import { inputIntentMetadata } from "../zcode-protocol-v4/commands/input-intent.js";
 import { createModelExecutionContext } from "./model-execution.js";
 import type { SendInputOptions } from "../app/types.js";
-import { repairPersistedRemoteSessionPaths, type TurnAttachment } from "@zcode/core";
+import { repairPersistedRemoteSessionPaths, type TurnAttachment } from "@mode/core";
 import {
   CoreErrorType,
   SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
@@ -39,7 +39,7 @@ import {
   type TurnId,
   type UsageStorePort,
   type WorkspaceId,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   DEFAULT_MODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
@@ -82,7 +82,7 @@ import {
   type ZCodeSessionResumeParams,
   type ZCodeSessionPersistence,
   type ZCodeStateUpdatedNotification,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   buildSessionSnapshot,
   buildWorkspaceRef,

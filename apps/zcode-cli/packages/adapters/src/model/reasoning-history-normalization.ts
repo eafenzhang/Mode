@@ -5,8 +5,8 @@ import type {
   ModelReasoningContentBlock,
   ModelId,
   ModelProviderId,
-} from "@zcode/contracts";
-import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
+} from "@mode/contracts";
+import { BUILTIN_MODEL_PROVIDER_IDS } from "@mode/shared";
 import { getStatusCode, unwrapRetryError } from "./failure-inspection.js";
 
 const EMPTY_ASSISTANT_CONTENT_FALLBACK = "(no content)";

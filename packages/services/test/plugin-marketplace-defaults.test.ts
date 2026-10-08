@@ -15,7 +15,7 @@ import {
   isPublicStoreMarketplaceId,
   listingRequiresPaidPlan,
   resolveDefaultPluginMarketplaces,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 // 需求演进：Codex 聚合目录与 Claude 官方目录都不再作为默认源；公开分段的候选条目
 // 直接取 zcode-plugins-official 官方市场的清单，个人分段给用户放自己登记的源（Claude 等）。

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SettingsSyncSelection } from "@zcode/shared";
+import type { SettingsSyncSelection } from "@mode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getPathLeaf } from "@/lib/path.js";
 import type { useClaudeSessionMigration } from "@/hooks/useClaudeSessionMigration.js";

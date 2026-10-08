@@ -104,7 +104,7 @@ export type OfficialMcpAuthFailureKind =
 // ── 官方 MCP 信任判定──
 // 放在 shared 而非 CLI bootstrap，是因为有两个消费者且分属互不可见的包：
 //   - apps/zcode-cli/packages/adapters：请求发出前的本地校验；
-//   - packages/services（host）：身份权威边界的二次校验（只依赖 @zcode/shared，
+//   - packages/services（host）：身份权威边界的二次校验（只依赖 @mode/shared，
 //     无法 import CLI 侧包）。
 // 单源是硬要求：双处判定分叉会让一侧放行、另一侧拒绝。
 

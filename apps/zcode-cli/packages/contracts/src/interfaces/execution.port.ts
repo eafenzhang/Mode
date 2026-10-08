@@ -1,4 +1,4 @@
-import type { BackgroundBashOutputResult } from "@zcode/shared";
+import type { BackgroundBashOutputResult } from "@mode/shared";
 // ============================================================
 // Execution Port - subprocess execution boundary
 // ============================================================

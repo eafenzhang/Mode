@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import type { SkillRoot, SkillSource } from "@zcode/contracts";
+import type { SkillRoot, SkillSource } from "@mode/contracts";
 
 const GIT_MARKER = ".git";
 const HOME_PREFIX = "~/";

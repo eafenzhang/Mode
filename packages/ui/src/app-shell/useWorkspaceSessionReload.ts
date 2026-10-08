@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import type { IServiceAccessor } from "@zcode/services";
-import type { ZCodeProvider } from "@zcode/shared";
+import type { IServiceAccessor } from "@mode/services";
+import type { ZCodeProvider } from "@mode/shared";
 import { toast } from "@/components/ui/toast.js";
 import {
   buildWorkspaceSessionReloadDraftError,

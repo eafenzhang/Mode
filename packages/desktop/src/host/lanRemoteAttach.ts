@@ -1,5 +1,5 @@
-import { Emitter, SocketProtocol, VSBuffer, type ISocket } from "@zcode/rpc";
-import { connectViaProtocol } from "@zcode/client";
+import { Emitter, SocketProtocol, VSBuffer, type ISocket } from "@mode/rpc";
+import { connectViaProtocol } from "@mode/client";
 import {
   buildLanPeerTokenKey,
   serverRemoteInfoSchema,
@@ -7,8 +7,8 @@ import {
   type LanAccessPairResult,
   type LanAccessState,
   type ServerRemoteInfo,
-} from "@zcode/shared";
-import type { ICredentialService, IServiceAccessor } from "@zcode/services";
+} from "@mode/shared";
+import type { ICredentialService, IServiceAccessor } from "@mode/services";
 import { WebSocket, type RawData } from "ws";
 
 /**

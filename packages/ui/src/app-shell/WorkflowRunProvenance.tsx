@@ -6,7 +6,7 @@
 // 工具路径发起的 run 没有——它的来历是转写里那一行 CreateWorkflow。只读，无动作。
 
 import { Fragment, memo } from "react";
-import type { WorkflowLaunchMeta } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowLaunchMeta } from "@mode/shared/zcode-protocol-v4";
 import { workflowSettingsProvenanceRows } from "@/components/workflow-timeline/workflowSettingsChange.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 

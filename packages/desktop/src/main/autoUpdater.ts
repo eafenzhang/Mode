@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- autoUpdater 需要集中维护 Electron 事件、菜单状态与 IPC 交互，过度拆分会让更新状态流更难追踪 */
-import type { ISettingService } from "@zcode/services";
+import type { ISettingService } from "@mode/services";
 import {
   DEFAULT_LOCALE,
   desktopMenuMessageIds,
@@ -12,7 +12,7 @@ import {
   type PostUpdateReleaseNotesPayload,
   type UpdateCheckResultPayload,
   type UpdateStatePayload,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
 import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";

@@ -3,7 +3,7 @@ import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.j
 import { hasExplicitModelChanged } from "@/lib/startPlanRecommendation.js";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Bot, Check, Plus, Trash2 } from "lucide-react";
-import { completeNewModelSelection } from "@zcode/provider";
+import { completeNewModelSelection } from "@mode/provider";
 import {
   TID_SUBAGENT_BUILT_IN_MODEL_TRIGGER,
   TID_SUBAGENT_ROW,
@@ -16,8 +16,8 @@ import {
   type BuiltInSubagentName,
   type ModelSelection,
   type SubAgentConfig,
-} from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/services";
+} from "@mode/shared";
+import type { ModelSelectionView } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import {

@@ -1,4 +1,4 @@
-import type { ZCodeProvider } from "@zcode/shared";
+import type { ZCodeProvider } from "@mode/shared";
 
 export const MODE_MODE_OPTION_LABEL_IDS: Record<ZCodeProvider, Record<string, string>> = {
   glm: {

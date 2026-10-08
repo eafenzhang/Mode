@@ -1,4 +1,4 @@
-import { maskOrcaSecret, type OrcaCredential, type OrcaCredentialSource } from "@zcode/shared";
+import { maskOrcaSecret, type OrcaCredential, type OrcaCredentialSource } from "@mode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 
 /**

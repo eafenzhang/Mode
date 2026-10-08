@@ -1,5 +1,5 @@
 import { lazy, Suspense, useMemo } from "react";
-import type { FileBinaryPreview } from "@zcode/shared";
+import type { FileBinaryPreview } from "@mode/shared";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

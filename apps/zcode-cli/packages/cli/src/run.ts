@@ -1,9 +1,9 @@
 import { extractDisallowedToolsArgs, parseGlobalArgs } from "./arguments.js";
-import { createNodeLoggerFactory } from "@zcode/adapters";
-import { getRuntimeInfo, type PresentationSurface } from "@zcode/core";
-import { color, formatJson, supportsColor } from "@zcode/core";
-import { getZCodeCopy, isUiLocale, type UiLocale } from "@zcode/i18n";
-import type { RunContext, GlobalOptions, GlobalOutputFormat } from "@zcode/shared-types";
+import { createNodeLoggerFactory } from "@mode/adapters";
+import { getRuntimeInfo, type PresentationSurface } from "@mode/core";
+import { color, formatJson, supportsColor } from "@mode/core";
+import { getZCodeCopy, isUiLocale, type UiLocale } from "@mode/i18n";
+import type { RunContext, GlobalOptions, GlobalOutputFormat } from "@mode/shared-types";
 import {
   applyCliRuntimeEnvSanitization,
   loadCliDotenv,

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import type { ProjectMemoryWorkspaceSummary } from "@zcode/services";
+import type { ProjectMemoryWorkspaceSummary } from "@mode/services";
 import {
   TID_SETTINGS_MEMORY_COUNT,
   TID_SETTINGS_MEMORY_FILE,
@@ -14,7 +14,7 @@ import {
   TID_SETTINGS_MEMORY_SEARCH_INPUT,
   TID_SETTINGS_MEMORY_WORKSPACE,
   testId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Alert, AlertDescription } from "@/components/ui/alert.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";

@@ -1,5 +1,5 @@
-import type { IZCodeTaskService } from "@zcode/services";
-import type { ZCodeTaskMeta, ZCodeWorkspaceTaskListChanged } from "@zcode/shared";
+import type { IZCodeTaskService } from "@mode/services";
+import type { ZCodeTaskMeta, ZCodeWorkspaceTaskListChanged } from "@mode/shared";
 import { buildTaskEntityKey, buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import {
   markTaskQueryCacheScopesStale,

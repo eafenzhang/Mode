@@ -1,13 +1,13 @@
 import { createRoot } from "react-dom/client";
-import type { ResourceUsageSnapshot, StorageManagementBridge } from "@zcode/shared";
-import "@zcode/ui/styles.css";
+import type { ResourceUsageSnapshot, StorageManagementBridge } from "@mode/shared";
+import "@mode/ui/styles.css";
 import {
   ResourceManagerApp,
   ZCodeIntlProvider,
   applyUiFontSizePx,
   loadUiFontSizePx,
   subscribeToUiFontSizeStorageChanges,
-} from "@zcode/ui";
+} from "@mode/ui";
 
 declare global {
   interface Window {

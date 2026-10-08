@@ -4,7 +4,7 @@ import {
   TID_WORKFLOW_ARTIFACTS_SECTION,
   TID_WORKFLOW_ARTIFACTS_TOGGLE,
   TID_WORKFLOW_ARTIFACT_CARD,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { WorkflowArtifactIndex } from "@/components/workflow-timeline/WorkflowArtifactIndex.js";
 import { WorkflowArtifactRow } from "@/components/workflow-timeline/WorkflowArtifactRow.js";

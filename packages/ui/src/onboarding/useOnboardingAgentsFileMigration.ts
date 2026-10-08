@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type {
   SettingsSyncClaudeAgentsFileCopyResult,
   SettingsSyncClaudeAgentsFileMigrationStatus,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 

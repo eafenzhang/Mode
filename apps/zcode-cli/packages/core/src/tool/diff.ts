@@ -1,5 +1,5 @@
 import { structuredPatch } from "diff";
-import type { DiffHunk } from "@zcode/contracts";
+import type { DiffHunk } from "@mode/contracts";
 
 const CONTEXT_LINES = 3;
 const DIFF_TIMEOUT_MS = 5_000;

@@ -1,7 +1,7 @@
-import type { ConfigResult } from "@zcode/adapters/config";
-import { discoverNodePluginsSync } from "@zcode/adapters/plugins";
-import type { AgentRuntimeConfig } from "@zcode/core";
-import type { Logger, McpServerConfig, PluginLoadOutcome } from "@zcode/contracts";
+import type { ConfigResult } from "@mode/adapters/config";
+import { discoverNodePluginsSync } from "@mode/adapters/plugins";
+import type { AgentRuntimeConfig } from "@mode/core";
+import type { Logger, McpServerConfig, PluginLoadOutcome } from "@mode/contracts";
 import type { StartupTimer } from "../startup-logging.js";
 import { resolveOfficialPluginRoots } from "./bundled-plugins.js";
 import { DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS } from "./official-plugin-definitions.js";

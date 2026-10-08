@@ -1,6 +1,6 @@
-import type { ConfigResult } from "@zcode/adapters/config";
-import type { PluginLoadOutcome } from "@zcode/contracts";
-import { MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
+import type { ConfigResult } from "@mode/adapters/config";
+import type { PluginLoadOutcome } from "@mode/contracts";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@mode/contracts";
 import {
   listZCodePlugins,
   setZCodePluginEnabled,

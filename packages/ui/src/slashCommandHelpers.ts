@@ -2,7 +2,7 @@
  * slashCommandHelpers — 纯函数辅助工具，供 SlashCommandPlugin.tsx 使用
  */
 import { $getRoot, $getSelection, $isRangeSelection, $isTextNode } from "lexical";
-import type { AgentSummary, Locale, SkillSummary, ZCodeSlashCommand } from "@zcode/shared";
+import type { AgentSummary, Locale, SkillSummary, ZCodeSlashCommand } from "@mode/shared";
 import type { MentionItem } from "@/mentions/mentionTypes.js";
 import { mapSubagentsToMentionItemsForTest } from "@/mentions/providers/subagentsMentionProvider.js";
 import { mapSkillsToMentionItemsForTest } from "@/mentions/providers/skillsMentionProvider.js";

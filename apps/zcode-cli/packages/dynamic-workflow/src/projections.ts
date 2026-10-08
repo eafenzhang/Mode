@@ -1,6 +1,6 @@
 /**
  * 浏览器安全的纯投影桶：
- * `@zcode/dynamic-workflow/projections`。
+ * `@mode/dynamic-workflow/projections`。
  *
  * 下游浏览器端消费者把 `AnalysisCore` 冻结成 core.json，在浏览器里解码后现场重算站点图 / 因果图 /
  * CFG / 交接图 / actor 图，再用 `*ToMermaid` 或 display 契约画出来。那条链上不能有

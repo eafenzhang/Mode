@@ -1,4 +1,4 @@
-import { BUILTIN_MODE_SLASH_COMMAND_HELP_ENTRIES, type ZCodeSlashCommand } from "@zcode/shared";
+import { BUILTIN_MODE_SLASH_COMMAND_HELP_ENTRIES, type ZCodeSlashCommand } from "@mode/shared";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
 import {
   listZCodeCustomCommands,

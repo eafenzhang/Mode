@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { atomicWritePrivateTextFile, backupCorruptFile, withFileLock } from "@zcode/shared/node";
+import { atomicWritePrivateTextFile, backupCorruptFile, withFileLock } from "@mode/shared/node";
 import { createZCodeCredentialCipher, type ZCodeCredentialCipher } from "./credential-cipher.js";
 
 const MODE_DATA_BASE_DIR_ENV_KEY = "MODE_DATA_BASE_DIR";

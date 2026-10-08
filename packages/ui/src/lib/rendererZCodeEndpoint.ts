@@ -2,7 +2,7 @@ import {
   buildRuntimeZCodeEndpointUrls,
   MODE_ENV,
   type RuntimeZCodeEndpointEnv,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 interface RendererImportMetaEnv {
   VITE_MODE_BASE_URL?: string;

@@ -7,7 +7,7 @@ import {
   ORCAROUTER_REQUESTED_SCOPE,
   type OrcaCredential,
   type OrcaOrigins,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { OrcaCredentialStore } from "./credentialStore.js";
 
 /** base64url 无 padding 编码 */

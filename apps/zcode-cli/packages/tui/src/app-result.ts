@@ -1,5 +1,5 @@
-import type { CollaborationMode, ModelUsageSummary, TodoItem, TurnId } from "@zcode/contracts";
-import { getZCodeCopy } from "@zcode/i18n";
+import type { CollaborationMode, ModelUsageSummary, TodoItem, TurnId } from "@mode/contracts";
+import { getZCodeCopy } from "@mode/i18n";
 import React from "react";
 import { validContextUsage } from "./app-event-data.js";
 import type {

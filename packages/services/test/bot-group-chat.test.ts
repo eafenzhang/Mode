@@ -112,7 +112,7 @@ test("群聊门控不变量：静默忽略非绑定/未 @，并限制管理命�
 //   企微只在被 @ 时下发群回调，因此只有 @提及（不能假装支持「全部消息」）。
 test("群聊方式：@提及 / 全部消息 选项按平台能力矩阵提供", async () => {
   const { resolveBotGroupChatCapabilities, botProviderSupportsGroupMention } = await import(
-    "@zcode/shared"
+    "@mode/shared"
   );
   for (const provider of ["telegram", "feishu", "lark", "dingtalk"]) {
     assert.deepEqual(

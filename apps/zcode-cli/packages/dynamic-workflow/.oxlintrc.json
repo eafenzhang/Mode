@@ -1,5 +1,5 @@
 {
-  // 本包自带的 oxlint 配置：必须显式存在，否则从仓库根运行 `pnpm --filter @zcode/dynamic-workflow lint`
+  // 本包自带的 oxlint 配置：必须显式存在，否则从仓库根运行 `pnpm --filter @mode/dynamic-workflow lint`
   // 时配置自动发现会向上找到根 .oxlintrc.json，而根配置的 ignorePatterns 含 "apps/zcode-cli"，
   // 导致整个包 0 个文件可 lint、以 exit 1 失败。就近发现本文件后，规则仍通过 extends
   // 完整继承根配置，只有下方 ignorePatterns 是本包特有的差异。

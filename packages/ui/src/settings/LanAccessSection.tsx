@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckIcon, LoaderIcon, Radar, ShieldOff, Trash2 } from "lucide-react";
-import type { LanAccessState } from "@zcode/shared";
+import type { LanAccessState } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";

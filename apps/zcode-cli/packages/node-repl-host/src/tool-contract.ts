@@ -4,7 +4,7 @@ export const NODE_REPL_DEFAULT_TIMEOUT_MS = 60_000;
 
 // MCP serverInfo 曾长期硬编码为 0.1.0，与插件发布版本分叉，导致宿主无法据此判断
 // 实际加载的 Browser Use runtime。版本升级时该值应与 package.json 同步。
-// 宿主自己的版本，不是 browser-use 插件的版本。把宿主抽成 @zcode/node-repl-host
+// 宿主自己的版本，不是 browser-use 插件的版本。把宿主抽成 @mode/node-repl-host
 // 时保留了这个数字：它一直就是 node_repl server 对外宣告的版本，换个数字等于无谓地改协议。
 // 从此它随宿主契约（bridge 成员、工具面）变化，与两个插件各自的版本解耦。
 // 升到 0.5.0：本次宿主契约本身变了（node_repl 从 browser-use 抽出成独立 seed 单元、

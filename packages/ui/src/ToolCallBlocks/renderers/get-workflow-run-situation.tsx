@@ -12,7 +12,7 @@
  * 布局：一律换行行（flex-wrap），没有定宽表格——手机窄屏下要能折行而不是横向溢出。
  */
 
-import type { ToolCallGetWorkflowRunDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallGetWorkflowRunDisplay } from "@mode/shared/zcode-protocol-v4";
 import { throttleReasonLabel } from "@/app-shell/workflowRunThrottle.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatWorkflowAge, formatWorkflowDuration } from "@/lib/workflowObservationFormat.js";

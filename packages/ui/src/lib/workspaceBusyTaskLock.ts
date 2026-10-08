@@ -1,4 +1,4 @@
-import type { ZCodeProvider, ZCodeTaskRuntimeStatus } from "@zcode/shared";
+import type { ZCodeProvider, ZCodeTaskRuntimeStatus } from "@mode/shared";
 
 function isBusyTaskRuntimeStatus(status: ZCodeTaskRuntimeStatus): boolean {
   return status === "creating" || status === "restoring" || status === "streaming";

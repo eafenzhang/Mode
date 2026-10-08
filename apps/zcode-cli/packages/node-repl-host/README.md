@@ -1,4 +1,4 @@
-# @zcode/node-repl-host
+# @mode/node-repl-host
 
 `node_repl` 的共享宿主：JS 执行面（只有 `js` 一个工具）与两个领域
 bridge（Browser Use、Computer Use）都在这里。

@@ -6,7 +6,7 @@ import {
   type FileSystemTextEncoding,
   type FileSystemReadTextRangeRequest,
   type FileSystemReadTextRangeResult,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   createStreamingTextDecoder,
   decodeTextBuffer,

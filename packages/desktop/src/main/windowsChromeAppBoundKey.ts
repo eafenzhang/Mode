@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { MODE_COMMIT, MODE_VERSION } from "@zcode/shared";
+import { MODE_COMMIT, MODE_VERSION } from "@mode/shared";
 import {
   createEncodedPowerShellArgs,
   createWindowsPowerShellSecurityArgs,

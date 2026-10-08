@@ -1,5 +1,5 @@
 import { ChevronDown, Cloud, Folder, Monitor } from "lucide-react";
-import { testId } from "@zcode/shared";
+import { testId } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,

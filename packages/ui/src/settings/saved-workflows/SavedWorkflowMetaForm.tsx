@@ -3,7 +3,7 @@ import {
   TID_WORKFLOW_DETAIL_WHEN_TO_USE,
   TID_WORKFLOW_META_DISCARD,
   TID_WORKFLOW_META_SAVE,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { cn } from "@/components/lib/utils.js";

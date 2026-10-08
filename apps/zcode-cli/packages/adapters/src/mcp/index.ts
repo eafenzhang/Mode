@@ -34,8 +34,8 @@ import type {
   OfficialMcpAuthHeadersPort,
   OfficialMcpTrustedOriginRegistry,
   TraceContext,
-} from "@zcode/contracts";
-import { MODE_MCP_SERVER_REQUEST_ID_META_KEY } from "@zcode/contracts";
+} from "@mode/contracts";
+import { MODE_MCP_SERVER_REQUEST_ID_META_KEY } from "@mode/contracts";
 import { normalizeMcpToolDescriptor } from "./descriptor.js";
 import {
   createOfficialMcpAuthFetch,
@@ -47,7 +47,7 @@ import {
   MODE_OFFICIAL_MCP_AUTH_TYPE,
   type McpServerFailureKind,
   type OfficialMcpAuthFailureKind,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   buildMcpStdioEnv,
   createMcpTransportFetch,

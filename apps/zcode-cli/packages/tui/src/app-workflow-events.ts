@@ -1,10 +1,10 @@
 // 会话事件 → workflowRuns 镜像的桥（app-events.ts 的 dwf case 只调这一个函数）。
 //
 // 单独成模块的理由有两个：把 contracts 的载荷类型收在这里，让 app-workflow-mirror.ts
-// 保持「只依赖 @zcode/shared」的纪律（与共享 reducer 不得反向依赖 contracts 同一姿态）；
+// 保持「只依赖 @mode/shared」的纪律（与共享 reducer 不得反向依赖 contracts 同一姿态）；
 // 顺带让 app-events.ts 的 switch 保持在 max-lines 之内。
-import type { DynamicWorkflowRunProgressPayload } from "@zcode/contracts";
-import type { WorkflowRunProgressEnvelope } from "@zcode/shared/zcode-protocol-v4";
+import type { DynamicWorkflowRunProgressPayload } from "@mode/contracts";
+import type { WorkflowRunProgressEnvelope } from "@mode/shared/zcode-protocol-v4";
 import { applyWorkflowProgressToMirror, type TuiWorkflowMirror } from "./app-workflow-mirror.js";
 
 export type WorkflowMirrorSetter = (

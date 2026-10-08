@@ -1,6 +1,6 @@
 // Dynamic Workflow Run Port：工作区操作记录的读取类型。
 // 包含 `files.*`、`git.*` 和 `world.run` 调用的清单行与正文，
-// 由 dynamic-workflow-run.port.ts 统一再导出，调用方通过 `@zcode/contracts` 使用。
+// 由 dynamic-workflow-run.port.ts 统一再导出，调用方通过 `@mode/contracts` 使用。
 
 // 结构化失败的形状留在主文件上（本组的两个字段引用它），所以这里反向 import 一个类型：
 // 纯类型、无运行时边，两个文件各自只描述自己那一组。

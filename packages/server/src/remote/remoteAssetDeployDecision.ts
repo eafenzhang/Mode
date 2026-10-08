@@ -1,25 +1,25 @@
-import { MODE_VERSION } from "@zcode/shared";
-import type { IRemoteBackend, RemoteEnvironment } from "@zcode/server/remote/backend.js";
+import { MODE_VERSION } from "@mode/shared";
+import type { IRemoteBackend, RemoteEnvironment } from "@mode/server/remote/backend.js";
 import {
   REMOTE_BASE,
   type DeployLoggers,
   type RemoteAssetDeployOptions,
-} from "@zcode/server/remote/deployShared.js";
+} from "@mode/server/remote/deployShared.js";
 import {
   readRemoteAssetComponentMeta,
   writeRemoteAssetComponentMeta,
-} from "@zcode/server/remote/remoteAssetLiveIdentity.js";
+} from "@mode/server/remote/remoteAssetLiveIdentity.js";
 import {
   fetchRemoteAssetManifestFromCdn,
   resolveRemoteAssetComponentCacheVersion,
   selectRemoteAssetManifestComponents,
   type RemoteAssetManifest,
-} from "@zcode/server/remote/remoteAssetCache.js";
+} from "@mode/server/remote/remoteAssetCache.js";
 import {
   LocalUploadAssetInstaller,
   type RemoteAssetInstaller,
-} from "@zcode/server/remote/remoteAssetInstaller.js";
-import type { RemoteAssetNetworkPort } from "@zcode/server/remote/remoteAssetNetwork.js";
+} from "@mode/server/remote/remoteAssetInstaller.js";
+import type { RemoteAssetNetworkPort } from "@mode/server/remote/remoteAssetNetwork.js";
 
 const REMOTE_NODE_PTY_PATH = `${REMOTE_BASE}/build/Release/pty.node`;
 const REMOTE_NODE_PTY_SPAWN_HELPER_PATH = `${REMOTE_BASE}/build/Release/spawn-helper`;

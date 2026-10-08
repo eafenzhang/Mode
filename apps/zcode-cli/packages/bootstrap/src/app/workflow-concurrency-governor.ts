@@ -3,7 +3,7 @@
 // ============================================================
 // 一个 CLI 进程里所有 run 加主代理
 // 共用一个 provider 配额，所以治理器是**进程级**的：每个 `${providerId}/${modelId}` 一个桶，
-// 桶里一台纯 AIMD 状态机（`ConcurrencyController`，@zcode/dynamic-workflow）+ 一条按 run 轮转的
+// 桶里一台纯 AIMD 状态机（`ConcurrencyController`，@mode/dynamic-workflow）+ 一条按 run 轮转的
 // 准入队列。
 //
 // 闸门粒度是**模型请求的每一次尝试**：runner 每次尝试前 `acquire`、尝试结束 `release`，
@@ -19,13 +19,13 @@ import type {
   ModelRequestAdmission,
   ModelRequestAdmissionTicket,
   ModelRequestTarget,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   ConcurrencyController,
   type ConcurrencyChange,
   type ConcurrencyControllerSnapshot,
   type ConcurrencyThrottleReason,
-} from "@zcode/dynamic-workflow";
+} from "@mode/dynamic-workflow";
 import { resolveWorkflowConcurrencyCeiling } from "./workflow-concurrency-ceiling.js";
 
 /** provider key：最具体的配额键。 */

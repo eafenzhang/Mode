@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
-import { createConfig, resolvePath } from "@zcode/adapters/config";
-import { createNodeSkillAdapter } from "@zcode/adapters/skills";
-import type { Logger, SkillContent, SkillDiagnostic, SkillLoadOutcome } from "@zcode/contracts";
+import { createConfig, resolvePath } from "@mode/adapters/config";
+import { createNodeSkillAdapter } from "@mode/adapters/skills";
+import type { Logger, SkillContent, SkillDiagnostic, SkillLoadOutcome } from "@mode/contracts";
 import { resolveBundledSkillRoots } from "./app/bundled-skills.js";
 import { getCliStorageRoot } from "./app/paths.js";
 import { resolveZCodePlugins } from "./plugins.js";

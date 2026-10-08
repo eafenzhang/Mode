@@ -1,4 +1,4 @@
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeTaskMeta } from "@mode/shared";
 import { mergeTaskMetaCandidates } from "@/lib/zcodeTaskMetaMerge.js";
 import { buildTaskEntityKey } from "@/lib/taskQueryCache.js";
 import { getTaskMeta, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";

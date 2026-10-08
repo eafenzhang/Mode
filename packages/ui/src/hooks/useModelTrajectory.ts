@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ZCodeModelTrajectory } from "@zcode/services";
+import type { ZCodeModelTrajectory } from "@mode/services";
 import { logger } from "@/logger.js";
 import { useZCodeTaskService } from "@/hooks/useZCodeTaskService.js";
 

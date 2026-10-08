@@ -7,7 +7,7 @@ import type {
 import { WSAuthFailureError, WSClient } from "@wecom/aibot-node-sdk";
 import type { WeComConnection, WeComConnectionRegistry } from "./wecomConnection.js";
 import { resolveWeComChatKey } from "./wecomConnection.js";
-import type { BotConfig, BotProviderCallbackResult, BotsConfigFile } from "@zcode/shared";
+import type { BotConfig, BotProviderCallbackResult, BotsConfigFile } from "@mode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import {
   acquireWeComWebSocketLock,

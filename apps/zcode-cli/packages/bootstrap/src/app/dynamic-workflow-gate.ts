@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { SkillRoot } from "@zcode/contracts";
+import type { SkillRoot } from "@mode/contracts";
 import { DYNAMIC_WORKFLOW_SKILL_NAME } from "./bundled-skills.js";
 
 /**

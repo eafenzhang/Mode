@@ -24,7 +24,7 @@ import {
   SquareTerminalIcon,
   TerminalIcon,
 } from "lucide-react";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@mode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";

@@ -1,4 +1,4 @@
-import type { GitChangeSourceId } from "@zcode/shared";
+import type { GitChangeSourceId } from "@mode/shared";
 import {
   normalizeWorkspaceSidePaneState,
   type WorkspaceSidePaneState,

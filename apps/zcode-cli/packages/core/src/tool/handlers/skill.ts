@@ -10,7 +10,7 @@ import {
   SkillOutputSchema,
   createCoreError,
   type SkillRuntimeInput,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import type { ToolEntry, ToolHandler } from "../types.js";
 
 const MAX_SKILL_BYTES = 100_000;

@@ -4,7 +4,7 @@ import {
   type CliOAuthInitData,
   type CliOAuthPollData,
   type CliOAuthReadyData,
-} from "@zcode/adapters/auth";
+} from "@mode/adapters/auth";
 import { throwIfAborted, waitWithAbort } from "./auth-login-abort.js";
 
 const MIN_POLL_INTERVAL_MS = 1_000;

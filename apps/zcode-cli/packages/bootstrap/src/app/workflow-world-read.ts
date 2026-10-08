@@ -9,7 +9,7 @@
 //   1. **每个 op 的元数与实参校验**。Boundary A 的 `worldRead(siteId, op, args)` 只承诺
 //      "实参按位置原样送达"（lowering 不看 op），所以"一个 pattern / 一个 base ref 长什么样"
 //      归这一侧。
-//   2. **上限的执行**。常量在纯包（`@zcode/dynamic-workflow` 的 WORLD_READ_CAPS），执行在这里，
+//   2. **上限的执行**。常量在纯包（`@mode/dynamic-workflow` 的 WORLD_READ_CAPS），执行在这里，
 //      因为只有这一侧能"不生产"——让 ripgrep 在 2000 条上停手，胜过物化一百万条再回头量。
 //   3. **git 的固定 argv**。构造在 workflow-git-world-read.ts（纯），spawn 在这里。
 
@@ -19,8 +19,8 @@ import {
   resolve as resolvePath,
   sep,
 } from "node:path";
-import type { ExecutionPort, FileSystemPort } from "@zcode/contracts";
-import { WORLD_READ_CAPS, WorkflowError, type WorldReadOp } from "@zcode/dynamic-workflow";
+import type { ExecutionPort, FileSystemPort } from "@mode/contracts";
+import { WORLD_READ_CAPS, WorkflowError, type WorldReadOp } from "@mode/dynamic-workflow";
 import {
   GIT_SHOW_PREFIX_ARGV,
   GIT_STATUS_ARGV,

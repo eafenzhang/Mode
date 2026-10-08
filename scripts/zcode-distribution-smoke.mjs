@@ -38,7 +38,7 @@ try {
   const runtimeCheck = join(root, "agent/check-tui.mjs");
   await writeFile(
     runtimeCheck,
-    'import { runTui } from "@zcode/tui"; if (typeof runTui !== "function") throw new Error("Missing TUI export"); console.log("tui-runtime-ok");',
+    'import { runTui } from "@mode/tui"; if (typeof runTui !== "function") throw new Error("Missing TUI export"); console.log("tui-runtime-ok");',
   );
   const imported = await exec(process.execPath, [runtimeCheck], { cwd: workspace, env });
   assert.match(imported.stdout, /tui-runtime-ok/);

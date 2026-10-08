@@ -49,7 +49,7 @@ async function loadWebviewHelpers() {
   }).outputText;
   const exports = {};
   new Function("require", "exports", output)((name) => {
-    assert.equal(name, "@zcode/shared");
+    assert.equal(name, "@mode/shared");
     return {};
   }, exports);
   return exports;

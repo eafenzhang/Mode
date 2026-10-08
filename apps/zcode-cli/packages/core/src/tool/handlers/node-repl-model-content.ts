@@ -1,4 +1,4 @@
-import type { JsOutput, ModelMessageContent, ModelMessageContentBlock } from "@zcode/contracts";
+import type { JsOutput, ModelMessageContent, ModelMessageContentBlock } from "@mode/contracts";
 
 export function formatJsModelContent(output: unknown): ModelMessageContent {
   const o = output as JsOutput;

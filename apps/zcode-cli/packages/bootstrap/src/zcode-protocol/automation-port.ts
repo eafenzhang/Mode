@@ -4,7 +4,7 @@ import {
   isAutomationCreateLimitError,
   type AutomationPort,
   type CronAutomation,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   parseModelPickerValue,
   zcodeAutomationCheckTaskBindingResultSchema,
@@ -14,7 +14,7 @@ import {
   zcodeAutomationUpdateResultSchema,
   zcodeProtocolMethods,
   type ZCodeAutomationProtocol,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   ProtocolRequestError,
   type ZCodeProtocolAgentServerContext,

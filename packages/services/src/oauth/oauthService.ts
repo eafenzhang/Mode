@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved, isOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved, isOfficialServiceRemoved } from "@mode/shared";
 /* eslint-disable max-lines -- OAuthService 集中维护 OAuth 会话生命周期和 provider 切换边界，当前 review 修复只收窄后台迁移写入条件。 */
 import { randomBytes } from "node:crypto";
 import {
@@ -16,7 +16,7 @@ import {
   type OAuthUserProfile,
   type UserInfo,
   resolveJwtExpiration,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { readApiJson } from "../providers/api/apiJson.js";

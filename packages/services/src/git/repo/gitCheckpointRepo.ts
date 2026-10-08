@@ -5,7 +5,7 @@ import type {
   GitCheckpointDiff,
   GitCheckpointMeta,
   GitCheckpointRestoreResult,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { getGitCheckpointIndexRootDir } from "../../paths.js";
 import { toWorkspaceRelativeGitPath } from "../config.js";
 import {

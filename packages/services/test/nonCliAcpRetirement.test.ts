@@ -9,7 +9,7 @@ import {
   MODE_PROTOCOL_NAME,
   MODE_PROTOCOL_VERSION,
   zcodeSessionStateSnapshotSchema,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
 import { createZCodeTaskServiceAdapter } from "../src/zcode-agent/zcodeTaskServiceAdapter.js";
 import {

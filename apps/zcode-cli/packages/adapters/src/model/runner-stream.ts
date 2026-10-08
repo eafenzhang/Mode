@@ -1,5 +1,5 @@
 import type { TextStreamPart, ToolSet } from "ai";
-import type { Logger, ModelStatusSink, ModelStreamEvent } from "@zcode/contracts";
+import type { Logger, ModelStatusSink, ModelStreamEvent } from "@mode/contracts";
 import {
   ModelErrorCode,
   ModelFailureReason as ModelFailureReasonValue,
@@ -7,7 +7,7 @@ import {
   ModelRetryReason,
   ModelTransportKind as ModelTransportKindValue,
   type ModelRetryBudget,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   classifyModelFailure,
   findProviderBusinessError,

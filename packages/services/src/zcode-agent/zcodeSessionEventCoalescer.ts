@@ -1,4 +1,4 @@
-import type { ZCodeSessionEvent } from "@zcode/shared";
+import type { ZCodeSessionEvent } from "@mode/shared";
 import type { ZCodeAgentServiceEvent } from "#src/zcode-agent/zcodeAgent.js";
 
 const DEFAULT_BACKGROUND_SESSION_EVENT_COALESCE_MS = 1_500;

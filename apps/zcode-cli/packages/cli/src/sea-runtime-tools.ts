@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
-import { readExternalEnvVar } from "@zcode/shared";
+import { readExternalEnvVar } from "@mode/shared";
 import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { getRuntimeToolRuntime, type RuntimeToolId } from "@zcode/shared/runtime-tool-runtime";
+import { getRuntimeToolRuntime, type RuntimeToolId } from "@mode/shared/runtime-tool-runtime";
 
 type CliEnv = Record<string, string | undefined>;
 

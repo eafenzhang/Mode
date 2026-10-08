@@ -1,5 +1,5 @@
 import { realpath } from "node:fs/promises";
-import { readExternalEnvVar } from "@zcode/shared";
+import { readExternalEnvVar } from "@mode/shared";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 

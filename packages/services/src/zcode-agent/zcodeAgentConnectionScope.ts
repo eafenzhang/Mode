@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 三类 V4 topic 的同构 connection ownership 生命周期集中在单一 facade。 */
 // V4 connection-scoped service facade：每个 RPC attachment 独立持有 subscription
 // ownership；base service 仍只转发 CLI 事实，不在 host/main/relay 复制业务状态。
-import { Emitter, Event as RpcEvent, type Event, type IDisposable } from "@zcode/rpc";
+import { Emitter, Event as RpcEvent, type Event, type IDisposable } from "@mode/rpc";
 import {
   V4_WIRE_PROTOCOL_VERSION,
   clientHelloSchema,
@@ -14,7 +14,7 @@ import {
   type SessionsIndexTopicWireCandidate,
   type V4ConnectionFlowState,
   type WorkspaceConfigTopicWireCandidate,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import type {
   IZCodeAgentService,
   ZCodeAgentConversationResyncParams,

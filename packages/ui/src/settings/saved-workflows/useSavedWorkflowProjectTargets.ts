@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ZCodeAgentWorkspaceTarget } from "@zcode/services";
+import type { ZCodeAgentWorkspaceTarget } from "@mode/services";
 import type { AutomationWorkspaceOption } from "@/settings/automationWorkspaceOptions.js";
 import type { SavedWorkflowProjectTarget } from "@/settings/saved-workflows/savedWorkflowContract.js";
 import type { SavedWorkflowLaunchTarget } from "@/settings/saved-workflows/useSavedWorkflowLauncher.js";

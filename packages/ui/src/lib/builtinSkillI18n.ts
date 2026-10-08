@@ -1,4 +1,4 @@
-import type { Locale, SkillScope } from "@zcode/shared";
+import type { Locale, SkillScope } from "@mode/shared";
 
 interface SkillDisplayCandidate {
   name: string;

@@ -1,4 +1,4 @@
-import { assertNoOfficialPlatformUrl } from "@zcode/shared";
+import { assertNoOfficialPlatformUrl } from "@mode/shared";
 import {
   ApiError,
   DEFAULT_MODE_ENDPOINT_ORIGIN,
@@ -6,7 +6,7 @@ import {
   rewriteZCodeEndpointUrl,
   type ApiClient,
   type ApiRequestInit,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { buildZCodeSourceHeaders } from "../sourceHeaders.js";
 import { withRequestIdHeader } from "./requestIdHeaders.js";

@@ -1,6 +1,6 @@
 import { FlaskConical } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import type { ToolCallEvalWorkflowSnippetDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallEvalWorkflowSnippetDisplay } from "@mode/shared/zcode-protocol-v4";
 import {
   CodeBlock,
   CodeBlockHeader,

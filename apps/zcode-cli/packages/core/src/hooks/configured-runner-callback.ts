@@ -7,7 +7,7 @@ import {
   type HookConfig,
   type HookInput,
   type HookJSONOutput,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   createCompatibleHookStdin,
   createPluginEnvOverlay,

@@ -22,7 +22,7 @@ import {
   getAppConfigDir,
   getExportLogDir as getDefaultExportLogDir,
   getExportLogStageDir as getDefaultExportLogStageDir,
-} from "@zcode/services/node";
+} from "@mode/services/node";
 import { createAboutSnapshot, formatAboutDetail, readBuildMetadata } from "./about.js";
 import { logger } from "./logger.js";
 

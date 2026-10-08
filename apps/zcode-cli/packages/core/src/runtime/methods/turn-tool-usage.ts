@@ -1,5 +1,5 @@
 import type { ToolExecutionResult, TraceContext } from "../deps.js";
-import type { UsageStorePort } from "@zcode/contracts";
+import type { UsageStorePort } from "@mode/contracts";
 import type { AgentRuntimeInternal } from "../internal.js";
 
 export async function recordToolUsageFromResult(

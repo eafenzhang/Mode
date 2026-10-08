@@ -8,7 +8,7 @@ import type {
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
   WSLDistro,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   AlertTriangleIcon,
   CheckIcon,
@@ -37,7 +37,7 @@ import {
   TID_WSL_DISTRO_SELECT,
   TID_WSL_USER_INPUT,
   isValidWslUser,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { cn } from "@/components/lib/utils.js";

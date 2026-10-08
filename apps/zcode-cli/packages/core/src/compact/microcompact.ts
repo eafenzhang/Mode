@@ -5,7 +5,7 @@ import {
   type MicrocompactBoundaryPayload,
   type ModelMessageContent,
   type ToolCallId,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import type { CompactModelMessage } from "./manual.js";
 import { estimateMessageTokens } from "./manual.js";
 

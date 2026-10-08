@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { CheckIcon, MinusIcon } from "lucide-react";
-import type { SettingsSyncCategory, SettingsSyncDiscoveryResult } from "@zcode/shared";
+import type { SettingsSyncCategory, SettingsSyncDiscoveryResult } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { renderProviderCliIcon } from "@/lib/providerCliIcon.js";

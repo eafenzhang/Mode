@@ -1,4 +1,4 @@
-import type { Locale } from "@zcode/shared";
+import type { Locale } from "@mode/shared";
 import { formatGroupTimestamp } from "./groupPrompt.js";
 
 /**

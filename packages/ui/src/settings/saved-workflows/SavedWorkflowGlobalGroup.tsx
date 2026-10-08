@@ -4,7 +4,7 @@ import {
   TID_WORKFLOWS_LIST,
   TID_WORKFLOW_GLOBAL_GROUP,
   testId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

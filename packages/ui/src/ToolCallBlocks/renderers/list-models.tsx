@@ -3,7 +3,7 @@ import { useCallback, useMemo } from "react";
 import {
   getModelProviderFamilySpec,
   resolveModelProviderFamilyIdByProviderId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelOptions.js";
 import { useWorkflowSubagentModelProviderName } from "@/hooks/useWorkflowSubagentModelProviderName.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

@@ -2,12 +2,12 @@
 // 将设置轮排入运行时队列，记录两项设置的 from/to，并区分修订产生新 run 与并发调整就地生效。
 // 变更决策和副作用顺序由 dynamic-workflow-run-settings.ts 负责。
 
-import type { TraceContext, WorkflowSettingsAmendMeta } from "@zcode/contracts";
-import type { DynamicWorkflowRunSnapshot } from "@zcode/contracts";
-import { uuidv7 } from "@zcode/shared";
+import type { TraceContext, WorkflowSettingsAmendMeta } from "@mode/contracts";
+import type { DynamicWorkflowRunSnapshot } from "@mode/contracts";
+import { uuidv7 } from "@mode/shared";
 import { createRuntimeCommandId } from "../command-queue.js";
 import type { AgentRuntimeInternal } from "../internal.js";
-import type { boundWorkflowLaunchMeta } from "@zcode/contracts";
+import type { boundWorkflowLaunchMeta } from "@mode/contracts";
 
 /** 本 run 的两项设置的归一形：缺席即默认（会话模型 / 本机上限）。 */
 export interface RunSettings {

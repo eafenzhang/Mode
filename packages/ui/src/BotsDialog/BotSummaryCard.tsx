@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Clock3, Trash2 } from "lucide-react";
-import type { BotConfig, BotReplyGranularity, BotServiceStatus } from "@zcode/shared";
+import type { BotConfig, BotReplyGranularity, BotServiceStatus } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   Select,

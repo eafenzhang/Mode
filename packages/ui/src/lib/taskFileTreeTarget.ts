@@ -1,4 +1,4 @@
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeTaskMeta } from "@mode/shared";
 import { getPathLeaf } from "@/lib/path.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";

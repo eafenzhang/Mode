@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@mode/services";
 import { logger } from "@/logger.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";

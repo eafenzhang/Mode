@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { BUILTIN_PROVIDER_TEMPLATE_IDS } from "@zcode/shared";
-import { getDefaultConfigPath } from "@zcode/adapters/config";
+import { BUILTIN_PROVIDER_TEMPLATE_IDS } from "@mode/shared";
+import { getDefaultConfigPath } from "@mode/adapters/config";
 import {
   parseLegacyCliModelConfig,
   type LegacyCliModelConfigProjection,
@@ -16,7 +16,7 @@ import {
   type ProviderApiType,
   type ProviderConfigLayerUpdate,
   type ModelSelection,
-} from "@zcode/provider";
+} from "@mode/provider";
 
 interface LegacyCliPersonalProviderConfigImportInput {
   readonly input: unknown;

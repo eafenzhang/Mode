@@ -3,7 +3,7 @@
 // ============================================================
 // 从 rows.ts 拆出：通知 manifest、后台结果归属、直接启动三段 schema 让 rows.ts 越过
 // max-lines 上限（与 create-workflow-display.ts 同一先例——特性级 schema 单独成模块）。
-// 对外名字不变：rows.ts 原样再导出，@zcode/shared 桶与相对导入两条路都照旧。
+// 对外名字不变：rows.ts 原样再导出，@mode/shared 桶与相对导入两条路都照旧。
 
 import { z } from "zod";
 import { toolCallCreateWorkflowDisplaySchema } from "./create-workflow-display.js";

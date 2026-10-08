@@ -7,7 +7,7 @@ import type {
   HookEvent,
   SettingsDirectoryLocation,
   SettingsDirectorySource,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   buildWorkspaceHookBundleSnapshot,
   createWorkspaceHookSourceInput,
@@ -17,8 +17,8 @@ import {
   type WorkspaceHookBundleSnapshotData,
   type WorkspaceHookSourceInput,
   type WorkspaceHooksConfig,
-} from "@zcode/shared/workspace-hook-discovery";
-import { parseWorkspaceHookTrustStoreContent } from "@zcode/shared/workspace-hook-trust-store-file";
+} from "@mode/shared/workspace-hook-discovery";
+import { parseWorkspaceHookTrustStoreContent } from "@mode/shared/workspace-hook-trust-store-file";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import type { IHooksService } from "./hooks.js";
 import { atomicWriteWorkspaceHookConfig } from "./workspaceHookConfigMutation.js";

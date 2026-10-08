@@ -1,6 +1,6 @@
 /* path 规则集中维护：旧 task 快照与 provider 配置路径仍在这里收口。 */
 import { lstatSync } from "node:fs";
-import { readExternalEnvVar } from "@zcode/shared";
+import { readExternalEnvVar } from "@mode/shared";
 import { cp } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { basename, join, win32 } from "node:path";
@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import {
   DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE,
   MODE_DATA_ROOT_DIR_NAME,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 let _dataBaseDir: string | null = null;
 export const MODE_WINDOWS_APP_INSTALL_DIR_ENV = "MODE_WINDOWS_APP_INSTALL_DIR";

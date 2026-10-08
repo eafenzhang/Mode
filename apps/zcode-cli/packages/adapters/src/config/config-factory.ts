@@ -9,17 +9,17 @@ import type {
   RuntimeConfig,
   RuntimeConfigPatch,
   WorkspaceHookBundleSnapshot,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   ConfigScope,
   DefaultRuntimeConfig,
   createWorkspaceHookBundleSnapshot,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   buildWorkspaceHookBundleSnapshot,
   resolveWorkspaceHookRuntimeRoot,
   type WorkspaceHookRuntimeRoot,
-} from "@zcode/shared/workspace-hook-discovery";
+} from "@mode/shared/workspace-hook-discovery";
 import { createConfigPort } from "./index.js";
 import { loadFileConfig, getDefaultConfigPath, type LoadedConfig } from "./file-config.adapter.js";
 import { parseEnvConfig } from "./env-config.adapter.js";

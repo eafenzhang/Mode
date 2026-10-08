@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- HTTP、WebSocket 与静态资源路由集中注册，保持同一鉴权顺序。 */
 import { randomUUID } from "node:crypto";
-import { readExternalEnvVar } from "@zcode/shared";
+import { readExternalEnvVar } from "@mode/shared";
 import { readFile, stat } from "node:fs/promises";
 import { basename, extname, relative, resolve, sep } from "node:path";
 import { hostname } from "node:os";
@@ -16,7 +16,7 @@ import {
   LoggingChannelServer,
   ProxyChannel,
   type ISocket,
-} from "@zcode/rpc";
+} from "@mode/rpc";
 import {
   ServiceCollection,
   IZCodeAgentService,
@@ -27,7 +27,7 @@ import {
   ITerminalService,
   IBotsService,
   IProviderProvisioningTargetService,
-} from "@zcode/services";
+} from "@mode/services";
 import {
   botProviders,
   formatLogPrefix,
@@ -41,7 +41,7 @@ import {
   type BotProvider,
   type ServerRemoteInfo,
   type ServerRemoteWorkspaceInfo,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
 

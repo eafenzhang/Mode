@@ -6,13 +6,13 @@ import type {
   ZCodeSessionSettingsState,
   ZCodeSessionStateSnapshot,
   ZCodeTaskModeInfo,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   formatModelPickerValue as formatSharedModelSelection,
   getZCodeAgentAvailableModes as getSharedZCodeAgentAvailableModes,
   normalizeAvailableZCodeMode as normalizeSharedAvailableZCodeMode,
   zcodeSessionSettingsToZCodeConfigOptions,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 export const MODEL_CONFIG_ID = "model";
 export const MODE_CONFIG_ID = "mode";

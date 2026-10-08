@@ -1,4 +1,4 @@
-import { BUILTIN_MODE_SLASH_COMMAND_HELP_ENTRIES, type ZCodeSlashCommand } from "@zcode/shared";
+import { BUILTIN_MODE_SLASH_COMMAND_HELP_ENTRIES, type ZCodeSlashCommand } from "@mode/shared";
 
 /**
  * App `/` 面板与加号菜单按本顺序展示（UI 不维护排序白名单）。`workflow` 紧随 `goal`：两者都是

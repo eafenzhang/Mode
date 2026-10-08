@@ -13,8 +13,8 @@ import { isProtocolServerInvocation } from "./arguments.js";
 import {
   initializeDataRootNonInteractive,
   resolveDataRootActionFromEnv,
-} from "@zcode/services/node";
-import { MODE_VERSION } from "@zcode/shared";
+} from "@mode/services/node";
+import { MODE_VERSION } from "@mode/shared";
 
 void main();
 

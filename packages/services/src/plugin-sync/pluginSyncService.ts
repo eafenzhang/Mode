@@ -19,7 +19,7 @@ import type {
   PluginSyncComponentType,
   PluginSyncImportResult,
   PluginSyncRemoteStatus,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { IPluginSyncService } from "./pluginSync.js";
 import {
   createPluginSyncArchive,

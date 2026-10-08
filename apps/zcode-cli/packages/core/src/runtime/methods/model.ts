@@ -1,4 +1,4 @@
-import { beginLocalTurnPreparation } from "@zcode/contracts";
+import { beginLocalTurnPreparation } from "@mode/contracts";
 import { runWithModelInvocationContext, traceContextToLogContext } from "../deps.js";
 import type { ModelReasoningContentBlock, ModelToolCall, ModelUsage, ToolCallId } from "../deps.js";
 import {

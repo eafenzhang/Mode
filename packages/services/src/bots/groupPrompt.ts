@@ -1,4 +1,4 @@
-import type { BotGroupActivation, Locale } from "@zcode/shared";
+import type { BotGroupActivation, Locale } from "@mode/shared";
 import { formatBotMessage as msg } from "./messages.js";
 
 /**

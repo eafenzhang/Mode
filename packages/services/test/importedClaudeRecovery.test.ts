@@ -8,7 +8,7 @@ import {
   MODE_PROTOCOL_VERSION,
   zcodeSessionStateSnapshotSchema,
   type ZCodeSessionStateSnapshot,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { getLegacyTaskSessionSnapshotPath, setDataBaseDir } from "../src/paths.js";
 import { parseLegacyTaskSessionFile } from "../src/session/legacyTaskSessionFile.js";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";

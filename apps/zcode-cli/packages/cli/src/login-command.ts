@@ -1,5 +1,5 @@
-import { formatJson } from "@zcode/core";
-import type { GlobalOptions, RunContext } from "@zcode/shared-types";
+import { formatJson } from "@mode/core";
+import type { GlobalOptions, RunContext } from "@mode/shared-types";
 import { loadBootstrapModule } from "./bootstrap-loader.js";
 import { loadCliDotenv } from "./env.js";
 import type { RunDependencies } from "./cli-types.js";

@@ -4,8 +4,8 @@ import {
   zcodeProviderAccountAccessSchema,
   type ZCodeProviderAccountAccess,
   type ZCodeProvider,
-} from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/services";
+} from "@mode/shared";
+import type { ModelSelectionView } from "@mode/services";
 import type { ModelSelectGroup } from "@/ModelConfigSelect.js";
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { shouldShowModelVisionBadge } from "@/lib/modelVisionBadge.js";

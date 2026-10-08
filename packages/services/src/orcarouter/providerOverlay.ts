@@ -1,5 +1,5 @@
-import { ORCAROUTER_PROVIDER_TEMPLATE_ID } from "@zcode/shared";
-import type { ProviderConfigObject } from "@zcode/provider";
+import { ORCAROUTER_PROVIDER_TEMPLATE_ID } from "@mode/shared";
+import type { ProviderConfigObject } from "@mode/provider";
 import type {
   IProviderSettingsService,
   ProviderSettingsView,

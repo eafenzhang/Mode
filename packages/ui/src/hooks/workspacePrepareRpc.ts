@@ -4,8 +4,8 @@
  * 拆出原因：useWorkspacePrepare.ts 只保留可单测的轻量判定入口；
  * 这里只读取 workspace presentation（mode/slash commands）；模型选择事实由目标 Host View 提供。
  */
-import type { IZCodeSessionService } from "@zcode/services";
-import { type ZCodeProvider, type ZCodeWorkspacePrepareResult } from "@zcode/shared";
+import type { IZCodeSessionService } from "@mode/services";
+import { type ZCodeProvider, type ZCodeWorkspacePrepareResult } from "@mode/shared";
 import { getChatErrorMessage } from "@/lib/chatPrepareError.js";
 import { logger } from "@/logger.js";
 import { zcodeWorkspacePresentationToConfigOptions } from "@/lib/zcodeSessionProjection.js";

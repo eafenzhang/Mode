@@ -8,8 +8,8 @@ import {
   type ProviderConfigMap,
   type ProviderId,
   type ProviderTemplateId,
-} from "@zcode/provider";
-import type { ModelSelection } from "@zcode/shared/model-selection";
+} from "@mode/provider";
+import type { ModelSelection } from "@mode/shared/model-selection";
 
 /**
  * 去智谱化下线的 Provider 实体清单，依据是 `config/provider/mode-builtin.json`
@@ -169,7 +169,7 @@ function resolveMigratedDefaultModelSelection(
  *
  * `zai-standard-api` / `bigmodel-standard-api` 是 builtin 模板，不是 Provider；Provider
  * 要等用户在 UI 里用它创建才落进 personal 层，id 取模板名归一化后的种子
- * （见 @zcode/provider 的 nextPersonalProviderId）。所以只在 personal 层里查存在性：
+ * （见 @mode/provider 的 nextPersonalProviderId）。所以只在 personal 层里查存在性：
  * 去智谱化后 builtin 层的 providers 已被清空，拿 builtin 兜底等于走进空集。
  */
 function resolveRetiredProviderFallback(

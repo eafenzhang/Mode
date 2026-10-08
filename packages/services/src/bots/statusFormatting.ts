@@ -3,7 +3,7 @@ import {
   type ZCodeSessionFile,
   type ZCodeStreamEvent,
   type ZCodeTaskMeta,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { buildPerTurnChangeSummaries } from "../session/taskChangeSummary.js";
 
 const MS_IN_SECOND = 1_000;

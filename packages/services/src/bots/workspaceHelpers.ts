@@ -3,10 +3,10 @@ import {
   getBotWorkspaceKey,
   type BotConfig,
   type BotWorkspaceRef,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 export function getWorkspaceKey(workspacePath: string, workspaceIdentity?: string): string {
-  // 薄包装：真正的实现在 @zcode/shared，UI 侧算会话绑定资格时必须得到同一个 key。
+  // 薄包装：真正的实现在 @mode/shared，UI 侧算会话绑定资格时必须得到同一个 key。
   return getBotWorkspaceKey(workspacePath, workspaceIdentity);
 }
 

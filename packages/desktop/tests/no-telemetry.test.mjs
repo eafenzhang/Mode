@@ -81,7 +81,7 @@ test("database startup still forwards ordered state, starts ready listeners and 
   const relay = await loadModule("src/main/databaseStartupRelay.ts", {
     "node:crypto": await import("node:crypto"),
     electron: { ipcMain },
-    "@zcode/shared": {
+    "@mode/shared": {
       HostMessageTypes: { DatabaseStartupControl: "control" },
       InternalChannels: { DatabaseStartupState: "state", DatabaseStartupControl: "control" },
       databaseStartupControlSchema: { safeParse: (data) => ({ success: true, data }) },
@@ -118,7 +118,7 @@ test("OAuth delivery and remote connection retain business behavior without tele
         handle: (name, cb) => handlers.set(name, cb),
       },
     },
-    "@zcode/shared": {
+    "@mode/shared": {
       PlatformChannels: channels,
       InternalChannels: channels,
       remoteTargetSchema: { safeParse: (data) => ({ success: true, data }) },

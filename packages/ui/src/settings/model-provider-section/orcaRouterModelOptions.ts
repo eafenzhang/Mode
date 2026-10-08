@@ -3,7 +3,7 @@ import {
   ORCAROUTER_PROVIDER_TEMPLATE_ID,
   type OrcaCapability,
   type OrcaModelRecord,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 /** 目录视图里的模型（与 host 返回的最小元数据一致） */
 export interface OrcaCatalogModel {

@@ -1,4 +1,4 @@
-import { assertOfficialPlatformAccessible } from "@zcode/shared";
+import { assertOfficialPlatformAccessible } from "@mode/shared";
 // ============================================================
 // Node HTTP Client Adapter
 // ============================================================
@@ -15,7 +15,7 @@ import {
   type HttpClientRequest,
   type HttpClientResponse,
   type HttpClientRunOptions,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   loadTlsCaCertificates,
   resolveProxyForRequest,

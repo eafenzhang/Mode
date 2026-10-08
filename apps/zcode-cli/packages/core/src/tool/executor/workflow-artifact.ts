@@ -2,13 +2,13 @@
  * workflow run 产物的序列化规则，被 core 内的两处共用：完成通知的 `<result>`（background-tasks.ts）
  * 与 runtime task 条目上的 `resultText`（background-task-registry.ts，TaskOutput 的唯一来源）。
  *
- * 实现**搬到了 `@zcode/contracts`**（`interfaces/dynamic-workflow-run.port.ts`，与
+ * 实现**搬到了 `@mode/contracts`**（`interfaces/dynamic-workflow-run.port.ts`，与
  * `boundDynamicWorkflowRunEventPayload` 同一个接缝），因为它多了第三个消费者：bootstrap 的 v4
  * 投影要用同一条规则算 `workflowRuns.reports[].preview`（详情页 Results 区）。bootstrap 不能
  * import core 的内部模块，而复制一份序列化规则就是「同一个值在通知里和面板上长得不一样」的
  * 来源。这里保留一个再导出，好让 core 侧的两个 import 站点不动。
  */
-import { serializeWorkflowArtifact } from "@zcode/contracts";
+import { serializeWorkflowArtifact } from "@mode/contracts";
 
 export { serializeWorkflowArtifact };
 

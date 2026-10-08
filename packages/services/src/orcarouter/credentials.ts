@@ -1,4 +1,4 @@
-import { looksLikeOrcaApiKey, type OrcaCredentialSource } from "@zcode/shared";
+import { looksLikeOrcaApiKey, type OrcaCredentialSource } from "@mode/shared";
 import type { OrcaCredentialStore } from "./credentialStore.js";
 
 /**

@@ -6,7 +6,7 @@ import type {
   GitRepositorySummary,
   RemoteTarget,
   UserInfo,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 export interface WorkspaceHeaderState {
   selectedProvider: ZCodeProvider;

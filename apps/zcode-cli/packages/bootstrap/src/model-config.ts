@@ -2,12 +2,12 @@ import type {
   AiSdkModelExecutionConfig,
   AiSdkNetworkConfig,
   EnvRecord,
-} from "@zcode/adapters/model";
+} from "@mode/adapters/model";
 import {
   resolveRuntimeZCodeEnv,
   resolveRuntimeZCodeEndpointOrigin,
   MODE_APP_VERSION_ENV,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   createRuntimePlatformHeaders,
   normalizePrintableHeaderValue,

@@ -1,5 +1,5 @@
-import type { ZCodeError, TraceId } from "@zcode/shared";
-import { errorAttributionSchema, type ErrorAttribution } from "@zcode/shared/zcode-protocol-v4";
+import type { ZCodeError, TraceId } from "@mode/shared";
+import { errorAttributionSchema, type ErrorAttribution } from "@mode/shared/zcode-protocol-v4";
 
 export interface ZCodeUiError extends ZCodeError {
   attribution?: ErrorAttribution;

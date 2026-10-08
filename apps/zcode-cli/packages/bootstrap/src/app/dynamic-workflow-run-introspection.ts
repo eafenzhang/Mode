@@ -14,9 +14,9 @@ import type {
   DynamicWorkflowRunListResult,
   DynamicWorkflowRunPendingQuestion,
   DynamicWorkflowRunPort,
-} from "@zcode/contracts";
-import type { JournalStorePort } from "@zcode/dynamic-workflow";
-import { reduceWorkflowRunsState, type WorkflowRunsState } from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/contracts";
+import type { JournalStorePort } from "@mode/dynamic-workflow";
+import { reduceWorkflowRunsState, type WorkflowRunsState } from "@mode/shared/zcode-protocol-v4";
 import type { DynamicWorkflowIntrospectableJournal } from "./dynamic-workflow-run-journal.js";
 import { readRunScriptPath, readRunSubagentModel } from "./dynamic-workflow-run-launch-anchor.js";
 import {

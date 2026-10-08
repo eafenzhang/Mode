@@ -4,7 +4,7 @@ import type {
   ExecutionRequest,
   ExecutionResult,
   ExecutionRunOptions,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 
 export type BashBackgroundLifecycleMode = "explicit" | "auto_on_timeout";
 

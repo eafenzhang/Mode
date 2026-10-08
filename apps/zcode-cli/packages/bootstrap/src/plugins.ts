@@ -12,7 +12,7 @@ import {
   updatePluginEnabledInFileConfig,
   updatePluginOptionsInFileConfig,
   type ConfigResult,
-} from "@zcode/adapters/config";
+} from "@mode/adapters/config";
 import {
   addMarketplace,
   comparePluginUpdate,
@@ -41,21 +41,21 @@ import {
   type KnownMarketplaceRecord,
   type MarketplaceSource,
   type PluginMarketplaceEntry,
-} from "@zcode/adapters/plugins";
+} from "@mode/adapters/plugins";
 import type {
   Logger,
   PluginHookDetail,
   PluginLoadOutcome,
   PluginMetadata,
   PluginStoreListing,
-} from "@zcode/contracts";
-import { MODE_OFFICIAL_PLUGIN_MARKETPLACE, isOfficialMarketplaceId } from "@zcode/contracts";
+} from "@mode/contracts";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE, isOfficialMarketplaceId } from "@mode/contracts";
 import { BUNDLED_OFFICIAL_PLUGIN_CATALOG } from "./app/official-plugin-catalog.generated.js";
 import {
   MODE_CUA_OFFICIAL_PLUGIN_ID,
   isZCodeCuaInternalFeatureEnabled,
   listingRequiresPaidPlan,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { resolveOfficialPluginRoots } from "./app/bundled-plugins.js";
 import {
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,

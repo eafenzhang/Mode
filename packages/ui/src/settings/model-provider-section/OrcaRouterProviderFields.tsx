@@ -4,8 +4,8 @@ import {
   ORCAROUTER_DEFAULT_API_V1_BASE,
   TID_ORCAROUTER_SPEC,
   type OrcaCredentialSource,
-} from "@zcode/shared";
-import type { IOrcaRouterService } from "@zcode/services";
+} from "@mode/shared";
+import type { IOrcaRouterService } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

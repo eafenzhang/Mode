@@ -6,7 +6,7 @@ import {
   TID_SETTINGS_DATA_BASE_DIR_INPUT,
   TID_SETTINGS_DATA_BASE_DIR_SAVE,
   TID_SETTINGS_DATA_BASE_DIR_STATUS,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

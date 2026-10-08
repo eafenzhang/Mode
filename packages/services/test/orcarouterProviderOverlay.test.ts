@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ORCAROUTER_PROVIDER_TEMPLATE_ID } from "@zcode/shared";
+import { ORCAROUTER_PROVIDER_TEMPLATE_ID } from "@mode/shared";
 import type { ICredentialService } from "../src/credential/credential.js";
 import { createOrcaCatalogService } from "../src/orcarouter/catalog.js";
 import { OrcaConnectController } from "../src/orcarouter/connect.js";
@@ -125,14 +125,14 @@ function readInferenceApiKey(overlay: { config: Record<string, unknown> }): stri
  * 把回写的 Personal Overlay 叠加到真实 OrcaRouter 模板上，再经
  * `serializeRegistryProviderConfig` 投影。
  *
- * 这一步用的都是仓库真实的 `@zcode/provider` 实现（不是测试自造的读取函数），
+ * 这一步用的都是仓库真实的 `@mode/provider` 实现（不是测试自造的读取函数），
  * 因此它证明的是「凭据真的到达了推理侧读取的那个字段」，而不只是写过某个对象。
  */
 async function resolveRegistryAccessApiKey(
   overlay: Record<string, unknown>,
 ): Promise<string | null> {
   const { ProviderConfig, ApiKeyAccessConfig, ProviderApiConfig, serializeRegistryProviderConfig } =
-    await import("@zcode/provider");
+    await import("@mode/provider");
   const template = new ProviderConfig({
     group: "standard-personal",
     access: new ApiKeyAccessConfig({ type: "api-key" }),
@@ -315,7 +315,7 @@ test("P0：未连接时 reconcile 不写入空 overlay", async () => {
 test("P0：回写结果经真实 provider 解析后就是推理侧读取的 access.apiKey", async () => {
   const harness = createOrcaServiceHarness();
 
-  // 两种入口分别写入，随后都用仓库真实的 @zcode/provider 叠加+序列化一次。
+  // 两种入口分别写入，随后都用仓库真实的 @mode/provider 叠加+序列化一次。
   await harness.service.saveApiKey({ apiKey: "sk-orca-registry0001" });
   assert.equal(
     await resolveRegistryAccessApiKey(harness.double.writes.at(-1)!.config),

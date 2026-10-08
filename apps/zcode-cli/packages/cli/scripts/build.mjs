@@ -11,7 +11,7 @@ const executableFileMode = 0o755;
 const packageJsonFile = "package.json";
 const rootPackageVersionError = "Root package.json must define a non-empty string version.";
 const desktopAgentBuildFlag = "--desktop-agent";
-export const resolveBuildExternal = () => ["@zcode/tui", "playwright-core", "koffi"];
+export const resolveBuildExternal = () => ["@mode/tui", "playwright-core", "koffi"];
 
 export const readZodBuildVersion = async () => {
   const sharedPackage = JSON.parse(
@@ -136,87 +136,87 @@ export const resolveBuildAliases = ({
   cliDirectory = cliRoot,
   rootDirectory = projectRoot,
 } = {}) => ({
-  "@zcode/shared-types": resolve(cliDirectory, "../shared-types/dist/index.js"),
+  "@mode/shared-types": resolve(cliDirectory, "../shared-types/dist/index.js"),
   // plugin-host 启动只需这些独立入口，不能经通用 alias 重新求值 shared 总入口。
-  "@zcode/shared/runtime-env": resolve(rootDirectory, "../../packages/shared/src/runtimeEnv.ts"),
-  "@zcode/shared/mcp": resolve(rootDirectory, "../../packages/shared/src/mcp.ts"),
-  "@zcode/shared/runtime-tool-runtime": resolve(
+  "@mode/shared/runtime-env": resolve(rootDirectory, "../../packages/shared/src/runtimeEnv.ts"),
+  "@mode/shared/mcp": resolve(rootDirectory, "../../packages/shared/src/mcp.ts"),
+  "@mode/shared/runtime-tool-runtime": resolve(
     rootDirectory,
     "../../packages/shared/src/runtime-tool-runtime.ts",
   ),
   // esbuild alias 按前缀改写导入路径。所有 shared subpath 必须在通用入口前精确声明，
   // 否则会被错误解析为 `src/index.ts/<subpath>` 并让 Desktop agent/SEA 打包失败。
-  "@zcode/shared/zcode-protocol-v4": resolve(
+  "@mode/shared/zcode-protocol-v4": resolve(
     rootDirectory,
     "../../packages/shared/src/zcode-protocol-v4/index.ts",
   ),
   // ModelSelection schema 改为 shared 单一事实源后新增了本子路径引用。
   // esbuild alias 按前缀改写；若不在通用入口前精确声明，会错误拼到
   // `src/index.ts/model-selection`，导致 Desktop agent 打包失败。
-  "@zcode/shared/model-selection": resolve(
+  "@mode/shared/model-selection": resolve(
     rootDirectory,
     "../../packages/shared/src/model-selection.ts",
   ),
   // 共享 Model Schema 新增的子路径不能被通用 alias 拼到 index.ts 后面。
-  "@zcode/shared/model-config": resolve(rootDirectory, "../../packages/shared/src/model-config.ts"),
+  "@mode/shared/model-config": resolve(rootDirectory, "../../packages/shared/src/model-config.ts"),
   // 进程异常边界在 bootstrap 之前使用该轻量契约，不能落入 shared 的通用前缀 alias。
-  "@zcode/shared/process-diagnostic": resolve(
+  "@mode/shared/process-diagnostic": resolve(
     rootDirectory,
     "../../packages/shared/src/process-diagnostic.ts",
   ),
-  "@zcode/shared/config-schema": resolve(
+  "@mode/shared/config-schema": resolve(
     rootDirectory,
     "../../packages/shared/src/config-schema.ts",
   ),
-  "@zcode/shared/workspace-hook-discovery": resolve(
+  "@mode/shared/workspace-hook-discovery": resolve(
     rootDirectory,
     "../../packages/shared/src/workspace-hook-discovery.ts",
   ),
   // review controller 直连 WorkspaceHookMutationError 需要本精确
   // alias（esbuild 前缀改写规则同上，漏声明会在 Desktop agent/SEA 打包失败）。
-  "@zcode/shared/workspace-hook-mutation": resolve(
+  "@mode/shared/workspace-hook-mutation": resolve(
     rootDirectory,
     "../../packages/shared/src/workspace-hook-mutation.ts",
   ),
   // verdict 直连 import 需要本精确 alias；漏声明会被通用
-  // "@zcode/shared" 前缀改写成 `src/index.ts/workspace-hook-review-monotonicity`，
+  // "@mode/shared" 前缀改写成 `src/index.ts/workspace-hook-review-monotonicity`，
   // Desktop agent/SEA 打包直接失败。
-  "@zcode/shared/workspace-hook-review-monotonicity": resolve(
+  "@mode/shared/workspace-hook-review-monotonicity": resolve(
     rootDirectory,
     "../../packages/shared/src/workspace-hook-review-monotonicity.ts",
   ),
   // trust store 文件 schema 单源下沉后的新 subpath；漏声明会被通用
-  // "@zcode/shared" 前缀改写成 `src/index.ts/workspace-hook-trust-store-file`，
+  // "@mode/shared" 前缀改写成 `src/index.ts/workspace-hook-trust-store-file`，
   // Desktop agent/SEA 打包失败（同上两类既有规则）。
-  "@zcode/shared/workspace-hook-trust-store-file": resolve(
+  "@mode/shared/workspace-hook-trust-store-file": resolve(
     rootDirectory,
     "../../packages/shared/src/workspace-hook-trust-store-file.ts",
   ),
   // workspace 文件搜索/条目编解码被 services/fileService 引用；漏声明会被通用
-  // "@zcode/shared" 前缀改写成 `src/index.ts/<subpath>`，Desktop agent/SEA 打包失败。
-  "@zcode/shared/workspaceFileEntriesCodec": resolve(
+  // "@mode/shared" 前缀改写成 `src/index.ts/<subpath>`，Desktop agent/SEA 打包失败。
+  "@mode/shared/workspaceFileEntriesCodec": resolve(
     rootDirectory,
     "../../packages/shared/src/workspaceFileEntriesCodec.ts",
   ),
-  "@zcode/shared/workspaceFileSearch": resolve(
+  "@mode/shared/workspaceFileSearch": resolve(
     rootDirectory,
     "../../packages/shared/src/workspaceFileSearch.ts",
   ),
-  "@zcode/shared/account-provider-state": resolve(
+  "@mode/shared/account-provider-state": resolve(
     rootDirectory,
     "../../packages/shared/src/account-provider-state.ts",
   ),
-  "@zcode/shared/node-repl-browser-broker": resolve(
+  "@mode/shared/node-repl-browser-broker": resolve(
     rootDirectory,
     "../../packages/shared/src/browser-use/nodeReplBroker.ts",
   ),
-  "@zcode/shared/zcodeEndpoint": resolve(
+  "@mode/shared/zcodeEndpoint": resolve(
     rootDirectory,
     "../../packages/shared/src/zcodeEndpoint.ts",
   ),
-  "@zcode/shared/node": resolve(rootDirectory, "../../packages/shared/src/node.ts"),
-  "@zcode/shared": resolve(rootDirectory, "../../packages/shared/src/index.ts"),
-  "@zcode/core": resolve(cliDirectory, "../core/dist/index.js"),
+  "@mode/shared/node": resolve(rootDirectory, "../../packages/shared/src/node.ts"),
+  "@mode/shared": resolve(rootDirectory, "../../packages/shared/src/index.ts"),
+  "@mode/core": resolve(cliDirectory, "../core/dist/index.js"),
 });
 
 export const buildCli = async ({

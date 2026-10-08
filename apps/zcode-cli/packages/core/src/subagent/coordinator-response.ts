@@ -3,7 +3,7 @@ import type {
   CoordinatorResponsePort,
   CoordinatorResponseResult,
   SessionId,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import type { EnqueueSubagentMessageInput } from "../runtime/types.js";
 
 interface CreateCoordinatorResponsePortOptions {

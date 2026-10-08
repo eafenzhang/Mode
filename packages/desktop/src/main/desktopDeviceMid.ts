@@ -1,8 +1,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { createUuid } from "@zcode/shared";
-import { getAppConfigDir } from "@zcode/services/node";
+import { createUuid } from "@mode/shared";
+import { getAppConfigDir } from "@mode/services/node";
 
 interface EnsureDesktopDeviceMidSyncOptions {
   /** state 文件所在目录，默认 getAppConfigDir()（即 ~/.zcodium/v2）。仅测试注入 */

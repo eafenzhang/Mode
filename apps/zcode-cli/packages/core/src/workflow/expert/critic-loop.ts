@@ -2,7 +2,7 @@ import type {
   ExpertWorkflowRunSnapshot,
   WorkflowCriticReopenProposal,
   WorkflowPhaseDefinition,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import { reopenWorkflowGraphNode } from "../lifecycle.js";
 import { phaseNodeId } from "./ids.js";
 import { dedupeReopenProposals, parseCriticResult } from "./parsers/critic.js";

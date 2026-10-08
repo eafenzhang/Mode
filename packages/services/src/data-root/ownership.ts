@@ -13,7 +13,7 @@ import {
   MODE_DATA_ROOT_DIR_NAME,
   parseDataRootManifest,
   type DataRootManifest,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { DataRootStatus } from "./types.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {

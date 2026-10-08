@@ -8,8 +8,8 @@ import {
   type ZCodeSavedWorkflowInvalidEntry,
   type ZCodeSavedWorkflowRun,
   type ZCodeWorkflowsListResult,
-} from "@zcode/shared";
-import type { IZCodeAgentService, ZCodeAgentSavedWorkflowTarget } from "@zcode/services";
+} from "@mode/shared";
+import type { IZCodeAgentService, ZCodeAgentSavedWorkflowTarget } from "@mode/services";
 import { logger } from "@/logger.js";
 
 /** 一页里最多拉多少条 run 来算「上次运行」；一个项目的活跃工作流很少超过这个数。 */

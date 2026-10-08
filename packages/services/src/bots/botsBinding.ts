@@ -1,4 +1,4 @@
-import type { BotWorkspaceRef } from "@zcode/shared";
+import type { BotWorkspaceRef } from "@mode/shared";
 
 /**
  * 工作区 → bot[] 绑定表的纯函数操作。绑定持久化在 bot-bindings.v3.json：

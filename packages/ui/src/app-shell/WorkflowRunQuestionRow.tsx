@@ -1,5 +1,5 @@
 import { MessageCircleQuestionIcon } from "lucide-react";
-import type { WorkflowRunPendingQuestion } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunPendingQuestion } from "@mode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { workflowRunQuestionWaitedLabel } from "@/app-shell/workflowRunQuestions.js";

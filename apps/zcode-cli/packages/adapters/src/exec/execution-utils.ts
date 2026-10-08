@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ExecutionRequest } from "@zcode/contracts";
+import type { ExecutionRequest } from "@mode/contracts";
 
 export const DEFAULT_TIMEOUT_MS = 300_000;
 const MS_PER_SECOND = 1_000;

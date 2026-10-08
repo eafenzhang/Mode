@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { atomicWritePrivateTextFile, withFileLock } from "@zcode/shared/node";
+import { atomicWritePrivateTextFile, withFileLock } from "@mode/shared/node";
 import {
   botBindingsFileSchema,
   botsConfigFileSchema,
@@ -9,7 +9,7 @@ import {
   type BotBindingsFile,
   type BotsConfigFile,
   type BotsStateFile,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { getAppConfigDir } from "../paths.js";
 import {
   BOTS_BINDINGS_FILE,

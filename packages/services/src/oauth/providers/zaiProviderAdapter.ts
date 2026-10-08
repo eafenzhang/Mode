@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 import { Buffer } from "node:buffer";
 import {
   ApiError,
@@ -9,7 +9,7 @@ import {
   type OAuthProviderMeta,
   type OAuthTokenSet,
   type OAuthUserProfile,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { readApiJson } from "../../providers/api/apiJson.js";
 import { ZaiBusinessTokenResolver } from "../../providers/zaiBusinessTokenResolver.js";
 import { parseOAuthLoginAttribution } from "../callbackAttribution.js";

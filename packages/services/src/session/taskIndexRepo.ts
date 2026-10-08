@@ -15,7 +15,7 @@ import {
   OFF_PEAK_DEFAULT_GROUP_ID,
   type ZCodeProvider,
   type ZCodeTaskMeta,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   ZCodeTaskListQuery,
   ZCodeTaskListResult,
@@ -278,7 +278,7 @@ function normalizeWorkspaceBootstrapScopes(
   scopes: Array<{
     workspacePath: string;
     workspaceIdentity?: string;
-    workspacePurpose?: import("@zcode/shared").WorkspacePurpose;
+    workspacePurpose?: import("@mode/shared").WorkspacePurpose;
   }>,
 ): WorkspaceBootstrapScope[] {
   const seen = new Set<string>();

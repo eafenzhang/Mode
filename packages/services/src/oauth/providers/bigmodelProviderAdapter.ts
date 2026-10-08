@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 import {
   ApiError,
   BIGMODEL_PROVIDER_ID,
@@ -7,7 +7,7 @@ import {
   type OAuthProviderMeta,
   type OAuthTokenSet,
   type OAuthUserProfile,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { readApiJson } from "../../providers/api/apiJson.js";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
 import { parseOAuthLoginAttribution } from "../callbackAttribution.js";

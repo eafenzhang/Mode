@@ -15,7 +15,7 @@ import {
   DATA_ROOT_MANIFEST_FILE_NAME,
   DATA_ROOT_MANIFEST_SCHEMA_VERSION,
   DATA_ROOT_PRODUCT_ID,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 // 归属判定与备份让路的单测：只操作临时目录，不触碰真实 HOME。
 

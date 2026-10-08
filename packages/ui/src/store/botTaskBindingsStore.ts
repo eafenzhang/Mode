@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import type { BotProvider } from "@zcode/shared";
-import type { IBotsService } from "@zcode/services";
+import type { BotProvider } from "@mode/shared";
+import type { IBotsService } from "@mode/services";
 
 /**
  * 任务 ↔ IM 机器人绑定表（桌面侧只读投影）。

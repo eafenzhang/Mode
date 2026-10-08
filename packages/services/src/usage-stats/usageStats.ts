@@ -15,8 +15,8 @@ import type {
   UsageEntitlementSnapshot,
   UsageStatsRequest,
   UsageStatsSnapshot,
-} from "@zcode/shared";
-import { ServiceChannels } from "@zcode/shared";
+} from "@mode/shared";
+import { ServiceChannels } from "@mode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface IUsageStatsService {

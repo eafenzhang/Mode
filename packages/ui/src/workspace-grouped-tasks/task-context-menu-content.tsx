@@ -1,4 +1,4 @@
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeTaskMeta } from "@mode/shared";
 import {
   ContextMenuContent,
   ContextMenuItem,

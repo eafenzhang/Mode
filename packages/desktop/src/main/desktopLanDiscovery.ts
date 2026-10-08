@@ -5,7 +5,7 @@ import {
   buildLanProbePayload,
   parseLanAnnouncement,
   type LanDiscoveredPeer,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 /**
  * 局域网发现（main 侧）：向全局/网段广播地址发一次探测，收集 1.5 秒内的应答。

@@ -1,5 +1,5 @@
-import type { BotConfig, BotGroupActivation } from "@zcode/shared";
-import { resolveBotGroupChatCapabilities } from "@zcode/shared";
+import type { BotConfig, BotGroupActivation } from "@mode/shared";
+import { resolveBotGroupChatCapabilities } from "@mode/shared";
 import {
   Select,
   SelectContent,

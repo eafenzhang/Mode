@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { ArrowUpRightIcon } from "lucide-react";
-import type { WorkflowRunArtifactKind } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunArtifactKind } from "@mode/shared/zcode-protocol-v4";
 import {
   ArtifactKindIcon,
   artifactDisplayTitle,

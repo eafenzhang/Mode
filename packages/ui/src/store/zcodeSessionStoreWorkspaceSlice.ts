@@ -1,4 +1,4 @@
-import type { SessionCreateSource } from "@zcode/shared";
+import type { SessionCreateSource } from "@mode/shared";
 /* eslint-disable max-lines -- workspace 级状态动作集中在同一 slice，先保持收口便于维护。 */
 import {
   buildNativeSupplierKey,
@@ -10,7 +10,7 @@ import {
   type ZCodeTaskMeta,
   type ZCodeTaskRuntimeStatus,
   type ZCodeWorkspaceInitStatus,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { areConfigOptionsEquivalent } from "@/lib/configOptionsEquality.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 import { pushNavEntry } from "@/lib/taskNavigationHistory.js";

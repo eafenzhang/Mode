@@ -5,7 +5,7 @@ import {
   type OrcaCapability,
   type OrcaModelRecord,
   type OrcaOrigins,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { OrcaCredentialStore } from "./credentialStore.js";
 
 /**

@@ -3,15 +3,15 @@ import {
   getAppConfigDir,
   initializeDataRootNonInteractive,
   resolveDataRootActionFromEnv,
-} from "@zcode/services/node";
+} from "@mode/services/node";
 import {
   MODE_VERSION,
   SERVICE_AUTHORITY_MODE_ENV,
   formatLogPrefix,
   formatZodError,
   helloAckMessageSchema,
-} from "@zcode/shared";
-import type { HelloMessage, HelloAckMessage } from "@zcode/shared";
+} from "@mode/shared";
+import type { HelloMessage, HelloAckMessage } from "@mode/shared";
 import { createStdioServer } from "./stdio.js";
 import { registerStdioProcessLifecycle } from "./stdio-lifecycle.js";
 import { createStdioServices } from "./stdioServices.js";

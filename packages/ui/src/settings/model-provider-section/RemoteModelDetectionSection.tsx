@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Loader2Icon, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { TID_MODEL_PROVIDER_DETECT_MODELS_BUTTON } from "@zcode/shared";
+import { TID_MODEL_PROVIDER_DETECT_MODELS_BUTTON } from "@mode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 /** 检测状态由 ProviderModelsSection 持有；本组件只渲染按钮与候选列表。 */

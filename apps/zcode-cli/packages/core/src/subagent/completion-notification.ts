@@ -1,4 +1,4 @@
-import type { ModelUsage } from "@zcode/contracts";
+import type { ModelUsage } from "@mode/contracts";
 import { formatTaskNotification } from "../runtime-task/notification.js";
 
 type LocalAgentTaskNotificationStatus = "completed" | "failed" | "stopped";

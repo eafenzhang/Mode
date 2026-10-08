@@ -1,5 +1,5 @@
-import type { McpServerConfig } from "@zcode/contracts";
-import type { ZCodeProtocolMcpServer } from "@zcode/shared";
+import type { McpServerConfig } from "@mode/contracts";
+import type { ZCodeProtocolMcpServer } from "@mode/shared";
 
 export function protocolMcpServersToRuntimeMcpConfig(
   servers: ZCodeProtocolMcpServer[] | undefined,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { LanDiscoveredPeer } from "@zcode/shared";
+import type { LanDiscoveredPeer } from "@mode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 
 /**

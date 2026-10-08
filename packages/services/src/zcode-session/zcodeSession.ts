@@ -1,4 +1,4 @@
-import { ServiceChannels } from "@zcode/shared";
+import { ServiceChannels } from "@mode/shared";
 import type {
   TraceId,
   ZCodeAgentMcpServer,
@@ -16,7 +16,7 @@ import type {
   ZCodeSessionStateSnapshot,
   ZCodeStateUpdatedNotification,
   ZCodeWorkspacePresentation,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { createServiceDescriptor } from "#src/descriptors.js";
 
 export interface ZCodeSessionWorkspaceTarget {

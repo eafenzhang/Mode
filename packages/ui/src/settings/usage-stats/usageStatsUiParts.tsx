@@ -1,4 +1,4 @@
-import type { AppUsageRange } from "@zcode/shared";
+import type { AppUsageRange } from "@mode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCompactTokenNumber } from "@/lib/tokenNumberFormat.js";
 

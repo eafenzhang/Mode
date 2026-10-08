@@ -1,5 +1,5 @@
 import { existsSync, realpathSync } from "node:fs";
-import { readExternalEnvVar } from "@zcode/shared";
+import { readExternalEnvVar } from "@mode/shared";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 // 去智谱化只摘掉官方 CDN 远端源与数据目录缓存物化（套餐模板的投递/复活通道），
@@ -12,7 +12,7 @@ import {
   MODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
   MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
   type ZCodeBuiltinRefreshEvent,
-} from "@zcode/provider-node";
+} from "@mode/provider-node";
 import type { CliEnv } from "./env.js";
 
 export const SEA_MODE_BUILTIN_PROVIDER_CONFIG_ASSET_KEY = "mode-provider/mode-builtin.json";

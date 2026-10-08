@@ -86,7 +86,7 @@ test("user model requests keep URL, credentials and body without the official ga
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
   const gateway = await load(
     "apps/zcode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts",
-    { "@zcode/shared": policy },
+    { "@mode/shared": policy },
   );
   let calls = 0;
   const input = new Request("https://open.bigmodel.cn/api/anthropic/v1/messages", {
@@ -111,7 +111,7 @@ test("client config is local and cannot invoke injected network or endpoint reso
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
   const { createClientConfigService } = await load(
     "packages/services/src/client-config/clientConfigService.ts",
-    { "@zcode/shared": policy },
+    { "@mode/shared": policy },
   );
   const unexpected = () => {
     throw new Error("network/resolver must not run");
@@ -128,7 +128,7 @@ test("client config is local and cannot invoke injected network or endpoint reso
 test("CLI OAuth cannot call even an injected HTTP client", async () => {
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
   const oauth = await load("apps/zcode-cli/packages/adapters/src/auth/cli-oauth.ts", {
-    "@zcode/shared": policy,
+    "@mode/shared": policy,
     "node:crypto": await import("node:crypto"),
   });
   const client = oauth.createCliOAuthClient({
@@ -148,7 +148,7 @@ test("Electron policy cancels cached resources and redirects in every created se
   const { installOfficialPlatformNetworkPolicy } = await load(
     "packages/desktop/src/main/desktopOfficialPlatformPolicy.ts",
     {
-      "@zcode/shared": policy,
+      "@mode/shared": policy,
       electron: {
         app: {
           on: (name, handler) => {
@@ -176,7 +176,7 @@ test("Electron policy cancels cached resources and redirects in every created se
 test("Web and desktop reject cached official icons while keeping third party images", async () => {
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
   const { isTrustedImageUrl } = await load("packages/ui/src/lib/trustedImageUrl.ts", {
-    "@zcode/shared": policy,
+    "@mode/shared": policy,
   });
   assert.equal(isTrustedImageUrl("https://cdn-zcode.z.ai/icon.png"), false);
   assert.equal(isTrustedImageUrl("https://example.com/icon.png"), true);
@@ -288,7 +288,7 @@ test("historical built-in platform model endpoints cannot escape the model trans
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
   const gateway = await load(
     "apps/zcode-cli/packages/adapters/src/model/official-coding-plan-gateway.ts",
-    { "@zcode/shared": policy },
+    { "@mode/shared": policy },
   );
   const fetch = gateway.createOfficialCodingPlanGatewayFetch({
     fetch: () => assert.fail("must not request"),
@@ -309,7 +309,7 @@ test("historical built-in platform model endpoints cannot escape the model trans
 test("Node API blocks official endpoints before resolving settings or calling fetch", async () => {
   const policy = await load("packages/shared/src/officialPlatformPolicy.ts");
   const { NodeApiClient } = await load("packages/services/src/providers/api/nodeApiClient.ts", {
-    "@zcode/shared": {
+    "@mode/shared": {
       ...policy,
       DEFAULT_MODE_ENDPOINT_ORIGIN: "https://zcode.z.ai",
       ApiError: Error,

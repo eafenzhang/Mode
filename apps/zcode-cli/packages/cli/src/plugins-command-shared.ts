@@ -1,10 +1,10 @@
-import type { Logger } from "@zcode/contracts";
-import type { listZCodePlugins } from "@zcode/bootstrap";
+import type { Logger } from "@mode/contracts";
+import type { listZCodePlugins } from "@mode/bootstrap";
 import { createInterface } from "node:readline";
-import type { GlobalOptions, RunContext } from "@zcode/shared-types";
+import type { GlobalOptions, RunContext } from "@mode/shared-types";
 import type { CliEnv } from "./env.js";
 
-export type BootstrapModule = typeof import("@zcode/bootstrap");
+export type BootstrapModule = typeof import("@mode/bootstrap");
 export type PluginListOutcome = ReturnType<typeof listZCodePlugins>;
 export type PluginListItem = PluginListOutcome["plugins"][number];
 export type PluginDiagnostic = PluginListOutcome["diagnostics"][number];
@@ -67,7 +67,7 @@ export async function resolveDep<K extends PluginDepName>(
 ): Promise<PluginDepFn<K>> {
   const override = deps[key] as PluginDepFn<K> | undefined;
   if (override) return override;
-  const bootstrap = deps.loadBootstrapModule ?? (() => import("@zcode/bootstrap"));
+  const bootstrap = deps.loadBootstrapModule ?? (() => import("@mode/bootstrap"));
   return (await bootstrap())[BOOTSTRAP_EXPORTS[key]] as PluginDepFn<K>;
 }
 

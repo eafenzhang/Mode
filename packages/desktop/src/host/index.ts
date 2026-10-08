@@ -23,7 +23,7 @@ import {
   ChannelServer,
   type IChannelServer,
   LoggingChannelServer,
-} from "@zcode/rpc";
+} from "@mode/rpc";
 import { createBrowserControlMainBridge } from "./browserControlMainBridge.js";
 import { materializeBrowserRecordingArtifact } from "./browserRecordingArtifactMaterializer.js";
 import {
@@ -46,7 +46,7 @@ import {
   ICuaPipSessionService,
   createZCodeAgentConnectionScope,
   type ZCodeAgentV4ClientMode,
-} from "@zcode/services";
+} from "@mode/services";
 import {
   createLocalServices,
   getOffPeakRequestAuthBuilder,
@@ -64,7 +64,7 @@ import {
   OffPeakPermanentDispatchError,
   type HostApiNetworkTransport,
   type OffPeakRequestAuthBuilder,
-} from "@zcode/services/node";
+} from "@mode/services/node";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
 import { startLanAccessServer, type LanAccessServerHandle } from "./lanAccessServer.js";
 import { attachLanRemoteConnection, loadLanPeerToken, pairLanPeer } from "./lanRemoteAttach.js";
@@ -101,7 +101,7 @@ import {
   type ZCodeAutomationRun,
   type ZCodeAutomationRunOutcome,
   type ModelSelection,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   parseHostIncomingMessageEvent,
   rejectUnavailableAttachedServicePort,
@@ -116,8 +116,8 @@ import type {
   RemoteRuntimeNetworkOptions,
   RemoteAssetNetworkPort,
   RemoteConnection,
-} from "@zcode/server/remote";
-import type { RemoteTarget } from "@zcode/shared";
+} from "@mode/server/remote";
+import type { RemoteTarget } from "@mode/shared";
 import { wrapElectronPort } from "./electronPort.js";
 import { createTaskRealtimeBridgeForHostInit } from "./taskRealtimeBridge.js";
 import { resolveRpcLogLevel } from "./rpcLogLevel.js";
@@ -156,7 +156,7 @@ import {
 } from "./windowRemoteConnectionRegistry.js";
 import { createWindowHostControllerRuntime } from "./windowHostControllerService.js";
 import { resolveAutomationSubmissionModelSelection } from "./automationModelSelection.js";
-import { createRemoteConnectionProgressContext } from "@zcode/server/remote/remoteConnectionProgressContext.js";
+import { createRemoteConnectionProgressContext } from "@mode/server/remote/remoteConnectionProgressContext.js";
 type RemoteBackendHostConnection = RemoteConnection & {
   backend: IRemoteBackend;
 };
@@ -3198,7 +3198,7 @@ async function setupRemoteConnection(
 ): Promise<HostRemoteConnection> {
   // 延迟加载 remote backend，避免 local 模式下因 ssh2 依赖链进入 asar 后崩溃
   const { createRemoteBackend, connectRemote, pickRemoteRuntimeEnv } =
-    await import("@zcode/server/remote");
+    await import("@mode/server/remote");
   const backend = await createRemoteBackend(target);
   const connection = await connectRemote(backend, {
     ...remoteAssets,

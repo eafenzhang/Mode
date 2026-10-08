@@ -43,9 +43,9 @@ import type {
   ZCodeModelContextBudgetStrategy,
   ForceUpdateConfig,
   DynamicWorkflowClientConfig,
-} from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/provider";
-import { ServiceChannels } from "@zcode/shared";
+} from "@mode/shared";
+import type { ModelSelectionView } from "@mode/provider";
+import { ServiceChannels } from "@mode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface OffPeakClientConfig {

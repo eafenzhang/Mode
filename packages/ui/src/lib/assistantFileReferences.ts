@@ -2,9 +2,9 @@ import {
   resolveMarkdownFileLink,
   type MarkdownFileLinkResolveOptions,
 } from "@/lib/markdownFileLink.js";
-import { extractConversationPreviewFileReferences } from "@zcode/shared";
+import { extractConversationPreviewFileReferences } from "@mode/shared";
 import { decodeFilePathUriEscapes, joinFilePath } from "@/lib/path.js";
-import { MEDIA_PREVIEW_FORMATS } from "@zcode/shared";
+import { MEDIA_PREVIEW_FORMATS } from "@mode/shared";
 import {
   extractZCodeFileCitationDirectives,
   resolveZCodeFileCitationPreviewKind,

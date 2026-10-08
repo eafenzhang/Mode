@@ -3,7 +3,7 @@ import type {
   ExecutionResult,
   FileSystemStatResult,
   TraceContext,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import { relative } from "node:path";
 import { resolveWorkspacePath } from "../path-policy.js";
 import {

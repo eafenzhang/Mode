@@ -1,6 +1,6 @@
-import type { Event } from "@zcode/rpc";
-import { ServiceChannels } from "@zcode/shared";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { Event } from "@mode/rpc";
+import { ServiceChannels } from "@mode/shared";
+import type { ZCodeTaskMeta } from "@mode/shared";
 import type {
   ControllerResyncParams,
   ControllerResyncResult,
@@ -11,7 +11,7 @@ import type {
   WindowHostControllerTaskRow,
   WindowHostControllerWorkspaceFrame,
   WindowHostTaskAddress,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import { createServiceDescriptor } from "../descriptors.js";
 import type { ZCodeArchivedTaskDeletionResult } from "#src/session/zcodeTaskService.js";
 import type {

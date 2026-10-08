@@ -23,7 +23,7 @@ import {
   type SubAgentConfig,
   type SubagentsListMode,
   type ZCodeProvider,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { normalizeSubagentModelSelection } from "./subagentModelSelection.js";
 import { serializeSubagentMarkdown, parseSubagentMarkdown } from "./subagentMarkdown.js";
 import {
@@ -40,7 +40,7 @@ import {
   migrateUserSubagentMarkdown,
   migrateSubagentStateFile,
   scanOfficialPluginCacheRoots,
-} from "@zcode/shared/node";
+} from "@mode/shared/node";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 
 const subagentLogger = createServiceLogger("subagents");

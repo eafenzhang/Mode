@@ -6,7 +6,7 @@ import {
   type ZCodeSessionStateSnapshot,
   zcodeApiRetryFromModelNetworkStatusPayload,
   zcodeApiRetryFromStreamRecoveryPayload,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ZCodeSessionServiceEvent, ZCodeTaskTarget } from "#src/zcode-session/zcodeSession.js";
 
 export function createZCodeSessionApiRetryRuntimeTracker(): {

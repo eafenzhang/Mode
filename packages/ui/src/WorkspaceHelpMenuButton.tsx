@@ -2,7 +2,7 @@ import {
   DesktopCommandIds,
   TID_WORKSPACE_HELP_MENU_TRIGGER,
   type DesktopCommandId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { CircleHelpIcon, InfoIcon, RefreshCwIcon, SquareLibraryIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {

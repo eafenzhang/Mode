@@ -1,5 +1,5 @@
 import { CheckIcon, Loader2 } from "lucide-react";
-import type { CodingPlanResetType } from "@zcode/shared";
+import type { CodingPlanResetType } from "@mode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodingPlanQuotaResetUiStatus } from "@/lib/codingPlanQuotaResetUi.js";
 

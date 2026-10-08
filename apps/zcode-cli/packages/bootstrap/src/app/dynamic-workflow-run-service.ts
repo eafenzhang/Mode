@@ -38,7 +38,7 @@
 //      关闭之后 submit / amend / resume 直接抛——常驻池的关闭闸门本就挡住了命令，走到这里是
 //      接线错误，不该让 contracts 的拒绝枚举为它变宽（同不变式 1 的论证）。
 
-import type { DwfRunSessionListItem } from "@zcode/adapters/storage";
+import type { DwfRunSessionListItem } from "@mode/adapters/storage";
 import type {
   TraceContext,
   DynamicWorkflowRunEvent,
@@ -72,16 +72,16 @@ import type {
   ToolArtifactStorePort,
   WorkflowEscalatePort,
   WorkflowSubmitPort,
-} from "@zcode/contracts";
-import type { AgentRuntime } from "@zcode/core";
-import { WORKFLOW_RUNS_LIMITS } from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/contracts";
+import type { AgentRuntime } from "@mode/core";
+import { WORKFLOW_RUNS_LIMITS } from "@mode/shared/zcode-protocol-v4";
 import type {
   ActorSubmitProfile,
   ActorRef,
   Caps,
   JournalStorePort,
   PersonaSpec,
-} from "@zcode/dynamic-workflow";
+} from "@mode/dynamic-workflow";
 import { toProtocolEvent } from "./dynamic-workflow-run-launch.js";
 import { readWorkflowArtifactBytes } from "./dynamic-workflow-run-artifact-read.js";
 import { replayRunProgress } from "./dynamic-workflow-run-replay.js";

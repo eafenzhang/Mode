@@ -22,8 +22,8 @@ import type {
   SkillSummary,
   SkillsCapability,
   RemoteTarget,
-} from "@zcode/shared";
-import { MODE_AGENT_PROVIDER } from "@zcode/shared";
+} from "@mode/shared";
+import { MODE_AGENT_PROVIDER } from "@mode/shared";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { toast } from "@/components/ui/toast.js";

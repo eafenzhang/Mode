@@ -5,7 +5,7 @@ import type {
   CommandEnvelope,
   CommandPayloadMap,
   CommandResult,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import { mapAttachmentRefsToTurnAttachments } from "../attachment-refs.js";
 import { inputIntentMetadata } from "../input-intent.js";
 import { commandAdmissionOf } from "../executor.js";
@@ -28,7 +28,7 @@ import {
  *   draft 提升/提交即返/ready 边界三个语义免费获得），不再经旧 sendPrompt op。
  * - workspaceId：本地工作区 = workspacePath（Workspace Identity 约束的本地 fallback）；
  *   远程 identity（remote:ssh/wsl/docker:...）由 host.createSessionRecord 经
- *   @zcode/shared parseRemoteWorkspaceIdentity 统一解析（跨 workspace 分屏 pane）。
+ *   @mode/shared parseRemoteWorkspaceIdentity 统一解析（跨 workspace 分屏 pane）。
  * 执行面（过渡钩子）：record 建立/事件接线/catalog 同步/失败清理与旧宿主纠缠，
  * 走 host.createSessionRecord（见 ../types.ts）。
  */

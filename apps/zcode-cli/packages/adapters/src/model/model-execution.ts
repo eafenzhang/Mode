@@ -11,15 +11,15 @@ import {
   compileModelOptionMaps,
   type CompiledModelOptionMaps,
   type ModelOptionValues,
-} from "@zcode/model-option-map";
+} from "@mode/model-option-map";
 import {
   type Logger,
   type ModelId,
   type ModelProviderId,
   type ModelRequestAuth,
-} from "@zcode/contracts";
-import type { RegistryProviderConfig } from "@zcode/provider";
-import { withOpenRouterAttributionHeaders } from "@zcode/shared";
+} from "@mode/contracts";
+import type { RegistryProviderConfig } from "@mode/provider";
+import { withOpenRouterAttributionHeaders } from "@mode/shared";
 import { createAnthropicCompatFetch } from "./anthropic-stream-compat.js";
 import { createOpenAIResponsesJsonCompatFetch } from "./openai-responses-json-compat.js";
 import { createModelOptionMapFetch, type RawRequestBodyCapture } from "./model-option-map-fetch.js";

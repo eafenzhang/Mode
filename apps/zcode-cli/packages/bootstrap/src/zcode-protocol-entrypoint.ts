@@ -1,21 +1,21 @@
-import { createConfig } from "@zcode/adapters/config";
-import { createNodeModelSelectionFacade } from "@zcode/provider-node";
-import { createNodeLoggerFactory } from "@zcode/adapters/logging";
+import { createConfig } from "@mode/adapters/config";
+import { createNodeModelSelectionFacade } from "@mode/provider-node";
+import { createNodeLoggerFactory } from "@mode/adapters/logging";
 import {
   createMcpAdapterConnectionPool,
   createMcpTelemetryTracker,
   type McpConnectionPool,
   type McpTelemetryTracker,
-} from "@zcode/adapters/mcp";
+} from "@mode/adapters/mcp";
 import {
   zcodeProtocolNotifications,
   type ZCodeMcpResourceSample,
   type ZCodeMcpTelemetryEvent,
-} from "@zcode/shared";
-import type { SqliteSessionStore } from "@zcode/adapters/storage";
-import { traceContextToLogContext, createRootTraceContext } from "@zcode/contracts";
-import type { McpPort, ModelSelection } from "@zcode/contracts";
-import type { PresentationSurface } from "@zcode/core";
+} from "@mode/shared";
+import type { SqliteSessionStore } from "@mode/adapters/storage";
+import { traceContextToLogContext, createRootTraceContext } from "@mode/contracts";
+import type { McpPort, ModelSelection } from "@mode/contracts";
+import type { PresentationSurface } from "@mode/core";
 import type { RunZCodeProtocolAgentOptions, ZCodeAppOptions } from "./app/types.js";
 import { createZCodeApp } from "./app/create-app.js";
 import {
@@ -40,7 +40,7 @@ import {
   OFFICIAL_MCP_DEV_TRUSTED_ORIGINS_ENV,
   MODE_WORKSPACE_IDENTITY_ENV,
   resolveRuntimeZCodeEndpointOrigin,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { ZCodeProtocolAgentServer } from "./zcode-protocol/server.js";
 import { ZCodeProtocolNdjsonConnection } from "./zcode-protocol/transport.js";
 import { cleanupProtocolRuntime } from "./zcode-protocol/runtime-cleanup.js";

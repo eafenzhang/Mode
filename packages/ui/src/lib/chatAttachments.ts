@@ -4,8 +4,8 @@ import {
   VIDEO_INPUT_MAX_BYTES,
   type CreateTempTextAttachmentResult,
   type ZCodePromptAttachment,
-} from "@zcode/shared";
-import { PROTOCOL_V4_LIMITS } from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared";
+import { PROTOCOL_V4_LIMITS } from "@mode/shared/zcode-protocol-v4";
 import {
   OversizedInlineImageAttachmentError,
   OversizedInlinePdfAttachmentError,

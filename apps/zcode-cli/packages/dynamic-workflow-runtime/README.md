@@ -1,24 +1,24 @@
-# @zcode/dynamic-workflow-runtime
+# @mode/dynamic-workflow-runtime
 
 沙箱 harness（dynamic workflow 执行引擎）。把一份 workflow 脚本在受控子进程里跑起来，
-用 NDJSON 把子进程的 `__host.*` 调用桥接到 `@zcode/dynamic-workflow` 的纯引擎核心。
+用 NDJSON 把子进程的 `__host.*` 调用桥接到 `@mode/dynamic-workflow` 的纯引擎核心。
 
 ## 依赖边界
 
-**仅**依赖 `@zcode/dynamic-workflow`（workspace）与 node 内建。**绝不** import `@zcode/core` /
-`@zcode/contracts` / `@zcode/bootstrap` / `@zcode/adapters`——本包是「整条 sandbox↔engine
+**仅**依赖 `@mode/dynamic-workflow`（workspace）与 node 内建。**绝不** import `@mode/core` /
+`@mode/contracts` / `@mode/bootstrap` / `@mode/adapters`——本包是「整条 sandbox↔engine
 管线 app-free 可跑」的证明。
 
 ## 用法
 
 ```ts
-import { runWorkflowScript } from "@zcode/dynamic-workflow-runtime";
+import { runWorkflowScript } from "@mode/dynamic-workflow-runtime";
 
 const settlement = await runWorkflowScript({
   scriptText,                 // 或 lowered: <async 函数体>
   caps: { maxConcurrency: 16 },
   askSpecs,                   // site id ∈ 合成 schemas 记录即 typed
-  validate,                   // @zcode/dynamic-workflow 的 validate（适配到 ValidateFn）
+  validate,                   // @mode/dynamic-workflow 的 validate（适配到 ValidateFn）
   makeDriver: (sink) => driver, // driver 自带 journal + emit；sink 是引擎的向上回报面
   signal,                     // 可选：AbortSignal
   timeoutMs,                  // 可选：墙钟超时
@@ -45,8 +45,8 @@ world-read）/ `event`（log）/ `complete`；parent→child：`response`。
 
 ## 构建顺序
 
-测试与 typecheck 通过 `@zcode/dynamic-workflow` 的**已构建 dist** 解析依赖，故 `pretest` /
-`pretypecheck` 会先 `pnpm --filter @zcode/dynamic-workflow build`。全新检出直接 `pnpm test` 即可，
+测试与 typecheck 通过 `@mode/dynamic-workflow` 的**已构建 dist** 解析依赖，故 `pretest` /
+`pretypecheck` 会先 `pnpm --filter @mode/dynamic-workflow build`。全新检出直接 `pnpm test` 即可，
 不会踩到 stale-dist。
 
 ## 失败裁决与取舍

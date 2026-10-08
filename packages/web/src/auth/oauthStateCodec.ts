@@ -1,4 +1,4 @@
-import { DEFAULT_MODE_ENDPOINT_ORIGIN } from "@zcode/shared";
+import { DEFAULT_MODE_ENDPOINT_ORIGIN } from "@mode/shared";
 
 const PRODUCTION_WEB_ORIGIN = DEFAULT_MODE_ENDPOINT_ORIGIN;
 const WEB_CALLBACK_PATHS = new Set(["/cn/share/callback", "/share/callback"]);

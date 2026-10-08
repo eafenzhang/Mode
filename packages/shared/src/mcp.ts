@@ -209,7 +209,7 @@ export function getMcpServerRequestHeaders(
   return config.headers ?? config.http_headers;
 }
 
-// zcode-cua MCP server 识别的单一事实源。desktop 产品 broker resolver（@zcode/services 的
+// zcode-cua MCP server 识别的单一事实源。desktop 产品 broker resolver（@mode/services 的
 // mcpBrokerInjection）与 CLI bootstrap（apps/zcode-cli 的 mcp-config）两条注入入口必须用
 // 完全一致的判定；否则同一 MCP 配置在不同入口行为不同，可能漏注入 product broker，让
 // Python/uvx 自己持有 macOS TCC 权限（违反 fail-closed 边界）。改这里即同时改两条链路。

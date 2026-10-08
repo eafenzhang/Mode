@@ -5,13 +5,13 @@ import type {
   OAuthProviderId,
   OAuthSessionCallbackResult,
   UserInfo,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   DesktopCommandIds,
   resolveProviderFamilyDomainFromOAuthProvider,
   MODE_JWT_INVALID_BROADCAST_CHANNEL,
-} from "@zcode/shared";
-import type { IServiceAccessor } from "@zcode/services";
+} from "@mode/shared";
+import type { IServiceAccessor } from "@mode/services";
 import { useAlertDialog } from "@/hooks/useAlertDialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";

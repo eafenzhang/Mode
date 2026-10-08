@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { botsConfigFileSchema, type BotConfig } from "@zcode/shared";
+import { botsConfigFileSchema, type BotConfig } from "@mode/shared";
 
 // 回归背景：BotConfig 新增字段（heartbeat / groupChat / wecomBotId …）时只加 TS 类型、
 // 忘了登记 botConfigSchema，而 schema 是 .strict()——保存会直接抛

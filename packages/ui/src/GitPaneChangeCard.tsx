@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { GitDiffResult } from "@zcode/shared";
+import type { GitDiffResult } from "@mode/shared";
 import { ChevronDownIcon, CopyIcon, FolderOpenIcon, ListTreeIcon } from "lucide-react";
 import { DiffViewer } from "@/components/ui/diff-viewer.js";
 import { cn } from "@/components/lib/utils.js";

@@ -9,9 +9,9 @@
  *
  * 用法：node --import tsx packages/desktop/scripts/verify-lan-attach.mjs <host> <port> <pairCode> [dir]
  */
-import { Emitter, SocketProtocol, VSBuffer } from "@zcode/rpc";
-import { connectViaProtocol } from "@zcode/client";
-import { serverRemoteInfoSchema, MODE_RPC_HOST_CAPABILITY_HEADER } from "@zcode/shared";
+import { Emitter, SocketProtocol, VSBuffer } from "@mode/rpc";
+import { connectViaProtocol } from "@mode/client";
+import { serverRemoteInfoSchema, MODE_RPC_HOST_CAPABILITY_HEADER } from "@mode/shared";
 import { WebSocket } from "ws";
 
 const [host, portRaw, code, dir = process.cwd()] = process.argv.slice(2);

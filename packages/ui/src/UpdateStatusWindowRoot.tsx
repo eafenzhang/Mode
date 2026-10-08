@@ -1,4 +1,4 @@
-import type { IPlatformService, Locale, UpdateStatePayload } from "@zcode/shared";
+import type { IPlatformService, Locale, UpdateStatePayload } from "@mode/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { UpdateStatusDialogController } from "@/UpdateStatusDialogController.js";

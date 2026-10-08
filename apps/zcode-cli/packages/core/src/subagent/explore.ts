@@ -2,7 +2,7 @@
 // Explore Subagent Definition
 // ============================================================
 
-import type { EnvInfo } from "@zcode/contracts";
+import type { EnvInfo } from "@mode/contracts";
 
 export const EXPLORE_AGENT_TYPE = "Explore" as const;
 

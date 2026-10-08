@@ -5,7 +5,7 @@ import {
   type ExecutionPort,
   type ExecutionResult,
   type TraceContext,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 
 const DEFAULT_SHELL_EXPANSION_TIMEOUT_MS = 30_000;
 const DEFAULT_SHELL_EXPANSION_OUTPUT_BYTES = 128 * 1024;

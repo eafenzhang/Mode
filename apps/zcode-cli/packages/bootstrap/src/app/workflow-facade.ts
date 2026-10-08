@@ -1,15 +1,15 @@
 import { join } from "node:path";
-import { createNodeContextSourceAdapter } from "@zcode/adapters/context";
-import { createNodeExecutionAdapter } from "@zcode/adapters/exec";
-import { createNodeFileSystemAdapter } from "@zcode/adapters/fs";
-import { createNodeWebFetchHttpClientAdapter } from "@zcode/adapters/http";
-import { createNodeSkillAdapter } from "@zcode/adapters/skills";
-import type { ConfigResult } from "@zcode/adapters/config";
-import { createInMemorySessionEventStore } from "@zcode/adapters/storage";
+import { createNodeContextSourceAdapter } from "@mode/adapters/context";
+import { createNodeExecutionAdapter } from "@mode/adapters/exec";
+import { createNodeFileSystemAdapter } from "@mode/adapters/fs";
+import { createNodeWebFetchHttpClientAdapter } from "@mode/adapters/http";
+import { createNodeSkillAdapter } from "@mode/adapters/skills";
+import type { ConfigResult } from "@mode/adapters/config";
+import { createInMemorySessionEventStore } from "@mode/adapters/storage";
 import {
   createNodeWorkflowDefinitionStore,
   createNodeWorkflowStore,
-} from "@zcode/adapters/workflow";
+} from "@mode/adapters/workflow";
 import {
   AgentRuntime,
   ExpertWorkflowRuntime,
@@ -18,7 +18,7 @@ import {
   type AgentRuntimeDeps,
   type PermissionService,
   type WorkflowAgentRunner,
-} from "@zcode/core";
+} from "@mode/core";
 import {
   createChildTraceContext,
   createSessionId,
@@ -36,7 +36,7 @@ import {
   type ToolArtifactStorePort,
   type TraceContext,
   type WorkflowDefinition,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
 import type { PrepareUserExecutionBoundary, ZCodeAppOptions } from "./types.js";
 import { createWorkflowMethods, type WorkflowFacade } from "./workflow-methods.js";

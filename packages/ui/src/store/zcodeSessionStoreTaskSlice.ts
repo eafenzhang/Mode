@@ -8,7 +8,7 @@ import {
   type ZCodeProvider,
   type ZCodeTaskRuntimeStatus,
   type ZCodeTaskMeta,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 import { removeTaskFromHistory } from "@/lib/taskNavigationHistory.js";
 import { mergeTaskWithOptimisticMeta } from "@/lib/zcodeTaskMetaMerge.js";

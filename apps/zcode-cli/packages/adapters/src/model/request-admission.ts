@@ -2,7 +2,7 @@ import type {
   ModelRequestAdmission,
   ModelRequestAdmissionTicket,
   ModelRequestTarget,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 
 /**
  * 一次尝试的准入。

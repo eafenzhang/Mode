@@ -1,14 +1,14 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { MODE_PLUGIN_HOST_COMMAND } from "@zcode/contracts/plugins";
+import { MODE_PLUGIN_HOST_COMMAND } from "@mode/contracts/plugins";
 import {
   getCapturedZCodeCuaBrokerCredentials,
   MODE_CUA_BROKER_SOCKET_ENV_KEY,
   MODE_CUA_NODE_REPL_HOST_ENV_KEY,
-} from "@zcode/shared/runtime-env";
-import { MODE_CUA_OFFICIAL_PLUGIN_ID, MODE_PLUGIN_ID_ENV_KEY } from "@zcode/shared/mcp";
-import type { RunContext } from "@zcode/shared-types";
+} from "@mode/shared/runtime-env";
+import { MODE_CUA_OFFICIAL_PLUGIN_ID, MODE_PLUGIN_ID_ENV_KEY } from "@mode/shared/mcp";
+import type { RunContext } from "@mode/shared-types";
 
 const HOST_USAGE = `${MODE_PLUGIN_HOST_COMMAND} <server-path> [-- <server-arg>...]`;
 

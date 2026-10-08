@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- zcode-cli 配置 schema 需要集中维护文件解析和 provider 继承，拆散会让配置语义更难对齐。 */
 import { z } from "zod";
-import type { RuntimeConfigPatch } from "@zcode/contracts";
+import type { RuntimeConfigPatch } from "@mode/contracts";
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const unknownRecordSchema = z.record(z.string(), z.unknown());

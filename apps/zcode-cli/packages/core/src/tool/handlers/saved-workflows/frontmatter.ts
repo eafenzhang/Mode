@@ -15,11 +15,11 @@
 // 用户会在编辑器里打开它、也可能直接手改。块注释让整个文件仍是合法 TypeScript，于是高亮、
 // 括号匹配、格式化全都照常工作；`---` 会把文件第一行就变成语法错误。
 //
-// body 用 YAML 而不是 JSON：`yaml` 已经是 @zcode/core 的直接依赖（不新增依赖），而手改
+// body 用 YAML 而不是 JSON：`yaml` 已经是 @mode/core 的直接依赖（不新增依赖），而手改
 // 一段 YAML 比手改一段带引号和逗号的 JSON 容错得多——这个文件的读者是人。
 
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { SavedWorkflowMetaSchema, type SavedWorkflowMeta } from "@zcode/contracts";
+import { SavedWorkflowMetaSchema, type SavedWorkflowMeta } from "@mode/contracts";
 
 /** frontmatter 的开启标记。必须是文件的第一段非空白内容。 */
 export const SAVED_WORKFLOW_SENTINEL = "/* zcode-workflow";

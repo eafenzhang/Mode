@@ -7,7 +7,7 @@ import {
   MODE_ENV,
   MODE_SOURCE_HEADERS,
   MODE_VERSION,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { getAppConfigDir } from "../paths.js";
 
 export { MODE_SOURCE_HEADERS };

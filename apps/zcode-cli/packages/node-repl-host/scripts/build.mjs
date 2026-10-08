@@ -6,7 +6,7 @@ import { build } from "esbuild";
 const packageRoot = resolve(import.meta.dirname, "..");
 
 // 见 browser-use-plugin/scripts/build.mjs 的同名修复：esbuild 的 esm 产物里
-// __require shim 在 ESM 作用域没有 require 可用，@zcode/core 拖进来的 CJS 依赖（yaml →
+// __require shim 在 ESM 作用域没有 require 可用，@mode/core 拖进来的 CJS 依赖（yaml →
 // require("process")）会在**模块求值阶段**抛错，plugin host 的 await import() 直接失败，
 // 表现为注册 0 个工具、模型侧完全看不到 mcp__node_repl__js。注入真实 createRequire。
 const nodeRequireBanner = `import { createRequire as __zcodeCreateRequire } from "node:module";

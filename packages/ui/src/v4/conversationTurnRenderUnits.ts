@@ -1,4 +1,4 @@
-import { isBotHeartbeatPromptText } from "@zcode/shared";
+import { isBotHeartbeatPromptText } from "@mode/shared";
 import type {
   AssistantTextRow,
   ConversationRow,
@@ -8,7 +8,7 @@ import type {
   TurnHeaderRow,
   UserInputRow,
   WorkflowLaunchMeta,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import type { AssistantWorkRow, ConversationTurnFlowItem } from "@/v4/conversationTurnFlowItems.js";
 import {
   isWorkflowLaunchUserInputRow,

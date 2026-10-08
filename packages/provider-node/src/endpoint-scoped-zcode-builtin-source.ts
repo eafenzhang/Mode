@@ -1,4 +1,4 @@
-import type { ProviderConfigLayerSnapshot, ProviderSource } from "@zcode/provider";
+import type { ProviderConfigLayerSnapshot, ProviderSource } from "@mode/provider";
 import {
   normalizeZCodeBuiltinEndpointOrigin,
   resolveZCodeBuiltinCachePaths,

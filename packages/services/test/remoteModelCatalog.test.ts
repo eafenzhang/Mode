@@ -4,7 +4,7 @@ import {
   buildRemoteModelListRequest,
   parseRemoteModelListPage,
   type RemoteModelCatalogRequest,
-} from "@zcode/provider";
+} from "@mode/provider";
 import { createRemoteModelCatalogExecutor } from "../src/model-provider/remoteModelCatalog.js";
 
 function openAiRequest(overrides: Partial<RemoteModelCatalogRequest> = {}) {

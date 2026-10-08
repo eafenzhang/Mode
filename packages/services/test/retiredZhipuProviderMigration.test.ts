@@ -11,8 +11,8 @@ import {
   ProviderConfig,
   ProviderConfigMap,
   type ProviderConfigLayerUpdate,
-} from "@zcode/provider";
-import { encodeProviderConfigFile } from "@zcode/provider-node";
+} from "@mode/provider";
+import { encodeProviderConfigFile } from "@mode/provider-node";
 import { createProviderConfigRuntime } from "../src/model-provider/providerConfigRuntime.js";
 
 const MODE_BUILTIN_PATH = fileURLToPath(

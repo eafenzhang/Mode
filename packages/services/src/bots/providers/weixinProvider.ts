@@ -6,7 +6,7 @@ import type {
   BotConfig,
   BotInboundMessage,
   BotOutboundMessage,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { BotProviderAdapter, BotTypingTarget } from "./types.js";
 import { fetchBotProviderJson } from "#src/bots/providers/providerRequest.js";
 

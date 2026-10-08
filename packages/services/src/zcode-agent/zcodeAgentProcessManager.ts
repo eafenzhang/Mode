@@ -6,14 +6,14 @@ import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { Emitter } from "@zcode/rpc";
+import { Emitter } from "@mode/rpc";
 import {
   parseZCodeProcessDiagnostic,
   MODE_AGENT_LIFECYCLE_LOG_MARKER,
   MODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
   MODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
   MODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
-} from "@zcode/shared/process-diagnostic";
+} from "@mode/shared/process-diagnostic";
 import {
   MODE_AGENT_RUNTIME,
   MODE_AGENT_PROVIDER,
@@ -21,7 +21,7 @@ import {
   resolveWorkspaceKey,
   resolveZCodeRuntimeEnv,
   sanitizeZCodeRuntimeEnv,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   findZCodeAgentRuntimeBinary,
   findZCodeAgentRuntimeNodeBundle,

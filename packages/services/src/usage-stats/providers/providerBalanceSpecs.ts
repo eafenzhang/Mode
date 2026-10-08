@@ -5,7 +5,7 @@
  * 便于在不发起真实请求的情况下做回归测试。查询地址使用供应商固定的余额接口，
  * 不从 baseUrl 拼接路径（各家 baseUrl 后缀不同，例如 DeepSeek 是 /anthropic）。
  */
-import type { ProviderBalanceEntry } from "@zcode/shared";
+import type { ProviderBalanceEntry } from "@mode/shared";
 
 interface ResolvedProviderBalanceProvider {
   /** 供应商固定余额查询地址。 */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ProviderBalanceSnapshot } from "@zcode/shared";
+import type { ProviderBalanceSnapshot } from "@mode/shared";
 import { logger } from "@/logger.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 

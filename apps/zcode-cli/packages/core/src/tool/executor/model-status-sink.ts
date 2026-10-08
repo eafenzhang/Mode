@@ -4,7 +4,7 @@ import {
   type Model,
   type ModelNetworkStatusEvent,
   type ModelStatusSink,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import { withModelInvocationContext } from "../../runtime/methods/runtime-model.js";
 import type { ToolExecutionContext } from "../types.js";
 

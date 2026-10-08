@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { DesktopWindowChromeState, IPlatformService, UpdateStatePayload } from "@zcode/shared";
+import type { DesktopWindowChromeState, IPlatformService, UpdateStatePayload } from "@mode/shared";
 import { logger } from "@/logger.js";
 import { toast } from "@/components/ui/toast.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

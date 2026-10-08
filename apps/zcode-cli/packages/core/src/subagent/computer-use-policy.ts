@@ -2,8 +2,8 @@ import { relative, isAbsolute } from "node:path";
 import {
   MODE_CUA_OFFICIAL_MCP_NAMESPACE_NAME as MODE_CUA_OFFICIAL_MCP_SERVER_NAME,
   MODE_CUA_OFFICIAL_PLUGIN_ID,
-} from "@zcode/shared";
-import type { McpToolDescriptor, PluginReferenceCatalog, SkillMetadata } from "@zcode/contracts";
+} from "@mode/shared";
+import type { McpToolDescriptor, PluginReferenceCatalog, SkillMetadata } from "@mode/contracts";
 import { toMcpToolName, toModelVisibleMcpNamePart } from "../mcp/name.js";
 
 export const SUBAGENT_COMPUTER_USE_UNAVAILABLE_CODE = "SUBAGENT_COMPUTER_USE_UNAVAILABLE" as const;

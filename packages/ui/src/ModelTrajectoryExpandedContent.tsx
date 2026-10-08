@@ -1,4 +1,4 @@
-import type { ZCodeModelTrajectoryMessage } from "@zcode/services";
+import type { ZCodeModelTrajectoryMessage } from "@mode/services";
 import { Maximize2Icon, Minimize2Icon } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge.js";

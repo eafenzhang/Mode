@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import type { ZCodePermissionRequest } from "@zcode/shared";
+import type { ZCodePermissionRequest } from "@mode/shared";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import {
   Collapsible,

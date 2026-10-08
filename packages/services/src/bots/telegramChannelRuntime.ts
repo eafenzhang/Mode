@@ -2,7 +2,7 @@ import type {
   BotConfig,
   BotProviderCallbackResult,
   BotsConfigFile,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import type { BotProviderAdapter } from "./providers/types.js";
 import {

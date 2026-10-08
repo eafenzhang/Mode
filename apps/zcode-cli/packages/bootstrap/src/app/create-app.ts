@@ -2,28 +2,28 @@ import { isAbsolute, join, resolve } from "node:path";
 import {
   createInMemorySessionEventStore,
   createNodeToolArtifactStore,
-} from "@zcode/adapters/storage";
-import { createNodeLoggerFactory } from "@zcode/adapters/logging";
-import { createConfig, resolvePath } from "@zcode/adapters/config";
+} from "@mode/adapters/storage";
+import { createNodeLoggerFactory } from "@mode/adapters/logging";
+import { createConfig, resolvePath } from "@mode/adapters/config";
 import {
   createNodeExecutionAdapter,
   resolveEffectiveBashShellSelection,
-} from "@zcode/adapters/exec";
-import { createNodeFileSystemAdapter } from "@zcode/adapters/fs";
-import { createNodeWebFetchHttpClientAdapter } from "@zcode/adapters/http";
-import { createJimpImageProcessorAdapter } from "@zcode/adapters/image";
-import { createPopplerPdfDocumentAdapter } from "@zcode/adapters/pdf";
-import { createNodeSessionMailboxAdapter } from "@zcode/adapters/mailbox";
-import { createNodeContextSourceAdapter } from "@zcode/adapters/context";
-import { createNodeSkillAdapter } from "@zcode/adapters/skills";
-import { createMcpAdapter } from "@zcode/adapters/mcp";
+} from "@mode/adapters/exec";
+import { createNodeFileSystemAdapter } from "@mode/adapters/fs";
+import { createNodeWebFetchHttpClientAdapter } from "@mode/adapters/http";
+import { createJimpImageProcessorAdapter } from "@mode/adapters/image";
+import { createPopplerPdfDocumentAdapter } from "@mode/adapters/pdf";
+import { createNodeSessionMailboxAdapter } from "@mode/adapters/mailbox";
+import { createNodeContextSourceAdapter } from "@mode/adapters/context";
+import { createNodeSkillAdapter } from "@mode/adapters/skills";
+import { createMcpAdapter } from "@mode/adapters/mcp";
 import {
   AgentRuntime,
   PermissionService,
   buildPluginReferenceCatalog,
   type AmendWorkflowRunSettingsInput,
   type ResumeSessionResult,
-} from "@zcode/core";
+} from "@mode/core";
 import {
   createRootTraceContext,
   traceContextToLogContext,
@@ -32,15 +32,15 @@ import {
   createSessionEvent,
   type ExecutionShellSelection,
   type MessageId,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   isRemoteWorkspaceIdentity,
   resolveZCodeRuntimeEnv,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   MODE_ATTACHMENT_FAULT_CODES,
   ZCodeAttachmentFaultError,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 
 import { createModelAdapter } from "../model-factory.js";
 import { StartupTimer, startupNow } from "../startup-logging.js";

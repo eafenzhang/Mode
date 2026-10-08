@@ -2,7 +2,7 @@ import {
   backgroundBashOutputResultSchema,
   v4BackgroundBashOutputParamsSchema,
   type BackgroundBashOutputResult,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 // V4 conversation 网关（host 通道层 CLI 侧）。
 // 职责：per-session ConversationTopicPublisher 注册表 + flushWindowMs 定时调度
 // + v4/command → CommandInbox → 宿主 executor 的收口。
@@ -25,11 +25,11 @@ import type {
   TargetChangedPayload,
   TurnId,
   FileSystemErrorCode,
-} from "@zcode/contracts";
-import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
-import { SessionEventType, isFileSystemPortError } from "@zcode/contracts";
-import type { ZCodeWorkspaceRef } from "@zcode/shared";
-import { extractMarkdownArtifactImageRefs } from "@zcode/shared";
+} from "@mode/contracts";
+import type { ConversationSnapshot } from "@mode/shared/zcode-protocol-v4";
+import { SessionEventType, isFileSystemPortError } from "@mode/contracts";
+import type { ZCodeWorkspaceRef } from "@mode/shared";
+import { extractMarkdownArtifactImageRefs } from "@mode/shared";
 import type {
   CommandAck,
   AttachmentRef,
@@ -69,7 +69,7 @@ import type {
   ConversationTelemetryFact,
   CuaPermissionObservation,
   ConversationOpenTiming,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import {
   DELIVERY_PROFILES,
   PROTOCOL_V4_LIMITS,
@@ -119,7 +119,7 @@ import {
   v4ConversationResyncParamsSchema,
   v4ConversationSubscribeParamsSchema,
   v4ConversationUnsubscribeParamsSchema,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import { AttachmentUploadRegistry } from "./attachment-upload-registry.js";
 import {
   ColdSessionResumeCoordinator,

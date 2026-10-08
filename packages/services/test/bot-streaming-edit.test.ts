@@ -54,7 +54,7 @@ test("空内容渲染为空串（create 端不会发出占位空消息）", asyn
 });
 
 test("共享层能力表：Telegram/企业微信支持全部粒度，微信不支持 streaming_card", async () => {
-  const { getSupportedBotReplyGranularities } = await import("@zcode/shared");
+  const { getSupportedBotReplyGranularities } = await import("@mode/shared");
   const telegram = getSupportedBotReplyGranularities("telegram");
   assert.ok(telegram.includes("streaming_card"));
   // 企业微信智能机器人经 WebSocket replyStream 原生支持流式回复。

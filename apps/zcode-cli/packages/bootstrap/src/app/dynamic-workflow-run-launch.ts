@@ -19,9 +19,9 @@ import {
   type DynamicWorkflowRunEvent,
   type DynamicWorkflowRunProgressPayload,
   type SessionId,
-} from "@zcode/contracts";
-import type { AgentRuntime } from "@zcode/core";
-import { parseModelPickerValue, type ModelSelection } from "@zcode/shared/model-selection";
+} from "@mode/contracts";
+import type { AgentRuntime } from "@mode/core";
+import { parseModelPickerValue, type ModelSelection } from "@mode/shared/model-selection";
 import {
   type ActorSubmitProfile,
   refToString,
@@ -35,8 +35,8 @@ import {
   type RunEvent,
   type RunSettlement,
   type ValidateFn,
-} from "@zcode/dynamic-workflow";
-import { runWorkflowScript } from "@zcode/dynamic-workflow-runtime";
+} from "@mode/dynamic-workflow";
+import { runWorkflowScript } from "@mode/dynamic-workflow-runtime";
 import { createJournalSequenceCapture } from "./dynamic-workflow-run-sequence-capture.js";
 import { isResumableSettlement } from "./dynamic-workflow-run-observation.js";
 import {
@@ -378,7 +378,7 @@ export function launchDynamicWorkflowRun(
  * （official-plugin-runtime.ts 的 `officialPluginHostPrefixArgs`）。
  *
  * SEA 判定留在 bootstrap 而不下沉到 harness：harness 是 app-free 的（只依赖
- * `@zcode/dynamic-workflow` 与 node 内建），既拿不到 contracts 的子命令常量，也不该知道
+ * `@mode/dynamic-workflow` 与 node 内建），既拿不到 contracts 的子命令常量，也不该知道
  * 自己被哪种宿主打包。`isSea` 可注入只为可测——默认探针在测试进程里必然返回 false，
  * 于是「非 SEA 不得带 argsPrefix」也是一条可断言的事实。
  */

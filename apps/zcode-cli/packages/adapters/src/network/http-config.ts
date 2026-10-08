@@ -5,7 +5,7 @@ import {
   MODE_NO_PROXY_ENV_KEY,
   MODE_TOOL_ENV_PASSTHROUGH_ENV_KEY,
   readZCodeToolEnvPassthroughEnv,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 interface NetworkProxyOptions {
   env?: Record<string, string | undefined>;

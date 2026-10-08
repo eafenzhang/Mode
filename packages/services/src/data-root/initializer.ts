@@ -15,7 +15,7 @@ import {
   DATA_ROOT_PRODUCT_ID,
   type DataRootManifest,
   type DataRootManifestCreatedBy,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { getDataBaseDir, setDataRootPathOverride } from "../paths.js";
 import {

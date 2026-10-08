@@ -13,7 +13,7 @@ import {
   type PdfDocumentPort,
   type PdfDocumentRenderPagesRequest,
   type PdfDocumentRenderedPage,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 
 export interface PopplerPdfDocumentAdapterOptions {
   executionPort: ExecutionPort;

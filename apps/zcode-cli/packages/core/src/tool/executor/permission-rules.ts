@@ -1,4 +1,4 @@
-import type { PermissionRuleset, PermissionUpdate } from "@zcode/contracts";
+import type { PermissionRuleset, PermissionUpdate } from "@mode/contracts";
 
 export function applyPermissionUpdates(
   current: PermissionRuleset,

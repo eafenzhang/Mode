@@ -38,7 +38,7 @@ import {
 import {
   MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
   isBuiltinDefaultMarketplaceId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { PluginUninstallConfirmDialog } from "@/settings/PluginUninstallConfirmDialog.js";
 import { usePluginUninstall } from "@/settings/usePluginUninstall.js";
 import { claimMarketplaceAutoRefresh } from "@/settings/officialMarketplaceAutoRefresh.js";

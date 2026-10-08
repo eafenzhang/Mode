@@ -1,4 +1,4 @@
-import { isOfficialServiceRemoved } from "@zcode/shared";
+import { isOfficialServiceRemoved } from "@mode/shared";
 /*
  * ZCode 官方 Server MCP 的凭证解析与身份头构造。
  *
@@ -23,8 +23,8 @@ import {
   type OfficialMcpAuthFailureReason,
   type ZCodeAccountAccess,
   type ZCodeProviderAccountAccess,
-} from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/provider";
+} from "@mode/shared";
+import type { ModelSelectionView } from "@mode/provider";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 
 const log = createServiceLogger("official-mcp");

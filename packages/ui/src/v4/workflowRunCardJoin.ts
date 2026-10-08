@@ -1,5 +1,5 @@
-import { workflowRunStepCounts, type WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
-import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
+import { workflowRunStepCounts, type WorkflowRunState } from "@mode/shared/zcode-protocol-v4";
+import type { ConversationRow } from "@mode/shared/zcode-protocol-v4";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import type { WorkflowRunCardSummary } from "@/ToolCallBlocks/shared.js";
 

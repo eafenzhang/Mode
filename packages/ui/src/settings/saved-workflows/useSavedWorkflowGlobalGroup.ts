@@ -1,7 +1,7 @@
 // 全局工作流组的状态与动作。抽成 hook 让组件文件守住
 // max-lines 400；载体是 `useServices().zcodeAgentService`，RPC 一律带 `{ scope: "global" }`。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ZCodeSavedWorkflowEntry, ZCodeSavedWorkflowRun } from "@zcode/shared";
+import type { ZCodeSavedWorkflowEntry, ZCodeSavedWorkflowRun } from "@mode/shared";
 import { toast } from "@/components/ui/toast.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";

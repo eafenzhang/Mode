@@ -10,14 +10,14 @@ import {
   TID_V4_ROW,
   testId,
   type ZCodeApiRetryStatus,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   ApiRetryState,
   AttachmentRef,
   CommandAck,
   ConversationRowTarget,
   WorkflowNotificationMeta,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import { ChatLoading } from "@/components/ai-elements/chat-loading.js";
 import { ChatApiRetryStatus } from "@/chat-input-toolbar/display.js";
 import { cn } from "@/components/lib/utils.js";

@@ -7,7 +7,7 @@ import type {
   SessionId,
   SessionTaskLinkRecord,
   UpdateScriptWorkflowActivityInput,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import { encodeJson } from "../json.js";
 import {
   decodeActivity,

@@ -15,7 +15,7 @@ import type {
   BotInboundAttachment,
   BotInboundMessage,
   BotOutboundMessage,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { BotProviderAdapter, BotStreamingReplyCardState } from "./types.js";
 import { formatBotMessage } from "../messages.js";
 import { splitBotText } from "../botText.js";

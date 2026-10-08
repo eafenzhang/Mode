@@ -13,7 +13,7 @@ import {
 import { WorkflowRunSummarySchema } from "./list-workflow-runs.js";
 
 // 情势截面（阶段 / 子代理 / 健康）的 schema 住在 get-workflow-run-roster.ts，此处原样再导出
-// 以保持 `@zcode/contracts` 的导入路径不变。
+// 以保持 `@mode/contracts` 的导入路径不变。
 export * from "./get-workflow-run-roster.js";
 
 export const GET_WORKFLOW_RUN_TOOL_NAME = "GetWorkflowRun";

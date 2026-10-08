@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useEffect, useMemo, useState } from "react";
-import { TID_CHAT_TOOL_CALL_BLOCK, testId } from "@zcode/shared";
+import { TID_CHAT_TOOL_CALL_BLOCK, testId } from "@mode/shared";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { mapToolStatus } from "@/lib/mapToolStatus.js";

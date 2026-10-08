@@ -1,4 +1,4 @@
-import type { PluginScope, PluginsOverviewResult } from "@zcode/shared";
+import type { PluginScope, PluginsOverviewResult } from "@mode/shared";
 import type { IPluginsService } from "./plugins.js";
 
 interface PluginsServiceOptions {

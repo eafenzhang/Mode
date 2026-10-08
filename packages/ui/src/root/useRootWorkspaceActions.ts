@@ -7,8 +7,8 @@ import {
   type RemoteTarget,
   type UserInfo,
   type ZCodeTaskClientMode,
-} from "@zcode/shared";
-import type { IServiceAccessor } from "@zcode/services";
+} from "@mode/shared";
+import type { IServiceAccessor } from "@mode/services";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { resolveLogoutProviderFamilyDomain } from "@/lib/providerFamilyDomainSettings.js";

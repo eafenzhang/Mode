@@ -2,7 +2,7 @@ import {
   ProviderConfigService,
   type ProviderConfigLayerSnapshot,
   type ProviderConfigLayerUpdate,
-} from "@zcode/provider";
+} from "@mode/provider";
 import { NodeZCodeBuiltinProviderConfigSource } from "./zcode-builtin-provider-config-source.js";
 import {
   EndpointScopedZCodeBuiltinSource,
@@ -99,7 +99,7 @@ export class NodeProviderConfigRuntime {
       : this.#zcodeBuiltinSource.resolveActiveFilePath();
   }
 
-  get personalRepository(): import("@zcode/provider").PersonalProviderConfigRepository {
+  get personalRepository(): import("@mode/provider").PersonalProviderConfigRepository {
     return this.#personalRepository;
   }
 

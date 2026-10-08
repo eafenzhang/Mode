@@ -1,25 +1,25 @@
 import { spawn, execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import type { DockerConnectOptions } from "@zcode/shared";
+import type { DockerConnectOptions } from "@mode/shared";
 import type {
   IRemoteBackend,
   RemoteEnvironment,
   RemoteUploadOptions,
   StdioStream,
-} from "@zcode/server/remote/backend.js";
-import { createCloseEventController } from "@zcode/server/remote/closeEvent.js";
+} from "@mode/server/remote/backend.js";
+import { createCloseEventController } from "@mode/server/remote/closeEvent.js";
 import {
   isDockerAvailable,
   listDockerContainers,
   resolveDockerCommand,
   type DockerContainerInfo,
-} from "@zcode/server/remote/docker-detect.js";
+} from "@mode/server/remote/docker-detect.js";
 import {
   normalizeRemoteArch,
   normalizeRemotePlatform,
   resolveRemotePlatform,
-} from "@zcode/server/remote/detectEnv.js";
+} from "@mode/server/remote/detectEnv.js";
 
 interface ResolvedDockerInfo {
   containerName: string;

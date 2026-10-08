@@ -2,7 +2,7 @@
 // run 的活体控制面：一次命令同时落到引擎与座位闸门
 // ============================================================
 // 一个在飞 run 的两个执行点住在不同的
-// 层里——调度器在引擎（`@zcode/dynamic-workflow`），座位闸门在 driver 之下（本包）——而发命令的
+// 层里——调度器在引擎（`@mode/dynamic-workflow`），座位闸门在 driver 之下（本包）——而发命令的
 // 那一侧（run service 的 `retuneConcurrency`）两个都够不着：引擎是 harness 在子进程装配起来之后
 // 才存在的，闸门是 launch 造的。
 //
@@ -14,7 +14,7 @@
 // 顺序是载荷性的：**引擎先**。引擎的布尔值就是这次命令的裁决（已结算 / 值没变 ⇒ false，什么也
 // 没发生），闸门若抢在前面换了上界，一个已经结算的 run 就会留下一个与 journal 行不符的内存上界。
 
-import type { RunControlBinding } from "@zcode/dynamic-workflow-runtime";
+import type { RunControlBinding } from "@mode/dynamic-workflow-runtime";
 import type { WorkflowRunSeatGate } from "./workflow-seat-gate.js";
 
 export interface WorkflowRunControl extends RunControlBinding {

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast.js";
 import { nanoid } from "nanoid";
-import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
+import type { AttachmentRef } from "@mode/shared/zcode-protocol-v4";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import {
   MAX_CHAT_ATTACHMENTS,
@@ -28,8 +28,8 @@ import {
 } from "@/lib/whiteboard.js";
 import { useWhiteboardStore } from "@/store/whiteboardStore.js";
 import type { ChatComposerPasteEvent } from "@/LexicalChatInput.js";
-import type { IPromptAttachmentTransferService } from "@zcode/services";
-import type { IPlatformService } from "@zcode/shared";
+import type { IPromptAttachmentTransferService } from "@mode/services";
+import type { IPlatformService } from "@mode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

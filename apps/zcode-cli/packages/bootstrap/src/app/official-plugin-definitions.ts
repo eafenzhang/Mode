@@ -1,4 +1,4 @@
-import { MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@mode/contracts";
 
 // 内置插件的商店信息 seed（原样写入官方 marketplace.json 的条目 raw，键名与 CDN 目录
 // schema 一致：displayName_i18n / examplePrompts_i18n 等），解析复用 adapter 的

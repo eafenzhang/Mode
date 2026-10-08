@@ -8,7 +8,7 @@ import {
   Event,
   emitNetworkTelemetryObservation,
   type NetworkObservation,
-} from "@zcode/rpc";
+} from "@mode/rpc";
 import {
   coalesceConsecutiveZCodeAssistants,
   createSessionTraceId,
@@ -109,7 +109,7 @@ import {
   type ZCodeUserInputRequestParams,
   type ZCodeUserInputResponse,
   type ZCodeAgentMcpServer,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   ZCodeTaskListQuery,
   ZCodeTaskListResult,
@@ -141,7 +141,7 @@ import type {
   ZCodeTaskIndexTerminalEvent,
 } from "./zcodeTaskIndexSyncer.js";
 import { readModelTrajectory } from "./modelTrajectory.js";
-import { errorAttributionSchema, type CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
+import { errorAttributionSchema, type CommandPayloadMap } from "@mode/shared/zcode-protocol-v4";
 import {
   assertV4CommandAckOk,
   createHostCommandEnvelope,

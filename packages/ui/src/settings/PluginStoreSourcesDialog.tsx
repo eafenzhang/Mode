@@ -1,6 +1,6 @@
 import { AlertTriangle, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import type { ZCodePluginMarketplaceSummary } from "@zcode/shared";
-import { isBuiltinDefaultMarketplaceId } from "@zcode/shared";
+import type { ZCodePluginMarketplaceSummary } from "@mode/shared";
+import { isBuiltinDefaultMarketplaceId } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

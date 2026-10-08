@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { access, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import type { Logger, SkillRoot } from "@zcode/contracts";
-import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@zcode/contracts";
+import type { Logger, SkillRoot } from "@mode/contracts";
+import { DYNAMIC_WORKFLOW_SKILL_NAME } from "@mode/contracts";
 import { candidateBaseDirs } from "./bundled-plugins.js";
 
 /**

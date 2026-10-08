@@ -6,7 +6,7 @@ const read = (path) => readFile(new URL(path, root), 'utf8');
 test('CLI removes exporter package and bootstrap integration', async () => {
   await assert.rejects(access(new URL('apps/zcode-cli/packages/telemetry/package.json', root)));
   const manifest = JSON.parse(await read('apps/zcode-cli/packages/bootstrap/package.json'));
-  assert.equal(manifest.dependencies['@zcode/telemetry'], undefined);
+  assert.equal(manifest.dependencies['@mode/telemetry'], undefined);
   for (const file of ['app/create-app.ts', 'index.ts', 'zcode-protocol-entrypoint.ts', 'zcode-protocol/runtime-cleanup.ts']) {
     assert.doesNotMatch(await read(`apps/zcode-cli/packages/bootstrap/src/${file}`), /@zcode\/telemetry|prepareZCodeTelemetryEnv|shutdownZCodeTelemetry|createModelTelemetry/);
   }

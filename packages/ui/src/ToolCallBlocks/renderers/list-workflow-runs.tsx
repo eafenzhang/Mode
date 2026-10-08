@@ -1,6 +1,6 @@
 import { History } from "lucide-react";
 import { useMemo } from "react";
-import type { ToolCallListWorkflowRunsDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallListWorkflowRunsDisplay } from "@mode/shared/zcode-protocol-v4";
 import {
   RUN_STATUS_DOT,
   RUN_STATUS_TEXT,

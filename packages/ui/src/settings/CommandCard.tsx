@@ -1,6 +1,6 @@
 import { Terminal } from "lucide-react";
-import type { UserCommand, ZCodeCommand } from "@zcode/shared";
-import { isPluginCommand, isUserCommand } from "@zcode/shared";
+import type { UserCommand, ZCodeCommand } from "@mode/shared";
+import { isPluginCommand, isUserCommand } from "@mode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Switch } from "@/components/ui/switch.js";
 import { settingsResourceRowInteraction } from "@/settings/settingsResourceRowInteraction.js";

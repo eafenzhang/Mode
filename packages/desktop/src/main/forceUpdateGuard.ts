@@ -1,4 +1,4 @@
-import type { ForceUpdateRequirement, Locale } from "@zcode/shared";
+import type { ForceUpdateRequirement, Locale } from "@mode/shared";
 import type { ForceAutoUpdateState } from "./autoUpdater.js";
 
 export interface ForceUpdateDialogText {

@@ -1,5 +1,5 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
-import type { ApiClient } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
+import type { ApiClient } from "@mode/shared";
 import { readApiJson } from "#src/providers/api/apiJson.js";
 
 const BIGMODEL_TEAM_PLAN_API_KEY_NAME = "zcode-team-api-key";

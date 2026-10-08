@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRightIcon, CircleHelpIcon } from "lucide-react";
-import type { WorkflowRunPendingQuestion, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunPendingQuestion, WorkflowRunState } from "@mode/shared/zcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { laneDisplayName } from "@/components/workflow-graph/lane-name.js";
 import { phaseDisplayName } from "@/components/workflow-graph/phase-name.js";

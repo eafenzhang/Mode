@@ -8,8 +8,8 @@ import {
   releasePendingDiagnosticMode,
   setDataBaseDir,
   type DataRootStatus,
-} from "@zcode/services/node";
-import { MODE_VERSION } from "@zcode/shared";
+} from "@mode/services/node";
+import { MODE_VERSION } from "@mode/shared";
 
 type DataRootPendingStatus = Extract<DataRootStatus, { kind: "absent" | "unowned" | "corrupt" }>;
 

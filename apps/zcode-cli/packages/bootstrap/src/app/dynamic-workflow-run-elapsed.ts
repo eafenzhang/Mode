@@ -7,7 +7,7 @@
 //
 // 事件日志已记录每段区间的起点和最后活动时刻，因此只需读取求和，无须额外持久化。
 
-import type { JournalStorePort } from "@zcode/dynamic-workflow";
+import type { JournalStorePort } from "@mode/dynamic-workflow";
 import { supportsRunLifeSpans } from "./dynamic-workflow-run-journal.js";
 
 /**

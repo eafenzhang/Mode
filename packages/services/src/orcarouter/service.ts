@@ -3,8 +3,8 @@ import {
   type OrcaCapability,
   type OrcaCredentialSource,
   type OrcaOrigins,
-} from "@zcode/shared";
-import { ServiceChannels } from "@zcode/shared";
+} from "@mode/shared";
+import { ServiceChannels } from "@mode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { createOrcaCatalogService, type OrcaCatalogResult } from "./catalog.js";

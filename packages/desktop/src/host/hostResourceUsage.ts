@@ -1,15 +1,15 @@
-import type { IZCodeAgentService } from "@zcode/services";
+import type { IZCodeAgentService } from "@mode/services";
 import {
   attributeHostProcessTree,
   createProcessResourceSampler,
   createProcessResourceTableReader,
   type ProcessResourceSampler,
-} from "@zcode/services/node";
+} from "@mode/services/node";
 import {
   HostResponseTypes,
   type HostResourceUsageSnapshotRequestMessage,
   type HostResourceUsageSnapshotResultResponse,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 interface CreateHostResourceUsageResponderOptions {
   getAgentService: () => Pick<IZCodeAgentService, "collectLocalRuntimeChildProcesses"> | undefined;

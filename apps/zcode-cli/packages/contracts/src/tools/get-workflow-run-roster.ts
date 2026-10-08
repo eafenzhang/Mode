@@ -3,7 +3,7 @@
 // ============================================================
 // 从 get-workflow-run.ts 拆出，理由与端口侧 dynamic-workflow-run-roster.port.ts 同一条：
 // 那份文件已接近 oxlint 的 max-lines 上限，而这三组 schema 自成一块。公开面不变——
-// get-workflow-run.ts 原地再导出这里的每一个名字，`@zcode/contracts` 的导入路径逐字不动。
+// get-workflow-run.ts 原地再导出这里的每一个名字，`@mode/contracts` 的导入路径逐字不动。
 //
 // 这里是端口类型（DynamicWorkflowRunPhaseView / …SubagentView / …Health）的**逐字段镜像**，
 // 只多了 zod 的界。两侧必须同步：端口是读面的事实，这里是模型面的契约，缺一个字段就意味着

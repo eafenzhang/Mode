@@ -5,7 +5,7 @@ import type {
   BotInboundMessage,
   BotOutboundMessage,
   SelectionPrompt,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { BOT_MENU_COMMAND_ORDER } from "../commandOrder.js";
 import { splitBotText } from "../botText.js";
 import type {

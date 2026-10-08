@@ -1,4 +1,4 @@
-import { createUuid } from "@zcode/shared";
+import { createUuid } from "@mode/shared";
 import { mkdir, open, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { getAppConfigDir } from "../paths.js";

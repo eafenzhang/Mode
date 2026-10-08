@@ -4,8 +4,8 @@ import { BlockList } from "node:net";
 import type { LookupFunction } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import type { SaveFileRequest, SaveFileResult } from "@zcode/shared";
-import { PlatformChannels } from "@zcode/shared";
+import type { SaveFileRequest, SaveFileResult } from "@mode/shared";
+import { PlatformChannels } from "@mode/shared";
 import { BrowserWindow, dialog, ipcMain } from "electron";
 import { Agent, fetch as undiciFetch } from "undici";
 

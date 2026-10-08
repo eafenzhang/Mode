@@ -6,7 +6,7 @@ import type {
   PluginComponentKind,
   PluginDiagnostic,
   PluginManifest,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import { directoryExists, isRecord, resolveInside } from "./helpers.js";
 import { listPluginHookEventNames } from "./hook-sources.js";
 import { readMarkdownFrontmatter } from "./markdown-frontmatter.js";
@@ -14,7 +14,7 @@ import { loadPluginMcpServerDefinitions } from "./mcp.js";
 import { scanSkillFilesUnderRootSync } from "../skills/scan.js";
 import type { LoadedPlugin } from "./types.js";
 
-// 组件分组类型定义已上移到 @zcode/contracts（PluginMetadata 需要引用），这里再导出保持对外契约稳定。
+// 组件分组类型定义已上移到 @mode/contracts（PluginMetadata 需要引用），这里再导出保持对外契约稳定。
 export type { PluginComponentGroup, PluginComponentItem, PluginComponentKind };
 
 /**

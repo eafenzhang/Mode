@@ -12,7 +12,7 @@ import type { ClassifiedModelFailure } from "./failure-classifier.js";
 import { isProviderBusinessError } from "./model-execution.js";
 
 /**
- * ⚠ 与 desktop 侧 @zcode/shared/src/off-peak-types.ts 的同名常量跨包同值（wire 契约）：
+ * ⚠ 与 desktop 侧 @mode/shared/src/off-peak-types.ts 的同名常量跨包同值（wire 契约）：
  * providerId 随 per-turn runtimeModel 注入，错误标记随 task 终态错误文本回传，改动须两侧同步。
  */
 export const OFF_PEAK_TICKET_EXPIRED_MARKER = "off-peak-ticket-expired";

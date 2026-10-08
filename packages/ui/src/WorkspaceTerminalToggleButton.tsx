@@ -1,4 +1,4 @@
-import { TID_TERMINAL_TOGGLE } from "@zcode/shared";
+import { TID_TERMINAL_TOGGLE } from "@mode/shared";
 import { SquareTerminalIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";

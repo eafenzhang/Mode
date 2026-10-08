@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 import {
   BIGMODEL_PROVIDER_ID,
   type ApiClient,
@@ -6,7 +6,7 @@ import {
   resolveZaiBusinessBaseUrl,
   type ZCodeAccountAccess,
   ZAI_PROVIDER_ID,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ICredentialService } from "#src/credential/credential.js";
 import {
   createBigModelBizHeaders,

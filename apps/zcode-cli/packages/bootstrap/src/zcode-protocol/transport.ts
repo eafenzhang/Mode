@@ -5,9 +5,9 @@ import type {
   ZCodeProtocolRequest,
   ZCodeProtocolRequestId,
   ZCodeProtocolResponse,
-} from "@zcode/shared";
-import { zcodeProtocolMessageSchema, zcodeProtocolMethods } from "@zcode/shared";
-import type { Logger } from "@zcode/contracts";
+} from "@mode/shared";
+import { zcodeProtocolMessageSchema, zcodeProtocolMethods } from "@mode/shared";
+import type { Logger } from "@mode/contracts";
 
 type ZCodeProtocolOutgoingMessage =
   | ZCodeProtocolError

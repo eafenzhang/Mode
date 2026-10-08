@@ -1,4 +1,4 @@
-import type { CompactBoundaryPayload, MessagePart, MessageWithParts } from "@zcode/contracts";
+import type { CompactBoundaryPayload, MessagePart, MessageWithParts } from "@mode/contracts";
 import { invalidateRuntimeTokenUsage } from "./message-history.js";
 
 export function compactActiveSessionMessages(

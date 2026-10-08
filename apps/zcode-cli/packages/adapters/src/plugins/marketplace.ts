@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { PluginDiagnostic, PluginManifest, PluginStoreListing } from "@zcode/contracts";
-import { isOfficialMarketplaceId, MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
+import type { PluginDiagnostic, PluginManifest, PluginStoreListing } from "@mode/contracts";
+import { isOfficialMarketplaceId, MODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@mode/contracts";
 import {
   RETIRED_DEFAULT_MARKETPLACES,
   resolveDefaultPluginMarketplaces,
   sanitizeZCodeRuntimeEnv,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { loadPluginMcpServerDefinitions, resolvePluginMcpServers } from "./mcp.js";
 import {
   appendPluginSourceCleanupError,

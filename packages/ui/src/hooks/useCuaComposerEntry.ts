@@ -5,7 +5,7 @@
  * 判定规则本身全部在 lib/cuaComposerEntryState.ts，这里不复制任何一条分支。
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { isRemoteWorkspaceIdentity, MODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
+import { isRemoteWorkspaceIdentity, MODE_CUA_OFFICIAL_PLUGIN_ID } from "@mode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";

@@ -2,7 +2,7 @@ import type {
   ZCodeModelTrajectoryMessage,
   ZCodeModelTrajectoryRecord,
   ZCodeModelTrajectoryUsage,
-} from "@zcode/services";
+} from "@mode/services";
 import { Fragment } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Badge } from "@/components/ui/badge.js";

@@ -1,10 +1,10 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 /* off-peak 服务端五接口客户端。
    只负责 额度快照/取号/批量查状态/结算 四个 JSON 接口——messages 调模型不走这里
    （由 idle plan per-turn provider 在 agent 进程内直连）。
    无内建重试：排队/退避语义在调用方（offPeakTaskService 轮询 / 适配层）。 */
 import { z } from "zod";
-import type { OffPeakTakeNumberAvailability } from "@zcode/shared";
+import type { OffPeakTakeNumberAvailability } from "@mode/shared";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import {
   withRequestIdHeader,

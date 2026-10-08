@@ -6,10 +6,10 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { thirdPartyNoticesVitePlugin } from "../../scripts/third-party-notices.mjs";
-// Vite 配置在 Node 加载期执行，不能导入 @zcode/shared 根入口。
+// Vite 配置在 Node 加载期执行，不能导入 @mode/shared 根入口。
 // 根入口包含 NodeNext 风格的源码 re-export，Node 会按真实文件查找 .js 并在 bootstrap 阶段失败。
 //
-// 子路径 @zcode/shared/zcodeEndpoint 同样不行：它仍指向同一份 TS 源码，而该文件内部
+// 子路径 @mode/shared/zcodeEndpoint 同样不行：它仍指向同一份 TS 源码，而该文件内部
 // 相对 import 了 "./env-names.js"——Vite 把 workspace 包交给 Node 原生加载，Node 24 的
 // strip-types 不做 .js→.ts 重映射，bootstrap 阶段直接 ERR_MODULE_NOT_FOUND。
 // 与 packages/desktop/tsup.config.ts 同一处理：改从相对路径引源码，交给 Vite 自身打包。

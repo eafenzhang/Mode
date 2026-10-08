@@ -3,7 +3,7 @@ import {
   MODE_CUA_OFFICIAL_PLUGIN_ID,
   MODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   MODE_PLUGIN_ID_ENV_KEY,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { registerMcpTools, traceContextToLogContext } from "../deps.js";
 import type { McpConnectionSnapshot, McpServerConfig, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";

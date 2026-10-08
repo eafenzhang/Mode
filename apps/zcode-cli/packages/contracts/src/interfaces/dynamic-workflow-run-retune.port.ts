@@ -1,6 +1,6 @@
 // Dynamic Workflow Run Port：调整运行中的并发上限。
 // 定义请求、结果与能力边界，由 dynamic-workflow-run.port.ts 统一再导出，
-// 调用方通过 `@zcode/contracts` 使用。
+// 调用方通过 `@mode/contracts` 使用。
 
 /**
  * {@link import("./dynamic-workflow-run.port.js").DynamicWorkflowRunPort.retuneConcurrency}

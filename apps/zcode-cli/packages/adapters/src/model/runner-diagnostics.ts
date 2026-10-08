@@ -1,6 +1,6 @@
 import type { LanguageModelUsage } from "ai";
-import type { Logger, ModelUsage } from "@zcode/contracts";
-import { ModelFailureReason as ModelFailureReasonValue } from "@zcode/contracts";
+import type { Logger, ModelUsage } from "@mode/contracts";
+import { ModelFailureReason as ModelFailureReasonValue } from "@mode/contracts";
 import type { ClassifiedModelFailure } from "./failure-classifier.js";
 import { detectProviderBusinessFinishError } from "./provider-finish-business-error.js";
 import type { AiSdkGenerateTextResult } from "./runner-runtime.js";

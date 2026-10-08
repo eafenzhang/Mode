@@ -12,7 +12,7 @@
  * 在场推出来；缺席一律不画，绝不用 0 顶替不知道。
  */
 
-import type { ToolCallGetWorkflowRunDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallGetWorkflowRunDisplay } from "@mode/shared/zcode-protocol-v4";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   formatWorkflowAge,

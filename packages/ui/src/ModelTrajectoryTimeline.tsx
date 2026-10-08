@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, type RefObject } from "react";
-import type { ZCodeModelTrajectoryRecord } from "@zcode/services";
+import type { ZCodeModelTrajectoryRecord } from "@mode/services";
 import {
   type TrajectorySearchMatch,
   type TrajectorySearchTimelineItem,

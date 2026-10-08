@@ -1,4 +1,4 @@
-import type { ApiClient } from "@zcode/shared";
+import type { ApiClient } from "@mode/shared";
 import type { IClientScenesService } from "./clientScenes.js";
 
 export function createClientScenesService(_dependencies: {

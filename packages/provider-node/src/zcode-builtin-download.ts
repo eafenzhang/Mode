@@ -1,4 +1,4 @@
-import { isOfficialServiceEnabled } from "@zcode/shared";
+import { isOfficialServiceEnabled } from "@mode/shared";
 import { z } from "zod";
 import { decodeZCodeBuiltinRelease, type ZCodeBuiltinRelease } from "./zcode-builtin-release.js";
 

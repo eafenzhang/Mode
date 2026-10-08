@@ -7,12 +7,12 @@ import {
   type OffPeakTakeNumberAvailability,
   type ZCodeOffPeakTask,
   type ModelSelection,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   ICodingPlanSubscriptionService,
   IOffPeakTaskService,
   OffPeakClientConfig,
-} from "@zcode/services";
+} from "@mode/services";
 import { logger } from "@/logger.js";
 
 // 闲时任务管理 store（与 automationManagementStore 独立）：走 IOffPeakTaskService RPC。

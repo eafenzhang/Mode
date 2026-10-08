@@ -45,7 +45,7 @@ import type {
   UpdateCheckResultPayload,
   UpdateStatePayload,
   OpenInEditorOptions,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 /**
  * window.zcode 类型定义 —— 仅包含需要 main 进程参与的平台操作
@@ -61,7 +61,7 @@ declare global {
         context?: {
           workspacePath: string;
           workspaceIdentity?: string;
-          connectTrigger?: import("@zcode/shared").RemoteWorkspaceConnectTrigger;
+          connectTrigger?: import("@mode/shared").RemoteWorkspaceConnectTrigger;
         },
       ): Promise<{ success: boolean; error?: string; sessionId?: string }>;
       /** 取消当前窗口尚未建立完成的远程连接 */
@@ -83,21 +83,21 @@ declare global {
       /** 列出当前机器 SSH config 里可用于快速填表的 alias */
       listSSHConfigAliases(): Promise<SSHConfigAliasOption[]>;
       /** 读取局域网访问状态（服务端视角） */
-      getLanAccessState(): Promise<import("@zcode/shared").LanAccessState>;
+      getLanAccessState(): Promise<import("@mode/shared").LanAccessState>;
       /** 开关局域网访问 */
-      setLanAccessEnabled(enabled: boolean): Promise<import("@zcode/shared").LanAccessState>;
+      setLanAccessEnabled(enabled: boolean): Promise<import("@mode/shared").LanAccessState>;
       /** 生成一次性配对码 */
-      createLanAccessPairCode(): Promise<import("@zcode/shared").LanAccessState>;
+      createLanAccessPairCode(): Promise<import("@mode/shared").LanAccessState>;
       /** 移除一个已配对客户端 */
-      removeLanAccessClient(clientId: string): Promise<import("@zcode/shared").LanAccessState>;
+      removeLanAccessClient(clientId: string): Promise<import("@mode/shared").LanAccessState>;
       /** 重置全部已配对客户端令牌 */
-      resetLanAccessTokens(): Promise<import("@zcode/shared").LanAccessState>;
+      resetLanAccessTokens(): Promise<import("@mode/shared").LanAccessState>;
       /** 广播探测局域网内的 Mode 实例 */
-      discoverLanPeers(): Promise<import("@zcode/shared").LanDiscoveredPeer[]>;
+      discoverLanPeers(): Promise<import("@mode/shared").LanDiscoveredPeer[]>;
       /** 用配对码换取对端长期令牌 */
       pairLanPeer(
-        request: import("@zcode/shared").LanPairPeerRequest,
-      ): Promise<import("@zcode/shared").LanAccessPairResult>;
+        request: import("@mode/shared").LanPairPeerRequest,
+      ): Promise<import("@mode/shared").LanAccessPairResult>;
       /** renderer 日志通过 IPC 传到 main 进程统一存储 */
       log(level: "info" | "warn" | "error", args: unknown[]): void;
       /** 打开系统目录选择框，返回选中路径或 null */
@@ -110,10 +110,10 @@ declare global {
       openDataRootImport?(): void;
       /** 通过系统原生另存为对话框保存文件 */
       saveFile?(
-        payload: import("@zcode/shared").SaveFileRequest,
-      ): Promise<import("@zcode/shared").SaveFileResult>;
+        payload: import("@mode/shared").SaveFileRequest,
+      ): Promise<import("@mode/shared").SaveFileResult>;
       /** 将当前页面的 print 媒体版面导出为 PDF（Chromium 打印引擎，矢量文本） */
-      printPageToPdf?(): Promise<import("@zcode/shared").PrintPageToPdfResult>;
+      printPageToPdf?(): Promise<import("@mode/shared").PrintPageToPdfResult>;
       /** 从系统拖拽/文件输入得到的 Web File 解析真实本地路径 */
       getPathForFile?(file: File): string | null;
       /** 订阅当前窗口内远程连接过程日志，返回 disposer */
@@ -273,7 +273,7 @@ declare global {
       }): Promise<void>;
       /** 从自动发现的 Chrome Profile 一次性导入内置浏览器数据。 */
       importChromeBrowserData?(
-        options?: import("@zcode/shared").ChromeBrowserDataImportOptions,
+        options?: import("@mode/shared").ChromeBrowserDataImportOptions,
       ): Promise<ChromeBrowserDataImportResult>;
       /** 清理内置浏览器缓存或全部站点数据。 */
       clearEmbeddedBrowserData?(mode: "cache" | "all"): Promise<EmbeddedBrowserDataClearResult>;

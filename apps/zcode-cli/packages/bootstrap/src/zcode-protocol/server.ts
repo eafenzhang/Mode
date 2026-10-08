@@ -4,16 +4,16 @@ import {
   zcodeProtocolMethods,
   zcodeWorkspaceCancelGenerateTextParamsSchema,
   zcodeWorkspaceHookTrustGrantParamsSchema,
-} from "@zcode/shared";
-import type { BrowserControlPort } from "@zcode/contracts";
-import { InMemoryWorkspaceHookPolicyProvider } from "@zcode/core";
+} from "@mode/shared";
+import type { BrowserControlPort } from "@mode/contracts";
+import { InMemoryWorkspaceHookPolicyProvider } from "@mode/core";
 import {
   V4_METHODS,
   V4_NOTIFICATIONS,
   parseConversationTopic,
   parseSessionsIndexTopic,
   parseWorkspaceConfigTopic,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 import type {
   ZCodeProtocolError,
   ZCodeProtocolMessage,
@@ -22,7 +22,7 @@ import type {
   ZCodeProtocolRequest,
   ZCodeProtocolRequestId,
   ZCodeProtocolResponse,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   cancelBackgroundTask,
   closeSession,
@@ -114,7 +114,7 @@ import {
   type ZCodeProtocolAgentServerContext,
   type ZCodeProtocolSessionRecord,
 } from "./server-types.js";
-import { createInMemorySessionEventStore } from "@zcode/contracts";
+import { createInMemorySessionEventStore } from "@mode/contracts";
 
 export type { ZCodeProtocolAgentDependencies, ZCodeProtocolSessionRecord };
 

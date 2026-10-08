@@ -11,7 +11,7 @@ import {
   type DataRootDecisionBridge,
   type DataRootDecisionProgress,
   type DataRootDecisionState,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 const bridge: DataRootDecisionBridge = {
   getState: () => ipcRenderer.invoke(DataRootDecisionChannels.GetState),

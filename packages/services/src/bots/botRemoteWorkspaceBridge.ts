@@ -5,7 +5,7 @@ import {
   hostBotRemoteWorkspaceRuntimePortMessageSchema,
   hostBotRemoteWorkspaceReconnectResultMessageSchema,
   type RemoteTarget,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { type IZCodeTaskService as IZCodeTaskServiceShape } from "../session/zcodeTaskService.js";
 import type { ICredentialService } from "../credential/credential.js";
 import type { ISettingService } from "../setting/setting.js";

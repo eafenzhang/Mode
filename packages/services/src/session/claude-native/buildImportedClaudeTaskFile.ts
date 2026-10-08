@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { ZCodeTaskMeta } from "@zcode/shared";
-import { generateTraceId } from "@zcode/shared";
+import type { ZCodeTaskMeta } from "@mode/shared";
+import { generateTraceId } from "@mode/shared";
 import { deriveSessionTitle } from "#src/session/sessionTitle.js";
 import type { ClaudeNativeImportedSessionSource } from "#src/session/claude-native/claudeNativeImportedSessionTypes.js";
 import type { LegacyTaskSessionFile } from "#src/session/legacyTaskSessionFile.js";

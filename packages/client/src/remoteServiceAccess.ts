@@ -1,4 +1,4 @@
-import { ProxyChannel, type IChannelClient } from "@zcode/rpc";
+import { ProxyChannel, type IChannelClient } from "@mode/rpc";
 import {
   IFileService,
   IMediaPreviewService,
@@ -41,7 +41,7 @@ import {
   IPromptAttachmentTransferService,
   IWindowControllerService,
   type IServiceAccessor,
-} from "@zcode/services";
+} from "@mode/services";
 
 /**
  * RemoteServiceAccess — 通过 ChannelClient 自动创建类型安全的服务代理

@@ -1,7 +1,7 @@
 import { mkdir, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { createUuid } from "@zcode/shared";
+import { createUuid } from "@mode/shared";
 
 const LOCK_RETRY_DELAY_MS = 10;
 const LOCK_RETRY_COUNT = 200;

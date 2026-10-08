@@ -5,9 +5,9 @@ import {
   type WorkspaceHookTrustRecord,
   type Logger,
   type WorkspaceHookAdmissionUpdatedPayload,
-} from "@zcode/contracts";
-import type { WorkspaceHookRuntimeAdmissionPort, WorkspaceHookTrustCoordinator } from "@zcode/core";
-import type { WorkspaceHookReviewRequestPayload } from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/contracts";
+import type { WorkspaceHookRuntimeAdmissionPort, WorkspaceHookTrustCoordinator } from "@mode/core";
+import type { WorkspaceHookReviewRequestPayload } from "@mode/shared/zcode-protocol-v4";
 
 export type WorkspaceHookReviewLifecycleEvent =
   | {

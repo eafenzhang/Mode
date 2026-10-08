@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/cli",
+  "name": "@mode/cli",
   "version": "0.1.0",
   "private": true,
   "description": "Main CLI application for zcode",
@@ -14,7 +14,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:desktop-agent": "node scripts/build.mjs --desktop-agent",
-    "build:sea": "pnpm --dir ../../../.. exec turbo --skip-infer --cwd apps/zcode-cli run build --filter=!@zcode/cli --force && pnpm build && node scripts/build-sea.mjs --all",
+    "build:sea": "pnpm --dir ../../../.. exec turbo --skip-infer --cwd apps/zcode-cli run build --filter=!@mode/cli --force && pnpm build && node scripts/build-sea.mjs --all",
     "sea": "node scripts/build-sea.mjs",
     "upload:sea": "node scripts/upload-sea-smb.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
@@ -24,17 +24,17 @@
     "lint:fix": "oxlint --write src"
   },
   "dependencies": {
-    "@zcode/adapters": "workspace:*",
-    "@zcode/bootstrap": "workspace:*",
-    "@zcode/contracts": "workspace:*",
-    "@zcode/core": "workspace:*",
-    "@zcode/dynamic-workflow-runtime": "workspace:*",
-    "@zcode/i18n": "workspace:*",
-    "@zcode/provider-node": "workspace:*",
-    "@zcode/services": "workspace:*",
-    "@zcode/shared": "workspace:*",
-    "@zcode/shared-types": "workspace:*",
-    "@zcode/tui": "workspace:*",
+    "@mode/adapters": "workspace:*",
+    "@mode/bootstrap": "workspace:*",
+    "@mode/contracts": "workspace:*",
+    "@mode/core": "workspace:*",
+    "@mode/dynamic-workflow-runtime": "workspace:*",
+    "@mode/i18n": "workspace:*",
+    "@mode/provider-node": "workspace:*",
+    "@mode/services": "workspace:*",
+    "@mode/shared": "workspace:*",
+    "@mode/shared-types": "workspace:*",
+    "@mode/tui": "workspace:*",
     "dotenv": "^17.4.2",
     "playwright-core": "1.59.1"
   }

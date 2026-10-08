@@ -20,8 +20,8 @@
 // 工作、本就占着座位，让它的 WebSearch 排在自己后面就是排给自己看。准入调用上只有 `{model}`，
 // 分不出是什么请求，所以闸门读 driver 已经为这个子代理记着的那条事实——它此刻有没有工具在跑。
 
-import type { ModelRequestAdmission } from "@zcode/contracts";
-import { refToString, type InstanceRef } from "@zcode/dynamic-workflow";
+import type { ModelRequestAdmission } from "@mode/contracts";
+import { refToString, type InstanceRef } from "@mode/dynamic-workflow";
 
 /** 闸门向 driver 要的唯一一条子代理事实（实现在 workflow-driver-tool-activity.ts）。 */
 export interface SeatGateSubagent {

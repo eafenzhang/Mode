@@ -17,14 +17,14 @@ import type {
   TurnCompletePayload,
   TurnErrorPayload,
   TurnStartedPayload,
-} from "@zcode/contracts";
-import { getModelUsageTotalTokens, SessionEventType } from "@zcode/contracts";
-import { parseAutomationRunId } from "@zcode/shared";
+} from "@mode/contracts";
+import { getModelUsageTotalTokens, SessionEventType } from "@mode/contracts";
+import { parseAutomationRunId } from "@mode/shared";
 import { workflowLifecycleFactFromProgress } from "./conversation-telemetry-workflow-facts.js";
 import {
   conversationTelemetryFactSchema,
   type ConversationTelemetryFact,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/zcode-protocol-v4";
 
 const MAX_TRACKED_LIFECYCLE_KEYS = 2_000;
 

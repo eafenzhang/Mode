@@ -12,7 +12,7 @@ import { ServiceProvider } from "@/hooks/useServices.js";
 import { OrcaRouterProviderFields } from "@/settings/model-provider-section/OrcaRouterProviderFields.js";
 import { OrcaRouterModelSelector } from "@/settings/model-provider-section/OrcaRouterModelSelector.js";
 import { ProviderModelsSection } from "@/settings/model-provider-section/ProviderCardSections.js";
-import "@zcode/ui/styles.css";
+import "@mode/ui/styles.css";
 import { CATALOG_SOURCE_URL, listOrcaModels, ORCA_MODEL_CATALOG } from "./catalog.js";
 
 /** 固定的假脱敏值；含 U+2026 省略号，且不是任何真实密钥。 */

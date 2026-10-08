@@ -18,8 +18,8 @@ import type {
   DragStartEvent,
   DropAnimation,
 } from "@dnd-kit/core";
-import type { ZCodeGroupedTaskView, ZCodeTaskGroupColor } from "@zcode/services";
-import { OFF_PEAK_DEFAULT_GROUP_ID, type ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeGroupedTaskView, ZCodeTaskGroupColor } from "@mode/services";
+import { OFF_PEAK_DEFAULT_GROUP_ID, type ZCodeTaskMeta } from "@mode/shared";
 import { createPortal } from "react-dom";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

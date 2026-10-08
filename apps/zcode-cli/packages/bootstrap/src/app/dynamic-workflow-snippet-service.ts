@@ -23,7 +23,7 @@ import type {
   ExecutionPort,
   FileSystemPort,
   Logger,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   buildAskSpecs,
   collectDiagnostics,
@@ -40,13 +40,13 @@ import {
   type RunEvent,
   type ValidateFn,
   type WorkflowDriver,
-} from "@zcode/dynamic-workflow";
-import { runWorkflowScript } from "@zcode/dynamic-workflow-runtime";
+} from "@mode/dynamic-workflow";
+import { runWorkflowScript } from "@mode/dynamic-workflow-runtime";
 import { dynamicWorkflowChildSpawn } from "./dynamic-workflow-run-launch.js";
 import { resolveWorkflowConcurrencyCeiling } from "./workflow-concurrency-ceiling.js";
 import { executeWorldRead, type WorldReadDeps } from "./workflow-world-read.js";
 
-/** logs 的界（契约常量在 @zcode/contracts 的 eval-workflow-snippet.ts；这里避免反向依赖工具层）。 */
+/** logs 的界（契约常量在 @mode/contracts 的 eval-workflow-snippet.ts；这里避免反向依赖工具层）。 */
 const MAX_LOGS = 100;
 const MAX_LOG_CHARS = 2_048;
 /** 顶层返回值序列化上限。harness 不量 artifact 体积（RunSettlement 原样交出），这道界在这里。 */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ZCodeTaskMeta } from "@mode/shared";
 import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
 import { zcodeSessionSnapshotToTaskMeta } from "@/lib/zcodeSessionProjection.js";
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ZCodeElicitationRequest, ZCodePermissionOption, ZCodeProvider } from "@zcode/shared";
-import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import type { ZCodeElicitationRequest, ZCodePermissionOption, ZCodeProvider } from "@mode/shared";
+import type { ConversationSnapshot } from "@mode/shared/zcode-protocol-v4";
 import { ElicitationDialog } from "@/ElicitationDialog.js";
 import { PermissionDialog } from "@/PermissionDialog.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";

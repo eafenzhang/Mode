@@ -5,13 +5,13 @@
  * 未识别、未配置或鉴权失败都返回带 status 的空快照（fail-soft），
  * 不调用 `assertOfficialServiceAvailable`，因为外部供应商不属于官方平台功能。
  */
-import { ApiError, type ApiClient } from "@zcode/shared";
+import { ApiError, type ApiClient } from "@mode/shared";
 import type {
   ProviderBalanceEntry,
   ProviderBalanceRequest,
   ProviderBalanceSnapshot,
   ProviderBalanceStatus,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { readApiJson } from "../../providers/api/apiJson.js";
 import { resolveProviderBalanceProvider } from "./providerBalanceSpecs.js";
 

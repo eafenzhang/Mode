@@ -36,7 +36,7 @@ import type {
   WorkflowPort,
   WorkflowEscalatePort,
   WorkflowSubmitPort,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import type {
   JsonSchema,
   ModelToolSideEffectScope,
@@ -54,7 +54,7 @@ import type {
   ToolTimeoutPolicy,
   ToolExecutionSpanWriter,
   ToolExecutionTelemetry,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import type {
   PersistedReadFileStateMetadata,
   PersistedReadFileStateTool,

@@ -4,7 +4,7 @@ import {
   ProxyChannel,
   type MessagePortLike,
   type MessagePortPayload,
-} from "@zcode/rpc";
+} from "@mode/rpc";
 import {
   IZCodeTaskService,
   type IZCodeTaskService as IZCodeTaskServiceShape,

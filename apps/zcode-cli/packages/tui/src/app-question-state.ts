@@ -1,7 +1,7 @@
 import type {
   AskUserQuestionAnnotation,
   AskUserQuestionInput,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import type { KeyEvent } from "@mbears/opentui-core";
 import type React from "react";
 import type { ApprovalPrompt, QuestionPromptState } from "./app-model.js";

@@ -1,4 +1,4 @@
-import type { ZCodeProvider } from "@zcode/shared";
+import type { ZCodeProvider } from "@mode/shared";
 import type { WorkspaceZCodeUIState } from "@/store/zcodeSessionStore.js";
 
 interface ResolveWorkspaceSwitchDraftProviderOptions {

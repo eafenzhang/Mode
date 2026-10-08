@@ -1,6 +1,6 @@
 import { Gauge } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import type { ToolCallGetWorkflowRunDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallGetWorkflowRunDisplay } from "@mode/shared/zcode-protocol-v4";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
 import {
   RUN_STATUS_TEXT,

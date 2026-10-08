@@ -2,7 +2,7 @@ import {
   databaseStartupControlSchema,
   databaseStartupStateSchema,
   databaseStartupPortPayloadSchema,
-} from "@zcode/shared";
+} from "@mode/shared";
 /* eslint-disable max-lines -- preload bridge 集中暴露桌面平台 IPC，拆散会让 contextBridge 权限边界更难审计。 */
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 
@@ -63,8 +63,8 @@ import type {
   WindowControlsOverlayReadyPayload,
   CreateTempTextAttachmentRequest,
   OpenCuaPermissionOnboardingOptions,
-} from "@zcode/shared";
-import { InternalChannels, PlatformChannels, formatZCodeRendererProcessName } from "@zcode/shared";
+} from "@mode/shared";
+import { InternalChannels, PlatformChannels, formatZCodeRendererProcessName } from "@mode/shared";
 import { createOAuthCallbackHandler } from "./oauthCallbackBridge.js";
 const updateReadyCallbacks = new Set<(version: string) => void>();
 const updateStateCallbacks = new Set<(payload: UpdateStatePayload) => void>();
@@ -221,7 +221,7 @@ contextBridge.exposeInMainWorld("zcode", {
     context?: {
       workspacePath: string;
       workspaceIdentity?: string;
-      connectTrigger?: import("@zcode/shared").RemoteWorkspaceConnectTrigger;
+      connectTrigger?: import("@mode/shared").RemoteWorkspaceConnectTrigger;
     },
   ) =>
     ipcRenderer.invoke(PlatformChannels.ConnectRemote, {
@@ -639,7 +639,7 @@ contextBridge.exposeInMainWorld("zcode", {
   browserViewUpdateViewport: (payload: { tabId: string; viewport: BrowserViewportSize | null }) =>
     ipcRenderer.invoke(PlatformChannels.BrowserViewUpdateViewport, payload),
   /** 从自动发现的 Chrome Profile 一次性导入内置浏览器数据。 */
-  importChromeBrowserData: (options?: import("@zcode/shared").ChromeBrowserDataImportOptions) =>
+  importChromeBrowserData: (options?: import("@mode/shared").ChromeBrowserDataImportOptions) =>
     ipcRenderer.invoke(PlatformChannels.ImportChromeBrowserData, options),
   /** 清理内置浏览器缓存或全部站点数据。 */
   clearEmbeddedBrowserData: (mode: "cache" | "all") =>

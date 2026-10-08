@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ZCodeStdioTapDevState } from "@zcode/shared";
+import type { ZCodeStdioTapDevState } from "@mode/shared";
 import { getAppConfigDir } from "#src/paths.js";
 import { isEffectiveDevelopmentNodeEnv } from "#src/runtime-tools/nodeEnv.js";
 

@@ -1,4 +1,4 @@
-import type { Model, ModelInputMessage } from "@zcode/contracts";
+import type { Model, ModelInputMessage } from "@mode/contracts";
 import { ContextBuilder } from "../context/builder.js";
 import {
   buildContextMetaUserBody,

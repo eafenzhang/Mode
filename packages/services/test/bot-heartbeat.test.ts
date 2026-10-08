@@ -59,7 +59,7 @@ test("isBotHeartbeatPromptText：只认心跳提示词开头，普通消息不�
     isBotHeartbeatPromptText,
     BOT_HEARTBEAT_PROMPT_MARKER_ZH,
     BOT_HEARTBEAT_PROMPT_MARKER_EN,
-  } = await import("@zcode/shared");
+  } = await import("@mode/shared");
   assert.equal(isBotHeartbeatPromptText(`${BOT_HEARTBEAT_PROMPT_MARKER_ZH}。请查看当前工作区`), true);
   assert.equal(isBotHeartbeatPromptText(`  ${BOT_HEARTBEAT_PROMPT_MARKER_EN}. Review the workspace`), true);
   assert.equal(isBotHeartbeatPromptText("你好"), false);

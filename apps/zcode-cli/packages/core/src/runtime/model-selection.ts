@@ -1,4 +1,4 @@
-import type { ModelSelection } from "@zcode/contracts";
+import type { ModelSelection } from "@mode/contracts";
 
 export function cloneModelSelection(selection: ModelSelection): ModelSelection {
   return {

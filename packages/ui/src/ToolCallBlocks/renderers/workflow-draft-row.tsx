@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import type { ToolCallCreateWorkflowDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallCreateWorkflowDisplay } from "@mode/shared/zcode-protocol-v4";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
 import { cn } from "@/components/lib/utils.js";
 import { DRAFT_FEEDBACK_DOT } from "@/components/workflow-graph/run-status-presentation.js";

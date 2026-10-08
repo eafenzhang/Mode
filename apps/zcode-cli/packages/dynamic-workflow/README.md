@@ -1,4 +1,4 @@
-# @zcode/dynamic-workflow
+# @mode/dynamic-workflow
 
 Self-contained library for the dynamic workflow feature: the TypeScript facade the
 main agent writes scripts against, and the compiler that recovers rigor from those
@@ -8,12 +8,12 @@ scripts (typecheck, schema synthesis, dependency inference, site identity).
 
 - This package is **pure**: no session spawning, no storage, no disk or network
   I/O (the TS stdlib is embedded, not read from disk — see "Embedded libs"). It
-  never imports from `@zcode/core` or `@zcode/bootstrap`.
+  never imports from `@mode/core` or `@mode/bootstrap`.
 - The runtime layer binds to this package through a narrow driver interface. The
   sandbox harness (child process + vm cell + NDJSON host bridge) lives in the
-  sibling package `@zcode/dynamic-workflow-runtime` — impure (node builtins) but
+  sibling package `@mode/dynamic-workflow-runtime` — impure (node builtins) but
   still app-independent. The production driver (actor sessions, SQLite journal,
-  tool wiring) lives in `@zcode/bootstrap`, evolving the existing
+  tool wiring) lives in `@mode/bootstrap`, evolving the existing
   `script-workflow-*` substrate.
 
 ## Layout
@@ -107,7 +107,7 @@ analyzer. These fixtures are excluded from oxlint like `tests/workflows/`.
 
 ## Develop
 
-All commands from this directory (or with `--filter @zcode/dynamic-workflow` from
+All commands from this directory (or with `--filter @mode/dynamic-workflow` from
 either workspace root):
 
 ```sh

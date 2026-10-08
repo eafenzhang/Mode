@@ -2,7 +2,7 @@ import {
   zcodeProtocolMethods,
   zcodePluginsReferenceCatalogResultSchema,
   type ZCodePluginsReferenceCatalogParams,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ZCodeProtocolClient } from "#src/zcode-agent/zcodeProtocolClient.js";
 
 /** 旧协议严格校验响应；新展示字段走独立入口，只有 -32601 能证明旧 Agent 不支持。 */

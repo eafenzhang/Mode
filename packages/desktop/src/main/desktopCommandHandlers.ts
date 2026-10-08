@@ -17,8 +17,8 @@ import {
   getCommunityUrlFromConfigs,
   normalizeZCodeEndpointOrigin,
   resolveZCodeEndpointOrigin,
-} from "@zcode/shared";
-import { readZCodeStdioTapDevState, setZCodeStdioTapDevEnabled } from "@zcode/services/node";
+} from "@mode/shared";
+import { readZCodeStdioTapDevState, setZCodeStdioTapDevEnabled } from "@mode/services/node";
 import { showAboutDialog } from "./about.js";
 import { checkForUpdateMenuClick } from "./autoUpdater.js";
 import { exportLogs } from "./exportLogs.js";

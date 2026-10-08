@@ -57,7 +57,7 @@ Prerequisites: Git, Node.js **24.14.0** and pnpm **10.33.2** — [mise.toml](mis
 pnpm bootstrap                 # install dependencies and prepare local desktop runtime assets
 pnpm dev:desktop               # Electron desktop app (production config; use dev:desktop:test for the test env)
 pnpm dev:web                   # browser workspace
-pnpm --filter @zcode/cli dev   # agent CLI
+pnpm --filter @mode/cli dev   # agent CLI
 ```
 
 Set `MODE_DATA_BASE_DIR` to develop against an isolated data directory instead of your real one.
@@ -67,7 +67,7 @@ Useful checks before committing:
 ```bash
 pnpm typecheck                                              # TypeScript project references
 pnpm lint                                                   # oxlint
-pnpm --filter @zcode/services test                          # service and contract tests
+pnpm --filter @mode/services test                          # service and contract tests
 node --test packages/desktop/tests/*.test.mjs               # desktop node tests
 pnpm architecture:check -- --changed                        # dependency direction policy
 ```

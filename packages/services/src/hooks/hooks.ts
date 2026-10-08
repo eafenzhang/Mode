@@ -1,6 +1,6 @@
-import type { Hook, ZCodeWorkspaceHookTrustGrantResult } from "@zcode/shared";
-import type { WorkspaceHookBundleSnapshotData } from "@zcode/shared/workspace-hook-discovery";
-import { ServiceChannels } from "@zcode/shared";
+import type { Hook, ZCodeWorkspaceHookTrustGrantResult } from "@mode/shared";
+import type { WorkspaceHookBundleSnapshotData } from "@mode/shared/workspace-hook-discovery";
+import { ServiceChannels } from "@mode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface IHooksService {

@@ -3,8 +3,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, posix } from "node:path";
-import type { RemoteAssetInstallMode } from "@zcode/shared";
-import type { IRemoteBackend, StdioStream } from "@zcode/server/remote/backend.js";
+import type { RemoteAssetInstallMode } from "@mode/shared";
+import type { IRemoteBackend, StdioStream } from "@mode/server/remote/backend.js";
 import {
   REMOTE_BASE,
   buildRemoteExecutableReplaceCommand,
@@ -14,14 +14,14 @@ import {
   type DeployLoggers,
   type RemoteAssetDeployOptions,
   waitForClose,
-} from "@zcode/server/remote/deployShared.js";
-import { quotePosixPathArg, quotePosixShellArg } from "@zcode/server/remote/posixShell.js";
+} from "@mode/server/remote/deployShared.js";
+import { quotePosixPathArg, quotePosixShellArg } from "@mode/server/remote/posixShell.js";
 import {
   buildComponentArtifactUrlCandidates,
   buildReleaseAssetUrlCandidates,
   buildReleaseBaseCandidates,
   resolveRemoteCdnBaseUrls,
-} from "@zcode/server/remote/remoteAssetCdn.js";
+} from "@mode/server/remote/remoteAssetCdn.js";
 import {
   ensureRemoteReleaseDirFromCdn,
   buildRemoteAssetManifestFileCandidates,
@@ -33,17 +33,17 @@ import {
   type RemoteAssetManifest,
   type RemoteAssetManifestComponent,
   type RemoteAssetManifestRef,
-} from "@zcode/server/remote/remoteAssetCache.js";
-import { createTarGzArchive } from "@zcode/server/remote/localTarGz.js";
+} from "@mode/server/remote/remoteAssetCache.js";
+import { createTarGzArchive } from "@mode/server/remote/localTarGz.js";
 import type {
   RemoteAssetTools,
   RemoteDownloadTool,
   RemoteSha256Tool,
-} from "@zcode/server/remote/remoteAssetPreflight.js";
+} from "@mode/server/remote/remoteAssetPreflight.js";
 import {
   resolveRemoteAssetFetch,
   type RemoteAssetNetworkPort,
-} from "@zcode/server/remote/remoteAssetNetwork.js";
+} from "@mode/server/remote/remoteAssetNetwork.js";
 
 export interface RemoteAssetInstaller {
   readonly mode: RemoteAssetInstallMode;

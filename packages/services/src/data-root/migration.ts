@@ -17,7 +17,7 @@ import {
   MODE_DATA_ROOT_DIR_NAME,
   type DataRootManifest,
   type DataRootManifestCreatedBy,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import {
   forfeitConflictingDataRoot,

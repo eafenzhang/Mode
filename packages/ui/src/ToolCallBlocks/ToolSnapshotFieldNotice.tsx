@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Loader2Icon } from "lucide-react";
-import type { ZCodeTaskSnapshotToolFieldRef } from "@zcode/shared";
+import type { ZCodeTaskSnapshotToolFieldRef } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 

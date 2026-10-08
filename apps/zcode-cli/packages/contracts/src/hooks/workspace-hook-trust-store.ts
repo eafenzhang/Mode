@@ -1,5 +1,5 @@
 /**
- * Trust store 文件 schema 已下沉到 `@zcode/shared/workspace-hook-trust-store-file`
+ * Trust store 文件 schema 已下沉到 `@mode/shared/workspace-hook-trust-store-file`
  * 作为单一权威实现（services 层无法依赖 apps 下的 contracts，
  * 只好手写局部校验，导致 UI 与 runtime 对同一损坏文件结论分裂）。
  *
@@ -11,11 +11,11 @@ export {
   WORKSPACE_HOOK_TRUST_STORE_SCHEMA_VERSION,
   workspaceHookTrustRecordSchema,
   workspaceHookTrustStoreFileSchema,
-} from "@zcode/shared/workspace-hook-trust-store-file";
+} from "@mode/shared/workspace-hook-trust-store-file";
 export type {
   WorkspaceHookTrustRecord,
   WorkspaceHookTrustStoreFile,
-} from "@zcode/shared/workspace-hook-trust-store-file";
+} from "@mode/shared/workspace-hook-trust-store-file";
 
 import { z } from "zod";
 

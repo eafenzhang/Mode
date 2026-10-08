@@ -6,7 +6,7 @@ import {
   type ProviderFamilyDomain,
   type ZCodeAccountAccess,
   type ZCodeProviderAccountAccess,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   resolveEnterpriseCodingPlanProductFamily,
   type EnterpriseCodingPlanProductDisplay,

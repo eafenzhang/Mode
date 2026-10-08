@@ -1,4 +1,4 @@
-import { parseRuntimeInputPresentation } from "@zcode/contracts";
+import { parseRuntimeInputPresentation } from "@mode/contracts";
 import {
   unpublishedPermissionGrants,
   recoverPendingPermissionGrant,

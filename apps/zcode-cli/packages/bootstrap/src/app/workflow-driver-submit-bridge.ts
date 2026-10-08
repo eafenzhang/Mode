@@ -14,8 +14,8 @@ import type {
   SubmitResultRequest,
   SubmitVerdict as ContractsSubmitVerdict,
   WorkflowSubmitPort,
-} from "@zcode/contracts";
-import { WorkflowError, type WorkflowReportSink } from "@zcode/dynamic-workflow";
+} from "@mode/contracts";
+import { WorkflowError, type WorkflowReportSink } from "@mode/dynamic-workflow";
 import { defer, rejectWith } from "./workflow-driver-helpers.js";
 import type { SessionState } from "./workflow-driver-types.js";
 

@@ -1,6 +1,6 @@
-import type { ConfigResult } from "@zcode/adapters/config";
-import { detectLocale, resolveLocale } from "@zcode/i18n";
-import type { RuntimeConfigPatch, SupportedLocale, UiLocale } from "@zcode/contracts";
+import type { ConfigResult } from "@mode/adapters/config";
+import { detectLocale, resolveLocale } from "@mode/i18n";
+import type { RuntimeConfigPatch, SupportedLocale, UiLocale } from "@mode/contracts";
 import type { ZCodeAppOptions } from "./types.js";
 
 export function isMessageEnabled(env: NodeJS.ProcessEnv): boolean {

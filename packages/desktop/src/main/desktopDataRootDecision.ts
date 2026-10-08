@@ -17,7 +17,7 @@ import {
   type DataRootDecisionState,
   type DataRootDecisionStatus,
   type Locale,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   collectLegacyCandidateStats,
   discoverLegacyDataRootCandidates,
@@ -29,7 +29,7 @@ import {
   type DataRootMigrationProgress,
   type DataRootStatus,
   type LegacyDataRootCandidate,
-} from "@zcode/services/node";
+} from "@mode/services/node";
 import { resolveSystemApplicationLocale } from "./desktopApplicationMenu.js";
 import { logger } from "./logger.js";
 import {

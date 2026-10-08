@@ -1,4 +1,4 @@
-import type { ZCodeAutomationBotDeliveryTarget } from "@zcode/shared";
+import type { ZCodeAutomationBotDeliveryTarget } from "@mode/shared";
 
 interface CronBotDeliveryRepo {
   getBotDeliveryTarget(

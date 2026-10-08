@@ -1,4 +1,4 @@
-import type { ProviderBalanceEntry, ProviderBalanceSnapshot } from "@zcode/shared";
+import type { ProviderBalanceEntry, ProviderBalanceSnapshot } from "@mode/shared";
 import { Loader2Icon, RefreshCwIcon } from "lucide-react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useProviderBalance } from "@/hooks/useProviderBalance.js";

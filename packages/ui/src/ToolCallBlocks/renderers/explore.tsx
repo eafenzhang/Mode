@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- Explore 聚合渲染同时维护分类、父级摘要和可复用子工具摘要，拆开会让父子展示规则更难对齐 */
 import { SearchIcon } from "lucide-react";
-import { extractPlanStepsFromToolInput, extractPlanStepsFromToolOutput } from "@zcode/shared";
+import { extractPlanStepsFromToolInput, extractPlanStepsFromToolOutput } from "@mode/shared";
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -13,7 +13,7 @@ import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
 import { useCallback, type ReactNode } from "react";
 import type { TaskChatToolCallTreeNode } from "@/lib/toolCallTree.js";
-import type { ZCodePlanStep } from "@zcode/shared";
+import type { ZCodePlanStep } from "@mode/shared";
 
 const EXPLORE_TOOL_ICON = <SearchIcon className="size-4 shrink-0 text-foreground-subtle" />;
 

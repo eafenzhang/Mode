@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- App 当前集中编排 workspace 级状态、导航、Git 派生数据和 shell wiring；已将新增 side pane memory 桥接抽出，剩余拆分需要按 shell 边界单独重构。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { GitChangeSourceId, WorkspacePurpose } from "@zcode/shared";
+import type { GitChangeSourceId, WorkspacePurpose } from "@mode/shared";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { getVisibleTaskMetas, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { useTaskQueryCacheStore } from "@/store/taskQueryCacheStore.js";
@@ -673,7 +673,7 @@ export function App({
       targetWorkspacePath: string,
       targetWorkspaceIdentity?: string,
       targetWorkspacePurpose?: WorkspacePurpose,
-      createSource?: import("@zcode/shared").SessionCreateSource,
+      createSource?: import("@mode/shared").SessionCreateSource,
     ) => {
       const store = useZCodeSessionStore.getState();
       const resolvedTargetWorkspaceIdentity =

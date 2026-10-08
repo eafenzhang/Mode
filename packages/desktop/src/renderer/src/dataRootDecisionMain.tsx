@@ -4,9 +4,9 @@
  * 独立于主窗口：不连接 services / Host，只通过专用 preload 与 main 交换决策状态。
  */
 import { createRoot } from "react-dom/client";
-import type { DataRootDecisionBridge } from "@zcode/shared";
-import { DataRootDecisionApp } from "@zcode/ui";
-import "@zcode/ui/styles.css";
+import type { DataRootDecisionBridge } from "@mode/shared";
+import { DataRootDecisionApp } from "@mode/ui";
+import "@mode/ui/styles.css";
 
 // 决策窗口独立于主窗口，没有主题服务可用（此时设置尚未读取）。
 // 跟随系统主题应用与主窗口一致的 zai 皮肤 class（system 模式：浅色 zai-light / 深色 dark+zai-dark），

@@ -5,7 +5,7 @@ import {
   type ModelErrorCode as ModelErrorCodeType,
   type ModelFailureReason,
   type ModelRetryReason,
-} from "@zcode/contracts";
+} from "@mode/contracts";
 import {
   getApiCallResponseBody,
   getErrorCode,

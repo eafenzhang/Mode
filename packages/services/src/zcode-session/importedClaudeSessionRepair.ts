@@ -1,4 +1,4 @@
-import type { ZCodeSessionStateSnapshot } from "@zcode/shared";
+import type { ZCodeSessionStateSnapshot } from "@mode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { repairImportedClaudeSessionSnapshot } from "#src/session/claude-native/importedClaudeHistoryRepair.js";
 import type { IZCodeAgentService } from "#src/zcode-agent/zcodeAgent.js";

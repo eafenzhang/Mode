@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 /* eslint-disable max-lines -- quota、entitlement 与 monitor 请求共用同一套 provider 鉴权逻辑，拆文件会让 Coding Plan strict key 边界更难追踪。 */
 import { z } from "zod";
 import type {
@@ -19,7 +19,7 @@ import type {
   UsageStatsRequest,
   UsageStatsSnapshot,
   ZCodeAccountAccess,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   ApiError,
   BUILTIN_MODEL_PROVIDER_IDS,
@@ -29,8 +29,8 @@ import {
   buildBigModelApiUrl,
   buildRuntimeZaiBusinessUrl,
   buildRuntimeZCodeApiUrl,
-} from "@zcode/shared";
-import type { ProviderFamilyDomain } from "@zcode/shared";
+} from "@mode/shared";
+import type { ProviderFamilyDomain } from "@mode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import type { ICredentialService } from "../../credential/credential.js";
 import type { IAccountRequestAuthService } from "../../model-provider/accountRequestAuthService.js";

@@ -1,4 +1,4 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 /* eslint-disable max-lines -- Coding Plan provider 需要集中维护 BigModel 支付宝与 Z.ai Stripe/PayPal 接口映射，拆分会让共享鉴权和响应解包更难追踪。 */
 import type {
   ApiClient,
@@ -51,8 +51,8 @@ import type {
   StartPlanPreviewConfig,
   ZCodeModelContextBudgetStrategy,
   DynamicWorkflowClientConfig,
-} from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/provider";
+} from "@mode/shared";
+import type { ModelSelectionView } from "@mode/provider";
 import type { OffPeakClientConfig } from "./codingPlanSubscription.js";
 import {
   BIGMODEL_PROVIDER_ID,
@@ -70,7 +70,7 @@ import {
   resolveDynamicWorkflowClientConfig,
   DEFAULT_DYNAMIC_WORKFLOW_MODE,
   MODE_DYNAMIC_WORKFLOW_MODE_ENV,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import { readApiJson } from "../providers/api/apiJson.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";

@@ -1,4 +1,4 @@
-import type { WorkspacePurpose, ZCodeTaskMeta } from "@zcode/shared";
+import type { WorkspacePurpose, ZCodeTaskMeta } from "@mode/shared";
 
 export type ZCodeTaskListKind = "pinned" | "archived" | "timeline" | "active";
 export type ZCodeTaskListSortBy = "created" | "updated";

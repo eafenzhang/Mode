@@ -1,4 +1,4 @@
-import type { Logger, LoggerFactory } from "@zcode/contracts";
+import type { Logger, LoggerFactory } from "@mode/contracts";
 
 interface RetentionAwareLoggerFactory extends LoggerFactory {
   scheduleLogRetentionCleanup(options?: { logger?: Logger }): unknown;

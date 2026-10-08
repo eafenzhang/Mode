@@ -9,7 +9,7 @@ import {
   type LanAccessPairResult,
   type LanAccessState,
   type LanPairPeerRequest,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { discoverLanPeers } from "./desktopLanDiscovery.js";
 import { listLiveHostProcesses } from "./resourceManagerWindow.js";
 

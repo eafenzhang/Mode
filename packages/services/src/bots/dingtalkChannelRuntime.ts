@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- 钉钉 Stream 长连接的注册、帧协议、去重与重连是一个完整生命周期单元。 */
 import WebSocket from "ws";
-import type { BotConfig, BotProviderCallbackResult, BotsConfigFile } from "@zcode/shared";
+import type { BotConfig, BotProviderCallbackResult, BotsConfigFile } from "@mode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import { DINGTALK_API_BASE } from "./providers/dingtalkProvider.js";
 import { fetchBotProviderJson } from "./providers/providerRequest.js";

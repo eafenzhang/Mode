@@ -1,4 +1,4 @@
-import type { ZCodeSessionStateSnapshot } from "@zcode/shared";
+import type { ZCodeSessionStateSnapshot } from "@mode/shared";
 import type {
   ZCodeSessionWorkspaceTarget,
   ZCodeTaskTarget,

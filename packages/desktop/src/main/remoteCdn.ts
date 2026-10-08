@@ -1,4 +1,4 @@
-import { isOfficialServiceEnabled, MODE_VERSION, type ZCodeEnv } from "@zcode/shared";
+import { isOfficialServiceEnabled, MODE_VERSION, type ZCodeEnv } from "@mode/shared";
 
 declare const __MODE_CDN_BASE_URL__: string | undefined;
 declare const __MODE_REMOTE_ASSET_CDN_BASE_URL__: string | undefined;

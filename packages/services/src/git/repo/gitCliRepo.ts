@@ -15,7 +15,7 @@ import type {
   GitLocalBranchListResult,
   GitWorkspaceRepositoryInfo,
   GitPushResult,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   DEFAULT_GIT_COMMAND_TIMEOUT_MS,

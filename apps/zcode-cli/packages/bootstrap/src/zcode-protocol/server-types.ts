@@ -9,10 +9,10 @@ import {
   type SessionTaskType,
   type SessionStorePort,
   type TraceContext,
-} from "@zcode/contracts";
-import type { McpTelemetryTracker } from "@zcode/adapters";
-import type { WorkspaceHookPolicyProvider } from "@zcode/core";
-import type { AccountProviderConfigSnapshot } from "@zcode/provider";
+} from "@mode/contracts";
+import type { McpTelemetryTracker } from "@mode/adapters";
+import type { WorkspaceHookPolicyProvider } from "@mode/core";
+import type { AccountProviderConfigSnapshot } from "@mode/provider";
 import {
   zcodeProtocolErrorCodes,
   type ZCodeAutomationBotDeliveryTarget,
@@ -28,7 +28,7 @@ import {
   type ZCodeSessionMode,
   type ZCodeSessionPersistence,
   type ZCodeWorkspaceRef,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ZCodeApp, ZCodeAppOptions } from "../app/types.js";
 import type { V4InteractionRegistry } from "../zcode-protocol-v4/interaction-registry.js";
 import type { ConversationV4Gateway } from "../zcode-protocol-v4/v4-gateway.js";

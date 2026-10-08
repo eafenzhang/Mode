@@ -1,6 +1,6 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
-import type { HttpClientPort, HttpClientRunOptions, TraceContext } from "@zcode/contracts";
-import { resolveBigModelApiOrigin } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
+import type { HttpClientPort, HttpClientRunOptions, TraceContext } from "@mode/contracts";
+import { resolveBigModelApiOrigin } from "@mode/shared";
 
 const ZAI_API_HOST = "https://api.z.ai";
 const JSON_CONTENT_TYPE = "application/json";

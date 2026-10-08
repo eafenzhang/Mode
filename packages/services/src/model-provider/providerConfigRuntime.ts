@@ -4,7 +4,7 @@ import {
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
   type PersonalProviderConfigRecoveryEvent,
   type NodeProviderConfigRuntimeOptions,
-} from "@zcode/provider-node";
+} from "@mode/provider-node";
 import type { ModelProviderConfig } from "./legacyModelProviderSerialized.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { getAppConfigDir } from "../paths.js";
@@ -28,7 +28,7 @@ export interface ProviderConfigRuntimeOptions {
 
 /**
  * Services 装配层：提供 App 配置目录和已发布旧配置的一次性迁移入口。
- * 配置迁移保留 ZCode 用户的供应商数据，文件运行时由 @zcode/provider-node 唯一实现。
+ * 配置迁移保留 ZCode 用户的供应商数据，文件运行时由 @mode/provider-node 唯一实现。
  */
 export class ProviderConfigRuntime {
   readonly configService: NodeProviderConfigRuntime["configService"];

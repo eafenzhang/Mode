@@ -16,10 +16,10 @@ import {
   type LanAccessPairResult,
   type LanAccessState,
   type ServerRemoteWorkspaceInfo,
-} from "@zcode/shared";
-import { createHttpServer } from "@zcode/server";
-import type { ICredentialService, ServiceCollection } from "@zcode/services";
-import { formatLogPrefix } from "@zcode/shared";
+} from "@mode/shared";
+import { createHttpServer } from "@mode/server";
+import type { ICredentialService, ServiceCollection } from "@mode/services";
+import { formatLogPrefix } from "@mode/shared";
 
 const log = (...args: unknown[]) => console.log(formatLogPrefix("lanAccess", process.pid), ...args);
 const warn = (...args: unknown[]) => console.warn(formatLogPrefix("lanAccess", process.pid), ...args);

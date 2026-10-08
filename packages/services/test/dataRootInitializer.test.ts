@@ -12,7 +12,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DATA_ROOT_MANIFEST_FILE_NAME, DATA_ROOT_PRODUCT_ID } from "@zcode/shared";
+import { DATA_ROOT_MANIFEST_FILE_NAME, DATA_ROOT_PRODUCT_ID } from "@mode/shared";
 
 // 初始化器状态机测试：interactive（桌面决策）与非交互（CLI/server）两条路径。
 // pending 会把数据根解析重定向到进程诊断根，测试结束必须 reset，避免污染后续用例。

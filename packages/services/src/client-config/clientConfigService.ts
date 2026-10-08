@@ -1,11 +1,11 @@
-import { isOfficialServiceEnabled } from "@zcode/shared";
+import { isOfficialServiceEnabled } from "@mode/shared";
 import {
   buildZCodeEndpointUrls,
   clientConfigReadOptionsSchema,
   parseClientConfigSnapshot,
   type ApiClient,
   type ClientConfigSnapshot,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { IClientConfigService } from "./clientConfig.js";
 
 const CACHE_TTL_MS = 60 * 60 * 1000;

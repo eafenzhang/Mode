@@ -4,7 +4,7 @@ import type {
   ISkillsService,
   IZCodeAgentService,
   IZCodeSessionService,
-} from "@zcode/services";
+} from "@mode/services";
 import { logger } from "@/logger.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSkillInvalidation.js";
 import { refreshSharedSkillStoreForWorkspace } from "@/lib/skillStoreRefresh.js";

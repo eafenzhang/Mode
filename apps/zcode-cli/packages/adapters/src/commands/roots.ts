@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import type { CustomCommandRoot, CustomCommandSource } from "@zcode/contracts";
+import type { CustomCommandRoot, CustomCommandSource } from "@mode/contracts";
 
 const COMMANDS_DIR = "commands";
 const GIT_MARKER = ".git";

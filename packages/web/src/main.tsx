@@ -8,14 +8,14 @@ import {
   playTaskNotificationSound,
   setStreamClientId,
   type Theme,
-} from "@zcode/ui";
-import "@zcode/ui/styles.css";
-import { connectViaWebSocket } from "@zcode/client";
+} from "@mode/ui";
+import "@mode/ui/styles.css";
+import { connectViaWebSocket } from "@mode/client";
 import { WebCallbackPage } from "./auth/WebCallbackPage.js";
 import { createWebAuthService } from "./auth/webAuthService.js";
 import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.js";
 import { resolveWebCommunityUrl } from "./communityUrl.js";
-import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
+import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@mode/shared";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {

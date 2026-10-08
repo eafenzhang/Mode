@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import type { Locale } from "@zcode/shared";
+import type { Locale } from "@mode/shared";
 
 const WORKFLOW_NAME = "Open in Mode.workflow";
 /** 更名前安装的 Finder 服务目录：不清掉会在「服务」菜单里长期显示旧应用名。 */

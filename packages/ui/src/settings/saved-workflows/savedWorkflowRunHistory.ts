@@ -1,6 +1,6 @@
 // 运行历史的归组与呈现。
 // 归属只按 `dwf_run.name === 工作流名`；模型另起名字的 run 不归任何工作流，而不是猜。
-import type { ZCodeSavedWorkflowRun, ZCodeSavedWorkflowRunStatus } from "@zcode/shared";
+import type { ZCodeSavedWorkflowRun, ZCodeSavedWorkflowRunStatus } from "@mode/shared";
 
 /** 每个名字下 `updatedAt` 最新的一行（服务端按 time_updated 倒序，这里只取首见）。 */
 export function lastRunByWorkflowName(

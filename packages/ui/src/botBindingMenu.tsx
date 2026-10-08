@@ -11,8 +11,8 @@ import {
   getBotWorkspaceKey,
   isBotEligibleForSessionBinding,
   type BotConfig,
-} from "@zcode/shared";
-import type { BotConversationSummary } from "@zcode/services";
+} from "@mode/shared";
+import type { BotConversationSummary } from "@mode/services";
 import {
   ContextMenuItem,
   ContextMenuSub,

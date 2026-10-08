@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { IFileWatcherService } from "@zcode/services";
+import type { IFileWatcherService } from "@mode/services";
 import { logger } from "@/logger.js";
 
 const WATCH_DEBOUNCE_MS = 300;

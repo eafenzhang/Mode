@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type { ProviderProvisioningResult } from "@zcode/shared";
-import type { IProviderProvisioningTargetService, IServiceAccessor } from "@zcode/services";
+import type { ProviderProvisioningResult } from "@mode/shared";
+import type { IProviderProvisioningTargetService, IServiceAccessor } from "@mode/services";
 import {
   getProviderProvisioningSource,
   type ProviderProvisioningSource,
-} from "@zcode/services/node";
-import type { ServiceCollection } from "@zcode/services";
+} from "@mode/services/node";
+import type { ServiceCollection } from "@mode/services";
 
 interface RemoteProviderProvisioningExecutor {
   syncLocalToRemote(): Promise<ProviderProvisioningResult>;

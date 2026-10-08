@@ -1,31 +1,31 @@
 /* eslint-disable max-lines -- 开发态 agent 部署包含本地打包、远端 owner staging 与 wrapper 安装，后续独立拆分上传事务。 */
-import { MODE_AGENT_PROVIDER, resolveZCodeRuntimeEnv } from "@zcode/shared";
+import { MODE_AGENT_PROVIDER, resolveZCodeRuntimeEnv } from "@mode/shared";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import type { IRemoteBackend } from "@zcode/server/remote/backend.js";
+import type { IRemoteBackend } from "@mode/server/remote/backend.js";
 import {
   buildRemoteExecutableReplaceCommand,
   buildRemoteMoveCommand,
   type DeployLoggers,
   waitForClose,
-} from "@zcode/server/remote/deployShared.js";
+} from "@mode/server/remote/deployShared.js";
 import {
   buildWriteLiteralFileCommand,
   quotePosixPathArg,
-} from "@zcode/server/remote/posixShell.js";
-import { createTarGzArchive } from "@zcode/server/remote/localTarGz.js";
+} from "@mode/server/remote/posixShell.js";
+import { createTarGzArchive } from "@mode/server/remote/localTarGz.js";
 import {
   buildRemoteAgentBundleWrapper,
   isRemoteAgentBundleWrapperCurrent,
   REMOTE_AGENT_BUNDLE_NAME,
-} from "@zcode/server/remote/zcodeAgentBundleWrapper.js";
+} from "@mode/server/remote/zcodeAgentBundleWrapper.js";
 import {
   deployRemoteAgentWrapper,
   isWslBackend,
-} from "@zcode/server/remote/zcodeAgentWrapperDeploy.js";
+} from "@mode/server/remote/zcodeAgentWrapperDeploy.js";
 import {
   REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME,
   REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS,
@@ -33,8 +33,8 @@ import {
   REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS,
   buildRemoteAgentOfficialPluginDir,
   buildRemoteAgentOfficialPluginRequiredPaths,
-} from "@zcode/server/remote/zcodeAgentOfficialPluginAssets.js";
-import { repairLegacyRemoteOfficialPluginDirectoryPermissions } from "@zcode/server/remote/zcodeAgentOfficialPluginPermissionRepair.js";
+} from "@mode/server/remote/zcodeAgentOfficialPluginAssets.js";
+import { repairLegacyRemoteOfficialPluginDirectoryPermissions } from "@mode/server/remote/zcodeAgentOfficialPluginPermissionRepair.js";
 
 const DEV_AGENT_BUNDLE_RELATIVE_PATH = "apps/zcode-cli/packages/cli/dist/zcode.cjs";
 const DEV_AGENT_BUNDLE_ENV = "MODE_REMOTE_DEV_AGENT_BUNDLE";

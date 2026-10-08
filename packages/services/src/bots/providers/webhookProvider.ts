@@ -5,7 +5,7 @@ import type {
   BotOutboundMessage,
   BotStructuredElicitationResponse,
   SelectionPrompt,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { BotProviderAdapter } from "./types.js";
 
 interface WebhookProviderDeps {

@@ -2,9 +2,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, win32 } from "node:path";
-import type { ConnectOptions } from "@zcode/server/remote";
-import { listSSHConfigAliasesFromLocalConfig } from "@zcode/services/node";
-import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@zcode/zcode-cua/broker/helperConstants";
+import type { ConnectOptions } from "@mode/server/remote";
+import { listSSHConfigAliasesFromLocalConfig } from "@mode/services/node";
+import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@mode/cua/broker/helperConstants";
 import {
   MODE_APP_VERSION_ENV,
   MODE_AGENT_RUNTIME,
@@ -23,14 +23,14 @@ import {
   normalizeDynamicWorkflowMode,
   sanitizeZCodeRuntimeEnv,
   type ZCodeRuntimeEnv,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { resolvePlatformKeyForPackagedApp } from "../../scripts/target-platform.mjs";
 import {
   getAppConfigDir,
   getDataBaseDir,
   MODE_CUA_BUNDLED_HELPER_APP_PATH_ENV,
   MODE_WINDOWS_APP_INSTALL_DIR_ENV,
-} from "@zcode/services/node";
+} from "@mode/services/node";
 import {
   resolveRemoteCdnBaseUrls as resolveOrderedRemoteCdnBaseUrls,
   type ResolveRemoteCdnOptions,
@@ -105,17 +105,17 @@ export type RemoteAssetDirs = Pick<
 type LocalRuntimeEnv = Record<string, string | undefined>;
 
 export async function isDockerDaemonAvailable(): Promise<boolean> {
-  const { isDockerAvailable } = await import("@zcode/server/remote");
+  const { isDockerAvailable } = await import("@mode/server/remote");
   return isDockerAvailable();
 }
 
 export async function listAvailableWSLDistros() {
-  const { listWSLDistros } = await import("@zcode/server/remote");
+  const { listWSLDistros } = await import("@mode/server/remote");
   return listWSLDistros();
 }
 
 export async function listAvailableDockerContainers() {
-  const { listDockerContainers } = await import("@zcode/server/remote");
+  const { listDockerContainers } = await import("@mode/server/remote");
   return listDockerContainers();
 }
 

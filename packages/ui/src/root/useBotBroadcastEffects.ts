@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import type { IServiceAccessor } from "@zcode/services";
-import type { ZCodeConfigOption } from "@zcode/shared";
+import type { IServiceAccessor } from "@mode/services";
+import type { ZCodeConfigOption } from "@mode/shared";
 import {
   buildTaskContextUsageFromUsageUpdate,
   recordTaskContextUsageUpdate,
@@ -15,7 +15,7 @@ import {
 import { resolveBotTaskStreamBroadcast } from "@/root/botsTaskStreamBroadcast.js";
 import { logger } from "@/logger.js";
 import { refreshBotTaskBindings } from "@/store/botTaskBindingsStore.js";
-import { BOT_TASK_BROADCAST_CHANNEL } from "@zcode/shared";
+import { BOT_TASK_BROADCAST_CHANNEL } from "@mode/shared";
 import {
   insertTaskIntoTaskCaches,
   syncTaskMetaToTaskCaches,

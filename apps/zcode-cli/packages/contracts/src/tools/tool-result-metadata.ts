@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { OFFICIAL_MCP_TOOL_ERROR_CODES } from "@zcode/shared";
+import { OFFICIAL_MCP_TOOL_ERROR_CODES } from "@mode/shared";
 
 import {
   CREATE_WORKFLOW_DISPLAY_MAX_DIAGNOSTICS,
@@ -192,7 +192,7 @@ export const mcpToolResultDisplayPayloadSchema = z
     /**
      * 官方 Server MCP 判定本次调用不可用时下发的结构化标识（额度耗尽 / 无 Coding Plan）。
      * 只在 tool result 为 isError 且该 MCP 为官方来源时出现，UI 据此在输入框上方提示。
-     * 与 code 同源：`@zcode/shared` 的 OFFICIAL_MCP_TOOL_ERROR_CODES。
+     * 与 code 同源：`@mode/shared` 的 OFFICIAL_MCP_TOOL_ERROR_CODES。
      */
     unavailable: z
       .object({ code: z.enum(OFFICIAL_MCP_TOOL_ERROR_CODES) })

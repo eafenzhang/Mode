@@ -1,10 +1,10 @@
-import { assertOfficialServiceRemoved } from "@zcode/shared";
+import { assertOfficialServiceRemoved } from "@mode/shared";
 import {
   resolveBigModelApiOrigin,
   resolveZaiBusinessBaseUrl,
   type ApiClient,
   type ProviderFamilyDomain,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { LegacyTeamConnection } from "#src/setting/legacyAccountConnectionSettings.js";
 import type {
   RemoteCustomerInfo,
