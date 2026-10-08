@@ -1,8 +1,8 @@
 #![deny(clippy::unwrap_used)]
 // 模块必须 pub：集成测试（tests/*.rs）直接调用纯逻辑函数，napi 包装只做错误转码。
-// capture/perform/launch/screen/input/clipboard 由 Task 4-6 创建各自文件时
-// 追加自己的 pub mod 行——提前声明会编译失败。
-pub mod apps; pub mod error; pub mod observe; pub mod uia_thread;
+// capture 已落地（Task 4）；perform/launch/screen/input/clipboard 由 Task 5-6
+// 创建各自文件时追加自己的 pub mod 行——提前声明会编译失败。
+pub mod apps; pub mod capture; pub mod error; pub mod observe; pub mod uia_thread;
 use napi_derive::napi;
 use error::AxResult;
 

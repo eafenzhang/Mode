@@ -7,6 +7,7 @@
 //! - 单请求 30s 超时 → `timeout`；命令处理 panic → 当次 `timeout`（brief 语义），
 //!   且丢弃可能处于不一致状态的 `IUIAutomation` 供下次重建——线程本身继续服务。
 //! - 线程死亡（send/disconnect 失败）→ `timeout` 并清掉单例 sender，下次调用重新 spawn。
+use crate::capture::{self, CaptureResultNapi};
 use crate::error::{AxError, AxResult};
 use crate::observe;
 use crate::ObserveResultNapi;
@@ -23,12 +24,18 @@ use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
 /// 单请求超时（spec「单请求超时 → timeout」）。
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// 发往 STA 线程的命令。Task 4/5 的 capture/perform 在此追加变体。
+/// 发往 STA 线程的命令。GDI 截图（Task 4）与 observe 串行共线程；Task 5 的 perform 在此追加变体。
 enum Cmd {
   Observe {
     window_id: u32,
     max_elements: u32,
     reply: Sender<AxResult<ObserveResultNapi>>,
+  },
+  Capture {
+    window_id: Option<u32>,
+    region: Option<Vec<i32>>,
+    full_screen: bool,
+    reply: Sender<AxResult<CaptureResultNapi>>,
   },
 }
 
@@ -69,18 +76,12 @@ fn discard(gen: u64) {
   }
 }
 
-/// observe 命令投递：send + 30s 等待；超时/线程死亡均按契约映射 `timeout`。
-pub(crate) fn submit_observe(window_id: u32, max_elements: u32) -> AxResult<ObserveResultNapi> {
+/// 通用命令投递：send + 30s 等待；超时/线程死亡均按契约映射 `timeout`。
+/// `make_cmd` 把 reply 通道装进具体变体——observe/capture 共用这一条投递路径。
+fn submit<T>(make_cmd: impl FnOnce(Sender<AxResult<T>>) -> Cmd) -> AxResult<T> {
   let (gen, tx) = sender()?;
   let (reply_tx, reply_rx) = mpsc::channel();
-  if tx
-    .send(Cmd::Observe {
-      window_id,
-      max_elements,
-      reply: reply_tx,
-    })
-    .is_err()
-  {
+  if tx.send(make_cmd(reply_tx)).is_err() {
     discard(gen);
     return Err(AxError::new("timeout", "UIA STA 线程已退出（send 失败）"));
   }
@@ -93,6 +94,29 @@ pub(crate) fn submit_observe(window_id: u32, max_elements: u32) -> AxResult<Obse
       Err(AxError::new("timeout", "UIA STA 线程已退出（回复中断）"))
     }
   }
+}
+
+/// observe 命令投递（语义见 `submit`）。
+pub(crate) fn submit_observe(window_id: u32, max_elements: u32) -> AxResult<ObserveResultNapi> {
+  submit(move |reply| Cmd::Observe {
+    window_id,
+    max_elements,
+    reply,
+  })
+}
+
+/// capture 命令投递（语义见 `submit`）：GDI 截图与 observe 在同一 STA 线程串行。
+pub(crate) fn submit_capture(
+  window_id: Option<u32>,
+  region: Option<Vec<i32>>,
+  full_screen: bool,
+) -> AxResult<CaptureResultNapi> {
+  submit(move |reply| Cmd::Capture {
+    window_id,
+    region,
+    full_screen,
+    reply,
+  })
 }
 
 /// STA 线程主体：初始化 COM → 串行消费命令。
@@ -123,6 +147,22 @@ fn sta_loop(rx: Receiver<Cmd>) {
           }
         };
         // 接收方可能已超时放弃：晚到的回复投递失败只能丢弃。
+        let _ = reply.send(outcome);
+      }
+      Cmd::Capture {
+        window_id,
+        region,
+        full_screen,
+        reply,
+      } => {
+        // 截图 panic 不触碰 automation 缓存（不读不写），故不丢弃——与 observe 分开处理。
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+          capture::run_capture(window_id, region, full_screen)
+        }));
+        let outcome = match outcome {
+          Ok(result) => result,
+          Err(_) => Err(AxError::internal("capture 命令处理 panic")),
+        };
         let _ = reply.send(outcome);
       }
     }
