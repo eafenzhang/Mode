@@ -2862,12 +2862,36 @@ async function writeJsonFile(path: string, value: unknown): Promise<void> {
   await writeFileAtomically(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+/** 官方市场改名（ZCODIUM → Mode）前的 id：缓存目录兜底用（见 docs/specs/p2-mode-naming.md S5c）。 */
+const LEGACY_OFFICIAL_MARKETPLACE_FOR_CACHE = "zcode-plugins-official";
+const MODE_OFFICIAL_MARKETPLACE_FOR_CACHE = "mode-plugins-official";
+
 export function getPluginCacheDir(
   storageRoot: string,
   marketplace: string,
   name: string,
   version: string,
 ): string {
+  // 市场改名后，已装插件的文件仍在旧市场名的目录里：新目录不存在而旧目录存在时沿用旧目录，
+  // 已装插件原地可用、更新也写回原处；新装插件两边都没有，落到当前目录。
+  if (marketplace === MODE_OFFICIAL_MARKETPLACE_FOR_CACHE) {
+    const current = join(
+      storageRoot,
+      "cache",
+      sanitizePluginId(marketplace),
+      sanitizePluginId(name),
+      sanitizePluginId(version),
+    );
+    if (existsSync(current)) return current;
+    const legacy = join(
+      storageRoot,
+      "cache",
+      sanitizePluginId(LEGACY_OFFICIAL_MARKETPLACE_FOR_CACHE),
+      sanitizePluginId(name),
+      sanitizePluginId(version),
+    );
+    return existsSync(legacy) ? legacy : current;
+  }
   return join(
     storageRoot,
     "cache",
