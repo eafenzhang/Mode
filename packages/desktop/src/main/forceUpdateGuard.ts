@@ -34,7 +34,7 @@ interface ForceUpdateGuardOptions {
 export async function maybeBlockStartupForForceUpdate(
   _options: ForceUpdateGuardOptions,
 ): Promise<ForceUpdateGuardResult> {
-  // ZCodium 审计版不连接官方配置服务，也不执行注入的远端检查或强更回调。
+  // Mode 审计版不连接官方配置服务，也不执行注入的远端检查或强更回调。
   // 保留签名及启动调用点，让主窗口始终可以继续启动。
   return { blocked: false };
 }

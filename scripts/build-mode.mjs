@@ -15,7 +15,7 @@ import { installScriptSource } from "./mode-distribution/installer.mjs";
 const root = resolve(import.meta.dirname, "..");
 const defaultOutDir = resolve(root, "dist", "mode");
 const defaultBaseUrl = (await loadEndpointEnv()).MODE_DIST_BASE_URL?.trim() || "";
-const packageDirName = "zcodium";
+const packageDirName = "mode";
 const usage = `Usage:
   pnpm build:mode
   node scripts/build-mode.mjs --skip-build
@@ -280,7 +280,7 @@ async function main() {
       {
         baseUrl: options.baseUrl,
         createdAt: new Date().toISOString(),
-        name: "zcodium",
+        name: "mode",
         sha256,
         tarball: tarballName,
         version,

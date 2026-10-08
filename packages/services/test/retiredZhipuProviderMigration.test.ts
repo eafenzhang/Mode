@@ -38,7 +38,7 @@ interface PersistedPersonalConfig {
 }
 
 async function setup(personal?: ProviderConfigLayerUpdate) {
-  const dir = await mkdtemp(join(tmpdir(), "zcodium-retired-zhipu-"));
+  const dir = await mkdtemp(join(tmpdir(), "mode-retired-zhipu-"));
   const personalFilePath = join(dir, "provider_config.json");
   if (personal) {
     await writeFile(personalFilePath, JSON.stringify(encodeProviderConfigFile(personal), null, 2));

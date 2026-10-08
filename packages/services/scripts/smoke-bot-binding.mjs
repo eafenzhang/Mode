@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const dataBaseDir = mkdtempSync(join(tmpdir(), "zcodium-bot-smoke-"));
+const dataBaseDir = mkdtempSync(join(tmpdir(), "mode-bot-smoke-"));
 process.env.MODE_DATA_BASE_DIR = dataBaseDir;
 process.env.MODE_DATA_BASE_DIR = dataBaseDir;
 

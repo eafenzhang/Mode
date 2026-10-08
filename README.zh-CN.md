@@ -14,7 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-Mode 保留产品本身——一个陪你规划、改代码、跑命令、自我验证的编程智能体——并从公开源码重新构建：监控与遥测全部移除，官方平台服务整体下线。它是 [zai-org/Mode](https://github.com/zai-org/Mode) 的 ZCodium 审计分支的延续，来龙去脉记在 [NOTICE.md](NOTICE.md) 与提交历史里。
+Mode 保留产品本身——一个陪你规划、改代码、跑命令、自我验证的编程智能体——并从公开源码重新构建：监控与遥测全部移除，官方平台服务整体下线。它是 [zai-org/Mode](https://github.com/zai-org/Mode) 的 Mode 审计分支的延续，来龙去脉记在 [NOTICE.md](NOTICE.md) 与提交历史里。
 
 ## 这个分支在做什么
 

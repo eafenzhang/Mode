@@ -25,7 +25,7 @@ const WECOM_QR_TTL_MS = 10 * 60 * 1000;
 const WECOM_QR_POLL_INTERVAL_SECONDS = 2;
 const WECOM_QR_REQUEST_TIMEOUT_MS = 15_000;
 /** source 用于企业微信后台统计来源，固定为本产品标识。 */
-const WECOM_QR_SOURCE = "zcodium";
+const WECOM_QR_SOURCE = "mode";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

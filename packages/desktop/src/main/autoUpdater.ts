@@ -88,7 +88,7 @@ type UpdateDownloadedInfoLike = {
   > | null;
 };
 
-/** 更新源仓库：本项目的 GitHub 仓库（fork 自 ZCodium 后由仓库所有者维护发布）。 */
+/** 更新源仓库：本项目的 GitHub 仓库（fork 自 Mode 后由仓库所有者维护发布）。 */
 export const UPDATE_FEED_GITHUB_OWNER = "eafenzhang";
 export const UPDATE_FEED_GITHUB_REPO = "Mode";
 

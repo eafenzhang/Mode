@@ -23,7 +23,7 @@ export interface ModelProviderFamilySpec {
 }
 
 /**
- * ZCodium 已移除智谱套餐体系（zhipu-account / Coding Plan）：Z.ai 与 BigModel
+ * Mode 已移除智谱套餐体系（zhipu-account / Coding Plan）：Z.ai 与 BigModel
  * 降级为普通 api-key 预设供应商。本表清空后所有 family 解析恒返回 null、
  * shouldShow* 恒为 true；类型与函数保留以兼容 dormant 的账号子系统代码，
  * 待该子系统物理删除后一并移除。

@@ -2,7 +2,7 @@
 
 ## 背景
 
-ZCodium 是去智谱化的社区 fork，但剥离不彻底：模型设置仍保留「智谱」专区
+Mode 是去智谱化的社区 fork，但剥离不彻底：模型设置仍保留「智谱」专区
 （BigModel / Start Plan / Coding Plan）、首启强制弹套餐/API Key 引导、账号子系统
 （zhipu-account access + 8 个 account:\* 内置 Provider）仍在数据源中。
 本 PR 完成剥离：智谱（Z.ai / BigModel）降级为与 DeepSeek / Kimi 同类的普通 API-Key
@@ -60,7 +60,7 @@ ZCodium 是去智谱化的社区 fork，但剥离不彻底：模型设置仍保�
 1. 存量用户 `setting.json` 里的 `officialServices.account` 等 5 个字段会在写盘时被
    zod strip（`officialServiceSwitchesSchema` 不再登记这些字段）。用户升级后开关列表
    从 7 项变 2 项，属预期行为，不做数据迁移。
-2. 5 个能力对应的官方平台 URL 恒被拦截，报错文案明确指出具体功能「已在 ZCodium 下线」，
+2. 5 个能力对应的官方平台 URL 恒被拦截，报错文案明确指出具体功能「已在 Mode 下线」，
    不再是含糊的「已下线或未登记」。已下线路径的正则保留在
    `officialPlatformPolicy` 内部的 `REMOVED_OFFICIAL_SERVICE_PATH_RULES` 表（模块私有，
    与保留功能的路径表分开），只为让拦截理由可辨认。匹配顺序上已下线表优先：`account` 的

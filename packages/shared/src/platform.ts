@@ -699,7 +699,7 @@ export interface IPlatformService {
    */
   onPaymentCallback(callback: (url: string) => void): () => void;
 
-  /** 注册 `zcodium://share/import?code=...` 导入意图。 */
+  /** 注册 `mode://share/import?code=...` 导入意图。 */
   onShareImport?(callback: (payload: { shareCode: string }) => void): () => void;
 
   /** 通知 main process renderer 已就绪，触发缓存的冷启动 deep link 转发 */

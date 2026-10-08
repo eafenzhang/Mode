@@ -125,7 +125,7 @@ export function createOrcaRouterService(input: CreateOrcaRouterServiceInput): IO
     new OrcaConnectController({
       credentialStore: input.store,
       origins: input.origins,
-      appName: "ZCodium",
+      appName: "Mode",
       log,
     });
   const catalog =

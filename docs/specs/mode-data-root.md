@@ -6,7 +6,7 @@
 
 ## 背景与目标
 
-1. ZCodium 与官方 ZCode 客户端、其它分支曾共用 `~/.mode` / `~/.zcodium`，存在数据互踩。
+1. Mode 与官方 ZCode 客户端、其它分支曾共用 `~/.mode` / `~/.zcodium`，存在数据互踩。
 2. 数据根从 `.mode` 收敛到 `.zcodium`，并满足：
    - **归属识别**：`~/.zcodium` 是否属于本产品，不能凭“目录存在”判断；
    - **用户知情**：旧数据是否带入由用户选择，只复制、不删除；
@@ -72,7 +72,7 @@ type DataRootInitResult =
     用户可在桌面使用“再次导入”）。
 - 并发保护：初始化/迁移使用根目录锁（`O_EXCL` 锁文件），后到方读结果而非重复写入。
 - **pending 期间路径重定向**：初始化器把 `getZCodeDataRootDir()` 解析重定向到进程级
-  诊断根（`os.tmpdir()/zcodium-startup-<pid>`），保证任何模块在决策前都无法写正式根；
+  诊断根（`os.tmpdir()/mode-startup-<pid>`），保证任何模块在决策前都无法写正式根；
   决策完成执行操作后进程重启（relaunch），重定向消失。诊断根目录创建/收紧为 `0700`，
   避免共享 tmp 上同机其它用户读取运行态数据。
 
@@ -143,7 +143,7 @@ main 模块加载
 
 - 移除 `migrateLegacyZCodeDataRoot()` 及其四处自动调用（desktop bootstrap、main、
   CLI main、server 入口、mode-server-cli core）；迁移只能在决策/导入流程中执行。
-- `LEGACY_MIGRATION_MARKER_FILE`（`.migrated-to-zcodium`）废弃，由归属文件承担完成标记。
+- `LEGACY_MIGRATION_MARKER_FILE`（`.migrated-to-mode`）废弃，由归属文件承担完成标记。
 - 路径字面量收敛：所有用户级数据根拼接统一走初始化器 API，禁止模块内直接拼 `.zcodium`。
 
 ## 已知边界（本期不解决，发布说明覆盖）

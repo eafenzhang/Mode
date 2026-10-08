@@ -24,7 +24,7 @@ async function loadOwnership() {
 }
 
 function makeBase() {
-  return mkdtempSync(join(tmpdir(), "zcodium-ownership-"));
+  return mkdtempSync(join(tmpdir(), "mode-ownership-"));
 }
 
 function writeManifestFile(base: string, raw: string): void {

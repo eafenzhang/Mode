@@ -34,7 +34,7 @@ const defaultOutDir = join(repoRoot, "dist/remote-assets-github");
 const MANIFEST_PREFIX = "manifest-";
 const MANIFEST_SUFFIX = ".json";
 // GitHub Release 的资产列表按名称（忽略大小写）排序，与上传顺序无关。
-// 统一前缀把 remote assets 沉到发布页最后（"zz-" 排在 "zcodium-*" 之后），
+// 统一前缀把 remote assets 沉到发布页最后（"zz-" 排在 "mode-*" 之后），
 // 让安装包与更新元数据保持在前面。
 const REMOTE_ASSET_DISPLAY_PREFIX = "zz-";
 

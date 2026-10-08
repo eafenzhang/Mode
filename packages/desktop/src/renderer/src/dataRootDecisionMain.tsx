@@ -23,7 +23,7 @@ applySystemTheme();
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySystemTheme);
 
 const container = document.getElementById("root");
-const bridge = (window as Window & { zcodiumDataRootDecision?: DataRootDecisionBridge })
+const bridge = (window as Window & { modeDataRootDecision?: DataRootDecisionBridge })
   .zcodiumDataRootDecision;
 
 if (container) {

@@ -701,7 +701,7 @@ export default {
     // 与 /usr/share/icons/hicolor/*/apps/mode.png 保持一致。
     executableName: desktopProductIdentity.linuxExecutableName,
     category: "Development",
-    maintainer: "ZCodium <zcodium-project@users.noreply.github.com>",
+    maintainer: "Mode <zcodium-project@users.noreply.github.com>",
   },
   deb: {
     // 生产版与 Preview 必须是两个 dpkg package；只改可执行名仍会让安装器把另一版本当成升级替换。
@@ -733,7 +733,7 @@ export default {
     // 丢失 Electron Framework 主二进制，安装后启动直接报 DYLD Library missing。
     // 显式放大 DMG 容量，避免拷贝截断导致的“Framework 目录存在但核心文件缺失”。
     size: "3200m",
-    // 使用自定义安装背景图（620x460 窗口，背景上标注 ZCodium 与解除 Gatekeeper 拦截的命令）。
+    // 使用自定义安装背景图（620x460 窗口，背景上标注 Mode 与解除 Gatekeeper 拦截的命令）。
     background: "build/dmg_background.png",
     // 安装盘图标统一使用安装专用素材，避免复用应用图标导致安装识别度不足。
     icon: "build/icon_installer.icns",

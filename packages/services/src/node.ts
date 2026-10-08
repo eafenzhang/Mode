@@ -1548,7 +1548,7 @@ export function createLocalServices(options: {
   );
   const providerConfigLog = createServiceLogger("provider-config");
   const clientConfigPlatform = resolveClientConfigPlatform();
-  // ZCodium 去智谱化：官方 CDN 的 builtin 配置是 Coding Plan 套餐模板与账号
+  // Mode 去智谱化：官方 CDN 的 builtin 配置是 Coding Plan 套餐模板与账号
   // Provider 的投递通道，且 revision 高于本地时无条件覆盖——保留它会复活已被
   // 移除的套餐产品面。停用远端源，builtin 配置唯一事实源是仓库内
   // config/provider/mode-builtin.json（从上游同步时人工维护）。
@@ -2356,7 +2356,7 @@ export function createLocalServices(options: {
   const orcaConnect = new OrcaConnectController({
     credentialStore: orcaCredentialStore,
     origins: orcaOrigins,
-    appName: "ZCodium",
+    appName: "Mode",
   });
   const orcaCredentialBinding = createOrcaProviderCredentialBinding({
     store: orcaCredentialStore,

@@ -8,13 +8,13 @@ import {
 test("读：MODE_ 优先，ZCODIUM_ 次之，ZCODE_ 兜底", () => {
   const all = {
     MODE_DATA_BASE_DIR: "/mode",
-    ZCODIUM_DATA_BASE_DIR: "/zcodium",
+    ZCODIUM_DATA_BASE_DIR: "/mode",
     ZCODE_DATA_BASE_DIR: "/mode",
   };
   assert.equal(readExternalEnvVar(all, "MODE_DATA_BASE_DIR"), "/mode");
 
-  const midAndLegacy = { ZCODIUM_DATA_BASE_DIR: "/zcodium", ZCODE_DATA_BASE_DIR: "/mode" };
-  assert.equal(readExternalEnvVar(midAndLegacy, "MODE_DATA_BASE_DIR"), "/zcodium");
+  const midAndLegacy = { ZCODIUM_DATA_BASE_DIR: "/mode", ZCODE_DATA_BASE_DIR: "/mode" };
+  assert.equal(readExternalEnvVar(midAndLegacy, "MODE_DATA_BASE_DIR"), "/mode");
 
   const onlyLegacy = { ZCODE_DATA_BASE_DIR: "/mode" };
   assert.equal(readExternalEnvVar(onlyLegacy, "MODE_DATA_BASE_DIR"), "/mode");

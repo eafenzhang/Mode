@@ -8,13 +8,13 @@ import type { Locale } from "./protocol.js";
 
 export const DataRootDecisionChannels = {
   /** Renderer → Main：拉取决策状态（状态、候选、磁盘预检）。 */
-  GetState: "zcodium:data-root-decision:get-state",
+  GetState: "mode:data-root-decision:get-state",
   /** Renderer → Main：提交选择（migrate | fresh | quit）。 */
-  Decide: "zcodium:data-root-decision:decide",
+  Decide: "mode:data-root-decision:decide",
   /** Main → Renderer：迁移进度。 */
-  Progress: "zcodium:data-root-decision:progress",
+  Progress: "mode:data-root-decision:progress",
   /** Main → Renderer：状态更新（sizeBytes/磁盘预检完成后推送）。 */
-  StateChanged: "zcodium:data-root-decision:state-changed",
+  StateChanged: "mode:data-root-decision:state-changed",
 } as const;
 
 export type DataRootDecisionStatusKind = "absent-with-legacy" | "unowned" | "corrupt";

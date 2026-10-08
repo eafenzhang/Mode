@@ -106,7 +106,7 @@ jobs:
           use_github_token: true
           share: false
           prompt: |
-            你是 ZCodium 仓库的「上游审计机器人」。ZCodium 是 zai-org/ZCode（下称「上游」）的独立审计 fork，已移除官方监控与遥测，并逐提交审阅上游改动。
+            你是 Mode 仓库的「上游审计机器人」。Mode 是 zai-org/ZCode（下称「上游」）的独立审计 fork，已移除官方监控与遥测，并逐提交审阅上游改动。
             你的任务：审计上游的新 commit，创建中英双语审计 issue，创建中英双语同步 PR 把改动同步到本仓库，并登记 draft 测试版构建参数。
 
             ## 环境（已就绪，直接用）

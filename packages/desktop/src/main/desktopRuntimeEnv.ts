@@ -65,10 +65,10 @@ export const runtimeApplicationName =
     : isPreviewPackagedRuntime
       ? "Mode Preview"
       : "Mode");
-// userData 目录名固定沿用更名前的 ZCodium：它存放登录态、窗口状态与各类缓存，
+// userData 目录名固定沿用更名前的 Mode：它存放登录态、窗口状态与各类缓存，
 // 跟着显示名改成 Mode* 会让既有数据留在旧目录里“消失”（Electron 不做迁移）。
 // flavor 后缀保留，dev/preview/正式版继续各自独立。
-const USER_DATA_DIRECTORY_BASE_NAME = "ZCodium";
+const USER_DATA_DIRECTORY_BASE_NAME = "Mode";
 export const runtimeUserDataDirectoryName = isLocalDevelopmentRuntime
   ? `${USER_DATA_DIRECTORY_BASE_NAME} Dev`
   : isPreviewPackagedRuntime

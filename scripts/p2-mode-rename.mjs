@@ -78,16 +78,16 @@ const STAGES = {
     [/@mode\//g, "@mode/"],
   ],
   artifacts: [
-    [/zcodium-(\$?\{?[A-Za-z0-9_.$}<>-]*)\.tar\.gz/g, "mode-$1.tar.gz"],
+    [/mode-(\$?\{?[A-Za-z0-9_.$}<>-]*)\.tar\.gz/g, "mode-$1.tar.gz"],
     [/dist\/mode\.cjs/g, "dist/mode.cjs"],
     [/mode\.cjs/g, "mode.cjs"],
-    [/CLI_COMMAND_NAME = "zcodium"/g, 'CLI_COMMAND_NAME = "mode"'],
-    [/"zcodium": "\.\/dist\/mode\.cjs"/g, '"mode": "./dist/mode.cjs"'],
-    [/"bin": \{ "zcodium": "\.\/dist\/mode\.cjs" \}/g, '"bin": { "mode": "./dist/mode.cjs" }'],
+    [/CLI_COMMAND_NAME = "mode"/g, 'CLI_COMMAND_NAME = "mode"'],
+    [/"mode": "\.\/dist\/mode\.cjs"/g, '"mode": "./dist/mode.cjs"'],
+    [/"bin": \{ "mode": "\.\/dist\/mode\.cjs" \}/g, '"bin": { "mode": "./dist/mode.cjs" }'],
   ],
   dataroot: [
     [/\.zcodium/g, ".mode"],
-    [/ZCodium/g, "Mode"],
+    [/Mode/g, "Mode"],
   ],
   plugins: [
     [/zcode-plugins-official/g, "mode-plugins-official"],
@@ -125,9 +125,9 @@ const STAGES = {
     [/com\.mode\/request-context/g, "com.mode/request-context"],
     [/const DEEP_LINK_SCHEME = "mode"/g, 'const DEEP_LINK_SCHEME = "mode"'],
     [/schemes: \["mode"\]/g, 'schemes: ["mode"]'],
-    [/zcodium:\/\//g, "mode://"],
-    [/"WECOM_QR_SOURCE = "zcodium"/g, '"WECOM_QR_SOURCE = "mode"'],
-    [/appName: "ZCodium"/g, 'appName: "Mode"'],
+    [/mode:\/\//g, "mode://"],
+    [/"WECOM_QR_SOURCE = "mode"/g, '"WECOM_QR_SOURCE = "mode"'],
+    [/appName: "Mode"/g, 'appName: "Mode"'],
   ],
 };
 

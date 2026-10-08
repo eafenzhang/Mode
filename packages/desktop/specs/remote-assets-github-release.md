@@ -18,7 +18,7 @@
 
 - GitHub Release 的 asset 名不允许 `/`，组件必须压成单段文件名。
 - 版本里的 `+` 统一替换为 `-`：客户端会把 `+` 编码成 `%2B`，不同托管端的解码行为不一致；替换后下载 URL 与 asset 名完全一致。
-- **所有发布资产统一加 `zz-` 前缀**：GitHub Release 的资产列表按名称（忽略大小写）排序，与上传顺序无关；前缀把 remote assets 沉到发布页最后，安装包与更新元数据保持在前。`zz-` 在 `zcodium-*` 之后（第二个字符 `z` > `c`），是确保沉底的排序键。
+- **所有发布资产统一加 `zz-` 前缀**：GitHub Release 的资产列表按名称（忽略大小写）排序，与上传顺序无关；前缀把 remote assets 沉到发布页最后，安装包与更新元数据保持在前。`zz-` 在 `mode-*` 之后（第二个字符 `z` > `c`），是确保沉底的排序键。
 - 命名：`zz-<platformArch>__<componentId>__<version(+ → -)>.tar.gz`，例如 `zz-linux-x64__server-bundle__v3.14.4-ef831e13132e.tar.gz`；manifest 输出为 `zz-manifest-<arch>.json`。
 - 客户端 manifest 名候选：`zz-manifest-<arch>.json` 优先，`manifest-<arch>.json` 作为旧布局回退；组件 URL 由 manifest 的 `artifactPath` 决定，客户端不硬编码组件名。
 - manifest 其余字段（`id` / `version` / `sha256` / `mount`）保持原值，只重写 `artifactPath`。

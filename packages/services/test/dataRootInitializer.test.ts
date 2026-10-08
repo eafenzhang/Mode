@@ -26,7 +26,7 @@ async function loadPaths() {
 }
 
 function makeBase() {
-  return mkdtempSync(join(tmpdir(), "zcodium-initializer-"));
+  return mkdtempSync(join(tmpdir(), "mode-initializer-"));
 }
 
 function seedLegacyRoot(base: string): string {

@@ -183,7 +183,7 @@ test("绑定表与设置文件解耦：并发设置写入不会覆盖绑定", as
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
 
-  const dir = mkdtempSync(join(tmpdir(), "zcodium-bindings-isolation-"));
+  const dir = mkdtempSync(join(tmpdir(), "mode-bindings-isolation-"));
   process.env.MODE_DATA_BASE_DIR = dir;
   process.env.MODE_DATA_BASE_DIR = dir;
   process.env.HOME = dir;

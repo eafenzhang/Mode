@@ -24,7 +24,7 @@ async function loadMigration() {
 }
 
 function makeBase() {
-  return mkdtempSync(join(tmpdir(), "zcodium-migration-"));
+  return mkdtempSync(join(tmpdir(), "mode-migration-"));
 }
 
 function seedLegacy(base: string): string {
@@ -39,7 +39,7 @@ function seedLegacy(base: string): string {
 test("discoverLegacyDataRootCandidates：主 base + 旧 setting.json 的自定义目录", async () => {
   const migration = await loadMigration();
   const base = makeBase();
-  const customBase = mkdtempSync(join(tmpdir(), "zcodium-custom-base-"));
+  const customBase = mkdtempSync(join(tmpdir(), "mode-custom-base-"));
   try {
     const legacy = seedLegacy(base);
     const customLegacy = seedLegacy(customBase);

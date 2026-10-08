@@ -1,7 +1,7 @@
 /**
  * 数据根状态与初始化结果类型。
  *
- * 状态机（详见 docs/specs/zcodium-data-root.md）：
+ * 状态机（详见 docs/specs/mode-data-root.md）：
  * normal → 复用；absent → 有旧根则桌面决策、否则直接初始化；
  * unowned / corrupt → 决策或非交互备份让路，绝不静默复用。
  */

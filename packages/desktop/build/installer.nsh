@@ -2,10 +2,10 @@
 !include FileFunc.nsh
 
 !ifndef ZCODE_INSTALLER_DEFAULT_LOG_PATH
-  !define ZCODE_INSTALLER_DEFAULT_LOG_PATH "$TEMP\ZCodium-installer.log"
+  !define ZCODE_INSTALLER_DEFAULT_LOG_PATH "$TEMP\Mode-installer.log"
 !endif
 !ifndef ZCODE_INSTALLER_ELEVATED_LOG_PATH
-  !define ZCODE_INSTALLER_ELEVATED_LOG_PATH "$WINDIR\Logs\ZCodium-installer.log"
+  !define ZCODE_INSTALLER_ELEVATED_LOG_PATH "$WINDIR\Logs\Mode-installer.log"
 !endif
 !ifndef ZCODE_INSTALLER_IS_ELEVATED_INNER
   ; 来源只在测试夹具模拟内层，正式默认恒假会让提权进程继续使用调用方 /LOG。
@@ -19,7 +19,7 @@
 !endif
 
 !ifndef ZCODE_UNINSTALLER_LOG_PATH
-  !define ZCODE_UNINSTALLER_LOG_PATH "$TEMP\ZCodium-uninstaller.log"
+  !define ZCODE_UNINSTALLER_LOG_PATH "$TEMP\Mode-uninstaller.log"
 !endif
 !ifndef ZCODE_UNINSTALLER_FUNCTION_PREFIX
   !define ZCODE_UNINSTALLER_FUNCTION_PREFIX "un."
@@ -30,7 +30,7 @@
 
   ; 卸载器只在更新时删除旧文件；单独记录清理阶段，避免外层把权限/空间错误误报成应用仍在运行。
   !macro ZCodeReportUninstallerStage MESSAGE
-    DetailPrint "ZCodium: ${MESSAGE}"
+    DetailPrint "Mode: ${MESSAGE}"
     Push "${MESSAGE}"
     Call ${ZCODE_UNINSTALLER_FUNCTION_PREFIX}ZCodeWriteUninstallerLog
   !macroend
@@ -148,7 +148,7 @@
   ; 详情面板和文件日志共用同一条阶段事件，避免静默安装丢失关键上下文。
   !macro ZCodeReportInstallerStage MESSAGE
     SetDetailsPrint listonly
-    DetailPrint "ZCodium: ${MESSAGE}"
+    DetailPrint "Mode: ${MESSAGE}"
     Push "${MESSAGE}"
     Call ZCodeWriteInstallerLog
   !macroend
@@ -218,7 +218,7 @@
       IfErrors modeShowUninstallerDetailsClose
       StrCmp $R1 "" modeShowUninstallerDetailsRead
       SetDetailsPrint listonly
-      DetailPrint "ZCodium: cleanup-log $R1"
+      DetailPrint "Mode: cleanup-log $R1"
       Goto modeShowUninstallerDetailsRead
     modeShowUninstallerDetailsClose:
       FileClose $R0
@@ -296,7 +296,7 @@
       ; 静默自动更新无人值守，未设置 /SD 的模态框会一直等待用户点击，
       ; 使明确的退出码无法返回 electron-updater。静默时自动采用 IDOK，交互时仍显示提示。
       SetDetailsPrint listonly
-      DetailPrint "ZCodium: cleanup-failed exit-code=$R0"
+      DetailPrint "Mode: cleanup-failed exit-code=$R0"
       Call ZCodeShowUninstallerCleanupDetails
       MessageBox MB_OK|MB_ICONSTOP "旧版本清理失败（错误码 $R0）。可能是文件被占用、权限不足或磁盘空间不足。详细日志：${ZCODE_UNINSTALLER_LOG_PATH}" /SD IDOK
       SetErrorLevel 2
@@ -526,7 +526,7 @@
     modeInstallDirDataBlockFound:
       IfSilent modeInstallDirDataBlockSilent
 
-      !insertmacro MUI_HEADER_TEXT "需要修改安装目录" "当前安装目录或其子目录包含 ZCodium 数据目录"
+      !insertmacro MUI_HEADER_TEXT "需要修改安装目录" "当前安装目录或其子目录包含 Mode 数据目录"
       nsDialogs::Create 1018
       Pop $0
       StrCmp $0 error modeInstallDirDataBlockDialogFailed 0

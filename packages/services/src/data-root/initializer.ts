@@ -1,7 +1,7 @@
 /**
  * 数据根初始化器：唯一负责合法性判定、归属文件落盘、冲突备份与迁移编排。
  *
- * 规则（详见 docs/specs/zcodium-data-root.md）：
+ * 规则（详见 docs/specs/mode-data-root.md）：
  * - 归属文件落盘前，正式根零写入：pending 时所有数据根路径重定向到进程诊断根；
  * - 桌面交互：absent+旧根 / unowned / corrupt → pending，由决策窗口处置；
  * - CLI / server：非交互，按 MODE_DATA_ROOT_ACTION（fresh|migrate|fail）处置；
@@ -54,7 +54,7 @@ export function getActiveDiagnosticRoot(): string | null {
  * 当前用户创建，保持现状而不报错）。共享 tmp 上默认 0755 会让同机其它用户可读。
  */
 function ensureDiagnosticRootParent(): string {
-  const parent = join(tmpdir(), "zcodium-startup");
+  const parent = join(tmpdir(), "mode-startup");
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   try {
     chmodSync(parent, 0o700);

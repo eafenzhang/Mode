@@ -72,7 +72,7 @@ test("授权 URL：固定 S256、固定 /auth、OOB 回调，且不含 verifier"
     callbackUrl: "oob",
     codeChallenge: "CHALLENGE_VALUE",
     state: "STATE_VALUE",
-    appName: "ZCodium",
+    appName: "Mode",
   });
   const parsed = new URL(url);
   assert.equal(parsed.origin, "https://www.orcarouter.ai");

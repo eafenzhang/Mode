@@ -32,7 +32,7 @@ const MESSAGES: Record<
     screen_recording: "Screen Recording",
   },
   "fa-IR": {
-    documentTitle: "مجوزهای Computer Use در ZCodium",
+    documentTitle: "مجوزهای Computer Use در Mode",
     dragTitle: "مرا به فهرست مجوزهای بالا بکشید",
     hintPrefix: "نماد سمت چپ را به ",
     hintSuffix: " فهرست بالا بکشید",

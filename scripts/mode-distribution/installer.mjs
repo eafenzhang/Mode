@@ -1,4 +1,4 @@
-const packageDirName = "zcodium";
+const packageDirName = "mode";
 
 export function installScriptSource(baseUrl) {
   return `#!/usr/bin/env sh
@@ -42,14 +42,14 @@ mv "$TARGET.new/${packageDirName}" "$TARGET"
 rm -rf "$TARGET.new"
 ln -sfn "$TARGET" "$INSTALL_DIR/current"
 
-cat > "$BIN_DIR/zcodium" <<SH
+cat > "$BIN_DIR/mode" <<SH
 #!/usr/bin/env sh
 exec node "$INSTALL_DIR/current/bin/mode.mjs" "\\$@"
 SH
-chmod +x "$BIN_DIR/zcodium"
+chmod +x "$BIN_DIR/mode"
 
-echo "ZCodium $VERSION installed."
-echo "Run: zcodium (TUI) or zcodium --web (Web)"
+echo "Mode $VERSION installed."
+echo "Run: mode (TUI) or mode --web (Web)"
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
   *) echo "Note: $BIN_DIR is not in PATH." ;;

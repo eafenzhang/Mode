@@ -1,5 +1,5 @@
 /**
- * ZCodium 用户级数据根（~/.zcodium）与归属文件契约。
+ * Mode 用户级数据根（~/.zcodium）与归属文件契约。
  *
  * 与官方 Mode 客户端的 ~/.mode 命名空间隔离，双方互不读写。
  * 旧值 .mode 仅供一次性迁移逻辑使用；工作区项目级 .mode 目录
@@ -23,7 +23,7 @@ export const DATA_ROOT_MANIFEST_SCHEMA_VERSION = 1;
  * 归属文件的产品家族标识。
  *
  * 取产品 appId 家族值（不含 Preview 渠道后缀）：Preview 与正式版共用数据根且
- * 归属互认，渠道隔离不在本期范围（见 docs/specs/zcodium-data-root.md）。
+ * 归属互认，渠道隔离不在本期范围（见 docs/specs/mode-data-root.md）。
  */
 export const DATA_ROOT_PRODUCT_ID = "dev.zcodium.app";
 

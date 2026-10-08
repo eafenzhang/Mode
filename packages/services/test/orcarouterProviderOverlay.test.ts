@@ -177,7 +177,7 @@ function createOrcaServiceHarness(
     connect: new OrcaConnectController({
       credentialStore: harness.store,
       origins: ORIGINS,
-      appName: "ZCodium",
+      appName: "Mode",
     }),
     origins: ORIGINS,
     credentialBinding: binding,
@@ -224,7 +224,7 @@ test("P0：PKCE 换取成功后同一把 key 也写回 provider 推理配置", a
     connect: new OrcaConnectController({
       credentialStore: harness.store,
       origins: ORIGINS,
-      appName: "ZCodium",
+      appName: "Mode",
       fetchImpl: (async () =>
         jsonResponse({
           key: "sk-orca-pkce000001",
@@ -346,7 +346,7 @@ test("P0：目标 provider 不存在时静默跳过，不抛错、不误写别�
     connect: new OrcaConnectController({
       credentialStore: harness.store,
       origins: ORIGINS,
-      appName: "ZCodium",
+      appName: "Mode",
     }),
     origins: ORIGINS,
     credentialBinding: createOrcaProviderCredentialBinding({
@@ -368,7 +368,7 @@ test("P0：overlay 写入失败不影响凭据保存结果，且错误经 onErro
     connect: new OrcaConnectController({
       credentialStore: harness.store,
       origins: ORIGINS,
-      appName: "ZCodium",
+      appName: "Mode",
     }),
     origins: ORIGINS,
     credentialBinding: createOrcaProviderCredentialBinding({

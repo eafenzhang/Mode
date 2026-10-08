@@ -6,7 +6,7 @@ import type { Locale } from "@mode/shared";
 
 const WORKFLOW_NAME = "Open in Mode.workflow";
 /** 更名前安装的 Finder 服务目录：不清掉会在「服务」菜单里长期显示旧应用名。 */
-const LEGACY_WORKFLOW_NAMES = ["Open in ZCodium.workflow"] as const;
+const LEGACY_WORKFLOW_NAMES = ["Open in Mode.workflow"] as const;
 const WORKFLOW_BUNDLE_ID = "dev.mode.app.finder-open-workflow";
 const WORKFLOW_VERSION = "5";
 const SERVICES_MENU_LABELS: Record<Locale, string> = {
@@ -25,7 +25,7 @@ done
 
 if [ -n "$first" ]; then
   encoded=$(/usr/bin/osascript -l JavaScript -e 'function run(argv) { return encodeURIComponent(argv[0]); }' "$first")
-  /usr/bin/open "zcodium://workspace/open?path=\${encoded}"
+  /usr/bin/open "mode://workspace/open?path=\${encoded}"
 fi
 `;
 

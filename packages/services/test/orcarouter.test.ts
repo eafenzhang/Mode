@@ -182,7 +182,7 @@ function createConnect(harness: ReturnType<typeof createHarness>, fetchImpl: typ
   const controller = new OrcaConnectController({
     credentialStore: harness.store,
     origins: ORIGINS,
-    appName: "ZCodium",
+    appName: "Mode",
     fetchImpl,
     log: (_level, message) => logs.push(message),
   });
@@ -312,7 +312,7 @@ test("PKCE：超时以 abort 分类，且不挂起", async () => {
   const controller = new OrcaConnectController({
     credentialStore: harness.store,
     origins: ORIGINS,
-    appName: "ZCodium",
+    appName: "Mode",
     timeoutMs: 5,
     fetchImpl: ((_input: unknown, init?: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {

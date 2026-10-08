@@ -29,4 +29,4 @@ const bridge: DataRootDecisionBridge = {
   },
 };
 
-contextBridge.exposeInMainWorld("zcodiumDataRootDecision", bridge);
+contextBridge.exposeInMainWorld("modeDataRootDecision", bridge);

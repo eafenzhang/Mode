@@ -39,7 +39,7 @@ import {
 
 const MANIFEST_FILE_NAME_PREFIX = "manifest-";
 // GitHub Release 等托管按资产名（忽略大小写）排序；统一前缀把 remote assets 沉到发布页最后，
-// 与安装包/更新元数据分开。"zz-" 第二个字符大于 "zcodium-" 的 "c"，是稳定的沉底键。
+// 与安装包/更新元数据分开。"zz-" 第二个字符大于 "mode-" 的 "c"，是稳定的沉底键。
 const REMOTE_ASSET_DISPLAY_PREFIX = "zz-";
 const REMOTE_ASSET_READY_MARKER = ".ready";
 const LEGACY_REMOTE_ASSET_READY_MARKER = ".remote-assets-ready";

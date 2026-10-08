@@ -1,4 +1,4 @@
-export const CLI_COMMAND_NAME = "zcodium";
+export const CLI_COMMAND_NAME = "mode";
 export const CLI_PROCESS_NAME = "mode-cli";
 
 interface ProcessTitleTarget {

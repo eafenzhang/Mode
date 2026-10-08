@@ -141,9 +141,9 @@ jobs:
           cat > /tmp/release-notes.md <<'NOTES'
           # <PRODUCT> <VERSION>
 
-          <PRODUCT> 是基于公开发布的 Mode 持续维护的独立分支（延续 ZCodium 审计分支）：桌面端、浏览器工作区与终端 TUI 共享同一个 Agent 运行时，移除监控与遥测、不再连接官方平台服务，并补上 IM 机器人、局域网远程连接与随包离线插件目录。
+          <PRODUCT> 是基于公开发布的 Mode 持续维护的独立分支（延续 Mode 审计分支）：桌面端、浏览器工作区与终端 TUI 共享同一个 Agent 运行时，移除监控与遥测、不再连接官方平台服务，并补上 IM 机器人、局域网远程连接与随包离线插件目录。
 
-          <PRODUCT> is an independently maintained fork of the open-source Mode (continuing the ZCodium audit fork): desktop, browser workspace and terminal TUI still share one agent runtime, with monitoring and telemetry removed, official platform services retired, plus IM bots, LAN remote connections and an offline bundled plugin catalog.
+          <PRODUCT> is an independently maintained fork of the open-source Mode (continuing the Mode audit fork): desktop, browser workspace and terminal TUI still share one agent runtime, with monitoring and telemetry removed, official platform services retired, plus IM bots, LAN remote connections and an offline bundled plugin catalog.
 
           ## 安装与升级 / Install and update
 
@@ -372,7 +372,7 @@ jobs:
           mv sha256-merged.txt sha256.txt
           cat sha256.txt
           # 回归保护：清单必须覆盖每个已发布平台的安装包；缺任一类都说明
-          # （断言只看扩展名、不看产品名前缀：改名 ZCodium → Mode 时硬编码前缀让一次
+          # （断言只看扩展名、不看产品名前缀：改名 Mode → Mode 时硬编码前缀让一次
           #   五个平台全部构建成功的发版卡在这里，别再把产品名写进判据。）
           # 上传或片段生成出了问题，阻止发布而不是发布不完整的清单。
           for pattern in \

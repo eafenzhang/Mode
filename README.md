@@ -14,7 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-Mode keeps the product itself — an agent that plans, edits, runs and verifies code with you — and rebuilds it from the public source with monitoring and telemetry removed and the vendor platform retired. It continues the ZCodium audit fork of [zai-org/Mode](https://github.com/zai-org/Mode); the lineage is recorded in [NOTICE.md](NOTICE.md) and the git history.
+Mode keeps the product itself — an agent that plans, edits, runs and verifies code with you — and rebuilds it from the public source with monitoring and telemetry removed and the vendor platform retired. It continues the Mode audit fork of [zai-org/Mode](https://github.com/zai-org/Mode); the lineage is recorded in [NOTICE.md](NOTICE.md) and the git history.
 
 ## What this fork is about
 

@@ -1,6 +1,6 @@
-# ZCodium：官方平台断连
+# Mode：官方平台断连
 
-官方平台服务已整体删除，没有开关、没有设置入口、没有环境变量。OAuth 登录、刷新、用户资料及远端登出、对话分享、反馈、套餐和额度、官方 MCP 凭证、闲时任务网关、客户端配置和内置模型远端配置一律不连接。反馈指向 https://github.com/eafenzhang/ZCodium/issues。
+官方平台服务已整体删除，没有开关、没有设置入口、没有环境变量。OAuth 登录、刷新、用户资料及远端登出、对话分享、反馈、套餐和额度、官方 MCP 凭证、闲时任务网关、客户端配置和内置模型远端配置一律不连接。反馈指向 https://github.com/eafenzhang/Mode/issues。
 
 共享纯策略（`packages/shared/src/officialPlatformPolicy.ts`）是唯一禁用规则：`isOfficialServiceEnabled` 恒为 false，`assertOfficialPlatformAvailable` / `assertOfficialServiceAvailable` 直接抛出「官方平台服务已下线」。各业务服务保留接口、类型和原有本地数据所有者；历史设置文件里的 `officialServices` 字段被 schema 静默丢弃（该字段已不再登记）。OAuth 展示未登录，不删除历史用户数据。无新业务状态、队列或持久化迁移；桌面连续流与手机可恢复流保持现有 Host/lease 所有权。
 
