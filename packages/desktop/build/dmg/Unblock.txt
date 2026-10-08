@@ -1,16 +1,16 @@
-ZCodium is blocked by macOS on first launch
+Mode is blocked by macOS on first launch
 
-Reason: the installer is not signed by ZCode, so Gatekeeper blocks the first launch.
+Reason: the installer is not signed by Mode, so Gatekeeper blocks the first launch.
 
-Drag ZCodium into "Applications" first, then follow these steps:
+Drag Mode into "Applications" first, then follow these steps:
 
 1. Open Terminal: press Command + Space, type "Terminal", press Return.
 2. Copy the entire command below, paste it into Terminal, press Return:
 
-sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/ZCodium.app" && open -a "ZCodium"
+sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"
 
 3. When Terminal asks for a password, type your login password. Nothing is shown on screen while typing — that is normal. Press Return when done.
-4. The command opens ZCodium automatically and then exits immediately, so your terminal is not kept busy.
+4. The command opens Mode automatically and then exits immediately, so your terminal is not kept busy.
 
 Notes:
 - The command uses the absolute path /usr/bin/xattr so another tool with the same name in your PATH (for example the Python xattr package) cannot shadow it and fail with "option -r not recognized".

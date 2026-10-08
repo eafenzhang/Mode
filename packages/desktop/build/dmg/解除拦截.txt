@@ -1,16 +1,16 @@
-ZCodium 首次打开被 macOS 拦截怎么办？
+Mode 首次打开被 macOS 拦截怎么办？
 
-原因：安装包没有 ZCode 官方签名，macOS 的 Gatekeeper 会拦截首次打开。
+原因：安装包没有 Mode 官方签名，macOS 的 Gatekeeper 会拦截首次打开。
 
-先把 ZCodium 拖进「应用程序」，然后按下面步骤解除拦截：
+先把 Mode 拖进「应用程序」，然后按下面步骤解除拦截：
 
 1. 打开「终端」（Terminal）：按 Command + 空格，输入“终端”，按回车。
 2. 复制下面这一整行命令，粘贴到终端窗口，按回车：
 
-sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/ZCodium.app" && open -a "ZCodium"
+sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"
 
 3. 终端提示输入密码时，输入你的开机密码。输入过程中屏幕上不会显示任何字符，这是正常的；输完按回车。
-4. 命令执行完会自动打开 ZCodium；命令本身会立即退出，不会一直占用终端。
+4. 命令执行完会自动打开 Mode；命令本身会立即退出，不会一直占用终端。
 
 说明：
 - 命令使用 /usr/bin/xattr 绝对路径，避免系统里安装了其他同名工具（例如 Python 的 xattr）时解析到错误的命令，报 “option -r not recognized”。

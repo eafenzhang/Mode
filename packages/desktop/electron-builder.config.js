@@ -701,7 +701,7 @@ export default {
     // 与 /usr/share/icons/hicolor/*/apps/mode.png 保持一致。
     executableName: desktopProductIdentity.linuxExecutableName,
     category: "Development",
-    maintainer: "Mode <zcodium-project@users.noreply.github.com>",
+    maintainer: "Mode <daiqianghaha@foxmail.com>",
   },
   deb: {
     // 生产版与 Preview 必须是两个 dpkg package；只改可执行名仍会让安装器把另一版本当成升级替换。
