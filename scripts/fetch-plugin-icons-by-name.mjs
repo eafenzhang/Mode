@@ -18,7 +18,7 @@ const catalogs = ["zcode-plugins-official", "claude-plugins-official"].map((id) 
     "marketplace.json",
   ),
 );
-const iconsDir = join(root, "packages/ui/src/assets/plugin-icons/zcode-plugins-official");
+const iconsDir = join(root, "packages/ui/src/assets/plugin-icons/mode-plugins-official");
 const generated = join(root, "packages/ui/src/settings/modeOfficialPluginIcons.generated.ts");
 
 const byName = new Map();
@@ -96,7 +96,7 @@ const lines = [
   "// 客户端不请求 CDN；用户自行添加的 Claude 等目录若插件同名，也直接复用这里的原版图标。",
 ];
 available.forEach((name, index) => {
-  lines.push(`import icon${index} from "@/assets/plugin-icons/zcode-plugins-official/${name}.png";`);
+  lines.push(`import icon${index} from "@/assets/plugin-icons/mode-plugins-official/${name}.png";`);
 });
 lines.push("");
 lines.push("/** 插件名 → 随包图标（同名跨市场复用）。 */");
