@@ -422,7 +422,7 @@
     "apps/mode-cli/packages/tui/package.json": "17e778d7c9ccbbd2425ea03feb50051ed0c562d3e65e266aec3ab87842dd1fcf",
     "apps/mode-cli/tools/prompt-trajectory/package.json": "571f15ba51a258e86a6864cfe5331da897a6ca04b9f1470e96f7a24acc9d1c07",
     "apps/mode-cli/tools/typescript/package.json": "d31f0abdcc4052b9175259a34ed03e4ad73bb1e146d56cecd5658dd0c7d4c8b8",
-    "package.json": "920f1f0755f4b41d59492302c5a75dc3eda612720db8dab6165e581b8b29baae",
+    "package.json": "6537b01cc26ccefec9c48c3478743957e23ef58286f6b788da422ea9816aa4ce",
     "packages/client/package.json": "ca66f666e9c5a1095a03c14b176fe95932e900cc4010a26b54bcf4be66e34097",
     "packages/desktop/package.json": "0194e0fef9a96b32a2a3b57c2ec12567291bff07bdce0af1936c4ef04fe061f6",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
