@@ -147,7 +147,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     "## Modified npm packages",
     ...patches.map(
       (item) =>
-        `- ${item.package}: modified by ZCode; the changes are recorded in ${item.file} in the source repository.`,
+        `- ${item.package}: modified by Mode; the changes are recorded in ${item.file} in the source repository.`,
     ),
     "## License and NOTICE texts",
   ];

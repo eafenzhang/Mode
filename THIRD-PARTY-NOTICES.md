@@ -2312,9 +2312,9 @@ Electron/Chromium target-specific notices are shipped separately under Resources
 
 ## Modified npm packages
 
-- @ai-sdk/openai-compatible@2.0.60: modified by ZCode; the changes are recorded in patches/@ai-sdk__openai-compatible@2.0.60.patch in the source repository.
+- @ai-sdk/openai-compatible@2.0.60: modified by Mode; the changes are recorded in patches/@ai-sdk__openai-compatible@2.0.60.patch in the source repository.
 
-- @ai-sdk/anthropic@3.0.81: modified by ZCode; the changes are recorded in patches/@ai-sdk__anthropic@3.0.81.patch in the source repository.
+- @ai-sdk/anthropic@3.0.81: modified by Mode; the changes are recorded in patches/@ai-sdk__anthropic@3.0.81.patch in the source repository.
 
 ## License and NOTICE texts
 

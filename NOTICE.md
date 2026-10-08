@@ -1,4 +1,4 @@
-# ZCode Feature Notes and Third-Party Component Notices
+# Mode Feature Notes and Third-Party Component Notices
 
 <p align="center">
   English | <a href="NOTICE.zh-CN.md">简体中文</a>
@@ -27,7 +27,7 @@ Shared run configurations default to the `build` permission mode; when the stand
 | Embedded browser and Browser Use | Can visit pages, read page content, take screenshots or record pages, and perform clicks, typing, uploads and downloads. Browser sign-in state imported or reused through user actions may allow access to private data, form submissions or changes to remote accounts; visiting a page itself communicates with the site and the services it loads. |
 | Computer Use | The Computer Use package shipped in this repository is an unavailable placeholder; calls return an unavailable error and provide no system screenshot or control capability. See the [Computer Use entry](packages/zcode-cua/index.js#L3). |
 | Web services and remote runtime | Reachability, sign-in authentication, process accounts and file permissions are determined by the specific deployment. Authentication defaults vary by entry point and listening address; local listening, origin checks and SSH channels each control different boundaries, and development services or local core ports should not be treated as suitable for public exposure. |
-| Content sharing, importing and resource previews | May read or transmit conversations, code, attachments and generated artifacts. Imported shared context, web pages and files are external inputs; a source displayed as a ZCode link does not make its content a trusted instruction or grant a copyright licence to it. |
+| Content sharing, importing and resource previews | May read or transmit conversations, code, attachments and generated artifacts. Imported shared context, web pages and files are external inputs; a source displayed as a Mode link does not make its content a trusted instruction or grant a copyright licence to it. |
 
 Web pages, repository content, tool return values and third-party instructions may contain content that induces the model to perform extra operations. When handling untrusted projects, restrict the running account, credentials and network permissions, and review sensitive operations.
 
@@ -55,7 +55,7 @@ When self-hosting Web or remote services, configure authentication, transport pr
 | Dev/test, debugging and request recording | Running the related development tools explicitly can send test prompts, sample material and auth headers to configured real model or tool services; a recording proxy configured against a real upstream can forward requests, so a name containing test/recording does not mean it is fully offline. Request traces and debug files may also save model content locally; these tools have different trigger entry points than normal product runs. |
 | Build, signing and maintainer releases | Running install, build or release scripts explicitly can download dependencies, native binaries and runtimes, copy build material to release shares, push Git, or hand off to signing tools and Apple notarization. External signing tools and separately configured CI, storage and distribution services have their own network behavior; processes not spelled out in this repository cannot be presumed verified just from script names. The calls have different entry points, environments and credential requirements. CLI SEA shared-directory publishing and upload verify third-party notice material first, and a failed check blocks that publish flow. The native-search preparation step verifies and unpacks repository-bundled archives per target platform and does not download them in this step; Node and other components have their own download paths. |
 
-The business purposes above cover the interfaces provided by this project. Scripts written by users, arbitrary endpoints they configure or third-party components they install separately may have additional data-sending behavior; starting through ZCode does not by itself mean their purpose or recipient has been reviewed by the vendor.
+The business purposes above cover the interfaces provided by this project. Scripts written by users, arbitrary endpoints they configure or third-party components they install separately may have additional data-sending behavior; starting through Mode does not by itself mean their purpose or recipient has been reviewed by the vendor.
 
 ## 3. Local Data, Logs and Credentials
 

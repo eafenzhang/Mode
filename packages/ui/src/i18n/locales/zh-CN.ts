@@ -710,7 +710,7 @@ const zhCN: Record<string, string> = {
   "bots.runtime.wecomConnected": "企业微信机器人已连接。",
   "bots.runtime.wecomReconnecting": "企业微信机器人重连中。",
   "bots.runtime.wecomStopped": "企业微信机器人连接已停止。",
-  "bots.runtime.wecomKicked": "连接已被其他客户端接管；请在其它 ZCode 窗口停用后重新启用。",
+  "bots.runtime.wecomKicked": "连接已被其他客户端接管；请在其它 Mode 窗口停用后重新启用。",
   "bots.telegramBotFatherQrAlt": "Telegram BotFather 二维码",
   "bots.telegramBotFatherScanHint": "扫码打开 BotFather，创建机器人并粘贴 token。",
   "bots.openBotFather": "打开 BotFather",

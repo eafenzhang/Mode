@@ -604,9 +604,9 @@ const faIR: Record<string, string> = {
   "bots.setup.guide.weixin.create.1":
     "ورود با کد QR در Weixin را آغاز کنید، کد QR را با Weixin اسکن کنید، سپس روی گوشی خود تأیید کنید.",
   "bots.setup.guide.weixin.create.2":
-    "ZCode به‌طور خودکار bot_token برگردانده‌شده از iLink را ذخیره می‌کند؛ پس از اسکن، در Weixin هر پیامی به بات بفرستید تا گفت‌وگو فعال شود.",
+    "Mode به‌طور خودکار bot_token برگردانده‌شده از iLink را ذخیره می‌کند؛ پس از اسکن، در Weixin هر پیامی به بات بفرستید تا گفت‌وگو فعال شود.",
   "bots.setup.guide.weixin.create.3":
-    "ZCode از کلاینت داخلی iLink استفاده می‌کند: `/ilink/bot/getupdates` برای long polling و `/ilink/bot/sendmessage` برای پاسخ‌ها.",
+    "Mode از کلاینت داخلی iLink استفاده می‌کند: `/ilink/bot/getupdates` برای long polling و `/ilink/bot/sendmessage` برای پاسخ‌ها.",
   "bots.setup.guide.weixin.bind.1": "گفت‌وگوی مستقیم Weixin را که می‌خواهید پیوند دهید باز کنید.",
   "bots.setup.guide.weixin.bind.2": "{command} را ارسال کنید.",
   "bots.setup.guide.weixin.bind.3":
@@ -623,13 +623,13 @@ const faIR: Record<string, string> = {
   "bots.setup.guide.feishu.bind.3":
     "پس از موفقیت پیوند به اینجا بازگردید تا پیش‌فرض‌های فضای کاری و CLI را تکمیل کنید.",
   "bots.setup.guide.webhook.create.1":
-    "حالت Webhook به بات بومی در محصول شخص ثالث نیازی ندارد؛ یکپارچه‌سازی شما فقط باید پیام‌ها را با POST به ZCode بفرستد.",
+    "حالت Webhook به بات بومی در محصول شخص ثالث نیازی ندارد؛ یکپارچه‌سازی شما فقط باید پیام‌ها را با POST به Mode بفرستد.",
   "bots.setup.guide.webhook.create.2":
     "ابتدا یک رمز مشترک تنظیم کنید؛ اگر می‌خواهید پاسخ‌های غیرهمزمان به شما پس فرستاده شوند، یک URL وب‌هوک خروجی هم اضافه کنید.",
   "bots.setup.guide.webhook.create.3":
     "برای هر کاربر خارجی یک userId پایدار نگه دارید تا پیوند و زمینه‌های آینده به همان شخص نگاشت شوند.",
   "bots.setup.guide.webhook.bind.1":
-    "یک فراخوانی برگشتی پیام خصوصی را با POST به نقطه پایانی `/api/bots/webhook` در ZCode بفرستید.",
+    "یک فراخوانی برگشتی پیام خصوصی را با POST به نقطه پایانی `/api/bots/webhook` در Mode بفرستید.",
   "bots.setup.guide.webhook.bind.3":
     "اگر بات رمز دارد، `x-zcode-bot-secret` را هم بفرستید؛ سپس پس از موفقیت پیوند به اینجا بازگردید.",
   "bots.setup.footer.choose": "برای ادامه یک بات پشتیبانی‌شده انتخاب کنید.",
@@ -780,7 +780,7 @@ const faIR: Record<string, string> = {
   "bots.runtime.wecomConnected": "ربات WeCom متصل است.",
   "bots.runtime.wecomReconnecting": "ربات WeCom در حال اتصال مجدد است.",
   "bots.runtime.wecomStopped": "اتصال ربات WeCom متوقف شد.",
-  "bots.runtime.wecomKicked": "اتصال توسط کلاینت دیگری تصاحب شد. آن را در پنجره‌های دیگر ZCode غیرفعال کنید و سپس اینجا فعال کنید.",
+  "bots.runtime.wecomKicked": "اتصال توسط کلاینت دیگری تصاحب شد. آن را در پنجره‌های دیگر Mode غیرفعال کنید و سپس اینجا فعال کنید.",
   "bots.telegramBotFatherQrAlt": "کد QR BotFather در Telegram",
   "bots.telegramBotFatherScanHint": "برای باز کردن BotFather، ساخت بات و جای‌گذاری توکن اسکن کنید.",
   "bots.openBotFather": "باز کردن BotFather",
@@ -790,7 +790,7 @@ const faIR: Record<string, string> = {
   "bots.runtime.telegramLongPollingStarting": "polling طولانی Telegram در حال آغاز است.",
   "bots.runtime.telegramLongPollingStopped": "polling طولانی Telegram متوقف شده است.",
   "bots.runtime.telegramLongPollingHandledElsewhere":
-    "polling طولانی Telegram توسط پنجره دیگری از ZCode مدیریت می‌شود.",
+    "polling طولانی Telegram توسط پنجره دیگری از Mode مدیریت می‌شود.",
   "bots.runtime.telegramTokenMissing": "اعتبارنامه بات Telegram موجود نیست.",
   "bots.runtime.telegramPollingFailedRetrying":
     "polling در Telegram ناموفق بود؛ در حال تلاش دوباره.",
