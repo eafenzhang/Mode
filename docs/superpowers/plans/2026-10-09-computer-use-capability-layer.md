@@ -545,7 +545,7 @@ fn region_outside_window_is_clamped() {
 
 - [ ] **Step 2: 跑测试确认失败** — Run: `cargo test --manifest-path crates/mode-cua-ax/Cargo.toml capture` → Expected: FAIL
 
-- [ ] **Step 3: 实现** — `PrintWindow` 到 32bpp DIB（`PW_RENDERFULLCONTENT=3`），失败 BitBlt；region clamp 到位图尺寸；`image::load_from_memory` 不用——直接 `image::codecs::png::PngEncoder` 写 RGB；全黑检测：解码后逐像素 stride 采样（步长=宽/64），全 0 → `internal` 错误。
+- [ ] **Step 3: 实现** — `PrintWindow` 到 32bpp DIB（`PW_RENDERFULLCONTENT` 用 windows-rs 具名常量——值为 **2**，计划原文「=3」是笔误，Task 4 实现时已对照 SDK 头/Wine/windows-rs 元数据修正），失败 BitBlt；region clamp 到位图尺寸；`image::load_from_memory` 不用——直接 `image::codecs::png::PngEncoder` 写 RGB；全黑检测：解码后逐像素 stride 采样（步长=宽/64），全 0 → `internal` 错误。
 
 - [ ] **Step 4: 跑测试** — Run: `cargo test --manifest-path crates/mode-cua-ax/Cargo.toml` → Expected: PASS
 
