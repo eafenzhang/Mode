@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { BrokerError, BROKER_SOCKET_ENV, CuaHelperError } from "./broker.js";
 
 export const HELPER_ADDON_ENV = "MODE_CUA_HELPER_ADDON";
@@ -151,15 +151,24 @@ function createUnavailableCuaHelperHost() {
 }
 
 // 官方 CUA 插件启用态的唯一读取位。消费方（services node.ts:1717 isCuaEnabledForContext）只传
-// {env, workingDirectory}，且是同步布尔——本仓没有 enabledPlugins 的 env 快照（rg 无该形态键），
-// 与 services 各 reader（subagentsService/skillsService readPluginConfig）同源读
-// ~/.mode/cli/config.json 的 plugins.enabledPlugins；判定形状对齐 CLI bootstrap
-// （plugins.ts:426/804 的 `?? false`）。
+// {env, workingDirectory} 且要同步布尔——按 bootstrap 的**合并视图**读，不是只读 user 层：
+// ① user 层 ~/.mode/cli/config.json；
+// ② project/workspace 层从 workingDirectory 发现的配置文件（root→cwd 合并，后者覆盖前者）。
+// 发现与合并的单一事实源（本文件零依赖镜像，改动需两侧同步，drift 风险见任务报告）：
+//   - 发现：config-factory.ts:124-125 → project-config.adapter.ts loadProjectConfigs →
+//     shared/workspace-hook-config.ts discoverWorkspaceHookConfigPaths / getProjectConfigDirectories
+//     （从 workingDirectory 逐级向上到含 .git 的 worktree 根并反转成 root→cwd；找不到 .git 只用
+//     workingDirectory 本身；每目录候选 mode.json、再 .mode/config.json，按此序发现、后发现者覆盖）；
+//   - 合并：config-merger.ts:79-96（enabledPlugins 按 pluginId 逐键覆盖——workspace 层的键盖掉
+//     user 层，见 plugins-command.ts:298「workspace/project 层的 enabledPlugins=true 优先级更高」；
+//     suppressedBuiltins 高层出现即整表替换、否则继承低层）。
+// 有效读位对齐 CLI bootstrap（plugins.ts:426/804 的 `enabledPlugins[id] ?? false` + 抑制标记）；
+// `plugins.enabled` 总开关在本仓只做 config get/set 往返（adapters/config/index.ts:138/413），
+// 没有加载方消费，作为门会造成「bootstrap 已加载、本门却 false」的假阴性，故不读。
 // fail-closed：computer-use 默认关闭（shared/plugin-marketplaces.ts「电脑控制回退为默认关闭」），
-// 缺文件/坏 JSON/总开关关/卸载抑制一律 false。id 存量写法按 adapters/src/config/schema.ts
-// pluginIdAliases 归一（旧名 mode-cua + 旧市场段 zcode-plugins-official）。
-// workingDirectory 仅为签名兼容保留：本仓插件启用态无 workspace 作用域（消费方注释
-// node.ts:1711-1715 亦说明 main 的 bootstrap 只按内建门控，不做 workspace enablement）。
+// 两层都缺/坏 JSON/被抑制一律 false。id 存量写法按 adapters/src/config/schema.ts pluginIdAliases
+// 归一（旧名 mode-cua + 旧市场段 zcode-plugins-official）。之前此处错误声称「本仓无 workspace
+// 作用域」——已按 I1 评审修正（contradicting sites 见任务报告 fix round 1）。
 const OFFICIAL_CUA_PLUGIN_ID = "computer-use@mode-plugins-official";
 const OFFICIAL_CUA_PLUGIN_ID_ALIASES = new Set([
   OFFICIAL_CUA_PLUGIN_ID,
@@ -176,18 +185,78 @@ function isOfficialCuaPluginId(id) {
   return typeof id === "string" && OFFICIAL_CUA_PLUGIN_ID_ALIASES.has(id.trim().toLowerCase());
 }
 
-export function isOfficialCuaPluginEnabledForWorkspace(options) {
-  const env = options?.env ?? process.env;
-  const home = env.HOME?.trim() || homedir();
-  let parsed;
+// ── project 配置发现（镜像 shared/workspace-hook-config.ts:335-357，sync 形态）──
+function hasWorktreeMarker(directory) {
+  const marker = join(directory, ".git");
   try {
-    parsed = JSON.parse(readFileSync(join(home, ".mode", "cli", "config.json"), "utf8"));
+    if (!existsSync(marker)) return false;
+    const stats = statSync(marker);
+    return stats.isDirectory() || stats.isFile();
   } catch {
     return false;
   }
-  if (!isRecord(parsed)) return false;
-  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
-  if (plugins.enabled === false) return false;
+}
+
+// 含 .git 的目录即 worktree 根：root→cwd 反转；一路上不到 .git 则只用 workingDirectory 本身
+// （与 getProjectConfigDirectories 同语义，不退化成"扫到文件系统根"）。
+function getProjectConfigDirectories(start) {
+  const directories = [];
+  let current = start;
+  while (true) {
+    directories.push(current);
+    if (hasWorktreeMarker(current)) return directories.reverse();
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return [start];
+}
+
+// 每目录候选顺序 mode.json → .mode/config.json（镜像 buildWorkspaceHookCandidatePaths，
+// 同目录内后发现的 .mode/config.json 在合并序里覆盖 mode.json）。
+function discoverProjectPluginConfigPaths(workingDirectory) {
+  const start = resolve(workingDirectory ?? process.cwd());
+  return getProjectConfigDirectories(start).flatMap((directory) => [
+    join(directory, "mode.json"),
+    join(directory, ".mode", "config.json"),
+  ]);
+}
+
+// 单层读取：文件缺失/坏 JSON → 跳过该层（对齐 loadFileConfig 的 loaded=false 语义）。
+function readPluginConfigLayer(path) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return undefined;
+  }
+  return isRecord(parsed) && isRecord(parsed.plugins) ? parsed.plugins : {};
+}
+
+// 逐键合并（镜像 config-merger.ts:79-96 的 enabledPlugins / suppressedBuiltins 分支）。
+function mergePluginLayers(previous, next) {
+  if (!next) return previous;
+  const merged = { ...previous, ...next };
+  if (isRecord(next.enabledPlugins)) {
+    merged.enabledPlugins = { ...previous?.enabledPlugins, ...next.enabledPlugins };
+  } else {
+    merged.enabledPlugins = previous?.enabledPlugins;
+  }
+  return merged;
+}
+
+export function isOfficialCuaPluginEnabledForWorkspace(options) {
+  const env = options?.env ?? process.env;
+  const home = env.HOME?.trim() || homedir();
+  // ① user 层（对齐 services readPluginConfig / hasGlobalCliModeCuaServer 的路径与 HOME 解析）。
+  let plugins = readPluginConfigLayer(join(home, ".mode", "cli", "config.json"));
+  // ② project 层 root→cwd 顺序合并，workingDirectory 层最后（最高优先）。workingDirectory 缺省
+  // 落 process.cwd()——与 loadProjectConfigs(workingDirectory ?? process.cwd()) 同默认
+  // （modeTaskServiceAdapter 的调用不带 context，镜像消费方的回退而非跳过，避免 I1 同类假阴性）。
+  for (const path of discoverProjectPluginConfigPaths(options?.workingDirectory)) {
+    plugins = mergePluginLayers(plugins, readPluginConfigLayer(path));
+  }
+  if (!plugins) return false;
   if (
     Array.isArray(plugins.suppressedBuiltins) &&
     plugins.suppressedBuiltins.some(isOfficialCuaPluginId)
@@ -284,8 +353,20 @@ export function createCuaProductMcpServerResolver(host, options) {
         return servers;
       }
       // ④ 活跃 CUA turn 中途不拉起/轮换 Helper——hasActiveTurn 就是在这里被调用的
-      // （消费方 node.ts:1706-1710 前向引用注释：resolver 调用发生在后续某次 resolveMcpServers）。
-      if (hasActiveTurn?.()) return servers;
+      // （消费方 node.ts:1706-1710 前向引用注释：resolver 调用发生在后续某次 resolveMcpServers；
+      //   node.ts:2276-2277 只禁「turn 中途回收/重启 Helper」，不禁读取现有 tuple）。
+      // M4 裁决：host 已在跑（running）时直接用 host.socketPath/pluginAuthority 注入现有 tuple、
+      // 不调 start()；冷 host 才不动作（不 mid-turn 拉起）。unavailable 短路已在 ① 挡住病态 host。
+      if (hasActiveTurn?.()) {
+        if (host.running) {
+          const warmSocket = host.socketPath ?? undefined;
+          const warmAuthority = host.pluginAuthority ?? undefined;
+          if (warmSocket && warmAuthority) {
+            return injectModeCuaBrokerCredentials(servers, warmSocket, warmAuthority);
+          }
+        }
+        return servers;
+      }
       let handle;
       try {
         handle = await host.start();
@@ -314,6 +395,12 @@ export function createCuaProductMcpServerResolver(host, options) {
 
 // 有界等待：deadline 先于内部 promise settle → reject BrokerError{code:"broker_unavailable"}
 // （plan Task 5 裁决；d.ts 未声明错误语义，node.ts:1268 caller_timeout 分支的差异见任务报告）。
+// 真实价值（M2 修正）：为消费方包住 createWindowsCuaHelperHost 的**冷 resolveRuntime** 解析链
+// （node.ts:968-978 getHost → options.resolveRuntime——missing-native-addon/artifact-integrity 等
+// 可能长挂），node.ts:1216 与 :1248 两处调用都包在这条 wrapper promise 外面。
+// 1248 的冷启动 race 分支在本仓不可达：每个 in-repo host 都暴露 waitForTransport
+// （Windows wrapper node.ts:970、unavailable stub broker-server.js:146），:1212 判真即走 :1216-1231
+// 早返回——故 caller_timeout 分支的差异比任务报告原先评估的更惰性（详见 fix round 1）。
 // 内部先 settle 则成功/失败都原样透传（保持同一引用/同一错误）。deadline 缺省 → 恒等透传。
 export async function waitForCuaHelperStartup(startup, deadlineMs) {
   if (deadlineMs === undefined || !Number.isFinite(deadlineMs)) return await startup;
