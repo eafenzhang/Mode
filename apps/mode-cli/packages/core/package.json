@@ -28,7 +28,8 @@
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src --no-ignore",
-    "lint:fix": "oxlint --fix src --no-ignore"
+    "lint:fix": "oxlint --fix src --no-ignore",
+    "test": "tsx --test test/*.test.mts"
   },
   "dependencies": {
     "@mode/contracts": "workspace:*",

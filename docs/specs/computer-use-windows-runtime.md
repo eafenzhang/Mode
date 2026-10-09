@@ -315,8 +315,13 @@
    - 收据与错误映射：17 码表、`possibly_sent` 三态、CUA_NOT_READY 冷启动（含 retryable=false 分支）。
    - 状态机：diff 基线轮换、索引重编号、稀疏/截断提示、窗口切换（模态成为捕获窗口）。
    - resolver：插件开关注入 MCP 凭据、关不启动 host；mac 分支保持 fail-closed。
-   - display 黄金样例：runtime 输出 → `createCuaToolResultDisplay` → UI 解析（首行 header、
-     元素行、截图 dataUrl、errorCode）全链路可解析。
+   - display 黄金样例：runtime 输出 → `createToolResultDisplay`（CUA 分支）→ 解析全链路可解析。
+     真消费方黄金在 `apps/mode-cli/packages/core/test/cua-display-golden.test.mts`
+     （`pnpm --filter @mode/core build && pnpm --filter @mode/core test`：帧对观察 / 动作收据 /
+     失败 / 32KiB 截断 / request_access / targetApp 六形态，过 contracts strict +
+     shared `toolResultDisplaySchema` 双解析 + UI 截图 dataUrl 正则）；
+     `packages/mode-cua/test/display-contract.test.mjs` 替身保留为包内契约双锁
+     （services 不能 import `@mode/core` 的降级，UI 侧首行 header / 元素行正则由它锁）。
 2. **Rust 单测**：树行走（fixture Win32 窗口）、keysym 映射、region clamp、digest/编码阶梯、
    错误码映射。
 3. **集成（win32，`CUA_INTEGRATION=1` 门）**：dev 根起 helper → IPC 握手 → health
@@ -326,9 +331,25 @@
 4. **E2E**：现有 desktop e2e harness——开启插件后入口出现；会话内 SDK cell `list_apps` 成功；
    指示器点亮条件（cell 含 `setupComputerUseRuntime`）。CI GUI 能力受限时如实标注，
    由实机清单兜底。
-5. **实机验收清单**：记事本输入往返；设置页（Electron/Chromium 树）观察与点击；截图卡片渲染；
-   元素消失 → reobserve 语义演示；`stop_computer_control` 后变更动作被拒；插件关闭 →
-   一键回到明确的不可用态；`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
+5. **实机验收清单**（逐项勾选；Plan C 收尾与打包实机步引用）：
+
+   - [ ] **记事本输入往返**：observe → click → type → re-observe，输入内容与树状态一致。
+   - [ ] **设置页（Electron/Chromium 树）观察与点击**。
+   - [ ] **截图卡片渲染**：帧 ≤200KiB 内联截图卡片出图正常（`OFFICIAL_CUA_IMAGE_INLINE_BASE64_BYTES` 预算内）。
+   - [ ] **stale/element 语义**：元素消失后再操作 → `element_unavailable` → reobserve 后恢复。
+   - [ ] **`stop_computer_control` 后变更动作被拒**（`controller_busy`，幂等重复 stop 成功）。
+   - [ ] **插件关闭 → 一键回到明确的不可用态**（再打开即恢复入口）。
+   - [ ] **helper kill → 代际恢复 + `CUA_NOT_READY`**：kill 子进程后新调用收 CUA_NOT_READY，
+         重试成功、凭据沿用。
+   - [ ] **透明启动**：`app_ref.name`/`bundle_id` 解析未命中 → 绑定即启动，get_app_state 成功（Plan B 终审 I1）。
+   - [ ] **controller busy**：异 workspace 并发抢占 → `controller_busy` + `details.owner` 可读。
+   - [ ] **锁屏 permission_denied**：锁屏期间 observe → `permission_denied` 且零 capture。
+   - [ ] **安装包 `resources/tools/cua-helper` 三件存在**：`entry.cjs`、`cua_ax.node`、
+         `runtime-manifest.json` 逐件在位，manifest sha256 校验通过。
+   - [ ] **安装机上打包态 roundtrip**：安装版对记事本完成 observe → click → type → re-observe 往返。
+   - [ ] **`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿**。
+   - [ ] **`node scripts/check-language-policy.mjs` 与 `pnpm verify:pre-push` 全绿**。
+   - [ ] **CI Actions 绿**（推送后）：verify 闸门（typecheck / lint / 语言政策 / 测试）+ 各平台构建发布。
 
 ## stub 收敛状态（Plan B 之后，实测核对）
 
