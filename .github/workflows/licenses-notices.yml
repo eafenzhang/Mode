@@ -33,6 +33,8 @@ on:
       # 台账本身（含手工编辑，必须能被验出来）
       - "THIRD-PARTY-NOTICES.md"
       - "third-party/**"
+      # Rust crates 台账输入（Cargo.toml/Cargo.lock → rust-sources.json）
+      - "crates/**"
       # 被登记为 copied 组件的源码
       - ".agents/skills/**"
       # 生成器与门禁逻辑
@@ -47,6 +49,7 @@ on:
       - "patches/**"
       - "THIRD-PARTY-NOTICES.md"
       - "third-party/**"
+      - "crates/**"
       - ".agents/skills/**"
       - "scripts/**"
       - ".github/workflows/licenses-notices.yml"

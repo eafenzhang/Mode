@@ -322,6 +322,8 @@
      shared `toolResultDisplaySchema` 双解析 + UI 截图 dataUrl 正则）；
      `packages/mode-cua/test/display-contract.test.mjs` 替身保留为包内契约双锁
      （services 不能 import `@mode/core` 的降级，UI 侧首行 header / 元素行正则由它锁）。
+     已知限制：截断态 `display.structuredContent` 为展示投影、非可解析 JSON；UI `cuaResultState`
+     解析失败走降级回 rawOutput（`cua-display-golden.test.mts` 截断用例锁定）。
 2. **Rust 单测**：树行走（fixture Win32 窗口）、keysym 映射、region clamp、digest/编码阶梯、
    错误码映射。
 3. **集成（win32，`CUA_INTEGRATION=1` 门）**：dev 根起 helper → IPC 握手 → health

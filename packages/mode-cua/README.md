@@ -14,7 +14,7 @@ for helper connections) are documented in
 ```bash
 pnpm build:cua-helper   # builds dist-cua-helper and stages it into bundled-tools
 # then start desktop dev against this package's outputs:
-# PowerShell: $env:MODE_CUA_DEV_ROOT="D:\ZCodium\packages\mode-cua"; pnpm dev:desktop
+# PowerShell: $env:MODE_CUA_DEV_ROOT="$(Get-Location)\packages\mode-cua"; pnpm dev:desktop
 # Git Bash : MODE_CUA_DEV_ROOT="$(pwd)/packages/mode-cua" pnpm dev:desktop
 ```
 

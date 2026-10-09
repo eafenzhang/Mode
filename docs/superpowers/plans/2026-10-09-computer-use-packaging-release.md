@@ -30,7 +30,7 @@
 | `.github/workflows/release.yml` | T2：windows 腿 rustup+msvc+build+stage+cargo |
 | `NOTICE.md` / `NOTICE.zh-CN.md` / `packages/mode-cua/README.md` / `package.json` description / 根 README 核对 | T3：占位→可用文案 |
 | `third-party/*` + `scripts/generate-third-party-notices.mjs`（或手工节） | T3：Rust crates 台账（开局状态检查） |
-| `apps/mode-cli/packages/core/test/cua-display-golden.test.mjs`（新）+ core `package.json` test 脚本 | T4：display 真黄金 |
+| `apps/mode-cli/packages/core/test/cua-display-golden.test.mts`（新）+ core `package.json` test 脚本 | T4：display 真黄金 |
 | `docs/specs/computer-use-windows-runtime.md` 验收节 | T4：实机验收清单 |
 | `packages/services/src/node.ts`（注释）、`packages/mode-cua/index.d.ts` | T5：一行修 |
 
@@ -42,7 +42,7 @@
 - Create/Modify: stage 脚本（优先复用——trace `packages/desktop/scripts/ensure-local-runtime-assets.mjs` 与 `scripts/prepare-prebuilds.mjs` 谁拥有 `bundled-tools` 的生産语义，报告给出选择依据；新脚本则 `scripts/stage-cua-helper.mjs`）
 - Modify: `packages/desktop/electron-builder.config.js`（`extraResources` 数组）
 - Modify: 根 `package.json`（`build:cua-helper` 之后能一键 stage 的脚本串联，或 build 脚本内直接输出双落点——trace 后定）
-- Test: `packages/desktop/tests/cua-helper-packaging.test.mjs`（新，沿 desktop tests `node:test` 风格：断言 extraResources 含 win32 cua-helper 条目且 filter 正确、stage 脚本幂等、manifest 三件齐）
+- Test: `packages/desktop/tests/cua-helper-packaging.test.mts`（新，沿 desktop tests `node:test` 风格：断言 extraResources 含 win32 cua-helper 条目且 filter 正确、stage 脚本幂等、manifest 三件齐）
 
 **Interfaces:**
 - Consumes: `pnpm build:cua-helper` 产物（`packages/mode-cua/dist-cua-helper/{entry.cjs,cua_ax.node,runtime-manifest.json}`，Plan A Task 9）；ripgrep 先例（`electron-builder.config.js` 内 `from: bundled-tools/${targetPlatform.key}/ripgrep, to: tools/ripgrep`，约 :632）；`resolvePackagedRuntime` 期望 `resources/tools/cua-helper`（Plan A 已测）。
@@ -107,7 +107,7 @@
 ### Task 4: display 真黄金 + 实机验收清单
 
 **Files:**
-- Create: `apps/mode-cli/packages/core/test/cua-display-golden.test.mjs`（落点规则见 Step 1）
+- Create: `apps/mode-cli/packages/core/test/cua-display-golden.test.mts`（落点规则见 Step 1）
 - Modify: `apps/mode-cli/packages/core/package.json`（`test` 脚本——若该包无）
 - Modify: `docs/specs/computer-use-windows-runtime.md`（验收场景节 → 可勾选的实机清单）
 
