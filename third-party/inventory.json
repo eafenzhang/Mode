@@ -409,7 +409,7 @@
     "apps/mode-cli/packages/browser-use-plugin/package.json": "05ed4d1702f8a355a50de851412ab19389062538cc764b871328046ecee19953",
     "apps/mode-cli/packages/cli/package.json": "164b6efe1ecabd154788567b03477e83cbb93d6f7f19ca4e0cae373b65cee5ce",
     "apps/mode-cli/packages/contracts/package.json": "d99e3b3ce8c7f73b847d3e280c6a30102f0bce3621f90b2fd3a293f87561d67d",
-    "apps/mode-cli/packages/core/package.json": "e51488fc8f841e747b1ca2d42de9be60b87eac5dea8478f30d6ca7e2a86d67e5",
+    "apps/mode-cli/packages/core/package.json": "400076312debc4cd5c1972e1b319d3996443a560fe4f94bf0a112941501acab5",
     "apps/mode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts": "60fa5acd9f5c357f4e51b1d1e944ee39da92680e4bc5e98dd708f1457fcf612b",
     "apps/mode-cli/packages/debug/package.json": "16e6a402d995d3a56ed6e97665cd81f0dd22f03280350d5e0a70c14a2cc4b2ca",
     "apps/mode-cli/packages/dynamic-workflow-runtime/package.json": "07fe973b33e1aab58850ecc1ad963cb3a6492c9d0d59ab223ffa7babeb043686",
