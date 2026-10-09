@@ -13,14 +13,13 @@ use windows::Win32::System::DataExchange::{
   CloseClipboard, EmptyClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
   SetClipboardData,
 };
-use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+use windows::Win32::System::Memory::{
+  GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE,
+};
 use windows::Win32::System::Ole::CF_UNICODETEXT;
 
 /// 预定义格式 CF_UNICODETEXT = 13（CLIPBOARD_FORMAT(13)；Get/SetClipboardData 收 u32）。
 const UNICODE_TEXT: u32 = CF_UNICODETEXT.0 as u32;
-
-/// 单次读取上限（UTF-16 码元）：防坏剪贴板无 NUL 时无限扫描。
-const MAX_UNITS: usize = 16 * 1024 * 1024;
 
 /// OpenClipboard 争用重试预算（别的进程短暂占用是常态）。
 fn open_with_retry() -> AxResult<()> {
@@ -61,23 +60,37 @@ pub fn read_text() -> AxResult<Option<String>> {
 }
 
 /// HGLOBAL → String（GlobalLock → 扫到 NUL → 解码 → GlobalUnlock）。
+///
+/// **越界防护**：扫描上界不是任意常量，而是 `GlobalSize(mem)`——块的实际分配字节数。
+/// 恶意/损坏的剪贴板提供方给一块**无 NUL 终止**的数据时，只在分配内扫描；超出分配即视为
+/// 损坏 → 安全返回 Ok(None)（不读一个字节的块外内存——那是 UB）。
 unsafe fn read_hglobal(handle: HANDLE) -> AxResult<Option<String>> {
   let mem = HGLOBAL(handle.0);
   let ptr = GlobalLock(mem);
   if ptr.is_null() {
     return Ok(None);
   }
+  // GlobalSize = 该 HGLOBAL 的分配大小（字节）；0 = 句柄无效/已失效。
+  let alloc_bytes = GlobalSize(mem);
+  let max_units = alloc_bytes / 2; // UTF-16 码元数（截去尾字节）
   let mut len = 0usize;
-  while len < MAX_UNITS {
-    // ptr 指向系统持有的可移动内存块，读到 NUL 为止。
+  let mut terminated = false;
+  while len < max_units {
+    // ptr 指向系统持有的可移动内存块；只在 [0, max_units) 内读到 NUL 为止。
     let unit = *(ptr as *const u16).add(len);
     if unit == 0 {
+      terminated = true;
       break;
     }
     len += 1;
   }
-  let slice = std::slice::from_raw_parts(ptr as *const u16, len);
-  let text = String::from_utf16_lossy(slice);
+  if !terminated {
+    // 分配内无终止符 = 损坏数据，按「无文本」安全返回（不带未终止内容出去）。
+    let _ = GlobalUnlock(mem);
+    return Ok(None);
+  }
+  // 解码必须在解锁**之前**：可移动块解锁后指针可被系统搬移，先拷成 String 再放锁。
+  let text = String::from_utf16_lossy(std::slice::from_raw_parts(ptr as *const u16, len));
   let _ = GlobalUnlock(mem);
   Ok(Some(text))
 }

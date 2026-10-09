@@ -37,6 +37,16 @@ const CLICK_GAP_MS: u64 = 50;
 const PASTE_SETTLE_MS: u64 = 150;
 const FOCUS_SETTLE_MS: u64 = 50;
 
+// ——— 载荷上限（controller 裁定：clamp 不拒绝）——schema 合法但天文数字的字段会把**调用方
+// 线程**挂死（u32::MAX ms 的 sleep ≈ 49.7 天；STA 30s 超时只覆盖命令队列、管不到这里），
+// 故在解析时按上限收口；运行时（直构 Req 的路径）用同一组常量再收一次。———
+/// key 单次 hold 上限（毫秒）。
+const MAX_HOLD_MS: u32 = 10_000;
+/// key repeat 次数上限。
+const MAX_KEY_REPEAT: u32 = 100;
+/// click 单请求点击次数上限。
+const MAX_CLICK_COUNT: u32 = 10;
+
 /// UIA 路径的元素定位方式（payload `set_value {elementIndex|"x,y"焦点, value}` 二选一）。
 #[derive(Debug)]
 pub enum ElementTarget {
@@ -157,10 +167,13 @@ fn click(
   // —— 校验先行（先于前台校验与任何 INPUT 构造）。
   let (down, up) = input::mouse_button_flags(button)?;
   let mods = input::parse_modifiers(modifiers)?;
+  // 直构 Req 的上限防线（解析路径已在 parse_req clamp，controller 裁定：clamp 不拒绝）。
+  let click_count = click_count.min(MAX_CLICK_COUNT);
   if click_count == 0 {
     return Err(AxError::new("invalid_request", "clickCount 至少为 1"));
   }
-  // —— 前台闸门：违规即零下发。
+  // —— UIPI 完整性闸门 + 前台闸门：任一违规即零下发。
+  input::uipi_preflight(window_id)?;
   input::ensure_foreground(window_id)?;
   let mut tally = input::InputTally::new();
   for i in 0..click_count {
@@ -196,6 +209,7 @@ fn click_drag(
   modifiers: &str,
 ) -> AxResult<String> {
   let mods = input::parse_modifiers(modifiers)?;
+  input::uipi_preflight(window_id)?;
   input::ensure_foreground(window_id)?;
   let (down, up) = input::mouse_button_flags("left")?;
   let mut tally = input::InputTally::new();
@@ -244,6 +258,7 @@ fn scroll(window_id: u32, x: i32, y: i32, direction: &str, amount: f64) -> AxRes
     // 0 页（含负数 clamp 到 0）：无轮事件可发——零下发如实上报。
     return Ok("not_dispatched".to_string());
   }
+  input::uipi_preflight(window_id)?;
   input::ensure_foreground(window_id)?;
   let mut tally = input::InputTally::new();
   tally.push(&[input::mouse_move_to(x, y)]);
@@ -254,9 +269,13 @@ fn scroll(window_id: u32, x: i32, y: i32, direction: &str, amount: f64) -> AxRes
 /// 按键：chord 展开 → repeat 次；hold_ms>0 时按下/抬起分批、中间保持。
 fn key(window_id: u32, chord: &str, repeat: u32, hold_ms: u32) -> AxResult<String> {
   let steps = input::resolve_chord(chord)?; // 校验先行
+  // 直构 Req 的上限防线（解析路径已在 parse_req clamp；clamp 不拒绝——controller 裁定）。
+  let repeat = repeat.min(MAX_KEY_REPEAT);
+  let hold_ms = hold_ms.min(MAX_HOLD_MS);
   if repeat == 0 {
     return Ok("not_dispatched".to_string());
   }
+  input::uipi_preflight(window_id)?;
   input::ensure_foreground(window_id)?;
   let mut tally = input::InputTally::new();
   for _ in 0..repeat {
@@ -279,6 +298,7 @@ fn type_text(window_id: u32, text: &str) -> AxResult<String> {
   if text.is_empty() {
     return Ok("not_dispatched".to_string());
   }
+  input::uipi_preflight(window_id)?;
   input::ensure_foreground(window_id)?;
   let mut tally = input::InputTally::new();
   tally.push(&input::type_text_inputs(text));
@@ -292,10 +312,14 @@ fn paste(window_id: u32, text: &str) -> AxResult<String> {
     return Ok("not_dispatched".to_string());
   }
   let steps = input::resolve_chord("ctrl+v")?; // 校验先行（常量 chord，防御性保留）
-  // 前台闸门必须先于剪贴板写入——剪贴板也是注入面，违规时零改动。
+  // UIPI + 前台闸门必须先于剪贴板写入——剪贴板也是注入面，违规时零改动。
+  input::uipi_preflight(window_id)?;
   input::ensure_foreground(window_id)?;
   let backup = clipboard::ClipboardBackup::capture()?;
   clipboard::write_text(text)?;
+  // 第二道前台校验：上面的保存/写入会打开系统剪贴板（数百 ms 量级的竞态窗），Ctrl+V 前
+  // 再确认一次目标仍在前台——中途丢前台则备份经 Drop 还原、Ctrl+V 零下发。
+  input::ensure_foreground(window_id)?;
   let mut tally = input::InputTally::new();
   tally.push(&steps.iter().flat_map(input::step_atomic).collect::<Vec<_>>());
   settle(PASTE_SETTLE_MS); // 等目标消费剪贴板后再还原
@@ -311,6 +335,7 @@ fn paste(window_id: u32, text: &str) -> AxResult<String> {
 /// 投递本身正常——shift+Left、ctrl+Home、ctrl+shift+End 都生效——唯独 Ctrl+A 无选区）；
 /// Home/End 导航键是 EDIT 与 RichEdit/Chromium 等现代控件的共有键，两条 chord 通吃。
 pub fn select_all_and_type(window_id: u32, text: &str) -> AxResult<String> {
+  input::uipi_preflight(window_id)?; // 自身也是注入入口 → 自检
   input::ensure_foreground(window_id)?; // 自身也是注入入口 → 自检
   let mut tally = input::InputTally::new();
   for chord in ["ctrl+Home", "ctrl+shift+End"] {
@@ -399,6 +424,9 @@ fn set_value(window_id: u32, target: &ElementTarget, value: &str) -> AxResult<St
   match target {
     ElementTarget::Point { x, y } => event_set_value(window_id, *x, *y, value),
     ElementTarget::Index(index) => {
+      // UIPI 完整性预检先于挂起预检：提升目标是「永远注入不了」的确定失败，
+      // 比挂起（可恢复）更该先暴露。
+      input::uipi_preflight(window_id)?;
       uia_preflight(window_id)?;
       let index = *index;
       // 闭包进 STA 线程 → 'static：value 拷贝为 owned。
@@ -467,6 +495,7 @@ fn select_text(window_id: u32, element_index: u32, start: i32, length: i32) -> A
       "select_text 的 start/length 不能为负",
     ));
   }
+  input::uipi_preflight(window_id)?;
   uia_preflight(window_id)?;
   uia_thread::submit_perform(move |auto: AxResult<&IUIAutomation>| {
     let auto = auto?;
@@ -518,6 +547,7 @@ fn action(window_id: u32, element_index: u32, name: &str) -> AxResult<String> {
   if name.is_empty() {
     return Err(AxError::new("invalid_request", "action 不能为空"));
   }
+  input::uipi_preflight(window_id)?;
   uia_preflight(window_id)?;
   let name = name.to_string();
   uia_thread::submit_perform(move |auto: AxResult<&IUIAutomation>| {
@@ -629,10 +659,25 @@ fn p_u32(payload: &Value, key: &str) -> AxResult<u32> {
     .map_err(|_| AxError::new("invalid_request", format!("字段 {key} 超出 u32 范围")))
 }
 
-fn p_u32_or(payload: &Value, key: &str, default: u32) -> AxResult<u32> {
+/// 上限 clamp 版 u32 字段（controller 裁定：**超上限取上限，不拒绝**）。
+/// 在 f64 空间比较——`f >= cap` 同时吸收 `cap..=u32::MAX` 与天文数字（>u32::MAX 也取 cap，
+/// 而不是按 p_u32 的「超出 u32 范围」报错）；缺失 → default；负数/非整数/非有限数 →
+/// invalid_request（低界与形状错误不是挂死向量，维持严格校验）。
+fn p_u32_capped(payload: &Value, key: &str, default: u32, cap: u32) -> AxResult<u32> {
   match payload.get(key) {
     None => Ok(default),
-    Some(_) => p_u32(payload, key),
+    Some(v) => {
+      let f = v
+        .as_f64()
+        .ok_or_else(|| AxError::new("invalid_request", format!("字段 {key} 需非负整数")))?;
+      if !f.is_finite() || f < 0.0 || f.fract() != 0.0 {
+        return Err(AxError::new(
+          "invalid_request",
+          format!("字段 {key} 需非负整数"),
+        ));
+      }
+      Ok(if f >= f64::from(cap) { cap } else { f as u32 })
+    }
   }
 }
 
@@ -650,7 +695,7 @@ pub fn parse_req<'a>(kind: &str, payload: &'a Value) -> AxResult<Req<'a>> {
       x: p_i32(payload, "x")?,
       y: p_i32(payload, "y")?,
       button: p_str_or(payload, "button", "left")?,
-      click_count: p_u32_or(payload, "clickCount", 1)?,
+      click_count: p_u32_capped(payload, "clickCount", 1, MAX_CLICK_COUNT)?,
       modifiers: p_str_or(payload, "modifiers", "")?,
     }),
     "click_drag" => Ok(Req::ClickDrag {
@@ -674,8 +719,8 @@ pub fn parse_req<'a>(kind: &str, payload: &'a Value) -> AxResult<Req<'a>> {
     }
     "key" => Ok(Req::Key {
       chord: p_str(payload, "chord")?,
-      repeat: p_u32_or(payload, "repeat", 1)?,
-      hold_ms: p_u32_or(payload, "holdMs", 0)?,
+      repeat: p_u32_capped(payload, "repeat", 1, MAX_KEY_REPEAT)?,
+      hold_ms: p_u32_capped(payload, "holdMs", 0, MAX_HOLD_MS)?,
     }),
     "type_text" => Ok(Req::TypeText {
       text: p_str(payload, "text")?,

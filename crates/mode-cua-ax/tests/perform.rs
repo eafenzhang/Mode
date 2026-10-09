@@ -79,10 +79,16 @@ fn is_foreground(fix: &common::Fixture) -> bool {
   fg == hwnd_of(fix)
 }
 
+/// 门闩内取共享夹具（**不激活**——UIA 路径无前台依赖；创建同样走门闩，避免在别的用例
+/// 持前台时新建窗口抢焦点）。
+fn gated_shared_fixture() -> (MutexGuard<'static, ()>, &'static common::Fixture) {
+  let guard = GATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+  (guard, SHARED.get_or_init(common::spawn_fixture))
+}
+
 /// 门闩内取共享夹具并激活到前台；拿不到前台 → None（调用方 skip 并注明）。
 fn spawn_active_fixture() -> Option<(MutexGuard<'static, ()>, &'static common::Fixture)> {
-  let guard = GATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-  let fix = SHARED.get_or_init(common::spawn_fixture);
+  let (guard, fix) = gated_shared_fixture();
   if !activate(fix) {
     eprintln!("SKIP：本机无法取得前台（前台锁/外部占用），前台敏感断言跳过");
     return None;
@@ -270,7 +276,7 @@ fn type_text_lands_in_fixture_edit() {
   let r = observe::observe(hwnd, 3000).expect("re-observe");
   let edit = r.elements.iter().find(|e| e.kind == "edit").expect("edit");
   let value = edit.value.as_deref().unwrap_or_default();
-  assert!(value.contains('C'), "EDIT 值未收到键入内容：{value:?}");
+  assert!(value.contains("ZC"), "EDIT 值未收到键入内容：{value:?}");
 }
 
 #[test]
@@ -318,7 +324,8 @@ fn click_drag_moves_cursor_to_end_point() {
 
 #[test]
 fn set_value_point_runs_event_fallback() {
-  // 「x,y」焦点变体：无 UIA 元素可依 → 点击聚焦 + Ctrl+A + 键入（事件兜底全链）。
+  // 「x,y」焦点变体：无 UIA 元素可依 → 点击聚焦 + 全选（ctrl+Home + ctrl+shift+End，
+  // 经典 EDIT 不认 Ctrl-A，见 select_all_and_type 的 WHY 注释）+ 键入（事件兜底全链）。
   let Some((_gate, fix)) = spawn_active_fixture() else {
     return;
   };
@@ -428,7 +435,7 @@ fn select_text_sets_edit_selection() {
   };
   let hwnd = fix.hwnd as u32;
   // 单行 EDIT 实测无 TextPattern（not_selectable 是真实映射）；TextPattern 宿主是夹具的
-  // RichEdit20W（按初值唯一定位；ValuePattern 读值带行尾 \r，实测 'rich text\r'）。
+  // RichEdit50W（按初值唯一定位；ValuePattern 读值带行尾 \r，实测 'rich text\r'）。
   let r = observe::observe(hwnd, 3000).expect("observe");
   let rich = r
     .elements
@@ -613,5 +620,117 @@ fn validation_precedes_foreground_and_injection() {
     perform::perform(&neg, 0).unwrap_err().code,
     "invalid_request"
   );
+}
+
+// ————————————— fix round 1：载荷上限 / 三态短路 / element_unavailable / UIPI —————————————
+
+#[test]
+fn payload_numeric_caps_clamp_not_reject() {
+  // controller 裁定：数值字段超上限 **clamp 不拒绝**——u32::MAX 的 holdMs 会让调用方
+  // 线程睡 49.7 天（STA 30s 超时只覆盖队列、管不到这里）。
+  let v: serde_json::Value =
+    serde_json::from_str(r#"{"chord":"a","repeat":4294967295,"holdMs":4294967295}"#)
+      .expect("payload json");
+  match perform::parse_req("key", &v).expect("parse key") {
+    Req::Key {
+      repeat, hold_ms, ..
+    } => {
+      assert_eq!(repeat, 100, "repeat 上限");
+      assert_eq!(hold_ms, 10_000, "holdMs 上限");
+    }
+    other => panic!("unexpected kind: {other:?}"),
+  }
+  // 超出 u32 表示范围的天文数字同样 clamp（不按「超出 u32 范围」拒绝）。
+  let v: serde_json::Value =
+    serde_json::from_str(r#"{"chord":"a","repeat":99999999999999}"#).expect("payload json");
+  match perform::parse_req("key", &v).expect("parse big repeat") {
+    Req::Key { repeat, .. } => assert_eq!(repeat, 100),
+    other => panic!("unexpected kind: {other:?}"),
+  }
+  let v: serde_json::Value =
+    serde_json::from_str(r#"{"x":1,"y":2,"clickCount":999}"#).expect("payload json");
+  match perform::parse_req("click", &v).expect("parse click") {
+    Req::Click { click_count, .. } => assert_eq!(click_count, 10, "clickCount 上限"),
+    other => panic!("unexpected kind: {other:?}"),
+  }
+}
+
+#[test]
+fn no_op_payloads_report_not_dispatched() {
+  // 三态短路（headline 约束）：repeat=0 / 空文本 / 0 页 / 空粘贴——零事件可发。
+  // 短路在前台与 UIPI 校验**之前**：window_id=0 必非前台，若顺序反了这里会拿到
+  // foreground_required 而不是 not_dispatched。
+  assert_eq!(
+    perform::perform(
+      &Req::Key {
+        chord: "a",
+        repeat: 0,
+        hold_ms: 0
+      },
+      0
+    )
+    .unwrap(),
+    "not_dispatched"
+  );
+  assert_eq!(
+    perform::perform(&Req::TypeText { text: "" }, 0).unwrap(),
+    "not_dispatched"
+  );
+  assert_eq!(
+    perform::perform(
+      &Req::Scroll {
+        x: 0,
+        y: 0,
+        direction: "down",
+        amount: 0.0
+      },
+      0
+    )
+    .unwrap(),
+    "not_dispatched"
+  );
+  assert_eq!(
+    perform::perform(&Req::Paste { text: "" }, 0).unwrap(),
+    "not_dispatched"
+  );
+}
+
+#[test]
+fn uipi_integrity_comparison_rules() {
+  // I3 纯比较：目标**严格更高** → 拦；相等/更低 → 放行；任一侧未知 → fail-open 放行。
+  assert!(input::integrity_blocks_injection(
+    Some(0x3000),
+    Some(0x2000)
+  )); // High > Medium（提升目标）
+  assert!(!input::integrity_blocks_injection(
+    Some(0x2000),
+    Some(0x2000)
+  ));
+  assert!(!input::integrity_blocks_injection(
+    Some(0x1000),
+    Some(0x2000)
+  )); // Low < Medium
+  assert!(!input::integrity_blocks_injection(None, Some(0x2000))); // 目标探测失败
+  assert!(!input::integrity_blocks_injection(Some(0x4000), None)); // 自身探测失败
+}
+
+#[test]
+fn stale_element_index_is_element_unavailable() {
+  // UIA 路径无前台依赖 → 门闩取共享夹具即可（不激活，正好兼证后台可用）。
+  let (_gate, fix) = gated_shared_fixture();
+  let hwnd = fix.hwnd as u32;
+  // 同进程窗口完整性相等 → UIPI 预检放行（真实链路自检，不只是纯函数）。
+  assert!(input::uipi_preflight(hwnd).is_ok());
+  // 越界索引（远超观察到的元素数）→ element_unavailable。
+  let err = perform::perform(
+    &Req::SelectText {
+      element_index: 999_999,
+      start: 0,
+      length: 1,
+    },
+    hwnd,
+  )
+  .unwrap_err();
+  assert_eq!(err.code, "element_unavailable");
 }
 

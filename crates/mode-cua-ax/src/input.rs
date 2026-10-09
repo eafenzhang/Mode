@@ -8,13 +8,22 @@
 //!   （101→12000、2→240、0→0、负→0；brief 裁定 2）。
 //! - `ensure_foreground`：`GetForegroundWindow() != hwnd` → `foreground_required`。
 //!   这是 event 路径「零下发」的结构保证——调用方必须在构造/投递任何 INPUT 之前先调它。
+//! - `uipi_preflight`：目标进程完整性级别严格高于本进程 → `action_unavailable`
+//!   （spec 风险表 UIPI 行；预检同样在一切注入之前，零下发）。
 //!
 //! dispatched 三态（brief Step 3）：一次 `SendInput` 收到条数 == 期望 → `dispatched`；
 //! 0 → `not_dispatched`；部分/不确定 → `unknown`。跨批次取**合计**（部分批次成功即 unknown，
 //! 否则无法区分「全没发」与「发了一半」）。
 use crate::error::{AxError, AxResult};
 use std::ffi::c_void;
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND};
+use windows::Win32::Security::{
+  GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, TokenIntegrityLevel,
+  TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
+};
+use windows::Win32::System::Threading::{
+  GetCurrentProcessId, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
   SendInput, VkKeyScanW, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYBD_EVENT_FLAGS,
   KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, MOUSEINPUT, MOUSE_EVENT_FLAGS,
@@ -24,8 +33,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
   VK_LMENU, VK_LSHIFT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-  GetForegroundWindow, GetSystemMetrics, WHEEL_DELTA, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-  SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+  GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId, WHEEL_DELTA,
+  SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
 };
 
 /// 一次 chord 展开后的按键步。`Tap` = 同批次内的 down+up（原子按下抬起）。
@@ -249,6 +258,115 @@ pub fn ensure_foreground(window_id: u32) -> AxResult<()> {
   Ok(())
 }
 
+// ————————————————————————— UIPI 完整性预检 —————————————————————————
+
+/// 进程/令牌句柄 RAII：探测链任一步提前返回都保证关闭（不泄句柄）。
+struct CloseOnDrop(HANDLE);
+
+impl Drop for CloseOnDrop {
+  fn drop(&mut self) {
+    // unsafe 依据（块级）：CloseHandle FFI；句柄在 drop 时仍有效。
+    let _ = unsafe { CloseHandle(self.0) };
+  }
+}
+
+/// 读取**已打开进程**令牌的完整性级别 RID（`TokenIntegrityLevel` → SID 末位子权威，
+/// 如 Medium=0x2000、High=0x3000、System=0x4000）。任一步失败 → None（调用方 fail-open）。
+fn integrity_rid_of(process: HANDLE) -> Option<u32> {
+  let process = CloseOnDrop(process);
+  let mut token = HANDLE(std::ptr::null_mut());
+  // unsafe 依据（块级）：OpenProcessToken/GetTokenInformation/SID 查询均为 FFI；
+  // token 由 CloseOnDrop 守卫，缓冲为本函数自有内存。
+  unsafe {
+    OpenProcessToken(process.0, TOKEN_QUERY, &mut token).ok()?;
+    let token = CloseOnDrop(token);
+    let mut needed: u32 = 0;
+    // 首调拿缓冲长度（ERROR_INSUFFICIENT_BUFFER 是预期返回，故忽略 Result）。
+    let _ = GetTokenInformation(token.0, TokenIntegrityLevel, None, 0, &mut needed);
+    if needed == 0 {
+      return None;
+    }
+    // u64 槽位保证对齐：TOKEN_MANDATORY_LABEL 含指针，直接按 1 字节 Vec 读会未对齐（UB）。
+    let mut slots = vec![0u64; (needed as usize).div_ceil(8)];
+    GetTokenInformation(
+      token.0,
+      TokenIntegrityLevel,
+      Some(slots.as_mut_ptr() as *mut c_void),
+      needed,
+      &mut needed,
+    )
+    .ok()?;
+    let mdl = *(slots.as_ptr() as *const TOKEN_MANDATORY_LABEL);
+    if mdl.Label.Sid.0.is_null() {
+      return None;
+    }
+    let count = *GetSidSubAuthorityCount(mdl.Label.Sid);
+    if count == 0 {
+      return None;
+    }
+    let rid = GetSidSubAuthority(mdl.Label.Sid, u32::from(count) - 1);
+    if rid.is_null() {
+      return None;
+    }
+    Some(*rid)
+  }
+}
+
+/// 按 pid 打开进程并读完整性 RID（OpenProcess 失败 → None）。
+fn pid_integrity_rid(pid: u32) -> Option<u32> {
+  // unsafe 依据（块级）：OpenProcess FFI。PROCESS_QUERY_LIMITED_INFORMATION 是允许对
+  // 受保护/提升进程申请的最小查询权限（不必 PROCESS_QUERY_INFORMATION）。
+  let handle =
+    unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, windows::Win32::Foundation::FALSE, pid) }.ok()?;
+  integrity_rid_of(handle)
+}
+
+/// 纯比较逻辑（单测入口）：目标 RID **严格高于**本进程 → true（UIPI 将静默丢弃注入）；
+/// 相等或更低 → false；任一侧未知（探测失败）→ false（fail-open，见 `uipi_preflight`）。
+pub fn integrity_blocks_injection(target_rid: Option<u32>, our_rid: Option<u32>) -> bool {
+  match (target_rid, our_rid) {
+    (Some(t), Some(o)) => t > o,
+    _ => false,
+  }
+}
+
+/// 注入前 UIPI 完整性预检（spec 风险表「UIPI → 映射 `action_unavailable` + message 指引」）。
+///
+/// event 与 UIA 两条路径都在**任何注入之前**调用：目标进程完整性级别严格高于本进程时，
+/// Windows UIPI 会把 SendInput/剪贴板/UIA 跨进程调用静默丢弃——与其下发后石沉大海，
+/// 提前报 `action_unavailable` 并给模型/用户可执行的指引（同等权限重启目标或退出提升）。
+///
+/// **fail-open 及其理由**：`GetWindowThreadProcessId`/`OpenProcess`/`OpenProcessToken`/
+/// `GetTokenInformation` 任一步失败（目标进程受保护策略限制、pid 竞态消亡、自身权限不足）
+/// → 视为未知并放行。探测设施故障不等于违规：阻断合法链路的代价高于放行一次可能被
+/// UIPI 丢弃的注入（后者语义上至多退化为「没生效」，与既有 dispatched 语义一致）。
+pub fn uipi_preflight(window_id: u32) -> AxResult<()> {
+  let hwnd = HWND(window_id as usize as *mut c_void);
+  let mut pid: u32 = 0;
+  // unsafe 依据（块级）：GetWindowThreadProcessId/GetCurrentProcessId FFI。
+  // 返回线程 id 0 = 查找失败（窗口消亡/非法 hwnd）→ 目标 RID 未知。
+  let target_rid = unsafe {
+    let tid = GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    if tid != 0 && pid != 0 {
+      pid_integrity_rid(pid)
+    } else {
+      None
+    }
+  };
+  let our_rid = unsafe { pid_integrity_rid(GetCurrentProcessId()) };
+  if integrity_blocks_injection(target_rid, our_rid) {
+    return Err(AxError::new(
+      "action_unavailable",
+      format!(
+        "目标窗口 {window_id} 运行在更高完整性级别的进程中（通常是以管理员身份提升的应用），\
+         Windows UIPI 会拦截对它的全部输入注入——请让用户以相同权限重启本工具，\
+         或先退出目标应用的提升模式，再重试"
+      ),
+    ));
+  }
+  Ok(())
+}
+
 /// modifiers 字段解析（`+`/`,`/空白分隔，每段须为可按住的 keysym；空串 = 无修饰）。
 pub(crate) fn parse_modifiers(spec: &str) -> AxResult<Vec<u16>> {
   let mut out: Vec<u16> = Vec::new();
@@ -426,7 +544,9 @@ fn normalize(x: i32, y: i32) -> (i32, i32) {
   let (vx, vy, vw, vh) = virtual_screen();
   let norm = |v: i32, origin: i32, span: i32| -> i32 {
     let span = span.max(2) - 1; // w-1；退化尺寸防 0 除
-    let rel = i64::from(v - origin).clamp(0, i64::from(span));
+    // 先拓宽到 i64 再相减：v-origin 若在 i32 内算，极端坐标（MAX-MIN）会溢出
+    // （debug panic / release 回绕成错误坐标）。
+    let rel = (i64::from(v) - i64::from(origin)).clamp(0, i64::from(span));
     i32::try_from(rel * 65535 / i64::from(span)).unwrap_or(0)
   };
   (norm(x, vx, vw), norm(y, vy, vh))

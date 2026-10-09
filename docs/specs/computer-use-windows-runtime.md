@@ -300,7 +300,7 @@
 | 风险 | 缓解 |
 | --- | --- |
 | UIA 读取 Chromium/Electron 树质量不足 | Week-0 探针（≤2 天）：先对设置页窗口出树；不足则补 MSAA fallback 或缩小首期承诺 |
-| UIPI：向提升（管理员）窗口注入被拒 | 映射 `action_unavailable` + message 指引（不做提权重构） |
+| UIPI：向提升（管理员）窗口注入被拒 | 注入前完整性预检（`GetWindowThreadProcessId` → `OpenProcessToken` → `GetTokenInformation(TokenIntegrityLevel)` 与本进程 RID 对比）：目标严格更高 → `action_unavailable` + 指引（同等权限重启目标/退出提升；不做提权重构）；探测任一步失败 → 放行（fail-open：设施故障不阻断合法链路）；event 与 UIA 两条路径都在任何注入之前执行 |
 | 防截屏/受保护内容黑帧 | 截图后做非空校验，失败 → `internal`/`timeout` + 明确 message |
 | 目标窗口挂起时 PrintWindow 占死共享 STA 队列 | IsHungAppWindow 预检 → 直接 BitBlt 回退；调用中途挂起的残余风险保留为已知限制 |
 | 锁屏期间采集失败 | 统一 `permission_denied` + message（17 码表无 screen_locked，选语义最近且 never-retry） |
