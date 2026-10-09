@@ -21,6 +21,7 @@
     "build:desktop-agent:bytecode": "node scripts/build-desktop-agent-bytecode.mjs",
     "build:mode": "node scripts/build-mode.mjs",
     "build:bootstrap": "pnpm -r --filter \"./packages/*\" --filter \"!@mode/desktop\" build && pnpm --filter @mode/desktop build:no-runtime-assets",
+    "build:cua-helper": "node scripts/build-cua-helper.mjs",
     "build:sea": "pnpm --dir apps/mode-cli build:sea",
     "build:sea:all": "pnpm install && pnpm --dir apps/mode-cli build:sea",
     "build:native-search": "node scripts/build-native-search-tools.mjs",

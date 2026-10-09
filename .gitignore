@@ -84,3 +84,7 @@ packages/desktop/src/scheduler/schedulerProtocol.js
 packages/desktop/src/scheduler/schedulerProtocol.js.map
 packages/desktop/src/scheduler/schedulerProtocol.d.ts
 packages/desktop/src/scheduler/schedulerProtocol.d.ts.map
+
+# CUA helper 构建产物（pnpm build:cua-helper 产出，可再生）；crates/mode-cua-ax/target/
+# 已由 crates/mode-cua-ax/.gitignore 的 /target 覆盖，不在此重复。
+packages/mode-cua/dist-cua-helper/
