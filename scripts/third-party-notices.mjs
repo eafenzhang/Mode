@@ -118,6 +118,42 @@ export async function readNativeSearchNotices(root = repositoryRoot, { verify = 
   return { inventory, bytes: Buffer.from(`${parts.join("\n\n")}\n`) };
 }
 
+// Rust crate 台账：与 readNativeSearchNotices 同模式的非 npm 源——清单自带 notice 文件
+// 引用，生成时逐个核验。哈希按 CRLF 归一化（与 generate-third-party-notices.mjs 的
+// readInput 输入哈希同口径），保证 Windows autocrlf checkout 与 Linux CI 读到同一份
+// 哈希；文本本身按字节保留进声明。
+export async function readRustNotices(root = repositoryRoot, { verify = false } = {}) {
+  const inventory = JSON.parse(
+    await readFile(resolve(root, "third-party/rust-sources.json"), "utf8"),
+  );
+  const records = new Map();
+  for (const component of inventory.components) {
+    for (const notice of component.notices) {
+      const bytes = await readFile(resolve(root, notice.file));
+      const normalized = Buffer.from(bytes.toString("utf8").replaceAll("\r\n", "\n"));
+      const sha256 = hash(normalized);
+      if (verify && sha256 !== notice.sha256)
+        throw new Error(`Changed Rust crate notice: ${notice.file}`);
+      const record = records.get(sha256) ?? { bytes: normalized, components: new Set() };
+      record.components.add(`${component.id} ${component.version}`);
+      records.set(sha256, record);
+    }
+  }
+  const parts = [
+    "RUST CRATE THIRD-PARTY NOTICES\n",
+    inventory.scope,
+    "Licence identifiers below come from the locked crate manifests; identical text is shared by the crates listed above it. These component licences do not relicense the application.",
+    "Exact crate versions, Cargo.lock checksums and notice hashes are recorded in third-party/rust-sources.json in the source repository.",
+  ];
+  for (const record of records.values()) {
+    parts.push(
+      `\n===== ${[...record.components].join("; ")} =====\n`,
+      record.bytes.toString("utf8"),
+    );
+  }
+  return { inventory, bytes: Buffer.from(`${parts.join("\n\n")}\n`) };
+}
+
 export async function stageNativeSearchNotices(
   plan,
   root = repositoryRoot,

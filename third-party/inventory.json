@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
-  "scope": "Production dependency union across current workspace projects, copied source/assets and native tools; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "61903337cfe7ce4028534989ff802e88a933ee1c65bb8e65fd7d66ae576c84ee",
+  "scope": "Production dependency union across current workspace projects, copied source/assets, native tools and Rust crates; not a per-installer SBOM or a certification of all licensing obligations.",
+  "noticesSha256": "d377f30642f4fd16ae43bd4211a8184332d3062c4fbc2277087c6e950566f7a4",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "dd710caa186742b6aebaccca4ce9d28bdc7a0e04a20c20891daad9d6703a5878",
     ".agents/skills/agent-browser/references/commands.md": "a7efdc0e2b22dab2a52adaead8ac80043e6b400cc5154bdc5c81f43542b9e49d",
@@ -422,7 +422,9 @@
     "apps/mode-cli/packages/tui/package.json": "17e778d7c9ccbbd2425ea03feb50051ed0c562d3e65e266aec3ab87842dd1fcf",
     "apps/mode-cli/tools/prompt-trajectory/package.json": "571f15ba51a258e86a6864cfe5331da897a6ca04b9f1470e96f7a24acc9d1c07",
     "apps/mode-cli/tools/typescript/package.json": "d31f0abdcc4052b9175259a34ed03e4ad73bb1e146d56cecd5658dd0c7d4c8b8",
-    "package.json": "6537b01cc26ccefec9c48c3478743957e23ef58286f6b788da422ea9816aa4ce",
+    "crates/mode-cua-ax/Cargo.lock": "a2d1bfe1f258c55ad1175f31c7097444120d89710f6b91b70fab36ed5664028d",
+    "crates/mode-cua-ax/Cargo.toml": "7a1c907c87098a93d25f9292ca0eec199e1dfeaf330c8bf789898ec4822585f8",
+    "package.json": "65de692ea5061c1d14011e8ff8aefb5dc1cea71a62b4d9c4f2c6c9d256998ea0",
     "packages/client/package.json": "ca66f666e9c5a1095a03c14b176fe95932e900cc4010a26b54bcf4be66e34097",
     "packages/desktop/package.json": "0194e0fef9a96b32a2a3b57c2ec12567291bff07bdce0af1936c4ef04fe061f6",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1572,7 +1574,7 @@
     "packages/desktop/src/renderer/public/material-icons/zig.svg": "37be0ce02cf471b18d86150b3c38e80caa7c16c49a15078e7db6f1f41788d101",
     "packages/desktop/src/renderer/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
     "packages/formal-proof/package.json": "caf173192785f020f30f6325abfe590d99c5db4198b6a47250bd26d8ea29dcc3",
-    "packages/mode-cua/package.json": "be3c0a33639ac012a9fcccdff53bb647cdc2ca2e776fb61497c106f7207dcd1a",
+    "packages/mode-cua/package.json": "64b41ee5c5b901156d8bdf8ec94a6c8408dc1496cb05d191839b709eb3a6042c",
     "packages/mode-server-cli/package.json": "0fa6f769a9482f6d0c86bf8bbfeb98d8cec2936e5842da992135617fbf5d5197",
     "packages/model-option-map/package.json": "be3ae92e97de7fdfab617780a34e38f9812486e33cae1771eabe1923c7485a27",
     "packages/provider-node/package.json": "4323d40ff77f97f006b066079fb914c13922e112aaa1c4831bc6225a16f26f89",
@@ -3129,7 +3131,47 @@
     "patches/@ai-sdk__openai-compatible@2.0.60.patch": "9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b",
     "pnpm-lock.yaml": "7f04f44bc9679f050b2d9ad2edbf4387a2de71a1a804a72b74b995dc0a7c2543",
     "pnpm-workspace.yaml": "2c3678c567a69e4e02d05b1fa5de3e449ced5b2fcd2c54ec65af59f28d6e1eb8",
+    "scripts/license-texts/01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f.txt": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
+    "scripts/license-texts/025436edff4cfcdde17a5811fdea78892d8482efd1abdec5a17872d07a4f2112.txt": "025436edff4cfcdde17a5811fdea78892d8482efd1abdec5a17872d07a4f2112",
+    "scripts/license-texts/0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39.txt": "0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39",
+    "scripts/license-texts/0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594.txt": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+    "scripts/license-texts/0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f.txt": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f",
+    "scripts/license-texts/23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d.txt": "23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d",
+    "scripts/license-texts/23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3.txt": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+    "scripts/license-texts/27995d58ad5c1145c1a8cd86244ce844886958a35eb2b78c6b772748669999ac.txt": "27995d58ad5c1145c1a8cd86244ce844886958a35eb2b78c6b772748669999ac",
+    "scripts/license-texts/2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff.txt": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff",
+    "scripts/license-texts/378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397.txt": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397",
+    "scripts/license-texts/4108245a1f2df9d4e94df8abed5b4ba0759bb2f9b40a6b939f1be141077ae50b.txt": "4108245a1f2df9d4e94df8abed5b4ba0759bb2f9b40a6b939f1be141077ae50b",
+    "scripts/license-texts/42a35170233e83e18856792e748de4c1ce4a63b2afce9a370c89ef3fe23f9f2d.txt": "42a35170233e83e18856792e748de4c1ce4a63b2afce9a370c89ef3fe23f9f2d",
+    "scripts/license-texts/61d383b05b87d78f94d2937e2580cce47226d17823c0430fbcad09596537efcf.txt": "61d383b05b87d78f94d2937e2580cce47226d17823c0430fbcad09596537efcf",
+    "scripts/license-texts/62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a.txt": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+    "scripts/license-texts/6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb.txt": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+    "scripts/license-texts/797087750c4103075e96bb7a60202a040812f8679ae2f7263148a1cc0b298d28.txt": "797087750c4103075e96bb7a60202a040812f8679ae2f7263148a1cc0b298d28",
+    "scripts/license-texts/799e9ca9d179295ef372f25d3769cdda7d25bb2668add6a6a1e22d1e4c678b8d.txt": "799e9ca9d179295ef372f25d3769cdda7d25bb2668add6a6a1e22d1e4c678b8d",
+    "scripts/license-texts/7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0.txt": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0",
+    "scripts/license-texts/7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c.txt": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c",
+    "scripts/license-texts/84b34dd7608f7fb9b17bd588a6bf392bf7de504e2716f024a77d89f1b145a151.txt": "84b34dd7608f7fb9b17bd588a6bf392bf7de504e2716f024a77d89f1b145a151",
+    "scripts/license-texts/861399f8c21c042b110517e76dc6b63a2b334276c8cf17412fc3c8908ca8dc17.txt": "861399f8c21c042b110517e76dc6b63a2b334276c8cf17412fc3c8908ca8dc17",
+    "scripts/license-texts/8ada45cd9f843acf64e4722ae262c622a2b3b3007c7310ef36ac1061a30f6adb.txt": "8ada45cd9f843acf64e4722ae262c622a2b3b3007c7310ef36ac1061a30f6adb",
+    "scripts/license-texts/90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5.txt": "90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5",
+    "scripts/license-texts/9df9ba60a11af705f2e451b53762686e615d86f76b169cf075c3237730dbd7e2.txt": "9df9ba60a11af705f2e451b53762686e615d86f76b169cf075c3237730dbd7e2",
+    "scripts/license-texts/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+    "scripts/license-texts/a8ad31b1c3f40dca5a84119351b8fa8ddc868edd77fad8a8ebf6d8f2d16fa4ae.txt": "a8ad31b1c3f40dca5a84119351b8fa8ddc868edd77fad8a8ebf6d8f2d16fa4ae",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "scripts/license-texts/b29f8b01452350c20dd1af16ef83b598fea3053578ccc1c7a0ef40e57be2620f.txt": "b29f8b01452350c20dd1af16ef83b598fea3053578ccc1c7a0ef40e57be2620f",
+    "scripts/license-texts/bccaa8b6c09f94e81f06696e179dbe058464bbdfbc823b6d49cada1d71e84ac3.txt": "bccaa8b6c09f94e81f06696e179dbe058464bbdfbc823b6d49cada1d71e84ac3",
+    "scripts/license-texts/c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b.txt": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+    "scripts/license-texts/c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383.txt": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+    "scripts/license-texts/c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08.txt": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+    "scripts/license-texts/c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4.txt": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "scripts/license-texts/c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3.txt": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3",
+    "scripts/license-texts/d201d14804d3bcd3b944147173175e4abfbd838b7c8069b6bd3452496bf13e6c.txt": "d201d14804d3bcd3b944147173175e4abfbd838b7c8069b6bd3452496bf13e6c",
+    "scripts/license-texts/d30047bca3b516639339a3c279bb84c3483124fb5a9dafe3c75056a85090e745.txt": "d30047bca3b516639339a3c279bb84c3483124fb5a9dafe3c75056a85090e745",
+    "scripts/license-texts/e3ba223bb1423f0aad8c3dfce0fe3148db48926d41e6fbc3afbbf5ff9e1c89cb.txt": "e3ba223bb1423f0aad8c3dfce0fe3148db48926d41e6fbc3afbbf5ff9e1c89cb",
+    "scripts/license-texts/e72111c52b7d96ebe25348dee19f0744f444d3c95ae6b1ecb6ccaecc5bce05ba.txt": "e72111c52b7d96ebe25348dee19f0744f444d3c95ae6b1ecb6ccaecc5bce05ba",
+    "scripts/license-texts/eaf40297c75da471f7cda1f3458e8d91b4b2ec866e609527a13acfa93b638652.txt": "eaf40297c75da471f7cda1f3458e8d91b4b2ec866e609527a13acfa93b638652",
+    "scripts/license-texts/f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1.txt": "f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1",
+    "scripts/license-texts/MIT.txt": "24f09d6d1dc1534b8efcaca939ddec1969cac255471aae25d299ab8e81ada29f",
     "scripts/native-search-tools-config.mjs": "ac5a105e4c707848f5db4d1a82b809ee57e12037b07193758ab4b13c328682b9",
     "scripts/remote-native-search-tools-config.mjs": "472322a66f84c7452f96aa9e16e9c4e0600f7c2588a03dc6bc869229161b1cb2",
     "third-party/copied-components.json": "68aba2bc2c86d2cb6ee2484491fcb5cc69cea74bf0642c02fa811b4837f1fbd5",
@@ -3253,6 +3295,7 @@
     "third-party/runtime/node-22.16.0-LICENSE.txt": "1ae62e2015784ba438db7b04ebd33f3c4ff3efdb824c111c4ececd99945fd52d",
     "third-party/runtime/node-24.14.0-LICENSE.txt": "4573185d56580da2b890ba34a85a409257640f1c5632eade4300137266194d18",
     "third-party/runtime/sources.json": "b27bc8d81aeb71108e523602364ffbb6a1b19c2d5d47733fd43094b769006741",
+    "third-party/rust-sources.json": "f1be9e7a4ab9b2bd7148fbe0a9c4bf5ca506a57e93b43ecdbb670c760d9617df",
     "third-party/upstream/000ffa2d773c511f4459fb31d89f841806f93bf5caf2050468ab2097c081b443.txt": "000ffa2d773c511f4459fb31d89f841806f93bf5caf2050468ab2097c081b443",
     "third-party/upstream/014bb31e83d5c2e76aea1cc6e82217346ab41362f32cb355ad0f5c10aa0aeaff.txt": "014bb31e83d5c2e76aea1cc6e82217346ab41362f32cb355ad0f5c10aa0aeaff",
     "third-party/upstream/03b6eb98341d2b49260e4126ad165c0d882ac7ae7ebe7cca4c793da896424807.txt": "03b6eb98341d2b49260e4126ad165c0d882ac7ae7ebe7cca4c793da896424807",
@@ -31984,6 +32027,26 @@
     {
       "id": "rust-standard-library@6a6eaca656978778f7c1c750ee0c3db87f8bffb2",
       "reason": "No original notice snapshot for this recorded native component."
+    },
+    {
+      "id": "napi@2.16.17",
+      "reason": "Original version-specific publisher copyright/license material remains incomplete."
+    },
+    {
+      "id": "napi-build@2.6.0",
+      "reason": "Original version-specific publisher copyright/license material remains incomplete."
+    },
+    {
+      "id": "napi-derive@2.16.13",
+      "reason": "Original version-specific publisher copyright/license material remains incomplete."
+    },
+    {
+      "id": "napi-derive-backend@1.0.75",
+      "reason": "Original version-specific publisher copyright/license material remains incomplete."
+    },
+    {
+      "id": "napi-sys@2.4.0",
+      "reason": "Original version-specific publisher copyright/license material remains incomplete."
     }
   ]
 }
