@@ -76,6 +76,10 @@ test("runtime-manifest 通过打包模式校验（sha256 对齐真实文件字�
     const runtime = await resolveWindowsCuaRuntime({
       platform: "win32",
       arch: "x64",
+      // 显式空 env 钉死打包分支：不传时消费方回落读 process.env，外壳若导出
+      // MODE_CUA_DEV_ROOT 会把本用例误路由进 dev 分支（fail closed 报错），
+      // 对本功能的目标受众恰是环境耦合的偶发失败。
+      env: {},
       resourcesPath,
       electronVersion,
     });
