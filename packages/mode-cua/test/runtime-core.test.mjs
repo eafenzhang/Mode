@@ -1,3 +1,5 @@
+/* eslint-disable max-lines -- 契约用例逐条平铺（错误装配逐字锁、预检/信封/闸门/会话键），断言密集
+   不宜折叠；.oxlintrc 的测试豁免只覆盖 *.test.ts，本计划任务仅允许改本文件。 */
 // runtime 骨架契约测试（Plan B Task 2）：execute 三形态结果、17 码错误装配（逐字锁）、
 // health 版本比对粘滞、冷启动 CUA_NOT_READY 信封（与 SDK notReadyEnvelopeOf 逐字对齐）、
 // stop_computer_control 闸门与会话键隔离、dispose/closeSession 生命周期、五个直通工具。
@@ -254,10 +256,11 @@ test("无监听 → 非 error 单文本块 CUA_NOT_READY 信封；broker 起来�
   });
   assert.equal(ensureCalls, 1, "冷启动先触发 ensureBrokerAvailable（其失败不得击穿信封）");
 
-  // 信封是可重试的：broker 起来后同一 runtime 再调 → 正常成功。
+  // M2（Task 2 评审 carry）：broker 也纳入 try/finally——前置断言失败不得泄漏监听。
   const broker = await startBroker(defaultHandle, socketPath);
-  assert.equal(broker.socketPath, socketPath, "同一 socket 路径重放");
   try {
+    assert.equal(broker.socketPath, socketPath, "同一 socket 路径重放");
+    // 信封是可重试的：broker 起来后同一 runtime 再调 → 正常成功。
     const retried = await execute(runtime, "list_apps", {}, context);
     assert.deepEqual(JSON.parse(retried.content[0].text), GOOD_APPS);
     assert.equal(ensureCalls, 2);
@@ -268,14 +271,27 @@ test("无监听 → 非 error 单文本块 CUA_NOT_READY 信封；broker 起来�
 
 test("health 成功后 broker 掉线 → 普通 stale_socket 错误结果（不是冷启动信封）", async () => {
   const broker = await startBroker();
-  const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
-  const context = ctx("warm");
-  const warm = await execute(runtime, "list_apps", {}, context);
-  assert.deepEqual(JSON.parse(warm.content[0].text), GOOD_APPS);
-  await broker.close();
-  const dead = await execute(runtime, "list_apps", {}, context);
-  assert.equal(dead.isError, true, "已热身后断连必须是 error 结果");
-  assert.equal(JSON.parse(dead.content[0].text).code, "stale_socket");
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const context = ctx("warm");
+    const warm = await execute(runtime, "list_apps", {}, context);
+    assert.deepEqual(JSON.parse(warm.content[0].text), GOOD_APPS);
+    await broker.close();
+    const dead = await execute(runtime, "list_apps", {}, context);
+    assert.equal(dead.isError, true, "已热身后断连必须是 error 结果");
+    assert.equal(JSON.parse(dead.content[0].text).code, "stale_socket");
+  } finally {
+    await broker.close(); // 已 close 再 close 幂等（未运行态回调即结）
+  }
+});
+
+// M1（Task 2 评审 carry）：health 预检先于未知工具检查——计划原文「runtime 首次 execute
+// 前 health」。冷路径下连未知工具也必须先过健康门：此时返回的是可重试信封而非 method_not_found。
+test("M1：预检先于未知工具检查——无监听时未知工具得 CUA_NOT_READY 信封", async () => {
+  const runtime = createComputerUseRuntime({ brokerSocketPath: mintBrokerSocketPath() });
+  const result = await execute(runtime, "exec", {}, ctx("m1"));
+  assert.notEqual(result.isError, true);
+  assert.equal(JSON.parse(result.content[0].text).kind, "CUA_NOT_READY");
 });
 
 // ────────────────────────────────────────────── 5. stop 闸门与会话隔离
@@ -445,14 +461,16 @@ test("request_access：Windows 合成形态（扁平 AccessStatus 文本 + struc
 
 // ────────────────────────────────────────────── 7. 分发表覆盖
 
-test("14 名内但未注册 handler 的工具 → isError 且码在 17 键内（Task 3/4 注册后此态消失）", async () => {
+// get_app_state 已在 Task 3 注册 → 未注册态改由 left_click 代表（Task 4 注册前恒存在）。
+test("14 名内但未注册 handler 的工具 → isError 且码在 17 键内（Task 4 注册后此态消失）", async () => {
   const broker = await startBroker();
   try {
     const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
-    const result = await execute(runtime, "get_app_state", { app_ref: { pid: 7 } }, ctx("s11"));
+    const result = await execute(runtime, "left_click", { target: 1 }, ctx("s11"));
     assert.equal(result.isError, true);
     const { code } = JSON.parse(result.content[0].text);
     assert.ok(AX_ERROR_CODES.includes(code), `expected one of the 17 codes, got ${code}`);
+    assert.equal(code, "unimplemented", "14 名内未注册 → unimplemented");
   } finally {
     await broker.close();
   }
