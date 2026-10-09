@@ -60,7 +60,7 @@
   - 既有六函数（签名以 `frame-contract.d.ts` 为准）：`isOfficialCuaImageRefText` / `containsOfficialCuaImageRefCredentialText` / `parseOfficialCuaImageRef` / `readRasterEnvelopeIdentity`（= sha256(base64 解码) hex）/ `findOfficialCuaFrameContentPair`（相邻对，返回 `{image,imageRef,imageIndex,imageRefIndex}`）/ `preserveOfficialCuaFrameResult`（精确栅格闸门）/ `attestOfficialCuaFrameContent` / `containsImageRefAuthority`
 - Consumes: 无（纯函数层）。`preserveOfficialCuaFrameResult(result, {imageProcessorPort, signal})` 的压缩端口语义读 `apps/mode-cli/packages/core/src/mcp/image-normalization.ts:41-44` 调用点后对齐。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```js
 // packages/mode-cua/test/frame-contract.test.mjs
@@ -141,10 +141,10 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
 
 （`imageProcessorPort` 的真实接口名以 `image-normalization.ts` 调用点读出的实际形状为准——Step 1 先读该文件再落测试，压缩端口字段名错了先改测试。）
 
-- [ ] **Step 2: 跑测试确认失败** — Run: `pnpm --filter @mode/cua test` → Expected: FAIL（stub 返回 false/undefined）
-- [ ] **Step 3: 实现** — 六函数 + 两个构建器（ref 单行 JSON、credential=`randomBytes(16).toString("hex")`；digest 统一 `sha256` hex 小写；`preserve` 逻辑：authority 路径由调用方保证，本函数校验 digest→压缩→降级三级，降级文案与 `official-cua-media.ts` 的 `OFFICIAL_CUA_RASTER_UNAVAILABLE_TEXT` **字面一致**（mode-cua 不得 import core，文案复制+注释来源）；`attest` = image@0+ref@1+digest 匹配 → 返回 truthy 包对象）。
-- [ ] **Step 4: 跑全套** — `pnpm --filter @mode/cua test`（13 既有 + 新增全绿）、`pnpm typecheck`、`pnpm lint`
-- [ ] **Step 5: Commit** — `feat(cua): 帧契约六函数与帧构建器真实现`
+- [x] **Step 2: 跑测试确认失败** — Run: `pnpm --filter @mode/cua test` → Expected: FAIL（stub 返回 false/undefined）
+- [x] **Step 3: 实现** — 六函数 + 两个构建器（ref 单行 JSON、credential=`randomBytes(16).toString("hex")`；digest 统一 `sha256` hex 小写；`preserve` 逻辑：authority 路径由调用方保证，本函数校验 digest→压缩→降级三级，降级文案与 `official-cua-media.ts` 的 `OFFICIAL_CUA_RASTER_UNAVAILABLE_TEXT` **字面一致**（mode-cua 不得 import core，文案复制+注释来源）；`attest` = image@0+ref@1+digest 匹配 → 返回 truthy 包对象）。
+- [x] **Step 4: 跑全套** — `pnpm --filter @mode/cua test`（13 既有 + 新增全绿）、`pnpm typecheck`、`pnpm lint`
+- [x] **Step 5: Commit** — `feat(cua): 帧契约六函数与帧构建器真实现`
 
 ---
 
@@ -168,14 +168,14 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
   - 版本比对：runtime 首次 execute 前 `callBrokerMethod health`；`protocolVersion !== HELPER_PROTOCOL_VERSION` → 本 runtime 后续一切调用返回 `version_mismatch`（粘滞）；health 连接失败 → 视为冷启动（见下）。
   - 连接类失败（`ECONNREFUSED/ENOENT/stale_socket` 且从未成功过 health）→ `CUA_NOT_READY` 信封（`retryable:true`）；已成功过又断 → 按普通错误（`stale_socket`→SDK `HELPER_UNAVAILABLE`）。
 
-- [ ] **Step 1: 写失败测试**（fake broker：`net.createServer` 在 `mintBrokerSocketPath()` 上按 method 回 canned JSON，用例覆盖：未知工具、17 码错误文本形态（`{code,message,suggested_action}` 双落点）、health 版本不符粘滞、无监听 → CUA_NOT_READY、`stop_computer_control` 后变更类 → `controller_busy`、会话键隔离（两个 context 互不共享 stopped）、`dispose` 后调用 → `broker_unavailable`）
-- [ ] **Step 2: 跑测试确认失败** — Expected: FAIL（stub 返回 unavailable 文本）
-- [ ] **Step 3: 实现** — 分发表预留 `observe/action` 处理器钩子（Task 3/4 注册）；本任务先接 `list_apps/list_windows/health/request_access/stop_computer_control` 五个直通工具 + 全部基础设施。
+- [x] **Step 1: 写失败测试**（fake broker：`net.createServer` 在 `mintBrokerSocketPath()` 上按 method 回 canned JSON，用例覆盖：未知工具、17 码错误文本形态（`{code,message,suggested_action}` 双落点）、health 版本不符粘滞、无监听 → CUA_NOT_READY、`stop_computer_control` 后变更类 → `controller_busy`、会话键隔离（两个 context 互不共享 stopped）、`dispose` 后调用 → `broker_unavailable`）
+- [x] **Step 2: 跑测试确认失败** — Expected: FAIL（stub 返回 unavailable 文本）
+- [x] **Step 3: 实现** — 分发表预留 `observe/action` 处理器钩子（Task 3/4 注册）；本任务先接 `list_apps/list_windows/health/request_access/stop_computer_control` 五个直通工具 + 全部基础设施。
   - `list_apps`：broker 数组 → **单文本块 = 裸 JSON 数组文本**（SDK `parseJsonValue` 明确处理裸数组）。
   - `request_access`（Windows）：不打 broker，直接合成——文本块=扁平 `AccessStatus` `{"ready":true,"accessibility":"granted","screenRecording":"granted"}`；`structuredContent={"platform":"windows","backend":"uia","accessibility":{"status_after":"not_required"},"screen_recording":{"status_after":"not_required"}}`；**不设** darwin-only meta。
   - `stop_computer_control`：置 `stopped=true`、释放 lease、返回收据成功（可重复调用）；此会话后续变更类工具（除 `get_app_state/list_*/request_access`）→ `controller_busy`。
-- [ ] **Step 4: 跑测试** — `pnpm --filter @mode/cua test` 全绿
-- [ ] **Step 5: Commit** — `feat(cua): runtime 骨架与直通工具`
+- [x] **Step 4: 跑测试** — `pnpm --filter @mode/cua test` 全绿
+- [x] **Step 5: Commit** — `feat(cua): runtime 骨架与直通工具`
 
 ---
 
@@ -206,9 +206,9 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
     2. 动作带 `elementIndex` 时（Task 4）：若最后一次观察是隐藏的且其元素序列与最近 shown 基线的序列**不一致**（位移/增删）→ 拒绝 `element_unavailable`（提示 re-observe），绝不拿模型没见过的编号去解析——这是 SDK 注释「静默点错元素的保护」的 producer 侧落点。
   - **帧**：`include_screenshot=true` → `capture`；返回 base64 > 200KiB → `internal` 错误（Task 6 阶梯落地后此分支应不可达，保留为防御）；`_meta` 写 integrity meta + `mode.cua/app-associations-v1 = {primary:{appKey, displayName}}`（`appKey = bundle_id ?? name ?? String(pid)`，16KiB 内）。
   - 收据进 `structuredContent` 顶层：`state_id/frame_id/snapshot_mode/base_state_id`（SDK `receiptOf` 合并读取）。
-- [ ] **Step 1: 先读** SDK `observe()`/`bindApp`/`appStateOf` 实际读取的字段（报告里列出你钉到的字段清单），再写失败测试（fake broker canned observe/capture 响应 → 断言渲染树正则、帧对顺序、meta、diff 计数、隐藏基线规则、截图-only 无树、>200KiB 防御错误）
-- [ ] **Step 2: 确认失败** → **Step 3: 实现** → **Step 4: 全绿**（含既有套件）
-- [ ] **Step 5: Commit** — `feat(cua): 观察渲染、diff 与位移台账`
+- [x] **Step 1: 先读** SDK `observe()`/`bindApp`/`appStateOf` 实际读取的字段（报告里列出你钉到的字段清单），再写失败测试（fake broker canned observe/capture 响应 → 断言渲染树正则、帧对顺序、meta、diff 计数、隐藏基线规则、截图-only 无树、>200KiB 防御错误）
+- [x] **Step 2: 确认失败** → **Step 3: 实现** → **Step 4: 全绿**（含既有套件）
+- [x] **Step 5: Commit** — `feat(cua): 观察渲染、diff 与位移台账`
 
 ---
 
@@ -244,10 +244,10 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
   - **成功动作带 `state_sync_status`**：动作后我们不知道 UI 是否变化（docs：SDK 不清 stateId）→ 固定 `state_sync_status:"unconfirmed"`（SDK 只读不校验，报告注明）。
   - `return_state:"compact|full"`：动作后附带观察（复用 Task 3 渲染，structuredContent 并入），默认 `none` 不观察。
   - **`[effect_evidence unchanged]`**：`return_state` 观察且 diff 为空 → 树尾注该行。
-- [ ] **Step 1: 先读** `computer-use-client.mjs` 的 action 调用处（`act()` 各工具实参，约 660-860 行）+ Rust `parse_payload`（`crates/mode-cua-ax/src/perform.rs:688-775`）—— 把两侧键名对照表抄进报告；select_text 无 range 的 Rust 语义查 Rust `SelectText` 处理代码后定桩。
-- [ ] **Step 2: 写失败测试**（fake broker：element 解析中心点、位移门拒绝、坐标帧校验三分支、三态收据映射、复合 type、return_state 附观察、stopped 后 controller_busy）
-- [ ] **Step 3: 确认失败 → 实现 → 全绿**
-- [ ] **Step 4: Commit** — `feat(cua): 动作工具面与收据三态`
+- [x] **Step 1: 先读** `computer-use-client.mjs` 的 action 调用处（`act()` 各工具实参，约 660-860 行）+ Rust `parse_payload`（`crates/mode-cua-ax/src/perform.rs:688-775`）—— 把两侧键名对照表抄进报告；select_text 无 range 的 Rust 语义查 Rust `SelectText` 处理代码后定桩。
+- [x] **Step 2: 写失败测试**（fake broker：element 解析中心点、位移门拒绝、坐标帧校验三分支、三态收据映射、复合 type、return_state 附观察、stopped 后 controller_busy）
+- [x] **Step 3: 确认失败 → 实现 → 全绿**
+- [x] **Step 4: Commit** — `feat(cua): 动作工具面与收据三态`
 
 ---
 
@@ -270,10 +270,10 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
   - `markCuaProductHelperAgentEnvUnavailable / has… / clear…`：进程内标志位（unavailable 后 `resolveMcpServers` 短路直返，直到显式 clear）。
   - `waitForCuaHelperStartup(promise, deadline)`：真超时包装（现有 stub 是恒等透传——按 d.ts 语义实现 deadline → reject `broker_unavailable`）。
   - `isScreenCaptureProbeSuccess` / `isPotentialModeCuaAgentMcpServer` / `reapOrphanedHelpers` / refresh-marker 两个函数：**读消费方后**逐一决定真实现或保持 stub（mac-only 的保持 stub 并在报告分类）；每个函数给出「消费方是谁、真实现/保留 stub 的理由」。
-- [ ] **Step 1: 消费方追踪**（上列文件 + `rg` 找全部调用点，输出「stub 函数 → 消费方 → 决定」表）
-- [ ] **Step 2: 写失败测试**（fake host 注入：启用→start 被调且凭据可见；未启用→不 start；start 失败→短路+标记；clear 后恢复；restartAfterPermissionGrant Windows no-op；mac 分支函数保持 stub 恒值）
-- [ ] **Step 3: 确认失败 → 实现 → 全绿**（services 既有 218 测试不得回归）
-- [ ] **Step 4: Commit** — `feat(cua): resolver 凭据链真实现（mac 保持 fail-closed）`
+- [x] **Step 1: 消费方追踪**（上列文件 + `rg` 找全部调用点，输出「stub 函数 → 消费方 → 决定」表）
+- [x] **Step 2: 写失败测试**（fake host 注入：启用→start 被调且凭据可见；未启用→不 start；start 失败→短路+标记；clear 后恢复；restartAfterPermissionGrant Windows no-op；mac 分支函数保持 stub 恒值）
+- [x] **Step 3: 确认失败 → 实现 → 全绿**（services 既有 218 测试不得回归）
+- [x] **Step 4: Commit** — `feat(cua): resolver 凭据链真实现（mac 保持 fail-closed）`
 
 ---
 
@@ -294,9 +294,9 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
   export LIBNODE_PATH="$HOME/.rust-tools/libnode-stub"
   cargo +stable-x86_64-pc-windows-gnu <test|clippy> --manifest-path crates/mode-cua-ax/Cargo.toml ...
   ```
-- [ ] **Step 1: 失败测试**——阶梯函数抽 `pub(crate)` 纯函数（合成大缓冲：噪声 RGB → png 编码 >200KiB → 断言阶梯输出 ≤200KiB 且 mimeType=jpeg；恒超输入 → internal 错误）+ 既有用例全绿
-- [ ] **Step 2-4: 实现 → 全绿（cargo test 40+ 新增、clippy `-D warnings`）→ `pnpm build:cua-helper` 重建产物**
-- [ ] **Step 5: Commit** — `feat(cua-ax): 截图帧预算质量阶梯`
+- [x] **Step 1: 失败测试**——阶梯函数抽 `pub(crate)` 纯函数（合成大缓冲：噪声 RGB → png 编码 >200KiB → 断言阶梯输出 ≤200KiB 且 mimeType=jpeg；恒超输入 → internal 错误）+ 既有用例全绿
+- [x] **Step 2-4: 实现 → 全绿（cargo test 40+ 新增、clippy `-D warnings`）→ `pnpm build:cua-helper` 重建产物**
+- [x] **Step 5: Commit** — `feat(cua-ax): 截图帧预算质量阶梯`
 
 ---
 
@@ -311,8 +311,8 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
 - **落点决策规则（先探测再写）**：`packages/services` 能 `import "@mode/core"`（查 services package.json deps/paths 与既有测试先例）→ 黄金测试放 services：canned runtime observe/动作结果 → `createCuaToolResultDisplay(...)` → `toolResultDisplaySchema` 校验 + 断言 UI 关键字段（`kind:"cua"`、`state_id` 在 structuredContent、media dataUrl 可被 `cuaScreenshotDetails` 的正则识别、errorCode 映射）+ `isOfficialCuaFrameAuthority` 真值。不能 import → 改在 `packages/mode-cua/test/` 内做「帧对 + meta + 错误文本」的消费方契约替身（正则从 `cuaResultState.ts`/`image-normalization.ts` **复制并注明来源行号**），并把跨包黄金显式移交 Plan C 的 desktop E2E——报告写明走了哪条。
 - **集成扩展**（`CUA_INTEGRATION=1`，真 helper+addon+notepad）：经 `createComputerUseRuntime().execute` 全链：
   1. `list_apps`（裸数组文本）→ 2. `get_app_state`（`{include_screenshot:true, tree_shown_to_model:false}` 纯截图 → 断言 `content[0].type==="image"`、`isOfficialCuaImageRefText(content[1].text)`、`_meta` integrity 真值、base64 ≤200KiB、无树文本）→ 3. `get_app_state` 带树（首行 header 正则、元素行）→ 4. `left_click` element 目标 + `type_text` → 5. 重观察读回 → 6. `request_access` 形状 → 7. `stop_computer_control` → 变更类 `controller_busy` → 8. 杀 helper → 新调用得 `CUA_NOT_READY` 信封（或 stale_socket，按 runtime 冷热判定断言到其一并注明）→ 9. fake-broker 版 `version_mismatch` 单测在 runtime-core 已覆盖。
-- [ ] Steps: 探测落点 → 真失败测试 → 实现/扩展 → `CUA_INTEGRATION=1 …test:integration` PASS + `pnpm --filter @mode/services test` 全绿
-- [ ] **Commit** — `test(cua): display 黄金与 runtime 端到端集成扩展`
+- [x] Steps: 探测落点 → 真失败测试 → 实现/扩展 → `CUA_INTEGRATION=1 …test:integration` PASS + `pnpm --filter @mode/services test` 全绿
+- [x] **Commit** — `test(cua): display 黄金与 runtime 端到端集成扩展`
 
 ---
 
@@ -323,16 +323,16 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
 - Modify: 本计划文件（勾选与偏差记录）
 - Test: 无新测试；跑全部
 
-- [ ] **Step 1: 文档同步**：
+- [x] **Step 1: 文档同步**：
   1. spec L292 集成步骤「token 鉴权」改为「无口令直连（路径即凭据）」；L317 开放点标记「已解决：Plan A 裁决=连接无口令」（行号以当前 spec 为准，先 grep `token` 定位）。
   2. spec 增补「stub 收敛状态」小节：列出 Plan B 后仍为 stub 的函数（mac-only 族 + Plan A 保留族），逐个一句话理由。
   3. 本计划 Global Constraints/任务标注实际偏差（各任务报告汇总）。
-- [ ] **Step 2: 全仓验证（真实结果，不注水）**：
+- [x] **Step 2: 全仓验证（真实结果，不注水）**：
   - `pnpm --filter @mode/cua test`、`pnpm --filter @mode/services test`、`CUA_INTEGRATION=1 pnpm --filter @mode/cua run test:integration`
   - `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`
   - `cargo +stable-x86_64-pc-windows-gnu test` + `clippy --all-targets -- -D warnings`
   - `node scripts/check-language-policy.mjs`——**预期仍红**（Plan A 的 8 处 + 本计划新 `.mjs` 增量如实计数；allowlist 归 Plan C/并行会话，裁决不变）
-- [ ] **Step 3: Commit** — `docs(cua): Plan B 收尾与 spec stub 收敛`
+- [x] **Step 3: Commit** — `docs(cua): Plan B 收尾与 spec stub 收敛`
 
 ---
 
@@ -340,3 +340,15 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
 
 - **Plan C — 发布**：electron-builder `tools/cua-helper` extraResources、`MODE_CUA_AX_TARGET` CI 注入、语言政策 allowlist 8+行、NOTICE/README 文案（占位声明移除）、desktop E2E、实机验收清单、`__MODE_CUA_HELPER_BUILD_ID__` 处置。
 - **Plan B 已知 carry 给 C**：集成测试 timeout 240s 若加 `perform` 整体 deadline 需重估；跨包 display 黄金若在 Task 7 移交则 E2E 必须覆盖。
+
+---
+
+## 任务实际偏差汇总（Task 8 收尾，取自各任务报告）
+
+- T1: 压缩端口真实形状 `prepareForModel`（brief 夹具已修订）；转义键快路修复。
+- T2: versionSticky 归 runtime 级（计划原文双述，行为条款为准）；health 超时→普通 timeout。
+- T3: bundleId 驼峰双读 + isAppNotFound 短语对齐（评审驱动修复）。
+- T4: strategy/format 一期丢弃；第三文件 runtime-core 测试修订（必要连带）。
+- T5: 插件启用态 workspace 层合并镜像（评审驱动扩展）；warm 注入。
+- T6: 可注入 qualities 结构；函数 pub（测试可见性）。
+- T7: display 黄金落点=mode-cua 替身（services→core 不可行 5 点证据）；T4-M2 采用 possibly_sent 方向（spec 语义），§9.2 not_sent 正向表未做。

@@ -586,9 +586,10 @@ test("request_access → 扁平 AccessStatus 文本 + permissionStatus 恒省略
     assertStrictCuaDisplay(display, "request_access display");
     assert.equal(display.status, "success");
     assert.equal(display.permissionStatus, undefined, "无 meta → permissionStatus 省略");
-    // 即便塞入非法（非 darwin）meta：strict schema（shared cuaPermission.ts:5-13 为
-    // platform:"darwin" 字面）安全失败 → 仍省略；meta 键真身取自本包
-    // request-access-contract.js（core result-display.ts:31-35 import 同一模块）。
+    // 即便塞入非法（非 darwin）meta 也省略——真实归因是本包 request-access-contract.js 的
+    // 占位契约（safeParse 恒 success:false，非 shared cuaPermission.ts 的 platform:"darwin"
+    // 字面 schema 校验拒绝；占位恒失败与"非 darwin 被拒"在 win32 上殊途同归）。
+    // meta 键真身取自本包 request-access-contract.js（core result-display.ts:31-35 import 同一模块）。
     const windowsShaped = { schemaVersion: 1, platform: "windows", grantOwner: "user" };
     const spoofed = projectCuaDisplay(
       { ...access, _meta: { [CUA_REQUEST_ACCESS_STATUS_META_KEY]: windowsShaped } },

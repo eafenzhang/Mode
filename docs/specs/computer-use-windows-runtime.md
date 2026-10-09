@@ -52,7 +52,7 @@
 │   ├ resolveWindowsCuaRuntime: manifest+sha256 校验（已有）          │
 │   ├ WindowsCuaHelperHost: fork / pipe 健康探测 / 代际恢复（已有）    │
 │   └ createCuaProductMcpServerResolver（★stub→本期实现）             │
-│      插件启用才启动 host → 捕获 socket/token/marker → 注入 MCP env   │
+│      插件启用才启动 host → 捕获 socket/authority → 注入 MCP env      │
 └────────┬─────────────────────────────────────────────────────────┘
          │ fork(entry, ELECTRON_RUN_AS_NODE=1)
 ┌────────▼──────── Helper 子进程（★新增：入口 TS bundle）─────────────┐
@@ -157,6 +157,9 @@
   `credential` 每帧随机，供 `containsOfficialCuaImageRefCredentialText` 配对与孤儿引用 fail-closed。
 - **权威 meta**：`_meta["mode.cua/official-frame-integrity-v1"] = {v:1, frame_id, raster_sha256}`
   （真值即可，`hasOfficialCuaFrameAuthority` 只查存在性）。缺 meta 不进权威路径，会被通用归一剥掉。
+  **meta 只表存在，校验一律以 ref 文本的 `raster_sha256` 为准**：压缩重签只更新 ref 块的
+  `raster_sha256`（`preserveOfficialCuaFrameResult` 压缩路径），`_meta.raster_sha256` 保留
+  原始栅格 digest（今日无读取者）——消费方不得拿 meta digest 做校验（Plan B T1 账本口径）。
 - **六函数语义**：
   - `isOfficialCuaImageRefText(text)`：trim 后 JSON 对象、`image_ref` 含非空 `frame_id`+`credential`。
   - `containsOfficialCuaImageRefCredentialText(text)`：同上解析且 `credential` 非空。
@@ -225,6 +228,10 @@
   `controller_busy`；幂等可重复调用成功。
 - 观察等待：runtime 在树/截图采集前做有界等待（docs："Observations wait an appropriate
   amount of time before capturing"），由 helper 侧 settle 逻辑实现，不让模型 setTimeout。
+- **参数 strict 键不对称（决策而非漂移，T4-M6 裁决）**：`get_app_state` 对未知键
+  **strict 拒绝**（`invalid_request`，`index.js` `validateAppStateArgs` 复检四键白名单）；
+  动作工具对未知键**忽略**（只按已知键构造 broker 载荷，不发明未知键）。SDK 侧已对全部
+  工具做 `unrecognized_keys` strict 校验，runtime 二次校验只在翻译位补英文诊断。
 
 ### broker 协议（helper pipe，线格式自定、双端同源）
 
@@ -289,8 +296,9 @@
      元素行、截图 dataUrl、errorCode）全链路可解析。
 2. **Rust 单测**：树行走（fixture Win32 窗口）、keysym 映射、region clamp、digest/编码阶梯、
    错误码映射。
-3. **集成（win32，`CUA_INTEGRATION=1` 门）**：dev 根起 helper → IPC 握手 → token 鉴权 →
-   对记事本 fixture 完成 observe→click→type→re-observe 往返 → CUA_NOT_READY→重试成功 →
+3. **集成（win32，`CUA_INTEGRATION=1` 门）**：dev 根起 helper → IPC 握手 → health
+   （无口令直连：socket 路径即凭据，无 token 环节）→ 对记事本 fixture 完成
+   observe→click→type→re-observe 往返 → CUA_NOT_READY→重试成功 →
    kill 子进程 → 代际恢复。
 4. **E2E**：现有 desktop e2e harness——开启插件后入口出现；会话内 SDK cell `list_apps` 成功；
    指示器点亮条件（cell 含 `setupComputerUseRuntime`）。CI GUI 能力受限时如实标注，
@@ -298,6 +306,47 @@
 5. **实机验收清单**：记事本输入往返；设置页（Electron/Chromium 树）观察与点击；截图卡片渲染；
    元素消失 → reobserve 语义演示；`stop_computer_control` 后变更动作被拒；插件关闭 →
    一键回到明确的不可用态；`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
+
+## stub 收敛状态（Plan B 之后，实测核对）
+
+Plan B 落地后 `packages/mode-cua` 内**仍为 stub / fail-closed** 的导出清单（依据：
+`broker-server.js` / `pip-session*.js` 现状 + Plan B T5 逐函数「消费方 → 决定」表）。
+计划文件地图里 "stub → 本计划实现" 的字样均已过期，按实测为准——下列之外的计划 stub 已全部
+真实现：`frame-contract.js` 六谓词 + 两构建器（T1）、`createComputerUseRuntime` 14 工具
+（T2–T4）、resolver 关键面（`createCuaProductMcpServerResolver`、
+`isOfficialCuaPluginEnabledForWorkspace`、`waitForCuaHelperStartup`、mark/has/clear 三件套、
+`isPotentialModeCuaAgentMcpServer`，T5）、截图质量阶梯（T6）。
+
+### 仍为 stub / fail-closed（逐个一句话理由）
+
+| 导出 | 消费方 | 保留 stub 的理由 |
+| --- | --- | --- |
+| `createProductCuaHelperHost` | services `node.ts:1043`（仅 `platform === "darwin"` 分支） | mac 一期装配专用，返回 unavailable host（start/restart 恒拒）；win32 走 `createWindowsCuaHelperHost` 真实现。 |
+| `buildHelperOpenArgs` | services `node.ts:1845`（darwin getStatus 状态链） | 只为 mac 状态链构造 dev argv，空数组即现值（fail-closed）。 |
+| `isCuaLocalDevelopmentRuntime` | services `node.ts:1849`（同上状态链的 dev 判定） | 恒 false = 生产形态，不追加 unsigned-launcher/external-escape argv。 |
+| `resolveHelperPermissionSubjectIdentity` | desktop `cuaAccessibilitySettings.ts:196/541/632` | mac TCC Accessibility 身份解析，win32 无 TCC 一期不消费；恒抛 UNAVAILABLE fail-closed。 |
+| `requestHelperAccessibilityPermissionViaLaunchServices` / `requestHelperScreenRecordingPermissionViaLaunchServices` | services `node.ts:145-146` re-export，仓内零调用方 | LaunchServices 权限请求 = macOS 专属，无调用方。 |
+| `cuaBrokerRefreshMarkerPath` / `publishCuaBrokerRefreshMarker`（refresh-marker 对） | 全仓零调用方 | 链两端休眠（写端不下发 marker env、读端 `createComputerUseRuntime` 未消费 `refreshMarkerPath`），YAGNI 待消费方。 |
+| `CuaProductHelperWorkspaceRegistry.setEnabled` | services `node.ts:1704` 创建、`:2194/:2206/:2217` 写入 | 只写不读（全仓无读方），没有读方就没有可实现的语义。 |
+| `isScreenCaptureProbeSuccess` | services `node.ts:795`（← darwin 门控 `node.ts:1914`） | 唯一消费方是 darwin-only 权限状态链，mac 宿主 `queryScreenCaptureProbe` 恒 `{ok:false}`，恒 false 与现值一致。 |
+| `shouldRunCuaScreenCaptureProbe`（mac permission 族，`broker-ports.js`） | services `node.ts:791`（同上 darwin 探针链） | 恒 false → readiness probe 立即短路，mac 一期不跑截屏探针。 |
+| `reapOrphanedHelpers` | services `node.ts:1028`（`platform === "darwin"` 分支） | mac 孤儿回收不动作；win32 的 per-Helper launcher-pid watchdog 在 `helper/entry.mjs` 已实现。 |
+| `createCuaHelperInstaller` / `defaultCuaHelperVerifierDependencies`（mac 安装/签名校验族） | services `cua-permission-broker/cuaHelperInstaller.ts:50/37`、desktop `desktopCuaHelperInstaller.ts:40`（mac 装配 `node.ts:1046` 消费） | Helper.app 安装与签名校验 = macOS 专属链，拒绝态即现值。 |
+| `loadRealNativeAddon` / `resolvePackagedNativeAddonPath` / `resolveInTreeAddonPath` / `createAxReadOnlyMethods` / `ROLE_TO_KIND` / `roleToKind`（native seam 六导出） | 仓内零源码调用方（仅 `broker-server.d.ts` 声明） | addon 装载已由 `helper/addon.mjs` 直读 `MODE_CUA_HELPER_ADDON` 完成，这组导出面保留未删、无语义可实现。 |
+| `request-access-contract.js` 占位（`cuaRequestAccessStatusSchema.safeParse` 恒 `success:false`） | core `result-display.ts:31-35` import 同一模块（darwin meta 投影位） | win32 不产生 darwin meta → 成功路径无消费，占位安全失败即终态；darwin `permissionStatus` 显示面归二期。 |
+| `pip-session.js` / `pip-session-node.js`（`createPipSessionClient` 恒 `enabled:false` / `applied:false`） | services `cuaPipSessionService.ts`（`node.ts:1870` 构造） | Plan A 遗留口径（占位脚手架，Plan A/Plan B 均未纳入实现范围）：服务门 `node.ts:1868-1869` 只在 `darwin && desktop-local` 构造，win32 永不触达。 |
+
+（`frame-contract`：计划文件地图声明的 "stub" 已按实测核对为全部实现——六谓词 + 两构建器
+无残留，不列入上表；`CuaHelperLifecycleManager` 为部分实现非 stub，其 `acquire` 的
+`shouldRetainCurrent` 语义差异见 Plan B T5 报告 Concern 2。）
+
+### 事实注记（不改行为）：`plugins.enabled` 主开关消费不一致
+
+`plugins.enabled` 主开关被 skillsService 与 commandsService 消费（`skillsService.ts:622` 读入、
+`:794` 为假时 skill 根描述符全空；`commandsService.ts:216` 读入、`:365` 同理），而 bootstrap
+插件加载器不消费它（`apps/mode-cli/packages/bootstrap/src/plugins.ts:426/804` 只读
+`enabledPlugins[id] ?? false`）——skills/commands 尊重主开关、加载器不尊重，属既有仓级不一致。
+此处仅记录事实，不改行为；`isOfficialCuaPluginEnabledForWorkspace` 同样不以主开关为门。
 
 ## 风险与缓解
 
@@ -314,7 +363,8 @@
 
 ## 开放点（实现期自行钉死，不阻塞设计）
 
-- `callBrokerMethod` 是否走 env 内 token 的精确字段（读 `mcp-config`/`broker.js` 现有真实现对齐）。
+- ~~`callBrokerMethod` 是否走 env 内 token 的精确字段（读 `mcp-config`/`broker.js` 现有真实现对齐）。~~
+  **已解决：Plan A 裁决=连接无口令，路径即凭据；token 仅存在于 node_repl Worker 桥。**
 - helper 入口 `ready` 消息的完整字段集（`parseReadyMessage` 已定主干，补齐细节）。
 - `MODE_CUA_HELPER_ADDON` env 与 `loadRealNativeAddon` 的装载顺序（按 `broker-server.d.ts` 语义）。
 - 截图格式阶梯（PNG→JPEG 质量序列）与 `zoom/region` 参数的具体默认值（按 docs 截图节微调）。
