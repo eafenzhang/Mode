@@ -11,22 +11,24 @@
 //! pid 回填：spawn 后 `EnumWindows` 轮询 ≤3s 等新窗——
 //! - AUMID / SearchPathW 路径 spawn 已给 pid，自家窗口出现即确认；
 //! - 转发型启动（stub 进程拉起真窗口、lnk 的 ShellExecuteW 本身无 pid）按
-//!   「启动前快照之外的新窗 + exe 名匹配」收养；超时仍返回进程已启动的 AppInfo
-//!   （lnk 收养不到时 pid=0，进程本身已成功启动）。
+//!   「启动前快照之外的新窗」收养，候选必须过 [`adopt_candidate`] 两道闸
+//!   （进程创建时刻晚于快照 + exe 名匹配）——滤光不认领，宁可 pid=0 也不把
+//!   期望应用名钉到无关进程上；超时仍返回进程已启动的 AppInfo。
 use std::collections::HashSet;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use windows::core::{Interface, PCWSTR, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, FALSE, HWND, RPC_E_CHANGED_MODE};
+use windows::Win32::Foundation::{CloseHandle, FILETIME, FALSE, HWND, RPC_E_CHANGED_MODE};
 use windows::Win32::Storage::FileSystem::SearchPathW;
 use windows::Win32::System::Com::{
   CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
   IPersistFile, STGM_READ,
 };
 use windows::Win32::System::Threading::{
-  CreateProcessW, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOW,
+  CreateProcessW, GetProcessTimes, OpenProcess, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION,
+  PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
 };
 use windows::Win32::UI::Shell::{
   ApplicationActivationManager, IApplicationActivationManager, IShellLinkW, AO_NONE, ShellExecuteW,
@@ -130,10 +132,17 @@ fn launch_name(name: &str) -> AxResult<AppInfoNapi> {
       .file_name()
       .map(|n| n.to_string_lossy().into_owned())
       .unwrap_or_else(|| exe.clone());
-    let pre = visible_pids();
+    let pre = snapshot();
     let spawn_pid = spawn_path(&path)?;
-    // 匹配 exe 名的新窗收养：转发型启动（stub 拉起真窗口）时窗口 pid ≠ spawn pid。
-    let pid = backfill_pid(&pre, Some(spawn_pid), &Adopt::MatchExe(exe_name.clone()));
+    // 收养带 exe 匹配（转发型启动：stub 拉起真窗口时窗口 pid ≠ spawn pid）；
+    // 候选仍过创建时间闸（I1），自家 spawn 窗口则走优先级 1 不经收养。
+    let pid = backfill_pid(
+      pre.as_ref(),
+      Some(spawn_pid),
+      &Adopt::NewWindow {
+        exe: Some(exe_name.clone()),
+      },
+    );
     return Ok(finish(pid, Some(exe_name), None));
   }
   // 第 3 段：Start Menu 两个根的 .lnk 显示名匹配 → ShellExecuteW（无 pid，新窗收养回填）。
@@ -143,13 +152,14 @@ fn launch_name(name: &str) -> AxResult<AppInfoNapi> {
       format!("无法解析应用「{name}」：SearchPathW 未命中，Start Menu 无匹配 .lnk"),
     ));
   };
-  let pre = visible_pids();
+  let pre = snapshot();
   shell_execute_lnk(&link.path)?;
-  let adopt = match &link.target_exe {
-    Some(exe) => Adopt::MatchExe(exe.clone()),
-    None => Adopt::AnyNew, // 目标读不出时退化为 brief 的「等新窗」字面口径
+  // 目标可读 → 附加 exe 匹配；读不出 → 任意新窗（仍过 I1 创建时间闸，滤光 → pid=0，
+  // 绝不按 z 序认领首个新窗——旧进程的 toast/弹窗会被闸掉）。
+  let adopt = Adopt::NewWindow {
+    exe: link.target_exe.clone(),
   };
-  let pid = backfill_pid(&pre, None, &adopt);
+  let pid = backfill_pid(pre.as_ref(), None, &adopt);
   Ok(finish(pid, Some(link.display_name), None))
 }
 
@@ -168,12 +178,12 @@ fn activate_aumid(aumid: &str) -> AxResult<AppInfoNapi> {
     )
   })?;
   // 快照先于激活：激活期间冒出的既有窗口不算「新窗」。
-  let pre = visible_pids();
+  let pre = snapshot();
   let spawn_pid = unsafe {
     mgr.ActivateApplication(PCWSTR(wide.as_ptr()), PCWSTR::null(), AO_NONE)
   }
   .map_err(|e| AxError::new("launch_failed", format!("ActivateApplication({aumid}) 失败: {e}")))?;
-  let pid = backfill_pid(&pre, Some(spawn_pid), &Adopt::SpawnOnly);
+  let pid = backfill_pid(pre.as_ref(), Some(spawn_pid), &Adopt::SpawnOnly);
   Ok(finish(
     pid,
     apps::exe_name_for_pid(pid),
@@ -265,35 +275,96 @@ fn shell_execute_lnk(path: &Path) -> AxResult<()> {
   Ok(())
 }
 
-/// 启动前的可见窗口 pid 快照（新窗收养基准）；枚举失败按空集降级（回填仍有 spawn 兜底）。
-fn visible_pids() -> HashSet<u32> {
-  apps::visible_top_level_windows()
-    .map(|hwnds| {
-      hwnds
-        .iter()
-        .map(|h| apps::window_pid(*h))
-        .filter(|p| *p != 0)
-        .collect()
-    })
-    .unwrap_or_default()
+/// 启动前快照：可见窗口 pid 集 + 快照起点时刻（`at`，SystemTime 与进程创建时间同钟域，
+/// 在枚举之前取——真目标 spawn 于快照之后，创建时间必晚于它）。
+/// 枚举失败返回 None（M4：没有可信基线时收养整体降级 SpawnOnly，绝不拿空集当“全新”）。
+pub struct PreState {
+  pids: HashSet<u32>,
+  at: SystemTime,
+}
+
+/// 采集启动前快照（新窗收养基准）；枚举失败 → None。
+pub fn snapshot() -> Option<PreState> {
+  let at = SystemTime::now();
+  let hwnds = apps::visible_top_level_windows().ok()?;
+  let pids = hwnds
+    .iter()
+    .map(|h| apps::window_pid(*h))
+    .filter(|p| *p != 0)
+    .collect();
+  Some(PreState { pids, at })
+}
+
+/// FILETIME（1601 起点、每 100ns 一格）→ SystemTime；未到 Unix 纪元或换算溢出 → None。
+fn filetime_to_systemtime(ft: FILETIME) -> Option<SystemTime> {
+  // 1601→1970 共 11_644_473_600 秒 × 每秒 10^7 个 100ns 格（不是 10^8——初版乘错导致
+  // checked_sub 恒失败、过滤恒 false，被 adoption 用例当场抓住）。
+  const FILETIME_UNIX_EPOCH_100NS: u64 = 11_644_473_600 * 10_000_000;
+  let ticks = ((ft.dwHighDateTime as u64) << 32) | ft.dwLowDateTime as u64;
+  let since_unix = ticks.checked_sub(FILETIME_UNIX_EPOCH_100NS)?;
+  SystemTime::UNIX_EPOCH.checked_add(Duration::from_micros(since_unix / 10))
+}
+
+/// 该 pid 的进程创建时刻是否晚于快照（I1 收养闸）。打开/读取失败一律视为不可信
+/// → false（排除）：方向上宁可漏认（最终 pid=0）也不误认旧进程的晚出窗口。
+fn process_created_after(pid: u32, after: SystemTime) -> bool {
+  let Ok(handle) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }) else {
+    return false;
+  };
+  // 读创建时间放闭包：单一出口关闭句柄，任何早退都不泄。
+  let created = (|| -> Option<SystemTime> {
+    let mut create = FILETIME::default();
+    let mut exit = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    unsafe { GetProcessTimes(handle, &mut create, &mut exit, &mut kernel, &mut user) }.ok()?;
+    filetime_to_systemtime(create)
+  })();
+  let _ = unsafe { CloseHandle(handle) };
+  created.is_some_and(|c| c > after)
+}
+
+/// I1 收养过滤（纯函数面，测试直驱）：候选 = 启动前快照之外的窗口 pid，再过两道可信度闸——
+/// ① 进程创建时刻晚于快照（toast/既有进程的新窗口出局）；② `want_exe` 给定时 exe 名匹配。
+/// 全滤光 → None：调用方降级（spawn 已知回 spawn，lnk 无 spawn 则 pid=0），绝不按 z 序
+/// 认领首个新窗——把期望应用名钉到无关进程上是对模型的自洽谎言。
+pub fn adopt_candidate(pre: &PreState, fresh: &[u32], want_exe: Option<&str>) -> Option<u32> {
+  let want = want_exe.map(|w| w.to_lowercase());
+  for &pid in fresh {
+    if !process_created_after(pid, pre.at) {
+      continue;
+    }
+    if let Some(want) = &want {
+      match apps::exe_name_for_pid(pid) {
+        Some(exe) if exe.to_lowercase() == *want => {}
+        _ => continue,
+      }
+    }
+    return Some(pid);
+  }
+  None
 }
 
 /// pid 回填策略（按启动路径选取）。
 enum Adopt {
   /// 只等 spawn 自己的窗口出现（AUMID：返回的 pid 即目标进程，不收养旁窗）。
   SpawnOnly,
-  /// 收养「快照之外 + exe 名匹配」的新窗（转发型启动：窗口 pid ≠ spawn pid）。
-  MatchExe(String),
-  /// 收养任意新窗（lnk 目标读不出时的退化口径，brief 的「等新窗回填」字面语义）。
-  AnyNew,
+  /// 收养新窗：`exe` 为 Some 时附加 exe 名匹配（SearchPathW / lnk 目标可读），
+  /// None 为任意通过创建时间闸的新窗（lnk 目标读不出的退化口径）。
+  NewWindow { exe: Option<String> },
 }
 
 /// spawn 后 EnumWindows 轮询 ≤3s 等新窗回填 pid（brief Step 3）：
-/// 1) spawn 自家窗口出现 → 该 pid；2) 按 [`Adopt`] 收养新窗；
-/// 3) 超时 → spawn pid（无 spawn 时为 0：进程已由 shell 成功拉起，仅窗口未在时限内出现）。
-fn backfill_pid(pre: &HashSet<u32>, spawn: Option<u32>, adopt: &Adopt) -> u32 {
+/// 1) spawn 自家窗口出现 → 该 pid；2) `pre` 可信（M4）时按 [`Adopt`] 收养——候选过
+///    [`adopt_candidate`] 创建时间/exe 双闸，滤光不认领；3) 超时 → spawn pid
+///    （无 spawn 时为 0：进程已由 shell 成功拉起，但窗口未在时限内出现或不可认领）。
+///
+/// M2：50ms 轮询 + 单次枚举耗时会让实际截止越过字面 3s 约一拍（~50ms + 枚举时间），
+/// 工程可接受——精确到拍而非精确到毫秒，语义仍是「≤3s 量级的有界等待」。
+fn backfill_pid(pre: Option<&PreState>, spawn: Option<u32>, adopt: &Adopt) -> u32 {
   let deadline = Instant::now() + BACKFILL_TIMEOUT;
   loop {
+    // 单拍枚举失败按「本拍无候选」处理（下一拍重试）；收养基线是 pre，不受单拍影响。
     let hwnds = apps::visible_top_level_windows().unwrap_or_default();
     let mut fresh = Vec::new();
     for hwnd in &hwnds {
@@ -304,24 +375,14 @@ fn backfill_pid(pre: &HashSet<u32>, spawn: Option<u32>, adopt: &Adopt) -> u32 {
       if spawn == Some(pid) {
         return pid;
       }
-      if !pre.contains(&pid) {
+      // pre=None（M4 快照失效）时不收集候选 → 收养自然降级为 SpawnOnly。
+      if pre.is_some_and(|p| !p.pids.contains(&pid)) {
         fresh.push(pid);
       }
     }
-    match adopt {
-      Adopt::SpawnOnly => {}
-      Adopt::MatchExe(want) => {
-        let want = want.to_lowercase();
-        for pid in fresh {
-          if apps::exe_name_for_pid(pid).is_some_and(|exe| exe.to_lowercase() == want) {
-            return pid;
-          }
-        }
-      }
-      Adopt::AnyNew => {
-        if let Some(pid) = fresh.first() {
-          return *pid;
-        }
+    if let (Some(pre), Adopt::NewWindow { exe }) = (pre, adopt) {
+      if let Some(pid) = adopt_candidate(pre, &fresh, exe.as_deref()) {
+        return pid;
       }
     }
     if Instant::now() >= deadline {
@@ -429,6 +490,12 @@ fn collect_links(dir: &Path, depth: usize, out: &mut Vec<StartMenuLink>) {
     let Ok(ft) = entry.file_type() else {
       continue;
     };
+    // M1：不跟随 symlink/junction（Windows 上二者同为 name-surrogate 再解析点，
+    // Rust 的 is_symlink 对 mount point 同样为真）——扫描被约束在 Start Menu 根内，
+    // 不被指向根外的链接带出去（深度上限是第二道兜底）。
+    if ft.is_symlink() {
+      continue;
+    }
     let path = entry.path();
     if ft.is_dir() {
       collect_links(&path, depth + 1, out);

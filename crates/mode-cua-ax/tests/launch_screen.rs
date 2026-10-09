@@ -63,6 +63,18 @@ impl Drop for ReapNotepad {
   }
 }
 
+/// 子进程收割守卫（收养过滤用例的探针 cmd）：kill + wait 双收，panic 路径不留进程。
+struct ReapChild(Option<std::process::Child>);
+
+impl Drop for ReapChild {
+  fn drop(&mut self) {
+    if let Some(mut child) = self.0.take() {
+      let _ = child.kill();
+      let _ = child.wait();
+    }
+  }
+}
+
 // ————— brief Step 1 三用例（原文断言不改；notepad 用例插一行收割守卫） —————
 
 #[test]
@@ -172,4 +184,35 @@ fn start_menu_link_resolves_calculator_target() {
       );
     }
   }
+}
+
+#[test]
+fn adoption_filters_pre_snapshot_processes() {
+  // I1 收养闸（纯函数直驱）：快照 = 本测试进程已存在、探针进程尚未启动的时刻。
+  let pre = launch::snapshot().expect("snapshot");
+  // 空候选 → None（backfill 据此降级：lnk 无 spawn 时 pid=0，绝不认领）。
+  assert_eq!(launch::adopt_candidate(&pre, &[], None), None);
+  // 老进程（本测试二进制，创建于快照前）：即便无 exe 过滤也一律出局。
+  let old_pid = std::process::id();
+  assert_eq!(launch::adopt_candidate(&pre, &[old_pid], None), None);
+  // 快照之后才创建的进程（真实拉起 cmd 探针，Drop 守卫收割）唯一幸存；
+  // exe 名是第二道闸：匹配放行、不匹配出局。
+  let child = ReapChild(Some(
+    std::process::Command::new("cmd")
+      .args(["/c", "ping", "-n", "60", "127.0.0.1"])
+      .stdout(std::process::Stdio::null())
+      .stderr(std::process::Stdio::null())
+      .spawn()
+      .expect("spawn cmd probe"),
+  ));
+  let new_pid = child.0.as_ref().expect("probe child").id();
+  assert_eq!(launch::adopt_candidate(&pre, &[old_pid, new_pid], None), Some(new_pid));
+  assert_eq!(
+    launch::adopt_candidate(&pre, &[old_pid, new_pid], Some("cmd.exe")),
+    Some(new_pid)
+  );
+  assert_eq!(
+    launch::adopt_candidate(&pre, &[old_pid, new_pid], Some("wrong.exe")),
+    None
+  );
 }

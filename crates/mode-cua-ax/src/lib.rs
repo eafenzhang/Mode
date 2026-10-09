@@ -4,6 +4,7 @@
 // （最后两个模块），Task 1 挂起的模块清单至此收齐。
 pub mod apps; pub mod capture; pub mod clipboard; pub mod error; pub mod input; pub mod launch;
 pub mod observe; pub mod perform; pub mod screen; pub mod uia_thread;
+use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
 use error::AxResult;
 
@@ -90,9 +91,32 @@ pub struct LaunchRequestNapi { pub name: Option<String>, pub bundle_id: Option<S
 #[napi(object, use_nullable = true)]
 pub struct ScreenProbeNapi { pub locked: bool }
 
+// I2 裁定（异步路径）：brief 的同步签名 + ≤3s 回填轮询若直跑 JS 线程会阻塞 helper
+// 事件循环 → napi 导出返回 Promise（napi AsyncTask：compute 在 libuv 线程池执行，
+// Rust 主体不变），Task 8 后端 `await` 该 Promise。同步内核仍是 `launch::launch_request`
+// （Rust 测试面直调 `launch::launch`，不经 napi 层）。
 #[napi(js_name = "launch_app")]
-pub fn launch_app(req: LaunchRequestNapi) -> napi::Result<AppInfoNapi> {
-  to_napi(launch::launch_request(&req))
+pub fn launch_app(req: LaunchRequestNapi) -> AsyncTask<LaunchTask> {
+  AsyncTask::new(LaunchTask { req })
+}
+
+/// `launch_app` 的异步载体（napi Task）：compute 线程池跑三段解析 + ≤3s 回填轮询。
+pub struct LaunchTask {
+  req: LaunchRequestNapi,
+}
+
+impl napi::Task for LaunchTask {
+  type Output = AppInfoNapi;
+  type JsValue = AppInfoNapi;
+
+  fn compute(&mut self) -> napi::Result<AppInfoNapi> {
+    // 线格式与同步导出面同源（`"<code>:<message>"`，Task 8 errors.mjs 拆前缀）。
+    to_napi(launch::launch_request(&self.req))
+  }
+
+  fn resolve(&mut self, _env: napi::Env, output: AppInfoNapi) -> napi::Result<AppInfoNapi> {
+    Ok(output)
+  }
 }
 
 #[napi(js_name = "screen_probe")]

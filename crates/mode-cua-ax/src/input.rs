@@ -261,8 +261,7 @@ pub fn ensure_foreground(window_id: u32) -> AxResult<()> {
 // ————————————————————————— UIPI 完整性预检 —————————————————————————
 
 /// 进程/令牌句柄 RAII：探测链任一步提前返回都保证关闭（不泄句柄）。
-/// （crate 内共享：input 的 UIPI 预检与 screen 的锁屏探测都走这个模式。）
-pub(crate) struct CloseOnDrop(pub(crate) HANDLE);
+struct CloseOnDrop(HANDLE);
 
 impl Drop for CloseOnDrop {
   fn drop(&mut self) {
