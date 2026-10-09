@@ -24,6 +24,7 @@ export declare const foregroundRequired: (message?: string, details?: unknown) =
 export interface HelperHealth {
   bundleId: string | null;
   pid: number | null;
+  protocolVersion?: string;
 }
 
 export interface CallBrokerMethodArgs {
