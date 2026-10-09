@@ -110,6 +110,31 @@ for (const asset of REQUIRED_LOCAL_RUNTIME_ASSETS) {
   }
 }
 
+// Windows CUA helper 的两个产物都不进 Git（.gitignore），且构建依赖 cargo + llvm-mingw
+// 工具链：不能放进 REQUIRED_LOCAL_RUNTIME_ASSETS 自动拉起——缺工具链的机器会因此
+// 整个 dev 启动失败（同 browser-import helper 走 opt-in 的先例）。这里只做启动前发现
+// 加指路，不自动生成：
+// - dist 缺失 → dev 下 CUA 完全不可用，提示自建命令与 MODE_CUA_DEV_ROOT；
+// - dist 就绪但未 stage → 仅打包需要（dev 运行时走 MODE_CUA_DEV_ROOT，不经 bundled-tools）。
+if (target.os === "win32") {
+  const hasCuaHelperBundle = (root) =>
+    ["entry.cjs", "cua_ax.node", "runtime-manifest.json"].every((name) =>
+      existsSync(join(root, name)),
+    );
+  const cuaDistRoot = join(desktopRoot, "..", "mode-cua", "dist-cua-helper");
+  // stage 落点固定 win32-x64（见 scripts/stage-cua-helper.mts），与 target.key 无关。
+  const cuaStagedRoot = join(desktopRoot, "bundled-tools", "win32-x64", "cua-helper");
+  if (!hasCuaHelperBundle(cuaDistRoot)) {
+    console.warn(
+      "[ensure-local-runtime-assets] Windows CUA helper 未构建：运行 pnpm build:cua-helper（自动 stage），dev 启动前设置 MODE_CUA_DEV_ROOT=<仓库根>/packages/mode-cua",
+    );
+  } else if (!hasCuaHelperBundle(cuaStagedRoot)) {
+    console.log(
+      "[ensure-local-runtime-assets] Windows CUA helper 未 stage（仅打包需要）：运行 pnpm stage:cua-helper",
+    );
+  }
+}
+
 if (missingAssets.length === 0) {
   console.log(`[ensure-local-runtime-assets] all local runtime assets are ready for ${target.key}`);
   process.exit(0);

@@ -635,6 +635,20 @@ export default {
       to: "tools/ripgrep",
       filter: ["**/*"],
     },
+    // Windows CUA Helper 运行时（entry + 原生 addon + manifest）只随 win32 目标打包。
+    // stage 产物固定在 bundled-tools/win32-x64/cua-helper（pnpm stage:cua-helper，
+    // build:cua-helper 已串联）；打包态 resolvePackagedRuntime 从 resources/tools/cua-helper
+    // 逐件 sha256 校验。必须用 win32 条件守卫：mac/linux 检出没有该目录，
+    // 无条件引用会让 extraResources 在打包期直接失败（同上方 tray icon 的条件写法）。
+    ...(targetPlatform.os === "win32"
+      ? [
+          {
+            from: `bundled-tools/${targetPlatform.key}/cua-helper`,
+            to: "tools/cua-helper",
+            filter: ["**/*"],
+          },
+        ]
+      : []),
     ...nativeSearchReleasePlan.extraResourceToolIds.map((toolId) => ({
       from: `bundled-tools/${targetPlatform.key}/${toolId}`,
       to: `tools/${toolId}`,
