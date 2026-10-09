@@ -190,6 +190,16 @@ test("参数校验在触碰 addon 之前拒绝，invalid_request 不进 napi", a
     await codeOf("capture", { windowId: 1, region: ["a", "b", "c", "d"] }),
     "invalid_request",
   );
+  // Task 8 carry：region 元素必须是 i32 整数——浮点/越界若放行，napi Vec<i32> 会 ToInt32
+  // 静默截断（1.5→1、2^31→-2^31），坏区域被当成合法坐标下发；一律 invalid_request。
+  assert.equal(
+    await codeOf("capture", { windowId: 1, region: [1.5, 0, 10, 10] }),
+    "invalid_request",
+  );
+  assert.equal(
+    await codeOf("capture", { windowId: 1, region: [0, 0, 0x1_0000_0000, 0] }),
+    "invalid_request",
+  );
   assert.equal(await codeOf("launch_app", { name: 5 }), "invalid_request");
   assert.equal(await codeOf("list_windows", { pid: 1.5 }), "invalid_request");
   assert.deepEqual(touched, [], "校验失败不得触碰 addon");

@@ -56,7 +56,8 @@
     }
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:integration": "node --test test/integration.helper.test.mjs"
   },
   "modeCuaRuntime": {
     "schema": 1,

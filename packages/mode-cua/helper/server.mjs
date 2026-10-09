@@ -39,10 +39,16 @@ function requireString(value, name) {
 }
 
 // region 元素类型校验（防 napi Vec<i32> 转换抛裸 TypeError → internal）；
+// 必须是 i32 范围内的整数：Number.isFinite 放行的 1.5 / 2^31 会被 napi Vec<i32> 按
+// ToInt32 静默截断成另一组坐标（1.5→1、2^31→-2^31），坏区域被当成合法参数下发——
+// 拦成 invalid_request（Task 8 评审 carry）。
 // 长度是否四元组归 Rust（capture() 的 invalid_request 文案与码同源，不复制该条件）。
 function requireRegion(value) {
-  if (!Array.isArray(value) || !value.every((n) => Number.isFinite(n))) {
-    throw invalidRequest("region must be an array of finite numbers");
+  if (
+    !Array.isArray(value) ||
+    !value.every((n) => Number.isInteger(n) && n >= -0x8000_0000 && n <= 0x7fff_ffff)
+  ) {
+    throw invalidRequest("region must be an array of i32 integers");
   }
   return value;
 }
