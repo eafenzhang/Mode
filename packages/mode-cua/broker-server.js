@@ -163,8 +163,8 @@ function createUnavailableCuaHelperHost() {
 //     user 层，见 plugins-command.ts:298「workspace/project 层的 enabledPlugins=true 优先级更高」；
 //     suppressedBuiltins 高层出现即整表替换、否则继承低层）。
 // 有效读位对齐 CLI bootstrap（plugins.ts:426/804 的 `enabledPlugins[id] ?? false` + 抑制标记）；
-// `plugins.enabled` 总开关在本仓只做 config get/set 往返（adapters/config/index.ts:138/413），
-// 没有加载方消费，作为门会造成「bootstrap 已加载、本门却 false」的假阴性，故不读。
+// `plugins.enabled` 总开关故不作门：bootstrap 插件加载器不消费它（plugins.ts:426/804 只读
+// enabledPlugins）；skills/commands 有读（skillsService.ts:622/794、commandsService.ts:216/365）。
 // fail-closed：computer-use 默认关闭（shared/plugin-marketplaces.ts「电脑控制回退为默认关闭」），
 // 两层都缺/坏 JSON/被抑制一律 false。id 存量写法按 adapters/src/config/schema.ts pluginIdAliases
 // 归一（旧名 mode-cua + 旧市场段 zcode-plugins-official）。之前此处错误声称「本仓无 workspace

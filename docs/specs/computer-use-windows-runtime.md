@@ -132,9 +132,10 @@
   not_settable, not_selectable, action_unavailable, foreground_required, controller_busy,
   broker_unavailable, version_mismatch, stale_socket, timeout, unimplemented, method_not_found, internal`。
   - 元素消失/索引失效 → `element_unavailable`（SDK→`ELEMENT_UNAVAILABLE`，reobserve）。
-  - **stop 之后的变更类调用** → `controller_busy`，`details.owner` 与 message 明示
+  - **stop 之后的变更类调用** → `controller_busy`，message 明示
     "computer control was stopped"（决策：固定 17 码里没有 `control_stopped`，
-    `controller_busy` 是 never-retry，语义最接近且不会诱导盲重试）。
+    `controller_busy` 是 never-retry，语义最接近且不会诱导盲重试）。`details.owner`
+    归租约争用面（§controller lease）：stop 已释放租约，此时无在册 owner 可指。
 - **收据**（SDK `receiptOf` 从顶层 / `structuredContent` / 文本 JSON 合并读取，
   含 `action_outcome` 嵌套）：`state_id, frame_id, action_sent, dispatch_status,
   state_sync_status, code, reason, snapshot_mode, base_state_id`。
@@ -188,13 +189,23 @@
   Windows 语义：`name` = OS 列出的显示名（Start 菜单名），**不是窗口标题**；
   `bundle_id` 优先 AUMID，回退可执行文件路径——同一值用于 `targetApp.iconLocators`
   （`windows-aumid` / `windows-executable-path`，schema 见 `toolDisplay.ts`）。
+  **透明启动（Plan B 终审 I1 已接线）**：`name`/`bundle_id` 形态解析未命中 → 先
+  `launch_app`（键名 `{name}` / `{bundleId}`）再有界轮询 `list_apps`（6 次 / 500ms，
+  `index.js` `launchAndResolvePid`）回填 pid 继续；launch 报错 → 透传其码，
+  轮询超界 → `launch_failed`（message 注明 app did not start），两者都保留
+  `target app is not running` 短语以维持 SDK `alternateAppRef` 换字段重试面
+  （computer-use-client.mjs:410-415）；`{pid}` 直连不进本面（死 pid 无从启动）。
+  规范源：docs `computer-use.md:448-449` 与 `SKILL.md:133`——「getApp 未运行即后台
+  启动，没有独立 launch 工具」。
 - `target`：`{type:"element",index}` 或 `{type:"coordinate",x,y,frame_id?}`。
   索引身份 = app + index（wire 上无观察凭证）；索引须来自该 app 最新一次观察，未观察就动作
   → `STALE_STATE`（SDK 本地产生）；观察后元素消失 → `element_unavailable`。
   坐标省略 `frame_id` 时绑定会话最近可动作栅格；无栅格 → `invalid_request`
   （message 复述 "no actionable frame is available in this transport" 语义）；
   栅格过期/owner 不符 → `invalid_request`（`frame_dispatch_identity_mismatch` 语义）。
-- `get_app_state`：`include_screenshot` 帧对随行；`disable_diffing` 全量树。
+- `get_app_state`：`include_screenshot` 帧对随行（`buildFrame` 在 `capture` 前先
+  `screen_probe` 锁屏预检——`{locked:true}` → `permission_denied` 且零 capture，
+  终审 I5 已接线）；`disable_diffing` 全量树。
   diff 基线 = 该会话已展示给模型的最近树；首观察与截图后首观察必为全量。
   文本树格式（UI `cuaResultState` 逐字解析）：
   - 首行 `app: <name> pid=<N> "<title>"`——`name` 须 sanitize 到 `[A-Za-z0-9.-]+`
@@ -222,8 +233,9 @@
   `structuredContent` = `{platform:"windows", backend:"uia",
   accessibility:{status_after:"not_required"}, screen_recording:{status_after:"not_required"}}`
   供 `cuaAccessDetails` 渲染。**不设** `_meta[CUA_REQUEST_ACCESS_STATUS_META_KEY]`——
-  `cuaRequestAccessStatusSchema` 是 `platform:"darwin"` strict schema，Windows 载荷
-  安全解析失败后 display 自然省略该字段。
+  core `result-display.ts:31-35/310` 实际 import 的是 `@mode/cua/request-access-contract`
+  占位（`cuaRequestAccessStatusSchema.safeParse` 恒 `success:false`，与平台无关），
+  win32 不产该 meta 的结论不变。
 - `stop_computer_control`：释放 lease、置 stopped（见错误码决策）、后续变更类动作
   `controller_busy`；幂等可重复调用成功。
 - 观察等待：runtime 在树/截图采集前做有界等待（docs："Observations wait an appropriate
@@ -258,7 +270,18 @@
 
 - helper 单实例（由 services 代际管理保证），lease 按 `(session_id, workspace_key)` 抢占；
   异 workspace 并发 → `controller_busy` + `details.owner`（SDK never-retry，要求用户处理）。
-- `closeSession` 释放本会话 lease 与帧账本；`dispose` 关闭连接并清理。
+- **最小租约已实现（Plan B 终审 I2）**：runtime 级单记录 `{owner, at, sessionKey}`，
+  `owner = "<session_id|?>@<workspace_key|?>"`（缺槽位记 `?`）。抢占 = 首个通过 stopped
+  闸门的变更调用（SDK 10 变更集）；`stop` 只释放不抢占、但同样受本闸门约束；同键重入
+  （已是 owner）放行；只读四工具 `get_app_state` / `list_apps` / `list_windows` /
+  `request_access` 不进闸门。争用判定 = owner 串不等（异 session **或** 异 workspace）。
+- **owner 必须写进 message**：SDK `assertOk` 用它自造的 `details`（method/brokerCode）
+  覆盖 producer `details`（computer-use-client.mjs:293-296），模型只看得到 message 文本；
+  `details.owner` 仍按所有权表形状落双落点（文本 JSON + `structuredContent.error`），
+  但对外传达不依赖它。
+- 释放点：owner 的 `stop_computer_control`、owner 的 `closeSession`、`dispose`；释放后
+  竞争会话即可抢占。`closeSession` 同时删除本会话（lease 与帧账本随之释放）；`dispose`
+  清空租约与全部会话。
 
 ## 构建与发布
 
@@ -356,7 +379,7 @@ Plan B 落地后 `packages/mode-cua` 内**仍为 stub / fail-closed** 的导出�
 | UIPI：向提升（管理员）窗口注入被拒 | 注入前完整性预检（`GetWindowThreadProcessId` → `OpenProcessToken` → `GetTokenInformation(TokenIntegrityLevel)` 与本进程 RID 对比）：目标严格更高 → `action_unavailable` + 指引（同等权限重启目标/退出提升；不做提权重构）；探测任一步失败 → 放行（fail-open：设施故障不阻断合法链路）；event 与 UIA 两条路径都在任何注入之前执行 |
 | 防截屏/受保护内容黑帧 | 截图后做非空校验，失败 → `internal`/`timeout` + 明确 message |
 | 目标窗口挂起时 PrintWindow 占死共享 STA 队列 | IsHungAppWindow 预检 → 直接 BitBlt 回退；调用中途挂起的残余风险保留为已知限制 |
-| 锁屏期间采集失败 | 统一 `permission_denied` + message（17 码表无 screen_locked，选语义最近且 never-retry）；owner = **Plan B**（Plan B 起在 helper-backend capture 前接 `screen_probe` 预检，锁屏 → `permission_denied`；一期未接线属已知归属注记） |
+| 锁屏期间采集失败 | 统一 `permission_denied` + message（17 码表无 screen_locked，选语义最近且 never-retry）；owner = **Plan B，已接线**：runtime `buildFrame` 在 `capture` 前调 `screen_probe`，`{locked:true}` → `permission_denied` 且零 capture（`index.js`；测试锁「锁屏零 capture」） |
 | 纯净室对官方语义的偏差 | 以市场分发的 docs+SDK 为规范源，集成测试锁定行为；偏差只允许更保守 |
 | CI 时长/工具链 | Rust 仅 windows job；cargo 缓存；不引入跨平台矩阵 |
 | 新增 Rust 维护面 | 单 crate、接口粗粒度（8 个原语），TS 侧不暴露 addon 细节 |

@@ -1115,6 +1115,9 @@ test("app 解析：app_ref pid → 该 pid 主窗口；无 app_ref 走会话最�
     assert.equal(after[0].params.windowId, 99);
 
     // 分支 3：全新会话无 app_ref → invalid_request 点名 app_ref，零 perform。
+    // 终审 I2：w1 已在分支 1 抢占 controller lease——先由 owner 释放（closeSession），
+    // 否则新会话先命中 controller_busy（租约闸门先于 handler），验不到 app_ref 缺失面。
+    await runtime.closeSession(context);
     const performsBefore = performCalls(broker).length;
     const missing = await execute(runtime, "paste", { text: "z" }, ctx("w1-fresh"));
     assert.equal(missing.isError, true);

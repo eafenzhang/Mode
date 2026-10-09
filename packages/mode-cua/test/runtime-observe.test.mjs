@@ -990,7 +990,7 @@ test("单注记组：actions+offscreen 合并为一个 (…) 组，UI 剥离后�
   }
 });
 
-test("app_ref bundle_id 解析：真 wire 驼峰 bundleId 行与历史 snake 行都可解析；无匹配点名 not running", async () => {
+test("app_ref bundle_id 解析：真 wire 驼峰 bundleId 行与历史 snake 行都可解析；无匹配 → 透明启动后 launch_failed", async () => {
   const rows = [
     { pid: 11, name: "Alpha", bundleId: "com.example.alpha", active: true },
     { pid: 12, name: "Beta", bundle_id: "com.example.beta", active: true },
@@ -1031,7 +1031,8 @@ test("app_ref bundle_id 解析：真 wire 驼峰 bundleId 行与历史 snake 行
     assert.equal(snake.structuredContent.app.pid, 12);
     assert.equal(snake.structuredContent.app.bundle_id, "com.example.beta");
 
-    // 无匹配 → invalid_request，message 含 SDK isAppNotFound 判定短语
+    // 无匹配 → 透明启动（终审 I1）：launch_app 后轮询界内仍无行 → launch_failed；
+    // message 保留 SDK isAppNotFound 判定短语
     //（computer-use-client.mjs:410-415 /target app is not running/，bindApp 依此触发 alternateAppRef 重试）。
     const missing = await execute(
       runtime,
@@ -1041,9 +1042,70 @@ test("app_ref bundle_id 解析：真 wire 驼峰 bundleId 行与历史 snake 行
     );
     assert.equal(missing.isError, true);
     const payload = JSON.parse(missing.content[0].text);
-    assert.equal(payload.code, "invalid_request");
+    assert.equal(payload.code, "launch_failed");
     assert.ok(payload.message.includes("target app is not running"), payload.message);
     assert.ok(payload.message.includes("com.example.absent"), payload.message);
+    assert.equal(payload.message.includes("did not start"), true, payload.message);
+    // 键名按 resolved 字段（bundle_id → helper backend 的 bundleId）。
+    assert.deepEqual(
+      broker.calls.filter((c) => c.method === "launch_app").map((c) => c.params),
+      [{ bundleId: "com.example.absent" }],
+    );
+  } finally {
+    await broker.close();
+  }
+});
+
+// 终审 I5（spec 风险行 owner = Plan B）：capture 前 screen_probe 预检——锁屏 →
+// permission_denied（17 码无 screen_locked），零 capture 下发。
+test("锁屏预检：screen_probe {locked:true} → permission_denied，零 capture（终审 I5）", async () => {
+  const broker = await startBroker((method) => {
+    if (method === "health") return healthOk;
+    if (method === "list_apps") return { ok: true, result: GOOD_APPS };
+    if (method === "list_windows") return { ok: true, result: GOOD_WINDOWS };
+    if (method === "observe") return { ok: true, result: observeResult([]) };
+    if (method === "screen_probe") return { ok: true, result: { locked: true } };
+    if (method === "capture") return { ok: true, result: captureResult() };
+    return { ok: true, result: {} };
+  });
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const result = await execute(
+      runtime,
+      "get_app_state",
+      { app_ref: { pid: 7 }, include_screenshot: true },
+      ctx("t17"),
+    );
+    assert.equal(result.isError, true, JSON.stringify(result).slice(0, 300));
+    const payload = JSON.parse(result.content[0].text);
+    assert.equal(payload.code, "permission_denied");
+    assert.match(payload.message, /locked/u, payload.message);
+    // 预检发生在 capture 之前：锁屏时零 capture，且 probe 恰一次。
+    assert.equal(broker.calls.filter((c) => c.method === "capture").length, 0);
+    assert.equal(broker.calls.filter((c) => c.method === "screen_probe").length, 1);
+    // 未锁屏（probe.locked !== true）→ 照常出帧。
+    const unlocked = await startBroker((method) => {
+      if (method === "health") return healthOk;
+      if (method === "list_apps") return { ok: true, result: GOOD_APPS };
+      if (method === "list_windows") return { ok: true, result: GOOD_WINDOWS };
+      if (method === "observe") return { ok: true, result: observeResult([]) };
+      if (method === "screen_probe") return { ok: true, result: { locked: false } };
+      if (method === "capture") return { ok: true, result: captureResult() };
+      return { ok: true, result: {} };
+    });
+    try {
+      const openRuntime = createComputerUseRuntime({ brokerSocketPath: unlocked.socketPath });
+      const shot = await execute(
+        openRuntime,
+        "get_app_state",
+        { app_ref: { pid: 7 }, include_screenshot: true },
+        ctx("t17b"),
+      );
+      assert.equal(shot.isError, false, JSON.stringify(shot).slice(0, 300));
+      assert.equal(unlocked.calls.filter((c) => c.method === "capture").length, 1);
+    } finally {
+      await unlocked.close();
+    }
   } finally {
     await broker.close();
   }

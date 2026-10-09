@@ -104,19 +104,33 @@ const OBSERVE_MAX_ELEMENTS = 3000;
 // d.ts / host parseContext 下发的是 camelCase（sessionId/workspaceKey），brief 写的是
 // snake_case —— 两套字段名同一槽位取值，缺 session_id 时只剩 workspace 维分键
 // （此时 `|<workspace>`，等价「只按 workspace 分键」）。
-function sessionKeyOf(context) {
+// owner 与 key 同源取值但独立成串（workspace 可含 "|"，不能从 key 反拆）：
+// `${session_id||"?"}@${workspace||"?"}`，即 spec §controller lease 的抢占键
+// (session_id, workspace_key)——缺失槽位记 "?"，让 owner 文案始终可读。
+function sessionSlotsOf(context) {
   const sessionId = context?.session_id ?? context?.sessionId ?? "";
   const workspace =
     context?.workspace_key ?? context?.workspaceKey ?? context?.workspacePath ?? "";
-  return `${sessionId}|${workspace}`;
+  return {
+    key: `${sessionId}|${workspace}`,
+    owner: `${sessionId || "?"}@${workspace || "?"}`,
+  };
 }
 
-// 失败形态唯一装配点：文本 JSON {code, message, suggested_action?} +
-// structuredContent.error {code, suggested_action?}（message 不进 structuredContent）。
+function sessionKeyOf(context) {
+  return sessionSlotsOf(context).key;
+}
+
+// 失败形态唯一装配点：文本 JSON {code, message, suggested_action?, details?} +
+// structuredContent.error {code, suggested_action?, details?}（message 不进 structuredContent）。
+// details（spec §controller lease 的 details.owner）与 suggested_action 同款双落点；
+// 注意 SDK assertOk 会用它自造的 details（method/brokerCode）覆盖 producer details
+//（computer-use-client.mjs:293-296），模型只看得到 message 文本——owner 之类的关键事实
+// 必须同时写进 message，details 只是按 spec 形状留档。
 // Task 4：动作面失败若已归并 dispatched 收据（三态之一），收据字段与 error **同层**进
 // structuredContent 顶层——SDK receiptOf 读 structuredContent 顶层，unknown →
 // possibly_sent 会让 assertOk 抛 actionSent=true 的错（retry=reobserve，绝不盲重放）。
-function errorResult(code, message, receipt) {
+function errorResult(code, message, receipt, details) {
   const finalCode = ERROR_CODE_SET.has(code) ? code : "internal";
   const text = { code: finalCode, message: String(message) };
   const error = { code: finalCode };
@@ -124,6 +138,10 @@ function errorResult(code, message, receipt) {
   if (suggested !== undefined) {
     text.suggested_action = suggested;
     error.suggested_action = suggested;
+  }
+  if (details !== undefined && details !== null && typeof details === "object") {
+    text.details = details;
+    error.details = details;
   }
   return {
     isError: true,
@@ -163,13 +181,14 @@ function notReadyResult() {
   };
 }
 
-// 连接类失败：callBrokerMethod 把 socket error/close 一律缠成 stale_socket
-//（message 保留 ENOENT/ECONNREFUSED 原文）；两路都认，仅在「从未成功 health」时
-// 走冷启动信封，热身后断连按普通错误外发（SDK 映射 stale_socket→HELPER_UNAVAILABLE）。
+// 连接类失败：只认 BrokerError code === "stale_socket"——broker.js:169-170 已把 socket
+// error/close 事件（含 ECONNREFUSED/ENOENT 冷连失败原文）一律缠成 stale_socket，且
+// callBrokerMethod 的其余拒绝路径（超时→timeout、响应错误→对端 code、坏 JSON→internal）
+// 都不是连接类，故不再做 message 文本匹配（终审 I3：文本匹配是死分支且会误判同文案的
+// 语义错误）。仅在「从未成功 health」时走冷启动信封，热身后断连按普通错误外发
+//（SDK 映射 stale_socket→HELPER_UNAVAILABLE），冷/热语义不变。
 function isConnectionFailure(error) {
-  if (error && typeof error === "object" && error.code === "stale_socket") return true;
-  const message = error && typeof error === "object" ? String(error.message ?? "") : "";
-  return /ECONNREFUSED|ENOENT/u.test(message);
+  return Boolean(error && typeof error === "object" && error.code === "stale_socket");
 }
 
 // ────────────────────────────────────────────── 直通/合成处理器（Task 2 五工具）
@@ -188,8 +207,72 @@ async function handleListApps({ call }) {
   };
 }
 
+// 透明启动轮询界（终审 I1）：launch 后最多 6 次 list_apps、间隔 500ms（6×500ms = 3s 有界，
+// 每轮先等后查——CreateProcess 回填与 list_apps 枚举有竞态）；超界仍无行 → launch_failed
+//「app did not start」。
+const LAUNCH_POLL_ATTEMPTS = 6;
+const LAUNCH_POLL_INTERVAL_MS = 500;
+
+// 行键双读（评审 I1）：真 wire 是 napi 驼峰 bundleId（实测 dist-cua-helper），历史 fake
+// broker 是 snake —— 与 resolveAppIdentity 的 pickField 保持同一读法，两条解析路径不再分叉。
+function appRowValue(field, app) {
+  if (app === null || app === undefined) return undefined;
+  return field === "bundle_id" ? pickField(app, "bundleId", "bundle_id") : app[field];
+}
+
+// 精确命中 + name 兜底大小写不敏感（Windows 展示名大小写由 OS 渲染，不作为身份）。
+function findAppRow(apps, field, wanted) {
+  const exact = apps.find((app) => appRowValue(field, app) === wanted);
+  const loose =
+    field === "name"
+      ? apps.find(
+          (app) =>
+            typeof app?.name === "string" &&
+            app.name.toLowerCase() === String(wanted).toLowerCase(),
+        )
+      : undefined;
+  return exact ?? loose;
+}
+
+// 透明启动（终审 I1；规范源 docs/computer-use.md:448-449 与 SKILL.md:133：getApp 未运行即
+// 后台启动，没有独立 launch 工具）：list_apps 未命中且 ref 是 name/bundle_id 形态时
+// launch_app（键名按 helper backend 整形：{name} / {bundleId}）→ 有界轮询 list_apps 找新行
+// → 回填 pid 继续。{pid} 直连在 resolveAppPid 早退、不进本面（死 pid 无从启动）。
+// 失败文案一律带 SDK isAppNotFound 判定短语「target app is not running」
+//（computer-use-client.mjs:410-415 的 /target app is not running/，仅字符串 ref 的
+// alternateAppRef 换字段重试由此触发）——launch 失败后仍保留该重试面。
+async function launchAndResolvePid(field, wanted, ref, call) {
+  const launchKey = field === "bundle_id" ? "bundleId" : "name";
+  try {
+    await call("launch_app", { [launchKey]: wanted });
+  } catch (error) {
+    // 码照搬 launch_app 的 broker 错误（helper 侧按 17 码表生成，如 launch_failed）；
+    // 非字符串码或非 Error 一律归 launch_failed——最终仍经 Task 2 装配器的 17 码闸门。
+    const code =
+      error && typeof error === "object" && typeof error.code === "string"
+        ? error.code
+        : "launch_failed";
+    throw new BrokerError(
+      `target app is not running: launch_app failed for app_ref ${JSON.stringify(ref)} (${error instanceof Error ? error.message : String(error)})`,
+      { code },
+    );
+  }
+  for (let attempt = 0; attempt < LAUNCH_POLL_ATTEMPTS; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, LAUNCH_POLL_INTERVAL_MS));
+    const rows = await call("list_apps");
+    if (!Array.isArray(rows)) continue; // 轮询中的坏帧不终止轮询（终态仍由超界定）
+    const launched = findAppRow(rows, field, wanted);
+    if (launched !== undefined && Number.isInteger(launched.pid)) return launched.pid;
+  }
+  throw new BrokerError(
+    `target app is not running: launch_app accepted but app_ref ${JSON.stringify(ref)} did not appear in list_apps within ${LAUNCH_POLL_ATTEMPTS * LAUNCH_POLL_INTERVAL_MS}ms (the app did not start)`,
+    { code: "launch_failed" },
+  );
+}
+
 // app_ref → pid 解析（docs：裸字符串读作 bundle_id；{pid} 直连不经 list_apps；
-// {name}/{bundle_id} 尽力经 list_apps 解析，不可解析 → invalid_request 点名 app_ref）。
+// {name}/{bundle_id} 经 list_apps 解析，未命中 → 透明启动（launchAndResolvePid），
+// 其失败一律以 launch 类错误点名 app_ref）。
 async function resolveAppPid(appRef, call) {
   if (appRef === undefined || appRef === null) {
     throw new BrokerError(
@@ -219,32 +302,10 @@ async function resolveAppPid(appRef, call) {
   if (!Array.isArray(apps)) {
     throw new BrokerError("list_apps returned an unexpected payload", { code: "internal" });
   }
-  const wanted = ref[field];
-  // 行键双读（评审 I1）：真 wire 是 napi 驼峰 bundleId（实测 dist-cua-helper），历史 fake
-  // broker 是 snake —— 与 resolveAppIdentity 的 pickField 保持同一读法，两条解析路径不再分叉。
-  const rowValue = (app) =>
-    app === null || app === undefined
-      ? undefined
-      : field === "bundle_id"
-        ? pickField(app, "bundleId", "bundle_id")
-        : app[field];
-  const exact = apps.find((app) => rowValue(app) === wanted);
-  // name 兜底大小写不敏感（Windows 展示名大小写由 OS 渲染，不作为身份）。
-  const loose =
-    field === "name"
-      ? apps.find((app) => typeof app?.name === "string" && app.name.toLowerCase() === String(wanted).toLowerCase())
-      : undefined;
-  const match = exact ?? loose;
-  if (!match || !Number.isInteger(match.pid)) {
-    // 短语 `target app is not running` 是 SDK isAppNotFound 的判定正则
-    //（computer-use-client.mjs:410-415，/target app is not running/），命中后 bindApp 才会
-    // 用 alternateAppRef 换字段重试一次——旧文案永远不会触发该重试。
-    throw new BrokerError(
-      `target app is not running: no app matches app_ref ${JSON.stringify(ref)}`,
-      { code: "invalid_request" },
-    );
-  }
-  return match.pid;
+  const match = findAppRow(apps, field, ref[field]);
+  if (match !== undefined && Number.isInteger(match.pid)) return match.pid;
+  // 未命中 → 透明启动（不再直接抛 not-found：docs 明言绑定即启动、无独立 launch 工具）。
+  return await launchAndResolvePid(field, ref[field], ref, call);
 }
 
 async function handleListWindows({ args, call }) {
@@ -285,7 +346,9 @@ function handleRequestAccess() {
 // 共用同一键位，语义以本注释区分，避免两种 delivered 混读。
 function handleStop({ session }) {
   session.stopped = true;
-  session.leaseOwner = null;
+  // 释放 controller lease（读 session.leaseOwner 判定：非 owner 持有时到不了本 handler——
+  // execute 的租约闸门先拒；无人持有时 releaseLease 幂等 no-op）。
+  session.releaseLease?.();
   return {
     isError: false,
     content: [{ type: "text", text: JSON.stringify({ stopped: true }) }],
@@ -513,6 +576,16 @@ function captureBase64Of(data) {
 // 截图帧：capture → base64 ≤200KiB 防御（Task 6 质量阶梯落地后此分支应不可达）→
 // ref 文本 + integrity meta 一律以真实字节 digest 为准（绝不读 _meta.raster_sha256 校验）。
 async function buildFrame(windowId, call) {
+  // 锁屏预检（终审 I5；spec 风险行 owner = Plan B）：capture 前先 screen_probe——
+  // {locked:true} → permission_denied（17 码表无 screen_locked，取语义最近且 never-retry），
+  // 零 capture 下发；probe 自身失败按原码外发（诚实报告设施故障，不谎报锁屏）。
+  const probe = await call("screen_probe");
+  if (probe !== null && typeof probe === "object" && probe.locked === true) {
+    throw new BrokerError(
+      "the screen is locked; unlock the workstation before capturing a screenshot",
+      { code: "permission_denied" },
+    );
+  }
   const capture = await call("capture", { windowId });
   if (!capture || typeof capture !== "object") {
     throw new BrokerError("capture returned an unexpected payload", { code: "internal" });
@@ -673,7 +746,8 @@ async function handleGetAppState({ args, session, call }) {
   });
 
   const appName = identity.name ?? String(pid);
-  const appKey = identity.bundleId ?? appName ?? String(pid);
+  // appName 恒非空（identity.name ?? String(pid)），末位兜底是死分支（终审 I4 删除）。
+  const appKey = identity.bundleId ?? appName;
   const observedTitle = firstNonEmptyString(pickField(observed, "windowTitle", "window_title"));
   const windowTitle = observedTitle ?? rowTitle ?? "";
   const headerName = sanitizeHeaderName(appName, pid);
@@ -1290,6 +1364,11 @@ export function createComputerUseRuntime(options = {}) {
   // refreshMarkerPath 本任务不消费（Task 5 resolver 侧凭据链使用），签名保留。
   const sessions = new Map();
   let disposed = false;
+  // controller lease（spec §controller lease + 所有权表；终审 I2 最小实现）：单活跃控制者，
+  // 抢占键 = (session_id, workspace_key)（= sessionSlotsOf().owner）。runtime 级记录是唯一
+  // 判定事实；持有会话的 session.leaseOwner 指向**同一条记录**（读路径见 releaseLease 与
+  // 执行闸门——不再是只写死字段）。释放点：owner 的 stop / closeSession、dispose。
+  let lease = null; // {owner, at, sessionKey} | null
   // health 预检是 runtime 级单次事实（并发 execute 合流到同一 promise）：
   let healthPromise;
   let healthOk = false;
@@ -1302,7 +1381,7 @@ export function createComputerUseRuntime(options = {}) {
     callBrokerMethod({ socketPath, method, params, timeoutMs: BROKER_CALL_TIMEOUT_MS });
 
   function getSession(context) {
-    const key = sessionKeyOf(context);
+    const key = sessionSlotsOf(context).key;
     let session = sessions.get(key);
     if (session === undefined) {
       session = {
@@ -1320,6 +1399,14 @@ export function createComputerUseRuntime(options = {}) {
       // 位移台账门（Task 4 的 action 处理器从 session 直取；appRefKey = String(window_id)）。
       session.resolveElementIndex = (appRefKey, index) =>
         resolveElementIndexOf(session, appRefKey, index);
+      // 释放本会话持有的 controller lease（stop / closeSession 共用）：读 session.leaseOwner
+      // 判定「本会话确实持有」（持有记录与 runtime lease 恒为同一对象），非持有者不动别人的租约。
+      session.releaseLease = () => {
+        const record = session.leaseOwner;
+        if (record === null) return;
+        if (lease === record) lease = null;
+        session.leaseOwner = null;
+      };
       sessions.set(key, session);
     }
     return session;
@@ -1409,6 +1496,29 @@ export function createComputerUseRuntime(options = {}) {
         `computer control was stopped; ${String(toolName)} is refused in this session until a new session takes control`,
       );
     }
+    // controller lease 闸门（终审 I2，spec §controller lease）：抢占发生在**通过 stopped 闸门后
+    // 的首个变更调用**上（stop 只释放不抢占，但同样受本闸门约束）。
+    //   - 无人持有 → 记 {owner, at}（同 session 重入 = 已是 owner，放行）；
+    //   - 他人他 workspace 持有 → controller_busy，**owner 必须写进 message**：SDK assertOk
+    //     用它自造的 details 覆盖 producer details（computer-use-client.mjs:293-296），
+    //     模型只看得到 message 文本；details.owner 仍按 spec 形状落双落点（errorResult）。
+    //   - 只读四工具（get_app_state/list_apps/list_windows/request_access）不进本闸门。
+    if (MUTATING_TOOLS.has(toolName)) {
+      const slots = sessionSlotsOf(context);
+      if (lease !== null && lease.owner !== slots.owner) {
+        return errorResult(
+          "controller_busy",
+          `computer control is held by another session (owner ${lease.owner}); ${String(toolName)} is refused until that session stops or closes`,
+          undefined,
+          { owner: lease.owner },
+        );
+      }
+      if (lease === null && toolName !== "stop_computer_control") {
+        const record = { owner: slots.owner, at: Date.now(), sessionKey: slots.key };
+        lease = record;
+        session.leaseOwner = record;
+      }
+    }
     const handler = handlers[toolName];
     if (handler === undefined) {
       return errorResult("unimplemented", `tool ${String(toolName)} is not implemented`);
@@ -1421,12 +1531,16 @@ export function createComputerUseRuntime(options = {}) {
   }
 
   async function closeSession(context) {
-    sessions.delete(sessionKeyOf(context));
+    const key = sessionKeyOf(context);
+    // owner closeSession 释放租约（releaseLease 内判 owner；他人会话只删自己的会话）。
+    sessions.get(key)?.releaseLease?.();
+    sessions.delete(key);
   }
 
   async function dispose() {
     disposed = true;
     sessions.clear();
+    lease = null;
     healthPromise = undefined;
   }
 

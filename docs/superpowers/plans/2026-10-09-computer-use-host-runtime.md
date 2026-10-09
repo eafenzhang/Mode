@@ -352,3 +352,5 @@ test("preserve：>200KiB 走压缩端口，压不进 → 降级不可见提示",
 - T5: 插件启用态 workspace 层合并镜像（评审驱动扩展）；warm 注入。
 - T6: 可注入 qualities 结构；函数 pub（测试可见性）。
 - T7: display 黄金落点=mode-cua 替身（services→core 不可行 5 点证据）；T4-M2 采用 possibly_sent 方向（spec 语义），§9.2 not_sent 正向表未做。
+- I1: 透明启动接线——`resolveAppPid` 未命中 → `launch_app` + `list_apps` 有界轮询（6 次 / 500ms），失败保留 `target app is not running` 短语维持 SDK 换字段重试面——终审驱动。
+- I2: 最小 controller 租约——runtime 级 `{owner, at, sessionKey}`，首个过 stopped 闸门的变更调用抢占，争用 owner 写进 message（SDK 覆写 details 的 caveat 记 spec §controller lease）——终审驱动。

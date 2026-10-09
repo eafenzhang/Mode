@@ -345,17 +345,21 @@ test("会话键隔离：session × workspace 双维 + snake/camel 同槽 + 缺 s
   const broker = await startBroker();
   try {
     const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
-    // A 会话 stop。
+    // A 会话 stop（stop 只释放不抢占，租约仍空）。
     assert.equal(
       (await execute(runtime, "stop_computer_control", {}, ctx("sA", "ws/1"))).isError,
       false,
     );
-    // 同 workspace 不同 session → 独立，不继承 stopped。
+    // 同 workspace 不同 session → 独立，不继承 stopped（该变更调用会抢占租约）。
     const otherSession = await execute(runtime, "left_click", {}, ctx("sB", "ws/1"));
     assert.notEqual(JSON.parse(otherSession.content[0].text).code, "controller_busy");
-    // 同 session 不同 workspace → 独立。
+    // 终审 I2：sB 现持租约——由 owner 释放后再断言下一条隔离性，
+    // 否则命中的是租约争用而非「stopped 不跨键传播」。
+    await runtime.closeSession(ctx("sB", "ws/1"));
+    // 同 session 不同 workspace → 独立（新租约归 sA@ws/2）。
     const otherWorkspace = await execute(runtime, "left_click", {}, ctx("sA", "ws/2"));
     assert.notEqual(JSON.parse(otherWorkspace.content[0].text).code, "controller_busy");
+    await runtime.closeSession(ctx("sA", "ws/2"));
 
     // brief 会话键的 snake_case 字段与 d.ts camelCase 同槽（同一逻辑会话）。
     const snake = { session_id: "sA", workspace_key: "ws/1", runtimeScope: "main" };
@@ -394,7 +398,7 @@ test("list_apps：单文本块 = 裸 JSON 数组，无 structuredContent", async
   }
 });
 
-test("list_windows：app_ref 三形态解析 pid + 不可解析归 invalid_request", async () => {
+test("list_windows：app_ref 三形态解析 pid + 不可解析 → 透明启动（launch_app + 轮询）", async () => {
   const broker = await startBroker();
   try {
     const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
@@ -417,12 +421,20 @@ test("list_windows：app_ref 三形态解析 pid + 不可解析归 invalid_reque
     const listAppsCalls = broker.calls.filter((call) => call.method === "list_apps");
     assert.equal(listAppsCalls.length, 2, "只有 name/bundle_id 两条走 list_apps 解析");
 
-    // 不可解析 → invalid_request，message 点名 app_ref。
+    // 不可解析 → 透明启动（终审 I1）：launch_app 成功但轮询界内 list_apps 仍无行
+    // → launch_failed，message 点名 app_ref（并保留 SDK isAppNotFound 短语）。
     const missing = await execute(runtime, "list_windows", { app_ref: { name: "Missing App" } }, context);
     assert.equal(missing.isError, true);
     const missingPayload = JSON.parse(missing.content[0].text);
-    assert.equal(missingPayload.code, "invalid_request");
+    assert.equal(missingPayload.code, "launch_failed");
     assert.ok(missingPayload.message.includes("Missing App"), missingPayload.message);
+    assert.ok(missingPayload.message.includes("target app is not running"), missingPayload.message);
+    const launchCalls = broker.calls.filter((call) => call.method === "launch_app");
+    assert.deepEqual(
+      launchCalls.map((call) => call.params),
+      [{ name: "Missing App" }],
+      "未命中必须先按 name 形态打一次 launch_app",
+    );
 
     // 缺 app_ref → invalid_request。
     const absent = await execute(runtime, "list_windows", {}, context);
@@ -539,6 +551,219 @@ test("T2-M3：并发首调 execute → ensure 与 health 各只执行一次，�
       1,
       "health 只打一次",
     );
+  } finally {
+    await broker.close();
+  }
+});
+
+// ────────────────────────────────────────────── 8. 终审 I1：透明启动接线
+
+// 规范源：docs/computer-use.md:448-449 与 SKILL.md:133 ——「getApp 未运行即后台启动，
+// 没有独立 launch 工具」。resolveAppPid 未命中 → launch_app → 有界轮询 list_apps → pid。
+test("I1：字符串 ref 未命中 → launch_app(bundleId) → 轮询命中新行 → list_windows 成功", async () => {
+  const launched = []; // launch_app 之后才出现的行（模拟启动回填）
+  const broker = await startBroker((method, params) => {
+    if (method === "health") return healthOk;
+    if (method === "list_apps") return { ok: true, result: [...GOOD_APPS, ...launched] };
+    if (method === "launch_app") {
+      launched.push({ pid: 55, name: "Ghost", bundleId: "ghost.app", active: true });
+      return { ok: true, result: { pid: 55, name: "Ghost" } };
+    }
+    if (method === "list_windows") {
+      return {
+        ok: true,
+        result: [{ window_id: 701, pid: params.pid, title: "Ghost", main: true }],
+      };
+    }
+    return { ok: true, result: {} };
+  });
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    // 裸字符串按 docs 读作 bundle_id → launch 键名同样是 backend 整形后的 bundleId。
+    const result = await execute(runtime, "list_windows", { app_ref: "ghost.app" }, ctx("i1a"));
+    assert.equal(result.isError, false, JSON.stringify(result));
+    assert.deepEqual(JSON.parse(result.content[0].text), [
+      { window_id: 701, pid: 55, title: "Ghost", main: true },
+    ]);
+    assert.deepEqual(
+      broker.calls.filter((call) => call.method === "launch_app").map((call) => call.params),
+      [{ bundleId: "ghost.app" }],
+    );
+    // 事件顺序：首查 list_apps 未命中 → launch_app → 轮询 list_apps（首轮回询即中）。
+    const sequence = broker.calls
+      .filter((call) => ["list_apps", "launch_app"].includes(call.method))
+      .map((call) => call.method);
+    assert.deepEqual(sequence, ["list_apps", "launch_app", "list_apps"]);
+  } finally {
+    await broker.close();
+  }
+});
+
+test("I1：launch_app broker 失败 → launch_failed（点名 app_ref + not running 短语），零轮询", async () => {
+  const broker = await startBroker((method) => {
+    if (method === "health") return healthOk;
+    if (method === "list_apps") return { ok: true, result: GOOD_APPS };
+    if (method === "launch_app") {
+      return { ok: false, error: { code: "launch_failed", message: "SearchPathW found no target" } };
+    }
+    return { ok: true, result: {} };
+  });
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const result = await execute(
+      runtime,
+      "list_windows",
+      { app_ref: { name: "Ghost App" } },
+      ctx("i1b"),
+    );
+    assert.equal(result.isError, true);
+    const payload = JSON.parse(result.content[0].text);
+    // launch_app 的码原样经 Task 2 装配器（17 码闸门）外发。
+    assert.equal(payload.code, "launch_failed");
+    assert.ok(payload.message.includes("target app is not running"), payload.message);
+    assert.ok(payload.message.includes("SearchPathW found no target"), payload.message);
+    assert.ok(payload.message.includes("Ghost App"), payload.message);
+    assert.deepEqual(result.structuredContent, { error: { code: "launch_failed" } });
+    // launch 失败即止：不再轮询 list_apps。
+    assert.equal(broker.calls.filter((call) => call.method === "list_apps").length, 1);
+  } finally {
+    await broker.close();
+  }
+});
+
+test("I1：launch 成功但轮询界内（6 次 / 500ms）无新行 → launch_failed（app did not start）", async () => {
+  const broker = await startBroker((method) => {
+    if (method === "health") return healthOk;
+    if (method === "list_apps") return { ok: true, result: GOOD_APPS };
+    if (method === "launch_app") return { ok: true, result: { pid: 0 } };
+    return { ok: true, result: {} };
+  });
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const result = await execute(runtime, "list_windows", { app_ref: { name: "Ghost" } }, ctx("i1c"));
+    assert.equal(result.isError, true);
+    const payload = JSON.parse(result.content[0].text);
+    assert.equal(payload.code, "launch_failed");
+    assert.ok(payload.message.includes("the app did not start"), payload.message);
+    assert.ok(payload.message.includes("target app is not running"), payload.message);
+    // 首查 1 次 + 界内轮询 6 次（≈6×500ms 有界），不多不少。
+    assert.equal(
+      broker.calls.filter((call) => call.method === "list_apps").length,
+      1 + 6,
+    );
+    assert.equal(broker.calls.filter((call) => call.method === "launch_app").length, 1);
+  } finally {
+    await broker.close();
+  }
+});
+
+test("I1：{pid} ref 直连不经 list_apps/launch_app——死 pid 也不触发启动", async () => {
+  const broker = await startBroker((method, params) => {
+    if (method === "health") return healthOk;
+    if (method === "list_apps") return { ok: true, result: GOOD_APPS }; // 无 4242 行
+    if (method === "list_windows") {
+      return { ok: true, result: GOOD_WINDOWS.filter((row) => row.pid === params.pid) };
+    }
+    return { ok: true, result: {} };
+  });
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    // pid 4242 既不在 list_apps 也没有窗口（"未运行"），但 {pid} 形态语义是直连：
+    // 死 pid 无从启动，维持原样（空行照发，不打 launch_app）。
+    const result = await execute(runtime, "list_windows", { app_ref: { pid: 4242 } }, ctx("i1d"));
+    assert.equal(result.isError, false, JSON.stringify(result));
+    assert.deepEqual(JSON.parse(result.content[0].text), []);
+    assert.equal(broker.calls.filter((call) => call.method === "launch_app").length, 0);
+    assert.equal(broker.calls.filter((call) => call.method === "list_apps").length, 0);
+  } finally {
+    await broker.close();
+  }
+});
+
+// ────────────────────────────────────────────── 9. 终审 I2：最小 controller 租约
+
+const OWNER_A = "lease-a@ws/lease";
+const OWNER_B = "lease-b@ws/lease";
+
+test("I2：首变更会话抢占租约 → 他会话变更 controller_busy（owner 入 message 与 details）", async () => {
+  // perform 回 dispatched → type 成功（抢占发生在闸门上，成功/失败都算变更尝试）；
+  // observe 回空树（defaultHandle 只给 {}，normalizeElements 会拒）——只读面断言要用。
+  const broker = await startBroker((method) => {
+    if (method === "perform") return { ok: true, result: { dispatched: "dispatched" } };
+    if (method === "observe") {
+      return {
+        ok: true,
+        result: { windowTitle: "Untitled", focusedIndex: null, enumerationComplete: true, elements: [] },
+      };
+    }
+    return defaultHandle(method);
+  });
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const ownerCtx = ctx("lease-a", "ws/lease");
+    const rivalCtx = ctx("lease-b", "ws/lease");
+    const typeArgs = { text: "hi", app_ref: { pid: 7 } };
+
+    // 首个通过 stopped 闸门的变更调用抢占 {owner, at}；同会话重入恒放行。
+    assert.equal((await execute(runtime, "type", typeArgs, ownerCtx)).isError, false);
+    assert.equal((await execute(runtime, "type", typeArgs, ownerCtx)).isError, false);
+
+    // 他会话（同 workspace 也算争用）变更 → controller_busy，owner 必须可见。
+    const busy = await execute(runtime, "type", typeArgs, rivalCtx);
+    assert.equal(busy.isError, true);
+    const payload = JSON.parse(busy.content[0].text);
+    assert.equal(payload.code, "controller_busy");
+    assert.ok(payload.message.includes(OWNER_A), payload.message);
+    assert.equal(payload.details?.owner, OWNER_A);
+    assert.equal(
+      payload.suggested_action,
+      "Another computer-control session (or a stopped one) owns control; observe state or ask the user.",
+    );
+    // spec 形状：structuredContent.error 同样带 details.owner（双落点）。
+    assert.equal(busy.structuredContent.error.code, "controller_busy");
+    assert.equal(busy.structuredContent.error.details?.owner, OWNER_A);
+
+    // stop 同样受租约约束（不抢占，但争用时被拒——owner 可见）。
+    const rivalStop = await execute(runtime, "stop_computer_control", {}, rivalCtx);
+    assert.equal(rivalStop.isError, true);
+    assert.equal(JSON.parse(rivalStop.content[0].text).code, "controller_busy");
+
+    // 只读四工具在争用下保持开放。
+    assert.equal((await execute(runtime, "list_apps", {}, rivalCtx)).isError, false);
+    assert.equal(
+      (await execute(runtime, "get_app_state", { app_ref: { pid: 7 } }, rivalCtx)).isError,
+      false,
+    );
+    assert.equal((await execute(runtime, "request_access", {}, rivalCtx)).isError, false);
+  } finally {
+    await broker.close();
+  }
+});
+
+test("I2：owner stop / closeSession 释放租约 → 竞争者可抢占；dispose 清空", async () => {
+  const broker = await startBroker((method) =>
+    method === "perform" ? { ok: true, result: { dispatched: "dispatched" } } : defaultHandle(method),
+  );
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const a = ctx("rel-a", "ws/rel");
+    const b = ctx("rel-b", "ws/rel");
+    const c = ctx("rel-c", "ws/rel");
+    const typeArgs = { text: "hi", app_ref: { pid: 7 } };
+
+    // a 抢占 → a 自己 stop（owner 通过闸门并释放）→ b 变更即新 owner。
+    assert.equal((await execute(runtime, "type", typeArgs, a)).isError, false);
+    assert.equal((await execute(runtime, "stop_computer_control", {}, a)).isError, false);
+    const bClaim = await execute(runtime, "type", typeArgs, b);
+    assert.notEqual(JSON.parse(bClaim.content[0].text).code, "controller_busy");
+
+    // owner closeSession 释放 → c 可抢占。
+    await runtime.closeSession(b);
+    const cClaim = await execute(runtime, "type", typeArgs, c);
+    assert.notEqual(JSON.parse(cClaim.content[0].text).code, "controller_busy");
+
+    // dispose 清空租约与会话（dispose 后 execute 归 broker_unavailable，已在上文锁定）。
+    await runtime.dispose();
   } finally {
     await broker.close();
   }
