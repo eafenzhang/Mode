@@ -508,3 +508,38 @@ test("env 注入的 socket 路径优先于铸造（resolveBrokerSocketPath 兜�
     await broker.close();
   }
 });
+
+// T2-M3（Task 2 评审 carry，Task 7 落地）：并发首次 execute 合流到同一 health 单飞
+//（preflight 的 healthPromise ??= 在首次调用内同步置位）——ensureBrokerAvailable 与 health
+// 各只执行一次；两个并发调用都必须成功返回（不因合流丢结果）。
+test("T2-M3：并发首调 execute → ensure 与 health 各只执行一次，双调用均成功", async () => {
+  const broker = await startBroker();
+  try {
+    let ensureCalls = 0;
+    const runtime = createComputerUseRuntime({
+      brokerSocketPath: broker.socketPath,
+      // 50ms 延迟把首调窗口拉开，让第二个 execute 确实在 health 在途时进入 preflight。
+      ensureBrokerAvailable: async () => {
+        ensureCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      },
+    });
+    const context = ctx("t2m3");
+    const [first, second] = await Promise.all([
+      execute(runtime, "list_apps", {}, context),
+      execute(runtime, "list_windows", { app_ref: { pid: 7 } }, context),
+    ]);
+    assert.equal(first.isError, false, JSON.stringify(first));
+    assert.deepEqual(JSON.parse(first.content[0].text), GOOD_APPS);
+    assert.equal(second.isError, false, JSON.stringify(second));
+    assert.deepEqual(JSON.parse(second.content[0].text), GOOD_WINDOWS);
+    assert.equal(ensureCalls, 1, "并发首调共享同一 preflight 单飞");
+    assert.equal(
+      broker.calls.filter((call) => call.method === "health").length,
+      1,
+      "health 只打一次",
+    );
+  } finally {
+    await broker.close();
+  }
+});
