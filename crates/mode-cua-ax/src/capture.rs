@@ -1,4 +1,4 @@
-//! `capture` 原语：窗口 / 全屏截图（GDI → PNG），经 `uia_thread` 在 STA 线程串行执行。
+//! `capture` 原语：窗口 / 全屏截图（GDI → PNG → 帧预算出口），经 `uia_thread` 在 STA 线程串行执行。
 //!
 //! 语义（plan Task 4 Produces 节，spec「帧契约 / 风险表」）：
 //! - 窗口：`PrintWindow(hwnd, PW_RENDERFULLCONTENT)` 渲染进 32bpp 顶向 DIB；调用前经
@@ -10,6 +10,9 @@
 //!   clamp 后无像素（全空）→ blank 错误。
 //! - 空帧或抽样全黑 → `internal` "screen capture returned a blank frame"（抽样步长 = 宽/64
 //!   逐行跳采；只看 BGR，忽略 DIB 中未定义的 alpha 位）。
+//! - 帧预算（Task 6）：PNG 的 base64 > 200*1024 字符 → JPEG 质量阶梯 `[85,70,55,40]`
+//!   重编码，`mimeType` 随结果变（`image/png` / `image/jpeg`）；保底仍超 → `internal`
+//!   "capture exceeds frame budget"（不发超限帧）。
 //! - 错误映射（17 码）：窗口失效 → `element_unavailable`；缺 windowId / region 非四元组 →
 //!   `invalid_request`；GDI / 编码失败 → `internal`；STA 往返超时 → `timeout`（submit 层）。
 //!
@@ -17,6 +20,7 @@
 //! 不另起线程）。
 use crate::error::{AxError, AxResult};
 use crate::uia_thread;
+use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::{ExtendedColorType, ImageEncoder};
 use napi::bindgen_prelude::Buffer;
@@ -30,6 +34,70 @@ use windows::Win32::UI::WindowsAndMessaging::{
   SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
 };
 
+/// 帧预算（base64 字符数口径）：与 `frame-contract.js` 的
+/// `OFFICIAL_CUA_IMAGE_INLINE_BASE64_BYTES` 同值——runtime 按 `Buffer.byteLength(base64)`
+/// 比较，故这里也按 base64 编码后的字符数计（而非原始字节数）。
+const FRAME_BUDGET_B64_CHARS: usize = 200 * 1024;
+
+/// JPEG 质量阶梯（自高至低）：PNG 超预算时依次用这些质量重编码，首个限内结果即返回。
+const JPEG_QUALITY_LADDER: [u8; 4] = [85, 70, 55, 40];
+
+/// 标准 base64 编码长度（含 padding）= `4 * ceil(n / 3)`，与 JS `bytes.toString("base64")`
+/// 逐字节等长——预算判定必须与 runtime 的 `Buffer.byteLength` 同口径。
+fn base64_len(bytes: usize) -> usize {
+  4 * bytes.div_ceil(3)
+}
+
+/// 生产入口：PNG 超预算 → 按 `JPEG_QUALITY_LADDER` 逐质量重编码 JPEG。
+///
+/// 返回 `(栅格字节, MIME)`：预算内恒等返回原 PNG（不重编码，字节零变化）；阶梯命中返回
+/// JPEG + `image/jpeg`；全部质量仍超 → `internal`（spec「尺寸策略」：不发超限帧）。
+pub fn fit_frame_budget(
+  png_bytes: &[u8],
+  width: u32,
+  height: u32,
+) -> AxResult<(Vec<u8>, &'static str)> {
+  fit_frame_budget_with_qualities(png_bytes, width, height, &JPEG_QUALITY_LADDER)
+}
+
+/// 质量序列可注入的阶梯本体（测试缝：空序列即可确定性触达失败分支，
+/// 免去依赖「真噪声图在 q40 必超预算」的编码器实现细节）。
+pub fn fit_frame_budget_with_qualities(
+  png_bytes: &[u8],
+  width: u32,
+  height: u32,
+  qualities: &[u8],
+) -> AxResult<(Vec<u8>, &'static str)> {
+  // 恒等路径：预算内原样返回（不重编码，字节零变化）。
+  if base64_len(png_bytes.len()) <= FRAME_BUDGET_B64_CHARS {
+    return Ok((png_bytes.to_vec(), "image/png"));
+  }
+  let rgb = image::load_from_memory(png_bytes)
+    .map_err(|e| AxError::internal(format!("帧预算重编码 PNG 解码失败: {e}")))?
+    .to_rgb8();
+  // 几何契约：上报的 width/height 即 CaptureResultNapi 出参，重编码不得与之相悖；
+  // 同时钉死后续 JPEG 编码的缓冲区长度恒等（JpegEncoder::encode 长度不符会 panic）。
+  if rgb.dimensions() != (width, height) {
+    return Err(AxError::internal(format!(
+      "帧预算重编码尺寸不一致: 期望 {width}x{height}, 实际 {}x{}",
+      rgb.width(),
+      rgb.height()
+    )));
+  }
+  for &quality in qualities {
+    let mut jpeg = Vec::new();
+    // JPEG 只吃 RGB（无 alpha）；质量参数由 image 编码器钳在 1..=100。
+    JpegEncoder::new_with_quality(&mut jpeg, quality)
+      .write_image(rgb.as_raw(), width, height, ExtendedColorType::Rgb8)
+      .map_err(|e| AxError::internal(format!("JPEG 编码失败（质量 {quality}）: {e}")))?;
+    if base64_len(jpeg.len()) <= FRAME_BUDGET_B64_CHARS {
+      return Ok((jpeg, "image/jpeg"));
+    }
+  }
+  // 质量保底仍超：不发超限帧（spec「尺寸策略」），internal + 固定文案。
+  Err(AxError::new("internal", "capture exceeds frame budget"))
+}
+
 // 入参是请求面：Option 字段由 napi 呈现为可选（Task 2 口径，不加 use_nullable）。
 #[napi(object)]
 pub struct CaptureRequestNapi {
@@ -42,12 +110,14 @@ pub struct CaptureRequestNapi {
 // 出参全部必有字段；use_nullable 无 None 字段可落，按 Task 2 结果面口径保留标注。
 #[napi(object, use_nullable = true)]
 pub struct CaptureResultNapi {
-  /// PNG 编码字节。
+  /// 栅格字节：预算内为原 PNG；超预算经质量阶梯重编码为 JPEG。
   pub data: Buffer,
   pub width: u32,
   pub height: u32,
   /// region 曾被 clamp 到帧内（任一边越界即为 true）。
   pub clamped: bool,
+  /// 栅格 MIME：`image/png`（恒等路径）或 `image/jpeg`（阶梯重编码），随结果变。
+  pub mime_type: String,
 }
 
 // napi 导出统一 js_name 钉 snake_case（Task 2 约定）；Rust 名与 capture() 内核区分。
@@ -109,11 +179,14 @@ pub(crate) fn run_capture(
   PngEncoder::new(&mut png)
     .write_image(&rgb, cw as u32, ch as u32, ExtendedColorType::Rgb8)
     .map_err(|e| AxError::internal(format!("PNG 编码失败: {e}")))?;
+  // 帧预算出口：base64 >200KiB → JPEG 质量阶梯；保底仍超 → internal（不发超限帧）。
+  let (data, mime) = fit_frame_budget(&png, cw as u32, ch as u32)?;
   Ok(CaptureResultNapi {
-    data: Buffer::from(png),
+    data: Buffer::from(data),
     width: cw as u32,
     height: ch as u32,
     clamped,
+    mime_type: mime.to_string(),
   })
 }
 
