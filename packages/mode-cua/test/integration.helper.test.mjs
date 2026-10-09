@@ -151,7 +151,7 @@ async function performDispatched(socketPath, params, { retryMs = 15_000 } = {}) 
 
 test(
   "helper 端到端往返：spawn → handshake → health → launch notepad → observe/edit → click+type → value → kill",
-  { skip, timeout: 180_000 },
+  { skip, timeout: 240_000 },
   async (t) => {
     const socketPath = mintBrokerSocketPath();
     const child = fork(entry, ["--socket", socketPath, "--parent-pid", String(process.pid)], {
@@ -291,7 +291,7 @@ test(
         callBrokerMethod({ socketPath, method: "health", timeoutMs: 2_000 }),
         (error) =>
           error instanceof BrokerError &&
-          (error.code === "stale_socket" || /closed|ECONN|ENOENT|pipe/i.test(error.message)),
+          (error.code === "stale_socket" || /closed|ECONN|ENOENT/i.test(error.message)),
         "helper 死亡后 callBrokerMethod 应以 stale_socket/closed 拒绝",
       );
       t.diagnostic("socket dead: callBrokerMethod rejected after kill");

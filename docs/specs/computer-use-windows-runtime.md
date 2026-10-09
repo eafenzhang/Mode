@@ -174,7 +174,8 @@
   - `containsImageRefAuthority(text)`：ref 合法且含 credential/frame_id（供序列化上下文过滤）。
 - **尺寸策略**：helper 侧截图后按质量阶梯重编码，保证 base64 ≤ 200KiB（质量保底仍超 →
   返回 `internal` 错误 + message，**不发超限帧**——超限帧会被归一化层换成 artifact 文本，
-  模型将失去坐标基准）。
+  模型将失去坐标基准）；owner/层 = **helper-backend capture 出口**（PNG→JPEG 质量阶梯由
+  Plan B 首个任务实现——帧只在 Plan B 流动，一期不实现）。
 
 ### 工具面（14 个；参数与语义以插件 `docs/computer-use.md` 为规范源）
 
@@ -206,7 +207,8 @@
 - `select_text`：UIA TextPattern `Select(range)`；元素不支持 → `not_selectable`
   （歧义匹配拒绝而非取第一个，按 docs）。
 - `perform_action`：只接受该元素 `actions` 列出的动作，未列出 → `action_unavailable`。
-- `paste`：写系统剪贴板 → 粘贴 → 恢复用户剪贴板；无 app 消费 → `timeout`；
+- `paste`：写系统剪贴板 → 粘贴 → 恢复用户剪贴板；无 app 消费 → `timeout`
+  （owner = **Plan B 运行时**：settle 后依观察结果判定；一期 addon/backend 返回 `dispatched` 即可）；
   后台 app → `foreground_required`（docs 明示 paste 走 event）。
 - `key`：xdotool 风格 keysym + 短名（`Return/Tab/Control_L+a/super+c/Up`…，
   Windows 用 `ctrl`），`repeat`/`hold_seconds` 支持。
@@ -231,16 +233,18 @@
   `parseRequestLine/dispatchRequest/errorResponse*` 契约）。
 - **method 集**（runtime→helper 的原语层，与 14 工具名解耦）：
   `health, list_apps, list_windows, observe, capture, perform, launch_app, screen_probe`。
-  `isBrokerMethod` = 白名单前缀；`isReadOnlyBrokerMethod` 覆盖 `health/list_*/observe/capture`。
-- **鉴权**：连接首包携带 token（与 `cua-broker.ts` 现有 `timingSafeEqual` 同口径）；
-  token/socket 由 services host 铸造并经既有 env 注入链路传递，日志不落 token。
+  `isBrokerMethod` = 白名单前缀；`isReadOnlyBrokerMethod` 覆盖 6 个只读方法
+  `health, list_apps, list_windows, observe, capture, screen_probe`（与 `broker.js` 的
+  `READONLY_METHODS` 逐字一致）。
+- **鉴权**：helper 连接**无口令**，socket 路径即凭据（`packages/shared/src/runtimeEnv.ts:149`
+  注释拍板：socket 不可猜即可；token 概念仅存在于 node_repl 进程内 Worker 桥，非 helper 连接）；
+  socket 由 services host 铸造并经既有 env 注入链路传递，日志不落凭据。
 - **fork IPC 握手**（`parseReadyMessage` 既有线格式，实现必须对齐）：
   `{protocol:"mode-cua-windows-dev/v1", type:"transport_ready"|"ready"|"error",
     socketPath, pid, ...}`；`transport_ready` = 管道已绑定鉴权，`ready` = 完整健康握手。
 - **addon 版本握手**：helper `health` 返回 addon 协议版本，与 runtime 常量不一致 →
   `version_mismatch`（SDK→`VERSION_MISMATCH`，never-retry）。
-- **并发与线程**：addon 内部单条 UIA/输入命令队列（UIA STA 线程亲和），截图可并行；
-  单请求超时 → `timeout`。
+- **并发与线程**：UIA pattern 调用走 STA 串行队列（UIA STA 线程亲和）；SendInput/剪贴板注入在调用方线程执行（不触目标消息泵）；GDI 截图与 observe 同队列串行（非并行）；单请求超时 → `timeout`。
 - 错误码在 helper 侧就用 17 码表生成；`unimplemented`/`method_not_found` 保留给分发层。
 
 ### controller lease
@@ -303,7 +307,7 @@
 | UIPI：向提升（管理员）窗口注入被拒 | 注入前完整性预检（`GetWindowThreadProcessId` → `OpenProcessToken` → `GetTokenInformation(TokenIntegrityLevel)` 与本进程 RID 对比）：目标严格更高 → `action_unavailable` + 指引（同等权限重启目标/退出提升；不做提权重构）；探测任一步失败 → 放行（fail-open：设施故障不阻断合法链路）；event 与 UIA 两条路径都在任何注入之前执行 |
 | 防截屏/受保护内容黑帧 | 截图后做非空校验，失败 → `internal`/`timeout` + 明确 message |
 | 目标窗口挂起时 PrintWindow 占死共享 STA 队列 | IsHungAppWindow 预检 → 直接 BitBlt 回退；调用中途挂起的残余风险保留为已知限制 |
-| 锁屏期间采集失败 | 统一 `permission_denied` + message（17 码表无 screen_locked，选语义最近且 never-retry） |
+| 锁屏期间采集失败 | 统一 `permission_denied` + message（17 码表无 screen_locked，选语义最近且 never-retry）；owner = **Plan B**（Plan B 起在 helper-backend capture 前接 `screen_probe` 预检，锁屏 → `permission_denied`；一期未接线属已知归属注记） |
 | 纯净室对官方语义的偏差 | 以市场分发的 docs+SDK 为规范源，集成测试锁定行为；偏差只允许更保守 |
 | CI 时长/工具链 | Rust 仅 windows job；cargo 缓存；不引入跨平台矩阵 |
 | 新增 Rust 维护面 | 单 crate、接口粗粒度（8 个原语），TS 侧不暴露 addon 细节 |

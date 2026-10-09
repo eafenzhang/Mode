@@ -898,5 +898,5 @@ git commit -m "test(cua): helper 端到端集成测试（记事本往返）"
 
 ## 后续计划（不在本文件范围）
 
-- **Plan B — host runtime**：`frame-contract` 六函数、`createComputerUseRuntime`（14 工具、会话/state_id/diff、收据与 CUA_NOT_READY）、`createCuaProductMcpServerResolver`、display 黄金样例。spec 对应节：「runtime 面」「帧契约」「工具面」「controller lease」。
+- **Plan B — host runtime**：`frame-contract` 六函数、`createComputerUseRuntime`（14 工具、会话/state_id/diff、收据与 CUA_NOT_READY）、`createCuaProductMcpServerResolver`、display 黄金样例。spec 对应节：「runtime 面」「帧契约」「工具面」「controller lease」。`HelperHealth` d.ts 需补 `protocolVersion?: string`；`perform` 需要整体动作 deadline（防 16.7min 级阻塞饿死 health）；capture ≤200KiB 阶梯与锁屏预检归属见 spec 对应行。
 - **Plan C — 发布与验收**：electron-builder `tools/cua-helper` 打包、CI rust 接入、desktop E2E、实机验收清单、NOTICE 文案更新（占位声明改为可用声明需同步 NOTICE 两语言版）。
