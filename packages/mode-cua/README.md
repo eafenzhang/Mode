@@ -1,9 +1,35 @@
 # @mode/cua
 
-API-compatible placeholder package for Computer Use. This build ships without
-Computer Use: every runtime surface (Computer Use runtime, broker RPC, Helper
-install/launch/verify, PiP session client, native addon loader) reports
-**unavailable** and fails closed, predicates about official CUA frames are
-`false`, and permission ports keep their privacy fail-closed semantics.
+Computer Use host package (Windows first phase): a broker line protocol plus a
+helper child process and its Rust addon (`crates/mode-cua-ax`, UIA3 / GDI /
+SendInput), with the Computer Use runtime executing in the node_repl host.
+macOS surfaces remain fail-closed placeholders. Capabilities and permission
+boundaries (lock screen → `permission_denied`, elevated UIPI targets →
+`action_unavailable`, no TCC-style prompt on Windows, socket-path credential
+for helper connections) are documented in
+[the Windows runtime spec](../../docs/specs/computer-use-windows-runtime.md).
+
+## Development
+
+```bash
+pnpm build:cua-helper   # builds dist-cua-helper and stages it into bundled-tools
+# then start desktop dev against this package's outputs:
+# PowerShell: $env:MODE_CUA_DEV_ROOT="D:\ZCodium\packages\mode-cua"; pnpm dev:desktop
+# Git Bash : MODE_CUA_DEV_ROOT="$(pwd)/packages/mode-cua" pnpm dev:desktop
+```
+
+`MODE_CUA_DEV_ROOT` points a desktop dev run at this package's build outputs
+(`dist-cua-helper/entry.cjs` and `dist-cua-helper/cua_ax.node` per the
+`modeCuaRuntime` contract in `package.json`).
+
+## Tests
+
+```bash
+pnpm --filter @mode/cua test
+CUA_INTEGRATION=1 pnpm --filter @mode/cua run test:integration
+```
+
+The integration test needs `pnpm build:cua-helper` artifacts and skips itself
+otherwise.
 
 License: Apache-2.0.

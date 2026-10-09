@@ -2,7 +2,7 @@
   "name": "@mode/cua",
   "version": "0.6.3",
   "private": true,
-  "description": "API-compatible placeholder package for Computer Use. This build ships without Computer Use: every runtime surface reports unavailable and fails closed.",
+  "description": "Computer Use host package: broker line protocol plus helper child process and Rust addon (UIA3/GDI/SendInput) for the Windows first phase, with the runtime in the node_repl host; macOS surfaces are fail-closed placeholders.",
   "license": "MIT",
   "type": "module",
   "exports": {
