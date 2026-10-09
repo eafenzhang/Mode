@@ -28,6 +28,10 @@ windows = { version = "0.58", features = [
   "Win32_Storage_Xps",
   # Task 5：剪贴板 GlobalAlloc/GlobalLock/GlobalUnlock（Win32::System::Memory），编译强制新增。
   "Win32_System_Memory",
+  # Task 6：SearchPathW 与 IShellLinkW::GetPath（启动解析 + Start Menu .lnk 目标读取），编译强制新增。
+  "Win32_Storage_FileSystem",
+  # Task 6：OpenInputDesktop（锁屏探测），编译强制新增。
+  "Win32_System_StationsAndDesktops",
 ] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 

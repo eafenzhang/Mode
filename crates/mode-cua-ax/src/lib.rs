@@ -1,9 +1,9 @@
 #![deny(clippy::unwrap_used)]
 // 模块必须 pub：集成测试（tests/*.rs）直接调用纯逻辑函数，napi 包装只做错误转码。
-// capture/perform/input/clipboard 已落地（Task 4/5）；launch/screen 由 Task 6
-// 创建各自文件时追加自己的 pub mod 行——提前声明会编译失败。
-pub mod apps; pub mod capture; pub mod clipboard; pub mod error; pub mod input; pub mod observe;
-pub mod perform; pub mod uia_thread;
+// capture/perform/input/clipboard 已落地（Task 4/5）；launch/screen 由 Task 6 落地
+// （最后两个模块），Task 1 挂起的模块清单至此收齐。
+pub mod apps; pub mod capture; pub mod clipboard; pub mod error; pub mod input; pub mod launch;
+pub mod observe; pub mod perform; pub mod screen; pub mod uia_thread;
 use napi_derive::napi;
 use error::AxResult;
 
@@ -13,6 +13,8 @@ pub fn version() -> String { env!("CARGO_PKG_VERSION").to_string() }
 
 // use_nullable：napi 默认把 None 字段整个省略，接口契约要求「取不到为 null」
 // （含 JSON 线格式），故显式置 null。
+// Debug：brief 测试面直接 `.unwrap_err().code`（unwrap_err 要求 Ok 类型 Debug）。
+#[derive(Debug)]
 #[napi(object, use_nullable = true)]
 pub struct AppInfoNapi { pub pid: u32, pub name: Option<String>, pub bundle_id: Option<String>, pub active: bool }
 #[napi(object, use_nullable = true)]
@@ -77,6 +79,24 @@ pub fn perform_napi(req: PerformRequestNapi) -> napi::Result<PerformResultNapi> 
       .map(|dispatched| PerformResultNapi { dispatched }),
   )
 }
+
+// Task 6：launch 入参是请求面（SDK 保证 name/bundleId 二选一），不加 use_nullable
+// （入参口径同 ObserveRequestNapi）；裸字符串按 bundleId 传入，归一化在 launch::target_from。
+#[napi(object)]
+pub struct LaunchRequestNapi { pub name: Option<String>, pub bundle_id: Option<String> }
+
+// use_nullable：结果面口径（Task 2/4）。locked 恒为 bool（锁屏=OpenInputDesktop 失败），
+// 字段永不缺席，加 use_nullable 是结果面的一致性声明而非行为差异。
+#[napi(object, use_nullable = true)]
+pub struct ScreenProbeNapi { pub locked: bool }
+
+#[napi(js_name = "launch_app")]
+pub fn launch_app(req: LaunchRequestNapi) -> napi::Result<AppInfoNapi> {
+  to_napi(launch::launch_request(&req))
+}
+
+#[napi(js_name = "screen_probe")]
+pub fn screen_probe() -> napi::Result<ScreenProbeNapi> { to_napi(screen::probe()) }
 
 fn to_napi<T>(r: AxResult<T>) -> napi::Result<T> {
   // napi 2.16 无 Status::GenericError 变体，语义等价的是 GenericFailure（编译器强制适配）。

@@ -38,7 +38,8 @@ unsafe extern "system" fn collect_visible(hwnd: HWND, lparam: LPARAM) -> BOOL {
 }
 
 /// 全部可见顶层窗口（z 序）。窗口在枚举与读取之间消亡属正常竞态，逐窗降级处理。
-fn visible_top_level_windows() -> AxResult<Vec<HWND>> {
+/// （Task 6 复用：launch 的启动前快照与 pid 回填轮询同一口径。）
+pub(crate) fn visible_top_level_windows() -> AxResult<Vec<HWND>> {
   let mut ctx = EnumCtx {
     out: Vec::new(),
     own_pid: unsafe { GetCurrentProcessId() },
@@ -50,15 +51,15 @@ fn visible_top_level_windows() -> AxResult<Vec<HWND>> {
   Ok(ctx.out)
 }
 
-/// 窗口所属进程 pid；取不到返回 0（调用方按无效处理）。
-fn window_pid(hwnd: HWND) -> u32 {
+/// 窗口所属进程 pid；取不到返回 0（调用方按无效处理）。（Task 6 复用：回填轮询。）
+pub(crate) fn window_pid(hwnd: HWND) -> u32 {
   let mut pid = 0u32;
   unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
   pid
 }
 
-/// 当前前台窗口所属进程 pid；无前台窗口为 None。
-fn foreground_pid() -> Option<u32> {
+/// 当前前台窗口所属进程 pid；无前台窗口为 None。（Task 6 复用：launch 的 active 字段。）
+pub(crate) fn foreground_pid() -> Option<u32> {
   unsafe {
     let hwnd = GetForegroundWindow();
     if hwnd.is_invalid() {
@@ -114,6 +115,18 @@ fn process_aumid(handle: HANDLE) -> Option<String> {
     let aumid = aumid.trim_end_matches('\0');
     (!aumid.is_empty()).then(|| aumid.to_string())
   }
+}
+
+/// 按 pid 取 exe 文件名（Task 6 launch 回填用）；打开/读取失败 → None。
+pub(crate) fn exe_name_for_pid(pid: u32) -> Option<String> {
+  let handle = open_query_process(pid)?;
+  process_exe_name(handle.0)
+}
+
+/// 按 pid 取 AUMID（Task 6 launch 尽力回填用）；打开/读取失败 → None。
+pub(crate) fn aumid_for_pid(pid: u32) -> Option<String> {
+  let handle = open_query_process(pid)?;
+  process_aumid(handle.0)
 }
 
 /// 标题读取语义：读到文本 → `Some(文本)`；读到但为空 → `Some("")`；
