@@ -793,6 +793,18 @@ function mergeDispatchReceipt(left, right) {
 // 与 not_sent 同向；spec 的 not_sent 失败收据在单步语义失败下行为等价，见报告偏差节）。
 const TRANSPORT_FAILURE_CODES = new Set(["timeout", "stale_socket", "broker_unavailable"]);
 
+// T4-M2（Task 4 评审 §9.2 carry，Task 7 落地）：set_value 独有的 post-dispatch 语义失败面——
+// event 兜底（perform.rs event_set_value：click 聚焦**已注入**后才跑 select_all_and_type）的
+// 两道闸门会抛 action_unavailable（input.rs uipi_preflight）/ foreground_required
+//（ensure_foreground）；同码也可能来自 click 自身的**注入前**同名闸门，错误响应不带
+// dispatched，码级无法二选一。按 spec「无法证明未下发 → possibly_sent」对 set_value 归并
+// unknown：多报只多一次 reobserve，漏报会让 SDK actionSent=false 断言「绝未下发」诱发盲重放。
+// 其余八工具逐 arm 复核均为注入前失败（task-7 报告 T4-M2 节），维持不带收据的 Task 2 形态。
+const SET_VALUE_UNCERTAIN_FAILURE_CODES = new Set([
+  "foreground_required",
+  "action_unavailable",
+]);
+
 const invalidAction = (message) => new BrokerError(message, { code: "invalid_request" });
 
 // 枚举均取 docs/computer-use.md 的工具签名口径（SDK bound API 侧已归一 l/r/m 与 u/d/l/r）。
@@ -952,14 +964,22 @@ function elementValueLengthOf(session, windowId, index) {
 }
 
 // broker perform 单步：params {kind, windowId, payload}（helper backend perform 形状）。
-// 成功 → dispatched 三态归并；传输类失败 → 先按 unknown 归并再抛；dispatched 值不在三态内
+// 成功 → dispatched 三态归并；传输类失败 → 先按 unknown 归并再抛；set_value 的不确定码
+//（T4-M2，见 SET_VALUE_UNCERTAIN_FAILURE_CODES）同样归并 unknown；dispatched 值不在三态内
 //（helper 版本漂移防御）→ 按 unknown 归并 + internal。
-async function performStep(call, windowId, step, noteDispatch) {
+async function performStep(toolName, call, windowId, step, noteDispatch) {
   let result;
   try {
     result = await call("perform", { kind: step.kind, windowId, payload: step.payload });
   } catch (error) {
     if (error && typeof error === "object" && TRANSPORT_FAILURE_CODES.has(error.code)) {
+      noteDispatch("unknown");
+    } else if (
+      toolName === "set_value" &&
+      error &&
+      typeof error === "object" &&
+      SET_VALUE_UNCERTAIN_FAILURE_CODES.has(error.code)
+    ) {
       noteDispatch("unknown");
     }
     throw error;
@@ -1046,7 +1066,7 @@ async function runAction(toolName, input, prepare) {
     const { windowId, appRef } = await resolveActionWindow(toolName, args.app_ref, session, call);
     const steps = await build({ session, windowId });
     for (const step of steps) {
-      await performStep(call, windowId, step, noteDispatch);
+      await performStep(toolName, call, windowId, step, noteDispatch);
     }
     return await assembleActionResult({
       session,

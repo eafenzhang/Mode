@@ -1158,3 +1158,139 @@ test("参数校验：缺 target / 缺 text → invalid_request 且零 perform；
     await broker.close();
   }
 });
+
+// ────────────────────────────────────────────── T4-M1 / T4-M2（Task 7 carry）
+
+// T4-M1（Task 4 评审 carry）：过期 frame_id——会话曾持帧 A，再次截图观察后 lastFrame 被 B
+// 替换，动作仍声称 A → invalid_request + frame_dispatch_identity_mismatch（零下发）；
+// 新鲜帧 B 同场景放行（证明拒绝的是「过期」而非「有帧」）。
+test("T4-M1 coordinate 目标：过期 frame_id（已被新帧替换）→ invalid_request mismatch 且零下发", async () => {
+  const broker = await startBroker(makeHandle({ observe: () => observeResult([]) }));
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const context = ctx("t4m1");
+    const first = await seedState(runtime, broker, context, { screenshot: true });
+    const staleFrameId = first.structuredContent.frame_id;
+    const second = await seedState(runtime, broker, context, { screenshot: true });
+    const freshFrameId = second.structuredContent.frame_id;
+    assert.equal(typeof staleFrameId, "string");
+    assert.notEqual(staleFrameId, freshFrameId, "第二次截图必须替换会话 lastFrame");
+
+    const stale = await execute(
+      runtime,
+      "left_click",
+      { target: { type: "coordinate", x: 1, y: 1, frame_id: staleFrameId }, app_ref: { pid: 7 } },
+      context,
+    );
+    assert.equal(stale.isError, true, JSON.stringify(stale));
+    assert.equal(errorPayloadOf(stale).code, "invalid_request");
+    assert.ok(
+      errorPayloadOf(stale).message.includes("frame_dispatch_identity_mismatch"),
+      errorPayloadOf(stale).message,
+    );
+    // message 点名过期帧 id（诊断现场：expired/replaced 分支，非 owner 分支）。
+    assert.ok(errorPayloadOf(stale).message.includes(staleFrameId), errorPayloadOf(stale).message);
+    assert.equal(performCalls(broker).length, 0, "过期帧拒绝 → 零下发");
+
+    const fresh = await execute(
+      runtime,
+      "left_click",
+      { target: { type: "coordinate", x: 1, y: 1, frame_id: freshFrameId }, app_ref: { pid: 7 } },
+      context,
+    );
+    assert.equal(fresh.isError, false, JSON.stringify(fresh));
+    assert.equal(performCalls(broker).length, 1, "新鲜帧放行 → 恰一次下发");
+  } finally {
+    await broker.close();
+  }
+});
+
+// T4-M2（Task 4 评审 §9.2 carry）：set_value 是唯一可能在「已注入」之后抛语义错的工具——
+// event 兜底（crates/mode-cua-ax/src/perform.rs event_set_value：click 聚焦已下发后才跑
+// select_all_and_type）的 uipi/前台两道闸门（input.rs → action_unavailable /
+// foreground_required）与 click 自身的前置同名闸门码级无法二选一（错误响应不带 dispatched）。
+// 按 spec「无法证明未下发 → possibly_sent」，set_value 对这两个码归并 unknown；其余八工具
+// 逐 arm 复核均为注入前失败（task-7 报告 T4-M2 节），维持不带收据的 Task 2 形态。
+test("T4-M2 set_value：可能 post-dispatch 的语义失败 → possibly_sent；同码 left_click 仍纯错误形态", async () => {
+  const responses = [
+    { ok: false, error: { code: "foreground_required", message: "select_all gate after click" } },
+    { ok: false, error: { code: "action_unavailable", message: "uipi gate after click" } },
+    { ok: false, error: { code: "not_settable", message: "readonly before SetValue" } },
+  ];
+  const broker = await startBroker(
+    makeHandle({
+      observe: () => observeResult([el(4, "edit", "field", null)]),
+      perform: () =>
+        responses.shift() ??
+        { ok: false, error: { code: "foreground_required", message: "pre-injection gate" } },
+    }),
+  );
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const context = ctx("t4m2");
+    await seedState(runtime, broker, context);
+
+    // foreground_required：event 兜底可在 click 注入后抛 → 收据与 error 同层。
+    const fg = await execute(
+      runtime,
+      "set_value",
+      { target: { type: "element", index: 4 }, value: "x", app_ref: { pid: 7 } },
+      context,
+    );
+    assert.equal(fg.isError, true, JSON.stringify(fg));
+    assert.equal(errorPayloadOf(fg).code, "foreground_required");
+    assert.deepEqual(fg.structuredContent, {
+      error: {
+        code: "foreground_required",
+        suggested_action:
+          "Target the element index instead, or bring the app to the foreground first.",
+      },
+      action_sent: true,
+      dispatch_status: "possibly_sent",
+    });
+    // SDK receiptOf 读取面（等价读）：不再断言「绝未下发」。
+    assert.deepEqual(sdkReceiptOf(fg), { action_sent: true, dispatch_status: "possibly_sent" });
+
+    // action_unavailable（同臂 uipi 闸门）同样归并 unknown。
+    const uipi = await execute(
+      runtime,
+      "set_value",
+      { target: { type: "element", index: 4 }, value: "y", app_ref: { pid: 7 } },
+      context,
+    );
+    assert.equal(uipi.isError, true, JSON.stringify(uipi));
+    assert.equal(errorPayloadOf(uipi).code, "action_unavailable");
+    assert.deepEqual(sdkReceiptOf(uipi), { action_sent: true, dispatch_status: "possibly_sent" });
+
+    // 对照 1：not_settable（ValuePattern 只读 / 空包围矩，注入前可证）→ 不带收据。
+    const notSettable = await execute(
+      runtime,
+      "set_value",
+      { target: { type: "element", index: 4 }, value: "z", app_ref: { pid: 7 } },
+      context,
+    );
+    assert.equal(notSettable.isError, true, JSON.stringify(notSettable));
+    assert.equal(errorPayloadOf(notSettable).code, "not_settable");
+    assert.equal(notSettable.structuredContent.action_sent, undefined);
+    assert.deepEqual(sdkReceiptOf(notSettable), {});
+
+    // 对照 2：left_click 同码（该工具全臂均为注入前失败）→ 保持 Task 2 纯错误形态。
+    const click = await execute(
+      runtime,
+      "left_click",
+      { target: { type: "element", index: 4 }, app_ref: { pid: 7 } },
+      context,
+    );
+    assert.equal(click.isError, true, JSON.stringify(click));
+    assert.deepEqual(click.structuredContent, {
+      error: {
+        code: "foreground_required",
+        suggested_action:
+          "Target the element index instead, or bring the app to the foreground first.",
+      },
+    });
+    assert.deepEqual(sdkReceiptOf(click), {});
+  } finally {
+    await broker.close();
+  }
+});
