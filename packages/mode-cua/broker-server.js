@@ -2,6 +2,9 @@ import { CuaHelperError } from "./broker.js";
 
 export const HELPER_ADDON_ENV = "MODE_CUA_HELPER_ADDON";
 export const WINDOWS_DEV_CONTROL_PROTOCOL = "mode-cua-windows-dev/v1";
+// helper↔runtime 协议版本（helper health 响应携带 protocolVersion 字段）：Plan B runtime
+// 连接后首调比对，不一致 → 向 SDK 吐 version_mismatch；host 的 parseReadyMessage 忽略附加字段。
+export const HELPER_PROTOCOL_VERSION = "1.0";
 
 const UNAVAILABLE = "Computer Use is not available in this build.";
 

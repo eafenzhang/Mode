@@ -2,6 +2,7 @@ import type { CuaPermissionRestartOptions, CuaPermissionRestartResult } from "./
 
 export declare const HELPER_ADDON_ENV: string;
 export declare const WINDOWS_DEV_CONTROL_PROTOCOL: string;
+export declare const HELPER_PROTOCOL_VERSION: string;
 
 export interface HelperLaunchSpec {
   [key: string]: unknown;

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { callBrokerMethod, mintBrokerSocketPath } from "../broker.js";
+import { HELPER_PROTOCOL_VERSION } from "../broker-server.js";
 import { createHelperServer } from "../helper/server.mjs";
 
 const entry = fileURLToPath(new URL("../helper/entry.mjs", import.meta.url));
@@ -273,7 +274,12 @@ test("server buffers split chunks and answers sequential requests on one connect
       });
     });
     // 同连接两条请求按行序作答（响应不回显 id，顺序即契约）。
-    assert.deepEqual(responses[0], { ok: true, result: { bundleId: null, pid: process.pid } });
+    // protocolVersion 为 Task 8 裁决（progress.md:88）：backend 合成 health 携带协议版本，
+    // Plan B runtime 首调比对不符 → version_mismatch。
+    assert.deepEqual(responses[0], {
+      ok: true,
+      result: { bundleId: null, pid: process.pid, protocolVersion: HELPER_PROTOCOL_VERSION },
+    });
     assert.deepEqual(responses[1], {
       ok: true,
       result: [{ pid: 1, name: "fake.exe", bundle_id: null, active: false }],
