@@ -212,7 +212,15 @@ async function resolveAppPid(appRef, call) {
     throw new BrokerError("list_apps returned an unexpected payload", { code: "internal" });
   }
   const wanted = ref[field];
-  const exact = apps.find((app) => app && app[field] === wanted);
+  // 行键双读（评审 I1）：真 wire 是 napi 驼峰 bundleId（实测 dist-cua-helper），历史 fake
+  // broker 是 snake —— 与 resolveAppIdentity 的 pickField 保持同一读法，两条解析路径不再分叉。
+  const rowValue = (app) =>
+    app === null || app === undefined
+      ? undefined
+      : field === "bundle_id"
+        ? pickField(app, "bundleId", "bundle_id")
+        : app[field];
+  const exact = apps.find((app) => rowValue(app) === wanted);
   // name 兜底大小写不敏感（Windows 展示名大小写由 OS 渲染，不作为身份）。
   const loose =
     field === "name"
@@ -220,9 +228,13 @@ async function resolveAppPid(appRef, call) {
       : undefined;
   const match = exact ?? loose;
   if (!match || !Number.isInteger(match.pid)) {
-    throw new BrokerError(`no running app matches app_ref ${JSON.stringify(ref)}`, {
-      code: "invalid_request",
-    });
+    // 短语 `target app is not running` 是 SDK isAppNotFound 的判定正则
+    //（computer-use-client.mjs:410-415，/target app is not running/），命中后 bindApp 才会
+    // 用 alternateAppRef 换字段重试一次——旧文案永远不会触发该重试。
+    throw new BrokerError(
+      `target app is not running: no app matches app_ref ${JSON.stringify(ref)}`,
+      { code: "invalid_request" },
+    );
   }
   return match.pid;
 }
@@ -592,8 +604,11 @@ function resolveElementIndexOf(session, appRefKey, index) {
   if (element === undefined) throw reject("the index is not in the latest observation");
   if (record.shownToModel !== true) {
     const baseline = record.lastShown;
+    // 从未 shown 与「shown 过但序列变了」是两种事实，文案分开（评审 M4），同码 fail-closed。
+    if (baseline === undefined) {
+      throw reject("the latest observation has never been shown to the model");
+    }
     const identical =
-      baseline !== undefined &&
       baseline.fps.length === record.fps.length &&
       record.fps.every((fingerprint, position) => fingerprint === baseline.fps[position]);
     if (!identical) {

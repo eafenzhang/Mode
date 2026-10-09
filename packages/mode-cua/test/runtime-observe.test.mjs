@@ -189,6 +189,28 @@ function treeTextOf(result) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+// SDK receiptOf 同款合并读法（computer-use-client.mjs:170-203：result 顶层 →
+// structuredContent → JSON 文本块，first-defined-wins）——收据必须能从顶层按此路读全。
+function sdkReceiptOf(result) {
+  const merged = {};
+  const sources = [result, result.structuredContent];
+  for (const block of result.content ?? []) {
+    if (block.type !== "text") continue;
+    try {
+      sources.push(JSON.parse(block.text));
+    } catch {
+      // 非 JSON 文本块（渲染树）不参与收据合并。
+    }
+  }
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+    for (const key of ["state_id", "frame_id", "snapshot_mode", "base_state_id"]) {
+      if (merged[key] === undefined && source[key] !== undefined) merged[key] = source[key];
+    }
+  }
+  return merged;
+}
+
 // ───────────────────────────────── 1. 树文本渲染 + UI 正则锁 + idx 透传
 
 test("树文本：header 与元素行逐字匹配 UI 解析正则；idx 原样透传不重编号", async () => {
@@ -308,8 +330,11 @@ test("structuredContent 字段全集与收据：state_id=uuid、base_state_id �
     assert.equal(second.structuredContent.base_state_id, sc.state_id);
     assert.notEqual(second.structuredContent.state_id, sc.state_id);
     assert.match(second.structuredContent.state_id, UUID_RE);
-    // 收据在 structuredContent 顶层（SDK receiptOf 合并读取）。
-    assert.equal(second.structuredContent.state_id, second.structuredContent.state_id);
+    // 收据在 structuredContent 顶层：按 SDK receiptOf 的合并读法（client :170-203）应读全。
+    const receipt = sdkReceiptOf(second);
+    assert.equal(receipt.state_id, second.structuredContent.state_id);
+    assert.equal(receipt.base_state_id, sc.state_id);
+    assert.equal(receipt.snapshot_mode, "diff");
     // diff 下 elements 仍是当前全表（SDK elements() 语义），changes 另列。
     assert.equal(second.structuredContent.elements.length, 3);
     assert.deepEqual(second.structuredContent.changes.added_count, 1);
@@ -622,6 +647,23 @@ test("位移台账：隐藏观察重编号 → resolveElementIndex 拒；隐藏�
       (error) => error.code === "element_unavailable",
     );
 
+    // 观察过但从未 shown（先来一次隐藏观察）→ 同码拒，文案指 never shown（评审 M4）。
+    observed = observeResult(g1);
+    await execute(
+      runtime,
+      "get_app_state",
+      { app_ref: { pid: 7 }, tree_shown_to_model: false },
+      context,
+    );
+    assert.throws(
+      () => runtime.resolveElementIndex(context, key, 0),
+      (error) => {
+        assert.equal(error.code, "element_unavailable");
+        assert.match(error.message, /never been shown to the model/u);
+        return true;
+      },
+    );
+
     // shown 基线观察 → 放行，返回 bounds。
     await execute(runtime, "get_app_state", { app_ref: { pid: 7 } }, context);
     assert.deepEqual(runtime.resolveElementIndex(context, key, 1), [10, 10, 80, 24]);
@@ -662,14 +704,9 @@ test("位移台账：隐藏观察重编号 → resolveElementIndex 拒；隐藏�
       () => runtime.resolveElementIndex(context, key, 77),
       (error) => error.code === "element_unavailable",
     );
-    // 错误经 execute 出口自动带 suggested_action（17 码装配复用）——用一个新会话验证装配存在。
-    assert.equal(
-      typeof (
-        await execute(runtime, "get_app_state", { app_ref: { pid: 7 } }, context)
-      ).structuredContent.state_id,
-      "string",
-      "门测试后 runtime 仍健康",
-    );
+    // 门直查不破坏 runtime：后续观察照常成功（state_id 为 string）。
+    const after = await execute(runtime, "get_app_state", { app_ref: { pid: 7 } }, context);
+    assert.equal(typeof after.structuredContent.state_id, "string");
   } finally {
     await broker.close();
   }
@@ -712,6 +749,11 @@ test("帧对：[image@0, ref@1, tree@2] + integrity meta 真值 + app-associatio
     assert.equal(ref.mimeType, "image/png");
     assert.equal(ref.width, 64);
     assert.equal(ref.height, 32);
+    // capture 实参形状钉死：helper 侧 requireU32(params.windowId) 硬契约（helper/server.mjs）。
+    assert.deepEqual(
+      broker.calls.filter((c) => c.method === "capture").map((c) => c.params),
+      [{ windowId: 99 }],
+    );
     // base64 ≤ 200KiB 防线上限。
     assert.ok(
       Buffer.byteLength(result.content[0].data, "utf8") <= OFFICIAL_CUA_IMAGE_INLINE_BASE64_BYTES,
@@ -723,8 +765,8 @@ test("帧对：[image@0, ref@1, tree@2] + integrity meta 真值 + app-associatio
     assert.deepEqual(associations, {
       primary: { appKey: "notepad.app", displayName: "Notepad" },
     });
-    // 观察记录落 session（帧账本供 Task 4 坐标目标用）。
-    assert.ok(result.structuredContent.state_id);
+    // 观察记录落 session（帧账本供 Task 4 坐标目标用）；收据 frame_id 走顶层可读。
+    assert.equal(sdkReceiptOf(result).frame_id, ref.frame_id);
   } finally {
     await broker.close();
   }
@@ -924,5 +966,85 @@ test("提示行：enumerationComplete=false → indices are sparse；元素达 3
   } finally {
     await sparseBroker.close();
     await cappedBroker.close();
+  }
+});
+
+// ───────────────────────────────── 15. 评审 fix round 1（I1 + M3）
+
+test("单注记组：actions+offscreen 合并为一个 (…) 组，UI 剥离后目标名仍正确", async () => {
+  const elements = [
+    el(0, "window", "Untitled", null),
+    el(4, "button", "OK", null, { actions: ["press"], offscreen: true }),
+  ];
+  const broker = await startBroker(makeHandle({ observe: observeResult(elements) }));
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const result = await execute(runtime, "get_app_state", { app_ref: { pid: 7 } }, ctx("t15"));
+    const tree = treeTextOf(result);
+    // 单组渲染（两个组会让 UI 只剥末组、右侧变 "null (press)"，目标名失真——§1.2 论证的锁）。
+    assert.match(tree, /\[4\] button OK = null \(press, offscreen\)$/mu);
+    const line = uiTargetRowRe(4).exec(tree.split(/\r?\n/u).find((l) => l.includes("[4] ")))?.[1];
+    assert.equal(uiElementName(line), "OK", "剥离单组后右侧仍是字面量 null → 取左名");
+  } finally {
+    await broker.close();
+  }
+});
+
+test("app_ref bundle_id 解析：真 wire 驼峰 bundleId 行与历史 snake 行都可解析；无匹配点名 not running", async () => {
+  const rows = [
+    { pid: 11, name: "Alpha", bundleId: "com.example.alpha", active: true },
+    { pid: 12, name: "Beta", bundle_id: "com.example.beta", active: true },
+  ];
+  const broker = await startBroker((method) => {
+    if (method === "health") return healthOk;
+    if (method === "list_apps") return { ok: true, result: rows };
+    if (method === "list_windows") return { ok: true, result: GOOD_WINDOWS };
+    if (method === "observe") return { ok: true, result: observeResult([]) };
+    return { ok: true, result: {} };
+  });
+  try {
+    const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
+    const context = ctx("t16");
+
+    // 驼峰行（真 wire 形状）解析 {bundle_id} app_ref → 成功，身份回填同键。
+    const camel = await execute(
+      runtime,
+      "get_app_state",
+      { app_ref: { bundle_id: "com.example.alpha" } },
+      context,
+    );
+    assert.equal(camel.isError, false, JSON.stringify(camel.content));
+    assert.deepEqual(camel.structuredContent.app, {
+      name: "Alpha",
+      pid: 11,
+      bundle_id: "com.example.alpha",
+    });
+
+    // snake 行（历史 fake broker 形状）保持可用。
+    const snake = await execute(
+      runtime,
+      "get_app_state",
+      { app_ref: { bundle_id: "com.example.beta" } },
+      context,
+    );
+    assert.equal(snake.isError, false, JSON.stringify(snake.content));
+    assert.equal(snake.structuredContent.app.pid, 12);
+    assert.equal(snake.structuredContent.app.bundle_id, "com.example.beta");
+
+    // 无匹配 → invalid_request，message 含 SDK isAppNotFound 判定短语
+    //（computer-use-client.mjs:410-415 /target app is not running/，bindApp 依此触发 alternateAppRef 重试）。
+    const missing = await execute(
+      runtime,
+      "get_app_state",
+      { app_ref: { bundle_id: "com.example.absent" } },
+      context,
+    );
+    assert.equal(missing.isError, true);
+    const payload = JSON.parse(missing.content[0].text);
+    assert.equal(payload.code, "invalid_request");
+    assert.ok(payload.message.includes("target app is not running"), payload.message);
+    assert.ok(payload.message.includes("com.example.absent"), payload.message);
+  } finally {
+    await broker.close();
   }
 });
