@@ -51,7 +51,7 @@
 - [x] **Step 1: trace**（报告贴出）：`ensure-local-runtime-assets.mjs` 全文（dev 缺 bundled-tools 时行为）、`prepare-prebuilds.mjs` 是否拥有 bundled-tools 生产、electron-builder `extraResources`/`filter`/平台条件写法（读 config 现有 win32-only 先例——如 tray icon 的条件表达式）、desktop `dev:desktop` 是否已串 prepare。
 - [x] **Step 2: 失败测试先行**（desktop tests 风格：读 `electron-builder.config.js` 源或其导出对象断言条目；stage 幂等=跑两次结果一致+manifest sha 不变）
 - [x] **Step 3: 实现**——stage 进 `bundled-tools/win32-x64/cua-helper/`（三件；`filter: ["**/*"]`）；extraResources win32-only 条件（**非 win32 构建不得引用该目录**——用 config 现有的平台条件机制，别发明）；dev 流：若 ensure-local 缺失则给出/接入「先 build:cua-helper+stage」的兜底（trace 结论决定改哪边）。
-- [x] **Step 4: 验证**：新测试绿；`pnpm --filter @mode/desktop`（若有 test script）或 `node --test packages/desktop/tests/cua-helper-packaging.test.mjs`；`pnpm typecheck`、`pnpm lint`（desktop config 是 `.js`——已在 allowlist？核对，不在则属新增违规→**不加**（清单已定案），改用未被禁的扩展名或申请裁决——报告里说明）。
+- [x] **Step 4: 验证**：新测试绿；`pnpm --filter @mode/desktop`（若有 test script）或 `node --test packages/desktop/tests/cua-helper-packaging.test.mts`；`pnpm typecheck`、`pnpm lint`（desktop config 是 `.js`——已在 allowlist？核对，不在则属新增违规→**不加**（清单已定案），改用未被禁的扩展名或申请裁决——报告里说明）。
 - [x] **Step 5: Commit** — `feat(desktop): cua-helper 打包 stage 与 extraResources 接线`
 
 ---
