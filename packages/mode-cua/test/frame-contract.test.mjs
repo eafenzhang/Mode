@@ -168,3 +168,22 @@ test("凭证/authority 谓词是内嵌扫描：包进说明文字不得绕过 fa
   assert.equal(containsImageRefAuthority(ref.text), true);
   assert.equal(containsImageRefAuthority('{"image_ref":{"credential":"abcdef0123456789"}}'), false); // 缺 frame_id
 });
+
+test("内嵌扫描：转义键归一化后不得旁路，无键纯文本仍走快路", () => {
+  // JSON 键首字符写成 Unicode 转义（字母 i 的转义写法）：JSON.parse 归一化为 image_ref，整块判据接受；
+  // 内嵌谓词必须同受约束——否则 tool-result-media-projection.ts:212 的
+  // 安全边界（包进说明文字不可绕过）会被转义键打穿，两个谓词在同一输入上互相矛盾。
+  const escapedBlock =
+    '{"\\u0069mage_ref":{"frame_id":"f-esc","credential":"abcdef0123456789",' +
+    '"raster_sha256":"aa","width":4,"height":4,"mimeType":"image/png"}}';
+  assert.equal(isOfficialCuaImageRefText(escapedBlock), true); // 整块：JSON.parse 归一化
+  assert.equal(containsOfficialCuaImageRefCredentialText(escapedBlock), true);
+  assert.equal(containsImageRefAuthority(escapedBlock), true);
+  const wrapped = "explanation… " + escapedBlock + " …end";
+  assert.equal(containsOfficialCuaImageRefCredentialText(wrapped), true); // 内嵌 + 转义键
+  assert.equal(containsImageRefAuthority(wrapped), true);
+  // 快路完整性：无键且无反斜杠的纯文本直接判否；
+  // 含反斜杠但无 ref 的文本落全量扫描后同样判否（扫描不产生假阳性）。
+  assert.equal(containsOfficialCuaImageRefCredentialText('app: notepad pid=1 "element"'), false);
+  assert.equal(containsImageRefAuthority("path C:\\temp {\"a\":1} done"), false);
+});

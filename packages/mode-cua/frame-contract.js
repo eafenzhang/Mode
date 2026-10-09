@@ -73,8 +73,12 @@ function matchJsonBraces(text, start) {
 // 包进说明文字不得绕过凭证过滤——安全边界不依赖 payload 形状。
 function findEmbeddedImageRef(text, predicate) {
   if (!isNonEmptyString(text)) return undefined;
-  // 快速否定：没有 "image_ref" 键字面就不可能有 ref 对象（绝大多数文本块走这条快路）。
-  if (!text.includes('"image_ref"')) return undefined;
+  // 快速否定只允许在「文本无反斜杠」时生效：没有反斜杠就不存在 JSON 转义键
+  // （键首字符用 Unicode 转义写法表示字母 i——JSON.parse 归一化后仍是 image_ref，整块判据照样接受），
+  // 此时合法键必以字面 "image_ref" 出现，缺字面即可判否；带反斜杠的文本
+  // 一律落全量扫描，否则转义键会只骗过内嵌谓词、让两个判据在同一输入上互相矛盾
+  // （安全边界见 adapters tool-result-media-projection.ts 内嵌扫描注释）。
+  if (!text.includes("\\") && !text.includes('"image_ref"')) return undefined;
   let from = 0;
   for (;;) {
     const open = text.indexOf("{", from);
