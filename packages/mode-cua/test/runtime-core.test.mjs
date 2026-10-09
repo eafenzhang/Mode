@@ -461,16 +461,36 @@ test("request_access：Windows 合成形态（扁平 AccessStatus 文本 + struc
 
 // ────────────────────────────────────────────── 7. 分发表覆盖
 
-// get_app_state 已在 Task 3 注册 → 未注册态改由 left_click 代表（Task 4 注册前恒存在）。
-test("14 名内但未注册 handler 的工具 → isError 且码在 17 键内（Task 4 注册后此态消失）", async () => {
+// Task 4 注册全部 9 个动作处理器后，「14 名内未注册 → unimplemented」中间态按其注释消失
+//（errorResult 保留该码仅剩防御意义）。改为锁新不变量：14 名逐名空参执行，成功或 17 码
+// 错误都合法，唯独不得再落 unimplemented——即分发表已全量接线。
+test("14 名内工具全部注册：逐名空参执行无 unimplemented（Task 4 后）", async () => {
   const broker = await startBroker();
   try {
     const runtime = createComputerUseRuntime({ brokerSocketPath: broker.socketPath });
-    const result = await execute(runtime, "left_click", { target: 1 }, ctx("s11"));
-    assert.equal(result.isError, true);
-    const { code } = JSON.parse(result.content[0].text);
-    assert.ok(AX_ERROR_CODES.includes(code), `expected one of the 17 codes, got ${code}`);
-    assert.equal(code, "unimplemented", "14 名内未注册 → unimplemented");
+    const names = [
+      "list_apps",
+      "list_windows",
+      "get_app_state",
+      "left_click",
+      "scroll",
+      "left_click_drag",
+      "type",
+      "set_value",
+      "select_text",
+      "key",
+      "perform_action",
+      "paste",
+      "request_access",
+      "stop_computer_control",
+    ];
+    for (const toolName of names) {
+      const result = await execute(runtime, toolName, {}, ctx("s11"));
+      if (result.isError !== true) continue;
+      const { code } = JSON.parse(result.content[0].text);
+      assert.ok(AX_ERROR_CODES.includes(code), `${toolName}: expected one of the 17 codes, got ${code}`);
+      assert.notEqual(code, "unimplemented", `${toolName} 仍未注册 handler`);
+    }
   } finally {
     await broker.close();
   }

@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 观察/直通/错误装配/版本预检/位移台账/帧装配同属 runtime 执行面的
    单一状态机（execute 分发与 session 闭包共享 observations/lastFrame 写入路径），拆文件会把同一
    台账的写入点散到多处；本任务提交面限定本文件，行数随 Task 4 动作处理器继续增长。 */
-// @mode/cua runtime —— Computer Use host 运行时（Plan B Task 2：骨架 + 直通工具）。
+// @mode/cua runtime —— Computer Use host 运行时（Plan B Task 2-4：骨架/直通 → 观察 → 动作面）。
 // execute 的三形态结果（规范源 docs/specs/computer-use-windows-runtime.md §接口 runtime 面）：
 //   1. 成功：{content, structuredContent?, _meta?, isError:false}
 //   2. 失败：{isError:true, content:[单 text 块 = JSON.stringify({code,message,suggested_action?})],
@@ -33,7 +33,7 @@ import { AX_ERROR_CODES } from "./helper/errors.mjs";
 
 // SDK COMPUTER_METHOD_NAMES 14 个（computer-use-client.mjs:31-46 逐字）。
 // 不在此集合 → method_not_found；在集合内但处理器未注册 → unimplemented
-// （get_app_state 已随 Task 3 注册；9 个变更工具由 Task 4 注册后该态消失）。
+//（Task 4 后 14 名全部有处理器：4 直通 + get_app_state + 9 动作工具，该态仅剩防御意义）。
 const TOOL_NAMES = new Set([
   "list_apps",
   "list_windows",
@@ -113,7 +113,10 @@ function sessionKeyOf(context) {
 
 // 失败形态唯一装配点：文本 JSON {code, message, suggested_action?} +
 // structuredContent.error {code, suggested_action?}（message 不进 structuredContent）。
-function errorResult(code, message) {
+// Task 4：动作面失败若已归并 dispatched 收据（三态之一），收据字段与 error **同层**进
+// structuredContent 顶层——SDK receiptOf 读 structuredContent 顶层，unknown →
+// possibly_sent 会让 assertOk 抛 actionSent=true 的错（retry=reobserve，绝不盲重放）。
+function errorResult(code, message, receipt) {
   const finalCode = ERROR_CODE_SET.has(code) ? code : "internal";
   const text = { code: finalCode, message: String(message) };
   const error = { code: finalCode };
@@ -125,17 +128,22 @@ function errorResult(code, message) {
   return {
     isError: true,
     content: [{ type: "text", text: JSON.stringify(text) }],
-    structuredContent: { error },
+    structuredContent: {
+      error,
+      ...(receipt !== undefined
+        ? { action_sent: receipt.action_sent, dispatch_status: receipt.dispatch_status }
+        : {}),
+    },
   };
 }
 
 // 任意抛出物 → 失败形态（BrokerError.code ∈17 直接用，码外归 internal，message 保留原文）。
-function errorResultOf(error) {
+function errorResultOf(error, receipt) {
   const code = error && typeof error === "object" && typeof error.code === "string"
     ? error.code
     : "internal";
   const message = error instanceof Error ? error.message : String(error);
-  return errorResult(code, message);
+  return errorResult(code, message, receipt);
 }
 
 // 冷启动信封：非 error、单文本块、无 structuredContent。
@@ -270,8 +278,11 @@ function handleRequestAccess() {
 }
 
 // stop_computer_control：置 stopped、释放 lease，幂等（重复调用同形）。
-// 收据放 structuredContent 顶层（SDK receiptOf 合并读取；stop ∈ MUTATING 十个 →
-// 成功 action_sent:true，未走 Rust dispatch → dispatch_status:"delivered" 表 runtime 已执行）。
+// 收据放 structuredContent 顶层（SDK receiptOf 合并读取）。
+// T2-M5（本任务 carry，只注释不改行为）：**local action, not broker dispatch** —— stop 不经
+// Rust perform 的 dispatched 三态，`action_sent:true, dispatch_status:"delivered"` 在此专指
+// 「runtime 本地会话动作已执行送达」；与 Task 4 动作收据的 delivered（Rust 证明输入已注入）
+// 共用同一键位，语义以本注释区分，避免两种 delivered 混读。
 function handleStop({ session }) {
   session.stopped = true;
   session.leaseOwner = null;
@@ -636,6 +647,8 @@ async function handleGetAppState({ args, session, call }) {
   const appRefKey = String(windowId);
   const previous = session.observations.get(appRefKey);
   const baseline = previous?.lastShown;
+  // Task 4 动作兜底：观察解析出的窗口即会话最近绑定（动作缺 app_ref 时复用同一窗口）。
+  session.bound = { appRef: input.ref, windowId };
   // 强制全量：disable_diffing / 无基线 / 上一次是纯截图观察（docs：截图后先拿整树）。
   const mode =
     input.disableDiffing || baseline === undefined || previous?.forceFull === true
@@ -749,14 +762,507 @@ async function handleGetAppState({ args, session, call }) {
   };
 }
 
-// 分发表：Task 4 注册 9 个变更工具（action 处理器）—— 同文件追加 `handlers.<toolName> = <fn>`
-// 即可，处理器签名 ({args, session, call, signal}) → MCP 结果或抛 BrokerError。
+// ────────────────────────────────────────────── 动作面（Task 4：9 个变更工具 + 目标解析 + 收据三态）
+
+// perform dispatched 三态 → 收据（spec §runtime 面；键位与 SDK receiptOf 逐字对齐）：
+//   Rust "dispatched"     → {action_sent:true,  dispatch_status:"delivered"}
+//   Rust "not_dispatched" → {action_sent:false, dispatch_status:"not_sent"}（addon 证明未下发）
+//   Rust "unknown"        → {action_sent:true,  dispatch_status:"possibly_sent"}（无法证明）
+const DISPATCH_RECEIPTS = Object.freeze({
+  dispatched: Object.freeze({ action_sent: true, dispatch_status: "delivered" }),
+  not_dispatched: Object.freeze({ action_sent: false, dispatch_status: "not_sent" }),
+  unknown: Object.freeze({ action_sent: true, dispatch_status: "possibly_sent" }),
+});
+
+// 复合动作（type：click→type_text）收据合并：action_sent = OR；dispatch_status 取最坏——
+// possibly_sent > delivered > not_sent（「可能已下发」必须压过「已下发」，否则模型盲重放）。
+const DISPATCH_SEVERITY = Object.freeze({ not_sent: 0, delivered: 1, possibly_sent: 2 });
+function mergeDispatchReceipt(left, right) {
+  return {
+    action_sent: left.action_sent === true || right.action_sent === true,
+    dispatch_status:
+      DISPATCH_SEVERITY[left.dispatch_status] >= DISPATCH_SEVERITY[right.dispatch_status]
+        ? left.dispatch_status
+        : right.dispatch_status,
+  };
+}
+
+// 传输类失败（在途无应答/断连/宿主探测失败）→ 无法证明未下发 → 按 "unknown" 归并收据
+//（possibly_sent，SDK 强制 reobserve）。语义类失败（Rust 参数校验/前台门在注入前抛错）
+// 不归并：runtime 无从断言「已下发」，保持 Task 2 错误形态（SDK 侧 actionSent 默认 false，
+// 与 not_sent 同向；spec 的 not_sent 失败收据在单步语义失败下行为等价，见报告偏差节）。
+const TRANSPORT_FAILURE_CODES = new Set(["timeout", "stale_socket", "broker_unavailable"]);
+
+const invalidAction = (message) => new BrokerError(message, { code: "invalid_request" });
+
+// 枚举均取 docs/computer-use.md 的工具签名口径（SDK bound API 侧已归一 l/r/m 与 u/d/l/r）。
+const MOUSE_BUTTON_SET = new Set(["left", "right", "middle"]);
+const SCROLL_DIRECTION_SET = new Set(["up", "down", "left", "right"]);
+const RETURN_STATE_SET = new Set(["compact", "full"]);
+
+function actionArgsOf(toolName, args) {
+  const value = args === undefined || args === null ? {} : args;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw invalidAction(`${toolName} requires an arguments object`);
+  }
+  return value;
+}
+
+// 二次校验（spec：SDK 已做 unrecognized_keys，runtime 站在翻译位必须给英文诊断）。
+function requireStringArg(toolName, args, key, { allowEmpty = true } = {}) {
+  const value = args[key];
+  if (value === undefined || value === null) {
+    throw invalidAction(`${toolName} requires ${key} (string)`);
+  }
+  if (typeof value !== "string") throw invalidAction(`${toolName} ${key} must be a string`);
+  if (!allowEmpty && value.length === 0) {
+    throw invalidAction(`${toolName} ${key} must not be empty`);
+  }
+  return value;
+}
+
+function requireTargetArg(toolName, args, key = "target") {
+  const target = args[key];
+  if (target === undefined || target === null) {
+    throw invalidAction(
+      `${toolName} requires ${key} ({type:"element",index} or {type:"coordinate",x,y})`,
+    );
+  }
+  return target;
+}
+
+// 元素专用工具（select_text / perform_action）：Rust 侧这两种 Req 只有 elementIndex 形态，
+// 坐标目标在解析之前就拦下（否则会先撞帧绑定错误，掩盖真实原因）。
+function requireElementOnlyTarget(toolName, args, key = "target") {
+  const target = requireTargetArg(toolName, args, key);
+  const valid =
+    target !== null && typeof target === "object" && !Array.isArray(target) && target.type === "element";
+  if (!valid) {
+    throw invalidAction(
+      `${toolName} requires an element target ({type:"element",index}); a coordinate target cannot address an element index`,
+    );
+  }
+  return target;
+}
+
+// return_state："compact"|"full"|"none"（docs 签名，缺省 none → 动作后不观察）。
+function parseReturnState(toolName, args) {
+  const value = args.return_state;
+  if (value === undefined || value === null || value === "none") return "none";
+  if (RETURN_STATE_SET.has(value)) return value;
+  throw invalidAction(
+    `${toolName} return_state must be "compact", "full" or "none" (got ${JSON.stringify(value)})`,
+  );
+}
+
+// 动作的 app/窗口解析（复用 Task 3：resolveAppPid → resolveObservationWindow；台账键规则不变
+// appRefKey = String(resolved window_id)，先解析窗口再过位移台账门）。缺 app_ref → 会话最近
+// 绑定（SDK bound API 恒发 app_ref，工具层直调可省略）；两者皆无 → invalid_request 点名 app_ref。
+async function resolveActionWindow(toolName, appRef, session, call) {
+  if (appRef !== undefined && appRef !== null) {
+    const ref = typeof appRef === "string" ? { bundle_id: appRef } : appRef; // docs：裸串按 bundle id
+    const pid = await resolveAppPid(ref, call);
+    const { windowId } = await resolveObservationWindow(ref, pid, call);
+    session.bound = { appRef: ref, windowId };
+    return { windowId, appRef: ref };
+  }
+  if (!session.bound) {
+    throw invalidAction(
+      `${toolName} requires app_ref ({pid} | {name} | {bundle_id} | a bundle id string): no app is bound in this transport`,
+    );
+  }
+  return { windowId: session.bound.windowId, appRef: session.bound.appRef };
+}
+
+// coordinate 目标帧绑定（docs + brief 三分支）：给了 frame_id → 与会话 lastFrame 精确比对
+//（不匹配/过期被替换/owner 窗口不符 → frame_dispatch_identity_mismatch）；省略 → 绑最近可动作
+// 帧（零栅格 → "no actionable frame is available in this transport"）；坐标必须落在帧尺寸内。
+function resolveCoordinatePoint(target, session, windowId) {
+  const x = target.x;
+  const y = target.y;
+  if (!Number.isInteger(x) || !Number.isInteger(y)) {
+    throw invalidAction(
+      `coordinate target must be two integer pixels, got [${JSON.stringify(x)}, ${JSON.stringify(y)}]`,
+    );
+  }
+  const frame = session.lastFrame ?? undefined;
+  if (target.frame_id !== undefined && target.frame_id !== null) {
+    if (frame === undefined || frame.frameId !== target.frame_id || frame.windowId !== windowId) {
+      throw invalidAction(
+        `frame_dispatch_identity_mismatch: coordinate frame_id ${JSON.stringify(target.frame_id)} does not name this transport's actionable frame (expired, replaced, or owned by another window)`,
+      );
+    }
+  } else {
+    if (frame === undefined) {
+      throw invalidAction(
+        "no actionable frame is available in this transport; capture one with get_app_state (include_screenshot) before acting on coordinates",
+      );
+    }
+    if (frame.windowId !== windowId) {
+      throw invalidAction(
+        `frame_dispatch_identity_mismatch: the actionable frame belongs to window ${frame.windowId}, but this action targets window ${windowId}`,
+      );
+    }
+  }
+  if (x < 0 || y < 0 || x >= frame.width || y >= frame.height) {
+    throw invalidAction(
+      `coordinate [${x}, ${y}] lies outside the actionable frame (${frame.width}x${frame.height})`,
+    );
+  }
+  return { x, y };
+}
+
+// 目标解析：element → 位移台账门（Task 3 规则 2，session.resolveElementIndex）→ bounds 中心
+// floor([x + w/2, y + h/2])，门拒绝（不存在/未 shown/序列漂移）一律 element_unavailable 且
+// 零下发；coordinate → 帧绑定。返回 {point, elementIndex?}——elementIndex 是门放行后的原下标
+//（Rust observe/perform 同一下标空间，直接进 payload）。
+function resolveActionTarget(toolName, target, session, windowId) {
+  if (target === null || typeof target !== "object" || Array.isArray(target)) {
+    throw invalidAction(
+      `${toolName} target must be {type:"element",index} or {type:"coordinate",x,y,frame_id?}`,
+    );
+  }
+  if (target.type === "element") {
+    const bounds = session.resolveElementIndex(String(windowId), target.index);
+    if (bounds.length < 4) {
+      throw new BrokerError(
+        `element ${String(target.index)} is unavailable (it exposes no bounds); re-observe with get_app_state before acting again`,
+        { code: "element_unavailable" },
+      );
+    }
+    const [bx, by, width, height] = bounds;
+    return {
+      point: { x: Math.floor(bx + width / 2), y: Math.floor(by + height / 2) },
+      elementIndex: target.index,
+    };
+  }
+  if (target.type === "coordinate") {
+    return { point: resolveCoordinatePoint(target, session, windowId) };
+  }
+  throw invalidAction(
+    `${toolName} target must be {type:"element",index} or {type:"coordinate",x,y,frame_id?} (got type ${JSON.stringify(target.type)})`,
+  );
+}
+
+// 门放行后回读元素记录（select_text 缺省整选要观察到的 value 长度）。
+function elementValueLengthOf(session, windowId, index) {
+  const record = session.observations.get(String(windowId));
+  const element = record?.elements.find((candidate) => candidate.index === index);
+  return typeof element?.value === "string" ? element.value.length : 0;
+}
+
+// broker perform 单步：params {kind, windowId, payload}（helper backend perform 形状）。
+// 成功 → dispatched 三态归并；传输类失败 → 先按 unknown 归并再抛；dispatched 值不在三态内
+//（helper 版本漂移防御）→ 按 unknown 归并 + internal。
+async function performStep(call, windowId, step, noteDispatch) {
+  let result;
+  try {
+    result = await call("perform", { kind: step.kind, windowId, payload: step.payload });
+  } catch (error) {
+    if (error && typeof error === "object" && TRANSPORT_FAILURE_CODES.has(error.code)) {
+      noteDispatch("unknown");
+    }
+    throw error;
+  }
+  const dispatched = result?.dispatched;
+  if (
+    dispatched !== "dispatched" &&
+    dispatched !== "not_dispatched" &&
+    dispatched !== "unknown"
+  ) {
+    noteDispatch("unknown");
+    throw new BrokerError(
+      `perform ${step.kind} returned an unexpected dispatched value: ${JSON.stringify(dispatched)}`,
+      { code: "internal" },
+    );
+  }
+  noteDispatch(dispatched);
+}
+
+// 成功装配：文本块 = 收据载荷；structuredContent = action_outcome（spec 嵌套位）+ 同值顶层键
+//（SDK receiptOf 只直读 structuredContent 顶层与 text JSON 的 action_outcome，嵌套在
+// structuredContent 里的 action_outcome 它不展开——两处同值，两条读法都能拿到）+
+// state_sync_status:"unconfirmed"（动作后 UI 是否变化无从得知；SDK 只读不校验）。
+// return_state ≠ none → 复用 Task 3 观察（compact=diff、full=全量，窗口钉死为本次动作窗口），
+// 树文本与观察 structuredContent 并入；动作前基线 vs 动作后观察逐指纹 diff 全空 →
+// 树尾注 [effect_evidence unchanged]（基线必须在 handleGetAppState 落账之前取出）。
+async function assembleActionResult({ session, call, signal, windowId, appRef, receipt, returnState }) {
+  const outcome = {
+    action_sent: receipt.action_sent,
+    dispatch_status: receipt.dispatch_status,
+  };
+  const structuredContent = {
+    action_outcome: { ...outcome },
+    ...outcome,
+    state_sync_status: "unconfirmed",
+  };
+  const content = [
+    { type: "text", text: JSON.stringify({ ...outcome, state_sync_status: "unconfirmed" }) },
+  ];
+  if (returnState !== "none") {
+    const baseline = session.observations.get(String(windowId))?.lastShown;
+    const observation = await handleGetAppState({
+      args: {
+        app_ref: { ...appRef, window_id: windowId },
+        include_screenshot: false,
+        disable_diffing: returnState === "full",
+        tree_shown_to_model: true,
+      },
+      session,
+      call,
+      signal,
+    });
+    if (baseline !== undefined) {
+      const { changes } = diffElements(baseline.elements, observation.structuredContent.elements);
+      const unchanged =
+        changes.added_count === 0 && changes.removed_count === 0 && changes.changed_count === 0;
+      // 动作后观察无截图 → 最后一块即树文本（帧对恒不出现）。
+      const treeBlock = observation.content[observation.content.length - 1];
+      if (unchanged && treeBlock?.type === "text") {
+        treeBlock.text = `${treeBlock.text}\n[effect_evidence unchanged]`;
+      }
+    }
+    content.push(...observation.content);
+    Object.assign(structuredContent, observation.structuredContent);
+  }
+  return { isError: false, content, structuredContent };
+}
+
+// 动作执行骨架：同步前置校验（prepare，零 broker 调用）→ 窗口解析 → build steps → 依序
+// perform（维护合并收据）→ 成功装配/失败装配。任何阶段失败都带**已归并**收据（若有）走
+// Task 2 错误装配——失败时收据是「动作面动没动过」的唯一凭证。
+async function runAction(toolName, input, prepare) {
+  const { session, call, signal } = input;
+  const dispatch = { receipt: undefined };
+  const noteDispatch = (state) => {
+    const next = DISPATCH_RECEIPTS[state];
+    dispatch.receipt =
+      dispatch.receipt === undefined ? next : mergeDispatchReceipt(dispatch.receipt, next);
+  };
+  try {
+    const args = actionArgsOf(toolName, input.args);
+    const returnState = parseReturnState(toolName, args);
+    const build = prepare(args);
+    const { windowId, appRef } = await resolveActionWindow(toolName, args.app_ref, session, call);
+    const steps = await build({ session, windowId });
+    for (const step of steps) {
+      await performStep(call, windowId, step, noteDispatch);
+    }
+    return await assembleActionResult({
+      session,
+      call,
+      signal,
+      windowId,
+      appRef,
+      receipt: dispatch.receipt,
+      returnState,
+    });
+  } catch (error) {
+    return errorResultOf(error, dispatch.receipt);
+  }
+}
+
+// 分发表：Task 2 五个直通/合成 + Task 3 观察 + Task 4 九个动作处理器——处理器签名
+// ({args, session, call, signal}) → MCP 结果或抛 BrokerError；14 名全注册后
+// unimplemented 仅剩防御意义（错误装配保留该码，SDK 映射 ACTION_UNAVAILABLE）。
 const handlers = Object.create(null);
 handlers.list_apps = handleListApps;
 handlers.list_windows = handleListWindows;
 handlers.request_access = handleRequestAccess;
 handlers.stop_computer_control = handleStop;
 handlers.get_app_state = handleGetAppState;
+
+// left_click：mouse_button→button、click_count→clickCount、modifiers 直通；target 经门→中心。
+// strategy（SDK 会发）一期丢弃：Rust parse_req 的 click 臂无 strategy 键，且 parse_req 只读
+// 认识的键、不拒未知键——runtime 构造载荷时不放进任何未知键，事件/无障碍分支由 Rust 内部
+// auto 决策（偏差记报告）。
+handlers.left_click = (input) =>
+  runAction("left_click", input, (args) => {
+    const target = requireTargetArg("left_click", args);
+    const button =
+      args.mouse_button === undefined || args.mouse_button === null ? "left" : args.mouse_button;
+    if (!MOUSE_BUTTON_SET.has(button)) {
+      throw invalidAction(
+        `left_click mouse_button must be left, right or middle (got ${JSON.stringify(args.mouse_button)})`,
+      );
+    }
+    const clickCount =
+      args.click_count === undefined || args.click_count === null ? 1 : args.click_count;
+    if (!Number.isInteger(clickCount) || clickCount < 1) {
+      throw invalidAction(
+        `left_click click_count must be a positive integer (got ${JSON.stringify(args.click_count)})`,
+      );
+    }
+    const modifiers =
+      args.modifiers === undefined || args.modifiers === null ? "" : args.modifiers;
+    if (typeof modifiers !== "string") {
+      throw invalidAction("left_click modifiers must be a + separated string");
+    }
+    return async ({ session, windowId }) => {
+      const { point } = resolveActionTarget("left_click", target, session, windowId);
+      return [
+        { kind: "click", payload: { x: point.x, y: point.y, button, clickCount, modifiers } },
+      ];
+    };
+  });
+
+// left_click_drag：from_target/to 各自解析 → fromX/fromY/toX/toY + modifiers。
+handlers.left_click_drag = (input) =>
+  runAction("left_click_drag", input, (args) => {
+    const fromTarget = requireTargetArg("left_click_drag", args, "from_target");
+    const toTarget = requireTargetArg("left_click_drag", args, "to");
+    const modifiers =
+      args.modifiers === undefined || args.modifiers === null ? "" : args.modifiers;
+    if (typeof modifiers !== "string") {
+      throw invalidAction("left_click_drag modifiers must be a + separated string");
+    }
+    return async ({ session, windowId }) => {
+      const from = resolveActionTarget("left_click_drag from", fromTarget, session, windowId);
+      const to = resolveActionTarget("left_click_drag to", toTarget, session, windowId);
+      return [
+        {
+          kind: "click_drag",
+          payload: {
+            fromX: from.point.x,
+            fromY: from.point.y,
+            toX: to.point.x,
+            toY: to.point.y,
+            modifiers,
+          },
+        },
+      ];
+    };
+  });
+
+// scroll：scroll_direction→direction、scroll_amount→amount（Rust 侧 clamp 0-100）。
+handlers.scroll = (input) =>
+  runAction("scroll", input, (args) => {
+    const target = requireTargetArg("scroll", args);
+    const direction = args.scroll_direction;
+    if (!SCROLL_DIRECTION_SET.has(direction)) {
+      throw invalidAction(
+        `scroll scroll_direction must be up, down, left or right (got ${JSON.stringify(args.scroll_direction)})`,
+      );
+    }
+    const amount = args.scroll_amount;
+    if (typeof amount !== "number" || !Number.isFinite(amount)) {
+      throw invalidAction(
+        `scroll scroll_amount must be a number of pages (got ${JSON.stringify(amount)})`,
+      );
+    }
+    return async ({ session, windowId }) => {
+      const { point } = resolveActionTarget("scroll", target, session, windowId);
+      return [{ kind: "scroll", payload: { x: point.x, y: point.y, direction, amount } }];
+    };
+  });
+
+// type：target 给了先 click 聚焦（复合顺序 click→type_text，两次 perform，收据 OR+worst-of），
+// 再 type_text {text}。
+handlers.type = (input) =>
+  runAction("type", input, (args) => {
+    const text = requireStringArg("type", args, "text");
+    const target = args.target === null ? undefined : args.target;
+    return async ({ session, windowId }) => {
+      const steps = [];
+      if (target !== undefined) {
+        const { point } = resolveActionTarget("type", target, session, windowId);
+        steps.push({
+          kind: "click",
+          payload: { x: point.x, y: point.y, button: "left", clickCount: 1, modifiers: "" },
+        });
+      }
+      steps.push({ kind: "type_text", payload: { text } });
+      return steps;
+    };
+  });
+
+// set_value：element → {elementIndex, value}；coordinate → {x, y, value}（Rust 聚焦点形态）。
+handlers.set_value = (input) =>
+  runAction("set_value", input, (args) => {
+    const target = requireTargetArg("set_value", args);
+    const value = requireStringArg("set_value", args, "value");
+    return async ({ session, windowId }) => {
+      const resolved = resolveActionTarget("set_value", target, session, windowId);
+      const payload =
+        resolved.elementIndex !== undefined
+          ? { elementIndex: resolved.elementIndex, value }
+          : { x: resolved.point.x, y: resolved.point.y, value };
+      return [{ kind: "set_value", payload }];
+    };
+  });
+
+// select_text：element 专用；text_range [start, length] 解构成 start/length。缺省（docs：
+// 整选）→ start 0 + 观察值全长——Rust select_text 首行拒负 length（perform.rs
+// start<0||length<0 → invalid_request），{start:0,length:-1} 不可用，故按观察 value 取长；
+// value 为 null → 0（Rust 接受 length 0，无值即无从选起）。
+handlers.select_text = (input) =>
+  runAction("select_text", input, (args) => {
+    const target = requireElementOnlyTarget("select_text", args);
+    const range = args.text_range === null ? undefined : args.text_range;
+    let explicit;
+    if (range !== undefined) {
+      if (!Array.isArray(range) || range.length !== 2) {
+        throw invalidAction(
+          `select_text text_range must be [start, length] (got ${JSON.stringify(range)})`,
+        );
+      }
+      const [start, length] = range;
+      if (!Number.isInteger(start) || !Number.isInteger(length) || start < 0 || length < 0) {
+        throw invalidAction(
+          `select_text text_range start/length must be non-negative integers (got ${JSON.stringify(range)})`,
+        );
+      }
+      explicit = { start, length };
+    }
+    return async ({ session, windowId }) => {
+      const { elementIndex } = resolveActionTarget("select_text", target, session, windowId);
+      const start = explicit?.start ?? 0;
+      const length = explicit?.length ?? elementValueLengthOf(session, windowId, elementIndex);
+      return [{ kind: "select_text", payload: { elementIndex, start, length } }];
+    };
+  });
+
+// key：text→chord（SDK 已做键位归一）、repeat 直通、hold_seconds→holdMs（×1000，Rust clamp
+// 10s）；strategy 一期丢弃（同 left_click 注释）。
+handlers.key = (input) =>
+  runAction("key", input, (args) => {
+    const chord = requireStringArg("key", args, "text", { allowEmpty: false });
+    const repeat = args.repeat === undefined || args.repeat === null ? 1 : args.repeat;
+    if (!Number.isInteger(repeat) || repeat < 0) {
+      throw invalidAction(
+        `key repeat must be a non-negative integer (got ${JSON.stringify(args.repeat)})`,
+      );
+    }
+    const holdSeconds =
+      args.hold_seconds === undefined || args.hold_seconds === null ? 0 : args.hold_seconds;
+    if (typeof holdSeconds !== "number" || !Number.isFinite(holdSeconds) || holdSeconds < 0) {
+      throw invalidAction(
+        `key hold_seconds must be a non-negative number (got ${JSON.stringify(args.hold_seconds)})`,
+      );
+    }
+    return async () => [
+      { kind: "key", payload: { chord, repeat, holdMs: Math.round(holdSeconds * 1000) } },
+    ];
+  });
+
+// paste：载荷只有 {text}——format（SDK 工具层会发）一期丢弃：Rust Req::Paste 只读 text，
+// 剪贴板一律按纯文本写入（偏差记报告）。
+handlers.paste = (input) =>
+  runAction("paste", input, (args) => {
+    const text = requireStringArg("paste", args, "text");
+    return async () => [{ kind: "paste", payload: { text } }];
+  });
+
+// perform_action：element 专用（Rust Req::Action 只有 elementIndex）。
+handlers.perform_action = (input) =>
+  runAction("perform_action", input, (args) => {
+    const target = requireElementOnlyTarget("perform_action", args);
+    const action = requireStringArg("perform_action", args, "action", { allowEmpty: false });
+    return async ({ session, windowId }) => {
+      const { elementIndex } = resolveActionTarget("perform_action", target, session, windowId);
+      return [{ kind: "action", payload: { elementIndex, action } }];
+    };
+  });
 
 export function createComputerUseRuntime(options = {}) {
   const socketPath = options.brokerSocketPath || resolveBrokerSocketPath({ env: options.env });
@@ -784,6 +1290,9 @@ export function createComputerUseRuntime(options = {}) {
         stopped: false,
         leaseOwner: null,
         lastFrame: null,
+        // Task 4：会话最近一次解析出的动作作用域 {appRef(归一对象), windowId}——动作缺
+        // app_ref 时的兜底（docs：app_ref 可省；SDK bound API 恒发，工具层直调可能省略）。
+        bound: null,
         // M4：只写不读的镜像位——判定以 runtime 级 versionMismatch 为准（health 只打一次），
         // 按 brief 保留在会话字段里供 Task 4 观察。
         versionSticky: false,
