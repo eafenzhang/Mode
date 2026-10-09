@@ -224,12 +224,15 @@ jobs:
         run: pnpm lint
       - name: Language policy gate
         run: node scripts/check-language-policy.mjs
-      - name: Shared, service and desktop tests
+      - name: Shared, service, core and desktop tests
         run: |
           set -euo pipefail
           pnpm --filter @mode/shared test
           pnpm --filter @mode/services test
           pnpm --filter @mode/server test
+          # core 黄金测试（cua display）import dist，先 build 再跑（Plan C T4 跑点，T5 落地）。
+          pnpm --filter @mode/core build
+          pnpm --filter @mode/core test
           node --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts
 
   desktop:
@@ -275,6 +278,7 @@ jobs:
       # 捆绑产物，mac/linux 腿 electron-builder 的 extraResources 不引用它。
       # CI 跑在 MSVC runner 上（无 llvm-mingw），注入 msvc 目标三元组覆盖本地
       # 默认的 gnu；cargo test/clippy 同样只在 Windows 腿执行（crate 依赖 Win32 API）。
+      # 仓内首用 dtolnay/rust-toolchain；@stable 浮动 tag 对齐本仓 actions 浮动惯例（@v4 同类）。
       - name: Install Rust toolchain (msvc target)
         if: matrix.target == 'win'
         uses: dtolnay/rust-toolchain@stable
@@ -283,6 +287,7 @@ jobs:
           # --profile minimal 不含 clippy，clippy 门禁需要显式声明组件。
           components: clippy
 
+      # 仓内首用 Swatinem/rust-cache；@v2 浮动 tag 对齐本仓 actions 浮动惯例（@v4 同类）。
       - name: Cache cargo registry and build output
         if: matrix.target == 'win'
         uses: Swatinem/rust-cache@v2

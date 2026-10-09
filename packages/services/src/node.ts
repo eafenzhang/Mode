@@ -1243,8 +1243,12 @@ export async function buildCuaProductHelperAgentEnv(
         [MODE_CUA_PLUGIN_AUTHORITY_ENV_KEY]: reserved.pluginAuthority,
       };
     }
-    // 有界 deadline race：cold launch 没在 1s 内 ready 且无预留才 fail-closed。waitForCuaHelperStartup
-    // 超时抛 caller_timeout（被下面 catch 当作"后台仍在跑"，不额外设 retryAt）。
+    // 有界 deadline race：cold launch 没在 1s 内 ready 且无预留才 fail-closed（in-repo host 均
+    // 暴露 waitForTransport，通常上面的早返回分支已处理，本分支仅兜底）。现实行为（Plan C T5 核对）：
+    // waitForCuaHelperStartup 超时抛 BrokerError{broker_unavailable}——全仓无 caller_timeout 生产者，
+    // 下面 catch 的 isCallerTimeout 恒不命中，故与其它启动失败同路：markUnavailable + retryAt 退避、
+    // 回 broker_unavailable 详情；被 race 输掉的共享 startup 仍在后台跑，trackCuaProductHelperStartup
+    // 在其真正失败时建立 backoff。
     const handle = await waitForCuaHelperStartup(
       startup,
       CUA_PRODUCT_HELPER_SPAWN_READY_DEADLINE_MS,

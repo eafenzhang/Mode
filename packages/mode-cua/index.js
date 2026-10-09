@@ -1544,8 +1544,9 @@ export function createComputerUseRuntime(options = {}) {
     healthPromise = undefined;
   }
 
-  // resolveElementIndex 是内部台账门（不在 index.d.ts 的公开面里；Task 4 处理器经
-  // session.resolveElementIndex 取 2 参形态）；runtime 级 3 参形态供测试与跨会话工具直查。
+  // resolveElementIndex 是内部台账门：Task 4 处理器经 session.resolveElementIndex 取 2 参形态。
+  // runtime 级 3 参形态**仅测试缝**（test/runtime-observe.test.mjs 直查），刻意不入 index.d.ts
+  // 类型面——TS 消费方不该依赖内部台账门；要提升进类型面须先改此裁决（Plan C Task 5 二选一）。
   return {
     execute,
     closeSession,
