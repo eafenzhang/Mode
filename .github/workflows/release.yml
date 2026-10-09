@@ -230,7 +230,7 @@ jobs:
           pnpm --filter @mode/shared test
           pnpm --filter @mode/services test
           pnpm --filter @mode/server test
-          node --test packages/desktop/tests/*.test.mjs
+          node --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts
 
   desktop:
     needs: [release, verify]
@@ -270,6 +270,38 @@ jobs:
 
       - name: Build project references
         run: pnpm typecheck
+
+      # 以下四步仅 Windows 腿（matrix.target == 'win'）：cua-helper 是 win32-only
+      # 捆绑产物，mac/linux 腿 electron-builder 的 extraResources 不引用它。
+      # CI 跑在 MSVC runner 上（无 llvm-mingw），注入 msvc 目标三元组覆盖本地
+      # 默认的 gnu；cargo test/clippy 同样只在 Windows 腿执行（crate 依赖 Win32 API）。
+      - name: Install Rust toolchain (msvc target)
+        if: matrix.target == 'win'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+          # --profile minimal 不含 clippy，clippy 门禁需要显式声明组件。
+          components: clippy
+
+      - name: Cache cargo registry and build output
+        if: matrix.target == 'win'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/mode-cua-ax
+
+      - name: Build and stage CUA helper
+        if: matrix.target == 'win'
+        env:
+          MODE_CUA_AX_TARGET: x86_64-pc-windows-msvc
+        run: pnpm build:cua-helper
+
+      - name: CUA helper crate tests and clippy
+        if: matrix.target == 'win'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path crates/mode-cua-ax/Cargo.toml
+          cargo clippy --manifest-path crates/mode-cua-ax/Cargo.toml --all-targets -- -D warnings
 
       - name: Bundle desktop app
         env:
