@@ -61,7 +61,7 @@
 │   └ native addon（★新增：cua_ax.node，Rust + napi-rs + windows-rs）  │
 │        UIA3 树 · 窗口枚举/启动 · GDI/PrintWindow 截图 · SendInput     │
 └────────▲─────────────────────────────────────────────────────────┘
-         │ callBrokerMethod（MODE_CUA_PERMISSION_BROKER_SOCKET + token）
+         │ callBrokerMethod（无口令：socket 路径即凭据，token 仅 Worker 桥）
 ┌────────┴──────── node_repl MCP host ─────────────────────────────┐
 │ server.ts captureComputerUseRuntimeFromEnvironment（已有）          │
 │ @mode/cua createComputerUseRuntime（★stub→本期实现）:               │
@@ -92,7 +92,7 @@
 | 状态/资源 | 唯一所有者 | 说明 |
 | --- | --- | --- |
 | helper 生命周期（fork/健康/代际恢复/孤儿回收） | `services/cua-permission-broker`（已有） | 本期不改 |
-| 凭据（socket/token/refresh marker） | `services` host + `mcp-config` 注入（已有） | resolver 实现只负责「何时启动/捕获」 |
+| 凭据（socket/authority/refresh marker） | `services` host：socket 路径铸造与捕获（无 token；`pluginAuthority` 仅为 provenance），token 校验仅存在于 node_repl Worker 桥 | resolver 实现只负责「何时启动/捕获」 |
 | 会话 `state_id`、diff 基线、帧账本（最近可动作栅格）、app 绑定 | `@mode/cua` runtime（node_repl host 进程内） | 按 `context.session_id + workspace_key` 键 |
 | AX 快照、窗口句柄、输入与截图原语 | helper 子进程（Rust addon） | 无会话语义，仅窗口句柄缓存 |
 | controller lease（单活跃控制者） | runtime + helper 双侧校验 | helper 侧兜底跨 host 场景 |
