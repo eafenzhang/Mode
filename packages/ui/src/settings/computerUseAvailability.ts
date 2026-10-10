@@ -1,5 +1,6 @@
 import type { RemoteTarget } from "@mode/shared";
 import { isRemoteWorkspaceIdentity, parseRemoteWorkspaceIdentity } from "@mode/shared";
+import type { CuaPermissionStatus, CuaPermissionStatusResult } from "@mode/services";
 
 type ComputerUseAvailabilityKind =
   | "local-macos"
@@ -68,6 +69,21 @@ export function resolveComputerUseAvailability({
   if (isMacDesktop) return { kind: "local-macos", supported: true };
   if (isWindowsDesktop) return { kind: "local-windows", supported: true };
   return { kind: "local-linux", supported: false };
+}
+
+/**
+ * 远端（LAN 对端）pane 权限行的可见判定（docs/specs/lan-remote-computer-use.md）：
+ * `status !== null && status.available !== false`——对端 getStatus 的成功回包**不携带**
+ * `available` 字段（成功形态见 packages/services/src/node.ts），属可用状态；显式
+ * `available: false` 是对端 win/linux/插件未启用的不可用回包；尚未查询到（null）同样隐藏。
+ * 本机 pane 不走该判定（维持既有 isCuaPermissionStatusAvailable 谓词与平台门不动）。
+ * 该判定为真时 status 必属 CuaPermissionStatus（Unavailable 恒带 available:false，
+ * null 已排除），故声明为类型收窄，供行内容（accessibility/screenRecording）取值。
+ */
+export function isRemoteCuaPermissionRowVisible(
+  status: CuaPermissionStatusResult | null,
+): status is CuaPermissionStatus {
+  return status !== null && status.available !== false;
 }
 
 const COMPUTER_USE_SEARCH_TERMS = ["电脑控制", "computer use", "mode-cua", "cua"];

@@ -46,6 +46,7 @@ import { useRemoteWorkspaceComputerUseCapability } from "@/hooks/useRemoteWorksp
 import { ExternalLink } from "lucide-react";
 import {
   isComputerUseRemoteOrLinux,
+  isRemoteCuaPermissionRowVisible,
   resolveComputerUseAvailability,
 } from "@/settings/computerUseAvailability.js";
 
@@ -121,7 +122,17 @@ export function ComputerUseSection({
   // 展示只跟 settled：fresh 每次查询开始都会落回 false，跟着它渲染会让授权按钮的文案
   // 在「验证中…」与终态之间切换、宽度随之跳变。
   const { status, settled, refresh } = useCuaPermissionStatus(path ?? null, workspaceIdentity);
-  const availableStatus = status && isCuaPermissionStatusAvailable(status) ? status : null;
+  // 行状态来源分 pane：本机维持既有谓词 isCuaPermissionStatusAvailable（行为不变）；
+  // 远端按远端谓词 isRemoteCuaPermissionRowVisible——对端 getStatus 成功回包不携带
+  // available 字段，若沿用本机谓词（要求 available===true）远端权限行将永不渲染，
+  // 显式 available:false 才隐藏（docs/specs/lan-remote-computer-use.md）。
+  const availableStatus = remoteSessionId
+    ? status && isRemoteCuaPermissionRowVisible(status)
+      ? status
+      : null
+    : status && isCuaPermissionStatusAvailable(status)
+      ? status
+      : null;
 
   // macOS 版本门槛：低版本系统上 Helper 被 LaunchServices -10825 拒启，表象是授权反复无响应。
   // 查询一次主进程判定（GetCuaOsSupport），低于地板时渲染提示卡并隐藏授权操作区。
@@ -773,9 +784,10 @@ export function ComputerUseSection({
 
       {/* CUA 未启用时隐藏下方权限配置，只留总开关，避免一堆禁用项。
           LAN 远端 pane 的权限归属对端（docs/specs/lan-remote-computer-use.md）：
-          渲染前提从「本机平台」改为对端状态真实可用（status.available === true，
-          即 isCuaPermissionStatusAvailable 的同一判定）——对端 win/linux 的 getStatus
-          恒返回 available:false → 行隐藏；对端 mac 返回真实状态 → 行显示。
+          渲染前提从「本机平台」改为远端谓词 isRemoteCuaPermissionRowVisible——
+          status 非 null 且非显式 available:false 即可见（对端成功回包不携带 available
+          字段，不能沿用要求 available===true 的本机谓词，否则行永隐）；对端 win/linux
+          的 getStatus 返回 available:false → 行隐藏，对端 mac 返回真实状态 → 行显示。
           本机 pane 维持既有平台门不动。 */}
       {cuaEnabled && (remoteSessionId ? availableStatus !== null : supportsLocalMacWorkspace) ? (
         <>

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { resolveComputerUseAvailability } =
+const { resolveComputerUseAvailability, isRemoteCuaPermissionRowVisible } =
   await import("../src/settings/computerUseAvailability.js");
 
 const lanTarget = { kind: "lan" as const, host: "192.168.1.5", port: 3030 };
@@ -80,4 +80,29 @@ test("本机与 Web、Linux 分支不变（回归）", () => {
     supported: false,
   });
   assert.deepEqual(resolveComputerUseAvailability({}), { kind: "web", supported: false });
+});
+
+test("远端权限行：成功回包不带 available 字段 → 可见", () => {
+  assert.equal(
+    isRemoteCuaPermissionRowVisible({
+      grantOwner: "user",
+      accessibility: "granted",
+      screenRecording: "granted",
+    }),
+    true,
+  );
+});
+
+test("远端权限行：显式 available:false（对端 win/linux/未启用）→ 隐藏", () => {
+  assert.equal(
+    isRemoteCuaPermissionRowVisible({
+      available: false,
+      reason: "CUA permissions are only available on macOS.",
+    }),
+    false,
+  );
+});
+
+test("远端权限行：尚未查询（null）→ 隐藏", () => {
+  assert.equal(isRemoteCuaPermissionRowVisible(null), false);
 });
