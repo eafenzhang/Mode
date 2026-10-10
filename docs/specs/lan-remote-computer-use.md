@@ -78,9 +78,9 @@ renderer composer 入口 → V4 conversation command
 
 1. **握手能力位**：`serverRemoteInfoSchema.capabilities` 新增 `computerUse?: z.boolean()`（optional，缺键=不支持）。由 `createServerInfo` 按设备条件填充；`LanRemoteConnection.info` 的 capabilities 收口进 `HostRemoteConnectionCapabilities`（新增 `computerUse?: boolean` 字段）。
 2. **下发 renderer**：LAN handle 的 attachment 注册参数携带该位 → `RemoteWorkspaceSession` 新增只读 `capabilities?: { computerUse?: boolean }`；UI 判定函数（`resolveComputerUseAvailability`、`resolveCuaComposerEntryView`）输入面新增该位。
-3. **权限服务透传**：`createRemoteWorkspaceServiceCollection` 注册 `ICuaPermissionService`（转发对端），并加入 `legacyRemoteWorkspaceRpcContract` 必选白名单；同时修 `RemoteServiceAccess` 对该 descriptor 的无条件构造（按 Initialize 通道列表判定存在性，消除悬空代理）。
+3. **权限服务透传与归属**：`createRemoteWorkspaceServiceCollection` 在 `connectionServices` 提供时注册 `ICuaPermissionService`（**不入** `legacyRemoteWorkspaceRpcContract` 必选白名单——该白名单校验所有远端形态，ssh/wsl/docker 的 stdio host 不提供该服务，入白名单会断链）；renderer 侧 `buildRemoteWorkspaceSessionServices` 在 LAN 且**对端声明了 `computerUse` 键**（键出现即新版对端，其 `createLocalServices` 恒注册该 channel）时把 `cuaPermissionService` 归属覆盖为对端服务，否则维持现状（本机 base 回落）。`Initialize` 帧不携带通道列表，不做通道存在性探测。
 4. **权限引导远程触发**：`ICuaPermissionService` 新增 `openPermissionOnboarding(options?)`；对端实现经 host→main 打开**对端机器**的 onboarding。本地 pane 的「去授权」动作改走该方法；本机 pane 维持既有 `platform.openCuaPermissionOnboarding`。
-5. **事件面放行**（见事件顺序 ④）：`modeAgentService` 丢弃条件收窄为「remote identity 但 kind 非 lan 才丢」；`modeAgentConnectionScope.onDynamicCuaPermissionObservation` 照 `onDynamicConversationTelemetryFact` 的 relay 先例放行 `trusted-host-relay && 下游 desktop-continuous`。
+5. **事件面放行**（见事件顺序 ④）：`modeAgentService` 丢弃条件收窄为「remote identity 但 kind 非 lan 才丢」；`modeAgentConnectionScope.onDynamicCuaPermissionObservation` 照 `onDynamicConversationTelemetryFact` 的 relay 先例放行 `trusted-host-relay && 下游 desktop-continuous`（订阅参数按同一先例携带 trusted connection 载体跨 relay 传递）；`CuaPermissionObservationAttachment` 除本机 base 外，对在册 remote session 也建立订阅，观察按其来源 accessor 归属调用状态/重启/引导。
 6. **对端 enablement 放行**：`shouldCreateDefaultCuaProductHelper` 的 identity 条件收窄为「无 remote identity，或 identity kind 为 lan」（authority 条件不变，仍要求 `desktop-local`；ssh/wsl/docker identity 继续排除）；spawn broker 注入与动态 resolver 沿用同一判定，保持同源。
 
 ## UI 规则
