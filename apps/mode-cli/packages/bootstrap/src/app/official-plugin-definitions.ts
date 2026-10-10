@@ -54,7 +54,10 @@ export interface OfficialPluginDefinition {
   version: string;
 }
 
-const ZAI_AUTHOR = { name: "Z.ai", url: "https://z.ai" } as const;
+// 商店「开发者」署名：官方市场 seed 与随包插件都由本仓库自研维护，署名 Mode。
+// 不再沿用上游 Z.ai 的站点链接——authorUrl 会随 listing 投影给 UI，本仓库没有
+// 对外站点，宁可缺省也不指向上游域名。
+const MODE_AUTHOR = { name: "Mode" } as const;
 // 审计版不连接官方 CDN；使用内嵌图标，保留本地插件定义。
 const OFFICIAL_PLUGIN_ICON = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2232%22 height=%2232%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%23666%22/%3E%3C/svg%3E";
 
@@ -108,7 +111,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
   },
   {
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "developer-tools",
       displayName: "Android Emulator",
       displayName_i18n: { "zh-CN": "Android 模拟器" },
@@ -132,7 +135,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     defaultEnabled: true,
     hostMcpServerNames: ["node_repl"],
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "productivity",
       displayName: "Browser Use",
       displayName_i18n: { "zh-CN": "浏览器操作" },
@@ -164,7 +167,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     ([name, skill, displayName, chineseName]): OfficialPluginDefinition => ({
       defaultEnabled: true,
       listing: {
-        author: ZAI_AUTHOR,
+        author: MODE_AUTHOR,
         category: "productivity",
         displayName,
         displayName_i18n: { "zh-CN": chineseName },
@@ -187,7 +190,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 沿用原聚合文档插件的官方搜图能力，仅拆出独立开关；认证仍由官方 MCP adapter 注入。
     defaultEnabled: true,
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "productivity",
       displayName: "Image Search",
       displayName_i18n: { "zh-CN": "搜图" },
@@ -205,7 +208,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
   },
   {
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "developer-tools",
       displayName: "iOS Simulator",
       displayName_i18n: { "zh-CN": "iOS 模拟器" },
@@ -225,7 +228,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
   },
   {
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "utilities",
       displayName: "Restore Legacy Sessions",
       displayName_i18n: { "zh-CN": "恢复旧版会话" },
@@ -248,7 +251,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     name: "plugin-creator",
     version: "0.1.1",
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "utilities",
       displayName: "Plugin Creator",
       // 创建器使用客户端自带图标，不再借用 skill-creator 的远端图片。
@@ -277,7 +280,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
   {
     defaultEnabled: true,
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "utilities",
       displayName: "Skill Creator",
       displayName_i18n: { "zh-CN": "技能创建器" },
@@ -298,7 +301,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 让用户/agent 开箱即用地拿到 Mode 配置指南、自诊断技能与 dynamic workflow 编写指南。
     defaultEnabled: true,
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "utilities",
       displayName: "Mode Guide",
       displayName_i18n: { "zh-CN": "Mode 使用指南" },
@@ -339,7 +342,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 以兼容原生 Helper identity；EN 描述基线走 manifest
     // description，这里只放 zh-CN 覆盖；resolveLocalizedText 在 en-US 时回退到 manifest。
     listing: {
-      author: ZAI_AUTHOR,
+      author: MODE_AUTHOR,
       category: "productivity",
       displayName: "Computer Use",
       displayName_i18n: { "zh-CN": "电脑控制" },

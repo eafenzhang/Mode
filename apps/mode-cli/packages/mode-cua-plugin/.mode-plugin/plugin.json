@@ -1,5 +1,6 @@
 {
   "name": "computer-use",
   "version": "0.6.3",
-  "description": "自动化桌面应用：智能体驱动鼠标、键盘与界面元素，代你完成实际任务。"
+  "description": "自动化桌面应用：智能体驱动鼠标、键盘与界面元素，代你完成实际任务。",
+  "author": { "name": "Mode" }
 }
