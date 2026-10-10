@@ -26,6 +26,7 @@ apps/mode-cli/packages/cli/scripts/windows-authenticode.mjs
 apps/mode-cli/packages/dynamic-workflow/scratch/run.mjs
 apps/mode-cli/packages/dynamic-workflow/scripts/generate-libs.mjs
 apps/mode-cli/packages/dynamic-workflow/scripts/generate-mermaid.mjs
+apps/mode-cli/packages/mode-cua-plugin/scripts/computer-use-client.mjs
 apps/mode-cli/packages/node-repl-host/scripts/build.mjs
 apps/mode-cli/packages/tui/scripts/build.mjs
 apps/mode-cli/scripts/clean-dist.mjs
