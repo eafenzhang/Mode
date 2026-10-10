@@ -16,6 +16,7 @@ import {
   type LanAccessPairResult,
   type LanAccessState,
   type ServerRemoteWorkspaceInfo,
+  isModeCuaInternalFeatureEnabled,
 } from "@mode/shared";
 import { createHttpServer } from "@mode/server";
 import type { ICredentialService, ServiceCollection } from "@mode/services";
@@ -239,6 +240,12 @@ export async function startLanAccessServer(
     serverId,
     name: params.machineName,
     workspaces: () => params.getWorkspaces(),
+    // LAN 对端是完整 desktop（desktop-local authority）。能力位 = 平台 win/mac && 打包层
+    // kill-switch 关（isModeCuaInternalFeatureEnabled 为「只能关不能开」语义）。
+    // 插件启用态是 workspace 级动态值，不进设备位（docs/specs/lan-remote-computer-use.md）。
+    computerUseCapability:
+      (process.platform === "win32" || process.platform === "darwin") &&
+      isModeCuaInternalFeatureEnabled(process.env),
   });
   const port = await waitForListenPort(server, LAN_ACCESS_DEFAULT_PORT);
 

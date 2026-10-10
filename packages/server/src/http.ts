@@ -245,6 +245,11 @@ interface HttpServerOptions {
   staticRoot?: string;
   /** 工作区列表：静态数组或按请求求值（局域网服务端要反映「刚刚打开的工作区」）。 */
   workspaces?: ServerRemoteWorkspaceInfo[] | (() => Promise<ServerRemoteWorkspaceInfo[]>);
+  /**
+   * 设备级电脑控制能力（LAN 能力协商）。只有具备 helper/host 条件的 server
+   * （desktop LAN access server）会传布尔值；不传 = 不声明该键（docs/specs/lan-remote-computer-use.md）。
+   */
+  computerUseCapability?: boolean;
 }
 
 function readTrimmedEnv(name: string): string | undefined {
@@ -291,6 +296,11 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
     capabilities: {
       desktopContinuous: true,
       websocketRpc: true,
+      // computerUse 只在显式声明时发布：不声明 = 不发键，旧对端与其余消费方行为不变
+      // （docs/specs/lan-remote-computer-use.md）。
+      ...(options.computerUseCapability !== undefined
+        ? { computerUse: options.computerUseCapability }
+        : {}),
     },
   };
 }
