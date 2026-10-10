@@ -124,6 +124,16 @@ const remoteOfficialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
+  {
+    // Computer Use（电脑控制）：自研 skill/docs/SDK 静态资产，无 runtime 构建。
+    // 与桌面清单 prepare-agent-node-bundle.mjs 同源同形；漏 stage 则 seed 跳过
+    // computer-use、设置开关抛 Plugin not found（docs/specs/computer-use-plugin-distribution.md）。
+    // server 侧 modeAgentOfficialPluginAssets 远端合同维持只列 browser-use（远端不承载 CUA，
+    // 见该文件内注释），本条目只保证 staging 完整性。
+    packageName: "@mode/cua-plugin",
+    relativePath: "apps/mode-cli/packages/mode-cua-plugin",
+    stagedPath: "packages/mode-cua-plugin",
+  },
 ];
 // 随 CLI 内置的技能包（不是插件）：远端 agent 的 bootstrap 沿官方插件同款候选目录在 mode.cjs 旁
 // 找 packages/bundled-skills 并原地读取；与 packages/desktop/scripts/prepare-agent-node-bundle.mjs 同一份清单。
@@ -168,6 +178,7 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
 const remoteOfficialPluginRequiredPaths = [
   "packages/browser-use-plugin/.mode-plugin/plugin.json",
   "packages/node-repl-host/.mode-plugin/plugin.json",
+  "packages/mode-cua-plugin/.mode-plugin/plugin.json",
 ];
 
 function readModeAgentRuntimeVersion() {

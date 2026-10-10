@@ -469,6 +469,8 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  apps/mode-cli/packages/mode-cua-plugin: {}
+
   apps/mode-cli/packages/node-repl-host:
     dependencies:
       '@mode/contracts':

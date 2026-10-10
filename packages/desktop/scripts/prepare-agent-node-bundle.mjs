@@ -112,6 +112,15 @@ const officialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
+
+  {
+    // Computer Use（电脑控制）：自研 skill/docs/SDK 静态资产，无 runtime 构建（工具面走
+    // 共享 node_repl + 自研 Helper）。漏 stage 会让 seed 静默跳过 computer-use，发现列表
+    // 缺插件、设置页开关抛 Plugin not found（docs/specs/computer-use-plugin-distribution.md）。
+    packageName: "@mode/cua-plugin",
+    relativePath: "apps/mode-cli/packages/mode-cua-plugin",
+    stagedPath: "packages/mode-cua-plugin",
+  },
 ];
 // 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
 // 在 mode.cjs 旁找 packages/bundled-skills 并原地读取。漏 stage 它，桌面包的 /workflow 会展开成
@@ -242,7 +251,9 @@ function stageOfficialPlugins() {
       .map((directoryName) => resolve(sourceRoot, directoryName, "plugin.json"))
       .find((candidate) => existsSync(candidate));
     if (!manifestPath) {
-      throw new Error(`[prepare:agent-bundle] missing official plugin manifest under: ${sourceRoot}`);
+      throw new Error(
+        `[prepare:agent-bundle] missing official plugin manifest under: ${sourceRoot}`,
+      );
     }
 
     const targetRoot = resolve(glmDir, plugin.stagedPath);

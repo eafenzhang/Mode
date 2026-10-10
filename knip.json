@@ -27,6 +27,9 @@
     },
     "apps/mode-cli/packages/browser-use-plugin": {
       "entry": ["src/browser-client.ts"]
+    },
+    "apps/mode-cli/packages/mode-cua-plugin": {
+      "entry": ["scripts/computer-use-client.mjs"]
     }
   },
   "ignore": [".agents/**", "docs/**", "packages/ui/src/components/**"]

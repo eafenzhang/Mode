@@ -1,0 +1,6 @@
+{
+  "name": "@mode/cua-plugin",
+  "version": "0.6.3",
+  "private": true,
+  "description": "Computer Use（电脑控制）插件种子资产：docs / SKILL / SDK，全部自研。无构建产物，seed 阶段按顶层白名单原样复制。"
+}
