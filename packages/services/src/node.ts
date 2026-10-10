@@ -529,6 +529,7 @@ import {
   type WindowsCuaRuntime,
 } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
 import { createCanonicalCuaHelperInstaller } from "./cua-permission-broker/cuaHelperInstaller.js";
+import { resolveCuaWorkspaceEnablement } from "./cuaEnablement.js";
 import { WindowsCuaHelperHost } from "#src/cua-permission-broker/windowsCuaDevHelperHost.js";
 import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@mode/cua/broker/helperConstants";
 import { resolveBrokerSocketPath } from "@mode/cua/broker/socketPath";
@@ -1713,15 +1714,13 @@ export function createLocalServices(options: {
   // service 创建完成后再赋值。Helper recovery 始终不能回收 Agent。
   let hasActiveTurnRef: (() => boolean) | undefined;
   const isCuaEnabledForContext = (context?: CuaProductMcpServerResolverContext): boolean =>
-    // 保留 main 原有 gate 行为（避免回归）：dev/internal 特性开启时（MODE_CUA_DEV_MODE=1 或
-    // MODE_CUA_PRODUCT_HELPER=1）即视为启用，不依赖 config.json 显式 enable——main 的 bootstrap
-    // 用 isModeCuaInternalFeatureEnabled 门控 bundled plugin，与 feat 的 workspace enablement 不同。
-    // 生产路径（dev mode off）回落到官方插件 workspace enablement 判定（与 feat 一致）。
-    isModeCuaInternalFeatureEnabled(process.env) ||
-    isOfficialCuaPluginEnabledForWorkspace({
-      env: process.env,
-      workingDirectory: context?.workspacePath,
-    });
+    // 开关收口（docs/specs/computer-use-enablement.md）：此处原为 env || 插件启用 的旁路——
+    // 打包层 env 默认 ON 时，设置页关掉开关也拦不住 win32 spawn 预热 Helper、注入 broker 凭据。
+    // 现与 resolveCuaWorkspaceEnablement 同判据：env（打包 kill-switch，只能关）&& 插件启用态
+    // （设置页/插件页写入的用户权威门）。MODE_CUA_DEV_MODE 不再隐式启用，开发者需在设置里
+    // 显式开一次（写盘持久化）。helper 创建 admission、spawn 注入、动态 resolver、权限服务
+    // 可用性四个消费方共用本谓词，保证开关一次拨动全链路同向。
+    resolveCuaWorkspaceEnablement({ workingDirectory: context?.workspacePath });
   const defaultCuaProductHelperLifecycle =
     new CuaHelperLifecycleManager<ManagedDefaultCuaProductHelper>(async (managed) => {
       await managed.helper.host.stop();
@@ -2175,8 +2174,9 @@ export function createLocalServices(options: {
               httpProxy: settings.httpProxy,
               noProxy: settings.httpProxyNoProxy,
             };
-      // 与 helper 创建同一个门控（isCuaEnabledForContext：dev/internal 特性 OR 官方插件 enablement），
-      // 避免 dev mode 下 helper 建了但 resolveSpawnEnv 漏注入 broker env 的割裂。
+      // 与 helper 创建同一个门控（isCuaEnabledForContext：env kill-switch AND 插件启用态，
+      // 见 docs/specs/computer-use-enablement.md），避免 helper 已建但 resolveSpawnEnv
+      // 漏注入 broker env 的割裂。
       const cuaPluginEnabled = isCuaEnabledForContext(context);
       // 懒启动：darwin 上 spawn 绝不 acquire 拉起 Helper——已有 host（peek，比如刚走过
       // 授权流）则复用其 tuple；否则只注入稳定 socket，SDK 首次 CUA 调用自行拉起
@@ -2290,8 +2290,8 @@ export function createLocalServices(options: {
   });
   // The plugin can be toggled at runtime. Do not let a previously created resolver continue
   // health-checking/restarting Helper after disable, and create it lazily after enable.
-  // 动态 resolver：isPluginEnabled 与 helper 创建用同一个 isCuaEnabledForContext 门控（dev mode 一致），
-  // 避免开发场景下 resolver pass-through 而 helper 已建的割裂。
+  // 动态 resolver：isPluginEnabled 与 helper 创建共用 isCuaEnabledForContext（同一个用户权威门，
+  // 见 docs/specs/computer-use-enablement.md），避免 resolver pass-through 而 helper 已建的割裂。
   const defaultCuaProductMcpServerResolver = createDynamicCuaProductMcpServerResolver({
     isPluginEnabled: (context) => isCuaEnabledForContext(context),
     getResolver: async () => {

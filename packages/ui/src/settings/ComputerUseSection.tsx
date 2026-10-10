@@ -1,6 +1,8 @@
 /* eslint-disable max-lines -- CUA 设置页同时编排插件总开关、双权限状态与授权返回恢复链；后续单独拆分组件。 */
 // 设置页「电脑控制 (Computer Use)」分区：
 //  - 顶部一个总开关：开/关 mode-cua 插件（连带其 MCP server 与 skill 一起启用/禁用）。
+//  - 启用权威与门控矩阵见 docs/specs/computer-use-enablement.md：本开关是自研电脑控制的
+//    用户权威门（打包层 env 仅为 kill-switch），设置页与插件页写的是同一份插件启用态。
 //  - macOS 下再展示 Accessibility / Screen Recording 两个权限行（含授权引导与 stale 恢复链）。
 // UI 复用 SettingsGroupCard / SettingsRow / SettingsBadge / Switch，与其它设置分区保持一致。
 //
