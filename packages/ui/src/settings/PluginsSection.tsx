@@ -86,6 +86,7 @@ import {
   matchesComputerUseSearch,
   resolveComputerUseAvailability,
 } from "@/settings/computerUseAvailability.js";
+import { useRemoteWorkspaceComputerUseCapability } from "@/hooks/useRemoteWorkspaceComputerUseCapability.js";
 import {
   PluginScopeMenu,
   getPluginWorkspaceKey,
@@ -280,6 +281,12 @@ function PluginList({
   const visibleBuiltInPlugins = visiblePluginGroups.builtIn;
   const visibleInstalledPlugins = visiblePluginGroups.installed;
   const installedPluginCount = scopedPluginGroups.installed.length;
+  // LAN 对端能力位（attachment 元数据投影）：为真时 CUA 不进「暂不支持」分组，
+  // 插件列表里的 mode-cua 开关写透传到对端（docs/specs/lan-remote-computer-use.md）。
+  const lanComputerUseCapable = useRemoteWorkspaceComputerUseCapability(
+    target?.remoteSessionId,
+    target?.workspaceIdentity,
+  );
   const computerUseAvailability = resolveComputerUseAvailability({
     isDesktop,
     isMacDesktop,
@@ -287,6 +294,7 @@ function PluginList({
     remoteSessionId: target?.remoteSessionId,
     remoteTarget: target?.remoteTarget,
     workspaceIdentity: target?.workspaceIdentity,
+    lanComputerUseCapable,
   });
   const showUnavailableComputerUse = Boolean(
     configScope === "user" &&

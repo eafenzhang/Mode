@@ -23,6 +23,7 @@ import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { getVisibleTaskMetas, getWorkspaceState } from "@/store/modeSessionStoreSelectors.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
+import { useRemoteWorkspaceComputerUseCapability } from "@/hooks/useRemoteWorkspaceComputerUseCapability.js";
 
 /** 与 modeSessionStoreTaskSlice 的 isRunningStatus 同口径。 */
 const RUNNING_TASK_STATUSES = new Set(["creating", "restoring", "streaming"]);
@@ -55,11 +56,19 @@ export function useCuaComposerEntry({
 
   const macLocalDesktop = supportsLocalMacCuaPermissionOnboarding(platform);
   const windowsLocalDesktop = supportsLocalWindowsCuaEntry(platform);
+  const remoteComputerUse = useRemoteWorkspaceComputerUseCapability(
+    remoteSessionId,
+    workspaceIdentity,
+  );
   // 与 ComputerUseSection 同口径的本地 workspace 判定：远程 workspace 的 CUA 会操作
-  // 远端机器的屏幕，产品上不提供。
+  // 远端机器的屏幕；LAN 对端按能力位放行的例外见下方 workspaceCapable。
   const isLocalWorkspace =
     !remoteSessionId &&
     !(workspaceIdentity?.trim() && isRemoteWorkspaceIdentity(workspaceIdentity.trim()));
+  // 与 ComputerUseSection 同口径的 workspace 能力判定：本机 workspace，或 LAN 对端
+  // 声明了 computerUse 设备能力位（此时 CUA 操作的是对端自己的物理屏幕，见
+  // docs/specs/lan-remote-computer-use.md）。ssh/wsl/docker/手机远控不填该位，维持关闭。
+  const workspaceCapable = isLocalWorkspace || remoteComputerUse === true;
 
   // 默认隐藏：只有显式存过 false 才展示。
   // 用 !== false 而不是 === true，是因为 settings 未加载（null）或老用户缺该字段时都应按
@@ -78,7 +87,7 @@ export function useCuaComposerEntry({
   const pluginEnabled = cuaPlugin?.enabled === true;
 
   const pluginManagementService = services.pluginManagementService;
-  const platformSupported = (macLocalDesktop || windowsLocalDesktop) && isLocalWorkspace;
+  const platformSupported = (macLocalDesktop || windowsLocalDesktop) && workspaceCapable;
   // 插件列表是按钮状态的必要输入。store 是全局单例且 initialize 内部按 workspaceKey 做了
   // in-flight 去重 + 缓存复用，因此与设置页共用同一条初始化路径不会放大 plugins/list 请求。
   const initializedKeyRef = useRef<string | null>(null);
@@ -132,8 +141,8 @@ export function useCuaComposerEntry({
   const view = useMemo(
     () =>
       resolveCuaComposerEntryView({
-        macLocalDesktop: macLocalDesktop && isLocalWorkspace,
-        windowsLocalDesktop: windowsLocalDesktop && isLocalWorkspace,
+        macLocalDesktop: macLocalDesktop && workspaceCapable,
+        windowsLocalDesktop: windowsLocalDesktop && workspaceCapable,
         hiddenBySettings,
         permissionServiceAvailable: Boolean(services.cuaPermissionService),
         pluginEnabled,
@@ -147,7 +156,6 @@ export function useCuaComposerEntry({
       cuaPlugin,
       hiddenBySettings,
       lastFailedPluginId,
-      isLocalWorkspace,
       macLocalDesktop,
       permissionStatus,
       pluginEnabled,
@@ -156,6 +164,7 @@ export function useCuaComposerEntry({
       services.cuaPermissionService,
       togglingPluginId,
       windowsLocalDesktop,
+      workspaceCapable,
     ],
   );
 

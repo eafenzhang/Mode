@@ -1,5 +1,5 @@
 import type { RemoteTarget } from "@mode/shared";
-import { isRemoteWorkspaceIdentity } from "@mode/shared";
+import { isRemoteWorkspaceIdentity, parseRemoteWorkspaceIdentity } from "@mode/shared";
 
 type ComputerUseAvailabilityKind =
   | "local-macos"
@@ -8,6 +8,7 @@ type ComputerUseAvailabilityKind =
   | "remote-ssh"
   | "remote-wsl"
   | "remote-docker"
+  | "remote-lan"
   | "remote-server"
   | "web";
 
@@ -23,6 +24,8 @@ interface ComputerUseAvailabilityInput {
   remoteSessionId?: string | null;
   remoteTarget?: RemoteTarget | null;
   workspaceIdentity?: string | null;
+  /** LAN 对端握手声明的 computerUse 能力位；缺省（旧对端/非 LAN）按不支持处理。 */
+  lanComputerUseCapable?: boolean;
 }
 
 export function resolveComputerUseAvailability({
@@ -32,6 +35,7 @@ export function resolveComputerUseAvailability({
   remoteSessionId,
   remoteTarget,
   workspaceIdentity,
+  lanComputerUseCapable,
 }: ComputerUseAvailabilityInput = {}): ComputerUseAvailability {
   const isRemote = Boolean(
     remoteSessionId ||
@@ -39,6 +43,14 @@ export function resolveComputerUseAvailability({
     (workspaceIdentity?.trim() && isRemoteWorkspaceIdentity(workspaceIdentity.trim())),
   );
   if (isRemote) {
+    // LAN：完整 desktop 对端，支持与否由握手能力位决定（docs/specs/lan-remote-computer-use.md）。
+    // 仅按 identity kind 判定，能力位缺省/为 false 时维持 unsupported。
+    const identityKind = workspaceIdentity?.trim()
+      ? parseRemoteWorkspaceIdentity(workspaceIdentity.trim())?.kind
+      : undefined;
+    if (remoteTarget?.kind === "lan" || identityKind === "lan") {
+      return { kind: "remote-lan", supported: lanComputerUseCapable === true };
+    }
     const remoteKind: ComputerUseAvailabilityKind =
       remoteTarget?.kind === "ssh"
         ? "remote-ssh"

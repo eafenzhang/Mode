@@ -42,6 +42,7 @@ import { runAfterSuccessfulPluginEnabledChange } from "@/settings/pluginEnabledC
 import { createCuaPermissionOnboardingOperationId } from "@/lib/cuaPermissionOnboardingOperation.js";
 import { waitForAccessibilityNotStale } from "@/settings/cuaPermissionRestartVerify.js";
 import { requiredCuaPermissionsForFreshStatus } from "@/settings/cuaPermissionPreparation.js";
+import { useRemoteWorkspaceComputerUseCapability } from "@/hooks/useRemoteWorkspaceComputerUseCapability.js";
 import { ExternalLink } from "lucide-react";
 import {
   isComputerUseRemoteOrLinux,
@@ -80,13 +81,25 @@ export function ComputerUseSection({
     !remoteSessionId &&
     !remoteTarget &&
     !(workspaceIdentity?.trim() && isRemoteWorkspaceIdentity(workspaceIdentity.trim()));
+  const lanComputerUseCapable = useRemoteWorkspaceComputerUseCapability(
+    remoteSessionId,
+    workspaceIdentity,
+  );
+  // 与 useCuaComposerEntry 同口径的 workspace 能力判定：本机 workspace，或 LAN 对端声明了
+  // computerUse 设备能力位（docs/specs/lan-remote-computer-use.md）。ssh/wsl/docker 不填该位。
+  const workspaceCapableForComputerUse = isLocalWorkspace || lanComputerUseCapable === true;
   // Windows 只复用插件总开关；macOS 才具备 TCC 权限、Helper 状态和附加设置能力。
   const supportsLocalMacWorkspace =
     !isWindowsDesktop &&
     (isMacDesktop ?? supportsLocalMacCuaPermissionOnboarding(platform)) &&
     isLocalWorkspace;
   const supportsLocalWindowsWorkspace = isWindowsDesktop && isLocalWorkspace;
-  const supportsComputerUseSettings = supportsLocalMacWorkspace || supportsLocalWindowsWorkspace;
+  // 分区「按支持渲染」= workspace 能力 ∧ 门槛：本机须 win/mac 平台门（既有，Linux 无
+  // Helper runtime）；LAN 对端以能力位直接判定——对端 win/mac + kill-switch 开握手才置位，
+  // 与 availability 的 remote-lan/supported 同口径，不叠加本机平台门。
+  const supportsComputerUseSettings =
+    workspaceCapableForComputerUse &&
+    (!isLocalWorkspace || supportsLocalMacWorkspace || supportsLocalWindowsWorkspace);
   const availability = resolveComputerUseAvailability({
     isDesktop: isDesktop || isWindowsDesktop || supportsLocalMacWorkspace,
     isMacDesktop: isMacDesktop || supportsLocalMacWorkspace,
@@ -94,9 +107,17 @@ export function ComputerUseSection({
     remoteSessionId,
     remoteTarget,
     workspaceIdentity,
+    lanComputerUseCapable,
   });
   // CUA 权限是 macOS 本机属性：仅完整 macOS 设置需要 Helper workspace 路径。
-  const path = supportsLocalMacWorkspace ? (localWorkspacePath ?? workspacePath) : null;
+  // LAN 远端 pane 的权限归属对端：用对端 workspace 路径 + identity 查询（能力位在册才查，
+  // ssh/wsl/docker 与旧对端不产生多余查询），查询经归属覆盖后的对端 cuaPermissionService
+  //（docs/specs/lan-remote-computer-use.md）。
+  const path = supportsLocalMacWorkspace
+    ? (localWorkspacePath ?? workspacePath)
+    : lanComputerUseCapable === true && workspacePath
+      ? workspacePath
+      : null;
   // 展示只跟 settled：fresh 每次查询开始都会落回 false，跟着它渲染会让授权按钮的文案
   // 在「验证中…」与终态之间切换、宽度随之跳变。
   const { status, settled, refresh } = useCuaPermissionStatus(path ?? null, workspaceIdentity);
@@ -339,9 +360,11 @@ export function ComputerUseSection({
           pluginToggleGenerationRef.current === operationGeneration &&
           pluginToggleContextKeyRef.current === operationContextKey,
         onSuccess: () => {
-          if (supportsLocalMacWorkspace) {
+          if (supportsLocalMacWorkspace || lanComputerUseCapable === true) {
             // 权限状态和手动授权入口只在 macOS Computer Use 设置页展示。启用插件不得自动打开
             // macOS Permissions modal；刷新状态即可，避免打断用户当前工作流。
+            // LAN 远端 pane 同口径刷新：对端插件未启用时 getStatus 返回不可用，不刷新则
+            // 权限行在启用后仍不出现（docs/specs/lan-remote-computer-use.md）。
             refresh();
           }
           if (!next) {
@@ -363,6 +386,7 @@ export function ComputerUseSection({
       refresh,
       setPluginEnabled,
       supportsLocalMacWorkspace,
+      lanComputerUseCapable,
       intl,
     ],
   );
@@ -747,8 +771,13 @@ export function ComputerUseSection({
         />
       </SettingsGroupCard>
 
-      {/* CUA 未启用时隐藏下方权限配置，只留总开关，避免一堆禁用项。 */}
-      {cuaEnabled && supportsLocalMacWorkspace ? (
+      {/* CUA 未启用时隐藏下方权限配置，只留总开关，避免一堆禁用项。
+          LAN 远端 pane 的权限归属对端（docs/specs/lan-remote-computer-use.md）：
+          渲染前提从「本机平台」改为对端状态真实可用（status.available === true，
+          即 isCuaPermissionStatusAvailable 的同一判定）——对端 win/linux 的 getStatus
+          恒返回 available:false → 行隐藏；对端 mac 返回真实状态 → 行显示。
+          本机 pane 维持既有平台门不动。 */}
+      {cuaEnabled && (remoteSessionId ? availableStatus !== null : supportsLocalMacWorkspace) ? (
         <>
           {/* macOS 版本低于 CUA Helper 承诺地板时，授权在低版本系统上无法完成
               （Helper 被 LaunchServices -10825 拒启），整卡替换为升级提示。 */}
