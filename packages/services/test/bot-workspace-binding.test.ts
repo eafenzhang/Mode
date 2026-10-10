@@ -326,9 +326,12 @@ test("多机器人：工作区绑定是追加语义，会话绑定按工作区�
       writeBlock.includes("disposeTaskStreamSubscription("),
     "writeContext 必须在同对话内切换会话时撤掉旧会话订阅",
   );
+  // 锁内原子 RMW 后（docs/specs/bot-state-ownership.md 规则 3），副作用在锁外执行：
+  // disposeTarget 在 mutator 内捕获旧会话，stopTyping 在 repo.mutateState 返回之后调用。
   assert.ok(
-    writeBlock.includes("stopTyping(previous.activeTaskId, context.botId)"),
-    "切换会话时必须停掉旧会话的打字指示",
+    writeBlock.includes("stopTyping(target.activeTaskId, context.botId)") &&
+      writeBlock.includes("await repo.mutateState("),
+    "切换会话时必须停掉旧会话的打字指示（副作用在锁外执行）",
   );
   const focusBlockForBroadcast = source.slice(
     source.indexOf("async function focusBotOnWorkspace"),

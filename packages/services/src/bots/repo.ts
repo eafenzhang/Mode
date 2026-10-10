@@ -78,22 +78,46 @@ export class BotsRepo {
     return parsed;
   }
 
+  /** 锁内读（含迁移固化）；仅供 readState / mutateState 在已持锁的临界区里调用。 */
+  private async readStateLocked(path: string): Promise<BotsStateFile> {
+    const current = await readOptionalJson(path);
+    if (current !== undefined) return botsStateFileSchema.parse(current);
+    const v2 = await readOptionalJson(join(getAppConfigDir(), BOTS_V2_STATE_FILE));
+    const legacy =
+      v2 === undefined
+        ? await readOptionalJson(join(getAppConfigDir(), BOTS_LEGACY_STATE_FILE))
+        : v2;
+    const state = botsStateFileSchema.parse(
+      legacy === undefined ? { version: 3, bots: {} } : importLegacyBotState(legacy),
+    );
+    // 在同一文件锁内固定迁移结果；后续登录/套餐变化不再重新解释旧身份。
+    await writeJson(path, state);
+    return state;
+  }
+
   async readState(): Promise<BotsStateFile> {
     const path = join(getAppConfigDir(), BOTS_STATE_FILE);
+    return withFileLock(path, () => this.readStateLocked(path));
+  }
+
+  /**
+   * 锁内原子读-改-写：整个「读最新 → mutator → zod 校验 → 写盘」持有同一把
+   * 文件锁（进程内 FIFO + 跨进程 OS 锁），消除 readState…writeState 快照覆盖
+   * 在两次锁之间被并发写入方打断的丢更新竞态
+   * （docs/specs/bot-state-ownership.md）。
+   * 不变量：mutator 内禁止再调用 repo 的文件操作——同路径嵌套 withFileLock
+   * 会因进程内 FIFO 队列自锁（前一个持锁者就是调用方自己）。
+   */
+  async mutateState(
+    mutator: (state: BotsStateFile) => void | Promise<void>,
+  ): Promise<BotsStateFile> {
+    const path = join(getAppConfigDir(), BOTS_STATE_FILE);
     return withFileLock(path, async () => {
-      const current = await readOptionalJson(path);
-      if (current !== undefined) return botsStateFileSchema.parse(current);
-      const v2 = await readOptionalJson(join(getAppConfigDir(), BOTS_V2_STATE_FILE));
-      const legacy =
-        v2 === undefined
-          ? await readOptionalJson(join(getAppConfigDir(), BOTS_LEGACY_STATE_FILE))
-          : v2;
-      const state = botsStateFileSchema.parse(
-        legacy === undefined ? { version: 3, bots: {} } : importLegacyBotState(legacy),
-      );
-      // 在同一文件锁内固定迁移结果；后续登录/套餐变化不再重新解释旧身份。
-      await writeJson(path, state);
-      return state;
+      const state = await this.readStateLocked(path);
+      await mutator(state);
+      const parsed = botsStateFileSchema.parse(state);
+      await writeJson(path, parsed);
+      return parsed;
     });
   }
 

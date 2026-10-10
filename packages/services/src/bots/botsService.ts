@@ -47,6 +47,7 @@ import {
   type BotInboundMessage,
   type BotOutboundMessage,
   type BotPendingElicitation,
+  type BotQueuedMessage,
   type BotStructuredElicitationResponse,
   isFeishuBotProvider,
   isBotEligibleForSessionBinding,
@@ -988,10 +989,12 @@ export function createBotsService(
     botId: string,
     patch: Partial<Omit<BotChannelState, "botId" | "conversations">>,
   ): Promise<void> {
-    const state = await repo.readState();
-    const channel = ensureBotChannelState(state, botId);
-    Object.assign(channel, patch, { updatedAt: Date.now() });
-    await repo.writeState(state);
+    // 锁内原子 RMW：快照覆盖会被并发对话/窗口的写入打断
+    // （docs/specs/bot-state-ownership.md 规则 1）。
+    await repo.mutateState((state) => {
+      const channel = ensureBotChannelState(state, botId);
+      Object.assign(channel, patch, { updatedAt: Date.now() });
+    });
   }
 
   async function readTelegramOffset(botId: string): Promise<number | undefined> {
@@ -1124,29 +1127,43 @@ export function createBotsService(
   }
 
   async function writeContext(context: BotContextState): Promise<void> {
-    const state = await repo.readState();
-    const channel = ensureBotChannelState(state, context.botId);
-    const previous = channel.conversations[context.conversationKey];
+    // 修复原因：快照覆盖写在两次文件锁之间会被其他对话/窗口的写入打断，
+    // 改用锁内原子 RMW；撤流订阅与停 typing 是副作用，挪到锁外执行
+    // （docs/specs/bot-state-ownership.md 规则 1/3）。
     // 一个对话只能绑定一个会话：该对话离开旧会话时撤掉旧会话的流订阅，
     // 否则旧会话的助手回复会继续推到 IM（表现为"绑定新会话后旧会话还在同步"）。
     // 每个对话各写各的槽位：其他对话的订阅与排队消息不受影响（多会话并发的前提）。
-    if (
-      previous?.activeTaskId &&
-      (previous.activeTaskId !== context.activeTaskId ||
-        getWorkspaceKey(previous.workspacePath, previous.workspaceIdentity) !==
-          getWorkspaceKey(context.workspacePath, context.workspaceIdentity))
-    ) {
+    let disposeTarget:
+      | { workspacePath: string; workspaceIdentity: string | undefined; activeTaskId: string }
+      | undefined;
+    await repo.mutateState((state) => {
+      const channel = ensureBotChannelState(state, context.botId);
+      const previous = channel.conversations[context.conversationKey];
+      if (
+        previous?.activeTaskId &&
+        (previous.activeTaskId !== context.activeTaskId ||
+          getWorkspaceKey(previous.workspacePath, previous.workspaceIdentity) !==
+            getWorkspaceKey(context.workspacePath, context.workspaceIdentity))
+      ) {
+        disposeTarget = {
+          workspacePath: previous.workspacePath,
+          workspaceIdentity: previous.workspaceIdentity,
+          activeTaskId: previous.activeTaskId,
+        };
+      }
+      channel.conversations[context.conversationKey] = { ...context, updatedAt: Date.now() };
+      channel.updatedAt = Date.now();
+    });
+    if (disposeTarget) {
+      const target = disposeTarget;
       disposeTaskStreamSubscription(
-        previous.workspacePath,
-        previous.workspaceIdentity,
-        previous.activeTaskId,
+        target.workspacePath,
+        target.workspaceIdentity,
+        target.activeTaskId,
         context.botId,
       );
-      stopTyping(previous.activeTaskId, context.botId);
+      stopTyping(target.activeTaskId, context.botId);
     }
-    channel.conversations[context.conversationKey] = { ...context, updatedAt: Date.now() };
-    channel.updatedAt = Date.now();
-    await repo.writeState(state);
   }
 
   /** 撤掉某个会话上该 bot 的流订阅（换绑/切换/解绑/终态共用）。 */
@@ -1166,26 +1183,29 @@ export function createBotsService(
     context: BotContextState,
     message: BotInboundMessage,
   ): Promise<EnqueueQueuedMessageResult> {
-    const state = await repo.readState();
-    const channel = state.bots[context.botId];
-    const existing = channel?.conversations[context.conversationKey];
-    if (!channel || !existing) {
-      return { queue: [], position: 1 };
-    }
-    const result = enqueueQueuedMessage(existing.queuedMessages, {
-      text: message.text,
-      providerUserId: message.actor.providerUserId,
-      displayName: message.actor.displayName,
-      chatId: message.actor.chatId,
+    // 锁内原子 RMW（docs/specs/bot-state-ownership.md 规则 1）。
+    let result: EnqueueQueuedMessageResult | undefined;
+    await repo.mutateState((state) => {
+      const channel = state.bots[context.botId];
+      const existing = channel?.conversations[context.conversationKey];
+      if (!channel || !existing) {
+        return;
+      }
+      const enqueued = enqueueQueuedMessage(existing.queuedMessages, {
+        text: message.text,
+        providerUserId: message.actor.providerUserId,
+        displayName: message.actor.displayName,
+        chatId: message.actor.chatId,
+      });
+      result = enqueued;
+      channel.conversations[context.conversationKey] = {
+        ...existing,
+        queuedMessages: enqueued.queue,
+        updatedAt: Date.now(),
+      };
+      channel.updatedAt = Date.now();
     });
-    channel.conversations[context.conversationKey] = {
-      ...existing,
-      queuedMessages: result.queue,
-      updatedAt: Date.now(),
-    };
-    channel.updatedAt = Date.now();
-    await repo.writeState(state);
-    return result;
+    return result ?? { queue: [], position: 1 };
   }
 
   /**
@@ -1195,30 +1215,39 @@ export function createBotsService(
    */
   async function drainQueuedMessages(bot: BotConfig, taskId: string): Promise<void> {
     for (;;) {
-      const state = await repo.readState();
-      const channel = state.bots[bot.id];
-      // 一个 bot 可能同时有多个对话各自绑着会话；这里只处理"当前正持有该会话"的那个对话。
-      const conversationKey = Object.keys(channel?.conversations ?? {}).find(
-        (key) => channel?.conversations[key]?.activeTaskId === taskId,
-      );
-      const context = conversationKey ? channel?.conversations[conversationKey] : undefined;
-      if (!channel || !conversationKey || !context || context.mode !== "task") {
+      // 锁内原子 RMW：定位持有该会话的对话 → 守卫 → 出队，一次临界区完成；
+      // 重投递 handleMessage 在锁外执行（docs/specs/bot-state-ownership.md 规则 1/3）。
+      let context: BotContextState | undefined;
+      let queued: BotQueuedMessage | undefined;
+      await repo.mutateState((state) => {
+        const channel = state.bots[bot.id];
+        // 一个 bot 可能同时有多个对话各自绑着会话；这里只处理"当前正持有该会话"的那个对话。
+        const conversationKey = Object.keys(channel?.conversations ?? {}).find(
+          (key) => channel?.conversations[key]?.activeTaskId === taskId,
+        );
+        const slot = conversationKey ? channel?.conversations[conversationKey] : undefined;
+        if (!channel || !conversationKey || !slot || slot.mode !== "task") {
+          return;
+        }
+        if (runningTasks.has(taskId)) {
+          return;
+        }
+        const { next, message } = dequeueQueuedMessage(slot.queuedMessages);
+        if (!message) {
+          return;
+        }
+        channel.conversations[conversationKey] = {
+          ...slot,
+          queuedMessages: next,
+          updatedAt: Date.now(),
+        };
+        channel.updatedAt = Date.now();
+        context = slot;
+        queued = message;
+      });
+      if (!context || !queued) {
         return;
       }
-      if (runningTasks.has(taskId)) {
-        return;
-      }
-      const { next, message: queued } = dequeueQueuedMessage(context.queuedMessages);
-      if (!queued) {
-        return;
-      }
-      channel.conversations[conversationKey] = {
-        ...context,
-        queuedMessages: next,
-        updatedAt: Date.now(),
-      };
-      channel.updatedAt = Date.now();
-      await repo.writeState(state);
       if (!queued.providerUserId) {
         return;
       }
@@ -2363,31 +2392,33 @@ export function createBotsService(
    * 首次入站消息会为对应群建立新对话。
    */
   async function rekeyLegacyConversations(): Promise<void> {
-    const [config, state] = await Promise.all([repo.readConfig(), repo.readState()]);
-    for (const bot of config.bots) {
-      const channel = state.bots[bot.id];
-      const legacy = channel?.conversations[BOT_LEGACY_CONVERSATION_KEY];
-      if (!channel || !legacy) {
-        continue;
-      }
-      const boundUserId = bot.providerUserId?.trim();
-      const targetKey = boundUserId
-        ? makeBotConversationKey("private", boundUserId)
-        : undefined;
-      delete channel.conversations[BOT_LEGACY_CONVERSATION_KEY];
-      if (targetKey && !channel.conversations[targetKey]) {
-        channel.conversations[targetKey] = {
-          ...legacy,
-          conversationKey: targetKey,
-          conversationKind: "private",
-          conversationId: boundUserId!,
-        };
-      }
-      channel.updatedAt = Date.now();
-    }
+    const config = await repo.readConfig();
+    // 锁内原子 RMW（docs/specs/bot-state-ownership.md 规则 1）；
     // 无论是否重映射都写一次：把磁盘上的 v3 形状固化成本次进程实际使用的 v4，
     // 避免"内存 v4 / 磁盘 v3"长期并存（迁移是幂等的，重复读不会产生额外改动）。
-    await repo.writeState(state);
+    await repo.mutateState((state) => {
+      for (const bot of config.bots) {
+        const channel = state.bots[bot.id];
+        const legacy = channel?.conversations[BOT_LEGACY_CONVERSATION_KEY];
+        if (!channel || !legacy) {
+          continue;
+        }
+        const boundUserId = bot.providerUserId?.trim();
+        const targetKey = boundUserId
+          ? makeBotConversationKey("private", boundUserId)
+          : undefined;
+        delete channel.conversations[BOT_LEGACY_CONVERSATION_KEY];
+        if (targetKey && !channel.conversations[targetKey]) {
+          channel.conversations[targetKey] = {
+            ...legacy,
+            conversationKey: targetKey,
+            conversationKind: "private",
+            conversationId: boundUserId!,
+          };
+        }
+        channel.updatedAt = Date.now();
+      }
+    });
   }
 
   /** 由对话键（可能来自 UI 绑定/自动化目标）补齐对话身份字段。 */
@@ -3112,19 +3143,20 @@ export function createBotsService(
     if (!found?.state.deliveryNoticeAt) {
       return;
     }
-    const state = await repo.readState();
-    const channel = state.bots[bot.id];
-    const conversation = channel?.conversations[found.key];
-    if (!channel || !conversation?.deliveryNoticeAt) {
-      return;
-    }
-    channel.conversations[found.key] = {
-      ...conversation,
-      deliveryNoticeAt: undefined,
-      updatedAt: Date.now(),
-    };
-    channel.updatedAt = Date.now();
-    await repo.writeState(state);
+    // 锁内原子 RMW（docs/specs/bot-state-ownership.md 规则 1）。
+    await repo.mutateState((state) => {
+      const channel = state.bots[bot.id];
+      const conversation = channel?.conversations[found.key];
+      if (!channel || !conversation?.deliveryNoticeAt) {
+        return;
+      }
+      channel.conversations[found.key] = {
+        ...conversation,
+        deliveryNoticeAt: undefined,
+        updatedAt: Date.now(),
+      };
+      channel.updatedAt = Date.now();
+    });
   }
 
   /** 把无法投递的回复停放进对话槽位，并保证每个失败 episode 只提示一次。 */
@@ -3141,26 +3173,34 @@ export function createBotsService(
       );
       return;
     }
-    const state = await repo.readState();
-    const channel = state.bots[bot.id];
-    const conversation = channel?.conversations[found.key];
-    if (!channel || !conversation) {
+    // 锁内原子 RMW；日志与一次性提示属于副作用，在锁外执行
+    // （docs/specs/bot-state-ownership.md 规则 1/3）。
+    let result: ReturnType<typeof enqueuePendingDelivery> | undefined;
+    let shouldNotify = false;
+    await repo.mutateState((state) => {
+      const channel = state.bots[bot.id];
+      const conversation = channel?.conversations[found.key];
+      if (!channel || !conversation) {
+        return;
+      }
+      const enqueued = enqueuePendingDelivery(
+        conversation.pendingDeliveryQueue,
+        { text: message.text, providerUserId: message.providerUserId },
+        Date.now(),
+      );
+      result = enqueued;
+      shouldNotify = !conversation.deliveryNoticeAt;
+      channel.conversations[found.key] = {
+        ...conversation,
+        pendingDeliveryQueue: enqueued.queue,
+        ...(shouldNotify ? { deliveryNoticeAt: Date.now() } : {}),
+        updatedAt: Date.now(),
+      };
+      channel.updatedAt = Date.now();
+    });
+    if (!result) {
       return;
     }
-    const result = enqueuePendingDelivery(
-      conversation.pendingDeliveryQueue,
-      { text: message.text, providerUserId: message.providerUserId },
-      Date.now(),
-    );
-    const shouldNotify = !conversation.deliveryNoticeAt;
-    channel.conversations[found.key] = {
-      ...conversation,
-      pendingDeliveryQueue: result.queue,
-      ...(shouldNotify ? { deliveryNoticeAt: Date.now() } : {}),
-      updatedAt: Date.now(),
-    };
-    channel.updatedAt = Date.now();
-    await repo.writeState(state);
     if (result.dropped) {
       botsLogger.warn(
         undefined,
@@ -6914,9 +6954,10 @@ export function createBotsService(
         ...config,
         bots: config.bots.map((item) => (item.id === bot.id ? nextBot : item)),
       });
-      const state = await repo.readState();
-      delete state.bots[bot.id];
-      await repo.writeState(state);
+      // 锁内原子 RMW（docs/specs/bot-state-ownership.md 规则 1）。
+      await repo.mutateState((state) => {
+        delete state.bots[bot.id];
+      });
       clearCandidateCaches();
       telegramRuntime.scheduleRefresh(savedConfig);
       weixinRuntime.scheduleRefresh(savedConfig);
@@ -6958,10 +6999,13 @@ export function createBotsService(
       weixinRuntime.scheduleRefresh();
       wecomRuntime.scheduleRefresh();
       dingtalkRuntime.scheduleRefresh();
-      const state = await repo.readState();
-      const removedConversations = listConversations(state, botId);
-      delete state.bots[botId];
-      await repo.writeState(state);
+      // 锁内原子 RMW；removedConversations 在 mutator 内捕获，dispose 在锁外
+      // （docs/specs/bot-state-ownership.md 规则 1/3）。
+      let removedConversations: BotConversationState[] = [];
+      await repo.mutateState((state) => {
+        removedConversations = listConversations(state, botId);
+        delete state.bots[botId];
+      });
       // 删除即解绑：会话归属与工作区绑定都随 bot 一起消失，运行期订阅一并撤掉。
       // 否则绑定表里会留下无法解析的"幽灵机器人"（UI 只能显示裸 id，且会挡住空态引导）。
       disposeBotRuntimeBindings(botId);
@@ -7446,20 +7490,21 @@ export function createBotsService(
      * （保留通道级游标，避免重置后 Telegram 重投旧更新）。
      */
     async resetBotState(contextKey: string) {
-      const state = await repo.readState();
       const parsed = parseBotConversationKey(contextKey);
-      if (parsed) {
-        for (const channel of Object.values(state.bots)) {
-          if (channel.conversations[contextKey]) {
-            delete channel.conversations[contextKey];
-            channel.updatedAt = Date.now();
+      // 锁内原子 RMW（docs/specs/bot-state-ownership.md 规则 1）。
+      await repo.mutateState((state) => {
+        if (parsed) {
+          for (const channel of Object.values(state.bots)) {
+            if (channel.conversations[contextKey]) {
+              delete channel.conversations[contextKey];
+              channel.updatedAt = Date.now();
+            }
           }
+        } else if (state.bots[contextKey]) {
+          state.bots[contextKey].conversations = {};
+          state.bots[contextKey].updatedAt = Date.now();
         }
-      } else if (state.bots[contextKey]) {
-        state.bots[contextKey].conversations = {};
-        state.bots[contextKey].updatedAt = Date.now();
-      }
-      await repo.writeState(state);
+      });
     },
     watchAutomationRun,
     async handleInboundMessage(message: BotInboundMessage) {
