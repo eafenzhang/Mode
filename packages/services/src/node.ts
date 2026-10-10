@@ -529,7 +529,10 @@ import {
   type WindowsCuaRuntime,
 } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
 import { createCanonicalCuaHelperInstaller } from "./cua-permission-broker/cuaHelperInstaller.js";
-import { resolveCuaWorkspaceEnablement } from "./cuaEnablement.js";
+import {
+  isCuaExcludedRemoteWorkspaceIdentity,
+  resolveCuaWorkspaceEnablement,
+} from "./cuaEnablement.js";
 import { WindowsCuaHelperHost } from "#src/cua-permission-broker/windowsCuaDevHelperHost.js";
 import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@mode/cua/broker/helperConstants";
 import { resolveBrokerSocketPath } from "@mode/cua/broker/socketPath";
@@ -747,6 +750,10 @@ export function shouldEnableDefaultCuaProductHelper(
  * 是否在当前 host 创建默认 CUA product Helper。Computer Use Helper 只能由**桌面本地** authority 创建：
  * - desktop-attached-remote 与 standalone-server 都绝不自动创建，避免远端 workspace 在错误的
  *   host 上启动 Helper，破坏 shared-host attachment 与权限边界；
+ * - `hasRemoteWorkspaceIdentity` 语义 = `isCuaExcludedRemoteWorkspaceIdentity` 的结果，即
+ *   「按 CUA 规则需要排除的 remote identity」：remote:lan 已由该口径放行（对端 host 自身是
+ *   desktop-local authority，helper 落在对端本机，见 docs/specs/lan-remote-computer-use.md），
+ *   ssh/wsl/docker 与无法解析的非空串维持排除；
  * - 已显式注入 resolver 时不重复创建。
  * 平台/环境层面的启用与否另由 shouldEnableDefaultCuaProductHelper 决定。
  */
@@ -1749,7 +1756,11 @@ export function createLocalServices(options: {
       isAdmitted: () =>
         shouldCreateDefaultCuaProductHelper({
           serviceAuthorityMode: options?.serviceAuthorityMode,
-          hasRemoteWorkspaceIdentity: Boolean(context?.workspaceIdentity?.trim()),
+          // lan identity 不再按「远端」排除：对端 host 自身是 desktop-local authority，
+          // helper 与操作指示都落在对端物理桌面（docs/specs/lan-remote-computer-use.md）。
+          hasRemoteWorkspaceIdentity: isCuaExcludedRemoteWorkspaceIdentity(
+            context?.workspaceIdentity,
+          ),
           hasInjectedResolver: Boolean(options?.cuaProductMcpServerResolver),
           hasBuiltInCuaPlugin: isCuaEnabledForContext(context),
         }),
