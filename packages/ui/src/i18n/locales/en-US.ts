@@ -864,6 +864,7 @@ const enUS: Record<string, string> = {
   "taskList.botBind.busy": "The bot is running another task; try again later",
   "taskList.botBind.failed": "Binding failed: bot not found",
   "taskList.botBind.notInWorkspace": "This bot does not belong to the current workspace",
+  "taskList.botBind.actionFailed": "IM bot action failed: {error}",
   "taskList.botBind.boundToast": "Bound {name} ({botId}) {conversation} to this session",
   "taskList.botBind.unboundToast": "Unbound {name} ({botId}) {conversation}",
   "bots.groupChat.title": "Group chat mode",

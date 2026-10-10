@@ -4,6 +4,7 @@ import type { AppSettings } from "./protocol.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
+import { buildRemoteWorkspaceIdentity } from "./remote-workspace-identity.js";
 import { normalizeModeEndpointOrigin } from "./modeEndpoint.js";
 import {
   DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
@@ -126,6 +127,23 @@ const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [
     lastConnectionError: z.string().optional(),
   }),
 ]);
+
+/**
+ * identity 口径（docs/specs/im-bot-remote-workspace-binding.md）：identity 引入前落盘的
+ * 远端条目没有 workspaceIdentity，而 UI 恢复、bot 绑定 key、Bot 远端桥查连接都按 identity
+ * 口径工作——path-only 条目会让同一条远端工作区在各处算出不同 key（工作区绑定落 path、
+ * 会话绑定查 identity，表现为「该机器人不属于当前工作区」）。读出即用 shared 的唯一构造器
+ * 补齐（构造与解析禁止业务侧手写，见 docs/specs/remote-workspace-identity.md）。
+ */
+const appWorkspaceSessionEntryWithIdentitySchema = appWorkspaceSessionEntrySchema.transform(
+  (entry) =>
+    entry.kind === "remote" && !entry.workspaceIdentity
+      ? {
+          ...entry,
+          workspaceIdentity: buildRemoteWorkspaceIdentity(entry.workspacePath, entry.target),
+        }
+      : entry,
+);
 
 const modeEndpointOriginSchema = z.preprocess((value) => {
   if (typeof value !== "string") {
@@ -473,7 +491,7 @@ const appSettingsObjectSchema = z.object({
   onboardingOccupation: appSettingsOccupationSchema.nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
   memoryEnabled: z.boolean().default(false),
-  lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).default([]),
+  lastWorkspaceSession: z.array(appWorkspaceSessionEntryWithIdentitySchema).default([]),
   lastActiveTabIndex: z.number().int().nonnegative().default(0),
   lastActiveTaskByWorkspace: z.record(z.string(), z.string()).optional(),
   botBindingByWorkspace: z.record(z.string(), z.string()).optional(),
@@ -561,7 +579,7 @@ export const appSettingsPatchSchema = z.object({
     .nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
   memoryEnabled: z.boolean().optional(),
-  lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).optional(),
+  lastWorkspaceSession: z.array(appWorkspaceSessionEntryWithIdentitySchema).optional(),
   lastActiveTabIndex: z.number().int().nonnegative().optional(),
   lastActiveTaskByWorkspace: z.record(z.string(), z.string()).optional(),
   botBindingByWorkspace: z.record(z.string(), z.string()).optional(),

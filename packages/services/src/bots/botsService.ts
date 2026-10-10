@@ -205,6 +205,7 @@ import {
   isWorkspaceAllowed,
   normalizeAllowedWorkspaces,
   normalizeConfiguredAllowedWorkspaces,
+  resolveLegacyBindingWorkspaceKey,
   resolveWorkspaceByValue,
 } from "./workspaceHelpers.js";
 import { getNativeModelProviderId } from "./modelSelectionHelpers.js";
@@ -840,8 +841,8 @@ export function createBotsService(
   const wecomConnection = createWeComConnectionRegistry();
   // 群聊历史：未被 @ / 非绑定用户的消息按会话暂存，触发时作为上下文注入。
   const groupHistory = createGroupHistoryBuffer();
-  /** 一次性迁移标记：旧绑定表曾存于 AppSettings。 */
-  let bindingsMigrationChecked = false;
+  /** 一次性迁移标记：旧绑定表导入（settings.botBindingByWorkspace）与 path→identity key 升级共用。 */
+  let workspaceKeyUpgradeChecked = false;
   const providers: Record<BotProvider, BotProviderAdapter | null> = {
     // AstrBot 桥接已下线：字面量仅为历史配置解析保留，没有适配器。
     astrbot: null,
@@ -1242,28 +1243,78 @@ export function createBotsService(
   // ===== 工作区 → bot 绑定（持久化在 bot-bindings.v3.json）=====
 
   /**
+   * 绑定数据一次性升级（每进程一次；docs/specs/im-bot-remote-workspace-binding.md）：
+   * 1) 旧版本把绑定写在 AppSettings.botBindingByWorkspace——绑定表为空时导入一次；
+   * 2) settings 远端条目补齐 identity 后，把存量 path-only 绑定 key 升级到 identity key
+   *    （保守规则见 resolveLegacyBindingWorkspaceKey），并用同一份工作区候选归一
+   *    allowedWorkspaces——否则会话绑定资格按 identity 查询永远看不到存量绑定，
+   *    UI 表现为「该机器人不属于当前工作区，无法绑定」。
+   * 升级失败不阻塞读取（告警后本次跳过，复位标记让下次读取重试），与旧迁移的容错语义一致。
+   */
+  async function ensureBotWorkspaceKeysUpgraded(): Promise<void> {
+    if (workspaceKeyUpgradeChecked) {
+      return;
+    }
+    workspaceKeyUpgradeChecked = true;
+    try {
+      const file = await repo.readBindings();
+      let bindings = normalizeBotWorkspaceBindings(file.bindings);
+      let bindingsChanged = false;
+      if (Object.keys(bindings).length === 0 && deps.settingService) {
+        const legacy = (await deps.settingService.get().catch(() => null))?.botBindingByWorkspace;
+        const migrated = normalizeBotWorkspaceBindings(legacy);
+        if (Object.keys(migrated).length > 0) {
+          bindings = migrated;
+          bindingsChanged = true;
+        }
+      }
+      const workspaces = await listWorkspaceRefs();
+      const rekeyed: BotWorkspaceBindings = {};
+      for (const [workspaceKey, botIds] of Object.entries(bindings)) {
+        const canonicalKey = resolveLegacyBindingWorkspaceKey(workspaceKey, workspaces);
+        if (canonicalKey !== workspaceKey) {
+          bindingsChanged = true;
+        }
+        rekeyed[canonicalKey] = [...new Set([...(rekeyed[canonicalKey] ?? []), ...botIds])];
+      }
+      if (bindingsChanged) {
+        await writeBotBindings(rekeyed);
+      }
+      const config = await repo.readConfig();
+      let configChanged = false;
+      const bots = config.bots.map((bot) => {
+        const allowedWorkspaces = normalizeConfiguredAllowedWorkspaces(
+          bot.allowedWorkspaces,
+          workspaces,
+        );
+        if (allowedWorkspaces.join("\n") === bot.allowedWorkspaces.join("\n")) {
+          return bot;
+        }
+        configChanged = true;
+        return { ...bot, allowedWorkspaces };
+      });
+      if (configChanged) {
+        await repo.writeConfig({ ...config, bots });
+      }
+    } catch (error) {
+      // 升级失败不能让绑定读写整体挂掉：本次按原数据服务，复位标记让下次读取重试。
+      workspaceKeyUpgradeChecked = false;
+      botsLogger.warn(
+        undefined,
+        `bot workspace key upgrade failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
    * 绑定表存放在 bot-bindings.v3.json（repo 自带文件锁 + 原子写），一个工作区可绑定多个 bot。
-   * 读侧兼容 v1 的单 bot 字符串形式；历史版本曾写入 AppSettings.botBindingByWorkspace，
-   * 首次读取时一次性迁移到新文件。
+   * 读侧兼容 v1 的单 bot 字符串形式；旧迁移（settings 导入 + path→identity 升级）收口在
+   * ensureBotWorkspaceKeysUpgraded，读取前先跑一次。
    */
   async function readBotBindings(): Promise<BotWorkspaceBindings> {
+    await ensureBotWorkspaceKeysUpgraded();
     const file = await repo.readBindings();
-    const normalized = normalizeBotWorkspaceBindings(file.bindings);
-    if (bindingsMigrationChecked) {
-      return pruneUnknownBotBindings(normalized);
-    }
-    bindingsMigrationChecked = true;
-    if (Object.keys(normalized).length > 0 || !deps.settingService) {
-      return pruneUnknownBotBindings(normalized);
-    }
-    const legacy = (await deps.settingService.get().catch(() => null))?.botBindingByWorkspace;
-    const migrated = normalizeBotWorkspaceBindings(legacy);
-    if (Object.keys(migrated).length > 0) {
-      // 迁移写入失败不阻塞读取：下次再试（内存里先用旧值，行为与迁移前一致）。
-      await repo.writeBindings({ version: BOT_BINDINGS_FILE_VERSION, bindings: migrated }).catch(() => undefined);
-      return pruneUnknownBotBindings(migrated);
-    }
-    return pruneUnknownBotBindings(normalized);
+    return pruneUnknownBotBindings(normalizeBotWorkspaceBindings(file.bindings));
   }
 
   /**
@@ -6467,7 +6518,11 @@ export function createBotsService(
         }),
       };
     },
-    getConfig: () => repo.readConfig(),
+    getConfig: async () => {
+      // 绑定菜单按 identity 判资格，读配置前先把存量 path-only key 升级掉。
+      await ensureBotWorkspaceKeysUpgraded();
+      return repo.readConfig();
+    },
     listWorkspaceRefs,
     getUserConfigOptions: listUserConfigOptions,
     beginFeishuRegistration(params) {
@@ -6911,6 +6966,9 @@ export function createBotsService(
       workspaceIdentity?: string;
       taskId: string;
     }): Promise<{ ok: boolean; reason?: "busy" | "missing" | "workspace" | "conversation" }> {
+      // 资格判定（绑定表 + allowedWorkspaces）都按 identity key 计算：
+      // 先跑一次性升级，避免升级前读到的 path-only 授权让首次绑定被误判 workspace。
+      await ensureBotWorkspaceKeysUpgraded();
       const config = await repo.readConfig();
       const bot = findBot(config, params.botId);
       if (!bot) {

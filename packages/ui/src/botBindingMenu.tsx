@@ -226,6 +226,13 @@ export function BotBindingMenuItems({
           ),
         );
         await refreshBindings();
+      } catch (error) {
+        // 修复原因：远程工作区绑定曾因远端 runtime 路由失败在这里抛错，
+        // 而菜单只有 finally——用户点「绑定」没有任何反馈，误以为功能不可用。
+        // 服务端 {ok:false} 的语义化文案走上方分支，这里只兜 RPC/运行时异常。
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn("[BotBindingMenu] bind bot to task failed", message);
+        toast(intl.formatMessage({ id: "taskList.botBind.actionFailed" }, { error: message }));
       } finally {
         setBusy(false);
       }
@@ -258,6 +265,10 @@ export function BotBindingMenuItems({
           ),
         );
         await refreshBindings();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn("[BotBindingMenu] unbind bot from task failed", message);
+        toast(intl.formatMessage({ id: "taskList.botBind.actionFailed" }, { error: message }));
       } finally {
         setBusy(false);
       }

@@ -55,7 +55,6 @@ import {
   resolveCurrentAccountAccess,
   resolveAccountTeamPlanRuntimeApiKey,
   createSettingsSyncService,
-  createBotsService,
   createUsageStatsService,
   createProviderBalanceTargetResolver,
   createMediaPreviewService,
@@ -83,6 +82,24 @@ import {
 
 const runtimePreferencesLogger = createServiceLogger("remote-runtime-preferences");
 const MODE_JWT_TOKEN_KEY = "zcodejwttoken";
+
+/**
+ * 屏蔽共享 BotsService 的所有权方法：连接 dispose 会遍历集合内服务调用 disposeAll*，
+ * 但这里注册的是 Local Host 的唯一 bot 运行时（bot 配置/绑定/状态是本机全局单文件，
+ * 进程内第二个实例会造成绑定码、流订阅、心跳的内存态分裂），远程连接断开不能关停它。
+ * 其余方法原样转发并绑定到原实例，避免 this 漂移。
+ */
+function shieldSharedBotsServiceOwnership<T extends object>(service: T): T {
+  return new Proxy(service, {
+    get(target, property) {
+      if (property === "disposeAll" || property === "disposeAllAndWait") {
+        return () => undefined;
+      }
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
 
 export function createRemoteWorkspaceServiceCollection(params: {
   clientConfigService: IClientConfigService;
@@ -312,6 +329,16 @@ export function createRemoteWorkspaceServiceCollection(params: {
   // 没有桌面 renderer 那层 `baseServices + remoteServices` 合并。
   // 因此这里为 remote workspace host 补齐本地全局 channel；文件、终端、Mode Agent 仍来自远端，
   // 设置、凭据、OAuth、模型供应商和 settings-sync 继续读写本机配置。
+  //
+  // BotsService 必须复用 Local Host 的实例（唯一所有者，docs/specs/im-bot-remote-workspace-binding.md）：
+  // bot 配置/绑定/状态是本机全局单文件，绑定码、流订阅、心跳都在实例内存里——这里自建第二个实例
+  // 不仅会让「一个实例发的绑定码另一个验不过」，且旧实现没注入 remoteWorkspaceService 桥，
+  // 任何带 workspaceIdentity 的绑定/运行操作都会抛「runtime 不可用」。两个调用方都已在连接建立前
+  // 断言 activeServices，缺实例属于接线错误，fail-closed 报错好过悄悄退回双实例旧行为。
+  const sharedBotsService = params.sourceServices?.getOptional(IBotsService);
+  if (!sharedBotsService) {
+    throw new Error("Local Host BotsService 不可用，远程 workspace 无法复用 bot 运行时");
+  }
   const services = new ServiceCollection()
     .register(IFileService, params.connectionServices.fileService)
     .register(IGitService, params.connectionServices.gitService)
@@ -325,19 +352,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(IModeAgentService, params.connectionServices.modeAgentService)
     .register(IModeSessionService, remoteModeSessionService)
     .register(IConversationShareService, conversationShareService)
-    .register(
-      IBotsService,
-      createBotsService({
-        credentialService: localCredentialService,
-        modeTaskService: remoteModeTaskService,
-        broadcastService: localBroadcastService,
-        settingService: localSettingService,
-        modelSelectionService: params.connectionServices.modelSelectionService,
-        // 修复原因：remote workspace host 首屏只需要远端文件/agent 能力；
-        // bot 启动后台任务如果立即轮询或 getAll，会重复拉本机 preset 并放大 SSH/Docker 连接耗时。
-        runStartupBackgroundTasks: false,
-      }),
-    )
+    .register(IBotsService, shieldSharedBotsServiceOwnership(sharedBotsService))
     .register(IFileWatcherService, params.connectionServices.fileWatcherService)
     .register(
       IOAuthService,

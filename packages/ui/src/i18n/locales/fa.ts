@@ -866,6 +866,7 @@ const faIR: Record<string, string> = {
   "taskList.botBind.busy": "ربات مشغول کار دیگری است؛ بعداً تلاش کنید",
   "taskList.botBind.failed": "اتصال ناموفق: ربات پیدا نشد",
   "taskList.botBind.notInWorkspace": "این ربات به فضای کاری فعلی تعلق ندارد",
+  "taskList.botBind.actionFailed": "عملیات ربات IM ناموفق بود: {error}",
   "taskList.botBind.boundToast": "{name} ({botId}) {conversation} به این گفتگو متصل شد",
   "taskList.botBind.unboundToast": "اتصال {name} ({botId}) {conversation} قطع شد",
   "bots.groupChat.title": "حالت گفتگوی گروهی",

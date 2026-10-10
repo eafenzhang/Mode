@@ -790,6 +790,7 @@ const zhCN: Record<string, string> = {
   "taskList.botBind.busy": "机器人正在其他任务上运行，稍后再试",
   "taskList.botBind.failed": "绑定失败：机器人不存在",
   "taskList.botBind.notInWorkspace": "该机器人不属于当前工作区，无法绑定",
+  "taskList.botBind.actionFailed": "IM 机器人操作失败：{error}",
   "taskList.botBind.boundToast": "已把 {name}（{botId}）的 {conversation} 绑定到这个会话",
   "taskList.botBind.unboundToast": "已解绑 {name}（{botId}）的 {conversation}",
   "bots.groupChat.title": "群聊方式",

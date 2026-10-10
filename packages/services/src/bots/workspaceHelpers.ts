@@ -84,6 +84,31 @@ export function normalizeConfiguredAllowedWorkspaces(
   ];
 }
 
+/**
+ * 存量绑定表 key 的一次性升级（docs/specs/im-bot-remote-workspace-binding.md）：
+ * settings 远端条目补齐 identity 后，把 path-only 的旧远端绑定升到 identity key，
+ * 否则会话绑定资格（按 identity 查 getWorkspaceBoundBots）永远看不到它。
+ * 比 resolveCanonicalWorkspaceId 更保守：path 若本身就是某个本地工作区的 key 则原样返回——
+ * 本地工作区没有 identity，无法区分「旧远端绑定」与「本地绑定」，宁可不升级也不误绑。
+ */
+export function resolveLegacyBindingWorkspaceKey(
+  workspaceKey: string,
+  workspaces: readonly BotWorkspaceRef[],
+): string {
+  const trimmed = workspaceKey.trim();
+  if (!trimmed) {
+    return workspaceKey;
+  }
+  const exactWorkspace = workspaces.find((workspace) => workspace.id === trimmed);
+  if (exactWorkspace) {
+    return exactWorkspace.id;
+  }
+  const identityCandidates = workspaces.filter(
+    (workspace) => workspace.workspacePath === trimmed && workspace.workspaceIdentity,
+  );
+  return identityCandidates.length === 1 ? identityCandidates[0]!.id : workspaceKey;
+}
+
 export function firstAllowedWorkspace(
   workspaceRefs: BotWorkspaceRef[],
   bot: BotConfig,
