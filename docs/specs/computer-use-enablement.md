@@ -1,6 +1,6 @@
 # 电脑控制启用权威（设置开关收口）
 
-状态：已拍板（2026-10-10）。关联：[computer-use-windows-runtime.md](./computer-use-windows-runtime.md)（runtime 与 Helper 本体，本文只管「何时启用」）。
+状态：已拍板（2026-10-10）。关联：[computer-use-windows-runtime.md](./computer-use-windows-runtime.md)（runtime 与 Helper 本体，本文只管「何时启用」）、[lan-remote-computer-use.md](./lan-remote-computer-use.md)（LAN 远端形态的支持判定与放行，2026-10-11 增补）。
 
 ## 背景与问题
 
@@ -33,6 +33,7 @@ resolver③  isOfficialCuaPluginEnabledForWorkspace → 拉起自研 host 前再
 - env 为 OFF 时即使配置残留 `true` 也全链路压住（stale config 不得越过 kill-switch）。
 - env 为 ON（默认）时，开关是唯一权威；`MODE_CUA_DEV_MODE=1` 不再隐式启用，开发者需在设置里显式开启一次（写盘后持久化）。
 - 插件 seed 分发、恢复入口仍由 env 门控（存在性问题，不归开关管）。
+- LAN 远端 workspace 例外（见 [lan-remote-computer-use.md](./lan-remote-computer-use.md)）：对端 host 为 `desktop-local` authority 时，helper 创建 admission 对 `remote:lan:` identity 放行（ssh/wsl/docker identity 继续排除）；本机 UI 对 LAN pane 的支持判定 = 对端握手能力位 AND 插件启用态。
 
 ## 事件顺序与生效边界
 
@@ -45,8 +46,8 @@ macOS：权限服务可用性随权威门变化 → 权限行在「启用后」�
 
 ## UI 规则
 
-- 分区位置：设置 → 基础设置，紧跟「浏览器」（`settingsPageConfig.ts` 既有排序）。
-- 桌面本机 workspace（win/mac）显示总开关；远端 workspace 与 Linux 显示「当前环境暂不支持」卡片；Web 不出现该分区（`createSettingsPageConfig` 平台门 + `SETTINGS_SECTIONS` 显式排除）。
+- 分区位置：设置 → 基础设置，夹在「模型设置」与「浏览器控制」之间（`settingsPageConfig.ts` 既有排序）。
+- 桌面本机 workspace（win/mac）显示总开关；LAN 远端 pane 在对端能力位为真时同样显示总开关（写透传到对端配置，见 [lan-remote-computer-use.md](./lan-remote-computer-use.md)）；其余远端 workspace 与 Linux 显示「当前环境暂不支持」卡片；Web 不出现该分区（`createSettingsPageConfig` 平台门 + `SETTINGS_SECTIONS` 显式排除）。
 - 输入框「电脑操作」按钮仍由 `computerUseComposerEntryHidden` 单独控制（默认隐藏），其开关随分区放开后可从设置页触达。
 
 ## 迁移说明
@@ -58,7 +59,7 @@ macOS：权限服务可用性随权威门变化 → 权限行在「启用后」�
 ## 验收场景
 
 - [ ] 桌面（win/mac）设置导航出现「电脑控制」，页内含总开关与「在输入框显示电脑操作按钮」。
-- [ ] Web 设置导航不出现该分区；远端 / Linux 进入分区只见 unsupported 卡片。
+- [ ] Web 设置导航不出现该分区；ssh/wsl/docker 远端与 Linux 进入分区只见 unsupported 卡片；LAN 远端 pane 按能力位在正常开关与 unsupported 卡片间切换。
 - [ ] 关闭开关：win32 spawn 不预热 Helper、不注入 broker 凭据；动态 resolver 不启用；macOS 权限查询报未启用。
 - [ ] 开启开关：helper 创建 admission 放行，resolver 在 demand 边界拉起自研 Helper 并注入 socket/authority。
 - [ ] `MODE_CUA_PRODUCT_HELPER=0` + 配置残留 `true` → 全链路关闭。

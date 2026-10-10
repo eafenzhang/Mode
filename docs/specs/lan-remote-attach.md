@@ -1,8 +1,11 @@
 # 局域网连接挂接（LAN attach）握手时序
 
+状态：能力位增补于 2026-10-11（见 [lan-remote-computer-use.md](./lan-remote-computer-use.md)）。
+
 ## 产品规则
 
 - 局域网远程连接的挂接链路（`packages/desktop/src/host/lanRemoteAttach.ts`）：HTTP（`/api/server-info` 携带长期令牌 → `POST /api/rpc-host-capability` 取一次性 capability）→ 携 capability 打开 `ws://…/ws/host` → `SocketProtocol` → `ChannelClient` → `RemoteServiceAccess`，复用与 SSH 相同的 RPC 通道语义。
+- `/api/server-info` 的 `capabilities` 是设备级能力协商面：`computerUse?: boolean` 表达对端机器是否具备电脑控制条件（win/mac + env kill-switch + desktop-local authority）。optional 缺键 = 不支持，旧对端握手必须成功；该位经 `HostRemoteConnectionCapabilities` → attachment 注册参数下发 renderer。
 - **Initialize 不变量（本 spec 的核心）**：RPC 服务端（`ChannelServer`）只在建连瞬间下发**一帧** `Initialize`；客户端 `ChannelClient` 收到它之前处于 `Uninitialized`，所有请求进 `whenInitialized()` 静默排队。因此客户端的 WS `message` 监听**必须在等待 `open` 事件之前挂载**——Node `ws` 会在同一回调里先 emit `open`、紧接着处理握手回包中携带的 `Initialize`，若监听晚挂（`await open` 之后再 wrap），该帧被静默丢弃且**不会重发**。
 - 事件顺序（客户端必须遵守）：
 
@@ -19,7 +22,8 @@ new WebSocket(url)
 ## 验收场景
 
 1. 回归测试 `packages/desktop/tests/lan-attach-initialize.test.mjs`（CI `node --test packages/desktop/tests/*.test.mjs` 覆盖）：拉起真实 `createHttpServer`（含 capability 与 `/ws/host`），调用真实 `attachLanRemoteConnection`，断言首条 RPC（`systemService.info()`）在超时内返回——修复前必须红（Initialize 被丢、请求悬空），修复后绿。
-2. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
+2. `/api/server-info` 返回 `capabilities.computerUse`（新对端为 boolean）；schema 校验对缺键（旧对端）通过且 UI 判为不支持。
+3. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
 
 ## 本轮验证状态
 
