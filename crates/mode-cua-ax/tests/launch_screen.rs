@@ -90,8 +90,22 @@ fn launch_search_path_finds_notepad() {
   eprintln!("launch resolved: name={:?} pid={} bundle={:?}", app.name, app.pid, app.bundle_id);
   assert!(app.name.unwrap().to_lowercase().contains("notepad"));
   // 回填语义（brief Step 3）：返回的 pid 下确有可见窗口——不只是 spawn 出来的数字。
-  let wins = mode_cua_ax::apps::list_windows(Some(app.pid)).unwrap();
-  assert!(!wins.is_empty(), "回填 pid {pid} 下没有窗口", pid = app.pid);
+  // 修复原因：窗口创建是异步的，进程先起、窗口后到；Release CI（windows-latest）实机
+  // 失败过一次——launch resolved pid 后立即单发枚举为空（8 passed; 1 failed）。断言改
+  // 有界轮询（5s × 100ms），断的是「最终确有窗口」这个语义，不再赌枚举时机。
+  let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+  let wins = loop {
+    let wins = mode_cua_ax::apps::list_windows(Some(app.pid)).unwrap();
+    if !wins.is_empty() || std::time::Instant::now() >= deadline {
+      break wins;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(100));
+  };
+  assert!(
+    !wins.is_empty(),
+    "回填 pid {pid} 下没有窗口（5s 内未出现）",
+    pid = app.pid
+  );
 }
 
 #[test]
