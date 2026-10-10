@@ -231,7 +231,10 @@ jobs:
           pnpm --filter @mode/services test
           pnpm --filter @mode/server test
           # core 黄金测试（cua display）import dist，先 build 再跑（Plan C T4 跑点，T5 落地）。
-          pnpm --filter @mode/core build
+          # `...` = core 及其 workspace 依赖（contracts/dynamic-workflow/shared-types 均为
+          # dist-typed，CI 全新检出没有历史 dist，必须先按 topo 链式重建——2026-10-10 verify
+          # 失败根因：单包 build 导致 Cannot find module '@mode/contracts'）。
+          pnpm --filter "@mode/core..." build
           pnpm --filter @mode/core test
           node --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts
 
