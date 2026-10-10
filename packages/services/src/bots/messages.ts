@@ -134,6 +134,7 @@ const messages = {
     taskRunning: "当前任务正在运行，稍后再试，或使用 **/停止** 停止当前任务。",
     taskQueued: "当前任务正在运行，消息已排队（第 {position} 位），任务完成后自动执行。",
     taskQueuedDropped: "注意：队列已满，最早的一条排队消息被丢弃。",
+    deliveryParked: "部分回复暂时未能送达，将在你发送下一条消息后自动补投。",
     workspacePinned:
       "该 bot 已在 Mode 中绑定工作区，只能在与绑定工作区之间切换；请先在 Mode 的 Bot 设置里解绑。",
     taskSelectTitle: "当前任务 {task}\n选择任务",
@@ -288,6 +289,8 @@ const messages = {
       "The current task is still running. Your message is queued (position {position}) and will run automatically when the task finishes.",
     taskQueuedDropped:
       "Note: the queue is full, so the oldest queued message was dropped.",
+    deliveryParked:
+      "Some replies could not be delivered yet. They will be redelivered after you send your next message.",
     workspacePinned:
       "This bot is workspace-bound in Mode and can only switch between its bound workspaces. Unbind it in the Mode bot settings first.",
     taskSelectTitle: "Current task {task}\nSelect task",

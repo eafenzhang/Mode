@@ -9,6 +9,8 @@ import type {
 } from "@mode/shared";
 import type { BotProviderAdapter, BotTypingTarget } from "./types.js";
 import { fetchBotProviderJson } from "#src/bots/providers/providerRequest.js";
+import type { BotProviderJsonResponse } from "#src/bots/providers/providerRequest.js";
+import { BotSendError, type BotSendFailureCode } from "#src/bots/outboundDelivery.js";
 
 export const DEFAULT_WEIXIN_ILINK_BASE_URL = "https://ilinkai.weixin.qq.com";
 const WEIXIN_BOT_API_PREFIX = "/ilink/bot";
@@ -121,6 +123,30 @@ function appendBaseInfo(body: unknown): unknown {
   };
 }
 
+/**
+ * 微信 iLink 请求失败 → 恢复分类（纯函数，供单测固定语义）。
+ * 2026-10-10 事故：服务端在会话上下文过期后对 /sendmessage 返回
+ * errmsg="prepare failed"（docs/specs/bot-outbound-delivery.md）。
+ */
+export function classifyWeixinRequestFailure(input: {
+  httpStatus?: number;
+  errmsg?: string;
+}): BotSendFailureCode | null {
+  if (input.httpStatus !== undefined) {
+    if (input.httpStatus === 401 || input.httpStatus === 403) {
+      return "session_expired";
+    }
+    if (input.httpStatus === 429 || input.httpStatus >= 500) {
+      return "retryable";
+    }
+    return null;
+  }
+  if (input.errmsg === "prepare failed") {
+    return "context_expired";
+  }
+  return null;
+}
+
 async function requestWeixinJson(
   bot: BotConfig,
   deps: WeixinProviderDeps,
@@ -131,20 +157,38 @@ async function requestWeixinJson(
 ): Promise<unknown> {
   const token = await readAccessToken(bot, deps);
   if (!token?.trim()) {
-    throw new Error("Weixin iLink bot token is missing. Scan the Weixin login QR code first.");
+    // 修复原因：token 缺失属登录态丢失，结构化为 session_expired 走停放+提示，
+    // 而不是被当作未知错误丢回复（docs/specs/bot-outbound-delivery.md 规则 2/4）。
+    throw new BotSendError(
+      "session_expired",
+      "Weixin iLink bot token is missing. Scan the Weixin login QR code first.",
+    );
   }
-  const response = await fetchBotProviderJson<unknown>(
-    `${getWeixinApiBaseUrl()}${WEIXIN_BOT_API_PREFIX}${path}`,
-    {
-      method: "POST",
-      headers: buildHeaders(token.trim()),
-      body: JSON.stringify(appendBaseInfo(body ?? {})),
-      signal,
-    },
-    timeoutMs,
-  );
+  let response: BotProviderJsonResponse<unknown>;
+  try {
+    response = await fetchBotProviderJson<unknown>(
+      `${getWeixinApiBaseUrl()}${WEIXIN_BOT_API_PREFIX}${path}`,
+      {
+        method: "POST",
+        headers: buildHeaders(token.trim()),
+        body: JSON.stringify(appendBaseInfo(body ?? {})),
+        signal,
+      },
+      timeoutMs,
+    );
+  } catch (error) {
+    if (signal?.aborted) {
+      // 调用方主动中止（关停/换凭据）不是网络故障，保持原样冒泡。
+      throw error;
+    }
+    // 修复原因：超时与网络错误当前是普通 Error，会被恢复管线当"未知"丢弃；
+    // 归类 retryable 后走有界退避重试（spec 规则 4）。
+    throw new BotSendError("retryable", error instanceof Error ? error.message : String(error));
+  }
   if (!response.ok) {
-    throw new Error(`Weixin iLink ${path} failed: HTTP ${response.status}`);
+    const message = `Weixin iLink ${path} failed: HTTP ${response.status}`;
+    const code = classifyWeixinRequestFailure({ httpStatus: response.status });
+    throw code ? new BotSendError(code, message) : new Error(message);
   }
   const payload = response.payload;
   const data = isRecord(payload) ? payload : null;
@@ -152,6 +196,14 @@ async function requestWeixinJson(
   const errcode = readNumber(data, "errcode");
   if ((ret !== null && ret !== 0) || (errcode !== null && errcode !== 0)) {
     const message = readString(data, "errmsg") || readString(data, "message") || `ret=${ret ?? ""} errcode=${errcode ?? ""}`.trim();
+    const code = classifyWeixinRequestFailure({ errmsg: message });
+    if (code) {
+      throw new BotSendError(
+        code,
+        `Weixin iLink ${path} failed: ${message}`,
+        `ret=${ret ?? ""} errcode=${errcode ?? ""} errmsg=${message}`,
+      );
+    }
     throw new Error(`Weixin iLink ${path} failed: ${message}`);
   }
   return payload;

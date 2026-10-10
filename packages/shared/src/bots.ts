@@ -318,6 +318,15 @@ export interface BotQueuedMessage {
   chatId?: string;
 }
 
+/** 出站投递失败后停放的回复（微信 context 过期等场景），随对话槽位持久化，新入站后按序补投。 */
+export interface BotPendingDelivery {
+  text: string;
+  /** 与 BotOutboundMessage.providerUserId 同构：chatId ?? providerUserId。 */
+  providerUserId: string;
+  queuedAt: number;
+  attempts: number;
+}
+
 export interface BotsConfigFile {
   version: 3;
   bots: BotConfig[];
@@ -398,6 +407,12 @@ export interface BotConversationState {
   pendingPermissionOptions?: BotPendingPermissionOption[];
   pendingElicitation?: BotPendingElicitation;
   queuedMessages?: BotQueuedMessage[];
+  /** 最近一条入站消息携带的 provider context token；微信出站要求新鲜 token，过期会被服务端拒绝。 */
+  lastContextToken?: string;
+  /** 出站失败停放的回复；该对话下一条入站消息到达后按序补投。 */
+  pendingDeliveryQueue?: BotPendingDelivery[];
+  /** 当前失败 episode 已发过一次性提示的时间戳；任一投递成功后清除。 */
+  deliveryNoticeAt?: number;
   updatedAt: number;
 }
 
@@ -863,6 +878,20 @@ const botConversationStateSchema = z.object({
         .strict(),
     )
     .optional(),
+  lastContextToken: z.string().optional(),
+  pendingDeliveryQueue: z
+    .array(
+      z
+        .object({
+          text: z.string(),
+          providerUserId: z.string().min(1),
+          queuedAt: z.number(),
+          attempts: z.number(),
+        })
+        .strict(),
+    )
+    .optional(),
+  deliveryNoticeAt: z.number().optional(),
   updatedAt: z.number(),
 });
 

@@ -168,6 +168,17 @@ import {
   type EnqueueQueuedMessageResult,
 } from "./messageQueue.js";
 import {
+  BOT_SEND_MIN_INTERVAL_MS,
+  BotSendError,
+  bumpFirstPendingDeliveryAttempt,
+  classifySendError,
+  createBotSendQueue,
+  enqueuePendingDelivery,
+  planDeliveryRecovery,
+  removeFirstPendingDelivery,
+  type BotSendFailureCode,
+} from "./outboundDelivery.js";
+import {
   getWorkspaceBoundBots,
   removeBotFromOtherWorkspaces,
   removeWorkspaceBinding,
@@ -1052,6 +1063,8 @@ export function createBotsService(
           pendingPermissionOptions: undefined,
           pendingElicitation: undefined,
           queuedMessages: undefined,
+          pendingDeliveryQueue: undefined,
+          deliveryNoticeAt: undefined,
         };
         await writeContext(pinnedContext);
         return pinnedContext;
@@ -1556,6 +1569,8 @@ export function createBotsService(
         pendingPermissionOptions: undefined,
         pendingElicitation: undefined,
         queuedMessages: undefined,
+        pendingDeliveryQueue: undefined,
+        deliveryNoticeAt: undefined,
         updatedAt: Date.now(),
       };
       await writeContext(nextContext);
@@ -1915,6 +1930,8 @@ export function createBotsService(
       pendingElicitation: undefined,
       // 排队消息绑定在旧任务/旧工作区上；进入新草稿意味着用户要重新开始，旧队列一并清除。
       queuedMessages: undefined,
+      pendingDeliveryQueue: undefined,
+      deliveryNoticeAt: undefined,
     };
     clearPendingSelectionsForBot(context.botId);
     await writeContext(draftContext);
@@ -3064,12 +3081,257 @@ export function createBotsService(
     return true;
   }
 
+  /** per-bot 出站串行队列：同 bot FIFO + 最小间隔，不同 bot 互不阻塞。 */
+  const botSendQueue = createBotSendQueue(BOT_SEND_MIN_INTERVAL_MS);
+
+  /** 按出站消息的合并 id（chatId ?? userId）在该 bot 的对话表里定位会话槽位。 */
+  async function readOutboundConversation(
+    bot: BotConfig,
+    message: BotOutboundMessage,
+  ): Promise<{ key: string; state: BotContextState } | null> {
+    const state = await repo.readState();
+    const channel = state.bots[bot.id];
+    if (!channel) {
+      return null;
+    }
+    const entries = Object.entries(channel.conversations).filter(
+      ([, conversation]) => conversation.conversationId === message.providerUserId,
+    );
+    const preferred =
+      entries.find(([, conversation]) => conversation.conversationKind === "private") ??
+      entries[0];
+    return preferred ? { key: preferred[0], state: preferred[1] } : null;
+  }
+
+  /** 任一投递成功后清除一次性提示标记，使下一个失败 episode 能再次提示。 */
+  async function clearDeliveryNoticeIfSet(
+    bot: BotConfig,
+    message: BotOutboundMessage,
+  ): Promise<void> {
+    const found = await readOutboundConversation(bot, message);
+    if (!found?.state.deliveryNoticeAt) {
+      return;
+    }
+    const state = await repo.readState();
+    const channel = state.bots[bot.id];
+    const conversation = channel?.conversations[found.key];
+    if (!channel || !conversation?.deliveryNoticeAt) {
+      return;
+    }
+    channel.conversations[found.key] = {
+      ...conversation,
+      deliveryNoticeAt: undefined,
+      updatedAt: Date.now(),
+    };
+    channel.updatedAt = Date.now();
+    await repo.writeState(state);
+  }
+
+  /** 把无法投递的回复停放进对话槽位，并保证每个失败 episode 只提示一次。 */
+  async function parkOutboundMessage(
+    bot: BotConfig,
+    message: BotOutboundMessage,
+    code: BotSendFailureCode,
+  ): Promise<void> {
+    const found = await readOutboundConversation(bot, message);
+    if (!found) {
+      botsLogger.warn(
+        undefined,
+        `bot reply parked skipped: conversation not found bot=${bot.id} user=${message.providerUserId} code=${code}`,
+      );
+      return;
+    }
+    const state = await repo.readState();
+    const channel = state.bots[bot.id];
+    const conversation = channel?.conversations[found.key];
+    if (!channel || !conversation) {
+      return;
+    }
+    const result = enqueuePendingDelivery(
+      conversation.pendingDeliveryQueue,
+      { text: message.text, providerUserId: message.providerUserId },
+      Date.now(),
+    );
+    const shouldNotify = !conversation.deliveryNoticeAt;
+    channel.conversations[found.key] = {
+      ...conversation,
+      pendingDeliveryQueue: result.queue,
+      ...(shouldNotify ? { deliveryNoticeAt: Date.now() } : {}),
+      updatedAt: Date.now(),
+    };
+    channel.updatedAt = Date.now();
+    await repo.writeState(state);
+    if (result.dropped) {
+      botsLogger.warn(
+        undefined,
+        `bot reply parked queue full, oldest dropped bot=${bot.id} user=${message.providerUserId}`,
+      );
+    }
+    botsLogger.warn(
+      undefined,
+      `bot reply parked bot=${bot.id} provider=${bot.provider} user=${message.providerUserId} code=${code}: ${message.text.slice(0, 80)}`,
+    );
+    if (shouldNotify) {
+      // 提示本身发送失败只记日志：不再递归入队（spec 规则 5）。
+      const adapter = providers[bot.provider];
+      try {
+        await adapter?.send(bot, {
+          botId: bot.id,
+          provider: bot.provider,
+          providerUserId: message.providerUserId,
+          text: msg(await readMessageLocale(), "deliveryParked"),
+        });
+      } catch (error) {
+        botsLogger.warn(
+          undefined,
+          `delivery parked notice failed bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * 单条回复的发送 + 恢复：结构化错误按计划重试，恢复用尽后停放。
+   * park:false 用于补投路径——条目已在队列里，失败由调用方递增 attempts。
+   * 2026-10-10 事故：微信 context 过期后 /sendmessage 连续失败、回复被静默丢弃
+   * （docs/specs/bot-outbound-delivery.md）。
+   */
+  async function deliverWithRecovery(
+    bot: BotConfig,
+    message: BotOutboundMessage,
+    options: { park?: boolean } = {},
+  ): Promise<"sent" | "parked"> {
+    const adapter = providers[bot.provider];
+    if (!adapter) {
+      return "sent";
+    }
+    let current = message;
+    let attempt = 0;
+    for (;;) {
+      try {
+        await adapter.send(bot, current);
+        await clearDeliveryNoticeIfSet(bot, current);
+        return "sent";
+      } catch (error) {
+        const code = classifySendError(error);
+        if (!code) {
+          // 未分类失败保持既有语义：原样冒泡给调用方（stream 队列 warn / 回调错误回复）。
+          throw error;
+        }
+        const detail =
+          error instanceof BotSendError && error.detail ? ` detail=${error.detail}` : "";
+        botsLogger.warn(
+          undefined,
+          `bot send failed bot=${bot.id} provider=${bot.provider} code=${code} attempt=${attempt}: ${error instanceof Error ? error.message : String(error)}${detail}`,
+        );
+        const freshToken = (await readOutboundConversation(bot, current))?.state.lastContextToken;
+        const plan = planDeliveryRecovery(code, {
+          attempt,
+          usedToken: current.providerContextToken,
+          freshToken,
+        });
+        if (plan.kind === "retry_with_token") {
+          current = { ...current, providerContextToken: plan.token };
+          attempt += 1;
+          continue;
+        }
+        if (plan.kind === "retry_without_token") {
+          const { providerContextToken: _expired, ...rest } = current;
+          current = rest;
+          attempt += 1;
+          continue;
+        }
+        if (plan.kind === "retry_backoff") {
+          await new Promise((resolve) => setTimeout(resolve, plan.delayMs));
+          attempt += 1;
+          continue;
+        }
+        if (options.park === false) {
+          return "parked";
+        }
+        await parkOutboundMessage(bot, current, code);
+        return "parked";
+      }
+    }
+  }
+
+  /**
+   * 补投：按序投递停放回复；第一次失败即停止本轮（服务端状态对后续条目同样不利），
+   * 失败条目 attempts+1，超限由队列纯函数丢弃并记 warn（spec 规则 6）。
+   */
+  async function flushPendingDeliveries(
+    bot: BotConfig,
+    context: BotContextState,
+  ): Promise<BotContextState> {
+    let current = context;
+    for (;;) {
+      const queue = current.pendingDeliveryQueue ?? [];
+      const head = queue[0];
+      if (!head) {
+        return current;
+      }
+      const deliveryMessage: BotOutboundMessage = {
+        botId: bot.id,
+        provider: bot.provider,
+        providerUserId: head.providerUserId,
+        text: head.text,
+        ...(current.lastContextToken ? { providerContextToken: current.lastContextToken } : {}),
+      };
+      let status: "sent" | "parked";
+      try {
+        status = await botSendQueue.run(bot.id, () =>
+          deliverWithRecovery(bot, deliveryMessage, { park: false }),
+        );
+      } catch (error) {
+        status = "parked";
+        botsLogger.warn(
+          undefined,
+          `pending delivery flush error bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      if (status === "sent") {
+        current = { ...current, pendingDeliveryQueue: removeFirstPendingDelivery(queue).queue };
+        await writeContext(current);
+        continue;
+      }
+      const bumped = bumpFirstPendingDeliveryAttempt(queue);
+      if (bumped.dropped) {
+        botsLogger.warn(
+          undefined,
+          `pending delivery dropped after max attempts bot=${bot.id} user=${bumped.dropped.providerUserId}`,
+        );
+      }
+      current = { ...current, pendingDeliveryQueue: bumped.queue };
+      await writeContext(current);
+      return current;
+    }
+  }
+
+  /** 入站刷新：写入新鲜 context_token，随后用它补投停放的回复（spec 规则 6）。 */
+  async function refreshDeliveryInbound(
+    bot: BotConfig,
+    context: BotContextState,
+    providerContextToken: string,
+  ): Promise<BotContextState> {
+    let current = context;
+    if (current.lastContextToken !== providerContextToken) {
+      current = { ...current, lastContextToken: providerContextToken };
+      await writeContext(current);
+    }
+    if (current.pendingDeliveryQueue?.length) {
+      current = await flushPendingDeliveries(bot, current);
+    }
+    return current;
+  }
+
   async function sendOutbound(bot: BotConfig, message: BotOutboundMessage): Promise<void> {
     const adapter = providers[bot.provider];
     if (!adapter) {
       return;
     }
-    await adapter.send(bot, message);
+    // 修复原因：微信出站在会话上下文过期后连续失败且回复被静默丢弃
+    // （2026-10-10 事故）。统一走 per-bot 串行队列 + 结构化恢复 + 停放补投。
+    await botSendQueue.run(bot.id, () => deliverWithRecovery(bot, message));
   }
 
   function buildInboundDeliveryKey(message: BotInboundMessage): string | null {
@@ -5679,6 +5941,11 @@ export function createBotsService(
         reply: [createOutbound(message.actor, msg(locale, "noWorkspaceAllowed"))],
       };
     }
+    // 新入站携带的新鲜 context_token 先落库，再用它补投停放的回复，
+    // 保证补投发生在本条消息的业务处理之前（docs/specs/bot-outbound-delivery.md 规则 6）。
+    const deliveryContext = message.actor.providerContextToken
+      ? await refreshDeliveryInbound(bot, context, message.actor.providerContextToken)
+      : context;
     // 全部用户模式没有绑定用户：主动消息（心跳/镜像）的投递目标按对话表推导
     // （最近活跃的私聊对话），不再单独记 lastPrivateUserId。
     const synced = await normalizeBotWorkspaceConfig(config, bot, {
@@ -5724,7 +5991,7 @@ export function createBotsService(
       config: synced.config,
       bot: synced.bot,
       user: synced.user,
-      context,
+      context: deliveryContext,
       locale,
     };
   }
