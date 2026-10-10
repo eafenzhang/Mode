@@ -179,6 +179,7 @@ import {
   removeFirstPendingDelivery,
   type BotSendFailureCode,
 } from "./outboundDelivery.js";
+import { createWorkspaceTurnGate } from "./workspaceTurnGate.js";
 import {
   getWorkspaceBoundBots,
   removeBotFromOtherWorkspaces,
@@ -819,6 +820,9 @@ export function createBotsService(
   const typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
   const typingTargets = new Map<string, { bot: BotConfig; target: BotTypingTarget }>();
   const runningTasks = new Set<string>();
+  // 同 workspace 回合并入门：与 runningTasks 成对维护（add 前 enter、delete/clear 旁
+  // exit/reset），超限 FIFO 静默排队（docs/specs/bot-workspace-turn-admission.md）。
+  const turnGate = createWorkspaceTurnGate();
   const liveStatusProgressByTaskId = new Map<
     string,
     { kind: "message" | "thought" | "tool"; text: string }
@@ -5481,6 +5485,7 @@ export function createBotsService(
       }
       if (event.type === "task_complete" || event.type === "task_error") {
         runningTasks.delete(event.taskId);
+        turnGate.exit(event.taskId);
         liveStatusProgressByTaskId.delete(event.taskId);
         stopTyping(event.taskId, bot.id);
         // 终态收口放在 finally：notifyTaskLifecycle 的终态分支会发出 status 终止符并删除
@@ -6336,6 +6341,7 @@ export function createBotsService(
         const locale = await readMessageLocale();
         const userFacingMessage = formatUserFacingBotError(error, locale);
         runningTasks.delete(taskId);
+        turnGate.exit(taskId);
         stopTyping(taskId, bot.id);
         await broadcastTaskListChange(context, taskId, "error", {
           error: message,
@@ -6542,6 +6548,12 @@ export function createBotsService(
           );
         });
       }
+      // 同 workspace 回合并入上限：超限静默排队，终态释放后按序起跑
+      // （docs/specs/bot-workspace-turn-admission.md）。
+      await turnGate.enter(
+        getWorkspaceKey(context.workspacePath, context.workspaceIdentity),
+        task.taskId,
+      );
       runningTasks.add(task.taskId);
       await watchTaskStream(auth.bot, message.actor, context, auth.user, options.heartbeat === true);
       await broadcastTaskListChange(context, task.taskId, "prompt_sent", {
@@ -6589,6 +6601,10 @@ export function createBotsService(
       throw new Error(msg(auth.locale, "sessionModelUnavailable"));
     }
     await broadcastTaskListChange(auth.context, auth.context.activeTaskId, "resumed");
+    await turnGate.enter(
+      getWorkspaceKey(auth.context.workspacePath, auth.context.workspaceIdentity),
+      auth.context.activeTaskId,
+    );
     runningTasks.add(auth.context.activeTaskId);
     await watchTaskStream(auth.bot, message.actor, auth.context, auth.user, options.heartbeat === true);
     const traceId = generateTraceId(auth.context.activeTaskId);
@@ -6731,6 +6747,7 @@ export function createBotsService(
       // Mode Agent 历史任务的 status 为空也可能只是旧数据，不代表 UI 仍在运行；只有本进程确实发起
       // 且尚未观察到终态的 task 才阻止 /task、/new 等上下文切换。
       runningTasks.delete(context.activeTaskId);
+      turnGate.exit(context.activeTaskId);
       stopTyping(context.activeTaskId, context.botId);
       return false;
     }
@@ -8295,6 +8312,7 @@ export function createBotsService(
               ];
             }
             runningTasks.delete(auth.context.activeTaskId);
+            turnGate.exit(auth.context.activeTaskId);
             stopTyping(auth.context.activeTaskId, auth.bot.id);
             await broadcastTaskListChange(auth.context, auth.context.activeTaskId, "updated");
             return createStatusReply(message.actor, auth.context, auth.locale);
@@ -8505,6 +8523,7 @@ export function createBotsService(
       }
       typingTargets.clear();
       runningTasks.clear();
+      turnGate.reset();
       liveStatusProgressByTaskId.clear();
       pendingRemoteReconnectsByKey.clear();
       recentRemoteReconnectAtByKey.clear();
