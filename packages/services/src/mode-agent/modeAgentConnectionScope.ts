@@ -887,13 +887,29 @@ export function createModeAgentConnectionScope(
         withTrustedConnection(workspaceTarget(params), forwardedConnection(params)),
       );
     },
-    onDynamicCuaPermissionObservation() {
+    onDynamicCuaPermissionObservation(params?: unknown) {
       assertOpen();
-      // 权限弹窗是本地桌面副作用；手机 replay attachment 只能消费可恢复对话事实。
-      if (role !== "terminal-client" || context.clientMode !== "desktop-continuous") {
+      // 权限引导是物理桌面副作用：本地桌面 attachment 与「可信 relay + desktop-continuous
+      // 下游」可消费；手机 replay 下游与 replayable 连接恒拒绝。放行形态照
+      // onDynamicConversationTelemetryFact 的 relay 先例（同文件上方）。
+      // docs/specs/lan-remote-computer-use.md 接口变更 5 + 事件顺序 ④。
+      const downstream = readTrustedModeAgentV4Connection(params);
+      const relayDesktopDownstream =
+        role === "trusted-host-relay" && downstream?.clientMode === "desktop-continuous";
+      if (
+        context.clientMode !== "desktop-continuous" ||
+        (role !== "terminal-client" && !relayDesktopDownstream)
+      ) {
         return RpcEvent.None;
       }
-      return base.onDynamicCuaPermissionObservation();
+      // 本地 hop 把本连接的可信 clientMode 打成载体带给下一跳：LAN relay 的对端 scope
+      // 正是靠它判定「下游是可信桌面」。base 是真实 service 时该参数被忽略，无副作用。
+      return base.onDynamicCuaPermissionObservation(
+        withTrustedConnection({}, {
+          connectionId: context.connectionId,
+          clientMode: context.clientMode,
+        }),
+      );
     },
     onDynamicProcessResourceSample() {
       assertOpen();
