@@ -35,6 +35,7 @@ import {
   IMemoryService,
   ISettingsSyncService,
   IPromptAttachmentTransferService,
+  ICuaPermissionService,
   type IServiceAccessor,
 } from "@mode/services";
 import {
@@ -399,6 +400,12 @@ export function createRemoteWorkspaceServiceCollection(params: {
       createSettingsSyncService({ settingService: localSettingService }),
     )
     .register(IPromptAttachmentTransferService, params.promptAttachmentTransferService);
+  // LAN 远端面板的 OS 权限状态必须是对端事实：对端 connectionServices 提供时透传，
+  // 不入 legacyRemoteWorkspaceRpcContract 必选白名单（ssh/wsl/docker 的 stdio host
+  // 不提供该服务，入白名单会断链）。依据 docs/specs/lan-remote-computer-use.md。
+  if (params.connectionServices.cuaPermissionService) {
+    services.register(ICuaPermissionService, params.connectionServices.cuaPermissionService);
+  }
   registerHostApiNetworkTransportForDispose(services, hostApiNetworkTransport);
   registerRemoteProviderProvisioningExecutor(services, remoteProviderProvisioningService);
   return services;
