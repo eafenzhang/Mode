@@ -131,7 +131,7 @@ import type {
   RemoteAssetNetworkPort,
   RemoteConnection,
 } from "@mode/server/remote";
-import type { RemoteTarget } from "@mode/shared";
+import type { RemoteTarget, WindowHostRemoteWorkspaceDescriptor } from "@mode/shared";
 import { wrapElectronPort } from "./electronPort.js";
 import { createTaskRealtimeBridgeForHostInit } from "./taskRealtimeBridge.js";
 import { resolveRpcLogLevel } from "./rpcLogLevel.js";
@@ -180,6 +180,8 @@ interface HostRemoteConnectionCapabilities {
   remoteMediaPreviewFactory?: (
     scope: Extract<WindowHostAttachmentScope, { kind: "remote" }>,
   ) => RemoteMediaPreviewProxy;
+  /** LAN 握手声明的设备级电脑控制能力（对端 server-info.capabilities.computerUse）。 */
+  computerUse?: boolean;
 }
 
 let activeRemoteMediaRequests = 0;
@@ -1694,6 +1696,10 @@ async function createWindowLanRemoteConnectionHandle(
     services,
     capabilities: {
       ...(remoteMediaPreviewFactory ? { remoteMediaPreviewFactory } : {}),
+      // 首次收口消费 connection.info：设备能力位（旧对端缺键 → 不声明 → 全链路按不支持降级）。
+      ...(typeof connection.info.capabilities.computerUse === "boolean"
+        ? { computerUse: connection.info.capabilities.computerUse }
+        : {}),
     },
     onDidClose(listener) {
       closeListeners.add(listener);
@@ -2665,6 +2671,35 @@ process.on(
   }),
 );
 
+/**
+ * 向 descriptor 投影对端设备能力位（LAN server-info.capabilities.computerUse）。
+ * 能力位只是 UI 判定输入；解析失败必须返回原 descriptor，不能让已建立的连接回退为 ConnectFailed。
+ * 依据 docs/specs/lan-remote-computer-use.md「接口变更 1-2」。
+ */
+function withComputerUseCapability(
+  descriptor: WindowHostRemoteWorkspaceDescriptor,
+): WindowHostRemoteWorkspaceDescriptor {
+  if (!descriptor.workspaceIdentity || !descriptor.workspacePath) return descriptor;
+  try {
+    const computerUse = windowRemoteConnectionRegistry.resolveScopedCapabilities({
+      kind: "remote",
+      remoteSessionId: descriptor.remoteSessionId,
+      workspacePath: descriptor.workspacePath,
+      workspaceIdentity: descriptor.workspaceIdentity,
+    })?.computerUse;
+    return typeof computerUse === "boolean"
+      ? { ...descriptor, capabilities: { computerUse } }
+      : descriptor;
+  } catch (error) {
+    // 能力位只是 UI 判定输入；scope 解析失败不得让已建立的连接回退为 ConnectFailed。
+    logger.warn("failed to resolve remote computerUse capability", {
+      remoteSessionId: descriptor.remoteSessionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return descriptor;
+  }
+}
+
 parentPort.on("message", async (e: Electron.MessageEvent) => {
   const result = parseHostIncomingMessageEvent(e);
   if (!result.success) {
@@ -3038,7 +3073,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         parentPort.postMessage({
           type: HostResponseTypes.RemoteWorkspaceConnected,
           requestId: msg.requestId,
-          descriptor,
+          descriptor: withComputerUseCapability(descriptor),
         });
         logWindowHostTopology("remote-connected");
       })

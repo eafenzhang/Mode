@@ -4,10 +4,16 @@ import type { IServiceAccessor } from "@mode/services";
 import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
 import { createRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceServiceError.js";
 
+export interface RemoteWorkspaceSessionCapabilities {
+  computerUse?: boolean;
+}
+
 export interface RemoteWorkspaceSession {
   sessionId: string;
   target?: RemoteTarget;
   services: IServiceAccessor;
+  /** 对端设备能力位（LAN server-info 投影）；旧对端无此字段。 */
+  capabilities?: RemoteWorkspaceSessionCapabilities;
   dispose?: (reason?: Error) => void;
 }
 

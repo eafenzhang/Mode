@@ -171,6 +171,16 @@ export const hostInitLocalMessageSchema = z.object({
     .optional(),
 });
 
+/** 远端连接的设备能力位（LAN 握手 server-info.capabilities 投影，strict：未知键拒绝）。 */
+export const windowHostRemoteWorkspaceCapabilitiesSchema = z
+  .object({
+    computerUse: z.boolean(),
+  })
+  .strict();
+export type WindowHostRemoteWorkspaceCapabilities = z.infer<
+  typeof windowHostRemoteWorkspaceCapabilitiesSchema
+>;
+
 export const windowHostRemoteWorkspaceDescriptorSchema = z
   .object({
     remoteSessionId: nonEmptyStringSchema,
@@ -178,6 +188,7 @@ export const windowHostRemoteWorkspaceDescriptorSchema = z
     workspacePath: nonEmptyStringSchema.optional(),
     workspaceIdentity: nonEmptyStringSchema.optional(),
     generation: z.number().int().positive(),
+    capabilities: windowHostRemoteWorkspaceCapabilitiesSchema.optional(),
   })
   .strict();
 export type WindowHostRemoteWorkspaceDescriptor = z.infer<

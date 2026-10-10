@@ -1,10 +1,15 @@
 import { InternalChannels, type RemoteTarget } from "@mode/shared";
 
+export interface RemoteWorkspaceSessionCapabilities {
+  computerUse?: boolean;
+}
+
 export interface RemoteWorkspaceServicePortRegistration {
   attachmentId: string;
   port: MessagePort;
   sessionId: string;
   target: RemoteTarget;
+  capabilities?: RemoteWorkspaceSessionCapabilities;
 }
 
 export function parseRemoteWorkspaceServicePortMessage(
@@ -23,7 +28,22 @@ export function parseRemoteWorkspaceServicePortMessage(
   const sessionId = typeof event.data.sessionId === "string" ? event.data.sessionId : null;
   const target = "target" in event.data ? (event.data.target as RemoteTarget | null) : null;
   if (!port || !attachmentId || !sessionId || !target) return null;
-  return { attachmentId, port, sessionId, target };
+  const rawCapabilities = "capabilities" in event.data ? event.data.capabilities : null;
+  const capabilities: RemoteWorkspaceSessionCapabilities | undefined =
+    rawCapabilities && typeof rawCapabilities === "object"
+      ? {
+          ...(typeof (rawCapabilities as { computerUse?: unknown }).computerUse === "boolean"
+            ? { computerUse: (rawCapabilities as { computerUse: boolean }).computerUse }
+            : {}),
+        }
+      : undefined;
+  return {
+    attachmentId,
+    port,
+    sessionId,
+    target,
+    ...(capabilities ? { capabilities } : {}),
+  };
 }
 
 export function notifyRemoteWorkspaceServicePortReady(

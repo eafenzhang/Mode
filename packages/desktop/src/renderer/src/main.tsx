@@ -215,6 +215,7 @@ function registerRemoteWorkspaceServicePort(params: RemoteWorkspaceServicePortRe
     sessionId: params.sessionId,
     target: params.target,
     services,
+    ...(params.capabilities ? { capabilities: params.capabilities } : {}),
     dispose: (reason) =>
       remoteConnection.dispose(reason ?? createRemoteWorkspaceDisconnectedError()),
   });
