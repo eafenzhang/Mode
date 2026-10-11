@@ -6215,6 +6215,8 @@ const enUS: Record<string, string> = {
     "A running Computer Use task needs macOS permissions. Open the authorization guide?",
   "cuaPermission.live.confirm": "Authorize",
   "cuaPermission.live.cancel": "Not now",
+  "cua.permission.remoteOnboardingDescription":
+    "Mode needs the following permissions on the LAN peer device to continue computer control: {permissions}. The permission onboarding will open on the peer device; complete the grant there.",
   "cuaPermission.modal.restartButton": "Restart Helper",
   "cuaPermission.modal.restarting": "Restarting Helper…",
   "cuaPermission.modal.restartFailed": "Couldn't restart Helper: {error}",

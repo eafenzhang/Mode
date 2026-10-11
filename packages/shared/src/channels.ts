@@ -540,6 +540,8 @@ export const HostMessageTypes = {
   BrowserExecuteResult: "browser-execute-result",
   /** main → host：本地视频 canonical path 授权结果 */
   LocalMediaPreviewPathAuthorizeResult: "local-media-preview-path-authorize-result",
+  /** Main → Host：onboarding 打开结果回包（docs/specs/lan-remote-computer-use.md 接口变更 4）。 */
+  OpenCuaPermissionOnboardingResult: "open-cua-permission-onboarding-result",
   /** Main → Host：全局前台 Mode 窗口派生的 producer focus fact。 */
   CuaPipFocusChanged: "cua-pip-focus-changed",
   /** main → host：要求 Host 现读本地 Source，并同步指定 Remote Environment。 */
@@ -652,6 +654,8 @@ export const HostResponseTypes = {
   BrowserExecuteRequest: "browser-execute-request",
   /** host → main：请求授权 Agent 已精确校验的本地视频路径 */
   LocalMediaPreviewPathAuthorizeRequest: "local-media-preview-path-authorize-request",
+  /** Host → Main：打开本机（对端机器）的 Computer Use 权限引导；LAN 远端面板经此触发。 */
+  OpenCuaPermissionOnboardingRequest: "host-open-cua-permission-onboarding-request",
   /** host → main：本地 Provisioning Source 成功持久化。 */
   ProviderProvisioningSourceChanged: "provider-provisioning-source-changed",
   /** host → main：一次 Remote Environment 同步执行完毕。 */

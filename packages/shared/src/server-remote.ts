@@ -19,6 +19,9 @@ export const serverRemoteInfoSchema = z.object({
     desktopContinuous: z.literal(true),
     websocketRpc: z.literal(true),
     // 旧 Server 缺少新增 dynamic event，必须先声明能力再订阅，避免异常打进对端读循环。
+    // LAN 电脑控制设备能力位：对端 win/mac + env kill-switch + desktop-local host 才发 true；
+    // 旧对端缺键 = 不支持（docs/specs/lan-remote-computer-use.md）。
+    computerUse: z.boolean().optional(),
   }),
 });
 

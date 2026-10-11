@@ -24,6 +24,7 @@ import {
   MODE_AGENT_PROVIDER_NOT_READY_REASON,
   MODE_MODEL_REASONING_SEPARATOR,
   isRemoteWorkspaceIdentity,
+  parseRemoteWorkspaceIdentity,
   MODE_PROTOCOL_NAME,
   MODE_PROTOCOL_VERSION,
   modeMcpListResultSchema,
@@ -1050,6 +1051,29 @@ function resolveOffPeakToolSelection(
     ? selection
     : { ...selection, options: { reasoningLevel: thoughtLevel } };
 }
+
+/**
+ * CUA 权限观察是否可投递（唯一口径，docs/specs/lan-remote-computer-use.md 接口变更 5 +
+ * 事件顺序 ④）：remoteSessionId 连接面一律不投；identity 中仅 remote:lan 放行——LAN 对端
+ * 是完整 desktop 自己，权限引导对应的是对端物理桌面。ssh/wsl/docker 继续丢；remote: 前缀
+ * 却无法解析的野生形态（如缺 username 段的 ssh）按 fail closed 同丢（与 CUA helper
+ * admission 的无法解析排除同向），本地形态 identity 维持历史放行。
+ */
+export function shouldForwardCuaPermissionObservation(workspace: {
+  remoteSessionId?: string;
+  workspaceIdentity?: string;
+}): boolean {
+  if (workspace.remoteSessionId) return false;
+  const identity = workspace.workspaceIdentity?.trim();
+  if (!identity) return true;
+  if (!isRemoteWorkspaceIdentity(identity)) {
+    // 无法解析的非空 identity：remote: 前缀说明对端是远程机器但形态超出版式契约，
+    // 视作「remote 非 lan」fail closed 丢弃；非 remote 形态维持历史放行语义。
+    return !identity.startsWith("remote:");
+  }
+  return parseRemoteWorkspaceIdentity(identity)?.kind === "lan";
+}
+
 export function createModeAgentService(
   options?: CreateModeAgentServiceOptions,
 ): IModeAgentService & { disposeAllAndWait(): Promise<void> } {
@@ -2017,11 +2041,9 @@ export function createModeAgentService(
 
         if (message.method === V4_NOTIFICATIONS.cuaPermissionObservation) {
           const parsed = cuaPermissionObservationSchema.safeParse(message.params);
-          if (
-            parsed.success &&
-            !workspace.remoteSessionId &&
-            !(workspace.workspaceIdentity && isRemoteWorkspaceIdentity(workspace.workspaceIdentity))
-          ) {
+          // 投递口径收敛到 shouldForwardCuaPermissionObservation：remote:lan 放行，
+          // ssh/wsl/docker 与 remoteSessionId 丢弃（docs/specs/lan-remote-computer-use.md ④）。
+          if (parsed.success && shouldForwardCuaPermissionObservation(workspace)) {
             cuaPermissionObservationEmitter.fire({
               ...parsed.data,
               workspacePath: workspace.workspacePath,

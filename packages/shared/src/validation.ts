@@ -171,6 +171,19 @@ export const hostInitLocalMessageSchema = z.object({
     .optional(),
 });
 
+/**
+ * 远端连接的设备能力位（LAN 握手 server-info.capabilities 投影，strict：未知键拒绝）。
+ * docs/specs/lan-remote-computer-use.md 接口变更 1。
+ */
+export const windowHostRemoteWorkspaceCapabilitiesSchema = z
+  .object({
+    computerUse: z.boolean(),
+  })
+  .strict();
+export type WindowHostRemoteWorkspaceCapabilities = z.infer<
+  typeof windowHostRemoteWorkspaceCapabilitiesSchema
+>;
+
 export const windowHostRemoteWorkspaceDescriptorSchema = z
   .object({
     remoteSessionId: nonEmptyStringSchema,
@@ -178,6 +191,7 @@ export const windowHostRemoteWorkspaceDescriptorSchema = z
     workspacePath: nonEmptyStringSchema.optional(),
     workspaceIdentity: nonEmptyStringSchema.optional(),
     generation: z.number().int().positive(),
+    capabilities: windowHostRemoteWorkspaceCapabilitiesSchema.optional(),
   })
   .strict();
 export type WindowHostRemoteWorkspaceDescriptor = z.infer<
@@ -401,6 +415,15 @@ export const hostLocalMediaPreviewPathAuthorizeResultMessageSchema = z
   })
   .strict();
 
+export const hostOpenCuaPermissionOnboardingResultMessageSchema = z
+  .object({
+    type: z.literal("open-cua-permission-onboarding-result"),
+    requestId: nonEmptyStringSchema,
+    success: z.boolean(),
+    error: z.string().optional(),
+  })
+  .strict();
+
 export const hostCuaPipFocusChangedMessageSchema = z
   .object({
     type: z.literal("cua-pip-focus-changed"),
@@ -518,6 +541,7 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostOffPeakRunMessageSchema,
   hostBrowserExecuteResultMessageSchema,
   hostLocalMediaPreviewPathAuthorizeResultMessageSchema,
+  hostOpenCuaPermissionOnboardingResultMessageSchema,
   hostCuaPipFocusChangedMessageSchema,
   hostProviderProvisioningExecuteMessageSchema,
 ]);
@@ -915,6 +939,18 @@ export const hostLocalMediaPreviewPathAuthorizeRequestResponseSchema = z
   })
   .strict();
 
+// host→main：打开对端机器的 Computer Use 权限引导（docs/specs/lan-remote-computer-use.md
+// 接口变更 4）。权限名放宽为 z.string()：远端面板透传的字符串不在本层枚举收敛，
+// 由 main 调底层前按 CuaPermissionKind 收窄。
+export const hostOpenCuaPermissionOnboardingRequestResponseSchema = z
+  .object({
+    type: z.literal("host-open-cua-permission-onboarding-request"),
+    requestId: nonEmptyStringSchema,
+    initialPermission: z.string().optional(),
+    requiredPermissions: z.array(z.string()).optional(),
+  })
+  .strict();
+
 export const hostProviderProvisioningSourceChangedResponseSchema = z
   .object({
     type: z.literal("provider-provisioning-source-changed"),
@@ -1066,6 +1102,7 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostSessionMessageDeliverResultResponseSchema,
   hostBrowserExecuteRequestResponseSchema,
   hostLocalMediaPreviewPathAuthorizeRequestResponseSchema,
+  hostOpenCuaPermissionOnboardingRequestResponseSchema,
   hostProviderProvisioningSourceChangedResponseSchema,
   hostProviderProvisioningExecutionResultResponseSchema,
   hostCronRunResultResponseSchema,

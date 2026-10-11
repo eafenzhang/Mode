@@ -5947,6 +5947,8 @@ const zhCN: Record<string, string> = {
   "cuaPermission.live.description": "正在运行的电脑操作任务需要 macOS 权限，是否前往授权？",
   "cuaPermission.live.confirm": "前往授权",
   "cuaPermission.live.cancel": "暂不授权",
+  "cua.permission.remoteOnboardingDescription":
+    "Mode 需要在局域网对端设备上获得以下权限才能继续电脑控制：{permissions}。将在对端设备上打开权限引导，请在对端设备完成授权。",
   "cuaPermission.modal.restartButton": "重启 Helper",
   "cuaPermission.modal.restarting": "正在重启 Helper…",
   "cuaPermission.modal.restartFailed": "无法重启 Helper：{error}",

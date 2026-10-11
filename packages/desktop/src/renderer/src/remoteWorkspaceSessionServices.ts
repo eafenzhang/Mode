@@ -1,10 +1,16 @@
 import type { IServiceAccessor } from "@mode/services";
 
+export interface RemoteWorkspaceSessionMergeOptions {
+  /** attachment 元数据里的对端能力位；键出现即新版对端（其 host 恒注册 cuaPermissionService channel）。 */
+  capabilities?: { computerUse?: boolean };
+}
+
 export function buildRemoteWorkspaceSessionServices(
   baseServices: IServiceAccessor,
   remoteServices: IServiceAccessor,
+  options?: RemoteWorkspaceSessionMergeOptions,
 ): IServiceAccessor {
-  return {
+  const merged: IServiceAccessor = {
     ...baseServices,
     fileService: remoteServices.fileService,
     mediaPreviewService: remoteServices.mediaPreviewService,
@@ -48,5 +54,13 @@ export function buildRemoteWorkspaceSessionServices(
     // 无法读取远端待审 Hook。
     // hooks 读写（loadHooks/saveHooks）与 grantWorkspaceHookTrust 授权都必须打到远端 host。
     hooksService: remoteServices.hooksService,
+    // 权限服务归属：LAN 新对端时用对端代理（getStatus/restartHelper 都是对端机器事实）；
+    // 旧对端未声明能力键 → 该 channel 可能不存在，维持本机 base 回落避免悬空代理超时。
+    // IServiceAccessor 字段只读，故用条件展开覆盖而非赋值（docs/specs/lan-remote-computer-use.md）。
+    ...(typeof options?.capabilities?.computerUse === "boolean" &&
+    remoteServices.cuaPermissionService
+      ? { cuaPermissionService: remoteServices.cuaPermissionService }
+      : {}),
   };
+  return merged;
 }

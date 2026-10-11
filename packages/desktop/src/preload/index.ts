@@ -774,6 +774,7 @@ ipcRenderer.on(
       attachmentId?: string;
       sessionId?: string;
       target?: RemoteTarget;
+      capabilities?: { computerUse?: boolean };
     },
   ) => {
     const [port] = event.ports;
@@ -784,6 +785,7 @@ ipcRenderer.on(
           attachmentId: payload.attachmentId,
           sessionId: payload.sessionId,
           target: payload.target,
+          capabilities: payload.capabilities,
         },
         "*",
         [port],

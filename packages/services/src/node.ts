@@ -529,7 +529,10 @@ import {
   type WindowsCuaRuntime,
 } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
 import { createCanonicalCuaHelperInstaller } from "./cua-permission-broker/cuaHelperInstaller.js";
-import { resolveCuaWorkspaceEnablement } from "./cuaEnablement.js";
+import {
+  isCuaExcludedRemoteWorkspaceIdentity,
+  resolveCuaWorkspaceEnablement,
+} from "./cuaEnablement.js";
 import { WindowsCuaHelperHost } from "#src/cua-permission-broker/windowsCuaDevHelperHost.js";
 import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@mode/cua/broker/helperConstants";
 import { resolveBrokerSocketPath } from "@mode/cua/broker/socketPath";
@@ -747,6 +750,10 @@ export function shouldEnableDefaultCuaProductHelper(
  * 是否在当前 host 创建默认 CUA product Helper。Computer Use Helper 只能由**桌面本地** authority 创建：
  * - desktop-attached-remote 与 standalone-server 都绝不自动创建，避免远端 workspace 在错误的
  *   host 上启动 Helper，破坏 shared-host attachment 与权限边界；
+ * - `hasRemoteWorkspaceIdentity` 语义 = `isCuaExcludedRemoteWorkspaceIdentity` 的结果，即
+ *   「按 CUA 规则需要排除的 remote identity」：remote:lan 已由该口径放行（对端 host 自身是
+ *   desktop-local authority，helper 落在对端本机，见 docs/specs/lan-remote-computer-use.md），
+ *   ssh/wsl/docker 与无法解析的非空串维持排除；
  * - 已显式注入 resolver 时不重复创建。
  * 平台/环境层面的启用与否另由 shouldEnableDefaultCuaProductHelper 决定。
  */
@@ -1334,6 +1341,15 @@ export function createLocalServices(options: {
   hostApiNetworkTransport?: HostApiNetworkTransport;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
   authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
+  /**
+   * Desktop host 注入：经 host→main 打开**本机** Computer Use 权限引导（动作落在对端机器）。
+   * docs/specs/lan-remote-computer-use.md 接口变更 4；缺省时 openPermissionOnboarding
+   * 返回 { success: false, error: "unavailable" }，不静默走 renderer preload 路径。
+   */
+  cuaPermissionOnboardingOpener?: (options: {
+    initialPermission?: string;
+    requiredPermissions?: string[];
+  }) => Promise<{ success: boolean; error?: string }>;
   processLifecycleReporter?: RuntimeProcessLifecycleReporter;
   taskRuntimeReporter?: RuntimeTaskReporter;
   /** workspace 文件搜索默认使用内置过滤器；后续规则来源只需在 Host 装配时注入最终实现。 */
@@ -1749,7 +1765,11 @@ export function createLocalServices(options: {
       isAdmitted: () =>
         shouldCreateDefaultCuaProductHelper({
           serviceAuthorityMode: options?.serviceAuthorityMode,
-          hasRemoteWorkspaceIdentity: Boolean(context?.workspaceIdentity?.trim()),
+          // lan identity 不再按「远端」排除：对端 host 自身是 desktop-local authority，
+          // helper 与操作指示都落在对端物理桌面（docs/specs/lan-remote-computer-use.md）。
+          hasRemoteWorkspaceIdentity: isCuaExcludedRemoteWorkspaceIdentity(
+            context?.workspaceIdentity,
+          ),
           hasInjectedResolver: Boolean(options?.cuaProductMcpServerResolver),
           hasBuiltInCuaPlugin: isCuaEnabledForContext(context),
         }),
@@ -2083,6 +2103,37 @@ export function createLocalServices(options: {
           }`,
         };
       }
+    },
+    // LAN 远端面板的「去授权」经此把引导开在 **service 所在 host 的机器** 上（host→main
+    // 透传，docs/specs/lan-remote-computer-use.md 接口变更 4 / 事件顺序 ④）。
+    // 门控与 getStatus 同一 context 构造与同一 shouldUseCuaPermissionService 判定
+    // （该谓词内含 macOS 平台门）：未启用直接 fail closed，不无谓拉起主进程引导。
+    openPermissionOnboarding: async (
+      workspacePath?: string,
+      workspaceIdentity?: string,
+      onboardingOptions?: { initialPermission?: string; requiredPermissions?: string[] },
+    ) => {
+      const context = workspacePath ? { workspacePath, workspaceIdentity } : undefined;
+      if (
+        !shouldUseCuaPermissionService({
+          cuaEnabled: isCuaEnabledForContext(context),
+        })
+      ) {
+        return { success: false, error: "cua-disabled" };
+      }
+      const opener = options?.cuaPermissionOnboardingOpener;
+      if (!opener) {
+        // host 装配层未注入 opener（如非 desktop host 宿主）：明确失败，不回落本机 preload。
+        return { success: false, error: "unavailable" };
+      }
+      return opener({
+        ...(onboardingOptions?.initialPermission
+          ? { initialPermission: onboardingOptions.initialPermission }
+          : {}),
+        ...(onboardingOptions?.requiredPermissions
+          ? { requiredPermissions: onboardingOptions.requiredPermissions }
+          : {}),
+      });
     },
   };
   const codingPlanSubscriptionService = createCodingPlanSubscriptionService({

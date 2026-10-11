@@ -210,11 +210,15 @@ function registerRemoteWorkspaceServicePort(params: RemoteWorkspaceServicePortRe
   const services = buildRemoteWorkspaceSessionServices(
     baseServicesForRemoteSessions,
     remoteServices,
+    // 权限服务归属依赖对端能力位（键出现即新版对端，docs/specs/lan-remote-computer-use.md）。
+    // 注：对象展开 ...(cond ? {…} : {}) 在调用位不是可迭代对象，传 undefined 等价省略第三参。
+    params.capabilities ? { capabilities: params.capabilities } : undefined,
   );
   registerRemoteWorkspaceSession({
     sessionId: params.sessionId,
     target: params.target,
     services,
+    ...(params.capabilities ? { capabilities: params.capabilities } : {}),
     dispose: (reason) =>
       remoteConnection.dispose(reason ?? createRemoteWorkspaceDisconnectedError()),
   });

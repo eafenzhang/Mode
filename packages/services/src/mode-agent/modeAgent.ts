@@ -816,8 +816,8 @@ export interface IModeAgentService {
   onDynamicConversationTelemetryFact(
     params: ModeAgentWorkspaceTarget,
   ): Event<ConversationTelemetryFact>;
-  /** 当前窗口全部本地 live task 的 CUA 权限观察；历史、远程与 replayable 不在此事件面。 */
-  onDynamicCuaPermissionObservation(): Event<ModeAgentCuaPermissionObservation>;
+  /** 本窗口 live task 的 CUA 权限观察；remote:lan 对端观察经 LAN relay 放行进入本事件面（docs/specs/lan-remote-computer-use.md），历史事件、remote:lan 之外的远程与 replayable attachment 不在此事件面。 */
+  onDynamicCuaPermissionObservation(params?: unknown): Event<ModeAgentCuaPermissionObservation>;
   // ── sessions-index 通道（列表活性）──
   subscribeSessionsIndexV4(
     params: ModeAgentSessionsIndexSubscribeParams,

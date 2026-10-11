@@ -132,7 +132,7 @@ import type {
   RemoteAssetNetworkPort,
   RemoteConnection,
 } from "@mode/server/remote";
-import type { RemoteTarget } from "@mode/shared";
+import type { RemoteTarget, WindowHostRemoteWorkspaceDescriptor } from "@mode/shared";
 import { wrapElectronPort } from "./electronPort.js";
 import { createTaskRealtimeBridgeForHostInit } from "./taskRealtimeBridge.js";
 import { resolveRpcLogLevel } from "./rpcLogLevel.js";
@@ -181,6 +181,11 @@ interface HostRemoteConnectionCapabilities {
   remoteMediaPreviewFactory?: (
     scope: Extract<WindowHostAttachmentScope, { kind: "remote" }>,
   ) => RemoteMediaPreviewProxy;
+  /**
+   * LAN 握手声明的设备级电脑控制能力（对端 server-info.capabilities.computerUse）。
+   * docs/specs/lan-remote-computer-use.md 接口变更 1。
+   */
+  computerUse?: boolean;
 }
 
 let activeRemoteMediaRequests = 0;
@@ -238,6 +243,53 @@ function authorizeLocalMediaPreviewPath(path: string): Promise<string> {
       pendingLocalMediaPreviewPathAuthorizations.delete(requestId);
       reject(error instanceof Error ? error : new Error(String(error)));
     }
+  });
+}
+
+// host→main：打开**本机**（对端机器）的 Computer Use 权限引导。远端面板的「去授权」经
+// services 透传到此，再由 parentPort 请求 main 执行——动作落在对端机器，不走 renderer
+// preload 的本机路径（docs/specs/lan-remote-computer-use.md 接口变更 4、事件顺序 ④）。
+const pendingCuaOnboardingOpens = new Map<
+  string,
+  { resolve: (value: { success: boolean; error?: string }) => void }
+>();
+
+function openCuaPermissionOnboardingViaMain(options: {
+  initialPermission?: string;
+  requiredPermissions?: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  if (!parentPort) {
+    return Promise.resolve({ success: false, error: "parentPort unavailable" });
+  }
+  const requestId = randomUUID();
+  return new Promise((resolve) => {
+    pendingCuaOnboardingOpens.set(requestId, { resolve });
+    try {
+      parentPort.postMessage({
+        type: HostResponseTypes.OpenCuaPermissionOnboardingRequest,
+        requestId,
+        ...(options.initialPermission ? { initialPermission: options.initialPermission } : {}),
+        ...(options.requiredPermissions
+          ? { requiredPermissions: options.requiredPermissions }
+          : {}),
+      });
+    } catch (error) {
+      // 同步 postMessage 失败按失败回包收敛；本方法的契约是 {success,error}，不裸抛。
+      pendingCuaOnboardingOpens.delete(requestId);
+      resolve({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+    // 主进程不应长时间不回；超时按失败收敛，不悬挂远端面板的授权流。
+    setTimeout(() => {
+      const pending = pendingCuaOnboardingOpens.get(requestId);
+      if (pending) {
+        pendingCuaOnboardingOpens.delete(requestId);
+        pending.resolve({ success: false, error: "onboarding-open-timeout" });
+      }
+    }, 15_000).unref?.();
   });
 }
 
@@ -1686,6 +1738,11 @@ async function createWindowLanRemoteConnectionHandle(
     services,
     capabilities: {
       ...(remoteMediaPreviewFactory ? { remoteMediaPreviewFactory } : {}),
+      // 首次收口消费 connection.info：设备能力位（旧对端缺键 → 不声明 → 全链路按不支持降级）。
+      // docs/specs/lan-remote-computer-use.md 接口变更 1-2。
+      ...(typeof connection.info.capabilities.computerUse === "boolean"
+        ? { computerUse: connection.info.capabilities.computerUse }
+        : {}),
     },
     onDidClose(listener) {
       closeListeners.add(listener);
@@ -2657,6 +2714,35 @@ process.on(
   }),
 );
 
+/**
+ * 向 descriptor 投影对端设备能力位（LAN server-info.capabilities.computerUse）。
+ * 能力位只是 UI 判定输入；解析失败必须返回原 descriptor，不能让已建立的连接回退为 ConnectFailed。
+ * 依据 docs/specs/lan-remote-computer-use.md「接口变更 1-2」。
+ */
+function withComputerUseCapability(
+  descriptor: WindowHostRemoteWorkspaceDescriptor,
+): WindowHostRemoteWorkspaceDescriptor {
+  if (!descriptor.workspaceIdentity || !descriptor.workspacePath) return descriptor;
+  try {
+    const computerUse = windowRemoteConnectionRegistry.resolveScopedCapabilities({
+      kind: "remote",
+      remoteSessionId: descriptor.remoteSessionId,
+      workspacePath: descriptor.workspacePath,
+      workspaceIdentity: descriptor.workspaceIdentity,
+    })?.computerUse;
+    return typeof computerUse === "boolean"
+      ? { ...descriptor, capabilities: { computerUse } }
+      : descriptor;
+  } catch (error) {
+    // 能力位只是 UI 判定输入；scope 解析失败不得让已建立的连接回退为 ConnectFailed。
+    logger.warn("failed to resolve remote computerUse capability", {
+      remoteSessionId: descriptor.remoteSessionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return descriptor;
+  }
+}
+
 parentPort.on("message", async (e: Electron.MessageEvent) => {
   const result = parseHostIncomingMessageEvent(e);
   if (!result.success) {
@@ -2762,6 +2848,16 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
     } else {
       pending.reject(new Error(msg.error ?? "本地视频预览路径授权失败"));
     }
+    return;
+  }
+
+  if (msg.type === HostMessageTypes.OpenCuaPermissionOnboardingResult) {
+    // 与 LocalMediaPreviewPathAuthorizeResult 同款 pending 收敛：超时分支先删过键，
+    // 迟到的回包查不到 pending 直接丢弃（幂等）。
+    const pending = pendingCuaOnboardingOpens.get(msg.requestId);
+    if (!pending) return;
+    pendingCuaOnboardingOpens.delete(msg.requestId);
+    pending.resolve(msg.success ? { success: true } : { success: false, error: msg.error });
     return;
   }
 
@@ -3030,7 +3126,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         parentPort.postMessage({
           type: HostResponseTypes.RemoteWorkspaceConnected,
           requestId: msg.requestId,
-          descriptor,
+          descriptor: withComputerUseCapability(descriptor),
         });
         logWindowHostTopology("remote-connected");
       })
@@ -3280,6 +3376,10 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               // CUA 顶部提示属于物理 Windows 桌面投影；非 Windows 和远端 authority 都不得上报。
               cuaOperationStateReporter:
                 process.platform === "win32" ? cuaOperationStateReporter : undefined,
+              // 权限引导开在本机（对端机器），无条件注入（docs/specs/lan-remote-computer-use.md
+              // 接口变更 4）：enablement 门在 services 侧（shouldUseCuaPermissionService，
+              // 含 macOS 平台判定），main 底层另有 darwin 检查，此处不叠加平台条件。
+              cuaPermissionOnboardingOpener: openCuaPermissionOnboardingViaMain,
             });
             activeServices = initializedServices;
             activeHostApiNetworkTransport = hostApiNetworkTransport;

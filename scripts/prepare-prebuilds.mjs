@@ -130,6 +130,8 @@ const remoteOfficialPluginPackages = [
     // computer-use、设置开关抛 Plugin not found（docs/specs/computer-use-plugin-distribution.md）。
     // server 侧 modeAgentOfficialPluginAssets 远端合同维持只列 browser-use（远端不承载 CUA，
     // 见该文件内注释），本条目只保证 staging 完整性。
+    // （2026-10-11）LAN 形态不经此合同：对端是完整 desktop 自己，CUA 经 LAN 能力协商启用，
+    // 见 docs/specs/lan-remote-computer-use.md。
     packageName: "@mode/cua-plugin",
     relativePath: "apps/mode-cli/packages/mode-cua-plugin",
     stagedPath: "packages/mode-cua-plugin",
