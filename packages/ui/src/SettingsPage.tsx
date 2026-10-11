@@ -71,6 +71,7 @@ import { HooksSection } from "@/settings/HooksSection.js";
 import { WorkspaceFileSearchSection } from "@/settings/WorkspaceFileSearchSection.js";
 import { MemorySettingsSection } from "@/settings/MemorySettingsSection.js";
 import { LanAccessSection } from "@/settings/LanAccessSection.js";
+import { RemoteDesktopSettingsSection } from "@/settings/RemoteDesktopSettingsSection.js";
 import { BrowserSettingsSection } from "@/settings/BrowserSettingsSection.js";
 import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
 import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
@@ -1459,6 +1460,9 @@ export function SettingsPage({
                           </ServiceProvider>
                         ) : activeSection === "lanAccess" ? (
                           <LanAccessSection />
+                        ) : activeSection === "remoteDesktop" ? (
+                          // 远程桌面被控设置：win32 桌面端才出现在分区列表（config 门）。
+                          <RemoteDesktopSettingsSection />
                         ) : activeSection === "memory" ? (
                           <ServiceProvider services={localHostServices}>
                             {/* Memory catalog 始终使用本地 Host，避免远程 workspace 误读本机数据。 */}

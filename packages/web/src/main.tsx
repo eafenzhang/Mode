@@ -129,16 +129,24 @@ function createWebPlatform(): IPlatformService {
     getLanAccessState: () =>
       Promise.resolve({ enabled: false, port: null, addresses: [], pairCode: null, clients: [] }),
     setLanAccessEnabled: () => Promise.reject(new Error("Web mode does not serve LAN access")),
-    createLanAccessPairCode: () =>
-      Promise.reject(new Error("Web mode does not serve LAN access")),
-    removeLanAccessClient: () =>
-      Promise.reject(new Error("Web mode does not serve LAN access")),
+    createLanAccessPairCode: () => Promise.reject(new Error("Web mode does not serve LAN access")),
+    removeLanAccessClient: () => Promise.reject(new Error("Web mode does not serve LAN access")),
     resetLanAccessTokens: () => Promise.reject(new Error("Web mode does not serve LAN access")),
     discoverLanPeers: () => Promise.resolve([]),
     pairLanPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
     getLanPairedPeers: () => Promise.resolve([]),
     getLanPeerWorkspaces: () => Promise.reject(new Error("Web mode cannot reach LAN peers")),
     removeLanPairedPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
+    // 局域网远程桌面需要宿主 Helper 与屏幕采集面，Web / 浏览器端不具备：
+    // 入口本身有 win32 桌面门，这里只保证平台合同完整（读返回空态，写直接拒绝）。
+    rdGetPeerCapability: () => Promise.resolve({ remoteDesktop: false, online: false }),
+    rdStartSession: () => Promise.resolve({ error: "unsupported" as const }),
+    rdSendSignal: () => {},
+    rdEndSession: () => Promise.resolve(),
+    rdGetServerState: () => Promise.resolve({ enabled: false, authorizedClients: [] }),
+    rdSetServerEnabled: () => Promise.reject(new Error("Web mode does not serve remote desktop")),
+    rdRevokeClient: () => Promise.reject(new Error("Web mode does not serve remote desktop")),
+    onRemoteDesktopSessionEvent: () => () => {},
     loadMcpFromUserDirectory: () => Promise.resolve({ servers: [] }),
     saveMcpToUserDirectory: () =>
       Promise.resolve({

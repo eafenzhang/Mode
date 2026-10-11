@@ -819,6 +819,10 @@ export function App({
     preserveNextSettingsExit();
     setWorkspaceMainView("plugin-store");
   }, [preserveNextSettingsExit]);
+  const handleNavigateToRemoteDesktopMain = useCallback(() => {
+    // 与插件市场同款主视图切换；会话面与媒体状态挂在页面组件内，切走即卸载（收口在 main）。
+    setWorkspaceMainView("remote-desktop");
+  }, []);
   const handleOpenAutomationConsumed = useCallback(() => {
     setOpenAutomationId(null);
     setOpenAutomationTab(null);
@@ -827,6 +831,7 @@ export function App({
     handleSelectTask,
     handleOpenAutomations,
     handleOpenPluginStore,
+    handleOpenRemoteDesktop,
     handleTaskNavBack,
     handleTaskNavForward,
     canGoBack,
@@ -841,6 +846,7 @@ export function App({
     onNavigateToTask: handleNavigateToTaskMain,
     onNavigateToAutomations: handleNavigateToAutomationsMain,
     onNavigateToPluginStore: handleNavigateToPluginStoreMain,
+    onNavigateToRemoteDesktop: handleNavigateToRemoteDesktopMain,
   });
   const handleOpenPluginStoreForScope = useCallback(
     (_target: PluginStoreOpenTarget = {}) => {
@@ -1094,6 +1100,7 @@ export function App({
         onOpenAutomationConsumed={handleOpenAutomationConsumed}
         handleOpenAutomations={handleOpenAutomations}
         handleOpenPluginStore={handleOpenPluginStoreForScope}
+        onOpenRemoteDesktop={handleOpenRemoteDesktop}
         handleManageInstalledPlugins={handleManageInstalledPlugins}
         onConnectRemote={onConnectRemote}
         onSelectRemoteProject={onSelectRemoteProject}

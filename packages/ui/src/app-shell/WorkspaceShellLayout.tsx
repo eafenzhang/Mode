@@ -46,6 +46,7 @@ import type {
 } from "@/settings/saved-workflows/SavedWorkflowsSection.js";
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { PluginStorePage } from "@/settings/PluginStorePage.js";
+import { RemoteDesktopHome } from "@/remote-desktop/RemoteDesktopHome.js";
 import { TaskFindDialog } from "@/quickpick/TaskFindDialog.js";
 import { WorkspaceHeader } from "@/WorkspaceHeader.js";
 import { WorkspaceSidebar, type SidebarFileTreeOpenRequest } from "@/WorkspaceSidebar.js";
@@ -198,6 +199,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   onOpenAutomationConsumed,
   handleOpenAutomations,
   handleOpenPluginStore,
+  onOpenRemoteDesktop,
   handleManageInstalledPlugins,
   onConnectRemote,
   onSelectRemoteProject,
@@ -1492,7 +1494,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   // 与 Task Header 分叉。桌面端统一复用 WorkspaceHeader，只由 variant 裁剪 task 专属内容；
   // 手机远控无 active task 时仍不渲染桌面 chrome，继续遵守 replayable overlay 边界。
   const shouldRenderMainViewHeader =
-    workspaceMainView !== "automations" && workspaceMainView !== "plugin-store";
+    workspaceMainView !== "automations" &&
+    workspaceMainView !== "plugin-store" &&
+    workspaceMainView !== "remote-desktop";
   const shouldRenderWorkspaceHeader =
     shouldRenderMainViewHeader && (activeTaskId !== null || isDesktop);
   // ErrorBoundary resetKeys 的数组如果每次 render 都重新创建，
@@ -1600,6 +1604,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     automationsActive={workspaceMainView === "automations"}
                     onOpenPluginStore={handleOpenPluginStore}
                     pluginStoreActive={workspaceMainView === "plugin-store"}
+                    onOpenRemoteDesktop={onOpenRemoteDesktop}
+                    remoteDesktopActive={workspaceMainView === "remote-desktop"}
                     onFileTreeOpenChange={setIsSidebarFileTreeOpen}
                   />
                 </WorkflowRunOpenProvider>
@@ -1821,6 +1827,19 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             </div>
                           </AutomationsMainBreadcrumbFrame>
                         </main>
+                      ) : workspaceMainView === "remote-desktop" ? (
+                        // 远程桌面主视图：设备页与会话面都在页面组件内切换；
+                        // 会话面需要整块空间承载视频，因此不套 breadcrumb 内容容器。
+                        <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+                          <ScopedErrorBoundary
+                            scope="remote-desktop"
+                            resetKeys={[workspaceKey, workspaceAbsPath]}
+                            variant="panel"
+                            className="h-full"
+                          >
+                            <RemoteDesktopHome />
+                          </ScopedErrorBoundary>
+                        </main>
                       ) : (
                         <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                           {renderChatFindDialog()}
@@ -1899,7 +1918,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     </div>
                   </section>
                 </ResizablePanel>
-                {workspaceMainView !== "automations" && workspaceMainView !== "plugin-store" ? (
+                {workspaceMainView !== "automations" &&
+                workspaceMainView !== "plugin-store" &&
+                workspaceMainView !== "remote-desktop" ? (
                   <AnimatedTerminalPanel
                     frameClassName={cn(
                       isSidePaneVisible

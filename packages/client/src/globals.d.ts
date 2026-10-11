@@ -343,6 +343,40 @@ declare global {
       getSystemLocale?(): Promise<Locale>;
       /** 同步标题栏亮暗色 */
       setTitleBarTheme(theme: DesktopTitleBarTheme): Promise<void>;
+
+      // ---- 局域网远程桌面（main 的 `rd/*` IPC 面；命名与形状冻结在 ipcChannels.ts）----
+      /** 探测已配对对端的能力位与在线状态（经 host 用已存令牌拉 server-info） */
+      rdGetPeerCapability(
+        serverId: string,
+      ): ReturnType<import("@mode/shared").IPlatformService["rdGetPeerCapability"]>;
+      /** 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成） */
+      rdStartSession(
+        serverId: string,
+      ): ReturnType<import("@mode/shared").IPlatformService["rdStartSession"]>;
+      /** 写出信令消息（main 校验后转发） */
+      rdSendSignal(
+        message: import("@mode/shared/remote-desktop").RemoteDesktopSignalMessage,
+      ): Promise<void>;
+      /** 结束当前主控会话 */
+      rdEndSession(reason?: "user-end" | "error"): Promise<void>;
+      /** 读取被控设置面状态（总开关 + 已授权设备） */
+      rdGetServerState(): ReturnType<import("@mode/shared").IPlatformService["rdGetServerState"]>;
+      /** 写被控总开关 */
+      rdSetServerEnabled(
+        enabled: boolean,
+      ): ReturnType<import("@mode/shared").IPlatformService["rdSetServerEnabled"]>;
+      /** 撤销某个已授权设备 */
+      rdRevokeClient(
+        clientId: string,
+      ): ReturnType<import("@mode/shared").IPlatformService["rdRevokeClient"]>;
+      /** 订阅主控会话事件（连接状态 / 对端信令），返回 disposer */
+      onRemoteDesktopSessionEvent(
+        callback: (
+          event: Parameters<
+            Parameters<import("@mode/shared").IPlatformService["onRemoteDesktopSessionEvent"]>[0]
+          >[0],
+        ) => void,
+      ): () => void;
     };
   }
 }

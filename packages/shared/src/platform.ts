@@ -14,6 +14,7 @@ import type {
   LanPairedPeer,
   LanPairedPeerWorkspaces,
 } from "./lanAccess.js";
+import type { RemoteDesktopErrorCode, RemoteDesktopSignalMessage } from "./remote-desktop.js";
 import type {
   LoadCliMcpFromUserDirectoryRequest,
   LoadCliMcpFromUserDirectoryResult,
@@ -974,4 +975,64 @@ export interface IPlatformService {
    *   抗浏览器/网络/语言/时区变化，换手机才会变
    */
   getDeviceId(): string;
+
+  // ---- 局域网远程桌面（docs/specs/lan-remote-desktop.md；仅 Windows 桌面端为真实能力）----
+  // 主控侧会话控制全部经 main：对端能力探测、发起会话、信令转发、结束；
+  // 被控侧设置面（总开关 + 已授权设备）同理由 main 经 host 现读现写。
+  // 形状真源是 desktop 侧 `remoteDesktop/ipcChannels.ts`（冻结）；Web / 手机远控没有宿主
+  // Helper 与采集面，按「不支持」先例返回空态或稳定错误码。
+
+  /** 探测某个已配对对端的能力位与在线状态（main 经 host 用已存令牌拉对端 server-info）。 */
+  rdGetPeerCapability(serverId: string): Promise<{
+    /** 对端 `server-info.capabilities.remoteDesktop`；旧对端缺键 = false（不支持）。 */
+    remoteDesktop: boolean;
+    /** 宿主探测是否成功；false 时能力位不可信，按离线展示。 */
+    online: boolean;
+    /** 对端自报名（可选）。 */
+    name?: string;
+  }>;
+
+  /** 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成）；失败返回稳定错误码。 */
+  rdStartSession(serverId: string): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+
+  /** 向被控端写出信令消息（main 校验后经 WS 转发；未建立会话时丢弃）。 */
+  rdSendSignal(message: RemoteDesktopSignalMessage): void;
+
+  /** 结束当前主控会话（main 先带出 bye 再收尾）。 */
+  rdEndSession(reason?: "user-end" | "error"): Promise<void>;
+
+  /** 读取被控设置面状态（总开关 + 已授权设备）；读失败由实现按 fail-closed 兜底。 */
+  rdGetServerState(): Promise<{
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+  }>;
+
+  /** 写被控总开关；关开关会立即终止进行中的被控会话。返回最新状态。 */
+  rdSetServerEnabled(enabled: boolean): Promise<{
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+  }>;
+
+  /** 撤销某个已授权设备（下次连接重新弹同意窗）。返回最新状态。 */
+  rdRevokeClient(clientId: string): Promise<{
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+  }>;
+
+  /**
+   * 订阅主控会话事件，返回 disposer。
+   * - `state`：信令连接生命周期（connected 后 renderer 发 `hello` 起媒体协商）；
+   * - `signal`：对端信令（T1 union；main 已校验，仅转发）。
+   */
+  onRemoteDesktopSessionEvent(
+    handler: (
+      event:
+        | {
+            kind: "state";
+            state: "connecting" | "connected" | "closed";
+            error?: RemoteDesktopErrorCode;
+          }
+        | { kind: "signal"; message: RemoteDesktopSignalMessage },
+    ) => void,
+  ): () => void;
 }

@@ -464,6 +464,8 @@ export interface ModeSessionStoreState {
   ) => void;
   /** 记录插件市场主视图导航。 */
   taskNavPushPluginStore: (workspacePath: string, workspaceIdentity?: string) => void;
+  /** 记录「远程桌面」主视图导航。 */
+  taskNavPushRemoteDesktop: (workspacePath: string, workspaceIdentity?: string) => void;
   /** 后退，返回目标 entry；到头了返回 null */
   taskNavGoBack: () => WorkspaceNavEntry | null;
   /** 前进，返回目标 entry；到头了返回 null */
@@ -510,9 +512,7 @@ export const DEFAULT_TASK_RUNTIME_STATE: TaskRuntimeState = {
 // Factory functions
 // ────────────────────────────────────────────
 
-export function createDefaultWorkspaceState(
-  selectedProvider: ModeProvider,
-): WorkspaceModeUIState {
+export function createDefaultWorkspaceState(selectedProvider: ModeProvider): WorkspaceModeUIState {
   return {
     activeTaskId: null,
     workspaceInit: { ...DEFAULT_WORKSPACE_INIT_STATE },

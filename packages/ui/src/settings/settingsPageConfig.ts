@@ -1,5 +1,6 @@
 import {
   Monitor,
+  MonitorSmartphone,
   Radar,
   Moon,
   Settings,
@@ -145,6 +146,13 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.lanAccess.title",
     groupId: "basics",
   },
+  // 远程桌面：被控端同意/指示/授权管理；仅 win32 桌面端为真实能力（两端都要 Windows）。
+  {
+    id: "remoteDesktop",
+    icon: MonitorSmartphone,
+    titleId: "settings.remoteDesktop.title",
+    groupId: "basics",
+  },
   // 键盘快捷键：同属本机操控/效率配置，收纳在基础设置尾部。
   {
     id: "shortcuts",
@@ -170,7 +178,10 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
 // 兼容既有只读消费者：默认配置代表不带桌面平台能力的 Web 视图；
 // macOS/Windows/Linux 必须继续通过 createSettingsPageConfig 动态加入 Computer Use。
 export const SETTINGS_SECTIONS = BASE_SETTINGS_SECTIONS.filter(
-  (section) => section.id !== "computerUse" && isSettingsSectionEnabled(section.id),
+  (section) =>
+    section.id !== "computerUse" &&
+    section.id !== "remoteDesktop" &&
+    isSettingsSectionEnabled(section.id),
 );
 
 interface SettingsPageConfigOptions {
@@ -187,6 +198,8 @@ export function createSettingsPageConfig({
   const showComputerUse = isDesktop || isMacDesktop || isWindowsDesktop;
   const settingsSections = BASE_SETTINGS_SECTIONS.filter((section) => {
     if (section.id === "computerUse" && !showComputerUse) return false;
+    // 远程桌面两端都必须是 Windows（宿主 Helper + 屏幕采集面），仅 win32 桌面端可见。
+    if (section.id === "remoteDesktop" && !isWindowsDesktop) return false;
     return isSettingsSectionEnabled(section.id);
   });
   const settingsSectionGroups = BASE_SETTINGS_SECTION_GROUPS.map((group) => ({

@@ -116,7 +116,7 @@ export interface GitChangeSummary {
   removed: number;
 }
 
-export type WorkspaceMainView = "chat" | "automations" | "plugin-store";
+export type WorkspaceMainView = "chat" | "automations" | "plugin-store" | "remote-desktop";
 
 export interface WorkspaceShellLayoutProps extends AppProps {
   workspaceReadOnlyReason?: string;
@@ -128,6 +128,8 @@ export interface WorkspaceShellLayoutProps extends AppProps {
   onOpenAutomationConsumed: () => void;
   handleOpenAutomations: OpenAutomationsMain;
   handleOpenPluginStore: () => void;
+  /** 打开「远程桌面」主视图（仅 win32 桌面端入口可见；走 workspace 导航历史）。 */
+  onOpenRemoteDesktop: () => void;
   handleManageInstalledPlugins: () => void;
   workspaceShellModeState: WorkspaceShellModeState;
   theme: Theme;

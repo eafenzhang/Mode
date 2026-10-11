@@ -6,6 +6,7 @@ import {
   canGoForward as navCanGoForward,
   isAutomationsNavEntry,
   isPluginStoreNavEntry,
+  isRemoteDesktopNavEntry,
   type AutomationsNavigationTab,
 } from "@/lib/taskNavigationHistory.js";
 import { shouldBlockTaskSelectionDuringModelRestart } from "@/lib/taskSwitchGuard.js";
@@ -41,6 +42,7 @@ export function useWorkspaceTaskNavigation({
   onNavigateToTask,
   onNavigateToAutomations,
   onNavigateToPluginStore,
+  onNavigateToRemoteDesktop,
 }: {
   intl: { formatMessage: (descriptor: { id: string }) => string };
   workspaceAbsPath: string;
@@ -49,6 +51,7 @@ export function useWorkspaceTaskNavigation({
   onNavigateToTask?: () => void;
   onNavigateToAutomations?: (target: AutomationsNavigationTarget) => void;
   onNavigateToPluginStore?: (target: Omit<AutomationsNavigationTarget, "automationId">) => void;
+  onNavigateToRemoteDesktop?: (target: Omit<AutomationsNavigationTarget, "automationId">) => void;
 }) {
   // 跨 workspace 选择会先同步切换 tab，但本次 React render 捕获的 ambient
   // services 仍可能属于旧 remote attachment。local 目标必须固定从 window base attachment
@@ -61,6 +64,7 @@ export function useWorkspaceTaskNavigation({
   const taskNavPushPluginStore = useModeSessionStore((s) => s.taskNavPushPluginStore);
   const taskNavGoBack = useModeSessionStore((s) => s.taskNavGoBack);
   const taskNavGoForward = useModeSessionStore((s) => s.taskNavGoForward);
+  const taskNavPushRemoteDesktop = useModeSessionStore((s) => s.taskNavPushRemoteDesktop);
   const removeTaskFromNavHistory = useModeSessionStore((s) => s.removeTaskFromNavHistory);
 
   const handleSelectTask = useCallback(
@@ -224,6 +228,12 @@ export function useWorkspaceTaskNavigation({
     onNavigateToPluginStore?.({ workspacePath: workspaceAbsPath, workspaceIdentity });
   }, [onNavigateToPluginStore, taskNavPushPluginStore, workspaceAbsPath, workspaceIdentity]);
 
+  const handleOpenRemoteDesktop = useCallback(() => {
+    // 与插件市场同款：入口先入栈历史，前进/后退据此恢复；回放只消费条目不再入栈。
+    taskNavPushRemoteDesktop(workspaceAbsPath, workspaceIdentity);
+    onNavigateToRemoteDesktop?.({ workspacePath: workspaceAbsPath, workspaceIdentity });
+  }, [onNavigateToRemoteDesktop, taskNavPushRemoteDesktop, workspaceAbsPath, workspaceIdentity]);
+
   const handleTaskNavBack = useCallback(() => {
     const currentWorkspaceState = useModeSessionStore
       .getState()
@@ -277,6 +287,16 @@ export function useWorkspaceTaskNavigation({
         onNavigateToPluginStore?.(currentEntry);
         return;
       }
+      if (isRemoteDesktopNavEntry(currentEntry)) {
+        activateTabByPath(
+          currentEntry.workspacePath,
+          currentEntry.workspaceIdentity
+            ? { workspaceIdentity: currentEntry.workspaceIdentity }
+            : undefined,
+        );
+        onNavigateToRemoteDesktop?.(currentEntry);
+        return;
+      }
       const navWorkspaceState = useModeSessionStore
         .getState()
         .getWorkspaceState(currentEntry.workspacePath, currentEntry.workspaceIdentity);
@@ -306,6 +326,7 @@ export function useWorkspaceTaskNavigation({
     intl,
     onNavigateToAutomations,
     onNavigateToPluginStore,
+    onNavigateToRemoteDesktop,
     removeTaskFromNavHistory,
     taskNavGoBack,
     workspaceAbsPath,
@@ -363,6 +384,16 @@ export function useWorkspaceTaskNavigation({
         onNavigateToPluginStore?.(currentEntry);
         return;
       }
+      if (isRemoteDesktopNavEntry(currentEntry)) {
+        activateTabByPath(
+          currentEntry.workspacePath,
+          currentEntry.workspaceIdentity
+            ? { workspaceIdentity: currentEntry.workspaceIdentity }
+            : undefined,
+        );
+        onNavigateToRemoteDesktop?.(currentEntry);
+        return;
+      }
       const navWorkspaceState = useModeSessionStore
         .getState()
         .getWorkspaceState(currentEntry.workspacePath, currentEntry.workspaceIdentity);
@@ -391,6 +422,7 @@ export function useWorkspaceTaskNavigation({
     intl,
     onNavigateToAutomations,
     onNavigateToPluginStore,
+    onNavigateToRemoteDesktop,
     removeTaskFromNavHistory,
     taskNavGoForward,
     workspaceAbsPath,
@@ -410,6 +442,7 @@ export function useWorkspaceTaskNavigation({
     handleSelectTask,
     handleOpenAutomations,
     handleOpenPluginStore,
+    handleOpenRemoteDesktop,
     handleTaskNavBack,
     handleTaskNavForward,
     canGoBack,

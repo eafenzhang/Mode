@@ -1,4 +1,5 @@
 import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@mode/shared";
+import type { RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
 
@@ -41,6 +42,18 @@ export function createDesktopPlatform(options: {
     getLanPairedPeers: () => window.mode.getLanPairedPeers(),
     getLanPeerWorkspaces: (serverId) => window.mode.getLanPeerWorkspaces(serverId),
     removeLanPairedPeer: (serverId) => window.mode.removeLanPairedPeer(serverId),
+    // 局域网远程桌面（main 的 rd/* IPC；通道名与形状冻结在 main/remoteDesktop/ipcChannels.ts）。
+    rdGetPeerCapability: (serverId) => window.mode.rdGetPeerCapability(serverId),
+    rdStartSession: (serverId) => window.mode.rdStartSession(serverId),
+    // 信令是高频小包，直接透传给 main；失败只记日志不抛出，避免打断媒体面。
+    rdSendSignal: (message: RemoteDesktopSignalMessage) => {
+      void window.mode.rdSendSignal(message).catch(() => undefined);
+    },
+    rdEndSession: (reason) => window.mode.rdEndSession(reason),
+    rdGetServerState: () => window.mode.rdGetServerState(),
+    rdSetServerEnabled: (enabled) => window.mode.rdSetServerEnabled(enabled),
+    rdRevokeClient: (clientId) => window.mode.rdRevokeClient(clientId),
+    onRemoteDesktopSessionEvent: (handler) => window.mode.onRemoteDesktopSessionEvent(handler),
     loadMcpFromUserDirectory: (payload) => window.mode.loadMcpFromUserDirectory(payload),
     saveMcpToUserDirectory: (payload) => window.mode.saveMcpToUserDirectory(payload),
     migrateLegacyCommonMcp: (payload) => window.mode.migrateLegacyCommonMcp(payload),
@@ -123,8 +136,7 @@ export function createDesktopPlatform(options: {
     setAutoDownloadAndInstallUpdates: (enabled) =>
       window.mode.setAutoDownloadAndInstallUpdates?.(enabled) ?? Promise.resolve(),
     getDesktopSessionActivity: () =>
-      window.mode.getDesktopSessionActivity?.() ??
-      Promise.resolve({ runningAgentSessionCount: 0 }),
+      window.mode.getDesktopSessionActivity?.() ?? Promise.resolve({ runningAgentSessionCount: 0 }),
     getModeStdioTapDevState: () =>
       window.mode.getModeStdioTapDevState?.() ??
       Promise.resolve({ enabled: false, visible: false, logDir: "", statePath: "" }),

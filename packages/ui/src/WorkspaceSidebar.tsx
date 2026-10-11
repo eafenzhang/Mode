@@ -25,6 +25,7 @@ import {
   MessageCircleCheck,
   MessageCirclePlus,
   Minimize2,
+  MonitorSmartphone,
   Plus,
   Search,
   X,
@@ -257,8 +258,10 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onOpenCommandCenter,
   onOpenAutomations,
   onOpenPluginStore,
+  onOpenRemoteDesktop,
   automationsActive = false,
   pluginStoreActive = false,
+  remoteDesktopActive = false,
   onFileTreeOpenChange,
 }: {
   workspacePath: string;
@@ -309,8 +312,11 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onOpenCommandCenter: () => void;
   onOpenAutomations?: () => void;
   onOpenPluginStore?: () => void;
+  /** 打开「远程桌面」主视图（仅 win32 桌面端渲染入口）。 */
+  onOpenRemoteDesktop?: () => void;
   automationsActive?: boolean;
   pluginStoreActive?: boolean;
+  remoteDesktopActive?: boolean;
   onFileTreeOpenChange?: (open: boolean) => void;
 }) {
   const { intl, localePreference, setLocalePreference } = useModeIntl();
@@ -750,6 +756,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   const handleOpenPluginStoreMain = useCallback(() => {
     onOpenPluginStore?.();
   }, [onOpenPluginStore]);
+  const handleOpenRemoteDesktopMain = useCallback(() => {
+    onOpenRemoteDesktop?.();
+  }, [onOpenRemoteDesktop]);
   const handleOpenAutomationsMain = useCallback(() => {
     onOpenAutomations?.();
   }, [onOpenAutomations]);
@@ -1343,6 +1352,24 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
               <Blocks className="size-4" />
               {intl.formatMessage({ id: "workspace.openPluginsSettings" })}
             </Button>
+            {/* 远程桌面：两端 Windows 桌面端的实时画面 + 键鼠控制；其他平台没有宿主采集/注入面，入口不渲染。 */}
+            {isWindowsDesktop ? (
+              <Button
+                variant="ghost"
+                onClick={handleOpenRemoteDesktopMain}
+                data-icon="inline-start"
+                data-testid="remote-desktop-sidebar-open"
+                size="lg"
+                aria-pressed={remoteDesktopActive}
+                className={cn(
+                  "w-full justify-start gap-2 text-foreground hover:bg-surface-hover hover:text-foreground",
+                  remoteDesktopActive && "bg-selected text-foreground",
+                )}
+              >
+                <MonitorSmartphone className="size-4" />
+                {intl.formatMessage({ id: "workspace.openRemoteDesktop" })}
+              </Button>
+            ) : null}
           </div>
 
           <div className="relative flex min-h-0 flex-1 flex-col">

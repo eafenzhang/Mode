@@ -34,7 +34,17 @@ export interface PluginStoreNavEntry extends WorkspaceNavEntryBase {
   kind: "plugin-store";
 }
 
-export type WorkspaceNavEntry = TaskNavEntry | AutomationsNavEntry | PluginStoreNavEntry;
+// 「远程桌面」是与插件市场并列的 workspace 主视图：与 task 生命周期无关，
+// 但同样需要浏览器式前进/后退（入口在侧边栏，跨 workspace 需身份隔离键）。
+export interface RemoteDesktopNavEntry extends WorkspaceNavEntryBase {
+  kind: "remote-desktop";
+}
+
+export type WorkspaceNavEntry =
+  | TaskNavEntry
+  | AutomationsNavEntry
+  | PluginStoreNavEntry
+  | RemoteDesktopNavEntry;
 
 export interface TaskNavigationHistory {
   entries: WorkspaceNavEntry[];
@@ -58,6 +68,10 @@ export function isAutomationsNavEntry(entry: WorkspaceNavEntry): entry is Automa
 
 export function isPluginStoreNavEntry(entry: WorkspaceNavEntry): entry is PluginStoreNavEntry {
   return entry.kind === "plugin-store";
+}
+
+export function isRemoteDesktopNavEntry(entry: WorkspaceNavEntry): entry is RemoteDesktopNavEntry {
+  return entry.kind === "remote-desktop";
 }
 
 function isSameNavEntry(left: WorkspaceNavEntry, right: WorkspaceNavEntry): boolean {
@@ -145,6 +159,19 @@ export function pushPluginStoreNavEntry(
 ): TaskNavigationHistory {
   return pushEntry(history, {
     kind: "plugin-store",
+    workspacePath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+  });
+}
+
+/** 用户主动打开「远程桌面」主视图时调用。 */
+export function pushRemoteDesktopNavEntry(
+  history: TaskNavigationHistory,
+  workspacePath: string,
+  workspaceIdentity?: string,
+): TaskNavigationHistory {
+  return pushEntry(history, {
+    kind: "remote-desktop",
     workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
   });
