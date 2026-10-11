@@ -151,6 +151,13 @@ export {
   normalizeCuaHelperArch,
   normalizeCuaHelperArchs,
 } from "./cua-permission-broker/cuaHelperInstaller.js";
+// 远程桌面被控注入端口（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：
+// 工厂供宿主/测试注入 socket 解析点；Local Host 装配实例经 getCuaRawInputInjector 侧表读取。
+export {
+  createCuaRawInputInjector,
+  type CreateCuaRawInputInjectorOptions,
+  type CuaRawInputInjector,
+} from "./cua-permission-broker/cuaRawInput.js";
 export type {
   CuaHelperInstaller,
   CuaHelperInstallerOptions,
@@ -530,6 +537,10 @@ import {
 } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
 import { createCanonicalCuaHelperInstaller } from "./cua-permission-broker/cuaHelperInstaller.js";
 import {
+  createCuaRawInputInjector,
+  type CuaRawInputInjector,
+} from "./cua-permission-broker/cuaRawInput.js";
+import {
   isCuaExcludedRemoteWorkspaceIdentity,
   resolveCuaWorkspaceEnablement,
 } from "./cuaEnablement.js";
@@ -716,6 +727,21 @@ export function getOffPeakRequestAuthBuilder(
 ): OffPeakRequestAuthBuilder | undefined {
   return offPeakRequestAuthBuilders.get(services);
 }
+
+const cuaRawInputInjectors = new WeakMap<ServiceCollection, CuaRawInputInjector>();
+
+/**
+ * 远程桌面被控输入注入端口（经既有 CUA Helper 通道调用 broker raw_input）。
+ * 与 accountRequestAuth / providerProvisioning 同口径：只按 ServiceCollection 侧表暴露给
+ * host 装配层，不注册进服务集合，避免 renderer 经通用 RPC Channel 触达 Helper
+ * （docs/specs/lan-remote-desktop.md 安全边界：令牌与输入注入不出 main/host）。
+ */
+export function getCuaRawInputInjector(
+  services: ServiceCollection,
+): CuaRawInputInjector | undefined {
+  return cuaRawInputInjectors.get(services);
+}
+
 const managedHostApiNetworkTransports = new WeakMap<ServiceCollection, HostApiNetworkTransport>();
 
 export function registerManagedCuaHelperHostForDispose(
@@ -755,6 +781,13 @@ export function shouldEnableDefaultCuaProductHelper(
  *   desktop-local authority，helper 落在对端本机，见 docs/specs/lan-remote-computer-use.md），
  *   ssh/wsl/docker 与无法解析的非空串维持排除；
  * - 已显式注入 resolver 时不重复创建。
+ *
+ * 准入理由为并列两项（外部只增不减的 OR）：
+ * - CUA 插件启用（既有唯一理由）；
+ * - 远程桌面被控总开关开（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：被控注入
+ *   走既有 Helper 通道的 raw_input，插件关闭时同样必须能建 Helper；authority 与 identity
+ *   条件不变（开关打开不豁免 desktop-local 与 ssh/wsl/docker 排除）。
+ *
  * 平台/环境层面的启用与否另由 shouldEnableDefaultCuaProductHelper 决定。
  */
 export function shouldCreateDefaultCuaProductHelper(opts: {
@@ -762,9 +795,12 @@ export function shouldCreateDefaultCuaProductHelper(opts: {
   hasRemoteWorkspaceIdentity?: boolean;
   hasInjectedResolver: boolean;
   hasBuiltInCuaPlugin: boolean;
+  /** 被控开关读取点（缺省 = 关闭，产品规则 1「默认关」）；懒读取，插件已放行时不求值。 */
+  isRemoteDesktopServerEnabled?: () => boolean;
 }): boolean {
+  const isRemoteDesktopServerEnabled = opts.isRemoteDesktopServerEnabled ?? (() => false);
   return (
-    opts.hasBuiltInCuaPlugin &&
+    (opts.hasBuiltInCuaPlugin || isRemoteDesktopServerEnabled()) &&
     opts.serviceAuthorityMode === "desktop-local" &&
     !opts.hasRemoteWorkspaceIdentity &&
     !opts.hasInjectedResolver
@@ -1386,6 +1422,13 @@ export function createLocalServices(options: {
   ) => void;
   serviceAuthorityMode?: ServiceAuthorityMode;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
+  /**
+   * 远程桌面被控总开关读取点（设置页「远程桌面」分区，默认关；docs/specs/lan-remote-desktop.md）。
+   * 它是 helper 创建准入的第二理由（与 CUA 插件启用并列，见 shouldCreateDefaultCuaProductHelper）：
+   * 被控注入经既有 Helper 通道的 raw_input，插件关闭但被控开关打开时同样需要建 Helper。
+   * 缺省 = 关闭；host 侧接线（设置存储注入）由桌面装配层负责，services 不读设置文件。
+   */
+  isRemoteDesktopServerEnabled?: () => boolean;
   agentRuntimeContext?: {
     getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
@@ -1772,6 +1815,8 @@ export function createLocalServices(options: {
           ),
           hasInjectedResolver: Boolean(options?.cuaProductMcpServerResolver),
           hasBuiltInCuaPlugin: isCuaEnabledForContext(context),
+          // 被控开关优先级与插件并列；缺省关闭，宿主装配层（桌面 host）注入真实读取点。
+          isRemoteDesktopServerEnabled: options?.isRemoteDesktopServerEnabled,
         }),
       shouldRetainCurrent: shouldRetainDefaultCuaProductHelper,
       create: () => createManagedDefaultCuaProductHelper(context),
@@ -1820,6 +1865,23 @@ export function createLocalServices(options: {
       return null;
     }
   };
+
+  // 远程桌面被控注入端口的 socket 解析（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：
+  // 优先托管 host 的 live socket（cuaPipSessionService.resolveCredentials 同口径的 peek，
+  // 绝不 acquire/拉起），否则回落到稳定 socket 探测（env 发现 + 300ms ping，probe-only）。
+  // 复用既有 helper 通道 = 不新建第二条生命周期、不自行 fork；不可达时由注入端口直接
+  // fail closed 抛 helper_unavailable，会话失败语义归被控 main 桥。
+  const resolveCuaRawInputSocketPath = async (): Promise<string | null> => {
+    const managedHelper = defaultCuaProductHelperLifecycle.peek()?.helper;
+    if (managedHelper && isDefaultCuaProductHelperCurrent(managedHelper)) {
+      const socketPath = managedHelper.host.socketPath;
+      if (socketPath) return socketPath;
+    }
+    return await probeStableCuaHelperSocket();
+  };
+  const cuaRawInputInjector = createCuaRawInputInjector({
+    resolveSocketPath: resolveCuaRawInputSocketPath,
+  });
 
   // 按需启动：拉起 standalone Helper（稳定 socket）。dev 场景（本 Helper 构建内嵌 dev
   // policy）成对带 unsigned-launcher/external-escape argv，让 ad-hoc 签名的本进程也能过
@@ -2697,6 +2759,9 @@ export function createLocalServices(options: {
 
   accountRequestAuthServices.set(services, accountRequestAuthService);
   offPeakRequestAuthBuilders.set(services, buildOffPeakRequestAuthForTicket);
+  // 远控注入端口是 Local Host 进程内能力：只按侧表交给 host 装配层，不注册进服务集合
+  // （renderer 不得经 RPC 触达 Helper；见 getCuaRawInputInjector 注释）。
+  cuaRawInputInjectors.set(services, cuaRawInputInjector);
 
   providerRuntimes.set(services, providerRuntime);
   providerProvisioningSources.set(services, providerProvisioningSource);
