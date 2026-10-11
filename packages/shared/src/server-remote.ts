@@ -22,6 +22,9 @@ export const serverRemoteInfoSchema = z.object({
     // LAN 电脑控制设备能力位：对端 win/mac + env kill-switch + desktop-local host 才发 true；
     // 旧对端缺键 = 不支持（docs/specs/lan-remote-computer-use.md）。
     computerUse: z.boolean().optional(),
+    // LAN 远程桌面设备能力位：对端 win32 + 被控开关开 + env kill-switch 才发 true；
+    // 旧对端缺键 = 不支持（docs/specs/lan-remote-desktop.md）。
+    remoteDesktop: z.boolean().optional(),
   }),
 });
 
