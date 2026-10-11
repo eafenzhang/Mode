@@ -166,7 +166,7 @@ function isTransientAttachmentUploadError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   // video 超限错误必须在黑名单里，否则会触发一次无意义重试；按错误类型精确拦截，
   // 避免扩大 message 正则后改变 image 超限的既有判定。
-  return !/(?:payloadTooLarge|invalidBase64|invalidServerProgress|frameTooLarge|permission|EACCES|ENOENT|not found|unsupported|附件缺少|缺少可读取内容|远端附件未完成物化)/iu.test(
+  return !/(?:payloadTooLarge|invalidBase64|invalidServerProgress|frameTooLarge|permission|EACCES|ENOENT|not found|unsupported|附件缺少|缺少可读取内容|远端附件未完成物化|局域网连接附件单文件上限|对端版本不支持附件上传|附件文件不存在)/iu.test(
     message,
   );
 }

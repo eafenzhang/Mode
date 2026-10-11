@@ -18,7 +18,6 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  Emitter,
   MessagePortProtocol,
   ChannelServer,
   type IChannelServer,
@@ -30,8 +29,6 @@ import {
   ServiceCollection,
   IBotsService,
   IFileService,
-  IPromptAttachmentTransferService,
-  type PromptAttachmentTransferProgress,
   IClientConfigService,
   IMediaPreviewService,
   IOffPeakTaskService,
@@ -68,6 +65,10 @@ import {
 } from "@mode/services/node";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
 import { startLanAccessServer, type LanAccessServerHandle } from "./lanAccessServer.js";
+import {
+  createLanPromptAttachmentTransferService,
+  materializeLanPromptAttachments,
+} from "./lanPromptAttachments.js";
 import {
   attachLanRemoteConnection,
   fetchLanPeerInfo,
@@ -1591,8 +1592,9 @@ async function disposeHostRemoteConnection(connection: HostRemoteConnection): Pr
 
 /**
  * 局域网连接句柄：对端是已在运行的 Mode 实例，因此没有 stdio backend——
- * 附件上传/资源部署这类依赖 backend 的能力在 v1 明确不支持（给出可读错误），
- * 文件/Git/终端/会话等全部经同一个受信 RPC 通道照常可用。
+ * 附件改走会话 artifact 的 chunk 通道上传（stage 契约与 SSH 一致），发送前在
+ * 本机把 localPath 物化成 dataBase64；文件/Git/终端/会话等全部经同一个受信
+ * RPC 通道照常可用。
  */
 async function createWindowLanRemoteConnectionHandle(
   target: Extract<RemoteTarget, { kind: "lan" }>,
@@ -1627,29 +1629,19 @@ async function createWindowLanRemoteConnectionHandle(
     throw new Error("远程连接已取消");
   }
 
-  const unsupportedAttachmentError = () => {
-    throw new Error(
-      "局域网连接暂不支持随消息上传附件；请改用文本描述，或把文件放到对端工作区后再引用。",
-    );
-  };
+  const promptAttachmentTransferService = createLanPromptAttachmentTransferService({
+    channel: connection.services.modeAgentService,
+  });
   const materializePromptAttachments = async (request: {
     taskId: string;
     traceId: TraceId | string;
     content: string;
     attachments?: ModePromptAttachment[];
   }) => {
-    if (request.attachments && request.attachments.length > 0) {
-      unsupportedAttachmentError();
-    }
-    return { content: request.content, attachments: request.attachments };
-  };
-  const progressEmitter = new Emitter<PromptAttachmentTransferProgress>();
-  const promptAttachmentTransferService: IPromptAttachmentTransferService = {
-    stage: async () => unsupportedAttachmentError(),
-    adopt: async () => undefined,
-    cancel: async () => undefined,
-    cleanup: async () => undefined,
-    onDynamicProgress: () => progressEmitter.event,
+    const result = await materializeLanPromptAttachments(request, {
+      fileService: connection.services.fileService,
+    });
+    return { content: result.content, attachments: result.attachments };
   };
 
   const services = createRemoteWorkspaceServiceCollection({
