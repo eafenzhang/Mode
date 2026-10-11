@@ -1,6 +1,7 @@
 import { createSocket } from "node:dgram";
 import { networkInterfaces } from "node:os";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import type { WebSocket } from "ws";
 import {
   LAN_ACCESS_CLIENTS_CREDENTIAL_KEY,
   LAN_ACCESS_DEFAULT_PORT,
@@ -18,12 +19,37 @@ import {
   type ServerRemoteWorkspaceInfo,
   isModeCuaInternalFeatureEnabled,
 } from "@mode/shared";
+import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
 import { createHttpServer } from "@mode/server";
 import type { ICredentialService, ServiceCollection } from "@mode/services";
 import { formatLogPrefix } from "@mode/shared";
 
 const log = (...args: unknown[]) => console.log(formatLogPrefix("lanAccess", process.pid), ...args);
 const warn = (...args: unknown[]) => console.warn(formatLogPrefix("lanAccess", process.pid), ...args);
+
+/** 远程桌面打包层 kill-switch 的 env 键（docs/specs/lan-remote-desktop.md 接口变更 6）。 */
+export const MODE_REMOTE_DESKTOP_KILL_SWITCH_ENV_KEY = "MODE_REMOTE_DESKTOP_KILL_SWITCH";
+
+/**
+ * 打包层 kill-switch（镜像 MODE_CUA_PRODUCT_HELPER 的「只能关不能开」语义）：
+ * 置为 1/true/on → 压死远程桌面能力位；未设置或置为 0/false/off → 不干预，
+ * 是否启用由被控开关（设置页总开关）决定，本开关永远不能把功能打开。
+ */
+export function isRemoteDesktopKillSwitchEngaged(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const explicit = env[MODE_REMOTE_DESKTOP_KILL_SWITCH_ENV_KEY]?.trim().toLowerCase();
+  return explicit === "1" || explicit === "true" || explicit === "on";
+}
+
+/** 远程桌面设备能力位口径（纯函数，跨平台可测）：win32 && kill-switch 未触发 && 被控开关开。 */
+export function computeRemoteDesktopCapability(params: {
+  platform: string;
+  killSwitchEngaged: boolean;
+  serverEnabled: boolean;
+}): boolean {
+  return params.platform === "win32" && !params.killSwitchEngaged && params.serverEnabled;
+}
 
 /** 局域网访问服务端：监听局域网、应答发现、校验逐设备令牌、受理配对码。 */
 export interface LanAccessServerHandle {
@@ -41,6 +67,21 @@ export interface StartLanAccessServerParams {
   getWorkspaces: () => Promise<ServerRemoteWorkspaceInfo[]>;
   appVersion: string;
   machineName: string;
+  /**
+   * 远程桌面被控总开关读取点（设置页「远程桌面」分区，默认关）。
+   * 握手即时求值（能力位不持久化）；缺省 = 关闭。T6 接入设置存储。
+   */
+  isRemoteDesktopServerEnabled?: () => boolean;
+  /**
+   * 远程桌面被控 hook 注入点（T3 接 main 桥：同意流 / 信令转发）。
+   * 缺省实现：requestSession 一律拒绝（disabled）、onSessionSocket 直接关闭连接。
+   */
+  remoteDesktop?: {
+    requestSession?: (
+      clientId: string,
+    ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+    onSessionSocket?: (clientId: string, socket: WebSocket) => void;
+  };
 }
 
 /** 定长比较；长度不同直接失败，不做 pad（令牌是 base64url 定长串）。 */
@@ -246,6 +287,25 @@ export async function startLanAccessServer(
     computerUseCapability:
       (process.platform === "win32" || process.platform === "darwin") &&
       isModeCuaInternalFeatureEnabled(process.env),
+    // 远程桌面能力位 = win32 && kill-switch 未触发 && 被控开关开（缺省关）。
+    // 开关是可变设置，按每次握手现取（能力位本身不持久化，docs/specs/lan-remote-desktop.md 产品规则 5）。
+    remoteDesktopCapability: () =>
+      computeRemoteDesktopCapability({
+        platform: process.platform,
+        killSwitchEngaged: isRemoteDesktopKillSwitchEngaged(process.env),
+        serverEnabled: params.isRemoteDesktopServerEnabled?.() ?? false,
+      }),
+    // T3 接 main 桥：缺省实现下会话请求一律拒绝、信令 socket 断链，不落地半开状态。
+    remoteDesktop: {
+      requestSession:
+        params.remoteDesktop?.requestSession ??
+        (async (): Promise<{ error: RemoteDesktopErrorCode }> => ({ error: "disabled" })),
+      onSessionSocket:
+        params.remoteDesktop?.onSessionSocket ??
+        ((_clientId: string, socket: WebSocket) => {
+          socket.close(4001, "remote desktop not wired");
+        }),
+    },
   });
   const port = await waitForListenPort(server, LAN_ACCESS_DEFAULT_PORT);
 

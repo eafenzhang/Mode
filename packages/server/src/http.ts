@@ -45,8 +45,11 @@ import {
   type ServerRemoteInfo,
   type ServerRemoteWorkspaceInfo,
 } from "@mode/shared";
+// 远程桌面协议面单独入口（T1），根入口不重导出，避免把桌面链路类型带进所有消费方。
+import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
+import { createRemoteDesktopTicketStore } from "./remoteDesktopTicket.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -250,6 +253,48 @@ interface HttpServerOptions {
    * （desktop LAN access server）会传布尔值；不传 = 不声明该键（docs/specs/lan-remote-computer-use.md）。
    */
   computerUseCapability?: boolean;
+  /**
+   * 设备级远程桌面能力位（LAN 能力协商）。只有 win32 被控且总开关开启的 desktop
+   * LAN access server 会传值；不传 = 不声明该键（docs/specs/lan-remote-desktop.md 产品规则 5）。
+   * 被控总开关是可变设置：函数形式按每次握手现取（同 workspaces 先例），
+   * 冻结布尔会让「开关打开」必须重启监听才生效。
+   */
+  remoteDesktopCapability?: boolean | (() => boolean);
+  /**
+   * 局域网远程桌面被控 hook（docs/specs/lan-remote-desktop.md 接口变更 2）：
+   * 提供时暴露 POST /api/remote-desktop/session 与 GET /ws/remote-desktop。
+   * 会话请求由宿主裁决（同意流），票据签发与单次消费由本模块兜底；
+   * 信令单帧（RemoteDesktopSignalMessage JSON）交给 onSessionSocket 的宿主转发，本模块不解析内容。
+   */
+  remoteDesktop?: RemoteDesktopHooks;
+}
+
+/** 远程桌面被控 hook：请求会话（可含被控同意）与升级后的信令 socket 交接。 */
+export interface RemoteDesktopHooks {
+  requestSession(clientId: string): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+  onSessionSocket(clientId: string, socket: WebSocket): void;
+}
+
+/**
+ * 会话请求失败时的 HTTP 状态：稳定错误码是主要契约（对端按 code 出文案），
+ * 状态码只做传输层归类（docs/specs/lan-remote-desktop.md 降级与失败语义）。
+ */
+function remoteDesktopErrorStatus(code: RemoteDesktopErrorCode): 401 | 403 | 409 | 500 | 501 {
+  switch (code) {
+    case "unauthorized":
+    case "stale_ticket":
+      return 401;
+    case "disabled":
+    case "consent_denied":
+    case "consent_timeout":
+      return 403;
+    case "busy":
+      return 409;
+    case "unsupported":
+      return 501;
+    case "internal":
+      return 500;
+  }
 }
 
 function readTrimmedEnv(name: string): string | undefined {
@@ -300,6 +345,15 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
       // （docs/specs/lan-remote-computer-use.md）。
       ...(options.computerUseCapability !== undefined
         ? { computerUse: options.computerUseCapability }
+        : {}),
+      // remoteDesktop 同口径：不声明 = 缺键 = 不支持（docs/specs/lan-remote-desktop.md）。
+      ...(options.remoteDesktopCapability !== undefined
+        ? {
+            remoteDesktop:
+              typeof options.remoteDesktopCapability === "function"
+                ? options.remoteDesktopCapability()
+                : options.remoteDesktopCapability,
+          }
         : {}),
     },
   };
@@ -428,14 +482,21 @@ function staticContentType(filePath: string): string {
   return staticMimeTypes[extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
 
+/** /ws/remote-desktop 升级中间件 → 升级处理器之间传递的上下文变量。 */
+interface HttpServerVariables {
+  remoteDesktopClientId: string;
+}
+
 export function createHttpServer(
   services: ServiceCollection,
   port = 3030,
   options: HttpServerOptions = {},
 ) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: HttpServerVariables }>();
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   const hostCapabilities = createHostCapabilityStore();
+  // 远程桌面票据与 host capability 分开存放：消费方、绑定关系（clientId）与生命周期都不同。
+  const remoteDesktopTickets = createRemoteDesktopTicketStore();
 
   const authToken = options.authToken?.trim();
   const verifyAuthToken = options.verifyAuthToken;
@@ -464,6 +525,35 @@ export function createHttpServer(
 
   app.get("/api/server-info", async (c) => c.json(await createServerInfo(options)));
   app.post("/api/rpc-host-capability", (c) => c.json(hostCapabilities.issue()));
+
+  /** 与鉴权同一令牌校验路径：把当前请求出示的令牌解析为已配对客户端 id（解析不到返回 null）。 */
+  const resolveLanClientId = (c: Context): string | null => {
+    const presented = readPresentedLiteToken(c).token;
+    if (!presented || !options.resolveLanClientByToken) {
+      return null;
+    }
+    return options.resolveLanClientByToken(presented);
+  };
+
+  // 局域网远程桌面：发起方凭设备令牌请求受控会话，被控端裁决（同意/开关/busy）后
+  // 签发一次性票据。请求体无必需字段——发起方身份只来自令牌，避免第二套身份来源。
+  app.post("/api/remote-desktop/session", async (c) => {
+    const remoteDesktop = options.remoteDesktop;
+    if (!remoteDesktop) {
+      // 未配置 hooks 的 server（普通 web / 非被控 host）不提供该端点语义。
+      return c.json({ error: "Remote desktop is not available" }, 501);
+    }
+    const clientId = resolveLanClientId(c);
+    if (!clientId) {
+      // 令牌过了鉴权但解析不到 clientId：无法绑定票据，按未授权拒绝。
+      return c.json({ code: "unauthorized" satisfies RemoteDesktopErrorCode }, 401);
+    }
+    const result = await remoteDesktop.requestSession(clientId);
+    if ("error" in result) {
+      return c.json({ code: result.error }, remoteDesktopErrorStatus(result.error));
+    }
+    return c.json(remoteDesktopTickets.issue(clientId));
+  });
 
   // 局域网配对：一次性配对码 → 该设备专属长期令牌。失败不区分「码错/过期」，
   // 避免给扫描者提供探测信号。
@@ -526,6 +616,36 @@ export function createHttpServer(
     await next();
   });
   app.get("/ws/host", upgradeTrustedHostWebSocket);
+
+  // 局域网远程桌面信令通道：票据单次消费升级（30s、绑定 clientId），
+  // 之后宿主只做 JSON 单帧转发（RemoteDesktopSignalMessage），本模块不解析 SDP/ICE。
+  // 失败形态与 /ws/host 一致：返回 JSON 响应、不升级连接。
+  const upgradeRemoteDesktopWebSocket = upgradeWebSocket((c) => ({
+    onOpen(_event, ws) {
+      const remoteDesktop = options.remoteDesktop;
+      const clientId = c.get("remoteDesktopClientId");
+      if (!remoteDesktop || !clientId) {
+        // 消费与升级之间 host 被撤下（或配置变更）：不留下无归属的信令连接。
+        ws.close(4001, "Remote desktop session unavailable");
+        return;
+      }
+      remoteDesktop.onSessionSocket(clientId, ws.raw as WebSocket);
+    },
+  }));
+  app.use("/ws/remote-desktop", async (c, next) => {
+    const remoteDesktop = options.remoteDesktop;
+    if (!remoteDesktop) {
+      return c.json({ error: "Remote desktop is not available" }, 501);
+    }
+    const ticket = new URL(c.req.url).searchParams.get("ticket") ?? undefined;
+    const clientId = resolveLanClientId(c);
+    if (!clientId || !remoteDesktopTickets.consume(ticket, clientId)) {
+      return c.json({ code: "stale_ticket" satisfies RemoteDesktopErrorCode }, 401);
+    }
+    c.set("remoteDesktopClientId", clientId);
+    await next();
+  });
+  app.get("/ws/remote-desktop", upgradeRemoteDesktopWebSocket);
 
   // Web 模式下发起远程连接
   app.post("/api/connect-remote", async (c) => {
