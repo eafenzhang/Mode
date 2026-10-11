@@ -171,7 +171,10 @@ export const hostInitLocalMessageSchema = z.object({
     .optional(),
 });
 
-/** 远端连接的设备能力位（LAN 握手 server-info.capabilities 投影，strict：未知键拒绝）。 */
+/**
+ * 远端连接的设备能力位（LAN 握手 server-info.capabilities 投影，strict：未知键拒绝）。
+ * docs/specs/lan-remote-computer-use.md 接口变更 1。
+ */
 export const windowHostRemoteWorkspaceCapabilitiesSchema = z
   .object({
     computerUse: z.boolean(),

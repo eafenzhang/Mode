@@ -9,7 +9,10 @@ import {
   type CuaPermissionStatusResult,
   type ModeAgentCuaPermissionObservation,
 } from "@mode/services";
-import { resolveCuaPermissionSource } from "@/cua-permission/cuaPermissionObservationSource.js";
+import {
+  resolveCuaPermissionSource,
+  shouldForwardCuaPermissionObservationToSource,
+} from "@/cua-permission/cuaPermissionObservationSource.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
@@ -141,130 +144,146 @@ export function CuaPermissionObservationAttachment() {
     let activeOperationId: string | null = null;
     let disposed = false;
 
-    // 观察按来源 accessor 归属（docs/specs/lan-remote-computer-use.md 接口变更 5、事件顺序 ④）：
-    // workspaceIdentity 解析到在册 remote session 时，状态/重启/刷新/引导全部走对端服务；
-    // 本机观察维持 base。handleObservation 对 base 与每个在册 remote session 的订阅共用。
-    const handleObservation = (observation: ModeAgentCuaPermissionObservation) => {
-      const missing = requiredCuaPermissionsForRequestAccessStatus(observation.permissionStatus);
-      const key = cuaPermissionObservationKey(observation);
-      if (disposed || missing.length === 0 || handled.has(key) || pending.has(key)) return;
-      const storeState = useRemoteWorkspaceSessionStore.getState();
-      const source = resolveCuaPermissionSource({
-        baseServices: services,
-        observation,
-        sessionsById: storeState.sessionsById,
-        sessionIdByWorkspaceIdentity: storeState.sessionIdByWorkspaceIdentity,
-      });
-      // 对端 identity 的观察却解析不到在册能力 session（注销间隙 / ssh-wsl-docker 会话）时
-      // fail closed：既不查本机状态，更不许把对端引导开到本机（spec ④「绝不打开本机的」）。
-      const identity = observation.workspaceIdentity?.trim();
-      if (!source.remote && identity && isRemoteWorkspaceIdentity(identity)) return;
-      const permissionService = source.services.cuaPermissionService;
-      if (!permissionService) return;
-      pending.add(key);
-
-      chain = chain.then(async () => {
+    // 观察按「投递来源 + identity」归属（docs/specs/lan-remote-computer-use.md 接口变更 5、
+    // 事件顺序 ④）：`onDynamicCuaPermissionObservation` 是 host-wide 事件，base 订阅维持既有
+    // 语义——workspaceIdentity 解析到在册 remote session 时状态/重启/刷新/引导走对端服务，
+    // 本机观察维持 base + 平台路径；对端 session 订阅收到的是对端 host 的全部观察，只处理
+    // 归属该 session 的 identity，对端本机 workspace 的无 identity 观察与他会话 identity
+    // 一律丢弃（动作必须落在拥有观察的机器上，不许在本地弹卡/查状态/开引导）。
+    const createObservationHandler =
+      (deliveredBy: "base" | { sessionId: string }) =>
+      (observation: ModeAgentCuaPermissionObservation): void => {
         if (disposed) return;
-        try {
-          await runCuaPermissionPrompt({
-            getStatus: () =>
-              permissionService.getStatus(
-                observation.workspacePath,
-                observation.workspaceIdentity,
-                { includeFunctionalProbes: false },
-              ),
-            confirm: (required) =>
-              confirmDialog({
-                title: intl.formatMessage({ id: "cuaPermission.live.title" }),
-                // 描述文案按来源分流：对端引导要显式说明「引导开在对端设备、在对端完成授权」
-                // （docs/specs/lan-remote-computer-use.md UI 规则 i18n 行）；本机维持既有文案。
-                description: source.remote
-                  ? intl.formatMessage(
-                      { id: "cua.permission.remoteOnboardingDescription" },
+        const storeState = useRemoteWorkspaceSessionStore.getState();
+        if (
+          !shouldForwardCuaPermissionObservationToSource({
+            deliveredBy,
+            observation,
+            sessionsById: storeState.sessionsById,
+            sessionIdByWorkspaceIdentity: storeState.sessionIdByWorkspaceIdentity,
+          })
+        ) {
+          return;
+        }
+        const missing = requiredCuaPermissionsForRequestAccessStatus(observation.permissionStatus);
+        const key = cuaPermissionObservationKey(observation);
+        if (missing.length === 0 || handled.has(key) || pending.has(key)) return;
+        const source = resolveCuaPermissionSource({
+          baseServices: services,
+          observation,
+          sessionsById: storeState.sessionsById,
+          sessionIdByWorkspaceIdentity: storeState.sessionIdByWorkspaceIdentity,
+        });
+        // 对端 identity 的观察却解析不到在册能力 session（注销间隙 / ssh-wsl-docker 会话）时
+        // fail closed：既不查本机状态，更不许把对端引导开到本机（spec ④「绝不打开本机的」）。
+        const identity = observation.workspaceIdentity?.trim();
+        if (!source.remote && identity && isRemoteWorkspaceIdentity(identity)) return;
+        const permissionService = source.services.cuaPermissionService;
+        if (!permissionService) return;
+        pending.add(key);
+
+        chain = chain.then(async () => {
+          if (disposed) return;
+          try {
+            await runCuaPermissionPrompt({
+              getStatus: () =>
+                permissionService.getStatus(
+                  observation.workspacePath,
+                  observation.workspaceIdentity,
+                  { includeFunctionalProbes: false },
+                ),
+              confirm: (required) =>
+                confirmDialog({
+                  title: intl.formatMessage({ id: "cuaPermission.live.title" }),
+                  // 描述文案按来源分流：对端引导要显式说明「引导开在对端设备、在对端完成授权」
+                  // （docs/specs/lan-remote-computer-use.md UI 规则 i18n 行）；本机维持既有文案。
+                  description: source.remote
+                    ? intl.formatMessage(
+                        { id: "cua.permission.remoteOnboardingDescription" },
+                        {
+                          permissions: required
+                            .map((kind) =>
+                              intl.formatMessage({
+                                id:
+                                  kind === "accessibility"
+                                    ? "cuaPermission.perm.accessibility"
+                                    : "cuaPermission.perm.screenRecording",
+                              }),
+                            )
+                            .join(", "),
+                        },
+                      )
+                    : intl.formatMessage({ id: "cuaPermission.live.description" }),
+                  confirmLabel: intl.formatMessage({ id: "cuaPermission.live.confirm" }),
+                  cancelLabel: intl.formatMessage({ id: "cuaPermission.live.cancel" }),
+                }),
+              openOnboarding: async (required) => {
+                if (source.remote) {
+                  // 对端引导经 T7 的 ICuaPermissionService.openPermissionOnboarding 透传，
+                  // 打开的是对端机器的引导窗口（spec ④）；对端分支不产生 operationId，
+                  // cleanup 的 cancelCuaPermissionOnboarding 只作用于本机分支。
+                  const service = source.services.cuaPermissionService;
+                  if (!service?.openPermissionOnboarding) {
+                    return { success: false, error: "unavailable" };
+                  }
+                  return (
+                    (await service.openPermissionOnboarding(
+                      observation.workspacePath,
+                      observation.workspaceIdentity,
                       {
-                        permissions: required
-                          .map((kind) =>
-                            intl.formatMessage({
-                              id:
-                                kind === "accessibility"
-                                  ? "cuaPermission.perm.accessibility"
-                                  : "cuaPermission.perm.screenRecording",
-                            }),
-                          )
-                          .join(", "),
+                        initialPermission: required[0],
+                        requiredPermissions: required,
                       },
-                    )
-                  : intl.formatMessage({ id: "cuaPermission.live.description" }),
-                confirmLabel: intl.formatMessage({ id: "cuaPermission.live.confirm" }),
-                cancelLabel: intl.formatMessage({ id: "cuaPermission.live.cancel" }),
-              }),
-            openOnboarding: async (required) => {
-              if (source.remote) {
-                // 对端引导经 T7 的 ICuaPermissionService.openPermissionOnboarding 透传，
-                // 打开的是对端机器的引导窗口（spec ④）；对端分支不产生 operationId，
-                // cleanup 的 cancelCuaPermissionOnboarding 只作用于本机分支。
-                const service = source.services.cuaPermissionService;
-                if (!service?.openPermissionOnboarding) {
-                  return { success: false, error: "unavailable" };
+                    )) ?? { success: false, error: "unavailable" }
+                  );
                 }
-                return (
-                  (await service.openPermissionOnboarding(
-                    observation.workspacePath,
-                    observation.workspaceIdentity,
-                    {
+                const operationId = createCuaPermissionOnboardingOperationId();
+                activeOperationId = operationId;
+                try {
+                  return (
+                    (await platform.openCuaPermissionOnboarding?.({
+                      operationId,
                       initialPermission: required[0],
                       requiredPermissions: required,
-                    },
-                  )) ?? { success: false, error: "unavailable" }
-                );
-              }
-              const operationId = createCuaPermissionOnboardingOperationId();
-              activeOperationId = operationId;
-              try {
-                return (
-                  (await platform.openCuaPermissionOnboarding?.({
-                    operationId,
-                    initialPermission: required[0],
-                    requiredPermissions: required,
-                  })) ?? { success: false, error: "unavailable" }
-                );
-              } finally {
-                if (activeOperationId === operationId) activeOperationId = null;
-              }
-            },
-            restartHelper: (options) =>
-              permissionService.restartHelper(
-                observation.workspacePath,
-                observation.workspaceIdentity,
-                options,
-              ),
-            refresh: () =>
-              fetchCuaPermissionStatus({
-                service: permissionService,
-                workspacePath: observation.workspacePath,
-                workspaceIdentity: observation.workspaceIdentity,
-                options: { includeFunctionalProbes: false },
-              }),
-            isDisposed: () => disposed,
-            // 对端状态缺 available 字段 → 远端谓词；base 维持本机既有谓词（见 readMissing）。
-            isStatusUsable: source.remote
-              ? isRemoteCuaPermissionRowVisible
-              : isCuaPermissionStatusAvailable,
-          });
-          if (disposed) return;
-          // 原因：只有正常终态（包括用户取消）才能去重；异常必须允许同一 observation 再次处理。
-          handled.add(key);
-          if (handled.size > 2_000) {
-            const oldest = handled.values().next().value;
-            if (typeof oldest === "string") handled.delete(oldest);
+                    })) ?? { success: false, error: "unavailable" }
+                  );
+                } finally {
+                  if (activeOperationId === operationId) activeOperationId = null;
+                }
+              },
+              restartHelper: (options) =>
+                permissionService.restartHelper(
+                  observation.workspacePath,
+                  observation.workspaceIdentity,
+                  options,
+                ),
+              refresh: () =>
+                fetchCuaPermissionStatus({
+                  service: permissionService,
+                  workspacePath: observation.workspacePath,
+                  workspaceIdentity: observation.workspaceIdentity,
+                  options: { includeFunctionalProbes: false },
+                }),
+              isDisposed: () => disposed,
+              // 对端状态缺 available 字段 → 远端谓词；base 维持本机既有谓词（见 readMissing）。
+              isStatusUsable: source.remote
+                ? isRemoteCuaPermissionRowVisible
+                : isCuaPermissionStatusAvailable,
+            });
+            if (disposed) return;
+            // 原因：只有正常终态（包括用户取消）才能去重；异常必须允许同一 observation 再次处理。
+            handled.add(key);
+            if (handled.size > 2_000) {
+              const oldest = handled.values().next().value;
+              if (typeof oldest === "string") handled.delete(oldest);
+            }
+          } catch (error: unknown) {
+            if (!disposed) logger.warn("CUA 权限引导失败", { error });
+          } finally {
+            pending.delete(key);
           }
-        } catch (error: unknown) {
-          if (!disposed) logger.warn("CUA 权限引导失败", { error });
-        } finally {
-          pending.delete(key);
-        }
-      });
-    };
+        });
+      };
 
     // 本机 base 订阅沿用既有门（本机权限服务 + 本机 preload 引导函数 + 观察事件面），
     // 但该门只约束 base 订阅本身、不再整体 return——否则无本机 onboarding 的平台连对端
@@ -273,7 +292,9 @@ export function CuaPermissionObservationAttachment() {
       services.cuaPermissionService &&
       platform.openCuaPermissionOnboarding &&
       typeof services.modeAgentService.onDynamicCuaPermissionObservation === "function"
-        ? services.modeAgentService.onDynamicCuaPermissionObservation()(handleObservation)
+        ? services.modeAgentService.onDynamicCuaPermissionObservation()(
+            createObservationHandler("base"),
+          )
         : null;
 
     // 对端订阅集合：随 store 在册 session 差量增删；同 sessionId 换代（session 对象引用变化）
@@ -295,19 +316,21 @@ export function CuaPermissionObservationAttachment() {
       for (const [sessionId, session] of Object.entries(sessionsById)) {
         if (remoteSubscriptions.has(sessionId)) continue;
         if (!session.services.cuaPermissionService) continue;
-        if (typeof session.services.modeAgentService.onDynamicCuaPermissionObservation !== "function")
+        if (
+          typeof session.services.modeAgentService.onDynamicCuaPermissionObservation !== "function"
+        )
           continue;
         remoteSubscriptions.set(sessionId, {
           session,
+          // 每个 session 订阅用自己的 deliveredBy 包一层：观察归属只认投递它的那个订阅。
           subscription: session.services.modeAgentService.onDynamicCuaPermissionObservation()(
-            handleObservation,
+            createObservationHandler({ sessionId }),
           ),
         });
       }
     };
-    const unsubscribeFromSessionStore = useRemoteWorkspaceSessionStore.subscribe(
-      syncRemoteSubscriptions,
-    );
+    const unsubscribeFromSessionStore =
+      useRemoteWorkspaceSessionStore.subscribe(syncRemoteSubscriptions);
     syncRemoteSubscriptions();
 
     return () => {

@@ -29,21 +29,19 @@ export function parseRemoteWorkspaceServicePortMessage(
   const target = "target" in event.data ? (event.data.target as RemoteTarget | null) : null;
   if (!port || !attachmentId || !sessionId || !target) return null;
   const rawCapabilities = "capabilities" in event.data ? event.data.capabilities : null;
-  const capabilities: RemoteWorkspaceSessionCapabilities | undefined =
-    rawCapabilities && typeof rawCapabilities === "object"
-      ? {
-          ...(typeof (rawCapabilities as { computerUse?: unknown }).computerUse === "boolean"
-            ? { computerUse: (rawCapabilities as { computerUse: boolean }).computerUse }
-            : {}),
-        }
-      : undefined;
-  return {
+  // 语义保持不变：capabilities 缺席/非对象 → 注册信息不带该键；对象在场 → 键在场，
+  // computerUse 仅布尔值时成键（旧对端缺键按不支持降级）。
+  const registration: RemoteWorkspaceServicePortRegistration = {
     attachmentId,
     port,
     sessionId,
     target,
-    ...(capabilities ? { capabilities } : {}),
   };
+  if (rawCapabilities && typeof rawCapabilities === "object") {
+    const computerUse = (rawCapabilities as { computerUse?: unknown }).computerUse;
+    registration.capabilities = typeof computerUse === "boolean" ? { computerUse } : {};
+  }
+  return registration;
 }
 
 export function notifyRemoteWorkspaceServicePortReady(

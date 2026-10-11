@@ -373,6 +373,7 @@ export function spawnHostProcess(
       // 底层 openCuaPermissionOnboarding 只认 CuaPermissionKind：非法值丢弃，
       // fail closed 到默认 stage；全非法的 requiredPermissions 不传数组——传 [] 会被
       // normalizeRequiredPermissions 摊成空集合，静默“成功”却什么都不打开。
+      // docs/specs/lan-remote-computer-use.md 接口变更 4、事件顺序 ④ 归属边界。
       const toPermissionKind = (value: string): CuaPermissionKind | undefined =>
         value === "accessibility" || value === "screen_recording" ? value : undefined;
       const initialPermission = request.initialPermission
@@ -385,6 +386,7 @@ export function spawnHostProcess(
         // host 发起没有 event.sender：用 host 进程身份做 participant。main 的
         // participantKey 语义（cuaAccessibilitySettings.ts:29-60）支持自定义键，
         // IPC 层的 webContents:{id} 派生只对 renderer 调用成立，此处不复用。
+        // docs/specs/lan-remote-computer-use.md 接口变更 4。
         participantKey: `host:${child.pid ?? "unknown"}`,
         ...(initialPermission ? { initialPermission } : {}),
         ...(requiredPermissions && requiredPermissions.length > 0
@@ -392,6 +394,9 @@ export function spawnHostProcess(
           : {}),
       })
         .then((onboardingResult) => {
+          // 远端回包只有 success/error，不带本机分支的 returnedFromSettings/sessionId，
+          // 所以远端引导返回后不会自动接力 helper 重启与状态刷新（设置页手动 restart）。
+          // docs/specs/lan-remote-computer-use.md 事件顺序 ④ 归属边界。
           child.postMessage({
             type: HostMessageTypes.OpenCuaPermissionOnboardingResult,
             requestId: request.requestId,

@@ -74,6 +74,8 @@ renderer composer 入口 → V4 conversation command
   → 人在对端完成 OS 弹窗 → getStatus 复查 → restartHelper 生效
 ```
 
+④ 的归属边界：对端 host 广播的观察事件中，`workspaceIdentity` 不属于本窗口绑定会话的（含对端本机 workspace 的无 identity 观察）一律丢弃，不在本地弹权限卡 / 查状态 / 开引导——动作只落在拥有该观察的机器上。远端透传的 onboarding 结果不含 `returnedFromSettings`，授权后不自动接力 helper 重启与状态刷新，需经设置页手动 restart（既有远端 `restartHelper` 透传）；自动接力为后续项。
+
 ## 接口变更
 
 1. **握手能力位**：`serverRemoteInfoSchema.capabilities` 新增 `computerUse?: z.boolean()`（optional，缺键=不支持）。由 `createServerInfo` 按设备条件填充；`LanRemoteConnection.info` 的 capabilities 收口进 `HostRemoteConnectionCapabilities`（新增 `computerUse?: boolean` 字段）。

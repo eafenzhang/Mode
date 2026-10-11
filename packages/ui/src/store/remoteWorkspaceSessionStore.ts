@@ -12,7 +12,7 @@ export interface RemoteWorkspaceSession {
   sessionId: string;
   target?: RemoteTarget;
   services: IServiceAccessor;
-  /** 对端设备能力位（LAN server-info 投影）；旧对端无此字段。 */
+  /** 对端设备能力位（LAN server-info 投影）；旧对端无此字段。docs/specs/lan-remote-computer-use.md 接口变更 2。 */
   capabilities?: RemoteWorkspaceSessionCapabilities;
   dispose?: (reason?: Error) => void;
 }

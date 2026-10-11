@@ -180,7 +180,10 @@ interface HostRemoteConnectionCapabilities {
   remoteMediaPreviewFactory?: (
     scope: Extract<WindowHostAttachmentScope, { kind: "remote" }>,
   ) => RemoteMediaPreviewProxy;
-  /** LAN 握手声明的设备级电脑控制能力（对端 server-info.capabilities.computerUse）。 */
+  /**
+   * LAN 握手声明的设备级电脑控制能力（对端 server-info.capabilities.computerUse）。
+   * docs/specs/lan-remote-computer-use.md 接口变更 1。
+   */
   computerUse?: boolean;
 }
 
@@ -1744,6 +1747,7 @@ async function createWindowLanRemoteConnectionHandle(
     capabilities: {
       ...(remoteMediaPreviewFactory ? { remoteMediaPreviewFactory } : {}),
       // 首次收口消费 connection.info：设备能力位（旧对端缺键 → 不声明 → 全链路按不支持降级）。
+      // docs/specs/lan-remote-computer-use.md 接口变更 1-2。
       ...(typeof connection.info.capabilities.computerUse === "boolean"
         ? { computerUse: connection.info.capabilities.computerUse }
         : {}),
