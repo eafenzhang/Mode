@@ -19,8 +19,8 @@ author 常量）与随包插件 manifest（`.mode-plugin/plugin.json#author`）�
   producer 包（browser-use / node-repl-host / mode-cua）的 `plugin.json` 与 seed 同步署名。
 - 随包快照 `official-plugin-catalog.generated.ts` 保持上游官方目录逐条原样（不变式见
   `scripts/bundle-official-plugin-catalog.mjs` 头注释），**不改写其中的上游署名**：它只喂给
-  本分支没有本地包的条目；随包包名在 seed 合并时按名过滤（`writeOfficialMarketplace`），
-  不会消费快照里同名条目的 listing。
+  本分支没有本地包的条目；随包 definitions 带 listing 的条目在 overview 兜底消费时
+  **按名覆写为 definitions listing**（见下节数据流），不消费快照同名条目的 listing。
 - 上游 `Z.ai` 只作为模型供应商文案存在于供应商设置区，与插件署名互不影响，不属本 spec 范围。
 
 ## 状态所有者与数据流
@@ -33,9 +33,18 @@ writeOfficialMarketplace（随包分片，每次 resolve 重建）
         │  按包名过滤 bundled catalog 快照同名条目
         ▼
 merged marketplace.json → parseEntryStoreListing → listing.author
-        │
+        │（注：官方平台服务下线（isOfficialServiceEnabled 恒 false）→ mode-plugins-official
+        │  不进 DEFAULT 市场与 known 记录 → getModePluginsOverview 的 catalogs 读不到
+        │  这份本地 canonical manifest；该路径不作为 overview 的实际输入）
         ▼
-plugins/overview → UI PluginStoreDetailView.InfoSection（开发者行）
+getModePluginsOverview 快照兜底（bundledCatalogPlugins）：
+  · rawEntry.name ∈ OFFICIAL_PLUGIN_DEFINITIONS 且带 listing
+      → listing 以 definitions 覆写（MODE_AUTHOR + zh 文案，icon 按快照口径剥离）
+  · 其余条目（本分支没有本地包，含第三方）
+      → 快照原样（上游署名保留）
+        │  同时写 listingByPluginId（已装/内置 join 共用）
+        ▼
+plugins/overview availablePlugins → UI PluginStoreDetailView.InfoSection（开发者行）
 
 .mode-plugin/plugin.json#author → plugins/describe → item.info.author /
                                   describeMetadata.author（listing 缺失时兜底）
@@ -48,3 +57,8 @@ plugins/overview → UI PluginStoreDetailView.InfoSection（开发者行）
 3. `packages/services/test/official-plugin-attribution.test.ts` 通过：definitions 只以
    `MODE_AUTHOR` 声明署名且值为 `Mode`，三个 manifest 文本不含 `Z.ai`。
 4. `pnpm typecheck`、`pnpm lint` 通过。
+5. `packages/services/test/cua-overview-attribution.test.ts` 通过（隔离 fixture）：
+   overview 的 computer-use 条目 `listing.author = "Mode"`、无 `authorUrl`、
+   `displayName_i18n.zh-CN = 电脑控制`；快照第三方条目（如 cloudbase-skills）署名保持原样。
+   背景：f7d1405 只覆盖了 seed 侧，overview 快照兜底未按名覆写——实机 known 仅有
+   claude 市场记录，详情「开发者」仍回流快照 Z.ai（本机复现后先 RED 后 GREEN）。

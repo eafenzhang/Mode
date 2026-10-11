@@ -333,7 +333,12 @@ export function getModePluginsOverview(
   const listingByPluginId = new Map<string, PluginStoreListing>();
   const availablePlugins = catalogs.flatMap((catalog) =>
     catalog.entries.flatMap((entry) => {
-      const data = toAvailablePluginData(entry, catalog.summary.id, installedIds, pluginStorageRoot);
+      const data = toAvailablePluginData(
+        entry,
+        catalog.summary.id,
+        installedIds,
+        pluginStorageRoot,
+      );
       latestPinByPluginId.set(data.id, {
         ...(entry.version ? { version: entry.version } : {}),
         ...(readPluginSourceIdentityPin(entry.source)
@@ -355,7 +360,22 @@ export function getModePluginsOverview(
       const id = `${rawEntry.name}@${MODE_OFFICIAL_PLUGIN_MARKETPLACE}`;
       if (seenIds.has(id)) continue;
       const entry = rawEntry as unknown as PluginMarketplaceEntry;
-      const listing = parseEntryStoreListing(entry as unknown as Record<string, unknown>);
+      // 随包定义优先（docs/specs/first-party-plugin-attribution.md）：官方平台服务下线后
+      // mode-plugins-official 不进 known 记录，本地 canonical manifest 不会进 catalogs；
+      // 有本地包（definitions 带 listing）的条目改用 definitions 的 MODE_AUTHOR 署名与
+      // zh 文案——官方目录快照只喂本分支没有本地包的条目，否则详情/商店卡「开发者」回流
+      // 上游 Z.ai。icon 按快照口径剥离：图标由随包资源按插件名匹配
+      // （bundle-official-plugin-catalog.mjs 头注释）。
+      let listingInput: Record<string, unknown> = entry as unknown as Record<string, unknown>;
+      const definition = OFFICIAL_PLUGIN_DEFINITIONS.find(
+        (candidate) => candidate.name === rawEntry.name,
+      );
+      if (definition?.listing) {
+        const listingFields: Record<string, unknown> = { ...definition.listing };
+        delete listingFields.icon;
+        listingInput = { ...listingInput, ...listingFields };
+      }
+      const listing = parseEntryStoreListing(listingInput);
       seenIds.add(id);
       if (!listingRequiresPaidPlan(listing)) {
         bundledCatalogPlugins.push({
