@@ -47,6 +47,7 @@ import {
 import {
   createLocalServices,
   getOffPeakRequestAuthBuilder,
+  getCuaRawInputInjector,
   disposeServiceResources,
   disposeServiceResourcesAndWait,
   AutomationRepo,
@@ -65,6 +66,23 @@ import {
 } from "@mode/services/node";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
 import { startLanAccessServer, type LanAccessServerHandle } from "./lanAccessServer.js";
+import {
+  createRemoteDesktopHostServer,
+  parseRemoteDesktopMessageToHost,
+  type RemoteDesktopHostServer,
+} from "./remoteDesktopServer.js";
+import {
+  openRemoteDesktopPeerSession,
+  probeRemoteDesktopPeer,
+} from "./remoteDesktopPeerClient.js";
+import { RemoteDesktopHostMessageTypes } from "./remoteDesktopMessages.js";
+import type {
+  RemoteDesktopMessageFromHost,
+  RemoteDesktopMessageToHost,
+  RemoteDesktopRawInputEvent,
+} from "./remoteDesktopMessages.js";
+import type { WebSocket } from "ws";
+import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
 import {
   createLanPromptAttachmentTransferService,
   materializeLanPromptAttachments,
@@ -1994,6 +2012,152 @@ async function retireAstrBotBridge(services: ServiceCollection): Promise<void> {
   await credentials?.delete(BOTS_BRIDGE_TOKEN_KEY).catch(() => undefined);
 }
 let activeLanAccess: LanAccessServerHandle | null = null;
+/**
+ * 远程桌面被控服务器（每 host 进程一个）。设置读写面不需要 lanAccessServer 在跑，
+ * 因此它的生命周期独立于 activeLanAccess；只有它把 `getActiveLanAccessServer` 当写者用。
+ */
+let activeRemoteDesktop: RemoteDesktopHostServer | null = null;
+/** host → main 的 RD 消息出口。 */
+function postRemoteDesktopToMain(message: RemoteDesktopMessageFromHost): void {
+  parentPort?.postMessage(message);
+}
+
+/** 幂等创建：设置页/同意流/注入都需要它，凭据服务缺失时 fail-closed（返回 null）。 */
+async function ensureRemoteDesktopHostServer(
+  services: ServiceCollection,
+): Promise<RemoteDesktopHostServer | null> {
+  if (activeRemoteDesktop) {
+    return activeRemoteDesktop;
+  }
+  const credentials = services.getOptional(ICredentialService);
+  if (!credentials) {
+    logger.warn("remote desktop unavailable: credential service missing");
+    return null;
+  }
+  // T3b 交付的 services 注入端口（签名一致：events → {dispatched}，socket 来源复用既有 helper
+  // 通道，不新起 helper）。取不到时（旧 services / 测试装配）remoteDesktopServer 退回 broker 直连兜底。
+  const cuaRawInputInjector = getCuaRawInputInjector(services);
+  const server = createRemoteDesktopHostServer({
+    credentials,
+    logger,
+    postToMain: postRemoteDesktopToMain,
+    getActiveLanAccessServer: () => activeLanAccess,
+    ...(cuaRawInputInjector
+      ? {
+          injectRawInput: (events: RemoteDesktopRawInputEvent[]) => cuaRawInputInjector(events),
+        }
+      : {}),
+  });
+  await server.loadServerState();
+  activeRemoteDesktop = server;
+  return activeRemoteDesktop;
+}
+
+/** lanAccessServer 的 RD hooks：未初始化时保持 T2 的 fail-closed 缺省语义。 */
+function resolveRemoteDesktopHooks(): {
+  requestSession: (clientId: string) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+  onSessionSocket: (clientId: string, socket: WebSocket) => void;
+} {
+  return {
+    requestSession: async (clientId: string) =>
+      activeRemoteDesktop?.hooks.requestSession(clientId) ?? { error: "disabled" as const },
+    onSessionSocket: (clientId: string, socket: WebSocket) => {
+      if (activeRemoteDesktop) {
+        activeRemoteDesktop.hooks.onSessionSocket(clientId, socket);
+        return;
+      }
+      try {
+        socket.close(4001, "remote desktop not wired");
+      } catch {
+        // 幂等失败忽略。
+      }
+    },
+  };
+}
+
+/**
+ * RD 消息分派：peer 操作只需要凭据服务，设置/会话/注入需要 RD server。
+ * server 未就绪时懒初始化一次（与 ensureLanAccessStarted 里的初始化幂等）。
+ */
+async function handleRemoteDesktopMessage(message: RemoteDesktopMessageToHost): Promise<void> {
+  const services = activeServices;
+  if (
+    message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe ||
+    message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen
+  ) {
+    if (!services) {
+      postRemoteDesktopToMain({
+        type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
+        requestId: message.requestId,
+        ok: false,
+        error: "host services 未就绪",
+      });
+      return;
+    }
+    await handleRemoteDesktopPeerMessage(message, services);
+    return;
+  }
+  const server =
+    activeRemoteDesktop ??
+    (services ? await ensureRemoteDesktopHostServer(services).catch(() => null) : null);
+  if (!server) {
+    logger.warn(`remote desktop message dropped: host server unavailable (${message.type})`);
+    return;
+  }
+  server.handleMessage(message);
+}
+
+/** 主控方向：探对端能力位 / 请求对端受控会话（令牌不出 host，见 remoteDesktopPeerClient.ts）。 */
+async function handleRemoteDesktopPeerMessage(
+  msg: {
+    requestId: string;
+    type: "remote-desktop-peer-probe" | "remote-desktop-peer-session-open";
+    serverId: string;
+  },
+  services: ServiceCollection,
+): Promise<void> {
+  const credentials = services.getOptional(ICredentialService);
+  try {
+    if (!credentials) {
+      throw new Error("凭据服务不可用");
+    }
+    if (msg.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe) {
+      const info = await probeRemoteDesktopPeer(credentials, msg.serverId);
+      postRemoteDesktopToMain({
+        type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,
+        requestId: msg.requestId,
+        online: info.online,
+        remoteDesktop: info.remoteDesktop,
+        ...(info.name ? { name: info.name } : {}),
+      });
+      return;
+    }
+    const result = await openRemoteDesktopPeerSession(credentials, msg.serverId);
+    postRemoteDesktopToMain(
+      result.ok
+        ? {
+            type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
+            requestId: msg.requestId,
+            ok: true,
+            wsUrl: result.wsUrl,
+          }
+        : {
+            type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
+            requestId: msg.requestId,
+            ok: false,
+            ...(result.errorCode ? { errorCode: result.errorCode } : {}),
+            error: result.error,
+          },
+    );
+  } catch (error) {
+    postRemoteDesktopToMain({
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
+      requestId: msg.requestId,
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 
 /**
  * 局域网访问：唯一监听实例。工作区列表现取（用户刚打开的工作区要能被对端选到），
@@ -2010,12 +2174,18 @@ async function ensureLanAccessStarted(
     logger.warn("lan access unavailable: credential service missing");
     return null;
   }
+  // 远程桌面：被控开关读取点 + 同意流/信令 hooks（spec 事件顺序 ②③⑤⑥）。
+  await ensureRemoteDesktopHostServer(services).catch((error: unknown) => {
+    logger.warn("remote desktop host server init failed", error);
+  });
   activeLanAccess = await startLanAccessServer({
     services,
     credentials,
     getWorkspaces: () => collectLanAccessWorkspaces(services),
     appVersion: MODE_VERSION,
     machineName: hostname() || "Mode",
+    isRemoteDesktopServerEnabled: () => activeRemoteDesktop?.isServerEnabled() ?? false,
+    remoteDesktop: resolveRemoteDesktopHooks(),
   });
   return activeLanAccess;
 }
@@ -2579,6 +2749,9 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
     offPeakTaskRepo.close();
 
     await stopLanAccess();
+    // 远程桌面：host 退出即收口（关 WS、清 pending 同意；采集窗与指示浮层归 main 收口）。
+    activeRemoteDesktop?.dispose();
+    activeRemoteDesktop = null;
 
     if (activeSessionRealtimePort) {
       activeSessionRealtimePort.dispose();
@@ -2647,6 +2820,9 @@ function disposeHostResourcesBestEffort(reason: string): void {
   disposeOffPeakRuntime();
   offPeakTaskRepo.close();
   void windowRemoteConnectionRegistry.dispose();
+
+  activeRemoteDesktop?.dispose();
+  activeRemoteDesktop = null;
 
   if (activeServices) {
     try {
@@ -2744,6 +2920,15 @@ function withComputerUseCapability(
 }
 
 parentPort.on("message", async (e: Electron.MessageEvent) => {
+  // 远程桌面 main↔host 桥：RD 消息族不在共享 hostIncomingMessageSchema 的冻结面上
+  // （原因与镜像纪律见 host/remoteDesktopMessages.ts 头注释），这里按类型标签先分流，
+  // 命中即由 RD server 处理，未命中继续走共享校验（行为与之前一致）。
+  const remoteDesktopMessage = parseRemoteDesktopMessageToHost(e.data);
+  if (remoteDesktopMessage) {
+    await handleRemoteDesktopMessage(remoteDesktopMessage);
+    return;
+  }
+
   const result = parseHostIncomingMessageEvent(e);
   if (!result.success) {
     logger.error("invalid parentPort message:", formatZodError(result.error));
@@ -3399,6 +3584,10 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         });
         await restoreLanAccessIfEnabled(services).catch((error) => {
           logger.warn("restore lan access failed", error);
+        });
+        // 远程桌面被控服务器：冷读持久化的总开关（能力位按每次握手现取，见 remoteDesktopServer.ts）。
+        await ensureRemoteDesktopHostServer(services).catch((error) => {
+          logger.warn("initialize remote desktop host server failed", error);
         });
         hasDisposedHostResources = false;
         disposeHostResourcesInFlight = null;

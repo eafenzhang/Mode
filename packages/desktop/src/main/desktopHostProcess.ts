@@ -48,6 +48,10 @@ import {
   resolveLanPairedPeerOpResult,
 } from "./desktopLanAccess.js";
 import {
+  forgetRemoteDesktopHost,
+  handleRemoteDesktopHostMessage,
+} from "./remoteDesktop/hostBridge.js";
+import {
   buildHostProcessEnv,
   hostModulePath,
   resolveBundledGlmBinaryPath,
@@ -299,6 +303,11 @@ export function spawnHostProcess(
 
   const databaseStartupRelay = bindDatabaseStartupRelay(win, child, hostId);
   child.on("message", (message: unknown) => {
+    // 远程桌面 RD 消息族先分流（它不在共享 hostResponseMessageSchema 的冻结面上；
+    // 契约与镜像纪律见 remoteDesktop/hostMessages.ts）。
+    if (handleRemoteDesktopHostMessage(label, message)) {
+      return;
+    }
     const result = hostResponseMessageSchema.safeParse(message);
     if (!result.success) {
       return;
@@ -753,6 +762,8 @@ export function spawnHostProcess(
     }
     unregisterHostProcess(label);
     forgetLanAccessHost(label);
+    // RD 宿主退出：在途请求失败 + 被控会话按信令通道已断收口。
+    forgetRemoteDesktopHost(label);
     for (const [wcId, process] of dependencies.windowHostProcessMap) {
       if (process === child) {
         dependencies.windowHostProcessMap.delete(wcId);

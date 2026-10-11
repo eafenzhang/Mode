@@ -51,12 +51,22 @@ export function computeRemoteDesktopCapability(params: {
   return params.platform === "win32" && !params.killSwitchEngaged && params.serverEnabled;
 }
 
+/**
+ * 逐设备远程桌面授权（docs/specs/lan-remote-desktop.md 状态所有者「逐设备授权」）：
+ * 挂在既有 lan client 记录上的可选布尔字段，旧数据缺键 = 未授权（兼容）。
+ */
+export interface LanAccessClientRecordWithRemoteDesktop extends LanAccessClientRecord {
+  remoteDesktopAuthorized?: boolean;
+}
+
 /** 局域网访问服务端：监听局域网、应答发现、校验逐设备令牌、受理配对码。 */
 export interface LanAccessServerHandle {
   getState(): LanAccessState;
   createPairCode(): LanAccessState;
   removeClient(clientId: string): Promise<LanAccessState>;
   resetTokens(): Promise<LanAccessState>;
+  /** 运行期这些记录的唯一内存写者就是本 handle：写授权必须经它（含 persist）。 */
+  setClientRemoteDesktopAuthorized(clientId: string, authorized: boolean): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -132,7 +142,13 @@ async function waitForListenPort(server: unknown, fallback: number): Promise<num
   return fallback;
 }
 
-async function readClients(credentials: ICredentialService): Promise<LanAccessClientRecord[]> {
+/**
+ * 读 lan client 记录（凭据服务 JSON 数组）。导出给远程桌面的逐设备授权读写入口复用，
+ * 避免第二处复刻记录形状（唯一真相 = 这个键与这份字段集合）。
+ */
+export async function readLanAccessClientRecords(
+  credentials: ICredentialService,
+): Promise<LanAccessClientRecordWithRemoteDesktop[]> {
   const raw = await credentials.load(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY);
   if (!raw) {
     return [];
@@ -143,11 +159,11 @@ async function readClients(credentials: ICredentialService): Promise<LanAccessCl
       return [];
     }
     return parsed
-      .filter((item): item is LanAccessClientRecord => {
+      .filter((item): item is LanAccessClientRecordWithRemoteDesktop => {
         if (!item || typeof item !== "object") {
           return false;
         }
-        const record = item as Partial<LanAccessClientRecord>;
+        const record = item as Partial<LanAccessClientRecordWithRemoteDesktop>;
         return typeof record.id === "string" && record.id.length > 0;
       })
       .map((record) => ({
@@ -158,10 +174,20 @@ async function readClients(credentials: ICredentialService): Promise<LanAccessCl
         ...(typeof record.lastWorkspacePath === "string" && record.lastWorkspacePath
           ? { lastWorkspacePath: record.lastWorkspacePath }
           : {}),
+        // 远程桌面逐设备授权：只认显式 true（缺键/旧数据 = 未授权），写回时必须保留。
+        ...(record.remoteDesktopAuthorized === true ? { remoteDesktopAuthorized: true } : {}),
       }));
   } catch {
     return [];
   }
+}
+
+/** 写回 lan client 记录数组（仅无活 handle 的远程桌面授权写路径使用；见 remoteDesktopServer.ts）。 */
+export async function writeLanAccessClientRecords(
+  credentials: ICredentialService,
+  records: LanAccessClientRecordWithRemoteDesktop[],
+): Promise<void> {
+  await credentials.save(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY, JSON.stringify(records));
 }
 
 export async function startLanAccessServer(
@@ -175,7 +201,7 @@ export async function startLanAccessServer(
     await credentials.save(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, serverId);
   }
 
-  let clients = await readClients(credentials);
+  let clients = await readLanAccessClientRecords(credentials);
   /** clientId → token 的内存缓存；真相仍在凭据服务里。 */
   const clientTokens = new Map<string, string>();
   for (const client of clients) {
@@ -378,6 +404,18 @@ export async function startLanAccessServer(
       lastTouchAt.clear();
       await persistClients();
       return getState();
+    },
+    async setClientRemoteDesktopAuthorized(clientId: string, authorized: boolean): Promise<void> {
+      const target = clients.find((item) => item.id === clientId);
+      if (!target) {
+        return;
+      }
+      if (authorized) {
+        target.remoteDesktopAuthorized = true;
+      } else {
+        delete target.remoteDesktopAuthorized;
+      }
+      await persistClients();
     },
     async dispose(): Promise<void> {
       if (disposed) {

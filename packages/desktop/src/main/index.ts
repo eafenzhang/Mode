@@ -170,6 +170,7 @@ import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
 import { registerRemoteIpcHandlers } from "./desktopMainIpcRemote.js";
 import { registerLanAccessIpcHandlers } from "./desktopLanAccess.js";
+import { registerRemoteDesktopIpcHandlers } from "./remoteDesktop/desktopIpc.js";
 import { applyDesktopChromiumNetworkPolicies } from "./desktopNetworkPolicy.js";
 import {
   findWindowsProcessesReferencingResourceMarkers,
@@ -1995,6 +1996,11 @@ app.whenReady().then(async () => {
     deviceMid,
   });
   registerLanAccessIpcHandlers({ logger });
+  // 局域网远程桌面（docs/specs/lan-remote-desktop.md）：主控 rd/* IPC + 被控会话协调器。
+  registerRemoteDesktopIpcHandlers({
+    logger,
+    getLocale: () => currentApplicationLocale,
+  });
 
   registerRemoteIpcHandlers({
     logger,
