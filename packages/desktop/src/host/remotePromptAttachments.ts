@@ -2,6 +2,7 @@ import type { IRemoteBackend, RemoteUploadOptions } from "@mode/server/remote";
 import { quotePosixPathArg } from "@mode/server/remote/posixShell.js";
 import type { TraceId, ModePromptAttachment } from "@mode/shared";
 import { randomUUID } from "node:crypto";
+import { stat } from "node:fs/promises";
 
 const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.mode/tmp/prompt-attachments";
 const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".mode/tmp/prompt-attachments";
@@ -24,6 +25,10 @@ export async function materializeRemotePromptAttachments(
   options: {
     backend: Pick<IRemoteBackend, "exec" | "upload">;
     uploadOptions?: RemoteUploadOptions;
+    /** 测试注入点；缺省走 node fs stat（本机存在性判定）。 */
+    statFile?: (path: string) => Promise<boolean>;
+    /** 测试注入点；缺省走 backend exec `test -f`（目标机存在性判定）。 */
+    remoteFileExists?: (path: string) => Promise<boolean>;
   },
 ): Promise<RemotePromptAttachmentMaterializeResult> {
   const attachments = input.attachments;
@@ -58,6 +63,25 @@ export async function materializeRemotePromptAttachments(
     if (isRemotePromptAttachmentPath(localPath, remoteRoot)) {
       nextAttachments.push(attachment);
       continue;
+    }
+
+    // 排序判定（不变量 1 兜底）：本机存在优先——上传并改写，host 路径不外泄；
+    // 本机不存在时以目标机存在性兜底；两侧都不存在则 fail-closed 报可读错误，
+    // 确保主机本地路径永不抵达远端 agent。
+    const existsOnHost = options.statFile
+      ? await options.statFile(localPath)
+      : await hostFileExists(localPath);
+    if (!existsOnHost) {
+      const existsOnTarget = options.remoteFileExists
+        ? await options.remoteFileExists(localPath)
+        : await targetFileExists(options.backend, localPath);
+      if (existsOnTarget) {
+        // 该路径本就属于目标机（遗留转换把远端路径落成 localPath）：
+        // 不读、不传，原样放行——目标机 agent 直接可读，不变量 1 不破。
+        nextAttachments.push(attachment);
+        continue;
+      }
+      throw new Error(`附件路径在本机和远端都不存在：${localPath}`);
     }
 
     const remotePath = buildRemotePromptAttachmentPath({
@@ -227,11 +251,32 @@ function getAttachmentLocalPath(attachment: ModePromptAttachment): string | unde
   return localPath ? attachment.localPath : undefined;
 }
 
+async function hostFileExists(path: string): Promise<boolean> {
+  try {
+    const info = await stat(path);
+    return info.isFile();
+  } catch {
+    return false;
+  }
+}
+
+async function targetFileExists(
+  backend: Pick<IRemoteBackend, "exec">,
+  path: string,
+): Promise<boolean> {
+  try {
+    await waitForRemoteCommand(backend, `test -f ${quotePosixPathArg(path)}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function isRemotePromptAttachmentPath(path: string, remoteRoot: string): boolean {
   return isPathInRoot(path, REMOTE_PROMPT_ATTACHMENT_ROOT) || isPathInRoot(path, remoteRoot);
 }
 
-function isPathInRoot(path: string, root: string): boolean {
+export function isPathInRoot(path: string, root: string): boolean {
   return path === root || path.startsWith(`${root}/`);
 }
 
@@ -256,7 +301,7 @@ function createAttachmentNonce(): string {
   return randomUUID();
 }
 
-function replaceContentPaths(content: string, replacements: Map<string, string>): string {
+export function replaceContentPaths(content: string, replacements: Map<string, string>): string {
   let next = content;
   const orderedReplacements = [...replacements.entries()].sort(
     ([left], [right]) => right.length - left.length,
