@@ -123,6 +123,14 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.hooks.title",
     groupId: "agentCapabilities",
   },
+  // 电脑控制夹在「模型设置」与「浏览器控制」之间：三者都是本机环境能力的开关，
+  // 先配置「用哪个模型」，再决定「放不放行本机控制」，最后才是被控对象之一的浏览器。
+  {
+    id: "computerUse",
+    icon: Monitor,
+    titleId: "settings.computerUse.title",
+    groupId: "basics",
+  },
   {
     id: "browser",
     icon: Globe2,
@@ -130,22 +138,14 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     groupId: "basics",
   },
   // 局域网访问：把本机工作区开放给同网段的其它 Mode（配对码授权），
-  // 与「电脑控制」同属本机能力开放，收在基础设置里相邻展示。
+  // 与「电脑控制」同属本机能力开放，收在基础设置里。
   {
     id: "lanAccess",
     icon: Radar,
     titleId: "settings.lanAccess.title",
     groupId: "basics",
   },
-  // 电脑控制紧跟「浏览器」：两者都是给 Agent 用的本机操控入口，
-  // 放在基础设置里让用户在同一处理解「控制浏览器 / 控制整台电脑」的关系。
-  {
-    id: "computerUse",
-    icon: Monitor,
-    titleId: "settings.computerUse.title",
-    groupId: "basics",
-  },
-  // 键盘快捷键紧跟「电脑控制」：同属本机操控/效率配置，收纳在基础设置尾部。
+  // 键盘快捷键：同属本机操控/效率配置，收纳在基础设置尾部。
   {
     id: "shortcuts",
     icon: Keyboard,

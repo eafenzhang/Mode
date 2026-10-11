@@ -16,7 +16,7 @@ test("跳转解析保留 computerUse（不再回退到 general）", () => {
   assert.equal(resolveSettingsSection("computerUse"), "computerUse");
 });
 
-test("桌面（Windows）配置包含 computerUse 且排在浏览器之后的基础设置组", () => {
+test("桌面（Windows）配置包含 computerUse，且夹在模型设置与浏览器控制之间", () => {
   const { settingsSections } = createSettingsPageConfig({
     isDesktop: true,
     isWindowsDesktop: true,
@@ -25,7 +25,11 @@ test("桌面（Windows）配置包含 computerUse 且排在浏览器之后的基
   assert.ok(ids.includes("computerUse"), "桌面配置应包含 computerUse 分区");
   const computerUseSection = settingsSections.find((section) => section.id === "computerUse");
   assert.equal(computerUseSection?.groupId, "basics");
-  assert.ok(ids.indexOf("computerUse") > ids.indexOf("browser"), "电脑控制应排在浏览器之后");
+  assert.ok(
+    ids.indexOf("computerUse") > ids.indexOf("modelProvider"),
+    "电脑控制应排在模型设置之后",
+  );
+  assert.ok(ids.indexOf("computerUse") < ids.indexOf("browser"), "电脑控制应排在浏览器控制之前");
 });
 
 test("Web 配置不包含 computerUse", () => {
