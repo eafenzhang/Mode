@@ -1,4 +1,5 @@
 /* oxlint-disable eslint(max-lines) -- v4 逐行 row 渲染分发集中收口（每种 row 一个 memo 叶子 + timelineMarker 分隔线），拆分会打散行类型对照。 */
+import { useAttachmentDownload } from "@/hooks/useAttachmentDownload.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -6,6 +7,7 @@ import {
   ArrowRightLeftIcon,
   CheckIcon,
   CopyIcon,
+  DownloadIcon,
   FileClockIcon,
   FileIcon,
   GitBranchIcon,
@@ -17,6 +19,7 @@ import {
   XIcon,
 } from "lucide-react";
 import {
+  TID_V4_ATTACHMENT_DOWNLOAD,
   TID_V4_EDIT,
   TID_V4_EDIT_ATTACHMENT_REMOVE,
   TID_V4_EDIT_CANCEL,
@@ -302,6 +305,8 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
   readAttachmentRange?: NonNullable<ConversationRowRenderContext["readAttachmentRange"]>;
 }) {
   const { intl } = useModeIntl();
+  const { download, downloadingRefs } = useAttachmentDownload({ sessionId, readAttachment });
+  const downloadLabel = intl.formatMessage({ id: "chat.attachments.download" });
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [failedRefs, setFailedRefs] = useState<ReadonlySet<string>>(() => new Set());
@@ -316,6 +321,12 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
   const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
   const [pdfPreviewError, setPdfPreviewError] = useState(false);
   const [pdfPreviewRef, setPdfPreviewRef] = useState<string | null>(null);
+  // 当前预览对话框对应的下载目标；index 为持久序号（openVideo/openPdf 入参），
+  // 对话框 onDownload 直接按持久序号读取，不再经 attachmentIndices 二次映射。
+  const [previewDownload, setPreviewDownload] = useState<{
+    attachment: AttachmentRef;
+    index: number;
+  } | null>(null);
   const pdfPreviewUrlRef = useRef<string | null>(null);
   const pdfPreviewRequestRef = useRef(0);
   const pdfPreviewAbortRef = useRef<AbortController | null>(null);
@@ -439,6 +450,7 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
     setVideoPreviewRef(null);
     setVideoPreviewLoading(false);
     setVideoPreviewError(false);
+    setPreviewDownload(null);
   }, [cancelVideoPreviewRead, releaseVideoPreviewUrl]);
 
   const closePdfPreview = useCallback(() => {
@@ -461,15 +473,15 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
   );
 
   const openVideoPreview = useCallback(
-    async (attachment: AttachmentRef, attachmentIndex: number, galleryIndex: number) => {
+    async (attachment: AttachmentRef, attachmentIndex: number) => {
+      // 视频预览目标在函数首行记录（持久序号）；对话框未打开时该状态不会被消费。
+      setPreviewDownload({ attachment, index: attachmentIndex });
       if (!sessionId || !readAttachment) return;
       const ref = attachment.previewRef ?? attachment.ref;
       cancelVideoPreviewRead();
       const thumbnailUrl = thumbnailUrlsRef.current.get(ref);
       if (thumbnailUrl) {
         releaseVideoPreviewUrl();
-        setPreviewIndex(galleryIndex);
-        setPreviewOpen(true);
         setVideoPreviewRef(ref);
         setVideoPreview({
           filename: attachment.fileName,
@@ -484,8 +496,6 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
       const abortController = new AbortController();
       videoPreviewAbortRef.current = abortController;
       releaseVideoPreviewUrl();
-      setPreviewIndex(galleryIndex);
-      setPreviewOpen(true);
       setVideoPreviewRef(ref);
       setVideoPreview({
         filename: attachment.fileName,
@@ -537,6 +547,8 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
 
   const openPdfPreview = useCallback(
     async (attachment: AttachmentRef, attachmentIndex: number) => {
+      // 与视频对称：预览目标首行记录（持久序号），对话框 onDownload 按此读取。
+      setPreviewDownload({ attachment, index: attachmentIndex });
       if (!sessionId || (!readAttachment && !readAttachmentRange)) return;
       const ref = attachment.previewRef ?? attachment.ref;
       pdfPreviewRequestRef.current += 1;
@@ -637,39 +649,25 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
   }
   if (visibleAttachments.length === 0) return null;
   const previewEntries = (attachments ?? []).flatMap((attachment, index) => {
-    const isImage = attachment.mime.startsWith("image/");
-    const isVideo = attachment.mime.startsWith("video/");
-    if (!isImage && !isVideo) return [];
+    // gallery 只承载图片；视频不入 gallery，点击直接打开 ChatMedia 预览对话框
+    // （spec 收向下载：ChatMediaAttachmentPreviewDialog = 视频/PDF）。
+    if (!attachment.mime.startsWith("image/")) return [];
     const ref = attachment.previewRef ?? attachment.ref;
-    const src = thumbnailUrls.get(ref);
-    if (isImage && !src) return [];
-    return [
-      {
-        attachment,
-        index,
-        persistedAttachmentIndex: attachmentIndices?.[index] ?? index,
-      },
-    ];
+    if (!thumbnailUrls.get(ref)) return [];
+    return [{ attachment, index }];
   });
   const previewItems = previewEntries.map(({ attachment }) => {
     const ref = attachment.previewRef ?? attachment.ref;
-    const isVideo = attachment.mime.startsWith("video/");
     return {
       alt: attachment.fileName,
       filename: attachment.fileName,
       mediaType: attachment.mime,
-      src: isVideo && videoPreviewRef === ref ? videoPreview?.url : thumbnailUrls.get(ref),
-      loading: isVideo && videoPreviewRef === ref && videoPreviewLoading,
-      error: isVideo && videoPreviewRef === ref && videoPreviewError,
+      src: thumbnailUrls.get(ref),
     };
   });
   const selectPreviewItem = (galleryIndex: number) => {
     const entry = previewEntries[galleryIndex];
     if (!entry) return;
-    if (entry.attachment.mime.startsWith("video/")) {
-      void openVideoPreview(entry.attachment, entry.persistedAttachmentIndex, galleryIndex);
-      return;
-    }
     cancelVideoPreviewRead();
     releaseVideoPreviewUrl();
     setVideoPreview(null);
@@ -691,7 +689,7 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
     const isUnavailable = failedRefs.has(ref);
     const thumbnailUrl = thumbnailUrls.get(ref) ?? "";
     const previewItemIndex = previewEntries.findIndex((entry) => entry.index === index);
-    // 图片与视频共用当前消息的媒体 gallery；video 首次成为 active item 时再读取。
+    // 图片走 media gallery；视频不入 gallery，点击直接打开 ChatMedia 预览对话框。
     const canOpen =
       (isImage && !isUnavailable && previewItemIndex >= 0) ||
       (isVideo && Boolean(sessionId && readAttachment)) ||
@@ -726,10 +724,17 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
         onRemove={onRemove ? () => onRemove(index) : undefined}
         onOpen={
           canOpen
-            ? () =>
-                isPdf
-                  ? void openPdfPreview(attachment, attachmentIndices?.[index] ?? index)
-                  : selectPreviewItem(previewItemIndex)
+            ? () => {
+                if (isPdf) {
+                  void openPdfPreview(attachment, attachmentIndices?.[index] ?? index);
+                  return;
+                }
+                if (isVideo) {
+                  void openVideoPreview(attachment, attachmentIndices?.[index] ?? index);
+                  return;
+                }
+                selectPreviewItem(previewItemIndex);
+              }
             : undefined
         }
         openLabel={
@@ -785,6 +790,29 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
             }}
           />
         )}
+        {!isEditingAttachment && sessionId && readAttachment ? (
+          <button
+            type="button"
+            data-testid={testId(TID_V4_ATTACHMENT_DOWNLOAD, `${rowId}-${index}`)}
+            aria-label={downloadLabel}
+            title={downloadLabel}
+            disabled={downloadingRefs.has(ref)}
+            className="ms-1 inline-flex size-5 shrink-0 items-center justify-center rounded text-foreground-subtle transition hover:text-foreground disabled:opacity-50"
+            onClick={(event) => {
+              // pill 自身可能可打开预览（pdf）；下载点击不得连带触发。
+              event.stopPropagation();
+              download({
+                attachment,
+                rowId,
+                ...(entityId ? { entityId } : {}),
+                ...(attachmentIndices ? { attachmentIndices } : {}),
+                index,
+              });
+            }}
+          >
+            <DownloadIcon className="size-3.5" />
+          </button>
+        ) : null}
         {onRemove && isEditingAttachment ? (
           <AttachmentRemove
             placement="corner"
@@ -829,12 +857,60 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
         open={previewOpen}
       />
       <ChatMediaAttachmentPreviewDialog
+        attachment={videoPreview}
+        open={videoPreviewRef !== null}
+        loading={videoPreviewLoading}
+        error={videoPreviewError}
+        onDownload={
+          previewDownload && sessionId && readAttachment
+            ? () =>
+                download({
+                  attachment: previewDownload.attachment,
+                  rowId,
+                  ...(entityId ? { entityId } : {}),
+                  index: previewDownload.index,
+                })
+            : undefined
+        }
+        downloading={
+          previewDownload
+            ? downloadingRefs.has(
+                previewDownload.attachment.previewRef ?? previewDownload.attachment.ref,
+              )
+            : false
+        }
+        onOpenChange={(open) => {
+          if (!open) closeVideoPreview();
+        }}
+      />
+      <ChatMediaAttachmentPreviewDialog
         attachment={pdfPreview}
         open={pdfPreviewRef !== null}
         loading={pdfPreviewLoading}
         error={pdfPreviewError}
+        onDownload={
+          previewDownload && sessionId && readAttachment
+            ? () =>
+                download({
+                  attachment: previewDownload.attachment,
+                  rowId,
+                  ...(entityId ? { entityId } : {}),
+                  index: previewDownload.index,
+                })
+            : undefined
+        }
+        downloading={
+          previewDownload
+            ? downloadingRefs.has(
+                previewDownload.attachment.previewRef ?? previewDownload.attachment.ref,
+              )
+            : false
+        }
         onOpenChange={(open) => {
-          if (!open) closePdfPreview();
+          if (!open) {
+            closePdfPreview();
+            setPreviewDownload(null);
+          }
         }}
       />
     </>

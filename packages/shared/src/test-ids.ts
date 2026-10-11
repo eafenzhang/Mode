@@ -709,6 +709,8 @@ export const TID_V4_SUBAGENT_OPEN_SPLIT = "v4-subagent-open-split";
 export const TID_V4_SUBAGENT_OPEN_SIDE_PANE = "v4-subagent-open-side-pane";
 /** v4 userInput 行附件列表（动态后缀为 rowId） */
 export const TID_V4_ROW_ATTACHMENTS = "v4-row-attachments";
+/** 历史附件下载按钮（文件 pill 后缀 rowId-index，媒体预览后缀 preview） */
+export const TID_V4_ATTACHMENT_DOWNLOAD = "v4-attachment-download";
 
 // Plugin 商店
 /** Plugin 设置页里进入插件商店的入口按钮（商店是 WorkspaceShell 主视图，不是设置页分区） */

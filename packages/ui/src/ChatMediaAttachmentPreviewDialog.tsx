@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { DownloadIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -6,7 +7,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
+import { Button } from "@/components/ui/button.js";
 import type { PdfViewerLabels, PdfViewerSource } from "@/components/ui/pdf-viewer.js";
+import { TID_V4_ATTACHMENT_DOWNLOAD, testId } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 // react-pdf/pdfjs 在模块导入阶段依赖浏览器 DOMMatrix；对话列表也会加载本组件，
@@ -30,12 +33,16 @@ export function ChatMediaAttachmentPreviewDialog({
   onOpenChange,
   loading = false,
   error = false,
+  onDownload,
+  downloading = false,
 }: {
   attachment: ChatMediaAttachmentPreviewTarget | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loading?: boolean;
   error?: boolean;
+  onDownload?: () => void;
+  downloading?: boolean;
 }) {
   const { intl } = useModeIntl();
   const isVideo = attachment?.mediaType.startsWith("video/") === true;
@@ -47,6 +54,7 @@ export function ChatMediaAttachmentPreviewDialog({
   const title = intl.formatMessage({
     id: "chat.attachments.preview.title",
   });
+  const downloadLabel = intl.formatMessage({ id: "chat.attachments.download" });
   const loadingLabel = intl.formatMessage({
     id: isVideo
       ? "chat.attachments.preview.videoLoading"
@@ -85,6 +93,20 @@ export function ChatMediaAttachmentPreviewDialog({
           <DialogDescription className="truncate text-ui-base">
             {attachment?.mediaType ?? title}
           </DialogDescription>
+          {onDownload ? (
+            <Button
+              type="button"
+              size="icon-md"
+              variant="ghost"
+              aria-label={downloadLabel}
+              disabled={downloading}
+              onClick={onDownload}
+              className="absolute end-12 top-3 z-10"
+              data-testid={testId(TID_V4_ATTACHMENT_DOWNLOAD, "preview")}
+            >
+              <DownloadIcon className="size-4" />
+            </Button>
+          ) : null}
         </DialogHeader>
         <div className="flex max-h-[72vh] min-h-64 items-center justify-center bg-background-alt p-4">
           {attachment?.pdfSource || attachment?.url ? (
