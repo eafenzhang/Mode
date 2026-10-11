@@ -340,7 +340,7 @@ export interface ModeApp {
     mime: string;
     bytes: Uint8Array;
   }): Promise<{ ref: string }>;
-  /** 已发送 image/video 预览：在拥有 session 的 runtime 内读取 artifact 或实际路径。 */
+  /** 已发送附件读取（任意 MIME 的预览/下载，含 txt/md/office）：在拥有 session 的 runtime 内读取 artifact 或实际路径；容量上限由调用方以 maxBytes 下发。 */
   readPromptAttachment(input: {
     ref: string;
     mime: string;

@@ -27,7 +27,8 @@ export interface AuthorizeConversationAttachmentParams {
   mediaOnly: boolean;
 }
 
-export function artifactRefBelongsToSession(ref: string, sessionId: string): boolean {
+/** 仅本模块内用：ref 的 URI authority 必须就是当前请求的 session（依据见 assistantText 分支）。 */
+function artifactRefBelongsToSession(ref: string, sessionId: string): boolean {
   return ref.startsWith(`mode-artifact://${encodeURIComponent(sessionId)}/`);
 }
 
@@ -69,6 +70,8 @@ export function authorizeConversationAttachment(
     if (row?.kind !== "userInput") return null;
     const attachment = row.attachments?.[attachmentIndex];
     if (!attachment || !matchesRef(attachment, ref) || !allowed(attachment.mime)) return null;
+    // 热态 renderer 可能还持有 original ref，而 hydrate 后的权威 row 已补
+    // previewRef；两者属于同一个 row/index，授权不能因投影时序不同而误判为跨行读取。
     return { attachment, attachmentIndex, sourceRowId: row.rowId };
   }
 
@@ -103,6 +106,11 @@ export function authorizeConversationAttachment(
       artifactRefBelongsToSession(ref, sessionId) &&
       extractMarkdownArtifactImageRefs(row.text).includes(ref)
     ) {
+      // assistant Markdown 可以引用工具产出的 session artifact，但仅看 userInput.attachments
+      // 会让合法引用在 UI 里被 harden 拦截；因此仍以当前 session 的权威投影做精确 ref 授权，
+      // 绝不接受 renderer 自报的任意 artifact/path。Markdown 是模型可控文本，所以 URI
+      // authority 还必须与当前请求 session 精确匹配；仅「当前投影里出现过」不能证明它有权
+      // 读取另一个 session 的 artifact。
       return { attachment: { ref, fileName: "assistant-image", mime: "image/*", bytes: 0 } };
     }
   }

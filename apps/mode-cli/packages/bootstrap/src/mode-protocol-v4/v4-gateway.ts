@@ -323,7 +323,7 @@ export interface V4GatewayHost {
     sessionId: string,
     input: { fileName: string; mime: string; bytes: Uint8Array },
   ): Promise<{ ref: string }>;
-  /** 已发送 image/video/PDF 只读查询；gateway 完成 row/ref 授权后才允许进入宿主。 */
+  /** 已发送附件只读查询（任意 MIME 的预览/下载）；gateway 完成 row/ref 授权后才允许进入宿主，容量由 maxBytes 下发。 */
   readSessionAttachment?(
     sessionId: string,
     input: {
