@@ -10,12 +10,12 @@
 
 ### 状态所有者
 
-| 状态 | 所有者 | 说明 |
-| --- | --- | --- |
-| composer 附件上传状态 | Renderer `composerAttachmentUploadStore` | scope 粒度，纯 UI 态 |
-| 跨机暂存事务 | 窗口 Host `IPromptAttachmentTransferService` | 唯一跨机转换点：SSH/WSL/Docker 走 `backend.upload`，LAN 走附件 chunk 通道 |
-| 附件字节 | 远端机器（staging 路径）或远端会话 artifact store | 均由远端 CLI host 持有 |
-| 引用权威 | 远端 CLI 投影中的 `userInput.attachments` / `artifact` 行 | 回读授权、编辑重发以此为准 |
+| 状态                  | 所有者                                                    | 说明                                                                      |
+| --------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------- |
+| composer 附件上传状态 | Renderer `composerAttachmentUploadStore`                  | scope 粒度，纯 UI 态                                                      |
+| 跨机暂存事务          | 窗口 Host `IPromptAttachmentTransferService`              | 唯一跨机转换点：SSH/WSL/Docker 走 `backend.upload`，LAN 走附件 chunk 通道 |
+| 附件字节              | 远端机器（staging 路径）或远端会话 artifact store         | 均由远端 CLI host 持有                                                    |
+| 引用权威              | 远端 CLI 投影中的 `userInput.attachments` / `artifact` 行 | 回读授权、编辑重发以此为准                                                |
 
 ### 不变量
 
@@ -57,6 +57,7 @@
 - **授权与媒体判定分离**（`apps/mode-cli/packages/bootstrap/src/mode-protocol-v4/v4-gateway.ts`）：
   - `attachmentRead` 的 resolver 改为按权威行授权：`userInput` 行内 `ref/previewRef` 精确匹配即授权，**不看 MIME**（现状 `isPreviewable` 只认 image/video/pdf + `readAttachmentPayload` 的 `previewNotMedia` 双重卡死非媒体）。
   - `attachmentPreviewSource` 保留媒体 gate 不动（非媒体无预览源语义）。
+  - **读响应 wire schema 不设媒体白名单**（`packages/shared/src/mode-protocol-v4/transport.ts` 的 `v4AttachmentReadResultSchema`）：客户端对读块响应的校验只保留结构与容量语义。读通路（`attachmentRead`）预览与下载共用，媒体白名单挂在这条响应上会把非媒体回读（txt/office/`application/octet-stream`）打成客户端响应校验错误——网关已按权威行授权放行，客户端再按「预览口径」拒绝等于双重卡死。媒体 gate 只属于 `attachmentPreviewSource`：其 params 终审 `mediaOnly:true`，`local_path` 分支另有 video-only refine。
   - **容量不改**：非视频 20 MiB（`attachmentMaxBytes`）、视频 30 MiB（`attachmentPreviewMaxBytes`），超限 → 稳定码 `previewTooLarge`。
 - **artifact 行授权**：resolver 增加 `kind === "artifact"` 行的 ref 精确匹配授权（session 归属由 publisher 保证）；读端复用既有 `mode-artifact://` → `readAttachment` 通路。
 - **下载 UI（全部接入 `platform.saveFile`，复用 image-preview-dialog 的 blob→saveFile / `<a download>` 回退模式）**：
@@ -71,27 +72,27 @@
 
 发向：
 
-| 场景 | 行为 |
-| --- | --- |
-| LAN 单文件 >20 MiB | `stat` 先于事务校验，不发起上传，报「局域网连接附件单文件上限 20 MiB，请改用 SSH/WSL/Docker 工作区，或先把文件放到对端工作区」 |
-| 对端无 `putSessionAttachment` | `fault.attachment.putUnsupported` → 「对端版本不支持附件上传」，不静默降级 |
-| LAN 传输中断 | stage 抛错 → composer 现有 `failed` + 重试；5 分钟 TTL 内 `begin` 按 `nextChunkIndex` 幂等续传 |
-| `staged:false` | 维持现状 `RemoteAttachmentNotStagedError` 拒发 |
-| LAN materialize localPath >20 MiB 内联上限 | 可读错误拒发（不变量 1 优先） |
-| materialize 排序判定两侧都不存在 | 可读错误拒发 |
-| SSH 上传失败 | 现状不动（「远端附件上传失败：<文件名>」+ 尽力回收） |
-| 会话未就绪 | 现状 `waitingSession` 排队 |
+| 场景                                       | 行为                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| LAN 单文件 >20 MiB                         | `stat` 先于事务校验，不发起上传，报「局域网连接附件单文件上限 20 MiB，请改用 SSH/WSL/Docker 工作区，或先把文件放到对端工作区」 |
+| 对端无 `putSessionAttachment`              | `fault.attachment.putUnsupported` → 「对端版本不支持附件上传」，不静默降级                                                     |
+| LAN 传输中断                               | stage 抛错 → composer 现有 `failed` + 重试；5 分钟 TTL 内 `begin` 按 `nextChunkIndex` 幂等续传                                 |
+| `staged:false`                             | 维持现状 `RemoteAttachmentNotStagedError` 拒发                                                                                 |
+| LAN materialize localPath >20 MiB 内联上限 | 可读错误拒发（不变量 1 优先）                                                                                                  |
+| materialize 排序判定两侧都不存在           | 可读错误拒发                                                                                                                   |
+| SSH 上传失败                               | 现状不动（「远端附件上传失败：<文件名>」+ 尽力回收）                                                                           |
+| 会话未就绪                                 | 现状 `waitingSession` 排队                                                                                                     |
 
 收向：
 
-| 场景 | 行为 |
-| --- | --- |
+| 场景                                    | 行为                                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------------------- |
 | 超容量（非视频 >20 MiB / 视频 >30 MiB） | `previewTooLarge` → 「附件超过会话内下载上限（20 MiB，视频 30 MiB），请到工作区直接取用」 |
-| ref 不匹配权威行 / 跨会话 | `previewRefNotAuthorized` → 「附件已不可用」（放权不动此边界） |
-| 旧版本对端返回 `previewNotMedia` | 「对端版本过低，无法下载该附件」 |
-| host 无 `readSessionAttachment` | `fault.attachment.readUnsupported` 明确错误 |
-| 下载中断 | 可重试；`saveFile` 只在字节完整后触发，不落半截文件 |
-| 对端断连 | `useWorkspaceServices` rejecting proxy 现状错误 |
+| ref 不匹配权威行 / 跨会话               | `previewRefNotAuthorized` → 「附件已不可用」（放权不动此边界）                            |
+| 旧版本对端返回 `previewNotMedia`        | 「对端版本过低，无法下载该附件」                                                          |
+| host 无 `readSessionAttachment`         | `fault.attachment.readUnsupported` 明确错误                                               |
+| 下载中断                                | 可重试；`saveFile` 只在字节完整后触发，不落半截文件                                       |
+| 对端断连                                | `useWorkspaceServices` rejecting proxy 现状错误                                           |
 
 ### 事件顺序
 
@@ -121,7 +122,7 @@ chunked bytes ──▶ media → 预览对话框；非媒体/artifact → platf
 
 ## 验收场景
 
-1. SSH 远端对话：发送 图片 + PDF + txt → 历史中图片/PDF 可预览，三者均可下载到本地。
+1. SSH 远端对话：发送 图片 + PDF + txt + 非媒体二进制（.zip/.exe，`application/octet-stream`）→ 历史中图片/PDF 可预览，全部可下载到本地（含远端机器上校验响应的 app）。
 2. LAN 远端对话：同上；staged 路径 ref 的回读由远端 CLI 执行、经代理返回字节。
 3. LAN 发送本地路径附件（≤20 MiB）→ host 流式上传 → `staged:true` → 远端 agent 可读；>20 MiB → 发起前拒发并给出可读文案。
 4. LAN 粘贴截图（dataBase64）→ materialize 放行，正常送达（回归现状不被 guard 拦截）。
@@ -137,7 +138,7 @@ chunked bytes ──▶ media → 预览对话框；非媒体/artifact → platf
 
 - 单测（gateway 授权矩阵）：userInput 行任意 MIME 授权、ref 不匹配拒绝、跨 session 拒绝、artifact 行授权与拒绝、`attachmentPreviewSource` 媒体 gate 不回归。
 - 单测（发向）：LAN materialize inline 放行 / localPath 内联转换与超限；materialize 排序判定四分支（staging 根 / 本机存在 / 仅目标机存在 / 两侧都不存在）；workspace-pick 在 composer 跳过 stage；DirectoryBrowser files 模式过滤与多选。
-- 单测（下载）：分段拉取拼装、错误码 → 文案映射。
+- 单测（下载）：分段拉取拼装、错误码 → 文案映射；读响应 schema 接受任意 MIME（含 `application/octet-stream`）、结构/容量校验不回归；`attachmentPreviewSource` 的媒体 gate 不回归。
 - E2E（交互改动必需）：远端工作区会话发附件（LAN 模拟）→ 历史出现 → 下载落盘；超限失败出提示。
 - 验证：`pnpm typecheck`、`pnpm lint`、目标包测试按实际 `package.json` 入口执行并如实报告。
 

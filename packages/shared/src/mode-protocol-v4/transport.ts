@@ -950,7 +950,7 @@ export const v4AttachmentAbortParamsSchema = v4AttachmentTerminalParamsSchema;
 export type V4AttachmentAbortParams = z.infer<typeof v4AttachmentAbortParamsSchema>;
 export const v4AttachmentAbortResultSchema = z.object({}).strict();
 
-/** 已发送 image/video/PDF 预览 query；ref 必须由 CLI 对当前 session projection 再授权。 */
+/** 已发送附件的分段读 query（预览与下载共用，任意 MIME）；ref 必须由 CLI 对当前 session projection 再授权。 */
 export const v4AttachmentReadParamsSchema = z
   .object({
     sessionId: z.string().min(1),
@@ -1006,23 +1006,24 @@ export const v4AttachmentPreviewSourceResultSchema = z.union([
 ]);
 export type V4AttachmentPreviewSourceResult = z.infer<typeof v4AttachmentPreviewSourceResultSchema>;
 
+// 读响应按「任意 MIME」契约校验：这条分段读通路预览与下载共用，MIME 从来不是读授权因子
+// （CLI 侧 authorizeConversationAttachment mediaOnly:false、host 侧解码只保留结构/容量语义）。
+// 这里曾按 image/video/pdf refine mediaType，把「预览口径」的白名单挂上了共用读通路，
+// txt/office/application/octet-stream 等非媒体回读在客户端响应校验即抛 ZodError，
+// 用户下载 .txt/.exe 只能看到通用失败（远端工作区附件下载失败的实际根因）。
+// 媒体 gate 只在 attachmentPreviewSource：params 终审 mediaOnly:true，local_path 分支另有 video-only refine。
+// 依据：docs/specs/remote-workspace-bidirectional-attachments.md 收向「权威行 ref 精确匹配（任意 MIME）」。
 export const v4AttachmentReadResultSchema = z
   .object({
     dataBase64: z.string(),
-    mediaType: z
-      .string()
-      .refine(
-        (value) =>
-          value.startsWith("image/") ||
-          value.startsWith("video/") ||
-          value.split(";", 1)[0]?.trim().toLowerCase() === "application/pdf",
-        "attachment preview only supports image/video/pdf media types",
-      ),
+    mediaType: z.string(),
     totalBytes: z.number().int().nonnegative().max(PROTOCOL_V4_LIMITS.attachmentPreviewMaxBytes),
     nextOffset: z.number().int().positive().nullable(),
   })
   .strict()
   .superRefine((value, context) => {
+    // 容量分档保持不变：image 受非视频读上限 20 MiB 约束（网关对非视频即按此上限裁量），
+    // 这是容量镜像而非媒体 gate，与 spec「容量不改」一致。
     if (
       value.mediaType.startsWith("image/") &&
       value.totalBytes > PROTOCOL_V4_LIMITS.attachmentMaxBytes
