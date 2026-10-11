@@ -29,10 +29,8 @@ import type {
 import type { ConversationSnapshot } from "@mode/shared/mode-protocol-v4";
 import { SessionEventType, isFileSystemPortError } from "@mode/contracts";
 import type { ModeWorkspaceRef } from "@mode/shared";
-import { extractMarkdownArtifactImageRefs } from "@mode/shared";
 import type {
   CommandAck,
-  AttachmentRef,
   CommandEnvelope,
   CommandKey,
   CommandResult,
@@ -120,6 +118,7 @@ import {
   v4ConversationSubscribeParamsSchema,
   v4ConversationUnsubscribeParamsSchema,
 } from "@mode/shared/mode-protocol-v4";
+import { authorizeConversationAttachment } from "./attachment-row-auth.js";
 import { AttachmentUploadRegistry } from "./attachment-upload-registry.js";
 import {
   ColdSessionResumeCoordinator,
@@ -525,10 +524,6 @@ function subscriptionRouteKey(topic: string, subscriptionId: string, connectionI
 
 function defaultLogEpoch(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function artifactRefBelongsToSession(ref: string, sessionId: string): boolean {
-  return ref.startsWith(`mode-artifact://${encodeURIComponent(sessionId)}/`);
 }
 
 /** 附件在文件系统层「确定不存在」的错误码集合。 */
@@ -1977,24 +1972,30 @@ export class ConversationV4Gateway {
       : !this.host.sessionExists(params.sessionId)
         ? await this.ensureColdReadyPublisher(params.sessionId)
         : await this.hydratePublisher(params.sessionId);
-    const resolution = this.resolveReadableMediaAttachment(
-      publisher,
-      params.sessionId,
-      params.ref,
-      params.target,
-      params.attachmentIndex,
-    );
+    const resolution = authorizeConversationAttachment(publisher.getSnapshot().rows.window, {
+      sessionId: params.sessionId,
+      ref: params.ref,
+      ...(params.target ? { target: params.target } : {}),
+      ...(params.attachmentIndex !== undefined
+        ? { attachmentIndex: params.attachmentIndex }
+        : {}),
+      mediaOnly: false,
+    });
     if (!resolution) {
       // renderer 传来的 ref 不能直接成为文件路径；必须先由当前 session
-      // 的权威 user row 证明归属，避免跨 session 或任意路径读取。
+      // 的权威 user/artifact 行证明归属，避免跨 session 或任意路径读取。
       throw new Error("fault.attachment.previewRefNotAuthorized");
     }
+    const messageId =
+      resolution.sourceRowId !== undefined
+        ? publisher.getMessageIdForRow(resolution.sourceRowId) ?? undefined
+        : undefined;
 
     const payload = await this.readAttachmentPayload(
       params.sessionId,
       params.ref,
       resolution.attachment.mime,
-      resolution.messageId,
+      messageId,
       resolution.attachmentIndex,
     );
     if (params.offset > payload.bytes.byteLength) {
@@ -2120,13 +2121,15 @@ export class ConversationV4Gateway {
       : !this.host.sessionExists(params.sessionId)
         ? await this.ensureColdReadyPublisher(params.sessionId)
         : await this.hydratePublisher(params.sessionId);
-    const resolution = this.resolveReadableMediaAttachment(
-      publisher,
-      params.sessionId,
-      params.ref,
-      params.target,
-      params.attachmentIndex,
-    );
+    const resolution = authorizeConversationAttachment(publisher.getSnapshot().rows.window, {
+      sessionId: params.sessionId,
+      ref: params.ref,
+      ...(params.target ? { target: params.target } : {}),
+      ...(params.attachmentIndex !== undefined
+        ? { attachmentIndex: params.attachmentIndex }
+        : {}),
+      mediaOnly: true,
+    });
     if (!resolution) {
       throw new Error("fault.attachment.previewRefNotAuthorized");
     }
@@ -2137,82 +2140,19 @@ export class ConversationV4Gateway {
     ) {
       return { kind: "chunked" };
     }
+    const messageId =
+      resolution.sourceRowId !== undefined
+        ? publisher.getMessageIdForRow(resolution.sourceRowId) ?? undefined
+        : undefined;
     const result = await this.host.resolveSessionAttachmentPreviewSource(params.sessionId, {
       ref: params.ref,
       mime: resolution.attachment.mime,
-      ...(resolution.messageId ? { messageId: resolution.messageId } : {}),
+      ...(messageId ? { messageId } : {}),
       ...(resolution.attachmentIndex !== undefined
         ? { attachmentIndex: resolution.attachmentIndex }
         : {}),
     });
     return v4AttachmentPreviewSourceResultSchema.parse(result);
-  }
-
-  private resolveReadableMediaAttachment(
-    publisher: ConversationTopicPublisher,
-    sessionId: string,
-    ref: string,
-    target?: { rowId: number; entityId: string },
-    attachmentIndex?: number,
-  ): { attachment: AttachmentRef; messageId?: string; attachmentIndex?: number } | null {
-    const isPreviewable = (attachment: AttachmentRef) => {
-      const mime = attachment.mime.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-      return mime.startsWith("image/") || mime.startsWith("video/") || mime === "application/pdf";
-    };
-    const matchesRef = (attachment: AttachmentRef) =>
-      attachment.ref === ref || attachment.previewRef === ref;
-    if (target && attachmentIndex !== undefined) {
-      const row = publisher
-        .getSnapshot()
-        .rows.window.find(
-          (candidate) => candidate.rowId === target.rowId && candidate.entityId === target.entityId,
-        );
-      if (row?.kind !== "userInput") return null;
-      const attachment = row.attachments?.[attachmentIndex];
-      if (!attachment || !isPreviewable(attachment) || !matchesRef(attachment)) {
-        return null;
-      }
-      // 热态 renderer 可能还持有 original ref，而 hydrate 后的权威 row 已补
-      // previewRef；两者属于同一个 row/index，授权不能因投影时序不同而误判为跨行读取。
-      const messageId = publisher.getMessageIdForRow(row.rowId);
-      return {
-        attachment,
-        attachmentIndex,
-        ...(messageId ? { messageId } : {}),
-      };
-    }
-
-    // 旧 renderer 没有 row target，无法按消息定位持久 artifact；一旦
-    // previewRef 存在就只能授权该 durable ref，不能重新放行可变的原始路径。
-    for (const row of publisher.getSnapshot().rows.window) {
-      if (row.kind === "userInput") {
-        for (const attachment of row.attachments ?? []) {
-          if (!isPreviewable(attachment)) continue;
-          if ((attachment.previewRef ?? attachment.ref) === ref) return { attachment };
-        }
-      }
-      if (
-        row.kind === "assistantText" &&
-        artifactRefBelongsToSession(ref, sessionId) &&
-        extractMarkdownArtifactImageRefs(row.text).includes(ref)
-      ) {
-        // assistant Markdown 可以引用工具产出的 session artifact，
-        // 但旧授权只查看 userInput.attachments，导致合法图片到 UI 后被 harden
-        // 拦截。仍以当前 session 的权威投影做精确 ref 授权，绝不接受 renderer
-        // 自报的任意 artifact/path。Markdown 是模型可控文本，所以 URI authority
-        // 还必须与当前请求 session 精确匹配；仅“当前投影里出现过”不能证明它有权
-        // 读取另一个 session 的 artifact。
-        return {
-          attachment: {
-            ref,
-            fileName: "assistant-image",
-            mime: "image/*",
-            bytes: 0,
-          },
-        };
-      }
-    }
-    return null;
   }
 
   /**
@@ -2257,15 +2197,6 @@ export class ConversationV4Gateway {
       ...(attachmentIndex !== undefined ? { attachmentIndex } : {}),
     })
       .then((result) => {
-        const resultMime = result.mediaType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
-        if (
-          !allowGeneric &&
-          !resultMime.startsWith("image/") &&
-          !resultMime.startsWith("video/") &&
-          resultMime !== "application/pdf"
-        ) {
-          throw new ModeAttachmentFaultError(MODE_ATTACHMENT_FAULT_CODES.previewNotMedia);
-        }
         if (result.bytes.byteLength > maxBytes) {
           throw new ModeAttachmentFaultError(MODE_ATTACHMENT_FAULT_CODES.previewTooLarge);
         }

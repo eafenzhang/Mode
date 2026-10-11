@@ -19,6 +19,7 @@
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.mts",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src"
   },
