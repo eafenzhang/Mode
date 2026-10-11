@@ -153,6 +153,7 @@ const faIR: Record<string, string> = {
   "chat.composer.addSection": "افزودن",
   "chat.composer.addWorkflow": "گردش کار",
   "chat.composer.attachment": "پیوست‌ها",
+  "chat.composer.attachWorkspaceFile": "انتخاب فایل از فضای کاری",
   "chat.permission.feedback.ariaLabel": "بازخورد اختیاری برای مدل هنگام رد کردن",
   "chat.permission.feedback.placeholder": "به مدل بگویید در عوض چه کند...",
   "offPeak.chatCreated.defaultTitle": "وظیفهٔ زمان بیکاری",

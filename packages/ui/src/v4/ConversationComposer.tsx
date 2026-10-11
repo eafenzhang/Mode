@@ -30,6 +30,8 @@ import { cn } from "@/components/lib/utils.js";
 import {
   TID_CHAT_ATTACHMENT_BUTTON,
   TID_CHAT_ATTACHMENT_MENU_ITEM,
+  TID_CHAT_WORKSPACE_PICK_BUTTON,
+  TID_CHAT_WORKSPACE_PICK_MENU_ITEM,
   TID_V4_COMPOSER,
   TID_V4_COMPOSER_CLEAR_QUEUE_SEND,
   TID_V4_COMPOSER_INPUT,
@@ -81,12 +83,14 @@ import {
   type ChatMediaAttachmentPreviewTarget,
 } from "@/ChatMediaAttachmentPreviewDialog.js";
 import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
+import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
+import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { logger } from "@/logger.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import type { ComposerMentionPrefill } from "@/store/modeSessionStoreTypes.js";
@@ -128,7 +132,7 @@ import {
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { usePrimaryFollowupModifier } from "@/v4/composer/usePrimaryFollowupModifier.js";
 import { consumeV4ComposerDraftWorkspaceTransferRequest } from "@/v4/composer/composerDraftWorkspaceTransfer.js";
-import { useComposerAttachments } from "@/v4/composer/useComposerAttachments.js";
+import { useComposerAttachments, isRemoteAttachmentTarget } from "@/v4/composer/useComposerAttachments.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import { CodeCommentAttachmentChip } from "@/v4/composer/CodeCommentAttachmentChip.js";
 import { removeCodeCommentPreview } from "@/v4/composer/codeCommentPreviewSync.js";
@@ -1474,15 +1478,34 @@ function ConversationComposerImpl({
   const stopTooltipTitle = intl.formatMessage({ id: "chat.stop" });
   const visibleError = error && !shouldSuppressChatErrorBanner(error) ? error : null;
 
-  const attachmentAction = useMemo(
-    () => ({
-      label: intl.formatMessage({ id: "chat.composer.attachment" }),
-      menuItemTestId: TID_CHAT_ATTACHMENT_MENU_ITEM,
-      onSelect: () => attachmentsApi.openAttachmentPicker(),
-      testId: TID_CHAT_ATTACHMENT_BUTTON,
-    }),
-    [intl, attachmentsApi.openAttachmentPicker],
+  // 「从工作区选择文件」选择器：仅远端 target 挂第二项菜单，本地 target 不受任何影响。
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+  const { services: workspacePickerServices } = useWorkspaceServicesResolution(
+    workspacePath,
+    remoteSessionId,
+    workspaceIdentity,
   );
+
+  const attachmentActions = useMemo(() => {
+    const actions = [
+      {
+        label: intl.formatMessage({ id: "chat.composer.attachment" }),
+        menuItemTestId: TID_CHAT_ATTACHMENT_MENU_ITEM,
+        onSelect: () => attachmentsApi.openAttachmentPicker(),
+        testId: TID_CHAT_ATTACHMENT_BUTTON,
+      },
+    ];
+    if (!isRemoteAttachmentTarget({ remoteSessionId, workspaceIdentity })) return actions;
+    return [
+      ...actions,
+      {
+        label: intl.formatMessage({ id: "chat.composer.attachWorkspaceFile" }),
+        menuItemTestId: TID_CHAT_WORKSPACE_PICK_MENU_ITEM,
+        testId: TID_CHAT_WORKSPACE_PICK_BUTTON,
+        onSelect: () => setWorkspacePickerOpen(true),
+      },
+    ];
+  }, [attachmentsApi.openAttachmentPicker, intl, remoteSessionId, workspaceIdentity]);
 
   // ── 附件预览网格 ──
   const composerAttachments = attachmentsApi.attachments;
@@ -2088,7 +2111,7 @@ function ConversationComposerImpl({
           // 仍由 MentionPlugin 保留兼容触发，但不在 + 菜单重复展示。
           showMentionButton
           topContent={topContentNode}
-          attachmentAction={attachmentAction}
+          attachmentActions={attachmentActions}
           inputTestId={TID_V4_COMPOSER_INPUT}
           inputApiRef={inputApiRef}
           promptHistory={promptHistory}
@@ -2190,6 +2213,21 @@ function ConversationComposerImpl({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* file 模式必须非嵌入：确认多选的 footer 只存在于非嵌入形态。 */}
+      {workspacePickerOpen ? (
+        <DirectoryBrowser
+          services={workspacePickerServices}
+          mode="file"
+          initialPath={workspacePath}
+          // onSelect 是目录模式的单选回调，file 模式只走 onSelectFiles；类型必传，这里等价占位关闭。
+          onSelect={() => setWorkspacePickerOpen(false)}
+          onSelectFiles={(paths) => {
+            attachmentsApi.addWorkspacePickAttachments(paths);
+            setWorkspacePickerOpen(false);
+          }}
+          onCancel={() => setWorkspacePickerOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

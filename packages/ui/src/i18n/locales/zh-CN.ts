@@ -145,6 +145,7 @@ const zhCN: Record<string, string> = {
   "chat.composer.addSection": "添加",
   "chat.composer.addWorkflow": "工作流",
   "chat.composer.attachment": "附件",
+  "chat.composer.attachWorkspaceFile": "从工作区选择文件",
   "chat.permission.feedback.ariaLabel": "拒绝时给模型的可选反馈",
   "chat.permission.feedback.placeholder": "告诉模型接下来应该怎么做...",
   "offPeak.chatCreated.defaultTitle": "闲时任务",

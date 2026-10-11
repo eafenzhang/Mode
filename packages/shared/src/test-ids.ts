@@ -247,6 +247,10 @@ export const TID_CHAT_INPUT = "chat-input";
 export const TID_CHAT_ATTACHMENT_BUTTON = "chat-attachment-button";
 /** 聊天附件菜单项 */
 export const TID_CHAT_ATTACHMENT_MENU_ITEM = "chat-attachment-menu-item";
+/** 聊天「从工作区选择文件」菜单项 */
+export const TID_CHAT_WORKSPACE_PICK_MENU_ITEM = "chat-workspace-pick-menu-item";
+/** 聊天「从工作区选择文件」按钮 */
+export const TID_CHAT_WORKSPACE_PICK_BUTTON = "chat-workspace-pick-button";
 /** 聊天发送按钮 */
 export const TID_CHAT_SEND_BUTTON = "chat-send-button";
 /** 聊天停止按钮 */

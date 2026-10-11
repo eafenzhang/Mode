@@ -62,7 +62,7 @@ export function ChatPromptEditor({
   dragAttachmentHint,
   topContent,
   leadingActions,
-  attachmentAction,
+  attachmentActions,
   betweenCancelAndSubmitAction,
   submitControl,
   inputTestId,
@@ -113,12 +113,12 @@ export function ChatPromptEditor({
   dragAttachmentHint?: string;
   topContent?: ReactNode;
   leadingActions?: ReactNode;
-  attachmentAction?: {
+  attachmentActions?: ReadonlyArray<{
     label: string;
     onSelect: () => void;
     testId?: string;
     menuItemTestId?: string;
-  };
+  }>;
   /** 行内编辑专用：固定插在取消与主提交之间的第二动作。 */
   betweenCancelAndSubmitAction?: ReactNode;
   submitControl?: ReactNode;
@@ -175,7 +175,7 @@ export function ChatPromptEditor({
   const workspaceFileDragHint = intl.formatMessage({
     id: "chat.composer.workspaceFileDragHint",
   });
-  const hasActionMenu = Boolean(attachmentAction) || showMentionButton || showSlashButton;
+  const hasActionMenu = Boolean(attachmentActions?.length) || showMentionButton || showSlashButton;
 
   useEffect(() => {
     if (!syncInitialValueOnMount) {
@@ -392,7 +392,7 @@ export function ChatPromptEditor({
                 <ChatPromptActionMenu
                   actionMenuTitle={actionMenuTitle}
                   excludedSlashCommandNames={excludedSlashCommandNames}
-                  attachmentAction={attachmentAction}
+                  attachmentActions={attachmentActions}
                   disabled={disabled}
                   disabledReason={disabledReason}
                   inputApiRef={resolvedInputApiRef}

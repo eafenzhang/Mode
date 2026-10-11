@@ -155,6 +155,7 @@ const enUS: Record<string, string> = {
   "chat.composer.addSection": "Add",
   "chat.composer.addWorkflow": "Workflow",
   "chat.composer.attachment": "Attachments",
+  "chat.composer.attachWorkspaceFile": "Select from workspace",
   "chat.permission.feedback.ariaLabel": "Optional feedback for the model when denying",
   "chat.permission.feedback.placeholder": "Tell the model what to do instead...",
   "offPeak.chatCreated.defaultTitle": "Idle-time task",

@@ -34,7 +34,7 @@ type QuickCommand = keyof typeof QUICK_COMMANDS;
 
 export function ChatPromptActionMenu({
   actionMenuTitle,
-  attachmentAction,
+  attachmentActions,
   disabled,
   disabledReason,
   inputApiRef,
@@ -46,12 +46,12 @@ export function ChatPromptActionMenu({
   excludedSlashCommandNames,
 }: {
   actionMenuTitle: string;
-  attachmentAction?: {
+  attachmentActions?: ReadonlyArray<{
     label: string;
     onSelect: () => void;
     testId?: string;
     menuItemTestId?: string;
-  };
+  }>;
   disabled?: boolean;
   disabledReason?: string;
   inputApiRef: MutableRefObject<LexicalChatInputHandle | null>;
@@ -117,9 +117,9 @@ export function ChatPromptActionMenu({
     })),
   );
   const mentionItems = [...plugins.items, ...contextGroups.flatMap((group) => group.items)];
-  const attachmentCount = attachmentAction ? 1 : 0;
+  const attachmentCount = attachmentActions?.length ?? 0;
   const options = [
-    ...(attachmentAction ? [{ disabled: false }] : []),
+    ...(attachmentActions ?? []).map(() => ({ disabled: false })),
     ...quickCommands.map(() => ({ disabled: false })),
     ...mentionItems,
   ];
@@ -129,26 +129,22 @@ export function ChatPromptActionMenu({
       title: intl.formatMessage({ id: "chat.composer.addSection" }),
       emptyText: "",
       options: [
-        ...(attachmentAction
-          ? [
-              {
-                id: "attach-files",
-                label: attachmentAction.label,
-                description: "",
-                content: (
-                  <>
-                    <PaperclipIcon className="size-4 shrink-0" />
-                    <span
-                      className="truncate text-ui-base font-medium"
-                      data-testid={attachmentAction.menuItemTestId}
-                    >
-                      {attachmentAction.label}
-                    </span>
-                  </>
-                ),
-              },
-            ]
-          : []),
+        ...(attachmentActions ?? []).map((action, actionIndex) => ({
+          id: `attach-${actionIndex}`,
+          label: action.label,
+          description: "",
+          content: (
+            <>
+              <PaperclipIcon className="size-4 shrink-0" />
+              <span
+                className="truncate text-ui-base font-medium"
+                data-testid={action.menuItemTestId}
+              >
+                {action.label}
+              </span>
+            </>
+          ),
+        })),
         ...quickCommands.map((command) => {
           const { id, labelId, Icon } = QUICK_COMMANDS[command];
           const label = intl.formatMessage({ id: labelId });
@@ -196,8 +192,9 @@ export function ChatPromptActionMenu({
   const selectOption = (index: number) => {
     if (disabled || !options[index] || options[index].disabled) return;
     setOpen(false);
-    if (attachmentAction && index === 0) {
-      attachmentAction.onSelect();
+    if (attachmentActions && index < attachmentActions.length) {
+      // options 前缀与 attachmentActions 一一对齐；noUncheckedIndexedAccess 下用可选调用收窄。
+      attachmentActions[index]?.onSelect();
       return;
     }
     const command = quickCommands[index - attachmentCount];
@@ -252,7 +249,7 @@ export function ChatPromptActionMenu({
             className="gap-1 rounded-lg text-ui-base"
             onMouseDown={(event) => event.preventDefault()}
             aria-label={actionMenuTitle}
-            data-testid={attachmentAction?.testId}
+            data-testid={attachmentActions?.[0]?.testId}
             disabled={disabled}
             title={disabledReason}
           >
