@@ -85,6 +85,7 @@ import {
   readModelFailureErrorPhase,
 } from "./runner-telemetry.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
+import { repairToolResultPairingAfterInvalidRequest } from "./tool-pairing-normalization.js";
 
 type StreamFailurePhase = "request_setup" | "response_body";
 
@@ -118,19 +119,18 @@ export async function* runStreamText(input: {
   const isDev = isDevelopmentModelIOEnv(input.env);
   let requestMessages = input.request.messages;
   let signatureRepairAttempted = false;
+  let toolPairingRepairAttempted = false;
+  // 签名与配对两类历史修复互相独立，各给一次不占普通预算的物理请求。
+  const historyRepairCount = () =>
+    Number(signatureRepairAttempted) + Number(toolPairingRepairAttempted);
   let emptyCompletionRetryCount = 0;
 
   for (
     let attempt = 1;
-    retryAttemptLoopContinues(
-      retryBudget,
-      attempt,
-      input.retry.maxAttempts + Number(signatureRepairAttempted),
-    );
+    retryAttemptLoopContinues(retryBudget, attempt, input.retry.maxAttempts + historyRepairCount());
     attempt += 1
   ) {
-    const retryBudgetAttempt =
-      attempt - Number(signatureRepairAttempted);
+    const retryBudgetAttempt = attempt - historyRepairCount();
     const startedAt = Date.now();
     // SSE idle timeout 后的重试如果仍固定首请求窗口，容易被同一段 provider 静默窗口反复打断；
     // core recovery 和 adapter 内部 retry 都统一按重试次数每次增加 30s。
@@ -154,9 +154,7 @@ export async function* runStreamText(input: {
     let statusContext = createAttemptStatusContext(
       {
         ...baseStatusContext,
-        maxAttempts: statusMaxAttempts(
-          Number(signatureRepairAttempted),
-        ),
+        maxAttempts: statusMaxAttempts(historyRepairCount()),
       },
       attempt,
     );
@@ -178,7 +176,31 @@ export async function* runStreamText(input: {
     let streamMaxIdleMs = 0;
     let streamStallCount = 0;
     let streamOutputCommitted = false;
-    const repairThinkingSignatureRejection = (error: unknown): boolean => {
+    const repairRequestHistoryRejection = (error: unknown): boolean => {
+      if (!toolPairingRepairAttempted) {
+        const toolPairingRepair = repairToolResultPairingAfterInvalidRequest(
+          requestMessages,
+          error,
+        );
+        if (toolPairingRepair) {
+          // provider 已用 400 明确拒绝孤儿 tool_result 形态；流尚未提交输出时，
+          // 只替换本次请求副本并给一次不占普通 retry 预算的物理请求机会；
+          // 不回写 canonical history。取证日志只带 toolCallId，不带消息正文。
+          toolPairingRepairAttempted = true;
+          requestMessages = toolPairingRepair.messages;
+          input.logger?.warn("Retrying model stream after tool result pairing rejection", {
+            attempt,
+            droppedToolCallIds: toolPairingRepair.droppedToolCallIds,
+            event: "model.tool_pairing_repair.retry",
+            maxAttempts: input.retry.maxAttempts + historyRepairCount(),
+            nextAttempt: attempt + 1,
+            reanchoredToolCallIds: toolPairingRepair.reanchoredToolCallIds,
+            requestId: statusContext.requestId,
+            status: "waiting",
+          });
+          return true;
+        }
+      }
       if (signatureRepairAttempted || resolved.providerKind !== "anthropic") {
         return false;
       }
@@ -196,7 +218,7 @@ export async function* runStreamText(input: {
       input.logger?.warn("Retrying model stream after thinking signature rejection", {
         attempt,
         event: "model.reasoning_signature_repair.retry",
-        maxAttempts: input.retry.maxAttempts + 1,
+        maxAttempts: input.retry.maxAttempts + historyRepairCount(),
         nextAttempt: attempt + 1,
         requestId: statusContext.requestId,
         status: "waiting",
@@ -364,7 +386,7 @@ export async function* runStreamText(input: {
             pendingRetrySafeEvents,
             requestHeaderCount,
             requestHeaders,
-            repairThinkingSignatureRejection,
+            repairRequestHistoryRejection,
             retryBudgetAttempt,
             startedAt,
             statusContext,
@@ -667,11 +689,11 @@ export async function* runStreamText(input: {
 
       const completedAt = Date.now();
       const retryWithRepairedHistory =
-        !emittedRetryBoundaryEvent && repairThinkingSignatureRejection(error);
+        !emittedRetryBoundaryEvent && repairRequestHistoryRejection(error);
       if (retryWithRepairedHistory) {
         statusContext = {
           ...statusContext,
-          maxAttempts: statusMaxAttempts(1),
+          maxAttempts: statusMaxAttempts(historyRepairCount()),
         };
       }
       const classified = classifyModelFailure(error, input.request.abortSignal);
@@ -1002,7 +1024,7 @@ async function handleStreamChunk(input: {
     statusSink?: ModelStatusSink;
   };
   pendingRetrySafeEvents: ModelStreamEvent[];
-  repairThinkingSignatureRejection: (error: unknown) => boolean;
+  repairRequestHistoryRejection: (error: unknown) => boolean;
   retryBudgetAttempt: number;
   requestHeaderCount: number;
   requestHeaders: Record<string, string>;
@@ -1197,7 +1219,7 @@ async function handleStreamErrorEvent(
   error: unknown,
 ): Promise<Awaited<ReturnType<typeof handleStreamChunk>>> {
   const retryWithRepairedHistory =
-    !input.emittedRetryBoundaryEvent && input.repairThinkingSignatureRejection(error);
+    !input.emittedRetryBoundaryEvent && input.repairRequestHistoryRejection(error);
   const statusContext = retryWithRepairedHistory
     ? {
         ...input.statusContext,

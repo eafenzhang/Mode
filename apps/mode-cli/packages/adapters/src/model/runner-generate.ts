@@ -55,6 +55,7 @@ import { resolveModelForAttempt, RuntimeHeadersRefreshError } from "./runner-run
 import { retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
 import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-telemetry.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
+import { repairToolResultPairingAfterInvalidRequest } from "./tool-pairing-normalization.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
 import {
   retryAttemptLoopContinues,
@@ -90,28 +91,25 @@ export async function runGenerateText(input: {
   const isDev = isDevelopmentModelIOEnv(input.env);
   let requestMessages = input.request.messages;
   let signatureRepairAttempted = false;
+  let toolPairingRepairAttempted = false;
+  // 签名与配对两类历史修复互相独立，各给一次不占普通预算的物理请求。
+  const historyRepairCount = () =>
+    Number(signatureRepairAttempted) + Number(toolPairingRepairAttempted);
   let emptyCompletionRetryCount = 0;
 
   for (
     let attempt = 1;
-    retryAttemptLoopContinues(
-      retryBudget,
-      attempt,
-      input.retry.maxAttempts + Number(signatureRepairAttempted),
-    );
+    retryAttemptLoopContinues(retryBudget, attempt, input.retry.maxAttempts + historyRepairCount());
     attempt += 1
   ) {
-    const retryBudgetAttempt =
-      attempt - Number(signatureRepairAttempted);
+    const retryBudgetAttempt = attempt - historyRepairCount();
     const attemptRequest = { ...input.request, messages: requestMessages };
     const startedAt = Date.now();
     let resolved = input.resolved;
     let statusContext = createAttemptStatusContext(
       {
         ...baseStatusContext,
-        maxAttempts: statusMaxAttempts(
-          Number(signatureRepairAttempted),
-        ),
+        maxAttempts: statusMaxAttempts(historyRepairCount()),
       },
       attempt,
     );
@@ -361,12 +359,35 @@ export async function runGenerateText(input: {
       const responseHeaders = sanitizeModelNetworkHeaders(
         getResponseHeaders(unwrapRetryError(error)),
       );
+      const toolPairingRepair = !toolPairingRepairAttempted
+        ? repairToolResultPairingAfterInvalidRequest(requestMessages, error)
+        : undefined;
       const repairedMessages =
-        !signatureRepairAttempted && resolved.providerKind === "anthropic"
+        toolPairingRepair?.messages ??
+        (!signatureRepairAttempted && resolved.providerKind === "anthropic"
           ? repairReasoningHistoryAfterSignatureRejection(requestMessages, error)
-          : undefined;
+          : undefined);
       const retryWithRepairedHistory = repairedMessages !== undefined;
-      if (repairedMessages) {
+      if (toolPairingRepair && repairedMessages) {
+        // 孤儿 tool_result 修复只作用于本次请求副本：provider 已用 400 明确拒绝该
+        // 形态，丢弃/重锚后给一次不占普通 retry 预算的物理请求；不回写 canonical
+        // history。取证日志只带 toolCallId，不带消息正文。
+        toolPairingRepairAttempted = true;
+        requestMessages = repairedMessages;
+        input.logger?.warn("Retrying model request after tool result pairing rejection", {
+          attempt,
+          droppedToolCallIds: toolPairingRepair.droppedToolCallIds,
+          event: "model.tool_pairing_repair.retry",
+          maxAttempts: input.retry.maxAttempts + historyRepairCount(),
+          reanchoredToolCallIds: toolPairingRepair.reanchoredToolCallIds,
+          requestId: statusContext.requestId,
+          status: "waiting",
+        });
+        statusContext = {
+          ...statusContext,
+          maxAttempts: statusMaxAttempts(historyRepairCount()),
+        };
+      } else if (repairedMessages) {
         // 签名只对生成它的 thinking block 有效。明确收到签名校验 400 时，
         // 只替换本次请求副本，并给一次不占普通 retry 预算的物理请求机会；不能通过
         // 回退 attempt 复用 requestId，也不能改写 canonical history。
@@ -374,7 +395,7 @@ export async function runGenerateText(input: {
         requestMessages = repairedMessages;
         statusContext = {
           ...statusContext,
-          maxAttempts: statusMaxAttempts(1),
+          maxAttempts: statusMaxAttempts(historyRepairCount()),
         };
       }
       const canRetryWithFailurePolicy =
