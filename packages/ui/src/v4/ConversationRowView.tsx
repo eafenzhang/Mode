@@ -790,7 +790,7 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
             }}
           />
         )}
-        {!isEditingAttachment && sessionId && readAttachment ? (
+        {!isEditingAttachment && !isThumbnail && sessionId && readAttachment ? (
           <button
             type="button"
             data-testid={testId(TID_V4_ATTACHMENT_DOWNLOAD, `${rowId}-${index}`)}
@@ -808,6 +808,10 @@ const UserInputAttachmentList = memo(function UserInputAttachmentList({
                 ...(attachmentIndices ? { attachmentIndices } : {}),
                 index,
               });
+            }}
+            onKeyDown={(event) => {
+              // 与 onClick 同语义：Enter/Space 冒泡到 Attachment 的 handleKeyDown 会连带打开预览。
+              event.stopPropagation();
             }}
           >
             <DownloadIcon className="size-3.5" />
