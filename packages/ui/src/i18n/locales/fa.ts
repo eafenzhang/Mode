@@ -1589,6 +1589,7 @@ const faIR: Record<string, string> = {
   "appHeader.reloadSessionFailed": "بارگذاری دوباره نشست ناموفق بود",
   "appHeader.workspaceSessionActionLoading": "در حال اعمال تغییرات نشست...",
   "appHeader.copyLogPath": "کپی مسیر لاگ",
+  "workspaceHeader.fileManager": "مدیریت فایل",
   "workspaceHeader.help.menu": "راهنما",
   "workspaceHeader.help.productRequest": "درخواست قابلیت",
   "workspaceHeader.help.productRequestDraft": "می‌خواهم پیشنهاد دهم: ",

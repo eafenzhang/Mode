@@ -1,4 +1,5 @@
 import { WorkspaceEditorButtonGroup } from "@/WorkspaceEditorButtonGroup.js";
+import { WorkspaceFileManagerButton } from "@/WorkspaceFileManagerButton.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import { WorkspaceTerminalToggleButton } from "@/WorkspaceTerminalToggleButton.js";
 import { cn } from "@/components/lib/utils.js";
@@ -15,6 +16,7 @@ export function WorkspaceHeaderActionSection({
   readOnlyReason,
   workspaceAbsPath,
   workspaceIdentity,
+  remoteSessionId,
   remoteTarget,
   isDesktop,
   isTerminalOpen,
@@ -48,6 +50,15 @@ export function WorkspaceHeaderActionSection({
       ) : null}
       {!simplifyForNarrowRemote ? (
         <>
+          {/* 远端工作区的文件管理器入口：本地由「打开方式」胶囊（finder/explorer 排最前）承担，
+              远端编辑器列表被 resolveWorkspaceEditorSelection 过滤到空后这里会整体缺一个入口。 */}
+          <WorkspaceFileManagerButton
+            workspaceAbsPath={workspaceAbsPath}
+            workspaceIdentity={workspaceIdentity}
+            remoteSessionId={remoteSessionId}
+            remoteTarget={remoteTarget}
+            simplifyForNarrowRemote={simplifyForNarrowRemote}
+          />
           {!hideHelpMenu ? <WorkspaceHelpMenuButton isDesktop={Boolean(isDesktop)} /> : null}
           {/* 远程控制移动端头部空间过窄，终端入口在这里会和核心操作争抢宽度。*/}
           <WorkspaceTerminalToggleButton

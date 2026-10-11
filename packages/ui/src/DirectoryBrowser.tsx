@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { IServiceAccessor } from "@mode/services";
 import type { FileEntry } from "@mode/shared";
 import { FileIcon, FolderIcon, FolderSymlinkIcon } from "lucide-react";
@@ -25,6 +26,24 @@ export function selectDirectoryBrowserEntries(
   mode: "directory" | "file",
 ): FileEntry[] {
   return mode === "file" ? entries : filterDirectoryBrowserEntries(entries);
+}
+
+export interface DirectoryBrowserInteraction {
+  /** footer 主动作：只浏览只给关闭，file 给多选确认，directory 给选当前目录。 */
+  footer: "close" | "selectFiles" | "selectDir";
+  /** 文件条目是否参与选中；只浏览下文件只是展示项。 */
+  filesSelectable: boolean;
+}
+
+/** footer 与文件可选性由 mode + browseOnly 唯一决定，抽成纯函数便于单测钉住只浏览语义。 */
+export function directoryBrowserInteraction(
+  mode: "directory" | "file",
+  browseOnly: boolean,
+): DirectoryBrowserInteraction {
+  if (browseOnly) return { footer: "close", filesSelectable: false };
+  return mode === "file"
+    ? { footer: "selectFiles", filesSelectable: true }
+    : { footer: "selectDir", filesSelectable: false };
 }
 
 // 远程目录条目已经携带 isSymbolicLink，这里只替换展示图标，不改变进入和选择目录的路径语义。
@@ -63,6 +82,7 @@ export function DirectoryBrowser({
   mode = "directory",
   initialPath,
   onSelectFiles,
+  browseOnly = false,
 }: {
   services: IServiceAccessor;
   onSelect: (path: string) => void;
@@ -75,6 +95,11 @@ export function DirectoryBrowser({
   initialPath?: string;
   /** file 模式多选确认回调。 */
   onSelectFiles?: (paths: string[]) => void;
+  /**
+   * 只浏览（文件管理器语义）：列目录与文件、可导航，但不选中、不回填，footer 只有关闭。
+   * 多选回填仍只属于 composer 的「从工作区选择文件」，两条入口不合并。
+   */
+  browseOnly?: boolean;
 }) {
   const [currentPath, setCurrentPath] = useState("");
   const [inputPath, setInputPath] = useState("");
@@ -87,6 +112,7 @@ export function DirectoryBrowser({
   const showHiddenDirectoriesRef = useRef(false);
   const requestGuardRef = useRef(createDirectoryBrowserRequestGuard());
   const { intl } = useModeIntl();
+  const interaction = directoryBrowserInteraction(mode, browseOnly);
 
   // 初始化：获取 homedir 作为起始路径；有 initialPath 时以其为起点
   useEffect(() => {
@@ -261,6 +287,18 @@ export function DirectoryBrowser({
         ) : (
           entries.map((entry) => {
             if (mode === "file" && entry.type === "file") {
+              // 只浏览形态下文件只是展示项：不参与选中，也没有 aria-pressed/选中态可言。
+              if (!interaction.filesSelectable) {
+                return (
+                  <div
+                    key={entry.path}
+                    className="flex w-full shrink-0 items-center gap-2 px-3 py-2 text-start text-ui-base"
+                  >
+                    <FileIcon className="size-4 shrink-0 text-foreground-subtle" />
+                    <span className="truncate">{entry.name}</span>
+                  </div>
+                );
+              }
               const selected = selectedPaths.has(entry.path);
               return (
                 <button
@@ -310,7 +348,11 @@ export function DirectoryBrowser({
     return browserContent;
   }
 
-  return (
+  // 非嵌入 overlay 必须 portal 到 body：composer 把本组件挂在
+  // ConversationBottomDockTransition 的 motion.div 内联 transform 之下，transform 会成为
+  // fixed 后代的包含块，弹窗因此只在底部输入栏那一小条盒子里居中、贴着屏幕下方溢出。
+  // portal 到 body 后 fixed 以视口为包含块，才能真正屏幕居中（embedded 形态原位返回，不受影响）。
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onCancel()}
@@ -320,43 +362,58 @@ export function DirectoryBrowser({
         {browserContent}
         {/* 非嵌入模式之前只能继续进入子目录，没有确认当前目录的路径。
             Web 目录浏览器作为独立选择器使用时因此永远拿不到 onSelect 结果。
-            这里把确认动作收口到弹窗 footer，选择当前浏览路径并交回上层。 */}
+            这里把确认动作收口到弹窗 footer，选择当前浏览路径并交回上层。
+            browseOnly（文件管理器）没有可回填的选择语义，footer 只留关闭。 */}
         <div className="mt-3 flex shrink-0 justify-end gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="lg"
-            className="h-10 min-w-0 px-5 text-ui-base"
-            onClick={onCancel}
-          >
-            {intl.formatMessage({ id: "common.cancel" })}
-          </Button>
-          {mode === "file" ? (
+          {interaction.footer === "close" ? (
             <Button
               type="button"
               size="lg"
               className="h-10 min-w-0 px-5 text-ui-base"
-              disabled={selectedPaths.size === 0 || loading}
-              onClick={() => onSelectFiles?.([...selectedPaths])}
+              onClick={onCancel}
             >
-              {intl.formatMessage(
-                { id: "directoryBrowser.selectFiles" },
-                { count: String(selectedPaths.size) },
-              )}
+              {intl.formatMessage({ id: "common.close" })}
             </Button>
           ) : (
-            <Button
-              type="button"
-              size="lg"
-              className="h-10 min-w-0 px-5 text-ui-base"
-              disabled={!currentPath.trim() || loading}
-              onClick={handleSelectCurrentPath}
-            >
-              {intl.formatMessage({ id: "directoryBrowser.selectDir" })}
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="h-10 min-w-0 px-5 text-ui-base"
+                onClick={onCancel}
+              >
+                {intl.formatMessage({ id: "common.cancel" })}
+              </Button>
+              {interaction.footer === "selectFiles" ? (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="h-10 min-w-0 px-5 text-ui-base"
+                  disabled={selectedPaths.size === 0 || loading}
+                  onClick={() => onSelectFiles?.([...selectedPaths])}
+                >
+                  {intl.formatMessage(
+                    { id: "directoryBrowser.selectFiles" },
+                    { count: String(selectedPaths.size) },
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="h-10 min-w-0 px-5 text-ui-base"
+                  disabled={!currentPath.trim() || loading}
+                  onClick={handleSelectCurrentPath}
+                >
+                  {intl.formatMessage({ id: "directoryBrowser.selectDir" })}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

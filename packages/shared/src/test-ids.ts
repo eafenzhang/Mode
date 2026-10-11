@@ -546,6 +546,8 @@ export const TID_WORKSPACE_BOT_CHANNELS = "workspace-bot-channels";
 export const TID_WORKSPACE_MORE_BUTTON = "workspace-more-button";
 /** 右上角资源管理器入口按钮（原帮助菜单，仅桌面端） */
 export const TID_WORKSPACE_HELP_MENU_TRIGGER = "workspace-help-menu-trigger";
+/** 远端工作区右上角文件管理器入口按钮 */
+export const TID_WORKSPACE_FILE_MANAGER_BUTTON = "workspace-file-manager-button";
 /** 侧边栏打开工作区文件树按钮（动态后缀为 workspacePath） */
 export const TID_WORKSPACE_FILE_TREE_BUTTON = "workspace-file-tree-button";
 /** 工作区文件树面板 */

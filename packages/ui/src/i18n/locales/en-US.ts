@@ -1593,6 +1593,7 @@ const enUS: Record<string, string> = {
   "appHeader.reloadSessionFailed": "Could not reload session",
   "appHeader.workspaceSessionActionLoading": "Applying session changes...",
   "appHeader.copyLogPath": "Copy log path",
+  "workspaceHeader.fileManager": "File Manager",
   "workspaceHeader.help.menu": "Help",
   "workspaceHeader.help.productRequest": "Request a feature",
   "workspaceHeader.help.productRequestDraft": "I would like to suggest: ",

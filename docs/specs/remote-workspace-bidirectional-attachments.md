@@ -51,6 +51,7 @@
 - 选中项在 **composer 层**标记 `origin: "workspace-pick"` + 远端绝对路径：跳过 stage（文件已在目标机）→ 构造 `AttachmentRef{ref: 远端路径}` → 主发送路径（v4 `sendText` refs，`SessionPane` 直发）原样送达远端 agent，零拷贝读取。
 - **origin 不入协议**：`AttachmentRef` 为 strict 结构；若遗留路径（`sendPrompt`/`enqueueTaskCommand` 的 `ModePromptAttachment`）经 ref↔prompt 转换把该路径落成 `localPath`，由上节 materialize 排序判定兜底（主路径不经过 materialize，不依赖此兜底）。
 - 只能选文件不能选目录；不设大小限制（无字节传输）。
+- **选择窗口必须屏幕居中**：非嵌入形态的 `DirectoryBrowser` 用 `fixed inset-0 + items-center` 居中，但它被 composer 挂在 `ConversationBottomDockTransition` 的 `motion.div` 下，该元素带内联 `transform` 与 `will-change-transform`——transform 会成为 `fixed` 后代的包含块，弹窗于是只在底部输入栏那一小条盒子里居中，视觉上贴着屏幕下方溢出。因此非嵌入 overlay 必须 `createPortal` 到 `document.body`，让 `fixed` 以视口为包含块；`embedded` 形态（远端建连选路径）维持原位不动。
 
 ### 收向：回读授权与下载
 
@@ -133,6 +134,7 @@ chunked bytes ──▶ media → 预览对话框；非媒体/artifact → platf
 9. 安全回归：跨 session ref、ref 不匹配权威行 → 仍拒绝（`previewRefNotAuthorized`）。
 10. 本地工作区对话：下载能力同样生效（收向不区分本地/远端，顺带收益）。
 11. 断连/对端能力缺失：LAN stage 中断 → composer `failed` + 可重试；对端无 put hook → 明确报错。
+12. 选择窗口位置：远端会话点「从工作区选择文件」→ DirectoryBrowser 在**屏幕中央**打开（不贴屏幕下方、不被底部输入栏裁掉）。
 
 ## 测试
 
