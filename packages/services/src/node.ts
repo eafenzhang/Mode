@@ -1341,6 +1341,15 @@ export function createLocalServices(options: {
   hostApiNetworkTransport?: HostApiNetworkTransport;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
   authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
+  /**
+   * Desktop host 注入：经 host→main 打开**本机** Computer Use 权限引导（动作落在对端机器）。
+   * docs/specs/lan-remote-computer-use.md 接口变更 4；缺省时 openPermissionOnboarding
+   * 返回 { success: false, error: "unavailable" }，不静默走 renderer preload 路径。
+   */
+  cuaPermissionOnboardingOpener?: (options: {
+    initialPermission?: string;
+    requiredPermissions?: string[];
+  }) => Promise<{ success: boolean; error?: string }>;
   processLifecycleReporter?: RuntimeProcessLifecycleReporter;
   taskRuntimeReporter?: RuntimeTaskReporter;
   /** workspace 文件搜索默认使用内置过滤器；后续规则来源只需在 Host 装配时注入最终实现。 */
@@ -2094,6 +2103,37 @@ export function createLocalServices(options: {
           }`,
         };
       }
+    },
+    // LAN 远端面板的「去授权」经此把引导开在 **service 所在 host 的机器** 上（host→main
+    // 透传，docs/specs/lan-remote-computer-use.md 接口变更 4 / 事件顺序 ④）。
+    // 门控与 getStatus 同一 context 构造与同一 shouldUseCuaPermissionService 判定
+    // （该谓词内含 macOS 平台门）：未启用直接 fail closed，不无谓拉起主进程引导。
+    openPermissionOnboarding: async (
+      workspacePath?: string,
+      workspaceIdentity?: string,
+      onboardingOptions?: { initialPermission?: string; requiredPermissions?: string[] },
+    ) => {
+      const context = workspacePath ? { workspacePath, workspaceIdentity } : undefined;
+      if (
+        !shouldUseCuaPermissionService({
+          cuaEnabled: isCuaEnabledForContext(context),
+        })
+      ) {
+        return { success: false, error: "cua-disabled" };
+      }
+      const opener = options?.cuaPermissionOnboardingOpener;
+      if (!opener) {
+        // host 装配层未注入 opener（如非 desktop host 宿主）：明确失败，不回落本机 preload。
+        return { success: false, error: "unavailable" };
+      }
+      return opener({
+        ...(onboardingOptions?.initialPermission
+          ? { initialPermission: onboardingOptions.initialPermission }
+          : {}),
+        ...(onboardingOptions?.requiredPermissions
+          ? { requiredPermissions: onboardingOptions.requiredPermissions }
+          : {}),
+      });
     },
   };
   const codingPlanSubscriptionService = createCodingPlanSubscriptionService({

@@ -16,6 +16,7 @@ import {
   type HostAgentProcessReadyResponse,
   type HostAgentProcessSpawnedResponse,
   type HostCuaOperationStateResponse,
+  type CuaPermissionKind,
   type TaskRealtimeHostDeliveryKind,
   formatModeHostProcessName,
   HostMessageTypes,
@@ -29,6 +30,7 @@ import {
   MODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
 } from "@mode/shared";
 import { getMainLaunchPartialMarks } from "./desktopLaunchMarks.js";
+import { openCuaPermissionOnboarding } from "./cuaAccessibilitySettings.js";
 import { BroadcastHub } from "./broadcastHub.js";
 import type { TaskRealtimeBus } from "./taskRealtimeBus.js";
 import { createHostLogRelay } from "./hostLogRelay.js";
@@ -359,6 +361,49 @@ export function spawnHostProcess(
             type: HostMessageTypes.LocalMediaPreviewPathAuthorizeResult,
             requestId: request.requestId,
             ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      return;
+    }
+
+    if (result.data.type === HostResponseTypes.OpenCuaPermissionOnboardingRequest) {
+      const request = result.data;
+      // 远端面板透传的权限名在 shared schema 里是宽松字符串（z.string() 不枚举），
+      // 底层 openCuaPermissionOnboarding 只认 CuaPermissionKind：非法值丢弃，
+      // fail closed 到默认 stage；全非法的 requiredPermissions 不传数组——传 [] 会被
+      // normalizeRequiredPermissions 摊成空集合，静默“成功”却什么都不打开。
+      const toPermissionKind = (value: string): CuaPermissionKind | undefined =>
+        value === "accessibility" || value === "screen_recording" ? value : undefined;
+      const initialPermission = request.initialPermission
+        ? toPermissionKind(request.initialPermission)
+        : undefined;
+      const requiredPermissions = request.requiredPermissions
+        ?.map(toPermissionKind)
+        .filter((kind): kind is CuaPermissionKind => kind !== undefined);
+      void openCuaPermissionOnboarding({
+        // host 发起没有 event.sender：用 host 进程身份做 participant。main 的
+        // participantKey 语义（cuaAccessibilitySettings.ts:29-60）支持自定义键，
+        // IPC 层的 webContents:{id} 派生只对 renderer 调用成立，此处不复用。
+        participantKey: `host:${child.pid ?? "unknown"}`,
+        ...(initialPermission ? { initialPermission } : {}),
+        ...(requiredPermissions && requiredPermissions.length > 0
+          ? { requiredPermissions }
+          : {}),
+      })
+        .then((onboardingResult) => {
+          child.postMessage({
+            type: HostMessageTypes.OpenCuaPermissionOnboardingResult,
+            requestId: request.requestId,
+            success: onboardingResult.success,
+            ...(onboardingResult.error ? { error: onboardingResult.error } : {}),
+          });
+        })
+        .catch((error: unknown) => {
+          child.postMessage({
+            type: HostMessageTypes.OpenCuaPermissionOnboardingResult,
+            requestId: request.requestId,
+            success: false,
             error: error instanceof Error ? error.message : String(error),
           });
         });

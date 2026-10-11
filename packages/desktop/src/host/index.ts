@@ -242,6 +242,53 @@ function authorizeLocalMediaPreviewPath(path: string): Promise<string> {
   });
 }
 
+// host→main：打开**本机**（对端机器）的 Computer Use 权限引导。远端面板的「去授权」经
+// services 透传到此，再由 parentPort 请求 main 执行——动作落在对端机器，不走 renderer
+// preload 的本机路径（docs/specs/lan-remote-computer-use.md 接口变更 4、事件顺序 ④）。
+const pendingCuaOnboardingOpens = new Map<
+  string,
+  { resolve: (value: { success: boolean; error?: string }) => void }
+>();
+
+function openCuaPermissionOnboardingViaMain(options: {
+  initialPermission?: string;
+  requiredPermissions?: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  if (!parentPort) {
+    return Promise.resolve({ success: false, error: "parentPort unavailable" });
+  }
+  const requestId = randomUUID();
+  return new Promise((resolve) => {
+    pendingCuaOnboardingOpens.set(requestId, { resolve });
+    try {
+      parentPort.postMessage({
+        type: HostResponseTypes.OpenCuaPermissionOnboardingRequest,
+        requestId,
+        ...(options.initialPermission ? { initialPermission: options.initialPermission } : {}),
+        ...(options.requiredPermissions
+          ? { requiredPermissions: options.requiredPermissions }
+          : {}),
+      });
+    } catch (error) {
+      // 同步 postMessage 失败按失败回包收敛；本方法的契约是 {success,error}，不裸抛。
+      pendingCuaOnboardingOpens.delete(requestId);
+      resolve({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+    // 主进程不应长时间不回；超时按失败收敛，不悬挂远端面板的授权流。
+    setTimeout(() => {
+      const pending = pendingCuaOnboardingOpens.get(requestId);
+      if (pending) {
+        pendingCuaOnboardingOpens.delete(requestId);
+        pending.resolve({ success: false, error: "onboarding-open-timeout" });
+      }
+    }, 15_000).unref?.();
+  });
+}
+
 // browser-use host↔main 桥：把 agent 的 browser 命令经 parentPort 转给 main（WebContentsView+CDP）。
 // parentPort 为空（不应发生于 host 进程）时 postToMain 抛错，bridge 自身返回 backend_unavailable。
 const browserControlMainBridge = createBrowserControlMainBridge({
@@ -2808,6 +2855,16 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
     return;
   }
 
+  if (msg.type === HostMessageTypes.OpenCuaPermissionOnboardingResult) {
+    // 与 LocalMediaPreviewPathAuthorizeResult 同款 pending 收敛：超时分支先删过键，
+    // 迟到的回包查不到 pending 直接丢弃（幂等）。
+    const pending = pendingCuaOnboardingOpens.get(msg.requestId);
+    if (!pending) return;
+    pendingCuaOnboardingOpens.delete(msg.requestId);
+    pending.resolve(msg.success ? { success: true } : { success: false, error: msg.error });
+    return;
+  }
+
   if (msg.type === HostMessageTypes.CronRun) {
     if (databaseStartup?.coordinator.snapshot.phase !== "ready") {
       parentPort.postMessage({
@@ -3323,6 +3380,10 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               // CUA 顶部提示属于物理 Windows 桌面投影；非 Windows 和远端 authority 都不得上报。
               cuaOperationStateReporter:
                 process.platform === "win32" ? cuaOperationStateReporter : undefined,
+              // 权限引导开在本机（对端机器），无条件注入（docs/specs/lan-remote-computer-use.md
+              // 接口变更 4）：enablement 门在 services 侧（shouldUseCuaPermissionService，
+              // 含 macOS 平台判定），main 底层另有 darwin 检查，此处不叠加平台条件。
+              cuaPermissionOnboardingOpener: openCuaPermissionOnboardingViaMain,
             });
             activeServices = initializedServices;
             activeHostApiNetworkTransport = hostApiNetworkTransport;

@@ -48,8 +48,20 @@ export {
   shouldRunCuaScreenCaptureProbe,
 } from "@mode/cua/broker/ports";
 
-export interface ICuaPermissionService extends BrokerICuaPermissionService {}
+export interface ICuaPermissionService extends BrokerICuaPermissionService {
+  /**
+   * 打开**本机** Computer Use 权限引导（动作落在该 service 所在 host 的主进程）。
+   * LAN 远端面板经透传调用时，窗口开在对端机器上——不依赖 renderer preload，
+   * 因此不能用 IPlatformService.openCuaPermissionOnboarding（那只会开本机的）。
+   * docs/specs/lan-remote-computer-use.md 接口变更 4。
+   */
+  openPermissionOnboarding?(
+    workspacePath?: string,
+    workspaceIdentity?: string,
+    options?: { initialPermission?: string; requiredPermissions?: string[] },
+  ): Promise<{ success: boolean; error?: string }>;
+}
 
-export const ICuaPermissionService = createServiceDescriptor<BrokerICuaPermissionService>(
-  ServiceChannels.CuaPermission,
-);
+export const ICuaPermissionService = createServiceDescriptor<
+  BrokerICuaPermissionService & Pick<ICuaPermissionService, "openPermissionOnboarding">
+>(ServiceChannels.CuaPermission);
