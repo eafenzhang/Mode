@@ -151,7 +151,20 @@ function RowShell({
   );
 }
 
-const ArtifactRowView = memo(function ArtifactRowView({ row }: { row: ArtifactRow }) {
+const ArtifactRowView = memo(function ArtifactRowView({
+  row,
+  context,
+}: {
+  row: ArtifactRow;
+  context: ConversationRowRenderContext;
+}) {
+  const { intl } = useModeIntl();
+  const sessionId = context.sessionId ?? undefined;
+  const { download, downloadingRefs } = useAttachmentDownload({
+    sessionId,
+    readAttachment: context.readAttachment,
+  });
+  const downloadLabel = intl.formatMessage({ id: "chat.attachments.download" });
   return (
     <RowShell rowId={row.rowId} className="px-4 py-1">
       <div className="flex items-center gap-2 rounded-lg border border-card-border bg-card px-3 py-2">
@@ -162,6 +175,32 @@ const ArtifactRowView = memo(function ArtifactRowView({ row }: { row: ArtifactRo
             {row.artifactType.toUpperCase()} · {row.sizeBytes} bytes
           </p>
         </div>
+        {sessionId && context.readAttachment ? (
+          <button
+            type="button"
+            data-testid={testId(TID_V4_ATTACHMENT_DOWNLOAD, `artifact-${row.rowId}`)}
+            aria-label={downloadLabel}
+            title={downloadLabel}
+            disabled={downloadingRefs.has(row.ref)}
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded text-foreground-subtle transition hover:text-foreground disabled:opacity-50"
+            onClick={() =>
+              download({
+                attachment: {
+                  ref: row.ref,
+                  fileName: row.displayName,
+                  mime: row.mimeType,
+                },
+                rowId: row.rowId,
+                ...(row.entityId ? { entityId: row.entityId } : {}),
+                index: 0,
+                // artifact 行没有附件序号；授权走 target 无 index / 扫描分支。
+                includeAttachmentIndex: false,
+              })
+            }
+          >
+            <DownloadIcon className="size-4" />
+          </button>
+        ) : null}
       </div>
     </RowShell>
   );
@@ -2215,7 +2254,7 @@ function ConversationRowViewImpl({
     case "subagent":
       return <SubagentRowView row={row} />;
     case "artifact":
-      return <ArtifactRowView row={row} />;
+      return <ArtifactRowView row={row} context={context} />;
     default:
       return null;
   }
