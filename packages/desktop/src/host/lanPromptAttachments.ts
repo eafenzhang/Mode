@@ -6,14 +6,21 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Emitter } from "@mode/rpc";
+import type { ModePromptAttachment, TraceId } from "@mode/shared";
 import { PROTOCOL_V4_LIMITS } from "@mode/shared/mode-protocol-v4";
 import type {
+  IFileService,
   IPromptAttachmentTransferService,
   IModeAgentService,
   PromptAttachmentStageParams,
   PromptAttachmentStageResult,
   PromptAttachmentTransferProgress,
 } from "@mode/services";
+import {
+  REMOTE_PROMPT_ATTACHMENT_ROOT,
+  isPathInRoot,
+  replaceContentPaths,
+} from "./remotePromptAttachments.js";
 
 export type LanAttachmentChannel = Pick<
   IModeAgentService,
@@ -242,5 +249,129 @@ export function createLanPromptAttachmentTransferService(deps: {
       await cancelInternal(operationId);
     },
     onDynamicProgress: (operationId) => getEmitter(operationId).event,
+  };
+}
+
+export interface LanMaterializeInput {
+  taskId: string;
+  traceId: TraceId | string;
+  content: string;
+  attachments?: ModePromptAttachment[];
+}
+
+export interface LanMaterializeOptions {
+  fileService: Pick<IFileService, "readdir">;
+  /** 测试注入；缺省 = fs stat + 流式读 → base64（≤ attachmentMaxBytes）。 */
+  readFileBase64?: (path: string) => Promise<{ dataBase64: string; bytes: number }>;
+}
+
+const LAN_INLINE_LIMIT_MARKER = "局域网附件单文件上限 20 MiB";
+
+async function defaultReadFileBase64(path: string): Promise<{ dataBase64: string; bytes: number }> {
+  const info = await stat(path);
+  if (!info.isFile()) {
+    throw Object.assign(new Error(`附件不是文件：${path}`), { code: "LAN_INLINE_NOT_FILE" });
+  }
+  if (info.size > PROTOCOL_V4_LIMITS.attachmentMaxBytes) {
+    const base = path.split(/[/\\]/u).at(-1) ?? path;
+    throw Object.assign(new Error(`${LAN_INLINE_LIMIT_MARKER}：${base}`), {
+      code: "LAN_INLINE_TOO_LARGE",
+    });
+  }
+  const parts: Buffer[] = [];
+  for await (const piece of createReadStream(path)) parts.push(piece as Buffer);
+  return { dataBase64: Buffer.concat(parts).toString("base64"), bytes: info.size };
+}
+
+function isNotFoundLike(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes("ENOENT") || (error as { code?: string }).code === "ENOENT";
+}
+
+function isTooLargeLike(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes(LAN_INLINE_LIMIT_MARKER) ||
+    (error as { code?: string }).code === "LAN_INLINE_TOO_LARGE"
+  );
+}
+
+function dirnameLikePath(path: string): string {
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  if (index < 0) return ".";
+  if (index === 0) return path.slice(0, 1);
+  return path.slice(0, index);
+}
+
+function basenameLikePath(path: string): string {
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return index >= 0 ? path.slice(index + 1) : path;
+}
+
+async function remoteFileExists(
+  fileService: Pick<IFileService, "readdir">,
+  path: string,
+): Promise<boolean> {
+  try {
+    const entries = await fileService.readdir({ path: dirnameLikePath(path), includeHidden: true });
+    const base = basenameLikePath(path);
+    return entries.some(
+      (entry) => entry.path === path || (entry.name === base && entry.type === "file"),
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function materializeLanPromptAttachments(
+  input: LanMaterializeInput,
+  options: LanMaterializeOptions,
+): Promise<{ content: string; attachments?: ModePromptAttachment[]; uploadedCount: number }> {
+  const attachments = input.attachments;
+  if (!attachments || attachments.length === 0) {
+    return { content: input.content, attachments: input.attachments, uploadedCount: 0 };
+  }
+  const replacements = new Map<string, string>();
+  const nextAttachments: ModePromptAttachment[] = [];
+  let uploadedCount = 0;
+  let changed = false;
+
+  for (const attachment of attachments) {
+    const localPath = attachment.localPath?.trim();
+    if (!localPath) {
+      nextAttachments.push(attachment);
+      continue;
+    }
+    if (isPathInRoot(localPath, REMOTE_PROMPT_ATTACHMENT_ROOT)) {
+      // 与 SSH 对齐：staging 根路径已属于对端，透传。
+      nextAttachments.push(attachment);
+      continue;
+    }
+    try {
+      const inline = await (options.readFileBase64 ?? defaultReadFileBase64)(localPath);
+      const { localPath: _dropped, ...rest } = attachment;
+      nextAttachments.push({ ...rest, dataBase64: inline.dataBase64 } as ModePromptAttachment);
+      // 内容里引用本机路径的位置改写为文件名：主机路径永不抵达对端（不变量 1）。
+      replacements.set(localPath, attachment.filename);
+      uploadedCount += 1;
+      changed = true;
+    } catch (error) {
+      if (isTooLargeLike(error)) throw error;
+      if (!isNotFoundLike(error)) {
+        throw new Error(`本地附件读取失败：${attachment.filename}`, { cause: error });
+      }
+      if (await remoteFileExists(options.fileService, localPath)) {
+        // 遗留转换把对端路径落成 localPath：对端本就可读，原样放行。
+        nextAttachments.push(attachment);
+        continue;
+      }
+      throw new Error(`附件路径在本机和远端都不存在：${localPath}`);
+    }
+  }
+
+  return {
+    content: replaceContentPaths(input.content, replacements),
+    attachments: changed ? nextAttachments : attachments,
+    uploadedCount,
   };
 }

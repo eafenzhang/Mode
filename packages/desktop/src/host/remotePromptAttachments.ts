@@ -4,7 +4,7 @@ import type { TraceId, ModePromptAttachment } from "@mode/shared";
 import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
 
-const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.mode/tmp/prompt-attachments";
+export const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.mode/tmp/prompt-attachments";
 const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".mode/tmp/prompt-attachments";
 
 interface RemotePromptAttachmentMaterializeInput {
