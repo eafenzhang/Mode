@@ -160,49 +160,174 @@ const ArtifactRowView = memo(function ArtifactRowView({
 }) {
   const { intl } = useModeIntl();
   const sessionId = context.sessionId ?? undefined;
-  const { download, downloadingRefs } = useAttachmentDownload({
-    sessionId,
-    readAttachment: context.readAttachment,
-  });
+  const readAttachment = context.readAttachment;
+  const { download, downloadingRefs } = useAttachmentDownload({ sessionId, readAttachment });
   const downloadLabel = intl.formatMessage({ id: "chat.attachments.download" });
+  // spec 场景 7：artifact 行的图片 mimeType 可预览；视频/PDF 复用 Task 3 的
+  // ChatMediaAttachmentPreviewDialog（收向下载 onDownload 一并挂上）。
+  const artifactMime = row.mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  const previewKind = artifactMime.startsWith("image/")
+    ? "image"
+    : artifactMime.startsWith("video/")
+      ? "video"
+      : artifactMime === "application/pdf"
+        ? "pdf"
+        : null;
+  const canPreview = previewKind !== null && Boolean(sessionId && readAttachment);
+  const previewLabel = intl.formatMessage({
+    id:
+      previewKind === "video"
+        ? "chat.attachments.preview.openVideo"
+        : previewKind === "pdf"
+          ? "chat.attachments.preview.openPdf"
+          : "chat.attachments.preview.open",
+  });
+
+  // 预览状态：请求序号 + AbortController（关闭/切换/卸载时停住后续分块），blob URL 只
+  // 释放本组件创建的那一个（Desktop local video 可能返回自定义协议 URL，不归我们管）。
+  const [preview, setPreview] = useState<ChatMediaAttachmentPreviewTarget | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
+  const previewRequestRef = useRef(0);
+  const previewAbortRef = useRef<AbortController | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+
+  const releasePreviewUrl = useCallback(() => {
+    if (!previewUrlRef.current) return;
+    URL.revokeObjectURL(previewUrlRef.current);
+    previewUrlRef.current = null;
+  }, []);
+
+  const closePreview = useCallback(() => {
+    previewRequestRef.current += 1;
+    previewAbortRef.current?.abort();
+    previewAbortRef.current = null;
+    releasePreviewUrl();
+    setPreview(null);
+    setPreviewOpen(false);
+    setPreviewLoading(false);
+    setPreviewError(false);
+  }, [releasePreviewUrl]);
+
+  useEffect(() => () => closePreview(), [closePreview]);
+
+  const openPreview = useCallback(async () => {
+    if (!sessionId || !readAttachment) return;
+    previewRequestRef.current += 1;
+    const requestId = previewRequestRef.current;
+    previewAbortRef.current?.abort();
+    const abortController = new AbortController();
+    previewAbortRef.current = abortController;
+    releasePreviewUrl();
+    setPreviewOpen(true);
+    setPreview({ filename: row.displayName, mediaType: row.mimeType });
+    setPreviewLoading(true);
+    setPreviewError(false);
+    try {
+      const result = await readAttachment({
+        sessionId,
+        ref: row.ref,
+        // mediaType 只用于命中 Desktop local video 的 local_path 优化；权威 MIME 仍由 CLI 返回。
+        ...(previewKind === "video" ? { mediaType: row.mimeType } : {}),
+        // 有 entityId 时按稳定 row target 精确授权（artifact 行 target 无 index 分支）。
+        ...(row.entityId ? { target: { rowId: row.rowId, entityId: row.entityId } } : {}),
+        signal: abortController.signal,
+      });
+      if (previewRequestRef.current !== requestId) return;
+      const isLocalUrl = "url" in result;
+      const url = isLocalUrl
+        ? result.url
+        : URL.createObjectURL(new Blob([Uint8Array.from(result.bytes)], { type: result.mediaType }));
+      if (previewRequestRef.current !== requestId) {
+        if (!isLocalUrl) URL.revokeObjectURL(url);
+        return;
+      }
+      if (!isLocalUrl) previewUrlRef.current = url;
+      setPreview({ filename: row.displayName, mediaType: result.mediaType, url });
+    } catch (error) {
+      if (previewRequestRef.current !== requestId) return;
+      // 读取失败只属于本次预览：保留入口，在 Dialog 内展示错误，下次点击重新读取。
+      setPreviewError(true);
+      logger.warn("[v4-attachment-preview] failed to read artifact media", error);
+    } finally {
+      if (previewRequestRef.current === requestId) {
+        previewAbortRef.current = null;
+        setPreviewLoading(false);
+      }
+    }
+  }, [previewKind, readAttachment, releasePreviewUrl, row, sessionId]);
+
+  // artifact 行没有附件序号；下载与预览 onDownload 都只带 target（授权走 target 无 index 分支）。
+  const downloadArtifact = useCallback(() => {
+    download({
+      attachment: {
+        ref: row.ref,
+        fileName: row.displayName,
+        mime: row.mimeType,
+      },
+      rowId: row.rowId,
+      ...(row.entityId ? { entityId: row.entityId } : {}),
+      index: 0,
+      includeAttachmentIndex: false,
+    });
+  }, [download, row]);
+
   return (
-    <RowShell rowId={row.rowId} className="px-4 py-1">
-      <div className="flex items-center gap-2 rounded-lg border border-card-border bg-card px-3 py-2">
-        <FileIcon className="size-4 shrink-0 text-foreground-subtle" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-ui-base text-foreground">{row.displayName}</p>
-          <p className="text-ui-sm text-foreground-subtle">
-            {row.artifactType.toUpperCase()} · {row.sizeBytes} bytes
-          </p>
+    <>
+      <RowShell rowId={row.rowId} className="px-4 py-1">
+        <div className="flex items-center gap-2 rounded-lg border border-card-border bg-card px-3 py-2">
+          <FileIcon className="size-4 shrink-0 text-foreground-subtle" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            {canPreview ? (
+              // 预览入口：文件名 chip 本身可点（aria/title 复用既有 preview.open* 文案）。
+              <button
+                type="button"
+                data-v4-artifact-preview={String(row.rowId)}
+                aria-label={previewLabel}
+                title={previewLabel}
+                disabled={previewLoading}
+                className="block w-full truncate text-left text-ui-base text-foreground transition hover:text-primary disabled:opacity-50"
+                onClick={() => void openPreview()}
+              >
+                {row.displayName}
+              </button>
+            ) : (
+              <p className="truncate text-ui-base text-foreground">{row.displayName}</p>
+            )}
+            <p className="text-ui-sm text-foreground-subtle">
+              {row.artifactType.toUpperCase()} · {row.sizeBytes} bytes
+            </p>
+          </div>
+          {sessionId && readAttachment ? (
+            <button
+              type="button"
+              data-testid={testId(TID_V4_ATTACHMENT_DOWNLOAD, `artifact-${row.rowId}`)}
+              aria-label={downloadLabel}
+              title={downloadLabel}
+              disabled={downloadingRefs.has(row.ref)}
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded text-foreground-subtle transition hover:text-foreground disabled:opacity-50"
+              onClick={downloadArtifact}
+            >
+              <DownloadIcon className="size-4" />
+            </button>
+          ) : null}
         </div>
-        {sessionId && context.readAttachment ? (
-          <button
-            type="button"
-            data-testid={testId(TID_V4_ATTACHMENT_DOWNLOAD, `artifact-${row.rowId}`)}
-            aria-label={downloadLabel}
-            title={downloadLabel}
-            disabled={downloadingRefs.has(row.ref)}
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded text-foreground-subtle transition hover:text-foreground disabled:opacity-50"
-            onClick={() =>
-              download({
-                attachment: {
-                  ref: row.ref,
-                  fileName: row.displayName,
-                  mime: row.mimeType,
-                },
-                rowId: row.rowId,
-                ...(row.entityId ? { entityId: row.entityId } : {}),
-                index: 0,
-                // artifact 行没有附件序号；授权走 target 无 index / 扫描分支。
-                includeAttachmentIndex: false,
-              })
-            }
-          >
-            <DownloadIcon className="size-4" />
-          </button>
-        ) : null}
-      </div>
-    </RowShell>
+      </RowShell>
+      {canPreview ? (
+        <ChatMediaAttachmentPreviewDialog
+          attachment={preview}
+          open={previewOpen}
+          loading={previewLoading}
+          error={previewError}
+          onDownload={downloadArtifact}
+          downloading={downloadingRefs.has(row.ref)}
+          onOpenChange={(open) => {
+            if (!open) closePreview();
+          }}
+        />
+      ) : null}
+    </>
   );
 });
 
