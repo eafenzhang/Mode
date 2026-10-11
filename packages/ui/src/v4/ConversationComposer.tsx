@@ -30,7 +30,6 @@ import { cn } from "@/components/lib/utils.js";
 import {
   TID_CHAT_ATTACHMENT_BUTTON,
   TID_CHAT_ATTACHMENT_MENU_ITEM,
-  TID_CHAT_WORKSPACE_PICK_BUTTON,
   TID_CHAT_WORKSPACE_PICK_MENU_ITEM,
   TID_V4_COMPOSER,
   TID_V4_COMPOSER_CLEAR_QUEUE_SEND,
@@ -1501,7 +1500,6 @@ function ConversationComposerImpl({
       {
         label: intl.formatMessage({ id: "chat.composer.attachWorkspaceFile" }),
         menuItemTestId: TID_CHAT_WORKSPACE_PICK_MENU_ITEM,
-        testId: TID_CHAT_WORKSPACE_PICK_BUTTON,
         onSelect: () => setWorkspacePickerOpen(true),
       },
     ];

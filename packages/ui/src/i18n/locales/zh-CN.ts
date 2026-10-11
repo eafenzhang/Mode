@@ -5214,6 +5214,7 @@ const zhCN: Record<string, string> = {
     "附件超过会话内下载上限（20 MiB，视频 30 MiB），请到工作区直接取用",
   "chat.attachments.downloadUnauthorized": "附件已不可用",
   "chat.attachments.downloadLegacyPeer": "对端版本过低，无法下载该附件",
+  "chat.attachments.downloadUnsupported": "附件类型暂不支持下载",
   "chat.attachments.preview.open": "打开图片预览",
   "chat.attachments.preview.openVideo": "打开视频预览",
   "chat.attachments.preview.openPdf": "打开 PDF 预览",

@@ -1,5 +1,5 @@
 /** 远端选文件附件模型（spec: remote-workspace-bidirectional-attachments 发向·远端选文件）。
- * 运行：pnpm exec tsx --test packages/ui/test/composerWorkspacePickAttachment.test.ts
+ * 运行：pnpm exec tsx --tsconfig packages/ui/tsconfig.json --test packages/ui/test/composerWorkspacePickAttachment.test.ts
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

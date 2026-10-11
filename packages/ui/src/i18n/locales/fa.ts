@@ -5363,6 +5363,7 @@ const faIR: Record<string, string> = {
     "پیوست از سقف دانلود در مکالمه بیشتر است (20 می‌بایت؛ ویدیو 30 می‌بایت). از فضای کاری دریافت کنید.",
   "chat.attachments.downloadUnauthorized": "پیوست در دسترس نیست",
   "chat.attachments.downloadLegacyPeer": "نسخه سمت مقابل برای دانلود این پیوست قدیمی است",
+  "chat.attachments.downloadUnsupported": "دانلود این نوع پیوست پشتیبانی نمی‌شود",
   "chat.attachments.preview.open": "باز کردن پیش‌نمایش تصویر",
   "chat.attachments.preview.openVideo": "باز کردن پیش‌نمایش ویدیو",
   "chat.attachments.preview.openPdf": "باز کردن پیش‌نمایش PDF",

@@ -106,7 +106,10 @@ export function useAttachmentDownload(options: {
                 ? "chat.attachments.downloadUnauthorized"
                 : outcome.failure === "legacyPeer"
                   ? "chat.attachments.downloadLegacyPeer"
-                  : "chat.attachments.downloadFailed";
+                  : // unsupported 是确定分类（对端无读能力），给专用文案；unknown 仍走通用失败。
+                    outcome.failure === "unsupported"
+                    ? "chat.attachments.downloadUnsupported"
+                    : "chat.attachments.downloadFailed";
           // toast 组件无 destructive 变体，warning 是既有失败态文案的统一档位。
           toast(intl.formatMessage({ id: failureKey }), { variant: "warning" });
           logger.warn("[attachment-download] 附件下载失败", {

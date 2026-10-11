@@ -5433,6 +5433,7 @@ const enUS: Record<string, string> = {
     "Attachment exceeds the in-conversation download limit (20 MiB; 30 MiB for video). Retrieve it from the workspace instead.",
   "chat.attachments.downloadUnauthorized": "Attachment no longer available",
   "chat.attachments.downloadLegacyPeer": "Peer version is too old to download this attachment",
+  "chat.attachments.downloadUnsupported": "This attachment type can't be downloaded",
   "chat.attachments.preview.open": "Open image preview",
   "chat.attachments.preview.openVideo": "Open video preview",
   "chat.attachments.preview.openPdf": "Open PDF preview",
