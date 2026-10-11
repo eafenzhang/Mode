@@ -12,6 +12,7 @@ import {
   createChatComposerAttachment,
   createChatComposerPathAttachment,
   createClipboardTextAttachmentFilenameForDate,
+  createWorkspacePickPathAttachment,
   createClipboardTextPathComposerAttachment,
   formatAttachmentSize,
   revokeChatComposerAttachment,
@@ -88,6 +89,8 @@ interface ComposerAttachmentsApi {
   handleDragLeaveComposer: (event: React.DragEvent<HTMLElement>) => void;
   handleDropComposer: (event: React.DragEvent<HTMLElement>) => void;
   handleWhiteboardMentionSelected: (boardId: string) => Promise<void>;
+  /** 远端工作区文件树选中项：已在目标机，直接构造 ready ref。 */
+  addWorkspacePickAttachments: (paths: string[]) => void;
   removeAttachment: (id: string) => void;
   retryAttachment: (id: string) => void;
   /** 发送成功只清冻结的附件 id；不传表示用户主动清空整个附件区。 */
@@ -176,13 +179,28 @@ function progressPercent(uploadedBytes: number, totalBytes: number): number {
   return Math.min(99, Math.max(0, Math.floor((uploadedBytes / totalBytes) * 99)));
 }
 
-function isRemoteAttachmentTarget(
+export function isRemoteAttachmentTarget(
   target: Pick<UploadTarget, "remoteSessionId" | "workspaceIdentity">,
 ) {
   // 这里曾要求 workspaceIdentity 能被当前解析器识别。远端 identity 新增格式或
   // 暂时非规范时，在 remoteSessionId 注入前会被误判为本地 workspace，使 host localPath
   // 直接走零复制交给远端 Agent。identity 只承担隔离语义；任意非空值都必须按远端 fail closed。
   return Boolean(target.remoteSessionId?.trim() || target.workspaceIdentity?.trim());
+}
+
+export type ComposerAttachmentTransferMode = "localZeroCopy" | "workspacePick" | "stage" | "upload";
+
+/** 单附件转移路径裁决：唯一判定点，addPrepared 状态与 runUpload 分支都从这里取。 */
+export function resolveComposerAttachmentTransferMode(
+  attachment: Pick<ChatComposerAttachment, "localPath" | "workspacePick">,
+  target: { remoteSessionId?: string; workspaceIdentity?: string } | undefined,
+): ComposerAttachmentTransferMode {
+  if (!attachment.localPath) return "upload";
+  if (attachment.workspacePick) {
+    // 远端选文件只在远端 target 出现；本地 target 按普通路径零拷贝兜底。
+    return isRemoteAttachmentTarget(target ?? {}) ? "workspacePick" : "localZeroCopy";
+  }
+  return isRemoteAttachmentTarget(target ?? {}) ? "stage" : "localZeroCopy";
 }
 
 export function useComposerAttachments(
@@ -312,7 +330,7 @@ export function useComposerAttachments(
           (candidate) => candidate.id === attachmentId,
         );
         if (!item || !target.sessionId) return;
-        if (item.localPath && isRemoteAttachmentTarget(target)) {
+        if (item.localPath && !item.workspacePick && isRemoteAttachmentTarget(target)) {
           if (!target.remoteSessionId) {
             updateItem(targetScopeKey, attachmentId, (current) => ({
               ...current,
@@ -639,17 +657,17 @@ export function useComposerAttachments(
       selectedAttachments.slice(remainingSlots).forEach(revokeChatComposerAttachment);
       const target = targetsRef.current.get(scopeKey);
       const items: ComposerAttachmentUploadItem[] = accepted.map((attachment) => {
-        // 远端 identity 往往早于 remoteSessionId 注入；这段窗口不能退化为本地路径直读。
-        const localZeroCopy = Boolean(
-          attachment.localPath && target && !isRemoteAttachmentTarget(target),
-        );
+        // 远端 identity 往往早于 remoteSessionId 注入；这段窗口不能退化为本地路径直读
+        // （裁决收口在 resolveComposerAttachmentTransferMode，其内按 fail closed 判远端）。
+        const mode = resolveComposerAttachmentTransferMode(attachment, target);
+        const noTransfer = mode === "localZeroCopy" || mode === "workspacePick";
         return {
           ...attachment,
           referenceOwnership: "composer",
           operationId: `prompt-attachment-${attachment.id}`,
-          uploadStatus: localZeroCopy ? "ready" : target?.sessionId ? "queued" : "waitingSession",
-          uploadProgress: localZeroCopy ? 100 : 0,
-          ...(localZeroCopy && attachment.localPath
+          uploadStatus: noTransfer ? "ready" : target?.sessionId ? "queued" : "waitingSession",
+          uploadProgress: noTransfer ? 100 : 0,
+          ...(noTransfer && attachment.localPath
             ? {
                 attachmentRef: {
                   ref: attachment.localPath,
@@ -664,7 +682,7 @@ export function useComposerAttachments(
           staged: false,
           adopted: false,
           showComplete: false,
-          localZeroCopy,
+          localZeroCopy: noTransfer,
         };
       });
       commitScope(scopeKey, (existing) => [...existing, ...items]);
@@ -699,6 +717,13 @@ export function useComposerAttachments(
   const addAttachmentLocalPaths = useCallback(
     (selectedPaths: string[]) => {
       addPreparedAttachments(selectedPaths.map(createChatComposerPathAttachment));
+    },
+    [addPreparedAttachments],
+  );
+
+  const addWorkspacePickAttachments = useCallback(
+    (paths: string[]) => {
+      addPreparedAttachments(paths.map(createWorkspacePickPathAttachment));
     },
     [addPreparedAttachments],
   );
@@ -1077,6 +1102,7 @@ export function useComposerAttachments(
       handleDragLeaveComposer,
       handleDropComposer,
       handleWhiteboardMentionSelected,
+      addWorkspacePickAttachments,
       removeAttachment,
       retryAttachment,
       clearAttachments,
@@ -1086,6 +1112,7 @@ export function useComposerAttachments(
       setAttachmentError,
     }),
     [
+      addWorkspacePickAttachments,
       attachmentError,
       adoptSentAttachments,
       attachments,

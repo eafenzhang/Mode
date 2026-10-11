@@ -54,6 +54,8 @@ export interface ChatComposerAttachment {
   sizeBytes: number;
   objectUrl?: string;
   localPath?: string;
+  /** 从远端工作区文件树选中：路径已在目标机，跳过 staging 直接作为引用。 */
+  workspacePick?: boolean;
 }
 
 const PDF_MIME_TYPE = "application/pdf";
@@ -105,6 +107,10 @@ export function createChatComposerPathAttachment(localPath: string): ChatCompose
     mimeType: inferAttachmentMimeType(filename),
     sizeBytes: 0,
   };
+}
+
+export function createWorkspacePickPathAttachment(path: string): ChatComposerAttachment {
+  return { ...createChatComposerPathAttachment(path), workspacePick: true };
 }
 
 export function createClipboardTextPathComposerAttachment(
