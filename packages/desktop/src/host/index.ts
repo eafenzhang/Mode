@@ -3565,6 +3565,10 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               // 接口变更 4）：enablement 门在 services 侧（shouldUseCuaPermissionService，
               // 含 macOS 平台判定），main 底层另有 darwin 检查，此处不叠加平台条件。
               cuaPermissionOnboardingOpener: openCuaPermissionOnboardingViaMain,
+              // 远程桌面被控总开关（T3b 准入第二理由 + T3c 首次注入按需拉起都读它）：
+              // 惰性读取 activeRemoteDesktop 的同步缓存（本函数先于 ensureRemoteDesktopHostServer
+              // 执行，首次求值必然发生在 RD server 建好之后；与 lanAccessServer 的读取点同源）。
+              isRemoteDesktopServerEnabled: () => activeRemoteDesktop?.isServerEnabled() ?? false,
             });
             activeServices = initializedServices;
             activeHostApiNetworkTransport = hostApiNetworkTransport;

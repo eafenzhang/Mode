@@ -152,10 +152,13 @@ export {
   normalizeCuaHelperArchs,
 } from "./cua-permission-broker/cuaHelperInstaller.js";
 // 远程桌面被控注入端口（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：
-// 工厂供宿主/测试注入 socket 解析点；Local Host 装配实例经 getCuaRawInputInjector 侧表读取。
+// 解析/入口工厂供宿主装配与测试注入（socket 解析点、helper 创建入口）；
+// Local Host 装配实例经 getCuaRawInputInjector 侧表读取。
 export {
   createCuaRawInputInjector,
+  createCuaRawInputSocketResolver,
   type CreateCuaRawInputInjectorOptions,
+  type CreateCuaRawInputSocketResolverOptions,
   type CuaRawInputInjector,
 } from "./cua-permission-broker/cuaRawInput.js";
 export type {
@@ -538,6 +541,7 @@ import {
 import { createCanonicalCuaHelperInstaller } from "./cua-permission-broker/cuaHelperInstaller.js";
 import {
   createCuaRawInputInjector,
+  createCuaRawInputSocketResolver,
   type CuaRawInputInjector,
 } from "./cua-permission-broker/cuaRawInput.js";
 import {
@@ -1871,14 +1875,46 @@ export function createLocalServices(options: {
   // 绝不 acquire/拉起），否则回落到稳定 socket 探测（env 发现 + 300ms ping，probe-only）。
   // 复用既有 helper 通道 = 不新建第二条生命周期、不自行 fork；不可达时由注入端口直接
   // fail closed 抛 helper_unavailable，会话失败语义归被控 main 桥。
-  const resolveCuaRawInputSocketPath = async (): Promise<string | null> => {
-    const managedHelper = defaultCuaProductHelperLifecycle.peek()?.helper;
-    if (managedHelper && isDefaultCuaProductHelperCurrent(managedHelper)) {
-      const socketPath = managedHelper.host.socketPath;
-      if (socketPath) return socketPath;
+  //
+  // T3c 追加第三支：被控开关打开且前两支都解析不到时，经**与 CUA demand 同一创建入口**
+  // （getOrCreateDefaultCuaProductHelper：同一 admission 谓词、同一 CuaHelperLifecycleManager）
+  // 拉起一次 Helper——插件关闭但被控开关打开时，此前没有任何 demand 会创建 Helper，注入必然
+  // helper_unavailable。拉起沿用 host 既有冷启动/健康探测/超时与代际语义；失败退避沿用 spawn
+  // env 路径同一窗口常量，失败结果仍收敛为 helper_unavailable（不加重试轰炸、不做本地兜底）。
+  const ensureCuaHelperForRemoteDesktopInput = async (): Promise<string | null> => {
+    const helper = await getOrCreateDefaultCuaProductHelper();
+    if (!helper || !isDefaultCuaProductHelperCurrent(helper)) return null;
+    try {
+      await helper.host.start();
+    } catch (error) {
+      // 拉起失败只记一条诊断（退避窗口内不会重复刷屏）：helper 生命周期仍由上面同一 manager
+      // 持有并负责 dispose，注入端口把这次失败收敛为 helper_unavailable。
+      createServiceLogger("cua-product-helper").warn(
+        undefined,
+        "Remote desktop CUA Helper startup failed; raw input stays fail-closed",
+        {
+          errorName: error instanceof Error ? error.name : typeof error,
+          message: error instanceof Error ? error.message : String(error),
+        },
+      );
+      return null;
     }
-    return await probeStableCuaHelperSocket();
+    // host.start/await 可能跨过 dispose：返回 socket 前复核代际，绝不把已回收 tuple 交给注入端口。
+    if (!isDefaultCuaProductHelperCurrent(helper)) return null;
+    return helper.host.socketPath;
   };
+  const resolveCuaRawInputSocketPath = createCuaRawInputSocketResolver({
+    resolveLiveSocketPath: () => {
+      const managedHelper = defaultCuaProductHelperLifecycle.peek()?.helper;
+      return managedHelper && isDefaultCuaProductHelperCurrent(managedHelper)
+        ? managedHelper.host.socketPath
+        : null;
+    },
+    probeStableSocketPath: probeStableCuaHelperSocket,
+    isRemoteDesktopServerEnabled: options?.isRemoteDesktopServerEnabled,
+    ensureRemoteDesktopHelper: ensureCuaHelperForRemoteDesktopInput,
+    ensureFailureBackoffMs: CUA_PRODUCT_HELPER_AGENT_ENV_RETRY_MS,
+  });
   const cuaRawInputInjector = createCuaRawInputInjector({
     resolveSocketPath: resolveCuaRawInputSocketPath,
   });

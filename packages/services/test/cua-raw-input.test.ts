@@ -8,7 +8,8 @@ import { BrokerError, CuaHelperError, mintBrokerSocketPath } from "@mode/cua/bro
 // 注入端口直接导入目标模块，socket 与 broker 客户端按依赖注入替换（目录既有 mock 风格）。
 const { shouldCreateDefaultCuaProductHelper } = await import("../src/node.js");
 const { isCuaExcludedRemoteWorkspaceIdentity } = await import("../src/cuaEnablement.js");
-const { createCuaRawInputInjector } = await import("../src/cua-permission-broker/cuaRawInput.js");
+const { createCuaRawInputInjector, createCuaRawInputSocketResolver } =
+  await import("../src/cua-permission-broker/cuaRawInput.js");
 
 // ── 准入矩阵（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）──
 // desktop-local + 无 remote identity + 未注入 resolver 的基准；两个准入理由各自独立可放行。
@@ -125,6 +126,208 @@ test("准入：开关开但已注入 resolver → 不建（不重复创建）", 
     }),
     false,
   );
+});
+
+// ── 注入 socket 解析：live → 稳定 socket → 被控开关打开时触发创建（T3c 遗留 #1）──
+// 创建入口按依赖注入替换（宿主装配层实际接的是 getOrCreateDefaultCuaProductHelper +
+// host.start，同一 admission 与生命周期）；此处只断言触发条件与失败收敛。
+
+const noLive = () => null;
+const noStable = async () => null;
+
+test("就绪保障：开关开 + 无 live/stable helper → 触发创建入口，并返回拉起的 socket", async () => {
+  const createdSocketPath = mintBrokerSocketPath();
+  let ensureCalls = 0;
+  const resolver = createCuaRawInputSocketResolver({
+    resolveLiveSocketPath: noLive,
+    probeStableSocketPath: noStable,
+    isRemoteDesktopServerEnabled: () => true,
+    ensureRemoteDesktopHelper: async () => {
+      ensureCalls += 1;
+      return createdSocketPath;
+    },
+  });
+  assert.equal(await resolver(), createdSocketPath);
+  assert.equal(ensureCalls, 1);
+});
+
+test("就绪保障：开关关 → 不触发创建入口（缺省读取点同样保持 probe-only）", async () => {
+  for (const isRemoteDesktopServerEnabled of [() => false, undefined]) {
+    let ensureCalls = 0;
+    let probeCalls = 0;
+    const resolver = createCuaRawInputSocketResolver({
+      resolveLiveSocketPath: noLive,
+      probeStableSocketPath: async () => {
+        probeCalls += 1;
+        return null;
+      },
+      isRemoteDesktopServerEnabled,
+      ensureRemoteDesktopHelper: async () => {
+        ensureCalls += 1;
+        return "\\\\.\\pipe\\mode-cua-created";
+      },
+    });
+    assert.equal(await resolver(), null);
+    assert.equal(ensureCalls, 0);
+    // 既有发现口径不变：开关关闭时仍做 probe（能力位/会话侧不受影响）。
+    assert.equal(probeCalls, 1);
+  }
+});
+
+test("就绪保障：宿主未注入创建入口 → 不触发、返回 null（T3b probe-only 语义不回归）", async () => {
+  const resolver = createCuaRawInputSocketResolver({
+    resolveLiveSocketPath: noLive,
+    probeStableSocketPath: noStable,
+    isRemoteDesktopServerEnabled: () => true,
+  });
+  assert.equal(await resolver(), null);
+});
+
+test("就绪保障：live socket / 稳定 socket 命中时不触发创建入口（既有发现优先复用）", async () => {
+  const cases: Array<{
+    live: string | null;
+    stable: string | null;
+    expected: string;
+  }> = [
+    { live: "\\\\.\\pipe\\mode-cua-live", stable: null, expected: "\\\\.\\pipe\\mode-cua-live" },
+    {
+      live: null,
+      stable: "\\\\.\\pipe\\mode-cua-stable",
+      expected: "\\\\.\\pipe\\mode-cua-stable",
+    },
+  ];
+  for (const scenario of cases) {
+    let ensureCalls = 0;
+    const resolver = createCuaRawInputSocketResolver({
+      resolveLiveSocketPath: () => scenario.live,
+      probeStableSocketPath: async () => scenario.stable,
+      isRemoteDesktopServerEnabled: () => true,
+      ensureRemoteDesktopHelper: async () => {
+        ensureCalls += 1;
+        return "\\\\.\\pipe\\mode-cua-created";
+      },
+    });
+    assert.equal(await resolver(), scenario.expected);
+    assert.equal(ensureCalls, 0);
+  }
+});
+
+test("就绪保障：创建失败 → 解析返回 null，注入端口报 helper_unavailable", async () => {
+  const resolver = createCuaRawInputSocketResolver({
+    resolveLiveSocketPath: noLive,
+    probeStableSocketPath: noStable,
+    isRemoteDesktopServerEnabled: () => true,
+    ensureRemoteDesktopHelper: async () => null,
+  });
+  assert.equal(await resolver(), null);
+  const injector = createCuaRawInputInjector({ resolveSocketPath: resolver });
+  await assert.rejects(
+    injector([{ k: "move", x: 0, y: 0 }]),
+    (error) => error instanceof CuaHelperError && error.code === "helper_unavailable",
+  );
+});
+
+test("就绪保障：创建入口抛错 → 同样收敛为 helper_unavailable，不冒裸错误", async () => {
+  const resolver = createCuaRawInputSocketResolver({
+    resolveLiveSocketPath: noLive,
+    probeStableSocketPath: noStable,
+    isRemoteDesktopServerEnabled: () => true,
+    ensureRemoteDesktopHelper: async () => {
+      throw new Error("windows cua runtime resolution failed");
+    },
+  });
+  const injector = createCuaRawInputInjector({ resolveSocketPath: resolver });
+  await assert.rejects(
+    injector([{ k: "move", x: 0, y: 0 }]),
+    (error) =>
+      error instanceof CuaHelperError &&
+      error.code === "helper_unavailable" &&
+      !error.message.includes("runtime resolution failed"),
+  );
+});
+
+test("就绪保障：并发解析共享同一在途尝试 → 创建入口只被调用一次", async () => {
+  let ensureCalls = 0;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const resolver = createCuaRawInputSocketResolver({
+    resolveLiveSocketPath: noLive,
+    probeStableSocketPath: noStable,
+    isRemoteDesktopServerEnabled: () => true,
+    ensureRemoteDesktopHelper: async () => {
+      ensureCalls += 1;
+      await gate;
+      return "\\\\.\\pipe\\mode-cua-created";
+    },
+  });
+  const first = resolver();
+  const second = resolver();
+  release();
+  assert.deepEqual(await Promise.all([first, second]), [
+    "\\\\.\\pipe\\mode-cua-created",
+    "\\\\.\\pipe\\mode-cua-created",
+  ]);
+  assert.equal(ensureCalls, 1);
+});
+
+test("就绪保障：失败退避窗口内不重复触发，窗口过后允许再试一次（防止按帧重试轰炸）", async () => {
+  let ensureCalls = 0;
+  let outcome: string | null = null;
+  const resolver = createCuaRawInputSocketResolver({
+    resolveLiveSocketPath: noLive,
+    probeStableSocketPath: noStable,
+    isRemoteDesktopServerEnabled: () => true,
+    ensureRemoteDesktopHelper: async () => {
+      ensureCalls += 1;
+      return outcome;
+    },
+    ensureFailureBackoffMs: 50,
+  });
+  assert.equal(await resolver(), null);
+  assert.equal(ensureCalls, 1);
+  // 退避窗口内（模拟注入帧率连续解析）：不再触发创建入口。
+  assert.equal(await resolver(), null);
+  assert.equal(await resolver(), null);
+  assert.equal(ensureCalls, 1);
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  // 窗口过后按需恢复：helper 经同一创建入口变 live 后，注入恢复可用。
+  outcome = "\\\\.\\pipe\\mode-cua-recovered";
+  assert.equal(await resolver(), "\\\\.\\pipe\\mode-cua-recovered");
+  assert.equal(ensureCalls, 2);
+});
+
+test("就绪保障：拉起后的 socket 直接供既有 raw_input 通道使用（线协议不变）", async () => {
+  const socketPath = mintBrokerSocketPath();
+  const requests: unknown[] = [];
+  const server = net.createServer((socket) => {
+    socket.on("error", () => {});
+    let buffer = "";
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      const nl = buffer.indexOf("\n");
+      if (nl < 0) return;
+      requests.push(JSON.parse(buffer.slice(0, nl)));
+      socket.write(`${JSON.stringify({ ok: true, result: { dispatched: 1 } })}\n`);
+    });
+  });
+  await new Promise((resolve) => server.listen(socketPath, resolve));
+  try {
+    const resolver = createCuaRawInputSocketResolver({
+      resolveLiveSocketPath: noLive,
+      probeStableSocketPath: noStable,
+      isRemoteDesktopServerEnabled: () => true,
+      ensureRemoteDesktopHelper: async () => socketPath,
+    });
+    const injector = createCuaRawInputInjector({ resolveSocketPath: resolver });
+    assert.deepEqual(await injector([{ k: "key", vk: 65, down: true }]), { dispatched: 1 });
+    assert.deepEqual(requests, [
+      { id: "1", method: "raw_input", params: { events: [{ k: "key", vk: 65, down: true }] } },
+    ]);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 // ── 注入端口（一次 raw_input 调用；不重试、不做前台/权限校验）──

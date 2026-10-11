@@ -9,16 +9,18 @@
  *        │ 收到的每一帧 ──────────────────────────────────► ──SignalFromHost──► main（隐藏采集窗）
  *        │ ◄──────────────────────────────────────────────── ◄─SignalToHost──── main
  *        └─ 断开/bye ─────────────────────────────────────► ──SessionClosed──► main（收口）
- *   注入： main ──Inject(≤512/帧)──► 本模块 ──raw_input──► 既有 CUA Helper broker（不新起 helper）
+ *   注入： main ──Inject(≤512/帧)──► 本模块 ──raw_input──► 既有 CUA Helper broker（通道复用，
+ *        不新起第二条 helper 生命周期；services 注入端口在被控开关打开时会经同一创建入口按需拉起）
  *
  * 纪律：
  * - host 不解析 SDP/ICE，只按 shared `remoteDesktopSignalMessageSchema` 校验后转发；单帧 >64KiB 直接断开。
  * - 单会话互斥（第二请求 busy）、kill-switch/总开关在**发起侧**收口（evaluateRemoteDesktopRequest）。
  * - 被控状态持久化：总开关写凭据服务；逐设备授权写既有 lan client 记录上的可选字段
  *   （`remoteDesktopAuthorized`，旧数据缺键 = 未授权）。
- * - T3b（services 注入端口 `injectCuaRawInput(events) → {dispatched}`）未合入前，注入走
- *   `options.injectRawInput` 缺省实现：直连既有 broker socket 的 `raw_input`；不拉起任何进程，
- *   socket 不可达时整帧失败并计数（等待 T3b 签名对齐后换接 services 端口）。
+ * - host 装配（index.ts）优先使用 T3b 的 services 注入端口 `injectCuaRawInput(events) → {dispatched}`；
+ *   该端口经既有 helper 通道，不可达时报 helper_unavailable。未注入时（旧 services / 测试装配）
+ *   回落到 `options.injectRawInput` 缺省实现：直连既有 broker socket，不拉起任何进程，
+ *   socket 不可达时整帧失败并计数。
  */
 import type { WebSocket } from "ws";
 import { remoteDesktopSignalMessageSchema, type RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
