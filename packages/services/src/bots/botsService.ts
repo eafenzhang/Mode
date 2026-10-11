@@ -141,10 +141,7 @@ import {
 import { createFeishuBotProvider } from "./providers/feishuProvider.js";
 import { formatBotMessage, type BotMessageId } from "./messages.js";
 import { hasSentenceBoundary } from "./botText.js";
-import {
-  createGroupHistoryBuffer,
-  formatGroupHistoryContext,
-} from "./groupHistory.js";
+import { createGroupHistoryBuffer, formatGroupHistoryContext } from "./groupHistory.js";
 import {
   buildGroupTurnPrompt,
   formatBotProviderLabel,
@@ -152,11 +149,7 @@ import {
   isGroupSilenceReply,
   type GroupTurnPromptInput,
 } from "./groupPrompt.js";
-import {
-  isHeartbeatDue,
-  isHeartbeatOkOnly,
-  normalizeBotHeartbeat,
-} from "./botHeartbeat.js";
+import { isHeartbeatDue, isHeartbeatOkOnly, normalizeBotHeartbeat } from "./botHeartbeat.js";
 import {
   BOT_MEDIA_FILE_LIMIT_BYTES,
   BOT_MEDIA_IMAGE_LIMIT_BYTES,
@@ -188,6 +181,7 @@ import {
   setWorkspaceBinding,
   type BotWorkspaceBindings,
 } from "./botsBinding.js";
+import { planWeixinSelfIdMigration } from "./weixinSelfId.js";
 import {
   extractBotAssistantResponseMessages,
   formatBotAssistantReplyBlocks,
@@ -303,8 +297,6 @@ const FEISHU_STREAMING_CARD_FAILURE_CIRCUIT_THRESHOLD = 3;
 const BOT_ELICITATION_PROGRESS_BROADCAST_TIMEOUT_MS = 1_000;
 const BOT_PROVIDER_CALLBACK_ACK_TIMEOUT_MS = 3_000;
 
-
-
 /** 各 provider 的流式回复最小编辑间隔；Telegram 编辑有速率压力，与飞书保持同一档。 */
 const STREAMING_CARD_MIN_UPDATE_INTERVAL_MS_BY_PROVIDER: Partial<Record<BotProvider, number>> = {
   telegram: 1_000,
@@ -348,6 +340,20 @@ function validateBotConfig(config: BotsConfigFile, candidate: BotConfig): void {
     );
     if (duplicateBinding) {
       throw new Error("An enabled bot with this provider user already exists.");
+    }
+  }
+  // 同一渠道自身 id 只能有一个启用的 bot（迁移后微信 providerUserId 为空，
+  // 去重保护由 providerSelfId 承担，不能因字段拆分回退，spec weixin-provider-self-id）。
+  if (candidate.enabled && candidate.providerSelfId?.trim()) {
+    const duplicateSelf = config.bots.find(
+      (bot) =>
+        bot.id !== candidate.id &&
+        bot.enabled &&
+        bot.provider === candidate.provider &&
+        bot.providerSelfId === candidate.providerSelfId,
+    );
+    if (duplicateSelf) {
+      throw new Error("An enabled bot with this provider self id already exists.");
     }
   }
   if (
@@ -593,7 +599,6 @@ function resolveAutomationBotDeliveryTarget(
     chatType: actor.chatType,
   };
 }
-
 
 function formatSelectionFallback(selection: SelectionPrompt, locale?: Locale): string {
   const lines = selection.options.map((option, index) => {
@@ -1005,16 +1010,12 @@ export function createBotsService(
     return (await repo.readState()).bots[botId]?.telegramOffset;
   }
 
-  async function readWecomDedup(
-    botId: string,
-  ): Promise<Array<{ id: string; at: number }>> {
+  async function readWecomDedup(botId: string): Promise<Array<{ id: string; at: number }>> {
     return (await repo.readState()).bots[botId]?.wecomRecentMessageIds ?? [];
   }
 
   /** 钉钉 Stream 回调的 msgId 去重表（与企微同机制，持久化在 bot 状态里）。 */
-  async function readDingtalkDedup(
-    botId: string,
-  ): Promise<Array<{ id: string; at: number }>> {
+  async function readDingtalkDedup(botId: string): Promise<Array<{ id: string; at: number }>> {
     return (await repo.readState()).bots[botId]?.dingtalkRecentMessageIds ?? [];
   }
 
@@ -1659,9 +1660,7 @@ export function createBotsService(
     const conversations = listConversations(state, params.bot.id);
     const targetId = params.chatId?.trim();
     const conversation =
-      (targetId
-        ? conversations.find((item) => item.conversationId === targetId)
-        : undefined) ??
+      (targetId ? conversations.find((item) => item.conversationId === targetId) : undefined) ??
       conversations.find(
         (item) =>
           item.conversationKind === "private" &&
@@ -1706,7 +1705,11 @@ export function createBotsService(
       );
     }
     const data = await readFile(real);
-    const target = params.chatId?.trim() || params.bot.providerUserId?.trim();
+    // 目标链：群 chatId → 绑定用户 → 对话 id。迁移后的微信 providerUserId 为空，
+    // 回落到上面已解析的对话（按 chatId 匹配、否则最近活跃），否则 /send 必抛
+    // "no bound chat"（spec weixin-provider-self-id 规则 6）。
+    const target =
+      params.chatId?.trim() || params.bot.providerUserId?.trim() || conversation?.conversationId;
     if (!target) {
       throw new Error("Bot has no bound chat to send to.");
     }
@@ -1723,7 +1726,7 @@ export function createBotsService(
     );
   }
 
-    /**
+  /**
    * 主动消息（心跳 / 流订阅 / 桌面镜像）的投递目标：
    * 绑定用户优先；私聊方式=全部用户时回落到最近一次私聊的用户（没有就跳过本轮）。
    */
@@ -1736,15 +1739,18 @@ export function createBotsService(
     if (boundUserId) {
       return boundUserId;
     }
+    // 私聊对话本身就是真实对端：迁移后的微信（providerUserId 为空）心跳/主动投递
+    // 回落到该对话，否则 bound_users 模式下静默停摆、或打到 bot 自己身上
+    // （spec weixin-provider-self-id 规则 5）。非微信 bound_users 下私聊对话
+    // 必伴随 providerUserId（入站鉴权要求匹配），此分支对它们不可达。
+    if (conversation?.conversationKind === "private") {
+      return conversation.conversationId;
+    }
     if ((bot.privateChatMode ?? "bound_users") === "all_users") {
-      if (conversation?.conversationKind === "private") {
-        return conversation.conversationId;
-      }
-      // 群聊主动投递：回最近说话的私聊用户（原来记在 lastPrivateUserId，现在按对话表推导）。
+      // 私聊已在上方返回；这里只处理群聊主动投递：回最近说话的私聊用户
+      // （原来记在 lastPrivateUserId，现在按对话表推导）。
       const recentPrivate = state
-        ? listConversations(state, bot.id).find(
-            (item) => item.conversationKind === "private",
-          )
+        ? listConversations(state, bot.id).find((item) => item.conversationKind === "private")
         : undefined;
       const lastSeen = recentPrivate?.conversationId?.trim();
       if (lastSeen) {
@@ -1763,9 +1769,7 @@ export function createBotsService(
     bot: BotConfig,
   ): BotConversationState | undefined {
     const conversations = listConversations(state, bot.id);
-    const bound = conversations.filter(
-      (item) => item.mode === "task" && item.activeTaskId,
-    );
+    const bound = conversations.filter((item) => item.mode === "task" && item.activeTaskId);
     const pool = bound.length > 0 ? bound : conversations;
     return (
       pool.find((item) => item.conversationKind === "private") ??
@@ -1903,15 +1907,12 @@ export function createBotsService(
     }
   }
 
-/**
+  /**
    * 确保 bot 上下文指向的任务建立了流观看——不管回合由 IM 还是 UI 发起，
    * AI 的回复都会实时流转到 IM。bot 是单用户模型（providerUserId 即绑定用户），
    * 没有绑定用户就无法确定投递目标，跳过。watchTaskStream 自带订阅去重。
    */
-  async function ensureContextStreamWatch(
-    bot: BotConfig,
-    context: BotContextState,
-  ): Promise<void> {
+  async function ensureContextStreamWatch(bot: BotConfig, context: BotContextState): Promise<void> {
     if (context.mode !== "task" || !context.activeTaskId) {
       return;
     }
@@ -2381,12 +2382,49 @@ export function createBotsService(
     if (!botStorageMigrationPromise) {
       botStorageMigrationPromise = Promise.all([repo.readConfig(), repo.readState()])
         .then(() => rekeyLegacyConversations())
+        // 顺序：先 legacy 重映射再自身 id 迁移——legacy 可能被重映射到 private:<自身 id>，
+        // 随后的迁移把该幻影键一并清理（spec weixin-provider-self-id 规则 4）。
+        .then(() => migrateWeixinSelfId())
         .catch((error: unknown) => {
           botStorageMigrationPromise = null;
           throw error;
         });
     }
     await botStorageMigrationPromise;
+  }
+
+  /**
+   * 微信 providerUserId 误写迁移（docs/specs/weixin-provider-self-id.md）：
+   * 注册双写特征命中的值挪进 providerSelfId，并清理以自身 id 为键的幻影对话。
+   * 规划是纯函数（weixinSelfId.ts，包外可测）；这里只应用——配置写 writeConfig、
+   * 对话删除先 writeDraftContext 撤订阅再删键（bot-state-ownership 规则 1/3）。
+   */
+  async function migrateWeixinSelfId(): Promise<void> {
+    const [config, state] = await Promise.all([repo.readConfig(), repo.readState()]);
+    const plan = planWeixinSelfIdMigration(config.bots, state);
+    if (plan.changed) {
+      await repo.writeConfig({ ...config, bots: plan.bots });
+    }
+    for (const removed of plan.removedConversations) {
+      const channel = state.bots[removed.botId];
+      const conversation = channel?.conversations[removed.conversationKey];
+      if (!conversation) {
+        continue;
+      }
+      // 先回草稿：writeContext 撤掉该会话上该 bot 的流订阅、停 typing（正在运行的
+      // 桌面任务不终止，只失镜像——与解绑同语义），再删槽位。
+      await writeDraftContext(conversation, undefined);
+      await repo.mutateState((current) => {
+        delete current.bots[removed.botId]?.conversations[removed.conversationKey];
+        if (current.bots[removed.botId]) {
+          current.bots[removed.botId]!.updatedAt = Date.now();
+        }
+      });
+      botsLogger.info(
+        undefined,
+        `weixin phantom conversation removed bot=${removed.botId} key=${removed.conversationKey}`,
+      );
+    }
   }
 
   /**
@@ -2408,9 +2446,7 @@ export function createBotsService(
           continue;
         }
         const boundUserId = bot.providerUserId?.trim();
-        const targetKey = boundUserId
-          ? makeBotConversationKey("private", boundUserId)
-          : undefined;
+        const targetKey = boundUserId ? makeBotConversationKey("private", boundUserId) : undefined;
         delete channel.conversations[BOT_LEGACY_CONVERSATION_KEY];
         if (targetKey && !channel.conversations[targetKey]) {
           channel.conversations[targetKey] = {
@@ -2434,11 +2470,10 @@ export function createBotsService(
     BotConversationState,
     "conversationKey" | "conversationKind" | "conversationId" | "conversationLabel"
   > {
-    const parsed =
-      parseBotConversationKey(conversationKey) ?? {
-        kind: "private" as const,
-        id: conversationKey,
-      };
+    const parsed = parseBotConversationKey(conversationKey) ?? {
+      kind: "private" as const,
+      id: conversationKey,
+    };
     const trimmedLabel = label?.trim() || existing?.conversationLabel?.trim();
     return {
       conversationKey,
@@ -2458,10 +2493,7 @@ export function createBotsService(
   }
 
   /** 列出该 bot 的所有对话上下文（按最近更新排序）。 */
-  function listConversations(
-    state: BotsStateFile,
-    botId: string,
-  ): BotConversationState[] {
+  function listConversations(state: BotsStateFile, botId: string): BotConversationState[] {
     return Object.values(state.bots[botId]?.conversations ?? {}).sort(
       (left, right) => right.updatedAt - left.updatedAt,
     );
@@ -3133,8 +3165,7 @@ export function createBotsService(
       ([, conversation]) => conversation.conversationId === message.providerUserId,
     );
     const preferred =
-      entries.find(([, conversation]) => conversation.conversationKind === "private") ??
-      entries[0];
+      entries.find(([, conversation]) => conversation.conversationKind === "private") ?? entries[0];
     return preferred ? { key: preferred[0], state: preferred[1] } : null;
   }
 
@@ -3469,9 +3500,11 @@ export function createBotsService(
     if (!adapter?.stopTyping || !targetId || !actor.providerMessageId) {
       return;
     }
+    // 修复原因：长回合进行中，同一聊天的后续入站（排队提示、短命令回执）完成时
+    // 不能取消进行中的 typing；口径从「同一条入站消息」放宽为「同 bot + 同聊天」，
+    // 否则连续提问会把上一问刚亮起的等待反馈掐掉（docs/specs/im-typing-feedback.md）。
     const isLongRunningTyping = Array.from(typingTargets.values()).some(
-      (typing) =>
-        typing.bot.id === bot.id && typing.target.providerMessageId === actor.providerMessageId,
+      (typing) => typing.bot.id === bot.id && typing.target.providerUserId === targetId,
     );
     if (isLongRunningTyping) {
       return;
@@ -3484,7 +3517,17 @@ export function createBotsService(
         providerMessageId: actor.providerMessageId,
         providerContextToken: actor.providerContextToken,
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => warnTypingFailure("stopInboundTyping", bot, error));
+  }
+
+  /** typing 是 best-effort 反馈，但失败必须可观测（docs/specs/im-typing-feedback.md）。 */
+  function warnTypingFailure(phase: string, bot: BotConfig, error: unknown): void {
+    botsLogger.warn(
+      undefined,
+      `bot typing ${phase} failed bot=${bot.id} provider=${bot.provider}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
   }
 
   function startTyping(bot: BotConfig, actor: BotActor, taskId: string): void {
@@ -3502,15 +3545,25 @@ export function createBotsService(
     };
     if (adapter.startTyping) {
       typingTargets.set(typingKey, { bot, target });
-      void adapter.startTyping(bot, target).catch(() => undefined);
+      void adapter
+        .startTyping(bot, target)
+        .catch((error: unknown) => warnTypingFailure("startTyping", bot, error));
       return;
     }
     if (adapter.sendTyping) {
-      void adapter.sendTyping(bot, target).catch(() => undefined);
+      // 修复原因：sendTyping 型通道（微信等）此前不登记 typingTargets，终态收口
+      // 与 stopInboundTyping 都拿不到目标，原生「正在输入」无法取消
+      // （docs/specs/im-typing-feedback.md 规则「按时让位」）。
+      typingTargets.set(typingKey, { bot, target });
+      void adapter
+        .sendTyping(bot, target)
+        .catch((error: unknown) => warnTypingFailure("sendTyping", bot, error));
       typingIntervals.set(
         typingKey,
         setInterval(() => {
-          void adapter.sendTyping?.(bot, target).catch(() => undefined);
+          void adapter
+            .sendTyping?.(bot, target)
+            .catch((error: unknown) => warnTypingFailure("sendTyping", bot, error));
         }, BOT_TYPING_INTERVAL_MS),
       );
     }
@@ -3522,7 +3575,9 @@ export function createBotsService(
     if (activeTyping) {
       typingTargets.delete(typingKey);
       const adapter = providers[activeTyping.bot.provider];
-      void adapter?.stopTyping?.(activeTyping.bot, activeTyping.target).catch(() => undefined);
+      void adapter
+        ?.stopTyping?.(activeTyping.bot, activeTyping.target)
+        .catch((error: unknown) => warnTypingFailure("stopTyping", activeTyping.bot, error));
     }
     const intervalId = typingIntervals.get(typingKey);
     if (!intervalId) {
@@ -3810,9 +3865,7 @@ export function createBotsService(
     return createWorkspaceRef(context.workspacePath, context.workspaceIdentity);
   }
 
-  async function readContextActiveTaskMeta(
-    context: BotContextState,
-  ): Promise<ModeTaskMeta | null> {
+  async function readContextActiveTaskMeta(context: BotContextState): Promise<ModeTaskMeta | null> {
     if (!context.activeTaskId) {
       return null;
     }
@@ -3939,10 +3992,7 @@ export function createBotsService(
           modeCallbackPrepareError: error instanceof Error ? error.message : String(error),
         }))) ?? payload)
       : payload;
-    if (
-      isRecord(preparedPayload) &&
-      typeof preparedPayload.modeCallbackPrepareError === "string"
-    ) {
+    if (isRecord(preparedPayload) && typeof preparedPayload.modeCallbackPrepareError === "string") {
       return {
         ok: false,
         replies: [],
@@ -5029,6 +5079,10 @@ export function createBotsService(
       bot.id,
     );
     if (streamSubscriptions.has(streamSubscriptionKey)) {
+      // 修复原因：连续提问/上一轮终态事件丢失时订阅会残留，早退会让本问全程
+      // 没有任何等待反馈（docs/specs/im-typing-feedback.md）。startTyping 按
+      // taskId 幂等，复用订阅也先补上 typing，再沿用既有订阅。
+      startTyping(bot, actor, context.activeTaskId);
       return;
     }
     // 只撤自己这条订阅（key 在建立时确定；上下文若已迁走，writeContext 已把它撤掉）。
@@ -5074,7 +5128,9 @@ export function createBotsService(
       if (bot.provider === "dingtalk" && !isDingtalkAiCardEnabled(bot)) {
         return false;
       }
-      return Boolean(adapter?.createStreamingReplyCard) && Boolean(adapter?.updateStreamingReplyCard);
+      return (
+        Boolean(adapter?.createStreamingReplyCard) && Boolean(adapter?.updateStreamingReplyCard)
+      );
     };
     const buildStreamingToolSummaryTitle = (locale: Locale | undefined): string =>
       msg(locale, "streamingToolSummaries");
@@ -6331,9 +6387,7 @@ export function createBotsService(
           attachments: attachments.length > 0 ? attachments : undefined,
           botDeliveryTarget,
           modelSelection,
-          ...(toolDenylist && toolDenylist.length > 0
-            ? { toolDenylist: [...toolDenylist] }
-            : {}),
+          ...(toolDenylist && toolDenylist.length > 0 ? { toolDenylist: [...toolDenylist] } : {}),
         }),
       )
       .catch(async (error) => {
@@ -6555,7 +6609,13 @@ export function createBotsService(
         task.taskId,
       );
       runningTasks.add(task.taskId);
-      await watchTaskStream(auth.bot, message.actor, context, auth.user, options.heartbeat === true);
+      await watchTaskStream(
+        auth.bot,
+        message.actor,
+        context,
+        auth.user,
+        options.heartbeat === true,
+      );
       await broadcastTaskListChange(context, task.taskId, "prompt_sent", {
         task: broadcastTask,
         prompt: {
@@ -6606,15 +6666,19 @@ export function createBotsService(
       auth.context.activeTaskId,
     );
     runningTasks.add(auth.context.activeTaskId);
-    await watchTaskStream(auth.bot, message.actor, auth.context, auth.user, options.heartbeat === true);
+    await watchTaskStream(
+      auth.bot,
+      message.actor,
+      auth.context,
+      auth.user,
+      options.heartbeat === true,
+    );
     const traceId = generateTraceId(auth.context.activeTaskId);
     await broadcastTaskListChange(auth.context, auth.context.activeTaskId, "prompt_sent", {
       prompt: {
         content: preparedMessage.content,
         attachments:
-          preparedMessage.modeAttachments.length > 0
-            ? preparedMessage.modeAttachments
-            : undefined,
+          preparedMessage.modeAttachments.length > 0 ? preparedMessage.modeAttachments : undefined,
         messageId: `bot-${traceId}`,
         sentAt: Date.now(),
       },
@@ -7104,8 +7168,27 @@ export function createBotsService(
       // 否则"工作区访问范围"与"工作区绑定"会演化成两个互相矛盾的授权来源：
       // 已绑定的 bot 仍可能因访问范围不含绑定工作区而在每条消息上被判越权。
       await convergeBotAllowedWorkspaces(bot, nextBindings);
-      // 绑定动作本身视作一次 UI 工作区焦点：立即把该 bot 仍处于草稿的对话钉到该工作区
-      // （已有会话绑定的对话不动，避免绑定工作区时把正在进行的对话从会话上摘掉）。
+      // 切换工作区即解绑（docs/specs/bot-workspace-switch-unbind.md）：原绑定工作区的
+      // 任务对话显式回到草稿，不再依赖入站漂移纠正/覆盖式换绑的惰性时机——否则残留
+      // 绑定会一直挂在旧任务上（实机：绑定表已收敛，状态里仍 mode=task 绑着远端旧任务）。
+      // 不检查旧任务运行态：与 readContext 漂移纠正口径一致，解绑只断 IM 镜像不杀桌面任务。
+      const boundState = await repo.readState();
+      for (const conversation of listConversations(boundState, bot.id)) {
+        if (conversation.mode !== "task") {
+          continue;
+        }
+        if (
+          getWorkspaceKey(conversation.workspacePath, conversation.workspaceIdentity) ===
+          workspaceKey
+        ) {
+          // 目标工作区内的任务绑定保持（绑定前就在该工作区工作的会话不动）。
+          continue;
+        }
+        // 与 unbindBotFromTask 同语义：writeDraftContext 清 activeTaskId/排队消息并撤流订阅。
+        await writeDraftContext(conversation, undefined);
+      }
+      // 绑定动作本身视作一次 UI 工作区焦点：把该 bot 的草稿对话（含上面刚解绑的）
+      // 钉到新工作区，最终态是「草稿 + 新工作区」，与 readContext 纠正后的终态一致。
       await focusBotDraftConversationsOnWorkspace(
         bot.id,
         params.workspacePath,
@@ -7138,7 +7221,9 @@ export function createBotsService(
       const byId = new Map(refs.map((ref) => [ref.id, ref]));
       // 绑定 key 可能指向当前不在列表里的工作区（已关闭/归档）：仍如实返回，
       // 用 key 本身构造显示信息，避免 UI 显示"未绑定"而服务端按已绑定处理。
-      return boundKeys.map((workspaceKey) => byId.get(workspaceKey) ?? createWorkspaceRef(workspaceKey));
+      return boundKeys.map(
+        (workspaceKey) => byId.get(workspaceKey) ?? createWorkspaceRef(workspaceKey),
+      );
     },
     async getWorkspaceBotBinding(
       params: Omit<BotWorkspaceBindingParams, "botId">,
@@ -7271,13 +7356,9 @@ export function createBotsService(
             conversationKey: context.conversationKey,
             conversationKind: context.conversationKind,
             conversationId: context.conversationId,
-            ...(context.conversationLabel
-              ? { conversationLabel: context.conversationLabel }
-              : {}),
+            ...(context.conversationLabel ? { conversationLabel: context.conversationLabel } : {}),
             workspacePath: context.workspacePath,
-            ...(context.workspaceIdentity
-              ? { workspaceIdentity: context.workspaceIdentity }
-              : {}),
+            ...(context.workspaceIdentity ? { workspaceIdentity: context.workspaceIdentity } : {}),
             taskId: context.activeTaskId,
           });
         }
@@ -7498,9 +7579,7 @@ export function createBotsService(
     /** 所有对话上下文（展平）：UI 用它显示每个 bot 当前挂着的会话/工作区。 */
     async getBotStates() {
       const state = await repo.readState();
-      return Object.values(state.bots).flatMap((channel) =>
-        Object.values(channel.conversations),
-      );
+      return Object.values(state.bots).flatMap((channel) => Object.values(channel.conversations));
     },
     /**
      * 重置状态：键是对话键时只清该对话；是 botId 时清该 bot 的全部对话

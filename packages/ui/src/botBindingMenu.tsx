@@ -7,11 +7,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from "react";
-import {
-  getBotWorkspaceKey,
-  isBotEligibleForSessionBinding,
-  type BotConfig,
-} from "@mode/shared";
+import { getBotWorkspaceKey, isBotEligibleForSessionBinding, type BotConfig } from "@mode/shared";
 import type { BotConversationSummary } from "@mode/services";
 import {
   ContextMenuItem,
@@ -34,12 +30,24 @@ import {
   refreshBotTaskBindings,
   type BotTaskBinding,
 } from "@/store/botTaskBindingsStore.js";
+import { shortenConversationId } from "@/lib/botConversationDisplay.js";
 
 /** 名称可能重复或为空，bot ID 才是唯一身份：每一项都把 ID 一并显示出来。 */
-function BotBindingMenuItemContent({ label, botId }: { label: string; botId: string }): ReactNode {
+function BotBindingMenuItemContent({
+  label,
+  botId,
+  hint,
+}: {
+  label: string;
+  botId: string;
+  /** 悬停展示完整 conversationId：文案区截断后靠它保留诊断信息（spec bot-binding-menu-display）。 */
+  hint?: string;
+}): ReactNode {
   return (
     <span className="flex w-full min-w-0 items-center gap-3">
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate" title={hint}>
+        {label}
+      </span>
       <span
         className="max-w-[9rem] shrink-0 truncate font-mono text-ui-sm text-foreground-subtle"
         title={botId}
@@ -168,7 +176,7 @@ export function BotBindingMenuItems({
     [intl],
   );
 
-  /** 对话展示名：私聊带昵称/ID，群聊带群 ID。 */
+  /** 对话展示名：私聊带昵称/ID，群聊带群 ID；无昵称时按 spec 降级为可区分 token。 */
   const describeConversation = useCallback(
     (conversation: {
       conversationKind: "private" | "group";
@@ -178,11 +186,15 @@ export function BotBindingMenuItems({
       conversation.conversationKind === "group"
         ? intl.formatMessage(
             { id: "taskList.botBind.conversation.group" },
-            { id: conversation.conversationId },
+            { id: shortenConversationId(conversation.conversationId) },
           )
         : intl.formatMessage(
             { id: "taskList.botBind.conversation.private" },
-            { name: conversation.conversationLabel?.trim() || conversation.conversationId },
+            {
+              name:
+                conversation.conversationLabel?.trim() ||
+                shortenConversationId(conversation.conversationId),
+            },
           ),
     [intl],
   );
@@ -219,9 +231,7 @@ export function BotBindingMenuItems({
             {
               name: displayName(bot),
               botId: bot.id,
-              ...(conversation
-                ? { conversation: describeConversation(conversation) }
-                : {}),
+              ...(conversation ? { conversation: describeConversation(conversation) } : {}),
             },
           ),
         );
@@ -279,14 +289,12 @@ export function BotBindingMenuItems({
   const allBots = bots ?? [];
   const eligibleBots = allBots.filter(
     (bot) =>
-      bot.enabled &&
-      isBotEligibleForSessionBinding({ bot, workspaceKey, workspaceBoundBotIds }),
+      bot.enabled && isBotEligibleForSessionBinding({ bot, workspaceKey, workspaceBoundBotIds }),
   );
   // 已经不满足资格的存量绑定（例如机器人被移出本工作区）：仍要给出解绑入口，否则用户被卡住。
   const extraUnbindBots = allBots.filter(
     (bot) =>
-      boundBotIds.includes(bot.id) &&
-      !eligibleBots.some((eligible) => eligible.id === bot.id),
+      boundBotIds.includes(bot.id) && !eligibleBots.some((eligible) => eligible.id === bot.id),
   );
   // 同一 bot 可以有多条绑定（不同对话各自绑到本会话）；解绑按对话粒度给出入口。
   const bindingsByBot = useMemo(() => {
@@ -302,17 +310,13 @@ export function BotBindingMenuItems({
 
   return (
     <Sub>
-      <SubTrigger disabled={busy}>
-        {intl.formatMessage({ id: "taskList.botBind.menu" })}
-      </SubTrigger>
+      <SubTrigger disabled={busy}>{intl.formatMessage({ id: "taskList.botBind.menu" })}</SubTrigger>
       <SubContent className="w-80">
         {bots === null ? (
           <Item disabled>{intl.formatMessage({ id: "taskList.botBind.loading" })}</Item>
         ) : isEmpty ? (
           <>
-            <Item disabled>
-              {intl.formatMessage({ id: "taskList.botBind.emptyWorkspace" })}
-            </Item>
+            <Item disabled>{intl.formatMessage({ id: "taskList.botBind.emptyWorkspace" })}</Item>
             <Item disabled className="text-ui-sm">
               {intl.formatMessage({ id: "taskList.botBind.emptyWorkspaceHint" })}
             </Item>
@@ -346,6 +350,7 @@ export function BotBindingMenuItems({
                           },
                         )}
                         botId={bot.id}
+                        hint={binding.conversationId}
                       />
                     </Item>
                   ))}
@@ -365,6 +370,7 @@ export function BotBindingMenuItems({
                           },
                         )}
                         botId={bot.id}
+                        hint={unboundConversations[0]!.conversationId}
                       />
                     </Item>
                   ) : unboundConversations.length === 0 ? null : (
@@ -388,6 +394,7 @@ export function BotBindingMenuItems({
                             <BotBindingMenuItemContent
                               label={describeConversation(conversation)}
                               botId={conversation.conversationId}
+                              hint={conversation.conversationId}
                             />
                           </Item>
                         ))}
@@ -412,6 +419,7 @@ export function BotBindingMenuItems({
                       { name: displayName(bot), conversation: describeConversation(binding) },
                     )}
                     botId={bot.id}
+                    hint={binding.conversationId}
                   />
                 </Item>
               )),

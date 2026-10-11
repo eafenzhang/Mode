@@ -19,6 +19,8 @@ test("botConfigSchema：包含全部可选字段的配置能通过严格校验�
     webhookAuthHeaderName: "x-mode-bot-secret",
     feishuAppId: "cli_xxx",
     providerUserId: "ZhangCongCong",
+    // 微信机器人自身 id（spec weixin-provider-self-id）：漏登记即 strict 保存失败
+    providerSelfId: "8b43889be073@im.bot",
     privateChatMode: "all_users",
     displayName: "Zhang",
     wecomBotId: "aibeaRfcjzJT",

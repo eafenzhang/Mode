@@ -37,6 +37,29 @@ test("槽位接线：气泡有 testid，retry 优先、typing 次之、ChatLoadi
   );
 });
 
+test("三点跑错位波浪动画，且减少动态效果时静止", async () => {
+  const source = await readFile(
+    new URL("../../../packages/ui/src/v4/ConversationTurnGroup.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(source.includes("mode-typing-dot-wave"), "三点要接波浪动画类（放大 + 变品牌色循环）");
+  assert.ok(
+    /animationDelay: `\$\{index \* 220\}ms`/.test(source),
+    "三点必须错峰 220ms 才能形成连续起伏",
+  );
+  const styles = await readFile(
+    new URL("../../../packages/ui/src/styles.css", import.meta.url),
+    "utf8",
+  );
+  assert.ok(styles.includes("@keyframes mode-typing-dot-wave"), "styles.css 要定义 keyframes");
+  assert.ok(
+    /prefers-reduced-motion: reduce[\s\S]*?\.mode-typing-dot-wave\s*\{\s*animation:\s*none/.test(
+      styles,
+    ),
+    "减少动态效果下要停掉动画（静态灰点 + 末点品牌色兜底）",
+  );
+});
+
 test("chat.typing 三语齐", async () => {
   for (const [locale, expected] of [
     ["zh-CN", "正在输入"],

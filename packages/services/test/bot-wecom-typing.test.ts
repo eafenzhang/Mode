@@ -214,6 +214,28 @@ test("stopTyping 只停打点动画：不 finish 占位流（收口仍归出站�
   })();
 });
 
+test("stopTyping 冻结后再次 startTyping 必须续上打点动画（im-typing-feedback 验收 3）", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  return (async () => {
+    const { provider, calls } = createHarness();
+    await provider.startTyping!(bot, target);
+    t.mock.timers.tick(500);
+    const animating = () => calls.filter((call) => call.method === "replyStreamNonBlocking");
+    assert.equal(animating().length, 1, "冻结前动画推进一帧");
+
+    provider.stopTyping!(bot, target);
+    t.mock.timers.tick(500);
+    t.mock.timers.tick(500);
+    assert.equal(animating().length, 1, "冻结期间动画停住");
+
+    // 修复前：stopAnimation 句柄残留让续动画守卫永远为真，这里永远不会再有新帧。
+    await provider.startTyping!(bot, target);
+    t.mock.timers.tick(500);
+    assert.ok(animating().length > 1, "冻结后再次 startTyping 要恢复打点动画");
+    assert.equal(streamCalls(calls).length, 1, "续动画复用同一条占位流，不得开出第二条");
+  })();
+});
+
 test("打点动画与桌面三点气泡同观感：· → ·· → ··· 循环，收口后停", (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   return (async () => {

@@ -51,7 +51,9 @@ export function BotSummaryCard({
   const { intl } = useModeIntl();
   const nameMeasureButtonRef = useRef<HTMLButtonElement | null>(null);
   const [nameEditorWidth, setNameEditorWidth] = useState<number | null>(null);
-  const isBound = Boolean(bot.providerUserId);
+  // providerSelfId：微信扫码注册后自身 id 已就位（spec weixin-provider-self-id 规则 8），
+  // 迁移会清空 providerUserId——只认它会让已注册的微信 bot 显示"未绑定"。
+  const isBound = Boolean(bot.providerUserId || bot.providerSelfId);
   // 修复原因：连接失败会直接阻断 /bind，不能再用“未绑定”覆盖真正的阻塞状态。
   const summaryStatusText =
     runtime?.status === "error"

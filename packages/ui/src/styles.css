@@ -1210,6 +1210,33 @@ body {
   animation: workspace-remote-connecting-breathe 1.8s ease-in-out infinite;
 }
 
+/* 会话「正在输入」三点气泡的波浪（docs/specs/conversation-typing-bubble.md）：
+ * 每点循环「放大 + 变品牌色」再回落，组件按 220ms 错峰触发形成连续起伏。
+ * transform 只作用于视觉，三点基线间距不随放大抖动。 */
+@keyframes mode-typing-dot-wave {
+  0%,
+  70%,
+  100% {
+    transform: scale(1);
+    background-color: var(--color-foreground-subtle);
+  }
+
+  35% {
+    transform: scale(1.5);
+    background-color: var(--color-brand);
+  }
+}
+
+.mode-typing-dot-wave {
+  animation: mode-typing-dot-wave 1.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-typing-dot-wave {
+    animation: none;
+  }
+}
+
 .mode-update-charge-progress [data-slot="progress-indicator"] {
   position: relative;
   overflow: hidden;

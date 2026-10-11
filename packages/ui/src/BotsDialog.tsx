@@ -327,47 +327,47 @@ export function BotsDialog({
           workspacePath: targetPath,
           ...(targetIdentity ? { workspaceIdentity: targetIdentity } : {}),
         });
-      // 绑定动作要落到"用户正在看的那个对话"：绑工作区只把 bot 钉到工作区，
-      // 这里紧接着做一次**显式会话绑定**（而不是靠 UI 焦点跟随），否则 bot 停在草稿、
-      // 下一条 IM 消息会另起新会话；显式绑定也让绿点稳定停在这个会话上。
-      // 只有选中的就是当前打开的工作区时才同步会话；选别的工作区时本窗口没有它的会话。
-      const isCurrentWorkspace =
-        targetPath === workspacePath && (targetIdentity ?? "") === (workspaceIdentity ?? "");
-      const activeTaskId = isCurrentWorkspace
-        ? useModeSessionStore.getState().getWorkspaceState(targetPath, targetIdentity)
-            .activeTaskId
-        : null;
-      if (activeTaskId) {
-        await botsService
-          .bindBotToTask({
-            botId: selectedBot.id,
-            workspacePath: targetPath,
-            ...(targetIdentity ? { workspaceIdentity: targetIdentity } : {}),
-            taskId: activeTaskId,
-          })
-          .then((result) => {
-            if (!result.ok) {
-              logger.warn("[BotsDialog] 绑定时同步当前会话被拒绝", result.reason);
-            }
-          })
-          .catch((error: unknown) => {
-            logger.warn(
-              "[BotsDialog] 绑定时同步当前会话失败",
-              error instanceof Error ? error.message : String(error),
-            );
-          });
-      }
-      // 工作区绑定会把该工作区的 bot 钉到"用户正在看的会话"上：立即刷新任务行绑定投影，
-      // 否则会话右键菜单/绿点要等下一次 bots:task 广播才反映。
-      void refreshBotTaskBindings(botsService).catch((error: unknown) => {
-        logger.warn(
-          "[BotsDialog] 刷新任务绑定投影失败",
-          error instanceof Error ? error.message : String(error),
-        );
-      });
-      void refresh();
-      void refreshBotWorkspaceBindings(selectedBot.id);
-      void updateAvailableWorkspaces();
+        // 绑定动作要落到"用户正在看的那个对话"：绑工作区只把 bot 钉到工作区，
+        // 这里紧接着做一次**显式会话绑定**（而不是靠 UI 焦点跟随），否则 bot 停在草稿、
+        // 下一条 IM 消息会另起新会话；显式绑定也让绿点稳定停在这个会话上。
+        // 只有选中的就是当前打开的工作区时才同步会话；选别的工作区时本窗口没有它的会话。
+        const isCurrentWorkspace =
+          targetPath === workspacePath && (targetIdentity ?? "") === (workspaceIdentity ?? "");
+        const activeTaskId = isCurrentWorkspace
+          ? useModeSessionStore.getState().getWorkspaceState(targetPath, targetIdentity)
+              .activeTaskId
+          : null;
+        if (activeTaskId) {
+          await botsService
+            .bindBotToTask({
+              botId: selectedBot.id,
+              workspacePath: targetPath,
+              ...(targetIdentity ? { workspaceIdentity: targetIdentity } : {}),
+              taskId: activeTaskId,
+            })
+            .then((result) => {
+              if (!result.ok) {
+                logger.warn("[BotsDialog] 绑定时同步当前会话被拒绝", result.reason);
+              }
+            })
+            .catch((error: unknown) => {
+              logger.warn(
+                "[BotsDialog] 绑定时同步当前会话失败",
+                error instanceof Error ? error.message : String(error),
+              );
+            });
+        }
+        // 工作区绑定会把该工作区的 bot 钉到"用户正在看的会话"上：立即刷新任务行绑定投影，
+        // 否则会话右键菜单/绿点要等下一次 bots:task 广播才反映。
+        void refreshBotTaskBindings(botsService).catch((error: unknown) => {
+          logger.warn(
+            "[BotsDialog] 刷新任务绑定投影失败",
+            error instanceof Error ? error.message : String(error),
+          );
+        });
+        void refresh();
+        void refreshBotWorkspaceBindings(selectedBot.id);
+        void updateAvailableWorkspaces();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error("[BotsDialog] 绑定工作区失败", message);
@@ -376,7 +376,15 @@ export function BotsDialog({
         setWorkspaceBindingSaving(false);
       }
     },
-    [botsService, intl, refresh, selectedBot, updateAvailableWorkspaces, workspaceIdentity, workspacePath],
+    [
+      botsService,
+      intl,
+      refresh,
+      selectedBot,
+      updateAvailableWorkspaces,
+      workspaceIdentity,
+      workspacePath,
+    ],
   );
 
   const handleUnbindFromWorkspace = useCallback(async () => {
@@ -653,7 +661,9 @@ export function BotsDialog({
             {
               ...selectedBot,
               webhookUrl: undefined,
-              providerUserId: result.botId ?? selectedBot.providerUserId,
+              // ilink_bot_id 是机器人自身 id：写 providerSelfId。此前误写 providerUserId
+              //（绑定用户字段）会产出幻影私聊预判/心跳打给自己（spec weixin-provider-self-id）。
+              providerSelfId: result.botId ?? selectedBot.providerSelfId,
               displayName: result.botId ?? selectedBot.displayName,
               name: selectedBot.name,
             },
@@ -663,7 +673,7 @@ export function BotsDialog({
             // Bugfix: 微信扫码成功即完成连接，保留 QR registration 会让用户看到过期的扫码区域。
             // 清掉临时状态后，Bot token 行会切到已连通的 Unbind 操作。
             setWeixinRegistration(null);
-    setWecomRegistration(null);
+            setWecomRegistration(null);
             toast(intl.formatMessage({ id: "bots.weixinRegistrationSuccess" }));
           }
           cancelled = true;
@@ -1436,10 +1446,7 @@ export function BotsDialog({
                             <span className="shrink-0">{renderChannelName(bot.provider)}</span>
                             <span aria-hidden="true">·</span>
                             {/* 名称可重复或为空，bot ID 是唯一身份：绑定/排障都要能直接对上。 */}
-                            <span
-                              className="min-w-0 truncate font-mono text-ui-sm"
-                              title={bot.id}
-                            >
+                            <span className="min-w-0 truncate font-mono text-ui-sm" title={bot.id}>
                               {bot.id}
                             </span>
                           </span>
@@ -1550,7 +1557,7 @@ export function BotsDialog({
                   onPatchBot={patchSelectedBot}
                 />
 
-                {(
+                {
                   <ProviderSettingsCard
                     bot={selectedBot}
                     runtime={selectedRuntime}
@@ -1577,7 +1584,7 @@ export function BotsDialog({
                       void handleSaveDingtalkManual(clientId, secret)
                     }
                   />
-                )}
+                }
 
                 <SettingsGroupCard>
                   <BotReplyGranularityCard bot={selectedBot} onPatchBot={patchSelectedBot} />

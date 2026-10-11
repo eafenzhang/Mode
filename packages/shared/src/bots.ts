@@ -53,9 +53,7 @@ export const modeAutomationBotDeliveryTargetSchema = z
   })
   .strict();
 
-export type ModeAutomationBotDeliveryTarget = z.infer<
-  typeof modeAutomationBotDeliveryTargetSchema
->;
+export type ModeAutomationBotDeliveryTarget = z.infer<typeof modeAutomationBotDeliveryTargetSchema>;
 
 export function isFeishuBotProvider(provider: BotProvider): provider is FeishuBotProvider {
   return provider === "feishu" || provider === "lark";
@@ -232,6 +230,12 @@ export interface BotConfig {
   webhookAuthHeaderName?: string;
   feishuAppId?: string;
   providerUserId?: string;
+  /**
+   * 渠道侧机器人**自身** id（微信扫码注册的 ilink_bot_id）。
+   * 与 providerUserId（绑定用户）语义分离：出站 from_user_id 用它，
+   * 预判对话/心跳目标/绑定展示只读 providerUserId。详见 spec weixin-provider-self-id。
+   */
+  providerSelfId?: string;
   /** 私聊方式；缺省按 bound_users（与历史行为一致）。 */
   privateChatMode?: BotPrivateChatMode;
   displayName?: string;
@@ -726,6 +730,8 @@ export const botConfigSchema = z
     webhookAuthHeaderName: z.string().min(1).optional(),
     feishuAppId: z.string().min(1).optional(),
     providerUserId: z.string().min(1).optional(),
+    // botConfigSchema 是 .strict()：新增字段必须同步登记，否则保存直接抛 ZodError。
+    providerSelfId: z.string().min(1).optional(),
     privateChatMode: z.enum(["bound_users", "all_users"]).optional(),
     displayName: z.string().optional(),
     wecomBotId: z.string().min(1).optional(),
@@ -985,7 +991,10 @@ function importLegacyConversationContext(entry: LegacyBotState): BotConversation
   const identity =
     key === BOT_LEGACY_CONVERSATION_KEY
       ? { kind: "private" as const, id: BOT_LEGACY_CONVERSATION_KEY }
-      : (parseBotConversationKey(key) ?? { kind: "private" as const, id: BOT_LEGACY_CONVERSATION_KEY });
+      : (parseBotConversationKey(key) ?? {
+          kind: "private" as const,
+          id: BOT_LEGACY_CONVERSATION_KEY,
+        });
   return {
     botId,
     conversationKey: key,
@@ -995,7 +1004,9 @@ function importLegacyConversationContext(entry: LegacyBotState): BotConversation
     ...(readLegacyString(entry.workspaceIdentity)
       ? { workspaceIdentity: readLegacyString(entry.workspaceIdentity) }
       : {}),
-    ...(readLegacyString(entry.workspaceId) ? { workspaceId: readLegacyString(entry.workspaceId) } : {}),
+    ...(readLegacyString(entry.workspaceId)
+      ? { workspaceId: readLegacyString(entry.workspaceId) }
+      : {}),
     mode: entry.mode === "task" ? "task" : "draft",
     activeTaskId: readLegacyString(entry.activeTaskId) ?? null,
     ...(entry.draftOptions !== undefined
@@ -1048,7 +1059,9 @@ export function migrateBotsStateFileV3(input: unknown): unknown {
       ...(entry.weixinGetUpdatesBuf !== undefined
         ? { weixinGetUpdatesBuf: entry.weixinGetUpdatesBuf }
         : {}),
-      ...(entry.weixinActivatedAt !== undefined ? { weixinActivatedAt: entry.weixinActivatedAt } : {}),
+      ...(entry.weixinActivatedAt !== undefined
+        ? { weixinActivatedAt: entry.weixinActivatedAt }
+        : {}),
       updatedAt: typeof entry.updatedAt === "number" ? entry.updatedAt : Date.now(),
     };
   }

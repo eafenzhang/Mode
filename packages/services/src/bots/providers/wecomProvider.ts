@@ -94,6 +94,17 @@ function startTypingAnimation(
   pending.stopAnimation = () => clearInterval(timer);
 }
 
+/**
+ * 停打点动画并清掉句柄。修复原因：句柄残留会让 `startTypingAnimation` 的
+ * 「已在播放」守卫永远为真——stopTyping 冻结后再次 startTyping 续不上动画，
+ * 与 wecom-reply-feedback.md「任务恢复时会续上动画」矛盾
+ * （docs/specs/im-typing-feedback.md 验收场景 3）。
+ */
+function stopTypingAnimation(pending: PendingTypingStream): void {
+  pending.stopAnimation?.();
+  pending.stopAnimation = undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -258,7 +269,7 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
     const pending = pendingTypingStreams.get(key);
     if (pending) {
       pendingTypingStreams.delete(key);
-      pending.stopAnimation?.();
+      stopTypingAnimation(pending);
     }
     return pending;
   }
@@ -377,7 +388,10 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
     // 只停打点动画、不收口：占位流没有撤回 API，这里 finish 会把打点文案留成永久消息。
     // 冻结的点由紧随其后的真正出站接管（send/流式卡片），任务恢复时 startTyping 会续上动画。
     async stopTyping(bot: BotConfig, target: BotTypingTarget) {
-      pendingTypingStreams.get(typingStreamKey(bot, target.providerUserId))?.stopAnimation?.();
+      const pending = pendingTypingStreams.get(typingStreamKey(bot, target.providerUserId));
+      if (pending) {
+        stopTypingAnimation(pending);
+      }
     },
 
     // 流式回复：aibot_respond_msg + stream 增量刷新同一条消息。
