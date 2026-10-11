@@ -10,7 +10,12 @@
 // 各查一次，不再定时轮询；状态存在共享缓存里，与输入框常驻入口读同一份。
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSettings } from "@/hooks/useSettingService.js";
-import type { CuaOsSupport, CuaPermissionKind, RemoteTarget } from "@mode/shared";
+import type {
+  CuaAccessibilitySettingsResult,
+  CuaOsSupport,
+  CuaPermissionKind,
+  RemoteTarget,
+} from "@mode/shared";
 import {
   DesktopCommandIds,
   isRemoteWorkspaceIdentity,
@@ -433,15 +438,18 @@ export function ComputerUseSection({
         let currentStatus = await cuaPermissionService.getStatus(path, workspaceIdentity, {
           includeFunctionalProbes: false,
         });
+        // pane 分谓词（docs/specs/lan-remote-computer-use.md UI 规则）：本机 pane 沿用既有
+        // available===true 谓词（既有行为不变）；远端 pane 用远端谓词 isRemoteCuaPermissionRowVisible
+        // ——对端 getStatus 成功回包不携带 available 字段，沿用本机谓词会永远判「不可用」。
+        const statusUsable = (value: typeof currentStatus): boolean =>
+          remoteSessionId
+            ? isRemoteCuaPermissionRowVisible(value)
+            : isCuaPermissionStatusAvailable(value);
         // 从系统设置授权返回后 App 会重启 Helper 才能读到新 TCC 授权，这段窗口内查询拿到的是
         // 不可用状态（授权完立刻点行按钮，预检查退化成「暂时无法确认」
         // 而非「已授权」）。状态不可用时短重试 2 次、间隔 2s，等 Helper 就绪后走到「已授权」
         // 或真实缺权分支；期间守卫失效（卸载/重复点击/上下文切换）直接放弃，不再重试。
-        for (
-          let attempt = 0;
-          attempt < 2 && !isCuaPermissionStatusAvailable(currentStatus);
-          attempt += 1
-        ) {
+        for (let attempt = 0; attempt < 2 && !statusUsable(currentStatus); attempt += 1) {
           await new Promise<void>((resolve) => setTimeout(resolve, 2000));
           if (
             !mountedRef.current ||
@@ -467,14 +475,24 @@ export function ComputerUseSection({
         ) {
           return;
         }
+        // statusUsable 只给布尔判定、不做类型收窄；这里按同一 pane 分谓词三元收窄出
+        // CuaPermissionStatus（docs/specs/lan-remote-computer-use.md），供缺失权限与
+        // 「已授权」文案判定取值。本机分支与既有 available===true 判定等价。
+        const usableStatus = remoteSessionId
+          ? isRemoteCuaPermissionRowVisible(currentStatus)
+            ? currentStatus
+            : null
+          : isCuaPermissionStatusAvailable(currentStatus)
+            ? currentStatus
+            : null;
         if (
-          !isCuaPermissionStatusAvailable(currentStatus) ||
-          !requiredCuaPermissionsForFreshStatus(currentStatus).includes(initialPermission)
+          !usableStatus ||
+          !requiredCuaPermissionsForFreshStatus(usableStatus).includes(initialPermission)
         ) {
-          const permissionState = isCuaPermissionStatusAvailable(currentStatus)
+          const permissionState = usableStatus
             ? initialPermission === "accessibility"
-              ? currentStatus.accessibility
-              : currentStatus.screenRecording
+              ? usableStatus.accessibility
+              : usableStatus.screenRecording
             : null;
           toast(
             intl.formatMessage({
@@ -487,13 +505,27 @@ export function ComputerUseSection({
           refresh();
           return;
         }
-        operationId = createCuaPermissionOnboardingOperationId();
-        activeOnboardingOperationIdRef.current = operationId;
-        const result = await platform.openCuaPermissionOnboarding({
-          initialPermission,
-          operationId,
-          requiredPermissions: [initialPermission],
-        });
+        // 引导动作按 pane 归属分流（docs/specs/lan-remote-computer-use.md 接口变更 4、
+        // 事件顺序 ④）：remoteSessionId 存在时复用 T7 的 ICuaPermissionService.
+        // openPermissionOnboarding（经透传打开**对端机器**的引导窗口，绝不打开本机的）；
+        // 本机 pane 维持既有 platform.openCuaPermissionOnboarding 路径（含 operationId 追踪，
+        // 本地分支逐语句不变）。对端分支不产生 operationId，本机 cancel/recovery 链不适用。
+        let result: CuaAccessibilitySettingsResult;
+        if (remoteSessionId) {
+          result =
+            (await cuaPermissionService.openPermissionOnboarding?.(path, workspaceIdentity, {
+              initialPermission,
+              requiredPermissions: [initialPermission],
+            })) ?? { success: false, error: "unavailable" };
+        } else {
+          operationId = createCuaPermissionOnboardingOperationId();
+          activeOnboardingOperationIdRef.current = operationId;
+          result = await platform.openCuaPermissionOnboarding({
+            initialPermission,
+            operationId,
+            requiredPermissions: [initialPermission],
+          });
+        }
         if (
           !mountedRef.current ||
           activeOnboardingOperationIdRef.current !== operationId ||

@@ -6101,6 +6101,9 @@ const faIR: Record<string, string> = {
     "یک وظیفه در حال اجرای Computer Use به مجوزهای macOS نیاز دارد. راهنمای مجوزدهی باز شود؟",
   "cuaPermission.live.confirm": "مجوز دادن",
   "cuaPermission.live.cancel": "الان نه",
+  // همسایه‌های فنی این بлок فارسی‌اند (نه انگلیسیِ خام)؛ همان سبک ادامه دارد.
+  "cua.permission.remoteOnboardingDescription":
+    "Mode برای ادامهٔ کنترل رایانه به مجوزهای زیر روی دستگاه دیگر در شبکه محلی نیاز دارد: {permissions}. راهنمای مجوزدهی روی همان دستگاه باز می‌شود؛ مجوز را در همان دستگاه اعطا کنید.",
   "cuaPermission.modal.restartButton": "راه‌اندازی دوباره Helper",
   "cuaPermission.modal.restarting": "در حال راه‌اندازی دوباره Helper…",
   "cuaPermission.modal.restartFailed": "راه‌اندازی دوباره Helper ناموفق بود: {error}",
