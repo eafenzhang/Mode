@@ -18,7 +18,7 @@
 范围内：
 - 两端均为 Windows（win32 + x64）的 Mode desktop，LAN 直连（含 Tailscale 地址）；
 - 单主控单被控；实时画面（含系统光标）、鼠标（移动/按键/滚轮/拖拽）、键盘（键位 + Unicode 文本）；
-- 多显示器枚举与切换；会话同意弹窗、进行中可见指示与随时终止；画质档位。
+- 多显示器枚举与切换；会话同意弹窗、进行中可见指示与随时终止。画质档位推迟至 P2（需先扩信令协议）。
 
 非目标：
 - macOS/Linux 对端；手机 Web/浏览器端；
@@ -91,7 +91,7 @@
 1. **shared**：`serverRemoteInfoSchema.capabilities` 新增 `remoteDesktop?: z.boolean()`（optional，缺键=不支持，旧对端握手不报错，同 `computerUse` 先例）。新增 `packages/shared/src/remote-desktop.ts`：信令消息（monitors/offer/answer/ice/bye/error）、输入事件（pointer/key/text）、显示器矩形与坐标归一化纯函数（可单测）。
 2. **lanAccessServer（host）**：新增 `POST /api/remote-desktop/session`（令牌鉴权 → 触发被控同意 → 签发票据；拒绝/超时/busy 返回稳定错误码）；新增 `GET /ws/remote-desktop?ticket=`（票据单次消费升级，双向转发信令）。票据实现复用 `hostCapability` 先例（30s TTL、单次消费、绑定 clientId）。
 3. **被控 main**：新增会话协调器（同意弹窗、指示浮层、隐藏渲染器生命周期、`desktopCapturer.getSources({types:["screen"]})` 显示器枚举）；隐藏渲染器会话注册 `setDisplayMediaRequestHandler` 返回所选屏幕源（先例：`electronBrowserWebmRecorder` 的 handler 模式，但目标是屏幕源而非 WebFrameMain）；IPC 面 `rd:*`（listMonitors / startCapture / inject / sessionState / end），renderer 不触达 Helper。（本机 spike 已验证：隐藏窗 `show:false` + `backgroundThrottling:false` 可持续采集推流，27.5fps@1080p。）
-4. **Helper（`packages/mode-cua` + `crates/mode-cua-ax`）**：broker 方法集新增 `raw_input`（鼠标绝对移动/按键/滚轮、键盘 down/up、Unicode 文本），复用 `input.rs` 既有 SendInput 原语，不走 CUA 动作语义（无 UIA 预检、无前台要求）；Helper 创建准入（`shouldCreateDefaultCuaProductHelper`）新增「远程桌面被控开关」为第二准入理由（与 CUA 插件启用并列，authority 与 identity 条件不变）；打包链复用 `cua-helper`（win32-x64）不变。
+4. **Helper（`packages/mode-cua` + `crates/mode-cua-ax`）**：broker 方法集新增 `raw_input`（鼠标绝对移动/按键/滚轮、键盘 down/up、Unicode 文本），复用 `input.rs` 既有 SendInput 原语，不走 CUA 动作语义（无 UIA 预检、无前台要求）；Helper 创建准入（`shouldCreateDefaultCuaProductHelper`）新增「远程桌面被控开关」为第二准入理由（与 CUA 插件启用并列，authority 与 identity 条件不变）；触发语义：被控注入在无 live helper 且被控开关开时，经与 CUA 相同的创建入口（同一生命周期）按需拉起，失败退避后仍报 `helper_unavailable`；打包链复用 `cua-helper`（win32-x64）不变。
 5. **平台接口（renderer）**：设备列表复用既有 `getLanPairedPeers` / 发现结果；新增远程桌面会话控制（发起、结果回执、结束）经 main；令牌与 Helper 凭据不出 main。
 6. **kill-switch**：新增打包层 env 开关（镜像 `MODE_CUA_PRODUCT_HELPER` 语义：只能关不能开）。被控开关默认关。
 
@@ -100,7 +100,7 @@
 - **侧边栏**：插件市场按钮下方新增「远程桌面」（`WorkspaceMainView` 新增 `"remote-desktop"`），仅 win32 desktop 显示（`isWindowsDesktop` 门）。
 - **主视图**：
   - 设备页：已配对设备卡片（名称 / 平台 / 在线状态 / 能力位）；「连接」进入会话面；无配对设备 → 引导跳「设置 → 局域网访问」。
-  - 会话面：视频（letterbox）、工具条（显示器切换、画质档、全屏、断开）、状态（延迟 / 帧率 / 分辨率）；断线终止并给出原因文案。
+  - 会话面：视频（letterbox）、工具条（显示器切换、全屏、断开）、状态（延迟 / 帧率 / 分辨率）；断线终止并给出原因文案。
 - **被控端**：同意弹窗（模态，发起设备名 + 「记住此设备」，60s 超时拒绝）；指示浮层沿用 `windowsCuaOperationIndicator` 的窗口形态先例；设置页「远程桌面」分区（总开关、已授权设备列表可撤销、监听端口/帮助说明）。
 - i18n 中英同步；不改既有 key 语义。
 
@@ -156,11 +156,18 @@
 - [ ] 锁屏 → 冻结 + 提示，解锁恢复；提权窗口注入被拦截时有非阻塞提示。
 - [ ] 票据重放/过期被拒；断开后隐藏窗口与 PeerConnection 无残留（进程与内存核查）。
 - [ ] kill-switch 关：入口不出现、能力位为假；`pnpm typecheck` / `pnpm lint` / `pnpm architecture:check --changed` 全绿。
-- [ ] 单测：能力位 schema 缺键兼容、票据一次性与过期、输入事件编解码、坐标映射纯函数、会话状态机转移。
+- [x] 单测：能力位 schema 缺键兼容、票据一次性与过期、输入事件编解码、坐标映射纯函数、会话状态机转移。（2026-10-12 实现轮已落地并全绿）
 
 ## 分期
 
 - **P1（本 spec）**：Windows ↔ Windows 局域网实时画面 + 键鼠 + 同意/指示 + 多显示器切换 + 画质档。
-- **P2**：剪贴板双向、输入互斥仲裁（与 CUA/本机用户）、自动重连、会话统计、适配管理体验。
+- **P2**：剪贴板双向、输入互斥仲裁（与 CUA/本机用户）、自动重连、会话统计、画质档位（需先扩信令协议）、授权管理体验。
 - **P3（另立 spec）**：macOS/Linux 对端（WebKit 系 webview 无 getDisplayMedia/WebRTC，届时需评估 Rust 原生媒体栈）、公网中继。
 - **与 Rust/Tauri 路线图衔接**：P1 在现行 Electron 栈落地；若迁移先行，本功能作为 M3 LAN 域工作流的一部分直接落 `crates/lan/` 与 Tauri 新栈，协议与 UI 面不变。
+
+## 实现进度（2026-10-12）
+
+- 代码全量落地（T1–T6）：共享协议面、被控端信令端点与一次性票据、被控 main 会话协调器与宿主桥、`raw_input` 注入面、主控 UI（侧边栏菜单/设备页/会话面/设置分区/i18n）。
+- 本机自动化矩阵：`pnpm typecheck` 0 错、`pnpm lint` 0 error、`architecture:check --changed` 0 违规；shared 54、ui 87、desktop 52、services 307（全部 0 fail）；helper 重建后打包一致性 8/8。
+- 本机 spike 已验证：隐藏窗采集 27.5fps@1080p、ICE 候选为裸 IP、注入延迟 p50 2–4ms、中文文本逐字精确。
+- **未执行**：两端 Windows 实机验收（步骤与判定标准见 [spike 记录](../plans/2026-10-12-remote-desktop-spike.md)）；画质档位、混合 DPI 校准、旧版 helper 的 `raw_input` 版本探测列为后续项。
