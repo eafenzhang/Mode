@@ -196,13 +196,32 @@ test("artifact 行：按 ref 授权，行字段合成 AttachmentRef", () => {
   assert.equal(result.attachment.mime, "application/pdf");
   assert.equal(result.attachment.bytes, 2048);
   assert.equal(result.attachmentIndex, undefined);
-  // 媒体 gate：非媒体 artifact 在 mediaOnly 下拒绝。
-  assert.equal(
+  // 媒体 gate：pdf 属于 image/video/pdf 集合，mediaOnly 下仍授权；
+  // 非媒体 artifact（如 application/octet-stream）在 mediaOnly 下才拒绝。
+  assert.ok(
     authorizeConversationAttachment(rows, {
       sessionId: "s1",
       ref: "mode-artifact://s1/run/report.pdf",
       mediaOnly: true,
     }),
+  );
+  assert.equal(
+    authorizeConversationAttachment(
+      [
+        row({
+          kind: "artifact",
+          ref: "mode-artifact://s1/run/report.bin",
+          displayName: "report.bin",
+          mimeType: "application/octet-stream",
+          sizeBytes: 7,
+        }),
+      ],
+      {
+        sessionId: "s1",
+        ref: "mode-artifact://s1/run/report.bin",
+        mediaOnly: true,
+      },
+    ),
     null,
   );
 });
@@ -716,7 +735,7 @@ export function classifyAttachmentDownloadError(error: unknown): AttachmentDownl
 }
 
 export function suggestedAttachmentDownloadName(fileName: string): string {
-  const withoutSeparators = fileName.replace(/[/\]/gu, "");
+  const withoutSeparators = fileName.replace(/[/\\]/gu, "");
   // 剔除控制字符（码点小于空格或 DEL）并去首尾空白；用码点比较而非正则字符类，
   // 避免源码里携带原始控制字节。
   const cleaned = [...withoutSeparators]
@@ -1000,7 +1019,7 @@ export function useAttachmentDownload(options: {
 3. 在 `items` 的 `map` 中 `<Attachment ...>` JSX 内、`FileDisplayInline` 分支（sent 文件 pill）之后、`{onRemove && isEditingAttachment ? ...}` 之前插入：
 
 ```tsx
-        {!isEditingAttachment && sessionId && readAttachment ? (
+        {!isEditingAttachment && !isThumbnail &&  sessionId && readAttachment ? (
           <button
             type="button"
             data-testid={testId(TID_V4_ATTACHMENT_DOWNLOAD, `${rowId}-${index}`)}
@@ -1019,6 +1038,7 @@ export function useAttachmentDownload(options: {
                 index,
               });
             }}
+            onKeyDown={(event) => event.stopPropagation()}
           >
             <DownloadIcon className="size-3.5" />
           </button>
@@ -2014,7 +2034,7 @@ async function main() {
 
     const fileService = {
       async readdir(params: { path: string }) {
-        if (params.path.replace(/\/gu, "/").endsWith("/remote")) {
+        if (params.path.replace(/\\/gu, "/").endsWith("/remote")) {
           return [
             { name: "remote-only.bin", path: "/remote/remote-only.bin", type: "file" as const },
           ];
@@ -2183,7 +2203,7 @@ async function defaultReadFileBase64(path: string): Promise<{ dataBase64: string
     throw Object.assign(new Error(`附件不是文件：${path}`), { code: "LAN_INLINE_NOT_FILE" });
   }
   if (info.size > PROTOCOL_V4_LIMITS.attachmentMaxBytes) {
-    const base = path.split(/[\/]/u).at(-1) ?? path;
+    const base = path.split(/[/\\]/u).at(-1) ?? path;
     throw Object.assign(new Error(`${LAN_INLINE_LIMIT_MARKER}：${base}`), {
       code: "LAN_INLINE_TOO_LARGE",
     });
