@@ -1626,7 +1626,9 @@ const enUS: Record<string, string> = {
   "directoryBrowser.showHidden": "Show hidden directories",
   "directoryBrowser.hideHidden": "Hide hidden directories",
   "directoryBrowser.noSubdirs": "No subdirectories",
+  "directoryBrowser.noEntries": "No files",
   "directoryBrowser.selectDir": "Select this directory",
+  "directoryBrowser.selectFiles": "Attach ({count})",
   "directoryBrowser.errorSystem": "Failed to get system info",
   "directoryBrowser.errorReadDir": "Failed to read directory: {error}",
 

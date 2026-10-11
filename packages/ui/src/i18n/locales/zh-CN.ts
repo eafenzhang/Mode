@@ -1510,7 +1510,9 @@ const zhCN: Record<string, string> = {
   "directoryBrowser.showHidden": "显示隐藏目录",
   "directoryBrowser.hideHidden": "收起隐藏目录",
   "directoryBrowser.noSubdirs": "无子目录",
+  "directoryBrowser.noEntries": "无文件",
   "directoryBrowser.selectDir": "选择此目录",
+  "directoryBrowser.selectFiles": "选择附件（{count}）",
   "directoryBrowser.errorSystem": "无法获取系统信息",
   "directoryBrowser.errorReadDir": "无法读取目录：{error}",
 

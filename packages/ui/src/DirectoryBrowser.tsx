@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import type { IServiceAccessor } from "@mode/services";
 import type { FileEntry } from "@mode/shared";
-import { FolderIcon, FolderSymlinkIcon } from "lucide-react";
+import { FileIcon, FolderIcon, FolderSymlinkIcon } from "lucide-react";
+import { cn } from "@/components/lib/utils.js";
 import { Button } from "./components/ui/button.js";
 import { Input } from "./components/ui/input.js";
 import { useModeIntl } from "./i18n/IntlProvider.js";
@@ -16,6 +17,14 @@ function createDirectoryBrowserReadParams(
 
 function filterDirectoryBrowserEntries(entries: FileEntry[]): FileEntry[] {
   return entries.filter((e) => e.type === "directory");
+}
+
+// 目录模式只暴露目录（既有 web 远端建连选路径行为）；file 模式需要同时展示目录与文件条目，供多选附件。
+export function selectDirectoryBrowserEntries(
+  entries: FileEntry[],
+  mode: "directory" | "file",
+): FileEntry[] {
+  return mode === "file" ? entries : filterDirectoryBrowserEntries(entries);
 }
 
 // 远程目录条目已经携带 isSymbolicLink，这里只替换展示图标，不改变进入和选择目录的路径语义。
@@ -51,12 +60,21 @@ export function DirectoryBrowser({
   onCancel,
   onPathChange,
   embedded = false,
+  mode = "directory",
+  initialPath,
+  onSelectFiles,
 }: {
   services: IServiceAccessor;
   onSelect: (path: string) => void;
   onCancel: () => void;
   onPathChange?: (path: string) => void;
   embedded?: boolean;
+  /** "directory"（默认）只选当前目录；"file" 列出文件并支持多选附件。 */
+  mode?: "directory" | "file";
+  /** file 模式起点；缺省 homedir。 */
+  initialPath?: string;
+  /** file 模式多选确认回调。 */
+  onSelectFiles?: (paths: string[]) => void;
 }) {
   const [currentPath, setCurrentPath] = useState("");
   const [inputPath, setInputPath] = useState("");
@@ -64,19 +82,27 @@ export function DirectoryBrowser({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showHiddenDirectories, setShowHiddenDirectories] = useState(false);
+  const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const listRef = useRef<HTMLDivElement>(null);
   const showHiddenDirectoriesRef = useRef(false);
   const requestGuardRef = useRef(createDirectoryBrowserRequestGuard());
   const { intl } = useModeIntl();
 
-  // 初始化：获取 homedir 作为起始路径
+  // 初始化：获取 homedir 作为起始路径；有 initialPath 时以其为起点
   useEffect(() => {
     services.systemService
       .info()
       .then((info) => {
-        navigateTo(info.homedir);
+        navigateTo(initialPath?.trim() || info.homedir);
       })
       .catch((err) => {
+        // 远端 systemService 抖动不阻断浏览：只要给了 initialPath 就直接尝试导航，
+        // 读不到系统信息时仍可进入起点目录；否则保持原错误提示路径。
+        const fallbackPath = initialPath?.trim();
+        if (fallbackPath) {
+          navigateTo(fallbackPath);
+          return;
+        }
         logger.error("[DirectoryBrowser] 获取系统信息失败:", err);
         setError(intl.formatMessage({ id: "directoryBrowser.errorSystem" }));
         setLoading(false);
@@ -98,8 +124,8 @@ export function DirectoryBrowser({
       if (!requestGuardRef.current.isCurrent(requestId)) {
         return;
       }
-      const dirs = filterDirectoryBrowserEntries(result);
-      setEntries(dirs);
+      // mode 在组件生命周期内不变化（初始化 effect 以 [] 注册），闭包直接引用即可。
+      setEntries(selectDirectoryBrowserEntries(result, mode));
       setCurrentPath(path);
       setInputPath(path);
       onPathChange?.(path);
@@ -228,15 +254,42 @@ export function DirectoryBrowser({
           </div>
         ) : entries.length === 0 ? (
           <div className="p-4 text-center text-ui-base text-foreground-subtle">
-            {intl.formatMessage({ id: "directoryBrowser.noSubdirs" })}
+            {intl.formatMessage({
+              id: mode === "file" ? "directoryBrowser.noEntries" : "directoryBrowser.noSubdirs",
+            })}
           </div>
         ) : (
           entries.map((entry) => {
+            if (mode === "file" && entry.type === "file") {
+              const selected = selectedPaths.has(entry.path);
+              return (
+                <button
+                  key={entry.path}
+                  type="button"
+                  aria-pressed={selected}
+                  data-selected={selected || undefined}
+                  onClick={() =>
+                    setSelectedPaths((current) => {
+                      const next = new Set(current);
+                      if (next.has(entry.path)) next.delete(entry.path);
+                      else next.add(entry.path);
+                      return next;
+                    })
+                  }
+                  className={cn(
+                    "flex w-full shrink-0 cursor-pointer items-center gap-2 px-3 py-2 text-start text-ui-base transition hover:bg-hover/50",
+                    selected && "bg-accent/60",
+                  )}
+                >
+                  <FileIcon className="size-4 shrink-0 text-foreground-subtle" />
+                  <span className="truncate">{entry.name}</span>
+                </button>
+              );
+            }
             const EntryIcon =
               getDirectoryBrowserEntryIconKind(entry) === "folder-symlink"
                 ? FolderSymlinkIcon
                 : FolderIcon;
-
             return (
               <button
                 key={entry.path}
@@ -278,15 +331,30 @@ export function DirectoryBrowser({
           >
             {intl.formatMessage({ id: "common.cancel" })}
           </Button>
-          <Button
-            type="button"
-            size="lg"
-            className="h-10 min-w-0 px-5 text-ui-base"
-            disabled={!currentPath.trim() || loading}
-            onClick={handleSelectCurrentPath}
-          >
-            {intl.formatMessage({ id: "directoryBrowser.selectDir" })}
-          </Button>
+          {mode === "file" ? (
+            <Button
+              type="button"
+              size="lg"
+              className="h-10 min-w-0 px-5 text-ui-base"
+              disabled={selectedPaths.size === 0 || loading}
+              onClick={() => onSelectFiles?.([...selectedPaths])}
+            >
+              {intl.formatMessage(
+                { id: "directoryBrowser.selectFiles" },
+                { count: String(selectedPaths.size) },
+              )}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="lg"
+              className="h-10 min-w-0 px-5 text-ui-base"
+              disabled={!currentPath.trim() || loading}
+              onClick={handleSelectCurrentPath}
+            >
+              {intl.formatMessage({ id: "directoryBrowser.selectDir" })}
+            </Button>
+          )}
         </div>
       </div>
     </div>
