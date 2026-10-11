@@ -96,6 +96,8 @@ const BROKER_METHODS = new Set([
   "observe",
   "capture",
   "perform",
+  // 远控注入面（lan-remote-desktop spec）：写路径，故意不列入 READONLY_METHODS。
+  "raw_input",
   "launch_app",
   "screen_probe",
 ]);

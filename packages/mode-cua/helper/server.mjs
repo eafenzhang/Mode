@@ -10,9 +10,10 @@ import { parseAxError } from "./errors.mjs";
 // 也无从应答，直接断开，防止无界缓冲撑爆 helper。
 const MAX_REQUEST_CHARS = 8 * 1024 * 1024;
 
-// 8 原语映射：broker method（snake_case）与 addon 导出 1:1 直调；参数校验先于 addon 调用，
-// addon 抛出的 napi 错误（"<code>:<message>"）统一经 callAddon 重缠成带 code 的 Error，
-// 由 dispatchRequest 的 errorResponseFromException 原样带码外发（17 码转译）。
+// 9 原语映射（8 原语 + 远控注入 raw_input）：broker method（snake_case）与 addon 导出
+// 1:1 直调；参数校验先于 addon 调用，addon 抛出的 napi 错误（"<code>:<message>"）统一经
+// callAddon 重缠成带 code 的 Error，由 dispatchRequest 的 errorResponseFromException
+// 原样带码外发（17 码转译）。
 //
 // health 是 Helper 进程自身状态（controller 裁决）：真实 addon 没有 health 导出，
 // 绝不读 addon —— probeHelperHealth/isExactHealthPid 要求 pid 恒等于 helper 子进程 pid；
@@ -105,6 +106,17 @@ export function createBackend(addon) {
         payload: params.payload,
       };
       return callAddon(() => addon.perform(request));
+    },
+    raw_input: (params) => {
+      // 远控注入面（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：params {events} →
+      // {dispatched}。events 缺席/非数组/含非对象项在此先拦（napi 会因缺键或 Vec 转换抛裸
+      // TypeError）；形状与逐条严格校验归 Rust parse_raw_input，本层不复刻。
+      if (params.events === undefined) throw invalidRequest("events is required");
+      if (!Array.isArray(params.events)) throw invalidRequest("events must be an array");
+      if (!params.events.every((e) => e !== null && typeof e === "object" && !Array.isArray(e))) {
+        throw invalidRequest("events must be an array of objects");
+      }
+      return callAddon(() => addon.raw_input({ events: params.events }));
     },
     launch_app: async (params) => {
       // napi 导出是 AsyncTask（Promise，Task 6 裁决 backend 必须 await）；

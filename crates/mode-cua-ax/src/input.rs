@@ -14,7 +14,14 @@
 //! dispatched 三态（brief Step 3）：一次 `SendInput` 收到条数 == 期望 → `dispatched`；
 //! 0 → `not_dispatched`；部分/不确定 → `unknown`。跨批次取**合计**（部分批次成功即 unknown，
 //! 否则无法区分「全没发」与「发了一半」）。
+//!
+//! `raw_input`（远控注入面，本文件 `— raw_input —` 节）：独立于 perform 语义的**纯
+//! SendInput 通道**——无 UIA 调用、无 `ensure_foreground`/`uipi_preflight` 预检
+//! （远控注入的目标是「对端当前前台窗口」，由对端使用状态决定；调用方并不知道也不该
+//! 知道那是哪个窗口，两条预检都要求目标窗口参数故不适用）。JSON 事件逐条严格校验，
+//! 派发返回**累计插入条数**（Σ SendInput 返回值）。
 use crate::error::{AxError, AxResult};
+use serde_json::Value;
 use std::ffi::c_void;
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HWND};
 use windows::Win32::Security::{
@@ -572,17 +579,46 @@ pub(crate) fn mouse_move_to(x: i32, y: i32) -> INPUT {
   }
 }
 
+/// 鼠标按键三键枚举（raw_input 事件面持有它；`mouse_button_flags` 与派发共用同一映射源，
+/// 避免字符串与位图两处各写一遍而漂移）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseButton {
+  Left,
+  Right,
+  Middle,
+}
+
+impl MouseButton {
+  /// 按键名 → 枚举；未知按键 → invalid_request。
+  fn parse(button: &str) -> AxResult<Self> {
+    match button {
+      "left" => Ok(Self::Left),
+      "right" => Ok(Self::Right),
+      "middle" => Ok(Self::Middle),
+      other => Err(AxError::new(
+        "invalid_request",
+        format!("未知鼠标按键: {other}（期望 left|right|middle）"),
+      )),
+    }
+  }
+
+  /// 按下/抬起位图（唯一位图映射）。
+  pub(crate) fn flags(self, down: bool) -> MOUSE_EVENT_FLAGS {
+    match (self, down) {
+      (Self::Left, true) => MOUSEEVENTF_LEFTDOWN,
+      (Self::Left, false) => MOUSEEVENTF_LEFTUP,
+      (Self::Right, true) => MOUSEEVENTF_RIGHTDOWN,
+      (Self::Right, false) => MOUSEEVENTF_RIGHTUP,
+      (Self::Middle, true) => MOUSEEVENTF_MIDDLEDOWN,
+      (Self::Middle, false) => MOUSEEVENTF_MIDDLEUP,
+    }
+  }
+}
+
 /// 按键名 → (按下, 抬起) 鼠标事件标志；未知按键 → invalid_request。
 pub(crate) fn mouse_button_flags(button: &str) -> AxResult<(MOUSE_EVENT_FLAGS, MOUSE_EVENT_FLAGS)> {
-  match button {
-    "left" => Ok((MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP)),
-    "right" => Ok((MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP)),
-    "middle" => Ok((MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP)),
-    other => Err(AxError::new(
-      "invalid_request",
-      format!("未知鼠标按键: {other}（期望 left|right|middle）"),
-    )),
-  }
+  let button = MouseButton::parse(button)?;
+  Ok((button.flags(true), button.flags(false)))
 }
 
 /// 按鼠标事件标志构造按下/抬起事件；坐标由单独的 move 事件携带。
@@ -622,6 +658,279 @@ pub(crate) fn mouse_wheel_input(delta: i32, vertical: bool) -> INPUT {
       },
     },
   }
+}
+
+// ————————————————————————— raw_input（远控注入面） —————————————————————————
+
+// 语义（spec「接口变更」第 4 条 / plan Task 4）：远控注入目标是**对端当前前台窗口**
+// （由对端实际使用状态决定）。故本通道**不做** `perform` 的两道预检：
+// - 无 `ensure_foreground`：调用方根本没有目标窗口 id，也不能要求对端某个窗口在前台；
+// - 无 `uipi_preflight`：同理需要目标窗口；且 UIPI 拦截在远控语义下退化为「没生效」，
+//   与 `dispatched` 计数如实上报一致（不制造新的失败面）。
+// 无 UIA 调用：全部经 SendInput；坐标由主控按共享纯函数换算为 VIRTUALDESK 归一化值
+// （plan T4：Rust 不再做监视器换算）。
+
+/// 单请求事件条数上限（一次远控输入批的规模；主控 `pointer` 通道按帧采样后聚合下发）。
+pub const MAX_RAW_INPUT_EVENTS: usize = 512;
+/// 单条 `text` 事件的字符数上限（按 Unicode 标量计；SendInput 批次 ≤ 2×该值）。
+pub const MAX_RAW_TEXT_CHARS: usize = 4096;
+/// 单条 `wheel` 事件的滚动量上限（单位 = 刻度 ckick；20 tick = 2400 delta 已是暴走上限）。
+pub const MAX_RAW_WHEEL_AMOUNT: f64 = 20.0;
+
+/// `raw_input` 滚轮方向（垂直 up/down 走 WHEEL，水平 left/right 走 HWHEEL）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WheelDirection {
+  Up,
+  Down,
+  Left,
+  Right,
+}
+
+impl WheelDirection {
+  /// 方向名 → 枚举；未知方向 → invalid_request。
+  fn parse(direction: &str) -> AxResult<Self> {
+    match direction {
+      "up" => Ok(Self::Up),
+      "down" => Ok(Self::Down),
+      "left" => Ok(Self::Left),
+      "right" => Ok(Self::Right),
+      other => Err(AxError::new(
+        "invalid_request",
+        format!("未知滚动方向: {other}（期望 up|down|left|right）"),
+      )),
+    }
+  }
+
+  /// 方向 + 刻度数 → 滚轮事件；取整后为 0 刻度（无滚动量）→ None（该事件只剩定位移动）。
+  fn wheel_input(self, amount: f64) -> Option<INPUT> {
+    let ckick = (amount * f64::from(WHEEL_DELTA)).round() as i32;
+    if ckick == 0 {
+      return None;
+    }
+    let (vertical, sign) = match self {
+      Self::Up => (true, 1),
+      Self::Down => (true, -1),
+      Self::Right => (false, 1),
+      Self::Left => (false, -1),
+    };
+    Some(mouse_wheel_input(ckick * sign, vertical))
+  }
+}
+
+/// `raw_input` 单条事件（JSON → 枚举的规范化形态；解析入口 `parse_raw_input`）。
+#[derive(Debug, Clone, PartialEq)]
+pub enum RawInputEvent {
+  /// VIRTUALDESK 归一化绝对坐标移动（0..=65535）。
+  Move { x: u16, y: u16 },
+  /// 按键（同位移动 + 按下/抬起；拖拽 = down/up 两个事件夹中间的 move）。
+  Button { button: MouseButton, down: bool, x: u16, y: u16 },
+  /// 滚轮（`amount` 为刻度数，0..=MAX_RAW_WHEEL_AMOUNT）。
+  Wheel { direction: WheelDirection, amount: f64, x: u16, y: u16 },
+  /// VK 键按下/抬起（1..=255；0 是 Unicode 通道的 wVk，不属于本面）。
+  Key { vk: u16, down: bool },
+  /// Unicode 文本（逐 UTF-16 码元 down+up，同 `type_text_inputs`）。
+  Text { text: String },
+}
+
+fn raw_bad(message: impl Into<String>) -> AxError {
+  AxError::new("invalid_request", message)
+}
+
+/// 事件必须是对象且**仅含** `allowed` 键：未知键一律拒绝（防上游悄悄改名后参数被
+/// 静默忽略、语义漂移）。
+fn raw_object<'a>(ev: &'a Value, allowed: &[&str]) -> AxResult<&'a serde_json::Map<String, Value>> {
+  let obj = ev
+    .as_object()
+    .ok_or_else(|| raw_bad("raw_input 事件必须是对象"))?;
+  for key in obj.keys() {
+    if !allowed.contains(&key.as_str()) {
+      return Err(raw_bad(format!("raw_input 事件含未知键: {key}")));
+    }
+  }
+  Ok(obj)
+}
+
+fn raw_field<'a>(obj: &'a serde_json::Map<String, Value>, key: &str) -> AxResult<&'a Value> {
+  obj.get(key)
+    .ok_or_else(|| raw_bad(format!("raw_input 事件缺少字段 {key}")))
+}
+
+fn raw_str<'a>(obj: &'a serde_json::Map<String, Value>, key: &str) -> AxResult<&'a str> {
+  raw_field(obj, key)?
+    .as_str()
+    .ok_or_else(|| raw_bad(format!("raw_input 字段 {key} 必须是字符串")))
+}
+
+fn raw_bool(obj: &serde_json::Map<String, Value>, key: &str) -> AxResult<bool> {
+  raw_field(obj, key)?
+    .as_bool()
+    .ok_or_else(|| raw_bad(format!("raw_input 字段 {key} 必须是布尔")))
+}
+
+/// 闭区间整数域字段（`min..=max`）→ u16：非整数/非有限数/越界 → invalid_request。
+/// WHY 直接落 u16：VIRTUALDESK 归一化域端点 65535 恰为 u16::MAX，越界与形状错误同一处收口。
+fn raw_int(obj: &serde_json::Map<String, Value>, key: &str, min: i64, max: i64) -> AxResult<u16> {
+  let n = raw_field(obj, key)?
+    .as_f64()
+    .filter(|f| f.is_finite() && f.fract() == 0.0)
+    .ok_or_else(|| raw_bad(format!("raw_input 字段 {key} 必须是整数")))?;
+  if n < min as f64 || n > max as f64 {
+    return Err(raw_bad(format!(
+      "raw_input 字段 {key} 超出范围 {min}..={max}"
+    )));
+  }
+  Ok(n as u16)
+}
+
+/// 闭区间有限数域字段（含小数）：wheel `amount` 面。
+fn raw_number(obj: &serde_json::Map<String, Value>, key: &str, min: f64, max: f64) -> AxResult<f64> {
+  let n = raw_field(obj, key)?
+    .as_f64()
+    .filter(|f| f.is_finite())
+    .ok_or_else(|| raw_bad(format!("raw_input 字段 {key} 必须是有限数")))?;
+  if n < min || n > max {
+    return Err(raw_bad(format!(
+      "raw_input 字段 {key} 超出范围 {min}..={max}"
+    )));
+  }
+  Ok(n)
+}
+
+/// 单条事件解析（逐条严格校验：未知 k/未知键/缺字段/越界 → invalid_request）。
+fn parse_raw_event(ev: &Value) -> AxResult<RawInputEvent> {
+  let kind = ev
+    .as_object()
+    .and_then(|obj| obj.get("k"))
+    .and_then(Value::as_str)
+    .ok_or_else(|| raw_bad("raw_input 事件缺少字符串字段 k"))?;
+  match kind {
+    "move" => {
+      let obj = raw_object(ev, &["k", "x", "y"])?;
+      Ok(RawInputEvent::Move {
+        x: raw_int(obj, "x", 0, 65535)?,
+        y: raw_int(obj, "y", 0, 65535)?,
+      })
+    }
+    "button" => {
+      let obj = raw_object(ev, &["k", "button", "down", "x", "y"])?;
+      Ok(RawInputEvent::Button {
+        button: MouseButton::parse(raw_str(obj, "button")?)?,
+        down: raw_bool(obj, "down")?,
+        x: raw_int(obj, "x", 0, 65535)?,
+        y: raw_int(obj, "y", 0, 65535)?,
+      })
+    }
+    "wheel" => {
+      let obj = raw_object(ev, &["k", "direction", "amount", "x", "y"])?;
+      Ok(RawInputEvent::Wheel {
+        direction: WheelDirection::parse(raw_str(obj, "direction")?)?,
+        amount: raw_number(obj, "amount", 0.0, MAX_RAW_WHEEL_AMOUNT)?,
+        x: raw_int(obj, "x", 0, 65535)?,
+        y: raw_int(obj, "y", 0, 65535)?,
+      })
+    }
+    "key" => {
+      let obj = raw_object(ev, &["k", "vk", "down"])?;
+      Ok(RawInputEvent::Key {
+        vk: raw_int(obj, "vk", 1, 255)?,
+        down: raw_bool(obj, "down")?,
+      })
+    }
+    "text" => {
+      let obj = raw_object(ev, &["k", "text"])?;
+      let text = raw_str(obj, "text")?;
+      let chars = text.chars().count();
+      if chars > MAX_RAW_TEXT_CHARS {
+        return Err(raw_bad(format!(
+          "raw_input text 长度 {chars} 超过上限 {MAX_RAW_TEXT_CHARS}"
+        )));
+      }
+      Ok(RawInputEvent::Text {
+        text: text.to_string(),
+      })
+    }
+    other => Err(raw_bad(format!("未知 raw_input 事件 k: {other}"))),
+  }
+}
+
+/// `{ events: [...] }` 的 `events` 字段 → 事件序列（逐条严格校验；条数超上限 →
+/// invalid_request）。入参为自由 JSON（napi serde_json::Value），此处把关全部形状。
+pub fn parse_raw_input(events: &Value) -> AxResult<Vec<RawInputEvent>> {
+  let events = events
+    .as_array()
+    .ok_or_else(|| raw_bad("raw_input 的 events 必须是数组"))?;
+  if events.len() > MAX_RAW_INPUT_EVENTS {
+    return Err(raw_bad(format!(
+      "raw_input events 条数 {} 超过上限 {MAX_RAW_INPUT_EVENTS}",
+      events.len()
+    )));
+  }
+  events.iter().map(parse_raw_event).collect()
+}
+
+/// 已是 VIRTUALDESK 归一化坐标（0..=65535）的绝对移动事件。
+/// WHY 不复用 `mouse_move_to`：那条路径收屏幕像素并调 `normalize` 换算；raw_input 的
+/// 坐标由主控换算后下达（plan T4），二次换算会把坐标打错。事件形状与 flags 与
+/// `mouse_move_to` 保持一致（MOVE|ABSOLUTE|VIRTUALDESK）。
+fn mouse_move_normalized(x: u16, y: u16) -> INPUT {
+  INPUT {
+    r#type: INPUT_MOUSE,
+    Anonymous: INPUT_0 {
+      mi: MOUSEINPUT {
+        dx: i32::from(x),
+        dy: i32::from(y),
+        mouseData: 0,
+        dwFlags: MOUSE_EVENT_FLAGS(
+          (MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK).0,
+        ),
+        time: 0,
+        dwExtraInfo: 0,
+      },
+    },
+  }
+}
+
+/// 序列派发：每事件一次 SendInput（移动与按键同批，保证事件内相对顺序不被其它线程的
+/// 输入插入打断；批内条数即该事件的注入面）。返回**累计插入条数**（Σ SendInput 返回值，
+/// 即响应 `{dispatched: n}` 的口径）——部分被系统丢弃（如 UIPI 拦截）时如实少报。
+/// 空序列与零条批次不调用 SendInput（`events: []` → 0）。
+pub fn dispatch_raw_input(events: &[RawInputEvent]) -> u32 {
+  let mut dispatched = 0u32;
+  for ev in events {
+    let batch: Vec<INPUT> = match ev {
+      RawInputEvent::Move { x, y } => vec![mouse_move_normalized(*x, *y)],
+      RawInputEvent::Button {
+        button,
+        down,
+        x,
+        y,
+      } => vec![
+        mouse_move_normalized(*x, *y),
+        mouse_button_input(button.flags(*down)),
+      ],
+      RawInputEvent::Wheel {
+        direction,
+        amount,
+        x,
+        y,
+      } => {
+        // 滚轮先定位：远控画面里的滚轮必须落在画面对应的光标位置上。
+        let mut batch = vec![mouse_move_normalized(*x, *y)];
+        if let Some(wheel) = direction.wheel_input(*amount) {
+          batch.push(wheel);
+        }
+        batch
+      }
+      RawInputEvent::Key { vk, down } => vec![key_input(*vk, !*down)],
+      RawInputEvent::Text { text } => type_text_inputs(text),
+    };
+    if batch.is_empty() {
+      continue;
+    }
+    // unsafe 依据（块级）：SendInput FFI；batch 生命周期覆盖调用。
+    dispatched += unsafe { SendInput(&batch, std::mem::size_of::<INPUT>() as i32) };
+  }
+  dispatched
 }
 
 /// dispatched 三态的跨批次累计器。

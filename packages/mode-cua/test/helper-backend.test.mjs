@@ -149,6 +149,39 @@ test("8 原语 1:1 映射：参数整形、结果透传与 launch_app Promise", 
   assert.equal(calls[6][1][0].payload, payload, "perform payload 必须原样透传");
 });
 
+test("raw_input：events 原样透传、空数组合法、非法类型先拦", async () => {
+  // Task 4（lan-remote-desktop）：params {events} → addon.raw_input({events}) → {dispatched}。
+  const touched = [];
+  const addon = {
+    raw_input: (req) => {
+      touched.push(req);
+      return { dispatched: req.events.length };
+    },
+  };
+  const backend = createBackend(addon);
+  const call = (params) => dispatchRequest(backend, { id: "1", method: "raw_input", params });
+
+  // 空数组是合法请求（远控空闲期的常态）：原样透传同一引用，结果原样带出。
+  const empty = [];
+  assert.deepEqual(await call({ events: empty }), { ok: true, result: { dispatched: 0 } });
+  assert.equal(touched[0].events, empty, "events 必须原样透传（同一引用）");
+  // 非空事件的形状/逐条校验归 Rust parse_raw_input（本层不复刻），backing 只做类型把关。
+  const events = [{ k: "move", x: 1, y: 2 }];
+  assert.deepEqual(await call({ events }), { ok: true, result: { dispatched: 1 } });
+  assert.equal(touched[1].events, events);
+  assert.equal(touched.length, 2, "合法请求必须到达 addon");
+
+  // 非法类型在触碰 addon 之前拦下（napi 缺键或裸 TypeError 的防线）。
+  const codeOf = async (params) => (await call(params)).error?.code;
+  assert.equal(await codeOf({}), "invalid_request"); // 缺 events
+  assert.equal(await codeOf({ events: "nope" }), "invalid_request");
+  assert.equal(await codeOf({ events: null }), "invalid_request");
+  assert.equal(await codeOf({ events: [null] }), "invalid_request");
+  assert.equal(await codeOf({ events: [[{ k: "move", x: 1, y: 2 }]] }), "invalid_request");
+  assert.equal(await codeOf({ events: [3] }), "invalid_request");
+  assert.equal(touched.length, 2, "校验失败不得触碰 addon");
+});
+
 test("参数校验在触碰 addon 之前拒绝，invalid_request 不进 napi", async () => {
   const touched = [];
   const addon = {

@@ -41,11 +41,13 @@ test("line codec roundtrip and rejects garbage", () => {
 });
 
 test("method whitelist: primitives only, read-only subset", () => {
-  for (const m of ["health","list_apps","list_windows","observe","capture","perform","launch_app","screen_probe"]) {
+  for (const m of ["health","list_apps","list_windows","observe","capture","perform","raw_input","launch_app","screen_probe"]) {
     assert.ok(isBrokerMethod(m), m);
   }
   assert.ok(!isBrokerMethod("exec"));
   assert.ok(isReadOnlyBrokerMethod("observe") && !isReadOnlyBrokerMethod("perform"));
+  // raw_input 是注入写路径：必须在方法表内、必须在只读表外（只读面不得触达注入）。
+  assert.ok(isBrokerMethod("raw_input") && !isReadOnlyBrokerMethod("raw_input"));
 });
 
 test("callBrokerMethod + probeHelperHealth against a live server", async () => {

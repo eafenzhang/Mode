@@ -81,6 +81,31 @@ pub fn perform_napi(req: PerformRequestNapi) -> napi::Result<PerformResultNapi> 
   )
 }
 
+// 远控注入面（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：broker 方法
+// `raw_input`，params `{ events: RawInputEvent[] }` → `{ dispatched: n }`。
+// events 是入参面的自由 JSON（形状逐条严格校验在 input::parse_raw_input），
+// 与 perform.payload 同口径；无窗口参数——目标即「对端当前前台窗口」。
+#[napi(object)]
+pub struct RawInputRequestNapi {
+  pub events: serde_json::Value,
+}
+
+#[napi(object, use_nullable = true)]
+pub struct RawInputResultNapi {
+  /// SendInput 累计插入条数（空数组 = 0）。
+  pub dispatched: u32,
+}
+
+#[napi(js_name = "raw_input")]
+pub fn raw_input_napi(req: RawInputRequestNapi) -> napi::Result<RawInputResultNapi> {
+  to_napi(
+    input::parse_raw_input(&req.events)
+      .map(|events| RawInputResultNapi {
+        dispatched: input::dispatch_raw_input(&events),
+      }),
+  )
+}
+
 // Task 6：launch 入参是请求面（SDK 保证 name/bundleId 二选一），不加 use_nullable
 // （入参口径同 ObserveRequestNapi）；裸字符串按 bundleId 传入，归一化在 launch::target_from。
 #[napi(object)]
