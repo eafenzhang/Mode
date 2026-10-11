@@ -33,14 +33,14 @@ LAN 形态与 ssh/wsl/docker 有本质区别：LAN 对端是**已在运行的完
 
 ## 状态所有者
 
-| 状态 | 唯一所有者 | 写路径 |
-|---|---|---|
-| 插件启用态 | 对端机器的 workspace 配置投影 | 既有 `pluginManagementStore.setEnabled` → 透传 pluginManagementService |
-| 设备能力位 | 对端 LAN access server（`createServerInfo`） | 握手时计算，无持久化 |
-| 能力位在本地的投影 | `HostRemoteConnectionCapabilities` → attachment 注册参数 → `RemoteWorkspaceSession` | 连接生命周期内只读 |
-| Helper / broker 凭据 | 对端 host 进程（desktop-local authority） | 既有 enablement admission |
-| OS 权限状态 | 对端 `cuaPermissionService` | 对端 Helper/系统查询；本地只读 + 触发引导 |
-| 会话与 turn 状态 | 对端 host（不变） | 本地仅发起命令与观察 |
+| 状态                 | 唯一所有者                                                                          | 写路径                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 插件启用态           | 对端机器的 workspace 配置投影                                                       | 既有 `pluginManagementStore.setEnabled` → 透传 pluginManagementService |
+| 设备能力位           | 对端 LAN access server（`createServerInfo`）                                        | 握手时计算，无持久化                                                   |
+| 能力位在本地的投影   | `HostRemoteConnectionCapabilities` → attachment 注册参数 → `RemoteWorkspaceSession` | 连接生命周期内只读                                                     |
+| Helper / broker 凭据 | 对端 host 进程（desktop-local authority）                                           | 既有 enablement admission                                              |
+| OS 权限状态          | 对端 `cuaPermissionService`                                                         | 对端 Helper/系统查询；本地只读 + 触发引导                              |
+| 会话与 turn 状态     | 对端 host（不变）                                                                   | 本地仅发起命令与观察                                                   |
 
 ## 事件顺序
 
@@ -100,11 +100,16 @@ renderer composer 入口 → V4 conversation command
 
 ## 验收场景
 
-- [ ] 旧版对端（无 `computerUse` 键）握手成功，本地 pane 与设置页维持「暂不支持」。
+- [x] 旧版对端（无 `computerUse` 键）握手成功，本地 pane 与设置页维持「暂不支持」。
 - [ ] 新对端 win/mac + kill-switch 开：能力位为真；对端插件未启用时设置页可直接拨开（写对端配置），输入框入口随后出现。
 - [ ] 经入口发起 turn：对端 spawn 注入 broker、Helper 操作对端物理屏幕；Windows 对端顶部出现操作指示（投影在对端）。
 - [ ] 对话内 CUA 工具卡片与截图帧在本地 remote pane 正常渲染；权限弹窗同意/拒收回执生效（幂等）。
 - [ ] 对端缺 OS 权限时：本地对话出现权限观察卡片；点「去授权」后**对端机器**弹出引导窗口，本机不弹。
-- [ ] ssh/wsl/docker workspace 与手机远控行为不变：入口不可见、unsupported 卡片、权限观察事件不投递。
-- [ ] 单测：能力位 schema 缺键兼容；enablement lan identity 放行/ssh 排除；scope 事件面（relay desktop 下游放行、replay 下游拒绝）；availability `remote-lan` 分支；`lan-attach-initialize` 回归不破。
-- [ ] `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
+- [x] ssh/wsl/docker workspace 与手机远控行为不变：入口不可见、unsupported 卡片、权限观察事件不投递。
+- [x] 单测：能力位 schema 缺键兼容；enablement lan identity 放行/ssh 排除；scope 事件面（relay desktop 下游放行、replay 下游拒绝）；availability `remote-lan` 分支；`lan-attach-initialize` 回归不破。
+- [x] `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
+
+## 本轮验证状态
+
+- 已验证：全量自动化矩阵（typecheck / lint / architecture 0 违规 / shared 36 / services 254 / server 5 / desktop mjs 34 / desktop mts 9 / ui 34 / core 6 全部通过；schema 缺键降级、enablement lan/ssh admission、事件面 5 组合、availability `remote-lan` 分支、merge 归属 3 例均有对应用例，见上方验收勾选）。
+- **待实机清单**（需两台机器）：两台 win/mac Mode 实例 → 配对 → LAN attach → 对端 workspace 开启电脑控制插件 → 本地输入框「电脑操作」发起 → 对端物理屏幕被操作且 Windows 对端出顶部指示 → 对话内工具卡片/截图帧渲染、权限弹窗同意/拒绝回执生效 → 缺权限时本地弹权限观察卡且点「去授权」后**对端机器**弹引导（本机不弹）→ 设置页 LAN pane 显示正常开关并可拨动。

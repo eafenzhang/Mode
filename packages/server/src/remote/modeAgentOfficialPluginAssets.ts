@@ -37,6 +37,8 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = [
   // 远程工作区当前不承载 Browser Use / Computer Use，因此宿主 runtime 不进这份远端合同——
   // 要支持远程 bua/cua 时，应把 node-repl-host 补进上面的 PACKAGE_NAMES 并在此声明它的
   // dist/mcp/server.js，而不是把宿主产物挂回 browser-use 名下。
+  // （2026-10-11）LAN 形态不经此合同：对端是完整 desktop 自己，CUA 经 LAN 能力协商启用，
+  // 见 docs/specs/lan-remote-computer-use.md。
   "browser-use-plugin/docs/api.json",
   "browser-use-plugin/docs/documents.json",
   "browser-use-plugin/docs/overview.md",
