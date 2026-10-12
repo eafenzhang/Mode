@@ -109,6 +109,16 @@ pub fn rd_media_stop_napi() -> napi::Result<()> {
   Ok(())
 }
 
+/// 紧急关键帧请求：renderer 侧解码落后/丢帧后经 WS → relay → helper 调到这里；
+/// worker 下一 tick 消费并 `force_idr`（下一帧起产出新 IDR，不丢帧、不断流——
+/// 语义与 switch/解冻的强制关键帧一致）。一次性标志：不允许积压。
+static PENDING_KEY: AtomicBool = AtomicBool::new(false);
+
+#[napi(js_name = "rd_media_request_key")]
+pub fn rd_media_request_key_napi() {
+  PENDING_KEY.store(true, Ordering::Relaxed);
+}
+
 /// 测试专用：无 start 时 stop 幂等（不触 DUPL/MF，无桌面会话也能跑）。
 pub fn stop_for_tests() { stop(); }
 
@@ -286,6 +296,11 @@ fn worker_loop(
   }
   let mut frozen = false;
   while !stop.load(Ordering::Relaxed) {
+    // 紧急关键帧请求：一次性消费（丢帧恢复 / renderer 请求都不允许积压）；
+    // 冻结期也照常置位——解冻路径本就 force_idr，置位只可能有冗余、不会有害。
+    if PENDING_KEY.swap(false, Ordering::Relaxed) {
+      enc.force_idr();
+    }
     // ① 消费换屏请求。
     if let Some(new_rect) = locked(&pending_rect).take() {
       if new_rect != rect {
