@@ -6,18 +6,21 @@ import type { WorkspaceFileEntry } from "@mode/shared";
  * rootPath 拼回，不重复传输（37 万条实测 65.7MB → ~25MB）。
  * Unix 文件名可含 \t、\n、\\，打包时转义、解包时还原。
  *
- * 传输形态选择（性能约束）：
+ * 传输形态选择（性能约束，见 docs/specs/remote-workspace-rpc-bulk-chunking.md）：
  * - RPC 顶层返回裸 string：走框架的 String 快速路径（长度前缀+原始字节），
  *   避免 Object 的 JSON.stringify/parse 对含 \t\n 大字符串的转义开销（实测 6-9s）；
- * - 单条消息不超过 WORKSPACE_FILE_ENTRIES_CHUNK_SIZE（~4MB）：大消息在 renderer
- *   接收端的分帧重组是秒级主线程长任务（实测 4.6-6.3s），分块拉取 + 块间让出
- *   事件循环后，主线程任何时刻只处理一小块（~50ms），输入永不冻结。
+ * - 单条消息不超过 WORKSPACE_FILE_ENTRIES_CHUNK_SIZE：远端工作区全部 RPC 共享
+ *   一条单连接 FIFO 通道，大帧会把后续小帧挡在队列里（队头阻塞）。单块按
+ *   attachmentChunkMaxBytes（512KiB）口径取 512K 字符——路径为主 ASCII，
+ *   典型 ≈512KB 字节（CJK 路径最坏 ~1.5MB）：线占用 ≈ 512KB ÷ 带宽，环回实测
+ *   4×4MB 批量下小 RPC p95 98ms，512K 块把该尾延迟收敛近一个数量级。
+ *   分块拉取 + 块间让出事件循环后，主线程每块只处理一小块（~6ms），输入永不冻结。
  */
 const FIELD_SEPARATOR = "\t";
 const LINE_SEPARATOR = "\n";
 
 /** 单块目标大小（字符数）；调用方按 totalLength 分块拉取。 */
-export const WORKSPACE_FILE_ENTRIES_CHUNK_SIZE = 4_000_000;
+export const WORKSPACE_FILE_ENTRIES_CHUNK_SIZE = 512 * 1024;
 
 function escapeField(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/\t/g, "\\t").replace(/\n/g, "\\n");
