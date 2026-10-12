@@ -40,6 +40,8 @@ use windows::core::{Interface, Result as WResult};
 
 use crate::error::{AxError, AxResult};
 
+use super::warn;
+
 /// 光标形状缓存（`GetFramePointerShape` 原始缓冲 + 解析后的形状头）。
 struct ShapeCache {
   info: DXGI_OUTDUPL_POINTER_SHAPE_INFO,
@@ -213,7 +215,39 @@ struct FrameRelease<'a>(&'a IDXGIOutputDuplication);
 
 impl Drop for FrameRelease<'_> {
   fn drop(&mut self) {
+    // unsafe 依据（块级）：ReleaseFrame 为 DXGI COM FFI；返回值忽略——释放失败
+    // 只可能是设备已失效，由下一次 AcquireNextFrame 的 ACCESS_LOST 暴露。
     let _ = unsafe { self.0.ReleaseFrame() };
+  }
+}
+
+/// COM 作用域（RAII）：进入时 `CoInitializeEx(COINIT_MULTITHREADED)`、离开配对
+/// `CoUninitialize`。`CoInitializeEx`/`CoUninitialize` 必须同线程成对——用守卫
+/// 保证提前返回（错误路径）也不漏配对。线程已初始化为别的模型（RPC_E_CHANGED_MODE）
+/// 时不归本守卫管 → `enter()` 返回 None、不做 Uninitialize。
+///
+/// 为什么圈在 capture.rs：napi.rs 的 worker/start 只需要调这个**安全**入口，
+/// Win32 unsafe 全部留在本文件（组织约束：Win32/DXGI/MF 调用圈在 capture/encode）。
+pub(crate) struct ComScope(bool);
+
+impl ComScope {
+  pub(crate) fn enter() -> Option<Self> {
+    // unsafe 依据（块级）：CoInitializeEx 为 COM FFI；S_OK(0)/S_FALSE(1) 表示本次
+    // 调用成功（须配对 Uninitialize），其余（如 RPC_E_CHANGED_MODE）不配对。
+    let hr = unsafe { windows::Win32::System::Com::CoInitializeEx(
+      None,
+      windows::Win32::System::Com::COINIT_MULTITHREADED,
+    ) };
+    if hr.0 == 0 || hr.0 == 1 { Some(Self(true)) } else { None }
+  }
+}
+
+impl Drop for ComScope {
+  fn drop(&mut self) {
+    if self.0 {
+      // unsafe 依据（块级）：与 enter() 同线程配对（RAII 保证）。
+      unsafe { windows::Win32::System::Com::CoUninitialize() };
+    }
   }
 }
 
@@ -289,6 +323,8 @@ impl DuplicationOutput {
     };
     let mut info = DXGI_OUTDUPL_FRAME_INFO::default();
     let mut resource: Option<IDXGIResource> = None;
+    // unsafe 依据（块级）：AcquireNextFrame 为 DXGI COM FFI；info/resource 为
+    // 本栈帧槽位，resource 的所有权在成功后由本函数接管（cast 后引用）。
     match unsafe { dup.AcquireNextFrame(timeout_ms, &mut info, &mut resource) } {
       Ok(()) => {}
       // AccessLost：不 Release（帧已不持有；简报要点 3——设备侧已丢弃）。
@@ -311,6 +347,8 @@ impl DuplicationOutput {
     let frame = res.cast::<ID3D11Texture2D>().map_err(|e| {
       AxError::internal(format!("桌面资源转 ID3D11Texture2D 失败: {e}"))
     })?;
+    // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；proc/frame 同设备同尺寸
+    // （DUPL 帧恒 B8G8R8A8_UNORM 且与输出矩形一致，open 时已对齐）。
     unsafe { self.ctx.CopyResource(&self.proc, &frame) };
     // 光标补丁（内部做背景回读 + 混合 + UpdateSubresource；无可见光标 → None）。
     let cursor = self.build_cursor_patch(&info)?;
@@ -329,6 +367,8 @@ impl DuplicationOutput {
     let mut buf = vec![0u8; buffer_size as usize];
     let mut shape_info = DXGI_OUTDUPL_POINTER_SHAPE_INFO::default();
     let mut required = 0u32;
+    // unsafe 依据（块级）：GetFramePointerShape 为 DXGI COM FFI；缓冲长度取自
+    // 同帧 info.PointerShapeBufferSize（DXGI 自己给出的所需长度），不越界。
     unsafe {
       dup.GetFramePointerShape(
         buffer_size,
@@ -355,13 +395,21 @@ impl DuplicationOutput {
     let Some(shape) = self.shape.as_ref() else {
       return Ok(None); // 尚未拿到形状（首次移动前）——宁可不画也不画错
     };
-    let raster = render_cursor_shape(
+    // 光标形状是易变输入（文件头原则：不能让它决定管线生死）——渲染失败只降级
+    // 为「本帧不打光标补丁」并 warn；纹理/设备级错误（Map/回读）仍向上冒泡。
+    let raster = match render_cursor_shape(
       shape.info.Type,
       shape.info.Width,
       shape.info.Height,
       shape.info.Pitch,
       &shape.data,
-    )?;
+    ) {
+      Ok(r) => r,
+      Err(e) => {
+        warn(&format!("光标形状渲染失败，本帧跳过光标补丁: {e}"));
+        return Ok(None);
+      }
+    };
     if raster.w == 0 || raster.h == 0 || raster.visible.iter().all(|v| *v == 0) {
       return Ok(None);
     }
@@ -389,8 +437,12 @@ impl DuplicationOutput {
       bottom: iy1 as u32,
       back: 1,
     };
+    // unsafe 依据（块级）：CopySubresourceRegion 为 D3D11 FFI；源盒已钳制在
+    // proc 尺寸内（ix/iy 的 clamp 在上方）、目标 (0,0) 在 staging 内。
     unsafe { self.ctx.CopySubresourceRegion(&self.bg_staging, 0, 0, 0, 0, &self.proc, 0, Some(&b)) };
     let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
+    // unsafe 依据（块级）：Map 为 D3D11 FFI；staging 建时带 CPU_ACCESS_READ。
+    // Map 成功后必须 Unmap——下方无条件 Unmap 由闭包收拢保证。
     let map_res: WResult<()> =
       unsafe { self.ctx.Map(&self.bg_staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped)) };
     map_res.map_err(|e| AxError::internal(format!("光标背景 Map 失败: {e}")))?;
@@ -403,6 +455,9 @@ impl DuplicationOutput {
       // ② 逐像素混合：可见=光标形状，透明=背景（staging 的行距可能 > 宽*4）。
       let mut patch = Vec::with_capacity((rw * rh * 4) as usize);
       for r in 0..rh as usize {
+        // unsafe 依据（块级）：pData 来自仍持有的 Map（Unmap 在闭包之后执行）；
+        // 起点 r*rowPitch、长度 rw*4 均在 staging（整面 desktop 尺寸）内——
+        // 源盒钳制保证 rw*rh ≤ 纹理尺寸、rowPitch ≥ 每行有效字节。
         let bg_row = unsafe {
           std::slice::from_raw_parts((mapped.pData as *const u8).add(r * row_pitch), (rw * 4) as usize)
         };
@@ -418,6 +473,7 @@ impl DuplicationOutput {
       }
       Ok(patch)
     })();
+    // unsafe 依据（块级）：Unmap 为 D3D11 FFI；无论混合成败都必须与上方 Map 配对。
     unsafe { self.ctx.Unmap(&self.bg_staging, 0) };
     let rgba = blend?;
     // ③ 回写混合结果（矩形已钳制在纹理内）。
@@ -429,6 +485,8 @@ impl DuplicationOutput {
       bottom: iy1 as u32,
       back: 1,
     };
+    // unsafe 依据（块级）：UpdateSubresource 为 D3D11 FFI；目标盒已钳制在 proc
+    // 尺寸内、srcrowpitch = rw*4 与补丁缓冲逐行等长。
     unsafe {
       self.ctx.UpdateSubresource(
         &self.proc,
@@ -480,12 +538,15 @@ unsafe fn open_duplication(device: &ID3D11Device, rect: (i32, i32, i32, i32)) ->
     .map_err(|e| AxError::internal(format!("CreateDXGIFactory1 失败: {e}")))?;
   let mut matched: Option<IDXGIOutput> = None;
   'adapters: for ai in 0..u32::MAX {
-    // EnumAdapters1/EnumOutputs 单参形态：返回 Result，Err(DXGI_ERROR_NOT_FOUND) 即枚举尽。
+    // unsafe 依据（块级）：EnumAdapters1 为 DXGI COM FFI；单参返回 Result 形态，
+    // Err(DXGI_ERROR_NOT_FOUND) 即枚举尽，无出参槽位。
     let adapter = match unsafe { factory.EnumAdapters1(ai) } {
       Ok(a) => a,
       Err(_) => break,
     };
     for oi in 0..u32::MAX {
+      // unsafe 依据（块级）：EnumOutputs 为 DXGI COM FFI；返回值形态（单参 →
+      // Result），Err 即枚举尽，无出参槽位。
       let output = match unsafe { adapter.EnumOutputs(oi) } {
         Ok(o) => o,
         Err(_) => break,
@@ -541,6 +602,8 @@ pub(crate) fn create_texture(
     MiscFlags: 0,
   };
   let mut tex: Option<ID3D11Texture2D> = None;
+  // unsafe 依据（块级）：CreateTexture2D 为 D3D11 FFI；desc 由本函数构造、
+  // 出参槽位在本栈帧，返回的纹理引用由调用方持有。
   unsafe {
     device
       .CreateTexture2D(&desc, None, Some(&mut tex))

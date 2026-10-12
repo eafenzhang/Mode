@@ -425,6 +425,8 @@ impl Encoder {
         .map_err(|e| AxError::internal(format!("输入 Buffer Lock 失败: {e}")))?
     };
     if ptr.is_null() {
+      // 与相邻路径同纪律：Lock 成功后无论成败都先 Unlock 再返回（防缓冲区卡锁）。
+      let _ = unsafe { buffer.Unlock() };
       return Err(AxError::internal("输入 Buffer Lock 返回空指针"));
     }
     // unsafe 依据（块级）：ptr 来自本作用域 Lock、长度 = nv12.len() ≤ max。
@@ -446,7 +448,9 @@ impl Encoder {
         .AddBuffer(&buffer)
         .map_err(|e| AxError::internal(format!("AddBuffer 失败: {e}")))?;
     }
-    // 时间基 90kHz；seq 跨 start/stop 单调（IV 唯一性），时间戳只求单调即可。
+    // 时间基 90kHz；时间戳只要求本次编码会话内单调递增。seq 每次 start 从 0 起
+    // （不跨 start 单调）——跨会话的 IV 唯一性由「每次 start 轮换会话盐」保证
+    // （IV = 会话盐∥seq，盐轮换是 Task 7/被控 host 的责任），本层只保证会话内不重复。
     let t = (seq as i64) * MF_TICKS / self.fps as i64;
     unsafe {
       sample
@@ -694,6 +698,8 @@ fn read_sample_bytes(sample: &IMFSample) -> AxResult<Vec<u8>> {
       .map_err(|e| AxError::internal(format!("输出 Buffer Lock 失败: {e}")))?
   };
   if ptr.is_null() {
+    // 与相邻路径同纪律：Lock 成功后无论成败都先 Unlock 再返回（防缓冲区卡锁）。
+    let _ = unsafe { buffer.Unlock() };
     return Err(AxError::internal("输出 Buffer Lock 返回空指针"));
   }
   // unsafe 依据（块级）：ptr/cur 来自 Lock 返回值，锁保持到本作用域 Unlock。

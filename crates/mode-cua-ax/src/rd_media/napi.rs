@@ -7,7 +7,7 @@
 //!   `ThreadsafeFunction<T>` 未写第二泛型参数，默认策略与契约 A 的 TS 形状矛盾，
 //!   此处以契约 A 的 TS 形状为准。
 //! - 采集跑在专用 `std::thread`（简报 Step 4）；`start` 抢占式先 `stop`。
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
@@ -16,15 +16,11 @@ use std::time::Duration;
 use napi::bindgen_prelude::Buffer;
 use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
-use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
 
-use super::capture::{CaptureFrame, DuplicationOutput};
+use super::capture::{CaptureFrame, ComScope, DuplicationOutput};
 use super::encode::Encoder;
+use super::warn;
 use crate::error::{AxError, AxResult};
-
-/// 稀有异常路径的最小诊断面（本 crate 无日志设施）：只在 worker 出错退出、
-/// stop 超时、switch 重开失败这类一次性事件打 stderr；不写帧内容/密钥/凭据。
-fn warn(msg: &str) { eprintln!("[rd_media] {msg}"); }
 
 #[napi(object)]
 pub struct RdMediaRect {
@@ -77,8 +73,10 @@ pub fn compute_out_size(width: u32, height: u32, max_width: u32) -> (u32, u32) {
 /// switch 待消费矩形槽（worker 单消费者）。
 type PendingRect = Arc<Mutex<Option<(i32, i32, i32, i32)>>>;
 
-/// worker 句柄：stop 标志 + switch 待消费矩形 + join 句柄。
+/// worker 句柄：身份 + stop 标志 + switch 待消费矩形 + join 句柄。
 struct MediaWorkerHandle {
+  /// worker 身份（全局自增）：worker 退出时按身份清自己的句柄——不误删后来者。
+  worker_id: u64,
   stop: Arc<AtomicBool>,
   pending_rect: PendingRect,
   join: Option<JoinHandle<()>>,
@@ -86,6 +84,10 @@ struct MediaWorkerHandle {
 
 /// 全局唯一会话槽（简报：`static STARTED: Mutex<Option<MediaWorkerHandle>>`）。
 static STARTED: Mutex<Option<MediaWorkerHandle>> = Mutex::new(None);
+/// worker 身份发号器（见 `MediaWorkerHandle::worker_id`）。
+static NEXT_WORKER_ID: AtomicU64 = AtomicU64::new(1);
+/// start 等 worker 完成建流（DUPL + 编码器）的超时：正常 <1s，超时视为卡死。
+const SETUP_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// 锁静态量：锁中毒取回守卫继续（临界区只有短时 Option/矩形读写，无毒源；
 /// deny(unwrap_used) 下用 unwrap_or_else 而非 unwrap）。
@@ -110,8 +112,14 @@ pub fn rd_media_stop_napi() -> napi::Result<()> {
 /// 测试专用：无 start 时 stop 幂等（不触 DUPL/MF，无桌面会话也能跑）。
 pub fn stop_for_tests() { stop(); }
 
-/// 启动：抢占式先收旧会话 → 同步建 DUPL + 编码器（失败直接回错误给 JS，
-/// 不把创建失败藏进线程）→ 起采集线程。
+/// 启动：抢占式先收旧会话 → 起采集线程，**建流（DUPL + 编码器）在 worker 内
+/// 同步完成并经 channel 回传结果**——失败原样转成 JS 错误（不藏进线程），成功
+/// 才落 STARTED 句柄。
+///
+/// 为什么建流挪进 worker：① MFTEnumEx/ActivateObject/DuplicateOutput 需要调用
+/// 线程已初始化 COM，而 JS（Node helper）线程未必——worker 内用 `ComScope`
+/// （capture.rs 的 RAII 守卫）自管 COM，JS 线程零 Win32；② Win32 调用保持全部
+/// 圈在 capture/encode 模块（组织约束）。
 fn start(opts: RdMediaStartOptions) -> AxResult<()> {
   let rect = (
     opts.rect.x,
@@ -126,11 +134,13 @@ fn start(opts: RdMediaStartOptions) -> AxResult<()> {
     return Err(AxError::new("invalid_request", "fps/maxWidth/bitrateBps 必须为正"));
   }
   stop(); // 已在跑先 stop 再起新线程（简报 Step 4）
-  let dup = DuplicationOutput::open(rect)?;
-  let (out_w, out_h) = compute_out_size(rect.2 as u32, rect.3 as u32, opts.max_width);
-  let enc = Encoder::new(dup.device(), out_w, out_h, opts.fps, opts.bitrate_bps)?;
   let stop_flag = Arc::new(AtomicBool::new(false));
   let pending_rect = Arc::new(Mutex::new(None));
+  let worker_id = NEXT_WORKER_ID.fetch_add(1, Ordering::Relaxed);
+  let (ready_tx, ready_rx) = mpsc::channel::<AxResult<()>>();
+  // 两段握手的第二段：start 把句柄落进全局槽后才放行 worker 进循环——否则
+  // worker 建流成功后立刻出错退出、在落槽前 clear_self 会留假活句柄（竞态）。
+  let (go_tx, go_rx) = mpsc::channel::<()>();
   let spawn = {
     let stop_f = Arc::clone(&stop_flag);
     let pending = Arc::clone(&pending_rect);
@@ -143,13 +153,46 @@ fn start(opts: RdMediaStartOptions) -> AxResult<()> {
       .name("rd-media-capture".into())
       .spawn(move || {
         worker_loop(
-          rect, max_width, fps, bitrate, dup, enc, stop_f, pending, on_frame, on_status,
+          rect, max_width, fps, bitrate, stop_f, pending, on_frame, on_status, worker_id,
+          ready_tx, go_rx,
         )
       })
   };
   let join = spawn.map_err(|e| AxError::internal(format!("采集线程创建失败: {e}")))?;
-  *locked(&STARTED) = Some(MediaWorkerHandle { stop: stop_flag, pending_rect, join: Some(join) });
-  Ok(())
+  match ready_rx.recv_timeout(SETUP_TIMEOUT) {
+    // 建流成功：先把句柄交给全局槽（switch 从这里起可见），再放行 worker 进循环。
+    Ok(Ok(())) => {
+      *locked(&STARTED) =
+        Some(MediaWorkerHandle { worker_id, stop: stop_flag, pending_rect, join: Some(join) });
+      let _ = go_tx.send(());
+      Ok(())
+    }
+    // 建流失败：worker 已退出（dup/enc 随其作用域释放），错误直回 JS；句柄不落槽。
+    // 不内联 join——即使驱动在 RAII 释放里卡住也不阻塞 JS 线程，转后台收尸。
+    Ok(Err(e)) => {
+      let _ = thread::Builder::new().name("rd-media-reap".into()).spawn(move || {
+        let _ = join.join();
+      });
+      Err(e)
+    }
+    // 超时（驱动卡死）：置 stop 放弃该 worker，转后台收尸，回 timeout 类错误。
+    Err(mpsc::RecvTimeoutError::Timeout) => {
+      stop_flag.store(true, Ordering::Relaxed);
+      drop(go_tx); // worker 若在等放行，收到断开即退出
+      let _ = thread::Builder::new().name("rd-media-reap".into()).spawn(move || {
+        let _ = join.join();
+      });
+      Err(AxError::internal("采集初始化超时（10s），已放弃该 worker"))
+    }
+    // 通道断开 = worker 在建流中提前终止（panic/被杀）——同样不留句柄，快速报错。
+    Err(mpsc::RecvTimeoutError::Disconnected) => {
+      drop(go_tx);
+      let _ = thread::Builder::new().name("rd-media-reap".into()).spawn(move || {
+        let _ = join.join();
+      });
+      Err(AxError::internal("采集线程在建流期间提前终止"))
+    }
+  }
 }
 
 /// 换屏：只写 pending 矩形，由 worker 循环消费（重开 duplication + 强制 IDR；
@@ -161,6 +204,9 @@ fn switch(rect: RdMediaRect) -> AxResult<()> {
   }
   let started = locked(&STARTED);
   let handle = started.as_ref().ok_or_else(|| {
+    // worker 错误退出时已按身份清过句柄（clear_self），这里如实报「未启动」——
+    // 对死 worker 幂等且可观测（JS 收到 invalid_request，而不是写进死队列）。
+    warn("rd_media_switch 被拒：无活动采集会话（未启动或 worker 已退出）");
     AxError::new("invalid_request", "rd_media 未启动（switch 需在 start 之后）")
   })?;
   *locked(&handle.pending_rect) = Some(r);
@@ -201,17 +247,43 @@ fn worker_loop(
   max_width: u32,
   fps: u32,
   bitrate: u32,
-  dup: DuplicationOutput,
-  mut enc: Encoder,
   stop: Arc<AtomicBool>,
   pending_rect: PendingRect,
   on_frame: ThreadsafeFunction<RdMediaFrameNapi, ErrorStrategy::Fatal>,
   on_status: ThreadsafeFunction<RdMediaStatusNapi, ErrorStrategy::Fatal>,
+  worker_id: u64,
+  ready: mpsc::Sender<AxResult<()>>,
+  go: mpsc::Receiver<()>,
 ) {
-  // MF/部分硬件 MFT 假定调用线程已初始化 COM——采集线程无 UI 需求，用 MTA。
-  let hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-  let com_inited = hr.0 == 0 || hr.0 == 1; // S_OK / S_FALSE；RPC_E_CHANGED_MODE 不置位
+  // COM（MTA，RAII）：MF/部分硬件 MFT 假定调用线程已初始化 COM——建流与整个
+  // 采集循环都在本线程，作用域结束（含错误提前返回）自动配对 CoUninitialize。
+  let _com = ComScope::enter();
+  // 建流在 worker 内同步做（start 经 channel 等结果）：失败把 AxError 回传给
+  // start 直转 JS，本线程随即退出（句柄尚未落 STARTED，无假活风险）。
+  let dup = match DuplicationOutput::open(rect) {
+    Ok(d) => d,
+    Err(e) => {
+      let _ = ready.send(Err(e));
+      return;
+    }
+  };
+  let (out_w, out_h) = compute_out_size(rect.2 as u32, rect.3 as u32, max_width);
+  let mut enc = match Encoder::new(dup.device(), out_w, out_h, fps, bitrate) {
+    Ok(e) => e,
+    Err(e) => {
+      let _ = ready.send(Err(e)); // dup 随本作用域释放
+      return;
+    }
+  };
   let mut dup_slot: Option<DuplicationOutput> = Some(dup);
+  if ready.send(Ok(())).is_err() {
+    return; // start 已超时放弃（stop_flag 亦已置位）——不开流直接退出
+  }
+  // 等 start 把句柄落进全局槽后再进循环（两段握手，见 start 内注释）：
+  // 通道断开 = start 失败/超时放弃，直接退出。
+  if go.recv().is_err() {
+    return;
+  }
   let mut frozen = false;
   while !stop.load(Ordering::Relaxed) {
     // ① 消费换屏请求。
@@ -244,7 +316,10 @@ fn worker_loop(
     let event = match frame {
       Ok(f) => f,
       Err(e) => {
+        // 错误退出必须有可观测信号：对端黑屏前先收到 frozen 状态事件（契约 A
+        // reason 为 optional string，用可区分的错误归因串）。
         warn(&format!("采集循环错误，worker 退出: {e}"));
+        send_status(&on_status, true, Some("capture-error"));
         break;
       }
     };
@@ -278,18 +353,29 @@ fn worker_loop(
           }
           Ok(None) => {}
           Err(e) => {
+            // 同上：编码器级失败也先发 frozen 状态事件再退出。
             warn(&format!("编码循环错误，worker 退出: {e}"));
+            send_status(&on_status, true, Some("encode-error"));
             break;
           }
         }
       }
     }
   }
-  // 收口：dup/enc 在作用域尾随 drop（DUPL 释放 + MF drain/Shutdown 配对）。
+  // 收口：dup/enc 在作用域尾随 drop（DUPL 释放 + MF drain/Shutdown 配对）；
+  // 按身份清掉自己的全局句柄——不留假活句柄，之后的 switch/stop 对死 worker
+  // 幂等（stop 无槽可取、switch 收 invalid_request）。正常 stop 路径下 start 侧
+  // 已先取走句柄，这里按 worker_id 核对后无操作。
   drop(dup_slot);
   drop(enc);
-  if com_inited {
-    unsafe { CoUninitialize() };
+  clear_self(worker_id);
+}
+
+/// worker 退出时按身份释放自己的全局槽位（只删自己，不误删并发新起的 worker）。
+fn clear_self(worker_id: u64) {
+  let mut g = locked(&STARTED);
+  if matches!(g.as_ref(), Some(h) if h.worker_id == worker_id) {
+    *g = None; // drop 自身句柄（含 JoinHandle → detach；线程正在退出，无人 join）
   }
 }
 
