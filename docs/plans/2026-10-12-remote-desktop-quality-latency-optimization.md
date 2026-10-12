@@ -229,3 +229,21 @@
 3. **设备页重命名/删除** `84c6cabc`:新增 `renameLanPairedPeer(serverId,name)` 全平台链(契约 channels/validation → main → host 元数据写 → preload → Web 桩);设备卡三操作:连接/重命名(inline,Enter 保存/Esc 取消)/删除(两段式确认)。
 4. **检测设备+配对前移到远程控制页** `b6a95671`:新增 `RemoteDesktopAddDevice` 组件(扫描 discoverLanPeers + 选中设备输配对码 pairLanPeer,成功即刷新设备列表);远程连接向导原有流程保留(新建局域网工作区仍走它)。
 5. **合并为「远程控制」** `4156f006`:侧边栏入口/页面标题/面包屑/设置分区标题统一为「远程控制」(三语);设置页「远程桌面」与「局域网访问」两分区合并为一个 remoteDesktop 分区(被控设置 + 本机共享同区渲染),`lanAccess` 保留为历史意图别名。
+
+## 附八:CI 修复(2026-10-13 凌晨,推送后 Actions 报红处置)
+
+推送 9272c153 后 Release/licenses-notices 两个工作流失败,逐一根因处置:
+
+1. **verify 失败(Linux 时序 flake,三处根因合一)** `97470a03`:
+   - 根因 A(本质):`await once(helper,"connect")`(客户端侧)不保证中继**服务端**已登记 helper;
+     此前窗口内 kind3/kind4 控制帧按契约 fail-soft 静默丢弃(noopLogger 吞告警),表现为"帧凭空消失"。
+     修复:中继新增纯增量观测钩子 **`onHelperConnected`**(连接登记后回调),测试改为确定性等待。
+   - 根因 B(测试):背压/上行两用例用固定 `sleep(20)` 等异步管道,CI 负载下窗口不足。
+     修复:改仓库现成的 `waitFor` 轮询 + 捕获 logger 告警并断言无 "helper not connected"/"send failed"。
+   - 根因 C(台账):`third-party/inventory.json` 中 `crates/mode-cua-ax/Cargo.toml` 哈希过期
+     (迁移会话加 windows features 后未再生;本地脚本因 Windows EMFILE 跑不动,改为采用 CI 产物交叉验证)。
+2. **fnos 失败(CI 首次真实执行暴露)** `a2e5655b`:`scripts/build-fnos-fpk.ts` → `build-mode.mjs` 的
+   SEA TUI 资产需要各 workspace 包 `dist/index.js`;本地有历史 dist 掩盖、CI 全新检出缺失。
+   修复:fnos 作业补与 `build:sea` 同款的 turbo 前置(构建除 CLI 外全部 workspace 包)。
+3. 本地复现纪律:CI(Linux)失败时先在本地跑同款命令链(全绿 ⇒ 判定平台/时序性),再从
+   Actions 产物/job 日志取现场(经 GCM 凭据调用 API;令牌不回显)。
