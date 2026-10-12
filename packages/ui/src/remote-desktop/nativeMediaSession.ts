@@ -135,7 +135,9 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       return;
     }
     const parsed = parseFrameHeader(new Uint8Array(event.data as ArrayBuffer));
-    if (!parsed || !decoder) return;
+    // 收口后不再处理任何帧：decoder error 与 ws error 路径不关 socket（只等消费方 stop），
+    // 缺了 stopped 判据，收口后的关键帧会重新建 decoder 复活解码。
+    if (!parsed || stopped) return;
     void (async () => {
       let plain: Uint8Array;
       try {
@@ -143,10 +145,20 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       } catch {
         return; // 单帧解密失败丢弃（连续失败由 transport 层收口）
       }
+      if (stopped) return; // 解密期间收口：不得再建 decoder 或解码
       if (parsed.key) {
         const codec = codecStringFromAnnexB(plain);
-        if (codec && codec !== configuredCodec) configure(codec);
+        // decoder 的唯一建立点：首帧（decoder 尚未存在）或 SPS 变化（codec 串变化）才建/换。
+        // 这里必须在 decode 之前，否则 decoder 永远建不出来（曾因守卫放在本段之前而全程黑屏）。
+        if (codec && (decoder === null || codec !== configuredCodec)) {
+          configure(codec);
+        } else if (!codec && !decoder) {
+          // 关键帧没带 SPS 且 decoder 未建立：拿不到 codec 串就无法 configure，只能丢帧；
+          // 关键帧 ~2s 一次，warn 便于定位「ready 已发但一直黑屏」。
+          logger.warn("[rd-media] keyframe without SPS; decoder not configured");
+        }
       }
+      // 非关键帧在 decoder 未配置前丢弃（delta 无法独立解码，等下一个关键帧）。
       if (!decoder || decoder.state !== "configured") return;
       timestampBase += 1_000_000 / 60;
       decoder.decode(
@@ -156,7 +168,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
           data: plain,
         }),
       );
-    })();
+    })().catch(() => teardown());
   };
   ws.onclose = () => teardown();
   ws.onerror = () => teardown();
