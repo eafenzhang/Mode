@@ -1,7 +1,6 @@
 import {
   Monitor,
   MonitorSmartphone,
-  Radar,
   Moon,
   Settings,
   Settings2,
@@ -75,7 +74,8 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.modelProviderTitle",
     groupId: "basics",
   },
-  // 远程桌面：被控端同意/指示/授权管理；仅 win32 桌面端为真实能力（两端都要 Windows）。
+  // 远程控制（合并原「远程桌面」与「局域网访问」）：被控端同意/指示/授权管理 +
+  // 本机共享（配对码/客户端/已配对对端）；仅 win32 桌面端为真实能力（两端都要 Windows）。
   // 夹在「模型设置」与「电脑控制」之间：远控入口紧跟模型配置、先于本机控制开关。
   {
     id: "remoteDesktop",
@@ -144,14 +144,6 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "browser",
     icon: Globe2,
     titleId: "settings.browser.title",
-    groupId: "basics",
-  },
-  // 局域网访问：把本机工作区开放给同网段的其它 Mode（配对码授权），
-  // 与「电脑控制」同属本机能力开放，收在基础设置里。
-  {
-    id: "lanAccess",
-    icon: Radar,
-    titleId: "settings.lanAccess.title",
     groupId: "basics",
   },
   // 键盘快捷键：同属本机操控/效率配置，收纳在基础设置尾部。

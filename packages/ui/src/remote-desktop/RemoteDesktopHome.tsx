@@ -119,7 +119,8 @@ export function RemoteDesktopHome({
   }, [active, sessionTarget, loadPeers]);
 
   const openLanAccessSettings = useCallback(() => {
-    setPendingSettingsSectionIntent("lanAccess");
+    // 合并后统一指向「远程控制」设置分区（被控 + 本机共享同一分区）。
+    setPendingSettingsSectionIntent("remoteDesktop");
     openSettingsTab();
   }, [openSettingsTab]);
 

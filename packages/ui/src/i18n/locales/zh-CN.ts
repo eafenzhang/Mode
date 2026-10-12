@@ -6011,7 +6011,7 @@ const zhCN: Record<string, string> = {
   "settings.lanAccess.firewallHint": "首次开启时系统可能询问防火墙权限，请允许专用网络访问。",
   // 远程桌面（docs/specs/lan-remote-desktop.md）：被控设置分区 + 主控设备页/会话面 + 被控浮层。
   // 被控同意窗/指示浮层的 key 与文案与 desktop 侧 windowsContent.ts 字典保持一致（两端同文案）。
-  "settings.remoteDesktop.title": "远程桌面",
+  "settings.remoteDesktop.title": "远程控制",
   "settings.remoteDesktop.enable": "允许被远程控制",
   "settings.remoteDesktop.statusEnabled": "已开启；已配对设备发起连接时会弹出同意窗。",
   "settings.remoteDesktop.statusDisabled": "未开启；连接请求会被直接拒绝（默认关闭）。",
@@ -6026,18 +6026,18 @@ const zhCN: Record<string, string> = {
   "settings.remoteDesktop.securityHint":
     "信任来源是既有的局域网配对；未配对设备无法发起，进行中的会话会持续显示浮层且本机可随时结束。",
   "settings.remoteDesktop.lanHint": "需要两台 Windows 电脑在同一局域网（或 Tailscale）内。",
-  "workspace.openRemoteDesktop": "远程桌面",
-  "remoteDesktop.title": "远程桌面",
-  "remoteDesktop.breadcrumbLabel": "远程桌面路径",
+  "workspace.openRemoteDesktop": "远程控制",
+  "remoteDesktop.title": "远程控制",
+  "remoteDesktop.breadcrumbLabel": "远程控制路径",
   "remoteDesktop.description":
-    "实时查看并操作已配对 Windows 电脑的画面；对端会弹出同意窗，进行中会显示控制浮层。",
+    "实时查看并操作已配对 Windows 电脑的画面；本页可检测并配对局域网设备、管理（重命名/删除）设备；对端会弹出同意窗，进行中会显示控制浮层。",
   "remoteDesktop.devices.refresh": "刷新",
   "remoteDesktop.devices.loading": "正在读取已配对设备…",
   "remoteDesktop.devices.loadFailed": "读取已配对设备失败。",
   "remoteDesktop.devices.retry": "重试",
   "remoteDesktop.devices.empty":
     "还没有已配对设备。先到「设置 · 局域网访问」生成配对码，在另一台 Windows 电脑上完成配对。",
-  "remoteDesktop.devices.openLanAccess": "前往局域网访问设置",
+  "remoteDesktop.devices.openLanAccess": "打开远程控制设置",
   "remoteDesktop.devices.connect": "连接",
   "remoteDesktop.device.rename": "重命名",
   "remoteDesktop.device.save": "保存",

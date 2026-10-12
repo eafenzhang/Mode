@@ -1458,11 +1458,14 @@ export function SettingsPage({
                               }
                             />
                           </ServiceProvider>
-                        ) : activeSection === "lanAccess" ? (
-                          <LanAccessSection />
-                        ) : activeSection === "remoteDesktop" ? (
-                          // 远程桌面被控设置：win32 桌面端才出现在分区列表（config 门）。
-                          <RemoteDesktopSettingsSection />
+                        ) : activeSection === "remoteDesktop" || activeSection === "lanAccess" ? (
+                          // 远程控制（合并原「远程桌面」与「局域网访问」，见 settingsPageConfig）：
+                          // 被控设置（同意/授权/撤销）+ 本机共享（配对码/客户端/已配对对端列表）。
+                          // lanAccess 作为历史意图别名保留，落到同一分区内容。
+                          <div className="space-y-6">
+                            <RemoteDesktopSettingsSection />
+                            <LanAccessSection />
+                          </div>
                         ) : activeSection === "memory" ? (
                           <ServiceProvider services={localHostServices}>
                             {/* Memory catalog 始终使用本地 Host，避免远程 workspace 误读本机数据。 */}

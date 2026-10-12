@@ -18,6 +18,7 @@ export type SettingsSectionId =
   | "hooks"
   | "workspaceFileSearch"
   | "computerUse"
+  // 历史意图：分区合并后别名到 remoteDesktop（SettingsPage 同分支渲染），保留以兼容旧调用。
   | "lanAccess"
   | "remoteDesktop"
   | "automations"

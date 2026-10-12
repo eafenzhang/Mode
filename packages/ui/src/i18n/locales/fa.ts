@@ -6199,7 +6199,7 @@ const faIR: Record<string, string> = {
     "بار نخست ممکن است سیستم اجازه فایروال بخواهد؛ دسترسی شبکه خصوصی را مجاز کنید.",
   // رومیزی از راه دور (docs/specs/lan-remote-desktop.md): بخش تنظیمات سمت کنترل‌شده،
   // صفحه دستگاه‌ها و صفحه نشست سمت کنترل‌کننده، و لایه‌های سمت کنترل‌شده.
-  "settings.remoteDesktop.title": "رومیزی از راه دور",
+  "settings.remoteDesktop.title": "کنترل از راه دور",
   "settings.remoteDesktop.enable": "اجازه کنترل از راه دور",
   "settings.remoteDesktop.statusEnabled":
     "روشن است؛ هنگام اتصال دستگاه پیوندشده پنجره تأیید نمایش داده می‌شود.",
@@ -6217,18 +6217,18 @@ const faIR: Record<string, string> = {
     "مبنای اعتماد همان پیوند شبکه محلی است: دستگاه پیوندنشده نمی‌تواند وصل شود، در طول نشست همیشه لایه نمایش داده می‌شود و می‌توانید هر لحظه آن را پایان دهید.",
   "settings.remoteDesktop.lanHint":
     "هر دو رایانه باید ویندوز و در یک شبکه محلی (یا Tailscale) باشند.",
-  "workspace.openRemoteDesktop": "رومیزی از راه دور",
-  "remoteDesktop.title": "رومیزی از راه دور",
-  "remoteDesktop.breadcrumbLabel": "مسیر رومیزی از راه دور",
+  "workspace.openRemoteDesktop": "کنترل از راه دور",
+  "remoteDesktop.title": "کنترل از راه دور",
+  "remoteDesktop.breadcrumbLabel": "مسیر کنترل از راه دور",
   "remoteDesktop.description":
-    "تصویر رایانه ویندوزیِ پیوندشده را زنده ببینید و کنترل کنید؛ دستگاه مقابل پنجره تأیید و در طول نشست لایه کنترل را نمایش می‌دهد.",
+    "تصویر رایانه ویندوزیِ پیوندشده را زنده ببینید و کنترل کنید؛ در همین صفحه دستگاه‌های شبکه محلی را شناسایی، پیوند و مدیریت (تغییر نام/حذف) کنید؛ دستگاه مقابل پنجره تأیید و در طول نشست لایه کنترل را نمایش می‌دهد.",
   "remoteDesktop.devices.refresh": "تازه‌سازی",
   "remoteDesktop.devices.loading": "در حال خواندن دستگاه‌های پیوندشده…",
   "remoteDesktop.devices.loadFailed": "خواندن دستگاه‌های پیوندشده ناموفق بود.",
   "remoteDesktop.devices.retry": "تلاش دوباره",
   "remoteDesktop.devices.empty":
     "هنوز دستگاهی پیوند نشده است. ابتدا در «تنظیمات · دسترسی شبکه محلی» کد پیوند بسازید و از رایانه ویندوزی دیگر پیوند دهید.",
-  "remoteDesktop.devices.openLanAccess": "رفتن به تنظیمات دسترسی شبکه محلی",
+  "remoteDesktop.devices.openLanAccess": "باز کردن تنظیمات کنترل از راه دور",
   "remoteDesktop.devices.connect": "اتصال",
   "remoteDesktop.device.rename": "تغییر نام",
   "remoteDesktop.device.save": "ذخیره",

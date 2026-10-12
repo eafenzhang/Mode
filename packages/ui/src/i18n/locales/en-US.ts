@@ -6291,7 +6291,7 @@ const enUS: Record<string, string> = {
   // Remote Desktop (docs/specs/lan-remote-desktop.md): controlled-side settings section,
   // controlling-side device page / session surface, and the controlled-side overlay copy.
   // The consent/indicator keys mirror the wording of desktop's windowsContent.ts dictionary.
-  "settings.remoteDesktop.title": "Remote Desktop",
+  "settings.remoteDesktop.title": "Remote control",
   "settings.remoteDesktop.enable": "Allow remote control",
   "settings.remoteDesktop.statusEnabled":
     "On. A consent prompt appears when a paired device connects.",
@@ -6310,18 +6310,18 @@ const enUS: Record<string, string> = {
     "Trust comes from the existing LAN pairing: unpaired devices cannot connect, an active session always shows an overlay, and you can end it locally at any time.",
   "settings.remoteDesktop.lanHint":
     "Both computers must be Windows machines on the same LAN (or Tailscale).",
-  "workspace.openRemoteDesktop": "Remote Desktop",
-  "remoteDesktop.title": "Remote Desktop",
-  "remoteDesktop.breadcrumbLabel": "Remote desktop path",
+  "workspace.openRemoteDesktop": "Remote control",
+  "remoteDesktop.title": "Remote control",
+  "remoteDesktop.breadcrumbLabel": "Remote control path",
   "remoteDesktop.description":
-    "Watch and operate a paired Windows computer in real time. The peer shows a consent prompt, and an overlay stays visible while controlling.",
+    "Watch and operate a paired Windows computer in real time; detect and pair LAN devices and manage (rename/delete) them on this page. The peer shows a consent prompt, and an overlay stays visible while controlling.",
   "remoteDesktop.devices.refresh": "Refresh",
   "remoteDesktop.devices.loading": "Loading paired devices…",
   "remoteDesktop.devices.loadFailed": "Couldn't load paired devices.",
   "remoteDesktop.devices.retry": "Retry",
   "remoteDesktop.devices.empty":
     "No paired device yet. Open Settings · LAN Access to create a pair code, then pair from the other Windows computer.",
-  "remoteDesktop.devices.openLanAccess": "Open LAN Access settings",
+  "remoteDesktop.devices.openLanAccess": "Open remote control settings",
   "remoteDesktop.devices.connect": "Connect",
   "remoteDesktop.device.rename": "Rename",
   "remoteDesktop.device.save": "Save",
