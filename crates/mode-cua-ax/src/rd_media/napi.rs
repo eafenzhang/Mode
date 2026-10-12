@@ -345,11 +345,18 @@ fn worker_loop(
     let event = match frame {
       Ok(f) => f,
       Err(e) => {
-        // 错误退出必须有可观测信号：对端黑屏前先收到 frozen 状态事件（契约 A
-        // reason 为 optional string，用可区分的错误归因串）。
-        warn(&format!("采集循环错误，worker 退出: {e}"));
-        send_status(&on_status, true, Some("capture-error"));
-        break;
+        // 一次性自愈：重建采集链（驱动复位/设备移除/会话切换等瞬时错误的主场）。
+        // 重建成功继续出流；失败才上报 frozen 并退出（对端黑屏前必有可观测信号，
+        // 契约 A reason 为 optional string，用可区分的错误归因串）。
+        warn(&format!("采集错误，尝试重建采集链: {e}"));
+        match rebuild_chain(&mut dup_slot, &mut enc, rect, max_width, fps, bitrate) {
+          Ok(()) => continue,
+          Err(e2) => {
+            warn(&format!("采集链重建失败，worker 退出: {e2}"));
+            send_status(&on_status, true, Some("capture-error"));
+            break;
+          }
+        }
       }
     };
     match event {
@@ -382,10 +389,21 @@ fn worker_loop(
           }
           Ok(None) => {}
           Err(e) => {
-            // 同上：编码器级失败也先发 frozen 状态事件再退出。
-            warn(&format!("编码循环错误，worker 退出: {e}"));
-            send_status(&on_status, true, Some("encode-error"));
-            break;
+            // 一次性自愈：重建编码器（迁移状态机保 seq 连续）；采集侧保留不动。
+            // 失败才上报 frozen 并退出（同上：可观测信号先于退出）。
+            warn(&format!("编码错误，尝试重建编码器: {e}"));
+            let rebuilt = dup_slot
+              .as_ref()
+              .ok_or_else(|| AxError::internal("重建编码器时 duplication 缺失"))
+              .and_then(|d| rebuild_encoder(d, &mut enc, rect, max_width, fps, bitrate));
+            match rebuilt {
+              Ok(()) => continue,
+              Err(e2) => {
+                warn(&format!("编码器重建失败，worker 退出: {e2}"));
+                send_status(&on_status, true, Some("encode-error"));
+                break;
+              }
+            }
           }
         }
       }
@@ -434,6 +452,49 @@ fn reopen_target(
   }
   *dup_slot = Some(nd);
   *rect = new_rect;
+  Ok(())
+}
+
+/// 采集链整体重建（capture-error 自愈）：重开 duplication（同矩形）并**无条件重建
+/// 编码器**——新 duplication 携带新 D3D 设备，旧编码器绑死在旧设备上；状态机迁移
+/// 保 seq 连续（IV = 盐∥seq 的唯一性契约），`force_idr` 保证重建点后首帧为关键帧。
+/// 失败 = 调用方退出并上报 frozen（与旧行为同口径）。
+fn rebuild_chain(
+  dup_slot: &mut Option<DuplicationOutput>,
+  enc: &mut Encoder,
+  rect: (i32, i32, i32, i32),
+  max_width: u32,
+  fps: u32,
+  bitrate: u32,
+) -> AxResult<()> {
+  let nd = DuplicationOutput::open(rect)?;
+  let (ow, oh) = compute_out_size(rect.2 as u32, rect.3 as u32, max_width);
+  let state = enc.take_state();
+  // 先建新再换入：旧编码器存活期间 MF 计数不归零（不会触发中途 MFShutdown）。
+  let mut fresh = Encoder::new(nd.device(), ow, oh, fps, bitrate)?;
+  fresh.import_state(state);
+  fresh.force_idr();
+  *enc = fresh;
+  *dup_slot = Some(nd);
+  Ok(())
+}
+
+/// 编码器单独重建（encode-error 自愈）：duplication/设备保持不变，仅换新编码器并
+/// 迁移状态机（seq 连续 + force_idr → 重建点后首帧关键帧，对端可立即恢复）。
+fn rebuild_encoder(
+  dup: &DuplicationOutput,
+  enc: &mut Encoder,
+  rect: (i32, i32, i32, i32),
+  max_width: u32,
+  fps: u32,
+  bitrate: u32,
+) -> AxResult<()> {
+  let (ow, oh) = compute_out_size(rect.2 as u32, rect.3 as u32, max_width);
+  let state = enc.take_state();
+  let mut fresh = Encoder::new(dup.device(), ow, oh, fps, bitrate)?;
+  fresh.import_state(state);
+  fresh.force_idr();
+  *enc = fresh;
   Ok(())
 }
 
