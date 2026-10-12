@@ -154,6 +154,10 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 - [ ] 抓包（LAN 口）只见密文；中继口日志无明文帧与密钥。
 - [ ] kill-switch 开 → 能力位 false，入口即挡。
 
+## 已知限制
+
+- 混合 DPI（多屏 scaleFactor 不一致）：输入坐标按「DIP bounds × scaleFactor → 物理 rect」近似换算，单屏正确、多屏跨缩放存在偏差（沿用一期已知限制口径；本方案未解决）。
+
 ## 测试策略
 
 - **Rust**（`cargo test`）：帧头/flags 打包、IV=盐∥seq 派生、GOP/IDR 标记状态机、DUPL 状态事件纯逻辑（模拟 ACCESS_LOST 序列）。
