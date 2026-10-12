@@ -16,7 +16,7 @@ import {
   type RemoteDesktopMessageFromHost,
   type RemoteDesktopMessageToHost,
 } from "./hostMessages.js";
-import { listLiveHostProcesses } from "./resourceManagerWindow.js";
+import { listLiveHostProcesses } from "../resourceManagerWindow.js";
 
 const RD_REQUEST_TIMEOUT_MS = 10_000;
 
