@@ -34,7 +34,10 @@ pub fn reduce(state: &mut EncoderState) -> EncoderAction {
     state.frames_since_idr += 1;
     if key {
         state.force_idr = false;
-        state.frames_since_idr = 1;
+        // 1 % gop：gop≥2 时等于 1（与原语义一致）；gop=1 时归 0，下一帧仍命中
+        // 「首帧必 IDR」条件——否则 gop=1 会退化成每 2 帧一个 IDR，违反「每 GOP 一个 IDR」。
+        // gop 由 new(gop.max(1)) 保证 ≥1，此处取模不会除零。
+        state.frames_since_idr = 1 % state.gop;
     } else if state.frames_since_idr >= state.gop {
         state.frames_since_idr = 0;
     }

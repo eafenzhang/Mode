@@ -5,14 +5,27 @@ use mode_cua_ax::rd_media::state::{frame_flags, reduce, EncoderAction, EncoderSt
 fn gop_reduces_to_idr_every_120_frames() {
     let mut s = EncoderState::new(120);
     let mut idr_count = 0;
+    let mut key_seqs = Vec::new();
     for _ in 0..360 {
         let a = reduce(&mut s);
-        // 原计划的双层 if 触发 clippy::collapsible_if（-D warnings 强制），按其建议合并，语义不变。
-        if matches!(a, EncoderAction::Emit { .. }) && a_is_key(&a) {
+        // 只收集 key 分支：既数总量也钉位置，区间 120..=179 挪位不再能蒙混过关。
+        if let EncoderAction::Emit { seq, key: true } = a {
             idr_count += 1;
+            key_seqs.push(seq);
         }
     }
     assert_eq!(idr_count, 3, "360 帧 / GOP120 应恰好 3 个关键帧");
+    assert_eq!(key_seqs, [0, 120, 240], "关键帧 seq 必须恰为 0/120/240");
+}
+
+#[test]
+fn gop_of_one_emits_idr_every_frame() {
+    // gop.max(1) 许可 gop=1：每帧都必须是 IDR，这是「每 GOP 一个 IDR」的下边界。
+    let mut s = EncoderState::new(1);
+    for _ in 0..8 {
+        let a = reduce(&mut s);
+        assert!(a_is_key(&a), "gop=1 时每帧都必须是 Emit{{key:true}}");
+    }
 }
 
 fn a_is_key(a: &EncoderAction) -> bool {
@@ -28,7 +41,6 @@ fn force_idr_after_switch_emits_key_next_frame() {
 }
 
 fn reduce_force_idr(s: &mut EncoderState) {
-    let _ = s;
     s.force_idr();
 }
 
