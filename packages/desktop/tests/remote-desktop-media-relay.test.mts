@@ -282,7 +282,7 @@ if (process.env[SERVER_CASE_ENV] === "1") {
     }
   });
 
-  test("WS 上行 ready 只下发一次 kind2；ping 立即 pong；输入透传", async () => {
+  test("WS 上行 ready 只下发一次 kind2；ping 立即 pong；need-key/set-bitrate 下行 helper；输入透传", async () => {
     const helperFrames: Buffer[] = [];
     const inputs: unknown[] = [];
     const relay = createRemoteDesktopMediaRelay({
@@ -305,23 +305,32 @@ if (process.env[SERVER_CASE_ENV] === "1") {
       relay.handleWsMessage(JSON.stringify({ t: "ready" }), false);
       relay.handleWsMessage(JSON.stringify({ t: "ping", ts: 123 }), false);
       relay.handleWsMessage(JSON.stringify({ t: "pm", x: 10, y: 20 }), false);
+      // 控制面下行：need-key → kind3；set-bitrate → kind4 + u32BE 码率；非法码率丢弃
+      relay.handleWsMessage(JSON.stringify({ t: "need-key" }), false);
+      relay.handleWsMessage(JSON.stringify({ t: "set-bitrate", bps: 4_000_000 }), false);
+      relay.handleWsMessage(JSON.stringify({ t: "set-bitrate", bps: 123 }), false);
       await sleep(30);
       assert.deepEqual(
         Buffer.concat(helperFrames),
-        Buffer.from([0, 0, 0, 1, 2]),
-        "ready 只应下发一次完整 5 字节开流指令 [u32BE 1][0x02]",
+        Buffer.concat([
+          Buffer.from([0, 0, 0, 1, 2]), // kind2 开流
+          Buffer.from([0, 0, 0, 1, 3]), // kind3 紧急关键帧
+          Buffer.from([0, 0, 0, 5, 4, 0x00, 0x3d, 0x09, 0x00]), // kind4 + 4_000_000
+        ]),
+        "ready 只下发一次 kind2；need-key/set-bitrate 按契约下行；非法码率不下行",
       );
       assert.deepEqual(texts, ['{"t":"pong","ts":123}'], "ping 立即回 pong 且原样回传 ts");
-      assert.deepEqual(inputs, [{ t: "pm", x: 10, y: 20 }], "非 ready/ping 的上行对象透传 onInput");
+      assert.deepEqual(inputs, [{ t: "pm", x: 10, y: 20 }], "控制面无匹配项之外的输入对象才透传 onInput");
     } finally {
       cleanup(relay, helper);
     }
   });
 
-  test("kind0 缺省出口：无 WS 丢弃；bufferedAmount>4MB 背压丢弃；低于阈值即发送", async () => {
+  test("kind0 缺省出口：无 WS 丢弃；bufferedAmount>128KB 背压丢弃并请关键帧；低于阈值即发送", async () => {
+    const helperFrames: Buffer[] = [];
     const relay = createRemoteDesktopMediaRelay({
       logger: noopLogger,
-      // 不注入 onFrame → 走 relay 缺省出口（契约 C：断开即丢帧、>4MB 丢 kind0）
+      // 不注入 onFrame → 走 relay 缺省出口（契约 C：断开即丢帧、>128KB 丢 kind0 + 请关键帧）
       onStatus: () => {},
       onReady: () => {},
       onInput: () => {},
@@ -329,6 +338,9 @@ if (process.env[SERVER_CASE_ENV] === "1") {
     const helper = connect({ host: "127.0.0.1", port: await relay.listen() });
     try {
       await once(helper, "connect");
+      helper.on("data", (d) => {
+        helperFrames.push(d);
+      });
       const payloadA = Buffer.from([0, 0, 0, 1, 0, 0xaa]);
       const payloadB = Buffer.from([0, 0, 0, 1, 0, 0xbb]);
 
@@ -337,11 +349,25 @@ if (process.env[SERVER_CASE_ENV] === "1") {
       await sleep(20);
 
       const { ws: fakeWs, binaries, buffered } = makeFakeWs();
-      buffered.amount = 5 * 1024 * 1024;
+      buffered.amount = 200 * 1024;
       relay.attachWebSocket(fakeWs);
       helper.write(pipeFrame(0, payloadA));
       await sleep(20);
-      assert.equal(binaries.length, 0, "过 4MB 背压阈值应丢弃 kind0");
+      assert.equal(binaries.length, 0, "过 128KB 背压阈值应丢弃 kind0");
+      assert.deepEqual(
+        Buffer.concat(helperFrames),
+        Buffer.from([0, 0, 0, 1, 3]),
+        "丢帧爆发开始即向 helper 请求一次关键帧（kind3）",
+      );
+
+      // 同一爆发内继续丢弃：不重复请求（爆发标记去抖）
+      helper.write(pipeFrame(0, payloadA));
+      await sleep(20);
+      assert.deepEqual(
+        Buffer.concat(helperFrames),
+        Buffer.from([0, 0, 0, 1, 3]),
+        "同一爆发只请求一次关键帧",
+      );
 
       buffered.amount = 0;
       helper.write(pipeFrame(0, payloadB));

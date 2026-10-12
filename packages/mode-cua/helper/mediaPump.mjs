@@ -4,6 +4,9 @@
 //                kind1 状态 = UTF-8 JSON {"frozen":bool[,"reason":string]}（host 转 freeze/unfreeze 信令）。
 //   host→helper：kind2 开流指令 = [u32BE 1][0x02]；**ready 门控**——收到前只采集不推流
 //                （避免中继在 media WS 未就绪时缓冲堆积）。
+//                kind3 紧急关键帧 = [u32BE 1][0x03]（renderer 解码落后 / 中继背压丢帧时请求；
+//                只读 flag 语义、无 payload；ready 前忽略）。
+//                kind4 动态码率 = [u32BE 5][0x04][u32BE bps]（自适应链路的下行方向盘；ready 前忽略）。
 // 分帧总口径：[u32 len 大端][u8 kind][payload]，len = 1 + payload.length（与 host 中继同契约）。
 import { createCipheriv } from "node:crypto";
 import { connect } from "node:net";
@@ -61,7 +64,7 @@ export function createMediaPump(addon) {
     if (key.length !== 32) throw invalid("key must be 32 bytes (64 hex chars)");
     if (salt.length !== 8) throw invalid("salt must be 8 bytes (16 hex chars)");
 
-    const socket = connect({ host: params.endpoint.host, port: params.endpoint.port });
+    const socket = connect({ host: params.endpoint.host, port: params.endpoint.port, noDelay: true });
     // 常驻 error 监听：会话中途断管（host 收口/重置）不能被 Node 当 uncaught 'error'
     // 抛出——helper 进程要活到下一会话；连接期的错误仍由 onceConnect 如实 reject。
     socket.on("error", () => {});
@@ -74,20 +77,44 @@ export function createMediaPump(addon) {
 
     const session = { socket, key, salt, ready: false };
     state = session;
-    // host→helper 方向只有 kind2 一条消息（契约 B）；TCP 分片/粘包仍按长度前缀攒包：
-    // 漏掉 kind2 会让开流门控永远关着（静默不推流），半包必须容忍。
+    // host→helper 方向的控制消息（契约 B）：[u32 len][kind][payload?]。TCP 分片/粘包按
+    // 长度前缀攒包；半包必须容忍（漏掉 kind2 会静默不推流）。len/kind/payload 形状按
+    // 契约逐 kind 校验：长度失真视为协议破坏，弃缓冲重来。
     let inbox = Buffer.alloc(0);
     socket.on("data", (chunk) => {
       inbox = inbox.length === 0 ? chunk : Buffer.concat([inbox, chunk]);
-      while (inbox.length >= 5) {
+      while (inbox.length >= 4) {
         const len = inbox.readUInt32BE(0);
-        if (len !== 1) {
-          inbox = Buffer.alloc(0); // host 只会发 len=1 的 kind2：其余视为协议破坏，弃缓冲重来
+        if (len < 1 || len > 5) {
+          inbox = Buffer.alloc(0); // 长度越界：协议破坏，弃缓冲重来
           return;
         }
-        const kind = inbox[4];
-        inbox = inbox.subarray(5);
-        if (kind === 2) session.ready = true; // 开流指令：解除 ready 门控（仅当前会话生效）
+        if (inbox.length < 4 + len) {
+          return; // 半包：等后续 chunk 补齐
+        }
+        const body = inbox.subarray(4, 4 + len);
+        inbox = inbox.subarray(4 + len);
+        const kind = body[0];
+        if (kind === 2 && body.length === 1) {
+          session.ready = true; // 开流指令：解除 ready 门控（仅当前会话生效）
+        } else if (kind === 3 && body.length === 1 && session.ready) {
+          // 紧急关键帧：napi 侧一次性消费（只读 flag）；异常不抛穿（Fatal 策略下会杀进程）。
+          try {
+            addon.rd_media_request_key?.();
+          } catch {
+            /* 单次控制面失败不影响推流 */
+          }
+        } else if (kind === 4 && body.length === 5 && session.ready) {
+          // 动态码率：napi 侧记录，worker 下一 tick 消费（ICodecAPI 直接改 MeanBitRate）。
+          const bps = body.readUInt32BE(1);
+          if (bps > 0) {
+            try {
+              addon.rd_media_set_bitrate?.(bps);
+            } catch {
+              /* 同上：失败只丢本次调整，保持原码率 */
+            }
+          }
+        }
       }
     });
 

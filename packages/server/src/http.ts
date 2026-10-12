@@ -706,6 +706,8 @@ export function createHttpServer(
   // 失败形态与 /ws/host 一致：返回 JSON 响应、不升级连接。
   const upgradeRemoteDesktopWebSocket = upgradeWebSocket((c) => ({
     onOpen(_event, ws) {
+      // LAN 低延迟：显式关 Nagle（服务端 socket 不自带此设置；小控制帧会吃 Nagle×延迟 ACK 抖动）。
+      (ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } })._socket?.setNoDelay?.(true);
       const remoteDesktop = options.remoteDesktop;
       const clientId = c.get("remoteDesktopClientId");
       if (!remoteDesktop || !clientId) {
@@ -737,6 +739,8 @@ export function createHttpServer(
   // 升级后的帧交给宿主的 onMediaSocket（本模块不解析二进制/JSON 媒体消息）。
   const upgradeRemoteDesktopMediaWebSocket = upgradeWebSocket((c) => ({
     onOpen(_event, ws) {
+      // LAN 低延迟：媒体帧尾包与控制面小帧同样受益于关 Nagle（与信令通道同款设置）。
+      (ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } })._socket?.setNoDelay?.(true);
       const remoteDesktop = options.remoteDesktop;
       const clientId = c.get("remoteDesktopMediaClientId");
       if (!remoteDesktop?.onMediaSocket || !clientId) {

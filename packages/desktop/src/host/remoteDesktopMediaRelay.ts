@@ -4,9 +4,10 @@
  *
  * 职责边界（本模块只做字节泵，不做业务）：
  * - 分帧：`[u32 len 大端][u8 kind][payload]` 的粘包/半包重组，超长帧防御后按 kind 分发；
- * - 路由：kind0 帧密文 → 出口回调（缺省 = 写当前 media WS，4MB 背压丢弃）；
+ * - 路由：kind0 帧密文 → 出口回调（缺省 = 写当前 media WS，128KB 背压丢帧 + 丢帧即请关键帧）；
  *   kind1 采集状态 → 只回调（冻结状态唯一所有者在 remoteDesktopServer，此处不落状态）；
- *   media WS 上行：ready → 开流指令（幂等一次）、ping → 立即 pong、其余对象 → 输入透传；
+ *   media WS 上行：ready → 开流指令（幂等一次）、ping → 立即 pong、need-key/set-bitrate →
+ *   下行到 helper（kind3/kind4）、其余对象 → 输入透传；
  * - 中继**不解密**：kind0 payload 原样搬运，明文密钥与明文帧都不经过 host（spec 安全节）。
  *
  * 回调实体接线归属：onStatus 已由 Task 6 接（remoteDesktopServer → MediaStatus 通知 main）；
@@ -34,8 +35,10 @@ export interface RemoteDesktopMediaRelayLogger {
 export interface RemoteDesktopMediaRelayOptions {
   logger: RemoteDesktopMediaRelayLogger;
   /**
-   * kind0 出口；缺省实现 = 当前 WS 存在且 bufferedAmount ≤ 4MB 时 `ws.send(Buffer)`，
-   * 否则丢弃（契约 C：断开即丢帧、背压只丢 kind0）。覆盖点留 Task 14。
+   * kind0 出口；缺省实现 = 当前 WS 存在且 bufferedAmount ≤ 128KB 时 `ws.send(Buffer)`，
+   * 否则丢弃并请求关键帧（128KB ≈ 8Mbps 下 130ms 缓冲——背压阈值越接近零延迟越好；
+   * 丢帧后的 delta 会引用缺失数据，必须由 kind3 让对端立即出 IDR）。
+   * 覆盖点留 Task 14。
    */
   onFrame?: (payload: Uint8Array) => void;
   /** kind1 采集状态（T6 已接：remoteDesktopServer → MediaStatus 通知 main）。 */
@@ -63,8 +66,13 @@ export interface RemoteDesktopMediaRelay {
 
 /** 管道单帧上限：kind0 只承载逐帧密文，16MB 远超任何合法帧；超限即畸形流（长度已失真），立即断开。 */
 const MAX_PIPE_FRAME_BYTES = 16 * 1024 * 1024;
-/** media WS 背压线（契约 C）：bufferedAmount 超过 4MB 后丢弃后续 kind0，ping/输入不丢。 */
-const WS_BACKPRESSURE_BYTES = 4 * 1024 * 1024;
+/**
+ * media WS 背压线（契约 C）：bufferedAmount 超过 128KB 即丢弃 kind0 并请关键帧，
+ * ping/输入不丢。128KB ≈ 8Mbps 下 130ms 缓冲——超过它继续排队的每一 KB 都是纯延迟。
+ */
+const WS_BACKPRESSURE_BYTES = 128 * 1024;
+/** 紧急关键帧请求（kind3）去抖间隔：一次丢帧爆发只请求一枚，避免刷屏。 */
+const KEY_REQUEST_DEBOUNCE_MS = 300;
 
 export function createRemoteDesktopMediaRelay(
   options: RemoteDesktopMediaRelayOptions,
@@ -87,8 +95,37 @@ export function createRemoteDesktopMediaRelay(
   let openRequested = false;
   /** 背压丢帧只 warn 一次（每个 WS 挂接周期），避免 60fps 下刷屏。 */
   let backpressureWarned = false;
+  /** 丢帧爆发标记：进入丢弃时请求一次关键帧，恢复发送后复位（下一轮爆发可再次请求）。 */
+  let dropBurst = false;
+  /** kind3 去抖时间戳（Date.now 口径）。 */
+  let lastKeyRequestAt = 0;
 
-  /** kind0 缺省出口（契约 C）：无 WS 即丢、过 4MB 背压即丢，其余原样转发给当前 media WS。 */
+  /** 向 helper 写一帧控制消息（kind2/3/4；payload 缺省为空）。helper 未接通时静默跳过
+   * （控制面丢了不断流：丢帧恢复请求会在下一轮爆发/下一次采样重试）。 */
+  const writeHelperControl = (kind: 2 | 3 | 4, payload?: Buffer): void => {
+    const socket = helperSocket;
+    if (!socket || socket.destroyed) {
+      logger.warn(`[rd-media-relay] send kind=${kind} skipped: helper not connected`);
+      return;
+    }
+    const body = payload && payload.length > 0 ? Buffer.concat([Buffer.from([kind]), payload]) : Buffer.from([kind]);
+    const frame = Buffer.alloc(4 + body.length);
+    frame.writeUInt32BE(body.length, 0);
+    body.copy(frame, 4);
+    socket.write(frame);
+  };
+
+  /** 紧急关键帧请求（kind3）：同链路丢帧恢复；300ms 去抖防刷屏。 */
+  const requestHelperKey = (): void => {
+    const now = Date.now();
+    if (now - lastKeyRequestAt < KEY_REQUEST_DEBOUNCE_MS) {
+      return;
+    }
+    lastKeyRequestAt = now;
+    writeHelperControl(3);
+  };
+
+  /** kind0 缺省出口（契约 C）：无 WS 即丢；过 128KB 背压即丢并请关键帧；其余原样转发。 */
   const defaultFrameSink = (payload: Uint8Array): void => {
     const ws = currentWs;
     if (!ws) {
@@ -97,12 +134,20 @@ export function createRemoteDesktopMediaRelay(
     if ((ws.bufferedAmount ?? 0) > WS_BACKPRESSURE_BYTES) {
       if (!backpressureWarned) {
         backpressureWarned = true;
-        logger.warn("[rd-media-relay] media ws backpressure >4MB, dropping kind0 frames");
+        logger.warn("[rd-media-relay] media ws backpressure >128KB, dropping kind0 frames");
+      }
+      // 丢掉的 delta 会让后续帧引用缺失——立即请关键帧，对端解码器据此复位。
+      if (!dropBurst) {
+        dropBurst = true;
+        requestHelperKey();
       }
       return;
     }
+    dropBurst = false;
     try {
-      ws.send(Buffer.from(payload));
+      // payload 是攒包缓冲的窗口视图（运行时即 Buffer）：直接发送，ws 入队时自会拷贝，
+      // 这里不再 Buffer.from 复制一次（每帧一次全帧 memcpy 的浪费）。
+      ws.send(payload as unknown as Buffer);
     } catch (error) {
       logger.warn(
         "[rd-media-relay] media ws send failed:",
@@ -197,15 +242,7 @@ export function createRemoteDesktopMediaRelay(
   };
 
   const sendToHelper = (kind: 2): void => {
-    const socket = helperSocket;
-    if (!socket || socket.destroyed) {
-      logger.warn(`[rd-media-relay] send kind=${kind} skipped: helper not connected`);
-      return;
-    }
-    const frame = Buffer.alloc(5);
-    frame.writeUInt32BE(1, 0); // len = 1（仅 kind 字节，无 payload）
-    frame.writeUInt8(kind, 4);
-    socket.write(frame);
+    writeHelperControl(kind);
   };
 
   /** 开流指令补发：ready 已请求且 helper 已接通时恰好下发一次。 */
@@ -272,6 +309,23 @@ export function createRemoteDesktopMediaRelay(
       }
       return;
     }
+    if (message.t === "need-key") {
+      // renderer 侧解码落后/丢帧后的关键帧请求：下行到 helper（kind3）。
+      requestHelperKey();
+      return;
+    }
+    if (message.t === "set-bitrate") {
+      // 自适应码率方向盘（renderer 采样 RTT/丢弃后决策）：下行到 helper（kind4）。
+      const bps = (message as { bps?: unknown }).bps;
+      if (typeof bps === "number" && Number.isInteger(bps) && bps >= 100_000 && bps <= 50_000_000) {
+        const payload = Buffer.alloc(4);
+        payload.writeUInt32BE(bps, 0);
+        writeHelperControl(4, payload);
+      } else {
+        logger.warn("[rd-media-relay] invalid set-bitrate bps, dropped");
+      }
+      return;
+    }
     try {
       options.onInput?.(parsed);
     } catch (error) {
@@ -301,6 +355,7 @@ export function createRemoteDesktopMediaRelay(
       }
       helperSocket = socket;
       accum = Buffer.alloc(0); // 新连接从零攒包，避免上一条连接残留的半包污染。
+      socket.setNoDelay(true); // 本机回环 TCP 也关 Nagle：小控制帧/帧尾包不吃 40ms 抖动。
       socket.on("data", (chunk: Buffer) => {
         try {
           handlePipeData(chunk);
@@ -446,6 +501,8 @@ export function createRemoteDesktopMediaRelay(
     readySent = false; // 会话收口：下一条会话重新允许下发开流指令。
     openRequested = false;
     backpressureWarned = false;
+    dropBurst = false;
+    lastKeyRequestAt = 0;
   };
 
   return { listen, attachWebSocket, handlePipeData, sendToHelper, handleWsMessage, close };

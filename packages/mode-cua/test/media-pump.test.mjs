@@ -82,6 +82,13 @@ function fakeAddon(listeners) {
       listeners.switched = rect;
     },
     rd_media_stop() {},
+    // P0-5/P1-2 控制面（契约 B kind3/kind4 的 napi 落点）：
+    rd_media_request_key() {
+      listeners.keyRequests = (listeners.keyRequests ?? 0) + 1;
+    },
+    rd_media_set_bitrate(bps) {
+      listeners.bitrates = [...(listeners.bitrates ?? []), bps];
+    },
   };
 }
 
@@ -152,6 +159,38 @@ test("帧经 AES-256-GCM 加密后按长度前缀写出；IV = salt∥seq", asyn
     assert.equal(seq, 0);
     assert.equal(flags, 1);
     assert.equal(plain.toString(), "hello-es");
+  });
+});
+
+test("控制面 kind3/kind4：ready 前忽略；ready 后触发 napi；kind4 分片可耐受", async () => {
+  const listeners = {};
+  await withPump(listeners, async (relay, pump) => {
+    await pump.start(startParams(relay.port));
+    await waitFor(() => relay.hostSides.length === 1);
+    const host = relay.hostSides[0];
+
+    // kind4 形状：[u32BE 5][0x04][u32BE bps]
+    const bitrateFrame = Buffer.alloc(9);
+    bitrateFrame.writeUInt32BE(5, 0);
+    bitrateFrame.writeUInt8(4, 4);
+    bitrateFrame.writeUInt32BE(4_000_000, 5);
+    const keyFrame = Buffer.from([0, 0, 0, 1, 3]);
+
+    // ready（kind2）之前：kind3/kind4 必须被忽略（不触 napi）
+    host.write(keyFrame);
+    host.write(bitrateFrame);
+    await sleep(30);
+    assert.equal(listeners.keyRequests, undefined, "ready 前 kind3 不得触 napi");
+    assert.equal(listeners.bitrates, undefined, "ready 前 kind4 不得触 napi");
+
+    // ready 解闸；kind4 分两片写（半包耐受），kind3 随后
+    await openStream(relay);
+    host.write(bitrateFrame.subarray(0, 6));
+    await sleep(10);
+    host.write(bitrateFrame.subarray(6));
+    host.write(keyFrame);
+    await waitFor(() => listeners.bitrates?.length === 1 && listeners.keyRequests === 1);
+    assert.equal(listeners.bitrates[0], 4_000_000, "kind4 携带码率送达 napi");
   });
 });
 

@@ -148,7 +148,7 @@ export function createRemoteDesktopHostServer(options: {
    * 媒体中继（本地管道 ↔ media WS 的字节泵）。本模块只负责实例化、attach 与会话收口三件事；
    * 回调接线：onStatus → MediaStatus 通知 main（冻结透传链路的 host 出口，T6）；
    * onReady 保持日志位——ready→开流指令（kind2）由 relay 内部幂等完成，接实体会双发 kind2。
-   * onFrame 不注入：走 relay 缺省出口（当前 WS + 4MB 背压丢弃，契约 C）——出口机制在 relay 内。
+   * onFrame 不注入：走 relay 缺省出口（当前 WS + 128KB 背压丢帧 + 丢帧即请关键帧，契约 C）。
    * onInput（T14）：media WS 上行输入 → 既有 raw_input 注入（见下）。
    */
   const mediaRelay = createRemoteDesktopMediaRelay({
