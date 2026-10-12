@@ -160,3 +160,16 @@ fn render_cursor_shape_copies_color_and_applies_mask() {
     // 截断（缺 AND 区）→ 错误。
     assert!(render_cursor_shape(4, 8, 2, 32, &[7u8; 64]).is_err());
 }
+
+#[test]
+fn pointer_snapshot_equality_covers_every_field() {
+    use mode_cua_ax::rd_media::capture::PointerSnapshot;
+    // 判重键语义：完全相等的快照 = 无新信息（不重合成）；任一字段不同 = 需重合成。
+    // 本用例把「判重必须覆盖全部字段」钉成契约——未来加字段若漏进判重键，这里先红。
+    let base = PointerSnapshot { x: 10, y: 20, shape: 4096, visible: true };
+    assert_eq!(base, PointerSnapshot { x: 10, y: 20, shape: 4096, visible: true });
+    assert_ne!(base, PointerSnapshot { x: 11, y: 20, shape: 4096, visible: true });
+    assert_ne!(base, PointerSnapshot { x: 10, y: 21, shape: 4096, visible: true });
+    assert_ne!(base, PointerSnapshot { x: 10, y: 20, shape: 2048, visible: true });
+    assert_ne!(base, PointerSnapshot { x: 10, y: 20, shape: 4096, visible: false });
+}

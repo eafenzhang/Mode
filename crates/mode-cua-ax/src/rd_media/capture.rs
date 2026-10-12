@@ -4,16 +4,20 @@
 //! （本文件不碰），保证纯逻辑可 `cargo test`。
 //!
 //! 光标合成路线（spec：光标烧进画面，`cursor-none` 语义）：DUPL 帧**不含**光标
-//! （硬件光标由 DWM 叠加显示），必须自行合成。这里用「CPU 渲染形状 + 小块 GPU 回读
-//! 背景 + UpdateSubresource 回写」：
+//! （硬件光标由 DWM 叠加显示），必须自行合成。这里用「CPU 渲染形状（缓存）+
+//! 小块 GPU 回读背景 + UpdateSubresource 回写」：
 //! - 形状渲染是纯函数 `render_cursor_shape`（单色/颜色/掩码三种 `PointerShapeType`，
-//!   无 Win32 依赖，单测覆盖）；
+//!   无 Win32 依赖，单测覆盖），栅格在形状变更时渲染一次并缓存（原先每帧重算）；
 //! - 半透明/掩码光标的透明像素必须保留桌面背景——直接整块 `UpdateSubresource`
 //!   覆盖会在光标包围盒内留出色块（spec 验收项「对端光标在画面内随动」不能是色块），
-//!   故先把补丁矩形从 proc 纹理回读（`CopySubresourceRegion` 到 staging）再逐像素混合；
+//!   故先把补丁矩形从 **clean**（纯桌面内容）回读（`CopySubresourceRegion` 到 staging）
+//!   再逐像素混合、写回 **proc**（合成输出）；
+//! - 指针-only 更新（桌面无重绘，仅指针位置/形状/可见性变化）以 clean 重合成——
+//!   静置画面上的光标移动由此可见（节流见 `POINTER_RECOMPOSE_MIN_INTERVAL`）；
 //! - spec 的 GPU quad 路线是主案、本实现是等效的 CPU 混合变体；若未来要换 GPU quad，
 //!   对外协议与 `CaptureFrame` 形状零改动（spec 降级预案同口径）。
 use std::ffi::c_void;
+use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::BOOL;
 use windows::Win32::Graphics::Direct3D11::{
@@ -42,19 +46,38 @@ use crate::error::{AxError, AxResult};
 
 use super::warn;
 
-/// 光标形状缓存（`GetFramePointerShape` 原始缓冲 + 解析后的形状头）。
+/// 光标形状缓存（`GetFramePointerShape` 原始缓冲 + 解析后的形状头 + 渲染栅格）。
 struct ShapeCache {
   info: DXGI_OUTDUPL_POINTER_SHAPE_INFO,
-  data: Vec<u8>,
+  /// 原始形状缓冲（诊断保留；栅格渲染后不再参与热路径）。
+  _data: Vec<u8>,
   /// 缓存命中的 `PointerShapeBufferSize`（形状变更检测键，简报要点 5）。
   buffer_size: u32,
+  /// 渲染栅格（形状变更时计算一次；渲染失败为 None → 该形状周期内不打补丁）。
+  raster: Option<CursorShapeRaster>,
 }
+
+/// 指针状态快照（合成判重键）：位置 + 生效形状键 + 可见性。
+/// 相等 = 自上次合成以来指针状态无新信息，不产帧。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PointerSnapshot {
+  pub x: i32,
+  pub y: i32,
+  /// 生效形状键 = 缓存形状的 `buffer_size`（0 = 尚无形状）。
+  pub shape: u32,
+  pub visible: bool,
+}
+
+/// 指针-only 重合成的节流间隔（≈66fps 上限）：指针高频移动按事件率出帧会白耗
+/// 编码/带宽；丢弃的中间更新不累积（指针状态是"最新值"语义，下一次 Acquire
+/// 直接取到最新位置）。
+const POINTER_RECOMPOSE_MIN_INTERVAL: Duration = Duration::from_millis(15);
 
 /// 一帧采集结果（纹理是 GPU 句柄，seq 由外层 `state` 分配）。
 pub enum CaptureFrame {
   /// 新桌面帧：已含光标补丁的 proc 纹理 + 光标补丁信息（供观测）。
   NewDesktop { texture: ID3D11Texture2D, cursor: Option<CursorPatch> },
-  /// 无新帧（AcquireNextFrame 超时/仅元数据变化）。
+  /// 无新帧（AcquireNextFrame 超时 / 指针无变化 / 指针节流窗口内）。
   Idle,
   /// 锁屏/安全桌面/会话切换：duplication 失效（触发 frozen；调用方须重开）。
   AccessLost,
@@ -251,7 +274,7 @@ impl Drop for ComScope {
   }
 }
 
-/// 单个输出的 duplication 会话：D3D11 device + proc 纹理 + DXGI 复制。
+/// 单个输出的 duplication 会话：D3D11 device + clean/proc 纹理对 + DXGI 复制。
 pub struct DuplicationOutput {
   device: ID3D11Device,
   ctx: ID3D11DeviceContext,
@@ -259,11 +282,20 @@ pub struct DuplicationOutput {
   duplication: Option<IDXGIOutputDuplication>,
   /// 目标输出的物理矩形 (x, y, w, h)：光标屏幕坐标 → 纹理坐标的换算基准。
   desktop_rect: (i32, i32, i32, i32),
-  /// 采集结果落点：DEFAULT/BGRA、尺寸 = 输出桌面（CopyResource 目标 + 光标回写目标）。
+  /// 纯桌面内容（不含光标）：补丁背景回读与指针-only 重合成的源。
+  clean: ID3D11Texture2D,
+  /// 合成输出（clean + 光标补丁）：喂编码器的纹理（CopyResource/UpdateSubresource 目标）。
   proc: ID3D11Texture2D,
   /// 光标背景回读用 staging（STAGING/CPU_READ，同 desc）。
   bg_staging: ID3D11Texture2D,
   shape: Option<ShapeCache>,
+  /// `clean` 是否已装载过真实桌面帧（首个桌面帧之前的指针-only 帧不可重合成）。
+  clean_valid: bool,
+  /// 上次合成（桌面帧或指针-only）时的指针快照（相同 = 无新信息，不产帧）。
+  last_composited: Option<PointerSnapshot>,
+  /// 上次合成时间：指针-only 重合成按 `POINTER_RECOMPOSE_MIN_INTERVAL` 节流
+  /// （桌面帧不受限——它由内容驱动，光标随帧携带）。
+  last_compose_at: Option<Instant>,
 }
 
 impl DuplicationOutput {
@@ -279,12 +311,21 @@ impl DuplicationOutput {
     // 纹理拷贝/回读需求，避免旧 GPU 直接判能力缺失）。
     let (device, ctx) = create_device()?;
     let duplication = unsafe { open_duplication(&device, rect)? };
-    // proc/staging 尺寸取真实输出矩形（与 acquire 到的帧纹理同尺寸、同格式——
+    // clean/proc/staging 尺寸取真实输出矩形（与 acquire 到的帧纹理同尺寸、同格式——
     // DUPL 帧恒为 B8G8R8A8_UNORM）。
     let (w, h) = (rect.2 as u32, rect.3 as u32);
-    // proc 的 bind 同时带 RENDER_TARGET（语义上可作拷贝目标）与 SHADER_RESOURCE
-    // （编码链会为它建 VP 输入视图，视图类型按实现可能要求 SRV 位）——多带无害、
-    // 少带会在部分驱动上直接 CreateVideoProcessorInputView 失败。
+    // bind 同时带 RENDER_TARGET（语义上可作拷贝目标）与 SHADER_RESOURCE（编码链会为
+    // proc 建 VP 输入视图，视图类型按实现可能要求 SRV 位）——多带无害、少带会在部分
+    // 驱动上直接 CreateVideoProcessorInputView 失败。clean 同 desc（拷贝源/回读源）。
+    let clean = create_texture(
+      &device,
+      w,
+      h,
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      D3D11_USAGE_DEFAULT,
+      D3D11_CPU_ACCESS_FLAG(0),
+      D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+    )?;
     let proc = create_texture(
       &device,
       w,
@@ -303,7 +344,19 @@ impl DuplicationOutput {
       D3D11_CPU_ACCESS_READ,
       D3D11_BIND_FLAG(0),
     )?;
-    Ok(Self { device, ctx, duplication: Some(duplication), desktop_rect: rect, proc, bg_staging, shape: None })
+    Ok(Self {
+      device,
+      ctx,
+      duplication: Some(duplication),
+      desktop_rect: rect,
+      clean,
+      proc,
+      bg_staging,
+      shape: None,
+      clean_valid: false,
+      last_composited: None,
+      last_compose_at: None,
+    })
   }
 
   /// 采集端持有的 D3D11 device（编码链 `Encoder::new` 复用同一 device，
@@ -313,8 +366,14 @@ impl DuplicationOutput {
   /// 关闭：释放 duplication（COM 引用随 drop 归零）；幂等。
   pub fn close(&mut self) { self.duplication = None; }
 
-  /// 阻塞至下一帧（`timeout_ms` 典型 16ms）。返回前已把桌面纹理 `CopyResource`
-  /// 到 proc 纹理并回写光标补丁（`cursor.rgba` 为 **BGRA** 的已混合字节）。
+  /// 阻塞至下一帧（`timeout_ms` 典型 16ms）。返回前已完成合成：
+  /// `clean` ← 桌面帧（纯内容），`proc` = clean + 光标补丁（`cursor.rgba` 为
+  /// **BGRA** 的已混合字节）。三类事件：
+  /// - 桌面更新（present/累积帧）：拷贝新内容 + 合成光标；
+  /// - 指针-only 更新（无桌面重绘，仅指针位置/形状/可见性变化）：以最近桌面内容
+  ///   重合成并产帧——**静置画面上的光标移动由此可见**；
+  /// - 其余（指针节流窗口内 / 无任何变化 / 尚无底图）→ Idle（指针"最新值"语义，
+  ///   丢弃的中间位置不累积，下一次 Acquire 直接取到最新）。
   pub fn next_frame(&mut self, timeout_ms: u32) -> AxResult<CaptureFrame> {
     let Some(dup) = self.duplication.clone() else {
       // close 之后再来调用是编程错误（worker 循环用 Option<DuplicationOutput>
@@ -337,28 +396,68 @@ impl DuplicationOutput {
     }
     // 从这里开始所有分支都由守卫保证 Release（含 Idle 提前返回与 `?` 错误路径）。
     let _rel = FrameRelease(&dup);
-    // 要点 3a：无新帧（无 present 且无累积帧）→ Idle。
-    if info.LastPresentTime == 0 && info.AccumulatedFrames == 0 {
+    // 形状缓存：buffer_size=0 = 自上次以来形状未变（MS 样例口径），保留缓存不刷新。
+    self.refresh_shape(&dup, info.PointerShapeBufferSize)?;
+    let has_desktop_update = info.LastPresentTime != 0 || info.AccumulatedFrames != 0;
+    if has_desktop_update {
+      let res = resource.ok_or_else(|| AxError::internal("AcquireNextFrame 未返回桌面纹理"))?;
+      let frame = res.cast::<ID3D11Texture2D>().map_err(|e| {
+        AxError::internal(format!("桌面资源转 ID3D11Texture2D 失败: {e}"))
+      })?;
+      // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；clean/proc/frame 同设备同尺寸
+      // （DUPL 帧恒 B8G8R8A8_UNORM 且与输出矩形一致，open 时已对齐）。
+      unsafe { self.ctx.CopyResource(&self.clean, &frame) };
+      unsafe { self.ctx.CopyResource(&self.proc, &self.clean) };
+      self.clean_valid = true;
+      // 光标补丁（从 clean 回读背景 + 混合 + 写回 proc；无可见光标 → None）。
+      let cursor = self.build_cursor_patch(&info)?;
+      self.last_composited = Some(self.pointer_snapshot(&info));
+      self.last_compose_at = Some(Instant::now());
+      return Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor });
+    }
+    // 指针-only：无桌面更新，仅指针状态可能变化。没有底图 / 状态与上次合成
+    // 完全相同 → 无事可做。
+    if !self.clean_valid {
       return Ok(CaptureFrame::Idle);
     }
-    // 要点 5：形状缓冲大小变化才重新拉取（纯移动只更新位置）。
-    self.refresh_shape(&dup, info.PointerShapeBufferSize)?;
-    let res = resource.ok_or_else(|| AxError::internal("AcquireNextFrame 未返回桌面纹理"))?;
-    let frame = res.cast::<ID3D11Texture2D>().map_err(|e| {
-      AxError::internal(format!("桌面资源转 ID3D11Texture2D 失败: {e}"))
-    })?;
-    // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；proc/frame 同设备同尺寸
-    // （DUPL 帧恒 B8G8R8A8_UNORM 且与输出矩形一致，open 时已对齐）。
-    unsafe { self.ctx.CopyResource(&self.proc, &frame) };
-    // 光标补丁（内部做背景回读 + 混合 + UpdateSubresource；无可见光标 → None）。
+    let snap = self.pointer_snapshot(&info);
+    if self.last_composited == Some(snap) {
+      return Ok(CaptureFrame::Idle);
+    }
+    // 节流：睡到窗口结束再重取（不睡会按指针事件率忙旋；期间桌面 present 会
+    // 累积在下一次 Acquire，指针位置取最新值）。
+    if let Some(last) = self.last_compose_at {
+      let elapsed = last.elapsed();
+      if elapsed < POINTER_RECOMPOSE_MIN_INTERVAL {
+        std::thread::sleep(POINTER_RECOMPOSE_MIN_INTERVAL - elapsed);
+      }
+    }
+    // 以最近桌面内容重合成：擦掉上一帧烧入的旧光标，再按新指针状态合成。
+    unsafe { self.ctx.CopyResource(&self.proc, &self.clean) };
     let cursor = self.build_cursor_patch(&info)?;
+    self.last_composited = Some(snap);
+    self.last_compose_at = Some(Instant::now());
     Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor })
   }
 
+  /// 指针状态快照（合成判重键）：位置 + 生效形状键（缓存形状的 `buffer_size`，
+  /// 与帧内 `PointerShapeBufferSize=0`"未变"解耦）+ 可见性。
+  fn pointer_snapshot(&self, info: &DXGI_OUTDUPL_FRAME_INFO) -> PointerSnapshot {
+    PointerSnapshot {
+      x: info.PointerPosition.Position.x,
+      y: info.PointerPosition.Position.y,
+      shape: self.shape.as_ref().map_or(0, |s| s.buffer_size),
+      visible: info.PointerPosition.Visible.as_bool(),
+    }
+  }
+
   /// 拉取/刷新光标形状缓存（要点 5：`PointerShapeBufferSize` 变化触发）。
+  ///
+  /// `buffer_size == 0` 语义（MS DesktopDuplication 样例口径）：形状**自上次以来
+  /// 未变化**，保留缓存——不可清缓存（清掉会让"尺寸未变"的帧整体丢光标）；
+  /// 可见性由 `PointerPosition.Visible` 单独表达。
   fn refresh_shape(&mut self, dup: &IDXGIOutputDuplication, buffer_size: u32) -> AxResult<()> {
     if buffer_size == 0 {
-      self.shape = None; // 无指针形状（如远程会话暂无光标）
       return Ok(());
     }
     if matches!(&self.shape, Some(s) if s.buffer_size == buffer_size) {
@@ -381,12 +480,29 @@ impl DuplicationOutput {
     if required > 0 && (required as usize) <= buf.len() {
       buf.truncate(required as usize);
     }
-    self.shape = Some(ShapeCache { info: shape_info, data: buf, buffer_size });
+    // 渲染栅格在形状变更时一次算好并缓存（原先每帧重算 + 两块 Vec 分配）。
+    // 渲染失败降级为"该形状不打补丁"并 warn——形状是易变输入，
+    // 不能让它决定管线生死。
+    let raster = match render_cursor_shape(
+      shape_info.Type,
+      shape_info.Width,
+      shape_info.Height,
+      shape_info.Pitch,
+      &buf,
+    ) {
+      Ok(r) => Some(r),
+      Err(e) => {
+        warn(&format!("光标形状渲染失败，本形状周期内跳过光标补丁: {e}"));
+        None
+      }
+    };
+    self.shape = Some(ShapeCache { info: shape_info, _data: buf, buffer_size, raster });
     Ok(())
   }
 
-  /// 计算并落盘光标补丁（渲染形状 → 回读背景 → 混合 → `UpdateSubresource`）。
-  /// 无可见光标 / 补丁完全越界 / 形状未知 → `Ok(None)`（不打补丁，不视为错误）。
+  /// 计算并落盘光标补丁（取缓存栅格 → 回读背景 → 混合 → `UpdateSubresource`）。
+  /// 无可见光标 / 补丁完全越界 / 形状未知（或该形状渲染失败）→ `Ok(None)`
+  /// （不打补丁，不视为错误）。
   fn build_cursor_patch(&self, info: &DXGI_OUTDUPL_FRAME_INFO) -> AxResult<Option<CursorPatch>> {
     let pos = info.PointerPosition;
     if pos.Visible == BOOL(0) {
@@ -395,20 +511,9 @@ impl DuplicationOutput {
     let Some(shape) = self.shape.as_ref() else {
       return Ok(None); // 尚未拿到形状（首次移动前）——宁可不画也不画错
     };
-    // 光标形状是易变输入（文件头原则：不能让它决定管线生死）——渲染失败只降级
-    // 为「本帧不打光标补丁」并 warn；纹理/设备级错误（Map/回读）仍向上冒泡。
-    let raster = match render_cursor_shape(
-      shape.info.Type,
-      shape.info.Width,
-      shape.info.Height,
-      shape.info.Pitch,
-      &shape.data,
-    ) {
-      Ok(r) => r,
-      Err(e) => {
-        warn(&format!("光标形状渲染失败，本帧跳过光标补丁: {e}"));
-        return Ok(None);
-      }
+    // 栅格在 refresh_shape（形状变更时）已算好；本形状渲染失败 → 跳过补丁。
+    let Some(raster) = shape.raster.as_ref() else {
+      return Ok(None);
     };
     if raster.w == 0 || raster.h == 0 || raster.visible.iter().all(|v| *v == 0) {
       return Ok(None);
@@ -428,7 +533,8 @@ impl DuplicationOutput {
     }
     let (rw, rh) = ((ix1 - ix0) as u32, (iy1 - iy0) as u32);
     let (sx, sy) = ((ix0 - x0) as u32, (iy0 - y0) as u32);
-    // ① 回读补丁矩形下的桌面背景（staging 整面创建，CopySubresourceRegion 只搬小块）。
+    // ① 回读补丁矩形下的桌面背景（源 = clean：不含上次烧入的光标；
+    // staging 整面创建，CopySubresourceRegion 只搬小块）。
     let b = D3D11_BOX {
       left: ix0 as u32,
       top: iy0 as u32,
@@ -438,8 +544,8 @@ impl DuplicationOutput {
       back: 1,
     };
     // unsafe 依据（块级）：CopySubresourceRegion 为 D3D11 FFI；源盒已钳制在
-    // proc 尺寸内（ix/iy 的 clamp 在上方）、目标 (0,0) 在 staging 内。
-    unsafe { self.ctx.CopySubresourceRegion(&self.bg_staging, 0, 0, 0, 0, &self.proc, 0, Some(&b)) };
+    // clean 尺寸内（ix/iy 的 clamp 在上方）、目标 (0,0) 在 staging 内。
+    unsafe { self.ctx.CopySubresourceRegion(&self.bg_staging, 0, 0, 0, 0, &self.clean, 0, Some(&b)) };
     let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
     // unsafe 依据（块级）：Map 为 D3D11 FFI；staging 建时带 CPU_ACCESS_READ。
     // Map 成功后必须 Unmap——下方无条件 Unmap 由闭包收拢保证。
