@@ -48,6 +48,7 @@ import {
   createLocalServices,
   getOffPeakRequestAuthBuilder,
   getCuaRawInputInjector,
+  getCuaRdMediaController,
   disposeServiceResources,
   disposeServiceResourcesAndWait,
   AutomationRepo,
@@ -2034,6 +2035,9 @@ async function ensureRemoteDesktopHostServer(
   // T3b 交付的 services 注入端口（签名一致：events → {dispatched}，socket 来源复用既有 helper
   // 通道，不新起 helper）。取不到时（旧 services / 测试装配）remoteDesktopServer 退回 broker 直连兜底。
   const cuaRawInputInjector = getCuaRawInputInjector(services);
+  // Task 8 注入的 rd_media 媒体面端口（同侧表口径，经同一 helper socket 解析链）：
+  // 取不到时 Media* 分支静默跳过；注入后失败只 warn、不断会话（P2 语义）。
+  const cuaRdMediaController = getCuaRdMediaController(services);
   const server = createRemoteDesktopHostServer({
     credentials,
     logger,
@@ -2044,7 +2048,7 @@ async function ensureRemoteDesktopHostServer(
           injectRawInput: (events: RemoteDesktopRawInputEvent[]) => cuaRawInputInjector(events),
         }
       : {}),
-    // callRdMedia（rd_media helper 注入端口）由 Task 8 在此注入；未注入时 Media* 分支静默跳过。
+    ...(cuaRdMediaController ? { callRdMedia: cuaRdMediaController } : {}),
   });
   await server.loadServerState();
   activeRemoteDesktop = server;

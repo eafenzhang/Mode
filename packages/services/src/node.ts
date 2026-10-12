@@ -545,6 +545,10 @@ import {
   type CuaRawInputInjector,
 } from "./cua-permission-broker/cuaRawInput.js";
 import {
+  createCuaRdMediaController,
+  type CuaRdMediaController,
+} from "./cua-permission-broker/cuaRdMedia.js";
+import {
   isCuaExcludedRemoteWorkspaceIdentity,
   resolveCuaWorkspaceEnablement,
 } from "./cuaEnablement.js";
@@ -744,6 +748,20 @@ export function getCuaRawInputInjector(
   services: ServiceCollection,
 ): CuaRawInputInjector | undefined {
   return cuaRawInputInjectors.get(services);
+}
+
+const cuaRdMediaControllers = new WeakMap<ServiceCollection, CuaRdMediaController>();
+
+/**
+ * 远程桌面媒体面注入端口（经既有 CUA Helper 通道调用 broker rd_media_*）。
+ * 与 cuaRawInputInjectors 同口径：只按 ServiceCollection 侧表暴露给 host 装配层，
+ * 不注册进服务集合，避免 renderer 经通用 RPC Channel 触达 Helper
+ * （docs/specs/lan-remote-desktop.md 安全边界：媒体指令与 Helper 控制面不出 main/host）。
+ */
+export function getCuaRdMediaController(
+  services: ServiceCollection,
+): CuaRdMediaController | undefined {
+  return cuaRdMediaControllers.get(services);
 }
 
 const managedHostApiNetworkTransports = new WeakMap<ServiceCollection, HostApiNetworkTransport>();
@@ -1918,6 +1936,11 @@ export function createLocalServices(options: {
   const cuaRawInputInjector = createCuaRawInputInjector({
     resolveSocketPath: resolveCuaRawInputSocketPath,
   });
+  // 媒体面（rd_media_start/switch/stop）与 raw_input 共用同一 socket 解析链（同一 helper、
+  // 同一管道、同一被控准入与退避）：媒体指令不另走一套发现/拉起口径。
+  const cuaRdMediaController = createCuaRdMediaController({
+    resolveSocketPath: resolveCuaRawInputSocketPath,
+  });
 
   // 按需启动：拉起 standalone Helper（稳定 socket）。dev 场景（本 Helper 构建内嵌 dev
   // policy）成对带 unsigned-launcher/external-escape argv，让 ad-hoc 签名的本进程也能过
@@ -2798,6 +2821,7 @@ export function createLocalServices(options: {
   // 远控注入端口是 Local Host 进程内能力：只按侧表交给 host 装配层，不注册进服务集合
   // （renderer 不得经 RPC 触达 Helper；见 getCuaRawInputInjector 注释）。
   cuaRawInputInjectors.set(services, cuaRawInputInjector);
+  cuaRdMediaControllers.set(services, cuaRdMediaController);
 
   providerRuntimes.set(services, providerRuntime);
   providerProvisioningSources.set(services, providerProvisioningSource);
