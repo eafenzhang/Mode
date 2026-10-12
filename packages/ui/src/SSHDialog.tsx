@@ -118,6 +118,8 @@ export function RemoteConnectionDialog({
     lanServerName,
     lanToken,
     lanPeers,
+    lanPairedPeers,
+    lanPairedSelectedId,
     lanScanning,
     lanScanError,
     lanPairing,
@@ -125,6 +127,7 @@ export function RemoteConnectionDialog({
     scanLanPeers,
     pairLanWithCode,
     selectLanPeer,
+    selectPairedPeer,
     setLanHost,
     setLanPort,
     setLanPairCode,
@@ -534,6 +537,8 @@ export function RemoteConnectionDialog({
                       serverName: lanServerName,
                       token: lanToken,
                       peers: lanPeers,
+                      pairedPeers: lanPairedPeers,
+                      pairedSelectedId: lanPairedSelectedId,
                       scanning: lanScanning,
                       scanError: lanScanError,
                       pairing: lanPairing,
@@ -544,6 +549,7 @@ export function RemoteConnectionDialog({
                       onRescan: () => void scanLanPeers(),
                       onSelectPeer: selectLanPeer,
                       onPair: () => void pairLanWithCode(),
+                      onSelectPairedPeer: selectPairedPeer,
                     }}
                     host={host}
                     port={port}

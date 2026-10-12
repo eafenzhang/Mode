@@ -1869,6 +1869,8 @@ const enUS: Record<string, string> = {
   "remote.lan.description":
     "Find Mode instances on your network that allow LAN access; the first connection needs the pairing code shown on the other machine.",
   "remote.lan.discoveredTitle": "Discovered devices",
+  "remote.lan.pairedTitle": "Paired devices",
+  "remote.lan.pairedHint": "Paired device — you can connect directly without a pairing code.",
   "remote.lan.rescan": "Search again",
   "remote.lan.scanning": "Searching for Mode on your network…",
   "remote.lan.empty":

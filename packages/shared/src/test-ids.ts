@@ -164,6 +164,10 @@ export const TID_REMOTE_KIND_LAN = "remote-kind-lan";
 export const TID_LAN_PEER_LIST = "lan-peer-list";
 /** 局域网：单个已发现设备 */
 export const TID_LAN_PEER_ITEM = "lan-peer-item";
+/** 局域网：已配对设备列表（向导直选，免配对码） */
+export const TID_LAN_PAIRED_PEER_LIST = "lan-paired-peer-list";
+/** 局域网：单个已配对设备（向导直选） */
+export const TID_LAN_PAIRED_PEER_ITEM = "lan-paired-peer-item";
 /** 局域网：手动地址输入 */
 export const TID_LAN_HOST_INPUT = "lan-host-input";
 /** 局域网：端口输入 */

@@ -1866,6 +1866,8 @@ const faIR: Record<string, string> = {
   "remote.lan.description":
     "نمونه‌های Mode را در شبکه پیدا کنید که دسترسی شبکه محلی دارند؛ اتصال نخست به کد پیوندی نیاز دارد که در دستگاه دیگر نمایش داده می‌شود.",
   "remote.lan.discoveredTitle": "دستگاه‌های یافت‌شده",
+  "remote.lan.pairedTitle": "دستگاه‌های پیوندشده",
+  "remote.lan.pairedHint": "دستگاه پیوندشده — اتصال مستقیم بدون کد پیوند.",
   "remote.lan.rescan": "جست‌وجوی دوباره",
   "remote.lan.scanning": "در حال جست‌وجوی Mode در شبکه…",
   "remote.lan.empty":

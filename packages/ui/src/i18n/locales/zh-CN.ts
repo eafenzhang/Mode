@@ -1736,6 +1736,8 @@ const zhCN: Record<string, string> = {
   "remote.lan.description":
     "搜索同一网段内开启「允许局域网访问」的 Mode；首次连接需要输入对端显示的配对码。",
   "remote.lan.discoveredTitle": "发现的设备",
+  "remote.lan.pairedTitle": "已配对设备",
+  "remote.lan.pairedHint": "已配对设备，可直接连接（无需配对码）。",
   "remote.lan.rescan": "重新搜索",
   "remote.lan.scanning": "正在搜索局域网内的 Mode…",
   "remote.lan.empty": "没有发现设备；可手动填写地址，或确认对端已开启「允许局域网访问」。",

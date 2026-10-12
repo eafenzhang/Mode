@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DockerContainerInfo,
   LanDiscoveredPeer,
+  LanPairedPeer,
   RemoteAssetInstallMode,
   RemoteTarget,
   RemoteWorkspaceSessionEntry,
@@ -22,6 +23,8 @@ import {
   TID_LAN_HOST_INPUT,
   TID_LAN_PAIR_BUTTON,
   TID_LAN_PAIR_CODE_INPUT,
+  TID_LAN_PAIRED_PEER_ITEM,
+  TID_LAN_PAIRED_PEER_LIST,
   TID_LAN_PEER_ITEM,
   TID_LAN_PEER_LIST,
   TID_LAN_PORT_INPUT,
@@ -72,6 +75,10 @@ export interface RemoteConnectionLanFieldsProps {
   serverName: string;
   token: string;
   peers: LanDiscoveredPeer[];
+  /** 已配对设备（直选连接：免配对码，令牌由 Host 按 serverId 取）。 */
+  pairedPeers: LanPairedPeer[];
+  /** 当前选中的已配对设备 serverId（空 = 未走直选路径）。 */
+  pairedSelectedId: string;
   scanning: boolean;
   scanError: string;
   pairing: boolean;
@@ -82,6 +89,7 @@ export interface RemoteConnectionLanFieldsProps {
   onRescan: () => void;
   onSelectPeer: (peer: LanDiscoveredPeer) => void;
   onPair: () => void;
+  onSelectPairedPeer: (peer: LanPairedPeer) => void;
 }
 
 const DEFAULT_WSL_DISTRO_VALUE = "__default_wsl_distro__";
@@ -261,11 +269,48 @@ export function RemoteConnectionFields({
   switch (kind) {
     case "lan": {
       const paired = Boolean(lanFields.token.trim());
+      const pairedPeerSelected = Boolean(lanFields.pairedSelectedId);
       return (
         <div className="space-y-3">
           <p className="text-ui-base text-foreground-subtle">
             {intl.formatMessage({ id: "remote.lan.description" })}
           </p>
+          {lanFields.pairedPeers.length > 0 ? (
+            <div className="space-y-2">
+              <span className="text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "remote.lan.pairedTitle" })}
+              </span>
+              <div className="space-y-2" data-testid={TID_LAN_PAIRED_PEER_LIST}>
+                {lanFields.pairedPeers.map((peer) => {
+                  const selected = lanFields.pairedSelectedId === peer.serverId;
+                  return (
+                    <button
+                      key={peer.serverId}
+                      type="button"
+                      data-testid={TID_LAN_PAIRED_PEER_ITEM}
+                      onClick={() => lanFields.onSelectPairedPeer(peer)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-start transition-colors",
+                        selected
+                          ? "border-input-border-focused bg-surface-hover"
+                          : "border-card-border bg-card hover:border-input-border-hover hover:bg-surface-hover",
+                      )}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-ui-base text-foreground">
+                          {peer.name?.trim() || peer.serverId}
+                        </span>
+                        <span className="block truncate text-ui-xs text-foreground-subtle">
+                          {`${peer.host}:${peer.port}`}
+                        </span>
+                      </span>
+                      {selected ? <CheckIcon className="size-4 shrink-0 text-primary" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-2">
             <span className="text-ui-base text-foreground-subtle">
               {intl.formatMessage({ id: "remote.lan.discoveredTitle" })}
@@ -362,9 +407,14 @@ export function RemoteConnectionFields({
               />
             </div>
           </div>
-          {/* 已配对状态不再在向导里展示：配对设备在「设置 → 局域网访问」分组管理。
-              已配对仅表现为不出现配对码输入，连接行为不变。 */}
-          {!paired ? (
+          {/* 已配对设备直选时无需配对码：隐藏输入区并显示说明（连接行为与配对后一致；
+              配对设备整体管理在设置页「局域网访问」）。 */}
+          {pairedPeerSelected ? (
+            <p className="text-ui-xs text-foreground-subtlest">
+              {intl.formatMessage({ id: "remote.lan.pairedHint" })}
+            </p>
+          ) : null}
+          {!paired && !pairedPeerSelected ? (
             <div className="space-y-2">
               <label className="mb-1 block text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "remote.lan.pairCodeLabel" })}
