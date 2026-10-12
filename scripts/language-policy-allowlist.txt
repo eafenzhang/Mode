@@ -84,6 +84,7 @@ packages/mode-cua/frame-contract.js
 packages/mode-cua/helper/addon.mjs
 packages/mode-cua/helper/entry.mjs
 packages/mode-cua/helper/errors.mjs
+packages/mode-cua/helper/mediaPump.mjs
 packages/mode-cua/helper/server.mjs
 packages/mode-cua/host-display-contract.js
 packages/mode-cua/index.js
@@ -96,6 +97,7 @@ packages/mode-cua/test/frame-contract.test.mjs
 packages/mode-cua/test/helper-backend.test.mjs
 packages/mode-cua/test/helper-entry.test.mjs
 packages/mode-cua/test/integration.helper.test.mjs
+packages/mode-cua/test/media-pump.test.mjs
 packages/mode-cua/test/resolver.test.mjs
 packages/mode-cua/test/runtime-action.test.mjs
 packages/mode-cua/test/runtime-core.test.mjs
