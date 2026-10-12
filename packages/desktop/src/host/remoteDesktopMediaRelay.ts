@@ -47,6 +47,12 @@ export interface RemoteDesktopMediaRelayOptions {
   onReady?: () => void;
   /** WS 上行输入事件透传（T14 接 → broker raw_input）。 */
   onInput?: (event: unknown) => void;
+  /**
+   * helper 管道接通并完成登记后回调（观测/测试用）。
+   * 注意时序：`listen()`/客户端 `connect` 都不保证本回调已发生——在它之前，
+   * kind2 会走"挂起补发"，而 kind3/kind4 控制帧按契约静默跳过（fail-soft，不断流）。
+   */
+  onHelperConnected?: () => void;
 }
 
 export interface RemoteDesktopMediaRelay {
@@ -371,6 +377,7 @@ export function createRemoteDesktopMediaRelay(
         }
       });
       logger.info("[rd-media-relay] helper pipe connected");
+      try { options.onHelperConnected?.(); } catch { /* 观测钩子失败不影响推流 */ }
       flushOpenStream(); // ready 先于 helper 到达时，在此补发被挂起的开流指令。
     });
     await new Promise<void>((resolve, reject) => {

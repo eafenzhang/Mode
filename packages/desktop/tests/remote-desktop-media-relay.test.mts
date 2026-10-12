@@ -284,17 +284,33 @@ if (process.env[SERVER_CASE_ENV] === "1") {
 
   test("WS 上行 ready 只下发一次 kind2；ping 立即 pong；need-key/set-bitrate 下行 helper；输入透传", async () => {
     const helperFrames: Buffer[] = [];
+    // 收集告警：writeHelperControl 在 helper 未接通时按契约静默跳过（只 warn）——
+    // 本用例把这类事件变响亮，避免"控制帧凭空消失"不可见（Linux CI 曾因此显现为时序 flake）。
+    const warnings: string[] = [];
     const inputs: unknown[] = [];
+    // 服务端接通信号：客户端 connect 不保证中继已登记 helper（kind3/4 会被 fail-soft 丢弃）——
+    // 用中继的 onHelperConnected 钩子消除这一竞态（历史 Linux CI 时序 flake 的根因）。
+    let resolveHelperConnected!: () => void;
+    const helperConnected = new Promise<void>((resolve) => {
+      resolveHelperConnected = resolve;
+    });
     const relay = createRemoteDesktopMediaRelay({
-      logger: noopLogger,
+      logger: {
+        info(): void {},
+        warn: (...args: unknown[]) => {
+          warnings.push(args.map((arg) => String(arg)).join(" "));
+        },
+      },
       onFrame: () => {},
       onStatus: () => {},
       onReady: () => {},
       onInput: (e) => inputs.push(e),
+      onHelperConnected: () => resolveHelperConnected(),
     });
     const helper = connect({ host: "127.0.0.1", port: await relay.listen() });
     try {
       await once(helper, "connect");
+      await helperConnected;
       helper.on("data", (d) => {
         helperFrames.push(d);
       });
@@ -309,14 +325,18 @@ if (process.env[SERVER_CASE_ENV] === "1") {
       relay.handleWsMessage(JSON.stringify({ t: "need-key" }), false);
       relay.handleWsMessage(JSON.stringify({ t: "set-bitrate", bps: 4_000_000 }), false);
       relay.handleWsMessage(JSON.stringify({ t: "set-bitrate", bps: 123 }), false);
-      await sleep(30);
+      const expected = Buffer.concat([
+        Buffer.from([0, 0, 0, 1, 2]), // kind2 开流
+        Buffer.from([0, 0, 0, 1, 3]), // kind3 紧急关键帧
+        Buffer.from([0, 0, 0, 5, 4, 0x00, 0x3d, 0x09, 0x00]), // kind4 + 4_000_000
+      ]);
+      await waitFor(
+        () => Buffer.concat(helperFrames).length >= expected.length,
+        "kind2+kind3+kind4 送达",
+      );
       assert.deepEqual(
         Buffer.concat(helperFrames),
-        Buffer.concat([
-          Buffer.from([0, 0, 0, 1, 2]), // kind2 开流
-          Buffer.from([0, 0, 0, 1, 3]), // kind3 紧急关键帧
-          Buffer.from([0, 0, 0, 5, 4, 0x00, 0x3d, 0x09, 0x00]), // kind4 + 4_000_000
-        ]),
+        expected,
         "ready 只下发一次 kind2；need-key/set-bitrate 按契约下行；非法码率不下行",
       );
       assert.equal(texts.length, 1, "仅一条 pong");
@@ -325,6 +345,10 @@ if (process.env[SERVER_CASE_ENV] === "1") {
       assert.equal(pong.ts, 123, "原样回传 ts（RTT 基准）");
       assert.equal(typeof pong.hostTs, "number", "附带被控侧时钟戳（帧龄偏移标定用）");
       assert.deepEqual(inputs, [{ t: "pm", x: 10, y: 20 }], "控制面无匹配项之外的输入对象才透传 onInput");
+      assert.ok(
+        !warnings.some((warning) => warning.includes("helper not connected")),
+        `不应有 helper 未接通告警：${warnings.join(" | ")}`,
+      );
     } finally {
       cleanup(relay, helper);
     }
@@ -332,21 +356,37 @@ if (process.env[SERVER_CASE_ENV] === "1") {
 
   test("kind0 缺省出口：无 WS 丢弃；bufferedAmount>128KB 背压丢弃并请关键帧；低于阈值即发送", async () => {
     const helperFrames: Buffer[] = [];
+    // defaultFrameSink 的发送异常被捕获后走 logger.warn——本用例收集告警并断言无发送失败
+    // （noopLogger 会把这类异常吞掉，CI 上曾表现为「帧凭空消失」而不可见）。
+    const warnings: string[] = [];
+    // 服务端接通信号（同上用例）：等它再发丢帧，避免 kind3 请求撞进未接通窗口。
+    let resolveHelperConnected!: () => void;
+    const helperConnected = new Promise<void>((resolve) => {
+      resolveHelperConnected = resolve;
+    });
     const relay = createRemoteDesktopMediaRelay({
-      logger: noopLogger,
+      logger: {
+        info(): void {},
+        warn: (...args: unknown[]) => {
+          warnings.push(args.map((arg) => String(arg)).join(" "));
+        },
+      },
       // 不注入 onFrame → 走 relay 缺省出口（契约 C：断开即丢帧、>128KB 丢 kind0 + 请关键帧）
       onStatus: () => {},
       onReady: () => {},
       onInput: () => {},
+      onHelperConnected: () => resolveHelperConnected(),
     });
     const helper = connect({ host: "127.0.0.1", port: await relay.listen() });
     try {
       await once(helper, "connect");
+      await helperConnected;
       helper.on("data", (d) => {
         helperFrames.push(d);
       });
       const payloadA = Buffer.from([0, 0, 0, 1, 0, 0xaa]);
       const payloadB = Buffer.from([0, 0, 0, 1, 0, 0xbb]);
+      const kind3 = Buffer.from([0, 0, 0, 1, 3]);
 
       // 未挂 WS：kind0 直接丢弃，不抛错（无从断言，只验证路径安全）
       helper.write(pipeFrame(0, payloadA));
@@ -356,28 +396,33 @@ if (process.env[SERVER_CASE_ENV] === "1") {
       buffered.amount = 200 * 1024;
       relay.attachWebSocket(fakeWs);
       helper.write(pipeFrame(0, payloadA));
-      await sleep(20);
+      // 轮询替代固定 sleep：管道投递在 CI 负载下可能 >20ms（Linux verify 作业时序 flake 的修复）。
+      await waitFor(() => Buffer.concat(helperFrames).length >= 5, "丢帧爆发触发 kind3");
       assert.equal(binaries.length, 0, "过 128KB 背压阈值应丢弃 kind0");
       assert.deepEqual(
         Buffer.concat(helperFrames),
-        Buffer.from([0, 0, 0, 1, 3]),
+        kind3,
         "丢帧爆发开始即向 helper 请求一次关键帧（kind3）",
       );
 
-      // 同一爆发内继续丢弃：不重复请求（爆发标记去抖）
+      // 同一爆发内继续丢弃：不重复请求（爆发标记去抖）——负向断言，短 settle 后仍只有一条。
       helper.write(pipeFrame(0, payloadA));
-      await sleep(20);
+      await sleep(50);
       assert.deepEqual(
         Buffer.concat(helperFrames),
-        Buffer.from([0, 0, 0, 1, 3]),
+        kind3,
         "同一爆发只请求一次关键帧",
       );
 
       buffered.amount = 0;
       helper.write(pipeFrame(0, payloadB));
-      await sleep(20);
-      assert.equal(binaries.length, 1, "低于阈值应恢复发送");
-      assert.deepEqual(binaries[0], payloadB, "kind0 payload 原样转发（不解密不改写）");
+      // 轮询等待 payloadB 送达（若第二条 A 也迟到达则合法地先于 B 送出，故检查"含 B 且 B 完整"）。
+      await waitFor(() => binaries.some((frame) => frame.equals(payloadB)), "低于阈值恢复发送");
+      assert.deepEqual(binaries[binaries.length - 1], payloadB, "kind0 payload 原样转发（不解密不改写）");
+      assert.ok(
+        !warnings.some((warning) => warning.includes("send failed")),
+        `不应有发送失败告警：${warnings.join(" | ")}`,
+      );
     } finally {
       cleanup(relay, helper);
     }

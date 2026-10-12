@@ -424,7 +424,7 @@
     "apps/mode-cli/tools/prompt-trajectory/package.json": "571f15ba51a258e86a6864cfe5331da897a6ca04b9f1470e96f7a24acc9d1c07",
     "apps/mode-cli/tools/typescript/package.json": "d31f0abdcc4052b9175259a34ed03e4ad73bb1e146d56cecd5658dd0c7d4c8b8",
     "crates/mode-cua-ax/Cargo.lock": "a2d1bfe1f258c55ad1175f31c7097444120d89710f6b91b70fab36ed5664028d",
-    "crates/mode-cua-ax/Cargo.toml": "7a1c907c87098a93d25f9292ca0eec199e1dfeaf330c8bf789898ec4822585f8",
+    "crates/mode-cua-ax/Cargo.toml": "abd3b4a09bf4484e6f95b4bbf1a9db00e838effc6fe6602d786f44ee4598f35b",
     "package.json": "65de692ea5061c1d14011e8ff8aefb5dc1cea71a62b4d9c4f2c6c9d256998ea0",
     "packages/client/package.json": "ca66f666e9c5a1095a03c14b176fe95932e900cc4010a26b54bcf4be66e34097",
     "packages/desktop/package.json": "0194e0fef9a96b32a2a3b57c2ec12567291bff07bdce0af1936c4ef04fe061f6",
