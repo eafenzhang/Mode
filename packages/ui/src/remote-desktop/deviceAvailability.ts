@@ -14,7 +14,13 @@ export type RemoteDesktopDeviceProbe =
   | { status: "ok"; capability: RemoteDesktopPeerCapability }
   | { status: "probe-failed" };
 
-export type RemoteDesktopDeviceBlockReason = "probing" | "probe-failed" | "offline" | "unsupported";
+export type RemoteDesktopDeviceBlockReason =
+  | "probing"
+  | "probe-failed"
+  | "offline"
+  | "unsupported"
+  /** 本机被控中（spec 产品规则 9）：整卡置灰，断开被控后刷新恢复。 */
+  | "locally-controlled";
 
 export interface RemoteDesktopDeviceAvailability {
   canConnect: boolean;
@@ -24,7 +30,12 @@ export interface RemoteDesktopDeviceAvailability {
 
 export function resolveRemoteDesktopDeviceAvailability(
   probe: RemoteDesktopDeviceProbe | undefined,
+  options: { locallyControlled?: boolean } = {},
 ): RemoteDesktopDeviceAvailability {
+  // 本地被控状态优先：无论对端探测结果如何，本机被控中一律不可发起。
+  if (options.locallyControlled) {
+    return { canConnect: false, reason: "locally-controlled" };
+  }
   if (!probe || probe.status === "probing") {
     return { canConnect: false, reason: "probing" };
   }

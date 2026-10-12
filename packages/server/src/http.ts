@@ -289,6 +289,9 @@ function remoteDesktopErrorStatus(code: RemoteDesktopErrorCode): 401 | 403 | 409
     case "consent_timeout":
       return 403;
     case "busy":
+    // locally_controlled 是主控侧本地闸门（spec 产品规则 9），被控 server 不会产生；
+    // 此处仅为枚举穷尽映射，语义与 busy 同类（冲突）。
+    case "locally_controlled":
       return 409;
     case "unsupported":
       return 501;

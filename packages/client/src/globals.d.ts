@@ -353,6 +353,10 @@ declare global {
       rdStartSession(
         serverId: string,
       ): ReturnType<import("@mode/shared").IPlatformService["rdStartSession"]>;
+      /** 读取本机被控状态（设备页置灰用） */
+      rdGetControlledState(): ReturnType<
+        import("@mode/shared").IPlatformService["rdGetControlledState"]
+      >;
       /** 写出信令消息（main 校验后转发） */
       rdSendSignal(
         message: import("@mode/shared/remote-desktop").RemoteDesktopSignalMessage,

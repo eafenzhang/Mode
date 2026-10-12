@@ -6234,6 +6234,8 @@ const faIR: Record<string, string> = {
   "remoteDesktop.device.reason.offline": "دستگاه مقابل آفلاین یا در دسترس نیست",
   "remoteDesktop.device.reason.unsupported":
     "دستگاه مقابل از رومیزی از راه دور پشتیبانی نمی‌کند (خاموش یا نسخه قدیمی)",
+  "remoteDesktop.device.reason.locally-controlled":
+    "این دستگاه از راه دور کنترل می‌شود؛ برای شروع، ابتدا قطع کنید",
   "remoteDesktop.session.connecting": "در حال اتصال به دستگاه مقابل…",
   "remoteDesktop.session.waitingPeer": "در انتظار تصویر دستگاه مقابل…",
   "remoteDesktop.session.negotiating": "در حال برپایی کانال تصویر…",
@@ -6256,6 +6258,8 @@ const faIR: Record<string, string> = {
   "remoteDesktop.error.unsupported": "دستگاه مقابل از رومیزی از راه دور پشتیبانی نمی‌کند.",
   "remoteDesktop.error.unauthorized": "توکن پیوند نامعتبر شده است؛ دوباره پیوند دهید.",
   "remoteDesktop.error.stale_ticket": "بلیت نشست منقضی شد؛ دوباره تلاش کنید.",
+  "remoteDesktop.error.locally_controlled":
+    "این دستگاه از راه دور کنترل می‌شود؛ ابتدا آن را قطع کنید.",
   "remoteDesktop.error.internal": "خطای داخلی رخ داد؛ دوباره تلاش کنید.",
   "remoteDesktop.consent.title": "{device} درخواست کنترل این دستگاه را دارد",
   "remoteDesktop.consent.allow": "اجازه",

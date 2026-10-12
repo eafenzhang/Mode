@@ -6327,6 +6327,8 @@ const enUS: Record<string, string> = {
   "remoteDesktop.device.reason.offline": "Peer is offline or unreachable",
   "remoteDesktop.device.reason.unsupported":
     "Peer doesn't support Remote Desktop (turned off or too old)",
+  "remoteDesktop.device.reason.locally-controlled":
+    "This device is being remotely controlled; disconnect first to start one",
   "remoteDesktop.session.connecting": "Connecting to the peer…",
   "remoteDesktop.session.waitingPeer": "Waiting for the peer's screen…",
   "remoteDesktop.session.negotiating": "Setting up the video channel…",
@@ -6350,6 +6352,8 @@ const enUS: Record<string, string> = {
   "remoteDesktop.error.unsupported": "The peer doesn't support Remote Desktop.",
   "remoteDesktop.error.unauthorized": "The pairing credential is no longer valid; pair again.",
   "remoteDesktop.error.stale_ticket": "The session ticket expired; try again.",
+  "remoteDesktop.error.locally_controlled":
+    "This device is being remotely controlled; disconnect it first.",
   "remoteDesktop.error.internal": "An internal error occurred; try again.",
   "remoteDesktop.consent.title": "{device} wants to control this device",
   "remoteDesktop.consent.allow": "Allow",

@@ -9,6 +9,8 @@ export const REMOTE_DESKTOP_IPC = {
   GetPeerCapability: "rd/get-peer-capability",
   /** invoke(serverId) → { ok: true } | { error: RemoteDesktopErrorCode }。 */
   StartSession: "rd/start-session",
+  /** invoke() → { controlled: boolean }（本机被控状态，设备页置灰用）。 */
+  GetControlledState: "rd/get-controlled-state",
   /** invoke(message: RemoteDesktopSignalMessage)（main 校验后写出）。 */
   SendSignal: "rd/send-signal",
   /** invoke(reason?)（先发 bye 再收尾）。 */

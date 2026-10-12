@@ -50,6 +50,7 @@ function normalizeErrorCode(code: string | undefined): RemoteDesktopErrorCode {
     "unsupported",
     "unauthorized",
     "stale_ticket",
+    "locally_controlled",
     "internal",
   ];
   return known.includes(code ?? "") ? (code as RemoteDesktopErrorCode) : "internal";

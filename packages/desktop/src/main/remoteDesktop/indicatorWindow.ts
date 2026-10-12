@@ -1,6 +1,8 @@
 /**
  * 被控端会话指示浮层（docs/specs/lan-remote-desktop.md 产品规则 3）：
- * 会话期间常驻「<设备名> 正在远程控制本机」+「结束」按钮；点「结束」= 本地立即终止。
+ * 会话期间显示「<设备名> 正在远程控制本机」+「结束」按钮；点「结束」= 本地立即终止。
+ * 外观为缩小的半透明白条，闲置 4s 自动淡出、鼠标移入恢复——由页面脚本自理，
+ * 本模块只负责窗口生命周期（尺寸取 indicatorWindowSize）。
  *
  * 窗口形态沿用 windowsCuaOperationIndicator 先例（frameless / transparent / alwaysOnTop /
  * skipTaskbar / 定位到当前鼠标显示器顶部居中 / 不抢焦点）；差异：这里必须可点击，

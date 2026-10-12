@@ -141,6 +141,7 @@ function createWebPlatform(): IPlatformService {
     // 入口本身有 win32 桌面门，这里只保证平台合同完整（读返回空态，写直接拒绝）。
     rdGetPeerCapability: () => Promise.resolve({ remoteDesktop: false, online: false }),
     rdStartSession: () => Promise.resolve({ error: "unsupported" as const }),
+    rdGetControlledState: () => Promise.resolve({ controlled: false }),
     rdSendSignal: () => {},
     rdEndSession: () => Promise.resolve(),
     rdGetServerState: () => Promise.resolve({ enabled: false, authorizedClients: [] }),

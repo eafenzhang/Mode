@@ -25,8 +25,10 @@ import {
   handleRemoteDesktopAppQuit,
   handleRemoteDesktopServerDisabled,
   initializeRemoteDesktopSessionCoordinator,
+  getRemoteDesktopServerSessionState,
 } from "./coordinator.js";
 import { createRemoteDesktopControllerSession } from "./controllerSession.js";
+import { isRemoteDesktopSessionBusy } from "./sessionState.js";
 
 export interface RemoteDesktopIpcOptions {
   logger: {
@@ -74,9 +76,18 @@ export function registerRemoteDesktopIpcHandlers(options: RemoteDesktopIpcOption
       if (!serverId) {
         return { error: "internal" };
       }
+      // 产品规则 9（被控中不可发起）：权威闸门在 main——本机被控状态机非 idle（含同意弹窗中）
+      // 时拒绝，防双向互控的输入串台与画面套娃；设备页的置灰只是同规则的 UI 投影。
+      if (isRemoteDesktopSessionBusy(getRemoteDesktopServerSessionState())) {
+        return { error: "locally_controlled" };
+      }
       return await controller.start(serverId, event.sender);
     },
   );
+
+  ipcMain.handle(REMOTE_DESKTOP_IPC.GetControlledState, async () => ({
+    controlled: isRemoteDesktopSessionBusy(getRemoteDesktopServerSessionState()),
+  }));
 
   ipcMain.handle(REMOTE_DESKTOP_IPC.SendSignal, (_event, rawMessage: unknown) => {
     const parsed = remoteDesktopSignalMessageSchema.safeParse(rawMessage);

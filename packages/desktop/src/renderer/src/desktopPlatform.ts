@@ -45,6 +45,7 @@ export function createDesktopPlatform(options: {
     // 局域网远程桌面（main 的 rd/* IPC；通道名与形状冻结在 main/remoteDesktop/ipcChannels.ts）。
     rdGetPeerCapability: (serverId) => window.mode.rdGetPeerCapability(serverId),
     rdStartSession: (serverId) => window.mode.rdStartSession(serverId),
+    rdGetControlledState: () => window.mode.rdGetControlledState(),
     // 信令是高频小包，直接透传给 main；失败只记日志不抛出，避免打断媒体面。
     rdSendSignal: (message: RemoteDesktopSignalMessage) => {
       void window.mode.rdSendSignal(message).catch(() => undefined);

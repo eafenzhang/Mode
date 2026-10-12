@@ -27,7 +27,7 @@
 - 服务访问器由 `useWorkspaceServicesResolution(workspaceAbsPath, remoteSessionId, workspaceIdentity)` 解析：远端走该远端连接的 `fileService.readdir`，断连时回落到断连代理并给出既有错误文案——不在本组件里新建第二条服务解析路径。
 - 只浏览：列目录 + 列文件、可进入子目录与上级目录，**不提供选择与回填**。文件行不参与选中，footer 只有「关闭」。多选回填仍只属于 composer 的「从工作区选择文件」，两条入口不合并。
 - 独立于「打开方式」胶囊：SSH 上两者并存（胶囊开 VS Code，本入口开内置浏览）；Docker/LAN 上胶囊为空时本入口单独出现。
-- 外观与本机「打开方式」胶囊同款式：同款容器（`h-7 rounded-lg border border-border bg-input`，含 `me-1.5` 视觉间隔）内嵌 `size-7` ghost 图标按钮、16px 图标居中；远端没有可切换的打开目标，因此不带下拉 Chevron。
+- 外观与本机「打开方式」胶囊同款式（图 2 样式，用户确认「纯样式还原」）：同款容器（`h-7 rounded-lg border border-border bg-input`，含 `me-1.5` 视觉间隔），**整颗是一颗按钮**——本机文件管理器图标的 `iconDataUrl`（取 `getInstalledEditors` 中 `isFileManagerOpenTarget` 命中的第一项，拿不到回退 `FolderOpenIcon`）+ 装饰性 `ChevronDown`；点击（含箭头）都直接打开内置浏览窗口，**不弹下拉菜单**（远端没有可切换的打开目标，与「打开方式」胶囊职责不同）。
 - 浏览窗口可读性：`DirectoryBrowser` 非嵌入形态 portal 到 `document.body`，面板与列表行必须显式继承 `text-foreground`（对齐 `Dialog` 等既有浮层约定），不依赖祖先颜色——深色主题下目录名、文件名必须清晰可读。
 
 ### 状态所有者

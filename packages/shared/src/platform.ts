@@ -995,6 +995,12 @@ export interface IPlatformService {
   /** 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成）；失败返回稳定错误码。 */
   rdStartSession(serverId: string): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
 
+  /**
+   * 读取本机是否处于被控状态（被控会话状态机 phase !== "idle"，含同意弹窗中）。
+   * 设备页据此整卡置灰；发起瞬间的权威拦截在 main 的 rd/start-session（locally_controlled）。
+   */
+  rdGetControlledState(): Promise<{ controlled: boolean }>;
+
   /** 向被控端写出信令消息（main 校验后经 WS 转发；未建立会话时丢弃）。 */
   rdSendSignal(message: RemoteDesktopSignalMessage): void;
 

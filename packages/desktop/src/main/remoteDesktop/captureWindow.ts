@@ -9,8 +9,9 @@
  * - 显示器枚举：`desktopCapturer.getSources({types:["screen"]})` 的 display_id ↔ `screen.getAllDisplays()`
  *   的 Display.id 关联成 RemoteDesktopMonitor[]（物理像素 = DIP bounds × scaleFactor）；
  * - main ↔ 页面桥：信令下行 `deliver`、出站轮询 `takeOutbound`（页面无 preload，桥法见 capturePage.ts）；
- * - 从页面收回 DataChannel 输入：shared schema 严格校验 → 坐标换算（inputConversion）→ 按帧批量
- *   （pointer ≤16ms 聚合、control 即时）→ `onInput` 交给 coordinator 下发 host 注入。
+ * - 从页面收回 DataChannel 输入：shared schema 严格校验 → 坐标换算（inputConversion）→ 批量
+ *   （pointer 0ms 同 tick 聚合、control 即时，spec 质量与延迟参数）→ `onInput` 交给 coordinator
+ *   下发 host 注入。
  *
  * 已知限制（一期不改）：多显示器混合 DPI 下 DIP 布局与物理布局非线性，坐标换算按
  * 「单显示器 / 统一缩放」假设；混合 DPI 的精确映射留待两机清单校准。

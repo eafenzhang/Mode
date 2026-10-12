@@ -15,7 +15,8 @@
  * 页面侧 `getDisplayMedia` 不需要用户手势，也不弹选择器。
  *
  * 画质档位（spec 产品规则 8）：信令 union（T1 冻结面）没有质量消息，一期在采集侧固定
- * `contentHint = "detail"`（清晰优先），码率自适应交给 WebRTC；「流畅优先」需先扩协议。
+ * `contentHint = "detail"`（清晰优先）+ sender 级 `maintain-framerate` / 8Mbps 上限，
+ * 采集约束与编解码偏好见 spec「质量与延迟参数」；「流畅优先」档位切换需先扩协议。
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -69,10 +70,58 @@ window.__rdCapture = (() => {
   };
 
   const captureStream = async () => {
-    const fresh = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30 } }, audio: false });
+    // 质量与延迟参数（spec「质量与延迟参数」）：frameRate 封顶 30 守 1080p30 验收口径；
+    // 宽高 ideal 1080p 把 >1080p 源的编码输入封顶（1080p 源无变化）；displaySurface 与
+    // main 侧选源（desktopCapturer types:["screen"]）同口径。
+    const fresh = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        frameRate: { ideal: 30, max: 30 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        displaySurface: "monitor",
+      },
+      audio: false,
+    });
     const track = fresh.getVideoTracks()[0];
     if (track && "contentHint" in track) track.contentHint = "detail";
     return { fresh, track };
+  };
+
+  // 与主控 codecPreferences.ts 同款：优先 H.264（Windows 硬编）、VP8 兜底（spec 迁移兼容性）。
+  // 页面是自包含内联脚本、无模块导入，这里镜像该排序；失败回退默认协商顺序。
+  const applyPreferredCodecs = (peer) => {
+    try {
+      const getCapabilities = RTCPeerConnection.getCapabilities;
+      if (typeof getCapabilities !== "function") return;
+      const codecs = getCapabilities("video")?.codecs ?? [];
+      if (codecs.length === 0 || typeof peer.setCodecPreferences !== "function") return;
+      const h264 = codecs.filter((codec) => codec.mimeType.toLowerCase() === "video/h264");
+      const vp8 = codecs.filter((codec) => codec.mimeType.toLowerCase() === "video/vp8");
+      if (h264.length === 0 && vp8.length === 0) return;
+      const preferred = new Set([...h264, ...vp8]);
+      peer.setCodecPreferences([...h264, ...vp8, ...codecs.filter((codec) => !preferred.has(codec))]);
+    } catch (error) {
+      diag("setCodecPreferences fallback: " + error);
+    }
+  };
+
+  // 编码参数（spec「质量与延迟参数」）：带宽紧张先降分辨率不降帧率；8Mbps 上限给动态场景
+  // 留足码率（此前完全没设，靠浏览器默认）。setParameters 失败只记诊断，回退默认协商。
+  const applyVideoSenderParameters = async (peer) => {
+    const sender = peer.getSenders().find((candidate) => candidate.track && candidate.track.kind === "video");
+    if (!sender) return;
+    try {
+      const params = sender.getParameters();
+      // encodings 长度必须与 getParameters 返回的一致（否则 InvalidModificationError）：
+      // Chromium 在 addTrack 后通常已带一条，这里只往既有条目上补 maxBitrate。
+      const encodings = params.encodings && params.encodings.length > 0 ? params.encodings : [{}];
+      encodings[0].maxBitrate = 8_000_000;
+      params.encodings = encodings;
+      params.degradationPreference = "maintain-framerate";
+      await sender.setParameters(params);
+    } catch (error) {
+      diag("setParameters fallback: " + error);
+    }
   };
 
   const ensurePeer = async () => {
@@ -81,7 +130,9 @@ window.__rdCapture = (() => {
     stream = captured.fresh;
     videoTrack = captured.track;
     pc = new RTCPeerConnection({ iceServers: [] });
+    applyPreferredCodecs(pc);
     if (videoTrack) pc.addTrack(videoTrack, stream);
+    void applyVideoSenderParameters(pc);
     wireChannel(pc.createDataChannel("control", { ordered: true }), "control");
     wireChannel(pc.createDataChannel("pointer", { maxRetransmits: 0 }), "pointer");
     pc.onicecandidate = (event) => {

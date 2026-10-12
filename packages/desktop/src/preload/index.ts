@@ -74,6 +74,7 @@ import { createOAuthCallbackHandler } from "./oauthCallbackBridge.js";
 const REMOTE_DESKTOP_IPC = {
   GetPeerCapability: "rd/get-peer-capability",
   StartSession: "rd/start-session",
+  GetControlledState: "rd/get-controlled-state",
   SendSignal: "rd/send-signal",
   EndSession: "rd/end-session",
   GetServerState: "rd/get-server-state",
@@ -90,6 +91,9 @@ type RemoteDesktopPeerCapabilityResult = Awaited<
 >;
 type RemoteDesktopStartSessionResult = Awaited<
   ReturnType<RemoteDesktopPlatformSurface["rdStartSession"]>
+>;
+type RemoteDesktopControlledStateResult = Awaited<
+  ReturnType<RemoteDesktopPlatformSurface["rdGetControlledState"]>
 >;
 type RemoteDesktopServerStateResult = Awaited<
   ReturnType<RemoteDesktopPlatformSurface["rdGetServerState"]>
@@ -356,6 +360,9 @@ contextBridge.exposeInMainWorld("mode", {
   /** 发起远程桌面会话：被控同意 + 票据 + 信令 WS 全部由 main 完成 */
   rdStartSession: (serverId: string): Promise<RemoteDesktopStartSessionResult> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.StartSession, serverId),
+  /** 读取本机被控状态（设备页置灰用；发起瞬间由 main 权威拦截） */
+  rdGetControlledState: (): Promise<RemoteDesktopControlledStateResult> =>
+    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetControlledState),
   /** 写出信令消息（main 校验后转发；未建立会话时丢弃） */
   rdSendSignal: (message: RemoteDesktopSignalMessage): Promise<void> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.SendSignal, message),

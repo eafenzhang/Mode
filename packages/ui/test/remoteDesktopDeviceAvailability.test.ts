@@ -55,6 +55,22 @@ test("在线且能力位为真才可连接", () => {
   );
 });
 
+// 产品规则 9（被控中不可发起）：本机被控状态优先于一切对端探测结果。
+test("本机被控中：即使对端就绪也整卡置灰", () => {
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceAvailability(
+      { status: "ok", capability: { remoteDesktop: true, online: true } },
+      { locallyControlled: true },
+    ),
+    { canConnect: false, reason: "locally-controlled" },
+  );
+  // 对端还在探测时，被控原因也优先展示（更可操作）。
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceAvailability({ status: "probing" }, { locallyControlled: true }),
+    { canConnect: false, reason: "locally-controlled" },
+  );
+});
+
 test("设备展示名优先自报名，其次回退 serverId", () => {
   assert.equal(resolveRemoteDesktopDeviceLabel({ serverId: "srv-1", name: " 工作站 " }), "工作站");
   assert.equal(resolveRemoteDesktopDeviceLabel({ serverId: "srv-1", name: "   " }), "srv-1");

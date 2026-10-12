@@ -76,10 +76,11 @@ export function consentWindowSize(locale: Locale): { width: number; height: numb
 }
 
 export function indicatorWindowSize(locale: Locale): { width: number; height: number } {
-  const cardWidth = locale === "zh-CN" ? 460 : 520;
+  // 缩小的半透明白条（spec 产品规则 3）：30px 内容高需与 STATE_STYLE 的 .card.indicator 同步。
+  const cardWidth = locale === "zh-CN" ? 340 : 420;
   return {
     width: cardWidth + CARD_SHADOW_INSET.left + CARD_SHADOW_INSET.right,
-    height: CARD_SHADOW_INSET.top + 40 + CARD_SHADOW_INSET.bottom,
+    height: CARD_SHADOW_INSET.top + 30 + CARD_SHADOW_INSET.bottom,
   };
 }
 
@@ -129,6 +130,20 @@ const STATE_STYLE = `
     .hint, label.check { color: #a8b3c4; }
     button { border-color: rgba(255, 255, 255, 0.18); background: rgba(52, 56, 62, 0.9); }
     button.primary { background: #3b82f6; border-color: #3b82f6; }
+  }
+  /* 指示条（spec 产品规则 3）：缩小的半透明白条，深浅色模式统一白底深字；
+     闲置 4s 由页面脚本切 html[data-state="idle"] 淡出为细条，鼠标移入恢复。
+     这些规则放在深色块之后且选择器更具体，两个模式下都保持白条。 */
+  .card.indicator { height: 30px; gap: 8px; padding: 0 8px 0 12px; color: #0f172a;
+    background: rgba(255, 255, 255, 0.88); border-color: rgba(15, 23, 42, 0.12);
+    border-radius: 10px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 6px 14px -8px rgba(15, 23, 42, 0.2);
+    transition: opacity 200ms ease; }
+  .card.indicator .text { font-size: 12px; }
+  .card.indicator button { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px;
+    border-color: rgba(15, 23, 42, 0.18); background: rgba(248, 250, 252, 0.9); color: #0f172a; }
+  html[data-state="idle"] .card.indicator { opacity: 0.32; }
+  @media (prefers-reduced-motion: reduce) {
+    .card.indicator { transition: none; }
   }
 `;
 
@@ -197,7 +212,7 @@ export function consentWindowDataUrl(
   return dataUrl(locale, html);
 }
 
-/** 指示浮层页面：常驻「<设备名> 正在远程控制本机」+「结束」按钮（点击 = 本地结束会话）。 */
+/** 指示浮层页面：半透明白条「<设备名> 正在远程控制本机」+「结束」按钮（点击 = 本地结束会话）。 */
 export function indicatorWindowDataUrl(locale: Locale, deviceLabel: string): string {
   const text = escapeHtml(remoteDesktopCopy(locale, "remoteDesktop.indicator.text", { device: deviceLabel }));
   const end = escapeHtml(remoteDesktopCopy(locale, "remoteDesktop.indicator.end"));
@@ -216,6 +231,21 @@ export function indicatorWindowDataUrl(locale: Locale, deviceLabel: string): str
   <script>
     ${ACTION_BRIDGE_SCRIPT}
     document.getElementById("end").addEventListener("click", () => window.__rd.emit({ kind: "end" }));
+    // 闲置自动淡出（spec 产品规则 3）：窗口内 4s 无鼠标操作 → data-state=idle（低透明度细条），
+    // 鼠标移入/移动即恢复。只切视觉状态，窗口、长轮询桥与结束按钮不受影响。
+    (() => {
+      const IDLE_MS = 4000;
+      const root = document.documentElement;
+      let timer = 0;
+      const wake = () => {
+        root.dataset.state = "active";
+        clearTimeout(timer);
+        timer = setTimeout(() => { root.dataset.state = "idle"; }, IDLE_MS);
+      };
+      document.addEventListener("mouseenter", wake);
+      document.addEventListener("mousemove", wake);
+      wake();
+    })();
   </script>
 </body>
 </html>`;

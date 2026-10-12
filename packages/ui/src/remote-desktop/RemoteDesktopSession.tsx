@@ -1,5 +1,5 @@
 /**
- * 远程桌面会话面（主控侧）：视频全宽 letterbox + 工具条（显示器/全屏/断开）+ 状态条（fps/RTT/分辨率）。
+ * 远程桌面会话面（主控侧）：顶部操作栏（设备名/分辨率/全屏/断开）+ 视频全宽 letterbox + 底部状态条（fps/RTT/分辨率）。
  *
  * 交互要点（docs/specs/lan-remote-desktop.md UI 规则与产品规则 6/7）：
  * - 视频按 `object-fit: contain` 适配，画面内隐藏本地光标（对端光标随帧显示，避免双光标）；
@@ -125,43 +125,10 @@ export function RemoteDesktopSession({
       data-testid="remote-desktop-session"
       className="relative flex h-full min-h-0 flex-col bg-background outline-none"
     >
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        {/* cursor-none：画面内只显示对端随帧光标（spec 产品规则 7）。 */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="h-full w-full cursor-none object-contain"
-        />
-        {view.mediaStatus !== "live" ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-popover/95 px-3 py-2 text-ui-base text-foreground shadow-sm">
-              {view.phase === "closed" ? (
-                <Unplug className="size-4 text-destructive" />
-              ) : (
-                <LoaderIcon className="size-4 animate-spin text-foreground-subtle" />
-              )}
-              <span>{intl.formatMessage({ id: statusText })}</span>
-            </div>
-          </div>
-        ) : null}
-        {view.phase === "closed" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/85">
-            <p className="max-w-md text-center text-ui-base text-foreground">
-              {intl.formatMessage({ id: statusText })}
-            </p>
-            <Button type="button" variant="outline" size="sm" onClick={() => onExit()}>
-              <ArrowLeft className="size-4" />
-              {intl.formatMessage({ id: "remoteDesktop.session.backToDevices" })}
-            </Button>
-          </div>
-        ) : null}
-      </div>
-
+      {/* 操作栏在顶部（spec UI 规则·会话面）：border-b；状态条留底部。 */}
       <div
         data-testid="remote-desktop-toolbar"
-        className="flex flex-wrap items-center gap-2 border-t border-border bg-panel px-3 py-2"
+        className="flex flex-wrap items-center gap-2 border-b border-border bg-panel px-3 py-2"
       >
         <div className="flex min-w-0 items-center gap-2 text-ui-base text-foreground">
           <MonitorSmartphone className="size-4 shrink-0 text-foreground-subtle" />
@@ -225,6 +192,40 @@ export function RemoteDesktopSession({
             {intl.formatMessage({ id: "remoteDesktop.session.disconnect" })}
           </Button>
         </div>
+      </div>
+
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        {/* cursor-none：画面内只显示对端随帧光标（spec 产品规则 7）。 */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="h-full w-full cursor-none object-contain"
+        />
+        {view.mediaStatus !== "live" ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-popover/95 px-3 py-2 text-ui-base text-foreground shadow-sm">
+              {view.phase === "closed" ? (
+                <Unplug className="size-4 text-destructive" />
+              ) : (
+                <LoaderIcon className="size-4 animate-spin text-foreground-subtle" />
+              )}
+              <span>{intl.formatMessage({ id: statusText })}</span>
+            </div>
+          </div>
+        ) : null}
+        {view.phase === "closed" ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/85">
+            <p className="max-w-md text-center text-ui-base text-foreground">
+              {intl.formatMessage({ id: statusText })}
+            </p>
+            <Button type="button" variant="outline" size="sm" onClick={() => onExit()}>
+              <ArrowLeft className="size-4" />
+              {intl.formatMessage({ id: "remoteDesktop.session.backToDevices" })}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div

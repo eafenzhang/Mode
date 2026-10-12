@@ -27,6 +27,8 @@ export const remoteDesktopErrorCodeSchema = z.enum([
   "unsupported",
   "unauthorized",
   "stale_ticket",
+  // 本机被控中发起主控（spec 产品规则 9：被控中不可发起，断开被控后重试）。
+  "locally_controlled",
   "internal",
 ]);
 export type RemoteDesktopErrorCode = z.infer<typeof remoteDesktopErrorCodeSchema>;

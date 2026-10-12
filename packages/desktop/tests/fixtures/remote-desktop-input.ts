@@ -100,7 +100,7 @@ assert.equal(splitFrames[0].length, 512);
 assert.equal(splitFrames[1].length, 1);
 assert.equal(REMOTE_DESKTOP_INJECT_MAX_EVENTS, 512);
 
-// ── 批量器：pointer ≤16ms 聚合、control 即时 flush、爆量立即 flush、reset 丢弃 ──
+// ── 批量器：pointer 0ms 同 tick 聚合、control 即时 flush、爆量立即 flush、reset 丢弃 ──
 const timers = [];
 const frames = [];
 const batcher = createRemoteDesktopInjectBatcher({
@@ -122,8 +122,8 @@ const advance = () => {
 
 batcher.enqueuePointer([{ k: "move", x: 1, y: 1 }]);
 batcher.enqueuePointer([{ k: "move", x: 2, y: 2 }]);
-assert.equal(frames.length, 0, "pointer 必须等 16ms 聚合窗口");
-assert.equal(timers[0].delayMs, 16, "聚合窗口 = 16ms");
+assert.equal(frames.length, 0, "pointer 必须等聚合窗口（同 tick 合并，不即时 flush）");
+assert.equal(timers[0].delayMs, 0, "聚合窗口 = 0ms（spec 质量与延迟参数：不人为排队）");
 advance();
 assert.equal(frames.length, 1);
 assert.deepEqual(frames[0], [

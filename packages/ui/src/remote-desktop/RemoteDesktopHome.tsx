@@ -34,19 +34,33 @@ type PeerListState =
   | { status: "ok"; peers: LanPairedPeer[] }
   | { status: "error" };
 
-export function RemoteDesktopHome({ isDesktop }: { isDesktop: boolean }) {
+export function RemoteDesktopHome({
+  isDesktop,
+  active,
+}: {
+  isDesktop: boolean;
+  /** 视图是否当前可见：分支常驻隐藏时为 false（spec UI 规则「切换保持连接」）。 */
+  active: boolean;
+}) {
   const { intl } = useModeIntl();
   const platform = usePlatform();
   // 与其它「跳设置分区」入口同款：先写入待消费分区意图，再由 tab store 打开设置 tab。
   const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
   const [peers, setPeers] = useState<PeerListState>({ status: "loading" });
   const [probes, setProbes] = useState<Record<string, RemoteDesktopDeviceProbe>>({});
+  const [locallyControlled, setLocallyControlled] = useState(false);
   const [sessionTarget, setSessionTarget] = useState<{ serverId: string; name: string } | null>(
     null,
   );
 
   const loadPeers = useCallback(async () => {
     setPeers({ status: "loading" });
+    // 本机被控状态与设备列表并行读（spec 产品规则 9）；读失败按未被控展示，
+    // 发起瞬间仍由 main 的 rd/start-session 权威拦截（locally_controlled）。
+    void platform
+      .rdGetControlledState()
+      .then(({ controlled }) => setLocallyControlled(controlled))
+      .catch(() => undefined);
     try {
       const list = await platform.getLanPairedPeers();
       setPeers({ status: "ok", peers: list });
@@ -82,9 +96,13 @@ export function RemoteDesktopHome({ isDesktop }: { isDesktop: boolean }) {
     }
   }, [platform]);
 
+  // 首次挂载即在视图内；之后只在「重新可见」或「会话结束回到设备列表」时刷新探测——
+  // 分支常驻隐藏期间不发网络请求。会话进行中（sessionTarget 非空）不刷新。
   useEffect(() => {
-    void loadPeers();
-  }, [loadPeers]);
+    if (active && !sessionTarget) {
+      void loadPeers();
+    }
+  }, [active, sessionTarget, loadPeers]);
 
   const openLanAccessSettings = useCallback(() => {
     setPendingSettingsSectionIntent("lanAccess");
@@ -99,10 +117,9 @@ export function RemoteDesktopHome({ isDesktop }: { isDesktop: boolean }) {
   }, []);
 
   const exitSession = useCallback(() => {
+    // 回设备列表的刷新由上方 active/sessionTarget effect 统一触发（含本机被控状态重读）。
     setSessionTarget(null);
-    // 会话可能改变了对端状态（开关被关/被占用），回来立刻刷新能力位与在线状态。
-    void loadPeers();
-  }, [loadPeers]);
+  }, []);
 
   if (sessionTarget) {
     return (
@@ -194,6 +211,7 @@ export function RemoteDesktopHome({ isDesktop }: { isDesktop: boolean }) {
                   const name = resolveRemoteDesktopDeviceLabel(peer);
                   const availability = resolveRemoteDesktopDeviceAvailability(
                     probes[peer.serverId],
+                    { locallyControlled },
                   );
                   const blockedReason = availability.reason;
                   return (

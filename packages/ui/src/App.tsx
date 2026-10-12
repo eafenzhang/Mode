@@ -820,7 +820,8 @@ export function App({
     setWorkspaceMainView("plugin-store");
   }, [preserveNextSettingsExit]);
   const handleNavigateToRemoteDesktopMain = useCallback(() => {
-    // 与插件市场同款主视图切换；会话面与媒体状态挂在页面组件内，切走即卸载（收口在 main）。
+    // 与插件市场同款主视图切换；会话面在 layout 的常驻层里保持挂载（切走只隐藏不断连，
+    // spec lan-remote-desktop UI 规则「切换菜单/页面保持连接」）。
     setWorkspaceMainView("remote-desktop");
   }, []);
   const handleOpenAutomationConsumed = useCallback(() => {

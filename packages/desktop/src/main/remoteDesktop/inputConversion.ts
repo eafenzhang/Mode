@@ -5,8 +5,9 @@
  *
  * - 坐标：主控按「所选显示器画面」归一化（0..1）；这里用 shared `mapMonitorNormalizedToVirtualAbsolute`
  *   换算为 VIRTUALDESK 绝对坐标（0..65535，含多屏负原点）。
- * - 批量：pointer 事件按帧聚合（≤16ms）；control 事件即时触发一次 flush（先 pointer 后 control，
- *   保持同帧内先后）。单帧 ≤512 条（与 Rust MAX_RAW_INPUT_EVENTS 同口径），超出拆帧。
+ * - 批量：pointer 事件 0ms 聚合（仅同 tick 合并，主控已即时发送，见 spec「质量与延迟参数」）；
+ *   control 事件即时触发一次 flush（先 pointer 后 control，保持同帧内先后）。
+ *   单帧 ≤512 条（与 Rust MAX_RAW_INPUT_EVENTS 同口径），超出拆帧。
  */
 import {
   mapMonitorNormalizedToVirtualAbsolute,
@@ -27,7 +28,12 @@ export interface RemoteDesktopPxRect {
   heightPx: number;
 }
 
-export const REMOTE_DESKTOP_POINTER_FRAME_MS = 16;
+/**
+ * pointer 聚合窗口：0ms = 只在同一个事件循环 tick 内合并（setTimeout(0) 调度），
+ * 不再人为排队 16ms——主控已即时发送，这段等待是可削的指针端到端延迟
+ * （spec「质量与延迟参数」；爆量仍由 512 条/帧上限立即 flush 兜底）。
+ */
+export const REMOTE_DESKTOP_POINTER_FRAME_MS = 0;
 
 function toAbsolute(
   point: { x: number; y: number },
@@ -105,7 +111,7 @@ export function splitRemoteDesktopInjectFrames(
 }
 
 export interface RemoteDesktopInjectBatcher {
-  /** pointer 事件：进缓冲，等待 ≤16ms 的按帧聚合。 */
+  /** pointer 事件：进缓冲，等待 0ms 聚合窗口（同 tick 合并后 flush）。 */
   enqueuePointer(events: RemoteDesktopRawInputEvent[]): void;
   /** control 事件：即时 flush（缓冲的 pointer 先出，保持同帧先后）。 */
   enqueueControl(events: RemoteDesktopRawInputEvent[]): void;

@@ -361,6 +361,15 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     null,
   );
   const [isSidebarFileTreeOpen, setIsSidebarFileTreeOpen] = useState(false);
+  // 远程桌面视图首次进入后常驻（spec UI 规则「切换菜单/页面保持连接」）：切走时用
+  // opacity + inert 隐藏而不卸载，WebRTC、DataChannel 与 main 侧信令全部存活。
+  // 首次访问当帧由 `visited || 当前视图` 保证渲染，effect 只负责离开后保持挂载。
+  const [remoteDesktopVisited, setRemoteDesktopVisited] = useState(false);
+  useEffect(() => {
+    if (workspaceMainView === "remote-desktop") {
+      setRemoteDesktopVisited(true);
+    }
+  }, [workspaceMainView]);
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
   const screenshotSurfaceRequest = useBrowserScreenshotSurfaceRequest(sidePaneState?.tabs ?? []);
   const screenshotSurfaceTab = screenshotSurfaceRequest
@@ -1749,7 +1758,35 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         />
                       </ScopedErrorBoundary>
                     ) : null}
-                    <div className="min-h-0 flex-1 overflow-hidden">
+                    <div className="relative min-h-0 flex-1 overflow-hidden">
+                      {/* 远程桌面常驻层：首次进入后不卸载（切页保持连接）。非当前视图时
+                          opacity-0 + pointer-events-none + inert——不抢焦点、不收指针/键盘
+                          事件（inert 期间失焦自动补发键鼠抬起），下方当前视图正常交互。
+                          挂载条件含 `visited || 当前视图`，保证首次进入当帧就渲染。 */}
+                      {(remoteDesktopVisited || workspaceMainView === "remote-desktop") && (
+                        <div
+                          className={cn(
+                            "absolute inset-0 z-0",
+                            workspaceMainView !== "remote-desktop" &&
+                              "pointer-events-none opacity-0",
+                          )}
+                          inert={workspaceMainView !== "remote-desktop" ? true : undefined}
+                        >
+                          <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+                            <ScopedErrorBoundary
+                              scope="remote-desktop"
+                              resetKeys={[workspaceKey, workspaceAbsPath]}
+                              variant="panel"
+                              className="h-full"
+                            >
+                              <RemoteDesktopHome
+                                isDesktop={Boolean(isDesktop)}
+                                active={workspaceMainView === "remote-desktop"}
+                              />
+                            </ScopedErrorBoundary>
+                          </main>
+                        </div>
+                      )}
                       {workspaceMainView === "automations" ? (
                         <main
                           id={AUTOMATIONS_TOAST_ANCHOR_ID}
@@ -1827,20 +1864,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             </div>
                           </AutomationsMainBreadcrumbFrame>
                         </main>
-                      ) : workspaceMainView === "remote-desktop" ? (
-                        // 远程桌面主视图：设备页与会话面都在页面组件内切换；
-                        // 会话面需要整块空间承载视频，因此不套 breadcrumb 内容容器。
-                        <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
-                          <ScopedErrorBoundary
-                            scope="remote-desktop"
-                            resetKeys={[workspaceKey, workspaceAbsPath]}
-                            variant="panel"
-                            className="h-full"
-                          >
-                            <RemoteDesktopHome isDesktop={Boolean(isDesktop)} />
-                          </ScopedErrorBoundary>
-                        </main>
-                      ) : (
+                      ) : workspaceMainView ===
+                        "remote-desktop" ? // 远程桌面已由上方常驻层渲染（设备页与会话面在页面组件内切换；
+                      // 会话面需要整块空间承载视频，因此不套 breadcrumb 内容容器）。
+                      null : (
                         <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                           {renderChatFindDialog()}
                           <ScopedErrorBoundary
