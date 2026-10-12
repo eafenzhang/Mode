@@ -31,6 +31,7 @@ import {
   resolveRemoteDesktopDeviceLabel,
   type RemoteDesktopDeviceProbe,
 } from "@/remote-desktop/deviceAvailability.js";
+import { RemoteDesktopAddDevice } from "@/remote-desktop/RemoteDesktopAddDevice.js";
 import { RemoteDesktopSession } from "@/remote-desktop/RemoteDesktopSession.js";
 
 type PeerListState =
@@ -222,6 +223,9 @@ export function RemoteDesktopHome({
                 {peerActionError}
               </p>
             ) : null}
+
+            {/* 「检测设备 + 配对」在本页完成（从远程连接向导前移）；配对成功刷新设备列表。 */}
+            <RemoteDesktopAddDevice onPaired={loadPeers} />
 
             {peers.status === "loading" ? (
               <p className="flex items-center gap-2 py-6 text-ui-base text-foreground-subtle">
