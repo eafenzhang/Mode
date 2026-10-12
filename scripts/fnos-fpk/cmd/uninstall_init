@@ -1,0 +1,5 @@
+#!/bin/bash
+# 卸载前：停止服务。数据（var 会话/凭据、etc 令牌）保留，是否清理由 fnOS 卸载流程决定。
+cd "$(dirname "$0")" || exit 0
+bash ./main stop >> "${TRIM_PKGVAR:-/tmp}/info.log" 2>&1 || true
+exit 0

@@ -1,0 +1,163 @@
+#!/bin/bash
+# Mode 服务生命周期入口（fnOS fpk 契约：start/stop/status；0=成功/运行中，1=失败，3=未运行）。
+# 进程所有权：本脚本通过 PID 文件唯一管理 mode --web 进程（见 docs/specs/fnos-fpk-packaging.md）。
+cd "$(dirname "$0")" || exit 1
+source ./lib.sh
+
+PID_FILE="${TRIM_PKGVAR}/app.pid"
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+ENTRY="${TRIM_APPDEST}/bin/mode.mjs"
+NODE_BIN="${TRIM_APPDEST}/runtime/bin/node"
+PORT="${TRIM_SERVICE_PORT:-$MODE_APP_PORT_DEFAULT}"
+
+check_process() {
+    kill -0 "$1" 2>/dev/null
+}
+
+is_running() {
+    if [ -f "$PID_FILE" ]; then
+        local pid
+        pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
+        if [ -n "$pid" ] && check_process "$pid"; then
+            return 0
+        fi
+        rm -f "$PID_FILE"
+    fi
+    return 1
+}
+
+# 内置 Node 需要执行位；安装回调已补，这里再防御一次。
+# target 卷属主不允许修改时，回退复制到应用数据目录（属主即运行用户）。
+ensure_node_binary() {
+    if [ -x "$NODE_BIN" ]; then
+        return 0
+    fi
+    chmod 755 "$NODE_BIN" 2>/dev/null || true
+    if [ -x "$NODE_BIN" ]; then
+        return 0
+    fi
+    local alt="${TRIM_PKGVAR}/runtime/bin/node"
+    if [ ! -x "$alt" ] || [ "$NODE_BIN" -nt "$alt" ]; then
+        mkdir -p "$(dirname "$alt")" 2>/dev/null || return 1
+        cp -f "$NODE_BIN" "$alt" 2>/dev/null || return 1
+        chmod 755 "$alt" 2>/dev/null || true
+    fi
+    if [ -x "$alt" ]; then
+        NODE_BIN="$alt"
+        mode_log "using fallback node runtime: $alt"
+        return 0
+    fi
+    return 1
+}
+
+# 工作区优先级：etc/workspace 显式配置 > 飞牛授权目录首项 > 应用数据目录下 workspace。
+resolve_workspace() {
+    if [ -s "${TRIM_PKGETC}/workspace" ]; then
+        WORKSPACE="$(head -n 1 "${TRIM_PKGETC}/workspace" | tr -d '\r')"
+    elif [ -n "${TRIM_DATA_ACCESSIBLE_PATHS:-}" ]; then
+        WORKSPACE="${TRIM_DATA_ACCESSIBLE_PATHS%%:*}"
+    else
+        WORKSPACE="${TRIM_PKGVAR}/workspace"
+    fi
+    if ! mkdir -p "$WORKSPACE" 2>/dev/null; then
+        WORKSPACE="${TRIM_PKGVAR}/workspace"
+        mkdir -p "$WORKSPACE" 2>/dev/null || mode_fail "工作目录不可用：${WORKSPACE}"
+    fi
+}
+
+start_process() {
+    if is_running; then
+        return 0
+    fi
+    [ -f "$ENTRY" ] || mode_fail "缺少入口文件：${ENTRY}"
+    ensure_node_binary || mode_fail "内置 Node 运行时不可用：${NODE_BIN}"
+
+    local token secret
+    token="$(mode_ensure_token)" || mode_fail "无法生成访问令牌"
+    secret="$(mode_ensure_credential_secret)" || mode_fail "无法生成凭据密钥"
+    resolve_workspace
+    mode_patch_ui_config "$token" || true
+
+    local cmd
+    cmd="exec \"${NODE_BIN}\" \"${ENTRY}\" --web --host 0.0.0.0 --port ${PORT} --token \"${token}\" --workspace \"${WORKSPACE}\" --no-open"
+    local home_dir="${TRIM_PKGHOME:-$HOME}"
+    local run_path="${TRIM_APPDEST}/runtime/bin:${PATH}"
+
+    mode_log "starting: port=${PORT} workspace=${WORKSPACE} node=${NODE_BIN}"
+    # 脚本以 root 运行时降权到专用应用用户；正常情况 fnOS 已按 run-as=package 执行本脚本。
+    if [ "$(id -u)" = "0" ] && command -v runuser >/dev/null 2>&1 && [ -n "${TRIM_USERNAME:-}" ]; then
+        runuser -u "${TRIM_USERNAME}" -- env \
+            MODE_DATA_BASE_DIR="${TRIM_PKGVAR}" \
+            MODE_CREDENTIAL_SECRET="${secret}" \
+            HOME="${home_dir}" \
+            PATH="${run_path}" \
+            bash -c "${cmd}" >> "$LOG_FILE" 2>&1 &
+    else
+        MODE_DATA_BASE_DIR="${TRIM_PKGVAR}" \
+        MODE_CREDENTIAL_SECRET="${secret}" \
+        HOME="${home_dir}" \
+        PATH="${run_path}" \
+            bash -c "${cmd}" >> "$LOG_FILE" 2>&1 &
+    fi
+    local pid=$!
+    printf '%s' "$pid" > "$PID_FILE"
+    sleep 1
+    if ! check_process "$pid"; then
+        rm -f "$PID_FILE"
+        mode_fail "Mode 启动失败，请查看日志：${LOG_FILE}"
+    fi
+    mode_log "started pid=${pid}"
+}
+
+stop_process() {
+    if [ ! -f "$PID_FILE" ]; then
+        mode_log "stop: no pid file"
+        return 0
+    fi
+    local pid
+    pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
+    if [ -z "$pid" ] || ! check_process "$pid"; then
+        rm -f "$PID_FILE"
+        return 0
+    fi
+
+    mode_log "stopping pid=${pid}"
+    kill -TERM "$pid" 2>/dev/null || true
+    local count=0
+    while check_process "$pid" && [ "$count" -lt 10 ]; do
+        sleep 1
+        count=$((count + 1))
+    done
+    if check_process "$pid"; then
+        mode_log "SIGKILL pid=${pid}"
+        kill -KILL "$pid" 2>/dev/null || true
+        sleep 1
+    fi
+    # runuser 包装场景的兜底：子进程若残留在同一入口文件上，按路径定向清理。
+    if check_process "$pid"; then
+        pkill -TERM -f "${ENTRY}" 2>/dev/null || true
+        sleep 1
+    fi
+    rm -f "$PID_FILE"
+    mode_log "stopped"
+}
+
+case "$1" in
+start)
+    start_process
+    ;;
+stop)
+    stop_process
+    ;;
+status)
+    if is_running; then
+        exit 0
+    else
+        exit 3
+    fi
+    ;;
+*)
+    exit 1
+    ;;
+esac
+exit 0

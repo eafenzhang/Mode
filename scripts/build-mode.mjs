@@ -100,11 +100,24 @@ function commandText(command, args) {
 
 function run(command, args, options = {}) {
   console.log(`[mode] ${commandText(command, args)}`);
-  const result = spawnSync(command, args, {
+  let result = spawnSync(command, args, {
     cwd: root,
     stdio: "inherit",
     ...options,
   });
+  // 修复：Windows 下 CreateProcess 只补 .exe 后缀，找不到以 .cmd 安装的 pnpm（npm 全局装法），
+  // 首次 spawn 抛 ENOENT；而 Node 出于安全考虑又禁止直接 spawn .cmd/.bat（抛 EINVAL），
+  // 只能经 shell 解析。仅 win32 且命令为 pnpm 时回退 shell 执行，Linux/macOS 不受影响。
+  if (result.error && process.platform === "win32" && command === "pnpm") {
+    if (result.error.code === "ENOENT" || result.error.code === "EINVAL") {
+      result = spawnSync(command, args, {
+        cwd: root,
+        stdio: "inherit",
+        shell: true,
+        ...options,
+      });
+    }
+  }
   if (result.error) {
     throw new Error(`${commandText(command, args)} failed: ${result.error.message}`, {
       cause: result.error,

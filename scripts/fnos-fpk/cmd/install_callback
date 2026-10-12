@@ -1,0 +1,7 @@
+#!/bin/bash
+# 安装完成后：生成令牌/密钥、修正 payload 权限、写入入口令牌与访问地址。
+cd "$(dirname "$0")" || exit 1
+source ./lib.sh
+
+mode_post_install "Mode 安装完成"
+exit 0

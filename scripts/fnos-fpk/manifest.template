@@ -1,0 +1,13 @@
+appname               = mode
+version               = __MODE_VERSION__
+display_name          = Mode
+desc                  = Mode 编码 Agent：常驻 NAS 的 AI 助手与远程工作台。安装后在飞牛桌面或浏览器打开即可使用；数据保存在应用数据目录，升级不丢失。
+platform              = x86
+source                = thirdparty
+maintainer            = eafenzhang
+maintainer_url        = https://github.com/eafenzhang/Mode
+distributor           = eafenzhang
+distributor_url       = https://github.com/eafenzhang/Mode
+desktop_uidir         = ui
+desktop_applaunchname = mode.Application
+service_port          = __MODE_PORT__

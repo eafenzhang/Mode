@@ -27,7 +27,11 @@ const env = {
 let web;
 let terminal;
 try {
-  await exec("tar", ["-xzf", resolve(archive), "-C", directory]);
+  // 修复：Windows 本地验证时 GNU tar 把 `D:\...` 盘符当远程主机（host:path 语法），
+  // 报 "Cannot connect to D: resolve failed"。仅 win32 追加 --force-local，与 build-mode.mjs 同因处理。
+  const extractArgs = ["-xzf", resolve(archive), "-C", directory];
+  if (process.platform === "win32") extractArgs.unshift("--force-local");
+  await exec("tar", extractArgs);
   await mkdir(workspace);
   await exec(process.execPath, [runner, "--help"], { cwd: workspace, env });
   const version = (

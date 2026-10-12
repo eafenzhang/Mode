@@ -1,0 +1,8 @@
+#!/bin/bash
+# 升级完成后：应用目录被整体替换（入口令牌恢复为占位符），重新写入令牌与权限。
+# 数据（etc 配置 / var 数据）不随升级变动。
+cd "$(dirname "$0")" || exit 1
+source ./lib.sh
+
+mode_post_install "Mode 升级完成"
+exit 0

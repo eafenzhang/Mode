@@ -1,0 +1,13 @@
+{
+  ".url": {
+    "mode.Application": {
+      "title": "Mode",
+      "icon": "images/icon_{0}.png",
+      "type": "url",
+      "protocol": "http",
+      "port": "__MODE_PORT__",
+      "url": "/?token=__MODE_TOKEN__",
+      "allUsers": true
+    }
+  }
+}
