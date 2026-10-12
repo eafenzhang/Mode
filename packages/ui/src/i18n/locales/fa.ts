@@ -698,9 +698,12 @@ const faIR: Record<string, string> = {
   "bots.newBot.selectProviderHint": "برای ساخت بات، یک کانال را در سمت راست انتخاب کنید.",
   "bots.newBot.fallbackName": "بات جدید",
   "bots.newBot.comingSoon": "به‌زودی",
-  "bots.newBot.providerDescription.weixin": "اسکن کنید و وارد شوید، سپس برای فعال‌سازی یک پیام بفرستید.",
-  "bots.newBot.providerDescription.feishu": "اسکن کنید تا اپ ساخته شود، سپس برای پیوند یک پیام بفرستید.",
-  "bots.newBot.providerDescription.wecom": "اسکن کنید تا بات ساخته شود، سپس برای پیوند یک پیام بفرستید.",
+  "bots.newBot.providerDescription.weixin":
+    "اسکن کنید و وارد شوید، سپس برای فعال‌سازی یک پیام بفرستید.",
+  "bots.newBot.providerDescription.feishu":
+    "اسکن کنید تا اپ ساخته شود، سپس برای پیوند یک پیام بفرستید.",
+  "bots.newBot.providerDescription.wecom":
+    "اسکن کنید تا بات ساخته شود، سپس برای پیوند یک پیام بفرستید.",
   "bots.empty": "باتی پیکربندی نشده است.",
   "bots.name": "نام بات",
   "bots.provider": "کانال",
@@ -781,7 +784,8 @@ const faIR: Record<string, string> = {
   "bots.runtime.wecomConnected": "ربات WeCom متصل است.",
   "bots.runtime.wecomReconnecting": "ربات WeCom در حال اتصال مجدد است.",
   "bots.runtime.wecomStopped": "اتصال ربات WeCom متوقف شد.",
-  "bots.runtime.wecomKicked": "اتصال توسط کلاینت دیگری تصاحب شد. آن را در پنجره‌های دیگر Mode غیرفعال کنید و سپس اینجا فعال کنید.",
+  "bots.runtime.wecomKicked":
+    "اتصال توسط کلاینت دیگری تصاحب شد. آن را در پنجره‌های دیگر Mode غیرفعال کنید و سپس اینجا فعال کنید.",
   "bots.telegramBotFatherQrAlt": "کد QR BotFather در Telegram",
   "bots.telegramBotFatherScanHint": "برای باز کردن BotFather، ساخت بات و جای‌گذاری توکن اسکن کنید.",
   "bots.openBotFather": "باز کردن BotFather",
@@ -833,19 +837,22 @@ const faIR: Record<string, string> = {
   "bots.generateBindCode": "تولید کد پیوند",
   "bots.resetState": "بازنشانی وضعیت",
   "bots.channel.dingtalk": "DingTalk",
-  "bots.newBot.providerDescription.dingtalk": "اعتبارنامه اپ را وارد کنید، سپس برای پیوند یک پیام بفرستید.",
+  "bots.newBot.providerDescription.dingtalk":
+    "اعتبارنامه اپ را وارد کنید، سپس برای پیوند یک پیام بفرستید.",
   "bots.botTokenDescription.dingtalk": "ذخیره اعتبارنامه برنامه DingTalk (AppKey + AppSecret).",
   "bots.dingtalk.credentialsMissing": "اعتبارنامه برنامه DingTalk پیکربندی نشده است.",
   "bots.dingtalk.credentialHint":
     "در پلتفرم باز DingTalk یک «برنامه داخلی» بسازید و ربات آن را فعال کنید (حالت Stream بدون URL عمومی)، سپس AppKey و AppSecret را وارد کنید.",
   "bots.dingtalk.clientIdPlaceholder": "AppKey (clientId)",
   "bots.dingtalk.secretPlaceholder": "AppSecret",
-  "bots.dingtalk.manualSaved": "اعتبارنامه DingTalk ذخیره شد. برای اتصال در DingTalk دستور /bind را بفرستید.",
+  "bots.dingtalk.manualSaved":
+    "اعتبارنامه DingTalk ذخیره شد. برای اتصال در DingTalk دستور /bind را بفرستید.",
   "bots.runtime.dingtalkConnecting": "استریم DingTalk در حال اتصال است.",
   "bots.runtime.dingtalkConnected": "استریم DingTalk متصل است.",
   "bots.runtime.dingtalkReconnecting": "استریم DingTalk در حال اتصال مجدد است.",
   "webRemoteControl.botChannel.dingtalk.title": "DingTalk",
-  "webRemoteControl.botChannel.dingtalk.description": "این فضای کاری را به‌صورت دور از DingTalk باز کنید.",
+  "webRemoteControl.botChannel.dingtalk.description":
+    "این فضای کاری را به‌صورت دور از DingTalk باز کنید.",
   "bots.dingtalkCard.title": "استریم کارت AI",
   "bots.dingtalkCard.description":
     "با شناسه قالب کارت، پاسخ‌ها به‌صورت کارت AI DingTalk استریم می‌شوند و در غیر این صورت Markdown برمی‌گردد.",
@@ -908,7 +915,8 @@ const faIR: Record<string, string> = {
   "bots.privateChat.mode.boundUsers": "کاربران متصل",
   "bots.privateChat.mode.allUsers": "همه کاربران",
   "bots.privateChat.boundUsersLabel": "کاربران متصل",
-  "bots.privateChat.boundUsersHint": "کاربران دیگر با همان کد پیوند اضافه می‌شوند؛ حذف هرکدام نیاز به پیوند مجدد دارد.",
+  "bots.privateChat.boundUsersHint":
+    "کاربران دیگر با همان کد پیوند اضافه می‌شوند؛ حذف هرکدام نیاز به پیوند مجدد دارد.",
   "bots.privateChat.primaryBadge": "کاربر اصلی",
   "bots.privateChat.noBoundUsers": "هنوز کاربری متصل نشده",
   "bots.privateChat.removeUser": "حذف کاربر {user}",
@@ -1827,12 +1835,13 @@ const faIR: Record<string, string> = {
   "webRemoteControl.botChannel.title": "استفاده از کانال ربات",
   "webRemoteControl.botChannel.description": "برای دسترسی موبایلی طولانی‌مدت، یک چت‌بات متصل کنید.",
   "webRemoteControl.botChannel.weixin.title": "Weixin",
-  "webRemoteControl.botChannel.weixin.description": "این فضای کاری را به‌صورت دور از Weixin باز کنید.",
+  "webRemoteControl.botChannel.weixin.description":
+    "این فضای کاری را به‌صورت دور از Weixin باز کنید.",
   "webRemoteControl.botChannel.feishu.title": "Feishu",
-  "webRemoteControl.botChannel.feishu.description": "این فضای کاری را به‌صورت دور از Feishu باز کنید.",
+  "webRemoteControl.botChannel.feishu.description":
+    "این فضای کاری را به‌صورت دور از Feishu باز کنید.",
   "webRemoteControl.botChannel.wecom.title": "WeCom",
-  "webRemoteControl.botChannel.wecom.description":
-    "این فضای کاری را به‌صورت دور از WeCom باز کنید.",
+  "webRemoteControl.botChannel.wecom.description": "این فضای کاری را به‌صورت دور از WeCom باز کنید.",
   "webRemoteControl.botChannel.configure": "پیکربندی در کانال‌های ربات",
   "webRemoteControl.botChannel.manageBots": "مدیریت ربات‌ها",
   "remote.title": "اتصال به محیط از راه دور",
@@ -1854,16 +1863,19 @@ const faIR: Record<string, string> = {
   "remote.kind.docker.wizardDescription": "کانتینر محلی",
   "remote.kind.lan": "شبکه محلی",
   "remote.kind.lan.wizardDescription": "نمونه‌های Mode در شبکه محلی",
-  "remote.lan.description": "نمونه‌های Mode را در شبکه پیدا کنید که دسترسی شبکه محلی دارند؛ اتصال نخست به کد پیوندی نیاز دارد که در دستگاه دیگر نمایش داده می‌شود.",
+  "remote.lan.description":
+    "نمونه‌های Mode را در شبکه پیدا کنید که دسترسی شبکه محلی دارند؛ اتصال نخست به کد پیوندی نیاز دارد که در دستگاه دیگر نمایش داده می‌شود.",
   "remote.lan.discoveredTitle": "دستگاه‌های یافت‌شده",
   "remote.lan.rescan": "جست‌وجوی دوباره",
   "remote.lan.scanning": "در حال جست‌وجوی Mode در شبکه…",
-  "remote.lan.empty": "دستگاهی یافت نشد. نشانی را دستی وارد کنید یا بررسی کنید که در دستگاه دیگر دسترسی شبکه محلی روشن باشد.",
+  "remote.lan.empty":
+    "دستگاهی یافت نشد. نشانی را دستی وارد کنید یا بررسی کنید که در دستگاه دیگر دسترسی شبکه محلی روشن باشد.",
   "remote.lan.hostLabel": "نشانی",
   "remote.lan.portLabel": "درگاه",
   "remote.lan.pairCodeLabel": "کد پیوند",
   "remote.lan.pair": "پیوند",
-  "remote.lan.pairCodeHint": "کد را در دستگاه دیگر از «تنظیمات ← دسترسی شبکه محلی» بسازید؛ تا ۵ دقیقه معتبر است.",
+  "remote.lan.pairCodeHint":
+    "کد را در دستگاه دیگر از «تنظیمات ← دسترسی شبکه محلی» بسازید؛ تا ۵ دقیقه معتبر است.",
   "remote.lan.validation.hostRequired": "نشانی دستگاه مقابل را وارد کنید.",
   "remote.lan.validation.hostInvalid": "نشانی نباید دو نقطه داشته باشد (IPv6 پشتیبانی نمی‌شود).",
   "remote.lan.validation.portInvalid": "درگاه باید عددی بین ۱ تا ۶۵۵۳۵ باشد.",
@@ -5619,8 +5631,7 @@ const faIR: Record<string, string> = {
   "mode.unavailable": "ایجنت هوش مصنوعی در دسترس نیست",
   "mode.initFailed": "راه‌اندازی ایجنت هوش مصنوعی ناموفق بود",
   "mode.error.TASK_OWNED_BY_OTHER_HOST": "این وظیفه هم‌اکنون در نمای متصل دیگری در حال اجراست.",
-  "mode.error.STALE_TASK_OWNER_COMMAND":
-    "این اقدام متعلق به اجرای قدیمی‌تری بود و نادیده گرفته شد.",
+  "mode.error.STALE_TASK_OWNER_COMMAND": "این اقدام متعلق به اجرای قدیمی‌تری بود و نادیده گرفته شد.",
   "mode.error.NO_ACTIVE_TASK_OWNER": "برای این اقدام، دارنده فعالی برای وظیفه در دسترس نیست.",
   "mode.error.OWNER_COMMAND_FAILED": "دارنده وظیفه نتوانست این اقدام را انجام دهد.",
   "mode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
@@ -6150,13 +6161,15 @@ const faIR: Record<string, string> = {
     "Mode هنگام شروع نخستین نشست شما، ابزارهای Computer Use را با دقیقاً همان نشست بررسی و تأیید می‌کند.",
   "settings.computerUse.title": "Computer Use",
   "settings.lanAccess.title": "دسترسی شبکه محلی",
-  "settings.lanAccess.description": "با روشن بودن، نمونه‌های دیگر Mode در شبکه می‌توانند با کد پیوند به این دستگاه وصل شوند و از فضاهای کاری آن استفاده کنند. پیش‌فرض خاموش است.",
+  "settings.lanAccess.description":
+    "با روشن بودن، نمونه‌های دیگر Mode در شبکه می‌توانند با کد پیوند به این دستگاه وصل شوند و از فضاهای کاری آن استفاده کنند. پیش‌فرض خاموش است.",
   "settings.lanAccess.enable": "اجازه دسترسی شبکه محلی",
   "settings.lanAccess.statusEnabled": "در حال گوش دادن روی {address}",
   "settings.lanAccess.statusDisabled": "خاموش",
   "settings.lanAccess.pairCode": "کد پیوند",
   "settings.lanAccess.pairCodeExpires": "انقضا تا {time}",
-  "settings.lanAccess.pairCodeHint": "بسازید و به دستگاه مقصد بدهید؛ هر پیوند توکن بلندمدت جداگانه می‌گیرد.",
+  "settings.lanAccess.pairCodeHint":
+    "بسازید و به دستگاه مقصد بدهید؛ هر پیوند توکن بلندمدت جداگانه می‌گیرد.",
   "settings.lanAccess.createPairCode": "ساخت کد",
   "settings.lanAccess.refreshPairCode": "ساخت دوباره",
   "settings.lanAccess.pairCodeFailed": "ساخت کد پیوند ناموفق بود",
@@ -6180,7 +6193,10 @@ const faIR: Record<string, string> = {
   "settings.lanAccess.lastWorkspace": "آخرین باز شدن: {path}",
   "settings.lanAccess.noLastWorkspace": "هنوز وجود ندارد",
   "settings.lanAccess.refreshPairedPeers": "تازه‌سازی",
-  "settings.lanAccess.firewallHint": "بار نخست ممکن است سیستم اجازه فایروال بخواهد؛ دسترسی شبکه خصوصی را مجاز کنید.",
+  "settings.lanAccess.firewallHint":
+    "بار نخست ممکن است سیستم اجازه فایروال بخواهد؛ دسترسی شبکه خصوصی را مجاز کنید.",
+  // رومیزی از راه دور (docs/specs/lan-remote-desktop.md): بخش تنظیمات سمت کنترل‌شده،
+  // صفحه دستگاه‌ها و صفحه نشست سمت کنترل‌کننده، و لایه‌های سمت کنترل‌شده.
   "settings.remoteDesktop.title": "رومیزی از راه دور",
   "settings.remoteDesktop.enable": "اجازه کنترل از راه دور",
   "settings.remoteDesktop.statusEnabled":

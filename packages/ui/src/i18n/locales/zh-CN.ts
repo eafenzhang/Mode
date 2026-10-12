@@ -605,14 +605,12 @@ const zhCN: Record<string, string> = {
   "bots.replyGranularity": "回复颗粒度",
   "bots.replyGranularity.description": "选择回复包含的内容明细。",
   "bots.replyGranularity.assistantChanges": "标准回复",
-  "bots.replyGranularity.assistantChanges.description":
-    "回复正文与文件变更，隐藏工具调用过程。",
+  "bots.replyGranularity.assistantChanges.description": "回复正文与文件变更，隐藏工具调用过程。",
   "bots.replyGranularity.assistantToolcallsChanges": "完整回复",
   "bots.replyGranularity.assistantToolcallsChanges.description":
     "回复正文、工具调用进度与文件变更。",
   "bots.replyGranularity.summaryChanges": "摘要回复",
-  "bots.replyGranularity.summaryChanges.description":
-    "仅回复最终结果与变更摘要，适合低打扰通知。",
+  "bots.replyGranularity.summaryChanges.description": "仅回复最终结果与变更摘要，适合低打扰通知。",
   "bots.replyGranularity.streamingCard": "流式回复",
   "bots.replyGranularity.streamingCard.description":
     "飞书/Lark、Telegram、企业微信以流式消息输出打字机回复。",
@@ -627,8 +625,7 @@ const zhCN: Record<string, string> = {
   "bots.channel.webhook": "Webhook",
   "bots.newBot.title": "新建机器人",
   "bots.newBot.chooseChannel": "选择渠道",
-  "bots.newBot.description":
-    "选择机器人接收消息的渠道，凭据与绑定稍后配置。",
+  "bots.newBot.description": "选择机器人接收消息的渠道，凭据与绑定稍后配置。",
   "bots.newBot.selectProviderHint": "在右侧选择一个渠道来创建机器人。",
   "bots.newBot.fallbackName": "新机器人",
   "bots.newBot.comingSoon": "即将支持",
@@ -795,18 +792,14 @@ const zhCN: Record<string, string> = {
   "taskList.botBind.boundToast": "已把 {name}（{botId}）的 {conversation} 绑定到这个会话",
   "taskList.botBind.unboundToast": "已解绑 {name}（{botId}）的 {conversation}",
   "bots.groupChat.title": "群聊方式",
-  "bots.groupChat.description":
-    "群聊仅绑定用户可驱动，未被 @ 的消息会作为上下文记录。",
+  "bots.groupChat.description": "群聊仅绑定用户可驱动，未被 @ 的消息会作为上下文记录。",
   "bots.groupChat.descriptionAlways":
     "每条消息都会进入会话（仅绑定用户可驱动），由 AI 判断是否回复，群内禁用本机读写。",
   "bots.groupChat.descriptionNoMention":
     "该通道无法识别 @ 状态，「全部回复」时每条消息都会触发机器人。",
-  "bots.groupChat.descriptionWecom":
-    "企微仅在 @机器人 时下发群消息，因此只能选择 @提及。",
-  "bots.groupChat.descriptionUnbound":
-    "请先完成私聊绑定（发送 /bind），否则群消息会被静默忽略。",
-  "bots.groupChat.descriptionAllUsers":
-    "「私聊方式」为「全部用户」：群里任何成员都能驱动机器人。",
+  "bots.groupChat.descriptionWecom": "企微仅在 @机器人 时下发群消息，因此只能选择 @提及。",
+  "bots.groupChat.descriptionUnbound": "请先完成私聊绑定（发送 /bind），否则群消息会被静默忽略。",
+  "bots.groupChat.descriptionAllUsers": "「私聊方式」为「全部用户」：群里任何成员都能驱动机器人。",
   "bots.groupChat.descriptionAllUsersAlways":
     "「私聊方式」为「全部用户」：任何成员的每条消息都会进入会话，由 AI 判断是否回复。",
   "bots.groupChat.mode.disabled": "不响应群聊",
@@ -1740,7 +1733,8 @@ const zhCN: Record<string, string> = {
   "remote.kind.docker.wizardDescription": "本地容器",
   "remote.kind.lan": "局域网",
   "remote.kind.lan.wizardDescription": "局域网内已开共享的 Mode",
-  "remote.lan.description": "搜索同一网段内开启「允许局域网访问」的 Mode；首次连接需要输入对端显示的配对码。",
+  "remote.lan.description":
+    "搜索同一网段内开启「允许局域网访问」的 Mode；首次连接需要输入对端显示的配对码。",
   "remote.lan.discoveredTitle": "发现的设备",
   "remote.lan.rescan": "重新搜索",
   "remote.lan.scanning": "正在搜索局域网内的 Mode…",
@@ -5981,7 +5975,8 @@ const zhCN: Record<string, string> = {
     "首个会话启动时，Mode 会针对该会话精确验证电脑控制工具。",
   "settings.computerUse.title": "电脑控制",
   "settings.lanAccess.title": "局域网访问",
-  "settings.lanAccess.description": "开启后同一网段内的其它 Mode 可以用配对码连接本机并使用这里的工作区；默认关闭。",
+  "settings.lanAccess.description":
+    "开启后同一网段内的其它 Mode 可以用配对码连接本机并使用这里的工作区；默认关闭。",
   "settings.lanAccess.enable": "允许局域网访问",
   "settings.lanAccess.statusEnabled": "正在监听 {address}",
   "settings.lanAccess.statusDisabled": "未开启",
@@ -6012,6 +6007,8 @@ const zhCN: Record<string, string> = {
   "settings.lanAccess.noLastWorkspace": "尚无",
   "settings.lanAccess.refreshPairedPeers": "刷新",
   "settings.lanAccess.firewallHint": "首次开启时系统可能询问防火墙权限，请允许专用网络访问。",
+  // 远程桌面（docs/specs/lan-remote-desktop.md）：被控设置分区 + 主控设备页/会话面 + 被控浮层。
+  // 被控同意窗/指示浮层的 key 与文案与 desktop 侧 windowsContent.ts 字典保持一致（两端同文案）。
   "settings.remoteDesktop.title": "远程桌面",
   "settings.remoteDesktop.enable": "允许被远程控制",
   "settings.remoteDesktop.statusEnabled": "已开启；已配对设备发起连接时会弹出同意窗。",

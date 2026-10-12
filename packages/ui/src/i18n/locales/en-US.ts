@@ -61,8 +61,7 @@ const enUS: Record<string, string> = {
   "occupationOnboarding.migration": "Migrate conversations",
   "occupationOnboarding.migrationDescription": "Migrate conversation history from Claude Code",
   "occupationOnboarding.memory": "Enable Workspace Memory",
-  "occupationOnboarding.memoryDescription":
-    "Let Mode remember your preferences and work context.",
+  "occupationOnboarding.memoryDescription": "Let Mode remember your preferences and work context.",
   "occupationOnboarding.suggestions": "Enable proactive task suggestions",
   "occupationOnboarding.suggestionsDescription":
     "Show suggestions in new conversations. Click to fill the composer.",
@@ -752,7 +751,8 @@ const enUS: Record<string, string> = {
   "bots.botTokenDescription.lark": "Scan to get app credentials.",
   "bots.botTokenDescription.weixin": "Credentials are saved after scan.",
   "bots.botTokenDescription.webhook": "Used to connect this webhook bot.",
-  "bots.botTokenDescription.wecom": "Scan to create in one step, or enter bot credentials manually.",
+  "bots.botTokenDescription.wecom":
+    "Scan to create in one step, or enter bot credentials manually.",
   "bots.wecom.credentialsMissing": "WeCom bot credentials are not configured yet.",
   "bots.wecom.registrationTitle": "Create bot by scanning",
   "bots.wecom.registrationDescription":
@@ -780,7 +780,8 @@ const enUS: Record<string, string> = {
   "bots.runtime.wecomConnected": "WeCom bot is connected.",
   "bots.runtime.wecomReconnecting": "WeCom bot is reconnecting.",
   "bots.runtime.wecomStopped": "WeCom bot connection is stopped.",
-  "bots.runtime.wecomKicked": "The connection was taken over by another client. Disable it in other Mode windows, then re-enable here.",
+  "bots.runtime.wecomKicked":
+    "The connection was taken over by another client. Disable it in other Mode windows, then re-enable here.",
   "bots.telegramBotFatherQrAlt": "Telegram BotFather QR code",
   "bots.telegramBotFatherScanHint": "Scan to open BotFather, create a bot, and paste the token.",
   "bots.openBotFather": "Open BotFather",
@@ -838,7 +839,8 @@ const enUS: Record<string, string> = {
     "Create an internal app on the DingTalk open platform with its robot enabled (Stream mode needs no public URL), then fill in the AppKey and AppSecret.",
   "bots.dingtalk.clientIdPlaceholder": "AppKey (clientId)",
   "bots.dingtalk.secretPlaceholder": "AppSecret",
-  "bots.dingtalk.manualSaved": "DingTalk credentials saved. Send /bind in DingTalk to finish binding.",
+  "bots.dingtalk.manualSaved":
+    "DingTalk credentials saved. Send /bind in DingTalk to finish binding.",
   "bots.runtime.dingtalkConnecting": "DingTalk stream is connecting.",
   "bots.runtime.dingtalkConnected": "DingTalk stream is connected.",
   "bots.runtime.dingtalkReconnecting": "DingTalk stream is reconnecting.",
@@ -874,15 +876,15 @@ const enUS: Record<string, string> = {
   "bots.groupChat.descriptionAlways":
     "Every message reaches the session (only the bound user drives it) and the AI decides whether to reply; local read/write tools are off in groups.",
   "bots.groupChat.descriptionNoMention":
-    "This channel cannot detect mentions: \"Reply to all\" triggers the bot on every message.",
+    'This channel cannot detect mentions: "Reply to all" triggers the bot on every message.',
   "bots.groupChat.descriptionWecom":
     "WeCom delivers group messages only when the bot is mentioned, so @mention is the only mode.",
   "bots.groupChat.descriptionUnbound":
     "Bind this bot in a private chat first (/bind); until then group messages are silently ignored.",
   "bots.groupChat.descriptionAllUsers":
-    "Private chat mode is \"All users\": any group member can drive the bot.",
+    'Private chat mode is "All users": any group member can drive the bot.',
   "bots.groupChat.descriptionAllUsersAlways":
-    "Private chat mode is \"All users\": every message enters the session and the AI decides whether to reply.",
+    'Private chat mode is "All users": every message enters the session and the AI decides whether to reply.',
   "bots.groupChat.mode.disabled": "Ignore groups",
   "bots.groupChat.mode.mention": "@mention",
   "bots.groupChat.mode.always": "All messages",
@@ -893,9 +895,9 @@ const enUS: Record<string, string> = {
   "bots.heartbeat.intervalSuffix": "min",
   "bots.workspaceManagement.title": "Workspace",
   "bots.workspaceManagement.description.unbound":
-    "Once bound, messages stay in one workspace ({botId}) and access is limited to it; pick \"Unbound\" to keep switching with /workspace.",
+    'Once bound, messages stay in one workspace ({botId}) and access is limited to it; pick "Unbound" to keep switching with /workspace.',
   "bots.workspaceManagement.description.bound":
-    "Bound to \"{workspace}\" ({botId}): messages stay there; picking another workspace rebinds.",
+    'Bound to "{workspace}" ({botId}): messages stay there; picking another workspace rebinds.',
   "bots.workspaceManagement.selectPlaceholder": "Select a workspace",
   "bots.workspaceManagement.option.unbound": "Unbound (follow /workspace)",
   "bots.privateChat.title": "Private chat",
@@ -906,7 +908,8 @@ const enUS: Record<string, string> = {
   "bots.privateChat.mode.boundUsers": "Bound users",
   "bots.privateChat.mode.allUsers": "All users",
   "bots.privateChat.boundUsersLabel": "Bound users",
-  "bots.privateChat.boundUsersHint": "Other users join with the same bind code; removing one requires rebinding.",
+  "bots.privateChat.boundUsersHint":
+    "Other users join with the same bind code; removing one requires rebinding.",
   "bots.privateChat.primaryBadge": "Primary",
   "bots.privateChat.noBoundUsers": "No bound user yet",
   "bots.privateChat.removeUser": "Remove user {user}",
@@ -1841,8 +1844,7 @@ const enUS: Record<string, string> = {
   "webRemoteControl.botChannel.feishu.title": "Feishu",
   "webRemoteControl.botChannel.feishu.description": "Open this workspace remotely from Feishu.",
   "webRemoteControl.botChannel.wecom.title": "WeCom",
-  "webRemoteControl.botChannel.wecom.description":
-    "Open this workspace remotely from WeCom.",
+  "webRemoteControl.botChannel.wecom.description": "Open this workspace remotely from WeCom.",
   "webRemoteControl.botChannel.configure": "Configure in bot channels",
   "webRemoteControl.botChannel.manageBots": "Manage bots",
   "remote.title": "Connect remote environment",
@@ -1864,18 +1866,22 @@ const enUS: Record<string, string> = {
   "remote.kind.docker.wizardDescription": "Local container",
   "remote.kind.lan": "LAN",
   "remote.kind.lan.wizardDescription": "Mode instances shared on your LAN",
-  "remote.lan.description": "Find Mode instances on your network that allow LAN access; the first connection needs the pairing code shown on the other machine.",
+  "remote.lan.description":
+    "Find Mode instances on your network that allow LAN access; the first connection needs the pairing code shown on the other machine.",
   "remote.lan.discoveredTitle": "Discovered devices",
   "remote.lan.rescan": "Search again",
   "remote.lan.scanning": "Searching for Mode on your network…",
-  "remote.lan.empty": "No device found. Enter the address manually, or check that LAN access is enabled on the other machine.",
+  "remote.lan.empty":
+    "No device found. Enter the address manually, or check that LAN access is enabled on the other machine.",
   "remote.lan.hostLabel": "Address",
   "remote.lan.portLabel": "Port",
   "remote.lan.pairCodeLabel": "Pairing code",
   "remote.lan.pair": "Pair",
-  "remote.lan.pairCodeHint": "Generate the code under Settings → LAN access on the other machine; it stays valid for 5 minutes.",
+  "remote.lan.pairCodeHint":
+    "Generate the code under Settings → LAN access on the other machine; it stays valid for 5 minutes.",
   "remote.lan.validation.hostRequired": "Enter the peer address.",
-  "remote.lan.validation.hostInvalid": "The address cannot contain a colon (IPv6 literals are not supported yet).",
+  "remote.lan.validation.hostInvalid":
+    "The address cannot contain a colon (IPv6 literals are not supported yet).",
   "remote.lan.validation.portInvalid": "Port must be a number between 1 and 65535.",
   "remote.connect": "Connect",
   "remote.connecting": "Connecting...",
@@ -2515,8 +2521,7 @@ const enUS: Record<string, string> = {
     "App and agent logs plus crash reports; today's files are kept.",
   "resourceManager.storage.categoryDescription.backups":
     "Database and settings copies made before upgrades or migrations.",
-  "resourceManager.storage.categoryDescription.exports":
-    "Exported log bundles.",
+  "resourceManager.storage.categoryDescription.exports": "Exported log bundles.",
   "resourceManager.storage.categoryDescription.runtimes":
     "Bundled agent runtimes, Computer Use components and plugins.",
   "resourceManager.storage.categoryDescription.config":
@@ -3015,7 +3020,7 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.codingPlan.login": "Configure {provider} API key",
   "settings.modelProvider.codingPlan.browserLogin": "Sign in via browser",
   "settings.modelProvider.codingPlan.browserLoginHint":
-    'Browser sign-in did not complete. Finish the authorization in your browser, then retry.',
+    "Browser sign-in did not complete. Finish the authorization in your browser, then retry.",
   "settings.modelProvider.codingPlan.connect": "Configure {provider}",
   "settings.modelProvider.codingPlan.disconnect": "Unlink",
   "settings.modelProvider.codingPlan.upgrade": "Configure",
@@ -3325,8 +3330,7 @@ const enUS: Record<string, string> = {
   "sidebar.usage.plan.toolCalls": "Tool calls",
   "sidebar.usage.plan.mcp": "Mode MCP",
   "sidebar.usage.plan.modeMcp": "Mode MCP",
-  "sidebar.usage.plan.modeMcpDescription":
-    "Daily aggregate quota for Mode built-in plugin MCPs",
+  "sidebar.usage.plan.modeMcpDescription": "Daily aggregate quota for Mode built-in plugin MCPs",
   "chat.planUsage.title": "Plan usage",
   "chat.planUsage.titleWithPlan": "{plan} Plan usage",
   "chat.planUsage.providerFallback": "Current provider",
@@ -3822,8 +3826,7 @@ const enUS: Record<string, string> = {
   "settings.plugins.store.info.website": "Website",
   "settings.plugins.store.info.privacyPolicy": "Privacy policy",
   "settings.plugins.store.info.termsOfService": "Terms of service",
-  "settings.plugins.store.personalEmpty":
-    "No plugin source yet — use Add to connect one.",
+  "settings.plugins.store.personalEmpty": "No plugin source yet — use Add to connect one.",
   "settings.plugins.filter.label": "Status filter",
   "settings.plugins.footerSummary": "{total} plugins · {enabled} enabled",
   "settings.plugins.searchPlaceholder": "Search plugins...",
@@ -4330,8 +4333,7 @@ const enUS: Record<string, string> = {
   "chat.emptyResult.title": "No visible output",
   "chat.emptyResult.description":
     "This task finished without any chat content. It may have been stopped before the model produced a response.",
-  "chat.placeholder.newTask":
-    "Ask Mode anything, @ to add context, / for commands or capabilities",
+  "chat.placeholder.newTask": "Ask Mode anything, @ to add context, / for commands or capabilities",
   "chat.placeholder.newTaskMobile": "Ask Mode anything…",
   "chat.placeholder.followUpAsk": "Ask for follow-up changes",
   "chat.placeholder.followUpQueue": "Keep typing to queue follow-up changes",
@@ -5744,8 +5746,7 @@ const enUS: Record<string, string> = {
     "The model returned no content (often caused by an expired token or plan issues). Please send again.",
   "mode.error.providerBusiness.2007":
     "The upstream service is temporarily unavailable. Please try again later.",
-  "mode.error.providerBusiness.429":
-    "You're sending requests too quickly. Please try again later.",
+  "mode.error.providerBusiness.429": "You're sending requests too quickly. Please try again later.",
 
   // Debug info bar
   "debugInfo.taskId": "Task ID",
@@ -6251,13 +6252,15 @@ const enUS: Record<string, string> = {
     "Mode will verify the Computer Use tools against the exact session when your first session starts.",
   "settings.computerUse.title": "Computer Use",
   "settings.lanAccess.title": "LAN access",
-  "settings.lanAccess.description": "When enabled, other Mode instances on your network can pair with this machine and use its workspaces. Off by default.",
+  "settings.lanAccess.description":
+    "When enabled, other Mode instances on your network can pair with this machine and use its workspaces. Off by default.",
   "settings.lanAccess.enable": "Allow LAN access",
   "settings.lanAccess.statusEnabled": "Listening on {address}",
   "settings.lanAccess.statusDisabled": "Off",
   "settings.lanAccess.pairCode": "Pairing code",
   "settings.lanAccess.pairCodeExpires": "Expires in {time}",
-  "settings.lanAccess.pairCodeHint": "Generate one and share it with the device you want to connect; every pairing gets its own long-lived token.",
+  "settings.lanAccess.pairCodeHint":
+    "Generate one and share it with the device you want to connect; every pairing gets its own long-lived token.",
   "settings.lanAccess.createPairCode": "Generate code",
   "settings.lanAccess.refreshPairCode": "Regenerate",
   "settings.lanAccess.pairCodeFailed": "Failed to generate the pairing code",
@@ -6281,7 +6284,11 @@ const enUS: Record<string, string> = {
   "settings.lanAccess.lastWorkspace": "Last opened: {path}",
   "settings.lanAccess.noLastWorkspace": "None yet",
   "settings.lanAccess.refreshPairedPeers": "Refresh",
-  "settings.lanAccess.firewallHint": "Your system may ask for firewall permission the first time; allow private-network access.",
+  "settings.lanAccess.firewallHint":
+    "Your system may ask for firewall permission the first time; allow private-network access.",
+  // Remote Desktop (docs/specs/lan-remote-desktop.md): controlled-side settings section,
+  // controlling-side device page / session surface, and the controlled-side overlay copy.
+  // The consent/indicator keys mirror the wording of desktop's windowsContent.ts dictionary.
   "settings.remoteDesktop.title": "Remote Desktop",
   "settings.remoteDesktop.enable": "Allow remote control",
   "settings.remoteDesktop.statusEnabled":
