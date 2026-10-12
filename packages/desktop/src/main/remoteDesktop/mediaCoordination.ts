@@ -25,6 +25,20 @@ export function normalizeMediaFreezeReason(reason: string | undefined): "locked"
 }
 
 /**
+ * MediaStatus（helper kind1）出站规划：frozen:true → freeze（reason 走归一）；
+ * frozen:false → unfreeze（不带 reason——解冻没有理由维度，畸形输入也只出 unfreeze）。
+ */
+export function buildMediaStatusOutbound(
+  frozen: boolean,
+  reason?: string,
+): RemoteDesktopMediaOutbound[] {
+  if (frozen) {
+    return [{ kind: "signal", message: { type: "freeze", reason: normalizeMediaFreezeReason(reason) } }];
+  }
+  return [{ kind: "signal", message: { type: "unfreeze" } }];
+}
+
+/**
  * start-capture 出站序列（spec 事件顺序 ②：先信令后启动——media-open 先把 key/salt 交给主控，
  * MediaStart 才拉起 helper 采集，主控解密就绪才收得住帧）。
  */

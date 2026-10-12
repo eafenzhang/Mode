@@ -47,9 +47,9 @@ import {
 } from "./captureWindow.js";
 import { listRemoteDesktopMonitors, physicalRectOf } from "./monitors.js";
 import {
+  buildMediaStatusOutbound,
   buildSelectMonitorOutbound,
   buildStartCaptureOutbound,
-  normalizeMediaFreezeReason,
   type RemoteDesktopMediaOutbound,
 } from "./mediaCoordination.js";
 
@@ -455,19 +455,15 @@ async function handleSignalFromHost(message: RemoteDesktopSignalMessage): Promis
   runtimeState.logger.warn(`[remote-desktop] unexpected signal from peer: ${message.type}`);
 }
 
-/** helper kind1 采集状态（host 的 MediaStatus）：冻结透传给主控；指示条生命周期由会话状态管，不受影响。 */
+/** helper kind1 采集状态（host 的 MediaStatus）：冻结/解冻透传给主控；指示条生命周期由会话状态管，不受影响。 */
 function handleMediaStatus(message: { frozen: boolean; reason?: string }): void {
   const runtimeState = runtime;
   if (!runtimeState || runtimeState.state.phase !== "active") {
     // 会话外的状态通知丢弃（冻结透传只发生在活跃会话）。
     return;
   }
-  if (message.frozen) {
-    // reason 归一（locked 保真、其余 access-lost）：理由与矩阵断言见 mediaCoordination。
-    sendSignalToPeer({ type: "freeze", reason: normalizeMediaFreezeReason(message.reason) });
-    return;
-  }
-  sendSignalToPeer({ type: "unfreeze" });
+  // 布尔分支（freeze 归一 / unfreeze）与矩阵断言见 mediaCoordination。
+  dispatchOutbounds(buildMediaStatusOutbound(message.frozen, message.reason));
 }
 
 /** 绑定 hostBridge 的会话回调（main 启动时调用一次）。 */

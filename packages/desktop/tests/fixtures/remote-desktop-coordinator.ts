@@ -25,6 +25,40 @@ assert.equal(media.normalizeMediaFreezeReason("encode-error"), "access-lost", "�
 assert.equal(media.normalizeMediaFreezeReason("access-lost"), "access-lost");
 assert.equal(media.normalizeMediaFreezeReason(undefined), "access-lost", "无 reason 归 access-lost");
 
+// ── Important 1a'：frozen 布尔分支的完整出站规划（fix round 2：unfreeze 分支与 freeze 对称断言）──
+assert.deepEqual(
+  media.buildMediaStatusOutbound(true, "locked"),
+  [{ kind: "signal", message: { type: "freeze", reason: "locked" } }],
+  "frozen:true + locked → freeze{locked} 保真",
+);
+assert.deepEqual(
+  media.buildMediaStatusOutbound(true, "capture-error"),
+  [{ kind: "signal", message: { type: "freeze", reason: "access-lost" } }],
+  "frozen:true + 实现面错误串 → freeze{access-lost} 归并",
+);
+assert.deepEqual(
+  media.buildMediaStatusOutbound(true),
+  [{ kind: "signal", message: { type: "freeze", reason: "access-lost" } }],
+  "frozen:true 无 reason → freeze{access-lost}",
+);
+assert.deepEqual(
+  media.buildMediaStatusOutbound(false),
+  [{ kind: "signal", message: { type: "unfreeze" } }],
+  "frozen:false → unfreeze",
+);
+assert.deepEqual(
+  media.buildMediaStatusOutbound(false, "locked"),
+  [{ kind: "signal", message: { type: "unfreeze" } }],
+  "frozen:false 带 reason（畸形输入）仍只出 unfreeze，不得夹带冻结理由",
+);
+assert.equal(
+  shared.remoteDesktopSignalMessageSchema.safeParse(
+    media.buildMediaStatusOutbound(true, "locked")[0]?.message,
+  ).success,
+  true,
+  "freeze 信令过契约 D",
+);
+
 // ── Important 1b：start-capture 出站顺序 = 先 media-open 信令、后 MediaStart（spec 事件顺序 ②）──
 const key = "a".repeat(64);
 const salt = "b".repeat(16);
