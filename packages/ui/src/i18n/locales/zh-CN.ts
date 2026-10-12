@@ -6048,6 +6048,7 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.session.negotiating": "正在建立画面通道…",
   "remoteDesktop.session.live": "画面已连接",
   "remoteDesktop.session.reconnecting": "画面中断，正在尝试恢复…",
+  "remoteDesktop.session.frozen": "对端已锁屏，画面已冻结",
   "remoteDesktop.session.backToDevices": "返回设备列表",
   "remoteDesktop.session.monitor": "显示器",
   "remoteDesktop.session.fullscreen": "全屏",

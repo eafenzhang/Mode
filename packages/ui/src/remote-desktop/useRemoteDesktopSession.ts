@@ -211,11 +211,19 @@ export function useRemoteDesktopSession(options: {
   useEffect(() => {
     const onControl = (event: Event) => {
       const detail = (event as CustomEvent<{ t?: string; ts?: number; reason?: string }>).detail;
-      if (detail.t === "pong" && typeof detail.ts === "number") {
+      if (detail?.t === "pong" && typeof detail.ts === "number") {
         // RTT = 收到时刻 - ping 时间戳；异步写入 collector，随下一拍 3s 采样进入状态条。
         nativeStats.current.onPong(Date.now() - detail.ts);
+        return;
       }
-      // freeze/unfreeze 分支 Task 13 接 dispatch。
+      // 冻结状态与对端 freeze/unfreeze 信令共用转移（reducer 一个 frozen 布尔）：
+      // 两条入口谁先到都行，重复到达幂等（同一状态再次写入无副作用）。
+      if (detail?.t === "freeze") {
+        dispatchRef.current({ type: "freeze" });
+      }
+      if (detail?.t === "unfreeze") {
+        dispatchRef.current({ type: "unfreeze" });
+      }
     };
     window.addEventListener("rd-media-control", onControl);
     return () => window.removeEventListener("rd-media-control", onControl);

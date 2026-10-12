@@ -3,7 +3,10 @@
 // 输入事件走 WebRTC DataChannel 双通道（control 可靠 / pointer 可丢）。
 import { z } from "zod";
 
-export const REMOTE_DESKTOP_PROTOCOL_VERSION = 1;
+// 协议版本 2（P3 信令 v2）：新增原生媒体面信令（media-open / freeze / unfreeze），
+// 输入事件改走 media WS 上行。coordinator 的 hello 校验与主控 reducer 的 hello 发送
+// 都引用本常量，两侧同构建天然同版本；旧版对端由 coordinator 回 unsupported 收口。
+export const REMOTE_DESKTOP_PROTOCOL_VERSION = 2;
 
 // ---- 显示器描述（被控端 → 主控端：供选择与坐标换算参照；物理像素口径）----
 export const remoteDesktopMonitorSchema = z

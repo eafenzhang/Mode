@@ -39,7 +39,7 @@ export interface RemoteDesktopSessionViewState {
   selectedDisplayId: string | null;
   /** 已收到 media-open（原生媒体面信令已到，下一步连 media WS；用于连接中提示）。 */
   mediaOpenReceived: boolean;
-  /** 对端画面冻结（锁屏 / 失去访问权限）：freeze/unfreeze 写入（Task 13 落分支与提示）。 */
+  /** 对端画面冻结（锁屏 / 失去访问权限）：freeze/unfreeze 写入；reconnecting 重连时清除。 */
   frozen: boolean;
 }
 
@@ -72,7 +72,11 @@ export type RemoteDesktopSessionEvent =
   | { type: "controller"; event: RemoteDesktopControllerEvent }
   | { type: "select-monitor"; displayId: string }
   | { type: "local-end" }
-  | { type: "media"; status: RemoteDesktopMediaStatus };
+  | { type: "media"; status: RemoteDesktopMediaStatus }
+  // 本地媒体面控制事件（Task 9 胶水派发 rd-media-control）：与对端 freeze/unfreeze 信令
+  // 共用同一转移——信令走 main 转发，媒体帧内控制走 renderer 直派，两条入口一个状态。
+  | { type: "freeze" }
+  | { type: "unfreeze" };
 
 export interface RemoteDesktopSessionTransition {
   state: RemoteDesktopSessionViewState;
@@ -93,6 +97,18 @@ function pickInitialMonitor(monitors: RemoteDesktopMonitor[]): string | null {
   }
   const primary = monitors.find((monitor) => monitor.primary);
   return primary ? primary.displayId : (monitors[0]?.displayId ?? null);
+}
+
+/**
+ * freeze/unfreeze 的唯一转移，两处入口共用：对端信令（main 转发）与媒体面控制事件
+ * （rd-media-control，同帧通道直达）。reason（locked / access-lost）已在信令层归一，
+ * UI 只需布尔，不进 state。
+ */
+function applyFrozen(
+  state: RemoteDesktopSessionViewState,
+  frozen: boolean,
+): RemoteDesktopSessionTransition {
+  return transition(state, { frozen });
 }
 
 function applyControllerState(
@@ -119,13 +135,15 @@ function applyControllerState(
       },
     ]);
   }
-  // connecting：start-session 重试时重置上一轮归因。
+  // connecting：start-session 重试时重置上一轮归因；frozen 一并清除——新会话的冻结状态
+  // 只能由新一轮 freeze 信令写入，不能继承上一轮（Resolution：与 mediaStatus 同列重置）。
   return transition(state, {
     phase: "connecting",
     closeKind: null,
     errorCode: null,
     mediaStatus: "idle",
     mediaOpenReceived: false,
+    frozen: false,
   });
 }
 
@@ -176,10 +194,10 @@ function applyControllerSignal(
       // 主控方向不应收到这些信号（被控端才处理它们）：记录性忽略，不改状态。
       return transition(state, {});
     case "freeze":
+      // 被控端锁屏 / 失去访问权限：画面已冻结，UI 在状态条显示冻结提示（文案不区分 reason）。
+      return applyFrozen(state, true);
     case "unfreeze":
-      // 冻结/解冻信令（被控 → 主控）：frozen 状态字段已就位，消费分支 Task 13 落；
-      // 显式列出是为保持 switch 对 union 的穷举（否则 TS2366 缺结尾 return）。
-      return transition(state, {});
+      return applyFrozen(state, false);
   }
 }
 
@@ -223,5 +241,10 @@ export function reduceRemoteDesktopSession(
       }
       return transition(state, { mediaStatus: event.status });
     }
+    // 媒体面控制事件（rd-media-control）与对端信令共用转移：谁先到都写同一 frozen 布尔。
+    case "freeze":
+      return applyFrozen(state, true);
+    case "unfreeze":
+      return applyFrozen(state, false);
   }
 }

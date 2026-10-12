@@ -6334,6 +6334,7 @@ const enUS: Record<string, string> = {
   "remoteDesktop.session.negotiating": "Setting up the video channel…",
   "remoteDesktop.session.live": "Screen connected",
   "remoteDesktop.session.reconnecting": "Screen interrupted, recovering…",
+  "remoteDesktop.session.frozen": "The peer's screen is locked; the screen is frozen",
   "remoteDesktop.session.backToDevices": "Back to devices",
   "remoteDesktop.session.monitor": "Monitor",
   "remoteDesktop.session.fullscreen": "Full screen",

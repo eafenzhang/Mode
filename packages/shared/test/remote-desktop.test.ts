@@ -14,10 +14,10 @@ import { serverRemoteInfoSchema } from "../src/server-remote.js";
 // spec: docs/specs/lan-remote-desktop.md
 // 协议面是主控/被控两侧与将来 Rust 实现的共同契约：先钉死形状与纯函数边界，再谈接线。
 
-test("协议版本为 1，hello 必须携带版本号", () => {
-  assert.equal(REMOTE_DESKTOP_PROTOCOL_VERSION, 1);
+test("协议版本为 2（原生媒体信令面），hello 必须携带版本号", () => {
+  assert.equal(REMOTE_DESKTOP_PROTOCOL_VERSION, 2);
   assert.equal(
-    remoteDesktopSignalMessageSchema.safeParse({ type: "hello", protocolVersion: 1 }).success,
+    remoteDesktopSignalMessageSchema.safeParse({ type: "hello", protocolVersion: 2 }).success,
     true,
   );
   assert.equal(remoteDesktopSignalMessageSchema.safeParse({ type: "hello" }).success, false);

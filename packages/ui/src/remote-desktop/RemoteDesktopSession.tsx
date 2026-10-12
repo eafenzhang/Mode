@@ -110,15 +110,18 @@ export function RemoteDesktopSession({
     (monitor) => monitor.displayId === view.selectedDisplayId,
   );
   const statusText =
+    // 优先级：结束原因 > 冻结（对端已锁屏，画面不再更新，优先提示）> 媒体/协商/连接进度。
     view.phase === "closed"
       ? resolveCloseReasonId(view.closeKind, view.errorCode)
-      : view.mediaStatus === "live"
-        ? "remoteDesktop.session.live"
-        : view.mediaOpenReceived
-          ? "remoteDesktop.session.negotiating"
-          : view.phase === "connected"
-            ? "remoteDesktop.session.waitingPeer"
-            : "remoteDesktop.session.connecting";
+      : view.frozen
+        ? "remoteDesktop.session.frozen"
+        : view.mediaStatus === "live"
+          ? "remoteDesktop.session.live"
+          : view.mediaOpenReceived
+            ? "remoteDesktop.session.negotiating"
+            : view.phase === "connected"
+              ? "remoteDesktop.session.waitingPeer"
+              : "remoteDesktop.session.connecting";
 
   return (
     <div

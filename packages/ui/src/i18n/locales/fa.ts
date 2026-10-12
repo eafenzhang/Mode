@@ -6241,6 +6241,7 @@ const faIR: Record<string, string> = {
   "remoteDesktop.session.negotiating": "در حال برپایی کانال تصویر…",
   "remoteDesktop.session.live": "تصویر وصل شد",
   "remoteDesktop.session.reconnecting": "تصویر قطع شده؛ در حال بازیابی…",
+  "remoteDesktop.session.frozen": "صفحه دستگاه مقابل قفل شده؛ تصویر منجمد است",
   "remoteDesktop.session.backToDevices": "بازگشت به فهرست دستگاه‌ها",
   "remoteDesktop.session.monitor": "نمایشگر",
   "remoteDesktop.session.fullscreen": "تمام‌صفحه",

@@ -39,7 +39,7 @@ test("初始状态为连接中且无显示器", () => {
   assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.frozen, false);
 });
 
-test("信令通道 connected 后本侧发 hello{protocolVersion:1}", () => {
+test("信令通道 connected 后本侧发 hello{protocolVersion:2}", () => {
   const { state, effects } = reduce(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE, {
     type: "controller",
     event: { kind: "state", state: "connected" },
@@ -221,4 +221,36 @@ test("start-session 重试（connecting）重置上一轮归因", () => {
   assert.equal(retrying.state.errorCode, null);
   assert.equal(retrying.state.offerReceived === undefined, true, "旧字段已随 Task 10 改名");
   assert.equal(retrying.state.mediaOpenReceived, false);
+});
+
+test("freeze/unfreeze 信令切换 frozen；connecting 重连重置", () => {
+  // 被控端锁屏/失去访问权限时发 freeze（reason 已在信令层归一，UI 只需布尔）；
+  // 恢复后发 unfreeze。重连（connecting）必须清掉 frozen：新会话不能继承上一轮的冻结标记。
+  const live = { ...INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE, phase: "connected" };
+
+  const frozen = reduce(live, {
+    type: "controller",
+    event: { kind: "signal", message: { type: "freeze", reason: "locked" } },
+  });
+  assert.equal(frozen.state.frozen, true);
+  assert.deepEqual(frozen.effects, [], "冻结只改视图状态，不产出副作用");
+
+  const thawed = reduce(frozen.state, {
+    type: "controller",
+    event: { kind: "signal", message: { type: "unfreeze" } },
+  });
+  assert.equal(thawed.state.frozen, false);
+
+  // access-lost 与 locked 同分支：reason 不进 state（Task 6 已归一为两值，当前文案不区分）。
+  const accessLost = reduce(live, {
+    type: "controller",
+    event: { kind: "signal", message: { type: "freeze", reason: "access-lost" } },
+  });
+  assert.equal(accessLost.state.frozen, true);
+
+  const retrying = reduce(accessLost.state, {
+    type: "controller",
+    event: { kind: "state", state: "connecting" },
+  });
+  assert.equal(retrying.state.frozen, false);
 });
