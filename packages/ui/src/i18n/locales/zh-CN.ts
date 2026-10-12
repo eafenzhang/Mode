@@ -6056,6 +6056,7 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.session.disconnect": "断开",
   "remoteDesktop.session.fps": "{value} fps",
   "remoteDesktop.session.rtt": "延迟 {value} ms",
+  "remoteDesktop.session.frameAge": "端到端 ~{value} ms",
   "remoteDesktop.session.closed.user": "会话已断开。",
   "remoteDesktop.session.closed.remote": "对端已结束远程控制。",
   "remoteDesktop.session.closed.error": "会话因错误结束。",

@@ -105,6 +105,9 @@ fn mf_release() {
 pub struct EncodedChunk {
   pub seq: u32,
   pub key: bool,
+  /// 采集时刻（Unix 毫秒 u32 截断，worker 取帧时打点）：随帧线上传递，
+  /// 主控据此计算端到端帧龄（被控↔主控时钟偏移经 pong 标定）。
+  pub captured_at_ms: u32,
   pub data: Vec<u8>,
 }
 
@@ -158,8 +161,8 @@ pub struct Encoder {
   /// VP 管线：首帧（见到真实输入纹理）惰性建立。
   vp: Option<VpPipeline>,
   /// 输入→输出配对队列：MF 编码器可能有 0~N 帧流水延迟，输出侧按 FIFO 领回
-  /// 自己的 (seq, key)；flush 时连同被丢弃的在途输入一起清空。
-  pending: VecDeque<(u32, bool)>,
+  /// 自己的 (seq, key, captured_at_ms)；flush 时连同被丢弃的在途输入一起清空。
+  pending: VecDeque<(u32, bool, u32)>,
   /// 是否已灌过首帧（首个输入不 Flush——新 transform 自身就是 IDR 起点）。
   pushed: bool,
   /// `VideoProcessorBlt` 的输出帧序号（要求单调递增）。
@@ -322,7 +325,8 @@ impl Encoder {
 
   /// 一帧进、零或一帧出：状态机冻结 → `None`（不喂编码器）；编码器流水未吐
   /// → `None`（继续喂）。`Some` 表示拿到一帧完整 Annex-B ES。
-  pub fn push(&mut self, texture: &ID3D11Texture2D) -> AxResult<Option<EncodedChunk>> {
+  /// `captured_at_ms` 由调用方在取帧时打点，随配对队列原样随帧输出（帧龄起点）。
+  pub fn push(&mut self, texture: &ID3D11Texture2D, captured_at_ms: u32) -> AxResult<Option<EncodedChunk>> {
     let (seq, key) = match reduce(&mut self.seq_source) {
       EncoderAction::None => return Ok(None),
       EncoderAction::Emit { seq, key } => (seq, key),
@@ -361,7 +365,7 @@ impl Encoder {
       }
     }
     self.pushed = true;
-    self.pending.push_back((seq, key));
+    self.pending.push_back((seq, key, captured_at_ms));
     // GPU：Blt（两路共用）→ 主路产 DXGI 表面样本，回退路回读紧凑 NV12 再灌内存样本。
     let fed = if self.gpu_interop {
       self.blt_to_nv12().and_then(|()| self.feed_input_dxgi(seq))
@@ -377,7 +381,7 @@ impl Encoder {
       // 回退点自然重新对齐关键帧，renderer 无需额外恢复逻辑。
       warn(&format!("D3D 互操作运行中失败，回退系统内存并重试本帧: {e}"));
       self.disable_gpu_interop()?;
-      self.pending.push_back((seq, key));
+      self.pending.push_back((seq, key, captured_at_ms));
       let nv12 = self.blt_and_readback()?;
       self.feed_input(&nv12, seq)?;
     }
@@ -391,14 +395,14 @@ impl Encoder {
     // 执行由它兜底）。
     let key = contains_idr(&data);
     match self.pending.pop_front() {
-      Some((seq, expected_key)) => {
+      Some((seq, expected_key, captured_at_ms)) => {
         // 期望关键帧的配对项拿到非 IDR 帧 = ForceKeyFrame 被驱动忽略 → 永久降级
         // flush 路径（丢 1 帧但必产 IDR；恢复确定性优先于少丢一帧）。
         if expected_key && !key && self.force_key_mode == ForceKeyMode::CodecApi {
           warn("ForceKeyFrame 未生效（输出非 IDR），降级 flush 路径");
           self.force_key_mode = ForceKeyMode::Flush;
         }
-        Ok(Some(EncodedChunk { seq, key, data }))
+        Ok(Some(EncodedChunk { seq, key, captured_at_ms, data }))
       }
       // 按构造不可达：每个输出必对应一个入队输入（flush 两侧同步清空）。
       // 若驱动行为破坏该不变式，宁可丢帧也不发错 seq（IV 唯一性优先）。

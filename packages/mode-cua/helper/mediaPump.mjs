@@ -1,6 +1,8 @@
 // 远程桌面媒体泵：契约 A（napi 采集面）与契约 B（本地管道）之间的 helper 侧适配。
-//   helper→host：kind0 帧 = [u32 seq][u8 flags(bit0=关键帧)][ciphertext‖tag(16B)]，
-//                逐帧 AES-256-GCM；IV 不随帧传，key 32B、IV = salt(8B) ∥ seq(4B 大端)（spec 安全节）。
+//   helper→host：kind0 帧 = [u32 seq][u8 flags(bit0=关键帧)][u32 capturedAtMs(Unix 毫秒
+//                u32 截断；0=未知 — 帧龄起点，主控侧 pong 标定时钟偏移后算端到端帧龄)]
+//                [ciphertext‖tag(16B)]，逐帧 AES-256-GCM；IV 不随帧传，key 32B、
+//                IV = salt(8B) ∥ seq(4B 大端)（spec 安全节）。
 //                kind1 状态 = UTF-8 JSON {"frozen":bool[,"reason":string]}（host 转 freeze/unfreeze 信令）。
 //   host→helper：kind2 开流指令 = [u32BE 1][0x02]；**ready 门控**——收到前只采集不推流
 //                （避免中继在 media WS 未就绪时缓冲堆积）。
@@ -157,12 +159,13 @@ export function createMediaPump(addon) {
     const iv = Buffer.concat([session.salt, u32be(seq)]); // IV = salt(8B) ∥ seq(4B 大端)
     const cipher = createCipheriv("aes-256-gcm", session.key, iv);
     const ct = Buffer.concat([cipher.update(Buffer.from(frame.data)), cipher.final()]);
-    // payload = [u32 seq][u8 flags][ciphertext‖tag]：头 5 字节（契约 B）
-    const payload = Buffer.alloc(5 + ct.length + 16);
+    // payload = [u32 seq][u8 flags][u32 capturedAtMs][ciphertext‖tag]：头 9 字节（契约 B v2）
+    const payload = Buffer.alloc(9 + ct.length + 16);
     payload.writeUInt32BE(seq, 0);
     payload.writeUInt8(frame.key ? 1 : 0, 4);
-    ct.copy(payload, 5);
-    cipher.getAuthTag().copy(payload, 5 + ct.length);
+    payload.writeUInt32BE((frame.capturedAtMs ?? 0) >>> 0, 5);
+    ct.copy(payload, 9);
+    cipher.getAuthTag().copy(payload, 9 + ct.length);
     writeKind(session, 0, payload);
   }
 

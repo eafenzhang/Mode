@@ -6342,6 +6342,7 @@ const enUS: Record<string, string> = {
   "remoteDesktop.session.disconnect": "Disconnect",
   "remoteDesktop.session.fps": "{value} fps",
   "remoteDesktop.session.rtt": "Latency {value} ms",
+  "remoteDesktop.session.frameAge": "E2E ~{value} ms",
   "remoteDesktop.session.closed.user": "Session disconnected.",
   "remoteDesktop.session.closed.remote": "The peer ended the remote control.",
   "remoteDesktop.session.closed.error": "The session ended with an error.",

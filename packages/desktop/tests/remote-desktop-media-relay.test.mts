@@ -319,7 +319,11 @@ if (process.env[SERVER_CASE_ENV] === "1") {
         ]),
         "ready 只下发一次 kind2；need-key/set-bitrate 按契约下行；非法码率不下行",
       );
-      assert.deepEqual(texts, ['{"t":"pong","ts":123}'], "ping 立即回 pong 且原样回传 ts");
+      assert.equal(texts.length, 1, "仅一条 pong");
+      const pong = JSON.parse(texts[0]!) as { t?: string; ts?: number; hostTs?: number };
+      assert.equal(pong.t, "pong");
+      assert.equal(pong.ts, 123, "原样回传 ts（RTT 基准）");
+      assert.equal(typeof pong.hostTs, "number", "附带被控侧时钟戳（帧龄偏移标定用）");
       assert.deepEqual(inputs, [{ t: "pm", x: 10, y: 20 }], "控制面无匹配项之外的输入对象才透传 onInput");
     } finally {
       cleanup(relay, helper);

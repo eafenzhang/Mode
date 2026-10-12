@@ -31,11 +31,13 @@ pub struct RdMediaRect {
 }
 
 /// 帧回调载荷：seq 单调（wire 的 IV = 会话盐∥seq，安全契约）、key = 码流含 IDR、
-/// data = Annex-B ES（Task 7 起加密后进管道 5 字节头）。
+/// captured_at_ms = 取帧时刻打点（Unix 毫秒 u32 截断，随帧线上传递供主控算帧龄）、
+/// data = Annex-B ES（helper 加密后进管道 9 字节头：seq4+flags1+ts4）。
 #[napi(object)]
 pub struct RdMediaFrameNapi {
   pub seq: u32,
   pub key: bool,
+  pub captured_at_ms: u32,
   pub data: Buffer,
 }
 
@@ -377,11 +379,14 @@ fn worker_loop(
           enc.set_frozen(false);
           send_status(&on_status, false, None);
         }
-        match enc.push(&texture) {
+        // 取帧时刻打点：帧龄（glass-to-glass 近似）的起点，随帧一路传到主控绘制处。
+        let captured_at_ms = unix_ms_u32();
+        match enc.push(&texture, captured_at_ms) {
           Ok(Some(chunk)) => {
             let payload = RdMediaFrameNapi {
               seq: chunk.seq,
               key: chunk.key,
+              captured_at_ms: chunk.captured_at_ms,
               data: Buffer::from(chunk.data),
             };
             // NonBlocking（简报）：JS 消费慢只压 TSFN 队列，不反压采集线程。
@@ -496,6 +501,15 @@ fn rebuild_encoder(
   fresh.force_idr();
   *enc = fresh;
   Ok(())
+}
+
+/// 取帧时刻（Unix epoch 毫秒，u32 截断）：帧龄只用百毫秒量级的差值，
+/// 49.7 天回绕窗口内差值语义仍成立（回绕差 < 窗口一半）。时钟不可用回 0（= 未知）。
+fn unix_ms_u32() -> u32 {
+  std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_millis() as u32)
+    .unwrap_or(0)
 }
 
 fn send_status(

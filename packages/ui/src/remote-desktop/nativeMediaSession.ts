@@ -2,8 +2,8 @@
  * 原生媒体面 renderer 会话（spec: docs/specs/lan-remote-desktop-native-media.md）。
  * 纯函数（帧头/IV/SPS）不碰 DOM；胶水部分用 WebCodecs + WS（仅桌面 Chromium）。
  *
- * 下行帧布局（契约 B，helper 生产、这里消费，逐字节一致）：
- *   [u32 seq 大端][u8 flags(bit0=关键帧)][ciphertext ‖ GCM tag(16)]
+ * 下行帧布局（契约 B v2，helper 生产、这里消费，逐字节一致）：
+ *   [u32 seq 大端][u8 flags(bit0=关键帧)][u32 capturedAtMs（被控时钟，帧龄起点）][ciphertext ‖ GCM tag(16)]
  * IV 不随帧传：iv = salt(8B) ∥ seq(4B 大端)，aes-256-gcm（spec 安全节）。
  */
 import { logger } from "@/logger.js";
@@ -11,17 +11,20 @@ import { logger } from "@/logger.js";
 export interface ParsedMediaFrame {
   seq: number;
   key: boolean;
+  /** 采集时刻（被控时钟 Unix 毫秒 u32 截断；0 = 未知）。帧龄 = now − capturedAtMs + 时钟偏移。 */
+  capturedAtMs: number;
   body: Uint8Array;
 }
 
-/** 切帧头：不足 5 字节（残包）返回 null，由调用方丢弃。 */
+/** 切帧头：不足 9 字节（残包）返回 null，由调用方丢弃。 */
 export function parseFrameHeader(bytes: Uint8Array): ParsedMediaFrame | null {
-  if (bytes.length < 5) return null;
+  if (bytes.length < 9) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   return {
     seq: view.getUint32(0, false),
     key: (bytes[4]! & 1) === 1,
-    body: bytes.subarray(5),
+    capturedAtMs: view.getUint32(5, false),
+    body: bytes.subarray(9),
   };
 }
 
@@ -69,6 +72,8 @@ export interface NativeMediaSessionOptions {
   onDecoded?: () => void;
   /** 解码队列门控丢弃一帧时回调（自适应码率的「链路跟不上」信号源之一）。 */
   onFrameDropped?: () => void;
+  /** 每绘制一帧回调其帧龄（毫秒，glass-to-glass 近似；需 pong 标定过时钟偏移）。 */
+  onFrameAgeMs?: (ageMs: number) => void;
   onTransportClosed?: () => void;
 }
 
@@ -76,6 +81,8 @@ export interface NativeMediaSession {
   /** ready 由 ws open 发出（首条 send 亦作幂等补发保险）；随后原样上行事件对象。 */
   send(event: object): void;
   ping(ts: number): void;
+  /** 时钟偏移标定（被控时钟 − 本端时钟 ≈ hostTs − ts − RTT/2；pong 每拍更新）。 */
+  setClockOffset(offsetMs: number): void;
   stop(): void;
 }
 
@@ -101,6 +108,10 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   ]);
   let lastSubmittedSeq = -1;
   let lastKeyRequestAt = 0;
+  // 帧龄：提交时按 chunk 时间戳记采集时刻，绘制时领回算出端到端年龄；
+  // 时钟偏移由 pong 标定（未标定前只跳过帧龄读数，画面不受影响）。
+  const capturedAtByTimestamp = new Map<number, number>();
+  let clockOffsetMs: number | null = null;
 
   /** 紧急关键帧请求（丢帧恢复）：ws 上行 {t:"need-key"}；500ms 去抖（中继侧另有 300ms 去抖）。 */
   const requestKey = (): void => {
@@ -116,6 +127,8 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
 
   const configure = (codec: string) => {
     decoder?.close();
+    // 重配即作废旧时间戳→采集时刻映射（旧码流的解码产物不再与新会话对齐）。
+    capturedAtByTimestamp.clear();
     decoder = new VideoDecoder({
       output: (frame) => {
         // 只保留最新帧语义：解码即画（LAN 硬解 60fps 下无排队积压；帧率计数交给 onDecoded）。
@@ -129,8 +142,19 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
           opts.onConfigured?.({ width: frame.displayWidth, height: frame.displayHeight, codec });
         }
         ctx.drawImage(frame, 0, 0);
+        const capturedAtMs = capturedAtByTimestamp.get(frame.timestamp);
+        capturedAtByTimestamp.delete(frame.timestamp);
         frame.close();
         opts.onDecoded?.();
+        // 帧龄 = 本端绘制时刻 − 被控采集时刻 + 时钟偏移（glass-to-glass 近似）；
+        // 缺采集戳（旧端/未知=0）或未标定偏移 → 跳过本帧读数。
+        if (
+          typeof capturedAtMs === "number" &&
+          capturedAtMs !== 0 &&
+          clockOffsetMs !== null
+        ) {
+          opts.onFrameAgeMs?.(Date.now() - capturedAtMs + clockOffsetMs);
+        }
       },
       error: (e) => {
         logger.warn("[rd-media] decoder error:", e);
@@ -203,6 +227,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       }
       lastSubmittedSeq = parsed.seq;
       timestampBase += 1_000_000 / 60;
+      capturedAtByTimestamp.set(timestampBase, parsed.capturedAtMs);
       decoder.decode(
         new EncodedVideoChunk({
           type: parsed.key ? "key" : "delta",
@@ -219,6 +244,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   function teardown() {
     if (stopped) return;
     stopped = true;
+    capturedAtByTimestamp.clear();
     try {
       decoder?.close();
     } catch {
@@ -241,6 +267,9 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     },
     ping(ts) {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "ping", ts }));
+    },
+    setClockOffset(offsetMs) {
+      clockOffsetMs = offsetMs;
     },
     stop() {
       try {

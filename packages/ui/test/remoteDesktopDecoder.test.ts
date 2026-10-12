@@ -24,7 +24,8 @@ function u32be(n: number): Buffer {
   return b;
 }
 
-/** 与 helper 生产侧同口径构造 [u32 seq 大端][u8 flags][ciphertext‖tag]（IV = salt ∥ seq 大端）。 */
+/** 与 helper 生产侧同口径构造 [u32 seq 大端][u8 flags][u32 capturedAtMs][ciphertext‖tag]
+ *  （IV = salt ∥ seq 大端）；采集戳固定 0（= 未知，帧龄专测另行驱动）。 */
 function frameBytes(
   seq: number,
   key: boolean,
@@ -34,11 +35,12 @@ function frameBytes(
   const iv = Buffer.concat([Buffer.from(SALT_HEX, "hex"), u32be(seq)]);
   const cipher = createCipheriv("aes-256-gcm", Buffer.from(keyHex, "hex"), iv);
   const ct = Buffer.concat([cipher.update(Buffer.from(plain)), cipher.final()]);
-  const out = Buffer.alloc(5 + ct.length + 16);
+  const out = Buffer.alloc(9 + ct.length + 16);
   out.writeUInt32BE(seq >>> 0, 0);
   out.writeUInt8(key ? 1 : 0, 4);
-  ct.copy(out, 5);
-  cipher.getAuthTag().copy(out, 5 + ct.length);
+  out.writeUInt32BE(0, 5);
+  ct.copy(out, 9);
+  cipher.getAuthTag().copy(out, 9 + ct.length);
   return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer;
 }
 

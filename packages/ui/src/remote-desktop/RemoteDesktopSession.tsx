@@ -254,6 +254,14 @@ export function RemoteDesktopSession({
             )}
           </span>
         ) : null}
+        {stats.frameAgeMs !== null ? (
+          <span>
+            {intl.formatMessage(
+              { id: "remoteDesktop.session.frameAge" },
+              { value: String(stats.frameAgeMs) },
+            )}
+          </span>
+        ) : null}
         {stats.width !== null && stats.height !== null ? (
           <span>{`${stats.width}×${stats.height}`}</span>
         ) : selectedMonitor ? (

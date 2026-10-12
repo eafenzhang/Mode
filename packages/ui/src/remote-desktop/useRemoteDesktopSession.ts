@@ -125,6 +125,10 @@ export function useRemoteDesktopSession(options: {
                 // 解码队列门控丢弃：累计到下一次自适应采样（与 RTT 同拍判定）。
                 droppedSinceAdaptiveSample.current += 1;
               },
+              onFrameAgeMs: (ageMs) => {
+                // 帧龄读数（glass-to-glass 近似）：随下一拍 3s 采样进状态条（取窗口中位数）。
+                nativeStats.current.onFrameAge(ageMs);
+              },
               // 传输断开（连不上 / 中途关闭 / 解码器错误）：按媒体失败收口，不留半开状态。
               onTransportClosed: () => dispatchRef.current({ type: "media", status: "failed" }),
             });
@@ -222,11 +226,17 @@ export function useRemoteDesktopSession(options: {
   // ---- media WS 下行 JSON 控制事件（Task 9 胶水派发到 window，与信令面解耦）----
   useEffect(() => {
     const onControl = (event: Event) => {
-      const detail = (event as CustomEvent<{ t?: string; ts?: number; reason?: string }>).detail;
+      const detail = (
+        event as CustomEvent<{ t?: string; ts?: number; reason?: string; hostTs?: number }>
+      ).detail;
       if (detail?.t === "pong" && typeof detail.ts === "number") {
         // RTT = 收到时刻 - ping 时间戳；异步写入 collector，随下一拍 3s 采样进入状态条。
         const rttMs = Date.now() - detail.ts;
         nativeStats.current.onPong(rttMs);
+        // 时钟偏移标定（帧龄用）：offset ≈ hostTs − ts − RTT/2（对称路径假设；LAN 误差数 ms）。
+        if (typeof detail.hostTs === "number") {
+          sessionRef.current?.setClockOffset(detail.hostTs - detail.ts - rttMs / 2);
+        }
         // 自适应码率判定（与 RTT 同拍；丢弃数取自上拍以来累计，采样后清零）。
         const outcome = stepAdaptiveBitrate(
           adaptiveRef.current,

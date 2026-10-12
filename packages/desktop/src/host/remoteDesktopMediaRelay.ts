@@ -108,20 +108,15 @@ export function createRemoteDesktopMediaRelay(
       logger.warn(`[rd-media-relay] send kind=${kind} skipped: helper not connected`);
       return;
     }
-    const body = payload && payload.length > 0 ? Buffer.concat([Buffer.from([kind]), payload]) : Buffer.from([kind]);
-    const frame = Buffer.alloc(4 + body.length);
-    frame.writeUInt32BE(body.length, 0);
-    body.copy(frame, 4);
+    const frame = Buffer.concat([Buffer.alloc(4), Buffer.from([kind]), payload ?? Buffer.alloc(0)]);
+    frame.writeUInt32BE(frame.length - 4, 0); // len = body = kind + payload
     socket.write(frame);
   };
 
   /** 紧急关键帧请求（kind3）：同链路丢帧恢复；300ms 去抖防刷屏。 */
   const requestHelperKey = (): void => {
-    const now = Date.now();
-    if (now - lastKeyRequestAt < KEY_REQUEST_DEBOUNCE_MS) {
-      return;
-    }
-    lastKeyRequestAt = now;
+    if (Date.now() - lastKeyRequestAt < KEY_REQUEST_DEBOUNCE_MS) return;
+    lastKeyRequestAt = Date.now();
     writeHelperControl(3);
   };
 
@@ -137,10 +132,7 @@ export function createRemoteDesktopMediaRelay(
         logger.warn("[rd-media-relay] media ws backpressure >128KB, dropping kind0 frames");
       }
       // 丢掉的 delta 会让后续帧引用缺失——立即请关键帧，对端解码器据此复位。
-      if (!dropBurst) {
-        dropBurst = true;
-        requestHelperKey();
-      }
+      if (!dropBurst) { dropBurst = true; requestHelperKey(); }
       return;
     }
     dropBurst = false;
@@ -299,8 +291,9 @@ export function createRemoteDesktopMediaRelay(
     }
     if (message.t === "ping") {
       // RTT 应答不经背压队列（契约 C：ping/输入不丢），也不经 helper。
+      // hostTs = 被控侧本机时钟（帧龄的时钟偏移标定：offset ≈ hostTs − ts − RTT/2）。
       try {
-        currentWs?.send(JSON.stringify({ t: "pong", ts: message.ts }));
+        currentWs?.send(JSON.stringify({ t: "pong", ts: message.ts, hostTs: Date.now() }));
       } catch (error) {
         logger.warn(
           "[rd-media-relay] pong send failed:",
@@ -309,11 +302,8 @@ export function createRemoteDesktopMediaRelay(
       }
       return;
     }
-    if (message.t === "need-key") {
-      // renderer 侧解码落后/丢帧后的关键帧请求：下行到 helper（kind3）。
-      requestHelperKey();
-      return;
-    }
+    // renderer 侧解码落后/丢帧后的关键帧请求：下行到 helper（kind3）。
+    if (message.t === "need-key") { requestHelperKey(); return; }
     if (message.t === "set-bitrate") {
       // 自适应码率方向盘（renderer 采样 RTT/丢弃后决策）：下行到 helper（kind4）。
       const bps = (message as { bps?: unknown }).bps;

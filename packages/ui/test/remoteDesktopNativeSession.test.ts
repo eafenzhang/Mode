@@ -5,19 +5,25 @@ import test from "node:test";
 const { parseFrameHeader, buildFrameIv, codecStringFromAnnexB, shouldDropDeltaFrame } =
   await import("../src/remote-desktop/nativeMediaSession.js");
 
-function frame(seq: number, key: boolean, body: Uint8Array): Uint8Array {
-  const out = new Uint8Array(5 + body.length);
-  new DataView(out.buffer).setUint32(0, seq, false);
+function frame(seq: number, key: boolean, body: Uint8Array, capturedAtMs = 0): Uint8Array {
+  const out = new Uint8Array(9 + body.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, seq, false);
   out[4] = key ? 1 : 0;
-  out.set(body, 5);
+  view.setUint32(5, capturedAtMs >>> 0, false);
+  out.set(body, 9);
   return out;
 }
 
-test("帧头解析：seq/flags/body 切分正确，残包返回 null", () => {
-  const f = frame(7, true, new Uint8Array([9, 9, 9]));
-  const parsed = parseFrameHeader(f);
-  assert.deepEqual(parsed, { seq: 7, key: true, body: new Uint8Array([9, 9, 9]) });
-  assert.equal(parseFrameHeader(f.subarray(0, 4)), null, "不足 5 字节头");
+test("帧头解析：seq/flags/采集戳/body 切分正确，残包返回 null", () => {
+  const f = frame(7, true, new Uint8Array([9, 9, 9]), 1234567);
+  assert.deepEqual(parseFrameHeader(f), {
+    seq: 7,
+    key: true,
+    capturedAtMs: 1234567,
+    body: new Uint8Array([9, 9, 9]),
+  });
+  assert.equal(parseFrameHeader(f.subarray(0, 8)), null, "不足 9 字节头");
   assert.equal(parseFrameHeader(new Uint8Array(0)), null);
 });
 

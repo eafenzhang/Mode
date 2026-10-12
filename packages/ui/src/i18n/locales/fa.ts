@@ -6249,6 +6249,7 @@ const faIR: Record<string, string> = {
   "remoteDesktop.session.disconnect": "قطع",
   "remoteDesktop.session.fps": "{value} fps",
   "remoteDesktop.session.rtt": "تأخیر {value} ms",
+  "remoteDesktop.session.frameAge": "تأخیر سرتاسری ~{value} ms",
   "remoteDesktop.session.closed.user": "نشست قطع شد.",
   "remoteDesktop.session.closed.remote": "دستگاه مقابل کنترل از راه دور را پایان داد.",
   "remoteDesktop.session.closed.error": "نشست با خطا پایان یافت.",

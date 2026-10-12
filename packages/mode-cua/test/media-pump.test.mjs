@@ -98,7 +98,7 @@ function u32be(n) {
   return b;
 }
 
-// 解密 kind0 body（[kind][u32 seq][u8 flags][ct‖tag]）：IV = salt ∥ seq 由解密方重建。
+// 解密 kind0 body（[kind][u32 seq][u8 flags][u32 capturedAtMs][ct‖tag]）：IV = salt ∥ seq 由解密方重建。
 // tag 校验失败会在此抛错——IV 推导或密文布局任何一处写歪，测试即红。
 function decryptKind0(body, keyHex, saltHex) {
   const seq = body.readUInt32BE(1);
@@ -106,10 +106,10 @@ function decryptKind0(body, keyHex, saltHex) {
   const decipher = createDecipheriv("aes-256-gcm", Buffer.from(keyHex, "hex"), iv);
   decipher.setAuthTag(body.subarray(body.length - 16));
   const plain = Buffer.concat([
-    decipher.update(body.subarray(6, body.length - 16)),
+    decipher.update(body.subarray(10, body.length - 16)),
     decipher.final(),
   ]);
-  return { seq, flags: body[5], plain };
+  return { seq, flags: body[5], capturedAtMs: body.readUInt32BE(6), plain };
 }
 
 function startParams(port, { keyHex = "11".repeat(32), saltHex = "22".repeat(8) } = {}) {
@@ -144,20 +144,22 @@ test("帧经 AES-256-GCM 加密后按长度前缀写出；IV = salt∥seq", asyn
     await pump.start(startParams(relay.port, { keyHex, saltHex }));
     await openStream(relay); // kind2 前不推流（契约 B ready 门控），先解闸再回帧
 
-    listeners.frame({ seq: 0, key: true, data: Buffer.from("hello-es") });
+    listeners.frame({ seq: 0, key: true, data: Buffer.from("hello-es"), capturedAtMs: 1_234_567 });
     await waitFor(() => relay.collector.frames.length === 1);
 
     const body = relay.collector.frames[0];
     assert.equal(body[0], 0, "kind=0");
     assert.equal(body.readUInt32BE(1), 0, "seq=0 大端");
     assert.equal(body[5], 1, "关键帧 flags=bit0");
-    // len 契约：1（kind）+ 5（帧头 = seq4+flags1）+ 密文（GCM 流式：与明文等长）+ 16（tag）。
-    assert.equal(relay.collector.lens[0], 1 + 5 + 8 + 16);
+    assert.equal(body.readUInt32BE(6), 1_234_567, "capturedAtMs 大端在 flags 后（帧龄起点）");
+    // len 契约：1（kind）+ 9（帧头 = seq4+flags1+ts4）+ 密文（GCM 流式：与明文等长）+ 16（tag）。
+    assert.equal(relay.collector.lens[0], 1 + 9 + 8 + 16);
     assert.equal(relay.collector.tail().length, 0, "帧后不得有残留字节");
 
-    const { seq, flags, plain } = decryptKind0(body, keyHex, saltHex);
+    const { seq, flags, capturedAtMs, plain } = decryptKind0(body, keyHex, saltHex);
     assert.equal(seq, 0);
     assert.equal(flags, 1);
+    assert.equal(capturedAtMs, 1_234_567);
     assert.equal(plain.toString(), "hello-es");
   });
 });
