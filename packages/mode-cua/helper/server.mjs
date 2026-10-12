@@ -5,6 +5,7 @@ import net from "node:net";
 import { handleRequestLine, serializeResponse } from "../broker.js";
 import { HELPER_PROTOCOL_VERSION } from "../broker-server.js";
 import { parseAxError } from "./errors.mjs";
+import { createMediaPump } from "./mediaPump.mjs";
 
 // 请求行上限：正常请求（含 observe/capture 参数）远小于此；无行尾的超长输入既不能成行
 // 也无从应答，直接断开，防止无界缓冲撑爆 helper。
@@ -66,7 +67,27 @@ async function callAddon(fn) {
   }
 }
 
+// 媒体面矩形（契约 G，与 host 侧 remoteDesktopMediaRect 同口径）：x/y 为 i32（允许多屏
+// 负原点），width/height 同域取整；非整数/NaN/越界会被 napi RdMediaRect 转换抛裸
+// TypeError → internal，先拦成 invalid_request（宽高为正的域校验归 Rust，不在此复刻）。
+function requireRect(value, name) {
+  if (isAbsent(value)) throw invalidRequest(`${name} is required`);
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw invalidRequest(`${name} must be an object`);
+  }
+  for (const k of ["x", "y", "width", "height"]) {
+    const n = value[k];
+    if (!Number.isInteger(n) || n < -0x8000_0000 || n > 0x7fff_ffff) {
+      throw invalidRequest(`${name}.${k} must be an i32`);
+    }
+  }
+  return value;
+}
+
 export function createBackend(addon) {
+  // 媒体泵：每 createBackend 一个实例（addon 是入参；模块级单例会把首个 addon 与
+  // 会话状态泄漏给后续实例与测试）。
+  const mediaPump = createMediaPump(addon);
   return {
     health: () => ({ bundleId: null, pid: process.pid, protocolVersion: HELPER_PROTOCOL_VERSION }),
     // napi list_apps() 无参且同步；dispatchRequest 会 await，Promise 型 launch_app 同样兼容。
@@ -127,6 +148,29 @@ export function createBackend(addon) {
       return await callAddon(() => addon.launch_app(request));
     },
     screen_probe: () => callAddon(() => addon.screen_probe()),
+    // 远程桌面媒体面（契约 G）：与被控 host 中继口建立管道（mediaPump 内）并按契约 B
+    // 推流。参数校验在触碰媒体泵/网络之前拦下（同 raw_input 范式）；key/salt 的字节
+    // 长度校验在 mediaPump（hex → Buffer 后才有意义）。
+    rd_media_start: async (params) => {
+      requireRect(params.rect, "rect");
+      requireU32(params.maxWidth, "maxWidth");
+      requireU32(params.fps, "fps");
+      requireU32(params.bitrateBps, "bitrateBps");
+      requireString(params.endpoint?.host, "endpoint.host");
+      // 端口域校验归本层：connect 只接受 1..65535，越界会抛 ERR_SOCKET_BAD_PORT
+      // （非 17 码），先拦成 invalid_request。
+      const port = requireU32(params.endpoint?.port, "endpoint.port");
+      if (port === 0 || port > 65535) throw invalidRequest("endpoint.port must be 1..65535");
+      requireString(params.key, "key");
+      requireString(params.salt, "salt");
+      return mediaPump.start(params);
+    },
+    rd_media_switch: async (params) => {
+      requireRect(params.rect, "rect");
+      return mediaPump.switchMonitor(params);
+    },
+    // stop 无参数；mediaPump.stop 幂等（未启动/已收口都返回 {ok:true}）。
+    rd_media_stop: async () => mediaPump.stop(),
   };
 }
 
