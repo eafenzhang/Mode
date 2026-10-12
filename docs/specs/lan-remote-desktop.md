@@ -1,6 +1,9 @@
 # 局域网远程桌面（Windows 实时画面与键鼠控制）
 
-状态：已拍板（2026-10-12）。实现计划：[docs/superpowers/plans/2026-10-12-lan-remote-desktop.md](../superpowers/plans/2026-10-12-lan-remote-desktop.md)；本机 spike 记录：[docs/plans/2026-10-12-remote-desktop-spike.md](../plans/2026-10-12-remote-desktop-spike.md)。关联：[lan-remote-attach.md](./lan-remote-attach.md)（LAN 配对、令牌与握手时序）、[lan-discovery.md](./lan-discovery.md)（设备发现）、[lan-paired-devices.md](./lan-paired-devices.md)（已配对设备管理）、[lan-remote-computer-use.md](./lan-remote-computer-use.md)（模型驱动的远端电脑控制，与本功能互补）、[computer-use-windows-runtime.md](./computer-use-windows-runtime.md)（Helper 运行时与打包）、[computer-use-enablement.md](./computer-use-enablement.md)（kill-switch 语义先例）。
+状态：已拍板（2026-10-12）。**媒体面已由 [lan-remote-desktop-native-media.md](./lan-remote-desktop-native-media.md) 接管**
+（原生 DXGI + 硬件编码 + 自控传输，纯直替 WebRTC；其 P4 落地后，本文的事件顺序 ③④ 媒体段、
+「质量与延迟参数」节与画面相关验收项以新 spec 为准；产品规则/同意/指示/设置/安全总则不变）。
+实现计划：[docs/superpowers/plans/2026-10-12-lan-remote-desktop.md](../superpowers/plans/2026-10-12-lan-remote-desktop.md)；本机 spike 记录：[docs/plans/2026-10-12-remote-desktop-spike.md](../plans/2026-10-12-remote-desktop-spike.md)。关联：[lan-remote-attach.md](./lan-remote-attach.md)（LAN 配对、令牌与握手时序）、[lan-discovery.md](./lan-discovery.md)（设备发现）、[lan-paired-devices.md](./lan-paired-devices.md)（已配对设备管理）、[lan-remote-computer-use.md](./lan-remote-computer-use.md)（模型驱动的远端电脑控制，与本功能互补）、[computer-use-windows-runtime.md](./computer-use-windows-runtime.md)（Helper 运行时与打包）、[computer-use-enablement.md](./computer-use-enablement.md)（kill-switch 语义先例）。
 
 ## 背景与问题
 
@@ -104,7 +107,7 @@
 - **侧边栏**：插件市场按钮下方新增「远程桌面」（`WorkspaceMainView` 新增 `"remote-desktop"`），仅 win32 desktop 显示（`isWindowsDesktop` 门）。
 - **主视图**：
   - 设备页：已配对设备卡片（名称 / 平台 / 在线状态 / 能力位）；「连接」进入会话面；无配对设备 → 引导跳「设置 → 局域网访问」。标题与整体样式对齐其它主视图：`h1` 用共享排版（`text-2xl font-semibold tracking-tight lg:text-3xl`），套 `AutomationsMainBreadcrumbFrame` 面包屑/桌面拖拽顶栏（与自动化、插件市场同款；**仅设备页**）。
-  - 会话面：**操作栏（设备名 / 分辨率·显示器切换 / 全屏 / 断开）在视频顶部**（`border-b`），状态条（画面状态 / 延迟 / 帧率 / 分辨率）留在底部（`border-t`）；断线终止并给出原因文案。保持整块无外框（不套 breadcrumb），视频占满主视图余下空间。
+  - 会话面：**操作栏（设备名 / 分辨率·显示器切换 / 全屏 / 断开）在视频顶部**（`border-b`），状态条（画面状态 / 延迟 / 帧率 / 分辨率）留在底部（`border-t`）；断线终止并给出原因文案。保持整块无外框（不套 breadcrumb），视频占满主视图余下空间。**操作栏与状态条区域只走本地交互**：指针在视频元素之外不映射、不转发（否则界外点被 clamp 回画面边缘，按下会被 `preventDefault + setPointerCapture` 劫持、按钮点不动），焦点在本地控件上的按键也不下发（按钮空格/回车、下拉方向键保持本地默认行为）。**左侧栏收起时操作栏避让左上角顶部浮层**：`DesktopTopOverlay` 的左上操作入口（侧栏开关 / 前进后退 / 新建任务）悬在主区顶栏左上，会话面操作栏左侧（设备名）按 chat 页 `WorkspaceHeader` 同款 `ps-*` 避让规则让出宽度（共享 `resolveTopOverlayClearancePaddingClass`：侧栏展开不避让；mac 非全屏额外让出红绿灯区；有更新入口再加宽），避免设备名与操作入口重叠。
   - **切换菜单/页面保持连接**：远程桌面分支在**首次进入后常驻渲染**，切到其它视图（聊天/自动化/插件市场、以及退出设置回主视图）时用 `opacity-0 + pointer-events-none + inert` 隐藏而非卸载——WebRTC、DataChannel 与 main 侧信令全部存活；断连只发生在显式断开、对端结束、对端异常或退出应用。隐藏时不抢焦点（失焦自动补发键鼠抬起）、不收指针事件；回到视图时刷新设备探测（会话中直接恢复会话面，不重复探测）。未进入过远程桌面视图时不挂载（避免启动即探测）。
 - **被控端**：同意弹窗（模态，发起设备名 + 「记住此设备」，60s 超时拒绝）；指示浮层沿用 `windowsCuaOperationIndicator` 的窗口形态先例；设置页「远程桌面」分区（总开关、已授权设备列表可撤销、监听端口/帮助说明）。侧栏分区顺序：「模型设置 → 远程桌面 → 电脑控制」（远控入口紧跟模型配置、先于本机控制开关）。
 - i18n 中英同步；不改既有 key 语义。
@@ -113,8 +116,8 @@
 
 画质档位切换仍是 P2（需扩信令）；以下为一期两端各自的固定实现，单端可改、互不协商：
 
-- **采集**：`getDisplayMedia` 约束 = `frameRate {ideal:30, max:30}` + `width/height {ideal:1920/1080}` + `displaySurface:"monitor"`（守 1080p30 验收口径；1080p 源无变化，>1080p 源把编码输入封顶，避免 4K 硬采拖垮帧率）。
-- **编码**：**offer 侧与 answer 侧都应用** H.264 优先 / VP8 兜底的 `setCodecPreferences`（原先只设主控侧，硬编实际没介入）；被控 video sender 固定 `degradationPreference="maintain-framerate"`（带宽紧张先降分辨率不降帧率，即产品规则 8 的一期固定映射）与 `maxBitrate=8Mbps` 上限。
+- **采集**：`getDisplayMedia` 约束 = `frameRate {ideal:60, max:60}` + `width/height {ideal:1920/1080}` + `displaySurface:"monitor"`（**60fps 是跟手感的主力**：帧周期 33→16ms，直接砍半画面量化延迟；编码跟不上时由 `maintain-framerate` 先降分辨率不降帧率。1080p 源无变化，>1080p 源把编码输入封顶，避免 4K 硬采拖垮帧率）。
+- **编码**：**offer 侧与 answer 侧都应用** H.264 优先 / VP8 兜底的 `setCodecPreferences`（原先只设主控侧，硬编实际没介入）；被控 video sender 固定 `degradationPreference="maintain-framerate"`（带宽紧张先降分辨率不降帧率，即产品规则 8 的一期固定映射）、`maxBitrate=8Mbps` 上限与 `latencyHint=0.02`（低延迟编码请求，实现不认识该成员时按 WebIDL 规则忽略）。
 - **输入**：主控 `pointermove` 即时发送（去掉 rAF ≤16.7ms 节流；Chromium 本身按帧合并 move）；被控注入批处理聚合窗口 0ms（仅同 tick 合并，512 条/帧上限兜底不变）。目标是把指针端到端的可削减排队延迟（rAF ≤16.7ms + 批处理 ≤16ms）全部去掉。
 
 ## 安全边界
@@ -165,7 +168,7 @@
 - [ ] 远程会话中切换聊天/自动化/插件市场/设置再切回，会话不断（画面、输入继续）。
 - [ ] 被控指示条为缩小半透明白条，闲置自动淡出、鼠标移入恢复，点「结束」立即终止。
 - [ ] 「记住此设备」后再次连接不再弹窗；设置页撤销后恢复弹窗。
-- [ ] 画面实时（目标 1080p30，局域网端到端延迟与画质 spike 测量后校准，目标 <100ms）。
+- [ ] 画面实时（目标 1080p60，采集/编码 60fps；局域网端到端延迟目标 <100ms，与画质 spike 测量后校准）。
 - [ ] 鼠标移动/三键/滚轮/拖拽、键盘（字母/数字/快捷键/中文输入法文本）在对端生效。
 - [ ] 注入目标 = 对端当前前台窗口（`raw_input` 无前台校验；对照 spike 实测：现 `perform` 路径因 `foreground_required` 不可直接复用）。
 - [ ] 多显示器枚举与切换（会话内换轨不重建会话）；混合 DPI 坐标正确。

@@ -151,6 +151,11 @@ export function attachRemoteDesktopInput(
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
+    // 焦点在操作栏/下拉等本地控件上（target 非容器）：按键走本地默认行为、不下发对端——
+    // 否则工具栏按钮的空格/回车激活与下拉方向键会被 preventDefault 吃掉（spec UI 规则·会话面）。
+    if (event.target !== container) {
+      return;
+    }
     const action = describeKeyAction({
       key: event.key,
       keyCode: event.keyCode,
@@ -176,6 +181,10 @@ export function attachRemoteDesktopInput(
   };
 
   const onKeyUp = (event: KeyboardEvent): void => {
+    // 与 keydown 同口径：本地控件持有的按键不下发（也就没有配对的 ku 需要发）。
+    if (event.target !== container) {
+      return;
+    }
     const action = describeKeyAction({
       key: event.key,
       keyCode: event.keyCode,

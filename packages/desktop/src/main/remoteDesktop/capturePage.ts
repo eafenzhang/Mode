@@ -70,12 +70,12 @@ window.__rdCapture = (() => {
   };
 
   const captureStream = async () => {
-    // 质量与延迟参数（spec「质量与延迟参数」）：frameRate 封顶 30 守 1080p30 验收口径；
-    // 宽高 ideal 1080p 把 >1080p 源的编码输入封顶（1080p 源无变化）；displaySurface 与
-    // main 侧选源（desktopCapturer types:["screen"]）同口径。
+    // 质量与延迟参数（spec「质量与延迟参数」）：60fps 是跟手感的主力（帧周期 33→16ms），
+    // 编码跟不上时 maintain-framerate 先降分辨率不降帧率；宽高 ideal 1080p 把 >1080p 源的
+    // 编码输入封顶（1080p 源无变化）；displaySurface 与 main 侧选源（types:["screen"]）同口径。
     const fresh = await navigator.mediaDevices.getDisplayMedia({
       video: {
-        frameRate: { ideal: 30, max: 30 },
+        frameRate: { ideal: 60, max: 60 },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
         displaySurface: "monitor",
@@ -116,6 +116,8 @@ window.__rdCapture = (() => {
       // Chromium 在 addTrack 后通常已带一条，这里只往既有条目上补 maxBitrate。
       const encodings = params.encodings && params.encodings.length > 0 ? params.encodings : [{}];
       encodings[0].maxBitrate = 8_000_000;
+      // 低延迟编码请求（Chrome 支持则生效，不认识该字典成员的实现按 WebIDL 规则忽略）。
+      encodings[0].latencyHint = 0.02;
       params.encodings = encodings;
       params.degradationPreference = "maintain-framerate";
       await sender.setParameters(params);

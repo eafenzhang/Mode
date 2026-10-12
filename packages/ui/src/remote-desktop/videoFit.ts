@@ -30,6 +30,18 @@ export function normalizedPointFromVideoPointer(
     return null;
   }
   const rect = video.getBoundingClientRect();
+  // 视频元素之外（顶部操作栏/底部状态条）必须返回 null：纯函数对界外点会 clamp 回
+  // 画面边缘，InputCapture 会据此对工具栏的按下 preventDefault + setPointerCapture，
+  // 把 click 劫持到容器（按钮点不动），移动/滚轮还会误发给对端（spec UI 规则·会话面：
+  // 操作栏与状态条区域的指针/按键只走本地，不转发）。letterbox 黑边在元素内，维持 clamp。
+  if (
+    client.x < rect.left ||
+    client.x > rect.left + rect.width ||
+    client.y < rect.top ||
+    client.y > rect.top + rect.height
+  ) {
+    return null;
+  }
   return computeNormalizedPointFromVideoEvent(
     { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
     intrinsic,
