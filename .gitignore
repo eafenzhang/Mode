@@ -88,3 +88,6 @@ packages/desktop/src/scheduler/schedulerProtocol.d.ts.map
 # CUA helper 构建产物（pnpm build:cua-helper 产出，可再生）；crates/mode-cua-ax/target/
 # 已由 crates/mode-cua-ax/.gitignore 的 /target 覆盖，不在此重复。
 packages/mode-cua/dist-cua-helper/
+
+# 远程桌面本机 spike 工作区（一次性实验 harness；新 .mjs 受语言政策限制不入库）。
+.spike/

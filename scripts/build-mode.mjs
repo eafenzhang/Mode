@@ -230,7 +230,12 @@ async function createTarball({ packageParent, releaseDir, tarballName }) {
   await rm(tarball, {
     force: true,
   });
-  run("tar", ["-czf", tarball, "-C", packageParent, packageDirName]);
+  // 修复：Windows 本地打包时 GNU tar 把 `D:\...` 盘符当远程主机（host:path 语法），
+  // 报 "Cannot connect to D: resolve failed"。仅 win32 追加 --force-local 强制按本地路径处理；
+  // macOS/Linux（bsdtar 不识别该参数）不受影响，保持原参数不变。
+  const tarArgs = ["-czf", tarball, "-C", packageParent, packageDirName];
+  if (process.platform === "win32") tarArgs.unshift("--force-local");
+  run("tar", tarArgs);
   return tarball;
 }
 

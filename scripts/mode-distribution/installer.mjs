@@ -6,7 +6,7 @@ set -eu
 
 BASE_URL="\${MODE_DIST_BASE_URL:-${baseUrl}}"
 INSTALL_DIR="\${MODE_DIST_HOME:-\${MODE_DIST_HOME:-$HOME/.mode/runtime}}"
-BIN_DIR="\${MODE_DIST_BIN_DIR:-\${MODE_DIST_BIN_DIR:-$HOME/.local/bin}"
+BIN_DIR="\${MODE_DIST_BIN_DIR:-\${MODE_DIST_BIN_DIR:-$HOME/.local/bin}}"
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
