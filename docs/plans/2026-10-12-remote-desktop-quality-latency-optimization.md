@@ -232,7 +232,9 @@
 
 ## 附八:CI 修复(2026-10-13 凌晨,推送后 Actions 报红处置)
 
-推送 9272c153 后 Release/licenses-notices 两个工作流失败,逐一根因处置:
+推送 9272c153 后 Release/licenses-notices 两个工作流失败,逐一根因处置(共修 4 层,最终
+`e5b651a5` 全绿:Release run 38297990321 八作业全 success;licenses-notices 在
+`16274cdd`/`0ae0a52b` 亦绿):
 
 1. **verify 失败(Linux 时序 flake,三处根因合一)** `97470a03`:
    - 根因 A(本质):`await once(helper,"connect")`(客户端侧)不保证中继**服务端**已登记 helper;
@@ -258,5 +260,9 @@
    修法:首键即退⇒接受 {0,130}(皆设计内),首键未退⇒证明会话守卫已武装,次键严格断言 0。
    (该 smoke 在 Windows 本地被 build-fnos-fpk 显式跳过——"无交互控制台时 TUI/conpty 不可用",
    所以此前只在 Linux CI 真跑。)
-3. 本地复现纪律:CI(Linux)失败时先在本地跑同款命令链(全绿 ⇒ 判定平台/时序性),再从
+3. **verify 再红(另一处计时 flake)** `e5b651a5`:`bot-outbound-delivery.test.ts` 的
+   「同 bot 相邻发送间隔不小于最小间隔」断言 `gap >= 40ms` 实测 39ms。根因=Date.now() 整数
+   毫秒截断 + Node 计时器毫秒取整,边界必然可低 1ms(实现按 `last+40-now` 睡眠,整数相减
+   即可能排 39ms)。修复:断言留 1ms 容差(平台限流场景 1ms 无实义,不动产品实现)。
+4. 本地复现纪律:CI(Linux)失败时先在本地跑同款命令链(全绿 ⇒ 判定平台/时序性),再从
    Actions 产物/job 日志取现场(经 GCM 凭据调用 API;令牌不回显)。
