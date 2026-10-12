@@ -251,6 +251,12 @@
    修复:buildOutputs 内显式 `pnpm exec tsc -b --force packages/model-option-map packages/shared`
    (--force 防陈旧 tsbuildinfo 让 -b 误判"最新"而不补输出——本地模拟全新检出时实测复现);
    workflow 的 turbo 前置已撤。本地以"移走两个 dist 后跑完整 build:mode"端到端复验:
-   tarball 内 `agent/node_modules/@mode/shared/dist/*.js` 齐备。
+   tarball 内 `agent/node_modules/@mode/shared/dist/*.js` 齐备。修完推进到打包尾声又暴露第二层:
+   `mode-distribution-smoke.mjs` 断言 TUI 键盘退出码必须 0,而当前 TUI 有两条设计退出路径
+   ——启动屏单击 Ctrl+C 退 130(128+SIGINT 惯例,app-startup.tsx)、会话屏双按退 0
+   (app-keyboard.ts 防误退守卫);smoke 在启动屏→会话屏切换窗口发键,Linux CI 落在 130 分支。
+   修法:首键即退⇒接受 {0,130}(皆设计内),首键未退⇒证明会话守卫已武装,次键严格断言 0。
+   (该 smoke 在 Windows 本地被 build-fnos-fpk 显式跳过——"无交互控制台时 TUI/conpty 不可用",
+   所以此前只在 Linux CI 真跑。)
 3. 本地复现纪律:CI(Linux)失败时先在本地跑同款命令链(全绿 ⇒ 判定平台/时序性),再从
    Actions 产物/job 日志取现场(经 GCM 凭据调用 API;令牌不回显)。

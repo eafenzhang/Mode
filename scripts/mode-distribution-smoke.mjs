@@ -69,6 +69,11 @@ try {
   // 保留真实键盘退出链路；不发送 prompt，不调用模型。
   terminal.write("\u0003");
   await setTimeout(200);
+  // 首键已退出 ⇒ 可能落在启动屏的单击退出设计路径（app-startup.tsx onExit(130)，
+  // 128+SIGINT 惯例）；启动屏→会话屏切换窗口内存在竞态（Linux CI 实测落此分支），
+  // 0 与 130 都是设计内退出码。首键未退出 ⇒ 会话屏的 Ctrl-C 防误退守卫已武装
+  //（app-keyboard.ts 首次按键只提示"再按一次"），此时次键必须干净退 0。
+  const firstPressExited = Boolean(terminalExit);
   if (!terminalExit) terminal.write("\u0003");
   const tuiExit = await Promise.race([
     tuiExited,
@@ -76,7 +81,10 @@ try {
       throw new Error("TUI keyboard exit timed out");
     }),
   ]);
-  assert.equal(tuiExit.exitCode, 0, screen);
+  assert.ok(
+    firstPressExited ? [0, 130].includes(tuiExit.exitCode) : tuiExit.exitCode === 0,
+    screen,
+  );
   terminal = undefined;
 
   let webOutput = "";
