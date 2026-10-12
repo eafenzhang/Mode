@@ -2,9 +2,15 @@
 //!
 //! 链路（spec「被控 Rust · 编码」）：proc 纹理（BGRA，已含光标）→
 //! `ID3D11VideoProcessor`（Blt 顺带完成到 maxWidth 的缩放，目标 NV12）→
-//! staging Map 回读成紧凑 NV12（系统内存输入；spec 降级预案本就是系统内存路线，
-//! 这里直接按它实现，绕开 `MFT_MESSAGE_SET_D3D_MANAGER` 的 D3D11↔MF 互操作面）→
 //! `IMFTransform`（`MFT_CATEGORY_VIDEO_ENCODER` 硬件 H.264）→ Annex-B ES。
+//!
+//! 输入侧两条路（性能优化）：
+//! - 主路：D3D11↔MF 互操作（`MFT_MESSAGE_SET_D3D_MANAGER` + `MFCreateDXGISurfaceBuffer`），
+//!   NV12 纹理直接进编码器，零回读零拷贝；
+//! - 回退路：建管理器 / 类型协商失败，或运行中 `ProcessInput` 拒绝 DXGI 输入时一次性回退，
+//!   即 staging Map 回读紧凑 NV12 再灌内存样本（spec 降级预案）。
+//!
+//! 两条路的 seq/时间戳/flush-IDR/配对语义完全一致，回退对上层与线上格式零影响。
 //!
 //! 即时 IDR（本任务唯一不确定面，Resolution 2）：windows 0.58 元数据与真实 MF 均**没有**
 //! `MF_MT_MPEG2_GOP_SIZE` 属性（H.264 编码 MFT 不暴露 GOP 配置），简报推荐的 GOP 属性
@@ -18,18 +24,18 @@ use std::collections::VecDeque;
 use std::mem::ManuallyDrop;
 use std::sync::Mutex;
 
-use windows::Win32::Foundation::TRUE;
+use windows::Win32::Foundation::{FALSE, TRUE};
 use windows::Win32::Graphics::Direct3D11::{
   ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D, ID3D11VideoContext, ID3D11VideoDevice,
   ID3D11VideoProcessor, ID3D11VideoProcessorEnumerator, ID3D11VideoProcessorInputView,
   ID3D11VideoContext1, ID3D11VideoProcessorOutputView, D3D11_BIND_FLAG,
-  D3D11_BIND_RENDER_TARGET, D3D11_CPU_ACCESS_FLAG, D3D11_CPU_ACCESS_READ, D3D11_MAP_READ,
-  D3D11_MAPPED_SUBRESOURCE, D3D11_TEX2D_VPIV, D3D11_TEX2D_VPOV, D3D11_TEXTURE2D_DESC,
-  D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING, D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
-  D3D11_VIDEO_PROCESSOR_CONTENT_DESC, D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC,
-  D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC_0, D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC,
-  D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC_0, D3D11_VIDEO_PROCESSOR_STREAM,
-  D3D11_VIDEO_USAGE_PLAYBACK_NORMAL, D3D11_VPIV_DIMENSION_TEXTURE2D,
+  D3D11_BIND_RENDER_TARGET, D3D11_BIND_SHADER_RESOURCE, D3D11_CPU_ACCESS_FLAG,
+  D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_MAPPED_SUBRESOURCE, D3D11_TEX2D_VPIV,
+  D3D11_TEX2D_VPOV, D3D11_TEXTURE2D_DESC, D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING,
+  D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE, D3D11_VIDEO_PROCESSOR_CONTENT_DESC,
+  D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC, D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC_0,
+  D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC, D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC_0,
+  D3D11_VIDEO_PROCESSOR_STREAM, D3D11_VIDEO_USAGE_PLAYBACK_NORMAL, D3D11_VPIV_DIMENSION_TEXTURE2D,
   D3D11_VPOV_DIMENSION_TEXTURE2D,
 };
 use windows::Win32::Graphics::Dxgi::Common::{
@@ -37,21 +43,23 @@ use windows::Win32::Graphics::Dxgi::Common::{
   DXGI_FORMAT_NV12, DXGI_RATIONAL,
 };
 use windows::Win32::Media::MediaFoundation::{
-  eAVEncH264VProfile_Base, MFCreateMemoryBuffer, MFCreateMediaType, MFCreateSample,
+  eAVEncH264VProfile_Base, IMFDXGIDeviceManager, MFCreateDXGIDeviceManager,
+  MFCreateDXGISurfaceBuffer, MFCreateMemoryBuffer, MFCreateMediaType, MFCreateSample,
   MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MFMediaType_Video, MFShutdown, MFStartup,
   MF_VERSION, MFVideoFormat_H264, MFVideoFormat_NV12,
   MFVideoInterlace_Progressive, IMFActivate, IMFSample, IMFTransform, MFT_CATEGORY_VIDEO_ENCODER,
   MFTEnumEx, MFT_ENUM_FLAG, MFT_ENUM_FLAG_HARDWARE, MFT_ENUM_FLAG_SORTANDFILTER,
   MFT_MESSAGE_COMMAND_DRAIN, MFT_MESSAGE_COMMAND_FLUSH, MFT_MESSAGE_NOTIFY_END_OF_STREAM,
-  MFT_MESSAGE_NOTIFY_START_OF_STREAM, MFT_OUTPUT_DATA_BUFFER,
+  MFT_MESSAGE_NOTIFY_START_OF_STREAM, MFT_MESSAGE_SET_D3D_MANAGER, MFT_OUTPUT_DATA_BUFFER,
   MFT_OUTPUT_DATA_BUFFER_INCOMPLETE, MFT_REGISTER_TYPE_INFO, MF_MT_AVG_BITRATE,
   MF_MT_FRAME_RATE, MF_MT_FRAME_SIZE, MF_MT_INTERLACE_MODE, MF_MT_MAJOR_TYPE,
   MF_MT_MPEG2_PROFILE, MF_MT_SUBTYPE,
 };
-use windows::core::Interface;
+use windows::core::{Interface, IUnknown};
 
 use super::capture::create_texture;
 use super::state::{contains_idr, reduce, EncoderAction, EncoderState};
+use super::warn;
 use crate::error::{AxError, AxResult};
 
 /// GOP 目标（spec「编码」：GOP 120 帧 ≈ 2s@60fps）。MFT 侧无 GOP 属性，由状态机
@@ -122,7 +130,13 @@ pub struct Encoder {
   out_w: u32,
   out_h: u32,
   fps: u32,
+  /// 码率：运行时回退需按系统内存口径重配媒体类型，故随会话保存。
+  bitrate_bps: u32,
   mf: IMFTransform,
+  /// D3D11↔MF 互操作的设备管理器（仅持有保活；`None` = 系统内存路径）。
+  _d3d_manager: Option<IMFDXGIDeviceManager>,
+  /// 编码输入是否走 DXGI 表面（运行时回退后翻 false，此后固定系统内存）。
+  gpu_interop: bool,
   /// VP 管线：首帧（见到真实输入纹理）惰性建立。
   vp: Option<VpPipeline>,
   /// 输入→输出配对队列：MF 编码器可能有 0~N 帧流水延迟，输出侧按 FIFO 领回
@@ -182,7 +196,28 @@ impl Encoder {
       .cast::<ID3D11VideoContext1>()
       .map_err(|e| AxError::internal(format!("ID3D11VideoContext1 QI 失败: {e}")))?;
     let mf = activate_h264_encoder()?;
-    configure_media_types(&mf, out_w, out_h, fps, bitrate_bps)?;
+    // 性能优化：优先建立 D3D11↔MF 互操作（编码器直接消费 GPU 上的 NV12，免每帧回读）。
+    // 建管理器 / 设管理器 / 类型协商任一步失败 → 明确清掉管理器并按系统内存路径重配
+    // 类型；两条路此后语义完全一致，回退后行为与旧实现等同，不引入新的失败面。
+    let (d3d_manager, gpu_interop) = match setup_d3d_manager(&mf, device) {
+      Ok(manager) => match configure_media_types(&mf, out_w, out_h, fps, bitrate_bps) {
+        Ok(()) => (Some(manager), true),
+        Err(_) => {
+          // unsafe 依据（块级）：COM FFI；清管理器后按系统内存口径重配类型。
+          unsafe {
+            let _ = mf.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, 0);
+          }
+          warn("D3D 互操作类型协商失败，回退系统内存输入");
+          configure_media_types(&mf, out_w, out_h, fps, bitrate_bps)?;
+          (None, false)
+        }
+      },
+      Err(e) => {
+        warn(&format!("D3D 互操作不可用，回退系统内存输入: {e}"));
+        configure_media_types(&mf, out_w, out_h, fps, bitrate_bps)?;
+        (None, false)
+      }
+    };
     // unsafe 依据（块级）：IMFTransform 方法均为 COM FFI；transform 持有至 Drop。
     unsafe {
       mf.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
@@ -197,7 +232,10 @@ impl Encoder {
       out_w,
       out_h,
       fps,
+      bitrate_bps,
       mf,
+      _d3d_manager: d3d_manager,
+      gpu_interop,
       vp: None,
       pending: VecDeque::new(),
       pushed: false,
@@ -245,10 +283,25 @@ impl Encoder {
     }
     self.pushed = true;
     self.pending.push_back((seq, key));
-    // GPU：Blt 缩放转换 + 回读紧凑 NV12。
-    let nv12 = self.blt_and_readback()?;
-    // MF：输入样本（sample 时间戳用本帧 seq，保证编码器侧时间轴单调）。
-    self.feed_input(&nv12, seq)?;
+    // GPU：Blt（两路共用）→ 主路产 DXGI 表面样本，回退路回读紧凑 NV12 再灌内存样本。
+    let fed = if self.gpu_interop {
+      self.blt_to_nv12().and_then(|()| self.feed_input_dxgi(seq))
+    } else {
+      self.blt_and_readback().and_then(|nv12| self.feed_input(&nv12, seq))
+    };
+    if let Err(e) = fed {
+      if !self.gpu_interop {
+        return Err(e);
+      }
+      // 运行时回退：本驱动不接受 DXGI 输入（建表面样本/ProcessInput 失败）→ 关管理器
+      // 走系统内存并重试本帧。回退内的 flush 令重试帧必产 IDR（编码器契约），流在
+      // 回退点自然重新对齐关键帧，renderer 无需额外恢复逻辑。
+      warn(&format!("D3D 互操作运行中失败，回退系统内存并重试本帧: {e}"));
+      self.disable_gpu_interop()?;
+      self.pending.push_back((seq, key));
+      let nv12 = self.blt_and_readback()?;
+      self.feed_input(&nv12, seq)?;
+    }
     // MF：取输出（可能本轮还没有 → None，配对项留给下一轮）。
     let Some(data) = self.pump_output()? else { return Ok(None) };
     let data = match to_annex_b(&data) {
@@ -325,7 +378,8 @@ impl Encoder {
       DXGI_FORMAT_NV12,
       D3D11_USAGE_DEFAULT,
       D3D11_CPU_ACCESS_FLAG(0),
-      D3D11_BIND_RENDER_TARGET,
+      // SRV 位：DXGI 表面样本进 D3D 管理器下的编码器时，部分驱动要求纹理可建 SRV。
+      D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
     )?;
     let staging = create_texture(
       &self.device,
@@ -363,8 +417,8 @@ impl Encoder {
     Ok(())
   }
 
-  /// `VideoProcessorBlt`（整帧缩放转换到 NV12）→ staging Map → 紧凑 NV12 回读。
-  fn blt_and_readback(&mut self) -> AxResult<Vec<u8>> {
+  /// `VideoProcessorBlt`：整帧缩放转换到 VP 输出 NV12 纹理（两路共用的唯一 GPU 步骤）。
+  fn blt_to_nv12(&mut self) -> AxResult<()> {
     let Some(p) = self.vp.as_ref() else {
       return Err(AxError::internal("VP 管线未建立"));
     };
@@ -381,6 +435,15 @@ impl Encoder {
         .map_err(|e| AxError::internal(format!("VideoProcessorBlt 失败: {e}")))?
     };
     self.frame_counter = self.frame_counter.wrapping_add(1);
+    Ok(())
+  }
+
+  /// 回退路：staging Map → 紧凑 NV12 回读（系统内存样本用）。
+  fn blt_and_readback(&mut self) -> AxResult<Vec<u8>> {
+    self.blt_to_nv12()?;
+    let Some(p) = self.vp.as_ref() else {
+      return Err(AxError::internal("VP 管线未建立"));
+    };
     unsafe { self.ctx.CopyResource(&p.staging, &p.nv12) };
     let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
     unsafe {
@@ -451,6 +514,18 @@ impl Encoder {
     // 时间基 90kHz；时间戳只要求本次编码会话内单调递增。seq 每次 start 从 0 起
     // （不跨 start 单调）——跨会话的 IV 唯一性由「每次 start 轮换会话盐」保证
     // （IV = 会话盐∥seq，盐轮换是 Task 7/被控 host 的责任），本层只保证会话内不重复。
+    self.set_sample_timing(&sample, seq)?;
+    unsafe {
+      self
+        .mf
+        .ProcessInput(0, &sample, 0)
+        .map_err(|e| AxError::internal(format!("ProcessInput 失败: {e}")))?;
+    }
+    Ok(())
+  }
+
+  /// 样本时间戳（两路共用）：90kHz 时间基，seq 单调 ⇒ 时间轴单调。
+  fn set_sample_timing(&self, sample: &IMFSample, seq: u32) -> AxResult<()> {
     let t = (seq as i64) * MF_TICKS / self.fps as i64;
     unsafe {
       sample
@@ -460,12 +535,65 @@ impl Encoder {
         .SetSampleDuration(MF_TICKS / self.fps as i64)
         .map_err(|e| AxError::internal(format!("SetSampleDuration 失败: {e}")))?;
     }
+    Ok(())
+  }
+
+  /// 主路输入：NV12 纹理直接包成 DXGI 表面样本（零回读零拷贝）。
+  fn feed_input_dxgi(&self, seq: u32) -> AxResult<()> {
+    let Some(p) = self.vp.as_ref() else {
+      return Err(AxError::internal("VP 管线未建立"));
+    };
+    let surface: IUnknown = p
+      .nv12
+      .cast()
+      .map_err(|e| AxError::new("unimplemented", format!("NV12 纹理转 IUnknown 失败: {e}")))?;
+    // unsafe 依据（块级）：MFCreateDXGISurfaceBuffer 为 MF FFI；纹理由 VP 管线持有，
+    // D3D 管理器下编码器按契约消费该表面（表面引用由样本持有至编码完成）。
+    let buffer = unsafe { MFCreateDXGISurfaceBuffer(&ID3D11Texture2D::IID, &surface, 0, FALSE) }
+      .map_err(|e| AxError::new("unimplemented", format!("MFCreateDXGISurfaceBuffer 失败: {e}")))?;
+    let sample = unsafe { MFCreateSample() }
+      .map_err(|e| AxError::internal(format!("MFCreateSample 失败: {e}")))?;
+    unsafe {
+      sample
+        .AddBuffer(&buffer)
+        .map_err(|e| AxError::internal(format!("AddBuffer 失败: {e}")))?;
+    }
+    self.set_sample_timing(&sample, seq)?;
     unsafe {
       self
         .mf
         .ProcessInput(0, &sample, 0)
         .map_err(|e| AxError::internal(format!("ProcessInput 失败: {e}")))?;
     }
+    Ok(())
+  }
+
+  /// 运行时回退：flush → 清 D3D 管理器 → 系统内存口径重配类型 → 重开流。
+  /// flush 丢弃在途输入（其输出不再回来），pending 清空；调用方随后重试本帧
+  /// （flush 后首帧必为 IDR，线上 key 仍以码流探测为准）。
+  fn disable_gpu_interop(&mut self) -> AxResult<()> {
+    // unsafe 依据（块级）：MF COM FFI；transform 持有至 Drop。
+    unsafe {
+      self
+        .mf
+        .ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0)
+        .map_err(|e| AxError::internal(format!("回退 flush 失败: {e}")))?;
+      self
+        .mf
+        .ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, 0)
+        .map_err(|e| AxError::internal(format!("回退清 D3D 管理器失败: {e}")))?;
+    }
+    configure_media_types(&self.mf, self.out_w, self.out_h, self.fps, self.bitrate_bps)?;
+    // unsafe 依据（块级）：同上，COM FFI。
+    unsafe {
+      self
+        .mf
+        .ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
+        .map_err(|e| AxError::internal(format!("回退重开流失败: {e}")))?;
+    }
+    self._d3d_manager = None;
+    self.gpu_interop = false;
+    self.pending.clear();
     Ok(())
   }
 
@@ -538,6 +666,29 @@ impl Drop for Encoder {
     }
     mf_release();
   }
+}
+
+/// 建立 D3D11↔MF 互操作：创建 DXGI 设备管理器并把 D3D11 device 挂进去，再经
+/// `MFT_MESSAGE_SET_D3D_MANAGER` 交给编码器（此后编码器输入样本必须是同一 device
+/// 上的 DXGI 表面缓冲）。任一步失败返回 Err，由调用方回退系统内存路径。
+fn setup_d3d_manager(mf: &IMFTransform, device: &ID3D11Device) -> AxResult<IMFDXGIDeviceManager> {
+  let mut reset_token = 0u32;
+  let mut manager: Option<IMFDXGIDeviceManager> = None;
+  // unsafe 依据（块级）：MF COM FFI；出参槽位本栈帧持有，成功引用由本函数接管。
+  unsafe { MFCreateDXGIDeviceManager(&mut reset_token, &mut manager) }
+    .map_err(|e| AxError::internal(format!("MFCreateDXGIDeviceManager 失败: {e}")))?;
+  let manager = manager.ok_or_else(|| AxError::internal("DXGI 设备管理器为空"))?;
+  let unknown: IUnknown = device
+    .cast()
+    .map_err(|e| AxError::internal(format!("ID3D11Device 转 IUnknown 失败: {e}")))?;
+  // unsafe 依据（块级）：COM FFI；unknown 与 reset_token 由本函数持有/生成。
+  unsafe { manager.ResetDevice(&unknown, reset_token) }
+    .map_err(|e| AxError::internal(format!("设备管理器 ResetDevice 失败: {e}")))?;
+  // 进程内 MFT 按契约接收接口指针本身（非封送流指针）。
+  // unsafe 依据（块级）：IMFTransform FFI；manager 在函数返回前保持存活。
+  unsafe { mf.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, manager.as_raw() as usize) }
+    .map_err(|e| AxError::internal(format!("编码器拒绝 D3D 管理器: {e}")))?;
+  Ok(manager)
 }
 
 /// 枚举硬件 H.264 视频编码器并激活。
