@@ -1,75 +1,55 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-// 状态条读数推导（docs/specs/lan-remote-desktop.md UI 规则：延迟/帧率/分辨率来自 getStats）：
-// fps 优先 framesPerSecond，缺失时用 framesDecoded 差分；RTT 只取已选中的成功候选对。
-const { deriveRemoteDesktopSessionStats, EMPTY_REMOTE_DESKTOP_SESSION_STATS } =
+// 状态条读数采集器（docs/specs/lan-remote-desktop-native-media.md，Task 11）：
+// 数据源从 getStats 换成自有计数——fps = 采样间隔内 onDecoded 次数（sample 后清零），
+// RTT = 最近一次 pong 的往返毫秒（无则 null），分辨率 = 最近一次 decoder 配置尺寸（无则 null）。
+const { createNativeSessionStatsCollector, EMPTY_REMOTE_DESKTOP_SESSION_STATS } =
   await import("../src/remote-desktop/sessionStats.js");
 
-function reportOf(entries) {
-  return new Map(entries.map((entry, index) => [`stats-${index}`, entry]));
-}
-
-test("无视频/无候选时返回空读数", () => {
-  const sample = deriveRemoteDesktopSessionStats(reportOf([]), null);
-  assert.deepEqual(sample.stats, EMPTY_REMOTE_DESKTOP_SESSION_STATS);
-  assert.equal(sample.baseline, null);
+test("fps = 采样间隔内解码帧数；连续采样重置计数", () => {
+  const c = createNativeSessionStatsCollector();
+  for (let i = 0; i < 60; i++) c.onDecoded();
+  const s = c.sample();
+  assert.equal(s.fps, 60);
+  assert.equal(c.sample().fps, 0, "第二次采样无新帧 → 0");
 });
 
-test("优先使用 framesPerSecond，并带上帧尺寸", () => {
-  const sample = deriveRemoteDesktopSessionStats(
-    reportOf([
-      {
-        type: "inbound-rtp",
-        kind: "video",
-        timestamp: 1000,
-        framesPerSecond: 29.6,
-        framesDecoded: 300,
-        frameWidth: 1920,
-        frameHeight: 1080,
-      },
-    ]),
-    null,
-  );
-  assert.deepEqual(sample.stats, { fps: 30, rttMs: null, width: 1920, height: 1080 });
-  assert.deepEqual(sample.baseline, { frames: 300, at: 1000 });
+test("首次采样前无解码也返回 fps 0（非 null，避免状态条把未出帧误读成空）", () => {
+  const c = createNativeSessionStatsCollector();
+  assert.equal(c.sample().fps, 0);
 });
 
-test("缺少 framesPerSecond 时用 framesDecoded 差分；首轮无参照留空", () => {
-  const first = deriveRemoteDesktopSessionStats(
-    reportOf([{ type: "inbound-rtp", kind: "video", timestamp: 1000, framesDecoded: 100 }]),
-    null,
-  );
-  assert.equal(first.stats.fps, null);
-  assert.deepEqual(first.baseline, { frames: 100, at: 1000 });
-
-  const second = deriveRemoteDesktopSessionStats(
-    reportOf([{ type: "inbound-rtp", kind: "video", timestamp: 2000, framesDecoded: 160 }]),
-    first.baseline,
-  );
-  assert.equal(second.stats.fps, 60);
+test("rtt 取最近一次 pong；分辨率来自 decoder 配置", () => {
+  const c = createNativeSessionStatsCollector();
+  c.onPong(17);
+  c.onPong(19);
+  c.onConfigured(1920, 1080);
+  const s = c.sample();
+  assert.equal(s.rttMs, 19);
+  assert.equal(s.width, 1920);
+  assert.equal(s.height, 1080);
 });
 
-test("RTT 取已选中成功候选对（秒 → 毫秒），未选中/失败候选忽略", () => {
-  const sample = deriveRemoteDesktopSessionStats(
-    reportOf([
-      { type: "transport", timestamp: 1000 },
-      { type: "candidate-pair", state: "in-progress", currentRoundTripTime: 0.001 },
-      { type: "candidate-pair", state: "succeeded", nominated: false, currentRoundTripTime: 0.05 },
-      { type: "candidate-pair", state: "succeeded", nominated: true, currentRoundTripTime: 0.0123 },
-    ]),
-    null,
-  );
-  assert.equal(sample.stats.rttMs, 12);
+test("未收到 pong / 配置前 rtt 与分辨率留空", () => {
+  const c = createNativeSessionStatsCollector();
+  assert.deepEqual(c.sample(), { fps: 0, rttMs: null, width: null, height: null });
 });
 
-test("非视频的 inbound-rtp 不进入读数", () => {
-  const sample = deriveRemoteDesktopSessionStats(
-    reportOf([
-      { type: "inbound-rtp", kind: "audio", timestamp: 1000, framesPerSecond: 50 },
-      { type: "outbound-rtp", kind: "video", timestamp: 1000, framesPerSecond: 50 },
-    ]),
-    null,
-  );
-  assert.deepEqual(sample.stats, EMPTY_REMOTE_DESKTOP_SESSION_STATS);
+test("换分辨率后读数跟随最近一次配置", () => {
+  const c = createNativeSessionStatsCollector();
+  c.onConfigured(1280, 720);
+  c.onConfigured(2560, 1440);
+  const s = c.sample();
+  assert.equal(s.width, 2560);
+  assert.equal(s.height, 1440);
+});
+
+test("空态导出形状不变", () => {
+  assert.deepEqual(EMPTY_REMOTE_DESKTOP_SESSION_STATS, {
+    fps: null,
+    rttMs: null,
+    width: null,
+    height: null,
+  });
 });

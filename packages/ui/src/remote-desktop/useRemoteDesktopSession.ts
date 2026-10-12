@@ -22,6 +22,7 @@ import { logger } from "@/logger.js";
 import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./InputCapture.js";
 import { createNativeMediaSession, type NativeMediaSession } from "./nativeMediaSession.js";
 import {
+  createNativeSessionStatsCollector,
   EMPTY_REMOTE_DESKTOP_SESSION_STATS,
   type RemoteDesktopSessionStats,
 } from "./sessionStats.js";
@@ -33,7 +34,7 @@ import {
   type RemoteDesktopSessionViewState,
 } from "./sessionReducer.js";
 
-/** 统计刷新节拍（spec UI 规则：状态条 3s 刷新）；本任务暂无消费者，Task 11 用它定时采样 nativeStats。 */
+/** 统计刷新节拍（spec UI 规则：状态条 3s 刷新）；轮询 effect 按此节拍采样 nativeStats 并发 ping。 */
 const REMOTE_DESKTOP_STATS_INTERVAL_MS = 3000;
 
 export interface UseRemoteDesktopSessionResult {
@@ -57,6 +58,9 @@ export function useRemoteDesktopSession(options: {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // 原生媒体面会话：open-media 时建、失败/cleanup 路径收（stop 幂等）。
   const sessionRef = useRef<NativeMediaSession | null>(null);
+  // 状态条读数采集器（Task 11 起替代 getStats）：fps 由 onDecoded 计数、RTT 由 pong、分辨率由
+  // decoder 配置；3s 轮询采样。放 ref 里保证与 media 会话回调同生命周期、不随渲染重建。
+  const nativeStats = useRef(createNativeSessionStatsCollector());
   // mediaUrl（mediaTicket 直连地址）：建连 effect 从 rdStartSession 结果缓存，open-media 时取用。
   const mediaUrlRef = useRef<string | null>(null);
   // 视图状态放在 ref + state 双持：reducer updater 不能被 React 重复调用（StrictMode 下
@@ -99,11 +103,15 @@ export function useRemoteDesktopSession(options: {
               keyHex: effect.key,
               saltHex: effect.salt,
               canvas,
-              // 分辨率读数来自解码帧尺寸（Task 11 接 collector 后仍保留这份即时展示）。
-              onConfigured: (info) =>
-                setStats((previous) => ({ ...previous, width: info.width, height: info.height })),
+              // 分辨率读数：collector 记最近一次配置（随轮询采样进状态条），setStats 保留即时
+              // 展示（首帧立即出分辨率，不必等到下一拍）。
+              onConfigured: (info) => {
+                nativeStats.current.onConfigured(info.width, info.height);
+                setStats((previous) => ({ ...previous, width: info.width, height: info.height }));
+              },
               onDecoded: () => {
-                // Task 11 接 nativeStats collector（fps = 实际绘制帧率）。
+                // fps = 实际绘制帧率：解码即画，每帧计一次；轮询采样时按间隔增量出读数。
+                nativeStats.current.onDecoded();
               },
               // 传输断开（连不上 / 中途关闭 / 解码器错误）：按媒体失败收口，不留半开状态。
               onTransportClosed: () => dispatchRef.current({ type: "media", status: "failed" }),
@@ -203,11 +211,24 @@ export function useRemoteDesktopSession(options: {
   useEffect(() => {
     const onControl = (event: Event) => {
       const detail = (event as CustomEvent<{ t?: string; ts?: number; reason?: string }>).detail;
-      // pong 分支 Task 11 接 nativeStats.onPong（RTT = now - ts）；freeze/unfreeze 分支 Task 13 接 dispatch。
-      void detail;
+      if (detail.t === "pong" && typeof detail.ts === "number") {
+        // RTT = 收到时刻 - ping 时间戳；异步写入 collector，随下一拍 3s 采样进入状态条。
+        nativeStats.current.onPong(Date.now() - detail.ts);
+      }
+      // freeze/unfreeze 分支 Task 13 接 dispatch。
     };
     window.addEventListener("rd-media-control", onControl);
     return () => window.removeEventListener("rd-media-control", onControl);
+  }, []);
+
+  // ---- 状态条读数轮询：3s 采样 collector（fps 增量/RTT/分辨率）并主动 ping 量 RTT ----
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setStats(nativeStats.current.sample());
+      // 每拍独立发一次 ping（不等 pong 回来再发）；无媒体会话时 ping 是 no-op。
+      sessionRef.current?.ping(Date.now());
+    }, REMOTE_DESKTOP_STATS_INTERVAL_MS);
+    return () => window.clearInterval(timer);
   }, []);
 
   // ---- 输入采集：容器焦点 + 画面 pointer/keyboard → media WS 上行 ----

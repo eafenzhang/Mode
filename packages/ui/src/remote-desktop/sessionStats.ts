@@ -1,10 +1,15 @@
 /**
- * 会话状态条统计（纯函数，单测见 packages/ui/test/remoteDesktopSessionStats.test.ts）。
+ * 会话状态条统计采集器（纯计数，单测见 packages/ui/test/remoteDesktopSessionStats.test.ts）。
  *
- * 数据源是 `RTCPeerConnection.getStats()`（3s 轮询，spec UI 规则）：
- * - fps：优先 inbound-rtp 的 `framesPerSecond`（部分版本缺失时用 framesDecoded 差分）；
- * - RTT：已选中（nominated）且成功的 candidate-pair 的 `currentRoundTripTime`（单位秒）；
- * - 分辨率：inbound-rtp 的 frameWidth/frameHeight（无则留空，界面回退到显示器源尺寸）。
+ * 原实现读 `RTCPeerConnection.getStats()`；renderer 切原生媒体面（WebCodecs + media WS）后，
+ * 这些 RTC 读数不再存在，改为自有事件计数：
+ * - fps：`onDecoded` 由原生媒体面每次绘制一帧时回调，`sample()` 返回距上次采样的解码帧数并清零
+ *   （3s 轮询 ⇒ 读数即「近 3s 解码帧数 ≈ 帧率」；首次采样前无解码返回 0 而非 null——
+ *   「画面未连」由上层区分：hook 只在会话进行中采样）；
+ * - RTT：`onPong` 由控制通道 pong 回调（RTT = 收到时刻 - ping 时间戳），取最近一次；
+ * - 分辨率：`onConfigured` 由解码器首帧/换 SPS 重配时回调，取最近一次。
+ *
+ * 注意：`sample()` 有副作用（清零帧计数），只应由唯一的轮询消费者按固定节拍调用。
  */
 
 export interface RemoteDesktopSessionStats {
@@ -21,64 +26,39 @@ export const EMPTY_REMOTE_DESKTOP_SESSION_STATS: RemoteDesktopSessionStats = {
   height: null,
 };
 
-/** 上一轮解码帧数快照（fps 差分的参照；首轮无参照时 fps 留空）。 */
-export interface RemoteDesktopFpsBaseline {
-  frames: number;
-  at: number;
+export interface NativeSessionStatsCollector {
+  /** 原生媒体面每绘制一帧调用一次（fps 计数）。 */
+  onDecoded(): void;
+  /** 收到控制通道 pong 时调用；rttMs = 收到时刻 - ping 时间戳。 */
+  onPong(rttMs: number): void;
+  /** 解码器首帧/换分辨率配置时调用（分辨率读数）。 */
+  onConfigured(width: number, height: number): void;
+  /** 按轮询节拍采样：fps = 间隔内解码帧数（采样后清零），其余取最近一次值。 */
+  sample(): RemoteDesktopSessionStats;
 }
 
-export interface RemoteDesktopSessionStatsSample {
-  stats: RemoteDesktopSessionStats;
-  baseline: RemoteDesktopFpsBaseline | null;
-}
+export function createNativeSessionStatsCollector(): NativeSessionStatsCollector {
+  let decodedSinceLastSample = 0;
+  let lastRttMs: number | null = null;
+  let lastWidth: number | null = null;
+  let lastHeight: number | null = null;
 
-function resolveFps(
-  inbound: RTCInboundRtpStreamStats,
-  baseline: RemoteDesktopFpsBaseline | null,
-): { fps: number | null; baseline: RemoteDesktopFpsBaseline } {
-  const at = inbound.timestamp;
-  const frames = inbound.framesDecoded ?? 0;
-  if (typeof inbound.framesPerSecond === "number") {
-    return { fps: Math.max(0, Math.round(inbound.framesPerSecond)), baseline: { frames, at } };
-  }
-  if (!baseline || !(at > baseline.at)) {
-    return { fps: null, baseline: { frames, at } };
-  }
-  const elapsedMs = at - baseline.at;
-  const deltaFrames = frames - baseline.frames;
   return {
-    fps: Math.max(0, Math.round((deltaFrames * 1000) / elapsedMs)),
-    baseline: { frames, at },
+    onDecoded() {
+      decodedSinceLastSample += 1;
+    },
+    onPong(rttMs) {
+      lastRttMs = rttMs;
+    },
+    onConfigured(width, height) {
+      lastWidth = width;
+      lastHeight = height;
+    },
+    sample() {
+      // 快照并清零：下一次采样只统计新解码的帧（轮询间隔内的增量）。
+      const fps = decodedSinceLastSample;
+      decodedSinceLastSample = 0;
+      return { fps, rttMs: lastRttMs, width: lastWidth, height: lastHeight };
+    },
   };
-}
-
-/** 单次 getStats 报告 → 状态条读数；多路视频/候选时取最后一条成功读数。 */
-export function deriveRemoteDesktopSessionStats(
-  report: RTCStatsReport,
-  baseline: RemoteDesktopFpsBaseline | null,
-): RemoteDesktopSessionStatsSample {
-  let stats = EMPTY_REMOTE_DESKTOP_SESSION_STATS;
-  let nextBaseline = baseline;
-  for (const entry of report.values()) {
-    if (entry.type === "inbound-rtp" && "kind" in entry && entry.kind === "video") {
-      const inbound = entry as RTCInboundRtpStreamStats;
-      const fps = resolveFps(inbound, nextBaseline);
-      nextBaseline = fps.baseline;
-      stats = {
-        ...stats,
-        fps: fps.fps,
-        width: inbound.frameWidth ?? stats.width,
-        height: inbound.frameHeight ?? stats.height,
-      };
-      continue;
-    }
-    if (entry.type === "candidate-pair" && "state" in entry && entry.state === "succeeded") {
-      const pair = entry as RTCIceCandidatePairStats;
-      // RTT 只取已选中的成功配对（可能同时存在多条成功配对的历史记录）。
-      if (typeof pair.currentRoundTripTime === "number" && pair.nominated !== false) {
-        stats = { ...stats, rttMs: Math.round(pair.currentRoundTripTime * 1000) };
-      }
-    }
-  }
-  return { stats, baseline: nextBaseline };
 }
