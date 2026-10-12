@@ -44,6 +44,7 @@ import {
   type LanAccessServerHandle,
 } from "./lanAccessServer.js";
 import { evaluateRemoteDesktopRequest } from "./remoteDesktopAdmission.js";
+import { createRemoteDesktopMediaRelay } from "./remoteDesktopMediaRelay.js";
 
 /** 被控总开关的凭据键（与 lan client 记录同居一个凭据存储；不做第二份配置）。 */
 const REMOTE_DESKTOP_SERVER_ENABLED_CREDENTIAL_KEY = "remote-desktop:server-enabled";
@@ -107,10 +108,23 @@ export function createRemoteDesktopHostServer(options: {
   let pendingSocket: PendingSocket | null = null;
   let activeSession: { clientId: string; socket: WebSocket } | null = null;
   /**
-   * 当前媒体连接（clientId → socket）。Task 3 只负责登记与断开清理；
-   * 收发路由（relay 挂接、pong、输入）由 Task 5 在本表上接管。
+   * 当前媒体连接（clientId → socket）。本表只负责登记与断开清理；
+   * 收发路由（分帧透传、pong、输入）由 mediaRelay.attachWebSocket 接管。
    */
   const mediaSockets = new Map<string, WebSocket>();
+  /**
+   * 媒体中继（本地管道 ↔ media WS 的字节泵）。本模块只负责实例化、attach 与会话收口三件事；
+   * 回调实体接线归属：T6 接 onStatus/onReady、T14 接 onInput/onFrame——当前只放日志位，
+   * 勿在此提前接实体。kind0 出口不注入 onFrame：走 relay 缺省实现（当前 WS + 4MB 背压丢弃，
+   * 契约 C），即「出口机制在 relay 内、消费实体留后续任务」。
+   */
+  const mediaRelay = createRemoteDesktopMediaRelay({
+    logger,
+    onStatus: (frozen, reason) =>
+      log(`media pipe status frozen=${frozen}${reason === undefined ? "" : `, reason=${reason}`}`),
+    onReady: () => log("media ws ready received"),
+    onInput: () => logger.warn("[remote-desktop] media input not wired yet (T14)"),
+  });
   let injectDroppedFrames = 0;
   let disposed = false;
 
@@ -215,6 +229,17 @@ export function createRemoteDesktopHostServer(options: {
           }
         }, PENDING_SOCKET_TTL_MS),
       };
+      // 同意通过即开中继口（127.0.0.1 随机口；listen 幂等，同一会话重复触发复用同一端口）。
+      // 端口只记日志：helper 侧 endpoint 由后续 MediaStart 流程按 listen 返回值取用。
+      void mediaRelay
+        .listen()
+        .then((port) => log(`media relay listening on 127.0.0.1:${port}`))
+        .catch((error: unknown) => {
+          logger.warn(
+            "[remote-desktop] media relay listen failed:",
+            error instanceof Error ? error.message : error,
+          );
+        });
     }
     pending.resolve(result);
   };
@@ -279,6 +304,8 @@ export function createRemoteDesktopHostServer(options: {
       settleConsent({ error: "internal" });
     }
     clearPendingSocket();
+    // 会话收口：中继口、helper 连接与媒体 WS 一并释放（close 幂等；下一次会话 listen 重开随机口）。
+    mediaRelay.close();
   };
 
   const onSessionSocket = (clientId: string, socket: WebSocket): void => {
@@ -354,14 +381,26 @@ export function createRemoteDesktopHostServer(options: {
   };
 
   /**
-   * 媒体 WS 交接（本任务最小面）：只登记到 mediaSockets 并在断开时按引用清理，
-   * 不在此收发帧——媒体 relay（分帧透传、pong、输入路由）由 Task 5 接管本表。
+   * 媒体 WS 交接：归属复核 → 登记 mediaSockets → relay.attachWebSocket
+   * （分帧透传、pong、输入路由都在 relay 内部的 message 订阅里完成，本函数不收发帧）；
+   * 断开时按引用清理本表，relay 的 currentWs 由其自身的 close 订阅清理。
    * 同 clientId 重复升级（重连/旧票据迟到）时新连接顶替旧连接，避免双连接并存。
    */
   const onMediaSocket = (clientId: string, socket: WebSocket): void => {
     if (disposed) {
       try {
         socket.close(4001, "remote desktop disposed");
+      } catch {
+        // 幂等失败忽略。
+      }
+      return;
+    }
+    // 归属复核（复用 pendingSocket/activeSession 判定）：媒体 WS 只接受「同意通过待接线」
+    // 或「进行中」会话的 clientId——票据是必要非充分条件，会话收口后的迟到票据不留连接。
+    if (pendingSocket?.clientId !== clientId && activeSession?.clientId !== clientId) {
+      logger.warn(`[remote-desktop] media socket without session owner rejected, clientId=${clientId}`);
+      try {
+        socket.close(4001, "remote desktop session unavailable");
       } catch {
         // 幂等失败忽略。
       }
@@ -376,6 +415,8 @@ export function createRemoteDesktopHostServer(options: {
       }
     }
     mediaSockets.set(clientId, socket);
+    // relay 挂接（内部订阅 message/close/error；旧 currentWs 由 relay 以 1000 收口）。
+    mediaRelay.attachWebSocket(socket);
     log(`media socket attached, clientId=${clientId}`);
 
     socket.on("close", () => {
