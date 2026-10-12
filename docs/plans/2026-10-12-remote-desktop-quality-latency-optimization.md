@@ -242,8 +242,15 @@
      修复:改仓库现成的 `waitFor` 轮询 + 捕获 logger 告警并断言无 "helper not connected"/"send failed"。
    - 根因 C(台账):`third-party/inventory.json` 中 `crates/mode-cua-ax/Cargo.toml` 哈希过期
      (迁移会话加 windows features 后未再生;本地脚本因 Windows EMFILE 跑不动,改为采用 CI 产物交叉验证)。
-2. **fnos 失败(CI 首次真实执行暴露)** `a2e5655b`:`scripts/build-fnos-fpk.ts` → `build-mode.mjs` 的
-   SEA TUI 资产需要各 workspace 包 `dist/index.js`;本地有历史 dist 掩盖、CI 全新检出缺失。
-   修复:fnos 作业补与 `build:sea` 同款的 turbo 前置(构建除 CLI 外全部 workspace 包)。
+2. **fnos 失败(CI 首次真实执行暴露,两轮才修准)** `a2e5655b` → `当前修复`:`build-mode.mjs`
+   的 SEA TUI 资产要求 TUI 闭包内每个 workspace 包带 `dist`。第一轮误判为"缺子 workspace
+   构建",在 workflow 加 turbo 前置——实测冗余:`buildOutputs` 自带的
+   `pnpm --filter "@mode/cli..." build` 已覆盖 apps/mode-cli 全部子包(scope 18/33)。
+   真正缺口只有一个:**仓库根 `@mode/shared`(连带 `@mode/model-option-map`)没有 build
+   脚本**(shared 的 exports 直指 src),pnpm/turbo 永远不会为它产出 dist,全新检出必红。
+   修复:buildOutputs 内显式 `pnpm exec tsc -b --force packages/model-option-map packages/shared`
+   (--force 防陈旧 tsbuildinfo 让 -b 误判"最新"而不补输出——本地模拟全新检出时实测复现);
+   workflow 的 turbo 前置已撤。本地以"移走两个 dist 后跑完整 build:mode"端到端复验:
+   tarball 内 `agent/node_modules/@mode/shared/dist/*.js` 齐备。
 3. 本地复现纪律:CI(Linux)失败时先在本地跑同款命令链(全绿 ⇒ 判定平台/时序性),再从
    Actions 产物/job 日志取现场(经 GCM 凭据调用 API;令牌不回显)。

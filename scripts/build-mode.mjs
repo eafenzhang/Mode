@@ -158,6 +158,13 @@ async function buildOutputs(skipBuild) {
     return;
   }
 
+  // stageTuiRuntime 断言 TUI 闭包里的 workspace 包都带 dist（含仓库根
+  // @mode/shared、@mode/model-option-map）。这两个根包没有 build 脚本
+  //（@mode/shared 的 exports 直指 src），pnpm/turbo 永远不会为它们产出
+  // dist —— 全新检出上 SEA 打包报 "Missing @mode/shared dist files"
+  //（2026-10-12 fnos CI 首个红）。显式 tsc -b 编译；--force 防止陈旧
+  // tsbuildinfo 让 -b 误判"最新"而不补输出。
+  run("pnpm", ["exec", "tsc", "-b", "--force", "packages/model-option-map", "packages/shared"]);
   run("pnpm", ["--filter", "@mode/cli...", "build"]);
   await rm(resolve(root, "packages", "server", "dist"), {
     force: true,
