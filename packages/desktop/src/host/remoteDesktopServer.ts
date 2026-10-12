@@ -9,7 +9,8 @@
  *        │ 收到的每一帧 ──────────────────────────────────► ──SignalFromHost──► main
  *        │ ◄──────────────────────────────────────────────── ◄─SignalToHost──── main
  *        └─ 断开/bye ─────────────────────────────────────► ──SessionClosed──► main（收口）
- *   注入： media WS 上行输入 ──► 本模块（onInput 形状门）──raw_input──► 既有 CUA Helper broker
+ *   注入： media WS 上行输入（{t:...}，显示器内归一化）──► 本模块 onInput（schema 校验 +
+ *        monitor/virtualRect 换算，fix round 1 单跳换算）──raw_input──► 既有 CUA Helper broker
  *        （通道复用，不新起第二条 helper 生命周期；services 注入端口在被控开关打开时会经同一
  *        创建入口按需拉起）
  *
@@ -25,7 +26,12 @@
  *   socket 不可达时整帧失败并计数。
  */
 import type { WebSocket } from "ws";
-import { remoteDesktopSignalMessageSchema, type RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
+import {
+  remoteDesktopControlEventSchema,
+  remoteDesktopPointerEventSchema,
+  remoteDesktopSignalMessageSchema,
+  type RemoteDesktopErrorCode,
+} from "@mode/shared/remote-desktop";
 import type { ICredentialService } from "@mode/services";
 import { callBrokerMethod, resolveBrokerSocketPath } from "@mode/cua/broker";
 import {
@@ -34,11 +40,17 @@ import {
   RemoteDesktopHostMessageTypes,
   isRemoteDesktopMessageTypeTag,
   remoteDesktopMessageToHostSchema,
-  remoteDesktopRawInputEventSchema,
   type RemoteDesktopMessageFromHost,
   type RemoteDesktopMessageToHost,
   type RemoteDesktopRawInputEvent,
 } from "./remoteDesktopMessages.js";
+import {
+  convertControlEvent,
+  convertPointerEvent,
+  splitRemoteDesktopInjectFrames,
+  toRemoteDesktopPxRect,
+  type RemoteDesktopPxRect,
+} from "./inputConversion.js";
 import {
   isRemoteDesktopKillSwitchEngaged,
   readLanAccessClientRecords,
@@ -124,8 +136,13 @@ export function createRemoteDesktopHostServer(options: {
    */
   const mediaSockets = new Map<string, WebSocket>();
   let injectDroppedFrames = 0;
-  /** 媒体 WS 上行中被形状门（raw_input 同形校验）丢弃的事件数：换算链落地前用于联调观测。 */
+  /** 媒体 WS 上行中被丢弃的输入事件数（畸形形状 / 换算基准未就绪）：计数用于联调观测。 */
   let mediaInputDroppedEvents = 0;
+  /**
+   * 输入换算基准（monitor 物理 rect + 虚拟屏 union rect）：MediaStart 建立、MediaSwitch 更新、
+   * 会话收口清空。两者都由 coordinator 在发消息时现算（显示器变化后下一条消息自动带新值）。
+   */
+  let inputRects: { monitor: RemoteDesktopPxRect; virtual: RemoteDesktopPxRect } | null = null;
 
   /**
    * 媒体中继（本地管道 ↔ media WS 的字节泵）。本模块只负责实例化、attach 与会话收口三件事；
@@ -143,23 +160,28 @@ export function createRemoteDesktopHostServer(options: {
         ...(reason ? { reason } : {}),
       }),
     onReady: () => log("media ws ready received"),
-    // T14 实体接线：media WS 上行输入 → 既有 raw_input 注入端口（inject 保留单会话门、
-    // 512 条/帧上限与丢帧计数）。只放行与 raw_input 面同形的事件：契约 C 上行的是 {t:...}
-    // 归一化事件，与 raw_input 的 {k:...} VIRTUALDESK 绝对事件之间存在形状/坐标换算缺口；
-    // 换算链未落地前直送 broker 会按帧触发 Rust 严格校验失败（+ helper 需求副作用与逐帧
-    // warn 刷屏），故先在此丢弃并计数（联调项，见 task-14 报告）。
+    // 实体接线（Task 14 fix round 1：host 单跳换算）：media WS 上行是契约 C 的既有输入事件
+    // （{t:...}，显示器内归一化 0..1，属不可信面）——先按 shared schema 严格校验，再用
+    // MediaStart/MediaSwitch 携带的 monitor+virtualRect 换算为 {k:...} VIRTUALDESK 绝对事件，
+    // 拆 ≤512 帧后交给既有注入端口（单会话门/帧上限/丢帧计数统一在 inject 内收口）。
     onInput: (event) => {
-      const parsed = remoteDesktopRawInputEventSchema.safeParse(event);
-      if (!parsed.success) {
-        mediaInputDroppedEvents += 1;
-        if (mediaInputDroppedEvents === 1) {
-          logger.warn(
-            "[remote-desktop] media ws input dropped: not a raw_input event (media-to-raw conversion pending)",
-          );
-        }
+      const rects = inputRects;
+      if (!rects) {
+        // 开流基准未就绪（MediaStart 之前）：renderer 输入只在媒体面建立后到达，先丢并计数。
+        dropMediaInput("no coordinate reference yet (before media start)");
         return;
       }
-      inject([parsed.data]);
+      const pointer = remoteDesktopPointerEventSchema.safeParse(event);
+      if (pointer.success) {
+        injectFrames(convertPointerEvent(pointer.data, rects.monitor, rects.virtual));
+        return;
+      }
+      const control = remoteDesktopControlEventSchema.safeParse(event);
+      if (control.success) {
+        injectFrames(convertControlEvent(control.data, rects.monitor, rects.virtual));
+        return;
+      }
+      dropMediaInput("not a control/pointer event");
     },
   });
   let disposed = false;
@@ -349,6 +371,8 @@ export function createRemoteDesktopHostServer(options: {
     clearPendingSocket();
     // 会话收口：中继口、helper 连接与媒体 WS 一并释放（close 幂等；下一次会话 listen 重开随机口）。
     mediaRelay.close();
+    // 输入换算基准随会话销毁：下一会话必须由新的 MediaStart 重新建立（不跨会话复用旧显示器几何）。
+    inputRects = null;
   };
 
   const onSessionSocket = (clientId: string, socket: WebSocket): void => {
@@ -508,6 +532,24 @@ export function createRemoteDesktopHostServer(options: {
     });
   };
 
+  /**
+   * 换算结果按 ≤512 拆帧后逐帧交给注入端口（fix round 1 逐条换算：单条上行事件最多产 2 条
+   * raw 事件，帧拆分是端口上限的兜底——口径与 Rust MAX_RAW_INPUT_EVENTS 一致）。
+   */
+  const injectFrames = (raw: RemoteDesktopRawInputEvent[]): void => {
+    for (const frame of splitRemoteDesktopInjectFrames(raw)) {
+      inject(frame);
+    }
+  };
+
+  /** 上行输入丢弃（畸形 / 换算基准未就绪）：计数 + 首个 warn（60fps 输入面不逐条刷屏）。 */
+  const dropMediaInput = (reason: string): void => {
+    mediaInputDroppedEvents += 1;
+    if (mediaInputDroppedEvents === 1) {
+      logger.warn(`[remote-desktop] media ws input dropped: ${reason}`);
+    }
+  };
+
   return {
     hooks: { requestSession, onSessionSocket, onMediaSocket },
     isServerEnabled: () => serverEnabled,
@@ -568,6 +610,12 @@ export function createRemoteDesktopHostServer(options: {
         return;
       }
       if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart) {
+        // 输入换算基准随开流建立（同步生效，先于 helper 起流）：monitor 物理 rect + 虚拟屏
+        // union rect，后者由 coordinator 发消息时现算（显示器变化后下一条消息自动带新值）。
+        inputRects = {
+          monitor: toRemoteDesktopPxRect(message.rect),
+          virtual: toRemoteDesktopPxRect(message.virtualRect),
+        };
         // 开流：同意时已 listen 过中继口（幂等，同会话复用同一随机口），这里取端口注入
         // rd_media_start 给 helper。callRdMedia 由 Task 8 注入；未注入时静默跳过、注入后失败
         // 只 warn——P2 阶段渲染器画面仍在，媒体面缺失不断会话。
@@ -593,6 +641,11 @@ export function createRemoteDesktopHostServer(options: {
         return;
       }
       if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch) {
+        // 换屏同时刷新输入换算基准（monitor 换成新显示器、virtual 用本轮现算值）。
+        inputRects = {
+          monitor: toRemoteDesktopPxRect(message.rect),
+          virtual: toRemoteDesktopPxRect(message.virtualRect),
+        };
         void options.callRdMedia?.("rd_media_switch", { rect: message.rect }).catch((error: unknown) => {
           logger.warn(
             "[remote-desktop] rd_media_switch failed:",

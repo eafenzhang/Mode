@@ -41,9 +41,12 @@ export function buildMediaStatusOutbound(
 /**
  * start-capture 出站序列（spec 事件顺序 ②：先信令后启动——media-open 先把 key/salt 交给主控，
  * MediaStart 才拉起 helper 采集，主控解密就绪才收得住帧）。
+ * rect/virtualRect（Task 14 fix round 1）：采集区域显示器物理矩形 + 虚拟屏 union 矩形，
+ * host 侧据此把 renderer 的归一化输入坐标换算为 VIRTUALDESK 绝对坐标。
  */
 export function buildStartCaptureOutbound(input: {
   rect: RemoteDesktopMediaRect;
+  virtualRect: RemoteDesktopMediaRect;
   key: string;
   salt: string;
 }): RemoteDesktopMediaOutbound[] {
@@ -54,6 +57,7 @@ export function buildStartCaptureOutbound(input: {
       message: {
         type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
         rect: input.rect,
+        virtualRect: input.virtualRect,
         key: input.key,
         salt: input.salt,
       },
@@ -61,16 +65,26 @@ export function buildStartCaptureOutbound(input: {
   ];
 }
 
-/** select-monitor 出站：rect 解析失败 → error{internal} 信令；成功 → MediaSwitch 消息（helper 换屏）。 */
+/**
+ * select-monitor 出站：rect 解析失败 → error{internal} 信令；成功 → MediaSwitch 消息
+ * （helper 换屏 + host 刷新输入换算基准——virtualRect 随换屏一并更新）。
+ */
 export function buildSelectMonitorOutbound(
-  rect: RemoteDesktopMediaRect | null,
+  rects: { rect: RemoteDesktopMediaRect; virtualRect: RemoteDesktopMediaRect } | null,
 ): RemoteDesktopMediaOutbound[] {
-  if (!rect) {
+  if (!rects) {
     return [
       { kind: "signal", message: { type: "error", code: "internal", message: "unknown monitor" } },
     ];
   }
   return [
-    { kind: "host", message: { type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch, rect } },
+    {
+      kind: "host",
+      message: {
+        type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
+        rect: rects.rect,
+        virtualRect: rects.virtualRect,
+      },
+    },
   ];
 }

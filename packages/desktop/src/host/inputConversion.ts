@@ -1,13 +1,17 @@
 /**
- * 被控 main 的输入回转换算与批量（纯逻辑，单测见 tests/fixtures/remote-desktop-input.ts）。
+ * 被控 host 侧输入回转换算与批量（纯逻辑，单测见 tests/fixtures/remote-desktop-input.ts）。
  *
- * 链路：隐藏采集渲染器（DataChannel 双通道）→ main 校验 + 坐标换算 → host 注入（helper raw_input）。
+ * 链路（Task 14 fix round 1：换算单跳落在 host，main 不再参与注入）：
+ *   主控 renderer（media WS 上行 JSON {t:...}，显示器内归一化 0..1）
+ *     → host remoteDesktopServer.onInput（契约 C schema 校验）
+ *     → 本模块换算（monitor + virtualRect 由 MediaStart/MediaSwitch 携带）
+ *     → 既有注入端口（helper raw_input，VIRTUALDESK 绝对坐标）
  *
  * - 坐标：主控按「所选显示器画面」归一化（0..1）；这里用 shared `mapMonitorNormalizedToVirtualAbsolute`
  *   换算为 VIRTUALDESK 绝对坐标（0..65535，含多屏负原点）。
- * - 批量：pointer 事件 0ms 聚合（仅同 tick 合并，主控已即时发送，见 spec「质量与延迟参数」）；
- *   control 事件即时触发一次 flush（先 pointer 后 control，保持同帧内先后）。
- *   单帧 ≤512 条（与 Rust MAX_RAW_INPUT_EVENTS 同口径），超出拆帧。
+ * - 批量：pointer 事件 0ms 聚合（仅同 tick 合并，主控已即时发送，见
+ *   docs/specs/lan-remote-desktop-native-media.md 输入面）；control 事件即时触发一次 flush
+ *   （先 pointer 后 control，保持同帧内先后）。单帧 ≤512 条（与 Rust MAX_RAW_INPUT_EVENTS 同口径）。
  */
 import {
   mapMonitorNormalizedToVirtualAbsolute,
@@ -17,7 +21,7 @@ import {
 import {
   REMOTE_DESKTOP_INJECT_MAX_EVENTS,
   type RemoteDesktopRawInputEvent,
-} from "./hostMessages.js";
+} from "./remoteDesktopMessages.js";
 export { REMOTE_DESKTOP_INJECT_MAX_EVENTS };
 
 /** 显示器物理矩形（被控端 screen 模块口径，含负原点）。 */
@@ -28,10 +32,20 @@ export interface RemoteDesktopPxRect {
   heightPx: number;
 }
 
+/** host 契约的物理矩形（x/y/width/height，MediaStart/MediaSwitch 载荷）→ 换算用 PxRect。 */
+export function toRemoteDesktopPxRect(rect: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): RemoteDesktopPxRect {
+  return { xPx: rect.x, yPx: rect.y, widthPx: rect.width, heightPx: rect.height };
+}
+
 /**
  * pointer 聚合窗口：0ms = 只在同一个事件循环 tick 内合并（setTimeout(0) 调度），
  * 不再人为排队 16ms——主控已即时发送，这段等待是可削的指针端到端延迟
- * （spec「质量与延迟参数」；爆量仍由 512 条/帧上限立即 flush 兜底）。
+ * （lan-remote-desktop-native-media.md 输入面；爆量仍由 512 条/帧上限立即 flush 兜底）。
  */
 export const REMOTE_DESKTOP_POINTER_FRAME_MS = 0;
 

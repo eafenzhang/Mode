@@ -1,7 +1,7 @@
 /**
- * 远程桌面输入回转换算与批量夹具（spec: docs/specs/lan-remote-desktop.md 产品规则 6、
- * 事件顺序 ⑤；坐标纯函数复用 shared `mapMonitorNormalizedToVirtualAbsolute`）。
- * 纯函数断言，跨平台可跑。
+ * 远程桌面输入回转换算与批量夹具（坐标映射口径：lan-remote-desktop.md 产品规则 6；
+ * 链路：lan-remote-desktop-native-media.md 输入面，host 侧单跳换算；坐标纯函数复用
+ * shared `mapMonitorNormalizedToVirtualAbsolute`）。纯函数断言，跨平台可跑。
  */
 import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
@@ -16,7 +16,8 @@ const {
   convertPointerEvent,
   normalizeWheelAmount,
   splitRemoteDesktopInjectFrames,
-} = await import("../../src/main/remoteDesktop/inputConversion.js");
+  toRemoteDesktopPxRect,
+} = await import("../../src/host/inputConversion.js");
 
 const single = { xPx: 0, yPx: 0, widthPx: 1920, heightPx: 1080 };
 const singleVirtual = { xPx: 0, yPx: 0, widthPx: 1920, heightPx: 1080 };
@@ -24,6 +25,13 @@ const singleVirtual = { xPx: 0, yPx: 0, widthPx: 1920, heightPx: 1080 };
 const rightMonitor = { xPx: 0, yPx: 0, widthPx: 1920, heightPx: 1080 };
 const leftMonitor = { xPx: -1920, yPx: 0, widthPx: 1920, heightPx: 1080 };
 const dualVirtual = { xPx: -1920, yPx: 0, widthPx: 3840, heightPx: 1080 };
+
+// ── host 契约矩形（x/width 口径）→ 换算 PxRect（xPx/widthPx 口径）逐字段搬运 ──
+assert.deepEqual(
+  toRemoteDesktopPxRect({ x: -1920, y: 0, width: 1920, height: 1080 }),
+  leftMonitor,
+  "MediaStart/MediaSwitch 载荷字段名与换算口径的桥接",
+);
 
 // ── pointer：单屏中心 → 0..65535 绝对坐标 ──
 assert.deepEqual(convertPointerEvent({ t: "pm", x: 0.5, y: 0.5 }, single, singleVirtual), [
@@ -123,7 +131,7 @@ const advance = () => {
 batcher.enqueuePointer([{ k: "move", x: 1, y: 1 }]);
 batcher.enqueuePointer([{ k: "move", x: 2, y: 2 }]);
 assert.equal(frames.length, 0, "pointer 必须等聚合窗口（同 tick 合并，不即时 flush）");
-assert.equal(timers[0].delayMs, 0, "聚合窗口 = 0ms（spec 质量与延迟参数：不人为排队）");
+assert.equal(timers[0].delayMs, 0, "聚合窗口 = 0ms（native-media 输入面：不人为排队）");
 advance();
 assert.equal(frames.length, 1);
 assert.deepEqual(frames[0], [

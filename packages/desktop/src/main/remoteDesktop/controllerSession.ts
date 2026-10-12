@@ -4,13 +4,13 @@
  *
  *   renderer ──rd/start-session──► main（本模块）──host(持令牌代发)──► 对端 POST /api/remote-desktop/session
  *   renderer ◄─rd/session-event─── main ◄──WS ws://对端/ws/remote-desktop?ticket──► 对端 host
- *   renderer ──rd/send-signal───► main ──WS 写出──► 被控 host（仅转发，不解析 SDP/ICE 语义）
+ *   renderer ──rd/send-signal───► main ──WS 写出──► 被控 host（仅转发，不解析信令内容）
  *
- * 握手顺序（两端一致，实现按此对接，改序须同时改被控捕获页注释）：
- *   WS 建立 → 主控 renderer 发 hello{protocolVersion:1} → 被控回 monitors → 主控发 select-monitor
- *   → 被控起采集回 offer → 主控回 answer → 双向 ice trickle（任一端 bye 即结束）。
+ * 握手顺序（两端一致，实现按此对接，改序须同时改被控协调器注释）：
+ *   WS 建立 → 主控 renderer 发 hello{protocolVersion:2} → 被控回 monitors → 主控发 select-monitor
+ *   → 被控回 media-open{key,salt} → 主控 renderer 连 media WS（P4 起无 offer/answer/ice；任一端 bye 即结束）。
  *
- * 媒体与输入不经 main：主控 renderer 与对端隐藏渲染器之间 P2P（WebRTC）。
+ * 媒体与输入不经 main：画面/输入走主控 renderer 与对端 host 之间的 media WS（原生媒体面）。
  * 单主控单被控：同时只允许一个控制端会话（第二个 start → busy）。
  */
 import { WebSocket } from "ws";

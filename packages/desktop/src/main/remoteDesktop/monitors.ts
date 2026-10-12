@@ -12,7 +12,19 @@
 // 单测里可导入，故不做顶层静态 import（非 Electron 下静态具名导入会链接失败）。
 import type { DesktopCapturerSource, Display } from "electron";
 import type { RemoteDesktopMonitor } from "@mode/shared/remote-desktop";
-import type { RemoteDesktopPxRect } from "./inputConversion.js";
+
+/**
+ * 显示器物理矩形（DIP bounds × scaleFactor，含多屏负原点）。
+ * 与 host 侧换算模块（src/host/inputConversion.ts 的 PxRect）同形但各自声明：main 与 host 是
+ * 两个独立 tsconfig rootDir，不能共享模块；字段口径两端对齐（本模块 physicalRectOf/unionRectOf
+ * → 本目录 toMediaRect → 契约 F 的 rect/virtualRect → host toRemoteDesktopPxRect）。
+ */
+export interface RemoteDesktopPxRect {
+  xPx: number;
+  yPx: number;
+  widthPx: number;
+  heightPx: number;
+}
 
 export function displayIdOf(display: Display): string {
   return String(display.id);

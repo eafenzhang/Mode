@@ -85,15 +85,18 @@ const toHostSamples = [
     serverId: "server-x",
   },
   // P2 原生媒体面（契约 F）：开流/换屏/停流是通知型（无 requestId）。
+  // rect + virtualRect（Task 14 fix round 1）：host 输入换算基准（monitor 物理矩形 + 虚拟屏 union）。
   {
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
     rect: { x: 0, y: 0, width: 2880, height: 1620 },
+    virtualRect: { x: -1920, y: 0, width: 4800, height: 1620 },
     key: "a".repeat(64),
     salt: "b".repeat(16),
   },
   {
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
     rect: { x: -1920, y: 0, width: 1920, height: 1080 },
+    virtualRect: { x: -1920, y: 0, width: 4800, height: 1620 },
   },
   { type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStop },
 ];
@@ -194,11 +197,13 @@ assert.equal(
   false,
 );
 
-// ── 媒体面消息严格校验（契约 F）：key/salt 只收 64/16 位 hex；通知型不带 requestId ──
+// ── 媒体面消息严格校验（契约 F）：key/salt 只收 64/16 位 hex；通知型不带 requestId；
+// rect/virtualRect（fix round 1）双端同口径且缺一不可 ──
 assert.equal(
   main.remoteDesktopMessageToHostSchema.safeParse({
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
     rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    virtualRect: { x: 0, y: 0, width: 1920, height: 1080 },
     key: "A".repeat(64),
     salt: "b".repeat(16),
   }).success,
@@ -209,6 +214,7 @@ assert.equal(
   host.remoteDesktopMessageToHostSchema.safeParse({
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
     rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    virtualRect: { x: 0, y: 0, width: 1920, height: 1080 },
     key: "a".repeat(64),
     salt: "b".repeat(15),
   }).success,
@@ -217,8 +223,20 @@ assert.equal(
 );
 assert.equal(
   main.remoteDesktopMessageToHostSchema.safeParse({
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
+    rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    // virtualRect 缺失：输入换算基准不完整，必须整条拒绝（strict），不允许「缺省当单屏」。
+    key: "a".repeat(64),
+    salt: "b".repeat(16),
+  }).success,
+  false,
+  "MediaStart 缺 virtualRect 必须拒绝",
+);
+assert.equal(
+  main.remoteDesktopMessageToHostSchema.safeParse({
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
     rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    virtualRect: { x: 0, y: 0, width: 1920, height: 1080 },
     requestId: "r",
   }).success,
   false,
@@ -236,6 +254,7 @@ assert.equal(
   main.remoteDesktopMessageFromHostSchema.safeParse({
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
     rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    virtualRect: { x: 0, y: 0, width: 1920, height: 1080 },
     key: "a".repeat(64),
     salt: "b".repeat(16),
   }).success,

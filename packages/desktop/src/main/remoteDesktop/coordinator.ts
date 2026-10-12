@@ -40,7 +40,7 @@ import {
   openRemoteDesktopIndicatorWindow,
   type RemoteDesktopIndicatorWindow,
 } from "./indicatorWindow.js";
-import { listRemoteDesktopMonitors, physicalRectOf } from "./monitors.js";
+import { listRemoteDesktopMonitors, physicalRectOf, unionRectOf } from "./monitors.js";
 import {
   buildMediaStatusOutbound,
   buildSelectMonitorOutbound,
@@ -172,6 +172,23 @@ function resolvePhysicalRect(displayId: string): RemoteDesktopMediaRect | null {
   return display ? toMediaRect(physicalRectOf(display)) : null;
 }
 
+/**
+ * 虚拟屏 union 矩形（输入换算基准之一，Task 14 fix round 1）：每条 MediaStart/MediaSwitch
+ * 现算、不缓存——显示器变化（热插拔/分辨率）后下一条消息自动带新值，host 无需感知变化时机。
+ * screen 不可用时退回调用方给的 fallback（通常是与 monitor 同矩形：单屏语义下换算退化为恒等缩放）。
+ */
+function readVirtualRect(
+  runtimeState: CoordinatorRuntime,
+  fallback: RemoteDesktopMediaRect,
+): RemoteDesktopMediaRect {
+  try {
+    return toMediaRect(unionRectOf(screen.getAllDisplays()));
+  } catch (error) {
+    runtimeState.logger.warn("[remote-desktop] read virtual screen rect failed:", error);
+    return fallback;
+  }
+}
+
 /** 会话结束收口（唯一出口，幂等）：应用状态机动作 → 清理窗口/采集/批次 → 回 idle。 */
 export async function closeSession(reason: RemoteDesktopSessionCloseReason): Promise<void> {
   const runtimeState = runtime;
@@ -274,8 +291,15 @@ async function applyAction(runtimeState: CoordinatorRuntime, action: RemoteDeskt
       const salt = randomBytes(8).toString("hex");
       runtimeState.mediaKey = key;
       runtimeState.mediaSalt = salt;
+      const rect = runtimeState.pendingDisplayRect ?? FALLBACK_MEDIA_RECT;
       dispatchOutbounds(
-        buildStartCaptureOutbound({ rect: runtimeState.pendingDisplayRect ?? FALLBACK_MEDIA_RECT, key, salt }),
+        buildStartCaptureOutbound({
+          rect,
+          // 输入换算基准（fix round 1）：虚拟屏 union 矩形现算，随开流一并下发。
+          virtualRect: readVirtualRect(runtimeState, rect),
+          key,
+          salt,
+        }),
       );
       return;
     }
@@ -354,12 +378,15 @@ async function handleSignalFromHost(message: RemoteDesktopSignalMessage): Promis
   }
   if (message.type === "select-monitor") {
     // P2 原生媒体面：displayId → 物理 rect 解析后按规划路由（失败 → error{internal}；
-    // 成功 → MediaSwitch，helper 换屏）。规划本体在 mediaCoordination（纯函数，单测锁行为）。
+    // 成功 → MediaSwitch，helper 换屏 + host 刷新输入换算基准）。规划本体在 mediaCoordination
+    // （纯函数，单测锁行为）；虚拟屏 union 矩形与 rect 同时现算（换屏/热插拔后立即生效）。
     const rect = resolvePhysicalRect(message.displayId);
     if (!rect) {
       runtimeState.logger.warn(`[remote-desktop] unknown monitor displayId: ${message.displayId}`);
     }
-    dispatchOutbounds(buildSelectMonitorOutbound(rect));
+    dispatchOutbounds(
+      buildSelectMonitorOutbound(rect ? { rect, virtualRect: readVirtualRect(runtimeState, rect) } : null),
+    );
     return;
   }
   if (message.type === "bye") {

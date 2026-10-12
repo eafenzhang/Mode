@@ -63,7 +63,9 @@ assert.equal(
 const key = "a".repeat(64);
 const salt = "b".repeat(16);
 const rect = { x: 0, y: 0, width: 2880, height: 1620 };
-const startSequence = media.buildStartCaptureOutbound({ rect, key, salt });
+// fix round 1：MediaStart/Switch 同时携带 virtualRect（host 输入换算基准），与 rect 同帧同源。
+const virtualRect = { x: -1920, y: 0, width: 4800, height: 1620 };
+const startSequence = media.buildStartCaptureOutbound({ rect, virtualRect, key, salt });
 assert.deepEqual(
   startSequence.map((outbound) => outbound.kind),
   ["signal", "host"],
@@ -74,14 +76,20 @@ assert.equal(shared.remoteDesktopSignalMessageSchema.safeParse(startSequence[0]?
 const hostStart = startSequence[1]?.message;
 assert.equal(mainMirror.remoteDesktopMessageToHostSchema.safeParse(hostStart).success, true, "MediaStart 过 main 侧契约 F");
 assert.equal(hostMirror.remoteDesktopMessageToHostSchema.safeParse(hostStart).success, true, "MediaStart 过 host 侧契约 F（镜像一致）");
+assert.deepEqual(
+  (hostStart as { virtualRect?: unknown }).virtualRect,
+  virtualRect,
+  "MediaStart 必须带输入换算基准 virtualRect（fix round 1）",
+);
 
-// ── Important 1c：select-monitor 路由——解析成功 → MediaSwitch{rect}；失败 → error{internal} ──
+// ── Important 1c：select-monitor 路由——解析成功 → MediaSwitch{rect,virtualRect}；失败 → error{internal} ──
 const switchRect = { x: -1920, y: 0, width: 1920, height: 1080 };
-const switchOutbound = media.buildSelectMonitorOutbound(switchRect);
+const switchOutbound = media.buildSelectMonitorOutbound({ rect: switchRect, virtualRect });
 assert.deepEqual(switchOutbound.map((outbound) => outbound.kind), ["host"]);
 assert.deepEqual(switchOutbound[0]?.message, {
   type: "remote-desktop-media-switch",
   rect: switchRect,
+  virtualRect,
 });
 assert.equal(mainMirror.remoteDesktopMessageToHostSchema.safeParse(switchOutbound[0]?.message).success, true, "MediaSwitch 过 main 侧契约 F");
 assert.equal(hostMirror.remoteDesktopMessageToHostSchema.safeParse(switchOutbound[0]?.message).success, true, "MediaSwitch 过 host 侧契约 F（镜像一致）");

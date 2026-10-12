@@ -56,6 +56,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 | RTT 统计 | 被控 host（pong 应答） | 上行 `{t:"ping",ts}` → host 回 `{t:"pong",ts}`，不经 helper |
 | 信令状态机 | 主控 main `controllerSession` + 被控 `coordinator` | 不变（仅 union 增删） |
 | 输入事件源 | 主控 renderer `InputCapture` | 采集逻辑不变，sink 换 media WS |
+| 输入换算基准（monitor 物理 rect + 虚拟屏 union rect） | 被控 main（coordinator 每条 MediaStart/Switch 现算） | 随契约 F 下发、被控 host 持有，用于 `{t:...}` 归一化事件 → VIRTUALDESK 绝对坐标换算；不缓存（显示器变化由下一条消息自动带新值） |
 
 ## 协议
 

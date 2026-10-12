@@ -255,6 +255,9 @@ export const remoteDesktopMediaStartSchema = z
   .object({
     type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart),
     rect: remoteDesktopMediaRectSchema,
+    // 输入换算基准（Task 14 fix round 1）：采集区域的显示器物理矩形 + 虚拟屏 union 矩形——
+    // renderer 上行的是「显示器内归一化坐标」，换算为 VIRTUALDESK 绝对坐标需要两者（host 单跳换算）。
+    virtualRect: remoteDesktopMediaRectSchema,
     // 与 media-open 信令同口径：64 位小写 hex（32B key）/ 16 位小写 hex（8B salt）。
     key: z.string().regex(/^[0-9a-f]{64}$/u),
     salt: z.string().regex(/^[0-9a-f]{16}$/u),
@@ -265,6 +268,8 @@ export const remoteDesktopMediaSwitchSchema = z
   .object({
     type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch),
     rect: remoteDesktopMediaRectSchema,
+    // 换屏同时刷新虚拟屏 union 矩形：显示器热插拔后由 coordinator 现算带入，host 不缓存旧值。
+    virtualRect: remoteDesktopMediaRectSchema,
   })
   .strict();
 
