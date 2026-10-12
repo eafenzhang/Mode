@@ -57,6 +57,22 @@ test("信令消息：monitors 至少一项、未知类型被拒、error 码白�
   );
 });
 
+test("原生媒体信令：media-open / freeze / unfreeze 可解析", () => {
+  const ok = remoteDesktopSignalMessageSchema.safeParse({
+    type: "media-open",
+    key: "a".repeat(64),
+    salt: "b".repeat(16),
+  });
+  assert.equal(ok.success, true);
+  const frozen = remoteDesktopSignalMessageSchema.safeParse({ type: "freeze", reason: "locked" });
+  assert.equal(frozen.success, true);
+  const thaw = remoteDesktopSignalMessageSchema.safeParse({ type: "unfreeze" });
+  assert.equal(thaw.success, true);
+  // 严格模式：未知字段仍拒绝
+  const bad = remoteDesktopSignalMessageSchema.safeParse({ type: "unfreeze", extra: 1 });
+  assert.equal(bad.success, false);
+});
+
 test("输入事件：pointer 越界被拒、control 的 vk 范围与文本非空", () => {
   assert.equal(remoteDesktopPointerEventSchema.safeParse({ t: "pm", x: 0.5, y: 1 }).success, true);
   assert.equal(remoteDesktopPointerEventSchema.safeParse({ t: "pm", x: 1.2, y: 0 }).success, false);

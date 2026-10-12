@@ -49,6 +49,17 @@ export const remoteDesktopSignalMessageSchema = z.discriminatedUnion("type", [
       sdpMLineIndex: z.number().int().nullable(),
     })
     .strict(),
+  // ---- P2 原生媒体面（契约 D，被控 → 主控）：media-open 携带加媒体面的密钥/盐，
+  // freeze/unfreeze 表示被控端画面冻结状态（锁定/失去访问权限时冻结，恢复后解冻）。 ----
+  z
+    .object({
+      type: z.literal("media-open"),
+      key: z.string().regex(/^[0-9a-f]{64}$/u),
+      salt: z.string().regex(/^[0-9a-f]{16}$/u),
+    })
+    .strict(),
+  z.object({ type: z.literal("freeze"), reason: z.enum(["locked", "access-lost"]) }).strict(),
+  z.object({ type: z.literal("unfreeze") }).strict(),
   z
     .object({
       type: z.literal("bye"),

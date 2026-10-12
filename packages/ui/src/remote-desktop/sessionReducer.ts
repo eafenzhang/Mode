@@ -174,6 +174,12 @@ function applyControllerSignal(
     case "select-monitor":
       // 主控方向不应收到这些信号（被控端才处理它们）：记录性忽略，不改状态。
       return transition(state, {});
+    case "media-open":
+    case "freeze":
+    case "unfreeze":
+      // 契约 D 的 P2 媒体面信令（被控 → 主控）：消费在后续任务（Task 13），当前记录性
+      // 忽略；显式列出是为保持 switch 对 union 的穷举（否则 TS2366 缺结尾 return）。
+      return transition(state, {});
   }
 }
 
