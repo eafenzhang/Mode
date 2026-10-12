@@ -91,16 +91,25 @@ export function createMediaPump(addon) {
       }
     });
 
-    await callAddon(() =>
-      addon.rd_media_start({
-        rect: params.rect,
-        maxWidth: params.maxWidth,
-        fps: params.fps,
-        bitrateBps: params.bitrateBps,
-        onFrame: (frame) => emitFrame(session, frame),
-        onStatus: (status) => emitStatus(session, status),
-      }),
-    );
+    try {
+      await callAddon(() =>
+        addon.rd_media_start({
+          rect: params.rect,
+          maxWidth: params.maxWidth,
+          fps: params.fps,
+          bitrateBps: params.bitrateBps,
+          onFrame: (frame) => emitFrame(session, frame),
+          onStatus: (status) => emitStatus(session, status),
+        }),
+      );
+    } catch (error) {
+      // 起采集失败：不留半开会话——host 中继单 helper 槽位不能被死连接占住（旧连接会
+      // 消费后续 openRequested 的开流指令），下一次 start 也不该面对陈旧管道。
+      // 守卫 state === session：并发 stop/start 已换掉会话时不误清后来者。
+      if (state === session) state = null;
+      socket.destroy();
+      throw error;
+    }
     return { ok: true };
   }
 

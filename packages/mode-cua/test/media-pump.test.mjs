@@ -193,6 +193,39 @@ test("ready 门控：kind2 前不推流；kind1 状态不受门控；kind2 后�
   });
 });
 
+test("switchMonitor 契约 A 拆包：addon 直接收 rect 本体，不包 {rect}", async () => {
+  // 最高风险偏离的钉子：broker 参数是 {rect}（契约 G），napi 面是 rd_media_switch(rect)
+  // （契约 A，RdMediaRect 直接实参）。若有人按简报字面改回整包透传，真机 napi 转换必炸
+  //（实证：Missing field 'x'）——此断言必须红。
+  const listeners = {};
+  const pump = createMediaPump(fakeAddon(listeners));
+  const rect = { x: -1920, y: 0, width: 1920, height: 1080 };
+  assert.deepEqual(await pump.switchMonitor({ rect }), { ok: true });
+  assert.deepEqual(listeners.switched, rect, "addon.rd_media_switch 必须直接收 rect 本体");
+  assert.equal(listeners.switched.rect, undefined, "不得把 broker 参数 {rect} 整包透传");
+});
+
+test("kind1 形状：reason 缺席只发 frozen；reason:null（真 napi）与 host 消费口径兼容", async () => {
+  // 真 napi 的 RdMediaStatusNapi 是 use_nullable=true：unfreeze 事件会显式带 reason:null
+  //（契约 B 字面是 {"frozen":false}）。此处钉住实际下行形状，并证明与 host 中继
+  // remoteDesktopMediaRelay.dispatchStatus 的消费口径（typeof reason === "string"）等价。
+  const listeners = {};
+  await withPump(listeners, async (relay, pump) => {
+    await pump.start(startParams(relay.port));
+    listeners.status({ frozen: false, reason: null });
+    listeners.status({ frozen: false });
+    await waitFor(() => relay.collector.frames.filter((f) => f[0] === 1).length === 2);
+    const [withNull, omitted] = relay.collector.frames
+      .filter((f) => f[0] === 1)
+      .map((f) => JSON.parse(f.subarray(1).toString("utf8")));
+    assert.deepEqual(withNull, { frozen: false, reason: null });
+    assert.deepEqual(omitted, { frozen: false });
+    const hostReason = (s) => (typeof s.reason === "string" ? s.reason : undefined);
+    assert.equal(hostReason(withNull), undefined, "null reason 在 host 侧归一为缺席");
+    assert.equal(hostReason(omitted), undefined);
+  });
+});
+
 test("stop 幂等；重复 start 先停旧泵；旧会话迟到回调不跨会话", async () => {
   const relay = await startRelay();
   const calls = [];
@@ -270,6 +303,40 @@ test("connect 失败：start reject 且不触 addon（错误如实交 broker）"
   await assert.rejects(pump.start(startParams(port)), (error) => error.code === "ECONNREFUSED");
   assert.deepEqual(calls, [], "connect 失败不得起采集");
   assert.deepEqual(await pump.stop(), { ok: true }, "失败后收口仍幂等");
+});
+
+test("start 失败（addon 抛错）：会话不残留——泵回未启动态且管道断开", async () => {
+  // 失败清理纪律：rd_media_start 拒绝后若留下半开会话，会占住 host 中继的单 helper 槽位
+  //（该槽位的陈旧连接还会消费后续 openRequested 的开流指令）。清理的可观测面：stop 直接
+  // 返回 {ok:true} 且不再触 addon（无会话可取），中继侧连接被断开。
+  const relay = await startRelay();
+  const calls = [];
+  const addon = {
+    rd_media_start() {
+      calls.push("start");
+      throw new Error("unimplemented: rd_media 采集不可用"); // napi 串 → parseAxError 拆码
+    },
+    rd_media_switch() {
+      calls.push("switch");
+    },
+    rd_media_stop() {
+      calls.push("stop");
+    },
+  };
+  const pump = createMediaPump(addon);
+  try {
+    await assert.rejects(
+      pump.start(startParams(relay.port)),
+      (error) => error.code === "unimplemented",
+    );
+    assert.deepEqual(await pump.stop(), { ok: true }, "失败清理后 stop 直接幂等返回");
+    assert.deepEqual(calls, ["start"], "失败清理后不留会话：stop 不再触 addon");
+    await waitFor(() => relay.hostSides.length === 1);
+    await waitFor(() => relay.hostSides[0].destroyed, { timeoutMs: 2_000 });
+  } finally {
+    await pump.stop();
+    await relay.close();
+  }
 });
 
 test("管道被 host 断开：帧/状态写入不抛穿（TSFN Fatal 下不可炸进程），stop 仍幂等", async () => {
