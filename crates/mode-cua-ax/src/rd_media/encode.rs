@@ -1,0 +1,748 @@
+//! 采集纹理 → D3D11 Video Processor（BGRA→NV12 + 缩放）→ MF 硬件 H.264 → Annex-B ES。
+//!
+//! 链路（spec「被控 Rust · 编码」）：proc 纹理（BGRA，已含光标）→
+//! `ID3D11VideoProcessor`（Blt 顺带完成到 maxWidth 的缩放，目标 NV12）→
+//! staging Map 回读成紧凑 NV12（系统内存输入；spec 降级预案本就是系统内存路线，
+//! 这里直接按它实现，绕开 `MFT_MESSAGE_SET_D3D_MANAGER` 的 D3D11↔MF 互操作面）→
+//! `IMFTransform`（`MFT_CATEGORY_VIDEO_ENCODER` 硬件 H.264）→ Annex-B ES。
+//!
+//! 即时 IDR（本任务唯一不确定面，Resolution 2）：windows 0.58 元数据与真实 MF 均**没有**
+//! `MF_MT_MPEG2_GOP_SIZE` 属性（H.264 编码 MFT 不暴露 GOP 配置），简报推荐的 GOP 属性
+//! 路径不可实现；sample 级 `MFSampleExtension_CleanPoint` 对多数编码器只是只读提示。
+//! 故采用简报同一节给出的「简单可靠法」：状态机（state.rs）判定本帧应为关键帧时
+//! （首帧后的 GOP 到期 / `force_idr` 换屏 / 解冻），先 `MFT_MESSAGE_COMMAND_FLUSH`
+//! 复位编码器再灌流——flush 后的下一帧按编码器契约必为 IDR（丢 1 帧可接受，Resolution 2
+//! 明示），线上 key 标志仍以码流探测 `contains_idr` 为唯一权威。
+use std::borrow::Cow;
+use std::collections::VecDeque;
+use std::mem::ManuallyDrop;
+use std::sync::Mutex;
+
+use windows::Win32::Foundation::TRUE;
+use windows::Win32::Graphics::Direct3D11::{
+  ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D, ID3D11VideoContext, ID3D11VideoDevice,
+  ID3D11VideoProcessor, ID3D11VideoProcessorEnumerator, ID3D11VideoProcessorInputView,
+  ID3D11VideoContext1, ID3D11VideoProcessorOutputView, D3D11_BIND_FLAG,
+  D3D11_BIND_RENDER_TARGET, D3D11_CPU_ACCESS_FLAG, D3D11_CPU_ACCESS_READ, D3D11_MAP_READ,
+  D3D11_MAPPED_SUBRESOURCE, D3D11_TEX2D_VPIV, D3D11_TEX2D_VPOV, D3D11_TEXTURE2D_DESC,
+  D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING, D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
+  D3D11_VIDEO_PROCESSOR_CONTENT_DESC, D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC,
+  D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC_0, D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC,
+  D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC_0, D3D11_VIDEO_PROCESSOR_STREAM,
+  D3D11_VIDEO_USAGE_PLAYBACK_NORMAL, D3D11_VPIV_DIMENSION_TEXTURE2D,
+  D3D11_VPOV_DIMENSION_TEXTURE2D,
+};
+use windows::Win32::Graphics::Dxgi::Common::{
+  DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709, DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709,
+  DXGI_FORMAT_NV12, DXGI_RATIONAL,
+};
+use windows::Win32::Media::MediaFoundation::{
+  eAVEncH264VProfile_Base, MFCreateMemoryBuffer, MFCreateMediaType, MFCreateSample,
+  MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MFMediaType_Video, MFShutdown, MFStartup,
+  MF_VERSION, MFVideoFormat_H264, MFVideoFormat_NV12,
+  MFVideoInterlace_Progressive, IMFActivate, IMFSample, IMFTransform, MFT_CATEGORY_VIDEO_ENCODER,
+  MFTEnumEx, MFT_ENUM_FLAG, MFT_ENUM_FLAG_HARDWARE, MFT_ENUM_FLAG_SORTANDFILTER,
+  MFT_MESSAGE_COMMAND_DRAIN, MFT_MESSAGE_COMMAND_FLUSH, MFT_MESSAGE_NOTIFY_END_OF_STREAM,
+  MFT_MESSAGE_NOTIFY_START_OF_STREAM, MFT_OUTPUT_DATA_BUFFER,
+  MFT_OUTPUT_DATA_BUFFER_INCOMPLETE, MFT_REGISTER_TYPE_INFO, MF_MT_AVG_BITRATE,
+  MF_MT_FRAME_RATE, MF_MT_FRAME_SIZE, MF_MT_INTERLACE_MODE, MF_MT_MAJOR_TYPE,
+  MF_MT_MPEG2_PROFILE, MF_MT_SUBTYPE,
+};
+use windows::core::Interface;
+
+use super::capture::create_texture;
+use super::state::{contains_idr, reduce, EncoderAction, EncoderState};
+use crate::error::{AxError, AxResult};
+
+/// GOP 目标（spec「编码」：GOP 120 帧 ≈ 2s@60fps）。MFT 侧无 GOP 属性，由状态机
+/// 每 120 帧触发一次 flush-IDR 实现「每 GOP 一个关键帧」。
+const GOP_FRAMES: u32 = 120;
+/// 90kHz 时间基（MF 视频标准）：sample 时长 = 90000/fps。
+const MF_TICKS: i64 = 90_000;
+
+/// MF 进程级引用计数：`MFStartup` 只在首个编码器建立时调用，最后一个编码器
+/// drop 时 `MFShutdown`（简报「MFShutdown 对应次数」——一一配对，多次 start/stop
+/// 循环后仍平衡；纯 `Once` 在「关了再开」场景会失配，故用计数器承担 Once 角色）。
+static MF_USERS: Mutex<usize> = Mutex::new(0);
+
+/// 计数器锁：锁中毒不丢数据（取回守卫继续用——本静态只被短临界区写入，无毒源）。
+fn mf_users() -> std::sync::MutexGuard<'static, usize> {
+  MF_USERS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn mf_acquire() -> AxResult<()> {
+  let mut n = mf_users();
+  if *n == 0 {
+    // 失败语义（简报 Step 4）：MFStartup 失败 = 能力面缺失 → unimplemented。
+    unsafe { MFStartup(MF_VERSION, MFSTARTUP_FULL) }
+      .map_err(|e| AxError::new("unimplemented", format!("MFStartup 失败: {e}")))?;
+  }
+  *n += 1;
+  Ok(())
+}
+
+fn mf_release() {
+  let mut n = mf_users();
+  *n = n.saturating_sub(1);
+  if *n == 0 {
+    let _ = unsafe { MFShutdown() };
+  }
+}
+
+/// 编码输出的一帧（seq/key 由本层与状态机、码流共同决定，wire 组装在 Node 侧）。
+pub struct EncodedChunk {
+  pub seq: u32,
+  pub key: bool,
+  pub data: Vec<u8>,
+}
+
+/// VP 输入侧管线（输入尺寸/纹理身份可能在换屏、duplication 重开时变化 → 整体重建；
+/// MF 输出侧尺寸不变故不在这里）。绑定 proc 纹理的身份用裸指针值判等——同一 GPU
+/// 对象在 duplication 重开后必然是新分配，指针值变化即输入变化。
+struct VpPipeline {
+  _enumerator: ID3D11VideoProcessorEnumerator,
+  vp: ID3D11VideoProcessor,
+  input_view: ID3D11VideoProcessorInputView,
+  output_view: ID3D11VideoProcessorOutputView,
+  nv12: ID3D11Texture2D,
+  staging: ID3D11Texture2D,
+  bound_texture: usize,
+  in_w: u32,
+  in_h: u32,
+}
+
+pub struct Encoder {
+  /// 纹理创建用的原 device（与 video_device 同对象 QI 前的引用）。
+  device: ID3D11Device,
+  video_device: ID3D11VideoDevice,
+  video_ctx: ID3D11VideoContext,
+  /// ColorSpace1 变体所在接口（Win10）：设置 RGB→YCbCr limited 的色彩空间。
+  video_ctx1: ID3D11VideoContext1,
+  ctx: ID3D11DeviceContext,
+  out_w: u32,
+  out_h: u32,
+  fps: u32,
+  mf: IMFTransform,
+  /// VP 管线：首帧（见到真实输入纹理）惰性建立。
+  vp: Option<VpPipeline>,
+  /// 输入→输出配对队列：MF 编码器可能有 0~N 帧流水延迟，输出侧按 FIFO 领回
+  /// 自己的 (seq, key)；flush 时连同被丢弃的在途输入一起清空。
+  pending: VecDeque<(u32, bool)>,
+  /// 是否已灌过首帧（首个输入不 Flush——新 transform 自身就是 IDR 起点）。
+  pushed: bool,
+  /// `VideoProcessorBlt` 的输出帧序号（要求单调递增）。
+  frame_counter: u32,
+  seq_source: EncoderState,
+}
+
+impl Encoder {
+  pub fn new(
+    device: &ID3D11Device,
+    out_w: u32,
+    out_h: u32,
+    fps: u32,
+    bitrate_bps: u32,
+  ) -> AxResult<Self> {
+    // H.264 约束：偶数尺寸；fps/尺寸非法按入参错误拒绝（调用方 napi 层已校验，
+    // 这里是防御——错误尺寸会把错误拖到 MFT SetInputType 才爆，错误归因会失真）。
+    let (out_w, out_h) = (out_w & !1, out_h & !1);
+    if out_w == 0 || out_h == 0 || fps == 0 || bitrate_bps == 0 {
+      return Err(AxError::new("invalid_request", "编码参数非法（尺寸须为正偶数、fps/码率须为正）"));
+    }
+    mf_acquire()?;
+    match Self::build(device, out_w, out_h, fps, bitrate_bps) {
+      Ok(s) => Ok(s),
+      Err(e) => {
+        // build 半途失败时 Drop 不会执行（结构体未构造），手动归还 MF 计数。
+        mf_release();
+        Err(e)
+      }
+    }
+  }
+
+  fn build(
+    device: &ID3D11Device,
+    out_w: u32,
+    out_h: u32,
+    fps: u32,
+    bitrate_bps: u32,
+  ) -> AxResult<Self> {
+    let video_device = device
+      .cast::<ID3D11VideoDevice>()
+      .map_err(|e| AxError::internal(format!("ID3D11VideoDevice QI 失败: {e}")))?;
+    // unsafe 依据（块级）：GetImmediateContext 为 COM FFI。
+    let ctx = unsafe { device.GetImmediateContext() }
+      .map_err(|e| AxError::internal(format!("GetImmediateContext 失败: {e}")))?;
+    let video_ctx = ctx
+      .cast::<ID3D11VideoContext>()
+      .map_err(|e| AxError::internal(format!("ID3D11VideoContext QI 失败: {e}")))?;
+    // ColorSpace1（DXGI 色彩空间口径）只在 ID3D11VideoContext1 上——spec 目标平台
+    // Win10（自带 H.264 HW MFT），QI 失败按能力面缺失处理。
+    let video_ctx1 = ctx
+      .cast::<ID3D11VideoContext1>()
+      .map_err(|e| AxError::internal(format!("ID3D11VideoContext1 QI 失败: {e}")))?;
+    let mf = activate_h264_encoder()?;
+    configure_media_types(&mf, out_w, out_h, fps, bitrate_bps)?;
+    // unsafe 依据（块级）：IMFTransform 方法均为 COM FFI；transform 持有至 Drop。
+    unsafe {
+      mf.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
+        .map_err(|e| AxError::new("unimplemented", format!("编码器开流失败: {e}")))?;
+    }
+    Ok(Self {
+      device: device.clone(),
+      video_device,
+      video_ctx,
+      video_ctx1,
+      ctx,
+      out_w,
+      out_h,
+      fps,
+      mf,
+      vp: None,
+      pending: VecDeque::new(),
+      pushed: false,
+      frame_counter: 0,
+      seq_source: EncoderState::new(GOP_FRAMES),
+    })
+  }
+
+  /// 编码输出尺寸（换屏时外层据此判断是否需要重建编码器）。
+  pub fn out_size(&self) -> (u32, u32) { (self.out_w, self.out_h) }
+
+  /// 换屏重建编码器时取走状态机（seq 必须跨重建连续——wire 的 IV = salt∥seq，
+  /// seq 回退 = GCM nonce 复用，是安全契约而非便利）。
+  pub fn take_state(&mut self) -> EncoderState {
+    std::mem::replace(&mut self.seq_source, EncoderState::new(GOP_FRAMES))
+  }
+
+  pub fn import_state(&mut self, state: EncoderState) { self.seq_source = state; }
+
+  pub fn force_idr(&mut self) { self.seq_source.force_idr(); }
+
+  pub fn set_frozen(&mut self, frozen: bool) { self.seq_source.set_frozen(frozen); }
+
+  /// 一帧进、零或一帧出：状态机冻结 → `None`（不喂编码器）；编码器流水未吐
+  /// → `None`（继续喂）。`Some` 表示拿到一帧完整 Annex-B ES。
+  pub fn push(&mut self, texture: &ID3D11Texture2D) -> AxResult<Option<EncodedChunk>> {
+    let (seq, key) = match reduce(&mut self.seq_source) {
+      EncoderAction::None => return Ok(None),
+      EncoderAction::Emit { seq, key } => (seq, key),
+    };
+    // VP 惰性/重建（首帧或输入纹理身份/尺寸变化）。
+    self.ensure_vp(texture)?;
+    // 即时 IDR：状态机判关键帧（首帧后的 GOP 到期 / force_idr / 解冻）→ Flush 复位
+    // 编码器 → 下一输入必产 IDR。首帧不 Flush（新 transform 本身即 IDR 起点）。
+    if key && self.pushed {
+      // unsafe 依据（块级）：COM FFI；flush 语义见文件头 Resolution 2 说明。
+      unsafe {
+        self.mf.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0)
+          .map_err(|e| AxError::internal(format!("编码器 Flush 失败: {e}")))?;
+        self.mf.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
+          .map_err(|e| AxError::internal(format!("编码器重开流失败: {e}")))?;
+      }
+      // flush 丢弃在途输入，配对队列同步清空（那些 seq 永远不会再有输出）。
+      self.pending.clear();
+    }
+    self.pushed = true;
+    self.pending.push_back((seq, key));
+    // GPU：Blt 缩放转换 + 回读紧凑 NV12。
+    let nv12 = self.blt_and_readback()?;
+    // MF：输入样本（sample 时间戳用本帧 seq，保证编码器侧时间轴单调）。
+    self.feed_input(&nv12, seq)?;
+    // MF：取输出（可能本轮还没有 → None，配对项留给下一轮）。
+    let Some(data) = self.pump_output()? else { return Ok(None) };
+    let data = match to_annex_b(&data) {
+      Cow::Borrowed(b) => b.to_vec(),
+      Cow::Owned(v) => v,
+    };
+    // key 的唯一权威 = 码流中的 IDR NAL（flush/GOP 是否被驱动如实执行由它兜底）。
+    let key = contains_idr(&data);
+    match self.pending.pop_front() {
+      Some((seq, _)) => Ok(Some(EncodedChunk { seq, key, data })),
+      // 按构造不可达：每个输出必对应一个入队输入（flush 两侧同步清空）。
+      // 若驱动行为破坏该不变式，宁可丢帧也不发错 seq（IV 唯一性优先）。
+      None => Ok(None),
+    }
+  }
+
+  /// 建立/重建 VP 输入侧：输入纹理身份或尺寸变化（换屏、duplication 重开）时
+  /// 重建 enumerator/VP/输入视图/NV12 目标；MF 输出侧不动。
+  fn ensure_vp(&mut self, texture: &ID3D11Texture2D) -> AxResult<()> {
+    // unsafe 依据（块级）：GetDesc 为 COM FFI；desc 为本栈帧槽位。
+    let mut desc = D3D11_TEXTURE2D_DESC::default();
+    unsafe { texture.GetDesc(&mut desc) };
+    let ident = texture.as_raw() as usize;
+    if let Some(p) = &self.vp {
+      if p.bound_texture == ident && p.in_w == desc.Width && p.in_h == desc.Height {
+        return Ok(());
+      }
+    }
+    let content = D3D11_VIDEO_PROCESSOR_CONTENT_DESC {
+      InputFrameFormat: D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
+      InputFrameRate: DXGI_RATIONAL { Numerator: self.fps, Denominator: 1 },
+      InputWidth: desc.Width,
+      InputHeight: desc.Height,
+      OutputFrameRate: DXGI_RATIONAL { Numerator: self.fps, Denominator: 1 },
+      OutputWidth: self.out_w,
+      OutputHeight: self.out_h,
+      Usage: D3D11_VIDEO_USAGE_PLAYBACK_NORMAL,
+    };
+    // unsafe 依据（块级）：ID3D11VideoDevice FFI。
+    let enumerator = unsafe { self.video_device.CreateVideoProcessorEnumerator(&content) }
+      .map_err(|e| AxError::internal(format!("CreateVideoProcessorEnumerator 失败: {e}")))?;
+    let vp = unsafe { self.video_device.CreateVideoProcessor(&enumerator, 0) }
+      .map_err(|e| AxError::internal(format!("CreateVideoProcessor 失败: {e}")))?;
+    // 色彩管线：输入 = 桌面 RGB 全范围；输出 = NV12 YCbCr 演播室范围（limited，
+    // 简报要点「range limited」）、BT.709 色域（与 HD 内容的解码端假设一致）。
+    // unsafe 依据（块级）：ID3D11VideoContext1 FFI。
+    unsafe {
+      self.video_ctx1.VideoProcessorSetStreamColorSpace1(
+        &vp,
+        0,
+        DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709,
+      );
+      self.video_ctx1
+        .VideoProcessorSetOutputColorSpace1(&vp, DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709);
+    }
+    let iv_desc = D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC {
+      FourCC: 0,
+      ViewDimension: D3D11_VPIV_DIMENSION_TEXTURE2D,
+      Anonymous: D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC_0 {
+        Texture2D: D3D11_TEX2D_VPIV { MipSlice: 0, ArraySlice: 0 },
+      },
+    };
+    let mut input_view: Option<ID3D11VideoProcessorInputView> = None;
+    unsafe {
+      self
+        .video_device
+        .CreateVideoProcessorInputView(texture, &enumerator, &iv_desc, Some(&mut input_view))
+        .map_err(|e| AxError::internal(format!("CreateVideoProcessorInputView 失败: {e}")))?
+    };
+    let nv12 = create_texture(
+      &self.device,
+      self.out_w,
+      self.out_h,
+      DXGI_FORMAT_NV12,
+      D3D11_USAGE_DEFAULT,
+      D3D11_CPU_ACCESS_FLAG(0),
+      D3D11_BIND_RENDER_TARGET,
+    )?;
+    let staging = create_texture(
+      &self.device,
+      self.out_w,
+      self.out_h,
+      DXGI_FORMAT_NV12,
+      D3D11_USAGE_STAGING,
+      D3D11_CPU_ACCESS_READ,
+      D3D11_BIND_FLAG(0),
+    )?;
+    let ov_desc = D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC {
+      ViewDimension: D3D11_VPOV_DIMENSION_TEXTURE2D,
+      Anonymous: D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC_0 {
+        Texture2D: D3D11_TEX2D_VPOV { MipSlice: 0 },
+      },
+    };
+    let mut output_view: Option<ID3D11VideoProcessorOutputView> = None;
+    unsafe {
+      self
+        .video_device
+        .CreateVideoProcessorOutputView(&nv12, &enumerator, &ov_desc, Some(&mut output_view))
+        .map_err(|e| AxError::internal(format!("CreateVideoProcessorOutputView 失败: {e}")))?
+    };
+    self.vp = Some(VpPipeline {
+      _enumerator: enumerator,
+      vp,
+      input_view: input_view.ok_or_else(|| AxError::internal("输入视图为空"))?,
+      output_view: output_view.ok_or_else(|| AxError::internal("输出视图为空"))?,
+      nv12,
+      staging,
+      bound_texture: ident,
+      in_w: desc.Width,
+      in_h: desc.Height,
+    });
+    Ok(())
+  }
+
+  /// `VideoProcessorBlt`（整帧缩放转换到 NV12）→ staging Map → 紧凑 NV12 回读。
+  fn blt_and_readback(&mut self) -> AxResult<Vec<u8>> {
+    let Some(p) = self.vp.as_ref() else {
+      return Err(AxError::internal("VP 管线未建立"));
+    };
+    let stream = D3D11_VIDEO_PROCESSOR_STREAM {
+      Enable: TRUE,
+      pInputSurface: ManuallyDrop::new(Some(p.input_view.clone())),
+      ..Default::default()
+    };
+    // unsafe 依据（块级）：VideoProcessorBlt 为 COM FFI；流参数在调用期间存活。
+    unsafe {
+      self
+        .video_ctx
+        .VideoProcessorBlt(&p.vp, &p.output_view, self.frame_counter, &[stream])
+        .map_err(|e| AxError::internal(format!("VideoProcessorBlt 失败: {e}")))?
+    };
+    self.frame_counter = self.frame_counter.wrapping_add(1);
+    unsafe { self.ctx.CopyResource(&p.staging, &p.nv12) };
+    let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
+    unsafe {
+      self
+        .ctx
+        .Map(&p.staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))
+        .map_err(|e| AxError::internal(format!("NV12 Map 失败: {e}")))?
+    };
+    // Map 成功后必须 Unmap——用内部闭包把拷贝收拢，Unmap 无条件执行。
+    let read = (|| -> AxResult<Vec<u8>> {
+      if mapped.pData.is_null() {
+        return Err(AxError::internal("NV12 映射为空"));
+      }
+      let (w, h) = (self.out_w as usize, self.out_h as usize);
+      let pitch = mapped.RowPitch as usize;
+      let base = mapped.pData as *const u8; // 空指针转换本身安全，解引用块内已标 unsafe
+      let mut out = Vec::with_capacity(w * h * 3 / 2);
+      // Y 平面：h 行 × w 字节（行距可能 > w）。
+      for r in 0..h {
+        let row = unsafe { std::slice::from_raw_parts(base.add(r * pitch), w) };
+        out.extend_from_slice(row);
+      }
+      // UV 平面：紧随 Y 平面（DXGI NV12 = RowPitch × Height 偏移），h/2 行 × w 字节。
+      for r in 0..h / 2 {
+        let row = unsafe { std::slice::from_raw_parts(base.add(pitch * h + r * pitch), w) };
+        out.extend_from_slice(row);
+      }
+      Ok(out)
+    })();
+    unsafe { self.ctx.Unmap(&p.staging, 0) };
+    read
+  }
+
+  /// 紧凑 NV12 → `IMFSample` → `ProcessInput`。
+  fn feed_input(&self, nv12: &[u8], seq: u32) -> AxResult<()> {
+    let buffer = unsafe { MFCreateMemoryBuffer(nv12.len() as u32) }
+      .map_err(|e| AxError::internal(format!("MFCreateMemoryBuffer 失败: {e}")))?;
+    let (mut ptr, mut max, mut cur) = (std::ptr::null_mut(), 0u32, 0u32);
+    unsafe {
+      buffer
+        .Lock(&mut ptr, Some(&mut max), Some(&mut cur))
+        .map_err(|e| AxError::internal(format!("输入 Buffer Lock 失败: {e}")))?
+    };
+    if ptr.is_null() {
+      return Err(AxError::internal("输入 Buffer Lock 返回空指针"));
+    }
+    // unsafe 依据（块级）：ptr 来自本作用域 Lock、长度 = nv12.len() ≤ max。
+    unsafe {
+      std::ptr::copy_nonoverlapping(nv12.as_ptr(), ptr, nv12.len());
+      buffer
+        .Unlock()
+        .map_err(|e| AxError::internal(format!("输入 Buffer Unlock 失败: {e}")))?;
+    }
+    unsafe {
+      buffer
+        .SetCurrentLength(nv12.len() as u32)
+        .map_err(|e| AxError::internal(format!("SetCurrentLength 失败: {e}")))?
+    };
+    let sample = unsafe { MFCreateSample() }
+      .map_err(|e| AxError::internal(format!("MFCreateSample 失败: {e}")))?;
+    unsafe {
+      sample
+        .AddBuffer(&buffer)
+        .map_err(|e| AxError::internal(format!("AddBuffer 失败: {e}")))?;
+    }
+    // 时间基 90kHz；seq 跨 start/stop 单调（IV 唯一性），时间戳只求单调即可。
+    let t = (seq as i64) * MF_TICKS / self.fps as i64;
+    unsafe {
+      sample
+        .SetSampleTime(t)
+        .map_err(|e| AxError::internal(format!("SetSampleTime 失败: {e}")))?;
+      sample
+        .SetSampleDuration(MF_TICKS / self.fps as i64)
+        .map_err(|e| AxError::internal(format!("SetSampleDuration 失败: {e}")))?;
+    }
+    unsafe {
+      self
+        .mf
+        .ProcessInput(0, &sample, 0)
+        .map_err(|e| AxError::internal(format!("ProcessInput 失败: {e}")))?;
+    }
+    Ok(())
+  }
+
+  /// `ProcessOutput` 循环：拿到一帧含数据的 ES 或「本轮无输出」（NEED_MORE_INPUT）。
+  fn pump_output(&mut self) -> AxResult<Option<Vec<u8>>> {
+    let cap = (self.out_w as usize) * (self.out_h as usize) * 3 / 2;
+    for _ in 0..8 {
+      // 输出样本自备（除非驱动声明 PROVIDES_SAMPLES——那种情形下传 None 也安全，
+      // 统一自备并容忍 MFT 覆盖 pSample）。
+      let out_sample = self.make_output_sample(cap)?;
+      let mut out = MFT_OUTPUT_DATA_BUFFER {
+        dwStreamID: 0,
+        pSample: ManuallyDrop::new(Some(out_sample)),
+        dwStatus: 0,
+        pEvents: ManuallyDrop::new(None),
+      };
+      let mut status = 0u32;
+      let r = unsafe { self.mf.ProcessOutput(0, std::slice::from_mut(&mut out), &mut status) };
+      let flags = out.dwStatus;
+      let produced = ManuallyDrop::into_inner(out.pSample);
+      let events = ManuallyDrop::into_inner(out.pEvents);
+      drop(events); // 编码器不发事件；即使发了也立即释放引用
+      match r {
+        Err(e) if e.code() == MF_E_TRANSFORM_NEED_MORE_INPUT => return Ok(None),
+        Err(e) => return Err(AxError::internal(format!("ProcessOutput 失败: {e}"))),
+        Ok(()) => {}
+      }
+      if let Some(smp) = produced {
+        let data = read_sample_bytes(&smp)?;
+        if !data.is_empty() {
+          return Ok(Some(data));
+        }
+      }
+      if flags & (MFT_OUTPUT_DATA_BUFFER_INCOMPLETE.0 as u32) != 0 {
+        continue; // 还有输出待取（同一次输入的后续数据）
+      }
+      return Ok(None);
+    }
+    Ok(None)
+  }
+
+  fn make_output_sample(&self, cap: usize) -> AxResult<IMFSample> {
+    let buffer = unsafe { MFCreateMemoryBuffer(cap as u32) }
+      .map_err(|e| AxError::internal(format!("输出 Buffer 创建失败: {e}")))?;
+    let sample = unsafe { MFCreateSample() }
+      .map_err(|e| AxError::internal(format!("输出 Sample 创建失败: {e}")))?;
+    unsafe {
+      sample
+        .AddBuffer(&buffer)
+        .map_err(|e| AxError::internal(format!("输出 AddBuffer 失败: {e}")))?
+    };
+    Ok(sample)
+  }
+}
+
+// SAFETY：`Encoder` 只在「创建线程 → 单一采集线程」间 move 一次，之后所有方法
+// 都只在该采集线程上调用（`napi.rs` worker 独占持有，无并发访问）。MF 的
+// `IMFTransform` 按 Media Foundation 契约是 agile 对象（MFT 允许任意线程调用、
+// 客户端自行串行化），不存在线程亲和性；windows 0.58 未给 MF 接口标 `Send` 属
+// 元数据缺口而非语义禁止（同 crate 的 DXGI/D3D11 接口均显式标了 Send）。
+unsafe impl Send for Encoder {}
+
+impl Drop for Encoder {
+  fn drop(&mut self) {
+    // 收口 drain（简报要点 6）：通知流结束并排空缓冲；尽力而为，失败不改结果
+    // （transform 释放时由 MF 内部清理）。
+    unsafe {
+      let _ = self.mf.ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+      let _ = self.mf.ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
+    }
+    mf_release();
+  }
+}
+
+/// 枚举硬件 H.264 视频编码器并激活。
+///
+/// 选择口径：简报写「取含 "H.264" 描述者」，但 windows 0.58 元数据没有
+/// `MF_TRANSFORM_FRIENDLY_NAME` 常量——改用等价且更强的类型过滤
+/// （输入 NV12 + 输出 H264 + `SORTANDFILTER` 排序），首个可激活且可配类型的胜出。
+fn activate_h264_encoder() -> AxResult<IMFTransform> {
+  let input_info = MFT_REGISTER_TYPE_INFO {
+    guidMajorType: MFMediaType_Video,
+    guidSubtype: MFVideoFormat_NV12,
+  };
+  let output_info = MFT_REGISTER_TYPE_INFO {
+    guidMajorType: MFMediaType_Video,
+    guidSubtype: MFVideoFormat_H264,
+  };
+  let flags =
+    MFT_ENUM_FLAG(MFT_ENUM_FLAG_HARDWARE.0 | MFT_ENUM_FLAG_SORTANDFILTER.0);
+  let mut arr: *mut Option<IMFActivate> = std::ptr::null_mut();
+  let mut count = 0u32;
+  // unsafe 依据（块级）：MFTEnumEx 分配激活器数组，本函数负责逐个取用后
+  // CoTaskMemFree 数组；激活器引用经 ptr::read 转移（不额外 AddRef）。
+  unsafe {
+    MFTEnumEx(
+      MFT_CATEGORY_VIDEO_ENCODER,
+      flags,
+      Some(&input_info),
+      Some(&output_info),
+      &mut arr,
+      &mut count,
+    )
+    .map_err(|e| AxError::new("unimplemented", format!("MFTEnumEx(硬件 H.264) 失败: {e}")))?;
+  }
+  let mut activated: Option<IMFTransform> = None;
+  if !arr.is_null() {
+    for i in 0..count as usize {
+      // 数组元素 = 单个接口指针槽（8B，与 Option<IMFActivate> 同布局），按 Option
+      // 读出转移所有权：选中的留下，其余随作用域 drop 释放引用（不额外 AddRef）。
+      let act = unsafe { std::ptr::read(arr.add(i)) };
+      let Some(activate) = act else { continue };
+      if activated.is_some() {
+        continue;
+      }
+      match unsafe { activate.ActivateObject::<IMFTransform>() } {
+        Ok(t) => activated = Some(t),
+        // 单个激活失败（驱动状态异常）→ 尝试下一个候选。
+        Err(_) => continue,
+      }
+    }
+    unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(arr as *const core::ffi::c_void)) };
+  }
+  activated.ok_or_else(|| {
+    AxError::new("unimplemented", "无可用硬件 H.264 编码器（MFTEnumEx 无候选或激活失败）")
+  })
+}
+
+/// 配置输入/输出 media type（MS H.264 编码器口径：输入 NV12+尺寸+帧率+逐行；
+/// 输出 H264+Baseline(66)+码率）。
+fn configure_media_types(
+  mf: &IMFTransform,
+  out_w: u32,
+  out_h: u32,
+  fps: u32,
+  bitrate_bps: u32,
+) -> AxResult<()> {
+  let input = unsafe { MFCreateMediaType() }
+    .map_err(|e| AxError::new("unimplemented", format!("MFCreateMediaType(输入) 失败: {e}")))?;
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    input.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)
+      .map_err(|e| AxError::new("unimplemented", format!("输入类型 major 失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    input.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_NV12)
+      .map_err(|e| AxError::new("unimplemented", format!("输入类型 subtype 失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    input.SetUINT64(&MF_MT_FRAME_SIZE, ((out_w as u64) << 32) | out_h as u64)
+      .map_err(|e| AxError::new("unimplemented", format!("输入类型 frame size 失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    input.SetUINT64(&MF_MT_FRAME_RATE, ((fps as u64) << 32) | 1)
+      .map_err(|e| AxError::new("unimplemented", format!("输入类型 frame rate 失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    input.SetUINT32(
+      &MF_MT_INTERLACE_MODE,
+      MFVideoInterlace_Progressive.0 as u32,
+    )
+      .map_err(|e| AxError::new("unimplemented", format!("输入类型 interlace 失败: {e}")))?
+  };
+  unsafe {
+    mf.SetInputType(0, &input, 0)
+      .map_err(|e| AxError::new("unimplemented", format!("SetInputType 失败: {e}")))?
+  };
+
+  let output = unsafe { MFCreateMediaType() }
+    .map_err(|e| AxError::new("unimplemented", format!("MFCreateMediaType(输出) 失败: {e}")))?;
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    output.SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)
+      .map_err(|e| AxError::new("unimplemented", format!("输出类型 major 失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    output.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264)
+      .map_err(|e| AxError::new("unimplemented", format!("输出类型 subtype 失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    output.SetUINT64(&MF_MT_FRAME_SIZE, ((out_w as u64) << 32) | out_h as u64)
+      .map_err(|e| AxError::new("unimplemented", format!("输出类型 frame size 失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    output.SetUINT64(&MF_MT_FRAME_RATE, ((fps as u64) << 32) | 1)
+      .map_err(|e| AxError::new("unimplemented", format!("输出类型 frame rate 失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    output.SetUINT32(&MF_MT_AVG_BITRATE, bitrate_bps)
+      .map_err(|e| AxError::new("unimplemented", format!("输出类型码率失败: {e}")))?
+  };
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    output.SetUINT32(
+      &MF_MT_INTERLACE_MODE,
+      MFVideoInterlace_Progressive.0 as u32,
+    )
+      .map_err(|e| AxError::new("unimplemented", format!("输出类型 interlace 失败: {e}")))?
+  };
+  // Baseline 66（简报：MF_MT_MPEG2_PROFILE (Baseline 66)；MF_MT_MPEG2_LEVEL 按
+  // 简报省略）。Baseline 无 B 帧 → 编码延迟最低，输入/输出 1:1 配对假设成立。
+  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+  unsafe {
+    output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_Base.0 as u32)
+      .map_err(|e| AxError::new("unimplemented", format!("输出类型 profile 失败: {e}")))?
+  };
+  unsafe {
+    mf.SetOutputType(0, &output, 0)
+      .map_err(|e| AxError::new("unimplemented", format!("SetOutputType 失败: {e}")))?
+  };
+  Ok(())
+}
+
+/// 从 `IMFSample` 读出连续 ES 字节。
+fn read_sample_bytes(sample: &IMFSample) -> AxResult<Vec<u8>> {
+  let buffer = unsafe { sample.ConvertToContiguousBuffer() }
+    .map_err(|e| AxError::internal(format!("ConvertToContiguousBuffer 失败: {e}")))?;
+  let (mut ptr, mut max, mut cur) = (std::ptr::null_mut(), 0u32, 0u32);
+  unsafe {
+    buffer
+      .Lock(&mut ptr, Some(&mut max), Some(&mut cur))
+      .map_err(|e| AxError::internal(format!("输出 Buffer Lock 失败: {e}")))?
+  };
+  if ptr.is_null() {
+    return Err(AxError::internal("输出 Buffer Lock 返回空指针"));
+  }
+  // unsafe 依据（块级）：ptr/cur 来自 Lock 返回值，锁保持到本作用域 Unlock。
+  let bytes = unsafe { std::slice::from_raw_parts(ptr, cur as usize) }.to_vec();
+  unsafe {
+    buffer
+      .Unlock()
+      .map_err(|e| AxError::internal(format!("输出 Buffer Unlock 失败: {e}")))?
+  };
+  Ok(bytes)
+}
+
+/// 把编码器输出规整成 Annex-B（起始码 `00 00 00 01` 分隔）。
+///
+/// WHY：renderer 侧 WebCodecs 按「无 description = Annex-B」配置（spec「主控
+/// renderer」），而 MF H.264 编码器的输出 NAL 封装形态随实现/驱动存在 Annex-B 与
+/// AVCC（4 字节大端长度前缀）两种——本函数是两者之间唯一的安全网：
+/// - 已是 Annex-B → 原样借用（零拷贝）；
+/// - 严格匹配 AVCC（长度序列完整消费全缓冲、NAL 类型合法）→ 转起始码；
+/// - 其它任何形态 → 原样返回（宁可交给上层失败，也不猜着重排破坏字节）。
+///
+/// 纯函数，tests/rd_media.rs 覆盖两种路径。
+pub fn to_annex_b(data: &[u8]) -> Cow<'_, [u8]> {
+  if data.len() >= 3
+    && data[0] == 0
+    && data[1] == 0
+    && (data[2] == 1 || (data[2] == 0 && data.len() >= 4 && data[3] == 1))
+  {
+    return Cow::Borrowed(data);
+  }
+  let mut out: Vec<u8> = Vec::with_capacity(data.len() + 16);
+  let mut pos = 0usize;
+  while pos + 4 <= data.len() {
+    let n = u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]) as usize;
+    if n == 0 || pos + 4 + n > data.len() {
+      return Cow::Borrowed(data); // 长度越界 → 不是 AVCC
+    }
+    let nal = &data[pos + 4..pos + 4 + n];
+    let nal_type = nal[0] & 0x1f;
+    if nal_type == 0 || nal_type > 30 {
+      return Cow::Borrowed(data); // NAL 类型非法 → 不是 AVCC
+    }
+    out.extend_from_slice(&[0, 0, 0, 1]);
+    out.extend_from_slice(nal);
+    pos += 4 + n;
+  }
+  if pos == data.len() && pos > 0 {
+    Cow::Owned(out)
+  } else {
+    Cow::Borrowed(data)
+  }
+}

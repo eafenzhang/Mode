@@ -46,3 +46,38 @@ pub fn reduce(state: &mut EncoderState) -> EncoderAction {
 
 pub const FRAME_FLAG_KEY: u8 = 1;
 pub fn frame_flags(key: bool) -> u8 { if key { FRAME_FLAG_KEY } else { 0 } }
+
+/// 从 Annex-B 字节流中探测 IDR NAL（nal_unit_type == 5）。
+///
+/// WHY：编码器侧的 keyframe 标志（`MFT_ENCODER_OUTPUT_DATA_PARAM_KEYFRAME`）在
+/// MF 输出面上不可取（输出 sample 上读不到该属性），而 wire 层的 flags bit0 必须与
+/// 码流真实可解码性一致——错标关键帧会让对端解码器把 P 帧当 IDR 起点，错漏关键帧
+/// 会让解码器错过重同步点。因此以码流本身为唯一权威：起始码 `00 00 01` /
+/// `00 00 00 01` 后首字节的低 5 位（nal_unit_type）== 5 即 IDR。
+/// （H.264 NAL header：forbidden(1) + nal_ref_idc(2) + nal_unit_type(5)，
+///  IDR 首字节常见值 0x65 = ref_idc 3 + type 5，故按低 5 位判断而不是比对 0x65，
+///  以兼容 ref_idc 取值不同的实现。）
+pub fn contains_idr(data: &[u8]) -> bool {
+    let mut i = 0usize;
+    while i + 3 < data.len() {
+        // 4 字节起始码 00 00 00 01 或 3 字节起始码 00 00 01
+        if data[i] == 0 && data[i + 1] == 0 {
+            let (nal_at, is_start) = if data[i + 2] == 1 {
+                (i + 3, true)
+            } else if data[i + 2] == 0 && i + 4 <= data.len() && data[i + 3] == 1 {
+                (i + 4, true)
+            } else {
+                (0, false)
+            };
+            if is_start {
+                if nal_at < data.len() && (data[nal_at] & 0x1f) == 5 {
+                    return true;
+                }
+                i = nal_at + 1; // 跳过该起始码，继续扫描后续 NAL
+                continue;
+            }
+        }
+        i += 1;
+    }
+    false
+}

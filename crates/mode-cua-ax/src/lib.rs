@@ -106,6 +106,13 @@ pub fn raw_input_napi(req: RawInputRequestNapi) -> napi::Result<RawInputResultNa
   )
 }
 
+// 远控媒体面（docs/specs/lan-remote-desktop-native-media.md 契约 A）：broker 方法
+// `rd_media_start` / `rd_media_switch` / `rd_media_stop`。三个 `#[napi]` 导出与对象
+// 形状定义在 `rd_media::napi`（随模块注册，与 capture.rs 的 `capture` 导出同范式；
+// 本文件的 `pub mod rd_media;` 即挂载点），Task 7 helper 直调这三个 snake_case 符号。
+// 单参回调形状（onFrame/onStatus 首参即载荷）由 `rd_media::napi` 的
+// `ErrorStrategy::Fatal` TSFN 保证——与契约 A 的 TS 声明逐字一致。
+
 // Task 6：launch 入参是请求面（SDK 保证 name/bundleId 二选一），不加 use_nullable
 // （入参口径同 ObserveRequestNapi）；裸字符串按 bundleId 传入，归一化在 launch::target_from。
 #[napi(object)]
