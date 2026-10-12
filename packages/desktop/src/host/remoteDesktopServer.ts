@@ -80,6 +80,12 @@ export interface RemoteDesktopHostServer {
   dispose(): void;
 }
 
+/** rd_media helper 注入端口：method ∈ rd_media_*（napi 面），params 为 helper 契约参数。 */
+export type RemoteDesktopMediaCall = (
+  method: "rd_media_start" | "rd_media_switch" | "rd_media_stop",
+  params: object,
+) => Promise<void>;
+
 interface PendingConsent {
   clientId: string;
   resolve: (result: { ok: true } | { error: RemoteDesktopErrorCode }) => void;
@@ -101,6 +107,8 @@ export function createRemoteDesktopHostServer(options: {
   getActiveLanAccessServer: () => LanAccessServerHandle | null;
   /** 注入端口覆盖点（T3b / 测试）；缺省 = broker 直连兜底。 */
   injectRawInput?: RemoteDesktopInjectPort;
+  /** rd_media helper 注入端口（Task 8 注入真实现）；未注入时 Media* 分支静默跳过，注入后失败仅 warn、不断会话。 */
+  callRdMedia?: RemoteDesktopMediaCall;
 }): RemoteDesktopHostServer {
   const { credentials, logger } = options;
   let serverEnabled = false;
@@ -114,14 +122,19 @@ export function createRemoteDesktopHostServer(options: {
   const mediaSockets = new Map<string, WebSocket>();
   /**
    * 媒体中继（本地管道 ↔ media WS 的字节泵）。本模块只负责实例化、attach 与会话收口三件事；
-   * 回调实体接线归属：T6 接 onStatus/onReady、T14 接 onInput/onFrame——当前只放日志位，
-   * 勿在此提前接实体。kind0 出口不注入 onFrame：走 relay 缺省实现（当前 WS + 4MB 背压丢弃，
-   * 契约 C），即「出口机制在 relay 内、消费实体留后续任务」。
+   * 回调接线（T6）：onStatus → MediaStatus 通知 main（冻结透传链路的 host 出口）；
+   * onReady 保持日志位——ready→开流指令（kind2）由 relay 内部幂等完成，接实体会双发 kind2。
+   * onInput/onFrame 由 T14 接。kind0 出口不注入 onFrame：走 relay 缺省实现（当前 WS + 4MB
+   * 背压丢弃，契约 C），即「出口机制在 relay 内、消费实体留后续任务」。
    */
   const mediaRelay = createRemoteDesktopMediaRelay({
     logger,
     onStatus: (frozen, reason) =>
-      log(`media pipe status frozen=${frozen}${reason === undefined ? "" : `, reason=${reason}`}`),
+      options.postToMain({
+        type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus,
+        frozen,
+        ...(reason ? { reason } : {}),
+      }),
     onReady: () => log("media ws ready received"),
     onInput: () => logger.warn("[remote-desktop] media input not wired yet (T14)"),
   });
@@ -533,6 +546,51 @@ export function createRemoteDesktopHostServer(options: {
       }
       if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopInject) {
         inject(message.events);
+        return;
+      }
+      if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart) {
+        // 开流：同意时已 listen 过中继口（幂等，同会话复用同一随机口），这里取端口注入
+        // rd_media_start 给 helper。callRdMedia 由 Task 8 注入；未注入时静默跳过、注入后失败
+        // 只 warn——P2 阶段渲染器画面仍在，媒体面缺失不断会话。
+        void (async () => {
+          try {
+            const port = await mediaRelay.listen();
+            await options.callRdMedia?.("rd_media_start", {
+              rect: message.rect,
+              maxWidth: 1920,
+              fps: 60,
+              bitrateBps: 8_000_000,
+              endpoint: { host: "127.0.0.1", port },
+              key: message.key,
+              salt: message.salt,
+            });
+          } catch (error) {
+            logger.warn(
+              "[remote-desktop] rd_media_start failed:",
+              error instanceof Error ? error.message : error,
+            );
+          }
+        })();
+        return;
+      }
+      if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch) {
+        void options.callRdMedia?.("rd_media_switch", { rect: message.rect }).catch((error: unknown) => {
+          logger.warn(
+            "[remote-desktop] rd_media_switch failed:",
+            error instanceof Error ? error.message : error,
+          );
+        });
+        return;
+      }
+      if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaStop) {
+        // relay.close 不在此做：会话收口（closeActiveSocket / clearSessionState）已覆盖，
+        // 这里双关只会把下一次会话的幂等 listen 语义搅浑。
+        void options.callRdMedia?.("rd_media_stop", {}).catch((error: unknown) => {
+          logger.warn(
+            "[remote-desktop] rd_media_stop failed:",
+            error instanceof Error ? error.message : error,
+          );
+        });
         return;
       }
       if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopServerStateRequest) {

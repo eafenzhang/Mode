@@ -15,10 +15,12 @@
  * 方向与事件顺序（docs/specs/lan-remote-desktop.md 事件顺序 ②③⑤⑥）：
  *
  *   host → main：ConsentRequest②、SignalFromHost③、SessionClosed⑥、
- *                ServerStateResult(设置面)、PeerProbeResult / PeerSessionOpenResult(主控⑤)
+ *                ServerStateResult(设置面)、PeerProbeResult / PeerSessionOpenResult(主控⑤)、
+ *                MediaStatus(P2 原生媒体面冻结通知)
  *   main → host：ConsentResult②、SignalToHost③、Inject⑤、
  *                ServerStateRequest / SetServerEnabled / RevokeClient(设置面)、
- *                PeerProbe / PeerSessionOpen(主控侧读对端凭据与发起请求)
+ *                PeerProbe / PeerSessionOpen(主控侧读对端凭据与发起请求)、
+ *                MediaStart / MediaSwitch / MediaStop(P2 原生媒体面开流/换屏/停流)
  *
  * 端口/帧上限：信令单帧 ≤64KiB（超限 host 断开），注入每帧 ≤512 条（超限丢弃并计数，与
  * Rust `MAX_RAW_INPUT_EVENTS` 同口径）。
@@ -65,6 +67,14 @@ export const RemoteDesktopHostMessageTypes = {
   RemoteDesktopPeerSessionOpen: "remote-desktop-peer-session-open",
   /** host → main：对端会话请求结果（ok 时带一次性票据与 WS 地址）。 */
   RemoteDesktopPeerSessionOpenResult: "remote-desktop-peer-session-open-result",
+  /** main → host：开媒体采集（同意后下发；key/salt 同帧带给 helper，通知型无 requestId）。 */
+  RemoteDesktopMediaStart: "remote-desktop-media-start",
+  /** main → host：换屏（select-monitor 解析出物理 rect 后下发）。 */
+  RemoteDesktopMediaSwitch: "remote-desktop-media-switch",
+  /** main → host：停媒体采集（stop-capture / 会话收口）。 */
+  RemoteDesktopMediaStop: "remote-desktop-media-stop",
+  /** host → main：媒体采集状态（helper kind1 透传；冻结透传给主控渲染占位）。 */
+  RemoteDesktopMediaStatus: "remote-desktop-media-status",
 } as const;
 
 /** 会话关闭原因（host → main）：对端主动 bye / WS 断开 / 内部错误。 */
@@ -160,6 +170,16 @@ export const remoteDesktopPeerSessionOpenResultSchema = z
   })
   .strict();
 
+export const remoteDesktopMediaStatusSchema = z
+  .object({
+    type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus),
+    frozen: z.boolean(),
+    // helper 侧实现面错误串（capture-error / encode-error / access-lost / locked…），
+    // 原样透传；协议面归一在 coordinator（freeze{reason} union 只认 locked|access-lost）。
+    reason: z.string().optional(),
+  })
+  .strict();
+
 // ---- main → host ----
 
 export const remoteDesktopConsentResultSchema = z
@@ -226,6 +246,40 @@ export const remoteDesktopPeerSessionOpenSchema = z
   })
   .strict();
 
+/** 媒体面矩形（物理像素域，与 helper rd_media_start/switch 的 rect 口径一致；x/y 允许多屏负原点）。 */
+export const remoteDesktopMediaRectSchema = z
+  .object({
+    x: z.number().int(),
+    y: z.number().int(),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+  })
+  .strict();
+export type RemoteDesktopMediaRect = z.infer<typeof remoteDesktopMediaRectSchema>;
+
+export const remoteDesktopMediaStartSchema = z
+  .object({
+    type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart),
+    rect: remoteDesktopMediaRectSchema,
+    // 与 media-open 信令同口径：64 位小写 hex（32B key）/ 16 位小写 hex（8B salt）。
+    key: z.string().regex(/^[0-9a-f]{64}$/u),
+    salt: z.string().regex(/^[0-9a-f]{16}$/u),
+  })
+  .strict();
+
+export const remoteDesktopMediaSwitchSchema = z
+  .object({
+    type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch),
+    rect: remoteDesktopMediaRectSchema,
+  })
+  .strict();
+
+export const remoteDesktopMediaStopSchema = z
+  .object({
+    type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopMediaStop),
+  })
+  .strict();
+
 /** host 侧入口：全部 main → host 消息（未知 type 一律拒绝，不进入共享 schema）。 */
 export const remoteDesktopMessageToHostSchema = z.discriminatedUnion("type", [
   remoteDesktopConsentResultSchema,
@@ -236,6 +290,9 @@ export const remoteDesktopMessageToHostSchema = z.discriminatedUnion("type", [
   remoteDesktopRevokeClientSchema,
   remoteDesktopPeerProbeSchema,
   remoteDesktopPeerSessionOpenSchema,
+  remoteDesktopMediaStartSchema,
+  remoteDesktopMediaSwitchSchema,
+  remoteDesktopMediaStopSchema,
 ]);
 export type RemoteDesktopMessageToHost = z.infer<typeof remoteDesktopMessageToHostSchema>;
 
@@ -247,6 +304,7 @@ export const remoteDesktopMessageFromHostSchema = z.discriminatedUnion("type", [
   remoteDesktopServerStateResultSchema,
   remoteDesktopPeerProbeResultSchema,
   remoteDesktopPeerSessionOpenResultSchema,
+  remoteDesktopMediaStatusSchema,
 ]);
 export type RemoteDesktopMessageFromHost = z.infer<typeof remoteDesktopMessageFromHostSchema>;
 

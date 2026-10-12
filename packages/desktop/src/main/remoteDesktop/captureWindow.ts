@@ -6,8 +6,7 @@
  * - 创建隐藏 BrowserWindow（独立 partition 的 session），注册 `setDisplayMediaRequestHandler`
  *   按本窗口的 webContents 返回 desktopCapturer 的**屏幕源**（先例：electronBrowserWebmRecorder，
  *   但目标是屏幕源而不是 WebFrameMain）；
- * - 显示器枚举：`desktopCapturer.getSources({types:["screen"]})` 的 display_id ↔ `screen.getAllDisplays()`
- *   的 Display.id 关联成 RemoteDesktopMonitor[]（物理像素 = DIP bounds × scaleFactor）；
+ * - 显示器枚举：已抽出到 `monitors.ts`（P4 删除采集窗后保留），此处 re-export 兼容既有 import；
  * - main ↔ 页面桥：信令下行 `deliver`、出站轮询 `takeOutbound`（页面无 preload，桥法见 capturePage.ts）；
  * - 从页面收回 DataChannel 输入：shared schema 严格校验 → 坐标换算（inputConversion）→ 批量
  *   （pointer 0ms 同 tick 聚合、control 即时，spec 质量与延迟参数）→ `onInput` 交给 coordinator
@@ -19,7 +18,7 @@
 import { randomUUID } from "node:crypto";
 import { BrowserWindow, desktopCapturer, screen, session as electronSession } from "electron";
 import type { BrowserWindowConstructorOptions, DesktopCapturerSource, Display, Session } from "electron";
-import { remoteDesktopControlEventSchema, remoteDesktopPointerEventSchema, remoteDesktopSignalMessageSchema, type RemoteDesktopMonitor, type RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
+import { remoteDesktopControlEventSchema, remoteDesktopPointerEventSchema, remoteDesktopSignalMessageSchema, type RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
 import {
   createRemoteDesktopInjectBatcher,
   convertControlEvent,
@@ -28,6 +27,10 @@ import {
 } from "./inputConversion.js";
 import type { RemoteDesktopRawInputEvent } from "./hostMessages.js";
 import { writeRemoteDesktopCapturePage } from "./capturePage.js";
+import { displayIdOf, physicalRectOf, unionRectOf } from "./monitors.js";
+
+// 显示器枚举已抽出到 monitors.ts（P4 删除采集窗后保留）；此处 re-export 保持既有 import 不断。
+export { displayIdOf, physicalRectOf, unionRectOf, buildRemoteDesktopMonitors, listRemoteDesktopMonitors } from "./monitors.js";
 
 /** 页面可自行产生的信令类型（其余一律丢弃：页面无权伪造 monitors/hello 等主控向消息）。 */
 const PAGE_EMITTABLE_SIGNAL_TYPES = new Set(["offer", "ice", "bye", "error"]);
@@ -59,78 +62,6 @@ export interface RemoteDesktopCaptureWindowOptions {
   createWindow?: (windowOptions: BrowserWindowConstructorOptions) => BrowserWindow;
   captureSources?: () => Promise<DesktopCapturerSource[]>;
   displays?: () => Display[];
-}
-
-function displayIdOf(display: Display): string {
-  return String(display.id);
-}
-
-/** 物理像素矩形（VIRTUALDESK 坐标域的构成单元）：DIP bounds × scaleFactor。 */
-function physicalRectOf(display: Display): RemoteDesktopPxRect {
-  const scale = Number.isFinite(display.scaleFactor) && display.scaleFactor > 0 ? display.scaleFactor : 1;
-  return {
-    xPx: Math.round(display.bounds.x * scale),
-    yPx: Math.round(display.bounds.y * scale),
-    widthPx: Math.max(1, Math.round(display.bounds.width * scale)),
-    heightPx: Math.max(1, Math.round(display.bounds.height * scale)),
-  };
-}
-
-function unionRectOf(displays: Display[]): RemoteDesktopPxRect {
-  if (displays.length === 0) {
-    return { xPx: 0, yPx: 0, widthPx: 1, heightPx: 1 };
-  }
-  const rects = displays.map(physicalRectOf);
-  const left = Math.min(...rects.map((rect) => rect.xPx));
-  const top = Math.min(...rects.map((rect) => rect.yPx));
-  const right = Math.max(...rects.map((rect) => rect.xPx + rect.widthPx));
-  const bottom = Math.max(...rects.map((rect) => rect.yPx + rect.heightPx));
-  return { xPx: left, yPx: top, widthPx: Math.max(1, right - left), heightPx: Math.max(1, bottom - top) };
-}
-
-/** 显示器枚举：display_id 对不上时回退按顺序关联（部分平台 display_id 为空串）。 */
-export function buildRemoteDesktopMonitors(
-  sources: Array<Pick<DesktopCapturerSource, "id" | "name" | "display_id">>,
-  displays: Display[],
-  primaryDisplayId: string,
-): RemoteDesktopMonitor[] {
-  const usedDisplayIds = new Set<string>();
-  const monitors: RemoteDesktopMonitor[] = [];
-  sources.forEach((source, index) => {
-    const byId = source.display_id
-      ? displays.find((display) => displayIdOf(display) === source.display_id)
-      : undefined;
-    const display = byId ?? (!source.display_id ? displays[index] : undefined);
-    if (!display) {
-      return;
-    }
-    const displayId = displayIdOf(display);
-    if (usedDisplayIds.has(displayId)) {
-      return;
-    }
-    usedDisplayIds.add(displayId);
-    const physical = physicalRectOf(display);
-    monitors.push({
-      displayId,
-      label: source.name || `Screen ${index + 1}`,
-      widthPx: physical.widthPx,
-      heightPx: physical.heightPx,
-      scaleFactor: display.scaleFactor > 0 ? display.scaleFactor : 1,
-      primary: displayId === primaryDisplayId,
-    });
-  });
-  return monitors;
-}
-
-export async function listRemoteDesktopMonitors(
-  options: Pick<RemoteDesktopCaptureWindowOptions, "captureSources" | "displays"> = {},
-): Promise<RemoteDesktopMonitor[]> {
-  const sources = await (
-    options.captureSources ??
-    (() => desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 0, height: 0 } }))
-  )();
-  const displays = (options.displays ?? (() => screen.getAllDisplays()))();
-  return buildRemoteDesktopMonitors(sources, displays, displayIdOf(screen.getPrimaryDisplay()));
 }
 
 export async function openRemoteDesktopCaptureWindow(

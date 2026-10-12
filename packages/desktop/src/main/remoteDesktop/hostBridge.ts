@@ -48,6 +48,12 @@ export interface RemoteDesktopHostSessionHandlers {
       { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed }
     >,
   ): void;
+  handleMediaStatus(
+    message: Extract<
+      RemoteDesktopMessageFromHost,
+      { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus }
+    >,
+  ): void;
   handleHostGone(): void;
 }
 
@@ -258,6 +264,11 @@ export function handleRemoteDesktopHostMessage(label: string, data: unknown): bo
   }
   if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed) {
     sessionHandlers?.handleSessionClosed(message);
+    return true;
+  }
+  if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus) {
+    // 通知型（无 requestId）：必须在最后的 pending 回收分支之前拦截，否则会被当成 peer-session-open 回帖丢弃。
+    sessionHandlers?.handleMediaStatus(message);
     return true;
   }
   if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopServerStateResult) {

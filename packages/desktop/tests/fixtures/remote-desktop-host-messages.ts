@@ -82,6 +82,18 @@ const toHostSamples = [
     requestId: "r5",
     serverId: "server-x",
   },
+  // P2 原生媒体面（契约 F）：开流/换屏/停流是通知型（无 requestId）。
+  {
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
+    rect: { x: 0, y: 0, width: 2880, height: 1620 },
+    key: "a".repeat(64),
+    salt: "b".repeat(16),
+  },
+  {
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
+    rect: { x: -1920, y: 0, width: 1920, height: 1080 },
+  },
+  { type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStop },
 ];
 const fromHostSamples = [
   {
@@ -113,6 +125,18 @@ const fromHostSamples = [
     requestId: "r5",
     ok: true,
     wsUrl: "ws://192.168.1.4:3030/ws/remote-desktop?ticket=t",
+    // 契约 E 媒体面地址：两端 schema 必须同步声明（strict 漏字段会整条丢弃主控的 open 回帖）。
+    mediaUrl: "wss://192.168.1.4:3030/ws/remote-desktop-media?ticket=t2",
+  },
+  // P2 原生媒体面（契约 F）：冻结状态通知（host → main，通知型）。
+  {
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus,
+    frozen: true,
+    reason: "locked",
+  },
+  {
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus,
+    frozen: false,
   },
 ];
 for (const sample of toHostSamples) {
@@ -165,6 +189,55 @@ assert.equal(
     type: "remote-desktop-unknown",
   }).success,
   false,
+);
+
+// ── 媒体面消息严格校验（契约 F）：key/salt 只收 64/16 位 hex；通知型不带 requestId ──
+assert.equal(
+  main.remoteDesktopMessageToHostSchema.safeParse({
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
+    rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    key: "A".repeat(64),
+    salt: "b".repeat(16),
+  }).success,
+  false,
+  "key 必须是小写 hex（与 media-open 信令同一口径）",
+);
+assert.equal(
+  host.remoteDesktopMessageToHostSchema.safeParse({
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
+    rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    key: "a".repeat(64),
+    salt: "b".repeat(15),
+  }).success,
+  false,
+  "salt 必须是 16 位 hex",
+);
+assert.equal(
+  main.remoteDesktopMessageToHostSchema.safeParse({
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
+    rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    requestId: "r",
+  }).success,
+  false,
+  "MediaSwitch 是通知型消息，多带 requestId 必须拒绝（strict）",
+);
+assert.equal(
+  host.remoteDesktopMessageFromHostSchema.safeParse({
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus,
+    frozen: "yes",
+  }).success,
+  false,
+  "MediaStatus.frozen 必须是 boolean",
+);
+assert.equal(
+  main.remoteDesktopMessageFromHostSchema.safeParse({
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
+    rect: { x: 0, y: 0, width: 1920, height: 1080 },
+    key: "a".repeat(64),
+    salt: "b".repeat(16),
+  }).success,
+  false,
+  "main→host 消息不得被 host→main 联合体误收",
 );
 
 // ── 准入判定（产品规则 1/5）：kill-switch 优先，总开关关 = disabled ──

@@ -2044,6 +2044,7 @@ async function ensureRemoteDesktopHostServer(
           injectRawInput: (events: RemoteDesktopRawInputEvent[]) => cuaRawInputInjector(events),
         }
       : {}),
+    // callRdMedia（rd_media helper 注入端口）由 Task 8 在此注入；未注入时 Media* 分支静默跳过。
   });
   await server.loadServerState();
   activeRemoteDesktop = server;

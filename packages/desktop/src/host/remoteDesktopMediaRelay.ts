@@ -9,8 +9,9 @@
  *   media WS 上行：ready → 开流指令（幂等一次）、ping → 立即 pong、其余对象 → 输入透传；
  * - 中继**不解密**：kind0 payload 原样搬运，明文密钥与明文帧都不经过 host（spec 安全节）。
  *
- * 回调实体接线归属：onStatus/onReady 由 Task 6 接（host↔main 消息）、onInput/onFrame 由
- * Task 14 接；本模块只保证注入点与缺省出口可用。
+ * 回调实体接线归属：onStatus 已由 Task 6 接（remoteDesktopServer → MediaStatus 通知 main）；
+ * onReady 保持日志位——ready→开流指令（kind2）由本模块内部幂等完成，外部再接会双发；
+ * onInput/onFrame 由 Task 14 接；本模块只保证注入点与缺省出口可用。
  */
 import { createServer, type Server, type Socket } from "node:net";
 
@@ -37,9 +38,9 @@ export interface RemoteDesktopMediaRelayOptions {
    * 否则丢弃（契约 C：断开即丢帧、背压只丢 kind0）。覆盖点留 Task 14。
    */
   onFrame?: (payload: Uint8Array) => void;
-  /** kind1 采集状态（T6 接 → host↔main MediaStatus）。 */
+  /** kind1 采集状态（T6 已接：remoteDesktopServer → MediaStatus 通知 main）。 */
   onStatus?: (frozen: boolean, reason?: string) => void;
-  /** WS 首条 ready（T6 接；开流指令由本模块在 ready 时下发）。 */
+  /** WS 首条 ready（保持日志位：开流指令由本模块在 ready 时内部下发，外部接入会双发 kind2）。 */
   onReady?: () => void;
   /** WS 上行输入事件透传（T14 接 → broker raw_input）。 */
   onInput?: (event: unknown) => void;
