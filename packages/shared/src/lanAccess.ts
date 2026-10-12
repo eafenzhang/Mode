@@ -140,6 +140,9 @@ export const lanAccessPairRequestSchema = z.object({
 
 export type LanAccessPairRequest = z.infer<typeof lanAccessPairRequestSchema>;
 
+/** 服务端形态「允许局域网访问」开关请求体（设置页 ↔ packages/server 的 lanAccessHost）。 */
+export const lanAccessEnableRequestSchema = z.object({ enabled: z.boolean() }).strict();
+
 /** 配对成功响应：令牌只在此处下发一次。 */
 export interface LanAccessPairResult {
   token: string;

@@ -16,6 +16,7 @@ import { createWebAuthService } from "./auth/webAuthService.js";
 import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.js";
 import { resolveWebCommunityUrl } from "./communityUrl.js";
 import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@mode/shared";
+import { lanAccessStateSchema, type LanAccessState } from "@mode/shared";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
@@ -94,6 +95,35 @@ function renderWebAuthCallbackPage(): void {
   );
 }
 
+/**
+ * 局域网访问（服务端视角）在 Web/NAS 形态由服务端 lanAccessHost 提供
+ * （docs/specs/lan-host-server-mode.md）：这里只做 base 感知的 fetch + shared schema 校验，
+ * 状态与动作的唯一所有者仍是服务端。
+ */
+async function requestLanAccessState(path: string, init?: RequestInit): Promise<LanAccessState> {
+  const response = await fetch(`${resolveBasePath()}/api/lan/${path}`, {
+    ...init,
+    ...(init?.body ? { headers: { "content-type": "application/json" } } : {}),
+  });
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      const payload = (await response.json()) as { error?: unknown };
+      if (typeof payload.error === "string" && payload.error) {
+        message = payload.error;
+      }
+    } catch {
+      // 非 JSON 错误体：保留状态码。
+    }
+    throw new Error(message);
+  }
+  const parsed = lanAccessStateSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    throw new Error("局域网访问状态响应不符合协议");
+  }
+  return parsed.data;
+}
+
 function createWebPlatform(): IPlatformService {
   return {
     canSelectFilePath: false,
@@ -125,13 +155,15 @@ function createWebPlatform(): IPlatformService {
     listWSLDistros: () => Promise.resolve([]),
     listDockerContainers: () => Promise.resolve([]),
     listSSHConfigAliases: () => Promise.resolve([]),
-    // 局域网访问是桌面端「服务方」能力：Web 端只报告关闭状态，动作一律拒绝。
-    getLanAccessState: () =>
-      Promise.resolve({ enabled: false, port: null, addresses: [], pairCode: null, clients: [] }),
-    setLanAccessEnabled: () => Promise.reject(new Error("Web mode does not serve LAN access")),
-    createLanAccessPairCode: () => Promise.reject(new Error("Web mode does not serve LAN access")),
-    removeLanAccessClient: () => Promise.reject(new Error("Web mode does not serve LAN access")),
-    resetLanAccessTokens: () => Promise.reject(new Error("Web mode does not serve LAN access")),
+    // 局域网访问（服务端视角）：Web/NAS 形态由服务端 lanAccessHost 提供
+    // （docs/specs/lan-host-server-mode.md）；浏览器只经 /api/lan/* 读写状态。
+    getLanAccessState: () => requestLanAccessState("state"),
+    setLanAccessEnabled: (enabled: boolean) =>
+      requestLanAccessState("enable", { method: "POST", body: JSON.stringify({ enabled }) }),
+    createLanAccessPairCode: () => requestLanAccessState("pair-code", { method: "POST" }),
+    removeLanAccessClient: (clientId: string) =>
+      requestLanAccessState(`clients/${encodeURIComponent(clientId)}`, { method: "DELETE" }),
+    resetLanAccessTokens: () => requestLanAccessState("reset", { method: "POST" }),
     discoverLanPeers: () => Promise.resolve([]),
     pairLanPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
     getLanPairedPeers: () => Promise.resolve([]),

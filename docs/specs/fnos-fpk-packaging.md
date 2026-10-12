@@ -120,6 +120,7 @@ fnpack 在 Windows 上打包不写入执行位（tar 成员一律 0666，官方�
 - 无多用户/权限体系：令牌即唯一凭证；不信任 `X-Trim-*` 头。
 - 入口 iframe 与飞牛桌面同源（同一网关域），令牌 Cookie 为第一方；桌面入口不携带令牌（由代理注入）。
 - `etc/access-url.txt` 的直连地址只在浏览器能直达 NAS 时可用（内网 IP 或 Tailscale 等）；异地请用桌面入口（走中转域）。
+- 设置页「局域网访问」的被连能力由服务端 lanAccessHost 提供（见 [lan-host-server-mode.md](./lan-host-server-mode.md)）：NAS 可作为被连端供桌面端配对挂接。
 - arm64 未验证（发行侧有 linux-arm64 目标，fnOS ARM 版尚不普及）。
 - fnOS 手动安装的版本比较对带点预发布后缀（如 `0.0.21-dev.2`）不友好：真机实测会被判为「已安装相同或更高版本」而拒绝；fpk 发版使用纯数字版本（`0.0.21`），避免点分预发布后缀。
 - 自动更新跟随 fpk 升级，不接 Mode release catalog。

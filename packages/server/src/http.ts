@@ -35,9 +35,11 @@ import {
   botProviders,
   formatLogPrefix,
   formatZodError,
+  lanAccessEnableRequestSchema,
   lanAccessPairRequestSchema,
   remoteTargetSchema,
   type LanAccessPairingEndpoint,
+  type LanAccessState,
   SERVER_REMOTE_PROTOCOL_VERSION,
   MODE_RPC_HOST_CAPABILITY_HEADER,
   MODE_VERSION,
@@ -244,6 +246,12 @@ interface HttpServerOptions {
   resolveLanClientByToken?: (token: string) => string | null;
   /** 局域网多客户端：该客户端连接上出现携带 workspacePath 的 RPC 时回调（最近在本机打开的目录）。 */
   onLanClientWorkspace?: (clientId: string, workspacePath: string) => void;
+  /**
+   * 服务端形态的局域网被连端（docs/specs/lan-host-server-mode.md）：提供时暴露
+   * /api/lan/state 与四个动作端点（开关 / 配对码 / 移除对端 / 重置，均走 /api/* 既有令牌中间件）。
+   * 配对端点与逐设备令牌校验分别经 lanPairing / verifyAuthToken 组合提供。
+   */
+  lanAccessHost?: LanAccessHostEndpoint;
   spaFallback?: boolean;
   staticRoot?: string;
   /** 工作区列表：静态数组或按请求求值（局域网服务端要反映「刚刚打开的工作区」）。 */
@@ -282,6 +290,15 @@ export interface RemoteDesktopHooks {
   onSessionSocket(clientId: string, socket: WebSocket): void;
   /** 媒体 WS 升级成功后的交接（收发逻辑由宿主侧 relay 承担，本模块不解析帧）。 */
   onMediaSocket?(clientId: string, socket: WebSocket): void;
+}
+
+/** 服务端形态局域网被连端的端点面（唯一所有者 = packages/server 的 lanAccessHost）。 */
+export interface LanAccessHostEndpoint {
+  getState(): LanAccessState;
+  setEnabled(enabled: boolean): Promise<LanAccessState>;
+  createPairCode(): LanAccessState;
+  removeClient(clientId: string): Promise<LanAccessState>;
+  resetTokens(): Promise<LanAccessState>;
 }
 
 /**
@@ -618,6 +635,31 @@ export function createHttpServer(
       }
       return c.json(result);
     });
+  }
+
+  // 服务端形态的局域网被连端：设置页状态与动作
+  // （docs/specs/lan-host-server-mode.md；动作语义与失败口径见该 spec）。
+  if (options.lanAccessHost) {
+    const lanAccessHost = options.lanAccessHost;
+    app.get("/api/lan/state", (c) => c.json(lanAccessHost.getState()));
+    app.post("/api/lan/enable", async (c) => {
+      let rawBody: unknown;
+      try {
+        rawBody = await c.req.json();
+      } catch {
+        return c.json({ error: "Invalid JSON body" }, 400);
+      }
+      const parsedBody = lanAccessEnableRequestSchema.safeParse(rawBody);
+      if (!parsedBody.success) {
+        return c.json({ error: `Invalid request body: ${formatZodError(parsedBody.error)}` }, 400);
+      }
+      return c.json(await lanAccessHost.setEnabled(parsedBody.data.enabled));
+    });
+    app.post("/api/lan/pair-code", (c) => c.json(lanAccessHost.createPairCode()));
+    app.delete("/api/lan/clients/:clientId", async (c) =>
+      c.json(await lanAccessHost.removeClient(c.req.param("clientId"))),
+    );
+    app.post("/api/lan/reset", async (c) => c.json(await lanAccessHost.resetTokens()));
   }
 
   // 普通 `/ws` 永远是 terminal-client；浏览器/任意客户端设置旧 mode header
