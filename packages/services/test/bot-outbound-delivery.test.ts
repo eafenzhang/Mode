@@ -258,7 +258,9 @@ test("createBotSendQueue：同 bot 相邻发送间隔不小于最小间隔", asy
   ]);
   assert.equal(starts.length, 2);
   const gap = Math.max(...starts) - Math.min(...starts);
-  assert.ok(gap >= minIntervalMs, `gap ${gap}ms < minInterval ${minIntervalMs}ms`);
+  // Date.now() 整数毫秒截断 + Node 计时器毫秒取整：实测间隔可比 minInterval 低 1ms
+  // （2026-10-13 CI 实测 39ms < 40ms 红）。平台限流场景 1ms 无实义，断言留 1ms 容差。
+  assert.ok(gap >= minIntervalMs - 1, `gap ${gap}ms < minInterval ${minIntervalMs}ms`);
 });
 
 test("classifyWeixinRequestFailure：HTTP 状态与服务端 errmsg 映射到恢复分类", async () => {
