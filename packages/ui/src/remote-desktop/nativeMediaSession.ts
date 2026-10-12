@@ -67,6 +67,8 @@ export interface NativeMediaSessionOptions {
   canvas: HTMLCanvasElement;
   onConfigured?: (info: { width: number; height: number; codec: string }) => void;
   onDecoded?: () => void;
+  /** 解码队列门控丢弃一帧时回调（自适应码率的「链路跟不上」信号源之一）。 */
+  onFrameDropped?: () => void;
   onTransportClosed?: () => void;
 }
 
@@ -195,6 +197,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       if (!decoder || decoder.state !== "configured") return;
       // 解码队列门控：跟不上到达的 delta 丢弃并请关键帧（继续排队 = 累计端到端延迟）。
       if (shouldDropDeltaFrame(parsed.key, decoder.decodeQueueSize)) {
+        opts.onFrameDropped?.();
         requestKey();
         return;
       }

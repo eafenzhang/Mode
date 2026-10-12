@@ -22,6 +22,10 @@ import { logger } from "@/logger.js";
 import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./InputCapture.js";
 import { createNativeMediaSession, type NativeMediaSession } from "./nativeMediaSession.js";
 import {
+  initialAdaptiveBitrateState,
+  stepAdaptiveBitrate,
+} from "./adaptiveBitrate.js";
+import {
   createNativeSessionStatsCollector,
   EMPTY_REMOTE_DESKTOP_SESSION_STATS,
   type RemoteDesktopSessionStats,
@@ -70,6 +74,10 @@ export function useRemoteDesktopSession(options: {
     INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE,
   );
   const [stats, setStats] = useState<RemoteDesktopSessionStats>(EMPTY_REMOTE_DESKTOP_SESSION_STATS);
+  // 自适应码率 v1（P1-2）：pong 节拍上采样 RTT + 上拍以来的解码丢弃数 → 两档 + 滞回
+  // → 下行 {t:"set-bitrate"}（中继 → helper → ICodecAPI MeanBitRate）。
+  const adaptiveRef = useRef(initialAdaptiveBitrateState());
+  const droppedSinceAdaptiveSample = useRef(0);
 
   const sendSignal = useCallback(
     (message: RemoteDesktopSignalMessage) => {
@@ -112,6 +120,10 @@ export function useRemoteDesktopSession(options: {
               onDecoded: () => {
                 // fps = 实际绘制帧率：解码即画，每帧计一次；轮询采样时按间隔增量出读数。
                 nativeStats.current.onDecoded();
+              },
+              onFrameDropped: () => {
+                // 解码队列门控丢弃：累计到下一次自适应采样（与 RTT 同拍判定）。
+                droppedSinceAdaptiveSample.current += 1;
               },
               // 传输断开（连不上 / 中途关闭 / 解码器错误）：按媒体失败收口，不留半开状态。
               onTransportClosed: () => dispatchRef.current({ type: "media", status: "failed" }),
@@ -213,7 +225,19 @@ export function useRemoteDesktopSession(options: {
       const detail = (event as CustomEvent<{ t?: string; ts?: number; reason?: string }>).detail;
       if (detail?.t === "pong" && typeof detail.ts === "number") {
         // RTT = 收到时刻 - ping 时间戳；异步写入 collector，随下一拍 3s 采样进入状态条。
-        nativeStats.current.onPong(Date.now() - detail.ts);
+        const rttMs = Date.now() - detail.ts;
+        nativeStats.current.onPong(rttMs);
+        // 自适应码率判定（与 RTT 同拍；丢弃数取自上拍以来累计，采样后清零）。
+        const outcome = stepAdaptiveBitrate(
+          adaptiveRef.current,
+          { rttMs, droppedFrames: droppedSinceAdaptiveSample.current },
+          Date.now(),
+        );
+        adaptiveRef.current = outcome.state;
+        droppedSinceAdaptiveSample.current = 0;
+        if (outcome.nextBps !== null) {
+          sessionRef.current?.send({ t: "set-bitrate", bps: outcome.nextBps });
+        }
         return;
       }
       // 冻结状态与对端 freeze/unfreeze 信令共用转移（reducer 一个 frozen 布尔）：
