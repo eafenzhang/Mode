@@ -16,6 +16,11 @@ export interface IssuedRemoteDesktopTicket {
 export interface RemoteDesktopTicketStore {
   issue(clientId: string): IssuedRemoteDesktopTicket;
   consume(ticket: string | undefined, clientId: string | undefined): boolean;
+  /**
+   * media 端点专用：票据即凭证——原子消费后返回签发时绑定的 clientId，
+   * 供升级中间件直接 c.set（调用方不再出示令牌）。未知/过期/空串一律作废并返回 null。
+   */
+  consumeAndResolveClientId(ticket: string | undefined): string | null;
 }
 
 /**
@@ -57,6 +62,17 @@ export function createRemoteDesktopTicketStore(
       purgeExpired(consumedAt);
       if (!issued || issued.expiresAt <= consumedAt) return false;
       return Boolean(clientId) && issued.clientId === clientId;
+    },
+    consumeAndResolveClientId(ticket) {
+      if (!ticket) return null;
+      const consumedAt = now();
+      const issued = issuedByTicket.get(ticket);
+      // 重放纪律与 consume 完全同口径（先删后判）：一张票据最多只可能升级一次，
+      // 区别仅在于不比对出示方——票据本身（令牌鉴权 POST 的产物）就是凭证。
+      issuedByTicket.delete(ticket);
+      purgeExpired(consumedAt);
+      if (!issued || issued.expiresAt <= consumedAt) return null;
+      return issued.clientId;
     },
   };
 }

@@ -519,6 +519,13 @@ export function createHttpServer(
         await next();
         return;
       }
+      // media 端点以会话票据为唯一凭证（spec 原文：票据单次消费、30s、绑定 clientId）：
+      // 票据是令牌鉴权 POST 的产物，renderer 无对端长期令牌也不应持有，故豁免全局令牌校验
+      // （票据校验在 media 专用中间件里单次消费）。
+      if (pathname === "/ws/remote-desktop-media") {
+        await next();
+        return;
+      }
       const presented = readPresentedLiteToken(c);
       const validToken =
         presented.token !== undefined &&
@@ -666,8 +673,9 @@ export function createHttpServer(
   });
   app.get("/ws/remote-desktop", upgradeRemoteDesktopWebSocket);
 
-  // 局域网远程桌面媒体通道：与信令通道镜像，但用独立的 mediaTicket store 消费
-  // （媒体票据与信令票据互不能开对方端点）。票据在升级中间件单次消费，
+  // 局域网远程桌面媒体通道：独立的 mediaTicket store（媒体票据与信令票据互不能开
+  // 对方端点），且以票据为唯一凭证——不校验请求方令牌（spec 原文：票据单次消费、
+  // 30s、绑定 clientId；renderer 不持有对端长期令牌）。票据在升级中间件单次消费，
   // 升级后的帧交给宿主的 onMediaSocket（本模块不解析二进制/JSON 媒体消息）。
   const upgradeRemoteDesktopMediaWebSocket = upgradeWebSocket((c) => ({
     onOpen(_event, ws) {
@@ -687,8 +695,10 @@ export function createHttpServer(
       return c.json({ error: "Remote desktop is not available" }, 501);
     }
     const mediaTicket = new URL(c.req.url).searchParams.get("mediaTicket") ?? undefined;
-    const clientId = resolveLanClientId(c);
-    if (!clientId || !remoteDesktopMediaTickets.consume(mediaTicket, clientId)) {
+    // 票据即凭证：不查请求方令牌（全局鉴权对该路径已豁免），由票据原子消费并反解出
+    // 签发时绑定的 clientId——票据过期/未知/重放一律 401，双 store 各自独立。
+    const clientId = remoteDesktopMediaTickets.consumeAndResolveClientId(mediaTicket);
+    if (!clientId) {
       return c.json({ code: "stale_ticket" satisfies RemoteDesktopErrorCode }, 401);
     }
     c.set("remoteDesktopMediaClientId", clientId);

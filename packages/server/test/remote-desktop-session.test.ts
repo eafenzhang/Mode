@@ -188,24 +188,31 @@ test("POST 响应带 mediaTicket；media 端点凭 mediaTicket 单次升级", as
     };
     assert.ok(ticket && mediaTicket && ticket !== mediaTicket, "两张票据各自独立");
 
-    // 信令票不能开 media 端点；mediaTicket 不能开信令端点（各自单次消费语义）。
+    // 票据即凭证（spec：票据单次消费、30s、绑定 clientId）：media 端点豁免全局令牌鉴权，
+    // renderer 不带任何 cookie/token 直连——这是本次修复的核心口径。
     // 注意 connectUntilRejected 在升级成功时会 reject("升级不应成功")，
-    // 因此下面两处必须以 401 收口而不是抛出。
+    // 因此下面的拒绝路径必须以 401 收口而不是抛出。
     const wrongOnMedia = await connectUntilRejected(
       `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=${encodeURIComponent(ticket)}`,
-      cookieFor(TOKEN_A),
+      {},
     );
     assert.equal(wrongOnMedia, 401, "信令票不能升级 media 端点");
+    // 信令端点的令牌语义保持不变：mediaTicket 冒充信令票时仍需出示合法令牌才到票据校验。
     const wrongOnSignal = await connectUntilRejected(
       `ws://127.0.0.1:${port}/ws/remote-desktop?ticket=${encodeURIComponent(mediaTicket)}`,
       cookieFor(TOKEN_A),
     );
     assert.equal(wrongOnSignal, 401, "mediaTicket 不能升级信令端点");
+    const unknownMedia = await connectUntilRejected(
+      `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=not-issued`,
+      {},
+    );
+    assert.equal(unknownMedia, 401, "未知 mediaTicket 必须 401");
 
-    // 升级成功路径：直连 + open 断言（connectUntilRejected 成功即 reject，不能复用）。
+    // 升级成功路径（renderer 真实形态：无 cookie、无 token，仅 mediaTicket）：
+    // 直连 + open 断言（connectUntilRejected 成功即 reject，不能复用）。
     const client = new WebSocket(
       `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=${encodeURIComponent(mediaTicket)}`,
-      { headers: cookieFor(TOKEN_A) },
     );
     mediaClients.push(client);
     await new Promise<void>((resolve, reject) => {
@@ -213,12 +220,13 @@ test("POST 响应带 mediaTicket；media 端点凭 mediaTicket 单次升级", as
       client.once("error", reject);
     });
     await waitFor(() => sockets.length === 1, "onMediaSocket 挂接");
-    assert.equal(sockets[0]?.clientId, CLIENT_A, "media socket 绑定发起方 clientId");
+    // clientId 由票据反解（签发时绑定），不是从请求令牌推导。
+    assert.equal(sockets[0]?.clientId, CLIENT_A, "media socket 绑定签发时的 clientId");
 
-    // 重放：mediaTicket 已消费 → 401。
+    // 重放：mediaTicket 已消费 → 401（同样不带任何令牌）。
     const replay = await connectUntilRejected(
       `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=${encodeURIComponent(mediaTicket)}`,
-      cookieFor(TOKEN_A),
+      {},
     );
     assert.equal(replay, 401, "mediaTicket 重放必须 401");
     assert.equal(sockets.length, 1, "onMediaSocket 只挂接一次");

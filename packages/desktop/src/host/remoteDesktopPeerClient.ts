@@ -184,7 +184,8 @@ export async function openRemoteDesktopPeerSession(
   wsUrl.searchParams.set("token", target.token);
   // 契约 E（Task 10 消费）：mediaUrl 形态固定为 连接地址 + mediaTicket，
   // 由主控 host 从被控 POST 响应拼出，经 rdStartSession 返回值直达 renderer。
-  // 注意：该形态不含设备令牌（信令 wsUrl 含）——renderer 直连 /ws/* 的鉴权口径由 Task 10 裁决。
+  // 票据即凭证：media 端点豁免全局令牌鉴权（服务端按 spec 以单次消费票据为唯一凭证），
+  // 因此这里不带 token，renderer 拿 mediaUrl 即可直连（信令 wsUrl 仍需 token）。
   const mediaUrl = new URL(`/ws/remote-desktop-media`, base);
   mediaUrl.protocol = "ws:";
   mediaUrl.searchParams.set("mediaTicket", mediaTicket);
