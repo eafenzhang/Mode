@@ -45,9 +45,14 @@ export const DEFAULT_NODE_DIST_BASE = "https://cdn.npmmirror.com/binaries/node";
 const NODE_DIST_FALLBACK = "https://nodejs.org/dist";
 const FNPACK_VERSION = "1.2.3";
 const FNPACK_BASE = "https://static2.fnnas.com/fnpack";
-// win32-x64 为本仓库实测校验值；其余平台不发布固定值（可用 MODE_FNPACK_PATH 指向受信任的本地二进制）。
+// fnpack 1.2.3 发行文件的固定校验值：win32/linux-x64/darwin 为对本仓库 static2.fnnas.com
+// 实际下载件计算；官方未发布 linux-arm64 文件（下载 404），该平台缺项时回退为告警，
+// 可用 MODE_FNPACK_PATH 指向受信任的本地二进制。
 const FNPACK_SHA256: Record<string, string> = {
   "win32-x64": "d7af4bd716b009c58f5bcd931615f39db121e7d4b75dc759e575c4fb2879b6ee",
+  "linux-x64": "54b97fa7b70968c4d05c79840f5daeff508957d0bb2062fdb0376d00d9615c93",
+  "darwin-x64": "30a9f50a35e8d8d425b687881761478c3c778e9c0da3a1b59f298b666dd7a268",
+  "darwin-arm64": "d40cb00896cb2a5d211357d255750ed0cbe7f2d141df671c2b717afb4e74bf77",
 };
 
 export function run(command: string, args: string[], options: SpawnSyncOptions = {}): void {
@@ -195,6 +200,14 @@ export async function stageNodeBinary(appDir: string, version: string): Promise<
   if (size < 50 * 1024 * 1024) {
     throw new Error(`捆绑 Node 体积异常：${size}`);
   }
+  // Node 运行时允许再分发的前提是随附其许可文本：把归档根级 LICENSE 一并放进取 payload。
+  const licenseMember = `node-v${version}-linux-x64/LICENSE`;
+  const members = await tarLines(archive);
+  if (!members.includes(licenseMember)) {
+    throw new Error(`Node 归档缺少 ${licenseMember}：无法满足再分发的许可要求`);
+  }
+  run("tar", tarArgs(["-xzf", archive, "-C", extractDir, "--strip-components=1", licenseMember]));
+  await rename(join(extractDir, "LICENSE"), join(appDir, "runtime", "LICENSE"));
 }
 
 // 组装 fnpack 项目：manifest/config/cmd/图标来自骨架，app/ 为发行载荷 + ui 入口 + 捆绑 Node。

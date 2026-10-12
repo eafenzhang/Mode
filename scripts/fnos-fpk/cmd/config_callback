@@ -1,5 +1,7 @@
 #!/bin/bash
 # 配置变更后：重写入口令牌与访问地址（授权目录变化在下次 start 时被重新解析为工作区）。
+# fnOS 若以 sh（dash）调用本脚本，source 等 bash 语义会失效：就地切换到 bash 重执行。
+if [ -z "${BASH_VERSION:-}" ]; then exec bash "$0" "$@"; fi
 cd "$(dirname "$0")" || exit 1
 source ./lib.sh
 

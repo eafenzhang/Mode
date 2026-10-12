@@ -1,6 +1,8 @@
 #!/bin/bash
 # Mode 服务生命周期入口（fnOS fpk 契约：start/stop/status；0=成功/运行中，1=失败，3=未运行）。
 # 进程所有权：本脚本通过 PID 文件唯一管理 mode --web 进程（见 docs/specs/fnos-fpk-packaging.md）。
+# fnOS 若以 sh（dash）调用本脚本，source/local 等 bash 语义会全部失效：就地切换到 bash 重执行。
+if [ -z "${BASH_VERSION:-}" ]; then exec bash "$0" "$@"; fi
 cd "$(dirname "$0")" || exit 1
 source ./lib.sh
 
@@ -72,11 +74,28 @@ start_process() {
     [ -f "$ENTRY" ] || mode_fail "缺少入口文件：${ENTRY}"
     ensure_node_binary || mode_fail "内置 Node 运行时不可用：${NODE_BIN}"
 
+    # 预检：内置 Node 必须真的能执行（覆盖 target 卷 noexec、执行位缺失且无法改属主等场景）。
+    # 首选失败时强制复制到应用数据目录再试一次——副本属主就是运行用户，chmod/执行都不受 target 卷限制。
+    local node_check alt alt_check
+    if ! node_check="$("$NODE_BIN" --version 2>&1)"; then
+        alt="${TRIM_PKGVAR}/runtime/bin/node"
+        mkdir -p "$(dirname "$alt")" 2>/dev/null || true
+        cp -f "$NODE_BIN" "$alt" 2>/dev/null || true
+        chmod 755 "$alt" 2>/dev/null || true
+        if alt_check="$("$alt" --version 2>&1)"; then
+            NODE_BIN="$alt"
+            node_check="$alt_check"
+        else
+            mode_fail "内置 Node 无法执行（${NODE_BIN}）：${node_check}；回退副本 ${alt} 同样失败：${alt_check:-无输出}"
+        fi
+    fi
+    mode_log "node runtime: ${node_check} (${NODE_BIN})"
+
     local token secret
     token="$(mode_ensure_token)" || mode_fail "无法生成访问令牌"
     secret="$(mode_ensure_credential_secret)" || mode_fail "无法生成凭据密钥"
     resolve_workspace
-    mode_patch_ui_config "$token" || true
+    mode_patch_ui_config "$token" || mode_log "WARN: ui 入口令牌写入失败（不影响服务启动，可看 etc/access-url.txt）"
 
     local cmd
     cmd="exec \"${NODE_BIN}\" \"${ENTRY}\" --web --host 0.0.0.0 --port ${PORT} --token \"${token}\" --workspace \"${WORKSPACE}\" --no-open"
@@ -104,6 +123,13 @@ start_process() {
     sleep 1
     if ! check_process "$pid"; then
         rm -f "$PID_FILE"
+        # 把日志尾部写进用户可见渠道（应用中心展示的失败提示），避免只留一个用户不好找的日志路径。
+        if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+            {
+                printf 'Mode 启动失败。最近日志（%s）：\n' "$LOG_FILE"
+                tail -n 30 "$LOG_FILE" 2>/dev/null
+            } >> "$TRIM_TEMP_LOGFILE" 2>/dev/null || true
+        fi
         mode_fail "Mode 启动失败，请查看日志：${LOG_FILE}"
     fi
     mode_log "started pid=${pid}"

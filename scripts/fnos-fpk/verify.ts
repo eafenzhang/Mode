@@ -102,6 +102,7 @@ export async function verifyStructure({
     "agent/mode.cjs",
     "node_modules/node-pty",
     "runtime/bin/node",
+    "runtime/LICENSE",
     "ui/config",
     "ui/images/icon_64.png",
     "ui/images/icon_256.png",
@@ -112,10 +113,11 @@ export async function verifyStructure({
   assert.ok(nodeSize > 50 * 1024 * 1024, "payload 捆绑 Node 体积异常");
 
   const uiConfig = JSON.parse(await readFile(join(verifyDir, "ui", "config"), "utf8")) as {
-    ".url": Record<string, { url: string; port: string }>;
+    ".url": Record<string, { url: string; port: string; type: string }>;
   };
   const entry = uiConfig[".url"]?.["mode.Application"];
   assert.ok(entry, "ui 入口 mode.Application 缺失");
+  assert.equal(entry.type, "iframe", "ui 入口应为 iframe（飞牛桌面内嵌打开）");
   assert.match(entry.url, /token=__MODE_TOKEN__/u, "ui 入口应携带令牌占位符");
   assert.equal(String(entry.port), String(port));
 

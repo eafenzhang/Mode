@@ -150,11 +150,13 @@ jobs:
           - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
           - **macOS（.dmg）**：`<PRODUCT>-<VERSION>-mac-arm64.dmg`（Apple Silicon）/ `<PRODUCT>-<VERSION>-mac-x64.dmg`（Intel），拖进「应用程序」；未签名会被 Gatekeeper 拦一次，放行命令：`sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`。
           - **Linux（.AppImage）**：`<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`，`chmod +x` 后直接运行。
+          - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口或浏览器打开（访问地址自带访问令牌）。
           - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包；`latest*.yml` 供应用内自动更新使用。
 
           - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
           - **macOS (.dmg)**: `<PRODUCT>-<VERSION>-mac-arm64.dmg` (Apple Silicon) / `<PRODUCT>-<VERSION>-mac-x64.dmg` (Intel); drag it into Applications. Unsigned, so Gatekeeper blocks the first launch once: `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`.
           - **Linux (.AppImage)**: `<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`; `chmod +x` then run it directly.
+          - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry or a browser (the access URL carries the access token).
           - **Checksums and update metadata**: `sha256.txt` covers the installers; `latest*.yml` drives in-app updates.
 
           ## 反馈 / Feedback
@@ -390,8 +392,78 @@ jobs:
           path: dist/release-checksums/desktop-${{ matrix.target }}-${{ matrix.arch }}.txt
           retention-days: 1
 
+  # fnOS（飞牛）原生安装包：与桌面矩阵同一触发条件（推送自动发版 / 手工勾选构建产物）。
+  # scripts/build-fnos-fpk.ts 内部复用 build:mode 发行产物并捆绑 linux-x64 Node 运行时，
+  # 自执行结构断言与发行冒烟（CI 为 POSIX，冒烟会真实运行）——失败即失败，不产出可疑安装包。
+  fnos:
+    needs: [release, verify]
+    if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # fnpack 与 linux-x64 Node 运行时按构建脚本内的版本常量下载；cache key 带脚本哈希，
+      # 版本常量一变缓存自动失效（未命中就重新下载，不影响正确性）。
+      - uses: actions/cache@v4
+        with:
+          path: dist/fnos/.cache
+          key: fnos-cache-${{ runner.os }}-${{ hashFiles('scripts/fnos-fpk/build-lib.ts') }}
+
+      - name: Build fnOS install package
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: node scripts/build-fnos-fpk.ts --version "$VERSION"
+
+      - name: Upload fnOS asset to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          # 与桌面腿一致：GitHub API 偶发失败重试 3 次，--clobber 让重试可安全覆盖。
+          fpk="dist/fnos/releases/$VERSION/mode-$VERSION-x86_64.fpk"
+          test -f "$fpk" || { echo "::error::missing $fpk"; exit 1; }
+          for attempt in 1 2 3; do
+            if gh release upload "$TAG" "$fpk" --clobber; then
+              exit 0
+            fi
+            echo "::warning::gh release upload failed (attempt $attempt/3), retrying in 10s"
+            sleep 10
+          done
+          echo "::error::gh release upload failed after 3 attempts"
+          exit 1
+
+      # 校验片段：构建脚本已按合并清单元格式生成 <fpk>.sha256，直接复用为片段
+      # （口径与桌面腿一致：只覆盖用户会直接下载的安装包）。
+      - name: Generate fnOS checksum fragment
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release-checksums
+          cp "dist/fnos/releases/$VERSION/mode-$VERSION-x86_64.fpk.sha256" dist/release-checksums/fnos-x86_64.txt
+          cat dist/release-checksums/fnos-x86_64.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-checksums-fnos
+          path: dist/release-checksums/fnos-x86_64.txt
+          retention-days: 1
+
   checksums:
-    needs: [release, desktop]
+    needs: [release, desktop, fnos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -419,15 +491,16 @@ jobs:
           fi
           mv sha256-merged.txt sha256.txt
           cat sha256.txt
-          # 回归保护：清单必须覆盖每个已发布平台的安装包；缺任一类都说明
+          # 回归保护：清单必须覆盖每个已发布平台的安装包（桌面安装包 + fnOS .fpk）；缺任一类都说明
+          # 上传或片段生成出了问题，阻止发布而不是发布不完整的清单。
           # （断言只看扩展名、不看产品名前缀：改名 Mode → Mode 时硬编码前缀让一次
           #   五个平台全部构建成功的发版卡在这里，别再把产品名写进判据。）
-          # 上传或片段生成出了问题，阻止发布而不是发布不完整的清单。
           for pattern in \
             '^[0-9a-f]{64}  [^ ]+\.dmg$' \
             '^[0-9a-f]{64}  [^ ]+\.zip$' \
             '^[0-9a-f]{64}  [^ ]+\.exe$' \
-            '^[0-9a-f]{64}  [^ ]+\.AppImage$'; do
+            '^[0-9a-f]{64}  [^ ]+\.AppImage$' \
+            '^[0-9a-f]{64}  [^ ]+\.fpk$'; do
             if ! grep -Eq "$pattern" sha256.txt; then
               echo "::error::sha256.txt is missing an entry matching $pattern"
               exit 1
@@ -452,12 +525,12 @@ jobs:
           echo "::error::gh release upload failed after 3 attempts"
           exit 1
 
-  # 只有 CLI、全部桌面平台产物与完整校验清单都成功才公开 release；任一构建失败则保持 draft，
+  # 只有全部桌面平台产物、fnOS 安装包与完整校验清单都成功才公开 release；任一构建失败则保持 draft，
   # 由人工排查后重跑或删除，避免不完整的版本出现在 Releases 与官网下载页。
   # keep_draft=true（上游审计自动构建的测试版）：即使全部成功也保持 draft，不公开、不进入自动更新。
   publish:
-    needs: [release, verify, desktop, checksums]
-    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') }}
+    needs: [release, verify, desktop, checksums, fnos]
+    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

@@ -3,7 +3,7 @@
     "mode.Application": {
       "title": "Mode",
       "icon": "images/icon_{0}.png",
-      "type": "url",
+      "type": "iframe",
       "protocol": "http",
       "port": "__MODE_PORT__",
       "url": "/?token=__MODE_TOKEN__",
