@@ -152,6 +152,9 @@ export const remoteDesktopPeerSessionOpenResultSchema = z
     requestId: trimmedNonEmpty,
     ok: z.boolean(),
     wsUrl: z.string().optional(),
+    // 契约 E：媒体面连接地址（host 从 POST 响应拼出）。strict schema 漏字段会整条丢弃，
+    // 必须与 host 侧上报同步声明，否则主控 start 挂到超时。
+    mediaUrl: z.string().optional(),
     errorCode: z.string().optional(),
     error: z.string().optional(),
   })

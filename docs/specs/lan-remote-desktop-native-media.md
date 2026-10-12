@@ -34,7 +34,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
   ▲ 输入反向上行：同一条 media WS（JSON 输入事件）→ host → 既有 broker raw_input → helper
 
 主控端
-  renderer：media-open{url,key}（经既有信令链下发）→ 连 media WS
+  renderer：media-open{key,salt}（经既有信令链下发；连接地址 mediaUrl 由 rdStartSession 直达）→ 连 media WS
     下行解密(WebCrypto AES-GCM) → VideoDecoder(H.264 硬解) → 最新帧直画 canvas
     （丢旧帧自绘 = 自建零缓冲，替代 WebRTC 抖动缓冲）
     输入：InputCapture 采集不变，sink 改为 media WS 上行
@@ -64,7 +64,9 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 - **保留**：`hello{protocolVersion:2}`、`monitors`、`select-monitor`、`bye`、`error`。
 - **删除**：`offer`、`answer`、`ice`（WebRTC 消费者随媒体面移除）。
 - **新增**：
-  - `media-open{url, key, salt}`（被控 → 主控，同意后发出）：`url` = 对端 LAN server 的 media WS 地址，`key`/`salt` 十六进制；
+  - `media-open{key, salt}`（被控 → 主控，同意后发出）：`key`/`salt` 十六进制；
+  - `mediaUrl`（连接地址 + mediaTicket）不走信令：由主控 host 从 POST 响应拼出，
+  经 `rdStartSession` 返回值直达 renderer（被控 host 不知道自身对外可达地址）。
   - `freeze{reason:"locked"|"access-lost"}` / `unfreeze`（被控 → 主控，DUPL 丢失/恢复时），复用既有「锁屏画面冻结 + 提示，解锁恢复」语义与文案。
 - **版本门（纯直替的唯一兼容闸）**：
   1. `server-info.capabilities` 新增 `remoteDesktopNative?: true`——旧对端缺键 → 设备页既有「不支持（版本过旧）」文案，不发起会话；
@@ -104,7 +106,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 ① 同意前（与现网一致）：hello(v2) → capability 门 → monitors → select-monitor
 ② 同意通过（被控 coordinator）：
    生成 key/salt → host：签发 mediaTicket（POST 响应内既有 ticket 字段旁新增）
-   → 信令下行 media-open{url,key,salt}
+   → 信令下行 media-open{key,salt}（mediaUrl 已经 rdStartSession 直达主控 renderer）
    → broker rd_media_start{monitor, endpoint, key, salt} → helper 连中继口、起 DUPL+MF
 ③ 主控 renderer 收 media-open → 连 media WS（mediaTicket）→ 上行 {t:"ready"}
    → helper 开始推流：帧 → 加密 → 管道 → 中继 → WS → renderer 解密 → 解码 → 画

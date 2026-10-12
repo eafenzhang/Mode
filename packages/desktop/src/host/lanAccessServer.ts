@@ -83,14 +83,15 @@ export interface StartLanAccessServerParams {
    */
   isRemoteDesktopServerEnabled?: () => boolean;
   /**
-   * 远程桌面被控 hook 注入点（T3 接 main 桥：同意流 / 信令转发）。
-   * 缺省实现：requestSession 一律拒绝（disabled）、onSessionSocket 直接关闭连接。
+   * 远程桌面被控 hook 注入点（T3 接 main 桥：同意流 / 信令转发 / 媒体 WS 交接）。
+   * 缺省实现：requestSession 一律拒绝（disabled）、onSessionSocket 与 onMediaSocket 直接关闭连接。
    */
   remoteDesktop?: {
     requestSession?: (
       clientId: string,
     ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
     onSessionSocket?: (clientId: string, socket: WebSocket) => void;
+    onMediaSocket?: (clientId: string, socket: WebSocket) => void;
   };
 }
 
@@ -330,6 +331,13 @@ export async function startLanAccessServer(
         params.remoteDesktop?.onSessionSocket ??
         ((_clientId: string, socket: WebSocket) => {
           socket.close(4001, "remote desktop not wired");
+        }),
+      // 缺省关闭（与 onSessionSocket 同模式）：媒体票已被消费，但没有 relay 可挂，
+      // 不留下无归属的媒体连接。
+      onMediaSocket:
+        params.remoteDesktop?.onMediaSocket ??
+        ((_clientId: string, socket: WebSocket) => {
+          socket.close(4001, "remote desktop media not wired");
         }),
     },
   });

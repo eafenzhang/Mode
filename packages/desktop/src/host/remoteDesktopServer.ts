@@ -65,10 +65,11 @@ export type RemoteDesktopInjectPort = (
 ) => Promise<{ dispatched: number }>;
 
 export interface RemoteDesktopHostServer {
-  /** lanAccessServer 的 hooks（同意流 + 信令交接）。 */
+  /** lanAccessServer 的 hooks（同意流 + 信令交接 + 媒体 WS 交接）。 */
   hooks: {
     requestSession(clientId: string): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
     onSessionSocket(clientId: string, socket: WebSocket): void;
+    onMediaSocket(clientId: string, socket: WebSocket): void;
   };
   /** 能力位读取点（同步缓存，握手时现取；开关变更后立刻生效）。 */
   isServerEnabled(): boolean;
@@ -105,6 +106,11 @@ export function createRemoteDesktopHostServer(options: {
   let pendingConsent: PendingConsent | null = null;
   let pendingSocket: PendingSocket | null = null;
   let activeSession: { clientId: string; socket: WebSocket } | null = null;
+  /**
+   * 当前媒体连接（clientId → socket）。Task 3 只负责登记与断开清理；
+   * 收发路由（relay 挂接、pong、输入）由 Task 5 在本表上接管。
+   */
+  const mediaSockets = new Map<string, WebSocket>();
   let injectDroppedFrames = 0;
   let disposed = false;
 
@@ -347,6 +353,43 @@ export function createRemoteDesktopHostServer(options: {
     });
   };
 
+  /**
+   * 媒体 WS 交接（本任务最小面）：只登记到 mediaSockets 并在断开时按引用清理，
+   * 不在此收发帧——媒体 relay（分帧透传、pong、输入路由）由 Task 5 接管本表。
+   * 同 clientId 重复升级（重连/旧票据迟到）时新连接顶替旧连接，避免双连接并存。
+   */
+  const onMediaSocket = (clientId: string, socket: WebSocket): void => {
+    if (disposed) {
+      try {
+        socket.close(4001, "remote desktop disposed");
+      } catch {
+        // 幂等失败忽略。
+      }
+      return;
+    }
+    const previous = mediaSockets.get(clientId);
+    if (previous && previous !== socket) {
+      try {
+        previous.close(4001, "replaced by newer media socket");
+      } catch {
+        // 幂等失败忽略。
+      }
+    }
+    mediaSockets.set(clientId, socket);
+    log(`media socket attached, clientId=${clientId}`);
+
+    socket.on("close", () => {
+      // 按引用清理：旧连接的迟到 close 事件不能删掉已顶替它的新连接。
+      if (mediaSockets.get(clientId) === socket) {
+        mediaSockets.delete(clientId);
+        log(`media socket closed, clientId=${clientId}`);
+      }
+    });
+    socket.on("error", (error: Error) => {
+      logger.warn(`[remote-desktop] media socket error: ${error.message}`);
+    });
+  };
+
   // ---- 注入端口 ----
 
   const defaultInject: RemoteDesktopInjectPort = async (events) => {
@@ -382,7 +425,7 @@ export function createRemoteDesktopHostServer(options: {
   };
 
   return {
-    hooks: { requestSession, onSessionSocket },
+    hooks: { requestSession, onSessionSocket, onMediaSocket },
     isServerEnabled: () => serverEnabled,
     /** 启动即把持久化的被控开关读入同步缓存（能力位按每次握手现取，此处只做一次冷读）。 */
     loadServerState: async (): Promise<void> => {
@@ -488,6 +531,15 @@ export function createRemoteDesktopHostServer(options: {
       disposed = true;
       clearSessionState();
       closeActiveSocket(1000, "disposed");
+      // 媒体连接随 server 收口：不留半开的媒体 WS（票据已消费，连接本身也要释放）。
+      for (const socket of mediaSockets.values()) {
+        try {
+          socket.close(1000, "disposed");
+        } catch {
+          // 幂等失败忽略。
+        }
+      }
+      mediaSockets.clear();
     },
   };
 }

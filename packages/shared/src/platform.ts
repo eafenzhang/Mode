@@ -992,8 +992,14 @@ export interface IPlatformService {
     name?: string;
   }>;
 
-  /** 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成）；失败返回稳定错误码。 */
-  rdStartSession(serverId: string): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+  /**
+   * 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成）；失败返回稳定错误码。
+   * 契约 E：成功时附带 `mediaUrl` = `ws://<对端host>:<port>/ws/remote-desktop-media?mediaTicket=<t>`，
+   * 由主控 host 从被控 POST 响应拼出、经本返回值直达 renderer（不走信令 union）。
+   */
+  rdStartSession(
+    serverId: string,
+  ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }>;
 
   /**
    * 读取本机是否处于被控状态（被控会话状态机 phase !== "idle"，含同意弹窗中）。

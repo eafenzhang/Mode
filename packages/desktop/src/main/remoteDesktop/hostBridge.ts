@@ -220,13 +220,15 @@ export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
 
 export async function requestRemoteDesktopPeerSessionOpen(
   serverId: string,
-): Promise<{ ok: true; wsUrl: string } | { ok: false; errorCode?: string; error: string }> {
+): Promise<
+  { ok: true; wsUrl: string; mediaUrl?: string } | { ok: false; errorCode?: string; error: string }
+> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen, serverId },
     "peer-session-open",
   );
   return (await promise) as
-    | { ok: true; wsUrl: string }
+    | { ok: true; wsUrl: string; mediaUrl?: string }
     | { ok: false; errorCode?: string; error: string };
 }
 

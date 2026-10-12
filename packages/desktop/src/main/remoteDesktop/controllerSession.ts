@@ -34,7 +34,7 @@ export interface RemoteDesktopControllerSession {
   start(
     serverId: string,
     sender: WebContents,
-  ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+  ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }>;
   sendSignal(message: RemoteDesktopSignalMessage): void;
   end(reason?: "user-end" | "error"): Promise<void>;
   dispose(): void;
@@ -188,7 +188,10 @@ export function createRemoteDesktopControllerSession(options: {
   };
 
   return {
-    async start(serverId, sender): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }> {
+    async start(
+      serverId,
+      sender,
+    ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }> {
       if (socket || starting) {
         return { error: "busy" };
       }
@@ -257,7 +260,9 @@ export function createRemoteDesktopControllerSession(options: {
       socket = ws;
       attach(ws);
       options.logger.info(`[remote-desktop] controller session requested (serverId=${serverId})`);
-      return { ok: true };
+      // 契约 E：把 host 从 POST 响应拼出的媒体面地址透传给 renderer（缺省 undefined 兼容
+      // 旧 host 进程回包，渲染层自行按「无媒体地址」收口）。
+      return { ok: true, mediaUrl: result.mediaUrl };
     },
     sendSignal(message: RemoteDesktopSignalMessage): void {
       const parsed = remoteDesktopSignalMessageSchema.safeParse(message);

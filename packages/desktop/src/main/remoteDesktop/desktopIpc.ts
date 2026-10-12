@@ -71,7 +71,10 @@ export function registerRemoteDesktopIpcHandlers(options: RemoteDesktopIpcOption
 
   ipcMain.handle(
     REMOTE_DESKTOP_IPC.StartSession,
-    async (event, rawServerId: unknown): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }> => {
+    async (
+      event,
+      rawServerId: unknown,
+    ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }> => {
       const serverId = readServerId(rawServerId);
       if (!serverId) {
         return { error: "internal" };

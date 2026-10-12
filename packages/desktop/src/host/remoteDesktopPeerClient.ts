@@ -98,14 +98,17 @@ export async function probeRemoteDesktopPeer(
 }
 
 /**
- * 请求对端受控会话：POST /api/remote-desktop/session（设备令牌）→ 一次性票据。
- * 成功后 main 用返回的 wsUrl 建立信令连接（票据在 WS 升级时单次消费）。
+ * 请求对端受控会话：POST /api/remote-desktop/session（设备令牌）→ 双票据（信令 + 媒体）。
+ * 成功后 main 用返回的 wsUrl 建立信令连接（票据在 WS 升级时单次消费）；
+ * mediaUrl 是给 renderer 的媒体面连接地址（契约 E：主控 host 从 POST 响应拼出，
+ * 经 rdStartSession 直达 renderer——被控 host 不知道自身对外可达地址）。
  */
 export async function openRemoteDesktopPeerSession(
   credentials: ICredentialService,
   serverId: string,
 ): Promise<
-  { ok: true; wsUrl: string } | { ok: false; errorCode?: RemoteDesktopErrorCode; error: string }
+  | { ok: true; wsUrl: string; mediaUrl: string }
+  | { ok: false; errorCode?: RemoteDesktopErrorCode; error: string }
 > {
   const target = await readPeerTarget(credentials, serverId);
   if (!target) {
@@ -149,16 +152,29 @@ export async function openRemoteDesktopPeerSession(
     };
   }
   let ticket: string | undefined;
+  let mediaTicket: string | undefined;
   try {
-    const payload = (await response.json()) as { ticket?: unknown };
+    const payload = (await response.json()) as { ticket?: unknown; mediaTicket?: unknown };
     if (typeof payload.ticket === "string" && payload.ticket) {
       ticket = payload.ticket;
     }
+    if (typeof payload.mediaTicket === "string" && payload.mediaTicket) {
+      mediaTicket = payload.mediaTicket;
+    }
   } catch {
     ticket = undefined;
+    mediaTicket = undefined;
   }
   if (!ticket) {
     return { ok: false, errorCode: "internal", error: "对端响应缺少会话票据" };
+  }
+  if (!mediaTicket) {
+    // 旧对端（未升级到双票据协议）：媒体面无法建立，按版本过旧收口而不是先连上再失败。
+    return {
+      ok: false,
+      errorCode: "unsupported",
+      error: "对端缺少媒体票据（版本过旧）",
+    };
   }
   // WS 升级与 POST 同样要出示设备令牌：服务端全局鉴权（http.ts isTokenProtectedPath 命中
   // /ws/*）与升级中间件的 resolveLanClientId 都从 query 读令牌，只带 ticket 会被 401 拒绝。
@@ -166,5 +182,11 @@ export async function openRemoteDesktopPeerSession(
   wsUrl.protocol = "ws:";
   wsUrl.searchParams.set("ticket", ticket);
   wsUrl.searchParams.set("token", target.token);
-  return { ok: true, wsUrl: wsUrl.toString() };
+  // 契约 E（Task 10 消费）：mediaUrl 形态固定为 连接地址 + mediaTicket，
+  // 由主控 host 从被控 POST 响应拼出，经 rdStartSession 返回值直达 renderer。
+  // 注意：该形态不含设备令牌（信令 wsUrl 含）——renderer 直连 /ws/* 的鉴权口径由 Task 10 裁决。
+  const mediaUrl = new URL(`/ws/remote-desktop-media`, base);
+  mediaUrl.protocol = "ws:";
+  mediaUrl.searchParams.set("mediaTicket", mediaTicket);
+  return { ok: true, wsUrl: wsUrl.toString(), mediaUrl: mediaUrl.toString() };
 }

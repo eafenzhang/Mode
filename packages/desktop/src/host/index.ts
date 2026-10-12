@@ -2054,6 +2054,7 @@ async function ensureRemoteDesktopHostServer(
 function resolveRemoteDesktopHooks(): {
   requestSession: (clientId: string) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
   onSessionSocket: (clientId: string, socket: WebSocket) => void;
+  onMediaSocket: (clientId: string, socket: WebSocket) => void;
 } {
   return {
     requestSession: async (clientId: string) =>
@@ -2065,6 +2066,18 @@ function resolveRemoteDesktopHooks(): {
       }
       try {
         socket.close(4001, "remote desktop not wired");
+      } catch {
+        // 幂等失败忽略。
+      }
+    },
+    // 媒体 WS 与信令同构：RD server 未初始化时 fail-closed 关闭，不留无归属连接。
+    onMediaSocket: (clientId: string, socket: WebSocket) => {
+      if (activeRemoteDesktop) {
+        activeRemoteDesktop.hooks.onMediaSocket(clientId, socket);
+        return;
+      }
+      try {
+        socket.close(4001, "remote desktop media not wired");
       } catch {
         // 幂等失败忽略。
       }
@@ -2148,6 +2161,8 @@ async function handleRemoteDesktopPeerMessage(
             requestId: msg.requestId,
             ok: true,
             wsUrl: result.wsUrl,
+            // 契约 E：mediaUrl 随开流结果过桥到 main，再经 rdStartSession 直达 renderer。
+            mediaUrl: result.mediaUrl,
           }
         : {
             type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,

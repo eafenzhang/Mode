@@ -117,7 +117,115 @@ test("未配置 hooks 的 server：POST / GET 端点均返回稳定错误且不�
       cookieFor(TOKEN_A),
     );
     assert.equal(upgrade, 501);
+
+    // media 端点同口径：缺 hooks → 501（不升级连接）。
+    const mediaUpgrade = await connectUntilRejected(
+      `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=whatever`,
+      cookieFor(TOKEN_A),
+    );
+    assert.equal(mediaUpgrade, 501);
   } finally {
+    await stopServer(server);
+  }
+});
+
+test("hooks 提供但缺 onMediaSocket：media 端点 501（信令端点语义不变）", async () => {
+  const { server, baseUrl, port } = await startServer({
+    remoteDesktop: { requestSession: async () => ({ ok: true }), onSessionSocket: () => {} },
+  });
+  try {
+    const media = await connectUntilRejected(
+      `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=whatever`,
+      cookieFor(TOKEN_A),
+    );
+    assert.equal(media, 501, "缺 onMediaSocket 时不升级媒体连接");
+
+    const post = await fetch(`${baseUrl}/api/remote-desktop/session`, {
+      method: "POST",
+      headers: cookieFor(TOKEN_A),
+    });
+    assert.equal(post.status, 200, "信令 POST 不受 onMediaSocket 缺失影响");
+    const { ticket } = (await post.json()) as { ticket: string };
+    // 升级成功用直连断言（connectUntilRejected 成功即 reject）。
+    const signal = new WebSocket(
+      `ws://127.0.0.1:${port}/ws/remote-desktop?ticket=${encodeURIComponent(ticket)}`,
+      { headers: cookieFor(TOKEN_A) },
+    );
+    try {
+      await new Promise<void>((resolve, reject) => {
+        signal.once("open", () => resolve());
+        signal.once("error", reject);
+      });
+    } finally {
+      signal.close();
+    }
+  } finally {
+    await stopServer(server);
+  }
+});
+
+test("POST 响应带 mediaTicket；media 端点凭 mediaTicket 单次升级", async () => {
+  const sockets: Array<{ clientId: string }> = [];
+  const { server, baseUrl, port } = await startServer({
+    remoteDesktop: {
+      requestSession: async () => ({ ok: true }),
+      onSessionSocket: () => {},
+      onMediaSocket: (clientId) => {
+        sockets.push({ clientId });
+      },
+    },
+  });
+  const mediaClients: WebSocket[] = [];
+  try {
+    const post = await fetch(`${baseUrl}/api/remote-desktop/session`, {
+      method: "POST",
+      headers: cookieFor(TOKEN_A),
+    });
+    assert.equal(post.status, 200);
+    const { ticket, mediaTicket } = (await post.json()) as {
+      ticket: string;
+      mediaTicket: string;
+    };
+    assert.ok(ticket && mediaTicket && ticket !== mediaTicket, "两张票据各自独立");
+
+    // 信令票不能开 media 端点；mediaTicket 不能开信令端点（各自单次消费语义）。
+    // 注意 connectUntilRejected 在升级成功时会 reject("升级不应成功")，
+    // 因此下面两处必须以 401 收口而不是抛出。
+    const wrongOnMedia = await connectUntilRejected(
+      `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=${encodeURIComponent(ticket)}`,
+      cookieFor(TOKEN_A),
+    );
+    assert.equal(wrongOnMedia, 401, "信令票不能升级 media 端点");
+    const wrongOnSignal = await connectUntilRejected(
+      `ws://127.0.0.1:${port}/ws/remote-desktop?ticket=${encodeURIComponent(mediaTicket)}`,
+      cookieFor(TOKEN_A),
+    );
+    assert.equal(wrongOnSignal, 401, "mediaTicket 不能升级信令端点");
+
+    // 升级成功路径：直连 + open 断言（connectUntilRejected 成功即 reject，不能复用）。
+    const client = new WebSocket(
+      `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=${encodeURIComponent(mediaTicket)}`,
+      { headers: cookieFor(TOKEN_A) },
+    );
+    mediaClients.push(client);
+    await new Promise<void>((resolve, reject) => {
+      client.once("open", () => resolve());
+      client.once("error", reject);
+    });
+    await waitFor(() => sockets.length === 1, "onMediaSocket 挂接");
+    assert.equal(sockets[0]?.clientId, CLIENT_A, "media socket 绑定发起方 clientId");
+
+    // 重放：mediaTicket 已消费 → 401。
+    const replay = await connectUntilRejected(
+      `ws://127.0.0.1:${port}/ws/remote-desktop-media?mediaTicket=${encodeURIComponent(mediaTicket)}`,
+      cookieFor(TOKEN_A),
+    );
+    assert.equal(replay, 401, "mediaTicket 重放必须 401");
+    assert.equal(sockets.length, 1, "onMediaSocket 只挂接一次");
+  } finally {
+    for (const ws of mediaClients) {
+      ws.close();
+    }
     await stopServer(server);
   }
 });

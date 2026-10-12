@@ -265,14 +265,17 @@ interface HttpServerOptions {
    * 提供时暴露 POST /api/remote-desktop/session 与 GET /ws/remote-desktop。
    * 会话请求由宿主裁决（同意流），票据签发与单次消费由本模块兜底；
    * 信令单帧（RemoteDesktopSignalMessage JSON）交给 onSessionSocket 的宿主转发，本模块不解析内容。
+   * onMediaSocket 可选：媒体 WS（/ws/remote-desktop-media）的交接口，缺省时该端点 501。
    */
   remoteDesktop?: RemoteDesktopHooks;
 }
 
-/** 远程桌面被控 hook：请求会话（可含被控同意）与升级后的信令 socket 交接。 */
+/** 远程桌面被控 hook：请求会话（可含被控同意）与升级后的信令 / 媒体 socket 交接。 */
 export interface RemoteDesktopHooks {
   requestSession(clientId: string): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
   onSessionSocket(clientId: string, socket: WebSocket): void;
+  /** 媒体 WS 升级成功后的交接（收发逻辑由宿主侧 relay 承担，本模块不解析帧）。 */
+  onMediaSocket?(clientId: string, socket: WebSocket): void;
 }
 
 /**
@@ -485,9 +488,10 @@ function staticContentType(filePath: string): string {
   return staticMimeTypes[extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
 
-/** /ws/remote-desktop 升级中间件 → 升级处理器之间传递的上下文变量。 */
+/** /ws/remote-desktop 与 /ws/remote-desktop-media 升级中间件 → 升级处理器之间传递的上下文变量。 */
 interface HttpServerVariables {
   remoteDesktopClientId: string;
+  remoteDesktopMediaClientId: string;
 }
 
 export function createHttpServer(
@@ -500,6 +504,10 @@ export function createHttpServer(
   const hostCapabilities = createHostCapabilityStore();
   // 远程桌面票据与 host capability 分开存放：消费方、绑定关系（clientId）与生命周期都不同。
   const remoteDesktopTickets = createRemoteDesktopTicketStore();
+  // 信令票与媒体票各一个 store（接口签名不变，靠实例隔离）：混用同一 store 会让两张票
+  // 变得可互换——信令票能升级 media 端点、mediaTicket 能升级信令端点，违反「双票据各自
+  // 单次消费、互不能开对方端点」（spec media WS 消息节 + 本任务验收）。
+  const remoteDesktopMediaTickets = createRemoteDesktopTicketStore();
 
   const authToken = options.authToken?.trim();
   const verifyAuthToken = options.verifyAuthToken;
@@ -555,7 +563,15 @@ export function createHttpServer(
     if ("error" in result) {
       return c.json({ code: result.error }, remoteDesktopErrorStatus(result.error));
     }
-    return c.json(remoteDesktopTickets.issue(clientId));
+    // 平铺返回（既有消费者读 issued.ticket / issued.expiresAt，不能整体换成嵌套对象）：
+    // 信令票走 ticket、媒体票走 mediaTicket，两张票分别签发、各自单次消费。
+    const signaling = remoteDesktopTickets.issue(clientId);
+    const media = remoteDesktopMediaTickets.issue(clientId);
+    return c.json({
+      ticket: signaling.ticket,
+      mediaTicket: media.ticket,
+      expiresAt: signaling.expiresAt,
+    });
   });
 
   // 局域网配对：一次性配对码 → 该设备专属长期令牌。失败不区分「码错/过期」，
@@ -649,6 +665,36 @@ export function createHttpServer(
     await next();
   });
   app.get("/ws/remote-desktop", upgradeRemoteDesktopWebSocket);
+
+  // 局域网远程桌面媒体通道：与信令通道镜像，但用独立的 mediaTicket store 消费
+  // （媒体票据与信令票据互不能开对方端点）。票据在升级中间件单次消费，
+  // 升级后的帧交给宿主的 onMediaSocket（本模块不解析二进制/JSON 媒体消息）。
+  const upgradeRemoteDesktopMediaWebSocket = upgradeWebSocket((c) => ({
+    onOpen(_event, ws) {
+      const remoteDesktop = options.remoteDesktop;
+      const clientId = c.get("remoteDesktopMediaClientId");
+      if (!remoteDesktop?.onMediaSocket || !clientId) {
+        // 消费与升级之间 host 被撤下（或配置变更）：不留下无归属的媒体连接。
+        ws.close(4001, "Remote desktop media unavailable");
+        return;
+      }
+      remoteDesktop.onMediaSocket(clientId, ws.raw as WebSocket);
+    },
+  }));
+  app.use("/ws/remote-desktop-media", async (c, next) => {
+    const remoteDesktop = options.remoteDesktop;
+    if (!remoteDesktop?.onMediaSocket) {
+      return c.json({ error: "Remote desktop is not available" }, 501);
+    }
+    const mediaTicket = new URL(c.req.url).searchParams.get("mediaTicket") ?? undefined;
+    const clientId = resolveLanClientId(c);
+    if (!clientId || !remoteDesktopMediaTickets.consume(mediaTicket, clientId)) {
+      return c.json({ code: "stale_ticket" satisfies RemoteDesktopErrorCode }, 401);
+    }
+    c.set("remoteDesktopMediaClientId", clientId);
+    await next();
+  });
+  app.get("/ws/remote-desktop-media", upgradeRemoteDesktopMediaWebSocket);
 
   // Web 模式下发起远程连接
   app.post("/api/connect-remote", async (c) => {
