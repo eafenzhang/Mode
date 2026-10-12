@@ -46,6 +46,12 @@ import {
   type RemoteDesktopCaptureSession,
 } from "./captureWindow.js";
 import { listRemoteDesktopMonitors, physicalRectOf } from "./monitors.js";
+import {
+  buildSelectMonitorOutbound,
+  buildStartCaptureOutbound,
+  normalizeMediaFreezeReason,
+  type RemoteDesktopMediaOutbound,
+} from "./mediaCoordination.js";
 
 export interface RemoteDesktopSessionCoordinatorLogger {
   info(...args: unknown[]): void;
@@ -132,6 +138,17 @@ function sendSignalToPeer(message: RemoteDesktopSignalMessage): void {
     type: RemoteDesktopHostMessageTypes.RemoteDesktopSignalToHost,
     message,
   });
+}
+
+/** 按序执行媒体面出站规划（规划本体是纯函数，顺序契约在 mediaCoordination 单测里锁死）。 */
+function dispatchOutbounds(outbounds: readonly RemoteDesktopMediaOutbound[]): void {
+  for (const outbound of outbounds) {
+    if (outbound.kind === "signal") {
+      sendSignalToPeer(outbound.message);
+    } else {
+      sendRemoteDesktopMessageToHost(outbound.message);
+    }
+  }
 }
 
 /** 主屏矩形读取失败时的开流兜底区域（MediaStart schema 要求必有 rect）。 */
@@ -313,20 +330,16 @@ async function applyAction(runtimeState: CoordinatorRuntime, action: RemoteDeskt
       runtimeState.indicatorWindow = null;
       return;
     case "start-capture": {
-      // P2 原生媒体面开流（spec 事件顺序 ②：先信令后启动，主控解密就绪才收得住帧）：
-      // 生成本会话 key/salt → media-open 信令带给主控 → MediaStart 让 host 注入 rd_media_start。
+      // P2 原生媒体面开流：生成本会话 key/salt 后按规划序列发出（顺序契约在 mediaCoordination：
+      // 先 media-open 信令、后 MediaStart，spec 事件顺序 ②）。
       // key/salt 是解密材料：只随消息下发，不落日志（仓库日志纪律）。
       const key = randomBytes(32).toString("hex");
       const salt = randomBytes(8).toString("hex");
       runtimeState.mediaKey = key;
       runtimeState.mediaSalt = salt;
-      sendSignalToPeer({ type: "media-open", key, salt });
-      sendRemoteDesktopMessageToHost({
-        type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
-        rect: runtimeState.pendingDisplayRect ?? FALLBACK_MEDIA_RECT,
-        key,
-        salt,
-      });
+      dispatchOutbounds(
+        buildStartCaptureOutbound({ rect: runtimeState.pendingDisplayRect ?? FALLBACK_MEDIA_RECT, key, salt }),
+      );
       return;
     }
     case "stop-capture":
@@ -404,17 +417,16 @@ async function handleSignalFromHost(message: RemoteDesktopSignalMessage): Promis
     return;
   }
   if (message.type === "select-monitor") {
-    // P2 原生媒体面：displayId → 物理 rect 解析后路由 MediaSwitch（helper 换屏）。
+    // P2 原生媒体面：displayId → 物理 rect 解析后按规划路由（失败 → error{internal}；
+    // 成功 → MediaSwitch，helper 换屏）。规划本体在 mediaCoordination（纯函数，单测锁行为）。
     const rect = resolvePhysicalRect(message.displayId);
     if (!rect) {
       runtimeState.logger.warn(`[remote-desktop] unknown monitor displayId: ${message.displayId}`);
-      sendSignalToPeer({ type: "error", code: "internal", message: "unknown monitor" });
+    }
+    dispatchOutbounds(buildSelectMonitorOutbound(rect));
+    if (!rect) {
       return;
     }
-    sendRemoteDesktopMessageToHost({
-      type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
-      rect,
-    });
     // P1 渲染器采集窗（WebRTC 面）仍在此按 displayId 选源；P4 清理时随 captureWindow 一并删除
     // （spec lan-remote-desktop-native-media.md 删除与保留清单）。
     const capture = await ensureCaptureSession(runtimeState);
@@ -451,13 +463,8 @@ function handleMediaStatus(message: { frozen: boolean; reason?: string }): void 
     return;
   }
   if (message.frozen) {
-    // reason 归一化：信令 freeze{reason} 的 union 是协议面（只认 locked|access-lost），而 helper 的
-    // reason 是实现面错误串（capture-error / encode-error / access-lost…），不能原样进协议——
-    // 只有 locked 保真，其余一律按 access-lost 呈现（对端占位语义相同：画面不可用，恢复后自动 unfreeze）。
-    sendSignalToPeer({
-      type: "freeze",
-      reason: message.reason === "locked" ? "locked" : "access-lost",
-    });
+    // reason 归一（locked 保真、其余 access-lost）：理由与矩阵断言见 mediaCoordination。
+    sendSignalToPeer({ type: "freeze", reason: normalizeMediaFreezeReason(message.reason) });
     return;
   }
   sendSignalToPeer({ type: "unfreeze" });

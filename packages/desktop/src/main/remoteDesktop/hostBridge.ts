@@ -17,6 +17,10 @@ import {
   type RemoteDesktopMessageToHost,
 } from "./hostMessages.js";
 import { listLiveHostProcesses } from "../resourceManagerWindow.js";
+import {
+  buildPeerSessionOpenOutcome,
+  type RemoteDesktopPeerSessionOpenOutcome,
+} from "./peerSessionOpenOutcome.js";
 
 // 会话类请求（peer-session-open）要等被控同意窗（60s 同意 + 75s 兜底），
 // 预算须覆盖整个等待期（spec: lan-remote-desktop 事件顺序 ② 主控侧等待预算 90s）；
@@ -75,9 +79,9 @@ type PendingRequest =
     }
   | {
       kind: "peer-session-open";
-      resolve: (
-        value: { ok: true; wsUrl: string } | { ok: false; errorCode?: string; error: string },
-      ) => void;
+      // 契约 E：成功分支必须带 mediaUrl（renderer 直连 media WS 的唯一地址来源），
+      // 映射收敛在 buildPeerSessionOpenOutcome（纯函数，夹具有回归断言）。
+      resolve: (value: RemoteDesktopPeerSessionOpenOutcome) => void;
       reject: (error: Error) => void;
       timer: ReturnType<typeof setTimeout>;
     };
@@ -226,16 +230,12 @@ export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
 
 export async function requestRemoteDesktopPeerSessionOpen(
   serverId: string,
-): Promise<
-  { ok: true; wsUrl: string; mediaUrl?: string } | { ok: false; errorCode?: string; error: string }
-> {
+): Promise<RemoteDesktopPeerSessionOpenOutcome> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen, serverId },
     "peer-session-open",
   );
-  return (await promise) as
-    | { ok: true; wsUrl: string; mediaUrl?: string }
-    | { ok: false; errorCode?: string; error: string };
+  return (await promise) as RemoteDesktopPeerSessionOpenOutcome;
 }
 
 /**
@@ -292,15 +292,7 @@ export function handleRemoteDesktopHostMessage(label: string, data: unknown): bo
     return true;
   }
   settlePending(message.requestId, "peer-session-open", (pending) => {
-    pending.resolve(
-      message.ok && message.wsUrl
-        ? { ok: true, wsUrl: message.wsUrl }
-        : {
-            ok: false,
-            ...(message.errorCode ? { errorCode: message.errorCode } : {}),
-            error: message.error ?? "对端会话请求失败",
-          },
-    );
+    pending.resolve(buildPeerSessionOpenOutcome(message));
   });
   return true;
 }

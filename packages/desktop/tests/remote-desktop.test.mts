@@ -1,5 +1,6 @@
 /**
- * 远程桌面（LAN）desktop 侧纯逻辑回归：会话状态机、输入换算与批量、main↔host 消息契约镜像。
+ * 远程桌面（LAN）desktop 侧纯逻辑回归：会话状态机、输入换算与批量、main↔host 消息契约镜像、
+ * 被控媒体面出站（冻结归一 / 开流顺序 / 换屏路由 / mediaUrl 透传）。
  * 运行：node --test packages/desktop/tests/remote-desktop.test.mts
  * 扩展名 .mts：语言政策新测试禁 .mjs（docs/specs/language-policy.md）；
  * 夹具走 `node --import tsx`（与 remote-desktop-capability.test.mts 同一口径）。
@@ -48,4 +49,8 @@ test("输入换算与批量：多屏负原点坐标、滚轮刻度、按帧聚�
 
 test("main↔host 消息契约：双端镜像、严格校验与准入判定", async () => {
   await runFixture("remote-desktop-host-messages", /REMOTE_DESKTOP_HOST_MESSAGES_OK/u);
+});
+
+test("被控媒体面出站：冻结归一矩阵、开流顺序、换屏路由与 mediaUrl 透传", async () => {
+  await runFixture("remote-desktop-coordinator", /REMOTE_DESKTOP_COORDINATOR_OK/u);
 });
