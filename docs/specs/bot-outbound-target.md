@@ -1,0 +1,95 @@
+# Bot 出站目标统一：群回群、私聊回本人
+
+状态：已批准（2026-10-12，用户「参照 MyAgents 优化」）。
+关联：[wecom-reply-feedback.md](./wecom-reply-feedback.md)（流式卡片与占位流的既有「已知限制」由本轮改写）、
+[weixin-provider-self-id.md](./weixin-provider-self-id.md)（`resolveBotProactiveUserId` 心跳/身份语义**不动**）、
+[bot-reply-granularity.md](./bot-reply-granularity.md)（粒度默认值不动）、
+[bot-outbound-delivery.md](./bot-outbound-delivery.md)（停放补投目标链不动）。
+
+## 背景
+
+实机反馈（2026-10-12）：企微群里发消息，回复落在发送者的**私聊**里；私聊文本与 Mode
+桌面端会话对不上；群里只剩「思考中…」占位。
+
+根因（源码 + spec 交叉验证，未实机复现）：
+
+1. 企微默认回复粒度自 2026-10-12 起为 `streaming_card`，群回合正文全部走流式卡片；
+2. 流式卡片状态的目标写成 `actor.providerUserId`（发送者），是**唯一**不按
+   `chatId ?? providerUserId` 路由的出站路径——`createOutbound`、typing、排队消息、
+   停放补投、媒体目标链都是对的，两条表达式随时间漂移产生了本次事故；
+3. 企微入站帧按 `chatid` 存键，卡片按 `userid` 找帧必然落空 → 降级「仅终稿推送」→
+   `sendMessage(发送者)` 进私聊；占位流按 chatid 开、卡片按 userid 认领，键对不上，
+   群里占位无人收口；
+4. 桌面输入镜像的群分支调 `resolveBotProactiveUserId`，该函数按
+   [weixin-provider-self-id.md](./weixin-provider-self-id.md) 规则 5 首选绑定用户（私聊），
+   与该处注释「谁持有这个会话就往谁的对话镜像：群聊回群、私聊回本人」自相矛盾。
+
+参照实现（MyAgents 企微插件）：`sendWeComReply` 一律 `replyStream(frame)` 回在入站帧所在
+会话；只有事件回调（不能 replyStream）才降级主动发送，且目标是
+`body.chatid || body.from.userid`（**群 id 优先**）；reqId 按 chatId 存键。其 `im-mirror`
+由绑定通道把桌面侧 user/assistant 文本投回**同一条**会话，不换目标。
+
+## 产品规则
+
+1. **唯一出站目标**：面向会话的文本、卡片、媒体投递，目标 = 所属会话 =
+   `actor.chatId ?? actor.providerUserId`（群 → 群 chatId；私聊 → 对方 userId）。
+   - 新增共享函数 `resolveOutboundTarget(actor)`，`createOutbound` 与流式卡片状态都用它；
+     禁止再手写第二份表达式（本次事故即两条路径漂移）；
+   - `BotStreamingReplyCardState.providerUserId` 语义定为「最终投递目标」，与
+     `BotProviderAdapter.sendMedia` 注释同一措辞；provider 只把它当 chatKey /
+     receive_id / chat_id 使用，不得再假设它是发送者身份。
+2. **桌面输入镜像回原会话**：`notifyDesktopUserMessage` 的目标 =
+   `context.conversationId`（私聊 = 对方 userId，群 = 群 chatId），函数体内不再引用
+   `resolveBotProactiveUserId`。
+3. **不改动的边界**：
+   - `resolveBotProactiveUserId` 的判定顺序（boundUserId → 私聊对话 → all_users 回落）
+     维持 weixin-provider-self-id 规则 5，只继续充当心跳身份与门槛；
+   - `queuedMessages`、`pendingDeliveryQueue`、媒体目标链、typing 目标既有 chatId 语义不动；
+   - 群授权门、replyMode 默认值、卡片内容构成（正文 + 变更摘要）不动。
+4. **失败降级**：拿不到会话帧时沿用既有降级（仅终稿主动推送到**同一目标**）；
+   「降级」不允许改变会话——推不动就换帧或改走主动推送，不换收件人。
+5. ** provider 无关**：本规则对全部 provider 生效。飞书 `oc_` 前缀解析为 `receive_id_type=chat_id`、
+   钉钉 `group:` 前缀走群发送、Telegram `chat_id` 直传、企微 chatid 直传，均已在各自
+   provider 内按目标形态分流，无需在服务层做平台分支。
+
+## 状态所有者与时序（群回合）
+
+```text
+入站群消息 ──▶ actor { chatId=群, providerUserId=发送者 }
+                 │
+startTyping/sendTyping ──▶ 占位流（键 = resolveOutboundTarget(actor) = chatId）
+                 │
+watchTaskStream 流式卡片 ──▶ state.providerUserId = resolveOutboundTarget(actor)
+                 │            ├─ 有群帧 ──▶ replyStream 在群里原地接管占位（同 streamId）
+                 │            └─ 无帧   ──▶ 降级：仅终稿 sendMessage(chatId)（仍在群里）
+task 终态 ──▶ 卡片终稿收口；命令/错误/澄清/媒体走 createOutbound(chatId)（群）
+
+桌面发起回合 ──▶ buildConversationActor(chatId) ──▶ 同一卡片路径（群）
+桌面输入镜像 ──▶ adapter.send(providerUserId = context.conversationId)（群/私聊各回各家）
+```
+
+单所有者：出站目标只由服务层（`botsService`）决定；provider 是执行者，不自选收件人。
+
+## 验收场景
+
+1. 单测 `packages/services/test/bot-outbound-target.test.ts`（源码契约）：
+   - `syncStreamingCardReply` 构造的 `state.providerUserId` 取自 `resolveOutboundTarget(actor)`，
+     该 state 构造处不再出现裸 `actor.providerUserId`；
+   - `notifyDesktopUserMessage` 的镜像目标取 `context.conversationId`，函数体内不引用
+     `resolveBotProactiveUserId`（`bot-conversation-session.test.ts` 的既有镜像契约
+     同步收敛到这一口径）；
+   - `resolveOutboundTarget` 与 `createOutbound` 共用同一函数（不存在第二份 `??` 表达式）。
+2. 单测 `packages/services/test/bot-wecom-typing.test.ts`（provider 契约）：卡片以
+   `state.providerUserId`（= 会话键）认领占位流、查找入站帧、推送终稿——三处同键。
+3. 回归全绿：`pnpm --filter @mode/services test`、`pnpm typecheck`、`pnpm lint`、
+   `pnpm architecture:check --changed`。
+4. **待实机**：企微群 @机器人，回复出现在**群里**且与桌面端会话正文一致；群里占位被同一条
+   流收口（不再残留「思考中…」）；桌面端发消息时镜像进群而非绑定用户私聊。
+
+## 非目标
+
+- 不改回复粒度默认值、卡片渲染构成与分片（工具/思考不进卡片、终稿只含正文 + 变更摘要，
+  是 `bot-reply-granularity` 既定行为）；「内容不一致」中属于**渲染通道差异**的部分不在此轮，
+  待实机确认是否另有诉求。
+- 不改 `resolveBotProactiveUserId`、心跳目标选择、群授权门与绑定模型。
+- 不引入 MyAgents 的 assistant 侧 im-mirror 增强（Mode 已有 `watchTaskStream` 等价镜像）。

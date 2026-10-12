@@ -52,9 +52,14 @@ function createHarness(options: HarnessOptions = {}) {
       return Promise.resolve({});
     },
   };
+  // 记录取帧键：卡片/占位必须与入站帧缓存（群=chatid）同键，错键即本轮群聊事故。
+  const lastFrameKeys: string[] = [];
   const connection = {
     client,
-    getLastFrame: () => frame,
+    getLastFrame: (key: string) => {
+      lastFrameKeys.push(key);
+      return frame;
+    },
   };
   const connectionRegistry = {
     getConnection: () => connection,
@@ -65,7 +70,7 @@ function createHarness(options: HarnessOptions = {}) {
     loadCredential: async () => "secret",
     connection: connectionRegistry,
   });
-  return { provider, calls, frame, releaseFirstStream: releaseFirstStream! };
+  return { provider, calls, frame, lastFrameKeys, releaseFirstStream: releaseFirstStream! };
 }
 
 const bot = { id: "bot-1", provider: "wecom" } as unknown as BotConfig;
@@ -283,3 +288,54 @@ test("typing 打开与出站并发时先等打开收敛：不会在回复之后�
   await provider.send(bot, outbound("第二条"));
   assert.equal(streamCalls(calls).length, 2, "没有残留占位流");
 });
+
+// 出站目标统一（docs/specs/bot-outbound-target.md）：服务层传进来的
+// state.providerUserId 就是所属会话键（群=chatid、私聊=userId）。占位、取帧、
+// 收口三处必须同键——事故根因正是服务层把发送者传进来，群帧必然取不到。
+test("群会话键一致：占位/取帧/卡片同键，终稿落在同一条流上", async () => {
+  const { provider, calls, lastFrameKeys } = createHarness();
+  const groupKey = "chat-oc-group-1";
+  const groupTarget = { providerUserId: groupKey, providerMessageId: "m1" };
+
+  await provider.startTyping!(bot, groupTarget);
+  const placeholderId = (streamCalls(calls)[0]!.args as [unknown, string])[1];
+  assert.equal(lastFrameKeys.at(-1), groupKey, "占位必须按会话键（群 chatid）取帧");
+
+  const state: BotStreamingReplyCardState = {
+    providerUserId: groupKey,
+    status: "running",
+    blocks: [{ type: "message", text: "正在处理..." }],
+  };
+  const handle = await provider.createStreamingReplyCard!(bot, state);
+  assert.equal(handle?.providerMessageId, placeholderId, "同键才能原地接管占位流");
+  assert.equal(lastFrameKeys.at(-1), groupKey, "建卡取帧必须用同一会话键");
+
+  await provider.updateStreamingReplyCard!(bot, handle!, { ...state, status: "completed" });
+  const finalCall = streamCalls(calls).at(-1)!.args as [unknown, string, string, boolean];
+  assert.equal(finalCall[1], placeholderId, "终稿与占位必须同流收口");
+  assert.equal(finalCall[3], true, "终稿 finish");
+  assert.equal(
+    calls.filter((call) => call.method === "sendMessage").length,
+    0,
+    "同流收口后不再额外推送",
+  );
+});
+
+test("无帧降级不换收件人：终稿主动推送到会话键（群 chatid）", async () => {
+  const { provider, calls } = createHarness({ withFrame: false });
+  const groupKey = "chat-oc-group-1";
+  const state: BotStreamingReplyCardState = {
+    providerUserId: groupKey,
+    status: "running",
+    blocks: [{ type: "message", text: "处理中" }],
+  };
+  const handle = await provider.createStreamingReplyCard!(bot, state);
+  assert.ok(handle, "无帧时仍要建卡（仅终稿推送模式）");
+
+  await provider.updateStreamingReplyCard!(bot, handle!, { ...state, status: "completed" });
+  const pushes = calls.filter((call) => call.method === "sendMessage");
+  assert.equal(pushes.length, 1, "终稿必须送达");
+  assert.equal(pushes[0]!.args[0], groupKey, "降级只换通道不换会话——必须发到群 chatid");
+  assert.equal(streamCalls(calls).length, 0, "无帧时不开流");
+});
+

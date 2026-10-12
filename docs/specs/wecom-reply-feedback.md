@@ -84,9 +84,12 @@ botsService 接单
   这条占位消息只能被平台侧超时收敛（与既有流式卡片的帧过期语义一致）。
 - 静态占位文案是逐字对齐 MyAgents 的实现细节；若参照产品日后调整其 `THINKING_MESSAGE`，
   需同步更新 `WECOM_TYPING_PLACEHOLDER` 与对应单测。
-- 群聊 + `streaming_card`：卡片按 `state.providerUserId`（发送者）找帧是既有行为，
-  群聊帧缓存键是 chatid，卡片仍走「仅终稿推送」降级；此时占位流（chatid 键）
-  由下一次 `send()`（providerUserId = chatId ?? providerUserId）收口。
+- 群聊 + `streaming_card` 的帧缓存键错位已修复（2026-10-12，见
+  [bot-outbound-target.md](./bot-outbound-target.md)）：卡片目标与占位流同为
+  `resolveOutboundTarget(actor)` = 群 chatid——能取到群帧就在群里同流接管占位，
+  取不到才走「仅终稿推送」，且推送目标仍是 chatid（**降级不换收件人**）。
+  修复前卡片按发送者 `providerUserId` 找帧，群帧必然落空 → 终稿推进发送者私聊、
+  群里占位无人收口，是本轮实机问题的根因。
 - 企微群聊只有 mention 语义（`capabilities.always` 为 false），不存在「沉默回合」，
   因此占位流不会破坏群聊全静音的产品规则。
 
@@ -103,4 +106,7 @@ botsService 接单
 7. `stopTyping` 不 finish 占位流（静态占位无可停动画）；之后出站仍能接管收口；
    stopTyping 后再次 startTyping 保持幂等单流。
 8. typing 打开与出站并发：出站等待打开收敛后接管同一条流，回复之后不残留占位帧。
-9. `pnpm typecheck`、`pnpm lint`、services 测试全绿。
+9. 群聊键一致：卡片 `state.providerUserId` 与占位流 chatKey 同取
+   `resolveOutboundTarget(actor)`（`bot-outbound-target.test.ts` 契约 +
+   `bot-wecom-typing.test.ts` 群键用例）——群里占位由卡片同流收口，终稿落群 chatid。
+10. `pnpm typecheck`、`pnpm lint`、services 测试全绿。

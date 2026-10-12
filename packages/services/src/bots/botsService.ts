@@ -559,6 +559,17 @@ function isSelectionIndexValue(value: string): boolean {
   return /^[1-9]\d*$/u.test(value.trim());
 }
 
+/**
+ * 出站投递目标的唯一约定（docs/specs/bot-outbound-target.md）：
+ * 群回群 chatId、私聊回对方 userId——对齐 MyAgents 的 `body.chatid || body.from.userid`。
+ * 修复依据：流式卡片曾手写 `actor.providerUserId`（发送者），而企微入站帧按 chatid 存键，
+ * 群回合取帧必然落空 → 降级「仅终稿推送」把正文推进了发送者私聊、群里占位无人收口。
+ * 目标表达式只允许存在这一份，新增出站路径必须复用。
+ */
+function resolveOutboundTarget(actor: BotActor): string {
+  return actor.chatId ?? actor.providerUserId;
+}
+
 function createOutbound(
   actor: BotActor,
   text: string,
@@ -568,7 +579,7 @@ function createOutbound(
   return {
     botId: actor.botId,
     provider: actor.provider,
-    providerUserId: actor.chatId ?? actor.providerUserId,
+    providerUserId: resolveOutboundTarget(actor),
     text,
     ...(selection ? { selection } : {}),
     ...extras,
@@ -5300,7 +5311,10 @@ export function createBotsService(
       const adapter = providers[bot.provider];
       const locale = await readMessageLocale();
       const state = {
-        providerUserId: actor.providerUserId,
+        // 目标 = 所属会话（群 chatId / 私聊 userId），与 createOutbound、typing 同一函数。
+        // 修复依据：这里曾传发送者 providerUserId——企微群帧键是 chatid，错键导致
+        // 取不到帧、终稿被推进发送者私聊（docs/specs/bot-outbound-target.md）。
+        providerUserId: resolveOutboundTarget(actor),
         locale,
         blocks: buildStreamingCardBlocks(locale),
         status: streamingCardStatus,
@@ -7577,11 +7591,11 @@ export function createBotsService(
           ) {
             continue;
           }
-          // 谁持有这个会话就往谁的对话镜像：群聊回群、私聊回本人。
-          const mirrorUserId =
-            context.conversationKind === "private"
-              ? context.conversationId
-              : resolveBotProactiveUserId(bot, context, state);
+          // 谁持有这个会话就往谁的对话镜像：私聊回对方 userId、群聊回群 chatId。
+          // 修复依据：群分支曾回落 resolveBotProactiveUserId，该函数按
+          // weixin-provider-self-id 规则 5 首选绑定用户（私聊），桌面输入因此被镜像进
+          // 私聊而不是原会话（docs/specs/bot-outbound-target.md）。
+          const mirrorUserId = context.conversationId;
           if (!mirrorUserId) {
             continue;
           }

@@ -205,12 +205,17 @@ test("服务层契约：上下文按对话槽位读写，绑定/投影/镜像都
     "武装必须紧邻且早于 sendText 派发：晚于 ACK 会整轮漏收事件（短回合直接静默）",
   );
 
-  // 5) 桌面镜像：谁持有会话就往谁的对话发
+  // 5) 桌面镜像：谁持有会话就往谁的对话发（私聊=对方 userId，群=群 chatId）。
+  // 目标收敛为 context.conversationId（docs/specs/bot-outbound-target.md 规则 2）：
+  // 群分支曾回落 resolveBotProactiveUserId（按 weixin-provider-self-id 规则 5 首选
+  // 绑定用户私聊），桌面输入因此被镜像进私聊而不是原会话。
+  const mirrorBlock = source.slice(
+    source.indexOf("async notifyDesktopUserMessage(params: {"),
+    source.indexOf("async notifyDesktopUserMessage(params: {") + 2600,
+  );
   assert.ok(
-    source.includes("const mirrorUserId =") &&
-      source.includes('context.conversationKind === "private"') &&
-      source.includes("? context.conversationId"),
-    "镜像必须按持有会话的对话投递",
+    mirrorBlock.includes("const mirrorUserId = context.conversationId"),
+    "镜像必须按持有会话的对话投递（群回群、私聊回本人）",
   );
   // 6) 心跳目标：优先绑定会话的对话，其次最近私聊/群
   assert.ok(source.includes("function pickHeartbeatConversation("), "缺少心跳目标对话选择");
