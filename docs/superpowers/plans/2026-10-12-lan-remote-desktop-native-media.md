@@ -1966,3 +1966,43 @@ git add -A && git commit -m "test(rd-media): 全量回归与构建门通过"
 2. **占位符扫描**：Task 2 Step 3 对「即时 IDR」给出两条可落地路径与降级口径（非 TODO）；Task 5 测试 helper 语义留了「以仓库 helper 真实行为调整」的明确指令（防照抄必炸用例）；无 TBD/「适当处理」类措辞。
 3. **类型一致性**：契约 A-H 为唯一形状源——已核对 `rdStartSession {ok,mediaUrl}`（E）贯穿 Task 3/10、管道 5 字节头（B）在 Task 5 测试/Task 7 实现/Task 9 解析三处一致、`mediaOpenReceived` 改名贯穿 Task 10/13、`nativeStats` 只在 Task 11 之后出现（Task 10 初稿引用已移除，见下方修正记录）。**已修正**：Task 9 胶水的 `console.warn` 改用 `packages/ui/src/logger.ts`（仓库日志纪律）。
 
+
+---
+
+## 附录：执行结果与验收交付（2026-10-13 收官）
+
+**执行结果**：15/15 任务全部完成并逐任务过审（含 9 轮修复回路），整分支终审发现 1 个 Critical（renderer 解码路径死锁，计划伪代码自带）已由修复波 `9c036e30` 闭环（解码胶水测试 `remoteDesktopDecoder.test.ts` 8/8 入仓作为回归网），scoped 复审全过。三方门（Rust test/clippy/build+符号、仓库 typecheck/lint/verify:pre-push/六套测试、WebRTC 残留 grep 清零）全绿；纯直替达成，WebRTC 面已物理删除。
+
+### 两机验收操作清单（用户执行）
+
+前置：两台 Windows 装**同一个最新构建**（勿用旧 `out/`/旧安装包，两端版本必须同为含 `remoteDesktopNative` 的构建）；同一局域网（或 Tailscale 可达）。
+
+1. **配对**：B 机 设置 → 局域网访问 → 开「允许局域网访问」→ 生成配对码（5 分钟有效）。
+2. **连接配对**：A 机 局域网入口 → 发现或手填 B 地址 → 输配对码完成配对。
+3. **开被控**：B 机 设置 → 远程桌面 → 开「允许被远程控制」。
+4. **发起**：A 机 远程桌面设备页 → B 设备卡片 → 发起；B 机同意窗 → 允许。
+5. **观察项**（对应 spec 验收场景 1-9）：
+   1. 画面出现；状态条 **fps≈60**、**RTT<20ms**；主观跟手（可秒表/录屏对比记录）。
+   2. 对端光标在画面内随动；本地光标在画面区隐藏。
+   3. **锁屏 B 机**（Win+L）→ A 显示「对端已锁屏，画面已冻结」→ 解锁 → 自动续流、无重连步骤。
+   4. 会话内切显示器 → 不重弹同意、**画面 <1s 刷新**（换屏口径）。
+   5. 输入全套生效：左/右/中键、拖拽、滚轮、快捷键、中文文本；A 机操作栏/状态条本地可点。
+   6. 收口无残留：断连 / B 点「结束」/ B 关总开关 / B 退出应用 → 双端回设备页；核查 B 机无残留进程、中继端口已释放。
+   7. **旧对端**：一端换旧版本 → 「对端不支持远程桌面（未开启或版本过旧）」，不发起媒体。
+   8. **抓包只见密文**：LAN 抓 media WS 帧应不可读；中继/helper 日志无明文帧与密钥。
+   9. kill-switch 开 → B 能力位 false，A 入口即挡。
+
+### 已知延后项（不进本次实现，验收时按此预期判读）
+
+1. 协商期前 3s 起状态条显示 0 fps（规格内后果，非故障）。
+2. 换屏「即时 IDR」依赖目标驱动实行为（验收按 <1s 口径，超时按回归报）。
+3. 混合 DPI 多屏输入坐标为近似（单屏正确，spec 已知限制）。
+4. stop 后极端时序单帧复活窄竞态（一行可修，未做以免越界）。
+5. `rd_media_*` 调用无串行化、start 在途 vs 并发 stop 无排队（P2 warn-only）；worker panic 句柄滞留至下次 stop。
+6. `rd_media_start` 极端环境最长阻塞 JS 线程约 10s。
+7. `inputRects` 清空只盖一半收口路径（三重门兜底）；`mediaInputDroppedEvents` 不可观测。
+8. `createRemoteDesktopInjectBatcher` 生产零消费者（YAGNI 保留待裁决）。
+
+### 真机验证清单（本环境不可判，验收时重点观察）
+
+R1 DXGI/MF/TSFN 全链真机行为（多 GPU、WARP 回退）· R2 即时 IDR 驱动行为 · R3 光标 CPU 合成颜色/DPI/成本 · R4 延迟预算实测（GPU→CPU NV12 回读 + CPU 拷贝是否守住 25–40ms / fps≈60）· R5 双机 media WS 直连（防火墙/多网卡）、mediaTicket 30s TTL × 慢同意、抓包密文 · R6 混合 DPI 坐标 · R7 旧对端文案与 kill-switch 置灰。
