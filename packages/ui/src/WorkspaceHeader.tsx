@@ -11,6 +11,7 @@ import { useState } from "react";
 import { TID_WORKSPACE_HEADER } from "@mode/shared";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import { cn } from "@/components/lib/utils.js";
+import { resolveTopOverlayClearancePaddingClass } from "@/lib/topOverlayClearance.js";
 import {
   WorkspaceHeaderActionSection,
   type WorkspaceHeaderState,
@@ -115,22 +116,16 @@ export function WorkspaceHeader({
   allowOpenWorkspace?: boolean;
 }) {
   const [selectedEditor, setSelectedEditor] = useState<EditorInfo | null>(null);
-  const shouldOffsetHeaderForWindowControls = !isSidebarVisible;
   // Linux 与 Windows 共用内联窗控，不再预留旧悬浮窗控的标题栏区域。
   const usesInlineWindowControls = Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop));
 
-  let headerWindowControlsPaddingClass: string | false = false;
-  if (shouldOffsetHeaderForWindowControls) {
-    if (isMacDesktop) {
-      if (hasUpdateReady) {
-        headerWindowControlsPaddingClass = isMacFullscreen ? "ps-48" : "ps-66";
-      } else {
-        headerWindowControlsPaddingClass = isMacFullscreen ? "ps-38" : "ps-58";
-      }
-    } else {
-      headerWindowControlsPaddingClass = hasUpdateReady ? "ps-44" : "ps-38";
-    }
-  }
+  // 左侧栏收起时让出 DesktopTopOverlay 左上操作入口的宽度（与会话面操作栏共享同一规则）。
+  const headerWindowControlsPaddingClass = resolveTopOverlayClearancePaddingClass({
+    isSidebarVisible,
+    isMacDesktop,
+    isMacFullscreen,
+    hasUpdateReady,
+  });
 
   return (
     <header

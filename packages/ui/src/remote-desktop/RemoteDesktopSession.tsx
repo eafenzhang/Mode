@@ -17,6 +17,7 @@ import {
   Unplug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { cn } from "@/components/lib/utils.js";
 import {
   Select,
   SelectContent,
@@ -50,10 +51,13 @@ function resolveCloseReasonId(
 export function RemoteDesktopSession({
   serverId,
   deviceName,
+  topOverlayClearancePaddingClass,
   onExit,
 }: {
   serverId: string;
   deviceName: string;
+  /** 左侧栏收起时让出顶部浮层左上入口宽度的 ps-* 类（chat 页 WorkspaceHeader 同款规则）。 */
+  topOverlayClearancePaddingClass?: string | null;
   onExit: () => void;
 }) {
   const { intl } = useModeIntl();
@@ -125,10 +129,15 @@ export function RemoteDesktopSession({
       data-testid="remote-desktop-session"
       className="relative flex h-full min-h-0 flex-col bg-background outline-none"
     >
-      {/* 操作栏在顶部（spec UI 规则·会话面）：border-b；状态条留底部。 */}
+      {/* 操作栏在顶部（spec UI 规则·会话面）：border-b；状态条留底部。
+          左侧栏收起时 DesktopTopOverlay 的左上入口悬在操作栏左上，设备名按 chat 页
+          WorkspaceHeader 同款 ps-* 规则让位，否则两者重叠。 */}
       <div
         data-testid="remote-desktop-toolbar"
-        className="flex flex-wrap items-center gap-2 border-b border-border bg-panel px-3 py-2"
+        className={cn(
+          "flex flex-wrap items-center gap-2 border-b border-border bg-panel pe-3 py-2",
+          topOverlayClearancePaddingClass ?? "ps-3",
+        )}
       >
         <div className="flex min-w-0 items-center gap-2 text-ui-base text-foreground">
           <MonitorSmartphone className="size-4 shrink-0 text-foreground-subtle" />

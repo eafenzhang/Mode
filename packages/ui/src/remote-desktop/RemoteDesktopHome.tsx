@@ -37,10 +37,13 @@ type PeerListState =
 export function RemoteDesktopHome({
   isDesktop,
   active,
+  topOverlayClearancePaddingClass,
 }: {
   isDesktop: boolean;
   /** 视图是否当前可见：分支常驻隐藏时为 false（spec UI 规则「切换保持连接」）。 */
   active: boolean;
+  /** 左侧栏收起时让出顶部浮层左上入口宽度的 ps-* 类（仅会话面操作栏消费）。 */
+  topOverlayClearancePaddingClass?: string | null;
 }) {
   const { intl } = useModeIntl();
   const platform = usePlatform();
@@ -126,6 +129,7 @@ export function RemoteDesktopHome({
       <RemoteDesktopSession
         serverId={sessionTarget.serverId}
         deviceName={sessionTarget.name}
+        topOverlayClearancePaddingClass={topOverlayClearancePaddingClass}
         onExit={exitSession}
       />
     );
