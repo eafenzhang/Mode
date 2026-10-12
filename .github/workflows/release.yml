@@ -419,6 +419,12 @@ jobs:
           path: dist/fnos/.cache
           key: fnos-cache-${{ runner.os }}-${{ hashFiles('scripts/fnos-fpk/build-lib.ts') }}
 
+      # 全新检出没有 workspace dist：build-mode 的 SEA TUI 资产要求各包 dist/index.js
+      # （本地因历史 dist 存在而掩盖了该依赖）。前置与 apps/mode-cli 的 build:sea 同款：
+      # turbo 构建除 CLI 外的全部 workspace 包。
+      - name: Build workspace packages (SEA TUI assets prerequisite)
+        run: pnpm exec turbo --skip-infer --cwd apps/mode-cli run build --filter=!@mode/cli --force
+
       - name: Build fnOS install package
         env:
           VERSION: ${{ needs.release.outputs.version }}
