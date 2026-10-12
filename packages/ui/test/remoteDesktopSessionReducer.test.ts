@@ -6,7 +6,9 @@ import test from "node:test";
 // 首个结束原因生效、媒体失败收口、显示器切换只发信令不重建会话。
 const { reduceRemoteDesktopSession, INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE } =
   await import("../src/remote-desktop/sessionReducer.js");
-const { REMOTE_DESKTOP_PROTOCOL_VERSION } = await import("@mode/shared/remote-desktop");
+const { REMOTE_DESKTOP_PROTOCOL_VERSION, remoteDesktopSignalMessageSchema } = await import(
+  "@mode/shared/remote-desktop"
+);
 
 const MONITORS = [
   {
@@ -120,27 +122,16 @@ test("media-open：进入 negotiating 并产出 open-media effect", () => {
   assert.deepEqual(t.effects, [{ kind: "open-media", key: "a".repeat(64), salt: "b".repeat(16) }]);
 });
 
-test("WebRTC 残留信令（offer / ice）记录性忽略：不改状态、不产出副作用", () => {
-  // Task 14 前 schema 仍含 offer/ice，但 renderer 已不再驱动 WebRTC：这两条必须惰性吸收，
-  // 否则会重新产出 apply-offer/add-ice-candidate（已被 hook 置空）并把协商状态顶起来。
-  const state = { ...INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE, phase: "connected" as const };
-  assert.deepEqual(
-    reduce(state, {
-      type: "controller",
-      event: { kind: "signal", message: { type: "offer", sdp: "v=0 offer" } },
-    }),
-    { state, effects: [] },
-  );
-  assert.deepEqual(
-    reduce(state, {
-      type: "controller",
-      event: {
-        kind: "signal",
-        message: { type: "ice", candidate: "candidate:1", sdpMid: "0", sdpMLineIndex: 0 },
-      },
-    }),
-    { state, effects: [] },
-  );
+test("WebRTC 残留信令已随 P4 从协议面移除：offer/answer/ice 在 renderer 边界即被拒", () => {
+  // 状态机已不再有 offer/ice 分支（Task 14 删除），reducer 不再需要「记录性忽略」；
+  // 契约侧必须同步拒绝这三条老消息，否则 main 转发的帧会在边界内漏进 reducer。
+  for (const message of [
+    { type: "offer", sdp: "v=0 offer" },
+    { type: "answer", sdp: "v=0 answer" },
+    { type: "ice", candidate: "candidate:1", sdpMid: "0", sdpMLineIndex: 0 },
+  ]) {
+    assert.equal(remoteDesktopSignalMessageSchema.safeParse(message).success, false);
+  }
 });
 
 test("对端 error 记录稳定错误码，随后 closed 归因为错误", () => {

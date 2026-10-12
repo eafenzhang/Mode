@@ -39,15 +39,6 @@ test("信令消息：monitors 至少一项、未知类型被拒、error 码白�
   );
   assert.equal(remoteDesktopSignalMessageSchema.safeParse({ type: "nope" }).success, false);
   assert.equal(
-    remoteDesktopSignalMessageSchema.safeParse({
-      type: "ice",
-      candidate: "candidate:1 1 udp 2122194687 192.168.1.4 56050 typ host",
-      sdpMid: "0",
-      sdpMLineIndex: 0,
-    }).success,
-    true,
-  );
-  assert.equal(
     remoteDesktopSignalMessageSchema.safeParse({ type: "error", code: "consent_denied" }).success,
     true,
   );
@@ -55,6 +46,17 @@ test("信令消息：monitors 至少一项、未知类型被拒、error 码白�
     remoteDesktopSignalMessageSchema.safeParse({ type: "error", code: "wat" }).success,
     false,
   );
+});
+
+test("WebRTC 消息已随原生媒体面移除：offer/answer/ice 必须解析失败", () => {
+  // P4 直替：信令 union 删 offer/answer/ice（消费者随媒体面移除），三条老消息必须被拒。
+  for (const msg of [
+    { type: "offer", sdp: "v=0" },
+    { type: "answer", sdp: "v=0" },
+    { type: "ice", candidate: "x", sdpMid: "0", sdpMLineIndex: 0 },
+  ]) {
+    assert.equal(remoteDesktopSignalMessageSchema.safeParse(msg).success, false);
+  }
 });
 
 test("原生媒体信令：media-open / freeze / unfreeze 可解析", () => {

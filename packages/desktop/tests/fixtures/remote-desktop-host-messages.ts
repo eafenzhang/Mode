@@ -31,7 +31,17 @@ assert.equal(host.REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES, main.REMOTE_DESKTOP_SIG
 assert.equal(host.REMOTE_DESKTOP_INJECT_MAX_EVENTS, 512, "与 Rust MAX_RAW_INPUT_EVENTS 同口径");
 assert.equal(host.REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES, 64 * 1024);
 assert.equal(main.isRemoteDesktopMessageTypeTag("lan-access-get-state"), false, "共享消息不得被 RD 集合误吞");
-assert.equal(main.isRemoteDesktopMessageTypeTag(host.RemoteDesktopHostMessageTypes.RemoteDesktopInject), true);
+assert.equal(main.isRemoteDesktopMessageTypeTag(host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart), true);
+// P4 直替：注入不再走 main→host 消息面（media WS 上行经 host 的 onInput 形状门直达注入端口），
+// 旧 remote-desktop-inject 消息必须被拒（任何方向都不再接受）。
+assert.equal(
+  main.remoteDesktopMessageToHostSchema.safeParse({
+    type: "remote-desktop-inject",
+    events: [{ k: "move", x: 0, y: 0 }],
+  }).success,
+  false,
+  "remote-desktop-inject 已随 WebRTC 面移除",
+);
 
 // ── 契约样例：覆盖六个会话消息 + 设置面 + 主控对端操作 ──
 const toHostSamples = [
@@ -50,16 +60,8 @@ const toHostSamples = [
   },
   {
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopSignalToHost,
-    message: {
-      type: "ice",
-      candidate: "candidate:1 1 udp 2113937151 192.168.1.4 51234 typ host",
-      sdpMid: "0",
-      sdpMLineIndex: 0,
-    },
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopInject,
-    events: [{ k: "move", x: 0, y: 65535 }, { k: "text", text: "中文" }],
+    // P4 起主控侧只产 hello/select-monitor/bye/error（offer/answer/ice 随媒体面移除）。
+    message: { type: "select-monitor", displayId: "1" },
   },
   { type: host.RemoteDesktopHostMessageTypes.RemoteDesktopServerStateRequest, requestId: "r1" },
   {
@@ -162,29 +164,28 @@ assert.equal(
   false,
   "未知键必须拒绝",
 );
+// ── 注入事件严格校验（raw_input 同形事件）：host 的 media WS onInput 形状门复用同一 schema，
+// 双端镜像必须同口径（vk 域 / 坐标域 / 文本非空）──
 assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopInject,
-    events: [{ k: "move", x: 0, y: 65536 }],
-  }).success,
+  main.remoteDesktopRawInputEventSchema.safeParse({ k: "move", x: 0, y: 65536 }).success,
   false,
   "越界坐标必须拒绝（0..65535）",
 );
 assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopInject,
-    events: [{ k: "key", vk: 0, down: true }],
-  }).success,
+  main.remoteDesktopRawInputEventSchema.safeParse({ k: "key", vk: 0, down: true }).success,
   false,
   "vk=0 不属于 raw_input 面（1..255）",
 );
 assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopInject,
-    events: Array.from({ length: 513 }, () => ({ k: "move", x: 0, y: 0 })),
-  }).success,
+  host.remoteDesktopRawInputEventSchema.safeParse({ k: "move", x: 0, y: 65535 }).success,
+  true,
+  "host 镜像接受同形事件",
+);
+// 未知键（strict）与未知消息类型同样拒绝。
+assert.equal(
+  main.remoteDesktopRawInputEventSchema.safeParse({ k: "move", x: 0, y: 0, extra: 1 }).success,
   false,
-  "注入帧超过 512 条必须拒绝（host 侧兜底）",
+  "raw_input 事件未知键必须拒绝",
 );
 assert.equal(
   main.remoteDesktopMessageToHostSchema.safeParse({

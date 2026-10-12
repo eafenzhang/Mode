@@ -151,6 +151,8 @@ async function runSessionByeRelayCloseCase(): Promise<void> {
 
   const infoLines: string[] = [];
   const posted: Array<{ type?: string }> = [];
+  /** T14 接线证据：注入端口的调用记录（media WS 上行 → relay onInput → inject → 本端口）。 */
+  const injectedFrames: unknown[][] = [];
   const host = createRemoteDesktopHostServer({
     credentials: {
       load: async (key: string) => (key === "remote-desktop:server-enabled" ? "1" : "[]"),
@@ -164,6 +166,11 @@ async function runSessionByeRelayCloseCase(): Promise<void> {
     },
     postToMain: (message) => {
       posted.push(message);
+    },
+    // T14 注入端口测试替身：记录每帧（缺省实现会直连 broker socket，测试环境不可达）。
+    injectRawInput: async (events) => {
+      injectedFrames.push(events as unknown[]);
+      return { dispatched: events.length };
     },
     // 用活 handle 走 readClients 的内存路径，绕开凭据文件读取。
     getActiveLanAccessServer: () =>
@@ -215,6 +222,19 @@ async function runSessionByeRelayCloseCase(): Promise<void> {
   host.hooks.onSessionSocket("client-a", sessionSocket);
   const mediaSocket = makeFakeSocket();
   host.hooks.onMediaSocket("client-a", mediaSocket);
+
+  // ── T14 接线证据：media WS 上行输入 → relay onInput → inject → 注入端口 ──
+  // raw_input 同形事件必须到达注入端口；非 raw_input 形状（契约 C 的 {t:...} 归一化事件）
+  // 由形状门丢弃、不进端口（形状/坐标换算链落地前的口径，见 task-14 报告）。
+  mediaSocket.fire("message", Buffer.from(JSON.stringify({ k: "move", x: 12345, y: 6789 })));
+  mediaSocket.fire("message", Buffer.from(JSON.stringify({ t: "pm", x: 0.5, y: 0.5 })));
+  await waitFor(() => injectedFrames.length > 0, "media WS 上行输入到达注入端口");
+  await sleep(30);
+  assert.deepEqual(
+    injectedFrames,
+    [[{ k: "move", x: 12345, y: 6789 }]],
+    "只有一个 raw_input 同形事件被注入（{t:...} 事件被形状门丢弃）",
+  );
 
   // peer bye（信令 socket 的 message 事件）→ closeActiveSocket 路径
   sessionSocket.fire("message", Buffer.from(JSON.stringify({ type: "bye" })));

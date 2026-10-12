@@ -17,13 +17,13 @@
  *   host → main：ConsentRequest②、SignalFromHost③、SessionClosed⑥、
  *                ServerStateResult(设置面)、PeerProbeResult / PeerSessionOpenResult(主控⑤)、
  *                MediaStatus(P2 原生媒体面冻结通知)
- *   main → host：ConsentResult②、SignalToHost③、Inject⑤、
+ *   main → host：ConsentResult②、SignalToHost③、
  *                ServerStateRequest / SetServerEnabled / RevokeClient(设置面)、
  *                PeerProbe / PeerSessionOpen(主控侧读对端凭据与发起请求)、
  *                MediaStart / MediaSwitch / MediaStop(P2 原生媒体面开流/换屏/停流)
  *
- * 端口/帧上限：信令单帧 ≤64KiB（超限 host 断开），注入每帧 ≤512 条（超限丢弃并计数，与
- * Rust `MAX_RAW_INPUT_EVENTS` 同口径）。
+ * 端口/帧上限：信令单帧 ≤64KiB（超限 host 断开）；注入帧上限 512 条（P4 后注入不再走本消息面，
+ * 由 host 的 media WS onInput 出口截断并计数，与 Rust `MAX_RAW_INPUT_EVENTS` 同口径）。
  */
 import { z } from "zod";
 import { remoteDesktopSignalMessageSchema } from "@mode/shared/remote-desktop";
@@ -49,8 +49,6 @@ export const RemoteDesktopHostMessageTypes = {
   RemoteDesktopSignalToHost: "remote-desktop-signal-to-host",
   /** host → main：会话结束（对端 bye / WS 关闭 / 错误），main 据此收口。 */
   RemoteDesktopSessionClosed: "remote-desktop-session-closed",
-  /** main → host：注入帧（坐标已换算为 VIRTUALDESK 0..65535）。 */
-  RemoteDesktopInject: "remote-desktop-inject",
   /** main → host：读被控设置（总开关 + 已授权设备）。 */
   RemoteDesktopServerStateRequest: "remote-desktop-server-state-request",
   /** host → main：被控设置回帖（按 requestId 关联）。 */
@@ -203,13 +201,6 @@ export const remoteDesktopSignalToHostSchema = z
   })
   .strict();
 
-export const remoteDesktopInjectSchema = z
-  .object({
-    type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopInject),
-    events: z.array(remoteDesktopRawInputEventSchema).max(REMOTE_DESKTOP_INJECT_MAX_EVENTS),
-  })
-  .strict();
-
 export const remoteDesktopServerStateRequestSchema = z
   .object({
     type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopServerStateRequest),
@@ -287,7 +278,6 @@ export const remoteDesktopMediaStopSchema = z
 export const remoteDesktopMessageToHostSchema = z.discriminatedUnion("type", [
   remoteDesktopConsentResultSchema,
   remoteDesktopSignalToHostSchema,
-  remoteDesktopInjectSchema,
   remoteDesktopServerStateRequestSchema,
   remoteDesktopSetServerEnabledSchema,
   remoteDesktopRevokeClientSchema,

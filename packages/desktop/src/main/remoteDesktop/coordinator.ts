@@ -5,12 +5,12 @@
  * 事件顺序（②③⑤⑥）在 main 侧的落点：
  *
  *   host ──ConsentRequest②──► 本模块 ──同意窗(60s)/已授权直通──► ConsentResult──► host（签发票据）
- *   start-capture ──► 本模块 ──media-open 信令(key/salt) + MediaStart──► host（rd_media 采集，P2）
- *   host ──SignalFromHost③──► 本模块 ──hello→monitors / select-monitor→MediaSwitch+采集窗选源──► host
- *                                   ◄──offer/ice（页面产出）── SignalToHost ──► host ──► 对端
+ *   start-capture ──► 本模块 ──media-open 信令(key/salt) + MediaStart──► host（rd_media 采集）
+ *   host ──SignalFromHost③──► 本模块 ──hello→monitors / select-monitor→MediaSwitch──► host
  *   host ──MediaStatus──────► 本模块 ──freeze/unfreeze（reason 归一后）──► 对端（指示条生命周期不受影响）
- *   host ──SessionClosed⑥───► 本模块 ──closeSession(reason) 单出口──► MediaStop + 关采集窗 + 撤销指示 + 清批次
- *   采集窗 ──Input(DataChannel)──► 本模块（校验+换算+按帧批量）── Inject ──► host ──► Helper
+ *   host ──SessionClosed⑥───► 本模块 ──closeSession(reason) 单出口──► MediaStop + 撤销指示 + 清会话材料
+ *   输入：主控 renderer ──media WS 上行──► 被控 host（raw_input 注入不经 main，见
+ *        packages/desktop/src/host/remoteDesktopServer.ts 的 onInput 接线）
  *
  * 收口纪律：所有结束路径（对端 bye / 本地点「结束」/ 同意拒绝 / 应用退出 / WS 关闭 / host 退出）
  * 都只经 `closeSession(reason)`——一个出口，幂等；本地发起的结束先发 `bye` 再清理。
@@ -25,7 +25,6 @@ import {
 import {
   RemoteDesktopHostMessageTypes,
   type RemoteDesktopMediaRect,
-  type RemoteDesktopRawInputEvent,
 } from "./hostMessages.js";
 import { configureRemoteDesktopHostBridge, sendRemoteDesktopMessageToHost } from "./hostBridge.js";
 import { isRemoteDesktopClientAuthorized } from "./settings.js";
@@ -41,10 +40,6 @@ import {
   openRemoteDesktopIndicatorWindow,
   type RemoteDesktopIndicatorWindow,
 } from "./indicatorWindow.js";
-import {
-  openRemoteDesktopCaptureWindow,
-  type RemoteDesktopCaptureSession,
-} from "./captureWindow.js";
 import { listRemoteDesktopMonitors, physicalRectOf } from "./monitors.js";
 import {
   buildMediaStatusOutbound,
@@ -72,8 +67,6 @@ interface CoordinatorRuntime {
   state: RemoteDesktopSessionState;
   consentWindow: RemoteDesktopConsentWindow | null;
   indicatorWindow: RemoteDesktopIndicatorWindow | null;
-  captureSession: RemoteDesktopCaptureSession | null;
-  captureOpening: Promise<RemoteDesktopCaptureSession | null> | null;
   /** 会话入口记录的主屏物理矩形：主控尚未 select-monitor 时 MediaStart 的初始采集区域。 */
   pendingDisplayRect: RemoteDesktopMediaRect | null;
   /** 本会话媒体密钥/盐（与 media-open 信令同源下发给 host；解密材料不落日志）。 */
@@ -200,14 +193,6 @@ export async function closeSession(reason: RemoteDesktopSessionCloseReason): Pro
     runtimeState.consentWindow = null;
     runtimeState.indicatorWindow?.close();
     runtimeState.indicatorWindow = null;
-    const capture = runtimeState.captureSession;
-    runtimeState.captureSession = null;
-    runtimeState.captureOpening = null;
-    if (capture) {
-      await capture.close().catch((error: unknown) => {
-        runtimeState.logger.warn("[remote-desktop] close capture window failed:", error);
-      });
-    }
     // 媒体密钥随会话销毁：不跨会话复用（字符串无法原地清零，只保证不留引用）。
     runtimeState.mediaKey = null;
     runtimeState.mediaSalt = null;
@@ -216,54 +201,6 @@ export async function closeSession(reason: RemoteDesktopSessionCloseReason): Pro
   } finally {
     runtimeState.closing = false;
   }
-}
-
-async function ensureCaptureSession(runtimeState: CoordinatorRuntime): Promise<RemoteDesktopCaptureSession | null> {
-  if (runtimeState.captureSession) {
-    return runtimeState.captureSession;
-  }
-  if (runtimeState.captureOpening) {
-    return await runtimeState.captureOpening;
-  }
-  const opening = (async (): Promise<RemoteDesktopCaptureSession | null> => {
-    try {
-      const capture = await openRemoteDesktopCaptureWindow({
-        logger: runtimeState.logger,
-        handlers: {
-          onOutboundSignal: (message) => sendSignalToPeer(message),
-          onInput: (events: RemoteDesktopRawInputEvent[]) => {
-            if (runtimeState.state.phase !== "active") {
-              return;
-            }
-            sendRemoteDesktopMessageToHost({
-              type: RemoteDesktopHostMessageTypes.RemoteDesktopInject,
-              events,
-            });
-          },
-          onFatalError: (message) => {
-            runtimeState.logger.warn(`[remote-desktop] capture fatal: ${message}`);
-            void closeSession("error");
-          },
-          onDiagnostic: (message) => runtimeState.logger.info(`[remote-desktop] capture diag: ${message}`),
-        },
-      });
-      if (!runtimeState.closing && runtimeState.state.phase === "active") {
-        runtimeState.captureSession = capture;
-        return capture;
-      }
-      // 采集窗创建期间会话已收口：直接关掉，不留下无归属窗口。
-      await capture.close();
-      return null;
-    } catch (error) {
-      runtimeState.logger.warn("[remote-desktop] open capture window failed:", error);
-      void closeSession("error");
-      return null;
-    } finally {
-      runtimeState.captureOpening = null;
-    }
-  })();
-  runtimeState.captureOpening = opening;
-  return await opening;
 }
 
 async function applyAction(runtimeState: CoordinatorRuntime, action: RemoteDesktopSessionAction): Promise<void> {
@@ -343,8 +280,7 @@ async function applyAction(runtimeState: CoordinatorRuntime, action: RemoteDeskt
       return;
     }
     case "stop-capture":
-      // 采集窗销毁由 closeSession 收口块统一处理（本动作只出现在 close 迁移里）；
-      // 这里通知 host 停 helper 采集（rd_media_stop；callRdMedia 由 Task 8 注入，未注入时 host 侧静默跳过）。
+      // 通知 host 停 helper 采集（rd_media_stop；callRdMedia 由 Task 8 注入，未注入时 host 侧静默跳过）。
       sendRemoteDesktopMessageToHost({
         type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaStop,
       });
@@ -424,16 +360,6 @@ async function handleSignalFromHost(message: RemoteDesktopSignalMessage): Promis
       runtimeState.logger.warn(`[remote-desktop] unknown monitor displayId: ${message.displayId}`);
     }
     dispatchOutbounds(buildSelectMonitorOutbound(rect));
-    if (!rect) {
-      return;
-    }
-    // P1 渲染器采集窗（WebRTC 面）仍在此按 displayId 选源；P4 清理时随 captureWindow 一并删除
-    // （spec lan-remote-desktop-native-media.md 删除与保留清单）。
-    const capture = await ensureCaptureSession(runtimeState);
-    if (!capture?.selectMonitor(message.displayId)) {
-      // rect 已对 screen 枚举校验过：失败只剩显示器热插拔竞态，按既有语义报 internal。
-      sendSignalToPeer({ type: "error", code: "internal", message: "unknown monitor" });
-    }
     return;
   }
   if (message.type === "bye") {
@@ -447,11 +373,8 @@ async function handleSignalFromHost(message: RemoteDesktopSignalMessage): Promis
     await closeSession("error");
     return;
   }
-  if (message.type === "answer" || message.type === "ice") {
-    runtimeState.captureSession?.deliverSignal(message);
-    return;
-  }
-  // 被控端不应收到 monitors/offer（offer 只由本侧发出）：记录但不改状态。
+  // 被控端不应收到 monitors / media-open / freeze / unfreeze（均为被控 → 主控方向）：
+  // 记录但不改状态。
   runtimeState.logger.warn(`[remote-desktop] unexpected signal from peer: ${message.type}`);
 }
 
@@ -477,8 +400,6 @@ export function initializeRemoteDesktopSessionCoordinator(options: {
     state: INITIAL_REMOTE_DESKTOP_SESSION_STATE,
     consentWindow: null,
     indicatorWindow: null,
-    captureSession: null,
-    captureOpening: null,
     pendingDisplayRect: null,
     mediaKey: null,
     mediaSalt: null,

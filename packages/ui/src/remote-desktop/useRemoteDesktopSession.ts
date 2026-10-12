@@ -129,10 +129,6 @@ export function useRemoteDesktopSession(options: {
           dispatchRef.current({ type: "media", status: "live" });
           return;
         }
-        case "apply-offer":
-        case "add-ice-candidate":
-          // WebRTC 残留，Task 14 随 schema 删除。
-          return;
       }
     },
     [platform, sendSignal],
@@ -203,7 +199,11 @@ export function useRemoteDesktopSession(options: {
       sessionRef.current = null;
       mediaUrlRef.current = null;
       // 离开页面即收口会话：main 侧幂等（对端已 bye / 通道已断时无副作用）。
-      void platform.rdEndSession("user-end").catch(() => undefined);
+      // 已收口的会话（对端 bye / 媒体失败 / 本地断开）不重复归因：卸载兜底只服务仍在进行的会话，
+      // 避免给已按 error/remote 归因结束的会话再补一次 user-end（台账 Task 10 项）。
+      if (viewRef.current.phase !== "closed") {
+        void platform.rdEndSession("user-end").catch(() => undefined);
+      }
     };
   }, [platform, serverId]);
 

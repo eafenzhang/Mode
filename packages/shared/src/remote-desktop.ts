@@ -1,6 +1,8 @@
 // LAN 远程桌面（Windows ↔ Windows）协议面：信令消息、输入事件与坐标/键盘纯函数。
-// 实现与规则见 docs/specs/lan-remote-desktop.md；信令经被控端宿主转发（不解析内容），
-// 输入事件走 WebRTC DataChannel 双通道（control 可靠 / pointer 可丢）。
+// 实现与规则见 docs/specs/lan-remote-desktop-native-media.md（媒体面/输入传输）；产品规则仍见
+// docs/specs/lan-remote-desktop.md。信令经被控端宿主转发（不解析内容），
+// 输入事件走原生媒体面同一条 media WS 上行（JSON；pointer 移动采样允许丢失，原 control 语义
+// 的离散事件不允许丢失）。
 import { z } from "zod";
 
 // 协议版本 2（P3 信令 v2）：新增原生媒体面信令（media-open / freeze / unfreeze），
@@ -42,16 +44,6 @@ export const remoteDesktopSignalMessageSchema = z.discriminatedUnion("type", [
     .object({ type: z.literal("monitors"), monitors: z.array(remoteDesktopMonitorSchema).min(1) })
     .strict(),
   z.object({ type: z.literal("select-monitor"), displayId: z.string().trim().min(1) }).strict(),
-  z.object({ type: z.literal("offer"), sdp: z.string().min(1) }).strict(),
-  z.object({ type: z.literal("answer"), sdp: z.string().min(1) }).strict(),
-  z
-    .object({
-      type: z.literal("ice"),
-      candidate: z.string().min(1),
-      sdpMid: z.string().nullable(),
-      sdpMLineIndex: z.number().int().nullable(),
-    })
-    .strict(),
   // ---- P2 原生媒体面（契约 D，被控 → 主控）：media-open 携带加媒体面的密钥/盐，
   // freeze/unfreeze 表示被控端画面冻结状态（锁定/失去访问权限时冻结，恢复后解冻）。 ----
   z
@@ -83,7 +75,7 @@ export type RemoteDesktopSignalMessage = z.infer<typeof remoteDesktopSignalMessa
 export const remoteDesktopMouseButtonSchema = z.enum(["left", "right", "middle"]);
 export type RemoteDesktopMouseButton = z.infer<typeof remoteDesktopMouseButtonSchema>;
 
-// pointer 通道（unordered + maxRetransmits:0）：移动采样允许丢失。
+// pointer 事件（媒体 WS 上行的移动采样）：允许丢失（传输未就绪/断开时由发送侧静默丢弃）。
 export const remoteDesktopPointerEventSchema = z
   .object({
     t: z.literal("pm"),
@@ -93,7 +85,7 @@ export const remoteDesktopPointerEventSchema = z
   .strict();
 export type RemoteDesktopPointerEvent = z.infer<typeof remoteDesktopPointerEventSchema>;
 
-// control 通道（ordered + 可靠）：离散事件不允许丢失。
+// control 事件（媒体 WS 上行的离散事件）：不允许丢失（同一有序 TCP 链路内即时发送）。
 export const remoteDesktopControlEventSchema = z.discriminatedUnion("t", [
   z
     .object({

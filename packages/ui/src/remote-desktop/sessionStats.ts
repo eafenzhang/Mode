@@ -1,8 +1,7 @@
 /**
  * 会话状态条统计采集器（纯计数，单测见 packages/ui/test/remoteDesktopSessionStats.test.ts）。
  *
- * 原实现读 `RTCPeerConnection.getStats()`；renderer 切原生媒体面（WebCodecs + media WS）后，
- * 这些 RTC 读数不再存在，改为自有事件计数：
+ * 旧媒体面（WebRTC）的 getStats 读数随 P4 直替清理一并移除，改为自有事件计数：
  * - fps：`onDecoded` 由原生媒体面每次绘制一帧时回调，`sample()` 返回距上次采样的解码帧数并清零
  *   （3s 轮询 ⇒ 读数即「近 3s 解码帧数 ≈ 帧率」；首次采样前无解码返回 0 而非 null——
  *   「画面未连」由上层区分：hook 只在会话进行中采样）；

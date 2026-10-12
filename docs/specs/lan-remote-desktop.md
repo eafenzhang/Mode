@@ -112,14 +112,6 @@
 - **被控端**：同意弹窗（模态，发起设备名 + 「记住此设备」，60s 超时拒绝）；指示浮层沿用 `windowsCuaOperationIndicator` 的窗口形态先例；设置页「远程桌面」分区（总开关、已授权设备列表可撤销、监听端口/帮助说明）。侧栏分区顺序：「模型设置 → 远程桌面 → 电脑控制」（远控入口紧跟模型配置、先于本机控制开关）。
 - i18n 中英同步；不改既有 key 语义。
 
-### 质量与延迟参数（一期固定，不进信令 union）
-
-画质档位切换仍是 P2（需扩信令）；以下为一期两端各自的固定实现，单端可改、互不协商：
-
-- **采集**：`getDisplayMedia` 约束 = `frameRate {ideal:60, max:60}` + `width/height {ideal:1920/1080}` + `displaySurface:"monitor"`（**60fps 是跟手感的主力**：帧周期 33→16ms，直接砍半画面量化延迟；编码跟不上时由 `maintain-framerate` 先降分辨率不降帧率。1080p 源无变化，>1080p 源把编码输入封顶，避免 4K 硬采拖垮帧率）。
-- **编码**：**offer 侧与 answer 侧都应用** H.264 优先 / VP8 兜底的 `setCodecPreferences`（原先只设主控侧，硬编实际没介入）；被控 video sender 固定 `degradationPreference="maintain-framerate"`（带宽紧张先降分辨率不降帧率，即产品规则 8 的一期固定映射）、`maxBitrate=8Mbps` 上限与 `latencyHint=0.02`（低延迟编码请求，实现不认识该成员时按 WebIDL 规则忽略）。
-- **输入**：主控 `pointermove` 即时发送（去掉 rAF ≤16.7ms 节流；Chromium 本身按帧合并 move）；被控注入批处理聚合窗口 0ms（仅同 tick 合并，512 条/帧上限兜底不变）。目标是把指针端到端的可削减排队延迟（rAF ≤16.7ms + 批处理 ≤16ms）全部去掉。
-
 ## 安全边界
 
 - 信任链 = 既有配对令牌 + 逐会话一次性票据；未配对/未同意不可达任何会话端点（401 / 稳定错误码）。

@@ -6,14 +6,16 @@
  *
  *   lanAccessServer ──(hook)requestSession(clientId)──────► 本模块 ──ConsentRequest──► 被控 main
  *   WS /ws/remote-desktop?ticket ◄──(hook)onSessionSocket── 本模块 ◄─ConsentResult─── 被控 main
- *        │ 收到的每一帧 ──────────────────────────────────► ──SignalFromHost──► main（隐藏采集窗）
+ *        │ 收到的每一帧 ──────────────────────────────────► ──SignalFromHost──► main
  *        │ ◄──────────────────────────────────────────────── ◄─SignalToHost──── main
  *        └─ 断开/bye ─────────────────────────────────────► ──SessionClosed──► main（收口）
- *   注入： main ──Inject(≤512/帧)──► 本模块 ──raw_input──► 既有 CUA Helper broker（通道复用，
- *        不新起第二条 helper 生命周期；services 注入端口在被控开关打开时会经同一创建入口按需拉起）
+ *   注入： media WS 上行输入 ──► 本模块（onInput 形状门）──raw_input──► 既有 CUA Helper broker
+ *        （通道复用，不新起第二条 helper 生命周期；services 注入端口在被控开关打开时会经同一
+ *        创建入口按需拉起）
  *
  * 纪律：
- * - host 不解析 SDP/ICE，只按 shared `remoteDesktopSignalMessageSchema` 校验后转发；单帧 >64KiB 直接断开。
+ * - host 不解析信令内容（P4 起 union 只剩 hello/monitors/select-monitor/media-open/freeze/
+ *   unfreeze/bye/error），只按 shared `remoteDesktopSignalMessageSchema` 校验后转发；单帧 >64KiB 直接断开。
  * - 单会话互斥（第二请求 busy）、kill-switch/总开关在**发起侧**收口（evaluateRemoteDesktopRequest）。
  * - 被控状态持久化：总开关写凭据服务；逐设备授权写既有 lan client 记录上的可选字段
  *   （`remoteDesktopAuthorized`，旧数据缺键 = 未授权）。
@@ -32,6 +34,7 @@ import {
   RemoteDesktopHostMessageTypes,
   isRemoteDesktopMessageTypeTag,
   remoteDesktopMessageToHostSchema,
+  remoteDesktopRawInputEventSchema,
   type RemoteDesktopMessageFromHost,
   type RemoteDesktopMessageToHost,
   type RemoteDesktopRawInputEvent,
@@ -120,12 +123,16 @@ export function createRemoteDesktopHostServer(options: {
    * 收发路由（分帧透传、pong、输入）由 mediaRelay.attachWebSocket 接管。
    */
   const mediaSockets = new Map<string, WebSocket>();
+  let injectDroppedFrames = 0;
+  /** 媒体 WS 上行中被形状门（raw_input 同形校验）丢弃的事件数：换算链落地前用于联调观测。 */
+  let mediaInputDroppedEvents = 0;
+
   /**
    * 媒体中继（本地管道 ↔ media WS 的字节泵）。本模块只负责实例化、attach 与会话收口三件事；
-   * 回调接线（T6）：onStatus → MediaStatus 通知 main（冻结透传链路的 host 出口）；
+   * 回调接线：onStatus → MediaStatus 通知 main（冻结透传链路的 host 出口，T6）；
    * onReady 保持日志位——ready→开流指令（kind2）由 relay 内部幂等完成，接实体会双发 kind2。
-   * onInput/onFrame 由 T14 接。kind0 出口不注入 onFrame：走 relay 缺省实现（当前 WS + 4MB
-   * 背压丢弃，契约 C），即「出口机制在 relay 内、消费实体留后续任务」。
+   * onFrame 不注入：走 relay 缺省出口（当前 WS + 4MB 背压丢弃，契约 C）——出口机制在 relay 内。
+   * onInput（T14）：media WS 上行输入 → 既有 raw_input 注入（见下）。
    */
   const mediaRelay = createRemoteDesktopMediaRelay({
     logger,
@@ -136,9 +143,25 @@ export function createRemoteDesktopHostServer(options: {
         ...(reason ? { reason } : {}),
       }),
     onReady: () => log("media ws ready received"),
-    onInput: () => logger.warn("[remote-desktop] media input not wired yet (T14)"),
+    // T14 实体接线：media WS 上行输入 → 既有 raw_input 注入端口（inject 保留单会话门、
+    // 512 条/帧上限与丢帧计数）。只放行与 raw_input 面同形的事件：契约 C 上行的是 {t:...}
+    // 归一化事件，与 raw_input 的 {k:...} VIRTUALDESK 绝对事件之间存在形状/坐标换算缺口；
+    // 换算链未落地前直送 broker 会按帧触发 Rust 严格校验失败（+ helper 需求副作用与逐帧
+    // warn 刷屏），故先在此丢弃并计数（联调项，见 task-14 报告）。
+    onInput: (event) => {
+      const parsed = remoteDesktopRawInputEventSchema.safeParse(event);
+      if (!parsed.success) {
+        mediaInputDroppedEvents += 1;
+        if (mediaInputDroppedEvents === 1) {
+          logger.warn(
+            "[remote-desktop] media ws input dropped: not a raw_input event (media-to-raw conversion pending)",
+          );
+        }
+        return;
+      }
+      inject([parsed.data]);
+    },
   });
-  let injectDroppedFrames = 0;
   let disposed = false;
 
   const log = (message: string, detail?: unknown): void =>
@@ -542,10 +565,6 @@ export function createRemoteDesktopHostServer(options: {
           // main 侧本地结束（指示窗「结束」/应用退出）：bye 已带出，随后关闭本端 socket。
           closeActiveSocket(1000, "bye");
         }
-        return;
-      }
-      if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopInject) {
-        inject(message.events);
         return;
       }
       if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart) {

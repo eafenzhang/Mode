@@ -60,12 +60,6 @@ export type RemoteDesktopSessionEffect =
    * 连原生媒体面（契约 D/B）：media-open 携带逐会话 key/salt，URL 由 rdStartSession 直达（契约 E）。
    */
   | { kind: "open-media"; key: string; salt: string }
-  // WebRTC 残留 effect（Task 14 随 schema 删除）：状态机已不再产出，仅为 hook 的 no-op 分支保留类型。
-  | { kind: "apply-offer"; sdp: string }
-  | {
-      kind: "add-ice-candidate";
-      candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
-    }
   | { kind: "end-session"; reason: "user-end" | "error" };
 
 export type RemoteDesktopSessionEvent =
@@ -177,10 +171,6 @@ function applyControllerSignal(
       return transition(state, { mediaOpenReceived: true, mediaStatus: "negotiating" }, [
         { kind: "open-media", key: message.key, salt: message.salt },
       ]);
-    case "offer":
-    case "ice":
-      // WebRTC 残留分支（Task 14 随 schema 删除）：记录性忽略，绝不再驱动 WebRTC effect。
-      return transition(state, {});
     case "error":
       return transition(state, { closeKind: "error", errorCode: message.code });
     case "bye":
@@ -188,7 +178,6 @@ function applyControllerSignal(
         return transition(state, {});
       }
       return transition(state, { phase: "closed", closeKind: "remote" });
-    case "answer":
     case "hello":
     case "select-monitor":
       // 主控方向不应收到这些信号（被控端才处理它们）：记录性忽略，不改状态。

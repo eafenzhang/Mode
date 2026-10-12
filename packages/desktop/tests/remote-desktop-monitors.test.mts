@@ -1,6 +1,6 @@
 /**
  * 被控显示器枚举纯逻辑回归（spec: docs/specs/lan-remote-desktop-native-media.md
- * 删除与保留清单——captureWindow 在 P4 删除，显示器枚举抽出到独立模块保留）。
+ * 删除与保留清单——显示器枚举在 P4 直替清理后独立保留）。
  * 运行：node --test packages/desktop/tests/remote-desktop-monitors.test.mts
  * 扩展名 .mts：语言政策新测试禁 .mjs（docs/specs/language-policy.md）；
  * 直接 import src 用 .ts 扩展名（node --test 原生 type stripping，与 remote-desktop-media-relay.test.mts 同口径）。

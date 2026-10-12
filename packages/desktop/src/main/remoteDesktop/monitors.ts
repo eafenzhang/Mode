@@ -1,7 +1,7 @@
 /**
- * 被控端显示器枚举与物理矩形换算（从 captureWindow.ts 抽出；spec
- * docs/specs/lan-remote-desktop-native-media.md 删除与保留清单：captureWindow 在 P4 删除，
- * 显示器枚举抽出到独立模块保留——MediaStart/MediaSwitch 的 rect 也由本模块的物理矩形口径构成）。
+ * 被控端显示器枚举与物理矩形换算（独立模块；spec
+ * docs/specs/lan-remote-desktop-native-media.md 删除与保留清单：P4 直替清理后保留——
+ * MediaStart/MediaSwitch 的 rect 由本模块的物理矩形口径构成，monitors 信令枚举走本模块）。
  *
  * 物理像素口径：DIP bounds × scaleFactor（VIRTUALDESK 坐标域的构成单元）。
  * 已知限制（一期不改）：多显示器混合 DPI 下 DIP 布局与物理布局非线性，坐标换算按
