@@ -12,13 +12,14 @@
 //!
 //! 两条路的 seq/时间戳/flush-IDR/配对语义完全一致，回退对上层与线上格式零影响。
 //!
-//! 即时 IDR（本任务唯一不确定面，Resolution 2）：windows 0.58 元数据与真实 MF 均**没有**
-//! `MF_MT_MPEG2_GOP_SIZE` 属性（H.264 编码 MFT 不暴露 GOP 配置），简报推荐的 GOP 属性
-//! 路径不可实现；sample 级 `MFSampleExtension_CleanPoint` 对多数编码器只是只读提示。
-//! 故采用简报同一节给出的「简单可靠法」：状态机（state.rs）判定本帧应为关键帧时
-//! （首帧后的 GOP 到期 / `force_idr` 换屏 / 解冻），先 `MFT_MESSAGE_COMMAND_FLUSH`
-//! 复位编码器再灌流——flush 后的下一帧按编码器契约必为 IDR（丢 1 帧可接受，Resolution 2
-//! 明示），线上 key 标志仍以码流探测 `contains_idr` 为唯一权威。
+//! 即时 IDR（Resolution 2 + 后续优化）：windows 0.58 元数据与真实 MF 均**没有**
+//! `MF_MT_MPEG2_GOP_SIZE` 属性（H.264 编码 MFT 不暴露 GOP 配置）；状态机（state.rs）
+//! 判定本帧应为关键帧时（首帧后的 GOP 到期 / `force_idr` 换屏 / 解冻 / need-key），
+//! 首选 `ICodecAPI::SetValue(CODECAPI_AVEncVideoForceKeyFrame, TRUE)`——下一帧编码为
+//! IDR，不丢帧、不清 rate-control 状态；输出侧以「期望关键帧的配对项拿到非 IDR」为
+//! 失效信号，一旦未生效即永久降级 `MFT_MESSAGE_COMMAND_FLUSH` 复位路径（flush 后
+//! 下一帧必为 IDR，丢 1 帧，Resolution 2 旧口径）。线上 key 标志以码流探测
+//! `contains_idr` 为唯一权威。
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::mem::ManuallyDrop;
@@ -43,7 +44,9 @@ use windows::Win32::Graphics::Dxgi::Common::{
   DXGI_FORMAT_NV12, DXGI_RATIONAL,
 };
 use windows::Win32::Media::MediaFoundation::{
-  eAVEncH264VProfile_Base, IMFDXGIDeviceManager, MFCreateDXGIDeviceManager,
+  eAVEncH264VProfile, eAVEncH264VProfile_Base, eAVEncH264VProfile_Main,
+  CODECAPI_AVEncCommonRealTime, CODECAPI_AVEncMPVDefaultBPictureCount,
+  CODECAPI_AVEncVideoForceKeyFrame, ICodecAPI, IMFDXGIDeviceManager, MFCreateDXGIDeviceManager,
   MFCreateDXGISurfaceBuffer, MFCreateMemoryBuffer, MFCreateMediaType, MFCreateSample,
   MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MFMediaType_Video, MFShutdown, MFStartup,
   MF_VERSION, MFVideoFormat_H264, MFVideoFormat_NV12,
@@ -55,7 +58,7 @@ use windows::Win32::Media::MediaFoundation::{
   MF_MT_FRAME_RATE, MF_MT_FRAME_SIZE, MF_MT_INTERLACE_MODE, MF_MT_MAJOR_TYPE,
   MF_MT_MPEG2_PROFILE, MF_MT_SUBTYPE,
 };
-use windows::core::{Interface, IUnknown};
+use windows::core::{GUID, Interface, IUnknown, VARIANT};
 
 use super::capture::create_texture;
 use super::state::{contains_idr, reduce, EncoderAction, EncoderState};
@@ -119,6 +122,14 @@ struct VpPipeline {
   in_h: u32,
 }
 
+/// 强制 IDR 的实现方式：CodecApi（`ICodecAPI` ForceKeyFrame，不丢帧）
+/// → 验证未生效即永久降级 Flush（旧路径，丢 1 帧必产 IDR）。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ForceKeyMode {
+  CodecApi,
+  Flush,
+}
+
 pub struct Encoder {
   /// 纹理创建用的原 device（与 video_device 同对象 QI 前的引用）。
   device: ID3D11Device,
@@ -137,6 +148,12 @@ pub struct Encoder {
   _d3d_manager: Option<IMFDXGIDeviceManager>,
   /// 编码输入是否走 DXGI 表面（运行时回退后翻 false，此后固定系统内存）。
   gpu_interop: bool,
+  /// 实际生效的 H.264 profile（能力阶梯的产物；运行期回退重配时保持一致）。
+  profile: eAVEncH264VProfile,
+  /// ICodecAPI（可用时）：实时提示 + B 帧=0 + 免 flush 强制 IDR；None = 全走回退。
+  codec_api: Option<ICodecAPI>,
+  /// 强制 IDR 模式（见 `ForceKeyMode`）。
+  force_key_mode: ForceKeyMode,
   /// VP 管线：首帧（见到真实输入纹理）惰性建立。
   vp: Option<VpPipeline>,
   /// 输入→输出配对队列：MF 编码器可能有 0~N 帧流水延迟，输出侧按 FIFO 领回
@@ -196,28 +213,53 @@ impl Encoder {
       .cast::<ID3D11VideoContext1>()
       .map_err(|e| AxError::internal(format!("ID3D11VideoContext1 QI 失败: {e}")))?;
     let mf = activate_h264_encoder()?;
-    // 性能优化：优先建立 D3D11↔MF 互操作（编码器直接消费 GPU 上的 NV12，免每帧回读）。
-    // 建管理器 / 设管理器 / 类型协商任一步失败 → 明确清掉管理器并按系统内存路径重配
-    // 类型；两条路此后语义完全一致，回退后行为与旧实现等同，不引入新的失败面。
-    let (d3d_manager, gpu_interop) = match setup_d3d_manager(&mf, device) {
-      Ok(manager) => match configure_media_types(&mf, out_w, out_h, fps, bitrate_bps) {
-        Ok(()) => (Some(manager), true),
-        Err(_) => {
-          // unsafe 依据（块级）：COM FFI；清管理器后按系统内存口径重配类型。
-          unsafe {
-            let _ = mf.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, 0);
-          }
-          warn("D3D 互操作类型协商失败，回退系统内存输入");
-          configure_media_types(&mf, out_w, out_h, fps, bitrate_bps)?;
-          (None, false)
-        }
-      },
+    // 输入路径 × profile 的尝试阶梯（各自独立降级，任一级成功即定型）：
+    // ① D3D 互操作+Main ②互操作+Base ③系统内存+Main ④系统内存+Base。
+    // 互操作省每帧回读、Main 省码率，两者互不依赖；全部失败 = 旧实现行为与失败面。
+    let mut d3d_manager = match setup_d3d_manager(&mf, device) {
+      Ok(manager) => Some(manager),
       Err(e) => {
         warn(&format!("D3D 互操作不可用，回退系统内存输入: {e}"));
-        configure_media_types(&mf, out_w, out_h, fps, bitrate_bps)?;
-        (None, false)
+        None
       }
     };
+    let mut gpu_interop = d3d_manager.is_some();
+    let mut profile = eAVEncH264VProfile_Main;
+    let mut configured = false;
+    let ladder: [(bool, eAVEncH264VProfile); 4] = [
+      (gpu_interop, eAVEncH264VProfile_Main),
+      (gpu_interop, eAVEncH264VProfile_Base),
+      (false, eAVEncH264VProfile_Main),
+      (false, eAVEncH264VProfile_Base),
+    ];
+    for (want_gpu, want_profile) in ladder {
+      if want_gpu != gpu_interop {
+        // 需要系统内存口径：清掉管理器（此后所有重配都以系统内存为准）。
+        // unsafe 依据（块级）：COM FFI；清管理器后按系统内存口径重配类型。
+        unsafe {
+          let _ = mf.ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, 0);
+        }
+        d3d_manager = None;
+        gpu_interop = false;
+        warn("D3D 互操作类型协商失败，回退系统内存输入");
+      }
+      if configure_media_types(&mf, out_w, out_h, fps, bitrate_bps, want_profile).is_ok() {
+        profile = want_profile;
+        configured = true;
+        if want_profile == eAVEncH264VProfile_Base {
+          warn("H.264 Main profile 不受支持，回退 Baseline");
+        }
+        break;
+      }
+    }
+    if !configured {
+      // 与旧实现同口径的最终失败（以 Base 的错误归因）。
+      configure_media_types(&mf, out_w, out_h, fps, bitrate_bps, eAVEncH264VProfile_Base)?;
+      profile = eAVEncH264VProfile_Base;
+    }
+    // 低延迟/免丢帧编码参数（ICodecAPI；逐项尽力而为，不可用则运行期全走回退）。
+    let codec_api = apply_codec_api(&mf);
+    let force_key_mode = if codec_api.is_some() { ForceKeyMode::CodecApi } else { ForceKeyMode::Flush };
     // unsafe 依据（块级）：IMFTransform 方法均为 COM FFI；transform 持有至 Drop。
     unsafe {
       mf.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
@@ -236,6 +278,9 @@ impl Encoder {
       mf,
       _d3d_manager: d3d_manager,
       gpu_interop,
+      profile,
+      codec_api,
+      force_key_mode,
       vp: None,
       pending: VecDeque::new(),
       pushed: false,
@@ -268,18 +313,36 @@ impl Encoder {
     };
     // VP 惰性/重建（首帧或输入纹理身份/尺寸变化）。
     self.ensure_vp(texture)?;
-    // 即时 IDR：状态机判关键帧（首帧后的 GOP 到期 / force_idr / 解冻）→ Flush 复位
-    // 编码器 → 下一输入必产 IDR。首帧不 Flush（新 transform 本身即 IDR 起点）。
+    // 即时 IDR：状态机判关键帧（首帧后的 GOP 到期 / force_idr / 换屏 / 解冻 /
+    // need-key）。首选 ICodecAPI 的 ForceKeyFrame（下一帧编码为 IDR，不丢帧、不清
+    // rate-control 状态）；QI 缺失或设置失败 → 降级 flush 复位路径。首帧不处理
+    // （新 transform 本身即 IDR 起点）。
     if key && self.pushed {
-      // unsafe 依据（块级）：COM FFI；flush 语义见文件头 Resolution 2 说明。
-      unsafe {
-        self.mf.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0)
-          .map_err(|e| AxError::internal(format!("编码器 Flush 失败: {e}")))?;
-        self.mf.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
-          .map_err(|e| AxError::internal(format!("编码器重开流失败: {e}")))?;
+      if self.force_key_mode == ForceKeyMode::CodecApi {
+        match self.codec_api.as_ref() {
+          Some(api) => {
+            // unsafe 依据（块级）：ICodecAPI FFI；VARIANT 为本调用临时值。
+            if unsafe { api.SetValue(&CODECAPI_AVEncVideoForceKeyFrame, &VARIANT::from(true)) }
+              .is_err()
+            {
+              warn("ForceKeyFrame 设置失败，降级 flush 路径");
+              self.force_key_mode = ForceKeyMode::Flush;
+            }
+          }
+          None => self.force_key_mode = ForceKeyMode::Flush,
+        }
       }
-      // flush 丢弃在途输入，配对队列同步清空（那些 seq 永远不会再有输出）。
-      self.pending.clear();
+      if self.force_key_mode == ForceKeyMode::Flush {
+        // unsafe 依据（块级）：COM FFI；flush 语义见文件头 Resolution 2 说明。
+        unsafe {
+          self.mf.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0)
+            .map_err(|e| AxError::internal(format!("编码器 Flush 失败: {e}")))?;
+          self.mf.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
+            .map_err(|e| AxError::internal(format!("编码器重开流失败: {e}")))?;
+        }
+        // flush 丢弃在途输入，配对队列同步清空（那些 seq 永远不会再有输出）。
+        self.pending.clear();
+      }
     }
     self.pushed = true;
     self.pending.push_back((seq, key));
@@ -308,10 +371,19 @@ impl Encoder {
       Cow::Borrowed(b) => b.to_vec(),
       Cow::Owned(v) => v,
     };
-    // key 的唯一权威 = 码流中的 IDR NAL（flush/GOP 是否被驱动如实执行由它兜底）。
+    // key 的唯一权威 = 码流中的 IDR NAL（flush/GOP/ForceKeyFrame 是否被驱动如实
+    // 执行由它兜底）。
     let key = contains_idr(&data);
     match self.pending.pop_front() {
-      Some((seq, _)) => Ok(Some(EncodedChunk { seq, key, data })),
+      Some((seq, expected_key)) => {
+        // 期望关键帧的配对项拿到非 IDR 帧 = ForceKeyFrame 被驱动忽略 → 永久降级
+        // flush 路径（丢 1 帧但必产 IDR；恢复确定性优先于少丢一帧）。
+        if expected_key && !key && self.force_key_mode == ForceKeyMode::CodecApi {
+          warn("ForceKeyFrame 未生效（输出非 IDR），降级 flush 路径");
+          self.force_key_mode = ForceKeyMode::Flush;
+        }
+        Ok(Some(EncodedChunk { seq, key, data }))
+      }
       // 按构造不可达：每个输出必对应一个入队输入（flush 两侧同步清空）。
       // 若驱动行为破坏该不变式，宁可丢帧也不发错 seq（IV 唯一性优先）。
       None => Ok(None),
@@ -583,7 +655,12 @@ impl Encoder {
         .ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, 0)
         .map_err(|e| AxError::internal(format!("回退清 D3D 管理器失败: {e}")))?;
     }
-    configure_media_types(&self.mf, self.out_w, self.out_h, self.fps, self.bitrate_bps)?;
+    configure_media_types(&self.mf, self.out_w, self.out_h, self.fps, self.bitrate_bps, self.profile)?;
+    // 类型重协商可能重置 codec 级设置：重放（QI 不可用则强制降级 flush 模式）。
+    self.codec_api = apply_codec_api(&self.mf);
+    if self.codec_api.is_none() {
+      self.force_key_mode = ForceKeyMode::Flush;
+    }
     // unsafe 依据（块级）：同上，COM FFI。
     unsafe {
       self
@@ -746,13 +823,14 @@ fn activate_h264_encoder() -> AxResult<IMFTransform> {
 }
 
 /// 配置输入/输出 media type（MS H.264 编码器口径：输入 NV12+尺寸+帧率+逐行；
-/// 输出 H264+Baseline(66)+码率）。
+/// 输出 H264+profile（调用方按能力阶梯选择，Main 优先）+码率）。
 fn configure_media_types(
   mf: &IMFTransform,
   out_w: u32,
   out_h: u32,
   fps: u32,
   bitrate_bps: u32,
+  profile: eAVEncH264VProfile,
 ) -> AxResult<()> {
   let input = unsafe { MFCreateMediaType() }
     .map_err(|e| AxError::new("unimplemented", format!("MFCreateMediaType(输入) 失败: {e}")))?;
@@ -824,11 +902,12 @@ fn configure_media_types(
     )
       .map_err(|e| AxError::new("unimplemented", format!("输出类型 interlace 失败: {e}")))?
   };
-  // Baseline 66（简报：MF_MT_MPEG2_PROFILE (Baseline 66)；MF_MT_MPEG2_LEVEL 按
-  // 简报省略）。Baseline 无 B 帧 → 编码延迟最低，输入/输出 1:1 配对假设成立。
+  // profile 由调用方按能力阶梯选择（Main 优先，驱动拒绝降级 Base；Main 带 CABAC
+  // 同码率画质更高）。无 B 帧由 `apply_codec_api` 显式置 0——Main 下无 B 帧才能
+  // 保持输入/输出 1:1 配对与最低编码延迟（MF_MT_MPEG2_LEVEL 按简报省略）。
   // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
   unsafe {
-    output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_Base.0 as u32)
+    output.SetUINT32(&MF_MT_MPEG2_PROFILE, profile.0 as u32)
       .map_err(|e| AxError::new("unimplemented", format!("输出类型 profile 失败: {e}")))?
   };
   unsafe {
@@ -836,6 +915,28 @@ fn configure_media_types(
       .map_err(|e| AxError::new("unimplemented", format!("SetOutputType 失败: {e}")))?
   };
   Ok(())
+}
+
+/// 低延迟 / 免丢帧的编码参数（`ICodecAPI`；逐项尽力而为，单项失败只提示不失败）：
+/// - `AVEncCommonRealTime=TRUE`：实时模式提示（时延优先，允许驱动按时延取舍）；
+/// - `AVEncMPVDefaultBPictureCount=0`：显式禁 B 帧（Main/High 下保持输入输出 1:1
+///   配对与最低延迟；Baseline 本无 B 帧，接受或忽略均无害）。
+///
+/// 返回接口实例供运行期 `CODECAPI_AVEncVideoForceKeyFrame`；QI 失败 = `None`
+/// （运行期全回退：强制 IDR 走 flush 路径）。
+fn apply_codec_api(mf: &IMFTransform) -> Option<ICodecAPI> {
+  let api: ICodecAPI = mf.cast().ok()?;
+  let set = |guid: &GUID, value: VARIANT| -> bool {
+    // unsafe 依据（块级）：ICodecAPI FFI；guid/value 为本调用临时值（仅读取）。
+    unsafe { api.SetValue(guid, &value) }.is_ok()
+  };
+  if !set(&CODECAPI_AVEncCommonRealTime, VARIANT::from(true)) {
+    warn("编码器拒绝实时模式提示（继续）");
+  }
+  if !set(&CODECAPI_AVEncMPVDefaultBPictureCount, VARIANT::from(0u32)) {
+    warn("编码器拒绝 B 帧数设置（继续）");
+  }
+  Some(api)
 }
 
 /// 从 `IMFSample` 读出连续 ES 字节。
