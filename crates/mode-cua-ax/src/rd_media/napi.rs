@@ -7,7 +7,7 @@
 //!   `ThreadsafeFunction<T>` 未写第二泛型参数，默认策略与契约 A 的 TS 形状矛盾，
 //!   此处以契约 A 的 TS 形状为准。
 //! - 采集跑在专用 `std::thread`（简报 Step 4）；`start` 抢占式先 `stop`。
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
@@ -117,6 +117,15 @@ static PENDING_KEY: AtomicBool = AtomicBool::new(false);
 #[napi(js_name = "rd_media_request_key")]
 pub fn rd_media_request_key_napi() {
   PENDING_KEY.store(true, Ordering::Relaxed);
+}
+
+/// 动态码率（自适应链路经同一控制面调到这里）：worker 下一 tick 消费；
+/// 0 = 无请求；编码器不支持（ICodecAPI 缺失/失败）时静默保持原码率，不断流。
+static PENDING_BITRATE: AtomicU32 = AtomicU32::new(0);
+
+#[napi(js_name = "rd_media_set_bitrate")]
+pub fn rd_media_set_bitrate_napi(bitrate_bps: u32) {
+  PENDING_BITRATE.store(bitrate_bps, Ordering::Relaxed);
 }
 
 /// 测试专用：无 start 时 stop 幂等（不触 DUPL/MF，无桌面会话也能跑）。
@@ -300,6 +309,11 @@ fn worker_loop(
     // 冻结期也照常置位——解冻路径本就 force_idr，置位只可能有冗余、不会有害。
     if PENDING_KEY.swap(false, Ordering::Relaxed) {
       enc.force_idr();
+    }
+    // 动态码率：一次性消费（自适应链路按采样周期下发，不允许积压）。
+    let want_bps = PENDING_BITRATE.swap(0, Ordering::Relaxed);
+    if want_bps > 0 && !enc.set_bitrate(want_bps) {
+      warn(&format!("动态码率 {want_bps} 未生效（编码器不支持或拒绝），保持原码率"));
     }
     // ① 消费换屏请求。
     if let Some(new_rect) = locked(&pending_rect).take() {

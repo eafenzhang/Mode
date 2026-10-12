@@ -45,8 +45,9 @@ use windows::Win32::Graphics::Dxgi::Common::{
 };
 use windows::Win32::Media::MediaFoundation::{
   eAVEncH264VProfile, eAVEncH264VProfile_Base, eAVEncH264VProfile_Main,
-  CODECAPI_AVEncCommonRealTime, CODECAPI_AVEncMPVDefaultBPictureCount,
-  CODECAPI_AVEncVideoForceKeyFrame, ICodecAPI, IMFDXGIDeviceManager, MFCreateDXGIDeviceManager,
+  CODECAPI_AVEncCommonMeanBitRate, CODECAPI_AVEncCommonRealTime,
+  CODECAPI_AVEncMPVDefaultBPictureCount, CODECAPI_AVEncVideoForceKeyFrame, ICodecAPI,
+  IMFDXGIDeviceManager, MFCreateDXGIDeviceManager,
   MFCreateDXGISurfaceBuffer, MFCreateMemoryBuffer, MFCreateMediaType, MFCreateSample,
   MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MFMediaType_Video, MFShutdown, MFStartup,
   MF_VERSION, MFVideoFormat_H264, MFVideoFormat_NV12,
@@ -303,6 +304,21 @@ impl Encoder {
   pub fn force_idr(&mut self) { self.seq_source.force_idr(); }
 
   pub fn set_frozen(&mut self, frozen: bool) { self.seq_source.set_frozen(frozen); }
+
+  /// 动态改码率（自适应链路的方向盘；尽力而为）：ICodecAPI 直改 `MeanBitRate`；
+  /// 不可用或失败返回 false（保持原码率——自适应是优化不是正确性依赖）。
+  /// 记录值同步更新，供运行期回退重配（`disable_gpu_interop`）沿用。
+  pub fn set_bitrate(&mut self, bitrate_bps: u32) -> bool {
+    if bitrate_bps == 0 {
+      return false;
+    }
+    self.bitrate_bps = bitrate_bps;
+    let Some(api) = self.codec_api.as_ref() else {
+      return false;
+    };
+    // unsafe 依据（块级）：ICodecAPI FFI；VARIANT 为本调用临时值。
+    unsafe { api.SetValue(&CODECAPI_AVEncCommonMeanBitRate, &VARIANT::from(bitrate_bps)) }.is_ok()
+  }
 
   /// 一帧进、零或一帧出：状态机冻结 → `None`（不喂编码器）；编码器流水未吐
   /// → `None`（继续喂）。`Some` 表示拿到一帧完整 Annex-B ES。
