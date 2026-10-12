@@ -62,7 +62,7 @@ export interface NativeMediaSessionOptions {
 }
 
 export interface NativeMediaSession {
-  /** 首调自动先发 {t:"ready"}（open 后），随后原样上行事件对象。 */
+  /** ready 由 ws open 发出（首条 send 亦作幂等补发保险）；随后原样上行事件对象。 */
   send(event: object): void;
   ping(ts: number): void;
   stop(): void;
@@ -110,7 +110,15 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     configuredCodec = codec;
   };
 
-  // open 后不主动发 ready：契约 C 规定 ready 随首条上行补发（见 send）。
+  // ws 一开就发 ready：helper 的 ready 门控只认第一条开流指令，而被控状态机保证首帧必为 IDR
+  // （先 IDR 后 delta），所以不必等任何上行事件——否则画面要等用户首次移动鼠标/按键才出流，开局全黑。
+  ws.onopen = () => {
+    // send() 可能在 readyState 已 OPEN 但 open 事件尚未派发的窗口里先发过：保持「ready 恰一次」。
+    if (readySent) return;
+    ws.send(JSON.stringify({ t: "ready" }));
+    readySent = true;
+  };
+
   ws.onmessage = (event) => {
     if (typeof event.data === "string") {
       let msg: { t?: string };
@@ -169,7 +177,8 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   return {
     send(event) {
       if (ws.readyState !== WebSocket.OPEN) return;
-      // 开流确认必须恰好一次（契约 C）：helper 收到前的帧不推流，重复 ready 会让 host 重下发开流指令。
+      // 幂等补发保险：正常路径 ready 已在 onopen 发出；万一 open 事件派发晚于本调用，
+      // 这里补一次（ready 必须恰好一次：helper 收到前的帧不推流，重复 ready 会让 host 重下发开流指令）。
       if (!readySent) {
         ws.send(JSON.stringify({ t: "ready" }));
         readySent = true;
@@ -185,6 +194,8 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       } catch {
         /* CONNECTING 状态下 close 在部分环境抛错：stop 必须幂等 */
       }
+      // 主动 stop 也会使 onTransportClosed 通知一次（任何路径收口都只通知一次，见 teardown）：
+      // 消费方按幂等处理，不要把自身发起的 stop 误记成传输故障。
       teardown();
     },
   };
