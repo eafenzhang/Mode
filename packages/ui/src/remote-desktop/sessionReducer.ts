@@ -3,11 +3,11 @@
  *
  * 输入来自两处：main 推送的 `rd/session-event`（信令通道生命周期 + 对端信令）与页面本地动作
  * （选显示器、断开、媒体状态）。副作用全部以 effect 声明式返回，由 useRemoteDesktopSession
- * 解释执行——状态机本身不碰 RTCPeerConnection、DataChannel 与平台调用。
+ * 解释执行——状态机本身不碰原生媒体会话、WS 与平台调用。
  *
- * 握手顺序（与 main controllerSession / 被控采集页一致，改序须同改两边）：
- *   WS connected → 本侧发 hello{protocolVersion:1} → 对端 monitors → 本侧 select-monitor
- *   → 对端 offer → 本侧 answer → 双向 ice（任一端 bye 即结束）。
+ * 握手顺序（与 main controllerSession / 被控采集侧一致，改序须同改两边）：
+ *   WS connected → 本侧发 hello{protocolVersion} → 对端 monitors → 本侧 select-monitor
+ *   → 对端 media-open{key,salt} → 本侧连 media WS（开流；任一端 bye 即结束）。
  *
  * 稳定失败语义（spec 降级与失败语义）：拒绝/超时/busy/令牌失效都由对端错误码归因，
  * 不自动重试；首个结束原因生效，重复/迟到的 closed 不改写理由。
@@ -37,8 +37,10 @@ export interface RemoteDesktopSessionViewState {
   monitors: RemoteDesktopMonitor[];
   /** 已选择的显示器（首帧起为对端主屏；切换只发信令，不重建会话）。 */
   selectedDisplayId: string | null;
-  /** 已收到 offer（信令已到媒体协商阶段，用于连接中提示）。 */
-  offerReceived: boolean;
+  /** 已收到 media-open（原生媒体面信令已到，下一步连 media WS；用于连接中提示）。 */
+  mediaOpenReceived: boolean;
+  /** 对端画面冻结（锁屏 / 失去访问权限）：freeze/unfreeze 写入（Task 13 落分支与提示）。 */
+  frozen: boolean;
 }
 
 export const INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE: RemoteDesktopSessionViewState = {
@@ -48,11 +50,17 @@ export const INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE: RemoteDesktopSessionView
   mediaStatus: "idle",
   monitors: [],
   selectedDisplayId: null,
-  offerReceived: false,
+  mediaOpenReceived: false,
+  frozen: false,
 };
 
 export type RemoteDesktopSessionEffect =
   | { kind: "signal"; message: RemoteDesktopSignalMessage }
+  /**
+   * 连原生媒体面（契约 D/B）：media-open 携带逐会话 key/salt，URL 由 rdStartSession 直达（契约 E）。
+   */
+  | { kind: "open-media"; key: string; salt: string }
+  // WebRTC 残留 effect（Task 14 随 schema 删除）：状态机已不再产出，仅为 hook 的 no-op 分支保留类型。
   | { kind: "apply-offer"; sdp: string }
   | {
       kind: "add-ice-candidate";
@@ -117,7 +125,7 @@ function applyControllerState(
     closeKind: null,
     errorCode: null,
     mediaStatus: "idle",
-    offerReceived: false,
+    mediaOpenReceived: false,
   });
 }
 
@@ -145,23 +153,16 @@ function applyControllerSignal(
           : [],
       );
     }
-    case "offer":
-      return transition(
-        state,
-        { offerReceived: true, mediaStatus: state.mediaStatus === "live" ? "live" : "negotiating" },
-        [{ kind: "apply-offer", sdp: message.sdp }],
-      );
-    case "ice":
-      return transition(state, {}, [
-        {
-          kind: "add-ice-candidate",
-          candidate: {
-            candidate: message.candidate,
-            sdpMid: message.sdpMid,
-            sdpMLineIndex: message.sdpMLineIndex,
-          },
-        },
+    case "media-open":
+      // 同意通过：对端下发媒体面 key/salt（契约 D）。连接 media WS 由 open-media effect 完成，
+      // URL（mediaTicket）不经信令，由 rdStartSession 返回值直达（契约 E）。
+      return transition(state, { mediaOpenReceived: true, mediaStatus: "negotiating" }, [
+        { kind: "open-media", key: message.key, salt: message.salt },
       ]);
+    case "offer":
+    case "ice":
+      // WebRTC 残留分支（Task 14 随 schema 删除）：记录性忽略，绝不再驱动 WebRTC effect。
+      return transition(state, {});
     case "error":
       return transition(state, { closeKind: "error", errorCode: message.code });
     case "bye":
@@ -174,11 +175,10 @@ function applyControllerSignal(
     case "select-monitor":
       // 主控方向不应收到这些信号（被控端才处理它们）：记录性忽略，不改状态。
       return transition(state, {});
-    case "media-open":
     case "freeze":
     case "unfreeze":
-      // 契约 D 的 P2 媒体面信令（被控 → 主控）：消费在后续任务（Task 13），当前记录性
-      // 忽略；显式列出是为保持 switch 对 union 的穷举（否则 TS2366 缺结尾 return）。
+      // 冻结/解冻信令（被控 → 主控）：frozen 状态字段已就位，消费分支 Task 13 落；
+      // 显式列出是为保持 switch 对 union 的穷举（否则 TS2366 缺结尾 return）。
       return transition(state, {});
   }
 }
@@ -216,7 +216,7 @@ export function reduceRemoteDesktopSession(
         if (state.phase === "closed") {
           return transition(state, { mediaStatus: "failed" });
         }
-        // 媒体建立失败（含 ICE 超时）：终止会话并归因，不留半开状态。
+        // 媒体面建立失败（无 canvas/mediaUrl、传输断开、解密连续失败）：终止会话并归因，不留半开状态。
         return transition(state, { mediaStatus: "failed", phase: "closed", closeKind: "error" }, [
           { kind: "end-session", reason: "error" },
         ]);

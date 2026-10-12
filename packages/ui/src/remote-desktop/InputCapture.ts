@@ -1,17 +1,18 @@
 /**
- * 主控输入采集：视频面上的 pointer / wheel / keyboard → T1 输入事件（DataChannel 双通道）。
+ * 主控输入采集：画面上的 pointer / wheel / keyboard → T1 输入事件（原生媒体面 WS 上行）。
  *
- * 通道纪律（docs/specs/lan-remote-desktop.md 事件顺序 ⑤ 与「质量与延迟参数」）：
- * - `pointer`（unordered + maxRetransmits:0）：移动采样可丢，**即时发送**（Chromium 按帧合并
- *   pointermove，这里不再叠加 rAF 节流——原先 ≤16.7ms 的排队是可削的指针延迟）；
- * - `control`（ordered + 可靠）：按钮 / 滚轮 / 按键 / 文本即时下发，不可丢。
+ * 通道纪律（docs/specs/lan-remote-desktop-native-media.md 事件顺序 ④）：
+ * - 采集即刻发送（Chromium 按帧合并 pointermove，这里不再叠加 rAF 节流——原先 ≤16.7ms 的排队
+ *   是可削的指针延迟）；次序由同一条 media WS（TCP）保证；
+ * - 传输未就绪（未连上 / 已断开）时由 sink 静默丢弃：移动采样允许丢失，离散事件由被控端在
+ *   会话异常时按收口处理，不缺队列、不重试。
  *
  * 键盘规则复用 shared `describeKeyAction`（spike 教训：文本与 VK 不能混发）：
  * - keydown：修饰键与组合键/不可打印键 → `kd`（VK）；纯可打印字符 → `tx`（Unicode 文本）；
  * - keyup：只对 VK 口径发 `ku`（文本键没有配对的按键抬起）。
  *
  * 释放纪律：失焦 / 指针捕获丢失时把仍按下的按钮与按键补发抬起，避免对端残留「按住」状态。
- * 本模块不碰 RTCPeerConnection 与 React：由 useRemoteDesktopSession 注入 sink。
+ * 本模块不碰媒体会话与 React：由 useRemoteDesktopSession 注入 sink。
  */
 import type {
   RemoteDesktopControlEvent,
@@ -23,6 +24,7 @@ import {
   normalizedPointFromVideoPointer,
   wheelDeltaMagnitude,
   wheelDirectionFromDelta,
+  type RemoteDesktopMediaSurface,
   type RemoteDesktopNormalizedPoint,
 } from "./videoFit.js";
 
@@ -32,9 +34,10 @@ export interface RemoteDesktopInputSink {
 }
 
 export interface RemoteDesktopInputCaptureOptions {
-  /** 焦点容器：键盘事件在这里采集（pointer 事件由视频元素冒泡上来）。 */
+  /** 焦点容器：键盘事件在这里采集（pointer 事件由画面元素冒泡上来）。 */
   container: HTMLElement;
-  video: HTMLVideoElement;
+  /** 画面载体（原生媒体面为 canvas）：坐标映射按它的内在尺寸做 letterbox 归一化。 */
+  surface: RemoteDesktopMediaSurface;
   sink: RemoteDesktopInputSink;
 }
 
@@ -51,7 +54,7 @@ const BUTTON_BY_INDEX: Record<number, RemoteDesktopMouseButton> = {
 export function attachRemoteDesktopInput(
   options: RemoteDesktopInputCaptureOptions,
 ): RemoteDesktopInputCapture {
-  const { container, video, sink } = options;
+  const { container, surface, sink } = options;
 
   const pressedButtons = new Set<RemoteDesktopMouseButton>();
   const pressedVks = new Set<number>();
@@ -60,7 +63,7 @@ export function attachRemoteDesktopInput(
   let detached = false;
 
   const resolvePoint = (event: { clientX: number; clientY: number }) => {
-    const point = normalizedPointFromVideoPointer(video, { x: event.clientX, y: event.clientY });
+    const point = normalizedPointFromVideoPointer(surface, { x: event.clientX, y: event.clientY });
     if (point) {
       lastPoint = point;
     }
@@ -82,7 +85,7 @@ export function attachRemoteDesktopInput(
   const onPointerDown = (event: PointerEvent): void => {
     const button = BUTTON_BY_INDEX[event.button];
     const point = resolvePoint(event);
-    // 视频面上的点击都要落到对端：容器获得焦点以接收键盘（tabIndex=0）。
+    // 画面上的点击都要落到对端：容器获得焦点以接收键盘（tabIndex=0）。
     container.focus({ preventScroll: true });
     if (!button || !point) {
       return;
@@ -106,7 +109,7 @@ export function attachRemoteDesktopInput(
     if (!point) {
       return;
     }
-    // 即时发送：省掉 rAF 排队（≤16.7ms）；被控端同 tick 合并聚合（spec 质量与延迟参数）。
+    // 即时发送：省掉 rAF 排队（≤16.7ms）；被控端同 tick 合并聚合。
     sink.sendPointer({ t: "pm", x: point.x, y: point.y });
   };
 

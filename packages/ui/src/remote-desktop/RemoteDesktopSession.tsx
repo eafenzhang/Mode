@@ -1,8 +1,9 @@
 /**
- * 远程桌面会话面（主控侧）：顶部操作栏（设备名/分辨率/全屏/断开）+ 视频全宽 letterbox + 底部状态条（fps/RTT/分辨率）。
+ * 远程桌面会话面（主控侧）：顶部操作栏（设备名/分辨率/全屏/断开）+ 画面全宽 letterbox + 底部状态条（fps/RTT/分辨率）。
  *
- * 交互要点（docs/specs/lan-remote-desktop.md UI 规则与产品规则 6/7）：
- * - 视频按 `object-fit: contain` 适配，画面内隐藏本地光标（对端光标随帧显示，避免双光标）；
+ * 交互要点（docs/specs/lan-remote-desktop-native-media.md；产品规则 6/7 沿用主 spec）：
+ * - 画面（原生媒体面为 canvas，解码即画）按 `object-fit: contain` 适配，画面内隐藏本地光标
+ *   （对端光标已合成进帧，避免双光标）；
  * - 容器 `tabIndex=0` 自动聚焦，键盘输入直接落到对端；
  * - 结束态（对端挂断 / 错误码 / 媒体失败）显示原因并回到设备页；本端断开立即返回。
  */
@@ -61,11 +62,11 @@ export function RemoteDesktopSession({
   onExit: () => void;
 }) {
   const { intl } = useModeIntl();
-  const { view, stats, peerConnectionState, containerRef, videoRef, selectMonitor, disconnect } =
+  const { view, stats, containerRef, canvasRef, selectMonitor, disconnect } =
     useRemoteDesktopSession({ serverId });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // 工具条交互后把焦点还给视频面：否则键盘输入会留在按钮/下拉上，打不到对端。
+  // 工具条交互后把焦点还给画面：否则键盘输入会留在按钮/下拉上，打不到对端。
   const refocusContainer = () => {
     containerRef.current?.focus({ preventScroll: true });
   };
@@ -111,16 +112,13 @@ export function RemoteDesktopSession({
   const statusText =
     view.phase === "closed"
       ? resolveCloseReasonId(view.closeKind, view.errorCode)
-      : // ICE 短暂断开会自动恢复：画面仍在但可能冻结，状态条先给出提示（不终止会话）。
-        peerConnectionState === "disconnected"
-        ? "remoteDesktop.session.reconnecting"
-        : view.mediaStatus === "live"
-          ? "remoteDesktop.session.live"
-          : view.offerReceived
-            ? "remoteDesktop.session.negotiating"
-            : view.phase === "connected"
-              ? "remoteDesktop.session.waitingPeer"
-              : "remoteDesktop.session.connecting";
+      : view.mediaStatus === "live"
+        ? "remoteDesktop.session.live"
+        : view.mediaOpenReceived
+          ? "remoteDesktop.session.negotiating"
+          : view.phase === "connected"
+            ? "remoteDesktop.session.waitingPeer"
+            : "remoteDesktop.session.connecting";
 
   return (
     <div
@@ -150,7 +148,7 @@ export function RemoteDesktopSession({
               disabled={view.phase === "closed"}
               onValueChange={(displayId) => {
                 selectMonitor(displayId);
-                // 选完把焦点还给视频面（键盘输入继续直达对端）。
+                // 选完把焦点还给画面（键盘输入继续直达对端）。
                 refocusContainer();
               }}
             >
@@ -204,14 +202,9 @@ export function RemoteDesktopSession({
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        {/* cursor-none：画面内只显示对端随帧光标（spec 产品规则 7）。 */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="h-full w-full cursor-none object-contain"
-        />
+        {/* 原生媒体面：解码即画（canvas 内在尺寸 = 解码帧尺寸，object-contain 与 video 同款 letterbox）；
+            cursor-none：画面内只显示对端随帧光标（spec 产品规则 7）。 */}
+        <canvas ref={canvasRef} className="h-full w-full cursor-none object-contain" />
         {view.mediaStatus !== "live" ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="flex items-center gap-2 rounded-lg border border-border bg-popover/95 px-3 py-2 text-ui-base text-foreground shadow-sm">

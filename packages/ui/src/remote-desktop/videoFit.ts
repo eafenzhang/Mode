@@ -1,8 +1,8 @@
 /**
- * 视频面几何与指针映射的 DOM 侧薄封装（纯函数在 `@mode/shared/remote-desktop`，
+ * 媒体面几何与指针映射的 DOM 侧薄封装（纯函数在 `@mode/shared/remote-desktop`，
  * 单测见 packages/shared/test/remote-desktop.test.ts；这里只做「DOM → 纯函数入参」的取值）。
  *
- * 规则（docs/specs/lan-remote-desktop.md 产品规则 6）：画面按视频实际尺寸 letterbox 适配，
+ * 规则（docs/specs/lan-remote-desktop-native-media.md：画面按原生尺寸 letterbox 适配，
  * 鼠标坐标以画面归一化（x/y ∈ [0,1]）；letterbox 区域内的点 clamp 到边缘（纯函数负责）。
  */
 import { computeNormalizedPointFromVideoEvent } from "@mode/shared/remote-desktop";
@@ -13,24 +13,41 @@ export interface RemoteDesktopNormalizedPoint {
   inside: boolean;
 }
 
-function readVideoIntrinsicSize(video: HTMLVideoElement): { width: number; height: number } | null {
-  if (video.videoWidth <= 0 || video.videoHeight <= 0) {
+/**
+ * 画面载体：WebRTC 期是 `<video>`，原生媒体面是解码直画的 `<canvas>`——两者的内在尺寸
+ * 都是「画面像素」口径（video = 元数据尺寸；canvas = width/height 位图尺寸），letterbox
+ * 归一化对二者同一套算法。
+ */
+export type RemoteDesktopMediaSurface = HTMLVideoElement | HTMLCanvasElement;
+
+function readSurfaceIntrinsicSize(
+  surface: RemoteDesktopMediaSurface,
+): { width: number; height: number } | null {
+  // 无 DOM 全局的运行时（Node 单测）没有 HTMLVideoElement：typeof 守卫使判断退化为
+  // canvas 分支；浏览器里该全局必然存在，instanceof 语义不变。
+  if (typeof HTMLVideoElement !== "undefined" && surface instanceof HTMLVideoElement) {
+    if (surface.videoWidth <= 0 || surface.videoHeight <= 0) {
+      return null;
+    }
+    return { width: surface.videoWidth, height: surface.videoHeight };
+  }
+  if (surface.width <= 0 || surface.height <= 0) {
     return null;
   }
-  return { width: video.videoWidth, height: video.videoHeight };
+  return { width: surface.width, height: surface.height };
 }
 
-/** 指针在视频元素内的位置 → 画面归一化坐标；视频元数据未就绪时返回 null（不发送）。 */
+/** 指针在画面元素内的位置 → 画面归一化坐标；画面内在尺寸未就绪（无帧/无元数据）时返回 null（不发送）。 */
 export function normalizedPointFromVideoPointer(
-  video: HTMLVideoElement,
+  surface: RemoteDesktopMediaSurface,
   client: { x: number; y: number },
 ): RemoteDesktopNormalizedPoint | null {
-  const intrinsic = readVideoIntrinsicSize(video);
+  const intrinsic = readSurfaceIntrinsicSize(surface);
   if (!intrinsic) {
     return null;
   }
-  const rect = video.getBoundingClientRect();
-  // 视频元素之外（顶部操作栏/底部状态条）必须返回 null：纯函数对界外点会 clamp 回
+  const rect = surface.getBoundingClientRect();
+  // 画面元素之外（顶部操作栏/底部状态条）必须返回 null：纯函数对界外点会 clamp 回
   // 画面边缘，InputCapture 会据此对工具栏的按下 preventDefault + setPointerCapture，
   // 把 click 劫持到容器（按钮点不动），移动/滚轮还会误发给对端（spec UI 规则·会话面：
   // 操作栏与状态条区域的指针/按键只走本地，不转发）。letterbox 黑边在元素内，维持 clamp。

@@ -1,15 +1,15 @@
 /**
- * 主控远程桌面会话（信令 + WebRTC 媒体 + 输入通道 + 统计）。
+ * 主控远程桌面会话（信令 + 原生媒体面 + 输入上行 + 统计）。
  *
- * 分工（docs/specs/lan-remote-desktop.md 状态所有者表）：
+ * 分工（docs/specs/lan-remote-desktop-native-media.md 状态所有者表）：
  * - main：票据请求、WS 信令转发、会话收口（T3 controllerSession）；
- * - 本 hook（renderer）：RTCPeerConnection、DataChannel、输入采集、fps/RTT 统计；
+ * - 本 hook（renderer）：原生媒体面会话（media WS + 逐帧解密 + 硬解直画）、输入采集、fps/RTT 统计；
  * - 视图状态机：`sessionReducer.ts`（纯函数，可单测），本 hook 只解释执行 effect。
  *
- * 主控 = answer 方（被控端在 select-monitor 后起采集并发 offer）：
- *   WS connected → hello → monitors → select-monitor → offer → answer → 双向 ice。
- * 两条 DataChannel 由被控端创建并在 answer 侧经 `ondatachannel` 收到：
- *   control（ordered + 可靠）/ pointer（maxRetransmits:0 + 可丢）。
+ * 主控 = 被动收流方：
+ *   WS connected → hello → monitors → select-monitor → media-open{key,salt} → 连 media WS。
+ * media-open（契约 D）携带加媒体面的 key/salt；连接地址（mediaTicket）不经信令，由 rdStartSession
+ * 返回值直达 renderer（契约 E）。输入不再走 DataChannel：与信令同源的 media WS 上行 JSON（契约 B）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
@@ -19,12 +19,10 @@ import type {
 } from "@mode/shared/remote-desktop";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { logger } from "@/logger.js";
-import { applyPreferredRemoteDesktopVideoCodecs } from "./codecPreferences.js";
 import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./InputCapture.js";
+import { createNativeMediaSession, type NativeMediaSession } from "./nativeMediaSession.js";
 import {
-  deriveRemoteDesktopSessionStats,
   EMPTY_REMOTE_DESKTOP_SESSION_STATS,
-  type RemoteDesktopFpsBaseline,
   type RemoteDesktopSessionStats,
 } from "./sessionStats.js";
 import {
@@ -35,16 +33,16 @@ import {
   type RemoteDesktopSessionViewState,
 } from "./sessionReducer.js";
 
-/** 统计轮询间隔（spec UI 规则：状态条延迟/帧率用 getStats 3s 轮询）。 */
+/** 统计刷新节拍（spec UI 规则：状态条 3s 刷新）；本任务暂无消费者，Task 11 用它定时采样 nativeStats。 */
 const REMOTE_DESKTOP_STATS_INTERVAL_MS = 3000;
 
 export interface UseRemoteDesktopSessionResult {
   view: RemoteDesktopSessionViewState;
   stats: RemoteDesktopSessionStats;
-  peerConnectionState: RTCPeerConnectionState | null;
-  /** 视频面容器：键盘焦点与输入采集挂点。 */
+  /** 画面容器：键盘焦点与输入采集挂点。 */
   containerRef: React.RefObject<HTMLDivElement | null>;
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  /** 原生媒体画面（解码即画）：输入坐标映射的参照面。 */
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   selectMonitor: (displayId: string) => void;
   /** 本端主动断开（先带出 bye，等 main 收口）。 */
   disconnect: () => void;
@@ -56,23 +54,18 @@ export function useRemoteDesktopSession(options: {
   const { serverId } = options;
   const platform = usePlatform();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // 原生媒体面会话：open-media 时建、失败/cleanup 路径收（stop 幂等）。
+  const sessionRef = useRef<NativeMediaSession | null>(null);
+  // mediaUrl（mediaTicket 直连地址）：建连 effect 从 rdStartSession 结果缓存，open-media 时取用。
+  const mediaUrlRef = useRef<string | null>(null);
   // 视图状态放在 ref + state 双持：reducer updater 不能被 React 重复调用（StrictMode 下
-  // 会产生重复 answer/ICE 信令），因此 effect 在事件处理点上精确执行一次。
+  // 会产生重复信令），因此 effect 在事件处理点上精确执行一次。
   const viewRef = useRef<RemoteDesktopSessionViewState>(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE);
   const [view, setView] = useState<RemoteDesktopSessionViewState>(
     INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE,
   );
   const [stats, setStats] = useState<RemoteDesktopSessionStats>(EMPTY_REMOTE_DESKTOP_SESSION_STATS);
-  const [peerConnectionState, setPeerConnectionState] = useState<RTCPeerConnectionState | null>(
-    null,
-  );
-
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const controlChannelRef = useRef<RTCDataChannel | null>(null);
-  const pointerChannelRef = useRef<RTCDataChannel | null>(null);
-  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
-  const answerInFlightRef = useRef(false);
 
   const sendSignal = useCallback(
     (message: RemoteDesktopSignalMessage) => {
@@ -80,26 +73,6 @@ export function useRemoteDesktopSession(options: {
     },
     [platform],
   );
-
-  const addIceCandidate = useCallback(async (candidate: RTCIceCandidateInit): Promise<void> => {
-    const pc = pcRef.current;
-    if (!pc) {
-      return;
-    }
-    if (!pc.remoteDescription) {
-      // offer 之前的 trickle 候选：先排队，setRemoteDescription 后按序补加。
-      pendingCandidatesRef.current.push(candidate);
-      return;
-    }
-    try {
-      await pc.addIceCandidate(candidate);
-    } catch (error) {
-      logger.warn(
-        "[remote-desktop] addIceCandidate 失败:",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  }, []);
 
   const applyEffect = useCallback(
     (effect: RemoteDesktopSessionEffect): void => {
@@ -110,49 +83,51 @@ export function useRemoteDesktopSession(options: {
         case "end-session":
           void platform.rdEndSession(effect.reason).catch(() => undefined);
           return;
-        case "add-ice-candidate":
-          void addIceCandidate(effect.candidate);
-          return;
-        case "apply-offer": {
-          const pc = pcRef.current;
-          if (!pc || answerInFlightRef.current) {
+        case "open-media": {
+          const canvas = canvasRef.current;
+          const mediaUrl = mediaUrlRef.current;
+          // 画布由会话面在首帧无条件渲染，本 effect 只可能在挂载（refs 已附着）后、且
+          // rdStartSession 已解析（mediaUrl 已缓存）时执行——media-open 必经一轮信令往返。
+          if (!canvas || !mediaUrl) {
+            dispatchRef.current({ type: "media", status: "failed" });
             return;
           }
-          answerInFlightRef.current = true;
-          void (async () => {
-            try {
-              await pc.setRemoteDescription({ type: "offer", sdp: effect.sdp });
-              const queued = pendingCandidatesRef.current;
-              pendingCandidatesRef.current = [];
-              for (const candidate of queued) {
-                try {
-                  await pc.addIceCandidate(candidate);
-                } catch {
-                  // 单个候选失败不阻断协商（其余候选仍可打通）。
-                }
-              }
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              const sdp = pc.localDescription?.sdp ?? answer.sdp;
-              if (!sdp) {
-                throw new Error("answer sdp missing");
-              }
-              sendSignal({ type: "answer", sdp });
-            } catch (error) {
-              logger.warn(
-                "[remote-desktop] 处理 offer 失败:",
-                error instanceof Error ? error.message : String(error),
-              );
-              dispatchRef.current({ type: "media", status: "failed" });
-            } finally {
-              answerInFlightRef.current = false;
-            }
-          })();
+          try {
+            sessionRef.current = createNativeMediaSession({
+              url: mediaUrl,
+              // 信令里 key/salt 是十六进制字符串；Task 9 胶水的入参按字节数校验（32B key / 8B salt）。
+              keyHex: effect.key,
+              saltHex: effect.salt,
+              canvas,
+              // 分辨率读数来自解码帧尺寸（Task 11 接 collector 后仍保留这份即时展示）。
+              onConfigured: (info) =>
+                setStats((previous) => ({ ...previous, width: info.width, height: info.height })),
+              onDecoded: () => {
+                // Task 11 接 nativeStats collector（fps = 实际绘制帧率）。
+              },
+              // 传输断开（连不上 / 中途关闭 / 解码器错误）：按媒体失败收口，不留半开状态。
+              onTransportClosed: () => dispatchRef.current({ type: "media", status: "failed" }),
+            });
+          } catch (error) {
+            // 构造期校验失败（非法 key/salt、取不到 2d 上下文）：归因到媒体失败路径，避免把
+            // 异常抛回 main 的事件推送回调里。
+            logger.warn(
+              "[remote-desktop] 原生媒体会话创建失败:",
+              error instanceof Error ? error.message : String(error),
+            );
+            dispatchRef.current({ type: "media", status: "failed" });
+            return;
+          }
+          dispatchRef.current({ type: "media", status: "live" });
           return;
         }
+        case "apply-offer":
+        case "add-ice-candidate":
+          // WebRTC 残留，Task 14 随 schema 删除。
+          return;
       }
     },
-    [addIceCandidate, platform, sendSignal],
+    [platform, sendSignal],
   );
   const applyEffectRef = useRef(applyEffect);
   applyEffectRef.current = applyEffect;
@@ -170,59 +145,9 @@ export function useRemoteDesktopSession(options: {
   const dispatchRef = useRef(dispatch);
   dispatchRef.current = dispatch;
 
-  // ---- 会话生命周期：建 PeerConnection → 订阅 main 事件 → 发起会话 ----
+  // ---- 会话生命周期：订阅 main 事件 → 发起会话（拿 mediaUrl）→ 离开时收口 ----
   useEffect(() => {
     let disposed = false;
-    const pc = new RTCPeerConnection({ iceServers: [] });
-    applyPreferredRemoteDesktopVideoCodecs(pc);
-    pcRef.current = pc;
-
-    pc.ondatachannel = (event) => {
-      if (event.channel.label === "control") {
-        controlChannelRef.current = event.channel;
-        return;
-      }
-      if (event.channel.label === "pointer") {
-        pointerChannelRef.current = event.channel;
-      }
-    };
-    pc.ontrack = (event) => {
-      const video = videoRef.current;
-      const stream = event.streams[0];
-      if (!video || !stream || video.srcObject === stream) {
-        return;
-      }
-      video.srcObject = stream;
-      void video.play().catch((error: unknown) => {
-        logger.warn(
-          "[remote-desktop] 视频自动播放失败:",
-          error instanceof Error ? error.message : String(error),
-        );
-      });
-    };
-    pc.onicecandidate = (event) => {
-      if (!event.candidate) {
-        return;
-      }
-      sendSignal({
-        type: "ice",
-        candidate: event.candidate.candidate,
-        sdpMid: event.candidate.sdpMid ?? null,
-        sdpMLineIndex: event.candidate.sdpMLineIndex ?? null,
-      });
-    };
-    pc.onconnectionstatechange = () => {
-      setPeerConnectionState(pc.connectionState);
-      if (pc.connectionState === "connected") {
-        dispatchRef.current({ type: "media", status: "live" });
-        return;
-      }
-      if (pc.connectionState === "failed") {
-        // ICE 超时等建立失败：终止会话并归因（不留半开状态）。
-        dispatchRef.current({ type: "media", status: "failed" });
-      }
-    };
-
     const unsubscribe = platform.onRemoteDesktopSessionEvent((event) => {
       dispatchRef.current({ type: "controller", event });
     });
@@ -238,115 +163,78 @@ export function useRemoteDesktopSession(options: {
             type: "controller",
             event: { kind: "state", state: "closed", error: result.error },
           });
-        }
-      } catch (error) {
-        if (disposed) {
           return;
         }
+        mediaUrlRef.current = result.mediaUrl ?? null;
+        if (!result.mediaUrl) {
+          // 契约 E 未给出连接地址（旧 main / 未贯通）：媒体面无法建立，立即按不支持收口。
+          dispatchRef.current({
+            type: "controller",
+            event: { kind: "state", state: "closed", error: "unsupported" },
+          });
+        }
+      } catch (error) {
         logger.warn(
           "[remote-desktop] 发起会话失败:",
           error instanceof Error ? error.message : String(error),
         );
-        dispatchRef.current({
-          type: "controller",
-          event: { kind: "state", state: "closed", error: "internal" },
-        });
+        if (!disposed) {
+          dispatchRef.current({
+            type: "controller",
+            event: { kind: "state", state: "closed", error: "internal" },
+          });
+        }
       }
     })();
 
     return () => {
       disposed = true;
       unsubscribe();
-      try {
-        controlChannelRef.current?.close();
-        pointerChannelRef.current?.close();
-      } catch {
-        // 通道随 PeerConnection 关闭，失败可忽略。
-      }
-      try {
-        pc.close();
-      } catch {
-        // 重复关闭允许幂等失败。
-      }
-      pcRef.current = null;
-      controlChannelRef.current = null;
-      pointerChannelRef.current = null;
-      pendingCandidatesRef.current = [];
-      answerInFlightRef.current = false;
-      setPeerConnectionState(null);
-      const video = videoRef.current;
-      if (video) {
-        video.srcObject = null;
-      }
+      // 先断媒体面再收口：会话面卸载即停止解密/绘制，stop 幂等（内部 teardown 只通知一次）。
+      sessionRef.current?.stop();
+      sessionRef.current = null;
+      mediaUrlRef.current = null;
       // 离开页面即收口会话：main 侧幂等（对端已 bye / 通道已断时无副作用）。
       void platform.rdEndSession("user-end").catch(() => undefined);
     };
-  }, [platform, sendSignal, serverId]);
+  }, [platform, serverId]);
 
-  // ---- 输入采集：容器焦点 + 视频面 pointer/keyboard → DataChannel ----
+  // ---- media WS 下行 JSON 控制事件（Task 9 胶水派发到 window，与信令面解耦）----
+  useEffect(() => {
+    const onControl = (event: Event) => {
+      const detail = (event as CustomEvent<{ t?: string; ts?: number; reason?: string }>).detail;
+      // pong 分支 Task 11 接 nativeStats.onPong（RTT = now - ts）；freeze/unfreeze 分支 Task 13 接 dispatch。
+      void detail;
+    };
+    window.addEventListener("rd-media-control", onControl);
+    return () => window.removeEventListener("rd-media-control", onControl);
+  }, []);
+
+  // ---- 输入采集：容器焦点 + 画面 pointer/keyboard → media WS 上行 ----
   useEffect(() => {
     const container = containerRef.current;
-    const video = videoRef.current;
-    if (!container || !video) {
+    const canvas = canvasRef.current;
+    if (!container || !canvas) {
       return;
     }
-    const sendControl = (event: RemoteDesktopControlEvent): void => {
-      const channel = controlChannelRef.current;
-      if (!channel || channel.readyState !== "open") {
-        return;
-      }
-      try {
-        channel.send(JSON.stringify(event));
-      } catch (error) {
-        logger.warn(
-          "[remote-desktop] control 通道发送失败:",
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    };
-    const sendPointer = (event: RemoteDesktopPointerEvent): void => {
-      const channel = pointerChannelRef.current;
-      if (!channel || channel.readyState !== "open") {
-        return;
-      }
-      try {
-        channel.send(JSON.stringify(event));
-      } catch {
-        // pointer 通道允许丢弃：发送失败不重试、不打断输入流。
-      }
+    // 输入不再分双通道：control 与 pointer 都走同一条 media WS（webSocket send 在未 OPEN 时
+    // 静默丢弃——pointer 的「允许丢」语义由传输层天然覆盖，无需排队或重试）。
+    const sink = {
+      sendControl(event: RemoteDesktopControlEvent): void {
+        sessionRef.current?.send(event);
+      },
+      sendPointer(event: RemoteDesktopPointerEvent): void {
+        sessionRef.current?.send(event);
+      },
     };
     const capture: RemoteDesktopInputCapture = attachRemoteDesktopInput({
       container,
-      video,
-      sink: { sendControl, sendPointer },
+      surface: canvas,
+      sink,
     });
     // 进入会话面即聚焦：键盘事件无需先点击画面。
     container.focus({ preventScroll: true });
     return () => capture.detach();
-  }, []);
-
-  // ---- 状态条统计：getStats 3s 轮询（fps / RTT / 分辨率），读数推导在 sessionStats.ts ----
-  useEffect(() => {
-    let baseline: RemoteDesktopFpsBaseline | null = null;
-    const timer = window.setInterval(() => {
-      const pc = pcRef.current;
-      if (!pc || pc.connectionState !== "connected") {
-        return;
-      }
-      void (async () => {
-        try {
-          const sample = deriveRemoteDesktopSessionStats(await pc.getStats(), baseline);
-          baseline = sample.baseline;
-          setStats(sample.stats);
-        } catch (error) {
-          logger.warn(
-            "[remote-desktop] getStats 失败:",
-            error instanceof Error ? error.message : String(error),
-          );
-        }
-      })();
-    }, REMOTE_DESKTOP_STATS_INTERVAL_MS);
-    return () => window.clearInterval(timer);
   }, []);
 
   const selectMonitor = useCallback((displayId: string) => {
@@ -360,9 +248,8 @@ export function useRemoteDesktopSession(options: {
   return {
     view,
     stats,
-    peerConnectionState,
     containerRef,
-    videoRef,
+    canvasRef,
     selectMonitor,
     disconnect,
   };

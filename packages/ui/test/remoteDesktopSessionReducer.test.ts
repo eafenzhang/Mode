@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-// 主控会话视图状态机（docs/specs/lan-remote-desktop.md 事件顺序 ③ 与降级语义）：
-// 握手顺序（connected → hello → monitors → select-monitor → offer → answer/ice）、
+// 主控会话视图状态机（docs/specs/lan-remote-desktop-native-media.md 事件顺序 ② 与降级语义）：
+// 握手顺序（connected → hello → monitors → select-monitor → media-open → open-media）、
 // 首个结束原因生效、媒体失败收口、显示器切换只发信令不重建会话。
 const { reduceRemoteDesktopSession, INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE } =
   await import("../src/remote-desktop/sessionReducer.js");
@@ -35,6 +35,8 @@ test("初始状态为连接中且无显示器", () => {
   assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.phase, "connecting");
   assert.deepEqual(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.monitors, []);
   assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.selectedDisplayId, null);
+  assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.mediaOpenReceived, false);
+  assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.frozen, false);
 });
 
 test("信令通道 connected 后本侧发 hello{protocolVersion:1}", () => {
@@ -104,28 +106,41 @@ test("切换显示器只发 select-monitor：未知显示器与重复选择都�
   });
 });
 
-test("offer 进入协商并交由媒体面应答；ice 走 add-ice-candidate", () => {
-  const offered = reduce(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE, {
-    type: "controller",
-    event: { kind: "signal", message: { type: "offer", sdp: "v=0 offer" } },
-  });
-  assert.equal(offered.state.offerReceived, true);
-  assert.equal(offered.state.mediaStatus, "negotiating");
-  assert.deepEqual(offered.effects, [{ kind: "apply-offer", sdp: "v=0 offer" }]);
-
-  const ice = reduce(offered.state, {
+test("media-open：进入 negotiating 并产出 open-media effect", () => {
+  const state = { ...INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE, phase: "connected" as const };
+  const t = reduce(state, {
     type: "controller",
     event: {
       kind: "signal",
-      message: { type: "ice", candidate: "candidate:1", sdpMid: "0", sdpMLineIndex: 0 },
+      message: { type: "media-open", key: "a".repeat(64), salt: "b".repeat(16) },
     },
   });
-  assert.deepEqual(ice.effects, [
-    {
-      kind: "add-ice-candidate",
-      candidate: { candidate: "candidate:1", sdpMid: "0", sdpMLineIndex: 0 },
-    },
-  ]);
+  assert.equal(t.state.mediaOpenReceived, true);
+  assert.equal(t.state.mediaStatus, "negotiating");
+  assert.deepEqual(t.effects, [{ kind: "open-media", key: "a".repeat(64), salt: "b".repeat(16) }]);
+});
+
+test("WebRTC 残留信令（offer / ice）记录性忽略：不改状态、不产出副作用", () => {
+  // Task 14 前 schema 仍含 offer/ice，但 renderer 已不再驱动 WebRTC：这两条必须惰性吸收，
+  // 否则会重新产出 apply-offer/add-ice-candidate（已被 hook 置空）并把协商状态顶起来。
+  const state = { ...INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE, phase: "connected" as const };
+  assert.deepEqual(
+    reduce(state, {
+      type: "controller",
+      event: { kind: "signal", message: { type: "offer", sdp: "v=0 offer" } },
+    }),
+    { state, effects: [] },
+  );
+  assert.deepEqual(
+    reduce(state, {
+      type: "controller",
+      event: {
+        kind: "signal",
+        message: { type: "ice", candidate: "candidate:1", sdpMid: "0", sdpMLineIndex: 0 },
+      },
+    }),
+    { state, effects: [] },
+  );
 });
 
 test("对端 error 记录稳定错误码，随后 closed 归因为错误", () => {
@@ -204,5 +219,6 @@ test("start-session 重试（connecting）重置上一轮归因", () => {
   assert.equal(retrying.state.phase, "connecting");
   assert.equal(retrying.state.closeKind, null);
   assert.equal(retrying.state.errorCode, null);
-  assert.equal(retrying.state.offerReceived, false);
+  assert.equal(retrying.state.offerReceived === undefined, true, "旧字段已随 Task 10 改名");
+  assert.equal(retrying.state.mediaOpenReceived, false);
 });
