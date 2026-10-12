@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 // 原生媒体帧解析与 IV 派生（spec: lan-remote-desktop-native-media 协议节）。
-const { parseFrameHeader, buildFrameIv, codecStringFromAnnexB } =
+const { parseFrameHeader, buildFrameIv, codecStringFromAnnexB, shouldDropDeltaFrame } =
   await import("../src/remote-desktop/nativeMediaSession.js");
 
 function frame(seq: number, key: boolean, body: Uint8Array): Uint8Array {
@@ -37,4 +37,11 @@ test("codecStringFromAnnexB：从 SPS 推导 avc1.PPCCLL", () => {
     null,
     "无 SPS 返回 null",
   );
+});
+
+test("解码队列门控：队列 >2 丢 delta、关键帧永远放行", () => {
+  assert.equal(shouldDropDeltaFrame(false, 0), false, "空队列不丢");
+  assert.equal(shouldDropDeltaFrame(false, 2), false, "水位 2 内不丢");
+  assert.equal(shouldDropDeltaFrame(false, 3), true, "队列 >2 丢 delta");
+  assert.equal(shouldDropDeltaFrame(true, 10), false, "关键帧不受队列门控（重同步点）");
 });

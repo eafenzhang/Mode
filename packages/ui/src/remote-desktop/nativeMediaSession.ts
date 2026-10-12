@@ -51,6 +51,15 @@ export function codecStringFromAnnexB(bytes: Uint8Array): string | null {
   return null;
 }
 
+/**
+ * 解码队列门控（纯函数，测试见 remoteDesktopNativeSession.test.ts）：
+ * delta 帧在解码排队 >2 时丢弃（解码跟不上到达时继续排队只会累计端到端延迟）；
+ * 关键帧永远放行——它是丢帧后的重同步点。丢弃方需上报 need-key（调用点在会话胶水）。
+ */
+export function shouldDropDeltaFrame(isKey: boolean, decodeQueueSize: number): boolean {
+  return !isKey && decodeQueueSize > 2;
+}
+
 export interface NativeMediaSessionOptions {
   url: string;
   keyHex: string;
@@ -73,7 +82,8 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   const salt = hexToBytes(opts.saltHex, 8, "salt");
   const ws = new WebSocket(opts.url);
   ws.binaryType = "arraybuffer";
-  const ctx = opts.canvas.getContext("2d", { alpha: false });
+  // desynchronized：跳过合成器同步（低延迟画布模式），直画路径少一层呈现延迟。
+  const ctx = opts.canvas.getContext("2d", { alpha: false, desynchronized: true });
   if (!ctx) throw new Error("2d canvas unavailable");
   let decoder: VideoDecoder | null = null;
   let configuredCodec: string | null = null;
@@ -82,6 +92,25 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   // 编码器不给真实时间戳：EncodedVideoChunk 只要求时间戳单调，按 60fps 名义步长递增即可
   // （该值不参与绘制与统计；fps = 实际绘制帧率，由 onDecoded 侧统计）。
   let timestampBase = 0;
+  // 热路径状态：AES key 会话级导入一次（原实现逐帧 importKey）；seq 提交水位（防乱序/迟到）；
+  // need-key 去抖时间戳。
+  const cryptoKeyPromise = crypto.subtle.importKey("raw", asBufferSource(key), "AES-GCM", false, [
+    "decrypt",
+  ]);
+  let lastSubmittedSeq = -1;
+  let lastKeyRequestAt = 0;
+
+  /** 紧急关键帧请求（丢帧恢复）：ws 上行 {t:"need-key"}；500ms 去抖（中继侧另有 300ms 去抖）。 */
+  const requestKey = (): void => {
+    const now = Date.now();
+    if (now - lastKeyRequestAt < 500) {
+      return;
+    }
+    lastKeyRequestAt = now;
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: "need-key" }));
+    }
+  };
 
   const configure = (codec: string) => {
     decoder?.close();
@@ -138,14 +167,18 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     // 收口后不再处理任何帧：decoder error 与 ws error 路径不关 socket（只等消费方 stop），
     // 缺了 stopped 判据，收口后的关键帧会重新建 decoder 复活解码。
     if (!parsed || stopped) return;
+    // 防乱序/迟到：解密是异步的，提交前先按 seq 水位过滤（廉价前置，省一次解密）。
+    if (parsed.seq <= lastSubmittedSeq) return;
     void (async () => {
       let plain: Uint8Array;
       try {
-        plain = await decryptAesGcm(key, buildFrameIv(salt, parsed.seq), parsed.body);
+        plain = await decryptAesGcm(await cryptoKeyPromise, buildFrameIv(salt, parsed.seq), parsed.body);
       } catch {
         return; // 单帧解密失败丢弃（连续失败由 transport 层收口）
       }
       if (stopped) return; // 解密期间收口：不得再建 decoder 或解码
+      // 解密期间更新帧已提交 → 本帧过期（异步完成顺序无保证）。
+      if (parsed.seq <= lastSubmittedSeq) return;
       if (parsed.key) {
         const codec = codecStringFromAnnexB(plain);
         // decoder 的唯一建立点：首帧（decoder 尚未存在）或 SPS 变化（codec 串变化）才建/换。
@@ -160,6 +193,12 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       }
       // 非关键帧在 decoder 未配置前丢弃（delta 无法独立解码，等下一个关键帧）。
       if (!decoder || decoder.state !== "configured") return;
+      // 解码队列门控：跟不上到达的 delta 丢弃并请关键帧（继续排队 = 累计端到端延迟）。
+      if (shouldDropDeltaFrame(parsed.key, decoder.decodeQueueSize)) {
+        requestKey();
+        return;
+      }
+      lastSubmittedSeq = parsed.seq;
       timestampBase += 1_000_000 / 60;
       decoder.decode(
         new EncodedVideoChunk({
@@ -214,13 +253,11 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
 }
 
 async function decryptAesGcm(
-  key: Uint8Array,
+  cryptoKey: CryptoKey,
   iv: Uint8Array,
   body: Uint8Array,
 ): Promise<Uint8Array> {
-  const cryptoKey = await crypto.subtle.importKey("raw", asBufferSource(key), "AES-GCM", false, [
-    "decrypt",
-  ]);
+  // key 在会话建立时导入一次（原实现逐帧 importKey：60fps 下每秒 60 次无谓的异步导入）。
   // body = ciphertext ‖ tag(16)（WebCrypto 约定 tag 附尾）
   const plain = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: asBufferSource(iv) },
