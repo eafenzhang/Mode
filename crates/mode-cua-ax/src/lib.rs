@@ -3,7 +3,7 @@
 // capture/perform/input/clipboard 已落地（Task 4/5）；launch/screen 由 Task 6 落地
 // （最后两个模块），Task 1 挂起的模块清单至此收齐。
 pub mod apps; pub mod capture; pub mod clipboard; pub mod error; pub mod input; pub mod launch;
-pub mod observe; pub mod perform; pub mod screen; pub mod uia_thread;
+pub mod observe; pub mod perform; pub mod screen; pub mod rd_media; pub mod uia_thread;
 use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
 use error::AxResult;
