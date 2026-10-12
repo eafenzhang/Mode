@@ -44,6 +44,9 @@ export default defineConfig(({ mode }) => {
   const zaiOAuthClientId = resolveZaiOAuthClientId(endpointEnv);
 
   return {
+    // fnOS 统一网关把应用挂在子路径（/app/mode/）下时，需要非根 base 让资产/入口 URL 跟随；
+    // 默认保持 "/"，桌面端与 `mode --web` 直连的行为不变。
+    base: env.MODE_WEB_BASE?.trim() || "/",
     plugins: [pdfJsCMapsPlugin(), react(), tailwindcss(), thirdPartyNoticesVitePlugin()],
     resolve: {
       alias: {

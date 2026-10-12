@@ -40,6 +40,9 @@ export const workDir = resolve(distRoot, ".work");
 
 export const APPNAME = "mode";
 export const DEFAULT_PORT = 3030;
+// fnOS 统一网关子路径：ui 入口 url、app.sock 代理前缀、web 构建的 vite base 必须一致。
+export const GATEWAY_PREFIX = "/app/mode";
+export const WEB_BASE_PATH = `${GATEWAY_PREFIX}/`;
 export const DEFAULT_NODE_VERSION = "24.14.0";
 export const DEFAULT_NODE_DIST_BASE = "https://cdn.npmmirror.com/binaries/node";
 const NODE_DIST_FALLBACK = "https://nodejs.org/dist";
@@ -238,6 +241,8 @@ export async function stageSkeleton(
     join(skeletonDir, "ui", "images", "icon_256.png"),
     join(uiDir, "images", "icon_256.png"),
   );
+  // 统一网关接入代理：装在 target 根，由 cmd/main 以捆绑 Node 启动（监听 app.sock）。
+  await cp(join(skeletonDir, "proxy.mjs"), join(pkgDir, "app", "proxy.mjs"));
 
   for (const entry of await readdir(join(pkgDir, "cmd"))) {
     const file = join(pkgDir, "cmd", entry);

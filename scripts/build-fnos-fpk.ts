@@ -14,6 +14,7 @@ import {
   DEFAULT_NODE_DIST_BASE,
   DEFAULT_NODE_VERSION,
   DEFAULT_PORT,
+  WEB_BASE_PATH,
   type BuildOptions,
   buildFpk,
   distRoot,
@@ -114,14 +115,19 @@ async function main(): Promise<void> {
   if (options.reuseTarball && (await isFile(distTarball))) {
     console.log(`[fnos] 复用发行包：${distTarball}`);
   } else {
-    run(process.execPath, [
-      "scripts/build-mode.mjs",
-      "--version",
-      version,
-      "--base-url",
-      "https://example.invalid/mode/",
-      ...(options.skipBuild ? ["--skip-build"] : []),
-    ]);
+    run(
+      process.execPath,
+      [
+        "scripts/build-mode.mjs",
+        "--version",
+        version,
+        "--base-url",
+        "https://example.invalid/mode/",
+        ...(options.skipBuild ? ["--skip-build"] : []),
+      ],
+      // web 以网关子路径为 base 构建：资产/WS/API 全部跟随 /app/mode/（网关形态必需）。
+      { env: { ...process.env, MODE_WEB_BASE: WEB_BASE_PATH } },
+    );
   }
   if (!(await isFile(distTarball))) {
     throw new Error(`缺少发行包：${distTarball}`);

@@ -274,8 +274,15 @@ function createWebPlatform(): IPlatformService {
   };
 }
 
+// vite base 可能不是根（fnOS 统一网关把应用挂在 /app/mode/ 子路径下）：
+// ws 端点与 HTTP 端点都必须跟随 base，否则网关形态下资产与连接全部 404。
+function resolveBasePath(): string {
+  const base = typeof import.meta.env.BASE_URL === "string" ? import.meta.env.BASE_URL : "/";
+  return base.endsWith("/") ? base.slice(0, -1) : base;
+}
+
 function resolveDefaultWsOrigin(): string {
-  return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+  return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}${resolveBasePath()}`;
 }
 
 async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
@@ -290,7 +297,7 @@ async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
   }
 
   try {
-    const response = await fetch("/api/server-info", {
+    const response = await fetch(`${resolveBasePath()}/api/server-info`, {
       cache: "no-store",
     });
     if (!response.ok) {

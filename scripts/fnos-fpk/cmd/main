@@ -7,8 +7,12 @@ cd "$(dirname "$0")" || exit 1
 source ./lib.sh
 
 PID_FILE="${TRIM_PKGVAR}/app.pid"
+PROXY_PID_FILE="${TRIM_PKGVAR}/proxy.pid"
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 ENTRY="${TRIM_APPDEST}/bin/mode.mjs"
+PROXY_ENTRY="${TRIM_APPDEST}/proxy.mjs"
+GATEWAY_SOCKET="${TRIM_APPDEST}/app.sock"
+GATEWAY_PREFIX="/app/mode"
 NODE_BIN="${TRIM_APPDEST}/runtime/bin/node"
 PORT="${TRIM_SERVICE_PORT:-$MODE_APP_PORT_DEFAULT}"
 
@@ -133,38 +137,62 @@ start_process() {
         mode_fail "Mode 启动失败，请查看日志：${LOG_FILE}"
     fi
     mode_log "started pid=${pid}"
+    start_gateway_proxy
 }
 
-stop_process() {
-    if [ ! -f "$PID_FILE" ]; then
-        mode_log "stop: no pid file"
+# 统一网关代理：在 target 卷内监听 app.sock，供 fnOS 桌面入口（同源 iframe）访问。
+# 代理失败不致命：LAN 直连 3030 端口仍然可用，只记 WARN。
+start_gateway_proxy() {
+    if [ ! -f "$PROXY_ENTRY" ]; then
+        mode_log "WARN: 缺少 proxy.mjs，跳过统一网关接入（LAN 直连不受影响）"
         return 0
     fi
-    local pid
-    pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
-    if [ -z "$pid" ] || ! check_process "$pid"; then
-        rm -f "$PID_FILE"
-        return 0
+    MODE_FNOS_SOCKET="$GATEWAY_SOCKET" \
+    MODE_FNOS_TARGET_PORT="$PORT" \
+    MODE_FNOS_PREFIX="$GATEWAY_PREFIX" \
+    MODE_FNOS_TOKEN_FILE="$(mode_token_file)" \
+        bash -c "exec \"${NODE_BIN}\" \"${PROXY_ENTRY}\"" >> "$LOG_FILE" 2>&1 &
+    local proxy_pid=$!
+    printf '%s' "$proxy_pid" > "$PROXY_PID_FILE"
+    sleep 1
+    if check_process "$proxy_pid"; then
+        mode_log "gateway proxy started pid=${proxy_pid} socket=${GATEWAY_SOCKET}"
+    else
+        rm -f "$PROXY_PID_FILE"
+        mode_log "WARN: 统一网关代理启动失败（LAN 直连不受影响；详见上方日志）"
     fi
+}
 
-    mode_log "stopping pid=${pid}"
+# 通用停止：SIGTERM → 10 秒 → SIGKILL，清 PID 文件。
+stop_pidfile() {
+    local pidfile="$1" label="$2" pid count
+    [ -f "$pidfile" ] || return 0
+    pid="$(head -n 1 "$pidfile" | tr -d '[:space:]')"
+    if [ -z "$pid" ] || ! check_process "$pid"; then
+        rm -f "$pidfile"
+        return 0
+    fi
+    mode_log "stopping ${label} pid=${pid}"
     kill -TERM "$pid" 2>/dev/null || true
-    local count=0
+    count=0
     while check_process "$pid" && [ "$count" -lt 10 ]; do
         sleep 1
         count=$((count + 1))
     done
     if check_process "$pid"; then
-        mode_log "SIGKILL pid=${pid}"
+        mode_log "SIGKILL ${label} pid=${pid}"
         kill -KILL "$pid" 2>/dev/null || true
         sleep 1
     fi
+    rm -f "$pidfile"
+}
+
+stop_process() {
+    stop_pidfile "$PID_FILE" "mode"
+    stop_pidfile "$PROXY_PID_FILE" "gateway-proxy"
     # runuser 包装场景的兜底：子进程若残留在同一入口文件上，按路径定向清理。
-    if check_process "$pid"; then
-        pkill -TERM -f "${ENTRY}" 2>/dev/null || true
-        sleep 1
-    fi
-    rm -f "$PID_FILE"
+    pkill -TERM -f "${ENTRY}" 2>/dev/null || true
+    rm -f "$GATEWAY_SOCKET"
     mode_log "stopped"
 }
 

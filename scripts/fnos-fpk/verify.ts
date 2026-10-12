@@ -4,7 +4,8 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createRequire } from "node:module";
-import { mkdir, open, readFile, rm } from "node:fs/promises";
+import { createServer } from "node:net";
+import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
@@ -55,6 +56,19 @@ export async function until<T>(
   }
 }
 
+// 让内核分配一个空闲端口（网关代理本地 TCP 回退测试用）。
+async function pickFreePort(): Promise<number> {
+  const probe = createServer();
+  await new Promise<void>((resolve, reject) => {
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => resolve());
+  });
+  const address = probe.address();
+  const port = typeof address === "object" && address ? address.port : 0;
+  await new Promise<void>((resolve) => probe.close(() => resolve()));
+  return port;
+}
+
 export async function verifyStructure({
   fpkFile,
   verifyDir,
@@ -103,6 +117,7 @@ export async function verifyStructure({
     "node_modules/node-pty",
     "runtime/bin/node",
     "runtime/LICENSE",
+    "proxy.mjs",
     "ui/config",
     "ui/images/icon_64.png",
     "ui/images/icon_256.png",
@@ -113,13 +128,17 @@ export async function verifyStructure({
   assert.ok(nodeSize > 50 * 1024 * 1024, "payload 捆绑 Node 体积异常");
 
   const uiConfig = JSON.parse(await readFile(join(verifyDir, "ui", "config"), "utf8")) as {
-    ".url": Record<string, { url: string; port: string; type: string }>;
+    ".url": Record<
+      string,
+      { url: string; type: string; gatewayPrefix?: string; gatewaySocket?: string }
+    >;
   };
   const entry = uiConfig[".url"]?.["mode.Application"];
   assert.ok(entry, "ui 入口 mode.Application 缺失");
   assert.equal(entry.type, "iframe", "ui 入口应为 iframe（飞牛桌面内嵌打开）");
-  assert.match(entry.url, /token=__MODE_TOKEN__/u, "ui 入口应携带令牌占位符");
-  assert.equal(String(entry.port), String(port));
+  assert.equal(entry.gatewayPrefix, "/app/mode", "ui 入口应走统一网关前缀");
+  assert.equal(entry.gatewaySocket, "app.sock", "ui 入口应指向 app.sock");
+  assert.equal(entry.url, "/app/mode/", "ui 入口 url 应为网关子路径");
 
   const icon64 = await pngSize(join(verifyDir, "ui", "images", "icon_64.png"));
   assert.deepEqual(icon64, { width: 64, height: 64 });
@@ -156,11 +175,12 @@ export async function verifyTokenFlow(payloadDir: string): Promise<void> {
   });
 
   try {
-    const base = await until(
-      () => output.match(/Local:\s+(http:\/\/127\.0\.0\.1:\d+\/)/u)?.[1] ?? null,
+    const localUrl = await until(
+      () => output.match(/Local:\s+(http:\/\/127\.0\.0\.1:(\d+)\/)/u)?.slice(1, 3) ?? null,
       "Web 启动",
       () => output,
     );
+    const [base, serverPort] = localUrl;
 
     // runner 打印 Local URL 先于服务真正监听，首个请求可能 ECONNREFUSED；重试到拿到任意 HTTP 响应。
     const firstResponse = await until(
@@ -205,6 +225,65 @@ export async function verifyTokenFlow(payloadDir: string): Promise<void> {
     ]);
     assert.equal(opened, true, "携带令牌的 WebSocket 应可建立");
     socket.close();
+
+    // 统一网关链路（proxy.mjs 本地 TCP 回退）：前缀剥离 + 令牌注入 + WS 透传。
+    // 网关流量已由 fnOS 校验登录态；代理必须让「无令牌」的带/不带前缀请求都能工作。
+    const proxyPort = await pickFreePort();
+    const tokenFile = join(dataDir, "gateway-token.txt");
+    await writeFile(tokenFile, token);
+    const proxy = spawn(process.execPath, [join(payloadDir, "proxy.mjs")], {
+      env: {
+        ...process.env,
+        MODE_FNOS_LISTEN_PORT: String(proxyPort),
+        MODE_FNOS_TARGET_PORT: serverPort,
+        MODE_FNOS_PREFIX: "/app/mode",
+        MODE_FNOS_TOKEN_FILE: tokenFile,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let proxyOutput = "";
+    proxy.stdout.on("data", (chunk: Buffer) => {
+      proxyOutput += chunk;
+    });
+    proxy.stderr.on("data", (chunk: Buffer) => {
+      proxyOutput += chunk;
+    });
+    try {
+      const gatewayBase = `http://127.0.0.1:${proxyPort}`;
+      const gatewayInfo = await until(
+        async () => {
+          try {
+            return await fetch(`${gatewayBase}/app/mode/api/server-info`, {
+              signal: AbortSignal.timeout(1000),
+            });
+          } catch {
+            return null;
+          }
+        },
+        "网关代理就绪",
+        () => proxyOutput,
+      );
+      assert.equal(gatewayInfo.status, 200, "带前缀、无令牌的网关请求应被注入令牌后 200");
+      const noPrefix = await fetch(`${gatewayBase}/api/server-info`);
+      assert.equal(noPrefix.status, 200, "不带前缀的网关请求也应注入令牌");
+      const page = await fetch(`${gatewayBase}/app/mode/`);
+      assert.equal(page.status, 200, "网关入口页应 200");
+      assert.match(await page.text(), /<html/iu, "网关入口页应为 HTML");
+      const gatewaySocket = new WebSocket(`ws://127.0.0.1:${proxyPort}/app/mode/ws`);
+      const gatewayOpened = await Promise.race([
+        once(gatewaySocket, "open").then(() => true),
+        once(gatewaySocket, "error").then(() => false),
+        delay(10000).then(() => null),
+      ]);
+      assert.equal(gatewayOpened, true, "经网关的 WebSocket（无令牌）应可建立");
+      gatewaySocket.close();
+    } finally {
+      proxy.kill("SIGTERM");
+      await Promise.race([once(proxy, "exit"), delay(5000)]);
+      if (proxy.exitCode === null && proxy.signalCode === null) {
+        proxy.kill("SIGKILL");
+      }
+    }
 
     const exited = once(child, "exit");
     child.kill("SIGTERM");

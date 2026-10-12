@@ -63,8 +63,8 @@ mode_fix_permissions() {
     chmod 755 "$dest/bin/mode.mjs" 2>/dev/null || true
 }
 
-# 把令牌写入应用入口 URL（app/ui/config 的 "url": "/?token=…"）。
-# 升级会整体替换应用目录、令牌行恢复为 __MODE_TOKEN__ 占位符，故每次安装/升级/启动都要重写。
+# （兼容保留）把令牌写入早期以 ?token= 形式携带令牌的入口 URL。
+# 现网入口走 fnOS 统一网关（同源 iframe，令牌由 proxy.mjs 注入），模板里没有 token= 字段，本函数为 no-op。
 mode_patch_ui_config() {
     local token="$1"
     local candidate ui_config=""

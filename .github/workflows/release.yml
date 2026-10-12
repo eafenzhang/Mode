@@ -150,13 +150,13 @@ jobs:
           - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
           - **macOS（.dmg）**：`<PRODUCT>-<VERSION>-mac-arm64.dmg`（Apple Silicon）/ `<PRODUCT>-<VERSION>-mac-x64.dmg`（Intel），拖进「应用程序」；未签名会被 Gatekeeper 拦一次，放行命令：`sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`。
           - **Linux（.AppImage）**：`<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`，`chmod +x` 后直接运行。
-          - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口或浏览器打开（访问地址自带访问令牌）。
+          - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口打开（走飞牛统一网关，登录态直达，异地也可用）。
           - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包；`latest*.yml` 供应用内自动更新使用。
 
           - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
           - **macOS (.dmg)**: `<PRODUCT>-<VERSION>-mac-arm64.dmg` (Apple Silicon) / `<PRODUCT>-<VERSION>-mac-x64.dmg` (Intel); drag it into Applications. Unsigned, so Gatekeeper blocks the first launch once: `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`.
           - **Linux (.AppImage)**: `<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`; `chmod +x` then run it directly.
-          - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry or a browser (the access URL carries the access token).
+          - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry (routed through the fnOS gateway with your desktop login, works remotely too).
           - **Checksums and update metadata**: `sha256.txt` covers the installers; `latest*.yml` drives in-app updates.
 
           ## 反馈 / Feedback
