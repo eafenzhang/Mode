@@ -281,11 +281,17 @@ export function createRemoteDesktopMediaRelay(
     }
   };
 
-  const listen = async (): Promise<number> => {
-    if (server && listenPort !== null) {
-      return listenPort; // 幂等：同一会话重复触发（同意 + MediaStart）复用同一随机口。
-    }
+  /** listen() 在途共享 promise：首调 await 期间（server 尚未赋值）第二调短路，防建出第二个 server 泄漏。 */
+  let listeningPromise: Promise<number> | null = null;
+
+  const startListening = async (): Promise<number> => {
     const srv = createServer((socket) => {
+      if (server !== srv) {
+        // close() 收口后才排队到达的 connection 事件：直接拒绝，
+        // 否则这条连接无人收口（helperSocket 被 close 置空后又被回填），残留到下一会话。
+        socket.destroy();
+        return;
+      }
       if (helperSocket && !helperSocket.destroyed) {
         // 单会话单 helper：第二条连接（重复 rd_media_start/异常重启）直接拒绝。
         logger.warn("[rd-media-relay] second helper connection rejected");
@@ -354,7 +360,25 @@ export function createRemoteDesktopMediaRelay(
     return listenPort;
   };
 
+  const listen = (): Promise<number> => {
+    if (server && listenPort !== null) {
+      return Promise.resolve(listenPort); // 幂等：同一会话重复触发（同意 + MediaStart）复用同一随机口。
+    }
+    if (listeningPromise) {
+      return listeningPromise; // 并发防重入：在途调用共享同一 promise，不建第二个 server。
+    }
+    listeningPromise = startListening().finally(() => {
+      listeningPromise = null;
+    });
+    return listeningPromise;
+  };
+
   const attachWebSocket = (ws: WsLike): void => {
+    if (currentWs === ws) {
+      // 同一 socket 重复挂接（调用方重复触发）直接短路：否则 message/close 监听叠加，
+      // 一条 ping 会被派发两次（双 pong）、close 清理也执行两遍。
+      return;
+    }
     const previous = currentWs;
     if (previous && previous !== ws) {
       try {

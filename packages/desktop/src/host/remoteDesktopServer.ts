@@ -286,6 +286,13 @@ export function createRemoteDesktopHostServer(options: {
   };
 
   const closeActiveSocket = (code: number, reason: string): void => {
+    // closeActiveSocket 只在会话终止路径被调用（peer/本地 bye、信号帧超限、关开关、dispose）。
+    // 中继必须在这里也收口：本函数先把 activeSession 置空，随后 session socket 的 close 事件里
+    // wasActive 判 false 会跳过 clearSessionState——只挂在那里，这四条路径会残留中继口/helper
+    // 连接/媒体 WS（Task 7 落地后残留 helper 会在下一会话触发「第二条连接拒绝」堵死重连）。
+    // close() 幂等，与 clearSessionState 中的调用重复无害；activeSession 为空时同样收口
+    // （同意后、信令 WS 未接的 pending 窗口也已开中继，关开关等终止动作应一并释放）。
+    mediaRelay.close();
     const session = activeSession;
     activeSession = null;
     if (!session) {
