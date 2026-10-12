@@ -2110,6 +2110,8 @@ async function handleRemoteDesktopMessage(message: RemoteDesktopMessageToHost): 
               requestId: message.requestId,
               online: false,
               remoteDesktop: false,
+              // 版本门 fail-closed：未就绪时不能声称支持原生媒体面（缺省 = 旧对端语义）。
+              remoteDesktopNative: false,
             }
           : {
               type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
@@ -2154,6 +2156,7 @@ async function handleRemoteDesktopPeerMessage(
         requestId: msg.requestId,
         online: info.online,
         remoteDesktop: info.remoteDesktop,
+        remoteDesktopNative: info.remoteDesktopNative,
         ...(info.name ? { name: info.name } : {}),
       });
       return;
@@ -2186,6 +2189,8 @@ async function handleRemoteDesktopPeerMessage(
             requestId: msg.requestId,
             online: false,
             remoteDesktop: false,
+            // 同上：异常分支 fail-closed，不声称支持原生媒体面。
+            remoteDesktopNative: false,
           }
         : {
             type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,

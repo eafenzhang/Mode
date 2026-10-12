@@ -152,6 +152,9 @@ export const remoteDesktopPeerProbeResultSchema = z
     requestId: trimmedNonEmpty,
     online: z.boolean(),
     remoteDesktop: z.boolean(),
+    // 原生媒体面版本门（纯直替）：主控按「online && remoteDesktop && remoteDesktopNative」
+    // 判定设备可连接（docs/specs/lan-remote-desktop-native-media.md 版本门 1）。
+    remoteDesktopNative: z.boolean(),
     name: z.string().optional(),
   })
   .strict();

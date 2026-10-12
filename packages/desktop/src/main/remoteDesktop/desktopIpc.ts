@@ -53,19 +53,21 @@ export function registerRemoteDesktopIpcHandlers(options: RemoteDesktopIpcOption
   ipcMain.handle(REMOTE_DESKTOP_IPC.GetPeerCapability, async (_event, rawServerId: unknown) => {
     const serverId = readServerId(rawServerId);
     if (!serverId) {
-      return { remoteDesktop: false, online: false };
+      return { remoteDesktop: false, remoteDesktopNative: false, online: false };
     }
     try {
       const info = await requestRemoteDesktopPeerProbe(serverId);
       return {
         remoteDesktop: info.remoteDesktop,
+        // 版本门（纯直替）：透传探测结果，renderer 设备页据此判定可连接性。
+        remoteDesktopNative: info.remoteDesktopNative,
         online: info.online,
         ...(info.name ? { name: info.name } : {}),
       };
     } catch (error) {
       // 宿主不可达/超时：一律按离线展示（能力位不猜测），由用户手动重试。
       options.logger.warn("[remote-desktop] peer capability probe failed:", error);
-      return { remoteDesktop: false, online: false };
+      return { remoteDesktop: false, remoteDesktopNative: false, online: false };
     }
   });
 

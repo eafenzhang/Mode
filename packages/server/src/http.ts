@@ -261,6 +261,12 @@ interface HttpServerOptions {
    */
   remoteDesktopCapability?: boolean | (() => boolean);
   /**
+   * 设备级原生媒体面能力位（纯直替版本门，LAN 能力协商）。与 remoteDesktopCapability
+   * 同口径：只有被控 desktop LAN access server 会传值，不传 = 不声明该键；
+   * 函数形式按每次握手现取（docs/specs/lan-remote-desktop-native-media.md 版本门 1）。
+   */
+  remoteDesktopNativeCapability?: boolean | (() => boolean);
+  /**
    * 局域网远程桌面被控 hook（docs/specs/lan-remote-desktop.md 接口变更 2）：
    * 提供时暴露 POST /api/remote-desktop/session 与 GET /ws/remote-desktop。
    * 会话请求由宿主裁决（同意流），票据签发与单次消费由本模块兜底；
@@ -359,6 +365,16 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
               typeof options.remoteDesktopCapability === "function"
                 ? options.remoteDesktopCapability()
                 : options.remoteDesktopCapability,
+          }
+        : {}),
+      // remoteDesktopNative 同口径：不声明 = 缺键 = 旧对端
+      //（docs/specs/lan-remote-desktop-native-media.md 版本门 1）。
+      ...(options.remoteDesktopNativeCapability !== undefined
+        ? {
+            remoteDesktopNative:
+              typeof options.remoteDesktopNativeCapability === "function"
+                ? options.remoteDesktopNativeCapability()
+                : options.remoteDesktopNativeCapability,
           }
         : {}),
     },

@@ -1,8 +1,10 @@
 /**
  * 「远程桌面」设备页的可用性判定（纯函数，单测见 packages/ui/test/remoteDesktopDeviceAvailability.test.ts）。
  *
- * 规则（docs/specs/lan-remote-desktop.md 产品规则 1/5 与降级语义）：
+ * 规则（docs/specs/lan-remote-desktop.md 产品规则 1/5 与降级语义；
+ * 原生媒体面版本门见 docs/specs/lan-remote-desktop-native-media.md）：
  * - 能力位 `remoteDesktop`：win32 && 被控开关 && kill-switch；旧对端缺键 = false → 不支持；
+ * - 版本门 `remoteDesktopNative`（纯直替）：旧对端缺 native 键 = false → 不支持（同一 unsupported 文案）；
  * - 在线状态：宿主探测失败一律按离线展示（能力位不猜测），由用户手动重试；
  * - 不可连接时入口置灰并给稳定文案，不建回退通道、不自动重试。
  */
@@ -45,7 +47,9 @@ export function resolveRemoteDesktopDeviceAvailability(
   if (!probe.capability.online) {
     return { canConnect: false, reason: "offline" };
   }
-  if (!probe.capability.remoteDesktop) {
+  // 版本门（纯直替）：缺 native 键 = 旧对端，不进会话；复用既有 unsupported 文案
+  //（已含「或版本过旧」），不新增 reason/key。
+  if (!probe.capability.remoteDesktop || !probe.capability.remoteDesktopNative) {
     return { canConnect: false, reason: "unsupported" };
   }
   return { canConnect: true, reason: null };

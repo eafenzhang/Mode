@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-// 远程桌面设备页可用性判定（docs/specs/lan-remote-desktop.md 产品规则 1/5 与降级语义）：
-// 能力位缺键 = 不支持、探测失败/离线一律置灰、只有「在线 + 能力位为真」才可连接。
+// 远程桌面设备页可用性判定（docs/specs/lan-remote-desktop.md 产品规则 1/5 与降级语义；
+// 原生媒体面版本门见 docs/specs/lan-remote-desktop-native-media.md）：
+// 能力位缺键 = 不支持、探测失败/离线一律置灰、只有「在线 + 两个能力位都为真」才可连接。
 // 纯函数单测；shared 的坐标/键盘纯函数不在此重复覆盖（packages/shared/test 已测）。
 const { resolveRemoteDesktopDeviceAvailability, resolveRemoteDesktopDeviceLabel } =
   await import("../src/remote-desktop/deviceAvailability.js");
@@ -29,7 +30,7 @@ test("对端离线：即使能力位为真也不可连接", () => {
   assert.deepEqual(
     resolveRemoteDesktopDeviceAvailability({
       status: "ok",
-      capability: { remoteDesktop: true, online: false },
+      capability: { remoteDesktop: true, remoteDesktopNative: true, online: false },
     }),
     { canConnect: false, reason: "offline" },
   );
@@ -39,7 +40,17 @@ test("旧对端缺键（能力位 false）显示不支持", () => {
   assert.deepEqual(
     resolveRemoteDesktopDeviceAvailability({
       status: "ok",
-      capability: { remoteDesktop: false, online: true },
+      capability: { remoteDesktop: false, remoteDesktopNative: false, online: true },
+    }),
+    { canConnect: false, reason: "unsupported" },
+  );
+});
+
+test("对端有 remoteDesktop 但缺 remoteDesktopNative（旧版本）→ 不支持", () => {
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: { remoteDesktop: true, remoteDesktopNative: false, online: true },
     }),
     { canConnect: false, reason: "unsupported" },
   );
@@ -49,7 +60,7 @@ test("在线且能力位为真才可连接", () => {
   assert.deepEqual(
     resolveRemoteDesktopDeviceAvailability({
       status: "ok",
-      capability: { remoteDesktop: true, online: true, name: "DESKTOP-1" },
+      capability: { remoteDesktop: true, remoteDesktopNative: true, online: true, name: "DESKTOP-1" },
     }),
     { canConnect: true, reason: null },
   );
@@ -59,7 +70,7 @@ test("在线且能力位为真才可连接", () => {
 test("本机被控中：即使对端就绪也整卡置灰", () => {
   assert.deepEqual(
     resolveRemoteDesktopDeviceAvailability(
-      { status: "ok", capability: { remoteDesktop: true, online: true } },
+      { status: "ok", capability: { remoteDesktop: true, remoteDesktopNative: true, online: true } },
       { locallyControlled: true },
     ),
     { canConnect: false, reason: "locally-controlled" },

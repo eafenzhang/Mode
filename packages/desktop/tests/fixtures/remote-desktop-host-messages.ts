@@ -118,6 +118,8 @@ const fromHostSamples = [
     requestId: "r4",
     online: true,
     remoteDesktop: true,
+    // 原生媒体面版本门（纯直替）：strict schema 漏字段会整条丢弃，双端镜像必须同步声明。
+    remoteDesktopNative: true,
     name: "Peer",
   },
   {

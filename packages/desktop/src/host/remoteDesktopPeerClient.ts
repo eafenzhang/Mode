@@ -22,6 +22,8 @@ const SESSION_REQUEST_TIMEOUT_MS = 90_000;
 export interface RemoteDesktopPeerInfo {
   online: boolean;
   remoteDesktop: boolean;
+  /** 原生媒体面版本门（纯直替）：旧对端缺键 = false（docs/specs/lan-remote-desktop-native-media.md）。 */
+  remoteDesktopNative: boolean;
   name?: string;
 }
 
@@ -78,7 +80,7 @@ export async function probeRemoteDesktopPeer(
 ): Promise<RemoteDesktopPeerInfo> {
   const target = await readPeerTarget(credentials, serverId);
   if (!target) {
-    return { online: false, remoteDesktop: false };
+    return { online: false, remoteDesktop: false, remoteDesktopNative: false };
   }
   try {
     const info = await fetchLanPeerInfo({
@@ -90,10 +92,12 @@ export async function probeRemoteDesktopPeer(
       online: true,
       // 缺键 = 旧对端不支持（docs/specs/lan-remote-desktop.md 产品规则 5）。
       remoteDesktop: info.capabilities?.remoteDesktop === true,
+      // 原生媒体面版本门：同样缺键 = 旧对端（纯直替，缺 native = 不进会话）。
+      remoteDesktopNative: info.capabilities?.remoteDesktopNative === true,
       ...(info.name ? { name: info.name } : {}),
     };
   } catch {
-    return { online: false, remoteDesktop: false };
+    return { online: false, remoteDesktop: false, remoteDesktopNative: false };
   }
 }
 

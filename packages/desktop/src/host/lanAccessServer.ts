@@ -322,6 +322,15 @@ export async function startLanAccessServer(
         killSwitchEngaged: isRemoteDesktopKillSwitchEngaged(process.env),
         serverEnabled: params.isRemoteDesktopServerEnabled?.() ?? false,
       }),
+    // 原生媒体面版本门（docs/specs/lan-remote-desktop-native-media.md 版本门 1）：
+    // 本期纯直替——native ≡ remoteDesktop，故用同一表达式再算一遍（两键必然同值）；
+    // 未来若要兼容旧版 WebRTC 对端，再在这里解耦成独立判定。
+    remoteDesktopNativeCapability: () =>
+      computeRemoteDesktopCapability({
+        platform: process.platform,
+        killSwitchEngaged: isRemoteDesktopKillSwitchEngaged(process.env),
+        serverEnabled: params.isRemoteDesktopServerEnabled?.() ?? false,
+      }),
     // T3 接 main 桥：缺省实现下会话请求一律拒绝、信令 socket 断链，不落地半开状态。
     remoteDesktop: {
       requestSession:

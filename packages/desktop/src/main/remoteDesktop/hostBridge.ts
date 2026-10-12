@@ -73,7 +73,12 @@ type PendingRequest =
     }
   | {
       kind: "peer-probe";
-      resolve: (value: { online: boolean; remoteDesktop: boolean; name?: string }) => void;
+      resolve: (value: {
+        online: boolean;
+        remoteDesktop: boolean;
+        remoteDesktopNative: boolean;
+        name?: string;
+      }) => void;
       reject: (error: Error) => void;
       timer: ReturnType<typeof setTimeout>;
     }
@@ -219,13 +224,19 @@ export async function requestRemoteDesktopRevokeClient(clientId: string): Promis
 export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
   online: boolean;
   remoteDesktop: boolean;
+  remoteDesktopNative: boolean;
   name?: string;
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe, serverId },
     "peer-probe",
   );
-  return (await promise) as { online: boolean; remoteDesktop: boolean; name?: string };
+  return (await promise) as {
+    online: boolean;
+    remoteDesktop: boolean;
+    remoteDesktopNative: boolean;
+    name?: string;
+  };
 }
 
 export async function requestRemoteDesktopPeerSessionOpen(
@@ -286,6 +297,7 @@ export function handleRemoteDesktopHostMessage(label: string, data: unknown): bo
       pending.resolve({
         online: message.online,
         remoteDesktop: message.remoteDesktop,
+        remoteDesktopNative: message.remoteDesktopNative,
         ...(message.name ? { name: message.name } : {}),
       });
     });

@@ -25,6 +25,9 @@ export const serverRemoteInfoSchema = z.object({
     // LAN 远程桌面设备能力位：对端 win32 + 被控开关开 + env kill-switch 才发 true；
     // 旧对端缺键 = 不支持（docs/specs/lan-remote-desktop.md）。
     remoteDesktop: z.boolean().optional(),
+    // 原生媒体面版本门（纯直替兼容闸）：本期原生媒体面就是唯一媒体面，
+    // 旧对端缺键 = 不支持（docs/specs/lan-remote-desktop-native-media.md 版本门 1）。
+    remoteDesktopNative: z.boolean().optional(),
   }),
 });
 

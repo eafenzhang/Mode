@@ -986,6 +986,8 @@ export interface IPlatformService {
   rdGetPeerCapability(serverId: string): Promise<{
     /** 对端 `server-info.capabilities.remoteDesktop`；旧对端缺键 = false（不支持）。 */
     remoteDesktop: boolean;
+    /** 对端支持原生媒体面（纯直替版本门）；旧对端缺键 = false。 */
+    remoteDesktopNative: boolean;
     /** 宿主探测是否成功；false 时能力位不可信，按离线展示。 */
     online: boolean;
     /** 对端自报名（可选）。 */

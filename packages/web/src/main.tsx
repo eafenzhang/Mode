@@ -139,7 +139,8 @@ function createWebPlatform(): IPlatformService {
     removeLanPairedPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
     // 局域网远程桌面需要宿主 Helper 与屏幕采集面，Web / 浏览器端不具备：
     // 入口本身有 win32 桌面门，这里只保证平台合同完整（读返回空态，写直接拒绝）。
-    rdGetPeerCapability: () => Promise.resolve({ remoteDesktop: false, online: false }),
+    rdGetPeerCapability: () =>
+      Promise.resolve({ remoteDesktop: false, remoteDesktopNative: false, online: false }),
     rdStartSession: () => Promise.resolve({ error: "unsupported" as const }),
     rdGetControlledState: () => Promise.resolve({ controlled: false }),
     rdSendSignal: () => {},
