@@ -8,6 +8,7 @@ import {
   type HostLanPairPeerResultResponse,
   type HostLanPairedPeersListResponse,
   type HostLanPairedPeerRemoveResponse,
+  type HostLanPairedPeerRenameResponse,
   type HostLanPairedPeerWorkspacesResponse,
   type LanAccessPairResult,
   type LanAccessState,
@@ -35,7 +36,8 @@ interface PendingLanPairRequest {
 export type LanPairedPeerOpResponse =
   | HostLanPairedPeersListResponse
   | HostLanPairedPeerWorkspacesResponse
-  | HostLanPairedPeerRemoveResponse;
+  | HostLanPairedPeerRemoveResponse
+  | HostLanPairedPeerRenameResponse;
 
 const pendingLanPeerOps = new Map<
   string,
@@ -128,13 +130,15 @@ async function callLanPairHost(request: LanPairPeerRequest): Promise<LanAccessPa
   });
 }
 
-/** 「我配对的对端」三动作：与局域网控制同款的 owner host 转发 + 超时回收。 */
+/** 「我配对的对端」四个动作：与局域网控制同款的 owner host 转发 + 超时回收。 */
 async function callLanPairedPeerHost(
   type:
     | typeof HostMessageTypes.LanPairedPeersList
     | typeof HostMessageTypes.LanPairedPeerWorkspaces
-    | typeof HostMessageTypes.LanPairedPeerRemove,
+    | typeof HostMessageTypes.LanPairedPeerRemove
+    | typeof HostMessageTypes.LanPairedPeerRename,
   serverId?: string,
+  name?: string,
 ): Promise<LanPairedPeerOpResponse> {
   const owner = pickOwner();
   if (!owner) {
@@ -161,6 +165,7 @@ async function callLanPairedPeerHost(
         type,
         requestId,
         ...(serverId ? { serverId } : {}),
+        ...(name ? { name } : {}),
       });
     } catch (error) {
       clearTimeout(timer);
@@ -335,6 +340,35 @@ export function registerLanAccessIpcHandlers(options: {
       throw error;
     }
   });
+  ipcMain.handle(
+    PlatformChannels.RenameLanPairedPeer,
+    async (_event, rawServerId: unknown, rawName: unknown) => {
+      const serverId = typeof rawServerId === "string" ? rawServerId.trim() : "";
+      const name = typeof rawName === "string" ? rawName.trim() : "";
+      if (!serverId) {
+        throw new Error("serverId 不能为空");
+      }
+      if (!name || name.length > 64) {
+        throw new Error("名称需为 1~64 个字符");
+      }
+      try {
+        const result = await callLanPairedPeerHost(
+          HostMessageTypes.LanPairedPeerRename,
+          serverId,
+          name,
+        );
+        if (result.type !== "lan-paired-peer-rename-result") {
+          throw new Error("局域网对端响应类型不匹配");
+        }
+      } catch (error) {
+        options.logger.warn("[lan-access] rename paired peer failed:", {
+          serverId,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+    },
+  );
   ipcMain.handle(PlatformChannels.RemoveLanAccessClient, async (_event, clientId: unknown) => {
     if (typeof clientId !== "string" || !clientId.trim()) {
       throw new Error("clientId 不能为空");

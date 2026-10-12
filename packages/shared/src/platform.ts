@@ -633,6 +633,8 @@ export interface IPlatformService {
   getLanPeerWorkspaces(serverId: string): Promise<LanPairedPeerWorkspaces>;
   /** 删除某个已配对对端（清长期令牌与元数据，下次连接需重新配对）。 */
   removeLanPairedPeer(serverId: string): Promise<void>;
+  /** 重命名某个已配对对端（只改本机记录的名称，不影响对端；1~64 字符）。 */
+  renameLanPairedPeer(serverId: string, name: string): Promise<void>;
 
   /** 列出本机可用的 WSL 发行版 */
   listWSLDistros(): Promise<WSLDistro[]>;

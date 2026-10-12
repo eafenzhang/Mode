@@ -481,8 +481,8 @@ export const hostLanPairPeerMessageSchema = z
 export type HostLanPairPeerMessage = z.infer<typeof hostLanPairPeerMessageSchema>;
 
 /**
- * 我配对的对端（main → host）：一条 schema 覆盖三个动作，
- * 只有 workspaces/remove 带 serverId（list 靠凭据前缀枚举）。
+ * 我配对的对端（main → host）：一条 schema 覆盖四个动作，
+ * workspaces/remove/rename 带 serverId（list 靠凭据前缀枚举）；rename 另带 name。
  */
 export const hostLanPairedPeerMessageSchema = z
   .object({
@@ -490,9 +490,11 @@ export const hostLanPairedPeerMessageSchema = z
       "lan-paired-peers-list",
       "lan-paired-peer-workspaces",
       "lan-paired-peer-remove",
+      "lan-paired-peer-rename",
     ]),
     requestId: nonEmptyStringSchema,
     serverId: nonEmptyStringSchema.optional(),
+    name: z.string().min(1).max(64).optional(),
   })
   .strict();
 export type HostLanPairedPeerMessage = z.infer<typeof hostLanPairedPeerMessageSchema>;
@@ -1057,6 +1059,18 @@ export type HostLanPairedPeerRemoveResponse = z.infer<
   typeof hostLanPairedPeerRemoveResponseSchema
 >;
 
+export const hostLanPairedPeerRenameResponseSchema = z
+  .object({
+    type: z.literal("lan-paired-peer-rename-result"),
+    requestId: nonEmptyStringSchema,
+    ok: z.boolean(),
+    error: z.string().optional(),
+  })
+  .strict();
+export type HostLanPairedPeerRenameResponse = z.infer<
+  typeof hostLanPairedPeerRenameResponseSchema
+>;
+
 export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("database-startup-state"), state: databaseStartupStateSchema })
@@ -1067,6 +1081,7 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostLanPairedPeersListResponseSchema,
   hostLanPairedPeerWorkspacesResponseSchema,
   hostLanPairedPeerRemoveResponseSchema,
+  hostLanPairedPeerRenameResponseSchema,
   hostRemoteWorkspaceConnectionLogResponseSchema,
   hostRemoteWorkspaceConnectedResponseSchema,
   hostRemoteWorkspaceConnectFailedResponseSchema,

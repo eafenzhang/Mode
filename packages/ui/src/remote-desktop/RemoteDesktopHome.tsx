@@ -8,14 +8,18 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowRight,
+  Check,
   LoaderIcon,
   MonitorSmartphone,
+  Pencil,
   RefreshCw,
   Settings2,
+  Trash2,
   WifiOff,
 } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
+import { Input } from "@/components/ui/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
@@ -55,6 +59,12 @@ export function RemoteDesktopHome({
   const [sessionTarget, setSessionTarget] = useState<{ serverId: string; name: string } | null>(
     null,
   );
+  // 设备管理（编辑/删除）：编辑 = 重命名本机记录（renameLanPairedPeer，不动对端与令牌）；
+  // 删除 = 清配对令牌与元数据（removeLanPairedPeer，两段式确认防误触）。
+  const [editingPeer, setEditingPeer] = useState<{ serverId: string; name: string } | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [peerActionBusy, setPeerActionBusy] = useState(false);
+  const [peerActionError, setPeerActionError] = useState("");
 
   const loadPeers = useCallback(async () => {
     setPeers({ status: "loading" });
@@ -124,6 +134,44 @@ export function RemoteDesktopHome({
     setSessionTarget(null);
   }, []);
 
+  /** 保存重命名（编辑）：只改本机记录的名称；成功后刷新列表复位编辑态。 */
+  const saveRename = useCallback(async () => {
+    const target = editingPeer;
+    const name = target?.name.trim() ?? "";
+    if (!target || !name) {
+      return;
+    }
+    setPeerActionBusy(true);
+    setPeerActionError("");
+    try {
+      await platform.renameLanPairedPeer(target.serverId, name);
+      setEditingPeer(null);
+      await loadPeers();
+    } catch (error) {
+      setPeerActionError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPeerActionBusy(false);
+    }
+  }, [editingPeer, loadPeers, platform]);
+
+  /** 删除（两段式确认后执行）：清配对令牌与元数据，成功后刷新列表。 */
+  const deletePeer = useCallback(
+    async (serverId: string) => {
+      setPeerActionBusy(true);
+      setPeerActionError("");
+      try {
+        await platform.removeLanPairedPeer(serverId);
+        setPendingDeleteId(null);
+        await loadPeers();
+      } catch (error) {
+        setPeerActionError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setPeerActionBusy(false);
+      }
+    },
+    [loadPeers, platform],
+  );
+
   if (sessionTarget) {
     return (
       <RemoteDesktopSession
@@ -168,6 +216,12 @@ export function RemoteDesktopHome({
                 {intl.formatMessage({ id: "remoteDesktop.devices.refresh" })}
               </Button>
             </header>
+
+            {peerActionError ? (
+              <p className="rounded-lg border border-border bg-card px-3 py-2 text-ui-base text-destructive">
+                {peerActionError}
+              </p>
+            ) : null}
 
             {peers.status === "loading" ? (
               <p className="flex items-center gap-2 py-6 text-ui-base text-foreground-subtle">
@@ -231,33 +285,128 @@ export function RemoteDesktopHome({
                             <MonitorSmartphone className="size-4" />
                           )}
                         </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-ui-base text-foreground">
-                            {name}
+                        {editingPeer?.serverId === peer.serverId ? (
+                          <span className="min-w-0 flex-1 space-y-2">
+                            <Input
+                              size="lg"
+                              data-testid="remote-desktop-device-name-input"
+                              value={editingPeer.name}
+                              onChange={(event) =>
+                                setEditingPeer({ serverId: peer.serverId, name: event.target.value })
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  void saveRename();
+                                }
+                                if (event.key === "Escape") {
+                                  setEditingPeer(null);
+                                }
+                              }}
+                            />
+                            <span className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={peerActionBusy || !editingPeer.name.trim()}
+                                onClick={() => void saveRename()}
+                              >
+                                <Check className="size-4" />
+                                {intl.formatMessage({ id: "remoteDesktop.device.save" })}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={peerActionBusy}
+                                onClick={() => setEditingPeer(null)}
+                              >
+                                {intl.formatMessage({ id: "remoteDesktop.device.cancel" })}
+                              </Button>
+                            </span>
                           </span>
-                          <span className="block truncate text-ui-xs text-foreground-subtle">
-                            {peer.host && peer.port ? `${peer.host}:${peer.port}` : peer.serverId}
+                        ) : (
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-ui-base text-foreground">
+                              {name}
+                            </span>
+                            <span className="block truncate text-ui-xs text-foreground-subtle">
+                              {peer.host && peer.port ? `${peer.host}:${peer.port}` : peer.serverId}
+                            </span>
+                            <span className="mt-1 block text-ui-xs text-foreground-subtle">
+                              {blockedReason
+                                ? intl.formatMessage({
+                                    id: `remoteDesktop.device.reason.${blockedReason}`,
+                                  })
+                                : intl.formatMessage({ id: "remoteDesktop.device.reason.ready" })}
+                            </span>
                           </span>
-                          <span className="mt-1 block text-ui-xs text-foreground-subtle">
-                            {blockedReason
-                              ? intl.formatMessage({
-                                  id: `remoteDesktop.device.reason.${blockedReason}`,
-                                })
-                              : intl.formatMessage({ id: "remoteDesktop.device.reason.ready" })}
-                          </span>
-                        </span>
+                        )}
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="self-end"
-                        disabled={!availability.canConnect}
-                        onClick={() => connect(peer)}
-                      >
-                        <ArrowRight className="size-4" />
-                        {intl.formatMessage({ id: "remoteDesktop.devices.connect" })}
-                      </Button>
+                      {editingPeer?.serverId === peer.serverId ? null : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {pendingDeleteId === peer.serverId ? (
+                            <>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                disabled={peerActionBusy}
+                                onClick={() => void deletePeer(peer.serverId)}
+                              >
+                                {intl.formatMessage({ id: "remoteDesktop.device.deleteConfirm" })}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={peerActionBusy}
+                                onClick={() => setPendingDeleteId(null)}
+                              >
+                                {intl.formatMessage({ id: "remoteDesktop.device.cancel" })}
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setPeerActionError("");
+                                  setPendingDeleteId(null);
+                                  setEditingPeer({ serverId: peer.serverId, name });
+                                }}
+                              >
+                                <Pencil className="size-4" />
+                                {intl.formatMessage({ id: "remoteDesktop.device.rename" })}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setPeerActionError("");
+                                  setEditingPeer(null);
+                                  setPendingDeleteId(peer.serverId);
+                                }}
+                              >
+                                <Trash2 className="size-4" />
+                                {intl.formatMessage({ id: "remoteDesktop.device.delete" })}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={!availability.canConnect}
+                                onClick={() => connect(peer)}
+                              >
+                                <ArrowRight className="size-4" />
+                                {intl.formatMessage({ id: "remoteDesktop.devices.connect" })}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </li>
                   );
                 })}

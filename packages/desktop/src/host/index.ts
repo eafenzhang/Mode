@@ -2359,6 +2359,20 @@ function parseLanPeerMeta(raw: string | null): LanPeerMeta | null {
  * 枚举只读键名与元数据（令牌不回传）；拉工作区用已存令牌访问对端 server-info；
  * 删除让 token 与 meta 同生命周期收口。全部失败以可读错误回帖，UI 转「无法获取」。
  */
+/** 「我配对的对端」消息类型 → 回帖响应类型（handler 与 services 未就绪兜底共用）。 */
+function lanPairedPeerReplyType(type: HostLanPairedPeerMessage["type"]): string {
+  switch (type) {
+    case "lan-paired-peers-list":
+      return HostResponseTypes.LanPairedPeersListResult;
+    case "lan-paired-peer-workspaces":
+      return HostResponseTypes.LanPairedPeerWorkspacesResult;
+    case "lan-paired-peer-remove":
+      return HostResponseTypes.LanPairedPeerRemoveResult;
+    case "lan-paired-peer-rename":
+      return HostResponseTypes.LanPairedPeerRenameResult;
+  }
+}
+
 async function handleLanPairedPeerMessage(
   msg: HostLanPairedPeerMessage,
   services: ServiceCollection,
@@ -2371,12 +2385,7 @@ async function handleLanPairedPeerMessage(
     workspaces?: ServerRemoteWorkspaceInfo[];
   }) => {
     parentPort.postMessage({
-      type:
-        msg.type === "lan-paired-peers-list"
-          ? HostResponseTypes.LanPairedPeersListResult
-          : msg.type === "lan-paired-peer-workspaces"
-            ? HostResponseTypes.LanPairedPeerWorkspacesResult
-            : HostResponseTypes.LanPairedPeerRemoveResult,
+      type: lanPairedPeerReplyType(msg.type),
       requestId: msg.requestId,
       ok: payload.ok,
       ...(payload.error ? { error: payload.error } : {}),
@@ -2429,6 +2438,22 @@ async function handleLanPairedPeerMessage(
     if (msg.type === "lan-paired-peer-remove") {
       await credentials.delete(buildLanPeerTokenKey(serverId));
       await credentials.delete(buildLanPeerMetaKey(serverId));
+      reply({ ok: true });
+      return;
+    }
+    if (msg.type === "lan-paired-peer-rename") {
+      const name = msg.name?.trim();
+      if (!name) {
+        reply({ ok: false, error: "缺少名称" });
+        return;
+      }
+      const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(serverId)));
+      if (!meta) {
+        reply({ ok: false, error: "该配对缺少元数据，无法重命名" });
+        return;
+      }
+      // 只改本机元数据里的名称：对端不受影响，令牌/地址不动（下次连接照常）。
+      await credentials.save(buildLanPeerMetaKey(serverId), JSON.stringify({ ...meta, name }));
       reply({ ok: true });
       return;
     }
@@ -3025,16 +3050,12 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
   if (
     msg.type === HostMessageTypes.LanPairedPeersList ||
     msg.type === HostMessageTypes.LanPairedPeerWorkspaces ||
-    msg.type === HostMessageTypes.LanPairedPeerRemove
+    msg.type === HostMessageTypes.LanPairedPeerRemove ||
+    msg.type === HostMessageTypes.LanPairedPeerRename
   ) {
     if (!activeServices) {
       parentPort.postMessage({
-        type:
-          msg.type === HostMessageTypes.LanPairedPeersList
-            ? HostResponseTypes.LanPairedPeersListResult
-            : msg.type === HostMessageTypes.LanPairedPeerWorkspaces
-              ? HostResponseTypes.LanPairedPeerWorkspacesResult
-              : HostResponseTypes.LanPairedPeerRemoveResult,
+        type: lanPairedPeerReplyType(msg.type),
         requestId: msg.requestId,
         ok: false,
         error: "host services not ready",

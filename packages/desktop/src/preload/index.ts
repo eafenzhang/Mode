@@ -292,6 +292,8 @@ contextBridge.exposeInMainWorld("mode", {
     ipcRenderer.invoke(PlatformChannels.GetLanPeerWorkspaces, serverId),
   removeLanPairedPeer: (serverId: string) =>
     ipcRenderer.invoke(PlatformChannels.RemoveLanPairedPeer, serverId),
+  renameLanPairedPeer: (serverId: string, name: string) =>
+    ipcRenderer.invoke(PlatformChannels.RenameLanPairedPeer, serverId, name),
   listWSLDistros: () => ipcRenderer.invoke(PlatformChannels.ListWSLDistros),
   listDockerContainers: () => ipcRenderer.invoke(PlatformChannels.ListDockerContainers),
   listSSHConfigAliases: (): Promise<SSHConfigAliasOption[]> =>

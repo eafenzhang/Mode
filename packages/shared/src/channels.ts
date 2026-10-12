@@ -207,6 +207,8 @@ export const PlatformChannels = {
   GetLanPeerWorkspaces: "mode:get-lan-peer-workspaces",
   /** Renderer → Main：删除某个已配对对端（清令牌与元数据） */
   RemoveLanPairedPeer: "mode:remove-lan-paired-peer",
+  /** Renderer → Main：重命名某个已配对对端（只改本机记录的名称，不动令牌） */
+  RenameLanPairedPeer: "mode:rename-lan-paired-peer",
   /** Renderer → Main：从用户目录加载 CLI MCP 配置 */
   LoadMcpFromUserDirectory: "mode:load-mcp-from-user-directory",
   /** Renderer → Main：保存 CLI MCP 配置到用户目录 */
@@ -554,10 +556,11 @@ export const HostMessageTypes = {
   LanAccessCreatePairCode: "lan-access-create-pair-code",
   LanAccessRemoveClient: "lan-access-remove-client",
   LanAccessResetTokens: "lan-access-reset-tokens",
-  /** main → host：「我配对的对端」三个动作（枚举 / 拉对端工作区 / 删除配对） */
+  /** main → host：「我配对的对端」四个动作（枚举 / 拉对端工作区 / 删除配对 / 重命名） */
   LanPairedPeersList: "lan-paired-peers-list",
   LanPairedPeerWorkspaces: "lan-paired-peer-workspaces",
   LanPairedPeerRemove: "lan-paired-peer-remove",
+  LanPairedPeerRename: "lan-paired-peer-rename",
   /** main → host：资源管理器请求 Host 采样其后代进程（Agent / MCP / 终端）的 CPU 与内存 */
   ResourceUsageSnapshotRequest: "resource-usage-snapshot-request",
   ResourceUsageSnapshotCancel: "resource-usage-snapshot-cancel",
@@ -602,6 +605,7 @@ export const HostResponseTypes = {
   LanPairedPeersListResult: "lan-paired-peers-list-result",
   LanPairedPeerWorkspacesResult: "lan-paired-peer-workspaces-result",
   LanPairedPeerRemoveResult: "lan-paired-peer-remove-result",
+  LanPairedPeerRenameResult: "lan-paired-peer-rename-result",
   /** host 内当前正在执行 prompt 的 agent session 数量变化 */
   AgentRunningTaskCountChanged: "agent-running-task-count-changed",
   /** host 内指定 workspace 当前仍未 terminal 的 task 数量变化 */
