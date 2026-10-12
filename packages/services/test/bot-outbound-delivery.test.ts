@@ -72,42 +72,68 @@ test("botsStateFileSchema：不含新字段的存量对话状态照常解析（�
 
 test("classifySendError：仅结构化错误可分类，普通 Error 返回 null", async () => {
   const { BotSendError, classifySendError } = await import("../src/bots/outboundDelivery.js");
-  assert.equal(classifySendError(new BotSendError("context_expired", "prepare failed")), "context_expired");
+  assert.equal(
+    classifySendError(new BotSendError("context_expired", "prepare failed")),
+    "context_expired",
+  );
   assert.equal(classifySendError(new BotSendError("retryable", "HTTP 503")), "retryable");
-  assert.equal(classifySendError(new BotSendError("session_expired", "HTTP 401")), "session_expired");
+  assert.equal(
+    classifySendError(new BotSendError("session_expired", "HTTP 401")),
+    "session_expired",
+  );
   assert.equal(classifySendError(new Error("Weixin iLink /sendmessage failed: ret=1")), null);
   assert.equal(classifySendError("string error"), null);
 });
 
-test("planDeliveryRecovery：context_expired 换新 token → 去 token → 停放", async () => {
+test("planDeliveryRecovery：context_expired 先主动续期探测，再换新/同 token → 去 token → 停放", async () => {
   const { planDeliveryRecovery } = await import("../src/bots/outboundDelivery.js");
-  // 首次失败且有更新 token：换新重试
+  // 首次失败：先做主动续期探测（对齐 MyAgents「强刷票重试」模式；微信对应物是 /getconfig）
   assert.deepEqual(
-    planDeliveryRecovery("context_expired", { attempt: 0, usedToken: "old", freshToken: "new" }),
+    planDeliveryRecovery("context_expired", { attempt: 0, usedToken: "old", refreshed: false }),
+    { kind: "refresh_session" },
+  );
+  // 探测带回新 token：换新重试
+  assert.deepEqual(
+    planDeliveryRecovery("context_expired", {
+      attempt: 0,
+      usedToken: "old",
+      freshToken: "new",
+      refreshed: true,
+    }),
     { kind: "retry_with_token", token: "new" },
   );
-  // token 无更新：直接去掉 token 重试
+  // 探测无新 token：同 token 重试一次（探测本身可能已在服务端重建会话）
   assert.deepEqual(
-    planDeliveryRecovery("context_expired", { attempt: 0, usedToken: "old", freshToken: "old" }),
-    { kind: "retry_without_token" },
+    planDeliveryRecovery("context_expired", {
+      attempt: 0,
+      usedToken: "old",
+      freshToken: "old",
+      refreshed: true,
+    }),
+    { kind: "retry_with_token", token: "old" },
   );
   assert.deepEqual(
-    planDeliveryRecovery("context_expired", { attempt: 1, usedToken: "new", freshToken: "new" }),
+    planDeliveryRecovery("context_expired", { attempt: 1, usedToken: "old", refreshed: true }),
     { kind: "retry_without_token" },
   );
-  // 两步重试用尽：停放
+  // 重试用尽：停放
   assert.deepEqual(
-    planDeliveryRecovery("context_expired", { attempt: 2, usedToken: undefined, freshToken: undefined }),
+    planDeliveryRecovery("context_expired", {
+      attempt: 2,
+      usedToken: undefined,
+      refreshed: true,
+    }),
     { kind: "park" },
   );
-  // 本来就不带 token：无从恢复，直接停放
-  assert.deepEqual(planDeliveryRecovery("context_expired", { attempt: 0 }), { kind: "park" });
+  // 本来就不带 token 且已探测：无从恢复，直接停放
+  assert.deepEqual(planDeliveryRecovery("context_expired", { attempt: 0, refreshed: true }), {
+    kind: "park",
+  });
 });
 
 test("planDeliveryRecovery：retryable 退避两次后停放；session_expired 直接停放", async () => {
-  const { planDeliveryRecovery, BOT_SEND_RETRY_DELAYS_MS } = await import(
-    "../src/bots/outboundDelivery.js"
-  );
+  const { planDeliveryRecovery, BOT_SEND_RETRY_DELAYS_MS } =
+    await import("../src/bots/outboundDelivery.js");
   assert.deepEqual(planDeliveryRecovery("retryable", { attempt: 0 }), {
     kind: "retry_backoff",
     delayMs: BOT_SEND_RETRY_DELAYS_MS[0],
@@ -138,7 +164,10 @@ test("pendingDeliveryQueue：入队裁剪、队首删除、失败递增与 8 次
 
   const removed = removeFirstPendingDelivery(state);
   assert.equal(removed.removed?.text, "r1");
-  assert.deepEqual(removed.queue.map((item) => item.text), ["r2"]);
+  assert.deepEqual(
+    removed.queue.map((item) => item.text),
+    ["r2"],
+  );
 
   // 队首失败递增 attempts，直至超限丢弃
   let queue = [{ text: "stale", providerUserId: "u1", queuedAt: 1, attempts: 0 }];
@@ -160,10 +189,38 @@ test("pendingDeliveryQueue：入队裁剪、队首删除、失败递增与 8 次
   assert.equal(full[0]?.text, "m1");
 });
 
-test("createBotSendQueue：同 bot 严格 FIFO + 失败不阻塞后续；跨 bot 互不阻塞", async () => {
-  const { createBotSendQueue, BOT_SEND_MIN_INTERVAL_MS } = await import(
-    "../src/bots/outboundDelivery.js"
+test("prependPendingDelivery：停放失败的提示排入队首，超限丢最旧回复", async () => {
+  const { enqueuePendingDelivery, prependPendingDelivery, BOT_PENDING_DELIVERY_LIMIT } =
+    await import("../src/bots/outboundDelivery.js");
+  let queue = enqueuePendingDelivery(undefined, { text: "r1", providerUserId: "u1" }, 1000).queue;
+  queue = enqueuePendingDelivery(queue, { text: "r2", providerUserId: "u1" }, 2000).queue;
+
+  const withNotice = prependPendingDelivery(
+    queue,
+    { text: "有回复未能送达", providerUserId: "u1" },
+    3000,
   );
+  assert.deepEqual(
+    withNotice.queue.map((item) => item.text),
+    ["有回复未能送达", "r1", "r2"],
+    "提示必须在队首：下条入站先送达提示再补投正文",
+  );
+  assert.equal(withNotice.queue[0]?.attempts, 0);
+
+  // 超限：丢最旧的回复（提示保留，队首语义不被裁剪破坏）
+  let full: ReturnType<typeof enqueuePendingDelivery>["queue"] = [];
+  for (let i = 0; i < BOT_PENDING_DELIVERY_LIMIT; i++) {
+    full = enqueuePendingDelivery(full, { text: `m${i}`, providerUserId: "u1" }, i).queue;
+  }
+  const capped = prependPendingDelivery(full, { text: "notice", providerUserId: "u1" }, 9999);
+  assert.equal(capped.queue.length, BOT_PENDING_DELIVERY_LIMIT);
+  assert.equal(capped.queue[0]?.text, "notice");
+  assert.equal(capped.dropped?.text, "m0");
+});
+
+test("createBotSendQueue：同 bot 严格 FIFO + 失败不阻塞后续；跨 bot 互不阻塞", async () => {
+  const { createBotSendQueue, BOT_SEND_MIN_INTERVAL_MS } =
+    await import("../src/bots/outboundDelivery.js");
   const queue = createBotSendQueue(BOT_SEND_MIN_INTERVAL_MS);
   const order: string[] = [];
   const taskA1 = queue.run("botA", async () => {
@@ -205,9 +262,7 @@ test("createBotSendQueue：同 bot 相邻发送间隔不小于最小间隔", asy
 });
 
 test("classifyWeixinRequestFailure：HTTP 状态与服务端 errmsg 映射到恢复分类", async () => {
-  const { classifyWeixinRequestFailure } = await import(
-    "../src/bots/providers/weixinProvider.js"
-  );
+  const { classifyWeixinRequestFailure } = await import("../src/bots/providers/weixinProvider.js");
   assert.equal(classifyWeixinRequestFailure({ httpStatus: 401 }), "session_expired");
   assert.equal(classifyWeixinRequestFailure({ httpStatus: 403 }), "session_expired");
   assert.equal(classifyWeixinRequestFailure({ httpStatus: 429 }), "retryable");

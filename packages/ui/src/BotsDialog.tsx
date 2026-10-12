@@ -12,7 +12,6 @@ import type {
 import {
   ALL_BOT_WORKSPACES,
   createUuid,
-  DEFAULT_BOT_REPLY_GRANULARITY,
   isFeishuBotProvider,
   normalizeBotReplyGranularity,
 } from "@mode/shared";
@@ -82,7 +81,8 @@ function createDraftBot(params: { provider: BotProvider }): BotConfig {
     allowedWorkspaces: [ALL_BOT_WORKSPACES],
     allowedCommands: createDefaultCommands(),
     currentOptions: {},
-    replyMode: normalizeBotReplyGranularity(params.provider, DEFAULT_BOT_REPLY_GRANULARITY),
+    // 未显式选择：按 provider 默认播种（企微 streaming_card，其余 assistant_changes）。
+    replyMode: normalizeBotReplyGranularity(params.provider, undefined),
   };
 }
 

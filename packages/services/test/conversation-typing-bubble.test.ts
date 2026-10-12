@@ -7,7 +7,8 @@ import { shouldShowTypingBubble } from "../../../packages/ui/src/v4/conversation
 // 回复一到就让位给正文/ChatLoading。钉住：
 //   1. 判据纯函数三态（running 空窗才显示，有内容或不在跑都不显示）；
 //   2. 槽位渲染接线（TurnChatLoadingSlot 按 typing 分支渲染气泡，三个调用点都传了）；
-//   3. i18n 三语齐（chat.typing）。
+//   3. i18n 三语齐（chat.typing）；
+//   4. 尺寸钉上一版小尺寸（495369e 放大到点 10px / px-4 py-3 被用户反馈过大，回退后不允许再放大）。
 
 test("判据三态：running 且零助手内容才显示气泡", () => {
   assert.equal(shouldShowTypingBubble({ isRunning: true, assistantRowCount: 0 }), true);
@@ -58,6 +59,22 @@ test("三点跑错位波浪动画，且减少动态效果时静止", async () =>
     ),
     "减少动态效果下要停掉动画（静态灰点 + 末点品牌色兜底）",
   );
+});
+
+test("气泡尺寸钉上一版小尺寸，不允许再次放大", async () => {
+  const source = await readFile(
+    new URL("../../../packages/ui/src/v4/ConversationTurnGroup.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    source.includes("gap-1.5 rounded-2xl border border-border bg-surface px-3 py-2"),
+    "容器要保持上一版尺寸 gap-1.5 / px-3 py-2",
+  );
+  assert.ok(
+    source.includes('"mode-typing-dot-wave size-1.5 rounded-full"'),
+    "点要保持上一版 6px（size-1.5）",
+  );
+  assert.ok(!source.includes("size-2.5"), "size-2.5 是 495369e 放大的值，不允许回归");
 });
 
 test("chat.typing 三语齐", async () => {

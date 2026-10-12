@@ -16,6 +16,12 @@
    无用户可见提示（`botsService.ts` stream event catch）；
 3. 出站无 per-bot 串行/间隔，同一 bot 的发送可并发突发。
 
+2026-10-12 续发：桌面驱动的回合没有微信入站，`context_token` 永不刷新，当晚
+`/sendmessage` 几乎全部 `prepare failed` → 全部停放；连一次性提示也发送失败
+（`delivery parked notice failed`），用户全程无感知。两处加固均对齐 MyAgents
+的投递方案：恢复链头部加**主动续期探测**（其「强刷票重试」模式，规则 3①），
+提示失败改为**排入补投队首**（其「失败必达用户可见」模式，规则 5）。
+
 ## 产品规则
 
 1. **出站统一串行**：所有文本出站经 `sendOutbound` 进入 per-bot FIFO 队列，
@@ -26,15 +32,22 @@
    - `session_expired`：HTTP 401 / 403 / token 缺失；
    - 其余（含其他 provider 抛出的普通 Error）：**行为保持现状**（沿既有 catch 路径
      冒泡/记录），不进入新恢复管线——控制爆炸半径。
-3. **恢复顺序**（仅 `context_expired`）：
-   ① 对话存有与本次所用不同的 `lastContextToken` → 换新 token 重试 1 次；
-   ② 无新 token → 去掉 `context_token` 字段重试 1 次；
-   ③ 仍失败 → 停放入该对话的 `pendingDeliveryQueue`，并尝试发送一次性提示。
+3. **恢复顺序**（仅 `context_expired`；对齐 MyAgents「强刷票重试」模式）：
+   ① **主动续期探测**：provider 实现 `refreshContextToken` 时先主动调一次
+   （微信为 `/getconfig`，唯一可主动调用的会话级接口）——响应带回新
+   `context_token` 就换新重试；没拿到也用**原 token 重试 1 次**（探测调用
+   本身可能在服务端重建会话状态）；无该能力的 provider 跳过本步；
+   ② 对话存有与本次所用不同的 `lastContextToken` → 换新 token 重试 1 次；
+   ③ 去掉 `context_token` 字段重试 1 次；
+   ④ 仍失败 → 停放入该对话的 `pendingDeliveryQueue`，并尝试发送一次性提示。
 4. **`retryable`**：有界退避重试 2 次（500ms、2s）；仍失败转入 3 的入队路径。
    **`session_expired`**：不重试，直接入队 + 提示（detail 记入日志，提示用户重扫码需
    人工介入，文案不做平台特化）。
 5. **一次性提示**：每个失败 episode 只发一次（`deliveryNoticeAt` 时间戳标记；
-   任一补投成功后清除标记）；提示本身发送失败仅记日志，不再递归入队。
+   任一补投成功后清除标记）；**提示自身发送失败时把提示排入补投队首**——
+   下一条入站先送达提示、再按序补投正文（对齐 MyAgents「失败必达」模式；
+   enqueue 只发生在该 episode 的这次提示尝试里，不递归生成新提示；超限丢最旧
+   回复、保留队首提示）。
 6. **补投**：该对话收到新入站消息（新 token 写入 `lastContextToken`）后、
    处理该新消息**之前**，按序补投 parked 回复；**遇第一次失败即停止本轮补投**
    （服务端状态对后续条目同样不利，避免连环失败放大 attempts），
@@ -54,7 +67,8 @@
 stream/回复 ──▶ sendOutbound ──▶ per-bot FIFO（300ms 间隔）
                  │
                  ├─ 成功 ──▶ 结束（清 deliveryNoticeAt）
-                 ├─ context_expired ──▶ 换新 token 重试 → 去 token 重试 → 入队+提示
+                 ├─ context_expired ──▶ 续期探测(/getconfig) → 换新/同 token 重试
+                 │                        → 去 token 重试 → 入队+提示（提示失败则入队首）
                  ├─ retryable ──▶ 退避重试 ×2 → 入队+提示
                  ├─ session_expired ──▶ 入队+提示
                  └─ 其他 Error ──▶ 既有行为不变
@@ -72,8 +86,10 @@ stream/回复 ──▶ sendOutbound ──▶ per-bot FIFO（300ms 间隔）
 1. 单测（`packages/services/test/bot-outbound-delivery.test.ts`）：
    - 分类：errmsg=`prepare failed` → `context_expired`；HTTP 500/429 → `retryable`；
      401/403 → `session_expired`；非零 ret 其他 errmsg → 不分类（保持现状语义）；
-   - park/flush：三连失败入队、新 token 补投顺序、attempts 上限丢弃、
-     提示每 episode 一次且补投成功后复位；
+   - 恢复顺序：未探测先 `refresh_session`；探测后换新/同 token → 去 token → 停放；
+   - park/flush：失败入队、新 token 补投顺序、attempts 上限丢弃、
+     提示每 episode 一次且补投成功后复位；`prependPendingDelivery` 提示排队首、
+     超限丢最旧回复；
    - 串行队列：同 bot 严格 FIFO、跨 bot 互不阻塞、最小间隔生效。
 2. 微信 provider 层：`requestWeixinJson` 把 `ret/errcode/errmsg` 与 HTTP 状态映射到
    结构化错误（分类函数纯测，不发真实请求）。

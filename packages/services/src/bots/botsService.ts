@@ -169,6 +169,7 @@ import {
   createBotSendQueue,
   enqueuePendingDelivery,
   planDeliveryRecovery,
+  prependPendingDelivery,
   removeFirstPendingDelivery,
   type BotSendFailureCode,
 } from "./outboundDelivery.js";
@@ -3247,20 +3248,41 @@ export function createBotsService(
       `bot reply parked bot=${bot.id} provider=${bot.provider} user=${message.providerUserId} code=${code}: ${message.text.slice(0, 80)}`,
     );
     if (shouldNotify) {
-      // 提示本身发送失败只记日志：不再递归入队（spec 规则 5）。
+      // 提示自身发送失败不再静默（对齐 MyAgents「失败必达用户可见」模式）：
+      // 把提示排入队首，随下一条入站的补投先送达提示、再按序补投正文（spec 规则 5）。
+      // 仍不递归生成新提示——enqueue 只发生在本 episode 的这次提示尝试里。
       const adapter = providers[bot.provider];
+      const noticeText = msg(await readMessageLocale(), "deliveryParked");
       try {
         await adapter?.send(bot, {
           botId: bot.id,
           provider: bot.provider,
           providerUserId: message.providerUserId,
-          text: msg(await readMessageLocale(), "deliveryParked"),
+          text: noticeText,
         });
       } catch (error) {
         botsLogger.warn(
           undefined,
-          `delivery parked notice failed bot=${bot.id}: ${error instanceof Error ? error.message : String(error)}`,
+          `delivery parked notice failed bot=${bot.id}, notice queued for next inbound: ${error instanceof Error ? error.message : String(error)}`,
         );
+        await repo.mutateState((state) => {
+          const channel = state.bots[bot.id];
+          const conversation = channel?.conversations[found.key];
+          if (!channel || !conversation) {
+            return;
+          }
+          const prepended = prependPendingDelivery(
+            conversation.pendingDeliveryQueue,
+            { text: noticeText, providerUserId: message.providerUserId },
+            Date.now(),
+          );
+          channel.conversations[found.key] = {
+            ...conversation,
+            pendingDeliveryQueue: prepended.queue,
+            updatedAt: Date.now(),
+          };
+          channel.updatedAt = Date.now();
+        });
       }
     }
   }
@@ -3282,6 +3304,10 @@ export function createBotsService(
     }
     let current = message;
     let attempt = 0;
+    // 无续期能力的 provider 视为已探测，保持既有恢复节奏
+    // （context_expired 实际只有微信 iLink 会抛，且它实现了 refreshContextToken）。
+    let refreshed = !adapter.refreshContextToken;
+    let refreshedToken: string | undefined;
     for (;;) {
       try {
         await adapter.send(bot, current);
@@ -3299,12 +3325,31 @@ export function createBotsService(
           undefined,
           `bot send failed bot=${bot.id} provider=${bot.provider} code=${code} attempt=${attempt}: ${error instanceof Error ? error.message : String(error)}${detail}`,
         );
-        const freshToken = (await readOutboundConversation(bot, current))?.state.lastContextToken;
+        const freshToken =
+          refreshedToken ?? (await readOutboundConversation(bot, current))?.state.lastContextToken;
         const plan = planDeliveryRecovery(code, {
           attempt,
           usedToken: current.providerContextToken,
           freshToken,
+          refreshed,
         });
+        if (plan.kind === "refresh_session") {
+          // 主动续期探测（MyAgents「强刷票重试」模式）：微信 /getconfig 可能带回
+          // 新 context_token，探测调用本身也可能重建服务端会话状态。
+          try {
+            refreshedToken = await adapter.refreshContextToken!(bot, {
+              providerUserId: current.providerUserId,
+            });
+          } catch (refreshError) {
+            botsLogger.warn(
+              undefined,
+              `bot send context refresh failed bot=${bot.id}: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`,
+            );
+            refreshedToken = undefined;
+          }
+          refreshed = true;
+          continue;
+        }
         if (plan.kind === "retry_with_token") {
           current = { ...current, providerContextToken: plan.token };
           attempt += 1;

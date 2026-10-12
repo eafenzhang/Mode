@@ -795,8 +795,34 @@ function stripRetiredBotProviders(value: unknown): unknown {
   };
 }
 
+/**
+ * 企微回复粒度默认值迁移（docs/specs/bot-reply-granularity.md）：
+ * 企微默认由 assistant_changes 改为 streaming_card 后，把「沿用旧默认」的企微记录
+ * 一并翻转到新默认；其它 provider 与企微上显式选过的其它粒度保持原样。
+ * 幂等：翻转后 replyMode 不再命中旧值，重复解析结果不变。
+ */
+function migrateWecomReplyGranularityDefault(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const candidate = value as { bots?: unknown };
+  if (!Array.isArray(candidate.bots)) {
+    return value;
+  }
+  return {
+    ...candidate,
+    bots: candidate.bots.map((bot) => {
+      const record = bot as { provider?: unknown; replyMode?: unknown } | null;
+      if (record?.provider === "wecom" && record.replyMode === "assistant_changes") {
+        return { ...record, replyMode: "streaming_card" };
+      }
+      return bot;
+    }),
+  };
+}
+
 export const botsConfigFileSchema = z.preprocess(
-  stripRetiredBotProviders,
+  (value) => migrateWecomReplyGranularityDefault(stripRetiredBotProviders(value)),
   z
     .object({
       version: z.literal(3),
@@ -1090,6 +1116,21 @@ export const DEFAULT_BOT_COMMANDS: BotAllowedCommands = {
 
 export const DEFAULT_BOT_REPLY_GRANULARITY: BotReplyGranularity = "assistant_changes";
 
+/**
+ * 各 provider 未显式设置 replyMode 时的默认粒度；未列出的 provider 用全局默认。
+ * 企微默认 streaming_card（2026-10-12 起）：对齐 MyAgents 企微 PC 端单条消息
+ * 打字机观感的用户决策，见 docs/specs/bot-reply-granularity.md。
+ */
+const DEFAULT_BOT_REPLY_GRANULARITY_BY_PROVIDER: Partial<Record<BotProvider, BotReplyGranularity>> =
+  {
+    wecom: "streaming_card",
+  };
+
+/** provider 感知的默认回复粒度（未显式设置 replyMode 时取值；不做支持性检查）。 */
+export function getDefaultBotReplyGranularity(provider: BotProvider): BotReplyGranularity {
+  return DEFAULT_BOT_REPLY_GRANULARITY_BY_PROVIDER[provider] ?? DEFAULT_BOT_REPLY_GRANULARITY;
+}
+
 export function getSupportedBotReplyGranularities(
   provider: BotProvider,
 ): readonly BotReplyGranularity[] {
@@ -1113,7 +1154,7 @@ export function normalizeBotReplyGranularity(
   replyMode: BotReplyGranularity | undefined,
 ): BotReplyGranularity {
   const supported = getSupportedBotReplyGranularities(provider);
-  const candidate = replyMode ?? DEFAULT_BOT_REPLY_GRANULARITY;
+  const candidate = replyMode ?? getDefaultBotReplyGranularity(provider);
   return supported.includes(candidate) ? candidate : supported[0]!;
 }
 

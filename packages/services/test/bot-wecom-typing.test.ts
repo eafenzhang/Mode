@@ -7,9 +7,10 @@ import type { BotStreamingReplyCardState } from "../src/bots/providers/types.js"
 
 // 企微等待期反馈（docs/specs/wecom-reply-feedback.md）：
 // 企微没有原生「正在输入」信号（SDK 无 typing 命令），等待期的可见反馈只能靠
-// 立刻开一条非终态 replyStream 占位（官方 SDK 示例同款），并以同流刷新模拟
-// 桌面三点气泡的 · → ·· → ··· 动画。占位流的收口归属给下一条真正出站的消息：
-// send 接管成正文，流式卡片接管成首帧；stopTyping 只停动画、不收口。
+// 立刻开一条非终态 replyStream 占位（官方 SDK 示例同款）。占位文案与节奏对齐
+// MyAgents 企微插件的 THINKING_MESSAGE：开流即发一次静态 <think></think>，
+// 无循环打点动画；收口归属给下一条真正出站的消息——send 接管成正文，
+// 流式卡片接管成首帧；stopTyping 不收口（静态占位没有动画可停）。
 
 interface RecordedCall {
   method: "replyStream" | "replyStreamNonBlocking" | "sendMessage";
@@ -24,9 +25,8 @@ interface HarnessOptions {
 
 function createHarness(options: HarnessOptions = {}) {
   const calls: RecordedCall[] = [];
-  const frame = options.withFrame === false
-    ? null
-    : { headers: { req_id: "req-1" }, body: { msgid: "m1" } };
+  const frame =
+    options.withFrame === false ? null : { headers: { req_id: "req-1" }, body: { msgid: "m1" } };
   let releaseFirstStream: (() => void) | undefined;
   const firstStreamGate = options.deferFirstStream
     ? new Promise<void>((resolve) => {
@@ -96,7 +96,11 @@ test("startTyping 立即开一条非终态占位流；重复触发只开一条",
   ];
   assert.equal(usedFrame, frame, "必须透传入站帧的 req_id");
   assert.equal(finish, false, "占位帧必须是非终态");
-  assert.ok(content.trim().length > 0, "占位帧必须带可见文案");
+  assert.equal(
+    content,
+    "<think></think>",
+    "占位文案与 MyAgents 企微插件 THINKING_MESSAGE 逐字一致",
+  );
   assert.equal(typeof streamId, "string");
 });
 
@@ -175,38 +179,33 @@ test("占位流按 bot 隔离：同一会话里另一个企微 bot 不会误接�
   await provider.send(otherBot, { ...outbound("另一个机器人"), botId: "bot-2" });
 
   const pushes = calls.filter((call) => call.method === "sendMessage");
-  assert.equal(
-    streamCalls(calls).length,
-    1,
-    "其他 bot 的出站不得收口本 bot 的占位流",
-  );
+  assert.equal(streamCalls(calls).length, 1, "其他 bot 的出站不得收口本 bot 的占位流");
   assert.equal(pushes.length, 1, "其他 bot 走自己的主动推送");
 });
 
-test("stopTyping 只停打点动画：不 finish 占位流（收口仍归出站）", (t) => {
+test("stopTyping 不收口占位流：静态占位没有动画可停（收口仍归出站）", (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   return (async () => {
     const { provider, calls } = createHarness();
     await provider.startTyping!(bot, target);
     t.mock.timers.tick(500);
-    const animating = calls.filter((call) => call.method === "replyStreamNonBlocking");
-    assert.equal(animating.length, 1, "动画在 stopTyping 前推进一帧");
-
-    provider.stopTyping!(bot, target);
-    t.mock.timers.tick(500);
     t.mock.timers.tick(500);
     assert.equal(
       calls.filter((call) => call.method === "replyStreamNonBlocking").length,
-      1,
-      "stopTyping 后动画必须停下",
+      0,
+      "静态占位不随时间发任何刷新帧",
     );
+
+    provider.stopTyping!(bot, target);
+    t.mock.timers.tick(500);
     assert.equal(
       streamCalls(calls).length,
       1,
       "stopTyping 不得 finish 占位流（没有撤回能力，收口归出站）",
     );
+    assert.equal(streamCalls(calls)[0]!.args[3], false, "占位保持非终态等出站接管");
 
-    // 动画停了，出站仍能接管收口。
+    // 出站仍能接管收口。
     await provider.send(bot, outbound("回答"));
     const streams = streamCalls(calls);
     assert.equal(streams.length, 2);
@@ -214,58 +213,46 @@ test("stopTyping 只停打点动画：不 finish 占位流（收口仍归出站�
   })();
 });
 
-test("stopTyping 冻结后再次 startTyping 必须续上打点动画（im-typing-feedback 验收 3）", (t) => {
-  t.mock.timers.enable({ apis: ["setInterval"] });
-  return (async () => {
-    const { provider, calls } = createHarness();
-    await provider.startTyping!(bot, target);
-    t.mock.timers.tick(500);
-    const animating = () => calls.filter((call) => call.method === "replyStreamNonBlocking");
-    assert.equal(animating().length, 1, "冻结前动画推进一帧");
+test("startTyping 幂等：stopTyping/重复触发都不开第二条流、不发刷新帧", async () => {
+  const { provider, calls } = createHarness();
+  await provider.startTyping!(bot, target);
+  provider.stopTyping!(bot, target);
+  await provider.startTyping!(bot, target);
+  await provider.sendTyping!(bot, target);
 
-    provider.stopTyping!(bot, target);
-    t.mock.timers.tick(500);
-    t.mock.timers.tick(500);
-    assert.equal(animating().length, 1, "冻结期间动画停住");
-
-    // 修复前：stopAnimation 句柄残留让续动画守卫永远为真，这里永远不会再有新帧。
-    await provider.startTyping!(bot, target);
-    t.mock.timers.tick(500);
-    assert.ok(animating().length > 1, "冻结后再次 startTyping 要恢复打点动画");
-    assert.equal(streamCalls(calls).length, 1, "续动画复用同一条占位流，不得开出第二条");
-  })();
+  assert.equal(streamCalls(calls).length, 1, "重复触发复用同一条静态占位流");
+  assert.equal(
+    calls.filter((call) => call.method === "replyStreamNonBlocking").length,
+    0,
+    "静态占位没有任何循环刷新帧（原「续动画」行为随打点动画一并移除）",
+  );
 });
 
-test("打点动画与桌面三点气泡同观感：· → ·· → ··· 循环，收口后停", (t) => {
+test("占位是 MyAgents 同款静态 <think></think>：不跑循环帧，接管后也无残留刷新", (t) => {
   t.mock.timers.enable({ apis: ["setInterval"] });
   return (async () => {
     const { provider, calls } = createHarness();
     await provider.startTyping!(bot, target);
     const streams = streamCalls(calls);
     assert.equal(streams.length, 1);
-    assert.equal(streams[0]!.args[2], "·", "首帧就是第一个点");
+    assert.equal(streams[0]!.args[2], "<think></think>", "首帧即 MyAgents 同款占位文案");
+    assert.equal(streams[0]!.args[3], false, "占位帧必须是非终态");
 
-    const frames: unknown[] = [];
     for (let i = 0; i < 4; i += 1) {
       t.mock.timers.tick(500);
-      const animating = calls.filter((call) => call.method === "replyStreamNonBlocking");
-      frames.push(animating.at(-1)?.args[2]);
-      assert.equal(
-        animating.at(-1)?.args[1],
-        streams[0]!.args[1],
-        "动画必须刷新同一条占位流",
-      );
-      assert.equal(animating.at(-1)?.args[3], false, "动画帧必须是非终态");
     }
-    assert.deepEqual(frames, ["··", "···", "·", "··"], "三帧一轮循环推进");
+    assert.equal(
+      calls.filter((call) => call.method === "replyStreamNonBlocking").length,
+      0,
+      "静态占位不随时间刷新",
+    );
 
     await provider.send(bot, outbound("正文"));
     t.mock.timers.tick(500);
-    t.mock.timers.tick(500);
     assert.equal(
       calls.filter((call) => call.method === "replyStreamNonBlocking").length,
-      4,
-      "占位流被接管后动画必须停止",
+      0,
+      "接管后同样没有刷新帧",
     );
     assert.equal(streamCalls(calls).at(-1)?.args[3], true, "正文以 finish 收口");
   })();

@@ -180,7 +180,9 @@ function TypingIndicatorBubble({ label }: { label: string }) {
       role="status"
       aria-label={label}
       data-testid="conversation-typing-bubble"
-      className="flex w-fit items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3"
+      // 尺寸修复依据：495369e 把气泡放大到点 10px / px-4 py-3，用户反馈过大；
+      // 回退到上一版（406acc1）点 6px / px-3 py-2，尺寸由 conversation-typing-bubble 单测钉住。
+      className="flex w-fit items-center gap-1.5 rounded-2xl border border-border bg-surface px-3 py-2"
     >
       {[0, 1, 2].map((index) => (
         <span
@@ -188,7 +190,7 @@ function TypingIndicatorBubble({ label }: { label: string }) {
           aria-hidden="true"
           // 静态类给「减少动态效果」态兜底（灰点 + 末点品牌色）；动效态由 keyframes 接管颜色与缩放。
           className={cn(
-            "mode-typing-dot-wave size-2.5 rounded-full",
+            "mode-typing-dot-wave size-1.5 rounded-full",
             index === 2 ? "bg-brand" : "bg-foreground-subtle",
           )}
           style={{ animationDelay: `${index * 220}ms` }}

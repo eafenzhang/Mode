@@ -830,6 +830,24 @@ export function createWeixinBotProvider(deps: WeixinProviderDeps): BotProviderAd
       });
     },
 
+    /**
+     * context_expired 恢复链的主动续期探测（spec bot-outbound-delivery 规则 3）：
+     * /getconfig 是 iLink 唯一可主动调用的会话级接口（typing 票也靠它强刷），
+     * 响应里若带 context_token 则换新重试；即使不带，探测调用本身也可能在
+     * 服务端重建会话状态（对应 MyAgents 的「强刷票重试」模式）。
+     * 探测是 best-effort：失败降级为「无新 token」，交给既有恢复链继续。
+     */
+    async refreshContextToken(bot, target) {
+      try {
+        const config = (await requestWeixinJson(bot, deps, "/getconfig", {
+          ilink_user_id: target.providerUserId,
+        })) as Record<string, unknown>;
+        return readWeixinContextToken(config) || undefined;
+      } catch {
+        return undefined;
+      }
+    },
+
     async sendTyping(bot, target: BotTypingTarget) {
       await requestWeixinTyping(bot, target, 1);
     },

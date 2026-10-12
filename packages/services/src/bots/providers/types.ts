@@ -68,6 +68,16 @@ export interface BotProviderAdapter {
   resolveName?(bot: BotConfig): Promise<string | null>;
   syncCommands?(bot: BotConfig): Promise<void>;
   send(bot: BotConfig, message: BotOutboundMessage): Promise<void>;
+  /**
+   * 主动续期探测（context_expired 恢复链第一步，对齐 MyAgents「强刷票重试」模式）：
+   * 对会话型平台（微信 iLink）主动拉一次会话配置，可能带回新 context_token；
+   * 探测调用本身也可能在服务端重建会话状态。返回 undefined 表示没拿到新 token，
+   * 探测失败也按 undefined 降级（交给既有恢复链继续）。
+   */
+  refreshContextToken?(
+    bot: BotConfig,
+    target: { providerUserId: string },
+  ): Promise<string | undefined>;
   sendTyping?(bot: BotConfig, target: BotTypingTarget): Promise<void>;
   startTyping?(bot: BotConfig, target: BotTypingTarget): Promise<void>;
   stopTyping?(bot: BotConfig, target: BotTypingTarget): Promise<void>;
@@ -118,11 +128,7 @@ export interface BotProviderAdapter {
    * 出站媒体（图片/文件）。未实现的 provider 视为"该通道不支持发送文件"。
    * target 的 providerUserId 已是最终投递目标（单聊 userid 或群 chatid）。
    */
-  sendMedia?(
-    bot: BotConfig,
-    target: BotTypingTarget,
-    media: BotOutboundMedia,
-  ): Promise<void>;
+  sendMedia?(bot: BotConfig, target: BotTypingTarget, media: BotOutboundMedia): Promise<void>;
   /**
    * 任务流生命周期通知（可选）。仅在 provider 需要把官方轮次映射成自有传输信号时实现，
    * 不改变任何业务状态。

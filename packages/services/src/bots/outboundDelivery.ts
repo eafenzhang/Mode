@@ -35,19 +35,22 @@ export const BOT_PENDING_DELIVERY_LIMIT = 100;
 export const BOT_PENDING_DELIVERY_MAX_ATTEMPTS = 8;
 
 export type DeliveryRecoveryPlan =
+  | { kind: "refresh_session" }
   | { kind: "retry_with_token"; token: string }
   | { kind: "retry_backoff"; delayMs: number }
   | { kind: "retry_without_token" }
   | { kind: "park" };
 
 /**
- * 恢复计划：context_expired 先换新 token、再去 token（各一次）后停放；
+ * 恢复计划：context_expired 先做主动续期探测（refresh_session，对齐 MyAgents
+ * 「强刷票重试」模式——微信对应物是 /getconfig，探测可能带回新 context_token，
+ * 探测调用本身也可能在服务端重建会话），再换新/同 token 重试、去 token 重试后停放；
  * retryable 有界退避后停放；session_expired 无本地恢复手段，直接停放。
- * attempt 为该条消息已执行的恢复步数。
+ * attempt 为该条消息已执行的恢复步数；refreshed 表示续期探测已完成（或该 provider 无此能力）。
  */
 export function planDeliveryRecovery(
   code: BotSendFailureCode,
-  input: { attempt: number; usedToken?: string; freshToken?: string },
+  input: { attempt: number; usedToken?: string; freshToken?: string; refreshed?: boolean },
 ): DeliveryRecoveryPlan {
   if (code === "session_expired") {
     return { kind: "park" };
@@ -56,8 +59,17 @@ export function planDeliveryRecovery(
     const delayMs = BOT_SEND_RETRY_DELAYS_MS[input.attempt];
     return delayMs === undefined ? { kind: "park" } : { kind: "retry_backoff", delayMs };
   }
-  if (input.attempt === 0 && input.freshToken && input.freshToken !== input.usedToken) {
-    return { kind: "retry_with_token", token: input.freshToken };
+  if (!input.refreshed) {
+    return { kind: "refresh_session" };
+  }
+  if (input.attempt === 0) {
+    if (input.freshToken && input.freshToken !== input.usedToken) {
+      return { kind: "retry_with_token", token: input.freshToken };
+    }
+    if (input.usedToken) {
+      // 探测无新 token 也同 token 重试一次：探测调用可能已重建服务端会话状态。
+      return { kind: "retry_with_token", token: input.usedToken };
+    }
   }
   if (input.attempt <= 1 && input.usedToken) {
     return { kind: "retry_without_token" };
@@ -78,17 +90,19 @@ export function enqueuePendingDelivery(
   return { queue: next, ...(dropped ? { dropped } : {}) };
 }
 
-export function removeFirstPendingDelivery(
-  queue: BotPendingDelivery[],
-): { queue: BotPendingDelivery[]; removed?: BotPendingDelivery } {
+export function removeFirstPendingDelivery(queue: BotPendingDelivery[]): {
+  queue: BotPendingDelivery[];
+  removed?: BotPendingDelivery;
+} {
   const [removed, ...rest] = queue;
   return { queue: rest, ...(removed ? { removed } : {}) };
 }
 
 /** 补投失败：队首 attempts+1，超过上限丢弃该条，防止永久积压。 */
-export function bumpFirstPendingDeliveryAttempt(
-  queue: BotPendingDelivery[],
-): { queue: BotPendingDelivery[]; dropped?: BotPendingDelivery } {
+export function bumpFirstPendingDeliveryAttempt(queue: BotPendingDelivery[]): {
+  queue: BotPendingDelivery[];
+  dropped?: BotPendingDelivery;
+} {
   const [first, ...rest] = queue;
   if (!first) {
     return { queue: [] };
@@ -98,6 +112,28 @@ export function bumpFirstPendingDeliveryAttempt(
     return { queue: rest, dropped: first };
   }
   return { queue: [{ ...first, attempts }, ...rest] };
+}
+
+/**
+ * 把「停放提示」排入队首（提示自身发送失败时用）：下一条入站补投时先送达提示、
+ * 再按序补投正文（对齐 MyAgents「失败必达用户可见」模式）。
+ * 超限时丢最旧的回复、保留队首提示；队列本就在入队时受同一上限约束，最多裁一条。
+ */
+export function prependPendingDelivery(
+  queue: BotPendingDelivery[] | undefined,
+  input: { text: string; providerUserId: string },
+  now: number,
+): { queue: BotPendingDelivery[]; dropped?: BotPendingDelivery } {
+  const next = [{ ...input, queuedAt: now, attempts: 0 }, ...(queue ?? [])];
+  let dropped: BotPendingDelivery | undefined;
+  if (next.length > BOT_PENDING_DELIVERY_LIMIT) {
+    // 从下标 1 裁（最旧的回复）；下标 0 的提示必须保留。
+    const removed = next.length > 1 ? next.splice(1, 1)[0] : next.pop();
+    if (removed) {
+      dropped = removed;
+    }
+  }
+  return { queue: next, ...(dropped ? { dropped } : {}) };
 }
 
 export interface BotSendQueue {

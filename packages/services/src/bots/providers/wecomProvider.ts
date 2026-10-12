@@ -16,15 +16,11 @@ import type {
   BotInboundMessage,
   BotOutboundMessage,
 } from "@mode/shared";
-import type {
-  BotProviderAdapter,
-  BotStreamingReplyCardState,
-  BotTypingTarget,
-} from "./types.js";
+import type { BotProviderAdapter, BotStreamingReplyCardState, BotTypingTarget } from "./types.js";
 import { formatBotMessage } from "../messages.js";
 import { splitBotText } from "../botText.js";
 import { renderStreamingBlocksToMarkdown } from "./streamingText.js";
-import type { WeComConnection, WeComConnectionRegistry } from "../wecomConnection.js";
+import type { WeComConnectionRegistry } from "../wecomConnection.js";
 
 /**
  * 企业微信智能机器人 provider（botId + secret，WebSocket 长连接）。
@@ -39,8 +35,11 @@ import type { WeComConnection, WeComConnectionRegistry } from "../wecomConnectio
  * 等待期反馈（typing）：
  * - 企微 SDK 没有原生「正在输入」命令（对照飞书 Typing reaction / Telegram chatAction），
  *   等待期的可见反馈只能靠立刻开一条非终态 replyStream 占位（官方 SDK 示例同款做法）；
- * - 占位流以同流刷新模拟桌面三点气泡的 · → ·· → ··· 打点动画（非终态帧原地更新同一条消息）；
- * - 占位流没有撤回 API，stopTyping 只停动画、不收口——收口归属给下一条真正出站的消息：
+ * - 占位文案与节奏对齐 MyAgents 企微插件（wecom-openclaw-plugin 的 THINKING_MESSAGE）：
+ *   开流即发一次 WECOM_TYPING_PLACEHOLDER，思考期不发刷新帧——内容虽静态，动态观感由
+ *   企微 PC 客户端对未收口流的原生 loading 提供（插件 finishThinkingStream 注释实证），
+ *   正文由出站原地接管继续同流增长；
+ * - 占位流没有撤回 API，stopTyping 不收口——收口归属给下一条真正出站的消息：
  *   send 接管成正文首片，流式卡片接管成卡片首帧；无出站时由下一轮出站接管。
  */
 
@@ -56,53 +55,17 @@ export const WECOM_STREAM_TEXT_LIMIT = 3_500;
 /** 认证探测超时；超过按失败处理（用户可重试）。 */
 const WECOM_TEST_TIMEOUT_MS = 10_000;
 /**
- * 等待期打点动画的帧与节奏：与桌面三点气泡同观感（点逐个出现后重开一轮）。
- * 企微只能靠同流刷新模拟动画——平台没有动画素材通道，帧间 500ms 是
- * 「观感流畅」与「WS 帧开销」的折中；上一帧未 ack 时 NonBlocking 自动跳过，天然节流。
+ * 等待期占位文案：与 MyAgents 企微插件（wecom-openclaw-plugin）的 THINKING_MESSAGE
+ * 逐字一致（"<think></think>"）。修复依据：原 · → ·· → ··· 循环打点动画与用户参照的
+ * MyAgents 实机观感不一致，改为同款占位——开流即发一次、思考期不跑刷新帧，
+ * 动态观感来自企微 PC 对未收口流的原生 loading；正文由出站/流式卡片原地接管
+ * （企微无动画素材通道，同流刷新仅用于接管替换与正文增长）。
  */
-const TYPING_ANIMATION_FRAMES = ["·", "··", "···"] as const;
-const TYPING_ANIMATION_FRAME_MS = 500;
+export const WECOM_TYPING_PLACEHOLDER = "<think></think>";
 
 interface PendingTypingStream {
   frame: WsFrame;
   streamId: string;
-  /** 停打点动画（收口、stopTyping、任务冻结时调用）；不负责关流。 */
-  stopAnimation?: () => void;
-}
-
-/** 启动打点动画：同一条占位流按 · → ·· → ··· 循环刷新非终态帧。 */
-function startTypingAnimation(
-  pending: PendingTypingStream,
-  client: WeComConnection["client"],
-): void {
-  if (pending.stopAnimation) {
-    return;
-  }
-  let index = 0;
-  const timer = setInterval(() => {
-    index = (index + 1) % TYPING_ANIMATION_FRAMES.length;
-    void client
-      .replyStreamNonBlocking(
-        pending.frame,
-        pending.streamId,
-        TYPING_ANIMATION_FRAMES[index]!,
-        false,
-      )
-      .catch(() => undefined);
-  }, TYPING_ANIMATION_FRAME_MS);
-  timer.unref?.();
-  pending.stopAnimation = () => clearInterval(timer);
-}
-
-/**
- * 停打点动画并清掉句柄。修复原因：句柄残留会让 `startTypingAnimation` 的
- * 「已在播放」守卫永远为真——stopTyping 冻结后再次 startTyping 续不上动画，
- * 与 wecom-reply-feedback.md「任务恢复时会续上动画」矛盾
- * （docs/specs/im-typing-feedback.md 验收场景 3）。
- */
-function stopTypingAnimation(pending: PendingTypingStream): void {
-  pending.stopAnimation?.();
-  pending.stopAnimation = undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -120,10 +83,7 @@ export function splitWeComText(text: string, limit = WECOM_MARKDOWN_CHUNK_LIMIT)
  * 导出供单测：流式节流的正确性依赖这份渲染的确定性。
  */
 export function renderWeComStreamText(state: BotStreamingReplyCardState): string {
-  return renderStreamingBlocksToMarkdown(
-    state,
-    formatBotMessage(state.locale, "streamingWorking"),
-  );
+  return renderStreamingBlocksToMarkdown(state, formatBotMessage(state.locale, "streamingWorking"));
 }
 
 function readWeComInboundText(body: BaseMessage): string {
@@ -214,16 +174,12 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
     return `${bot.id}:${chatKey}`;
   }
 
-  /** 等待期反馈：立刻开非终态占位流并起打点动画（企微没有原生 typing 信号，SDK 也没有撤回 API）。 */
+  /** 等待期反馈：立刻开一条静态占位流（企微没有原生 typing 信号，SDK 也没有撤回 API）。 */
   async function ensureTypingPlaceholder(bot: BotConfig, chatKey: string): Promise<void> {
     const key = typingStreamKey(bot, chatKey);
     const existing = pendingTypingStreams.get(key);
     if (existing) {
-      // 任务恢复（问答/权限通过后再次 startTyping）时把停掉的动画续上。
-      const connection = deps.connection.getConnection(bot.id);
-      if (connection) {
-        startTypingAnimation(existing, connection.client);
-      }
+      // 静态占位没有动画需要续：占位已在同一条流上驻留，重复触发是纯幂等。
       return;
     }
     const inFlight = typingOpenInFlight.get(key);
@@ -240,11 +196,10 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
     const open = (async () => {
       try {
         const streamId = generateReqId("stream");
-        // 首帧即打点第一帧「·」：等待期立刻有可见反馈，动画随后同流刷新。
-        await connection.client.replyStream(frame, streamId, TYPING_ANIMATION_FRAMES[0], false);
-        const pending: PendingTypingStream = { frame, streamId };
-        startTypingAnimation(pending, connection.client);
-        pendingTypingStreams.set(key, pending);
+        // 首帧即 MyAgents 同款占位：开流后企微 PC 立刻显示原生 loading，
+        // 思考期不发任何刷新帧（与 MyAgents 的零帧行为一致）。
+        await connection.client.replyStream(frame, streamId, WECOM_TYPING_PLACEHOLDER, false);
+        pendingTypingStreams.set(key, { frame, streamId });
       } catch {
         // 占位是 best-effort：帧过期或平台拒绝时静默放弃，不影响真实回复链路。
       } finally {
@@ -263,13 +218,15 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
     }
   }
 
-  /** 出站/卡片建流前认领占位流；认领即停动画，收口由调用方负责，避免重复消费。 */
-  function takePendingTypingStream(bot: BotConfig, chatKey: string): PendingTypingStream | undefined {
+  /** 出站/卡片建流前认领占位流；收口由调用方负责，避免重复消费。 */
+  function takePendingTypingStream(
+    bot: BotConfig,
+    chatKey: string,
+  ): PendingTypingStream | undefined {
     const key = typingStreamKey(bot, chatKey);
     const pending = pendingTypingStreams.get(key);
     if (pending) {
       pendingTypingStreams.delete(key);
-      stopTypingAnimation(pending);
     }
     return pending;
   }
@@ -385,14 +342,10 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
       await ensureTypingPlaceholder(bot, target.providerUserId);
     },
 
-    // 只停打点动画、不收口：占位流没有撤回 API，这里 finish 会把打点文案留成永久消息。
-    // 冻结的点由紧随其后的真正出站接管（send/流式卡片），任务恢复时 startTyping 会续上动画。
-    async stopTyping(bot: BotConfig, target: BotTypingTarget) {
-      const pending = pendingTypingStreams.get(typingStreamKey(bot, target.providerUserId));
-      if (pending) {
-        stopTypingAnimation(pending);
-      }
-    },
+    // 静态占位没有动画可停：保留空实现维持上层 start/stop 契约与失败 warn 口径。
+    // 不收口——占位流没有撤回 API，这里 finish 会把占位文案留成永久消息；
+    // 占位由紧随其后的真正出站接管（send/流式卡片）原地替换。
+    async stopTyping(_bot: BotConfig, _target: BotTypingTarget) {},
 
     // 流式回复：aibot_respond_msg + stream 增量刷新同一条消息。
     async createStreamingReplyCard(bot, state) {

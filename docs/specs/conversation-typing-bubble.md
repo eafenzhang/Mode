@@ -3,7 +3,7 @@
 ## 产品规则
 
 - **触发**：当前轮次 `isRunning` 且**零助手内容**（assistant 行随内容到达才创建，所以等价于「消息已发出、回复首字未到」的空窗）。判据纯函数 `shouldShowTypingBubble`（`packages/ui/src/v4/conversationTypingBubble.ts`）。
-- **呈现**：复用 `TurnChatLoadingSlot` 槽位（`ConversationTurnGroup.tsx`），空窗时渲染助手侧三点气泡。气泡与圆点取「一眼可见」的尺寸（点 10px、`px-4 py-3`），三点跑 `mode-typing-dot-wave` 错位波浪：每点循环 `scale 1 → 1.5` 且颜色 `foreground-subtle → brand`，错峰 220ms 形成连续起伏（`styles.css` 定义 keyframes；`prefers-reduced-motion` 下 `animation: none` 静止为灰点 + 末点品牌色）。`role="status"` + `chat.typing` i18n。优先级：api 重试状态 > 气泡 > ChatLoading 兜底。
+- **呈现**：复用 `TurnChatLoadingSlot` 槽位（`ConversationTurnGroup.tsx`），空窗时渲染助手侧三点气泡。气泡与圆点**钉在上一版小尺寸**（点 6px `size-1.5`、容器 `gap-1.5` + `px-3 py-2`）：`495369e` 曾放大到点 10px、`px-4 py-3`，用户反馈过大后回退，尺寸由单测断言防再次放大。三点跑 `mode-typing-dot-wave` 错位波浪：每点循环 `scale 1 → 1.5` 且颜色 `foreground-subtle → brand`，错峰 220ms 形成连续起伏（`styles.css` 定义 keyframes；`prefers-reduced-motion` 下 `animation: none` 静止为灰点 + 末点品牌色）。`role="status"` + `chat.typing` i18n。优先级：api 重试状态 > 气泡 > ChatLoading 兜底。
 - **让位**：任一 assistant 行出现（回复开始）→ 判据翻 false → 槽位回到 ChatLoading；中断/等待授权由槽位既有 `eligible` 门禁兜住，不显示气泡。
 - 不引入新协议字段：状态全部来自既有 turn 渲染单元（`unit.isRunning` / `assistantWorkRows` / `assistantTextRows`）。
 
@@ -16,5 +16,5 @@
 
 ## 本轮验证状态
 
-- 已验证：判据单测、槽位接线契约、typecheck/lint/services 全绿。
+- 已验证：判据单测、槽位接线契约、尺寸断言（防再次放大）、typecheck/lint/services 全绿、architecture:check 0 违规。
 - **待实机**：dev 实例当前「没有可用模型」，无法真实触发一轮运行；配置模型后按场景 1/2 抓一次真实空窗即可闭环。

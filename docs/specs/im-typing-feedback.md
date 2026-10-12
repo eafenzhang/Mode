@@ -19,13 +19,13 @@
 
 ### 各 provider 机制
 
-| provider       | 等待反馈                        | 本轮动作                                               |
-| -------------- | ------------------------------- | ------------------------------------------------------ |
-| 企微 wecom     | ··· 打点占位流（同流刷新）      | 修复冻结后续动画死代码                                 |
-| 微信 weixin    | `/sendtyping` 原生「正在输入…」 | 票缓存 + 失败强刷重试 + 失败 warn + 补 `status:2` 取消 |
-| 飞书 feishu    | Typing reaction                 | 仅受益于 guard 口径修正                                |
-| Telegram       | chatAction                      | 仅受益于 guard 口径修正                                |
-| 钉钉 / webhook | 无                              | 非目标（另立任务）                                     |
+| provider       | 等待反馈                                                     | 本轮动作                                               |
+| -------------- | ------------------------------------------------------------ | ------------------------------------------------------ |
+| 企微 wecom     | 占位流（内容 MyAgents 同款；动态感来自企微 PC 原生 loading） | 改为开流一次的占位，移除 500ms 打点动画                |
+| 微信 weixin    | `/sendtyping` 原生「正在输入…」                              | 票缓存 + 失败强刷重试 + 失败 warn + 补 `status:2` 取消 |
+| 飞书 feishu    | Typing reaction                                              | 仅受益于 guard 口径修正                                |
+| Telegram       | chatAction                                                   | 仅受益于 guard 口径修正                                |
+| 钉钉 / webhook | 无                                                           | 非目标（另立任务）                                     |
 
 - 微信不发占位消息：iLink 无公开的编辑/更新消息接口（官方包与社区 SDK 一致，`message_state` 只有 FINISH=2 被实际发送），发 ··· 占位会在历史里每轮留一条残留。
 - 回合内既有反馈保持不变：本对话任务运行中的排队已有「已排队第 N 位」文案。
@@ -34,7 +34,7 @@
 
 1. 单测（`bot-weixin-typing.test.ts`）：ticket 缓存复用（多次 sendTyping 只打一次 getconfig）、发送失败强刷新票重试一次、无票抛错（由上层 warn，不静默）、`stopTyping` 发 `status:2`。
 2. 源码断言：`watchTaskStream` 订阅残留分支调用 `startTyping`；`startTyping` 的 sendTyping 分支同时登记 `typingTargets`（terminal 取消与 stopInboundTyping guard 依赖它）；`stopInboundTyping` guard 按 bot+聊天匹配。
-3. 企微（`bot-wecom-typing.test.ts`）：`stopTyping` 冻结后再次 `startTyping` 必须恢复打点动画。
+3. 企微（`bot-wecom-typing.test.ts`）：占位为 MyAgents 同款静态文案（`WECOM_TYPING_PLACEHOLDER`，开流一次、无循环刷新帧）；`stopTyping` 不收口占位流；`startTyping` 重复/恢复触发保持幂等单流。
 4. `packages/services` 全量测试、`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
 
 ## 非目标
