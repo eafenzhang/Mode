@@ -231,9 +231,9 @@ async function applyAction(runtimeState: CoordinatorRuntime, action: RemoteDeskt
       runtimeState.consentWindow = consentWindow;
       // 决策必然收敛：用户点击 / 60s 超时 / 会话被收口（close() 先 settle 再销窗）。
       const decision = await consentWindow.waitForDecision();
-      if (runtimeState.consentWindow === consentWindow) {
-        runtimeState.consentWindow = null;
-      }
+      // 这里**不**提前置空引用：transition.actions 的第一项就是 close-consent，
+      // 由它统一 close + 置空。提前置空会让 close-consent 拿不到窗口引用 →
+      // 同意窗永不 destroy（历史 bug：点击允许/拒绝后弹窗残留且无法关闭）。
       const outcome = decision.kind === "allow" ? "allow" : decision.kind === "timeout" ? "timeout" : "deny";
       const transition = reduceRemoteDesktopSession(runtimeState.state, {
         type: "consent-decided",
