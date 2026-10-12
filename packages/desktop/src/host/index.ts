@@ -71,10 +71,7 @@ import {
   parseRemoteDesktopMessageToHost,
   type RemoteDesktopHostServer,
 } from "./remoteDesktopServer.js";
-import {
-  openRemoteDesktopPeerSession,
-  probeRemoteDesktopPeer,
-} from "./remoteDesktopPeerClient.js";
+import { openRemoteDesktopPeerSession, probeRemoteDesktopPeer } from "./remoteDesktopPeerClient.js";
 import { RemoteDesktopHostMessageTypes } from "./remoteDesktopMessages.js";
 import type {
   RemoteDesktopMessageFromHost,
@@ -2086,12 +2083,23 @@ async function handleRemoteDesktopMessage(message: RemoteDesktopMessageToHost): 
     message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen
   ) {
     if (!services) {
-      postRemoteDesktopToMain({
-        type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
-        requestId: message.requestId,
-        ok: false,
-        error: "host services 未就绪",
-      });
+      // probe 与 session-open 各自回对应 kind：main 的 hostBridge 按 pending.kind 匹配回收，
+      // 回错 kind 会让 probe 悬挂到 10s 超时、设备页误判「对端离线或不可达」。
+      postRemoteDesktopToMain(
+        message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe
+          ? {
+              type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,
+              requestId: message.requestId,
+              online: false,
+              remoteDesktop: false,
+            }
+          : {
+              type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
+              requestId: message.requestId,
+              ok: false,
+              error: "host services 未就绪",
+            },
+      );
       return;
     }
     await handleRemoteDesktopPeerMessage(message, services);
@@ -2150,12 +2158,22 @@ async function handleRemoteDesktopPeerMessage(
           },
     );
   } catch (error) {
-    postRemoteDesktopToMain({
-      type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
-      requestId: msg.requestId,
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    // 异常也按请求类型回对应 kind（同上：kind 不匹配会导致 probe 悬挂到超时）。
+    postRemoteDesktopToMain(
+      msg.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe
+        ? {
+            type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,
+            requestId: msg.requestId,
+            online: false,
+            remoteDesktop: false,
+          }
+        : {
+            type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
+            requestId: msg.requestId,
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          },
+    );
   }
 }
 

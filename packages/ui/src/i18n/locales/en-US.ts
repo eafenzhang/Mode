@@ -6310,6 +6310,7 @@ const enUS: Record<string, string> = {
     "Both computers must be Windows machines on the same LAN (or Tailscale).",
   "workspace.openRemoteDesktop": "Remote Desktop",
   "remoteDesktop.title": "Remote Desktop",
+  "remoteDesktop.breadcrumbLabel": "Remote desktop path",
   "remoteDesktop.description":
     "Watch and operate a paired Windows computer in real time. The peer shows a consent prompt, and an overlay stays visible while controlling.",
   "remoteDesktop.devices.refresh": "Refresh",

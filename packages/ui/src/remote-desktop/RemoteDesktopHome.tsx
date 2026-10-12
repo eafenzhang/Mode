@@ -20,6 +20,7 @@ import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { logger } from "@/logger.js";
 import {
   resolveRemoteDesktopDeviceAvailability,
@@ -33,7 +34,7 @@ type PeerListState =
   | { status: "ok"; peers: LanPairedPeer[] }
   | { status: "error" };
 
-export function RemoteDesktopHome() {
+export function RemoteDesktopHome({ isDesktop }: { isDesktop: boolean }) {
   const { intl } = useModeIntl();
   const platform = usePlatform();
   // 与其它「跳设置分区」入口同款：先写入待消费分区意图，再由 tab store 打开设置 tab。
@@ -115,120 +116,134 @@ export function RemoteDesktopHome() {
 
   const peerList = peers.status === "ok" ? peers.peers : [];
 
+  // 设备页与自动化/插件市场同款：面包屑/桌面拖拽顶栏 + 共享标题排版（spec: lan-remote-desktop UI 规则）。
+  // 会话面（上方 sessionTarget 分支）保持整块无外框，视频占满主视图。
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-ui-xl font-medium text-foreground">
-              {intl.formatMessage({ id: "remoteDesktop.title" })}
-            </h1>
-            <p className="mt-1 text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "remoteDesktop.description" })}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={peers.status === "loading"}
-            onClick={() => void loadPeers()}
-          >
-            <RefreshCw className="size-4" />
-            {intl.formatMessage({ id: "remoteDesktop.devices.refresh" })}
-          </Button>
-        </header>
+    <div className="flex h-full min-h-0 flex-col">
+      <AutomationsMainBreadcrumbFrame
+        isDesktop={isDesktop}
+        sectionLabel={intl.formatMessage({ id: "remoteDesktop.title" })}
+        ariaLabel={intl.formatMessage({ id: "remoteDesktop.breadcrumbLabel" })}
+      >
+        <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6">
+            <header className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground lg:text-3xl">
+                  {intl.formatMessage({ id: "remoteDesktop.title" })}
+                </h1>
+                <p className="mt-1 text-ui-base text-foreground-subtle">
+                  {intl.formatMessage({ id: "remoteDesktop.description" })}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={peers.status === "loading"}
+                onClick={() => void loadPeers()}
+              >
+                <RefreshCw className="size-4" />
+                {intl.formatMessage({ id: "remoteDesktop.devices.refresh" })}
+              </Button>
+            </header>
 
-        {peers.status === "loading" ? (
-          <p className="flex items-center gap-2 py-6 text-ui-base text-foreground-subtle">
-            <LoaderIcon className="size-4 animate-spin" />
-            {intl.formatMessage({ id: "remoteDesktop.devices.loading" })}
-          </p>
-        ) : null}
+            {peers.status === "loading" ? (
+              <p className="flex items-center gap-2 py-6 text-ui-base text-foreground-subtle">
+                <LoaderIcon className="size-4 animate-spin" />
+                {intl.formatMessage({ id: "remoteDesktop.devices.loading" })}
+              </p>
+            ) : null}
 
-        {peers.status === "error" ? (
-          <div className="rounded-lg border border-border bg-card px-4 py-6 text-center">
-            <p className="text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "remoteDesktop.devices.loadFailed" })}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={() => void loadPeers()}
-            >
-              {intl.formatMessage({ id: "remoteDesktop.devices.retry" })}
-            </Button>
-          </div>
-        ) : null}
-
-        {peers.status === "ok" && peerList.length === 0 ? (
-          <div
-            data-testid="remote-desktop-empty"
-            className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-surface px-4 py-10 text-center"
-          >
-            <MonitorSmartphone className="size-6 text-foreground-subtlest" />
-            <p className="max-w-md text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "remoteDesktop.devices.empty" })}
-            </p>
-            <Button type="button" variant="outline" size="sm" onClick={openLanAccessSettings}>
-              <Settings2 className="size-4" />
-              {intl.formatMessage({ id: "remoteDesktop.devices.openLanAccess" })}
-            </Button>
-          </div>
-        ) : null}
-
-        {peerList.length > 0 ? (
-          <ul className="grid gap-3 sm:grid-cols-2" data-testid="remote-desktop-devices">
-            {peerList.map((peer) => {
-              const name = resolveRemoteDesktopDeviceLabel(peer);
-              const availability = resolveRemoteDesktopDeviceAvailability(probes[peer.serverId]);
-              const blockedReason = availability.reason;
-              return (
-                <li
-                  key={peer.serverId}
-                  className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-3"
+            {peers.status === "error" ? (
+              <div className="rounded-lg border border-border bg-card px-4 py-6 text-center">
+                <p className="text-ui-base text-foreground-subtle">
+                  {intl.formatMessage({ id: "remoteDesktop.devices.loadFailed" })}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => void loadPeers()}
                 >
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-surface text-foreground-subtle">
-                      {blockedReason === "offline" || blockedReason === "probe-failed" ? (
-                        <WifiOff className="size-4" />
-                      ) : (
-                        <MonitorSmartphone className="size-4" />
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-ui-base text-foreground">{name}</span>
-                      <span className="block truncate text-ui-xs text-foreground-subtle">
-                        {peer.host && peer.port ? `${peer.host}:${peer.port}` : peer.serverId}
-                      </span>
-                      <span className="mt-1 block text-ui-xs text-foreground-subtle">
-                        {blockedReason
-                          ? intl.formatMessage({
-                              id: `remoteDesktop.device.reason.${blockedReason}`,
-                            })
-                          : intl.formatMessage({ id: "remoteDesktop.device.reason.ready" })}
-                      </span>
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="self-end"
-                    disabled={!availability.canConnect}
-                    onClick={() => connect(peer)}
-                  >
-                    <ArrowRight className="size-4" />
-                    {intl.formatMessage({ id: "remoteDesktop.devices.connect" })}
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-      </div>
+                  {intl.formatMessage({ id: "remoteDesktop.devices.retry" })}
+                </Button>
+              </div>
+            ) : null}
+
+            {peers.status === "ok" && peerList.length === 0 ? (
+              <div
+                data-testid="remote-desktop-empty"
+                className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-surface px-4 py-10 text-center"
+              >
+                <MonitorSmartphone className="size-6 text-foreground-subtlest" />
+                <p className="max-w-md text-ui-base text-foreground-subtle">
+                  {intl.formatMessage({ id: "remoteDesktop.devices.empty" })}
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={openLanAccessSettings}>
+                  <Settings2 className="size-4" />
+                  {intl.formatMessage({ id: "remoteDesktop.devices.openLanAccess" })}
+                </Button>
+              </div>
+            ) : null}
+
+            {peerList.length > 0 ? (
+              <ul className="grid gap-3 sm:grid-cols-2" data-testid="remote-desktop-devices">
+                {peerList.map((peer) => {
+                  const name = resolveRemoteDesktopDeviceLabel(peer);
+                  const availability = resolveRemoteDesktopDeviceAvailability(
+                    probes[peer.serverId],
+                  );
+                  const blockedReason = availability.reason;
+                  return (
+                    <li
+                      key={peer.serverId}
+                      className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-3"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-surface text-foreground-subtle">
+                          {blockedReason === "offline" || blockedReason === "probe-failed" ? (
+                            <WifiOff className="size-4" />
+                          ) : (
+                            <MonitorSmartphone className="size-4" />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-ui-base text-foreground">
+                            {name}
+                          </span>
+                          <span className="block truncate text-ui-xs text-foreground-subtle">
+                            {peer.host && peer.port ? `${peer.host}:${peer.port}` : peer.serverId}
+                          </span>
+                          <span className="mt-1 block text-ui-xs text-foreground-subtle">
+                            {blockedReason
+                              ? intl.formatMessage({
+                                  id: `remoteDesktop.device.reason.${blockedReason}`,
+                                })
+                              : intl.formatMessage({ id: "remoteDesktop.device.reason.ready" })}
+                          </span>
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="self-end"
+                        disabled={!availability.canConnect}
+                        onClick={() => connect(peer)}
+                      >
+                        <ArrowRight className="size-4" />
+                        {intl.formatMessage({ id: "remoteDesktop.devices.connect" })}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </div>
+        </div>
+      </AutomationsMainBreadcrumbFrame>
     </div>
   );
 }

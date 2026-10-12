@@ -39,3 +39,22 @@ test("Web 配置不包含 computerUse", () => {
     "Web 视图不应出现 computerUse 分区",
   );
 });
+
+// 远程桌面分区顺序（docs/specs/lan-remote-desktop.md UI 规则「设置分区」）：
+// 夹在「模型设置」与「电脑控制」之间——远控入口紧跟模型配置、先于本机控制开关。
+test("远程桌面排在模型设置与电脑控制之间", () => {
+  const { settingsSections } = createSettingsPageConfig({
+    isDesktop: true,
+    isWindowsDesktop: true,
+  });
+  const ids = settingsSections.map((section) => section.id);
+  assert.ok(ids.includes("remoteDesktop"), "Windows 桌面配置应包含 remoteDesktop 分区");
+  assert.ok(
+    ids.indexOf("modelProvider") < ids.indexOf("remoteDesktop"),
+    "远程桌面应排在模型设置之后",
+  );
+  assert.ok(
+    ids.indexOf("remoteDesktop") < ids.indexOf("computerUse"),
+    "远程桌面应排在电脑控制之前",
+  );
+});

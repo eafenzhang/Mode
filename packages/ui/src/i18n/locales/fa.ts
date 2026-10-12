@@ -6217,6 +6217,7 @@ const faIR: Record<string, string> = {
     "هر دو رایانه باید ویندوز و در یک شبکه محلی (یا Tailscale) باشند.",
   "workspace.openRemoteDesktop": "رومیزی از راه دور",
   "remoteDesktop.title": "رومیزی از راه دور",
+  "remoteDesktop.breadcrumbLabel": "مسیر رومیزی از راه دور",
   "remoteDesktop.description":
     "تصویر رایانه ویندوزیِ پیوندشده را زنده ببینید و کنترل کنید؛ دستگاه مقابل پنجره تأیید و در طول نشست لایه کنترل را نمایش می‌دهد.",
   "remoteDesktop.devices.refresh": "تازه‌سازی",

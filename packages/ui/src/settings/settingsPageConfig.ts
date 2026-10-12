@@ -75,6 +75,14 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.modelProviderTitle",
     groupId: "basics",
   },
+  // 远程桌面：被控端同意/指示/授权管理；仅 win32 桌面端为真实能力（两端都要 Windows）。
+  // 夹在「模型设置」与「电脑控制」之间：远控入口紧跟模型配置、先于本机控制开关。
+  {
+    id: "remoteDesktop",
+    icon: MonitorSmartphone,
+    titleId: "settings.remoteDesktop.title",
+    groupId: "basics",
+  },
   {
     id: "memory",
     icon: Brain,
@@ -124,8 +132,8 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.hooks.title",
     groupId: "agentCapabilities",
   },
-  // 电脑控制夹在「模型设置」与「浏览器控制」之间：三者都是本机环境能力的开关，
-  // 先配置「用哪个模型」，再决定「放不放行本机控制」，最后才是被控对象之一的浏览器。
+  // 电脑控制紧跟「远程桌面」、位于「浏览器控制」之前：先决定远端能不能连进来，
+  // 再决定「放不放行本机控制」，最后才是被控对象之一的浏览器。
   {
     id: "computerUse",
     icon: Monitor,
@@ -144,13 +152,6 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "lanAccess",
     icon: Radar,
     titleId: "settings.lanAccess.title",
-    groupId: "basics",
-  },
-  // 远程桌面：被控端同意/指示/授权管理；仅 win32 桌面端为真实能力（两端都要 Windows）。
-  {
-    id: "remoteDesktop",
-    icon: MonitorSmartphone,
-    titleId: "settings.remoteDesktop.title",
     groupId: "basics",
   },
   // 键盘快捷键：同属本机操控/效率配置，收纳在基础设置尾部。

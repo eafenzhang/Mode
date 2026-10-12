@@ -358,7 +358,9 @@ export function DirectoryBrowser({
       onClick={(e) => e.target === e.currentTarget && onCancel()}
       onKeyDown={handleKeyDown}
     >
-      <div className="flex h-[min(36rem,calc(100vh-4rem))] w-[min(44rem,calc(100vw-2rem))] flex-col rounded-xl border border-border bg-popover p-4 shadow-xl">
+      {/* portal 到 body 后脱离原祖先链，颜色不能靠继承兜底（桌面端 body 未设 color，
+          深色主题下会落回 UA 黑字压深底）；与 Dialog 等浮层同款显式 text-foreground。 */}
+      <div className="flex h-[min(36rem,calc(100vh-4rem))] w-[min(44rem,calc(100vw-2rem))] flex-col rounded-xl border border-border bg-popover p-4 shadow-xl text-foreground">
         {browserContent}
         {/* 非嵌入模式之前只能继续进入子目录，没有确认当前目录的路径。
             Web 目录浏览器作为独立选择器使用时因此永远拿不到 onSelect 结果。

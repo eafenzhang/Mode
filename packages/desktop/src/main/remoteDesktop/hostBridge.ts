@@ -18,7 +18,10 @@ import {
 } from "./hostMessages.js";
 import { listLiveHostProcesses } from "../resourceManagerWindow.js";
 
-const RD_REQUEST_TIMEOUT_MS = 10_000;
+// 会话类请求（peer-session-open）要等被控同意窗（60s 同意 + 75s 兜底），
+// 预算须覆盖整个等待期（spec: lan-remote-desktop 事件顺序 ② 主控侧等待预算 90s）；
+// host 侧 remoteDesktopPeerClient 的会话 POST 同为 90s，探测仍走其 10s 短预算。
+const RD_REQUEST_TIMEOUT_MS = 90_000;
 
 export interface RemoteDesktopHostLogger {
   info(...args: unknown[]): void;
@@ -27,16 +30,34 @@ export interface RemoteDesktopHostLogger {
 
 /** 会话侧回调：hostBridge 不 import coordinator，避免模块环。 */
 export interface RemoteDesktopHostSessionHandlers {
-  handleConsentRequest(message: Extract<RemoteDesktopMessageFromHost, { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopConsentRequest }>): void;
-  handleSignalFromHost(message: Extract<RemoteDesktopMessageFromHost, { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopSignalFromHost }>): void;
-  handleSessionClosed(message: Extract<RemoteDesktopMessageFromHost, { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed }>): void;
+  handleConsentRequest(
+    message: Extract<
+      RemoteDesktopMessageFromHost,
+      { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopConsentRequest }
+    >,
+  ): void;
+  handleSignalFromHost(
+    message: Extract<
+      RemoteDesktopMessageFromHost,
+      { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopSignalFromHost }
+    >,
+  ): void;
+  handleSessionClosed(
+    message: Extract<
+      RemoteDesktopMessageFromHost,
+      { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed }
+    >,
+  ): void;
   handleHostGone(): void;
 }
 
 type PendingRequest =
   | {
       kind: "server-state";
-      resolve: (value: { enabled: boolean; authorizedClients: Array<{ id: string; label: string }> }) => void;
+      resolve: (value: {
+        enabled: boolean;
+        authorizedClients: Array<{ id: string; label: string }>;
+      }) => void;
       reject: (error: Error) => void;
       timer: ReturnType<typeof setTimeout>;
     }
@@ -48,7 +69,9 @@ type PendingRequest =
     }
   | {
       kind: "peer-session-open";
-      resolve: (value: { ok: true; wsUrl: string } | { ok: false; errorCode?: string; error: string }) => void;
+      resolve: (
+        value: { ok: true; wsUrl: string } | { ok: false; errorCode?: string; error: string },
+      ) => void;
       reject: (error: Error) => void;
       timer: ReturnType<typeof setTimeout>;
     };
@@ -149,7 +172,10 @@ export async function requestRemoteDesktopServerState(): Promise<{
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopServerStateRequest },
     "server-state",
   );
-  return (await promise) as { enabled: boolean; authorizedClients: Array<{ id: string; label: string }> };
+  return (await promise) as {
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+  };
 }
 
 export async function requestRemoteDesktopSetServerEnabled(enabled: boolean): Promise<{
@@ -160,7 +186,10 @@ export async function requestRemoteDesktopSetServerEnabled(enabled: boolean): Pr
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopSetServerEnabled, enabled },
     "server-state",
   );
-  return (await promise) as { enabled: boolean; authorizedClients: Array<{ id: string; label: string }> };
+  return (await promise) as {
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+  };
 }
 
 export async function requestRemoteDesktopRevokeClient(clientId: string): Promise<{
@@ -171,7 +200,10 @@ export async function requestRemoteDesktopRevokeClient(clientId: string): Promis
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopRevokeClient, clientId },
     "server-state",
   );
-  return (await promise) as { enabled: boolean; authorizedClients: Array<{ id: string; label: string }> };
+  return (await promise) as {
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+  };
 }
 
 export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
@@ -186,14 +218,16 @@ export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
   return (await promise) as { online: boolean; remoteDesktop: boolean; name?: string };
 }
 
-export async function requestRemoteDesktopPeerSessionOpen(serverId: string): Promise<
-  { ok: true; wsUrl: string } | { ok: false; errorCode?: string; error: string }
-> {
+export async function requestRemoteDesktopPeerSessionOpen(
+  serverId: string,
+): Promise<{ ok: true; wsUrl: string } | { ok: false; errorCode?: string; error: string }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen, serverId },
     "peer-session-open",
   );
-  return (await promise) as { ok: true; wsUrl: string } | { ok: false; errorCode?: string; error: string };
+  return (await promise) as
+    | { ok: true; wsUrl: string }
+    | { ok: false; errorCode?: string; error: string };
 }
 
 /**

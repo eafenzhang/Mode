@@ -51,18 +51,22 @@ export function WorkspaceFileManagerButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-md"
-        className="text-foreground hover:bg-hover hover:text-foreground [app-region:no-drag]"
-        aria-label={label}
-        title={label}
-        data-testid={TID_WORKSPACE_FILE_MANAGER_BUTTON}
-        onClick={() => setOpen(true)}
-      >
-        <FolderOpenIcon className="size-4" aria-hidden="true" />
-      </Button>
+      {/* 与本机「打开方式」胶囊同款式（spec: remote-workspace-file-manager-entry 外观一致）：
+          同款 h-7 容器 + 边框底色，内嵌 size-7 按钮；远端无打开目标可切换，故不带下拉。 */}
+      <div className="flex items-center h-7 me-1.5 rounded-lg border border-border bg-input overflow-hidden p-0 hover:border-border-hover">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-md"
+          className="size-7 rounded-none border-0 text-foreground hover:bg-hover hover:text-foreground [app-region:no-drag]"
+          aria-label={label}
+          title={label}
+          data-testid={TID_WORKSPACE_FILE_MANAGER_BUTTON}
+          onClick={() => setOpen(true)}
+        >
+          <FolderOpenIcon className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
       {open ? (
         <DirectoryBrowser
           services={services}

@@ -6026,6 +6026,7 @@ const zhCN: Record<string, string> = {
   "settings.remoteDesktop.lanHint": "需要两台 Windows 电脑在同一局域网（或 Tailscale）内。",
   "workspace.openRemoteDesktop": "远程桌面",
   "remoteDesktop.title": "远程桌面",
+  "remoteDesktop.breadcrumbLabel": "远程桌面路径",
   "remoteDesktop.description":
     "实时查看并操作已配对 Windows 电脑的画面；对端会弹出同意窗，进行中会显示控制浮层。",
   "remoteDesktop.devices.refresh": "刷新",

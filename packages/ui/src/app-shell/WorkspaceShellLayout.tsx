@@ -1837,7 +1837,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             variant="panel"
                             className="h-full"
                           >
-                            <RemoteDesktopHome />
+                            <RemoteDesktopHome isDesktop={Boolean(isDesktop)} />
                           </ScopedErrorBoundary>
                         </main>
                       ) : (

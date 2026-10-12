@@ -65,9 +65,12 @@
   被控 host：校验令牌 + 能力位；会话占用中 → busy 直接拒
   ──► 被控 main：弹同意（已记住则跳过；总开关关/拒绝/60s 超时 → 稳定错误码）
   ◄── 允许：host 一次性会话票据（30s）──► 主控 main
+  主控侧等待预算 90s（覆盖被控 60s 同意窗 + 75s 兜底），期间 UI 停在 connecting，
+  不得用短超时把「等待同意」误判成 internal 失败。
 
 ③ 信令（宿主仅转发）
-主控 main ◄──WS /ws/remote-desktop?ticket──► 被控 host ◄──本机通道──► 被控 main（隐藏渲染器）
+主控 main ◄──WS /ws/remote-desktop?ticket&token──► 被控 host ◄──本机通道──► 被控 main（隐藏渲染器）
+  （WS 升级与 POST 同样出示设备令牌：服务端全局鉴权与 clientId 解析都读它；票据单独不足以升级）
   monitors / offer / answer / ice / bye
   被控 renderer：getDisplayMedia（所选屏幕源）→ 视频轨
   主控 renderer：RTCPeerConnection 建立并消费画面
@@ -89,7 +92,7 @@
 ## 接口变更
 
 1. **shared**：`serverRemoteInfoSchema.capabilities` 新增 `remoteDesktop?: z.boolean()`（optional，缺键=不支持，旧对端握手不报错，同 `computerUse` 先例）。新增 `packages/shared/src/remote-desktop.ts`：信令消息（monitors/offer/answer/ice/bye/error）、输入事件（pointer/key/text）、显示器矩形与坐标归一化纯函数（可单测）。
-2. **lanAccessServer（host）**：新增 `POST /api/remote-desktop/session`（令牌鉴权 → 触发被控同意 → 签发票据；拒绝/超时/busy 返回稳定错误码）；新增 `GET /ws/remote-desktop?ticket=`（票据单次消费升级，双向转发信令）。票据实现复用 `hostCapability` 先例（30s TTL、单次消费、绑定 clientId）。
+2. **lanAccessServer（host）**：新增 `POST /api/remote-desktop/session`（令牌鉴权 → 触发被控同意 → 签发票据；拒绝/超时/busy 返回稳定错误码）；新增 `GET /ws/remote-desktop?ticket=&token=`（票据单次消费升级 + 与 POST 同一设备令牌，双向转发信令；令牌 query 是既有全局鉴权与 clientId 解析的统一读取口，与 POST 的 `?token=` 同形）。票据实现复用 `hostCapability` 先例（30s TTL、单次消费、绑定 clientId）。主控链路超时预算：会话 POST 与宿主桥等待 90s（覆盖 60s 同意窗 + 75s 兜底），能力位探测维持 10s（无同意流）。
 3. **被控 main**：新增会话协调器（同意弹窗、指示浮层、隐藏渲染器生命周期、`desktopCapturer.getSources({types:["screen"]})` 显示器枚举）；隐藏渲染器会话注册 `setDisplayMediaRequestHandler` 返回所选屏幕源（先例：`electronBrowserWebmRecorder` 的 handler 模式，但目标是屏幕源而非 WebFrameMain）；IPC 面 `rd:*`（listMonitors / startCapture / inject / sessionState / end），renderer 不触达 Helper。（本机 spike 已验证：隐藏窗 `show:false` + `backgroundThrottling:false` 可持续采集推流，27.5fps@1080p。）
 4. **Helper（`packages/mode-cua` + `crates/mode-cua-ax`）**：broker 方法集新增 `raw_input`（鼠标绝对移动/按键/滚轮、键盘 down/up、Unicode 文本），复用 `input.rs` 既有 SendInput 原语，不走 CUA 动作语义（无 UIA 预检、无前台要求）；Helper 创建准入（`shouldCreateDefaultCuaProductHelper`）新增「远程桌面被控开关」为第二准入理由（与 CUA 插件启用并列，authority 与 identity 条件不变）；触发语义：被控注入在无 live helper 且被控开关开时，经与 CUA 相同的创建入口（同一生命周期）按需拉起，失败退避后仍报 `helper_unavailable`；打包链复用 `cua-helper`（win32-x64）不变。
 5. **平台接口（renderer）**：设备列表复用既有 `getLanPairedPeers` / 发现结果；新增远程桌面会话控制（发起、结果回执、结束）经 main；令牌与 Helper 凭据不出 main。
@@ -99,9 +102,9 @@
 
 - **侧边栏**：插件市场按钮下方新增「远程桌面」（`WorkspaceMainView` 新增 `"remote-desktop"`），仅 win32 desktop 显示（`isWindowsDesktop` 门）。
 - **主视图**：
-  - 设备页：已配对设备卡片（名称 / 平台 / 在线状态 / 能力位）；「连接」进入会话面；无配对设备 → 引导跳「设置 → 局域网访问」。
-  - 会话面：视频（letterbox）、工具条（显示器切换、全屏、断开）、状态（延迟 / 帧率 / 分辨率）；断线终止并给出原因文案。
-- **被控端**：同意弹窗（模态，发起设备名 + 「记住此设备」，60s 超时拒绝）；指示浮层沿用 `windowsCuaOperationIndicator` 的窗口形态先例；设置页「远程桌面」分区（总开关、已授权设备列表可撤销、监听端口/帮助说明）。
+  - 设备页：已配对设备卡片（名称 / 平台 / 在线状态 / 能力位）；「连接」进入会话面；无配对设备 → 引导跳「设置 → 局域网访问」。标题与整体样式对齐其它主视图：`h1` 用共享排版（`text-2xl font-semibold tracking-tight lg:text-3xl`），套 `AutomationsMainBreadcrumbFrame` 面包屑/桌面拖拽顶栏（与自动化、插件市场同款；**仅设备页**）。
+  - 会话面：视频（letterbox）、工具条（显示器切换、全屏、断开）、状态（延迟 / 帧率 / 分辨率）；断线终止并给出原因文案。保持整块无外框（不套 breadcrumb），视频占满主视图。
+- **被控端**：同意弹窗（模态，发起设备名 + 「记住此设备」，60s 超时拒绝）；指示浮层沿用 `windowsCuaOperationIndicator` 的窗口形态先例；设置页「远程桌面」分区（总开关、已授权设备列表可撤销、监听端口/帮助说明）。侧栏分区顺序：「模型设置 → 远程桌面 → 电脑控制」（远控入口紧跟模型配置、先于本机控制开关）。
 - i18n 中英同步；不改既有 key 语义。
 
 ## 安全边界

@@ -31,7 +31,10 @@ export type RemoteDesktopControllerEvent =
   | { kind: "signal"; message: RemoteDesktopSignalMessage };
 
 export interface RemoteDesktopControllerSession {
-  start(serverId: string, sender: WebContents): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+  start(
+    serverId: string,
+    sender: WebContents,
+  ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
   sendSignal(message: RemoteDesktopSignalMessage): void;
   end(reason?: "user-end" | "error"): Promise<void>;
   dispose(): void;
@@ -114,7 +117,8 @@ export function createRemoteDesktopControllerSession(options: {
       if (socket !== ws) {
         return;
       }
-      const text = typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString("utf8") : "";
+      const text =
+        typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString("utf8") : "";
       if (!text) {
         return;
       }
@@ -203,6 +207,23 @@ export function createRemoteDesktopControllerSession(options: {
       let result: Awaited<ReturnType<typeof requestRemoteDesktopPeerSessionOpen>>;
       try {
         result = await requestRemoteDesktopPeerSessionOpen(serverId);
+      } catch (error) {
+        // 宿主桥 reject（90s 超时 / 无宿主 / 宿主退出）不是稳定错误码：按 internal 收口。
+        // 不能把异常抛穿 ipcMain.handle——否则发起窗口的 destroyed 监听泄漏、终态不推。
+        options.logger.warn(
+          `[remote-desktop] peer session request rejected (serverId=${serverId}): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        if (startAborted) {
+          senderWebContents = null;
+          detachSender();
+          return { ok: true };
+        }
+        pushState("closed", "internal");
+        senderWebContents = null;
+        detachSender();
+        return { error: "internal" };
       } finally {
         starting = false;
       }

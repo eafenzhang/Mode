@@ -2,18 +2,22 @@
  * 主控方向的对端操作（host 侧）：对端能力位探测与受控会话请求。
  *
  * 为什么放在 host 而不在 main：对端长期令牌保存在凭据服务（`lan:peer:<serverId>:token`），
- * host 是本机 LAN 客户端凭据的既有持有者；main 只拿到「票据 + WS 地址」，令牌不出 host。
+ * host 是本机 LAN 客户端凭据的既有持有者；令牌只随本模块的出站请求交给对端
+ * （POST 与 WS 升级都用 `?token=` query，与服务端 `readPresentedLiteToken` 的读取口同形），
+ * 不写日志、不进 renderer。
  */
-import {
-  buildLanPeerMetaKey,
-  buildLanPeerTokenKey,
-  lanPeerMetaSchema,
-} from "@mode/shared";
+import { buildLanPeerMetaKey, buildLanPeerTokenKey, lanPeerMetaSchema } from "@mode/shared";
 import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
 import type { ICredentialService } from "@mode/services";
 import { fetchLanPeerInfo } from "./lanRemoteAttach.js";
 
-const PEER_REQUEST_TIMEOUT_MS = 10_000;
+/**
+ * 会话 POST 阻塞在被控同意流（60s 同意窗 + 75s 兜底，remoteDesktopServer.ts），
+ * 主控预算必须覆盖整个等待期，否则用户没来得及点「允许」就被归因 internal（spec:
+ * lan-remote-desktop 事件顺序 ② 主控侧等待预算 90s）。能力位探测不走本函数，
+ * 由 fetchLanPeerInfo 自带短超时。
+ */
+const SESSION_REQUEST_TIMEOUT_MS = 90_000;
 
 export interface RemoteDesktopPeerInfo {
   online: boolean;
@@ -53,9 +57,13 @@ async function readPeerTarget(
   };
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PEER_REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
@@ -96,7 +104,9 @@ export async function probeRemoteDesktopPeer(
 export async function openRemoteDesktopPeerSession(
   credentials: ICredentialService,
   serverId: string,
-): Promise<{ ok: true; wsUrl: string } | { ok: false; errorCode?: RemoteDesktopErrorCode; error: string }> {
+): Promise<
+  { ok: true; wsUrl: string } | { ok: false; errorCode?: RemoteDesktopErrorCode; error: string }
+> {
   const target = await readPeerTarget(credentials, serverId);
   if (!target) {
     return { ok: false, errorCode: "unauthorized", error: "尚未与该设备配对" };
@@ -109,7 +119,11 @@ export async function openRemoteDesktopPeerSession(
   url.searchParams.set("token", target.token);
   let response: Response;
   try {
-    response = await fetchWithTimeout(url.toString(), { method: "POST" });
+    response = await fetchWithTimeout(
+      url.toString(),
+      { method: "POST" },
+      SESSION_REQUEST_TIMEOUT_MS,
+    );
   } catch (error) {
     return {
       ok: false,
@@ -146,5 +160,11 @@ export async function openRemoteDesktopPeerSession(
   if (!ticket) {
     return { ok: false, errorCode: "internal", error: "对端响应缺少会话票据" };
   }
-  return { ok: true, wsUrl: `ws://${target.host}:${target.port}/ws/remote-desktop?ticket=${ticket}` };
+  // WS 升级与 POST 同样要出示设备令牌：服务端全局鉴权（http.ts isTokenProtectedPath 命中
+  // /ws/*）与升级中间件的 resolveLanClientId 都从 query 读令牌，只带 ticket 会被 401 拒绝。
+  const wsUrl = new URL(`/ws/remote-desktop`, base);
+  wsUrl.protocol = "ws:";
+  wsUrl.searchParams.set("ticket", ticket);
+  wsUrl.searchParams.set("token", target.token);
+  return { ok: true, wsUrl: wsUrl.toString() };
 }
