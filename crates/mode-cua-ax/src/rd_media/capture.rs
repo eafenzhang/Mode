@@ -980,7 +980,13 @@ impl DuplicationOutput {
       // AccessLost：不 Release（帧已不持有；简报要点 3——设备侧已丢弃）。
       Err(e) if e.code() == DXGI_ERROR_ACCESS_LOST => return Ok(CaptureFrame::AccessLost),
       // 超时 = 该 tick 无新帧。
-      Err(e) if e.code() == DXGI_ERROR_WAIT_TIMEOUT => return Ok(CaptureFrame::Idle),
+      Err(e) if e.code() == DXGI_ERROR_WAIT_TIMEOUT => {
+        // DUPL 零投递环境（软件光标/虚拟显示）**没有指针事件**唤醒指针-only 分支：
+        // 超时改由 user32 快照轮询补帧——光标移动必须自己产帧（判重 + 节流与 DUPL
+        // pointer-only 同语义），否则远控侧动鼠标画面纹丝不动（2026-10-13 实测根因：
+        // 只有桌面像素恰好变化才出帧，会话看起来「卡死」）。正常环境不走此路。
+        return self.poll_user32_pointer_frame();
+      }
       Err(e) => {
         return Err(AxError::internal(format!("AcquireNextFrame 失败: {e}")));
       }
@@ -1151,6 +1157,54 @@ impl DuplicationOutput {
       shape: cache.key,
       visible: true,
     }
+  }
+
+  /// 零投递环境的指针运动补帧（Acquire 超时时调用）：DUPL 不投递指针事件，
+  /// 「动鼠标出帧」只能靠 user32 快照轮询触发——与 DUPL 指针-only 分支完全同语义：
+  /// 快照判重（无变化 → Idle）→ `POINTER_RECOMPOSE_MIN_INTERVAL` 节流 → 以 clean
+  /// 重合成（GPU 覆盖层 / CPU 补丁，含 XOR 分流）→ 更新判重键。
+  /// 正常环境（`dupl_shape_seen`）不走此路：指针事件仍由 DUPL 唤醒，行为不变。
+  fn poll_user32_pointer_frame(&mut self) -> AxResult<CaptureFrame> {
+    if self.dupl_shape_seen || !self.clean_valid {
+      return Ok(CaptureFrame::Idle);
+    }
+    let snap = self.resolve_user32_pointer();
+    if self.last_composited == Some(snap) {
+      return Ok(CaptureFrame::Idle);
+    }
+    // 节流与 DUPL 指针-only 同源（超时本身已等 ≥16ms，命中窗口的概率低）。
+    if let Some(last) = self.last_compose_at {
+      let elapsed = last.elapsed();
+      if elapsed < POINTER_RECOMPOSE_MIN_INTERVAL {
+        std::thread::sleep(POINTER_RECOMPOSE_MIN_INTERVAL - elapsed);
+      }
+    }
+    if self.compose.is_some() && !self.shape_needs_cpu() {
+      let base = self.clean.clone();
+      match self.compose_frame_gpu(&base, &snap) {
+        Ok(()) => {
+          self.last_composited = Some(snap);
+          self.last_compose_at = Some(Instant::now());
+          return Ok(CaptureFrame::NewDesktop {
+            texture: self.proc.clone(),
+            cursor: None,
+          });
+        }
+        Err(e) => {
+          warn(&format!("GPU 光标合成失败，本会话回退 CPU 回读路径: {e}"));
+          self.compose = None;
+        }
+      }
+    }
+    // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；proc/clean 同设备同尺寸同格式。
+    unsafe { self.ctx.CopyResource(&self.proc, &self.clean) };
+    let cursor = self.build_cursor_patch(&snap)?;
+    self.last_composited = Some(snap);
+    self.last_compose_at = Some(Instant::now());
+    Ok(CaptureFrame::NewDesktop {
+      texture: self.proc.clone(),
+      cursor,
+    })
   }
 
   /// GPU 合成一帧（P0-2b）：算光标几何（越界钳制）→ 双流 Blt → proc。
@@ -1839,5 +1893,33 @@ mod user32_fallback_live_tests {
       raster.h,
       raster.visible.iter().filter(|v| **v == 1).count()
     );
+    // 光标运动补帧回归（2026-10-13「连上但卡死」根因）：零投递环境没有 DUPL 指针
+    // 事件唤醒合成——动鼠标必须由轮询补帧路径自己产帧，否则画面只有桌面像素恰好
+    // 变化时才刷新。持续小挪光标 + 期限内必须见到 NewDesktop（桌面偶发重绘产帧同样
+    // 放行：合同是「有运动就有帧」）。
+    let start_pt = {
+      let mut pt = windows::Win32::Foundation::POINT::default();
+      match unsafe { GetCursorPos(&mut pt) } {
+        Ok(()) => pt,
+        Err(_) => return, // 取不到位置：环境能力缺失，跳过
+      }
+    };
+    let motion_deadline = Instant::now() + Duration::from_secs(3);
+    let mut got_motion_frame = false;
+    let mut mi = 0i32;
+    while Instant::now() < motion_deadline {
+      mi += 1;
+      let _ = unsafe { SetCursorPos(start_pt.x + (mi % 3), start_pt.y + ((mi / 3) % 3)) };
+      match out.next_frame(100) {
+        Ok(CaptureFrame::NewDesktop { .. }) => {
+          got_motion_frame = true;
+          break;
+        }
+        Ok(_) => {}
+        Err(_) => return,
+      }
+    }
+    assert!(got_motion_frame, "光标运动必须在期限内产出帧（零投递轮询补帧回归）");
+    eprintln!("[probe] pointer-motion frames OK ({} 次挪动)", mi);
   }
 }

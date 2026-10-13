@@ -125,6 +125,10 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
     无 alpha 用 AND 掩码、单色走既有 render 布局；形状按 HCURSOR 句柄缓存，仅位置每帧采），
     喂入与 DUPL 完全相同的 `CursorShapeRaster` 合成管线（GPU/CPU 路径与几何换算零分叉）；
     DUPL 一旦投递形状即回归 DUPL 权威（覆盖 user32 缓存，不再采样）。
+    零投递环境同时缺失**指针事件**（光标移动不产生任何 DUPL 帧）：`AcquireNextFrame` 超时
+    改由 user32 快照**轮询补帧**——快照判重 / 15ms 节流 / clean 重合成与 DUPL 指针-only
+    分支同语义；否则远控侧动鼠标画面纹丝不动、只有桌面像素恰好变化才刷新（2026-10-13
+    实测「连上但卡死」根因；harness 用动画窗口产帧会掩盖此洞）。正常环境不走轮询。
 - **编码**：MF 视频编码器（`MFT_ENUM_FLAG_HARDWARE` 选「H.264 HW」，Win10 系统自带）；输入 D3D11 纹理 → D3D11 Video Processor 出 NV12（承担 >1080p 缩放）→ MF `MFT_MESSAGE_SET_D3D_MANAGER` 全 GPU 路径。参数：平均码率 8Mbps、GOP 120 帧（≈2s@60fps）、`select-monitor` / 分辨率变化强制 IDR。
   - **异步 MFT（2026-10-13 修复）**：硬件 H.264 MFT（NVENC / AMF / QSV）普遍是**异步编码器**，非 MF 管线直接使用分两步才能跑通：
     1. **解锁**：读 `MF_TRANSFORM_ASYNC` 判定；异步时配置媒体类型前置 `MF_TRANSFORM_ASYNC_UNLOCK=TRUE`，否则首次 `SetInputType` 报 `MF_E_TRANSFORM_ASYNC_LOCKED (0xC00D6D77)`。
