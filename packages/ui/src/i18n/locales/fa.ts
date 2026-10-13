@@ -6197,6 +6197,12 @@ const faIR: Record<string, string> = {
   "settings.lanAccess.refreshPairedPeers": "تازه‌سازی",
   "settings.lanAccess.firewallHint":
     "بار نخست ممکن است سیستم اجازه فایروال بخواهد؛ دسترسی شبکه خصوصی را مجاز کنید.",
+  // مجوز رومیزی از راه دور برای هر دستگاه جفت‌شده (همان فیلد «این دستگاه را به خاطر بسپار»).
+  "settings.lanAccess.rdAuthorized": "رومیزی از راه دور: مجاز (بدون تأیید وصل می‌شود)",
+  "settings.lanAccess.rdUnauthorized": "رومیزی از راه دور: غیرمجاز (هنگام اتصال تأیید می‌خواهد)",
+  "settings.lanAccess.rdAuthorizeFor": "اجازه دادن به {name} برای کنترل از راه دور این دستگاه",
+  "settings.lanAccess.rdRevokeFor": "لغو مجوز رومیزی از راه دور برای {name}",
+  "settings.lanAccess.rdUpdateFailed": "به‌روزرسانی مجوز رومیزی از راه دور ناموفق بود",
   // رومیزی از راه دور (docs/specs/lan-remote-desktop.md): بخش تنظیمات سمت کنترل‌شده،
   // صفحه دستگاه‌ها و صفحه نشست سمت کنترل‌کننده، و لایه‌های سمت کنترل‌شده.
   "settings.remoteDesktop.title": "کنترل از راه دور",
@@ -6227,17 +6233,27 @@ const faIR: Record<string, string> = {
   "remoteDesktop.devices.loadFailed": "خواندن دستگاه‌های پیوندشده ناموفق بود.",
   "remoteDesktop.devices.retry": "تلاش دوباره",
   "remoteDesktop.devices.empty":
-    "هنوز دستگاهی پیوند نشده است. ابتدا در «تنظیمات · دسترسی شبکه محلی» کد پیوند بسازید و از رایانه ویندوزی دیگر پیوند دهید.",
+    "هنوز دستگاهی پیوند نشده است. با «شناسایی دستگاه‌ها» در بالا رایانه‌های ویندوزی همین شبکه محلی را پیدا کنید و با کد «تنظیمات · کنترل از راه دور» دستگاه مقابل پیوند دهید.",
   "remoteDesktop.devices.openLanAccess": "باز کردن تنظیمات کنترل از راه دور",
   "remoteDesktop.devices.connect": "اتصال",
+  "remoteDesktop.devices.locallyControlledBanner":
+    "این دستگاه در حال کنترل از راه دور است؛ پس از قطع آن می‌توانید اتصال از راه دور آغاز کنید.",
+  "remoteDesktop.device.status.ready": "آماده",
+  "remoteDesktop.device.status.probing": "در حال بررسی",
+  "remoteDesktop.device.status.unknown": "نامشخص",
+  "remoteDesktop.device.status.offline": "آفلاین",
+  "remoteDesktop.device.status.unsupported": "پشتیبانی نمی‌شود",
   "remoteDesktop.device.rename": "تغییر نام",
   "remoteDesktop.device.save": "ذخیره",
   "remoteDesktop.device.cancel": "لغو",
   "remoteDesktop.device.delete": "حذف",
+  "remoteDesktop.device.deleteAsk": "«{name}» حذف شود؟ توکن پیوند و فراداده نیز پاک می‌شوند.",
   "remoteDesktop.device.deleteConfirm": "تأیید حذف",
   "remoteDesktop.addDevice.title": "افزودن دستگاه",
   "remoteDesktop.addDevice.detect": "شناسایی دستگاه‌ها",
   "remoteDesktop.addDevice.collapse": "بستن",
+  "remoteDesktop.addDevice.pairedHidden":
+    "دستگاه‌های پیوندشده در فهرست شناسایی نمایش داده نمی‌شوند ({count} مورد پنهان)",
   "remoteDesktop.device.reason.ready": "دستگاه مقابل آماده است",
   "remoteDesktop.device.reason.probing": "در حال بررسی توانمندی دستگاه مقابل…",
   "remoteDesktop.device.reason.probe-failed": "بررسی وضعیت دستگاه مقابل ممکن نشد؛ بعداً تلاش کنید.",

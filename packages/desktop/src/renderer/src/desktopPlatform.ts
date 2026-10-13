@@ -54,6 +54,7 @@ export function createDesktopPlatform(options: {
     rdGetServerState: () => window.mode.rdGetServerState(),
     rdSetServerEnabled: (enabled) => window.mode.rdSetServerEnabled(enabled),
     rdRevokeClient: (clientId) => window.mode.rdRevokeClient(clientId),
+    rdAuthorizeClient: (clientId) => window.mode.rdAuthorizeClient(clientId),
     onRemoteDesktopSessionEvent: (handler) => window.mode.onRemoteDesktopSessionEvent(handler),
     loadMcpFromUserDirectory: (payload) => window.mode.loadMcpFromUserDirectory(payload),
     saveMcpToUserDirectory: (payload) => window.mode.saveMcpToUserDirectory(payload),

@@ -1,37 +1,25 @@
 /**
  * 远程桌面设备页（docs/specs/lan-remote-desktop.md UI 规则「主视图 · 设备页」）：
  * 列出既有 LAN 配对设备（`getLanPairedPeers`），逐设备拉能力位（`rdGetPeerCapability`）；
- * 能力位缺失/离线/旧对端缺键 → 入口置灰并给出稳定文案；未配对 → 空态引导跳「设置 · 局域网访问」。
+ * 能力位缺失/离线/旧对端缺键 → 入口置灰并给出稳定文案；未配对 → 空态引导跳「设置 · 远程控制」。
+ * 单卡渲染与卡内交互拆在 RemoteDesktopDeviceCard（max-lines 约束，2026-10-13）。
  *
  * 能力位不缓存：每次进入设备页与点「刷新」都重新探测（旧对端升级后立即生效）。
+ * 「检测设备」列表过滤已配对设备（`filterUnpairedDiscoveredPeers`）。
  */
 import { useCallback, useEffect, useState } from "react";
-import {
-  ArrowRight,
-  Check,
-  LoaderIcon,
-  MonitorSmartphone,
-  Pencil,
-  RefreshCw,
-  Settings2,
-  Trash2,
-  WifiOff,
-} from "lucide-react";
+import { MonitorSmartphone, RefreshCw, Settings2 } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { logger } from "@/logger.js";
-import {
-  resolveRemoteDesktopDeviceAvailability,
-  resolveRemoteDesktopDeviceLabel,
-  type RemoteDesktopDeviceProbe,
-} from "@/remote-desktop/deviceAvailability.js";
+import type { RemoteDesktopDeviceProbe } from "@/remote-desktop/deviceAvailability.js";
 import { RemoteDesktopAddDevice } from "@/remote-desktop/RemoteDesktopAddDevice.js";
+import { RemoteDesktopDeviceCard } from "@/remote-desktop/RemoteDesktopDeviceCard.js";
 import { RemoteDesktopSession } from "@/remote-desktop/RemoteDesktopSession.js";
 
 type PeerListState =
@@ -60,10 +48,7 @@ export function RemoteDesktopHome({
   const [sessionTarget, setSessionTarget] = useState<{ serverId: string; name: string } | null>(
     null,
   );
-  // 设备管理（编辑/删除）：编辑 = 重命名本机记录（renameLanPairedPeer，不动对端与令牌）；
-  // 删除 = 清配对令牌与元数据（removeLanPairedPeer，两段式确认防误触）。
-  const [editingPeer, setEditingPeer] = useState<{ serverId: string; name: string } | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  // 设备管理操作（重命名/删除）跨卡互斥；错误与忙碌态上提到页级，卡片只报事件。
   const [peerActionBusy, setPeerActionBusy] = useState(false);
   const [peerActionError, setPeerActionError] = useState("");
 
@@ -128,7 +113,7 @@ export function RemoteDesktopHome({
   // main 在「WS 建立 → connected」推送后需要 renderer 立刻回 hello，设备页先起会话
   // 再挂载会话面会丢掉这条推送，握手就停在等 monitors 上。
   const connect = useCallback((peer: LanPairedPeer) => {
-    setSessionTarget({ serverId: peer.serverId, name: resolveRemoteDesktopDeviceLabel(peer) });
+    setSessionTarget({ serverId: peer.serverId, name: peer.name?.trim() || peer.serverId });
   }, []);
 
   const exitSession = useCallback(() => {
@@ -136,37 +121,29 @@ export function RemoteDesktopHome({
     setSessionTarget(null);
   }, []);
 
-  /** 保存重命名（编辑）：只改本机记录的名称；成功后刷新列表复位编辑态。 */
-  const saveRename = useCallback(async () => {
-    const target = editingPeer;
-    const name = target?.name.trim() ?? "";
-    if (!target || !name) {
-      return;
-    }
-    setPeerActionBusy(true);
-    setPeerActionError("");
-    try {
-      await platform.renameLanPairedPeer(target.serverId, name);
-      setEditingPeer(null);
-      await loadPeers();
-    } catch (error) {
-      setPeerActionError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setPeerActionBusy(false);
-    }
-  }, [editingPeer, loadPeers, platform]);
+  /** 重命名（卡片编辑态提交）：只改本机记录的名称；成功后刷新列表。抛错由卡片转 onError。 */
+  const renamePeer = useCallback(
+    async (serverId: string, name: string) => {
+      setPeerActionBusy(true);
+      setPeerActionError("");
+      try {
+        await platform.renameLanPairedPeer(serverId, name);
+        await loadPeers();
+      } finally {
+        setPeerActionBusy(false);
+      }
+    },
+    [loadPeers, platform],
+  );
 
-  /** 删除（两段式确认后执行）：清配对令牌与元数据，成功后刷新列表。 */
+  /** 删除（卡片两段式确认后执行）：清配对令牌与元数据，成功后刷新列表。 */
   const deletePeer = useCallback(
     async (serverId: string) => {
       setPeerActionBusy(true);
       setPeerActionError("");
       try {
         await platform.removeLanPairedPeer(serverId);
-        setPendingDeleteId(null);
         await loadPeers();
-      } catch (error) {
-        setPeerActionError(error instanceof Error ? error.message : String(error));
       } finally {
         setPeerActionBusy(false);
       }
@@ -186,6 +163,7 @@ export function RemoteDesktopHome({
   }
 
   const peerList = peers.status === "ok" ? peers.peers : [];
+  const pairedServerIds = peerList.map((peer) => peer.serverId);
 
   // 设备页与自动化/插件市场同款：面包屑/桌面拖拽顶栏 + 共享标题排版（spec: lan-remote-desktop UI 规则）。
   // 会话面（上方 sessionTarget 分支）保持整块无外框，视频占满主视图。
@@ -225,14 +203,38 @@ export function RemoteDesktopHome({
               </p>
             ) : null}
 
+            {/* 本机被控中：整页置灰的根因横幅（逐卡还有同样的原因文案）。 */}
+            {locallyControlled ? (
+              <p
+                data-testid="remote-desktop-locally-controlled"
+                className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-ui-base text-warning"
+              >
+                {intl.formatMessage({ id: "remoteDesktop.devices.locallyControlledBanner" })}
+              </p>
+            ) : null}
+
             {/* 「检测设备 + 配对」在本页完成（从远程连接向导前移）；配对成功刷新设备列表。 */}
-            <RemoteDesktopAddDevice onPaired={loadPeers} />
+            <RemoteDesktopAddDevice onPaired={loadPeers} pairedServerIds={pairedServerIds} />
 
             {peers.status === "loading" ? (
-              <p className="flex items-center gap-2 py-6 text-ui-base text-foreground-subtle">
-                <LoaderIcon className="size-4 animate-spin" />
-                {intl.formatMessage({ id: "remoteDesktop.devices.loading" })}
-              </p>
+              <div className="grid gap-3 sm:grid-cols-2" data-testid="remote-desktop-loading">
+                {[0, 1].map((key) => (
+                  <div
+                    key={key}
+                    aria-hidden="true"
+                    className="flex animate-pulse flex-col gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="size-9 shrink-0 rounded-lg bg-surface" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 w-1/2 rounded bg-surface" />
+                        <div className="h-2.5 w-1/3 rounded bg-surface" />
+                      </div>
+                    </div>
+                    <div className="h-7 w-20 self-end rounded-md bg-surface" />
+                  </div>
+                ))}
+              </div>
             ) : null}
 
             {peers.status === "error" ? (
@@ -270,151 +272,19 @@ export function RemoteDesktopHome({
 
             {peerList.length > 0 ? (
               <ul className="grid gap-3 sm:grid-cols-2" data-testid="remote-desktop-devices">
-                {peerList.map((peer) => {
-                  const name = resolveRemoteDesktopDeviceLabel(peer);
-                  const availability = resolveRemoteDesktopDeviceAvailability(
-                    probes[peer.serverId],
-                    { locallyControlled },
-                  );
-                  const blockedReason = availability.reason;
-                  return (
-                    <li
-                      key={peer.serverId}
-                      className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-surface text-foreground-subtle">
-                          {blockedReason === "offline" || blockedReason === "probe-failed" ? (
-                            <WifiOff className="size-4" />
-                          ) : (
-                            <MonitorSmartphone className="size-4" />
-                          )}
-                        </span>
-                        {editingPeer?.serverId === peer.serverId ? (
-                          <span className="min-w-0 flex-1 space-y-2">
-                            <Input
-                              size="lg"
-                              data-testid="remote-desktop-device-name-input"
-                              value={editingPeer.name}
-                              onChange={(event) =>
-                                setEditingPeer({ serverId: peer.serverId, name: event.target.value })
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  void saveRename();
-                                }
-                                if (event.key === "Escape") {
-                                  setEditingPeer(null);
-                                }
-                              }}
-                            />
-                            <span className="flex items-center gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                disabled={peerActionBusy || !editingPeer.name.trim()}
-                                onClick={() => void saveRename()}
-                              >
-                                <Check className="size-4" />
-                                {intl.formatMessage({ id: "remoteDesktop.device.save" })}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                disabled={peerActionBusy}
-                                onClick={() => setEditingPeer(null)}
-                              >
-                                {intl.formatMessage({ id: "remoteDesktop.device.cancel" })}
-                              </Button>
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-ui-base text-foreground">
-                              {name}
-                            </span>
-                            <span className="block truncate text-ui-xs text-foreground-subtle">
-                              {peer.host && peer.port ? `${peer.host}:${peer.port}` : peer.serverId}
-                            </span>
-                            <span className="mt-1 block text-ui-xs text-foreground-subtle">
-                              {blockedReason
-                                ? intl.formatMessage({
-                                    id: `remoteDesktop.device.reason.${blockedReason}`,
-                                  })
-                                : intl.formatMessage({ id: "remoteDesktop.device.reason.ready" })}
-                            </span>
-                          </span>
-                        )}
-                      </div>
-                      {editingPeer?.serverId === peer.serverId ? null : (
-                        <div className="flex items-center justify-end gap-1.5">
-                          {pendingDeleteId === peer.serverId ? (
-                            <>
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                disabled={peerActionBusy}
-                                onClick={() => void deletePeer(peer.serverId)}
-                              >
-                                {intl.formatMessage({ id: "remoteDesktop.device.deleteConfirm" })}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                disabled={peerActionBusy}
-                                onClick={() => setPendingDeleteId(null)}
-                              >
-                                {intl.formatMessage({ id: "remoteDesktop.device.cancel" })}
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setPeerActionError("");
-                                  setPendingDeleteId(null);
-                                  setEditingPeer({ serverId: peer.serverId, name });
-                                }}
-                              >
-                                <Pencil className="size-4" />
-                                {intl.formatMessage({ id: "remoteDesktop.device.rename" })}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setPeerActionError("");
-                                  setEditingPeer(null);
-                                  setPendingDeleteId(peer.serverId);
-                                }}
-                              >
-                                <Trash2 className="size-4" />
-                                {intl.formatMessage({ id: "remoteDesktop.device.delete" })}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={!availability.canConnect}
-                                onClick={() => connect(peer)}
-                              >
-                                <ArrowRight className="size-4" />
-                                {intl.formatMessage({ id: "remoteDesktop.devices.connect" })}
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
+                {peerList.map((peer) => (
+                  <RemoteDesktopDeviceCard
+                    key={peer.serverId}
+                    peer={peer}
+                    probe={probes[peer.serverId]}
+                    locallyControlled={locallyControlled}
+                    busy={peerActionBusy}
+                    onRename={renamePeer}
+                    onDelete={deletePeer}
+                    onConnect={connect}
+                    onError={setPeerActionError}
+                  />
+                ))}
               </ul>
             ) : null}
           </div>

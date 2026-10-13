@@ -70,8 +70,7 @@ import { PluginsSection } from "@/settings/PluginsSection.js";
 import { HooksSection } from "@/settings/HooksSection.js";
 import { WorkspaceFileSearchSection } from "@/settings/WorkspaceFileSearchSection.js";
 import { MemorySettingsSection } from "@/settings/MemorySettingsSection.js";
-import { LanAccessSection } from "@/settings/LanAccessSection.js";
-import { RemoteDesktopSettingsSection } from "@/settings/RemoteDesktopSettingsSection.js";
+import { RemoteControlSettingsSection } from "@/settings/RemoteControlSettingsSection.js";
 import { BrowserSettingsSection } from "@/settings/BrowserSettingsSection.js";
 import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
 import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
@@ -1459,13 +1458,11 @@ export function SettingsPage({
                             />
                           </ServiceProvider>
                         ) : activeSection === "remoteDesktop" || activeSection === "lanAccess" ? (
-                          // 远程控制（合并原「远程桌面」与「局域网访问」，见 settingsPageConfig）：
-                          // 被控设置（同意/授权/撤销）+ 本机共享（配对码/客户端/已配对对端列表）。
-                          // lanAccess 作为历史意图别名保留，落到同一分区内容。
-                          <div className="space-y-6">
-                            <RemoteDesktopSettingsSection />
-                            <LanAccessSection />
-                          </div>
+                          // 远程控制（合并原「远程桌面」与「局域网访问」为单卡片被控面，
+                          // 2026-10-13；见 settingsPageConfig 与 RemoteControlSettingsSection）：
+                          // 两个总开关 + 配对码 + 已配对设备单列表（含远程桌面授权开关）
+                          // +「我配对的对端」。lanAccess 作为历史意图别名保留，落到同一分区内容。
+                          <RemoteControlSettingsSection />
                         ) : activeSection === "memory" ? (
                           <ServiceProvider services={localHostServices}>
                             {/* Memory catalog 始终使用本地 Host，避免远程 workspace 误读本机数据。 */}

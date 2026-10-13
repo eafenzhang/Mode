@@ -18,7 +18,7 @@
  *                ServerStateResult(设置面)、PeerProbeResult / PeerSessionOpenResult(主控⑤)、
  *                MediaStatus(P2 原生媒体面冻结通知)
  *   main → host：ConsentResult②、SignalToHost③、
- *                ServerStateRequest / SetServerEnabled / RevokeClient(设置面)、
+ *                ServerStateRequest / SetServerEnabled / RevokeClient / AuthorizeClient(设置面)、
  *                PeerProbe / PeerSessionOpen(主控侧读对端凭据与发起请求)、
  *                MediaStart / MediaSwitch / MediaStop(P2 原生媒体面开流/换屏/停流)
  *
@@ -57,6 +57,8 @@ export const RemoteDesktopHostMessageTypes = {
   RemoteDesktopSetServerEnabled: "remote-desktop-server-enabled-set",
   /** main → host：撤销某设备的远程桌面授权。 */
   RemoteDesktopRevokeClient: "remote-desktop-client-revoke",
+  /** main → host：授权某设备（设置页开关；与同意窗「记住此设备」写同一记录字段）。 */
+  RemoteDesktopAuthorizeClient: "remote-desktop-client-authorize",
   /** main → host：用已存令牌探对端 /api/server-info 能力位（令牌不出 host）。 */
   RemoteDesktopPeerProbe: "remote-desktop-peer-probe",
   /** host → main：对端探测结果（失败 → online:false）。 */
@@ -224,6 +226,14 @@ export const remoteDesktopRevokeClientSchema = z
   })
   .strict();
 
+export const remoteDesktopAuthorizeClientSchema = z
+  .object({
+    type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopAuthorizeClient),
+    requestId: trimmedNonEmpty,
+    clientId: trimmedNonEmpty,
+  })
+  .strict();
+
 export const remoteDesktopPeerProbeSchema = z
   .object({
     type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe),
@@ -286,6 +296,7 @@ export const remoteDesktopMessageToHostSchema = z.discriminatedUnion("type", [
   remoteDesktopServerStateRequestSchema,
   remoteDesktopSetServerEnabledSchema,
   remoteDesktopRevokeClientSchema,
+  remoteDesktopAuthorizeClientSchema,
   remoteDesktopPeerProbeSchema,
   remoteDesktopPeerSessionOpenSchema,
   remoteDesktopMediaStartSchema,

@@ -21,6 +21,8 @@ export const REMOTE_DESKTOP_IPC = {
   SetServerEnabled: "rd/set-server-enabled",
   /** invoke(clientId) → { enabled, authorizedClients }。 */
   RevokeClient: "rd/revoke-client",
+  /** invoke(clientId) → { enabled, authorizedClients }（与同意窗「记住此设备」同一写路径）。 */
+  AuthorizeClient: "rd/authorize-client",
   /** push（main → renderer）：{ kind:"state", state, error? } | { kind:"signal", message }。 */
   SessionEvent: "rd/session-event",
 } as const;

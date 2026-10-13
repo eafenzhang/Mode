@@ -373,6 +373,10 @@ declare global {
       rdRevokeClient(
         clientId: string,
       ): ReturnType<import("@mode/shared").IPlatformService["rdRevokeClient"]>;
+      /** 授权某个已配对设备（设置页开关） */
+      rdAuthorizeClient(
+        clientId: string,
+      ): ReturnType<import("@mode/shared").IPlatformService["rdAuthorizeClient"]>;
       /** 订阅主控会话事件（连接状态 / 对端信令），返回 disposer */
       onRemoteDesktopSessionEvent(
         callback: (

@@ -2,7 +2,8 @@
  * 远程控制页 · 添加设备（「检测设备 + 配对」从远程连接向导前移到本页）：
  * - 检测：`discoverLanPeers`（UDP 广播扫描，1~2 秒窗口）；
  * - 配对：选中设备 + 输对端配对码 `pairLanPeer`（令牌由 Host 落凭据服务）；
- * - 成功后由外层 `onPaired` 刷新已配对设备列表（本组件只从发现列表移除该设备）。
+ * - 成功或已配对的设备不再出现在检测列表（spec UI 规则「设备页」：
+ *   已配对 serverId 过滤，全部被过滤时给出「均已配对」提示）。
  */
 import { useCallback, useState } from "react";
 import {
@@ -18,8 +19,16 @@ import { Input } from "@/components/ui/input.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { filterUnpairedDiscoveredPeers } from "@/remote-desktop/deviceAvailability.js";
 
-export function RemoteDesktopAddDevice({ onPaired }: { onPaired: () => void | Promise<void> }) {
+export function RemoteDesktopAddDevice({
+  onPaired,
+  pairedServerIds,
+}: {
+  onPaired: () => void | Promise<void>;
+  /** 已配对设备的主键集合：检测结果里过滤掉（配对成功立即消失，重复检测也不再出现）。 */
+  pairedServerIds: string[];
+}) {
   const { intl } = useModeIntl();
   const platform = usePlatform();
   const [expanded, setExpanded] = useState(false);
@@ -78,6 +87,9 @@ export function RemoteDesktopAddDevice({ onPaired }: { onPaired: () => void | Pr
     }
   }, [code, onPaired, platform, selected]);
 
+  // 已配对设备从检测列表过滤（配对成功与「本已配对后重新检测」两个入口统一在此收口）。
+  const { visible, hiddenCount } = filterUnpairedDiscoveredPeers(peers, pairedServerIds);
+
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
       <div className="flex items-center justify-between gap-2">
@@ -113,9 +125,9 @@ export function RemoteDesktopAddDevice({ onPaired }: { onPaired: () => void | Pr
               {intl.formatMessage({ id: "remote.lan.rescan" })}
             </Button>
           </div>
-          {peers.length > 0 ? (
+          {visible.length > 0 ? (
             <div className="space-y-2">
-              {peers.map((peer) => {
+              {visible.map((peer) => {
                 const isSelected = selected?.serverId === peer.serverId;
                 return (
                   <div key={peer.serverId} className="space-y-2">
@@ -185,9 +197,22 @@ export function RemoteDesktopAddDevice({ onPaired }: { onPaired: () => void | Pr
             <p className="rounded-lg border border-dashed border-border px-3 py-2 text-ui-base text-foreground-subtle">
               {scanning
                 ? intl.formatMessage({ id: "remote.lan.scanning" })
-                : intl.formatMessage({ id: "remote.lan.empty" })}
+                : hiddenCount > 0
+                  ? intl.formatMessage(
+                      { id: "remoteDesktop.addDevice.pairedHidden" },
+                      { count: String(hiddenCount) },
+                    )
+                  : intl.formatMessage({ id: "remote.lan.empty" })}
             </p>
           )}
+          {visible.length > 0 && hiddenCount > 0 ? (
+            <p className="text-ui-xs text-foreground-subtlest">
+              {intl.formatMessage(
+                { id: "remoteDesktop.addDevice.pairedHidden" },
+                { count: String(hiddenCount) },
+              )}
+            </p>
+          ) : null}
           {scanError ? (
             <p className="flex items-center gap-1.5 text-ui-base text-warning">
               <AlertTriangleIcon className="size-3.5 shrink-0" />

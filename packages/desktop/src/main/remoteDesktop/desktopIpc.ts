@@ -17,6 +17,7 @@ import {
 import { REMOTE_DESKTOP_IPC } from "./ipcChannels.js";
 import { requestRemoteDesktopPeerProbe } from "./hostBridge.js";
 import {
+  authorizeRemoteDesktopClient,
   readRemoteDesktopServerState,
   revokeRemoteDesktopClient,
   setRemoteDesktopServerEnabled,
@@ -133,6 +134,14 @@ export function registerRemoteDesktopIpcHandlers(options: RemoteDesktopIpcOption
       throw new Error("clientId 不能为空");
     }
     return await revokeRemoteDesktopClient(clientId);
+  });
+
+  ipcMain.handle(REMOTE_DESKTOP_IPC.AuthorizeClient, async (_event, rawClientId: unknown) => {
+    const clientId = readServerId(rawClientId);
+    if (!clientId) {
+      throw new Error("clientId 不能为空");
+    }
+    return await authorizeRemoteDesktopClient(clientId);
   });
 
   app.on("before-quit", () => {

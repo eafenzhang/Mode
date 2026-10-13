@@ -75,6 +75,11 @@ const toHostSamples = [
     clientId: "client-a",
   },
   {
+    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopAuthorizeClient,
+    requestId: "r6",
+    clientId: "client-a",
+  },
+  {
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe,
     requestId: "r4",
     serverId: "server-x",

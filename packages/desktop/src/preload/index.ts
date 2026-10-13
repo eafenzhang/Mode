@@ -80,6 +80,7 @@ const REMOTE_DESKTOP_IPC = {
   GetServerState: "rd/get-server-state",
   SetServerEnabled: "rd/set-server-enabled",
   RevokeClient: "rd/revoke-client",
+  AuthorizeClient: "rd/authorize-client",
   SessionEvent: "rd/session-event",
 } as const;
 

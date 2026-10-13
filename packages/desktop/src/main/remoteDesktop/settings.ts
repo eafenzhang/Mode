@@ -7,6 +7,7 @@
  * 读取是低频且要求新鲜（同意决策要立刻看到刚撤销的设备），因此不缓存，逐次经 host 现读。
  */
 import {
+  requestRemoteDesktopAuthorizeClient,
   requestRemoteDesktopRevokeClient,
   requestRemoteDesktopServerState,
   requestRemoteDesktopSetServerEnabled,
@@ -58,6 +59,14 @@ export async function setRemoteDesktopServerEnabled(enabled: boolean): Promise<R
 
 export async function revokeRemoteDesktopClient(clientId: string): Promise<RemoteDesktopServerState> {
   const state = await requestRemoteDesktopRevokeClient(clientId);
+  return publish(state);
+}
+
+/** 设置页授权开关：与同意窗「记住此设备」写同一记录字段（host 端同一收口）。 */
+export async function authorizeRemoteDesktopClient(
+  clientId: string,
+): Promise<RemoteDesktopServerState> {
+  const state = await requestRemoteDesktopAuthorizeClient(clientId);
   return publish(state);
 }
 

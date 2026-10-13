@@ -59,3 +59,17 @@ export function resolveRemoteDesktopDeviceAvailability(
 export function resolveRemoteDesktopDeviceLabel(peer: { serverId: string; name?: string }): string {
   return peer.name?.trim() || peer.serverId;
 }
+
+/**
+ * 「检测设备」列表过滤（spec: docs/specs/lan-remote-desktop.md UI 规则「设备页」）：
+ * 已配对 serverId 从检测结果中过滤——配对成功立即消失，重新检测也不再出现；
+ * 全部被过滤时 hiddenCount 供调用方给「检测到的设备均已配对」提示。
+ */
+export function filterUnpairedDiscoveredPeers<T extends { serverId: string }>(
+  peers: readonly T[],
+  pairedServerIds: readonly string[],
+): { visible: T[]; hiddenCount: number } {
+  const paired = new Set(pairedServerIds);
+  const visible = peers.filter((peer) => !paired.has(peer.serverId));
+  return { visible, hiddenCount: peers.length - visible.length };
+}

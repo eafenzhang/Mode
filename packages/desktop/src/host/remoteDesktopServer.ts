@@ -700,6 +700,19 @@ export function createRemoteDesktopHostServer(options: {
           });
           await postServerState(message.requestId);
         })();
+        return;
+      }
+      if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopAuthorizeClient) {
+        // 设置页授权开关：与同意窗「记住此设备」写同一记录字段（同一 setAuthorized 收口）。
+        void (async () => {
+          await setAuthorized(message.clientId, true).catch((error: unknown) => {
+            logger.warn(
+              "[remote-desktop] authorize client failed:",
+              error instanceof Error ? error.message : error,
+            );
+          });
+          await postServerState(message.requestId);
+        })();
       }
     },
     dispose(): void {

@@ -1036,6 +1036,15 @@ export interface IPlatformService {
   }>;
 
   /**
+   * 授权某个已配对设备（设置页开关；与同意窗「记住此设备」写同一记录字段）。
+   * 返回最新状态。
+   */
+  rdAuthorizeClient(clientId: string): Promise<{
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+  }>;
+
+  /**
    * 订阅主控会话事件，返回 disposer。
    * - `state`：信令连接生命周期（connected 后 renderer 发 `hello` 起媒体协商）；
    * - `signal`：对端信令（T1 union；main 已校验，仅转发）。

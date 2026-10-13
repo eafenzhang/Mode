@@ -6288,6 +6288,12 @@ const enUS: Record<string, string> = {
   "settings.lanAccess.refreshPairedPeers": "Refresh",
   "settings.lanAccess.firewallHint":
     "Your system may ask for firewall permission the first time; allow private-network access.",
+  // Remote-desktop authorization per paired device (same field as "remember this device").
+  "settings.lanAccess.rdAuthorized": "Remote desktop: authorized (connects without confirmation)",
+  "settings.lanAccess.rdUnauthorized": "Remote desktop: not authorized (asks on this machine)",
+  "settings.lanAccess.rdAuthorizeFor": "Allow {name} to control this machine remotely",
+  "settings.lanAccess.rdRevokeFor": "Revoke remote-desktop authorization for {name}",
+  "settings.lanAccess.rdUpdateFailed": "Failed to update remote-desktop authorization",
   // Remote Desktop (docs/specs/lan-remote-desktop.md): controlled-side settings section,
   // controlling-side device page / session surface, and the controlled-side overlay copy.
   // The consent/indicator keys mirror the wording of desktop's windowsContent.ts dictionary.
@@ -6320,17 +6326,27 @@ const enUS: Record<string, string> = {
   "remoteDesktop.devices.loadFailed": "Couldn't load paired devices.",
   "remoteDesktop.devices.retry": "Retry",
   "remoteDesktop.devices.empty":
-    "No paired device yet. Open Settings · LAN Access to create a pair code, then pair from the other Windows computer.",
+    "No paired device yet. Use Detect devices above to find Windows computers on the same LAN, then pair with the code shown under Settings · Remote Control on the other side.",
   "remoteDesktop.devices.openLanAccess": "Open remote control settings",
   "remoteDesktop.devices.connect": "Connect",
+  "remoteDesktop.devices.locallyControlledBanner":
+    "This machine is being controlled remotely; disconnect that session to start a remote connection.",
+  "remoteDesktop.device.status.ready": "Ready",
+  "remoteDesktop.device.status.probing": "Checking",
+  "remoteDesktop.device.status.unknown": "Unknown",
+  "remoteDesktop.device.status.offline": "Offline",
+  "remoteDesktop.device.status.unsupported": "Unsupported",
   "remoteDesktop.device.rename": "Rename",
   "remoteDesktop.device.save": "Save",
   "remoteDesktop.device.cancel": "Cancel",
   "remoteDesktop.device.delete": "Delete",
+  "remoteDesktop.device.deleteAsk": "Delete \"{name}\"? Its pairing token and metadata will be removed.",
   "remoteDesktop.device.deleteConfirm": "Confirm delete",
   "remoteDesktop.addDevice.title": "Add device",
   "remoteDesktop.addDevice.detect": "Detect devices",
   "remoteDesktop.addDevice.collapse": "Collapse",
+  "remoteDesktop.addDevice.pairedHidden":
+    "Paired devices are hidden from the detect list ({count} hidden)",
   "remoteDesktop.device.reason.ready": "Ready",
   "remoteDesktop.device.reason.probing": "Checking peer capability…",
   "remoteDesktop.device.reason.probe-failed": "Couldn't check the peer; retry later.",

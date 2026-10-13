@@ -221,6 +221,20 @@ export async function requestRemoteDesktopRevokeClient(clientId: string): Promis
   };
 }
 
+export async function requestRemoteDesktopAuthorizeClient(clientId: string): Promise<{
+  enabled: boolean;
+  authorizedClients: Array<{ id: string; label: string }>;
+}> {
+  const promise = requestToHost(
+    { type: RemoteDesktopHostMessageTypes.RemoteDesktopAuthorizeClient, clientId },
+    "server-state",
+  );
+  return (await promise) as {
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+  };
+}
+
 export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
   online: boolean;
   remoteDesktop: boolean;
