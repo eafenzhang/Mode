@@ -96,6 +96,10 @@ export function relayHelperChildStdio(
     const meta = { source: "cua-helper-stderr", generation: context.generation, pid };
     if (trimmed.includes("[rd_media]")) {
       logger.warn(undefined, trimmed, meta);
+    } else if (trimmed.includes("panicked at")) {
+      // Rust panic 走 stderr 且不带 [rd_media] 前缀——必须升 error 落盘，
+      // 否则 worker 线程死于 panic 在生产日志里零痕迹（2026-10-13 排查盲区）。
+      logger.error(undefined, trimmed, meta);
     } else {
       logger.debug(undefined, trimmed, meta);
     }

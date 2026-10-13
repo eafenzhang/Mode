@@ -16,22 +16,24 @@ type HelperChild = Parameters<typeof relayHelperChildStdio>[0];
 interface Capture {
   warns: unknown[][];
   debugs: unknown[][];
+  errors: unknown[][];
   logger: ReturnType<typeof createServiceLogger>;
 }
 
 function captureLogger(): Capture {
   const warns: unknown[][] = [];
   const debugs: unknown[][] = [];
+  const errors: unknown[][] = [];
   const logger = createServiceLogger("test-relay", {
     isDebugEnabled: true,
     sink: {
       log: () => undefined,
       warn: (...args: unknown[]) => warns.push(args),
-      error: () => undefined,
+      error: (...args: unknown[]) => errors.push(args),
       debug: (...args: unknown[]) => debugs.push(args),
     },
   });
-  return { warns, debugs, logger };
+  return { warns, debugs, errors, logger };
 }
 
 function fakeChild() {
@@ -94,4 +96,20 @@ test("stdout 排空；无流（stdio 继承假件）空操作不抛", () => {
   // 无 stderr/stdout（stdio 继承的测试假件）→ 空操作。
   const bare = { pid: 7, send: () => true, kill: () => true } as unknown as HelperChild;
   relayHelperChildStdio(bare, logger, { generation: 1 });
+});
+
+test("Rust panic 行升 error 落盘（worker 死因不得零痕迹）", async () => {
+  const { warns, debugs, errors, logger } = captureLogger();
+  const { child, stderr } = fakeChild();
+  relayHelperChildStdio(child, logger, { generation: 2 });
+  // panic 不带 [rd_media] 前缀——归类错误会把它丢进 debug（生产不落盘），重蹈排查盲区。
+  stderr.push(
+    "thread 'rd-media-worker' panicked at crates/mode-cua-ax/src/rd_media/capture.rs:1:1:\n",
+  );
+  stderr.push(null);
+  await flush();
+  assert.equal(errors.length, 1, "panic 行恰好 error 一次");
+  assert.match(String(errors[0]?.[1]), /panicked at/u);
+  assert.equal(warns.length, 0);
+  assert.equal(debugs.length, 0, "panic 不得降级进 debug");
 });
