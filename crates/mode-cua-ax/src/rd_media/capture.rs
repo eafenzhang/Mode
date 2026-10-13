@@ -1002,9 +1002,17 @@ pub fn create_device_for_tests() -> Option<ID3D11Device> {
 }
 
 /// 契约测试缝（GPU 光标合成的驱动验证，P0-2b）：仅硬件 D3D11 设备 + context，
-/// 不走 WARP 回退（WARP 不代表真实驱动行为，CI 软渲染下按环境能力缺失跳过）。
+/// 且要求设备实现 `ID3D11VideoDevice`（video processor 能力）；任一缺失返回 None——
+/// 测试按环境能力缺失跳过而非失败：
+/// - 无硬件设备（CI 软渲染）：HARDWARE 创建失败；
+/// - 基础显示适配器（GitHub runner 一类）：设备可建但 **不实现** `ID3D11VideoDevice`
+///   （实测 `No such interface supported`）——运行时对此有整会话 CPU 回退，不是产品失败。
+///
+/// 不走 WARP 回退（WARP 不代表真实驱动行为）。
 pub fn create_hardware_device_for_tests() -> Option<(ID3D11Device, ID3D11DeviceContext)> {
-  create_device_with_driver(D3D_DRIVER_TYPE_HARDWARE).ok()
+  let (device, ctx) = create_device_with_driver(D3D_DRIVER_TYPE_HARDWARE).ok()?;
+  device.cast::<ID3D11VideoDevice>().ok()?;
+  Some((device, ctx))
 }
 
 /// 要点 1：D3D11CreateDevice（HARDWARE、level ≥ 11_0）失败回退 WARP。
@@ -1140,8 +1148,10 @@ pub(crate) fn create_texture(
 /// - 全透明像素保留背景（证明用的是 per-pixel alpha，而不是会被误绘的恒定 alpha）；
 /// - 半透明像素按 α 混合（证明真混合而非直写）。
 ///
-/// 管线创建失败在无 GPU 的 CI 上不会发生（设备缺失提前跳过）；在真实硬件上失败
-/// 即「本驱动不支持 P0-2b 机制」——运行时对此有整会话 CPU 回退，不会带病运行。
+/// 跳过门槛（环境能力缺失，不算产品失败）：无硬件设备（CI 软渲染）或设备不实现
+/// `ID3D11VideoDevice`（基础显示适配器）——后者正是运行时 CPU 回退覆盖的情形。
+/// 管线创建失败在无 GPU 的 CI 上不会发生（设备缺失提前跳过）；在**具备 VP 能力的**
+/// 真实硬件上失败即「本驱动不支持 P0-2b 机制」——运行时对此有整会话 CPU 回退，不会带病运行。
 #[cfg(test)]
 mod gpu_cursor_tests {
   use super::*;
