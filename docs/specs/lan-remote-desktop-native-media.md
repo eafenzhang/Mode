@@ -105,6 +105,10 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
   **只降不升**：升档是用户在操作栏的手动动作（自动回升会在阈值附近振荡）。
 - **编码能力缓存**：被控 host 从**真实会话**的 `rd_media_start` 结果观测硬件编码器可用性
   （成功 = available；错误含「无可用硬件 H.264 编码器」= unavailable；无会话发生 = unknown），
+  **持久化（2026-10-13，对标 UU capability cache）**：观测值落 app 配置目录
+  `rd-encoder-capability.json`、host 启动回读——冷启动即可显示能力提示（无需等首次会话）；
+  不按 GPU 指纹分卡、不预探测：GPU/驱动变更后的过期值由**下一次真实会话观测自愈覆盖**；
+  读取白名单收敛、损坏文件按无缓存。
   随 `RemoteDesktopServerStateResult.encoderCapability` 暴露给设置页——unavailable 时显示
   「未检测到硬件 H.264 编码器」提示（连上但不出画面的根因自诊断）。缓存为 host 进程级
   内存（每次启动从零观测），不额外拉起 helper 做预探测（探测动作与首次会话共用同一路径）。

@@ -37,6 +37,11 @@ import {
   type RemoteDesktopErrorCode,
   type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
+import {
+  loadPersistedEncoderCapability,
+  persistEncoderCapability,
+  type EncoderCapability,
+} from "./encoderCapabilityStore.js";
 import type { ICredentialService } from "@mode/services";
 import { callBrokerMethod, resolveBrokerSocketPath } from "@mode/cua/broker";
 import {
@@ -141,6 +146,11 @@ export function createRemoteDesktopHostServer(options: {
   injectRawInput?: RemoteDesktopInjectPort;
   /** rd_media helper 注入端口（Task 8 注入真实现）；未注入时 Media* 分支静默跳过，注入后失败仅 warn、不断会话。 */
   callRdMedia?: RemoteDesktopMediaCall;
+  /**
+   * 编码能力缓存持久化路径（HEVC/能力缓存 2026-10-13；缺省 = 不持久化，纯内存）。
+   * 真实会话观测即写回；GPU 变更后的过期值由下一次真实会话自愈覆盖。
+   */
+  encoderCapabilityPath?: string;
 }): RemoteDesktopHostServer {
   const { credentials, logger } = options;
   let serverEnabled = false;
@@ -159,8 +169,28 @@ export function createRemoteDesktopHostServer(options: {
    * 编码能力缓存（P1-3）：从真实会话的 rd_media_start 结果观测，避免被控端为探测
    * 额外拉起一次 helper；会话发生前恒为 unknown（不猜测）。unavailable = 本机无
    * 可用硬件 H.264 编码器（远程桌面会连上但永远不出画面），设置页据此给出提示。
+   * 持久化（2026-10-13）：观测值按 `encoderCapabilityPath` 落盘、启动时回读
+   * （冷启动即可显示提示）；不按 GPU 指纹分卡——GPU 变更由下一次真实会话自愈。
    */
-  let encoderCapability: "unknown" | "available" | "unavailable" = "unknown";
+  let encoderCapability: EncoderCapability = "unknown";
+  /** 观测值统一入口：内存更新 + 异步落盘（写失败只 warn，不影响会话）。 */
+  const setEncoderCapability = (next: EncoderCapability): void => {
+    encoderCapability = next;
+    const path = options.encoderCapabilityPath;
+    if (path) {
+      void persistEncoderCapability(path, next).catch((error: unknown) => {
+        logger.warn("[remote-desktop] 编码能力缓存写入失败:", error);
+      });
+    }
+  };
+  if (options.encoderCapabilityPath) {
+    // 启动回读（fire-and-forget）：首个真实会话观测必然晚于本读取；读取失败 = 无缓存。
+    void loadPersistedEncoderCapability(options.encoderCapabilityPath).then((stored) => {
+      if (stored) {
+        encoderCapability = stored;
+      }
+    });
+  }
   /**
    * 当前媒体连接（clientId → socket）。本表只负责登记与断开清理；
    * 收发路由（分帧透传、pong、输入）由 mediaRelay.attachWebSocket 接管。
@@ -707,13 +737,14 @@ export function createRemoteDesktopHostServer(options: {
               key: message.key,
               salt: message.salt,
             });
-            // 编码能力缓存（P1-3）：真实会话成功即记 available（无需额外探测拉起 helper）。
-            encoderCapability = "available";
+            // 编码能力缓存（P1-3）：真实会话成功即记 available（无需额外探测拉起 helper）；
+            // setEncoderCapability 同步落盘，冷启动即可显示。
+            setEncoderCapability("available");
           } catch (error) {
             const messageText = error instanceof Error ? error.message : String(error);
             // 本机无硬件编码器是「连上但永远不出画面」的根因：单独记住，设置页给提示。
             if (messageText.includes("无可用硬件 H.264 编码器")) {
-              encoderCapability = "unavailable";
+              setEncoderCapability("unavailable");
             }
             logger.warn("[remote-desktop] rd_media_start failed:", messageText);
           }

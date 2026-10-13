@@ -54,3 +54,7 @@ test("main↔host 消息契约：双端镜像、严格校验与准入判定", as
 test("被控媒体面出站：冻结归一矩阵、开流顺序、换屏路由与 mediaUrl 透传", async () => {
   await runFixture("remote-desktop-coordinator", /REMOTE_DESKTOP_COORDINATOR_OK/u);
 });
+
+test("编码能力缓存持久化：写读回环、损坏降级、白名单收敛", async () => {
+  await runFixture("remote-desktop-encoder-capability", /REMOTE_DESKTOP_ENCODER_CAPABILITY_OK/u);
+});

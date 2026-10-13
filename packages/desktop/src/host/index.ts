@@ -2057,6 +2057,8 @@ async function ensureRemoteDesktopHostServer(
         }
       : {}),
     ...(cuaRdMediaController ? { callRdMedia: cuaRdMediaController } : {}),
+    // 编码能力缓存持久化（冷启动显示能力提示；真实会话观测覆盖，不按 GPU 指纹分卡）。
+    encoderCapabilityPath: join(getAppConfigDir(), "rd-encoder-capability.json"),
   });
   await server.loadServerState();
   activeRemoteDesktop = server;
