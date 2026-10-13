@@ -294,7 +294,18 @@ export interface RemoteDesktopHooks {
     clientId: string,
     quality?: RemoteDesktopQuality,
   ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
-  onSessionSocket(clientId: string, socket: WebSocket): void;
+  /**
+   * 信令 WS 交接。`session.reissueMediaTicket` 供宿主在会话内处理
+   * `{type:"request-media-ticket"}`（媒体 WS 瞬断重连，P2-1）：重签一张媒体票
+   * （单次消费、30s、绑定同 clientId）——票据 store 在本模块，宿主不持有。
+   */
+  onSessionSocket(
+    clientId: string,
+    socket: WebSocket,
+    session?: {
+      reissueMediaTicket?: () => { mediaTicket: string; expiresAt: number };
+    },
+  ): void;
   /** 媒体 WS 升级成功后的交接（收发逻辑由宿主侧 relay 承担，本模块不解析帧）。 */
   onMediaSocket?(clientId: string, socket: WebSocket): void;
 }
@@ -729,7 +740,14 @@ export function createHttpServer(
         ws.close(4001, "Remote desktop session unavailable");
         return;
       }
-      remoteDesktop.onSessionSocket(clientId, ws.raw as WebSocket);
+      remoteDesktop.onSessionSocket(clientId, ws.raw as WebSocket, {
+        // 媒体 WS 瞬断重连（P2-1）：票据 store 在本模块，重签能力随会话上下文交给宿主；
+        // 重签出的票与 POST 签发的票同构（单次消费、30s、绑定同 clientId）。
+        reissueMediaTicket: () => {
+          const issued = remoteDesktopMediaTickets.issue(clientId);
+          return { mediaTicket: issued.ticket, expiresAt: issued.expiresAt };
+        },
+      });
     },
   }));
   app.use("/ws/remote-desktop", async (c, next) => {

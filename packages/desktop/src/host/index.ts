@@ -2065,7 +2065,11 @@ function resolveRemoteDesktopHooks(): {
     clientId: string,
     quality?: RemoteDesktopQuality,
   ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
-  onSessionSocket: (clientId: string, socket: WebSocket) => void;
+  onSessionSocket: (
+    clientId: string,
+    socket: WebSocket,
+    session?: { reissueMediaTicket?: () => { mediaTicket: string; expiresAt: number } },
+  ) => void;
   onMediaSocket: (clientId: string, socket: WebSocket) => void;
 } {
   return {
@@ -2073,9 +2077,9 @@ function resolveRemoteDesktopHooks(): {
       activeRemoteDesktop?.hooks.requestSession(clientId, quality) ?? {
         error: "disabled" as const,
       },
-    onSessionSocket: (clientId: string, socket: WebSocket) => {
+    onSessionSocket: (clientId: string, socket: WebSocket, session) => {
       if (activeRemoteDesktop) {
-        activeRemoteDesktop.hooks.onSessionSocket(clientId, socket);
+        activeRemoteDesktop.hooks.onSessionSocket(clientId, socket, session);
         return;
       }
       try {

@@ -7,6 +7,7 @@
  * IV 不随帧传：iv = salt(8B) ∥ seq(4B 大端)，aes-256-gcm（spec 安全节）。
  */
 import { logger } from "@/logger.js";
+import { nextReconnectDelayMs, RECONNECT_MAX_ATTEMPTS } from "@/remote-desktop/reconnectPolicy.js";
 
 export interface ParsedMediaFrame {
   seq: number;
@@ -78,6 +79,13 @@ export interface NativeMediaSessionOptions {
   onBytesReceived?: (bytes: number) => void;
   /** 每个被接受帧解码前回调其解码队列长度（状态条即时读数）。 */
   onDecodeQueue?: (size: number) => void;
+  /**
+   * 媒体 WS 瞬断重连（P2-1）：请求一张新媒体票并返回新的媒体地址（信令通道存活时可用；
+   * 失败/未接线返回 null）。返回 null 且退避未耗尽时按退避重试，耗尽后按永久失败收口。
+   */
+  onRequestMediaUrl?: () => Promise<string | null>;
+  /** 重连状态变化：true = 进入退避（画面中断提示）；false = 重连成功（画面恢复）。 */
+  onReconnecting?: (reconnecting: boolean) => void;
   onTransportClosed?: () => void;
 }
 
@@ -93,8 +101,6 @@ export interface NativeMediaSession {
 export function createNativeMediaSession(opts: NativeMediaSessionOptions): NativeMediaSession {
   const key = hexToBytes(opts.keyHex, 32, "key");
   const salt = hexToBytes(opts.saltHex, 8, "salt");
-  const ws = new WebSocket(opts.url);
-  ws.binaryType = "arraybuffer";
   // desynchronized：跳过合成器同步（低延迟画布模式），直画路径少一层呈现延迟。
   const ctx = opts.canvas.getContext("2d", { alpha: false, desynchronized: true });
   if (!ctx) throw new Error("2d canvas unavailable");
@@ -116,17 +122,108 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   // 时钟偏移由 pong 标定（未标定前只跳过帧龄读数，画面不受影响）。
   const capturedAtByTimestamp = new Map<number, number>();
   let clockOffsetMs: number | null = null;
+  // 媒体 WS 瞬断重连（P2-1）状态：当前 socket、退避计数/定时器、重连后的重同步标志
+  //（断流期间中继丢帧 → 只放行关键帧并强制重配解码器，防花屏残留）。
+  let ws: WebSocket | null = null;
+  let reconnectAttempts = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let awaitingKeyAfterReconnect = false;
+  let forceReconfigureNextKey = false;
 
-  /** 紧急关键帧请求（丢帧恢复）：ws 上行 {t:"need-key"}；500ms 去抖（中继侧另有 300ms 去抖）。 */
-  const requestKey = (): void => {
+  /** 紧急关键帧请求（丢帧恢复/重连重同步）：ws 上行 {t:"need-key"}；500ms 去抖
+   *  （中继侧另有 300ms 去抖）；force = 重连路径绕过去抖（断流后的第一诉求）。 */
+  const requestKey = (force = false): void => {
     const now = Date.now();
-    if (now - lastKeyRequestAt < 500) {
+    if (!force && now - lastKeyRequestAt < 500) {
       return;
     }
     lastKeyRequestAt = now;
-    if (ws.readyState === WebSocket.OPEN) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ t: "need-key" }));
     }
+  };
+
+  /** 退避耗尽/无重连能力：按永久失败收口（与旧行为一致）。 */
+  const scheduleReconnect = (): void => {
+    reconnectAttempts += 1;
+    if (reconnectAttempts > RECONNECT_MAX_ATTEMPTS || !opts.onRequestMediaUrl) {
+      teardown();
+      return;
+    }
+    opts.onReconnecting?.(true);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      void attemptReconnect();
+    }, nextReconnectDelayMs(reconnectAttempts));
+  };
+
+  /** 一轮重连尝试：要新票 → 新媒体地址 → 重建 socket；拿不到票也走退避（退避计数递增）。 */
+  const attemptReconnect = async (): Promise<void> => {
+    if (stopped) {
+      return;
+    }
+    let url: string | null = null;
+    try {
+      url = (await opts.onRequestMediaUrl?.()) ?? null;
+    } catch {
+      url = null;
+    }
+    if (stopped) {
+      return;
+    }
+    if (!url) {
+      scheduleReconnect();
+      return;
+    }
+    attachSocket(new WebSocket(url), true);
+  };
+
+  /**
+   * socket 挂接（初连/重连共用）：所有 handler 都做 `ws === socket` 身份核对，
+   * 被顶替/收口后的迟到事件不驱动状态。close 非本端收口 → 进入退避重连。
+   */
+  const attachSocket = (socket: WebSocket, isReconnect: boolean): void => {
+    ws = socket;
+    socket.binaryType = "arraybuffer";
+    socket.onopen = () => {
+      if (ws !== socket || stopped) {
+        return;
+      }
+      if (isReconnect) {
+        // 重连成功：重置退避；断流期间丢帧使 decoder 状态过时——只放行关键帧，
+        // 首个关键帧强制重配解码器（防花屏残留）；立刻请关键帧缩短重同步时间。
+        reconnectAttempts = 0;
+        awaitingKeyAfterReconnect = true;
+        forceReconfigureNextKey = true;
+        requestKey(true);
+        opts.onReconnecting?.(false);
+      }
+      if (!readySent) {
+        // 幂等补发保险（初连）：ready 必须恰好一次。重连不需要重发——中继的 ready 门控
+        // 是每条会话一次，重复 ready 会被中继幂等忽略。
+        socket.send(JSON.stringify({ t: "ready" }));
+        readySent = true;
+      }
+    };
+    socket.onmessage = (event) => {
+      if (ws !== socket || stopped) {
+        return;
+      }
+      handleMessage(event);
+    };
+    socket.onclose = () => {
+      if (ws !== socket) {
+        return;
+      }
+      ws = null;
+      if (stopped) {
+        return;
+      }
+      scheduleReconnect();
+    };
+    socket.onerror = () => {
+      // onclose 必然跟随：收口/重连只在 onclose 决策一次，避免双路径。
+    };
   };
 
   const configure = (codec: string) => {
@@ -171,14 +268,8 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
 
   // ws 一开就发 ready：helper 的 ready 门控只认第一条开流指令，而被控状态机保证首帧必为 IDR
   // （先 IDR 后 delta），所以不必等任何上行事件——否则画面要等用户首次移动鼠标/按键才出流，开局全黑。
-  ws.onopen = () => {
-    // send() 可能在 readyState 已 OPEN 但 open 事件尚未派发的窗口里先发过：保持「ready 恰一次」。
-    if (readySent) return;
-    ws.send(JSON.stringify({ t: "ready" }));
-    readySent = true;
-  };
-
-  ws.onmessage = (event) => {
+  // （ready 发送在 attachSocket 的 onopen 里，初连与重连共用同一幂等位。）
+  const handleMessage = (event: MessageEvent): void => {
     if (typeof event.data === "string") {
       let msg: { t?: string };
       try {
@@ -211,17 +302,27 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       if (stopped) return; // 解密期间收口：不得再建 decoder 或解码
       // 解密期间更新帧已提交 → 本帧过期（异步完成顺序无保证）。
       if (parsed.seq <= lastSubmittedSeq) return;
+      // 重连后的重同步（P2-1）：断流期间中继丢帧，delta 引用缺失数据——只放行关键帧，
+      // 否则解码器吃到坏帧整条会话被 error 收口。
+      if (awaitingKeyAfterReconnect) {
+        if (!parsed.key) {
+          return;
+        }
+        awaitingKeyAfterReconnect = false;
+      }
       if (parsed.key) {
         const codec = codecStringFromAnnexB(plain);
-        // decoder 的唯一建立点：首帧（decoder 尚未存在）或 SPS 变化（codec 串变化）才建/换。
+        // decoder 的唯一建立点：首帧（decoder 尚未存在）或 SPS 变化（codec 串变化）才建/换；
+        // 重连后的首个关键帧强制重配（forceReconfigureNextKey）——清空旧码流状态防花屏残留。
         // 这里必须在 decode 之前，否则 decoder 永远建不出来（曾因守卫放在本段之前而全程黑屏）。
-        if (codec && (decoder === null || codec !== configuredCodec)) {
+        if (codec && (decoder === null || codec !== configuredCodec || forceReconfigureNextKey)) {
           configure(codec);
         } else if (!codec && !decoder) {
           // 关键帧没带 SPS 且 decoder 未建立：拿不到 codec 串就无法 configure，只能丢帧；
           // 关键帧 ~2s 一次，warn 便于定位「ready 已发但一直黑屏」。
           logger.warn("[rd-media] keyframe without SPS; decoder not configured");
         }
+        forceReconfigureNextKey = false;
       }
       // 非关键帧在 decoder 未配置前丢弃（delta 无法独立解码，等下一个关键帧）。
       if (!decoder || decoder.state !== "configured") return;
@@ -245,13 +346,15 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       );
     })().catch(() => teardown());
   };
-  ws.onclose = () => teardown();
-  ws.onerror = () => teardown();
 
   /** 幂等收口：ws close/error、decoder error、stop() 任何路径都只通知 onTransportClosed 一次。 */
   function teardown() {
     if (stopped) return;
     stopped = true;
+    if (reconnectTimer !== null) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     capturedAtByTimestamp.clear();
     try {
       decoder?.close();
@@ -262,26 +365,39 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     opts.onTransportClosed?.();
   }
 
+  // 初连：连接失败（拒连/证书/服务未就绪）走与瞬断同一条退避重连——每次尝试都会
+  // 重新取票，票据过期/消费冲突在重试链上自然恢复。
+  attachSocket(new WebSocket(opts.url), false);
+
   return {
     send(event) {
-      if (ws.readyState !== WebSocket.OPEN) return;
+      const socket = ws;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
       // 幂等补发保险：正常路径 ready 已在 onopen 发出；万一 open 事件派发晚于本调用，
       // 这里补一次（ready 必须恰好一次：helper 收到前的帧不推流，重复 ready 会让 host 重下发开流指令）。
       if (!readySent) {
-        ws.send(JSON.stringify({ t: "ready" }));
+        socket.send(JSON.stringify({ t: "ready" }));
         readySent = true;
       }
-      ws.send(JSON.stringify(event));
+      socket.send(JSON.stringify(event));
     },
     ping(ts) {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "ping", ts }));
+      const socket = ws;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ t: "ping", ts }));
+      }
     },
     setClockOffset(offsetMs) {
       clockOffsetMs = offsetMs;
     },
     stop() {
+      // 本端主动收口：先作废退避重连（否则 close 事件会再排一轮）。
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       try {
-        ws.close(1000, "client-stop");
+        ws?.close(1000, "client-stop");
       } catch {
         /* CONNECTING 状态下 close 在部分环境抛错：stop 必须幂等 */
       }

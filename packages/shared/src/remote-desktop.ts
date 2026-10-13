@@ -68,6 +68,12 @@ export const remoteDesktopSignalMessageSchema = z.discriminatedUnion("type", [
       message: z.string().optional(),
     })
     .strict(),
+  // ---- 断线重连（P2-1）----
+  // 主控 → 被控：媒体 WS 瞬断，请求重签一张媒体票（单次消费、30s、绑定同 clientId）；
+  // 信令通道存活时可用。被控在会话 WS 上直回 media-ticket（不落信令转发面）。
+  z.object({ type: z.literal("request-media-ticket") }).strict(),
+  // 被控 → 主控：新的媒体票（renderer 用它替换 mediaUrl 的 mediaTicket 后重连媒体 WS）。
+  z.object({ type: z.literal("media-ticket"), mediaTicket: z.string().trim().min(1) }).strict(),
 ]);
 export type RemoteDesktopSignalMessage = z.infer<typeof remoteDesktopSignalMessageSchema>;
 

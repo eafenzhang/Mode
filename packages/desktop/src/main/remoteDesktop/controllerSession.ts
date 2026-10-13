@@ -28,7 +28,16 @@ import { REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES } from "./hostMessages.js";
 export type RemoteDesktopControllerState = "connecting" | "connected" | "closed";
 
 export type RemoteDesktopControllerEvent =
-  | { kind: "state"; state: RemoteDesktopControllerState; error?: RemoteDesktopErrorCode }
+  | {
+      kind: "state";
+      state: RemoteDesktopControllerState;
+      error?: RemoteDesktopErrorCode;
+      /**
+       * 传输断开（WS close/error，非本地结束、非对端 bye）：renderer 可走会话级重连
+       * 退避（P2-1）；bye/本地结束/稳定错误码不带此标记。
+       */
+      retryable?: boolean;
+    }
   | { kind: "signal"; message: RemoteDesktopSignalMessage };
 
 export interface RemoteDesktopControllerSession {
@@ -77,14 +86,22 @@ export function createRemoteDesktopControllerSession(options: {
     target.send(REMOTE_DESKTOP_IPC.SessionEvent, event);
   };
 
-  const pushState = (state: RemoteDesktopControllerState, error?: RemoteDesktopErrorCode): void => {
+  const pushState = (
+    state: RemoteDesktopControllerState,
+    error?: RemoteDesktopErrorCode,
+    retryable?: boolean,
+  ): void => {
     if (state === "closed") {
       if (closedPushed) {
         return;
       }
       closedPushed = true;
     }
-    push(error ? { kind: "state", state, error } : { kind: "state", state });
+    push(
+      error
+        ? { kind: "state", state, error, ...(retryable ? { retryable } : {}) }
+        : { kind: "state", state, ...(retryable ? { retryable } : {}) },
+    );
   };
 
   const detachSender = (): void => {
@@ -93,7 +110,7 @@ export function createRemoteDesktopControllerSession(options: {
   };
 
   /** 收口唯一出口（幂等）：关 WS、推 closed、摘发起窗口监听。 */
-  const teardown = (error?: RemoteDesktopErrorCode): void => {
+  const teardown = (error?: RemoteDesktopErrorCode, options?: { retryable?: boolean }): void => {
     const current = socket;
     socket = null;
     if (current) {
@@ -104,7 +121,7 @@ export function createRemoteDesktopControllerSession(options: {
         // 对端已断开时 close 允许幂等失败。
       }
     }
-    pushState("closed", error);
+    pushState("closed", error, options?.retryable);
     detachSender();
   };
 
@@ -156,14 +173,15 @@ export function createRemoteDesktopControllerSession(options: {
         return;
       }
       options.logger.info("[remote-desktop] controller signal socket closed");
-      teardown();
+      // 传输断开（未经 bye / 本地结束）：标记可重连，由 renderer 走会话级重连退避（P2-1）。
+      teardown(undefined, { retryable: true });
     });
     ws.on("error", (error: Error) => {
       if (socket !== ws) {
         return;
       }
       options.logger.warn(`[remote-desktop] controller signal socket error: ${error.message}`);
-      teardown("internal");
+      teardown("internal", { retryable: true });
     });
   };
 

@@ -28,6 +28,7 @@ import {
   initialAdaptiveBitrateState,
   stepAdaptiveBitrate,
 } from "./adaptiveBitrate.js";
+import { createSessionReconnectController } from "./sessionReconnectController.js";
 import {
   createNativeSessionStatsCollector,
   EMPTY_REMOTE_DESKTOP_SESSION_STATS,
@@ -43,6 +44,9 @@ import {
 
 /** 统计刷新节拍（spec UI 规则：状态条 3s 刷新）；轮询 effect 按此节拍采样 nativeStats 并发 ping。 */
 const REMOTE_DESKTOP_STATS_INTERVAL_MS = 3000;
+
+/** 媒体票重签单次预算（信令存活时应远快于此；超时按本轮失败走下一档退避）。 */
+const MEDIA_TICKET_REQUEST_TIMEOUT_MS = 2_500;
 
 export interface UseRemoteDesktopSessionResult {
   view: RemoteDesktopSessionViewState;
@@ -87,6 +91,10 @@ export function useRemoteDesktopSession(options: {
     initialAdaptiveBitrateState(qualityPreset.bitrateBps, qualityPreset.minBitrateBps),
   );
   const droppedSinceAdaptiveSample = useRef(0);
+  // 断线重连（P2-1）：媒体票请求的等待者（media-ticket 信令回复唤醒）；
+  // 会话级重连期间的媒体失败抑制位（旧媒体面静默收口，不触发失败归因）。
+  const pendingMediaTicketRef = useRef<((ticket: string | null) => void) | null>(null);
+  const suppressMediaFailureRef = useRef(false);
 
   const sendSignal = useCallback(
     (message: RemoteDesktopSignalMessage) => {
@@ -94,6 +102,43 @@ export function useRemoteDesktopSession(options: {
     },
     [platform],
   );
+
+  /** 媒体 WS 瞬断重连（P2-1）：经信令通道要一张新媒体票，拼出新的媒体地址。 */
+  const requestFreshMediaUrl = useCallback(async (): Promise<string | null> => {
+    const base = mediaUrlRef.current;
+    if (!base) {
+      return null;
+    }
+    const ticket = await new Promise<string | null>((resolve) => {
+      let settled = false;
+      const timer = window.setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          pendingMediaTicketRef.current = null;
+          resolve(null);
+        }
+      }, MEDIA_TICKET_REQUEST_TIMEOUT_MS);
+      pendingMediaTicketRef.current = (value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(value);
+      };
+      platform.rdSendSignal({ type: "request-media-ticket" });
+    });
+    if (!ticket) {
+      return null;
+    }
+    try {
+      const url = new URL(base);
+      url.searchParams.set("mediaTicket", ticket);
+      return url.toString();
+    } catch {
+      return null;
+    }
+  }, [platform]);
 
   const applyEffect = useCallback(
     (effect: RemoteDesktopSessionEffect): void => {
@@ -114,6 +159,8 @@ export function useRemoteDesktopSession(options: {
             return;
           }
           try {
+            // 新媒体面即将建立：解除会话级重连的失败抑制（此后该会话的真实失败照常归因）。
+            suppressMediaFailureRef.current = false;
             sessionRef.current = createNativeMediaSession({
               url: mediaUrl,
               // 信令里 key/salt 是十六进制字符串；Task 9 胶水的入参按字节数校验（32B key / 8B salt）。
@@ -148,8 +195,22 @@ export function useRemoteDesktopSession(options: {
                 // 帧龄读数（glass-to-glass 近似）：随下一拍 3s 采样进状态条（取窗口中位数）。
                 nativeStats.current.onFrameAge(ageMs);
               },
-              // 传输断开（连不上 / 中途关闭 / 解码器错误）：按媒体失败收口，不留半开状态。
-              onTransportClosed: () => dispatchRef.current({ type: "media", status: "failed" }),
+              // 媒体 WS 瞬断重连（P2-1）：要新票 → 同一会话续流；重连期间状态条提示「正在恢复」。
+              onRequestMediaUrl: () => requestFreshMediaUrl(),
+              onReconnecting: (reconnecting) => {
+                dispatchRef.current({
+                  type: "media",
+                  status: reconnecting ? "reconnecting" : "live",
+                });
+              },
+              // 传输断开（重连退避耗尽 / 无重连能力 / 解码器错误）：按媒体失败收口，不留半开状态。
+              // 会话级重连进行中旧媒体面被主动停止：抑制位吞掉这次通知（恢复走新会话）。
+              onTransportClosed: () => {
+                if (suppressMediaFailureRef.current) {
+                  return;
+                }
+                dispatchRef.current({ type: "media", status: "failed" });
+              },
             });
           } catch (error) {
             // 构造期校验失败（非法 key/salt、取不到 2d 上下文）：归因到媒体失败路径，避免把
@@ -166,7 +227,7 @@ export function useRemoteDesktopSession(options: {
         }
       }
     },
-    [platform, sendSignal],
+    [platform, requestFreshMediaUrl, sendSignal],
   );
   const applyEffectRef = useRef(applyEffect);
   applyEffectRef.current = applyEffect;
@@ -191,7 +252,46 @@ export function useRemoteDesktopSession(options: {
   // ---- 会话生命周期：订阅 main 事件 → 发起会话（拿 mediaUrl）→ 离开时收口 ----
   useEffect(() => {
     let disposed = false;
+
+    // 会话级重连（P2-1）：编排（退避/重试分类）在纯模块 sessionReconnectController，
+    // 本处只接三个落点——静默停旧媒体面、新 mediaUrl 接力、失败收口。
+    const reconnectController = createSessionReconnectController({
+      // 画质档位（P1-3）：重连沿用本会话档位。
+      startSession: () => platform.rdStartSession(serverId, quality),
+      onBegin: () => {
+        suppressMediaFailureRef.current = true;
+        sessionRef.current?.stop();
+        sessionRef.current = null;
+        dispatchRef.current({ type: "media", status: "reconnecting" });
+      },
+      onRecovered: (mediaUrl) => {
+        // 后续 connecting→connected→hello→monitors→media-open 由事件流驱动；
+        // 新媒体面建立（open-media effect）时解除失败抑制并恢复画面。
+        mediaUrlRef.current = mediaUrl;
+      },
+      onGiveUp: (error) => {
+        suppressMediaFailureRef.current = false;
+        dispatchRef.current({
+          type: "controller",
+          event: { kind: "state", state: "closed", error },
+        });
+      },
+    });
+
     const unsubscribe = platform.onRemoteDesktopSessionEvent((event) => {
+      // 媒体票回复（P2-1，媒体 WS 瞬断重连）：只有重连路径在等它，不进 reducer。
+      if (event.kind === "signal" && event.message.type === "media-ticket") {
+        const resolve = pendingMediaTicketRef.current;
+        pendingMediaTicketRef.current = null;
+        resolve?.(event.message.mediaTicket);
+        return;
+      }
+      // 传输断开（非本地结束、非对端 bye）：会话级重连退避，而不是立即收口；
+      // closed 事件不下发 reducer——会话面保持挂载，重连成功走 connecting→connected 正常迁移。
+      if (event.kind === "state" && event.state === "closed" && event.retryable) {
+        reconnectController.begin();
+        return;
+      }
       dispatchRef.current({ type: "controller", event });
     });
 
@@ -233,14 +333,17 @@ export function useRemoteDesktopSession(options: {
 
     return () => {
       disposed = true;
+      reconnectController.dispose();
       unsubscribe();
       // 先断媒体面再收口：会话面卸载即停止解密/绘制，stop 幂等（内部 teardown 只通知一次）。
       sessionRef.current?.stop();
       sessionRef.current = null;
       mediaUrlRef.current = null;
+      pendingMediaTicketRef.current = null;
       // 离开页面即收口会话：main 侧幂等（对端已 bye / 通道已断时无副作用）。
       // 已收口的会话（对端 bye / 媒体失败 / 本地断开）不重复归因：卸载兜底只服务仍在进行的会话，
       // 避免给已按 error/remote 归因结束的会话再补一次 user-end（台账 Task 10 项）。
+      // 重连进行中（phase 仍为 connected）离开时同样收口——不留无人恢复的半开会话。
       if (viewRef.current.phase !== "closed") {
         void platform.rdEndSession("user-end").catch(() => undefined);
       }

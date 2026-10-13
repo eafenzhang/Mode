@@ -78,6 +78,29 @@ interface CoordinatorRuntime {
 
 let runtime: CoordinatorRuntime | null = null;
 
+/**
+ * 重连续用窗口（P2-1）：clientId → 最近一次「用户允许」时刻。
+ * 网络瞬断后主控自动重连（重新 POST 会话）时，窗口内同设备直接放行、不再二次弹窗；
+ * 仅限同一 clientId 且窗口 90s（覆盖重连退避的完整时长），不改变被控总开关与单会话互斥。
+ */
+const RECONNECT_CONSENT_GRACE_MS = 90_000;
+const recentlyConsentAllowed = new Map<string, number>();
+
+function recordConsentAllow(clientId: string): void {
+  const now = Date.now();
+  for (const [id, at] of recentlyConsentAllowed) {
+    if (now - at > RECONNECT_CONSENT_GRACE_MS) {
+      recentlyConsentAllowed.delete(id);
+    }
+  }
+  recentlyConsentAllowed.set(clientId, now);
+}
+
+function isWithinReconnectConsentGrace(clientId: string): boolean {
+  const at = recentlyConsentAllowed.get(clientId);
+  return typeof at === "number" && Date.now() - at <= RECONNECT_CONSENT_GRACE_MS;
+}
+
 export function getRemoteDesktopServerSessionState(): RemoteDesktopSessionState {
   return runtime?.state ?? INITIAL_REMOTE_DESKTOP_SESSION_STATE;
 }
@@ -260,6 +283,8 @@ async function applyAction(runtimeState: CoordinatorRuntime, action: RemoteDeskt
         return;
       }
       if (action.outcome === "allow") {
+        // 重连续用窗口（P2-1）：记下本次「用户允许」，窗口内同设备重连不再二次弹窗。
+        recordConsentAllow(clientId);
         sendConsentResultToHost(clientId, "allow", action.remember);
         return;
       }
@@ -336,11 +361,13 @@ async function handleConsentRequest(message: {
   recordPendingDisplayRect(runtimeState);
   // 「已记住」的设备由 main 现读授权列表判定（撤销后立刻恢复弹窗）。
   const authorized = await isRemoteDesktopClientAuthorized(message.clientId);
+  // 网络瞬断自动重连（P2-1）：同一设备在最近一次「用户允许」后的短窗口内重连，不再二次弹窗；
+  // 仅限同一 clientId + 90s 窗口，被控总开关/单会话互斥仍逐次经 host 侧 admission 校验。
   const transition = reduceRemoteDesktopSession(runtimeState.state, {
     type: "request",
     clientId: message.clientId,
     label: message.label,
-    authorized,
+    authorized: authorized || isWithinReconnectConsentGrace(message.clientId),
   });
   if (transition.rejected) {
     // host 侧已做单会话互斥；这里是兜底拒绝，避免对端悬挂等待。

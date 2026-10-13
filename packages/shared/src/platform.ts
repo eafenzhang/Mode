@@ -1059,6 +1059,7 @@ export interface IPlatformService {
   /**
    * 订阅主控会话事件，返回 disposer。
    * - `state`：信令连接生命周期（connected 后 renderer 发 `hello` 起媒体协商）；
+   *   `retryable` = 传输断开（非 bye/本地结束），renderer 可走会话级重连退避（P2-1）；
    * - `signal`：对端信令（T1 union；main 已校验，仅转发）。
    */
   onRemoteDesktopSessionEvent(
@@ -1068,6 +1069,7 @@ export interface IPlatformService {
             kind: "state";
             state: "connecting" | "connected" | "closed";
             error?: RemoteDesktopErrorCode;
+            retryable?: boolean;
           }
         | { kind: "signal"; message: RemoteDesktopSignalMessage },
     ) => void,

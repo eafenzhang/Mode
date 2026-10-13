@@ -30,8 +30,8 @@ async function waitFor(predicate: () => boolean, what: string): Promise<void> {
   }
 }
 
-/** 可记录 on 注册与 close 调用的 fake socket（与 relay 测试同款最小形态）。 */
-function makeFakeSocket(): {
+/** 可记录 on 注册/close/send 调用的 fake socket（与 relay 测试同款最小形态）。 */
+function makeFakeSocket(sends: unknown[] = []): {
   on(event: string, cb: (...args: never[]) => void): void;
   send(data: unknown): void;
   close(code?: number, reason?: string): void;
@@ -44,7 +44,9 @@ function makeFakeSocket(): {
       list.push(cb as (...args: unknown[]) => void);
       handlers.set(event, list);
     },
-    send() {},
+    send(data) {
+      sends.push(data);
+    },
     close() {
       for (const cb of handlers.get("close") ?? []) {
         cb();
@@ -112,8 +114,17 @@ async function runInputPathCase(): Promise<void> {
     remember: false,
   });
   assert.deepEqual(await request, { ok: true });
-  const sessionSocket = makeFakeSocket();
-  host.hooks.onSessionSocket("client-a", sessionSocket);
+  const sessionSends: unknown[] = [];
+  const sessionSocket = makeFakeSocket(sessionSends);
+  // 会话上下文（P2-1）：媒体票重签能力——由 server 层（createHttpServer）随
+  // onSessionSocket 第三参注入；此处用测试替身验证「request-media-ticket → 本地回帖」。
+  let reissueCount = 0;
+  host.hooks.onSessionSocket("client-a", sessionSocket, {
+    reissueMediaTicket: () => {
+      reissueCount += 1;
+      return { mediaTicket: `fresh-ticket-${reissueCount}`, expiresAt: Date.now() + 30_000 };
+    },
+  });
   const mediaSocket = makeFakeSocket();
   host.hooks.onMediaSocket("client-a", mediaSocket);
 
@@ -197,6 +208,46 @@ async function runInputPathCase(): Promise<void> {
     warns.filter((line) => line.includes("media ws input dropped")).length,
     1,
     "多个丢弃合计只 warn 一次（计数不刷屏）",
+  );
+
+  // ⑧ 媒体 WS 瞬断重连（P2-1）：会话 WS 上 request-media-ticket → 本地重签回帖，
+  // 不落 main 信令转发面；重复请求各回一张（票据单次消费由 server 层 store 保证）。
+  const forwardedBefore = posted.filter(
+    (message) => message.type === RemoteDesktopHostMessageTypes.RemoteDesktopSignalFromHost,
+  ).length;
+  sessionSocket.fire("message", Buffer.from(JSON.stringify({ type: "request-media-ticket" })));
+  sessionSocket.fire("message", Buffer.from(JSON.stringify({ type: "request-media-ticket" })));
+  assert.equal(sessionSends.length, 2, "每次重连请求回一张票据");
+  assert.deepEqual(JSON.parse(String(sessionSends[0])), {
+    type: "media-ticket",
+    mediaTicket: "fresh-ticket-1",
+  });
+  assert.deepEqual(JSON.parse(String(sessionSends[1])), {
+    type: "media-ticket",
+    mediaTicket: "fresh-ticket-2",
+  });
+  assert.equal(
+    posted.filter(
+      (message) => message.type === RemoteDesktopHostMessageTypes.RemoteDesktopSignalFromHost,
+    ).length,
+    forwardedBefore,
+    "request-media-ticket 不落 main 转发面（本地处理）",
+  );
+  // 方向越权：主控方向不应发 media-ticket（被控 → 主控），出现即丢弃不转发。
+  sessionSocket.fire(
+    "message",
+    Buffer.from(JSON.stringify({ type: "media-ticket", mediaTicket: "x" })),
+  );
+  assert.equal(
+    posted.filter(
+      (message) => message.type === RemoteDesktopHostMessageTypes.RemoteDesktopSignalFromHost,
+    ).length,
+    forwardedBefore,
+    "越权方向的 media-ticket 不转发",
+  );
+  assert.ok(
+    warns.some((line) => line.includes("unexpected media-ticket from controller")),
+    "越权方向应有一次告警",
   );
 
   host.dispose();

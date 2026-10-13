@@ -208,3 +208,30 @@ test("server-info 能力位：remoteDesktop 缺键兼容（旧对端）与真值
     assert.equal(withCap.data.capabilities.remoteDesktop, true);
   }
 });
+
+test("断线重连信号（P2-1）：request-media-ticket / media-ticket 形状与严格校验", () => {
+  assert.equal(
+    remoteDesktopSignalMessageSchema.safeParse({ type: "request-media-ticket" }).success,
+    true,
+  );
+  assert.equal(
+    remoteDesktopSignalMessageSchema.safeParse({ type: "media-ticket", mediaTicket: "t-abc" })
+      .success,
+    true,
+  );
+  assert.equal(
+    remoteDesktopSignalMessageSchema.safeParse({ type: "media-ticket" }).success,
+    false,
+    "缺 mediaTicket 拒绝",
+  );
+  assert.equal(
+    remoteDesktopSignalMessageSchema.safeParse({ type: "media-ticket", mediaTicket: "  " }).success,
+    false,
+    "空票据拒绝（trim 后 min 1）",
+  );
+  assert.equal(
+    remoteDesktopSignalMessageSchema.safeParse({ type: "request-media-ticket", extra: 1 }).success,
+    false,
+    "strict：未知键拒绝",
+  );
+});

@@ -91,7 +91,12 @@ export interface StartLanAccessServerParams {
       clientId: string,
       quality?: RemoteDesktopQuality,
     ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
-    onSessionSocket?: (clientId: string, socket: WebSocket) => void;
+    /** `session.reissueMediaTicket`：媒体 WS 瞬断重连（P2-1）的票据重签（由 server 层注入）。 */
+    onSessionSocket?: (
+      clientId: string,
+      socket: WebSocket,
+      session?: { reissueMediaTicket?: () => { mediaTicket: string; expiresAt: number } },
+    ) => void;
     onMediaSocket?: (clientId: string, socket: WebSocket) => void;
   };
 }

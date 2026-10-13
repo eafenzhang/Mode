@@ -245,3 +245,52 @@ test("freeze/unfreeze 信令切换 frozen；connecting 重连重置", () => {
   });
   assert.equal(retrying.state.frozen, false);
 });
+
+// 断线重连（P2-1）：媒体状态 reconnecting 透传且会话面保持挂载；
+// 重连控制面信号（request-media-ticket / media-ticket）防御性忽略。
+test("重连状态：reconnecting 只改 mediaStatus，不把会话收口", () => {
+  const live = {
+    ...INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE,
+    phase: "connected",
+    mediaStatus: "live",
+  };
+  const reconnecting = reduceRemoteDesktopSession(live, {
+    type: "media",
+    status: "reconnecting",
+  });
+  assert.equal(reconnecting.state.mediaStatus, "reconnecting");
+  assert.equal(reconnecting.state.phase, "connected", "重连中会话面保持挂载（不 closed）");
+  assert.deepEqual(reconnecting.effects, [], "重连状态只改视图，不产出副作用");
+
+  // 重连成功（媒体面恢复）→ live；失败仍走原 media-failed 收口语义。
+  const recovered = reduceRemoteDesktopSession(reconnecting.state, {
+    type: "media",
+    status: "live",
+  });
+  assert.equal(recovered.state.mediaStatus, "live");
+  const failed = reduceRemoteDesktopSession(reconnecting.state, {
+    type: "media",
+    status: "failed",
+  });
+  assert.equal(failed.state.phase, "closed", "退避耗尽后仍按媒体失败收口");
+});
+
+test("重连控制面信号到达 reducer 不改状态（正常由会话胶水拦截）", () => {
+  const live = {
+    ...INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE,
+    phase: "connected",
+    mediaStatus: "live",
+  };
+  const ticketReply = reduceRemoteDesktopSession(live, {
+    type: "controller",
+    event: { kind: "signal", message: { type: "media-ticket", mediaTicket: "t-1" } },
+  });
+  assert.deepEqual(ticketReply.state, live, "media-ticket 不改变视图状态");
+  assert.deepEqual(ticketReply.effects, []);
+  const ticketRequest = reduceRemoteDesktopSession(live, {
+    type: "controller",
+    event: { kind: "signal", message: { type: "request-media-ticket" } },
+  });
+  assert.deepEqual(ticketRequest.state, live, "request-media-ticket 不改变视图状态");
+  assert.deepEqual(ticketRequest.effects, []);
+});

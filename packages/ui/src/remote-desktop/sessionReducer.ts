@@ -25,7 +25,13 @@ export type RemoteDesktopSessionPhase = "connecting" | "connected" | "closed";
 /** 结束归因：user = 本端主动断开；remote = 对端 bye / 通道被关闭；error = 错误码或媒体失败。 */
 export type RemoteDesktopSessionCloseKind = "user" | "remote" | "error";
 
-export type RemoteDesktopMediaStatus = "idle" | "negotiating" | "live" | "failed";
+export type RemoteDesktopMediaStatus =
+  | "idle"
+  | "negotiating"
+  | "live"
+  | "failed"
+  /** 媒体 WS 瞬断/整会话传输断开后的自动重连退避中（P2-1，画面中断提示）。 */
+  | "reconnecting";
 
 export interface RemoteDesktopSessionViewState {
   phase: RemoteDesktopSessionPhase;
@@ -181,6 +187,11 @@ function applyControllerSignal(
     case "hello":
     case "select-monitor":
       // 主控方向不应收到这些信号（被控端才处理它们）：记录性忽略，不改状态。
+      return transition(state, {});
+    case "request-media-ticket":
+    case "media-ticket":
+      // 断线重连控制面（P2-1）：media-ticket 由会话胶水在 dispatch 前拦截并唤醒等票方，
+      // 正常不会到达 reducer；到达即防御性忽略（不改视图状态）。
       return transition(state, {});
     case "freeze":
       // 被控端锁屏 / 失去访问权限：画面已冻结，UI 在状态条显示冻结提示（文案不区分 reason）。

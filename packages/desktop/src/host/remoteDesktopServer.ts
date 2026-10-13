@@ -90,7 +90,15 @@ export interface RemoteDesktopHostServer {
       clientId: string,
       quality?: RemoteDesktopQuality,
     ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
-    onSessionSocket(clientId: string, socket: WebSocket): void;
+    /**
+     * `session.reissueMediaTicket`：媒体 WS 瞬断重连（P2-1）——票据 store 在 server 层
+     * （createHttpServer），宿主在此处理 `{type:"request-media-ticket"}` 时用它重签。
+     */
+    onSessionSocket(
+      clientId: string,
+      socket: WebSocket,
+      session?: { reissueMediaTicket?: () => { mediaTicket: string; expiresAt: number } },
+    ): void;
     onMediaSocket(clientId: string, socket: WebSocket): void;
   };
   /** 能力位读取点（同步缓存，握手时现取；开关变更后立刻生效）。 */
@@ -394,7 +402,11 @@ export function createRemoteDesktopHostServer(options: {
     inputRects = null;
   };
 
-  const onSessionSocket = (clientId: string, socket: WebSocket): void => {
+  const onSessionSocket = (
+    clientId: string,
+    socket: WebSocket,
+    session?: { reissueMediaTicket?: () => { mediaTicket: string; expiresAt: number } },
+  ): void => {
     if (disposed || !pendingSocket || pendingSocket.clientId !== clientId) {
       // 没有对应的同意通过记录（票据被别的已配对设备出示/会话已收口）：不留下无归属信令连接。
       try {
@@ -432,6 +444,30 @@ export function createRemoteDesktopHostServer(options: {
       const message = remoteDesktopSignalMessageSchema.safeParse(parsed);
       if (!message.success) {
         logger.warn("[remote-desktop] dropping invalid signal frame");
+        return;
+      }
+      // 媒体 WS 瞬断重连（P2-1）：会话内本地处理，不落信令转发面——
+      // 重签一张媒体票（绑定同 clientId）回给主控 renderer，编码/中继全程不停。
+      if (message.data.type === "request-media-ticket") {
+        const issued = session?.reissueMediaTicket?.();
+        if (!issued) {
+          logger.warn(`[remote-desktop] media ticket reissue unavailable, clientId=${clientId}`);
+          return;
+        }
+        try {
+          socket.send(JSON.stringify({ type: "media-ticket", mediaTicket: issued.mediaTicket }));
+          log(`media ticket reissued, clientId=${clientId}`);
+        } catch (error) {
+          logger.warn(
+            "[remote-desktop] media ticket send failed:",
+            error instanceof Error ? error.message : error,
+          );
+        }
+        return;
+      }
+      // 方向越权：media-ticket 只允许被控 → 主控，主控方向出现即协议破坏，丢弃不转发。
+      if (message.data.type === "media-ticket") {
+        logger.warn("[remote-desktop] unexpected media-ticket from controller, dropped");
         return;
       }
       options.postToMain({

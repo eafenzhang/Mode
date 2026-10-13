@@ -69,6 +69,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
   - `mediaUrl`（连接地址 + mediaTicket）不走信令：由主控 host 从 POST 响应拼出，
   经 `rdStartSession` 返回值直达 renderer（被控 host 不知道自身对外可达地址）。
   - `freeze{reason:"locked"|"access-lost"}` / `unfreeze`（被控 → 主控，DUPL 丢失/恢复时），复用既有「锁屏画面冻结 + 提示，解锁恢复」语义与文案。
+  - `request-media-ticket`（主控 → 被控）/ `media-ticket{mediaTicket}`（被控 → 主控）：媒体 WS 瞬断重连（P2-1）的重签对上；被控在会话 WS 上本地处理（不落信令转发面），主控胶水在 dispatch 前拦截回帖。
 - **版本门（纯直替的唯一兼容闸）**：
   1. `server-info.capabilities` 新增 `remoteDesktopNative?: true`——旧对端缺键 → 设备页既有「不支持（版本过旧）」文案，不发起会话；
   2. `hello.protocolVersion !== 2` → 回 `error{code:"unsupported"}` 收口。
@@ -147,7 +148,8 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 | --- | --- |
 | 旧对端缺 `remoteDesktopNative` / hello 版本不符 | `unsupported`：设备页置灰文案或会话内错误展示，**不回退 WebRTC** |
 | helper 未拉起 / DUPL 或 MF 编码器创建失败 | `unsupported`（能力面缺失，不自动重试；重拉 Helper 走既有按需拉起与退避） |
-| media WS 连不上 / 中途断开 | 会话收口，按既有 `closed.error` 文案回设备页；不自动重连 |
+| 媒体 WS 瞬断（信令存活） | **自动重连（P2-1）**：renderer 经信令 `{type:"request-media-ticket"}` 重签媒体票（同 clientId、单次消费、30s；被控在会话 WS 上本地回帖 `media-ticket`，不落信令转发面）→ 重连媒体 WS 续流。断流期间中继丢帧（不缓冲）；重连后只放行关键帧 + 首个关键帧强制重配解码器（防花屏残留）+ 立即请 IDR。退避 250ms→2s、8 次上限，耗尽或本端已收口则按压媒失败收口 |
+| 整会话传输断开（信令 WS 断，非 bye/本地结束） | **自动重连（P2-1）**：main 推 `closed{retryable}` → renderer 退避重走 `POST /api/remote-desktop/session`（新票据/新 key/salt/mediaUrl 全量重建）；被控对 **90s 窗口内同 clientId** 重连复用最近一次「用户允许」（不二次弹窗；总开关/单会话互斥仍逐次校验）。busy/internal 可重试，明确拒绝（disabled/consent_denied 等）立即按错误码收口 |
 | 锁屏 / 安全桌面 | 非错误：`freeze` 冻结提示，恢复自动续流（既有语义） |
 | 中继端口异常 / 帧解密失败 | 计入 warn 日志（不含密钥与帧内容）；连续失败按媒体断开收口 |
 
@@ -173,6 +175,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 - [ ] 输入全套（三键/拖拽/滚轮/快捷键/中文文本）在对端生效；操作栏/状态条本地可点（回归上轮修复）。
 - [ ] 断开 / 被控点「结束」/ 关总开关 / 退出应用 → 双端收口，无残留（DUPL 释放、中继口关闭、票据失效，进程与端口核查）。
 - [ ] 旧版本对端：设备页显示不支持文案，不发起媒体。
+- [ ] 断线恢复（P2-1）：会话中拔插网线/切 Wi-Fi → 状态条显示「正在恢复」→ 恢复 <3s（退避 250ms 档）且画面无花屏残留；60s 内重连不重新弹同意窗；本端主动断开/对端 bye 不触发自动重连。
 - [ ] 抓包（LAN 口）只见密文；中继口日志无明文帧与密钥。
 - [ ] kill-switch 开 → 能力位 false，入口即挡。
 
