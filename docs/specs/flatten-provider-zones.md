@@ -204,3 +204,42 @@ UI（添加供应商列表）随 builtin 数据自动生效。
 - `zai-standard-api` / `bigmodel-standard-api`（平台按量端点 `api/paas/v4`）不受影响；
 - 同 PR 顺带修复去智谱化后 `no-official-platform.test.mjs` 的三处失效
   （守卫注入、builtin 平台端点样本、运行时字面量注释）。
+
+## 修订：新增 Xiaomi MiMo Token-Plan，MiMo 默认模型升至 2.6（revision 32 → 33）
+
+Xiaomi MiMo 提供两种接入计划：标准按量 API 与 Token-Plan（独立计费域名）。两者均为
+纯 API-Key + Anthropic 兼容端点，与账号订阅体系无关，按 Coding Plan 同款先例拆成
+两条平铺模板。
+
+### 数据层变更（`config/provider/mode-builtin.json`）
+
+1. 新增模板 `xiaomi-mimo-token-plan`（显示名 "Xiaomi MiMo Token-Plan"）：
+   - `access=api-key`，密钥管理页 `https://platform.xiaomimimo.com/`（与标准版同一平台）；
+   - `api=anthropic-messages`，端点 `https://token-plan-cn.xiaomimimo.com/anthropic`；
+   - `builtinModelIds=["mimo-v2.6-pro", "mimo-v2.6-flash"]`；
+   - logo 复用内置 `xiaomi-mimo`。
+2. 现有模板 `xiaomi-mimo` 的 `builtinModelIds` 升级为
+   `["mimo-v2.6-pro", "mimo-v2.6-flash"]`。个人 provider 在创建时拷贝模板，因此
+   存量用户不受影响；只有升级后新添加的实例默认拿到 2.6。
+3. `templateModelRules`：删除 `xiaomi-mimo` 下 `mimo-v2.5-pro` / `mimo-v2.5` 两条
+   启用规则（随默认模型退场），为两个模板各登记 `mimo-v2.6-pro` / `mimo-v2.6-flash`
+   （enabled）。删除只改变模板可选项，不回改用户磁盘上的 personal 数据——与本 spec
+   「存量数据一次性迁移」一节确立的原则一致。
+4. `modelRules` 新增 `mimo-v2.6-flash` / `mimo-v2.6-pro` 两条能力画像（镜像 2.5
+   同档位：flash 多模态、pro 纯文本，1M 上下文、reasoning disabled/enabled、
+   max output 131072）。
+
+### 边界：全局 v2.5 规则保留
+
+`modelRules` / `modelApiRules` 中的 `mimo-v2.5*` 正则是**全局**匹配，服务对象还包括
+opencode-go（`mimo-v2.5`）、OpenRouter（`xiaomi/mimo-v2.5-*`）、opencode-zen
+（`mimo-v2.5-free`）等仍内置 v2.5 模型 ID 的第三方模板；删除会连带剥掉这些供应商的
+模型元数据。因此仅删除 `xiaomi-mimo` **模板作用域**的 v2.5 启用规则，全局规则不动。
+
+### 验收
+
+1. 「添加供应商」列表出现 "Xiaomi MiMo Token-Plan"，与 "Xiaomi MiMo" 并列。
+2. 两个模板新添加的 provider 默认模型均为 `mimo-v2.6-pro`、`mimo-v2.6-flash`；
+   Token-Plan 实例请求端点为 `token-plan-cn.xiaomimimo.com/anthropic`。
+3. 升级前已创建的 `xiaomi-mimo` 个人 provider 保有其原有 v2.5 模型，不受影响。
+4. OpenRouter / opencode 模板的 v2.5 模型元数据（上下文、reasoning 映射）不变。

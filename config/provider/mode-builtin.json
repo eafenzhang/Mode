@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 32,
+  "revision": 33,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -316,8 +316,33 @@
               "baseUrl": "https://api.xiaomimimo.com/anthropic"
             },
             "builtinModelIds": [
-              "mimo-v2.5-pro",
-              "mimo-v2.5"
+              "mimo-v2.6-pro",
+              "mimo-v2.6-flash"
+            ],
+            "logo": {
+              "type": "builtin",
+              "key": "xiaomi-mimo"
+            }
+          }
+        },
+        {
+          "templateId": "xiaomi-mimo-token-plan",
+          "templateNameMap": {
+            "zh-CN": "Xiaomi MiMo Token-Plan",
+            "en-US": "Xiaomi MiMo Token-Plan"
+          },
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKeyManagementUrl": "https://platform.xiaomimimo.com/"
+            },
+            "api": {
+              "type": "anthropic-messages",
+              "baseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic"
+            },
+            "builtinModelIds": [
+              "mimo-v2.6-pro",
+              "mimo-v2.6-flash"
             ],
             "logo": {
               "type": "builtin",
@@ -2463,6 +2488,54 @@
         },
         {
           "modelMatch": ".*mimo-v2\\.5-pro(?:[.\\-:/\\[].*)?",
+          "config": {
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": false,
+                "supportsVideo": false,
+                "supportsAudio": false
+              }
+            },
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": [
+                  "disabled",
+                  "enabled"
+                ]
+              },
+              "maxOutputTokens": {
+                "max": 131072
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*mimo-v2\\.6-flash(?:[.\\-:/\\[].*)?",
+          "config": {
+            "properties": {
+              "contextWindow": 1000000,
+              "inputFormat": {
+                "supportsImage": true,
+                "supportsVideo": true,
+                "supportsAudio": true
+              }
+            },
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": [
+                  "disabled",
+                  "enabled"
+                ]
+              },
+              "maxOutputTokens": {
+                "max": 131072
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*mimo-v2\\.6-pro(?:[.\\-:/\\[].*)?",
           "config": {
             "properties": {
               "contextWindow": 1000000,
@@ -5003,15 +5076,29 @@
           }
         },
         {
-          "modelId": "mimo-v2.5-pro",
+          "modelId": "mimo-v2.6-pro",
           "templateId": "xiaomi-mimo",
           "config": {
             "enabled": true
           }
         },
         {
-          "modelId": "mimo-v2.5",
+          "modelId": "mimo-v2.6-flash",
           "templateId": "xiaomi-mimo",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-pro",
+          "templateId": "xiaomi-mimo-token-plan",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "modelId": "mimo-v2.6-flash",
+          "templateId": "xiaomi-mimo-token-plan",
           "config": {
             "enabled": true
           }
