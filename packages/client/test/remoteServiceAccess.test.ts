@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { IChannel, IChannelClient } from "@zcode/rpc";
-import { IMediaPreviewService, IClientConfigService } from "@zcode/services";
+import type { IChannel, IChannelClient } from "@mode/rpc";
+import { IMediaPreviewService, IClientConfigService } from "@mode/services";
 import { RemoteServiceAccess } from "../src/remoteServiceAccess.js";
 
 describe("RemoteServiceAccess", () => {

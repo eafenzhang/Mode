@@ -1,4 +1,4 @@
-import type { ModeTaskRuntimeStatus } from "@zcode/shared";
+import type { ModeTaskRuntimeStatus } from "@mode/shared";
 
 type ChatPlaceholderMessageKey =
   | "chat.placeholder.newTask"

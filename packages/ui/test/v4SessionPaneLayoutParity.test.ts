@@ -8,9 +8,9 @@ import type {
   PendingInteraction,
   SubagentRow,
   UserInputRow,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 import { SessionPane } from "@/v4/SessionPane.js";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { ModeIntlProvider } from "@/i18n/IntlProvider.js";
 import type {
   OpenScopedSubagentSideTabRequest,
   OpenScopedWorkflowRunSideTabRequest,
@@ -75,12 +75,12 @@ vi.mock("@/v4/V4ConversationContext.js", () => ({
 }));
 
 vi.mock("@/store/StoreProvider.js", () => ({
-  useZCodeStoreWithDefault: (_selector: unknown, fallback: unknown) => fallback,
+  useModeStoreWithDefault: (_selector: unknown, fallback: unknown) => fallback,
 }));
 
 vi.mock("@/hooks/useSettingService.js", () => ({
   useSettings: () => ({
-    settings: { zcodeInteractionBehavior: "queue" },
+    settings: { modeInteractionBehavior: "queue" },
     loading: false,
     error: null,
     update: vi.fn(async () => {}),
@@ -91,10 +91,10 @@ vi.mock("@/hooks/useSettingService.js", () => ({
 vi.mock("@/hooks/useServices.js", () => ({
   useOptionalServices: () => null,
   useServices: () => ({
-    zcodeSessionService: {
+    modeSessionService: {
       updateProviderRegistry: vi.fn(),
     },
-    zcodeTaskService: {
+    modeTaskService: {
       restartWorkspaceProcess: vi.fn(),
     },
   }),
@@ -351,7 +351,7 @@ function renderPane({
 
   return renderToStaticMarkup(
     createElement(
-      ZCodeIntlProvider,
+      ModeIntlProvider,
       { initialLocale: "zh-CN" },
       createElement(SessionPane, {
         paneId: "workspace-main",

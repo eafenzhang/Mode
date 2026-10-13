@@ -1,8 +1,8 @@
 import { act, createElement, type DragEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { IPromptAttachmentTransferService } from "@zcode/services";
-import type { PromptAttachmentTransferProgress } from "@zcode/services";
+import type { IPromptAttachmentTransferService } from "@mode/services";
+import type { PromptAttachmentTransferProgress } from "@mode/services";
 import {
   OversizedInlineImageAttachmentError,
   OversizedInlineVideoAttachmentError,
@@ -37,7 +37,7 @@ vi.mock("@/hooks/useServices.js", () => ({
 }));
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     intl: {
       formatMessage: ({ id }: { id: string }) => id,
     },
@@ -444,7 +444,7 @@ describe("useComposerAttachments eager upload", () => {
         dataTransfer: {
           dropEffect: "none",
           items: [],
-          types: ["application/x-zcode-workspace-file"],
+          types: ["application/x-mode-workspace-file"],
         },
         preventDefault,
       } as unknown as DragEvent<HTMLElement>),
@@ -455,7 +455,7 @@ describe("useComposerAttachments eager upload", () => {
       latestApi?.handleDropComposer({
         dataTransfer: {
           files: [],
-          types: ["application/x-zcode-workspace-file"],
+          types: ["application/x-mode-workspace-file"],
         },
         preventDefault,
       } as unknown as DragEvent<HTMLElement>),

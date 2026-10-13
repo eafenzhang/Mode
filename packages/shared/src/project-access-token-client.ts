@@ -187,7 +187,7 @@ export class ProjectAccessTokenClient {
               method: "POST",
               headers,
               body: JSON.stringify({
-                clientType: "zcode",
+                clientType: "mode",
                 clientVersion: MODE_VERSION,
               }),
             },
@@ -277,7 +277,7 @@ export class ProjectAccessTokenClient {
       };
     }
     const url = keyListUrl(origin, location);
-    const name = input.team ? "zcode-team-api-key" : "zcode-api-key";
+    const name = input.team ? "mode-team-api-key" : "mode-api-key";
     const keyHeaders = input.team
       ? {
           ...headers,

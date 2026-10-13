@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
-import type { ProviderSettingsView } from "@zcode/services";
+import { BUILTIN_MODEL_PROVIDER_IDS } from "@mode/shared";
+import type { ProviderSettingsView } from "@mode/services";
 import {
   resolveManualClaimPlanStartUsingTarget,
   type ManualClaimPlanStartUsingTarget,

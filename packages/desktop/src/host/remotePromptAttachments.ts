@@ -7,14 +7,14 @@ import { stat } from "node:fs/promises";
 export const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.mode/tmp/prompt-attachments";
 const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".mode/tmp/prompt-attachments";
 
-interface RemotePromptAttachmentMaterializeInput {
+export interface RemotePromptAttachmentMaterializeInput {
   taskId?: string;
   content: string;
   traceId: TraceId | string;
   attachments?: ModePromptAttachment[];
 }
 
-interface RemotePromptAttachmentMaterializeResult {
+export interface RemotePromptAttachmentMaterializeResult {
   content: string;
   attachments?: ModePromptAttachment[];
   uploadedCount: number;
@@ -151,7 +151,7 @@ export async function cleanupStaleRemotePromptAttachments(
   );
 }
 
-function buildRemotePromptAttachmentPath(params: {
+export function buildRemotePromptAttachmentPath(params: {
   filename: string;
   index: number;
   nonce?: string;

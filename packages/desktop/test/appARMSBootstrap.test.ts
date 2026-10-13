@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ZCODE_AGENT_LIFECYCLE_LOG_MARKER } from "@zcode/shared/process-diagnostic";
+import { MODE_AGENT_LIFECYCLE_LOG_MARKER } from "@mode/shared/process-diagnostic";
 
 const init = vi.fn((_config: unknown) => Promise.resolve());
 
@@ -20,22 +20,22 @@ vi.mock("../src/main/desktopNetworkTelemetry.js", () => ({
 
 vi.mock("../src/main/desktopRuntimeEnv.js", () => ({
   desktopRuntimeEnv: "development",
-  runtimeApplicationName: "zcode-test",
+  runtimeApplicationName: "mode-test",
 }));
 
 vi.mock("../src/main/logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@zcode/shared", async (importOriginal) => {
+vi.mock("@mode/shared", async (importOriginal) => {
   // 脱敏收口是 beforeReport 的一部分，必须用真实实现验证；只覆写环境/版本等常量。
-  const actual = await importOriginal<typeof import("@zcode/shared")>();
+  const actual = await importOriginal<typeof import("@mode/shared")>();
   return {
     ...actual,
-    ZCODE_ARMS_RUM_ENDPOINT: "https://example.test/endpoint",
-    ZCODE_ENV: "test",
-    ZCODE_VERSION: "0.0.0-test",
-    mapZCodeEnvToArmsRumEnv: vi.fn(() => "local"),
+    MODE_ARMS_RUM_ENDPOINT: "https://example.test/endpoint",
+    MODE_ENV: "test",
+    MODE_VERSION: "0.0.0-test",
+    mapModeEnvToArmsRumEnv: vi.fn(() => "local"),
   };
 });
 
@@ -58,7 +58,7 @@ async function getPatchedReadCrashProcessType(): Promise<
     new URL("../../../node_modules/@arms/rum-electron/dist/index.mjs", import.meta.url),
   );
   const source = await readFile(packageEntry, "utf8");
-  const parserStart = source.indexOf("const zcodeCrashpadInfoStreamType");
+  const parserStart = source.indexOf("const modeCrashpadInfoStreamType");
   const parserEnd = source.indexOf("\nclass ", parserStart);
 
   expect(parserStart).toBeGreaterThanOrEqual(0);
@@ -73,13 +73,13 @@ async function getPatchedFormatConsoleErrorArgs(): Promise<(args: unknown[]) => 
     new URL("../../../node_modules/@arms/rum-electron/dist/index.mjs", import.meta.url),
   );
   const source = await readFile(packageEntry, "utf8");
-  const formatterStart = source.indexOf("const zcodeConsoleErrorMaxLength");
+  const formatterStart = source.indexOf("const modeConsoleErrorMaxLength");
   const formatterEnd = source.indexOf("\nclass ", formatterStart);
 
   expect(formatterStart).toBeGreaterThanOrEqual(0);
   expect(formatterEnd).toBeGreaterThan(formatterStart);
   return runInNewContext(
-    `${source.slice(formatterStart, formatterEnd)}; zcodeFormatConsoleErrorArgs`,
+    `${source.slice(formatterStart, formatterEnd)}; modeFormatConsoleErrorArgs`,
   ) as (args: unknown[]) => string;
 }
 
@@ -152,7 +152,7 @@ describe("appARMSBootstrap beforeReport", () => {
       event_type: "exception",
       type: "error",
       source: "console.error",
-      message: `[host-log] process exited ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}`,
+      message: `[host-log] process exited ${MODE_AGENT_LIFECYCLE_LOG_MARKER}`,
     };
     const realError = { ...wrapper, source: "uncaughtException" };
     const normalConsoleError = { ...wrapper, message: "a real main error" };
@@ -182,7 +182,7 @@ describe("appARMSBootstrap beforeReport", () => {
         {
           event_type: "resource",
           type: "api",
-          url: "https://zcode.z.ai/api/v1/event/report?state=abc123",
+          url: "https://mode.z.ai/api/v1/event/report?state=abc123",
         },
       ],
     }) as { events: Array<Record<string, unknown>> };
@@ -192,7 +192,7 @@ describe("appARMSBootstrap beforeReport", () => {
     expect(result.events[1]!.message).not.toContain("alice");
     expect(result.events[1]!.message).not.toContain("secret");
     expect(result.events[1]!.message).not.toContain("bob@example.com");
-    expect(result.events[2]!.url).toBe("https://zcode.z.ai/api/v1/event/report");
+    expect(result.events[2]!.url).toBe("https://mode.z.ai/api/v1/event/report");
   });
 
   it("脱敏排在网络 ingest 之后，聚合仍拿到原始 URL", async () => {
@@ -210,15 +210,15 @@ describe("appARMSBootstrap beforeReport", () => {
       {
         event_type: "resource",
         type: "api",
-        url: "https://zcode.z.ai/api/v1/tasks/0f8fad5b-d9cb-469f-a165-70867728950e?token=x",
+        url: "https://mode.z.ai/api/v1/tasks/0f8fad5b-d9cb-469f-a165-70867728950e?token=x",
       },
     ];
     beforeReport({ events });
 
     expect(urlsSeenByAggregator).toEqual([
-      "https://zcode.z.ai/api/v1/tasks/0f8fad5b-d9cb-469f-a165-70867728950e?token=x",
+      "https://mode.z.ai/api/v1/tasks/0f8fad5b-d9cb-469f-a165-70867728950e?token=x",
     ]);
-    expect(events[0]!.url).toBe("https://zcode.z.ai/api/v1/tasks/{segment}");
+    expect(events[0]!.url).toBe("https://mode.z.ai/api/v1/tasks/{segment}");
   });
   beforeEach(() => {
     vi.resetModules();
@@ -227,14 +227,14 @@ describe("appARMSBootstrap beforeReport", () => {
 
   it("使用 Desktop 本地开发运行态计算 ARMS 环境", async () => {
     await import("../src/main/appARMSBootstrap.js");
-    const shared = await import("@zcode/shared");
+    const shared = await import("@mode/shared");
     const config = init.mock.calls[0]?.[0] as unknown as {
       env: string;
       app: { env: string };
       tracing: { sample: number };
     };
 
-    expect(shared.mapZCodeEnvToArmsRumEnv).toHaveBeenCalledWith("development");
+    expect(shared.mapModeEnvToArmsRumEnv).toHaveBeenCalledWith("development");
     expect(config).toMatchObject({
       env: "local",
       app: { env: "local" },
@@ -293,7 +293,7 @@ describe("appARMSBootstrap beforeReport", () => {
     expect(result.events[0].properties).toBeUndefined();
   });
 
-  it("drops crashReporter dumps that do not contain the ZCode product binary", async () => {
+  it("drops crashReporter dumps that do not contain the Mode product binary", async () => {
     const beforeReport = await getBeforeReport();
     const externalCrash = {
       event_type: "exception",
@@ -301,23 +301,23 @@ describe("appARMSBootstrap beforeReport", () => {
       source: "crashReporter",
       binary_images: [{ name: "hdc" }, { name: "libsystem_kernel.dylib" }],
     };
-    const zcodeCrash = {
+    const modeCrash = {
       event_type: "exception",
       type: "crash",
       source: "crashReporter",
       meta: { process_type: "browser" },
-      binary_images: [{ name: "zcode-test" }, { name: "Electron Framework" }],
+      binary_images: [{ name: "mode-test" }, { name: "Electron Framework" }],
     };
     const helperCrash = {
       event_type: "exception",
       type: "crash",
       source: "crashReporter",
-      binary_images: [{ name: "zcode-test Helper (Renderer)" }],
+      binary_images: [{ name: "mode-test Helper (Renderer)" }],
     };
     const customEvent = { event_type: "custom", name: "perf_app_start" };
 
     const result = beforeReport({
-      events: [externalCrash, helperCrash, zcodeCrash, customEvent],
+      events: [externalCrash, helperCrash, modeCrash, customEvent],
     }) as {
       events: Array<Record<string, unknown>>;
     };
@@ -352,7 +352,7 @@ describe("appARMSBootstrap beforeReport", () => {
       event_type: "exception",
       type: "crash",
       source: "crashReporter",
-      binary_images: [{ name: "zcode-test" }],
+      binary_images: [{ name: "mode-test" }],
     };
 
     const result = beforeReport({ events: [dump] }) as {
@@ -376,8 +376,8 @@ describe("appARMSBootstrap beforeReport", () => {
       event_type: "exception",
       type: "crash",
       source: "crashReporter",
-      meta: { process: "zcode-test", process_type: "browser" },
-      binary_images: [{ name: "zcode-test" }],
+      meta: { process: "mode-test", process_type: "browser" },
+      binary_images: [{ name: "mode-test" }],
     };
 
     const result = beforeReport({ events: [dump] }) as {
@@ -415,11 +415,11 @@ describe("appARMSBootstrap beforeReport", () => {
         event_type: "exception",
         type: "crash",
         source: "crashReporter",
-        binary_images: [{ name: "zcode-test" }],
+        binary_images: [{ name: "mode-test" }],
         ...eventPatch,
       };
 
-      const events = filterAndEnrichNativeCrashEvents([dump], "zcode-test", "zcode-test");
+      const events = filterAndEnrichNativeCrashEvents([dump], "mode-test", "mode-test");
 
       expect(events[0]).toMatchObject({
         properties: {
@@ -460,10 +460,10 @@ describe("appARMSBootstrap beforeReport", () => {
         type: "crash",
         source: "crashReporter",
         meta: { process_type: processRole },
-        binary_images: [{ name: "zcode-test" }],
+        binary_images: [{ name: "mode-test" }],
       };
 
-      const events = filterAndEnrichNativeCrashEvents([dump], "zcode-test", "zcode-test");
+      const events = filterAndEnrichNativeCrashEvents([dump], "mode-test", "mode-test");
 
       expect(events[0]).toMatchObject({
         properties: {
@@ -481,10 +481,10 @@ describe("appARMSBootstrap beforeReport", () => {
       type: "crash",
       source: "crashReporter",
       meta: { process_type: "browser" },
-      binary_images: [{ name: "zcode-test" }],
+      binary_images: [{ name: "mode-test" }],
     };
 
-    const events = filterAndEnrichNativeCrashEvents([dump], "zcode-test", "zcode-test");
+    const events = filterAndEnrichNativeCrashEvents([dump], "mode-test", "mode-test");
 
     expect(events[0]).toMatchObject({
       properties: {
@@ -497,12 +497,12 @@ describe("appARMSBootstrap beforeReport", () => {
   it.each([
     {
       runtime: "Linux Preview",
-      applicationName: "ZCode Preview",
-      executableName: "zcode-preview",
+      applicationName: "Mode Preview",
+      executableName: "mode-preview",
     },
     {
       runtime: "local development",
-      applicationName: "ZCode Dev",
+      applicationName: "Mode Dev",
       executableName: "Electron",
     },
   ])(

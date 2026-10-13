@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import { setDataBaseDir } from "../src/paths.js";
 import { TaskIndexRepo } from "../src/session/taskIndexRepo.js";
 
@@ -12,7 +12,7 @@ let tempDir: string;
 const allRepos: TaskIndexRepo[] = [];
 
 beforeEach(() => {
-  tempDir = mkdtempSync(join(tmpdir(), "zcode-grouped-structure-"));
+  tempDir = mkdtempSync(join(tmpdir(), "mode-grouped-structure-"));
   setDataBaseDir(tempDir);
 });
 
@@ -40,7 +40,7 @@ function createTrackedRepo(): TaskIndexRepo {
   return repo;
 }
 
-function createTask(taskId: string, createdAt: number): ZCodeTaskMeta {
+function createTask(taskId: string, createdAt: number): ModeTaskMeta {
   return {
     taskId,
     traceId: `trace-${taskId}`,

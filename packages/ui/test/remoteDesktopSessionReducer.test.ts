@@ -6,9 +6,8 @@ import test from "node:test";
 // 首个结束原因生效、媒体失败收口、显示器切换只发信令不重建会话。
 const { reduceRemoteDesktopSession, INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE } =
   await import("../src/remote-desktop/sessionReducer.js");
-const { REMOTE_DESKTOP_PROTOCOL_VERSION, remoteDesktopSignalMessageSchema } = await import(
-  "@mode/shared/remote-desktop"
-);
+const { REMOTE_DESKTOP_PROTOCOL_VERSION, remoteDesktopSignalMessageSchema } =
+  await import("@mode/shared/remote-desktop");
 
 const MONITORS = [
   {
@@ -38,7 +37,52 @@ test("初始状态为连接中且无显示器", () => {
   assert.deepEqual(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.monitors, []);
   assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.selectedDisplayId, null);
   assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.mediaOpenReceived, false);
+  assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.awaitingFirstFrame, false);
   assert.equal(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE.frozen, false);
+});
+
+test("首帧看门狗：零帧切可见提示、首帧撤除、会话重建/媒体面重建清零", () => {
+  // spec「媒体面可观测性与首帧约束」（2026-10-14）：mediaStatus 已 live（媒体面对象已建，
+  // 早于任何一帧）并不代表有画面——「连上但一帧不出」必须由单独的可见位表达。
+  const live = reduce(INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE, {
+    type: "media",
+    status: "live",
+  }).state;
+  assert.equal(live.awaitingFirstFrame, false, "live 本身不置缺帧位");
+
+  const stalled = reduce(live, { type: "first-frame", seen: false });
+  assert.equal(stalled.state.awaitingFirstFrame, true, "看门狗标出零帧");
+  assert.deepEqual(stalled.effects, [], "只切可见位，不发信令、不改媒体态");
+  assert.equal(stalled.state.mediaStatus, "live", "媒体态保持 live（传输仍在）");
+
+  // 重复触发（重连后再触发）幂等：状态内容不变、不改媒体态。
+  const replayed = reduce(stalled.state, { type: "first-frame", seen: false }).state;
+  assert.equal(replayed.awaitingFirstFrame, true, "重复触发仍为缺帧态");
+  assert.equal(replayed.mediaStatus, "live", "重复触发不改媒体态");
+
+  const resumed = reduce(stalled.state, { type: "first-frame", seen: true });
+  assert.equal(resumed.state.awaitingFirstFrame, false, "首个已解码帧撤除提示");
+
+  // 会话重建（connecting 迁移）清零：新会话必须由首帧或看门狗重新定态。
+  assert.equal(
+    reduce(stalled.state, { type: "controller", event: { kind: "state", state: "connecting" } })
+      .state.awaitingFirstFrame,
+    false,
+    "connecting 迁移清零",
+  );
+
+  // 媒体面重建（新 media-open）清零：新 socket 从零计时。
+  assert.equal(
+    reduce(stalled.state, {
+      type: "controller",
+      event: {
+        kind: "signal",
+        message: { type: "media-open", key: "ab".repeat(32), salt: "cd".repeat(8) },
+      },
+    }).state.awaitingFirstFrame,
+    false,
+    "media-open 迁移清零",
+  );
 });
 
 test("信令通道 connected 后本侧发 hello{protocolVersion:2}", () => {

@@ -1975,6 +1975,11 @@ const enUS: Record<string, string> = {
   "taskList.noArchivedTasks": "No archived tasks",
   "taskList.loading": "Loading tasks...",
   "taskList.syncingRemoteWorkspaces": "Loading remote tasks...",
+  // Remote workspace conversation mirror (records imported as real sessions)
+  "conversationMirror.syncing": "Syncing remote conversation records...",
+  "conversationMirror.unsupported": "The peer version is too old to sync conversation records",
+  "conversationMirror.error": "Conversation record sync failed",
+  "conversationMirror.retry": "Retry conversation record sync",
   "taskList.showMore": "Show more",
   "taskList.showLess": "Show less",
   "taskList.pinnedSection": "Pinned",

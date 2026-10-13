@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { IChannel } from "@zcode/rpc";
-import type { IZCodeAgentService } from "../src/zcode-agent/zcodeAgent.js";
-import { createZCodeAgentConnectionScope } from "../src/zcode-agent/zcodeAgentConnectionScope.js";
-import { createTopicResourcePeers } from "../src/zcode-agent/topicResourcePeers.js";
+import type { IChannel } from "@mode/rpc";
+import type { IModeAgentService } from "../src/mode-agent/modeAgent.js";
+import { createModeAgentConnectionScope } from "../src/mode-agent/modeAgentConnectionScope.js";
+import { createTopicResourcePeers } from "../src/mode-agent/topicResourcePeers.js";
 
 const request = {
   requestId: "r",
@@ -23,16 +23,16 @@ describe("shared Server topic resource peers", () => {
     const b = peers.attach({ call: vi.fn() } as unknown as IChannel);
     const base = {
       queryConversationCommandsV4: vi.fn(async () => ({ results: [] })),
-    } as unknown as IZCodeAgentService;
+    } as unknown as IModeAgentService;
     const untrusted = a.wrapAgent(base);
     await untrusted.queryConversationCommandsV4({ ...request, commands: [] });
     expect(() => peers.getChannel(request)).toThrow();
-    const scopeA = createZCodeAgentConnectionScope(untrusted, {
+    const scopeA = createModeAgentConnectionScope(untrusted, {
       connectionId: "a",
       clientMode: "desktop-continuous",
       role: "trusted-host-relay",
     });
-    const scopeB = createZCodeAgentConnectionScope(b.wrapAgent(base), {
+    const scopeB = createModeAgentConnectionScope(b.wrapAgent(base), {
       connectionId: "b",
       clientMode: "desktop-continuous",
       role: "trusted-host-relay",

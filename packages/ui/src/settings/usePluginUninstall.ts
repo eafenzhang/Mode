@@ -1,5 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
-import type { ModeInstalledPluginSummary, ModePluginInfo } from "@mode/shared";
+import type {
+  ModeInstalledPluginSummary,
+  ModePluginInfo,
+} from "@mode/shared";
 import type { IPluginManagementService } from "@mode/services";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 
@@ -12,7 +15,7 @@ interface UsePluginUninstallInput {
   onAfterUninstall: () => Promise<void>;
 }
 
-interface PluginUninstallController {
+export interface PluginUninstallController {
   pendingPlugin: ModePluginInfo | ModeInstalledPluginSummary | null;
   uninstalling: boolean;
   requestUninstall: (pluginId: string) => void;

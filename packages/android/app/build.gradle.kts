@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.zcode_mobile"
+    namespace = "com.example.mode_mobile"
     buildToolsVersion = "36.1.0"
     compileSdk {
         version = release(36) {
@@ -13,7 +13,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.zcode_mobile"
+        applicationId = "com.example.mode_mobile"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -21,13 +21,13 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        buildConfigField("String", "REMOTE_CONTROL_DEFAULT_URL", "\"https://zcode.z.ai/remote\"")
+        buildConfigField("String", "REMOTE_CONTROL_DEFAULT_URL", "\"https://mode.z.ai/remote\"")
     }
 
     buildTypes {
         debug {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
-            buildConfigField("String", "REMOTE_CONTROL_DEFAULT_URL", "\"https://zcode.z.ai/remote\"")
+            buildConfigField("String", "REMOTE_CONTROL_DEFAULT_URL", "\"https://mode.z.ai/remote\"")
         }
         release {
             isMinifyEnabled = false

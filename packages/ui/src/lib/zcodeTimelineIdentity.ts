@@ -1,4 +1,4 @@
-import type { ModeTimelineMeta } from "@zcode/shared";
+import type { ModeTimelineMeta } from "@mode/shared";
 
 function addTimelineIdentityKey(
   keys: string[],
@@ -10,7 +10,7 @@ function addTimelineIdentityKey(
   }
 }
 
-export function getZCodeTimelineIdentityKeys(
+export function getModeTimelineIdentityKeys(
   timeline: ModeTimelineMeta,
 ): string[] {
   const keys: string[] = [];
@@ -68,14 +68,14 @@ export function getZCodeTimelineIdentityKeys(
   return keys;
 }
 
-export function hasSharedZCodeTimelineIdentity(
+export function hasSharedModeTimelineIdentity(
   left: readonly string[],
   right: readonly string[],
 ): boolean {
   return left.some((key) => right.includes(key));
 }
 
-export function mergeZCodeTimelineMeta(
+export function mergeModeTimelineMeta(
   previousTimeline: ModeTimelineMeta | undefined,
   nextTimeline: ModeTimelineMeta,
 ): ModeTimelineMeta {

@@ -1,4 +1,4 @@
-import type { WebRemoteControlWindowBootstrapResult } from "@zcode/shared";
+import type { WebRemoteControlWindowBootstrapResult } from "@mode/shared";
 
 interface WebRemoteControlVersionGuardOptions {
   requestBootstrap(): Promise<WebRemoteControlWindowBootstrapResult>;

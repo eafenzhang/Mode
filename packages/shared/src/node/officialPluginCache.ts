@@ -6,7 +6,7 @@ import {
   MODE_OFFICIAL_PLUGIN_MARKETPLACE_LEGACY_ID,
 } from "../plugin-marketplaces.js";
 
-interface OfficialPluginCacheRoot {
+export interface OfficialPluginCacheRoot {
   /** 缓存目录名，即官方插件 name。 */
   name: string;
   /** 数字感知降序后的可用版本目录，首项为最新版本。 */

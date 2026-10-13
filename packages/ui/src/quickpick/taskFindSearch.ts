@@ -1,4 +1,4 @@
-import type { ModeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import { formatTaskChangedFileLabel } from "@/lib/taskChangeSummary.js";
 
 type TaskFindScope = "conversation" | "changes";

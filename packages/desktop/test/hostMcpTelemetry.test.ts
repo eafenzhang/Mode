@@ -1,10 +1,10 @@
-import { Emitter } from "@zcode/rpc";
-import type { ZCodeMcpTelemetryEvent } from "@zcode/shared";
-import { HostResponseTypes } from "@zcode/shared";
+import { Emitter } from "@mode/rpc";
+import type { ModeMcpTelemetryEvent } from "@mode/shared";
+import { HostResponseTypes } from "@mode/shared";
 import { describe, expect, it, vi } from "vitest";
 import { registerHostMcpTelemetry } from "../src/host/hostMcpTelemetry.js";
 
-const event: ZCodeMcpTelemetryEvent = {
+const event: ModeMcpTelemetryEvent = {
   arch: "arm64",
   kind: "memory",
   mcpId: "builtin:node_repl",
@@ -22,7 +22,7 @@ const event: ZCodeMcpTelemetryEvent = {
 
 describe("registerHostMcpTelemetry", () => {
   it("forwards only the event and local/remote surface to main", () => {
-    const emitter = new Emitter<ZCodeMcpTelemetryEvent>();
+    const emitter = new Emitter<ModeMcpTelemetryEvent>();
     const postMessage = vi.fn();
     const disposable = registerHostMcpTelemetry({
       agentService: { onDynamicMcpTelemetry: () => emitter.event },
@@ -42,7 +42,7 @@ describe("registerHostMcpTelemetry", () => {
   });
 
   it("drops parentPort failures without throwing into the Agent event source", () => {
-    const emitter = new Emitter<ZCodeMcpTelemetryEvent>();
+    const emitter = new Emitter<ModeMcpTelemetryEvent>();
     const disposable = registerHostMcpTelemetry({
       agentService: { onDynamicMcpTelemetry: () => emitter.event },
       postMessage: () => {

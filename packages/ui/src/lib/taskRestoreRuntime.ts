@@ -1,4 +1,4 @@
-import type { ModeTaskPersistStatus, ModeTaskRuntimeStatus } from "@zcode/shared";
+import type { ModeTaskPersistStatus, ModeTaskRuntimeStatus } from "@mode/shared";
 
 interface TaskRestoreTimestampedMessageLike {
   role: "user" | "assistant";

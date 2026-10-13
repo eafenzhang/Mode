@@ -9,7 +9,8 @@ interface SidebarTaskPreferences {
   sortBy: SidebarTaskSortBy;
 }
 
-const SIDEBAR_TASK_PREFERENCES_STORAGE_KEY = "mode-sidebar-task-preferences";
+export const SIDEBAR_TASK_PREFERENCES_STORAGE_KEY =
+  "mode-sidebar-task-preferences";
 
 const DEFAULT_SIDEBAR_TASK_PREFERENCES: SidebarTaskPreferences = {
   organizeBy: "project",

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type {
   ConversationShareArtifactDescriptor,
   ConversationShareConfirmRequest,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationShareHttpClient } from "../src/conversation-share/conversationShareHttpClient.js";
@@ -87,8 +87,8 @@ describe("ConversationShareMockApiClient", () => {
     vi.unstubAllEnvs();
   });
 
-  it("uses ZCODE_CONVERSATION_SHARE_WEB_URL for generated mock links", async () => {
-    vi.stubEnv("ZCODE_CONVERSATION_SHARE_WEB_URL", "http://127.0.0.1:5173/cn/share");
+  it("uses MODE_CONVERSATION_SHARE_WEB_URL for generated mock links", async () => {
+    vi.stubEnv("MODE_CONVERSATION_SHARE_WEB_URL", "http://127.0.0.1:5173/cn/share");
     const apiClient = new ConversationShareMockApiClient({ now: () => 10_000 });
     const { share } = await publish(apiClient, "public_readonly");
 
@@ -106,7 +106,7 @@ describe("ConversationShareMockApiClient", () => {
       producer_product_turn_id: "share-product-turn-1",
       artifact_version: 1,
       state: "current",
-      ref: "zcode-artifact://share/share-artifact-1",
+      ref: "mode-artifact://share/share-artifact-1",
       artifact_type: "html",
       display_name: "report.html",
       extension: "html",
@@ -171,7 +171,7 @@ describe("ConversationShareMockApiClient", () => {
     const apiClient = new ConversationShareMockApiClient({
       now: () => 10_000,
       authenticatedToken: "owner-token",
-      shareBaseUrl: "https://zcode.z.ai/cn/share",
+      shareBaseUrl: "https://mode.z.ai/cn/share",
     });
     const { client, share } = await publish(apiClient, "public_importable");
 
@@ -181,7 +181,7 @@ describe("ConversationShareMockApiClient", () => {
       client_request_id: "import-request-1",
     });
 
-    expect(share.share_url).toBe(`https://zcode.z.ai/cn/share/${share.share_code}`);
+    expect(share.share_url).toBe(`https://mode.z.ai/cn/share/${share.share_code}`);
     expect(preview.rows).toHaveLength(2);
     expect(preview.artifacts).toEqual([]);
     expect(continuation.rows).toEqual(preview.rows);
@@ -365,7 +365,7 @@ describe("ConversationShareMockApiClient", () => {
           producer_product_turn_id: "product-turn-1",
           artifact_version: 1,
           state: "current",
-          ref: "zcode-artifact://share/artifact-1",
+          ref: "mode-artifact://share/artifact-1",
           artifact_type: "html",
           display_name: "report.html",
           extension: "html",

@@ -2,13 +2,13 @@ import type { ProviderConfigLayerSnapshot, ProviderSource } from "@zcode/provide
 import {
   normalizeZCodeBuiltinEndpointOrigin,
   resolveZCodeBuiltinCachePaths,
-} from "./zcode-builtin-cache-paths.js";
-import { NodeZCodeBuiltinProviderConfigSource } from "./zcode-builtin-provider-config-source.js";
+} from "./mode-builtin-cache-paths.js";
+import { NodeZCodeBuiltinProviderConfigSource } from "./mode-builtin-provider-config-source.js";
 import {
   ZCodeBuiltinRemoteSynchronizer,
   type ZCodeBuiltinRefreshResult,
   type ZCodeBuiltinRemoteSynchronizerOptions,
-} from "./zcode-builtin-remote-synchronizer.js";
+} from "./mode-builtin-remote-synchronizer.js";
 
 export interface EndpointScopedZCodeBuiltinSourceOptions {
   readonly bundledFilePath: string;

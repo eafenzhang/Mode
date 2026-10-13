@@ -4,8 +4,8 @@ import {
   type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps/app-bridge";
 import { z } from "zod";
-import type { IGitService } from "@zcode/services";
-import type { PluginSandboxPlatformPort, PluginSandboxHandle } from "@zcode/shared/mcp-apps";
+import type { IGenUiService } from "@mode/services";
+import type { PluginSandboxPlatformPort, PluginSandboxHandle } from "@mode/shared/mcp-apps";
 import {
   GEN_UI_STATE_METHOD,
   GEN_UI_FOLLOW_UP_METHOD,
@@ -19,7 +19,7 @@ import {
   genUiTweakMessageSchema,
   genUiTweakResultSchema,
   type GenUiTweakValues,
-} from "@zcode/shared/gen-ui";
+} from "@mode/shared/gen-ui";
 import {
   createPluginUiPagePlane,
   createPluginUiMessagePortTransport,
@@ -32,8 +32,8 @@ import { createGenUiTweakRegistry } from "../app/tweaks.js";
 
 export interface GenUiPageInput {
   target: GenUiCardTarget;
-  files: IGitService;
-  state: IGitService;
+  files: IGenUiService;
+  state: IGenUiService;
   platform: PluginSandboxPlatformPort;
   openExternal(url: string): void | Promise<void>;
   confirm(prompt: string): Promise<string | null>;
@@ -118,8 +118,8 @@ export function createGenUiPage(input: GenUiPageInput): GenUiPage {
     // SDK 持有上一份上下文用于差异比较，不能与可写投影共享同一对象。
     const active = new AppBridge(
       null,
-      { name: "zcode-gen-ui", version: "1" },
-      { openLinks: {}, experimental: { "zcode/gen-ui": {} } },
+      { name: "mode-gen-ui", version: "1" },
+      { openLinks: {}, experimental: { "mode/gen-ui": {} } },
       { hostContext: { ...context } },
     );
     bridge = active;

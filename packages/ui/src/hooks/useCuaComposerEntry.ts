@@ -33,11 +33,12 @@ export interface UseCuaComposerEntryParams {
   workspaceIdentity?: string;
   remoteSessionId?: string | null;
   /** 手机 Web 远控壳；远控保护约束下不渲染本机 CUA 入口。 */
+  isWebRemoteControl?: boolean;
   /** 当前 composer 的 v4 snapshot.control.canStop，作为运行态的低延迟权威。 */
   currentSessionBusy?: boolean;
 }
 
-interface CuaComposerEntryController {
+export interface CuaComposerEntryController {
   view: CuaComposerEntryView;
   /** 点击按钮；仅在 view.clickAction === "open-settings" 时产生副作用。 */
   onActivate: () => void;
@@ -47,6 +48,7 @@ export function useCuaComposerEntry({
   workspacePath,
   workspaceIdentity,
   remoteSessionId,
+  isWebRemoteControl = false,
   currentSessionBusy = false,
 }: UseCuaComposerEntryParams): CuaComposerEntryController {
   const platform = usePlatform();
@@ -63,6 +65,7 @@ export function useCuaComposerEntry({
   // 与 ComputerUseSection 同口径的本地 workspace 判定：远程 workspace 的 CUA 会操作
   // 远端机器的屏幕；LAN 对端按能力位放行的例外见下方 workspaceCapable。
   const isLocalWorkspace =
+    !isWebRemoteControl &&
     !remoteSessionId &&
     !(workspaceIdentity?.trim() && isRemoteWorkspaceIdentity(workspaceIdentity.trim()));
   // 与 ComputerUseSection 同口径的 workspace 能力判定：本机 workspace，或 LAN 对端

@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 
 const fixtures = vi.hoisted(() => ({ host: vi.fn(), session: vi.fn(), mark: vi.fn() }));
-vi.mock("@zcode/services/storage-startup", () => ({
+vi.mock("@mode/services/storage-startup", () => ({
   getTasksIndexDatabasePath: () => "/isolated/tasks.sqlite",
-  resolveZCodeAgentSpawnCwd: async (...args: unknown[]) =>
+  resolveModeAgentSpawnCwd: async (...args: unknown[]) =>
     (
-      await import("../../services/src/zcode-agent/zcodeAgentSpawnCwd.js")
-    ).resolveZCodeAgentSpawnCwd(...(args as [never])),
+      await import("../../services/src/mode-agent/modeAgentSpawnCwd.js")
+    ).resolveModeAgentSpawnCwd(...(args as [never])),
   markTasksStoragePrepared: fixtures.mark,
 }));
 vi.mock("../src/host/storagePreparationProcesses.js", () => ({
@@ -19,7 +19,7 @@ vi.mock("../src/host/storagePreparationProcesses.js", () => ({
 import { createHostDatabaseStartup } from "../src/host/hostDatabaseStartup.js";
 
 it("prepares actual restored working directories before publishing services, without a fake workspace", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-startup-cwd-"));
+  const dir = await mkdtemp(join(tmpdir(), "mode-startup-cwd-"));
   const sequence: string[] = [];
   fixtures.host.mockImplementation(async () => {
     sequence.push("host");
@@ -49,7 +49,7 @@ it("prepares actual restored working directories before publishing services, wit
 });
 
 it("uses the normal Agent fallback for ENOTDIR and preserves actual database failures", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-startup-invalid-cwd-"));
+  const dir = await mkdtemp(join(tmpdir(), "mode-startup-invalid-cwd-"));
   const parent = join(dir, "former-directory");
   await writeFile(parent, "now a file");
   const cwd = join(parent, "old-project");
@@ -89,8 +89,8 @@ it("uses the normal Agent fallback for ENOTDIR and preserves actual database fai
 });
 
 it("only marks the last session database as eligible for global saving/finishing", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "zcode-startup-final-db-"));
-  const states: import("@zcode/shared").DatabaseStartupState[] = [];
+  const dir = await mkdtemp(join(tmpdir(), "mode-startup-final-db-"));
+  const states: import("@mode/shared").DatabaseStartupState[] = [];
   const migration = { kind: "upgrade", executedCount: 1, committedCount: 0 };
   fixtures.host.mockImplementation(async (_path, report) => report("committing", migration));
   fixtures.session.mockImplementation(async ({ cwd, report }) => {

@@ -11,7 +11,7 @@ import {
   type CommandEnvelope,
   type CommandPayloadMap,
   type CommandType,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@zcode/shared/mode-protocol-v4";
 
 const HEX = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
 

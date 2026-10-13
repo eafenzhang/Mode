@@ -1,14 +1,14 @@
-export const CODING_PLAN_TEAM_MOCK_BASE_URL_ENV = "ZCODE_CODING_PLAN_TEAM_MOCK_BASE_URL";
-export const CODING_PLAN_UPGRADE_MOCK_BASE_URL_ENV = "ZCODE_CODING_PLAN_UPGRADE_MOCK_BASE_URL";
+export const CODING_PLAN_TEAM_MOCK_BASE_URL_ENV = "MODE_CODING_PLAN_TEAM_MOCK_BASE_URL";
+export const CODING_PLAN_UPGRADE_MOCK_BASE_URL_ENV = "MODE_CODING_PLAN_UPGRADE_MOCK_BASE_URL";
 
 type MutableEnvironment = Record<string, string | undefined>;
 
 const CODING_PLAN_COMMON_ENV_KEYS = [
-  "ZCODE_BASE_URL",
-  "ZCODE_ENDPOINT_ORIGIN",
-  "ZCODE_TEST_BASE_URL",
+  "MODE_BASE_URL",
+  "MODE_ENDPOINT_ORIGIN",
+  "MODE_TEST_BASE_URL",
   "BIGMODEL_API_BASE_URL",
-  "ZCODE_E2E_CODING_PLAN_MOCK_URL",
+  "MODE_E2E_CODING_PLAN_MOCK_URL",
 ] as const;
 
 const DEFAULT_FULL_E2E_SPEC_GLOB = "./test/e2e/**/*.test.ts";
@@ -59,18 +59,18 @@ export function shouldPrepareCodingPlanTeamMock(specs: readonly string[]) {
 
 export function applyCodingPlanTeamMockEnv(environment: MutableEnvironment, baseUrl: string) {
   environment[CODING_PLAN_TEAM_MOCK_BASE_URL_ENV] = baseUrl;
-  environment.ZCODE_ENV = "test";
+  environment.MODE_ENV = "test";
   for (const key of CODING_PLAN_COMMON_ENV_KEYS) {
     environment[key] = baseUrl;
   }
-  environment.ZCODE_BIGMODEL_USAGE_QUOTA_URL = `${baseUrl}/api/monitor/usage/quota/limit`;
+  environment.MODE_BIGMODEL_USAGE_QUOTA_URL = `${baseUrl}/api/monitor/usage/quota/limit`;
   environment.BIGMODEL_USAGE_QUOTA_URL = `${baseUrl}/api/monitor/usage/quota/limit`;
 }
 
 export function clearCodingPlanTeamMockEnv(environment: MutableEnvironment, baseUrl: string) {
   clearOwnedEnvironmentValues(environment, baseUrl, [
     ...CODING_PLAN_COMMON_ENV_KEYS,
-    "ZCODE_BIGMODEL_USAGE_QUOTA_URL",
+    "MODE_BIGMODEL_USAGE_QUOTA_URL",
     "BIGMODEL_USAGE_QUOTA_URL",
   ]);
   if (environment[CODING_PLAN_TEAM_MOCK_BASE_URL_ENV] === baseUrl) {

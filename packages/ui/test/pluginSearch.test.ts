@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { ZCodePluginInfo } from "@zcode/shared";
+import type { ModePluginInfo } from "@mode/shared";
 import { storeItemMatches, type StorePluginItem } from "../src/settings/pluginStoreListing.js";
 import { filterPluginsByQuery } from "../src/settings/pluginCapabilityProjection.js";
 
 describe("plugin name pinyin search", () => {
-  const plugin = { id: "lark@official", name: "lark", marketplace: "official" } as ZCodePluginInfo;
+  const plugin = { id: "lark@official", name: "lark", marketplace: "official" } as ModePluginInfo;
   const item: StorePluginItem = {
     ...plugin,
     installed: true,

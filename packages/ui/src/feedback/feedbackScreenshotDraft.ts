@@ -1,4 +1,4 @@
-import type { IPlatformService } from "@zcode/shared";
+import type { IPlatformService } from "@mode/shared";
 import type { FeedbackAttachmentDraft } from "@/feedback/feedbackStore.js";
 
 export async function captureFeedbackScreenshotDraft(

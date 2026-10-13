@@ -3,7 +3,7 @@ import {
   conversationTelemetryFactSchema,
   commandAckSchema,
   parseCommandEnvelope,
-} from "../src/zcode-protocol-v4/index.js";
+} from "../src/mode-protocol-v4/index.js";
 
 const base = {
   version: 1 as const,
@@ -94,7 +94,7 @@ describe("ConversationTelemetryFact schema", () => {
       kind: "model.request.status",
       requestId: "request-1",
       status: "model_request_started",
-      providerId: "zcode-plan",
+      providerId: "mode-plan",
       modelId: "model-1",
       providerHostname: "example.com",
       transport: "sse",

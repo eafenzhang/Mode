@@ -1,4 +1,4 @@
-import type { PluginSandboxHandle } from "@zcode/shared/mcp-apps";
+import type { PluginSandboxHandle } from "@mode/shared/mcp-apps";
 import { randomUUID } from "node:crypto";
 import type {
   PluginSandboxRecord,

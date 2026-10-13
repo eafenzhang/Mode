@@ -1,4 +1,4 @@
-import { TID_TASK_ITEM, TID_WORKSPACE_ITEM, testId } from "@zcode/shared";
+import { TID_TASK_ITEM, TID_WORKSPACE_ITEM, testId } from "@mode/shared";
 import {
   DEFAULT_WORKSPACE,
   clearAppData,

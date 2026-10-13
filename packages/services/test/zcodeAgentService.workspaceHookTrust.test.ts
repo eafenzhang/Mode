@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { zcodeProtocolMethods } from "@zcode/shared";
+import { modeProtocolMethods } from "@mode/shared";
 
-describe("ZCodeAgentService workspace Hook Trust", () => {
+describe("ModeAgentService workspace Hook Trust", () => {
   it("没有 task/provider 时只启动 read-only Agent 并发送 workspace grant", async () => {
     const request = vi.fn(async (method: string) => {
-      if (method === zcodeProtocolMethods.workspaceHookTrustGrant) {
+      if (method === modeProtocolMethods.workspaceHookTrustGrant) {
         return { accepted: true };
       }
       throw new Error(`Unexpected method ${method}`);
@@ -17,8 +17,8 @@ describe("ZCodeAgentService workspace Hook Trust", () => {
       onClose: () => ({ dispose() {} }),
     }));
     vi.resetModules();
-    vi.doMock("../src/zcode-agent/zcodeAgentProcessManager.js", () => ({
-      ZCodeAgentProcessManager: class {
+    vi.doMock("../src/mode-agent/modeAgentProcessManager.js", () => ({
+      ModeAgentProcessManager: class {
         getClient = getClient;
         onRuntimeLifecycle() {
           return { dispose() {} };
@@ -29,10 +29,10 @@ describe("ZCodeAgentService workspace Hook Trust", () => {
         disposeAll() {}
       },
     }));
-    const { createZCodeAgentService } = await import(
-      "../src/zcode-agent/zcodeAgentService.js"
+    const { createModeAgentService } = await import(
+      "../src/mode-agent/modeAgentService.js"
     );
-    const service = createZCodeAgentService();
+    const service = createModeAgentService();
 
     await expect(
       service.grantWorkspaceHookTrust({
@@ -45,7 +45,7 @@ describe("ZCodeAgentService workspace Hook Trust", () => {
     ).resolves.toEqual({ accepted: true });
     expect(getClient).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith(
-      zcodeProtocolMethods.workspaceHookTrustGrant,
+      modeProtocolMethods.workspaceHookTrustGrant,
       {
         workspace: {
           workspacePath: "/repo",

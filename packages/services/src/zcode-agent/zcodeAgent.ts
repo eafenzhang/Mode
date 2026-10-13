@@ -46,7 +46,7 @@ import type {
   V4SessionsIndexSubscribeResult,
   V4WorkspaceConfigSubscribeResult,
   WorkspaceConfigTopicWireCandidate,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@zcode/shared/mode-protocol-v4";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export * from "./zcodeAgentPluginParams.js";
@@ -212,7 +212,7 @@ export interface ZCodeAgentGrantWorkspaceHookTrustParams extends ZCodeAgentWorks
 
 export interface ZCodeAgentSendPromptParamsBase extends ZCodeAgentSessionTarget {
   modelSelection?: ModelSelection;
-  modelExecution?: import("@zcode/shared/zcode-protocol-v4").CommandPayloadMap["sendText"]["modelExecution"];
+  modelExecution?: import("@zcode/shared/mode-protocol-v4").CommandPayloadMap["sendText"]["modelExecution"];
   inputId?: string;
   queryId?: string;
   messageId?: string;

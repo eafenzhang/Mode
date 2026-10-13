@@ -20,7 +20,7 @@ import {
   marketingSettingsSections,
   waitForMarketingCapability,
 } from "@/lib/marketingNavigation.js";
-import { BUILTIN_MODEL_PROVIDER_IDS, MODE_ENV } from "@zcode/shared";
+import { BUILTIN_MODEL_PROVIDER_IDS, MODE_ENV } from "@mode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeStore } from "@/store/StoreProvider.js";
@@ -367,7 +367,7 @@ function ConnectedBanner({ controller }: { controller: MarketingTouchController 
       banner?.delivery.resource_position === "banner" &&
       (banner.image || banner.bannerHero) &&
       banner.delivery.banner.buttons.find((button) => button.action.type !== "close")?.action
-        .type === "claim_zcode_plan",
+        .type === "claim_mode_plan",
     ),
   );
   // 与仲裁层（SidebarBottomActivity）共用同一可见性谓词，避免两处判断漂移。

@@ -3,13 +3,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { FeedbackTimeline } from "@/feedback/feedbackTimeline.js";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
-import type { FeedbackTicketEvent } from "@zcode/shared";
+import { ModeIntlProvider } from "@/i18n/IntlProvider.js";
+import type { FeedbackTicketEvent } from "@mode/shared";
 
 function renderTimeline(events: FeedbackTicketEvent[], locale: "zh-CN" | "en-US" = "en-US") {
   return renderToStaticMarkup(
     createElement(
-      ZCodeIntlProvider,
+      ModeIntlProvider,
       { initialLocale: locale },
       createElement(FeedbackTimeline, {
         events,

@@ -1,4 +1,4 @@
-import type { ModeTaskRuntimeStatus } from "@zcode/shared";
+import type { ModeTaskRuntimeStatus } from "@mode/shared";
 
 export function isLiveTaskRuntimeStatus(
   status: ModeTaskRuntimeStatus | undefined,

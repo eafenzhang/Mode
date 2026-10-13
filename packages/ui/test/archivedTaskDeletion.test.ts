@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { IZCodeTaskService } from "@zcode/services";
+import type { IModeTaskService } from "@mode/services";
 import {
   collectArchivedTaskDeletion,
   deleteArchivedTaskSelection,
@@ -18,7 +18,7 @@ function workspace(identity?: string, count = 25): ArchivedTaskDeletionWorkspace
           workspacePath: "/repo",
           workspaceIdentity: identity,
         })),
-      ) as unknown as IZCodeTaskService["listArchivedTasks"],
+      ) as unknown as IModeTaskService["listArchivedTasks"],
       deleteArchivedTasks: vi.fn(async ({ taskIds }: { taskIds: string[] }) => ({
         deletedTaskIds: taskIds,
         skippedTaskIds: [],

@@ -4,7 +4,7 @@ import {
   PlatformChannels,
   type EmbeddedBrowserPermissionDeviceOption,
   type EmbeddedBrowserPermissionResolveRequest,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   EmbeddedBrowserPermissionLogger,
   EmbeddedBrowserPermissionPromptAction,

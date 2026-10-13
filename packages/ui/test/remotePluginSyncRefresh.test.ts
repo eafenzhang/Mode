@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CommandsListResult, ZCodeCommand } from "@zcode/shared";
-import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
+import type { CommandsListResult, ModeCommand } from "@mode/shared";
+import { MODE_AGENT_PROVIDER } from "@mode/shared";
 import { refreshWorkspacePluginCapabilitiesAfterRemoteSync } from "../src/lib/remotePluginSyncRefresh.js";
 import { useCommandsStore } from "../src/store/commandsStore.js";
 import { useSkillStore } from "../src/store/skillStore.js";
-import { useZCodeSessionStore } from "../src/store/zcodeSessionStore.js";
+import { useModeSessionStore } from "../src/store/modeSessionStore.js";
 
 function makePluginCommand(
-  overrides: Partial<Extract<ZCodeCommand, { source: "plugin" }>>,
-): Extract<ZCodeCommand, { source: "plugin" }> {
+  overrides: Partial<Extract<ModeCommand, { source: "plugin" }>>,
+): Extract<ModeCommand, { source: "plugin" }> {
   return {
     id: "plugin:team-market:hello-world:hello:/remote/commands/hello.md",
     name: "hello",
@@ -26,7 +26,7 @@ function makePluginCommand(
 }
 
 beforeEach(() => {
-  useZCodeSessionStore.setState((state) => ({
+  useModeSessionStore.setState((state) => ({
     ...state,
     workspaces: {},
   }));
@@ -48,7 +48,7 @@ beforeEach(() => {
     workspaceIdentity: null,
     loadedWorkspacePath: null,
     loadedWorkspaceIdentity: null,
-    provider: ZCODE_AGENT_PROVIDER,
+    provider: MODE_AGENT_PROVIDER,
     loadedProvider: null,
     skills: [],
     capability: null,
@@ -61,7 +61,7 @@ describe("refreshWorkspacePluginCapabilitiesAfterRemoteSync", () => {
   it("refreshes slash commands even when commands settings store was not loaded", async () => {
     const workspacePath = "/Users/dev";
     const workspaceIdentity = "remote:ssh:intranet.example.invalid:22:dev:/Users/dev";
-    useZCodeSessionStore.getState().setSlashCommands(
+    useModeSessionStore.getState().setSlashCommands(
       workspacePath,
       [
         {
@@ -97,8 +97,8 @@ describe("refreshWorkspacePluginCapabilitiesAfterRemoteSync", () => {
       workspacePath,
       workspaceIdentity,
       reason: "sidebar-remote-plugin-sync",
-      zcodeAgentService: {} as never,
-      zcodeSessionService: { closeSession: vi.fn(async () => {}) } as never,
+      modeAgentService: {} as never,
+      modeSessionService: { closeSession: vi.fn(async () => {}) } as never,
       skillsService: { list: vi.fn() } as never,
       commandsService: commandsService as never,
       mcpSyncService: {
@@ -111,7 +111,7 @@ describe("refreshWorkspacePluginCapabilitiesAfterRemoteSync", () => {
       workspaceIdentity,
     });
     expect(
-      useZCodeSessionStore
+      useModeSessionStore
         .getState()
         .getWorkspaceState(workspacePath, workspaceIdentity)
         .slashCommands,

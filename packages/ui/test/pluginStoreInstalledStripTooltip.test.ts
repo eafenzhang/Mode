@@ -10,7 +10,7 @@ vi.mock("@/ControlHintTooltip.js", () => ({
 }));
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     locale: "en-US",
     intl: {
       formatMessage: ({ id }: { id: string }) => id,
@@ -31,17 +31,17 @@ const actions: PluginStoreActions = {
 describe("PluginStoreListView installed strip", () => {
   it("shows each installed plugin display name through the standard tooltip", async () => {
     const item: StorePluginItem = {
-      id: "example-plugin@zcode-plugins-official",
+      id: "example-plugin@mode-plugins-official",
       name: "example-plugin",
-      marketplace: "zcode-plugins-official",
+      marketplace: "mode-plugins-official",
       installed: true,
       restorable: false,
       orphaned: false,
       listing: { displayName: "Example Plugin", category: "developer-tools" },
       info: {
-        id: "example-plugin@zcode-plugins-official",
+        id: "example-plugin@mode-plugins-official",
         name: "example-plugin",
-        marketplace: "zcode-plugins-official",
+        marketplace: "mode-plugins-official",
         enabled: false,
         source: "official",
         skillRootCount: 0,

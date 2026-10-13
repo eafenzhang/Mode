@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ICodingPlanSubscriptionService, IOffPeakTaskService } from "@zcode/services";
+import type { ICodingPlanSubscriptionService, IOffPeakTaskService } from "@mode/services";
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   type OffPeakTaskCreateResult,
-  type ZCodeOffPeakTask,
-} from "@zcode/shared";
+  type ModeOffPeakTask,
+} from "@mode/shared";
 import {
   isCurrentOffPeakCodingPlanSupported,
   isOffPeakQuotaError,
@@ -30,7 +30,7 @@ const createdTask = {
   queuedAt: 1,
   createdAt: 1,
   updatedAt: 1,
-} satisfies ZCodeOffPeakTask;
+} satisfies ModeOffPeakTask;
 
 const successResult = {
   ok: true,

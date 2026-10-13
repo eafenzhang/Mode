@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { NetworkCaptureBridge, NetworkCaptureSnapshot } from "@zcode/shared";
+import type { NetworkCaptureBridge, NetworkCaptureSnapshot } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useModeIntl } from "@/i18n/index.js";

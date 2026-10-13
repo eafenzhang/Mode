@@ -1,5 +1,5 @@
 import { PenIcon } from "lucide-react";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@mode/shared/mode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { TimelineHole } from "./timeline-holes.js";

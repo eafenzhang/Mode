@@ -1,5 +1,5 @@
 import { WebSocket, type RawData } from "ws";
-import { connectViaProtocol } from "@zcode/client";
+import { connectViaProtocol } from "@mode/client";
 import {
   Emitter,
   SocketProtocol,
@@ -7,16 +7,16 @@ import {
   ChannelServer,
   type IServerChannel,
   type ISocket,
-} from "@zcode/rpc";
-import type { IServiceAccessor } from "@zcode/services";
+} from "@mode/rpc";
+import type { IServiceAccessor } from "@mode/services";
 import {
   MODE_RPC_HOST_CAPABILITY_HEADER,
   TOPIC_RESOURCE_RELAY_CHANNEL,
   serverRemoteHostCapabilitySchema,
   serverRemoteInfoSchema,
-  type SSHConnectOptions,
+  type ServerConnectOptions,
   type ServerRemoteInfo,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 export interface ServerRemoteEndpoints {
   infoUrl: string;
@@ -107,7 +107,7 @@ export function resolveServerRemoteEndpoints(serverUrl: string): ServerRemoteEnd
   };
 }
 
-function authenticatedUrl(url: string, target: SSHConnectOptions): string {
+function authenticatedUrl(url: string, target: ServerConnectOptions): string {
   const token = target.token?.trim();
   if (!token) return url;
   const authenticated = new URL(url);
@@ -166,7 +166,7 @@ function wrapNodeWebSocket(
 
 async function fetchServerInfo(
   infoUrl: string,
-  target: SSHConnectOptions,
+  target: ServerConnectOptions,
   fetchImpl: typeof fetch,
 ): Promise<ServerRemoteInfo> {
   const token = target.token?.trim();
@@ -186,7 +186,7 @@ async function fetchServerInfo(
 
 async function fetchHostCapability(
   capabilityUrl: string,
-  target: SSHConnectOptions,
+  target: ServerConnectOptions,
   fetchImpl: typeof fetch,
 ): Promise<string> {
   const response = await fetchImpl(authenticatedUrl(capabilityUrl, target), {
@@ -204,7 +204,7 @@ async function fetchHostCapability(
 
 function connectNodeWebSocket(
   wsUrl: string,
-  target: SSHConnectOptions,
+  target: ServerConnectOptions,
   capability: string,
   options: ServerRemoteConnectionOptions,
 ): Promise<{ socket: WebSocket; services: IServiceAccessor }> {
@@ -253,7 +253,7 @@ function connectNodeWebSocket(
 }
 
 export async function connectServerRemote(
-  target: SSHConnectOptions,
+  target: ServerConnectOptions,
   options: ServerRemoteConnectionOptions = {},
 ): Promise<ServerRemoteConnection> {
   const endpoints = resolveServerRemoteEndpoints(target.url);

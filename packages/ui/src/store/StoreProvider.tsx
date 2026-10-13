@@ -16,7 +16,7 @@ import type { IBroadcastService } from "@mode/services";
 import { createModeStore, type ModeStore, type ModeState } from "./index.js";
 
 // 导出 Context 供测试直接注入已构造的 store 实例（如跨窗口广播抑制用例）。
-const StoreContext = createContext<ModeStore | null>(null);
+export const StoreContext = createContext<ModeStore | null>(null);
 
 export function StoreProvider({
   broadcastService,

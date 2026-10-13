@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ProcessResourceSample } from "@zcode/services/node";
+import type { ProcessResourceSample } from "@mode/services/node";
 import { createHostResourceUsageResponder } from "../src/host/hostResourceUsage.js";
 
 function sample(pid: number, ppid: number, command: string): [number, ProcessResourceSample] {
@@ -16,7 +16,7 @@ describe("hostResourceUsage", () => {
       sampler: {
         sample: async () =>
           new Map([
-            sample(100, 60, "/Applications/ZCode.app/Contents/MacOS/ZCode"),
+            sample(100, 60, "/Applications/Mode.app/Contents/MacOS/Mode"),
             sample(120, 100, "node"),
           ]),
       },
@@ -50,7 +50,7 @@ describe("hostResourceUsage", () => {
           pid: 100,
           category: "base",
           groupKey: "cli",
-          name: "zcode-agent-glm-demo",
+          name: "mode-agent-glm-demo",
         }),
         expect.objectContaining({
           pid: 120,

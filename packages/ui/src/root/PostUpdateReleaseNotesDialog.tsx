@@ -1,4 +1,4 @@
-import type { PostUpdateReleaseNotesPayload } from "@zcode/shared";
+import type { PostUpdateReleaseNotesPayload } from "@mode/shared";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
@@ -49,7 +49,7 @@ export function PostUpdateReleaseNotesDialog({
       >
         <div className="flex flex-col px-8 py-6">
           <div className="flex min-w-0 shrink-0 items-center gap-2.5">
-            <GlmMonochromeIcon className="size-5 shrink-0" alt="ZCode" />
+            <GlmMonochromeIcon className="size-5 shrink-0" alt="Mode" />
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-lg leading-snug tracking-tight text-foreground">
                 {dialogHeading}

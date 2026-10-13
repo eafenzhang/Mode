@@ -1,13 +1,13 @@
-import { Emitter } from "@zcode/rpc";
+import { Emitter } from "@mode/rpc";
 import { expect, it, vi } from "vitest";
-import { LocalRuntimeNetworkCapture } from "../src/zcode-agent/localRuntimeNetworkCapture.js";
-import type { ZCodeProtocolClient } from "../src/zcode-agent/zcodeProtocolClient.js";
-import type { ZCodeProtocolNotification } from "@zcode/shared";
+import { LocalRuntimeNetworkCapture } from "../src/mode-agent/localRuntimeNetworkCapture.js";
+import type { ModeProtocolClient } from "../src/mode-agent/modeProtocolClient.js";
+import type { ModeProtocolNotification } from "@mode/shared";
 
 it("已有和新本地 CLI 继承启停，旧批次隔离，不注册的 remote 不控制", () => {
   const registry = new LocalRuntimeNetworkCapture();
   const makeClient = () => {
-    const events = new Emitter<ZCodeProtocolNotification>();
+    const events = new Emitter<ModeProtocolNotification>();
     const notify = vi.fn(async () => {});
     return {
       events,
@@ -16,7 +16,7 @@ it("已有和新本地 CLI 继承启停，旧批次隔离，不注册的 remote 
         onNotification: events.event,
         notify,
         isDisposed: false,
-      } as unknown as ZCodeProtocolClient,
+      } as unknown as ModeProtocolClient,
     };
   };
   const a = makeClient(),

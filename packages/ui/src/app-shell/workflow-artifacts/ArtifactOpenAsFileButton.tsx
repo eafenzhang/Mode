@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { EditorInfo, IPlatformService } from "@zcode/shared";
+import type { EditorInfo, IPlatformService } from "@mode/shared";
 import { ChevronDownIcon, CopyIcon, ExternalLinkIcon, FolderOpenIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {

@@ -1,4 +1,4 @@
-import type { ModePersistedFileChange } from "@zcode/shared";
+import type { ModePersistedFileChange } from "@mode/shared";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { CodeViewerWorkspaceScope } from "@/lib/codeViewerWorkspaceScope.js";
 

@@ -8,7 +8,7 @@
 // 三件事——改过的设置存在哪、哪些选项带着它走、Shift+Tab 从选项列表回到设置控件。
 
 import { useCallback, useState } from "react";
-import type { ModePermissionOption } from "@zcode/shared";
+import type { ModePermissionOption } from "@mode/shared";
 import type { WorkflowAskSettingsContent } from "@/components/workflow-timeline/workflowAskSettings.js";
 import { getPermissionOptionDisplayKind } from "@/lib/permissionRequest.js";
 

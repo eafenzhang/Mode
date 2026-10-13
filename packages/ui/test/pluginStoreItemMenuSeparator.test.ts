@@ -16,7 +16,7 @@ vi.mock("@/components/ui/dropdown-menu.js", () => ({
 }));
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     locale: "zh-CN",
     intl: { formatMessage: ({ id }: { id: string }) => id },
   }),
@@ -24,9 +24,9 @@ vi.mock("@/i18n/IntlProvider.js", () => ({
 
 function storeItem(overrides: Partial<StorePluginItem> = {}): StorePluginItem {
   return {
-    id: "skill-creator@zcode-plugins-official",
+    id: "skill-creator@mode-plugins-official",
     name: "skill-creator",
-    marketplace: "zcode-plugins-official",
+    marketplace: "mode-plugins-official",
     installed: true,
     restorable: false,
     orphaned: false,
@@ -64,9 +64,9 @@ describe("PluginStoreItemMenu separator", () => {
     const html = await renderMenu(
       storeItem({
         installedMeta: {
-          id: "skill-creator@zcode-plugins-official",
+          id: "skill-creator@mode-plugins-official",
           name: "skill-creator",
-          marketplace: "zcode-plugins-official",
+          marketplace: "mode-plugins-official",
           enabled: true,
           scope: "user",
           updateStatus: "update-available",

@@ -151,7 +151,7 @@ import type {
   ZCodeTaskIndexTerminalEvent,
 } from "./zcodeTaskIndexSyncer.js";
 import { readModelTrajectory } from "./modelTrajectory.js";
-import { errorAttributionSchema, type CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
+import { errorAttributionSchema, type CommandPayloadMap } from "@zcode/shared/mode-protocol-v4";
 import {
   assertV4CommandAckOk,
   createHostCommandEnvelope,

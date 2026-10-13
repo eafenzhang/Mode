@@ -1,6 +1,6 @@
 import { Pen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { WorkflowNotificationMeta, WorkflowRunHole } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowNotificationMeta, WorkflowRunHole } from "@mode/shared/mode-protocol-v4";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { workflowRunQuestionWaitedLabel } from "@/app-shell/workflowRunQuestions.js";

@@ -3,8 +3,8 @@ import type {
   ModePersistedFileChange,
   ModeTaskChangeSummary,
   ModeTurnFileState,
-} from "@zcode/shared";
-import { TID_CHAT_CHANGE_SUMMARY_TOGGLE_FILES_BUTTON, testId } from "@zcode/shared";
+} from "@mode/shared";
+import { TID_CHAT_CHANGE_SUMMARY_TOGGLE_FILES_BUTTON, testId } from "@mode/shared";
 import { ChevronRightIcon, Undo2 } from "lucide-react";
 import {
   Collapsible,
@@ -105,11 +105,11 @@ export function MessageChangeSummaryPanel({
       onOpenChange={setIsFileListOpen}
       // Bugfix: 历史消息里的文件卡会等二次校验后再出现；
       // summary 如果没有同样的渐入，会在文件卡稳定前后显得像突兀跳出。
-      data-zcode-stream-animate="true"
+      data-mode-stream-animate="true"
       className="overflow-hidden rounded-xl border border-border bg-card shadow-none"
       style={
         {
-          "--zcode-stream-animation-delay": `${animationDelayMs}ms`,
+          "--mode-stream-animation-delay": `${animationDelayMs}ms`,
         } as CSSProperties
       }
     >

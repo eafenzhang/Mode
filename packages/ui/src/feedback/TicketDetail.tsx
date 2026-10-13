@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronRight, Clock, CopyIcon, ListChecks } from "lucide-react";
-import type { FeedbackTicketDetail } from "@zcode/shared";
+import type { FeedbackTicketDetail } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { StatusIndicator } from "@/feedback/feedbackBadges.js";
 import { FeedbackProgress } from "@/feedback/feedbackProgress.js";
@@ -13,7 +13,7 @@ import {
   getUserFacingDescription,
 } from "@/feedback/feedbackUserView.js";
 import { cn } from "@/components/lib/utils.js";
-import type { IFeedbackService } from "@zcode/services";
+import type { IFeedbackService } from "@mode/services";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 

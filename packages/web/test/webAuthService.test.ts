@@ -35,7 +35,7 @@ class MemoryStorage implements Storage {
 
 function createProductionWebZaiOAuthConfig() {
   return createWebZaiOAuthConfig({
-    VITE_ZCODE_BASE_URL: "https://zcode.z.ai",
+    VITE_MODE_BASE_URL: "https://mode.z.ai",
     VITE_ZAI_OAUTH_CLIENT_ID: "client_P8X5CMWmlaRO9gyO-KSqtg",
     VITE_ZAI_OAUTH_ORIGIN: "https://chat.z.ai",
   });
@@ -80,7 +80,7 @@ describe("WebAuthService", () => {
 
   it("uses VITE_ZAI_OAUTH_ORIGIN and VITE_ZAI_OAUTH_CLIENT_ID to build test environment authorize URL", async () => {
     const testConfig = createWebZaiOAuthConfig({
-      VITE_ZCODE_BASE_URL: "https://zcode.z.ai",
+      VITE_MODE_BASE_URL: "https://mode.z.ai",
       VITE_ZAI_OAUTH_CLIENT_ID: "client_P8X5CMWmlaRO9gyO-KSqtg",
       VITE_ZAI_OAUTH_ORIGIN: "https://chat.z.ai/",
     });
@@ -94,8 +94,8 @@ describe("WebAuthService", () => {
       runtime: {
         assign: (url) => assigned.push(url),
         createNonce: () => "nonce-1",
-        getCurrentHref: () => "https://zcode.z.ai/web-remote",
-        getCurrentOrigin: () => "https://zcode.z.ai",
+        getCurrentHref: () => "https://mode.z.ai/web-remote",
+        getCurrentOrigin: () => "https://mode.z.ai",
         replace: () => undefined,
       },
     });
@@ -107,7 +107,7 @@ describe("WebAuthService", () => {
       "https://chat.z.ai/api/oauth/authorize",
     );
     expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(
-      "https://zcode.z.ai/web-remote/callback",
+      "https://mode.z.ai/web-remote/callback",
     );
     expect(authorizeUrl.searchParams.get("client_id")).toBe("client_P8X5CMWmlaRO9gyO-KSqtg");
   });
@@ -126,7 +126,7 @@ describe("WebAuthService", () => {
       "https://chat.z.ai/api/oauth/authorize",
     );
     expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(
-      "https://zcode.z.ai/web-remote/callback",
+      "https://mode.z.ai/web-remote/callback",
     );
     expect(state).toEqual({
       nonce: "nonce-1",
@@ -138,33 +138,33 @@ describe("WebAuthService", () => {
 
   it("uses the independent share callback when starting share login", () => {
     const { assigned, service } = createService({
-      currentHref: "https://zcode.z.ai/cn/share/share-1",
+      currentHref: "https://mode.z.ai/cn/share/share-1",
     });
     service.startLogin({
-      appReturnTo: "https://zcode.z.ai/cn/share/share-1",
-      redirectUri: "https://zcode.z.ai/cn/share/callback",
+      appReturnTo: "https://mode.z.ai/cn/share/share-1",
+      redirectUri: "https://mode.z.ai/cn/share/callback",
     });
     expect(new URL(assigned[0]!).searchParams.get("redirect_uri")).toBe(
-      "https://zcode.z.ai/cn/share/callback",
+      "https://mode.z.ai/cn/share/callback",
     );
   });
 
   it("preserves the canonical share page as the whole-Web OAuth return target", () => {
     const { assigned, service } = createService({
-      currentHref: "https://zcode.z.ai/cn/share/share-1",
+      currentHref: "https://mode.z.ai/cn/share/share-1",
     });
-    service.startLogin({ appReturnTo: "https://zcode.z.ai/cn/share/share-1" });
+    service.startLogin({ appReturnTo: "https://mode.z.ai/cn/share/share-1" });
     const authorizeUrl = new URL(assigned[0]!);
     expect(parseOAuthState(authorizeUrl.searchParams.get("state")!)).toMatchObject({
-      app_return_to: "https://zcode.z.ai/cn/share/share-1",
+      app_return_to: "https://mode.z.ai/cn/share/share-1",
     });
   });
 
   it("forwards trusted cross-origin dev callbacks before nonce validation or token exchange", async () => {
     const { replaced, service } = createService({
       allowDevReturnToRedirect: true,
-      currentOrigin: "https://zcode.z.ai",
-      currentHref: "https://zcode.z.ai/web-remote/callback",
+      currentOrigin: "https://mode.z.ai",
+      currentHref: "https://mode.z.ai/web-remote/callback",
     });
     const state = buildOAuthState({
       nonce: "nonce-1",
@@ -175,7 +175,7 @@ describe("WebAuthService", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await service.handleCallback(
-      `https://zcode.z.ai/web-remote/callback?code=code-1&state=${state}`,
+      `https://mode.z.ai/web-remote/callback?code=code-1&state=${state}`,
     );
 
     expect(result).toBeNull();
@@ -223,7 +223,7 @@ describe("WebAuthService", () => {
         displayName: "Ada",
       },
     });
-    expect(localStorage.getItem("zcodejwttoken")).toBe("jwt-token");
+    expect(localStorage.getItem("modejwttoken")).toBe("jwt-token");
     expect(localStorage.getItem("oauth:zai:access_token")).toBe("zai-token");
     expect(localStorage.getItem("oauth:active_provider")).toBe("zai");
     expect(sessionStorage.getItem("oauth_pending_nonce")).toBeNull();
@@ -254,7 +254,7 @@ describe("WebAuthService", () => {
       ),
     ).rejects.toThrow(/access_token/);
 
-    expect(localStorage.getItem("zcodejwttoken")).toBeNull();
+    expect(localStorage.getItem("modejwttoken")).toBeNull();
     expect(localStorage.getItem("oauth:zai:access_token")).toBeNull();
     expect(localStorage.getItem("oauth:active_provider")).toBeNull();
   });
@@ -277,13 +277,13 @@ describe("WebAuthService BigModel provider", () => {
 
     service.startLogin({
       provider: "bigmodel",
-      redirectUri: "https://zcode.z.ai/cn/share/callback",
+      redirectUri: "https://mode.z.ai/cn/share/callback",
     });
 
     const url = new URL(assigned[0]!);
     expect(url.pathname).toBe("/login");
-    expect(url.searchParams.get("redirect")).toBe("https://zcode.z.ai/cn/share/callback");
-    expect(url.searchParams.get("appId")).toBe("zcode");
+    expect(url.searchParams.get("redirect")).toBe("https://mode.z.ai/cn/share/callback");
+    expect(url.searchParams.get("appId")).toBe("mode");
     // ZAI 专用参数不能出现，否则 BigModel 侧会忽略 redirect 直接回默认地址
     expect(url.searchParams.get("redirect_uri")).toBeNull();
     expect(url.searchParams.get("client_id")).toBeNull();
@@ -311,14 +311,14 @@ describe("WebAuthService BigModel provider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await service.handleCallback(
-      `https://zcode.z.ai/cn/share/callback?code=code-1&state=${state}`,
+      `https://mode.z.ai/cn/share/callback?code=code-1&state=${state}`,
     );
 
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).provider).toBe("bigmodel");
     expect(result?.userInfo.id).toBe("53291785835589288");
     expect(localStorage.getItem("oauth:active_provider")).toBe("bigmodel");
     expect(localStorage.getItem("oauth:bigmodel:access_token")).toBe("bigmodel-token");
-    expect(localStorage.getItem("zcodejwttoken")).toBe("jwt-token");
+    expect(localStorage.getItem("modejwttoken")).toBe("jwt-token");
     // pending provider 用完即清，避免污染下一次登录
     expect(sessionStorage.getItem("oauth_pending_provider")).toBeNull();
   });
@@ -340,7 +340,7 @@ describe("WebAuthService BigModel provider", () => {
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await service.handleCallback(`https://zcode.z.ai/cn/share/callback?code=code-1&state=${state}`);
+    await service.handleCallback(`https://mode.z.ai/cn/share/callback?code=code-1&state=${state}`);
 
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).provider).toBe("zai");
     expect(localStorage.getItem("oauth:active_provider")).toBe("zai");
@@ -363,10 +363,10 @@ describe("WebAuthService BigModel provider", () => {
     );
 
     await expect(
-      service.handleCallback(`https://zcode.z.ai/cn/share/callback?code=code-1&state=${state}`),
+      service.handleCallback(`https://mode.z.ai/cn/share/callback?code=code-1&state=${state}`),
     ).rejects.toThrow(/data\.bigmodel\.access_token/);
 
-    expect(localStorage.getItem("zcodejwttoken")).toBeNull();
+    expect(localStorage.getItem("modejwttoken")).toBeNull();
     expect(localStorage.getItem("oauth:active_provider")).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import type { ModeSlashCommand } from "@zcode/shared";
+import type { ModeSlashCommand } from "@mode/shared";
 
 const WHITESPACE_RE = /\s/;
 

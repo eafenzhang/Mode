@@ -2,7 +2,7 @@ import type { RemoteTarget } from "@mode/shared";
 import { isRemoteWorkspaceIdentity, parseRemoteWorkspaceIdentity } from "@mode/shared";
 import type { CuaPermissionStatus, CuaPermissionStatusResult } from "@mode/services";
 
-type ComputerUseAvailabilityKind =
+export type ComputerUseAvailabilityKind =
   | "local-macos"
   | "local-windows"
   | "local-linux"
@@ -13,12 +13,12 @@ type ComputerUseAvailabilityKind =
   | "remote-server"
   | "web";
 
-interface ComputerUseAvailability {
+export interface ComputerUseAvailability {
   kind: ComputerUseAvailabilityKind;
   supported: boolean;
 }
 
-interface ComputerUseAvailabilityInput {
+export interface ComputerUseAvailabilityInput {
   isDesktop?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;

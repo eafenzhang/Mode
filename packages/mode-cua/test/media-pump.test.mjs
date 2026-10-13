@@ -164,7 +164,7 @@ test("帧经 AES-256-GCM 加密后按长度前缀写出；IV = salt∥seq", asyn
   });
 });
 
-test("控制面 kind3/kind4：ready 前忽略；ready 后触发 napi；kind4 分片可耐受", async () => {
+test("控制面 kind3/kind4：ready 前忽略；kind2 开流即请 IDR、kind3 复请；kind4 分片可耐受", async () => {
   const listeners = {};
   await withPump(listeners, async (relay, pump) => {
     await pump.start(startParams(relay.port));
@@ -185,13 +185,17 @@ test("控制面 kind3/kind4：ready 前忽略；ready 后触发 napi；kind4 分
     assert.equal(listeners.keyRequests, undefined, "ready 前 kind3 不得触 napi");
     assert.equal(listeners.bitrates, undefined, "ready 前 kind4 不得触 napi");
 
-    // ready 解闸；kind4 分两片写（半包耐受），kind3 随后
+    // ready 解闸：kind2 本身即请一次 IDR（2026-10-14 补帧契约——静态桌面上 ready 前的
+    // 采集帧已被门控丢弃，不主动请一次则首个 IDR 可能永远不来，对端零帧）
     await openStream(relay);
+    await waitFor(() => listeners.keyRequests === 1);
+
+    // kind4 分两片写（半包耐受），kind3 随后：key 请求累计到 2
     host.write(bitrateFrame.subarray(0, 6));
     await sleep(10);
     host.write(bitrateFrame.subarray(6));
     host.write(keyFrame);
-    await waitFor(() => listeners.bitrates?.length === 1 && listeners.keyRequests === 1);
+    await waitFor(() => listeners.bitrates?.length === 1 && listeners.keyRequests === 2);
     assert.equal(listeners.bitrates[0], 4_000_000, "kind4 携带码率送达 napi");
   });
 });

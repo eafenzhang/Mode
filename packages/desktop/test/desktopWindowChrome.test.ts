@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
-import { PlatformChannels } from "@zcode/shared";
+import { PlatformChannels } from "@mode/shared";
 
 const electronMocks = vi.hoisted(() => {
   const browserWindowConstructor = vi.fn();
@@ -346,7 +346,7 @@ describe("desktopWindowChrome", () => {
 
     const officialPreferences: Record<string, unknown> = {};
     willAttach({ preventDefault: vi.fn() }, officialPreferences, {
-      src: "https://zcode.z.ai/coding-plan?provider=zai&embedded=app",
+      src: "https://mode.z.ai/coding-plan?provider=zai&embedded=app",
     });
     // Bugfix：同上，preload 路径由宿主 path.join 拼出，Windows 上分隔符是 `\`，
     // 写死 POSIX 片段的断言在 Windows 上必然失败。
@@ -364,8 +364,8 @@ describe("desktopWindowChrome", () => {
   });
 
   it("allows loopback Coding Plan preload only for the E2E bridge", async () => {
-    const previous = process.env.VITE_ZCODE_E2E_STORE_BRIDGE;
-    process.env.VITE_ZCODE_E2E_STORE_BRIDGE = "1";
+    const previous = process.env.VITE_MODE_E2E_STORE_BRIDGE;
+    process.env.VITE_MODE_E2E_STORE_BRIDGE = "1";
     try {
       const { createBrowserWindow } = await import("../src/main/desktopWindowChrome.js");
 
@@ -386,9 +386,9 @@ describe("desktopWindowChrome", () => {
       );
     } finally {
       if (previous === undefined) {
-        delete process.env.VITE_ZCODE_E2E_STORE_BRIDGE;
+        delete process.env.VITE_MODE_E2E_STORE_BRIDGE;
       } else {
-        process.env.VITE_ZCODE_E2E_STORE_BRIDGE = previous;
+        process.env.VITE_MODE_E2E_STORE_BRIDGE = previous;
       }
     }
   });
@@ -536,7 +536,7 @@ describe("desktopWindowChrome", () => {
     getWebContentsHandler("will-attach-webview")(
       { preventDefault: vi.fn() },
       {},
-      { src: "https://zcode.z.ai/en/rewards?embedded=app" },
+      { src: "https://mode.z.ai/en/rewards?embedded=app" },
     );
     const guest = {
       on: vi.fn(),
@@ -546,7 +546,7 @@ describe("desktopWindowChrome", () => {
     getWebContentsHandler("did-attach-webview")({}, guest);
     const navigate = guest.on.mock.calls.find(([event]) => event === "will-navigate")?.[1];
     const event = { preventDefault: vi.fn() };
-    navigate(event, "https://zcode.z.ai/cn/rewards?embedded=app");
+    navigate(event, "https://mode.z.ai/cn/rewards?embedded=app");
     expect(event.preventDefault).not.toHaveBeenCalled();
     navigate(event, "https://example.com/");
     expect(event.preventDefault).toHaveBeenCalledOnce();
@@ -641,7 +641,7 @@ describe("desktopWindowChrome", () => {
     willAttach(
       { preventDefault: vi.fn() },
       {},
-      { src: "https://zcode.z.ai/coding-plan?provider=zai&embedded=app" },
+      { src: "https://mode.z.ai/coding-plan?provider=zai&embedded=app" },
     );
 
     const guestWebContents = {
@@ -781,7 +781,7 @@ describe("desktopWindowChrome", () => {
     });
 
     const guestWebContents = {
-      getURL: vi.fn(() => "https://zcode.z.ai/coding-plan?provider=zai&embedded=app"),
+      getURL: vi.fn(() => "https://mode.z.ai/coding-plan?provider=zai&embedded=app"),
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),
     };
@@ -809,7 +809,7 @@ describe("desktopWindowChrome", () => {
     });
 
     const guestWebContents = {
-      getURL: vi.fn(() => "https://zcode.z.ai/coding-plan?provider=zai&embedded=app"),
+      getURL: vi.fn(() => "https://mode.z.ai/coding-plan?provider=zai&embedded=app"),
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),
     };
@@ -840,7 +840,7 @@ describe("desktopWindowChrome", () => {
     });
 
     const guestWebContents = {
-      getURL: vi.fn(() => "https://zcode.z.ai/coding-plan?provider=zai&embedded=app"),
+      getURL: vi.fn(() => "https://mode.z.ai/coding-plan?provider=zai&embedded=app"),
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),
     };
@@ -870,7 +870,7 @@ describe("desktopWindowChrome", () => {
     });
 
     const guestWebContents = {
-      getURL: vi.fn(() => "https://zcode.z.ai/coding-plan?provider=zai&embedded=app"),
+      getURL: vi.fn(() => "https://mode.z.ai/coding-plan?provider=zai&embedded=app"),
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),
     };
@@ -946,7 +946,7 @@ describe("desktopWindowChrome", () => {
     const returnTo = encodeURIComponent(
       "https://other-origin.example/coding-plan?provider=zai&embedded=app",
     );
-    const callbackUrl = `https://zcode.z.ai/coding-plan/payment/callback?channel=paypal&status=return&returnTo=${returnTo}`;
+    const callbackUrl = `https://mode.z.ai/coding-plan/payment/callback?channel=paypal&status=return&returnTo=${returnTo}`;
     const event = { preventDefault: vi.fn() };
     willNavigateHandler(event, callbackUrl);
 
@@ -964,7 +964,7 @@ describe("desktopWindowChrome", () => {
     });
 
     const guestWebContents = {
-      getURL: vi.fn(() => "https://zcode.z.ai/coding-plan?provider=zai&embedded=app"),
+      getURL: vi.fn(() => "https://mode.z.ai/coding-plan?provider=zai&embedded=app"),
       loadURL: vi.fn(() => Promise.resolve()),
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),
@@ -1036,7 +1036,7 @@ describe("desktopWindowChrome", () => {
     });
 
     const guestWebContents = {
-      getURL: vi.fn(() => "https://zcode.z.ai/coding-plan?provider=zai&embedded=app"),
+      getURL: vi.fn(() => "https://mode.z.ai/coding-plan?provider=zai&embedded=app"),
       loadURL: vi.fn(() => Promise.resolve()),
       on: vi.fn(),
       setWindowOpenHandler: vi.fn(),

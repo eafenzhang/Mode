@@ -1,26 +1,26 @@
-import type { IModeSessionService, IModeTaskService } from "@zcode/services";
+import type { IModeSessionService, IModeTaskService } from "@mode/services";
 import type {
   ModeConfigOption,
   ModelSelection,
   ModeSessionStateSnapshot,
   ModeTaskSnapshot,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
-  zcodeSessionSettingsToConfigOptions,
-  zcodeSessionSnapshotToZCodeTaskSnapshot,
-} from "@/lib/zcodeSessionProjection.js";
-import { normalizeZCodeUiError, type ZCodeUiError } from "@/lib/zcodeUiError.js";
+  modeSessionSettingsToConfigOptions,
+  modeSessionSnapshotToModeTaskSnapshot,
+} from "@/lib/modeSessionProjection.js";
+import { normalizeModeUiError, type ModeUiError } from "@/lib/modeUiError.js";
 import { logger } from "@/logger.js";
 
-export type ZCodeSessionRestoreService = Pick<
+export type ModeSessionRestoreService = Pick<
   IModeSessionService,
   "readSession" | "resumeSession"
 >;
-export type ZCodeLegacyTaskSnapshotRestoreService = Pick<IModeTaskService, "getTaskSnapshot">;
+export type ModeLegacyTaskSnapshotRestoreService = Pick<IModeTaskService, "getTaskSnapshot">;
 
 export interface DesktopContinuousSessionRestoreSnapshot {
   snapshot: ModeTaskSnapshot;
-  restoreWarning?: ZCodeUiError;
+  restoreWarning?: ModeUiError;
   resumedSessionSnapshot?: ModeSessionStateSnapshot;
   usedLegacySnapshot?: boolean;
 }
@@ -35,7 +35,7 @@ function isRuntimeModelUnavailableError(error: unknown): boolean {
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
-    error.code === "ZCODE_RUNTIME_MODEL_UNAVAILABLE"
+    error.code === "MODE_RUNTIME_MODEL_UNAVAILABLE"
   );
 }
 
@@ -73,8 +73,8 @@ function getSessionSnapshotDiagnostics(snapshot: ModeSessionStateSnapshot) {
 }
 
 export async function readDesktopContinuousSessionRestoreSnapshot(params: {
-  zcodeSessionService: ZCodeSessionRestoreService;
-  zcodeTaskService?: ZCodeLegacyTaskSnapshotRestoreService;
+  modeSessionService: ModeSessionRestoreService;
+  modeTaskService?: ModeLegacyTaskSnapshotRestoreService;
   workspacePath: string;
   workspaceIdentity?: string;
   sessionId: string;
@@ -88,7 +88,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
   let resumedSessionSnapshot: ModeSessionStateSnapshot;
   try {
     const resumeStartedAt = Date.now();
-    resumedSessionSnapshot = await params.zcodeSessionService.resumeSession({
+    resumedSessionSnapshot = await params.modeSessionService.resumeSession({
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
       sessionId: params.sessionId,
@@ -97,7 +97,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
       ...(params.model ? { model: params.model } : {}),
       ...(params.thoughtLevel ? { thoughtLevel: params.thoughtLevel } : {}),
     });
-    logger.info("[zcodeSessionRestore] desktop resumeSession 完成", {
+    logger.info("[modeSessionRestore] desktop resumeSession 完成", {
       durationMs: Date.now() - resumeStartedAt,
       messageLimit: params.messageLimit ?? null,
       sessionId: params.sessionId,
@@ -108,7 +108,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
     });
   } catch (error) {
     if (
-      !params.zcodeTaskService ||
+      !params.modeTaskService ||
       (!isSessionMissingError(error) && !isRuntimeModelUnavailableError(error))
     ) {
       throw error;
@@ -117,7 +117,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
     const runtimeModelUnavailable = isRuntimeModelUnavailableError(error);
     if (runtimeModelUnavailable) {
       logger.info(
-        "[zcodeSessionRestore][diag:model-unavailable] desktop resumeSession 模型不可用",
+        "[modeSessionRestore][diag:model-unavailable] desktop resumeSession 模型不可用",
         {
           messageLimit: params.messageLimit ?? null,
           requestedModelId: params.model?.modelId ?? null,
@@ -133,7 +133,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
     // 都不能继续伪造 active session。这里退回 task facade 的 snapshot 读取，只恢复历史显示；
     // 真正续聊必须等用户显式选择当前可用模型。
     const legacyStartedAt = Date.now();
-    const legacySnapshot = await params.zcodeTaskService.getTaskSnapshot({
+    const legacySnapshot = await params.modeTaskService.getTaskSnapshot({
       taskId: params.sessionId,
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
@@ -143,7 +143,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
     if (!legacySnapshot) {
       throw error;
     }
-    logger.info("[zcodeSessionRestore] desktop legacy 快照读取完成", {
+    logger.info("[modeSessionRestore] desktop legacy 快照读取完成", {
       durationMs: Date.now() - legacyStartedAt,
       messageCount: legacySnapshot.messages.length,
       messageLimit: params.messageLimit ?? null,
@@ -156,8 +156,8 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
       snapshot: legacySnapshot,
       ...(runtimeModelUnavailable
         ? {
-            restoreWarning: normalizeZCodeUiError(error, {
-              fallbackCode: "ZCODE_RUNTIME_MODEL_UNAVAILABLE",
+            restoreWarning: normalizeModeUiError(error, {
+              fallbackCode: "MODE_RUNTIME_MODEL_UNAVAILABLE",
               taskId: params.sessionId,
             }),
           }
@@ -166,7 +166,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
     };
   }
   const readStartedAt = Date.now();
-  const readSessionSnapshot = await params.zcodeSessionService.readSession({
+  const readSessionSnapshot = await params.modeSessionService.readSession({
     workspacePath: params.workspacePath,
     workspaceIdentity: params.workspaceIdentity,
     sessionId: params.sessionId,
@@ -175,8 +175,8 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
   });
   const readDurationMs = Date.now() - readStartedAt;
   const projectionStartedAt = Date.now();
-  const snapshot = zcodeSessionSnapshotToZCodeTaskSnapshot(readSessionSnapshot);
-  logger.info("[zcodeSessionRestore] desktop readSession 快照转换完成", {
+  const snapshot = modeSessionSnapshotToModeTaskSnapshot(readSessionSnapshot);
+  logger.info("[modeSessionRestore] desktop readSession 快照转换完成", {
     durationMs: Date.now() - startedAt,
     messageLimit: params.messageLimit ?? null,
     projectionDurationMs: Date.now() - projectionStartedAt,
@@ -197,7 +197,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
 }
 
 export async function readWebRemoteReplayableSessionConfigOptions(params: {
-  zcodeSessionService: ZCodeSessionRestoreService;
+  modeSessionService: ModeSessionRestoreService;
   workspacePath: string;
   workspaceIdentity?: string;
   sessionId: string;
@@ -210,14 +210,14 @@ export async function readWebRemoteReplayableSessionConfigOptions(params: {
       const resumeStartedAt = Date.now();
       // Bugfix: 手机 replayable 配置读取会早于后续 resumeTask。
       // 先带历史模型激活 session，避免 readSession 读取到被默认模型污染的 settings/context window。
-      const resumed = await params.zcodeSessionService.resumeSession({
+      const resumed = await params.modeSessionService.resumeSession({
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
         sessionId: params.sessionId,
         model: params.model,
         ...(params.thoughtLevel ? { thoughtLevel: params.thoughtLevel } : {}),
       });
-      logger.info("[zcodeSessionRestore] replayable task 配置读取前 resumeSession 完成", {
+      logger.info("[modeSessionRestore] replayable task 配置读取前 resumeSession 完成", {
         durationMs: Date.now() - resumeStartedAt,
         requestedModelId: params.model.modelId,
         requestedProviderId: params.model.providerId,
@@ -228,15 +228,15 @@ export async function readWebRemoteReplayableSessionConfigOptions(params: {
         workspacePath: params.workspacePath,
       });
     }
-    const snapshot = await params.zcodeSessionService.readSession({
+    const snapshot = await params.modeSessionService.readSession({
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
       sessionId: params.sessionId,
       deliveryKind: "web-remote-replayable",
       messageLimit: 1,
     });
-    const options = zcodeSessionSettingsToConfigOptions(snapshot.settings);
-    logger.info("[zcodeSessionRestore] replayable task 配置读取完成", {
+    const options = modeSessionSettingsToConfigOptions(snapshot.settings);
+    logger.info("[modeSessionRestore] replayable task 配置读取完成", {
       configOptionCount: options.length,
       durationMs: Date.now() - startedAt,
       sessionId: params.sessionId,
@@ -247,7 +247,7 @@ export async function readWebRemoteReplayableSessionConfigOptions(params: {
     return options;
   } catch (error) {
     if (isSessionMissingError(error)) {
-      logger.info("[zcodeSessionRestore] replayable task 配置读取跳过，session 不活跃", {
+      logger.info("[modeSessionRestore] replayable task 配置读取跳过，session 不活跃", {
         durationMs: Date.now() - startedAt,
         sessionId: params.sessionId,
         workspaceIdentity: params.workspaceIdentity ?? null,

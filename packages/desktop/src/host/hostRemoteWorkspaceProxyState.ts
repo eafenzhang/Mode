@@ -1,14 +1,14 @@
 import type { IDisposable } from "@mode/rpc";
 import { resolveWorkspaceKey } from "@mode/shared";
 
-interface HostRemoteTaskMeta {
+export interface HostRemoteTaskMeta {
   taskId: string;
   traceId: string;
   workspacePath: string;
   workspaceIdentity?: string;
 }
 
-interface HostRemoteWorkspaceContext {
+export interface HostRemoteWorkspaceContext {
   workspacePath: string;
   workspaceIdentity?: string;
 }

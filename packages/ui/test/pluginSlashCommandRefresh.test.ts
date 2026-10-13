@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { ZCodeCommand, ZCodeSlashCommand } from "@zcode/shared";
+import type { ModeCommand, ModeSlashCommand } from "@mode/shared";
 import { mergeSlashCommandsAfterCommandRefresh } from "../src/settings/pluginSlashCommandRefresh.js";
 
 function makePluginCommand(
-  overrides: Partial<Extract<ZCodeCommand, { source: "plugin" }>>,
-): Extract<ZCodeCommand, { source: "plugin" }> {
+  overrides: Partial<Extract<ModeCommand, { source: "plugin" }>>,
+): Extract<ModeCommand, { source: "plugin" }> {
   return {
     id: "plugin:team-market:hello-world:hello:/remote/commands/hello.md",
     name: "hello",
@@ -23,7 +23,7 @@ function makePluginCommand(
 
 describe("plugin slash command refresh", () => {
   it("keeps builtin slash commands while replacing refreshed custom commands", () => {
-    const current: ZCodeSlashCommand[] = [
+    const current: ModeSlashCommand[] = [
       {
         name: "compact",
         description: "Compact",

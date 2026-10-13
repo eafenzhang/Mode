@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import type { ModeConfigOption, ModeProvider } from "@zcode/shared";
+import type { ModeConfigOption, ModeProvider } from "@mode/shared";
 import { SlidersHorizontalIcon } from "lucide-react";
 import { ConfigSelect } from "@/chat-input-toolbar/display.js";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";

@@ -1,7 +1,7 @@
 import { BigModelUsageQuotaProvider } from "../../services/src/usage-stats/providers/bigmodelUsageQuotaProvider.js";
 import type { ReactElement } from "react";
 import type { Root } from "react-dom/client";
-import type { UsageEntitlementSnapshot, ZCodeAccountAccess } from "@zcode/shared";
+import type { UsageEntitlementSnapshot, ModeAccountAccess } from "@mode/shared";
 import { readCachedUsageEntitlementSnapshot } from "@/lib/usageEntitlementCache.js";
 import {
   buildEntitlementFreshnessKey,
@@ -9,7 +9,7 @@ import {
   shouldDeferSharedEntitlementRefresh,
   readSharedEntitlementSnapshot,
 } from "@/lib/usageEntitlementRefreshPolicy.js";
-import type { IUsageStatsService, IServiceAccessor } from "@zcode/services";
+import type { IUsageStatsService, IServiceAccessor } from "@mode/services";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -234,12 +234,12 @@ describe("useUsageEntitlement team context refresh", () => {
       usageStatsService,
     } as unknown as IServiceAccessor;
 
-    const accountAccessByProject = new Map<string, ZCodeAccountAccess>();
-    function getTeamAccess(organizationId: string, projectId: string): ZCodeAccountAccess {
+    const accountAccessByProject = new Map<string, ModeAccountAccess>();
+    function getTeamAccess(organizationId: string, projectId: string): ModeAccountAccess {
       const key = `${organizationId}:${projectId}`;
       const existing = accountAccessByProject.get(key);
       if (existing) return existing;
-      const access: ZCodeAccountAccess = {
+      const access: ModeAccountAccess = {
         type: "zhipu-account",
         family: "bigmodel",
         planKind: "team-coding-plan",
@@ -297,7 +297,7 @@ describe("刷新失败保留已确认订阅", () => {
     "%s 真实订阅服务失败保留快照和退避，明确无套餐才清除",
     async (scope) => {
       let mode: "active" | "failure" | "unknown" | "none" = "active";
-      const accountAccess: ZCodeAccountAccess =
+      const accountAccess: ModeAccountAccess =
         scope === "team"
           ? {
               type: "zhipu-account",
@@ -309,7 +309,7 @@ describe("刷新失败保留已确认订阅", () => {
           : { type: "zhipu-account", family: "bigmodel", planKind: "individual-coding-plan" };
       const providerId = `account:bigmodel-${scope === "team" ? "team" : "individual"}-coding-plan`;
       const provider = new BigModelUsageQuotaProvider({
-        env: { ZCODE_ENV: "production" },
+        env: { MODE_ENV: "production" },
         credentialService: { load: async () => "business" },
         accountRequestAuthService: {
           resolveAccessCurrent: vi.fn(),

@@ -1,6 +1,6 @@
-import type { IBroadcastService, IServiceAccessor } from "@zcode/services";
+import type { IBroadcastService, IServiceAccessor } from "@mode/services";
 import { ServiceProvider } from "@/hooks/useServices.js";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { ModeIntlProvider } from "@/i18n/IntlProvider.js";
 import { StoreProvider } from "@/store/StoreProvider.js";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -58,7 +58,7 @@ function renderSwitchModeBlock(
 ) {
   return renderToStaticMarkup(
     createElement(
-      ZCodeIntlProvider,
+      ModeIntlProvider,
       { initialLocale: "zh-CN" },
       createElement(
         ServiceProvider,

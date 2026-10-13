@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ConversationSnapshot, ConversationTopicFrame } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationSnapshot, ConversationTopicFrame } from "@mode/shared/mode-protocol-v4";
 import {
   readBotGroupRuntimeSnapshot,
   waitBotGroupExecutionEnd,
-} from "../src/zcode-agent/groupRuntimeSnapshot.js";
+} from "../src/mode-agent/groupRuntimeSnapshot.js";
 
 afterEach(() => vi.useRealTimers());
 describe("group CLI snapshot read", () => {

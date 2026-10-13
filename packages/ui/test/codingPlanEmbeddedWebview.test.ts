@@ -6,10 +6,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  DEFAULT_MODE_ENDPOINT_ORIGIN,
   isTrustedCodingPlanWebviewOrigin,
-} from "@zcode/shared";
-import { CodingPlanWebviewChannels, type CodingPlanPurchaseCompletePayload } from "@zcode/shared";
+} from "@mode/shared";
+import { CodingPlanWebviewChannels, type CodingPlanPurchaseCompletePayload } from "@mode/shared";
 import {
   buildCodingPlanEmbeddedWebviewUrl,
   buildCodingPlanEmbeddedReportContext,
@@ -41,7 +41,7 @@ vi.mock("@/hooks/usePlatform.js", () => ({
 }));
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     intl: {
       formatMessage: ({ id }: { id: string }) => id,
     },
@@ -50,7 +50,7 @@ vi.mock("@/i18n/IntlProvider.js", () => ({
 }));
 
 vi.mock("@/store/StoreProvider.js", () => ({
-  useZCodeStoreWithDefault: (
+  useModeStoreWithDefault: (
     selector: (state: { theme: string; user: { id: string } | null }) => unknown,
   ) =>
     selector({
@@ -71,7 +71,7 @@ describe("coding plan embedded webview bridge", () => {
 
   it("exposes the purchase-complete channel and payload type", () => {
     // 频道名固定，两端（App preload + 官网通过注入的 bridge）共享
-    expect(CodingPlanWebviewChannels.PurchaseComplete).toBe("zcode:coding-plan-purchase-complete");
+    expect(CodingPlanWebviewChannels.PurchaseComplete).toBe("mode:coding-plan-purchase-complete");
     // payload 类型仅做编译期校验：provider 限定 zai/bigmodel，timestamp 为 number
     const payload: CodingPlanPurchaseCompletePayload = {
       provider: "zai",
@@ -84,7 +84,7 @@ describe("coding plan embedded webview bridge", () => {
   it("builds the website URL with app embedded marker and no telemetry query", () => {
     const url = new URL(
       buildCodingPlanEmbeddedWebviewUrl({
-        origin: "https://zcode.z.ai",
+        origin: "https://mode.z.ai",
         provider: "bigmodel",
         audience: "team",
         teamPlanKey: "team-plan-a",
@@ -92,7 +92,7 @@ describe("coding plan embedded webview bridge", () => {
       }),
     );
 
-    expect(url.origin).toBe("https://zcode.z.ai");
+    expect(url.origin).toBe("https://mode.z.ai");
     expect(url.pathname).toBe("/coding-plan");
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
       provider: "bigmodel",
@@ -157,7 +157,7 @@ describe("coding plan embedded webview bridge", () => {
 
   it("preserves entry ownership in window, storage and ready events on reinjection", () => {
     const ready = vi.fn();
-    window.addEventListener("zcode-coding-plan-auth-ready", ready);
+    window.addEventListener("mode-coding-plan-auth-ready", ready);
     try {
       const reportContext = {
         purchase_funnel_id: "funnel-app",
@@ -171,9 +171,9 @@ describe("coding plan embedded webview bridge", () => {
       window.eval(script);
       window.eval(script);
       expect(
-        (window as unknown as { __zcodeReportContext__: unknown }).__zcodeReportContext__,
+        (window as unknown as { __modeReportContext__: unknown }).__modeReportContext__,
       ).toEqual(reportContext);
-      expect(JSON.parse(localStorage.getItem("zcode:coding-plan:report-context") || "{}")).toEqual(
+      expect(JSON.parse(localStorage.getItem("mode:coding-plan:report-context") || "{}")).toEqual(
         reportContext,
       );
       expect(ready).toHaveBeenCalledTimes(2);
@@ -181,7 +181,7 @@ describe("coding plan embedded webview bridge", () => {
         expect((event as CustomEvent).detail.reportContext).toEqual(reportContext);
       }
     } finally {
-      window.removeEventListener("zcode-coding-plan-auth-ready", ready);
+      window.removeEventListener("mode-coding-plan-auth-ready", ready);
       window.eval(createCodingPlanCredentialClearScript());
     }
   });
@@ -190,37 +190,37 @@ describe("coding plan embedded webview bridge", () => {
     expect(
       resolveCodingPlanEmbeddedOrigin({
         dev: true,
-        endpointOrigin: "https://zcode.z.ai",
-        zcodeEnv: "test",
+        endpointOrigin: "https://mode.z.ai",
+        modeEnv: "test",
       }),
     ).toBe("http://localhost:3000");
     expect(
       resolveCodingPlanEmbeddedOrigin({
         dev: true,
-        endpointOrigin: "https://zcode.z.ai",
-        zcodeEnv: "production",
+        endpointOrigin: "https://mode.z.ai",
+        modeEnv: "production",
       }),
-    ).toBe("https://zcode.z.ai");
+    ).toBe("https://mode.z.ai");
     expect(
       resolveCodingPlanEmbeddedOrigin({
         dev: false,
-        endpointOrigin: "https://zcode.z.ai",
-        zcodeEnv: "production",
+        endpointOrigin: "https://mode.z.ai",
+        modeEnv: "production",
       }),
-    ).toBe("https://zcode.z.ai");
+    ).toBe("https://mode.z.ai");
     expect(
       resolveCodingPlanEmbeddedOrigin({
         dev: true,
-        endpointOrigin: "https://zcode.z.ai",
-        zcodeEnv: "test",
+        endpointOrigin: "https://mode.z.ai",
+        modeEnv: "test",
         overrideOrigin: "https://example.test/path",
       }),
     ).toBe("http://localhost:3000");
   });
 
   it("only trusts official coding plan origins unless the E2E bridge enables loopback mocks", () => {
-    expect(isTrustedCodingPlanWebviewOrigin("https://zcode.z.ai")).toBe(true);
-    expect(isTrustedCodingPlanWebviewOrigin("https://zcode.z.ai")).toBe(true);
+    expect(isTrustedCodingPlanWebviewOrigin("https://mode.z.ai")).toBe(true);
+    expect(isTrustedCodingPlanWebviewOrigin("https://mode.z.ai")).toBe(true);
     expect(isTrustedCodingPlanWebviewOrigin("http://localhost:3000")).toBe(true);
     expect(isTrustedCodingPlanWebviewOrigin("https://evil.example")).toBe(false);
     expect(isTrustedCodingPlanWebviewOrigin("http://127.0.0.1:4555")).toBe(false);
@@ -259,7 +259,7 @@ describe("coding plan embedded webview bridge", () => {
         endpointOrigin: "https://untrusted.example",
         overrideOrigin: "https://evil.example/path",
       }),
-    ).toBe(DEFAULT_ZCODE_ENDPOINT_ORIGIN);
+    ).toBe(DEFAULT_MODE_ENDPOINT_ORIGIN);
     expect(
       resolveCodingPlanEmbeddedOrigin({
         dev: false,
@@ -287,7 +287,7 @@ describe("coding plan embedded webview bridge", () => {
       locale: "en-US",
       credentials: {
         zaiAccessToken: "zai-business-token",
-        zcodeJwtToken: "zcode-jwt",
+        modeJwtToken: "mode-jwt",
       },
       reportContext: {
         purchase_funnel_id: "funnel-app",
@@ -298,47 +298,47 @@ describe("coding plan embedded webview bridge", () => {
     });
 
     expect(script).toContain('localStorage.setItem("oauth:zai:access_token"');
-    expect(script).toContain('localStorage.setItem("zcodejwttoken"');
-    expect(script).toContain("zcode-coding-plan-auth-ready");
+    expect(script).toContain('localStorage.setItem("modejwttoken"');
+    expect(script).toContain("mode-coding-plan-auth-ready");
     expect(script).toContain('"provider":"zai"');
-    expect(script).toContain("window.__zcodeReportContext__");
-    expect(script).toContain("zcode:coding-plan:report-context");
+    expect(script).toContain("window.__modeReportContext__");
+    expect(script).toContain("mode:coding-plan:report-context");
     expect(script).toContain('"purchase_funnel_id":"funnel-app"');
     expect(script).toContain('"device_mid":"device-mid-test"');
     expect(script).toContain('"user_id":"user-1"');
     expect(script).toContain('"app_version":"9.8.7"');
-    expect(script).toContain("reportContext: zcodeReportContext");
+    expect(script).toContain("reportContext: modeReportContext");
     expect(script).toContain('document.documentElement.classList.toggle("dark"');
-    expect(script).toContain('localStorage.setItem("zcode-theme", zcodeTheme)');
+    expect(script).toContain('localStorage.setItem("mode-theme", modeTheme)');
     expect(script).toContain('localStorage.removeItem("oauth:bigmodel:access_token")');
   });
 
-  it("injects the zcode JWT for the bigmodel provider so the website can query Start Plan balance", () => {
-    // 修复原因：BigModel 分支此前显式清空 zcodejwttoken，官网内嵌页查不到
-    // billing/balance（该接口只认 zcode JWT），Start Plan 卡被误判为「已过期」。
+  it("injects the mode JWT for the bigmodel provider so the website can query Start Plan balance", () => {
+    // 修复原因：BigModel 分支此前显式清空 modejwttoken，官网内嵌页查不到
+    // billing/balance（该接口只认 mode JWT），Start Plan 卡被误判为「已过期」。
     const script = createCodingPlanAuthInjectionScript({
       provider: "bigmodel",
       theme: "zai-light",
       locale: "zh-CN",
       credentials: {
         bigmodelAccessToken: "bigmodel-business-token",
-        zcodeJwtToken: "zcode-jwt",
+        modeJwtToken: "mode-jwt",
       },
     });
 
     expect(script).toContain('localStorage.setItem("oauth:bigmodel:access_token"');
-    expect(script).toContain('localStorage.setItem("zcodejwttoken"');
+    expect(script).toContain('localStorage.setItem("modejwttoken"');
     expect(script).toContain('localStorage.removeItem("oauth:zai:access_token")');
   });
 
-  it("loads the zcode JWT credential key for both website providers", () => {
+  it("loads the mode JWT credential key for both website providers", () => {
     expect(getCodingPlanCredentialKeys("zai")).toEqual([
       "oauth:zai:access_token",
-      "zcodejwttoken",
+      "modejwttoken",
     ]);
     expect(getCodingPlanCredentialKeys("bigmodel")).toEqual([
       "oauth:bigmodel:access_token",
-      "zcodejwttoken",
+      "modejwttoken",
     ]);
   });
 
@@ -346,17 +346,17 @@ describe("coding plan embedded webview bridge", () => {
     const script = createCodingPlanCredentialClearScript();
 
     expect(script).toContain("oauth:zai:access_token");
-    expect(script).toContain("zcodejwttoken");
+    expect(script).toContain("modejwttoken");
     expect(script).toContain("oauth:bigmodel:access_token");
     expect(script).toContain("localStorage.removeItem(key)");
-    expect(script).toContain("zcode:coding-plan:report-context");
-    expect(script).toContain("delete window.__zcodeReportContext__");
+    expect(script).toContain("mode:coding-plan:report-context");
+    expect(script).toContain("delete window.__modeReportContext__");
   });
 
   it("injects a guest-page scrollbar hiding style without disabling scroll", () => {
     const script = createCodingPlanScrollbarHideScript();
 
-    expect(script).toContain("zcode-coding-plan-hide-scrollbar");
+    expect(script).toContain("mode-coding-plan-hide-scrollbar");
     expect(script).toContain("scrollbar-width: none");
     expect(script).toContain("::-webkit-scrollbar");
     expect(script).toContain("display: none");
@@ -366,19 +366,19 @@ describe("coding plan embedded webview bridge", () => {
   it("only injects credentials on the current trusted embedded coding plan page", () => {
     expect(
       isTrustedCodingPlanEmbeddedWebviewUrl(
-        "https://zcode.z.ai/coding-plan?provider=zai&embedded=app",
+        "https://mode.z.ai/coding-plan?provider=zai&embedded=app",
       ),
     ).toBe(true);
     expect(
       isTrustedCodingPlanEmbeddedWebviewUrl(
-        "https://zcode.z.ai/cn/coding-plan?provider=zai&embedded=app",
+        "https://mode.z.ai/cn/coding-plan?provider=zai&embedded=app",
       ),
     ).toBe(true);
     expect(isTrustedCodingPlanEmbeddedWebviewUrl("https://pay.example/checkout?embedded=app")).toBe(
       false,
     );
     expect(
-      isTrustedCodingPlanEmbeddedWebviewUrl("https://zcode.z.ai/coding-plan?provider=zai"),
+      isTrustedCodingPlanEmbeddedWebviewUrl("https://mode.z.ai/coding-plan?provider=zai"),
     ).toBe(false);
   });
 
@@ -510,7 +510,7 @@ describe("coding plan embedded webview bridge", () => {
       "utf8",
     );
 
-    // 完成回传协议：官网页通过 window.zcodeBridge.notifyPurchaseComplete
+    // 完成回传协议：官网页通过 window.modeBridge.notifyPurchaseComplete
     // → preload ipcRenderer.sendToHost(PurchaseComplete 频道)
     // → host renderer webview.addEventListener("ipc-message")
     // → onPurchaseCompleteRef.current?.() → CodingPlanUpgradeDialog 刷新+关闭
@@ -533,7 +533,7 @@ describe("coding plan embedded webview bridge", () => {
     );
 
     expect(source).toContain("getReportContext()");
-    expect(source).toContain("__zcodeReportContext__");
+    expect(source).toContain("__modeReportContext__");
     expect(source).toContain("REPORT_CONTEXT_VAR");
     expect(source).toContain("return value as CodingPlanReportContext");
   });

@@ -1,11 +1,11 @@
-import { ServiceChannels } from "@zcode/shared";
-import type { McpAppsSamplingResult } from "@zcode/shared/mcp-apps";
+import { ServiceChannels } from "@mode/shared";
+import type { McpAppsSamplingResult } from "@mode/shared/mcp-apps";
 import { createServiceDescriptor } from "../descriptors.js";
 import type { PluginUiPluginScope } from "./contract.js";
 
 export interface PluginUiSamplingParams extends PluginUiPluginScope {
   operationId: string;
-  request: import("@zcode/shared/mcp-apps").McpAppsSamplingParams;
+  request: import("@mode/shared/mcp-apps").McpAppsSamplingParams;
 }
 export interface PluginUiCancelSamplingParams extends PluginUiPluginScope {
   operationId: string;

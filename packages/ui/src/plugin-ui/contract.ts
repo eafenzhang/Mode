@@ -4,9 +4,9 @@ import type {
   McpToolUiCsp,
   PluginSandboxHandle,
   PluginUiScopeRef,
-} from "@zcode/shared/mcp-apps";
-import { buildPluginSandboxScopeId } from "@zcode/shared/mcp-apps";
-import type { AttachmentRef, ConversationInputSource } from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/mcp-apps";
+import { buildPluginSandboxScopeId } from "@mode/shared/mcp-apps";
+import type { AttachmentRef, ConversationInputSource } from "@mode/shared/mode-protocol-v4";
 import type { ReactNode } from "react";
 import type { PluginUiImageBlock } from "./domain/pluginUiImageBlocks.js";
 

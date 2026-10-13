@@ -1,4 +1,4 @@
-import type { ApiClient } from "@zcode/shared";
+import type { ApiClient } from "@mode/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { debugLog, warnLog } = vi.hoisted(() => ({ debugLog: vi.fn(), warnLog: vi.fn() }));
@@ -203,7 +203,7 @@ describe("ConversationShareHttpClient", () => {
     const request = vi.fn(async () =>
       success({
         share_code: "share-1",
-        share_url: "https://zcode.z.ai/cn/share/share-1",
+        share_url: "https://mode.z.ai/cn/share/share-1",
         access_mode: "public_importable",
         expires_at: 2_000,
       }),
@@ -233,7 +233,7 @@ describe("ConversationShareHttpClient", () => {
       producer_product_turn_id: "product-turn-1",
       artifact_version: 1,
       state: "current" as const,
-      ref: "zcode-artifact://share/artifact-1",
+      ref: "mode-artifact://share/artifact-1",
       artifact_type: "html" as const,
       display_name: "report.html",
       extension: "html",
@@ -553,7 +553,7 @@ describe("ConversationShareHttpClient", () => {
       void init;
       return success({
         share_code: "share-1",
-        share_url: "https://zcode.z.ai/cn/share/share-1",
+        share_url: "https://mode.z.ai/cn/share/share-1",
         access_mode: "private",
         expires_at: 20_000,
       });
@@ -573,7 +573,7 @@ describe("ConversationShareHttpClient", () => {
     const request = vi.fn(async () =>
       success({
         share_code: "share-1",
-        share_url: "https://zcode.z.ai/cn/share/share-1",
+        share_url: "https://mode.z.ai/cn/share/share-1",
         access_mode: "private",
         expires_at: 20_000,
       }),
@@ -609,7 +609,7 @@ describe("ConversationShareHttpClient", () => {
       producer_product_turn_id: "product-turn-1",
       artifact_version: 1,
       state: "current" as const,
-      ref: "zcode-artifact://share/artifact-1",
+      ref: "mode-artifact://share/artifact-1",
       artifact_type: "html" as const,
       display_name: "report.html",
       extension: "html",
@@ -651,7 +651,7 @@ describe("ConversationShareHttpClient", () => {
       producer_product_turn_id: "product-turn-1",
       artifact_version: 1,
       state: "current" as const,
-      ref: "zcode-artifact://share/artifact-1",
+      ref: "mode-artifact://share/artifact-1",
       artifact_type: "html" as const,
       display_name: "report.html",
       extension: "html",

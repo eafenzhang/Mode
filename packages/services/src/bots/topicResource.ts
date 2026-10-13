@@ -4,8 +4,8 @@ import type {
   BotsConfigFile,
   BotsStateFile,
   ModeProtocolTrace,
-} from "@zcode/shared";
-import { PROTOCOL_V4_LIMITS } from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared";
+import { PROTOCOL_V4_LIMITS } from "@mode/shared/mode-protocol-v4";
 
 export interface TopicResourceRequest {
   taskId: string;

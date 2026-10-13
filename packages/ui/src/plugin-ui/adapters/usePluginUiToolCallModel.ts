@@ -33,7 +33,7 @@ import type {
   McpAppsDisplayMode,
   PluginSandboxHandle,
   PluginUiScopeRef,
-} from "@zcode/shared/mcp-apps";
+} from "@mode/shared/mcp-apps";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { resolvePluginUiLogicalScope } from "../domain/pluginUiLogicalScope.js";
 
@@ -195,7 +195,7 @@ export function usePluginUiToolCallModel(
     toolInput,
     toolResult,
     toolCancelled: isPluginUiToolCancelled(toolCall),
-    hostVersion: "zcode",
+    hostVersion: "mode",
     // 没有侧栏入口（如只读 / 非桌面壳）或页面不支持 fullscreen 时只声明 inline。
     availableDisplayModes: canOpenSidePane ? INLINE_AND_FULLSCREEN : INLINE_ONLY,
     onDisplayModeRequest: handleDisplayModeRequest,

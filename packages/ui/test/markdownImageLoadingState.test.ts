@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MarkdownImage } from "@/components/ai-elements/markdown-image.js";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { ModeIntlProvider } from "@/i18n/IntlProvider.js";
 
 let optionalServices: {
   fileService: {
@@ -28,7 +28,7 @@ vi.mock("@/hooks/useServices.js", () => ({
 function renderMarkdownImage(src: string, workspacePath?: string) {
   return render(
     createElement(
-      ZCodeIntlProvider,
+      ModeIntlProvider,
       { initialLocale: "zh-CN" },
       createElement(MarkdownImage, { alt: "示例图", src, workspacePath }),
     ),
@@ -81,7 +81,7 @@ describe("MarkdownImage loading state", () => {
 
     view.rerender(
       createElement(
-        ZCodeIntlProvider,
+        ModeIntlProvider,
         { initialLocale: "zh-CN" },
         createElement(MarkdownImage, {
           alt: "示例图",

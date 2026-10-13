@@ -18,7 +18,7 @@ import {
 import type {
   ConversationTopicFrame,
   TopicFrameDeliveryKind,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@zcode/shared/mode-protocol-v4";
 
 /** Renderer 独占点击总时钟；不使用 ACK 或旁路 telemetry 判定首输出。 */
 export class LocalTtftObserver {

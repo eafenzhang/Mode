@@ -186,6 +186,11 @@ export const remoteDesktopMediaStatusSchema = z
     // helper 侧实现面错误串（capture-error / encode-error / access-lost / locked…），
     // 原样透传；协议面归一在 coordinator（freeze{reason} union 只认 locked|access-lost）。
     reason: z.string().optional(),
+    // 媒体面**起不来**（不是冻结）：rd_media 注入端口缺失 / rd_media_start 失败时的原因串。
+    // coordinator 收到即回主控 error{unsupported} 并收口——否则主控只能看着零帧干等
+    //（spec「媒体面可观测性与首帧约束」2026-10-14）。与 reason 的分工：reason 描述
+    //「采集中断」，本字段描述「采集从未建立」。
+    unavailable: z.string().optional(),
   })
   .strict();
 

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, type ClipboardEvent } from "react";
 import { FileText, ImageIcon, Loader2, Paperclip, Send, X } from "lucide-react";
-import type { FeedbackAttachmentKind } from "@zcode/shared";
-import type { IFeedbackService } from "@zcode/services";
+import type { FeedbackAttachmentKind } from "@mode/shared";
+import type { IFeedbackService } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { FeedbackErrorTip } from "@/feedback/feedbackBadges.js";

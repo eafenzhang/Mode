@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type {
   SkillSummary,
-  ZCodeCommand,
-  ZCodeMcpServer,
-  ZCodePluginComponentGroup,
-  ZCodePluginInfo,
-} from "@zcode/shared";
+  ModeCommand,
+  ModeMcpServer,
+  ModePluginComponentGroup,
+  ModePluginInfo,
+} from "@mode/shared";
 import {
   buildInstalledPluginDisplayGroups,
   buildPluginMcpServerItems,
@@ -68,7 +68,7 @@ describe("pluginManagedResourceGroups", () => {
         enabled: true,
         id: "local",
         name: "local-review",
-        path: "/workspace/.zcode/skills/local-review/SKILL.md",
+        path: "/workspace/.mode/skills/local-review/SKILL.md",
         scope: "workspace",
       },
       {
@@ -77,7 +77,7 @@ describe("pluginManagedResourceGroups", () => {
         enabled: true,
         id: "plugin",
         name: "ios-dev",
-        path: "/home/.zcode/cli/plugins/cache/zcode-plugins-official/ios/0.1.0/skills/ios-dev/SKILL.md",
+        path: "/home/.mode/cli/plugins/cache/mode-plugins-official/ios/0.1.0/skills/ios-dev/SKILL.md",
         pluginName: "ios-simulator",
         scope: "plugin",
       },
@@ -90,18 +90,18 @@ describe("pluginManagedResourceGroups", () => {
   });
 
   it("groups user and plugin commands separately", () => {
-    const commands: ZCodeCommand[] = [
+    const commands: ModeCommand[] = [
       {
-        agentSource: "zcodeAgent",
+        agentSource: "modeAgent",
         content: "local",
         description: "local command",
         enabled: true,
-        filePath: "/home/.zcode/commands/review.md",
-        id: "zcodeAgent:zcode:global:/review",
+        filePath: "/home/.mode/commands/review.md",
+        id: "modeAgent:mode:global:/review",
         location: {
-          directoryPath: "/home/.zcode/commands",
+          directoryPath: "/home/.mode/commands",
           scope: "user",
-          source: "zcode",
+          source: "mode",
         },
         name: "/review",
         prompt: "local",
@@ -112,11 +112,11 @@ describe("pluginManagedResourceGroups", () => {
         content: "plugin",
         description: "plugin command",
         enabled: true,
-        filePath: "/home/.zcode/cli/plugins/cache/plugin/commands/ios-dev.md",
-        id: "plugin:zcode-plugins-official:ios-simulator:/ios-dev",
+        filePath: "/home/.mode/cli/plugins/cache/plugin/commands/ios-dev.md",
+        id: "plugin:mode-plugins-official:ios-simulator:/ios-dev",
         name: "/ios-dev",
         pluginEnabled: true,
-        pluginMarketplace: "zcode-plugins-official",
+        pluginMarketplace: "mode-plugins-official",
         pluginName: "ios-simulator",
         prompt: "plugin",
         scope: "global",
@@ -131,14 +131,14 @@ describe("pluginManagedResourceGroups", () => {
   });
 
   it("builds plugin MCP items from enabled plugin metadata", () => {
-    const servers: ZCodeMcpServer[] = [
+    const servers: ModeMcpServer[] = [
       {
         config: { command: "npx", type: "stdio" },
         enabled: true,
-        id: "zcodeagentmcp-global-memory",
+        id: "modeagentmcp-global-memory",
         name: "memory",
         scope: "user",
-        source: "zcodeagentmcp",
+        source: "modeagentmcp",
       },
       {
         config: { command: "npx", type: "stdio" },
@@ -149,13 +149,13 @@ describe("pluginManagedResourceGroups", () => {
         source: "codexclimcp",
       },
     ];
-    const plugins: ZCodePluginInfo[] = [
+    const plugins: ModePluginInfo[] = [
       {
         commandRootCount: 0,
         declaredMcpServerNames: ["ios-simulator", "ios-helper"],
         enabled: false,
-        id: "ios-simulator@zcode-plugins-official",
-        marketplace: "zcode-plugins-official",
+        id: "ios-simulator@mode-plugins-official",
+        marketplace: "mode-plugins-official",
         mcpServerNames: [],
         name: "ios-simulator",
         rootPath: "/plugins/ios-simulator",
@@ -170,21 +170,21 @@ describe("pluginManagedResourceGroups", () => {
     expect(buildPluginMcpServerItems(plugins, "IoS")).toEqual([
       {
         active: false,
-        id: "ios-simulator@zcode-plugins-official:ios-simulator",
+        id: "ios-simulator@mode-plugins-official:ios-simulator",
         name: "ios-simulator",
         pluginEnabled: false,
-        pluginId: "ios-simulator@zcode-plugins-official",
-        pluginMarketplace: "zcode-plugins-official",
+        pluginId: "ios-simulator@mode-plugins-official",
+        pluginMarketplace: "mode-plugins-official",
         pluginName: "ios-simulator",
         runtimeServerName: "plugin:ios-simulator:ios-simulator",
       },
       {
         active: false,
-        id: "ios-simulator@zcode-plugins-official:ios-helper",
+        id: "ios-simulator@mode-plugins-official:ios-helper",
         name: "ios-helper",
         pluginEnabled: false,
-        pluginId: "ios-simulator@zcode-plugins-official",
-        pluginMarketplace: "zcode-plugins-official",
+        pluginId: "ios-simulator@mode-plugins-official",
+        pluginMarketplace: "mode-plugins-official",
         pluginName: "ios-simulator",
         runtimeServerName: "plugin:ios-simulator:ios-helper",
       },
@@ -192,7 +192,7 @@ describe("pluginManagedResourceGroups", () => {
   });
 
   it("marks plugin MCP items active when runtime server names are namespaced", () => {
-    const plugins: ZCodePluginInfo[] = [
+    const plugins: ModePluginInfo[] = [
       {
         commandRootCount: 0,
         declaredMcpServerNames: ["chrome-devtools"],
@@ -222,14 +222,14 @@ describe("pluginManagedResourceGroups", () => {
   });
 
   it("maps Browser host MCP metadata to the unprefixed node_repl runtime", () => {
-    const plugins: ZCodePluginInfo[] = [
+    const plugins: ModePluginInfo[] = [
       {
         commandRootCount: 0,
         declaredMcpServerNames: [],
         enabled: false,
         hostMcpServerNames: ["node_repl"],
-        id: "browser-use@zcode-plugins-official",
-        marketplace: "zcode-plugins-official",
+        id: "browser-use@mode-plugins-official",
+        marketplace: "mode-plugins-official",
         mcpServerNames: [],
         name: "browser-use",
         rootPath: "/plugins/browser-use",
@@ -253,11 +253,11 @@ describe("pluginManagedResourceGroups", () => {
         authorization: undefined,
         error: undefined,
         hostProvided: true,
-        id: "browser-use@zcode-plugins-official:node_repl",
+        id: "browser-use@mode-plugins-official:node_repl",
         name: "node_repl",
         pluginEnabled: false,
-        pluginId: "browser-use@zcode-plugins-official",
-        pluginMarketplace: "zcode-plugins-official",
+        pluginId: "browser-use@mode-plugins-official",
+        pluginMarketplace: "mode-plugins-official",
         pluginName: "browser-use",
         runtimeServerName: "node_repl",
         status: "connected",
@@ -267,13 +267,13 @@ describe("pluginManagedResourceGroups", () => {
   });
 
   it("attaches plugin MCP OAuth authorization from runtime status snapshots", () => {
-    const plugins: ZCodePluginInfo[] = [
+    const plugins: ModePluginInfo[] = [
       {
         commandRootCount: 0,
         declaredMcpServerNames: ["canva"],
         enabled: true,
-        id: "canva@zcode-plugins-official",
-        marketplace: "zcode-plugins-official",
+        id: "canva@mode-plugins-official",
+        marketplace: "mode-plugins-official",
         mcpServerNames: ["plugin:canva:canva"],
         name: "canva",
         rootPath: "/plugins/canva",
@@ -305,11 +305,11 @@ describe("pluginManagedResourceGroups", () => {
           type: "oauth_authorization_code",
         },
         error: undefined,
-        id: "canva@zcode-plugins-official:canva",
+        id: "canva@mode-plugins-official:canva",
         name: "canva",
         pluginEnabled: true,
-        pluginId: "canva@zcode-plugins-official",
-        pluginMarketplace: "zcode-plugins-official",
+        pluginId: "canva@mode-plugins-official",
+        pluginMarketplace: "mode-plugins-official",
         pluginName: "canva",
         runtimeServerName: "plugin:canva:canva",
         status: "connecting",
@@ -319,13 +319,13 @@ describe("pluginManagedResourceGroups", () => {
   });
 
   it("ignores stale plugin MCP runtime authorization when plugin is disabled", () => {
-    const plugins: ZCodePluginInfo[] = [
+    const plugins: ModePluginInfo[] = [
       {
         commandRootCount: 0,
         declaredMcpServerNames: ["canva"],
         enabled: false,
-        id: "canva@zcode-plugins-official",
-        marketplace: "zcode-plugins-official",
+        id: "canva@mode-plugins-official",
+        marketplace: "mode-plugins-official",
         mcpServerNames: ["plugin:canva:canva"],
         name: "canva",
         rootPath: "/plugins/canva",
@@ -351,11 +351,11 @@ describe("pluginManagedResourceGroups", () => {
     ).toEqual([
       {
         active: true,
-        id: "canva@zcode-plugins-official:canva",
+        id: "canva@mode-plugins-official:canva",
         name: "canva",
         pluginEnabled: false,
-        pluginId: "canva@zcode-plugins-official",
-        pluginMarketplace: "zcode-plugins-official",
+        pluginId: "canva@mode-plugins-official",
+        pluginMarketplace: "mode-plugins-official",
         pluginName: "canva",
         runtimeServerName: "plugin:canva:canva",
       },
@@ -363,7 +363,7 @@ describe("pluginManagedResourceGroups", () => {
   });
 
   describe("buildInstalledPluginDisplayGroups", () => {
-    function makeComponents(): ZCodePluginComponentGroup[] {
+    function makeComponents(): ModePluginComponentGroup[] {
       return [
         {
           kind: "skill",
@@ -373,12 +373,12 @@ describe("pluginManagedResourceGroups", () => {
       ];
     }
 
-    function makePlugin(overrides: Partial<ZCodePluginInfo> = {}): ZCodePluginInfo {
+    function makePlugin(overrides: Partial<ModePluginInfo> = {}): ModePluginInfo {
       return {
         commandRootCount: 0,
         enabled: true,
-        id: "superpowers@zcode-plugins-official",
-        marketplace: "zcode-plugins-official",
+        id: "superpowers@mode-plugins-official",
+        marketplace: "mode-plugins-official",
         mcpServerNames: [],
         name: "superpowers",
         rootPath: "/cache/superpowers",

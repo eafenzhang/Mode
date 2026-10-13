@@ -1,23 +1,23 @@
-import type { ModeSessionEvent } from "@zcode/shared";
+import type { ModeSessionEvent } from "@mode/shared";
 
 const MAX_TRACKED_SESSION_EVENT_IDS = 10_000;
 
-export interface ZCodeSessionEventGap {
+export interface ModeSessionEventGap {
   expectedSeq: number;
   receivedSeq: number;
 }
 
-export interface ZCodeSessionEventOrderResult {
+export interface ModeSessionEventOrderResult {
   duplicate?: boolean;
-  gap?: ZCodeSessionEventGap;
+  gap?: ModeSessionEventGap;
   readyEvents: ModeSessionEvent[];
 }
 
-export interface ZCodeSessionEventOrderGate {
+export interface ModeSessionEventOrderGate {
   clearPendingAfterGap(): void;
-  getGap(): ZCodeSessionEventGap | undefined;
+  getGap(): ModeSessionEventGap | undefined;
   markSnapshotSeq(seq: number, options?: { preservePendingEvents?: boolean }): ModeSessionEvent[];
-  push(event: ModeSessionEvent): ZCodeSessionEventOrderResult;
+  push(event: ModeSessionEvent): ModeSessionEventOrderResult;
   releasePendingAfterGap(options?: {
     preserve?: (event: ModeSessionEvent) => boolean;
   }): ModeSessionEvent[];
@@ -38,7 +38,7 @@ function rememberBoundedId(ids: Set<string>, order: string[], id: string): boole
   return true;
 }
 
-export function createZCodeSessionEventOrderGate(): ZCodeSessionEventOrderGate {
+export function createModeSessionEventOrderGate(): ModeSessionEventOrderGate {
   const deliveredEventIds = new Set<string>();
   const deliveredEventIdOrder: string[] = [];
   const pendingEvents = new Map<number, ModeSessionEvent>();
@@ -61,7 +61,7 @@ export function createZCodeSessionEventOrderGate(): ZCodeSessionEventOrderGate {
     return readyEvents;
   };
 
-  const currentGap = (): ZCodeSessionEventGap | undefined => {
+  const currentGap = (): ModeSessionEventGap | undefined => {
     if (nextSeq === null || pendingEvents.size === 0) {
       return undefined;
     }

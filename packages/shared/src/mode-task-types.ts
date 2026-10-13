@@ -84,12 +84,38 @@ export interface ModeWorkspacePrepareResult {
   slashCommands?: ModeSlashCommand[];
 }
 
+/** Codex 预热前的网络连通性检查结果 */
+export interface ModeCodexConnectivityCheckResult {
+  /** 当前检查的目标域名 */
+  target: string;
+  /** host 侧是否成功连通目标站点 */
+  reachable: boolean;
+  /** 失败时保留原始错误，供 UI 日志和 toast 诊断 */
+  error?: string;
+}
+
 // ---- Task 元数据 ----
 
 /** createTask 的返回结果；在持久化元信息之外，补充首屏渲染需要的临时初始化数据。 */
 export interface ModeTaskCreateResult extends ModeTaskMeta {
   /** createTask 时就能拿到的首批 slash commands，避免 UI 订阅建立前丢掉初始化命令。 */
   initialSlashCommands?: ModeSlashCommand[];
+}
+
+/** “补齐已有 session”能力的结果，不负责切换当前 active provider。 */
+export interface ModeSyncTaskSessionBindingResult {
+  provider: ModeProvider;
+  sessionId: string;
+  lastSyncedTurnIndex: number;
+  updated: boolean;
+}
+
+/** `switchAgent` 切换成功后的统一结果。 */
+export interface ModeSwitchAgentResult {
+  meta: ModeTaskMeta;
+  provider: ModeProvider;
+  sessionId: string;
+  reusedBinding: boolean;
 }
 
 /** 外部原生 session 导入的来源 provider；与 agent runtime 的 ModeProvider 解耦，当前仅 Claude Code。 */

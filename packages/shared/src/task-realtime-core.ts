@@ -6,17 +6,22 @@
 
 import { z } from "zod";
 import type { ModeTaskMigrationSource, ModeTaskMode } from "./mode-task-types-core.js";
-import { modeAgentProviderSchema } from "./mode-agent-policy.js";
+import { legacyModeProviderSchema } from "./mode-agent-policy.js";
 import { modePermissionResponseSchema } from "./mode-protocol-legacy-types.js";
 import { workspaceHookReviewDecisionSchema } from "./mode-protocol-v4/workspace-hook-review.js";
 import { errorAttributionSchema } from "./mode-protocol-v4/snapshot.js";
 
 const nonEmptyString = z.string().trim().min(1);
 const modeTaskModeRealtimeValues = [
+  "default",
   "yolo",
+  "guarded",
   "plan",
   "edit",
+  "acceptEdits",
   "auto",
+  "dontAsk",
+  "bypassPermissions",
   "autoEdit",
   "build",
 ] as const satisfies readonly ModeTaskMode[];
@@ -55,7 +60,8 @@ const taskMetaRealtimeSchema = z.object({
   mode: z.enum(modeTaskModeRealtimeValues),
   model: z.string().optional(),
   runtimeEpoch: z.number().int().nonnegative().optional(),
-  provider: modeAgentProviderSchema.optional(),
+  // relay payload 可能由旧版本桌面投影；历史 provider 值在此归一为 glm。
+  provider: legacyModeProviderSchema.optional(),
   migrationSource: z.enum(modeTaskMigrationSourceRealtimeValues).optional(),
   forkedFromTaskId: nonEmptyString.optional(),
   unreadAt: z.number().int().nonnegative().optional(),

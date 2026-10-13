@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
-import type { ModeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   Command,

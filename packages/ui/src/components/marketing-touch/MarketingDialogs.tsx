@@ -15,7 +15,7 @@ export function MarketingDialogs({ controller }: { controller: MarketingTouchCon
     (state) => state.request?.target.page === "upgrade",
   );
   const { locale, intl } = useModeIntl();
-  const claimError = state.errorAction === "claim_zcode_plan" ? state.error : null;
+  const claimError = state.errorAction === "claim_mode_plan" ? state.error : null;
   useEffect(() => {
     if (state.error && !claimError) {
       toast(state.error);
@@ -68,7 +68,7 @@ export function MarketingDialogs({ controller }: { controller: MarketingTouchCon
             },
             claim_plan: async (action) => {
               await controller.dialogAction({
-                type: "claim_zcode_plan",
+                type: "claim_mode_plan",
                 args: { plan_id: action.planId },
               });
             },

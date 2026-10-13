@@ -1,27 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
-import type { GitDiffResult, GitFileChange, ZCodeWorkspaceGenerateTextParams } from "@zcode/shared";
+import type { GitDiffResult, GitFileChange, ModeWorkspaceGenerateTextParams } from "@mode/shared";
 
-type ZCodeSelection = ZCodeWorkspaceGenerateTextParams["selection"];
+type ModeSelection = ModeWorkspaceGenerateTextParams["selection"];
 import {
   GitCommitMessageGenerationError,
   GitCommitMessageGenerator,
 } from "../src/git/gitCommitMessageGenerator.js";
 
-const DEFAULT_SELECTION: ZCodeSelection = {
+const DEFAULT_SELECTION: ModeSelection = {
   providerId: "openai-compatible",
   modelId: "test-model",
 };
 
 function createTextGenerator(responseText: string) {
   return {
-    generateText: vi.fn(async (params: { selection: ZCodeSelection }) => ({
+    generateText: vi.fn(async (params: { selection: ModeSelection }) => ({
       text: responseText,
       selection: params.selection,
     })),
   };
 }
 
-function createGenerator(params: { responseText: string; selection?: ZCodeSelection }): {
+function createGenerator(params: { responseText: string; selection?: ModeSelection }): {
   generator: GitCommitMessageGenerator;
   textGenerator: ReturnType<typeof createTextGenerator>;
 } {
@@ -98,7 +98,7 @@ describe("GitCommitMessageGenerator", () => {
   });
 
   it("preserves the complete selected model until the auxiliary execution boundary", async () => {
-    const selectedSelection: ZCodeSelection = {
+    const selectedSelection: ModeSelection = {
       providerId: "openai-compatible",
       modelId: "deepseek-v4-flash",
       options: { reasoningLevel: "max" },

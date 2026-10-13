@@ -6,7 +6,7 @@ import type {
 } from "@mode/services";
 import type { ConversationTelemetryFact } from "@mode/shared/mode-protocol-v4";
 
-interface TaskActivityTracker extends IDisposable {
+export interface TaskActivityTracker extends IDisposable {
   readonly onDidChangeRunningTaskCount: Event<number>;
   readRunningTaskCount(): number;
 }
@@ -74,10 +74,11 @@ export function createTaskActivityTracker(
     }
     removeWorkspace(key);
     const activeSessionIds = new Set<string>();
-    const facts = source?.onDynamicConversationTelemetryFact(event)((fact) =>
-      acceptFact(key, fact),
-    );
-    if (!facts) return;
+      const facts = source?.onDynamicConversationTelemetryFact(event)((fact) =>
+        acceptFact(key, fact),
+      );
+      if (!facts) return;
+
     workspaces.set(key, {
       activeSessionIds,
       runtimeIdentity: event.runtimeIdentity.identity,

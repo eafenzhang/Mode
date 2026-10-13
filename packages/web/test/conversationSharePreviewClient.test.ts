@@ -40,19 +40,19 @@ describe("conversation share preview client", () => {
   });
 
   it("builds a Deep Link containing only the share code", () => {
-    expect(buildShareImportDeepLink("share-1")).toBe("zcode://share/import?code=share-1");
+    expect(buildShareImportDeepLink("share-1")).toBe("mode://share/import?code=share-1");
     expect(() => buildShareImportDeepLink("share/1")).toThrow();
   });
 
   it("does not send Authorization for the anonymous preview request", async () => {
     const diagnostics = { info: vi.fn(), warn: vi.fn() };
     const fetchImpl = vi.fn(async (input: string | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://zcode.z.ai/api/v1/shares/share-1/preview");
+      expect(String(input)).toBe("https://mode.z.ai/api/v1/shares/share-1/preview");
       expect(init?.headers).toBeUndefined();
       return new Response(JSON.stringify({ code: 0, msg: "", data: preview }), { status: 200 });
     });
     const client = new ConversationSharePreviewClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       fetchImpl,
       diagnostics,
     });
@@ -60,7 +60,7 @@ describe("conversation share preview client", () => {
     expect(diagnostics.info).toHaveBeenCalledWith(
       "preview_request_started",
       expect.objectContaining({
-        requestTarget: "https://zcode.z.ai/api/v1/shares/<redacted>/preview",
+        requestTarget: "https://mode.z.ai/api/v1/shares/<redacted>/preview",
         authenticated: false,
         shareCodeLength: 7,
       }),
@@ -75,7 +75,7 @@ describe("conversation share preview client", () => {
   it("logs a safe diagnostic when fetch rejects before an HTTP response", async () => {
     const diagnostics = { info: vi.fn(), warn: vi.fn() };
     const client = new ConversationSharePreviewClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       fetchImpl: vi.fn(async () => {
         throw new TypeError("Failed to fetch");
       }),
@@ -84,7 +84,7 @@ describe("conversation share preview client", () => {
 
     await expect(client.getPreview("share-1")).rejects.toMatchObject({ kind: "network" });
     expect(diagnostics.warn).toHaveBeenCalledWith("preview_request_failed", {
-      requestTarget: "https://zcode.z.ai/api/v1/shares/<redacted>/preview",
+      requestTarget: "https://mode.z.ai/api/v1/shares/<redacted>/preview",
       authenticated: false,
       errorName: "TypeError",
       errorMessage: "Failed to fetch",
@@ -102,7 +102,7 @@ describe("conversation share preview client", () => {
     });
     vi.stubGlobal("fetch", brandCheckedFetch);
     const client = new ConversationSharePreviewClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       diagnostics,
     });
 
@@ -127,7 +127,7 @@ describe("conversation share preview client", () => {
         ),
       );
     const client = new ConversationSharePreviewClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       fetchImpl,
     });
     await expect(client.getPreview("share-1")).rejects.toMatchObject({ kind: "not_found" });
@@ -144,7 +144,7 @@ describe("conversation share preview client", () => {
 
   it("maps an empty 401 response to authentication_required", async () => {
     const client = new ConversationSharePreviewClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       fetchImpl: vi.fn(async () => new Response("", { status: 401 })),
     });
     await expect(client.getPreview("share-1")).rejects.toMatchObject({
@@ -156,7 +156,7 @@ describe("conversation share preview client", () => {
   // 落地页镜像独立部署、独立回滚，所以随时可能比发布分享的客户端旧。
   it("载荷版本比本 build 新时报 unsupported_schema_version，不报「格式无效」", async () => {
     const client = new ConversationSharePreviewClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       fetchImpl: vi.fn(
         async () =>
           new Response(
@@ -181,7 +181,7 @@ describe("conversation share preview client", () => {
       state: "complete",
     };
     const client = new ConversationSharePreviewClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       fetchImpl: vi.fn(
         async () =>
           new Response(

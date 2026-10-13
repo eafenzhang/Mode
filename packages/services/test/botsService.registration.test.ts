@@ -34,7 +34,7 @@ describe("botsService registration", () => {
       pollDomain: "feishu",
     });
     expect(result.qrUrl).toContain("from=sdk");
-    expect(result.qrUrl).toContain("source=node-sdk%2Fzcode");
+    expect(result.qrUrl).toContain("source=node-sdk%2Fmode");
     expect(result.qrUrl).toContain("tp=sdk");
   });
 
@@ -70,7 +70,7 @@ describe("botsService registration", () => {
       pollDomain: "feishu",
     });
     expect(result.qrUrl).toBe(
-      "https://open.feishu.cn/page/launcher?user_code=LARK&from=sdk&source=node-sdk%2Fzcode&tp=sdk",
+      "https://open.feishu.cn/page/launcher?user_code=LARK&from=sdk&source=node-sdk%2Fmode&tp=sdk",
     );
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
       "https://accounts.feishu.cn/oauth/v1/app/registration",
@@ -182,7 +182,7 @@ describe("botsService registration", () => {
           code: 0,
           data: {
             app: {
-              app_name: "ZCode Assistant",
+              app_name: "Mode Assistant",
             },
           },
         }));
@@ -212,8 +212,8 @@ describe("botsService registration", () => {
       credentialValue: "secret",
     });
 
-    expect(saved.name).toBe("ZCode Assistant");
-    expect((await repo.readConfig()).bots[0]?.name).toBe("ZCode Assistant");
+    expect(saved.name).toBe("Mode Assistant");
+    expect((await repo.readConfig()).bots[0]?.name).toBe("Mode Assistant");
     expect(fetchMock).toHaveBeenCalledTimes(3);
     service.disposeAll();
   });

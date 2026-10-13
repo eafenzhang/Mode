@@ -2,7 +2,7 @@ import {
   decodeCustomModelValue,
   MODE_MODEL_REASONING_SEPARATOR,
   type ModeConfigOption,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 function normalizeModelIdentity(value: string | null | undefined): string | null {
   const trimmed = value?.trim();

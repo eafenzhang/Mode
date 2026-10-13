@@ -1,6 +1,6 @@
 import type { UsageEntitlementSnapshot, UsageQuotaLimit } from "@mode/shared";
 
-function normalizeQuotaModel(value: string): string {
+export function normalizeQuotaModel(value: string): string {
   return value
     .trim()
     .toLowerCase()

@@ -7,8 +7,8 @@ import {
   ProviderConfig,
   ProviderConfigMap,
   ZhipuAccountAccessConfig,
-} from "@zcode/provider";
-import { BUILTIN_MODEL_PROVIDER_IDS as ids } from "@zcode/shared";
+} from "@mode/provider";
+import { BUILTIN_MODEL_PROVIDER_IDS as ids } from "@mode/shared";
 import { expect, it } from "vitest";
 import { NodeProviderRegistryRuntime } from "../src/index.js";
 import { createNodeModelSelectionFacade } from "../src/model-selection-facade.js";
@@ -18,8 +18,8 @@ it("Host/Worker 共用 facade：Start 与付费并存，Start 不映射或迁移
   let available = true;
   let account!: AccountProviderService;
   const runtime = new NodeProviderRegistryRuntime({
-    zcodeBuiltinFilePath: fileURLToPath(
-      new URL("../../../config/provider/zcode-builtin.json", import.meta.url),
+    modeBuiltinFilePath: fileURLToPath(
+      new URL("../../../config/provider/mode-builtin.json", import.meta.url),
     ),
     personalFilePath: join(root, "personal.json"),
     personalPollingIntervalMs: false,

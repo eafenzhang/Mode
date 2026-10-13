@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ServiceProvider } from "@/hooks/useServices.js";
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     intl: {
       formatMessage: ({ id }: { id: string }) => id,
     },
@@ -28,7 +28,7 @@ vi.mock("@/ControlHintTooltip.js", () => ({
 
 function createTestServices() {
   return {
-    zcodeTaskService: {
+    modeTaskService: {
       archiveTask: vi.fn(),
       setTaskPinned: vi.fn(),
     },

@@ -13,7 +13,7 @@ import { HELPER_ADDON_ENV, WINDOWS_DEV_CONTROL_PROTOCOL } from "@mode/cua/broker
 import type { ServiceLogger } from "#src/logger/serviceLogger.js";
 import type { WindowsCuaRuntime } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
 
-const CONTROL_PROTOCOL = WINDOWS_DEV_CONTROL_PROTOCOL;
+export const CONTROL_PROTOCOL = WINDOWS_DEV_CONTROL_PROTOCOL;
 export const ADDON_ENV = HELPER_ADDON_ENV;
 
 export interface WindowsCuaChild {
@@ -68,8 +68,10 @@ export const defaultChildProcess: WindowsCuaChildProcessAdapter = {
 };
 
 export const defaultSocketPathFactory = mintBrokerSocketPath;
-export const defaultHealthProbe = (socketPath: string, timeoutMs: number): Promise<HelperHealth> =>
-  probeHelperHealth(socketPath, { timeoutMs });
+export const defaultHealthProbe = (
+  socketPath: string,
+  timeoutMs: number,
+): Promise<HelperHealth> => probeHelperHealth(socketPath, { timeoutMs });
 
 /**
  * helper 子进程 stderr/stdout 接线（spec: lan-remote-desktop-native-media 失败语义
@@ -239,7 +241,7 @@ export class WindowsCuaChildLifecycle {
   }
 }
 
-type WindowsDevHelperControlMessage =
+export type WindowsDevHelperControlMessage =
   | { protocol: typeof CONTROL_PROTOCOL; type: "transport_ready"; socketPath: string; pid: number }
   | { protocol: typeof CONTROL_PROTOCOL; type: "ready"; socketPath: string; pid: number }
   | { protocol: typeof CONTROL_PROTOCOL; type: "error"; message: string };

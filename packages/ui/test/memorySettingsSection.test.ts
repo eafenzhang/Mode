@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { IMemoryService } from "@zcode/services";
+import type { IMemoryService } from "@mode/services";
 import {
   TID_SETTINGS_MEMORY_COUNT,
   TID_SETTINGS_MEMORY_FILE,
@@ -21,10 +21,10 @@ import {
   TID_SETTINGS_MEMORY_SEARCH_CLEAR,
   TID_SETTINGS_MEMORY_SEARCH_INPUT,
   testId,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     locale: "zh-CN",
     intl: {
       formatMessage: (

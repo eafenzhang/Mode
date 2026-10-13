@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   decodeCustomModelValue,
   encodeCustomModelValue,
-} from "../src/lib/zcodeCustomModelValue.js";
+} from "../src/lib/modeCustomModelValue.js";
 
-describe("ZCode custom model value", () => {
+describe("Mode custom model value", () => {
   it("编码并解码 provider/model 身份", () => {
     const value = encodeCustomModelValue("provider:a", "model/b");
     expect(decodeCustomModelValue(value)).toEqual({

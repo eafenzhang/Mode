@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
-import type { ConversationTelemetryFact } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationTelemetryFact } from "@zcode/shared/mode-protocol-v4";
 import { resolveWorkspaceTelemetryDetail, type IPlatformService } from "@zcode/shared";
 import { createConversationTelemetryService, type IServiceAccessor } from "@zcode/services";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";

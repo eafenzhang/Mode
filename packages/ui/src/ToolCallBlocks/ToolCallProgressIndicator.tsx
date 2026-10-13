@@ -1,5 +1,5 @@
-import type { ToolProgress } from "@zcode/shared/zcode-protocol-v4";
-import { toolProgressSchema } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolProgress } from "@mode/shared/mode-protocol-v4";
+import { toolProgressSchema } from "@mode/shared/mode-protocol-v4";
 
 export const TID_TOOL_CALL_PROGRESS = "tool-call-progress";
 

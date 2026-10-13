@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- ZCode task wrapper service 接口集中承载 app/runtime API，拆散会让替换阶段更难追踪。 */
 import type { Event } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
-import type { CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
+import type { CommandPayloadMap } from "@zcode/shared/mode-protocol-v4";
 import { createServiceDescriptor } from "#src/descriptors.js";
 import type {
   ModeImportSessionsResult,
@@ -291,7 +291,7 @@ export interface IZCodeTaskService {
     ownerId: string;
     botId: string;
     chatId: string;
-  }): Promise<import("@zcode/shared/zcode-protocol-v4").CommandAck>;
+  }): Promise<import("@zcode/shared/mode-protocol-v4").CommandAck>;
   submitBotGroupInput?(params: {
     workspacePath?: string;
     workspaceIdentity?: string;
@@ -302,7 +302,7 @@ export interface IZCodeTaskService {
     conversationQuotes?: import("@zcode/shared").ConversationSelectionText[];
     attachments?: ModePromptAttachment[];
     source: import("@zcode/shared").BotGroupInputSource;
-  }): Promise<import("@zcode/shared/zcode-protocol-v4").CommandAck>;
+  }): Promise<import("@zcode/shared/mode-protocol-v4").CommandAck>;
 
   /** 发送 prompt 到指定 task */
   sendPrompt(

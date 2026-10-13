@@ -2,12 +2,14 @@ import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } f
 import type { RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
+import { createDesktopPluginSandboxPlatform } from "./plugin-sandbox/desktopPluginSandboxPlatform.js";
 
 export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
   return {
     canSelectFilePath: true,
+    pluginSandbox: createDesktopPluginSandboxPlatform(),
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
     selectDirectory: () => window.mode.selectDirectory(),
@@ -15,6 +17,8 @@ export function createDesktopPlatform(options: {
     selectFiles: () => window.mode.selectFiles?.() ?? Promise.resolve([]),
     openDataRootImport: () => window.mode.openDataRootImport?.(),
     createTempTextAttachment: (payload) => window.mode.createTempTextAttachment(payload),
+    materializeWorkflowArtifactFile: (payload) =>
+      window.mode.materializeWorkflowArtifactFile(payload),
     onRemoteConnectionLog: (handler) => window.mode.onRemoteConnectionLog(handler),
     onRemoteSessionClosed: (handler) => window.mode.onRemoteSessionClosed(handler),
     onBotRemoteWorkspaceReconnected: (handler) =>
@@ -27,6 +31,13 @@ export function createDesktopPlatform(options: {
       window.mode.cancelPendingRemoteConnection?.(requestId) ?? Promise.resolve(),
     bindRemoteWorkspaceSessionContext: (context) =>
       window.mode.bindRemoteWorkspaceSessionContext?.(context) ?? Promise.resolve(),
+    startWebRemoteControl: (context) => window.mode.startWebRemoteControl(context),
+    refreshWebRemoteControlPairing: (context) =>
+      window.mode.refreshWebRemoteControlPairing(context),
+    stopWebRemoteControl: () => window.mode.stopWebRemoteControl(),
+    getWebRemoteControlStatus: () => window.mode.getWebRemoteControlStatus(),
+    onWebRemoteControlStatusChanged: (handler) =>
+      window.mode.onWebRemoteControlStatusChanged?.(handler) ?? (() => {}),
     disposeRemoteSession: (sessionId) => window.mode.disposeRemoteSession(sessionId),
     isDockerAvailable: () => window.mode.isDockerAvailable(),
     listWSLDistros: () => window.mode.listWSLDistros(),
@@ -86,15 +97,36 @@ export function createDesktopPlatform(options: {
     notifyRendererReady: () => window.mode.notifyRendererReady(),
     showTaskNotification: (payload) => window.mode.showTaskNotification(payload),
     syncWindowTabs: (paths) => window.mode.syncWindowTabs(paths),
+    syncWebRemoteControlWorkspaces: (workspaces) =>
+      window.mode.syncWebRemoteControlWorkspaces?.(workspaces),
+    syncWebRemoteControlTasks: (tasks) => window.mode.syncWebRemoteControlTasks?.(tasks),
+    onWebRemoteControlReconnectWorkspace: (handler) =>
+      window.mode.onWebRemoteControlReconnectWorkspace?.(handler) ?? (() => {}),
     syncWindowUnreadCount: (count) => window.mode.syncWindowUnreadCount(count),
     syncActiveTaskSession: (sessionId) => window.mode.syncActiveTaskSession(sessionId),
     syncAppSettings: (patch) => window.mode.syncAppSettings?.(patch),
+    // 桥缺失（旧 preload 升级窗口）时按 supported 兜底，与 Windows 现状一致，设置开关可用。
+    getCloseToTrayCapability: () =>
+      window.mode.getCloseToTrayCapability?.() ??
+      Promise.resolve({ supported: true, gnomeLikeWithoutTray: false }),
     setShortcutRecordingActive: (active) => window.mode.setShortcutRecordingActive?.(active),
     onFocusTab: (handler) => window.mode.onFocusTab(handler),
     onNewTab: (handler) => window.mode.onNewTab(handler),
     onCloseActiveContextRequest: (handler) =>
       window.mode.onCloseActiveContextRequest?.(handler) ?? (() => {}),
     onOpenBrowserUrl: (handler) => window.mode.onOpenBrowserUrl?.(handler) ?? (() => {}),
+    onEmbeddedBrowserPermissionPrompt: (handler) =>
+      window.mode.onEmbeddedBrowserPermissionPrompt?.(handler) ?? (() => {}),
+    resolveEmbeddedBrowserPermissionPrompt: (request) =>
+      window.mode.resolveEmbeddedBrowserPermissionPrompt?.(request),
+    getEmbeddedBrowserSitePermissions: () =>
+      window.mode.getEmbeddedBrowserSitePermissions?.() ?? Promise.resolve({}),
+    setEmbeddedBrowserSitePermission: (request) =>
+      window.mode.setEmbeddedBrowserSitePermission?.(request) ?? Promise.resolve({}),
+    clearEmbeddedBrowserSitePermissions: () =>
+      window.mode.clearEmbeddedBrowserSitePermissions?.() ?? Promise.resolve({}),
+    resetEmbeddedBrowserSitePermission: (request) =>
+      window.mode.resetEmbeddedBrowserSitePermission?.(request) ?? Promise.resolve({}),
     onBrowserViewScreenshotSurfacePrepare: (handler) =>
       window.mode.onBrowserViewScreenshotSurfacePrepare?.(handler) ?? (() => {}),
     onBrowserViewScreenshotSurfaceRelease: (handler) =>

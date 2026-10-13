@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import { countWorkspaceUnreadTasks } from "@/lib/unreadTaskCount.js";
-import { getTaskMeta, getTaskUnreadIndicator } from "@/store/zcodeSessionStore.js";
-import { getDefaultWorkspaceState } from "@/store/zcodeSessionStoreTypes.js";
+import { getTaskMeta, getTaskUnreadIndicator } from "@/store/modeSessionStore.js";
+import { getDefaultWorkspaceState } from "@/store/modeSessionStoreTypes.js";
 
-function createTaskMeta(overrides: Partial<ZCodeTaskMeta> = {}): ZCodeTaskMeta {
+function createTaskMeta(overrides: Partial<ModeTaskMeta> = {}): ModeTaskMeta {
   return {
     taskId: "task-unread",
     traceId: "trace-unread",

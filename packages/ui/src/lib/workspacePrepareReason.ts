@@ -1,4 +1,4 @@
-import type { ModeProvider } from "@zcode/shared";
+import type { ModeProvider } from "@mode/shared";
 
 type DraftWorkspacePrepareReason = "mount" | "select-provider";
 type WorkspacePrepareReason =

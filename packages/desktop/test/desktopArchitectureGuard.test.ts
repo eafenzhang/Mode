@@ -49,8 +49,8 @@ describe("detectArchitectureMismatch", () => {
 
 describe("resolveArchitectureDownloadUrl", () => {
   it("按语言分流到官网下载页", () => {
-    expect(resolveArchitectureDownloadUrl("zh-CN")).toBe("https://zcode.z.ai/cn");
-    expect(resolveArchitectureDownloadUrl("en-US")).toBe("https://zcode.z.ai/en");
+    expect(resolveArchitectureDownloadUrl("zh-CN")).toBe("https://mode.z.ai/cn");
+    expect(resolveArchitectureDownloadUrl("en-US")).toBe("https://mode.z.ai/en");
   });
 });
 

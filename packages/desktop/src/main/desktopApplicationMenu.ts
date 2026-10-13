@@ -21,7 +21,8 @@ import {
   HELP_TOGGLE_DEV_TOOLS_MENU_ID,
 } from "./desktopCommandHandlers.js";
 
-const HELP_MODE_ENDPOINT_PRODUCTION_MENU_ID = "help.mode-endpoint.production";
+export const HELP_MODE_ENDPOINT_PRODUCTION_MENU_ID = "help.mode-endpoint.production";
+export const HELP_MODE_ENDPOINT_TEST_MENU_ID = "help.mode-endpoint.test";
 
 export function getDesktopMenuLabel(
   locale: Locale,
@@ -307,6 +308,14 @@ function buildApplicationMenuTemplate(options: {
                       void options.executeDesktopCommand(
                         DesktopCommandIds.SetModeEndpointProduction,
                       ),
+                  },
+                  {
+                    id: HELP_MODE_ENDPOINT_TEST_MENU_ID,
+                    label: getLabel(desktopMenuMessageIds.helpModeEndpointTest),
+                    type: "radio" as const,
+                    checked: options.modeEndpointSelection === "test",
+                    click: () =>
+                      void options.executeDesktopCommand(DesktopCommandIds.SetModeEndpointTest),
                   },
                   { type: "separator" as const },
                   {

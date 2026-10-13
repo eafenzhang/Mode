@@ -1,10 +1,10 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Emitter } from "@zcode/rpc";
-import type { IServiceAccessor } from "@zcode/services";
-import type { IPlatformService } from "@zcode/shared";
-import type { ConversationTelemetryFact } from "@zcode/shared/zcode-protocol-v4";
+import { Emitter } from "@mode/rpc";
+import type { IServiceAccessor } from "@mode/services";
+import type { IPlatformService } from "@mode/shared";
+import type { ConversationTelemetryFact } from "@mode/shared/mode-protocol-v4";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import {
   ConversationTelemetryWorkspaceAttachment,
@@ -97,7 +97,7 @@ function createServices(): ServiceHarness {
   const onFact = vi.fn(() => facts.event);
   return {
     services: {
-      zcodeAgentService: {
+      modeAgentService: {
         onDynamicConversationTelemetryFact: onFact,
       },
     } as unknown as IServiceAccessor,

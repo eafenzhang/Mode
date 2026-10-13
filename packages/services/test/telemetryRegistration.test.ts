@@ -44,9 +44,9 @@ describe("telemetry service registration", () => {
     ]);
 
     const services = createLocalServices({
-      zcodeBuiltinProviderConfigFilePath: resolve(
+      modeBuiltinProviderConfigFilePath: resolve(
         import.meta.dirname,
-        "../../../config/provider/zcode-builtin.json",
+        "../../../config/provider/mode-builtin.json",
       ),
     });
     const telemetryDescriptor = createServiceDescriptor<{

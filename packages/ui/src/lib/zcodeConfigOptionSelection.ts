@@ -1,4 +1,4 @@
-import type { ModeConfigOption } from "@zcode/shared";
+import type { ModeConfigOption } from "@mode/shared";
 
 function readCurrentSelectValue(
   options: readonly ModeConfigOption[],

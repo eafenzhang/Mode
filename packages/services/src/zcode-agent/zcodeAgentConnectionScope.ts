@@ -14,7 +14,7 @@ import {
   type SessionsIndexTopicWireCandidate,
   type V4ConnectionFlowState,
   type WorkspaceConfigTopicWireCandidate,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@zcode/shared/mode-protocol-v4";
 import type {
   IZCodeAgentService,
   ZCodeAgentConversationResyncParams,

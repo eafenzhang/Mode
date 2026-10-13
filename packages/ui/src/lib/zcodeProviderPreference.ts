@@ -2,15 +2,15 @@ import {
   normalizeAgentProviderToModeAgent,
   MODE_AGENT_PROVIDER,
   type ModeProvider,
-} from "@zcode/shared";
-import { ZCODE_AGENT_PROVIDERS } from "./zcodeProviders.js";
+} from "@mode/shared";
+import { MODE_AGENT_PROVIDERS } from "./modeProviders.js";
 
 interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
-export const LAST_SELECTED_AGENT_PROVIDER_STORAGE_KEY = "zcode-last-agent-provider";
+export const LAST_SELECTED_AGENT_PROVIDER_STORAGE_KEY = "mode-last-agent-provider";
 
 function getBrowserStorage(): StorageLike | null {
   if (typeof window === "undefined") {
@@ -25,7 +25,7 @@ function getBrowserStorage(): StorageLike | null {
 }
 
 function isAgentProvider(value: unknown): value is ModeProvider {
-  return typeof value === "string" && ZCODE_AGENT_PROVIDERS.includes(value as ModeProvider);
+  return typeof value === "string" && MODE_AGENT_PROVIDERS.includes(value as ModeProvider);
 }
 
 export function readLastSelectedAgentProvider(storage: StorageLike | null = getBrowserStorage()): ModeProvider | null {
@@ -34,7 +34,7 @@ export function readLastSelectedAgentProvider(storage: StorageLike | null = getB
     return MODE_AGENT_PROVIDER;
   }
 
-  // Bugfix: 单 ZCode Agent 迁移后，旧本地存储里已移除的第三方 provider 值不能再参与首屏预热。
+  // Bugfix: 单 Mode Agent 迁移后，旧本地存储里已移除的第三方 provider 值不能再参与首屏预热。
   // 否则 UI 会短暂以旧 provider 作为事实源发起 prepare/create，和 agent server 的 glm 状态产生竞态。
   return normalizeAgentProviderToModeAgent(rawValue);
 }
@@ -43,7 +43,7 @@ export function persistLastSelectedAgentProvider(
   provider: ModeProvider,
   storage: StorageLike | null = getBrowserStorage(),
 ) {
-  // Bugfix: 迁移到单 ZCode Agent 后，旧本地存储里可能还保存已移除的第三方 provider。
+  // Bugfix: 迁移到单 Mode Agent 后，旧本地存储里可能还保存已移除的第三方 provider。
   // 如果继续照读，草稿预热和首发 createTask 会在 UI 层短暂走错 provider。这里统一收敛到 glm。
   storage?.setItem(
     LAST_SELECTED_AGENT_PROVIDER_STORAGE_KEY,

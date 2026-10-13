@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import type { IChannel } from "@zcode/rpc";
-import { readTopicResourceFromRelay } from "../src/zcode-agent/topicResourceRelayClient.js";
-import { TOPIC_RESOURCE_RELAY_CHUNK_BYTES } from "@zcode/shared";
+import type { IChannel } from "@mode/rpc";
+import { readTopicResourceFromRelay } from "../src/mode-agent/topicResourceRelayClient.js";
+import { TOPIC_RESOURCE_RELAY_CHUNK_BYTES } from "@mode/shared";
 
 const request = {
   requestId: "r",

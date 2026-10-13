@@ -2,47 +2,47 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { materializeBundledZCodeBuiltinProviderConfig } from "../src/bundledZCodeBuiltinProviderConfig.js";
+import { materializeBundledModeBuiltinProviderConfig } from "../src/bundledModeBuiltinProviderConfig.js";
 
-describe("materializeBundledZCodeBuiltinProviderConfig", () => {
+describe("materializeBundledModeBuiltinProviderConfig", () => {
   const tempDirs: string[] = [];
 
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
-  it("在环境固定路径物化 ZCode Built-in Provider Config，并复用相同内容", async () => {
-    const runtimeRoot = await mkdtemp(join(tmpdir(), "zcode-remote-provider-config-"));
+  it("在环境固定路径物化 Mode Built-in Provider Config，并复用相同内容", async () => {
+    const runtimeRoot = await mkdtemp(join(tmpdir(), "mode-remote-provider-config-"));
     tempDirs.push(runtimeRoot);
     const content = emptyRelease(1);
 
-    const firstPath = await materializeBundledZCodeBuiltinProviderConfig({
+    const firstPath = await materializeBundledModeBuiltinProviderConfig({
       environmentConfigRoot: runtimeRoot,
       content,
     });
-    const secondPath = await materializeBundledZCodeBuiltinProviderConfig({
+    const secondPath = await materializeBundledModeBuiltinProviderConfig({
       environmentConfigRoot: runtimeRoot,
       content,
     });
 
     expect(secondPath).toBe(firstPath);
     expect(firstPath).toBe(
-      join(runtimeRoot, "runtime", "provider", "bundled", "zcode-builtin.json"),
+      join(runtimeRoot, "runtime", "provider", "bundled", "mode-builtin.json"),
     );
     await expect(readFile(firstPath, "utf8")).resolves.toBe(`${content}\n`);
   });
 
   it("内容变化时在固定路径替换资源副本", async () => {
-    const runtimeRoot = await mkdtemp(join(tmpdir(), "zcode-remote-provider-config-"));
+    const runtimeRoot = await mkdtemp(join(tmpdir(), "mode-remote-provider-config-"));
     tempDirs.push(runtimeRoot);
     const firstContent = emptyRelease(1);
     const secondContent = emptyRelease(2);
 
-    const firstPath = await materializeBundledZCodeBuiltinProviderConfig({
+    const firstPath = await materializeBundledModeBuiltinProviderConfig({
       environmentConfigRoot: runtimeRoot,
       content: firstContent,
     });
-    const secondPath = await materializeBundledZCodeBuiltinProviderConfig({
+    const secondPath = await materializeBundledModeBuiltinProviderConfig({
       environmentConfigRoot: runtimeRoot,
       content: secondContent,
     });
@@ -52,17 +52,17 @@ describe("materializeBundledZCodeBuiltinProviderConfig", () => {
   });
 
   it("发现损坏资源副本时从有效随包资源重建", async () => {
-    const runtimeRoot = await mkdtemp(join(tmpdir(), "zcode-remote-provider-config-"));
+    const runtimeRoot = await mkdtemp(join(tmpdir(), "mode-remote-provider-config-"));
     tempDirs.push(runtimeRoot);
     const content = emptyRelease(1);
-    const filePath = await materializeBundledZCodeBuiltinProviderConfig({
+    const filePath = await materializeBundledModeBuiltinProviderConfig({
       environmentConfigRoot: runtimeRoot,
       content,
     });
     await writeFile(filePath, "corrupted", "utf8");
 
     await expect(
-      materializeBundledZCodeBuiltinProviderConfig({ environmentConfigRoot: runtimeRoot, content }),
+      materializeBundledModeBuiltinProviderConfig({ environmentConfigRoot: runtimeRoot, content }),
     ).resolves.toBe(filePath);
     await expect(readFile(filePath, "utf8")).resolves.toBe(`${content}\n`);
   });

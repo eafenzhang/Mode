@@ -107,7 +107,7 @@ interface AutomationRunRow {
   updated_at: number;
 }
 
-interface ClaimedManualAutomationRun {
+export interface ClaimedManualAutomationRun {
   automation: ModeAutomation;
   run: ModeAutomationRun;
 }

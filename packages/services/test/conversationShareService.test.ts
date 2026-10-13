@@ -5,15 +5,15 @@ import type {
   ConversationShareCapabilities,
   ConversationShareConfirmRequest,
   ConversationSharePreparationRequest,
-} from "@zcode/shared";
-import { ProxyChannel } from "@zcode/rpc";
+} from "@mode/shared";
+import { ProxyChannel } from "@mode/rpc";
 import {
-  ZCODE_ATTACHMENT_FAULT_CODES,
-  ZCodeAttachmentFaultError,
-} from "@zcode/shared/zcode-protocol-v4";
+  MODE_ATTACHMENT_FAULT_CODES,
+  ModeAttachmentFaultError,
+} from "@mode/shared/mode-protocol-v4";
 import { describe, expect, it, vi } from "vitest";
 
-import type { IZCodeAgentService } from "../src/zcode-agent/zcodeAgent.js";
+import type { IModeAgentService } from "../src/mode-agent/modeAgent.js";
 import {
   ConversationShareClientError,
   type ConversationShareHttpClient,
@@ -44,7 +44,7 @@ const capabilities: ConversationShareCapabilities = {
 
 const shareRecord = {
   share_code: "share-1",
-  share_url: "https://zcode.z.ai/cn/share/share-1",
+  share_url: "https://mode.z.ai/cn/share/share-1",
   access_mode: "public_importable" as const,
   expires_at: 20_000,
 };
@@ -241,7 +241,7 @@ function createDependencies(rows = completedRows(), pollOptions: PollOptions = {
       confirmRequests.push(request);
       return {
         share_code: "share-1",
-        share_url: "https://zcode.z.ai/cn/share/share-1",
+        share_url: "https://mode.z.ai/cn/share/share-1",
         access_mode: preparationRequests.at(-1)?.access_mode ?? "private",
         expires_at: 20_000,
       };
@@ -267,13 +267,13 @@ function createDependencies(rows = completedRows(), pollOptions: PollOptions = {
     })),
   };
   const service = new ConversationShareService({
-    zcodeAgentService: {
+    modeAgentService: {
       conversationRowsRangeV4,
       conversationFileChangesV4,
       conversationAttachmentReadV4,
       conversationAttachmentStatV4,
     } as unknown as Pick<
-      IZCodeAgentService,
+      IModeAgentService,
       | "conversationRowsRangeV4"
       | "conversationFileChangesV4"
       | "conversationAttachmentReadV4"
@@ -532,7 +532,7 @@ describe("ConversationShareService", () => {
       allowed_artifacts: [{ type: "text", extensions: ["txt"], mime_types: ["text/plain"] }],
     });
     conversationAttachmentStatV4.mockRejectedValueOnce(
-      new ZCodeAttachmentFaultError(ZCODE_ATTACHMENT_FAULT_CODES.shareStatTooLarge),
+      new ModeAttachmentFaultError(MODE_ATTACHMENT_FAULT_CODES.shareStatTooLarge),
     );
 
     const result = await service.preflight({
@@ -583,7 +583,7 @@ describe("ConversationShareService", () => {
       ...rows[1]!,
       text: [
         "~/Code/vibe/shows/deliver/晨报.pdf",
-        '::zcode-file-citation{path="/workspace/晨报.pdf" purpose="output"}',
+        '::mode-file-citation{path="/workspace/晨报.pdf" purpose="output"}',
         "build_mn/qa/layout-review.md",
         "out/one.mp4 out/two.mp4 out/three.mp4",
       ].join("\n"),
@@ -1120,7 +1120,7 @@ describe("ConversationShareService", () => {
         origin: "realUser",
         attachments: [
           {
-            ref: "/data/.zcode/tmp/paste-attachments/pasted.txt",
+            ref: "/data/.mode/tmp/paste-attachments/pasted.txt",
             fileName: "pasted.txt",
             mime: "text/plain",
             bytes: 11,
@@ -1165,8 +1165,8 @@ describe("ConversationShareService", () => {
     expect(userInput).toMatchObject({
       attachments: [
         expect.objectContaining({
-          ref: "zcode-artifact://share/share-input-artifact-1",
-          previewRef: "zcode-artifact://share/share-input-artifact-1",
+          ref: "mode-artifact://share/share-input-artifact-1",
+          previewRef: "mode-artifact://share/share-input-artifact-1",
         }),
       ],
     });
@@ -1434,7 +1434,7 @@ describe("ConversationShareService", () => {
     // 服务端固定下发 /cn/share/...（见 shareRecord），客户端按界面语言改写站点前缀。
     await expect(
       service.publish({ ...publishInput(), locale: "en-US" }, "publish-op-locale-en"),
-    ).resolves.toMatchObject({ share_url: "https://zcode.z.ai/share/share-1" });
+    ).resolves.toMatchObject({ share_url: "https://mode.z.ai/share/share-1" });
 
     await expect(
       service.publish({ ...publishInput(), locale: "zh-CN" }, "publish-op-locale-zh"),
@@ -1750,7 +1750,7 @@ describe("ConversationShareService", () => {
     );
     expect(confirmRequests.at(-1)?.projection.rows.at(-1)).toMatchObject({
       kind: "artifact",
-      ref: "zcode-artifact://share/share-artifact-1",
+      ref: "mode-artifact://share/share-artifact-1",
     });
   });
 
@@ -1956,7 +1956,7 @@ describe("ConversationShareService", () => {
   it.each([
     ["data:text/plain;base64,YQ==", "unsafe_structure"],
     ["file:///tmp/report.html", "unsafe_structure"],
-    ["zcode-artifact://share/report", "artifact_protocol_not_ready"],
+    ["mode-artifact://share/report", "artifact_protocol_not_ready"],
   ] as const)("rejects unsupported local reference %s", async (text, kind) => {
     const rows = completedRows();
     rows[1] = { ...rows[1], kind: "assistantText", text, state: "complete" };
@@ -2036,7 +2036,7 @@ describe("ConversationShareService", () => {
       expires_at: 20_000,
       share: {
         share_code: "existing-share",
-        share_url: "https://zcode.z.ai/cn/share/existing-share",
+        share_url: "https://mode.z.ai/cn/share/existing-share",
         access_mode: "public_importable",
         expires_at: 20_000,
       },
@@ -2057,7 +2057,7 @@ describe("ConversationShareService", () => {
       expires_at: 20_000,
       share: {
         share_code: "existing-share-locale",
-        share_url: "https://zcode.z.ai/cn/share/existing-share-locale",
+        share_url: "https://mode.z.ai/cn/share/existing-share-locale",
         access_mode: "public_importable",
         expires_at: 20_000,
       },
@@ -2066,7 +2066,7 @@ describe("ConversationShareService", () => {
     await expect(
       service.publish({ ...publishInput(), locale: "en-US" }, "publish-op-confirmed-locale"),
     ).resolves.toMatchObject({
-      share_url: "https://zcode.z.ai/share/existing-share-locale",
+      share_url: "https://mode.z.ai/share/existing-share-locale",
     });
   });
 
@@ -2093,7 +2093,7 @@ describe("ConversationShareService", () => {
       expires_at: 20_000,
       share: {
         share_code: "existing-share",
-        share_url: "https://zcode.z.ai/cn/share/existing-share",
+        share_url: "https://mode.z.ai/cn/share/existing-share",
         access_mode: "public_importable",
         expires_at: 20_000,
       },

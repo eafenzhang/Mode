@@ -4,7 +4,7 @@ import {
   resolveWebRemoteControlWorkspaceKey,
   type WebRemoteControlMobileNavigationIntent,
   type WebRemoteControlWorkspaceListResult,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   WebRemoteControlMobileTaskHome,
@@ -22,7 +22,7 @@ import { useWebRemoteControlTerminalTransportState } from "@/webRemoteControlTer
 type WebRemoteControlMobilePage = "home" | "chat";
 
 interface WebRemoteControlMobileHistoryState {
-  zcodeMobilePage?: WebRemoteControlMobilePage;
+  modeMobilePage?: WebRemoteControlMobilePage;
 }
 
 export function isWebRemoteControlMobileChatHistoryState(
@@ -31,7 +31,7 @@ export function isWebRemoteControlMobileChatHistoryState(
   return (
     typeof state === "object" &&
     state !== null &&
-    (state as WebRemoteControlMobileHistoryState).zcodeMobilePage === "chat"
+    (state as WebRemoteControlMobileHistoryState).modeMobilePage === "chat"
   );
 }
 
@@ -44,7 +44,7 @@ function pushWebRemoteControlMobileChatHistory() {
     return;
   }
 
-  window.history.pushState({ zcodeMobilePage: "chat" }, "");
+  window.history.pushState({ modeMobilePage: "chat" }, "");
 }
 
 function resolveInitialWebRemoteControlMobilePage(

@@ -33,7 +33,7 @@ export function ModeStartupLogoBadge({ animated = true }: { animated?: boolean }
   );
 }
 
-function ModeStartupLogo({
+export function ModeStartupLogo({
   className,
   animated = true,
 }: {

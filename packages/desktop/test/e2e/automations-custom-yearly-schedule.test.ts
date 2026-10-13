@@ -16,7 +16,7 @@ import {
   TID_AUTOMATIONS_LIST,
   TID_AUTOMATIONS_OPEN,
   testId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   clearAppData,
   clickTestIdByDom,

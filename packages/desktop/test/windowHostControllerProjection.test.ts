@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import {
   CONTROLLER_TASKS_INDEX_TOPIC,
   CONTROLLER_WORKSPACES_TOPIC,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@mode/shared/mode-protocol-v4";
 import { createWindowHostControllerProjection } from "../src/host/windowHostControllerProjection.js";
 
 function taskMeta(params: {
@@ -12,7 +12,7 @@ function taskMeta(params: {
   workspaceIdentity?: string;
   title?: string;
   updatedAt?: number;
-}): ZCodeTaskMeta {
+}): ModeTaskMeta {
   return {
     taskId: params.taskId,
     traceId: `trace-${params.taskId}`,

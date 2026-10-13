@@ -12,8 +12,8 @@ describe("codexConfigToml", () => {
           wire_api: "responses",
           requires_openai_auth: true,
           http_headers: {
-            "User-Agent": "ZCode/unknown",
-            "HTTP-Referer": "https://zcode.z.ai",
+            "User-Agent": "Mode/unknown",
+            "HTTP-Referer": "https://mode.z.ai",
             "X-Title": "Z Code@electron",
           },
         },
@@ -30,8 +30,8 @@ describe("codexConfigToml", () => {
       model_providers: {
         OpenAI: {
           http_headers: {
-            "User-Agent": "ZCode/unknown",
-            "HTTP-Referer": "https://zcode.z.ai",
+            "User-Agent": "Mode/unknown",
+            "HTTP-Referer": "https://mode.z.ai",
             "X-Title": "Z Code@electron",
           },
         },
@@ -76,8 +76,8 @@ describe("codexConfigToml", () => {
             },
           },
           http_headers: {
-            "User-Agent": "ZCode/unknown",
-            "HTTP-Referer": "https://zcode.z.ai",
+            "User-Agent": "Mode/unknown",
+            "HTTP-Referer": "https://mode.z.ai",
             "X-Title": "Z Code@electron",
           },
         },
@@ -101,8 +101,8 @@ describe("codexConfigToml", () => {
 
     expect(parsed.model_providers?.custom?.query_params?.http_headers).toBeUndefined();
     expect(parsed.model_providers?.custom?.http_headers).toMatchObject({
-      "User-Agent": "ZCode/unknown",
-      "HTTP-Referer": "https://zcode.z.ai",
+      "User-Agent": "Mode/unknown",
+      "HTTP-Referer": "https://mode.z.ai",
       "X-Title": "Z Code@electron",
     });
   });

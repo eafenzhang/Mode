@@ -9,7 +9,7 @@ import { createSettingsTestServices } from "./lib/settingsTestServices.js";
 const capturedHeaderHelp = vi.hoisted(() => {
   const screenshot = {
     dataBase64: "base64-image",
-    filename: "zcode-error-2026-06-17.png",
+    filename: "mode-error-2026-06-17.png",
     contentType: "image/png",
     size: 12,
   };
@@ -30,7 +30,7 @@ const capturedHeaderHelp = vi.hoisted(() => {
 });
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     intl: {
       formatMessage: ({ id }: { id: string }) => id,
     },
@@ -302,7 +302,7 @@ describe("WorkspaceHeaderActionSection", () => {
     );
     expect(capturedHeaderHelp.openFeatureRequest).toHaveBeenCalledTimes(1);
     expect(capturedHeaderHelp.openCommunity).toHaveBeenCalledTimes(1);
-    expect(capturedHeaderHelp.openExternal).toHaveBeenCalledWith("https://zcode.z.ai/docs");
+    expect(capturedHeaderHelp.openExternal).toHaveBeenCalledWith("https://mode.z.ai/docs");
     expect(capturedHeaderHelp.exportLogs).not.toHaveBeenCalled();
   });
 
@@ -344,7 +344,7 @@ describe("WorkspaceHeaderActionSection", () => {
       host: "jumpserver.example.com",
       port: 2222,
       username: "asset01@root@192.168.100.166",
-      sshConfigAlias: "zcode",
+      sshConfigAlias: "mode",
     };
 
     renderToStaticMarkup(

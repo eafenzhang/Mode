@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { BotsStateFile } from "@zcode/shared";
+import type { BotsStateFile } from "@mode/shared";
 import * as f from "./botsService.fixtures.js";
 
 const actor = {
@@ -69,7 +69,7 @@ function setup(locale: "zh-CN" | "en-US" = "zh-CN", remote = true) {
   vi.stubGlobal("fetch", fetch);
   const service = f.createBotsService({
     repo: repo as never,
-    zcodeTaskService: taskService,
+    modeTaskService: taskService,
     broadcastService,
     modelSelectionService,
     credentialService: f.createCredentialService({ "secret-1": "secret" }),

@@ -26,7 +26,7 @@ import {
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   type IServiceAccessor,
-} from "@zcode/services";
+} from "@mode/services";
 import {
   createSettingService,
   createBroadcastService,
@@ -37,8 +37,8 @@ import {
   createClientScenesService,
   createSettingsSyncService,
   createMediaPreviewService,
-} from "@zcode/services/node";
-import type { ApiClient } from "@zcode/shared";
+} from "@mode/services/node";
+import type { ApiClient } from "@mode/shared";
 
 export function createRemoteConnectionServiceCollection(params: {
   clientConfigService: IClientConfigService;
@@ -46,8 +46,8 @@ export function createRemoteConnectionServiceCollection(params: {
   parentPort: Parameters<typeof createBroadcastService>[0];
   credentialService: ICredentialService;
   apiClient: ApiClient;
-  remoteZCodeTaskService: IModeTaskService;
-  remoteZCodeSessionService: IModeSessionService;
+  remoteModeTaskService: IModeTaskService;
+  remoteModeSessionService: IModeSessionService;
   promptAttachmentTransferService: IPromptAttachmentTransferService;
 }): ServiceCollection {
   const handleOAuthProviderLogout = createOAuthProviderLogoutHandler({
@@ -72,9 +72,9 @@ export function createRemoteConnectionServiceCollection(params: {
       .register(ISettingService, createSettingService())
       .register(ICredentialService, params.credentialService)
       .register(IBroadcastService, createBroadcastService(params.parentPort))
-      .register(IModeTaskService, params.remoteZCodeTaskService)
-      .register(IModeAgentService, params.connectionServices.zcodeAgentService)
-      .register(IModeSessionService, params.remoteZCodeSessionService)
+      .register(IModeTaskService, params.remoteModeTaskService)
+      .register(IModeAgentService, params.connectionServices.modeAgentService)
+      .register(IModeSessionService, params.remoteModeSessionService)
       .register(IPromptAttachmentTransferService, params.promptAttachmentTransferService)
       .register(IFileWatcherService, params.connectionServices.fileWatcherService)
       .register(

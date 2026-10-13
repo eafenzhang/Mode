@@ -1,4 +1,4 @@
-import type { FeedbackTicketStatus } from "@zcode/shared";
+import type { FeedbackTicketStatus } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

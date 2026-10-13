@@ -9,7 +9,7 @@ import {
 } from "@/settings/model-provider-section/CodingPlanStatusMeta.js";
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     locale: "zh-CN",
     intl: {
       formatMessage: ({ id }: { id: string }, values?: Record<string, string>) =>

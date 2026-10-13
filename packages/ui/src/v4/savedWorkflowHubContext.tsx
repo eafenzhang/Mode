@@ -9,7 +9,7 @@
 // 「中枢在哪」。没有 provider（手机远控壳、单测、静态回放）时芯片只是文字、启动不切页——
 // 手机远控壳本来就不提供中枢。
 import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
-import type { ModeSavedWorkflowScope } from "@zcode/shared";
+import type { ModeSavedWorkflowScope } from "@mode/shared";
 import type { SavedWorkflowLaunchTarget } from "@/settings/saved-workflows/useSavedWorkflowLauncher.js";
 
 export interface SavedWorkflowHubTarget {

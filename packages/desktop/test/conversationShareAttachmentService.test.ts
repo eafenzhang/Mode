@@ -1,5 +1,5 @@
-import { Event } from "@zcode/rpc";
-import { conversationShareConnectionScopeFactory } from "@zcode/services/node";
+import { Event } from "@mode/rpc";
+import { conversationShareConnectionScopeFactory } from "@mode/services/node";
 import { describe, expect, it, vi } from "vitest";
 import { scopeConversationShareServiceForAttachment } from "../src/host/conversationShareAttachmentService.js";
 

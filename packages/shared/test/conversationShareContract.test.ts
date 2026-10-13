@@ -19,7 +19,7 @@ import {
   localizeConversationShareUrl,
   parseConversationSharePathname,
 } from "../src/conversation-share.js";
-import { sharedContextImportStateSchema } from "../src/zcode-protocol-v4/shared-context-import.js";
+import { sharedContextImportStateSchema } from "../src/mode-protocol-v4/shared-context-import.js";
 
 const SHA_256 = "a".repeat(64);
 
@@ -54,7 +54,7 @@ const artifactDescriptor = {
   producer_product_turn_id: "product-turn-1",
   artifact_version: 1,
   state: "current",
-  ref: "zcode-artifact://share/artifact-public-id",
+  ref: "mode-artifact://share/artifact-public-id",
   artifact_type: "pptx",
   display_name: "季度报告.pptx",
   original_path: "/workspace/output/季度报告.pptx",
@@ -80,24 +80,24 @@ describe("conversation share API revision 23 contract", () => {
   });
 
   it("把分享链接改写到目标语言站点，且不改动 code 段", () => {
-    expect(localizeConversationShareUrl("https://zcode.z.ai/cn/share/abc", "en-US")).toBe(
-      "https://zcode.z.ai/share/abc",
+    expect(localizeConversationShareUrl("https://mode.z.ai/cn/share/abc", "en-US")).toBe(
+      "https://mode.z.ai/share/abc",
     );
-    expect(localizeConversationShareUrl("https://zcode.z.ai/share/abc", "zh-CN")).toBe(
-      "https://zcode.z.ai/cn/share/abc",
+    expect(localizeConversationShareUrl("https://mode.z.ai/share/abc", "zh-CN")).toBe(
+      "https://mode.z.ai/cn/share/abc",
     );
     // 已经是目标语言时保持原样，端口与 query 不受影响。
     expect(
-      localizeConversationShareUrl("https://zcode.z.ai:8443/cn/share/a.b~c?x=1", "zh-CN"),
-    ).toBe("https://zcode.z.ai:8443/cn/share/a.b~c?x=1");
+      localizeConversationShareUrl("https://mode.z.ai:8443/cn/share/a.b~c?x=1", "zh-CN"),
+    ).toBe("https://mode.z.ai:8443/cn/share/a.b~c?x=1");
   });
 
   it("形状不认识的链接原样返回，绝不猜着改", () => {
     // 服务端将来若换 URL 形状或独立域名，这里必须安静地不作为而不是改错。
     for (const url of [
-      "https://zcode.z.ai/s/abc",
-      "https://zcode.z.ai/cn/share/abc/extra",
-      "https://zcode.z.ai/cn/share",
+      "https://mode.z.ai/s/abc",
+      "https://mode.z.ai/cn/share/abc/extra",
+      "https://mode.z.ai/cn/share",
       "not-a-url",
       "",
     ]) {
@@ -116,12 +116,12 @@ describe("conversation share API revision 23 contract", () => {
     expect(
       sharedContextImportStateSchema.safeParse({
         ...base,
-        shareUrl: "https://zcode.z.ai/cn/share/abc",
+        shareUrl: "https://mode.z.ai/cn/share/abc",
       }).success,
     ).toBe(true);
     const localized = sharedContextImportStateSchema.safeParse({
       ...base,
-      shareUrl: "https://zcode.z.ai/share/abc",
+      shareUrl: "https://mode.z.ai/share/abc",
     });
     // 英文站路径只能作为 legacy { title } 形状通过，v2 形状（带 contextId/status）会被拒。
     expect(localized.success && "contextId" in localized.data).toBe(false);
@@ -385,7 +385,7 @@ describe("conversation share API revision 23 contract", () => {
       mimeType: "application/pdf",
       sizeBytes: 102_400,
       sha256: SHA_256,
-      ref: "zcode-artifact://share/artifact-public-id",
+      ref: "mode-artifact://share/artifact-public-id",
       state: "current",
     } as const;
 
@@ -514,7 +514,7 @@ describe("conversation share cross-version forward compatibility", () => {
       producer_product_turn_id: "product-turn-1",
       artifact_version: 1,
       state: "current",
-      ref: "zcode-artifact://share/artifact-1",
+      ref: "mode-artifact://share/artifact-1",
       artifact_type: "md",
       display_name: "report.md",
       extension: "md",
@@ -610,7 +610,7 @@ describe("conversation share cross-version forward compatibility", () => {
         mimeType: "text/csv",
         sizeBytes: 1,
         sha256: SHA_256,
-        ref: "zcode-artifact://share/a",
+        ref: "mode-artifact://share/a",
         state: "current",
       },
       "artifact",

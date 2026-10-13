@@ -1,11 +1,11 @@
 import { resolveWorkspaceKey } from "@mode/shared";
 
-interface HostWorkspaceTaskContext {
+export interface HostWorkspaceTaskContext {
   workspacePath: string;
   workspaceIdentity?: string;
 }
 
-interface HostWorkspaceTaskCountEvent extends HostWorkspaceTaskContext {
+export interface HostWorkspaceTaskCountEvent extends HostWorkspaceTaskContext {
   runningTaskCount: number;
 }
 

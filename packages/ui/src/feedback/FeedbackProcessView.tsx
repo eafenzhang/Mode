@@ -1,6 +1,6 @@
 import { ChevronLeft, Clock3, ListChecks } from "lucide-react";
-import type { FeedbackTicketDetail } from "@zcode/shared";
-import type { IFeedbackService } from "@zcode/services";
+import type { FeedbackTicketDetail } from "@mode/shared";
+import type { IFeedbackService } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
 import { FeedbackProgress } from "@/feedback/feedbackProgress.js";
 import { FeedbackSupplementComposer } from "@/feedback/FeedbackSupplementComposer.js";

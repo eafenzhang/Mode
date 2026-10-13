@@ -10,7 +10,7 @@ import type {
   ModeStreamEvent,
   ModeUsage,
 } from "@zcode/shared";
-import type { ConversationTelemetryFact } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationTelemetryFact } from "@zcode/shared/mode-protocol-v4";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import {
   reportChatErrorBannerTelemetry,

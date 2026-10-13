@@ -7,9 +7,22 @@
 /** 同一 workspace 内由 bot 侧发起的运行中回合并入上限。 */
 export const BOT_WORKSPACE_TURN_CONCURRENCY_CAP = 2;
 
+export interface WorkspaceTurnGateEnterOptions {
+  /**
+   * 首次因超限而挂起时同步回调一次（同一 taskId 只回调一次），用于向用户给出
+   * 「已排队」提示——此前该等待是完全静默的（docs/specs/bot-workspace-turn-admission.md 规则 6）。
+   * 契约：同步、不可抛、不阻塞准入；门本身不依赖消息发送。
+   */
+  onWait?: () => void;
+}
+
 export interface WorkspaceTurnGate {
   /** 获取槽位；超限时入该 workspace 的 FIFO 等待队列。同 taskId 幂等。 */
-  enter(workspaceKey: string, taskId: string): Promise<void>;
+  enter(
+    workspaceKey: string,
+    taskId: string,
+    options?: WorkspaceTurnGateEnterOptions,
+  ): Promise<void>;
   /** 释放槽位；未知/重复 taskId 为 no-op，并唤醒该 workspace 队首等待者。 */
   exit(taskId: string): void;
   /** 清空全部跟踪并唤醒所有等待者（进程收尾/对账用）。 */
@@ -28,6 +41,12 @@ export function createWorkspaceTurnGate(
   const limit = Math.max(1, cap);
   const workspaceByTaskId = new Map<string, string>();
   const waiters: Waiter[] = [];
+  /**
+   * 在途的 enter 结果（尚未拿到槽位）。重复 enter 同一 taskId 时返回同一个 Promise，
+   * 否则会为该 taskId 再压一个 waiter，而 exit 只唤醒其中一个——另一个永远挂着，
+   * 调用方的 await 不返回。
+   */
+  const pendingEnters = new Map<string, Promise<void>>();
 
   const count = (workspaceKey: string): number => {
     let total = 0;
@@ -49,22 +68,44 @@ export function createWorkspaceTurnGate(
   };
 
   return {
-    async enter(workspaceKey: string, taskId: string): Promise<void> {
+    enter(
+      workspaceKey: string,
+      taskId: string,
+      options?: WorkspaceTurnGateEnterOptions,
+    ): Promise<void> {
       if (workspaceByTaskId.has(taskId)) {
-        return;
+        return Promise.resolve();
       }
-      // 检查与登记之间没有 await：检查→入队→挂起在同一同步段完成，
-      // exit 只可能发生在我们挂起之后，不会出现「唤醒时等待者还没入队」的漏唤醒。
-      while (count(workspaceKey) >= limit) {
-        await new Promise<void>((resolve) => {
-          waiters.push({ workspaceKey, resolve });
-        });
-        // 被唤醒后重新检查计数：槽位可能已被同 workspace 的其他等待者抢走。
-        if (workspaceByTaskId.has(taskId)) {
-          return;
+      const inflight = pendingEnters.get(taskId);
+      if (inflight) {
+        // 已在等待：复用同一结果（含 onWait 只由首个调用者触发一次）。
+        return inflight;
+      }
+      let waitNotified = false;
+      const run = (async () => {
+        // 检查与登记之间没有 await：检查→入队→挂起在同一同步段完成，
+        // exit 只可能发生在我们挂起之后，不会出现「唤醒时等待者还没入队」的漏唤醒。
+        while (count(workspaceKey) >= limit) {
+          if (!waitNotified) {
+            waitNotified = true;
+            options?.onWait?.();
+          }
+          await new Promise<void>((resolve) => {
+            waiters.push({ workspaceKey, resolve });
+          });
+          // 被唤醒后重新检查计数：槽位可能已被同 workspace 的其他等待者抢走。
+          if (workspaceByTaskId.has(taskId)) {
+            return;
+          }
         }
-      }
-      workspaceByTaskId.set(taskId, workspaceKey);
+        workspaceByTaskId.set(taskId, workspaceKey);
+      })();
+      pendingEnters.set(taskId, run);
+      const clear = () => {
+        pendingEnters.delete(taskId);
+      };
+      void run.then(clear, clear);
+      return run;
     },
     exit(taskId: string): void {
       const workspaceKey = workspaceByTaskId.get(taskId);

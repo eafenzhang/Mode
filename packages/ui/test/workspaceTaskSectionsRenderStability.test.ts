@@ -1,7 +1,7 @@
 import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 
 const {
@@ -12,23 +12,23 @@ const {
   remoteWorkspaceSessionState,
   stableBaseServices,
   stableIntl,
-  zcodeSessionStoreState,
+  modeSessionStoreState,
 } = vi.hoisted(() => ({
   capturedTaskItemProps: [] as Array<Record<string, unknown>>,
   globalTaskListResult: {
     hasMore: false,
-    items: [] as ZCodeTaskMeta[],
+    items: [] as ModeTaskMeta[],
     loading: false,
     syncingRemoteWorkspaces: false,
     total: 0,
   },
   remotePinnedState: {
-    itemsByWorkspaceKey: {} as Record<string, ZCodeTaskMeta[]>,
+    itemsByWorkspaceKey: {} as Record<string, ModeTaskMeta[]>,
     loadingByWorkspaceKey: {} as Record<string, boolean>,
   },
   remoteTimelineState: {
     hasMoreByWorkspaceKey: {} as Record<string, boolean>,
-    itemsByWorkspaceKey: {} as Record<string, ZCodeTaskMeta[]>,
+    itemsByWorkspaceKey: {} as Record<string, ModeTaskMeta[]>,
     loadingByWorkspaceKey: {} as Record<string, boolean>,
     totalByWorkspaceKey: {} as Record<string, number>,
   },
@@ -38,7 +38,7 @@ const {
     sessionsById: {} as Record<string, unknown>,
   },
   stableBaseServices: {
-    zcodeTaskService: {
+    modeTaskService: {
       archiveTask: vi.fn(async () => null),
       renameTask: vi.fn(async () => null),
       setTaskPinned: vi.fn(async () => null),
@@ -48,7 +48,7 @@ const {
   stableIntl: {
     formatMessage: ({ id }: { id: string }) => id,
   },
-  zcodeSessionStoreState: {
+  modeSessionStoreState: {
     removeOptimisticTaskListItem: vi.fn(),
     removeTaskState: vi.fn(),
     setTaskUnreadIndicator: vi.fn(),
@@ -83,7 +83,7 @@ vi.mock("@/hooks/useWorkspaceServices.js", () => ({
 }));
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     intl: stableIntl,
     locale: "en",
   }),
@@ -92,7 +92,7 @@ vi.mock("@/i18n/IntlProvider.js", () => ({
 vi.mock("@/TaskListItem.js", () => ({
   MemoTaskItem: (props: Record<string, unknown>) => {
     capturedTaskItemProps.push(props);
-    return createElement("li", null, (props.task as ZCodeTaskMeta).title);
+    return createElement("li", null, (props.task as ModeTaskMeta).title);
   },
   TaskListItemContextMenuContent: () => null,
 }));
@@ -109,9 +109,9 @@ vi.mock("@/TaskRenameDialog.js", () => ({
   TaskRenameDialog: () => null,
 }));
 
-vi.mock("@/store/zcodeSessionStore.js", () => ({
-  useZCodeSessionStore: (selector: (state: Record<string, unknown>) => unknown) =>
-    selector(zcodeSessionStoreState),
+vi.mock("@/store/modeSessionStore.js", () => ({
+  useModeSessionStore: (selector: (state: Record<string, unknown>) => unknown) =>
+    selector(modeSessionStoreState),
 }));
 
 vi.mock("@/store/taskQueryCacheStore.js", () => ({
@@ -156,7 +156,7 @@ vi.mock("@/store/remoteWorkspaceSessionStore.js", () => ({
   ) => selector(remoteWorkspaceSessionState),
 }));
 
-function createTask(overrides: Partial<ZCodeTaskMeta> = {}): ZCodeTaskMeta {
+function createTask(overrides: Partial<ModeTaskMeta> = {}): ModeTaskMeta {
   return {
     createdAt: 1,
     mode: "default",
@@ -288,14 +288,14 @@ describe("workspace task section render stability", () => {
     remoteTimelineState.itemsByWorkspaceKey = {};
     remoteTimelineState.loadingByWorkspaceKey = {};
     remoteTimelineState.totalByWorkspaceKey = {};
-    stableBaseServices.zcodeTaskService.archiveTask.mockReset();
-    stableBaseServices.zcodeTaskService.renameTask.mockReset();
-    stableBaseServices.zcodeTaskService.setTaskPinned.mockReset();
-    stableBaseServices.zcodeTaskService.setTaskUnread.mockReset();
-    zcodeSessionStoreState.removeOptimisticTaskListItem.mockReset();
-    zcodeSessionStoreState.removeTaskState.mockReset();
-    zcodeSessionStoreState.setTaskUnreadIndicator.mockReset();
-    zcodeSessionStoreState.upsertOptimisticTaskListItem.mockReset();
+    stableBaseServices.modeTaskService.archiveTask.mockReset();
+    stableBaseServices.modeTaskService.renameTask.mockReset();
+    stableBaseServices.modeTaskService.setTaskPinned.mockReset();
+    stableBaseServices.modeTaskService.setTaskUnread.mockReset();
+    modeSessionStoreState.removeOptimisticTaskListItem.mockReset();
+    modeSessionStoreState.removeTaskState.mockReset();
+    modeSessionStoreState.setTaskUnreadIndicator.mockReset();
+    modeSessionStoreState.upsertOptimisticTaskListItem.mockReset();
     delete (globalThis as { document?: unknown }).document;
     delete (globalThis as { window?: unknown }).window;
     delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: unknown })

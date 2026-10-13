@@ -9,10 +9,10 @@ import {
   TID_WORKFLOW_CARD_RUN,
   TID_WORKFLOW_ACTION_MOVE,
   testId,
-  type ZCodeSavedWorkflowEntry,
-  type ZCodeSavedWorkflowRun,
-} from "@zcode/shared";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+  type ModeSavedWorkflowEntry,
+  type ModeSavedWorkflowRun,
+} from "@mode/shared";
+import { ModeIntlProvider } from "@/i18n/IntlProvider.js";
 import {
   SavedWorkflowCard,
   SavedWorkflowLastRunBadge,
@@ -24,17 +24,17 @@ afterEach(() => {
   cleanup();
 });
 
-function entry(overrides: Partial<ZCodeSavedWorkflowEntry> = {}): ZCodeSavedWorkflowEntry {
+function entry(overrides: Partial<ModeSavedWorkflowEntry> = {}): ModeSavedWorkflowEntry {
   return {
     name: "release-check",
     description: "跑测试、比对 changelog、准备发布说明。",
     scope: "project",
-    path: "/repo/.zcode/workflows/release-check.dwf.ts",
+    path: "/repo/.mode/workflows/release-check.dwf.ts",
     ...overrides,
   };
 }
 
-function run(overrides: Partial<ZCodeSavedWorkflowRun> = {}): ZCodeSavedWorkflowRun {
+function run(overrides: Partial<ModeSavedWorkflowRun> = {}): ModeSavedWorkflowRun {
   return {
     runId: "run-1",
     name: "release-check",
@@ -47,7 +47,7 @@ function run(overrides: Partial<ZCodeSavedWorkflowRun> = {}): ZCodeSavedWorkflow
 }
 
 function mount(node: ReactNode) {
-  return render(createElement(ZCodeIntlProvider, { initialLocale: "zh-CN" }, node));
+  return render(createElement(ModeIntlProvider, { initialLocale: "zh-CN" }, node));
 }
 
 describe("SavedWorkflowLastRunBadge", () => {

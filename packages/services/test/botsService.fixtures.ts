@@ -1,23 +1,23 @@
 /* eslint-disable max-lines -- Bot service 的共享测试桩集中维护协议、任务和模型 registry 能力。 */
 import { afterEach, vi } from "vitest";
 import type {
-  ZCodeConfigOption,
+  ModeConfigOption,
   BotsConfigFile,
   BotsStateFile,
   Locale,
   ModelSelection,
-  ZCodeTaskMode,
-  ZCodeSessionSettingsState,
-} from "@zcode/shared";
+  ModeTaskMode,
+  ModeSessionSettingsState,
+} from "@mode/shared";
 import {
-  ZCODE_MODEL_REASONING_SEPARATOR,
-  ZCODE_PROTOCOL_NAME,
-  ZCODE_PROTOCOL_VERSION,
+  MODE_MODEL_REASONING_SEPARATOR,
+  MODE_PROTOCOL_NAME,
+  MODE_PROTOCOL_VERSION,
   botsConfigFileSchema,
-} from "@zcode/shared";
+} from "@mode/shared";
 export { botsConfigFileSchema };
-import type { IZCodeSessionService } from "../src/zcode-session/zcodeSession.js";
-import type { IZCodeTaskService } from "../src/session/zcodeTaskService.js";
+import type { IModeSessionService } from "../src/mode-session/modeSession.js";
+import type { IModeTaskService } from "../src/session/modeTaskService.js";
 import type { IBroadcastService } from "../src/broadcast/broadcast.js";
 import type { ICredentialService } from "../src/credential/credential.js";
 import type { ISettingService } from "../src/setting/setting.js";
@@ -59,7 +59,7 @@ export function createMemoryRepo(config: BotsConfigFile, state?: BotsStateFile) 
   };
 }
 
-export function createLegacyTaskService(): IZCodeTaskService {
+export function createLegacyTaskService(): IModeTaskService {
   return {
     listTasks: vi.fn(async () => []),
     listDeletedTaskIds: vi.fn(async () => []),
@@ -116,7 +116,7 @@ export function createLegacyTaskService(): IZCodeTaskService {
     respondElicitation: vi.fn(async () => true),
     stopGeneration: vi.fn(async () => undefined),
     onDynamicStreamEvent: vi.fn(() => () => ({ dispose() {} })),
-  } as unknown as IZCodeTaskService;
+  } as unknown as IModeTaskService;
 }
 
 export function createCredentialService(values: Record<string, string> = {}): ICredentialService {
@@ -206,7 +206,7 @@ function parseModelSelectionForTest(value: string): ModelSelection {
   }
   const providerId = value.slice(0, separatorIndex);
   const rawModelId = value.slice(separatorIndex + 1);
-  const reasoningSeparatorIndex = rawModelId.indexOf(ZCODE_MODEL_REASONING_SEPARATOR);
+  const reasoningSeparatorIndex = rawModelId.indexOf(MODE_MODEL_REASONING_SEPARATOR);
   if (reasoningSeparatorIndex <= 0 || reasoningSeparatorIndex >= rawModelId.length - 1) {
     return { providerId, modelId: rawModelId };
   }
@@ -217,7 +217,7 @@ function parseModelSelectionForTest(value: string): ModelSelection {
   };
 }
 
-function normalizeZCodeModeForTest(value: unknown): ZCodeTaskMode {
+function normalizeModeModeForTest(value: unknown): ModeTaskMode {
   switch (value) {
     case "plan":
     case "build":
@@ -235,18 +235,18 @@ function normalizeZCodeModeForTest(value: unknown): ZCodeTaskMode {
 }
 
 function readSelectOption(
-  configOptions: readonly ZCodeConfigOption[],
+  configOptions: readonly ModeConfigOption[],
   category: string,
-): (ZCodeConfigOption & { type: "select" }) | undefined {
+): (ModeConfigOption & { type: "select" }) | undefined {
   return configOptions.find(
-    (option): option is ZCodeConfigOption & { type: "select" } =>
+    (option): option is ModeConfigOption & { type: "select" } =>
       option.type === "select" && (option.category === category || option.id === category),
   );
 }
 
-export function createZCodeSessionSettingsFromConfigOptions(
-  configOptions: readonly ZCodeConfigOption[] = [],
-): ZCodeSessionSettingsState {
+export function createModeSessionSettingsFromConfigOptions(
+  configOptions: readonly ModeConfigOption[] = [],
+): ModeSessionSettingsState {
   const modelOption = readSelectOption(configOptions, "model");
   const currentModelValue =
     typeof modelOption?.currentValue === "string"
@@ -283,17 +283,17 @@ export function createZCodeSessionSettingsFromConfigOptions(
         })) ?? [],
     },
     mode: {
-      current: normalizeZCodeModeForTest(modeOption?.currentValue),
+      current: normalizeModeModeForTest(modeOption?.currentValue),
     },
     permission: {
-      mode: normalizeZCodeModeForTest(modeOption?.currentValue),
+      mode: normalizeModeModeForTest(modeOption?.currentValue),
     },
   };
 }
 
-function createZCodeWorkspaceState(
-  settings: ZCodeSessionSettingsState = createZCodeSessionSettingsFromConfigOptions(),
-): ZCodeWorkspaceStateSnapshot {
+function createModeWorkspaceState(
+  settings: ModeSessionSettingsState = createModeSessionSettingsFromConfigOptions(),
+): ModeWorkspaceStateSnapshot {
   return {
     workspace: {
       workspacePath: "/tmp/workspace",
@@ -304,16 +304,16 @@ function createZCodeWorkspaceState(
   };
 }
 
-export function createZCodeSessionService(
-  settings: ZCodeSessionSettingsState = createZCodeSessionSettingsFromConfigOptions(),
-): IZCodeSessionService {
-  const workspaceState = createZCodeWorkspaceState(settings);
+export function createModeSessionService(
+  settings: ModeSessionSettingsState = createModeSessionSettingsFromConfigOptions(),
+): IModeSessionService {
+  const workspaceState = createModeWorkspaceState(settings);
   return {
     initializeWorkspace: vi.fn(async () => ({
       available: true,
       workspaceKey: workspaceState.workspace.workspaceKey,
-      protocolName: ZCODE_PROTOCOL_NAME,
-      protocolVersion: ZCODE_PROTOCOL_VERSION,
+      protocolName: MODE_PROTOCOL_NAME,
+      protocolVersion: MODE_PROTOCOL_VERSION,
       transportKind: "stdio",
     })),
     readWorkspacePresentation: vi.fn(async () => ({
@@ -325,28 +325,28 @@ export function createZCodeSessionService(
       applied: true,
       revision: "test-provider-registry",
     })),
-  } as unknown as IZCodeSessionService;
+  } as unknown as IModeSessionService;
 }
 
 export function createBotsService(
   deps: Omit<
     Parameters<typeof createBotsServiceImpl>[0],
-    "zcodeSessionService" | "zcodeTaskService"
+    "modeSessionService" | "modeTaskService"
   > & {
-    zcodeTaskService?: IZCodeTaskService;
-    /** 旧测试名保留为别名；真实注入的是 ZCode task service。 */
-    legacyTaskService?: IZCodeTaskService;
-    zcodeSessionService?: IZCodeSessionService;
+    modeTaskService?: IModeTaskService;
+    /** 旧测试名保留为别名；真实注入的是 Mode task service。 */
+    legacyTaskService?: IModeTaskService;
+    modeSessionService?: IModeSessionService;
   },
 ): ReturnType<typeof createBotsServiceImpl> {
   const {
     legacyTaskService,
-    zcodeTaskService: providedZCodeTaskService,
-    zcodeSessionService: _providedZCodeSessionService,
+    modeTaskService: providedModeTaskService,
+    modeSessionService: _providedModeSessionService,
     ...rest
   } = deps;
-  const zcodeTaskService =
-    providedZCodeTaskService ?? legacyTaskService ?? createLegacyTaskService();
+  const modeTaskService =
+    providedModeTaskService ?? legacyTaskService ?? createLegacyTaskService();
   const modelSelectionService =
     deps.modelSelectionService ??
     createModelSelectionService([{ id: "glm", name: "GLM", models: ["default"] }]);
@@ -365,12 +365,12 @@ export function createBotsService(
     remoteWorkspaceService: {
       isConnected: vi.fn(async () => true),
       ensureConnected: vi.fn(async () => ({ ok: true })),
-      getZCodeTaskService: vi.fn(async () => zcodeTaskService),
+      getModeTaskService: vi.fn(async () => modeTaskService),
       getModelSelectionService: vi.fn(async () => modelSelectionService),
     },
     modelSelectionService,
     ...rest,
-    zcodeTaskService,
+    modeTaskService,
   });
 }
 

@@ -1,8 +1,8 @@
 import { resolveModeRuntimeEnv } from "@mode/shared";
 
-type EffectiveNodeEnv = "development" | "production";
+export type EffectiveNodeEnv = "development" | "production";
 
-function resolveEffectiveNodeEnv(
+export function resolveEffectiveNodeEnv(
   env: Record<string, string | undefined> = process.env,
 ): EffectiveNodeEnv {
   const runtimeEnv = resolveModeRuntimeEnv(env);

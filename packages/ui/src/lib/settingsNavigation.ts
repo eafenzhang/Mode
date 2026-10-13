@@ -24,9 +24,9 @@ export type SettingsSectionId =
   | "automations"
   | "shortcuts";
 
-type SettingsUsageTabTarget = "app" | "codingPlan";
-type SettingsPluginTabTarget = "plugins" | "mcps" | "skills" | "commands";
-type SettingsPluginNavigationOrigin = "plugin-store";
+export type SettingsUsageTabTarget = "app" | "codingPlan";
+export type SettingsPluginTabTarget = "plugins" | "mcps" | "skills" | "commands";
+export type SettingsPluginNavigationOrigin = "plugin-store";
 
 const SETTINGS_SECTION_INTENT_KEY = "mode-settings-section-intent",
   SETTINGS_USAGE_TAB_INTENT_KEY = "mode-settings-usage-tab-intent",
@@ -47,7 +47,7 @@ const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
   "workspaceFileSearch",
 ]);
 
-interface SettingsSectionIntentEventDetail {
+export interface SettingsSectionIntentEventDetail {
   section: SettingsSectionId;
   pluginTab?: SettingsPluginTabTarget;
   pluginOrigin?: SettingsPluginNavigationOrigin;
@@ -113,7 +113,7 @@ function getLocalStorage(): Storage | null {
   }
 }
 
-function readLastSettingsSectionPreference(
+export function readLastSettingsSectionPreference(
   fallbackSection: SettingsSectionId = "general",
 ): SettingsSectionId {
   const storage = getLocalStorage();
@@ -293,7 +293,7 @@ function clearPendingSettingsSectionIntent(): void {
   }
 }
 
-function consumePendingSettingsSection(
+export function consumePendingSettingsSection(
   fallbackSection: SettingsSectionId = "general",
 ): SettingsSectionId {
   if (typeof window === "undefined") {

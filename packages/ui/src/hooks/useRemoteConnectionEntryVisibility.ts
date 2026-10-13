@@ -1,4 +1,4 @@
-import type { ModeEnv } from "@zcode/shared";
+import type { ModeEnv } from "@mode/shared";
 
 export function shouldShowRemoteConnectionEntry(params: {
   env: ModeEnv;

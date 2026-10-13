@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { canonicalPluginId } from "@mode/shared";
 
-interface InstalledPluginRoot {
+export interface InstalledPluginRoot {
   defaultEnabled: boolean;
   marketplace: string;
   rootPath: string;
@@ -51,8 +51,10 @@ async function readInstalledPluginRecords(
   for (const item of parsed.plugins) {
     if (!isRecord(item)) continue;
     const id = typeof item.id === "string" ? item.id.trim() : "";
-    const marketplace = typeof item.marketplace === "string" ? item.marketplace.trim() : "";
-    const installPath = typeof item.installPath === "string" ? item.installPath.trim() : "";
+    const marketplace =
+      typeof item.marketplace === "string" ? item.marketplace.trim() : "";
+    const installPath =
+      typeof item.installPath === "string" ? item.installPath.trim() : "";
     if (!id || !marketplace || !installPath || !isAbsolute(installPath)) {
       continue;
     }

@@ -11,25 +11,25 @@ describe("composer draft workspace transfer", () => {
   it("is consumed only by the matching source and target workspace", () => {
     requestV4ComposerDraftWorkspaceTransfer({
       sourceWorkspacePath: "/project",
-      targetWorkspacePath: "/Users/demo/.zcode/workspace/default",
+      targetWorkspacePath: "/Users/demo/.mode/workspace/default",
     });
 
     expect(
       consumeV4ComposerDraftWorkspaceTransferRequest({
         sourceWorkspacePath: "/other",
-        targetWorkspacePath: "/Users/demo/.zcode/workspace/default",
+        targetWorkspacePath: "/Users/demo/.mode/workspace/default",
       }),
     ).toBe(false);
     expect(
       consumeV4ComposerDraftWorkspaceTransferRequest({
         sourceWorkspacePath: "/project",
-        targetWorkspacePath: "/Users/demo/.zcode/workspace/default",
+        targetWorkspacePath: "/Users/demo/.mode/workspace/default",
       }),
     ).toBe(true);
     expect(
       consumeV4ComposerDraftWorkspaceTransferRequest({
         sourceWorkspacePath: "/project",
-        targetWorkspacePath: "/Users/demo/.zcode/workspace/default",
+        targetWorkspacePath: "/Users/demo/.mode/workspace/default",
       }),
     ).toBe(false);
   });

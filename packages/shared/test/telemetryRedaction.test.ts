@@ -7,7 +7,7 @@ import {
   resolveTelemetryProviderScope,
   resolveTelemetryModelId,
   sanitizeTelemetryModelValue,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 describe("redactTelemetryText", () => {
   it("把 POSIX 绝对路径归一为占位符，不保留用户名", () => {
@@ -21,14 +21,14 @@ describe("redactTelemetryText", () => {
 
   it("覆盖 /home、/root 与 macOS 临时目录", () => {
     const redacted = redactTelemetryText(
-      "read /home/bob/.zcode failed; tmp /var/folders/xy/zz/T/zcode-123 missing",
+      "read /home/bob/.mode failed; tmp /var/folders/xy/zz/T/mode-123 missing",
     );
     expect(redacted).not.toContain("bob");
     expect(redacted).not.toContain("/var/folders");
   });
 
   it("把 Windows 盘符路径归一为占位符", () => {
-    const redacted = redactTelemetryText(String.raw`EPERM C:\Users\carol\AppData\zcode\db.sqlite`);
+    const redacted = redactTelemetryText(String.raw`EPERM C:\Users\carol\AppData\mode\db.sqlite`);
     expect(redacted).not.toContain("carol");
     expect(redacted).toContain("{path}");
   });
@@ -85,8 +85,8 @@ describe("redactTelemetryText", () => {
 
 describe("redactTelemetryUrl", () => {
   it("丢弃 query 与 fragment", () => {
-    expect(redactTelemetryUrl("https://zcode.z.ai/api/v1/event/report?a=1&b=2#x")).toBe(
-      "https://zcode.z.ai/api/v1/event/report",
+    expect(redactTelemetryUrl("https://mode.z.ai/api/v1/event/report?a=1&b=2#x")).toBe(
+      "https://mode.z.ai/api/v1/event/report",
     );
   });
 
@@ -132,7 +132,7 @@ describe("resolveTelemetryProviderScope", () => {
     });
   });
 
-  it("旧报表身份 builtin:* 是 ZCode 固定 ID，判为内置并原样保留", () => {
+  it("旧报表身份 builtin:* 是 Mode 固定 ID，判为内置并原样保留", () => {
     // supervisor 投影 /report detail 时会把 account:* 映射成这些旧身份，plan_ttft / perf_ui_* 复用同一份 detail。
     for (const legacyId of [
       "builtin:zai",

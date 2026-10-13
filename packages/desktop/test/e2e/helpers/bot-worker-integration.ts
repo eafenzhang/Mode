@@ -7,20 +7,20 @@ import {
   ModelPropertiesConfig,
   ProviderApiConfig,
   ProviderConfig,
-} from "@zcode/provider";
+} from "@mode/provider";
 import {
   NodePersonalProviderConfigRepository,
   NodeProviderRegistryRuntime,
   createNodeModelSelectionFacade,
-} from "@zcode/provider-node";
+} from "@mode/provider-node";
 import {
-  createZCodeAgentService,
-  createZCodeTaskServiceAdapter,
+  createModeAgentService,
+  createModeTaskServiceAdapter,
   getDataBaseDir,
   setDataBaseDir,
-} from "@zcode/services/node";
+} from "@mode/services/node";
 import { TaskIndexRepo } from "../../../../services/src/session/taskIndexRepo.js";
-import { createZCodeTaskIndexSyncer } from "../../../../services/src/zcode-agent/zcodeTaskIndexSyncer.js";
+import { createModeTaskIndexSyncer } from "../../../../services/src/mode-agent/modeTaskIndexSyncer.js";
 import { getE2EAppDataPaths } from "./desktop-app.js";
 import {
   createBotsServiceHarness,
@@ -47,7 +47,7 @@ export async function createBotWorkerIntegration(baseUrl: string, dropTextContai
     if (errors.length) throw new AggregateError(errors, "Bot worker fixture cleanup failed");
   };
   try {
-    const personalFilePath = join(home, ".zcode/v2/provider_config.json");
+    const personalFilePath = join(home, ".mode/v2/provider_config.json");
     const modelSelection = {
       providerId: "e2e-bot-worker",
       modelId: "e2e-bot-model",
@@ -86,10 +86,10 @@ export async function createBotWorkerIntegration(baseUrl: string, dropTextContai
       ),
     }));
     personal.dispose();
-    const builtin = resolve("../../config/provider/zcode-builtin.json");
+    const builtin = resolve("../../config/provider/mode-builtin.json");
     const runtime = new NodeProviderRegistryRuntime({
       personalFilePath,
-      zcodeBuiltinFilePath: builtin,
+      modeBuiltinFilePath: builtin,
       watch: false,
       personalPollingIntervalMs: false,
     });
@@ -134,21 +134,21 @@ export async function createBotWorkerIntegration(baseUrl: string, dropTextContai
     });
     const reverseReplies: unknown[] = [];
     const reverseResources: unknown[] = [];
-    const agent = createZCodeAgentService({
+    const agent = createModeAgentService({
       commandResolver: () => ({
         command: process.execPath,
         args: [
-          resolve("../../apps/zcode-cli/packages/cli/dist/zcode.cjs"),
+          resolve("../../apps/mode-cli/packages/cli/dist/mode.cjs"),
           "app-server",
           "--stdio",
         ],
         env: {
           HOME: home,
           USERPROFILE: home,
-          ZCODE_DATA_BASE_DIR: home,
-          ZCODE_RUNTIME_ENV: "development",
-          ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: builtin,
-          ZCODE_PERSONAL_PROVIDER_CONFIG_FILE: personalFilePath,
+          MODE_DATA_BASE_DIR: home,
+          MODE_RUNTIME_ENV: "development",
+          MODE_BUILTIN_PROVIDER_CONFIG_FILE: builtin,
+          MODE_PERSONAL_PROVIDER_CONFIG_FILE: personalFilePath,
         },
       }),
       modelSelectionReadinessSource: modelSelectionService,
@@ -201,15 +201,15 @@ export async function createBotWorkerIntegration(baseUrl: string, dropTextContai
     }
     const repo = new TaskIndexRepo();
     cleanup.push(() => repo.close());
-    const syncer = createZCodeTaskIndexSyncer({ agentService: agent, taskIndexRepo: repo });
+    const syncer = createModeTaskIndexSyncer({ agentService: agent, taskIndexRepo: repo });
     cleanup.push(() => syncer.disposeAll());
     cleanup.push(() => bot.service.disposeAllAndWait());
-    const task = createZCodeTaskServiceAdapter({
-      zcodeAgentService: agent,
+    const task = createModeTaskServiceAdapter({
+      modeAgentService: agent,
       taskIndexRepo: repo,
       taskIndexSyncer: syncer,
     });
-    Object.assign(bot.zcodeTaskService, task);
+    Object.assign(bot.modeTaskService, task);
     return {
       home,
       workspacePath,

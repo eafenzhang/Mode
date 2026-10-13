@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import {
   mergeTaskMetaCandidates,
   mergeTaskWithOptimisticMeta,
-} from "@/lib/zcodeTaskMetaMerge.js";
+} from "@/lib/modeTaskMetaMerge.js";
 
-function createTaskMeta(overrides: Partial<ZCodeTaskMeta> = {}): ZCodeTaskMeta {
+function createTaskMeta(overrides: Partial<ModeTaskMeta> = {}): ModeTaskMeta {
   return {
     taskId: "task-merge",
     traceId: "trace-merge",

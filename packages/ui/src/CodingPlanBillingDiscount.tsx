@@ -2,8 +2,8 @@ import type {
   CodingPlanBillingDiscountConfig,
   CodingPlanBillingDiscountLocaleCopy,
   Locale,
-} from "@zcode/shared";
-import type { ICodingPlanSubscriptionService } from "@zcode/services";
+} from "@mode/shared";
+import type { ICodingPlanSubscriptionService } from "@mode/services";
 import { InfoIcon, SparklesIcon, TrendingUpIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/components/lib/utils.js";

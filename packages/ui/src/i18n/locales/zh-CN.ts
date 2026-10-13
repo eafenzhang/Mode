@@ -1838,6 +1838,11 @@ const zhCN: Record<string, string> = {
   "taskList.noArchivedTasks": "暂无归档任务",
   "taskList.loading": "正在获取任务...",
   "taskList.syncingRemoteWorkspaces": "正在加载远端任务...",
+  // 远程工作区对话记录镜像（导入成真实会话）
+  "conversationMirror.syncing": "正在同步远端对话记录...",
+  "conversationMirror.unsupported": "对端版本过低，无法同步对话记录",
+  "conversationMirror.error": "对话记录同步失败",
+  "conversationMirror.retry": "重新同步对话记录",
   "taskList.showMore": "显示更多",
   "taskList.showLess": "显示更少",
   "taskList.pinnedSection": "已置顶",

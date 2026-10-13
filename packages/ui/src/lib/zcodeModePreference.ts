@@ -1,6 +1,6 @@
-import type { ModeConfigOption } from "@zcode/shared";
+import type { ModeConfigOption } from "@mode/shared";
 
-export function applySelectedZCodeMode(
+export function applySelectedModeMode(
   options: readonly ModeConfigOption[],
   mode: string,
 ): ModeConfigOption[] {

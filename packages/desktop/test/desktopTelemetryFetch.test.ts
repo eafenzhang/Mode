@@ -12,9 +12,9 @@ describe("desktop telemetry fetch", () => {
       body: JSON.stringify({ event_id: "event-1" }),
     };
 
-    const result = await telemetryFetch("https://zcode.z.ai/api/v1/event/report", init);
+    const result = await telemetryFetch("https://mode.z.ai/api/v1/event/report", init);
 
     expect(result).toBe(response);
-    expect(electronFetch).toHaveBeenCalledWith("https://zcode.z.ai/api/v1/event/report", init);
+    expect(electronFetch).toHaveBeenCalledWith("https://mode.z.ai/api/v1/event/report", init);
   });
 });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { InternalChannels, PlatformChannels, type RemoteTarget } from "@zcode/shared";
+import { InternalChannels, PlatformChannels, type RemoteTarget } from "@mode/shared";
 import { isAllowedExternalOpenUrl } from "../src/main/desktopMainIpcRemote.js";
 
 type IpcHandler = (...args: unknown[]) => unknown;
@@ -212,7 +212,7 @@ describe("remote workspace connect telemetry IPC", () => {
     expect(listener).toBeDefined();
 
     const sender = {
-      getURL: vi.fn(() => "file:///Applications/ZCode/index.html"),
+      getURL: vi.fn(() => "file:///Applications/Mode/index.html"),
       loadURL: vi.fn(() => Promise.resolve()),
     };
     const returnTo = encodeURIComponent(
@@ -250,7 +250,7 @@ describe("remote workspace connect telemetry IPC", () => {
     const returnTo = encodeURIComponent(
       "https://other-origin.example/coding-plan?provider=zai&embedded=app",
     );
-    const callbackUrl = `https://zcode.z.ai/coding-plan/payment/callback?channel=paypal&status=return&returnTo=${returnTo}`;
+    const callbackUrl = `https://mode.z.ai/coding-plan/payment/callback?channel=paypal&status=return&returnTo=${returnTo}`;
     listener?.({ sender }, callbackUrl);
 
     expect(sender.loadURL).not.toHaveBeenCalled();

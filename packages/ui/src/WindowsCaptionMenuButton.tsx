@@ -1,5 +1,5 @@
-import { DesktopCommandIds } from "@zcode/shared";
-import type { UpdateStatePayload } from "@zcode/shared";
+import { DesktopCommandIds } from "@mode/shared";
+import type { UpdateStatePayload } from "@mode/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
@@ -87,13 +87,13 @@ export function WindowsCaptionMenuButton({
   }, [platform]);
 
   const syncStdioTapDevState = useCallback(async () => {
-    if (!platform.getZCodeStdioTapDevState) {
+    if (!platform.getModeStdioTapDevState) {
       setStdioTapDevState({ enabled: false, visible: false });
       return;
     }
 
     try {
-      const state = await platform.getZCodeStdioTapDevState();
+      const state = await platform.getModeStdioTapDevState();
       setStdioTapDevState({ enabled: state.enabled, visible: state.visible });
     } catch (error) {
       logger.warn("[WindowsCaptionMenuButton] 同步 stdio tap 状态失败", { error });
@@ -159,7 +159,7 @@ export function WindowsCaptionMenuButton({
 
   const handleToggleStdioTapDevProxy = () => {
     void (async () => {
-      await platform.executeDesktopCommand(DesktopCommandIds.ToggleZCodeStdioTapDevProxy);
+      await platform.executeDesktopCommand(DesktopCommandIds.ToggleModeStdioTapDevProxy);
       await syncStdioTapDevState();
     })();
   };
@@ -288,7 +288,7 @@ export function WindowsCaptionMenuButton({
               checked={stdioTapDevState.enabled}
               onCheckedChange={handleToggleStdioTapDevProxy}
             >
-              {intl.formatMessage({ id: "titleBar.menu.help.toggleZCodeStdioTap" })}
+              {intl.formatMessage({ id: "titleBar.menu.help.toggleModeStdioTap" })}
             </DropdownMenuCheckboxItem>
             <DropdownMenuItem
               onSelect={() => handleExecuteDesktopCommand(DesktopCommandIds.ToggleDevTools)}

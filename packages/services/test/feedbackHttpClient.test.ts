@@ -10,7 +10,7 @@ import type {
   FeedbackDeviceInfo,
   FeedbackTicketSeverity,
   FeedbackTicketType,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { ICredentialService } from "../src/credential/credential.js";
 import { FeedbackHttpClient } from "../src/feedback/feedbackHttpClient.js";
 import { createFeedbackService } from "../src/feedback/feedbackService.js";
@@ -92,7 +92,7 @@ function makeFetchApiClient(): ApiClient {
 }
 
 function makeClient(
-  baseUrl = "https://zcode.z.ai/api/v1",
+  baseUrl = "https://mode.z.ai/api/v1",
   logger?: ServiceLogger,
 ): FeedbackHttpClient {
   return new FeedbackHttpClient({
@@ -111,7 +111,7 @@ describe("FeedbackHttpClient", () => {
     vi.unstubAllGlobals();
   });
 
-  it("sends feedback API requests through the injected zcode api client", async () => {
+  it("sends feedback API requests through the injected mode api client", async () => {
     const createdAt = epochSeconds(2026, 6, 25, 10);
     const apiClient: ApiClient = {
       request: vi.fn(async () => {
@@ -136,7 +136,7 @@ describe("FeedbackHttpClient", () => {
     vi.stubGlobal("fetch", globalFetch);
 
     const client = new FeedbackHttpClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       getAuthHeaders: async () => ({
         Authorization: "Bearer test-jwt",
         "X-Device-Mid": "desktop-device-mid-test",
@@ -162,7 +162,7 @@ describe("FeedbackHttpClient", () => {
     expect(apiClient.request).toHaveBeenCalledTimes(1);
     expect(globalFetch).not.toHaveBeenCalled();
     const [url, init] = vi.mocked(apiClient.request).mock.calls[0];
-    expect(String(url)).toBe("https://zcode.z.ai/api/v1/feedback/ticket");
+    expect(String(url)).toBe("https://mode.z.ai/api/v1/feedback/ticket");
     const headers = init?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer test-jwt");
     expect(headers["X-Device-Mid"]).toBe("desktop-device-mid-test");
@@ -187,7 +187,7 @@ describe("FeedbackHttpClient", () => {
         environment?: Record<string, unknown>;
       };
 
-      expect(String(url)).toBe("https://zcode.z.ai/api/v1/feedback/ticket");
+      expect(String(url)).toBe("https://mode.z.ai/api/v1/feedback/ticket");
       expect(headers.Authorization).toBe("Bearer test-jwt");
       expect(headers["X-Device-Mid"]).toBe("desktop-device-mid-test");
       expect(headers["Accept-Language"]).toBe("en-US");
@@ -209,7 +209,7 @@ describe("FeedbackHttpClient", () => {
         os_category: "darwin",
         os_version: "23.1.0",
         build_commit_id: "abc123",
-        agent_framework: "zcode-agent",
+        agent_framework: "mode-agent",
       });
       expect(body.environment).not.toHaveProperty("module");
 
@@ -235,7 +235,7 @@ describe("FeedbackHttpClient", () => {
       osPlatform: "darwin",
       osVersion: "23.1.0",
       osArch: "arm64",
-      agentFramework: "zcode-agent",
+      agentFramework: "mode-agent",
     };
 
     const ticket = await makeClient().create({
@@ -305,7 +305,7 @@ describe("FeedbackHttpClient", () => {
       ],
     });
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      "https://zcode.z.ai/api/v1/feedback/ticket?limit=50&offset=10",
+      "https://mode.z.ai/api/v1/feedback/ticket?limit=50&offset=10",
     );
   });
 
@@ -330,7 +330,7 @@ describe("FeedbackHttpClient", () => {
       total: 0,
     });
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      "https://zcode.z.ai/api/v1/feedback/ticket?limit=0",
+      "https://mode.z.ai/api/v1/feedback/ticket?limit=0",
     );
   });
 
@@ -389,7 +389,7 @@ describe("FeedbackHttpClient", () => {
     const ticket = await makeClient().get("fbk_3");
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      "https://zcode.z.ai/api/v1/feedback/ticket/fbk_3",
+      "https://mode.z.ai/api/v1/feedback/ticket/fbk_3",
     );
     expect(ticket).toMatchObject({
       id: "fbk_3",
@@ -420,7 +420,7 @@ describe("FeedbackHttpClient", () => {
       const body = JSON.parse(String(init?.body ?? "{}")) as {
         content?: { text?: string };
       };
-      expect(String(url)).toBe("https://zcode.z.ai/api/v1/feedback/ticket/fbk_4/message");
+      expect(String(url)).toBe("https://mode.z.ai/api/v1/feedback/ticket/fbk_4/message");
       expect(body).toEqual({ content: { text: "追加说明" } });
       return new Response(
         JSON.stringify({
@@ -452,7 +452,7 @@ describe("FeedbackHttpClient", () => {
       undefined,
       "反馈 HTTP 请求开始",
       expect.objectContaining({
-        url: "https://zcode.z.ai/api/v1/feedback/ticket/:ticketId/message",
+        url: "https://mode.z.ai/api/v1/feedback/ticket/:ticketId/message",
       }),
     );
     expect(JSON.stringify(vi.mocked(logger.info).mock.calls)).not.toContain("fbk_4");
@@ -523,7 +523,7 @@ describe("FeedbackHttpClient", () => {
 
   it("retries ticket creation when Undici times out before connecting to the feedback API", async () => {
     const connectTimeoutCause = Object.assign(
-      new Error("Connect Timeout Error (attempted address: zcode.z.ai:443, timeout: 10000ms)"),
+      new Error("Connect Timeout Error (attempted address: mode.z.ai:443, timeout: 10000ms)"),
       {
         name: "ConnectTimeoutError",
         code: "UND_ERR_CONNECT_TIMEOUT",
@@ -547,7 +547,7 @@ describe("FeedbackHttpClient", () => {
         ),
       );
     const client = new FeedbackHttpClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       apiClient: createNodeApiClient({ fetchImpl: fetchMock as typeof fetch }),
       getAuthHeaders: async () => ({ "X-Device-Mid": "desktop-device-mid-test" }),
     });
@@ -581,7 +581,7 @@ describe("FeedbackHttpClient", () => {
         ),
       );
     const client = new FeedbackHttpClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       apiClient: createNodeApiClient({ fetchImpl: fetchMock as typeof fetch }),
       getAuthHeaders: async () => ({ "X-Device-Mid": "desktop-device-mid-test" }),
     });
@@ -601,7 +601,7 @@ describe("FeedbackHttpClient", () => {
       }),
     );
     const client = new FeedbackHttpClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       apiClient: createNodeApiClient({ fetchImpl: fetchMock as typeof fetch }),
       getAuthHeaders: async () => ({ "X-Device-Mid": "desktop-device-mid-test" }),
     });
@@ -627,7 +627,7 @@ describe("FeedbackHttpClient", () => {
       error: vi.fn(),
     };
     const client = new FeedbackHttpClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       apiClient: createNodeApiClient({ fetchImpl: fetchMock as typeof fetch }),
       getAuthHeaders: async () => ({ "X-Device-Mid": "desktop-device-mid-test" }),
       logger,
@@ -643,7 +643,7 @@ describe("FeedbackHttpClient", () => {
       expect.objectContaining({
         attemptCount: 3,
         errorCodes: ["UND_ERR_CONNECT_TIMEOUT"],
-        url: "https://zcode.z.ai/api/v1/feedback/ticket",
+        url: "https://mode.z.ai/api/v1/feedback/ticket",
       }),
     );
   });
@@ -676,7 +676,7 @@ describe("FeedbackHttpClient", () => {
                 attachment_id: "att_oss",
                 max_size: 100 * 1024 * 1024,
                 callback: {
-                  url: "https://zcode.z.ai/api/v1/feedback/attachment/callback",
+                  url: "https://mode.z.ai/api/v1/feedback/attachment/callback",
                   body: "callback-body",
                   content_type: "application/json",
                 },
@@ -753,7 +753,7 @@ describe("FeedbackHttpClient", () => {
       expect(multipart).toContain('name="callback"');
       // callback should be base64-encoded JSON with callbackUrl, callbackBody, callbackBodyType
       const expectedCallbackJson = JSON.stringify({
-        callbackUrl: "https://zcode.z.ai/api/v1/feedback/attachment/callback",
+        callbackUrl: "https://mode.z.ai/api/v1/feedback/attachment/callback",
         callbackBody: "callback-body",
         callbackBodyType: "application/json",
       });
@@ -799,7 +799,7 @@ describe("FeedbackHttpClient", () => {
       }),
     };
     const client = new FeedbackHttpClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       apiClient,
       getAuthHeaders: async () => ({
         Authorization: "Bearer test-jwt",
@@ -813,7 +813,7 @@ describe("FeedbackHttpClient", () => {
       ).rejects.toThrow(`Feedback attachment exceeds max size ${ONE_GIB_BYTES - 1}`);
       expect(apiClient.request).toHaveBeenCalledTimes(1);
       expect(apiClient.request).toHaveBeenCalledWith(
-        "https://zcode.z.ai/api/v1/feedback/attachment/upload-credential",
+        "https://mode.z.ai/api/v1/feedback/attachment/upload-credential",
         expect.objectContaining({
           body: JSON.stringify({
             ticket_id: "fbk_large",
@@ -838,7 +838,7 @@ describe("FeedbackHttpClient", () => {
       }),
     };
     const client = new FeedbackHttpClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       apiClient,
       getAuthHeaders: async () => ({
         Authorization: "Bearer test-jwt",
@@ -867,7 +867,7 @@ describe("FeedbackHttpClient", () => {
       }),
     };
     const client = new FeedbackHttpClient({
-      baseUrl: "https://zcode.z.ai/api/v1",
+      baseUrl: "https://mode.z.ai/api/v1",
       apiClient,
       getAuthHeaders: async () => ({
         Authorization: "Bearer test-jwt",
@@ -893,16 +893,16 @@ describe("createFeedbackService", () => {
     vi.unstubAllEnvs();
   });
 
-  it("uses the test ZCode API base by default when ZCODE_ENV=test", async () => {
-    vi.stubEnv("ZCODE_ENV", "test");
-    // Bugfix: 开发机 shell 可能导出 ZCODE_BASE_URL / ZCODE_ENDPOINT_ORIGIN（resolver 最高优先级覆盖），
-    // 会压过 ZCODE_ENV=test 的默认域推断，把「默认 base」用例变成环境敏感；置空恢复封闭性。
-    vi.stubEnv("ZCODE_BASE_URL", "");
-    vi.stubEnv("ZCODE_ENDPOINT_ORIGIN", "");
+  it("uses the test Mode API base by default when MODE_ENV=test", async () => {
+    vi.stubEnv("MODE_ENV", "test");
+    // Bugfix: 开发机 shell 可能导出 MODE_BASE_URL / MODE_ENDPOINT_ORIGIN（resolver 最高优先级覆盖），
+    // 会压过 MODE_ENV=test 的默认域推断，把「默认 base」用例变成环境敏感；置空恢复封闭性。
+    vi.stubEnv("MODE_BASE_URL", "");
+    vi.stubEnv("MODE_ENDPOINT_ORIGIN", "");
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
-      // Bugfix: feedback 默认 base 已收敛到统一 ZCode endpoint resolver；
-      // ZCODE_ENV=test 不能继续断言生产域，否则会掩盖测试环境请求边界。
-      expect(String(url)).toBe("https://zcode.z.ai/api/v1/feedback/ticket");
+      // Bugfix: feedback 默认 base 已收敛到统一 Mode endpoint resolver；
+      // MODE_ENV=test 不能继续断言生产域，否则会掩盖测试环境请求边界。
+      expect(String(url)).toBe("https://mode.z.ai/api/v1/feedback/ticket");
       return new Response(JSON.stringify({ code: 0, msg: "ok", data: { items: [] } }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -913,7 +913,7 @@ describe("createFeedbackService", () => {
     const service = createFeedbackService({
       apiClient: makeFetchApiClient(),
       credentialService: makeCredentialService((key) => {
-        if (key === "zcodejwttoken") return "shared-backend-jwt";
+        if (key === "modejwttoken") return "shared-backend-jwt";
         return null;
       }),
       oauthService: makeOAuthService(),
@@ -923,13 +923,13 @@ describe("createFeedbackService", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the production ZCode API base by default when ZCODE_ENV=production", async () => {
-    vi.stubEnv("ZCODE_ENV", "production");
+  it("uses the production Mode API base by default when MODE_ENV=production", async () => {
+    vi.stubEnv("MODE_ENV", "production");
     // 同上：屏蔽开发机 ambient 覆盖，保持「默认 base」语义封闭
-    vi.stubEnv("ZCODE_BASE_URL", "");
-    vi.stubEnv("ZCODE_ENDPOINT_ORIGIN", "");
+    vi.stubEnv("MODE_BASE_URL", "");
+    vi.stubEnv("MODE_ENDPOINT_ORIGIN", "");
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
-      expect(String(url)).toBe("https://zcode.z.ai/api/v1/feedback/ticket");
+      expect(String(url)).toBe("https://mode.z.ai/api/v1/feedback/ticket");
       return new Response(JSON.stringify({ code: 0, msg: "ok", data: { items: [] } }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -940,7 +940,7 @@ describe("createFeedbackService", () => {
     const service = createFeedbackService({
       apiClient: makeFetchApiClient(),
       credentialService: makeCredentialService((key) => {
-        if (key === "zcodejwttoken") return "shared-backend-jwt";
+        if (key === "modejwttoken") return "shared-backend-jwt";
         return null;
       }),
       oauthService: makeOAuthService(),
@@ -951,8 +951,8 @@ describe("createFeedbackService", () => {
   });
 
   it("keeps explicit feedback API base above environment defaults", async () => {
-    vi.stubEnv("ZCODE_ENV", "test");
-    vi.stubEnv("ZCODE_FEEDBACK_API_BASE", "https://feedback-override.example.com/api/v1");
+    vi.stubEnv("MODE_ENV", "test");
+    vi.stubEnv("MODE_FEEDBACK_API_BASE", "https://feedback-override.example.com/api/v1");
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       expect(String(url)).toBe("https://feedback-override.example.com/api/v1/feedback/ticket");
       return new Response(JSON.stringify({ code: 0, msg: "ok", data: { items: [] } }), {
@@ -965,7 +965,7 @@ describe("createFeedbackService", () => {
     const service = createFeedbackService({
       apiClient: makeFetchApiClient(),
       credentialService: makeCredentialService((key) => {
-        if (key === "zcodejwttoken") return "shared-backend-jwt";
+        if (key === "modejwttoken") return "shared-backend-jwt";
         return null;
       }),
       oauthService: makeOAuthService(),
@@ -1009,13 +1009,13 @@ describe("createFeedbackService", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const credentialService = makeCredentialService((key) =>
-      key === "zcodefeedbackclientid" ? "device_legacy_path_hash" : null,
+      key === "modefeedbackclientid" ? "device_legacy_path_hash" : null,
     );
 
     try {
       const service = createFeedbackService({
         apiClient: makeFetchApiClient(),
-        apiBaseUrl: "https://zcode.z.ai/api/v1",
+        apiBaseUrl: "https://mode.z.ai/api/v1",
         getDeviceMid: () => hostDeviceMid,
         credentialService,
         oauthService: makeOAuthService(),
@@ -1047,7 +1047,7 @@ describe("createFeedbackService", () => {
     const updatedAt = epochSeconds(2026, 6, 25, 13);
     const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const headers = init?.headers as Record<string, string>;
-      expect(String(url)).toBe("https://zcode.z.ai/api/v1/feedback/ticket");
+      expect(String(url)).toBe("https://mode.z.ai/api/v1/feedback/ticket");
       expect(headers.Authorization).toBe("Bearer shared-backend-jwt");
       expect(headers["X-Device-Mid"]).toBe("desktop-device-mid-222");
       expect(headers["X-Feedback-Client-Id"]).toBeUndefined();
@@ -1076,10 +1076,10 @@ describe("createFeedbackService", () => {
     try {
       const service = createFeedbackService({
         apiClient: makeFetchApiClient(),
-        apiBaseUrl: "https://zcode.z.ai/api/v1",
+        apiBaseUrl: "https://mode.z.ai/api/v1",
         getDeviceMid: () => "desktop-device-mid-222",
         credentialService: makeCredentialService((key) => {
-          if (key === "zcodejwttoken") return "shared-backend-jwt";
+          if (key === "modejwttoken") return "shared-backend-jwt";
           return null;
         }),
         oauthService: makeOAuthService(),
@@ -1121,7 +1121,7 @@ describe("createFeedbackService", () => {
     };
     const service = createFeedbackService({
       apiClient,
-      apiBaseUrl: "https://zcode.z.ai/api/v1",
+      apiBaseUrl: "https://mode.z.ai/api/v1",
       getDeviceMid: () => "desktop-device-mid-cancel",
       credentialService: makeCredentialService(),
       oauthService: makeOAuthService(),

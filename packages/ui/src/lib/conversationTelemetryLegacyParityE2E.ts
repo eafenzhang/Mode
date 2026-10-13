@@ -5,7 +5,7 @@ import {
   type ModeProvider,
   type ModeStreamEvent,
   type ModeUsage,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { reportChatErrorBannerTelemetry } from "@/lib/chatErrorBannerTelemetry.js";
 import {
@@ -84,7 +84,7 @@ interface LegacyScenarioResult {
 
 declare global {
   interface Window {
-    __zcodeConversationTelemetryParityE2E?: {
+    __modeConversationTelemetryParityE2E?: {
       variant: "current" | "legacy";
       run(caseId: string): Promise<LegacyScenarioResult>;
     };
@@ -100,10 +100,10 @@ export function installLegacyConversationTelemetryParityE2EBridge(input: {
     variant: "legacy" as const,
     run: (caseId: string) => runLegacyScenario(input.platform, caseId),
   };
-  window.__zcodeConversationTelemetryParityE2E = bridge;
+  window.__modeConversationTelemetryParityE2E = bridge;
   return () => {
-    if (window.__zcodeConversationTelemetryParityE2E === bridge) {
-      delete window.__zcodeConversationTelemetryParityE2E;
+    if (window.__modeConversationTelemetryParityE2E === bridge) {
+      delete window.__modeConversationTelemetryParityE2E;
     }
   };
 }

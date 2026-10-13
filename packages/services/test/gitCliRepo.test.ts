@@ -59,7 +59,7 @@ function createMockCommandProvider(): {
           return createCommandResult(options);
         case "config --show-scope --show-origin --get user.name":
           return createCommandResult(options, {
-            stdout: "local\tfile:.git/config\tZCode Tester\n",
+            stdout: "local\tfile:.git/config\tMode Tester\n",
           });
         case "config --show-scope --show-origin --get user.email":
           return createCommandResult(options, {
@@ -183,7 +183,7 @@ describe("gitCliRepo", () => {
     ]);
 
     expect(status.summary.repoRoot).toBe("/repo");
-    expect(identity.userName).toBe("ZCode Tester");
+    expect(identity.userName).toBe("Mode Tester");
     expect(
       run.mock.calls.filter(
         ([options]) =>
@@ -194,7 +194,7 @@ describe("gitCliRepo", () => {
   });
 
   it("identifies main-tree workspaces via repoRoot/.git directory", async () => {
-    const repoRoot = makeTempDir("zcode-git-main-tree-");
+    const repoRoot = makeTempDir("mode-git-main-tree-");
     mkdirSync(join(repoRoot, ".git"));
     const workspacePath = join(repoRoot, "packages", "app");
     mkdirSync(workspacePath, { recursive: true });
@@ -222,9 +222,9 @@ describe("gitCliRepo", () => {
   });
 
   it("identifies linked worktree workspaces via repoRoot/.git file", async () => {
-    const mainTreeRoot = makeTempDir("zcode-git-worktree-main-");
+    const mainTreeRoot = makeTempDir("mode-git-worktree-main-");
     mkdirSync(join(mainTreeRoot, ".git", "worktrees", "feature"), { recursive: true });
-    const worktreeRoot = makeTempDir("zcode-git-worktree-linked-");
+    const worktreeRoot = makeTempDir("mode-git-worktree-linked-");
     writeFileSync(
       join(worktreeRoot, ".git"),
       `gitdir: ${join(mainTreeRoot, ".git", "worktrees", "feature")}\n`,

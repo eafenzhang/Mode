@@ -9,7 +9,7 @@ try {
     for (const width of [320, 1280]) {
       for (const theme of ["zai-light", "zai-dark"]) {
         const context = await browser.newContext({ viewport: { width, height: 800 } });
-        await context.addInitScript((value) => localStorage.setItem("zcode-theme", value), theme);
+        await context.addInitScript((value) => localStorage.setItem("mode-theme", value), theme);
         const page = await context.newPage();
         const chinese = locale === "cn/share";
         const home = page.getByRole("link", {
@@ -40,7 +40,7 @@ try {
           )
           .waitFor();
         await home.waitFor();
-        assert.equal(await home.getAttribute("href"), "https://zcode.z.ai");
+        assert.equal(await home.getAttribute("href"), "https://mode.z.ai");
         assert.equal(await home.getAttribute("target"), null);
         assert.equal(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -51,16 +51,16 @@ try {
           exact: true,
         });
         // 清除模拟登录态后重试必须回到登录页，证明按钮实际重新读取 token 并请求。
-        await page.evaluate(() => sessionStorage.removeItem("zcode:share:mock-auth"));
+        await page.evaluate(() => sessionStorage.removeItem("mode:share:mock-auth"));
         await retry.click();
         await page.locator('[data-share-login-provider="bigmodel"]').waitFor();
         await page.locator('[data-share-login-provider="bigmodel"]').click();
         await home.waitFor();
-        await page.route("https://zcode.z.ai/**", (route) =>
+        await page.route("https://mode.z.ai/**", (route) =>
           route.fulfill({ contentType: "text/html", body: "<h1>Home</h1>" }),
         );
         await home.click();
-        await page.waitForURL("https://zcode.z.ai/");
+        await page.waitForURL("https://mode.z.ai/");
         assert.equal(context.pages().length, 1);
         await page.goto(`${baseUrl}/${locale}/mock-expired`);
         await page

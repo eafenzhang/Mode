@@ -1,10 +1,10 @@
 // M5 ②：grouped 客户端 join（分组原始结构 + sessions-index 会话 → 旧 listGroupedTaskView 同形视图）。
 import { describe, expect, it } from "vitest";
-import type { ZCodeGroupedTaskViewStructure, ZCodeTaskGroup } from "@zcode/services";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ModeGroupedTaskViewStructure, ModeTaskGroup } from "@mode/services";
+import type { ModeTaskMeta } from "@mode/shared";
 import { buildGroupedTaskViewFromSessions } from "@/lib/buildGroupedTaskViewFromSessions.js";
 
-function task(id: string, overrides: Partial<ZCodeTaskMeta> = {}): ZCodeTaskMeta {
+function task(id: string, overrides: Partial<ModeTaskMeta> = {}): ModeTaskMeta {
   return {
     taskId: id,
     title: id,
@@ -14,16 +14,16 @@ function task(id: string, overrides: Partial<ZCodeTaskMeta> = {}): ZCodeTaskMeta
     mode: "default",
     traceId: `trace-${id}`,
     ...overrides,
-  } as ZCodeTaskMeta;
+  } as ModeTaskMeta;
 }
 
-function group(id: string, createdAt = 0): ZCodeTaskGroup {
+function group(id: string, createdAt = 0): ModeTaskGroup {
   return { id, title: id, color: "blue", createdAt, updatedAt: createdAt };
 }
 
 function structure(
-  overrides: Partial<ZCodeGroupedTaskViewStructure> = {},
-): ZCodeGroupedTaskViewStructure {
+  overrides: Partial<ModeGroupedTaskViewStructure> = {},
+): ModeGroupedTaskViewStructure {
   return { groups: [], members: [], topLevelOrders: [], ...overrides };
 }
 

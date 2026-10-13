@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { ZCodeSessionSettingsState } from "@zcode/shared";
+import type { ModeSessionSettingsState } from "@mode/shared";
 import {
-  getZCodeAgentAvailableModes,
-  normalizeAvailableZCodeMode,
+  getModeAgentAvailableModes,
+  normalizeAvailableModeMode,
   settingsToConfigOptions,
-} from "../src/zcode-agent/zcodeConfigOptions.js";
+} from "../src/mode-agent/modeConfigOptions.js";
 
 function settingsWithMode(
-  mode: ZCodeSessionSettingsState["mode"]["current"],
-): ZCodeSessionSettingsState {
+  mode: ModeSessionSettingsState["mode"]["current"],
+): ModeSessionSettingsState {
   return {
     model: {
       current: { providerId: "glm", modelId: "glm-5" },
@@ -22,7 +22,7 @@ function settingsWithMode(
   };
 }
 
-describe("zcodeConfigOptions", () => {
+describe("modeConfigOptions", () => {
   it("keeps persisted edit while the shared menu replaces it with guarded", () => {
     const options = settingsToConfigOptions(settingsWithMode("edit"));
     const modeOption = options.find((option) => option.category === "mode");
@@ -34,12 +34,12 @@ describe("zcodeConfigOptions", () => {
       "plan",
       "yolo",
     ]);
-    expect(getZCodeAgentAvailableModes().map((mode) => mode.id)).toEqual([
+    expect(getModeAgentAvailableModes().map((mode) => mode.id)).toEqual([
       "build",
       "guarded",
       "plan",
       "yolo",
     ]);
-    expect(normalizeAvailableZCodeMode("edit")).toBe("edit");
+    expect(normalizeAvailableModeMode("edit")).toBe("edit");
   });
 });

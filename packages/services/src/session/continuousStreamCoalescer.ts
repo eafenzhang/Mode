@@ -1,4 +1,4 @@
-import type { ModeStreamEvent } from "@zcode/shared";
+import type { ModeStreamEvent } from "@mode/shared";
 
 const CONTINUOUS_CHUNK_FLUSH_DELAY_MS = 16;
 const CONTINUOUS_CHUNK_MAX_CHARS = 4096;
@@ -37,7 +37,7 @@ interface ContinuousStreamCoalescer {
 function isContinuousCoalescibleChunk(event: ModeStreamEvent): event is ContinuousCoalescibleChunk {
   return (
     event.type === "agent_thought_chunk" ||
-    (event.type === "agent_message_chunk" && !event.zcodeTimeline)
+    (event.type === "agent_message_chunk" && !event.modeTimeline)
   );
 }
 

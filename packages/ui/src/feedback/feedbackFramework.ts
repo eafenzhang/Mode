@@ -2,7 +2,7 @@ import {
   DEFAULT_FEEDBACK_TICKET_FRAMEWORK,
   type ModeProvider,
   type FeedbackTicketFramework,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 export function inferFeedbackFrameworkFromAgentProvider(
   _provider: ModeProvider | null | undefined,

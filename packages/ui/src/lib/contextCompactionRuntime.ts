@@ -1,4 +1,4 @@
-import type { ModeContextCompactionTimelineMeta } from "@zcode/shared";
+import type { ModeContextCompactionTimelineMeta } from "@mode/shared";
 
 const RUNNING_CONTEXT_COMPACTION_STATUSES = new Set(["started", "retrying"]);
 

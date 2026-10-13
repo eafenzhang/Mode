@@ -81,18 +81,18 @@ describe("tabStore", () => {
   it("preserves conversation purpose when adding and restoring managed workspace tabs", () => {
     const store = createTabStore();
 
-    store.getState().addTab("/tmp/.zcode/workspace/default", {
+    store.getState().addTab("/tmp/.mode/workspace/default", {
       workspacePurpose: "conversation",
     });
     expect(store.getState().tabs[0]).toMatchObject({
-      workspacePath: "/tmp/.zcode/workspace/default",
+      workspacePath: "/tmp/.mode/workspace/default",
       workspacePurpose: "conversation",
     });
 
     store.getState().restoreTabs(
       [
         {
-          workspacePath: "/tmp/.zcode/workspace/default",
+          workspacePath: "/tmp/.mode/workspace/default",
           workspacePurpose: "conversation",
         },
       ],

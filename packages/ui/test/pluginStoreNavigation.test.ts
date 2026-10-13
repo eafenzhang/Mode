@@ -16,13 +16,13 @@ describe("plugin store navigation target", () => {
     const listener = vi.fn();
     const dispose = addPluginStoreOpenListener(listener);
 
-    requestPluginStoreOpen("document-skills@zcode-plugins-official");
+    requestPluginStoreOpen("document-skills@mode-plugins-official");
 
     expect(listener).toHaveBeenCalledWith({
-      pluginId: "document-skills@zcode-plugins-official",
+      pluginId: "document-skills@mode-plugins-official",
     });
     expect(consumePluginStoreOpenTarget()).toEqual({
-      pluginId: "document-skills@zcode-plugins-official",
+      pluginId: "document-skills@mode-plugins-official",
     });
     expect(consumePluginStoreOpenTarget()).toBeNull();
     dispose();

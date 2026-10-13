@@ -4,8 +4,8 @@ import type {
   WebRemoteControlTaskDisplayStatus,
   WebRemoteControlTaskTarget,
   WebRemoteControlWorkspaceTarget,
-} from "@zcode/shared";
-import { resolveWebRemoteControlWorkspaceKey } from "@zcode/shared";
+} from "@mode/shared";
+import { resolveWebRemoteControlWorkspaceKey } from "@mode/shared";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { compareTaskListItemsWithRunningFirst } from "@/lib/taskListOrdering.js";
 import { isLiveTaskRuntimeStatus } from "@/lib/taskRuntimeDisplayStatus.js";

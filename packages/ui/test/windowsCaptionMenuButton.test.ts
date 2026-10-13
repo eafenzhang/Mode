@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     intl: {
       formatMessage: ({ id }: { id: string }) => id,
     },
@@ -19,7 +19,7 @@ const capturedDropdownContentProps = vi.hoisted(() => ({
 const capturedWindowsCaptionMenu = vi.hoisted(() => {
   const screenshot = {
     dataBase64: "base64-image",
-    filename: "zcode-error-2026-06-17.png",
+    filename: "mode-error-2026-06-17.png",
     contentType: "image/png",
     size: 12,
   };
@@ -213,7 +213,7 @@ describe("WindowsCaptionMenuButton", () => {
       }),
     );
     expect(capturedWindowsCaptionMenu.openFeatureRequest).toHaveBeenCalledTimes(1);
-    expect(capturedWindowsCaptionMenu.openExternal).toHaveBeenCalledWith("https://zcode.z.ai/docs");
+    expect(capturedWindowsCaptionMenu.openExternal).toHaveBeenCalledWith("https://mode.z.ai/docs");
     expect(capturedWindowsCaptionMenu.exportLogs).toHaveBeenCalledTimes(1);
   });
 

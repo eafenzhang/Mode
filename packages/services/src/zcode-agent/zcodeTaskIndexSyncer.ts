@@ -34,7 +34,7 @@ import {
   type V4WorkspaceConfigSubscribeResult,
   type WorkspaceConfigTopicFrame,
   type WorkspaceConfigTopicWireCandidate,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@zcode/shared/mode-protocol-v4";
 import { Emitter, type Event, type IDisposable } from "@zcode/rpc";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";

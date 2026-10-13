@@ -11,8 +11,8 @@ import { CheckIcon, ArrowUpRightIcon, PlayIcon, SaveIcon } from "lucide-react";
 import {
   resolveWorkspaceKey,
   type ModeSavedWorkflowEntry,
-  type ZCodeWorkflowsForRunCandidate,
-} from "@zcode/shared";
+  type ModeWorkflowsForRunCandidate,
+} from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { toast } from "@/components/ui/toast.js";
@@ -36,10 +36,10 @@ export interface WorkflowRunSaveSlotsHost {
   workspaceIdentity?: string;
   remoteSessionId?: string;
   runId: string;
-  /** run 名：弹层用它预填说明，交给 ZCode 的那条消息用它指认「刚跑完的哪一个」。 */
+  /** run 名：弹层用它预填说明，交给 Mode 的那条消息用它指认「刚跑完的哪一个」。 */
   runName?: string;
   /** 转写里 SaveWorkflow 认领过这次 run 的候选（`buildWorkflowSaveCandidatesByRunId`）。 */
-  candidates?: readonly ZCodeWorkflowsForRunCandidate[];
+  candidates?: readonly ModeWorkflowsForRunCandidate[];
   /**
    * 两道门（只读、灰度）都开着：缺省 false。关着时整个 trailing 缺席——写文件与起引擎都
    * 属于「Resume 被收走的地方一并收走」。芯片是事实，不受这道门影响。

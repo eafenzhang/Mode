@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { IProviderSettingsService, ProviderSettingsView } from "@zcode/services";
+import type { IProviderSettingsService, ProviderSettingsView } from "@mode/services";
 import {
   connectProviderSettingsSnapshot,
   getProviderSettingsSnapshot,

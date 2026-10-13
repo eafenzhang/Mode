@@ -10,7 +10,7 @@
  * **响应通道**，不是 per-workspace 的不同凭证。
  */
 import { describe, expect, it, vi } from "vitest";
-import { zcodeProtocolMethods } from "@zcode/shared";
+import { modeProtocolMethods } from "@mode/shared";
 
 const LOCAL_WORKSPACE = {
   workspaceKey: "/workspace/app",
@@ -59,8 +59,8 @@ async function createServiceWithClients(options: {
   const clients = new Map<string, FakeClient>();
 
   vi.resetModules();
-  vi.doMock("../src/zcode-agent/zcodeAgentProcessManager.js", () => ({
-    ZCodeAgentProcessManager: class {
+  vi.doMock("../src/mode-agent/modeAgentProcessManager.js", () => ({
+    ModeAgentProcessManager: class {
       onRuntimeRestarted() {
         return { dispose() {} };
       }
@@ -101,10 +101,10 @@ async function createServiceWithClients(options: {
         return { dispose() {} };
       },
       request: async (method: string) => {
-        if (method === zcodeProtocolMethods.initialize) {
+        if (method === modeProtocolMethods.initialize) {
           return {
             available: true,
-            protocolName: "ZCode Protocol",
+            protocolName: "Mode Protocol",
             protocolVersion: 1,
             workspaceKey: "/workspace/app",
           };
@@ -117,8 +117,8 @@ async function createServiceWithClients(options: {
     };
   }
 
-  const { createZCodeAgentService } = await import("../src/zcode-agent/zcodeAgentService.js");
-  const service = createZCodeAgentService({
+  const { createModeAgentService } = await import("../src/mode-agent/modeAgentService.js");
+  const service = createModeAgentService({
     // initialize 会先确认当前模型选择 View 中存在可执行模型，否则以
     // provider_not_ready 提前返回、不建 client。
     modelSelectionReadinessSource: {
@@ -131,7 +131,7 @@ async function createServiceWithClients(options: {
                 kind: "account" as const,
                 api: {
                   type: "anthropic-messages" as const,
-                  baseUrl: "https://zcode.z.ai/api/v1/zcode-plan",
+                  baseUrl: "https://mode.z.ai/api/v1/mode-plan",
                 },
                 models: ["GLM-5.2"],
               },
@@ -172,12 +172,12 @@ function officialMcpAuthRequest(
 ): Record<string, unknown> {
   return {
     id,
-    method: zcodeProtocolMethods.interactionRequestOfficialMcpAuthHeaders,
+    method: modeProtocolMethods.interactionRequestOfficialMcpAuthHeaders,
     params: {
       mcpKey: "image-search",
-      pluginId: "zcode-tools@zcode-plugins-official",
+      pluginId: "mode-tools@mode-plugins-official",
       requestId: `official-mcp-auth:${id}`,
-      targetOrigin: "https://mcp.zcode.example",
+      targetOrigin: "https://mcp.mode.example",
       workspace,
     },
   };
@@ -364,9 +364,9 @@ describe("official mcp auth headers over desktop-attached remote", () => {
           seen.push(input);
           return {
             trusted:
-              input.pluginId === "zcode-tools@zcode-plugins-official" &&
+              input.pluginId === "mode-tools@mode-plugins-official" &&
               input.mcpKey === "image-search" &&
-              input.origin === "https://mcp.zcode.example",
+              input.origin === "https://mcp.mode.example",
           };
         },
       },
@@ -421,8 +421,8 @@ describe("official mcp auth headers over desktop-attached remote", () => {
       expect(resolveHeaders).toHaveBeenCalledWith(
         expect.objectContaining({
           mcpKey: "image-search",
-          pluginId: "zcode-tools@zcode-plugins-official",
-          targetOrigin: "https://mcp.zcode.example",
+          pluginId: "mode-tools@mode-plugins-official",
+          targetOrigin: "https://mcp.mode.example",
           workspace: expect.objectContaining({
             workspaceIdentity: REMOTE_WORKSPACE.workspaceIdentity,
           }),
@@ -447,12 +447,12 @@ describe("official mcp auth headers over desktop-attached remote", () => {
       const remote = harness.clients.get(REMOTE_WORKSPACE.workspaceIdentity);
       remote?.onRequestListener?.({
         id: "remote-bad",
-        method: zcodeProtocolMethods.interactionRequestOfficialMcpAuthHeaders,
+        method: modeProtocolMethods.interactionRequestOfficialMcpAuthHeaders,
         // 走私凭证字段 + 缺 targetOrigin：strict schema 必须拒绝
         params: {
           jwt: "leaked",
           mcpKey: "image-search",
-          pluginId: "zcode-tools@zcode-plugins-official",
+          pluginId: "mode-tools@mode-plugins-official",
           requestId: "official-mcp-auth:bad",
           workspace: REMOTE_WORKSPACE,
         },

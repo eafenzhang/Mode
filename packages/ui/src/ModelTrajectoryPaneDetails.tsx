@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
-import type { ModeModelTrajectoryContentPart, ModeModelTrajectoryRecord } from "@mode/services";
+import type {
+  ModeModelTrajectoryContentPart,
+  ModeModelTrajectoryRecord,
+  ModeModelTrajectoryUsage,
+} from "@mode/services";
 import { Badge } from "@/components/ui/badge.js";
 import { cn } from "@/components/lib/utils.js";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
@@ -153,6 +157,43 @@ function CodeBlock({ value }: { value: string }) {
     <pre className="max-h-64 min-w-0 overflow-auto whitespace-pre rounded-md bg-surface px-2 py-1.5 font-mono text-ui-sm leading-relaxed text-foreground">
       {value || "—"}
     </pre>
+  );
+}
+
+export function UsageBadges({
+  usage,
+  intl,
+}: {
+  usage?: ModeModelTrajectoryUsage;
+  intl: IntlShape;
+}) {
+  if (!usage) {
+    return null;
+  }
+  const parts: string[] = [];
+  if (typeof usage.inputTokens === "number") {
+    parts.push(
+      intl.formatMessage(
+        { id: "modelTrajectory.usage.input" },
+        { count: usage.inputTokens.toLocaleString() },
+      ),
+    );
+  }
+  if (typeof usage.outputTokens === "number") {
+    parts.push(
+      intl.formatMessage(
+        { id: "modelTrajectory.usage.output" },
+        { count: usage.outputTokens.toLocaleString() },
+      ),
+    );
+  }
+  if (parts.length === 0) {
+    return null;
+  }
+  return (
+    <Badge variant="outline" className="font-mono text-foreground-subtle">
+      {parts.join("  ")}
+    </Badge>
   );
 }
 

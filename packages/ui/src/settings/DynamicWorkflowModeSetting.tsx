@@ -1,14 +1,14 @@
 import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 import {
   DYNAMIC_WORKFLOW_MODES,
-  DynamicWorkflowMode,
+  isDynamicWorkflowOffered,
   normalizeDynamicWorkflowMode,
   TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_ITEM,
   TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_TRIGGER,
   testId,
   type AppSettings,
   type DynamicWorkflowMode,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   DynamicWorkflowAlwaysOnIcon,
   DynamicWorkflowOffIcon,
@@ -17,7 +17,7 @@ import {
 import {
   Select,
   SelectContent,
-  SelectItem,
+  SelectRichItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
@@ -44,7 +44,7 @@ export function resolveDynamicWorkflowModeSettingView(
   snapshot: DynamicWorkflowAvailabilitySnapshot,
 ): { value: DynamicWorkflowMode; offeredMode: DynamicWorkflowMode } | null {
   const config = snapshot.config;
-  if (snapshot.status !== "ready" || !config || !DynamicWorkflowMode(config)) return null;
+  if (snapshot.status !== "ready" || !config || !isDynamicWorkflowOffered(config)) return null;
   return { value: config.mode, offeredMode: config.offeredMode };
 }
 
@@ -117,7 +117,7 @@ export function DynamicWorkflowModeSetting() {
             {DYNAMIC_WORKFLOW_MODES.map((mode) => {
               const Icon = MODE_ICONS[mode];
               return (
-                <SelectItem
+                <SelectRichItem
                   key={mode}
                   value={mode}
                   data-testid={testId(TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_ITEM, mode)}

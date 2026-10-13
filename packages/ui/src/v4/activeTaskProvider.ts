@@ -4,7 +4,7 @@ import type { WorkspaceModeUIState } from "@/store/modeSessionStoreTypes.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 
-function resolveChatViewActiveTaskProvider(
+export function resolveChatViewActiveTaskProvider(
   taskId: string | null,
   workspaceState: Pick<
     WorkspaceModeUIState,

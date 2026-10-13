@@ -212,6 +212,19 @@ export function createRemoteDesktopHostServer(options: {
    * onFrame 不注入：走 relay 缺省出口（当前 WS + 128KB 背压丢帧 + 丢帧即请关键帧，契约 C）。
    * onInput（T14）：media WS 上行输入 → 既有 raw_input 注入（见下）。
    */
+  /**
+   * 媒体面**起不来**（rd_media 注入端口缺失 / rd_media_start 失败）→ 通知 main 回主控
+   * `error{unsupported}` 并收口。这是「采集从未建立」而非「采集中断」（后者走 frozen）：
+   * 不报的话主控只能对着零帧干等（2026-10-14 实机：状态条「画面已连接 / 0 fps / 0.0 Mbps」）。
+   * spec: lan-remote-desktop-native-media.md「媒体面可观测性与首帧约束」。
+   */
+  const reportMediaUnavailable = (unavailable: string): void =>
+    options.postToMain({
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus,
+      frozen: false,
+      unavailable,
+    });
+
   const mediaRelay = createRemoteDesktopMediaRelay({
     logger,
     onStatus: (frozen, reason) =>
@@ -732,11 +745,17 @@ export function createRemoteDesktopHostServer(options: {
         // 开流：同意时已 listen 过中继口（幂等，同会话复用同一随机口），这里取端口注入
         // rd_media_start 给 helper。P1-3：启动参数取本会话画质档位（fps/maxWidth/初始
         // 码率），替代旧硬编码 1920/60/8Mbps；自适应码率由主控在档位区间内调节。
-        // callRdMedia 由 Task 8 注入；未注入时静默跳过、注入后失败只 warn——P2 阶段
-        // 渲染器画面仍在，媒体面缺失不断会话。
+        // callRdMedia 由 Task 8 注入。原生媒体面是画面唯一来源（纯直替 WebRTC 后 P2 阶段
+        // 的「画面仍在」前提已不成立）：未注入或启动失败都不得静默——主控侧只会表现为
+        // 「画面已连接、fps 0、码率 0.0Mbps」的纯黑，双端零日志则无法定位
+        //（spec「媒体面可观测性与首帧约束」2026-10-14）。会话仍不断：主控靠首帧看门狗提示。
         void (async () => {
           const callRdMedia = options.callRdMedia;
           if (!callRdMedia) {
+            logger.warn(
+              "[remote-desktop] media start skipped: rd_media helper port not injected（本机起了会话但不会出画面）",
+            );
+            reportMediaUnavailable("rd_media-helper-port-not-injected");
             return;
           }
           try {
@@ -763,6 +782,8 @@ export function createRemoteDesktopHostServer(options: {
               setEncoderCapability("unavailable");
             }
             logger.warn("[remote-desktop] rd_media_start failed:", messageText);
+            // 同上：起不来必须回稳定错误码，不能让主控对着零帧等（码面用既有 unsupported）。
+            reportMediaUnavailable(`rd_media-start-failed:${messageText}`);
           }
         })();
         return;

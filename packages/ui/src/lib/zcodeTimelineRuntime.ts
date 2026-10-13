@@ -1,4 +1,4 @@
-import type { ModeTimelineMeta } from "@zcode/shared";
+import type { ModeTimelineMeta } from "@mode/shared";
 import type { TaskChatMessage } from "@/lib/taskChatMessageTypes.js";
 
 const RUNNING_CONTEXT_COMPACTION_STATUSES = new Set(["started", "retrying"]);
@@ -17,7 +17,7 @@ export function isRunningGoalVerificationTimeline(
   );
 }
 
-export function isRunningZCodeTimeline(timeline: ModeTimelineMeta | undefined): boolean {
+export function isRunningModeTimeline(timeline: ModeTimelineMeta | undefined): boolean {
   if (!timeline) {
     return false;
   }
@@ -30,8 +30,8 @@ export function isRunningZCodeTimeline(timeline: ModeTimelineMeta | undefined): 
   return false;
 }
 
-export function hasRunningZCodeTimeline(messages: readonly TaskChatMessage[]): boolean {
-  return messages.some((message) => isRunningZCodeTimeline(message.syntheticTimeline));
+export function hasRunningModeTimeline(messages: readonly TaskChatMessage[]): boolean {
+  return messages.some((message) => isRunningModeTimeline(message.syntheticTimeline));
 }
 
 export function hasRunningContextCompactionTimeline(

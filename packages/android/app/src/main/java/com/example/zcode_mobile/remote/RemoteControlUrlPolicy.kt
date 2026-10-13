@@ -1,10 +1,10 @@
-package com.example.zcode_mobile.remote
+package com.example.mode_mobile.remote
 
 import android.net.Uri
-import com.example.zcode_mobile.BuildConfig
+import com.example.mode_mobile.BuildConfig
 
-private const val ZCODE_REMOTE_SCHEME = "zcode"
-private const val ZCODE_REMOTE_HOST = "remote"
+private const val MODE_REMOTE_SCHEME = "mode"
+private const val MODE_REMOTE_HOST = "remote"
 
 object RemoteControlUrlPolicy {
     fun resolve(raw: String?): String? {
@@ -22,7 +22,7 @@ object RemoteControlUrlPolicy {
             return null
         }
 
-        if (uri.scheme == ZCODE_REMOTE_SCHEME && uri.host == ZCODE_REMOTE_HOST) {
+        if (uri.scheme == MODE_REMOTE_SCHEME && uri.host == MODE_REMOTE_HOST) {
             return buildDefaultRemoteUrl(uri)
         }
 
@@ -50,7 +50,7 @@ object RemoteControlUrlPolicy {
         val host = uri.host?.lowercase().orEmpty()
         val path = uri.path.orEmpty()
 
-        if (scheme == "https" && host == "zcode.z.ai" && path.startsWith("/remote")) {
+        if (scheme == "https" && host == "mode.z.ai" && path.startsWith("/remote")) {
             return true
         }
 
@@ -59,11 +59,11 @@ object RemoteControlUrlPolicy {
         }
 
         // Bugfix: 开发机真机调试时二维码会指向局域网 Vite 地址。
-        // 生产包仍只允许 zcode.z.ai，debug 包才放开测试域、本机和局域网 http/https，避免远控壳变成任意浏览器。
+        // 生产包仍只允许 mode.z.ai，debug 包才放开测试域、本机和局域网 http/https，避免远控壳变成任意浏览器。
         if (!path.startsWith("/remote")) {
             return false
         }
-        if (host == "zcode.z.ai") {
+        if (host == "mode.z.ai") {
             return scheme == "https"
         }
         return (scheme == "http" || scheme == "https") && isDebugHost(host)

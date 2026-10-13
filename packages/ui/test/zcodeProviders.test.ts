@@ -1,25 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-  shouldHideZCodeSessionForkAction,
-  supportsZCodeSessionFork,
-} from "../src/lib/zcodeProviders.js";
+  shouldHideModeSessionForkAction,
+  supportsModeSessionFork,
+} from "../src/lib/modeProviders.js";
 
-describe("supportsZCodeSessionFork", () => {
+describe("supportsModeSessionFork", () => {
   it("所有 provider 都开放 session fork 入口", () => {
-    expect(supportsZCodeSessionFork("glm")).toBe(true);
-    expect(supportsZCodeSessionFork("claude")).toBe(true);
-    expect(supportsZCodeSessionFork("codex")).toBe(true);
-    expect(supportsZCodeSessionFork("gemini")).toBe(true);
-    expect(supportsZCodeSessionFork("opencode")).toBe(true);
+    expect(supportsModeSessionFork("glm")).toBe(true);
+    expect(supportsModeSessionFork("claude")).toBe(true);
+    expect(supportsModeSessionFork("codex")).toBe(true);
+    expect(supportsModeSessionFork("gemini")).toBe(true);
+    expect(supportsModeSessionFork("opencode")).toBe(true);
   });
 });
 
-describe("shouldHideZCodeSessionForkAction", () => {
+describe("shouldHideModeSessionForkAction", () => {
   it("所有 provider 都不再隐藏 fork UI 入口", () => {
-    expect(shouldHideZCodeSessionForkAction("glm")).toBe(false);
-    expect(shouldHideZCodeSessionForkAction("claude")).toBe(false);
-    expect(shouldHideZCodeSessionForkAction("codex")).toBe(false);
-    expect(shouldHideZCodeSessionForkAction("gemini")).toBe(false);
-    expect(shouldHideZCodeSessionForkAction("opencode")).toBe(false);
+    expect(shouldHideModeSessionForkAction("glm")).toBe(false);
+    expect(shouldHideModeSessionForkAction("claude")).toBe(false);
+    expect(shouldHideModeSessionForkAction("codex")).toBe(false);
+    expect(shouldHideModeSessionForkAction("gemini")).toBe(false);
+    expect(shouldHideModeSessionForkAction("opencode")).toBe(false);
   });
 });

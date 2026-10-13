@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import type {
   PluginSyncCandidate,
   PluginSyncRemoteStatus,
-  ZCodePluginInfo,
-  ZCodePluginsOverviewResult,
-} from "@zcode/shared";
+  ModePluginInfo,
+  ModePluginsOverviewResult,
+} from "@mode/shared";
 import {
   buildMarketplaceRemotePluginStatuses,
   buildMarketplaceRemotePluginSyncCandidates,
@@ -20,7 +20,7 @@ import {
 type RemotePluginSyncParams = Parameters<typeof syncSelectedRemotePlugins>[0];
 type RemotePluginSyncRow = RemotePluginSyncParams["rows"][number];
 type RemoteInstallResult = Awaited<
-  ReturnType<NonNullable<RemotePluginSyncParams["remoteZCodeAgentService"]>["installPlugin"]>
+  ReturnType<NonNullable<RemotePluginSyncParams["remoteModeAgentService"]>["installPlugin"]>
 >;
 
 function makeCandidate(
@@ -31,7 +31,7 @@ function makeCandidate(
     name: "remote-tools",
     pluginId: "remote-tools@inline",
     directoryName: "remote-tools",
-    path: "/Users/me/.zcode/plugins/remote-tools",
+    path: "/Users/me/.mode/plugins/remote-tools",
     sizeBytes: 128,
     enabled: true,
     componentTypes: ["skills"],
@@ -40,13 +40,13 @@ function makeCandidate(
 }
 
 function makeOverview(
-  installed: ZCodePluginsOverviewResult["installedPlugins"],
-  source: ZCodePluginsOverviewResult["marketplaces"][number]["source"] = {
+  installed: ModePluginsOverviewResult["installedPlugins"],
+  source: ModePluginsOverviewResult["marketplaces"][number]["source"] = {
     source: "github",
     repo: "example/team-plugins",
     ref: "main",
   },
-): ZCodePluginsOverviewResult {
+): ModePluginsOverviewResult {
   return {
     marketplaces: [
       {
@@ -95,8 +95,8 @@ function makeMarketplaceRow(name: string): RemotePluginSyncRow {
 }
 
 function makePluginInfo(
-  overrides: Partial<ZCodePluginInfo>,
-): ZCodePluginInfo {
+  overrides: Partial<ModePluginInfo>,
+): ModePluginInfo {
   return {
     id: "formatter@team-market",
     name: "formatter",
@@ -211,7 +211,7 @@ describe("RemotePluginSyncDialog helpers", () => {
           enabled: false,
           scope: "workspace",
           version: "2.0.0",
-          installPath: "/Users/me/.zcode/cli/plugins/cache/team-market/formatter/2.0.0",
+          installPath: "/Users/me/.mode/cli/plugins/cache/team-market/formatter/2.0.0",
           componentTypes: ["command", "skill"],
         },
       ]),
@@ -372,13 +372,13 @@ describe("RemotePluginSyncDialog helpers", () => {
           expect(params.archive).toBe(archive);
           return {
             marketplaceId: "team-market",
-            path: "/remote/.zcode/plugins/marketplace-sources/team-market-hash",
+            path: "/remote/.mode/plugins/marketplace-sources/team-market-hash",
             status: "synced",
           };
         },
       } as never,
       remoteWorkspacePath: "/remote/workspace",
-      remoteZCodeAgentService: {
+      remoteModeAgentService: {
         addPluginMarketplace: async (params) => {
           calls.push(`add:${params.source}`);
           return { diagnostics: [] };
@@ -451,7 +451,7 @@ describe("RemotePluginSyncDialog helpers", () => {
     expect(calls).toEqual([
       "export:team-market:formatter",
       "import",
-      "add:/remote/.zcode/plugins/marketplace-sources/team-market-hash",
+      "add:/remote/.mode/plugins/marketplace-sources/team-market-hash",
       "install:formatter@team-market",
       "enabled:formatter@team-market:true",
     ]);
@@ -464,7 +464,7 @@ describe("RemotePluginSyncDialog helpers", () => {
       localPluginSyncService: {} as never,
       remotePluginSyncService: {} as never,
       remoteWorkspacePath: "/remote/workspace",
-      remoteZCodeAgentService: {
+      remoteModeAgentService: {
         installPlugin: async () => ({
           dependencyClosure: [],
           diagnostics: [],
@@ -572,7 +572,7 @@ describe("RemotePluginSyncDialog helpers", () => {
       localPluginSyncService: {} as never,
       remotePluginSyncService: {} as never,
       remoteWorkspacePath: "/remote/workspace",
-      remoteZCodeAgentService: {
+      remoteModeAgentService: {
         installPlugin: async (params) => {
           calls.push({ operation: "install", scope: params.scope });
           return {
@@ -666,7 +666,7 @@ describe("RemotePluginSyncDialog helpers", () => {
       localPluginSyncService: {} as never,
       remotePluginSyncService: {} as never,
       remoteWorkspacePath: "/remote/workspace",
-      remoteZCodeAgentService: {
+      remoteModeAgentService: {
         installPlugin: async (params) => {
           installOperationIds.push(params.operationId ?? "");
           if (params.pluginName === "slow") {
@@ -802,7 +802,7 @@ describe("RemotePluginSyncDialog helpers", () => {
       localPluginSyncService: {} as never,
       remotePluginSyncService: {} as never,
       remoteWorkspacePath: "/remote/workspace",
-      remoteZCodeAgentService: {
+      remoteModeAgentService: {
         installPlugin: async (params) => {
           installOperationIds.push(params.operationId ?? "");
           slowStarted.resolve();
@@ -847,7 +847,7 @@ describe("RemotePluginSyncDialog helpers", () => {
       localPluginSyncService: {} as never,
       remotePluginSyncService: {} as never,
       remoteWorkspacePath: "/remote/workspace",
-      remoteZCodeAgentService: {
+      remoteModeAgentService: {
         installPlugin: async (params) => {
           installCalls.push(params.pluginName);
           return {

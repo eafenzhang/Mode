@@ -29,7 +29,7 @@ describe("resolveRootWorkspaceShellTarget", () => {
       activeWorkspaceTab: null,
       activeWorkspacePath: remoteWorkspaceTab.workspacePath,
       activeWorkspaceIdentity: remoteWorkspaceIdentity,
-      workspaceTabs: [{ workspacePath: "D:\\zcode\\other-local" }, remoteWorkspaceTab],
+      workspaceTabs: [{ workspacePath: "D:\\mode\\other-local" }, remoteWorkspaceTab],
     });
 
     // Settings 覆盖 workspace 时，外壳目标必须与被覆盖的 workspace tab 完全一致；
@@ -97,13 +97,13 @@ describe("resolveRootWorkspaceShellTarget", () => {
   it("keeps a local workspace local while settings is active", () => {
     const target = resolveRootWorkspaceShellTarget({
       activeWorkspaceTab: null,
-      activeWorkspacePath: "D:\\zcode\\workspace",
+      activeWorkspacePath: "D:\\mode\\workspace",
       activeWorkspaceIdentity: null,
-      workspaceTabs: [{ workspacePath: "D:\\zcode\\workspace" }, remoteWorkspaceTab],
+      workspaceTabs: [{ workspacePath: "D:\\mode\\workspace" }, remoteWorkspaceTab],
     });
 
     expect(target).toEqual({
-      workspaceShellPath: "D:\\zcode\\workspace",
+      workspaceShellPath: "D:\\mode\\workspace",
       workspaceIdentity: undefined,
       workspaceRemoteSessionId: undefined,
     });

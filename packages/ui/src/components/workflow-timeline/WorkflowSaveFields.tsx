@@ -4,7 +4,7 @@
 // 与弹层壳分文件只为守住 400 行的门；这里不持有任何状态，全部由 WorkflowSavePopover 传进来。
 import type { RefObject } from "react";
 import { FolderIcon, GlobeIcon } from "lucide-react";
-import type { ModeSavedWorkflowScope } from "@zcode/shared";
+import type { ModeSavedWorkflowScope } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import {

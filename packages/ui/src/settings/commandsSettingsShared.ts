@@ -3,10 +3,10 @@ import {
   MODE_COMMAND_AGENT_SOURCES,
   type ModeProvider,
   type CommandAgentSource,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 export const COMMAND_AGENT_SOURCES = [
-  ...ZCODE_COMMAND_AGENT_SOURCES,
+  ...MODE_COMMAND_AGENT_SOURCES,
 ] as const satisfies readonly CommandAgentSource[];
 
 export const COMMAND_AGENT_SOURCE_META: Record<
@@ -17,9 +17,9 @@ export const COMMAND_AGENT_SOURCE_META: Record<
     pathHint: string;
   }
 > = {
-  zcodeAgent: {
-    labelId: "settings.commands.source.zcodeAgent",
-    pathHint: "~/.zcode/commands",
+  modeAgent: {
+    labelId: "settings.commands.source.modeAgent",
+    pathHint: "~/.mode/commands",
     provider: MODE_AGENT_PROVIDER,
   },
 };

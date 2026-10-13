@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PlatformChannels } from "@zcode/shared";
+import { PlatformChannels } from "@mode/shared";
 
 const electronMocks = vi.hoisted(() => {
   const notificationInstances: NotificationMock[] = [];

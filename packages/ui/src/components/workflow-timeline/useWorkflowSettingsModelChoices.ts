@@ -8,14 +8,14 @@
 // 各写一份的话，总有一天确认窗里能选的模型与弹层里能选的不一样。
 
 import { useCallback, useMemo } from "react";
-import { completeNewModelSelection } from "@zcode/provider";
-import { MODE_AGENT_PROVIDER, type ModeConfigOption } from "@zcode/shared";
+import { completeNewModelSelection } from "@mode/provider";
+import { MODE_AGENT_PROVIDER, type ModeConfigOption } from "@mode/shared";
 import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
 import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
-import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
-import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
+import { encodeCustomModelValue } from "@/lib/modeCustomModelValue.js";
+import { parseModelPickerValue } from "@/lib/modeSessionProjection.js";
 import type { ModelSelectGroup, ModelSelectGroupItem } from "@/ModelConfigSelect.js";
 import { formatProviderModelLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import { describeWorkflowSubagentModel } from "./subagent-model-label.js";

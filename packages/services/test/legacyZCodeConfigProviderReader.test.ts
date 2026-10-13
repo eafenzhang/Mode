@@ -7,7 +7,7 @@ import {
   createModelProviderModelConfig,
   type ModelProviderConfig,
 } from "../src/model-provider/legacyModelProviderSerialized.js";
-import { readLegacyZCodeConfigProviders } from "../src/model-provider/legacyZCodeConfigProviderReader.js";
+import { readLegacyModeConfigProviders } from "../src/model-provider/legacyModeConfigProviderReader.js";
 
 function createProvider(): ModelProviderConfig {
   return {
@@ -34,11 +34,11 @@ function createProvider(): ModelProviderConfig {
   };
 }
 
-describe("legacyZCodeConfigProviderReader", () => {
+describe("legacyModeConfigProviderReader", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "zcode-provider-store-"));
+    tempDir = mkdtempSync(join(tmpdir(), "mode-provider-store-"));
     setDataBaseDir(tempDir);
   });
 
@@ -48,25 +48,25 @@ describe("legacyZCodeConfigProviderReader", () => {
   });
 
   it("彻底忽略 model-providers.json", async () => {
-    const legacyConfigDir = join(tempDir, ".zcode", "v2");
+    const legacyConfigDir = join(tempDir, ".mode", "v2");
     mkdirSync(legacyConfigDir, { recursive: true });
     writeFileSync(
       join(legacyConfigDir, "model-providers.json"),
       JSON.stringify({
-        schemaVersion: "zcode.model-providers.v2",
+        schemaVersion: "mode.model-providers.v2",
         providers: [createProvider()],
       }),
       "utf8",
     );
-    const providers = await readLegacyZCodeConfigProviders();
+    const providers = await readLegacyModeConfigProviders();
 
-    const configDir = join(tempDir, ".zcode", "v2");
+    const configDir = join(tempDir, ".mode", "v2");
     expect(providers).toEqual([]);
     expect(() => readFileSync(join(configDir, "config.json"), "utf-8")).toThrow();
   });
 
   it("只从已发布旧 config.json 读取 Provider", async () => {
-    const legacyConfigDir = join(tempDir, ".zcode", "v2");
+    const legacyConfigDir = join(tempDir, ".mode", "v2");
     mkdirSync(legacyConfigDir, { recursive: true });
     writeFileSync(
       join(legacyConfigDir, "config.json"),
@@ -82,13 +82,13 @@ describe("legacyZCodeConfigProviderReader", () => {
       "utf8",
     );
 
-    const providers = await readLegacyZCodeConfigProviders();
+    const providers = await readLegacyModeConfigProviders();
 
     expect(providers.map((provider) => provider.id)).toEqual(["custom:test"]);
   });
 
   it("不把开发阶段曾写入 config.json 的未发布 Provider 格式当作迁移输入", async () => {
-    const configDir = join(tempDir, ".zcode", "v2");
+    const configDir = join(tempDir, ".mode", "v2");
     const configPath = join(configDir, "config.json");
     const document = {
       schemaVersion: 1,
@@ -98,7 +98,7 @@ describe("legacyZCodeConfigProviderReader", () => {
     mkdirSync(configDir, { recursive: true });
     writeFileSync(configPath, JSON.stringify(document, null, 2), "utf8");
 
-    await expect(readLegacyZCodeConfigProviders()).resolves.toEqual([]);
+    await expect(readLegacyModeConfigProviders()).resolves.toEqual([]);
 
     expect(JSON.parse(readFileSync(configPath, "utf8"))).toEqual(document);
   });

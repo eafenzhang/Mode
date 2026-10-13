@@ -1,21 +1,21 @@
 import type { WindowHostAttachmentScope } from "@mode/shared";
 import type { ModeAgentV4ClientMode } from "@mode/services";
 
-interface WindowHostAttachmentPort {
+export interface WindowHostAttachmentPort {
   once(event: "close", listener: () => void): unknown;
 }
 
-interface WindowHostAttachmentHandle {
+export interface WindowHostAttachmentHandle {
   dispose(): void;
 }
 
-interface WindowHostResolvedAttachmentScope<TServices, TCapabilities = never> {
+export interface WindowHostResolvedAttachmentScope<TServices, TCapabilities = never> {
   services: TServices;
   generation: number;
   capabilities?: TCapabilities;
 }
 
-interface WindowHostExposeAttachmentParams<TServices, TPort, TCapabilities = never> {
+export interface WindowHostExposeAttachmentParams<TServices, TPort, TCapabilities = never> {
   requestId: string;
   attachmentId: string;
   clientMode: ModeAgentV4ClientMode;

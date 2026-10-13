@@ -1,4 +1,9 @@
-import { normalizeAgentProviderToModeAgent, type ModeProvider, type AppSettings } from "@zcode/shared";
+import {
+  normalizeAgentProviderToModeAgent,
+  normalizeAgentProvidersToModeAgent,
+  type ModeProvider,
+  type AppSettings,
+} from "@mode/shared";
 const INSTALLABLE_AGENT_CLI_PROVIDERS: ModeProvider[] = [];
 
 export type BuiltinAgentCliStatus =
@@ -10,7 +15,7 @@ export type BuiltinAgentCliStatus =
 function normalizeEnabledBuiltinAgentCliProviders(
   providers?: ReadonlyArray<ModeProvider>,
 ): ModeProvider[] {
-  return normalizeAgentProviderToModeAgent(providers);
+  return normalizeAgentProvidersToModeAgent(providers);
 }
 
 export function getEnabledBuiltinAgentCliProviders(

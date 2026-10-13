@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 import type { WorkspaceTabState } from "../src/store/tabStore.js";
 import {
   resolveTaskFileTreeTarget,
   resolveTaskFileTreeTargetFromTabs,
 } from "../src/lib/taskFileTreeTarget.js";
 
-function task(overrides: Partial<ZCodeTaskMeta> = {}): ZCodeTaskMeta {
+function task(overrides: Partial<ModeTaskMeta> = {}): ModeTaskMeta {
   return {
     taskId: "task-1",
     workspacePath: "/work/repo",
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
-  } as ZCodeTaskMeta;
+  } as ModeTaskMeta;
 }
 
 function tab(overrides: Partial<WorkspaceTabState> = {}): WorkspaceTabState {

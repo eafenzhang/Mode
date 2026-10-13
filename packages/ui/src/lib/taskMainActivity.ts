@@ -1,6 +1,6 @@
-import type { ModeStreamEvent, ModeTaskRuntimeStatus } from "@zcode/shared";
+import type { ModeStreamEvent, ModeTaskRuntimeStatus } from "@mode/shared";
 import type { TaskChatMessage } from "@/lib/taskChatMessageTypes.js";
-import { hasRunningZCodeTimeline } from "@/lib/zcodeTimelineRuntime.js";
+import { hasRunningModeTimeline } from "@/lib/modeTimelineRuntime.js";
 
 type TaskStreamMirrorBatchEvent = Extract<ModeStreamEvent, { type: "task_stream_mirror_batch" }>;
 type TaskStreamMirrorOp = TaskStreamMirrorBatchEvent["ops"][number];
@@ -60,7 +60,7 @@ function isTaskRuntimeBusy(taskStatus: ModeTaskRuntimeStatus): boolean {
 }
 
 export function hasForegroundActivityFromMessages(messages: readonly TaskChatMessage[]): boolean {
-  return hasForegroundStreamingAssistantMessage(messages) || hasRunningZCodeTimeline(messages);
+  return hasForegroundStreamingAssistantMessage(messages) || hasRunningModeTimeline(messages);
 }
 
 export function isMainActivityRuntimeBusy(params: {

@@ -5,7 +5,7 @@
 import type { IModeAgentService } from "../mode-agent/modeAgent.js";
 import type { IPluginManagementService } from "./pluginManagement.js";
 
-interface PluginManagementServiceDependencies {
+export interface PluginManagementServiceDependencies {
   modeAgentService: Pick<
     IModeAgentService,
     | "listPlugins"

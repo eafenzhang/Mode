@@ -1,7 +1,7 @@
 import type { ProviderSettingsView } from "@mode/services";
 import { type ModeProviderAccountAccess, modeProviderAccountAccessSchema } from "@mode/shared";
 
-interface EntitledAccountProviderAccess {
+export interface EntitledAccountProviderAccess {
   readonly providerId: string;
   readonly access: ModeProviderAccountAccess;
   readonly label?: string;

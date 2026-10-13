@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const REWARDS_PARTITION = "persist:zcode-rewards";
-export const REWARDS_CONTEXT_EVENT = "zcode-rewards-context";
+export const REWARDS_PARTITION = "persist:mode-rewards";
+export const REWARDS_CONTEXT_EVENT = "mode-rewards-context";
 export const rewardsContextSchema = z.object({
   theme: z.enum(["zai-light", "zai-dark"]),
   locale: z.enum(["zh-CN", "en-US"]),
@@ -21,7 +21,7 @@ export function isTrustedRewardsUrl(
     const url = new URL(value);
     if (url.username || url.password) return false;
     const trusted =
-      ["https://zcode.z.ai", "https://zcode.z.ai"].includes(url.origin) ||
+      ["https://mode.z.ai", "https://mode.z.ai"].includes(url.origin) ||
       (options.dev === true && url.origin === "http://localhost:3000") ||
       (options.e2e === true &&
         url.protocol === "http:" &&
@@ -51,7 +51,7 @@ export function resolveRewardsOrigin(options: {
   } catch {
     // 配置值非法时回到受信任的环境地址，不让菜单点击直接抛异常。
   }
-  return options.env === "test" ? "https://zcode.z.ai" : "https://zcode.z.ai";
+  return options.env === "test" ? "https://mode.z.ai" : "https://mode.z.ai";
 }
 
 export function buildRewardsUrl(

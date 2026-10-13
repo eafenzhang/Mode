@@ -3,6 +3,17 @@ import type { McpServerConfig, ModeMcpServer } from "@mode/shared";
 export const MCP_SECTIONS = ["zcodeagentmcp"] as const;
 
 export type ServerScope = (typeof MCP_SECTIONS)[number];
+
+export const SOURCE_META: Record<
+  ServerScope,
+  { label: string; section: string; badgeClass: string }
+> = {
+  modeagentmcp: {
+    label: "Mode Agent",
+    section: "Mode Agent",
+    badgeClass: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+  },
+};
 export type ConfigStorageLevel = "user" | "workspace";
 export type McpEditorMode = "form" | "json";
 

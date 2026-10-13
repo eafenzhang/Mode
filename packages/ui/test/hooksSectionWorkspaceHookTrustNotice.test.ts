@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
-import type { Hook } from "@zcode/shared";
+import type { Hook } from "@mode/shared";
 import { createElement } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { ModeIntlProvider } from "@/i18n/IntlProvider.js";
 import { HooksSection } from "@/settings/HooksSection.js";
 
 const hooksStateMock = vi.hoisted(() => ({
@@ -61,8 +61,8 @@ vi.mock("@/hooks/useConfirmDialog.js", () => ({
   useConfirmDialog: () => vi.fn(async () => false),
 }));
 
-vi.mock("@/hooks/useZCodeSessionService.js", () => ({
-  useZCodeSessionService: () => undefined,
+vi.mock("@/hooks/useModeSessionService.js", () => ({
+  useModeSessionService: () => undefined,
 }));
 
 vi.mock("@/store/TabStoreProvider.js", () => ({
@@ -111,7 +111,7 @@ vi.mock("@/components/ui/button.js", () => ({
   Button: ({ children }: { children?: unknown }) => createElement("button", null, children),
 }));
 vi.mock("@/components/ui/toast.js", () => ({ toast: vi.fn() }));
-vi.mock("@/lib/zcodeDraftSkillInvalidation.js", () => ({
+vi.mock("@/lib/modeDraftSkillInvalidation.js", () => ({
   invalidateDeferredDraftSessionForRuntimeChange: vi.fn(async () => undefined),
 }));
 vi.mock("@/settings/PluginInstallEmptyState.js", () => ({
@@ -128,9 +128,9 @@ function workspaceHook(): Hook {
     enabled: true,
     editable: false,
     location: {
-      source: "zcode",
+      source: "mode",
       scope: "user",
-      directoryPath: "/workspace-a/.zcode",
+      directoryPath: "/workspace-a/.mode",
       projectPath: "/workspace-a",
     },
     workspaceHook: {
@@ -138,7 +138,7 @@ function workspaceHook(): Hook {
       declarationEnabled: true,
       runtimeHooksEnabled: true,
       configuredEnabled: true,
-      sourcePath: "/workspace-a/.zcode/config.json",
+      sourcePath: "/workspace-a/.mode/config.json",
       reviewItemId: "review-pending",
       workspaceIdentity: "/workspace-a",
       bundleDigest: "a".repeat(64),
@@ -152,7 +152,7 @@ function workspaceHook(): Hook {
 function renderHooksSection() {
   return render(
     createElement(
-      ZCodeIntlProvider,
+      ModeIntlProvider,
       { initialLocale: "en-US" },
       createElement(HooksSection, { workspacePath: hooksStateMock.workspacePath }),
     ),

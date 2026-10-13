@@ -1,5 +1,5 @@
 import type { WorkspaceSidePaneState } from "@/lib/workspaceSidePane.js";
-import { getActiveSidePaneTab } from "@/lib/workspaceSidePane.js";
+import { activateSidePaneTab } from "@/lib/workspaceSidePane.js";
 import type { OpenPluginUiSideTabRequest, PluginUiSidePaneTab } from "../contract.js";
 import { buildPluginUiSidePaneTabId, readPluginUiScopeRef } from "../contract.js";
 
@@ -44,5 +44,5 @@ export function openPluginUiSidePane(
   const existing = current?.tabs.find(
     (tab): tab is PluginUiSidePaneTab => tab.type === "plugin-ui" && tab.id === nextTab.id,
   );
-  return getActiveSidePaneTab(current, existing ? { ...existing, title: nextTab.title } : nextTab);
+  return activateSidePaneTab(current, existing ? { ...existing, title: nextTab.title } : nextTab);
 }

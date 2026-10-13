@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ModePlanStep } from "@zcode/shared";
+import type { ModePlanStep } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   Plan,

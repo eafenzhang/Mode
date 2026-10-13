@@ -8,7 +8,7 @@ import type {
   ModeProtocolRequestId,
   ModeProtocolTrace,
 } from "@zcode/shared";
-import type { V4Method } from "@zcode/shared/zcode-protocol-v4";
+import type { V4Method } from "@zcode/shared/mode-protocol-v4";
 import type { z } from "zod";
 import type { ZCodeProtocolTransport } from "./zcodeProtocolTransport.js";
 

@@ -58,6 +58,51 @@ test("不同 workspace 互不影响；enter 幂等；exit 未知/no-op", async (
   assert.equal(gate.count("/w1"), 0);
 });
 
+test("onWait：有槽位不回调；真正挂起时同步回调一次（规则 6 排队提示）", async () => {
+  const { createWorkspaceTurnGate } = await import("../src/bots/workspaceTurnGate.js");
+  const gate = createWorkspaceTurnGate(1);
+
+  let immediateCalls = 0;
+  await gate.enter("/w1", "t1", {
+    onWait: () => {
+      immediateCalls += 1;
+    },
+  });
+  assert.equal(immediateCalls, 0, "有槽位时不得回调");
+
+  let waitCalls = 0;
+  let done = false;
+  const rawT2 = gate.enter("/w1", "t2", {
+    onWait: () => {
+      waitCalls += 1;
+    },
+  });
+  const waiting = rawT2.then(() => {
+    done = true;
+  });
+  await flush();
+  assert.equal(waitCalls, 1, "首次挂起回调一次");
+  assert.equal(done, false, "回调不解除等待");
+
+  // 同 taskId 重复 enter：必须复用同一在途 Promise。
+  // 曾经这里会再压一个 waiter，exit 只唤醒一个 → 另一个永远挂着、调用方 await 不返回。
+  let reEnterCalls = 0;
+  const reEnter = gate.enter("/w1", "t2", {
+    onWait: () => {
+      reEnterCalls += 1;
+    },
+  });
+  assert.equal(reEnter, rawT2, "重复 enter 应复用同一在途 Promise");
+  await flush();
+  assert.equal(reEnterCalls, 0, "重复 enter 不回调");
+  assert.equal(waitCalls, 1);
+
+  gate.exit("t1");
+  await waiting;
+  assert.equal(done, true, "释放后正常放行");
+  assert.equal(waitCalls, 1, "同一回合只提示一次");
+});
+
 test("reset 清空跟踪并唤醒全部等待者，唤醒后按当前计数重新竞争", async () => {
   const { createWorkspaceTurnGate } = await import("../src/bots/workspaceTurnGate.js");
   const gate = createWorkspaceTurnGate(1);

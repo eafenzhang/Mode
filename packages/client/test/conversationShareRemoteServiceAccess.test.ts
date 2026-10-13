@@ -1,5 +1,5 @@
-import type { IChannel, IChannelClient } from "@zcode/rpc";
-import { IConversationShareService } from "@zcode/services";
+import type { IChannel, IChannelClient } from "@mode/rpc";
+import { IConversationShareService } from "@mode/services";
 import { describe, expect, it, vi } from "vitest";
 
 import { RemoteServiceAccess } from "../src/remoteServiceAccess.js";

@@ -1,7 +1,7 @@
 import "@/styles.css";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { ModeIntlProvider } from "@/i18n/IntlProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { EvalWorkflowSnippetToolCallBlock } from "@/ToolCallBlocks/renderers/eval-workflow-snippet.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/shared.js";
@@ -39,7 +39,7 @@ function Fixture() {
     canToggle: true,
   } as unknown as ToolCallBlockRenderContext;
   return (
-    <ZCodeIntlProvider initialLocale="en-US">
+    <ModeIntlProvider initialLocale="en-US">
       <TooltipProvider>
         <button data-testid="complete" onClick={() => setState("completed")}>
           Complete
@@ -49,7 +49,7 @@ function Fixture() {
         </button>
         <EvalWorkflowSnippetToolCallBlock {...context} />
       </TooltipProvider>
-    </ZCodeIntlProvider>
+    </ModeIntlProvider>
   );
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);

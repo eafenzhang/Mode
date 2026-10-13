@@ -1,6 +1,6 @@
 import type { CuaPermissionKind, Locale } from "@mode/shared";
 
-interface CuaPermissionPanelMessages {
+export interface CuaPermissionPanelMessages {
   documentTitle: string;
   dragTitle: string;
   hintPrefix: string;

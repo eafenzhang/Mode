@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { normalizeZCodeUiError, normalizeRestoredTaskFailureError } from "@/lib/zcodeUiError.js";
+import { normalizeModeUiError, normalizeRestoredTaskFailureError } from "@/lib/modeUiError.js";
 
-describe("normalizeZCodeUiError", () => {
+describe("normalizeModeUiError", () => {
   it.each([
     (error: object) => error,
     (error: object) => ({ data: error }),
     (error: object) => ({ data: { error } }),
-    (error: object) => ({ data: { zcode: { error } } }),
+    (error: object) => ({ data: { mode: { error } } }),
   ])("preserves structured underlying fields through RPC wrappers", (wrap) => {
     expect(
-      normalizeZCodeUiError(
+      normalizeModeUiError(
         wrap({
           message: "Model request failed",
           underlyingErrorMessage: "Upstream request failed",
@@ -23,7 +23,7 @@ describe("normalizeZCodeUiError", () => {
   });
 
   it("外层 message 是泛化错误时优先展示 data.message", () => {
-    const normalized = normalizeZCodeUiError({
+    const normalized = normalizeModeUiError({
       message: "Internal error",
       data: {
         message: "Provider quota exceeded",
@@ -38,7 +38,7 @@ describe("normalizeZCodeUiError", () => {
   });
 
   it("message 缺失时会回退到 data.reason", () => {
-    const normalized = normalizeZCodeUiError({
+    const normalized = normalizeModeUiError({
       data: {
         reason: "Credential expired",
       },
@@ -51,7 +51,7 @@ describe("normalizeZCodeUiError", () => {
   });
 
   it("支持解析 JSON 字符串中的嵌套错误字段", () => {
-    const normalized = normalizeZCodeUiError(
+    const normalized = normalizeModeUiError(
       '{"message":"Internal error","data":{"error":{"message":"token invalid"},"code":"AUTH_FAILED"}}',
     );
 
@@ -63,7 +63,7 @@ describe("normalizeZCodeUiError", () => {
   });
 
   it("支持上下文字段透传 traceId/taskId 与 fallbackCode", () => {
-    const normalized = normalizeZCodeUiError(
+    const normalized = normalizeModeUiError(
       { data: { message: "Network timeout" } },
       {
         fallbackCode: "SEND_FAILED",
@@ -81,7 +81,7 @@ describe("normalizeZCodeUiError", () => {
   });
 
   it("支持把顶层 detail 解析成可展开详情", () => {
-    const normalized = normalizeZCodeUiError({
+    const normalized = normalizeModeUiError({
       message: "WebSocket protocol error: Handshake not finished",
       detail:
         "2026-04-10T02:39:27.704964Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket",
@@ -96,11 +96,11 @@ describe("normalizeZCodeUiError", () => {
     });
   });
 
-  it("支持读取 zcode 结构化错误摘要", () => {
-    const normalized = normalizeZCodeUiError({
+  it("支持读取 mode 结构化错误摘要", () => {
+    const normalized = normalizeModeUiError({
       message: "Internal error",
       data: {
-        zcode: {
+        mode: {
           error: {
             code: "UNKNOWN_ERROR",
             message: "Network connection failed for the provider request.",
@@ -120,7 +120,7 @@ describe("normalizeZCodeUiError", () => {
   });
 
   it("保留错误 payload 中的结构化归因，避免新 schema 在 UI 归一化时丢失", () => {
-    const normalized = normalizeZCodeUiError({
+    const normalized = normalizeModeUiError({
       code: "model_request_failed",
       message: "Provider request failed.",
       attribution: {

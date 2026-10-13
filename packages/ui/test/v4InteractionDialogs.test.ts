@@ -1,9 +1,9 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { TID_V4_USER_INPUT_DIALOG } from "@zcode/shared";
-import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
-import { ZCodeIntlProvider } from "../src/i18n/IntlProvider.js";
+import { TID_V4_USER_INPUT_DIALOG } from "@mode/shared";
+import type { ConversationSnapshot } from "@mode/shared/mode-protocol-v4";
+import { ModeIntlProvider } from "../src/i18n/IntlProvider.js";
 import {
   buildV4ElicitationProgressKey,
   createInteractionAutoResolutionIntentTracker,
@@ -104,7 +104,7 @@ describe("V4InteractionDialogs", () => {
 
     const html = renderToStaticMarkup(
       createElement(
-        ZCodeIntlProvider,
+        ModeIntlProvider,
         { initialLocale: "zh-CN" },
         createElement(V4InteractionDialogs, {
           sessionId: "sess-1",
@@ -175,7 +175,7 @@ describe("V4InteractionDialogs", () => {
 
     const html = renderToStaticMarkup(
       createElement(
-        ZCodeIntlProvider,
+        ModeIntlProvider,
         { initialLocale: "zh-CN" },
         createElement(V4InteractionDialogs, {
           sessionId: "sess-1",
@@ -223,7 +223,7 @@ describe("V4InteractionDialogs", () => {
 
     const html = renderToStaticMarkup(
       createElement(
-        ZCodeIntlProvider,
+        ModeIntlProvider,
         { initialLocale: "zh-CN" },
         createElement(V4InteractionDialogs, {
           sessionId: "sess-1",

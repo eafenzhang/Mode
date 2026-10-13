@@ -7,7 +7,7 @@ import {
   TID_SUBAGENT_ROW,
   TID_TASK_SETTINGS_BUTTON,
   testId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   clearAppData,
   clickTestIdByDom,

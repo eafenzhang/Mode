@@ -1,6 +1,7 @@
 {
   "name": "@mode/cua",
   "version": "0.6.3",
+  "modeCuaPlaceholder": true,
   "private": true,
   "description": "Computer Use host package: broker line protocol plus helper child process and Rust addon (UIA3/GDI/SendInput) for the Windows first phase, with the runtime in the node_repl host; macOS surfaces are fail-closed placeholders.",
   "license": "MIT",

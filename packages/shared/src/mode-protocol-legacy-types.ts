@@ -14,11 +14,13 @@ const timestampMsSchema = z.number().int().nonnegative();
 export const modeDeliveryKindSchema = z.enum(["desktop-continuous", "web-remote-replayable"]);
 export const modeMessageVisibilitySchema = z.enum(["user-visible", "model-only"]);
 export const modeSyntheticUserMessageSourceSchema = z.enum([
+  "agent_listing_delta",
   "background_task",
   "fork",
   "goal_state_change",
   "goal-continuation",
   "plugin_reference",
+  "bot_topic_context",
   "rewind",
   "selection_side_chat",
   "subagent",
@@ -71,7 +73,7 @@ export const modePermissionResponseSchema = z
   })
   .strict();
 export type ModePermissionResponse = z.infer<typeof modePermissionResponseSchema>;
-export const modeSessionModeSchema = z.enum(["plan", "build", "edit", "yolo", "auto"]);
+export const modeSessionModeSchema = z.enum(["plan", "build", "edit", "yolo", "guarded", "auto"]);
 export const modeSessionStatusSchema = z.enum([
   "idle",
   "running",

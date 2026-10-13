@@ -3,7 +3,7 @@ import type {
   ModePlanStep,
   ModeProvider,
   ModeTaskModeInfo,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 interface PlanToolLike {
   title?: string;

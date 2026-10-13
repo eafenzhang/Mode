@@ -99,6 +99,14 @@ export function createMediaPump(addon) {
         const kind = body[0];
         if (kind === 2 && body.length === 1) {
           session.ready = true; // 开流指令：解除 ready 门控（仅当前会话生效）
+          // 开流即请一次 IDR（2026-10-14）：ready 之前的采集帧全部被上面的门控丢弃，
+          // 而静态桌面上捕获不再产生事件 → 首个 IDR 可能永远不来（对端黑屏）。
+          // 主控侧同样会在 open 后发一次 need-key，这里再补一次，避免两侧时序错过。
+          try {
+            addon.rd_media_request_key?.();
+          } catch {
+            /* 单次控制面失败不影响推流（与 kind3 同纪律） */
+          }
         } else if (kind === 3 && body.length === 1 && session.ready) {
           // 紧急关键帧：napi 侧一次性消费（只读 flag）；异常不抛穿（Fatal 策略下会杀进程）。
           try {

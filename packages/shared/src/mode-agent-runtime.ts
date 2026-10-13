@@ -32,7 +32,7 @@ export const MODE_AGENT_RUNTIME: ModeAgentRuntimeDescriptor = {
   nativeConfigDir: ".mode/cli",
   nativeConfigFileName: "config.json",
   missingBinaryMessage:
-    "[Mode Agent] glm binary 未找到，请设置 GLM_BINARY_PATH 或先准备 GLM 运行时资源",
+    "[Mode Agent] glm binary 未找到，请设置 MODE_AGENT_WORKDIR、GLM_BINARY_PATH 或先准备 GLM 运行时资源",
   resolveEntrySegments: (platform) => [resolvePlatformBinaryName("mode-agent", platform)],
   nodeBundleEntryFile: "mode.cjs",
   resolveNodeBundleSegments() {

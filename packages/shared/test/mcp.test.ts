@@ -1,79 +1,79 @@
 import { describe, expect, it } from "vitest";
 import {
-  convertToZCodeAgentMcpServer,
-  isZCodeCuaMcpCommand,
-  isZCodeCuaMcpPackageArg,
+  convertToModeAgentMcpServer,
+  isModeCuaMcpCommand,
+  isModeCuaMcpPackageArg,
 } from "../src/mcp.js";
 
-describe("zcode-cua MCP matcher (single source of truth for services + CLI bootstrap)", () => {
-  it("matches the zcode-cua command by leaf name", () => {
-    expect(isZCodeCuaMcpCommand("zcode-cua")).toBe(true);
-    expect(isZCodeCuaMcpCommand("/opt/homebrew/bin/zcode-cua")).toBe(true);
-    expect(isZCodeCuaMcpCommand("uvx")).toBe(false);
-    expect(isZCodeCuaMcpCommand("zcode-cua-server")).toBe(false);
+describe("mode-cua MCP matcher (single source of truth for services + CLI bootstrap)", () => {
+  it("matches the mode-cua command by leaf name", () => {
+    expect(isModeCuaMcpCommand("mode-cua")).toBe(true);
+    expect(isModeCuaMcpCommand("/opt/homebrew/bin/mode-cua")).toBe(true);
+    expect(isModeCuaMcpCommand("uvx")).toBe(false);
+    expect(isModeCuaMcpCommand("mode-cua-server")).toBe(false);
   });
 
   it("matches uvx/pip package spec forms", () => {
-    for (const arg of ["zcode-cua", "zcode-cua[macos]", "zcode-cua@v0.1.3", "zcode-cua[macos]@v0.1.3"]) {
-      expect(isZCodeCuaMcpPackageArg(arg)).toBe(true);
+    for (const arg of ["mode-cua", "mode-cua[macos]", "mode-cua@v0.1.3", "mode-cua[macos]@v0.1.3"]) {
+      expect(isModeCuaMcpPackageArg(arg)).toBe(true);
     }
   });
 
   it("matches git and local-path forms (the drift that broke desktop/services parity)", () => {
-    expect(isZCodeCuaMcpPackageArg("zcode-cua.git")).toBe(true);
-    expect(isZCodeCuaMcpPackageArg("git+https://github.com/x/zcode-cua.git@v0.1.3")).toBe(true);
-    expect(isZCodeCuaMcpPackageArg("/Users/me/src/zcode-cua")).toBe(true);
-    expect(isZCodeCuaMcpPackageArg("C:\\src\\zcode-cua")).toBe(true);
+    expect(isModeCuaMcpPackageArg("mode-cua.git")).toBe(true);
+    expect(isModeCuaMcpPackageArg("git+https://github.com/x/mode-cua.git@v0.1.3")).toBe(true);
+    expect(isModeCuaMcpPackageArg("/Users/me/src/mode-cua")).toBe(true);
+    expect(isModeCuaMcpPackageArg("C:\\src\\mode-cua")).toBe(true);
   });
 
   it("does not match unrelated args", () => {
-    for (const arg of ["--from", "run", "zcode-cua-server", "not-zcode-cua", "server.js"]) {
-      expect(isZCodeCuaMcpPackageArg(arg)).toBe(false);
+    for (const arg of ["--from", "run", "mode-cua-server", "not-mode-cua", "server.js"]) {
+      expect(isModeCuaMcpPackageArg(arg)).toBe(false);
     }
   });
 
   it("recognizes a package spec placed in COMMAND position (command/arg matchers stay consistent)", () => {
-    // 之前 command matcher 只认精确叶子 zcode-cua，会漏判把包规格直接当 command 的配置 → 漏注入 broker。
-    for (const command of ["zcode-cua@1.2.3", "zcode-cua[macos]", "zcode-cua.git", "/opt/tools/zcode-cua@1.2.3"]) {
-      expect(isZCodeCuaMcpCommand(command), command).toBe(true);
+    // 之前 command matcher 只认精确叶子 mode-cua，会漏判把包规格直接当 command 的配置 → 漏注入 broker。
+    for (const command of ["mode-cua@1.2.3", "mode-cua[macos]", "mode-cua.git", "/opt/tools/mode-cua@1.2.3"]) {
+      expect(isModeCuaMcpCommand(command), command).toBe(true);
     }
   });
 
-  it("recognizes pip == pins and the zcode_cua underscore distribution name (PyPI treats _ == -)", () => {
-    for (const arg of ["zcode-cua==1.2.3", "zcode_cua", "zcode_cua==1.2.3", "zcode_cua@v0.1.3"]) {
-      expect(isZCodeCuaMcpPackageArg(arg), arg).toBe(true);
+  it("recognizes pip == pins and the mode_cua underscore distribution name (PyPI treats _ == -)", () => {
+    for (const arg of ["mode-cua==1.2.3", "mode_cua", "mode_cua==1.2.3", "mode_cua@v0.1.3"]) {
+      expect(isModeCuaMcpPackageArg(arg), arg).toBe(true);
     }
-    expect(isZCodeCuaMcpCommand("zcode_cua")).toBe(true);
+    expect(isModeCuaMcpCommand("mode_cua")).toBe(true);
   });
 
-  it("does not false-positive on sibling packages like zcode-cua-proxy", () => {
-    for (const value of ["zcode-cua-proxy", "zcode-cua-proxy@1.0.0", "zcode-cua-helper"]) {
-      expect(isZCodeCuaMcpCommand(value), value).toBe(false);
-      expect(isZCodeCuaMcpPackageArg(value), value).toBe(false);
+  it("does not false-positive on sibling packages like mode-cua-proxy", () => {
+    for (const value of ["mode-cua-proxy", "mode-cua-proxy@1.0.0", "mode-cua-helper"]) {
+      expect(isModeCuaMcpCommand(value), value).toBe(false);
+      expect(isModeCuaMcpPackageArg(value), value).toBe(false);
     }
   });
 
-  it("recognizes `python -m zcode_cua.server` submodule form (M1 fail-open fix)", () => {
-    // `python -m zcode_cua.server` → arg 是 `zcode_cua.server`；旧 matcher 漏判 → 不注入 broker → fail-open。
-    for (const arg of ["zcode_cua.server", "zcode-cua.server", "zcode_cua.main", "zcode-cua.__main__"]) {
-      expect(isZCodeCuaMcpPackageArg(arg), arg).toBe(true);
+  it("recognizes `python -m mode_cua.server` submodule form (M1 fail-open fix)", () => {
+    // `python -m mode_cua.server` → arg 是 `mode_cua.server`；旧 matcher 漏判 → 不注入 broker → fail-open。
+    for (const arg of ["mode_cua.server", "mode-cua.server", "mode_cua.main", "mode-cua.__main__"]) {
+      expect(isModeCuaMcpPackageArg(arg), arg).toBe(true);
     }
   });
 
   it("recognizes local paths with a trailing separator (M1 fail-open fix)", () => {
-    // `.../zcode-cua/` 直接取叶子会得到空串 → 漏判 → fail-open。
-    expect(isZCodeCuaMcpPackageArg("/Users/me/src/zcode-cua/")).toBe(true);
-    expect(isZCodeCuaMcpPackageArg("C:\\src\\zcode-cua\\")).toBe(true);
-    expect(isZCodeCuaMcpCommand("/opt/homebrew/bin/zcode-cua/")).toBe(true);
+    // `.../mode-cua/` 直接取叶子会得到空串 → 漏判 → fail-open。
+    expect(isModeCuaMcpPackageArg("/Users/me/src/mode-cua/")).toBe(true);
+    expect(isModeCuaMcpPackageArg("C:\\src\\mode-cua\\")).toBe(true);
+    expect(isModeCuaMcpCommand("/opt/homebrew/bin/mode-cua/")).toBe(true);
     // 但带尾斜杠的 sibling 仍不误判。
-    expect(isZCodeCuaMcpPackageArg("/Users/me/src/zcode-cua-proxy/")).toBe(false);
+    expect(isModeCuaMcpPackageArg("/Users/me/src/mode-cua-proxy/")).toBe(false);
   });
 });
 
 describe("MCP config helpers", () => {
-  it("passes legacy http_headers through to ZCode Agent MCP servers", () => {
+  it("passes legacy http_headers through to Mode Agent MCP servers", () => {
     expect(
-      convertToZCodeAgentMcpServer("web-search-prime", {
+      convertToModeAgentMcpServer("web-search-prime", {
         type: "http",
         url: "https://bigmodel.example.test/mcp",
         timeoutMs: 5000,
@@ -90,9 +90,9 @@ describe("MCP config helpers", () => {
     });
   });
 
-  it("preserves timeoutMs when converting stdio MCP servers for ZCode Agent", () => {
+  it("preserves timeoutMs when converting stdio MCP servers for Mode Agent", () => {
     expect(
-      convertToZCodeAgentMcpServer("context7", {
+      convertToModeAgentMcpServer("context7", {
         type: "stdio",
         command: "npx",
         args: ["-y", "@upstash/context7-mcp"],
@@ -107,9 +107,9 @@ describe("MCP config helpers", () => {
     });
   });
 
-  it("preserves timeoutMs when converting sse MCP servers for ZCode Agent", () => {
+  it("preserves timeoutMs when converting sse MCP servers for Mode Agent", () => {
     expect(
-      convertToZCodeAgentMcpServer("stream", {
+      convertToModeAgentMcpServer("stream", {
         type: "sse",
         url: "https://bigmodel.example.test/sse",
         timeoutMs: 8000,
@@ -123,14 +123,14 @@ describe("MCP config helpers", () => {
     });
   });
 
-  it("preserves HTTP OAuth client credentials when converting MCP servers for ZCode Agent", () => {
+  it("preserves HTTP OAuth client credentials when converting MCP servers for Mode Agent", () => {
     expect(
-      convertToZCodeAgentMcpServer("protected", {
+      convertToModeAgentMcpServer("protected", {
         type: "http",
         url: "https://mcp.example.test/mcp",
         oauth: {
           type: "client_credentials",
-          clientId: "zcode-client",
+          clientId: "mode-client",
           clientSecret: "secret",
           scope: "mcp:tools",
         },
@@ -140,21 +140,21 @@ describe("MCP config helpers", () => {
       type: "http",
       oauth: {
         type: "client_credentials",
-        clientId: "zcode-client",
+        clientId: "mode-client",
         clientSecret: "secret",
         scope: "mcp:tools",
       },
     });
   });
 
-  it("preserves HTTP OAuth authorization code config when converting MCP servers for ZCode Agent", () => {
+  it("preserves HTTP OAuth authorization code config when converting MCP servers for Mode Agent", () => {
     expect(
-      convertToZCodeAgentMcpServer("figma", {
+      convertToModeAgentMcpServer("figma", {
         type: "http",
         url: "https://mcp.figma.com/mcp",
         oauth: {
           type: "authorization_code",
-          clientName: "ZCode",
+          clientName: "Mode",
           redirectPath: "/oauth/callback/mcp/figma",
           scope: "mcp:connect",
         },
@@ -164,7 +164,7 @@ describe("MCP config helpers", () => {
       type: "http",
       oauth: {
         type: "authorization_code",
-        clientName: "ZCode",
+        clientName: "Mode",
         redirectPath: "/oauth/callback/mcp/figma",
         scope: "mcp:connect",
       },
@@ -173,7 +173,7 @@ describe("MCP config helpers", () => {
 
   it("does not persist implicit OAuth defaults when converting bare HTTP MCP servers", () => {
     expect(
-      convertToZCodeAgentMcpServer("notion", {
+      convertToModeAgentMcpServer("notion", {
         type: "http",
         url: "https://mcp.notion.com/mcp",
         timeoutMs: 30000,
@@ -187,9 +187,9 @@ describe("MCP config helpers", () => {
     });
   });
 
-  it("drops invalid timeoutMs when converting MCP servers for ZCode Agent", () => {
+  it("drops invalid timeoutMs when converting MCP servers for Mode Agent", () => {
     expect(
-      convertToZCodeAgentMcpServer("zero", {
+      convertToModeAgentMcpServer("zero", {
         type: "stdio",
         command: "npx",
         timeoutMs: 0,
@@ -197,7 +197,7 @@ describe("MCP config helpers", () => {
     ).not.toHaveProperty("timeoutMs");
 
     expect(
-      convertToZCodeAgentMcpServer("fractional", {
+      convertToModeAgentMcpServer("fractional", {
         type: "http",
         url: "https://bigmodel.example.test/mcp",
         timeoutMs: 1.5,
@@ -207,7 +207,7 @@ describe("MCP config helpers", () => {
 
   it("keeps headers ahead of legacy http_headers when both are present", () => {
     expect(
-      convertToZCodeAgentMcpServer("web-reader", {
+      convertToModeAgentMcpServer("web-reader", {
         type: "sse",
         url: "https://bigmodel.example.test/sse",
         headers: {

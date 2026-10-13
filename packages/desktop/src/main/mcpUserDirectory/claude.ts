@@ -11,7 +11,7 @@ import type {
   SettingsDirectoryLocation,
   NativeMcpServerRecord,
   SaveCliMcpToUserDirectoryRequest,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { getSourceDescriptor } from "./types.js";
 import {
   buildClaudeStateFilePath,

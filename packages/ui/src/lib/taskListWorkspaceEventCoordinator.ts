@@ -1,12 +1,16 @@
-import type { ModeWorkspaceTaskListChanged } from "@zcode/shared";
+import type { ModeWorkspaceTaskListChanged } from "@mode/shared";
 import {
   getTaskMetaWorkspaceEventSyncMode,
   isTaskListDeletionWorkspaceEvent,
   isTaskListMembershipWorkspaceEvent,
   shouldApplyTaskMetaFromWorkspaceEvent,
-  shouldRefetchTaskListMembershipForWorkspaceEvent,
+  shouldRefreshTaskListForWorkspaceEvent,
 } from "@/lib/taskListRefreshPolicy.js";
-import { removeTaskFromTaskCaches, syncTaskMetaToTaskCaches } from "@/lib/taskListMetaSync.js";
+import {
+  removeTaskFromTaskCaches,
+  syncTaskMembershipEventToTaskCaches,
+  syncTaskMetaToTaskCaches,
+} from "@/lib/taskListMetaSync.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 
 const COORDINATED_EVENT_TTL_MS = 2_000;
@@ -114,7 +118,7 @@ export function handleTaskListWorkspaceEventCacheSync(
   }
 
   if (isTaskListMembershipWorkspaceEvent(event) && event.taskMeta) {
-    syncTaskMetaToTaskCaches({
+    syncTaskMembershipEventToTaskCaches({
       workspacePath: event.taskMeta.workspacePath,
       workspaceIdentity: event.taskMeta.workspaceIdentity,
       task: event.taskMeta,
@@ -143,7 +147,7 @@ export function handleTaskListWorkspaceEventCacheSync(
   return cacheResult(eventKey, {
     handledIncrementally: false,
     reused: false,
-    shouldRefresh: shouldRefetchTaskListMembershipForWorkspaceEvent(event),
+    shouldRefresh: shouldRefreshTaskListForWorkspaceEvent(event),
   });
 }
 

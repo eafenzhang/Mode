@@ -7,7 +7,7 @@ import {
   TID_TASK_SETTINGS_BUTTON,
   TID_TOOL_SUMMARY_TRIGGER,
   testId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   clearAppData,
   clickTestIdByDom,

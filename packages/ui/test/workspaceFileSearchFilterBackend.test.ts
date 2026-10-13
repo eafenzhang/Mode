@@ -1,9 +1,9 @@
-import type { WorkspaceFileEntry } from "@zcode/shared";
+import type { WorkspaceFileEntry } from "@mode/shared";
 import { describe, expect, it } from "vitest";
 import {
   packWorkspaceFileEntries,
   unpackWorkspaceFileEntries,
-} from "@zcode/shared/workspaceFileEntriesCodec";
+} from "@mode/shared/workspaceFileEntriesCodec";
 import { createSyncWorkspaceFileSearchFilterBackend } from "@/workspace-file-search/workspaceFileSearchFilterBackend.js";
 
 function entry(partial: Partial<WorkspaceFileEntry> & { relativePath: string }): WorkspaceFileEntry {

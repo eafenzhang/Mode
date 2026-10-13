@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { IPlatformService } from "@zcode/shared";
+import type { IPlatformService } from "@mode/shared";
 import {
   CHAT_ERROR_BANNER_ARMS_EVENT_NAME,
   CHAT_ERROR_BANNER_ARMS_GROUP,
@@ -560,7 +560,7 @@ describe("chat error banner telemetry", () => {
       },
       {
         name: "DNS lookup failure",
-        message: "Cannot connect to API: getaddrinfo ENOENT zcode.z.ai",
+        message: "Cannot connect to API: getaddrinfo ENOENT mode.z.ai",
         expected: { error_source: "network", failure_reason: "network_error" },
       },
       {

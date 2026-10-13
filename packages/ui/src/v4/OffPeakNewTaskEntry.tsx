@@ -5,7 +5,7 @@ import { useCodingPlanEntryGate } from "@/settings/CodingPlanEntryButton.js";
    点击卡片：暂存预填草稿 → 打开 Automations 主视图（idle tab）创建表单消费草稿。
    入口位于草稿页底部固定区（距底 38px），模板恢复为桌面三列横排、窄屏单列；
    业务逻辑（灰度、Coding Plan 判定、Upgrade Toast、草稿预填、埋点）保持不变。 */
-import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
+import { BUILTIN_MODEL_PROVIDER_IDS } from "@mode/shared";
 import { Megaphone, Moon, X } from "lucide-react";
 import { ClientSceneLucideIcon } from "@/components/ClientSceneLucideIcon.js";
 import {

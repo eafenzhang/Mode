@@ -225,7 +225,7 @@ import {
   type SessionsIndexTopicWireCandidate,
   type WorkspaceConfigTopicWireCandidate,
   type CommandEnvelope,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@zcode/shared/mode-protocol-v4";
 import {
   readTrustedZCodeAgentV4Connection,
   readTrustedZCodeAgentV4UnsubscribeRoute,
@@ -253,7 +253,7 @@ import {
   type CuaOperationWorkspaceTarget,
   type CuaOperationStateReporter,
 } from "./cuaOperationTurnTracker.js";
-import type { PipSessionEvent } from "@zcode/zcode-cua/pip-session";
+import type { PipSessionEvent } from "@zcode/mode-cua/pip-session";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
 
 import {

@@ -8,7 +8,7 @@ import {
   TID_BROWSER_PERMISSION_PROMPTS,
   type EmbeddedBrowserPermissionPromptEvent,
   type EmbeddedBrowserPermissionResolution,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { BrowserPermissionIcon } from "@/browser-use/BrowserPermissionIcon.js";
 import { Button } from "@/components/ui/button.js";
 import {

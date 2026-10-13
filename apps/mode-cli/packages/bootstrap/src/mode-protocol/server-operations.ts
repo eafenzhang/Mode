@@ -1031,16 +1031,17 @@ async function persistImportedSessionHistory(params: {
   const workspace = params.record.workspace;
   const workspaceIdentity = workspace.workspaceIdentity?.trim();
   const now = Date.now();
+  // 带消息数组的导入源（claudeCode / remoteMirror）用首末消息时间戳兜底；
+  // 时间由导入方给出，会话列表排序才与来源机器一致。
+  const messageBasedHistory =
+    importedHistory.source === "claudeCode" || importedHistory.source === "remoteMirror"
+      ? importedHistory
+      : null;
   const createdAt =
-    importedHistory.createdAt ??
-    (importedHistory.source === "claudeCode"
-      ? importedHistory.messages[0]?.timestamp
-      : undefined) ??
-    now;
-  const updatedAt =
-    importedHistory.source === "claudeCode"
-      ? (importedHistory.updatedAt ?? importedHistory.messages.at(-1)?.timestamp ?? createdAt)
-      : createdAt;
+    importedHistory.createdAt ?? messageBasedHistory?.messages[0]?.timestamp ?? now;
+  const updatedAt = messageBasedHistory
+    ? (messageBasedHistory.updatedAt ?? messageBasedHistory.messages.at(-1)?.timestamp ?? createdAt)
+    : createdAt;
   // 历史导入不执行模型；未绑定时保留消息内容，不能要求当前选择或伪造消息来源。
   const currentModel = optionalModelSelectionFromString(params.record.app.getModel());
   const providerId = currentModel?.providerId as ModelProviderId | undefined;

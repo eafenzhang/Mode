@@ -21,7 +21,7 @@ describe("PreviewPaneMediaContent", () => {
           path: "/workspace/clip.mp4",
         },
         loading: false,
-        url: "zcode-media://local/preview",
+        url: "mode-media://local/preview",
         error: null,
         labels,
         onMediaError: () => undefined,

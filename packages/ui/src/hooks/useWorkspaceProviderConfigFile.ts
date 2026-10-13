@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ModeProvider } from "@zcode/shared";
+import type { ModeProvider } from "@mode/shared";
 import { logger } from "@/logger.js";
 import { shouldEnableWorkspaceRpc } from "@/lib/workspaceRpcAvailability.js";
-import { useZCodeTaskService } from "@/hooks/useZCodeTaskService.js";
+import { useModeTaskService } from "@/hooks/useModeTaskService.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { useResolvedRemoteWorkspaceSessionId } from "@/hooks/useResolvedRemoteWorkspaceSessionId.js";
-import type { IModeTaskService } from "@zcode/services";
+import type { IModeTaskService } from "@mode/services";
 
 interface WorkspaceProviderConfigFileState {
   path: string | null;
@@ -38,34 +38,34 @@ const INITIAL_STATE: WorkspaceProviderConfigFileState = {
 
 type WorkspaceProviderConfigServiceScope = "workspace" | "base";
 
-export function resolveWorkspaceProviderConfigZCodeService(params: {
+export function resolveWorkspaceProviderConfigModeService(params: {
   configuredServiceScope: WorkspaceProviderConfigServiceScope;
-  workspaceZCodeService: IModeTaskService;
-  baseZCodeService: IModeTaskService | null;
+  workspaceModeService: IModeTaskService;
+  baseModeService: IModeTaskService | null;
   remoteSessionId: string | null;
 }): IModeTaskService | null {
   if (params.configuredServiceScope === "workspace") {
-    return params.workspaceZCodeService;
+    return params.workspaceModeService;
   }
 
-  if (params.baseZCodeService) {
-    return params.baseZCodeService;
+  if (params.baseModeService) {
+    return params.baseModeService;
   }
 
-  // Bugfix: 远程 workspace 下如果误回退到 workspaceZCodeService，
+  // Bugfix: 远程 workspace 下如果误回退到 workspaceModeService，
   // “前往配置”会读到远端绝对路径（如 /root/...），本机无法正确打开。
-  // 这里在远程会话里严格要求 baseZCodeService，就绪前先等待，不再冒险走错误 fallback。
+  // 这里在远程会话里严格要求 baseModeService，就绪前先等待，不再冒险走错误 fallback。
   if (params.remoteSessionId) {
     return null;
   }
 
-  return params.workspaceZCodeService;
+  return params.workspaceModeService;
 }
 
 /**
  * 读取当前 workspace + provider 的主配置文件路径。
  *
- * 统一通过 zcodeTaskService 获取路径规则，避免 UI 层拼接 provider 配置路径。
+ * 统一通过 modeTaskService 获取路径规则，避免 UI 层拼接 provider 配置路径。
  */
 export function useWorkspaceProviderConfigFile(
   workspacePath: string,
@@ -77,7 +77,7 @@ export function useWorkspaceProviderConfigFile(
     enabled?: boolean;
   },
 ) {
-  const workspaceZCodeService = useZCodeTaskService(
+  const workspaceModeService = useModeTaskService(
     workspacePath,
     preferredRemoteSessionId,
     workspaceIdentity,
@@ -89,23 +89,23 @@ export function useWorkspaceProviderConfigFile(
     preferredRemoteSessionId,
     workspaceIdentity,
   );
-  const baseZCodeService = useRemoteWorkspaceSessionStore(
-    (state) => state.baseServices?.zcodeTaskService ?? null,
+  const baseModeService = useRemoteWorkspaceSessionStore(
+    (state) => state.baseServices?.modeTaskService ?? null,
   );
   const workspaceRpcEnabled = shouldEnableWorkspaceRpc({
     workspaceIdentity,
     remoteSessionId,
   });
-  const zcodeTaskService = resolveWorkspaceProviderConfigZCodeService({
+  const modeTaskService = resolveWorkspaceProviderConfigModeService({
     configuredServiceScope,
-    workspaceZCodeService,
-    baseZCodeService,
+    workspaceModeService,
+    baseModeService,
     remoteSessionId,
   });
-  const zcodeServiceScope =
+  const modeServiceScope =
     configuredServiceScope === "base"
       ? "base"
-      : remoteSessionId && workspaceZCodeService !== baseZCodeService
+      : remoteSessionId && workspaceModeService !== baseModeService
         ? "remote"
         : "base";
   const [state, setState] =
@@ -123,7 +123,7 @@ export function useWorkspaceProviderConfigFile(
     if (!workspacePath || !enabled || !workspaceRpcEnabled) {
       requestVersionRef.current += 1;
       // Bugfix: 恢复断连远端 workspace 时，provider 配置路径读取不能抢在 remote session
-      // 绑定前访问断连代理，否则会把 ZCODE_REMOTE_WORKSPACE_DISCONNECTED 记录成配置读取失败。
+      // 绑定前访问断连代理，否则会把 MODE_REMOTE_WORKSPACE_DISCONNECTED 记录成配置读取失败。
       setState({
         path: null,
         exists: false,
@@ -135,7 +135,7 @@ export function useWorkspaceProviderConfigFile(
       };
     }
 
-    if (!zcodeTaskService) {
+    if (!modeTaskService) {
       requestVersionRef.current += 1;
       setState({
         path: null,
@@ -161,10 +161,10 @@ export function useWorkspaceProviderConfigFile(
     });
 
     logger.info(
-      `[useWorkspaceProviderConfigFile] 开始读取 provider 配置路径 workspace=${workspacePath} provider=${provider} scope=${zcodeServiceScope} session=${remoteSessionId ?? "none"}`,
+      `[useWorkspaceProviderConfigFile] 开始读取 provider 配置路径 workspace=${workspacePath} provider=${provider} scope=${modeServiceScope} session=${remoteSessionId ?? "none"}`,
     );
 
-    void zcodeTaskService
+    void modeTaskService
       .getWorkspaceProviderConfigFile({
         workspacePath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
@@ -176,7 +176,7 @@ export function useWorkspaceProviderConfigFile(
         }
 
         logger.info(
-          `[useWorkspaceProviderConfigFile] 读取 provider 配置路径成功 workspace=${workspacePath} provider=${provider} scope=${zcodeServiceScope} session=${remoteSessionId ?? "none"} exists=${result.exists} path=${result.path}`,
+          `[useWorkspaceProviderConfigFile] 读取 provider 配置路径成功 workspace=${workspacePath} provider=${provider} scope=${modeServiceScope} session=${remoteSessionId ?? "none"} exists=${result.exists} path=${result.path}`,
         );
 
         setState({
@@ -195,7 +195,7 @@ export function useWorkspaceProviderConfigFile(
         logger.warn("[useWorkspaceProviderConfigFile] 读取 provider 配置路径失败", {
           workspacePath,
           provider,
-          scope: zcodeServiceScope,
+          scope: modeServiceScope,
           remoteSessionId,
           error: message,
         });
@@ -211,8 +211,8 @@ export function useWorkspaceProviderConfigFile(
       disposed = true;
     };
   }, [
-    zcodeTaskService,
-    zcodeServiceScope,
+    modeTaskService,
+    modeServiceScope,
     enabled,
     provider,
     refreshVersion,

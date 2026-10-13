@@ -2,10 +2,10 @@ import { createElement } from "react";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { DesktopCommandIds, TID_WORKSPACE_HELP_MENU_RESOURCE_MANAGER } from "@zcode/shared";
+import { DesktopCommandIds, TID_WORKSPACE_HELP_MENU_RESOURCE_MANAGER } from "@mode/shared";
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
-  useZCodeIntl: () => ({
+  useModeIntl: () => ({
     intl: {
       formatMessage: ({ id }: { id: string }) => id,
     },

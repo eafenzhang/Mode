@@ -1,11 +1,11 @@
-import type { ModeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 
 interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
-const TASK_ORDER_STORAGE_KEY_PREFIX = "zcode-task-order:";
+const TASK_ORDER_STORAGE_KEY_PREFIX = "mode-task-order:";
 
 function getBrowserStorage(): StorageLike | null {
   if (typeof window === "undefined") {

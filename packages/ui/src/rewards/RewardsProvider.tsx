@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { buildRewardsUrl, resolveOrcaOrigins, MODE_ENV } from "@zcode/shared";
+import { buildRewardsUrl, resolveRewardsOrigin, MODE_ENV } from "@mode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useModeStore } from "@/store/StoreProvider.js";
@@ -38,7 +38,7 @@ export function RewardsProvider({
     else
       await platform.openExternal(
         buildRewardsUrl(
-          resolveOrcaOrigins({ env: MODE_ENV }),
+          resolveRewardsOrigin({ env: MODE_ENV }),
           locale,
           resolveTheme(theme) === "dark" ? "zai-dark" : "zai-light",
         ),

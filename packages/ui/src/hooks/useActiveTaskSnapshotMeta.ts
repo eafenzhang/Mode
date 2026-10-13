@@ -3,7 +3,7 @@ import type { ModeTaskMeta } from "@mode/shared";
 import { useModeSessionService } from "@/hooks/useModeSessionService.js";
 import { modeSessionSnapshotToTaskMeta } from "@/lib/modeSessionProjection.js";
 
-function resolveImmediateActiveTaskSnapshotMeta(
+export function resolveImmediateActiveTaskSnapshotMeta(
   previousSnapshotMeta: ModeTaskMeta | null,
   taskId: string | null,
   taskMetaFromLists?: ModeTaskMeta | null,
@@ -45,7 +45,11 @@ export function useActiveTaskSnapshotMeta(
     let cancelled = false;
 
     setSnapshotMeta((currentSnapshotMeta) =>
-      resolveImmediateActiveTaskSnapshotMeta(currentSnapshotMeta, taskId, taskMetaFromLists),
+      resolveImmediateActiveTaskSnapshotMeta(
+        currentSnapshotMeta,
+        taskId,
+        taskMetaFromLists,
+      ),
     );
 
     if (!taskId) {

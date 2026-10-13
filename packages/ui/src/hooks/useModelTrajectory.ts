@@ -3,7 +3,7 @@ import type { ModeModelTrajectory } from "@mode/services";
 import { logger } from "@/logger.js";
 import { useModeTaskService } from "@/hooks/useModeTaskService.js";
 
-interface ModelTrajectoryState {
+export interface ModelTrajectoryState {
   loading: boolean;
   data: ModeModelTrajectory | null;
   error: string | null;

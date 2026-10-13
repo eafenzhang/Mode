@@ -4,10 +4,10 @@ import {
   createRewardsInjectionScript,
   isTrustedRewardsUrl,
   REWARDS_PARTITION,
-  resolveOrcaOrigins,
+  resolveRewardsOrigin,
   MODE_ENV,
   type RewardsContext,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
@@ -38,10 +38,10 @@ export function RewardsWebview({ onClose }: { onClose: () => void }) {
     ? "zai-dark"
     : "zai-light";
   const env = import.meta.env;
-  const policy = { dev: env.DEV, e2e: env.VITE_ZCODE_E2E_STORE_BRIDGE === "1" };
+  const policy = { dev: env.DEV, e2e: env.VITE_MODE_E2E_STORE_BRIDGE === "1" };
   const [url] = useState(() =>
     buildRewardsUrl(
-      resolveOrcaOrigins({
+      resolveRewardsOrigin({
         ...policy,
         env: MODE_ENV,
         override:
@@ -97,7 +97,7 @@ export function RewardsWebview({ onClose }: { onClose: () => void }) {
       const [oauth, jwt] = provider
         ? await Promise.all([
             credentialService.load(`oauth:${provider}:access_token`),
-            credentialService.load("zcodejwttoken"),
+            credentialService.load("modejwttoken"),
           ])
         : [null, null];
       if (

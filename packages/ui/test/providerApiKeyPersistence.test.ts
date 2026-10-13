@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ProviderSettingsView } from "@zcode/services";
+import type { ProviderSettingsView } from "@mode/services";
 import {
   loadProviderApiKey,
   persistProviderApiKey,
