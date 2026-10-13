@@ -8,7 +8,9 @@
  */
 import { buildLanPeerMetaKey, buildLanPeerTokenKey, lanPeerMetaSchema } from "@mode/shared";
 import {
+  DEFAULT_REMOTE_DESKTOP_CODEC,
   DEFAULT_REMOTE_DESKTOP_QUALITY,
+  type RemoteDesktopCodec,
   type RemoteDesktopErrorCode,
   type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
@@ -115,6 +117,7 @@ export async function openRemoteDesktopPeerSession(
   credentials: ICredentialService,
   serverId: string,
   quality: RemoteDesktopQuality = DEFAULT_REMOTE_DESKTOP_QUALITY,
+  codec: RemoteDesktopCodec = DEFAULT_REMOTE_DESKTOP_CODEC,
 ): Promise<
   | { ok: true; wsUrl: string; mediaUrl: string }
   | { ok: false; errorCode?: RemoteDesktopErrorCode; error: string }
@@ -131,6 +134,9 @@ export async function openRemoteDesktopPeerSession(
   url.searchParams.set("token", target.token);
   // 画质档位（P1-3）：被控据此定 fps/maxWidth/初始码率；旧对端忽略该参数。
   url.searchParams.set("quality", quality);
+  // 编码 codec 偏好（HEVC 选型 2026-10-13）：被控记 sessionCodec 直达 helper；
+  // 旧对端忽略该参数（回 h264），解码串始终由码流自描述，偏好不一致安全。
+  url.searchParams.set("codec", codec);
   let response: Response;
   try {
     response = await fetchWithTimeout(

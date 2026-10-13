@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DEFAULT_REMOTE_DESKTOP_QUALITY,
   REMOTE_DESKTOP_QUALITY_PRESETS,
+  type RemoteDesktopCodec,
   type RemoteDesktopQuality,
   type RemoteDesktopControlEvent,
   type RemoteDesktopPointerEvent,
@@ -23,7 +24,7 @@ import {
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { logger } from "@/logger.js";
 import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./InputCapture.js";
-import { createNativeMediaSession, type NativeMediaSession } from "./nativeMediaSession.js";
+import { createNativeMediaSession, probeHevcDecodeSupport, type NativeMediaSession } from "./nativeMediaSession.js";
 import {
   initialAdaptiveBitrateState,
   stepAdaptiveBitrate,
@@ -112,6 +113,15 @@ export function useRemoteDesktopSession(options: {
   qualityRef.current = quality;
   // 会话级重连编排器（P2-1）：挂载 effect 内创建，switchQuality 经 ref 调用。
   const reconnectControllerRef = useRef<SessionReconnectController | null>(null);
+  // 编码 codec 偏好（HEVC 选型 2026-10-13）：每挂载预检一次本机解码能力并缓存——
+  // 首连/重连/改档共用；unsupported → h264。预检失败（异常）按不支持处理。
+  const codecPrefRef = useRef<RemoteDesktopCodec | null>(null);
+  const resolveCodecPref = useCallback(async (): Promise<RemoteDesktopCodec> => {
+    if (codecPrefRef.current === null) {
+      codecPrefRef.current = (await probeHevcDecodeSupport()) ? "hevc" : "h264";
+    }
+    return codecPrefRef.current;
+  }, []);
 
   const sendSignal = useCallback(
     (message: RemoteDesktopSignalMessage) => {
@@ -273,8 +283,9 @@ export function useRemoteDesktopSession(options: {
     // 会话级重连（P2-1）：编排（退避/重试分类）在纯模块 sessionReconnectController，
     // 本处只接三个落点——静默停旧媒体面、新 mediaUrl 接力、失败收口。
     const reconnectController = createSessionReconnectController({
-      // 画质档位（P1-3）：重连读最新档（改档重建也走这条编排）。
-      startSession: () => platform.rdStartSession(serverId, qualityRef.current),
+      // 画质档位（P1-3）与 codec 偏好均读最新值（改档/能力缓存后重建也走这条编排）。
+      startSession: async () =>
+        platform.rdStartSession(serverId, qualityRef.current, await resolveCodecPref()),
       onBegin: () => {
         suppressMediaFailureRef.current = true;
         sessionRef.current?.stop();
@@ -319,8 +330,10 @@ export function useRemoteDesktopSession(options: {
 
     void (async () => {
       try {
-        // 画质档位随会话请求下发（P1-3）：被控据此定采集/编码参数。
-        const result = await platform.rdStartSession(serverId, qualityRef.current);
+        // 画质档位 + codec 偏好随会话请求下发（P1-3 / HEVC 选型）：被控据此定
+        // 采集/编码参数与编码 codec（缺省/不支持 = h264）。
+        const codec = await resolveCodecPref();
+        const result = await platform.rdStartSession(serverId, qualityRef.current, codec);
         if (disposed) {
           return;
         }
@@ -371,8 +384,8 @@ export function useRemoteDesktopSession(options: {
         void platform.rdEndSession("user-end").catch(() => undefined);
       }
     };
-    // quality 刻意不在依赖里：档位经 qualityRef 消费，改档不触发本 effect 重跑。
-  }, [platform, serverId]);
+    // quality/codec 经 ref 与 resolveCodecPref 消费：改档/预检不触发本 effect 重跑。
+  }, [platform, serverId, resolveCodecPref]);
 
   // ---- media WS 下行 JSON 控制事件（Task 9 胶水派发到 window，与信令面解耦）----
   useEffect(() => {

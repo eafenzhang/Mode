@@ -27,6 +27,7 @@
  */
 import { z } from "zod";
 import {
+  remoteDesktopCodecSchema,
   remoteDesktopQualitySchema,
   remoteDesktopSignalMessageSchema,
 } from "@mode/shared/remote-desktop";
@@ -254,6 +255,8 @@ export const remoteDesktopPeerSessionOpenSchema = z
     serverId: trimmedNonEmpty,
     // 画质档位（P1-3）：主控选择的预设随会话请求下发；缺省 = 旧主控（被控按默认档）。
     quality: remoteDesktopQualitySchema.optional(),
+    // 编码 codec 偏好（HEVC 选型 2026-10-13）：缺省 = 旧主控（被控回 h264）。
+    codec: remoteDesktopCodecSchema.optional(),
   })
   .strict();
 

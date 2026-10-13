@@ -127,6 +127,8 @@ export function createMediaPump(addon) {
           maxWidth: params.maxWidth,
           fps: params.fps,
           bitrateBps: params.bitrateBps,
+          // 编码 codec 偏好（HEVC 选型）：透传给 napi（Option<String>，undefined = h264）。
+          codec: params.codec,
           onFrame: (frame) => emitFrame(session, frame),
           onStatus: (status) => emitStatus(session, status),
         }),

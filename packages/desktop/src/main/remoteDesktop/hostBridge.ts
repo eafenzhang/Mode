@@ -16,7 +16,7 @@ import {
   type RemoteDesktopMessageFromHost,
   type RemoteDesktopMessageToHost,
 } from "./hostMessages.js";
-import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
+import type { RemoteDesktopCodec, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { listLiveHostProcesses } from "../resourceManagerWindow.js";
 import {
   buildPeerSessionOpenOutcome,
@@ -266,6 +266,7 @@ export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
 export async function requestRemoteDesktopPeerSessionOpen(
   serverId: string,
   quality?: RemoteDesktopQuality,
+  codec?: RemoteDesktopCodec,
 ): Promise<RemoteDesktopPeerSessionOpenOutcome> {
   const promise = requestToHost(
     {
@@ -273,6 +274,8 @@ export async function requestRemoteDesktopPeerSessionOpen(
       serverId,
       // 画质档位（P1-3）：主控选择的预设随会话请求下发给被控。
       ...(quality ? { quality } : {}),
+      // 编码 codec 偏好（HEVC 选型 2026-10-13）：随会话请求下发（schema optional）。
+      ...(codec ? { codec } : {}),
     },
     "peer-session-open",
   );

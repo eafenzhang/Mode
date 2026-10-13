@@ -8,6 +8,11 @@
  */
 import { logger } from "@/logger.js";
 import { nextReconnectDelayMs, RECONNECT_MAX_ATTEMPTS } from "@/remote-desktop/reconnectPolicy.js";
+import { codecStringFromAnnexB } from "./codecString.js";
+
+// codec 串派生与 HEVC 解码预检拆至 codecString.ts（max-lines 约束）；
+// re-export 保持既有消费方（会话胶水/测试）导入路径不变。
+export { codecStringFromAnnexB, probeHevcDecodeSupport } from "./codecString.js";
 
 export interface ParsedMediaFrame {
   seq: number;
@@ -37,23 +42,6 @@ export function buildFrameIv(salt: Uint8Array, seq: number): Uint8Array {
   return iv;
 }
 
-/**
- * Annex-B 里找首个 SPS（NAL type 7）→ "avc1.<profile hex><constraint hex><level hex>"。
- * 关键帧里的 SPS 是分辨率/编码参数变化的唯一信号（spec：新 SPS 触发 decoder 重配）。
- */
-export function codecStringFromAnnexB(bytes: Uint8Array): string | null {
-  // 扫描 4/3 字节起始码，取 type = byte & 0x1f === 7 的首段
-  for (let i = 0; i + 5 < bytes.length; i++) {
-    const is4 = bytes[i] === 0 && bytes[i + 1] === 0 && bytes[i + 2] === 0 && bytes[i + 3] === 1;
-    const is3 = !is4 && bytes[i] === 0 && bytes[i + 1] === 0 && bytes[i + 2] === 1;
-    if (!is4 && !is3) continue;
-    const headerIdx = i + (is4 ? 4 : 3);
-    if ((bytes[headerIdx]! & 0x1f) !== 7 || headerIdx + 3 >= bytes.length) continue;
-    const hex = (n: number) => n.toString(16).padStart(2, "0");
-    return `avc1.${hex(bytes[headerIdx + 1]!)}${hex(bytes[headerIdx + 2]!)}${hex(bytes[headerIdx + 3]!)}`;
-  }
-  return null;
-}
 
 /**
  * 解码队列门控（纯函数，测试见 remoteDesktopNativeSession.test.ts）：
@@ -262,10 +250,24 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         teardown();
       },
     });
-    decoder.configure({ codec, optimizeForLatency: true });
+    try {
+      decoder.configure({ codec, optimizeForLatency: true });
+    } catch (error) {
+      // codec 串不被浏览器接受（HEVC 派生串异常/平台不支持）：按媒体面失败收口，
+      // 不留黑屏死等（teardown → onTransportClosed → 会话失败归因）。
+      logger.warn("[rd-media] decoder configure failed:", error);
+      try {
+        decoder.close();
+      } catch {
+        // 关闭失败不掩盖主错误。
+      }
+      decoder = null;
+      configuredCodec = null;
+      teardown();
+      return;
+    }
     configuredCodec = codec;
   };
-
   // ws 一开就发 ready：helper 的 ready 门控只认第一条开流指令，而被控状态机保证首帧必为 IDR
   // （先 IDR 后 delta），所以不必等任何上行事件——否则画面要等用户首次移动鼠标/按键才出流，开局全黑。
   // （ready 发送在 attachSocket 的 onopen 里，初连与重连共用同一幂等位。）

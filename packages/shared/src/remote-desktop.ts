@@ -234,3 +234,12 @@ export const REMOTE_DESKTOP_QUALITY_PRESETS: Record<
   balanced: { fps: 60, maxWidth: 1920, bitrateBps: 5_000_000, minBitrateBps: 2_500_000 },
   smooth: { fps: 30, maxWidth: 1600, bitrateBps: 3_000_000, minBitrateBps: 1_500_000 },
 };
+
+// 编码 codec 偏好（HEVC 选型，spec: lan-remote-desktop-native-media.md 2026-10-13）：
+// 主控按本地 `VideoDecoder.isConfigSupported` 预检后经 `POST?codec=` 下发；
+// 被控无硬件 HEVC 编码器时回退 h264——**解码配置串始终由关键帧码流自描述派生**，
+// 偏好与实际不一致是安全的。缺省/旧主控 = h264（三向旧新兼容，无需版本门）。
+export const remoteDesktopCodecSchema = z.enum(["h264", "hevc"]);
+export type RemoteDesktopCodec = z.infer<typeof remoteDesktopCodecSchema>;
+
+export const DEFAULT_REMOTE_DESKTOP_CODEC: RemoteDesktopCodec = "h264";

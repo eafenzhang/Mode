@@ -45,7 +45,8 @@ export function createDesktopPlatform(options: {
     renameLanPairedPeer: (serverId, name) => window.mode.renameLanPairedPeer(serverId, name),
     // 局域网远程桌面（main 的 rd/* IPC；通道名与形状冻结在 main/remoteDesktop/ipcChannels.ts）。
     rdGetPeerCapability: (serverId) => window.mode.rdGetPeerCapability(serverId),
-    rdStartSession: (serverId, quality) => window.mode.rdStartSession(serverId, quality),
+    rdStartSession: (serverId, quality, codec) =>
+      window.mode.rdStartSession(serverId, quality, codec),
     rdGetControlledState: () => window.mode.rdGetControlledState(),
     // 信令是高频小包，直接透传给 main；失败只记日志不抛出，避免打断媒体面。
     rdSendSignal: (message: RemoteDesktopSignalMessage) => {

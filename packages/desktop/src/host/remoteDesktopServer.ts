@@ -30,8 +30,10 @@ import {
   remoteDesktopControlEventSchema,
   remoteDesktopPointerEventSchema,
   remoteDesktopSignalMessageSchema,
+  DEFAULT_REMOTE_DESKTOP_CODEC,
   DEFAULT_REMOTE_DESKTOP_QUALITY,
   REMOTE_DESKTOP_QUALITY_PRESETS,
+  type RemoteDesktopCodec,
   type RemoteDesktopErrorCode,
   type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
@@ -89,6 +91,7 @@ export interface RemoteDesktopHostServer {
     requestSession(
       clientId: string,
       quality?: RemoteDesktopQuality,
+      codec?: RemoteDesktopCodec,
     ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
     /**
      * `session.reissueMediaTicket`：媒体 WS 瞬断重连（P2-1）——票据 store 在 server 层
@@ -146,6 +149,12 @@ export function createRemoteDesktopHostServer(options: {
   let activeSession: { clientId: string; socket: WebSocket } | null = null;
   /** 本会话画质档位（P1-3）：requestSession 时按主控选择写入，MediaStart 据此出参数。 */
   let sessionQuality: RemoteDesktopQuality = DEFAULT_REMOTE_DESKTOP_QUALITY;
+  /**
+   * 本会话编码 codec 偏好（HEVC 选型 2026-10-13）：requestSession 时按主控
+   * `POST?codec=` 写入，MediaStart 参数直达 helper——helper 侧无硬件 HEVC 会回退
+   * h264（warn），主控解码按码流自描述跟随，故此处只记偏好不校验能力。
+   */
+  let sessionCodec: RemoteDesktopCodec = DEFAULT_REMOTE_DESKTOP_CODEC;
   /**
    * 编码能力缓存（P1-3）：从真实会话的 rd_media_start 结果观测，避免被控端为探测
    * 额外拉起一次 helper；会话发生前恒为 unknown（不猜测）。unavailable = 本机无
@@ -336,6 +345,7 @@ export function createRemoteDesktopHostServer(options: {
   const requestSession = async (
     clientId: string,
     quality?: RemoteDesktopQuality,
+    codec?: RemoteDesktopCodec,
   ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }> => {
     if (disposed) {
       return { error: "disabled" };
@@ -353,6 +363,8 @@ export function createRemoteDesktopHostServer(options: {
     }
     // 画质档位随请求写入（缺省 = 旧主控 → 默认档；未知值由 schema 在入口层拦下）。
     sessionQuality = quality ?? DEFAULT_REMOTE_DESKTOP_QUALITY;
+    // 编码 codec 偏好随请求写入（缺省 = 旧主控 → h264）；helper 侧 HEVC 缺失自动回退。
+    sessionCodec = codec ?? DEFAULT_REMOTE_DESKTOP_CODEC;
     const label = await labelOf(clientId);
     return await new Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>((resolve) => {
       const timer = setTimeout(() => {
@@ -689,6 +701,8 @@ export function createRemoteDesktopHostServer(options: {
               maxWidth: preset.maxWidth,
               fps: preset.fps,
               bitrateBps: preset.bitrateBps,
+              // codec 偏好直达 helper（HEVC 选型 2026-10-13）：无硬件 HEVC 由 helper 回退。
+              codec: sessionCodec,
               endpoint: { host: "127.0.0.1", port },
               key: message.key,
               salt: message.salt,

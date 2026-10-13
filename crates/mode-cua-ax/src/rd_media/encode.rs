@@ -53,7 +53,7 @@ use windows::Win32::Media::MediaFoundation::{
   MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MF_E_TRANSFORM_TYPE_NOT_SET,
   MF_E_NO_EVENTS_AVAILABLE, MF_EVENT_FLAG_NO_WAIT, METransformHaveOutput, METransformNeedInput,
   MFMediaType_Video, MFShutdown, MFStartup,
-  MF_VERSION, MFVideoFormat_H264, MFVideoFormat_NV12,
+  MF_VERSION, MFVideoFormat_H264, MFVideoFormat_HEVC, MFVideoFormat_NV12,
   MFVideoInterlace_Progressive, IMFActivate, IMFMediaType, IMFSample, IMFTransform,
   MFT_CATEGORY_VIDEO_ENCODER,
   MFTEnumEx, MFT_ENUM_FLAG, MFT_ENUM_FLAG_HARDWARE, MFT_ENUM_FLAG_SORTANDFILTER,
@@ -67,7 +67,7 @@ use windows::Win32::Media::MediaFoundation::{
 use windows::core::{GUID, Interface, IUnknown, VARIANT};
 
 use super::capture::create_texture;
-use super::state::{contains_idr, reduce, EncoderAction, EncoderState};
+use super::state::{contains_hevc_idr, contains_idr, reduce, EncoderAction, EncoderState};
 use super::warn;
 use crate::error::{AxError, AxResult};
 
@@ -76,6 +76,15 @@ use crate::error::{AxError, AxResult};
 const GOP_FRAMES: u32 = 120;
 /// 90kHz 时间基（MF 视频标准）：sample 时长 = 90000/fps。
 const MF_TICKS: i64 = 90_000;
+
+/// 编码 codec 选型（spec: native-media「HEVC 选型」2026-10-13，对标 UU 按 GPU 协商 H.265）：
+/// 主控经 `POST?codec=` 偏好、rd_media_start 参数传入。`Hevc` 在无硬件 HEVC MFT 时
+/// **回退 H.264**（warn 不失败）——偏好与实际不一致安全：解码配置串由关键帧码流自描述。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RdEncodeCodec {
+  H264,
+  Hevc,
+}
 
 /// MF 进程级引用计数：`MFStartup` 只在首个编码器建立时调用，最后一个编码器
 /// drop 时 `MFShutdown`（简报「MFShutdown 对应次数」——一一配对，多次 start/stop
@@ -158,7 +167,11 @@ pub struct Encoder {
   /// 编码输入是否走 DXGI 表面（运行时回退后翻 false，此后固定系统内存）。
   gpu_interop: bool,
   /// 实际生效的 H.264 profile（能力阶梯的产物；运行期回退重配时保持一致）。
+  /// HEVC 选型下无 profile 语义（存 Main 仅作占位，类型配置不下发该属性）。
   profile: eAVEncH264VProfile,
+  /// 编码 codec（选型结果——Hevc 回退 H.264 后即为 H.264）；换屏/自愈重建沿用它，
+  /// keyframe 检测按它分支（contains_idr / contains_hevc_idr 编码空间交叠，不可混判）。
+  codec: RdEncodeCodec,
   /// ICodecAPI（可用时）：实时提示 + B 帧=0 + 免 flush 强制 IDR；None = 全走回退。
   codec_api: Option<ICodecAPI>,
   /// 强制 IDR 模式（见 `ForceKeyMode`）。
@@ -192,15 +205,16 @@ impl Encoder {
     out_h: u32,
     fps: u32,
     bitrate_bps: u32,
+    codec: RdEncodeCodec,
   ) -> AxResult<Self> {
-    // H.264 约束：偶数尺寸；fps/尺寸非法按入参错误拒绝（调用方 napi 层已校验，
+    // H.264/HEVC 共同约束：偶数尺寸；fps/尺寸非法按入参错误拒绝（调用方 napi 层已校验，
     // 这里是防御——错误尺寸会把错误拖到 MFT SetInputType 才爆，错误归因会失真）。
     let (out_w, out_h) = (out_w & !1, out_h & !1);
     if out_w == 0 || out_h == 0 || fps == 0 || bitrate_bps == 0 {
       return Err(AxError::new("invalid_request", "编码参数非法（尺寸须为正偶数、fps/码率须为正）"));
     }
     mf_acquire()?;
-    match Self::build(device, out_w, out_h, fps, bitrate_bps) {
+    match Self::build(device, out_w, out_h, fps, bitrate_bps, codec) {
       Ok(s) => Ok(s),
       Err(e) => {
         // build 半途失败时 Drop 不会执行（结构体未构造），手动归还 MF 计数。
@@ -210,12 +224,18 @@ impl Encoder {
     }
   }
 
+  /// 当前生效的 codec（换屏/自愈重建时原样沿用）。
+  pub fn codec(&self) -> RdEncodeCodec {
+    self.codec
+  }
+
   fn build(
     device: &ID3D11Device,
     out_w: u32,
     out_h: u32,
     fps: u32,
     bitrate_bps: u32,
+    mut codec: RdEncodeCodec,
   ) -> AxResult<Self> {
     let video_device = device
       .cast::<ID3D11VideoDevice>()
@@ -231,7 +251,19 @@ impl Encoder {
     let video_ctx1 = ctx
       .cast::<ID3D11VideoContext1>()
       .map_err(|e| AxError::internal(format!("ID3D11VideoContext1 QI 失败: {e}")))?;
-    let (mf, async_mode) = activate_h264_encoder()?;
+    // codec 激活：HEVC 优先按 subtype=HEVC 枚举，无硬件 HEVC MFT 回退 H.264
+    //（warn 不失败——偏好与实际不一致由码流自描述兜底，spec「HEVC 选型」）。
+    let (mf, async_mode) = match codec {
+      RdEncodeCodec::H264 => activate_encoder(&MFVideoFormat_H264, "H.264")?,
+      RdEncodeCodec::Hevc => match activate_encoder(&MFVideoFormat_HEVC, "HEVC") {
+        Ok(v) => v,
+        Err(e) => {
+          warn(&format!("HEVC 硬件编码不可用，回退 H.264: {e}"));
+          codec = RdEncodeCodec::H264;
+          activate_encoder(&MFVideoFormat_H264, "H.264")?
+        }
+      },
+    };
     // 异步 MFT：QI 事件源（Async MFT 契约要求实现 IMFMediaEventGenerator；QI 失败按
     // 硬性能力缺失收口——没有事件源就无法在事件模型下驱动它）。
     let events = if async_mode {
@@ -255,12 +287,18 @@ impl Encoder {
     let mut gpu_interop = d3d_manager.is_some();
     let mut profile = eAVEncH264VProfile_Main;
     let mut configured = false;
-    let ladder: [(bool, eAVEncH264VProfile); 4] = [
-      (gpu_interop, eAVEncH264VProfile_Main),
-      (gpu_interop, eAVEncH264VProfile_Base),
-      (false, eAVEncH264VProfile_Main),
-      (false, eAVEncH264VProfile_Base),
-    ];
+    // 输入路径 × profile 的尝试阶梯（各自独立降级，任一级成功即定型）：
+    // H.264 = 互操作×{Main,Base} → 系统内存×{Main,Base}；HEVC 无 profile 属性，
+    // 只按输入路径两级（互操作 → 系统内存）。
+    let ladder: Vec<(bool, Option<eAVEncH264VProfile>)> = match codec {
+      RdEncodeCodec::Hevc => vec![(gpu_interop, None), (false, None)],
+      RdEncodeCodec::H264 => vec![
+        (gpu_interop, Some(eAVEncH264VProfile_Main)),
+        (gpu_interop, Some(eAVEncH264VProfile_Base)),
+        (false, Some(eAVEncH264VProfile_Main)),
+        (false, Some(eAVEncH264VProfile_Base)),
+      ],
+    };
     for (want_gpu, want_profile) in ladder {
       if want_gpu != gpu_interop {
         // 需要系统内存口径：清掉管理器（此后所有重配都以系统内存为准）。
@@ -272,19 +310,24 @@ impl Encoder {
         gpu_interop = false;
         warn("D3D 互操作类型协商失败，回退系统内存输入");
       }
-      if configure_media_types(&mf, out_w, out_h, fps, bitrate_bps, want_profile).is_ok() {
-        profile = want_profile;
+      if configure_media_types(&mf, out_w, out_h, fps, bitrate_bps, codec, want_profile).is_ok()
+      {
+        profile = want_profile.unwrap_or(eAVEncH264VProfile_Main);
         configured = true;
-        if want_profile == eAVEncH264VProfile_Base {
+        if want_profile == Some(eAVEncH264VProfile_Base) {
           warn("H.264 Main profile 不受支持，回退 Baseline");
         }
         break;
       }
     }
     if !configured {
-      // 与旧实现同口径的最终失败（以 Base 的错误归因）。
-      configure_media_types(&mf, out_w, out_h, fps, bitrate_bps, eAVEncH264VProfile_Base)?;
-      profile = eAVEncH264VProfile_Base;
+      // 与旧实现同口径的最终失败：H.264 以 Base 归因、HEVC 无 profile（阶梯末级即此）。
+      let final_profile = match codec {
+        RdEncodeCodec::Hevc => None,
+        RdEncodeCodec::H264 => Some(eAVEncH264VProfile_Base),
+      };
+      configure_media_types(&mf, out_w, out_h, fps, bitrate_bps, codec, final_profile)?;
+      profile = final_profile.unwrap_or(eAVEncH264VProfile_Main);
     }
     // 低延迟/免丢帧编码参数（ICodecAPI；逐项尽力而为，不可用则运行期全走回退）。
     let codec_api = apply_codec_api(&mf);
@@ -314,6 +357,7 @@ impl Encoder {
       _d3d_manager: d3d_manager,
       gpu_interop,
       profile,
+      codec,
       codec_api,
       force_key_mode,
       async_mode,
@@ -456,9 +500,12 @@ impl Encoder {
       Cow::Borrowed(b) => b.to_vec(),
       Cow::Owned(v) => v,
     };
-    // key 的唯一权威 = 码流中的 IDR NAL（flush/GOP/ForceKeyFrame 是否被驱动如实
-    // 执行由它兜底）。
-    let key = contains_idr(&data);
+    // key 的唯一权威 = 码流中的随机访问点 NAL（flush/GOP/ForceKeyFrame 是否被驱动如实
+    // 执行由它兜底）；H.264 与 HEVC 的首字节编码空间交叠，按 codec 分支不混判。
+    let key = match self.codec {
+      RdEncodeCodec::H264 => contains_idr(&data),
+      RdEncodeCodec::Hevc => contains_hevc_idr(&data),
+    };
     match self.pending.pop_front() {
       Some((seq, expected_key, captured_at_ms)) => {
         // 期望关键帧的配对项拿到非 IDR 帧 = ForceKeyFrame 被驱动忽略 → 永久降级
@@ -773,7 +820,18 @@ impl Encoder {
         .ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, 0)
         .map_err(|e| AxError::internal(format!("回退清 D3D 管理器失败: {e}")))?;
     }
-    configure_media_types(&self.mf, self.out_w, self.out_h, self.fps, self.bitrate_bps, self.profile)?;
+    configure_media_types(
+      &self.mf,
+      self.out_w,
+      self.out_h,
+      self.fps,
+      self.bitrate_bps,
+      self.codec,
+      match self.codec {
+        RdEncodeCodec::H264 => Some(self.profile),
+        RdEncodeCodec::Hevc => None,
+      },
+    )?;
     // 类型重协商可能重置 codec 级设置：重放（QI 不可用则强制降级 flush 模式）。
     self.codec_api = apply_codec_api(&self.mf);
     if self.codec_api.is_none() {
@@ -924,19 +982,20 @@ fn unlock_async_mft(mf: &IMFTransform) -> bool {
   }
 }
 
-/// 枚举硬件 H.264 视频编码器并激活。返回 (transform, 是否异步 MFT)。
+/// 枚举硬件视频编码器（输出 subtype 参数化：H.264/HEVC）并激活。
+/// 返回 (transform, 是否异步 MFT)。
 ///
 /// 选择口径：简报写「取含 "H.264" 描述者」，但 windows 0.58 元数据没有
 /// `MF_TRANSFORM_FRIENDLY_NAME` 常量——改用等价且更强的类型过滤
-/// （输入 NV12 + 输出 H264 + `SORTANDFILTER` 排序），首个可激活且可配类型的胜出。
-fn activate_h264_encoder() -> AxResult<(IMFTransform, bool)> {
+/// （输入 NV12 + 输出目标 subtype + `SORTANDFILTER` 排序），首个可激活且可配类型的胜出。
+fn activate_encoder(subtype: &GUID, label: &str) -> AxResult<(IMFTransform, bool)> {
   let input_info = MFT_REGISTER_TYPE_INFO {
     guidMajorType: MFMediaType_Video,
     guidSubtype: MFVideoFormat_NV12,
   };
   let output_info = MFT_REGISTER_TYPE_INFO {
     guidMajorType: MFMediaType_Video,
-    guidSubtype: MFVideoFormat_H264,
+    guidSubtype: *subtype,
   };
   let flags =
     MFT_ENUM_FLAG(MFT_ENUM_FLAG_HARDWARE.0 | MFT_ENUM_FLAG_SORTANDFILTER.0);
@@ -953,7 +1012,7 @@ fn activate_h264_encoder() -> AxResult<(IMFTransform, bool)> {
       &mut arr,
       &mut count,
     )
-    .map_err(|e| AxError::new("unimplemented", format!("MFTEnumEx(硬件 H.264) 失败: {e}")))?;
+    .map_err(|e| AxError::new("unimplemented", format!("MFTEnumEx(硬件 {label}) 失败: {e}")))?;
   }
   let mut activated: Option<IMFTransform> = None;
   let mut activated_async = false;
@@ -981,19 +1040,21 @@ fn activate_h264_encoder() -> AxResult<(IMFTransform, bool)> {
   activated
     .map(|transform| (transform, activated_async))
     .ok_or_else(|| {
-      AxError::new("unimplemented", "无可用硬件 H.264 编码器（MFTEnumEx 无候选或激活失败）")
+      AxError::new("unimplemented", format!("无可用硬件 {label} 编码器（MFTEnumEx 无候选或激活失败）"))
     })
 }
 
-/// 配置输入/输出 media type（MS H.264 编码器口径：输入 NV12+尺寸+帧率+逐行；
-/// 输出 H264+profile（调用方按能力阶梯选择，Main 优先）+码率）。
+/// 配置输入/输出 media type（MS 编码器口径：输入 NV12+尺寸+帧率+逐行；
+/// 输出 = codec 对应 subtype + 码率；H.264 另带 profile——调用方按能力阶梯选择，
+/// Main 优先；HEVC 无 profile 属性（传 None 不下发））。
 fn configure_media_types(
   mf: &IMFTransform,
   out_w: u32,
   out_h: u32,
   fps: u32,
   bitrate_bps: u32,
-  profile: eAVEncH264VProfile,
+  codec: RdEncodeCodec,
+  profile: Option<eAVEncH264VProfile>,
 ) -> AxResult<()> {
   let input = unsafe { MFCreateMediaType() }
     .map_err(|e| AxError::new("unimplemented", format!("MFCreateMediaType(输入) 失败: {e}")))?;
@@ -1035,7 +1096,10 @@ fn configure_media_types(
   };
   // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
   unsafe {
-    output.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264)
+    output.SetGUID(&MF_MT_SUBTYPE, match codec {
+      RdEncodeCodec::H264 => &MFVideoFormat_H264,
+      RdEncodeCodec::Hevc => &MFVideoFormat_HEVC,
+    })
       .map_err(|e| AxError::new("unimplemented", format!("输出类型 subtype 失败: {e}")))?
   };
   // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
@@ -1064,11 +1128,14 @@ fn configure_media_types(
   // profile 由调用方按能力阶梯选择（Main 优先，驱动拒绝降级 Base；Main 带 CABAC
   // 同码率画质更高）。无 B 帧由 `apply_codec_api` 显式置 0——Main 下无 B 帧才能
   // 保持输入/输出 1:1 配对与最低编码延迟（MF_MT_MPEG2_LEVEL 按简报省略）。
-  // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
-  unsafe {
-    output.SetUINT32(&MF_MT_MPEG2_PROFILE, profile.0 as u32)
-      .map_err(|e| AxError::new("unimplemented", format!("输出类型 profile 失败: {e}")))?
-  };
+  // HEVC 选型不下发该属性（profile 口径是 H.264 的，传 None 即跳过）。
+  if let Some(profile) = profile {
+    // unsafe 依据（块级）：IMFAttributes 属性写入为 COM FFI。
+    unsafe {
+      output.SetUINT32(&MF_MT_MPEG2_PROFILE, profile.0 as u32)
+        .map_err(|e| AxError::new("unimplemented", format!("输出类型 profile 失败: {e}")))?;
+    };
+  }
   set_codec_media_types(mf, &input, &output)
 }
 

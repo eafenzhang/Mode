@@ -133,6 +133,17 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
     分支同语义；否则远控侧动鼠标画面纹丝不动、只有桌面像素恰好变化才刷新（2026-10-13
     实测「连上但卡死」根因；harness 用动画窗口产帧会掩盖此洞）。正常环境不走轮询。
 - **编码**：MF 视频编码器（`MFT_ENUM_FLAG_HARDWARE` 选「H.264 HW」，Win10 系统自带）；输入 D3D11 纹理 → D3D11 Video Processor 出 NV12（承担 >1080p 缩放）→ MF `MFT_MESSAGE_SET_D3D_MANAGER` 全 GPU 路径。参数：平均码率 8Mbps、GOP 120 帧（≈2s@60fps）、`select-monitor` / 分辨率变化强制 IDR。
+  - **HEVC 选型（2026-10-13，对标 UU 按 GPU 协商 H.265）**：主控发会话请求前用
+    `VideoDecoder.isConfigSupported` 预检本机 HEVC 解码，`rdStartSession` 携 codec 偏好
+    （`h264`|`hevc`，缺省/旧主控 = `h264`）→ `POST /api/remote-desktop/session?codec=` →
+    被控 host 记入会话（`sessionCodec`）→ `rd_media_start` 参数 `codec` 直达 helper/napi。
+    helper 侧 `codec=hevc` 时按输出 subtype=HEVC 枚举硬件 MFT；**无硬件 HEVC 编码器
+    回退 H.264**（warn，不失败）——偏好与实际不一致是安全的，因为**解码配置串始终由
+    关键帧码流自描述派生**（主控 `codecStringFromAnnexB` 扩展：HEVC VPS/SPS 解析 →
+    `hev1.<idc>.<compat hex>.<tier><level>.<constraint hex>`，同款「新参数集触发重配」）；
+    keyframe 权威 `contains_idr` 分 codec（HEVC 按 NAL type 16..21 = BLA/IDR/CRA）。
+    两端独立降级兼容：旧被控忽略 `codec` 查询参数走 H.264、旧主控不带参数默认 H.264、
+    主控不支持 HEVC 解码时偏好即 H.264——三向都不需要版本门。
   - **异步 MFT（2026-10-13 修复）**：硬件 H.264 MFT（NVENC / AMF / QSV）普遍是**异步编码器**，非 MF 管线直接使用分两步才能跑通：
     1. **解锁**：读 `MF_TRANSFORM_ASYNC` 判定；异步时配置媒体类型前置 `MF_TRANSFORM_ASYNC_UNLOCK=TRUE`，否则首次 `SetInputType` 报 `MF_E_TRANSFORM_ASYNC_LOCKED (0xC00D6D77)`。
     2. **事件模型**：解锁只是入场券——此后必须 QI `IMFMediaEventGenerator` 按 MS「Asynchronous MFTs」驱动：`MFT_MESSAGE_NOTIFY_BEGIN_STREAMING` + `START_OF_STREAM` 开头流；输入只在收到 `METransformNeedInput` 后 `ProcessInput`（未请求的帧直接丢弃，实时语义），输出只在收到 `METransformHaveOutput` 后 `ProcessOutput`（其余时机调用返回 `E_UNEXPECTED (0x8000FFFF)`）。flush / D3D 互操作运行期回退后事件队列作废，须等新的 NeedInput 再恢复送帧。
@@ -154,11 +165,13 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 ## 事件顺序
 
 ```text
-① 会话请求与同意（POST）：主控 host 代发（设备令牌）→ 被控 host 校验令牌/能力位
+① 会话请求与同意（POST）：主控 host 代发（设备令牌，携 `?quality=` 与 `?codec=`
+   （h264|hevc，主控按本地解码能力预检给出，缺省/旧主控=h264））→ 被控 host 校验令牌/能力位
    → 被控 main 同意（已记住直通；拒绝/超时 → 稳定错误码）→ 信令 ticket 与媒体 mediaTicket
-   随 POST 响应一并签发（主 spec 事件顺序 ② 不变）
+   随 POST 响应一并签发（主 spec 事件顺序 ② 不变；被控 host 记 `sessionCodec`，
+   不需要把 codec 回传主控——解码串由码流自描述派生）
 ② 同意通过（被控 coordinator）：生成 key/salt → MediaStart（broker
-   rd_media_start{monitor, endpoint, key, salt}）→ helper 连中继口、起 DUPL+MF
+   rd_media_start{monitor, endpoint, key, salt, codec}）→ helper 连中继口、起 DUPL+MF
    （主控 ready 前只采集不推流）
 ③ 信令（WS attach 后）：主控 hello(v2) → 被控 monitors → 主控 select-monitor
    → 被控回 media-open{key,salt}（首个 select-monitor 的应答；media-open 不得早于 WS
@@ -219,9 +232,9 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 
 ## 测试策略
 
-- **Rust**（`cargo test`）：帧头/flags 打包、IV=盐∥seq 派生、GOP/IDR 标记状态机、DUPL 状态事件纯逻辑（模拟 ACCESS_LOST 序列）；**光标语义（2026-10-13）**：`render_cursor_shape` 三类型断言（COLOR 保留真 alpha 且 `visible=alpha>0`、MASKED_COLOR 按 ARGB-alpha-掩码布局且 0xFF 打 XOR 标记、MONOCHROME 不变）、CPU 补丁混合纯函数（真 alpha 混合 / XOR(bg^color) / 替换 / 保留背景四分支）。
+- **Rust**（`cargo test`）：帧头/flags 打包、IV=盐∥seq 派生、GOP/IDR 标记状态机、DUPL 状态事件纯逻辑（模拟 ACCESS_LOST 序列）；**光标语义（2026-10-13）**：`render_cursor_shape` 三类型断言（COLOR 保留真 alpha 且 `visible=alpha>0`、MASKED_COLOR 按 ARGB-alpha-掩码布局且 0xFF 打 XOR 标记、MONOCHROME 不变）、CPU 补丁混合纯函数（真 alpha 混合 / XOR(bg^color) / 替换 / 保留背景四分支）；**HEVC key 检测（2026-10-13）**：`contains_hevc_idr` 对 BLA/IDR/CRA NAL type 16..21 判真、TRAIL 判假，与 H.264 `contains_idr` 互不串扰。
 - **Node**（仓库既有 tsx --test 先例）：中继长度前缀编解码、双票据各自单次消费、media-open 下发序列、pong 即答、密文透传（不解密断言）。
-- **renderer**：解码喂帧状态机（mock VideoDecoder：SPS 重配、丢旧帧、关键帧 flag）、输入 sink 走 WS、状态条数据源切换。
+- **renderer**：解码喂帧状态机（mock VideoDecoder：SPS 重配、丢旧帧、关键帧 flag）、输入 sink 走 WS、状态条数据源切换；**codec 串派生（2026-10-13）**：`codecStringFromAnnexB` 对合成 H.264 SPS 出 `avc1.*`、对合成 HEVC VPS+SPS 出 `hev1.*`（profile/兼容位/tier/level/约束字节向量锁定），未知流返回 null。
 - **回归**：全仓四包测试 + `pnpm typecheck` / `lint` / 架构检查 + `pnpm build:cua-helper` 构建通过。
 - **不在本环境**：双机实机对拍（验收清单交用户）。
 

@@ -18,7 +18,7 @@ use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFun
 use napi_derive::napi;
 
 use super::capture::{CaptureFrame, ComScope, DuplicationOutput};
-use super::encode::Encoder;
+use super::encode::{Encoder, RdEncodeCodec};
 use super::warn;
 use crate::error::{AxError, AxResult};
 
@@ -59,6 +59,10 @@ pub struct RdMediaStartOptions {
   pub max_width: u32,
   pub fps: u32,
   pub bitrate_bps: u32,
+  /// 编码 codec 偏好（spec: native-media「HEVC 选型」2026-10-13）：缺省/"h264" = H.264；
+  /// "hevc" 无硬件编码器时回退 H.264（warn，不失败——解码侧按码流自描述跟随）；
+  /// 其它值按 invalid_request 拒绝（JS 契约层已拦，这里是防御）。
+  pub codec: Option<String>,
   pub on_frame: ThreadsafeFunction<RdMediaFrameNapi, ErrorStrategy::Fatal>,
   pub on_status: ThreadsafeFunction<RdMediaStatusNapi, ErrorStrategy::Fatal>,
 }
@@ -154,6 +158,13 @@ fn start(opts: RdMediaStartOptions) -> AxResult<()> {
   if opts.fps == 0 || opts.max_width == 0 || opts.bitrate_bps == 0 {
     return Err(AxError::new("invalid_request", "fps/maxWidth/bitrateBps 必须为正"));
   }
+  let codec = match opts.codec.as_deref() {
+    None | Some("h264") => RdEncodeCodec::H264,
+    Some("hevc") => RdEncodeCodec::Hevc,
+    Some(other) => {
+      return Err(AxError::new("invalid_request", format!("不支持的 codec: {other}")));
+    }
+  };
   stop(); // 已在跑先 stop 再起新线程（简报 Step 4）
   let stop_flag = Arc::new(AtomicBool::new(false));
   let pending_rect = Arc::new(Mutex::new(None));
@@ -174,7 +185,7 @@ fn start(opts: RdMediaStartOptions) -> AxResult<()> {
       .name("rd-media-capture".into())
       .spawn(move || {
         worker_loop(
-          rect, max_width, fps, bitrate, stop_f, pending, on_frame, on_status, worker_id,
+          rect, max_width, fps, bitrate, codec, stop_f, pending, on_frame, on_status, worker_id,
           ready_tx, go_rx,
         )
       })
@@ -268,6 +279,7 @@ fn worker_loop(
   max_width: u32,
   fps: u32,
   bitrate: u32,
+  codec: RdEncodeCodec,
   stop: Arc<AtomicBool>,
   pending_rect: PendingRect,
   on_frame: ThreadsafeFunction<RdMediaFrameNapi, ErrorStrategy::Fatal>,
@@ -289,7 +301,7 @@ fn worker_loop(
     }
   };
   let (out_w, out_h) = compute_out_size(rect.2 as u32, rect.3 as u32, max_width);
-  let mut enc = match Encoder::new(dup.device(), out_w, out_h, fps, bitrate) {
+  let mut enc = match Encoder::new(dup.device(), out_w, out_h, fps, bitrate, codec) {
     Ok(e) => e,
     Err(e) => {
       let _ = ready.send(Err(e)); // dup 随本作用域释放
@@ -447,8 +459,9 @@ fn reopen_target(
   let (ow, oh) = compute_out_size(new_rect.2 as u32, new_rect.3 as u32, max_width);
   if (ow, oh) != enc.out_size() {
     let state = enc.take_state();
+    let codec = enc.codec(); // 重建沿用当前选型（HEVC 回退过就恒为实际生效的 H.264）
     // 先建新再换入：旧编码器存活期间 MF 计数不归零（不会触发中途 MFShutdown）。
-    let mut fresh = Encoder::new(nd.device(), ow, oh, fps, bitrate)?;
+    let mut fresh = Encoder::new(nd.device(), ow, oh, fps, bitrate, codec)?;
     fresh.import_state(state);
     fresh.force_idr();
     *enc = fresh;
@@ -475,8 +488,9 @@ fn rebuild_chain(
   let nd = DuplicationOutput::open(rect)?;
   let (ow, oh) = compute_out_size(rect.2 as u32, rect.3 as u32, max_width);
   let state = enc.take_state();
+  let codec = enc.codec(); // 重建沿用当前选型
   // 先建新再换入：旧编码器存活期间 MF 计数不归零（不会触发中途 MFShutdown）。
-  let mut fresh = Encoder::new(nd.device(), ow, oh, fps, bitrate)?;
+  let mut fresh = Encoder::new(nd.device(), ow, oh, fps, bitrate, codec)?;
   fresh.import_state(state);
   fresh.force_idr();
   *enc = fresh;
@@ -496,7 +510,8 @@ fn rebuild_encoder(
 ) -> AxResult<()> {
   let (ow, oh) = compute_out_size(rect.2 as u32, rect.3 as u32, max_width);
   let state = enc.take_state();
-  let mut fresh = Encoder::new(dup.device(), ow, oh, fps, bitrate)?;
+  let codec = enc.codec(); // 重建沿用当前选型
+  let mut fresh = Encoder::new(dup.device(), ow, oh, fps, bitrate, codec)?;
   fresh.import_state(state);
   fresh.force_idr();
   *enc = fresh;

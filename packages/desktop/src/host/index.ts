@@ -84,7 +84,11 @@ import type {
   RemoteDesktopRawInputEvent,
 } from "./remoteDesktopMessages.js";
 import type { WebSocket } from "ws";
-import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
+import type {
+  RemoteDesktopCodec,
+  RemoteDesktopErrorCode,
+  RemoteDesktopQuality,
+} from "@mode/shared/remote-desktop";
 import {
   createLanPromptAttachmentTransferService,
   materializeLanPromptAttachments,
@@ -2064,6 +2068,7 @@ function resolveRemoteDesktopHooks(): {
   requestSession: (
     clientId: string,
     quality?: RemoteDesktopQuality,
+    codec?: RemoteDesktopCodec,
   ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
   onSessionSocket: (
     clientId: string,
@@ -2073,8 +2078,12 @@ function resolveRemoteDesktopHooks(): {
   onMediaSocket: (clientId: string, socket: WebSocket) => void;
 } {
   return {
-    requestSession: async (clientId: string, quality?: RemoteDesktopQuality) =>
-      activeRemoteDesktop?.hooks.requestSession(clientId, quality) ?? {
+    requestSession: async (
+      clientId: string,
+      quality?: RemoteDesktopQuality,
+      codec?: RemoteDesktopCodec,
+    ) =>
+      activeRemoteDesktop?.hooks.requestSession(clientId, quality, codec) ?? {
         error: "disabled" as const,
       },
     onSessionSocket: (clientId: string, socket: WebSocket, session) => {
@@ -2156,6 +2165,8 @@ async function handleRemoteDesktopPeerMessage(
     serverId: string;
     /** 画质档位（P1-3，仅 session-open 携带；schema 已校验枚举，缺省 = 旧主控）。 */
     quality?: RemoteDesktopQuality;
+    /** 编码 codec 偏好（HEVC 选型 2026-10-13，仅 session-open 携带；缺省 = 旧主控 h264）。 */
+    codec?: RemoteDesktopCodec;
   },
   services: ServiceCollection,
 ): Promise<void> {
@@ -2176,7 +2187,12 @@ async function handleRemoteDesktopPeerMessage(
       });
       return;
     }
-    const result = await openRemoteDesktopPeerSession(credentials, msg.serverId, msg.quality);
+    const result = await openRemoteDesktopPeerSession(
+      credentials,
+      msg.serverId,
+      msg.quality,
+      msg.codec,
+    );
     postRemoteDesktopToMain(
       result.ok
         ? {

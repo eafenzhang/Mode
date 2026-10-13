@@ -75,7 +75,14 @@ fn hardware_h264_encoder_builds_with_async_unlock() {
     // 无 D3D 设备或设备无 VP 能力（基础显示适配器/无桌面会话的 CI）：环境能力缺失，跳过。
     return;
   };
-  match mode_cua_ax::rd_media::encode::Encoder::new(&device, 1920, 1080, 60, 8_000_000) {
+  match mode_cua_ax::rd_media::encode::Encoder::new(
+    &device,
+    1920,
+    1080,
+    60,
+    8_000_000,
+    mode_cua_ax::rd_media::encode::RdEncodeCodec::H264,
+  ) {
     Ok(_encoder) => {}
     // 环境根本没有硬件 H.264 编码器（CI 无 GPU 自适应）：能力面缺失，跳过。
     Err(error) if error.message.contains("无可用硬件 H.264 编码器") => {}
@@ -83,6 +90,47 @@ fn hardware_h264_encoder_builds_with_async_unlock() {
     Err(error) if error.message.contains("MFTEnumEx(硬件 H.264) 失败") => {}
     Err(error) => panic!("硬件 H.264 编码器应可配置（异步 MFT 必须先解锁）: {error}"),
   }
+}
+
+#[test]
+fn hevc_codec_builds_or_falls_back_to_h264() {
+  // HEVC 选型（spec: native-media「HEVC 选型」）：有硬件 HEVC MFT → 成功建流；
+  // 无 → **回退 H.264**（不报错——偏好与实际不一致由码流自描述兜底）。
+  // 只有 H.264 也缺失时才失败（与 H.264 用例同款环境跳过口径）。
+  let Some(device) = mode_cua_ax::rd_media::capture::create_device_for_tests() else {
+    return; // 无设备/无 VP 能力：环境能力缺失，跳过
+  };
+  match mode_cua_ax::rd_media::encode::Encoder::new(
+    &device,
+    1920,
+    1080,
+    60,
+    8_000_000,
+    mode_cua_ax::rd_media::encode::RdEncodeCodec::Hevc,
+  ) {
+    Ok(_encoder) => {}
+    Err(error) if error.message.contains("无可用硬件 H.264 编码器") => {}
+    Err(error) if error.message.contains("MFTEnumEx(硬件 H.264) 失败") => {}
+    Err(error) => panic!("HEVC 选型应成功或回退 H.264（不硬失败）: {error}"),
+  }
+}
+
+#[test]
+fn contains_hevc_idr_detects_bla_idr_cra_nal() {
+    use mode_cua_ax::rd_media::state::contains_hevc_idr;
+    // 4 字节起始码 + IDR_W_RADL(type19 → 首字节 0x26)；3 字节起始码 + CRA(type21 → 0x2A)。
+    assert!(contains_hevc_idr(&[0, 0, 0, 1, 0x26, 0x01]), "HEVC IDR(19) 判真");
+    assert!(contains_hevc_idr(&[0, 0, 1, 0x2A, 0x01]), "HEVC CRA(21) 判真");
+    // TRAIL_R(type1) 非随机访问点 → 假。
+    assert!(!contains_hevc_idr(&[0, 0, 0, 1, 0x02, 0x01]), "HEVC TRAIL 判假");
+    // forbidden_zero_bit 置位（0xA6 = 0x80|0x26）→ 非法 HEVC 头，不得误判。
+    assert!(!contains_hevc_idr(&[0, 0, 0, 1, 0xA6, 0x01]), "forbidden 置位判假");
+    // H.264 IDR(0x65) 按 HEVC 解读 = type50 ∉ 16..21 → 假（两族判定不串扰；
+    // 实际分流由 Encoder 按 codec 分支选择 contains_idr / 本函数）。
+    assert!(!contains_hevc_idr(&[0, 0, 0, 1, 0x65, 0x88]), "H.264 IDR 不误判为 HEVC");
+    // 空/过短输入不 panic。
+    assert!(!contains_hevc_idr(&[]));
+    assert!(!contains_hevc_idr(&[0, 0, 0, 1]));
 }
 
 #[test]

@@ -15,6 +15,7 @@ import type {
   LanPairedPeerWorkspaces,
 } from "./lanAccess.js";
 import type {
+  RemoteDesktopCodec,
   RemoteDesktopErrorCode,
   RemoteDesktopQuality,
   RemoteDesktopSignalMessage,
@@ -1006,10 +1007,13 @@ export interface IPlatformService {
    * 由主控 host 从被控 POST 响应拼出、经本返回值直达 renderer（不走信令 union）。
    * 画质档位（P1-3）：`quality` 随会话请求下发给被控（fps/maxWidth/初始码率）；
    * 缺省 = 被控按默认档（旧主控不带该参数）。
+   * 编码 codec 偏好（HEVC 选型 2026-10-13）：`codec` 由 renderer 按本地解码能力
+   * 预检后下发（缺省/非法 = h264）；被控无硬件 HEVC 时回退，解码按码流自描述跟随。
    */
   rdStartSession(
     serverId: string,
     quality?: RemoteDesktopQuality,
+    codec?: RemoteDesktopCodec,
   ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }>;
 
   /**

@@ -81,3 +81,41 @@ pub fn contains_idr(data: &[u8]) -> bool {
     }
     false
 }
+
+/// 从 Annex-B 字节流中探测 HEVC 随机访问点 NAL（BLA 16..18 / IDR 19..20 / CRA 21，
+/// 即 `nal_unit_type = (首字节 >> 1) & 0x3f` 落在 16..=21；首字节高位为 forbidden_zero_bit，
+/// 必须为 0）。
+///
+/// WHY 分 codec 而不嗅探：HEVC 与 H.264 的首字节编码空间交叠（如 H.264 SEI ref_idc=1
+/// 的 0x26 按 HEVC 解读恰是 type19=IDR），混判会把 H.264 关键帧流误标——判定权在
+/// 编码器自身已知的 codec（`Encoder::take_output` 按 codec 分支选择本函数或 `contains_idr`）。
+pub fn contains_hevc_idr(data: &[u8]) -> bool {
+    let mut i = 0usize;
+    while i + 3 < data.len() {
+        if data[i] == 0 && data[i + 1] == 0 {
+            let (nal_at, is_start) = if data[i + 2] == 1 {
+                (i + 3, true)
+            } else if data[i + 2] == 0 && i + 4 <= data.len() && data[i + 3] == 1 {
+                (i + 4, true)
+            } else {
+                (0, false)
+            };
+            if is_start {
+                if nal_at < data.len() {
+                    let b = data[nal_at];
+                    // forbidden_zero_bit（HEVC 首字节最高位）必须为 0 才按 HEVC 解读。
+                    if b & 0x80 == 0 {
+                        let nal_type = (b >> 1) & 0x3f;
+                        if (16..=21).contains(&nal_type) {
+                            return true;
+                        }
+                    }
+                }
+                i = nal_at + 1;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    false
+}

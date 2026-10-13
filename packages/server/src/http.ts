@@ -49,7 +49,9 @@ import {
 } from "@mode/shared";
 // 远程桌面协议面单独入口（T1），根入口不重导出，避免把桌面链路类型带进所有消费方。
 import {
+  remoteDesktopCodecSchema,
   remoteDesktopQualitySchema,
+  type RemoteDesktopCodec,
   type RemoteDesktopErrorCode,
   type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
@@ -293,6 +295,7 @@ export interface RemoteDesktopHooks {
   requestSession(
     clientId: string,
     quality?: RemoteDesktopQuality,
+    codec?: RemoteDesktopCodec,
   ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
   /**
    * 信令 WS 交接。`session.reissueMediaTicket` 供宿主在会话内处理
@@ -621,9 +624,14 @@ export function createHttpServer(
     // 非法值不报错——画质是优化参数，不值得让会话失败）。
     const qualityParam = c.req.query("quality");
     const parsedQuality = qualityParam ? remoteDesktopQualitySchema.safeParse(qualityParam) : null;
+    // 编码 codec 偏好（HEVC 选型 2026-10-13）：与画质同款宽容口径——非法/缺省回 h264；
+    // 被控无硬件 HEVC 时仍会在 helper 侧回退（解码串由码流自描述兜底，不需要失败）。
+    const codecParam = c.req.query("codec");
+    const parsedCodec = codecParam ? remoteDesktopCodecSchema.safeParse(codecParam) : null;
     const result = await remoteDesktop.requestSession(
       clientId,
       parsedQuality?.success ? parsedQuality.data : undefined,
+      parsedCodec?.success ? parsedCodec.data : undefined,
     );
     if ("error" in result) {
       return c.json({ code: result.error }, remoteDesktopErrorStatus(result.error));

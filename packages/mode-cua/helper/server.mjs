@@ -163,6 +163,11 @@ export function createBackend(addon) {
       if (port === 0 || port > 65535) throw invalidRequest("endpoint.port must be 1..65535");
       requireString(params.key, "key");
       requireString(params.salt, "salt");
+      // codec 偏好（HEVC 选型 2026-10-13）：白名单拦截（缺省由 napi 侧回 h264；
+      // "hevc" 无硬件编码器时 Rust 侧回退，不在此处判能力）。
+      if (params.codec !== undefined && params.codec !== "h264" && params.codec !== "hevc") {
+        throw invalidRequest("codec must be h264|hevc");
+      }
       return mediaPump.start(params);
     },
     rd_media_switch: async (params) => {
