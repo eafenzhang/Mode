@@ -1,4 +1,6 @@
 import { querySessionDebug } from "./session-debug.js";
+import { createNodeNetworkCapture } from "@mode/shared/node";
+import { networkCaptureControlSchema, modeProtocolNotifications } from "@mode/shared";
 import {
   modePluginsCancelOperationParamsSchema,
   modeProtocolMethods,
@@ -6,6 +8,12 @@ import {
   modeWorkspaceHookTrustGrantParamsSchema,
 } from "@mode/shared";
 import type { BrowserControlPort } from "@mode/contracts";
+import type {
+  McpElicitationRequest,
+  McpElicitationResult,
+  McpServerNotification,
+} from "@mode/contracts";
+import { requestMcpElicitation } from "./interaction-broker.js";
 import { InMemoryWorkspaceHookPolicyProvider } from "@mode/core";
 import {
   V4_METHODS,
@@ -81,7 +89,26 @@ import {
   moveSavedWorkflowOp,
   updateSavedWorkflowMetaOp,
 } from "./saved-workflows.js";
+import { findSavedWorkflowForRunOp, saveSavedWorkflowFromRunOp } from "./saved-workflows-run.js";
 import { listMcpServers } from "./mcp.js";
+import {
+  callMcpUiTool,
+  sampleMcpUi,
+  cancelMcpUiSampling,
+  cancelMcpUiToolCall,
+  listMcpUiResourceTemplates,
+  listMcpUiResources,
+  claimMcpUiAppToolCall,
+  registerMcpUiAppTools,
+  resolveMcpUiAppToolCall,
+  unregisterMcpUiAppTools,
+  readMcpUiResource,
+  readMcpUiResourceForUi,
+  routeMcpServerNotification,
+  subscribeMcpUiResource,
+  unsubscribeMcpUiResource,
+} from "./mcp-ui/index.js";
+import { listPluginUiSurfaces } from "./plugin-ui-surfaces.js";
 import { updateInteractionPreferences } from "./interaction-preferences.js";
 import { updateAccountProviderConfig } from "./account-provider-config.js";
 import { updateModelIoPreferences } from "./model-io-preferences.js";
@@ -105,6 +132,7 @@ import {
   isNotification,
   isRequest,
   isResponse,
+  PROTOCOL_CLIENT_REQUEST_ERROR_CODES,
   ProtocolRequestError,
   type ParamsSchema,
   parseParams,
@@ -118,6 +146,7 @@ import { createInMemorySessionEventStore } from "@mode/contracts";
 
 export type { ModeProtocolAgentDependencies, ModeProtocolSessionRecord };
 
+import { closeMcpUiInstance, openMcpUiInstance, validateMcpUiInstance } from "./mcp-ui/index.js";
 const MAX_CLIENT_REQUEST_REANNOUNCE_INTERVAL_MS = 10_000;
 
 type ModeProtocolOutboundMessage = ModeProtocolNotification | ModeProtocolRequest;
@@ -128,7 +157,7 @@ type ModeProtocolOutboundMessage = ModeProtocolNotification | ModeProtocolReques
  * 停留旧值。pretrust 授权成功后按 workspaceKey 通知所有匹配的活跃 session 重载。
  * 独立导出为纯调度函数（不触网、不发事件），便于回归测试直接构造 sessions Map。
  */
-async function notifyWorkspaceHookTrustGrantSessions(input: {
+export async function notifyWorkspaceHookTrustGrantSessions(input: {
   grantedWorkspaceKey?: string;
   sessions: Map<string, ModeProtocolSessionRecord>;
 }): Promise<void> {
@@ -183,7 +212,7 @@ function getOperationId(params: unknown): string | undefined {
     : undefined;
 }
 
-interface ModeProtocolPostResponseBatch {
+export interface ModeProtocolPostResponseBatch {
   readonly messages: readonly ModeProtocolOutboundMessage[];
   commit(): boolean;
 }
@@ -201,6 +230,12 @@ interface PendingClientRequest<T> {
 }
 
 export class ModeProtocolAgentServer {
+  private readonly networkCapture = createNodeNetworkCapture("cli", (batch) => {
+    this.messageSink?.({
+      method: modeProtocolNotifications.processNetworkRequests,
+      params: batch,
+    });
+  });
   private readonly runtimeResources: ProtocolRuntimeResources;
   private shutdownPromise?: Promise<void>;
   readonly browserControlPort: BrowserControlPort;
@@ -209,6 +244,19 @@ export class ModeProtocolAgentServer {
    * MCP 连接池的构造早于 server，需要在 server 就绪后回填闭包持有的引用——
    * 与 v4Gateway 同样的构造顺序收口方式。只暴露 requestClient，不外泄整个 context。
    */
+  /** MCP server 发起的 elicitation/create → 用户提问。 */
+  requestMcpElicitation(
+    request: McpElicitationRequest,
+    options?: { signal?: AbortSignal },
+  ): Promise<McpElicitationResult> {
+    return requestMcpElicitation(this.context, request, options);
+  }
+
+  /** MCP server 通知 → 会话 live 事件 / agent 日志。 */
+  handleMcpNotification(notification: McpServerNotification): void {
+    routeMcpServerNotification(this.context, notification);
+  }
+
   get officialMcpAuthRequestContext(): Pick<ModeProtocolAgentServerContext, "requestClient"> {
     return this.context;
   }
@@ -344,6 +392,7 @@ export class ModeProtocolAgentServer {
   }
 
   disconnectClient(error: Error): void {
+    this.networkCapture.setCaptureId(null);
     this.clientDisconnectError = error;
     // 连接关闭后反向请求已不可能收到响应，必须先结束 pending，
     // 否则正在物化 Session 的 handler 会阻塞 connection 的关闭流程。
@@ -422,6 +471,11 @@ export class ModeProtocolAgentServer {
       return await this.handleRequest(message);
     }
     if (isNotification(message)) {
+      if (message.method === modeProtocolMethods.processNetworkCapture) {
+        const control = networkCaptureControlSchema.safeParse(message.params);
+        if (control.success) this.networkCapture.setCaptureId(control.data.captureId);
+        return undefined;
+      }
       this.logger?.debug("Mode Protocol notification ignored", {
         event: "mode_protocol.notification.ignored",
         method: message.method,
@@ -643,12 +697,48 @@ export class ModeProtocolAgentServer {
         return await testProviderModelConnectivity(this.context, request.params);
       case modeProtocolMethods.mcpList:
         return await listMcpServers(this.context, request.params);
+      case modeProtocolMethods.mcpReadResource:
+        return await readMcpUiResource(this.context, request.params);
+      case modeProtocolMethods.mcpUiOpenInstance:
+        return openMcpUiInstance(this.context, request.params);
+      case modeProtocolMethods.mcpUiValidateInstance:
+        return validateMcpUiInstance(this.context, request.params);
+      case modeProtocolMethods.mcpUiCloseInstance:
+        return closeMcpUiInstance(this.context, request.params);
+      case modeProtocolMethods.mcpUiSampling:
+        return sampleMcpUi(this.context, request.params);
+      case modeProtocolMethods.mcpUiCancelSampling:
+        return cancelMcpUiSampling(this.context, request.params);
+      case modeProtocolMethods.mcpUiCallTool:
+        return await callMcpUiTool(this.context, request.params);
+      case modeProtocolMethods.mcpUiCancelCall:
+        return await cancelMcpUiToolCall(this.context, request.params);
+      case modeProtocolMethods.mcpUiReadResource:
+        return await readMcpUiResourceForUi(this.context, request.params);
+      case modeProtocolMethods.mcpUiListResources:
+        return await listMcpUiResources(this.context, request.params);
+      case modeProtocolMethods.mcpUiListResourceTemplates:
+        return await listMcpUiResourceTemplates(this.context, request.params);
+      case modeProtocolMethods.mcpUiSubscribeResource:
+        return await subscribeMcpUiResource(this.context, request.params);
+      case modeProtocolMethods.mcpUiUnsubscribeResource:
+        return await unsubscribeMcpUiResource(this.context, request.params);
+      case modeProtocolMethods.mcpUiRegisterAppTools:
+        return await registerMcpUiAppTools(this.context, request.params);
+      case modeProtocolMethods.mcpUiUnregisterAppTools:
+        return await unregisterMcpUiAppTools(this.context, request.params);
+      case modeProtocolMethods.mcpUiClaimAppToolCall:
+        return await claimMcpUiAppToolCall(this.context, request.params);
+      case modeProtocolMethods.mcpUiResolveAppToolCall:
+        return await resolveMcpUiAppToolCall(this.context, request.params);
       case modeProtocolMethods.pluginsList:
         return await listPlugins(this.context, request.params);
       case modeProtocolMethods.pluginsReferenceCatalogWithCategory:
         return await getPluginReferenceCatalog(this.context, request.params, true);
       case modeProtocolMethods.pluginsReferenceCatalog:
         return await getPluginReferenceCatalog(this.context, request.params);
+      case modeProtocolMethods.pluginsListUiSurfaces:
+        return await listPluginUiSurfaces(this.context, request.params);
       case modeProtocolMethods.skillsReferenceCatalog:
         return await getSkillReferenceCatalog(this.context, request.params);
       case modeProtocolMethods.workflowsList:
@@ -663,6 +753,10 @@ export class ModeProtocolAgentServer {
         return await listSavedWorkflowRunsOp(this.context, request.params);
       case modeProtocolMethods.workflowsMove:
         return await moveSavedWorkflowOp(this.context, request.params);
+      case modeProtocolMethods.workflowsSave:
+        return await saveSavedWorkflowFromRunOp(this.context, request.params);
+      case modeProtocolMethods.workflowsForRun:
+        return await findSavedWorkflowForRunOp(this.context, request.params);
       case modeProtocolMethods.pluginsResolveSuggestedReference:
         return await this.withPluginOperationSignal(request, (signal) =>
           resolveSuggestedPluginReference(this.context, request.params, signal),
@@ -812,7 +906,10 @@ export class ModeProtocolAgentServer {
       throw this.clientDisconnectError;
     }
     if (!this.messageSink) {
-      throw new ProtocolRequestError(-32020, `No Mode Protocol client is attached for ${method}`);
+      throw new ProtocolRequestError(
+        PROTOCOL_CLIENT_REQUEST_ERROR_CODES.noClientAttached,
+        `No Mode Protocol client is attached for ${method}`,
+      );
     }
 
     return new Promise<T>((resolve, reject) => {
@@ -831,7 +928,12 @@ export class ModeProtocolAgentServer {
       };
       pending.abortHandler = () => {
         cleanup();
-        reject(new ProtocolRequestError(-32021, `Client request cancelled: ${method}`));
+        reject(
+          new ProtocolRequestError(
+            PROTOCOL_CLIENT_REQUEST_ERROR_CODES.cancelled,
+            `Client request cancelled: ${method}`,
+          ),
+        );
       };
       if (options?.signal?.aborted) {
         pending.abortHandler();
@@ -841,9 +943,13 @@ export class ModeProtocolAgentServer {
         pending.timeout = setTimeout(() => {
           cleanup();
           reject(
-            new ProtocolRequestError(-32022, `Client request timed out: ${method}`, {
-              timeoutMs: options.timeoutMs,
-            }),
+            new ProtocolRequestError(
+              PROTOCOL_CLIENT_REQUEST_ERROR_CODES.timedOut,
+              `Client request timed out: ${method}`,
+              {
+                timeoutMs: options.timeoutMs,
+              },
+            ),
           );
         }, options.timeoutMs);
       }

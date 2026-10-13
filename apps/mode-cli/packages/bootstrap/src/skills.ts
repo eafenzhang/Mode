@@ -4,11 +4,14 @@ import { createNodeSkillAdapter } from "@mode/adapters/skills";
 import type { Logger, SkillContent, SkillDiagnostic, SkillLoadOutcome } from "@mode/contracts";
 import { resolveBundledSkillRoots } from "./app/bundled-skills.js";
 import { getCliStorageRoot } from "./app/paths.js";
+import { filterVisualizeSkillRoots } from "./app/visualize-skill-gate.js";
 import { resolveModePlugins } from "./plugins.js";
 import { collectDisabledPaths } from "./skill-command-overrides.js";
 
 export interface ListModeSkillsOptions {
   env?: NodeJS.ProcessEnv;
+  /** 协议宿主草稿目录使用；CLI 命令缺省关闭。 */
+  includeVisualize?: boolean;
   logger?: Logger;
   projectConfigPath?: string;
   skipUserConfig?: boolean;
@@ -28,7 +31,7 @@ export interface ModeSkillInspection {
 export async function listModeSkills(
   options: ListModeSkillsOptions = {},
 ): Promise<SkillLoadOutcome> {
-  const discovery = await createSkillDiscovery(options);
+  const discovery = createSkillDiscovery(options);
   if (!discovery.enabled) {
     return {
       diagnostics: [],
@@ -45,7 +48,7 @@ export async function listModeSkills(
 export async function inspectModeSkill(
   options: InspectModeSkillOptions,
 ): Promise<ModeSkillInspection> {
-  const discovery = await createSkillDiscovery(options);
+  const discovery = createSkillDiscovery(options);
   if (!discovery.enabled) {
     throw new Error("Skills are disabled.");
   }
@@ -72,7 +75,7 @@ export async function inspectModeSkill(
   };
 }
 
-async function createSkillDiscovery(options: ListModeSkillsOptions): Promise<
+function createSkillDiscovery(options: ListModeSkillsOptions):
   | {
       enabled: false;
       workingDirectory: string;
@@ -81,8 +84,7 @@ async function createSkillDiscovery(options: ListModeSkillsOptions): Promise<
       enabled: true;
       skillPort: ReturnType<typeof createNodeSkillAdapter>;
       workingDirectory: string;
-    }
-> {
+    } {
   const workingDirectory = resolve(options.workingDirectory ?? process.cwd());
   const configResult = createConfig({
     env: options.env,
@@ -109,7 +111,7 @@ async function createSkillDiscovery(options: ListModeSkillsOptions): Promise<
   });
 
   // 内置技能包与插件技能根并列注入：`mode skills list`、引用目录与 runtime 看到同一份发现结果。
-  const bundledSkillRoots = await resolveBundledSkillRoots({
+  const bundledSkillRoots = resolveBundledSkillRoots({
     cliStorageRoot: getCliStorageRoot(resolvePath(configResult.config.storage.dir)),
     logger: options.logger,
   });
@@ -118,7 +120,10 @@ async function createSkillDiscovery(options: ListModeSkillsOptions): Promise<
     enabled: true,
     skillPort: createNodeSkillAdapter({
       extraRoots: configResult.config.skills.roots,
-      extraResolvedRoots: [...pluginOutcome.skillRoots, ...bundledSkillRoots],
+      extraResolvedRoots: [
+        ...filterVisualizeSkillRoots(pluginOutcome.skillRoots, options.includeVisualize),
+        ...bundledSkillRoots,
+      ],
       disabledPaths: collectDisabledPaths(configResult.config.skillOverrides),
     }),
     workingDirectory,

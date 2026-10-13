@@ -15,6 +15,7 @@ import {
 import type { PluginReferenceCatalogEntry } from "@mode/contracts";
 import { buildPluginReferenceCatalog } from "@mode/core";
 import {
+  enrichCachedClaudeMarketplaceIconsForOverview,
   getModePluginsOverview,
   resolveModePlugins,
   updateModePluginMarketplace,
@@ -243,6 +244,7 @@ interface PluginReferenceListingDisplay {
 function resolveReferenceListingDisplayByPluginId(
   workspacePath: string,
 ): Map<string, PluginReferenceListingDisplay> {
+  enrichCachedClaudeMarketplaceIconsForOverview({ workingDirectory: workspacePath });
   const overview = getModePluginsOverview({ workingDirectory: workspacePath });
   const displayByPluginId = new Map<string, PluginReferenceListingDisplay>();
   for (const plugin of [

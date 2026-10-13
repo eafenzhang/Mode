@@ -1,7 +1,6 @@
 import type { BrowserClientTransport } from "@mode/core/browser-client";
 
 export const NODE_REPL_BROWSER_BRIDGE_SYMBOL = Symbol.for("mode.node-repl.browser-control-bridge");
-export const BROWSER_UNAVAILABLE_IN_SUBAGENT_MESSAGE = "Browser is not available in subagent";
 
 export interface NodeReplBrowserRuntimeBridge extends BrowserClientTransport {
   documentationRoot: string;

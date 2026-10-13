@@ -6,8 +6,10 @@ import type {
   ManagedCdpBrowserRuntimeOptions,
 } from "@mode/adapters/browser";
 import type {
+  createDefaultProviderEndpointRoutingPort,
   createModelAdapter,
   createModeApp,
+  CreateDefaultProviderEndpointRoutingPortOptions,
   CreateModelAdapterOptions,
   configureCodingPlanApiKey,
   ConfigureCodingPlanApiKeyOptions,
@@ -53,6 +55,9 @@ export interface RunDependencies extends PluginsCommandOverrides {
   createModelAdapter?: (
     options?: CreateModelAdapterOptions,
   ) => ReturnType<typeof createModelAdapter>;
+  createProviderEndpointRoutingPort?: (
+    options: CreateDefaultProviderEndpointRoutingPortOptions,
+  ) => ReturnType<typeof createDefaultProviderEndpointRoutingPort>;
   createModeApp?: (
     options?: ModeAppOptions,
   ) => Awaited<ReturnType<typeof createModeApp>> | ReturnType<typeof createModeApp>;
@@ -110,7 +115,7 @@ export interface RunDependencies extends PluginsCommandOverrides {
   startProcessProviderRegistryRuntime?: typeof startProcessProviderRegistryRuntime;
 }
 
-export type CliPermissionMode = "build" | "plan" | "edit" | "yolo";
+export type CliPermissionMode = "build" | "plan" | "edit" | "yolo" | "guarded";
 export type CliRuntimeMode = CliPermissionMode | "auto";
 
 export interface CliModeState {

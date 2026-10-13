@@ -8,7 +8,7 @@ const h = React.createElement as (
   ...children: React.ReactNode[]
 ) => React.ReactElement;
 
-const MODE_LOGO_LINES = [
+export const MODE_LOGO_LINES = [
   "███████╗ ██████╗ ██████╗ ██████╗ ███████╗",
   "   ███╔╝██╔════╝██╔═══██╗██╔══██╗██╔════╝",
   "  ███╔╝ ██║     ██║   ██║██║  ██║█████╗  ",

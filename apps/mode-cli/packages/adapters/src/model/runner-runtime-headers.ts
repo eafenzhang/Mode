@@ -1,3 +1,4 @@
+import type { RequestVerificationReason } from "@mode/shared";
 import type { ModelRequestAuth } from "@mode/contracts";
 import { ModelErrorCode, ModelProtocolError } from "@mode/contracts";
 import type { AiSdkModelTextRequest, ResolvedAiSdkModel } from "./runner-runtime.js";
@@ -11,7 +12,7 @@ export class RuntimeHeadersRefreshError extends Error {
 
 export async function resolveModelForAttempt(input: {
   attempt: number;
-  reason?: "model-request";
+  reason?: RequestVerificationReason;
   request: AiSdkModelTextRequest;
   resolveModel: (requestAuth?: ModelRequestAuth) => ResolvedAiSdkModel;
 }): Promise<ResolvedAiSdkModel> {

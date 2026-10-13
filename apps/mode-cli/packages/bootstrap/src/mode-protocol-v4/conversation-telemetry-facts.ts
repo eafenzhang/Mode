@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 八类 strict telemetry fact 的同源归一集中维护，避免 privacy allowlist 分叉。 */
 import type {
   CompactLifecyclePayload,
   DynamicWorkflowRunProgressPayload,
@@ -117,13 +118,16 @@ function skillTelemetryFactFields(
 export function streamingParentToolCallId(payload: Record<string, unknown>): string | undefined {
   const meta = recordValue(payload._meta);
   const mode = recordValue(meta.mode);
+  const claudeCode = recordValue(meta.claudeCode);
   return (
     optionalString(payload.parentToolCallId) ??
     optionalString(payload.parentToolUseId) ??
     optionalString(meta.parentToolCallId) ??
     optionalString(meta.parentToolUseId) ??
     optionalString(mode.parentToolCallId) ??
-    optionalString(mode.parentToolUseId)
+    optionalString(mode.parentToolUseId) ??
+    optionalString(claudeCode.parentToolCallId) ??
+    optionalString(claudeCode.parentToolUseId)
   );
 }
 

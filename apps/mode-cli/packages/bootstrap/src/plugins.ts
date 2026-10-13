@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve, win32 } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep, win32 } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
   addSuppressedBuiltinInFileConfig,
@@ -17,6 +17,7 @@ import {
   addMarketplace,
   comparePluginUpdate,
   describeMarketplacePlugin,
+  enrichCachedClaudeMarketplaceIcons,
   ensureDefaultPluginMarketplaces,
   hasBundledPluginPackage,
   discoverNodePluginsSync,
@@ -205,11 +206,11 @@ export interface ModePluginUpdateData extends ModePluginInstallData {
   previousVersion: string;
 }
 
-interface RestoreBuiltinPluginOptions extends ResolveModePluginsOptions {
+export interface RestoreBuiltinPluginOptions extends ResolveModePluginsOptions {
   pluginId: string;
 }
 
-interface ConfigureModePluginOptions extends ResolveModePluginsOptions {
+export interface ConfigureModePluginOptions extends ResolveModePluginsOptions {
   clearOptionKeys?: string[];
   dryRun?: boolean;
   options: Record<string, unknown>;
@@ -217,18 +218,18 @@ interface ConfigureModePluginOptions extends ResolveModePluginsOptions {
   scope?: "user" | "workspace";
 }
 
-interface ResetModePluginConfigOptions extends ResolveModePluginsOptions {
+export interface ResetModePluginConfigOptions extends ResolveModePluginsOptions {
   pluginId: string;
   scope?: "user" | "workspace";
 }
 
-interface ValidateModePluginOptions extends ResolveModePluginsOptions {
+export interface ValidateModePluginOptions extends ResolveModePluginsOptions {
   marketplace?: string;
   pluginName?: string;
   source?: string;
 }
 
-interface DescribeModePluginOptions extends ResolveModePluginsOptions {
+export interface DescribeModePluginOptions extends ResolveModePluginsOptions {
   marketplace: string;
   pluginName: string;
 }
@@ -481,6 +482,16 @@ export function getModePluginsOverview(
       ),
     ],
   };
+}
+
+export function enrichCachedClaudeMarketplaceIconsForOverview(
+  options: ResolveModePluginsOptions = {},
+): void {
+  const { pluginStorageRoot } = resolvePluginContext(options);
+  // 图标是可选展示增强：overview 不等待网络；仅写回阶段进入 storage lock。
+  void enrichCachedClaudeMarketplaceIcons(pluginStorageRoot, (write) =>
+    withPluginStorageLock(pluginStorageRoot, write),
+  );
 }
 
 export function listModePlugins(options: ListModePluginsOptions = {}): PluginLoadOutcome {
@@ -1405,7 +1416,20 @@ function normalizePluginConfigPathForComparison(
   return platform === "win32" ? resolvedPath.replaceAll("\\", "/").toLowerCase() : resolvedPath;
 }
 
-function resolveMarketplaceRefreshTargetIds(input: {
+export function isWorkspacePluginConfigPath(
+  path: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform === "win32") {
+    return (
+      win32.basename(path).toLowerCase() === "config.json" &&
+      win32.basename(win32.dirname(path)).toLowerCase() === ".mode"
+    );
+  }
+  return basename(path) === "config.json" && basename(dirname(path)) === ".mode";
+}
+
+export function resolveMarketplaceRefreshTargetIds(input: {
   declaredIds: Iterable<string>;
   knownIds: Iterable<string>;
   marketplace?: string;

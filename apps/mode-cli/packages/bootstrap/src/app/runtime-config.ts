@@ -1,4 +1,5 @@
 import type { ConfigResult } from "@mode/adapters/config";
+import { GEN_UI_OUTPUT_ROOT_ENV } from "@mode/shared/node";
 import { resolveInitialModelSelection, type ModelSelectionOptions } from "@mode/provider";
 import { resolveBashTimeoutPolicy, type AgentProfile, type AgentRuntimeConfig } from "@mode/core";
 import { type BuiltInSubagentModelSelectionOverrides } from "@mode/shared";
@@ -117,6 +118,7 @@ export function resolveAppRuntimeConfig(input: {
     options.runtimeConfig?.subagents?.builtInModelSelectionOverrides ?? {};
   const runtimeConfig: AgentRuntimeConfig = {
     ...options.runtimeConfig,
+    genUiOutputRoot: (options.env ?? process.env)[GEN_UI_OUTPUT_ROOT_ENV],
     bashTimeoutPolicy:
       options.runtimeConfig?.bashTimeoutPolicy ??
       resolveBashTimeoutPolicy(options.env ?? process.env),
