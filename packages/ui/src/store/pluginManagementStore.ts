@@ -8,7 +8,7 @@ import type {
   ModePluginScope,
   ModePluginsDescribeResult,
 } from "@mode/shared";
-import { CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@mode/shared";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@mode/shared";
 import type { IPluginManagementService } from "@mode/services";
 import { logger } from "@/logger.js";
 import { loadInto, runWorkspaceOperation } from "@/store/pluginManagementStoreLoading.js";
@@ -225,7 +225,7 @@ export const usePluginManagementStore = create<PluginManagementState>((set, get)
         const blockingDiagnostic = result.diagnostics?.find(
           (diagnostic) =>
             diagnostic.severity === "error" &&
-            diagnostic.pluginId !== CLAUDE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+            diagnostic.pluginId !== MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
         );
         if (blockingDiagnostic) {
           refreshError = blockingDiagnostic.message;

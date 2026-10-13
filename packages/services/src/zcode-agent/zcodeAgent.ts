@@ -1,7 +1,7 @@
 import type {
   BackgroundBashOutputResult,
   SessionDebugSnapshot,
-  ZCodeSessionContentProfile,
+  ModeSessionContentProfile,
 } from "@zcode/shared";
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@zcode/rpc";
@@ -9,7 +9,7 @@ import { ServiceChannels } from "@zcode/shared";
 import type { AppUsageRange, AppUsageSnapshot, ModeTaskTokenUsageResult } from "@zcode/shared";
 import type { DynamicWorkflowMode } from "@zcode/shared";
 import type { ModeAutomation, ModeAutomationRun } from "@zcode/shared";
-import type { ModeStorageStartupState, ModeDeliveryKind, ModeAgentMcpServer, ModeBackgroundTurnAttribution, TraceId, ModeSessionCompactResult, ModeSessionGoalAction, ModeSessionGoalResult, ModeMessageWithParts, ModelSelection, ModeSessionImportHistory, ModePermissionRequestParams, AgentLaneResourceSample, ModeMcpTelemetryEvent, ModeMcpResourceSample, ModeToolExecResource, ModeProcessChildProcess, ModeMcpListResult, ModePluginsListResult, ModePluginsOverviewResult, ModePluginsMarketplaceMutationResult, ModePluginsInstallResult, ModePluginsReferenceCatalogResult, ModeSkillsReferenceCatalogResult, ZCodeMcpReadResourceResult, ZCodeMcpUiCallToolResult, ZCodeMcpUiCancelCallResult, ZCodeMcpUiReadResourceResult, ZCodeMcpUiListResourcesResult, ZCodeMcpUiAppToolAcceptedResult, ZCodeMcpUiRegisterAppToolsResult, ZCodeMcpUiUnregisterAppToolsResult, ZCodeMcpUiListResourceTemplatesResult, ZCodePluginsListUiSurfacesResult, ModeWorkflowsDeleteResult, ModeWorkflowsRunsResult, ModeWorkflowsGetResult, ModeWorkflowsListResult, ModeWorkflowsMoveResult, ModeWorkflowsUpdateMetaResult, ModePluginsUninstallResult, ModePluginsRestoreBuiltinResult, ModePluginsConfigureResult, ModePluginsDescribeResult, ModePluginsValidateResult, ModePluginsSetEnabledResult, ModePluginsCancelOperationResult, ModePluginOperationProgressNotification, ModeProviderRuntimeHeadersRequestParams, ModeProviderRuntimeHeadersCancelled, ModeProviderTestModelConnectivityParams, ModeProviderTestModelConnectivityResult, ModeUserInputRequestParams, ModeUserInputResponse, ModeSessionEvent, ModeSessionInfo, ModeSessionMode, ModeSessionPersistence, ModeSessionSendResult, ModeSessionRequestRuntimePreferencesParams, ModeSessionRuntimePreferencesResult, ModeSessionStateSnapshot, ModeSessionSubagentsResult, ModeStateUpdatedNotification, ModeTaskClientMode, ModeBrowserAmbientContext, ModeWorkspacePresentation, ModeWorkspaceGenerateTextResult, ModeWorkspaceGenerateTextParams, ModeWorkspaceHookTrustGrantResult, ModeAutomationBotDeliveryTarget } from "@zcode/shared";
+import type { ModeStorageStartupState, ModeDeliveryKind, ModeAgentMcpServer, ModeBackgroundTurnAttribution, TraceId, ModeSessionCompactResult, ModeSessionGoalAction, ModeSessionGoalResult, ModeMessageWithParts, ModelSelection, ModeSessionImportHistory, ModePermissionRequestParams, AgentLaneResourceSample, ModeMcpTelemetryEvent, ModeMcpResourceSample, ModeToolExecResource, ModeProcessChildProcess, ModeMcpListResult, ModePluginsListResult, ModePluginsOverviewResult, ModePluginsMarketplaceMutationResult, ModePluginsInstallResult, ModePluginsReferenceCatalogResult, ModeSkillsReferenceCatalogResult, ModeMcpReadResourceResult, ModeMcpUiCallToolResult, ModeMcpUiCancelCallResult, ModeMcpUiReadResourceResult, ModeMcpUiListResourcesResult, ModeMcpUiAppToolAcceptedResult, ModeMcpUiRegisterAppToolsResult, ModeMcpUiUnregisterAppToolsResult, ModeMcpUiListResourceTemplatesResult, ModePluginsListUiSurfacesResult, ModeWorkflowsDeleteResult, ModeWorkflowsRunsResult, ModeWorkflowsGetResult, ModeWorkflowsListResult, ModeWorkflowsMoveResult, ModeWorkflowsUpdateMetaResult, ModePluginsUninstallResult, ModePluginsRestoreBuiltinResult, ModePluginsConfigureResult, ModePluginsDescribeResult, ModePluginsValidateResult, ModePluginsSetEnabledResult, ModePluginsCancelOperationResult, ModePluginOperationProgressNotification, ModeProviderRuntimeHeadersRequestParams, ModeProviderRuntimeHeadersCancelled, ModeProviderTestModelConnectivityParams, ModeProviderTestModelConnectivityResult, ModeUserInputRequestParams, ModeUserInputResponse, ModeSessionEvent, ModeSessionInfo, ModeSessionMode, ModeSessionPersistence, ModeSessionSendResult, ModeSessionRequestRuntimePreferencesParams, ModeSessionRuntimePreferencesResult, ModeSessionStateSnapshot, ModeSessionSubagentsResult, ModeStateUpdatedNotification, ModeTaskClientMode, ModeBrowserAmbientContext, ModeWorkspacePresentation, ModeWorkspaceGenerateTextResult, ModeWorkspaceGenerateTextParams, ModeWorkspaceHookTrustGrantResult, ModeAutomationBotDeliveryTarget } from "@zcode/shared";
 import type {
   ClientHello,
   CommandAck,
@@ -190,7 +190,7 @@ export interface ZCodeAgentReadSessionParams extends ZCodeAgentSessionTarget {
   /** 被动索引/观察者只能读取现有 runtime，禁止为了读快照拉起 session。 */
   runtimePolicy?: ZCodeAgentRuntimePolicy;
   /** "index" 仅供 task index：返回剥离大载荷的同结构 snapshot，禁止回写 UI 状态。 */
-  contentProfile?: ZCodeSessionContentProfile;
+  contentProfile?: ModeSessionContentProfile;
 }
 
 export interface ZCodeAgentReadSessionMessagesParams extends ZCodeAgentSessionTarget {
@@ -608,7 +608,7 @@ export interface IZCodeAgentService {
   closeMcpUiInstance(
     params: import("../plugin-ui-bridge/contract.js").PluginUiPluginScope,
   ): Promise<void>;
-  readMcpResource(params: ZCodeAgentReadMcpResourceParams): Promise<ZCodeMcpReadResourceResult>;
+  readMcpResource(params: ZCodeAgentReadMcpResourceParams): Promise<ModeMcpReadResourceResult>;
   /** 插件 UI：UI 发起的工具调用；复用既有权限审批，不产生 transcript row。 */
   sampleMcpApp(
     params: import("../plugin-ui-bridge/samplingContract.js").PluginUiSamplingParams,
@@ -616,41 +616,41 @@ export interface IZCodeAgentService {
   cancelMcpAppSampling(
     params: import("../plugin-ui-bridge/samplingContract.js").PluginUiCancelSamplingParams,
   ): Promise<{ cancelled: boolean }>;
-  callMcpToolForUi(params: ZCodeAgentCallMcpToolForUiParams): Promise<ZCodeMcpUiCallToolResult>;
+  callMcpToolForUi(params: ZCodeAgentCallMcpToolForUiParams): Promise<ModeMcpUiCallToolResult>;
   /** 插件 UI 取消带 callId 的进行中 UI 工具调用；agent 侧 abort 到 MCP client。 */
   cancelMcpToolCallForUi(
     params: ZCodeAgentCancelMcpToolCallForUiParams,
-  ): Promise<ZCodeMcpUiCancelCallResult>;
+  ): Promise<ModeMcpUiCancelCallResult>;
   /** 插件 UI 页面发起的 `resources/read`，agent 侧限同插件服务器、8 MiB、mimeType 白名单。 */
   readMcpResourceForUi(
     params: ZCodeAgentReadMcpResourceForUiParams,
-  ): Promise<ZCodeMcpUiReadResourceResult>;
+  ): Promise<ModeMcpUiReadResourceResult>;
   /** 插件 UI 页面发起的 resources/list、resources/templates/list、subscribe、unsubscribe 代理。 */
   listMcpResourcesForUi(
     params: ZCodeAgentListMcpResourcesForUiParams,
-  ): Promise<ZCodeMcpUiListResourcesResult>;
+  ): Promise<ModeMcpUiListResourcesResult>;
   listMcpResourceTemplatesForUi(
     params: ZCodeAgentListMcpResourcesForUiParams,
-  ): Promise<ZCodeMcpUiListResourceTemplatesResult>;
+  ): Promise<ModeMcpUiListResourceTemplatesResult>;
   subscribeMcpResourceForUi(params: ZCodeAgentMcpResourceSubscriptionForUiParams): Promise<void>;
   unsubscribeMcpResourceForUi(params: ZCodeAgentMcpResourceSubscriptionForUiParams): Promise<void>;
   /** App-Provided Tools：页面工具登记 / 注销与模型调用的认领 / 回传（信箱投递走 v4 live 增量）。 */
   registerAppToolsForUi(
     params: ZCodeAgentRegisterAppToolsForUiParams,
-  ): Promise<ZCodeMcpUiRegisterAppToolsResult>;
+  ): Promise<ModeMcpUiRegisterAppToolsResult>;
   unregisterAppToolsForUi(
     params: ZCodeAgentAppToolInstanceForUiParams,
-  ): Promise<ZCodeMcpUiUnregisterAppToolsResult>;
+  ): Promise<ModeMcpUiUnregisterAppToolsResult>;
   claimAppToolCallForUi(
     params: ZCodeAgentAppToolCallForUiParams,
-  ): Promise<ZCodeMcpUiAppToolAcceptedResult>;
+  ): Promise<ModeMcpUiAppToolAcceptedResult>;
   resolveAppToolCallForUi(
     params: ZCodeAgentResolveAppToolCallForUiParams,
-  ): Promise<ZCodeMcpUiAppToolAcceptedResult>;
+  ): Promise<ModeMcpUiAppToolAcceptedResult>;
   /** 插件 UI 工作区级面板入口（已启用插件清单 `ui.surfaces[]`）。 */
   listPluginUiSurfaces(
     params: ZCodeAgentWorkspaceTarget,
-  ): Promise<ZCodePluginsListUiSurfacesResult>;
+  ): Promise<ModePluginsListUiSurfacesResult>;
   // 已保存工作流的 GUI 中枢：workspace 级、无会话，每次调用现扫 `<cwd>/.zcode/workflows/`。
   // 全局档传 `scope: "global"`：带 workspace 就用它当载体，不带则由 services 层自选本机载体运行时。
   listSavedWorkflows(params: ZCodeAgentListSavedWorkflowsParams): Promise<ModeWorkflowsListResult>;

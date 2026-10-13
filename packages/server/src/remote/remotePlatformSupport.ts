@@ -1,4 +1,4 @@
-import type { RemoteEnvironment } from "@mode/server/remote/backend.js";
+import type { RemoteEnvironment } from "./backend.js";
 
 export function assertSupportedRemoteEnvironment(env: RemoteEnvironment): void {
   if (env.platform !== "win32") {

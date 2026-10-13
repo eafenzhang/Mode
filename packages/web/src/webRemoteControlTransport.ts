@@ -11,7 +11,7 @@ import {
   getWebRemoteControlHeartbeatJitterMs,
   getWebRemoteControlReconnectJitterMs,
   WEB_REMOTE_CONTROL_RPC_TRANSPORT_LIMITS,
-  parseWebRemoteControlAppPayload,
+  WebRemoteControlAppPayload,
   type WebRemoteControlAppPayload,
   type WebRemoteControlFailure,
   type WebRemoteControlRelayIncomingMessage,
@@ -567,7 +567,7 @@ export class WebRemoteControlTerminalTransport {
     if (isRawTransportCandidate(payload) && this.options.onRawTransportPayload?.(payload)) {
       return;
     }
-    const parsed = parseWebRemoteControlAppPayload(payload);
+    const parsed = WebRemoteControlAppPayload(payload);
     if (!parsed) {
       return;
     }

@@ -1,5 +1,5 @@
 import type {
-  RequestVerificationConfig,
+  RequestVerificationProof,
   CodingPlanAgreementResponse,
   CodingPlanBatchPreviewRequest,
   CodingPlanBatchPreviewResponse,
@@ -79,7 +79,7 @@ export interface ICodingPlanSubscriptionService {
   /** 兼容接口：固定返回 preflight-v1，不读取远端配置或缓存。 */
   getModelContextBudgetStrategy(): Promise<ModeModelContextBudgetStrategy>;
   getBillingDiscount(): Promise<CodingPlanBillingDiscountConfig | undefined>;
-  getRequestVerificationConfig(): Promise<RequestVerificationConfig | null>;
+  getRequestVerificationConfig(): Promise<RequestVerificationProof | null>;
   getForceUpdateConfig(): Promise<ForceUpdateConfig | null>;
   productInfo(request: CodingPlanProductInfoRequest): Promise<CodingPlanProductInfo>;
   preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse>;

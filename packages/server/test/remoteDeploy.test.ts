@@ -26,26 +26,26 @@ import {
 import type {
   IRemoteBackend,
   StdioStream,
-} from "@mode/server/remote/backend.js";
-import { deployModeAgentRuntime } from "@mode/server/remote/modeAgentDeploy.js";
-import { deployServer } from "@mode/server/remote/deploy.js";
+} from "./backend.js";
+import { deployModeAgentRuntime } from "./modeAgentDeploy.js";
+import { deployServer } from "./deploy.js";
 import {
   createRemoteComponentVersionResolver,
   deployNodeRuntime,
-} from "@mode/server/remote/remoteAssetDeployDecision.js";
-import { buildRemoteExecutableReplaceCommand } from "@mode/server/remote/deployShared.js";
-import { ensureRemoteReleaseDirFromCdn } from "@mode/server/remote/remoteAssetCache.js";
+} from "./remoteAssetDeployDecision.js";
+import { buildRemoteExecutableReplaceCommand } from "./deployShared.js";
+import { ensureRemoteReleaseDirFromCdn } from "./remoteAssetCache.js";
 import {
   fetchRemoteDownloadManifest,
   type RemoteAssetInstaller,
-} from "@mode/server/remote/remoteAssetInstaller.js";
-import { createTarGzArchive } from "@mode/server/remote/localTarGz.js";
-import { buildRemoteAgentBundleWrapper } from "@mode/server/remote/modeAgentBundleWrapper.js";
+} from "./remoteAssetInstaller.js";
+import { createTarGzArchive } from "./localTarGz.js";
+import { buildRemoteAgentBundleWrapper } from "./modeAgentBundleWrapper.js";
 import {
   REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS,
   REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES,
   REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS,
-} from "@mode/server/remote/modeAgentOfficialPluginAssets.js";
+} from "./modeAgentOfficialPluginAssets.js";
 
 const retiredProtocolPrefix = `${"a"}${"cp"}`;
 const retiredProxyRuntimeId = `${retiredProtocolPrefix}-proxy-runtime`;

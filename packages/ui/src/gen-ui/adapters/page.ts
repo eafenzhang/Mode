@@ -4,7 +4,7 @@ import {
   type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps/app-bridge";
 import { z } from "zod";
-import type { IGenUiService } from "@mode/services";
+import type { IGitService } from "@mode/services";
 import type { PluginSandboxPlatformPort, PluginSandboxHandle } from "@mode/shared/mcp-apps";
 import {
   GEN_UI_STATE_METHOD,
@@ -32,8 +32,8 @@ import { createGenUiTweakRegistry } from "../app/tweaks.js";
 
 export interface GenUiPageInput {
   target: GenUiCardTarget;
-  files: IGenUiService;
-  state: IGenUiService;
+  files: IGitService;
+  state: IGitService;
   platform: PluginSandboxPlatformPort;
   openExternal(url: string): void | Promise<void>;
   confirm(prompt: string): Promise<string | null>;

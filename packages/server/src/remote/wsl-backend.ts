@@ -10,14 +10,14 @@ import type {
   RemoteEnvironment,
   RemoteUploadOptions,
   StdioStream,
-} from "@mode/server/remote/backend.js";
-import { createCloseEventController } from "@mode/server/remote/closeEvent.js";
+} from "./backend.js";
+import { createCloseEventController } from "./closeEvent.js";
 import {
   normalizeRemoteArch,
   normalizeRemotePlatform,
   resolveRemotePlatform,
-} from "@mode/server/remote/detectEnv.js";
-import { isWSLAvailable, listWSLDistros, type WSLDistro } from "@mode/server/remote/wsl-detect.js";
+} from "./detectEnv.js";
+import { isWSLAvailable, listWSLDistros, type WSLDistro } from "./wsl-detect.js";
 import {
   buildWslHostGatewayCommand,
   buildWslProxyPortProbeCommand,
@@ -26,7 +26,7 @@ import {
   parseWslHostGatewayOutput,
   parseWslProxyPortProbeOutput,
   replaceProxyHostname,
-} from "@mode/server/remote/wslProxy.js";
+} from "./wslProxy.js";
 
 interface ResolvedWSLInfo {
   distroName: string | null;

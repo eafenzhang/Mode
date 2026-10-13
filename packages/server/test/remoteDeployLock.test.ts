@@ -4,8 +4,8 @@ import type {
   IRemoteBackend,
   RemoteEnvironment,
   StdioStream,
-} from "@mode/server/remote/backend.js";
-import { acquireRemoteDeployLock } from "@mode/server/remote/remoteDeployLock.js";
+} from "./backend.js";
+import { acquireRemoteDeployLock } from "./remoteDeployLock.js";
 import { describe, expect, it, vi } from "vitest";
 
 class ControlledLockBackend implements IRemoteBackend {

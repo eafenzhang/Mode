@@ -9,9 +9,9 @@ import type {
   ModeSessionCompactResult,
   ModeSessionGoalAction,
   ModeSessionGoalResult,
-  ZCodeCodexConnectivityCheckResult,
-  ZCodeSwitchAgentResult,
-  ZCodeSyncTaskSessionBindingResult,
+  ModeCodexConnectivityCheckResult,
+  ModeSwitchAgentResult,
+  ModeSyncTaskSessionBindingResult,
   ModeTaskCreateResult,
   ModeTaskMeta,
   ModeStreamEvent,
@@ -213,7 +213,7 @@ export interface IZCodeTaskService {
   }): Promise<void>;
 
   /** Codex 草稿态预热前的网络检查，用于提前提醒 chatgpt.com 不可达 */
-  checkCodexConnectivity(): Promise<ZCodeCodexConnectivityCheckResult>;
+  checkCodexConnectivity(): Promise<ModeCodexConnectivityCheckResult>;
 
   // ---- Task/Session 管理 ----
 
@@ -617,7 +617,7 @@ export interface IZCodeTaskService {
     taskId: string;
     provider: ModeProvider;
     validate?: boolean;
-  }): Promise<ZCodeSyncTaskSessionBindingResult>;
+  }): Promise<ModeSyncTaskSessionBindingResult>;
 
   /**
    * 在同一个 task 内切换当前 active provider。
@@ -628,7 +628,7 @@ export interface IZCodeTaskService {
     workspaceIdentity?: string;
     taskId: string;
     provider: ModeProvider;
-  }): Promise<ZCodeSwitchAgentResult>;
+  }): Promise<ModeSwitchAgentResult>;
 
   /** 扫描可导入的 Claude 原生 session；可选按 workspace 过滤。 */
   scanImportableClaudeSessions(params: {

@@ -1,13 +1,13 @@
 import type { ProviderConfigLayerSnapshot, ProviderSource } from "@zcode/provider";
 import {
-  normalizeZCodeBuiltinEndpointOrigin,
-  resolveZCodeBuiltinCachePaths,
+  normalizeModeBuiltinEndpointOrigin,
+  resolveModeBuiltinCachePaths,
 } from "./mode-builtin-cache-paths.js";
-import { NodeZCodeBuiltinProviderConfigSource } from "./mode-builtin-provider-config-source.js";
+import { NodeModeBuiltinProviderConfigSource } from "./mode-builtin-provider-config-source.js";
 import {
-  ZCodeBuiltinRemoteSynchronizer,
-  type ZCodeBuiltinRefreshResult,
-  type ZCodeBuiltinRemoteSynchronizerOptions,
+  ModeBuiltinRemoteSynchronizer,
+  type ModeBuiltinRefreshResult,
+  type ModeBuiltinRemoteSynchronizerOptions,
 } from "./mode-builtin-remote-synchronizer.js";
 
 export interface EndpointScopedZCodeBuiltinSourceOptions {
@@ -16,8 +16,8 @@ export interface EndpointScopedZCodeBuiltinSourceOptions {
   readonly platform: string;
   readonly appVersion: string;
   readonly resolveEndpointOrigin: () => string | Promise<string>;
-  readonly fetchRelease: ZCodeBuiltinRemoteSynchronizerOptions["fetchRelease"];
-  readonly onRefreshResult?: ZCodeBuiltinRemoteSynchronizerOptions["onRefreshResult"];
+  readonly fetchRelease: ModeBuiltinRemoteSynchronizerOptions["fetchRelease"];
+  readonly onRefreshResult?: ModeBuiltinRemoteSynchronizerOptions["onRefreshResult"];
   readonly watch?: boolean;
 }
 
@@ -46,7 +46,7 @@ export class EndpointScopedZCodeBuiltinSource implements ProviderSource<Provider
     return () => this.#listeners.delete(listener);
   }
 
-  async refresh(options?: { readonly force?: boolean }): Promise<ZCodeBuiltinRefreshResult> {
+  async refresh(options?: { readonly force?: boolean }): Promise<ModeBuiltinRefreshResult> {
     return (await this.#ensureCurrent()).synchronizer.refresh(options);
   }
 
@@ -74,10 +74,10 @@ export class EndpointScopedZCodeBuiltinSource implements ProviderSource<Provider
   }
 
   async #resolveCurrent(): Promise<CurrentEndpointSource> {
-    const endpointOrigin = normalizeZCodeBuiltinEndpointOrigin(
+    const endpointOrigin = normalizeModeBuiltinEndpointOrigin(
       await this.#options.resolveEndpointOrigin(),
     );
-    const paths = resolveZCodeBuiltinCachePaths({
+    const paths = resolveModeBuiltinCachePaths({
       environmentConfigRoot: this.#options.environmentConfigRoot,
       platform: this.#options.platform,
       appVersion: this.#options.appVersion,
@@ -85,17 +85,17 @@ export class EndpointScopedZCodeBuiltinSource implements ProviderSource<Provider
     });
     if (this.#current?.activeFilePath === paths.activeFilePath) return this.#current;
 
-    const source = new NodeZCodeBuiltinProviderConfigSource({
+    const source = new NodeModeBuiltinProviderConfigSource({
       bundledFilePath: this.#options.bundledFilePath,
       activeFilePath: paths.activeFilePath,
       watch: this.#options.watch,
     });
     const sourceDispose = source.onDidChange((reason) => this.#emit(reason));
-    const synchronizer = new ZCodeBuiltinRemoteSynchronizer({
+    const synchronizer = new ModeBuiltinRemoteSynchronizer({
       source,
       controlFilePath: paths.controlFilePath,
       resolveEndpointKey: async () =>
-        normalizeZCodeBuiltinEndpointOrigin(await this.#options.resolveEndpointOrigin()),
+        normalizeModeBuiltinEndpointOrigin(await this.#options.resolveEndpointOrigin()),
       fetchRelease: this.#options.fetchRelease,
       onRefreshResult: this.#options.onRefreshResult,
     });
@@ -135,8 +135,8 @@ export class EndpointScopedZCodeBuiltinSource implements ProviderSource<Provider
 class CurrentEndpointSource {
   constructor(
     readonly activeFilePath: string,
-    readonly source: NodeZCodeBuiltinProviderConfigSource,
-    readonly synchronizer: ZCodeBuiltinRemoteSynchronizer,
+    readonly source: NodeModeBuiltinProviderConfigSource,
+    readonly synchronizer: ModeBuiltinRemoteSynchronizer,
     readonly sourceDispose: () => void,
   ) {}
 

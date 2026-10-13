@@ -1,5 +1,5 @@
-import type { IRemoteBackend, StdioStream } from "@mode/server/remote/backend.js";
-import { waitForClose } from "@mode/server/remote/deployShared.js";
+import type { IRemoteBackend, StdioStream } from "./backend.js";
+import { waitForClose } from "./deployShared.js";
 
 export type RemoteDownloadTool = "curl" | "wget";
 export type RemoteSha256Tool = "sha256sum" | "shasum" | "openssl";

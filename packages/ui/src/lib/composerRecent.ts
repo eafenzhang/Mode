@@ -1,4 +1,4 @@
-import { isHighspeedProviderId } from "@mode/shared";
+import { resolveHighspeedProviderId } from "@mode/shared";
 import { modelSelectionSchema, type ModelSelection } from "@mode/shared/model-selection";
 import { submissionModeSchema, type SubmissionMode } from "@mode/shared/mode-protocol-v4";
 import type { ModelSelectionView } from "@mode/services";
@@ -45,7 +45,7 @@ export function readComposerRecent(
     // 解析为 provider-not-found，会让新任务草稿的模型选择器卡在空态。按叶子丢弃模型、保留
     // mode，新草稿回落默认选择；与 readSessionModelSelection 丢弃加速常驻 entry 同口径。
     const healedSelection =
-      selection.success && !isHighspeedProviderId(selection.data.providerId)
+      selection.success && !resolveHighspeedProviderId(selection.data.providerId)
         ? selection.data
         : undefined;
     if (!healedSelection && !mode.success) return null;
@@ -69,7 +69,7 @@ export function captureComposerRecentSubmission(
   const key = resolveComposerRecentKey(workspacePath, workspaceIdentity);
   const mode = submissionModeSchema.safeParse(submission.mode);
   const modelSelection = normalizeSparseModelSelection(submission.modelSelection);
-  if (modelSelection && isHighspeedProviderId(modelSelection.providerId)) {
+  if (modelSelection && resolveHighspeedProviderId(modelSelection.providerId)) {
     // 兜底（spec §5.1）：加速 Provider 是单轮执行身份，不在任何模型目录里，写进 Recent 会让
     // 新任务草稿种子解析为空。正常链路由 SessionPane 在加速轮传入 Composer 原始选择，这里
     // 只拦截直接拿覆盖后 payload 调用的路径；跳过不推进序号，保留上一次合法记录。

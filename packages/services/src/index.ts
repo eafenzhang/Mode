@@ -292,3 +292,17 @@ export type {
   PromptAttachmentTransferProgress,
 } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
 export { IClientConfigService } from "./client-config/clientConfig.js";
+
+// --- 并入后补丁: @mode/services ---
+export { ICloudContentService } from './cloud-content/cloudContent.js';
+export { FeedbackUploadProgress, IFeedbackService } from './feedback/feedback.js';
+export { IHighspeedCardService } from './highspeed/highspeedCard.js';
+export { IMarketingTouchService } from './marketing-touch/marketingTouch.js';
+export { localRuntimeNetworkCapture } from './mode-agent/localRuntimeNetworkCapture.js';
+export { TopicResourcePeers, createTopicResourcePeers } from './mode-agent/topicResourcePeers.js';
+export { createTopicResourceRelayChannel } from './mode-agent/topicResourceRelayChannel.js';
+export { IOutputStyleService } from './output-style/index.js';
+export { IPluginUiAppToolsService, PluginUiPluginScope } from './plugin-ui-bridge/appToolsContract.js';
+export { IPluginUiBridgeService, IPluginUiSamplingService } from './plugin-ui-bridge/contract.example.js';
+export { PluginUiReadResourceResult, PluginUiSurfaceEntry } from './plugin-ui-bridge/contract.js';
+export { ensureTelemetryDeviceMid } from './telemetry/telemetryCore.js';

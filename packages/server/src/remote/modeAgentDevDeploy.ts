@@ -5,27 +5,27 @@ import { existsSync } from "node:fs";
 import { cp, lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import type { IRemoteBackend } from "@mode/server/remote/backend.js";
+import type { IRemoteBackend } from "./backend.js";
 import {
   buildRemoteExecutableReplaceCommand,
   buildRemoteMoveCommand,
   type DeployLoggers,
   waitForClose,
-} from "@mode/server/remote/deployShared.js";
+} from "./deployShared.js";
 import {
   buildWriteLiteralFileCommand,
   quotePosixPathArg,
-} from "@mode/server/remote/posixShell.js";
-import { createTarGzArchive } from "@mode/server/remote/localTarGz.js";
+} from "./posixShell.js";
+import { createTarGzArchive } from "./localTarGz.js";
 import {
   buildRemoteAgentBundleWrapper,
   isRemoteAgentBundleWrapperCurrent,
   REMOTE_AGENT_BUNDLE_NAME,
-} from "@mode/server/remote/modeAgentBundleWrapper.js";
+} from "./modeAgentBundleWrapper.js";
 import {
   deployRemoteAgentWrapper,
   isWslBackend,
-} from "@mode/server/remote/modeAgentWrapperDeploy.js";
+} from "./modeAgentWrapperDeploy.js";
 import {
   REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME,
   REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS,
@@ -33,8 +33,8 @@ import {
   REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS,
   buildRemoteAgentOfficialPluginDir,
   buildRemoteAgentOfficialPluginRequiredPaths,
-} from "@mode/server/remote/modeAgentOfficialPluginAssets.js";
-import { repairLegacyRemoteOfficialPluginDirectoryPermissions } from "@mode/server/remote/modeAgentOfficialPluginPermissionRepair.js";
+} from "./modeAgentOfficialPluginAssets.js";
+import { repairLegacyRemoteOfficialPluginDirectoryPermissions } from "./modeAgentOfficialPluginPermissionRepair.js";
 
 const DEV_AGENT_BUNDLE_RELATIVE_PATH = "apps/mode-cli/packages/cli/dist/mode.cjs";
 const DEV_AGENT_BUNDLE_ENV = "MODE_REMOTE_DEV_AGENT_BUNDLE";

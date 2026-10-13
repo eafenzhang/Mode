@@ -32,7 +32,7 @@ import {
   SpineLamp,
   SpinePieces,
 } from "@/app-shell/WorkflowRunSpineParts.js";
-import { spineSections } from "@/app-shell/workflowRunSpine.js";
+import { SpineSection } from "@/app-shell/workflowRunSpine.js";
 import type { WorkflowActorInstance } from "@/app-shell/workflowRunPanel.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
@@ -201,7 +201,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
   });
   // 每一节要画的竖轨与曲线（`workflowRunSpine.ts`）：轨道段按**成对**查，不按 from——带里
   // 一站可以同时是双线段与主线段的左端。
-  const sections = spineSections(model);
+  const sections = SpineSection(model);
   const nameOf = (pill: TimelinePill) => pill.runtimeName ?? laneDisplayName(pill.lane, format);
   const phaseNameOf = (phaseId: string) => {
     const station = model.stations.find((candidate) => candidate.id === phaseId);

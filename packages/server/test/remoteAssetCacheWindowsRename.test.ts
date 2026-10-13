@@ -6,7 +6,7 @@ import { join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MODE_VERSION } from "@mode/shared";
-import { createTarGzArchive } from "@mode/server/remote/localTarGz.js";
+import { createTarGzArchive } from "./localTarGz.js";
 
 function remoteAssetRenameEperm(): NodeJS.ErrnoException {
   const error = new Error("operation not permitted, rename") as NodeJS.ErrnoException;
@@ -153,7 +153,7 @@ describe("remote asset cache Windows directory commit", () => {
       );
 
       const { ensureRemoteReleaseDirFromCdn } = await import(
-        "@mode/server/remote/remoteAssetCache.js"
+        "./remoteAssetCache.js"
       );
       const releaseDir = await ensureRemoteReleaseDirFromCdn(
         {

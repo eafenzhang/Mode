@@ -7,7 +7,7 @@ import type {
 } from "@mode/shared";
 import {
   modeSessionSettingsToConfigOptions,
-  modeSessionSnapshotToModeTaskSnapshot,
+  modeSessionSnapshotToTaskMeta,
 } from "@/lib/modeSessionProjection.js";
 import { normalizeModeUiError, type ModeUiError } from "@/lib/modeUiError.js";
 import { logger } from "@/logger.js";
@@ -175,7 +175,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
   });
   const readDurationMs = Date.now() - readStartedAt;
   const projectionStartedAt = Date.now();
-  const snapshot = modeSessionSnapshotToModeTaskSnapshot(readSessionSnapshot);
+  const snapshot = modeSessionSnapshotToTaskMeta(readSessionSnapshot);
   logger.info("[modeSessionRestore] desktop readSession 快照转换完成", {
     durationMs: Date.now() - startedAt,
     messageLimit: params.messageLimit ?? null,

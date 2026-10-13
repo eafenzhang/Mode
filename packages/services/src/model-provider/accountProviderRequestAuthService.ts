@@ -1,4 +1,4 @@
-import type { RequestVerificationReason } from "@mode/shared";
+import type { RequestVerificationProof } from "@mode/shared";
 import { createHash } from "node:crypto";
 import {
   BIGMODEL_PROVIDER_ID,
@@ -24,7 +24,7 @@ export interface AccountRequestAuthInput {
   accountAccess: ModeProviderAccountAccess | ModeAccountAccess;
   expectedAccountScope?: string;
   rejectedProjectTokenFingerprint?: string;
-  reason: RequestVerificationReason | "off-peak" | "usage";
+  reason: RequestVerificationProof | "off-peak" | "usage";
 }
 
 export interface AccountAccessIdentityInput {

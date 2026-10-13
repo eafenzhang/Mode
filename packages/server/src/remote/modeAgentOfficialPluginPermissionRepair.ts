@@ -1,7 +1,7 @@
 import { MODE_AGENT_PROVIDER } from "@mode/shared";
-import type { IRemoteBackend } from "@mode/server/remote/backend.js";
-import { type DeployLoggers, waitForClose } from "@mode/server/remote/deployShared.js";
-import { quotePosixPathArg } from "@mode/server/remote/posixShell.js";
+import type { IRemoteBackend } from "./backend.js";
+import { type DeployLoggers, waitForClose } from "./deployShared.js";
+import { quotePosixPathArg } from "./posixShell.js";
 
 export async function repairLegacyRemoteOfficialPluginDirectoryPermissions(params: {
   backend: IRemoteBackend;

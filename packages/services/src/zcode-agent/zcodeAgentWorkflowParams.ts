@@ -1,7 +1,7 @@
 import type {
   ModeSavedWorkflowMeta,
   ModeSavedWorkflowScope,
-  ZCodeWorkflowsForRunCandidate,
+  ModeWorkflowsForRunCandidate,
 } from "@zcode/shared";
 import type { ZCodeAgentWorkspaceTarget } from "./zcodeAgentPluginParams.js";
 
@@ -64,5 +64,5 @@ export type ZCodeAgentSaveSavedWorkflowFromRunParams = ZCodeAgentWorkspaceTarget
 export type ZCodeAgentFindSavedWorkflowForRunParams = ZCodeAgentWorkspaceTarget & {
   runId: string;
   /** 转写自对话的候选（模型存过并认领了这次 run）；最多 8 个，由 agent 再解析一遍。 */
-  candidates?: readonly ZCodeWorkflowsForRunCandidate[];
+  candidates?: readonly ModeWorkflowsForRunCandidate[];
 };

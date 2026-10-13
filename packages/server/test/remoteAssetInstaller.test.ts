@@ -12,7 +12,7 @@ import type {
   IRemoteBackend,
   RemoteUploadOptions,
   StdioStream,
-} from "@mode/server/remote/backend.js";
+} from "./backend.js";
 import { MODE_VERSION } from "@mode/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -20,9 +20,9 @@ import {
   RemoteDownloadAssetInstaller,
   buildRemoteArtifactDownloadCommand,
   buildRemoteChecksumCommand,
-} from "@mode/server/remote/remoteAssetInstaller.js";
-import type { RemoteSha256Tool } from "@mode/server/remote/remoteAssetPreflight.js";
-import { extractTarGzArchive } from "@mode/server/remote/localTarGz.js";
+} from "./remoteAssetInstaller.js";
+import type { RemoteSha256Tool } from "./remoteAssetPreflight.js";
+import { extractTarGzArchive } from "./localTarGz.js";
 
 const execFileAsync = promisify(execFile);
 const localShellCommand = resolveLocalShellCommand();

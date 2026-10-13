@@ -4,7 +4,7 @@ import type {
   WebRemoteControlMobileNavigationIntent,
   WebRemoteControlTaskTarget,
   WebRemoteControlWorkspaceListResult,
-  WebRemoteControlWorkspaceSwitchOptions,
+  WebRemoteControlWorkspaceTarget,
 } from "@mode/shared";
 import type { IServiceAccessor } from "@mode/services";
 import type { ReactNode } from "react";
@@ -28,7 +28,7 @@ export interface WebRemoteControlWorkspaceSwitcherApi {
   ): () => void;
   switchWorkspace(
     workspaceKey: string,
-    options?: WebRemoteControlWorkspaceSwitchOptions,
+    options?: WebRemoteControlWorkspaceTarget,
   ): Promise<void>;
   /** 手机任务首页确认用户查看了当前 bridge 内的未读 task；桌面任务选择链路不使用。 */
   markTaskRead?(task: WebRemoteControlTaskTarget): Promise<void>;

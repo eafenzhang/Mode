@@ -20,7 +20,7 @@ import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useCodingPlanQuotaResetUi } from "@/hooks/useCodingPlanQuotaResetUi.js";
 import {
   formatQuotaResetTime,
-  isCodingPlanQuotaLimitFull,
+  findCodingPlanQuotaLimit,
   isSameLimitCategory,
 } from "@/lib/codingPlanQuotaPresentation.js";
 import {
@@ -653,8 +653,8 @@ function CodingPlanUsageSummaryCards({
     resetUi.week.entry,
   );
   // 额度剩余 100% 时重置没有收益:隐藏重置按钮与机会徽标(纯展示,不影响发放与轮询)。
-  const fiveHourQuotaFull = isCodingPlanQuotaLimitFull(fiveHourLimit);
-  const weeklyQuotaFull = isCodingPlanQuotaLimitFull(weeklyLimit);
+  const fiveHourQuotaFull = findCodingPlanQuotaLimit(fiveHourLimit);
+  const weeklyQuotaFull = findCodingPlanQuotaLimit(weeklyLimit);
   const standardCards = [
     createCodingPlanUsageSummaryCard({
       key: "fiveHour",

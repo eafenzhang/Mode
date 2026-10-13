@@ -1,20 +1,20 @@
-import type { BotGroupInputProgress, BotGroupInputStatus } from "@mode/shared";
+import type { BotGroupInputSource, BotGroupInputStatus } from "@mode/shared";
 
 const rank = (state: BotGroupInputStatus) =>
   state === "waiting" ? 0 : state === "working" ? 1 : 2;
 
 export function createGroupQueueCardSync(deps: {
-  read(key: string): Promise<BotGroupInputProgress | undefined>;
+  read(key: string): Promise<BotGroupInputSource | undefined>;
   mutate(
     key: string,
-    update: (current: BotGroupInputProgress) => BotGroupInputProgress,
-  ): Promise<BotGroupInputProgress | undefined>;
+    update: (current: BotGroupInputSource) => BotGroupInputSource,
+  ): Promise<BotGroupInputSource | undefined>;
   render(key: string, messageId: string, status: BotGroupInputStatus): Promise<void>;
 }) {
   const operations = new Map<string, Promise<void>>();
   const change = (
     key: string,
-    mutate: (current: BotGroupInputProgress) => BotGroupInputProgress,
+    mutate: (current: BotGroupInputSource) => BotGroupInputSource,
   ) => {
     const operation = (operations.get(key) ?? Promise.resolve())
       .catch(() => {})

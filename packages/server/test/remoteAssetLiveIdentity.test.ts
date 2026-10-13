@@ -3,8 +3,8 @@ import type { IDisposable, Event } from "@mode/rpc";
 import type {
   IRemoteBackend,
   StdioStream,
-} from "@mode/server/remote/backend.js";
-import { checkRemoteAssetComponentIdentity } from "@mode/server/remote/remoteAssetLiveIdentity.js";
+} from "./backend.js";
+import { checkRemoteAssetComponentIdentity } from "./remoteAssetLiveIdentity.js";
 import { describe, expect, it } from "vitest";
 
 class IdentityBackend implements IRemoteBackend {

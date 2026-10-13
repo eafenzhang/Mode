@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
-import { SSHBackend } from "@mode/server/remote/ssh-backend.js";
+import { SSHBackend } from "./ssh-backend.js";
 
 class FakeExecChannel extends EventEmitter {
   readonly stderr = new EventEmitter();

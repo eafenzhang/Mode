@@ -83,7 +83,7 @@ import {
   readWorkflowRetuneCall,
 } from "@/ToolCallBlocks/renderers/createWorkflowInput.js";
 import { WorkflowRetuneRow } from "@/ToolCallBlocks/renderers/WorkflowRetuneRow.js";
-import { workflowRunSettingsCeiling } from "@/components/workflow-timeline/workflowRunSettings.js";
+import { workflowRunSettingsChange } from "@/components/workflow-timeline/workflowRunSettings.js";
 import { isAmendWorkflowToolCall } from "@/lib/workflowToolNames.js";
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { resolveWorkflowRunOpenToolCallId } from "@/v4/workflowRunCardJoin.js";
@@ -2179,7 +2179,7 @@ const ToolCallRowView = memo(function ToolCallRowView({
     // 某条 run 的发起行」，而这一行不是。
     const retuned = context.workflowRunByRunId?.get(retune.runId);
     const ceiling =
-      retuned?.run === undefined ? undefined : workflowRunSettingsCeiling(retuned.run);
+      retuned?.run === undefined ? undefined : workflowRunSettingsChange(retuned.run);
     return (
       <RowShell rowId={row.rowId} className="py-0">
         <WorkflowRetuneRow

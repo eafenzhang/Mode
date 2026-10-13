@@ -4,8 +4,8 @@ import type { IDisposable, Event } from "@mode/rpc";
 import type {
   IRemoteBackend,
   StdioStream,
-} from "@mode/server/remote/backend.js";
-import { detectRemoteAssetTools } from "@mode/server/remote/remoteAssetPreflight.js";
+} from "./backend.js";
+import { detectRemoteAssetTools } from "./remoteAssetPreflight.js";
 import { describe, expect, it } from "vitest";
 
 interface PreflightBackendOptions {

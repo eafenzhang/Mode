@@ -4,7 +4,7 @@ import {
   createRewardsInjectionScript,
   isTrustedRewardsUrl,
   REWARDS_PARTITION,
-  resolveRewardsOrigin,
+  resolveOrcaOrigins,
   MODE_ENV,
   type RewardsContext,
 } from "@mode/shared";
@@ -41,7 +41,7 @@ export function RewardsWebview({ onClose }: { onClose: () => void }) {
   const policy = { dev: env.DEV, e2e: env.VITE_MODE_E2E_STORE_BRIDGE === "1" };
   const [url] = useState(() =>
     buildRewardsUrl(
-      resolveRewardsOrigin({
+      resolveOrcaOrigins({
         ...policy,
         env: MODE_ENV,
         override:

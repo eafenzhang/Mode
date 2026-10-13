@@ -19,13 +19,13 @@ vi.mock("node:child_process", () => ({
   spawn: mocks.spawn,
 }));
 
-vi.mock("@mode/server/remote/docker-detect.js", () => ({
+vi.mock("./docker-detect.js", () => ({
   isDockerAvailable: mocks.isDockerAvailable,
   listDockerContainers: mocks.listDockerContainers,
   resolveDockerCommand: mocks.resolveDockerCommand,
 }));
 
-import { DockerBackend } from "@mode/server/remote/docker-backend.js";
+import { DockerBackend } from "./docker-backend.js";
 
 const RESOLVED_DOCKER_COMMAND = "/resolved/bin/docker";
 

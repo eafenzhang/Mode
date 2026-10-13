@@ -16,7 +16,7 @@ import { promisify } from "node:util";
 import {
   createTarGzArchive,
   extractTarGzArchive,
-} from "@mode/server/remote/localTarGz.js";
+} from "./localTarGz.js";
 
 // Windows 上 symlink 需要管理员权限或开发者模式，跳过相关用例
 const isWindows = process.platform === "win32";

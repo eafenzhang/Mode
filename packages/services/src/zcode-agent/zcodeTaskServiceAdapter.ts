@@ -59,7 +59,7 @@ import {
   type ModeBackgroundTurnAttribution,
   type ModeAutomationBotDeliveryTarget,
   type ModeCancelTaskCommandResult,
-  type ZCodeCodexConnectivityCheckResult,
+  type ModeCodexConnectivityCheckResult,
   type ModeConfigOption,
   type ModeEnqueueTaskCommandResult,
   type ModeError,
@@ -79,8 +79,8 @@ import {
   type ModePlanStep,
   type ModeSlashCommand,
   type ModeStreamEvent,
-  type ZCodeSwitchAgentResult,
-  type ZCodeSyncTaskSessionBindingResult,
+  type ModeSwitchAgentResult,
+  type ModeSyncTaskSessionBindingResult,
   type ModeTaskCreateResult,
   type ModeTaskMeta,
   type ModeTaskClientMode,
@@ -172,8 +172,8 @@ import {
   THOUGHT_LEVEL_CONFIG_ID,
   formatTaskMetaModelSelectionFromSnapshot,
   formatModelPickerValue,
-  getZCodeAgentAvailableModes,
-  normalizeAvailableZCodeMode,
+  getModeAgentAvailableModes,
+  normalizeAvailableModeMode,
   settingsToConfigOptions,
 } from "./zcodeConfigOptions.js";
 import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
@@ -1904,7 +1904,7 @@ export function createZCodeTaskServiceAdapter(
       await options.zcodeAgentService.disposeWorkspace(normalizeWorkspaceParams(params));
     },
 
-    async checkCodexConnectivity(): Promise<ZCodeCodexConnectivityCheckResult> {
+    async checkCodexConnectivity(): Promise<ModeCodexConnectivityCheckResult> {
       return { target: "zcode-agent", reachable: true };
     },
 
@@ -3039,11 +3039,11 @@ export function createZCodeTaskServiceAdapter(
       return snapshot;
     },
 
-    async syncTaskSessionBinding(): Promise<ZCodeSyncTaskSessionBindingResult> {
+    async syncTaskSessionBinding(): Promise<ModeSyncTaskSessionBindingResult> {
       unsupported("syncTaskSessionBinding");
     },
 
-    async switchAgent(): Promise<ZCodeSwitchAgentResult> {
+    async switchAgent(): Promise<ModeSwitchAgentResult> {
       unsupported("switchAgent");
     },
 
@@ -4317,8 +4317,8 @@ function mapStateUpdated(
       type: "mode_update",
       taskId: params.taskId,
       traceId,
-      currentModeId: normalizeAvailableZCodeMode(parsedSettings.data.mode.current),
-      availableModes: getZCodeAgentAvailableModes(),
+      currentModeId: normalizeAvailableModeMode(parsedSettings.data.mode.current),
+      availableModes: getModeAgentAvailableModes(),
     },
     {
       type: "glm_agent_model_state_update",

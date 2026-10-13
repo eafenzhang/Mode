@@ -5,28 +5,28 @@ import { existsSync } from "node:fs";
 import { cp, lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import type { IRemoteBackend } from "@zcode/server/remote/backend.js";
+import type { IRemoteBackend } from "./backend.js";
 import {
   buildRemoteExecutableReplaceCommand,
   buildRemoteMoveCommand,
   type DeployLoggers,
   waitForClose,
-} from "@zcode/server/remote/deployShared.js";
+} from "./deployShared.js";
 import {
   buildWriteLiteralFileCommand,
   quotePosixPathArg,
   quotePosixShellArg,
-} from "@zcode/server/remote/posixShell.js";
-import { createTarGzArchive } from "@zcode/server/remote/localTarGz.js";
+} from "./posixShell.js";
+import { createTarGzArchive } from "./localTarGz.js";
 import {
   buildRemoteAgentBundleWrapper,
   isRemoteAgentBundleWrapperCurrent,
   REMOTE_AGENT_BUNDLE_NAME,
-} from "@zcode/server/remote/zcodeAgentBundleWrapper.js";
+} from "./zcodeAgentBundleWrapper.js";
 import {
   deployRemoteAgentWrapper,
   isWslBackend,
-} from "@zcode/server/remote/zcodeAgentWrapperDeploy.js";
+} from "./zcodeAgentWrapperDeploy.js";
 import {
   REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME,
   REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS,
@@ -34,8 +34,8 @@ import {
   REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS,
   buildRemoteAgentOfficialPluginDir,
   buildRemoteAgentOfficialPluginRequiredPaths,
-} from "@zcode/server/remote/zcodeAgentOfficialPluginAssets.js";
-import { repairLegacyRemoteOfficialPluginDirectoryPermissions } from "@zcode/server/remote/zcodeAgentOfficialPluginPermissionRepair.js";
+} from "./zcodeAgentOfficialPluginAssets.js";
+import { repairLegacyRemoteOfficialPluginDirectoryPermissions } from "./zcodeAgentOfficialPluginPermissionRepair.js";
 
 const DEV_AGENT_BUNDLE_RELATIVE_PATH = "apps/zcode-cli/packages/cli/dist/zcode.cjs";
 const DEV_AGENT_BUNDLE_ENV = "ZCODE_REMOTE_DEV_AGENT_BUNDLE";

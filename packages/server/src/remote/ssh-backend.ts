@@ -12,29 +12,29 @@ import type {
   RemoteEnvironment,
   RemoteUploadOptions,
   StdioStream,
-} from "@mode/server/remote/backend.js";
+} from "./backend.js";
 import {
   normalizeRemoteArch,
   normalizeRemotePlatform,
   resolveRemotePlatform,
-} from "@mode/server/remote/detectEnv.js";
-import { createCloseEventController } from "@mode/server/remote/closeEvent.js";
+} from "./detectEnv.js";
+import { createCloseEventController } from "./closeEvent.js";
 import {
   buildPosixShellExecCommand,
   quotePosixShellArg,
   resolvePosixHomePath,
-} from "@mode/server/remote/posixShell.js";
+} from "./posixShell.js";
 import {
   buildSSHConnectConfig,
   createKeyboardInteractiveResponder,
   normalizeSSHConnectError,
-} from "@mode/server/remote/sshAuth.js";
+} from "./sshAuth.js";
 import {
   createSSHUploadProgressReporter,
   formatSSHUploadError,
   formatSSHUploadLabel,
   readLocalFileSize,
-} from "@mode/server/remote/sshUploadProgress.js";
+} from "./sshUploadProgress.js";
 
 export interface SSHBackendOptions {
   host: string;

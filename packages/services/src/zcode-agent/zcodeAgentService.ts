@@ -3,7 +3,7 @@ import {
   allowRequestVerificationHeaders,
   requestVerificationInteractionAvailable,
 } from "@zcode/shared";
-import { zcodeMcpUiSamplingResultSchema } from "@zcode/shared";
+import { modeMcpUiSamplingResultSchema } from "@zcode/shared";
 import { MCP_APPS_SAMPLING_TRANSPORT_TIMEOUT_MS } from "@zcode/shared/mcp-apps";
 import {
   channelReplyRequestSchema,
@@ -22,8 +22,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { createTopicResourceBridge } from "./topicResourceBridge.js";
 import { uploadTopicResourceToClient } from "./topicResourceUpload.js";
 import {
-  zcodeTopicResourceCancelParamsSchema,
-  type ZCodeTopicResourceReadParams,
+  modeTopicResourceCancelParamsSchema,
+  type ModeTopicResourceReadParams,
   type ModeProtocolTrace,
   type ModePromptAttachment,
 } from "@zcode/shared";
@@ -38,7 +38,7 @@ import type {
 } from "@zcode/provider";
 import { completeNewModelSelection } from "@zcode/provider";
 import type { OffPeakClientConfig } from "#src/coding-plan-subscription/codingPlanSubscription.js";
-import { subagentRuntimeConfigSchema, zcodeSubagentsReadRuntimeConfigParamsSchema, type SubAgentConfig, MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS, formatLogPrefix, resolveWorkspaceKey, type TraceId, MODE_AGENT_PROVIDER, MODE_AGENT_PROVIDER_NOT_READY_CODE, MODE_AGENT_PROVIDER_NOT_READY_REASON, MODE_MODEL_REASONING_SEPARATOR, isRemoteWorkspaceIdentity, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION, modeMcpListResultSchema, modePermissionRequestParamsSchema, modeBrowserListParamsSchema, modeBrowserExecuteParamsSchema, modePluginsConfigureResultSchema, modePluginsInstallResultSchema, modePluginsListResultSchema, modePluginsMarketplaceMutationResultSchema, modePluginsOverviewResultSchema, modeProcessChildProcessesResultSchema, type ModeProcessChildProcess, modeSkillsReferenceCatalogResultSchema, zcodeMcpReadResourceResultSchema, zcodeMcpUiCallToolResultSchema, zcodeMcpUiCancelCallResultSchema, zcodeMcpUiReadResourceResultSchema, zcodeMcpUiListResourcesResultSchema, zcodeMcpUiAppToolAcceptedResultSchema, zcodeMcpUiRegisterAppToolsResultSchema, zcodeMcpUiUnregisterAppToolsResultSchema, zcodeMcpUiListResourceTemplatesResultSchema, zcodeMcpUiResourceSubscriptionResultSchema, modeWorkflowsDeleteResultSchema, modeWorkflowsRunsResultSchema, modeWorkflowsGetResultSchema, modeWorkflowsListResultSchema, modeWorkflowsMoveResultSchema, modeWorkflowsUpdateMetaResultSchema, modePluginsResolveSuggestedReferenceResultSchema, modePluginOperationProgressNotificationSchema, modePluginsRestoreBuiltinResultSchema, modePluginsSetEnabledResultSchema, modePluginsCancelOperationResultSchema, modePluginsUninstallResultSchema, modePluginsValidateResultSchema, modePluginsDescribeResultSchema, modeAutomationCheckTaskBindingParamsSchema, modeAutomationCreateParamsSchema, modeAutomationDeleteParamsSchema, modeAutomationListParamsSchema, modeAutomationUpdateParamsSchema, modeOffPeakCreateParamsSchema, modeOffPeakListParamsSchema, OFF_PEAK_PROVIDER_IDS, modeComputerUseOperationEventSchema, modeProviderRuntimeHeadersCancelledSchema, modeProviderRuntimeHeadersRequestParamsSchema, modeProviderTestModelConnectivityResultSchema, modeOfficialMcpAuthHeadersRequestParamsSchema, summarizeOfficialMcpIdentityHeaders, modeProtocolEmptyResultSchema, modeProtocolMethods, modeProtocolNotifications, modeMcpTelemetryEventSchema, modeMcpResourceSamplesSchema, modeToolExecResourceSchema, modeProcessResourceSampleSchema, modeSessionCloseResultSchema, modeSessionCompactResultSchema, modeSessionEventsResultSchema, modeSessionGoalResultSchema, modeSessionListResultSchema, modeSessionSubagentsResultSchema, modeSessionMessagesResultSchema, modeSessionEventSchema, modeSessionSendResultSchema, modeSessionRequestRuntimePreferencesParamsSchema, modeSessionRuntimePreferencesResultSchema, modeSessionStateSnapshotSchema, modeSessionSubscribeResultSchema, modeStateUpdatedNotificationSchema, modeUserInputRequestParamsSchema, modeWorkspacePresentationSchema, modeWorkspaceCancelGenerateTextResultSchema, modeWorkspaceGenerateTextResultSchema, modeWorkspaceHookTrustGrantResultSchema, modeWorkspaceUpdateInteractionPreferencesResultSchema, modeWorkspaceUpdateModelIoPreferencesResultSchema, modeProviderUpdateAccountConfigResultSchema, type ModeSessionStateSnapshot, type ModeAutomation, type ModeAutomationRun, modeWorkspaceUpdateOffPeakToolPolicyResultSchema, modeWorkspaceUpdateDynamicWorkflowPolicyResultSchema, type DynamicWorkflowClientConfig, type DynamicWorkflowMode, DynamicWorkflowMode, isDynamicWorkflowModeEnabled, normalizeDynamicWorkflowMode, type AgentLaneResourceSample, type ProcessResourceCliLane, type ModeMcpTelemetryEvent, type ModeMcpResourceSample, type ModeToolExecResource, type ModePluginOperationProgressNotification, type ModeTaskMode } from "@zcode/shared";
+import { subagentRuntimeConfigSchema, modeSubagentsReadRuntimeConfigParamsSchema, type SubAgentConfig, MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS, formatLogPrefix, resolveWorkspaceKey, type TraceId, MODE_AGENT_PROVIDER, MODE_AGENT_PROVIDER_NOT_READY_CODE, MODE_AGENT_PROVIDER_NOT_READY_REASON, MODE_MODEL_REASONING_SEPARATOR, isRemoteWorkspaceIdentity, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION, modeMcpListResultSchema, modePermissionRequestParamsSchema, modeBrowserListParamsSchema, modeBrowserExecuteParamsSchema, modePluginsConfigureResultSchema, modePluginsInstallResultSchema, modePluginsListResultSchema, modePluginsMarketplaceMutationResultSchema, modePluginsOverviewResultSchema, modeProcessChildProcessesResultSchema, type ModeProcessChildProcess, modeSkillsReferenceCatalogResultSchema, modeMcpReadResourceResultSchema, modeMcpUiCallToolResultSchema, modeMcpUiCancelCallResultSchema, modeMcpUiReadResourceResultSchema, modeMcpUiListResourcesResultSchema, modeMcpUiAppToolAcceptedResultSchema, modeMcpUiRegisterAppToolsResultSchema, modeMcpUiUnregisterAppToolsResultSchema, modeMcpUiListResourceTemplatesResultSchema, modeMcpUiResourceSubscriptionResultSchema, modeWorkflowsDeleteResultSchema, modeWorkflowsRunsResultSchema, modeWorkflowsGetResultSchema, modeWorkflowsListResultSchema, modeWorkflowsMoveResultSchema, modeWorkflowsUpdateMetaResultSchema, modePluginsResolveSuggestedReferenceResultSchema, modePluginOperationProgressNotificationSchema, modePluginsRestoreBuiltinResultSchema, modePluginsSetEnabledResultSchema, modePluginsCancelOperationResultSchema, modePluginsUninstallResultSchema, modePluginsValidateResultSchema, modePluginsDescribeResultSchema, modeAutomationCheckTaskBindingParamsSchema, modeAutomationCreateParamsSchema, modeAutomationDeleteParamsSchema, modeAutomationListParamsSchema, modeAutomationUpdateParamsSchema, modeOffPeakCreateParamsSchema, modeOffPeakListParamsSchema, OFF_PEAK_PROVIDER_IDS, modeComputerUseOperationEventSchema, modeProviderRuntimeHeadersCancelledSchema, modeProviderRuntimeHeadersRequestParamsSchema, modeProviderTestModelConnectivityResultSchema, modeOfficialMcpAuthHeadersRequestParamsSchema, summarizeOfficialMcpIdentityHeaders, modeProtocolEmptyResultSchema, modeProtocolMethods, modeProtocolNotifications, modeMcpTelemetryEventSchema, modeMcpResourceSamplesSchema, modeToolExecResourceSchema, modeProcessResourceSampleSchema, modeSessionCloseResultSchema, modeSessionCompactResultSchema, modeSessionEventsResultSchema, modeSessionGoalResultSchema, modeSessionListResultSchema, modeSessionSubagentsResultSchema, modeSessionMessagesResultSchema, modeSessionEventSchema, modeSessionSendResultSchema, modeSessionRequestRuntimePreferencesParamsSchema, modeSessionRuntimePreferencesResultSchema, modeSessionStateSnapshotSchema, modeSessionSubscribeResultSchema, modeStateUpdatedNotificationSchema, modeUserInputRequestParamsSchema, modeWorkspacePresentationSchema, modeWorkspaceCancelGenerateTextResultSchema, modeWorkspaceGenerateTextResultSchema, modeWorkspaceHookTrustGrantResultSchema, modeWorkspaceUpdateInteractionPreferencesResultSchema, modeWorkspaceUpdateModelIoPreferencesResultSchema, modeProviderUpdateAccountConfigResultSchema, type ModeSessionStateSnapshot, type ModeAutomation, type ModeAutomationRun, modeWorkspaceUpdateOffPeakToolPolicyResultSchema, modeWorkspaceUpdateDynamicWorkflowPolicyResultSchema, type DynamicWorkflowClientConfig, type DynamicWorkflowMode, DynamicWorkflowMode, isDynamicWorkflowModeEnabled, normalizeDynamicWorkflowMode, type AgentLaneResourceSample, type ProcessResourceCliLane, type ModeMcpTelemetryEvent, type ModeMcpResourceSample, type ModeToolExecResource, type ModePluginOperationProgressNotification, type ModeTaskMode } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
 import type {
@@ -217,8 +217,8 @@ import {
   workspaceConfigTopic,
   workspaceConfigTopicWireCandidateSchema,
   utf8JsonByteLength,
-  ZCODE_ATTACHMENT_FAULT_CODES,
-  ZCodeAttachmentFaultError,
+  MODE_ATTACHMENT_FAULT_CODES,
+  ModeAttachmentFaultError,
   type CommandAck,
   type ConversationTopicWireCandidate,
   type ConversationTelemetryFact,
@@ -257,9 +257,9 @@ import type { PipSessionEvent } from "@zcode/mode-cua/pip-session";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
 
 import {
-  zcodeMcpUiResourceSubscriptionResultSchema as mcpUiEmptyResultSchema,
-  zcodeMcpUiCloseInstanceResultSchema,
-  zcodeMcpUiOpenInstanceResultSchema,
+  modeMcpUiResourceSubscriptionResultSchema as mcpUiEmptyResultSchema,
+  modeMcpUiCloseInstanceResultSchema,
+  modeMcpUiOpenInstanceResultSchema,
 } from "@zcode/shared";
 const logger = createServiceLogger("zcode-agent-service");
 const cuaOperationLogger = createServiceLogger("cua-operation-turn");
@@ -889,12 +889,12 @@ interface CreateZCodeAgentServiceOptions extends Omit<
   browserControlExecutor?: BrowserAmbientContextExecutor;
   channelReplyExecutor?: (request: ChannelReplyHostRequest) => Promise<ChannelReplyResult>;
   topicResourceExecutor?: (
-    request: ZCodeTopicResourceReadParams &
+    request: ModeTopicResourceReadParams &
       ZCodeAgentWorkspaceTarget & { trace?: ModeProtocolTrace },
     signal: AbortSignal,
   ) => Promise<ModePromptAttachment>;
   topicResourceValidator?: (
-    request: ZCodeTopicResourceReadParams &
+    request: ModeTopicResourceReadParams &
       ZCodeAgentWorkspaceTarget & { trace?: ModeProtocolTrace },
     signal: AbortSignal,
   ) => Promise<void>;
@@ -2178,7 +2178,7 @@ export function createZCodeAgentService(
       client.onRequest((request) => {
         if (request.method === modeProtocolMethods.subagentsReadRuntimeConfig) {
           void (async () => {
-            const parsed = zcodeSubagentsReadRuntimeConfigParamsSchema.safeParse(request.params);
+            const parsed = modeSubagentsReadRuntimeConfigParamsSchema.safeParse(request.params);
             if (!parsed.success) {
               await client.respondError(request.id, {
                 code: -32602,
@@ -2244,7 +2244,7 @@ export function createZCodeAgentService(
           return;
         }
         if (request.method === modeProtocolMethods.topicResourceCancel) {
-          const parsed = zcodeTopicResourceCancelParamsSchema.safeParse(request.params);
+          const parsed = modeTopicResourceCancelParamsSchema.safeParse(request.params);
           void client.respond(request.id, {
             cancelled: parsed.success && topicResources.cancel(parsed.data),
           });
@@ -4203,7 +4203,7 @@ export function createZCodeAgentService(
           resourceUri: params.resourceUri,
           ownerWebContentsId: params.ownerWebContentsId,
         },
-        zcodeMcpUiOpenInstanceResultSchema,
+        modeMcpUiOpenInstanceResultSchema,
       );
     },
     async validateMcpUiInstance(params) {
@@ -4232,7 +4232,7 @@ export function createZCodeAgentService(
           instance: params.instance,
           onlyIfIdle: true,
         },
-        zcodeMcpUiCloseInstanceResultSchema,
+        modeMcpUiCloseInstanceResultSchema,
       );
       return result.closed;
     },
@@ -4247,7 +4247,7 @@ export function createZCodeAgentService(
           serverName: params.serverName,
           instance: params.instance,
         },
-        zcodeMcpUiCloseInstanceResultSchema,
+        modeMcpUiCloseInstanceResultSchema,
       );
     },
     async readMcpResource(params: ZCodeAgentReadMcpResourceParams) {
@@ -4263,7 +4263,7 @@ export function createZCodeAgentService(
           serverName: params.serverName,
           uri: params.uri,
         },
-        zcodeMcpReadResourceResultSchema,
+        modeMcpReadResourceResultSchema,
       );
     },
 
@@ -4275,7 +4275,7 @@ export function createZCodeAgentService(
         return await client.request(
           modeProtocolMethods.mcpUiSampling,
           wire,
-          zcodeMcpUiSamplingResultSchema,
+          modeMcpUiSamplingResultSchema,
           { timeoutMs: MCP_APPS_SAMPLING_TRANSPORT_TIMEOUT_MS },
         );
       } catch (error) {
@@ -4285,7 +4285,7 @@ export function createZCodeAgentService(
           .request(
             modeProtocolMethods.mcpUiCancelSampling,
             cancelParams,
-            zcodeMcpUiCancelCallResultSchema,
+            modeMcpUiCancelCallResultSchema,
           )
           .catch(() => undefined);
         throw error;
@@ -4297,7 +4297,7 @@ export function createZCodeAgentService(
       return client.request(
         modeProtocolMethods.mcpUiCancelSampling,
         { ...bound, workspace: buildWorkspaceRef(params) },
-        zcodeMcpUiCancelCallResultSchema,
+        modeMcpUiCancelCallResultSchema,
       );
     },
     async callMcpToolForUi(params: ZCodeAgentCallMcpToolForUiParams) {
@@ -4314,7 +4314,7 @@ export function createZCodeAgentService(
           ...(params.arguments ? { arguments: params.arguments } : {}),
           callId: params.callId,
         },
-        zcodeMcpUiCallToolResultSchema,
+        modeMcpUiCallToolResultSchema,
       );
     },
 
@@ -4330,7 +4330,7 @@ export function createZCodeAgentService(
           serverName: params.serverName,
           callId: params.callId,
         },
-        zcodeMcpUiCancelCallResultSchema,
+        modeMcpUiCancelCallResultSchema,
       );
     },
 
@@ -4347,7 +4347,7 @@ export function createZCodeAgentService(
           serverName: params.serverName,
           uri: params.uri,
         },
-        zcodeMcpUiReadResourceResultSchema,
+        modeMcpUiReadResourceResultSchema,
       );
     },
 
@@ -4363,7 +4363,7 @@ export function createZCodeAgentService(
           serverName: params.serverName,
           ...(params.cursor ? { cursor: params.cursor } : {}),
         },
-        zcodeMcpUiListResourcesResultSchema,
+        modeMcpUiListResourcesResultSchema,
       );
     },
 
@@ -4379,7 +4379,7 @@ export function createZCodeAgentService(
           serverName: params.serverName,
           ...(params.cursor ? { cursor: params.cursor } : {}),
         },
-        zcodeMcpUiListResourceTemplatesResultSchema,
+        modeMcpUiListResourceTemplatesResultSchema,
       );
     },
 
@@ -4398,7 +4398,7 @@ export function createZCodeAgentService(
           generation: params.generation,
           uri: params.uri,
         },
-        zcodeMcpUiResourceSubscriptionResultSchema,
+        modeMcpUiResourceSubscriptionResultSchema,
       );
     },
 
@@ -4416,7 +4416,7 @@ export function createZCodeAgentService(
           generation: params.generation,
           uri: params.uri,
         },
-        zcodeMcpUiResourceSubscriptionResultSchema,
+        modeMcpUiResourceSubscriptionResultSchema,
       );
     },
 
@@ -4434,7 +4434,7 @@ export function createZCodeAgentService(
           generation: params.generation,
           tools: params.tools,
         },
-        zcodeMcpUiRegisterAppToolsResultSchema,
+        modeMcpUiRegisterAppToolsResultSchema,
       );
     },
 
@@ -4451,7 +4451,7 @@ export function createZCodeAgentService(
           scopeId: params.scopeId,
           generation: params.generation,
         },
-        zcodeMcpUiUnregisterAppToolsResultSchema,
+        modeMcpUiUnregisterAppToolsResultSchema,
       );
     },
 
@@ -4469,7 +4469,7 @@ export function createZCodeAgentService(
           generation: params.generation,
           callId: params.callId,
         },
-        zcodeMcpUiAppToolAcceptedResultSchema,
+        modeMcpUiAppToolAcceptedResultSchema,
       );
     },
 
@@ -4489,7 +4489,7 @@ export function createZCodeAgentService(
           ...(params.result ? { result: params.result } : {}),
           ...(params.error ? { error: params.error } : {}),
         },
-        zcodeMcpUiAppToolAcceptedResultSchema,
+        modeMcpUiAppToolAcceptedResultSchema,
       );
     },
 
@@ -5955,8 +5955,8 @@ export function createZCodeAgentService(
 
     async conversationAttachmentReadV4(params: ZCodeAgentConversationAttachmentReadParams) {
       if (!readTrustedZCodeAgentV4Connection(params)) {
-        throw new ZCodeAttachmentFaultError(
-          ZCODE_ATTACHMENT_FAULT_CODES.shareReadConnectionUntrusted,
+        throw new ModeAttachmentFaultError(
+          MODE_ATTACHMENT_FAULT_CODES.shareReadConnectionUntrusted,
         );
       }
       const wireParams = v4ConversationAttachmentReadParamsSchema.parse({
@@ -5977,8 +5977,8 @@ export function createZCodeAgentService(
 
     async conversationAttachmentStatV4(params: ZCodeAgentConversationAttachmentStatParams) {
       if (!readTrustedZCodeAgentV4Connection(params)) {
-        throw new ZCodeAttachmentFaultError(
-          ZCODE_ATTACHMENT_FAULT_CODES.shareStatConnectionUntrusted,
+        throw new ModeAttachmentFaultError(
+          MODE_ATTACHMENT_FAULT_CODES.shareStatConnectionUntrusted,
         );
       }
       const wireParams = v4ConversationAttachmentStatParamsSchema.parse({

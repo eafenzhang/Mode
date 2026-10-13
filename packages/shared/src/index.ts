@@ -308,3 +308,13 @@ export { type WebRemoteControlAppPayload, type WebRemoteControlExternalWorkspace
 export { BotGroupInputSource, BotTopicHistoryBatch, BotTopicMessage, TOPIC_RESOURCE_RELAY_CHANNEL, TOPIC_RESOURCE_RELAY_CHUNK_BYTES, type ModeMcpReadResourceResult, type ModeMcpUiAppToolAcceptedResult, type ModeMcpUiCallToolResult, type ModeMcpUiCancelCallResult, type ModeMcpUiListResourceTemplatesResult, type ModeMcpUiListResourcesResult, type ModeMcpUiReadResourceResult, type ModeMcpUiRegisterAppToolsResult, type ModeMcpUiUnregisterAppToolsResult, type ModePluginUiSurface, type ModePluginsListUiSurfacesResult, type ModeTopicResourceReadParams, type ModeTopicResourceReadResult, type ModeTopicResourceRelayRequest, type ModeWorkflowsForRunCandidate, modeMcpReadResourceResultSchema, modeMcpUiAppToolAcceptedResultSchema, modeMcpUiCallToolResultSchema, modeMcpUiCancelCallResultSchema, modeMcpUiCloseInstanceResultSchema, modeMcpUiListResourceTemplatesResultSchema, modeMcpUiListResourcesResultSchema, modeMcpUiOpenInstanceResultSchema, modeMcpUiReadResourceResultSchema, modeMcpUiRegisterAppToolsResultSchema, modeMcpUiResourceSubscriptionResultSchema, modeMcpUiSamplingResultSchema, modeMcpUiUnregisterAppToolsResultSchema, modeSubagentsReadRuntimeConfigParamsSchema, modeTopicResourceCancelParamsSchema, modeTopicResourceReadParamsSchema, modeTopicResourceReadResultSchema, modeTopicResourceRelayChunkRequestSchema, modeTopicResourceRelayChunkSchema, modeTopicResourceRelayKeySchema, modeTopicResourceRelayMetadataSchema, modeTopicResourceRelayRequestSchema } from './mode-protocol/index.js';
 export { type ModeSessionContentProfile } from './mode-session-content-profile.js';
 export { type ModeCodexConnectivityCheckResult, type ModeSwitchAgentResult, type ModeSyncTaskSessionBindingResult } from './mode-task-types.js';
+
+// --- 并入后补丁: @mode/shared ---
+export { CONVERSATION_SELECTION_MAX_COUNT, CONVERSATION_SELECTION_MAX_TEXT_LENGTH, CONVERSATION_SELECTION_MAX_TOTAL_LENGTH, ConversationSelectionText, buildPromptWithConversationSelections } from './conversationSelection.js';
+export { Memory, MemoryConfig } from './memory.js';
+export { GEN_UI_OUTPUT_DIRECTORY, GEN_UI_OUTPUT_ROOT_ENV, getGenUiOutputDirectory } from './node/genUiPaths.js';
+export { createNodeNetworkCapture } from './node/networkCapture.js';
+export { NodeSelfResourceSamplerOptions, createNodeSelfResourceSampler } from './node/nodeSelfResourceTelemetry.js';
+export { ProjectAccessTokenMaterial } from './project-access-token-client.js';
+export { buildWebRemoteControlEntryViewTelemetry } from './remoteUsageTelemetry.js';
+export { RewardsContext } from './rewardsBridge.js';
