@@ -339,7 +339,10 @@ export function spawnHostProcess(
     if (
       result.data.type === HostResponseTypes.LanPairedPeersListResult ||
       result.data.type === HostResponseTypes.LanPairedPeerWorkspacesResult ||
-      result.data.type === HostResponseTypes.LanPairedPeerRemoveResult
+      result.data.type === HostResponseTypes.LanPairedPeerRemoveResult ||
+      // rename 回帖此前漏在此列表外：host 已改名成功（先写凭据再回帖）但回帖被静默丢弃，
+      // desktopLanAccess 的 pending 只能等满 8s 报「局域网对端请求超时」（根因修复）。
+      result.data.type === HostResponseTypes.LanPairedPeerRenameResult
     ) {
       resolveLanPairedPeerOpResult(result.data);
       return;
