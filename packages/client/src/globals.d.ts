@@ -349,9 +349,10 @@ declare global {
       rdGetPeerCapability(
         serverId: string,
       ): ReturnType<import("@mode/shared").IPlatformService["rdGetPeerCapability"]>;
-      /** 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成） */
+      /** 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成）；quality = 画质档位（P1-3） */
       rdStartSession(
         serverId: string,
+        quality?: import("@mode/shared/remote-desktop").RemoteDesktopQuality,
       ): ReturnType<import("@mode/shared").IPlatformService["rdStartSession"]>;
       /** 读取本机被控状态（设备页置灰用） */
       rdGetControlledState(): ReturnType<

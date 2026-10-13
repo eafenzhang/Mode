@@ -14,7 +14,11 @@ import type {
   LanPairedPeer,
   LanPairedPeerWorkspaces,
 } from "./lanAccess.js";
-import type { RemoteDesktopErrorCode, RemoteDesktopSignalMessage } from "./remote-desktop.js";
+import type {
+  RemoteDesktopErrorCode,
+  RemoteDesktopQuality,
+  RemoteDesktopSignalMessage,
+} from "./remote-desktop.js";
 import type {
   LoadCliMcpFromUserDirectoryRequest,
   LoadCliMcpFromUserDirectoryResult,
@@ -1000,9 +1004,12 @@ export interface IPlatformService {
    * 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成）；失败返回稳定错误码。
    * 契约 E：成功时附带 `mediaUrl` = `ws://<对端host>:<port>/ws/remote-desktop-media?mediaTicket=<t>`，
    * 由主控 host 从被控 POST 响应拼出、经本返回值直达 renderer（不走信令 union）。
+   * 画质档位（P1-3）：`quality` 随会话请求下发给被控（fps/maxWidth/初始码率）；
+   * 缺省 = 被控按默认档（旧主控不带该参数）。
    */
   rdStartSession(
     serverId: string,
+    quality?: RemoteDesktopQuality,
   ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }>;
 
   /**
@@ -1017,22 +1024,26 @@ export interface IPlatformService {
   /** 结束当前主控会话（main 先带出 bye 再收尾）。 */
   rdEndSession(reason?: "user-end" | "error"): Promise<void>;
 
-  /** 读取被控设置面状态（总开关 + 已授权设备）；读失败由实现按 fail-closed 兜底。 */
+  /** 读取被控设置面状态（总开关 + 已授权设备 + 编码能力缓存）；读失败由实现按 fail-closed 兜底。 */
   rdGetServerState(): Promise<{
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
+    /** 编码能力缓存（P1-3）：unknown = 尚未有真实会话观测。 */
+    encoderCapability: "unknown" | "available" | "unavailable";
   }>;
 
   /** 写被控总开关；关开关会立即终止进行中的被控会话。返回最新状态。 */
   rdSetServerEnabled(enabled: boolean): Promise<{
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
   }>;
 
   /** 撤销某个已授权设备（下次连接重新弹同意窗）。返回最新状态。 */
   rdRevokeClient(clientId: string): Promise<{
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
   }>;
 
   /**
@@ -1042,6 +1053,7 @@ export interface IPlatformService {
   rdAuthorizeClient(clientId: string): Promise<{
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
   }>;
 
   /**

@@ -203,3 +203,28 @@ export function mapMonitorNormalizedToVirtualAbsolute(
   const toU16 = (v: number) => Math.min(65535, Math.max(0, Math.round(v * 65535)));
   return { x: toU16(nx), y: toU16(ny) };
 }
+
+// ---- 画质档位（性能优化方案 P1-3）----
+// 主控在发起会话时选择，随会话请求下发（POST /api/remote-desktop/session?quality=）；
+// 被控据此决定采集/编码参数（fps/maxWidth/初始码率），自适应码率在
+// [minBitrateBps, bitrateBps] 两档之间调节（见 ui 的 adaptiveBitrate）。
+// 默认 sharp = 与前版本硬编码参数一致（1920/60/8Mbps），不改默认行为的量级。
+export const remoteDesktopQualitySchema = z.enum(["sharp", "balanced", "smooth"]);
+export type RemoteDesktopQuality = z.infer<typeof remoteDesktopQualitySchema>;
+
+export const DEFAULT_REMOTE_DESKTOP_QUALITY: RemoteDesktopQuality = "sharp";
+
+export const REMOTE_DESKTOP_QUALITY_PRESETS: Record<
+  RemoteDesktopQuality,
+  {
+    fps: number;
+    maxWidth: number;
+    bitrateBps: number;
+    /** 自适应码率低档（拥塞时降到这一档，不再继续降）。 */
+    minBitrateBps: number;
+  }
+> = {
+  sharp: { fps: 60, maxWidth: 1920, bitrateBps: 8_000_000, minBitrateBps: 4_000_000 },
+  balanced: { fps: 60, maxWidth: 1920, bitrateBps: 5_000_000, minBitrateBps: 2_500_000 },
+  smooth: { fps: 30, maxWidth: 1600, bitrateBps: 3_000_000, minBitrateBps: 1_500_000 },
+};

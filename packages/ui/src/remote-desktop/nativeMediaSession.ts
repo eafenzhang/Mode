@@ -74,6 +74,10 @@ export interface NativeMediaSessionOptions {
   onFrameDropped?: () => void;
   /** 每绘制一帧回调其帧龄（毫秒，glass-to-glass 近似；需 pong 标定过时钟偏移）。 */
   onFrameAgeMs?: (ageMs: number) => void;
+  /** 每条下行二进制帧回调其字节数（状态条近一拍平均码率的数据源）。 */
+  onBytesReceived?: (bytes: number) => void;
+  /** 每个被接受帧解码前回调其解码队列长度（状态条即时读数）。 */
+  onDecodeQueue?: (size: number) => void;
   onTransportClosed?: () => void;
 }
 
@@ -193,6 +197,8 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     // 收口后不再处理任何帧：decoder error 与 ws error 路径不关 socket（只等消费方 stop），
     // 缺了 stopped 判据，收口后的关键帧会重新建 decoder 复活解码。
     if (!parsed || stopped) return;
+    // 码率读数：按收到的密文字节数计（含帧头与 GCM tag，≈ 实际占线带宽）。
+    opts.onBytesReceived?.((event.data as ArrayBuffer).byteLength);
     // 防乱序/迟到：解密是异步的，提交前先按 seq 水位过滤（廉价前置，省一次解密）。
     if (parsed.seq <= lastSubmittedSeq) return;
     void (async () => {
@@ -220,7 +226,9 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       // 非关键帧在 decoder 未配置前丢弃（delta 无法独立解码，等下一个关键帧）。
       if (!decoder || decoder.state !== "configured") return;
       // 解码队列门控：跟不上到达的 delta 丢弃并请关键帧（继续排队 = 累计端到端延迟）。
-      if (shouldDropDeltaFrame(parsed.key, decoder.decodeQueueSize)) {
+      const queueSize = decoder.decodeQueueSize;
+      opts.onDecodeQueue?.(queueSize);
+      if (shouldDropDeltaFrame(parsed.key, queueSize)) {
         opts.onFrameDropped?.();
         requestKey();
         return;

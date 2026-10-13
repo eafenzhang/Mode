@@ -21,6 +21,11 @@ export interface RemoteDesktopAuthorizedClient {
 export interface RemoteDesktopServerState {
   enabled: boolean;
   authorizedClients: RemoteDesktopAuthorizedClient[];
+  /**
+   * 编码能力缓存（P1-3）：unknown = 尚无真实会话观测；available = 硬件编码器可用；
+   * unavailable = 无可用硬件 H.264 编码器（远程桌面会连上但不出画面，UI 据此提示）。
+   */
+  encoderCapability: "unknown" | "available" | "unavailable";
 }
 
 type StateListener = (state: RemoteDesktopServerState) => void;

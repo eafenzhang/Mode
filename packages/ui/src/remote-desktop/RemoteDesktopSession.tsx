@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
+import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { useRemoteDesktopSession } from "@/remote-desktop/useRemoteDesktopSession.js";
 import type { RemoteDesktopSessionCloseKind } from "@/remote-desktop/sessionReducer.js";
 
@@ -52,18 +53,21 @@ function resolveCloseReasonId(
 export function RemoteDesktopSession({
   serverId,
   deviceName,
+  quality,
   topOverlayClearancePaddingClass,
   onExit,
 }: {
   serverId: string;
   deviceName: string;
+  /** 画质档位（P1-3）：设备页选择后随会话带到此处，发起会话时下发给被控。 */
+  quality?: RemoteDesktopQuality;
   /** 左侧栏收起时让出顶部浮层左上入口宽度的 ps-* 类（chat 页 WorkspaceHeader 同款规则）。 */
   topOverlayClearancePaddingClass?: string | null;
   onExit: () => void;
 }) {
   const { intl } = useModeIntl();
   const { view, stats, containerRef, canvasRef, selectMonitor, disconnect } =
-    useRemoteDesktopSession({ serverId });
+    useRemoteDesktopSession({ serverId, quality });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // 工具条交互后把焦点还给画面：否则键盘输入会留在按钮/下拉上，打不到对端。
@@ -246,6 +250,14 @@ export function RemoteDesktopSession({
             {intl.formatMessage({ id: "remoteDesktop.session.fps" }, { value: String(stats.fps) })}
           </span>
         ) : null}
+        {stats.bitrateKbps !== null ? (
+          <span>
+            {intl.formatMessage(
+              { id: "remoteDesktop.session.bitrate" },
+              { value: (stats.bitrateKbps / 1000).toFixed(1) },
+            )}
+          </span>
+        ) : null}
         {stats.rttMs !== null ? (
           <span>
             {intl.formatMessage(
@@ -259,6 +271,15 @@ export function RemoteDesktopSession({
             {intl.formatMessage(
               { id: "remoteDesktop.session.frameAge" },
               { value: String(stats.frameAgeMs) },
+            )}
+          </span>
+        ) : null}
+        {/* 丢帧只在真的发生时提示（画面质量劣化的直接解释；无丢帧不占位）。 */}
+        {stats.decodeDrops > 0 ? (
+          <span className="text-warning">
+            {intl.formatMessage(
+              { id: "remoteDesktop.session.drops" },
+              { count: String(stats.decodeDrops) },
             )}
           </span>
         ) : null}

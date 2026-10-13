@@ -6223,6 +6223,8 @@ const faIR: Record<string, string> = {
     "مبنای اعتماد همان پیوند شبکه محلی است: دستگاه پیوندنشده نمی‌تواند وصل شود، در طول نشست همیشه لایه نمایش داده می‌شود و می‌توانید هر لحظه آن را پایان دهید.",
   "settings.remoteDesktop.lanHint":
     "هر دو رایانه باید ویندوز و در یک شبکه محلی (یا Tailscale) باشند.",
+  "settings.remoteDesktop.encoderUnavailable":
+    "هیچ رمزگذار سخت‌افزاری H.264 در دسترس نیست: نشست رومیزی از راه دور تصویری نخواهد داشت (درایور گرافیک را بررسی کنید).",
   "workspace.openRemoteDesktop": "کنترل از راه دور",
   "remoteDesktop.title": "کنترل از راه دور",
   "remoteDesktop.breadcrumbLabel": "مسیر کنترل از راه دور",
@@ -6236,6 +6238,11 @@ const faIR: Record<string, string> = {
     "هنوز دستگاهی پیوند نشده است. با «شناسایی دستگاه‌ها» در بالا رایانه‌های ویندوزی همین شبکه محلی را پیدا کنید و با کد «تنظیمات · کنترل از راه دور» دستگاه مقابل پیوند دهید.",
   "remoteDesktop.devices.openLanAccess": "باز کردن تنظیمات کنترل از راه دور",
   "remoteDesktop.devices.connect": "اتصال",
+  // پیش‌تنظیم‌های کیفیت (P1-3): پیش از اتصال انتخاب و همراه درخواست نشست ارسال می‌شود.
+  "remoteDesktop.quality.label": "کیفیت",
+  "remoteDesktop.quality.sharp": "واضح",
+  "remoteDesktop.quality.balanced": "متعادل",
+  "remoteDesktop.quality.smooth": "روان",
   "remoteDesktop.devices.locallyControlledBanner":
     "این دستگاه در حال کنترل از راه دور است؛ پس از قطع آن می‌توانید اتصال از راه دور آغاز کنید.",
   "remoteDesktop.device.status.ready": "آماده",
@@ -6274,6 +6281,8 @@ const faIR: Record<string, string> = {
   "remoteDesktop.session.exitFullscreen": "خروج از تمام‌صفحه",
   "remoteDesktop.session.disconnect": "قطع",
   "remoteDesktop.session.fps": "{value} fps",
+  "remoteDesktop.session.bitrate": "نرخ بیت {value} Mbps",
+  "remoteDesktop.session.drops": "حذف‌شده {count}",
   "remoteDesktop.session.rtt": "تأخیر {value} ms",
   "remoteDesktop.session.frameAge": "تأخیر سرتاسری ~{value} ms",
   "remoteDesktop.session.closed.user": "نشست قطع شد.",

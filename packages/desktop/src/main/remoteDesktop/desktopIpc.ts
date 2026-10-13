@@ -11,6 +11,7 @@
 import { app, ipcMain } from "electron";
 import type { Locale } from "@mode/shared";
 import {
+  remoteDesktopQualitySchema,
   remoteDesktopSignalMessageSchema,
   type RemoteDesktopErrorCode,
 } from "@mode/shared/remote-desktop";
@@ -77,17 +78,22 @@ export function registerRemoteDesktopIpcHandlers(options: RemoteDesktopIpcOption
     async (
       event,
       rawServerId: unknown,
+      rawQuality?: unknown,
     ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }> => {
       const serverId = readServerId(rawServerId);
       if (!serverId) {
         return { error: "internal" };
       }
+      // 画质档位（P1-3）：非法/缺省按 undefined 走被控默认档（画质是优化参数，
+      // 不值得让会话失败）。
+      const parsedQuality = remoteDesktopQualitySchema.safeParse(rawQuality);
+      const quality = parsedQuality.success ? parsedQuality.data : undefined;
       // 产品规则 9（被控中不可发起）：权威闸门在 main——本机被控状态机非 idle（含同意弹窗中）
       // 时拒绝，防双向互控的输入串台与画面套娃；设备页的置灰只是同规则的 UI 投影。
       if (isRemoteDesktopSessionBusy(getRemoteDesktopServerSessionState())) {
         return { error: "locally_controlled" };
       }
-      return await controller.start(serverId, event.sender);
+      return await controller.start(serverId, quality, event.sender);
     },
   );
 

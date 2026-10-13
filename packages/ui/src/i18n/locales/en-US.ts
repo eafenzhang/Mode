@@ -6316,6 +6316,8 @@ const enUS: Record<string, string> = {
     "Trust comes from the existing LAN pairing: unpaired devices cannot connect, an active session always shows an overlay, and you can end it locally at any time.",
   "settings.remoteDesktop.lanHint":
     "Both computers must be Windows machines on the same LAN (or Tailscale).",
+  "settings.remoteDesktop.encoderUnavailable":
+    "No hardware H.264 encoder available: remote desktop sessions will show no picture (check the GPU driver).",
   "workspace.openRemoteDesktop": "Remote control",
   "remoteDesktop.title": "Remote control",
   "remoteDesktop.breadcrumbLabel": "Remote control path",
@@ -6329,6 +6331,11 @@ const enUS: Record<string, string> = {
     "No paired device yet. Use Detect devices above to find Windows computers on the same LAN, then pair with the code shown under Settings · Remote Control on the other side.",
   "remoteDesktop.devices.openLanAccess": "Open remote control settings",
   "remoteDesktop.devices.connect": "Connect",
+  // Quality presets (P1-3): chosen before connecting, sent with the session request.
+  "remoteDesktop.quality.label": "Quality",
+  "remoteDesktop.quality.sharp": "Sharp",
+  "remoteDesktop.quality.balanced": "Balanced",
+  "remoteDesktop.quality.smooth": "Smooth",
   "remoteDesktop.devices.locallyControlledBanner":
     "This machine is being controlled remotely; disconnect that session to start a remote connection.",
   "remoteDesktop.device.status.ready": "Ready",
@@ -6367,6 +6374,8 @@ const enUS: Record<string, string> = {
   "remoteDesktop.session.exitFullscreen": "Exit full screen",
   "remoteDesktop.session.disconnect": "Disconnect",
   "remoteDesktop.session.fps": "{value} fps",
+  "remoteDesktop.session.bitrate": "Bitrate {value} Mbps",
+  "remoteDesktop.session.drops": "Dropped {count}",
   "remoteDesktop.session.rtt": "Latency {value} ms",
   "remoteDesktop.session.frameAge": "E2E ~{value} ms",
   "remoteDesktop.session.closed.user": "Session disconnected.",

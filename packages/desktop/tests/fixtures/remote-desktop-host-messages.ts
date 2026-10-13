@@ -88,6 +88,8 @@ const toHostSamples = [
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen,
     requestId: "r5",
     serverId: "server-x",
+    // 画质档位（P1-3）：随会话请求下发；strict schema 漏字段会整条丢弃会话请求。
+    quality: "balanced",
   },
   // P2 原生媒体面（契约 F）：开流/换屏/停流是通知型（无 requestId）。
   // rect + virtualRect（Task 14 fix round 1）：host 输入换算基准（monitor 物理矩形 + 虚拟屏 union）。
@@ -122,6 +124,8 @@ const fromHostSamples = [
     ok: true,
     enabled: true,
     authorizedClients: [{ id: "client-a", label: "Office-PC" }],
+    // 编码能力缓存（P1-3）：真实会话观测结果；strict 漏字段会让设置面读数整条丢弃。
+    encoderCapability: "available",
   },
   {
     type: host.RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,

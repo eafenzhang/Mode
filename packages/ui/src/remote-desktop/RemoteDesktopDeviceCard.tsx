@@ -6,8 +6,19 @@
 import { useState } from "react";
 import { ArrowRight, Check, MonitorSmartphone, Pencil, Trash2, WifiOff } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
+import {
+  DEFAULT_REMOTE_DESKTOP_QUALITY,
+  type RemoteDesktopQuality,
+} from "@mode/shared/remote-desktop";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -90,12 +101,14 @@ export function RemoteDesktopDeviceCard({
   busy: boolean;
   onRename: (serverId: string, name: string) => Promise<void>;
   onDelete: (serverId: string) => Promise<void>;
-  onConnect: (peer: LanPairedPeer) => void;
+  onConnect: (peer: LanPairedPeer, quality: RemoteDesktopQuality) => void;
   onError: (message: string) => void;
 }) {
   const { intl } = useModeIntl();
   const [editing, setEditing] = useState<{ name: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // 画质档位（P1-3）：连接前选择，随会话请求下发给被控；卡片内记忆（会话面挂载即定档）。
+  const [quality, setQuality] = useState<RemoteDesktopQuality>(DEFAULT_REMOTE_DESKTOP_QUALITY);
 
   const name = resolveRemoteDesktopDeviceLabel(peer);
   const availability = resolveRemoteDesktopDeviceAvailability(probe, { locallyControlled });
@@ -248,15 +261,42 @@ export function RemoteDesktopDeviceCard({
                   {intl.formatMessage({ id: "remoteDesktop.device.delete" })}
                 </Button>
               </span>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!availability.canConnect}
-                onClick={() => onConnect(peer)}
-              >
-                <ArrowRight className="size-4" />
-                {intl.formatMessage({ id: "remoteDesktop.devices.connect" })}
-              </Button>
+              <span className="flex items-center gap-1.5">
+                {/* 画质档位（P1-3）：清晰/均衡/流畅 → 被控 fps/maxWidth/码率区间。 */}
+                <Select
+                  value={quality}
+                  disabled={!availability.canConnect}
+                  onValueChange={(next) => setQuality(next as RemoteDesktopQuality)}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    aria-label={intl.formatMessage({ id: "remoteDesktop.quality.label" })}
+                    className="w-fit"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="sharp">
+                      {intl.formatMessage({ id: "remoteDesktop.quality.sharp" })}
+                    </SelectItem>
+                    <SelectItem value="balanced">
+                      {intl.formatMessage({ id: "remoteDesktop.quality.balanced" })}
+                    </SelectItem>
+                    <SelectItem value="smooth">
+                      {intl.formatMessage({ id: "remoteDesktop.quality.smooth" })}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!availability.canConnect}
+                  onClick={() => onConnect(peer, quality)}
+                >
+                  <ArrowRight className="size-4" />
+                  {intl.formatMessage({ id: "remoteDesktop.devices.connect" })}
+                </Button>
+              </span>
             </>
           )}
         </div>

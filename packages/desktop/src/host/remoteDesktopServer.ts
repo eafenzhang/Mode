@@ -30,7 +30,10 @@ import {
   remoteDesktopControlEventSchema,
   remoteDesktopPointerEventSchema,
   remoteDesktopSignalMessageSchema,
+  DEFAULT_REMOTE_DESKTOP_QUALITY,
+  REMOTE_DESKTOP_QUALITY_PRESETS,
   type RemoteDesktopErrorCode,
+  type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
 import type { ICredentialService } from "@mode/services";
 import { callBrokerMethod, resolveBrokerSocketPath } from "@mode/cua/broker";
@@ -83,7 +86,10 @@ export type RemoteDesktopInjectPort = (
 export interface RemoteDesktopHostServer {
   /** lanAccessServer 的 hooks（同意流 + 信令交接 + 媒体 WS 交接）。 */
   hooks: {
-    requestSession(clientId: string): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+    requestSession(
+      clientId: string,
+      quality?: RemoteDesktopQuality,
+    ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
     onSessionSocket(clientId: string, socket: WebSocket): void;
     onMediaSocket(clientId: string, socket: WebSocket): void;
   };
@@ -130,6 +136,14 @@ export function createRemoteDesktopHostServer(options: {
   let pendingConsent: PendingConsent | null = null;
   let pendingSocket: PendingSocket | null = null;
   let activeSession: { clientId: string; socket: WebSocket } | null = null;
+  /** 本会话画质档位（P1-3）：requestSession 时按主控选择写入，MediaStart 据此出参数。 */
+  let sessionQuality: RemoteDesktopQuality = DEFAULT_REMOTE_DESKTOP_QUALITY;
+  /**
+   * 编码能力缓存（P1-3）：从真实会话的 rd_media_start 结果观测，避免被控端为探测
+   * 额外拉起一次 helper；会话发生前恒为 unknown（不猜测）。unavailable = 本机无
+   * 可用硬件 H.264 编码器（远程桌面会连上但永远不出画面），设置页据此给出提示。
+   */
+  let encoderCapability: "unknown" | "available" | "unavailable" = "unknown";
   /**
    * 当前媒体连接（clientId → socket）。本表只负责登记与断开清理；
    * 收发路由（分帧透传、pong、输入）由 mediaRelay.attachWebSocket 接管。
@@ -248,6 +262,7 @@ export function createRemoteDesktopHostServer(options: {
         ok: true,
         enabled: serverEnabled,
         authorizedClients: await authorizedClients(),
+        encoderCapability,
       });
     } catch (error) {
       options.postToMain({
@@ -256,6 +271,7 @@ export function createRemoteDesktopHostServer(options: {
         ok: false,
         enabled: serverEnabled,
         authorizedClients: [],
+        encoderCapability,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -311,6 +327,7 @@ export function createRemoteDesktopHostServer(options: {
 
   const requestSession = async (
     clientId: string,
+    quality?: RemoteDesktopQuality,
   ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }> => {
     if (disposed) {
       return { error: "disabled" };
@@ -326,6 +343,8 @@ export function createRemoteDesktopHostServer(options: {
       // 单主控单被控（spec 非目标：多主控并发）：占用中直接 busy，不弹第二个同意窗。
       return { error: "busy" };
     }
+    // 画质档位随请求写入（缺省 = 旧主控 → 默认档；未知值由 schema 在入口层拦下）。
+    sessionQuality = quality ?? DEFAULT_REMOTE_DESKTOP_QUALITY;
     const label = await labelOf(clientId);
     return await new Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>((resolve) => {
       const timer = setTimeout(() => {
@@ -617,25 +636,36 @@ export function createRemoteDesktopHostServer(options: {
           virtual: toRemoteDesktopPxRect(message.virtualRect),
         };
         // 开流：同意时已 listen 过中继口（幂等，同会话复用同一随机口），这里取端口注入
-        // rd_media_start 给 helper。callRdMedia 由 Task 8 注入；未注入时静默跳过、注入后失败
-        // 只 warn——P2 阶段渲染器画面仍在，媒体面缺失不断会话。
+        // rd_media_start 给 helper。P1-3：启动参数取本会话画质档位（fps/maxWidth/初始
+        // 码率），替代旧硬编码 1920/60/8Mbps；自适应码率由主控在档位区间内调节。
+        // callRdMedia 由 Task 8 注入；未注入时静默跳过、注入后失败只 warn——P2 阶段
+        // 渲染器画面仍在，媒体面缺失不断会话。
         void (async () => {
+          const callRdMedia = options.callRdMedia;
+          if (!callRdMedia) {
+            return;
+          }
           try {
             const port = await mediaRelay.listen();
-            await options.callRdMedia?.("rd_media_start", {
+            const preset = REMOTE_DESKTOP_QUALITY_PRESETS[sessionQuality];
+            await callRdMedia("rd_media_start", {
               rect: message.rect,
-              maxWidth: 1920,
-              fps: 60,
-              bitrateBps: 8_000_000,
+              maxWidth: preset.maxWidth,
+              fps: preset.fps,
+              bitrateBps: preset.bitrateBps,
               endpoint: { host: "127.0.0.1", port },
               key: message.key,
               salt: message.salt,
             });
+            // 编码能力缓存（P1-3）：真实会话成功即记 available（无需额外探测拉起 helper）。
+            encoderCapability = "available";
           } catch (error) {
-            logger.warn(
-              "[remote-desktop] rd_media_start failed:",
-              error instanceof Error ? error.message : error,
-            );
+            const messageText = error instanceof Error ? error.message : String(error);
+            // 本机无硬件编码器是「连上但永远不出画面」的根因：单独记住，设置页给提示。
+            if (messageText.includes("无可用硬件 H.264 编码器")) {
+              encoderCapability = "unavailable";
+            }
+            logger.warn("[remote-desktop] rd_media_start failed:", messageText);
           }
         })();
         return;

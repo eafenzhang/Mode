@@ -34,7 +34,7 @@ test("rtt 取最近一次 pong；分辨率来自 decoder 配置", () => {
 
 test("未收到 pong / 配置前 rtt 与分辨率留空", () => {
   const c = createNativeSessionStatsCollector();
-  assert.deepEqual(c.sample(), { fps: 0, rttMs: null, frameAgeMs: null, width: null, height: null });
+  assert.deepEqual(c.sample(), { ...EMPTY_REMOTE_DESKTOP_SESSION_STATS, fps: 0 });
 });
 
 test("帧龄取窗口内中位数（奇偶两种取法）；采样后清窗", () => {
@@ -64,5 +64,52 @@ test("空态导出形状不变", () => {
     frameAgeMs: null,
     width: null,
     height: null,
+    bitrateKbps: null,
+    decodeDrops: 0,
+    decodeQueue: null,
+    freezeCount: 0,
   });
+});
+
+// ---- P2-4 补充指标：码率 / 丢帧 / 解码队列 / 冻结次数 ----
+
+test("码率 = 近一拍字节 × 8 / 间隔；首拍无基准为 null，采样后清零", () => {
+  let t = 1_000_000;
+  const c = createNativeSessionStatsCollector({ now: () => t });
+  // 首拍：有字节但无间隔基准 → null（不能拿 0ms 当分母）。
+  c.onBytesReceived(999);
+  assert.equal(c.sample().bitrateKbps, null);
+  // 3 秒收 3MB → 3_000_000 × 8 / 3000 = 8000 kbps。
+  c.onBytesReceived(3_000_000);
+  t += 3000;
+  assert.equal(c.sample().bitrateKbps, 8000);
+  // 窗口清零：下一拍无新字节 → 0 kbps（而非残留旧值）。
+  t += 3000;
+  assert.equal(c.sample().bitrateKbps, 0);
+});
+
+test("解码丢弃计数随采样清零（与自适应采样同一增量口径）", () => {
+  const c = createNativeSessionStatsCollector();
+  c.onFrameDropped();
+  c.onFrameDropped();
+  c.onFrameDropped();
+  assert.equal(c.sample().decodeDrops, 3);
+  assert.equal(c.sample().decodeDrops, 0);
+});
+
+test("解码队列取最近一次读数；未解码过为 null", () => {
+  const c = createNativeSessionStatsCollector();
+  assert.equal(c.sample().decodeQueue, null);
+  c.onDecodeQueue(1);
+  c.onDecodeQueue(4);
+  assert.equal(c.sample().decodeQueue, 4, "取最近一次（4 是队列堆积的即时读数）");
+});
+
+test("冻结次数为会话累计值，跨采样不清零", () => {
+  const c = createNativeSessionStatsCollector();
+  c.onFrozen();
+  assert.equal(c.sample().freezeCount, 1);
+  c.onFrozen();
+  assert.equal(c.sample().freezeCount, 2, "累计值不清零");
+  assert.equal(c.sample().freezeCount, 2);
 });

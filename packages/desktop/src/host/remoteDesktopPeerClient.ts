@@ -7,7 +7,11 @@
  * 不写日志、不进 renderer。
  */
 import { buildLanPeerMetaKey, buildLanPeerTokenKey, lanPeerMetaSchema } from "@mode/shared";
-import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
+import {
+  DEFAULT_REMOTE_DESKTOP_QUALITY,
+  type RemoteDesktopErrorCode,
+  type RemoteDesktopQuality,
+} from "@mode/shared/remote-desktop";
 import type { ICredentialService } from "@mode/services";
 import { fetchLanPeerInfo } from "./lanRemoteAttach.js";
 
@@ -110,6 +114,7 @@ export async function probeRemoteDesktopPeer(
 export async function openRemoteDesktopPeerSession(
   credentials: ICredentialService,
   serverId: string,
+  quality: RemoteDesktopQuality = DEFAULT_REMOTE_DESKTOP_QUALITY,
 ): Promise<
   | { ok: true; wsUrl: string; mediaUrl: string }
   | { ok: false; errorCode?: RemoteDesktopErrorCode; error: string }
@@ -124,6 +129,8 @@ export async function openRemoteDesktopPeerSession(
   const base = `http://${target.host}:${target.port}`;
   const url = new URL("/api/remote-desktop/session", base);
   url.searchParams.set("token", target.token);
+  // 画质档位（P1-3）：被控据此定 fps/maxWidth/初始码率；旧对端忽略该参数。
+  url.searchParams.set("quality", quality);
   let response: Response;
   try {
     response = await fetchWithTimeout(

@@ -84,7 +84,7 @@ import type {
   RemoteDesktopRawInputEvent,
 } from "./remoteDesktopMessages.js";
 import type { WebSocket } from "ws";
-import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
+import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import {
   createLanPromptAttachmentTransferService,
   materializeLanPromptAttachments,
@@ -2061,13 +2061,18 @@ async function ensureRemoteDesktopHostServer(
 
 /** lanAccessServer 的 RD hooks：未初始化时保持 T2 的 fail-closed 缺省语义。 */
 function resolveRemoteDesktopHooks(): {
-  requestSession: (clientId: string) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+  requestSession: (
+    clientId: string,
+    quality?: RemoteDesktopQuality,
+  ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
   onSessionSocket: (clientId: string, socket: WebSocket) => void;
   onMediaSocket: (clientId: string, socket: WebSocket) => void;
 } {
   return {
-    requestSession: async (clientId: string) =>
-      activeRemoteDesktop?.hooks.requestSession(clientId) ?? { error: "disabled" as const },
+    requestSession: async (clientId: string, quality?: RemoteDesktopQuality) =>
+      activeRemoteDesktop?.hooks.requestSession(clientId, quality) ?? {
+        error: "disabled" as const,
+      },
     onSessionSocket: (clientId: string, socket: WebSocket) => {
       if (activeRemoteDesktop) {
         activeRemoteDesktop.hooks.onSessionSocket(clientId, socket);
@@ -2145,6 +2150,8 @@ async function handleRemoteDesktopPeerMessage(
     requestId: string;
     type: "remote-desktop-peer-probe" | "remote-desktop-peer-session-open";
     serverId: string;
+    /** 画质档位（P1-3，仅 session-open 携带；schema 已校验枚举，缺省 = 旧主控）。 */
+    quality?: RemoteDesktopQuality;
   },
   services: ServiceCollection,
 ): Promise<void> {
@@ -2165,7 +2172,7 @@ async function handleRemoteDesktopPeerMessage(
       });
       return;
     }
-    const result = await openRemoteDesktopPeerSession(credentials, msg.serverId);
+    const result = await openRemoteDesktopPeerSession(credentials, msg.serverId, msg.quality);
     postRemoteDesktopToMain(
       result.ok
         ? {

@@ -16,6 +16,7 @@ import {
   type RemoteDesktopMessageFromHost,
   type RemoteDesktopMessageToHost,
 } from "./hostMessages.js";
+import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { listLiveHostProcesses } from "../resourceManagerWindow.js";
 import {
   buildPeerSessionOpenOutcome,
@@ -67,6 +68,7 @@ type PendingRequest =
       resolve: (value: {
         enabled: boolean;
         authorizedClients: Array<{ id: string; label: string }>;
+        encoderCapability: "unknown" | "available" | "unavailable";
       }) => void;
       reject: (error: Error) => void;
       timer: ReturnType<typeof setTimeout>;
@@ -182,6 +184,7 @@ function requestToHost(
 export async function requestRemoteDesktopServerState(): Promise<{
   enabled: boolean;
   authorizedClients: Array<{ id: string; label: string }>;
+  encoderCapability: "unknown" | "available" | "unavailable";
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopServerStateRequest },
@@ -190,12 +193,14 @@ export async function requestRemoteDesktopServerState(): Promise<{
   return (await promise) as {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
   };
 }
 
 export async function requestRemoteDesktopSetServerEnabled(enabled: boolean): Promise<{
   enabled: boolean;
   authorizedClients: Array<{ id: string; label: string }>;
+  encoderCapability: "unknown" | "available" | "unavailable";
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopSetServerEnabled, enabled },
@@ -204,12 +209,14 @@ export async function requestRemoteDesktopSetServerEnabled(enabled: boolean): Pr
   return (await promise) as {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
   };
 }
 
 export async function requestRemoteDesktopRevokeClient(clientId: string): Promise<{
   enabled: boolean;
   authorizedClients: Array<{ id: string; label: string }>;
+  encoderCapability: "unknown" | "available" | "unavailable";
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopRevokeClient, clientId },
@@ -218,12 +225,14 @@ export async function requestRemoteDesktopRevokeClient(clientId: string): Promis
   return (await promise) as {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
   };
 }
 
 export async function requestRemoteDesktopAuthorizeClient(clientId: string): Promise<{
   enabled: boolean;
   authorizedClients: Array<{ id: string; label: string }>;
+  encoderCapability: "unknown" | "available" | "unavailable";
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopAuthorizeClient, clientId },
@@ -232,6 +241,7 @@ export async function requestRemoteDesktopAuthorizeClient(clientId: string): Pro
   return (await promise) as {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
   };
 }
 
@@ -255,9 +265,15 @@ export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
 
 export async function requestRemoteDesktopPeerSessionOpen(
   serverId: string,
+  quality?: RemoteDesktopQuality,
 ): Promise<RemoteDesktopPeerSessionOpenOutcome> {
   const promise = requestToHost(
-    { type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen, serverId },
+    {
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen,
+      serverId,
+      // 画质档位（P1-3）：主控选择的预设随会话请求下发给被控。
+      ...(quality ? { quality } : {}),
+    },
     "peer-session-open",
   );
   return (await promise) as RemoteDesktopPeerSessionOpenOutcome;
@@ -302,7 +318,12 @@ export function handleRemoteDesktopHostMessage(label: string, data: unknown): bo
         pending.reject(new Error(message.error ?? "读取远程桌面设置失败"));
         return;
       }
-      pending.resolve({ enabled: message.enabled, authorizedClients: message.authorizedClients });
+      pending.resolve({
+        enabled: message.enabled,
+        authorizedClients: message.authorizedClients,
+        // 旧 host 不带该字段 → unknown（不猜测；UI 只在明确 unavailable 时提示）。
+        encoderCapability: message.encoderCapability ?? "unknown",
+      });
     });
     return true;
   }

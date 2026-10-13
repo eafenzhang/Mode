@@ -18,6 +18,7 @@ import type { WebContents } from "electron";
 import {
   remoteDesktopSignalMessageSchema,
   type RemoteDesktopErrorCode,
+  type RemoteDesktopQuality,
   type RemoteDesktopSignalMessage,
 } from "@mode/shared/remote-desktop";
 import { REMOTE_DESKTOP_IPC } from "./ipcChannels.js";
@@ -33,6 +34,7 @@ export type RemoteDesktopControllerEvent =
 export interface RemoteDesktopControllerSession {
   start(
     serverId: string,
+    quality: RemoteDesktopQuality | undefined,
     sender: WebContents,
   ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }>;
   sendSignal(message: RemoteDesktopSignalMessage): void;
@@ -190,6 +192,7 @@ export function createRemoteDesktopControllerSession(options: {
   return {
     async start(
       serverId,
+      quality,
       sender,
     ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }> {
       if (socket || starting) {
@@ -210,7 +213,8 @@ export function createRemoteDesktopControllerSession(options: {
       pushState("connecting");
       let result: Awaited<ReturnType<typeof requestRemoteDesktopPeerSessionOpen>>;
       try {
-        result = await requestRemoteDesktopPeerSessionOpen(serverId);
+        // 画质档位（P1-3）：随会话请求下发给被控（旧被控忽略）。
+        result = await requestRemoteDesktopPeerSessionOpen(serverId, quality);
       } catch (error) {
         // 宿主桥 reject（90s 超时 / 无宿主 / 宿主退出）不是稳定错误码：按 internal 收口。
         // 不能把异常抛穿 ipcMain.handle——否则发起窗口的 destroyed 监听泄漏、终态不推。

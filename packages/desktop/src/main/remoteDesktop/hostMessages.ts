@@ -26,7 +26,10 @@
  * 由 host 的 media WS onInput 出口截断并计数，与 Rust `MAX_RAW_INPUT_EVENTS` 同口径）。
  */
 import { z } from "zod";
-import { remoteDesktopSignalMessageSchema } from "@mode/shared/remote-desktop";
+import {
+  remoteDesktopQualitySchema,
+  remoteDesktopSignalMessageSchema,
+} from "@mode/shared/remote-desktop";
 
 /** 一条注入帧的最大事件条数（与 crates/mode-cua-ax input.rs 的 MAX_RAW_INPUT_EVENTS 同口径）。 */
 export const REMOTE_DESKTOP_INJECT_MAX_EVENTS = 512;
@@ -142,6 +145,8 @@ export const remoteDesktopServerStateResultSchema = z
     ok: z.boolean(),
     enabled: z.boolean(),
     authorizedClients: z.array(remoteDesktopAuthorizedClientSchema),
+    // 编码能力缓存（P1-3）：从真实会话的 rd_media_start 结果观测；旧 host 缺省 = unknown。
+    encoderCapability: z.enum(["unknown", "available", "unavailable"]).optional(),
     error: z.string().optional(),
   })
   .strict();
@@ -247,6 +252,8 @@ export const remoteDesktopPeerSessionOpenSchema = z
     type: z.literal(RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen),
     requestId: trimmedNonEmpty,
     serverId: trimmedNonEmpty,
+    // 画质档位（P1-3）：主控选择的预设随会话请求下发；缺省 = 旧主控（被控按默认档）。
+    quality: remoteDesktopQualitySchema.optional(),
   })
   .strict();
 

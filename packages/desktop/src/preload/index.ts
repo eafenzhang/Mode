@@ -66,7 +66,7 @@ import type {
   IPlatformService,
 } from "@mode/shared";
 import { InternalChannels, PlatformChannels, formatModeRendererProcessName } from "@mode/shared";
-import type { RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
+import type { RemoteDesktopQuality, RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
 import { createOAuthCallbackHandler } from "./oauthCallbackBridge.js";
 
 // `rd/*` 通道名冻结在 main 的 remoteDesktop/ipcChannels.ts；preload 不跨项目 import main，
@@ -360,9 +360,12 @@ contextBridge.exposeInMainWorld("mode", {
   /** 探测已配对对端的远程桌面能力位与在线状态（main 经 host 用已存令牌拉 server-info） */
   rdGetPeerCapability: (serverId: string): Promise<RemoteDesktopPeerCapabilityResult> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetPeerCapability, serverId),
-  /** 发起远程桌面会话：被控同意 + 票据 + 信令 WS 全部由 main 完成 */
-  rdStartSession: (serverId: string): Promise<RemoteDesktopStartSessionResult> =>
-    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.StartSession, serverId),
+  /** 发起远程桌面会话：被控同意 + 票据 + 信令 WS 全部由 main 完成；quality = 画质档位（P1-3） */
+  rdStartSession: (
+    serverId: string,
+    quality?: RemoteDesktopQuality,
+  ): Promise<RemoteDesktopStartSessionResult> =>
+    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.StartSession, serverId, quality),
   /** 读取本机被控状态（设备页置灰用；发起瞬间由 main 权威拦截） */
   rdGetControlledState: (): Promise<RemoteDesktopControlledStateResult> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetControlledState),

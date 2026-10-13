@@ -32,14 +32,29 @@ export interface AdaptiveBitrateSample {
 
 export interface AdaptiveBitrateState {
   currentBps: number;
+  /** 本会话高档码率（P1-3：由画质档位预设决定；缺省 = 旧常量）。 */
+  highBps: number;
+  /** 本会话低档码率（拥塞时降到这一档，不再继续降）。 */
+  lowBps: number;
   /** 上次切换发生时刻（Date.now 口径）；未切换过为 null。 */
   lastSwitchAt: number | null;
   /** 连续健康采样计数（任一采样不健康即清零）。 */
   healthyStreak: number;
 }
 
-export function initialAdaptiveBitrateState(): AdaptiveBitrateState {
-  return { currentBps: ADAPTIVE_BITRATE_HIGH, lastSwitchAt: null, healthyStreak: 0 };
+/** 初始为高档。`highBps`/`lowBps` 由调用方按画质档位传入（P1-3）；缺省保留旧两档常量。 */
+export function initialAdaptiveBitrateState(
+  highBps: number = ADAPTIVE_BITRATE_HIGH,
+  lowBps: number = ADAPTIVE_BITRATE_LOW,
+): AdaptiveBitrateState {
+  return {
+    currentBps: highBps,
+    highBps,
+    // 低档不得高于高档（畸形入参按高档收敛，避免升/降档语义反转）。
+    lowBps: Math.min(lowBps, highBps),
+    lastSwitchAt: null,
+    healthyStreak: 0,
+  };
 }
 
 /**
@@ -54,24 +69,24 @@ export function stepAdaptiveBitrate(
   const congested =
     (sample.rttMs !== null && sample.rttMs > DEGRADE_RTT_MS) || sample.droppedFrames > 0;
   if (congested) {
-    if (state.currentBps === ADAPTIVE_BITRATE_LOW) {
+    if (state.currentBps === state.lowBps) {
       return { state: { ...state, healthyStreak: 0 }, nextBps: null }; // 已在低档，无需重复下发
     }
     return {
-      state: { currentBps: ADAPTIVE_BITRATE_LOW, lastSwitchAt: nowMs, healthyStreak: 0 },
-      nextBps: ADAPTIVE_BITRATE_LOW,
+      state: { ...state, currentBps: state.lowBps, lastSwitchAt: nowMs, healthyStreak: 0 },
+      nextBps: state.lowBps,
     };
   }
   const healthy = sample.rttMs !== null && sample.rttMs <= RECOVER_RTT_MS;
   const healthyStreak = healthy ? state.healthyStreak + 1 : 0;
   if (
-    state.currentBps === ADAPTIVE_BITRATE_LOW &&
+    state.currentBps === state.lowBps &&
     healthyStreak >= RECOVER_STREAK &&
     (state.lastSwitchAt === null || nowMs - state.lastSwitchAt >= MIN_DWELL_MS)
   ) {
     return {
-      state: { currentBps: ADAPTIVE_BITRATE_HIGH, lastSwitchAt: nowMs, healthyStreak: 0 },
-      nextBps: ADAPTIVE_BITRATE_HIGH,
+      state: { ...state, currentBps: state.highBps, lastSwitchAt: nowMs, healthyStreak: 0 },
+      nextBps: state.highBps,
     };
   }
   return { state: { ...state, healthyStreak }, nextBps: null };

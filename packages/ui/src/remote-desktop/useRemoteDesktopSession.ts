@@ -12,10 +12,13 @@
  * 返回值直达 renderer（契约 E）。输入不再走 DataChannel：与信令同源的 media WS 上行 JSON（契约 B）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  RemoteDesktopControlEvent,
-  RemoteDesktopPointerEvent,
-  RemoteDesktopSignalMessage,
+import {
+  DEFAULT_REMOTE_DESKTOP_QUALITY,
+  REMOTE_DESKTOP_QUALITY_PRESETS,
+  type RemoteDesktopQuality,
+  type RemoteDesktopControlEvent,
+  type RemoteDesktopPointerEvent,
+  type RemoteDesktopSignalMessage,
 } from "@mode/shared/remote-desktop";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { logger } from "@/logger.js";
@@ -55,9 +58,12 @@ export interface UseRemoteDesktopSessionResult {
 
 export function useRemoteDesktopSession(options: {
   serverId: string;
+  /** 画质档位（P1-3）：随会话请求下发给被控；缺省 = 被控默认档。 */
+  quality?: RemoteDesktopQuality;
 }): UseRemoteDesktopSessionResult {
-  const { serverId } = options;
+  const { serverId, quality } = options;
   const platform = usePlatform();
+  const qualityPreset = REMOTE_DESKTOP_QUALITY_PRESETS[quality ?? DEFAULT_REMOTE_DESKTOP_QUALITY];
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   // 原生媒体面会话：open-media 时建、失败/cleanup 路径收（stop 幂等）。
@@ -75,8 +81,11 @@ export function useRemoteDesktopSession(options: {
   );
   const [stats, setStats] = useState<RemoteDesktopSessionStats>(EMPTY_REMOTE_DESKTOP_SESSION_STATS);
   // 自适应码率 v1（P1-2）：pong 节拍上采样 RTT + 上拍以来的解码丢弃数 → 两档 + 滞回
-  // → 下行 {t:"set-bitrate"}（中继 → helper → ICodecAPI MeanBitRate）。
-  const adaptiveRef = useRef(initialAdaptiveBitrateState());
+  // → 下行 {t:"set-bitrate"}（中继 → helper → ICodecAPI MeanBitRate）。两档取自本会话
+  // 画质档位预设（P1-3）：高档 = 预设码率、低档 = 预设低码率，拥塞时不越级到其它档。
+  const adaptiveRef = useRef(
+    initialAdaptiveBitrateState(qualityPreset.bitrateBps, qualityPreset.minBitrateBps),
+  );
   const droppedSinceAdaptiveSample = useRef(0);
 
   const sendSignal = useCallback(
@@ -122,8 +131,18 @@ export function useRemoteDesktopSession(options: {
                 nativeStats.current.onDecoded();
               },
               onFrameDropped: () => {
-                // 解码队列门控丢弃：累计到下一次自适应采样（与 RTT 同拍判定）。
+                // 解码队列门控丢弃：累计到下一次自适应采样（与 RTT 同拍判定），
+                // 同时计入状态条读数（丢帧 > 0 时状态条显式提示）。
                 droppedSinceAdaptiveSample.current += 1;
+                nativeStats.current.onFrameDropped();
+              },
+              onBytesReceived: (bytes) => {
+                // 码率读数：近一拍收到的密文字节数，3s 采样折算 kbps。
+                nativeStats.current.onBytesReceived(bytes);
+              },
+              onDecodeQueue: (size) => {
+                // 解码队列长度：最近一次被接受帧的即时读数（解释丢帧与延迟堆积）。
+                nativeStats.current.onDecodeQueue(size);
               },
               onFrameAgeMs: (ageMs) => {
                 // 帧龄读数（glass-to-glass 近似）：随下一拍 3s 采样进状态条（取窗口中位数）。
@@ -153,6 +172,10 @@ export function useRemoteDesktopSession(options: {
   applyEffectRef.current = applyEffect;
 
   const dispatch = useCallback((event: RemoteDesktopSessionEvent): void => {
+    // 冻结次数在唯一的状态迁移入口计数（freeze 重复到达幂等，只有未冻结→冻结记一次）。
+    if (event.type === "freeze" && !viewRef.current.frozen) {
+      nativeStats.current.onFrozen();
+    }
     const transition = reduceRemoteDesktopSession(viewRef.current, event);
     if (transition.state !== viewRef.current) {
       viewRef.current = transition.state;
@@ -174,7 +197,8 @@ export function useRemoteDesktopSession(options: {
 
     void (async () => {
       try {
-        const result = await platform.rdStartSession(serverId);
+        // 画质档位随会话请求下发（P1-3）：被控据此定采集/编码参数。
+        const result = await platform.rdStartSession(serverId, quality);
         if (disposed) {
           return;
         }
@@ -221,7 +245,7 @@ export function useRemoteDesktopSession(options: {
         void platform.rdEndSession("user-end").catch(() => undefined);
       }
     };
-  }, [platform, serverId]);
+  }, [platform, serverId, quality]);
 
   // ---- media WS 下行 JSON 控制事件（Task 9 胶水派发到 window，与信令面解耦）----
   useEffect(() => {

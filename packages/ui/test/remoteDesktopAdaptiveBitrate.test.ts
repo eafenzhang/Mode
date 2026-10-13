@@ -81,3 +81,24 @@ test("驻留期内驻足以外的健康采样会打断 streak（回中间态不�
   assert.equal(state.currentBps, ADAPTIVE_BITRATE_LOW, "56ms 区间不升档（滞回带）");
   assert.equal(state.healthyStreak, 0, "非健康采样清零计数");
 });
+
+test("画质档位自定义两档（P1-3）：降/升都落在档位区间，不越级到旧常量", () => {
+  const t0 = 0;
+  // 均衡档 5M ↔ 2.5M（预设值口径）。
+  let { state, nextBps } = stepAdaptiveBitrate(
+    initialAdaptiveBitrateState(5_000_000, 2_500_000),
+    { rttMs: 80, droppedFrames: 0 },
+    t0,
+  );
+  assert.equal(nextBps, 2_500_000, "降档目标 = 档位低档（而非旧常量 4M）");
+  assert.equal(state.lowBps, 2_500_000);
+  // 连续健康 + 驻留后回升到档位高档。
+  for (let i = 1; i <= 3; i += 1) {
+    state = stepAdaptiveBitrate(state, { rttMs: 5, droppedFrames: 0 }, t0 + i * 3_000).state;
+  }
+  const recover = stepAdaptiveBitrate(state, { rttMs: 5, droppedFrames: 0 }, t0 + 12_000);
+  assert.equal(recover.nextBps, 5_000_000, "升档目标 = 档位高档（而非旧常量 8M）");
+  // 畸形入参（低档 > 高档）按高档收敛，升降语义不反转。
+  const clamped = initialAdaptiveBitrateState(3_000_000, 9_000_000);
+  assert.equal(clamped.lowBps, 3_000_000);
+});

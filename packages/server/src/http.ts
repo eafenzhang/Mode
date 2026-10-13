@@ -48,7 +48,11 @@ import {
   type ServerRemoteWorkspaceInfo,
 } from "@mode/shared";
 // 远程桌面协议面单独入口（T1），根入口不重导出，避免把桌面链路类型带进所有消费方。
-import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
+import {
+  remoteDesktopQualitySchema,
+  type RemoteDesktopErrorCode,
+  type RemoteDesktopQuality,
+} from "@mode/shared/remote-desktop";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
 import { createRemoteDesktopTicketStore } from "./remoteDesktopTicket.js";
@@ -286,7 +290,10 @@ interface HttpServerOptions {
 
 /** 远程桌面被控 hook：请求会话（可含被控同意）与升级后的信令 / 媒体 socket 交接。 */
 export interface RemoteDesktopHooks {
-  requestSession(clientId: string): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+  requestSession(
+    clientId: string,
+    quality?: RemoteDesktopQuality,
+  ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
   onSessionSocket(clientId: string, socket: WebSocket): void;
   /** 媒体 WS 升级成功后的交接（收发逻辑由宿主侧 relay 承担，本模块不解析帧）。 */
   onMediaSocket?(clientId: string, socket: WebSocket): void;
@@ -599,7 +606,14 @@ export function createHttpServer(
       // 令牌过了鉴权但解析不到 clientId：无法绑定票据，按未授权拒绝。
       return c.json({ code: "unauthorized" satisfies RemoteDesktopErrorCode }, 401);
     }
-    const result = await remoteDesktop.requestSession(clientId);
+    // 画质档位（P1-3）：主控选择随请求下发；缺省/非法值回缺省档（旧主控兼容，
+    // 非法值不报错——画质是优化参数，不值得让会话失败）。
+    const qualityParam = c.req.query("quality");
+    const parsedQuality = qualityParam ? remoteDesktopQualitySchema.safeParse(qualityParam) : null;
+    const result = await remoteDesktop.requestSession(
+      clientId,
+      parsedQuality?.success ? parsedQuality.data : undefined,
+    );
     if ("error" in result) {
       return c.json({ code: result.error }, remoteDesktopErrorStatus(result.error));
     }

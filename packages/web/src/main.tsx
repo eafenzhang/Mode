@@ -178,7 +178,8 @@ function createWebPlatform(): IPlatformService {
     rdGetControlledState: () => Promise.resolve({ controlled: false }),
     rdSendSignal: () => {},
     rdEndSession: () => Promise.resolve(),
-    rdGetServerState: () => Promise.resolve({ enabled: false, authorizedClients: [] }),
+    rdGetServerState: () =>
+      Promise.resolve({ enabled: false, authorizedClients: [], encoderCapability: "unknown" }),
     rdSetServerEnabled: () => Promise.reject(new Error("Web mode does not serve remote desktop")),
     rdRevokeClient: () => Promise.reject(new Error("Web mode does not serve remote desktop")),
     rdAuthorizeClient: () => Promise.reject(new Error("Web mode does not serve remote desktop")),

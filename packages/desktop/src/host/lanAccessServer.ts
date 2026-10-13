@@ -19,7 +19,7 @@ import {
   type ServerRemoteWorkspaceInfo,
   isModeCuaInternalFeatureEnabled,
 } from "@mode/shared";
-import type { RemoteDesktopErrorCode } from "@mode/shared/remote-desktop";
+import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { createHttpServer } from "@mode/server";
 import type { ICredentialService, ServiceCollection } from "@mode/services";
 import { formatLogPrefix } from "@mode/shared";
@@ -89,6 +89,7 @@ export interface StartLanAccessServerParams {
   remoteDesktop?: {
     requestSession?: (
       clientId: string,
+      quality?: RemoteDesktopQuality,
     ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
     onSessionSocket?: (clientId: string, socket: WebSocket) => void;
     onMediaSocket?: (clientId: string, socket: WebSocket) => void;

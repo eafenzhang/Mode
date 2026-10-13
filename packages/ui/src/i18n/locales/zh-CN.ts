@@ -6032,6 +6032,8 @@ const zhCN: Record<string, string> = {
   "settings.remoteDesktop.securityHint":
     "信任来源是既有的局域网配对；未配对设备无法发起，进行中的会话会持续显示浮层且本机可随时结束。",
   "settings.remoteDesktop.lanHint": "需要两台 Windows 电脑在同一局域网（或 Tailscale）内。",
+  "settings.remoteDesktop.encoderUnavailable":
+    "未检测到可用的硬件 H.264 编码器：远程桌面会话将无法出画面（请检查显卡驱动）。",
   "workspace.openRemoteDesktop": "远程控制",
   "remoteDesktop.title": "远程控制",
   "remoteDesktop.breadcrumbLabel": "远程控制路径",
@@ -6045,6 +6047,11 @@ const zhCN: Record<string, string> = {
     "还没有已配对设备。点上方「检测设备」发现同一局域网内的 Windows 电脑，用对端「设置 · 远程控制」里的配对码完成配对。",
   "remoteDesktop.devices.openLanAccess": "打开远程控制设置",
   "remoteDesktop.devices.connect": "连接",
+  // 画质档位（P1-3）：连接前选择，随会话请求下发给被控。
+  "remoteDesktop.quality.label": "画质",
+  "remoteDesktop.quality.sharp": "清晰",
+  "remoteDesktop.quality.balanced": "均衡",
+  "remoteDesktop.quality.smooth": "流畅",
   "remoteDesktop.devices.locallyControlledBanner":
     "本机正在被远程控制；断开被控后即可发起远程连接。",
   "remoteDesktop.device.status.ready": "可用",
@@ -6080,6 +6087,8 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.session.exitFullscreen": "退出全屏",
   "remoteDesktop.session.disconnect": "断开",
   "remoteDesktop.session.fps": "{value} fps",
+  "remoteDesktop.session.bitrate": "码率 {value} Mbps",
+  "remoteDesktop.session.drops": "丢帧 {count}",
   "remoteDesktop.session.rtt": "延迟 {value} ms",
   "remoteDesktop.session.frameAge": "端到端 ~{value} ms",
   "remoteDesktop.session.closed.user": "会话已断开。",

@@ -1,18 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DEFAULT_REMOTE_DESKTOP_QUALITY,
   REMOTE_DESKTOP_PROTOCOL_VERSION,
+  REMOTE_DESKTOP_QUALITY_PRESETS,
   computeNormalizedPointFromVideoEvent,
   describeKeyAction,
   mapMonitorNormalizedToVirtualAbsolute,
   remoteDesktopControlEventSchema,
   remoteDesktopPointerEventSchema,
+  remoteDesktopQualitySchema,
   remoteDesktopSignalMessageSchema,
 } from "../src/remote-desktop.js";
 import { serverRemoteInfoSchema } from "../src/server-remote.js";
 
 // spec: docs/specs/lan-remote-desktop.md
 // 协议面是主控/被控两侧与将来 Rust 实现的共同契约：先钉死形状与纯函数边界，再谈接线。
+
+test("画质档位（P1-3）：三档枚举、预设参数完整、默认档与旧硬编码参数一致", () => {
+  for (const quality of ["sharp", "balanced", "smooth"] as const) {
+    assert.equal(remoteDesktopQualitySchema.safeParse(quality).success, true);
+    const preset = REMOTE_DESKTOP_QUALITY_PRESETS[quality];
+    assert.ok(preset.fps > 0 && preset.maxWidth > 0 && preset.bitrateBps > 0);
+    assert.ok(
+      preset.minBitrateBps > 0 && preset.minBitrateBps < preset.bitrateBps,
+      "低档码率必须低于高档（自适应两档语义）",
+    );
+  }
+  assert.equal(remoteDesktopQualitySchema.safeParse("ultra").success, false, "未知档位拒绝");
+  // 默认 sharp 必须等于 P1-3 之前的硬编码启动参数，升级不改默认行为。
+  assert.equal(DEFAULT_REMOTE_DESKTOP_QUALITY, "sharp");
+  assert.equal(REMOTE_DESKTOP_QUALITY_PRESETS.sharp.bitrateBps, 8_000_000);
+  assert.equal(REMOTE_DESKTOP_QUALITY_PRESETS.sharp.fps, 60);
+  assert.equal(REMOTE_DESKTOP_QUALITY_PRESETS.sharp.maxWidth, 1920);
+});
 
 test("协议版本为 2（原生媒体信令面），hello 必须携带版本号", () => {
   assert.equal(REMOTE_DESKTOP_PROTOCOL_VERSION, 2);

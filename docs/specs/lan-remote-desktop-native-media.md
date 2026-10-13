@@ -85,6 +85,21 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 
 长度前缀二进制：`[u32 len][u8 kind][消息]`，同机不加密；`kind=0` 帧密文（helper→host）、`kind=1` 采集状态事件（`frozen/unfrozen`，helper→host，host 转成信令 freeze/unfreeze）、`kind=2` 开流指令（host→helper，ready 后下发）。带宽小的控制仍走既有 JSON-RPC broker（`rd_media_start/switch/stop` 参数与状态回调）。
 
+### 画质档位与编码能力缓存（P1-3，2026-10-13）
+
+- **画质档位**：主控在设备卡连接前选择「清晰 / 均衡 / 流畅」（`shared/remote-desktop.ts` 的
+  `REMOTE_DESKTOP_QUALITY_PRESETS`：fps 60/60/30、maxWidth 1920/1920/1600、码率 8/5/3Mbps、
+  自适应低档 4/2.5/1.5Mbps）；随 `POST /api/remote-desktop/session?quality=<档位>` 下发（缺省/
+  非法值回默认档 `sharp` = P1-3 之前的硬编码参数，旧主控不带该参数行为不变）。被控在
+  `rd_media_start` 按预设出参数，替代旧硬编码 1920/60/8Mbps；主控侧自适应码率的两档
+  改为「预设码率 ↔ 预设低档」（拥塞不越级到其它档）。运行期只切码率（`set-bitrate`），
+  fps/maxWidth 在会话建立时定型（会话中改档 = 重连）。
+- **编码能力缓存**：被控 host 从**真实会话**的 `rd_media_start` 结果观测硬件编码器可用性
+  （成功 = available；错误含「无可用硬件 H.264 编码器」= unavailable；无会话发生 = unknown），
+  随 `RemoteDesktopServerStateResult.encoderCapability` 暴露给设置页——unavailable 时显示
+  「未检测到硬件 H.264 编码器」提示（连上但不出画面的根因自诊断）。缓存为 host 进程级
+  内存（每次启动从零观测），不额外拉起 helper 做预探测（探测动作与首次会话共用同一路径）。
+
 ## 被控 Rust（`crates/mode-cua-ax/src/rd_media/`）
 
 - **采集**：DXGI Desktop Duplication（`windows` crate，与 `screen.rs` 同依赖面）；输出分辨率 = 显示器原生（>1080p 时由编码链缩放，见下）。
@@ -102,7 +117,10 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 
 - `VideoDecoder` 配置 `avc1`（Annex-B 分片直喂，关键帧 flag 对应 `type:"key"`）；分辨率变化由新 SPS 触发 `configure` 重配。
 - 渲染：解码完成即画 canvas，**只保留最新帧**（绘制忙时丢弃旧帧）——自建零缓冲替代抖动缓冲；`cursor-none` 语义不变（光标已烧进画面）。
-- 状态条：fps = 实际绘制帧率；延迟 = ping/pong RTT；分辨率 = decoder 配置尺寸（沿用既有显示格式）。
+- 状态条：fps = 实际绘制帧率；延迟 = ping/pong RTT；分辨率 = decoder 配置尺寸（沿用既有显示格式）；
+  端到端帧龄 = 采集时刻→本端绘制的 window 中位数（时钟偏移由 pong 标定）；码率 = 近一拍收流字节折算
+  （kbps）；解码队列门控丢帧数 > 0 时显式提示（画质劣化的直接解释，无丢帧不占位）。解码队列长度与
+  冻结次数在采集器中累计（P2-4 面板指标，供测试与后续调试读数）。
 - `RemoteDesktopSession` 的 `<video>` 替换为 `<canvas>`；`InputCapture`、坐标映射、letterbox、全屏、操作栏零改动。
 
 ## 事件顺序

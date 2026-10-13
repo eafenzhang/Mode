@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  AlertTriangleIcon,
   CheckIcon,
   LoaderIcon,
   MonitorSmartphone,
   Radar,
   RefreshCw,
   ShieldCheck,
-  ShieldOff,
-  Trash2,
 } from "lucide-react";
 import type { LanAccessClientRecord, LanAccessState } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
@@ -17,6 +16,7 @@ import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { LanAccessPairedPeersCard } from "@/settings/LanAccessPairedPeersCard.js";
+import { RemoteControlPairedClientsList } from "@/settings/RemoteControlPairedClientsList.js";
 
 const EMPTY_STATE: LanAccessState = {
   enabled: false,
@@ -47,6 +47,11 @@ export function RemoteControlSettingsSection() {
   const platform = usePlatform();
   const [state, setState] = useState<LanAccessState>(EMPTY_STATE);
   const [rdEnabled, setRdEnabled] = useState(false);
+  // 编码能力缓存（P1-3）：unknown = 尚无真实会话观测；unavailable = 本机无硬件编码器
+  // （远程桌面会连上但不出画面），设置页据此给提示。
+  const [encoderCapability, setEncoderCapability] = useState<
+    "unknown" | "available" | "unavailable"
+  >("unknown");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -95,6 +100,9 @@ export function RemoteControlSettingsSection() {
         );
       }
       setRdEnabled(rdState.status === "fulfilled" ? rdState.value.enabled : false);
+      setEncoderCapability(
+        rdState.status === "fulfilled" ? (rdState.value.encoderCapability ?? "unknown") : "unknown",
+      );
       setLoading(false);
     })();
     return () => {
@@ -134,6 +142,7 @@ export function RemoteControlSettingsSection() {
       try {
         const next = await platform.rdSetServerEnabled(enabled);
         setRdEnabled(next.enabled);
+        setEncoderCapability(next.encoderCapability ?? "unknown");
         setError("");
       } catch (caught) {
         const message = caught instanceof Error ? caught.message : String(caught);
@@ -300,101 +309,25 @@ export function RemoteControlSettingsSection() {
           }
           detail={
             state.clients.length > 0 ? (
-              <div className="space-y-2">
-                <ul className="space-y-2" data-testid="remote-desktop-paired-clients">
-                  {state.clients.map((client) => {
-                    const name = client.label || client.id;
-                    const authorized = client.remoteDesktopAuthorized === true;
-                    return (
-                      <li
-                        key={client.id}
-                        className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-ui-base text-foreground">
-                            {name}
-                          </span>
-                          <span className="block text-ui-xs text-foreground-subtle">
-                            {client.lastUsedAt
-                              ? intl.formatMessage(
-                                  { id: "settings.lanAccess.clientLastUsed" },
-                                  { time: new Date(client.lastUsedAt).toLocaleString() },
-                                )
-                              : intl.formatMessage({ id: "settings.lanAccess.clientNeverUsed" })}
-                          </span>
-                          <span className="block truncate text-ui-xs text-foreground-subtle">
-                            {client.lastWorkspacePath
-                              ? intl.formatMessage(
-                                  { id: "settings.lanAccess.lastWorkspace" },
-                                  { path: client.lastWorkspacePath },
-                                )
-                              : intl.formatMessage({ id: "settings.lanAccess.noLastWorkspace" })}
-                          </span>
-                          <span className="mt-0.5 block text-ui-xs text-foreground-subtle">
-                            {intl.formatMessage({
-                              id: authorized
-                                ? "settings.lanAccess.rdAuthorized"
-                                : "settings.lanAccess.rdUnauthorized",
-                            })}
-                          </span>
-                        </span>
-                        <span className="flex shrink-0 items-center gap-1.5">
-                          <Switch
-                            checked={authorized}
-                            disabled={busy}
-                            aria-label={intl.formatMessage(
-                              {
-                                id: authorized
-                                  ? "settings.lanAccess.rdRevokeFor"
-                                  : "settings.lanAccess.rdAuthorizeFor",
-                              },
-                              { name },
-                            )}
-                            onCheckedChange={(checked) =>
-                              void setClientAuthorized(client, checked)
-                            }
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            disabled={busy}
-                            aria-label={intl.formatMessage(
-                              { id: "settings.lanAccess.removeClient" },
-                              { name },
-                            )}
-                            onClick={() =>
-                              void run(
-                                () => platform.removeLanAccessClient(client.id),
-                                intl.formatMessage({ id: "settings.lanAccess.removeFailed" }),
-                              )
-                            }
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(
-                        () => platform.resetLanAccessTokens(),
-                        intl.formatMessage({ id: "settings.lanAccess.resetFailed" }),
-                      )
-                    }
-                  >
-                    <ShieldOff className="size-4" />
-                    {intl.formatMessage({ id: "settings.lanAccess.resetTokens" })}
-                  </Button>
-                </div>
-              </div>
+              <RemoteControlPairedClientsList
+                clients={state.clients}
+                busy={busy}
+                onSetAuthorized={(client, authorized) =>
+                  void setClientAuthorized(client, authorized)
+                }
+                onRemove={(clientId) =>
+                  void run(
+                    () => platform.removeLanAccessClient(clientId),
+                    intl.formatMessage({ id: "settings.lanAccess.removeFailed" }),
+                  )
+                }
+                onResetTokens={() =>
+                  void run(
+                    () => platform.resetLanAccessTokens(),
+                    intl.formatMessage({ id: "settings.lanAccess.resetFailed" }),
+                  )
+                }
+              />
             ) : undefined
           }
         />
@@ -404,6 +337,16 @@ export function RemoteControlSettingsSection() {
       <LanAccessPairedPeersCard onError={setError} />
 
       <div className="space-y-2 px-1 text-ui-base text-foreground-subtle">
+        {/* 编码能力缓存（P1-3）：无硬件编码器是「连上但永远不出画面」的根因，显式提示。 */}
+        {encoderCapability === "unavailable" ? (
+          <p
+            data-testid="remote-desktop-encoder-unavailable"
+            className="flex items-start gap-1.5 text-warning"
+          >
+            <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
+            {intl.formatMessage({ id: "settings.remoteDesktop.encoderUnavailable" })}
+          </p>
+        ) : null}
         <p className="flex items-start gap-1.5">
           {state.enabled ? (
             <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-success" />
