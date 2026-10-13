@@ -28,7 +28,10 @@ import {
   initialAdaptiveBitrateState,
   stepAdaptiveBitrate,
 } from "./adaptiveBitrate.js";
-import { createSessionReconnectController } from "./sessionReconnectController.js";
+import {
+  createSessionReconnectController,
+  type SessionReconnectController,
+} from "./sessionReconnectController.js";
 import {
   createNativeSessionStatsCollector,
   EMPTY_REMOTE_DESKTOP_SESSION_STATS,
@@ -58,6 +61,12 @@ export interface UseRemoteDesktopSessionResult {
   selectMonitor: (displayId: string) => void;
   /** 本端主动断开（先带出 bye，等 main 收口）。 */
   disconnect: () => void;
+  /**
+   * 会话面操作栏改档（spec: native-media「画质档位」2026-10-13）：fps/maxWidth 会话
+   * 建立时定型 → bye 结束旧会话后按 P2-1 重连编排以新档重建（被控 90s 窗口同设备
+   * 免二次同意；busy/瞬时错误按既有退避自动重试）。调用方须先更新 quality props。
+   */
+  switchQuality: (next: RemoteDesktopQuality) => Promise<void>;
 }
 
 export function useRemoteDesktopSession(options: {
@@ -95,6 +104,14 @@ export function useRemoteDesktopSession(options: {
   // 会话级重连期间的媒体失败抑制位（旧媒体面静默收口，不触发失败归因）。
   const pendingMediaTicketRef = useRef<((ticket: string | null) => void) | null>(null);
   const suppressMediaFailureRef = useRef(false);
+  // 画质档位档位 ref（P1-3 入口迁移 2026-10-13）：首连/重连闭包读最新档。
+  // 每次渲染同步 props——改档时页级状态先行/后行都收敛到同一值；**quality 不进挂载
+  // effect 依赖**：改档走「bye + 重连」显式路径，不重跑事件订阅（重订阅会丢 main 的
+  // connected 推送，握手停在等 monitors）。
+  const qualityRef = useRef(quality);
+  qualityRef.current = quality;
+  // 会话级重连编排器（P2-1）：挂载 effect 内创建，switchQuality 经 ref 调用。
+  const reconnectControllerRef = useRef<SessionReconnectController | null>(null);
 
   const sendSignal = useCallback(
     (message: RemoteDesktopSignalMessage) => {
@@ -256,8 +273,8 @@ export function useRemoteDesktopSession(options: {
     // 会话级重连（P2-1）：编排（退避/重试分类）在纯模块 sessionReconnectController，
     // 本处只接三个落点——静默停旧媒体面、新 mediaUrl 接力、失败收口。
     const reconnectController = createSessionReconnectController({
-      // 画质档位（P1-3）：重连沿用本会话档位。
-      startSession: () => platform.rdStartSession(serverId, quality),
+      // 画质档位（P1-3）：重连读最新档（改档重建也走这条编排）。
+      startSession: () => platform.rdStartSession(serverId, qualityRef.current),
       onBegin: () => {
         suppressMediaFailureRef.current = true;
         sessionRef.current?.stop();
@@ -275,8 +292,13 @@ export function useRemoteDesktopSession(options: {
           type: "controller",
           event: { kind: "state", state: "closed", error },
         });
+        // 重连/改档退避耗尽：媒体态从「正在恢复」收敛为失败——否则会话面把
+        // closed && reconnecting 当瞬态遮蔽，真实失败的关闭层永远不显示。
+        dispatchRef.current({ type: "media", status: "failed" });
       },
     });
+
+    reconnectControllerRef.current = reconnectController;
 
     const unsubscribe = platform.onRemoteDesktopSessionEvent((event) => {
       // 媒体票回复（P2-1，媒体 WS 瞬断重连）：只有重连路径在等它，不进 reducer。
@@ -298,7 +320,7 @@ export function useRemoteDesktopSession(options: {
     void (async () => {
       try {
         // 画质档位随会话请求下发（P1-3）：被控据此定采集/编码参数。
-        const result = await platform.rdStartSession(serverId, quality);
+        const result = await platform.rdStartSession(serverId, qualityRef.current);
         if (disposed) {
           return;
         }
@@ -334,6 +356,7 @@ export function useRemoteDesktopSession(options: {
     return () => {
       disposed = true;
       reconnectController.dispose();
+      reconnectControllerRef.current = null;
       unsubscribe();
       // 先断媒体面再收口：会话面卸载即停止解密/绘制，stop 幂等（内部 teardown 只通知一次）。
       sessionRef.current?.stop();
@@ -348,7 +371,8 @@ export function useRemoteDesktopSession(options: {
         void platform.rdEndSession("user-end").catch(() => undefined);
       }
     };
-  }, [platform, serverId, quality]);
+    // quality 刻意不在依赖里：档位经 qualityRef 消费，改档不触发本 effect 重跑。
+  }, [platform, serverId]);
 
   // ---- media WS 下行 JSON 控制事件（Task 9 胶水派发到 window，与信令面解耦）----
   useEffect(() => {
@@ -431,6 +455,25 @@ export function useRemoteDesktopSession(options: {
     dispatchRef.current({ type: "select-monitor", displayId });
   }, []);
 
+  const switchQuality = useCallback(
+    async (next: RemoteDesktopQuality): Promise<void> => {
+      if (qualityRef.current === next) {
+        return;
+      }
+      qualityRef.current = next;
+      // 自适应两档改绑新预设（重建会话后高低码率区间随档位走），丢帧窗口清零。
+      const preset = REMOTE_DESKTOP_QUALITY_PRESETS[next];
+      adaptiveRef.current = initialAdaptiveBitrateState(preset.bitrateBps, preset.minBitrateBps);
+      droppedSinceAdaptiveSample.current = 0;
+      // 先进入重连编排：mediaStatus=reconnecting 把紧随其后的本地 closed 事件遮成
+      // 「正在恢复」（避免关闭态闪层），首档尝试在 250ms 后——届时 bye 已过一个 RTT、
+      // 被控释放 busy；仍撞 busy 走既有退避（90s 窗口内同设备免二次同意）。
+      reconnectControllerRef.current?.begin();
+      await platform.rdEndSession("user-end").catch(() => undefined);
+    },
+    [platform],
+  );
+
   const disconnect = useCallback(() => {
     dispatchRef.current({ type: "local-end" });
   }, []);
@@ -442,5 +485,6 @@ export function useRemoteDesktopSession(options: {
     canvasRef,
     selectMonitor,
     disconnect,
+    switchQuality,
   };
 }

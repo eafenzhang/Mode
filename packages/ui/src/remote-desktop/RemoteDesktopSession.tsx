@@ -1,11 +1,13 @@
 /**
- * 远程桌面会话面（主控侧）：顶部操作栏（设备名/分辨率/全屏/断开）+ 画面全宽 letterbox + 底部状态条（fps/RTT/分辨率）。
+ * 远程桌面会话面（主控侧）：顶部操作栏（设备名/画质/显示器/全屏/断开）+ 画面全宽 letterbox + 底部状态条（fps/RTT/分辨率）。
  *
  * 交互要点（docs/specs/lan-remote-desktop-native-media.md；产品规则 6/7 沿用主 spec）：
  * - 画面（原生媒体面为 canvas，解码即画）按 `object-fit: contain` 适配，画面内隐藏本地光标
  *   （对端光标已合成进帧，避免双光标）；
  * - 容器 `tabIndex=0` 自动聚焦，键盘输入直接落到对端；
- * - 结束态（对端挂断 / 错误码 / 媒体失败）显示原因并回到设备页；本端断开立即返回。
+ * - 结束态（对端挂断 / 错误码 / 媒体失败）显示原因并回到设备页；本端断开立即返回；
+ * - 画质档位在操作栏选择（P1-3 入口 2026-10-13 由设备卡迁入）：会话中改档 = bye +
+ *   P2-1 重连以新档重建，期间以「正在恢复」遮蔽本地关闭瞬态（不出关闭层、不触发回页）。
  */
 import { useEffect, useState } from "react";
 import {
@@ -54,19 +56,22 @@ export function RemoteDesktopSession({
   serverId,
   deviceName,
   quality,
+  onQualityChange,
   topOverlayClearancePaddingClass,
   onExit,
 }: {
   serverId: string;
   deviceName: string;
-  /** 画质档位（P1-3）：设备页选择后随会话带到此处，发起会话时下发给被控。 */
-  quality?: RemoteDesktopQuality;
+  /** 画质档位（P1-3）：页级记忆（本页状态），发起会话与改档重建都以它下发。 */
+  quality: RemoteDesktopQuality;
+  /** 档位选择回写页级记忆（会话面只读展示当前档）。 */
+  onQualityChange: (quality: RemoteDesktopQuality) => void;
   /** 左侧栏收起时让出顶部浮层左上入口宽度的 ps-* 类（chat 页 WorkspaceHeader 同款规则）。 */
   topOverlayClearancePaddingClass?: string | null;
   onExit: () => void;
 }) {
   const { intl } = useModeIntl();
-  const { view, stats, containerRef, canvasRef, selectMonitor, disconnect } =
+  const { view, stats, containerRef, canvasRef, selectMonitor, disconnect, switchQuality } =
     useRemoteDesktopSession({ serverId, quality });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -76,13 +81,18 @@ export function RemoteDesktopSession({
   };
 
   // 对端结束/失败：显示原因后自动回设备页；本端断开由按钮直接返回。
+  // 改档重建的瞬态（closed && reconnecting）不算结束：不启回页计时，由「正在恢复」覆盖。
   useEffect(() => {
-    if (view.phase !== "closed" || view.closeKind === "user") {
+    if (
+      view.phase !== "closed" ||
+      view.closeKind === "user" ||
+      view.mediaStatus === "reconnecting"
+    ) {
       return;
     }
     const timer = window.setTimeout(() => onExit(), CLOSED_RETURN_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [view.phase, view.closeKind, onExit]);
+  }, [view.phase, view.closeKind, view.mediaStatus, onExit]);
 
   useEffect(() => {
     const onChange = () => {
@@ -114,14 +124,15 @@ export function RemoteDesktopSession({
     (monitor) => monitor.displayId === view.selectedDisplayId,
   );
   const statusText =
-    // 优先级：结束原因 > 冻结（对端已锁屏，画面不再更新，优先提示）> 重连退避（P2-1）
+    // 优先级：冻结（对端已锁屏，画面不再更新，优先提示）> 重连/改档重建（P2-1 与
+    // 改档瞬态——此时 phase 可能已是 closed，但「正在恢复」才是真实状态）> 结束原因
     // > 媒体/协商/连接进度。
-    view.phase === "closed"
-      ? resolveCloseReasonId(view.closeKind, view.errorCode)
-      : view.frozen
-        ? "remoteDesktop.session.frozen"
-        : view.mediaStatus === "reconnecting"
-          ? "remoteDesktop.session.reconnecting"
+    view.frozen
+      ? "remoteDesktop.session.frozen"
+      : view.mediaStatus === "reconnecting"
+        ? "remoteDesktop.session.reconnecting"
+        : view.phase === "closed"
+          ? resolveCloseReasonId(view.closeKind, view.errorCode)
           : view.mediaStatus === "live"
             ? "remoteDesktop.session.live"
             : view.mediaOpenReceived
@@ -152,6 +163,37 @@ export function RemoteDesktopSession({
           <span className="truncate">{deviceName}</span>
         </div>
         <div className="ms-auto flex flex-wrap items-center gap-2">
+          {/* 画质档位（P1-3 入口 2026-10-13 移入会话面操作栏）：未连接/改档重建中禁用；
+              改档 = bye + 以新档重建（fps/maxWidth 会话建立时定型，spec 画质档位节）。 */}
+          <Select
+            value={quality}
+            disabled={view.phase !== "connected" || view.mediaStatus === "reconnecting"}
+            onValueChange={(next) => {
+              const nextQuality = next as RemoteDesktopQuality;
+              onQualityChange(nextQuality);
+              void switchQuality(nextQuality);
+              refocusContainer();
+            }}
+          >
+            <SelectTrigger
+              size="sm"
+              aria-label={intl.formatMessage({ id: "remoteDesktop.quality.label" })}
+              className="w-fit"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="sharp">
+                {intl.formatMessage({ id: "remoteDesktop.quality.sharp" })}
+              </SelectItem>
+              <SelectItem value="balanced">
+                {intl.formatMessage({ id: "remoteDesktop.quality.balanced" })}
+              </SelectItem>
+              <SelectItem value="smooth">
+                {intl.formatMessage({ id: "remoteDesktop.quality.smooth" })}
+              </SelectItem>
+            </SelectContent>
+          </Select>
           {view.monitors.length > 0 ? (
             <Select
               value={view.selectedDisplayId ?? undefined}
@@ -227,7 +269,9 @@ export function RemoteDesktopSession({
             </div>
           </div>
         ) : null}
-        {view.phase === "closed" ? (
+        {/* 改档重建瞬态（closed && reconnecting）不出关闭层：由「正在恢复」胶囊覆盖，
+            真实失败（onGiveUp 已把 mediaStatus 收敛为 failed）与正常结束仍走本层。 */}
+        {view.phase === "closed" && view.mediaStatus !== "reconnecting" ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/85">
             <p className="max-w-md text-center text-ui-base text-foreground">
               {intl.formatMessage({ id: statusText })}

@@ -89,13 +89,16 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 
 ### 画质档位与编码能力缓存（P1-3，2026-10-13）
 
-- **画质档位**：主控在设备卡连接前选择「清晰 / 均衡 / 流畅」（`shared/remote-desktop.ts` 的
+- **画质档位**：主控在**会话面顶部操作栏**选择「清晰 / 均衡 / 流畅」（`shared/remote-desktop.ts` 的
   `REMOTE_DESKTOP_QUALITY_PRESETS`：fps 60/60/30、maxWidth 1920/1920/1600、码率 8/5/3Mbps、
-  自适应低档 4/2.5/1.5Mbps）；随 `POST /api/remote-desktop/session?quality=<档位>` 下发（缺省/
+  自适应低档 4/2.5/1.5Mbps）；选择记忆在设备页级（本会话运行内跨连接保持），连接时以该档位
+  随 `POST /api/remote-desktop/session?quality=<档位>` 下发（缺省/
   非法值回默认档 `sharp` = P1-3 之前的硬编码参数，旧主控不带该参数行为不变）。被控在
   `rd_media_start` 按预设出参数，替代旧硬编码 1920/60/8Mbps；主控侧自适应码率的两档
   改为「预设码率 ↔ 预设低档」（拥塞不越级到其它档）。运行期只切码率（`set-bitrate`），
-  fps/maxWidth 在会话建立时定型（会话中改档 = 重连）。
+  fps/maxWidth 在会话建立时定型——**会话中改档 = 立即重建会话**（2026-10-13 选择入口由
+  设备卡移至会话面操作栏）：本地 bye 结束旧会话 → 走 P2-1 重连编排重 POST，被控 90s
+  窗口同设备免二次同意，busy/瞬时错误按既有退避自动重试；选择器在未连接/重连进行中禁用。
 - **编码能力缓存**：被控 host 从**真实会话**的 `rd_media_start` 结果观测硬件编码器可用性
   （成功 = available；错误含「无可用硬件 H.264 编码器」= unavailable；无会话发生 = unknown），
   随 `RemoteDesktopServerStateResult.encoderCapability` 暴露给设置页——unavailable 时显示

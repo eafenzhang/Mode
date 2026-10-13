@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { MonitorSmartphone, RefreshCw, Settings2 } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
 import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
+import { DEFAULT_REMOTE_DESKTOP_QUALITY } from "@mode/shared/remote-desktop";
 import { Button } from "@/components/ui/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
@@ -49,8 +50,11 @@ export function RemoteDesktopHome({
   const [sessionTarget, setSessionTarget] = useState<{
     serverId: string;
     name: string;
-    quality?: RemoteDesktopQuality;
   } | null>(null);
+  // 画质档位（P1-3）：选择入口在会话面顶部操作栏，状态记忆在页级（跨连接保持本次运行的
+  // 上次选择）；连接时以该档下发，会话中改档由会话面走「bye + P2-1 重连」重建。
+  // （spec: lan-remote-desktop-native-media.md「画质档位」2026-10-13 入口迁移。）
+  const [quality, setQuality] = useState<RemoteDesktopQuality>(DEFAULT_REMOTE_DESKTOP_QUALITY);
   // 设备管理操作（重命名/删除）跨卡互斥；错误与忙碌态上提到页级，卡片只报事件。
   const [peerActionBusy, setPeerActionBusy] = useState(false);
   const [peerActionError, setPeerActionError] = useState("");
@@ -115,12 +119,11 @@ export function RemoteDesktopHome({
   // 发起会话由会话面自己完成（先订阅 `rd/session-event` 再 rdStartSession）：
   // main 在「WS 建立 → connected」推送后需要 renderer 立刻回 hello，设备页先起会话
   // 再挂载会话面会丢掉这条推送，握手就停在等 monitors 上。
-  // 画质档位（P1-3）由设备卡选择，随会话目标带到会话面并下发给被控。
-  const connect = useCallback((peer: LanPairedPeer, quality: RemoteDesktopQuality) => {
+  // 画质档位由会话面操作栏选择（页级记忆），此处只带 serverId/name 建目标。
+  const connect = useCallback((peer: LanPairedPeer) => {
     setSessionTarget({
       serverId: peer.serverId,
       name: peer.name?.trim() || peer.serverId,
-      quality,
     });
   }, []);
 
@@ -164,7 +167,8 @@ export function RemoteDesktopHome({
       <RemoteDesktopSession
         serverId={sessionTarget.serverId}
         deviceName={sessionTarget.name}
-        quality={sessionTarget.quality}
+        quality={quality}
+        onQualityChange={setQuality}
         topOverlayClearancePaddingClass={topOverlayClearancePaddingClass}
         onExit={exitSession}
       />
