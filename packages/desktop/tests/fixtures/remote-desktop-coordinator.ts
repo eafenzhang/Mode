@@ -1,6 +1,7 @@
 /**
  * 被控媒体面行为夹具（Task 6 fix round 1：审查 Important 1/2 的行为断言）。
- * 失效模式：reason 归一矩阵错 / start-capture 先启动后信令 / select-monitor 路由错 /
+ * 失效模式：reason 归一矩阵错 / start-capture 夹带 media-open（早于信令 WS attach 被丢弃，
+ * 主控永远拿不到 key/salt）/ select-monitor 路由错（首个漏发 media-open、或换屏重复下发）/
  * peer-session-open 回帖在 main 侧丢 mediaUrl（契约 E 断链，renderer 永远连不上 media WS）。
  * 纯函数断言，跨平台可跑（不引 Electron 运行时）。
  */
@@ -59,7 +60,8 @@ assert.equal(
   "freeze 信令过契约 D",
 );
 
-// ── Important 1b：start-capture 出站顺序 = 先 media-open 信令、后 MediaStart（spec 事件顺序 ②）──
+// ── Important 1b：start-capture 出站 = 仅 MediaStart（media-open 不得早于信令 WS attach：
+//    同意时刻下发会被被控 host 按无会话连接丢弃，主控永远拿不到 key/salt——画面永不出根因）──
 const key = "a".repeat(64);
 const salt = "b".repeat(16);
 const rect = { x: 0, y: 0, width: 2880, height: 1620 };
@@ -68,12 +70,10 @@ const virtualRect = { x: -1920, y: 0, width: 4800, height: 1620 };
 const startSequence = media.buildStartCaptureOutbound({ rect, virtualRect, key, salt });
 assert.deepEqual(
   startSequence.map((outbound) => outbound.kind),
-  ["signal", "host"],
-  "先信令（media-open 带 key/salt）后启动（MediaStart）",
+  ["host"],
+  "start-capture 只发 MediaStart（media-open 改由首个 select-monitor 应答携带，见 1c）",
 );
-assert.deepEqual(startSequence[0]?.message, { type: "media-open", key, salt }, "media-open 载荷与 MediaStart 同源");
-assert.equal(shared.remoteDesktopSignalMessageSchema.safeParse(startSequence[0]?.message).success, true, "media-open 过契约 D");
-const hostStart = startSequence[1]?.message;
+const hostStart = startSequence[0]?.message;
 assert.equal(mainMirror.remoteDesktopMessageToHostSchema.safeParse(hostStart).success, true, "MediaStart 过 main 侧契约 F");
 assert.equal(hostMirror.remoteDesktopMessageToHostSchema.safeParse(hostStart).success, true, "MediaStart 过 host 侧契约 F（镜像一致）");
 assert.deepEqual(
@@ -81,18 +81,35 @@ assert.deepEqual(
   virtualRect,
   "MediaStart 必须带输入换算基准 virtualRect（fix round 1）",
 );
+assert.equal((hostStart as { key?: unknown }).key, key, "MediaStart 仍携带会话 key（helper 逐帧加密用）");
+assert.equal((hostStart as { salt?: unknown }).salt, salt, "MediaStart 仍携带会话 salt");
 
-// ── Important 1c：select-monitor 路由——解析成功 → MediaSwitch{rect,virtualRect}；失败 → error{internal} ──
+// ── Important 1c：select-monitor 路由——首个成功命中 → 先 media-open 后 MediaSwitch；
+//    后续换屏（无 mediaOpen 参数）→ 仅 MediaSwitch；解析失败 → error{internal} ──
 const switchRect = { x: -1920, y: 0, width: 1920, height: 1080 };
-const switchOutbound = media.buildSelectMonitorOutbound({ rect: switchRect, virtualRect });
-assert.deepEqual(switchOutbound.map((outbound) => outbound.kind), ["host"]);
-assert.deepEqual(switchOutbound[0]?.message, {
+const firstSelect = media.buildSelectMonitorOutbound({ rect: switchRect, virtualRect }, { key, salt });
+assert.deepEqual(
+  firstSelect.map((outbound) => outbound.kind),
+  ["signal", "host"],
+  "首个 select-monitor 出站顺序 = 先 media-open 信令、后 MediaSwitch",
+);
+assert.deepEqual(firstSelect[0]?.message, { type: "media-open", key, salt }, "media-open 载荷与会话 key/salt 同源");
+assert.equal(shared.remoteDesktopSignalMessageSchema.safeParse(firstSelect[0]?.message).success, true, "media-open 过契约 D");
+assert.deepEqual(firstSelect[1]?.message, {
   type: "remote-desktop-media-switch",
   rect: switchRect,
   virtualRect,
 });
-assert.equal(mainMirror.remoteDesktopMessageToHostSchema.safeParse(switchOutbound[0]?.message).success, true, "MediaSwitch 过 main 侧契约 F");
-assert.equal(hostMirror.remoteDesktopMessageToHostSchema.safeParse(switchOutbound[0]?.message).success, true, "MediaSwitch 过 host 侧契约 F（镜像一致）");
+assert.equal(mainMirror.remoteDesktopMessageToHostSchema.safeParse(firstSelect[1]?.message).success, true, "MediaSwitch 过 main 侧契约 F");
+// 换屏：只有 MediaSwitch——重复 media-open 会让主控重建媒体会话（coordinator 以 mediaOpenSent 约束）。
+const switchOnly = media.buildSelectMonitorOutbound({ rect: switchRect, virtualRect });
+assert.deepEqual(switchOnly.map((outbound) => outbound.kind), ["host"]);
+assert.deepEqual(switchOnly[0]?.message, {
+  type: "remote-desktop-media-switch",
+  rect: switchRect,
+  virtualRect,
+});
+assert.equal(hostMirror.remoteDesktopMessageToHostSchema.safeParse(switchOnly[0]?.message).success, true, "MediaSwitch 过 host 侧契约 F（镜像一致）");
 const failedOutbound = media.buildSelectMonitorOutbound(null);
 assert.deepEqual(failedOutbound.map((outbound) => outbound.kind), ["signal"]);
 assert.deepEqual(failedOutbound[0]?.message, { type: "error", code: "internal", message: "unknown monitor" });

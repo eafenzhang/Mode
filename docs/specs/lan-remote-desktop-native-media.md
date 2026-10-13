@@ -65,7 +65,8 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 - **保留**：`hello{protocolVersion:2}`、`monitors`、`select-monitor`、`bye`、`error`。
 - **删除**：`offer`、`answer`、`ice`（WebRTC 消费者随媒体面移除）。
 - **新增**：
-  - `media-open{key, salt}`（被控 → 主控，同意后发出）：`key`/`salt` 十六进制；
+  - `media-open{key, salt}`（被控 → 主控，随**首个 `select-monitor` 的应答**下发——此时
+  主控信令 WS 已 attach，信号不会被「无会话连接」丢弃，见事件顺序 ③）：`key`/`salt` 十六进制；
   - `mediaUrl`（连接地址 + mediaTicket）不走信令：由主控 host 从 POST 响应拼出，
   经 `rdStartSession` 返回值直达 renderer（被控 host 不知道自身对外可达地址）。
   - `freeze{reason:"locked"|"access-lost"}` / `unfreeze`（被控 → 主控，DUPL 丢失/恢复时），复用既有「锁屏画面冻结 + 提示，解锁恢复」语义与文案。
@@ -127,13 +128,18 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 ## 事件顺序
 
 ```text
-① 同意前（与现网一致）：hello(v2) → capability 门 → monitors → select-monitor
-② 同意通过（被控 coordinator）：
-   生成 key/salt → host：签发 mediaTicket（POST 响应内既有 ticket 字段旁新增）
-   → 信令下行 media-open{key,salt}（mediaUrl 已经 rdStartSession 直达主控 renderer）
-   → broker rd_media_start{monitor, endpoint, key, salt} → helper 连中继口、起 DUPL+MF
-③ 主控 renderer 收 media-open → 连 media WS（mediaTicket）→ 上行 {t:"ready"}
-   → helper 开始推流：帧 → 加密 → 管道 → 中继 → WS → renderer 解密 → 解码 → 画
+① 会话请求与同意（POST）：主控 host 代发（设备令牌）→ 被控 host 校验令牌/能力位
+   → 被控 main 同意（已记住直通；拒绝/超时 → 稳定错误码）→ 信令 ticket 与媒体 mediaTicket
+   随 POST 响应一并签发（主 spec 事件顺序 ② 不变）
+② 同意通过（被控 coordinator）：生成 key/salt → MediaStart（broker
+   rd_media_start{monitor, endpoint, key, salt}）→ helper 连中继口、起 DUPL+MF
+   （主控 ready 前只采集不推流）
+③ 信令（WS attach 后）：主控 hello(v2) → 被控 monitors → 主控 select-monitor
+   → 被控回 media-open{key,salt}（首个 select-monitor 的应答；media-open 不得早于 WS
+   attach 下发——同意时刻信令 WS 尚未建立，会被被控 host 按无会话连接丢弃，主控将永远
+   拿不到 key/salt、媒体 WS 永不建立）
+   → 主控 renderer 连 media WS（mediaTicket；mediaUrl 已经 rdStartSession 直达）
+   → 上行 {t:"ready"} → helper 开始推流：帧 → 加密 → 管道 → 中继 → WS → renderer 解密 → 解码 → 画
 ④ 输入：InputCapture → media WS 上行 → host → broker raw_input → helper 注入（既有）
    RTT：ping → host 即回 pong（不经 helper）
 ⑤ 锁屏：DUPL ACCESS_LOST → 状态事件 → 信令 freeze → renderer 显示既有冻结提示；

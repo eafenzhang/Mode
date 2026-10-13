@@ -39,8 +39,11 @@ export function buildMediaStatusOutbound(
 }
 
 /**
- * start-capture 出站序列（spec 事件顺序 ②：先信令后启动——media-open 先把 key/salt 交给主控，
- * MediaStart 才拉起 helper 采集，主控解密就绪才收得住帧）。
+ * start-capture 出站序列：仅 MediaStart（broker rd_media_start 拉起 helper 采集）。
+ * media-open 信令**不在此下发**：同意时刻主控信令 WS 尚未 attach（ticket 随同意后的 POST
+ * 响应才签发），会被被控 host 按「无会话连接」静默丢弃，主控永远拿不到 key/salt、媒体 WS
+ * 永不建立（画面永不出根因）。改为首个 select-monitor 应答时经已 attach 的信令 WS 下发
+ * （见 buildSelectMonitorOutbound）。key/salt 仍随 MediaStart 交给 helper 做逐帧加密。
  * rect/virtualRect（Task 14 fix round 1）：采集区域显示器物理矩形 + 虚拟屏 union 矩形，
  * host 侧据此把 renderer 的归一化输入坐标换算为 VIRTUALDESK 绝对坐标。
  */
@@ -51,7 +54,6 @@ export function buildStartCaptureOutbound(input: {
   salt: string;
 }): RemoteDesktopMediaOutbound[] {
   return [
-    { kind: "signal", message: { type: "media-open", key: input.key, salt: input.salt } },
     {
       kind: "host",
       message: {
@@ -66,25 +68,34 @@ export function buildStartCaptureOutbound(input: {
 }
 
 /**
- * select-monitor 出站：rect 解析失败 → error{internal} 信令；成功 → MediaSwitch 消息
- * （helper 换屏 + host 刷新输入换算基准——virtualRect 随换屏一并更新）。
+ * select-monitor 出站：rect 解析失败 → error{internal} 信令；成功 → [media-open（仅首个）]
+ * + MediaSwitch（helper 换屏 + host 刷新输入换算基准——virtualRect 随换屏一并更新）。
+ * mediaOpen 由 coordinator 仅在会话首个 select-monitor 传入：此时信令 WS 已 attach，
+ * media-open 不会被丢弃；后续换屏只发 MediaSwitch（重复 media-open 会让主控重建媒体会话）。
  */
 export function buildSelectMonitorOutbound(
   rects: { rect: RemoteDesktopMediaRect; virtualRect: RemoteDesktopMediaRect } | null,
+  mediaOpen?: { key: string; salt: string },
 ): RemoteDesktopMediaOutbound[] {
   if (!rects) {
     return [
       { kind: "signal", message: { type: "error", code: "internal", message: "unknown monitor" } },
     ];
   }
-  return [
-    {
-      kind: "host",
-      message: {
-        type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
-        rect: rects.rect,
-        virtualRect: rects.virtualRect,
-      },
+  const outbounds: RemoteDesktopMediaOutbound[] = [];
+  if (mediaOpen) {
+    outbounds.push({
+      kind: "signal",
+      message: { type: "media-open", key: mediaOpen.key, salt: mediaOpen.salt },
+    });
+  }
+  outbounds.push({
+    kind: "host",
+    message: {
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
+      rect: rects.rect,
+      virtualRect: rects.virtualRect,
     },
-  ];
+  });
+  return outbounds;
 }

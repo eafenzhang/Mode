@@ -5,8 +5,9 @@
  * 事件顺序（②③⑤⑥）在 main 侧的落点：
  *
  *   host ──ConsentRequest②──► 本模块 ──同意窗(60s)/已授权直通──► ConsentResult──► host（签发票据）
- *   start-capture ──► 本模块 ──media-open 信令(key/salt) + MediaStart──► host（rd_media 采集）
- *   host ──SignalFromHost③──► 本模块 ──hello→monitors / select-monitor→MediaSwitch──► host
+ *   start-capture ──► 本模块 ──MediaStart──► host（rd_media 起采集；主控 ready 前只采不推）
+ *   host ──SignalFromHost③──► 本模块 ──hello→monitors / select-monitor→media-open 信令(仅首个)
+ *                                         + MediaSwitch──► host
  *   host ──MediaStatus──────► 本模块 ──freeze/unfreeze（reason 归一后）──► 对端（指示条生命周期不受影响）
  *   host ──SessionClosed⑥───► 本模块 ──closeSession(reason) 单出口──► MediaStop + 撤销指示 + 清会话材料
  *   输入：主控 renderer ──media WS 上行──► 被控 host（raw_input 注入不经 main，见
@@ -72,6 +73,11 @@ interface CoordinatorRuntime {
   /** 本会话媒体密钥/盐（与 media-open 信令同源下发给 host；解密材料不落日志）。 */
   mediaKey: string | null;
   mediaSalt: string | null;
+  /**
+   * 本会话 media-open 是否已下发：只在首个 select-monitor 应答时发一次（此时信令 WS 已
+   * attach，不会被「无会话连接」丢弃）；后续换屏重复下发会让主控重建媒体会话。
+   */
+  mediaOpenSent: boolean;
   closing: boolean;
   listeners: Set<(state: RemoteDesktopSessionState) => void>;
 }
@@ -236,6 +242,7 @@ export async function closeSession(reason: RemoteDesktopSessionCloseReason): Pro
     // 媒体密钥随会话销毁：不跨会话复用（字符串无法原地清零，只保证不留引用）。
     runtimeState.mediaKey = null;
     runtimeState.mediaSalt = null;
+    runtimeState.mediaOpenSent = false;
     runtimeState.pendingDisplayRect = null;
     setState(runtimeState, reduceRemoteDesktopSession(runtimeState.state, { type: "cleanup-done" }).state);
   } finally {
@@ -309,13 +316,15 @@ async function applyAction(runtimeState: CoordinatorRuntime, action: RemoteDeskt
       runtimeState.indicatorWindow = null;
       return;
     case "start-capture": {
-      // P2 原生媒体面开流：生成本会话 key/salt 后按规划序列发出（顺序契约在 mediaCoordination：
-      // 先 media-open 信令、后 MediaStart，spec 事件顺序 ②）。
+      // P2 原生媒体面开流：生成本会话 key/salt 后仅下发 MediaStart（helper 起采集；
+      // 主控 ready 前只采集不推流）。media-open 信令改在首个 select-monitor 应答时下发
+      // （见 handleSignalFromHost）——同意时刻信令 WS 未 attach，信令会被丢弃。
       // key/salt 是解密材料：只随消息下发，不落日志（仓库日志纪律）。
       const key = randomBytes(32).toString("hex");
       const salt = randomBytes(8).toString("hex");
       runtimeState.mediaKey = key;
       runtimeState.mediaSalt = salt;
+      runtimeState.mediaOpenSent = false;
       const rect = runtimeState.pendingDisplayRect ?? FALLBACK_MEDIA_RECT;
       dispatchOutbounds(
         buildStartCaptureOutbound({
@@ -405,15 +414,27 @@ async function handleSignalFromHost(message: RemoteDesktopSignalMessage): Promis
   }
   if (message.type === "select-monitor") {
     // P2 原生媒体面：displayId → 物理 rect 解析后按规划路由（失败 → error{internal}；
-    // 成功 → MediaSwitch，helper 换屏 + host 刷新输入换算基准）。规划本体在 mediaCoordination
-    // （纯函数，单测锁行为）；虚拟屏 union 矩形与 rect 同时现算（换屏/热插拔后立即生效）。
+    // 成功 → [media-open（仅首个）] + MediaSwitch，helper 换屏 + host 刷新输入换算基准）。
+    // media-open 经本分支下发而非同意时刻：select-monitor 只能经已 attach 的信令 WS 到达，
+    // 此刻下发保证不被被控 host 按无会话连接丢弃（key/salt 即主控媒体解密的唯一来源）。
+    // 规划本体在 mediaCoordination（纯函数，单测锁行为）；虚拟屏 union 矩形与 rect 同时现算。
     const rect = resolvePhysicalRect(message.displayId);
     if (!rect) {
       runtimeState.logger.warn(`[remote-desktop] unknown monitor displayId: ${message.displayId}`);
     }
+    const key = runtimeState.mediaKey;
+    const salt = runtimeState.mediaSalt;
+    const mediaOpen =
+      rect && !runtimeState.mediaOpenSent && key && salt ? { key, salt } : undefined;
     dispatchOutbounds(
-      buildSelectMonitorOutbound(rect ? { rect, virtualRect: readVirtualRect(runtimeState, rect) } : null),
+      buildSelectMonitorOutbound(
+        rect ? { rect, virtualRect: readVirtualRect(runtimeState, rect) } : null,
+        mediaOpen,
+      ),
     );
+    if (mediaOpen) {
+      runtimeState.mediaOpenSent = true;
+    }
     return;
   }
   if (message.type === "bye") {
@@ -457,6 +478,7 @@ export function initializeRemoteDesktopSessionCoordinator(options: {
     pendingDisplayRect: null,
     mediaKey: null,
     mediaSalt: null,
+    mediaOpenSent: false,
     closing: false,
     listeners: new Set(),
   };
