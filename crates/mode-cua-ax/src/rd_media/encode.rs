@@ -46,7 +46,8 @@ use windows::Win32::Graphics::Dxgi::Common::{
 use windows::Win32::Media::MediaFoundation::{
   eAVEncH264VProfile, eAVEncH264VProfile_Base, eAVEncH264VProfile_Main,
   CODECAPI_AVEncCommonMeanBitRate, CODECAPI_AVEncCommonRealTime,
-  CODECAPI_AVEncMPVDefaultBPictureCount, CODECAPI_AVEncVideoForceKeyFrame, ICodecAPI,
+  CODECAPI_AVEncMPVDefaultBPictureCount, CODECAPI_AVEncVideoForceKeyFrame,
+  CODECAPI_AVLowLatencyMode, ICodecAPI,
   IMFDXGIDeviceManager, IMFMediaEventGenerator, MFCreateDXGIDeviceManager,
   MFCreateDXGISurfaceBuffer, MFCreateMemoryBuffer, MFCreateMediaType, MFCreateSample,
   MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MF_E_TRANSFORM_TYPE_NOT_SET,
@@ -1100,7 +1101,10 @@ fn set_codec_media_types(
 }
 
 /// 低延迟 / 免丢帧的编码参数（`ICodecAPI`；逐项尽力而为，单项失败只提示不失败）：
-/// - `AVEncCommonRealTime=TRUE`：实时模式提示（时延优先，允许驱动按时延取舍）；
+/// - `AVEncCommonRealTime=TRUE`：实时模式提示（时延优先，允许驱动按时延取舍）——
+///   多数硬件驱动拒收该键（本机 AMD 实测拒收，仅提示不失败）；
+/// - `AVLowLatencyMode=TRUE`（Win8+，2026-10-13 补）：硬件编码器的**权威低时延开关**
+///   （禁 lookahead/流水缓冲类优化），与 RealTime 互补——前者被拒时它是主抓手；
 /// - `AVEncMPVDefaultBPictureCount=0`：显式禁 B 帧（Main/High 下保持输入输出 1:1
 ///   配对与最低延迟；Baseline 本无 B 帧，接受或忽略均无害）。
 ///
@@ -1114,6 +1118,9 @@ fn apply_codec_api(mf: &IMFTransform) -> Option<ICodecAPI> {
   };
   if !set(&CODECAPI_AVEncCommonRealTime, VARIANT::from(true)) {
     warn("编码器拒绝实时模式提示（继续）");
+  }
+  if !set(&CODECAPI_AVLowLatencyMode, VARIANT::from(true)) {
+    warn("编码器拒绝低延迟模式（继续）");
   }
   if !set(&CODECAPI_AVEncMPVDefaultBPictureCount, VARIANT::from(0u32)) {
     warn("编码器拒绝 B 帧数设置（继续）");
