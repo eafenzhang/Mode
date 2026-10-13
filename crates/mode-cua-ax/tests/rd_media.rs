@@ -72,13 +72,15 @@ fn hardware_h264_encoder_builds_with_async_unlock() {
   // 首次 SetInputType 报 MF_E_TRANSFORM_ASYNC_LOCKED (0xC00D6D77)；漏解锁的现象是
   // 远程桌面会话连上但画面永远不出。激活后未置 MF_TRANSFORM_ASYNC_UNLOCK 时本用例变红。
   let Some(device) = mode_cua_ax::rd_media::capture::create_device_for_tests() else {
-    // 无 D3D 设备（无桌面会话的 CI）：按环境能力缺失跳过。
+    // 无 D3D 设备或设备无 VP 能力（基础显示适配器/无桌面会话的 CI）：环境能力缺失，跳过。
     return;
   };
   match mode_cua_ax::rd_media::encode::Encoder::new(&device, 1920, 1080, 60, 8_000_000) {
     Ok(_encoder) => {}
     // 环境根本没有硬件 H.264 编码器（CI 无 GPU 自适应）：能力面缺失，跳过。
     Err(error) if error.message.contains("无可用硬件 H.264 编码器") => {}
+    // 枚举调用本身在受限环境失败：同属能力缺失，跳过。
+    Err(error) if error.message.contains("MFTEnumEx(硬件 H.264) 失败") => {}
     Err(error) => panic!("硬件 H.264 编码器应可配置（异步 MFT 必须先解锁）: {error}"),
   }
 }

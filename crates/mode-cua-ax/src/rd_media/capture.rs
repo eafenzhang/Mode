@@ -994,11 +994,14 @@ impl DuplicationOutput {
   }
 }
 
-/// 契约测试缝（`tests/rd_media.rs`）：创建 D3D11 设备（HARDWARE→WARP 回退）。
-/// 用途 = 验证硬件 H.264 编码器配置（异步 MFT 解锁回归）；无可用设备时返回 None，
-/// 测试按环境能力缺失跳过而非失败。
+/// 契约测试缝（`tests/rd_media.rs`）：创建 D3D11 设备（HARDWARE→WARP 回退），
+/// 且要求设备实现 `ID3D11VideoDevice`（编码链的 Video Processor 能力）。
+/// 用途 = 验证硬件 H.264 编码器配置（异步 MFT 解锁回归）；无可用设备或设备无 VP
+/// 能力（基础显示适配器/纯软渲染环境）时返回 None，测试按环境能力缺失跳过而非失败。
 pub fn create_device_for_tests() -> Option<ID3D11Device> {
-  create_device().ok().map(|(device, _)| device)
+  let (device, _) = create_device().ok()?;
+  device.cast::<ID3D11VideoDevice>().ok()?;
+  Some(device)
 }
 
 /// 契约测试缝（GPU 光标合成的驱动验证，P0-2b）：仅硬件 D3D11 设备 + context，
