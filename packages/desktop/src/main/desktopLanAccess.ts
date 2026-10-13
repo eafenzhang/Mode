@@ -377,8 +377,16 @@ export function registerLanAccessIpcHandlers(options: {
   });
 }
 
-/** host 退出时清掉它的 owner 标记与在途请求，避免把旧结果写给新宿主。 */
+/**
+ * host 退出时清掉它的 owner 标记与在途请求，避免把旧结果写给新宿主。
+ * 只有「当前 owner」的退出才失败在途请求（三种请求都只发给 owner）：失败掉后
+ * 调用方拿到「宿主进程已退出」而非干等 8s 超时——宿主的消失不该被误报成「请求超时」。
+ */
 export function forgetLanAccessHost(label: string): void {
+  if (ownerLabel !== label) {
+    return;
+  }
+  ownerLabel = null;
   for (const [requestId, pending] of pendingPairRequests) {
     // 宿主退出时把在途配对请求一次性失败掉，避免 UI 一直转圈。
     pending.resolve({
@@ -389,7 +397,19 @@ export function forgetLanAccessHost(label: string): void {
     });
     pendingPairRequests.delete(requestId);
   }
-  if (ownerLabel === label) {
-    ownerLabel = null;
+  for (const [requestId, pending] of pendingRequests) {
+    // 状态类请求同样一次性失败（resolve 走 !ok 分支把错误透给调用方）。
+    pending.resolve({
+      type: HostResponseTypes.LanAccessStateResult,
+      requestId,
+      ok: false,
+      error: "宿主进程已退出",
+      state: null,
+    });
+    pendingRequests.delete(requestId);
+  }
+  for (const [requestId, pending] of pendingLanPeerOps) {
+    pending.reject(new Error("宿主进程已退出"));
+    pendingLanPeerOps.delete(requestId);
   }
 }

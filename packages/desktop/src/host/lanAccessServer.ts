@@ -191,6 +191,24 @@ export async function writeLanAccessClientRecords(
   await credentials.save(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY, JSON.stringify(records));
 }
 
+/**
+ * 监听未开启时的状态快照（纯读取，不依赖服务端在跑）：
+ * clients 从凭据读取——配对记录与逐设备授权是持久化事实，监听开关只管「现在能不能连进来」。
+ * 设置页「已配对设备」单列表消费这份快照（spec: docs/specs/lan-paired-devices.md）；
+ * port/addresses/pairCode 为空（生成配对码/移除/重置等动作仍需要服务端）。
+ */
+export async function readDisabledLanAccessState(
+  credentials: ICredentialService,
+): Promise<LanAccessState> {
+  return {
+    enabled: false,
+    port: null,
+    addresses: [],
+    pairCode: null,
+    clients: await readLanAccessClientRecords(credentials),
+  };
+}
+
 export async function startLanAccessServer(
   params: StartLanAccessServerParams,
 ): Promise<LanAccessServerHandle> {

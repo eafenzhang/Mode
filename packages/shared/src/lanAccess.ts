@@ -81,6 +81,11 @@ export interface LanAccessClientRecord {
   lastUsedAt: number | null;
   /** 该设备最近在本机打开过的工作区目录；老记录/从未打开时为 undefined，UI 显示「尚无」。 */
   lastWorkspacePath?: string | null;
+  /**
+   * 远程桌面逐设备授权（同意窗「记住此设备」/ 设置页开关写同一字段）：
+   * 缺键 = 未授权（旧数据向后兼容），下次连接重新弹同意窗。
+   */
+  remoteDesktopAuthorized?: boolean;
 }
 
 /** 配对码（服务端设置卡展示，客户端输入）。 */
@@ -97,6 +102,9 @@ export const lanAccessClientRecordSchema = z
     lastUsedAt: z.number().int().nonnegative().nullable(),
     // 可选以兼容改名前/未录制过的老记录。
     lastWorkspacePath: z.string().min(1).nullable().optional(),
+    // strict schema 必须声明 host 记录会携带的全部字段：漏声明会让 main 的
+    // hostResponseMessageSchema 整条拒收 lan-access-state-result（UI 表现为 8s 超时）。
+    remoteDesktopAuthorized: z.boolean().optional(),
   })
   .strict();
 

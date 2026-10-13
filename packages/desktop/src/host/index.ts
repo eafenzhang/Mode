@@ -66,7 +66,11 @@ import {
   type OffPeakRequestAuthBuilder,
 } from "@mode/services/node";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
-import { startLanAccessServer, type LanAccessServerHandle } from "./lanAccessServer.js";
+import {
+  readDisabledLanAccessState,
+  startLanAccessServer,
+  type LanAccessServerHandle,
+} from "./lanAccessServer.js";
 import {
   createRemoteDesktopHostServer,
   parseRemoteDesktopMessageToHost,
@@ -2504,12 +2508,27 @@ async function handleLanAccessMessage(
         return;
       }
       await stopLanAccess();
-      reply(true, disabledLanAccessState());
+      // 关开关后仍回配对记录（读凭据）：设置页「已配对设备」单列表不随监听开关消失
+      // （spec: docs/specs/lan-paired-devices.md「契约：LanAccessClientRecord 与状态读取」）。
+      const credentials = services.getOptional(ICredentialService);
+      reply(
+        true,
+        credentials ? await readDisabledLanAccessState(credentials) : disabledLanAccessState(),
+      );
       return;
     }
 
     if (msg.type === HostMessageTypes.LanAccessGetState) {
-      reply(true, activeLanAccess ? activeLanAccess.getState() : disabledLanAccessState());
+      if (activeLanAccess) {
+        reply(true, activeLanAccess.getState());
+        return;
+      }
+      // 服务端未在跑：clients 从凭据读取（配对记录是持久化事实），port/addresses/pairCode 为空。
+      const credentials = services.getOptional(ICredentialService);
+      reply(
+        true,
+        credentials ? await readDisabledLanAccessState(credentials) : disabledLanAccessState(),
+      );
       return;
     }
 
