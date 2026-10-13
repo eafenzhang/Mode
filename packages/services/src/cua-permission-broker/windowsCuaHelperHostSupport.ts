@@ -1,4 +1,5 @@
 import { fork as nodeFork, type ForkOptions } from "node:child_process";
+import type { Readable } from "node:stream";
 
 import {
   mintBrokerSocketPath,
@@ -17,6 +18,12 @@ export const ADDON_ENV = HELPER_ADDON_ENV;
 
 export interface WindowsCuaChild {
   readonly pid?: number;
+  /**
+   * `fork({silent:true})` 后可读的子进程流；stdio 继承路径（测试假件/旧适配）为
+   * null/undefined——中继函数对空流空操作。
+   */
+  readonly stderr?: Readable | null;
+  readonly stdout?: Readable | null;
   send(message: unknown): boolean;
   kill(): boolean;
   on(event: "message" | "error" | "exit", listener: (...args: unknown[]) => void): this;
@@ -63,6 +70,52 @@ export const defaultChildProcess: WindowsCuaChildProcessAdapter = {
 export const defaultSocketPathFactory = mintBrokerSocketPath;
 export const defaultHealthProbe = (socketPath: string, timeoutMs: number): Promise<HelperHealth> =>
   probeHelperHealth(socketPath, { timeoutMs });
+
+/**
+ * helper 子进程 stderr/stdout 接线（spec: lan-remote-desktop-native-media 失败语义
+ * 「helper 侧 `[rd_media]` 运行告警必须接入主日志」）：Rust `warn()` 走 stderr eprintln，
+ * 此前 stdio 继承下打包态无消费者、日志零落点（2026-10-13 排查实证）。按行中继：
+ * - 含 `[rd_media]` 的行 → **warn 落盘**（GPU 合成回退/形状渲染失败等运行期降级，生产可见）；
+ * - 其余 stderr 行 → debug（高频/开发诊断，按日志纪律不进生产盘）；
+ * - stdout 仅排空（helper 契约走 IPC fork channel，内容不消费；不读会写满管道阻塞子进程）。
+ * 行缓冲跨 chunk 拼接（`\r\n` 归一），流为 null（继承路径/假件）时空操作。
+ */
+export function relayHelperChildStdio(
+  child: WindowsCuaChild,
+  logger: ServiceLogger,
+  context: { generation: number },
+): void {
+  const pid = child.pid;
+  child.stdout?.resume();
+  const stderr = child.stderr;
+  if (!stderr) return;
+  stderr.setEncoding?.("utf8");
+  const emit = (line: string): void => {
+    const trimmed = line.replace(/\r$/u, "").trimEnd();
+    if (!trimmed) return;
+    const meta = { source: "cua-helper-stderr", generation: context.generation, pid };
+    if (trimmed.includes("[rd_media]")) {
+      logger.warn(undefined, trimmed, meta);
+    } else {
+      logger.debug(undefined, trimmed, meta);
+    }
+  };
+  let pending = "";
+  stderr.on("data", (chunk: string | Buffer) => {
+    pending += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    let idx = pending.indexOf("\n");
+    while (idx >= 0) {
+      emit(pending.slice(0, idx));
+      pending = pending.slice(idx + 1);
+      idx = pending.indexOf("\n");
+    }
+  });
+  // 进程退出前的无换行尾行不丢（eprintln 恒带 \n，这里只兜异常截断）。
+  stderr.on("end", () => {
+    if (pending) emit(pending);
+    pending = "";
+  });
+}
 
 export class WindowsCuaChildLifecycle {
   constructor(private readonly logger: ServiceLogger) {}

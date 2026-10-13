@@ -18,6 +18,7 @@ import {
   defaultSocketPathFactory,
   isExactHealthPid,
   parseReadyMessage,
+  relayHelperChildStdio,
   type Generation,
   type WindowsCuaChild,
   type WindowsCuaChildProcessAdapter,
@@ -323,6 +324,10 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
           [ADDON_ENV]: this.options.runtime.addonPath,
           ELECTRON_RUN_AS_NODE: "1",
         },
+        // silent：stderr/stdout 走管道由 relayHelperChildStdio 按行中继进主日志
+        //（`[rd_media]` 运行告警必须落盘，spec: lan-remote-desktop-native-media 失败语义）；
+        // stdout 同时被排空，避免不读管道写满阻塞子进程。
+        silent: true,
       });
     } catch (error) {
       const startupError = asError(error);
@@ -331,6 +336,8 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
       this.childLifecycle.logFailure(id, undefined, "fork", startupError);
       return Promise.reject(startupError);
     }
+    // stdio 中继紧跟 fork 挂上：ready 之前的早期 stderr（addon 装载失败等）也不丢。
+    relayHelperChildStdio(child, this.logger, { generation: id });
 
     return new Promise<CuaHelperHandle>((resolve, reject) => {
       let settled = false;
