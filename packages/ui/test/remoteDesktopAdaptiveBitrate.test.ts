@@ -102,3 +102,53 @@ test("画质档位自定义两档（P1-3）：降/升都落在档位区间，不
   const clamped = initialAdaptiveBitrateState(3_000_000, 9_000_000);
   assert.equal(clamped.lowBps, 3_000_000);
 });
+
+// ---- 动态降档（spec: native-media「画质档位」动态降档 2026-10-13）----
+const {
+  nextLowerQuality,
+  stepQualityDownshift,
+  INITIAL_QUALITY_DOWNSHIFT_STATE,
+} = await import("../src/remote-desktop/adaptiveBitrate.js");
+
+test("降档链：sharp → balanced → smooth → null（只降不升）", () => {
+  assert.equal(nextLowerQuality("sharp"), "balanced");
+  assert.equal(nextLowerQuality("balanced"), "smooth");
+  assert.equal(nextLowerQuality("smooth"), null, "最低档无处可降");
+});
+
+test("动态降档：连 2 窗拥塞（丢帧≥3 且 rtt≥120）才触发；单维度异常不算", () => {
+  const t0 = 2_000_000;
+  // 丢帧够但 RTT 正常 → 不触发（先交给码率两档）。
+  let s = INITIAL_QUALITY_DOWNSHIFT_STATE;
+  let r = stepQualityDownshift(s, { rttMs: 30, droppedFrames: 5 }, t0);
+  assert.equal(r.downshift, false);
+  assert.equal(r.state.congestedStreak, 0, "非拥塞窗清零计数");
+  // RTT 高但无丢帧 → 不触发。
+  r = stepQualityDownshift(r.state, { rttMs: 200, droppedFrames: 0 }, t0 + 3_000);
+  assert.equal(r.downshift, false);
+  // 双维度拥塞：第 1 窗只计数，第 2 窗触发。
+  r = stepQualityDownshift(r.state, { rttMs: 150, droppedFrames: 4 }, t0 + 6_000);
+  assert.equal(r.downshift, false, "第 1 窗只计数");
+  assert.equal(r.state.congestedStreak, 1);
+  r = stepQualityDownshift(r.state, { rttMs: 150, droppedFrames: 4 }, t0 + 9_000);
+  assert.equal(r.downshift, true, "第 2 窗触发降档");
+  assert.equal(r.state.lastDownshiftAt, t0 + 9_000);
+  assert.equal(r.state.congestedStreak, 0);
+});
+
+test("动态降档：冷却期内不重复触发；rtt 未测得（null）不算拥塞", () => {
+  const t0 = 3_000_000;
+  let r = stepQualityDownshift(INITIAL_QUALITY_DOWNSHIFT_STATE, { rttMs: null, droppedFrames: 9 }, t0);
+  assert.equal(r.downshift, false, "rtt null 不算拥塞");
+  // 触发一次后进入冷却：冷却内连续拥塞不触发。
+  let s = { congestedStreak: 1, lastDownshiftAt: null };
+  r = stepQualityDownshift(s, { rttMs: 180, droppedFrames: 5 }, t0);
+  assert.equal(r.downshift, true);
+  s = r.state;
+  r = stepQualityDownshift(s, { rttMs: 180, droppedFrames: 5 }, t0 + 3_000);
+  r = stepQualityDownshift(r.state, { rttMs: 180, droppedFrames: 5 }, t0 + 6_000);
+  assert.equal(r.downshift, false, "30s 冷却内不重复触发");
+  // 冷却过后（≥30s）仍拥塞 → 可再降一档。
+  r = stepQualityDownshift(r.state, { rttMs: 180, droppedFrames: 5 }, t0 + 33_000);
+  assert.equal(r.downshift, true, "冷却过后可再降");
+});

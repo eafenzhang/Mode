@@ -1,3 +1,5 @@
+/* oxlint-disable eslint(max-lines) -- 会话生命周期/自适应码率/改档与动态降档编排集中一处：
+   拆分会让 bye+重连、媒体抑制位、判重键的收口路径散化到多文件，漏一条就是半开会话。 */
 /**
  * 主控远程桌面会话（信令 + 原生媒体面 + 输入上行 + 统计）。
  *
@@ -27,7 +29,11 @@ import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./Inpu
 import { createNativeMediaSession, probeHevcDecodeSupport, type NativeMediaSession } from "./nativeMediaSession.js";
 import {
   initialAdaptiveBitrateState,
+  nextLowerQuality,
   stepAdaptiveBitrate,
+  stepQualityDownshift,
+  INITIAL_QUALITY_DOWNSHIFT_STATE,
+  type QualityDownshiftState,
 } from "./adaptiveBitrate.js";
 import {
   createSessionReconnectController,
@@ -74,6 +80,8 @@ export function useRemoteDesktopSession(options: {
   serverId: string;
   /** 画质档位（P1-3）：随会话请求下发给被控；缺省 = 被控默认档。 */
   quality?: RemoteDesktopQuality;
+  /** 档位变化回写（手动改档与自动降档共用一条路径——页级记忆）。 */
+  onQualityChanged?: (quality: RemoteDesktopQuality) => void;
 }): UseRemoteDesktopSessionResult {
   const { serverId, quality } = options;
   const platform = usePlatform();
@@ -111,8 +119,13 @@ export function useRemoteDesktopSession(options: {
   // connected 推送，握手停在等 monitors）。
   const qualityRef = useRef(quality);
   qualityRef.current = quality;
+  // options 的最新快照（onQualityChanged 等回调经 ref 消费，不重建闭包/不进 effect 依赖）。
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
   // 会话级重连编排器（P2-1）：挂载 effect 内创建，switchQuality 经 ref 调用。
   const reconnectControllerRef = useRef<SessionReconnectController | null>(null);
+  // 动态降档判定状态（spec 画质档位·动态降档）：改档重建（手动/自动）即复位。
+  const qualityDownshiftRef = useRef<QualityDownshiftState>(INITIAL_QUALITY_DOWNSHIFT_STATE);
   // 编码 codec 偏好（HEVC 选型 2026-10-13）：每挂载预检一次本机解码能力并缓存——
   // 首连/重连/改档共用；unsupported → h264。预检失败（异常）按不支持处理。
   const codecPrefRef = useRef<RemoteDesktopCodec | null>(null);
@@ -402,15 +415,32 @@ export function useRemoteDesktopSession(options: {
           sessionRef.current?.setClockOffset(detail.hostTs - detail.ts - rttMs / 2);
         }
         // 自适应码率判定（与 RTT 同拍；丢弃数取自上拍以来累计，采样后清零）。
+        const dropped = droppedSinceAdaptiveSample.current;
         const outcome = stepAdaptiveBitrate(
           adaptiveRef.current,
-          { rttMs, droppedFrames: droppedSinceAdaptiveSample.current },
+          { rttMs, droppedFrames: dropped },
           Date.now(),
         );
         adaptiveRef.current = outcome.state;
         droppedSinceAdaptiveSample.current = 0;
         if (outcome.nextBps !== null) {
           sessionRef.current?.send({ t: "set-bitrate", bps: outcome.nextBps });
+        }
+        // 动态降档（spec 画质档位·动态降档 2026-10-13）：低档码率仍持续拥塞 →
+        // 自动以更低画质档重建会话（复用改档重建链路；pong 只在媒体存活时到达，
+        // 重连/收口期间天然不触发）。switchQuality 经 ref 调用（本 effect deps 为空）。
+        const downshift = stepQualityDownshift(
+          qualityDownshiftRef.current,
+          { rttMs, droppedFrames: dropped },
+          Date.now(),
+        );
+        qualityDownshiftRef.current = downshift.state;
+        if (downshift.downshift) {
+          const lower = qualityRef.current ? nextLowerQuality(qualityRef.current) : null;
+          if (lower) {
+            logger.info(`[remote-desktop] 持续拥塞自动降档 → ${lower}`);
+            void switchQualityRef.current(lower);
+          }
         }
         return;
       }
@@ -474,10 +504,14 @@ export function useRemoteDesktopSession(options: {
         return;
       }
       qualityRef.current = next;
-      // 自适应两档改绑新预设（重建会话后高低码率区间随档位走），丢帧窗口清零。
+      // 页级记忆回写（手动改档与自动降档共用一条路径）。
+      optionsRef.current.onQualityChanged?.(next);
+      // 自适应两档改绑新预设（重建会话后高低码率区间随档位走），丢帧窗口与
+      // 降档判定状态一并复位（新档从零评估，不在旧拥塞结论上叠加）。
       const preset = REMOTE_DESKTOP_QUALITY_PRESETS[next];
       adaptiveRef.current = initialAdaptiveBitrateState(preset.bitrateBps, preset.minBitrateBps);
       droppedSinceAdaptiveSample.current = 0;
+      qualityDownshiftRef.current = INITIAL_QUALITY_DOWNSHIFT_STATE;
       // 先进入重连编排：mediaStatus=reconnecting 把紧随其后的本地 closed 事件遮成
       // 「正在恢复」（避免关闭态闪层），首档尝试在 250ms 后——届时 bye 已过一个 RTT、
       // 被控释放 busy；仍撞 busy 走既有退避（90s 窗口内同设备免二次同意）。
@@ -486,6 +520,9 @@ export function useRemoteDesktopSession(options: {
     },
     [platform],
   );
+  // pong 采样的降档分支经 ref 调用（媒体控制 effect deps 为空，直引会困在首帧闭包）。
+  const switchQualityRef = useRef(switchQuality);
+  switchQualityRef.current = switchQuality;
 
   const disconnect = useCallback(() => {
     dispatchRef.current({ type: "local-end" });

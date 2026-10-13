@@ -72,7 +72,8 @@ export function RemoteDesktopSession({
 }) {
   const { intl } = useModeIntl();
   const { view, stats, containerRef, canvasRef, selectMonitor, disconnect, switchQuality } =
-    useRemoteDesktopSession({ serverId, quality });
+    // 页级记忆回写走 hook 的 onQualityChanged（手动改档与自动降档共用）。
+    useRemoteDesktopSession({ serverId, quality, onQualityChanged: onQualityChange });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // 工具条交互后把焦点还给画面：否则键盘输入会留在按钮/下拉上，打不到对端。
@@ -169,9 +170,8 @@ export function RemoteDesktopSession({
             value={quality}
             disabled={view.phase !== "connected" || view.mediaStatus === "reconnecting"}
             onValueChange={(next) => {
-              const nextQuality = next as RemoteDesktopQuality;
-              onQualityChange(nextQuality);
-              void switchQuality(nextQuality);
+              // 页级记忆回写由 hook 内部经 onQualityChanged 完成；此处只发起重建。
+              void switchQuality(next as RemoteDesktopQuality);
               refocusContainer();
             }}
           >
