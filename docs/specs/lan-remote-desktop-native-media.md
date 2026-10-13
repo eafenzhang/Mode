@@ -187,7 +187,15 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
    拿不到 key/salt、媒体 WS 永不建立）
    → 主控 renderer 连 media WS（mediaTicket；mediaUrl 已经 rdStartSession 直达）
    → 上行 {t:"ready"} → helper 开始推流：帧 → 加密 → 管道 → 中继 → WS → renderer 解密 → 解码 → 画
-④ 输入：InputCapture → media WS 上行 → host → broker raw_input → helper 注入（既有）
+   select-monitor 是**会话级**握手（2026-10-13 修复）：media-open 的 key/salt 逐会话生成、
+   不跨会话复用——会话重建（改档、断线全会话重连）后新会话的 monitors 到达时，主控必须
+   **重发一次 select-monitor**（即便用户选择的显示器未变），否则被控不会下发新会话的
+   media-open，主控媒体面永不重建（画面冻结在旧帧、输入失效）。同会话内重复 monitors
+   仍不重发（状态机以「会话级欠账」标记区分两种场景）。
+④ 输入：InputCapture（即时发送，不在主控排队）→ media WS 上行 → host **同 tick 合批**
+   （pointer 0ms 聚合、control 即时 flush 且先出已缓冲的 pointer 保持同帧先后）→ **逐帧
+   串行**注入 broker raw_input（同一时刻至多一帧在途，保证绝对坐标事件不乱序——乱序会
+   表现为光标回跳）→ helper 注入（既有）
    RTT：ping → host 即回 pong（不经 helper）
 ⑤ 锁屏：DUPL ACCESS_LOST → 状态事件 → 信令 freeze → renderer 显示既有冻结提示；
    恢复 → unfreeze + 强制 IDR

@@ -57,7 +57,7 @@ import {
 import {
   convertControlEvent,
   convertPointerEvent,
-  splitRemoteDesktopInjectFrames,
+  createRemoteDesktopInjectBatcher,
   toRemoteDesktopPxRect,
   type RemoteDesktopPxRect,
 } from "./inputConversion.js";
@@ -234,12 +234,14 @@ export function createRemoteDesktopHostServer(options: {
       }
       const pointer = remoteDesktopPointerEventSchema.safeParse(event);
       if (pointer.success) {
-        injectFrames(convertPointerEvent(pointer.data, rects.monitor, rects.virtual));
+        // 合批（spec 事件顺序 ④）：pointer 进 0ms 聚合窗口同 tick 合并，不再逐事件一条管道连接。
+        injectBatcher.enqueuePointer(convertPointerEvent(pointer.data, rects.monitor, rects.virtual));
         return;
       }
       const control = remoteDesktopControlEventSchema.safeParse(event);
       if (control.success) {
-        injectFrames(convertControlEvent(control.data, rects.monitor, rects.virtual));
+        // control 即时 flush（缓冲的 pointer 先出，保持同帧先后）。
+        injectBatcher.enqueueControl(convertControlEvent(control.data, rects.monitor, rects.virtual));
         return;
       }
       dropMediaInput("not a control/pointer event");
@@ -440,6 +442,8 @@ export function createRemoteDesktopHostServer(options: {
     clearPendingSocket();
     // 会话收口：中继口、helper 连接与媒体 WS 一并释放（close 幂等；下一次会话 listen 重开随机口）。
     mediaRelay.close();
+    // 输入合批缓冲随会话清空：残留的未 flush 输入不补发（避免结束后的输入落到下一会话）。
+    injectBatcher.reset();
     // 输入换算基准随会话销毁：下一会话必须由新的 MediaStart 重新建立（不跨会话复用旧显示器几何）。
     inputRects = null;
   };
@@ -610,6 +614,12 @@ export function createRemoteDesktopHostServer(options: {
     };
   };
 
+  /**
+   * 注入串行链（2026-10-13 修复，spec 事件顺序 ④）：绝对坐标事件跨帧乱序会表现为
+   * 光标回跳——每帧注入（独立 broker 管道连接）必须等上一帧完成后再发起，
+   * 同一时刻至多一帧在途。失败只计数不断链（catch 后链继续）。
+   */
+  let injectChain: Promise<void> = Promise.resolve();
   const inject = (events: RemoteDesktopRawInputEvent[]): void => {
     if (!activeSession) {
       return;
@@ -620,24 +630,30 @@ export function createRemoteDesktopHostServer(options: {
       logger.warn(`[remote-desktop] inject frame truncated: ${events.length} → ${bounded.length}`);
     }
     const send = options.injectRawInput ?? defaultInject;
-    void send(bounded).catch((error: unknown) => {
-      injectDroppedFrames += 1;
-      logger.warn(
-        `[remote-desktop] inject dropped (${bounded.length} events, total frames dropped=${injectDroppedFrames}):`,
-        error instanceof Error ? error.message : error,
-      );
-    });
+    injectChain = injectChain
+      .then(async () => {
+        // 返回值（dispatched 计数）不参与链：链只表达「上一帧注入完成后才发起下一帧」。
+        await send(bounded);
+      })
+      .catch((error: unknown) => {
+        injectDroppedFrames += 1;
+        logger.warn(
+          `[remote-desktop] inject dropped (${bounded.length} events, total frames dropped=${injectDroppedFrames}):`,
+          error instanceof Error ? error.message : error,
+        );
+      });
   };
 
   /**
-   * 换算结果按 ≤512 拆帧后逐帧交给注入端口（fix round 1 逐条换算：单条上行事件最多产 2 条
-   * raw 事件，帧拆分是端口上限的兜底——口径与 Rust MAX_RAW_INPUT_EVENTS 一致）。
+   * 输入合批器（spec 事件顺序 ④）：pointer 进 0ms 聚合窗口同 tick 合并（≤512 立即 flush
+   * 兜底），control 即时 flush 且先出缓冲的 pointer 保持同帧先后；帧经上面的串行链注入。
    */
-  const injectFrames = (raw: RemoteDesktopRawInputEvent[]): void => {
-    for (const frame of splitRemoteDesktopInjectFrames(raw)) {
-      inject(frame);
-    }
-  };
+  const injectBatcher = createRemoteDesktopInjectBatcher({
+    now: Date.now,
+    schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+    cancel: (timer) => clearTimeout(timer),
+    onFrame: (frame) => inject(frame),
+  });
 
   /** 上行输入丢弃（畸形 / 换算基准未就绪）：计数 + 首个 warn（60fps 输入面不逐条刷屏）。 */
   const dropMediaInput = (reason: string): void => {

@@ -77,6 +77,8 @@ test("重复 monitors 不重发 select-monitor（保持用户已选显示器）"
     phase: "connected",
     monitors: MONITORS,
     selectedDisplayId: "display-2",
+    // 同会话内已发过 select-monitor（media-open 已到）：重复 monitors 只刷新列表不重发。
+    selectSentForSession: true,
   };
   const { state, effects } = reduce(selected, {
     type: "controller",
@@ -84,6 +86,46 @@ test("重复 monitors 不重发 select-monitor（保持用户已选显示器）"
   });
   assert.equal(state.selectedDisplayId, "display-2");
   assert.deepEqual(effects, []);
+});
+
+test("会话重建（connecting 后）重复显示器列表重发 select-monitor（media-open 逐会话）", () => {
+  // 2026-10-13 实机缺陷：改档/断线全重建走 bye → 重 POST，新会话的 media-open 仍只随
+  // select-monitor 应答下发——但旧状态保留 selectedDisplayId，若不重发，主控永远拿不到
+  // 新会话 key/salt，画面冻结在旧帧（spec 事件顺序 ③ 会话级握手）。
+  const midSession = {
+    ...INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE,
+    phase: "connected" as const,
+    monitors: MONITORS,
+    selectedDisplayId: "display-2",
+    selectSentForSession: true,
+    mediaOpenReceived: true,
+  };
+  // 重建：closed → connecting（重置会话级欠账）→ connected → monitors（同列表）。
+  const closed = reduce(midSession, {
+    type: "controller",
+    event: { kind: "state", state: "closed" },
+  }).state;
+  const reconnecting = reduce(closed, {
+    type: "controller",
+    event: { kind: "state", state: "connecting" },
+  }).state;
+  assert.equal(reconnecting.selectSentForSession, false, "connecting 必须清会话级欠账");
+  assert.equal(reconnecting.mediaOpenReceived, false, "media-open 属新会话，不得继承");
+  const reconnected = reduce(reconnecting, {
+    type: "controller",
+    event: { kind: "state", state: "connected" },
+  }).state;
+  const { state, effects } = reduce(reconnected, {
+    type: "controller",
+    event: { kind: "signal", message: { type: "monitors", monitors: MONITORS } },
+  });
+  assert.equal(state.selectedDisplayId, "display-2", "记住用户选择的显示器");
+  assert.equal(state.selectSentForSession, true);
+  assert.deepEqual(
+    effects,
+    [{ kind: "signal", message: { type: "select-monitor", displayId: "display-2" } }],
+    "新会话必须对记住的显示器重发 select-monitor（否则拿不到本会话 media-open）",
+  );
 });
 
 test("切换显示器只发 select-monitor：未知显示器与重复选择都不动作", () => {

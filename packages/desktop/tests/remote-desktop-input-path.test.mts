@@ -69,6 +69,10 @@ async function runInputPathCase(): Promise<void> {
   const injectedFrames: unknown[][] = [];
   const warns: string[] = [];
   const posted: Array<{ type?: string }> = [];
+  // 串行保序观测（2026-10-13）：注入端口模拟往返延迟，记录同时在途的帧数——
+  // fire-and-forget 并发注入会 >1（乱序风险），串行链必须恒为 1。
+  let injectInFlight = 0;
+  let maxInjectInFlight = 0;
   const host = createRemoteDesktopHostServer({
     credentials: {
       load: async (key: string) => (key === "remote-desktop:server-enabled" ? "1" : "[]"),
@@ -85,7 +89,11 @@ async function runInputPathCase(): Promise<void> {
     },
     // 注入端口测试替身：记录每帧（缺省实现会直连 broker socket，测试环境不可达）。
     injectRawInput: async (events) => {
+      injectInFlight += 1;
+      maxInjectInFlight = Math.max(maxInjectInFlight, injectInFlight);
+      await sleep(15); // 模拟注入往返：并发注入时在途帧数会 >1。
       injectedFrames.push(events as unknown[]);
+      injectInFlight -= 1;
       return { dispatched: events.length };
     },
     getActiveLanAccessServer: () =>
@@ -197,6 +205,70 @@ async function runInputPathCase(): Promise<void> {
     injectedFrames[beforeInvalid],
     [{ k: "move", x: 32759, y: 65535 }],
     "换屏后按新 monitor rect 换算（32759 = 副屏右缘落在虚拟桌面中轴左侧）",
+  );
+
+  // ⑥b 同 tick 合批（2026-10-13 注入乱序修复，spec 事件顺序 ④）：同一事件循环 tick 内的
+  // 多条 pointer/control 合并为一帧下发（pointer 先缓冲、control 即 flush 并带上缓冲），
+  // 不再每事件一条独立管道连接。坐标基准 = ⑥ MediaSwitch 后的左侧副屏（虚拟桌面 union）。
+  const beforeCoalesce = injectedFrames.length;
+  upstream({ t: "pm", x: 0.5, y: 0.5 });
+  upstream({ t: "pm", x: 0.5, y: 0.5 });
+  upstream({ t: "pm", x: 0.5, y: 0.5 });
+  await waitFor(() => injectedFrames.length >= beforeCoalesce + 1, "同 tick 合批注入");
+  await sleep(30);
+  assert.equal(
+    injectedFrames.length,
+    beforeCoalesce + 1,
+    "同 tick 三条 pointer 合并为一帧（不逐条注入）",
+  );
+  assert.deepEqual(
+    injectedFrames[beforeCoalesce],
+    [
+      { k: "move", x: 16379, y: 32768 },
+      { k: "move", x: 16379, y: 32768 },
+      { k: "move", x: 16379, y: 32768 },
+    ],
+    "合批帧内保持先后顺序（副屏中轴 → 虚拟桌面中轴左侧）",
+  );
+
+  // ⑥c control 即时 flush 且带上同 tick 缓冲的 pointer（先 pointer 后 control）。
+  const beforeMixed = injectedFrames.length;
+  upstream({ t: "pm", x: 0.5, y: 0.5 });
+  upstream({ t: "md", button: "left", x: 0.5, y: 0.5 });
+  await waitFor(() => injectedFrames.length >= beforeMixed + 1, "混合合批注入");
+  await sleep(30);
+  assert.equal(
+    injectedFrames.length,
+    beforeMixed + 1,
+    "同 tick pointer+control 合并为一帧（control 即时触发 flush）",
+  );
+  assert.deepEqual(
+    injectedFrames[beforeMixed],
+    [
+      { k: "move", x: 16379, y: 32768 },
+      { k: "button", button: "left", down: true, x: 16379, y: 32768 },
+    ],
+    "帧内先 pointer 后 control（保持同帧先后）",
+  );
+
+  // ⑥d 串行保序：注入端口有往返延迟时，同一时刻至多一帧在途——绝对坐标事件
+  // 跨帧乱序会表现为光标回跳（fire-and-forget 并发注入在途帧数会 >1）。
+  const beforeSerial = injectedFrames.length;
+  upstream({ t: "md", button: "left", x: 0.1, y: 0.1 });
+  await sleep(5); // 第一帧注入中（端口延迟 15ms）
+  upstream({ t: "mu", button: "left", x: 0.1, y: 0.1 });
+  await waitFor(() => injectedFrames.length >= beforeSerial + 2, "串行注入两帧完成");
+  await sleep(30);
+  assert.equal(
+    injectedFrames.length,
+    beforeSerial + 2,
+    "两次 control 分两帧（跨 tick 不合批）",
+  );
+  assert.equal(maxInjectInFlight, 1, "注入端口同一时刻至多一帧在途（串行保序）");
+  assert.ok(
+    injectedFrames[beforeSerial + 1]?.[0] !== undefined &&
+      JSON.stringify(injectedFrames[beforeSerial + 1]).includes('"button"'),
+    "第二帧仍是 button 事件（顺序未因串行化丢失）",
   );
 
   // ⑦ 丢帧 warn 纪律：只在首个丢弃时 warn（60fps 输入面不逐条刷屏）。

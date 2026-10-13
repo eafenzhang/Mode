@@ -43,6 +43,13 @@ export interface RemoteDesktopSessionViewState {
   monitors: RemoteDesktopMonitor[];
   /** 已选择的显示器（首帧起为对端主屏；切换只发信令，不重建会话）。 */
   selectedDisplayId: string | null;
+  /**
+   * 本会话是否已发过 select-monitor（会话级欠账，2026-10-13 修复）：media-open 的
+   * key/salt 逐会话生成、只随首个 select-monitor 应答下发——会话重建（改档/断线全重建）
+   * 后即便显示器未变也必须重发，否则新会话媒体面永不建立（画面冻结在旧帧）。
+   * connecting 迁移清零；发出 select-monitor（自动或用户切换）置位。
+   */
+  selectSentForSession: boolean;
   /** 已收到 media-open（原生媒体面信令已到，下一步连 media WS；用于连接中提示）。 */
   mediaOpenReceived: boolean;
   /** 对端画面冻结（锁屏 / 失去访问权限）：freeze/unfreeze 写入；reconnecting 重连时清除。 */
@@ -56,6 +63,7 @@ export const INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE: RemoteDesktopSessionView
   mediaStatus: "idle",
   monitors: [],
   selectedDisplayId: null,
+  selectSentForSession: false,
   mediaOpenReceived: false,
   frozen: false,
 };
@@ -137,12 +145,15 @@ function applyControllerState(
   }
   // connecting：start-session 重试时重置上一轮归因；frozen 一并清除——新会话的冻结状态
   // 只能由新一轮 freeze 信令写入，不能继承上一轮（Resolution：与 mediaStatus 同列重置）。
+  // selectSentForSession 同列清零：media-open 逐会话生成，新会话必须重发 select-monitor
+  // 才能拿到本会话 key/salt（改档/断线全重建 2026-10-13 实机缺陷）。
   return transition(state, {
     phase: "connecting",
     closeKind: null,
     errorCode: null,
     mediaStatus: "idle",
     mediaOpenReceived: false,
+    selectSentForSession: false,
     frozen: false,
   });
 }
@@ -162,10 +173,15 @@ function applyControllerSignal(
       const selectedDisplayId = keepSelected
         ? state.selectedDisplayId
         : pickInitialMonitor(message.monitors);
-      const shouldSelect = !keepSelected && selectedDisplayId !== null;
+      // 会话级欠账：本会话还没发过 select-monitor（首连、或重建后 connecting 已清零）时
+      // 必须发——media-open 只随首个 select-monitor 应答下发，漏发即新会话媒体面永不建立。
+      // 已选显示器从列表消失（keepSelected=false）同样要重发（对齐旧语义：改选须通知对端）；
+      // 仅同会话内重复 monitors 且选择未变时不重发。
+      const shouldSelect =
+        selectedDisplayId !== null && (!state.selectSentForSession || !keepSelected);
       return transition(
         state,
-        { monitors: message.monitors, selectedDisplayId },
+        { monitors: message.monitors, selectedDisplayId, ...(shouldSelect ? { selectSentForSession: true } : {}) },
         shouldSelect
           ? [{ kind: "signal", message: { type: "select-monitor", displayId: selectedDisplayId } }]
           : [],
@@ -217,7 +233,7 @@ export function reduceRemoteDesktopSession(
       if (state.selectedDisplayId === event.displayId) {
         return transition(state, {});
       }
-      return transition(state, { selectedDisplayId: event.displayId }, [
+      return transition(state, { selectedDisplayId: event.displayId, selectSentForSession: true }, [
         { kind: "signal", message: { type: "select-monitor", displayId: event.displayId } },
       ]);
     }
