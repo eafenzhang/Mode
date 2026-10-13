@@ -20,7 +20,7 @@ use std::ffi::c_void;
 use std::mem::ManuallyDrop;
 use std::time::{Duration, Instant};
 
-use windows::Win32::Foundation::{BOOL, FALSE, RECT, TRUE};
+use windows::Win32::Foundation::{BOOL, FALSE, POINT, RECT, TRUE};
 use windows::Win32::Graphics::Direct3D11::{
   ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D, D3D11_BIND_FLAG,
   D3D11_BIND_RENDER_TARGET, D3D11_BIND_SHADER_RESOURCE, D3D11_BOX,
@@ -39,6 +39,10 @@ use windows::Win32::Graphics::Direct3D11::{
 use windows::Win32::Graphics::Direct3D::{
   D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP, D3D_FEATURE_LEVEL_11_0,
 };
+use windows::Win32::Graphics::Gdi::{
+  CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO,
+  BITMAPINFOHEADER, DIB_RGB_COLORS, HBITMAP, HDC, HGDIOBJ,
+};
 use windows::Win32::Graphics::Dxgi::{
   CreateDXGIFactory1, DXGI_ERROR_ACCESS_LOST, DXGI_ERROR_WAIT_TIMEOUT,
   DXGI_OUTDUPL_FRAME_INFO, DXGI_OUTDUPL_POINTER_SHAPE_INFO,
@@ -50,6 +54,9 @@ use windows::Win32::Graphics::Dxgi::Common::{
   DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_RATIONAL, DXGI_SAMPLE_DESC,
 };
 use windows::core::{Interface, Result as WResult};
+use windows::Win32::UI::WindowsAndMessaging::{
+  CURSORINFO, CURSOR_SHOWING, GetCursorInfo, GetIconInfo, HCURSOR, ICONINFO,
+};
 
 use crate::error::{AxError, AxResult};
 
@@ -64,6 +71,14 @@ struct ShapeCache {
   buffer_size: u32,
   /// 渲染栅格（形状变更时计算一次；渲染失败为 None → 该形状周期内不打补丁）。
   raster: Option<CursorShapeRaster>,
+}
+
+/// user32 兜底的形状身份缓存（DUPL 零投递时启用）：按 HCURSOR 句柄命中则跳过
+/// GetIconInfo/GetDIBits（那两个有 GDI 分配，形状低频才重建）——位置/可见性恒每帧采。
+struct User32ShapeCache {
+  handle: usize,
+  /// 快照判重键（与 DUPL 的 `buffer_size` 同维度：形状身份变化 → 快照不等 → 重合成）。
+  key: u32,
 }
 
 /// 指针状态快照（合成判重键）：位置 + 生效形状键 + 可见性。
@@ -102,12 +117,16 @@ pub struct CursorPatch {
   pub rgba: Vec<u8>,
 }
 
-/// 形状渲染结果：BGRA 像素 + 每像素可见性掩码（1=光标实体，0=透明、露出背景）。
+/// 形状渲染结果：BGRA 像素、每像素可见性掩码（1=光标实体，0=透明、露出背景）与
+/// XOR 掩码（1 = MASKED_COLOR 的 0xFF 位：必须与**背景**异或后落笔。
+/// GPU 双流覆盖层只表达 alpha 混合，表达不了 XOR——含 XOR 的形状由调用方
+/// 整形状走 CPU 补丁路径，`xor` 只被 `blend_cursor_patch` 消费）。
 pub struct CursorShapeRaster {
   pub w: u32,
   pub h: u32,
   pub bgra: Vec<u8>,
   pub visible: Vec<u8>,
+  pub xor: Vec<u8>,
 }
 
 /// 单色光标（`PointerShapeType == 1`）：1bpp 位图、高度翻倍——前半 AND 掩码
@@ -139,11 +158,14 @@ fn render_monochrome(w: u32, h: u32, pitch: u32, data: &[u8]) -> AxResult<Cursor
       visible[y * w as usize + x] = 1;
     }
   }
-  Ok(CursorShapeRaster { w, h, bgra, visible })
+  // 单色形状无 XOR 语义（XOR 半按普通黑白绘制——GDI 单色口径，既有行为保留）。
+  Ok(CursorShapeRaster { w, h, bgra, visible, xor: vec![0u8; (w * h) as usize] })
 }
 
-/// 颜色光标（`PointerShapeType == 2`）：BGRA 位图直接拷贝（alpha 统一 255——
-/// 补丁是不透明覆盖，混合语义交给 visible 掩码）。
+/// 颜色光标（`PointerShapeType == 2`）：官方语义 = **32bpp ARGB，alpha 通道即形状**。
+/// 2026-10-13 修正：此前强推 alpha=255 + 全可见，会把带透明通道的光标画成不透明色块
+/// （实机光标位图 alpha 分布 880 透明/67 半透明/77 不透明——alpha 就是箭头形状）。
+/// 无 alpha 信息的位图源不走此路径（user32 兜底对这类源用 AND 掩码求可见性）。
 fn render_color(w: u32, h: u32, pitch: u32, data: &[u8]) -> AxResult<CursorShapeRaster> {
   let need = (pitch as usize).checked_mul(h as usize)
     .ok_or_else(|| AxError::internal("光标形状尺寸溢出"))?;
@@ -151,50 +173,86 @@ fn render_color(w: u32, h: u32, pitch: u32, data: &[u8]) -> AxResult<CursorShape
     return Err(AxError::internal("光标形状缓冲不足（颜色）"));
   }
   let mut bgra = vec![0u8; (w * h * 4) as usize];
+  let mut visible = vec![0u8; (w * h) as usize];
   for y in 0..h as usize {
     let row = &data[y * pitch as usize..];
     for x in 0..w as usize {
       let src = &row[x * 4..x * 4 + 4];
       let i = (y * w as usize + x) * 4;
-      bgra[i..i + 4].copy_from_slice(&[src[0], src[1], src[2], 255]);
+      bgra[i..i + 4].copy_from_slice(src); // 保留真实 alpha（overlay/补丁混合都消费它）
+      visible[y * w as usize + x] = u8::from(src[3] > 0);
     }
   }
-  let visible = vec![1u8; (w * h) as usize];
-  Ok(CursorShapeRaster { w, h, bgra, visible })
+  Ok(CursorShapeRaster { w, h, bgra, visible, xor: vec![0u8; (w * h) as usize] })
 }
 
-/// 掩码颜色光标（`PointerShapeType == 4`）：前部 BGRA 颜色（pitch 行距）+ 尾部
-/// 1bpp AND 掩码（行距按 4 字节对齐）。AND=1 → 透明。
+/// 掩码颜色光标（`PointerShapeType == 4`）：官方语义 = **32bpp ARGB、alpha 位即掩码**
+/// （仅允许 0/0xFF：0=RGB 替换屏幕像素、0xFF=RGB 与屏幕像素 XOR），**没有尾随 1bpp 掩码**。
+/// 2026-10-13 修正：此前按「颜色位图 + 尾随 AND 掩码」解析，长度校验对真实缓冲必失败
+/// → 该形状整体跳过 = 光标不可见（MSDN 原文「a 32 bpp ARGB format bitmap with the
+/// mask value in the alpha bits」）。非 0/0xFF 的非法中间值宽容按替换处理。
 fn render_masked_color(
   w: u32,
   h: u32,
   pitch: u32,
   data: &[u8],
 ) -> AxResult<CursorShapeRaster> {
-  let color_len = (pitch as usize).checked_mul(h as usize)
+  let need = (pitch as usize).checked_mul(h as usize)
     .ok_or_else(|| AxError::internal("光标形状尺寸溢出"))?;
-  let mask_stride = (w as usize).div_ceil(32) * 4;
-  let need = color_len + mask_stride * h as usize;
   if data.len() < need {
     return Err(AxError::internal("光标形状缓冲不足（掩码颜色）"));
   }
-  let mut bgra = vec![0u8; (w * h * 4) as usize];
-  let mut visible = vec![0u8; (w * h) as usize];
+  let pixels = (w * h) as usize;
+  let mut bgra = vec![0u8; pixels * 4];
+  // 掩码语义（0 替换 / 0xFF XOR）都要落笔：可见性恒 1，掩码位拆进 `xor`。
+  let visible = vec![1u8; pixels];
+  let mut xor = vec![0u8; pixels];
   for y in 0..h as usize {
     let row = &data[y * pitch as usize..];
-    let and_row = &data[color_len + y * mask_stride..];
     for x in 0..w as usize {
-      let bit = 7 - (x % 8);
-      if (and_row[x / 8] >> bit) & 1 == 1 {
-        continue; // AND=1 → 透明
-      }
       let src = &row[x * 4..x * 4 + 4];
       let i = (y * w as usize + x) * 4;
       bgra[i..i + 4].copy_from_slice(&[src[0], src[1], src[2], 255]);
-      visible[y * w as usize + x] = 1;
+      if src[3] == 0xFF {
+        xor[y * w as usize + x] = 1;
+      }
     }
   }
-  Ok(CursorShapeRaster { w, h, bgra, visible })
+  Ok(CursorShapeRaster { w, h, bgra, visible, xor })
+}
+
+/// 无 alpha 的颜色光标位图 + 1bpp AND 掩码（GetIconInfo 经典布局）→ 栅格。
+/// AND=1 → 透明；其余按不透明替换（GDI 经典颜色光标无 XOR 语义）。
+/// `mask_pitch` = 1bpp 行距（DIB 恒 4 字节对齐 = `div_ceil(32)*4`）。纯函数，单测覆盖。
+fn render_color_with_mask(
+  w: u32,
+  h: u32,
+  pitch: u32,
+  bgra_data: &[u8],
+  mask: &[u8],
+  mask_pitch: u32,
+) -> AxResult<CursorShapeRaster> {
+  let need = (pitch as usize).checked_mul(h as usize);
+  let mask_need = (mask_pitch as usize).checked_mul(h as usize);
+  if need.is_none_or(|n| bgra_data.len() < n) || mask_need.is_none_or(|n| mask.len() < n) {
+    return Err(AxError::internal("光标颜色位图/掩码缓冲不足"));
+  }
+  let mask_stride = mask_pitch as usize;
+  let pixels = (w * h) as usize;
+  let mut bgra = vec![0u8; pixels * 4];
+  let mut visible = vec![0u8; pixels];
+  for y in 0..h as usize {
+    let row = &bgra_data[y * pitch as usize..];
+    let and_row = &mask[y * mask_stride..];
+    for x in 0..w as usize {
+      let src = &row[x * 4..x * 4 + 4];
+      let i = (y * w as usize + x) * 4;
+      bgra[i..i + 4].copy_from_slice(&[src[0], src[1], src[2], 255]);
+      let bit = 7 - (x % 8);
+      visible[y * w as usize + x] = u8::from(((and_row[x / 8] >> bit) & 1) == 0);
+    }
+  }
+  Ok(CursorShapeRaster { w, h, bgra, visible, xor: vec![0u8; pixels] })
 }
 
 /// 把 `GetFramePointerShape` 的原始形状渲染为 BGRA + 可见性掩码（**纯函数**，
@@ -215,6 +273,7 @@ pub fn render_cursor_shape(
       h: 0,
       bgra: Vec::new(),
       visible: Vec::new(),
+      xor: Vec::new(),
     });
   }
   if shape_type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME.0 as u32 {
@@ -236,8 +295,186 @@ pub fn render_cursor_shape(
       render_masked_color(width, height, pitch, data)
     }
   } else {
-    Ok(CursorShapeRaster { w: 0, h: 0, bgra: Vec::new(), visible: Vec::new() })
+    Ok(CursorShapeRaster { w: 0, h: 0, bgra: Vec::new(), visible: Vec::new(), xor: Vec::new() })
   }
+}
+
+/// user32 形状快照键（与 DUPL `buffer_size` 同维度的身份折叠）：HCURSOR 是系统光标
+/// 身份，叠加栅格尺寸与长度防不同句柄折叠值撞车（撞车后果 = 快照误判"形状未变"，
+/// 下一个不同形状仍会因句柄重建触发——最坏一次陈旧形状，不阻塞恢复）。
+fn user32_shape_key(handle: usize, raster: &CursorShapeRaster) -> u32 {
+  (handle as u32)
+    ^ ((handle as u64 >> 32) as u32)
+    ^ raster.w.rotate_left(8)
+    ^ raster.h.rotate_left(16)
+    ^ raster.bgra.len() as u32
+}
+
+/// 经 user32/GDI 读取光标形状（DUPL 零投递兜底的取字节层；仅 HCURSOR 变化时调用，
+/// 形状低频）。返回（热区, 栅格）。三分支：
+/// - 32bpp 颜色位图**有真 alpha** → COLOR 语义（alpha 即形状，见 `render_color`）；
+/// - 32bpp 颜色位图无 alpha → 经典「颜色 + AND 掩码」（`render_color_with_mask`）；
+/// - 无颜色位图（单色光标）→ 掩码位图 2 倍高 = AND+XOR 上下排，复用 MONOCHROME 布局。
+///
+/// 全部按 top-down DIB 取字节（`biHeight` 取负）；GDI 对象由守卫在退出时释放。
+fn read_user32_shape(cursor: HCURSOR) -> AxResult<((i32, i32), CursorShapeRaster)> {
+  let mut ii = ICONINFO::default();
+  // unsafe 依据（块级）：GetIconInfo 为 user32 FFI；出参槽位由本栈帧持有，位图句柄
+  // 所有权随 OwnedBitmap 守卫在本函数退出时 DeleteObject（含 Err 路径）。
+  unsafe { GetIconInfo(cursor, &mut ii) }
+    .map_err(|e| AxError::internal(format!("GetIconInfo 失败: {e}")))?;
+  struct OwnedBitmap(HBITMAP);
+  impl Drop for OwnedBitmap {
+    fn drop(&mut self) {
+      if self.0.is_invalid() {
+        return;
+      }
+      // unsafe 依据（块级）：DeleteObject 为 GDI FFI；句柄来自 GetIconInfo（本函数持有）。
+      let _ = unsafe { DeleteObject(HGDIOBJ(self.0.0)) };
+    }
+  }
+  let color = OwnedBitmap(ii.hbmColor);
+  let mask = OwnedBitmap(ii.hbmMask);
+  let hot = (ii.xHotspot as i32, ii.yHotspot as i32);
+  // unsafe 依据（块级）：CreateCompatibleDC 为 GDI FFI；DIB 读取只借 DC，读完即配对
+  // DeleteDC（下方无条件执行，无提前返回路径）。
+  let hdc = unsafe { CreateCompatibleDC(None) };
+  if hdc.is_invalid() {
+    return Err(AxError::internal("CreateCompatibleDC 失败"));
+  }
+  let raster = if !color.0.is_invalid() {
+    read_color_cursor_dib(hdc, color.0, mask.0)
+  } else {
+    read_monochrome_cursor_dib(hdc, mask.0)
+  };
+  // unsafe 依据（块级）：DeleteDC 为 GDI FFI；与上方 CreateCompatibleDC 配对。
+  let _ = unsafe { DeleteDC(hdc) };
+  Ok((hot, raster?))
+}
+
+/// 32bpp 颜色光标位图读取（top-down）：有真 alpha → COLOR；无 alpha → 颜色+AND 掩码。
+fn read_color_cursor_dib(hdc: HDC, color: HBITMAP, mask: HBITMAP) -> AxResult<CursorShapeRaster> {
+  let mut bm = BITMAP::default();
+  // unsafe 依据（块级）：GetObjectW 为 GDI FFI；出参槽位由本栈帧持有。
+  let got = unsafe {
+    GetObjectW(color, std::mem::size_of::<BITMAP>() as i32, Some(&mut bm as *mut _ as *mut c_void))
+  };
+  if got <= 0 {
+    return Err(AxError::internal("光标颜色位图 GetObjectW 失败"));
+  }
+  if bm.bmBitsPixel != 32 || bm.bmWidth <= 0 || bm.bmHeight <= 0 {
+    return Err(AxError::internal(format!(
+      "不支持的光标颜色位图（{}x{} {}bpp）",
+      bm.bmWidth, bm.bmHeight, bm.bmBitsPixel
+    )));
+  }
+  let (w, h) = (bm.bmWidth as u32, bm.bmHeight as u32);
+  let pitch = w * 4; // 32bpp 行距 DWORD 对齐 = w*4
+  let mut pixels = vec![0u8; (pitch * h) as usize];
+  let mut bi = BITMAPINFO {
+    bmiHeader: BITMAPINFOHEADER {
+      biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+      biWidth: bm.bmWidth,
+      biHeight: -bm.bmHeight, // top-down：缓冲首行 = 顶行
+      biPlanes: 1,
+      biBitCount: 32,
+      biCompression: 0,
+      ..Default::default()
+    },
+    ..Default::default()
+  };
+  // unsafe 依据（块级）：GetDIBits 为 GDI FFI；缓冲长度按 w*h*4 分配、行数 = h。
+  let lines = unsafe {
+    GetDIBits(
+      hdc,
+      color,
+      0,
+      h,
+      Some(pixels.as_mut_ptr() as *mut c_void),
+      &mut bi,
+      DIB_RGB_COLORS,
+    )
+  };
+  if lines <= 0 {
+    return Err(AxError::internal("光标颜色位图 GetDIBits 失败"));
+  }
+  if pixels.as_chunks::<4>().0.iter().any(|p| p[3] > 0) {
+    return render_color(w, h, pitch, &pixels);
+  }
+  // 无 alpha 信息（经典 GDI 颜色位图）：透明性由 AND 掩码表达。
+  if mask.is_invalid() {
+    // 极端情形（无掩码）：按全可见不透明（宁可画出实体也不整形状消失）。
+    let visible = vec![1u8; (w * h) as usize];
+    return Ok(CursorShapeRaster {
+      w,
+      h,
+      bgra: pixels,
+      visible,
+      xor: vec![0u8; (w * h) as usize],
+    });
+  }
+  let (mask_bits, mask_pitch) = read_mask_dib_1bpp_rows(hdc, mask, h)?;
+  render_color_with_mask(w, h, pitch, &pixels, &mask_bits, mask_pitch)
+}
+
+/// 单色光标：掩码位图 2 倍高（上半 AND、下半 XOR），复用 MONOCHROME 渲染（既有布局）。
+fn read_monochrome_cursor_dib(hdc: HDC, mask: HBITMAP) -> AxResult<CursorShapeRaster> {
+  if mask.is_invalid() {
+    return Err(AxError::internal("单色光标无掩码位图"));
+  }
+  let mut bm = BITMAP::default();
+  // unsafe 依据（块级）：GetObjectW 为 GDI FFI；出参槽位由本栈帧持有。
+  let got = unsafe {
+    GetObjectW(mask, std::mem::size_of::<BITMAP>() as i32, Some(&mut bm as *mut _ as *mut c_void))
+  };
+  if got <= 0 || bm.bmWidth <= 0 || bm.bmHeight <= 0 || bm.bmHeight % 2 != 0 {
+    return Err(AxError::internal("单色光标掩码位图尺寸非法"));
+  }
+  let (w, total_h) = (bm.bmWidth as u32, bm.bmHeight as u32);
+  let (bits, pitch) = read_mask_dib_1bpp_rows(hdc, mask, total_h)?;
+  render_cursor_shape(DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME.0 as u32, w, total_h, pitch, &bits)
+}
+
+/// 1bpp 位图 top-down 读取（DIB BI_RGB 行距恒 4 字节对齐 = `div_ceil(32)*4`）。
+fn read_mask_dib_1bpp_rows(hdc: HDC, hbm: HBITMAP, rows: u32) -> AxResult<(Vec<u8>, u32)> {
+  let mut bm = BITMAP::default();
+  // unsafe 依据（块级）：GetObjectW 为 GDI FFI；出参槽位由本栈帧持有。
+  let got = unsafe {
+    GetObjectW(hbm, std::mem::size_of::<BITMAP>() as i32, Some(&mut bm as *mut _ as *mut c_void))
+  };
+  if got <= 0 || bm.bmWidth <= 0 || bm.bmHeight <= 0 {
+    return Err(AxError::internal("掩码位图 GetObjectW 失败"));
+  }
+  let pitch = (bm.bmWidth as u32).div_ceil(32) * 4;
+  let mut bits = vec![0u8; (pitch * rows) as usize];
+  let mut bi = BITMAPINFO {
+    bmiHeader: BITMAPINFOHEADER {
+      biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+      biWidth: bm.bmWidth,
+      biHeight: -(rows as i32), // top-down
+      biPlanes: 1,
+      biBitCount: 1,
+      biCompression: 0,
+      ..Default::default()
+    },
+    ..Default::default()
+  };
+  // unsafe 依据（块级）：GetDIBits 为 GDI FFI；缓冲按 pitch*rows 分配、行数 = rows。
+  let lines = unsafe {
+    GetDIBits(
+      hdc,
+      hbm,
+      0,
+      rows,
+      Some(bits.as_mut_ptr() as *mut c_void),
+      &mut bi,
+      DIB_RGB_COLORS,
+    )
+  };
+  if lines <= 0 {
+    return Err(AxError::internal("掩码位图 GetDIBits 失败"));
+  }
+  Ok((bits, pitch))
 }
 
 /// `AcquireNextFrame` 成功后的 Release 守卫：除 `DXGI_ERROR_ACCESS_LOST` 外，
@@ -303,6 +540,8 @@ struct CursorRect {
 
 /// 光标覆盖层像素（纯函数）：可见 = 光标颜色（alpha 由渲染层保证 255），
 /// 不可见 = 全透明（0,0,0,0）——VP 的 per-pixel alpha 混合据此保留桌面背景。
+/// 注意：覆盖层**表达不了 XOR**（MASKED_COLOR 的 0xFF 掩码）——含 XOR 的形状在
+/// `next_frame` 被整形状定向到 CPU 补丁路径，不会走到这里（形状层已分流）。
 fn build_cursor_overlay(raster: &CursorShapeRaster) -> Vec<u8> {
   let pixels = (raster.w * raster.h) as usize;
   let mut out = Vec::with_capacity(pixels * 4);
@@ -320,6 +559,59 @@ fn build_cursor_overlay(raster: &CursorShapeRaster) -> Vec<u8> {
 struct CursorOverlay {
   _texture: ID3D11Texture2D,
   input_view: ID3D11VideoProcessorInputView,
+}
+
+/// CPU 补丁混合（纯函数，`cursor_blend_tests` 锁四分支）：把形状按几何叠到
+/// 补丁区域的背景上（`bg` = 背景矩形行优先 BGRA，长度 `rh*rw*4`，行距已是 `rw*4`——
+/// 调用方从 staging 逐行压紧后传入）。分支优先级：
+/// XOR（bg ^ color，MASKED_COLOR 0xFF 掩码）→ 真 alpha 混合（0<a<255，直通 alpha）
+/// → 替换（a==255 或无 alpha 信息）→ 保留背景（不可见/全透明）。
+/// 输出 alpha 通道不被下游消费（proc 随后转 NV12），恒置 255。
+fn blend_cursor_patch(
+  raster: &CursorShapeRaster,
+  sx: usize,
+  sy: usize,
+  rw: usize,
+  rh: usize,
+  bg: &[u8],
+) -> Vec<u8> {
+  let mut out = Vec::with_capacity(rw * rh * 4);
+  for r in 0..rh {
+    let bg_row = &bg[r * rw * 4..(r + 1) * rw * 4];
+    for c in 0..rw {
+      let si = (sy + r) * raster.w as usize + (sx + c);
+      let base = si * 4;
+      let pixel = &raster.bgra[base..base + 4];
+      let bg_px = &bg_row[c * 4..c * 4 + 4];
+      if raster.xor.get(si).copied().unwrap_or(0) == 1 {
+        // XOR 语义：RGB 与背景按位异或（α=0xFF 掩码的 0x00 位 → bg^0 = 保留背景）。
+        out.extend_from_slice(&[
+          bg_px[0] ^ pixel[0],
+          bg_px[1] ^ pixel[1],
+          bg_px[2] ^ pixel[2],
+          255,
+        ]);
+      } else if raster.visible[si] == 1 {
+        let a = pixel[3] as u32;
+        if a == 255 {
+          out.extend_from_slice(pixel);
+        } else if a == 0 {
+          out.extend_from_slice(bg_px);
+        } else {
+          // 直通 alpha 混合：src*a + bg*(255-a)（+127 四舍五入）。
+          out.extend_from_slice(&[
+            ((pixel[0] as u32 * a + bg_px[0] as u32 * (255 - a) + 127) / 255) as u8,
+            ((pixel[1] as u32 * a + bg_px[1] as u32 * (255 - a) + 127) / 255) as u8,
+            ((pixel[2] as u32 * a + bg_px[2] as u32 * (255 - a) + 127) / 255) as u8,
+            255,
+          ]);
+        }
+      } else {
+        out.extend_from_slice(bg_px);
+      }
+    }
+  }
+  out
 }
 
 /// GPU 双流合成管线（每个 DuplicationOutput 一个；创建失败 → 会话走 CPU 回退）。
@@ -577,6 +869,12 @@ pub struct DuplicationOutput {
   last_compose_at: Option<Instant>,
   /// GPU 光标合成管线（P0-2b）；`None` = 驱动不支持/运行中失败 → CPU 回读路径。
   compose: Option<ComposePipeline>,
+  /// DUPL 是否投递过光标形状：false（会话内从未投递）= 软件光标/虚拟显示环境
+  /// （IDD 虚拟屏、远控软件接管显示）——实机探针 200+ 次指针移动
+  /// `LastMouseUpdateTime`/`PointerShapeBufferSize` 恒 0，此时指针状态切 user32 兜底。
+  dupl_shape_seen: bool,
+  /// user32 兜底的形状句柄缓存（`None` = 尚未取到形状或该句柄取形失败）。
+  user32_shape: Option<User32ShapeCache>,
 }
 
 impl DuplicationOutput {
@@ -647,6 +945,8 @@ impl DuplicationOutput {
       last_composited: None,
       last_compose_at: None,
       compose,
+      dupl_shape_seen: false,
+      user32_shape: None,
     })
   }
 
@@ -689,22 +989,28 @@ impl DuplicationOutput {
     let _rel = FrameRelease(&dup);
     // 形状缓存：buffer_size=0 = 自上次以来形状未变（MS 样例口径），保留缓存不刷新。
     self.refresh_shape(&dup, info.PointerShapeBufferSize)?;
+    // 指针状态解析（每帧一次，合成与判重统一用它）：DUPL 权威；DUPL 零投递 → user32 兜底。
+    let snap = self.resolve_pointer(&info);
     let has_desktop_update = info.LastPresentTime != 0 || info.AccumulatedFrames != 0;
     if has_desktop_update {
       let res = resource.ok_or_else(|| AxError::internal("AcquireNextFrame 未返回桌面纹理"))?;
       let frame = res.cast::<ID3D11Texture2D>().map_err(|e| {
         AxError::internal(format!("桌面资源转 ID3D11Texture2D 失败: {e}"))
       })?;
-      // GPU 路径（P0-2b/P0-3）：主画面直接以采集帧纹理进 Blt（Blt 合成即产出 proc，
-      // 不再做第二个整帧拷贝）；clean 仍需一份底图（指针-only 重合成用），一次 CopyResource。
-      if self.compose.is_some() {
-        // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；clean/frame 同设备同尺寸同格式。
-        unsafe { self.ctx.CopyResource(&self.clean, &frame) };
-        self.clean_valid = true;
-        let source = frame.clone();
-        match self.compose_frame_gpu(&source, &info) {
+      // clean ← frame：CPU 路径（GPU 初始回退 / 运行时回退 / XOR 形状定向）的底图与
+      // 背景都从它来；GPU 成功路径同样保留（指针-only 重合成的源）。一次拷贝两路共用。
+      // （P0-3 曾把它收进 GPU 分支内——compose 初始即 None 的 CPU 回退会拿旧底图出帧，
+      // 桌面内容冻结；此处恢复为无条件拷贝。）
+      // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；clean/frame 同设备同尺寸同格式。
+      unsafe { self.ctx.CopyResource(&self.clean, &frame) };
+      self.clean_valid = true;
+      // GPU 路径（P0-2b/P0-3）：主画面直接以采集帧纹理进 Blt，省 frame→clean→proc 第二拷。
+      // 含 XOR 的形状（MASKED_COLOR 0xFF 掩码）双流覆盖层表达不了 → 定向走下方 CPU 补丁
+      //（按形状分流，非失败回退，不告警）。
+      if self.compose.is_some() && !self.shape_needs_cpu() {
+        match self.compose_frame_gpu(&frame, &snap) {
           Ok(()) => {
-            self.last_composited = Some(self.pointer_snapshot(&info));
+            self.last_composited = Some(snap);
             self.last_compose_at = Some(Instant::now());
             return Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor: None });
           }
@@ -714,13 +1020,11 @@ impl DuplicationOutput {
           }
         }
       }
-      // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；clean/proc/frame 同设备同尺寸
-      // （DUPL 帧恒 B8G8R8A8_UNORM 且与输出矩形一致，open 时已对齐）。
+      // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；clean/proc 同设备同尺寸同格式。
       unsafe { self.ctx.CopyResource(&self.proc, &self.clean) };
-      self.clean_valid = true;
       // 光标补丁（从 clean 回读背景 + 混合 + 写回 proc；无可见光标 → None）。
-      let cursor = self.build_cursor_patch(&info)?;
-      self.last_composited = Some(self.pointer_snapshot(&info));
+      let cursor = self.build_cursor_patch(&snap)?;
+      self.last_composited = Some(snap);
       self.last_compose_at = Some(Instant::now());
       return Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor });
     }
@@ -729,7 +1033,6 @@ impl DuplicationOutput {
     if !self.clean_valid {
       return Ok(CaptureFrame::Idle);
     }
-    let snap = self.pointer_snapshot(&info);
     if self.last_composited == Some(snap) {
       return Ok(CaptureFrame::Idle);
     }
@@ -742,10 +1045,11 @@ impl DuplicationOutput {
       }
     }
     // 以最近桌面内容重合成：擦掉上一帧烧入的旧光标，再按新指针状态合成。
-    // GPU 路径：Blt(clean + 光标覆盖层) 全幅写出 proc（无需预拷贝）；失败回退 CPU。
-    if self.compose.is_some() {
+    // GPU 路径：Blt(clean + 光标覆盖层) 全幅写出 proc（无需预拷贝）；失败回退 CPU；
+    // 含 XOR 的形状同样按下方 CPU 路径分流。
+    if self.compose.is_some() && !self.shape_needs_cpu() {
       let base = self.clean.clone();
-      let gpu = self.compose_frame_gpu(&base, &info);
+      let gpu = self.compose_frame_gpu(&base, &snap);
       match gpu {
         Ok(()) => {
           self.last_composited = Some(snap);
@@ -759,10 +1063,94 @@ impl DuplicationOutput {
       }
     }
     unsafe { self.ctx.CopyResource(&self.proc, &self.clean) };
-    let cursor = self.build_cursor_patch(&info)?;
+    let cursor = self.build_cursor_patch(&snap)?;
     self.last_composited = Some(snap);
     self.last_compose_at = Some(Instant::now());
     Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor })
+  }
+
+  /// 当前形状含 XOR 像素（MASKED_COLOR 的 0xFF 掩码）→ 定向走 CPU 补丁路径：
+  /// 双流覆盖层只表达 alpha 混合，表达不了「与背景异或」（非失败，不告警）。
+  fn shape_needs_cpu(&self) -> bool {
+    self
+      .shape
+      .as_ref()
+      .and_then(|s| s.raster.as_ref())
+      .is_some_and(|r| r.xor.contains(&1))
+  }
+
+  /// 每帧解析指针状态（合成与判重的唯一输入）：DUPL 已投递过形状 → 权威取帧内字段；
+  /// 否则（软件光标/虚拟显示环境：IDD 虚拟屏、远控接管显示——DUPL 零指针投递）→
+  /// user32 兜底采样。快照的形状键：DUPL 用 `buffer_size`，user32 用句柄折叠键。
+  fn resolve_pointer(&mut self, info: &DXGI_OUTDUPL_FRAME_INFO) -> PointerSnapshot {
+    if self.dupl_shape_seen {
+      return PointerSnapshot {
+        x: info.PointerPosition.Position.x,
+        y: info.PointerPosition.Position.y,
+        shape: self.shape.as_ref().map_or(0, |s| s.buffer_size),
+        visible: info.PointerPosition.Visible.as_bool(),
+      };
+    }
+    self.resolve_user32_pointer()
+  }
+
+  /// user32 兜底采样（DUPL 零投递时的唯一指针源）：位置/可见性恒取 `GetCursorInfo`
+  /// （无分配）；形状按 HCURSOR 句柄缓存，句柄变化才 `GetIconInfo`/`GetDIBits` 重建
+  /// （GDI 有分配，形状低频），落位与 GPU 覆盖层同步复用 `install_shape`（与 DUPL
+  /// 同一出口）。取形失败缓存为「无形状」（按句柄率限告警，不逐帧刷屏）；
+  /// 无形状时返回**稳定隐藏快照**——没有光标可画，避免空指针移动产出无变化帧。
+  fn resolve_user32_pointer(&mut self) -> PointerSnapshot {
+    const NO_SHAPE: PointerSnapshot = PointerSnapshot { x: 0, y: 0, shape: 0, visible: false };
+    let mut ci = CURSORINFO {
+      cbSize: std::mem::size_of::<CURSORINFO>() as u32,
+      ..Default::default()
+    };
+    // unsafe 依据（块级）：GetCursorInfo 为 user32 FFI；ci 为本栈槽位。
+    if unsafe { GetCursorInfo(&mut ci) }.is_err() || (ci.flags.0 & CURSOR_SHOWING.0) == 0 {
+      return NO_SHAPE;
+    }
+    let handle = ci.hCursor.0 as usize;
+    if self.user32_shape.as_ref().map(|c| c.handle) != Some(handle) {
+      // 形状缓存未命中（首次 / 光标类型切换）→ 取形重建。
+      match read_user32_shape(ci.hCursor) {
+        Ok((hot, raster)) => {
+          let key = user32_shape_key(handle, &raster);
+          self.install_shape(
+            DXGI_OUTDUPL_POINTER_SHAPE_INFO {
+              Type: DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR.0 as u32,
+              Width: raster.w,
+              Height: raster.h,
+              Pitch: 0,
+              HotSpot: POINT { x: hot.0, y: hot.1 },
+            },
+            Vec::new(),
+            key,
+            Some(raster),
+          );
+          self.user32_shape = Some(User32ShapeCache { handle, key });
+        }
+        Err(e) => {
+          // 按句柄率限：缓存为无形状后，同句柄不再重试/告警，句柄变化才再试。
+          warn(&format!("user32 光标取形失败，本形状周期内不画光标: {e}"));
+          self.install_shape(DXGI_OUTDUPL_POINTER_SHAPE_INFO::default(), Vec::new(), 0, None);
+          self.user32_shape = Some(User32ShapeCache { handle, key: 0 });
+          return NO_SHAPE;
+        }
+      }
+    }
+    let Some(cache) = self.user32_shape.as_ref() else {
+      return NO_SHAPE;
+    };
+    if cache.key == 0 {
+      // 取形失败缓存：无形状可画，稳定隐藏快照（避免逐帧空合成）。
+      return NO_SHAPE;
+    }
+    PointerSnapshot {
+      x: ci.ptScreenPos.x,
+      y: ci.ptScreenPos.y,
+      shape: cache.key,
+      visible: true,
+    }
   }
 
   /// GPU 合成一帧（P0-2b）：算光标几何（越界钳制）→ 双流 Blt → proc。
@@ -770,9 +1158,9 @@ impl DuplicationOutput {
   fn compose_frame_gpu(
     &mut self,
     source: &ID3D11Texture2D,
-    info: &DXGI_OUTDUPL_FRAME_INFO,
+    pointer: &PointerSnapshot,
   ) -> AxResult<()> {
-    let cursor = self.compute_cursor_rect(info);
+    let cursor = self.compute_cursor_rect(pointer);
     let Some(pipeline) = self.compose.as_mut() else {
       return Err(AxError::internal("GPU 合成管线缺失"));
     };
@@ -781,20 +1169,19 @@ impl DuplicationOutput {
 
   /// 光标覆盖层的目标矩形 + 形状源偏移（CPU/GPU 两路共用的几何计算）：
   /// 屏幕光标点 − output 原点 − 形状 hotspot，越界钳制到纹理内并同步裁掉源偏移。
-  fn compute_cursor_rect(&self, info: &DXGI_OUTDUPL_FRAME_INFO) -> Option<CursorRect> {
-    let pos = info.PointerPosition;
-    if pos.Visible == BOOL(0) {
+  fn compute_cursor_rect(&self, pointer: &PointerSnapshot) -> Option<CursorRect> {
+    if !pointer.visible {
       return None;
     }
     let shape = self.shape.as_ref()?;
-    // 栅格在 refresh_shape（形状变更时）已算好；本形状渲染失败 → 跳过覆盖层。
+    // 栅格在 install_shape（形状变更时）已算好；本形状渲染失败 → 跳过覆盖层。
     let raster = shape.raster.as_ref()?;
     if raster.w == 0 || raster.h == 0 {
       return None;
     }
     let hot = shape.info.HotSpot;
-    let x0 = pos.Position.x - self.desktop_rect.0 - hot.x;
-    let y0 = pos.Position.y - self.desktop_rect.1 - hot.y;
+    let x0 = pointer.x - self.desktop_rect.0 - hot.x;
+    let y0 = pointer.y - self.desktop_rect.1 - hot.y;
     let (tw, th) = (self.desktop_rect.2, self.desktop_rect.3);
     let ix0 = x0.max(0);
     let iy0 = y0.max(0);
@@ -813,17 +1200,6 @@ impl DuplicationOutput {
     })
   }
 
-  /// 指针状态快照（合成判重键）：位置 + 生效形状键（缓存形状的 `buffer_size`，
-  /// 与帧内 `PointerShapeBufferSize=0`"未变"解耦）+ 可见性。
-  fn pointer_snapshot(&self, info: &DXGI_OUTDUPL_FRAME_INFO) -> PointerSnapshot {
-    PointerSnapshot {
-      x: info.PointerPosition.Position.x,
-      y: info.PointerPosition.Position.y,
-      shape: self.shape.as_ref().map_or(0, |s| s.buffer_size),
-      visible: info.PointerPosition.Visible.as_bool(),
-    }
-  }
-
   /// 拉取/刷新光标形状缓存（要点 5：`PointerShapeBufferSize` 变化触发）。
   ///
   /// `buffer_size == 0` 语义（MS DesktopDuplication 样例口径）：形状**自上次以来
@@ -833,6 +1209,9 @@ impl DuplicationOutput {
     if buffer_size == 0 {
       return Ok(());
     }
+    // DUPL 投递过形状 = 权威源确认：此后 user32 兜底不再启用（即使同尺寸形状
+    // 命中缓存提前返回，也必须先记下这个事实）。
+    self.dupl_shape_seen = true;
     if matches!(&self.shape, Some(s) if s.buffer_size == buffer_size) {
       return Ok(()); // 纯移动：位置在 PointerPosition 里，形状不变
     }
@@ -869,6 +1248,19 @@ impl DuplicationOutput {
         None
       }
     };
+    self.install_shape(shape_info, buf, buffer_size, raster);
+    Ok(())
+  }
+
+  /// 形状落位（DUPL/user32 两源共用的唯一出口）：写形状缓存 + 同步 GPU 覆盖层。
+  /// 覆盖层创建失败 → 整会话回退 CPU 回读路径（P0-2b 语义，一次性）。
+  fn install_shape(
+    &mut self,
+    info: DXGI_OUTDUPL_POINTER_SHAPE_INFO,
+    data: Vec<u8>,
+    buffer_size: u32,
+    raster: Option<CursorShapeRaster>,
+  ) {
     // GPU 覆盖层（P0-2b）：形状变更（低频）时重建；失败即整会话回退 CPU 回读路径。
     if let Some(pipeline) = self.compose.as_mut() {
       let update = match raster.as_ref() {
@@ -883,32 +1275,33 @@ impl DuplicationOutput {
         self.compose = None;
       }
     }
-    self.shape = Some(ShapeCache { info: shape_info, _data: buf, buffer_size, raster });
-    Ok(())
+    self.shape = Some(ShapeCache { info, _data: data, buffer_size, raster });
   }
 
-  /// 计算并落盘光标补丁（取缓存栅格 → 回读背景 → 混合 → `UpdateSubresource`）。
+  /// 计算并落盘光标补丁（取缓存栅格 → 回读背景 → `blend_cursor_patch` 混合 → 写回 proc）。
   /// 无可见光标 / 补丁完全越界 / 形状未知（或该形状渲染失败）→ `Ok(None)`
-  /// （不打补丁，不视为错误）。
-  fn build_cursor_patch(&self, info: &DXGI_OUTDUPL_FRAME_INFO) -> AxResult<Option<CursorPatch>> {
-    let pos = info.PointerPosition;
-    if pos.Visible == BOOL(0) {
+  /// （不打补丁，不视为错误）。混合分支（XOR/alpha/替换/背景）在纯函数里，单测锁定。
+  fn build_cursor_patch(&self, pointer: &PointerSnapshot) -> AxResult<Option<CursorPatch>> {
+    if !pointer.visible {
       return Ok(None);
     }
     let Some(shape) = self.shape.as_ref() else {
       return Ok(None); // 尚未拿到形状（首次移动前）——宁可不画也不画错
     };
-    // 栅格在 refresh_shape（形状变更时）已算好；本形状渲染失败 → 跳过补丁。
+    // 栅格在 install_shape（形状变更时）已算好；本形状渲染失败 → 跳过补丁。
     let Some(raster) = shape.raster.as_ref() else {
       return Ok(None);
     };
-    if raster.w == 0 || raster.h == 0 || raster.visible.iter().all(|v| *v == 0) {
+    if raster.w == 0
+      || raster.h == 0
+      || (raster.visible.iter().all(|v| *v == 0) && raster.xor.iter().all(|v| *v == 0))
+    {
       return Ok(None);
     }
     // 坐标 = 屏幕光标点 − output DesktopCoordinates.xy − 形状 hotspot（简报要点 4）。
     let hot = shape.info.HotSpot;
-    let x0 = pos.Position.x - self.desktop_rect.0 - hot.x;
-    let y0 = pos.Position.y - self.desktop_rect.1 - hot.y;
+    let x0 = pointer.x - self.desktop_rect.0 - hot.x;
+    let y0 = pointer.y - self.desktop_rect.1 - hot.y;
     let (tw, th) = (self.desktop_rect.2, self.desktop_rect.3);
     // 越界钳制到纹理内（简报要点 4「越界钳制」），并同步裁掉形状源偏移。
     let ix0 = x0.max(0);
@@ -945,26 +1338,17 @@ impl DuplicationOutput {
         return Err(AxError::internal("光标背景映射为空"));
       }
       let row_pitch = mapped.RowPitch as usize;
-      // ② 逐像素混合：可见=光标形状，透明=背景（staging 的行距可能 > 宽*4）。
-      let mut patch = Vec::with_capacity((rw * rh * 4) as usize);
+      // ② 背景按补丁宽度压紧（staging 行距可能 > 宽*4；unsafe 切片均在 staging 内：
+      // 源盒钳制保证 rw*rh ≤ 纹理尺寸、row_pitch ≥ 每行有效字节）→ 纯函数混合。
+      let mut bg = Vec::with_capacity((rw * rh * 4) as usize);
       for r in 0..rh as usize {
-        // unsafe 依据（块级）：pData 来自仍持有的 Map（Unmap 在闭包之后执行）；
-        // 起点 r*rowPitch、长度 rw*4 均在 staging（整面 desktop 尺寸）内——
-        // 源盒钳制保证 rw*rh ≤ 纹理尺寸、rowPitch ≥ 每行有效字节。
-        let bg_row = unsafe {
+        // unsafe 依据（块级）：pData 来自仍持有的 Map（Unmap 在闭包之后执行）。
+        let row = unsafe {
           std::slice::from_raw_parts((mapped.pData as *const u8).add(r * row_pitch), (rw * 4) as usize)
         };
-        for c in 0..rw as usize {
-          let src = ((sy as usize + r) * raster.w as usize + (sx as usize + c)) * 4;
-          let vis = raster.visible[(sy as usize + r) * raster.w as usize + (sx as usize + c)];
-          if vis == 1 {
-            patch.extend_from_slice(&raster.bgra[src..src + 4]);
-          } else {
-            patch.extend_from_slice(&bg_row[c * 4..c * 4 + 4]);
-          }
-        }
+        bg.extend_from_slice(row);
       }
-      Ok(patch)
+      Ok(blend_cursor_patch(raster, sx as usize, sy as usize, rw as usize, rh as usize, &bg))
     })();
     // unsafe 依据（块级）：Unmap 为 D3D11 FFI；无论混合成败都必须与上方 Map 配对。
     unsafe { self.ctx.Unmap(&self.bg_staging, 0) };
@@ -1250,7 +1634,7 @@ mod gpu_cursor_tests {
     }
     bgra[28..32].copy_from_slice(&[0, 255, 0, 128]); // 像素 (7,0)：半透明绿
     visible[7] = 1;
-    let raster = CursorShapeRaster { bgra, visible, w: 8, h: 8 };
+    let raster = CursorShapeRaster { bgra, visible, xor: vec![0u8; 64], w: 8, h: 8 };
     pipeline.update_cursor(&device, &ctx, &raster).expect("覆盖层纹理");
 
     // 合成：覆盖矩形贴在 (16,16)。
@@ -1284,9 +1668,165 @@ mod gpu_cursor_tests {
     let raster = CursorShapeRaster {
       bgra: vec![9, 8, 7, 255, 1, 2, 3, 255],
       visible: vec![1, 0],
+      xor: vec![0, 0],
       w: 2,
       h: 1,
     };
     assert_eq!(build_cursor_overlay(&raster), vec![9, 8, 7, 255, 0, 0, 0, 0]);
+  }
+}
+
+/// CPU 补丁混合的纯逻辑回归（跨平台，无 Win32/硬件依赖；spec 测试策略「光标语义」）。
+/// 锁四个分支：XOR（bg^color，MASKED_COLOR 0xFF 掩码）/ 真 alpha 混合 / 替换 / 保留背景。
+#[cfg(test)]
+mod cursor_blend_tests {
+  use super::*;
+
+  /// 构造 2×1 栅格：p0 = (x0,0) 分支位由入参决定，p1 = 不可见背景像素。
+  fn raster_2x1(bgra0: [u8; 4], vis0: u8, xor0: u8) -> CursorShapeRaster {
+    CursorShapeRaster {
+      w: 2,
+      h: 1,
+      bgra: [bgra0, [0, 0, 0, 0]].concat(),
+      visible: vec![vis0, 0],
+      xor: vec![xor0, 0],
+    }
+  }
+
+  #[test]
+  fn blend_replaces_opaque_pixel_and_keeps_background() {
+    // a=255 → 直接替换；第二像素不可见 → 背景原样。
+    let raster = raster_2x1([10, 20, 30, 255], 1, 0);
+    let out = blend_cursor_patch(&raster, 0, 0, 2, 1, &[1, 2, 3, 4, 5, 6, 7, 8]);
+    assert_eq!(out, vec![10, 20, 30, 255, 5, 6, 7, 8]);
+  }
+
+  #[test]
+  fn blend_blends_straight_alpha_over_background() {
+    // a=128、颜色 (0,0,255)（纯红域）叠背景 (0,0,0)（黑）→ R ≈ 128（直通 alpha）。
+    let raster = raster_2x1([0, 0, 255, 128], 1, 0);
+    let out = blend_cursor_patch(&raster, 0, 0, 2, 1, &[0, 0, 0, 0, 9, 9, 9, 9]);
+    let px = &out[0..4];
+    assert_eq!(px[0], 0, "B 不变");
+    assert_eq!(px[1], 0, "G 不变");
+    assert!((px[2] as i32 - 128).abs() <= 1, "R ≈ 128: {px:?}");
+    assert_eq!(px[3], 255, "输出 alpha 恒 255（NV12 不消费）");
+    assert_eq!(&out[4..8], &[9, 9, 9, 9], "背景像素原样");
+  }
+
+  #[test]
+  fn blend_alpha_zero_keeps_background() {
+    // 可见但 a=0（COLOR 全透明防御分支）→ 保留背景。
+    let raster = raster_2x1([7, 7, 7, 0], 1, 0);
+    let out = blend_cursor_patch(&raster, 0, 0, 2, 1, &[1, 2, 3, 4, 5, 6, 7, 8]);
+    assert_eq!(out, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+  }
+
+  #[test]
+  fn blend_xors_masked_color_over_background() {
+    // XOR 分支（MASKED_COLOR 0xFF 掩码）：bg ^ color；bg ^ 0 = 保留背景（掩码恒等）。
+    let raster = raster_2x1([0xFF, 0x0F, 0x00, 255], 1, 1);
+    let out = blend_cursor_patch(&raster, 0, 0, 2, 1, &[0x00, 0xF0, 0x00, 0, 5, 6, 7, 8]);
+    assert_eq!(&out[0..4], &[0xFF, 0xFF, 0x00, 255], "bg ^ color");
+    assert_eq!(&out[4..8], &[5, 6, 7, 8], "背景像素原样");
+    let same = raster_2x1([0, 0, 0, 255], 1, 1);
+    let keep = blend_cursor_patch(&same, 0, 0, 2, 1, &[1, 2, 3, 4, 5, 6, 7, 8]);
+    // XOR 恒等只保 RGB；输出 alpha 按契约恒 255（NV12 不消费，与其余分支一致）。
+    assert_eq!(&keep[0..3], &[1, 2, 3], "XOR 0 恒等保留背景 RGB");
+    assert_eq!(keep[3], 255, "XOR 输出 alpha 恒 255");
+    assert_eq!(&keep[4..8], &[5, 6, 7, 8], "背景像素原样");
+  }
+
+  #[test]
+  fn blend_honors_source_offset_clipping() {
+    // 源偏移 (sx=1)：栅格第 0 列被裁掉，只取第 1 列像素落补丁第 0 位。
+    let raster = CursorShapeRaster {
+      w: 2,
+      h: 1,
+      bgra: [9, 9, 9, 255, 42, 0, 0, 255].to_vec(),
+      visible: vec![1, 1],
+      xor: vec![0, 0],
+    };
+    let out = blend_cursor_patch(&raster, 1, 0, 1, 1, &[0, 0, 0, 0]);
+    assert_eq!(out, vec![42, 0, 0, 255]);
+  }
+
+  #[test]
+  fn render_color_with_mask_honors_and_mask() {
+    // user32 兜底的经典颜色光标（无 alpha，透明性由 AND 掩码表达）：
+    // w=16 → 颜色行距 64、掩码行距 4（DIB 1bpp 恒 4 字节对齐）。
+    let bgra = vec![0u8; 16 * 4]; // 16×1 全黑颜色区
+    let mut mask = [0u8; 4];
+    mask[0] = 0b1111_0000; // x=0..3 AND=1 → 透明；x=4..15 AND=0 → 可见
+    let r = render_color_with_mask(16, 1, 64, &bgra, &mask, 4).expect("掩码渲染");
+    assert_eq!(&r.visible[0..4], &[0, 0, 0, 0], "AND=1 透明");
+    assert_eq!(&r.visible[4..8], &[1, 1, 1, 1], "AND=0 可见");
+    assert_eq!(&r.bgra[0..4], &[0, 0, 0, 255], "颜色按不透明存储（alpha 归 255）");
+    assert!(r.xor.iter().all(|v| *v == 0), "经典颜色光标无 XOR");
+    // 截断缓冲 → 错误。
+    assert!(render_color_with_mask(16, 1, 64, &bgra[..63], &mask, 4).is_err());
+  }
+}
+
+/// 实机回归（软光标/虚拟显示环境，2026-10-13 实证：IDD 虚拟屏 + 远控接管显示下
+/// DUPL 零指针投递 → 旧实现光标永不合成）：DUPL 零投递时 user32 兜底必须装出
+/// 形状栅格。环境能力缺失（打不开 duplication / 观察窗内无桌面帧 / DUPL 正常投递）
+/// → 跳过，不算失败——断言只在「零投递且取到帧」的环境成立。
+#[cfg(test)]
+mod user32_fallback_live_tests {
+  use super::*;
+  use windows::Win32::UI::WindowsAndMessaging::{
+    GetCursorPos, GetSystemMetrics, SetCursorPos, SM_CXSCREEN, SM_CYSCREEN,
+  };
+
+  #[test]
+  fn user32_fallback_installs_shape_when_dupl_silent() {
+    let _com = ComScope::enter();
+    let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+    let Ok(mut out) = DuplicationOutput::open((0, 0, sw, sh)) else {
+      return; // 无桌面会话（CI 服务态）：能力缺失跳过
+    };
+    let deadline = Instant::now() + Duration::from_secs(12);
+    let mut saw_desktop_frame = false;
+    let mut i = 0i32;
+    while Instant::now() < deadline {
+      i += 1;
+      // 轻微晃动（±1px）制造桌面更新——DXGI 变化驱动，静止桌面不出帧。
+      let mut pt = windows::Win32::Foundation::POINT::default();
+      if unsafe { GetCursorPos(&mut pt) }.is_ok() {
+        let _ = unsafe { SetCursorPos(pt.x + (i % 2), pt.y + ((i / 2) % 2)) };
+      }
+      match out.next_frame(300) {
+        Ok(CaptureFrame::NewDesktop { .. }) => {
+          saw_desktop_frame = true;
+          break;
+        }
+        Ok(_) => {}
+        Err(_) => return, // ACCESS_LOST 等：环境能力缺失，跳过
+      }
+    }
+    if !saw_desktop_frame {
+      return; // 观察窗内桌面静止 → resolve 未执行，跳过
+    }
+    if out.dupl_shape_seen {
+      return; // DUPL 正常投递的环境走权威路径，不属本用例
+    }
+    assert!(
+      out.user32_shape.is_some(),
+      "DUPL 零投递时 user32 兜底应已建立形状句柄缓存"
+    );
+    let shape = out.shape.as_ref().expect("user32 兜底应已落位形状缓存");
+    let raster = shape.raster.as_ref().expect("user32 取形必须产出栅格（光标不可见根因回归）");
+    assert!(raster.w > 0 && raster.h > 0, "栅格尺寸非空: {}x{}", raster.w, raster.h);
+    assert!(
+      raster.visible.contains(&1),
+      "可见形状不得整块透明（alpha 语义回归）"
+    );
+    eprintln!(
+      "[probe] user32 fallback OK: shape {}x{}, visible={}",
+      raster.w,
+      raster.h,
+      raster.visible.iter().filter(|v| **v == 1).count()
+    );
   }
 }

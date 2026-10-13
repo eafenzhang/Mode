@@ -159,26 +159,40 @@ fn render_cursor_shape_expands_monochrome_masks() {
 }
 
 #[test]
-fn render_cursor_shape_copies_color_and_applies_mask() {
+fn render_cursor_shape_preserves_color_alpha_and_masked_layout() {
     use mode_cua_ax::rd_media::capture::render_cursor_shape;
-    // 颜色形状：2×1，pitch=8（行距含填充）——只拷有效像素，alpha 归 255。
+    // COLOR（官方 32bpp ARGB，alpha 即形状——2026-10-13 修正：此前强推 alpha=255 +
+    // 全可见，会把带透明通道的光标画成不透明色块）：
+    // 2×1，pitch=8：p0 alpha=128 → 可见且保留真实 alpha；p1 alpha=0 → 不可见（露背景）。
     let color = [
-        10u8, 20, 30, 128, 0, 0, 0, 0, // 行 0：像素0 (B,G,R,A=128) + 4 字节填充
+        10u8, 20, 30, 128, // p0：真 alpha（边缘半透明）
+        0, 0, 0, 0, // p1：全透明
     ];
     let r = render_cursor_shape(2, 2, 1, 8, &color).expect("颜色形状应可渲染");
     assert_eq!((r.w, r.h), (2, 1));
-    assert_eq!(&r.bgra[0..4], &[10, 20, 30, 255], "alpha 统一为不透明");
-    assert_eq!(&r.visible, &[1u8, 1]);
+    assert_eq!(&r.bgra[0..4], &[10, 20, 30, 128], "真实 alpha 必须保留");
+    assert_eq!(&r.visible, &[1u8, 0], "visible = alpha>0（全透明像素 = 背景）");
+    assert!(r.xor.iter().all(|v| *v == 0), "COLOR 无 XOR 语义");
 
-    // 掩码颜色：8×2，pitch=32，AND 尾随（行距 4 字节）；行 0 AND=0xFF 全透明。
-    let mut masked = vec![7u8; 32 * 2]; // 颜色区
-    masked.extend_from_slice(&[0xFF, 0, 0, 0]); // AND 行 0
-    masked.extend_from_slice(&[0x00, 0, 0, 0]); // AND 行 1
-    let r = render_cursor_shape(4, 8, 2, 32, &masked).expect("掩码形状应可渲染");
-    assert!((0..8).all(|i| r.visible[i] == 0), "掩码 AND=1 行透明");
-    assert!((8..16).all(|i| r.visible[i] == 1), "掩码 AND=0 行可见");
-    // 截断（缺 AND 区）→ 错误。
-    assert!(render_cursor_shape(4, 8, 2, 32, &[7u8; 64]).is_err());
+    // MASKED_COLOR（官方：32bpp ARGB、alpha 位即掩码 0=替换 / 0xFF=XOR、**无尾随
+    // 1bpp 掩码**——2026-10-13 修正：旧实现多要一段掩码长度，真实数据必判缓冲不足
+    // → 该形状整体跳过 = 光标不可见）。
+    let masked = [
+        1u8, 2, 3, 0x00, // 替换像素
+        4, 5, 6, 0xFF, // XOR 像素
+        7, 8, 9, 0x7F, // 非法中间值（官方只允许 0/0xFF）→ 宽容按替换
+        0, 0, 0, 0, // 行内填充到 pitch=16
+    ];
+    let r = render_cursor_shape(4, 4, 1, 16, &masked).expect("掩码颜色按新布局应可渲染");
+    assert_eq!((r.w, r.h), (4, 1));
+    assert!(r.visible.iter().all(|v| *v == 1), "掩码像素全部落笔（替换或 XOR）");
+    assert_eq!(&r.xor, &[0, 1, 0, 0], "仅 alpha=0xFF 打 XOR 标记");
+    assert_eq!(&r.bgra[4..8], &[4, 5, 6, 255], "RGB 保留、按不透明存储");
+
+    // 截断（缓冲 < pitch*h=16）→ 错误；未知类型 → 空栅格（不打补丁、不杀流）。
+    assert!(render_cursor_shape(4, 4, 1, 16, &[0u8; 15]).is_err());
+    let unk = render_cursor_shape(99, 8, 8, 4, &[0u8; 32]).expect("未知类型不报错");
+    assert_eq!((unk.w, unk.h), (0, 0));
 }
 
 #[test]

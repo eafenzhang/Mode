@@ -106,6 +106,25 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 
 - **采集**：DXGI Desktop Duplication（`windows` crate，与 `screen.rs` 同依赖面）；输出分辨率 = 显示器原生（>1080p 时由编码链缩放，见下）。
 - **光标**：DUPL `PointerPosition` + `PointerShape` 合成进帧。**GPU 合成已落地（P0-2b，2026-10-13）**：形状变更时渲染成小 BGRA 覆盖层纹理（透明像素 alpha=0），每帧经双流 `VideoProcessorBlt`（流 0 = 主画面——桌面更新帧直接以采集帧纹理为源（P0-3，不再 frame→clean→proc 两次整帧拷贝）；流 1 = 光标覆盖层，`VideoProcessorSetStreamDestRect/SourceRect` 定位、per-pixel alpha 混合）合成到 proc，全程零回读。初始化或运行中任一步在驱动上失败 → **整会话回退 CPU 回读路径**（P0-2a：回读背景 + CPU 混合 + 回写），对外协议与行为不变。驱动行为由 `capture.rs` 内 `gpu_cursor_tests` 在真实硬件设备上验证（per-pixel alpha/覆盖矩形/背景保留；CI 无硬件设备跳过）。
+  - **形状类型语义（以 MSDN `DXGI_OUTDUPL_POINTER_SHAPE_TYPE` 为准，2026-10-13 修正）**：
+    1. `MONOCHROME`（1）：1bpp AND 掩码 + 1bpp XOR 掩码（高半/低半）——既有实现不变；
+    2. `COLOR`（2）：**32bpp ARGB，alpha 通道即形状**——`visible = alpha>0`、栅格保留真实 alpha
+       （此前强推 alpha=255 + 全可见会把带透明通道的光标画成不透明色块）；无 alpha 信息的位图源
+       不走此路径，由 user32 兜底的 AND 掩码处理；
+    3. `MASKED_COLOR`（4）：**32bpp ARGB、alpha 位即掩码，无尾随 1bpp 掩码**（0=替换、0xFF=XOR）——
+       此前按「颜色位图+尾随 AND」解析，长度校验必失败 → 该形状整体跳过 = 光标不可见。
+  - **XOR 语义**：`MASKED_COLOR` 的 0xFF 掩码与 0x00 掩码必须分别 XOR/替换到**背景**上——
+    GPU 双流覆盖层只表达 alpha 混合，无法 XOR；**含 XOR 像素的形状整形状走 CPU 补丁路径**
+    （背景回读本就是 CPU 路径的输入；该类形状少见，代价可控）。CPU 补丁混合按形状逐像素
+    走：XOR（bg ^ color）/ 真 alpha 混合 / 替换 / 保留背景。
+  - **user32 光标兜底（2026-10-13 新增）**：软件光标/虚拟显示环境（IDD 虚拟屏、远控软件接管
+    显示等）下 **DUPL 完全不投递指针数据**（实机探针：200+ 次指针移动 `LastMouseUpdateTime=0`、
+    `PointerShapeBufferSize=0`），`shape=None` → 光标永不合成（实机现象「画面里没有光标」）。
+    规则：`dupl_shape_seen` 标记——DUPL 从未投递过形状时，每帧解析指针状态改经 user32
+    （`GetCursorInfo` 定位/可见性 + `GetIconInfo`/`GetDIBits` 取位图：32bpp 有 alpha 用真 alpha、
+    无 alpha 用 AND 掩码、单色走既有 render 布局；形状按 HCURSOR 句柄缓存，仅位置每帧采），
+    喂入与 DUPL 完全相同的 `CursorShapeRaster` 合成管线（GPU/CPU 路径与几何换算零分叉）；
+    DUPL 一旦投递形状即回归 DUPL 权威（覆盖 user32 缓存，不再采样）。
 - **编码**：MF 视频编码器（`MFT_ENUM_FLAG_HARDWARE` 选「H.264 HW」，Win10 系统自带）；输入 D3D11 纹理 → D3D11 Video Processor 出 NV12（承担 >1080p 缩放）→ MF `MFT_MESSAGE_SET_D3D_MANAGER` 全 GPU 路径。参数：平均码率 8Mbps、GOP 120 帧（≈2s@60fps）、`select-monitor` / 分辨率变化强制 IDR。
   - **异步 MFT（2026-10-13 修复）**：硬件 H.264 MFT（NVENC / AMF / QSV）普遍是**异步编码器**，非 MF 管线直接使用分两步才能跑通：
     1. **解锁**：读 `MF_TRANSFORM_ASYNC` 判定；异步时配置媒体类型前置 `MF_TRANSFORM_ASYNC_UNLOCK=TRUE`，否则首次 `SetInputType` 报 `MF_E_TRANSFORM_ASYNC_LOCKED (0xC00D6D77)`。
@@ -158,6 +177,8 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 | 整会话传输断开（信令 WS 断，非 bye/本地结束） | **自动重连（P2-1）**：main 推 `closed{retryable}` → renderer 退避重走 `POST /api/remote-desktop/session`（新票据/新 key/salt/mediaUrl 全量重建）；被控对 **90s 窗口内同 clientId** 重连复用最近一次「用户允许」（不二次弹窗；总开关/单会话互斥仍逐次校验）。busy/internal 可重试，明确拒绝（disabled/consent_denied 等）立即按错误码收口 |
 | 锁屏 / 安全桌面 | 非错误：`freeze` 冻结提示，恢复自动续流（既有语义） |
 | 中继端口异常 / 帧解密失败 | 计入 warn 日志（不含密钥与帧内容）；连续失败按媒体断开收口 |
+| DUPL 零指针投递（软件光标/虚拟显示环境） | 非错误：切 user32 兜底采样继续合成光标（见「光标」节）；user32 也拿不到形状（光标隐藏/调用失败）→ 该帧不画光标，**画面与会话不受影响**（光标缺席不是会话级失败） |
+| helper 侧 `[rd_media]` 运行告警（GPU 合成回退、形状渲染失败等） | 必须**接入主日志**（warn 级）——此前 helper stderr 无消费者，运行期回退/降级在日志里完全不可见（2026-10-13 排查实证：日志零条 `[rd_media]`） |
 
 ## 删除与保留清单
 
@@ -191,7 +212,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 
 ## 测试策略
 
-- **Rust**（`cargo test`）：帧头/flags 打包、IV=盐∥seq 派生、GOP/IDR 标记状态机、DUPL 状态事件纯逻辑（模拟 ACCESS_LOST 序列）。
+- **Rust**（`cargo test`）：帧头/flags 打包、IV=盐∥seq 派生、GOP/IDR 标记状态机、DUPL 状态事件纯逻辑（模拟 ACCESS_LOST 序列）；**光标语义（2026-10-13）**：`render_cursor_shape` 三类型断言（COLOR 保留真 alpha 且 `visible=alpha>0`、MASKED_COLOR 按 ARGB-alpha-掩码布局且 0xFF 打 XOR 标记、MONOCHROME 不变）、CPU 补丁混合纯函数（真 alpha 混合 / XOR(bg^color) / 替换 / 保留背景四分支）。
 - **Node**（仓库既有 tsx --test 先例）：中继长度前缀编解码、双票据各自单次消费、media-open 下发序列、pong 即答、密文透传（不解密断言）。
 - **renderer**：解码喂帧状态机（mock VideoDecoder：SPS 重配、丢旧帧、关键帧 flag）、输入 sink 走 WS、状态条数据源切换。
 - **回归**：全仓四包测试 + `pnpm typecheck` / `lint` / 架构检查 + `pnpm build:cua-helper` 构建通过。
