@@ -1068,7 +1068,7 @@ fn configure_media_types(
     output.SetUINT32(&MF_MT_MPEG2_PROFILE, profile.0 as u32)
       .map_err(|e| AxError::new("unimplemented", format!("输出类型 profile 失败: {e}")))?
   };
-  set_codec_media_types(&mf, &input, &output)
+  set_codec_media_types(mf, &input, &output)
 }
 
 /// 设置输入/输出媒体类型；顺序随编码 MFT 而异（MF 文档：顺序不对报

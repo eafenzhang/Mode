@@ -17,15 +17,24 @@
 //! - spec 的 GPU quad 路线是主案、本实现是等效的 CPU 混合变体；若未来要换 GPU quad，
 //!   对外协议与 `CaptureFrame` 形状零改动（spec 降级预案同口径）。
 use std::ffi::c_void;
+use std::mem::ManuallyDrop;
 use std::time::{Duration, Instant};
 
-use windows::Win32::Foundation::BOOL;
+use windows::Win32::Foundation::{BOOL, FALSE, RECT, TRUE};
 use windows::Win32::Graphics::Direct3D11::{
   ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D, D3D11_BIND_FLAG,
   D3D11_BIND_RENDER_TARGET, D3D11_BIND_SHADER_RESOURCE, D3D11_BOX,
   D3D11_CPU_ACCESS_FLAG, D3D11_CPU_ACCESS_READ, D3D11_CREATE_DEVICE_FLAG, D3D11_MAP_READ,
   D3D11_MAPPED_SUBRESOURCE, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE,
   D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING, D3D11CreateDevice,
+  ID3D11VideoContext, ID3D11VideoDevice, ID3D11VideoProcessor,
+  ID3D11VideoProcessorEnumerator, ID3D11VideoProcessorInputView,
+  ID3D11VideoProcessorOutputView, D3D11_TEX2D_VPIV, D3D11_TEX2D_VPOV,
+  D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE, D3D11_VIDEO_PROCESSOR_CONTENT_DESC,
+  D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC, D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC_0,
+  D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC, D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC_0,
+  D3D11_VIDEO_PROCESSOR_STREAM, D3D11_VIDEO_USAGE_PLAYBACK_NORMAL,
+  D3D11_VPIV_DIMENSION_TEXTURE2D, D3D11_VPOV_DIMENSION_TEXTURE2D,
 };
 use windows::Win32::Graphics::Direct3D::{
   D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP, D3D_FEATURE_LEVEL_11_0,
@@ -38,7 +47,7 @@ use windows::Win32::Graphics::Dxgi::{
   IDXGIOutputDuplication, IDXGIFactory1, IDXGIResource,
 };
 use windows::Win32::Graphics::Dxgi::Common::{
-  DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC,
+  DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_RATIONAL, DXGI_SAMPLE_DESC,
 };
 use windows::core::{Interface, Result as WResult};
 
@@ -274,6 +283,276 @@ impl Drop for ComScope {
   }
 }
 
+// ---- P0-2b：GPU 光标合成（双流 VideoProcessor，spec「光标」主案）----
+//
+// 目标：把「回读背景 + CPU 混合 + 回写」换成纯 GPU 双流合成——流 0 = 主画面
+// （采集帧 / clean 底图，全幅），流 1 = 光标覆盖层（BGRA，透明像素 alpha=0），
+// per-pixel alpha 由 VideoProcessorBlt 完成混合，目标 = proc。
+// 初始化或运行中任一步在驱动上不被支持（VP 创建/输入视图/双流 Blt 失败）→ 整会话
+// 回退 CPU 回读路径（build_cursor_patch），行为与 P0-2a 完全一致（spec 降级预案）。
+
+/// 光标覆盖层的目标矩形 + 形状源偏移（CPU/GPU 两路共用的几何计算）。
+struct CursorRect {
+  x0: i32,
+  y0: i32,
+  w: u32,
+  h: u32,
+  sx: u32,
+  sy: u32,
+}
+
+/// 光标覆盖层像素（纯函数）：可见 = 光标颜色（alpha 由渲染层保证 255），
+/// 不可见 = 全透明（0,0,0,0）——VP 的 per-pixel alpha 混合据此保留桌面背景。
+fn build_cursor_overlay(raster: &CursorShapeRaster) -> Vec<u8> {
+  let pixels = (raster.w * raster.h) as usize;
+  let mut out = Vec::with_capacity(pixels * 4);
+  for i in 0..pixels {
+    if raster.visible[i] == 1 {
+      out.extend_from_slice(&raster.bgra[i * 4..i * 4 + 4]);
+    } else {
+      out.extend_from_slice(&[0, 0, 0, 0]);
+    }
+  }
+  out
+}
+
+/// 光标覆盖层纹理（BGRA）与其输入视图；形状/尺寸变更时整体重建（低频）。
+struct CursorOverlay {
+  _texture: ID3D11Texture2D,
+  input_view: ID3D11VideoProcessorInputView,
+}
+
+/// GPU 双流合成管线（每个 DuplicationOutput 一个；创建失败 → 会话走 CPU 回退）。
+struct ComposePipeline {
+  video_device: ID3D11VideoDevice,
+  video_ctx: ID3D11VideoContext,
+  enumerator: ID3D11VideoProcessorEnumerator,
+  vp: ID3D11VideoProcessor,
+  /// 合成目标（proc 纹理）的输出视图；proc 生命周期 = 会话，一次创建长期有效。
+  output_view: ID3D11VideoProcessorOutputView,
+  /// 主画面输入视图缓存（(纹理身份, 视图)）：采集帧纹理身份逐帧可能变化，
+  /// clean 底图则恒定——按身份命中避免逐帧重建。
+  main_input: Option<(usize, ID3D11VideoProcessorInputView)>,
+  cursor: Option<CursorOverlay>,
+  /// Blt 的帧序号（驱动要求单调）。
+  frame_counter: u32,
+}
+
+impl ComposePipeline {
+  fn create(
+    device: &ID3D11Device,
+    ctx: &ID3D11DeviceContext,
+    target: &ID3D11Texture2D,
+    out_w: u32,
+    out_h: u32,
+  ) -> AxResult<Self> {
+    let video_device = device
+      .cast::<ID3D11VideoDevice>()
+      .map_err(|e| AxError::internal(format!("ID3D11VideoDevice QI 失败: {e}")))?;
+    let video_ctx = ctx
+      .cast::<ID3D11VideoContext>()
+      .map_err(|e| AxError::internal(format!("ID3D11VideoContext QI 失败: {e}")))?;
+    let content = D3D11_VIDEO_PROCESSOR_CONTENT_DESC {
+      InputFrameFormat: D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
+      InputFrameRate: DXGI_RATIONAL { Numerator: 60, Denominator: 1 },
+      InputWidth: out_w,
+      InputHeight: out_h,
+      OutputFrameRate: DXGI_RATIONAL { Numerator: 60, Denominator: 1 },
+      OutputWidth: out_w,
+      OutputHeight: out_h,
+      Usage: D3D11_VIDEO_USAGE_PLAYBACK_NORMAL,
+    };
+    // unsafe 依据（块级）：D3D11 VideoDevice FFI；出参槽位由本栈帧持有，成功后引用归本结构。
+    let enumerator = unsafe { video_device.CreateVideoProcessorEnumerator(&content) }
+      .map_err(|e| AxError::internal(format!("合成 VP enumerator 创建失败: {e}")))?;
+    let vp = unsafe { video_device.CreateVideoProcessor(&enumerator, 0) }
+      .map_err(|e| AxError::internal(format!("合成 VP 创建失败: {e}")))?;
+    let ov_desc = D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC {
+      ViewDimension: D3D11_VPOV_DIMENSION_TEXTURE2D,
+      Anonymous: D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC_0 {
+        Texture2D: D3D11_TEX2D_VPOV { MipSlice: 0 },
+      },
+    };
+    let mut output_view: Option<ID3D11VideoProcessorOutputView> = None;
+    // unsafe 依据（块级）：同上 FFI；target（proc）生命周期 = 会话，视图长期有效。
+    unsafe {
+      video_device
+        .CreateVideoProcessorOutputView(target, &enumerator, &ov_desc, Some(&mut output_view))
+        .map_err(|e| AxError::internal(format!("合成输出视图创建失败: {e}")))?
+    };
+    // 流 1（光标覆盖层）的常量 alpha = 1.0：实际透明度完全取覆盖层的 per-pixel alpha。
+    // unsafe 依据（块级）：ID3D11VideoContext FFI；vp 持有至结构释放。
+    unsafe { video_ctx.VideoProcessorSetStreamAlpha(&vp, 1, TRUE, 1.0) };
+    Ok(Self {
+      video_device,
+      video_ctx,
+      enumerator,
+      vp,
+      output_view: output_view.ok_or_else(|| AxError::internal("合成输出视图为空"))?,
+      main_input: None,
+      cursor: None,
+      frame_counter: 0,
+    })
+  }
+
+  /// 形状变更时重建光标覆盖层（低频）：可见像素 = 光标颜色，其余全透明。
+  fn update_cursor(
+    &mut self,
+    device: &ID3D11Device,
+    ctx: &ID3D11DeviceContext,
+    raster: &CursorShapeRaster,
+  ) -> AxResult<()> {
+    if raster.w == 0 || raster.h == 0 {
+      self.cursor = None;
+      return Ok(());
+    }
+    let bytes = build_cursor_overlay(raster);
+    let texture = create_texture(
+      device,
+      raster.w,
+      raster.h,
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      D3D11_USAGE_DEFAULT,
+      D3D11_CPU_ACCESS_FLAG(0),
+      D3D11_BIND_FLAG(0),
+    )?;
+    // unsafe 依据（块级）：UpdateSubresource 为 D3D11 FFI；bytes 逐行 w*4 与纹理等宽。
+    unsafe {
+      ctx.UpdateSubresource(
+        &texture,
+        0,
+        None,
+        bytes.as_ptr() as *const c_void,
+        raster.w * 4,
+        0,
+      )
+    };
+    let iv_desc = D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC {
+      FourCC: 0,
+      ViewDimension: D3D11_VPIV_DIMENSION_TEXTURE2D,
+      Anonymous: D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC_0 {
+        Texture2D: D3D11_TEX2D_VPIV { MipSlice: 0, ArraySlice: 0 },
+      },
+    };
+    let mut view: Option<ID3D11VideoProcessorInputView> = None;
+    // unsafe 依据（块级）：同上 FFI；texture 由本结构持有，视图引用其生命周期。
+    unsafe {
+      self
+        .video_device
+        .CreateVideoProcessorInputView(&texture, &self.enumerator, &iv_desc, Some(&mut view))
+        .map_err(|e| AxError::internal(format!("光标覆盖层输入视图失败: {e}")))?
+    };
+    self.cursor = Some(CursorOverlay {
+      _texture: texture,
+      input_view: view.ok_or_else(|| AxError::internal("光标输入视图为空"))?,
+    });
+    Ok(())
+  }
+
+  /// 形状渲染失败：本形状周期内不叠覆盖层（与 CPU 路径的「跳过补丁」同语义）。
+  fn clear_cursor(&mut self) {
+    self.cursor = None;
+  }
+
+  /// 主画面输入视图（按纹理身份缓存）。
+  fn main_input_view(
+    &mut self,
+    device: &ID3D11Device,
+    texture: &ID3D11Texture2D,
+  ) -> AxResult<ID3D11VideoProcessorInputView> {
+    let identity = texture.as_raw() as usize;
+    if let Some((cached_identity, view)) = &self.main_input {
+      if *cached_identity == identity {
+        return Ok(view.clone());
+      }
+    }
+    let iv_desc = D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC {
+      FourCC: 0,
+      ViewDimension: D3D11_VPIV_DIMENSION_TEXTURE2D,
+      Anonymous: D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC_0 {
+        Texture2D: D3D11_TEX2D_VPIV { MipSlice: 0, ArraySlice: 0 },
+      },
+    };
+    let mut view: Option<ID3D11VideoProcessorInputView> = None;
+    // unsafe 依据（块级）：D3D11 VideoDevice FFI；纹理由调用方（采集帧/clean）持有至 Blt 提交。
+    unsafe {
+      device
+        .cast::<ID3D11VideoDevice>()
+        .map_err(|e| AxError::internal(format!("ID3D11VideoDevice QI 失败: {e}")))?
+        .CreateVideoProcessorInputView(texture, &self.enumerator, &iv_desc, Some(&mut view))
+        .map_err(|e| AxError::internal(format!("主画面输入视图失败: {e}")))?
+    };
+    let view = view.ok_or_else(|| AxError::internal("主画面输入视图为空"))?;
+    self.main_input = Some((identity, view.clone()));
+    Ok(view)
+  }
+
+  /// 双流合成：Blt(主画面 + 光标覆盖层) → proc。光标不可见/无覆盖层 → 单流（纯拷贝）。
+  fn compose(
+    &mut self,
+    device: &ID3D11Device,
+    source: &ID3D11Texture2D,
+    cursor: Option<&CursorRect>,
+  ) -> AxResult<()> {
+    let main_view = self.main_input_view(device, source)?;
+    let overlay = match (self.cursor.as_ref(), cursor) {
+      (Some(overlay), Some(rect)) => {
+        // 光标流的目标矩形 = 覆盖矩形；源矩形 = 形状内偏移（越界钳制后的子矩形）。
+        let dest = RECT {
+          left: rect.x0,
+          top: rect.y0,
+          right: rect.x0 + rect.w as i32,
+          bottom: rect.y0 + rect.h as i32,
+        };
+        let src = RECT {
+          left: rect.sx as i32,
+          top: rect.sy as i32,
+          right: (rect.sx + rect.w) as i32,
+          bottom: (rect.sy + rect.h) as i32,
+        };
+        // unsafe 依据（块级）：ID3D11VideoContext FFI；RECT 为本调用临时值。
+        unsafe {
+          self
+            .video_ctx
+            .VideoProcessorSetStreamDestRect(&self.vp, 1, TRUE, Some(&dest));
+          self
+            .video_ctx
+            .VideoProcessorSetStreamSourceRect(&self.vp, 1, TRUE, Some(&src));
+        }
+        Some(overlay.input_view.clone())
+      }
+      _ => {
+        // 无覆盖层：禁用流 1（保持单流纯拷贝；dest 由上次残值改为失效）。
+        // unsafe 依据（块级）：同上 FFI。
+        unsafe { self.video_ctx.VideoProcessorSetStreamDestRect(&self.vp, 1, FALSE, None) };
+        None
+      }
+    };
+    let mut streams = vec![D3D11_VIDEO_PROCESSOR_STREAM {
+      Enable: TRUE,
+      pInputSurface: ManuallyDrop::new(Some(main_view)),
+      ..Default::default()
+    }];
+    if let Some(view) = overlay {
+      streams.push(D3D11_VIDEO_PROCESSOR_STREAM {
+        Enable: TRUE,
+        pInputSurface: ManuallyDrop::new(Some(view)),
+        ..Default::default()
+      });
+    }
+    // unsafe 依据（块级）：VideoProcessorBlt 为 COM FFI；流数组在调用期间存活，
+    // 输入面引用由视图持有（主画面源纹理由调用方在 Blt 提交前保持存活）。
+    unsafe {
+      self
+        .video_ctx
+        .VideoProcessorBlt(&self.vp, &self.output_view, self.frame_counter, &streams)
+        .map_err(|e| AxError::internal(format!("合成 Blt 失败: {e}")))?
+    };
+    self.frame_counter = self.frame_counter.wrapping_add(1);
+    Ok(())
+  }
+}
+
 /// 单个输出的 duplication 会话：D3D11 device + clean/proc 纹理对 + DXGI 复制。
 pub struct DuplicationOutput {
   device: ID3D11Device,
@@ -296,6 +575,8 @@ pub struct DuplicationOutput {
   /// 上次合成时间：指针-only 重合成按 `POINTER_RECOMPOSE_MIN_INTERVAL` 节流
   /// （桌面帧不受限——它由内容驱动，光标随帧携带）。
   last_compose_at: Option<Instant>,
+  /// GPU 光标合成管线（P0-2b）；`None` = 驱动不支持/运行中失败 → CPU 回读路径。
+  compose: Option<ComposePipeline>,
 }
 
 impl DuplicationOutput {
@@ -344,6 +625,15 @@ impl DuplicationOutput {
       D3D11_CPU_ACCESS_READ,
       D3D11_BIND_FLAG(0),
     )?;
+    // GPU 光标合成（P0-2b）：初始化失败（驱动不支持 VP 双流/输入视图）即整会话回退
+    // CPU 回读路径——P0-2a 行为原样保留，不影响采集可用性（spec 降级预案）。
+    let compose = match ComposePipeline::create(&device, &ctx, &proc, w, h) {
+      Ok(pipeline) => Some(pipeline),
+      Err(e) => {
+        warn(&format!("GPU 光标合成不可用，回退 CPU 回读路径: {e}"));
+        None
+      }
+    };
     Ok(Self {
       device,
       ctx,
@@ -356,6 +646,7 @@ impl DuplicationOutput {
       clean_valid: false,
       last_composited: None,
       last_compose_at: None,
+      compose,
     })
   }
 
@@ -404,9 +695,27 @@ impl DuplicationOutput {
       let frame = res.cast::<ID3D11Texture2D>().map_err(|e| {
         AxError::internal(format!("桌面资源转 ID3D11Texture2D 失败: {e}"))
       })?;
+      // GPU 路径（P0-2b/P0-3）：主画面直接以采集帧纹理进 Blt（Blt 合成即产出 proc，
+      // 不再做第二个整帧拷贝）；clean 仍需一份底图（指针-only 重合成用），一次 CopyResource。
+      if self.compose.is_some() {
+        // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；clean/frame 同设备同尺寸同格式。
+        unsafe { self.ctx.CopyResource(&self.clean, &frame) };
+        self.clean_valid = true;
+        let source = frame.clone();
+        match self.compose_frame_gpu(&source, &info) {
+          Ok(()) => {
+            self.last_composited = Some(self.pointer_snapshot(&info));
+            self.last_compose_at = Some(Instant::now());
+            return Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor: None });
+          }
+          Err(e) => {
+            warn(&format!("GPU 光标合成失败，本会话回退 CPU 回读路径: {e}"));
+            self.compose = None; // 落到下方 CPU 路径（clean 已就绪）
+          }
+        }
+      }
       // unsafe 依据（块级）：CopyResource 为 D3D11 FFI；clean/proc/frame 同设备同尺寸
       // （DUPL 帧恒 B8G8R8A8_UNORM 且与输出矩形一致，open 时已对齐）。
-      unsafe { self.ctx.CopyResource(&self.clean, &frame) };
       unsafe { self.ctx.CopyResource(&self.proc, &self.clean) };
       self.clean_valid = true;
       // 光标补丁（从 clean 回读背景 + 混合 + 写回 proc；无可见光标 → None）。
@@ -433,11 +742,75 @@ impl DuplicationOutput {
       }
     }
     // 以最近桌面内容重合成：擦掉上一帧烧入的旧光标，再按新指针状态合成。
+    // GPU 路径：Blt(clean + 光标覆盖层) 全幅写出 proc（无需预拷贝）；失败回退 CPU。
+    if self.compose.is_some() {
+      let base = self.clean.clone();
+      let gpu = self.compose_frame_gpu(&base, &info);
+      match gpu {
+        Ok(()) => {
+          self.last_composited = Some(snap);
+          self.last_compose_at = Some(Instant::now());
+          return Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor: None });
+        }
+        Err(e) => {
+          warn(&format!("GPU 光标合成失败，本会话回退 CPU 回读路径: {e}"));
+          self.compose = None;
+        }
+      }
+    }
     unsafe { self.ctx.CopyResource(&self.proc, &self.clean) };
     let cursor = self.build_cursor_patch(&info)?;
     self.last_composited = Some(snap);
     self.last_compose_at = Some(Instant::now());
     Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor })
+  }
+
+  /// GPU 合成一帧（P0-2b）：算光标几何（越界钳制）→ 双流 Blt → proc。
+  /// 失败由调用方按「本会话回退 CPU」收口（一次性，不重试）。
+  fn compose_frame_gpu(
+    &mut self,
+    source: &ID3D11Texture2D,
+    info: &DXGI_OUTDUPL_FRAME_INFO,
+  ) -> AxResult<()> {
+    let cursor = self.compute_cursor_rect(info);
+    let Some(pipeline) = self.compose.as_mut() else {
+      return Err(AxError::internal("GPU 合成管线缺失"));
+    };
+    pipeline.compose(&self.device, source, cursor.as_ref())
+  }
+
+  /// 光标覆盖层的目标矩形 + 形状源偏移（CPU/GPU 两路共用的几何计算）：
+  /// 屏幕光标点 − output 原点 − 形状 hotspot，越界钳制到纹理内并同步裁掉源偏移。
+  fn compute_cursor_rect(&self, info: &DXGI_OUTDUPL_FRAME_INFO) -> Option<CursorRect> {
+    let pos = info.PointerPosition;
+    if pos.Visible == BOOL(0) {
+      return None;
+    }
+    let shape = self.shape.as_ref()?;
+    // 栅格在 refresh_shape（形状变更时）已算好；本形状渲染失败 → 跳过覆盖层。
+    let raster = shape.raster.as_ref()?;
+    if raster.w == 0 || raster.h == 0 {
+      return None;
+    }
+    let hot = shape.info.HotSpot;
+    let x0 = pos.Position.x - self.desktop_rect.0 - hot.x;
+    let y0 = pos.Position.y - self.desktop_rect.1 - hot.y;
+    let (tw, th) = (self.desktop_rect.2, self.desktop_rect.3);
+    let ix0 = x0.max(0);
+    let iy0 = y0.max(0);
+    let ix1 = (x0 + raster.w as i32).min(tw);
+    let iy1 = (y0 + raster.h as i32).min(th);
+    if ix1 <= ix0 || iy1 <= iy0 {
+      return None;
+    }
+    Some(CursorRect {
+      x0: ix0,
+      y0: iy0,
+      w: (ix1 - ix0) as u32,
+      h: (iy1 - iy0) as u32,
+      sx: (ix0 - x0) as u32,
+      sy: (iy0 - y0) as u32,
+    })
   }
 
   /// 指针状态快照（合成判重键）：位置 + 生效形状键（缓存形状的 `buffer_size`，
@@ -496,6 +869,20 @@ impl DuplicationOutput {
         None
       }
     };
+    // GPU 覆盖层（P0-2b）：形状变更（低频）时重建；失败即整会话回退 CPU 回读路径。
+    if let Some(pipeline) = self.compose.as_mut() {
+      let update = match raster.as_ref() {
+        Some(r) => pipeline.update_cursor(&self.device, &self.ctx, r),
+        None => {
+          pipeline.clear_cursor();
+          Ok(())
+        }
+      };
+      if let Err(e) = update {
+        warn(&format!("光标覆盖层更新失败，本会话回退 CPU 回读路径: {e}"));
+        self.compose = None;
+      }
+    }
     self.shape = Some(ShapeCache { info: shape_info, _data: buf, buffer_size, raster });
     Ok(())
   }
@@ -614,34 +1001,53 @@ pub fn create_device_for_tests() -> Option<ID3D11Device> {
   create_device().ok().map(|(device, _)| device)
 }
 
+/// 契约测试缝（GPU 光标合成的驱动验证，P0-2b）：仅硬件 D3D11 设备 + context，
+/// 不走 WARP 回退（WARP 不代表真实驱动行为，CI 软渲染下按环境能力缺失跳过）。
+pub fn create_hardware_device_for_tests() -> Option<(ID3D11Device, ID3D11DeviceContext)> {
+  create_device_with_driver(D3D_DRIVER_TYPE_HARDWARE).ok()
+}
+
 /// 要点 1：D3D11CreateDevice（HARDWARE、level ≥ 11_0）失败回退 WARP。
 fn create_device() -> AxResult<(ID3D11Device, ID3D11DeviceContext)> {
-  let levels = [D3D_FEATURE_LEVEL_11_0];
   for driver in [D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP] {
-    let mut device: Option<ID3D11Device> = None;
-    let mut level = D3D_FEATURE_LEVEL_11_0;
-    let mut ctx: Option<ID3D11DeviceContext> = None;
-    // unsafe 依据（块级）：D3D11CreateDevice 为 FFI；出参槽位由本栈帧持有。
-    let r = unsafe {
-      D3D11CreateDevice(
-        None,
-        driver,
-        None,
-        D3D11_CREATE_DEVICE_FLAG(0),
-        Some(&levels),
-        D3D11_SDK_VERSION,
-        Some(&mut device),
-        Some(&mut level),
-        Some(&mut ctx),
-      )
-    };
-    match (r, device, ctx) {
-      (Ok(()), Some(d), Some(c)) => return Ok((d, c)),
-      _ => continue,
+    match create_device_with_driver(driver) {
+      Ok(pair) => return Ok(pair),
+      Err(_) => continue,
     }
   }
   // 能力面缺失（spec 失败表：DUPL/D3D 创建失败 → unsupported）。
   Err(AxError::new("unimplemented", "D3D11CreateDevice（HARDWARE/WARP）均失败"))
+}
+
+/// 按指定 driver 建 D3D11 设备（feature level ≥ 11_0）。
+fn create_device_with_driver(
+  driver: windows::Win32::Graphics::Direct3D::D3D_DRIVER_TYPE,
+) -> AxResult<(ID3D11Device, ID3D11DeviceContext)> {
+  let levels = [D3D_FEATURE_LEVEL_11_0];
+  let mut device: Option<ID3D11Device> = None;
+  let mut level = D3D_FEATURE_LEVEL_11_0;
+  let mut ctx: Option<ID3D11DeviceContext> = None;
+  // unsafe 依据（块级）：D3D11CreateDevice 为 FFI；出参槽位由本栈帧持有。
+  let r = unsafe {
+    D3D11CreateDevice(
+      None,
+      driver,
+      None,
+      D3D11_CREATE_DEVICE_FLAG(0),
+      Some(&levels),
+      D3D11_SDK_VERSION,
+      Some(&mut device),
+      Some(&mut level),
+      Some(&mut ctx),
+    )
+  };
+  match (r, device, ctx) {
+    (Ok(()), Some(d), Some(c)) => Ok((d, c)),
+    _ => Err(AxError::new(
+      "unimplemented",
+      format!("D3D11CreateDevice(driver={}) 失败", driver.0),
+    )),
+  }
 }
 
 /// 要点 2：CreateDXGIFactory1 → EnumAdapters1 → EnumOutputs → 比对
@@ -723,4 +1129,151 @@ pub(crate) fn create_texture(
       .map_err(|e| AxError::internal(format!("CreateTexture2D({w}x{h}) 失败: {e}")))?
   };
   tex.ok_or_else(|| AxError::internal("CreateTexture2D 未返回纹理"))
+}
+
+/// P0-2b 驱动验证与正确性回归（真机 GPU 上执行；CI 无硬件设备跳过）。
+///
+/// 这是「GPU 光标合成」的驱动行为验证：在真实硬件设备上构造底图（纯红）+
+/// 覆盖层（左半不透明绿 / 右半全透明 / 一格半透明绿），经双流 VideoProcessor
+/// 合成到目标纹理后回读断言：
+/// - 不透明像素被覆盖、覆盖矩形外不受影响；
+/// - 全透明像素保留背景（证明用的是 per-pixel alpha，而不是会被误绘的恒定 alpha）；
+/// - 半透明像素按 α 混合（证明真混合而非直写）。
+///
+/// 管线创建失败在无 GPU 的 CI 上不会发生（设备缺失提前跳过）；在真实硬件上失败
+/// 即「本驱动不支持 P0-2b 机制」——运行时对此有整会话 CPU 回退，不会带病运行。
+#[cfg(test)]
+mod gpu_cursor_tests {
+  use super::*;
+
+  fn read_pixel(
+    device: &ID3D11Device,
+    ctx: &ID3D11DeviceContext,
+    texture: &ID3D11Texture2D,
+    w: u32,
+    h: u32,
+    x: u32,
+    y: u32,
+  ) -> [u8; 4] {
+    let staging = create_texture(
+      device,
+      w,
+      h,
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      D3D11_USAGE_STAGING,
+      D3D11_CPU_ACCESS_READ,
+      D3D11_BIND_FLAG(0),
+    )
+    .expect("staging 创建");
+    // unsafe 依据（块级）：CopyResource/Map/Unmap 为 D3D11 FFI；staging 为本函数持有。
+    unsafe { ctx.CopyResource(&staging, texture) };
+    let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
+    unsafe { ctx.Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped)) }.expect("Map");
+    let row_pitch = mapped.RowPitch as usize;
+    let mut px = [0u8; 4];
+    // unsafe 依据（块级）：pData 来自仍持有的 Map；xy 在纹理尺寸内。
+    unsafe {
+      let p = (mapped.pData as *const u8).add(y as usize * row_pitch + x as usize * 4);
+      px.copy_from_slice(std::slice::from_raw_parts(p, 4));
+    }
+    unsafe { ctx.Unmap(&staging, 0) };
+    px
+  }
+
+  #[test]
+  fn gpu_cursor_overlay_composites_with_per_pixel_alpha() {
+    let Some((device, ctx)) = create_hardware_device_for_tests() else {
+      return; // 无硬件设备（CI 软渲染）：按环境能力缺失跳过
+    };
+    let (w, h) = (64u32, 64u32);
+    // 底图：纯红（BGRA = 0,0,255,255）。
+    let base = create_texture(
+      &device,
+      w,
+      h,
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      D3D11_USAGE_DEFAULT,
+      D3D11_CPU_ACCESS_FLAG(0),
+      D3D11_BIND_FLAG(0),
+    )
+    .expect("底图创建");
+    let red_pixels: Vec<u8> = [0u8, 0u8, 255u8, 255u8]
+      .iter()
+      .copied()
+      .cycle()
+      .take((w * h * 4) as usize)
+      .collect();
+    // unsafe 依据（块级）：UpdateSubresource 为 D3D11 FFI；缓冲逐行 w*4 与纹理等宽。
+    unsafe {
+      ctx.UpdateSubresource(&base, 0, None, red_pixels.as_ptr() as *const c_void, w * 4, 0)
+    };
+    // 合成目标。
+    let target = create_texture(
+      &device,
+      w,
+      h,
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      D3D11_USAGE_DEFAULT,
+      D3D11_CPU_ACCESS_FLAG(0),
+      D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+    )
+    .expect("目标纹理创建");
+    let mut pipeline = ComposePipeline::create(&device, &ctx, &target, w, h)
+      .expect("GPU 光标合成管线创建（失败 = 本驱动不支持 P0-2b 机制）");
+    // 覆盖层 8×8：列 0..3 不透明绿；列 4..7 全透明（颜色故意给蓝——若被恒定 alpha
+    // 误用会整块绘出）；像素 (7,0) 半透明绿（alpha=128）。
+    let mut bgra = vec![0u8; 8 * 8 * 4];
+    let mut visible = vec![0u8; 8 * 8];
+    for y in 0..8usize {
+      for x in 0..8usize {
+        let i = (y * 8 + x) * 4;
+        if x < 4 {
+          bgra[i..i + 4].copy_from_slice(&[0, 255, 0, 255]); // 绿
+          visible[y * 8 + x] = 1;
+        } else {
+          bgra[i..i + 4].copy_from_slice(&[255, 0, 0, 255]); // 蓝（不可见，不应被绘制）
+        }
+      }
+    }
+    bgra[28..32].copy_from_slice(&[0, 255, 0, 128]); // 像素 (7,0)：半透明绿
+    visible[7] = 1;
+    let raster = CursorShapeRaster { bgra, visible, w: 8, h: 8 };
+    pipeline.update_cursor(&device, &ctx, &raster).expect("覆盖层纹理");
+
+    // 合成：覆盖矩形贴在 (16,16)。
+    let rect = CursorRect { x0: 16, y0: 16, w: 8, h: 8, sx: 0, sy: 0 };
+    pipeline.compose(&device, &base, Some(&rect)).expect("合成 Blt");
+
+    let green = read_pixel(&device, &ctx, &target, w, h, 17, 17);
+    assert_eq!(green, [0, 255, 0, 255], "不透明像素应被覆盖为纯绿: {green:?}");
+    let preserved = read_pixel(&device, &ctx, &target, w, h, 21, 17);
+    assert_eq!(
+      preserved,
+      [0, 0, 255, 255],
+      "全透明像素必须保留背景红（per-pixel alpha，而非恒定 alpha）: {preserved:?}"
+    );
+    let blended = read_pixel(&device, &ctx, &target, w, h, 23, 16);
+    // 半透明绿（0,255,0,α=0.5）叠纯红（B=0,G=0,R=255）→ B=0, G≈128, R≈127。
+    // alpha 通道本身（191）不参与下游语义（proc 后续转 NV12，不消费 alpha），不断言。
+    assert!(
+      blended[0] <= 4
+        && (blended[1] as i32 - 128).abs() <= 4
+        && (blended[2] as i32 - 127).abs() <= 4,
+      "半透明像素应按 α 混合（B≈0, G≈128, R≈127）: {blended:?}"
+    );
+    let outside = read_pixel(&device, &ctx, &target, w, h, 8, 8);
+    assert_eq!(outside, [0, 0, 255, 255], "覆盖矩形外不受影响");
+  }
+
+  #[test]
+  fn gpu_cursor_overlay_builder_marks_transparent_pixels() {
+    // 纯函数：可见=原色（含 alpha），不可见=全透明——上层混合依赖该不变量。
+    let raster = CursorShapeRaster {
+      bgra: vec![9, 8, 7, 255, 1, 2, 3, 255],
+      visible: vec![1, 0],
+      w: 2,
+      h: 1,
+    };
+    assert_eq!(build_cursor_overlay(&raster), vec![9, 8, 7, 255, 0, 0, 0, 0]);
+  }
 }

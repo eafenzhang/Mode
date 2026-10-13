@@ -104,7 +104,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 ## 被控 Rust（`crates/mode-cua-ax/src/rd_media/`）
 
 - **采集**：DXGI Desktop Duplication（`windows` crate，与 `screen.rs` 同依赖面）；输出分辨率 = 显示器原生（>1080p 时由编码链缩放，见下）。
-- **光标**：DUPL `PointerPosition` + `PointerShape` 合成进帧——指针形状纹理 + 位置画 quad（GPU 路线）；**降级预案**：GPU 合成受阻时改为「光标包围盒 CPU 合成」，不改对外协议。
+- **光标**：DUPL `PointerPosition` + `PointerShape` 合成进帧。**GPU 合成已落地（P0-2b，2026-10-13）**：形状变更时渲染成小 BGRA 覆盖层纹理（透明像素 alpha=0），每帧经双流 `VideoProcessorBlt`（流 0 = 主画面——桌面更新帧直接以采集帧纹理为源（P0-3，不再 frame→clean→proc 两次整帧拷贝）；流 1 = 光标覆盖层，`VideoProcessorSetStreamDestRect/SourceRect` 定位、per-pixel alpha 混合）合成到 proc，全程零回读。初始化或运行中任一步在驱动上失败 → **整会话回退 CPU 回读路径**（P0-2a：回读背景 + CPU 混合 + 回写），对外协议与行为不变。驱动行为由 `capture.rs` 内 `gpu_cursor_tests` 在真实硬件设备上验证（per-pixel alpha/覆盖矩形/背景保留；CI 无硬件设备跳过）。
 - **编码**：MF 视频编码器（`MFT_ENUM_FLAG_HARDWARE` 选「H.264 HW」，Win10 系统自带）；输入 D3D11 纹理 → D3D11 Video Processor 出 NV12（承担 >1080p 缩放）→ MF `MFT_MESSAGE_SET_D3D_MANAGER` 全 GPU 路径。参数：平均码率 8Mbps、GOP 120 帧（≈2s@60fps）、`select-monitor` / 分辨率变化强制 IDR。
   - **异步 MFT（2026-10-13 修复）**：硬件 H.264 MFT（NVENC / AMF / QSV）普遍是**异步编码器**，非 MF 管线直接使用分两步才能跑通：
     1. **解锁**：读 `MF_TRANSFORM_ASYNC` 判定；异步时配置媒体类型前置 `MF_TRANSFORM_ASYNC_UNLOCK=TRUE`，否则首次 `SetInputType` 报 `MF_E_TRANSFORM_ASYNC_LOCKED (0xC00D6D77)`。
