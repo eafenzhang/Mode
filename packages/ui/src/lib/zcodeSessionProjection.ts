@@ -1,89 +1,89 @@
 /* oxlint-disable eslint(max-lines) -- ZCode session 到当前聊天 projection 的迁移桥需要同时保持 snapshot 和 event 映射一致。 */
 import {
-  getZCodeAgentAvailableModes as getSharedAgentAvailableModes,
-  normalizeAvailableZCodeMode,
-  coalesceConsecutiveZCodeAssistants,
+  getModeAgentAvailableModes as getSharedAgentAvailableModes,
+  normalizeAvailableModeMode,
+  coalesceConsecutiveModeAssistants,
   extractPlanStepsFromToolInput,
   extractPlanStepsFromToolOutput,
   decodeCustomModelValue,
-  deriveZCodeTaskStatusFromSessionSnapshot,
+  deriveModeTaskStatusFromSessionSnapshot,
   generateTraceId,
   getConversationMessageProjectionPolicy,
-  getZCodeGoalActiveIterationCount,
-  getZCodeGoalIterationByAssistantMessageId,
-  getZCodeUserVisibleMessages,
+  getModeGoalActiveIterationCount,
+  getModeGoalIterationByAssistantMessageId,
+  getModeUserVisibleMessages,
   isMainAgentToolProjectionSource,
-  isZCodeGoalContinuationReminderMessage,
-  normalizeZCodeApiRetryStatus,
-  attachZCodeBackgroundTaskNotificationToRaw,
-  collectZCodeBackgroundTaskNotificationsByToolUseId,
-  mergeZCodeBackgroundTaskControlItems,
-  parseZCodeBackgroundTaskControlItems,
-  parseZCodeBackgroundTaskNotificationText,
+  isModeGoalContinuationReminderMessage,
+  normalizeModeApiRetryStatus,
+  attachModeBackgroundTaskNotificationToRaw,
+  collectModeBackgroundTaskNotificationsByToolUseId,
+  mergeModeBackgroundTaskControlItems,
+  parseModeBackgroundTaskControlItems,
+  parseModeBackgroundTaskNotificationText,
   parseModelPickerValue as parseSharedModelSelection,
   formatModelPickerValue as formatSharedModelSelection,
-  resolveZCodeVisibleSessionTitle,
-  textFromZCodeMessageParts,
-  ZCODE_AGENT_PROVIDER,
-  zcodeBackgroundTaskNotificationToolUpdateStatus,
-  appendZCodeStreamingToolInputDelta,
-  buildZCodeStreamingToolInputPreview,
-  createZCodeToolProjectionMemory,
-  ensureZCodeToolProjectionMemory,
-  finalizeZCodeToolProjectionInput,
-  forgetZCodeToolProjectionMetadata,
-  isZCodeModelRetryRecoveryProgressPayload,
-  markZCodeStreamingToolInputPreviewMaterialized,
-  resolveZCodeToolProjectionMetadata,
-  shouldMaterializeZCodeStreamingToolInputPreview,
-  zcodeApiRetryFromModelNetworkStatusPayload,
-  zcodeApiRetryFromStreamRecoveryPayload,
-  zcodeTaskNetworkDebugStatusFromPayload,
-  type ZCodeApiRetryStatus,
-  type ZCodeBackgroundTaskNotificationInfo,
-  type ZCodeBackgroundTaskControlItem,
-  type ZCodeConfigOption,
-  type ZCodePersistedMessage,
-  type ZCodePersistedMessagePart,
-  type ZCodePersistedToolCall,
-  type ZCodeTaskGoal,
-  type ZCodeTaskGoalStats,
-  type ZCodeTaskTargetChangedAction,
-  type ZCodeTaskMode,
-  type ZCodeTaskModeInfo,
-  type ZCodeStreamEvent,
-  type ZCodeTaskMeta,
-  type ZCodeTaskSnapshot,
-  type ZCodeTodoGroup,
-  type ZCodeTurnSteerCommandKind,
-  type ZCodeTurnSteerSource,
-  type ZCodePlanStep,
-  type ZCodePromptAttachment,
-  type ZCodeUsage,
+  resolveModeVisibleSessionTitle,
+  textFromModeMessageParts,
+  MODE_AGENT_PROVIDER,
+  modeBackgroundTaskNotificationToolUpdateStatus,
+  appendModeStreamingToolInputDelta,
+  buildModeStreamingToolInputPreview,
+  createModeToolProjectionMemory,
+  ensureModeToolProjectionMemory,
+  finalizeModeToolProjectionInput,
+  forgetModeToolProjectionMetadata,
+  isModeModelRetryRecoveryProgressPayload,
+  markModeStreamingToolInputPreviewMaterialized,
+  resolveModeToolProjectionMetadata,
+  shouldMaterializeModeStreamingToolInputPreview,
+  modeApiRetryFromModelNetworkStatusPayload,
+  modeApiRetryFromStreamRecoveryPayload,
+  modeTaskNetworkDebugStatusFromPayload,
+  type ModeApiRetryStatus,
+  type ModeBackgroundTaskNotificationInfo,
+  type ModeBackgroundTaskControlItem,
+  type ModeConfigOption,
+  type ModePersistedMessage,
+  type ModePersistedMessagePart,
+  type ModePersistedToolCall,
+  type ModeTaskGoal,
+  type ModeTaskGoalStats,
+  type ModeTaskTargetChangedAction,
+  type ModeTaskMode,
+  type ModeTaskModeInfo,
+  type ModeStreamEvent,
+  type ModeTaskMeta,
+  type ModeTaskSnapshot,
+  type ModeTodoGroup,
+  type ModeTurnSteerCommandKind,
+  type ModeTurnSteerSource,
+  type ModePlanStep,
+  type ModePromptAttachment,
+  type ModeUsage,
   type InputId,
   type TraceId,
-  type ZCodeMessagePart,
-  type ZCodeMessageWithParts,
+  type ModeMessagePart,
+  type ModeMessageWithParts,
   type ModelSelection,
-  type ZCodePermissionOption,
-  type ZCodePermissionRequest,
-  type ZCodePermissionRequestParams,
-  type ZCodeSessionEvent,
-  type ZCodeSessionMode,
-  type ZCodeSessionSettingsState,
-  type ZCodeSessionStateSnapshot,
-  type ZCodeStateUpdatedNotification,
-  type ZCodeContextCompactionTimelinePhase,
-  type ZCodeContextCompactionTimelineMeta,
-  type ZCodeGoalVerification,
-  type ZCodeGoalVerificationTimelineMeta,
-  type ZCodeTimelineMeta,
-  type ZCodeTimelineStatus,
-  type ZCodeTimelineTrigger,
-  type ZCodeToolProjectionMemory,
-  type ZCodeUserInputRequestParams,
-  type ZCodeUserInputResponse,
-  zcodeContextUsageBreakdownSchema,
+  type ModePermissionOption,
+  type ModePermissionRequest,
+  type ModePermissionRequestParams,
+  type ModeSessionEvent,
+  type ModeSessionMode,
+  type ModeSessionSettingsState,
+  type ModeSessionStateSnapshot,
+  type ModeStateUpdatedNotification,
+  type ModeContextCompactionTimelinePhase,
+  type ModeContextCompactionTimelineMeta,
+  type ModeGoalVerification,
+  type ModeGoalVerificationTimelineMeta,
+  type ModeTimelineMeta,
+  type ModeTimelineStatus,
+  type ModeTimelineTrigger,
+  type ModeToolProjectionMemory,
+  type ModeUserInputRequestParams,
+  type ModeUserInputResponse,
+  modeContextUsageBreakdownSchema,
 } from "@zcode/shared";
 import { errorAttributionSchema } from "@zcode/shared/zcode-protocol-v4";
 import { logger } from "@/logger.js";
@@ -101,11 +101,11 @@ const COMPACTION_PROJECTION_DIAG_LIMIT = 200;
 const compactionProjectionDiagSignatures = new Set<string>();
 const ZCODE_AGENT_MODE_OPTIONS = getSharedAgentAvailableModes();
 
-export interface ZCodeSessionEventProjectionState extends ZCodeToolProjectionMemory {
+export interface ZCodeSessionEventProjectionState extends ModeToolProjectionMemory {
   activePromptInputIdBySession?: Map<string, InputId>;
   rewindControlTurnKeys?: Set<string>;
   activeApiRetrySessionIds?: Set<string>;
-  backgroundTaskControlsBySession?: Map<string, ZCodeBackgroundTaskControlItem[]>;
+  backgroundTaskControlsBySession?: Map<string, ModeBackgroundTaskControlItem[]>;
   streamedTurnKeys?: Set<string>;
 }
 
@@ -125,7 +125,7 @@ export function formatModelPickerValue(ref: ModelSelection | undefined): string 
 }
 
 function resolveLatestMessageModelSelection(
-  messages: readonly ZCodeMessageWithParts[],
+  messages: readonly ModeMessageWithParts[],
 ): ModelSelection | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const model = messages[index]?.info.model;
@@ -137,7 +137,7 @@ function resolveLatestMessageModelSelection(
 }
 
 function resolveTaskMetaModelSelectionFromSnapshot(
-  snapshot: ZCodeSessionStateSnapshot,
+  snapshot: ModeSessionStateSnapshot,
 ): ModelSelection | undefined {
   // 历史 resume 被错误 runtimeModel 覆盖时，settings.current 会变成 app 当前默认模型，
   // 但消息 info.model 仍记录真实使用的模型。task meta 会作为下次冷恢复 hint，
@@ -159,7 +159,7 @@ export function parseModelPickerValue(value: string): ModelSelection {
   return parseSharedModelSelection(value);
 }
 
-export function toZCodeTaskMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMode | undefined {
+export function toZCodeTaskMode(mode: ModeTaskMode | undefined): ModeSessionMode | undefined {
   switch (mode) {
     case "plan":
       return "plan";
@@ -184,9 +184,9 @@ export function toZCodeTaskMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMo
 }
 
 export function zcodeSessionSettingsToConfigOptions(
-  settings: ZCodeSessionSettingsState,
-): ZCodeConfigOption[] {
-  const configOptions: ZCodeConfigOption[] = [
+  settings: ModeSessionSettingsState,
+): ModeConfigOption[] {
+  const configOptions: ModeConfigOption[] = [
     {
       id: MODEL_CONFIG_ID,
       name: "Model",
@@ -216,7 +216,7 @@ export function zcodeSessionSettingsToConfigOptions(
       name: "Mode",
       category: "mode",
       type: "select",
-      currentValue: normalizeAvailableZCodeMode(settings.mode.current),
+      currentValue: normalizeAvailableModeMode(settings.mode.current),
       options: getZCodeAgentModeSelectOptions(),
     },
   ];
@@ -238,22 +238,22 @@ export function zcodeSessionSettingsToConfigOptions(
 }
 
 export function zcodeWorkspacePresentationToConfigOptions(
-  mode: ZCodeSessionMode,
-): ZCodeConfigOption[] {
+  mode: ModeSessionMode,
+): ModeConfigOption[] {
   return [
     {
       id: MODE_CONFIG_ID,
       name: "Mode",
       category: "mode",
       type: "select",
-      currentValue: normalizeAvailableZCodeMode(mode),
+      currentValue: normalizeAvailableModeMode(mode),
       options: getZCodeAgentModeSelectOptions(),
     },
   ];
 }
 
 function resolveSettingsThoughtLevelCurrentValue(
-  thoughtLevel: ZCodeSessionSettingsState["thoughtLevel"],
+  thoughtLevel: ModeSessionSettingsState["thoughtLevel"],
 ): string | undefined {
   const thoughtLevelValues = new Set(thoughtLevel.available.map((level) => level.value));
   const currentThoughtLevel =
@@ -270,21 +270,21 @@ function resolveSettingsThoughtLevelCurrentValue(
 }
 
 export function zcodeSessionSnapshotToZCodeTaskSnapshot(
-  snapshot: ZCodeSessionStateSnapshot,
-): ZCodeTaskSnapshot {
+  snapshot: ModeSessionStateSnapshot,
+): ModeTaskSnapshot {
   const meta = zcodeSessionSnapshotToTaskMeta(snapshot);
   const activeGoalIterationCount = getSnapshotGoalActiveIterationCount(snapshot);
-  const goalIterationByAssistantMessageId = getZCodeGoalIterationByAssistantMessageId(
+  const goalIterationByAssistantMessageId = getModeGoalIterationByAssistantMessageId(
     snapshot.messages,
     {
       ...(activeGoalIterationCount > 0 ? { maxGoalIteration: activeGoalIterationCount } : {}),
       target: snapshot.projection.target,
     },
   );
-  const visibleMessages = getZCodeUserVisibleMessages(snapshot.messages, {
+  const visibleMessages = getModeUserVisibleMessages(snapshot.messages, {
     target: snapshot.projection.target,
   });
-  const backgroundTaskNotifications = collectZCodeBackgroundTaskNotificationsByToolUseId(
+  const backgroundTaskNotifications = collectModeBackgroundTaskNotificationsByToolUseId(
     snapshot.messages,
   );
   if (snapshot.projection.target) {
@@ -300,7 +300,7 @@ export function zcodeSessionSnapshotToZCodeTaskSnapshot(
       assistantGoalIterations: goalIterationCounts,
       goalContinuationReminderUsers: snapshot.messages.filter(
         (message) =>
-          message.info.role === "user" && isZCodeGoalContinuationReminderMessage(message),
+          message.info.role === "user" && isModeGoalContinuationReminderMessage(message),
       ).length,
       goalStatsIteration: snapshot.goalStats?.iterationCount ?? null,
       rawMessages: snapshot.messages.length,
@@ -315,7 +315,7 @@ export function zcodeSessionSnapshotToZCodeTaskSnapshot(
       addGoalVerificationTimelineSnapshotFallback(
         addGoalObjectiveSnapshotFallback(
           restoreGoalCommandUserMessages(
-            coalesceConsecutiveZCodeAssistants(
+            coalesceConsecutiveModeAssistants(
               visibleMessages.map((message) =>
                 zcodeMessageToZCodePersistedMessage(
                   message,
@@ -336,7 +336,7 @@ export function zcodeSessionSnapshotToZCodeTaskSnapshot(
     ),
   );
   logCompactionProjectionDiagnostic(snapshot, visibleMessages, messages);
-  const pendingPermissions: ZCodePermissionRequest[] = snapshot.projection.pendingPermissions
+  const pendingPermissions: ModePermissionRequest[] = snapshot.projection.pendingPermissions
     .filter((permission) => !isUserInputBackedPermissionToolName(permission.toolName))
     .map((permission) => pendingPermissionToStreamEvent(snapshot.session.sessionId, permission));
   return {
@@ -355,7 +355,7 @@ export function zcodeSessionSnapshotToZCodeTaskSnapshot(
         contextUsageFromProjection(snapshot.projection) ??
         undefined,
       pendingPermissions,
-      backgroundBashJobs: parseZCodeBackgroundTaskControlItems(snapshot.projection.backgroundJobs),
+      backgroundBashJobs: parseModeBackgroundTaskControlItems(snapshot.projection.backgroundJobs),
       pendingElicitations: snapshot.projection.pendingPermissions
         .filter((permission) => isUserInputBackedPermissionToolName(permission.toolName))
         .map((permission) =>
@@ -365,7 +365,7 @@ export function zcodeSessionSnapshotToZCodeTaskSnapshot(
           ),
         )
         .filter(
-          (event): event is Extract<ZCodeStreamEvent, { type: "elicitation_request" }> =>
+          (event): event is Extract<ModeStreamEvent, { type: "elicitation_request" }> =>
             event !== null,
         ),
       // Bugfix: agent 恢复历史 session 时会从 DB 读取 todo；UI 的 todo 面板不能再只依赖
@@ -379,11 +379,11 @@ export function zcodeSessionSnapshotToZCodeTaskSnapshot(
   };
 }
 
-function hasProtocolCompactionPart(message: ZCodeMessageWithParts): boolean {
+function hasProtocolCompactionPart(message: ModeMessageWithParts): boolean {
   return message.parts.some((part) => part.type === "compaction");
 }
 
-function protocolMessageTimelineStatus(message: ZCodeMessageWithParts) {
+function protocolMessageTimelineStatus(message: ModeMessageWithParts) {
   for (const part of message.parts) {
     if (part.type !== "compaction") {
       continue;
@@ -400,7 +400,7 @@ function protocolMessageTimelineStatus(message: ZCodeMessageWithParts) {
   return null;
 }
 
-function summarizeProtocolMessageForTimelineDiag(message: ZCodeMessageWithParts, index: number) {
+function summarizeProtocolMessageForTimelineDiag(message: ModeMessageWithParts, index: number) {
   return {
     index,
     id: message.info.messageId,
@@ -408,12 +408,12 @@ function summarizeProtocolMessageForTimelineDiag(message: ZCodeMessageWithParts,
     created: message.info.time.created,
     completed: message.info.time.completed,
     partTypes: message.parts.map((part) => part.type),
-    textLength: textFromZCodeMessageParts(message.parts).length,
+    textLength: textFromModeMessageParts(message.parts).length,
     compaction: protocolMessageTimelineStatus(message),
   };
 }
 
-function summarizePersistedMessageForTimelineDiag(message: ZCodePersistedMessage, index: number) {
+function summarizePersistedMessageForTimelineDiag(message: ModePersistedMessage, index: number) {
   const timeline = message.syntheticTimeline;
   return {
     index,
@@ -461,9 +461,9 @@ function rememberCompactionProjectionDiagSignature(signature: string): boolean {
 }
 
 function logCompactionProjectionDiagnostic(
-  snapshot: ZCodeSessionStateSnapshot,
-  visibleMessages: readonly ZCodeMessageWithParts[],
-  projectedMessages: readonly ZCodePersistedMessage[],
+  snapshot: ModeSessionStateSnapshot,
+  visibleMessages: readonly ModeMessageWithParts[],
+  projectedMessages: readonly ModePersistedMessage[],
 ) {
   const hasCompaction =
     snapshot.messages.some(hasProtocolCompactionPart) ||
@@ -514,9 +514,9 @@ function logCompactionProjectionDiagnostic(
 }
 
 function restoreGoalCommandUserMessages(
-  messages: ZCodePersistedMessage[],
-  snapshot: ZCodeSessionStateSnapshot,
-): ZCodePersistedMessage[] {
+  messages: ModePersistedMessage[],
+  snapshot: ModeSessionStateSnapshot,
+): ModePersistedMessage[] {
   const target = snapshot.projection.target;
   const objective = target?.objective.trim();
   if (!target || !objective) {
@@ -545,32 +545,32 @@ function restoreGoalCommandUserMessages(
   return changed ? restored : messages;
 }
 
-function getSnapshotGoalActiveIterationCount(snapshot: ZCodeSessionStateSnapshot): number {
+function getSnapshotGoalActiveIterationCount(snapshot: ModeSessionStateSnapshot): number {
   const targetId = snapshot.projection.target?.targetId;
   const timeline =
     snapshot.runtime.goalVerificationTimeline?.filter(
       (item) => !targetId || item.targetId === targetId,
     ) ?? [];
-  return getZCodeGoalActiveIterationCount({
+  return getModeGoalActiveIterationCount({
     targetStatus: snapshot.projection.target?.status ?? null,
     timeline,
   });
 }
 
 function addGoalObjectiveSnapshotFallback(
-  messages: ZCodePersistedMessage[],
-  snapshot: ZCodeSessionStateSnapshot,
-): ZCodePersistedMessage[] {
+  messages: ModePersistedMessage[],
+  snapshot: ModeSessionStateSnapshot,
+): ModePersistedMessage[] {
   const objective = snapshot.projection.target?.objective.trim();
   if (
     !objective ||
     messages.some((message) => message.role === "user") ||
-    !snapshot.messages.some(isZCodeGoalContinuationReminderMessage)
+    !snapshot.messages.some(isModeGoalContinuationReminderMessage)
   ) {
     return messages;
   }
 
-  const continuationMessage = snapshot.messages.find(isZCodeGoalContinuationReminderMessage);
+  const continuationMessage = snapshot.messages.find(isModeGoalContinuationReminderMessage);
   // Bugfix: /goal 续跑会把目标包进 model-only system-reminder，shared 可见过滤会正确隐藏内部 XML。
   // 但历史恢复如果没有原始用户 turn，聊天区会只剩 assistant 回复；这里补回用户实际输入的命令形态，
   // 避免首轮 query 被瘦身成 objective 后丢失 "/goal" 上下文。
@@ -589,9 +589,9 @@ function addGoalObjectiveSnapshotFallback(
 }
 
 function addSessionForkSnapshotFallback(
-  messages: ZCodePersistedMessage[],
-  snapshot: ZCodeSessionStateSnapshot,
-): ZCodePersistedMessage[] {
+  messages: ModePersistedMessage[],
+  snapshot: ModeSessionStateSnapshot,
+): ModePersistedMessage[] {
   const parentSessionId = snapshot.session.parentSessionId;
   if (
     !parentSessionId ||
@@ -622,9 +622,9 @@ function addSessionForkSnapshotFallback(
 }
 
 function addGoalVerificationTimelineSnapshotFallback(
-  messages: ZCodePersistedMessage[],
-  snapshot: ZCodeSessionStateSnapshot,
-): ZCodePersistedMessage[] {
+  messages: ModePersistedMessage[],
+  snapshot: ModeSessionStateSnapshot,
+): ModePersistedMessage[] {
   const timeline = snapshot.runtime.goalVerificationTimeline ?? [];
   if (timeline.length === 0) {
     return messages;
@@ -641,7 +641,7 @@ function addGoalVerificationTimelineSnapshotFallback(
   );
   const timelineMessages = timeline
     .filter((item) => !existingIds.has(goalVerificationTimelineIdentityKey(item)))
-    .map<ZCodePersistedMessage>((item) => ({
+    .map<ModePersistedMessage>((item) => ({
       id: goalVerificationTimelineMessageId(item),
       role: "assistant",
       content: "",
@@ -657,7 +657,7 @@ function addGoalVerificationTimelineSnapshotFallback(
 }
 
 function goalVerificationTimelineIdentityKey(
-  item: Extract<ZCodeGoalVerificationTimelineMeta, { type: "goal_verification" }>,
+  item: Extract<ModeGoalVerificationTimelineMeta, { type: "goal_verification" }>,
 ): string {
   if (typeof item.goalIteration === "number") {
     return `${item.targetId}:${item.goalIteration}`;
@@ -666,7 +666,7 @@ function goalVerificationTimelineIdentityKey(
 }
 
 function goalVerificationTimelineMessageId(
-  item: Extract<ZCodeGoalVerificationTimelineMeta, { type: "goal_verification" }>,
+  item: Extract<ModeGoalVerificationTimelineMeta, { type: "goal_verification" }>,
 ): string {
   if (typeof item.goalIteration === "number") {
     return `zcode-goal-verification-${item.targetId}-${item.goalIteration}`;
@@ -675,9 +675,9 @@ function goalVerificationTimelineMessageId(
 }
 
 function insertGoalVerificationTimelineMessages(
-  messages: ZCodePersistedMessage[],
-  timelineMessages: ZCodePersistedMessage[],
-): ZCodePersistedMessage[] {
+  messages: ModePersistedMessage[],
+  timelineMessages: ModePersistedMessage[],
+): ModePersistedMessage[] {
   const result = [...messages];
   for (const message of [...timelineMessages].sort(
     (left, right) => left.timestamp - right.timestamp,
@@ -697,8 +697,8 @@ function insertGoalVerificationTimelineMessages(
 }
 
 function normalizeGoalVerificationTimelineMessageOrder(
-  messages: ZCodePersistedMessage[],
-): ZCodePersistedMessage[] {
+  messages: ModePersistedMessage[],
+): ModePersistedMessage[] {
   const timelineMessages = messages.filter(
     (message) => message.syntheticTimeline?.type === "goal_verification",
   );
@@ -714,7 +714,7 @@ function normalizeGoalVerificationTimelineMessageOrder(
 }
 
 function goalVerificationAnchorInsertIndex(
-  messages: readonly ZCodePersistedMessage[],
+  messages: readonly ModePersistedMessage[],
   anchorIndex: number,
 ): number {
   let index = anchorIndex + 1;
@@ -728,7 +728,7 @@ function goalVerificationAnchorInsertIndex(
 }
 
 function timestampInsertIndex(
-  messages: readonly ZCodePersistedMessage[],
+  messages: readonly ModePersistedMessage[],
   timestamp: number,
 ): number {
   const index = messages.findIndex((message) => message.timestamp > timestamp);
@@ -736,7 +736,7 @@ function timestampInsertIndex(
 }
 
 function findPersistedMessageIndexById(
-  messages: readonly ZCodePersistedMessage[],
+  messages: readonly ModePersistedMessage[],
   messageId: string,
 ): number {
   return messages.findIndex(
@@ -745,8 +745,8 @@ function findPersistedMessageIndexById(
 }
 
 function sessionTodosToPlanSteps(
-  todos: ZCodeSessionStateSnapshot["todos"],
-): ZCodePlanStep[] | null {
+  todos: ModeSessionStateSnapshot["todos"],
+): ModePlanStep[] | null {
   if (!todos || todos.length === 0) {
     return null;
   }
@@ -758,14 +758,14 @@ function sessionTodosToPlanSteps(
 }
 
 function sessionGoalStatsToRuntime(
-  stats: ZCodeSessionStateSnapshot["goalStats"],
-): ZCodeTaskGoalStats | null {
+  stats: ModeSessionStateSnapshot["goalStats"],
+): ModeTaskGoalStats | null {
   return stats ? { ...stats } : null;
 }
 
 function sessionTodoGroupsToRuntime(
-  groups: ZCodeSessionStateSnapshot["todoGroups"],
-): ZCodeTodoGroup[] | null {
+  groups: ModeSessionStateSnapshot["todoGroups"],
+): ModeTodoGroup[] | null {
   if (!groups || groups.length === 0) {
     return null;
   }
@@ -784,7 +784,7 @@ function sessionTodoGroupsToRuntime(
   }));
 }
 
-export function zcodeSessionSnapshotToTaskMeta(snapshot: ZCodeSessionStateSnapshot): ZCodeTaskMeta {
+export function zcodeSessionSnapshotToTaskMeta(snapshot: ModeSessionStateSnapshot): ModeTaskMeta {
   return {
     taskId: snapshot.session.sessionId,
     traceId: generateTraceId(snapshot.session.sessionId),
@@ -796,8 +796,8 @@ export function zcodeSessionSnapshotToTaskMeta(snapshot: ZCodeSessionStateSnapsh
     mode: fromZCodeMode(snapshot.session.mode),
     model: formatModelPickerValue(resolveTaskMetaModelSelectionFromSnapshot(snapshot)),
     thoughtLevel: snapshot.settings.thoughtLevel.current,
-    provider: ZCODE_AGENT_PROVIDER,
-    status: deriveZCodeTaskStatusFromSessionSnapshot(snapshot),
+    provider: MODE_AGENT_PROVIDER,
+    status: deriveModeTaskStatusFromSessionSnapshot(snapshot),
     lastError: snapshot.projection.lastError
       ? {
           code: snapshot.projection.lastError.code ?? snapshot.projection.lastError.type,
@@ -817,11 +817,11 @@ export function zcodeSessionSnapshotToTaskMeta(snapshot: ZCodeSessionStateSnapsh
 }
 
 export function zcodeSessionEventToZCodeStreamEvents(params: {
-  event: ZCodeSessionEvent;
+  event: ModeSessionEvent;
   projectionMode?: ZCodeSessionProjectionMode;
   state?: ZCodeSessionEventProjectionState;
   taskId: string;
-}): ZCodeStreamEvent[] {
+}): ModeStreamEvent[] {
   const { event, state, taskId, projectionMode = "active-live" } = params;
   const protocolTraceId = event.traceId ?? generateTraceId(taskId);
   const payload = asRecord(event.payload);
@@ -842,7 +842,7 @@ export function zcodeSessionEventToZCodeStreamEvents(params: {
     if (inputId) {
       setActivePromptInputId(state, event.sessionId, inputId);
     }
-    const runStartedEvent: ZCodeStreamEvent = {
+    const runStartedEvent: ModeStreamEvent = {
       type: "task_run_started",
       taskId,
       traceId,
@@ -995,7 +995,7 @@ export function zcodeSessionEventToZCodeStreamEvents(params: {
       ];
     }
     case "turn.completed": {
-      const events: ZCodeStreamEvent[] = [];
+      const events: ModeStreamEvent[] = [];
       const response = stringValue(payload.response);
       const isRewindControlTurn = state?.rewindControlTurnKeys?.has(turnKey) ?? false;
       if (response && !isRewindControlTurn && !state?.streamedTurnKeys?.has(turnKey)) {
@@ -1094,13 +1094,13 @@ export function zcodeSessionEventToZCodeStreamEvents(params: {
 
 function ensureProjectionToolMemory(
   state: ZCodeSessionEventProjectionState | undefined,
-): ZCodeToolProjectionMemory | undefined {
+): ModeToolProjectionMemory | undefined {
   if (!state) {
     return undefined;
   }
   // 修复原因：前台 useTaskStreamEvents 曾漏初始化这个 Map，导致 Write 输入 delta
   // 每次都从空字符串重新解析，界面只能看到首段和最终完整 tool_call，无法实时递增行数。
-  return ensureZCodeToolProjectionMemory(state);
+  return ensureModeToolProjectionMemory(state);
 }
 
 function ensureProjectionApiRetrySessionIds(
@@ -1116,8 +1116,8 @@ function ensureProjectionApiRetrySessionIds(
 function trackProjectionApiRetryEvents(
   state: ZCodeSessionEventProjectionState | undefined,
   sessionId: string,
-  events: ZCodeStreamEvent[],
-): ZCodeStreamEvent[] {
+  events: ModeStreamEvent[],
+): ModeStreamEvent[] {
   const apiRetrySessionIds = ensureProjectionApiRetrySessionIds(state);
   if (!apiRetrySessionIds) {
     return events;
@@ -1148,10 +1148,10 @@ function takeProjectionApiRetryClearOnModelProgress(
   traceId: TraceId,
   inputId: InputId | undefined,
   payload: Record<string, unknown>,
-): Extract<ZCodeStreamEvent, { type: "session_info_update" }> | null {
+): Extract<ModeStreamEvent, { type: "session_info_update" }> | null {
   if (
     !state?.activeApiRetrySessionIds?.has(sessionId) ||
-    !isZCodeModelRetryRecoveryProgressPayload(payload)
+    !isModeModelRetryRecoveryProgressPayload(payload)
   ) {
     return null;
   }
@@ -1168,18 +1168,18 @@ function takeProjectionApiRetryClearOnModelProgress(
 }
 
 export function zcodeStateUpdatedToZCodeStreamEvents(params: {
-  notification: ZCodeStateUpdatedNotification;
-  settings: ZCodeSessionSettingsState;
+  notification: ModeStateUpdatedNotification;
+  settings: ModeSessionSettingsState;
   taskId: string;
-}): ZCodeStreamEvent[] {
+}): ModeStreamEvent[] {
   const traceId = generateTraceId(params.taskId);
   return [
     {
       type: "mode_update",
       taskId: params.taskId,
       traceId,
-      currentModeId: normalizeAvailableZCodeMode(params.settings.mode.current),
-      availableModes: getZCodeAgentAvailableModes(),
+      currentModeId: normalizeAvailableModeMode(params.settings.mode.current),
+      availableModes: getModeAgentAvailableModes(),
     },
     {
       type: "glm_agent_model_state_update",
@@ -1218,8 +1218,8 @@ export function zcodeStateUpdatedToZCodeStreamEvents(params: {
 
 export function zcodePermissionRequestToZCodeStreamEvent(
   taskId: string,
-  request: ZCodePermissionRequestParams,
-): ZCodeStreamEvent {
+  request: ModePermissionRequestParams,
+): ModeStreamEvent {
   return {
     type: "permission_request",
     taskId,
@@ -1236,8 +1236,8 @@ export function zcodePermissionRequestToZCodeStreamEvent(
 
 export function zcodeUserInputRequestToZCodeStreamEvent(
   taskId: string,
-  request: ZCodeUserInputRequestParams,
-): Extract<ZCodeStreamEvent, { type: "elicitation_request" }> {
+  request: ModeUserInputRequestParams,
+): Extract<ModeStreamEvent, { type: "elicitation_request" }> {
   const questions =
     request.questions?.map((question) => ({
       question: question.question,
@@ -1269,10 +1269,10 @@ export function zcodeUserInputResponseToZCodeStreamEvent(
   taskId: string,
   response: {
     requestId: string;
-    action: ZCodeUserInputResponse["action"];
+    action: ModeUserInputResponse["action"];
     content?: Record<string, unknown>;
   },
-): Extract<ZCodeStreamEvent, { type: "elicitation_response" }> {
+): Extract<ModeStreamEvent, { type: "elicitation_response" }> {
   return {
     type: "elicitation_response",
     taskId,
@@ -1288,12 +1288,12 @@ function backgroundTaskNotificationToolUpdateFromInput(params: {
   inputId: InputId | undefined;
   taskId: string;
   traceId: TraceId;
-}): Extract<ZCodeStreamEvent, { type: "tool_call_update" }> | null {
-  const parsed = parseZCodeBackgroundTaskNotificationText(params.input);
+}): Extract<ModeStreamEvent, { type: "tool_call_update" }> | null {
+  const parsed = parseModeBackgroundTaskNotificationText(params.input);
   if (!parsed) {
     return null;
   }
-  const status = zcodeBackgroundTaskNotificationToolUpdateStatus(parsed.notification.status);
+  const status = modeBackgroundTaskNotificationToolUpdateStatus(parsed.notification.status);
   return {
     type: "tool_call_update",
     taskId: params.taskId,
@@ -1307,7 +1307,7 @@ function backgroundTaskNotificationToolUpdateFromInput(params: {
     ...(status === "failed" && parsed.notification.error
       ? { error: parsed.notification.error }
       : {}),
-    raw: attachZCodeBackgroundTaskNotificationToRaw(
+    raw: attachModeBackgroundTaskNotificationToRaw(
       { toolCallId: parsed.toolUseId },
       parsed.notification,
     ),
@@ -1315,18 +1315,18 @@ function backgroundTaskNotificationToolUpdateFromInput(params: {
 }
 
 function zcodeMessageToZCodePersistedMessage(
-  message: ZCodeMessageWithParts,
+  message: ModeMessageWithParts,
   goalIteration?: number,
-  backgroundTaskNotifications?: ReadonlyMap<string, ZCodeBackgroundTaskNotificationInfo>,
-): ZCodePersistedMessage {
-  const tools: ZCodePersistedToolCall[] = [];
-  const parts: ZCodePersistedMessagePart[] = [];
+  backgroundTaskNotifications?: ReadonlyMap<string, ModeBackgroundTaskNotificationInfo>,
+): ModePersistedMessage {
+  const tools: ModePersistedToolCall[] = [];
+  const parts: ModePersistedMessagePart[] = [];
   const attachments = mapPromptAttachmentsFromParts(message.parts);
   const projectionPolicy =
     message.info.role === "user"
       ? getConversationMessageProjectionPolicy(message)
       : "realUserInput";
-  let syntheticTimeline: ZCodeTimelineMeta | undefined;
+  let syntheticTimeline: ModeTimelineMeta | undefined;
   for (const part of message.parts) {
     if (part.type === "text") {
       if (!syntheticTimeline) {
@@ -1378,18 +1378,18 @@ function zcodeMessageToZCodePersistedMessage(
 }
 
 function mapPromptAttachmentsFromParts(
-  parts: readonly ZCodeMessagePart[],
-): ZCodePromptAttachment[] | undefined {
+  parts: readonly ModeMessagePart[],
+): ModePromptAttachment[] | undefined {
   const attachments = parts
-    .filter((part): part is Extract<ZCodeMessagePart, { type: "file" }> => part.type === "file")
+    .filter((part): part is Extract<ModeMessagePart, { type: "file" }> => part.type === "file")
     .map(mapPromptAttachmentFromFilePart)
-    .filter((attachment): attachment is ZCodePromptAttachment => attachment !== undefined);
+    .filter((attachment): attachment is ModePromptAttachment => attachment !== undefined);
   return attachments.length > 0 ? attachments : undefined;
 }
 
 function mapPromptAttachmentFromFilePart(
-  part: Extract<ZCodeMessagePart, { type: "file" }>,
-): ZCodePromptAttachment | undefined {
+  part: Extract<ModeMessagePart, { type: "file" }>,
+): ModePromptAttachment | undefined {
   const mimeType = part.mime || "application/octet-stream";
   const metadata = asRecord(part.metadata);
   const filename = part.filename?.trim() || filenameFromPathLike(part.url) || "attachment";
@@ -1491,8 +1491,8 @@ function filenameFromPathLike(value: string): string | undefined {
 }
 
 function extractSyntheticTimelineFromTextPart(
-  part: Extract<ZCodeMessagePart, { type: "text" }>,
-): ZCodeTimelineMeta | undefined {
+  part: Extract<ModeMessagePart, { type: "text" }>,
+): ModeTimelineMeta | undefined {
   const metadata = part.metadata;
   if (!metadata || typeof metadata !== "object") return undefined;
   const forkContext = (metadata as Record<string, unknown>)["forkContext"];
@@ -1519,8 +1519,8 @@ function extractSyntheticTimelineFromTextPart(
 }
 
 function synthesizeTimelineFromTimelinePart(
-  part: Extract<ZCodeMessagePart, { type: "timeline" }>,
-): ZCodeTimelineMeta | undefined {
+  part: Extract<ModeMessagePart, { type: "timeline" }>,
+): ModeTimelineMeta | undefined {
   if (part.timelineType !== "session_fork") {
     return undefined;
   }
@@ -1544,8 +1544,8 @@ function synthesizeTimelineFromTimelinePart(
 }
 
 function synthesizeCompactionTimeline(
-  part: Extract<ZCodeMessagePart, { type: "compaction" }>,
-): ZCodeTimelineMeta | undefined {
+  part: Extract<ModeMessagePart, { type: "compaction" }>,
+): ModeTimelineMeta | undefined {
   const metadata = asRecord(part.metadata);
   const operationId = stringValue(metadata.operationId) ?? part.partId;
   const status = timelineStatusValue(metadata.timelineStatus);
@@ -1595,7 +1595,7 @@ function mapCompactTimelinePayload(
   traceId: TraceId,
   inputId: InputId | undefined,
   payload: Record<string, unknown>,
-): Extract<ZCodeStreamEvent, { type: "agent_message_chunk" }> | null {
+): Extract<ModeStreamEvent, { type: "agent_message_chunk" }> | null {
   const timeline = compactTimelineMetaFromPayload(payload, inputId);
   if (!timeline) {
     return null;
@@ -1619,13 +1619,13 @@ function mapSyntheticTimelinePartPayload(
   traceId: TraceId,
   inputId: InputId | undefined,
   payload: Record<string, unknown>,
-): Extract<ZCodeStreamEvent, { type: "agent_message_chunk" }> | null {
+): Extract<ModeStreamEvent, { type: "agent_message_chunk" }> | null {
   const part = asRecord(payload.part);
   if (part.type !== "text") {
     return null;
   }
   const timeline = extractSyntheticTimelineFromTextPart(
-    part as Extract<ZCodeMessagePart, { type: "text" }>,
+    part as Extract<ModeMessagePart, { type: "text" }>,
   );
   if (!timeline) {
     return null;
@@ -1650,7 +1650,7 @@ function mapGoalVerificationTimelinePayload(
   inputId: InputId | undefined,
   timestamp: number,
   payload: Record<string, unknown>,
-): Extract<ZCodeStreamEvent, { type: "agent_message_chunk" }> | null {
+): Extract<ModeStreamEvent, { type: "agent_message_chunk" }> | null {
   const targetId = stringValue(payload.targetId);
   const verificationId = stringValue(payload.verificationId);
   const status = goalVerificationTimelineStatusValue(payload.status);
@@ -1663,7 +1663,7 @@ function mapGoalVerificationTimelinePayload(
   const anchorTurnId = stringValue(payload.anchorTurnId);
   const startedAt =
     numberValue(payload.startedAt) ?? (status === "started" ? timestamp : undefined);
-  const timeline: ZCodeGoalVerificationTimelineMeta = {
+  const timeline: ModeGoalVerificationTimelineMeta = {
     version: 1,
     kind: "synthetic",
     type: "goal_verification",
@@ -1692,7 +1692,7 @@ function mapGoalVerificationTimelinePayload(
 function compactTimelineMetaFromPayload(
   payload: Record<string, unknown>,
   inputId: InputId | undefined,
-): ZCodeContextCompactionTimelineMeta | null {
+): ModeContextCompactionTimelineMeta | null {
   const operationId = stringValue(payload.operationId);
   const status = timelineStatusValue(payload.status ?? payload.timelineStatus);
   if (!operationId || !status) {
@@ -1711,7 +1711,7 @@ function compactTimelineMetaFromPayload(
   const phase = compactionPhaseValue(payload.phase);
   const startedAt = numberValue(payload.startedAt);
   const endedAt = numberValue(payload.endedAt);
-  const timeline: ZCodeContextCompactionTimelineMeta = {
+  const timeline: ModeContextCompactionTimelineMeta = {
     version: 1,
     kind: "synthetic",
     type: "context_compaction",
@@ -1741,7 +1741,7 @@ function compactFailureToTimelineEvent(
   traceId: TraceId,
   inputId: InputId | undefined,
   reason: string,
-): Extract<ZCodeStreamEvent, { type: "agent_message_chunk" }> {
+): Extract<ModeStreamEvent, { type: "agent_message_chunk" }> {
   const operationId = `compact-failed-${inputId ?? traceId}`;
   return {
     type: "agent_message_chunk",
@@ -1765,14 +1765,14 @@ function compactFailureToTimelineEvent(
 }
 
 function mapToolPart(
-  part: Extract<ZCodeMessagePart, { type: "tool" }>,
-  backgroundTaskNotifications?: ReadonlyMap<string, ZCodeBackgroundTaskNotificationInfo>,
-): ZCodePersistedToolCall {
+  part: Extract<ModeMessagePart, { type: "tool" }>,
+  backgroundTaskNotifications?: ReadonlyMap<string, ModeBackgroundTaskNotificationInfo>,
+): ModePersistedToolCall {
   const state = part.state;
   const taskNotification = backgroundTaskNotifications?.get(part.callId);
   // 修复原因：ZCode Protocol 的 part.callId 是实时流和终态 snapshot 共同的工具身份。
   // 以前只保存 metadata 会丢掉 toolCallId，手机 replayable 里 result-only 临时工具就无法被终态快照覆盖。
-  const raw = attachZCodeBackgroundTaskNotificationToRaw(
+  const raw = attachModeBackgroundTaskNotificationToRaw(
     attachToolCallIdToRaw("metadata" in state ? (state.metadata ?? state) : state, part.callId),
     taskNotification,
   );
@@ -1780,7 +1780,7 @@ function mapToolPart(
     // 修复原因：background Agent 的 completed 只代表 launch ACK；匹配的 failed
     // notification 才能在本次错误修复中覆盖它，不能顺带改变 stopped 等既有恢复语义。
     const notificationStatus = taskNotification?.status
-      ? zcodeBackgroundTaskNotificationToolUpdateStatus(taskNotification.status)
+      ? modeBackgroundTaskNotificationToolUpdateStatus(taskNotification.status)
       : undefined;
     const notificationFailed = notificationStatus === "failed";
     return {
@@ -1832,9 +1832,9 @@ function mapModelStreaming(
   traceId: TraceId,
   inputId: InputId | undefined,
   payload: Record<string, unknown>,
-  toolProjectionMemory?: ZCodeToolProjectionMemory,
+  toolProjectionMemory?: ModeToolProjectionMemory,
   projectionMode: ZCodeSessionProjectionMode = "active-live",
-): ZCodeStreamEvent | null {
+): ModeStreamEvent | null {
   const kind = stringValue(payload.kind);
   const delta = stringValue(payload.delta);
   const parentToolUseId = parentToolUseIdFromToolPayload(payload);
@@ -1880,9 +1880,9 @@ function mapToolInputStreaming(
   traceId: TraceId,
   inputId: InputId | undefined,
   payload: Record<string, unknown>,
-  toolProjectionMemory?: ZCodeToolProjectionMemory,
+  toolProjectionMemory?: ModeToolProjectionMemory,
   projectionMode: ZCodeSessionProjectionMode = "active-live",
-): ZCodeStreamEvent | null {
+): ModeStreamEvent | null {
   const streamingToolInputById = toolProjectionMemory?.streamingToolInputById;
   const toolNameById = toolProjectionMemory?.toolNameById;
   const kind = stringValue(payload.kind);
@@ -1927,13 +1927,13 @@ function mapToolInputStreaming(
   }
 
   if (kind === "tool_input_delta") {
-    const state = appendZCodeStreamingToolInputDelta(
+    const state = appendModeStreamingToolInputDelta(
       streamingToolInputById?.get(toolId),
       stringValue(payload.delta) ?? "",
     );
     streamingToolInputById?.set(toolId, state);
     if (
-      !shouldMaterializeZCodeStreamingToolInputPreview(state, {
+      !shouldMaterializeModeStreamingToolInputPreview(state, {
         mode: projectionMode,
         toolName,
       })
@@ -1942,8 +1942,8 @@ function mapToolInputStreaming(
       // 完整参数会在预算点、tool_input_end、最终 tool_call 或切回 active 后再落到消息树。
       return null;
     }
-    const preview = buildZCodeStreamingToolInputPreview(state.rawInput);
-    markZCodeStreamingToolInputPreviewMaterialized(state);
+    const preview = buildModeStreamingToolInputPreview(state.rawInput);
+    markModeStreamingToolInputPreviewMaterialized(state);
     const previewToolName = toolName ?? inferStreamingToolInputToolName(preview.input);
     const previewTitle = previewToolName ?? title;
     if (previewToolName && !toolName) {
@@ -2031,14 +2031,14 @@ function mapToolInputStreaming(
     const rawInput = state?.rawInput ?? "";
     const hasCompleteInput = "input" in payload;
     const completeInput = hasCompleteInput ? payload.input : undefined;
-    const preview = buildZCodeStreamingToolInputPreview(
+    const preview = buildModeStreamingToolInputPreview(
       rawInput,
       hasCompleteInput ? completeInput : undefined,
     );
     const previewToolName = toolName ?? inferStreamingToolInputToolName(preview.input);
     const previewTitle = previewToolName ?? title;
     if ((hasCompleteInput || preview.complete) && toolProjectionMemory) {
-      finalizeZCodeToolProjectionInput(toolId, preview.input, toolProjectionMemory);
+      finalizeModeToolProjectionInput(toolId, preview.input, toolProjectionMemory);
     }
     streamingToolInputById?.set(toolId, {
       // 性能修复：最终 tool_call 后，消息树已经持有完整 input；projection tombstone 不再保留
@@ -2243,8 +2243,8 @@ function mapToolUpdated(
   traceId: TraceId,
   inputId: InputId | undefined,
   payload: Record<string, unknown>,
-  toolProjectionMemory?: ZCodeToolProjectionMemory,
-): ZCodeStreamEvent[] {
+  toolProjectionMemory?: ModeToolProjectionMemory,
+): ModeStreamEvent[] {
   const toolId = stringValue(payload.toolCallId);
   if (!toolId) {
     return [];
@@ -2252,7 +2252,7 @@ function mapToolUpdated(
   const parentToolUseId = parentToolUseIdFromToolPayload(payload);
   const memory = toolProjectionMemory ?? {};
   const toolNameById = memory.toolNameById;
-  const rememberedTool = resolveZCodeToolProjectionMetadata(payload, toolId, memory);
+  const rememberedTool = resolveModeToolProjectionMetadata(payload, toolId, memory);
   const rememberedToolName = rememberedTool.toolName;
   const rememberedInput = rememberedTool.hasInput ? rememberedTool.input : undefined;
   if ("input" in payload && "toolName" in payload) {
@@ -2275,8 +2275,8 @@ function mapToolUpdated(
         },
       ];
     }
-    finalizeZCodeToolProjectionInput(toolId, payload.input, memory);
-    const toolEvent: ZCodeStreamEvent = {
+    finalizeModeToolProjectionInput(toolId, payload.input, memory);
+    const toolEvent: ModeStreamEvent = {
       type: "tool_call",
       taskId,
       traceId,
@@ -2314,7 +2314,7 @@ function mapToolUpdated(
     const toolName = rememberedToolName;
     const content = normalizeToolResultContent(toolName, result);
     const status = toolResultStatus(toolName, result);
-    const toolEvent: ZCodeStreamEvent = {
+    const toolEvent: ModeStreamEvent = {
       type: "tool_call_update",
       taskId,
       traceId,
@@ -2331,7 +2331,7 @@ function mapToolUpdated(
       raw: payload,
     };
     if (status !== "in_progress") {
-      forgetZCodeToolProjectionMetadata(toolId, memory);
+      forgetModeToolProjectionMetadata(toolId, memory);
     }
     const planSteps = isMainAgentToolProjectionSource(payload)
       ? extractPlanStepsFromToolOutput({
@@ -2354,7 +2354,7 @@ function mapToolUpdated(
       : [toolEvent];
   }
   if ("error" in payload) {
-    forgetZCodeToolProjectionMetadata(toolId, memory);
+    forgetModeToolProjectionMetadata(toolId, memory);
     return [
       {
         type: "tool_call_update",
@@ -2396,7 +2396,7 @@ function mapToolUpdated(
 function toolResultStatus(
   toolName: string | undefined,
   result: Record<string, unknown>,
-): Extract<ZCodeStreamEvent, { type: "tool_call_update" }>["status"] {
+): Extract<ModeStreamEvent, { type: "tool_call_update" }>["status"] {
   if (result.success === false) {
     return "failed";
   }
@@ -2476,7 +2476,7 @@ function isSubagentDispatchToolName(toolName: string | undefined): boolean {
 
 function toolStatusFromPayload(
   payload: Record<string, unknown>,
-): Extract<ZCodeStreamEvent, { type: "tool_call_update" }>["status"] {
+): Extract<ModeStreamEvent, { type: "tool_call_update" }>["status"] {
   switch (stringValue(payload.status)) {
     case "tool_started":
       return "in_progress";
@@ -2582,7 +2582,7 @@ function permissionPayloadToStreamEvent(
   traceId: TraceId,
   inputId: InputId | undefined,
   payload: Record<string, unknown>,
-): ZCodeStreamEvent {
+): ModeStreamEvent {
   return {
     type: "permission_request",
     taskId,
@@ -2594,7 +2594,7 @@ function permissionPayloadToStreamEvent(
     kind: stringValue(payload.toolName) ?? "tool",
     title: stringValue(payload.toolName),
     options: permissionOptionsFromPayload(payload),
-    ...(payload.origin ? { origin: payload.origin as ZCodePermissionRequest["origin"] } : {}),
+    ...(payload.origin ? { origin: payload.origin as ModePermissionRequest["origin"] } : {}),
     raw: payload,
   };
 }
@@ -2605,7 +2605,7 @@ function permissionResolvedPayloadToStreamEvents(
   inputId: InputId | undefined,
   payload: Record<string, unknown>,
   toolNameById?: Map<string, string>,
-): ZCodeStreamEvent[] {
+): ModeStreamEvent[] {
   const toolCallId = stringValue(payload.toolCallId);
   const toolName =
     stringValue(payload.toolName) ?? (toolCallId ? toolNameById?.get(toolCallId) : undefined);
@@ -2635,7 +2635,7 @@ function permissionResolvedPayloadToStreamEvents(
     response: {
       decision: decision === "deny" ? "deny" : "allow",
     },
-  } as Extract<ZCodeStreamEvent, { type: "permission_response" }>;
+  } as Extract<ModeStreamEvent, { type: "permission_response" }>;
 
   if (decision !== "deny" || !toolCallId) {
     return [permissionResponse];
@@ -2664,8 +2664,8 @@ function permissionResolvedPayloadToStreamEvents(
 
 function pendingPermissionToStreamEvent(
   taskId: string,
-  permission: ZCodeSessionStateSnapshot["projection"]["pendingPermissions"][number],
-): ZCodePermissionRequest {
+  permission: ModeSessionStateSnapshot["projection"]["pendingPermissions"][number],
+): ModePermissionRequest {
   return {
     type: "permission_request",
     taskId,
@@ -2680,8 +2680,8 @@ function pendingPermissionToStreamEvent(
   };
 }
 
-function permissionOptionsFromPayload(payload: Record<string, unknown>): ZCodePermissionOption[] {
-  return Array.isArray(payload.options) ? (payload.options as ZCodePermissionOption[]) : [];
+function permissionOptionsFromPayload(payload: Record<string, unknown>): ModePermissionOption[] {
+  return Array.isArray(payload.options) ? (payload.options as ModePermissionOption[]) : [];
 }
 
 type PendingElicitationQuestion = {
@@ -2693,8 +2693,8 @@ type PendingElicitationQuestion = {
 
 function pendingUserInputBackedPermissionToElicitationEvent(
   taskId: string,
-  permission: ZCodeSessionStateSnapshot["projection"]["pendingPermissions"][number],
-): Extract<ZCodeStreamEvent, { type: "elicitation_request" }> | null {
+  permission: ModeSessionStateSnapshot["projection"]["pendingPermissions"][number],
+): Extract<ModeStreamEvent, { type: "elicitation_request" }> | null {
   if (isAskUserQuestionToolName(permission.toolName)) {
     return pendingAskUserQuestionToElicitationEvent(taskId, permission);
   }
@@ -2706,8 +2706,8 @@ function pendingUserInputBackedPermissionToElicitationEvent(
 
 function pendingAskUserQuestionToElicitationEvent(
   taskId: string,
-  permission: ZCodeSessionStateSnapshot["projection"]["pendingPermissions"][number],
-): Extract<ZCodeStreamEvent, { type: "elicitation_request" }> | null {
+  permission: ModeSessionStateSnapshot["projection"]["pendingPermissions"][number],
+): Extract<ModeStreamEvent, { type: "elicitation_request" }> | null {
   const questions = askUserQuestionInputToElicitationQuestions(permission.input);
   if (questions.length === 0) {
     return null;
@@ -2730,8 +2730,8 @@ function pendingAskUserQuestionToElicitationEvent(
 
 function pendingExitPlanModeToElicitationEvent(
   taskId: string,
-  permission: ZCodeSessionStateSnapshot["projection"]["pendingPermissions"][number],
-): Extract<ZCodeStreamEvent, { type: "elicitation_request" }> {
+  permission: ModeSessionStateSnapshot["projection"]["pendingPermissions"][number],
+): Extract<ModeStreamEvent, { type: "elicitation_request" }> {
   const questions = createExitPlanModeApprovalQuestions();
   const firstQuestion = questions[0];
   return {
@@ -2750,7 +2750,7 @@ function pendingExitPlanModeToElicitationEvent(
 
 function ensureProjectionBackgroundTaskControlsCache(
   state: ZCodeSessionEventProjectionState | undefined,
-): Map<string, ZCodeBackgroundTaskControlItem[]> | null {
+): Map<string, ModeBackgroundTaskControlItem[]> | null {
   if (!state) {
     return null;
   }
@@ -2761,7 +2761,7 @@ function ensureProjectionBackgroundTaskControlsCache(
 function setProjectionBackgroundTaskControls(
   state: ZCodeSessionEventProjectionState | undefined,
   taskId: string,
-  jobs: ZCodeBackgroundTaskControlItem[],
+  jobs: ModeBackgroundTaskControlItem[],
 ) {
   ensureProjectionBackgroundTaskControlsCache(state)?.set(taskId, jobs);
 }
@@ -2769,21 +2769,21 @@ function setProjectionBackgroundTaskControls(
 export function syncZCodeSessionBackgroundTaskProjection(
   state: ZCodeSessionEventProjectionState | undefined,
   taskId: string,
-  jobs: ZCodeBackgroundTaskControlItem[],
+  jobs: ModeBackgroundTaskControlItem[],
 ) {
   setProjectionBackgroundTaskControls(state, taskId, jobs);
 }
 
 export function syncZCodeSessionBackgroundTaskProjectionFromSnapshot(
   state: ZCodeSessionEventProjectionState | undefined,
-  snapshot: ZCodeSessionStateSnapshot,
+  snapshot: ModeSessionStateSnapshot,
 ) {
   // Bugfix: 单 task completion 是增量 payload，必须以同一订阅收到的完整 snapshot
   // 作为 merge 基线；否则切走/切回后新 projection state 会把 peer running task 清掉。
   syncZCodeSessionBackgroundTaskProjection(
     state,
     snapshot.session.sessionId,
-    parseZCodeBackgroundTaskControlItems(snapshot.projection.backgroundJobs),
+    parseModeBackgroundTaskControlItems(snapshot.projection.backgroundJobs),
   );
 }
 
@@ -2791,8 +2791,8 @@ function updateProjectionBackgroundTaskControlsFromPayload(
   state: ZCodeSessionEventProjectionState | undefined,
   taskId: string,
   payload: Record<string, unknown>,
-): ZCodeBackgroundTaskControlItem[] | null {
-  const parsedJobs = parseZCodeBackgroundTaskControlItems([payload]);
+): ModeBackgroundTaskControlItem[] | null {
+  const parsedJobs = parseModeBackgroundTaskControlItems([payload]);
   if (parsedJobs.length === 0) {
     return null;
   }
@@ -2800,7 +2800,7 @@ function updateProjectionBackgroundTaskControlsFromPayload(
   if (!cache) {
     return parsedJobs;
   }
-  const nextJobs = mergeZCodeBackgroundTaskControlItems(cache.get(taskId) ?? [], parsedJobs);
+  const nextJobs = mergeModeBackgroundTaskControlItems(cache.get(taskId) ?? [], parsedJobs);
   cache.set(taskId, nextJobs);
   return nextJobs;
 }
@@ -2870,8 +2870,8 @@ function mapSessionInfoLikePayload(
   eventId: string | undefined,
   payload: Record<string, unknown>,
   state: ZCodeSessionEventProjectionState | undefined,
-): ZCodeStreamEvent[] {
-  const events: ZCodeStreamEvent[] = [];
+): ModeStreamEvent[] {
+  const events: ModeStreamEvent[] = [];
   const goalVerification = goalVerificationFromPayload(payload);
   if (goalVerification) {
     events.push({
@@ -2892,7 +2892,7 @@ function mapSessionInfoLikePayload(
   if (tokenUsageDelta) {
     events.push(tokenUsageDelta);
   }
-  const networkDebugStatus = zcodeTaskNetworkDebugStatusFromPayload({
+  const networkDebugStatus = modeTaskNetworkDebugStatusFromPayload({
     taskId,
     traceId,
     ...(inputId ? { inputId } : {}),
@@ -2945,8 +2945,8 @@ function mapSessionInfoLikePayload(
       ...(inputId ? { inputId } : {}),
       // Bugfix: EnterPlanMode 写入的 SessionModeChanged 会经 bootstrap 投影成 session.updated；
       // 这里把 mode payload 转成 UI 现有事件，避免菜单仍显示进入 plan 前的模式。
-      currentModeId: normalizeAvailableZCodeMode(mode as ZCodeSessionMode),
-      availableModes: getZCodeAgentAvailableModes(),
+      currentModeId: normalizeAvailableModeMode(mode as ModeSessionMode),
+      availableModes: getModeAgentAvailableModes(),
     });
   }
   if ("target" in payload && ("action" in payload || "source" in payload)) {
@@ -2968,7 +2968,7 @@ function mapSessionInfoLikePayload(
   }
   const projection = asRecord(payload.projection);
   if (Array.isArray(projection.backgroundJobs)) {
-    const jobs = parseZCodeBackgroundTaskControlItems(projection.backgroundJobs);
+    const jobs = parseModeBackgroundTaskControlItems(projection.backgroundJobs);
     setProjectionBackgroundTaskControls(state, taskId, jobs);
     events.push({
       type: "background_bash_jobs_update",
@@ -2995,7 +2995,7 @@ function mapSessionInfoLikePayload(
   return events;
 }
 
-function normalizeTargetChangedAction(action: string | undefined): ZCodeTaskTargetChangedAction {
+function normalizeTargetChangedAction(action: string | undefined): ModeTaskTargetChangedAction {
   switch (action) {
     case "status_updated":
     case "cleared":
@@ -3012,7 +3012,7 @@ function normalizeTargetChangedAction(action: string | undefined): ZCodeTaskTarg
 
 function goalVerificationFromPayload(
   payload: Record<string, unknown>,
-): Extract<ZCodeStreamEvent, { type: "goal_verification_update" }>["verification"] | null {
+): Extract<ModeStreamEvent, { type: "goal_verification_update" }>["verification"] | null {
   if (stringValue(payload.querySource) !== "target_completion_verification") {
     return null;
   }
@@ -3067,7 +3067,7 @@ function taskTokenUsageDeltaFromPayload(
   inputId: InputId | undefined,
   eventId: string | undefined,
   payload: Record<string, unknown>,
-): Extract<ZCodeStreamEvent, { type: "task_token_usage_delta" }> | null {
+): Extract<ModeStreamEvent, { type: "task_token_usage_delta" }> | null {
   if (!isModelCompleteUsagePayload(payload)) {
     return null;
   }
@@ -3109,34 +3109,34 @@ function isModelCompleteUsagePayload(payload: Record<string, unknown>): boolean 
 
 function apiRetryFromSessionInfoPayload(
   payload: Record<string, unknown>,
-): ZCodeApiRetryStatus | null | undefined {
+): ModeApiRetryStatus | null | undefined {
   if ("apiRetry" in payload) {
-    return normalizeZCodeApiRetryStatus(payload.apiRetry);
+    return normalizeModeApiRetryStatus(payload.apiRetry);
   }
 
-  const runtimeRetry = normalizeZCodeApiRetryStatus(asRecord(payload.runtime).apiRetry);
+  const runtimeRetry = normalizeModeApiRetryStatus(asRecord(payload.runtime).apiRetry);
   if (runtimeRetry !== undefined) {
     return runtimeRetry;
   }
 
-  const metaRetry = normalizeZCodeApiRetryStatus(asRecord(asRecord(payload._meta).zcode).apiRetry);
+  const metaRetry = normalizeModeApiRetryStatus(asRecord(asRecord(payload._meta).zcode).apiRetry);
   if (metaRetry !== undefined) {
     return metaRetry;
   }
 
   return (
-    zcodeApiRetryFromStreamRecoveryPayload(payload) ??
-    zcodeApiRetryFromModelNetworkStatusPayload(payload)
+    modeApiRetryFromStreamRecoveryPayload(payload) ??
+    modeApiRetryFromModelNetworkStatusPayload(payload)
   );
 }
 
 type ContextUsageUpdate = Pick<
-  Extract<ZCodeStreamEvent, { type: "usage_update" }>,
+  Extract<ModeStreamEvent, { type: "usage_update" }>,
   "used" | "size" | "cost" | "cache" | "breakdown"
 >;
 
 function contextUsageFromProjection(
-  projection: ZCodeSessionStateSnapshot["projection"],
+  projection: ModeSessionStateSnapshot["projection"],
 ): ContextUsageUpdate | null {
   if (projection.contextWindow <= 0 || projection.contextUsed <= 0) {
     return null;
@@ -3149,7 +3149,7 @@ function contextUsageFromProjection(
 }
 
 function contextUsageFromRuntime(
-  runtimeUsage: ZCodeSessionStateSnapshot["runtime"]["contextUsage"] | undefined,
+  runtimeUsage: ModeSessionStateSnapshot["runtime"]["contextUsage"] | undefined,
 ): ContextUsageUpdate | null {
   if (!runtimeUsage || runtimeUsage.size <= 0 || runtimeUsage.used <= 0) {
     return null;
@@ -3199,7 +3199,7 @@ function contextUsageFromPayload(payload: Record<string, unknown>): ContextUsage
 function optionalContextUsageBreakdownFromPayload(
   payload: Record<string, unknown>,
 ): Pick<ContextUsageUpdate, "breakdown"> {
-  const parsed = zcodeContextUsageBreakdownSchema.safeParse(payload.contextUsageBreakdown);
+  const parsed = modeContextUsageBreakdownSchema.safeParse(payload.contextUsageBreakdown);
   return parsed.success && parsed.data.length > 0 ? { breakdown: parsed.data } : {};
 }
 
@@ -3300,33 +3300,33 @@ function contextCacheUsageFromPayload(
   };
 }
 
-function textFromParts(parts: readonly ZCodeMessagePart[]): string {
-  return textFromZCodeMessageParts(parts);
+function textFromParts(parts: readonly ModeMessagePart[]): string {
+  return textFromModeMessageParts(parts);
 }
 
-function reasoningFromParts(parts: readonly ZCodeMessagePart[]): string | undefined {
+function reasoningFromParts(parts: readonly ModeMessagePart[]): string | undefined {
   const text = parts
     .filter(
-      (part): part is Extract<ZCodeMessagePart, { type: "reasoning" }> => part.type === "reasoning",
+      (part): part is Extract<ModeMessagePart, { type: "reasoning" }> => part.type === "reasoning",
     )
     .map((part) => part.text)
     .join("");
   return text || undefined;
 }
 
-function deriveTitleFromSnapshot(snapshot: ZCodeSessionStateSnapshot): string {
-  return resolveZCodeVisibleSessionTitle({
+function deriveTitleFromSnapshot(snapshot: ModeSessionStateSnapshot): string {
+  return resolveModeVisibleSessionTitle({
     title: snapshot.session.title,
     messages: snapshot.messages,
     target: snapshot.projection.target,
   });
 }
 
-function fromZCodeMode(mode: ZCodeSessionMode): ZCodeTaskMode {
+function fromZCodeMode(mode: ModeSessionMode): ModeTaskMode {
   return mode === "build" ? "build" : mode;
 }
 
-function getZCodeAgentModeSelectOptions(): NonNullable<ZCodeConfigOption["options"]> {
+function getZCodeAgentModeSelectOptions(): NonNullable<ModeConfigOption["options"]> {
   return ZCODE_AGENT_MODE_OPTIONS.map((mode) => ({
     value: mode.id,
     name: mode.name,
@@ -3334,11 +3334,11 @@ function getZCodeAgentModeSelectOptions(): NonNullable<ZCodeConfigOption["option
   }));
 }
 
-function getZCodeAgentAvailableModes(): ZCodeTaskModeInfo[] {
+function getModeAgentAvailableModes(): ModeTaskModeInfo[] {
   return ZCODE_AGENT_MODE_OPTIONS.map((mode) => ({ ...mode }));
 }
 
-function fromZCodeGoal(goal: unknown): ZCodeTaskGoal {
+function fromZCodeGoal(goal: unknown): ModeTaskGoal {
   const record = asRecord(goal);
   const time = asRecord(record.time);
   const status = stringValue(record.status);
@@ -3361,7 +3361,7 @@ function fromZCodeGoal(goal: unknown): ZCodeTaskGoal {
   };
 }
 
-function isZCodeTaskGoalStatus(status: string | undefined): status is ZCodeTaskGoal["status"] {
+function isZCodeTaskGoalStatus(status: string | undefined): status is ModeTaskGoal["status"] {
   return (
     status === "active" ||
     status === "paused" ||
@@ -3370,7 +3370,7 @@ function isZCodeTaskGoalStatus(status: string | undefined): status is ZCodeTaskG
   );
 }
 
-function usageFromPayload(value: unknown): ZCodeUsage | undefined {
+function usageFromPayload(value: unknown): ModeUsage | undefined {
   const usage = asRecord(value);
   if (Object.keys(usage).length === 0) {
     return undefined;
@@ -3466,7 +3466,7 @@ function stringValue(value: unknown): string | undefined {
 
 function goalVerificationTimelineStatusValue(
   value: unknown,
-): ZCodeGoalVerificationTimelineMeta["status"] | undefined {
+): ModeGoalVerificationTimelineMeta["status"] | undefined {
   return value === "started" ||
     value === "completed" ||
     value === "failed_closed" ||
@@ -3475,7 +3475,7 @@ function goalVerificationTimelineStatusValue(
     : undefined;
 }
 
-function goalVerificationFromRecord(record: Record<string, unknown>): ZCodeGoalVerification | null {
+function goalVerificationFromRecord(record: Record<string, unknown>): ModeGoalVerification | null {
   const reason = stringValue(record.reason)?.trim();
   if (!reason) {
     return null;
@@ -3516,7 +3516,7 @@ function booleanValue(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
-function timelineStatusValue(value: unknown): ZCodeTimelineStatus | undefined {
+function timelineStatusValue(value: unknown): ModeTimelineStatus | undefined {
   return value === "started" ||
     value === "retrying" ||
     value === "skipped" ||
@@ -3527,7 +3527,7 @@ function timelineStatusValue(value: unknown): ZCodeTimelineStatus | undefined {
     : undefined;
 }
 
-function timelineTriggerValue(value: unknown): ZCodeTimelineTrigger | undefined {
+function timelineTriggerValue(value: unknown): ModeTimelineTrigger | undefined {
   return value === "manual" ||
     value === "auto" ||
     value === "reactive" ||
@@ -3537,7 +3537,7 @@ function timelineTriggerValue(value: unknown): ZCodeTimelineTrigger | undefined 
     : undefined;
 }
 
-function compactionPhaseValue(value: unknown): ZCodeContextCompactionTimelinePhase | undefined {
+function compactionPhaseValue(value: unknown): ModeContextCompactionTimelinePhase | undefined {
   return value === "standalone_turn" ||
     value === "pre_request" ||
     value === "mid_turn" ||
@@ -3552,13 +3552,13 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
-function turnSteerSourceValue(value: unknown): ZCodeTurnSteerSource | undefined {
+function turnSteerSourceValue(value: unknown): ModeTurnSteerSource | undefined {
   return value === "plan_approval_feedback" || value === "workflow_refine_feedback"
     ? value
     : undefined;
 }
 
-function turnSteerCommandKindValue(value: unknown): ZCodeTurnSteerCommandKind | undefined {
+function turnSteerCommandKindValue(value: unknown): ModeTurnSteerCommandKind | undefined {
   return value === "sendGoalCommand" || value === "sendText" || value === "compact"
     ? value
     : undefined;

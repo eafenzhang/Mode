@@ -2,14 +2,14 @@ import type { SessionCreateSource } from "@zcode/shared";
 /* eslint-disable max-lines -- workspace 级状态动作集中在同一 slice，先保持收口便于维护。 */
 import {
   buildNativeSupplierKey,
-  normalizeAgentProviderToZCodeAgent,
-  type ZCodeConfigOption,
+  normalizeAgentProviderToModeAgent,
+  type ModeConfigOption,
   type ModelSelectionResolution,
-  type ZCodeProvider,
-  type ZCodeSlashCommand,
-  type ZCodeTaskMeta,
-  type ZCodeTaskRuntimeStatus,
-  type ZCodeWorkspaceInitStatus,
+  type ModeProvider,
+  type ModeSlashCommand,
+  type ModeTaskMeta,
+  type ModeTaskRuntimeStatus,
+  type ModeWorkspaceInitStatus,
 } from "@zcode/shared";
 import { persistLastSelectedAgentProvider } from "@/lib/zcodeProviderPreference.js";
 import { areConfigOptionsEquivalent } from "@/lib/configOptionsEquality.js";
@@ -46,7 +46,7 @@ function createGroupedDraftId(createdAt: number): string {
   return `grouped-draft-${createdAt}-${groupedDraftSequence}`;
 }
 
-function normalizeThoughtLevelConfigOption(option: ZCodeConfigOption): ZCodeConfigOption {
+function normalizeThoughtLevelConfigOption(option: ModeConfigOption): ModeConfigOption {
   if (
     option.type !== "select" ||
     (option.id !== "thought_level" && option.category !== "thought_level")
@@ -65,11 +65,11 @@ function normalizeThoughtLevelConfigOption(option: ZCodeConfigOption): ZCodeConf
   return { ...option, currentValue: fallbackValue };
 }
 
-function normalizeConfigOptions(options: ZCodeConfigOption[]): ZCodeConfigOption[] {
+function normalizeConfigOptions(options: ModeConfigOption[]): ModeConfigOption[] {
   return options.map(normalizeThoughtLevelConfigOption);
 }
 
-function cloneConfigOptions(options: readonly ZCodeConfigOption[]): ZCodeConfigOption[] {
+function cloneConfigOptions(options: readonly ModeConfigOption[]): ModeConfigOption[] {
   return options.map((option) => ({
     ...option,
     options: option.options?.map((entry) => ({ ...entry })),
@@ -89,14 +89,14 @@ function isSameGroupedDraftPlacement(
   return right.type === "group" && left.groupId === right.groupId;
 }
 
-function isModeConfigOption(option: ZCodeConfigOption): boolean {
+function isModeConfigOption(option: ModeConfigOption): boolean {
   return option.category === "mode" && option.type === "select";
 }
 
 function createFallbackModeOption(params: {
   currentModeId: string;
-  options?: NonNullable<ZCodeConfigOption["options"]>;
-}): ZCodeConfigOption {
+  options?: NonNullable<ModeConfigOption["options"]>;
+}): ModeConfigOption {
   const options = params.options?.length
     ? params.options
     : [{ value: params.currentModeId, name: params.currentModeId }];
@@ -111,9 +111,9 @@ function createFallbackModeOption(params: {
 }
 
 function replaceModeConfigOption(
-  currentOptions: ZCodeConfigOption[] | null,
-  nextModeOption: ZCodeConfigOption | null,
-): ZCodeConfigOption[] | null {
+  currentOptions: ModeConfigOption[] | null,
+  nextModeOption: ModeConfigOption | null,
+): ModeConfigOption[] | null {
   const options = currentOptions ?? [];
   const modeIndex = options.findIndex(isModeConfigOption);
   if (modeIndex === -1) {
@@ -138,9 +138,9 @@ function replaceModeConfigOption(
 }
 
 function updateCurrentModeConfigOption(
-  currentOptions: ZCodeConfigOption[] | null,
+  currentOptions: ModeConfigOption[] | null,
   modeId: string | null,
-): ZCodeConfigOption[] | null {
+): ModeConfigOption[] | null {
   const options = currentOptions ?? [];
   const existingModeOption = options.find(isModeConfigOption);
   if (!modeId) {
@@ -171,7 +171,7 @@ function updateCurrentModeConfigOption(
 
 function updateActiveTaskConfigOptions(
   current: WorkspaceZCodeUIState,
-  updater: (options: ZCodeConfigOption[] | null) => ZCodeConfigOption[] | null,
+  updater: (options: ModeConfigOption[] | null) => ModeConfigOption[] | null,
 ): Pick<WorkspaceZCodeUIState, "taskConfigOptionsByTaskId"> | null {
   const activeTaskId = current.activeTaskId;
   if (!activeTaskId) {
@@ -199,7 +199,7 @@ function updateActiveTaskConfigOptions(
 function resolveActiveTaskConfigOptionsOnSwitch(
   current: WorkspaceZCodeUIState,
   taskId: string,
-): { configOptions: ZCodeConfigOption[]; status: ConfigOptionsStatus } | null {
+): { configOptions: ModeConfigOption[]; status: ConfigOptionsStatus } | null {
   const cachedTaskConfigOptions = current.taskConfigOptionsByTaskId[taskId];
   if (cachedTaskConfigOptions) {
     return {
@@ -312,9 +312,9 @@ export function createWorkspaceSlice(set: SetFn) {
           state,
           workspacePath,
           (current) => {
-            const optimisticTask: ZCodeTaskMeta = {
+            const optimisticTask: ModeTaskMeta = {
               taskId,
-              traceId: `session-${taskId}` as ZCodeTaskMeta["traceId"],
+              traceId: `session-${taskId}` as ModeTaskMeta["traceId"],
               title: "",
               workspacePath,
               ...(workspaceIdentity ? { workspaceIdentity } : {}),
@@ -510,7 +510,7 @@ export function createWorkspaceSlice(set: SetFn) {
 
     startDraft: (
       workspacePath: string,
-      provider?: ZCodeProvider,
+      provider?: ModeProvider,
       workspaceIdentity?: string,
       options?: {
         groupedDraftPlacement?: GroupedDraftTaskPlacement;
@@ -518,7 +518,7 @@ export function createWorkspaceSlice(set: SetFn) {
       },
     ) => {
       const normalizedProvider = provider
-        ? normalizeAgentProviderToZCodeAgent(provider)
+        ? normalizeAgentProviderToModeAgent(provider)
         : undefined;
       if (normalizedProvider) {
         persistLastSelectedAgentProvider(normalizedProvider);
@@ -529,7 +529,7 @@ export function createWorkspaceSlice(set: SetFn) {
           state,
           workspacePath,
           (current) => {
-            const nextSelectedProvider = normalizeAgentProviderToZCodeAgent(
+            const nextSelectedProvider = normalizeAgentProviderToModeAgent(
               normalizedProvider ?? current.selectedProvider,
             );
             const shouldResetSupplierForDraftProvider =
@@ -657,7 +657,7 @@ export function createWorkspaceSlice(set: SetFn) {
 
     bindRuntimeProvider: (
       workspacePath: string,
-      provider: ZCodeProvider,
+      provider: ModeProvider,
       workspaceIdentity?: string,
     ) =>
       set((state) =>
@@ -666,7 +666,7 @@ export function createWorkspaceSlice(set: SetFn) {
           workspacePath,
           (current) => ({
             ...current,
-            selectedProvider: normalizeAgentProviderToZCodeAgent(provider),
+            selectedProvider: normalizeAgentProviderToModeAgent(provider),
           }),
           workspaceIdentity,
         ),
@@ -697,7 +697,7 @@ export function createWorkspaceSlice(set: SetFn) {
 
     setWorkspaceInitState: (
       workspacePath: string,
-      status: ZCodeWorkspaceInitStatus,
+      status: ModeWorkspaceInitStatus,
       error?: string | null,
       workspaceIdentity?: string,
     ) => {
@@ -741,7 +741,7 @@ export function createWorkspaceSlice(set: SetFn) {
 
     setTaskState: (
       workspacePath: string,
-      status: ZCodeTaskRuntimeStatus,
+      status: ModeTaskRuntimeStatus,
       error?: string | null,
       workspaceIdentity?: string,
     ) => {
@@ -855,7 +855,7 @@ export function createWorkspaceSlice(set: SetFn) {
 
     setConfigOptions: (
       workspacePath: string,
-      options: ZCodeConfigOption[],
+      options: ModeConfigOption[],
       workspaceIdentity?: string,
     ) => {
       set((state) => {
@@ -902,7 +902,7 @@ export function createWorkspaceSlice(set: SetFn) {
 
     setSlashCommands: (
       workspacePath: string,
-      commands: ZCodeSlashCommand[],
+      commands: ModeSlashCommand[],
       workspaceIdentity?: string,
     ) => {
       set((state) =>
@@ -965,7 +965,7 @@ export function createWorkspaceSlice(set: SetFn) {
 
     setTaskListCache: (
       workspacePath: string,
-      tasks: ZCodeTaskMeta[],
+      tasks: ModeTaskMeta[],
       workspaceIdentity?: string,
     ) => {
       set((state) =>

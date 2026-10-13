@@ -6,7 +6,7 @@ import {
   zcodeTopicResourceRelayChunkRequestSchema,
   zcodeTopicResourceRelayMetadataSchema,
   type ZCodeTopicResourceRelayRequest,
-  type ZCodePromptAttachment,
+  type ModePromptAttachment,
 } from "@zcode/shared";
 import { PROTOCOL_V4_LIMITS } from "@zcode/shared/zcode-protocol-v4";
 
@@ -18,7 +18,7 @@ export interface TopicResourceRelayDependencies {
   read(
     request: ZCodeTopicResourceRelayRequest,
     signal: AbortSignal,
-  ): Promise<ZCodePromptAttachment>;
+  ): Promise<ModePromptAttachment>;
 }
 interface Transfer {
   request: ZCodeTopicResourceRelayRequest;

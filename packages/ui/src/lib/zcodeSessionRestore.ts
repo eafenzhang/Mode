@@ -1,9 +1,9 @@
-import type { IZCodeSessionService, IZCodeTaskService } from "@zcode/services";
+import type { IModeSessionService, IModeTaskService } from "@zcode/services";
 import type {
-  ZCodeConfigOption,
+  ModeConfigOption,
   ModelSelection,
-  ZCodeSessionStateSnapshot,
-  ZCodeTaskSnapshot,
+  ModeSessionStateSnapshot,
+  ModeTaskSnapshot,
 } from "@zcode/shared";
 import {
   zcodeSessionSettingsToConfigOptions,
@@ -13,15 +13,15 @@ import { normalizeZCodeUiError, type ZCodeUiError } from "@/lib/zcodeUiError.js"
 import { logger } from "@/logger.js";
 
 export type ZCodeSessionRestoreService = Pick<
-  IZCodeSessionService,
+  IModeSessionService,
   "readSession" | "resumeSession"
 >;
-export type ZCodeLegacyTaskSnapshotRestoreService = Pick<IZCodeTaskService, "getTaskSnapshot">;
+export type ZCodeLegacyTaskSnapshotRestoreService = Pick<IModeTaskService, "getTaskSnapshot">;
 
 export interface DesktopContinuousSessionRestoreSnapshot {
-  snapshot: ZCodeTaskSnapshot;
+  snapshot: ModeTaskSnapshot;
   restoreWarning?: ZCodeUiError;
-  resumedSessionSnapshot?: ZCodeSessionStateSnapshot;
+  resumedSessionSnapshot?: ModeSessionStateSnapshot;
   usedLegacySnapshot?: boolean;
 }
 
@@ -61,7 +61,7 @@ function getRuntimeModelUnavailableDiagnostics(error: unknown): Record<string, u
   };
 }
 
-function getSessionSnapshotDiagnostics(snapshot: ZCodeSessionStateSnapshot) {
+function getSessionSnapshotDiagnostics(snapshot: ModeSessionStateSnapshot) {
   return {
     activeTurnId: snapshot.runtime.activeTurnId ?? null,
     eventSeq: snapshot.runtime.eventSeq,
@@ -85,7 +85,7 @@ export async function readDesktopContinuousSessionRestoreSnapshot(params: {
   // Bugfix: session/read 只能读取 runtime 里的活跃 session。
   // 历史 task 首次打开时必须先 resume 激活，再按 desktop continuous 读取限流快照。
   const startedAt = Date.now();
-  let resumedSessionSnapshot: ZCodeSessionStateSnapshot;
+  let resumedSessionSnapshot: ModeSessionStateSnapshot;
   try {
     const resumeStartedAt = Date.now();
     resumedSessionSnapshot = await params.zcodeSessionService.resumeSession({
@@ -203,7 +203,7 @@ export async function readWebRemoteReplayableSessionConfigOptions(params: {
   sessionId: string;
   model?: ModelSelection;
   thoughtLevel?: string;
-}): Promise<ZCodeConfigOption[] | null> {
+}): Promise<ModeConfigOption[] | null> {
   const startedAt = Date.now();
   try {
     if (params.model) {

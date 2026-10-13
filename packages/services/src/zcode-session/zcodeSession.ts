@@ -1,22 +1,22 @@
 import { ServiceChannels } from "@zcode/shared";
 import type {
   TraceId,
-  ZCodeAgentMcpServer,
-  ZCodeDeliveryKind,
-  ZCodeMessageWithParts,
+  ModeAgentMcpServer,
+  ModeDeliveryKind,
+  ModeMessageWithParts,
   ModelSelection,
-  ZCodePermissionRequestParams,
-  ZCodeProviderRuntimeHeadersRequestParams,
-  ZCodeUserInputRequestParams,
-  ZCodeUserInputResponse,
-  ZCodeSessionInfo,
-  ZCodeSessionImportHistory,
-  ZCodeSessionEvent,
-  ZCodeSessionMode,
-  ZCodeSessionPersistence,
-  ZCodeSessionStateSnapshot,
-  ZCodeStateUpdatedNotification,
-  ZCodeWorkspacePresentation,
+  ModePermissionRequestParams,
+  ModeProviderRuntimeHeadersRequestParams,
+  ModeUserInputRequestParams,
+  ModeUserInputResponse,
+  ModeSessionInfo,
+  ModeSessionImportHistory,
+  ModeSessionEvent,
+  ModeSessionMode,
+  ModeSessionPersistence,
+  ModeSessionStateSnapshot,
+  ModeStateUpdatedNotification,
+  ModeWorkspacePresentation,
 } from "@zcode/shared";
 import { createServiceDescriptor } from "#src/descriptors.js";
 import type { ProviderRuntimeHeadersUiResponse } from "#src/zcode-agent/zcodeAgent.js";
@@ -38,18 +38,18 @@ export interface ZCodeSessionCreateParams extends ZCodeSessionWorkspaceTarget {
   sessionId?: string;
   sessionTraceId?: TraceId;
   parentSessionId?: string;
-  mode?: ZCodeSessionMode;
+  mode?: ModeSessionMode;
   model?: ModelSelection;
-  persistence?: ZCodeSessionPersistence;
+  persistence?: ModeSessionPersistence;
   thoughtLevel?: string;
-  mcpServers?: ZCodeAgentMcpServer[];
-  importedHistory?: ZCodeSessionImportHistory;
+  mcpServers?: ModeAgentMcpServer[];
+  importedHistory?: ModeSessionImportHistory;
 }
 
 export interface ZCodeSessionResumeParams extends ZCodeTaskTarget {
   model?: ModelSelection;
   thoughtLevel?: string;
-  mcpServers?: ZCodeAgentMcpServer[];
+  mcpServers?: ModeAgentMcpServer[];
   /**
    * 默认广播 resume 得到的历史快照，并让 shadow 订阅请求初始 snapshot。
    * 续聊发送前的 runtime 预恢复会关闭它，避免旧终态快照覆盖本地已开始的新输入运行态。
@@ -63,7 +63,7 @@ export interface ZCodeSessionListParams extends ZCodeSessionWorkspaceTarget {
 }
 
 export interface ZCodeSessionReadParams extends ZCodeTaskTarget {
-  deliveryKind?: ZCodeDeliveryKind;
+  deliveryKind?: ModeDeliveryKind;
   messageLimit?: number;
   afterSeq?: number;
 }
@@ -91,7 +91,7 @@ export interface ZCodeSessionSetThoughtLevelParams extends ZCodeTaskTarget {
 }
 
 export interface ZCodeSessionSetModeParams extends ZCodeTaskTarget {
-  mode: ZCodeSessionMode;
+  mode: ModeSessionMode;
   expectedRevision?: number;
 }
 
@@ -101,7 +101,7 @@ export interface ZCodeSessionRespondProviderRuntimeHeadersParams extends ZCodeTa
 }
 
 export interface ZCodeSessionSubscribeParams extends ZCodeTaskTarget {
-  deliveryKind: ZCodeDeliveryKind;
+  deliveryKind: ModeDeliveryKind;
   afterSeq?: number;
   includeSnapshot?: boolean;
   eventCoalescing?: {
@@ -111,17 +111,17 @@ export interface ZCodeSessionSubscribeParams extends ZCodeTaskTarget {
 }
 
 export type ZCodeSessionServiceEvent =
-  | { type: "session.event"; event: ZCodeSessionEvent }
-  | { type: "state.updated"; notification: ZCodeStateUpdatedNotification }
-  | { type: "permission.request"; request: ZCodePermissionRequestParams }
-  | { type: "userInput.request"; request: ZCodeUserInputRequestParams }
+  | { type: "session.event"; event: ModeSessionEvent }
+  | { type: "state.updated"; notification: ModeStateUpdatedNotification }
+  | { type: "permission.request"; request: ModePermissionRequestParams }
+  | { type: "userInput.request"; request: ModeUserInputRequestParams }
   | {
       type: "userInput.response";
       requestId: string;
-      response: ZCodeUserInputResponse;
+      response: ModeUserInputResponse;
     }
-  | { type: "providerRuntimeHeaders.request"; request: ZCodeProviderRuntimeHeadersRequestParams }
-  | { type: "snapshot"; snapshot: ZCodeSessionStateSnapshot };
+  | { type: "providerRuntimeHeaders.request"; request: ModeProviderRuntimeHeadersRequestParams }
+  | { type: "snapshot"; snapshot: ModeSessionStateSnapshot };
 
 export interface ZCodeSessionInitializeResult {
   available: boolean;
@@ -147,19 +147,19 @@ export interface IZCodeSessionService {
   ): Promise<ZCodeSessionWorkspaceRuntimeIdentity>;
   readWorkspacePresentation(
     params: ZCodeSessionReadWorkspacePresentationParams,
-  ): Promise<ZCodeWorkspacePresentation>;
-  createSession(params: ZCodeSessionCreateParams): Promise<ZCodeSessionStateSnapshot>;
-  resumeSession(params: ZCodeSessionResumeParams): Promise<ZCodeSessionStateSnapshot>;
-  listSessions(params: ZCodeSessionListParams): Promise<ZCodeSessionInfo[]>;
-  readSession(params: ZCodeSessionReadParams): Promise<ZCodeSessionStateSnapshot>;
-  readSessionMessages(params: ZCodeSessionMessagesParams): Promise<ZCodeMessageWithParts[]>;
-  readSessionEvents(params: ZCodeSessionEventsParams): Promise<ZCodeSessionEvent[]>;
+  ): Promise<ModeWorkspacePresentation>;
+  createSession(params: ZCodeSessionCreateParams): Promise<ModeSessionStateSnapshot>;
+  resumeSession(params: ZCodeSessionResumeParams): Promise<ModeSessionStateSnapshot>;
+  listSessions(params: ZCodeSessionListParams): Promise<ModeSessionInfo[]>;
+  readSession(params: ZCodeSessionReadParams): Promise<ModeSessionStateSnapshot>;
+  readSessionMessages(params: ZCodeSessionMessagesParams): Promise<ModeMessageWithParts[]>;
+  readSessionEvents(params: ZCodeSessionEventsParams): Promise<ModeSessionEvent[]>;
   promoteDeferredDraftSession(params: ZCodeTaskTarget): Promise<void>;
   closeSession(params: ZCodeTaskTarget): Promise<void>;
   closeDeferredDraftSession(params: ZCodeTaskTarget): Promise<boolean>;
-  setModel(params: ZCodeSessionSetModelParams): Promise<ZCodeSessionStateSnapshot>;
-  setThoughtLevel(params: ZCodeSessionSetThoughtLevelParams): Promise<ZCodeSessionStateSnapshot>;
-  setMode(params: ZCodeSessionSetModeParams): Promise<ZCodeSessionStateSnapshot>;
+  setModel(params: ZCodeSessionSetModelParams): Promise<ModeSessionStateSnapshot>;
+  setThoughtLevel(params: ZCodeSessionSetThoughtLevelParams): Promise<ModeSessionStateSnapshot>;
+  setMode(params: ZCodeSessionSetModeParams): Promise<ModeSessionStateSnapshot>;
   respondProviderRuntimeHeaders(
     params: ZCodeSessionRespondProviderRuntimeHeadersParams,
   ): Promise<void>;

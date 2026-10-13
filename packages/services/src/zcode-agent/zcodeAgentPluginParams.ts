@@ -1,8 +1,8 @@
 import type {
   ModelSelection,
-  ZCodeAgentMcpServer,
-  ZCodeAutomationScheduleRule,
-  ZCodeMcpListMode,
+  ModeAgentMcpServer,
+  ModeAutomationScheduleRule,
+  ModeMcpListMode,
 } from "@zcode/shared";
 import type { McpAppsAppToolCallResult, McpAppsAppToolDescriptor } from "@zcode/shared/mcp-apps";
 
@@ -18,8 +18,8 @@ export interface ZCodeAgentPluginViewParams extends ZCodeAgentWorkspaceTarget {
 }
 
 export interface ZCodeAgentListMcpServerStatusesParams extends ZCodeAgentWorkspaceTarget {
-  mcpServers?: ZCodeAgentMcpServer[];
-  mode?: ZCodeMcpListMode;
+  mcpServers?: ModeAgentMcpServer[];
+  mode?: ModeMcpListMode;
 }
 
 export interface ZCodeAgentAddPluginMarketplaceParams extends ZCodeAgentWorkspaceTarget {
@@ -194,7 +194,7 @@ export interface ZCodeAgentCreateAutomationParams extends ZCodeAgentWorkspaceTar
   recurring?: boolean;
   maxRuns?: number;
   endAt?: number;
-  scheduleRule?: ZCodeAutomationScheduleRule;
+  scheduleRule?: ModeAutomationScheduleRule;
 }
 
 export interface ZCodeAgentUpdateAutomationParams extends ZCodeAgentWorkspaceTarget {
@@ -207,7 +207,7 @@ export interface ZCodeAgentUpdateAutomationParams extends ZCodeAgentWorkspaceTar
   recurring?: boolean;
   maxRuns?: number | null;
   endAt?: number | null;
-  scheduleRule?: ZCodeAutomationScheduleRule | null;
+  scheduleRule?: ModeAutomationScheduleRule | null;
   scheduleEditedByUser?: boolean;
 }
 

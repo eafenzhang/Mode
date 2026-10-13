@@ -2,18 +2,18 @@ import { ZCodeStorageStartupGate } from "#src/zcode-agent/zcodeStorageStartupGat
 import { Emitter } from "@zcode/rpc";
 import type { IDisposable } from "@zcode/rpc";
 import type {
-  ZCodeProtocolMethod,
-  ZCodeProtocolNotification,
-  ZCodeProtocolRequest,
-  ZCodeProtocolRequestId,
-  ZCodeProtocolTrace,
+  ModeProtocolMethod,
+  ModeProtocolNotification,
+  ModeProtocolRequest,
+  ModeProtocolRequestId,
+  ModeProtocolTrace,
 } from "@zcode/shared";
 import type { V4Method } from "@zcode/shared/zcode-protocol-v4";
 import type { z } from "zod";
 import type { ZCodeProtocolTransport } from "./zcodeProtocolTransport.js";
 
 /** 客户端可发的方法名：旧 zcodeProtocolMethods + v4/*（M3 起并存，M5 波次 2 收敛为 v4）。 */
-export type ZCodeProtocolClientMethod = ZCodeProtocolMethod | V4Method;
+export type ZCodeProtocolClientMethod = ModeProtocolMethod | V4Method;
 
 interface ZCodeProtocolClientOptions {
   requireStorageStartup?: boolean;
@@ -22,7 +22,7 @@ interface ZCodeProtocolClientOptions {
 
 export interface ZCodeProtocolRequestTimeoutEvent {
   method: ZCodeProtocolClientMethod;
-  requestId: ZCodeProtocolRequestId;
+  requestId: ModeProtocolRequestId;
   timeoutMs: number;
 }
 
@@ -43,7 +43,7 @@ interface ZCodeProtocolClientRequestOptions {
   /** 观测不得参与 runtime 健康判定或业务空闲续期；默认保持业务请求语义。 */
   lifecycle?: "operation" | "observation";
   signal?: AbortSignal;
-  trace?: ZCodeProtocolTrace;
+  trace?: ModeProtocolTrace;
   timeoutMs?: number;
 }
 
@@ -63,7 +63,7 @@ class ZCodeProtocolClientError extends Error {
 export class ZCodeProtocolRequestTimeoutError extends Error {
   constructor(
     readonly method: ZCodeProtocolClientMethod,
-    readonly requestId: ZCodeProtocolRequestId,
+    readonly requestId: ModeProtocolRequestId,
     readonly timeoutMs: number,
   ) {
     super(`ZCode Protocol request timed out: ${method}`);
@@ -74,8 +74,8 @@ export class ZCodeProtocolRequestTimeoutError extends Error {
 export class ZCodeProtocolClient implements IDisposable {
   readonly storageStartup: ZCodeStorageStartupGate;
   private readonly pending = new Map<string, PendingRequest<unknown>>();
-  private readonly notificationEmitter = new Emitter<ZCodeProtocolNotification>();
-  private readonly requestEmitter = new Emitter<ZCodeProtocolRequest>();
+  private readonly notificationEmitter = new Emitter<ModeProtocolNotification>();
+  private readonly requestEmitter = new Emitter<ModeProtocolRequest>();
   private readonly requestTimeoutEmitter = new Emitter<ZCodeProtocolRequestTimeoutEvent>();
   // 业务请求归零时触发；观测完成不能给被观察进程续命。
   private readonly pendingDrainedEmitter = new Emitter<void>();
@@ -258,13 +258,13 @@ export class ZCodeProtocolClient implements IDisposable {
     await this.transport.send({ method, params });
   }
 
-  async respond(id: ZCodeProtocolRequestId, result: unknown): Promise<void> {
+  async respond(id: ModeProtocolRequestId, result: unknown): Promise<void> {
     this.assertNotDisposed();
     await this.transport.send({ id, result });
   }
 
   async respondError(
-    id: ZCodeProtocolRequestId,
+    id: ModeProtocolRequestId,
     error: { code: number; message: string; data?: unknown },
   ): Promise<void> {
     this.assertNotDisposed();
@@ -302,7 +302,7 @@ export class ZCodeProtocolClient implements IDisposable {
 
     if ("result" in message && "id" in message) {
       this.resolveResponse(
-        (message as { id: ZCodeProtocolRequestId; result: unknown }).id,
+        (message as { id: ModeProtocolRequestId; result: unknown }).id,
         (message as { result: unknown }).result,
       );
       return;
@@ -310,7 +310,7 @@ export class ZCodeProtocolClient implements IDisposable {
 
     if ("error" in message && "id" in message) {
       const errorMessage = message as {
-        id: ZCodeProtocolRequestId;
+        id: ModeProtocolRequestId;
         error: { code: number; message: string; data?: unknown };
       };
       this.rejectResponse(
@@ -325,14 +325,14 @@ export class ZCodeProtocolClient implements IDisposable {
     }
 
     if ("method" in message && "id" in message) {
-      this.requestEmitter.fire(message as ZCodeProtocolRequest);
+      this.requestEmitter.fire(message as ModeProtocolRequest);
       return;
     }
 
     if ("method" in message) {
       if (
         message.method === "startup/storageState" &&
-        this.storageStartup.accept((message as ZCodeProtocolNotification).params)
+        this.storageStartup.accept((message as ModeProtocolNotification).params)
       ) {
         // 自定义/旧部署命令无法事先声明能力；首个请求可能已发出。只有首次合法启动帧
         // 能暂停这些计时器，ready 后恢复；该进程的终态不能被后续通知重新续期。
@@ -346,11 +346,11 @@ export class ZCodeProtocolClient implements IDisposable {
           );
         }
       }
-      this.notificationEmitter.fire(message as ZCodeProtocolNotification);
+      this.notificationEmitter.fire(message as ModeProtocolNotification);
     }
   }
 
-  private resolveResponse(id: ZCodeProtocolRequestId, result: unknown): void {
+  private resolveResponse(id: ModeProtocolRequestId, result: unknown): void {
     const requestKey = String(id);
     const pending = this.pending.get(requestKey);
     if (!pending) {
@@ -372,7 +372,7 @@ export class ZCodeProtocolClient implements IDisposable {
     }
   }
 
-  private rejectResponse(id: ZCodeProtocolRequestId, error: Error): void {
+  private rejectResponse(id: ModeProtocolRequestId, error: Error): void {
     const requestKey = String(id);
     const pending = this.pending.get(requestKey);
     if (!pending) {

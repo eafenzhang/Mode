@@ -4,39 +4,39 @@ import { ServiceChannels } from "@zcode/shared";
 import type { CommandPayloadMap } from "@zcode/shared/zcode-protocol-v4";
 import { createServiceDescriptor } from "#src/descriptors.js";
 import type {
-  ZCodeImportSessionsResult,
-  ZCodeImportableSessionCandidate,
-  ZCodeSessionCompactResult,
-  ZCodeSessionGoalAction,
-  ZCodeSessionGoalResult,
+  ModeImportSessionsResult,
+  ModeImportableSessionCandidate,
+  ModeSessionCompactResult,
+  ModeSessionGoalAction,
+  ModeSessionGoalResult,
   ZCodeCodexConnectivityCheckResult,
   ZCodeSwitchAgentResult,
   ZCodeSyncTaskSessionBindingResult,
-  ZCodeTaskCreateResult,
-  ZCodeTaskMeta,
-  ZCodeStreamEvent,
-  ZCodeTaskMode,
-  ZCodeConfigOption,
-  ZCodeError,
-  ZCodeAssistantMessageFeedback,
-  ZCodePromptAttachment,
-  ZCodeProvider,
-  ZCodeWorkspaceEvent,
+  ModeTaskCreateResult,
+  ModeTaskMeta,
+  ModeStreamEvent,
+  ModeTaskMode,
+  ModeConfigOption,
+  ModeError,
+  ModeAssistantMessageFeedback,
+  ModePromptAttachment,
+  ModeProvider,
+  ModeWorkspaceEvent,
   TraceId,
-  ZCodeSessionFile,
-  ZCodeAgentMcpServer,
-  ZCodeTaskSnapshot,
-  ZCodeTaskSnapshotBody,
-  ZCodeTaskSnapshotToolCallsSlice,
-  ZCodeTaskSnapshotRefContent,
-  ZCodeEnqueueTaskCommandResult,
-  ZCodeCancelTaskCommandResult,
-  ZCodeTaskClientMode,
-  ZCodeTaskTokenUsageResult,
-  ZCodePermissionResponse,
+  ModeSessionFile,
+  ModeAgentMcpServer,
+  ModeTaskSnapshot,
+  ModeTaskSnapshotBody,
+  ModeTaskSnapshotToolCallsSlice,
+  ModeTaskSnapshotRefContent,
+  ModeEnqueueTaskCommandResult,
+  ModeCancelTaskCommandResult,
+  ModeTaskClientMode,
+  ModeTaskTokenUsageResult,
+  ModePermissionResponse,
   ModelSelection,
-  ZCodeBackgroundTurnAttribution,
-  ZCodeAutomationBotDeliveryTarget,
+  ModeBackgroundTurnAttribution,
+  ModeAutomationBotDeliveryTarget,
 } from "@zcode/shared";
 import type {
   SessionMessageDeliveryResult,
@@ -57,7 +57,7 @@ import type {
 } from "#src/session/zcodeTaskListTypes.js";
 
 export interface ZCodeTaskSnapshotWithEtagResult {
-  snapshot: ZCodeTaskSnapshot | null;
+  snapshot: ModeTaskSnapshot | null;
   etag?: string;
   notModified?: boolean;
 }
@@ -209,7 +209,7 @@ export interface IZCodeTaskService {
   releaseWorkspacePreparation(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-    provider?: ZCodeProvider;
+    provider?: ModeProvider;
   }): Promise<void>;
 
   /** Codex 草稿态预热前的网络检查，用于提前提醒 chatgpt.com 不可达 */
@@ -221,8 +221,8 @@ export interface IZCodeTaskService {
   createTask(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-    provider?: ZCodeProvider;
-    mode?: ZCodeTaskMode;
+    provider?: ModeProvider;
+    mode?: ModeTaskMode;
     /** 正式模型选择；产品提交边界固定后不再拆成 model/thoughtLevel。 */
     modelSelection?: ModelSelection;
     /** @deprecated 仅供尚未迁移的旧调用边界读取。 */
@@ -231,7 +231,7 @@ export interface IZCodeTaskService {
     thoughtLevel?: string;
     draftSessionId?: string;
     forkedFromTaskId?: string;
-    mcpServers?: ZCodeAgentMcpServer[];
+    mcpServers?: ModeAgentMcpServer[];
     /** 定时任务派发时标记所属 automation，落 tasks-index 的 cron_automation_id 并归入 cron 分组。 */
     automationId?: string;
     /** 闲时任务派发时标记所属 off-peak 任务，落 tasks-index 的 off_peak_task_id。 */
@@ -244,7 +244,7 @@ export interface IZCodeTaskService {
     /** Bot/host 使用 v4 原生 createSession 建立 draft，再配置并发送。 */
     v4Create?: boolean;
     permissionScope?: "session";
-  }): Promise<ZCodeTaskCreateResult>;
+  }): Promise<ModeTaskCreateResult>;
 
   readBotTopicSummaries?(params: {
     taskId: string;
@@ -300,7 +300,7 @@ export interface IZCodeTaskService {
     commandId: string;
     content: string;
     conversationQuotes?: import("@zcode/shared").ConversationSelectionText[];
-    attachments?: ZCodePromptAttachment[];
+    attachments?: ModePromptAttachment[];
     source: import("@zcode/shared").BotGroupInputSource;
   }): Promise<import("@zcode/shared/zcode-protocol-v4").CommandAck>;
 
@@ -313,19 +313,19 @@ export interface IZCodeTaskService {
       queryId?: string;
       messageId?: string;
       content: string;
-      attachments?: ZCodePromptAttachment[];
+      attachments?: ModePromptAttachment[];
       clientId?: string;
       clientLabel?: string;
-      clientMode?: ZCodeTaskClientMode;
+      clientMode?: ModeTaskClientMode;
       /** 当前 turn 额外隐藏的工具；与 session/automation 自带的工具隔离规则合并。 */
       toolDenylist?: string[];
       /** Bot 来源 turn 的稳定回推地址；由 BotsService 注入，模型不可控。 */
-      botDeliveryTarget?: ZCodeAutomationBotDeliveryTarget;
+      botDeliveryTarget?: ModeAutomationBotDeliveryTarget;
       /** 标准模型选择；闲时任务同样经 Registry / ModelFactory 创建 Model。 */
       modelSelection?: CommandPayloadMap["sendText"]["modelSelection"];
       /** 单次执行约束与动态鉴权；仅 idle start-now 接受，不进入普通队列。 */
       modelExecution?: CommandPayloadMap["sendText"]["modelExecution"];
-    } & ZCodeBackgroundTurnAttribution,
+    } & ModeBackgroundTurnAttribution,
   ): Promise<void>;
 
   deliverSessionMessage(
@@ -344,13 +344,13 @@ export interface IZCodeTaskService {
     queryId?: string;
     type: "send_prompt";
     content: string;
-    attachments?: ZCodePromptAttachment[];
+    attachments?: ModePromptAttachment[];
     clientId?: string;
     clientLabel?: string;
     /** 定时任务派发经 host command queue 延后执行时也必须保留 automation 上下文。 */
     automationId?: string;
     ownerRunId?: TraceId;
-  }): Promise<ZCodeEnqueueTaskCommandResult>;
+  }): Promise<ModeEnqueueTaskCommandResult>;
 
   promoteTaskCommand(params: {
     workspacePath: string;
@@ -358,8 +358,8 @@ export interface IZCodeTaskService {
     taskId: string;
     commandId: string;
     ownerRunId: TraceId;
-    clientMode: ZCodeTaskClientMode;
-  }): Promise<ZCodeEnqueueTaskCommandResult>;
+    clientMode: ModeTaskClientMode;
+  }): Promise<ModeEnqueueTaskCommandResult>;
 
   cancelTaskCommand(params: {
     workspacePath: string;
@@ -367,8 +367,8 @@ export interface IZCodeTaskService {
     taskId: string;
     commandId: string;
     ownerRunId?: TraceId;
-    clientMode: ZCodeTaskClientMode;
-  }): Promise<ZCodeCancelTaskCommandResult>;
+    clientMode: ModeTaskClientMode;
+  }): Promise<ModeCancelTaskCommandResult>;
 
   /** 停止当前正在进行的生成 */
   stopGeneration(params: {
@@ -388,7 +388,7 @@ export interface IZCodeTaskService {
     inputId?: string;
     instructions?: string;
     expectedRevision?: number;
-  }): Promise<ZCodeSessionCompactResult>;
+  }): Promise<ModeSessionCompactResult>;
 
   /** 执行 agent 内建 /goal 命令；不要把 /goal 当普通正文 prompt 发送。 */
   goalSession(params: {
@@ -396,10 +396,10 @@ export interface IZCodeTaskService {
     workspacePath?: string;
     workspaceIdentity?: string;
     inputId?: string;
-    action: ZCodeSessionGoalAction;
+    action: ModeSessionGoalAction;
     objective?: string;
     expectedRevision?: number;
-  }): Promise<ZCodeSessionGoalResult>;
+  }): Promise<ModeSessionGoalResult>;
 
   /** 响应权限请求 */
   respondPermission(params: {
@@ -409,7 +409,7 @@ export interface IZCodeTaskService {
     runId?: TraceId;
     requestId: string;
     optionId: string;
-    response: ZCodePermissionResponse;
+    response: ModePermissionResponse;
   }): Promise<boolean>;
 
   /** 响应用户问答请求（Elicitation） */
@@ -421,7 +421,7 @@ export interface IZCodeTaskService {
     requestId: string;
     action: "accept" | "decline" | "cancel";
     content?: Record<string, unknown>;
-    clientMode?: ZCodeTaskClientMode;
+    clientMode?: ModeTaskClientMode;
   }): Promise<boolean>;
 
   /** 关闭 task（优先 session/close；当 workspace 下最后一个 task 结束时再回收共享进程） */
@@ -432,21 +432,21 @@ export interface IZCodeTaskService {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
-    mode?: ZCodeTaskMode;
+    mode?: ModeTaskMode;
     model?: string;
     thoughtLevel?: string;
     /** 定时任务派发时恢复已有 targetTaskId，沿用 automation 工具面隔离。 */
     automationId?: string;
     /** 闲时续跑恢复 pre-会话时补写 off-peak 标记（新会话在 createTask 已盖章）。 */
     offPeakTaskId?: string;
-    mcpServers?: ZCodeAgentMcpServer[];
-  }): Promise<ZCodeTaskMeta>;
+    mcpServers?: ModeAgentMcpServer[];
+  }): Promise<ModeTaskMeta>;
 
   /** 列出 workspace 下所有已持久化的 task */
   listTasks(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeTaskMeta[]>;
+  }): Promise<ModeTaskMeta[]>;
 
   /** 读取全局 pinned task id 列表，真相源为 tasks-index.sqlite */
   listPinnedTaskIds(): Promise<string[]>;
@@ -455,7 +455,7 @@ export interface IZCodeTaskService {
   listPinnedTasks(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeTaskMeta[]>;
+  }): Promise<ModeTaskMeta[]>;
 
   /** 读取 workspace 下已删除 task id；用于 sessions-index 列表的持久负向 membership join */
   listDeletedTaskIds(params: {
@@ -515,20 +515,20 @@ export interface IZCodeTaskService {
   listArchivedTasks(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeTaskMeta[]>;
+  }): Promise<ModeTaskMeta[]>;
 
   /** 批量归档超期旧任务；仅归档已完成、无未读、非 pinned 且当前未打开的 task */
   archiveStaleTasks(params: {
     workspacePath: string;
     workspaceIdentity?: string;
     olderThanDays: number;
-  }): Promise<ZCodeTaskMeta[]>;
+  }): Promise<ModeTaskMeta[]>;
 
   /** 移除 workspace 时批量归档该 workspace 下所有未归档 task，包含 pinned task */
   archiveWorkspaceTasks(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeTaskMeta[]>;
+  }): Promise<ModeTaskMeta[]>;
 
   /** 读取单个 task 的本地持久化快照，用于历史任务首屏展示 */
   getTaskSnapshot(params: {
@@ -538,11 +538,11 @@ export interface IZCodeTaskService {
     messageLimit?: number;
     byteBudget?: number;
     toolLimit?: number;
-    clientMode?: ZCodeTaskClientMode;
+    clientMode?: ModeTaskClientMode;
     resumeModelPolicy?: "task-index" | "ui-resolved-only";
     model?: string;
     thoughtLevel?: string;
-  }): Promise<ZCodeTaskSnapshot | null>;
+  }): Promise<ModeTaskSnapshot | null>;
 
   /** 读取 task 快照并携带 ETag，支持 if-none-match 语义减少重复大包传输。 */
   getTaskSnapshotWithEtag(params: {
@@ -553,7 +553,7 @@ export interface IZCodeTaskService {
     ifNoneMatch?: string;
     byteBudget?: number;
     toolLimit?: number;
-    clientMode?: ZCodeTaskClientMode;
+    clientMode?: ModeTaskClientMode;
     resumeModelPolicy?: "task-index" | "ui-resolved-only";
     model?: string;
     thoughtLevel?: string;
@@ -565,7 +565,7 @@ export interface IZCodeTaskService {
     workspacePath: string;
     workspaceIdentity?: string;
     refId: string;
-  }): Promise<ZCodeTaskSnapshotBody | null>;
+  }): Promise<ModeTaskSnapshotBody | null>;
 
   /** 按 ref 读取被首屏预算裁剪的工具或文件变更完整字段。 */
   getTaskSnapshotRef(params: {
@@ -573,7 +573,7 @@ export interface IZCodeTaskService {
     workspacePath: string;
     workspaceIdentity?: string;
     refId: string;
-  }): Promise<ZCodeTaskSnapshotRefContent | null>;
+  }): Promise<ModeTaskSnapshotRefContent | null>;
 
   /** 按 message + 下标范围补拉 tools 切片，用于远控首屏按条数裁剪后的增量加载。 */
   getTaskSnapshotToolCallsSlice(params: {
@@ -583,17 +583,17 @@ export interface IZCodeTaskService {
     messageIndex: number;
     startToolIndex: number;
     limit: number;
-  }): Promise<ZCodeTaskSnapshotToolCallsSlice | null>;
+  }): Promise<ModeTaskSnapshotToolCallsSlice | null>;
 
   /** 读取单个 task 的轻量 meta（不包含 messages/fileChanges），用于标题/provider 等展示兜底 */
   getTaskMeta(params: {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeTaskMeta | null>;
+  }): Promise<ModeTaskMeta | null>;
 
   /** 读取当前 active task 内存态的配置选项，不做 workspace 预热兜底 */
-  getTaskConfigOptions(params: { taskId: string }): Promise<ZCodeConfigOption[]>;
+  getTaskConfigOptions(params: { taskId: string }): Promise<ModeConfigOption[]>;
 
   /** 读取绑定 Session 的原模型选择；不从候选菜单反推，不做有效解析或写入。 */
   getTaskModelSelection(params: { taskId: string }): Promise<ModelSelection | null>;
@@ -604,8 +604,8 @@ export interface IZCodeTaskService {
     workspacePath: string;
     workspaceIdentity?: string;
     turnIndex: number;
-    feedback: ZCodeAssistantMessageFeedback | null;
-  }): Promise<ZCodeSessionFile>;
+    feedback: ModeAssistantMessageFeedback | null;
+  }): Promise<ModeSessionFile>;
 
   /**
    * 补齐 task 已存在的 provider session，使其覆盖当前 canonical task 的完整对话边界。
@@ -615,7 +615,7 @@ export interface IZCodeTaskService {
     workspacePath: string;
     workspaceIdentity?: string;
     taskId: string;
-    provider: ZCodeProvider;
+    provider: ModeProvider;
     validate?: boolean;
   }): Promise<ZCodeSyncTaskSessionBindingResult>;
 
@@ -627,7 +627,7 @@ export interface IZCodeTaskService {
     workspacePath: string;
     workspaceIdentity?: string;
     taskId: string;
-    provider: ZCodeProvider;
+    provider: ModeProvider;
   }): Promise<ZCodeSwitchAgentResult>;
 
   /** 扫描可导入的 Claude 原生 session；可选按 workspace 过滤。 */
@@ -636,17 +636,17 @@ export interface IZCodeTaskService {
     workspaceIdentity?: string;
     modifiedSince?: number;
     limit?: number;
-  }): Promise<ZCodeImportableSessionCandidate[]>;
+  }): Promise<ModeImportableSessionCandidate[]>;
 
   /** 导入选中的 Claude 原生 session，并反向生成最小 task snapshot；不传 workspacePath 时按原始 workspace 导入。 */
   importClaudeSessions(params: {
     workspacePath?: string;
     workspaceIdentity?: string;
     sessionIds: string[];
-  }): Promise<ZCodeImportSessionsResult>;
+  }): Promise<ModeImportSessionsResult>;
 
   /** 切换 task 模式 */
-  setMode(params: { taskId: string; mode: ZCodeTaskMode }): Promise<void>;
+  setMode(params: { taskId: string; mode: ModeTaskMode }): Promise<void>;
 
   /** 切换 configOption（模型、思考级别等），返回更新后的完整 configOptions 列表 */
   setConfigOption(params: {
@@ -654,14 +654,14 @@ export interface IZCodeTaskService {
     traceId: TraceId;
     configId: string;
     value: string;
-  }): Promise<ZCodeConfigOption[]>;
+  }): Promise<ModeConfigOption[]>;
 
   /** 切换模型，返回服务端 authoritative configOptions */
   setModel(params: {
     taskId: string;
     traceId: TraceId;
     modelSelection: ModelSelection;
-  }): Promise<ZCodeConfigOption[]>;
+  }): Promise<ModeConfigOption[]>;
 
   /** 定时任务派发专用：收敛模型、Think 和权限模式，并让 V4 conversation 投影同步更新。 */
   setAutomationSessionConfig(params: {
@@ -669,16 +669,16 @@ export interface IZCodeTaskService {
     traceId: TraceId;
     modelSelection: ModelSelection;
     thoughtLevel?: string;
-    mode?: ZCodeTaskMode;
-  }): Promise<ZCodeConfigOption[]>;
+    mode?: ModeTaskMode;
+  }): Promise<ModeConfigOption[]>;
 
   /** 获取 workspace + provider 对应的主配置文件路径 */
   getWorkspaceProviderConfigFile(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-    provider?: ZCodeProvider;
+    provider?: ModeProvider;
   }): Promise<{
-    provider: ZCodeProvider;
+    provider: ModeProvider;
     path: string;
     exists: boolean;
   }>;
@@ -689,7 +689,7 @@ export interface IZCodeTaskService {
     workspacePath: string;
     workspaceIdentity?: string;
   }): Promise<{
-    provider: ZCodeProvider | null;
+    provider: ModeProvider | null;
     path: string | null;
     exists: boolean;
   }>;
@@ -709,7 +709,7 @@ export interface IZCodeTaskService {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeTaskTokenUsageResult>;
+  }): Promise<ModeTaskTokenUsageResult>;
 
   /** 获取 task 持久化快照文件路径（统一为 {taskId}.json，软删除例外为 .deleted.json） */
   getTaskSessionFilePath(params: {
@@ -729,7 +729,7 @@ export interface IZCodeTaskService {
   restartWorkspaceProcess(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-    provider?: ZCodeProvider;
+    provider?: ModeProvider;
     resumeTaskId?: string;
     bumpRuntimeEpoch?: boolean;
   }): Promise<void>;
@@ -761,7 +761,7 @@ export interface IZCodeTaskService {
     workspacePath: string;
     workspaceIdentity?: string;
     title: string;
-  }): Promise<ZCodeTaskMeta>;
+  }): Promise<ModeTaskMeta>;
 
   /** 更新 task 置顶状态 */
   setTaskPinned(params: {
@@ -769,7 +769,7 @@ export interface IZCodeTaskService {
     workspacePath: string;
     workspaceIdentity?: string;
     pinned: boolean;
-  }): Promise<ZCodeTaskMeta>;
+  }): Promise<ModeTaskMeta>;
 
   /** 更新 task 未读状态 */
   setTaskUnread(params: {
@@ -779,33 +779,33 @@ export interface IZCodeTaskService {
     unread: boolean;
     /** 仅用于已读 compare-and-clear；缺省时保持既有无条件写入语义。 */
     expectedUnreadAt?: number;
-  }): Promise<ZCodeTaskMeta>;
+  }): Promise<ModeTaskMeta>;
 
   /** 归档 task，使其从默认任务列表中隐藏 */
   archiveTask(params: {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeTaskMeta>;
+  }): Promise<ModeTaskMeta>;
 
   /** 取消归档 task，使其重新回到默认任务列表 */
   unarchiveTask(params: {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
-  }): Promise<ZCodeTaskMeta>;
+  }): Promise<ModeTaskMeta>;
 
   /** 基于 source task 的会话配置新建一个空白分支，用于重新编辑某条用户输入。 */
   branchTaskFromPrompt(params: {
     workspacePath: string;
     workspaceIdentity?: string;
     sourceTaskId: string;
-  }): Promise<ZCodeTaskCreateResult>;
+  }): Promise<ModeTaskCreateResult>;
 
   // ---- 流式事件 ----
 
   /** 订阅指定 task 的流式更新（ProxyChannel 动态事件） */
-  onDynamicStreamEvent(taskId: string): Event<ZCodeStreamEvent>;
+  onDynamicStreamEvent(taskId: string): Event<ModeStreamEvent>;
 
   /**
    * 订阅指定 task 的终态结果（succeeded / failed / stopped）。
@@ -827,7 +827,7 @@ export interface IZCodeTaskService {
     taskId: string;
     clientId?: string;
     deliveryKind?: "continuous" | "bot-channel-continuous" | "replayable" | "mixed";
-  }): Event<ZCodeStreamEvent>;
+  }): Event<ModeStreamEvent>;
 
   /**
    * 订阅 workspace 级别的异步通知（如预热阶段 Agent 推送的 slash commands、configOptions）。
@@ -836,10 +836,10 @@ export interface IZCodeTaskService {
    */
   onDynamicWorkspaceEvent(
     workspace: string | ZCodeWorkspaceEventSubscriptionParams,
-  ): Event<ZCodeWorkspaceEvent>;
+  ): Event<ModeWorkspaceEvent>;
 
   /** 全局错误事件 */
-  onError: Event<ZCodeError>;
+  onError: Event<ModeError>;
 }
 
 export const IZCodeTaskService = createServiceDescriptor<IZCodeTaskService>(

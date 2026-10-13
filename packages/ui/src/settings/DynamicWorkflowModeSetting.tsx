@@ -1,7 +1,7 @@
 import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 import {
   DYNAMIC_WORKFLOW_MODES,
-  isDynamicWorkflowOffered,
+  DynamicWorkflowMode,
   normalizeDynamicWorkflowMode,
   TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_ITEM,
   TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_TRIGGER,
@@ -17,14 +17,14 @@ import {
 import {
   Select,
   SelectContent,
-  SelectRichItem,
+  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
 import { toast } from "@/components/ui/toast.js";
 import { useDynamicWorkflowAvailability } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { useSettings } from "@/hooks/useSettingService.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 import type { DynamicWorkflowAvailabilitySnapshot } from "@/store/dynamicWorkflowAvailabilityStore.js";
@@ -44,7 +44,7 @@ export function resolveDynamicWorkflowModeSettingView(
   snapshot: DynamicWorkflowAvailabilitySnapshot,
 ): { value: DynamicWorkflowMode; offeredMode: DynamicWorkflowMode } | null {
   const config = snapshot.config;
-  if (snapshot.status !== "ready" || !config || !isDynamicWorkflowOffered(config)) return null;
+  if (snapshot.status !== "ready" || !config || !DynamicWorkflowMode(config)) return null;
   return { value: config.mode, offeredMode: config.offeredMode };
 }
 
@@ -59,7 +59,7 @@ export function buildDynamicWorkflowModePatch(
 }
 
 export function DynamicWorkflowModeSetting() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const { update } = useSettings();
   const view = resolveDynamicWorkflowModeSettingView(useDynamicWorkflowAvailability());
   // 选择落盘 → Root 通知 Host 重发策略 → 快照重读，整条链要几百毫秒；期间触发器先显示用户刚选的值。
@@ -117,7 +117,7 @@ export function DynamicWorkflowModeSetting() {
             {DYNAMIC_WORKFLOW_MODES.map((mode) => {
               const Icon = MODE_ICONS[mode];
               return (
-                <SelectRichItem
+                <SelectItem
                   key={mode}
                   value={mode}
                   data-testid={testId(TID_SETTINGS_DYNAMIC_WORKFLOW_MODE_ITEM, mode)}

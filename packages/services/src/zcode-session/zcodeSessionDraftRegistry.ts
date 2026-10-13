@@ -1,4 +1,4 @@
-import type { ZCodeSessionStateSnapshot } from "@zcode/shared";
+import type { ModeSessionStateSnapshot } from "@zcode/shared";
 import type {
   ZCodeSessionWorkspaceTarget,
   ZCodeTaskTarget,
@@ -16,7 +16,7 @@ export function createZCodeDeferredDraftRegistry() {
   const sessionKeys = new Set<string>();
 
   return {
-    remember(params: ZCodeSessionWorkspaceTarget, snapshot: ZCodeSessionStateSnapshot): void {
+    remember(params: ZCodeSessionWorkspaceTarget, snapshot: ModeSessionStateSnapshot): void {
       sessionKeys.add(
         getSessionScopedKey({
           workspacePath: snapshot.session.workspace.workspacePath,

@@ -4,8 +4,8 @@ import type { ZCodeTaskIndexSyncer } from "#src/zcode-agent/zcodeTaskIndexSyncer
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   createSessionTraceId,
-  type ZCodeSessionStateSnapshot,
-  type ZCodeWorkspaceTaskListChanged,
+  type ModeSessionStateSnapshot,
+  type ModeWorkspaceTaskListChanged,
 } from "@zcode/shared";
 import type {
   IZCodeSessionService,
@@ -71,7 +71,7 @@ export function createZCodeSessionService({
     );
   }
 
-  function getSessionSnapshotDiagnostics(snapshot: ZCodeSessionStateSnapshot) {
+  function getSessionSnapshotDiagnostics(snapshot: ModeSessionStateSnapshot) {
     // 日志诊断不能假设测试 mock 或未来 partial snapshot 一定带齐 messages/pendingRequestIds。
     // 原因是 readSession 的业务结果已经由 agent 层校验，服务层这里只记录观测字段；若日志读取抛错，会反过来打断
     // desktop-continuous snapshot 恢复。这里仅对诊断值做空数组统计，不修改返回给 UI 的 snapshot 本体。
@@ -90,7 +90,7 @@ export function createZCodeSessionService({
   }
 
   function readSnapshotAvailableThoughtLevels(
-    snapshot: ZCodeSessionStateSnapshot,
+    snapshot: ModeSessionStateSnapshot,
   ): Set<string> | null {
     const thoughtLevel = snapshot.settings.thoughtLevel;
     if (!thoughtLevel.enabled) {
@@ -118,7 +118,7 @@ export function createZCodeSessionService({
   }
 
   function canReplayThoughtLevelFromResumeSnapshot(params: {
-    snapshot: ZCodeSessionStateSnapshot;
+    snapshot: ModeSessionStateSnapshot;
     thoughtLevel: string;
   }): boolean {
     const availableThoughtLevels = readSnapshotAvailableThoughtLevels(params.snapshot);
@@ -130,14 +130,14 @@ export function createZCodeSessionService({
   // workspace_task_list_changed。旧写路径（send/steer/fork/compact/rewind pass-through）
   // 已删除，仅剩 createSession/resumeSession/setModel 等生命周期与配置 op 调用本方法。
   async function broadcastSnapshot(
-    snapshot: ZCodeSessionStateSnapshot,
+    snapshot: ModeSessionStateSnapshot,
     tag: string,
     options: {
       modelOverride?: string;
       thoughtLevelOverride?: string;
       moveGroupedTaskToTop?: boolean;
       /** 设计修正：必填，发射点必须声明变更类别。 */
-      broadcastReason: ZCodeWorkspaceTaskListChanged["reason"];
+      broadcastReason: ModeWorkspaceTaskListChanged["reason"];
     },
   ): Promise<void> {
     if (!taskIndexSyncer) {
@@ -160,9 +160,9 @@ export function createZCodeSessionService({
   }
 
   async function repairEmptyImportedClaudeSession(
-    snapshot: ZCodeSessionStateSnapshot,
+    snapshot: ModeSessionStateSnapshot,
     params: ZCodeSessionResumeParams | ZCodeSessionReadParams,
-  ): Promise<ZCodeSessionStateSnapshot> {
+  ): Promise<ModeSessionStateSnapshot> {
     return withApiRetryRuntime(
       await repairEmptyImportedClaudeSessionSnapshot({
         agentService,

@@ -1,8 +1,8 @@
-import type { ZCodeStreamEvent, ZCodeTaskRuntimeStatus } from "@zcode/shared";
+import type { ModeStreamEvent, ModeTaskRuntimeStatus } from "@zcode/shared";
 import type { TaskChatMessage } from "@/lib/taskChatMessageTypes.js";
 import { hasRunningZCodeTimeline } from "@/lib/zcodeTimelineRuntime.js";
 
-type TaskStreamMirrorBatchEvent = Extract<ZCodeStreamEvent, { type: "task_stream_mirror_batch" }>;
+type TaskStreamMirrorBatchEvent = Extract<ModeStreamEvent, { type: "task_stream_mirror_batch" }>;
 type TaskStreamMirrorOp = TaskStreamMirrorBatchEvent["ops"][number];
 
 export function shouldMarkMainActiveFromStreamMirrorOps(
@@ -19,7 +19,7 @@ export function shouldMarkMainActiveFromStreamMirrorOps(
   });
 }
 
-export function shouldMarkMainActiveFromStreamEvent(event: ZCodeStreamEvent): boolean {
+export function shouldMarkMainActiveFromStreamEvent(event: ModeStreamEvent): boolean {
   switch (event.type) {
     case "task_run_started":
     case "goal_iteration_started":
@@ -55,7 +55,7 @@ function isTaskChatTimelineMessage(message: TaskChatMessage): boolean {
   );
 }
 
-function isTaskRuntimeBusy(taskStatus: ZCodeTaskRuntimeStatus): boolean {
+function isTaskRuntimeBusy(taskStatus: ModeTaskRuntimeStatus): boolean {
   return taskStatus === "creating" || taskStatus === "restoring" || taskStatus === "streaming";
 }
 
@@ -67,7 +67,7 @@ export function isMainActivityRuntimeBusy(params: {
   currentStatus?: "idle" | "submitting" | "streaming" | "error";
   runtimeState?: {
     activeInputId?: unknown;
-    status: ZCodeTaskRuntimeStatus;
+    status: ModeTaskRuntimeStatus;
   } | null;
   isMainActive: boolean;
   hasForegroundActivity?: boolean;
@@ -92,7 +92,7 @@ export function isMainActivityRuntimeBusy(params: {
 
 function isMainAgentStreamEvent(
   event: Extract<
-    ZCodeStreamEvent,
+    ModeStreamEvent,
     { type: "agent_message_chunk" | "agent_thought_chunk" | "tool_call" | "tool_call_update" }
   >,
 ): boolean {

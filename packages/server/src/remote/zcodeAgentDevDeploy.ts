@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- 开发态 agent 部署包含本地打包、远端 owner staging 与 wrapper 安装，后续独立拆分上传事务。 */
-import { ZCODE_AGENT_PROVIDER, resolveZCodeRuntimeEnv } from "@zcode/shared";
+import { MODE_AGENT_PROVIDER, resolveModeRuntimeEnv } from "@zcode/shared";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm } from "node:fs/promises";
@@ -67,7 +67,7 @@ function findUpward(relativePath: string): { rootDir: string; path: string } | n
 }
 
 function shouldUseDevelopmentAgentBundle(): boolean {
-  if (resolveZCodeRuntimeEnv(process.env) !== "development") {
+  if (resolveModeRuntimeEnv(process.env) !== "development") {
     return false;
   }
 

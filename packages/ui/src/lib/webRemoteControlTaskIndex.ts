@@ -1,6 +1,6 @@
 import type {
-  ZCodeTaskRuntimeStatus,
-  ZCodeTaskMeta,
+  ModeTaskRuntimeStatus,
+  ModeTaskMeta,
   WebRemoteControlTaskDisplayStatus,
   WebRemoteControlTaskTarget,
   WebRemoteControlWorkspaceTarget,
@@ -91,7 +91,7 @@ export function shouldRetryWebRemoteControlTaskIndexLoad({
 }
 
 type WebRemoteControlTaskRuntimeSnapshot = Partial<
-  Record<string, { status: ZCodeTaskRuntimeStatus } | undefined>
+  Record<string, { status: ModeTaskRuntimeStatus } | undefined>
 >;
 
 type WebRemoteControlTaskRuntimeByWorkspaceKey = Partial<
@@ -138,8 +138,8 @@ function resolveWebRemoteControlTaskDisplayStatus({
   task,
   runtimeStatus,
 }: {
-  task: ZCodeTaskMeta;
-  runtimeStatus?: ZCodeTaskRuntimeStatus;
+  task: ModeTaskMeta;
+  runtimeStatus?: ModeTaskRuntimeStatus;
 }): WebRemoteControlTaskDisplayStatus {
   const activity = getTaskListRowActivity(task);
   if (activity) {
@@ -174,7 +174,7 @@ export function buildWebRemoteControlTaskTargets({
   archived = false,
 }: {
   workspaceTabs: WorkspaceTabState[];
-  tasks: ZCodeTaskMeta[];
+  tasks: ModeTaskMeta[];
   taskRuntimeByWorkspaceKey?: WebRemoteControlTaskRuntimeByWorkspaceKey;
   pinned?: boolean;
   archived?: boolean;

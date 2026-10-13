@@ -1,11 +1,11 @@
 /* oxlint-disable eslint(max-lines) -- telemetry state lock、deviceMid 编排和上报路径共享同一状态文件，拆分会增加锁语义漂移风险。 */
 import {
   createUuid,
-  ZCODE_VERSION,
-  ZCODE_ENV,
+  MODE_VERSION,
+  MODE_ENV,
   ZCODE_TELEMETRY_REPORT_ENDPOINT,
-  buildZCodeSourceHeadersFromContext,
-  rewriteZCodeEndpointUrl,
+  buildModeSourceHeadersFromContext,
+  rewriteModeEndpointUrl,
   sanitizeTelemetryEventDetail,
   type TelemetryEventPayload,
   type TelemetryRendererContext,
@@ -342,7 +342,7 @@ export function createTelemetryCore(dependencies: TelemetryCoreDependencies = {}
   let didWarnMarketingParamsLoadFailure = false;
   const randomUUID = dependencies.randomUUID ?? (() => createUuid());
   const now = dependencies.now ?? Date.now;
-  const appVersion = dependencies.appVersion ?? ZCODE_VERSION;
+  const appVersion = dependencies.appVersion ?? MODE_VERSION;
   const platform = dependencies.platform ?? process.platform;
   const osVersion = dependencies.osVersion ?? version();
   const requestTimeoutMs = dependencies.requestTimeoutMs ?? REPORT_REQUEST_TIMEOUT_MS;
@@ -455,18 +455,18 @@ export function createTelemetryCore(dependencies: TelemetryCoreDependencies = {}
     });
 
     const endpoint = String(
-      rewriteZCodeEndpointUrl(
+      rewriteModeEndpointUrl(
         REPORT_ENDPOINT,
         (await dependencies.resolveZCodeEndpointOrigin?.()) ?? REPORT_ENDPOINT,
       ),
     );
 
-    const headers = buildZCodeSourceHeadersFromContext({
+    const headers = buildModeSourceHeadersFromContext({
       appVersion,
       platform,
       arch: dependencies.arch ?? process.arch,
       osVersion,
-      releaseChannel: dependencies.releaseChannel ?? ZCODE_ENV,
+      releaseChannel: dependencies.releaseChannel ?? MODE_ENV,
       clientLanguage: context.clientLanguage,
       clientTimezone: context.clientTimezone,
       deviceMid,

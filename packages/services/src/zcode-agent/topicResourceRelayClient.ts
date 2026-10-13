@@ -5,7 +5,7 @@ import {
   zcodeTopicResourceRelayRequestSchema,
   zcodeTopicResourceRelayMetadataSchema,
   zcodeTopicResourceRelayChunkSchema,
-  type ZCodePromptAttachment,
+  type ModePromptAttachment,
 } from "@zcode/shared";
 
 export async function validateTopicResourceFromRelay(
@@ -33,7 +33,7 @@ export async function readTopicResourceFromRelay(
   channel: Pick<IChannel, "call">,
   value: unknown,
   signal: AbortSignal,
-): Promise<ZCodePromptAttachment> {
+): Promise<ModePromptAttachment> {
   const request = zcodeTopicResourceRelayRequestSchema.parse(value);
   const key = { requestId: request.requestId, taskId: request.taskId };
   signal.throwIfAborted();

@@ -1,4 +1,4 @@
-import type { ZCodeTimelineMeta } from "@zcode/shared";
+import type { ModeTimelineMeta } from "@zcode/shared";
 
 function addTimelineIdentityKey(
   keys: string[],
@@ -11,7 +11,7 @@ function addTimelineIdentityKey(
 }
 
 export function getZCodeTimelineIdentityKeys(
-  timeline: ZCodeTimelineMeta,
+  timeline: ModeTimelineMeta,
 ): string[] {
   const keys: string[] = [];
   if (timeline.type === "context_compaction") {
@@ -76,9 +76,9 @@ export function hasSharedZCodeTimelineIdentity(
 }
 
 export function mergeZCodeTimelineMeta(
-  previousTimeline: ZCodeTimelineMeta | undefined,
-  nextTimeline: ZCodeTimelineMeta,
-): ZCodeTimelineMeta {
+  previousTimeline: ModeTimelineMeta | undefined,
+  nextTimeline: ModeTimelineMeta,
+): ModeTimelineMeta {
   if (
     previousTimeline?.type === "context_compaction" &&
     nextTimeline.type === "context_compaction"

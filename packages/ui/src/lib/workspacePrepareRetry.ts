@@ -1,4 +1,4 @@
-import { isNonRetryableWorkspacePrepareError, type ZCodeProvider } from "@zcode/shared";
+import { isNonRetryableWorkspacePrepareError, type ModeProvider } from "@zcode/shared";
 
 export function shouldAutoRetryWorkspacePrepare(errorMessage: string) {
   // Bugfix: 远端 ZCode Agent 在 Docker 里经常会因为资源不匹配、可选依赖缺失或进程启动即退出而失败。
@@ -13,7 +13,7 @@ export function shouldAutoRetryWorkspacePrepare(errorMessage: string) {
 }
 
 export function shouldRestartWorkspaceProcessBeforePrepareRetry(_params: {
-  provider: ZCodeProvider;
+  provider: ModeProvider;
   errorMessage: string;
 }): boolean {
   // 仅剩 glm provider：不再需要针对三方 CLI 崩溃文案的重启重试策略。

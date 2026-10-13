@@ -1,16 +1,12 @@
-import type { ZCodeWorkspaceTaskListChanged } from "@zcode/shared";
+import type { ModeWorkspaceTaskListChanged } from "@zcode/shared";
 import {
   getTaskMetaWorkspaceEventSyncMode,
   isTaskListDeletionWorkspaceEvent,
   isTaskListMembershipWorkspaceEvent,
   shouldApplyTaskMetaFromWorkspaceEvent,
-  shouldRefreshTaskListForWorkspaceEvent,
+  shouldRefetchTaskListMembershipForWorkspaceEvent,
 } from "@/lib/taskListRefreshPolicy.js";
-import {
-  removeTaskFromTaskCaches,
-  syncTaskMembershipEventToTaskCaches,
-  syncTaskMetaToTaskCaches,
-} from "@/lib/taskListMetaSync.js";
+import { removeTaskFromTaskCaches, syncTaskMetaToTaskCaches } from "@/lib/taskListMetaSync.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 
 const COORDINATED_EVENT_TTL_MS = 2_000;
@@ -43,7 +39,7 @@ function pruneCoordinatedResults(currentTime: number): void {
   }
 }
 
-function buildCoordinatedEventKey(event: ZCodeWorkspaceTaskListChanged): string | null {
+function buildCoordinatedEventKey(event: ModeWorkspaceTaskListChanged): string | null {
   const taskId = event.taskId ?? event.taskMeta?.taskId;
   if (!taskId) {
     return null;
@@ -79,7 +75,7 @@ function cacheResult(
 }
 
 export function handleTaskListWorkspaceEventCacheSync(
-  event: ZCodeWorkspaceTaskListChanged,
+  event: ModeWorkspaceTaskListChanged,
 ): TaskListWorkspaceEventCacheSyncResult {
   if (shouldApplyTaskMetaFromWorkspaceEvent(event)) {
     const syncMode = getTaskMetaWorkspaceEventSyncMode(event);
@@ -118,7 +114,7 @@ export function handleTaskListWorkspaceEventCacheSync(
   }
 
   if (isTaskListMembershipWorkspaceEvent(event) && event.taskMeta) {
-    syncTaskMembershipEventToTaskCaches({
+    syncTaskMetaToTaskCaches({
       workspacePath: event.taskMeta.workspacePath,
       workspaceIdentity: event.taskMeta.workspaceIdentity,
       task: event.taskMeta,
@@ -147,7 +143,7 @@ export function handleTaskListWorkspaceEventCacheSync(
   return cacheResult(eventKey, {
     handledIncrementally: false,
     reused: false,
-    shouldRefresh: shouldRefreshTaskListForWorkspaceEvent(event),
+    shouldRefresh: shouldRefetchTaskListMembershipForWorkspaceEvent(event),
   });
 }
 

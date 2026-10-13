@@ -41,7 +41,7 @@ import {
   useWebRemoteControlTaskOpen,
 } from "@/hooks/useWebRemoteControlTaskOpen.js";
 import { getErrorMessage } from "@/hooks/chatActionHelpers.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
 import {
@@ -123,7 +123,7 @@ export function WebRemoteControlMobileTaskHome({
   refreshKey?: number;
   onCrossWorkspaceSwitchingChange?: (switching: boolean) => void;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const [result, setResult] = useState<WebRemoteControlWorkspaceListResult>(
     initialResult ?? EMPTY_WEB_REMOTE_CONTROL_WORKSPACE_LIST,
   );

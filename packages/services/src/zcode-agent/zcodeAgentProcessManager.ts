@@ -11,23 +11,23 @@ import { Emitter } from "@zcode/rpc";
 import { GEN_UI_OUTPUT_DIRECTORY, GEN_UI_OUTPUT_ROOT_ENV } from "@zcode/shared/node";
 import { getAppConfigDir } from "../paths.js";
 import {
-  parseZCodeProcessDiagnostic,
-  ZCODE_AGENT_LIFECYCLE_LOG_MARKER,
-  ZCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-  ZCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-  ZCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
+  parseModeProcessDiagnostic,
+  MODE_AGENT_LIFECYCLE_LOG_MARKER,
+  MODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
+  MODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
+  MODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
 } from "@zcode/shared/process-diagnostic";
 import {
-  ZCODE_AGENT_RUNTIME,
-  ZCODE_AGENT_PROVIDER,
-  ZCODE_RUNTIME_ENV_KEY,
+  MODE_AGENT_RUNTIME,
+  MODE_AGENT_PROVIDER,
+  MODE_RUNTIME_ENV_KEY,
   resolveWorkspaceKey,
-  resolveZCodeRuntimeEnv,
-  sanitizeZCodeRuntimeEnv,
+  resolveModeRuntimeEnv,
+  sanitizeModeRuntimeEnv,
 } from "@zcode/shared";
 import {
-  findZCodeAgentRuntimeBinary,
-  findZCodeAgentRuntimeNodeBundle,
+  findModeAgentRuntimeBinary,
+  findModeAgentRuntimeNodeBundle,
 } from "../runtime-tools/providerRuntimeResolver.js";
 import { isEffectiveDevelopmentNodeEnv } from "#src/runtime-tools/nodeEnv.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
@@ -402,13 +402,13 @@ function resolveDeployedZCodeAgentBinaryCommand(
   // 这里复用 findZCodeAgentRuntimeBinary 的候选链（含 GLM_BINARY_PATH env、
   // packagedResourcesPath、~/.zcode/server/agents/glm、bundled-agents 等），
   // 把已部署的原生 binary 当成最终兜底，远端/桌面打包形态都能命中。
-  const binaryPath = findZCodeAgentRuntimeBinary();
+  const binaryPath = findModeAgentRuntimeBinary();
   if (!binaryPath) {
     return null;
   }
   return {
     command: binaryPath,
-    args: ZCODE_AGENT_RUNTIME.spawnArgs,
+    args: MODE_AGENT_RUNTIME.spawnArgs,
     cwd: context.workspacePath,
   };
 }
@@ -425,7 +425,7 @@ function resolveElectronRuntimeZCodeAgentCommand(
   if (!process.versions.electron) {
     return null;
   }
-  const bundlePath = findZCodeAgentRuntimeNodeBundle();
+  const bundlePath = findModeAgentRuntimeNodeBundle();
   if (!bundlePath) {
     return null;
   }
@@ -724,7 +724,7 @@ export class ZCodeAgentProcessManager {
     this.reportProcessLifecycle((reporter) =>
       reporter.onReady?.({
         pid: managed.child.pid!,
-        provider: ZCODE_AGENT_PROVIDER,
+        provider: MODE_AGENT_PROVIDER,
         ...(this.lane ? { lane: this.lane } : {}),
         workspacePath: managed.workspace.workspacePath,
         readyAt: managed.readyAt!,
@@ -1019,7 +1019,7 @@ export class ZCodeAgentProcessManager {
     }
     // app 以本地开发方式启动时，让 agent 子进程也带上 ZCODE_RUNTIME_ENV=development；
     // 不再传 NODE_ENV，避免用户 shell/runtime 变量影响 ZCode 运行模式或泄漏到 Bash 工具。
-    const runtimeEnv = resolveZCodeRuntimeEnv(process.env);
+    const runtimeEnv = resolveModeRuntimeEnv(process.env);
     log("ZCode agent spawn preflight", {
       workspaceKey,
       spawnPreflight,
@@ -1032,7 +1032,7 @@ export class ZCodeAgentProcessManager {
       detached: shouldSpawnInDetachedProcessGroup(),
       env: {
         ...sanitizeZCodeRuntimeEnv(process.env),
-        [ZCODE_RUNTIME_ENV_KEY]: runtimeEnv,
+        [MODE_RUNTIME_ENV_KEY]: runtimeEnv,
         ...spawnEnv,
         ...effectiveCommand.env,
         // 生成文件根目录由执行端 Host 唯一决定，保证 Agent 写入与 Host 读取授权一致。
@@ -1047,14 +1047,14 @@ export class ZCodeAgentProcessManager {
     const stderrTail = createAgentStderrTail();
     const transport = new ZCodeStdioTransport(child, {
       onStderrLine: (line) => {
-        const diagnostic = parseZCodeProcessDiagnostic(line);
+        const diagnostic = parseModeProcessDiagnostic(line);
         if (diagnostic && typeof child.pid === "number") {
           // 根因：只保存 exit tail 会漏掉存活 runtime 的异常；此旁路不依赖 debug 开关。
           // 身份绑定创建时的 child，不能查当前 workspace，避免重启后的迟到事件串进程。
           this.reportProcessLifecycle((reporter) =>
             reporter.onException?.({
               pid: child.pid!,
-              provider: ZCODE_AGENT_PROVIDER,
+              provider: MODE_AGENT_PROVIDER,
               ...(this.lane ? { lane: this.lane } : {}),
               workspacePath: params.workspacePath,
               runtimeGeneration,
@@ -1064,17 +1064,17 @@ export class ZCodeAgentProcessManager {
                 // 脱敏占位符可能比原文长，必须再次限长，避免 IPC schema 拒绝合法异常。
                 name: redactAgentDiagnostic(diagnostic.name).slice(
                   0,
-                  ZCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
+                  MODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
                 ),
                 message: redactAgentDiagnostic(diagnostic.message).slice(
                   0,
-                  ZCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
+                  MODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
                 ),
                 ...(diagnostic.stack !== undefined
                   ? {
                       stack: redactAgentDiagnostic(diagnostic.stack).slice(
                         0,
-                        ZCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
+                        MODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
                       ),
                     }
                   : {}),
@@ -1172,7 +1172,7 @@ export class ZCodeAgentProcessManager {
         this.reportProcessLifecycle((reporter) =>
           reporter.onSpawn({
             pid: child.pid!,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: MODE_AGENT_PROVIDER,
             ...(this.lane ? { lane: this.lane } : {}),
             workspacePath: params.workspacePath,
             command: effectiveCommand.command,
@@ -1194,7 +1194,7 @@ export class ZCodeAgentProcessManager {
     });
     child.once("error", (error) => {
       errorLog(
-        `ZCode agent process error${this.processLifecycleReporter?.onError ? ` ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
+        `ZCode agent process error${this.processLifecycleReporter?.onError ? ` ${MODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
         {
           workspaceKey,
           pid: child.pid,
@@ -1209,7 +1209,7 @@ export class ZCodeAgentProcessManager {
       this.reportProcessLifecycle((reporter) =>
         reporter.onError?.({
           pid: typeof child.pid === "number" ? child.pid : null,
-          provider: ZCODE_AGENT_PROVIDER,
+          provider: MODE_AGENT_PROVIDER,
           ...(this.lane ? { lane: this.lane } : {}),
           workspacePath: params.workspacePath,
           command: effectiveCommand.command,
@@ -1257,7 +1257,7 @@ export class ZCodeAgentProcessManager {
         // 和长期运行的 Agent 自行 exit 0 同样是非预期退出。
         // 已有独立生命周期事件，显式标记包装日志，避免 Electron 将其再计为 JS 异常。
         errorLog(
-          `ZCode agent process exited unexpectedly${this.processLifecycleReporter ? ` ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
+          `ZCode agent process exited unexpectedly${this.processLifecycleReporter ? ` ${MODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
           {
             ...exitContext,
             stderr,
@@ -1268,7 +1268,7 @@ export class ZCodeAgentProcessManager {
         this.reportProcessLifecycle((reporter) =>
           reporter.onExit({
             pid: child.pid!,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: MODE_AGENT_PROVIDER,
             ...(this.lane ? { lane: this.lane } : {}),
             workspacePath: params.workspacePath,
             exitCode: code,

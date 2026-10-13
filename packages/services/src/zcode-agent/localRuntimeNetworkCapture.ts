@@ -1,7 +1,7 @@
 import {
   networkCaptureBatchSchema,
-  zcodeProtocolMethods,
-  zcodeProtocolNotifications,
+  modeProtocolMethods,
+  modeProtocolNotifications,
   type NetworkCaptureBatch,
 } from "@zcode/shared";
 import type { IDisposable } from "@zcode/rpc";
@@ -41,7 +41,7 @@ export class LocalRuntimeNetworkCapture {
     }
     if (this.captureId) {
       entry.subscription = client.onNotification((message) => {
-        if (message.method !== zcodeProtocolNotifications.processNetworkRequests) return;
+        if (message.method !== modeProtocolNotifications.processNetworkRequests) return;
         const result = networkCaptureBatchSchema.safeParse(message.params);
         if (!result.success || result.data.captureId !== this.captureId) return;
         // PID/角色来自本机 spawn 登记，不能采用对端自报身份。
@@ -56,7 +56,7 @@ export class LocalRuntimeNetworkCapture {
       });
     }
     void client
-      .notify(zcodeProtocolMethods.processNetworkCapture, { captureId: this.captureId })
+      .notify(modeProtocolMethods.processNetworkCapture, { captureId: this.captureId })
       .catch(() => {
         /* 已退出进程无需重试或重启 */
       });

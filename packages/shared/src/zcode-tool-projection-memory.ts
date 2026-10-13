@@ -1,8 +1,8 @@
-import type { ZCodeStreamingToolInputState } from "./streaming-tool-input-preview.js";
+import type { ModeStreamingToolInputState } from "./streaming-tool-input-preview.js";
 
 export interface ZCodeToolProjectionMemory {
   completeToolInputById?: Map<string, unknown>;
-  streamingToolInputById?: Map<string, ZCodeStreamingToolInputState>;
+  streamingToolInputById?: Map<string, ModeStreamingToolInputState>;
   toolNameById?: Map<string, string>;
 }
 
@@ -15,7 +15,7 @@ export interface ZCodeToolProjectionMetadata {
 export function createZCodeToolProjectionMemory(): ZCodeToolProjectionMemory {
   return {
     completeToolInputById: new Map<string, unknown>(),
-    streamingToolInputById: new Map<string, ZCodeStreamingToolInputState>(),
+    streamingToolInputById: new Map<string, ModeStreamingToolInputState>(),
     toolNameById: new Map<string, string>(),
   };
 }
@@ -24,7 +24,7 @@ export function ensureZCodeToolProjectionMemory(
   memory: ZCodeToolProjectionMemory,
 ): ZCodeToolProjectionMemory {
   memory.completeToolInputById ??= new Map<string, unknown>();
-  memory.streamingToolInputById ??= new Map<string, ZCodeStreamingToolInputState>();
+  memory.streamingToolInputById ??= new Map<string, ModeStreamingToolInputState>();
   memory.toolNameById ??= new Map<string, string>();
   return memory;
 }

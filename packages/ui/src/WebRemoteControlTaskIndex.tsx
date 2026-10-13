@@ -23,7 +23,7 @@ import {
 import { toast } from "@/components/ui/toast.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   applyWebRemoteControlTaskMembershipUpdate,
   buildWebRemoteControlTaskIndexModel,
@@ -92,7 +92,7 @@ export function WebRemoteControlTaskIndex({
   onTaskOpen?: (options: { crossWorkspace: boolean }) => void;
   onCrossWorkspaceSwitchingChange?: (switching: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const confirmDialog = useConfirmDialog();
   const baseServices = useBaseWorkspaceServices();
   const removeTaskState = useZCodeSessionStore((state) => state.removeTaskState);

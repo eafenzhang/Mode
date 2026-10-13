@@ -49,7 +49,7 @@ import {
 } from "@/feedback/feedbackSubmitSubmission.js";
 import type { IFeedbackService } from "@zcode/services";
 import type { IPlatformService } from "@zcode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 
@@ -89,7 +89,7 @@ export function FeedbackSubmitForm({
   onViewTickets: () => void;
   onCancel: () => void;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const formatMessage = useCallback(
     (id: string, values?: Record<string, string>) => intl.formatMessage({ id }, values),
     [intl],

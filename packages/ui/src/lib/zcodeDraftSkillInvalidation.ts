@@ -1,4 +1,4 @@
-import type { IZCodeSessionService } from "@zcode/services";
+import type { IModeSessionService } from "@zcode/services";
 import { logger } from "@/logger.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 
@@ -7,7 +7,7 @@ interface DeferredDraftRuntimeChangeParams {
   reason: string;
   workspacePath?: string | null;
   workspaceIdentity?: string | null;
-  zcodeSessionService: Pick<IZCodeSessionService, "closeSession">;
+  zcodeSessionService: Pick<IModeSessionService, "closeSession">;
 }
 
 export async function invalidateDeferredDraftSessionForRuntimeChange(

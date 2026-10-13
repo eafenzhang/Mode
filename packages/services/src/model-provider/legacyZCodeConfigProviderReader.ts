@@ -5,7 +5,7 @@ import { z } from "zod";
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   resolveBigModelApiOrigin,
-  resolveRuntimeZCodeEnv,
+  resolveRuntimeModeEnv,
 } from "@zcode/shared";
 import {
   createModelProviderModelConfig,
@@ -68,14 +68,14 @@ function normalizeBigModelCodingPlanAnthropicBaseUrlForEnv(
   env: Record<string, string | undefined> = process.env,
 ): string {
   const fallbackBaseUrl =
-    resolveRuntimeZCodeEnv(env) === "production"
+    resolveRuntimeModeEnv(env) === "production"
       ? BIGMODEL_CODING_PLAN_ANTHROPIC_BASE_URL
       : `${resolveBigModelApiOrigin(env)}/api/anthropic`;
   const normalizedBaseUrl = normalizeModelProviderBaseUrlForKind(
     baseUrl ?? fallbackBaseUrl,
     "anthropic",
   );
-  if (resolveRuntimeZCodeEnv(env) === "production") {
+  if (resolveRuntimeModeEnv(env) === "production") {
     return normalizedBaseUrl || fallbackBaseUrl;
   }
 

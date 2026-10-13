@@ -24,8 +24,8 @@ import { uploadTopicResourceToClient } from "./topicResourceUpload.js";
 import {
   zcodeTopicResourceCancelParamsSchema,
   type ZCodeTopicResourceReadParams,
-  type ZCodeProtocolTrace,
-  type ZCodePromptAttachment,
+  type ModeProtocolTrace,
+  type ModePromptAttachment,
 } from "@zcode/shared";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -38,121 +38,7 @@ import type {
 } from "@zcode/provider";
 import { completeNewModelSelection } from "@zcode/provider";
 import type { OffPeakClientConfig } from "#src/coding-plan-subscription/codingPlanSubscription.js";
-import {
-  subagentRuntimeConfigSchema,
-  zcodeSubagentsReadRuntimeConfigParamsSchema,
-  type SubagentRuntimeConfig,
-  ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
-  formatLogPrefix,
-  resolveWorkspaceKey,
-  type TraceId,
-  ZCODE_AGENT_PROVIDER,
-  ZCODE_AGENT_PROVIDER_NOT_READY_CODE,
-  ZCODE_AGENT_PROVIDER_NOT_READY_REASON,
-  ZCODE_MODEL_REASONING_SEPARATOR,
-  isRemoteWorkspaceIdentity,
-  ZCODE_PROTOCOL_NAME,
-  ZCODE_PROTOCOL_VERSION,
-  zcodeMcpListResultSchema,
-  zcodePermissionRequestParamsSchema,
-  zcodeBrowserListParamsSchema,
-  zcodeBrowserExecuteParamsSchema,
-  zcodePluginsConfigureResultSchema,
-  zcodePluginsInstallResultSchema,
-  zcodePluginsListResultSchema,
-  zcodePluginsMarketplaceMutationResultSchema,
-  zcodePluginsOverviewResultSchema,
-  zcodeProcessChildProcessesResultSchema,
-  type ZCodeProcessChildProcess,
-  zcodeSkillsReferenceCatalogResultSchema,
-  zcodeMcpReadResourceResultSchema,
-  zcodeMcpUiCallToolResultSchema,
-  zcodeMcpUiCancelCallResultSchema,
-  zcodeMcpUiReadResourceResultSchema,
-  zcodeMcpUiListResourcesResultSchema,
-  zcodeMcpUiAppToolAcceptedResultSchema,
-  zcodeMcpUiRegisterAppToolsResultSchema,
-  zcodeMcpUiUnregisterAppToolsResultSchema,
-  zcodeMcpUiListResourceTemplatesResultSchema,
-  zcodeMcpUiResourceSubscriptionResultSchema,
-  zcodePluginsListUiSurfacesResultSchema,
-  zcodeWorkflowsDeleteResultSchema,
-  zcodeWorkflowsForRunResultSchema,
-  zcodeWorkflowsGetResultSchema,
-  zcodeWorkflowsListResultSchema,
-  zcodeWorkflowsMoveResultSchema,
-  zcodeWorkflowsRunsResultSchema,
-  zcodeWorkflowsSaveResultSchema,
-  zcodeWorkflowsUpdateMetaResultSchema,
-  zcodePluginsResolveSuggestedReferenceResultSchema,
-  zcodePluginOperationProgressNotificationSchema,
-  zcodePluginsRestoreBuiltinResultSchema,
-  zcodePluginsSetEnabledResultSchema,
-  zcodePluginsCancelOperationResultSchema,
-  zcodePluginsUninstallResultSchema,
-  zcodePluginsValidateResultSchema,
-  zcodePluginsDescribeResultSchema,
-  zcodeAutomationCheckTaskBindingParamsSchema,
-  zcodeAutomationCreateParamsSchema,
-  zcodeAutomationDeleteParamsSchema,
-  zcodeAutomationListParamsSchema,
-  zcodeAutomationUpdateParamsSchema,
-  zcodeOffPeakCreateParamsSchema,
-  zcodeOffPeakListParamsSchema,
-  OFF_PEAK_PROVIDER_IDS,
-  zcodeComputerUseOperationEventSchema,
-  zcodeProviderRuntimeHeadersCancelledSchema,
-  zcodeProviderRuntimeHeadersRequestParamsSchema,
-  zcodeProviderTestModelConnectivityResultSchema,
-  zcodeOfficialMcpAuthHeadersRequestParamsSchema,
-  summarizeOfficialMcpIdentityHeaders,
-  zcodeProtocolEmptyResultSchema,
-  zcodeProtocolMethods,
-  zcodeProtocolNotifications,
-  zcodeMcpTelemetryEventSchema,
-  zcodeMcpResourceSamplesSchema,
-  zcodeToolExecResourceSchema,
-  zcodeProcessResourceSampleSchema,
-  zcodeSessionCloseResultSchema,
-  zcodeSessionCompactResultSchema,
-  zcodeSessionEventsResultSchema,
-  zcodeSessionGoalResultSchema,
-  zcodeSessionListResultSchema,
-  zcodeSessionSubagentsResultSchema,
-  zcodeSessionMessagesResultSchema,
-  zcodeSessionEventSchema,
-  zcodeSessionSendResultSchema,
-  zcodeSessionRequestRuntimePreferencesParamsSchema,
-  zcodeSessionRuntimePreferencesResultSchema,
-  zcodeSessionStateSnapshotSchema,
-  zcodeSessionSubscribeResultSchema,
-  zcodeStateUpdatedNotificationSchema,
-  zcodeUserInputRequestParamsSchema,
-  zcodeWorkspacePresentationSchema,
-  zcodeWorkspaceCancelGenerateTextResultSchema,
-  zcodeWorkspaceGenerateTextResultSchema,
-  zcodeWorkspaceHookTrustGrantResultSchema,
-  zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
-  zcodeWorkspaceUpdateModelIoPreferencesResultSchema,
-  zcodeProviderUpdateAccountConfigResultSchema,
-  type ZCodeSessionStateSnapshot,
-  type ZCodeAutomation,
-  type ZCodeAutomationRun,
-  zcodeWorkspaceUpdateOffPeakToolPolicyResultSchema,
-  zcodeWorkspaceUpdateDynamicWorkflowPolicyResultSchema,
-  type DynamicWorkflowClientConfig,
-  type DynamicWorkflowMode,
-  applyDynamicWorkflowUserMode,
-  isDynamicWorkflowModeEnabled,
-  normalizeDynamicWorkflowMode,
-  type AgentLaneResourceSample,
-  type ProcessResourceCliLane,
-  type ZCodeMcpTelemetryEvent,
-  type ZCodeMcpResourceSample,
-  type ZCodeToolExecResource,
-  type ZCodePluginOperationProgressNotification,
-  type ZCodeTaskMode,
-} from "@zcode/shared";
+import { subagentRuntimeConfigSchema, zcodeSubagentsReadRuntimeConfigParamsSchema, type SubAgentConfig, MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS, formatLogPrefix, resolveWorkspaceKey, type TraceId, MODE_AGENT_PROVIDER, MODE_AGENT_PROVIDER_NOT_READY_CODE, MODE_AGENT_PROVIDER_NOT_READY_REASON, MODE_MODEL_REASONING_SEPARATOR, isRemoteWorkspaceIdentity, MODE_PROTOCOL_NAME, MODE_PROTOCOL_VERSION, modeMcpListResultSchema, modePermissionRequestParamsSchema, modeBrowserListParamsSchema, modeBrowserExecuteParamsSchema, modePluginsConfigureResultSchema, modePluginsInstallResultSchema, modePluginsListResultSchema, modePluginsMarketplaceMutationResultSchema, modePluginsOverviewResultSchema, modeProcessChildProcessesResultSchema, type ModeProcessChildProcess, modeSkillsReferenceCatalogResultSchema, zcodeMcpReadResourceResultSchema, zcodeMcpUiCallToolResultSchema, zcodeMcpUiCancelCallResultSchema, zcodeMcpUiReadResourceResultSchema, zcodeMcpUiListResourcesResultSchema, zcodeMcpUiAppToolAcceptedResultSchema, zcodeMcpUiRegisterAppToolsResultSchema, zcodeMcpUiUnregisterAppToolsResultSchema, zcodeMcpUiListResourceTemplatesResultSchema, zcodeMcpUiResourceSubscriptionResultSchema, modeWorkflowsDeleteResultSchema, modeWorkflowsRunsResultSchema, modeWorkflowsGetResultSchema, modeWorkflowsListResultSchema, modeWorkflowsMoveResultSchema, modeWorkflowsUpdateMetaResultSchema, modePluginsResolveSuggestedReferenceResultSchema, modePluginOperationProgressNotificationSchema, modePluginsRestoreBuiltinResultSchema, modePluginsSetEnabledResultSchema, modePluginsCancelOperationResultSchema, modePluginsUninstallResultSchema, modePluginsValidateResultSchema, modePluginsDescribeResultSchema, modeAutomationCheckTaskBindingParamsSchema, modeAutomationCreateParamsSchema, modeAutomationDeleteParamsSchema, modeAutomationListParamsSchema, modeAutomationUpdateParamsSchema, modeOffPeakCreateParamsSchema, modeOffPeakListParamsSchema, OFF_PEAK_PROVIDER_IDS, modeComputerUseOperationEventSchema, modeProviderRuntimeHeadersCancelledSchema, modeProviderRuntimeHeadersRequestParamsSchema, modeProviderTestModelConnectivityResultSchema, modeOfficialMcpAuthHeadersRequestParamsSchema, summarizeOfficialMcpIdentityHeaders, modeProtocolEmptyResultSchema, modeProtocolMethods, modeProtocolNotifications, modeMcpTelemetryEventSchema, modeMcpResourceSamplesSchema, modeToolExecResourceSchema, modeProcessResourceSampleSchema, modeSessionCloseResultSchema, modeSessionCompactResultSchema, modeSessionEventsResultSchema, modeSessionGoalResultSchema, modeSessionListResultSchema, modeSessionSubagentsResultSchema, modeSessionMessagesResultSchema, modeSessionEventSchema, modeSessionSendResultSchema, modeSessionRequestRuntimePreferencesParamsSchema, modeSessionRuntimePreferencesResultSchema, modeSessionStateSnapshotSchema, modeSessionSubscribeResultSchema, modeStateUpdatedNotificationSchema, modeUserInputRequestParamsSchema, modeWorkspacePresentationSchema, modeWorkspaceCancelGenerateTextResultSchema, modeWorkspaceGenerateTextResultSchema, modeWorkspaceHookTrustGrantResultSchema, modeWorkspaceUpdateInteractionPreferencesResultSchema, modeWorkspaceUpdateModelIoPreferencesResultSchema, modeProviderUpdateAccountConfigResultSchema, type ModeSessionStateSnapshot, type ModeAutomation, type ModeAutomationRun, modeWorkspaceUpdateOffPeakToolPolicyResultSchema, modeWorkspaceUpdateDynamicWorkflowPolicyResultSchema, type DynamicWorkflowClientConfig, type DynamicWorkflowMode, DynamicWorkflowMode, isDynamicWorkflowModeEnabled, normalizeDynamicWorkflowMode, type AgentLaneResourceSample, type ProcessResourceCliLane, type ModeMcpTelemetryEvent, type ModeMcpResourceSample, type ModeToolExecResource, type ModePluginOperationProgressNotification, type ModeTaskMode } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
 import type {
@@ -165,17 +51,17 @@ import {
 } from "#src/zcode-agent/automationToolPolicy.js";
 import { ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./zcodeAgent.js";
 import type {
-  ZCodeProtocolRequestId,
+  ModeProtocolRequestId,
   ModelSelection,
-  ZCodeProviderRuntimeHeadersRequestParams,
-  ZCodeProviderRuntimeHeadersCancelled,
-  ZCodeSessionEvent,
-  ZCodeSessionRuntimePreferencesScope,
-  ZCodeSavedWorkflowScope,
-  ZCodeStateUpdatedNotification,
-  ZCodeWorkspacePresentation,
-  ZCodeWorkspaceRef,
-  ZCodeSessionRuntimePreferencesResult,
+  ModeProviderRuntimeHeadersRequestParams,
+  ModeProviderRuntimeHeadersCancelled,
+  ModeSessionEvent,
+  ModeSessionRuntimePreferencesScope,
+  ModeSavedWorkflowScope,
+  ModeStateUpdatedNotification,
+  ModeWorkspacePresentation,
+  ModeWorkspaceRef,
+  ModeSessionRuntimePreferencesResult,
 } from "@zcode/shared";
 import type {
   IZCodeAgentService,
@@ -390,11 +276,11 @@ const SESSION_COMPACT_REQUEST_TIMEOUT_MS = 5 * 60_000;
 
 interface PendingPermissionRequest {
   client: ZCodeProtocolClient;
-  protocolRequestId: ZCodeProtocolRequestId;
+  protocolRequestId: ModeProtocolRequestId;
 }
 
 interface PendingProviderRuntimeHeadersRequest extends PendingPermissionRequest {
-  request: ZCodeProviderRuntimeHeadersRequestParams;
+  request: ModeProviderRuntimeHeadersRequestParams;
   responding?: boolean;
 }
 
@@ -503,7 +389,7 @@ function isProtocolMethodNotFoundError(error: unknown): boolean {
   );
 }
 
-function buildWorkspaceRef(params: ZCodeAgentWorkspaceTarget): ZCodeWorkspaceRef {
+function buildWorkspaceRef(params: ZCodeAgentWorkspaceTarget): ModeWorkspaceRef {
   return {
     workspacePath: params.workspacePath,
     workspaceIdentity: params.workspaceIdentity,
@@ -517,13 +403,13 @@ function buildWorkspaceRef(params: ZCodeAgentWorkspaceTarget): ZCodeWorkspaceRef
 // 全局组动作不带，交给 services 自选载体。
 function savedWorkflowTargetHasWorkspace(
   params: ZCodeAgentSavedWorkflowTarget,
-): params is ZCodeAgentWorkspaceTarget & { scope?: ZCodeSavedWorkflowScope } {
+): params is ZCodeAgentWorkspaceTarget & { scope?: ModeSavedWorkflowScope } {
   return typeof (params as Partial<ZCodeAgentWorkspaceTarget>).workspacePath === "string";
 }
 
 // 只在 `scope` 有定义时下推到 RPC params：不给 scope 的项目档保持与今天逐字一致的线上形状。
 function savedWorkflowScopeParam(params: ZCodeAgentSavedWorkflowTarget): {
-  scope?: ZCodeSavedWorkflowScope;
+  scope?: ModeSavedWorkflowScope;
 } {
   return params.scope === undefined ? {} : { scope: params.scope };
 }
@@ -962,15 +848,15 @@ interface CreateZCodeAgentServiceOptions extends Omit<
   readSubagentRuntimeConfig?: (workspace: {
     workspacePath: string;
     workspaceIdentity?: string;
-  }) => Promise<SubagentRuntimeConfig>;
+  }) => Promise<SubAgentConfig>;
   sessionRuntimePreferencesAuthority?: "local" | "external";
   resolveSessionRuntimePreferences?: (
-    scope: ZCodeSessionRuntimePreferencesScope,
-  ) => Promise<ZCodeSessionRuntimePreferencesResult>;
+    scope: ModeSessionRuntimePreferencesScope,
+  ) => Promise<ModeSessionRuntimePreferencesResult>;
   /** manual run 落库后由当前 host 直接派发；返回时 prompt 必须已被 session 接受。 */
   onAutomationManualRunRequested?: (params: {
-    automation: ZCodeAutomation;
-    run: ZCodeAutomationRun;
+    automation: ModeAutomation;
+    run: ModeAutomationRun;
   }) => Promise<void>;
   /**
    * Off-Peak 会话内创建。config 同时承担曝光门（enabled && Selection View 非空 →
@@ -1004,12 +890,12 @@ interface CreateZCodeAgentServiceOptions extends Omit<
   channelReplyExecutor?: (request: ChannelReplyHostRequest) => Promise<ChannelReplyResult>;
   topicResourceExecutor?: (
     request: ZCodeTopicResourceReadParams &
-      ZCodeAgentWorkspaceTarget & { trace?: ZCodeProtocolTrace },
+      ZCodeAgentWorkspaceTarget & { trace?: ModeProtocolTrace },
     signal: AbortSignal,
-  ) => Promise<ZCodePromptAttachment>;
+  ) => Promise<ModePromptAttachment>;
   topicResourceValidator?: (
     request: ZCodeTopicResourceReadParams &
-      ZCodeAgentWorkspaceTarget & { trace?: ZCodeProtocolTrace },
+      ZCodeAgentWorkspaceTarget & { trace?: ModeProtocolTrace },
     signal: AbortSignal,
   ) => Promise<void>;
   /**
@@ -1055,7 +941,7 @@ interface CreateZCodeAgentServiceOptions extends Omit<
   ) => void;
 }
 
-function toProtocolAutomation(automation: ZCodeAutomation) {
+function toProtocolAutomation(automation: ModeAutomation) {
   return {
     automationId: automation.automationId,
     title: automation.title,
@@ -1108,7 +994,7 @@ export const OFF_PEAK_INTERNAL_ERROR_MESSAGE = "Internal off-peak service error"
  */
 async function respondOffPeakInternalError(
   client: Pick<ZCodeProtocolClient, "respondError">,
-  request: { id: ZCodeProtocolRequestId; method: string },
+  request: { id: ModeProtocolRequestId; method: string },
   workspace: ZCodeAgentWorkspaceTarget,
   error: unknown,
 ): Promise<void> {
@@ -1222,11 +1108,11 @@ export function createZCodeAgentService(
   const officialMcpIssuanceAudit = createOfficialMcpIssuanceAudit();
   const providerRuntimeHeadersWorkspaceEmitters = new Map<
     string,
-    Emitter<ZCodeProviderRuntimeHeadersRequestParams>
+    Emitter<ModeProviderRuntimeHeadersRequestParams>
   >();
   const providerRuntimeHeadersCancelledEmitters = new Map<
     string,
-    Emitter<ZCodeProviderRuntimeHeadersCancelled>
+    Emitter<ModeProviderRuntimeHeadersCancelled>
   >();
   function cancelProviderRuntimeHeaders(
     key: string,
@@ -1247,12 +1133,12 @@ export function createZCodeAgentService(
   const sessionRuntimePreferencesRequestEmitter =
     new Emitter<ZCodeAgentSessionRuntimePreferencesRequest>();
   const processResourceSampleEmitter = new Emitter<AgentLaneResourceSample>();
-  const toolExecResourceEmitter = new Emitter<ZCodeToolExecResource>();
-  const mcpResourceSamplesEmitter = new Emitter<ZCodeMcpResourceSample[]>();
-  const mcpTelemetryEmitter = new Emitter<ZCodeMcpTelemetryEvent>();
+  const toolExecResourceEmitter = new Emitter<ModeToolExecResource>();
+  const mcpResourceSamplesEmitter = new Emitter<ModeMcpResourceSample[]>();
+  const mcpTelemetryEmitter = new Emitter<ModeMcpTelemetryEvent>();
   const pluginOperationProgressEmitters = new Map<
     string,
-    Emitter<ZCodePluginOperationProgressNotification>
+    Emitter<ModePluginOperationProgressNotification>
   >();
   // v4 conversation 帧 fan-out：workspace 级 emitter，renderer 侧按 topic 自行路由。
   const conversationFrameEmitters = new Map<string, Emitter<ConversationTopicWireCandidate>>();
@@ -1384,7 +1270,7 @@ export function createZCodeAgentService(
   });
 
   async function resolveAccountRequestAuth(
-    request: ZCodeProviderRuntimeHeadersRequestParams,
+    request: ModeProviderRuntimeHeadersRequestParams,
   ): Promise<AccountRequestAuthMaterial | undefined> {
     if (!request.accountAccess || !accountRequestAuthService) {
       return undefined;
@@ -1468,7 +1354,7 @@ export function createZCodeAgentService(
       requestId,
       scope: pending.request.scope,
       sessionId: pending.request.sessionId,
-      timeoutMs: ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+      timeoutMs: MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
       workspaceKey: pending.workspaceKey,
     });
     void pending.client
@@ -1476,7 +1362,7 @@ export function createZCodeAgentService(
         code: -32022,
         message: "Session runtime preferences request timed out",
         data: {
-          timeoutMs: ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+          timeoutMs: MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
         },
       })
       .catch((error: unknown) => {
@@ -1524,7 +1410,7 @@ export function createZCodeAgentService(
         const snapshot = await accountProviderConfigSource.read();
         if (accountConfigReceivedRevisionByClient.get(params.client) === snapshot.revision) return;
         const result = await params.client.request(
-          zcodeProtocolMethods.providerUpdateAccountConfig,
+          modeProtocolMethods.providerUpdateAccountConfig,
           {
             revision: snapshot.revision,
             basedOnZCodeBuiltinRevision: snapshot.basedOnZCodeBuiltinRevision,
@@ -1537,7 +1423,7 @@ export function createZCodeAgentService(
             ),
             states: snapshot.states ?? {},
           },
-          zcodeProviderUpdateAccountConfigResultSchema,
+          modeProviderUpdateAccountConfigResultSchema,
         );
         if (result.receivedRevision !== snapshot.revision) {
           throw new Error("Account Config 接收回执版本与交付版本不一致");
@@ -1595,7 +1481,7 @@ export function createZCodeAgentService(
       })
       .then(async () => {
         await params.client.request(
-          zcodeProtocolMethods.workspaceUpdateInteractionPreferences,
+          modeProtocolMethods.workspaceUpdateInteractionPreferences,
           {
             workspace: buildWorkspaceRef(params.workspace),
             preferences: {
@@ -1603,18 +1489,18 @@ export function createZCodeAgentService(
                 params.preferences.askUserQuestionAutoResolutionEnabled,
             },
           },
-          zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
+          modeWorkspaceUpdateInteractionPreferencesResultSchema,
         );
         try {
           await params.client.request(
-            zcodeProtocolMethods.workspaceUpdateModelIoPreferences,
+            modeProtocolMethods.workspaceUpdateModelIoPreferences,
             {
               workspace: buildWorkspaceRef(params.workspace),
               preferences: {
                 fullRetentionEnabled: params.preferences.modelIoFullRetentionEnabled === true,
               },
             },
-            zcodeWorkspaceUpdateModelIoPreferencesResultSchema,
+            modeWorkspaceUpdateModelIoPreferencesResultSchema,
           );
         } catch (error) {
           // 新 Host 兼容尚未升级的 CLI：只有 method-not-found 可降级，其他同步失败仍需上抛。
@@ -1690,7 +1576,7 @@ export function createZCodeAgentService(
   function getPluginOperationProgressEmitter(operationId: string) {
     const existing = pluginOperationProgressEmitters.get(operationId);
     if (existing) return existing;
-    let created: Emitter<ZCodePluginOperationProgressNotification>;
+    let created: Emitter<ModePluginOperationProgressNotification>;
     created = new Emitter({
       onDidRemoveLastListener: () => {
         if (pluginOperationProgressEmitters.get(operationId) !== created) return;
@@ -1719,7 +1605,7 @@ export function createZCodeAgentService(
     if (existing) {
       return existing;
     }
-    const created = new Emitter<ZCodeProviderRuntimeHeadersRequestParams>();
+    const created = new Emitter<ModeProviderRuntimeHeadersRequestParams>();
     providerRuntimeHeadersWorkspaceEmitters.set(key, created);
     return created;
   }
@@ -1867,7 +1753,7 @@ export function createZCodeAgentService(
         subscriptionId: route.subscriptionId,
         connectionId: route.connectionId,
       },
-      zcodeProtocolEmptyResultSchema,
+      modeProtocolEmptyResultSchema,
     );
     // request 在途时 runtime restart/重订阅可用相同 route key 建立新对象；
     // 迟到旧 response 只能清理它自己的 generation，不能按复合 key 删除新 route。
@@ -1942,8 +1828,8 @@ export function createZCodeAgentService(
 
   function normalizeSessionEventSeq(
     workspace: ZCodeAgentWorkspaceTarget,
-    event: ZCodeSessionEvent,
-  ): ZCodeSessionEvent {
+    event: ModeSessionEvent,
+  ): ModeSessionEvent {
     const state = getSessionEventSequenceState(workspace, event.sessionId);
     if (event.seq > 0) {
       state.lastAssignedSeq = Math.max(state.lastAssignedSeq, event.seq);
@@ -1972,7 +1858,7 @@ export function createZCodeAgentService(
 
   function shouldDeliverLiveSessionEvent(
     workspace: ZCodeAgentWorkspaceTarget,
-    event: ZCodeSessionEvent,
+    event: ModeSessionEvent,
   ): boolean {
     const state = getSessionEventSequenceState(workspace, event.sessionId);
     return rememberBoundedEventId(state.liveEventIds, state.liveEventIdOrder, event.eventId);
@@ -1980,7 +1866,7 @@ export function createZCodeAgentService(
 
   function handleSessionEvent(
     workspace: ZCodeAgentWorkspaceTarget,
-    event: ZCodeSessionEvent,
+    event: ModeSessionEvent,
   ): void {
     const normalizedEvent = normalizeSessionEventSeq(workspace, event);
     if (!shouldDeliverLiveSessionEvent(workspace, normalizedEvent)) {
@@ -1994,7 +1880,7 @@ export function createZCodeAgentService(
 
   function handleStateUpdated(
     workspace: ZCodeAgentWorkspaceTarget,
-    notification: ZCodeStateUpdatedNotification,
+    notification: ModeStateUpdatedNotification,
   ): void {
     if (notification.sessionId) {
       emitSessionEvent(workspace, notification.sessionId, {
@@ -2053,8 +1939,8 @@ export function createZCodeAgentService(
     const disposables = [
       topicResources,
       client.onNotification((message) => {
-        if (message.method === zcodeProtocolNotifications.providerRuntimeHeadersCancelled) {
-          const parsed = zcodeProviderRuntimeHeadersCancelledSchema.safeParse(message.params);
+        if (message.method === modeProtocolNotifications.providerRuntimeHeadersCancelled) {
+          const parsed = modeProviderRuntimeHeadersCancelledSchema.safeParse(message.params);
           if (
             !parsed.success ||
             resolveWorkspaceKey(parsed.data.workspace) !== resolveWorkspaceKey(workspace)
@@ -2070,8 +1956,8 @@ export function createZCodeAgentService(
           if (pending?.client === client) cancelProviderRuntimeHeaders(key, pending);
           return;
         }
-        if (message.method === zcodeProtocolNotifications.processResourceSample) {
-          const parsed = zcodeProcessResourceSampleSchema.safeParse(message.params);
+        if (message.method === modeProtocolNotifications.processResourceSample) {
+          const parsed = modeProcessResourceSampleSchema.safeParse(message.params);
           if (parsed.success) {
             processResourceSampleEmitter.fire({ ...parsed.data, lane });
           } else {
@@ -2085,20 +1971,20 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (message.method === zcodeProtocolNotifications.toolExecResource) {
-          const parsed = zcodeToolExecResourceSchema.safeParse(message.params);
+        if (message.method === modeProtocolNotifications.toolExecResource) {
+          const parsed = modeToolExecResourceSchema.safeParse(message.params);
           if (parsed.success) toolExecResourceEmitter.fire(parsed.data);
           return;
         }
-        if (message.method === zcodeProtocolNotifications.mcpResourceSamples) {
-          const parsed = zcodeMcpResourceSamplesSchema.safeParse(message.params);
+        if (message.method === modeProtocolNotifications.mcpResourceSamples) {
+          const parsed = modeMcpResourceSamplesSchema.safeParse(message.params);
           if (parsed.success) mcpResourceSamplesEmitter.fire(parsed.data);
           else logger.debug(undefined, "丢弃无效 MCP 资源样本");
           return;
         }
 
-        if (message.method === zcodeProtocolNotifications.mcpTelemetry) {
-          const parsed = zcodeMcpTelemetryEventSchema.safeParse(message.params);
+        if (message.method === modeProtocolNotifications.mcpTelemetry) {
+          const parsed = modeMcpTelemetryEventSchema.safeParse(message.params);
           if (parsed.success) {
             mcpTelemetryEmitter.fire(parsed.data);
           } else {
@@ -2112,8 +1998,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (message.method === zcodeProtocolNotifications.pluginOperationProgress) {
-          const parsed = zcodePluginOperationProgressNotificationSchema.safeParse(message.params);
+        if (message.method === modeProtocolNotifications.pluginOperationProgress) {
+          const parsed = modePluginOperationProgressNotificationSchema.safeParse(message.params);
           if (parsed.success) {
             pluginOperationProgressEmitters.get(parsed.data.operationId)?.fire(parsed.data);
           } else {
@@ -2128,8 +2014,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (message.method === zcodeProtocolMethods.computerUseOperationEvent) {
-          const parsed = zcodeComputerUseOperationEventSchema.safeParse(message.params);
+        if (message.method === modeProtocolMethods.computerUseOperationEvent) {
+          const parsed = modeComputerUseOperationEventSchema.safeParse(message.params);
           if (parsed.success) {
             // v4 会话不会投影 legacy session/event，CUA 提示必须直接消费 runtime sideband，
             // 避免把两条独立事件流的 sequenceNumber/seq 混为同一顺序域。
@@ -2148,7 +2034,7 @@ export function createZCodeAgentService(
         }
 
         if (message.method === "session/event") {
-          const parsed = zcodeSessionEventSchema.safeParse(message.params);
+          const parsed = modeSessionEventSchema.safeParse(message.params);
           if (parsed.success) {
             handleSessionEvent(workspace, parsed.data);
           } else {
@@ -2175,7 +2061,7 @@ export function createZCodeAgentService(
         }
 
         if (message.method === "state.updated") {
-          const parsed = zcodeStateUpdatedNotificationSchema.safeParse(message.params);
+          const parsed = modeStateUpdatedNotificationSchema.safeParse(message.params);
           if (parsed.success) {
             handleStateUpdated(workspace, parsed.data);
           }
@@ -2290,7 +2176,7 @@ export function createZCodeAgentService(
         }
       }),
       client.onRequest((request) => {
-        if (request.method === zcodeProtocolMethods.subagentsReadRuntimeConfig) {
+        if (request.method === modeProtocolMethods.subagentsReadRuntimeConfig) {
           void (async () => {
             const parsed = zcodeSubagentsReadRuntimeConfigParamsSchema.safeParse(request.params);
             if (!parsed.success) {
@@ -2300,7 +2186,7 @@ export function createZCodeAgentService(
               });
               return;
             }
-            let configuration: SubagentRuntimeConfig;
+            let configuration: SubAgentConfig;
             try {
               if (!options?.readSubagentRuntimeConfig)
                 throw new Error("Subagent runtime config is unavailable on this Host");
@@ -2320,7 +2206,7 @@ export function createZCodeAgentService(
           );
           return;
         }
-        if (request.method === zcodeProtocolMethods.channelReply) {
+        if (request.method === modeProtocolMethods.channelReply) {
           void (async () => {
             const params = channelReplyRequestSchema.parse(request.params);
             if (!options?.channelReplyExecutor) throw new Error("Channel reply unavailable");
@@ -2345,7 +2231,7 @@ export function createZCodeAgentService(
           );
           return;
         }
-        if (request.method === zcodeProtocolMethods.topicResourceRead) {
+        if (request.method === modeProtocolMethods.topicResourceRead) {
           void topicResources
             .read(request.params, request.trace)
             .then((result) => client.respond(request.id, result))
@@ -2357,21 +2243,21 @@ export function createZCodeAgentService(
             );
           return;
         }
-        if (request.method === zcodeProtocolMethods.topicResourceCancel) {
+        if (request.method === modeProtocolMethods.topicResourceCancel) {
           const parsed = zcodeTopicResourceCancelParamsSchema.safeParse(request.params);
           void client.respond(request.id, {
             cancelled: parsed.success && topicResources.cancel(parsed.data),
           });
           return;
         }
-        if (request.method === zcodeProtocolMethods.sessionRequestRuntimePreferences) {
+        if (request.method === modeProtocolMethods.sessionRequestRuntimePreferences) {
           const reportResponseFailure = (error: unknown): void => {
             logger.debug(undefined, "运行时偏好响应发送失败", {
               error: error instanceof Error ? error.message : String(error),
               workspaceKey: resolveWorkspaceKey(workspace),
             });
           };
-          const parsed = zcodeSessionRequestRuntimePreferencesParamsSchema.safeParse(
+          const parsed = modeSessionRequestRuntimePreferencesParamsSchema.safeParse(
             request.params,
           );
           if (!parsed.success) {
@@ -2386,9 +2272,9 @@ export function createZCodeAgentService(
           }
           if (sessionRuntimePreferencesAuthority === "local") {
             void (async () => {
-              let preferences: ZCodeSessionRuntimePreferencesResult;
+              let preferences: ModeSessionRuntimePreferencesResult;
               try {
-                preferences = zcodeSessionRuntimePreferencesResultSchema.parse(
+                preferences = modeSessionRuntimePreferencesResultSchema.parse(
                   // 同一 RPC 承载 runtime 创建与首次执行两个时机；必须继续传递
                   // 已校验的 scope，避免首次执行为了 Shell 再次等待远端 client config。
                   (await resolveSessionRuntimePreferences?.(parsed.data.scope)) ?? {
@@ -2428,7 +2314,7 @@ export function createZCodeAgentService(
             request: dynamicRequest,
             timeout: setTimeout(
               () => expireSessionRuntimePreferencesRequest(requestId),
-              ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+              MODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
             ),
             workspaceKey: resolveWorkspaceKey(workspace),
           });
@@ -2444,8 +2330,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.interactionRequestPermission) {
-          const parsed = zcodePermissionRequestParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.interactionRequestPermission) {
+          const parsed = modePermissionRequestParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2473,8 +2359,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.interactionRequestUserInput) {
-          const parsed = zcodeUserInputRequestParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.interactionRequestUserInput) {
+          const parsed = modeUserInputRequestParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2502,8 +2388,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.interactionRequestProviderRuntimeHeaders) {
-          const parsed = zcodeProviderRuntimeHeadersRequestParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.interactionRequestProviderRuntimeHeaders) {
+          const parsed = modeProviderRuntimeHeadersRequestParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2568,8 +2454,8 @@ export function createZCodeAgentService(
 
         // 官方 Server MCP 身份头：纯 RPC 中继，host 自动解析并响应。
         // 不 emitSessionEvent、不进 pending map——该请求没有 UI 语义，renderer 不参与。
-        if (request.method === zcodeProtocolMethods.interactionRequestOfficialMcpAuthHeaders) {
-          const parsed = zcodeOfficialMcpAuthHeadersRequestParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.interactionRequestOfficialMcpAuthHeaders) {
+          const parsed = modeOfficialMcpAuthHeadersRequestParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2674,8 +2560,8 @@ export function createZCodeAgentService(
 
         // browser-use discovery：backend 在线状态与 plugin/skill 是否暴露是两层状态。
         // executor 缺省时返回空列表，禁止 facade 伪造 IAB available。
-        if (request.method === zcodeProtocolMethods.interactionBrowserList) {
-          const parsed = zcodeBrowserListParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.interactionBrowserList) {
+          const parsed = modeBrowserListParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2704,8 +2590,8 @@ export function createZCodeAgentService(
         // browser-use：agent 的 agent.browsers.* 经 interaction/browserExecute 到达这里。
         // 纯 RPC 中继——转发给 main（WebContentsView+CDP）执行后 respondResult，不 emitSessionEvent、
         // 不进 pending map（区别于 permission 的 UI 阻塞语义）。executor 缺省则 backend_unavailable。
-        if (request.method === zcodeProtocolMethods.interactionBrowserExecute) {
-          const parsed = zcodeBrowserExecuteParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.interactionBrowserExecute) {
+          const parsed = modeBrowserExecuteParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2763,8 +2649,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.automationCreate) {
-          const parsed = zcodeAutomationCreateParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.automationCreate) {
+          const parsed = modeAutomationCreateParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2824,8 +2710,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.offPeakCreate) {
-          const parsed = zcodeOffPeakCreateParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.offPeakCreate) {
+          const parsed = modeOffPeakCreateParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2936,8 +2822,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.offPeakList) {
-          const parsed = zcodeOffPeakListParamsSchema.safeParse(request.params ?? {});
+        if (request.method === modeProtocolMethods.offPeakList) {
+          const parsed = modeOffPeakListParamsSchema.safeParse(request.params ?? {});
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2971,8 +2857,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.automationList) {
-          const parsed = zcodeAutomationListParamsSchema.safeParse(request.params ?? {});
+        if (request.method === modeProtocolMethods.automationList) {
+          const parsed = modeAutomationListParamsSchema.safeParse(request.params ?? {});
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -2997,8 +2883,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.automationCheckTaskBinding) {
-          const parsed = zcodeAutomationCheckTaskBindingParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.automationCheckTaskBinding) {
+          const parsed = modeAutomationCheckTaskBindingParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -3025,8 +2911,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.automationUpdate) {
-          const parsed = zcodeAutomationUpdateParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.automationUpdate) {
+          const parsed = modeAutomationUpdateParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -3067,8 +2953,8 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.automationDelete) {
-          const parsed = zcodeAutomationDeleteParamsSchema.safeParse(request.params);
+        if (request.method === modeProtocolMethods.automationDelete) {
+          const parsed = modeAutomationDeleteParamsSchema.safeParse(request.params);
           if (!parsed.success) {
             void client.respondError(request.id, {
               code: -32602,
@@ -3105,7 +2991,7 @@ export function createZCodeAgentService(
 
   function rememberSessionTrace(
     target: ZCodeAgentSessionTarget,
-    snapshot: ZCodeSessionStateSnapshot,
+    snapshot: ModeSessionStateSnapshot,
   ): TraceId | undefined {
     const traceId = snapshot.session.traceId as TraceId | undefined;
     if (traceId) {
@@ -3122,10 +3008,10 @@ export function createZCodeAgentService(
     snapshot?: ZCodeAgentProviderReadinessSnapshot;
     workspace: ZCodeAgentWorkspaceTarget;
   }): Error & {
-    code: typeof ZCODE_AGENT_PROVIDER_NOT_READY_CODE;
+    code: typeof MODE_AGENT_PROVIDER_NOT_READY_CODE;
     data: {
       providerCount: number;
-      reason: typeof ZCODE_AGENT_PROVIDER_NOT_READY_REASON;
+      reason: typeof MODE_AGENT_PROVIDER_NOT_READY_REASON;
       revision: string | null;
       workspaceKey: string;
       workspacePath: string;
@@ -3133,19 +3019,19 @@ export function createZCodeAgentService(
   } {
     const workspaceKey = resolveWorkspaceKey(params.workspace);
     const error = new Error("当前没有可用的模型供应商和模型，请先登录或配置 API Key。") as Error & {
-      code: typeof ZCODE_AGENT_PROVIDER_NOT_READY_CODE;
+      code: typeof MODE_AGENT_PROVIDER_NOT_READY_CODE;
       data: {
         providerCount: number;
-        reason: typeof ZCODE_AGENT_PROVIDER_NOT_READY_REASON;
+        reason: typeof MODE_AGENT_PROVIDER_NOT_READY_REASON;
         revision: string | null;
         workspaceKey: string;
         workspacePath: string;
       };
     };
-    error.code = ZCODE_AGENT_PROVIDER_NOT_READY_CODE;
+    error.code = MODE_AGENT_PROVIDER_NOT_READY_CODE;
     error.data = {
       providerCount: params.snapshot?.providerCount ?? 0,
-      reason: ZCODE_AGENT_PROVIDER_NOT_READY_REASON,
+      reason: MODE_AGENT_PROVIDER_NOT_READY_REASON,
       revision: params.snapshot?.revision ?? null,
       workspaceKey,
       workspacePath: params.workspace.workspacePath,
@@ -3155,10 +3041,10 @@ export function createZCodeAgentService(
 
   function isProviderNotReadyError(
     error: unknown,
-  ): error is Error & { code: typeof ZCODE_AGENT_PROVIDER_NOT_READY_CODE } {
+  ): error is Error & { code: typeof MODE_AGENT_PROVIDER_NOT_READY_CODE } {
     return (
       error instanceof Error &&
-      (error as { code?: unknown }).code === ZCODE_AGENT_PROVIDER_NOT_READY_CODE
+      (error as { code?: unknown }).code === MODE_AGENT_PROVIDER_NOT_READY_CODE
     );
   }
 
@@ -3249,9 +3135,9 @@ export function createZCodeAgentService(
       if (!isOffPeakToolSupported(params)) return;
       try {
         await client.request(
-          zcodeProtocolMethods.workspaceUpdateOffPeakToolPolicy,
+          modeProtocolMethods.workspaceUpdateOffPeakToolPolicy,
           { workspace: buildWorkspaceRef(params), enabled: true },
-          zcodeWorkspaceUpdateOffPeakToolPolicyResultSchema,
+          modeWorkspaceUpdateOffPeakToolPolicyResultSchema,
         );
       } catch (error) {
         // 策略同步是尽力而为的能力分发，失败方向是 fail-closed（CLI 缺省不注册工具），
@@ -3428,7 +3314,7 @@ export function createZCodeAgentService(
 
   async function resolveGlobalSavedWorkflowCarrier(): Promise<{
     client: ZCodeProtocolClient;
-    workspace: ZCodeWorkspaceRef;
+    workspace: ModeWorkspaceRef;
   }> {
     for (const active of activeClientsByWorkspaceKey.values()) {
       if (!isLocalActiveWorkspaceClient(active.workspace)) {
@@ -3450,7 +3336,7 @@ export function createZCodeAgentService(
   // 只给 `scope:"global"` 时交给 services 自选本机载体。
   async function resolveSavedWorkflowCarrier(
     params: ZCodeAgentSavedWorkflowTarget,
-  ): Promise<{ client: ZCodeProtocolClient; workspace: ZCodeWorkspaceRef }> {
+  ): Promise<{ client: ZCodeProtocolClient; workspace: ModeWorkspaceRef }> {
     if (savedWorkflowTargetHasWorkspace(params)) {
       return { client: await getReadOnlyClient(params), workspace: buildWorkspaceRef(params) };
     }
@@ -3583,7 +3469,7 @@ export function createZCodeAgentService(
   async function resolveDynamicWorkflowGate(): Promise<DynamicWorkflowMode> {
     const offer = await resolveDynamicWorkflowOffer();
     if (!offer) return "disabled";
-    return applyDynamicWorkflowUserMode(offer, await resolveDynamicWorkflowUserMode()).mode;
+    return DynamicWorkflowMode(offer, await resolveDynamicWorkflowUserMode()).mode;
   }
 
   /**
@@ -3600,11 +3486,11 @@ export function createZCodeAgentService(
       const enabled = isDynamicWorkflowModeEnabled(mode);
       try {
         await entry.client.request(
-          zcodeProtocolMethods.workspaceUpdateDynamicWorkflowPolicy,
+          modeProtocolMethods.workspaceUpdateDynamicWorkflowPolicy,
           // mode 与布尔同行（launch.md「On demand: activation」）；只认布尔的旧 CLI 的 strict
           // schema 会拒绝 mode，走下面的 warn 分支保持缺省关闭——与其它非 -32601 错误同判。
           { workspace: buildWorkspaceRef(entry.workspace), enabled, ...(enabled ? { mode } : {}) },
-          zcodeWorkspaceUpdateDynamicWorkflowPolicyResultSchema,
+          modeWorkspaceUpdateDynamicWorkflowPolicyResultSchema,
         );
         entry.dynamicWorkflowPolicyMode = mode;
       } catch (error) {
@@ -3726,8 +3612,8 @@ export function createZCodeAgentService(
         return {
           available: true,
           workspaceKey,
-          protocolName: ZCODE_PROTOCOL_NAME,
-          protocolVersion: ZCODE_PROTOCOL_VERSION,
+          protocolName: MODE_PROTOCOL_NAME,
+          protocolVersion: MODE_PROTOCOL_VERSION,
           transportKind: client.transportKind === "websocket" ? "websocket" : "stdio",
         };
       } catch (error) {
@@ -3747,10 +3633,10 @@ export function createZCodeAgentService(
         return {
           available: false,
           workspaceKey,
-          protocolName: ZCODE_PROTOCOL_NAME,
-          protocolVersion: ZCODE_PROTOCOL_VERSION,
+          protocolName: MODE_PROTOCOL_NAME,
+          protocolVersion: MODE_PROTOCOL_VERSION,
           reason: error instanceof Error ? error.message : String(error),
-          ...(providerNotReady ? { reasonCode: ZCODE_AGENT_PROVIDER_NOT_READY_REASON } : {}),
+          ...(providerNotReady ? { reasonCode: MODE_AGENT_PROVIDER_NOT_READY_REASON } : {}),
         };
       }
     },
@@ -3815,9 +3701,9 @@ export function createZCodeAgentService(
       const dynamicWorkflowFlags = await resolveDynamicWorkflowSessionFlags();
       try {
         const snapshot = await client.request(
-          zcodeProtocolMethods.sessionCreate,
+          modeProtocolMethods.sessionCreate,
           buildSessionCreateParams({ ...params, offPeakToolEnabled, ...dynamicWorkflowFlags }),
-          zcodeSessionStateSnapshotSchema,
+          modeSessionStateSnapshotSchema,
           sessionTraceId ? { trace: { traceId: sessionTraceId } } : undefined,
         );
         rememberSessionTrace({ ...params, sessionId: snapshot.session.sessionId }, snapshot);
@@ -3855,12 +3741,12 @@ export function createZCodeAgentService(
         // 远端部署或仍存活的旧 app-server 还在使用旧 strict schema。只对已知
         // 可选字段降级重试，避免 thoughtLevel/persistence 版本差阻塞首发创建。
         const snapshot = await client.request(
-          zcodeProtocolMethods.sessionCreate,
+          modeProtocolMethods.sessionCreate,
           buildSessionCreateParams(
             { ...params, offPeakToolEnabled, ...dynamicWorkflowFlags },
             new Set(compatFields),
           ),
-          zcodeSessionStateSnapshotSchema,
+          modeSessionStateSnapshotSchema,
           sessionTraceId ? { trace: { traceId: sessionTraceId } } : undefined,
         );
         rememberSessionTrace({ ...params, sessionId: snapshot.session.sessionId }, snapshot);
@@ -3877,13 +3763,13 @@ export function createZCodeAgentService(
         // 旧 create schema 不认识 thoughtLevel 时，创建后再走旧协议已有的
         // session/setThoughtLevel，保证首轮 prompt 仍使用用户在工具栏选择的推理强度。
         const snapshotWithThoughtLevel = await client.request(
-          zcodeProtocolMethods.sessionSetThoughtLevel,
+          modeProtocolMethods.sessionSetThoughtLevel,
           {
             sessionId: snapshot.session.sessionId,
             thoughtLevel: params.thoughtLevel,
             persistAsWorkspaceLastUsed: true,
           },
-          zcodeSessionStateSnapshotSchema,
+          modeSessionStateSnapshotSchema,
           sessionTraceId ? { trace: { traceId: sessionTraceId } } : undefined,
         );
         rememberSessionTrace(
@@ -3927,9 +3813,9 @@ export function createZCodeAgentService(
       });
       try {
         const snapshot = await client.request(
-          zcodeProtocolMethods.sessionResume,
+          modeProtocolMethods.sessionResume,
           buildSessionResumeParams({ ...params, offPeakToolEnabled, ...dynamicWorkflowFlags }),
-          zcodeSessionStateSnapshotSchema,
+          modeSessionStateSnapshotSchema,
         );
         const sessionTraceId = rememberSessionTrace(params, snapshot) ?? cachedTraceId;
         logger.info(sessionTraceId, "ZCode Protocol session/resume 完成", {
@@ -3963,12 +3849,12 @@ export function createZCodeAgentService(
           workspacePath: params.workspacePath,
         });
         const snapshot = await client.request(
-          zcodeProtocolMethods.sessionResume,
+          modeProtocolMethods.sessionResume,
           buildSessionResumeParams(
             { ...params, offPeakToolEnabled, ...dynamicWorkflowFlags },
             new Set(compatFields),
           ),
-          zcodeSessionStateSnapshotSchema,
+          modeSessionStateSnapshotSchema,
         );
         const sessionTraceId = rememberSessionTrace(params, snapshot) ?? cachedTraceId;
         logger.info(sessionTraceId, "ZCode Protocol session/resume 兼容重试完成", {
@@ -3985,14 +3871,14 @@ export function createZCodeAgentService(
     async listSessions(params: ZCodeAgentListSessionsParams) {
       const client = await getReadOnlyClient(params, params.runtimePolicy);
       const result = await client.request(
-        zcodeProtocolMethods.sessionList,
+        modeProtocolMethods.sessionList,
         {
           workspace: buildWorkspaceRef(params),
           includeArchived: params.includeArchived ?? false,
           limit: params.limit,
           ...(params.sessionIds ? { sessionIds: params.sessionIds } : {}),
         },
-        zcodeSessionListResultSchema,
+        modeSessionListResultSchema,
       );
       for (const session of result.sessions) {
         if (session.traceId) {
@@ -4008,13 +3894,13 @@ export function createZCodeAgentService(
     async listSessionSubagents(params: ZCodeAgentListSessionSubagentsParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.sessionSubagents,
+        modeProtocolMethods.sessionSubagents,
         {
           sessionId: params.sessionId,
           endedCursor: params.endedCursor,
           endedLimit: params.endedLimit ?? 20,
         },
-        zcodeSessionSubagentsResultSchema,
+        modeSessionSubagentsResultSchema,
       );
     },
 
@@ -4057,7 +3943,7 @@ export function createZCodeAgentService(
         });
       }
       const snapshot = await client.request(
-        zcodeProtocolMethods.sessionRead,
+        modeProtocolMethods.sessionRead,
         {
           sessionId: params.sessionId,
           deliveryKind: params.deliveryKind,
@@ -4065,7 +3951,7 @@ export function createZCodeAgentService(
           afterSeq: params.afterSeq,
           contentProfile: params.contentProfile,
         },
-        zcodeSessionStateSnapshotSchema,
+        modeSessionStateSnapshotSchema,
       );
       rememberSessionTrace(params, snapshot);
       return snapshot;
@@ -4074,13 +3960,13 @@ export function createZCodeAgentService(
     async readSessionMessages(params: ZCodeAgentReadSessionMessagesParams) {
       const client = await getReadOnlyClient(params);
       const result = await client.request(
-        zcodeProtocolMethods.sessionMessages,
+        modeProtocolMethods.sessionMessages,
         {
           sessionId: params.sessionId,
           afterMessageId: params.afterMessageId,
           limit: params.limit,
         },
-        zcodeSessionMessagesResultSchema,
+        modeSessionMessagesResultSchema,
       );
       return result.messages;
     },
@@ -4088,7 +3974,7 @@ export function createZCodeAgentService(
     async readSessionDebug(params) {
       const client = await getReadOnlyClient(params, "existing-only");
       return client.request(
-        zcodeProtocolMethods.sessionDebug,
+        modeProtocolMethods.sessionDebug,
         { sessionId: params.sessionId },
         sessionDebugSnapshotSchema,
       );
@@ -4097,13 +3983,13 @@ export function createZCodeAgentService(
     async readSessionEvents(params: ZCodeAgentReadSessionEventsParams) {
       const client = await getReadOnlyClient(params);
       const result = await client.request(
-        zcodeProtocolMethods.sessionEvents,
+        modeProtocolMethods.sessionEvents,
         {
           sessionId: params.sessionId,
           afterSeq: params.afterSeq,
           limit: params.limit,
         },
-        zcodeSessionEventsResultSchema,
+        modeSessionEventsResultSchema,
       );
       return result.events;
     },
@@ -4115,7 +4001,7 @@ export function createZCodeAgentService(
         workspacePath: params.workspacePath,
       });
       try {
-        let presentation: ZCodeWorkspacePresentation | undefined;
+        let presentation: ModeWorkspacePresentation | undefined;
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const client = await getReadOnlyClient(params);
           try {
@@ -4125,9 +4011,9 @@ export function createZCodeAgentService(
               workspace: params,
             });
             presentation = await client.request(
-              zcodeProtocolMethods.workspaceReadPresentation,
+              modeProtocolMethods.workspaceReadPresentation,
               { workspace: buildWorkspaceRef(params) },
-              zcodeWorkspacePresentationSchema,
+              modeWorkspacePresentationSchema,
             );
             break;
           } catch (error) {
@@ -4179,13 +4065,13 @@ export function createZCodeAgentService(
       // Settings 操作伪造 session，也不能要求 provider/model 已就绪。
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.workspaceHookTrustGrant,
+        modeProtocolMethods.workspaceHookTrustGrant,
         {
           workspace: buildWorkspaceRef(params),
           bundleDigest: params.bundleDigest,
           hookDeclarationDigest: params.hookDeclarationDigest,
         },
-        zcodeWorkspaceHookTrustGrantResultSchema,
+        modeWorkspaceHookTrustGrantResultSchema,
       );
     },
 
@@ -4193,7 +4079,7 @@ export function createZCodeAgentService(
       const requestMcpList = async (options?: { omitMcpServers?: boolean; omitMode?: boolean }) => {
         const client = await getMcpStatusClient();
         return client.request(
-          zcodeProtocolMethods.mcpList,
+          modeProtocolMethods.mcpList,
           {
             workspace: buildWorkspaceRef(params),
             ...(params.mcpServers !== undefined && !options?.omitMcpServers
@@ -4201,7 +4087,7 @@ export function createZCodeAgentService(
               : {}),
             ...(params.mode !== undefined && !options?.omitMode ? { mode: params.mode } : {}),
           },
-          zcodeMcpListResultSchema,
+          modeMcpListResultSchema,
         );
       };
       try {
@@ -4234,7 +4120,7 @@ export function createZCodeAgentService(
             omitMode,
           });
         }
-        if (!isProtocolRequestTimeout(error, zcodeProtocolMethods.mcpList)) {
+        if (!isProtocolRequestTimeout(error, modeProtocolMethods.mcpList)) {
           throw error;
         }
         logger.warn(undefined, "MCP 状态列表请求超时，重启无响应 agent 后重试一次", {
@@ -4252,18 +4138,18 @@ export function createZCodeAgentService(
         // plugins/list 只读取本地 plugin metadata，与 mcp/list 一样走默认协议超时，
         // 这样 stale client 能在合理时间内触发回收并重试，而不是被 5 分钟市场 I/O 超时拖住。
         return client.request(
-          zcodeProtocolMethods.pluginsList,
+          modeProtocolMethods.pluginsList,
           {
             workspace: buildWorkspaceRef(params),
             ...(params.configScope ? { configScope: params.configScope } : {}),
           },
-          zcodePluginsListResultSchema,
+          modePluginsListResultSchema,
         );
       };
       try {
         return await requestPluginsList();
       } catch (error) {
-        if (!isProtocolRequestTimeout(error, zcodeProtocolMethods.pluginsList)) {
+        if (!isProtocolRequestTimeout(error, modeProtocolMethods.pluginsList)) {
           throw error;
         }
         logger.warn(undefined, "插件列表请求超时，重启无响应 agent 后重试一次", {
@@ -4294,19 +4180,19 @@ export function createZCodeAgentService(
       // 没有 resident Session，不能作为对话 authority。
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.skillsReferenceCatalog,
+        modeProtocolMethods.skillsReferenceCatalog,
         {
           workspace: buildWorkspaceRef(params),
           ...(params.sessionId ? { sessionId: params.sessionId } : {}),
         },
-        zcodeSkillsReferenceCatalogResultSchema,
+        modeSkillsReferenceCatalogResultSchema,
       );
     },
 
     async openMcpUiInstance(params) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiOpenInstance,
+        modeProtocolMethods.mcpUiOpenInstance,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4323,7 +4209,7 @@ export function createZCodeAgentService(
     async validateMcpUiInstance(params) {
       const client = await getReadOnlyClient(params);
       await client.request(
-        zcodeProtocolMethods.mcpUiValidateInstance,
+        modeProtocolMethods.mcpUiValidateInstance,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4337,7 +4223,7 @@ export function createZCodeAgentService(
     async recycleMcpUiInstance(params) {
       const client = await getReadOnlyClient(params);
       const result = await client.request(
-        zcodeProtocolMethods.mcpUiCloseInstance,
+        modeProtocolMethods.mcpUiCloseInstance,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4353,7 +4239,7 @@ export function createZCodeAgentService(
     async closeMcpUiInstance(params) {
       const client = await getReadOnlyClient(params);
       await client.request(
-        zcodeProtocolMethods.mcpUiCloseInstance,
+        modeProtocolMethods.mcpUiCloseInstance,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4368,7 +4254,7 @@ export function createZCodeAgentService(
       // 与 Skill / Plugin 引用一样，session 冻结 catalog 只存在于 workspace agent 进程。
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpReadResource,
+        modeProtocolMethods.mcpReadResource,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4387,7 +4273,7 @@ export function createZCodeAgentService(
       const wire = { ...bound, workspace: buildWorkspaceRef(params) };
       try {
         return await client.request(
-          zcodeProtocolMethods.mcpUiSampling,
+          modeProtocolMethods.mcpUiSampling,
           wire,
           zcodeMcpUiSamplingResultSchema,
           { timeoutMs: MCP_APPS_SAMPLING_TRANSPORT_TIMEOUT_MS },
@@ -4397,7 +4283,7 @@ export function createZCodeAgentService(
         const { request: _request, ...cancelParams } = wire;
         void client
           .request(
-            zcodeProtocolMethods.mcpUiCancelSampling,
+            modeProtocolMethods.mcpUiCancelSampling,
             cancelParams,
             zcodeMcpUiCancelCallResultSchema,
           )
@@ -4409,7 +4295,7 @@ export function createZCodeAgentService(
       const client = await getReadOnlyClient(params, "existing-only");
       const { workspacePath: _path, workspaceIdentity: _identity, ...bound } = params;
       return client.request(
-        zcodeProtocolMethods.mcpUiCancelSampling,
+        modeProtocolMethods.mcpUiCancelSampling,
         { ...bound, workspace: buildWorkspaceRef(params) },
         zcodeMcpUiCancelCallResultSchema,
       );
@@ -4417,7 +4303,7 @@ export function createZCodeAgentService(
     async callMcpToolForUi(params: ZCodeAgentCallMcpToolForUiParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiCallTool,
+        modeProtocolMethods.mcpUiCallTool,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4435,7 +4321,7 @@ export function createZCodeAgentService(
     async cancelMcpToolCallForUi(params: ZCodeAgentCancelMcpToolCallForUiParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiCancelCall,
+        modeProtocolMethods.mcpUiCancelCall,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4452,7 +4338,7 @@ export function createZCodeAgentService(
       // 与 callMcpToolForUi 同一进程：归属（pluginId ↔ serverName）、mimeType 白名单与 8 MiB 上限都在 agent 侧 fail closed。
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiReadResource,
+        modeProtocolMethods.mcpUiReadResource,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4468,7 +4354,7 @@ export function createZCodeAgentService(
     async listMcpResourcesForUi(params: ZCodeAgentListMcpResourcesForUiParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiListResources,
+        modeProtocolMethods.mcpUiListResources,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4484,7 +4370,7 @@ export function createZCodeAgentService(
     async listMcpResourceTemplatesForUi(params: ZCodeAgentListMcpResourcesForUiParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiListResourceTemplates,
+        modeProtocolMethods.mcpUiListResourceTemplates,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4501,7 +4387,7 @@ export function createZCodeAgentService(
       // 订阅登记在 agent 侧（按 server / uri 引用计数并随重连重放）；host 只转发身份三元组。
       const client = await getReadOnlyClient(params);
       await client.request(
-        zcodeProtocolMethods.mcpUiSubscribeResource,
+        modeProtocolMethods.mcpUiSubscribeResource,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4519,7 +4405,7 @@ export function createZCodeAgentService(
     async unsubscribeMcpResourceForUi(params: ZCodeAgentMcpResourceSubscriptionForUiParams) {
       const client = await getReadOnlyClient(params);
       await client.request(
-        zcodeProtocolMethods.mcpUiUnsubscribeResource,
+        modeProtocolMethods.mcpUiUnsubscribeResource,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4537,7 +4423,7 @@ export function createZCodeAgentService(
     async registerAppToolsForUi(params: ZCodeAgentRegisterAppToolsForUiParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiRegisterAppTools,
+        modeProtocolMethods.mcpUiRegisterAppTools,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4555,7 +4441,7 @@ export function createZCodeAgentService(
     async unregisterAppToolsForUi(params: ZCodeAgentAppToolInstanceForUiParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiUnregisterAppTools,
+        modeProtocolMethods.mcpUiUnregisterAppTools,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4572,7 +4458,7 @@ export function createZCodeAgentService(
     async claimAppToolCallForUi(params: ZCodeAgentAppToolCallForUiParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiClaimAppToolCall,
+        modeProtocolMethods.mcpUiClaimAppToolCall,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4590,7 +4476,7 @@ export function createZCodeAgentService(
     async resolveAppToolCallForUi(params: ZCodeAgentResolveAppToolCallForUiParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.mcpUiResolveAppToolCall,
+        modeProtocolMethods.mcpUiResolveAppToolCall,
         {
           workspace: buildWorkspaceRef(params),
           sessionId: params.sessionId,
@@ -4612,9 +4498,9 @@ export function createZCodeAgentService(
       // 不用独立插件管理进程（那边没有本 workspace 的启停状态上下文，与 mcp/readResource 同理）。
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.pluginsListUiSurfaces,
+        modeProtocolMethods.pluginsListUiSurfaces,
         { workspace: buildWorkspaceRef(params) },
-        zcodePluginsListUiSurfacesResultSchema,
+        modePluginsListResultSchema,
       );
     },
 
@@ -4625,50 +4511,50 @@ export function createZCodeAgentService(
     async listSavedWorkflows(params: ZCodeAgentListSavedWorkflowsParams) {
       const { client, workspace } = await resolveSavedWorkflowCarrier(params);
       return client.request(
-        zcodeProtocolMethods.workflowsList,
+        modeProtocolMethods.workflowsList,
         { workspace, ...savedWorkflowScopeParam(params) },
-        zcodeWorkflowsListResultSchema,
+        modeWorkflowsListResultSchema,
       );
     },
 
     async getSavedWorkflow(params: ZCodeAgentGetSavedWorkflowParams) {
       const { client, workspace } = await resolveSavedWorkflowCarrier(params);
       return client.request(
-        zcodeProtocolMethods.workflowsGet,
+        modeProtocolMethods.workflowsGet,
         { workspace, name: params.name, ...savedWorkflowScopeParam(params) },
-        zcodeWorkflowsGetResultSchema,
+        modeWorkflowsGetResultSchema,
       );
     },
 
     async updateSavedWorkflowMeta(params: ZCodeAgentUpdateSavedWorkflowMetaParams) {
       const { client, workspace } = await resolveSavedWorkflowCarrier(params);
       return client.request(
-        zcodeProtocolMethods.workflowsUpdateMeta,
+        modeProtocolMethods.workflowsUpdateMeta,
         { workspace, name: params.name, meta: params.meta, ...savedWorkflowScopeParam(params) },
-        zcodeWorkflowsUpdateMetaResultSchema,
+        modeWorkflowsUpdateMetaResultSchema,
       );
     },
 
     async deleteSavedWorkflow(params: ZCodeAgentDeleteSavedWorkflowParams) {
       const { client, workspace } = await resolveSavedWorkflowCarrier(params);
       return client.request(
-        zcodeProtocolMethods.workflowsDelete,
+        modeProtocolMethods.workflowsDelete,
         { workspace, name: params.name, ...savedWorkflowScopeParam(params) },
-        zcodeWorkflowsDeleteResultSchema,
+        modeWorkflowsDeleteResultSchema,
       );
     },
 
     async listSavedWorkflowRuns(params: ZCodeAgentListSavedWorkflowRunsParams) {
       const { client, workspace } = await resolveSavedWorkflowCarrier(params);
       return client.request(
-        zcodeProtocolMethods.workflowsRuns,
+        modeProtocolMethods.workflowsRuns,
         {
           workspace,
           ...(params.name === undefined ? {} : { name: params.name }),
           limit: params.limit,
           ...savedWorkflowScopeParam(params),
         },
-        zcodeWorkflowsRunsResultSchema,
+        modeWorkflowsRunsResultSchema,
       );
     },
 
@@ -4678,9 +4564,9 @@ export function createZCodeAgentService(
     async moveSavedWorkflow(params: ZCodeAgentMoveSavedWorkflowParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.workflowsMove,
+        modeProtocolMethods.workflowsMove,
         { workspace: buildWorkspaceRef(params), name: params.name },
-        zcodeWorkflowsMoveResultSchema,
+        modeWorkflowsMoveResultSchema,
       );
     },
 
@@ -4690,7 +4576,7 @@ export function createZCodeAgentService(
     async saveSavedWorkflowFromRun(params: ZCodeAgentSaveSavedWorkflowFromRunParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.workflowsSave,
+        modeProtocolMethods.workflowsSave,
         {
           workspace: buildWorkspaceRef(params),
           runId: params.runId,
@@ -4699,27 +4585,27 @@ export function createZCodeAgentService(
           ...(params.scope === undefined ? {} : { scope: params.scope }),
           ...(params.overwrite === undefined ? {} : { overwrite: params.overwrite }),
         },
-        zcodeWorkflowsSaveResultSchema,
+        modeWorkflowsMoveResultSchema,
       );
     },
 
     async findSavedWorkflowForRun(params: ZCodeAgentFindSavedWorkflowForRunParams) {
       const client = await getReadOnlyClient(params);
       return client.request(
-        zcodeProtocolMethods.workflowsForRun,
+        modeProtocolMethods.workflowsForRun,
         {
           workspace: buildWorkspaceRef(params),
           runId: params.runId,
           ...(params.candidates === undefined ? {} : { candidates: [...params.candidates] }),
         },
-        zcodeWorkflowsForRunResultSchema,
+        modeWorkflowsRunsResultSchema,
       );
     },
 
     async resolveSuggestedPluginReference(params: ZCodeAgentResolveSuggestedPluginReferenceParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsResolveSuggestedReference,
+        modeProtocolMethods.pluginsResolveSuggestedReference,
         {
           workspace: buildWorkspaceRef(params),
           stableId: params.stableId,
@@ -4727,7 +4613,7 @@ export function createZCodeAgentService(
           clientMode: params.clientMode,
           deliveryKind: params.deliveryKind,
         },
-        zcodePluginsResolveSuggestedReferenceResultSchema,
+        modePluginsResolveSuggestedReferenceResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4744,12 +4630,12 @@ export function createZCodeAgentService(
         );
       return Promise.all(
         managed.map(async (runtime) => {
-          let children: ZCodeProcessChildProcess[] = [];
+          let children: ModeProcessChildProcess[] = [];
           try {
             const result = await runtime.client.request(
-              zcodeProtocolMethods.processChildProcesses,
+              modeProtocolMethods.processChildProcesses,
               {},
-              zcodeProcessChildProcessesResultSchema,
+              modeProcessChildProcessesResultSchema,
               { timeoutMs: CHILD_PROCESSES_REQUEST_TIMEOUT_MS, lifecycle: "observation", signal },
             );
             children = result.processes;
@@ -4758,7 +4644,7 @@ export function createZCodeAgentService(
           }
           return {
             pid: runtime.pid,
-            provider: ZCODE_AGENT_PROVIDER,
+            provider: MODE_AGENT_PROVIDER,
             workspacePath: runtime.workspacePath,
             ...(runtime.lane ? { lane: runtime.lane } : {}),
             children,
@@ -4770,12 +4656,12 @@ export function createZCodeAgentService(
     async getPluginsOverview(params: ZCodeAgentPluginViewParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsOverview,
+        modeProtocolMethods.pluginsOverview,
         {
           workspace: buildWorkspaceRef(params),
           ...(params.configScope ? { configScope: params.configScope } : {}),
         },
-        zcodePluginsOverviewResultSchema,
+        modePluginsOverviewResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4783,14 +4669,14 @@ export function createZCodeAgentService(
     async addPluginMarketplace(params: ZCodeAgentAddPluginMarketplaceParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsMarketplaceAdd,
+        modeProtocolMethods.pluginsMarketplaceAdd,
         {
           workspace: buildWorkspaceRef(params),
           source: params.source,
           ...(params.dryRun !== undefined ? { dryRun: params.dryRun } : {}),
           ...(params.operationId ? { operationId: params.operationId } : {}),
         },
-        zcodePluginsMarketplaceMutationResultSchema,
+        modePluginsMarketplaceMutationResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4798,12 +4684,12 @@ export function createZCodeAgentService(
     async removePluginMarketplace(params: ZCodeAgentRemovePluginMarketplaceParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsMarketplaceRemove,
+        modeProtocolMethods.pluginsMarketplaceRemove,
         {
           workspace: buildWorkspaceRef(params),
           marketplace: params.marketplace,
         },
-        zcodePluginsMarketplaceMutationResultSchema,
+        modePluginsMarketplaceMutationResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4811,13 +4697,13 @@ export function createZCodeAgentService(
     async updatePluginMarketplace(params: ZCodeAgentUpdatePluginMarketplaceParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsMarketplaceUpdate,
+        modeProtocolMethods.pluginsMarketplaceUpdate,
         {
           workspace: buildWorkspaceRef(params),
           ...(params.marketplace ? { marketplace: params.marketplace } : {}),
           ...(params.operationId ? { operationId: params.operationId } : {}),
         },
-        zcodePluginsMarketplaceMutationResultSchema,
+        modePluginsMarketplaceMutationResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4825,7 +4711,7 @@ export function createZCodeAgentService(
     async installPlugin(params: ZCodeAgentInstallPluginParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsInstall,
+        modeProtocolMethods.pluginsInstall,
         {
           workspace: buildWorkspaceRef(params),
           pluginName: params.pluginName,
@@ -4834,7 +4720,7 @@ export function createZCodeAgentService(
           ...(params.dryRun !== undefined ? { dryRun: params.dryRun } : {}),
           ...(params.operationId ? { operationId: params.operationId } : {}),
         },
-        zcodePluginsInstallResultSchema,
+        modePluginsInstallResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4842,9 +4728,9 @@ export function createZCodeAgentService(
     async cancelPluginOperation(params: ZCodeAgentCancelPluginOperationParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsCancelOperation,
+        modeProtocolMethods.pluginsCancelOperation,
         { operationId: params.operationId },
-        zcodePluginsCancelOperationResultSchema,
+        modePluginsCancelOperationResultSchema,
         { timeoutMs: PLUGIN_OPERATION_CANCEL_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4852,7 +4738,7 @@ export function createZCodeAgentService(
     async uninstallPlugin(params: ZCodeAgentUninstallPluginParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsUninstall,
+        modeProtocolMethods.pluginsUninstall,
         {
           workspace: buildWorkspaceRef(params),
           ...(params.pluginId ? { pluginId: params.pluginId } : {}),
@@ -4860,7 +4746,7 @@ export function createZCodeAgentService(
           ...(params.marketplace ? { marketplace: params.marketplace } : {}),
           ...(params.removeCache !== undefined ? { removeCache: params.removeCache } : {}),
         },
-        zcodePluginsUninstallResultSchema,
+        modePluginsUninstallResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4868,13 +4754,13 @@ export function createZCodeAgentService(
     async updatePlugin(params: ZCodeAgentUpdatePluginParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsUpdate,
+        modeProtocolMethods.pluginsUpdate,
         {
           workspace: buildWorkspaceRef(params),
           ...(params.pluginId ? { pluginId: params.pluginId } : {}),
           ...(params.marketplace ? { marketplace: params.marketplace } : {}),
         },
-        zcodePluginsInstallResultSchema,
+        modePluginsInstallResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4882,12 +4768,12 @@ export function createZCodeAgentService(
     async restoreBuiltinPlugin(params: ZCodeAgentRestoreBuiltinPluginParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsRestoreBuiltin,
+        modeProtocolMethods.pluginsRestoreBuiltin,
         {
           workspace: buildWorkspaceRef(params),
           pluginId: params.pluginId,
         },
-        zcodePluginsRestoreBuiltinResultSchema,
+        modePluginsRestoreBuiltinResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4895,7 +4781,7 @@ export function createZCodeAgentService(
     async configurePlugin(params: ZCodeAgentConfigurePluginParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsConfigure,
+        modeProtocolMethods.pluginsConfigure,
         {
           workspace: buildWorkspaceRef(params),
           pluginId: params.pluginId,
@@ -4904,7 +4790,7 @@ export function createZCodeAgentService(
           ...(params.scope ? { scope: params.scope } : {}),
           ...(params.dryRun !== undefined ? { dryRun: params.dryRun } : {}),
         },
-        zcodePluginsConfigureResultSchema,
+        modePluginsConfigureResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4912,13 +4798,13 @@ export function createZCodeAgentService(
     async resetPluginConfig(params: ZCodeAgentResetPluginConfigParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsResetConfig,
+        modeProtocolMethods.pluginsResetConfig,
         {
           workspace: buildWorkspaceRef(params),
           pluginId: params.pluginId,
           ...(params.scope ? { scope: params.scope } : {}),
         },
-        zcodePluginsConfigureResultSchema,
+        modePluginsConfigureResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4926,14 +4812,14 @@ export function createZCodeAgentService(
     async validatePlugin(params: ZCodeAgentValidatePluginParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsValidate,
+        modeProtocolMethods.pluginsValidate,
         {
           workspace: buildWorkspaceRef(params),
           ...(params.pluginName ? { pluginName: params.pluginName } : {}),
           ...(params.marketplace ? { marketplace: params.marketplace } : {}),
           ...(params.source ? { source: params.source } : {}),
         },
-        zcodePluginsValidateResultSchema,
+        modePluginsValidateResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4941,13 +4827,13 @@ export function createZCodeAgentService(
     async describePlugin(params: ZCodeAgentDescribePluginParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsDescribe,
+        modeProtocolMethods.pluginsDescribe,
         {
           workspace: buildWorkspaceRef(params),
           marketplace: params.marketplace,
           pluginName: params.pluginName,
         },
-        zcodePluginsDescribeResultSchema,
+        modePluginsDescribeResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4955,7 +4841,7 @@ export function createZCodeAgentService(
     async setPluginEnabled(params: ZCodeAgentSetPluginEnabledParams) {
       const client = await getPluginManagementClient();
       return client.request(
-        zcodeProtocolMethods.pluginsSetEnabled,
+        modeProtocolMethods.pluginsSetEnabled,
         {
           workspace: buildWorkspaceRef(params),
           pluginId: params.pluginId,
@@ -4963,7 +4849,7 @@ export function createZCodeAgentService(
           ...(params.operationId ? { operationId: params.operationId } : {}),
           ...(params.scope ? { scope: params.scope } : {}),
         },
-        zcodePluginsSetEnabledResultSchema,
+        modePluginsSetEnabledResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },
@@ -4983,7 +4869,7 @@ export function createZCodeAgentService(
         relativeDelayMinutes: params.relativeDelayMinutes,
         prompt: params.prompt,
         modelSelection: params.modelSelection,
-        mode: params.mode as ZCodeTaskMode | undefined,
+        mode: params.mode as ModeTaskMode | undefined,
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
         recurring: params.recurring ?? true,
@@ -5001,7 +4887,7 @@ export function createZCodeAgentService(
           cronExpr: params.cronExpr,
           prompt: params.prompt,
           modelSelection: params.modelSelection,
-          mode: params.mode === null ? null : (params.mode as ZCodeTaskMode | undefined),
+          mode: params.mode === null ? null : (params.mode as ModeTaskMode | undefined),
           recurring: params.recurring,
           maxRuns: params.maxRuns,
           endAt: params.endAt,
@@ -5085,9 +4971,9 @@ export function createZCodeAgentService(
         if (!operationId) return;
         void client
           .request(
-            zcodeProtocolMethods.workspaceCancelGenerateText,
+            modeProtocolMethods.workspaceCancelGenerateText,
             { operationId },
-            zcodeWorkspaceCancelGenerateTextResultSchema,
+            modeWorkspaceCancelGenerateTextResultSchema,
             { timeoutMs: 5_000 },
           )
           .catch((error: unknown) => {
@@ -5103,7 +4989,7 @@ export function createZCodeAgentService(
       params.signal?.addEventListener("abort", cancel, { once: true });
       try {
         return await client.request(
-          zcodeProtocolMethods.workspaceGenerateText,
+          modeProtocolMethods.workspaceGenerateText,
           {
             workspace: buildWorkspaceRef(params),
             selection: params.selection,
@@ -5114,7 +5000,7 @@ export function createZCodeAgentService(
             ...(params.maxOutputTokens ? { maxOutputTokens: params.maxOutputTokens } : {}),
             ...(operationId ? { operationId } : {}),
           },
-          zcodeWorkspaceGenerateTextResultSchema,
+          modeWorkspaceGenerateTextResultSchema,
           // 不传 timeoutMs 时协议 client 默认 3 分钟超时会对 thinking 模型的长请求
           // 先于调用方自身 deadline 触发，并被 onRequestTimeout 误判 stale 杀进程。
           // 调用方显式传入 requestTimeoutMs（自身 deadline + 取消缓冲）时以其为准。
@@ -5136,12 +5022,12 @@ export function createZCodeAgentService(
         workspace: params,
       });
       return client.request(
-        zcodeProtocolMethods.providerTestModelConnectivity,
+        modeProtocolMethods.providerTestModelConnectivity,
         {
           workspace: buildWorkspaceRef(params),
           selection: params.selection,
         },
-        zcodeProviderTestModelConnectivityResultSchema,
+        modeProviderTestModelConnectivityResultSchema,
         { signal: params.signal },
       );
     },
@@ -5177,9 +5063,9 @@ export function createZCodeAgentService(
       });
       try {
         const result = await client.request(
-          zcodeProtocolMethods.sessionSend,
+          modeProtocolMethods.sessionSend,
           buildSessionSendParams(protocolParams),
-          zcodeSessionSendResultSchema,
+          modeSessionSendResultSchema,
         );
         logger.info(logTraceId, "ZCode Agent session/send ACK", {
           durationMs: Date.now() - startedAt,
@@ -5202,9 +5088,9 @@ export function createZCodeAgentService(
             workspacePath: params.workspacePath,
           });
           const result = await client.request(
-            zcodeProtocolMethods.sessionSend,
+            modeProtocolMethods.sessionSend,
             buildSessionSendParams(protocolParams, new Set(compatFields)),
-            zcodeSessionSendResultSchema,
+            modeSessionSendResultSchema,
           );
           return result;
         }
@@ -5234,9 +5120,9 @@ export function createZCodeAgentService(
       });
       try {
         const result = await client.request(
-          zcodeProtocolMethods.sessionCompact,
+          modeProtocolMethods.sessionCompact,
           buildSessionCompactParams(params),
-          zcodeSessionCompactResultSchema,
+          modeSessionCompactResultSchema,
           {
             // compact 的模型维护态可能进入分钟级窗口；这里放宽的是 ACK 边界，
             // 终态仍由 session timeline / snapshot 推送，不能把它当作同步 compact 结果。
@@ -5276,7 +5162,7 @@ export function createZCodeAgentService(
       });
       try {
         const result = await client.request(
-          zcodeProtocolMethods.sessionGoal,
+          modeProtocolMethods.sessionGoal,
           {
             sessionId: params.sessionId,
             inputId: params.inputId,
@@ -5284,7 +5170,7 @@ export function createZCodeAgentService(
             objective: params.objective,
             expectedRevision: params.expectedRevision,
           },
-          zcodeSessionGoalResultSchema,
+          modeSessionGoalResultSchema,
         );
         logger.info(params.inputId, "ZCode Protocol session/goal 完成", {
           action: params.action,
@@ -5318,14 +5204,14 @@ export function createZCodeAgentService(
     ): Promise<boolean> {
       const client = await getClient(params);
       const result = await client.request(
-        zcodeProtocolMethods.sessionClose,
+        modeProtocolMethods.sessionClose,
         {
           sessionId: params.sessionId,
           ...(params.expectedPersistence
             ? { expectedPersistence: params.expectedPersistence }
             : {}),
         },
-        zcodeSessionCloseResultSchema,
+        modeSessionCloseResultSchema,
       );
       // 兼容尚未返回 closed 字段、但已成功执行普通 close 的 Agent。
       return result.closed ?? true;
@@ -5344,14 +5230,14 @@ export function createZCodeAgentService(
       });
       try {
         const snapshot = await client.request(
-          zcodeProtocolMethods.sessionSetModel,
+          modeProtocolMethods.sessionSetModel,
           {
             sessionId: params.sessionId,
             model: params.model,
             expectedRevision: params.expectedRevision,
             persistAsWorkspaceLastUsed: params.persistAsWorkspaceLastUsed,
           },
-          zcodeSessionStateSnapshotSchema,
+          modeSessionStateSnapshotSchema,
         );
         logger.info(undefined, "ZCode Protocol session/setModel 完成", {
           durationMs: Date.now() - startedAt,
@@ -5378,14 +5264,14 @@ export function createZCodeAgentService(
     async setThoughtLevel(params: ZCodeAgentSetThoughtLevelParams) {
       const client = await getClient(params);
       const snapshot = await client.request(
-        zcodeProtocolMethods.sessionSetThoughtLevel,
+        modeProtocolMethods.sessionSetThoughtLevel,
         {
           sessionId: params.sessionId,
           thoughtLevel: params.thoughtLevel,
           expectedRevision: params.expectedRevision,
           persistAsWorkspaceLastUsed: params.persistAsWorkspaceLastUsed,
         },
-        zcodeSessionStateSnapshotSchema,
+        modeSessionStateSnapshotSchema,
       );
       return snapshot;
     },
@@ -5393,13 +5279,13 @@ export function createZCodeAgentService(
     async setMode(params: ZCodeAgentSetModeParams) {
       const client = await getClient(params);
       return client.request(
-        zcodeProtocolMethods.sessionSetMode,
+        modeProtocolMethods.sessionSetMode,
         {
           sessionId: params.sessionId,
           mode: params.mode,
           expectedRevision: params.expectedRevision,
         },
-        zcodeSessionStateSnapshotSchema,
+        modeSessionStateSnapshotSchema,
       );
     },
 
@@ -5434,9 +5320,9 @@ export function createZCodeAgentService(
         });
         return;
       }
-      let preferences: ZCodeSessionRuntimePreferencesResult;
+      let preferences: ModeSessionRuntimePreferencesResult;
       try {
-        preferences = zcodeSessionRuntimePreferencesResultSchema.parse(
+        preferences = modeSessionRuntimePreferencesResultSchema.parse(
           params.resolution.preferences,
         );
       } catch (error) {
@@ -5459,7 +5345,7 @@ export function createZCodeAgentService(
       const key = resolveWorkspaceKey(params);
       let emitter = providerRuntimeHeadersCancelledEmitters.get(key);
       if (!emitter) {
-        emitter = new Emitter<ZCodeProviderRuntimeHeadersCancelled>();
+        emitter = new Emitter<ModeProviderRuntimeHeadersCancelled>();
         providerRuntimeHeadersCancelledEmitters.set(key, emitter);
       }
       return emitter.event;
@@ -5678,14 +5564,14 @@ export function createZCodeAgentService(
               return;
             }
             const result = await client.request(
-              zcodeProtocolMethods.sessionSubscribe,
+              modeProtocolMethods.sessionSubscribe,
               {
                 sessionId: params.sessionId,
                 deliveryKind: params.deliveryKind,
                 afterSeq: params.afterSeq,
                 includeSnapshot: params.includeSnapshot ?? false,
               },
-              zcodeSessionSubscribeResultSchema,
+              modeSessionSubscribeResultSchema,
             );
             if (cancelled) {
               return;

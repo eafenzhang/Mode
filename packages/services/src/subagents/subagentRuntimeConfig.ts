@@ -3,7 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import {
   parseAgentProfileFromMarkdown,
   resolveSubagentRuntimeProfiles,
-  type SubagentRuntimeConfig,
+  type SubAgentConfig,
   type SubagentRuntimeState,
 } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
@@ -91,7 +91,7 @@ export function createSubagentRuntimeConfigCache(reader: ConfigReader) {
   let user: { path: string; scope: Scope<Profiles> } | undefined;
   let state: { path: string; scope: Scope<SubagentRuntimeState> } | undefined;
   const workspaces = new Map<string, Scope<Profiles>>();
-  const snapshots = new Map<string, SubagentRuntimeConfig>();
+  const snapshots = new Map<string, SubAgentConfig>();
   const key = (workspace: Workspace) =>
     workspace.workspaceIdentity?.trim() || workspace.workspacePath;
   const assertActive = () => {
@@ -206,7 +206,7 @@ export function createSubagentRuntimeConfigCache(reader: ConfigReader) {
       if (workspace && !snapshots.has(key(workspace)))
         snapshots.set(key(workspace), { kind: "built-in-fallback" });
     },
-    async read(workspace: Workspace): Promise<SubagentRuntimeConfig> {
+    async read(workspace: Workspace): Promise<SubAgentConfig> {
       const scopes = required(workspace);
       if (!snapshots.has(key(workspace))) {
         await waitForInitialScopes(scopes);

@@ -1,23 +1,23 @@
 /* eslint-disable max-lines -- task index 的 v4 帧摄入、snapshot upsert 和 workspace 广播必须共享同一份闭包状态。 */
 import { repairSubagentTaskIndex } from "#src/zcode-agent/repairSubagentTaskIndex.js";
 import {
-  deriveZCodeTaskStatusFromSessionSnapshot,
+  deriveModeTaskStatusFromSessionSnapshot,
   generateTraceId,
-  getZCodeUserVisibleMessages,
-  isZCodeGoalContinuationReminderText,
-  isZCodeModelOnlySyntheticUserMessage,
+  getModeUserVisibleMessages,
+  isModeGoalContinuationReminderText,
+  isModeModelOnlySyntheticUserMessage,
   resolveWorkspaceKey,
-  resolveZCodeVisibleSessionTitle,
-  ZCODE_AGENT_PROVIDER_NOT_READY_CODE,
-  ZCODE_AGENT_PROVIDER,
-  type ZCodeTaskGoal,
-  type ZCodeTaskMode,
-  type ZCodeTaskMeta,
-  type ZCodeMessagePart,
-  type ZCodeSessionMode,
-  type ZCodeSessionStateSnapshot,
-  type ZCodeWorkspaceEvent,
-  type ZCodeWorkspaceTaskListChanged,
+  resolveModeVisibleSessionTitle,
+  MODE_AGENT_PROVIDER_NOT_READY_CODE,
+  MODE_AGENT_PROVIDER,
+  type ModeTaskGoal,
+  type ModeTaskMode,
+  type ModeTaskMeta,
+  type ModeMessagePart,
+  type ModeSessionMode,
+  type ModeSessionStateSnapshot,
+  type ModeWorkspaceEvent,
+  type ModeWorkspaceTaskListChanged,
 } from "@zcode/shared";
 import {
   PROTOCOL_V4_LIMITS,
@@ -116,26 +116,26 @@ export interface ZCodeTaskIndexSyncer {
    * v4 命令 + sessions-index/workspace 事件），让 sqlite 拿到最新 title/updatedAt 并触发 UI 列表刷新。
    */
   syncSnapshotAndBroadcast(
-    snapshot: ZCodeSessionStateSnapshot,
+    snapshot: ModeSessionStateSnapshot,
     options: {
       modelOverride?: string;
       thoughtLevelOverride?: string;
       moveGroupedTaskToTop?: boolean;
-      unreadSignal?: ZCodeWorkspaceTaskListChanged["unreadSignal"];
+      unreadSignal?: ModeWorkspaceTaskListChanged["unreadSignal"];
       /**
        * 设计修正：必填。切模型（task_model_changed）/快照收敛（task_status_changed）
        * 这类变更不得落到 task_meta_changed——后者会被 UI 当成归属相关变更
        * 触发全局 membership 重拉和列表整刷。
        */
-      broadcastReason: ZCodeWorkspaceTaskListChanged["reason"];
+      broadcastReason: ModeWorkspaceTaskListChanged["reason"];
     },
-  ): Promise<ZCodeTaskMeta>;
+  ): Promise<ModeTaskMeta>;
   /**
    * 只更新 task index 中的模型记录，不广播历史 snapshot。
    * 发送前 resume 会关闭 snapshot 广播，避免旧终态覆盖本地 streaming UI，
    * 但仍需要把 sqlite 的 model 从已删除历史模型更新到本次实际使用的可用模型。
    */
-  syncTaskModel(target: ZCodeAgentSessionTarget, model: string): Promise<ZCodeTaskMeta | null>;
+  syncTaskModel(target: ZCodeAgentSessionTarget, model: string): Promise<ModeTaskMeta | null>;
   /**
    * 主动触发一次 workspace_task_list_changed 广播。
    * 给 adapter 用：archive / rename / pin / delete 等 task 元数据变更后仍要广播。
@@ -145,18 +145,18 @@ export interface ZCodeTaskIndexSyncer {
    */
   emitWorkspaceTaskListChanged(
     target: WorkspaceBroadcastTarget,
-    meta: ZCodeTaskMeta | undefined,
-    reason: ZCodeWorkspaceTaskListChanged["reason"],
-    options?: Pick<ZCodeWorkspaceTaskListChanged, "unreadSignal">,
+    meta: ModeTaskMeta | undefined,
+    reason: ModeWorkspaceTaskListChanged["reason"],
+    options?: Pick<ModeWorkspaceTaskListChanged, "unreadSignal">,
   ): void;
   /**
    * 获取共享的 workspace emitter，给 adapter 用来 fire 非 task_list_changed 类事件
    * （如 workspace_config_options_update）。这样 adapter 和 syncer 共用同一 emitter，
    * 订阅者只需要订阅一次即可收到全部事件。
    */
-  getWorkspaceEmitter(workspace: WorkspaceEventInput): Emitter<ZCodeWorkspaceEvent>;
+  getWorkspaceEmitter(workspace: WorkspaceEventInput): Emitter<ModeWorkspaceEvent>;
   /** 订阅 workspace 维度事件流。adapter.onDynamicWorkspaceEvent 直接转发到这里。 */
-  onDynamicWorkspaceEvent(workspace: WorkspaceEventInput): Event<ZCodeWorkspaceEvent>;
+  onDynamicWorkspaceEvent(workspace: WorkspaceEventInput): Event<ModeWorkspaceEvent>;
   /**
    * 订阅 v4 sessions-index 观察到的会话 phase 终态迁移。
    * 这不是 UI stream，只给 host runtime command queue 等 services 内部状态收口使用。
@@ -183,7 +183,7 @@ function isTerminalPhase(phase: SessionPhase): boolean {
 
 function resolveTerminalUnreadSignal(
   summary: Pick<SessionSummary, "phase" | "goalStatus">,
-): ZCodeWorkspaceTaskListChanged["unreadSignal"] {
+): ModeWorkspaceTaskListChanged["unreadSignal"] {
   if (summary.phase === "error") {
     return "background_terminal";
   }
@@ -196,7 +196,7 @@ function resolveTerminalUnreadSignal(
   return undefined;
 }
 
-function taskStatusFromSummaryPhase(phase: SessionPhase): ZCodeTaskMeta["status"] {
+function taskStatusFromSummaryPhase(phase: SessionPhase): ModeTaskMeta["status"] {
   switch (phase) {
     case "running":
     case "prewarming":
@@ -214,7 +214,7 @@ function taskStatusFromSummaryPhase(phase: SessionPhase): ZCodeTaskMeta["status"
 function buildBaselineMetaFromSummary(
   target: ZCodeAgentWorkspaceTarget,
   summary: SessionSummary,
-): ZCodeTaskMeta {
+): ModeTaskMeta {
   const status = taskStatusFromSummaryPhase(summary.phase);
   return {
     taskId: summary.sessionId,
@@ -226,7 +226,7 @@ function buildBaselineMetaFromSummary(
     createdAt: summary.createdAt,
     updatedAt: summary.lastActivityAt,
     mode: "default",
-    provider: ZCODE_AGENT_PROVIDER,
+    provider: MODE_AGENT_PROVIDER,
     ...(summary.parentSessionId ? { forkedFromTaskId: summary.parentSessionId } : {}),
     ...(status ? { status } : {}),
   };
@@ -310,7 +310,7 @@ export function createZCodeTaskIndexSyncer(
   // 之前 workspaceEmitters 私有在 adapter 里，syncer 写完 sqlite 没有广播渠道，
   // UI 永远收不到 workspace_task_list_changed。把 emitter 上提到 syncer，adapter 改为转发，
   // 让 adapter 路径和 desktop-continuous 路径共用同一份订阅，事件不再分裂。
-  const workspaceEmitters = new Map<string, Emitter<ZCodeWorkspaceEvent>>();
+  const workspaceEmitters = new Map<string, Emitter<ModeWorkspaceEvent>>();
   const terminalEventEmitter = new Emitter<ZCodeTaskIndexTerminalEvent>();
   const readyEventEmitter = new Emitter<ZCodeTaskIndexReadyEvent>();
   let disposed = false;
@@ -322,7 +322,7 @@ export function createZCodeTaskIndexSyncer(
   const isProviderNotReadyError = (error: unknown): boolean =>
     typeof error === "object" &&
     error !== null &&
-    (error as { code?: unknown }).code === ZCODE_AGENT_PROVIDER_NOT_READY_CODE;
+    (error as { code?: unknown }).code === MODE_AGENT_PROVIDER_NOT_READY_CODE;
   const isRuntimeUnavailableError = (error: unknown): boolean =>
     typeof error === "object" &&
     error !== null &&
@@ -457,7 +457,7 @@ export function createZCodeTaskIndexSyncer(
     if (configSubscriptionId) void unsubscribeConfig(state, configSubscriptionId);
   };
 
-  function getWorkspaceEmitter(workspace: WorkspaceEventInput): Emitter<ZCodeWorkspaceEvent> {
+  function getWorkspaceEmitter(workspace: WorkspaceEventInput): Emitter<ModeWorkspaceEvent> {
     const key =
       typeof workspace === "string"
         ? workspace
@@ -467,7 +467,7 @@ export function createZCodeTaskIndexSyncer(
           });
     let emitter = workspaceEmitters.get(key);
     if (!emitter) {
-      emitter = new Emitter<ZCodeWorkspaceEvent>();
+      emitter = new Emitter<ModeWorkspaceEvent>();
       workspaceEmitters.set(key, emitter);
     }
     return emitter;
@@ -475,9 +475,9 @@ export function createZCodeTaskIndexSyncer(
 
   function emitWorkspaceTaskListChanged(
     target: WorkspaceBroadcastTarget,
-    taskMeta: ZCodeTaskMeta | undefined,
-    reason: ZCodeWorkspaceTaskListChanged["reason"],
-    options?: Pick<ZCodeWorkspaceTaskListChanged, "unreadSignal">,
+    taskMeta: ModeTaskMeta | undefined,
+    reason: ModeWorkspaceTaskListChanged["reason"],
+    options?: Pick<ModeWorkspaceTaskListChanged, "unreadSignal">,
   ): void {
     // 排查日志（左侧列表随输入框操作刷新）：确认哪些操作在发 task list 广播、reason 是什么。
     logger.debug(
@@ -503,7 +503,7 @@ export function createZCodeTaskIndexSyncer(
     reason: string,
     options?: {
       moveGroupedTaskToTop?: boolean;
-      unreadSignal?: ZCodeWorkspaceTaskListChanged["unreadSignal"];
+      unreadSignal?: ModeWorkspaceTaskListChanged["unreadSignal"];
     },
   ): Promise<void> {
     try {
@@ -1665,15 +1665,15 @@ export function createZCodeTaskIndexSyncer(
   }
 
   async function syncSnapshotAndBroadcast(
-    snapshot: ZCodeSessionStateSnapshot,
+    snapshot: ModeSessionStateSnapshot,
     options: {
       modelOverride?: string;
       thoughtLevelOverride?: string;
       moveGroupedTaskToTop?: boolean;
-      unreadSignal?: ZCodeWorkspaceTaskListChanged["unreadSignal"];
-      broadcastReason: ZCodeWorkspaceTaskListChanged["reason"];
+      unreadSignal?: ModeWorkspaceTaskListChanged["unreadSignal"];
+      broadcastReason: ModeWorkspaceTaskListChanged["reason"];
     },
-  ): Promise<ZCodeTaskMeta> {
+  ): Promise<ModeTaskMeta> {
     const meta = buildMetaFromSnapshot(snapshot, options);
     // 旧 child 标签页的显式 resume 仍会同步快照；只读详情不能重新写成主任务。
     if (snapshot.session.sessionKind === "subagent_child") return meta;
@@ -1729,7 +1729,7 @@ export function createZCodeTaskIndexSyncer(
   async function syncTaskModel(
     target: ZCodeAgentSessionTarget,
     model: string,
-  ): Promise<ZCodeTaskMeta | null> {
+  ): Promise<ModeTaskMeta | null> {
     const normalizedModel = model.trim();
     if (!normalizedModel) {
       return null;
@@ -1821,15 +1821,15 @@ export function createZCodeTaskIndexSyncer(
 }
 
 function buildMetaFromSnapshot(
-  snapshot: ZCodeSessionStateSnapshot,
+  snapshot: ModeSessionStateSnapshot,
   options?: {
     modelOverride?: string;
     thoughtLevelOverride?: string;
   },
-): ZCodeTaskMeta {
+): ModeTaskMeta {
   const modelOverride = options?.modelOverride?.trim();
   const thoughtLevelOverride = options?.thoughtLevelOverride?.trim();
-  const meta: ZCodeTaskMeta = {
+  const meta: ModeTaskMeta = {
     taskId: snapshot.session.sessionId,
     traceId: snapshot.session.traceId ?? generateTraceId(snapshot.session.sessionId),
     title: deriveTitleFromSnapshot(snapshot),
@@ -1845,8 +1845,8 @@ function buildMetaFromSnapshot(
     // 历史 task 恢复时 snapshot.settings.thoughtLevel 可能仍是同 workspace 草稿态的最新值。
     // 当恢复入口已经带上 task-local thoughtLevel 时，sqlite 必须写入入口值，避免下次打开继续被污染。
     thoughtLevel: thoughtLevelOverride || snapshot.settings.thoughtLevel.current,
-    provider: ZCODE_AGENT_PROVIDER,
-    status: deriveZCodeTaskStatusFromSessionSnapshot(snapshot),
+    provider: MODE_AGENT_PROVIDER,
+    status: deriveModeTaskStatusFromSessionSnapshot(snapshot),
     lastError: snapshot.projection.lastError
       ? {
           code: snapshot.projection.lastError.code ?? snapshot.projection.lastError.type,
@@ -1872,8 +1872,8 @@ function buildMetaFromSnapshot(
   return meta;
 }
 
-function deriveTitleFromSnapshot(snapshot: ZCodeSessionStateSnapshot): string {
-  return resolveZCodeVisibleSessionTitle({
+function deriveTitleFromSnapshot(snapshot: ModeSessionStateSnapshot): string {
+  return resolveModeVisibleSessionTitle({
     title: snapshot.session.title,
     messages: snapshot.messages,
     target: snapshot.projection.target,
@@ -1883,9 +1883,9 @@ function deriveTitleFromSnapshot(snapshot: ZCodeSessionStateSnapshot): string {
 // createSession 刚返回时 snapshot 既没有真实 title 也没有 user message，
 // 把这种"空白会话"广播出去会让侧边栏先闪一个 "New session" 占位符。
 // 这里判断"是否已有用户可见内容"，没有就只写 sqlite 不广播，等真实 title 到了再广播。
-function hasUserVisibleContent(snapshot: ZCodeSessionStateSnapshot): boolean {
+function hasUserVisibleContent(snapshot: ModeSessionStateSnapshot): boolean {
   const title = snapshot.session.title?.trim() ?? "";
-  if (title && !isZCodeGoalContinuationReminderText(title)) {
+  if (title && !isModeGoalContinuationReminderText(title)) {
     return true;
   }
   if (snapshot.projection.target?.objective.trim()) {
@@ -1893,7 +1893,7 @@ function hasUserVisibleContent(snapshot: ZCodeSessionStateSnapshot): boolean {
   }
   return snapshot.messages.some((message) => {
     if (message.info.role !== "user") return false;
-    if (isZCodeModelOnlySyntheticUserMessage(message)) return false;
+    if (isModeModelOnlySyntheticUserMessage(message)) return false;
     return message.parts.some((part) => part.type === "text" && part.text.trim().length > 0);
   });
 }
@@ -1903,16 +1903,16 @@ const TASK_SEARCH_TEXT_MAX_CHARS = 200_000;
 // 全局会话搜索只索引默认可见的聊天正文，不包含思考过程、tool 调用和 compaction 折叠区。
 // assistant 的 parts 可能既有历史正文又有 latest 正文，这里只取最后一段 text part，
 // 与 UI 默认折叠后展示的范围一致。
-function buildSearchableTextFromSnapshot(snapshot: ZCodeSessionStateSnapshot): string {
+function buildSearchableTextFromSnapshot(snapshot: ModeSessionStateSnapshot): string {
   const parts: string[] = [];
   let total = 0;
   // /goal 自动续跑会把内部 system-reminder 作为 runtime user turn 持久化；
   // 这条内容是 model-only 输入，不是用户可见 query，不能写进侧边栏搜索正文。
-  for (const message of getZCodeUserVisibleMessages(snapshot.messages, {
+  for (const message of getModeUserVisibleMessages(snapshot.messages, {
     target: snapshot.projection.target,
   })) {
     const textParts = message.parts.filter(
-      (part): part is Extract<ZCodeMessagePart, { type: "text" }> => part.type === "text",
+      (part): part is Extract<ModeMessagePart, { type: "text" }> => part.type === "text",
     );
     if (textParts.length === 0) {
       continue;
@@ -1937,13 +1937,13 @@ function buildSearchableTextFromSnapshot(snapshot: ZCodeSessionStateSnapshot): s
   return parts.join("\n").slice(0, TASK_SEARCH_TEXT_MAX_CHARS);
 }
 
-function fromZCodeMode(mode: ZCodeSessionMode): ZCodeTaskMode {
+function fromZCodeMode(mode: ModeSessionMode): ModeTaskMode {
   return mode === "build" ? "build" : mode;
 }
 
 function fromZCodeGoal(
-  goal: NonNullable<ZCodeSessionStateSnapshot["projection"]["target"]>,
-): ZCodeTaskGoal {
+  goal: NonNullable<ModeSessionStateSnapshot["projection"]["target"]>,
+): ModeTaskGoal {
   return {
     sessionID: goal.sessionId,
     targetID: goal.targetId,

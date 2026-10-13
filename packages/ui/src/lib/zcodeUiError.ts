@@ -1,8 +1,8 @@
-import type { ZCodeError, ZCodeTaskMeta, TraceId } from "@zcode/shared";
+import type { ModeError, ModeTaskMeta, TraceId } from "@zcode/shared";
 import { errorAttributionSchema, type ErrorAttribution } from "@zcode/shared/zcode-protocol-v4";
 import { resolveRequestVerificationBusinessCode } from "@/lib/providerBusinessError.js";
 
-export interface ZCodeUiError extends ZCodeError {
+export interface ZCodeUiError extends ModeError {
   attribution?: ErrorAttribution;
   detail?: string;
   underlyingErrorMessage?: string;
@@ -272,7 +272,7 @@ export function normalizeZCodeUiError(
   };
 }
 
-export function normalizeRestoredTaskFailureError(meta: ZCodeTaskMeta): ZCodeUiError | null {
+export function normalizeRestoredTaskFailureError(meta: ModeTaskMeta): ZCodeUiError | null {
   if (!meta.lastError) {
     return null;
   }

@@ -1,4 +1,4 @@
-import type { ZCodeEnv } from "./env.js";
+import type { ModeEnv } from "./env.js";
 
 export const DEFAULT_ZCODE_ENDPOINT_ORIGIN = "https://zcode.z.ai";
 export const TEST_ZCODE_ENDPOINT_ORIGIN = "https://zcode.z.ai";
@@ -109,7 +109,7 @@ export interface RuntimeProductEndpointEnv
   extends RuntimeZCodeEndpointEnv, RuntimeBigModelApiEnv, RuntimeZaiEndpointEnv {}
 
 export interface RuntimeProductEndpointConfig {
-  zcodeEnv: ZCodeEnv;
+  zcodeEnv: ModeEnv;
   zcodeEndpointOrigin: string;
   zcodeEndpointUrls: ZCodeEndpointUrls;
   zaiOAuthOrigin: string;
@@ -128,7 +128,7 @@ function readRuntimeEnvValue(
 
 function readRuntimeZCodeEnvScopedValue(
   env: Record<string, string | undefined>,
-  zcodeEnv: ZCodeEnv,
+  zcodeEnv: ModeEnv,
   testKey: string,
   productionKey: string,
 ): string | undefined {
@@ -176,7 +176,7 @@ export function isTrustedCodingPlanWebviewOrigin(
 }
 
 export function resolveZCodeEndpointOrigin(options?: {
-  env?: ZCodeEnv;
+  env?: ModeEnv;
   envBaseOrigin?: string | null;
   overrideOrigin?: string | null;
 }): string {
@@ -196,7 +196,7 @@ export function resolveZCodeEndpointOrigin(options?: {
   return envBaseOrigin ? normalizeZCodeEndpointOrigin(envBaseOrigin) : TEST_ZCODE_ENDPOINT_ORIGIN;
 }
 
-export function resolveRuntimeZCodeEnv(env: RuntimeZCodeEndpointEnv = {}): ZCodeEnv {
+export function resolveRuntimeZCodeEnv(env: RuntimeZCodeEndpointEnv = {}): ModeEnv {
   // 独立 CLI / 服务测试未注入 ZCODE_ENV 时默认生产域；桌面测试包会显式下发 ZCODE_ENV=test。
   return env.ZCODE_ENV?.trim().toLowerCase() === "test" ? "test" : "production";
 }

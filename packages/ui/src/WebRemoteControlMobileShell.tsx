@@ -13,7 +13,7 @@ import {
   type WebRemoteControlMobileTaskHomePreferences,
 } from "@/WebRemoteControlMobileTaskHome.js";
 import { WebRemoteControlThemeMenu } from "@/WebRemoteControlThemeMenu.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import type { WebRemoteControlTerminalTransportState } from "@/root/types.js";
 import type { WebRemoteControlWorkspaceSwitcherApi } from "@/root/types.js";
@@ -106,7 +106,7 @@ export function WebRemoteControlMobileShell({
   sidePaneContent?: ReactNode;
   webRemoteControlTerminalTransportState?: WebRemoteControlTerminalTransportState;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [currentPage, setCurrentPage] = useState<WebRemoteControlMobilePage>(() =>
     resolveInitialWebRemoteControlMobilePage(initialNavigationIntent),
   );

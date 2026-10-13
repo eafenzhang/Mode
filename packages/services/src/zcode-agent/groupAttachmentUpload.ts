@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import type { ZCodePromptAttachment } from "@zcode/shared";
+import type { ModePromptAttachment } from "@zcode/shared";
 import { PROTOCOL_V4_LIMITS, type AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
 import type { IZCodeAgentService, ZCodeAgentSessionTarget } from "#src/zcode-agent/zcodeAgent.js";
 
@@ -14,7 +14,7 @@ type UploadAgent = Pick<
 export async function uploadBotGroupAttachments(
   agent: UploadAgent,
   target: ZCodeAgentSessionTarget,
-  attachments: readonly ZCodePromptAttachment[],
+  attachments: readonly ModePromptAttachment[],
   signal?: AbortSignal,
 ): Promise<AttachmentRef[]> {
   const refs: AttachmentRef[] = [];

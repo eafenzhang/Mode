@@ -4,14 +4,14 @@ import {
   createRewardsInjectionScript,
   isTrustedRewardsUrl,
   REWARDS_PARTITION,
-  resolveRewardsOrigin,
-  ZCODE_ENV,
+  resolveOrcaOrigins,
+  MODE_ENV,
   type RewardsContext,
 } from "@zcode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
+import { useModeStore } from "@/store/StoreProvider.js";
 import { resolveTheme } from "@/useTheme.js";
 import { logger } from "@/logger.js";
 import { Button } from "@/components/ui/button.js";
@@ -20,9 +20,9 @@ import { EmbeddedWebsiteHeader } from "@/components/EmbeddedWebsiteHeader.js";
 export function RewardsWebview({ onClose }: { onClose: () => void }) {
   const { credentialService, oauthService } = useServices();
   const platform = usePlatform();
-  const { intl, locale } = useZCodeIntl();
-  const themePreference = useZCodeStore((s) => s.theme);
-  const userId = useZCodeStore((s) => s.user?.id ?? null);
+  const { intl, locale } = useModeIntl();
+  const themePreference = useModeStore((s) => s.theme);
+  const userId = useModeStore((s) => s.user?.id ?? null);
   const [systemDark, setSystemDark] = useState(
     () => matchMedia("(prefers-color-scheme: dark)").matches,
   );
@@ -41,9 +41,9 @@ export function RewardsWebview({ onClose }: { onClose: () => void }) {
   const policy = { dev: env.DEV, e2e: env.VITE_ZCODE_E2E_STORE_BRIDGE === "1" };
   const [url] = useState(() =>
     buildRewardsUrl(
-      resolveRewardsOrigin({
+      resolveOrcaOrigins({
         ...policy,
-        env: ZCODE_ENV,
+        env: MODE_ENV,
         override:
           typeof env.VITE_REWARDS_WEBVIEW_ORIGIN === "string"
             ? env.VITE_REWARDS_WEBVIEW_ORIGIN

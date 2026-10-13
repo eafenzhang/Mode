@@ -3,10 +3,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import type { ApiClient, FeedbackDeviceInfo } from "@zcode/shared";
 import {
-  buildRuntimeZCodeApiUrl,
-  ZCODE_BUILD_TIME,
-  ZCODE_COMMIT,
-  ZCODE_VERSION,
+  buildRuntimeModeApiUrl,
+  MODE_BUILD_TIME,
+  MODE_COMMIT,
+  MODE_VERSION,
 } from "@zcode/shared";
 import { Emitter } from "@zcode/rpc";
 import { arch, platform, release, type as osType } from "node:os";
@@ -40,15 +40,15 @@ function resolveApiBaseUrl(explicit?: string): string {
   return (
     explicit?.trim() ||
     process.env.ZCODE_FEEDBACK_API_BASE?.trim() ||
-    buildRuntimeZCodeApiUrl(process.env, "/api/v1")
+    buildRuntimeModeApiUrl(process.env, "/api/v1")
   );
 }
 
 function buildDeviceSnapshot(): FeedbackDeviceInfo {
   return {
-    appVersion: ZCODE_VERSION,
-    buildCommitId: ZCODE_COMMIT,
-    buildTime: ZCODE_BUILD_TIME,
+    appVersion: MODE_VERSION,
+    buildCommitId: MODE_COMMIT,
+    buildTime: MODE_BUILD_TIME,
     nodeVersion: process.version,
     osType: osType(),
     osPlatform: platform(),

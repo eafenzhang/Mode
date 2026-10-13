@@ -7,8 +7,8 @@ import {
 } from "@zcode/shared/zcode-protocol-v4";
 import {
   zcodeTopicResourceReadResultSchema,
-  type ZCodePromptAttachment,
-  type ZCodeProtocolTrace,
+  type ModePromptAttachment,
+  type ModeProtocolTrace,
 } from "@zcode/shared";
 import { uploadBotGroupAttachments } from "./groupAttachmentUpload.js";
 import type { ZCodeProtocolClient } from "./zcodeProtocolClient.js";
@@ -19,9 +19,9 @@ export async function uploadTopicResourceToClient(
   client: Pick<ZCodeProtocolClient, "request">,
   connectionId: string,
   target: ZCodeAgentSessionTarget,
-  attachment: ZCodePromptAttachment,
+  attachment: ModePromptAttachment,
   signal: AbortSignal,
-  trace?: ZCodeProtocolTrace,
+  trace?: ModeProtocolTrace,
 ) {
   const [ref] = await uploadBotGroupAttachments(
     {

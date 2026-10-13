@@ -4,7 +4,7 @@ import {
   type BrowserBackendDescriptor,
   type BrowserClientMode,
   type BrowserCommand,
-  type ZCodeBrowserAmbientContext,
+  type ModeBrowserAmbientContext,
 } from "@zcode/shared";
 
 export interface BrowserAmbientContextExecutor {
@@ -63,7 +63,7 @@ function sanitizeAmbientUrl(rawUrl: string | undefined): string | undefined {
 export async function collectBrowserAmbientContext(
   executor: BrowserAmbientContextExecutor | undefined,
   target: BrowserAmbientContextTarget,
-): Promise<ZCodeBrowserAmbientContext | undefined> {
+): Promise<ModeBrowserAmbientContext | undefined> {
   if (!executor) return undefined;
   const workspaceKey = target.workspaceIdentity?.trim() || target.workspacePath;
   const clientMode = target.clientMode ?? "desktop-continuous";

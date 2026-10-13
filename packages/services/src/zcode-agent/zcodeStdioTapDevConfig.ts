@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ZCodeStdioTapDevState } from "@zcode/shared";
+import type { ModeStdioTapDevState } from "@zcode/shared";
 import { getAppConfigDir } from "#src/paths.js";
 import { isEffectiveDevelopmentNodeEnv } from "#src/runtime-tools/nodeEnv.js";
 
@@ -37,7 +37,7 @@ function readStateFile(path: string): ZCodeStdioTapStateFile {
   }
 }
 
-export function readZCodeStdioTapDevState(): ZCodeStdioTapDevState {
+export function readZCodeStdioTapDevState(): ModeStdioTapDevState {
   const visible = isZCodeStdioTapDevVisible();
   const statePath = getZCodeStdioTapDevStatePath();
   const fileState = readStateFile(statePath);
@@ -49,7 +49,7 @@ export function readZCodeStdioTapDevState(): ZCodeStdioTapDevState {
   };
 }
 
-export function setZCodeStdioTapDevEnabled(enabled: boolean): ZCodeStdioTapDevState {
+export function setZCodeStdioTapDevEnabled(enabled: boolean): ModeStdioTapDevState {
   const visible = isZCodeStdioTapDevVisible();
   const statePath = getZCodeStdioTapDevStatePath();
   mkdirSync(getZCodeStdioTapDevDir(), { recursive: true });

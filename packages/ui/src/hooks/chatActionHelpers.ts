@@ -1,6 +1,6 @@
-import type { ZCodeConfigOption, ZCodeProvider, ZCodeTaskMode } from "@zcode/shared";
+import type { ModeConfigOption, ModeProvider, ModeTaskMode } from "@zcode/shared";
 
-const ZCODE_TASK_MODE_VALUES: readonly ZCodeTaskMode[] = [
+const ZCODE_TASK_MODE_VALUES: readonly ModeTaskMode[] = [
   "default",
   "yolo",
   "guarded",
@@ -18,10 +18,10 @@ const ZCODE_TASK_MODE_SET = new Set<string>(ZCODE_TASK_MODE_VALUES);
 
 function normalizeZCodeModeForTaskCreation(
   modeId: string,
-  _provider?: ZCodeProvider,
-): ZCodeTaskMode | undefined {
+  _provider?: ModeProvider,
+): ModeTaskMode | undefined {
   if (ZCODE_TASK_MODE_SET.has(modeId)) {
-    return modeId as ZCodeTaskMode;
+    return modeId as ModeTaskMode;
   }
 
   switch (modeId) {
@@ -89,9 +89,9 @@ export function getErrorMessage(err: unknown): string {
 }
 
 export function readCurrentZCodeMode(
-  options: readonly ZCodeConfigOption[],
-  provider?: ZCodeProvider,
-): ZCodeTaskMode | undefined {
+  options: readonly ModeConfigOption[],
+  provider?: ModeProvider,
+): ModeTaskMode | undefined {
   const modeOption = options.find(
     (option) => option.category === "mode" && option.type === "select",
   );

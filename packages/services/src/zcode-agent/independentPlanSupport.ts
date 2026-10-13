@@ -1,4 +1,4 @@
-import { zcodeProtocolMethods, zcodeRuntimeCapabilitiesSchema } from "@zcode/shared";
+import { modeProtocolMethods, modeRuntimeCapabilitiesSchema } from "@zcode/shared";
 import type { ZCodeProtocolClient } from "./zcodeProtocolClient.js";
 
 const checks = new WeakMap<object, Promise<void>>();
@@ -10,7 +10,7 @@ export function ensureIndependentPlanSupport(
   const cached = checks.get(client);
   if (cached) return cached;
   const check = client
-    .request(zcodeProtocolMethods.runtimeCapabilities, {}, zcodeRuntimeCapabilitiesSchema)
+    .request(modeProtocolMethods.runtimeCapabilities, {}, modeRuntimeCapabilitiesSchema)
     .then((result) => {
       if (result.independentPlanState !== true) throw new Error("proto.independentPlanUnsupported");
     })

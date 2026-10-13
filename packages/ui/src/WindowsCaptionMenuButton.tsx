@@ -3,7 +3,7 @@ import type { UpdateStatePayload } from "@zcode/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { createHelpMenuActionHandlers } from "@/lib/helpMenuActions.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { logger } from "@/logger.js";
@@ -55,7 +55,7 @@ export function WindowsCaptionMenuButton({
   useWindowsCaptionSpacing?: boolean;
 }) {
   const platform = usePlatform();
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const newTaskShortcutLabel = useShortcutCommandLabel("newTask");
   const openWorkspaceShortcutLabel = useShortcutCommandLabel("openWorkspace");
   const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);

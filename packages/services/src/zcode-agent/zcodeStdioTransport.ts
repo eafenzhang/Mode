@@ -1,8 +1,8 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { Emitter } from "@zcode/rpc";
-import type { ZCodeProtocolMessage } from "@zcode/shared";
-import { zcodeProtocolMessageSchema } from "@zcode/shared";
+import type { ModeProtocolMessage } from "@zcode/shared";
+import { modeProtocolMessageSchema } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import type {
   ZCodeProtocolTransport,
@@ -35,7 +35,7 @@ const processTreeLogger = createServiceLogger("zcode-agent-process-tree");
 export class ZCodeStdioTransport implements ZCodeProtocolTransport {
   readonly kind = "stdio" as const;
 
-  private readonly messageEmitter = new Emitter<ZCodeProtocolMessage>();
+  private readonly messageEmitter = new Emitter<ModeProtocolMessage>();
   private readonly closeEmitter = new Emitter<ZCodeProtocolTransportClosedEvent>();
   private readonly stderrCollector: AgentStderrCollector;
   private readonly stdoutDecoder = new StringDecoder("utf8");
@@ -79,7 +79,7 @@ export class ZCodeStdioTransport implements ZCodeProtocolTransport {
     });
   }
 
-  async send(message: ZCodeProtocolMessage): Promise<void> {
+  async send(message: ModeProtocolMessage): Promise<void> {
     if (this.disposed || this.closed || this.child.killed || !this.child.stdin.writable) {
       throw new Error("ZCode agent stdio transport is closed");
     }
@@ -259,7 +259,7 @@ export class ZCodeStdioTransport implements ZCodeProtocolTransport {
       return;
     }
     try {
-      const parsed = zcodeProtocolMessageSchema.parse(JSON.parse(line));
+      const parsed = modeProtocolMessageSchema.parse(JSON.parse(line));
       // 协议帧分发曾同步查询系统进程表，telemetry/streaming 高峰会阻塞
       // Host event loop 并让 subagent 面板无输出。运行期 data plane 只做解析和转发；
       // 完整进程树查询严格留在 dispose cleanup 边界。

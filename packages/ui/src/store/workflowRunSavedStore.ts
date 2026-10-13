@@ -6,9 +6,9 @@
 // 发一次 RPC。与中枢的读缓存同一条纪律（savedWorkflowStore）：磁盘仍是唯一权威，变更后一律作废。
 import { create } from "zustand";
 import type {
-  ZCodeSavedWorkflowEntry,
+  ModeSavedWorkflowEntry,
   ZCodeWorkflowsForRunCandidate,
-  ZCodeWorkflowsForRunResult,
+  ModeWorkflowsRunsResult,
 } from "@zcode/shared";
 import { logger } from "@/logger.js";
 
@@ -22,8 +22,8 @@ export type WorkflowRunSavedStatus = "loading" | "ready" | "unsupported" | "erro
 export interface WorkflowRunSavedState {
   status: WorkflowRunSavedStatus;
   /** 命中的定义；缺席即这次 run 还没有对应的已保存工作流。 */
-  entry?: ZCodeSavedWorkflowEntry;
-  match?: ZCodeWorkflowsForRunResult["match"];
+  entry?: ModeSavedWorkflowEntry;
+  match?: ModeWorkflowsRunsResult["match"];
   /** 这次 run 跑时用的实参，供「再次运行」预填实参窗。 */
   runArgs?: Record<string, unknown>;
 }
@@ -35,12 +35,12 @@ interface WorkflowRunSavedStoreState {
   /** 作废代（invalidate 递增）：hook 把它放进依赖，一次作废让所有在场的卡片重查。 */
   generation: number;
   byKey: Record<string, WorkflowRunSavedState>;
-  load: (key: string, loader: () => Promise<ZCodeWorkflowsForRunResult>) => Promise<void>;
+  load: (key: string, loader: () => Promise<ModeWorkflowsRunsResult>) => Promise<void>;
   /**
    * 自己刚写成的那一份：这一张卡立刻翻面（保留已查到的实参），其余一律作废重查——同名覆盖
    * 可能同时改变别的 run 的答案（按名字命中的那条规则）。
    */
-  applySaved: (key: string, entry: ZCodeSavedWorkflowEntry) => void;
+  applySaved: (key: string, entry: ModeSavedWorkflowEntry) => void;
   /** 保存 / 删除 / 中枢刷新之后作废：下一次渲染重查。 */
   invalidate: () => void;
   reset: () => void;

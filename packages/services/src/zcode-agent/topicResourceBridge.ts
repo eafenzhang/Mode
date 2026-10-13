@@ -3,8 +3,8 @@ import {
   zcodeTopicResourceReadResultSchema,
   type ZCodeTopicResourceReadParams,
   type ZCodeTopicResourceReadResult,
-  type ZCodePromptAttachment,
-  type ZCodeProtocolTrace,
+  type ModePromptAttachment,
+  type ModeProtocolTrace,
 } from "@zcode/shared";
 
 const RESOURCE_TIMEOUT_MS = 120_000;
@@ -12,18 +12,18 @@ export interface TopicResourceBridgeDependencies {
   validate(
     request: ZCodeTopicResourceReadParams,
     signal: AbortSignal,
-    trace?: ZCodeProtocolTrace,
+    trace?: ModeProtocolTrace,
   ): Promise<void>;
   read(
     request: ZCodeTopicResourceReadParams,
     signal: AbortSignal,
-    trace?: ZCodeProtocolTrace,
-  ): Promise<ZCodePromptAttachment>;
+    trace?: ModeProtocolTrace,
+  ): Promise<ModePromptAttachment>;
   upload(
     request: ZCodeTopicResourceReadParams,
-    attachment: ZCodePromptAttachment,
+    attachment: ModePromptAttachment,
     signal: AbortSignal,
-    trace?: ZCodeProtocolTrace,
+    trace?: ModeProtocolTrace,
   ): Promise<ZCodeTopicResourceReadResult>;
 }
 
@@ -34,7 +34,7 @@ export function createTopicResourceBridge(
   const pending = new Map<string, { taskId: string; controller: AbortController }>();
   let disposed = false;
   return {
-    async read(value: unknown, trace?: ZCodeProtocolTrace): Promise<ZCodeTopicResourceReadResult> {
+    async read(value: unknown, trace?: ModeProtocolTrace): Promise<ZCodeTopicResourceReadResult> {
       const request = zcodeTopicResourceReadParamsSchema.parse(value);
       if (disposed) throw new Error("Topic resource connection is closed");
       if (pending.has(request.requestId))

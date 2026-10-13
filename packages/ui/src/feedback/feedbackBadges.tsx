@@ -3,7 +3,7 @@ import { AlertCircle } from "lucide-react";
 import type { FeedbackTicketStatus } from "@zcode/shared";
 import { formatFeedbackStatusLabel, STATUS_META } from "@/feedback/feedbackMeta.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function StatusIndicator({
   status,
@@ -17,7 +17,7 @@ export function StatusIndicator({
   className?: string;
 }) {
   const meta = STATUS_META[status];
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   return (
     <span
       className={cn(

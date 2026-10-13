@@ -13,9 +13,9 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
-import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
+import { useModeStoreWithDefault } from "@/store/StoreProvider.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { logger } from "@/logger.js";
 
@@ -54,7 +54,7 @@ export function useCodingPlanBillingDiscountFromService(
   loading: boolean;
   refresh: () => Promise<void>;
 } {
-  const { locale } = useZCodeIntl();
+  const { locale } = useModeIntl();
   const [state, setState] = useState({
     active: hasLocaleCopy(billingDiscountCache?.value, locale, ["badgeBody"]),
     config: billingDiscountCache?.value,
@@ -134,7 +134,7 @@ export function CodingPlanBillingDiscountBadgePill({
   size = "default",
   variant = "gradient",
 }: CodingPlanBillingDiscountBadgePillProps) {
-  const { locale } = useZCodeIntl();
+  const { locale } = useModeIntl();
   const copy = resolveCodingPlanBillingDiscountCopy(config, locale);
   if (!copy.badgeBody) {
     return null;
@@ -168,7 +168,7 @@ export function CodingPlanBillingDiscountBadgePill({
 export function CodingPlanBillingDiscountBadge(
   props: CodingPlanBillingDiscountBadgePillProps,
 ) {
-  const { locale } = useZCodeIntl();
+  const { locale } = useModeIntl();
   const copy = resolveCodingPlanBillingDiscountCopy(props.config, locale);
   if (!copy.badgeBody) {
     return null;
@@ -190,7 +190,7 @@ export function CodingPlanBillingDiscountBanner({
 }: {
   config?: CodingPlanBillingDiscountConfig;
 }) {
-  const { locale } = useZCodeIntl();
+  const { locale } = useModeIntl();
   const copy = resolveCodingPlanBillingDiscountCopy(config, locale);
   if (!copy.cardTitle || !copy.cardBody) {
     return null;
@@ -226,11 +226,11 @@ export function CodingPlanBillingDiscountInfoDialog({
   config?: CodingPlanBillingDiscountConfig;
   tone?: "default" | "onGradient";
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const copy = resolveCodingPlanBillingDiscountCopy(config, locale);
   // M5②.5 store 耦合剥离：MessageResponse 不再自取 store，主题/代码预览设置由调用方传入。
-  const theme = useZCodeStoreWithDefault((state) => state.theme, "system");
-  const codePreviewSettings = useZCodeStoreWithDefault(
+  const theme = useModeStoreWithDefault((state) => state.theme, "system");
+  const codePreviewSettings = useModeStoreWithDefault(
     (state) => state.codePreviewSettings,
     DEFAULT_CODE_PREVIEW_SETTINGS,
   );

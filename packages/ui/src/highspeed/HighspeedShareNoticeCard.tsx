@@ -27,7 +27,7 @@ import {
   resolveHighspeedShareNoticeMetrics,
 } from "@/highspeed/highspeedShare.js";
 import { calculateHighspeedSavedDurationMs } from "@/highspeed/highspeedSavedTime.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { toast } from "@/components/ui/toast.js";
 
 export function HighspeedShareNoticeCard({
@@ -37,7 +37,7 @@ export function HighspeedShareNoticeCard({
   notice: GlobalNoticeEnvelope;
   onDismiss: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const [open, setOpen] = useState(false);
   const payload = isHighspeedShareNoticePayload(notice.payload) ? notice.payload : null;
   if (!payload) return null;
@@ -152,7 +152,7 @@ export function HighspeedShareDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useModeIntl();
   const prefersReducedMotion = useReducedMotion();
   const speedup = highspeedSpeedup(metrics);
   const savedDurationMs = metrics.savedDurationMs ?? calculateHighspeedSavedDurationMs(metrics);

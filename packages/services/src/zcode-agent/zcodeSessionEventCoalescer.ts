@@ -1,4 +1,4 @@
-import type { ZCodeSessionEvent } from "@zcode/shared";
+import type { ModeSessionEvent } from "@zcode/shared";
 import type { ZCodeAgentServiceEvent } from "#src/zcode-agent/zcodeAgent.js";
 
 const DEFAULT_BACKGROUND_SESSION_EVENT_COALESCE_MS = 1_500;
@@ -34,7 +34,7 @@ function stringField(record: Record<string, unknown>, key: string): string | und
   return typeof value === "string" ? value : undefined;
 }
 
-function getBackgroundSessionEventCoalesceKey(event: ZCodeSessionEvent): string | null {
+function getBackgroundSessionEventCoalesceKey(event: ModeSessionEvent): string | null {
   const payload = asRecord(event.payload);
   if (event.type === "model.streaming") {
     const kind = stringField(payload, "kind");
@@ -81,9 +81,9 @@ function getBackgroundSessionEventCoalesceKey(event: ZCodeSessionEvent): string 
 }
 
 function mergeBackgroundSessionEvents(
-  current: ZCodeSessionEvent,
-  next: ZCodeSessionEvent,
-): ZCodeSessionEvent {
+  current: ModeSessionEvent,
+  next: ModeSessionEvent,
+): ModeSessionEvent {
   if (current.type === "model.streaming" && next.type === "model.streaming") {
     const currentPayload = asRecord(current.payload);
     const nextPayload = asRecord(next.payload);
@@ -95,7 +95,7 @@ function mergeBackgroundSessionEvents(
         ...nextPayload,
         delta: `${currentDelta}${nextDelta}`,
       },
-    } as ZCodeSessionEvent;
+    } as ModeSessionEvent;
   }
 
   // 性能优化：后台工具 progress 只用于“还在跑”的可见摘要，保留最新状态即可。

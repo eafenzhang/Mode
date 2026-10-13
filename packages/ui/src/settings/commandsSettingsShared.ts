@@ -1,7 +1,7 @@
 import {
-  ZCODE_AGENT_PROVIDER,
-  ZCODE_COMMAND_AGENT_SOURCES,
-  type ZCodeProvider,
+  MODE_AGENT_PROVIDER,
+  MODE_COMMAND_AGENT_SOURCES,
+  type ModeProvider,
   type CommandAgentSource,
 } from "@zcode/shared";
 
@@ -13,13 +13,13 @@ export const COMMAND_AGENT_SOURCE_META: Record<
   CommandAgentSource,
   {
     labelId: string;
-    provider: ZCodeProvider;
+    provider: ModeProvider;
     pathHint: string;
   }
 > = {
   zcodeAgent: {
     labelId: "settings.commands.source.zcodeAgent",
     pathHint: "~/.zcode/commands",
-    provider: ZCODE_AGENT_PROVIDER,
+    provider: MODE_AGENT_PROVIDER,
   },
 };

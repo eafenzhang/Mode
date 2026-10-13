@@ -5,8 +5,8 @@
  * 以及所有按 task 粒度的只读访问器和独立选择器。
  */
 import type {
-  ZCodeTaskRuntimeStatus,
-  ZCodeTaskMeta,
+  ModeTaskRuntimeStatus,
+  ModeTaskMeta,
 } from "@zcode/shared";
 import { mergeTaskWithOptimisticMeta } from "@/lib/zcodeTaskMetaMerge.js";
 import {
@@ -192,7 +192,7 @@ export function getTaskRuntimeState(
 }
 
 interface WorkspaceDisplayedTaskState {
-  taskStatus: ZCodeTaskRuntimeStatus;
+  taskStatus: ModeTaskRuntimeStatus;
   taskError: string | null;
 }
 
@@ -243,7 +243,7 @@ export function getTaskMeta(
     | WorkspaceZCodeUIState
     | Partial<Pick<WorkspaceZCodeUIState, "optimisticTaskListByTaskId" | "taskListCache">>,
   taskId: string,
-): ZCodeTaskMeta | null {
+): ModeTaskMeta | null {
   const optimisticTask = workspaceState.optimisticTaskListByTaskId?.[taskId];
   const cachedTask = workspaceState.taskListCache?.find((task) => task.taskId === taskId) ?? null;
 
@@ -262,8 +262,8 @@ export function getVisibleTaskMetas(
   workspaceState:
     | WorkspaceZCodeUIState
     | Partial<Pick<WorkspaceZCodeUIState, "optimisticTaskListByTaskId" | "taskListCache">>,
-): ZCodeTaskMeta[] {
-  const taskById = new Map<string, ZCodeTaskMeta>();
+): ModeTaskMeta[] {
+  const taskById = new Map<string, ModeTaskMeta>();
 
   for (const task of workspaceState.taskListCache ?? []) {
     taskById.set(task.taskId, task);
@@ -286,7 +286,7 @@ export function getTaskUnreadIndicator(
         >
       >,
   taskId: string,
-  fallbackTask?: Pick<ZCodeTaskMeta, "unreadAt">,
+  fallbackTask?: Pick<ModeTaskMeta, "unreadAt">,
 ): boolean {
   const storedTask = getTaskMeta(workspaceState, taskId);
   // IDE 升级或重启后，任务列表会先从 query cache 恢复，而 session store 尚未水合；

@@ -7,8 +7,8 @@ import { logger } from "@/logger.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { EmbeddedWebsiteHeader } from "@/components/EmbeddedWebsiteHeader.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
+import { useModeStoreWithDefault } from "@/store/StoreProvider.js";
 import { normalizeThemePreference, resolveTheme } from "@/useTheme.js";
 import type { CodingPlanProviderId } from "@/settings/model-provider-section/constants.js";
 import type { CodingPlanFunnelContext } from "@/lib/codingPlanFunnelTelemetry.js";
@@ -31,8 +31,8 @@ import {
 import {
   CodingPlanWebviewChannels,
   type CodingPlanPurchaseCompletePayload,
-  ZCODE_ENV,
-  ZCODE_VERSION,
+  MODE_ENV,
+  MODE_VERSION,
 } from "@zcode/shared";
 
 interface CodingPlanEmbeddedWebviewDialogProps {
@@ -85,10 +85,10 @@ export function CodingPlanEmbeddedWebviewDialog({
   onPurchaseComplete,
   onOpenResult,
 }: CodingPlanEmbeddedWebviewDialogProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const platform = usePlatform();
-  const theme = useZCodeStoreWithDefault((state) => state.theme, "zai-dark");
-  const userId = useZCodeStoreWithDefault((state) => state.user?.id ?? null, null);
+  const theme = useModeStoreWithDefault((state) => state.theme, "zai-dark");
+  const userId = useModeStoreWithDefault((state) => state.user?.id ?? null, null);
   const webviewRef = useRef<ElectronWebviewTag | null>(null);
   const onOpenResultRef = useRef(onOpenResult);
   onOpenResultRef.current = onOpenResult;
@@ -129,7 +129,7 @@ export function CodingPlanEmbeddedWebviewDialog({
       endpointOrigin: RENDERER_ZCODE_ENDPOINT_URLS.origin,
       e2eStoreBridgeEnabled: env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
       overrideOrigin: env.VITE_CODING_PLAN_WEBVIEW_ORIGIN,
-      zcodeEnv: ZCODE_ENV,
+      zcodeEnv: MODE_ENV,
     });
     // URL 带 ?lang= hint 让官网首屏就有正确语言，避免注入前的英文闪烁。
     // 同步带 ?theme= hint，避免官网 SSR 默认 dark 在 App 浅色主题下首帧闪烁。
@@ -193,7 +193,7 @@ export function CodingPlanEmbeddedWebviewDialog({
           funnelContext,
           deviceMid,
           userId,
-          appVersion: ZCODE_VERSION,
+          appVersion: MODE_VERSION,
         });
         const script = createCodingPlanAuthInjectionScript({
           provider,

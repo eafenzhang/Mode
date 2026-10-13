@@ -1,5 +1,5 @@
 import type { Event, IDisposable } from "@zcode/rpc";
-import type { ZCodeProtocolMessage } from "@zcode/shared";
+import type { ModeProtocolMessage } from "@zcode/shared";
 
 export type ZCodeProtocolTransportKind = "stdio" | "websocket" | "memory";
 
@@ -11,8 +11,8 @@ export interface ZCodeProtocolTransportClosedEvent {
 
 export interface ZCodeProtocolTransport extends IDisposable {
   readonly kind: ZCodeProtocolTransportKind;
-  readonly onMessage: Event<ZCodeProtocolMessage>;
+  readonly onMessage: Event<ModeProtocolMessage>;
   readonly onClose: Event<ZCodeProtocolTransportClosedEvent>;
-  send(message: ZCodeProtocolMessage): Promise<void>;
+  send(message: ModeProtocolMessage): Promise<void>;
   disposeAndWait?(): Promise<void>;
 }

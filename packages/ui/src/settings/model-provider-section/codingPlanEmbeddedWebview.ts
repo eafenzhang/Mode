@@ -1,12 +1,12 @@
 import {
   BIGMODEL_PROVIDER_ID,
   BUILTIN_MODEL_PROVIDER_IDS,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  DEFAULT_MODE_ENDPOINT_ORIGIN,
   isTrustedCodingPlanWebviewOrigin,
   isZaiCodingPlanProviderId,
-  normalizeZCodeEndpointOrigin,
-  type ZCodeEnv,
-  ZCODE_ENV,
+  normalizeModeEndpointOrigin,
+  type ModeEnv,
+  MODE_ENV,
   ZAI_PROVIDER_ID,
 } from "@zcode/shared";
 import type { CodingPlanWebviewLocale } from "@zcode/shared";
@@ -56,7 +56,7 @@ export interface ResolveCodingPlanEmbeddedOriginOptions {
   endpointOrigin: string;
   e2eStoreBridgeEnabled?: boolean;
   overrideOrigin?: string | null;
-  zcodeEnv?: ZCodeEnv;
+  zcodeEnv?: ModeEnv;
 }
 
 export const CODING_PLAN_WEBVIEW_OVERRIDE_ENV_KEY = "VITE_CODING_PLAN_WEBVIEW_ORIGIN";
@@ -81,23 +81,23 @@ export function resolveCodingPlanEmbeddedOrigin({
   endpointOrigin,
   e2eStoreBridgeEnabled,
   overrideOrigin,
-  zcodeEnv = ZCODE_ENV,
+  zcodeEnv = MODE_ENV,
 }: ResolveCodingPlanEmbeddedOriginOptions): string {
   const normalizedOverride = overrideOrigin?.trim();
   if (
     normalizedOverride &&
     isTrustedCodingPlanWebviewOrigin(normalizedOverride, { e2eStoreBridgeEnabled })
   ) {
-    return normalizeZCodeEndpointOrigin(normalizedOverride);
+    return normalizeModeEndpointOrigin(normalizedOverride);
   }
   // Bug 原因：本地开发默认注入 ZCODE_ENV=production，不能仅凭 Vite DEV 就打开未启动的官网本地页。
   if (dev && zcodeEnv === "test") {
     return "http://localhost:3000";
   }
-  const normalizedEndpointOrigin = normalizeZCodeEndpointOrigin(endpointOrigin);
+  const normalizedEndpointOrigin = normalizeModeEndpointOrigin(endpointOrigin);
   return isTrustedCodingPlanWebviewOrigin(normalizedEndpointOrigin, { e2eStoreBridgeEnabled })
     ? normalizedEndpointOrigin
-    : DEFAULT_ZCODE_ENDPOINT_ORIGIN;
+    : DEFAULT_MODE_ENDPOINT_ORIGIN;
 }
 
 export function buildCodingPlanEmbeddedWebviewUrl({
@@ -118,7 +118,7 @@ export function buildCodingPlanEmbeddedWebviewUrl({
   audience?: CodingPlanPurchaseAudience;
   teamPlanKey?: string | null;
 }): string {
-  const url = new URL("/coding-plan", normalizeZCodeEndpointOrigin(origin));
+  const url = new URL("/coding-plan", normalizeModeEndpointOrigin(origin));
   url.searchParams.set("provider", provider);
   url.searchParams.set("embedded", "app");
   url.searchParams.set("lang", codingPlanLocaleToWebsiteLang(locale));

@@ -1,21 +1,21 @@
 import { useServices } from "@/hooks/useServices.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import type { IZCodeTaskService } from "@zcode/services";
-import type { ZCodeTaskSnapshot } from "@zcode/shared";
+import type { IModeTaskService } from "@zcode/services";
+import type { ModeTaskSnapshot } from "@zcode/shared";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
 
-type GetTaskSnapshotParams = Parameters<IZCodeTaskService["getTaskSnapshot"]>[0];
-type GetTaskSnapshotResult = Promise<ZCodeTaskSnapshot | null>;
-type GetTaskSnapshotWithEtagParams = Parameters<IZCodeTaskService["getTaskSnapshotWithEtag"]>[0];
+type GetTaskSnapshotParams = Parameters<IModeTaskService["getTaskSnapshot"]>[0];
+type GetTaskSnapshotResult = Promise<ModeTaskSnapshot | null>;
+type GetTaskSnapshotWithEtagParams = Parameters<IModeTaskService["getTaskSnapshotWithEtag"]>[0];
 
-const zcodeTaskServiceProxyCache = new WeakMap<IZCodeTaskService, IZCodeTaskService>();
+const zcodeTaskServiceProxyCache = new WeakMap<IModeTaskService, IModeTaskService>();
 const snapshotInflightRequestsByService = new WeakMap<
-  IZCodeTaskService,
+  IModeTaskService,
   Map<string, GetTaskSnapshotResult>
 >();
 const snapshotCacheByService = new WeakMap<
-  IZCodeTaskService,
-  Map<string, { etag: string; snapshot: ZCodeTaskSnapshot }>
+  IModeTaskService,
+  Map<string, { etag: string; snapshot: ModeTaskSnapshot }>
 >();
 const SNAPSHOT_CACHE_STORAGE_KEY = "zcode-task-snapshot-cache:v1";
 const SNAPSHOT_CACHE_MAX_ENTRY_BYTES = 256 * 1024;
@@ -24,7 +24,7 @@ const SNAPSHOT_CACHE_MAX_ENTRIES = 20;
 type PersistedSnapshotCacheEntry = {
   key: string;
   etag: string;
-  snapshot: ZCodeTaskSnapshot;
+  snapshot: ModeTaskSnapshot;
   updatedAt: number;
   sizeBytes: number;
 };
@@ -32,7 +32,7 @@ let persistedSnapshotCacheLoaded = false;
 const persistedSnapshotCache = new Map<string, PersistedSnapshotCacheEntry>();
 // 内存诊断计数器：WeakMap 无法枚举，记住最近一个
 // service 的内存缓存（renderer 内实际只有一个 task service 实例）。
-let latestSnapshotCache: Map<string, { etag: string; snapshot: ZCodeTaskSnapshot }> | undefined;
+let latestSnapshotCache: Map<string, { etag: string; snapshot: ModeTaskSnapshot }> | undefined;
 uiMemoryDiagnosticsRegistry.register("taskSnapshotCache", () => ({
   entries: latestSnapshotCache?.size ?? 0,
   persisted: persistedSnapshotCache.size,
@@ -62,7 +62,7 @@ export function buildSnapshotDedupeKey(params: GetTaskSnapshotParams): string {
 }
 
 function getOrCreateSnapshotInflightMap(
-  service: IZCodeTaskService,
+  service: IModeTaskService,
 ): Map<string, GetTaskSnapshotResult> {
   if (!service || typeof service !== "object") {
     return new Map();
@@ -77,8 +77,8 @@ function getOrCreateSnapshotInflightMap(
 }
 
 function getOrCreateSnapshotCacheMap(
-  service: IZCodeTaskService,
-): Map<string, { etag: string; snapshot: ZCodeTaskSnapshot }> {
+  service: IModeTaskService,
+): Map<string, { etag: string; snapshot: ModeTaskSnapshot }> {
   if (!service || typeof service !== "object") {
     return new Map();
   }
@@ -87,7 +87,7 @@ function getOrCreateSnapshotCacheMap(
     latestSnapshotCache = existing;
     return existing;
   }
-  const created = new Map<string, { etag: string; snapshot: ZCodeTaskSnapshot }>();
+  const created = new Map<string, { etag: string; snapshot: ModeTaskSnapshot }>();
   snapshotCacheByService.set(service, created);
   latestSnapshotCache = created;
   return created;
@@ -186,7 +186,7 @@ function readPersistedSnapshotEntry(key: string) {
 function writePersistedSnapshotEntry(
   key: string,
   etag: string,
-  snapshot: ZCodeTaskSnapshot,
+  snapshot: ModeTaskSnapshot,
 ): void {
   ensurePersistedSnapshotCacheLoaded();
   const serializedSnapshot = JSON.stringify(snapshot);
@@ -216,7 +216,7 @@ function deletePersistedSnapshotEntry(key: string): void {
   flushPersistedSnapshotCache();
 }
 
-function createZCodeTaskServiceProxy(service: IZCodeTaskService): IZCodeTaskService {
+function createZCodeTaskServiceProxy(service: IModeTaskService): IModeTaskService {
   const inflight = getOrCreateSnapshotInflightMap(service);
   const snapshotCache = getOrCreateSnapshotCacheMap(service);
 
@@ -304,7 +304,7 @@ export function useZCodeTaskService(
   workspacePath?: string,
   preferredRemoteSessionId?: string | null,
   workspaceIdentity?: string | null,
-): IZCodeTaskService {
+): IModeTaskService {
   // ZCode task 服务按 workspace 身份解析，保证所有 task RPC 都落到对应的 host。
   const services = workspacePath
     ? useWorkspaceServices(workspacePath, preferredRemoteSessionId, workspaceIdentity)

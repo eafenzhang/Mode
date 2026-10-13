@@ -1,6 +1,6 @@
 import type { AssistantTextRow } from "@zcode/shared/zcode-protocol-v4";
 import {
-  buildAssistantPreviewCards,
+  AssistantPreviewCard,
   type AssistantPreviewCard,
 } from "@/lib/assistantPreviewCards.js";
 
@@ -36,7 +36,7 @@ export function buildAssistantPreviewCardsForAssistantTextRow({
     .filter((text) => text.trim().length > 0)
     .join("\n\n");
 
-  return buildAssistantPreviewCards(turnText, workspacePath, {
+  return AssistantPreviewCard(turnText, workspacePath, {
     changedFilePaths,
   });
 }

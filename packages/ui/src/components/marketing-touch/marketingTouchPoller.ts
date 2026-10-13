@@ -1,8 +1,8 @@
-import type { ZCodeEnv } from "@zcode/shared";
+import type { ModeEnv } from "@zcode/shared";
 
 export function resolveMarketingTouchPollIntervalMs(
   isProductionBuild: boolean,
-  env: ZCodeEnv,
+  env: ModeEnv,
 ): number {
   return isProductionBuild && env === "production" ? 10 * 60_000 : 30_000;
 }

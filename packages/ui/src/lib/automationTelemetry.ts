@@ -4,7 +4,7 @@ import {
   sanitizeTelemetryErrorMessage,
   type IPlatformService,
   type ModelSelection,
-  type ZCodeAutomation,
+  type ModeAutomation,
 } from "@zcode/shared";
 import type { ProviderSettingsView } from "@zcode/services";
 import { isApiKeyAccess } from "@zcode/provider";
@@ -135,7 +135,7 @@ export function reportAutomationActionClick(
   params: {
     action: "run_now" | "delete";
     source: "list" | "editor";
-    automation: ZCodeAutomation;
+    automation: ModeAutomation;
     providerSettingsView: ProviderSettingsView | null;
   },
 ): Promise<void> {

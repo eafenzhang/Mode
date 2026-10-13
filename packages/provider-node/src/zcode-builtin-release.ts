@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
-  parseZCodeBuiltinModelConfigRules,
-  parseZCodeBuiltinProviderConfigRules,
+  parseModeBuiltinModelConfigRules,
+  parseModeBuiltinProviderConfigRules,
   type ModelConfigRules,
   type ProviderConfigMap,
   type ProviderTemplateMap,
@@ -37,7 +37,7 @@ const releaseSchema = z
 
 export function decodeZCodeBuiltinRelease(input: unknown): ZCodeBuiltinRelease {
   const parsed = releaseSchema.parse(input);
-  const { providers, providerTemplates } = parseZCodeBuiltinProviderConfigRules(
+  const { providers, providerTemplates } = parseModeBuiltinProviderConfigRules(
     parsed.config.providerConfigRules,
   );
   // ZAPI 已退出产品，旧 Remote Release 或 LKG 不能在 Renderer 静态入口删除后
@@ -51,7 +51,7 @@ export function decodeZCodeBuiltinRelease(input: unknown): ZCodeBuiltinRelease {
     config: Object.freeze({
       providers,
       providerTemplates,
-      modelConfigRules: parseZCodeBuiltinModelConfigRules(parsed.config.modelConfigRules),
+      modelConfigRules: parseModeBuiltinModelConfigRules(parsed.config.modelConfigRules),
     }),
   });
 }

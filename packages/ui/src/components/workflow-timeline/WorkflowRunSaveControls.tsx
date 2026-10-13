@@ -10,7 +10,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { CheckIcon, ArrowUpRightIcon, PlayIcon, SaveIcon } from "lucide-react";
 import {
   resolveWorkspaceKey,
-  type ZCodeSavedWorkflowEntry,
+  type ModeSavedWorkflowEntry,
   type ZCodeWorkflowsForRunCandidate,
 } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
@@ -18,7 +18,7 @@ import { Spinner } from "@/components/ui/spinner.js";
 import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useWorkflowRunSave } from "@/hooks/useWorkflowRunSave.js";
 import { useSavedWorkflowHub } from "@/v4/savedWorkflowHubContext.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
@@ -63,12 +63,12 @@ export interface WorkflowRunSaveSlots {
 const SAVE_WORD_CONTAINER = "@[480px]/wf-card:inline";
 
 export function useWorkflowRunSaveSlots(host: WorkflowRunSaveSlotsHost): WorkflowRunSaveSlots {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useModeIntl();
   const format = (id: string) => intl.formatMessage({ id });
   const hub = useSavedWorkflowHub();
   const anchorRef = useRef<HTMLElement | null>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const [launchEntry, setLaunchEntry] = useState<ZCodeSavedWorkflowEntry | null>(null);
+  const [launchEntry, setLaunchEntry] = useState<ModeSavedWorkflowEntry | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
 
   const controller = useWorkflowRunSave({
@@ -313,7 +313,7 @@ function WorkflowRunSavedChip({
   label,
   onOpen,
 }: {
-  entry: ZCodeSavedWorkflowEntry;
+  entry: ModeSavedWorkflowEntry;
   hint?: string;
   label: string;
   /** 缺席即中枢不可达（手机远控壳）：芯片画成纯文字。 */

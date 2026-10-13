@@ -1,6 +1,6 @@
 import type {
-  ZCodeSavedWorkflowMeta,
-  ZCodeSavedWorkflowScope,
+  ModeSavedWorkflowMeta,
+  ModeSavedWorkflowScope,
   ZCodeWorkflowsForRunCandidate,
 } from "@zcode/shared";
 import type { ZCodeAgentWorkspaceTarget } from "./zcodeAgentPluginParams.js";
@@ -15,7 +15,7 @@ import type { ZCodeAgentWorkspaceTarget } from "./zcodeAgentPluginParams.js";
 // 项目组内的动作仍带自己的 workspace（既是运行目标又是载体），因此下面用一个 union：
 // 要么带 workspace（scope 可选，缺省 project），要么只给 `scope: "global"`（workspace 可省）。
 export type ZCodeAgentSavedWorkflowTarget =
-  | (ZCodeAgentWorkspaceTarget & { scope?: ZCodeSavedWorkflowScope })
+  | (ZCodeAgentWorkspaceTarget & { scope?: ModeSavedWorkflowScope })
   | ({ scope: "global" } & Partial<ZCodeAgentWorkspaceTarget>);
 
 export type ZCodeAgentListSavedWorkflowsParams = ZCodeAgentSavedWorkflowTarget;
@@ -26,7 +26,7 @@ export type ZCodeAgentGetSavedWorkflowParams = ZCodeAgentSavedWorkflowTarget & {
 
 export type ZCodeAgentUpdateSavedWorkflowMetaParams = ZCodeAgentSavedWorkflowTarget & {
   name: string;
-  meta: ZCodeSavedWorkflowMeta;
+  meta: ModeSavedWorkflowMeta;
 };
 
 export type ZCodeAgentDeleteSavedWorkflowParams = ZCodeAgentSavedWorkflowTarget & {
@@ -54,9 +54,9 @@ export type ZCodeAgentSaveSavedWorkflowFromRunParams = ZCodeAgentWorkspaceTarget
   /** 要保存的那次 run；脚本取它实际执行的那一份。 */
   runId: string;
   name: string;
-  meta: ZCodeSavedWorkflowMeta;
+  meta: ModeSavedWorkflowMeta;
   /** 缺省 `project`。 */
-  scope?: ZCodeSavedWorkflowScope;
+  scope?: ModeSavedWorkflowScope;
   /** 只有在已经把覆盖警告摆给用户看过之后才传 true。 */
   overwrite?: boolean;
 };
