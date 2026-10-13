@@ -607,6 +607,13 @@ impl DuplicationOutput {
   }
 }
 
+/// 契约测试缝（`tests/rd_media.rs`）：创建 D3D11 设备（HARDWARE→WARP 回退）。
+/// 用途 = 验证硬件 H.264 编码器配置（异步 MFT 解锁回归）；无可用设备时返回 None，
+/// 测试按环境能力缺失跳过而非失败。
+pub fn create_device_for_tests() -> Option<ID3D11Device> {
+  create_device().ok().map(|(device, _)| device)
+}
+
 /// 要点 1：D3D11CreateDevice（HARDWARE、level ≥ 11_0）失败回退 WARP。
 fn create_device() -> AxResult<(ID3D11Device, ID3D11DeviceContext)> {
   let levels = [D3D_FEATURE_LEVEL_11_0];

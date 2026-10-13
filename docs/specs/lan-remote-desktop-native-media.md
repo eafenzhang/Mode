@@ -90,6 +90,10 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 - **采集**：DXGI Desktop Duplication（`windows` crate，与 `screen.rs` 同依赖面）；输出分辨率 = 显示器原生（>1080p 时由编码链缩放，见下）。
 - **光标**：DUPL `PointerPosition` + `PointerShape` 合成进帧——指针形状纹理 + 位置画 quad（GPU 路线）；**降级预案**：GPU 合成受阻时改为「光标包围盒 CPU 合成」，不改对外协议。
 - **编码**：MF 视频编码器（`MFT_ENUM_FLAG_HARDWARE` 选「H.264 HW」，Win10 系统自带）；输入 D3D11 纹理 → D3D11 Video Processor 出 NV12（承担 >1080p 缩放）→ MF `MFT_MESSAGE_SET_D3D_MANAGER` 全 GPU 路径。参数：平均码率 8Mbps、GOP 120 帧（≈2s@60fps）、`select-monitor` / 分辨率变化强制 IDR。
+  - **异步 MFT（2026-10-13 修复）**：硬件 H.264 MFT（NVENC / AMF / QSV）普遍是**异步编码器**，非 MF 管线直接使用分两步才能跑通：
+    1. **解锁**：读 `MF_TRANSFORM_ASYNC` 判定；异步时配置媒体类型前置 `MF_TRANSFORM_ASYNC_UNLOCK=TRUE`，否则首次 `SetInputType` 报 `MF_E_TRANSFORM_ASYNC_LOCKED (0xC00D6D77)`。
+    2. **事件模型**：解锁只是入场券——此后必须 QI `IMFMediaEventGenerator` 按 MS「Asynchronous MFTs」驱动：`MFT_MESSAGE_NOTIFY_BEGIN_STREAMING` + `START_OF_STREAM` 开头流；输入只在收到 `METransformNeedInput` 后 `ProcessInput`（未请求的帧直接丢弃，实时语义），输出只在收到 `METransformHaveOutput` 后 `ProcessOutput`（其余时机调用返回 `E_UNEXPECTED (0x8000FFFF)`）。flush / D3D 互操作运行期回退后事件队列作废，须等新的 NeedInput 再恢复送帧。
+    以上两步缺一都表现为「会话连上但画面永远不出」。同步 MFT 无 `MF_TRANSFORM_ASYNC` 属性，走原有同步泵，行为不变。回归由 `crates/mode-cua-ax/tests/rd_media.rs` 的 `hardware_h264_encoder_builds_with_async_unlock` 兜住（无硬件自适应环境跳过）；真实出流由本机探针验证（动画窗口下 ~22fps 连续帧、事件模型稳态每帧配对）。
   - **降级预案**：D3D11↔MF 互操作在目标环境不可用时，改为 CPU 拷回 + GDI 光标合成 + BGRA→NV12 转换后走系统内存输入（1080p60 预算内），协议与上层零改动。
 - **帧循环**：目标 60fps（跟随显示刷新率）；DUPL `ACCESS_LOST`（锁屏/安全桌面/会话切换）→ 状态事件 → 信令 `freeze`，恢复后 `unfreeze` 并强制 IDR。
 - **napi 导出**：`rdMediaStart(opts)`（含帧回调 ThreadsafeFunction、状态回调）、`rdMediaSwitch(monitor)`、`rdMediaStop()`；纯逻辑（帧头打包、GOP 标记、IV 派生）保持可 `cargo test` 的独立函数。

@@ -47,17 +47,21 @@ use windows::Win32::Media::MediaFoundation::{
   eAVEncH264VProfile, eAVEncH264VProfile_Base, eAVEncH264VProfile_Main,
   CODECAPI_AVEncCommonMeanBitRate, CODECAPI_AVEncCommonRealTime,
   CODECAPI_AVEncMPVDefaultBPictureCount, CODECAPI_AVEncVideoForceKeyFrame, ICodecAPI,
-  IMFDXGIDeviceManager, MFCreateDXGIDeviceManager,
+  IMFDXGIDeviceManager, IMFMediaEventGenerator, MFCreateDXGIDeviceManager,
   MFCreateDXGISurfaceBuffer, MFCreateMemoryBuffer, MFCreateMediaType, MFCreateSample,
-  MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MFMediaType_Video, MFShutdown, MFStartup,
+  MFSTARTUP_FULL, MF_E_TRANSFORM_NEED_MORE_INPUT, MF_E_TRANSFORM_TYPE_NOT_SET,
+  MF_E_NO_EVENTS_AVAILABLE, MF_EVENT_FLAG_NO_WAIT, METransformHaveOutput, METransformNeedInput,
+  MFMediaType_Video, MFShutdown, MFStartup,
   MF_VERSION, MFVideoFormat_H264, MFVideoFormat_NV12,
-  MFVideoInterlace_Progressive, IMFActivate, IMFSample, IMFTransform, MFT_CATEGORY_VIDEO_ENCODER,
+  MFVideoInterlace_Progressive, IMFActivate, IMFMediaType, IMFSample, IMFTransform,
+  MFT_CATEGORY_VIDEO_ENCODER,
   MFTEnumEx, MFT_ENUM_FLAG, MFT_ENUM_FLAG_HARDWARE, MFT_ENUM_FLAG_SORTANDFILTER,
-  MFT_MESSAGE_COMMAND_DRAIN, MFT_MESSAGE_COMMAND_FLUSH, MFT_MESSAGE_NOTIFY_END_OF_STREAM,
+  MFT_MESSAGE_COMMAND_DRAIN, MFT_MESSAGE_COMMAND_FLUSH, MFT_MESSAGE_NOTIFY_BEGIN_STREAMING,
+  MFT_MESSAGE_NOTIFY_END_OF_STREAM,
   MFT_MESSAGE_NOTIFY_START_OF_STREAM, MFT_MESSAGE_SET_D3D_MANAGER, MFT_OUTPUT_DATA_BUFFER,
   MFT_OUTPUT_DATA_BUFFER_INCOMPLETE, MFT_REGISTER_TYPE_INFO, MF_MT_AVG_BITRATE,
   MF_MT_FRAME_RATE, MF_MT_FRAME_SIZE, MF_MT_INTERLACE_MODE, MF_MT_MAJOR_TYPE,
-  MF_MT_MPEG2_PROFILE, MF_MT_SUBTYPE,
+  MF_MT_MPEG2_PROFILE, MF_MT_SUBTYPE, MF_TRANSFORM_ASYNC, MF_TRANSFORM_ASYNC_UNLOCK,
 };
 use windows::core::{GUID, Interface, IUnknown, VARIANT};
 
@@ -158,6 +162,16 @@ pub struct Encoder {
   codec_api: Option<ICodecAPI>,
   /// 强制 IDR 模式（见 `ForceKeyMode`）。
   force_key_mode: ForceKeyMode,
+  /// 异步 MFT（MF_TRANSFORM_ASYNC=TRUE；硬件 H.264 编码器普遍如此）必须走事件模型：
+  /// 输入只在 METransformNeedInput 后喂、输出只在 METransformHaveOutput 后取——其余
+  /// 时机调用 ProcessOutput 返回 E_UNEXPECTED（MS「Asynchronous MFTs」文档）。
+  async_mode: bool,
+  /// 异步 MFT 的事件源（QI 自 transform；同步 MFT 为 None，drain 直接 no-op）。
+  events: Option<IMFMediaEventGenerator>,
+  /// 未消费的 METransformNeedInput（异步 MFT 的输入许可）。
+  need_input: bool,
+  /// 未消费的 METransformHaveOutput 计数（每个事件对应一次 ProcessOutput）。
+  have_output: u32,
   /// VP 管线：首帧（见到真实输入纹理）惰性建立。
   vp: Option<VpPipeline>,
   /// 输入→输出配对队列：MF 编码器可能有 0~N 帧流水延迟，输出侧按 FIFO 领回
@@ -216,7 +230,17 @@ impl Encoder {
     let video_ctx1 = ctx
       .cast::<ID3D11VideoContext1>()
       .map_err(|e| AxError::internal(format!("ID3D11VideoContext1 QI 失败: {e}")))?;
-    let mf = activate_h264_encoder()?;
+    let (mf, async_mode) = activate_h264_encoder()?;
+    // 异步 MFT：QI 事件源（Async MFT 契约要求实现 IMFMediaEventGenerator；QI 失败按
+    // 硬性能力缺失收口——没有事件源就无法在事件模型下驱动它）。
+    let events = if async_mode {
+      Some(
+        mf.cast::<IMFMediaEventGenerator>()
+          .map_err(|e| AxError::internal(format!("异步编码器缺少事件源接口: {e}")))?,
+      )
+    } else {
+      None
+    };
     // 输入路径 × profile 的尝试阶梯（各自独立降级，任一级成功即定型）：
     // ① D3D 互操作+Main ②互操作+Base ③系统内存+Main ④系统内存+Base。
     // 互操作省每帧回读、Main 省码率，两者互不依赖；全部失败 = 旧实现行为与失败面。
@@ -266,6 +290,12 @@ impl Encoder {
     let force_key_mode = if codec_api.is_some() { ForceKeyMode::CodecApi } else { ForceKeyMode::Flush };
     // unsafe 依据（块级）：IMFTransform 方法均为 COM FFI；transform 持有至 Drop。
     unsafe {
+      // 异步 MFT 的流式协议：先 BEGIN_STREAMING 再 START_OF_STREAM（MS「Asynchronous
+      // MFTs」）；此后 MFT 以 METransformNeedInput 事件索要输入。
+      if async_mode {
+        mf.ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)
+          .map_err(|e| AxError::new("unimplemented", format!("编码器进入流式失败: {e}")))?;
+      }
       mf.ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
         .map_err(|e| AxError::new("unimplemented", format!("编码器开流失败: {e}")))?;
     }
@@ -285,6 +315,10 @@ impl Encoder {
       profile,
       codec_api,
       force_key_mode,
+      async_mode,
+      events,
+      need_input: false,
+      have_output: 0,
       vp: None,
       pending: VecDeque::new(),
       pushed: false,
@@ -327,8 +361,15 @@ impl Encoder {
   /// → `None`（继续喂）。`Some` 表示拿到一帧完整 Annex-B ES。
   /// `captured_at_ms` 由调用方在取帧时打点，随配对队列原样随帧输出（帧龄起点）。
   pub fn push(&mut self, texture: &ID3D11Texture2D, captured_at_ms: u32) -> AxResult<Option<EncodedChunk>> {
+    // 异步 MFT：先排空事件（上一轮输入的输出事件可能已就绪），再决定是否接受本帧。
+    self.drain_events()?;
+    if self.async_mode && !self.need_input {
+      // 管道忙（无未消费的 NeedInput）：本帧丢弃——实时语义下丢帧优于积压；不消耗
+      // seq 状态机、不进配对队列；已就绪的输出照常带走（延迟一个周期的配对不受影响）。
+      return self.take_output();
+    }
     let (seq, key) = match reduce(&mut self.seq_source) {
-      EncoderAction::None => return Ok(None),
+      EncoderAction::None => return self.take_output(),
       EncoderAction::Emit { seq, key } => (seq, key),
     };
     // VP 惰性/重建（首帧或输入纹理身份/尺寸变化）。
@@ -362,10 +403,23 @@ impl Encoder {
         }
         // flush 丢弃在途输入，配对队列同步清空（那些 seq 永远不会再有输出）。
         self.pending.clear();
+        // flush 同时清空 MFT 事件队列、输入许可作废（异步 MFT；同步无影响）。
+        self.need_input = false;
+        self.have_output = 0;
+        if self.async_mode {
+          // 异步 MFT：flush 后须等新的 NeedInput 才可喂输入——本帧丢弃；flush 后
+          // 首个被处理的输入必为 IDR，流在下一个被接受的帧上重新对齐关键帧
+          // （线上 key 始终以码流 IDR 探测为准，配对的 expected_key 不因丢帧错位）。
+          return self.take_output();
+        }
       }
     }
     self.pushed = true;
     self.pending.push_back((seq, key, captured_at_ms));
+    if self.async_mode {
+      // 消费本帧对应的输入许可（喂的就是这一帧）。
+      self.need_input = false;
+    }
     // GPU：Blt（两路共用）→ 主路产 DXGI 表面样本，回退路回读紧凑 NV12 再灌内存样本。
     let fed = if self.gpu_interop {
       self.blt_to_nv12().and_then(|()| self.feed_input_dxgi(seq))
@@ -381,11 +435,21 @@ impl Encoder {
       // 回退点自然重新对齐关键帧，renderer 无需额外恢复逻辑。
       warn(&format!("D3D 互操作运行中失败，回退系统内存并重试本帧: {e}"));
       self.disable_gpu_interop()?;
+      if self.async_mode {
+        // 同 flush 路径：回退内的 flush 清空输入许可，本帧丢弃（pending 已被清空），
+        // 等新的 NeedInput；此后固定系统内存口径，下一帧起恢复送帧。
+        return self.take_output();
+      }
       self.pending.push_back((seq, key, captured_at_ms));
       let nv12 = self.blt_and_readback()?;
       self.feed_input(&nv12, seq)?;
     }
-    // MF：取输出（可能本轮还没有 → None，配对项留给下一轮）。
+    self.take_output()
+  }
+
+  /// MF：取一帧已就绪输出并完成配对（seq 来自 `pending` 队首，key 以码流 IDR 探测为
+  /// 唯一权威）。异步 MFT 只在有 HaveOutput 事件时真正调用 ProcessOutput（见 pump_output）。
+  fn take_output(&mut self) -> AxResult<Option<EncodedChunk>> {
     let Some(data) = self.pump_output()? else { return Ok(None) };
     let data = match to_annex_b(&data) {
       Cow::Borrowed(b) => b.to_vec(),
@@ -407,6 +471,39 @@ impl Encoder {
       // 按构造不可达：每个输出必对应一个入队输入（flush 两侧同步清空）。
       // 若驱动行为破坏该不变式，宁可丢帧也不发错 seq（IV 唯一性优先）。
       None => Ok(None),
+    }
+  }
+
+  /// 排空 MFT 事件队列（异步 MFT；同步 MFT 为 no-op）：消费 NeedInput / HaveOutput
+  /// 事件计数，错误事件上抛（调用方按「重建编码器」收口）。
+  fn drain_events(&mut self) -> AxResult<()> {
+    let Some(generator) = self.events.as_ref() else {
+      return Ok(());
+    };
+    loop {
+      // unsafe 依据（块级）：IMFMediaEventGenerator FFI；非阻塞取事件（NO_WAIT）。
+      let event = match unsafe { generator.GetEvent(MF_EVENT_FLAG_NO_WAIT) } {
+        Ok(event) => event,
+        Err(e) if e.code() == MF_E_NO_EVENTS_AVAILABLE => return Ok(()),
+        Err(e) => return Err(AxError::internal(format!("MFT 事件获取失败: {e}"))),
+      };
+      // unsafe 依据（块级）：IMFMediaEvent FFI；类型/状态为本调用读取。
+      let event_type = unsafe { event.GetType() }
+        .map_err(|e| AxError::internal(format!("MFT 事件类型读取失败: {e}")))?;
+      let status = unsafe { event.GetStatus() }
+        .map_err(|e| AxError::internal(format!("MFT 事件状态读取失败: {e}")))?;
+      if status.is_err() {
+        return Err(AxError::internal(format!("MFT 错误事件（type={event_type}）: {status:?}")));
+      }
+      if event_type == METransformNeedInput.0 as u32 {
+        self.need_input = true;
+        continue;
+      }
+      if event_type == METransformHaveOutput.0 as u32 {
+        self.have_output = self.have_output.saturating_add(1);
+        continue;
+      }
+      // METransformDrainComplete 等持久事件不参与驱动：忽略。
     }
   }
 
@@ -688,6 +785,9 @@ impl Encoder {
         .ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
         .map_err(|e| AxError::internal(format!("回退重开流失败: {e}")))?;
     }
+    // flush 清空 MFT 事件队列与输入许可（异步 MFT：等新的 NeedInput 再喂）。
+    self.need_input = false;
+    self.have_output = 0;
     self._d3d_manager = None;
     self.gpu_interop = false;
     self.pending.clear();
@@ -695,9 +795,22 @@ impl Encoder {
   }
 
   /// `ProcessOutput` 循环：拿到一帧含数据的 ES 或「本轮无输出」（NEED_MORE_INPUT）。
+  /// 异步 MFT：仅在存在未消费 METransformHaveOutput 事件时才调用，且每个事件对应一次
+  /// 调用——其余时机 ProcessOutput 返回 E_UNEXPECTED（MS「Asynchronous MFTs」）。
   fn pump_output(&mut self) -> AxResult<Option<Vec<u8>>> {
     let cap = (self.out_w as usize) * (self.out_h as usize) * 3 / 2;
-    for _ in 0..8 {
+    let iterations = if self.async_mode {
+      if self.have_output == 0 {
+        return Ok(None);
+      }
+      1
+    } else {
+      8
+    };
+    for _ in 0..iterations {
+      if self.async_mode {
+        self.have_output -= 1;
+      }
       // 输出样本自备（除非驱动声明 PROVIDES_SAMPLES——那种情形下传 None 也安全，
       // 统一自备并容忍 MFT 覆盖 pSample）。
       let out_sample = self.make_output_sample(cap)?;
@@ -788,12 +901,34 @@ fn setup_d3d_manager(mf: &IMFTransform, device: &ID3D11Device) -> AxResult<IMFDX
   Ok(manager)
 }
 
-/// 枚举硬件 H.264 视频编码器并激活。
+/// 检测并解锁异步 MFT（返回是否异步）：硬件 H.264 MFT（NVENC / AMF / QSV）普遍是
+/// 异步编码器——读 `MF_TRANSFORM_ASYNC` 判定；异步时在配置媒体类型前置
+/// `MF_TRANSFORM_ASYNC_UNLOCK=TRUE`，否则首次 `SetInputType` 报
+/// `MF_E_TRANSFORM_ASYNC_LOCKED (0xC00D6D77)`（现象：会话连上但画面永远不出）。
+/// 同步 MFT 无该属性（读取失败即同步）；解锁后还必须按事件模型驱动（见 Encoder 字段
+/// `async_mode` 注释），解锁只是入场券。MS 参考：MF_TRANSFORM_ASYNC_UNLOCK / Asynchronous MFTs。
+fn unlock_async_mft(mf: &IMFTransform) -> bool {
+  // unsafe 依据（块级）：IMFTransform/IMFAttributes 均为 COM FFI；属性接口仅本函数使用。
+  unsafe {
+    let Ok(attributes) = mf.GetAttributes() else {
+      return false;
+    };
+    // 缺属性（同步 MFT）→ 读取失败 → 不需要解锁。
+    let is_async = matches!(attributes.GetUINT32(&MF_TRANSFORM_ASYNC), Ok(value) if value != 0);
+    if is_async {
+      // 解锁失败也无后续补救路径；保持原错误面（首个 Set 调用会报 ASYNC_LOCKED）。
+      let _ = attributes.SetUINT32(&MF_TRANSFORM_ASYNC_UNLOCK, 1);
+    }
+    is_async
+  }
+}
+
+/// 枚举硬件 H.264 视频编码器并激活。返回 (transform, 是否异步 MFT)。
 ///
 /// 选择口径：简报写「取含 "H.264" 描述者」，但 windows 0.58 元数据没有
 /// `MF_TRANSFORM_FRIENDLY_NAME` 常量——改用等价且更强的类型过滤
 /// （输入 NV12 + 输出 H264 + `SORTANDFILTER` 排序），首个可激活且可配类型的胜出。
-fn activate_h264_encoder() -> AxResult<IMFTransform> {
+fn activate_h264_encoder() -> AxResult<(IMFTransform, bool)> {
   let input_info = MFT_REGISTER_TYPE_INFO {
     guidMajorType: MFMediaType_Video,
     guidSubtype: MFVideoFormat_NV12,
@@ -820,6 +955,7 @@ fn activate_h264_encoder() -> AxResult<IMFTransform> {
     .map_err(|e| AxError::new("unimplemented", format!("MFTEnumEx(硬件 H.264) 失败: {e}")))?;
   }
   let mut activated: Option<IMFTransform> = None;
+  let mut activated_async = false;
   if !arr.is_null() {
     for i in 0..count as usize {
       // 数组元素 = 单个接口指针槽（8B，与 Option<IMFActivate> 同布局），按 Option
@@ -830,16 +966,22 @@ fn activate_h264_encoder() -> AxResult<IMFTransform> {
         continue;
       }
       match unsafe { activate.ActivateObject::<IMFTransform>() } {
-        Ok(t) => activated = Some(t),
+        Ok(t) => {
+          // 激活成功即检测/解锁异步 MFT（配置媒体类型之前必须完成，见 unlock_async_mft 注释）。
+          activated_async = unlock_async_mft(&t);
+          activated = Some(t)
+        }
         // 单个激活失败（驱动状态异常）→ 尝试下一个候选。
         Err(_) => continue,
       }
     }
     unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(arr as *const core::ffi::c_void)) };
   }
-  activated.ok_or_else(|| {
-    AxError::new("unimplemented", "无可用硬件 H.264 编码器（MFTEnumEx 无候选或激活失败）")
-  })
+  activated
+    .map(|transform| (transform, activated_async))
+    .ok_or_else(|| {
+      AxError::new("unimplemented", "无可用硬件 H.264 编码器（MFTEnumEx 无候选或激活失败）")
+    })
 }
 
 /// 配置输入/输出 media type（MS H.264 编码器口径：输入 NV12+尺寸+帧率+逐行；
@@ -881,10 +1023,6 @@ fn configure_media_types(
       MFVideoInterlace_Progressive.0 as u32,
     )
       .map_err(|e| AxError::new("unimplemented", format!("输入类型 interlace 失败: {e}")))?
-  };
-  unsafe {
-    mf.SetInputType(0, &input, 0)
-      .map_err(|e| AxError::new("unimplemented", format!("SetInputType 失败: {e}")))?
   };
 
   let output = unsafe { MFCreateMediaType() }
@@ -930,11 +1068,35 @@ fn configure_media_types(
     output.SetUINT32(&MF_MT_MPEG2_PROFILE, profile.0 as u32)
       .map_err(|e| AxError::new("unimplemented", format!("输出类型 profile 失败: {e}")))?
   };
-  unsafe {
-    mf.SetOutputType(0, &output, 0)
-      .map_err(|e| AxError::new("unimplemented", format!("SetOutputType 失败: {e}")))?
-  };
-  Ok(())
+  set_codec_media_types(&mf, &input, &output)
+}
+
+/// 设置输入/输出媒体类型；顺序随编码 MFT 而异（MF 文档：顺序不对报
+/// `MF_E_TRANSFORM_TYPE_NOT_SET (0xC00D6D60)`——部分硬件编码 MFT 的输入流依赖输出流
+/// 先成形（帧尺寸/profile 由输出类型定义），必须先 SetOutputType）。
+/// 先按「输入→输出」；命中 TYPE_NOT_SET 即换「输出→输入」重试——首个 Set 失败不消费
+/// 类型对象，换序重设即告完成（2026-10-13：AMD 硬编 MFT 需输出先行，漏了这一步的
+/// 现象是 `rd_media_start` 失败、会话连上但画面永远不出）。
+fn set_codec_media_types(
+  mf: &IMFTransform,
+  input: &IMFMediaType,
+  output: &IMFMediaType,
+) -> AxResult<()> {
+  let set_input = || unsafe { mf.SetInputType(0, input, 0) };
+  let set_output = || unsafe { mf.SetOutputType(0, output, 0) };
+  match set_input() {
+    Ok(()) => set_output()
+      .map_err(|e| AxError::new("unimplemented", format!("SetOutputType 失败: {e}"))),
+    Err(error) if error.code() == MF_E_TRANSFORM_TYPE_NOT_SET => {
+      set_output()
+        .map_err(|e| AxError::new("unimplemented", format!("SetOutputType 失败: {e}")))?;
+      set_input().map_err(|e| AxError::new("unimplemented", format!("SetInputType 失败: {e}")))
+    }
+    Err(error) => Err(AxError::new(
+      "unimplemented",
+      format!("SetInputType 失败: {error}"),
+    )),
+  }
 }
 
 /// 低延迟 / 免丢帧的编码参数（`ICodecAPI`；逐项尽力而为，单项失败只提示不失败）：
