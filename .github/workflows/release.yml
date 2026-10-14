@@ -487,9 +487,9 @@ jobs:
           # 回归保护：清单必须覆盖当前发布面的安装包（Windows 桌面 exe/zip + fnOS .fpk）；
           # 缺任一类都说明上传或片段生成出了问题，阻止发布而不是发布不完整的清单。
           # （断言只看扩展名、不看产品名前缀。当前不发 macOS/Linux，所以没有 .dmg/.AppImage；
-          #   恢复那两条腿时要在 matrix 与这里同步补回来。）
+          #   Windows 的 electron-builder 也不产 zip，砍掉 macOS 腿后 .zip 条目不再存在；
+          #   恢复 mac/linux 那两条腿时要在 matrix 与这里同步补回来。）
           for pattern in \
-            '^[0-9a-f]{64}  [^ ]+\.zip$' \
             '^[0-9a-f]{64}  [^ ]+\.exe$' \
             '^[0-9a-f]{64}  [^ ]+\.fpk$'; do
             if ! grep -Eq "$pattern" sha256.txt; then
