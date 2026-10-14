@@ -117,8 +117,10 @@ export function useWorkflowRunSave(host: WorkflowRunSaveHost): WorkflowRunSaveCo
     if (!rpcReady) return;
     // `generation` 在依赖里：一次作废让所有在场的卡片重查（保存、删除、中枢刷新都会作废）。
     void generation;
+    const findSavedForRun = agentService.findSavedWorkflowForRun?.bind(agentService);
+    if (!findSavedForRun) return;
     void load(key, () =>
-      agentService.findSavedWorkflowForRun({
+      findSavedForRun({
         ...target,
         runId,
         ...(candidates === undefined || candidates.length === 0 ? {} : { candidates }),
@@ -129,9 +131,11 @@ export function useWorkflowRunSave(host: WorkflowRunSaveHost): WorkflowRunSaveCo
   const [saving, setSaving] = useState(false);
   const save = useCallback(
     async (input: WorkflowRunSaveSubmit) => {
+      const saveFromRun = agentService.saveSavedWorkflowFromRun?.bind(agentService);
+      if (!saveFromRun) throw new Error("saved workflows are not supported by this agent");
       setSaving(true);
       try {
-        const result = await agentService.saveSavedWorkflowFromRun({
+        const result = await saveFromRun({
           ...target,
           runId,
           name: input.name,

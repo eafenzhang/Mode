@@ -2,6 +2,13 @@ import type { DynamicWorkflowMode } from "@mode/shared";
 import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@mode/shared";
 /* eslint-disable max-lines -- Mode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@mode/rpc";
+import {
+  type ModeSavedWorkflowMeta,
+  type ModeSavedWorkflowScope,
+  type ModeWorkflowsForRunCandidate,
+  type ModeWorkflowsForRunResult,
+  type ModeWorkflowsSaveResult,
+} from "@mode/shared";
 import { ServiceChannels } from "@mode/shared";
 import type { AppUsageRange, AppUsageSnapshot, ModeTaskTokenUsageResult } from "@mode/shared";
 import type { ModeAutomation, ModeAutomationRun } from "@mode/shared";
@@ -568,6 +575,30 @@ export interface ModeAgentStorageStartupSnapshot {
 }
 
 export interface IModeAgentService {
+  /**
+   * 「这次 run 对应哪个已保存工作流」——按 runId 反查（对应 CLI 的 `workflows/forRun`）。
+   * 未实现该能力的宿主返回 undefined，UI 走 `directSaveUnsupported` 分支。
+   */
+  findSavedWorkflowForRun?(input: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    remoteSessionId?: string;
+    runId: string;
+    candidates?: readonly ModeWorkflowsForRunCandidate[];
+  }): Promise<ModeWorkflowsForRunResult>;
+  /**
+   * 「直接保存」——按 runId 取这次 run 跑过的脚本落盘，无模型回合（对应 CLI 的 `workflows/save`）。
+   */
+  saveSavedWorkflowFromRun?(input: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    remoteSessionId?: string;
+    runId: string;
+    name: string;
+    meta: ModeSavedWorkflowMeta;
+    scope: ModeSavedWorkflowScope;
+    overwrite?: boolean;
+  }): Promise<ModeWorkflowsSaveResult>;
   /**
    * 把用户选择的动态工作流模式同步给 Host；空对象表示交回服务端提供的模式。
    */
