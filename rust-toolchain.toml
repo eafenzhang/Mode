@@ -1,0 +1,13 @@
+# 路线图 M0 任务 6：Rust 工具链单一真源。
+# channel 与电脑控制一期 CI 对齐（.github/workflows/release.yml 的
+# dtolnay/rust-toolchain@stable）。CI 腿不再各写一份版本。
+#
+# 此处刻意不声明 targets：本地 CUA helper 默认走 gnu 交叉目标
+# （scripts/build-cua-helper.mjs 的 MODE_CUA_AX_TARGET 默认值），写死 Windows
+# 目标会让 mac/linux CI 腿去装用不到的交叉 std。目标由调用方按平台显式指定。
+#
+# 精确小版本（如 1.99.0）暂不钉：钉了会新建一个只有宿主目标的 toolchain，
+# 本地 gnu 交叉构建反而拿不到 std。等 M1 骨架把交叉目标口径定下来再收紧。
+[toolchain]
+channel = "stable"
+components = ["clippy", "rustfmt"]

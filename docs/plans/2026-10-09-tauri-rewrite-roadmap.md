@@ -71,17 +71,24 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - [x] **导入上游基线（DR-04）**：`git fetch https://github.com/zai-org/ZCode.git main` → `git branch upstream/zcode-baseline FETCH_HEAD`（本地分支，由人决定何时推送）。
 - [x] **clean-room spec**：新建 `docs/specs/clean-room-policy.md`，写明：禁读上游实现的适用范围（仓库内外所有新代码任务）、AI 提示词模板中的禁用引用、对拍只比行为不看实现、违规处置；`AGENTS.md` 增加一行指针。
 - [x] **语言政策 + 门禁**：`docs/specs/language-policy.md` + `scripts/check-language-policy.mjs`——扫描 `git ls-files`（索引全量）+ `scripts/language-policy-allowlist.txt` 允许清单〔R2 裁定修正原计划的 `--cached` 口径：其在 pre-push/CI 接线点会空转〕，非 vendored 路径新增 `.py/.cs/.js`（`.mjs/.cjs` 亦拒，入清单=spec 批准）即退出 1；挂进 `pnpm verify:pre-push` 与 release CI。验收：暂存 `foo.py` 跑脚本 → FAIL；移除 → PASS。〔下一批候选：真 `.husky/pre-push` 钩子 vs spec 明写「约定执行 + release CI 硬兜底」二选一（终审 Minor#3）；`check-language-policy.mjs` 对 git 不可用/清单缺失的异常文案打磨（E-1）〕
-- [ ] **Rust 工具链落地（遵循 DR-06）**〔M0 批次未执行——等电脑控制一期 Rust 落地后跟进；并行会话已现 `crates/mode-cua-ax`〕：先确认电脑控制一期的 Rust workspace/工具链落点与 cargo CI job 形态（`docs/specs/computer-use-windows-runtime.md`），`rust-toolchain.toml` 与其保持同一版本；`crates/browser-import-helper` 用 Rust 重写现有 1561 行 C#（`packages/desktop/native/windows-browser-import-helper/Program.cs`），**先写行为对拍测试**（同输入 → 与 C# 版输出一致），cargo test 全绿后按一期已建立的打包约定接进 electron-builder，删除 C# 工程。验收：Windows 实机导入一次浏览器数据成功；语言条 C# 归零。
+- [x] **Rust 工具链钉版（2026-10-15 落地）**：根 `rust-toolchain.toml` 确立为单一真源，`channel = "stable"` + `components = ["clippy","rustfmt"]`，与电脑控制一期 CI（`release.yml` 的 `dtolnay/rust-toolchain@stable`）对齐。刻意不声明 `targets`：本地 CUA helper 默认走 gnu 交叉目标（`scripts/build-cua-helper.mjs` 的 `MODE_CUA_AX_TARGET`），写死 Windows 目标会让 mac/linux CI 腿装无用交叉 std；精确小版本待 M1 定下交叉目标口径后再收紧。
+- [ ] **`crates/browser-import-helper` 重写 C#（M0 关闭条件）**〔2026-10-15 补齐计划与契约〕：**新发现的纪律约束**——`Program.cs` 与 `upstream/zcode-baseline` 逐文件 diff **只差 1 行**（1 insertion / 1 deletion），属 `clean-room-policy.md` 口径下的上游衍生实现文件，**禁读**；「先写行为对拍测试（同输入 → 与 C# 版输出一致）」必须按**黑盒**执行，不得打开旧实现照着写。
+  - 契约真源：`docs/specs/browser-import-helper-contract.md`（黑盒实测 + 接口面：`--version` 五字段横幅、`--broker --parent-pid` 的 tab 分隔 3 字段请求/响应、宿主 reason 白名单 13 项、90s 超时与 128KiB stdout 上限）。
+  - 执行计划：`docs/plans/2026-10-15-browser-import-helper-rust-port.md`（P1 纯逻辑可本机验，P2 提权/服务通道/密钥解封需真实 Windows 会话，P3 接线删 C#）。
+  - 本机前置已验：无 dotnet/csc，但 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 可用，`pnpm --filter @mode/desktop prepare:browser-import-helper` 能产出 oracle。
+  - 验收：Windows 实机导入一次浏览器数据成功（含拒绝 UAC → `chrome_cookie_elevation_cancelled`）；语言条 C# 归零。
 - [ ] **mode-cua JS→TS（让行）**〔本批让行，待电脑控制一期收口〕：等电脑控制一期收口后再执行（该目录正在被并行会话开发）；`.d.ts` 手写声明删除，改由 tsc 产出。
 - [ ] **（可选）过渡版瘦身**〔本批未执行〕：按上轮结论修 `files` 白名单（echarts/mermaid/pdfjs/lucide/shiki/katex 等渲染层库已在 `out/renderer` bundle 内，asar 不再重复装其 node_modules）+ `compression: "max"`，本地出包对比体积并记录。**与 CUA 一期对 `electron-builder.config.js` 的改动错峰，同一窗口期只动一处。**
 
-**阶段验收：** 语言政策门禁在 CI 生效；`upstream/zcode-baseline` 存在；clean-room spec 合入；Rust helper 替换 C# 后三平台包可出〔此项属任务 6，经 DR-06 让行后置〕；GitHub 语言条只剩 TS/TSX + JS（旧脚本）+ HTML/CSS。〔首批已验：门禁生效、基线存在、spec 合入；阶段关闭待任务 6〕
+**阶段验收：** 语言政策门禁在 CI 生效；`upstream/zcode-baseline` 存在；clean-room spec 合入；Rust helper 替换 C# 后三平台包可出〔此项属任务 6，经 DR-06 让行后置〕；GitHub 语言条只剩 TS/TSX + JS（旧脚本）+ HTML/CSS。〔首批已验：门禁生效、基线存在、spec 合入；2026-10-15 追加：`rust-toolchain.toml` 钉版落地、helper 重写计划与黑盒契约 spec 就位；**阶段关闭待任务 6 的 C# 重写与实机验收**〕
 
 ---
 
 ## M1 Tauri 骨架（2–3 个月）
 
 **目标：** Tauri v2 壳跑通存量 React UI 与平台服务层，三平台出包，初装体积出现数量级下降。
+
+**子计划：** `docs/plans/2026-10-15-tauri-skeleton.md`（2026-10-15 产出，开工即用；含命令切片表、事件通道、capability 规则、体积基线与风险）。
 
 **Files:**
 - Create: `apps/desktop-tauri/`（`src-tauri/`：taui v2 工程 + `Cargo.toml` workspace 根挂 `crates/*`）、`crates/platform/`（IPlatformService 的 Rust 对应）、`crates/protocol/`（schemars + typeshare）、`crates/updater/`、`crates/tray/`、`crates/deeplink/`
@@ -91,7 +98,7 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - Consumes: 存量 `packages/ui`（DR-02 挂载）、`packages/shared/src/platform.ts` 的 `IPlatformService` 方法清单（作为 Rust 命令面的**接口规格**，只读签名与文档，不读实现）。
 - Produces: `platform::commands`（`#[tauri::command]`，与 `IPlatformService` 逐方法同名同参）、`protocol` crate 导出的 TS 类型（`typeshare` 生成 `packages/shared/src/generated/tauri-protocol.ts`）、`ModeTauri.exe` 安装包（≤25MB 目标）。
 
-- [ ] **脚手架**：`cargo create-tauri-app`（react-ts 模板）落 `apps/desktop-tauri`，`rust-toolchain.toml` 已在 M0〔若 M0 任务 6 未落地，M1 首任务先补钉工具链版本〕；CI 加 `cargo test` + `cargo clippy -D warnings`。
+- [ ] **脚手架**：`cargo create-tauri-app`（react-ts 模板）落 `apps/desktop-tauri`，`rust-toolchain.toml` 已在 M0 钉版（2026-10-15，`channel = "stable"`）〔若后续把交叉目标口径写进该文件，需同步 `scripts/build-cua-helper.mjs` 的 `MODE_CUA_AX_TARGET` 默认值〕；CI 加 `cargo test` + `cargo clippy -D warnings`。
 - [ ] **平台命令面**：按 `IPlatformService` 签名清单逐个实现（文件对话框、剪贴板、通知、托盘、深链、代理设置、更新检查 stub、shell open）；每个命令先写 tauri::test / 集成测试再实现（红→绿）。
 - [ ] **协议双端**：新 Rust 结构体 `#[derive(schemars::JsonSchema, Serialize, Deserialize)]` → typeshare 导出 TS；CI 断言生成文件无漂移；存量 TS 协议保持真源，Rust 侧 serde 类型 + 契约测试对拍（复用 `packages/services` 的 contract 测试思路）。
 - [ ] **UI 挂载（DR-02）**：现有 renderer 产物以 `frontendDist` 方式挂进 Tauri；验证窗口内 UI 正常、RPC 走 `platform::commands` 适配层（`window.mode` shim → `invoke()`）。
