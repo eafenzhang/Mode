@@ -957,6 +957,19 @@ impl DuplicationOutput {
   /// 关闭：释放 duplication（COM 引用随 drop 归零）；幂等。
   pub fn close(&mut self) { self.duplication = None; }
 
+  /// 主动重发最近一帧（键请求/开流补帧，2026-10-14）：
+  /// 桌面与光标都没有变化时，`next_frame` 只会返回 Idle（正常环境 `dupl_shape_seen` 下
+  /// 连 user32 补帧都不走），调用方 `enc.force_idr()` 便永远没有帧可编 → 对端拿到零帧、
+  /// 表现为「画面已连接 / 0 fps / 0.0 Mbps」的纯黑（实机实证）。
+  /// 这里把已合成的 `proc` 原样再交出去一次：内容就是当前屏幕，编码器照常走一次 IDR。
+  /// 尚未装载过底图（首个桌面帧未到）时返回 Idle——不凭空造帧，交给后续真实变化兑现。
+  pub fn reemit(&mut self) -> AxResult<CaptureFrame> {
+    if !self.clean_valid {
+      return Ok(CaptureFrame::Idle);
+    }
+    Ok(CaptureFrame::NewDesktop { texture: self.proc.clone(), cursor: None })
+  }
+
   /// 阻塞至下一帧（`timeout_ms` 典型 16ms）。返回前已完成合成：
   /// `clean` ← 桌面帧（纯内容），`proc` = clean + 光标补丁（`cursor.rgba` 为
   /// **BGRA** 的已混合字节）。三类事件：
