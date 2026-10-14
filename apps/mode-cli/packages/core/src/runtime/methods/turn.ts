@@ -1,7 +1,5 @@
 import { beginLocalTurnPreparation, type LocalTtftDetail } from "@mode/contracts";
 import { runtimeInputMetadata } from "../../agent/runtime-input-presentation.js";
-import { withConversationQuotes } from "../helpers/conversation-quotes.js";
-import { ensureGroupTaskPermissionScope } from "./input-intent-persistence.js";
 import {
   CoreErrorType,
   HookEventName,
@@ -295,7 +293,6 @@ export async function executeTurnCommand(
       turnMachine = new TurnMachineImpl(turnMachine.start());
       phaseStartedAt = startTurnPhase("session_persistence");
       await this.ensureSessionPersisted(displayInput, turnTraceContext);
-      await ensureGroupTaskPermissionScope(this.sessionStore, this.sessionId, options?.intent);
       // execution-scoped 临时 Provider（例如闲时任务）拥有本轮自己的模型，不改写
       // Session Selection；普通 Submission 才在真正开跑时应用其原子选择。
       const submissionModel = await applySubmissionExecutionState(
@@ -521,11 +518,7 @@ export async function executeTurnCommand(
         } else if (options?.skipInputRecord !== true) {
           this.messageHistory.addEntries(
             buildRuntimeUserEntriesFromTurn(
-              withConversationQuotes(
-                input,
-                options?.intent?.conversationQuotes,
-                options?.intent?.botGroupSource,
-              ),
+              input,
               resolvedAttachments,
               {
                 browserAmbientContext: options?.browserAmbientContext,

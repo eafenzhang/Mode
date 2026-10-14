@@ -1,7 +1,6 @@
 import type { RuntimeInputPresentation } from "@mode/contracts";
 import { createModelId, createModelProviderId } from "@mode/contracts";
 import { SessionEventType, createPartId, traceContextToLogContext } from "../deps.js";
-import { withConversationQuotes } from "../helpers/conversation-quotes.js";
 import type {
   EnvInfo,
   MessageId,
@@ -120,11 +119,7 @@ export async function persistUserPrompt(
       sessionID: this.sessionId,
       messageID,
       type: "text",
-      text: withConversationQuotes(
-        input,
-        options?.intent?.conversationQuotes,
-        options?.intent?.botGroupSource,
-      ),
+      text: input,
       time: {
         start: created,
         end: created,

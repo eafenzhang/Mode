@@ -4,7 +4,6 @@ import {
   recoverPendingPermissionGrant,
 } from "../permission-grant-recovery.js";
 import { runtimeInputMetadata } from "../../agent/runtime-input-presentation.js";
-import { withConversationQuotes } from "../helpers/conversation-quotes.js";
 import {
   CoreErrorType,
   SessionEventType,
@@ -53,9 +52,7 @@ import type { AgentRuntimeInternal } from "../internal.js";
 
 function hasSteerInput(request: Pick<TurnSteerInput, "attachments" | "input" | "intent">): boolean {
   return (
-    request.input.trim().length > 0 ||
-    Boolean(request.attachments?.length) ||
-    Boolean(request.intent?.conversationQuotes?.length)
+    request.input.trim().length > 0 || Boolean(request.attachments?.length)
   );
 }
 
@@ -1222,11 +1219,7 @@ async function drainPendingInputUnlocked(
         : undefined;
     const runtimeEntry = createRuntimeUserEntry(
       buildUserContentFromTurn(
-        withConversationQuotes(
-          pendingInput.input,
-          pendingInput.intent?.conversationQuotes,
-          pendingInput.intent?.botGroupSource,
-        ),
+        pendingInput.input,
         resolvedAttachments,
       ),
       runtimeInputMetadata(inputPresentation) ?? realUserRuntimeMetadata(),
