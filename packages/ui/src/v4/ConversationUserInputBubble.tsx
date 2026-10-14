@@ -1,5 +1,4 @@
 import type { ChannelContentPart } from "@mode/shared";
-import { ChannelMentionContent } from "@/v4/ChannelMentionContent.js";
 import { ConversationUserInputEpilogue } from "@/v4/ConversationUserInputEpilogue.js";
 import { ConversationUserInputBody } from "@/v4/ConversationUserInputBody.js";
 import { ConversationUserInputContent } from "@/v4/ConversationUserInputContent.js";
@@ -28,15 +27,11 @@ export function ConversationUserInputBubble({
     >
       {text.trim() ? (
         <ConversationUserInputBody contentText={text} rowId={rowId}>
-          {contentParts?.some((part) => part.type === "channelMention") ? (
-            <ChannelMentionContent parts={contentParts} text={text} />
-          ) : (
-            <ConversationUserInputContent
-              text={text}
-              attachments={attachments}
-              contextAttachmentCount={contextAttachmentCount}
-            />
-          )}
+          <ConversationUserInputContent
+            text={text}
+            attachments={attachments}
+            contextAttachmentCount={contextAttachmentCount}
+          />
         </ConversationUserInputBody>
       ) : null}
       {epilogue === undefined ? null : <ConversationUserInputEpilogue text={epilogue} />}

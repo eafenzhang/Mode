@@ -1,6 +1,3 @@
-import { BotTopicPreparation } from "@/v4/BotTopicPreparation.js";
-import { useBotTopicInterruption } from "@/v4/botGroupDeliveryContext.js";
-import { ConnectedBotGroupDeliveryAction } from "@/v4/BotGroupDeliveryAction.js";
 /* eslint-disable max-lines -- turn group 需要在同一处维护普通 assistant 与后台结果的严格行序，拆分会重复 actions/preview/tail 协议。 */
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import {
@@ -684,7 +681,6 @@ function AssistantHistoryStatus({
   sourceCommandIds: readonly string[];
 }) {
   const { intl, locale } = useModeIntl();
-  const topicInterrupted = useBotTopicInterruption(sourceCommandIds);
   const durationLabel = formatConversationWorkDuration(
     segment.workStatus?.durationMs,
     intl,
@@ -699,7 +695,7 @@ function AssistantHistoryStatus({
   const label =
     segment.workStatus?.state === "interrupted"
       ? intl.formatMessage({
-          id: topicInterrupted ? "chat.history.topicInterrupted" : "chat.history.stopped",
+          id: "chat.history.stopped",
         })
       : segment.workStatus?.state === "running"
         ? intl.formatMessage({ id: "chat.history.workingFor" }, { duration: durationLabel ?? "" })
@@ -1733,7 +1729,7 @@ function ConversationTurnGroupImpl({
                 "flex items-center gap-1",
                 context.compactForRemoteControl
                   ? "opacity-100"
-                  : "opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100 has-[[data-bot-group-delivery]]:opacity-100",
+                  : "opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100",
               )}
             />
           ) : (hasHookActions || !unit.isRunning) && !canRenderAssistantActions ? (
@@ -1743,16 +1739,12 @@ function ConversationTurnGroupImpl({
               className={cn(
                 context.compactForRemoteControl
                   ? "opacity-100"
-                  : "opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100 has-[[data-bot-group-delivery]]:opacity-100",
+                  : "opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100",
               )}
             >
               {hasHookActions ? (
                 <ConversationHookDetailsAction rows={unit.hookInvocations} turnId={unit.turnId} />
               ) : null}
-              <ConnectedBotGroupDeliveryAction
-                turnId={unit.turnId}
-                sourceCommandIds={deliverySourceCommandIds}
-              />
             </MessageActions>
           ) : null}
           {showHighspeedOutputFooter ? (
@@ -1799,9 +1791,6 @@ function ConversationTurnGroupImpl({
           highspeedMeta={highspeedMeta}
         />
       )}
-      {unit.topicPreparations?.length ? (
-        <BotTopicPreparation items={unit.topicPreparations} />
-      ) : null}
     </section>
   );
 }
