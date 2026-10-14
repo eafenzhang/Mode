@@ -4,7 +4,6 @@
 // 一个实例对应一条 host 连接；跨 workspace 分屏在 shell 层做
 // Map<workspaceKey, SessionDataLayer>，本层不感知 workspace。
 import { ConversationProjectionStore } from "@/v4/conversationProjectionStore.js";
-import { ConversationRowPool } from "@/v4/conversationRowSharing.js";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import { conversationTopic, type ConversationTransport } from "@/v4/transport.js";
 import { logger } from "@/logger.js";
@@ -51,7 +50,6 @@ export class SessionDataLayer {
   private readonly entries = new Map<string, SessionEntry>();
   // 行结构共享池跨 store 生命周期：keep-warm 过期冷打开的新 store 仍能复用被留住的旧行
   // （docs/performance/conversation-row-structural-sharing.md）。
-  private readonly rowPool = new ConversationRowPool();
   private readonly offFrame: () => void;
   private disposed = false;
 
@@ -84,7 +82,7 @@ export class SessionDataLayer {
         entry.keepWarmTimer = null;
       }
     } else {
-      const store = new ConversationProjectionStore(topic, this.transport, this.rowPool);
+      const store = new ConversationProjectionStore(topic, this.transport);
       entry = { store, refCount: 1, keepWarmTimer: null };
       this.entries.set(topic, entry);
       openKind = "cold";
