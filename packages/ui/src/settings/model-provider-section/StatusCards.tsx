@@ -20,7 +20,6 @@ import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useCodingPlanQuotaResetUi } from "@/hooks/useCodingPlanQuotaResetUi.js";
 import {
   formatQuotaResetTime,
-  findCodingPlanQuotaLimit,
   isSameLimitCategory,
 } from "@/lib/codingPlanQuotaPresentation.js";
 import {
@@ -652,9 +651,6 @@ function CodingPlanUsageSummaryCards({
     findUsageLimit(limits, "TOKENS_LIMIT", 6),
     resetUi.week.entry,
   );
-  // 额度剩余 100% 时重置没有收益:隐藏重置按钮与机会徽标(纯展示,不影响发放与轮询)。
-  const fiveHourQuotaFull = findCodingPlanQuotaLimit(fiveHourLimit);
-  const weeklyQuotaFull = findCodingPlanQuotaLimit(weeklyLimit);
   const standardCards = [
     createCodingPlanUsageSummaryCard({
       key: "fiveHour",
@@ -717,17 +713,16 @@ function CodingPlanUsageSummaryCards({
     {
       count: resetUi.entry?.opportunityCount ?? 0,
       expiresAt: resetUi.entry?.opportunityExpiresAt ?? null,
-      visible: fiveHourCardVisible && resetUi.opportunityVisible && !fiveHourQuotaFull,
+      visible: fiveHourCardVisible && resetUi.opportunityVisible,
     },
     {
       count: resetUi.week.entry?.opportunityCount ?? 0,
       expiresAt: resetUi.week.entry?.opportunityExpiresAt ?? null,
-      visible: weeklyCardVisible && resetUi.week.opportunityVisible && !weeklyQuotaFull,
+      visible: weeklyCardVisible && resetUi.week.opportunityVisible,
     },
   ]);
   const quotaResetDialog = buildCodingPlanQuotaResetDialogConfig({
     fiveHourEnabled: Boolean(fiveHourLimit),
-    fiveHourQuotaFull,
     resetUi,
     usageItems: cards.map((card) => {
       const percentage = resolveLimitRemainingPercentage(card.limit);
@@ -746,7 +741,6 @@ function CodingPlanUsageSummaryCards({
       };
     }),
     weekEnabled: Boolean(weeklyLimit),
-    weekQuotaFull: weeklyQuotaFull,
   });
 
   return (
@@ -775,7 +769,7 @@ function CodingPlanUsageSummaryCards({
               // 额度标题旁入口只打开统一弹窗；真正核销由弹窗内对应类型按钮触发。
               card.key === "fiveHour" &&
               resetUi.entry &&
-              ((resetUi.opportunityVisible && !fiveHourQuotaFull && opportunityBadge.count <= 1) ||
+              ((resetUi.opportunityVisible && opportunityBadge.count <= 1) ||
                 resetUi.processing ||
                 resetUi.entry.status === "completed") ? (
                 <LocalizedCodingPlanQuotaResetAction
@@ -785,9 +779,7 @@ function CodingPlanUsageSummaryCards({
                 />
               ) : card.key === "weekly" &&
                 resetUi.week.entry &&
-                ((resetUi.week.opportunityVisible &&
-                  !weeklyQuotaFull &&
-                  opportunityBadge.count <= 1) ||
+                ((resetUi.week.opportunityVisible && opportunityBadge.count <= 1) ||
                   resetUi.week.processing ||
                   resetUi.week.entry.status === "completed") ? (
                 <LocalizedCodingPlanQuotaResetAction
