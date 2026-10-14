@@ -4,6 +4,7 @@ import type {
   ModeSessionImportHistory,
   ModeSessionImportMessage,
   ModeSessionStateSnapshot,
+  TraceId,
 } from "@mode/shared";
 import {
   getLegacyDeletedTaskSessionSnapshotPath,
@@ -21,6 +22,10 @@ export interface ImportedClaudeHistoryRepairTarget {
 }
 
 export interface ImportedClaudeHistoryRepairResult {
+  /**
+   * 旧快照里记录的会话 trace id；缺席时由调用方生成（历史导入的 sessionTraceId 用）。
+   */
+  traceId?: TraceId;
   title?: string;
   createdAt?: number;
   updatedAt?: number;
@@ -88,7 +93,7 @@ export function shouldRepairImportedClaudeSnapshot(
   return hasLegacyFixedMessageIds;
 }
 
-function readLegacyImportedClaudeHistory(
+export function readLegacyImportedClaudeHistory(
   target: ImportedClaudeHistoryRepairTarget,
 ): ImportedClaudeHistoryRepairResult | null {
   const snapshotPath = [

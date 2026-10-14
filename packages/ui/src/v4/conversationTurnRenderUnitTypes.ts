@@ -1,5 +1,4 @@
 import type { PluginUiRowPinResolver } from "@/plugin-ui/index.js";
-import type { BotTopicPreparation } from "@mode/shared";
 import type {
   AssistantTextRow,
   ConversationRow,
@@ -18,8 +17,6 @@ import type {
 import type { HighspeedOutputFooterMark } from "@/highspeed/highspeedOutputFooter.js";
 
 export interface ConversationTurnRenderUnit extends HighspeedOutputFooterMark {
-  /** 未接受的 Bot 消息展示投影，不写入 CLI rows 或导航/分享索引。 */
-  topicPreparations?: readonly BotTopicPreparation[];
   key: string;
   turnId: string;
   header?: TurnHeaderRow;
