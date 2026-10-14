@@ -36,13 +36,16 @@ serde_json、clap 或手写解析（对齐既有精度要求，见 Task 3）、N
 **Files:**
 - Create: `scripts/browser-import-helper-oracle.mjs`
 - Create: `packages/desktop/tests/browser-import-helper-contract.test.mjs`
-- Create: `packages/desktop/tests/fixtures/browser-import/version.txt`（harness 产物，提交）
+- Modify: `scripts/language-policy-allowlist.txt`（两个新 `.mjs` 必须入清单；入清单 = 语言政策 spec 批准）
 
 **Interfaces:**
-- Produces: `runOracle(args: string[], stdin?: string) => Promise<{exitCode, stdout, stderr}>`；
-  fixture 目录 `packages/desktop/tests/fixtures/browser-import/`。
+- Produces: `runOracle(args, stdin?, options?) => Promise<{exitCode, stdout, stderr}>`、
+  `ORACLE_PATH`（oracle 绝对路径）。
 
-- [ ] **Step 1: 写失败的测试**
+- [x] **Step 1: 写契约断言测试**（已落地）
+
+> 第三条 broker 用例**默认 skip**：broker 模式会触发 UAC 提权与服务通道，必须由人确认，
+> 无人值守跑会弹窗并挂住；仅在 `MODE_BROWSER_IMPORT_ORACLE_UAC=1` 时执行（实机验收清单里人工跑）。
 
 ```js
 // packages/desktop/tests/browser-import-helper-contract.test.mjs
@@ -68,12 +71,12 @@ test("无参数与未知参数退出码为 2", async () => {
 });
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 先跑确认失败**（已验：`Cannot find module`）
 
 Run: `node --test packages/desktop/tests/browser-import-helper-contract.test.mjs`
 Expected: FAIL —— `Cannot find module '../../../scripts/browser-import-helper-oracle.mjs'`
 
-- [ ] **Step 3: 实现 harness**
+- [x] **Step 3: 实现 harness**（已落地 `scripts/browser-import-helper-oracle.mjs`）
 
 ```js
 // scripts/browser-import-helper-oracle.mjs
@@ -109,12 +112,17 @@ export function runOracle(args, stdin) {
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `node --test packages/desktop/tests/browser-import-helper-contract.test.mjs`
-Expected: PASS（2 个用例）
+Expected: PASS（2 pass / 1 skip）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 两个新 `.mjs` 入语言政策豁免清单**
+
+`scripts/language-policy-allowlist.txt` 追加 `scripts/browser-import-helper-oracle.mjs` 与
+`packages/desktop/tests/browser-import-helper-contract.test.mjs`（门禁实测：不入清单直接 FAIL）。
+
+- [x] **Step 6: 提交**（已落地）
 
 ```bash
 git add scripts/browser-import-helper-oracle.mjs packages/desktop/tests/browser-import-helper-contract.test.mjs

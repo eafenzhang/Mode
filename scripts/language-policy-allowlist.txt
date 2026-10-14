@@ -64,6 +64,7 @@ packages/desktop/scripts/stage-agent-bundle.mjs
 packages/desktop/scripts/target-platform.mjs
 packages/desktop/scripts/verify-lan-attach.mjs
 packages/desktop/scripts/write-dev-ready-marker.mjs
+packages/desktop/tests/browser-import-helper-contract.test.mjs
 packages/desktop/tests/deep-link-scheme-compat.test.mjs
 packages/desktop/tests/github-updates.test.mjs
 packages/desktop/tests/lan-attach-initialize.test.mjs
@@ -111,6 +112,7 @@ scripts/architecture/git-file-names.mjs
 scripts/architecture/index.mjs
 scripts/architecture/policy.mjs
 scripts/bootstrap.mjs
+scripts/browser-import-helper-oracle.mjs
 scripts/build-cua-helper.mjs
 scripts/build-desktop-agent-bytecode.mjs
 scripts/build-desktop-agent-cli.mjs
