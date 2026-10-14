@@ -2377,10 +2377,11 @@ export class ProductProjection {
       case "model_first_provider_event":
       case "model_first_content":
       case "model_first_text":
-      // 准入等待的两端是 runtime 观测，不是 UI 状态：
+      // 准入等待的两端与请求观测都是 runtime 观测，不是 UI 状态：
       // 不映射成重试/等待标签。
       case "model_request_queued":
       case "model_request_admitted":
+      case "model_request_observation":
         return [];
     }
   }
@@ -3875,6 +3876,11 @@ export class ProductProjection {
         // 非行 op：只动 workflowRuns 状态键，与 subagent 行投影的输入没有交集。
         case "workflowRun.updated":
         case "workflowRun.removed":
+        // 插件 UI 的 live-only 增量按沙箱实例投递，不改行投影。
+        case "pluginUi.resourceUpdated":
+        case "pluginUi.resourceListChanged":
+        case "pluginUi.appToolCall":
+        case "pluginUi.instanceClosed":
           break;
         default: {
           const exhaustiveDelta: never = delta;
@@ -4040,6 +4046,15 @@ export class ProductProjection {
           break;
         case "row.removed":
           if (prospective.rowId >= delta.fromRowId) prospective = null;
+          break;
+        // 插件 UI 的 live-only 增量不改这里看的行投影。
+        case "pluginUi.resourceUpdated":
+        case "pluginUi.resourceListChanged":
+        case "pluginUi.appToolCall":
+        case "pluginUi.instanceClosed":
+        case "state.updated":
+        case "workflowRun.updated":
+        case "workflowRun.removed":
           break;
         default: {
           const exhaustiveDelta: never = delta;

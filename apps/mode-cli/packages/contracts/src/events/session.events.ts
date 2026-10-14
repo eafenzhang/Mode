@@ -311,6 +311,22 @@ export type WorkflowNotificationMeta =
       context?: string;
       askedAt?: number;
     }
+  /** 留白：run 走到一个开着的 `hole<T>()`，该分支停驻、主代理欠一段代码。 */
+  | {
+      kind: "hole";
+      siteId: string;
+      ordinal: number;
+      name: string;
+      /** 作者写的类型原文（如 `Plan`）。 */
+      type: string;
+      prompt?: string;
+      draftPath?: string;
+      line?: number;
+      /** 留白两侧的阶段名。 */
+      before?: string;
+      after?: string;
+      reachedAt?: number;
+    }
   /** run 级停滞：每个 stall 段一条，不是终态。 */
   | {
       kind: "stall";
