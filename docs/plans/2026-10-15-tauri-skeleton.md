@@ -34,7 +34,7 @@
 
 **Files:**
 - Create: `docs/specs/tauri-platform-commands.md`（阶段 spec）
-- Create: `Cargo.toml`（workspace 根：`members = ["crates/*", "apps/desktop-tauri/src-tauri"]`）
+- Create: `Cargo.toml`（workspace 根；成员见 Step 1 的显式清单与排除理由）
 - Create: `crates/platform/{Cargo.toml,src/lib.rs}`、`crates/protocol/{Cargo.toml,src/lib.rs}`
 - Create: `apps/desktop-tauri/src-tauri/{Cargo.toml,build.rs,tauri.conf.json}`
 - Create: `apps/desktop-tauri/src-tauri/src/main.rs`
@@ -44,6 +44,15 @@
 **Interfaces:**
 - Consumes: 根 `rust-toolchain.toml`（M0 任务 6 半落地，`channel = "stable"`）。
 - Produces: workspace 根 `Cargo.toml`；`platform::AppState`；`ModeTauri` 可执行；CI job 名 `tauri-skeleton`。
+
+> **workspace 成员口径（2026-10-15 决定）**：成员**显式列举**（新 crate + `apps/desktop-tauri/src-tauri`），
+> 并 **`exclude = ["crates/mode-cua-ax"]`**，不用 `crates/*` 通配。理由（已核实的耦合面）：
+> 1. 加入 workspace 会把 target 目录上移到仓库根，而 `scripts/build-cua-helper.mjs:23-26`
+>    期望 `crates/mode-cua-ax/target/<triple>/release/mode_cua_ax.dll` —— 现役已发布 addon 的构建会直接断；
+> 2. workspace 会用根锁文件重解析 `mode-cua-ax` 的依赖图，`windows`/`napi` 版本可能被动漂移，
+>    这对一个已上线的原生 addon 不是可以顺手做的改动。
+> **`crates/mode-cua-ax` 并入 workspace 是独立任务**（要连带改 `build-cua-helper.mjs` 路径、CI
+> `rust-cache` 的 `workspaces`、删除成员锁文件），完成后才能把 `exclude` 去掉。
 
 **Stage spec（`docs/specs/tauri-platform-commands.md`）必须包含的四节**（照抄下表，勿留空）：
 
@@ -73,7 +82,18 @@
 # Cargo.toml
 [workspace]
 resolver = "2"
-members = ["crates/*", "apps/desktop-tauri/src-tauri"]
+members = [
+  "crates/browser-import-helper",
+  "crates/platform",
+  "crates/protocol",
+  "crates/updater",
+  "crates/tray",
+  "crates/deeplink",
+  "apps/desktop-tauri/src-tauri",
+]
+# 见上「workspace 成员口径」：现役 CUA addon 暂不入 workspace，避免 target 目录上移
+# 与锁文件重解析打断它的构建；并入是独立任务。
+exclude = ["crates/mode-cua-ax"]
 
 [workspace.package]
 edition = "2021"
