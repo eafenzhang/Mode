@@ -6,10 +6,10 @@ import { laneDisplayName } from "@/components/workflow-graph/lane-name.js";
 import { phaseDisplayName } from "@/components/workflow-graph/phase-name.js";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import {
-  pillActivity,
   type TimelinePill,
   type WorkflowTimelineModel,
 } from "@/components/workflow-timeline/timeline-model.js";
+import { pillActivity } from "@/components/workflow-timeline/timeline-pill-activity.js";
 import {
   ROSTER_PINS_PANE,
   pillInstanceKey,
