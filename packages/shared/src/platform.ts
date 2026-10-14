@@ -35,6 +35,7 @@ import type {
   PrepareCuaHelperPermissionDragResult,
 } from "./cuaAccessibilitySettings.js";
 import type { BrowserViewportSize } from "./browser-use/command-metadata.js";
+import type { PluginSandboxPlatformPort } from "./mcp-apps/contract.js";
 import type { WebRemoteControlStatus } from "./web-remote-control.js";
 import type {
   EmbeddedBrowserPermissionPromptEvent,
@@ -918,6 +919,11 @@ export interface IPlatformService {
   }): Promise<void>;
   /** 清空某站点的全部持久权限状态。 */
   resetEmbeddedBrowserSitePermission?(payload: { origin: string }): Promise<void>;
+  /**
+   * 插件 UI 沙箱的平台端口（宿主与网页交互、创建/销毁沙箱、消费用户手势）。
+   * 未实现该能力的平台（web / 远程）缺席，插件 UI 卡据此降级。
+   */
+  pluginSandbox?: PluginSandboxPlatformPort;
   /** 读取当前窗口的 Web 远控连接状态（main/relay 是事实源）。 */
   getWebRemoteControlStatus?(): Promise<WebRemoteControlStatus>;
   /** 订阅 Web 远控状态变化；返回取消订阅函数。 */
