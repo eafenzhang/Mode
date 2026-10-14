@@ -1,13 +1,7 @@
 import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
 import { useEffect, useRef } from "react";
-import type { CodingPlanBillingDiscountConfig } from "@mode/shared";
 import { InfoIcon, RocketIcon, XIcon } from "lucide-react";
-import {
-  CodingPlanBillingDiscountBadgePill,
-  CodingPlanBillingDiscountInfoDialog,
-} from "@/CodingPlanBillingDiscount.js";
 import { Button } from "@/components/ui/button.js";
-import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type {
   SessionQuotaBannerKind,
@@ -52,16 +46,12 @@ function formatPercent(value: number | null): string {
 
 export function ConversationQuotaBanner({
   state,
-  billingDiscountActive,
-  billingDiscountConfig,
   upgradeActionLabelId = "chat.quota.action.upgrade",
   onUpgrade,
   onDismiss,
   onShown,
 }: {
   state: SessionQuotaBannerState;
-  billingDiscountActive?: boolean;
-  billingDiscountConfig?: CodingPlanBillingDiscountConfig;
   upgradeActionLabelId?: string;
   onUpgrade?: () => void;
   onDismiss: () => void;
@@ -108,7 +98,6 @@ export function ConversationQuotaBanner({
             percent: formatPercent(state.remainingPercent),
           },
         );
-  const showBillingDiscountBadge = Boolean(onUpgrade) && billingDiscountActive === true;
 
   return (
     <div
@@ -122,33 +111,15 @@ export function ConversationQuotaBanner({
           <div className="min-w-0 break-words">{message}</div>
         </div>
         {onUpgrade ? (
-          <div className="inline-flex shrink-0 items-center gap-1">
-            <CodingPlanEntryButton
-              type="button"
-              size="sm"
-              className={cn(
-                "h-auto gap-1.5 rounded-full",
-                // Bugfix：V4 迁移时只带回了白色活动徽标，漏掉同款升级按钮的活动背景，
-                // 导致默认黑底和徽标拼接突兀。这里与 Model Settings / Context 面板统一。
-                showBillingDiscountBadge &&
-                  "button-gradient pr-px text-white hover:bg-transparent hover:opacity-90 dark:bg-[#484A58] dark:hover:bg-[#484A58]",
-              )}
-              onClick={onUpgrade}
-            >
-              <RocketIcon className="size-3.5" />
-              {intl.formatMessage({ id: upgradeActionLabelId })}
-              {showBillingDiscountBadge ? (
-                <CodingPlanBillingDiscountBadgePill
-                  config={billingDiscountConfig}
-                  iconVisible={false}
-                  variant="surface"
-                />
-              ) : null}
-            </CodingPlanEntryButton>
-            {showBillingDiscountBadge ? (
-              <CodingPlanBillingDiscountInfoDialog config={billingDiscountConfig} />
-            ) : null}
-          </div>
+          <CodingPlanEntryButton
+            type="button"
+            size="sm"
+            className="h-auto shrink-0 gap-1.5 rounded-full"
+            onClick={onUpgrade}
+          >
+            <RocketIcon className="size-3.5" />
+            {intl.formatMessage({ id: upgradeActionLabelId })}
+          </CodingPlanEntryButton>
         ) : null}
         {state.dismissible ? (
           <Button
