@@ -11,7 +11,7 @@ import {
   type ModeTaskRuntimeStatus,
   type ModeWorkspaceInitStatus,
 } from "@zcode/shared";
-import { persistLastSelectedAgentProvider } from "@/lib/zcodeProviderPreference.js";
+import { persistLastSelectedAgentProvider } from "@/lib/modeProviderPreference.js";
 import { areConfigOptionsEquivalent } from "@/lib/configOptionsEquality.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 import { pushNavEntry } from "@/lib/taskNavigationHistory.js";
