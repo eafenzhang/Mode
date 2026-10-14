@@ -255,6 +255,7 @@ export { createClientConfigService } from "./client-config/clientConfigService.j
 export { createClientScenesService } from "./client-scenes/clientScenesService.js";
 export { createSkillsService } from "./skills/skillsService.js";
 export { createSkillSyncService } from "./skill-sync/skillSyncService.js";
+export { createConversationMirrorService } from "./conversation-mirror/conversationMirrorService.js";
 export { createMcpSyncService } from "./mcp-sync/mcpSyncService.js";
 export { createPluginSyncService } from "./plugin-sync/pluginSyncService.js";
 export { createPluginsService } from "./plugins/pluginsService.js";
@@ -358,6 +359,7 @@ import { ICodingPlanSubscriptionService } from "./coding-plan-subscription/codin
 import { IClientScenesService } from "./client-scenes/clientScenes.js";
 import { ISkillsService } from "./skills/skills.js";
 import { ISkillSyncService } from "./skill-sync/skillSync.js";
+import { IConversationMirrorService } from "./conversation-mirror/conversationMirror.js";
 import { IMcpSyncService } from "./mcp-sync/mcpSync.js";
 import { IPluginSyncService } from "./plugin-sync/pluginSync.js";
 import { IPluginsService } from "./plugins/plugins.js";
@@ -454,6 +456,7 @@ import { IClientConfigService } from "./client-config/clientConfig.js";
 import { createClientScenesService } from "./client-scenes/clientScenesService.js";
 import { createSkillsService } from "./skills/skillsService.js";
 import { createSkillSyncService } from "./skill-sync/skillSyncService.js";
+import { createConversationMirrorService } from "./conversation-mirror/conversationMirrorService.js";
 import { createMcpSyncService } from "./mcp-sync/mcpSyncService.js";
 import { createPluginSyncService } from "./plugin-sync/pluginSyncService.js";
 import { createPluginsService } from "./plugins/pluginsService.js";
@@ -2784,6 +2787,8 @@ export function createLocalServices(options: {
     )
     .register(ISkillsService, skillsService)
     .register(ISkillSyncService, createSkillSyncService())
+    // 对话记录镜像只做存储：快照由持有会话的那台机器在自己的 UI 层构建后发布。
+    .register(IConversationMirrorService, createConversationMirrorService())
     .register(IMcpSyncService, mcpSyncService)
     // 合并 MCP/Plugin Management 服务装配时误删了 plugin-sync 注册，
     // RemoteServiceAccess 仍会请求该频道，导致本地候选枚举超时、远端同步无法开始。

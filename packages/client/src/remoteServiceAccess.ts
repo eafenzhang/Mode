@@ -33,6 +33,7 @@ import {
   IHighspeedCardService,
   ISkillsService,
   ISkillSyncService,
+  IConversationMirrorService,
   IMcpSyncService,
   IPluginUiAppToolsService,
   IPluginUiSamplingService,
@@ -93,6 +94,7 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly highspeedCardService: IHighspeedCardService;
   readonly skillsService: ISkillsService;
   readonly skillSyncService: ISkillSyncService;
+  readonly conversationMirrorService: IConversationMirrorService;
   readonly mcpSyncService: IMcpSyncService;
   readonly genUiService: IGitService;
   readonly pluginUiBridgeService: IPluginUiBridgeService;
@@ -213,6 +215,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.skillSyncService = ProxyChannel.toService<ISkillSyncService>(
       channelClient.getChannel(ISkillSyncService.channelName),
+    );
+    this.conversationMirrorService = ProxyChannel.toService<IConversationMirrorService>(
+      channelClient.getChannel(IConversationMirrorService.channelName),
     );
     this.mcpSyncService = ProxyChannel.toService<IMcpSyncService>(
       channelClient.getChannel(IMcpSyncService.channelName),

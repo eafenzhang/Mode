@@ -33,6 +33,7 @@ import type { IClientConfigService } from "./client-config/clientConfig.js";
 import type { IClientScenesService } from "./client-scenes/clientScenes.js";
 import type { ISkillsService } from "./skills/skills.js";
 import type { ISkillSyncService } from "./skill-sync/skillSync.js";
+import type { IConversationMirrorService } from "./conversation-mirror/conversationMirror.js";
 import type { IMcpSyncService } from "./mcp-sync/mcpSync.js";
 import type { IPluginSyncService } from "./plugin-sync/pluginSync.js";
 import type { IPluginsService } from "./plugins/plugins.js";
@@ -89,6 +90,9 @@ export interface IServiceAccessor {
   readonly highspeedCardService: IHighspeedCardService;
   readonly skillsService: ISkillsService;
   readonly skillSyncService: ISkillSyncService;
+  // 对话记录镜像：旧版本对端 host 没有该 channel，缺省即「对端不支持」，按能力位降级，
+  // 不能变成连接期必填校验（与 cuaPermissionService 同一策略）。
+  readonly conversationMirrorService?: IConversationMirrorService;
   readonly mcpSyncService: IMcpSyncService;
   /** 插件 UI 桥；web 或旧 host 可不提供，UI 据此回退普通 MCP 卡片。 */
   readonly genUiService?: IGenUiService;

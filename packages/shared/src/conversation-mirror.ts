@@ -19,6 +19,19 @@ export const CONVERSATION_MIRROR_IMPORT_SOURCE = "remoteMirror" as const;
 /** 镜像会话 id 前缀：读取对端本地 scope 时按它跳过副本，避免回声与第三方扩散。 */
 export const CONVERSATION_MIRROR_SESSION_ID_PREFIX = "mirror-";
 
+/**
+ * 快照载体（服务侧）：每台机器把自己在某个工作区路径下的本机会话发布成一份
+ * 「origin = 自己」的快照，存在自己的数据目录里；对端连接时既发布自己的、也读取对端的。
+ * 读取方按 originDeviceId 覆盖式幂等去重，并剔除自己的快照（防回声）。
+ *
+ * 与上面的导入投影（`buildConversationMirrorRecord` 等）是同一份数据的两面：
+ * 快照是**传输与存储**形态，导入投影是**落进目标 scope 的会话**形态。
+ */
+export const CONVERSATION_MIRROR_VERSION = 1;
+
+/** 数据根下 `<appConfigDir>/conversation-mirror/<workspacePathHash>/<originDeviceId>.json`。 */
+export const CONVERSATION_MIRROR_DIR_NAME = "conversation-mirror";
+
 export const CONVERSATION_MIRROR_LIMITS = {
   /** 单轮最多处理的来源会话条数（按 updatedAt 降序取最新）。 */
   maxRecords: 20,
@@ -28,6 +41,8 @@ export const CONVERSATION_MIRROR_LIMITS = {
   maxTextCharsPerMessage: 4_000,
   /** 单条记录最大字节数：为远端 RPC 物理帧（1 MiB）留余量。 */
   maxRecordBytes: 256 * 1024,
+  /** 单份快照最大字节数（与远端 RPC 分帧量级一致）。 */
+  maxSnapshotBytes: 512 * 1024,
 } as const;
 
 export interface ConversationMirrorLimits {
@@ -35,6 +50,7 @@ export interface ConversationMirrorLimits {
   maxMessagesPerSession: number;
   maxTextCharsPerMessage: number;
   maxRecordBytes: number;
+  maxSnapshotBytes: number;
 }
 
 const TRUNCATION_SUFFIX = "…";
@@ -66,6 +82,106 @@ export const conversationMirrorRecordSchema = z
   })
   .strict();
 export type ConversationMirrorRecord = z.infer<typeof conversationMirrorRecordSchema>;
+
+export const conversationMirrorSnapshotSchema = z
+  .object({
+    version: z.literal(CONVERSATION_MIRROR_VERSION),
+    originDeviceId: nonEmptyString,
+    originLabel: nonEmptyString,
+    generatedAt: timestampMs,
+    /** 同步域：发布方当前工作区的路径。读写两侧按该路径的 hash 定位目录。 */
+    workspacePath: nonEmptyString,
+    records: z.array(conversationMirrorRecordSchema),
+  })
+  .strict();
+export type ConversationMirrorSnapshot = z.infer<typeof conversationMirrorSnapshotSchema>;
+
+/** 设备身份 + 展示名。读取方用它判断「这条快照是不是我自己的」。 */
+export const conversationMirrorIdentitySchema = z
+  .object({
+    deviceId: nonEmptyString,
+    label: nonEmptyString,
+  })
+  .strict();
+export type ConversationMirrorIdentity = z.infer<typeof conversationMirrorIdentitySchema>;
+
+export const conversationMirrorWorkspaceRefSchema = z
+  .object({
+    /** 同步域路径；本机与对端都用它定位镜像目录。 */
+    workspacePath: nonEmptyString,
+  })
+  .strict();
+export type ConversationMirrorWorkspaceRef = z.infer<typeof conversationMirrorWorkspaceRefSchema>;
+
+export const conversationMirrorReadResultSchema = z
+  .object({
+    snapshots: z.array(conversationMirrorSnapshotSchema),
+  })
+  .strict();
+export type ConversationMirrorReadResult = z.infer<typeof conversationMirrorReadResultSchema>;
+
+export const conversationMirrorPublishResultSchema = z
+  .object({
+    /** 是否落盘（origin 与本机相同的快照会被拒绝，不构成错误）。 */
+    stored: z.boolean(),
+    reason: z.enum(["stored", "self-origin", "foreign-origin", "invalid-record"]).optional(),
+    recordCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type ConversationMirrorPublishResult = z.infer<typeof conversationMirrorPublishResultSchema>;
+
+/**
+ * 快照在接收侧的稳定标识：一个 origin 一份文件，重复发布覆盖。
+ * 会话内容按 `sessionId` 在 record 层去重（同一 origin 的重复会话不叠加）。
+ */
+export function conversationMirrorSnapshotFileStem(originDeviceId: string): string {
+  return originDeviceId.replaceAll(/[^A-Za-z0-9._-]/gu, "_");
+}
+
+/** 同一 origin 内按 sessionId 去重，保留 updatedAt 较新的一条。 */
+export function dedupeConversationMirrorRecords(
+  records: readonly ConversationMirrorRecord[],
+): ConversationMirrorRecord[] {
+  const bySession = new Map<string, ConversationMirrorRecord>();
+  for (const record of records) {
+    const existing = bySession.get(record.sessionId);
+    if (!existing || record.updatedAt >= existing.updatedAt) {
+      bySession.set(record.sessionId, record);
+    }
+  }
+  return [...bySession.values()];
+}
+
+/** 快照的 UTF-8 字节长度（RPC 分帧按字节计，不能用字符串长度近似）。 */
+export function conversationMirrorSnapshotByteSize(snapshot: ConversationMirrorSnapshot): number {
+  return textEncoder.encode(JSON.stringify(snapshot)).length;
+}
+
+/**
+ * 快照有界化：先按会话数/消息数/文本长度截断，再按字节预算从最旧会话开始丢弃。
+ * 截断只影响镜像投影，不改变来源会话本身。
+ */
+export function boundConversationMirrorSnapshot(
+  snapshot: ConversationMirrorSnapshot,
+  limits: ConversationMirrorLimits = CONVERSATION_MIRROR_LIMITS,
+): ConversationMirrorSnapshot {
+  const sorted = dedupeConversationMirrorRecords(snapshot.records).sort(
+    (left, right) => right.updatedAt - left.updatedAt,
+  );
+  let records = sorted
+    .slice(0, limits.maxRecords)
+    .map((record) => boundConversationMirrorRecord(record, limits));
+
+  while (records.length > 1) {
+    const candidate = { ...snapshot, records };
+    if (conversationMirrorSnapshotByteSize(candidate) <= limits.maxSnapshotBytes) {
+      break;
+    }
+    records = records.slice(0, -1);
+  }
+
+  return { ...snapshot, records };
+}
 
 /** 参与镜像的最小会话信息；`workspaceIdentity` 用于判定是不是本机本地 scope。 */
 export interface ConversationMirrorSourceTask {

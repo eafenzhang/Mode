@@ -6,8 +6,10 @@ import { createHash } from "node:crypto";
 import { basename, join, win32 } from "node:path";
 import { homedir } from "node:os";
 import {
+  CONVERSATION_MIRROR_DIR_NAME,
   DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE,
   MODE_DATA_ROOT_DIR_NAME,
+  normalizeWorkspacePathForIdentity,
 } from "@mode/shared";
 
 let _dataBaseDir: string | null = null;
@@ -236,6 +238,20 @@ export function getLegacyDeletedTaskSessionSnapshotPath(
   workspaceIdentity?: string,
 ): string {
   return join(getTaskSessionDir(workspacePath, workspaceIdentity), `${taskId}.deleted.json`);
+}
+
+/**
+ * ~/.mode/v2/conversation-mirror/{workspacePathHash}：远程工作区对话记录镜像目录。
+ *
+ * 同步域是**工作区路径**而不是 workspaceIdentity：同一路径无论作为本地 scope 还是
+ * 作为对端机器的远端 scope 打开，都读写同一个目录，对端才可能读到本机发布的记录。
+ */
+export function getConversationMirrorDir(workspacePath: string): string {
+  return join(
+    getAppConfigDir(),
+    CONVERSATION_MIRROR_DIR_NAME,
+    getWorkspaceHash(normalizeWorkspacePathForIdentity(workspacePath)),
+  );
 }
 
 /**
