@@ -67,6 +67,8 @@ function GroupedTaskRowComponent({
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
+  /** 手机远控任务首页的当前项键（窄屏选中的 task）；桌面链路不传。 */
+  mobileActiveTaskKey?: string | null;
   workspaceLabel: string;
   onSelectTask: (workspacePath: string, taskId: string, workspaceIdentity?: string) => void;
   onCloseTask: (task: ModeTaskMeta) => void;
