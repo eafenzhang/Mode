@@ -29,7 +29,7 @@ import type { ModelSelection } from "../model/model.js";
 // Collaboration Mode and Risk Level
 // -----------------------------------------------
 
-export type CollaborationMode = "plan" | "build" | "edit" | "yolo" | "auto";
+export type CollaborationMode = "plan" | "build" | "edit" | "yolo" | "guarded" | "auto";
 export type SessionStatus = "idle" | "running" | "waiting" | "paused" | "completed" | "error";
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type InputDelivery = "auto" | "start_turn" | "steer_active_turn";
