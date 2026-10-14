@@ -1568,6 +1568,8 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onFeedbackChange?: AssistantFeedbackHandler;
+  /** 手机远控窄屏：动作条按抽屉宽度收缩；桌面保持原样。 */
+  compactForRemoteControl?: boolean;
   className?: string;
 }) {
   const { intl, locale } = useModeIntl();

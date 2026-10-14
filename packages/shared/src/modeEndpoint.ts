@@ -40,6 +40,8 @@ export interface ModeEndpointUrls {
   origin: string;
   apiBaseUrl: string;
   webShareCallbackUrl: string;
+  /** Web 远控（手机）OAuth 回调；与 web 端 oauthStateCodec 的 WEB_CALLBACK_PATHS 一致。 */
+  webRemoteCallbackUrl: string;
   modePlanOpenAiBaseUrl: string;
   modePlanAnthropicBaseUrl: string;
   modePlanBillingCurrentUrl: string;
@@ -270,6 +272,7 @@ export function buildModeEndpointUrls(origin: string): ModeEndpointUrls {
     origin: normalizedOrigin,
     apiBaseUrl: `${normalizedOrigin}/api/v1`,
     webShareCallbackUrl: `${normalizedOrigin}/cn/share/callback`,
+    webRemoteCallbackUrl: `${normalizedOrigin}/web-remote/callback`,
     modePlanOpenAiBaseUrl: `${normalizedOrigin}/api/v1/mode-plan`,
     modePlanAnthropicBaseUrl: `${normalizedOrigin}/api/v1/mode-plan/anthropic`,
     modePlanBillingCurrentUrl: `${normalizedOrigin}/api/v1/mode-plan/billing/current`,

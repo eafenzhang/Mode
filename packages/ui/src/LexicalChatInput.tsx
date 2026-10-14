@@ -1295,6 +1295,8 @@ function EditorApiPlugin({
 }
 
 interface LexicalChatInputProps {
+  /** 手机端避免 iOS 聚焦缩放（字号提升）时使用；桌面不生效。 */
+  avoidIosInputFocusZoom?: boolean;
   placeholder?: string;
   disabled?: boolean;
   submitDisabled?: boolean;
