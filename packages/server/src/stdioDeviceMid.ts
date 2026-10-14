@@ -1,7 +1,7 @@
-import { ensureTelemetryDeviceMid } from "@mode/services/node";
+import { ensureDeviceMid as ensureSharedDeviceMid } from "@mode/services/node";
 
-export interface EnsureRemoteServerDeviceMidOptions {
-  /** 仅测试注入；生产固定使用 services 的 ensureTelemetryDeviceMid。 */
+interface EnsureRemoteServerDeviceMidOptions {
+  /** 仅测试注入；生产固定使用 services 的 ensureDeviceMid。 */
   ensureDeviceMid?: () => Promise<string>;
   log: (...args: unknown[]) => void;
 }
@@ -21,12 +21,12 @@ export interface EnsureRemoteServerDeviceMidOptions {
 export async function ensureRemoteServerDeviceMid(
   options: EnsureRemoteServerDeviceMidOptions,
 ): Promise<string | undefined> {
-  const ensureDeviceMid = options.ensureDeviceMid ?? ensureTelemetryDeviceMid;
+  const ensureDeviceMid = options.ensureDeviceMid ?? ensureSharedDeviceMid;
   try {
     return await ensureDeviceMid();
   } catch (error) {
     options.log(
-      "telemetry deviceMid 初始化失败，Mode endpoint 请求将不带 X-Device-Mid:",
+      "deviceMid 初始化失败，Mode endpoint 请求将不带 X-Device-Mid:",
       error instanceof Error ? error.message : String(error),
     );
     return undefined;
