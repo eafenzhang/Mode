@@ -148,14 +148,10 @@ jobs:
           ## 安装与升级 / Install and update
 
           - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
-          - **macOS（.dmg）**：`<PRODUCT>-<VERSION>-mac-arm64.dmg`（Apple Silicon）/ `<PRODUCT>-<VERSION>-mac-x64.dmg`（Intel），拖进「应用程序」；未签名会被 Gatekeeper 拦一次，放行命令：`sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`。
-          - **Linux（.AppImage）**：`<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`，`chmod +x` 后直接运行。
           - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口打开（走飞牛统一网关，登录态直达，异地也可用）。
           - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包；`latest*.yml` 供应用内自动更新使用。
 
           - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
-          - **macOS (.dmg)**: `<PRODUCT>-<VERSION>-mac-arm64.dmg` (Apple Silicon) / `<PRODUCT>-<VERSION>-mac-x64.dmg` (Intel); drag it into Applications. Unsigned, so Gatekeeper blocks the first launch once: `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/<PRODUCT>.app" && open -a "<PRODUCT>"`.
-          - **Linux (.AppImage)**: `<PRODUCT>-<VERSION>-linux-x86_64.AppImage` / `<PRODUCT>-<VERSION>-linux-arm64.AppImage`; `chmod +x` then run it directly.
           - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry (routed through the fnOS gateway with your desktop login, works remotely too).
           - **Checksums and update metadata**: `sha256.txt` covers the installers; `latest*.yml` drives in-app updates.
 
@@ -250,22 +246,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 只发常用平台：Windows x64 / macOS Apple Silicon / Linux x64。
-        # 想加回来时按下面格式补一行即可（Intel mac 用 macos-15-intel + mac/x64，
-        # Linux arm64 用 ubuntu-24.04-arm + linux/arm64），记得同步远端资源平台列表。
+        # 只发 Windows x64（桌面）与 fnOS（独立 job）。
+        # 想加回 macOS / Linux 时按下面格式补一行（Intel mac 用 macos-15-intel + mac/x64，
+        # Linux arm64 用 ubuntu-24.04-arm + linux/arm64），并同步三处：
+        #   - checksums job 的扩展名断言（补 .dmg / .AppImage）
+        #   - release job 说明里的安装段
+        #   - 远端资源平台列表
         include:
-          - runner: macos-14
-            target: mac
-            arch: arm64
-            glob: "*.dmg"
           - runner: windows-latest
             target: win
             arch: x64
             glob: "*.exe"
-          - runner: ubuntu-latest
-            target: linux
-            arch: x64
-            glob: "*.AppImage"
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -337,7 +328,7 @@ jobs:
           set -euo pipefail
           ls -la packages/desktop/dist/
           # latest*.yml 是 electron-updater 的更新元数据，应用靠它做自动更新；
-          # macOS 自动更新需要 zip 包（electron-updater 用 zip 而不是 dmg），blockmap 供差分下载。
+          # zip 包与 blockmap 供差分下载（当前平台清单若有则一并上传，没有就由 nullglob 跳过）。
           shopt -s nullglob
           files=(
             packages/desktop/dist/${{ matrix.glob }}
@@ -360,7 +351,7 @@ jobs:
           echo "::error::gh release upload failed after 3 attempts"
           exit 1
 
-      # 校验片段：只覆盖用户会直接下载运行的安装包（dmg / zip / exe / AppImage）。
+      # 校验片段：只覆盖用户会直接下载运行的安装包（当前为 exe / zip）。
       # latest*.yml 与 *.blockmap 是 electron-updater 的更新元数据（应用内用其中
       # 的 sha512 校验），且两个 mac 架构会先后覆盖同名 latest-mac.yml，不能在此落哈希。
       # 用 node 计算（各 runner 都有），避免 sha256sum / shasum / certutil 的平台差异。
@@ -493,15 +484,13 @@ jobs:
           fi
           mv sha256-merged.txt sha256.txt
           cat sha256.txt
-          # 回归保护：清单必须覆盖每个已发布平台的安装包（桌面安装包 + fnOS .fpk）；缺任一类都说明
-          # 上传或片段生成出了问题，阻止发布而不是发布不完整的清单。
-          # （断言只看扩展名、不看产品名前缀：改名 Mode → Mode 时硬编码前缀让一次
-          #   五个平台全部构建成功的发版卡在这里，别再把产品名写进判据。）
+          # 回归保护：清单必须覆盖当前发布面的安装包（Windows 桌面 exe/zip + fnOS .fpk）；
+          # 缺任一类都说明上传或片段生成出了问题，阻止发布而不是发布不完整的清单。
+          # （断言只看扩展名、不看产品名前缀。当前不发 macOS/Linux，所以没有 .dmg/.AppImage；
+          #   恢复那两条腿时要在 matrix 与这里同步补回来。）
           for pattern in \
-            '^[0-9a-f]{64}  [^ ]+\.dmg$' \
             '^[0-9a-f]{64}  [^ ]+\.zip$' \
             '^[0-9a-f]{64}  [^ ]+\.exe$' \
-            '^[0-9a-f]{64}  [^ ]+\.AppImage$' \
             '^[0-9a-f]{64}  [^ ]+\.fpk$'; do
             if ! grep -Eq "$pattern" sha256.txt; then
               echo "::error::sha256.txt is missing an entry matching $pattern"
