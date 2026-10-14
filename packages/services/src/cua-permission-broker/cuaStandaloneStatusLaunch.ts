@@ -1,12 +1,12 @@
 import { join } from "node:path";
 
-import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@mode/mode-cua/broker/helperConstants";
+import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@mode/cua/broker/helperConstants";
 import {
   isCuaLocalDevelopmentRuntime,
   resolveCuaHelperInstallRoot,
   resolveHelperAppName,
   standaloneHelperCandidatePaths,
-} from "@mode/mode-cua/broker/server";
+} from "@mode/cua/broker/server";
 
 export function resolveStandaloneStatusLaunchCandidates(
   env: NodeJS.ProcessEnv = process.env,

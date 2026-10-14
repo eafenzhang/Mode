@@ -1,4 +1,4 @@
-import { mintBrokerSocketPath } from "@mode/mode-cua/broker";
+import { mintBrokerSocketPath } from "@mode/cua/broker";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { resolveWindowsCuaRuntime } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
 
