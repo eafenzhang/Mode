@@ -310,11 +310,11 @@ export { type ModeSessionContentProfile } from './mode-session-content-profile.j
 export { type ModeCodexConnectivityCheckResult, type ModeSwitchAgentResult, type ModeSyncTaskSessionBindingResult } from './mode-task-types.js';
 
 // --- 并入后补丁: @mode/shared ---
-export { CONVERSATION_SELECTION_MAX_COUNT, CONVERSATION_SELECTION_MAX_TEXT_LENGTH, CONVERSATION_SELECTION_MAX_TOTAL_LENGTH, ConversationSelectionText, buildPromptWithConversationSelections } from './conversationSelection.js';
-export { Memory, MemoryConfig } from './memory.js';
+export { CONVERSATION_SELECTION_MAX_COUNT, CONVERSATION_SELECTION_MAX_TEXT_LENGTH, CONVERSATION_SELECTION_MAX_TOTAL_LENGTH, type ConversationSelectionText, buildPromptWithConversationSelections } from './conversationSelection.js';
+export { type Memory, type MemoryConfig } from './memory.js';
 export { GEN_UI_OUTPUT_DIRECTORY, GEN_UI_OUTPUT_ROOT_ENV, getGenUiOutputDirectory } from './node/genUiPaths.js';
 export { createNodeNetworkCapture } from './node/networkCapture.js';
-export { NodeSelfResourceSamplerOptions, createNodeSelfResourceSampler } from './node/nodeSelfResourceTelemetry.js';
-export { ProjectAccessTokenMaterial } from './project-access-token-client.js';
+export { type NodeSelfResourceSamplerOptions, createNodeSelfResourceSampler } from './node/nodeSelfResourceTelemetry.js';
+export { type ProjectAccessTokenMaterial } from './project-access-token-client.js';
 export { buildWebRemoteControlEntryViewTelemetry } from './remoteUsageTelemetry.js';
 export { RewardsContext } from './rewardsBridge.js';
