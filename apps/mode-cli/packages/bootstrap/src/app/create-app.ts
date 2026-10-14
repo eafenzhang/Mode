@@ -405,7 +405,6 @@ export async function createModeApp(options: ModeAppOptions): Promise<ModeApp> {
         noProxy: configResult.config.network.noProxy,
         caCertFile: configResult.config.network.caCertFile,
       });
-    const providerEndpointRoutingPort = options.providerEndpointRoutingPort;
     markMcpAdapterInitialized({
       configuredMcpServers,
       hasInjectedMcpPort: options.mcpPort !== undefined,
@@ -525,7 +524,6 @@ export async function createModeApp(options: ModeAppOptions): Promise<ModeApp> {
 
     const modelExecutionConfig = createRuntimeAiSdkModelExecutionConfig(options.env, {
       appVersion,
-      endpointRoutingPort: providerEndpointRoutingPort,
       network: configResult.config.network,
       sourceTitle: options.sourceTitle,
     });
@@ -780,7 +778,6 @@ export async function createModeApp(options: ModeAppOptions): Promise<ModeApp> {
             },
           }
         : {}),
-      agentTelemetry: modelTelemetry.agentExecution,
       // 主代理的模型请求过治理器的 observer：立即放行，但让治理器看见它的 429 / 成功。
       modelRequestAdmission: workflowConcurrencyGovernor.observer(),
       eventStore: options.eventStore ?? createInMemorySessionEventStore(),

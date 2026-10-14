@@ -26,7 +26,7 @@ interface RowBaseInput {
 }
 
 // inputSource → turnHeader.origin。
-function mapTurnHeaderOrigin(
+export function mapTurnHeaderOrigin(
   source: SyntheticUserMessageSource | undefined,
 ): TurnHeaderRow["origin"] {
   switch (source) {
@@ -42,7 +42,7 @@ function mapTurnHeaderOrigin(
 }
 
 // inputSource → userInput.origin。
-function mapUserInputOrigin(
+export function mapUserInputOrigin(
   source: SyntheticUserMessageSource | undefined,
 ): UserInputRow["origin"] {
   switch (source) {

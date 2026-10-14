@@ -10,8 +10,8 @@ import type {
 } from "@mode/contracts";
 import { SessionEventType } from "@mode/contracts";
 
-type CanonicalConversationVisibility = "visible" | "modelOnly" | "stateOnly";
-type CanonicalConversationOrigin =
+export type CanonicalConversationVisibility = "visible" | "modelOnly" | "stateOnly";
+export type CanonicalConversationOrigin =
   | "realUser"
   | "backgroundResult"
   | "goalContinuation"
@@ -21,7 +21,7 @@ type CanonicalConversationOrigin =
   | "assistant"
   | "system";
 
-interface CanonicalConversationPlacement {
+export interface CanonicalConversationPlacement {
   lane: "trigger" | "assistantWork" | "stateOnly";
   relation: "withinProductTurn" | "none";
 }
@@ -132,7 +132,7 @@ export type CanonicalConversationFact =
   | CanonicalAssistantSegmentFact
   | CanonicalPassthroughFact;
 
-interface NormalizeConversationEventContext {
+export interface NormalizeConversationEventContext {
   productTurnId?: string;
   openAssistantSegments?: Partial<Record<"text" | "reasoning", CanonicalOpenSegmentIdentity>>;
 }
