@@ -676,6 +676,8 @@ export const HostResponseTypes = {
   ProviderProvisioningSourceChanged: "provider-provisioning-source-changed",
   /** host → main：一次 Remote Environment 同步执行完毕。 */
   ProviderProvisioningExecutionResult: "provider-provisioning-execution-result",
+  /** host → main：插件 UI 沙箱登记请求的结果回执 */
+  PluginSandboxRegisterRequest: "plugin-sandbox-register-request",
 } as const;
 
 // ============================================================================
