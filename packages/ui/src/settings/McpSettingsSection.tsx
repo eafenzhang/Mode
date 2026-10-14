@@ -534,6 +534,8 @@ function PluginMcpServerList({
 }
 
 interface McpSettingsSectionProps {
+  /** 手机远控（web-remote-replayable）窄屏布局，与桌面 continuous 区分。 */
+  isWebRemoteControl?: boolean;
   workspacePath?: string | null;
   workspaceIdentity?: string;
   remoteSessionId?: string;
