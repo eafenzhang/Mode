@@ -28,7 +28,14 @@ export interface WebRemoteControlWorkspaceSwitcherApi {
   ): () => void;
   switchWorkspace(
     workspaceKey: string,
-    options?: WebRemoteControlWorkspaceTarget,
+    options?: Partial<WebRemoteControlWorkspaceTarget> & {
+      /** 要一并打开的 task；缺席即只切工作区。 */
+      taskId?: string;
+      /** 手机端进入后的落点（与 startDraft 同义）。 */
+      mobileNavigationIntent?: WebRemoteControlMobileNavigationIntent;
+      /** 打开时预期的未读水位，用于标记已读。 */
+      markTaskReadExpectedUnreadAt?: number;
+    },
   ): Promise<void>;
   /** 手机任务首页确认用户查看了当前 bridge 内的未读 task；桌面任务选择链路不使用。 */
   markTaskRead?(task: WebRemoteControlTaskTarget): Promise<void>;
