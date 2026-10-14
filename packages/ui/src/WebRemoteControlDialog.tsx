@@ -40,6 +40,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   onOpenChange: (open: boolean) => void;
   workspacePath: string;
   workspaceIdentity?: string;
+  /** 远程会话标识；当前实现不读取，保留给后续按会话定位二维码/状态用。 */
+  remoteSessionId?: string;
 }) {
   const { intl } = useModeIntl();
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);

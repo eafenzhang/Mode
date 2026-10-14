@@ -122,10 +122,6 @@ export function RemoteConnectionFields({
   wslDistros,
   dockerContainer,
   manualDockerContainer,
-  serverUrl,
-  serverName,
-  serverToken,
-  serverWorkspacePath,
   dockerContainers,
   dockerAvailable,
   sshConfigAliases,
@@ -149,10 +145,6 @@ export function RemoteConnectionFields({
   setWslUser,
   setDockerContainer,
   setManualDockerContainer,
-  setServerUrl,
-  setServerName,
-  setServerToken,
-  setServerWorkspacePath,
 }: {
   kind: RemoteTarget["kind"];
   /** 局域网页的全部字段状态与回调（单独成组，避免再往这个组件塞十个平铺 prop）。 */
@@ -170,10 +162,6 @@ export function RemoteConnectionFields({
   wslDistros: WSLDistro[];
   dockerContainer: string;
   manualDockerContainer: string;
-  serverUrl: string;
-  serverName: string;
-  serverToken: string;
-  serverWorkspacePath: string;
   dockerContainers: DockerContainerInfo[];
   dockerAvailable: boolean | null;
   sshConfigAliases: SSHConfigAliasOption[];
@@ -197,10 +185,6 @@ export function RemoteConnectionFields({
   setWslUser?: (value: string) => void;
   setDockerContainer: (value: string) => void;
   setManualDockerContainer: (value: string) => void;
-  setServerUrl: (value: string) => void;
-  setServerName: (value: string) => void;
-  setServerToken: (value: string) => void;
-  setServerWorkspacePath: (value: string) => void;
 }) {
   const { intl } = useModeIntl();
   const platform = usePlatform();

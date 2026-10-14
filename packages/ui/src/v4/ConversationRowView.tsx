@@ -1570,6 +1570,8 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   onFeedbackChange?: AssistantFeedbackHandler;
   /** 手机远控窄屏：动作条按抽屉宽度收缩；桌面保持原样。 */
   compactForRemoteControl?: boolean;
+  /** 群投递动作要按这些来源命令 id 找投递记录；桌面 / 非群投递链路不传。 */
+  sourceCommandIds?: readonly string[];
   className?: string;
 }) {
   const { intl, locale } = useModeIntl();
