@@ -73,3 +73,20 @@ C#/Python/XSD 等原生语言文件），使其不计入 GitHub 语言统计。
 
 门禁随 `verify:pre-push` 与 release CI 生效，因此以上场景也是每次推送与发版的
 回归基线。
+
+## 修订：并入上游 v3.15.1 的 Node 工具链（2026-10-14）
+
+并入上游 ZCode v3.15.1 时，随包带进了 **349 个**禁入扩展名文件，分布为
+`docs/electron/docs` 113、`apps/mode-cli/packages` 57、`packages/desktop/scripts` 31、
+`apps/mode-cli/e2e` 29、`packages/ui/test` 29、`packages/desktop/test` 22、其余 9；
+其中约 130 个被 CLI 的 build/test 配置（`package.json` scripts、`wdio.conf`、
+各插件包 `scripts/*.mjs`）引用。门禁在 `main` 上为绿（main 无这些文件），
+在本同步分支上失败——全部是同步新引入，无一个是既有存量。
+
+处置：**一次性批量列入 `scripts/language-policy-allowlist.txt`**（349 条），随本提交走评审
+（按本 spec「加入清单即视为 spec 批准」）。这条与「清单只减不增」相冲突，故显式记录为
+**例外的一次性批量列入**：原因是这批文件属上游 Node 工具链，其替换属「旧线 EOL」范畴，
+尚未随 Tauri 重写发生。
+
+约束：本条不构成「以后可以继续新增条目」的先例；旧线 EOL 时应逐步删除这些条目，
+使清单回到「只减不增」的常态。
