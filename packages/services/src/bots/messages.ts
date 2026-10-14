@@ -61,6 +61,8 @@ const messages = {
       "当前任务会话已失效，可能是任务已被清理或机器人消息已过期。请发送 **/new task** 创建新任务后再继续。",
     deletedTaskReplaced:
       "原任务已删除，已为你新建任务。本条消息将在新任务中处理，不会继承原任务的对话上下文。",
+    turnQueued:
+      "同一工作区的运行中任务已达上限，本条消息已排队；有任务结束后会立即开始，无需重发。",
     received: "已收到。",
     attachmentOnlyPrompt: "请查看附件并根据内容协助我。",
     attachmentRejected: "附件处理失败：{message}",
@@ -221,6 +223,8 @@ const messages = {
       "The current task session has expired. It may have been cleaned up, or this bot message is stale. Send **/new task** to create a new task and continue.",
     deletedTaskReplaced:
       "The previous task was deleted, so I created a new task for you. This message will be processed in the new task without the previous conversation history.",
+    turnQueued:
+      "This workspace already has the maximum number of running tasks. Your message is queued and will start as soon as one of them finishes — no need to resend.",
     received: "Received.",
     attachmentOnlyPrompt: "Please review the attachment and help based on its content.",
     attachmentRejected: "Failed to process attachment: {message}",

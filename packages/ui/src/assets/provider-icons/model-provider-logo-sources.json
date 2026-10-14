@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-09-02",
+  "reviewedAt": "2026-10-13",
   "logos": [
     {
       "brand": "OpenRouter",
@@ -127,6 +127,14 @@
       "sourceUrl": "https://www.orcarouter.ai/orca-logo-classic.png",
       "sourceOwner": "OrcaRouter",
       "normalization": "Official classic logo downloaded unchanged from https://www.orcarouter.ai/orca-logo-classic.png. One asset serves both the API-key and the PKCE entries. Retrieved 2026-10-02."
+    },
+    {
+      "brand": "TokenDance",
+      "file": "model-provider-tokendance.svg",
+      "providerIds": ["tokendance"],
+      "sourceUrl": "https://tokendance.space/",
+      "sourceOwner": "TokenDance",
+      "normalization": "Official 480x480 square logo SVG taken unchanged from the TokenDance brand asset (black rounded-square background). A single asset serves both light and dark themes. Retrieved 2026-10-13."
     }
   ]
 }

@@ -24,7 +24,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { toast } from "@/components/ui/toast.js";
-import { usePlatform } from "@/hooks/usePlatform.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
@@ -55,7 +54,6 @@ import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
 import {
   BIND_CODE_TTL_MS,
   ProviderIcon,
-  TELEGRAM_BOTFATHER_URL,
   createDefaultCommands,
   formatBotDisplayName,
   runtimeDot,
@@ -100,7 +98,6 @@ export function BotsDialog({
   entryProvider?: BotProvider | null;
 }) {
   const { intl } = useModeIntl();
-  const platform = usePlatform();
   const confirmDialog = useConfirmDialog();
   const { botsService } = useServices();
   const [config, setConfig] = useState<BotsConfigFile>(() => createEmptyConfig());
@@ -752,17 +749,48 @@ export function BotsDialog({
     }
   }, [botsService, intl, selectedBot]);
 
+  /**
+   * 录入即验证（docs/specs/im-bot-onboarding.md R3-5）：手填凭据保存成功后立刻做一次在线校验，
+   * 把「凭据写错要等 runtime 报错才可见」提前到保存当下。
+   *
+   * 不新增服务层接口：复用既有 `IBotsService.testBot`，各 provider 的适配器 `test` 本就是只读
+   * 鉴权探测（企微 probeAuthentication / 飞书 readTenantAccessToken / 钉钉 getAccessToken / 微信
+   * getconfig），不投递任何消息。只覆盖手填路径——扫码拿到的凭据由平台颁发，再探测只是多一次往返。
+   *
+   * 失败不阻断保存：凭据此时已经落盘，平台临时不可达不该被误判成凭据写错，更不该阻止用户保存。
+   * 停用的机器人跳过：`test` 对 enabled=false 直接返回 "… is disabled."，那不是凭据问题。
+   */
+  const verifyManualCredential = useCallback(
+    async (saved: BotConfig, successMessageId: string) => {
+      if (!saved.enabled) {
+        toast(intl.formatMessage({ id: successMessageId }));
+        return;
+      }
+      try {
+        await botsService.testBot(saved.id);
+        toast(intl.formatMessage({ id: successMessageId }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn("[BotsDialog] 手填凭据在线验证未通过", message);
+        toast(intl.formatMessage({ id: "bots.credentialsVerifyFailed" }, { error: message }), {
+          variant: "warning",
+        });
+      }
+    },
+    [botsService, intl],
+  );
+
   const handleSaveDingtalkManual = useCallback(
     async (clientId: string, secret: string) => {
       if (!selectedBot || selectedBot.provider !== "dingtalk") return;
       if (!clientId.trim() || !secret.trim()) return;
       setSecretSaving(true);
       try {
-        await saveBot(
+        const saved = await saveBot(
           { ...selectedBot, dingtalkClientId: clientId.trim() },
           { credentialValue: secret },
         );
-        toast(intl.formatMessage({ id: "bots.dingtalk.manualSaved" }));
+        await verifyManualCredential(saved, "bots.dingtalk.manualSaved");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error("[BotsDialog] 保存钉钉凭据失败", message);
@@ -771,7 +799,7 @@ export function BotsDialog({
         setSecretSaving(false);
       }
     },
-    [intl, saveBot, selectedBot],
+    [intl, saveBot, selectedBot, verifyManualCredential],
   );
 
   const handleSaveWecomManual = useCallback(
@@ -780,12 +808,12 @@ export function BotsDialog({
       if (!wecomBotId.trim() || !secret.trim()) return;
       setSecretSaving(true);
       try {
-        await saveBot(
+        const saved = await saveBot(
           { ...selectedBot, wecomBotId: wecomBotId.trim() },
           { credentialValue: secret },
         );
         setWecomRegistration(null);
-        toast(intl.formatMessage({ id: "bots.wecom.manualSaved" }));
+        await verifyManualCredential(saved, "bots.wecom.manualSaved");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error("[BotsDialog] 保存企业微信手动凭据失败", message);
@@ -794,7 +822,35 @@ export function BotsDialog({
         setSecretSaving(false);
       }
     },
-    [intl, saveBot, selectedBot],
+    [intl, saveBot, selectedBot, verifyManualCredential],
+  );
+
+  /**
+   * 飞书手填凭据（spec R3-1）。服务层零改动：`saveBot({ ...bot, feishuAppId }, { credentialValue })`
+   * 与扫码成功走的是同一条写入路径，绑定码仍由既有「有凭据但未绑定」状态机生成。
+   */
+  const handleSaveFeishuManual = useCallback(
+    async (feishuAppId: string, secret: string) => {
+      if (!selectedBot || !isFeishuBotProvider(selectedBot.provider)) return;
+      if (!feishuAppId.trim() || !secret.trim()) return;
+      setSecretSaving(true);
+      try {
+        const saved = await saveBot(
+          { ...selectedBot, feishuAppId: feishuAppId.trim() },
+          { credentialValue: secret },
+        );
+        // 收起扫码态：手填与扫码是同一个「凭据就绪」结果，两条路径不该同时呈现。
+        setFeishuRegistration(null);
+        await verifyManualCredential(saved, "bots.feishuManualSaved");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("[BotsDialog] 保存飞书手动凭据失败", message);
+        toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+      } finally {
+        setSecretSaving(false);
+      }
+    },
+    [intl, saveBot, selectedBot, verifyManualCredential],
   );
 
   useEffect(() => {
@@ -1028,20 +1084,6 @@ export function BotsDialog({
     await createBindCodeForBot(selectedBot);
   };
 
-  const handleSaveSecret = async () => {
-    if (!selectedBot || secretSaving) return;
-    setSecretSaving(true);
-    try {
-      await saveBot(selectedBot, { credentialValue });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error("[BotsDialog] 保存 Bot secret 失败", message);
-      toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
-    } finally {
-      setSecretSaving(false);
-    }
-  };
-
   const handleStartFeishuRegistration = useCallback(async () => {
     if (!selectedBot || !isFeishuBotProvider(selectedBot.provider)) return;
     setFeishuRegistrationLoading(true);
@@ -1273,10 +1315,6 @@ export function BotsDialog({
     wecomRegistration,
     wecomRegistrationLoading,
   ]);
-
-  const handleOpenTelegramBotFather = () => {
-    platform.openExternal(TELEGRAM_BOTFATHER_URL);
-  };
 
   const copyBindCommand = async () => {
     if (!bindCode || bindExpired) return;
@@ -1571,14 +1609,15 @@ export function BotsDialog({
                     wecomRegistrationLoading={wecomRegistrationLoading}
                     secretSaving={secretSaving}
                     onCredentialValueChange={setCredentialValue}
-                    onSaveSecret={() => void handleSaveSecret()}
                     onRemoveSecret={() => void handleRemoveSecret()}
-                    onOpenTelegramBotFather={handleOpenTelegramBotFather}
                     onStartWeixinRegistration={() => void handleStartWeixinRegistration()}
                     onStartFeishuRegistration={() => void handleStartFeishuRegistration()}
                     onStartWecomRegistration={() => void handleStartWecomRegistration()}
                     onSaveWecomManual={(wecomBotId, secret) =>
                       void handleSaveWecomManual(wecomBotId, secret)
+                    }
+                    onSaveFeishuManual={(feishuAppId, secret) =>
+                      void handleSaveFeishuManual(feishuAppId, secret)
                     }
                     onSaveDingtalkManual={(clientId, secret) =>
                       void handleSaveDingtalkManual(clientId, secret)

@@ -13,6 +13,7 @@ import moonshotKimiLogo from "@/assets/provider-icons/model-provider-moonshot-ki
 import openAiLogo from "@/assets/provider-icons/model-provider-openai.png";
 import xAiLogo from "@/assets/provider-icons/model-provider-xai.png";
 import xiaomiMimoLogo from "@/assets/provider-icons/model-provider-xiaomi-mimo.png";
+import tokenDanceLogo from "@/assets/provider-icons/model-provider-tokendance.svg";
 import startPlanLogo from "@/assets/provider-icons/model-provider-start-plan.png";
 import zaiLogo from "@/assets/provider-icons/model-provider-zai-app.png";
 import openrouterLight from "@/assets/provider-icons/model-provider-openrouter-light.svg";
@@ -39,6 +40,8 @@ const BUILTIN_PROVIDER_LOGO_ASSETS: Readonly<Record<string, BuiltinProviderLogoA
   deepseek: { light: deepSeekLogo },
   "alibaba-model-studio": { light: alibabaModelStudioLogo },
   "xiaomi-mimo": { light: xiaomiMimoLogo },
+  // 官方黑底圆角方图，同一素材明暗主题共用。
+  tokendance: { light: tokenDanceLogo },
   openai: { light: openAiLogo },
   anthropic: { light: anthropicLogo },
   xai: { light: xAiLogo },

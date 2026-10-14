@@ -3,14 +3,12 @@ import {
   CircleAlert,
   Clock3,
   Copy,
-  ExternalLink,
   KeyRound,
   LoaderCircle,
   QrCode,
   Unlink,
 } from "lucide-react";
-import QRCode from "qrcode";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { BotConfig, BotServiceStatus } from "@mode/shared";
 import { isFeishuBotProvider } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
@@ -18,95 +16,177 @@ import { Input } from "@/components/ui/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { cn } from "@/components/lib/utils.js";
-import { logger } from "@/logger.js";
+import {
+  botOnboardingStageDotClass,
+  deriveBotOnboardingStages,
+  type BotOnboardingStage,
+} from "@/lib/botOnboardingStages.js";
 import type {
   BindCodeState,
   FeishuRegistrationState,
   WecomRegistrationState,
   WeixinRegistrationState,
 } from "./shared.js";
-import { TELEGRAM_BOTFATHER_URL, formatBindCountdown } from "./shared.js";
+import { formatBindCountdown } from "./shared.js";
 
 export function DetailPanel({ children }: { children: ReactNode }) {
   return <div className="rounded-lg bg-background p-3">{children}</div>;
 }
 
-function TelegramBotFatherQrPanel({
+/**
+ * 接入三段状态行（spec docs/specs/im-bot-onboarding.md R3-4）。
+ * 判定全部来自 `lib/botOnboardingStages` 的纯函数，这里只负责渲染：同一件事不再有多处说法。
+ * 圆点配色沿用 shared.tsx `runtimeDot` 的词表（就绪绿 / 待办灰 / 异常红）。
+ */
+function BotOnboardingStageRow({ stages }: { stages: BotOnboardingStage[] }) {
+  const { intl } = useModeIntl();
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+      {stages.map((stage) => (
+        <span
+          key={stage.id}
+          className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-ui-base text-foreground-subtle"
+        >
+          <span className={cn("size-2 rounded-full", botOnboardingStageDotClass(stage.state))} />
+          {intl.formatMessage({ id: `bots.onboarding.${stage.id}.${stage.state}` })}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * 飞书配置面板：两条并行的接入路径（spec R2「并存而非替换」）。
+ * - 扫码：调用飞书扫码注册接口，确认后自动拿到 appId + appSecret；
+ * - 手动：在飞书开放平台自建应用后，手动填写 App ID 与 App Secret。
+ *
+ * 手填这条路径是 2026-10-14 补回的：Bots 重构时先丢了手填、只剩扫码，两段历史各丢过一次
+ * （`BotsDialog.tsx` 中扫码成功的注释即记载了「服务层一直支持扫码，UI 只保留了手填」）。
+ * 服务层无需改动——`saveBot({ ...bot, feishuAppId }, { credentialValue: appSecret })` 走的就是
+ * 与扫码成功完全相同的写入路径（R4：凭据只经 credentialService，无第二条写路径）。
+ */
+function FeishuSetupPanel({
+  bot,
+  registration,
+  registrationLoading,
   credentialValue,
   secretSaving,
   onCredentialValueChange,
-  onSaveSecret,
+  onStartRegistration,
+  onSaveManual,
 }: {
+  bot: BotConfig;
+  registration: FeishuRegistrationState | null;
+  registrationLoading: boolean;
   credentialValue: string;
   secretSaving: boolean;
   onCredentialValueChange: (value: string) => void;
-  onSaveSecret: () => void;
+  onStartRegistration: () => void;
+  onSaveManual: (feishuAppId: string, secret: string) => void;
 }) {
   const { intl } = useModeIntl();
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void QRCode.toDataURL(TELEGRAM_BOTFATHER_URL, {
-      margin: 1,
-      width: 220,
-    })
-      .then((dataUrl) => {
-        if (!cancelled) {
-          setQrDataUrl(dataUrl);
-        }
-      })
-      .catch((error: unknown) => {
-        logger.error(
-          "[BotsDialog] 生成 Telegram BotFather 二维码失败",
-          error instanceof Error ? error.message : String(error),
-        );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [appIdDraft, setAppIdDraft] = useState(bot.feishuAppId ?? "");
+  const active = registration?.botId === bot.id ? registration : null;
+  const canSaveManual = Boolean(appIdDraft.trim() && credentialValue.trim()) && !secretSaving;
 
   return (
     <DetailPanel>
-      <div className="flex flex-wrap items-start justify-center gap-4">
-        {qrDataUrl ? (
-          <img
-            src={qrDataUrl}
-            alt={intl.formatMessage({ id: "bots.telegramBotFatherQrAlt" })}
-            className="size-40 shrink-0 rounded-lg border border-border bg-surface p-2"
-          />
-        ) : null}
-        <div className="min-w-52 flex-1 space-y-3 text-ui-base text-foreground-subtle">
-          <div>{intl.formatMessage({ id: "bots.telegramBotFatherScanHint" })}</div>
-          <div className="rounded-md bg-surface px-2 py-1 font-mono text-foreground">
-            @BotFather
-          </div>
-          <div className="flex w-full min-w-0 items-center gap-2">
-            <Input
-              size="lg"
-              type="password"
-              value={credentialValue}
-              onChange={(event) => onCredentialValueChange(event.target.value)}
-              placeholder={intl.formatMessage({
-                id: "bots.credentialPlaceholder",
-              })}
-              className="min-w-0 flex-1"
-              disabled={secretSaving}
+      <div className="space-y-4 text-ui-base text-foreground-subtle">
+        <div className="flex flex-wrap items-start gap-4">
+          {active?.qrDataUrl ? (
+            <img
+              src={active.qrDataUrl}
+              alt={intl.formatMessage({ id: "bots.feishuRegistrationQrAlt" })}
+              className="size-40 shrink-0 rounded-lg border border-border bg-surface p-2"
             />
+          ) : (
+            <div className="flex size-40 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-surface">
+              <QrCode className="size-8 text-foreground-subtle" />
+            </div>
+          )}
+          <div className="min-w-52 flex-1 space-y-2">
+            <div className="text-foreground">
+              {intl.formatMessage({ id: "bots.feishuRegistrationTitle" })}
+            </div>
+            <div>{intl.formatMessage({ id: "bots.feishuRegistrationDescription" })}</div>
+            {active ? (
+              <>
+                <div>
+                  {intl.formatMessage({
+                    id: `bots.feishuRegistrationScanHint.${active.domain}`,
+                  })}
+                </div>
+                <div className="rounded-md bg-surface px-2 py-1 font-mono text-foreground">
+                  {active.userCode}
+                </div>
+                <div>
+                  {active.status === "pending" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <LoaderCircle className="size-3 animate-spin" />
+                      {intl.formatMessage({ id: "common.loading" })}
+                    </span>
+                  ) : (
+                    (active.message ??
+                    intl.formatMessage({
+                      id: `bots.feishuRegistration.${active.status}`,
+                    }))
+                  )}
+                </div>
+              </>
+            ) : null}
             <Button
               variant="outline"
               size="lg"
-              onClick={onSaveSecret}
-              disabled={secretSaving || !credentialValue.trim()}
+              onClick={onStartRegistration}
+              disabled={registrationLoading}
             >
-              {secretSaving ? (
+              {registrationLoading ? (
                 <LoaderCircle className="size-4 animate-spin" />
               ) : (
-                <KeyRound className="size-4" />
+                <QrCode className="size-4" />
               )}
-              {intl.formatMessage({ id: "bots.saveSecret" })}
+              {intl.formatMessage({ id: "bots.feishuRegistrationButton" })}
             </Button>
+          </div>
+        </div>
+
+        <div className="border-t border-border pt-3">
+          <div className="text-foreground">
+            {intl.formatMessage({ id: "bots.feishuManualTitle" })}
+          </div>
+          <div className="mt-1">{intl.formatMessage({ id: "bots.feishuManualDescription" })}</div>
+          <div className="mt-2 grid gap-2">
+            <Input
+              size="lg"
+              value={appIdDraft}
+              onChange={(event) => setAppIdDraft(event.target.value)}
+              placeholder={intl.formatMessage({ id: "bots.feishuAppIdPlaceholder" })}
+              disabled={secretSaving}
+            />
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <Input
+                size="lg"
+                type="password"
+                value={credentialValue}
+                onChange={(event) => onCredentialValueChange(event.target.value)}
+                placeholder={intl.formatMessage({ id: "bots.feishuAppSecretPlaceholder" })}
+                className="min-w-0 flex-1"
+                disabled={secretSaving}
+              />
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => onSaveManual(appIdDraft.trim(), credentialValue)}
+                disabled={!canSaveManual}
+              >
+                {secretSaving ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <KeyRound className="size-4" />
+                )}
+                {intl.formatMessage({ id: "bots.feishuSaveManual" })}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -399,13 +479,12 @@ export function ProviderSettingsCard({
   onSaveDingtalkManual,
   secretSaving,
   onCredentialValueChange,
-  onSaveSecret,
   onRemoveSecret,
-  onOpenTelegramBotFather,
   onStartWeixinRegistration,
   onStartFeishuRegistration,
   onStartWecomRegistration,
   onSaveWecomManual,
+  onSaveFeishuManual,
 }: {
   bot: BotConfig;
   runtime: BotServiceStatus["botRuntime"][number] | undefined;
@@ -422,11 +501,10 @@ export function ProviderSettingsCard({
   onSaveWecomManual: (wecomBotId: string, secret: string) => void;
   secretSaving: boolean;
   onCredentialValueChange: (value: string) => void;
-  onSaveSecret: () => void;
   onRemoveSecret: () => void;
-  onOpenTelegramBotFather: () => void;
   onStartWeixinRegistration: () => void;
   onStartFeishuRegistration: () => void;
+  onSaveFeishuManual: (feishuAppId: string, secret: string) => void;
 }) {
   const { intl } = useModeIntl();
   if (bot.provider === "webhook") {
@@ -447,8 +525,19 @@ export function ProviderSettingsCard({
       : intl.formatMessage({
           id: `bots.botTokenDescription.${bot.provider}`,
         });
-  const hasActiveFeishuRegistration = feishuRegistration?.botId === bot.id;
   const hasActiveWeixinRegistration = weixinRegistration?.botId === bot.id;
+  // 接入三段状态（spec R1 / R3-4）：判定收在 lib/botOnboardingStages 的纯函数里，卡片只渲染。
+  const onboardingStages = deriveBotOnboardingStages({
+    bot,
+    runtimeStatus: runtime?.status,
+    weixinActivated,
+  });
+  // 凭据未就绪时不显示状态行：那时 control 槽位本身就是第一段的状态与行动入口，
+  // 再加一行只是同义重复（spec R3-4「未接管的部分」）。
+  const stageRow =
+    onboardingStages[0]?.state === "done" ? (
+      <BotOnboardingStageRow stages={onboardingStages} />
+    ) : null;
 
   let control: ReactNode = null;
   let detail: ReactNode = null;
@@ -456,14 +545,7 @@ export function ProviderSettingsCard({
   if (isConnected) {
     control = (
       <div className="flex items-center justify-end gap-3">
-        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-ui-base text-foreground-subtle">
-          <span
-            className={cn("size-2 rounded-full", hasRuntimeError ? "bg-destructive" : "bg-success")}
-          />
-          {intl.formatMessage({
-            id: hasRuntimeError ? "bots.runtime.boundConnectionInterrupted" : "bots.connected",
-          })}
-        </span>
+        {stageRow}
         <Button variant="outline" size="lg" onClick={onRemoveSecret}>
           <Unlink className="size-4" />
           {intl.formatMessage({ id: "bots.removeSecret" })}
@@ -479,21 +561,6 @@ export function ProviderSettingsCard({
         </DetailPanel>
       );
     }
-  } else if (bot.provider === "telegram" && !hasSecret) {
-    control = (
-      <Button variant="outline" size="lg" onClick={onOpenTelegramBotFather}>
-        <ExternalLink className="size-4" />
-        {intl.formatMessage({ id: "bots.openBotFather" })}
-      </Button>
-    );
-    detail = (
-      <TelegramBotFatherQrPanel
-        credentialValue={credentialValue}
-        secretSaving={secretSaving}
-        onCredentialValueChange={onCredentialValueChange}
-        onSaveSecret={onSaveSecret}
-      />
-    );
   } else if (bot.provider === "dingtalk" && (!hasSecret || !bot.dingtalkClientId)) {
     control = (
       <div className="flex items-center gap-2">
@@ -531,22 +598,47 @@ export function ProviderSettingsCard({
         onSaveManual={onSaveWecomManual}
       />
     );
-  } else if ((isFeishuLike && !hasSecret) || (isWeixin && !hasSecret)) {
-    const loading = isWeixin ? weixinRegistrationLoading : feishuRegistrationLoading;
+  } else if (isFeishuLike && !hasSecret) {
+    // 飞书无凭据：扫码与手填两个入口同时在面板内可用的（spec R3-1）。
+    control = (
+      <div className="flex items-center gap-2">
+        <span className="text-ui-base text-foreground-subtle">
+          {intl.formatMessage({ id: "bots.feishuCredentialsMissing" })}
+        </span>
+      </div>
+    );
+    detail = (
+      <FeishuSetupPanel
+        bot={bot}
+        registration={feishuRegistration}
+        registrationLoading={feishuRegistrationLoading}
+        credentialValue={credentialValue}
+        secretSaving={secretSaving}
+        onCredentialValueChange={onCredentialValueChange}
+        onStartRegistration={onStartFeishuRegistration}
+        onSaveManual={onSaveFeishuManual}
+      />
+    );
+  } else if (isWeixin && !hasSecret) {
     control = (
       <Button
         variant="outline"
         size="lg"
-        onClick={isWeixin ? onStartWeixinRegistration : onStartFeishuRegistration}
-        disabled={loading}
+        onClick={onStartWeixinRegistration}
+        disabled={weixinRegistrationLoading}
       >
-        {loading ? <LoaderCircle className="size-4 animate-spin" /> : <QrCode className="size-4" />}
+        {weixinRegistrationLoading ? (
+          <LoaderCircle className="size-4 animate-spin" />
+        ) : (
+          <QrCode className="size-4" />
+        )}
         {intl.formatMessage({ id: "bots.scanQrCode" })}
       </Button>
     );
   } else {
     control = (
-      <div className="flex w-full flex-wrap justify-end gap-2">
+      <div className="flex w-full flex-wrap items-center justify-end gap-2">
+        {stageRow}
         <Button variant="outline" size="lg" onClick={onRemoveSecret}>
           {intl.formatMessage({ id: "bots.removeSecret" })}
         </Button>
@@ -597,43 +689,6 @@ export function ProviderSettingsCard({
                 {runtime.message ?? intl.formatMessage({ id: "bots.runtime.unknownError" })}
               </dd>
             </dl>
-          </div>
-        </div>
-      </DetailPanel>
-    );
-  } else if (hasActiveFeishuRegistration) {
-    detail = (
-      <DetailPanel>
-        <div className="flex flex-wrap items-start justify-center gap-4">
-          {feishuRegistration.qrDataUrl ? (
-            <img
-              src={feishuRegistration.qrDataUrl}
-              alt={intl.formatMessage({ id: "bots.feishuRegistrationQrAlt" })}
-              className="size-40 shrink-0 rounded-lg border border-border bg-surface p-2"
-            />
-          ) : null}
-          <div className="min-w-52 flex-1 space-y-3 text-ui-base text-foreground-subtle">
-            <div>
-              {intl.formatMessage({
-                id: `bots.feishuRegistrationScanHint.${feishuRegistration.domain}`,
-              })}
-            </div>
-            <div className="rounded-md bg-surface px-2 py-1 font-mono text-foreground">
-              {feishuRegistration.userCode}
-            </div>
-            <div>
-              {feishuRegistration.status === "pending" ? (
-                <span className="inline-flex items-center gap-1">
-                  <LoaderCircle className="size-3 animate-spin" />
-                  {intl.formatMessage({ id: "common.loading" })}
-                </span>
-              ) : (
-                (feishuRegistration.message ??
-                intl.formatMessage({
-                  id: `bots.feishuRegistration.${feishuRegistration.status}`,
-                }))
-              )}
-            </div>
           </div>
         </div>
       </DetailPanel>
