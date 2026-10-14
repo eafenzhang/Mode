@@ -35,6 +35,7 @@ import type {
   PrepareCuaHelperPermissionDragResult,
 } from "./cuaAccessibilitySettings.js";
 import type { BrowserViewportSize } from "./browser-use/command-metadata.js";
+import type { WebRemoteControlStatus } from "./web-remote-control.js";
 import type {
   EmbeddedBrowserPermissionPromptEvent,
   EmbeddedBrowserPermissionResolution,
@@ -917,6 +918,10 @@ export interface IPlatformService {
   }): Promise<void>;
   /** 清空某站点的全部持久权限状态。 */
   resetEmbeddedBrowserSitePermission?(payload: { origin: string }): Promise<void>;
+  /** 读取当前窗口的 Web 远控连接状态（main/relay 是事实源）。 */
+  getWebRemoteControlStatus?(): Promise<WebRemoteControlStatus>;
+  /** 订阅 Web 远控状态变化；返回取消订阅函数。 */
+  onWebRemoteControlStatusChanged?(callback: (status: WebRemoteControlStatus) => void): () => void;
   /**
    * 把工作流产物的一版字节落到本机文件，返回可交给系统编辑器打开的路径。
    * 同一版重复调用应由实现侧复用同一副本，避免重传大字节。

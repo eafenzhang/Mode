@@ -59,7 +59,8 @@ export function useWebRemoteControlStatus({
 
     const syncStatus = async () => {
       try {
-        const nextStatus = await platform.getWebRemoteControlStatus();
+        const nextStatus = await platform.getWebRemoteControlStatus?.();
+        if (!nextStatus) return;
         applyStatus(nextStatus);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
