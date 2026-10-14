@@ -1603,7 +1603,7 @@
     "packages/rpc/src/serialization.ts": "3b85533bafdc7508f8a79d104f1b7b6682714394b8b2458d6f4f53663c3de2b5",
     "packages/server/package.json": "c828ba3ec7ef56f9cf4284d108396e1d10e590ec038fe97d5c1718cf2e7299bc",
     "packages/services/package.json": "d87838f77ccb04e695b7d468e14e4ed3786297dbd01c9f0e4a9181c724918600",
-    "packages/shared/package.json": "1e7088ac5f562b2a1cc22aa3ed5bb9a253e42f1a6c85e1f4c1c249e890bf46c1",
+    "packages/shared/package.json": "977a599e2548fa597befafaefde1264c63704ab398f0a22776f40e9f5a9f7be8",
     "packages/shared/src/mode-protocol-v4/wire-codec.ts": "e41d82d19646b5da0cf1e4135a88df2a0d24f578d94e6e84f48ce076e39b4cae",
     "packages/ui/package.json": "058657b6b19b656c9d028535716534d96591738952a221b5235abb6799ceda9a",
     "packages/ui/src/assets/plugin-icons/mode-plugins-official/42crunch-api-security-testing.png": "b333be8d6ecaafc447835dedc68171cce9c84e72d296c42d4e6093c9bdf6ae81",
