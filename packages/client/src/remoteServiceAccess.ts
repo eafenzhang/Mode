@@ -2,6 +2,7 @@ import { ProxyChannel, type IChannelClient } from "@mode/rpc";
 import {
   IFileService,
   IMediaPreviewService,
+  IGenUiService,
   IGitService,
   IGitCheckpointService,
   ISystemService,
@@ -91,7 +92,7 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly skillSyncService: ISkillSyncService;
   readonly conversationMirrorService: IConversationMirrorService;
   readonly mcpSyncService: IMcpSyncService;
-  readonly genUiService: IGitService;
+  readonly genUiService: IGenUiService;
   readonly pluginUiBridgeService: IPluginUiBridgeService;
   readonly pluginUiSamplingService: IPluginUiSamplingService;
   readonly pluginUiAppToolsService: IPluginUiAppToolsService;
@@ -211,8 +212,8 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.mcpSyncService = ProxyChannel.toService<IMcpSyncService>(
       channelClient.getChannel(IMcpSyncService.channelName),
     );
-    this.genUiService = ProxyChannel.toService<IGitService>(
-      channelClient.getChannel(IGitService.channelName),
+    this.genUiService = ProxyChannel.toService<IGenUiService>(
+      channelClient.getChannel(IGenUiService.channelName),
     );
     this.pluginUiBridgeService = ProxyChannel.toService<IPluginUiBridgeService>(
       channelClient.getChannel(IPluginUiBridgeService.channelName),

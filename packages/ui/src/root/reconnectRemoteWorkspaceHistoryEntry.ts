@@ -114,7 +114,6 @@ export async function reconnectRemoteWorkspaceHistoryEntry({
   let reconnectTarget = createRemoteTargetFromSnapshot(sessionEntry.target, {
     password: null,
     privateKeyPassphrase: null,
-    token: null,
   });
   let resolvedWorkspacePath = sessionEntry.workspacePath;
   let resolvedWorkspaceIdentity = fallbackWorkspaceIdentity;
@@ -129,13 +128,8 @@ export async function reconnectRemoteWorkspaceHistoryEntry({
           ? await loadCredential(sessionEntry.target.privateKeyPassphraseCredentialKey)
           : null,
     };
-    const token =
-      sessionEntry.target.kind === "server" && sessionEntry.target.tokenCredentialKey
-        ? await loadCredential(sessionEntry.target.tokenCredentialKey)
-        : null;
     reconnectTarget = createRemoteTargetFromSnapshot(sessionEntry.target, {
       ...sshCredentials,
-      token,
     });
     const sessionId = await connectRemoteWorkspaceTarget(reconnectTarget, options?.requestId, {
       workspacePath: sessionEntry.workspacePath,

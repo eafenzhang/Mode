@@ -19,7 +19,6 @@ export async function pushDynamicWorkflowUserModeToRemoteHosts(
 ): Promise<void> {
   await Promise.all(
     connections
-      .filter((connection) => connection.target.kind !== "server")
       .map(async (connection) => {
         try {
           await connection.modeAgentService.syncDynamicWorkflowUserMode(mode ? { mode } : {});
