@@ -25,6 +25,11 @@ serde_json、clap 或手写解析（对齐既有精度要求，见 Task 3）、N
 - stderr 不是契约（宿主 `stdio[2] = "ignore"`）：任何诊断信息不得只写 stderr 就当已交付。
 - 本机（`win32 10.0.19044`）**无 dotnet/csc**，但 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
   存在，`pnpm --filter @mode/desktop prepare:browser-import-helper` 可产出 oracle（已验证）。
+- 开发机（Git Bash，2026-10-15 实测）**无可用 Rust 链接器**：MSVC 未安装，且 `/usr/bin/link`
+  （coreutils）会抢占 `link.exe` 名字；gnu 目标又缺 `x86_64-w64-mingw32-gcc`。
+  故本机只能 `cargo check` / `cargo clippy`（均绿）；**单元测试必须在 CI Windows 腿执行**
+  （已在 `release.yml` 加 `browser-import helper crate tests and clippy` 步骤）。
+  要在本机跑测试需先装 VS Build Tools 或 mingw-w64——**未执行，属需人拍板的环境变更**。
 - 不得为「让测试过」放宽契约；失败一律 fail-closed 并映射契约 B 的 reason。
 
 ---
@@ -174,12 +179,12 @@ fn unknown_args_are_usage_error() {
 }
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**（已验：`cargo test` 编译失败，crate 不存在）
 
 Run: `cargo test --manifest-path crates/browser-import-helper/Cargo.toml`
 Expected: 编译失败 —— crate 不存在
 
-- [ ] **Step 3: 建 crate 与实现**
+- [x] **Step 3: 建 crate 与实现**（已落地）
 
 ```toml
 # crates/browser-import-helper/Cargo.toml
@@ -256,20 +261,20 @@ fn main() {
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 编译面确认**（本机只能做到这一步）
 
-Run: `cargo test --manifest-path crates/browser-import-helper/Cargo.toml`
-Expected: PASS（3 个用例）
+Run: `cargo check --manifest-path crates/browser-import-helper/Cargo.toml --all-targets`
+Run: `cargo clippy --manifest-path crates/browser-import-helper/Cargo.toml --all-targets -- -D warnings`
+Expected: 两者均绿（已验证）。**`cargo test` 本机跑不了**——无链接器（见 Global Constraints），
+单测改由 CI Windows 腿执行，已接线。
 
-- [ ] **Step 5: 与 oracle 对拍 `--version`**
+- [ ] **Step 5: 与 oracle 对拍 `--version`**〔待能出产物的环境〕
 
-在 Task 1 的 harness 加一个 `runRustHelper()` 并列比较：除第 4/5 字段（版本与 git 修订，构建期注入）
-外，字段 0/1/2 必须逐字节一致。
+在 Task 1 的 harness 加 `runRustHelper()` 并列比较：除第 4/5 字段（版本与 git 修订，构建期注入）
+外，字段 0/1/2 必须逐字节一致。**阻塞点**：本机产不出 `mode-browser-import-helper.exe`，
+需 CI 或装了链接器的机器。
 
-Run: `node --test packages/desktop/tests/browser-import-helper-contract.test.mjs`
-Expected: PASS
-
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**（已落地）
 
 ```bash
 git add crates/browser-import-helper

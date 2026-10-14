@@ -292,7 +292,9 @@ jobs:
         if: matrix.target == 'win'
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: crates/mode-cua-ax
+          workspaces: |
+            crates/mode-cua-ax
+            crates/browser-import-helper
 
       - name: Build and stage CUA helper
         if: matrix.target == 'win'
@@ -307,6 +309,17 @@ jobs:
           set -euo pipefail
           cargo test --manifest-path crates/mode-cua-ax/Cargo.toml
           cargo clippy --manifest-path crates/mode-cua-ax/Cargo.toml --all-targets -- -D warnings
+
+      # browser-import helper（M0 任务 6 的 C#→Rust 重写）：这里是纯逻辑层，
+      # 不碰 UAC 与真实 Chrome。开发机（Git Bash）无可用链接器，单测只能在
+      # 装了 MSVC 的 Windows 腿执行。
+      - name: browser-import helper crate tests and clippy
+        if: matrix.target == 'win'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path crates/browser-import-helper/Cargo.toml
+          cargo clippy --manifest-path crates/browser-import-helper/Cargo.toml --all-targets -- -D warnings
 
       - name: Bundle desktop app
         env:

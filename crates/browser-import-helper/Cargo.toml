@@ -1,0 +1,16 @@
+[package]
+name = "browser-import-helper"
+version = "0.1.0"
+edition = "2021"
+description = "Windows 浏览器数据导入 helper（契约见 docs/specs/browser-import-helper-contract.md）"
+publish = false
+
+[[bin]]
+name = "mode-browser-import-helper"
+path = "src/main.rs"
+
+[lib]
+name = "browser_import_helper"
+path = "src/lib.rs"
+
+[dependencies]
