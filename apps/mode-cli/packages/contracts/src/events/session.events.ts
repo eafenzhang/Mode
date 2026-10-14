@@ -80,6 +80,27 @@ export interface SessionEvent {
   payload: unknown;
 }
 
+/**
+ * 插件 UI 会话内实例的订阅者引用：按 (scopeId, generation) 定位实例，
+ * 并带上该实例的运行期凭据/租赁信息（由 Host 侧决定形状，协议层只保真透传）。
+ */
+export interface PluginUiResourceSubscriberRef {
+  scopeId: string;
+  generation: number;
+  instance: unknown;
+}
+
+/** 插件 UI 的 App-Provided Tool 被网页发起调用时上报的事件载荷。 */
+export interface PluginUiAppToolCallRequestedPayload {
+  pluginId: string;
+  serverName: string;
+  subscribers: PluginUiResourceSubscriberRef[];
+  cancelled?: boolean;
+  callId: string;
+  toolName: string;
+  arguments: unknown;
+}
+
 export const SessionEventType = {
   SessionCreated: "session_created",
   /** 同步插件 UI 资源与加速卡指标的变化事件。 */

@@ -7,6 +7,8 @@ import { commandAdmissionOf } from "./executor.js";
 interface CanonicalCommandIntent {
   kind: "sendText" | "sendGoalCommand";
   text: string;
+  /** 用户引用对话消息的片段；编辑/重放时原样带回。 */
+  conversationQuotes?: TurnInputIntentMetadata["conversationQuotes"];
   modelSelection?: ModelSelection;
   mode?: SubmissionMode;
   planEnabled?: boolean;

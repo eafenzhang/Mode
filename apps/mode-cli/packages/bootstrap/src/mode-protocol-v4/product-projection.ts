@@ -328,6 +328,8 @@ export type ConversationRowTargetAction =
   | "editUserQuery"
   | "retryTurn"
   | "applyFileRewind"
+  | "setAssistantFeedback"
+  | "setHighspeedMetrics"
   | "fileChanges"
   | "fileRewindPreview"
   | "setAssistantFeedback";
