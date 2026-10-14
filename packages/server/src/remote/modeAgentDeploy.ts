@@ -3,36 +3,36 @@ import {
   MODE_AGENT_PROVIDER,
   type RemoteResourcePackageId,
 } from "@mode/shared";
-import type { IRemoteBackend, RemoteEnvironment } from "./backend.js";
+import type { IRemoteBackend, RemoteEnvironment } from "@mode/server/remote/backend.js";
 import {
   REMOTE_BASE,
   type DeployLoggers,
   type RemoteAssetDeployOptions,
   waitForClose,
-} from "./deployShared.js";
-import type { RemoteAssetInstaller } from "./remoteAssetInstaller.js";
-import { buildWriteLiteralFileCommand } from "./posixShell.js";
-import { deployDevelopmentModeAgentRuntime } from "./modeAgentDevDeploy.js";
+} from "@mode/server/remote/deployShared.js";
+import type { RemoteAssetInstaller } from "@mode/server/remote/remoteAssetInstaller.js";
+import { buildWriteLiteralFileCommand } from "@mode/server/remote/posixShell.js";
+import { deployDevelopmentModeAgentRuntime } from "@mode/server/remote/modeAgentDevDeploy.js";
 import {
   buildRemoteAgentBundleWrapper,
   isRemoteAgentBundleWrapperCurrent,
   REMOTE_AGENT_BUNDLE_NAME,
-} from "./modeAgentBundleWrapper.js";
+} from "@mode/server/remote/modeAgentBundleWrapper.js";
 import {
   deployRemoteAgentWrapper,
   isWslBackend,
-} from "./modeAgentWrapperDeploy.js";
+} from "@mode/server/remote/modeAgentWrapperDeploy.js";
 import {
   buildRemoteAgentOfficialPluginDir,
   buildRemoteAgentOfficialPluginRequiredPaths,
   buildRemoteAgentOfficialPluginSourceRelativePath,
   REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS,
-} from "./modeAgentOfficialPluginAssets.js";
-import { repairLegacyRemoteOfficialPluginDirectoryPermissions } from "./modeAgentOfficialPluginPermissionRepair.js";
+} from "@mode/server/remote/modeAgentOfficialPluginAssets.js";
+import { repairLegacyRemoteOfficialPluginDirectoryPermissions } from "@mode/server/remote/modeAgentOfficialPluginPermissionRepair.js";
 import {
   checkRemoteAssetComponentIdentity,
   writeRemoteAssetComponentMeta,
-} from "./remoteAssetLiveIdentity.js";
+} from "@mode/server/remote/remoteAssetLiveIdentity.js";
 
 const REMOTE_AGENT_RUNTIME_BASE = `${REMOTE_BASE}/agents`;
 

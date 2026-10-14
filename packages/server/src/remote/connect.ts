@@ -17,7 +17,7 @@ import { wrapStdioStream } from "./stdio-socket.js";
 import { performHandshake } from "./handshake.js";
 import { deployServer } from "./deploy.js";
 import type { DeployOptions } from "./deploy.js";
-import { assertSupportedRemoteEnvironment } from "./remotePlatformSupport.js";
+import { assertSupportedRemoteEnvironment } from "@mode/server/remote/remotePlatformSupport.js";
 import { quotePosixShellArg } from "./posixShell.js";
 import { formatWslProxyForLog } from "./wslProxy.js";
 

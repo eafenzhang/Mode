@@ -35,7 +35,6 @@ import {
   addModePluginMarketplace,
   configureModePlugin,
   describeModePlugin,
-  enrichCachedClaudeMarketplaceIconsForOverview,
   getModePluginsOverview,
   installModeMarketplacePlugin,
   removeModePluginMarketplace,
@@ -263,10 +262,6 @@ export async function getPluginsOverview(
   rawParams: unknown,
 ): Promise<ModePluginsOverviewResult> {
   const params = parseParams(modePluginsOverviewParamsSchema, rawParams);
-  enrichCachedClaudeMarketplaceIconsForOverview({
-    logger: context.logger,
-    workingDirectory: params.workspace.workspacePath,
-  });
   const overview = getModePluginsOverview({
     configResult: createPluginConfigView(
       context,

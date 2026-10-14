@@ -1,25 +1,25 @@
 import { MODE_VERSION } from "@mode/shared";
-import type { IRemoteBackend, RemoteEnvironment } from "./backend.js";
+import type { IRemoteBackend, RemoteEnvironment } from "@mode/server/remote/backend.js";
 import {
   REMOTE_BASE,
   type DeployLoggers,
   type RemoteAssetDeployOptions,
-} from "./deployShared.js";
+} from "@mode/server/remote/deployShared.js";
 import {
   readRemoteAssetComponentMeta,
   writeRemoteAssetComponentMeta,
-} from "./remoteAssetLiveIdentity.js";
+} from "@mode/server/remote/remoteAssetLiveIdentity.js";
 import {
   fetchRemoteAssetManifestFromCdn,
   resolveRemoteAssetComponentCacheVersion,
   selectRemoteAssetManifestComponents,
   type RemoteAssetManifest,
-} from "./remoteAssetCache.js";
+} from "@mode/server/remote/remoteAssetCache.js";
 import {
   LocalUploadAssetInstaller,
   type RemoteAssetInstaller,
-} from "./remoteAssetInstaller.js";
-import type { RemoteAssetNetworkPort } from "./remoteAssetNetwork.js";
+} from "@mode/server/remote/remoteAssetInstaller.js";
+import type { RemoteAssetNetworkPort } from "@mode/server/remote/remoteAssetNetwork.js";
 
 const REMOTE_NODE_PTY_PATH = `${REMOTE_BASE}/build/Release/pty.node`;
 const REMOTE_NODE_PTY_SPAWN_HELPER_PATH = `${REMOTE_BASE}/build/Release/spawn-helper`;

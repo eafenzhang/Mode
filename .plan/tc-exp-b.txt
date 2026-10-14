@@ -1,8 +1,0 @@
-[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
-
-> mode@0.0.1 typecheck D:\ZCodium
-> tsc -b packages/rpc packages/provider packages/provider-node packages/shared packages/services packages/client packages/server packages/mode-server-cli packages/ui packages/web packages/desktop/tsconfig.host.json
-
-packages/services/src/coding-plan-subscription/codingPlanSubscriptionService.ts(39,3): error TS2739: Type '{ batchPreview: (request: CodingPlanBatchPreviewRequest | undefined) => Promise<CodingPlanBatchPreviewResponse>; ... 27 more ...; checkEnterpriseOrderStatus: (request: EnterpriseCodingPlanOrderStatusRequest) => Promise<...>; }' is missing the following properties from type 'ICodingPlanSubscriptionService': getManualClaimPlanPreviews, claimManualPlan, getBillingDiscount, getRequestVerificationConfig
-packages/services/src/session/offPeakRuntimeModel.ts(204,27): error TS2339: Property 'accountScope' does not exist on type 'AccountRequestAuthMaterial'.
- ELIFECYCLE  Command failed with exit code 2.

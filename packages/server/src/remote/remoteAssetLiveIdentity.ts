@@ -1,27 +1,27 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { MODE_VERSION } from "@mode/shared";
-import type { IRemoteBackend } from "./backend.js";
-import type { RemoteEnvironment } from "./backend.js";
+import type { IRemoteBackend } from "@mode/server/remote/backend.js";
+import type { RemoteEnvironment } from "@mode/server/remote/backend.js";
 import {
   REMOTE_BASE,
   type DeployLoggers,
   waitForClose,
-} from "./deployShared.js";
+} from "@mode/server/remote/deployShared.js";
 import {
   buildWriteLiteralFileCommand,
   quotePosixPathArg,
-} from "./posixShell.js";
+} from "@mode/server/remote/posixShell.js";
 import {
   fetchRemoteAssetManifestRefFromCdn,
   type RemoteAssetManifest,
   type RemoteAssetManifestRef,
-} from "./remoteAssetCache.js";
+} from "@mode/server/remote/remoteAssetCache.js";
 import {
   buildReleaseBaseCandidates,
   resolveRemoteCdnBaseUrls,
-} from "./remoteAssetCdn.js";
-import type { RemoteAssetNetworkPort } from "./remoteAssetNetwork.js";
+} from "@mode/server/remote/remoteAssetCdn.js";
+import type { RemoteAssetNetworkPort } from "@mode/server/remote/remoteAssetNetwork.js";
 
 const REMOTE_ASSET_COMPONENT_META_DIR = `${REMOTE_BASE}/.asset-components`;
 

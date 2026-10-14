@@ -402,13 +402,12 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../../mode-cua-plugin",
     ],
     requiredSeedPaths: OFFICIAL_CUA_REQUIRED_SEED_PATHS,
-    // Bug 根因：迁移 node_repl 时把旧 MCP launcher 与 SDK 仍需的 Sharp runtime 一并裁掉了。
-    // Dev/desktop 会把最小 Sharp 闭包 stage 到这里；官方 cache 必须继续携带 node_modules，
-    // 否则 seed 原子替换后首次截图才会报 Cannot find module 'sharp'。
-    runtimeTopLevelPaths: ["node_modules"],
-    // 这里的 version 追踪上游 mode-cua runtime 版本，使插件 UI 展示、缓存路径、
-    // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
-    version: "0.6.4",
+    // 本仓的 mode-cua-plugin 是纯种子资产包（docs / SKILL / SDK，无构建产物、无 node_modules），
+    // 不复制 runtime；把本地旧依赖带进缓存只会污染 seed 结果。
+    runtimeTopLevelPaths: [],
+    // 这里的 version 必须等于 producer 包（packages/mode-cua-plugin）实际发布的版本，
+    // 使插件 UI 展示、缓存路径、marketplace 条目都对齐——不一致会让市场比较永久报可更新。
+    version: "0.6.3",
   },
 ];
 

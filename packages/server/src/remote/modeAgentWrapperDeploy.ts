@@ -1,12 +1,12 @@
 import { writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { IRemoteBackend } from "./backend.js";
+import type { IRemoteBackend } from "@mode/server/remote/backend.js";
 import {
   buildRemoteExecutableReplaceCommand,
   waitForClose,
-} from "./deployShared.js";
-import { buildWriteLiteralFileCommand } from "./posixShell.js";
+} from "@mode/server/remote/deployShared.js";
+import { buildWriteLiteralFileCommand } from "@mode/server/remote/posixShell.js";
 
 export function isWslBackend(backend: IRemoteBackend): boolean {
   return (backend as { kind?: string }).kind === "wsl";

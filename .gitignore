@@ -91,3 +91,9 @@ packages/mode-cua/dist-cua-helper/
 
 # 远程桌面本机 spike 工作区（一次性实验 harness；新 .mjs 受语言政策限制不入库）。
 .spike/
+
+# .plan 工作草稿（日志、一次性脚本、恢复快照）：只提交计划书与审计报告，
+# 其余默认忽略——草稿里的 .mjs 会触发语言政策门（见 docs/specs/language-policy.md）。
+.plan/*
+!.plan/plan.md
+!.plan/upstream-audit-2026-10-14.md

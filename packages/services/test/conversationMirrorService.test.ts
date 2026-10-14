@@ -106,14 +106,17 @@ test("store：损坏文件只跳过自己，目录不存在返回空", async () 
   );
   const store = createConversationMirrorStore();
 
+  // 本用例断言"目录里只有自己写进去的那个好文件"，因此必须独占一个工作区：上面的用例
+  // 已经往 WORKSPACE_A 写过 dev-peer / dev-other，共用目录会让这条断言恒假（与实现无关）。
+  const workspacePath = "D:/broken-store";
   await store.writeSnapshot(
-    snapshot({ originDeviceId: "dev-good", workspacePath: WORKSPACE_A, sessionId: "s1", text: "好的" }),
+    snapshot({ originDeviceId: "dev-good", workspacePath, sessionId: "s1", text: "好的" }),
   );
-  const dir = getConversationMirrorDir(WORKSPACE_A);
+  const dir = getConversationMirrorDir(workspacePath);
   writeFileSync(join(dir, "broken.json"), "{ this is not json");
   writeFileSync(join(dir, "unknown-version.json"), JSON.stringify({ version: 99 }));
 
-  const snapshots = await store.readWorkspaceSnapshots(WORKSPACE_A);
+  const snapshots = await store.readWorkspaceSnapshots(workspacePath);
   assert.deepEqual(
     snapshots.map((item) => item.originDeviceId),
     ["dev-good"],

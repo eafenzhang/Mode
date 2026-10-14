@@ -56,9 +56,7 @@ import type {
 
 export {
   addMarketplace,
-  applyClaudePluginIcons,
   describeMarketplacePlugin,
-  enrichCachedClaudeMarketplaceIcons,
   ensureDefaultPluginMarketplaces,
   hasBundledPluginPackage,
   ensureMarketplaceManifestAvailable,
@@ -69,7 +67,6 @@ export {
   loadMarketplaceManifestSync,
   normalizeAuthorValue,
   parseEntryStoreListing,
-  parsePluginIconSources,
   parseMarketplaceSourceInput,
   readPluginSourceIdentityPin,
   readPluginSourceSha,

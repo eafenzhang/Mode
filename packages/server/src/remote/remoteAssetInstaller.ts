@@ -4,7 +4,7 @@ import { readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, posix } from "node:path";
 import type { RemoteAssetInstallMode } from "@mode/shared";
-import type { IRemoteBackend, StdioStream } from "./backend.js";
+import type { IRemoteBackend, StdioStream } from "@mode/server/remote/backend.js";
 import {
   REMOTE_BASE,
   buildRemoteExecutableReplaceCommand,
@@ -14,14 +14,14 @@ import {
   type DeployLoggers,
   type RemoteAssetDeployOptions,
   waitForClose,
-} from "./deployShared.js";
-import { quotePosixPathArg, quotePosixShellArg } from "./posixShell.js";
+} from "@mode/server/remote/deployShared.js";
+import { quotePosixPathArg, quotePosixShellArg } from "@mode/server/remote/posixShell.js";
 import {
   buildComponentArtifactUrlCandidates,
   buildReleaseAssetUrlCandidates,
   buildReleaseBaseCandidates,
   resolveRemoteCdnBaseUrls,
-} from "./remoteAssetCdn.js";
+} from "@mode/server/remote/remoteAssetCdn.js";
 import {
   ensureRemoteReleaseDirFromCdn,
   buildRemoteAssetManifestFileCandidates,
@@ -33,17 +33,17 @@ import {
   type RemoteAssetManifest,
   type RemoteAssetManifestComponent,
   type RemoteAssetManifestRef,
-} from "./remoteAssetCache.js";
-import { createTarGzArchive } from "./localTarGz.js";
+} from "@mode/server/remote/remoteAssetCache.js";
+import { createTarGzArchive } from "@mode/server/remote/localTarGz.js";
 import type {
   RemoteAssetTools,
   RemoteDownloadTool,
   RemoteSha256Tool,
-} from "./remoteAssetPreflight.js";
+} from "@mode/server/remote/remoteAssetPreflight.js";
 import {
   resolveRemoteAssetFetch,
   type RemoteAssetNetworkPort,
-} from "./remoteAssetNetwork.js";
+} from "@mode/server/remote/remoteAssetNetwork.js";
 
 export interface RemoteAssetInstaller {
   readonly mode: RemoteAssetInstallMode;

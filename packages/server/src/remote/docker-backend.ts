@@ -7,19 +7,19 @@ import type {
   RemoteEnvironment,
   RemoteUploadOptions,
   StdioStream,
-} from "./backend.js";
-import { createCloseEventController } from "./closeEvent.js";
+} from "@mode/server/remote/backend.js";
+import { createCloseEventController } from "@mode/server/remote/closeEvent.js";
 import {
   isDockerAvailable,
   listDockerContainers,
   resolveDockerCommand,
   type DockerContainerInfo,
-} from "./docker-detect.js";
+} from "@mode/server/remote/docker-detect.js";
 import {
   normalizeRemoteArch,
   normalizeRemotePlatform,
   resolveRemotePlatform,
-} from "./detectEnv.js";
+} from "@mode/server/remote/detectEnv.js";
 
 interface ResolvedDockerInfo {
   containerName: string;

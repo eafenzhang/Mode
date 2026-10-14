@@ -15,7 +15,7 @@ import {
   deployNodeRuntime,
   createRemoteComponentVersionResolver,
   logDeployRequired,
-} from "./remoteAssetDeployDecision.js";
+} from "@mode/server/remote/remoteAssetDeployDecision.js";
 import {
   REMOTE_BASE,
   fileExists,
@@ -23,34 +23,34 @@ import {
   formatOptionalValues,
   type DeployLoggers,
   type RemoteAssetDeployOptions,
-} from "./deployShared.js";
-import { quotePosixPathArg } from "./posixShell.js";
-import { checkServerBundleRequiredMarkers } from "./serverBundleDeployCheck.js";
-import { deployRuntimeTools } from "./runtimeToolDeploy.js";
-import { REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS } from "./modeAgentOfficialPluginAssets.js";
+} from "@mode/server/remote/deployShared.js";
+import { quotePosixPathArg } from "@mode/server/remote/posixShell.js";
+import { checkServerBundleRequiredMarkers } from "@mode/server/remote/serverBundleDeployCheck.js";
+import { deployRuntimeTools } from "@mode/server/remote/runtimeToolDeploy.js";
+import { REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS } from "@mode/server/remote/modeAgentOfficialPluginAssets.js";
 import {
   ensureRemoteReleaseDirFromCdn,
   selectRemoteAssetManifestComponents,
   type RemoteAssetManifestRef,
-} from "./remoteAssetCache.js";
+} from "@mode/server/remote/remoteAssetCache.js";
 import {
   fetchRemoteDownloadManifest,
   LocalUploadAssetInstaller,
   RemoteDownloadAssetInstaller,
   type RemoteAssetInstaller,
   type RemoteManifestRef,
-} from "./remoteAssetInstaller.js";
+} from "@mode/server/remote/remoteAssetInstaller.js";
 import {
   checkRemoteAssetComponentIdentity,
   createFreshRemoteAssetManifestRefResolver,
   hasRemoteAssetComponentRefreshPending,
   markRemoteAssetComponentRefreshPending,
   writeRemoteAssetComponentMeta,
-} from "./remoteAssetLiveIdentity.js";
-import { detectRemoteAssetTools } from "./remoteAssetPreflight.js";
-import { assertSupportedRemoteEnvironment } from "./remotePlatformSupport.js";
-import { acquireRemoteDeployLock } from "./remoteDeployLock.js";
-import type { RemoteAssetNetworkPort } from "./remoteAssetNetwork.js";
+} from "@mode/server/remote/remoteAssetLiveIdentity.js";
+import { detectRemoteAssetTools } from "@mode/server/remote/remoteAssetPreflight.js";
+import { assertSupportedRemoteEnvironment } from "@mode/server/remote/remotePlatformSupport.js";
+import { acquireRemoteDeployLock } from "@mode/server/remote/remoteDeployLock.js";
+import type { RemoteAssetNetworkPort } from "@mode/server/remote/remoteAssetNetwork.js";
 
 const log = (...args: unknown[]) => console.log(formatLogPrefix("deploy", process.pid), ...args);
 const logWarn = (...args: unknown[]) =>

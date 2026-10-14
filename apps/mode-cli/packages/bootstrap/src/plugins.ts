@@ -17,7 +17,6 @@ import {
   addMarketplace,
   comparePluginUpdate,
   describeMarketplacePlugin,
-  enrichCachedClaudeMarketplaceIcons,
   ensureDefaultPluginMarketplaces,
   hasBundledPluginPackage,
   discoverNodePluginsSync,
@@ -484,15 +483,6 @@ export function getModePluginsOverview(
   };
 }
 
-export function enrichCachedClaudeMarketplaceIconsForOverview(
-  options: ResolveModePluginsOptions = {},
-): void {
-  const { pluginStorageRoot } = resolvePluginContext(options);
-  // 图标是可选展示增强：overview 不等待网络；仅写回阶段进入 storage lock。
-  void enrichCachedClaudeMarketplaceIcons(pluginStorageRoot, (write) =>
-    withPluginStorageLock(pluginStorageRoot, write),
-  );
-}
 
 export function listModePlugins(options: ListModePluginsOptions = {}): PluginLoadOutcome {
   const outcome = resolveModePlugins(options);

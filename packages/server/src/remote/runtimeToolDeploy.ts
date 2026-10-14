@@ -1,13 +1,13 @@
 import { getRemoteRuntimeToolsForPlatform, type RemoteResourcePackageId } from "@mode/shared";
-import type { IRemoteBackend, RemoteEnvironment } from "./backend.js";
+import type { IRemoteBackend, RemoteEnvironment } from "@mode/server/remote/backend.js";
 import {
   REMOTE_BASE,
   type DeployLoggers,
   type RemoteAssetDeployOptions,
   waitForClose,
-} from "./deployShared.js";
-import type { RemoteAssetInstaller } from "./remoteAssetInstaller.js";
-import { buildWriteLiteralFileCommand } from "./posixShell.js";
+} from "@mode/server/remote/deployShared.js";
+import type { RemoteAssetInstaller } from "@mode/server/remote/remoteAssetInstaller.js";
+import { buildWriteLiteralFileCommand } from "@mode/server/remote/posixShell.js";
 
 const REMOTE_TOOLS_BASE = `${REMOTE_BASE}/tools`;
 
