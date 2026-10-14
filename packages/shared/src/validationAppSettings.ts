@@ -6,6 +6,8 @@ import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
 import { buildRemoteWorkspaceIdentity } from "./remote-workspace-identity.js";
 import { normalizeModeEndpointOrigin } from "./modeEndpoint.js";
+import { DYNAMIC_WORKFLOW_MODES } from "./dynamic-workflow-feature.js";
+import { MODE_PROVIDERS } from "./providers.js";
 import {
   DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
   embeddedBrowserViewportPreferenceSchema,
@@ -56,6 +58,8 @@ export const integratedTerminalShellSelectionSchema = z.discriminatedUnion("mode
   }),
 ]);
 const providerFamilyDomainSchema = z.enum(["zai", "bigmodel"]);
+const dynamicWorkflowModeSchema = z.enum(DYNAMIC_WORKFLOW_MODES);
+const builtinAgentCliProviderSchema = z.enum(MODE_PROVIDERS);
 
 export const postUpdateReleaseNotesPayloadSchema = z.object({
   version: nonEmptyStringSchema,
@@ -480,6 +484,8 @@ const appSettingsObjectSchema = z.object({
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
   modelIoFullRetentionEnabled: z.boolean().default(false),
   startPlanRecommendationDismissed: z.boolean().default(false),
+  dynamicWorkflowMode: z.union([dynamicWorkflowModeSchema, z.literal("")]).optional(),
+  enabledBuiltinAgentCliProviders: z.array(builtinAgentCliProviderSchema).optional(),
   providerFamilyConnectionSelections: providerFamilyConnectionSelectionSettingsSchema.default({}),
   providerFamilyDomain: providerFamilyDomainSchema.optional(),
   providerFamilyDomainUpdatedAt: z.number().int().nonnegative().optional(),
@@ -553,6 +559,8 @@ export const appSettingsPatchSchema = z.object({
   askUserQuestionAutoResolutionEnabled: z.boolean().optional(),
   modelIoFullRetentionEnabled: z.boolean().optional(),
   startPlanRecommendationDismissed: z.boolean().optional(),
+  dynamicWorkflowMode: z.union([dynamicWorkflowModeSchema, z.literal("")]).optional(),
+  enabledBuiltinAgentCliProviders: z.array(builtinAgentCliProviderSchema).optional(),
   providerFamilyConnectionSelections: providerFamilyConnectionSelectionSettingsSchema.optional(),
   providerFamilyDomain: z.union([providerFamilyDomainSchema, z.literal("")]).optional(),
   providerFamilyDomainUpdatedAt: z.number().int().nonnegative().optional(),

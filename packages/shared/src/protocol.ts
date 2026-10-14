@@ -1,5 +1,6 @@
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
+import type { DynamicWorkflowMode } from "./dynamic-workflow-feature.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
 import type { ProviderFamilyConnectionSelectionSettings } from "./provider-family-connection-selection.js";
 import type { ModeProvider } from "./mode-task-types-core.js";
@@ -246,6 +247,13 @@ export interface ResourceUsageSnapshot {
 export interface AppSettings {
   /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */
   startPlanRecommendationDismissed?: boolean;
+  /**
+   * 动态工作流模式的用户覆盖值；空串表示交回服务端下发的模式（等同删除覆盖）。
+   * 服务端下发值本身在快照里，不写回设置文件。
+   */
+  dynamicWorkflowMode?: DynamicWorkflowMode | "";
+  /** 已启用的内置 Agent CLI provider；安装型 provider 按此决定是否可用。 */
+  enabledBuiltinAgentCliProviders?: ModeProvider[];
   recentProjects: string[]; // 最近项目列表，最多保留 10 个
   locale: Locale; // 界面语言
   /**
