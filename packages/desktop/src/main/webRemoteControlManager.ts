@@ -988,6 +988,277 @@ export function createWebRemoteControlManager(dependencies: WebRemoteControlMana
       );
       return toExternalBridge(bridgeRuntime);
     } catch (error) {
+      if (acquired) {
+        dependencies.releaseWorkspaceHostAttachment(acquired.attachmentId);
+      }
+      if (isCurrentBridgeRuntime(runtime, bridgeRuntime)) {
+        disposeRuntimeBridgeResources(runtime);
+        runtime.status = runtime.mobileConnected ? "active" : "running";
+        emitRuntimeStatus(runtime);
+      }
+      throw error;
+    }
+  }
+
+  async function respondToWorkspaceBridgeOpen(
+    runtime: WindowControlRuntime,
+    request: WebRemoteControlWorkspaceBridgeOpenPayload,
+  ): Promise<void> {
+    try {
+      const bridge = await createWorkspaceBridge(runtime, request);
+      sendAppPayload(runtime, {
+        mode_type: "workspace-bridge-ready",
+        requestId: request.requestId,
+        bridgeSessionId: request.bridgeSessionId,
+        ...(request.bridgeGeneration !== undefined
+          ? { bridgeGeneration: request.bridgeGeneration }
+          : {}),
+        ...(request.recoveryId ? { recoveryId: request.recoveryId } : {}),
+        bridge,
+      });
+      const currentBridge = runtime.currentBridge;
+      if (
+        currentBridge?.bridgeSessionId === request.bridgeSessionId &&
+        currentBridge.bridgeGeneration === request.bridgeGeneration
+      ) {
+        // bridge-ready 必须先进入 ordinary app transport，才允许 queued raw frames 开闸。
+        currentBridge.readyAnnounced = true;
+        currentBridge.relayProtocol?.flushPendingFrames();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      dependencies.logger.warn(
+        `[web-remote-control] workspace bridge failed window=${runtime.windowId} session=${runtime.deviceSid} workspaceKey=${request.workspaceKey} error=${message}`,
+      );
+      sendAppPayload(runtime, {
+        mode_type: "workspace-bridge-error",
+        requestId: request.requestId,
+        bridgeSessionId: request.bridgeSessionId,
+        ...(request.bridgeGeneration !== undefined
+          ? { bridgeGeneration: request.bridgeGeneration }
+          : {}),
+        ...(request.recoveryId ? { recoveryId: request.recoveryId } : {}),
+        reason: mapWorkspaceBridgeFailureReason(error),
+        error: message,
+      });
+    }
+  }
+
+  async function respondToWorkspaceReconnectRequest(
+    runtime: WindowControlRuntime,
+    request: Extract<WebRemoteControlAppPayload, { mode_type: "workspace-reconnect-request" }>,
+  ): Promise<void> {
+    try {
+      await dependencies.reconnectWorkspace(runtime.windowId, request.workspaceKey);
+      sendAppPayload(runtime, {
+        mode_type: "workspace-reconnect-response",
+        requestId: request.requestId,
+        workspaceKey: request.workspaceKey,
+        success: true,
+      });
+    } catch (error) {
+      sendAppPayload(runtime, {
+        mode_type: "workspace-reconnect-response",
+        requestId: request.requestId,
+        workspaceKey: request.workspaceKey,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  function applyMobileViewStateUpdate(
+    runtime: WindowControlRuntime,
+    viewState: WebRemoteControlMobileViewState,
+    deviceInfo?: WebRemoteControlMobileDeviceInfo,
+  ): void {
+    runtime.mobileViewState = viewState;
+    if (deviceInfo) {
+      runtime.mobileDeviceInfo = deviceInfo;
+    }
+  }
+
+  function routeRpcTransportPayload(
+    runtime: WindowControlRuntime,
+    frame: WebRemoteControlRpcTransportPayload,
+  ): void {
+    routeRawTransportCandidate(runtime, frame);
+  }
+
+  function routeRawTransportCandidate(runtime: WindowControlRuntime, payload: unknown): boolean {
+    const bridge = runtime.currentBridge;
+    if (!bridge || bridge.degraded) return false;
+    return bridge.relayProtocol?.acceptPayload(payload) ?? false;
+  }
+
+  function logMobileDiagnostic(
+    runtime: WindowControlRuntime,
+    payload: Extract<WebRemoteControlAppPayload, { mode_type: "mobile-diagnostic" }>,
+  ): void {
+    dependencies.logger.info("[web-remote-control] mobile diagnostic", {
+      window: runtime.windowId,
+      session: runtime.deviceSid,
+      event: payload.event,
+      state: payload.state,
+      previousState: payload.previousState,
+      pairStatus: payload.pairStatus,
+      closeCode: payload.closeCode,
+      closeReason: payload.closeReason,
+      wasClean: payload.wasClean,
+      wasPaired: payload.wasPaired,
+      failureReason: payload.failureReason,
+      failureMessage: payload.failureMessage,
+      visibilityState: payload.visibilityState,
+      online: payload.online,
+      hiddenDurationMs: payload.hiddenDurationMs,
+      timestamp: payload.timestamp,
+    });
+  }
+
+  function routePayload(runtime: WindowControlRuntime, payload: WebRemoteControlAppPayload): void {
+    switch (payload.mode_type) {
+      case "bootstrap-request":
+        sendAppPayload(runtime, {
+          mode_type: "bootstrap-response",
+          requestId: payload.requestId,
+          success: true,
+          result: buildBootstrapResult(runtime),
+        });
+        break;
+      case "workspace-list-request":
+        sendAppPayload(runtime, {
+          mode_type: "workspace-list-response",
+          requestId: payload.requestId,
+          success: true,
+          result: buildWorkspaceListResult(runtime),
+        });
+        break;
+      case "platform-request":
+        void respondToPlatformRequest(runtime, payload);
+        break;
+      case "mobile-view-state-update":
+        applyMobileViewStateUpdate(runtime, payload.viewState, payload.deviceInfo);
+        break;
+      case "workspace-bridge-open":
+        void respondToWorkspaceBridgeOpen(runtime, payload);
+        break;
+      case "workspace-reconnect-request":
+        void respondToWorkspaceReconnectRequest(runtime, payload);
+        break;
+      case "rpc-frame":
+      case "rpc-frame-ack":
+        routeRpcTransportPayload(runtime, payload);
+        break;
+      case "mobile-diagnostic":
+        logMobileDiagnostic(runtime, payload);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function mapTransportState(
+    runtime: WindowControlRuntime,
+    state: WebRemoteControlDeviceTransportState,
+  ): void {
+    const previousTransportState = runtime.transportState;
+    runtime.transportState = state;
+    if (state === "connecting" || state === "registering" || state === "authenticating") {
+      if (runtime.mobileConnected) {
+        // Bugfix: 已配对会话的 relay 短抖会先经历 connecting/authenticating。
+        // 旧逻辑把 dialog 立刻切成“启动中”，用户会误以为远控重新启动；这里在宽限期内保持 active。
+        runtime.status = "active";
+        scheduleMobileDisconnectGrace(runtime);
+        emitRuntimeStatus(runtime);
+        return;
+      }
+      runtime.status = "starting";
+      emitRuntimeStatus(runtime);
+      return;
+    }
+    if (state === "waiting_terminal") {
+      if (runtime.mobileConnected) {
+        // Bugfix: 已配对会话恢复时 relay 可能短暂回 waiting。
+        // 旧逻辑会把 dialog 从 active 拉回“等待手机匹配”；这里先防抖，超时仍未 paired 再降级。
+        runtime.status = "active";
+        scheduleMobileDisconnectGrace(runtime);
+        emitRuntimeStatus(runtime);
+        return;
+      }
+      runtime.status = "running";
+      runtime.mobileConnected = false;
+      emitRuntimeStatus(runtime);
+      return;
+    }
+    if (state === "paired") {
+      runtime.hasEverPaired = true;
+      clearMobileDisconnectGraceTimer(runtime);
+      runtime.status = "active";
+      runtime.mobileConnected = true;
+      emitRuntimeStatus(runtime);
+      // Bugfix: 普通断线重连重新 paired 时 transport 不一定触发 onSendReady。
+      // 这里在状态恢复为可发送后主动 flush，避免重连窗口内缓冲的响应/RPC 帧超时丢弃。
+      flushPendingOutboundPayloads(runtime);
+      return;
+    }
+    if (state === "kicked") {
+      preserveWindowRuntimeFailure(
+        runtime.windowId,
+        runtime,
+        "external-relay-kicked",
+        createFailure("session-conflict", "Web remote control connection was kicked by relay."),
+      );
+      return;
+    }
+    if (state === "error") {
+      runtime.status = "error";
+      emitRuntimeStatus(runtime);
+    }
+  }
+
+  function createQrUrl(
+    auth: { deviceSid: string; passHash: string },
+    mobileRemoteControlUrl: string,
+    theme?: WebRemoteControlContext["theme"],
+  ): string {
+    return buildWebRemoteControlExternalQrUrl({
+      baseUrl: mobileRemoteControlUrl,
+      deviceSid: auth.deviceSid,
+      passHash: auth.passHash,
+      timestamp: Date.now(),
+      deviceMid: dependencies.deviceMid,
+      deviceName: dependencies.deviceName,
+      appVersion: dependencies.appVersion,
+      theme,
+    });
+  }
+
+  return {
+    authorizeStart,
+    async startAuthorized(
+      windowId: number,
+      context: WebRemoteControlContext,
+      authorization: WebRemoteControlStartAuthorization,
+    ): Promise<WebRemoteControlStartResult> {
+      consumeStartAuthorization(windowId, context, authorization);
+      return this.start(windowId, context);
+    },
+    async start(
+      windowId: number,
+      context: WebRemoteControlContext,
+    ): Promise<WebRemoteControlStartResult> {
+      clearStartAuthorizationsForWindow(windowId);
+      dependencies.featureGate.assertEnabled();
+      startupRestoreClaimed = true;
+      await stopWindowRuntime(windowId, "restart");
+      const endpointUrls = await dependencies.getEndpointUrls?.();
+      const relayWsUrl = endpointUrls?.relayWsUrl ?? dependencies.relayWsUrl;
+      const mobileRemoteControlUrl = endpointUrls?.remoteUrl ?? dependencies.mobileRemoteControlUrl;
+
+      dependencies.logger.info(
+        `[web-remote-control] start window=${windowId} workspace=${context.workspacePath} remoteSession=${context.remoteSessionId ?? "none"} relay=${relayWsUrl}`,
+      );
+
       const storedAuth = await dependencies.authStorageProvider.load();
       const transportAuth: WebRemoteControlDeviceTransportAuth = storedAuth
         ? {

@@ -37,18 +37,13 @@ async function runStartOperation(input: {
   missingWindowMessage: string;
   operation: (windowId: number) => Promise<WebRemoteControlStartResult>;
 }): Promise<WebRemoteControlStartResult> {
-  try {
-    const win = BrowserWindow.fromWebContents(input.sender);
-    if (!win) {
-      throw new Error(input.missingWindowMessage);
-    }
-    // 交互边界：远控面板和二维码刷新已有显式用户操作，main 只校验窗口并绑定目标，
-    // 不再叠加原生确认弹窗，避免一次操作出现两层确认。
-    const response = await input.operation(win.id);
-    return response;
-  } catch (error) {
-    throw error;
+  const win = BrowserWindow.fromWebContents(input.sender);
+  if (!win) {
+    throw new Error(input.missingWindowMessage);
   }
+  // 交互边界：远控面板和二维码刷新已有显式用户操作，main 只校验窗口并绑定目标，
+  // 不再叠加原生确认弹窗，避免一次操作出现两层确认。
+  return input.operation(win.id);
 }
 
 export function registerWebRemoteControlIpcHandlers(
