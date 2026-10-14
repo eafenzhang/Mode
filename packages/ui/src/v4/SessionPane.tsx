@@ -266,6 +266,8 @@ import {
 } from "@/lib/conversationSelectionReference.js";
 
 export interface SessionPaneProps {
+  /** 手机远控窄屏：整条会话 flex 链按抽屉宽度收缩，桌面布局不受影响。 */
+  compactForRemoteControl?: boolean;
   paneId: string;
   sessionId: string | null;
   rootSessionId?: string;
