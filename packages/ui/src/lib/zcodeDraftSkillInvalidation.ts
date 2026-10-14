@@ -1,6 +1,6 @@
 import type { IModeSessionService } from "@mode/services";
 import { logger } from "@/logger.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useModeSessionStore } from "@/store/modeSessionStore.js";
 
 interface DeferredDraftRuntimeChangeParams {
   logScope: string;
@@ -18,7 +18,7 @@ export async function invalidateDeferredDraftSessionForRuntimeChange(
   }
 
   const workspaceIdentity = params.workspaceIdentity?.trim() || undefined;
-  const store = useZCodeSessionStore.getState();
+  const store = useModeSessionStore.getState();
   const draftSessionId = store.getWorkspaceState(
     params.workspacePath,
     workspaceIdentity,

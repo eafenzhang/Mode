@@ -1,15 +1,15 @@
 import { useShallow } from "zustand/react/shallow";
 import {
   getWorkspaceDisplayedTaskState,
-  selectWorkspaceZCodeState,
-  useZCodeSessionStore,
-  type WorkspaceZCodeUIState,
-} from "@/store/zcodeSessionStore.js";
+  selectWorkspaceModeState,
+  useModeSessionStore,
+  type WorkspaceModeUIState,
+} from "@/store/modeSessionStore.js";
 import { resolveWorkspaceModelConfigSyncScope } from "@/lib/modelConfigSync.js";
 import { hasBusyTaskInWorkspaceProvider } from "@/lib/workspaceBusyTaskLock.js";
 
 type WorkspaceShellZCodeState = Pick<
-  WorkspaceZCodeUIState,
+  WorkspaceModeUIState,
   | "activeTaskId"
   | "draftFocusVersion"
   | "modelSwitchPending"
@@ -26,9 +26,9 @@ export function useWorkspaceShellZCodeState(workspaceAbsPath: string, workspaceI
   // App 之前直接订阅整个 workspaceZCodeState，streaming 每个 chunk 都会改 taskMessagesByTaskId。
   // 这会把侧边栏、Header、Git 派生逻辑一起拖进同步重渲染，性能 trace 里那串 long task 就是这样被放大的。
   // 这里把外壳真正依赖的字段收敛成浅比较选择器，避免消息流惊动无关 UI。
-  const workspaceShellZCodeState = useZCodeSessionStore(
+  const workspaceShellZCodeState = useModeSessionStore(
     useShallow((state): WorkspaceShellZCodeState => {
-      const workspaceState = selectWorkspaceZCodeState(state, workspaceAbsPath, workspaceIdentity);
+      const workspaceState = selectWorkspaceModeState(state, workspaceAbsPath, workspaceIdentity);
       const displayedTaskState = getWorkspaceDisplayedTaskState(workspaceState);
       return {
         activeTaskId: workspaceState.activeTaskId,
@@ -46,8 +46,8 @@ export function useWorkspaceShellZCodeState(workspaceAbsPath: string, workspaceI
     }),
   );
 
-  const reloadSessionDisabled = useZCodeSessionStore((state) => {
-    const workspaceState = selectWorkspaceZCodeState(state, workspaceAbsPath, workspaceIdentity);
+  const reloadSessionDisabled = useModeSessionStore((state) => {
+    const workspaceState = selectWorkspaceModeState(state, workspaceAbsPath, workspaceIdentity);
     const actionScope = resolveWorkspaceModelConfigSyncScope(workspaceState);
     return hasBusyTaskInWorkspaceProvider(
       actionScope.provider,

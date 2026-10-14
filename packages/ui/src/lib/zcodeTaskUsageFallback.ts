@@ -1,5 +1,5 @@
 import type { ModeUsage } from "@mode/shared";
-import type { TaskUsageState } from "@/store/zcodeSessionStoreTypes.js";
+import type { TaskUsageState } from "@/store/modeSessionStoreTypes.js";
 
 interface TaskUsageKeyParams {
   workspacePath: string;
