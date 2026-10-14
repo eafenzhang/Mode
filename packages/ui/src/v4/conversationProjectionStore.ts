@@ -11,6 +11,7 @@ import {
   parseConversationTopic,
   PROTOCOL_V4_LIMITS,
   SUBSCRIPTION_CONTENT_REJECTED,
+  type ConversationDelta,
   type ConversationRow,
   type ConversationSnapshot,
   type ConversationTopicFrame,
@@ -270,6 +271,19 @@ export class ConversationProjectionStore {
   private readonly modelTransitionListeners = new Set<
     (transition: SessionModelTransition) => void
   >();
+  /**
+   * 每个 delta 批次的旁路订阅：插件 UI 卡片据此更新 `ui://` 资源投影。
+   * 只转发本帧增量，不缓存、不补发（断档的补偿由订阅重连负责）。
+   */
+  private readonly liveDeltaListeners = new Set<(deltas: readonly ConversationDelta[]) => void>();
+
+  /** 订阅 delta 批次；返回取消订阅函数。 */
+  onLiveDeltas(listener: (deltas: readonly ConversationDelta[]) => void): () => void {
+    this.liveDeltaListeners.add(listener);
+    return () => {
+      this.liveDeltaListeners.delete(listener);
+    };
+  }
   private observedModelTransitionEventId: string | null = null;
   // 订阅代际：并发 connect 只认最新一代，过期结果立即退订防服务端悬挂。
   private generation = 0;
@@ -671,6 +685,9 @@ export class ConversationProjectionStore {
         this.requestRecovery(context.recovery);
       }
       return;
+    }
+    for (const listener of this.liveDeltaListeners) {
+      listener(frame.payload.deltas);
     }
     const applied = applyConversationDeltas(current, frame.payload.deltas);
     // seq 是快照对齐水位，delta 帧应用完推进到帧右端点。
