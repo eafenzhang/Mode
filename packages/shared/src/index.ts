@@ -281,27 +281,18 @@ export * from "./env-names.js";
 
 // --- 上游 v3.15.1 并入所需的最小再导出补丁（自动生成，逐符号显式导出，避免 export * 撞名）---
 export { type ChannelContentPart, type ChannelReplyHostRequest, type ChannelReplyResult, channelContentText, channelMentionSchema, channelReplyHostRequestSchema, channelReplyRequestSchema, resolveChannelReplyParts } from './channel-mention.js';
-export { type CloudContentBundle, type CloudContentPayload, contentBundleSchema } from './cloudContent.js';
 export { RequestVerificationProof } from './coding-plan-subscription.js';
 export { type CreateFeedbackTicketInput, DEFAULT_FEEDBACK_TICKET_FRAMEWORK, type FeedbackAttachment, type FeedbackAttachmentKind, type FeedbackComment, type FeedbackCommentAttachment, type FeedbackDeviceInfo, type FeedbackListQuery, type FeedbackListResult, type FeedbackTicketDetail, type FeedbackTicketEvent, type FeedbackTicketEventType, type FeedbackTicketFramework, type FeedbackTicketModule, type FeedbackTicketSeverity, type FeedbackTicketStatus, type FeedbackTicketSummary, type FeedbackTicketType } from './feedback.js';
 export { redactFeedbackText } from './feedbackPrivacy.js';
 export { HIGHSPEED_CARD_EXPIRED_PROVIDER_ERROR_CODE, type HighspeedCardApi, type HighspeedCardSnapshot, type HighspeedCardUsage, type HighspeedDrawRequest, type HighspeedDrawResponse, type HighspeedMessageMeta, type HighspeedMockScenario, type HighspeedPrepareFallbackReason, type HighspeedPrepareTurnParams, type HighspeedPrepareTurnResult, type HighspeedServiceSnapshot, type HighspeedTurnExecution, highspeedDrawResponseSchema, highspeedHealthyResponseSchema, resolveHighspeedDrawProviderId, resolveHighspeedProviderId } from './highspeed.js';
-export { type MarketingAction, type MarketingAsset, type MarketingDelivery, type MarketingPopup, type MarketingTouchSnapshot, type MarketingVisual, marketingAssetSchema, parseMarketingTouchResponse } from './marketingTouch.js';
 export { type NetworkCaptureBatch, type NetworkCaptureBridge, type NetworkCaptureSnapshot, networkCaptureBatchSchema } from './networkCapture.js';
 export { type OutputStyle, type OutputStyleConfig } from './output-style.js';
-export { type ProcessResourceRuntimeSurface } from './processResourceTelemetry.js';
 export { ProjectAccessTokenClient } from './project-access-token-client.js';
 export { ProjectAccessTokenTransientError } from './project-access-token.js';
-export { resolveWorkspaceTelemetryDetail } from './remoteUsageTelemetry.js';
-export { RENDERER_ACTION_TRACE_MAX_BATCH_BYTES, RENDERER_ACTION_TRACE_MAX_BATCH_SPANS, type RendererActionTraceAttributes, type RendererActionTraceBatchV1, type RendererActionTraceConfigV1, type RendererActionTraceGroup, type RendererActionTraceResourceV1, type RendererActionTraceSpanV1 } from './rendererActionTrace.js';
 export { allowRequestVerificationHeaders, requestVerificationInteractionAvailable, requiresRequestVerification } from './request-security-edition/verification-policy.js';
-export { createRewardsInjectionScript } from './rewardsBridge.js';
-export { REWARDS_PARTITION, buildRewardsUrl, isTrustedRewardsUrl } from './rewardsEmbedded.js';
-export { type AutomationSessionCreateTelemetry, type SessionCreateClientKind } from './sessionCreateTelemetry.js';
 export { parseAgentProfileFromMarkdown } from './subagent-profile-parser.js';
 export { type SubagentRuntimeState, resolveSubagentRuntimeProfiles, subagentRuntimeConfigSchema } from './subagent-runtime-config.js';
 export { type ArmsCustomEventPayload, type TelemetryEventPayload, type TelemetryRendererContext, collectTelemetryRendererContext, sanitizeTelemetryErrorMessage, sanitizeTelemetryEventDetail } from './telemetry.js';
-export { redactTelemetryText, resolveTelemetryModelId, resolveTelemetryProviderScope, sanitizeTelemetryModelValue } from './telemetryRedaction.js';
 export { WEB_REMOTE_CONTROL_HEARTBEAT_ACK_TIMEOUT_MS, WEB_REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS, WEB_REMOTE_CONTROL_RECONNECT_JITTER_MS, getWebRemoteControlHeartbeatDelayMs, getWebRemoteControlHeartbeatJitterMs, getWebRemoteControlReconnectJitterMs } from './web-remote-control-heartbeat.js';
 export { WEB_REMOTE_CONTROL_RPC_TRANSPORT_LIMITS, WebRemoteControlRpcTransportAssembler, WebRemoteControlRpcTransportEncodingError, type WebRemoteControlRpcTransportFault, type WebRemoteControlRpcTransportFramePayload, type WebRemoteControlRpcTransportIdentity, type WebRemoteControlRpcTransportPayload, encodeWebRemoteControlRpcTransportMessage, measureWebRemoteControlRpcRelayEnvelopeBytes, parseWebRemoteControlRpcTransportPayload } from './web-remote-control-rpc-transport.js';
 export { type WebRemoteControlAppPayload, type WebRemoteControlExternalWorkspaceBridge, type WebRemoteControlFailure, type WebRemoteControlFailureReason, type WebRemoteControlMobileDeviceInfo, type WebRemoteControlMobileNavigationIntent, type WebRemoteControlRelayDataMessage, type WebRemoteControlRelayIncomingMessage, type WebRemoteControlRelayOutgoingMessage, type WebRemoteControlRelayRole, type WebRemoteControlRpcFramePayload, type WebRemoteControlStatus, type WebRemoteControlTaskDisplayStatus, type WebRemoteControlTaskTarget, type WebRemoteControlThemeSeed, type WebRemoteControlWindowBootstrapResult, type WebRemoteControlWorkspaceBridge, type WebRemoteControlWorkspaceListResult, type WebRemoteControlWorkspaceTarget, isWebRemoteControlThemeSeed, resolveWebRemoteControlRoutePathFromBaseUrl, resolveWebRemoteControlWorkspaceKey } from './web-remote-control.js';
@@ -314,7 +305,4 @@ export { CONVERSATION_SELECTION_MAX_COUNT, CONVERSATION_SELECTION_MAX_TEXT_LENGT
 export { type Memory, type MemoryConfig } from './memory.js';
 export { GEN_UI_OUTPUT_DIRECTORY, GEN_UI_OUTPUT_ROOT_ENV, getGenUiOutputDirectory } from './node/genUiPaths.js';
 export { createNodeNetworkCapture } from './node/networkCapture.js';
-export { type NodeSelfResourceSamplerOptions, createNodeSelfResourceSampler } from './node/nodeSelfResourceTelemetry.js';
 export { type ProjectAccessTokenMaterial } from './project-access-token-client.js';
-export { buildWebRemoteControlEntryViewTelemetry } from './remoteUsageTelemetry.js';
-export { RewardsContext } from './rewardsBridge.js';

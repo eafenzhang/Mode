@@ -14,7 +14,6 @@ import {
   desktopMenuMessageIds,
   getDesktopMenuMessage,
   isTrustedCodingPlanWebviewOrigin,
-  isTrustedRewardsUrl,
   PlatformChannels,
 } from "@mode/shared";
 import { loadWindow, type WindowBootstrapOptions } from "./desktopHostProcess.js";
@@ -356,7 +355,6 @@ function attachEmbeddedBrowserWindowOpenHandler(options: {
   hostWebContents: WebContents;
   guestWebContents: WebContents;
   isCodingPlanGuest: boolean;
-  isRewardsGuest: boolean;
   resolveBrowserViewOwner?: (webContentsId: number) =>
     | {
         workspaceKey: string;
@@ -459,22 +457,6 @@ function attachEmbeddedBrowserWindowOpenHandler(options: {
   });
 
   options.guestWebContents.on("will-navigate", (event, url) => {
-    if (options.isRewardsGuest) {
-      if (
-        isTrustedRewardsUrl(url, {
-          dev: !app.isPackaged,
-          e2e: process.env.VITE_MODE_E2E_STORE_BRIDGE === "1",
-        })
-      )
-        return;
-      // 邀请页离开受信任路径必须外开，不能让第三方页面使用已注入凭据的容器。
-      event.preventDefault();
-      if (isAllowedEmbeddedBrowserNewWindowUrl(url))
-        void shell
-          .openExternal(url)
-          .catch(() => options.logger.warn("[rewards] external navigation failed"));
-      return;
-    }
     const guestUrl =
       typeof options.guestWebContents.getURL === "function"
         ? options.guestWebContents.getURL()
@@ -642,7 +624,7 @@ export function createBrowserWindow(options: {
   attachWindowsWindowRepaint(win);
   // will-attach 与 did-attach 按顺序配对；队列元素记录 guest 种类，did-attach 据此分派策略。
   const pendingWebviewGuestKinds: Array<
-    | { kind: "browser" | "codingPlan"; isRewards: boolean }
+    | { kind: "browser" | "codingPlan" }
     | { kind: "pluginSandbox"; sandboxId: string }
   > = [];
 
@@ -699,18 +681,6 @@ export function createBrowserWindow(options: {
     webPreferences.preload = isCodingPlanWebview
       ? codingPlanWebviewPreloadPath
       : embeddedBrowserJavaScriptDialogPreloadPath;
-    const isRewardsWebview = isTrustedRewardsUrl(targetUrl, {
-      dev: !app.isPackaged,
-      e2e: process.env.VITE_MODE_E2E_STORE_BRIDGE === "1",
-    });
-    if (isRewardsWebview) {
-      webPreferences.preload = join(import.meta.dirname, "../preload/rewardsWebview.cjs");
-      if (!app.isPackaged)
-        webPreferences.additionalArguments = [
-          ...(webPreferences.additionalArguments ?? []),
-          "--mode-rewards-dev",
-        ];
-    }
     webPreferences.contextIsolation = true;
     webPreferences.nodeIntegration = false;
     webPreferences.nodeIntegrationInSubFrames = true;
@@ -739,14 +709,12 @@ export function createBrowserWindow(options: {
 
     pendingWebviewGuestKinds.push({
       kind: isCodingPlanWebview ? "codingPlan" : "browser",
-      isRewards: isRewardsWebview,
     });
   });
 
   win.webContents.on("did-attach-webview", (_event, guestWebContents) => {
     const guestKind = pendingWebviewGuestKinds.shift() ?? {
       kind: "browser" as const,
-      isRewards: false,
     };
     if (guestKind.kind === "pluginSandbox") {
       getPluginSandboxHost()?.attachGuest({
@@ -763,7 +731,6 @@ export function createBrowserWindow(options: {
       // PayPal/relay 的 30x 重定向不保证逐跳触发 will-navigate。
       // Coding Plan guest 身份必须按初始 src 粘住，不能由当前 URL 解防护。
       isCodingPlanGuest: guestKind.kind === "codingPlan",
-      isRewardsGuest: guestKind.isRewards,
       logger: options.logger,
     });
     // 蓝牙设备选择事件挂在 guest WebContents 上（Session 只覆盖 hid/usb/serial）；

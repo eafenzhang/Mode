@@ -11,7 +11,6 @@ import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useModeStoreWithDefault } from "@/store/StoreProvider.js";
 import { normalizeThemePreference, resolveTheme } from "@/useTheme.js";
 import type { CodingPlanProviderId } from "@/settings/model-provider-section/constants.js";
-import type { CodingPlanFunnelContext } from "@/lib/codingPlanFunnelTelemetry.js";
 import {
   buildCodingPlanEmbeddedWebviewUrl,
   buildCodingPlanEmbeddedReportContext,
@@ -43,7 +42,6 @@ interface CodingPlanEmbeddedWebviewDialogProps {
   open: boolean;
   onOpenResult?: (opened: boolean) => void;
   providerId: CodingPlanProviderId;
-  funnelContext?: CodingPlanFunnelContext | null;
   audience?: CodingPlanPurchaseAudience;
   teamPlanKey?: string | null;
   /**
@@ -79,7 +77,6 @@ export function CodingPlanEmbeddedWebviewDialog({
   onOpenChange,
   open,
   providerId,
-  funnelContext,
   audience,
   teamPlanKey,
   onPurchaseComplete,
@@ -190,7 +187,6 @@ export function CodingPlanEmbeddedWebviewDialog({
                 zcodeJwtToken: values[1],
               };
         const reportContext = buildCodingPlanEmbeddedReportContext({
-          funnelContext,
           deviceMid,
           userId,
           appVersion: MODE_VERSION,
@@ -218,7 +214,7 @@ export function CodingPlanEmbeddedWebviewDialog({
         });
       }
     },
-    [credentialService, embeddedTheme, funnelContext, platform, provider, userId, webviewLocale],
+    [credentialService, embeddedTheme, platform, provider, userId, webviewLocale],
   );
 
   // App locale 运行时变化时，对已 dom-ready 的 webview 注入 lang 更新脚本，

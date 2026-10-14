@@ -6,7 +6,6 @@ import {
   testId,
 } from "@mode/shared";
 import type { BackgroundWorkSummary } from "@mode/shared/mode-protocol-v4";
-import { runUserAction } from "@/lib/userActionTelemetry.js";
 
 export interface ConversationBackgroundWorksProps {
   works: readonly BackgroundWorkSummary[];
@@ -78,12 +77,7 @@ const CancelButton = memo(function CancelButton({
 }) {
   const handleClick = useCallback(
     () =>
-      runUserAction({
-        input: { featureId: "conversation.background_work", action: "cancel", trigger: "button" },
-        operation: () => onCancel(workId),
-        completed: { resultSource: "optimistic_projection" },
-        failureStage: "background_work_cancel",
-      }),
+      onCancel(workId),
     [onCancel, workId],
   );
   return (

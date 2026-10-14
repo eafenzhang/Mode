@@ -295,10 +295,8 @@ export type {
 export { IClientConfigService } from "./client-config/clientConfig.js";
 
 // --- 并入后补丁: @mode/services ---
-export { ICloudContentService } from './cloud-content/cloudContent.js';
 export { type FeedbackUploadProgress, IFeedbackService } from './feedback/feedback.js';
 export { IHighspeedCardService } from './highspeed/highspeedCard.js';
-export { IMarketingTouchService } from './marketing-touch/marketingTouch.js';
 export { localRuntimeNetworkCapture } from './mode-agent/localRuntimeNetworkCapture.js';
 export { type TopicResourcePeers, createTopicResourcePeers } from './mode-agent/topicResourcePeers.js';
 export { createTopicResourceRelayChannel } from './mode-agent/topicResourceRelayChannel.js';
@@ -306,4 +304,3 @@ export { IOutputStyleService } from './output-style/index.js';
 export { IPluginUiAppToolsService, PluginUiPluginScope } from './plugin-ui-bridge/appToolsContract.js';
 export { IPluginUiBridgeService, IPluginUiSamplingService } from './plugin-ui-bridge/contract.example.js';
 export { type PluginUiReadResourceResult, type PluginUiSurfaceEntry } from './plugin-ui-bridge/contract.js';
-export { ensureTelemetryDeviceMid } from './telemetry/telemetryCore.js';

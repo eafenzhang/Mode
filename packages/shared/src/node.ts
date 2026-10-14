@@ -21,7 +21,3 @@ export {
 
 export { GEN_UI_OUTPUT_DIRECTORY, GEN_UI_OUTPUT_ROOT_ENV, getGenUiOutputDirectory } from "./node/genUiPaths.js";
 export { createNodeNetworkCapture } from "./node/networkCapture.js";
-export {
-  createNodeSelfResourceSampler,
-  type NodeSelfResourceSamplerOptions,
-} from "./node/nodeSelfResourceTelemetry.js";

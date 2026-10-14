@@ -21,10 +21,7 @@ import { useOffPeakEligibility } from "@/hooks/useOffPeakEligibility.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { logger } from "@/logger.js";
-import {
-  createIdleTimeCodingPlanFunnelContext,
-  resolveCodingPlanEntryPlanStateFromProviderSettings,
-} from "@/lib/codingPlanFunnelTelemetry.js";
+import { resolveCodingPlanEntryPlanStateFromProviderSettings } from "@/lib/codingPlanEntryPlanState.js";
 import {
   appendLocalCustomizeTemplate,
   materializeOffPeakTemplateDraft,
@@ -99,11 +96,6 @@ export function OffPeakNewTaskEntry({ onOpenAutomations }: OffPeakNewTaskEntryPr
               codingPlanUpgradeDialog?.openCodingPlanUpgrade({
                 providerId,
                 initialAudience: "personal",
-                funnelContext: createIdleTimeCodingPlanFunnelContext({
-                  providerId,
-                  eventText,
-                  entryPlanState,
-                }),
               });
             },
       dismissible: true,
@@ -126,10 +118,6 @@ export function OffPeakNewTaskEntry({ onOpenAutomations }: OffPeakNewTaskEntryPr
     const materialized = materializeOffPeakTemplateDraft(template, locale);
     const draft: OffPeakCreateDraft = {
       ...(template.customize ? {} : { title: materialized.title, prompt: materialized.prompt }),
-      telemetrySource: {
-        eventRegion: "app.session",
-        templateId: template.id,
-      },
     };
     setPendingCreateDraft(draft);
     onOpenAutomations?.();

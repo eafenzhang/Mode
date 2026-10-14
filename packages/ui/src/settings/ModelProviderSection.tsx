@@ -1,7 +1,6 @@
 /* eslint-disable max-lines -- Model Provider 设置页需要集中编排导航、表单和 OAuth 交互，后续整体拆分时再收敛。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { marketingNavigation, finishMarketingNavigation } from "@/lib/marketingNavigation.js";
 import {
   getProviderFormApiKey,
   type ProviderSettingsFormProvider,
@@ -1001,46 +1000,6 @@ export function ModelProviderSection({
     [createPersonalProvider, locale],
   );
 
-  const marketingRequest = useStore(marketingNavigation, (state) => state.request);
-  useEffect(() => {
-    if (marketingRequest?.target.page !== "settings" || !marketingRequest.target.provider_id)
-      return;
-    if (
-      loading ||
-      modelProvidersRefreshing ||
-      sharedSettingsLoading ||
-      navigationItems.some((item) => item.type === "codingPlanLoading")
-    )
-      return;
-    const providerId = marketingRequest.target.provider_id;
-    const item = navigationItems.find((item) =>
-      item.type === "custom"
-        ? // 当前表单契约使用 providerId；旧 id 会让所有自定义提供商被误判为不存在。
-          item.provider.providerId === providerId
-        : "presetId" in item &&
-          item.presetId === providerId &&
-          (!isStartPlanModelProviderId(providerId) || item.type === "codingPlan"),
-    );
-    if (!item) {
-      finishMarketingNavigation(marketingRequest.id, new Error("marketing_provider_unavailable"));
-      return;
-    }
-    const key = resolveModelProviderSideSelectionKey(item);
-    if (selectedNodeKey !== key) {
-      // 只定位侧栏节点；禁止复用带 mode 的选择路径，避免营销导航修改套餐连接。
-      setSelectedNodeKey(key);
-    } else if (selectedNavItem) {
-      finishMarketingNavigation(marketingRequest.id);
-    }
-  }, [
-    marketingRequest,
-    loading,
-    modelProvidersRefreshing,
-    sharedSettingsLoading,
-    navigationItems,
-    selectedNodeKey,
-    selectedNavItem,
-  ]);
 
   const handleReorderProviderIds = useCallback(
     async (orderedGroupProviderIds: string[]) => {
