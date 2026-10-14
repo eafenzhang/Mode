@@ -284,3 +284,23 @@ export async function copyDataDirectory(oldBaseDir: string, newBaseDir: string):
     },
   });
 }
+
+/**
+ * {dataBaseDir}/.mode/feedback：反馈工单、附件与日志归档的根目录。
+ *
+ * 同步并入的 feedback 服务（tickets / 附件上传 / 诊断归档）从 ../paths.js 取这三个目录，
+ * 但本仓的 paths.ts 从未导出过它们 —— 这里按本文件既有约定补齐。
+ */
+export function getFeedbackRootDir(): string {
+  return join(getModeDataRootDir(), "feedback");
+}
+
+/** 反馈附件目录：每次上传在其下建独立临时目录，不直接用 renderer 传来的文件名。 */
+export function getFeedbackAttachmentDir(): string {
+  return join(getFeedbackRootDir(), "attachments");
+}
+
+/** 反馈日志归档目录：诊断归档产物的落盘位置。 */
+export function getFeedbackLogArchiveDir(): string {
+  return join(getFeedbackRootDir(), "log-archive");
+}
