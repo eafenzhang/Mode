@@ -281,7 +281,7 @@ export * from "./env-names.js";
 
 // --- 上游 v3.15.1 并入所需的最小再导出补丁（自动生成，逐符号显式导出，避免 export * 撞名）---
 export { type ChannelContentPart, type ChannelReplyHostRequest, type ChannelReplyResult, channelContentText, channelMentionSchema, channelReplyHostRequestSchema, channelReplyRequestSchema, resolveChannelReplyParts } from './channel-mention.js';
-export { RequestVerificationProof } from './coding-plan-subscription.js';
+export type { RequestVerificationProof } from './coding-plan-subscription.js';
 export { HIGHSPEED_CARD_EXPIRED_PROVIDER_ERROR_CODE, type HighspeedCardApi, type HighspeedCardSnapshot, type HighspeedCardUsage, type HighspeedDrawRequest, type HighspeedDrawResponse, type HighspeedMessageMeta, type HighspeedMockScenario, type HighspeedPrepareFallbackReason, type HighspeedPrepareTurnParams, type HighspeedPrepareTurnResult, type HighspeedServiceSnapshot, type HighspeedTurnExecution, highspeedDrawResponseSchema, highspeedHealthyResponseSchema, resolveHighspeedDrawProviderId, resolveHighspeedProviderId } from './highspeed.js';
 export { type NetworkCaptureBatch, type NetworkCaptureBridge, type NetworkCaptureSnapshot, networkCaptureBatchSchema } from './networkCapture.js';
 export { type OutputStyle, type OutputStyleConfig } from './output-style.js';

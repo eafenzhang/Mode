@@ -11,6 +11,7 @@ import { PROCESS_RESOURCE_CLI_LANES } from "./processResourceSample.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { modeProviderSchema } from "./providers.js";
 import { isModeAgentProvider } from "./mode-agent-policy.js";
+import { MODE_PROVIDERS } from "./providers.js";
 import { modelSelectionSchema } from "./model-selection.js";
 import { providerProvisioningTriggerSchema } from "./provider-provisioning.js";
 import {
@@ -1308,7 +1309,8 @@ export const modeTaskMetaSchema = z.object({
   model: z.string().optional(),
   thoughtLevel: nonEmptyStringSchema.optional(),
   runtimeEpoch: z.number().int().nonnegative().optional(),
-  provider: isModeAgentProvider.optional(),
+  // 取值域与 MODE_PROVIDERS 单一事实源对齐；旧类型守卫函数不能直接挂 zod 的 .optional()。
+  provider: z.enum(MODE_PROVIDERS).optional(),
   migrationSource: modeTaskMigrationSourceSchema.optional(),
   forkedFromTaskId: nonEmptyStringSchema.optional(),
   // cron automation 身份：随 meta_json 一起持久化（单一来源），同时在写入时投影到 tasks 表
