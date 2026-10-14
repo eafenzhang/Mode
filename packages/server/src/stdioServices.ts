@@ -1,5 +1,4 @@
 import { createLocalServices, type ModeAgentCommandResolver } from "@mode/services/node";
-import type { IChannel } from "@mode/rpc";
 import {
   parseServiceAuthorityMode,
   MODE_REMOTE_HTTP_PROXY_ENV_KEY,
@@ -8,7 +7,6 @@ import {
 } from "@mode/shared";
 
 export interface CreateStdioServicesOptions {
-  topicResourceRelayChannel?: () => IChannel;
   env?: Record<string, string | undefined>;
   modeBuiltinProviderConfigFilePath: string;
   modeAgentCommandResolver?: ModeAgentCommandResolver;
@@ -40,7 +38,6 @@ export function createStdioServices(options: CreateStdioServicesOptions) {
   // 数据根初始化由 stdio 入口（entry-stdio）在创建 services 前完成，这里不再执行。
   const services = createLocalServices({
     modeBuiltinProviderConfigFilePath: options.modeBuiltinProviderConfigFilePath,
-    topicResourceRelayChannel: options.topicResourceRelayChannel,
     serviceAuthorityMode: authorityModeParseResult.mode,
     modeAgentCommandResolver: options.modeAgentCommandResolver,
     remoteAgentNetwork,

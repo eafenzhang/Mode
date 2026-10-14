@@ -19,10 +19,9 @@ import {
   IModeAgentService,
   ServiceCollection,
 } from "@mode/services";
-import { createServiceLogger, type TopicResourcePeers } from "@mode/services/node";
+import { createServiceLogger } from "@mode/services/node";
 import {
   SERVER_REMOTE_PROTOCOL_VERSION,
-  TOPIC_RESOURCE_RELAY_CHANNEL,
   MODE_RPC_HOST_CAPABILITY_HEADER,
   MODE_VERSION,
   type ServerRemoteInfo,
@@ -91,20 +90,14 @@ function exposeWebSocket(
   ws: WebSocket,
   services: ServiceCollection,
   clientMode: "desktop-continuous" | "web-remote-replayable",
-  resourcePeers?: TopicResourcePeers,
 ): void {
   const socket = wrapWebSocket(ws);
   const protocol = new SocketProtocol(socket);
   const rawServer = new ChannelServer(protocol, "server");
   const server = new LoggingChannelServer(rawServer, (...args) => log.debug(undefined, ...args));
   const agentService = services.getOptional(IModeAgentService);
-  const reverseClient =
-    clientMode === "desktop-continuous" && resourcePeers ? new ChannelClient(protocol) : undefined;
-  const peer = reverseClient
-    ? resourcePeers?.attach(reverseClient.getChannel(TOPIC_RESOURCE_RELAY_CHANNEL))
-    : undefined;
   const scope = agentService
-    ? createModeAgentConnectionScope(peer ? peer.wrapAgent(agentService) : agentService, {
+    ? createModeAgentConnectionScope(agentService, {
         connectionId: `server-core-ws-${randomUUID()}`,
         clientMode,
         role: clientMode === "desktop-continuous" ? "trusted-host-relay" : "terminal-client",
@@ -115,8 +108,6 @@ function exposeWebSocket(
     scope ? new Map([[IModeAgentService.channelName, scope.service]]) : new Map(),
   );
   socket.onClose(() => {
-    peer?.dispose();
-    reverseClient?.dispose();
     void scope?.dispose();
     rawServer.dispose();
   });
@@ -129,7 +120,6 @@ export async function createCoreHttpServer(
     port?: number;
     serverId?: string;
     hostCapabilityStore?: HostCapabilityStore;
-    topicResourcePeers?: TopicResourcePeers;
   } = {},
 ): Promise<CoreHttpServer> {
   const app = new Hono();
@@ -179,7 +169,6 @@ export async function createCoreHttpServer(
           socket.raw as WebSocket,
           services,
           "desktop-continuous",
-          options.topicResourcePeers,
         );
       },
     })),
