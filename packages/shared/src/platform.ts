@@ -917,6 +917,17 @@ export interface IPlatformService {
   }): Promise<void>;
   /** 清空某站点的全部持久权限状态。 */
   resetEmbeddedBrowserSitePermission?(payload: { origin: string }): Promise<void>;
+  /**
+   * 把工作流产物的一版字节落到本机文件，返回可交给系统编辑器打开的路径。
+   * 同一版重复调用应由实现侧复用同一副本，避免重传大字节。
+   */
+  materializeWorkflowArtifactFile?(payload: {
+    runId: string;
+    artifactId: string;
+    version: number;
+    fileName: string;
+    bytes: Uint8Array;
+  }): Promise<{ localPath: string }>;
 
   /** 注册新版本已下载完毕的回调，参数为新版本号，返回 disposer */
   onUpdateReady(callback: (version: string) => void): () => void;

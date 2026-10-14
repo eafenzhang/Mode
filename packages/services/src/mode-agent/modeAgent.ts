@@ -1,3 +1,4 @@
+import type { DynamicWorkflowMode } from "@mode/shared";
 import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@mode/shared";
 /* eslint-disable max-lines -- Mode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@mode/rpc";
@@ -567,6 +568,10 @@ export interface ModeAgentStorageStartupSnapshot {
 }
 
 export interface IModeAgentService {
+  /**
+   * 把用户选择的动态工作流模式同步给 Host；空对象表示交回服务端提供的模式。
+   */
+  syncDynamicWorkflowUserMode?(input: { mode?: DynamicWorkflowMode }): Promise<void>;
   /** 控制面不需要账号或模型，且不发送普通协议请求。 */
   prepareStorage(params: ModeAgentWorkspaceTarget): Promise<void>;
   getStorageStartupState(

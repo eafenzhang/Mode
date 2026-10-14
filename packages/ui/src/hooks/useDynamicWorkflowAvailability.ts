@@ -58,7 +58,7 @@ export function useDynamicWorkflowUserModeSync(params: {
     if (observed === null || observed.userMode === userMode) return;
     chainRef.current = chainRef.current.then(async () => {
       try {
-        await modeAgentService.syncDynamicWorkflowUserMode(userMode ? { mode: userMode } : {});
+        await modeAgentService.syncDynamicWorkflowUserMode?.(userMode ? { mode: userMode } : {});
       } catch (error) {
         logger.warn("[dynamic-workflow] 用户选择同步到 Host 失败", {
           error: error instanceof Error ? error.message : String(error),

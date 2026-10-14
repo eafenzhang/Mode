@@ -21,7 +21,7 @@ export async function pushDynamicWorkflowUserModeToRemoteHosts(
     connections
       .map(async (connection) => {
         try {
-          await connection.modeAgentService.syncDynamicWorkflowUserMode(mode ? { mode } : {});
+          await connection.modeAgentService.syncDynamicWorkflowUserMode?.(mode ? { mode } : {});
         } catch (error) {
           onError(error);
         }
