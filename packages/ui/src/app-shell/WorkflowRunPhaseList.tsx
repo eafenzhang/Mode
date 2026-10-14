@@ -6,10 +6,10 @@ import { laneDisplayName } from "@/components/workflow-graph/lane-name.js";
 import { phaseDisplayName } from "@/components/workflow-graph/phase-name.js";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import {
+  pillActivity,
   type TimelinePill,
   type WorkflowTimelineModel,
 } from "@/components/workflow-timeline/timeline-model.js";
-import { pillActivity } from "@/components/workflow-timeline/timeline-pill-activity.js";
 import {
   ROSTER_PINS_PANE,
   pillInstanceKey,
@@ -32,7 +32,7 @@ import {
   SpineLamp,
   SpinePieces,
 } from "@/app-shell/WorkflowRunSpineParts.js";
-import { SpineSection } from "@/app-shell/workflowRunSpine.js";
+import { spineSections } from "@/app-shell/workflowRunSpine.js";
 import type { WorkflowActorInstance } from "@/app-shell/workflowRunPanel.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
@@ -201,7 +201,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
   });
   // 每一节要画的竖轨与曲线（`workflowRunSpine.ts`）：轨道段按**成对**查，不按 from——带里
   // 一站可以同时是双线段与主线段的左端。
-  const sections = SpineSection(model);
+  const sections = spineSections(model);
   const nameOf = (pill: TimelinePill) => pill.runtimeName ?? laneDisplayName(pill.lane, format);
   const phaseNameOf = (phaseId: string) => {
     const station = model.stations.find((candidate) => candidate.id === phaseId);
