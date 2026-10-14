@@ -74,6 +74,12 @@ ZCODE_BROWSER_IMPORT_HELPER	2	x64	0.0.1	4e1800d3
 `elevation_failed`、`timeout`、`peer_verification_failed`、`service_failed`、`validation_failed`、
 `unsupported_key`、`cng_failed`、`decryption_failed`、`service_cleanup_failed`。
 
+**helper 可对外发出的 reason 全集 = 白名单 13 项 + 上表宿主单独识别的 2 项**
+（`elevation_cancelled`、`helper_verification_failed`）= **15 项**。这两项虽不在白名单内，但宿主在
+`parseHelperResponse` 里先于白名单判定，helper 必须能发出——否则 UAC 取消路径无法映射到
+`chrome_cookie_elevation_cancelled`。落在白名单与这两项之外的 reason 一律不得外露，
+实现侧应归并成 `helper_failed`（fail-closed）。
+
 宿主超时：90s（`HELPER_TIMEOUT_MS`）；stdout 上限 128KiB（`HELPER_MAX_OUTPUT_BYTES`）。
 
 ## 契约 C：宿主-helper 的封装层（不进 helper，重写时保留）

@@ -5,3 +5,4 @@
 //! 本 crate 只从契约 spec、公开 API 文档与黑盒观察到的输入输出编写。
 
 pub mod cli;
+pub mod protocol;

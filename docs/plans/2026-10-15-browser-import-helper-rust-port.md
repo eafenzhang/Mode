@@ -285,6 +285,12 @@ git commit -m "feat(browser-import): Rust helper 骨架与 --version 契约 A"
 
 ### Task 3: broker wire 协议编解码（契约 B 的纯逻辑面）
 
+**执行记录（2026-10-15）：本任务已落地。** 实况见 `crates/browser-import-helper/src/protocol.rs`
+与 `tests/protocol.rs`；下面步骤里的示例代码是落地前草稿，已被实际实现取代。落地中发现并修正了
+一处契约细节：**reason 全集是 15 项**（白名单 13 + 宿主单独识别的 2 项），不是草稿写的 13——已回写
+`docs/specs/browser-import-helper-contract.md`。测试还补了 CRLF/缺尾换行、非 UTF-8 路径、
+未知 reason 归并等边界。
+
 **Files:**
 - Create: `crates/browser-import-helper/src/protocol.rs`
 - Test: `crates/browser-import-helper/tests/protocol.rs`
@@ -292,9 +298,10 @@ git commit -m "feat(browser-import): Rust helper 骨架与 --version 契约 A"
 **Interfaces:**
 - Consumes: `cli::{PROTOCOL, PROTOCOL_VERSION}`
 - Produces: `protocol::Request { encrypted_key: Vec<u8>, chrome_exe_path: String }`、
-  `protocol::parse_request(line: &str) -> Result<Request, Reason>`、
+  `protocol::parse_request(line: &str) -> Result<Request, &'static str>`、
   `protocol::ok_response(key: &[u8; 32]) -> String`、`protocol::err_response(reason: &str) -> String`、
-  `pub const REASONS: [&str; 13]`（契约 B 宿主白名单全集）。
+  `pub const REASONS: [&str; 15]`（白名单 13 + 宿主单独识别 2）、`HOST_WHITELIST_REASONS`、
+  `HOST_SPECIAL_REASONS`、`KEY_LEN`。
 
 - [ ] **Step 1: 写失败的测试**
 

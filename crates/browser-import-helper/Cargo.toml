@@ -14,3 +14,5 @@ name = "browser_import_helper"
 path = "src/lib.rs"
 
 [dependencies]
+# 契约 B 的 base64 编解码（std 引擎，无额外特性）。
+base64 = "0.22"
