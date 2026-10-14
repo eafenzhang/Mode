@@ -15,7 +15,6 @@ import {
   type ModeProvider,
 } from "@mode/shared";
 import { logger } from "./logger.js";
-import { configureNetworkCaptureHost, observeNetworkWindow } from "./resourceManagerNetwork.js";
 import { normalizeElectronCpuToMachinePercent } from "./electronCpuNormalization.js";
 import { buildAuxiliaryRendererName } from "./resourceManagerProcessNames.js";
 import {
@@ -36,11 +35,11 @@ const RESOURCE_MANAGER_WINDOW_TITLE = "Resource Manager";
 const BROWSER_USE_PLUGIN_NAME = "browser-use";
 
 /** 系统整机 CPU：两次 os.cpus() 之间 busy / total 的差分 */
-export interface SystemCpuMeter {
+interface SystemCpuMeter {
   read(): number;
 }
 
-export function createSystemCpuMeter(
+function createSystemCpuMeter(
   readCpus: () => Array<{ times: Record<string, number> }> = () => os.cpus(),
 ): SystemCpuMeter {
   let previous: { busy: number; total: number } | null = null;
@@ -168,7 +167,6 @@ export function listLiveHostProcesses(): Array<{
 
 export function registerHostProcess(label: string, child: ElectronUtilityProcess): void {
   hostProcesses.set(label, child);
-  configureNetworkCaptureHost(child);
 }
 
 export function unregisterHostProcess(label: string): void {
@@ -235,7 +233,6 @@ export function openResourceManager(): void {
     },
   });
 
-  observeNetworkWindow(instance, () => hostProcesses.values());
   // 与主窗口保持一致：生产包始终加载签名包内的渲染资源。
   if (!app.isPackaged && process.env["ELECTRON_RENDERER_URL"]) {
     const base = process.env["ELECTRON_RENDERER_URL"];
@@ -423,7 +420,7 @@ function collectUnsampledAgentProcesses(sampledPids: Set<number>): ResourceUsage
 const systemCpuMeter = createSystemCpuMeter();
 
 /** 一次完整快照：Electron 进程 + Host 采样的外部进程 + 系统总量 */
-export async function buildResourceUsageSnapshot(
+async function buildResourceUsageSnapshot(
   options: { includeHosts?: boolean; signal?: AbortSignal } = {},
 ): Promise<ResourceUsageSnapshot> {
   const electronProcesses = collectElectronProcesses();
