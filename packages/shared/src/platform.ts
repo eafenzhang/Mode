@@ -36,6 +36,12 @@ import type {
 } from "./cuaAccessibilitySettings.js";
 import type { BrowserViewportSize } from "./browser-use/command-metadata.js";
 import type {
+  EmbeddedBrowserPermissionPromptEvent,
+  EmbeddedBrowserPermissionResolution,
+  EmbeddedBrowserSitePermissionState,
+  EmbeddedBrowserSitePermissionsSnapshot,
+} from "./browser-use/permissions.js";
+import type {
   PostUpdateReleaseNotesPayload,
   UpdateCheckResultPayload,
   UpdateStatePayload,
@@ -892,6 +898,25 @@ export interface IPlatformService {
 
   /** 清理内置浏览器持久化分区；cache 模式保留认证数据，all 模式清理全部站点数据。 */
   clearEmbeddedBrowserData?(mode: "cache" | "all"): Promise<EmbeddedBrowserDataClearResult>;
+  /** 订阅内嵌浏览器的权限请求弹层；返回取消订阅函数。 */
+  onEmbeddedBrowserPermissionPrompt?(
+    callback: (event: EmbeddedBrowserPermissionPromptEvent) => void,
+  ): () => void;
+  /** 回传用户对某次权限请求的裁决。 */
+  resolveEmbeddedBrowserPermissionPrompt?(payload: {
+    requestId: string;
+    resolution: EmbeddedBrowserPermissionResolution;
+  }): void;
+  /** 读取某站点已持久化的权限状态投影。 */
+  getEmbeddedBrowserSitePermissions?(): Promise<EmbeddedBrowserSitePermissionsSnapshot>;
+  /** 写入某站点的一条权限状态。 */
+  setEmbeddedBrowserSitePermission?(payload: {
+    origin: string;
+    permission: string;
+    state: EmbeddedBrowserSitePermissionState;
+  }): Promise<void>;
+  /** 清空某站点的全部持久权限状态。 */
+  resetEmbeddedBrowserSitePermission?(payload: { origin: string }): Promise<void>;
 
   /** 注册新版本已下载完毕的回调，参数为新版本号，返回 disposer */
   onUpdateReady(callback: (version: string) => void): () => void;
