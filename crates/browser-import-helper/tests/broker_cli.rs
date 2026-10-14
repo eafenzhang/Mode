@@ -5,6 +5,9 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+const WIRE: &str = "MODE_BROWSER_IMPORT_V1";
+const VERSION_TOKEN: &str = "MODE_BROWSER_IMPORT_HELPER";
+
 fn run(args: &[&str], stdin: &str) -> (i32, String) {
     let exe = env!("CARGO_BIN_EXE_mode-browser-import-helper");
     let mut child = Command::new(exe)
@@ -33,7 +36,7 @@ fn version_flag_prints_frozen_banner() {
     assert_eq!(code, 0);
     let fields: Vec<&str> = stdout.trim().split('\t').collect();
     assert_eq!(fields.len(), 5);
-    assert_eq!(fields[0], "ZCODE_BROWSER_IMPORT_HELPER");
+    assert_eq!(fields[0], VERSION_TOKEN);
     assert_eq!(fields[1], "2");
 }
 
@@ -50,18 +53,15 @@ fn no_args_or_unknown_args_exit_two_without_stdout() {
 fn malformed_broker_request_emits_validation_error_frame() {
     let (code, stdout) = run(&["--broker", "--parent-pid", "1"], "garbage\n");
     assert_eq!(code, 0);
-    assert_eq!(
-        stdout.trim(),
-        "ZCODE_BROWSER_IMPORT_HELPER\tERR\tvalidation_failed"
-    );
+    assert_eq!(stdout.trim(), format!("{WIRE}\tERR\tvalidation_failed"));
 }
 
 #[test]
 fn well_formed_request_fails_closed_without_forging_a_frame() {
-    // 帧合法但 P2 未落地：必须完全不产出 stdout，不能伪造 OK 或 ERR 帧。
-    // 载荷内容不影响校验（只要求 base64 合法且非空），故用最小合法值。
-    let request = "ZCODE_BROWSER_IMPORT_HELPER\tBwcHBw==\tQQ==\n";
-    let (code, stdout) = run(&["--broker", "--parent-pid", "1"], request);
+    // 帧合法但 P2（提权/服务通道/密钥解封）未落地：必须完全不产出 stdout，
+    // 既不能伪造 OK，也不能伪造带 reason 的 ERR。
+    let request = format!("{WIRE}\tBwcHBw==\tQQ==\n");
+    let (code, stdout) = run(&["--broker", "--parent-pid", "1"], &request);
     assert_ne!(code, 0);
     assert!(stdout.is_empty(), "stdout={stdout:?}");
 }

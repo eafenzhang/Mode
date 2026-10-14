@@ -1,7 +1,17 @@
 //! 契约 A（`--version`）与命令行分派。
 
-/// 冻结的协议名：宿主与本 helper 双方都对它做等值断言，改名属 M4 品牌收口。
-pub const PROTOCOL: &str = "ZCODE_BROWSER_IMPORT_HELPER";
+/// 线协议令牌：broker 的**请求帧与响应帧**都用它。
+///
+/// 对应宿主常量 `HELPER_PROTOCOL`（`packages/desktop/src/main/windowsChromeAppBoundKey.ts:14`），
+/// 宿主对响应做等值断言（同文件 391 行），不一致即判 `invalid_response`。
+pub const WIRE_PROTOCOL: &str = "MODE_BROWSER_IMPORT_V1";
+
+/// `--version` 横幅的第一字段。
+///
+/// 对应宿主常量 `HELPER_VERSION_PROTOCOL`（同文件 15 行），宿主在 369 行对它做等值断言。
+/// **与 `WIRE_PROTOCOL` 不是同一个串**：旧产物把两者混用（横幅与回帧都发 `ZCODE_*` 品牌），
+/// 实测导致宿主两处断言全部失败——这是本仓库已存在的功能缺陷，Rust 版按宿主契约修正。
+pub const VERSION_PROTOCOL: &str = "MODE_BROWSER_IMPORT_HELPER";
 
 /// 冻结的协议版本，与宿主 `HELPER_VERSION` 一致。
 pub const PROTOCOL_VERSION: &str = "2";
@@ -38,7 +48,7 @@ pub fn parse(args: &[String]) -> Mode {
 pub fn version_banner() -> String {
     format!(
         "{}\t{}\t{}\t{}\t{}\n",
-        PROTOCOL,
+        VERSION_PROTOCOL,
         PROTOCOL_VERSION,
         arch_token(),
         env!("CARGO_PKG_VERSION"),

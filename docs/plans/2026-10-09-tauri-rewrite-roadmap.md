@@ -76,6 +76,8 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
   - 契约真源：`docs/specs/browser-import-helper-contract.md`（黑盒实测 + 接口面：`--version` 五字段横幅、`--broker --parent-pid` 的 tab 分隔 3 字段请求/响应、宿主 reason 白名单 13 项、90s 超时与 128KiB stdout 上限）。
   - 执行计划：`docs/plans/2026-10-15-browser-import-helper-rust-port.md`（P1 纯逻辑可本机验，P2 提权/服务通道/密钥解封需真实 Windows 会话，P3 接线删 C#）。
   - 本机前置已验：无 dotnet/csc，但 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 可用，`pnpm --filter @mode/desktop prepare:browser-import-helper` 能产出 oracle。
+  - **实测发现的现役缺陷（2026-10-15）**：旧 C# 产物对 `--version` 横幅与 broker 回帧**都发 `ZCODE_*` 品牌**，而宿主断言 `MODE_BROWSER_IMPORT_HELPER` / `MODE_BROWSER_IMPORT_V1`——即 Windows 下 Chrome app-bound 密钥导入在当前代码里必然判 `invalid_response`。Rust 版按宿主契约实现（`rejects_legacy_zcode_token` / `responses_never_use_the_version_token` 反向锁），**替换 C# 即修复**。
+  - **解封路径需真机**（本机无 Chrome、需 UAC 交互式会话），故 **C# 暂不删除**：删早了会让该功能直接不可用。删除条件是 P2 落地并在真机跑通「导入一次 + 拒绝 UAC」两条验收。
   - 验收：Windows 实机导入一次浏览器数据成功（含拒绝 UAC → `chrome_cookie_elevation_cancelled`）；语言条 C# 归零。
 - [ ] **mode-cua JS→TS（让行）**〔本批让行，待电脑控制一期收口〕：等电脑控制一期收口后再执行（该目录正在被并行会话开发）；`.d.ts` 手写声明删除，改由 tsc 产出。
 - [ ] **（可选）过渡版瘦身**〔本批未执行〕：按上轮结论修 `files` 白名单（echarts/mermaid/pdfjs/lucide/shiki/katex 等渲染层库已在 `out/renderer` bundle 内，asar 不再重复装其 node_modules）+ `compression: "max"`，本地出包对比体积并记录。**与 CUA 一期对 `electron-builder.config.js` 的改动错峰，同一窗口期只动一处。**

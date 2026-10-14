@@ -287,9 +287,18 @@ git commit -m "feat(browser-import): Rust helper 骨架与 --version 契约 A"
 
 **执行记录（2026-10-15）：本任务已落地。** 实况见 `crates/browser-import-helper/src/protocol.rs`
 与 `tests/protocol.rs`；下面步骤里的示例代码是落地前草稿，已被实际实现取代。落地中发现并修正了
-一处契约细节：**reason 全集是 15 项**（白名单 13 + 宿主单独识别的 2 项），不是草稿写的 13——已回写
-`docs/specs/browser-import-helper-contract.md`。测试还补了 CRLF/缺尾换行、非 UTF-8 路径、
-未知 reason 归并等边界。
+两处契约细节，均已回写 `docs/specs/browser-import-helper-contract.md`：
+
+1. **令牌是三个不同串**（草稿把源头的 wire 令牌与横幅令牌混成一个）：broker 请求/响应帧用
+   `MODE_BROWSER_IMPORT_V1`（宿主 `HELPER_PROTOCOL`），`--version` 横幅第一字段用
+   `MODE_BROWSER_IMPORT_HELPER`（宿主 `HELPER_VERSION_PROTOCOL`），协议版本 `2`。**旧 C# 产物对两者
+   都发 `ZCODE_*` 品牌，与宿主两条断言都不符——这是本仓库现役功能缺陷**，Rust 版按宿主契约修正。
+2. **reason 全集是 15 项**（白名单 13 + 宿主单独识别的 `elevation_cancelled` /
+   `helper_verification_failed`），不是草稿写的 13。
+
+另有实测结论：失败**不保证有 ERR 帧**——畸形帧/空 stdin 是静默非零退出（退出码 1），
+宿主一律判 `invalid_response`。测试覆盖了 CRLF/缺尾换行、非 UTF-8 路径、未知 reason 归并、
+以及「合法帧在 P2 前必须不发帧」的反向锁。
 
 **Files:**
 - Create: `crates/browser-import-helper/src/protocol.rs`

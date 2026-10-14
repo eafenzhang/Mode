@@ -13,14 +13,31 @@
 因此 Rust 重写的合法输入只有两类：
 
 1. **黑盒行为**（policy §黑盒对拍：运行旧实现，观察输入输出与事件序列）；
-2. **接口面**（policy §允许输入：「协议帧结构、测试断言的输入输出」属允许读取的接口面）。
+2. **接口面**（policy §允许输入：宿主侧常量、协议帧结构、断言的输入输出）。
 
 本文把这两类输入固定下来，作为 `crates/browser-import-helper` 的唯一取材来源。
-本文不含、也不得加入任何旧实现内部逻辑的描述。
+本文不含、也不得加入旧实现内部逻辑的描述。
+
+## 三个令牌（实测，2026-10-15）
+
+宿主 `packages/desktop/src/main/windowsChromeAppBoundKey.ts` 定义了两个**不同**的常量，
+加上载体字形，共涉及三个字符串：
+
+| 用途 | 取值 | 出处 |
+| --- | --- | --- |
+| broker **请求/响应**帧令牌 | `MODE_BROWSER_IMPORT_V1` | 宿主常量 `HELPER_PROTOCOL`（14 行），响应断言在同文件 391 行 |
+| `--version` 横幅第一字段 | `MODE_BROWSER_IMPORT_HELPER` | 宿主常量 `HELPER_VERSION_PROTOCOL`（15 行），断言在 369 行 |
+| 协议版本 | `2` | 宿主常量 `HELPER_VERSION`（16 行） |
+
+**已存在的功能缺陷（实测证据）**：本仓库现役 C# 产物对两者都发 `ZCODE_*` 品牌
+（`--version` 打印 `ZCODE_BROWSER_IMPORT_HELPER`，回帧用 `ZCODE_BROWSER_IMPORT_V1`），
+与宿主两条断言都不符——即 Windows 下 Chrome app-bound 密钥导入在当前代码里必然被判
+`invalid_response`。Rust 版按**宿主契约**（上表）实现以修正该缺陷，不复制该缺陷；
+`tests/protocol.rs` 有反向锁（`rejects_legacy_zcode_token`、`responses_never_use_the_version_token`）。
 
 ## 契约 A：版本查询（`--version`）
 
-实测（2026-10-15，`packages/desktop/bundled-tools/win32-x64/browser-import/mode-browser-import-helper.exe`，
+实测（`packages/desktop/bundled-tools/win32-x64/browser-import/mode-browser-import-helper.exe`，
 由 `pnpm --filter @mode/desktop prepare:browser-import-helper` 产出）：
 
 ```
@@ -28,38 +45,50 @@ $ mode-browser-import-helper.exe --version
 ZCODE_BROWSER_IMPORT_HELPER	2	x64	0.0.1	4e1800d3
 ```
 
-制表符分隔 5 字段：`<协议名>\t<协议版本>\t<架构>\t<应用版本>\t<git 修订>`；`--version` 退出码 0。
+制表符分隔 5 字段：`<横幅令牌>\t<协议版本>\t<架构>\t<应用版本>\t<git 修订>`；退出码 0。
 
-- 协议名取值由宿主常量 `HELPER_PROTOCOL` 决定，宿主断言 `fields[0] === HELPER_PROTOCOL`，
-  版本串的字段 1（`2`）与宿主 `HELPER_VERSION = "2"` 一致。
-- **协议名按冻结常量处理**：宿主与 helper 双方都对它做等值断言，重写时逐字节保持
-  `ZCODE_BROWSER_IMPORT_HELPER`；改名属 M4 品牌收口，需宿主与 helper 同步改，不在本次重写范围。
-- 无参数、`--help`、未知参数：退出码 **2**，无 stdout 输出。
-- 架构字段与产物目标一致（`x64`）；应用版本/git 修订来自构建期注入，非运行时探测。
+- 架构字段取 `x64`／`arm64`（不是 `x86_64`）。
+- 第 4/5 字段是构建期注入（应用版本、git 修订），非运行时探测；对拍只比前 3 字段。
+- 无参数、`--help`、未知参数：退出码 **2**，无 stdout。
 
 ## 契约 B：broker 模式（`--broker --parent-pid <pid>`）
 
-调用面（接口面读取）：宿主经 `spawn(helperPath, ["--broker", "--parent-pid", String(process.pid)])`
-启动，`stdio: ["pipe","pipe","ignore"]`（**stderr 被丢弃**，不可作为契约），stdin 写一行请求后读 stdout。
+调用面：宿主经 `spawn(helperPath, ["--broker", "--parent-pid", String(process.pid)])` 启动，
+`stdio: ["pipe","pipe","ignore"]`（**stderr 被丢弃**，不是契约），stdin 写一行请求后读 stdout。
 
 **请求（stdin，一行，以 `\n` 结尾，制表符分隔 3 字段）：**
 
 ```
-<协议名>\t<base64(appBoundKey[4:])>\t<base64(chromeExecutablePath)>\n
+MODE_BROWSER_IMPORT_V1\t<base64(appBoundKey[4:])>\t<base64(chromeExecutablePath)>\n
 ```
 
-- 字段 2 是 Chrome `Local State` 的 `os_crypt.app_bound_encrypted_key` 解 base64 后**去掉前 4 字节**的密文；
+- 字段 2 是 Chrome `Local State` 的 `os_crypt.app_bound_encrypted_key` 解 base64 后**去掉前 4 字节**
+  的密文（宿主另有断言：前缀必须是 ASCII `APPB`）；
 - 字段 3 是 Chrome 可执行文件绝对路径（UTF-8 → base64）。
 
-**响应（stdout，一行，制表符分隔 3 字段）：**
+**响应（stdout，一行，制表符分隔 3 字段，令牌为 `MODE_BROWSER_IMPORT_V1`）：**
 
 | 形态 | 字段 | 含义 |
 | --- | --- | --- |
-| 成功 | `<协议名>\tOK\t<base64(32 字节密钥)>` | 宿主按 base64 解出 32 字节，长度 != 32 视为 `invalid_response` |
-| 失败 | `<协议名>\tERR\t<reason>` | reason 见下表 |
+| 成功 | `MODE_BROWSER_IMPORT_V1\tOK\t<base64(32 字节密钥)>` | 宿主按 base64 解出 32 字节；长度 != 32 视为 `invalid_response` |
+| 失败 | `MODE_BROWSER_IMPORT_V1\tERR\t<reason>` | reason 见下 |
 
-字段数 != 3 或字段 1 不在 `{OK, ERR}` → 宿主判 `invalid_response`。
-`OK` 形态下宿主另要求退出码为 0。
+字段数 != 3 或字段 1 不在 `{OK, ERR}` → 宿主判 `invalid_response`；`OK` 形态另要求退出码 0。
+
+**失败并不保证有帧**。实测（已提权、交互式会话，伪密文 + 不存在的 Chrome 路径）：
+
+| 情形 | 退出码 | stdout |
+| --- | --- | --- |
+| 无参数 / 未知参数 | 2 | 空 |
+| 畸形帧、缺字段、**空 stdin** | 1 | **空**（不发 ERR 帧） |
+| `--parent-pid 0`（其余合法） | 1 | `…V1\tERR\thelper_failed` |
+| 合法帧 + 存活 pid（后续步骤失败） | 1 | **空** |
+
+即：**只有部分失败路径以 ERR 帧上报**，其余为静默非零退出。宿主对空 stdout 一律判
+`invalid_response`。Rust 版对「能判定为契约内失败」的情形发 ERR 帧，对「无法判定／尚未实现」
+的情形保持静默非零退出（`tests/broker_cli.rs` 锁住这两条）。
+另：宿主不做请求令牌校验以外的入参校验——实测把令牌换成 `ZCODE_*` 时旧产物行为不变，
+说明旧产物并未校验请求令牌（Rust 版按契约校验）。
 
 宿主侧可区分的 reason 子集（其余一律归并成 `chrome_cookie_app_bound_decryption_failed`）：
 
@@ -77,8 +106,8 @@ ZCODE_BROWSER_IMPORT_HELPER	2	x64	0.0.1	4e1800d3
 **helper 可对外发出的 reason 全集 = 白名单 13 项 + 上表宿主单独识别的 2 项**
 （`elevation_cancelled`、`helper_verification_failed`）= **15 项**。这两项虽不在白名单内，但宿主在
 `parseHelperResponse` 里先于白名单判定，helper 必须能发出——否则 UAC 取消路径无法映射到
-`chrome_cookie_elevation_cancelled`。落在白名单与这两项之外的 reason 一律不得外露，
-实现侧应归并成 `helper_failed`（fail-closed）。
+`chrome_cookie_elevation_cancelled`。落在 15 项之外的 reason 一律不得外露，实现侧应归并成
+`helper_failed`（fail-closed）。
 
 宿主超时：90s（`HELPER_TIMEOUT_MS`）；stdout 上限 128KiB（`HELPER_MAX_OUTPUT_BYTES`）。
 
@@ -103,7 +132,8 @@ ZCODE_BROWSER_IMPORT_HELPER	2	x64	0.0.1	4e1800d3
 
 ## 验收
 
-1. 旧实现按契约 A/B 实跑的结果与新实现逐字段一致（对拍 harness 见
-   `docs/plans/2026-10-15-browser-import-helper-rust-port.md`）。
-2. 本文档不含旧实现内部逻辑描述（评审项：无「它先……再……」式实现叙述）。
-3. 重写 PR 的输入来源可回溯到本文 + 公开文档。
+1. 契约 A 的前 3 字段与旧产物逐字节一致；契约 B 的令牌、字段结构、reason 集合按本文对齐。
+2. 对拍 harness：`packages/desktop/tests/browser-import-helper-contract.test.mjs`
+   （旧产物缺席时整条 skip，保证 ubuntu 上的 verify job 不被 Windows 专用产物拖红）。
+3. 本文档不含旧实现内部逻辑描述（评审项：无「它先……再……」式实现叙述）。
+4. 重写 PR 的输入来源可回溯到本文 + 公开文档。

@@ -6,7 +6,7 @@
 //! 或 `<协议名>\tERR\t<reason>`。
 use base64::Engine;
 
-use crate::cli::PROTOCOL;
+use crate::cli::WIRE_PROTOCOL;
 
 /// 宿主 reason 白名单（`APP_BOUND_HELPER_FAILURE_REASONS`），重写必须覆盖这 13 项。
 pub const HOST_WHITELIST_REASONS: [&str; 13] = [
@@ -66,7 +66,7 @@ pub fn parse_request(line: &str) -> Result<Request, &'static str> {
     let trimmed = line.strip_suffix('\n').unwrap_or(line);
     let trimmed = trimmed.strip_suffix('\r').unwrap_or(trimmed);
     let fields: Vec<&str> = trimmed.split('\t').collect();
-    if fields.len() != 3 || fields[0] != PROTOCOL {
+    if fields.len() != 3 || fields[0] != WIRE_PROTOCOL {
         return Err("validation_failed");
     }
     let encrypted_key = b64()
@@ -87,7 +87,7 @@ pub fn parse_request(line: &str) -> Result<Request, &'static str> {
 }
 
 pub fn ok_response(key: &[u8; KEY_LEN]) -> String {
-    format!("{}\tOK\t{}\n", PROTOCOL, b64().encode(key))
+    format!("{}\tOK\t{}\n", WIRE_PROTOCOL, b64().encode(key))
 }
 
 pub fn err_response(reason: &str) -> String {
@@ -97,5 +97,5 @@ pub fn err_response(reason: &str) -> String {
         // 未知 reason 不得泄给宿主：归并成通用失败（与宿主侧归并口径一致）。
         "helper_failed"
     };
-    format!("{}\tERR\t{}\n", PROTOCOL, reason)
+    format!("{}\tERR\t{}\n", WIRE_PROTOCOL, reason)
 }
