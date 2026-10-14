@@ -32,6 +32,7 @@ export function inputIntentMetadata(
     modelSelection?: ModelSelection;
     mode?: SubmissionMode;
     planEnabled?: boolean;
+    conversationQuotes?: TurnInputIntentMetadata["conversationQuotes"];
     sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
   },
 ): TurnInputIntentMetadata {
