@@ -3139,6 +3139,8 @@ const faIR: Record<string, string> = {
     "هیچ مدلی پیکربندی نشده است. برای استفاده در گفتگو، مدلی اضافه کنید.",
   "settings.modelProvider.addModel": "افزودن مدل",
   "settings.modelProvider.modelId": "شناسه مدل",
+  "settings.modelProvider.detectModels": "شناسایی مدل‌های موجود",
+  "settings.modelProvider.detectModelsEmpty": "هیچ مدل موجودی شناسایی نشد.",
   "settings.modelProvider.modelDisplayName": "نام نمایشی",
   "settings.modelProvider.modelApiFormat.anthropic": "Anthropic messages",
   "settings.modelProvider.modelApiFormat.openaiCompatible": "OpenAI Compatible",
