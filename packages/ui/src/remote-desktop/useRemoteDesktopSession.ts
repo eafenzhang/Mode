@@ -28,6 +28,12 @@ import { logger } from "@/logger.js";
 import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./InputCapture.js";
 import { createNativeMediaSession, probeHevcDecodeSupport, type NativeMediaSession } from "./nativeMediaSession.js";
 import {
+  applyCodecProbe,
+  INITIAL_CODEC_FALLBACK_STATE,
+  stepCodecDowngrade,
+  type CodecFallbackState,
+} from "./codecFallback.js";
+import {
   initialAdaptiveBitrateState,
   nextLowerQuality,
   stepAdaptiveBitrate,
@@ -128,12 +134,16 @@ export function useRemoteDesktopSession(options: {
   const qualityDownshiftRef = useRef<QualityDownshiftState>(INITIAL_QUALITY_DOWNSHIFT_STATE);
   // 编码 codec 偏好（HEVC 选型 2026-10-13）：每挂载预检一次本机解码能力并缓存——
   // 首连/重连/改档共用；unsupported → h264。预检失败（异常）按不支持处理。
-  const codecPrefRef = useRef<RemoteDesktopCodec | null>(null);
+  // 解码真失败时按 codecFallback 单向降为 h264 并重建一次（见 open-media 的 onDecoderFailed）。
+  const codecFallbackRef = useRef<CodecFallbackState>(INITIAL_CODEC_FALLBACK_STATE);
   const resolveCodecPref = useCallback(async (): Promise<RemoteDesktopCodec> => {
-    if (codecPrefRef.current === null) {
-      codecPrefRef.current = (await probeHevcDecodeSupport()) ? "hevc" : "h264";
+    const state = codecFallbackRef.current;
+    if (state.codec !== null) {
+      return state.codec;
     }
-    return codecPrefRef.current;
+    const hevcSupported = await probeHevcDecodeSupport();
+    codecFallbackRef.current = applyCodecProbe(state, hevcSupported);
+    return codecFallbackRef.current.codec ?? "h264";
   }, []);
 
   const sendSignal = useCallback(
@@ -216,6 +226,30 @@ export function useRemoteDesktopSession(options: {
               onDecoded: () => {
                 // fps = 实际绘制帧率：解码即画，每帧计一次；轮询采样时按间隔增量出读数。
                 nativeStats.current.onDecoded();
+              },
+              // 首帧看门狗（spec「媒体面可观测性与首帧约束」）：媒体 WS 已开但窗口内一帧没画
+              // → 页面切「已连接，等待对端首帧…」（不再无提示纯黑）；首个已画帧即撤除。
+              // 「一帧都没画」的 warn 与计数在 createNativeMediaSession 内部落盘，此处只切 UI 态。
+              onFirstFrame: () => {
+                dispatchRef.current({ type: "first-frame", seen: true });
+              },
+              onNoFirstFrame: () => {
+                dispatchRef.current({ type: "first-frame", seen: false });
+              },
+              // HEVC 解码失败降级（spec「媒体面可观测性与首帧约束」）：预检通过 ≠ 真能解
+              //（profile/位深/驱动差异），失败时把偏好降为 H.264 并放行一次整会话重建，
+              // 而不是直接把会话判死。降级只发生一次，之后走既有的媒体失败归因。
+              onDecoderFailed: () => {
+                const step = stepCodecDowngrade(codecFallbackRef.current);
+                codecFallbackRef.current = step.state;
+                if (!step.downgrade) {
+                  return;
+                }
+                logger.warn("[remote-desktop] HEVC 解码失败，降级 H.264 并重建会话");
+                // 旧媒体面随即收口（decoder error → teardown → onTransportClosed）：抑制
+                // 这次失败归因，交给重连编排用新偏好重建整会话，别让会话被失败路径关掉。
+                suppressMediaFailureRef.current = true;
+                reconnectControllerRef.current?.begin();
               },
               onFrameDropped: () => {
                 // 解码队列门控丢弃：累计到下一次自适应采样（与 RTT 同拍判定），

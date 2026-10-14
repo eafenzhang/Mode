@@ -27,7 +27,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 process.chdir(repoRoot);
 
 // git ls-files -z：索引全量受管文件，\0 分隔（R2 裁定口径，路径含空格也安全）
-const output = execSync("git ls-files -z", { encoding: "buffer" });
+// maxBuffer 显式放宽：默认 1MiB，本仓受管文件列表约 10 万条路径早已超过，Windows 上
+// 表现为 `spawnSync cmd.exe ENOBUFS`（2026-10-14 实测），会让 verify:pre-push 无谓失败。
+const output = execSync("git ls-files -z", { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 });
 const trackedFiles = output.toString("utf8").split("\0").filter(Boolean);
 
 // 允许清单：一行一个仓库相对路径，# 注释与空行忽略；路径规范化为 / 分隔

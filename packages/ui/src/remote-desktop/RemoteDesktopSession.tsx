@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   LoaderIcon,
+  Lock,
   Maximize2,
   Minimize2,
   MonitorSmartphone,
@@ -127,6 +128,7 @@ export function RemoteDesktopSession({
   const statusText =
     // 优先级：冻结（对端已锁屏，画面不再更新，优先提示）> 重连/改档重建（P2-1 与
     // 改档瞬态——此时 phase 可能已是 closed，但「正在恢复」才是真实状态）> 结束原因
+    // > 首帧缺失（已连接但窗口内零帧，spec「媒体面可观测性与首帧约束」2026-10-14）
     // > 媒体/协商/连接进度。
     view.frozen
       ? "remoteDesktop.session.frozen"
@@ -134,13 +136,15 @@ export function RemoteDesktopSession({
         ? "remoteDesktop.session.reconnecting"
         : view.phase === "closed"
           ? resolveCloseReasonId(view.closeKind, view.errorCode)
-          : view.mediaStatus === "live"
-            ? "remoteDesktop.session.live"
-            : view.mediaOpenReceived
-              ? "remoteDesktop.session.negotiating"
-              : view.phase === "connected"
-                ? "remoteDesktop.session.waitingPeer"
-                : "remoteDesktop.session.connecting";
+          : view.awaitingFirstFrame
+            ? "remoteDesktop.session.awaitingFrames"
+            : view.mediaStatus === "live"
+              ? "remoteDesktop.session.live"
+              : view.mediaOpenReceived
+                ? "remoteDesktop.session.negotiating"
+                : view.phase === "connected"
+                  ? "remoteDesktop.session.waitingPeer"
+                  : "remoteDesktop.session.connecting";
 
   return (
     <div
@@ -257,11 +261,18 @@ export function RemoteDesktopSession({
         {/* 原生媒体面：解码即画（canvas 内在尺寸 = 解码帧尺寸，object-contain 与 video 同款 letterbox）；
             cursor-none：画面内只显示对端随帧光标（spec 产品规则 7）。 */}
         <canvas ref={canvasRef} className="h-full w-full cursor-none object-contain" />
-        {view.mediaStatus !== "live" ? (
+        {/* mediaStatus=live 只表示媒体面对象已建（早于任何一帧），单凭它撤掉提示会让
+            「连上但一帧不出」呈现为无提示纯黑——首帧看门狗标出的 awaitingFirstFrame
+            必须继续占住提示位（spec「媒体面可观测性与首帧约束」2026-10-14）。
+            冻结态同理：画面停在最后一帧，中央不提示会被读成「卡死」（spec 产品规则
+            「画面冻结并提示」），故一并占位（胶囊 pointer-events-none，不挡输入）。 */}
+        {view.mediaStatus !== "live" || view.awaitingFirstFrame || view.frozen ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <div className="flex items-center gap-2 rounded-lg border border-border bg-popover/95 px-3 py-2 text-ui-base text-foreground shadow-sm">
               {view.phase === "closed" ? (
                 <Unplug className="size-4 text-destructive" />
+              ) : view.frozen ? (
+                <Lock className="size-4 text-warning" />
               ) : (
                 <LoaderIcon className="size-4 animate-spin text-foreground-subtle" />
               )}

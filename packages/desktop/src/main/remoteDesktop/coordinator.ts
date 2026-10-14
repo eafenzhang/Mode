@@ -454,10 +454,24 @@ async function handleSignalFromHost(message: RemoteDesktopSignalMessage): Promis
 }
 
 /** helper kind1 采集状态（host 的 MediaStatus）：冻结/解冻透传给主控；指示条生命周期由会话状态管，不受影响。 */
-function handleMediaStatus(message: { frozen: boolean; reason?: string }): void {
+function handleMediaStatus(message: {
+  frozen: boolean;
+  reason?: string;
+  unavailable?: string;
+}): void {
   const runtimeState = runtime;
   if (!runtimeState || runtimeState.state.phase !== "active") {
     // 会话外的状态通知丢弃（冻结透传只发生在活跃会话）。
+    return;
+  }
+  if (message.unavailable) {
+    // 媒体面**起不来**（rd_media 端口未注入 / 启动失败）：回稳定错误码并收口，不让主控对着
+    // 零帧干等（2026-10-14 实机：状态条「画面已连接 / 0 fps / 0.0 Mbps」的纯黑）。
+    // 用既有 `unsupported` 码：语义与 spec 失败语义表「helper 未拉起 / DUPL 或 MF 编码器
+    // 创建失败 → unsupported」一致，且不需要扩信令 union——旧版主控也能正确展示文案。
+    runtimeState.logger.warn(`[remote-desktop] media unavailable: ${message.unavailable}`);
+    sendSignalToPeer({ type: "error", code: "unsupported", message: message.unavailable });
+    void closeSession("error");
     return;
   }
   // 布尔分支（freeze 归一 / unfreeze）与矩阵断言见 mediaCoordination。

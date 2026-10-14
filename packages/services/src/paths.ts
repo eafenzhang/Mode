@@ -6,8 +6,10 @@ import { createHash } from "node:crypto";
 import { basename, join, win32 } from "node:path";
 import { homedir } from "node:os";
 import {
+  CONVERSATION_MIRROR_DIR_NAME,
   DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE,
   MODE_DATA_ROOT_DIR_NAME,
+  normalizeWorkspacePathForIdentity,
 } from "@mode/shared";
 
 let _dataBaseDir: string | null = null;
@@ -78,6 +80,14 @@ export function getConversationWorkspaceDir(): string {
 
 /** {dataBaseDir}/.mode/v2 */
 export function getAppConfigDir(): string {
+  return join(getModeDataRootDir(), "v2");
+}
+
+/**
+ * Provider 配置目录：与 app 配置同层，`provider_config.json` 就落在这里
+ * （见 docs/specs/flatten-provider-zones.md 的存量迁移节）。
+ */
+export function getProviderWorkspaceConfigDir(): string {
   return join(getModeDataRootDir(), "v2");
 }
 
@@ -239,6 +249,20 @@ export function getLegacyDeletedTaskSessionSnapshotPath(
 }
 
 /**
+ * ~/.mode/v2/conversation-mirror/{workspacePathHash}：远程工作区对话记录镜像目录。
+ *
+ * 同步域是**工作区路径**而不是 workspaceIdentity：同一路径无论作为本地 scope 还是
+ * 作为对端机器的远端 scope 打开，都读写同一个目录，对端才可能读到本机发布的记录。
+ */
+export function getConversationMirrorDir(workspacePath: string): string {
+  return join(
+    getAppConfigDir(),
+    CONVERSATION_MIRROR_DIR_NAME,
+    getWorkspaceHash(normalizeWorkspacePathForIdentity(workspacePath)),
+  );
+}
+
+/**
  * Copy the .mode/v2 data directory from one base dir to another.
  * Excludes setting.json and its transient atomic-write siblings — bootstrap
  * state must only live at the default homedir location.
@@ -267,4 +291,24 @@ export async function copyDataDirectory(oldBaseDir: string, newBaseDir: string):
       return true;
     },
   });
+}
+
+/**
+ * {dataBaseDir}/.mode/feedback：反馈工单、附件与日志归档的根目录。
+ *
+ * 同步并入的 feedback 服务（tickets / 附件上传 / 诊断归档）从 ../paths.js 取这三个目录，
+ * 但本仓的 paths.ts 从未导出过它们 —— 这里按本文件既有约定补齐。
+ */
+export function getFeedbackRootDir(): string {
+  return join(getModeDataRootDir(), "feedback");
+}
+
+/** 反馈附件目录：每次上传在其下建独立临时目录，不直接用 renderer 传来的文件名。 */
+export function getFeedbackAttachmentDir(): string {
+  return join(getFeedbackRootDir(), "attachments");
+}
+
+/** 反馈日志归档目录：诊断归档产物的落盘位置。 */
+export function getFeedbackLogArchiveDir(): string {
+  return join(getFeedbackRootDir(), "log-archive");
 }

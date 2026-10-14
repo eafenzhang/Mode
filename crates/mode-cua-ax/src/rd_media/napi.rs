@@ -321,7 +321,8 @@ fn worker_loop(
   while !stop.load(Ordering::Relaxed) {
     // 紧急关键帧请求：一次性消费（丢帧恢复 / renderer 请求都不允许积压）；
     // 冻结期也照常置位——解冻路径本就 force_idr，置位只可能有冗余、不会有害。
-    if PENDING_KEY.swap(false, Ordering::Relaxed) {
+    let key_requested = PENDING_KEY.swap(false, Ordering::Relaxed);
+    if key_requested {
       enc.force_idr();
     }
     // 动态码率：一次性消费（自适应链路按采样周期下发，不允许积压）。
@@ -356,7 +357,7 @@ fn worker_loop(
     };
     // ③ 取帧。
     let frame = d.next_frame(16);
-    let event = match frame {
+    let mut event = match frame {
       Ok(f) => f,
       Err(e) => {
         // 一次性自愈：重建采集链（驱动复位/设备移除/会话切换等瞬时错误的主场）。
@@ -373,6 +374,17 @@ fn worker_loop(
         }
       }
     };
+    // ③b 键请求补帧（2026-10-14 实机根因）：桌面与光标都静止时 `next_frame` 只会给
+    //     Idle（正常环境走不到 user32 补帧路径），上面的 `force_idr` 便永远没有帧可编，
+    //     对端表现为「画面已连接 / 0 fps / 0.0 Mbps」的纯黑。这里把最后一帧重发一次，
+    //     让本 tick 的 IDR 立刻有内容兑现——「开流」与「丢帧恢复」两种键请求都走这条。
+    if key_requested && matches!(event, CaptureFrame::Idle) {
+      match d.reemit() {
+        Ok(resent) => event = resent,
+        // 补帧失败不升级为会话级失败：维持 Idle，等下一 tick / 下一次真实变化。
+        Err(e) => warn(&format!("键请求补帧失败，维持 Idle: {e}")),
+      }
+    }
     match event {
       CaptureFrame::Idle => {}
       CaptureFrame::AccessLost => {

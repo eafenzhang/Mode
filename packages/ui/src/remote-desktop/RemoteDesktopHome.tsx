@@ -59,6 +59,27 @@ export function RemoteDesktopHome({
   const [peerActionBusy, setPeerActionBusy] = useState(false);
   const [peerActionError, setPeerActionError] = useState("");
 
+  /**
+   * 单设备能力位探测（进页批量探测与卡片「重新检测」共用一条写路径）：
+   * 先置 probing 再覆盖结果，失败按 probe-failed（能力位不猜测）。
+   */
+  const probePeer = useCallback(
+    async (serverId: string) => {
+      setProbes((previous) => ({ ...previous, [serverId]: { status: "probing" } }));
+      try {
+        const capability = await platform.rdGetPeerCapability(serverId);
+        setProbes((previous) => ({ ...previous, [serverId]: { status: "ok", capability } }));
+      } catch (error) {
+        logger.warn(
+          `[remote-desktop] 设备能力位探测失败 serverId=${serverId}:`,
+          error instanceof Error ? error.message : String(error),
+        );
+        setProbes((previous) => ({ ...previous, [serverId]: { status: "probe-failed" } }));
+      }
+    },
+    [platform],
+  );
+
   const loadPeers = useCallback(async () => {
     setPeers({ status: "loading" });
     // 本机被控状态与设备列表并行读（spec 产品规则 9）；读失败按未被控展示，
@@ -76,23 +97,7 @@ export function RemoteDesktopHome({
         initial[peer.serverId] = { status: "probing" };
       }
       setProbes(initial);
-      await Promise.all(
-        list.map(async (peer) => {
-          try {
-            const capability = await platform.rdGetPeerCapability(peer.serverId);
-            setProbes((previous) => ({
-              ...previous,
-              [peer.serverId]: { status: "ok", capability },
-            }));
-          } catch (error) {
-            logger.warn(
-              `[remote-desktop] 设备能力位探测失败 serverId=${peer.serverId}:`,
-              error instanceof Error ? error.message : String(error),
-            );
-            setProbes((previous) => ({ ...previous, [peer.serverId]: { status: "probe-failed" } }));
-          }
-        }),
-      );
+      await Promise.all(list.map((peer) => probePeer(peer.serverId)));
     } catch (error) {
       logger.warn(
         "[remote-desktop] 读取已配对设备失败:",
@@ -100,7 +105,15 @@ export function RemoteDesktopHome({
       );
       setPeers({ status: "error" });
     }
-  }, [platform]);
+  }, [platform, probePeer]);
+
+  /** 卡片「重新检测」：只重探该设备，不动列表与其它设备的探测结果。 */
+  const reprobePeer = useCallback(
+    (serverId: string) => {
+      void probePeer(serverId);
+    },
+    [probePeer],
+  );
 
   // 首次挂载即在视图内；之后只在「重新可见」或「会话结束回到设备列表」时刷新探测——
   // 分支常驻隐藏期间不发网络请求。会话进行中（sessionTarget 非空）不刷新。
@@ -235,16 +248,16 @@ export function RemoteDesktopHome({
                   <div
                     key={key}
                     aria-hidden="true"
-                    className="flex animate-pulse flex-col gap-3 rounded-xl border border-border bg-card px-4 py-3"
+                    className="flex animate-pulse flex-col overflow-hidden rounded-xl border border-border bg-card"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="size-9 shrink-0 rounded-lg bg-surface" />
-                      <div className="flex-1 space-y-2">
+                    <div className="flex flex-col gap-3 p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-5 w-14 shrink-0 rounded-full bg-surface" />
                         <div className="h-3 w-1/2 rounded bg-surface" />
-                        <div className="h-2.5 w-1/3 rounded bg-surface" />
                       </div>
+                      <div className="aspect-[16/9] w-full rounded-lg bg-surface" />
                     </div>
-                    <div className="h-7 w-20 self-end rounded-md bg-surface" />
+                    <div className="h-9 border-t border-border" />
                   </div>
                 ))}
               </div>
@@ -294,6 +307,7 @@ export function RemoteDesktopHome({
                     busy={peerActionBusy}
                     onRename={renamePeer}
                     onDelete={deletePeer}
+                    onReprobe={reprobePeer}
                     onConnect={connect}
                     onError={setPeerActionError}
                   />

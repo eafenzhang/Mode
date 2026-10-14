@@ -106,12 +106,16 @@ export function createRemoteDesktopMediaRelay(
   /** kind3 去抖时间戳（Date.now 口径）。 */
   let lastKeyRequestAt = 0;
 
-  /** 向 helper 写一帧控制消息（kind2/3/4；payload 缺省为空）。helper 未接通时静默跳过
-   * （控制面丢了不断流：丢帧恢复请求会在下一轮爆发/下一次采样重试）。 */
+  /** 向 helper 写一帧控制消息（kind2/3/4；payload 缺省为空）。helper 未接通时跳过：
+   * 控制面丢了不断流——kind3（丢帧恢复）/kind4（自适应码率）按契约静默，下一轮爆发或
+   * 下一次采样自会重试，此前对它们打 warn 与本契约文案矛盾（2026-10-14 修）；
+   * kind2（开流）有挂起补发兜底，走到这里只可能是竞态，保留一行 warn 留痕。 */
   const writeHelperControl = (kind: 2 | 3 | 4, payload?: Buffer): void => {
     const socket = helperSocket;
     if (!socket || socket.destroyed) {
-      logger.warn(`[rd-media-relay] send kind=${kind} skipped: helper not connected`);
+      if (kind === 2) {
+        logger.warn("[rd-media-relay] send kind=2 skipped: helper not connected");
+      }
       return;
     }
     const frame = Buffer.concat([Buffer.alloc(4), Buffer.from([kind]), payload ?? Buffer.alloc(0)]);

@@ -1,4 +1,9 @@
+import type { IGenUiService } from "./gen-ui/contract.js";
 import { IOffPeakTaskService } from "./session/offPeakTask.js";
+import type { IHighspeedCardService } from "./highspeed/highspeedCard.js";
+import type { IPluginUiBridgeService } from "./plugin-ui-bridge/contract.js";
+import type { IPluginUiSamplingService } from "./plugin-ui-bridge/samplingContract.js";
+import type { IPluginUiAppToolsService } from "./plugin-ui-bridge/appToolsContract.js";
 import type { IFileService } from "./file/file.js";
 import type { IMediaPreviewService } from "./media-preview/mediaPreview.js";
 import type { IGitService } from "./git/git.js";
@@ -26,6 +31,7 @@ import type { IClientConfigService } from "./client-config/clientConfig.js";
 import type { IClientScenesService } from "./client-scenes/clientScenes.js";
 import type { ISkillsService } from "./skills/skills.js";
 import type { ISkillSyncService } from "./skill-sync/skillSync.js";
+import type { IConversationMirrorService } from "./conversation-mirror/conversationMirror.js";
 import type { IMcpSyncService } from "./mcp-sync/mcpSync.js";
 import type { IPluginSyncService } from "./plugin-sync/pluginSync.js";
 import type { IPluginsService } from "./plugins/plugins.js";
@@ -34,6 +40,7 @@ import type { ISubagentsService } from "./subagents/subagents.js";
 import type { ICommandsService } from "./commands/commands.js";
 import type { IHooksService } from "./hooks/hooks.js";
 import type { IMemoryService } from "./memory/memory.js";
+import type { IOutputStyleService } from "./output-style/outputStyle.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
 import type { IWindowControllerService } from "./window-controller/windowController.js";
@@ -76,9 +83,20 @@ export interface IServiceAccessor {
   readonly clientScenesService: IClientScenesService;
   /** 闲时任务管理（独立服务面）。 */
   readonly offPeakTaskService: IOffPeakTaskService;
+  readonly highspeedCardService: IHighspeedCardService;
   readonly skillsService: ISkillsService;
   readonly skillSyncService: ISkillSyncService;
+  // 对话记录镜像：旧版本对端 host 没有该 channel，缺省即「对端不支持」，按能力位降级，
+  // 不能变成连接期必填校验（与 cuaPermissionService 同一策略）。
+  readonly conversationMirrorService?: IConversationMirrorService;
   readonly mcpSyncService: IMcpSyncService;
+  /** 插件 UI 桥；web 或旧 host 可不提供，UI 据此回退普通 MCP 卡片。 */
+  readonly genUiService?: IGenUiService;
+  readonly pluginUiBridgeService?: IPluginUiBridgeService;
+  /** 页面 sampling；只有桌面本地任务开放。 */
+  readonly pluginUiSamplingService?: IPluginUiSamplingService;
+  /** App-Provided Tools；只有桌面本地 agent 时存在。 */
+  readonly pluginUiAppToolsService?: IPluginUiAppToolsService;
   readonly pluginSyncService: IPluginSyncService;
   readonly pluginsService: IPluginsService;
   /** 设置页插件管理（UI 不再直触 modeAgentService 的 plugins/* 面） */
@@ -87,6 +105,7 @@ export interface IServiceAccessor {
   readonly commandsService: ICommandsService;
   readonly hooksService: IHooksService;
   readonly memoryService: IMemoryService;
+  readonly outputStyleService: IOutputStyleService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
 }

@@ -58,7 +58,6 @@ export type WecomRegistrationState = {
 };
 
 export const BIND_CODE_TTL_MS = BOT_BIND_CODE_TTL_MS;
-export const TELEGRAM_BOTFATHER_URL = "https://t.me/BotFather";
 
 export function isAllWorkspacesAllowed(allowedWorkspaces: readonly string[]): boolean {
   return allowedWorkspaces.length === 0 || allowedWorkspaces.includes(ALL_BOT_WORKSPACES);

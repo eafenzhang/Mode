@@ -40,7 +40,13 @@ function isRemoteWorkspaceIdentityKind(value: string): value is RemoteWorkspaceI
   return value === "ssh" || value === "wsl" || value === "docker" || value === "lan";
 }
 
-function normalizeWorkspacePathForIdentity(workspacePath: string): string {
+/**
+ * 工作区路径归一：分隔符 → "/"、折叠重复、去首尾斜杠、盘符保留 `X:/`。
+ *
+ * 除了构造 identity，镜像目录这类「按路径定位」的派生键也必须走这里，
+ * 否则同一工作区的 `D:\a` 与 `D:/a` 会落到两个目录。
+ */
+export function normalizeWorkspacePathForIdentity(workspacePath: string): string {
   const normalized = workspacePath.replace(/\\/g, "/").replace(/\/+/g, "/");
   const trimmed = normalized.replace(/^\/+|\/+$/g, "");
   // Windows 盘符：规范形态保留 X:/（`/D:/…` 在 Windows 上作 cwd 为 ENOENT）。

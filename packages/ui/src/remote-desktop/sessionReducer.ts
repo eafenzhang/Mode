@@ -52,6 +52,12 @@ export interface RemoteDesktopSessionViewState {
   selectSentForSession: boolean;
   /** 已收到 media-open（原生媒体面信令已到，下一步连 media WS；用于连接中提示）。 */
   mediaOpenReceived: boolean;
+  /**
+   * 首帧看门狗（spec「媒体面可观测性与首帧约束」，2026-10-14）：媒体 WS 已开但窗口内一帧未画
+   * → true：页面切「已连接，等待对端首帧…」并保留画面中央提示（不再无提示纯黑）。
+   * 首个已解码帧、或媒体面重建（media-open/connecting 迁移）即清零。
+   */
+  awaitingFirstFrame: boolean;
   /** 对端画面冻结（锁屏 / 失去访问权限）：freeze/unfreeze 写入；reconnecting 重连时清除。 */
   frozen: boolean;
 }
@@ -65,6 +71,7 @@ export const INITIAL_REMOTE_DESKTOP_SESSION_VIEW_STATE: RemoteDesktopSessionView
   selectedDisplayId: null,
   selectSentForSession: false,
   mediaOpenReceived: false,
+  awaitingFirstFrame: false,
   frozen: false,
 };
 
@@ -81,6 +88,11 @@ export type RemoteDesktopSessionEvent =
   | { type: "select-monitor"; displayId: string }
   | { type: "local-end" }
   | { type: "media"; status: RemoteDesktopMediaStatus }
+  /**
+   * 首帧看门狗（spec「媒体面可观测性与首帧约束」，2026-10-14）：`seen=false` = 媒体 WS 已开
+   * 但窗口内零帧（切可见提示）；`seen=true` = 首个已解码帧到达（撤除提示）。
+   */
+  | { type: "first-frame"; seen: boolean }
   // 本地媒体面控制事件（Task 9 胶水派发 rd-media-control）：与对端 freeze/unfreeze 信令
   // 共用同一转移——信令走 main 转发，媒体帧内控制走 renderer 直派，两条入口一个状态。
   | { type: "freeze" }
@@ -153,6 +165,7 @@ function applyControllerState(
     errorCode: null,
     mediaStatus: "idle",
     mediaOpenReceived: false,
+    awaitingFirstFrame: false,
     selectSentForSession: false,
     frozen: false,
   });
@@ -190,9 +203,12 @@ function applyControllerSignal(
     case "media-open":
       // 同意通过：对端下发媒体面 key/salt（契约 D）。连接 media WS 由 open-media effect 完成，
       // URL（mediaTicket）不经信令，由 rdStartSession 返回值直达（契约 E）。
-      return transition(state, { mediaOpenReceived: true, mediaStatus: "negotiating" }, [
-        { kind: "open-media", key: message.key, salt: message.salt },
-      ]);
+      // awaitingFirstFrame 清零：新媒体面对象从零计时，重建后由首帧或看门狗重新定态。
+      return transition(
+        state,
+        { mediaOpenReceived: true, mediaStatus: "negotiating", awaitingFirstFrame: false },
+        [{ kind: "open-media", key: message.key, salt: message.salt }],
+      );
     case "error":
       return transition(state, { closeKind: "error", errorCode: message.code });
     case "bye":
@@ -256,6 +272,11 @@ export function reduceRemoteDesktopSession(
         ]);
       }
       return transition(state, { mediaStatus: event.status });
+    }
+    case "first-frame": {
+      // 看门狗只在客户端已宣告媒体面 live 后才可能触发：pending/reconnecting 阶段的
+      // 提示由各自状态承担，这里不改写媒体态，只切「是否缺首帧」这一个可见位。
+      return transition(state, { awaitingFirstFrame: !event.seen });
     }
     // 媒体面控制事件（rd-media-control）与对端信令共用转移：谁先到都写同一 frozen 布尔。
     case "freeze":

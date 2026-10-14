@@ -6661,11 +6661,26 @@ export function createBotsService(
           );
         });
       }
-      // 同 workspace 回合并入上限：超限静默排队，终态释放后按序起跑
+      // 同 workspace 回合并入上限：超限排队，终态释放后按序起跑
       // （docs/specs/bot-workspace-turn-admission.md）。
       await turnGate.enter(
         getWorkspaceKey(context.workspacePath, context.workspaceIdentity),
         task.taskId,
+        {
+          // 规则 6 排队提示：门首次因超限挂起时同步回调一次（同一回合不重复）。
+          // 回调是 fire-and-forget：发送失败只记 warn，不影响槽位获取与回合起跑。
+          onWait: () => {
+            void sendOutbound(
+              auth.bot,
+              createOutbound(message.actor, msg(auth.locale, "turnQueued")),
+            ).catch((error: unknown) => {
+              botsLogger.warn(
+                undefined,
+                `turn gate queue notice failed bot=${auth.bot.id} task=${task.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            });
+          },
+        },
       );
       runningTasks.add(task.taskId);
       await watchTaskStream(
@@ -6723,6 +6738,20 @@ export function createBotsService(
     await turnGate.enter(
       getWorkspaceKey(auth.context.workspacePath, auth.context.workspaceIdentity),
       auth.context.activeTaskId,
+      {
+        // 规则 6 排队提示（续聊路径）：同上一处，只发一次、失败不阻断准入。
+        onWait: () => {
+          void sendOutbound(
+            auth.bot,
+            createOutbound(message.actor, msg(auth.locale, "turnQueued")),
+          ).catch((error: unknown) => {
+            botsLogger.warn(
+              undefined,
+              `turn gate queue notice failed bot=${auth.bot.id} task=${auth.context.activeTaskId}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
+        },
+      },
     );
     runningTasks.add(auth.context.activeTaskId);
     await watchTaskStream(

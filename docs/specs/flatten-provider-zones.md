@@ -243,3 +243,48 @@ opencode-go（`mimo-v2.5`）、OpenRouter（`xiaomi/mimo-v2.5-*`）、opencode-z
    Token-Plan 实例请求端点为 `token-plan-cn.xiaomimimo.com/anthropic`。
 3. 升级前已创建的 `xiaomi-mimo` 个人 provider 保有其原有 v2.5 模型，不受影响。
 4. OpenRouter / opencode 模板的 v2.5 模型元数据（上下文、reasoning 映射）不变。
+
+## 修订：新增 TokenDance 供应商；Xiaomi MiMo Token-Plan 更名 Xiaomi MiMo Plan（revision 33 → 34）
+
+TokenDance（词元跳动）是多供应商 LLM 网关，官方文档 https://tokendance.space/docs/ai-integration：
+同一 API Key 原生支持 OpenAI / Anthropic / Gemini 协议。按 OpenRouter / OrcaRouter 网关先例，
+新增一条纯 API-Key 平铺模板；同 PR 将 `xiaomi-mimo-token-plan` 显示名从
+"Xiaomi MiMo Token-Plan" 更名为 "Xiaomi MiMo Plan"（仅改 `templateNameMap`，templateId、
+端点与模型不变，存量 personal provider 不受影响）。
+
+### 数据层变更（`config/provider/mode-builtin.json`）
+
+1. 新增模板 `tokendance`（显示名 "TokenDance"）：
+   - `access=api-key`，密钥管理页 `https://tokendance.space/keys`；
+   - `api=anthropic-messages`，端点 `https://tokendance.space/gateway`
+     （官方 Anthropic 兼容 base URL，SDK 拼接 `/v1/messages`；与 DeepSeek / OpenRouter
+     等网关模板同款协议选择）；
+   - `builtinModelIds` 为 17 个支持 `anthropic:messages` 的当家模型，覆盖
+     GLM 5.3 / Kimi K2.5–K2.7-code / MiniMax M2.5–M3 / DeepSeek V4 / MiMo V2.5–V2.6 /
+     Qwen3.7–3.8 主力档，ID 与全局 `modelRules` 正则对齐以继承能力画像；
+   - logo 复用新素材 `model-provider-tokendance.svg`（官方 480x480 黑底圆角单 logo，
+     明暗主题共用）。
+2. `templateModelRules` 为 `tokendance` 登记 17 条 enabled 规则，与
+   `builtinModelIds` 一一对应。
+3. `revision` 33 → 34。
+
+### UI 变更
+
+1. `ProviderLogo.tsx` 新增内置素材 key `tokendance`；
+2. `model-provider-logo-sources.json` 登记 TokenDance logo 来源（官方 SVG 未做
+   重绘/缩放，`reviewedAt` 更新为 2026-10-13）。
+
+### 边界
+
+- TokenDance 部分旗舰模型（kimi-k3、qwen3.8-max 等）仅支持 OpenAI 协议，不在
+  本模板 `builtinModelIds` 内；如后续需要可按 OpenCode Zen 三协议拆分模板先例扩展。
+- 供应商路由、模型降级等网关高级能力走 TokenDance 平台侧配置，客户端不感知。
+
+### 验收
+
+1. 「添加供应商」列表出现 "TokenDance"，带官方 logo；API Key 保存后请求端点为
+   `tokendance.space/gateway/v1/messages`。
+2. 新增 provider 默认展示 17 个内置模型，模型能力（上下文、reasoning）与
+   OpenRouter 同 ID 模型一致。
+3. 「添加供应商」列表中原 "Xiaomi MiMo Token-Plan" 显示为 "Xiaomi MiMo Plan"，
+   templateId 与端点不变；升级前已创建的个人 provider 名称与配置不受影响。

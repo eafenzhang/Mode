@@ -25,6 +25,7 @@ import {
   IClientScenesService,
   ISkillsService,
   ISkillSyncService,
+  IConversationMirrorService,
   IMcpSyncService,
   IPluginSyncService,
   IPluginsService,
@@ -405,6 +406,14 @@ export function createRemoteWorkspaceServiceCollection(params: {
   // 不提供该服务，入白名单会断链）。依据 docs/specs/lan-remote-computer-use.md。
   if (params.connectionServices.cuaPermissionService) {
     services.register(ICuaPermissionService, params.connectionServices.cuaPermissionService);
+  }
+  // 对话记录镜像：快照存在各自机器的数据目录里，对端 host 提供该 channel 才透传。
+  // 旧版本对端没有该服务时保持缺省，UI 侧按「对端不支持」降级（docs/specs/remote-workspace-conversation-mirror.md）。
+  if (params.connectionServices.conversationMirrorService) {
+    services.register(
+      IConversationMirrorService,
+      params.connectionServices.conversationMirrorService,
+    );
   }
   registerHostApiNetworkTransportForDispose(services, hostApiNetworkTransport);
   registerRemoteProviderProvisioningExecutor(services, remoteProviderProvisioningService);

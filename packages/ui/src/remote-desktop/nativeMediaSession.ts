@@ -9,6 +9,7 @@
 import { logger } from "@/logger.js";
 import { nextReconnectDelayMs, RECONNECT_MAX_ATTEMPTS } from "@/remote-desktop/reconnectPolicy.js";
 import { codecStringFromAnnexB } from "./codecString.js";
+import { createFirstFrameWatchdog } from "./firstFrameWatchdog.js";
 
 // codec 串派生与 HEVC 解码预检拆至 codecString.ts（max-lines 约束）；
 // re-export 保持既有消费方（会话胶水/测试）导入路径不变。
@@ -59,6 +60,20 @@ export interface NativeMediaSessionOptions {
   canvas: HTMLCanvasElement;
   onConfigured?: (info: { width: number; height: number; codec: string }) => void;
   onDecoded?: () => void;
+  /**
+   * 首个已解码帧到达（每个 media WS 生命周期一次）：页面据此撤除「等待对端首帧」提示。
+   */
+  onFirstFrame?: () => void;
+  /**
+   * 首帧看门狗触发（每个 media WS 生命周期至多一次）：open 后窗口内零帧——被控未出流。
+   * 页面据此切可见提示，不再以无提示纯黑呈现（spec「媒体面可观测性与首帧约束」）。
+   */
+  onNoFirstFrame?: (info: { waitedMs: number; bytesReceived: number }) => void;
+  /**
+   * 解码器建立/解码失败（HEVC 选型降级入口）：消费方可把 codec 偏好降为 H.264 并重建会话
+   * （见 codecFallback.ts）。缺省 = 不降级，按既有的媒体失败路径收口。
+   */
+  onDecoderFailed?: (info: { message: string }) => void;
   /** 解码队列门控丢弃一帧时回调（自适应码率的「链路跟不上」信号源之一）。 */
   onFrameDropped?: () => void;
   /** 每绘制一帧回调其帧龄（毫秒，glass-to-glass 近似；需 pong 标定过时钟偏移）。 */
@@ -117,6 +132,35 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let awaitingKeyAfterReconnect = false;
   let forceReconfigureNextKey = false;
+  // 可观测性（spec「媒体面可观测性与首帧约束」）：会话级计数 + 每 socket 一次的首帧看门狗。
+  // 「连上但一帧不出」必须在日志与状态条上自证——2026-10-14 实证：黑屏时本机日志零行。
+  let bytesReceived = 0;
+  let decodedFrames = 0;
+  let wsOpenCount = 0;
+  /** 本 socket open 时刻：首帧到达时记一次「open→首帧」耗时（起流快慢的可观测读数）。 */
+  let socketOpenedAt = 0;
+  /** 日志用端点：只 host:port——mediaTicket 不进日志（安全节）。 */
+  const endpointLabel = (() => {
+    try {
+      return new URL(opts.url).host;
+    } catch {
+      return "unknown";
+    }
+  })();
+
+  // 首帧看门狗（spec「媒体面可观测性与首帧约束」）：定时与判定收在 firstFrameWatchdog，
+  // 这里只接三个落点——open 起表、画帧停表、收口清表；「零帧」的 warn 与计数在此落盘。
+  const firstFrameWatchdog = createFirstFrameWatchdog({
+    bytesReceived: () => bytesReceived,
+    isStopped: () => stopped,
+    onNoFrames: ({ waitedMs, bytesReceived: bytes }) => {
+      logger.warn(
+        `[rd-media] 媒体面已连接 ${Math.round(waitedMs / 1000)}s 零帧` +
+          `（收流 ${bytes} 字节，ws=${endpointLabel}）：对端未出流`,
+      );
+      opts.onNoFirstFrame?.({ waitedMs, bytesReceived: bytes });
+    },
+  });
 
   /** 紧急关键帧请求（丢帧恢复/重连重同步）：ws 上行 {t:"need-key"}；500ms 去抖
    *  （中继侧另有 300ms 去抖）；force = 重连路径绕过去抖（断流后的第一诉求）。 */
@@ -135,9 +179,16 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   const scheduleReconnect = (): void => {
     reconnectAttempts += 1;
     if (reconnectAttempts > RECONNECT_MAX_ATTEMPTS || !opts.onRequestMediaUrl) {
+      logger.warn(
+        `[rd-media] 重连退避耗尽/不可用，媒体面收口（尝试 ${reconnectAttempts - 1}/${RECONNECT_MAX_ATTEMPTS} 次，` +
+          `收流 ${bytesReceived} 字节，已解码 ${decodedFrames} 帧）`,
+      );
       teardown();
       return;
     }
+    logger.info(
+      `[rd-media] 重连尝试 ${reconnectAttempts}/${RECONNECT_MAX_ATTEMPTS}（${endpointLabel}）`,
+    );
     opts.onReconnecting?.(true);
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
@@ -177,13 +228,17 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       if (ws !== socket || stopped) {
         return;
       }
+      wsOpenCount += 1;
+      socketOpenedAt = Date.now();
+      logger.info(
+        `[rd-media] ws open（第 ${wsOpenCount} 次，ws=${endpointLabel}${isReconnect ? "，重连" : ""}）`,
+      );
       if (isReconnect) {
         // 重连成功：重置退避；断流期间丢帧使 decoder 状态过时——只放行关键帧，
         // 首个关键帧强制重配解码器（防花屏残留）；立刻请关键帧缩短重同步时间。
         reconnectAttempts = 0;
         awaitingKeyAfterReconnect = true;
         forceReconfigureNextKey = true;
-        requestKey(true);
         opts.onReconnecting?.(false);
       }
       if (!readySent) {
@@ -192,6 +247,11 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         socket.send(JSON.stringify({ t: "ready" }));
         readySent = true;
       }
+      // 开流即请 IDR（spec「媒体面可观测性与首帧约束」，初连与重连同）：被控在收到 ready
+      // 前丢弃全部采集帧，静态桌面下捕获无事件 → 首个 IDR 可能永不产生；ready 之后立刻
+      // 上行一次 need-key（绕过去抖）把「开流到出画」收紧为一次编码往返。
+      requestKey(true);
+      firstFrameWatchdog.arm();
     };
     socket.onmessage = (event) => {
       if (ws !== socket || stopped) {
@@ -204,6 +264,11 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         return;
       }
       ws = null;
+      // 收口/重连共用的收尾读数：一帧没画就断的会话必须能从这里看出（零帧 ≠ 低帧率）。
+      logger.info(
+        `[rd-media] ws closed（第 ${wsOpenCount} 次连接，收流 ${bytesReceived} 字节，已解码 ${decodedFrames} 帧）`,
+      );
+      firstFrameWatchdog.clear();
       if (stopped) {
         return;
       }
@@ -234,6 +299,15 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         const capturedAtMs = capturedAtByTimestamp.get(frame.timestamp);
         capturedAtByTimestamp.delete(frame.timestamp);
         frame.close();
+        decodedFrames += 1;
+        if (firstFrameWatchdog.noteFrame()) {
+          // 本 socket 首个已画帧：撤除「等待对端首帧」提示（每 socket 只通知一次），
+          // 并留一行起流读数——「连上到出画」的耗时是排障时最常问的一个数。
+          logger.info(
+            `[rd-media] 首帧已到（open 后 ${Date.now() - socketOpenedAt}ms，ws=${endpointLabel}）`,
+          );
+          opts.onFirstFrame?.();
+        }
         opts.onDecoded?.();
         // 帧龄 = 本端绘制时刻 − 被控采集时刻 + 时钟偏移（glass-to-glass 近似）；
         // 缺采集戳（旧端/未知=0）或未标定偏移 → 跳过本帧读数。
@@ -247,6 +321,9 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       },
       error: (e) => {
         logger.warn("[rd-media] decoder error:", e);
+        // 降级入口先于收口：消费方可借此把 HEVC 偏好降为 H.264 并重建会话
+        //（codecFallback）；不降级时 teardown 走既有失败归因。
+        opts.onDecoderFailed?.({ message: e instanceof Error ? e.message : String(e) });
         teardown();
       },
     });
@@ -256,6 +333,9 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
       // codec 串不被浏览器接受（HEVC 派生串异常/平台不支持）：按媒体面失败收口，
       // 不留黑屏死等（teardown → onTransportClosed → 会话失败归因）。
       logger.warn("[rd-media] decoder configure failed:", error);
+      opts.onDecoderFailed?.({
+        message: error instanceof Error ? error.message : String(error),
+      });
       try {
         decoder.close();
       } catch {
@@ -291,7 +371,9 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     // 缺了 stopped 判据，收口后的关键帧会重新建 decoder 复活解码。
     if (!parsed || stopped) return;
     // 码率读数：按收到的密文字节数计（含帧头与 GCM tag，≈ 实际占线带宽）。
-    opts.onBytesReceived?.((event.data as ArrayBuffer).byteLength);
+    const receivedBytes = (event.data as ArrayBuffer).byteLength;
+    bytesReceived += receivedBytes;
+    opts.onBytesReceived?.(receivedBytes);
     // 防乱序/迟到：解密是异步的，提交前先按 seq 水位过滤（廉价前置，省一次解密）。
     if (parsed.seq <= lastSubmittedSeq) return;
     void (async () => {
@@ -353,6 +435,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   function teardown() {
     if (stopped) return;
     stopped = true;
+    firstFrameWatchdog.clear();
     if (reconnectTimer !== null) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;

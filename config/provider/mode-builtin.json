@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 33,
+  "revision": 34,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -328,8 +328,8 @@
         {
           "templateId": "xiaomi-mimo-token-plan",
           "templateNameMap": {
-            "zh-CN": "Xiaomi MiMo Token-Plan",
-            "en-US": "Xiaomi MiMo Token-Plan"
+            "zh-CN": "Xiaomi MiMo Plan",
+            "en-US": "Xiaomi MiMo Plan"
           },
           "config": {
             "access": {
@@ -750,6 +750,46 @@
             "logo": {
               "type": "builtin",
               "key": "orcarouter"
+            }
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "templateNameMap": {
+            "zh-CN": "TokenDance",
+            "en-US": "TokenDance"
+          },
+          "config": {
+            "access": {
+              "type": "api-key",
+              "apiKeyManagementUrl": "https://tokendance.space/keys"
+            },
+            "api": {
+              "type": "anthropic-messages",
+              "baseUrl": "https://tokendance.space/gateway"
+            },
+            "builtinModelIds": [
+              "glm-5.3",
+              "glm-5.3-flash",
+              "kimi-k2.7-code",
+              "kimi-k2.6",
+              "kimi-k2.5",
+              "minimax-m3",
+              "minimax-m2.7",
+              "minimax-m2.5",
+              "deepseek-v4-pro",
+              "deepseek-v4-flash",
+              "deepseek-v4.1-flash",
+              "mimo-v2.6-pro",
+              "mimo-v2.6-flash",
+              "mimo-v2.5-pro",
+              "mimo-v2.5",
+              "qwen3.7-max",
+              "qwen3.8-flash"
+            ],
+            "logo": {
+              "type": "builtin",
+              "key": "tokendance"
             }
           }
         }
@@ -6401,6 +6441,125 @@
         {
           "templateId": "orcarouter",
           "modelId": "orcarouter/auto",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "glm-5.3",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "glm-5.3-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "kimi-k2.7-code",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "kimi-k2.6",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "kimi-k2.5",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "minimax-m3",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "minimax-m2.7",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "minimax-m2.5",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "deepseek-v4-pro",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "deepseek-v4-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "deepseek-v4.1-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "mimo-v2.6-pro",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "mimo-v2.6-flash",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "mimo-v2.5-pro",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "mimo-v2.5",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "qwen3.7-max",
+          "config": {
+            "enabled": true
+          }
+        },
+        {
+          "templateId": "tokendance",
+          "modelId": "qwen3.8-flash",
           "config": {
             "enabled": true
           }

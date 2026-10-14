@@ -61,6 +61,32 @@ export function resolveRemoteDesktopDeviceLabel(peer: { serverId: string; name?:
 }
 
 /**
+ * 设备卡状态胶囊的语义投影（spec UI 规则「设备页」2026-10-14 改版：胶囊表达状态、
+ * 预览块表达可操作性，两者同源）。只给语义与 i18n key，色调类名留在展示层，
+ * 因此这里可以纯函数单测。
+ */
+export type RemoteDesktopDeviceStatusTone = "ready" | "attention" | "muted";
+
+export function resolveRemoteDesktopDeviceStatusPill(probe: RemoteDesktopDeviceProbe | undefined): {
+  labelId: string;
+  tone: RemoteDesktopDeviceStatusTone;
+} {
+  if (!probe || probe.status === "probing") {
+    return { labelId: "remoteDesktop.device.status.probing", tone: "muted" };
+  }
+  if (probe.status === "probe-failed") {
+    return { labelId: "remoteDesktop.device.status.unknown", tone: "muted" };
+  }
+  if (!probe.capability.online) {
+    return { labelId: "remoteDesktop.device.status.offline", tone: "attention" };
+  }
+  if (!probe.capability.remoteDesktop || !probe.capability.remoteDesktopNative) {
+    return { labelId: "remoteDesktop.device.status.unsupported", tone: "attention" };
+  }
+  return { labelId: "remoteDesktop.device.status.ready", tone: "ready" };
+}
+
+/**
  * 「检测设备」列表过滤（spec: docs/specs/lan-remote-desktop.md UI 规则「设备页」）：
  * 已配对 serverId 从检测结果中过滤——配对成功立即消失，重新检测也不再出现；
  * 全部被过滤时 hiddenCount 供调用方给「检测到的设备均已配对」提示。
