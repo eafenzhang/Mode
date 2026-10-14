@@ -20,4 +20,4 @@ export {
 } from "./node/privateFilePersistence.js";
 
 export { GEN_UI_OUTPUT_DIRECTORY, GEN_UI_OUTPUT_ROOT_ENV, getGenUiOutputDirectory } from "./node/genUiPaths.js";
-export { createNodeNetworkCapture } from "./node/networkCapture.js";
+export { createNodeNetworkCapture, withoutNetworkCapture } from "./node/networkCapture.js";
