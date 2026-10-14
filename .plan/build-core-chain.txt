@@ -1,0 +1,13 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
+apps/mode-cli                            |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.1","pnpm":"10.33.2"})
+Scope: 7 of 50 workspace projects
+packages/model-option-map build$ tsc
+apps/mode-cli/packages/dynamic-workflow build$ node scripts/generate-libs.mjs && tsc
+apps/mode-cli/packages/shared-types build$ tsc
+packages/model-option-map build: Done
+apps/mode-cli/packages/shared-types build: Done
+apps/mode-cli/packages/dynamic-workflow build: Done
+apps/mode-cli/packages/contracts build$ tsc
+apps/mode-cli/packages/contracts build: Done
+apps/mode-cli/packages/core build$ tsc
+apps/mode-cli/packages/core build: Done

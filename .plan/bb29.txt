@@ -1,0 +1,40 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
+apps/mode-cli                            |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.1","pnpm":"10.33.2"})
+Scope: 14 of 50 workspace projects
+packages/formal-proof build$ vite build
+packages/model-option-map build$ tsc
+apps/mode-cli/packages/shared-types build$ tsc
+apps/mode-cli/packages/dynamic-workflow build$ node scripts/generate-libs.mjs && tsc
+packages/formal-proof build: [36mvite v8.0.8 [32mbuilding client environment for production...[36m[39m
+packages/formal-proof build: [2K
+packages/formal-proof build: transforming...✓ 572 modules transformed.
+packages/formal-proof build: rendering chunks...
+packages/model-option-map build: Done
+packages/formal-proof build: computing gzip size...
+packages/formal-proof build: dist/index.html                  0.42 kB │ gzip:  0.28 kB
+packages/formal-proof build: dist/assets/index-Cbvbq-qX.css   7.21 kB │ gzip:  2.08 kB
+packages/formal-proof build: dist/assets/index-QpmGD-wF.js   76.64 kB │ gzip: 25.80 kB
+packages/formal-proof build: [32m✓ built in 119ms[39m
+packages/formal-proof build: Done
+apps/mode-cli/packages/shared-types build: Done
+apps/mode-cli/packages/dynamic-workflow build: Done
+.../packages/dynamic-workflow-runtime build$ tsc
+.../packages/dynamic-workflow-runtime build: Done
+apps/mode-cli/packages/contracts build$ tsc
+packages/provider build$ tsc
+packages/provider build: Done
+apps/mode-cli/packages/contracts build: Done
+apps/mode-cli/packages/adapters build$ tsc
+apps/mode-cli/packages/core build$ tsc
+apps/mode-cli/packages/i18n build$ tsc
+packages/provider-node build$ tsc
+packages/provider-node build: Done
+apps/mode-cli/packages/i18n build: Done
+apps/mode-cli/packages/adapters build: Done
+apps/mode-cli/packages/core build: src/runtime/methods/subagent.ts(8,10): error TS2305: Module '"@mode/contracts"' has no exported member 'inheritPermissionMode'.
+apps/mode-cli/packages/core build: src/runtime/methods/turn-execution-fallback.ts(234,22): error TS2339: Property 'TurnExecutionModelFallback' does not exist on type '{ readonly SessionCreated: "session_created"; readonly SessionResumed: "session_resumed"; readonly SessionForked: "session_forked"; readonly SessionCompacted: "session_compacted"; ... 74 more ...; readonly Error: "error"; }'.
+apps/mode-cli/packages/core build: src/runtime/types.ts(3,41): error TS2305: Module '"@mode/contracts"' has no exported member 'TurnExecutionModelFallbackReason'.
+apps/mode-cli/packages/core build: Failed
+D:\ZCodium\apps\mode-cli\packages\core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @mode/core@0.1.0 build: `tsc`
+Exit status 2

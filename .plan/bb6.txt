@@ -1,0 +1,73 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
+apps/mode-cli                            |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.1","pnpm":"10.33.2"})
+Scope: 14 of 50 workspace projects
+packages/formal-proof build$ vite build
+packages/model-option-map build$ tsc
+apps/mode-cli/packages/dynamic-workflow build$ node scripts/generate-libs.mjs && tsc
+apps/mode-cli/packages/shared-types build$ tsc
+packages/formal-proof build: [36mvite v8.0.8 [32mbuilding client environment for production...[36m[39m
+packages/formal-proof build: [2K
+packages/formal-proof build: transforming...✓ 572 modules transformed.
+packages/formal-proof build: rendering chunks...
+packages/model-option-map build: Done
+packages/formal-proof build: computing gzip size...
+packages/formal-proof build: dist/index.html                  0.42 kB │ gzip:  0.28 kB
+packages/formal-proof build: dist/assets/index-Cbvbq-qX.css   7.21 kB │ gzip:  2.08 kB
+packages/formal-proof build: dist/assets/index-QpmGD-wF.js   76.64 kB │ gzip: 25.80 kB
+packages/formal-proof build: [32m✓ built in 140ms[39m
+packages/formal-proof build: Done
+apps/mode-cli/packages/shared-types build: Done
+apps/mode-cli/packages/dynamic-workflow build: Done
+.../packages/dynamic-workflow-runtime build$ tsc
+.../packages/dynamic-workflow-runtime build: Done
+apps/mode-cli/packages/contracts build$ tsc
+packages/provider build$ tsc
+packages/provider build: Done
+apps/mode-cli/packages/contracts build: Done
+apps/mode-cli/packages/core build$ tsc
+apps/mode-cli/packages/adapters build$ tsc
+packages/provider-node build$ tsc
+apps/mode-cli/packages/i18n build$ tsc
+packages/provider-node build: Done
+apps/mode-cli/packages/i18n build: Done
+apps/mode-cli/packages/adapters build: Done
+apps/mode-cli/packages/core build: Done
+apps/mode-cli/packages/bootstrap build$ tsc
+apps/mode-cli/packages/bootstrap build: src/app/create-app.ts(408,49): error TS2339: Property 'providerEndpointRoutingPort' does not exist on type 'ModeAppOptions'.
+apps/mode-cli/packages/bootstrap build: src/app/create-app.ts(783,23): error TS2304: Cannot find name 'modelTelemetry'.
+apps/mode-cli/packages/bootstrap build: src/app/official-plugin-definitions.ts(96,15): error TS2304: Cannot find name 'ZAI_AUTHOR'.
+apps/mode-cli/packages/bootstrap build: src/app/standalone-account-provider-runtime.ts(214,7): error TS2353: Object literal may only specify known properties, and 'locationStore' does not exist in type 'CodingPlanApiKeyResolverOptions'.
+apps/mode-cli/packages/bootstrap build: src/app/standalone-account-provider-runtime.ts(215,17): error TS7006: Parameter 'event' implicitly has an 'any' type.
+apps/mode-cli/packages/bootstrap build: src/app/standalone-account-provider-runtime.ts(221,16): error TS2339: Property 'clear' does not exist on type 'CodingPlanApiKeyResolver'.
+apps/mode-cli/packages/bootstrap build: src/app/standalone-account-provider-runtime.ts(227,18): error TS2339: Property 'clear' does not exist on type 'CodingPlanApiKeyResolver'.
+apps/mode-cli/packages/bootstrap build: src/app/standalone-account-provider-runtime.ts(258,20): error TS2339: Property 'clear' does not exist on type 'CodingPlanApiKeyResolver'.
+apps/mode-cli/packages/bootstrap build: src/app/standalone-account-provider-runtime.ts(273,41): error TS2339: Property 'resolveMaterial' does not exist on type 'CodingPlanApiKeyResolver'.
+apps/mode-cli/packages/bootstrap build: src/app/standalone-account-provider-runtime.ts(293,20): error TS2339: Property 'clear' does not exist on type 'CodingPlanApiKeyResolver'.
+apps/mode-cli/packages/bootstrap build: src/app/standalone-account-provider-runtime.ts(310,18): error TS2339: Property 'clear' does not exist on type 'CodingPlanApiKeyResolver'.
+apps/mode-cli/packages/bootstrap build: src/app/types.ts(69,3): error TS2300: Duplicate identifier 'WorkspaceHookPolicy'.
+apps/mode-cli/packages/bootstrap build: src/app/types.ts(110,15): error TS2300: Duplicate identifier 'WorkspaceHookPolicy'.
+apps/mode-cli/packages/bootstrap build: src/auth-login.ts(254,19): error TS2339: Property 'resolveMaterial' does not exist on type 'CodingPlanApiKeyResolver'.
+apps/mode-cli/packages/bootstrap build: src/index.ts(36,8): error TS2307: Cannot find module './provider-endpoint-routing.js' or its corresponding type declarations.
+apps/mode-cli/packages/bootstrap build: src/index.ts(40,8): error TS2307: Cannot find module './provider-endpoint-routing.js' or its corresponding type declarations.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/commands/handlers/session-flow.ts(208,31): error TS2339: Property 'botGroupSource' does not exist on type '{ text: string; attachments?: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | "topic-history" | undefined; messageCount?: number | undefined; previewRef?: string | undefined; }[] | undefined; ... 17 more ...; toolDisallowlist?: string[] | undefined; } & ModeBackgroundTur...'.
+apps/mode-cli/packages/bootstrap build:   Property 'botGroupSource' does not exist on type '{ text: string; attachments?: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | "topic-history" | undefined; messageCount?: number | undefined; previewRef?: string | undefined; }[] | undefined; ... 17 more ...; toolDisallowlist?: string[] | undefined; } & { ...; }'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/commands/input-intent.ts(142,14): error TS2339: Property 'botGroupSource' does not exist on type '{ sourceCommandId: string; queueItemId: string; clientId: string; kind: "compact" | "sendText" | "sendGoalCommand"; text: string; attachments: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | ... 1 more ... | undefined; messageCount?: number | undefined; previewRef?: stri...'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/commands/input-intent.ts(142,54): error TS2339: Property 'botGroupSource' does not exist on type '{ sourceCommandId: string; queueItemId: string; clientId: string; kind: "compact" | "sendText" | "sendGoalCommand"; text: string; attachments: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | ... 1 more ... | undefined; messageCount?: number | undefined; previewRef?: stri...'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/event-normalizer.ts(53,43): error TS2694: Namespace '"D:/ZCodium/packages/shared/src/index"' has no exported member 'BotGroupInputSource'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/highspeed-metrics-persistence.ts(11,10): error TS2724: '"@mode/shared"' has no exported member named 'highspeedMessageMetaSchema'. Did you mean 'HighspeedMessageMeta'?
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/product-projection.ts(3672,56): error TS2339: Property 'botGroupSource' does not exist on type '{ sourceCommandId: string; queueItemId: string; clientId: string; kind: "compact" | "sendText" | "sendGoalCommand"; text: string; attachments: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | ... 1 more ... | undefined; messageCount?: number | undefined; previewRef?: stri...'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/product-projection.ts(3673,73): error TS2339: Property 'botGroupSource' does not exist on type '{ sourceCommandId: string; queueItemId: string; clientId: string; kind: "compact" | "sendText" | "sendGoalCommand"; text: string; attachments: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | ... 1 more ... | undefined; messageCount?: number | undefined; previewRef?: stri...'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/transcript-hydration.ts(37,3): error TS2724: '"@mode/shared"' has no exported member named 'highspeedMessageMetaSchema'. Did you mean 'HighspeedMessageMeta'?
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/transcript-hydration.ts(436,17): error TS2339: Property 'botGroupSource' does not exist on type '{ sourceCommandId: string; queueItemId: string; clientId: string; kind: "compact" | "sendText" | "sendGoalCommand"; text: string; attachments: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | ... 1 more ... | undefined; messageCount?: number | undefined; previewRef?: stri...'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol-v4/transcript-hydration.ts(436,58): error TS2339: Property 'botGroupSource' does not exist on type '{ sourceCommandId: string; queueItemId: string; clientId: string; kind: "compact" | "sendText" | "sendGoalCommand"; text: string; attachments: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | ... 1 more ... | undefined; messageCount?: number | undefined; previewRef?: stri...'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol/provider-runtime-headers.ts(1,10): error TS2305: Module '"@mode/shared"' has no exported member 'requestVerificationTimeoutMessage'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol/server-operations.ts(59,3): error TS2305: Module '"@mode/shared"' has no exported member 'elideSessionSnapshotForIndex'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol/server.ts(3,10): error TS2724: '"@mode/shared"' has no exported member named 'networkCaptureControlSchema'. Did you mean 'networkCaptureBatchSchema'?
+apps/mode-cli/packages/bootstrap build: src/mode-protocol/transport.ts(10,3): error TS2724: '"@mode/shared"' has no exported member named 'networkCaptureControlSchema'. Did you mean 'networkCaptureBatchSchema'?
+apps/mode-cli/packages/bootstrap build: src/mode-protocol/v4-bridge.ts(252,44): error TS2339: Property 'botGroupSource' does not exist on type '{ sourceCommandId: string; queueItemId: string; clientId: string; kind: "compact" | "sendText" | "sendGoalCommand"; text: string; attachments: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | ... 1 more ... | undefined; messageCount?: number | undefined; previewRef?: stri...'.
+apps/mode-cli/packages/bootstrap build: src/mode-protocol/v4-bridge.ts(335,48): error TS2339: Property 'botGroupSource' does not exist on type '{ sourceCommandId: string; queueItemId: string; clientId: string; kind: "compact" | "sendText" | "sendGoalCommand"; text: string; attachments: { ref: string; fileName: string; mime: string; bytes: number; sourceKind?: "clipboard-text" | ... 1 more ... | undefined; messageCount?: number | undefined; previewRef?: stri...'.
+apps/mode-cli/packages/bootstrap build: src/model-factory.ts(4,3): error TS2305: Module '"@mode/adapters/model"' has no exported member 'createModelRequestSecurityState'.
+apps/mode-cli/packages/bootstrap build: Failed
+D:\ZCodium\apps\mode-cli\packages\bootstrap:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @mode/bootstrap@0.1.0 build: `tsc`
+Exit status 2

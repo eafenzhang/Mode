@@ -1,0 +1,50 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
+apps/mode-cli                            |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.1","pnpm":"10.33.2"})
+Scope: 14 of 50 workspace projects
+packages/formal-proof build$ vite build
+packages/model-option-map build$ tsc
+apps/mode-cli/packages/dynamic-workflow build$ node scripts/generate-libs.mjs && tsc
+apps/mode-cli/packages/shared-types build$ tsc
+packages/formal-proof build: [36mvite v8.0.8 [32mbuilding client environment for production...[36m[39m
+packages/formal-proof build: [2K
+packages/formal-proof build: transforming...✓ 572 modules transformed.
+packages/formal-proof build: rendering chunks...
+packages/model-option-map build: Done
+packages/formal-proof build: computing gzip size...
+packages/formal-proof build: dist/index.html                  0.42 kB │ gzip:  0.28 kB
+packages/formal-proof build: dist/assets/index-Cbvbq-qX.css   7.21 kB │ gzip:  2.08 kB
+packages/formal-proof build: dist/assets/index-QpmGD-wF.js   76.64 kB │ gzip: 25.80 kB
+packages/formal-proof build: [32m✓ built in 139ms[39m
+packages/formal-proof build: Done
+apps/mode-cli/packages/shared-types build: Done
+apps/mode-cli/packages/dynamic-workflow build: Done
+.../packages/dynamic-workflow-runtime build$ tsc
+.../packages/dynamic-workflow-runtime build: Done
+apps/mode-cli/packages/contracts build$ tsc
+packages/provider build$ tsc
+packages/provider build: Done
+apps/mode-cli/packages/contracts build: Done
+apps/mode-cli/packages/adapters build$ tsc
+apps/mode-cli/packages/core build$ tsc
+apps/mode-cli/packages/i18n build$ tsc
+packages/provider-node build$ tsc
+packages/provider-node build: Done
+apps/mode-cli/packages/i18n build: Done
+apps/mode-cli/packages/adapters build: Done
+apps/mode-cli/packages/core build: src/runtime/helpers/model-errors.ts(1,10): error TS2305: Module '"@mode/shared"' has no exported member 'requestVerificationDiagnostics'.
+apps/mode-cli/packages/core build: src/runtime/methods/session-fork.ts(2,10): error TS2724: '"@mode/shared"' has no exported member named 'isHighspeedProviderId'. Did you mean 'resolveHighspeedProviderId'?
+apps/mode-cli/packages/core build: src/runtime/methods/subagent.ts(660,6): error TS7006: Parameter 'serverName' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/methods/subagent.ts(908,60): error TS7006: Parameter 'serverName' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/methods/subagent.ts(915,53): error TS7006: Parameter 'skillName' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/methods/subagent.ts(924,52): error TS7006: Parameter 'skillName' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/subagent/profile.ts(6,31): error TS2305: Module '"@mode/shared"' has no exported member 'AgentProfile'.
+apps/mode-cli/packages/core build: src/subagent/profile.ts(9,3): error TS2305: Module '"@mode/shared"' has no exported member 'AgentProfile'.
+apps/mode-cli/packages/core build: src/subagent/profile.ts(11,3): error TS2305: Module '"@mode/shared"' has no exported member 'AgentProfileSource'.
+apps/mode-cli/packages/core build: src/subagent/profile.ts(12,3): error TS2305: Module '"@mode/shared"' has no exported member 'AgentMemoryScope'.
+apps/mode-cli/packages/core build: src/subagent/profile.ts(13,3): error TS2305: Module '"@mode/shared"' has no exported member 'AgentProfileParseDiagnostic'.
+apps/mode-cli/packages/core build: src/subagent/profile.ts(14,3): error TS2305: Module '"@mode/shared"' has no exported member 'AgentProfileLoadResult'.
+apps/mode-cli/packages/core build: src/tool/handlers/reply-to-channel.ts(2,10): error TS2724: '"@mode/shared"' has no exported member named 'channelReplyPartsSchema'. Did you mean 'channelReplyResultSchema'?
+apps/mode-cli/packages/core build: Failed
+D:\ZCodium\apps\mode-cli\packages\core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @mode/core@0.1.0 build: `tsc`
+Exit status 2

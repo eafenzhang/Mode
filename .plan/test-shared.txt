@@ -1,0 +1,2792 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
+apps/mode-cli                            |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.1","pnpm":"10.33.2"})
+
+> @mode/shared@ test D:\ZCodium\packages\shared
+> tsx --test test/*.test.ts
+
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\accountProviderSnapshotProtocol.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\accountProviderSnapshotProtocol.test.ts (2217.6144ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\agentListingProjection.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\agentListingProjection.test.ts (1524.0147ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\appSettings.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\appSettings.test.ts (1594.7365ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\assistantPresentation.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\assistantPresentation.test.ts (3155.9425ms)
+✔ 读响应接受非媒体 MIME：txt / zip / octet-stream / 空 mime (5.7919ms)
+✔ 读响应仍接受媒体 MIME（image/video/pdf，含带参数 pdf） (0.5422ms)
+✔ 读响应结构/容量校验不回归：非法 base64、块超限、越界 nextOffset、totalBytes 超上界 (7.4152ms)
+✔ 非视频 20 MiB 上限由网关裁量：schema 不把超限响应打成 raw ZodError (0.4495ms)
+✔ image 超过非视频读上限 20 MiB 仍在 schema 拒绝（容量镜像不回归） (1.3768ms)
+✔ attachmentPreviewSource 媒体 gate 不回归：local_path 只认 video (4.3217ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\attachmentSelectionProtocol.test.ts:5:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\attachmentSelectionProtocol.test.ts (2399.828ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\automationRunId.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\automationRunId.test.ts (865.2289ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\backgroundBashJobs.test.ts:6:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\backgroundBashJobs.test.ts (942.6202ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\backgroundBashOutput.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\backgroundBashOutput.test.ts (2972.6111ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\backgroundTaskNotifications.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\backgroundTaskNotifications.test.ts (1484.2161ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\bashOutputDisplay.test.ts:40:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\bashOutputDisplay.test.ts (3002.157ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\botsLegacyAgentProvider.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\botsLegacyAgentProvider.test.ts (1471.5874ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\browserControlProtocol.test.ts:31:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\browserControlProtocol.test.ts (2084.5146ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631
+		throw new Error(`Vitest failed to find ${message}. One of the following is possible:` + "\n- \"vitest\" is imported directly without running \"vitest\" command" + "\n- \"vitest\" is imported inside \"globalSetup\" (to fix this, use \"setupFiles\" instead, because \"globalSetup\" runs in a different context)" + "\n- \"vitest\" is imported inside Vite / Vitest config file" + "\n- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues\n");
+		      ^
+
+Error: Vitest failed to find the current suite. One of the following is possible:
+- "vitest" is imported directly without running "vitest" command
+- "vitest" is imported inside "globalSetup" (to fix this, use "setupFiles" instead, because "globalSetup" runs in a different context)
+- "vitest" is imported inside Vite / Vitest config file
+- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues
+
+    at assert (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631:9)
+    at getCurrentSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1666:2)
+    at Object.<anonymous> (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1563:2)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\clientConfig.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\clientConfig.test.ts (1501.2232ms)
+✔ 确定性目标 id：同来源同 id，不同来源不同 id，带 mirror- 前缀 (658.1203ms)
+✔ 只选本机本地 scope 会话：带 identity 的行与镜像副本都不参与镜像 (2.5309ms)
+✔ 消息提取：跳过隐藏 synthetic、空文本与非 text part (6.5967ms)
+✔ 没有可读文本时不产生记录（不导入空会话） (2.119ms)
+✔ 有界化：消息条数、单条文本长度、单记录字节预算 (1592.7269ms)
+✔ 导入 payload：source / 时间 / 来源 id / 消息角色与文本 (1.7014ms)
+✔ 是否需要导入：目标缺失或更旧才导入（用户续聊后目标更新则不重导） (0.9743ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\conversationPreviewArtifacts.test.ts:18:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\conversationPreviewArtifacts.test.ts (1605.9041ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\conversationQuotes.test.ts:14:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\conversationQuotes.test.ts (1458.2265ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\conversationShareContract.test.ts:67:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\conversationShareContract.test.ts (1907.1514ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\dynamicWorkflowFeature.test.ts:20:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\dynamicWorkflowFeature.test.ts (877.7399ms)
+[env] 环境变量 ZCODIUM_DATA_BASE_DIR 已更名为 MODE_DATA_BASE_DIR，旧名本版本仍兼容，请尽快迁移
+[env] 环境变量 ZCODE_DATA_BASE_DIR 已更名为 MODE_DATA_BASE_DIR，旧名本版本仍兼容，请尽快迁移
+✔ 读：MODE_ 优先，ZCODIUM_ 次之，ZCODE_ 兜底 (2.1208ms)
+✔ 写：三代名全写；undefined 三代全删 (0.3336ms)
+✔ 不在改名名单的变量原样直读 (0.2279ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\env.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\env.test.ts (930.7095ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\errors.test.ts:9:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\errors.test.ts (956.056ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\executionState.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\executionState.test.ts (1454.9994ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\forceUpdate.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\forceUpdate.test.ts (866.2446ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\guardedMode.test.ts:11:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\guardedMode.test.ts (1528.6686ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\helpAppConfig.test.ts:11:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\helpAppConfig.test.ts (1499.1446ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\highspeed.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\highspeed.test.ts (1448.1008ms)
+✔ host 请求消息解析保留 requestId 与权限参数 (10.6386ms)
+✔ 未知 type 拒绝（fail closed，回归既有语义） (0.4407ms)
+✔ main 结果回包解析保留 requestId 与 success/error (1.8076ms)
+✔ 客户端记录：remoteDesktopAuthorized 可选三态（true/false/缺键）都能解析 (9.1901ms)
+✔ 客户端记录：strict 仍拒绝未声明键（漏声明字段即拒收的根因保持不被误放行） (0.3981ms)
+✔ host 回帖：带 remoteDesktopAuthorized 的 lan-access-state-result 必须整条可解析 (5.5031ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\launchMarks.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\launchMarks.test.ts (844.796ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\legacyModelProviderIdentity.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\legacyModelProviderIdentity.test.ts (846.0215ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\localTtft.test.ts:9:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\localTtft.test.ts (2312.1703ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\markdownArtifactImages.test.ts:9:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\markdownArtifactImages.test.ts (804.0003ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\mcp.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\mcp.test.ts (879.5238ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\mcpResourceTelemetry.test.ts:20:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\mcpResourceTelemetry.test.ts (2803.5349ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\mcpStatusDiagnostics.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\mcpStatusDiagnostics.test.ts (1997.6752ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\mediaPreview.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\mediaPreview.test.ts (2602.3433ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\memoryDiagnostics.test.ts:17:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\memoryDiagnostics.test.ts (856.014ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\modelConfigContract.test.ts:9:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\modelConfigContract.test.ts (2072.3141ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\modelProviderTypes.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\modelProviderTypes.test.ts (890.6633ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\modelSelection.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\modelSelection.test.ts (1428.682ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631
+		throw new Error(`Vitest failed to find ${message}. One of the following is possible:` + "\n- \"vitest\" is imported directly without running \"vitest\" command" + "\n- \"vitest\" is imported inside \"globalSetup\" (to fix this, use \"setupFiles\" instead, because \"globalSetup\" runs in a different context)" + "\n- \"vitest\" is imported inside Vite / Vitest config file" + "\n- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues\n");
+		      ^
+
+Error: Vitest failed to find the current suite. One of the following is possible:
+- "vitest" is imported directly without running "vitest" command
+- "vitest" is imported inside "globalSetup" (to fix this, use "setupFiles" instead, because "globalSetup" runs in a different context)
+- "vitest" is imported inside Vite / Vitest config file
+- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues
+
+    at assert (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631:9)
+    at getCurrentSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1666:2)
+    at afterEach (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:752:9)
+    at <anonymous> (D:\ZCodium\packages\shared\test\nodeNetworkCapture.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\nodeNetworkCapture.test.ts (1510.6955ms)
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\ZCodium\packages\shared\src\node\nodeSelfResourceTelemetry.js' imported from D:\ZCodium\packages\shared\test\nodeSelfResourceTelemetry.test.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at nextResolve (node:internal/modules/esm/hooks:785:28)
+    at resolveBase (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988417312:2:3744)
+    at async resolveDirectory (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988417312:2:4237)
+    at async resolve (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988417312:2:5355)
+    at async nextResolve (node:internal/modules/esm/hooks:785:22)
+    at async AsyncLoaderHooksOnLoaderHookWorker.resolve (node:internal/modules/esm/hooks:269:24)
+    at async handleMessage (node:internal/modules/esm/worker:251:18) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///D:/ZCodium/packages/shared/src/node/nodeSelfResourceTelemetry.js'
+}
+
+Node.js v24.18.1
+✖ test\nodeSelfResourceTelemetry.test.ts (831.5431ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\oauth.test.ts:14:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\oauth.test.ts (854.8651ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\offPeakTaskIdentity.test.ts:5:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\offPeakTaskIdentity.test.ts (873.0333ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\official-glm-model-id.test.ts:5:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\official-glm-model-id.test.ts (895.5996ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\officialMcpAuthProtocol.test.ts:18:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\officialMcpAuthProtocol.test.ts (2315.7372ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\officialMcpToolError.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\officialMcpToolError.test.ts (861.8148ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\officialMcpTrust.test.ts:33:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\officialMcpTrust.test.ts (885.954ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\openInEditorOptions.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\openInEditorOptions.test.ts (914.5787ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\openrouterAttribution.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\openrouterAttribution.test.ts (900.4923ms)
+✔ origin 解析：auth 与 api 是两个独立 origin，默认值互不推导 (1.9968ms)
+✔ origin 解析：显式覆盖优先于共享基址，共享基址优先于默认值 (0.3939ms)
+✔ origin 校验：远端必须 https，http 只允许 loopback (1.0219ms)
+✔ 授权 URL：固定 S256、固定 /auth、OOB 回调，且不含 verifier (0.513ms)
+✔ 换取请求体：固定走 S256，只携带 code 与 verifier (1.2771ms)
+✔ 换取响应：读取实际授予 scope，降级时失败而不是假定获得 (0.589ms)
+✔ 目录解析：保留 vendor/model 命名空间，缺失字段按空数组 fail closed (0.459ms)
+✔ 目录解析：条目数有上界，非对象条目被丢弃 (0.5689ms)
+✔ 能力过滤：chat 排除图片生成/视频/rerank 专用模型 (0.791ms)
+✔ 多模态过滤：未显式声明 image 输入的模型 fail closed (0.5836ms)
+✔ 凭据脱敏：只保留前缀与末四位，短值整体隐藏 (0.2599ms)
+✔ API Key 轻量格式检查：前缀只是提示，不是有效性证明 (0.2397ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\planIdentitySnapshot.test.ts:31:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\planIdentitySnapshot.test.ts (858.8286ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\pluginMarketplaces.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\pluginMarketplaces.test.ts (2598.9121ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\pluginStoreOrder.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\pluginStoreOrder.test.ts (1491.1851ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\process-diagnostic.test.ts:20:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\process-diagnostic.test.ts (2419.053ms)
+D:\ZCodium\packages\shared\test\processResourceTelemetry.test.ts:4
+  ARMS_CUSTOM_EVENT_PROPERTY_LIMIT,
+  ^
+SyntaxError: The requested module '@mode/shared' does not provide an export named 'ARMS_CUSTOM_EVENT_PROPERTY_LIMIT'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\processResourceTelemetry.test.ts (2250.1698ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\projectAccessTokenCache.test.ts:42:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\projectAccessTokenCache.test.ts (1343.5284ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\projectAccessTokenClient.test.ts:47:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\projectAccessTokenClient.test.ts (1373.2058ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\projectAccessTokenKeyContract.test.ts:36:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\projectAccessTokenKeyContract.test.ts (1375.9552ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\providerProvisioning.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\providerProvisioning.test.ts (2375.6178ms)
+✔ 画质档位（P1-3）：三档枚举、预设参数完整、默认档与旧硬编码参数一致 (5.2119ms)
+✔ 协议版本为 2（原生媒体信令面），hello 必须携带版本号 (4.4421ms)
+✔ 信令消息：monitors 至少一项、未知类型被拒、error 码白名单 (4.0246ms)
+✔ WebRTC 消息已随原生媒体面移除：offer/answer/ice 必须解析失败 (0.5056ms)
+✔ 原生媒体信令：media-open / freeze / unfreeze 可解析 (2.5248ms)
+✔ 输入事件：pointer 越界被拒、control 的 vk 范围与文本非空 (4.7842ms)
+✔ video letterbox 映射：中心点、letterbox 内点（clamp+outside）、内容上边缘含点、退化输入 (1.9067ms)
+✔ 键盘决策：可打印字符走文本、修饰键/组合键/导航键走 VK、未知键 none (0.6031ms)
+✔ 虚拟屏映射：单屏角点精确、邻屏起点、clamp 与非法输入 (0.6186ms)
+✔ server-info 能力位：remoteDesktop 缺键兼容（旧对端）与真值解析 (2.206ms)
+✔ 断线重连信号（P2-1）：request-media-ticket / media-ticket 形状与严格校验 (1.2804ms)
+✔ remoteTargetSchema 接受 lan 目标并校验端口范围 (5.9705ms)
+✔ stripRemoteTargetSecrets 只去掉 lan 的 token，保留其余字段 (0.299ms)
+✔ lan workspace identity 往返：Windows 盘符形态规范（不加前导斜杠）、host 小写 (1.6673ms)
+✔ lan identity 解析野外形态（UI 手拷贝归一化产出的盘符形态） (0.2307ms)
+✔ lan identity 解析旧规范形态 /D:/… 时归一为可用盘符路径 (0.2112ms)
+✔ lan identity 的 posix 对端形态保持不变 (0.3295ms)
+✔ parseRemoteWorkspaceIdentity 拒绝缺段或相对路径的 lan identity (0.2043ms)
+✔ 对端工作区暴露过滤：本机默认对话工作区是内部目录，用户选择的路径保留 (0.4649ms)
+✔ buildRemoteEnvironmentKey 为 lan 生成稳定环境键 (0.2908ms)
+✔ createOpenInEditorRemoteTarget 透出 lan 地址供主进程判定不支持 (0.3737ms)
+✔ lan 发现报文：编码可被解析，坏报文一律丢弃 (7.0885ms)
+✔ lan 访问状态 schema 与配对码格式 (8.1425ms)
+D:\ZCodium\packages\shared\test\remoteAppConfig.test.ts:5
+  getFeedbackUrlFromConfig,
+  ^
+SyntaxError: The requested module '../src/remoteAppConfig.js' does not provide an export named 'getFeedbackUrlFromConfig'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\remoteAppConfig.test.ts (746.1641ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\remoteAssetInstallMode.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\remoteAssetInstallMode.test.ts (2118.5917ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\remoteEnvironmentKey.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\remoteEnvironmentKey.test.ts (820.119ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\remoteResourcePackages.test.ts:12:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\remoteResourcePackages.test.ts (2577.1665ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\remoteSshHostKey.test.ts:5:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\remoteSshHostKey.test.ts (760.4576ms)
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\ZCodium\packages\shared\src\remoteUsageTelemetry.js' imported from D:\ZCodium\packages\shared\test\remoteUsageTelemetry.test.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at nextResolve (node:internal/modules/esm/hooks:785:28)
+    at resolveBase (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988420780:2:3744)
+    at async resolveDirectory (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988420780:2:4237)
+    at async resolve (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988420780:2:5355)
+    at async nextResolve (node:internal/modules/esm/hooks:785:22)
+    at async AsyncLoaderHooksOnLoaderHookWorker.resolve (node:internal/modules/esm/hooks:269:24)
+    at async handleMessage (node:internal/modules/esm/worker:251:18) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///D:/ZCodium/packages/shared/src/remoteUsageTelemetry.js'
+}
+
+Node.js v24.18.1
+✖ test\remoteUsageTelemetry.test.ts (754.596ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\remoteWorkspaceIdentity.test.ts:10:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\remoteWorkspaceIdentity.test.ts (788.411ms)
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\ZCodium\packages\shared\src\rendererActionTrace.js' imported from D:\ZCodium\packages\shared\test\rendererActionTrace.test.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at nextResolve (node:internal/modules/esm/hooks:785:28)
+    at resolveBase (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988421313:2:3744)
+    at async resolveDirectory (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988421313:2:4237)
+    at async resolve (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988421313:2:5355)
+    at async nextResolve (node:internal/modules/esm/hooks:785:22)
+    at async AsyncLoaderHooksOnLoaderHookWorker.resolve (node:internal/modules/esm/hooks:269:24)
+    at async handleMessage (node:internal/modules/esm/worker:251:18) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///D:/ZCodium/packages/shared/src/rendererActionTrace.js'
+}
+
+Node.js v24.18.1
+✖ test\rendererActionTrace.test.ts (776.715ms)
+D:\ZCodium\packages\shared\test\runtimeEnv.test.ts:15
+  getCapturedModeAgentTelemetryEnv,
+  ^
+SyntaxError: The requested module '../src/runtimeEnv.js' does not provide an export named 'getCapturedModeAgentTelemetryEnv'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\runtimeEnv.test.ts (794.0673ms)
+✔ 旧对端 capabilities 无 computerUse 键仍解析通过 (6.063ms)
+✔ 新对端 computerUse 布尔位保留 (0.3587ms)
+✔ computerUse 非布尔解析失败（fail closed） (0.3893ms)
+✔ 旧对端 capabilities 无 remoteDesktopNative 键仍解析通过（缺键=旧对端） (0.2919ms)
+✔ 新对端 remoteDesktopNative 布尔位保留 (0.3151ms)
+✔ remoteDesktopNative 非布尔解析失败（fail closed） (0.2956ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\serverRemoteInfo.test.ts:13:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\serverRemoteInfo.test.ts (2508.1617ms)
+D:\ZCodium\packages\shared\test\serverRemoteTarget.test.ts:3
+  buildServerRemoteWorkspaceIdentity,
+  ^
+SyntaxError: The requested module '../src/remote-workspace-identity.js' does not provide an export named 'buildServerRemoteWorkspaceIdentity'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\serverRemoteTarget.test.ts (1795.975ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\serviceAuthority.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\serviceAuthority.test.ts (803.0051ms)
+D:\ZCodium\packages\shared\test\sessionCreateTelemetry.test.ts:5
+  parseWebRemoteControlAppPayload,
+  ^
+SyntaxError: The requested module '@mode/shared' does not provide an export named 'parseWebRemoteControlAppPayload'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\sessionCreateTelemetry.test.ts (2337.9607ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\sessionOpenTimingProtocol.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\sessionOpenTimingProtocol.test.ts (1644.3312ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\sharedContextImportState.test.ts:5:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\sharedContextImportState.test.ts (1557.7264ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\shortcutCommands.test.ts:10:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\shortcutCommands.test.ts (840.6051ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\streamingToolInputPreview.test.ts:9:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\streamingToolInputPreview.test.ts (820.9039ms)
+D:\ZCodium\node_modules\vitest\dist\chunks\test.DNmyFkvJ.js:3676
+		throw new Error(`Vitest mocker was not initialized in this environment. vi.${String(name)}() is forbidden.`);
+		      ^
+
+Error: Vitest mocker was not initialized in this environment. vi.queueMock() is forbidden.
+    at Object.get (D:\ZCodium\node_modules\vitest\dist\chunks\test.DNmyFkvJ.js:3676:9)
+    at Object.mock (D:\ZCodium\node_modules\vitest\dist\chunks\test.DNmyFkvJ.js:3569:13)
+    at <anonymous> (D:\ZCodium\packages\shared\test\subagentMarkdownMigration.test.ts:18:4)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\subagentMarkdownMigration.test.ts (1477.0344ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\subagentMarkdownSelection.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\subagentMarkdownSelection.test.ts (1387.214ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\subagentStateMigration.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\subagentStateMigration.test.ts (1403.1333ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\taskRealtime.test.ts:49:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\taskRealtime.test.ts (2562.8372ms)
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'D:\ZCodium\packages\shared\src\telemetry.js' imported from D:\ZCodium\packages\shared\test\telemetry.test.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at nextResolve (node:internal/modules/esm/hooks:785:28)
+    at resolveBase (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988422999:2:3744)
+    at async resolveDirectory (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988422999:2:4237)
+    at async resolve (file:///D:/ZCodium/node_modules/tsx/dist/esm/index.mjs?1791988422999:2:5355)
+    at async nextResolve (node:internal/modules/esm/hooks:785:22)
+    at async AsyncLoaderHooksOnLoaderHookWorker.resolve (node:internal/modules/esm/hooks:269:24)
+    at async handleMessage (node:internal/modules/esm/worker:251:18) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///D:/ZCodium/packages/shared/src/telemetry.js'
+}
+
+Node.js v24.18.1
+✖ test\telemetry.test.ts (804.6908ms)
+D:\ZCodium\packages\shared\test\telemetryRedaction.test.ts:4
+  TELEMETRY_SAFE_BUILTIN_MODEL_IDS,
+  ^
+SyntaxError: The requested module '@mode/shared' does not provide an export named 'TELEMETRY_SAFE_BUILTIN_MODEL_IDS'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\telemetryRedaction.test.ts (2173.4107ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\toolExecResourceTelemetry.test.ts:16:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\toolExecResourceTelemetry.test.ts (2496.1892ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\toolPlanAdapter.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\toolPlanAdapter.test.ts (794.6471ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\unboundModelSelection.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\unboundModelSelection.test.ts (2549.9532ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\underlyingErrorContract.test.ts:5:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\underlyingErrorContract.test.ts (1899.4352ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631
+		throw new Error(`Vitest failed to find ${message}. One of the following is possible:` + "\n- \"vitest\" is imported directly without running \"vitest\" command" + "\n- \"vitest\" is imported inside \"globalSetup\" (to fix this, use \"setupFiles\" instead, because \"globalSetup\" runs in a different context)" + "\n- \"vitest\" is imported inside Vite / Vitest config file" + "\n- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues\n");
+		      ^
+
+Error: Vitest failed to find the current suite. One of the following is possible:
+- "vitest" is imported directly without running "vitest" command
+- "vitest" is imported inside "globalSetup" (to fix this, use "setupFiles" instead, because "globalSetup" runs in a different context)
+- "vitest" is imported inside Vite / Vitest config file
+- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues
+
+    at assert (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631:9)
+    at getCurrentSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1666:2)
+    at Object.<anonymous> (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1563:2)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\validation.test.ts:12:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\validation.test.ts (2030.4511ms)
+D:\ZCodium\packages\shared\test\webRemoteControl.test.ts:16
+  parseWebRemoteControlAppPayload,
+  ^
+SyntaxError: The requested module '../src/validation.js' does not provide an export named 'parseWebRemoteControlAppPayload'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\webRemoteControl.test.ts (1765.5945ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\webRemoteControlHeartbeat.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\webRemoteControlHeartbeat.test.ts (825.7332ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\webRemoteControlRpcTransport.test.ts:60:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\webRemoteControlRpcTransport.test.ts (1371.4949ms)
+✔ descriptor 无 capabilities 仍解析通过 (10.3226ms)
+✔ descriptor 携带 computerUse 能力位解析保留 (1.0121ms)
+✔ capabilities.computerUse 非布尔解析失败（fail closed） (0.6062ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\windowHostControlProtocol.test.ts:15:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\windowHostControlProtocol.test.ts (2253.8283ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\windowHostControllerProtocol.test.ts:47:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\windowHostControllerProtocol.test.ts (2583.3948ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\workflowNotificationArtifacts.test.ts:22:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\workflowNotificationArtifacts.test.ts (1625.3823ms)
+✔ 文件索引块大小不超过协议批量块口径（attachmentChunkMaxBytes） (1.6124ms)
+✔ packed 往返：目录/文件类型、CJK 与转义字符逐项相等（Windows 根） (1.6422ms)
+✔ packed 往返：posix 根保持 / 分隔符 (0.9173ms)
+✔ packed 根路径收尾分隔符两种形态都兼容；空 packed 解包为空数组 (0.3905ms)
+✔ 按块大小切分后逐块解包：拼接结果与整体解包一致 (52.2099ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631
+		throw new Error(`Vitest failed to find ${message}. One of the following is possible:` + "\n- \"vitest\" is imported directly without running \"vitest\" command" + "\n- \"vitest\" is imported inside \"globalSetup\" (to fix this, use \"setupFiles\" instead, because \"globalSetup\" runs in a different context)" + "\n- \"vitest\" is imported inside Vite / Vitest config file" + "\n- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues\n");
+		      ^
+
+Error: Vitest failed to find the current suite. One of the following is possible:
+- "vitest" is imported directly without running "vitest" command
+- "vitest" is imported inside "globalSetup" (to fix this, use "setupFiles" instead, because "globalSetup" runs in a different context)
+- "vitest" is imported inside Vite / Vitest config file
+- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues
+
+    at assert (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631:9)
+    at getCurrentSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1666:2)
+    at afterEach (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:752:9)
+    at <anonymous> (D:\ZCodium\packages\shared\test\workspaceHookDiscoveryDedup.test.ts:24:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\workspaceHookDiscoveryDedup.test.ts (1494.773ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631
+		throw new Error(`Vitest failed to find ${message}. One of the following is possible:` + "\n- \"vitest\" is imported directly without running \"vitest\" command" + "\n- \"vitest\" is imported inside \"globalSetup\" (to fix this, use \"setupFiles\" instead, because \"globalSetup\" runs in a different context)" + "\n- \"vitest\" is imported inside Vite / Vitest config file" + "\n- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues\n");
+		      ^
+
+Error: Vitest failed to find the current suite. One of the following is possible:
+- "vitest" is imported directly without running "vitest" command
+- "vitest" is imported inside "globalSetup" (to fix this, use "setupFiles" instead, because "globalSetup" runs in a different context)
+- "vitest" is imported inside Vite / Vitest config file
+- Otherwise, it might be a Vitest bug. Please report it to https://github.com/vitest-dev/vitest/issues
+
+    at assert (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1631:9)
+    at getCurrentSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1666:2)
+    at afterEach (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:752:9)
+    at <anonymous> (D:\ZCodium\packages\shared\test\workspaceHookMutation.test.ts:28:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\workspaceHookMutation.test.ts (1539.8519ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\workspaceHookReviewMonotonicity.test.ts:15:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\workspaceHookReviewMonotonicity.test.ts (888.7104ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\workspaceHookTrustStoreFile.test.ts:29:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\workspaceHookTrustStoreFile.test.ts (1460.0323ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeAgentRuntime.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeAgentRuntime.test.ts (2922.887ms)
+D:\ZCodium\packages\shared\test\zcodeEndpoint.test.ts:4
+  DEFAULT_WEB_REMOTE_CONTROL_RELAY_WS_URL,
+  ^
+SyntaxError: The requested module '../src/modeEndpoint.js' does not provide an export named 'DEFAULT_WEB_REMOTE_CONTROL_RELAY_WS_URL'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:327:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:431:5)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeEndpoint.test.ts (1457.2826ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeNetworkDebugStatus.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeNetworkDebugStatus.test.ts (847.7882ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodePersistedMessageMerge.test.ts:30:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodePersistedMessageMerge.test.ts (2661.7582ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocol.test.ts:72:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocol.test.ts (2115.9754ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolSavedWorkflows.test.ts:31:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolSavedWorkflows.test.ts (2095.6409ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4AttachmentSource.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4AttachmentSource.test.ts (2355.6398ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4AttachmentUpload.test.ts:24:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4AttachmentUpload.test.ts (2294.9779ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4Coalesce.test.ts:19:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4Coalesce.test.ts (2435.7567ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4Command.test.ts:17:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4Command.test.ts (2421.7451ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4CommandQuery.test.ts:10:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4CommandQuery.test.ts (2320.5189ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4ConnectionScope.test.ts:17:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4ConnectionScope.test.ts (3214.8395ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4DisplayTolerance.test.ts:84:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4DisplayTolerance.test.ts (2352.836ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4FileRewind.test.ts:10:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4FileRewind.test.ts (2378.5232ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4HookSummary.test.ts:47:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4HookSummary.test.ts (2419.3431ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4Permission.test.ts:9:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4Permission.test.ts (2396.3093ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4PhysicalTopic.test.ts:159:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4PhysicalTopic.test.ts (2376.5562ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4Plans.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4Plans.test.ts (2348.8495ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4SessionWorkflowActivity.test.ts:38:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4SessionWorkflowActivity.test.ts (2267.398ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4StableFork.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4StableFork.test.ts (2291.7174ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4Telemetry.test.ts:16:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4Telemetry.test.ts (2507.1401ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4Usage.test.ts:11:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4Usage.test.ts (2554.9023ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4UserInputEpilogue.test.ts:17:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4UserInputEpilogue.test.ts (2476.1017ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4Wire.test.ts:171:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4Wire.test.ts (2630.1153ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WireFault.test.ts:46:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WireFault.test.ts (2471.7072ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowObservationDisplay.test.ts:90:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowObservationDisplay.test.ts (2451.4328ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowRuns.test.ts:60:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowRuns.test.ts (2485.0004ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowRunsCachedSettle.test.ts:117:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowRunsCachedSettle.test.ts (2547.4468ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowRunsCaps.test.ts:95:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowRunsCaps.test.ts (2542.6079ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowRunsDelta.test.ts:192:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowRunsDelta.test.ts (2457.6001ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowRunsEviction.test.ts:146:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowRunsEviction.test.ts (2458.3898ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowRunsHoles.test.ts:60:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowRunsHoles.test.ts (2483.7285ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowRunsReducer.test.ts:64:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowRunsReducer.test.ts (2585.0946ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkflowWorkspace.test.ts:29:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkflowWorkspace.test.ts (2475.8974ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkspaceConfig.test.ts:52:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkspaceConfig.test.ts (2204.2275ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolV4WorkspaceHookReview.test.ts:128:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolV4WorkspaceHookReview.test.ts (2022.0879ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeProtocolWorkspaceHookTrust.test.ts:8:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeProtocolWorkspaceHookTrust.test.ts (1780.5707ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeSessionContentProfile.test.ts:213:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeSessionContentProfile.test.ts (2053.0796ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeSessionTaskStatus.test.ts:66:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeSessionTaskStatus.test.ts (1819.6599ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeSessionVisibleContent.test.ts:90:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeSessionVisibleContent.test.ts (1814.5601ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeSourceHeaders.test.ts:7:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeSourceHeaders.test.ts (824.1813ms)
+file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848
+		validateTags(runner.config, suiteTags);
+		                    ^
+
+TypeError: Cannot read properties of undefined (reading 'config')
+    at initSuite (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1848:23)
+    at createSuiteCollector (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1709:2)
+    at Object.suiteFn (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:1951:10)
+    at chain (file:///D:/ZCodium/node_modules/@vitest/runner/dist/chunk-artifact.js:599:14)
+    at <anonymous> (D:\ZCodium\packages\shared\test\zcodeTaskMetaSchema.test.ts:4:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.1
+✖ test\zcodeTaskMetaSchema.test.ts (1543.9886ms)
+ℹ tests 206
+ℹ suites 0
+ℹ pass 71
+ℹ fail 135
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 23778.5496
+
+✖ failing tests:
+
+test at test\accountProviderSnapshotProtocol.test.ts:1:1
+✖ test\accountProviderSnapshotProtocol.test.ts (2217.6144ms)
+  'test failed'
+
+test at test\agentListingProjection.test.ts:1:1
+✖ test\agentListingProjection.test.ts (1524.0147ms)
+  'test failed'
+
+test at test\appSettings.test.ts:1:1
+✖ test\appSettings.test.ts (1594.7365ms)
+  'test failed'
+
+test at test\assistantPresentation.test.ts:1:1
+✖ test\assistantPresentation.test.ts (3155.9425ms)
+  'test failed'
+
+test at test\attachmentSelectionProtocol.test.ts:1:1
+✖ test\attachmentSelectionProtocol.test.ts (2399.828ms)
+  'test failed'
+
+test at test\automationRunId.test.ts:1:1
+✖ test\automationRunId.test.ts (865.2289ms)
+  'test failed'
+
+test at test\backgroundBashJobs.test.ts:1:1
+✖ test\backgroundBashJobs.test.ts (942.6202ms)
+  'test failed'
+
+test at test\backgroundBashOutput.test.ts:1:1
+✖ test\backgroundBashOutput.test.ts (2972.6111ms)
+  'test failed'
+
+test at test\backgroundTaskNotifications.test.ts:1:1
+✖ test\backgroundTaskNotifications.test.ts (1484.2161ms)
+  'test failed'
+
+test at test\bashOutputDisplay.test.ts:1:1
+✖ test\bashOutputDisplay.test.ts (3002.157ms)
+  'test failed'
+
+test at test\botsLegacyAgentProvider.test.ts:1:1
+✖ test\botsLegacyAgentProvider.test.ts (1471.5874ms)
+  'test failed'
+
+test at test\browserControlProtocol.test.ts:1:1
+✖ test\browserControlProtocol.test.ts (2084.5146ms)
+  'test failed'
+
+test at test\clientConfig.test.ts:1:1
+✖ test\clientConfig.test.ts (1501.2232ms)
+  'test failed'
+
+test at test\conversationPreviewArtifacts.test.ts:1:1
+✖ test\conversationPreviewArtifacts.test.ts (1605.9041ms)
+  'test failed'
+
+test at test\conversationQuotes.test.ts:1:1
+✖ test\conversationQuotes.test.ts (1458.2265ms)
+  'test failed'
+
+test at test\conversationShareContract.test.ts:1:1
+✖ test\conversationShareContract.test.ts (1907.1514ms)
+  'test failed'
+
+test at test\dynamicWorkflowFeature.test.ts:1:1
+✖ test\dynamicWorkflowFeature.test.ts (877.7399ms)
+  'test failed'
+
+test at test\env.test.ts:1:1
+✖ test\env.test.ts (930.7095ms)
+  'test failed'
+
+test at test\errors.test.ts:1:1
+✖ test\errors.test.ts (956.056ms)
+  'test failed'
+
+test at test\executionState.test.ts:1:1
+✖ test\executionState.test.ts (1454.9994ms)
+  'test failed'
+
+test at test\forceUpdate.test.ts:1:1
+✖ test\forceUpdate.test.ts (866.2446ms)
+  'test failed'
+
+test at test\guardedMode.test.ts:1:1
+✖ test\guardedMode.test.ts (1528.6686ms)
+  'test failed'
+
+test at test\helpAppConfig.test.ts:1:1
+✖ test\helpAppConfig.test.ts (1499.1446ms)
+  'test failed'
+
+test at test\highspeed.test.ts:1:1
+✖ test\highspeed.test.ts (1448.1008ms)
+  'test failed'
+
+test at test\launchMarks.test.ts:1:1
+✖ test\launchMarks.test.ts (844.796ms)
+  'test failed'
+
+test at test\legacyModelProviderIdentity.test.ts:1:1
+✖ test\legacyModelProviderIdentity.test.ts (846.0215ms)
+  'test failed'
+
+test at test\localTtft.test.ts:1:1
+✖ test\localTtft.test.ts (2312.1703ms)
+  'test failed'
+
+test at test\markdownArtifactImages.test.ts:1:1
+✖ test\markdownArtifactImages.test.ts (804.0003ms)
+  'test failed'
+
+test at test\mcp.test.ts:1:1
+✖ test\mcp.test.ts (879.5238ms)
+  'test failed'
+
+test at test\mcpResourceTelemetry.test.ts:1:1
+✖ test\mcpResourceTelemetry.test.ts (2803.5349ms)
+  'test failed'
+
+test at test\mcpStatusDiagnostics.test.ts:1:1
+✖ test\mcpStatusDiagnostics.test.ts (1997.6752ms)
+  'test failed'
+
+test at test\mediaPreview.test.ts:1:1
+✖ test\mediaPreview.test.ts (2602.3433ms)
+  'test failed'
+
+test at test\memoryDiagnostics.test.ts:1:1
+✖ test\memoryDiagnostics.test.ts (856.014ms)
+  'test failed'
+
+test at test\modelConfigContract.test.ts:1:1
+✖ test\modelConfigContract.test.ts (2072.3141ms)
+  'test failed'
+
+test at test\modelProviderTypes.test.ts:1:1
+✖ test\modelProviderTypes.test.ts (890.6633ms)
+  'test failed'
+
+test at test\modelSelection.test.ts:1:1
+✖ test\modelSelection.test.ts (1428.682ms)
+  'test failed'
+
+test at test\nodeNetworkCapture.test.ts:1:1
+✖ test\nodeNetworkCapture.test.ts (1510.6955ms)
+  'test failed'
+
+test at test\nodeSelfResourceTelemetry.test.ts:1:1
+✖ test\nodeSelfResourceTelemetry.test.ts (831.5431ms)
+  'test failed'
+
+test at test\oauth.test.ts:1:1
+✖ test\oauth.test.ts (854.8651ms)
+  'test failed'
+
+test at test\offPeakTaskIdentity.test.ts:1:1
+✖ test\offPeakTaskIdentity.test.ts (873.0333ms)
+  'test failed'
+
+test at test\official-glm-model-id.test.ts:1:1
+✖ test\official-glm-model-id.test.ts (895.5996ms)
+  'test failed'
+
+test at test\officialMcpAuthProtocol.test.ts:1:1
+✖ test\officialMcpAuthProtocol.test.ts (2315.7372ms)
+  'test failed'
+
+test at test\officialMcpToolError.test.ts:1:1
+✖ test\officialMcpToolError.test.ts (861.8148ms)
+  'test failed'
+
+test at test\officialMcpTrust.test.ts:1:1
+✖ test\officialMcpTrust.test.ts (885.954ms)
+  'test failed'
+
+test at test\openInEditorOptions.test.ts:1:1
+✖ test\openInEditorOptions.test.ts (914.5787ms)
+  'test failed'
+
+test at test\openrouterAttribution.test.ts:1:1
+✖ test\openrouterAttribution.test.ts (900.4923ms)
+  'test failed'
+
+test at test\planIdentitySnapshot.test.ts:1:1
+✖ test\planIdentitySnapshot.test.ts (858.8286ms)
+  'test failed'
+
+test at test\pluginMarketplaces.test.ts:1:1
+✖ test\pluginMarketplaces.test.ts (2598.9121ms)
+  'test failed'
+
+test at test\pluginStoreOrder.test.ts:1:1
+✖ test\pluginStoreOrder.test.ts (1491.1851ms)
+  'test failed'
+
+test at test\process-diagnostic.test.ts:1:1
+✖ test\process-diagnostic.test.ts (2419.053ms)
+  'test failed'
+
+test at test\processResourceTelemetry.test.ts:1:1
+✖ test\processResourceTelemetry.test.ts (2250.1698ms)
+  'test failed'
+
+test at test\projectAccessTokenCache.test.ts:1:1
+✖ test\projectAccessTokenCache.test.ts (1343.5284ms)
+  'test failed'
+
+test at test\projectAccessTokenClient.test.ts:1:1
+✖ test\projectAccessTokenClient.test.ts (1373.2058ms)
+  'test failed'
+
+test at test\projectAccessTokenKeyContract.test.ts:1:1
+✖ test\projectAccessTokenKeyContract.test.ts (1375.9552ms)
+  'test failed'
+
+test at test\providerProvisioning.test.ts:1:1
+✖ test\providerProvisioning.test.ts (2375.6178ms)
+  'test failed'
+
+test at test\remoteAppConfig.test.ts:1:1
+✖ test\remoteAppConfig.test.ts (746.1641ms)
+  'test failed'
+
+test at test\remoteAssetInstallMode.test.ts:1:1
+✖ test\remoteAssetInstallMode.test.ts (2118.5917ms)
+  'test failed'
+
+test at test\remoteEnvironmentKey.test.ts:1:1
+✖ test\remoteEnvironmentKey.test.ts (820.119ms)
+  'test failed'
+
+test at test\remoteResourcePackages.test.ts:1:1
+✖ test\remoteResourcePackages.test.ts (2577.1665ms)
+  'test failed'
+
+test at test\remoteSshHostKey.test.ts:1:1
+✖ test\remoteSshHostKey.test.ts (760.4576ms)
+  'test failed'
+
+test at test\remoteUsageTelemetry.test.ts:1:1
+✖ test\remoteUsageTelemetry.test.ts (754.596ms)
+  'test failed'
+
+test at test\remoteWorkspaceIdentity.test.ts:1:1
+✖ test\remoteWorkspaceIdentity.test.ts (788.411ms)
+  'test failed'
+
+test at test\rendererActionTrace.test.ts:1:1
+✖ test\rendererActionTrace.test.ts (776.715ms)
+  'test failed'
+
+test at test\runtimeEnv.test.ts:1:1
+✖ test\runtimeEnv.test.ts (794.0673ms)
+  'test failed'
+
+test at test\serverRemoteInfo.test.ts:1:1
+✖ test\serverRemoteInfo.test.ts (2508.1617ms)
+  'test failed'
+
+test at test\serverRemoteTarget.test.ts:1:1
+✖ test\serverRemoteTarget.test.ts (1795.975ms)
+  'test failed'
+
+test at test\serviceAuthority.test.ts:1:1
+✖ test\serviceAuthority.test.ts (803.0051ms)
+  'test failed'
+
+test at test\sessionCreateTelemetry.test.ts:1:1
+✖ test\sessionCreateTelemetry.test.ts (2337.9607ms)
+  'test failed'
+
+test at test\sessionOpenTimingProtocol.test.ts:1:1
+✖ test\sessionOpenTimingProtocol.test.ts (1644.3312ms)
+  'test failed'
+
+test at test\sharedContextImportState.test.ts:1:1
+✖ test\sharedContextImportState.test.ts (1557.7264ms)
+  'test failed'
+
+test at test\shortcutCommands.test.ts:1:1
+✖ test\shortcutCommands.test.ts (840.6051ms)
+  'test failed'
+
+test at test\streamingToolInputPreview.test.ts:1:1
+✖ test\streamingToolInputPreview.test.ts (820.9039ms)
+  'test failed'
+
+test at test\subagentMarkdownMigration.test.ts:1:1
+✖ test\subagentMarkdownMigration.test.ts (1477.0344ms)
+  'test failed'
+
+test at test\subagentMarkdownSelection.test.ts:1:1
+✖ test\subagentMarkdownSelection.test.ts (1387.214ms)
+  'test failed'
+
+test at test\subagentStateMigration.test.ts:1:1
+✖ test\subagentStateMigration.test.ts (1403.1333ms)
+  'test failed'
+
+test at test\taskRealtime.test.ts:1:1
+✖ test\taskRealtime.test.ts (2562.8372ms)
+  'test failed'
+
+test at test\telemetry.test.ts:1:1
+✖ test\telemetry.test.ts (804.6908ms)
+  'test failed'
+
+test at test\telemetryRedaction.test.ts:1:1
+✖ test\telemetryRedaction.test.ts (2173.4107ms)
+  'test failed'
+
+test at test\toolExecResourceTelemetry.test.ts:1:1
+✖ test\toolExecResourceTelemetry.test.ts (2496.1892ms)
+  'test failed'
+
+test at test\toolPlanAdapter.test.ts:1:1
+✖ test\toolPlanAdapter.test.ts (794.6471ms)
+  'test failed'
+
+test at test\unboundModelSelection.test.ts:1:1
+✖ test\unboundModelSelection.test.ts (2549.9532ms)
+  'test failed'
+
+test at test\underlyingErrorContract.test.ts:1:1
+✖ test\underlyingErrorContract.test.ts (1899.4352ms)
+  'test failed'
+
+test at test\validation.test.ts:1:1
+✖ test\validation.test.ts (2030.4511ms)
+  'test failed'
+
+test at test\webRemoteControl.test.ts:1:1
+✖ test\webRemoteControl.test.ts (1765.5945ms)
+  'test failed'
+
+test at test\webRemoteControlHeartbeat.test.ts:1:1
+✖ test\webRemoteControlHeartbeat.test.ts (825.7332ms)
+  'test failed'
+
+test at test\webRemoteControlRpcTransport.test.ts:1:1
+✖ test\webRemoteControlRpcTransport.test.ts (1371.4949ms)
+  'test failed'
+
+test at test\windowHostControlProtocol.test.ts:1:1
+✖ test\windowHostControlProtocol.test.ts (2253.8283ms)
+  'test failed'
+
+test at test\windowHostControllerProtocol.test.ts:1:1
+✖ test\windowHostControllerProtocol.test.ts (2583.3948ms)
+  'test failed'
+
+test at test\workflowNotificationArtifacts.test.ts:1:1
+✖ test\workflowNotificationArtifacts.test.ts (1625.3823ms)
+  'test failed'
+
+test at test\workspaceHookDiscoveryDedup.test.ts:1:1
+✖ test\workspaceHookDiscoveryDedup.test.ts (1494.773ms)
+  'test failed'
+
+test at test\workspaceHookMutation.test.ts:1:1
+✖ test\workspaceHookMutation.test.ts (1539.8519ms)
+  'test failed'
+
+test at test\workspaceHookReviewMonotonicity.test.ts:1:1
+✖ test\workspaceHookReviewMonotonicity.test.ts (888.7104ms)
+  'test failed'
+
+test at test\workspaceHookTrustStoreFile.test.ts:1:1
+✖ test\workspaceHookTrustStoreFile.test.ts (1460.0323ms)
+  'test failed'
+
+test at test\zcodeAgentRuntime.test.ts:1:1
+✖ test\zcodeAgentRuntime.test.ts (2922.887ms)
+  'test failed'
+
+test at test\zcodeEndpoint.test.ts:1:1
+✖ test\zcodeEndpoint.test.ts (1457.2826ms)
+  'test failed'
+
+test at test\zcodeNetworkDebugStatus.test.ts:1:1
+✖ test\zcodeNetworkDebugStatus.test.ts (847.7882ms)
+  'test failed'
+
+test at test\zcodePersistedMessageMerge.test.ts:1:1
+✖ test\zcodePersistedMessageMerge.test.ts (2661.7582ms)
+  'test failed'
+
+test at test\zcodeProtocol.test.ts:1:1
+✖ test\zcodeProtocol.test.ts (2115.9754ms)
+  'test failed'
+
+test at test\zcodeProtocolSavedWorkflows.test.ts:1:1
+✖ test\zcodeProtocolSavedWorkflows.test.ts (2095.6409ms)
+  'test failed'
+
+test at test\zcodeProtocolV4AttachmentSource.test.ts:1:1
+✖ test\zcodeProtocolV4AttachmentSource.test.ts (2355.6398ms)
+  'test failed'
+
+test at test\zcodeProtocolV4AttachmentUpload.test.ts:1:1
+✖ test\zcodeProtocolV4AttachmentUpload.test.ts (2294.9779ms)
+  'test failed'
+
+test at test\zcodeProtocolV4Coalesce.test.ts:1:1
+✖ test\zcodeProtocolV4Coalesce.test.ts (2435.7567ms)
+  'test failed'
+
+test at test\zcodeProtocolV4Command.test.ts:1:1
+✖ test\zcodeProtocolV4Command.test.ts (2421.7451ms)
+  'test failed'
+
+test at test\zcodeProtocolV4CommandQuery.test.ts:1:1
+✖ test\zcodeProtocolV4CommandQuery.test.ts (2320.5189ms)
+  'test failed'
+
+test at test\zcodeProtocolV4ConnectionScope.test.ts:1:1
+✖ test\zcodeProtocolV4ConnectionScope.test.ts (3214.8395ms)
+  'test failed'
+
+test at test\zcodeProtocolV4DisplayTolerance.test.ts:1:1
+✖ test\zcodeProtocolV4DisplayTolerance.test.ts (2352.836ms)
+  'test failed'
+
+test at test\zcodeProtocolV4FileRewind.test.ts:1:1
+✖ test\zcodeProtocolV4FileRewind.test.ts (2378.5232ms)
+  'test failed'
+
+test at test\zcodeProtocolV4HookSummary.test.ts:1:1
+✖ test\zcodeProtocolV4HookSummary.test.ts (2419.3431ms)
+  'test failed'
+
+test at test\zcodeProtocolV4Permission.test.ts:1:1
+✖ test\zcodeProtocolV4Permission.test.ts (2396.3093ms)
+  'test failed'
+
+test at test\zcodeProtocolV4PhysicalTopic.test.ts:1:1
+✖ test\zcodeProtocolV4PhysicalTopic.test.ts (2376.5562ms)
+  'test failed'
+
+test at test\zcodeProtocolV4Plans.test.ts:1:1
+✖ test\zcodeProtocolV4Plans.test.ts (2348.8495ms)
+  'test failed'
+
+test at test\zcodeProtocolV4SessionWorkflowActivity.test.ts:1:1
+✖ test\zcodeProtocolV4SessionWorkflowActivity.test.ts (2267.398ms)
+  'test failed'
+
+test at test\zcodeProtocolV4StableFork.test.ts:1:1
+✖ test\zcodeProtocolV4StableFork.test.ts (2291.7174ms)
+  'test failed'
+
+test at test\zcodeProtocolV4Telemetry.test.ts:1:1
+✖ test\zcodeProtocolV4Telemetry.test.ts (2507.1401ms)
+  'test failed'
+
+test at test\zcodeProtocolV4Usage.test.ts:1:1
+✖ test\zcodeProtocolV4Usage.test.ts (2554.9023ms)
+  'test failed'
+
+test at test\zcodeProtocolV4UserInputEpilogue.test.ts:1:1
+✖ test\zcodeProtocolV4UserInputEpilogue.test.ts (2476.1017ms)
+  'test failed'
+
+test at test\zcodeProtocolV4Wire.test.ts:1:1
+✖ test\zcodeProtocolV4Wire.test.ts (2630.1153ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WireFault.test.ts:1:1
+✖ test\zcodeProtocolV4WireFault.test.ts (2471.7072ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowObservationDisplay.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowObservationDisplay.test.ts (2451.4328ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowRuns.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowRuns.test.ts (2485.0004ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowRunsCachedSettle.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowRunsCachedSettle.test.ts (2547.4468ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowRunsCaps.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowRunsCaps.test.ts (2542.6079ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowRunsDelta.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowRunsDelta.test.ts (2457.6001ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowRunsEviction.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowRunsEviction.test.ts (2458.3898ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowRunsHoles.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowRunsHoles.test.ts (2483.7285ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowRunsReducer.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowRunsReducer.test.ts (2585.0946ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkflowWorkspace.test.ts:1:1
+✖ test\zcodeProtocolV4WorkflowWorkspace.test.ts (2475.8974ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkspaceConfig.test.ts:1:1
+✖ test\zcodeProtocolV4WorkspaceConfig.test.ts (2204.2275ms)
+  'test failed'
+
+test at test\zcodeProtocolV4WorkspaceHookReview.test.ts:1:1
+✖ test\zcodeProtocolV4WorkspaceHookReview.test.ts (2022.0879ms)
+  'test failed'
+
+test at test\zcodeProtocolWorkspaceHookTrust.test.ts:1:1
+✖ test\zcodeProtocolWorkspaceHookTrust.test.ts (1780.5707ms)
+  'test failed'
+
+test at test\zcodeSessionContentProfile.test.ts:1:1
+✖ test\zcodeSessionContentProfile.test.ts (2053.0796ms)
+  'test failed'
+
+test at test\zcodeSessionTaskStatus.test.ts:1:1
+✖ test\zcodeSessionTaskStatus.test.ts (1819.6599ms)
+  'test failed'
+
+test at test\zcodeSessionVisibleContent.test.ts:1:1
+✖ test\zcodeSessionVisibleContent.test.ts (1814.5601ms)
+  'test failed'
+
+test at test\zcodeSourceHeaders.test.ts:1:1
+✖ test\zcodeSourceHeaders.test.ts (824.1813ms)
+  'test failed'
+
+test at test\zcodeTaskMetaSchema.test.ts:1:1
+✖ test\zcodeTaskMetaSchema.test.ts (1543.9886ms)
+  'test failed'
+D:\ZCodium\packages\shared:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @mode/shared@ test: `tsx --test test/*.test.ts`
+Exit status 1

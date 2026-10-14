@@ -1,0 +1,12 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
+
+> mode@0.0.1 typecheck D:\ZCodium
+> tsc -b packages/rpc packages/provider packages/provider-node packages/shared packages/services packages/client packages/server packages/mode-server-cli packages/ui packages/web packages/desktop/tsconfig.host.json
+
+packages/services/src/session/offPeakRuntimeModel.ts(204,27): error TS2339: Property 'accountScope' does not exist on type 'AccountRequestAuthMaterial'.
+packages/ui/src/CodingPlanBillingDiscount.tsx(43,5): error TS2345: Argument of type 'ICodingPlanSubscriptionService | undefined' is not assignable to parameter of type 'Pick<ICodingPlanSubscriptionService, "getBillingDiscount"> | undefined'.
+  Property 'getBillingDiscount' is missing in type 'ICodingPlanSubscriptionService' but required in type 'Pick<ICodingPlanSubscriptionService, "getBillingDiscount">'.
+packages/ui/src/CodingPlanBillingDiscount.tsx(49,44): error TS2344: Type '"getBillingDiscount"' does not satisfy the constraint 'keyof ICodingPlanSubscriptionService'.
+packages/ui/src/CodingPlanBillingDiscount.tsx(297,49): error TS2344: Type '"getBillingDiscount"' does not satisfy the constraint 'keyof ICodingPlanSubscriptionService'.
+packages/ui/src/CodingPlanBillingDiscount.tsx(307,19): error TS18046: 'service.getBillingDiscount' is of type 'unknown'.
+ ELIFECYCLE  Command failed with exit code 2.

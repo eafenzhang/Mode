@@ -1,0 +1,100 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
+apps/mode-cli                            |  WARN  Unsupported engine: wanted: {"node":"24.14.0"} (current: {"node":"v24.18.1","pnpm":"10.33.2"})
+Scope: 14 of 50 workspace projects
+packages/formal-proof build$ vite build
+packages/model-option-map build$ tsc
+apps/mode-cli/packages/dynamic-workflow build$ node scripts/generate-libs.mjs && tsc
+apps/mode-cli/packages/shared-types build$ tsc
+packages/formal-proof build: [36mvite v8.0.8 [32mbuilding client environment for production...[36m[39m
+packages/formal-proof build: [2K
+packages/formal-proof build: transforming...✓ 572 modules transformed.
+packages/formal-proof build: rendering chunks...
+packages/model-option-map build: Done
+packages/formal-proof build: computing gzip size...
+packages/formal-proof build: dist/index.html                  0.42 kB │ gzip:  0.28 kB
+packages/formal-proof build: dist/assets/index-Cbvbq-qX.css   7.21 kB │ gzip:  2.08 kB
+packages/formal-proof build: dist/assets/index-QpmGD-wF.js   76.64 kB │ gzip: 25.80 kB
+packages/formal-proof build: [32m✓ built in 128ms[39m
+packages/formal-proof build: Done
+apps/mode-cli/packages/shared-types build: Done
+apps/mode-cli/packages/dynamic-workflow build: Done
+.../packages/dynamic-workflow-runtime build$ tsc
+.../packages/dynamic-workflow-runtime build: Done
+apps/mode-cli/packages/contracts build$ tsc
+packages/provider build$ tsc
+packages/provider build: Done
+apps/mode-cli/packages/contracts build: Done
+apps/mode-cli/packages/adapters build$ tsc
+apps/mode-cli/packages/core build$ tsc
+apps/mode-cli/packages/i18n build$ tsc
+packages/provider-node build$ tsc
+packages/provider-node build: Done
+apps/mode-cli/packages/i18n build: Done
+apps/mode-cli/packages/adapters build: Done
+apps/mode-cli/packages/core build: src/mcp/index.ts(308,5): error TS2353: Object literal may only specify known properties, and 'progress' does not exist in type 'ToolCallProgressPayload'.
+apps/mode-cli/packages/core build: src/permission/broker.ts(26,9): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/permission/service.ts(136,25): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/permission/service.ts(153,37): error TS2367: This comparison appears to be unintentional because the types '"plan" | "build" | "edit" | "auto"' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/runtime/execution-state.ts(62,3): error TS2322: Type '"build" | "edit" | "yolo" | "guarded" | "auto"' is not assignable to type 'CollaborationMode | undefined'.
+apps/mode-cli/packages/core build:   Type '"guarded"' is not assignable to type 'CollaborationMode | undefined'.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(6,35): error TS2339: Property 'conversationQuotes' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(7,39): error TS2339: Property 'botGroupSource' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(18,65): error TS7006: Parameter 'message' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(27,35): error TS7006: Parameter 'message' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(31,14): error TS7006: Parameter 'part' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(33,13): error TS7031: Binding element 'refId' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(33,20): error TS7031: Binding element 'name' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(33,26): error TS7031: Binding element 'channel' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(33,35): error TS7031: Binding element 'targetId' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(43,66): error TS7006: Parameter 'message' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/helpers/conversation-quotes.ts(45,56): error TS7006: Parameter 'part' implicitly has an 'any' type.
+apps/mode-cli/packages/core build: src/runtime/methods/dynamic-workflow-run-hole-notification.ts(75,9): error TS2322: Type '"hole"' is not assignable to type '"terminal" | "escalation" | "stall"'.
+apps/mode-cli/packages/core build: src/runtime/methods/message-persistence.ts(109,34): error TS2339: Property 'highspeed' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/methods/message-persistence.ts(109,74): error TS2339: Property 'highspeed' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/methods/message-persistence.ts(125,26): error TS2339: Property 'conversationQuotes' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/methods/message-persistence.ts(126,26): error TS2339: Property 'botGroupSource' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/methods/prompt-admission.ts(30,7): error TS2322: Type 'TurnAttachment[] | undefined' is not assignable to type 'PendingTurnAttachment[] | undefined'.
+apps/mode-cli/packages/core build:   Type 'TurnAttachment[]' is not assignable to type 'PendingTurnAttachment[]'.
+apps/mode-cli/packages/core build:     Type 'TurnAttachment' is not assignable to type 'PendingTurnAttachment'.
+apps/mode-cli/packages/core build:       Types of property 'sourceKind' are incompatible.
+apps/mode-cli/packages/core build:         Type '"clipboard-text" | "topic-history" | undefined' is not assignable to type '"clipboard-text" | undefined'.
+apps/mode-cli/packages/core build:           Type '"topic-history"' is not assignable to type '"clipboard-text"'.
+apps/mode-cli/packages/core build: src/runtime/methods/prompt-admission.ts(87,7): error TS2322: Type 'TurnAttachment[] | undefined' is not assignable to type 'PendingTurnAttachment[] | undefined'.
+apps/mode-cli/packages/core build:   Type 'TurnAttachment[]' is not assignable to type 'PendingTurnAttachment[]'.
+apps/mode-cli/packages/core build:     Type 'TurnAttachment' is not assignable to type 'PendingTurnAttachment'.
+apps/mode-cli/packages/core build:       Types of property 'sourceKind' are incompatible.
+apps/mode-cli/packages/core build:         Type '"clipboard-text" | "topic-history" | undefined' is not assignable to type '"clipboard-text" | undefined'.
+apps/mode-cli/packages/core build:           Type '"topic-history"' is not assignable to type '"clipboard-text"'.
+apps/mode-cli/packages/core build: src/runtime/methods/steering.ts(58,29): error TS2339: Property 'conversationQuotes' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/methods/steering.ts(1227,32): error TS2339: Property 'conversationQuotes' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/methods/steering.ts(1228,32): error TS2339: Property 'botGroupSource' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/methods/subagent.ts(8,10): error TS2305: Module '"@mode/contracts"' has no exported member 'inheritPermissionMode'.
+apps/mode-cli/packages/core build: src/runtime/methods/turn-execution-fallback.ts(234,22): error TS2339: Property 'TurnExecutionModelFallback' does not exist on type '{ readonly SessionCreated: "session_created"; readonly SessionResumed: "session_resumed"; readonly SessionForked: "session_forked"; readonly SessionCompacted: "session_compacted"; ... 74 more ...; readonly Error: "error"; }'.
+apps/mode-cli/packages/core build: src/runtime/methods/turn.ts(4,10): error TS2305: Module '"./input-intent-persistence.js"' has no exported member 'ensureGroupTaskPermissionScope'.
+apps/mode-cli/packages/core build: src/runtime/methods/turn.ts(526,34): error TS2339: Property 'conversationQuotes' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/methods/turn.ts(527,34): error TS2339: Property 'botGroupSource' does not exist on type 'TurnInputIntentMetadata'.
+apps/mode-cli/packages/core build: src/runtime/session-mode-port.ts(11,11): error TS2322: Type '(input: SessionModeTransitionInput | undefined) => Promise<{ previousMode: "build" | "edit" | "yolo" | "guarded" | "auto"; previousPlanEnabled: boolean; mode: "build" | ... 3 more ... | "auto"; planEnabled: boolean; }>' is not assignable to type '(input?: SessionModeTransitionInput | undefined) => Promise<EnterPlanModeTransitionResult>'.
+apps/mode-cli/packages/core build:   Type 'Promise<{ previousMode: "build" | "edit" | "yolo" | "guarded" | "auto"; previousPlanEnabled: boolean; mode: "build" | "edit" | "yolo" | "guarded" | "auto"; planEnabled: boolean; }>' is not assignable to type 'Promise<EnterPlanModeTransitionResult>'.
+apps/mode-cli/packages/core build:     Type '{ previousMode: "build" | "edit" | "yolo" | "guarded" | "auto"; previousPlanEnabled: boolean; mode: "build" | "edit" | "yolo" | "guarded" | "auto"; planEnabled: boolean; }' is not assignable to type 'EnterPlanModeTransitionResult'.
+apps/mode-cli/packages/core build:       Types of property 'mode' are incompatible.
+apps/mode-cli/packages/core build:         Type '"build" | "edit" | "yolo" | "guarded" | "auto"' is not assignable to type 'CollaborationMode'.
+apps/mode-cli/packages/core build:           Type '"guarded"' is not assignable to type 'CollaborationMode'.
+apps/mode-cli/packages/core build: src/runtime/session-mode-port.ts(20,11): error TS2322: Type '(input: SessionModeTransitionInput | undefined) => Promise<{ previousMode: "build" | "edit" | "yolo" | "guarded" | "auto"; previousPlanEnabled: true; mode: "build" | ... 3 more ... | "auto"; planEnabled: boolean; }>' is not assignable to type '(input?: SessionModeTransitionInput | undefined) => Promise<ExitPlanModeTransitionResult>'.
+apps/mode-cli/packages/core build:   Type 'Promise<{ previousMode: "build" | "edit" | "yolo" | "guarded" | "auto"; previousPlanEnabled: true; mode: "build" | "edit" | "yolo" | "guarded" | "auto"; planEnabled: boolean; }>' is not assignable to type 'Promise<ExitPlanModeTransitionResult>'.
+apps/mode-cli/packages/core build:     Type '{ previousMode: "build" | "edit" | "yolo" | "guarded" | "auto"; previousPlanEnabled: true; mode: "build" | "edit" | "yolo" | "guarded" | "auto"; planEnabled: boolean; }' is not assignable to type 'ExitPlanModeTransitionResult'.
+apps/mode-cli/packages/core build:       Types of property 'mode' are incompatible.
+apps/mode-cli/packages/core build:         Type '"build" | "edit" | "yolo" | "guarded" | "auto"' is not assignable to type '"build" | "edit" | "yolo" | "auto"'.
+apps/mode-cli/packages/core build:           Type '"guarded"' is not assignable to type '"build" | "edit" | "yolo" | "auto"'.
+apps/mode-cli/packages/core build: src/runtime/types.ts(3,41): error TS2305: Module '"@mode/contracts"' has no exported member 'TurnExecutionModelFallbackReason'.
+apps/mode-cli/packages/core build: src/tool/executor/call-runner.ts(310,37): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/tool/executor/call-runner.ts(311,9): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/tool/executor/permission-flow.ts(211,11): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/tool/executor/permission-flow.ts(260,13): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/tool/executor/permission-response.ts(41,7): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/tool/executor/permission-response.ts(79,6): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/tool/executor/permission-response.ts(82,9): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: src/tool/handlers/bash.ts(119,18): error TS2367: This comparison appears to be unintentional because the types 'CollaborationMode | undefined' and '"guarded"' have no overlap.
+apps/mode-cli/packages/core build: Failed
+D:\ZCodium\apps\mode-cli\packages\core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @mode/core@0.1.0 build: `tsc`
+Exit status 2

@@ -1,0 +1,387 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides", "pnpm.patchedDependencies". See https://pnpm.io/settings for the new home of each setting.
+
+> mode@0.0.1 typecheck D:\ZCodium
+> tsc -b packages/rpc packages/provider packages/provider-node packages/shared packages/services packages/client packages/server packages/mode-server-cli packages/ui packages/web packages/desktop/tsconfig.host.json
+
+packages/provider/src/effective-model-selection.ts(1,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(31,24): error TS18046: 'state' is of type 'unknown'.
+packages/provider/src/facades.ts(154,34): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/facades.ts(612,26): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/index.ts(1,15): error TS2307: Cannot find module './account-provider-resolution.js' or its corresponding type declarations.
+packages/provider/src/index.ts(2,15): error TS2307: Cannot find module './account-provider-service.js' or its corresponding type declarations.
+packages/provider/src/index.ts(3,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/resolver.ts(23,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/sources.ts(8,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(1,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(31,24): error TS18046: 'state' is of type 'unknown'.
+packages/provider/src/facades.ts(154,34): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/facades.ts(612,26): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/index.ts(1,15): error TS2307: Cannot find module './account-provider-resolution.js' or its corresponding type declarations.
+packages/provider/src/index.ts(2,15): error TS2307: Cannot find module './account-provider-service.js' or its corresponding type declarations.
+packages/provider/src/index.ts(3,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/resolver.ts(23,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/sources.ts(8,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/shared/src/forceUpdate.ts(1,40): error TS2307: Cannot find module './coding-plan-subscription.js' or its corresponding type declarations.
+packages/shared/src/index.ts(78,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/shared/src/index.ts(247,15): error TS2307: Cannot find module './coding-plan-subscription.js' or its corresponding type declarations.
+packages/shared/src/index.ts(284,42): error TS2307: Cannot find module './coding-plan-subscription.js' or its corresponding type declarations.
+packages/shared/src/mode-protocol/index.ts(35,56): error TS2307: Cannot find module '../account-provider-state.js' or its corresponding type declarations.
+packages/shared/src/validation.ts(1311,33): error TS2339: Property 'optional' does not exist on type '(provider: "glm" | null | undefined) => provider is "glm"'.
+packages/shared/src/forceUpdate.ts(1,40): error TS2307: Cannot find module './coding-plan-subscription.js' or its corresponding type declarations.
+packages/shared/src/index.ts(78,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/shared/src/index.ts(247,15): error TS2307: Cannot find module './coding-plan-subscription.js' or its corresponding type declarations.
+packages/shared/src/index.ts(284,42): error TS2307: Cannot find module './coding-plan-subscription.js' or its corresponding type declarations.
+packages/shared/src/mode-protocol/index.ts(35,56): error TS2307: Cannot find module '../account-provider-state.js' or its corresponding type declarations.
+packages/shared/src/validation.ts(1311,33): error TS2339: Property 'optional' does not exist on type '(provider: "glm" | null | undefined) => provider is "glm"'.
+packages/provider/src/effective-model-selection.ts(1,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(31,24): error TS18046: 'state' is of type 'unknown'.
+packages/provider/src/facades.ts(154,34): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/facades.ts(612,26): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/index.ts(1,15): error TS2307: Cannot find module './account-provider-resolution.js' or its corresponding type declarations.
+packages/provider/src/index.ts(2,15): error TS2307: Cannot find module './account-provider-service.js' or its corresponding type declarations.
+packages/provider/src/index.ts(3,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/resolver.ts(23,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/sources.ts(8,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/services/src/accessor.ts(29,53): error TS2307: Cannot find module './coding-plan-subscription/codingPlanSubscription.js' or its corresponding type declarations.
+packages/services/src/client-config/clientConfigService.ts(67,11): error TS2322: Type '(options?: { forceRefresh?: boolean | undefined; } | undefined) => Promise<ClientConfigSnapshot | { pluginStoreOrder: null; }>' is not assignable to type '(options?: { forceRefresh?: boolean | undefined; } | undefined) => Promise<ClientConfigSnapshot>'.
+  Type 'Promise<ClientConfigSnapshot | { pluginStoreOrder: null; }>' is not assignable to type 'Promise<ClientConfigSnapshot>'.
+    Type 'ClientConfigSnapshot | { pluginStoreOrder: null; }' is not assignable to type 'ClientConfigSnapshot'.
+      Property 'zsrcUrl' is missing in type '{ pluginStoreOrder: null; }' but required in type 'ClientConfigSnapshot'.
+packages/services/src/index.ts(240,8): error TS2307: Cannot find module './coding-plan-subscription/codingPlanSubscription.js' or its corresponding type declarations.
+packages/services/src/index.ts(301,36): error TS2459: Module '"./plugin-ui-bridge/appToolsContract.js"' declares 'PluginUiPluginScope' locally, but it is not exported.
+packages/services/src/index.ts(302,10): error TS2459: Module '"./plugin-ui-bridge/contract.example.js"' declares 'IPluginUiBridgeService' locally, but it is not exported.
+packages/services/src/index.ts(302,34): error TS2305: Module '"./plugin-ui-bridge/contract.example.js"' has no exported member 'IPluginUiSamplingService'.
+packages/services/src/mode-agent/modeAgentService.ts(16,42): error TS2307: Cannot find module '#src/coding-plan-subscription/codingPlanSubscription.js' or its corresponding type declarations.
+packages/services/src/mode-agent/modeAgentService.ts(1020,14): error TS7006: Parameter 'provider' implicitly has an 'any' type.
+packages/services/src/mode-agent/modeAgentService.ts(1021,15): error TS7006: Parameter 'provider' implicitly has an 'any' type.
+packages/services/src/mode-agent/modeAgentService.ts(1021,49): error TS7006: Parameter 'model' implicitly has an 'any' type.
+packages/services/src/mode-agent/modeTaskServiceAdapter.ts(154,3): error TS2459: Module '"#src/session/claude-native/importedClaudeHistoryRepair.js"' declares 'readLegacyImportedClaudeHistory' locally, but it is not exported.
+packages/services/src/model-provider/accountRequestAuthService.ts(6,8): error TS2307: Cannot find module './accountProviderRequestAuthService.js' or its corresponding type declarations.
+packages/services/src/model-provider/accountRequestAuthService.ts(42,8): error TS2307: Cannot find module './accountProviderRequestAuthService.js' or its corresponding type declarations.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(14,49): error TS2307: Cannot find module '#src/bigmodel/teamPlanApiKey.js' or its corresponding type declarations.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(18,8): error TS2307: Cannot find module '#src/bigmodel/codingPlanEntitlement.js' or its corresponding type declarations.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(22,49): error TS2307: Cannot find module './bigmodelStartPlanModeJwt.js' or its corresponding type declarations.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(28,8): error TS2307: Cannot find module './zaiStartPlanBilling.js' or its corresponding type declarations.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(32,8): error TS2307: Cannot find module '../coding-plan-subscription/bigmodelCodingPlanSubscriptionProvider.js' or its corresponding type declarations.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(483,14): error TS7006: Parameter 'plan' implicitly has an 'any' type.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(484,15): error TS7006: Parameter 'plan' implicitly has an 'any' type.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(486,34): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(489,11): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/services/src/model-provider/codingPlanProviderAvailability.ts(497,8): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/services/src/model-provider/legacyTeamOrganizationResolver.ts(12,8): error TS2307: Cannot find module '#src/model-provider/accountProviderApiTypes.js' or its corresponding type declarations.
+packages/services/src/model-provider/legacyTeamOrganizationResolver.ts(21,3): error TS2322: Type '({ family, projectId }: LegacyTeamConnection) => Promise<{} | null>' is not assignable to type '(connection: LegacyTeamConnection) => Promise<string | null>'.
+  Type 'Promise<{} | null>' is not assignable to type 'Promise<string | null>'.
+    Type '{} | null' is not assignable to type 'string | null'.
+      Type '{}' is not assignable to type 'string'.
+packages/services/src/model-provider/legacyTeamOrganizationResolver.ts(47,18): error TS7006: Parameter 'org' implicitly has an 'any' type.
+packages/services/src/model-provider/legacyTeamOrganizationResolver.ts(47,46): error TS7006: Parameter 'project' implicitly has an 'any' type.
+packages/services/src/model-provider/legacyTeamOrganizationResolver.ts(48,15): error TS7006: Parameter 'org' implicitly has an 'any' type.
+packages/services/src/model-provider/legacyTeamOrganizationResolver.ts(49,18): error TS7006: Parameter 'id' implicitly has an 'any' type.
+packages/services/src/model-provider/providerProvisioningTarget.ts(20,15): error TS2305: Module '"@mode/provider"' has no exported member 'AccountProviderService'.
+packages/services/src/node.ts(176,49): error TS2307: Cannot find module './model-provider/accountProviderRequestAuthService.js' or its corresponding type declarations.
+packages/services/src/node.ts(177,54): error TS2307: Cannot find module './model-provider/accountProviderCredentialStore.js' or its corresponding type declarations.
+packages/services/src/node.ts(181,8): error TS2307: Cannot find module './model-provider/accountProviderCredentialStore.js' or its corresponding type declarations.
+packages/services/src/node.ts(188,8): error TS2307: Cannot find module './model-provider/accountProviderConnectionResolver.js' or its corresponding type declarations.
+packages/services/src/node.ts(189,49): error TS2307: Cannot find module './model-provider/accountProviderInvalidation.js' or its corresponding type declarations.
+packages/services/src/node.ts(197,8): error TS2307: Cannot find module './model-provider/accountProviderConnectionResolver.js' or its corresponding type declarations.
+packages/services/src/node.ts(232,57): error TS2307: Cannot find module './model-provider/accountProviderRequestAuthService.js' or its corresponding type declarations.
+packages/services/src/node.ts(233,53): error TS2307: Cannot find module './model-provider/accountProviderTeamPlanRequestKey.js' or its corresponding type declarations.
+packages/services/src/node.ts(234,56): error TS2307: Cannot find module './model-provider/accountProviderCredentialService.js' or its corresponding type declarations.
+packages/services/src/node.ts(253,53): error TS2307: Cannot find module './coding-plan-subscription/codingPlanSubscriptionService.js' or its corresponding type declarations.
+packages/services/src/node.ts(358,48): error TS2307: Cannot find module './coding-plan-subscription/codingPlanSubscription.js' or its corresponding type declarations.
+packages/services/src/node.ts(413,53): error TS2307: Cannot find module './model-provider/accountProviderTeamPlanRequestKey.js' or its corresponding type declarations.
+packages/services/src/node.ts(414,54): error TS2307: Cannot find module './model-provider/accountProviderCredentialStore.js' or its corresponding type declarations.
+packages/services/src/node.ts(415,56): error TS2307: Cannot find module './model-provider/accountProviderCredentialService.js' or its corresponding type declarations.
+packages/services/src/node.ts(416,57): error TS2307: Cannot find module './model-provider/accountProviderRequestAuthService.js' or its corresponding type declarations.
+packages/services/src/node.ts(421,8): error TS2307: Cannot find module './model-provider/accountProviderConnectionResolver.js' or its corresponding type declarations.
+packages/services/src/node.ts(422,49): error TS2307: Cannot find module './model-provider/accountProviderInvalidation.js' or its corresponding type declarations.
+packages/services/src/node.ts(423,42): error TS2307: Cannot find module './model-provider/accountProviderApiClient.js' or its corresponding type declarations.
+packages/services/src/node.ts(424,47): error TS2307: Cannot find module './model-provider/accountProviderApiKeyResolver.js' or its corresponding type declarations.
+packages/services/src/node.ts(453,53): error TS2307: Cannot find module './coding-plan-subscription/codingPlanSubscriptionService.js' or its corresponding type declarations.
+packages/services/src/node.ts(1583,32): error TS7006: Parameter 'family' implicitly has an 'any' type.
+packages/services/src/node.ts(1587,29): error TS7006: Parameter 'family' implicitly has an 'any' type.
+packages/services/src/node.ts(1587,37): error TS7006: Parameter 'accessToken' implicitly has an 'any' type.
+packages/services/src/node.ts(1617,37): error TS7006: Parameter 'access' implicitly has an 'any' type.
+packages/services/src/node.ts(1623,27): error TS7006: Parameter 'providerId' implicitly has an 'any' type.
+packages/services/src/node.ts(1624,38): error TS7006: Parameter 'providerId' implicitly has an 'any' type.
+packages/services/src/node.ts(1624,50): error TS7006: Parameter 'family' implicitly has an 'any' type.
+packages/services/src/node.ts(1634,31): error TS7006: Parameter 'access' implicitly has an 'any' type.
+packages/services/src/node.ts(1671,32): error TS7006: Parameter 'providerId' implicitly has an 'any' type.
+packages/services/src/node.ts(1671,44): error TS7006: Parameter 'family' implicitly has an 'any' type.
+packages/services/src/node.ts(1671,52): error TS7006: Parameter 'accountIdentity' implicitly has an 'any' type.
+packages/services/src/node.ts(1671,69): error TS7006: Parameter 'forceRefresh' implicitly has an 'any' type.
+packages/services/src/node.ts(1714,26): error TS7006: Parameter 'listener' implicitly has an 'any' type.
+packages/services/src/node.ts(1715,15): error TS7006: Parameter 'reason' implicitly has an 'any' type.
+packages/services/src/node.ts(1718,6): error TS7006: Parameter 'event' implicitly has an 'any' type.
+packages/services/src/oauth/oauthProviderLogout.ts(7,46): error TS2307: Cannot find module '../model-provider/accountProviderCredentialKey.js' or its corresponding type declarations.
+packages/services/src/oauth/oauthProviderLogout.ts(8,53): error TS2307: Cannot find module '../model-provider/accountProviderCredentialStore.js' or its corresponding type declarations.
+packages/services/src/oauth/providers/zaiProviderAdapter.ts(14,42): error TS2307: Cannot find module '../../providers/zaiBusinessTokenResolver.js' or its corresponding type declarations.
+packages/services/src/plugin-ui-bridge/contract.test.ts(1,27): error TS2305: Module '"@mode/shared"' has no exported member 'hostPluginSandboxRegisterResultMessageSchema'.
+packages/services/src/runtime-tools/providerRuntimeResolver.ts(5,26): error TS2305: Module '"../paths.js"' has no exported member 'getProviderWorkspaceConfigDir'.
+packages/services/src/session/offPeakRuntimeModel.ts(15,58): error TS2307: Cannot find module '../model-provider/accountProviderRequestAuthService.js' or its corresponding type declarations.
+packages/services/src/usage-stats/usageStatsService.ts(30,8): error TS2307: Cannot find module './providers/bigmodelUsageQuotaProvider.js' or its corresponding type declarations.
+packages/services/src/usage-stats/usageStatsService.ts(136,16): error TS7006: Parameter 'value' implicitly has an 'any' type.
+packages/client/src/messageport.ts(39,5): error TS2322: Type 'RemoteServiceAccess' is not assignable to type 'IServiceAccessor'.
+  Types of property 'genUiService' are incompatible.
+    Type 'IGitService' is missing the following properties from type 'IGenUiService': readDocument, prepareSandbox, getState, setState, and 2 more.
+packages/client/src/remoteServiceAccess.ts(94,12): error TS2416: Property 'genUiService' in type 'RemoteServiceAccess' is not assignable to the same property in base type 'IServiceAccessor'.
+  Type 'IGitService' is missing the following properties from type 'IGenUiService': readDocument, prepareSandbox, getState, setState, and 2 more.
+packages/client/src/websocket.ts(104,3): error TS2322: Type 'RemoteServiceAccess' is not assignable to type 'IServiceAccessor'.
+  Types of property 'genUiService' are incompatible.
+    Type 'IGitService' is missing the following properties from type 'IGenUiService': readDocument, prepareSandbox, getState, setState, and 2 more.
+packages/provider/src/effective-model-selection.ts(1,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(31,24): error TS18046: 'state' is of type 'unknown'.
+packages/provider/src/facades.ts(154,34): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/facades.ts(612,26): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/index.ts(1,15): error TS2307: Cannot find module './account-provider-resolution.js' or its corresponding type declarations.
+packages/provider/src/index.ts(2,15): error TS2307: Cannot find module './account-provider-service.js' or its corresponding type declarations.
+packages/provider/src/index.ts(3,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/resolver.ts(23,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/sources.ts(8,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(1,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(31,24): error TS18046: 'state' is of type 'unknown'.
+packages/provider/src/facades.ts(154,34): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/facades.ts(612,26): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/index.ts(1,15): error TS2307: Cannot find module './account-provider-resolution.js' or its corresponding type declarations.
+packages/provider/src/index.ts(2,15): error TS2307: Cannot find module './account-provider-service.js' or its corresponding type declarations.
+packages/provider/src/index.ts(3,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/resolver.ts(23,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/sources.ts(8,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/server/src/remote/connect.ts(305,5): error TS2322: Type 'RemoteServiceAccess' is not assignable to type 'IServiceAccessor'.
+  Types of property 'genUiService' are incompatible.
+    Type 'IGitService' is missing the following properties from type 'IGenUiService': readDocument, prepareSandbox, getState, setState, and 2 more.
+packages/server/src/stdioDeviceMid.ts(1,10): error TS2305: Module '"@mode/services/node"' has no exported member 'ensureTelemetryDeviceMid'.
+packages/server/src/stdioServices.ts(43,5): error TS2353: Object literal may only specify known properties, and 'topicResourceRelayChannel' does not exist in type '{ parentPort?: { postMessage(message: unknown): void; on(event: "message", listener: (e: { data: unknown; }) => void): void; } | null | undefined; settingService?: ISettingService | undefined; ... 22 more ...; cuaOperationStateReporter?: CuaOperationStateReporter | undefined; }'.
+packages/mode-server-cli/src/server-core/core.ts(9,3): error TS2305: Module '"@mode/services/node"' has no exported member 'createTopicResourcePeers'.
+packages/mode-server-cli/src/server-core/core.ts(54,5): error TS2353: Object literal may only specify known properties, and 'topicResourceRelayChannel' does not exist in type '{ parentPort?: { postMessage(message: unknown): void; on(event: "message", listener: (e: { data: unknown; }) => void): void; } | null | undefined; settingService?: ISettingService | undefined; ... 22 more ...; cuaOperationStateReporter?: CuaOperationStateReporter | undefined; }'.
+packages/mode-server-cli/src/server-core/core.ts(54,33): error TS7006: Parameter 'request' implicitly has an 'any' type.
+packages/mode-server-cli/src/server-core/http.ts(22,36): error TS2305: Module '"@mode/services/node"' has no exported member 'TopicResourcePeers'.
+packages/provider/src/effective-model-selection.ts(1,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(31,24): error TS18046: 'state' is of type 'unknown'.
+packages/provider/src/facades.ts(154,34): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/facades.ts(612,26): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/index.ts(1,15): error TS2307: Cannot find module './account-provider-resolution.js' or its corresponding type declarations.
+packages/provider/src/index.ts(2,15): error TS2307: Cannot find module './account-provider-service.js' or its corresponding type declarations.
+packages/provider/src/index.ts(3,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/resolver.ts(23,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/sources.ts(8,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/ui/src/app-shell/SubagentSessionSidePane.tsx(49,9): error TS2322: Type '{ paneId: string; sessionId: string; rootSessionId: string; readOnly: true; allowWorkspaceFileRewind: true; compactForRemoteControl: boolean; focused: boolean; workspacePath: string; workspaceIdentity: string | undefined; ... 5 more ...; onOpenBackgroundBash: ((request: OpenBackgroundBashSideTabRequest) => void) | u...' is not assignable to type 'IntrinsicAttributes & SessionPaneProps'.
+  Property 'compactForRemoteControl' does not exist on type 'IntrinsicAttributes & SessionPaneProps'.
+packages/ui/src/app-shell/workflow-artifacts/ArtifactOpenAsFileButton.tsx(44,35): error TS2344: Type '"openExternalFile" | "materializeWorkflowArtifactFile"' does not satisfy the constraint 'keyof IPlatformService'.
+  Type '"materializeWorkflowArtifactFile"' is not assignable to type 'keyof IPlatformService'.
+packages/ui/src/app-shell/workflow-artifacts/ArtifactOpenAsFileButton.tsx(49,14): error TS2339: Property 'materializeWorkflowArtifactFile' does not exist on type 'IPlatformService'.
+packages/ui/src/app-shell/workflow-artifacts/ArtifactOpenAsFileButton.tsx(85,21): error TS18046: 'platform.materializeWorkflowArtifactFile' is of type 'unknown'.
+packages/ui/src/app-shell/workflow-artifacts/ArtifactOpenAsFileButton.tsx(87,14): error TS7006: Parameter 'result' implicitly has an 'any' type.
+packages/ui/src/app-shell/WorkflowRunPhaseList.tsx(9,3): error TS2305: Module '"@/components/workflow-timeline/timeline-model.js"' has no exported member 'pillActivity'.
+packages/ui/src/app-shell/WorkflowRunPhaseList.tsx(35,10): error TS1484: 'SpineSection' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+packages/ui/src/app-shell/WorkflowRunPhaseList.tsx(204,20): error TS2693: 'SpineSection' only refers to a type, but is being used as a value here.
+packages/ui/src/app-shell/WorkflowRunPhasePills.tsx(17,3): error TS2305: Module '"@/app-shell/WorkflowRunSpineParts.js"' has no exported member 'SpinePillTrailer'.
+packages/ui/src/app-shell/WorkflowRunPhasePills.tsx(18,8): error TS2305: Module '"@/app-shell/WorkflowRunSpineParts.js"' has no exported member 'useWorkflowActorModelLabels'.
+packages/ui/src/app-shell/WorkflowRunSpineParts.tsx(135,16): error TS2339: Property 'curves' does not exist on type 'SpineSection'.
+packages/ui/src/app-shell/WorkflowRunSpineParts.tsx(135,28): error TS7006: Parameter 'curve' implicitly has an 'any' type.
+packages/ui/src/app-shell/WorkspaceShellLayout.tsx(1710,26): error TS2739: Type '{ reserveWindowControls: boolean; variant: "draft" | "task"; draftDropTargetController: ConversationDropTargetController | null | undefined; ... 42 more ...; allowOpenWorkspace: boolean; }' is missing the following properties from type '{ variant?: WorkspaceHeaderVariant | undefined; draftDropTargetController?: ConversationDropTargetController | null | undefined; ... 48 more ...; allowOpenWorkspace?: boolean | undefined; }': providerWorkspaceConfigPath, providerWorkspaceConfigExists, providerWorkspaceConfigLoading
+packages/ui/src/App.tsx(772,11): error TS2739: Type '{ getTheme: () => Theme; setTheme: (theme: Theme) => void; getLocale: () => Locale; setLocale: (locale: Locale) => void; setChatMessages: (messages: TaskChatMessage[]) => void; ... 11 more ...; getTaskListMembershipProbe: (params: { ...; }) => TaskListMembershipE2EProbe; }' is missing the following properties from type 'TestActions': sendBotMessage, submitBotGroupInput
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(9,8): error TS2305: Module '"@mode/shared"' has no exported member 'EmbeddedBrowserPermissionPromptEvent'.
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(10,8): error TS2305: Module '"@mode/shared"' has no exported member 'EmbeddedBrowserPermissionResolution'.
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(76,23): error TS7006: Parameter 'type' implicitly has an 'any' type.
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(123,30): error TS2339: Property 'onEmbeddedBrowserPermissionPrompt' does not exist on type 'IPlatformService'.
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(123,67): error TS7006: Parameter 'event' implicitly has an 'any' type.
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(132,14): error TS2339: Property 'resolveEmbeddedBrowserPermissionPrompt' does not exist on type 'IPlatformService'.
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(272,58): error TS7006: Parameter 'screen' implicitly has an 'any' type.
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(284,37): error TS7006: Parameter 'screen' implicitly has an 'any' type.
+packages/ui/src/browser-use/EmbeddedBrowserPermissionPrompts.tsx(313,37): error TS7006: Parameter 'device' implicitly has an 'any' type.
+packages/ui/src/CodingPlanBillingDiscount.tsx(2,3): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanBillingDiscountConfig'.
+packages/ui/src/CodingPlanBillingDiscount.tsx(3,3): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanBillingDiscountLocaleCopy'.
+packages/ui/src/components/workflow-timeline/WorkflowTimeline.tsx(401,17): error TS2322: Type '{ onSelectStation?: ((station: TimelineStation) => void) | undefined; tailStub?: "open" | "filled" | undefined; slide?: FillSlide | undefined; draft: boolean; ... 8 more ...; width: number; }' is not assignable to type 'IntrinsicAttributes & RowProps & { rails: ReadonlyMap<string, TimelineRail>; draft: boolean; pen: TypewriterState; top: number; width: number; }'.
+  Property 'fresh' does not exist on type 'IntrinsicAttributes & RowProps & { rails: ReadonlyMap<string, TimelineRail>; draft: boolean; pen: TypewriterState; top: number; width: number; }'.
+packages/ui/src/gen-ui/adapters/page.ts(168,31): error TS2339: Property 'setState' does not exist on type 'IGitService'.
+packages/ui/src/gen-ui/adapters/page.ts(244,40): error TS2339: Property 'readDocument' does not exist on type 'IGitService'.
+packages/ui/src/gen-ui/adapters/page.ts(248,29): error TS2339: Property 'onStateChanged' does not exist on type 'IGitService'.
+packages/ui/src/gen-ui/adapters/page.ts(248,45): error TS7006: Parameter 'change' implicitly has an 'any' type.
+packages/ui/src/gen-ui/adapters/page.ts(255,40): error TS2339: Property 'prepareSandbox' does not exist on type 'IGitService'.
+packages/ui/src/gen-ui/adapters/page.ts(268,38): error TS2339: Property 'getState' does not exist on type 'IGitService'.
+packages/ui/src/highspeed/HighspeedShareNoticeCard.tsx(10,10): error TS2305: Module '"@/components/ui/ModeAboutLogo.js"' has no exported member 'ModeWordmarkLogo'.
+packages/ui/src/hooks/useBotPrivateDeliveryRetry.ts(23,24): error TS2339: Property 'retryPrivateDelivery' does not exist on type 'IBotsService'.
+packages/ui/src/hooks/useBotPrivateDeliveryRetry.ts(24,25): error TS2339: Property 'retryPrivateDelivery' does not exist on type 'IBotsService'.
+packages/ui/src/hooks/useBrowserSitePermissions.ts(2,15): error TS2305: Module '"@mode/shared"' has no exported member 'EmbeddedBrowserSitePermissionsSnapshot'.
+packages/ui/src/hooks/useBrowserSitePermissions.ts(22,16): error TS2339: Property 'getEmbeddedBrowserSitePermissions' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useBrowserSitePermissions.ts(23,16): error TS2339: Property 'setEmbeddedBrowserSitePermission' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useBrowserSitePermissions.ts(24,16): error TS2339: Property 'resetEmbeddedBrowserSitePermission' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useBrowserSitePermissions.ts(35,31): error TS2339: Property 'getEmbeddedBrowserSitePermissions' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useBrowserSitePermissions.ts(39,24): error TS2339: Property 'getEmbeddedBrowserSitePermissions' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useBrowserSitePermissions.ts(65,24): error TS2339: Property 'resetEmbeddedBrowserSitePermission' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useBrowserSitePermissions.ts(67,24): error TS2339: Property 'setEmbeddedBrowserSitePermission' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useBuiltinAgentCli.ts(363,46): error TS2345: Argument of type 'AppSettings | null' is not assignable to parameter of type 'Pick<AppSettings, "enabledBuiltinAgentCliProviders"> | null | undefined'.
+  Property 'enabledBuiltinAgentCliProviders' is missing in type 'AppSettings' but required in type 'Pick<AppSettings, "enabledBuiltinAgentCliProviders">'.
+packages/ui/src/hooks/useBuiltinAgentCli.ts(375,69): error TS2345: Argument of type 'AppSettings | null' is not assignable to parameter of type 'Pick<AppSettings, "enabledBuiltinAgentCliProviders"> | null | undefined'.
+  Property 'enabledBuiltinAgentCliProviders' is missing in type 'AppSettings' but required in type 'Pick<AppSettings, "enabledBuiltinAgentCliProviders">'.
+packages/ui/src/hooks/useBuiltinAgentCli.ts(426,11): error TS2353: Object literal may only specify known properties, and 'enabledBuiltinAgentCliProviders' does not exist in type 'Partial<AppSettings>'.
+packages/ui/src/hooks/useBuiltinAgentCli.ts(466,11): error TS2353: Object literal may only specify known properties, and 'enabledBuiltinAgentCliProviders' does not exist in type 'Partial<AppSettings>'.
+packages/ui/src/hooks/useCodingPlanEntryPlanList.ts(6,43): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanPricingProduct'.
+packages/ui/src/hooks/useCodingPlanEntryPlanList.ts(7,56): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/hooks/useDynamicWorkflowAvailability.ts(47,45): error TS2344: Type '"syncDynamicWorkflowUserMode"' does not satisfy the constraint 'keyof IModeAgentService'.
+packages/ui/src/hooks/useDynamicWorkflowAvailability.ts(61,15): error TS18046: 'modeAgentService.syncDynamicWorkflowUserMode' is of type 'unknown'.
+packages/ui/src/hooks/useGenUi.ts(14,37): error TS2339: Property 'pluginSandbox' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useGenUi.ts(41,7): error TS2740: Type 'IGenUiService' is missing the following properties from type 'IGitService': getRepositorySummary, getWorkspaceRepositoryInfo, getLocalBranches, getCommitGraph, and 14 more.
+packages/ui/src/hooks/useGenUi.ts(42,7): error TS2740: Type 'IGenUiService' is missing the following properties from type 'IGitService': getRepositorySummary, getWorkspaceRepositoryInfo, getLocalBranches, getCommitGraph, and 14 more.
+packages/ui/src/hooks/useWebRemoteControlStatus.ts(62,43): error TS2339: Property 'getWebRemoteControlStatus' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useWebRemoteControlStatus.ts(75,43): error TS2339: Property 'onWebRemoteControlStatusChanged' does not exist on type 'IPlatformService'.
+packages/ui/src/hooks/useWebRemoteControlStatus.ts(76,8): error TS7006: Parameter 'nextStatus' implicitly has an 'any' type.
+packages/ui/src/hooks/useWebRemoteControlTaskOpen.ts(107,7): error TS2353: Object literal may only specify known properties, and 'taskId' does not exist in type 'WebRemoteControlWorkspaceTarget'.
+packages/ui/src/hooks/useWorkflowRunSave.ts(121,20): error TS2339: Property 'findSavedWorkflowForRun' does not exist on type 'IModeAgentService'.
+packages/ui/src/hooks/useWorkflowRunSave.ts(134,43): error TS2339: Property 'saveSavedWorkflowFromRun' does not exist on type 'IModeAgentService'.
+packages/ui/src/hooks/useWorkspaceProviderConfigFile.ts(168,8): error TS2339: Property 'getWorkspaceProviderConfigFile' does not exist on type 'IModeTaskService'.
+packages/ui/src/hooks/useWorkspaceProviderConfigFile.ts(173,14): error TS7006: Parameter 'result' implicitly has an 'any' type.
+packages/ui/src/lib/builtinAgentCli.ts(22,31): error TS2344: Type '"enabledBuiltinAgentCliProviders"' does not satisfy the constraint 'keyof AppSettings'.
+packages/ui/src/lib/builtinAgentCli.ts(25,5): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'readonly "glm"[] | undefined'.
+packages/ui/src/lib/builtinAgentCli.ts(57,32): error TS2344: Type '"enabledBuiltinAgentCliProviders"' does not satisfy the constraint 'keyof AppSettings'.
+packages/ui/src/lib/codingPlanUsageSources.ts(95,37): error TS7006: Parameter 'projectContext' implicitly has an 'any' type.
+packages/ui/src/lib/codingPlanUsageSources.ts(95,53): error TS7006: Parameter 'index' implicitly has an 'any' type.
+packages/ui/src/lib/composerRecent.ts(48,56): error TS2345: Argument of type 'string' is not assignable to parameter of type '"zai" | "bigmodel"'.
+packages/ui/src/lib/composerRecent.ts(72,52): error TS2345: Argument of type 'string' is not assignable to parameter of type '"zai" | "bigmodel"'.
+packages/ui/src/lib/helpMenuActions.ts(15,36): error TS2344: Type '"exportLogs" | "openExternal" | "captureWindowScreenshot"' does not satisfy the constraint 'keyof IPlatformService'.
+  Type '"captureWindowScreenshot"' is not assignable to type 'keyof IPlatformService'.
+packages/ui/src/lib/modelProviderFamilyConnectionSelection.ts(2,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanPricingProduct'.
+packages/ui/src/lib/providerSettingsFormTypes.ts(4,3): error TS2305: Module '"@mode/provider"' has no exported member 'AccountProviderState'.
+packages/ui/src/lib/startPlanEntitlementOptions.ts(4,56): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/plugin-ui/adapters/pluginUiManagedPage.ts(49,36): error TS2339: Property 'pluginSandbox' does not exist on type 'IPlatformService'.
+packages/ui/src/plugin-ui/adapters/pluginUiResourceDeltaFeed.ts(19,23): error TS2339: Property 'onLiveDeltas' does not exist on type 'ConversationProjectionStore'.
+packages/ui/src/plugin-ui/adapters/pluginUiResourceDeltaFeed.ts(19,37): error TS7006: Parameter 'deltas' implicitly has an 'any' type.
+packages/ui/src/plugin-ui/adapters/usePluginUiHost.ts(29,45): error TS2339: Property 'pluginSandbox' does not exist on type 'IPlatformService'.
+packages/ui/src/plugin-ui/adapters/usePluginUiHost.ts(52,18): error TS2339: Property 'pluginSandbox' does not exist on type 'IPlatformService'.
+packages/ui/src/plugin-ui/app/pluginUiResourceSubscriptions.ts(80,25): error TS2345: Argument of type 'Promise<void> | undefined' is not assignable to parameter of type 'Promise<void>'.
+  Type 'undefined' is not assignable to type 'Promise<void>'.
+packages/ui/src/plugin-ui/app/pluginUiResourceSubscriptions.ts(82,5): error TS2322: Type 'Promise<void> | undefined' is not assignable to type 'Promise<void>'.
+  Type 'undefined' is not assignable to type 'Promise<void>'.
+packages/ui/src/prompt-editor/ChatPromptEditor.tsx(358,7): error TS2322: Type '{ placeholder: string | undefined; disabled: boolean; submitDisabled: boolean; allowSubmitWhenEmpty: boolean; enterSubmits: boolean; onSubmit: (value: string) => boolean | void; onModifiedSubmit: ((value: string) => boolean | void) | undefined; ... 16 more ...; enableMentionPanel: boolean | undefined; }' is not assignable to type 'IntrinsicAttributes & LexicalChatInputProps'.
+  Property 'avoidIosInputFocusZoom' does not exist on type 'IntrinsicAttributes & LexicalChatInputProps'.
+packages/ui/src/RemoteConnectionDialogContent.tsx(242,10): error TS2740: Type '{ kind: "lan" | "ssh" | "wsl" | "docker"; lanFields: RemoteConnectionLanFieldsProps; host: string; port: string; username: string; sshAuthMethod: SSHAuthMethod; ... 31 more ...; refreshDockerContainers: (() => void) | undefined; }' is missing the following properties from type '{ kind: "lan" | "ssh" | "wsl" | "docker"; lanFields: RemoteConnectionLanFieldsProps; host: string; port: string; username: string; sshAuthMethod: SSHAuthMethod; ... 39 more ...; setServerWorkspacePath: (value: string) => void; }': serverUrl, serverName, serverToken, serverWorkspacePath, and 4 more.
+packages/ui/src/RemoteConnectionFields.tsx(777,10): error TS2678: Type '"server"' is not comparable to type '"lan" | "ssh" | "wsl" | "docker"'.
+packages/ui/src/root/oauthProviderFamilySelectionRefresh.ts(2,15): error TS2305: Module '"@mode/provider"' has no exported member 'AccountProviderState'.
+packages/ui/src/root/oauthProviderFamilySelectionRefresh.ts(14,56): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/root/oauthTeamPricing.ts(2,15): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanPricingProduct'.
+packages/ui/src/root/reconnectRemoteWorkspaceHistoryEntry.ts(117,5): error TS2353: Object literal may only specify known properties, and 'token' does not exist in type '{ password: string | null; privateKeyPassphrase: string | null; }'.
+packages/ui/src/root/reconnectRemoteWorkspaceHistoryEntry.ts(133,7): error TS2367: This comparison appears to be unintentional because the types '"lan" | "ssh" | "wsl" | "docker"' and '"server"' have no overlap.
+packages/ui/src/root/reconnectRemoteWorkspaceHistoryEntry.ts(133,68): error TS2339: Property 'tokenCredentialKey' does not exist on type 'never'.
+packages/ui/src/root/reconnectRemoteWorkspaceHistoryEntry.ts(134,52): error TS2339: Property 'tokenCredentialKey' does not exist on type 'never'.
+packages/ui/src/root/reconnectRemoteWorkspaceHistoryEntry.ts(138,7): error TS2353: Object literal may only specify known properties, and 'token' does not exist in type '{ password: string | null; privateKeyPassphrase: string | null; }'.
+packages/ui/src/root/WorkspaceSettingsLayer.tsx(38,13): error TS2322: Type '{ isDesktop: boolean | undefined; isMacDesktop: boolean | undefined; isWindowsDesktop: boolean | undefined; isWebRemoteControl: boolean | undefined; windowsWindowControlsRightPaddingPx: number | undefined; ... 7 more ...; user: UserInfo | ... 1 more ... | undefined; }' is not assignable to type 'IntrinsicAttributes & { isDesktop?: boolean | undefined; isWindowsDesktop?: boolean | undefined; isMacDesktop?: boolean | undefined; windowsWindowControlsRightPaddingPx?: number | undefined; ... 7 more ...; user?: UserInfo | ... 1 more ... | undefined; }'.
+  Property 'isWebRemoteControl' does not exist on type 'IntrinsicAttributes & { isDesktop?: boolean | undefined; isWindowsDesktop?: boolean | undefined; isMacDesktop?: boolean | undefined; windowsWindowControlsRightPaddingPx?: number | undefined; ... 7 more ...; user?: UserInfo | ... 1 more ... | undefined; }'.
+packages/ui/src/root/WorkspaceSettingsLayer.tsx(55,11): error TS2322: Type '{ isDesktop: boolean | undefined; isMacDesktop: boolean | undefined; isWindowsDesktop: boolean | undefined; isWebRemoteControl: boolean | undefined; windowsWindowControlsRightPaddingPx: number | undefined; ... 7 more ...; user: UserInfo | ... 1 more ... | undefined; }' is not assignable to type 'IntrinsicAttributes & { isDesktop?: boolean | undefined; isWindowsDesktop?: boolean | undefined; isMacDesktop?: boolean | undefined; windowsWindowControlsRightPaddingPx?: number | undefined; ... 7 more ...; user?: UserInfo | ... 1 more ... | undefined; }'.
+  Property 'isWebRemoteControl' does not exist on type 'IntrinsicAttributes & { isDesktop?: boolean | undefined; isWindowsDesktop?: boolean | undefined; isMacDesktop?: boolean | undefined; windowsWindowControlsRightPaddingPx?: number | undefined; ... 7 more ...; user?: UserInfo | ... 1 more ... | undefined; }'.
+packages/ui/src/settings/DynamicWorkflowModeSetting.tsx(55,22): error TS2344: Type '"dynamicWorkflowMode"' does not satisfy the constraint 'keyof AppSettings'.
+packages/ui/src/settings/DynamicWorkflowModeSetting.tsx(57,76): error TS2339: Property 'dynamicWorkflowMode' does not exist on type 'AppSettings'.
+packages/ui/src/settings/DynamicWorkflowModeSetting.tsx(82,20): error TS2559: Type 'Pick<AppSettings, "dynamicWorkflowMode">' has no properties in common with type 'Partial<AppSettings>'.
+packages/ui/src/settings/mcpSettingsShared.ts(11,3): error TS2561: Object literal may only specify known properties, but 'modeagentmcp' does not exist in type 'Record<"zcodeagentmcp", { label: string; section: string; badgeClass: string; }>'. Did you mean to write 'zcodeagentmcp'?
+packages/ui/src/settings/model-provider-section/codingPlanProductPresentation.ts(2,3): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanCardCopyItem'.
+packages/ui/src/settings/model-provider-section/codingPlanProductPresentation.ts(3,3): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanProductPreviewPayment'.
+packages/ui/src/settings/model-provider-section/codingPlanProductPresentation.ts(122,11): error TS7006: Parameter 'equity' implicitly has an 'any' type.
+packages/ui/src/settings/model-provider-section/Detail.tsx(10,8): error TS2305: Module '"@mode/shared"' has no exported member 'StartPlanPreviewConfig'.
+packages/ui/src/settings/model-provider-section/Detail.tsx(65,56): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(3,3): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanCampaignDiscountDetail'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(4,3): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanStaticTeamProduct'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(5,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanCreateOrderRequest'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(6,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanCreateOrderResponse'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(7,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanDiscountDetail'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(8,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanOrderCalculateResponse'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(9,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanPendingOrder'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(10,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanPaymentStatus'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(11,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanPricingProduct'.
+packages/ui/src/settings/model-provider-section/enterpriseCodingPlanProducts.ts(12,3): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanSubscribePeriod'.
+packages/ui/src/settings/model-provider-section/providerFamilyConnectionVisibility.ts(69,50): error TS2694: Namespace '"D:/ZCodium/packages/provider/dist/index"' has no exported member 'AccountProviderState'.
+packages/ui/src/settings/model-provider-section/providerFamilyConnectionVisibility.ts(70,55): error TS2694: Namespace '"D:/ZCodium/packages/provider/dist/index"' has no exported member 'AccountProviderState'.
+packages/ui/src/settings/model-provider-section/providerFamilyConnectionVisibility.ts(453,37): error TS7006: Parameter 'projectContext' implicitly has an 'any' type.
+packages/ui/src/settings/model-provider-section/StartPlanCard.tsx(2,15): error TS2305: Module '"@mode/shared"' has no exported member 'StartPlanPreviewConfig'.
+packages/ui/src/settings/model-provider-section/StartPlanCard.tsx(2,39): error TS2305: Module '"@mode/shared"' has no exported member 'StartPlanPreviewEntitlement'.
+packages/ui/src/settings/model-provider-section/StartPlanCard.tsx(97,6): error TS7006: Parameter 'total' implicitly has an 'any' type.
+packages/ui/src/settings/model-provider-section/StartPlanCard.tsx(97,13): error TS7006: Parameter 'entitlement' implicitly has an 'any' type.
+packages/ui/src/settings/model-provider-section/StatusCards.tsx(656,29): error TS2554: Expected 3-4 arguments, but got 1.
+packages/ui/src/settings/model-provider-section/StatusCards.tsx(657,27): error TS2554: Expected 3-4 arguments, but got 1.
+packages/ui/src/settings/model-provider-section/StatusCards.tsx(730,5): error TS2353: Object literal may only specify known properties, and 'fiveHourQuotaFull' does not exist in type '{ fiveHourEnabled: boolean; resetUi: CodingPlanQuotaResetUiController; usageItems: CodingPlanQuotaResetDialogUsageItem[]; weekEnabled: boolean; }'.
+packages/ui/src/settings/model-provider-section/useCodingPlanEntitlements.ts(18,56): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(5,3): error TS2305: Module '"@mode/shared"' has no exported member 'CODING_PLAN_SYSTEM_BUSY'.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(6,8): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanBatchPreviewResponse'.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(7,8): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanProductPreviewPayment'.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(8,8): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanStaticProduct'.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(9,8): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanStaticProductsConfig'.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(10,8): error TS2305: Module '"@mode/shared"' has no exported member 'StartPlanPreviewConfig'.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(270,38): error TS7006: Parameter 'product' implicitly has an 'any' type.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(280,42): error TS7006: Parameter 'product' implicitly has an 'any' type.
+packages/ui/src/settings/model-provider-section/useCodingPlanProducts.ts(304,48): error TS7006: Parameter 'entitlement' implicitly has an 'any' type.
+packages/ui/src/settings/model-provider-section/useEnterpriseCodingPlanProducts.ts(4,8): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanStaticTeamProduct'.
+packages/ui/src/settings/model-provider-section/useEnterpriseCodingPlanProducts.ts(5,8): error TS2305: Module '"@mode/shared"' has no exported member 'EnterpriseCodingPlanPricingResponse'.
+packages/ui/src/settings/model-provider-section/useEnterpriseCodingPlanProducts.ts(182,52): error TS7006: Parameter 'product' implicitly has an 'any' type.
+packages/ui/src/settings/model-provider-section/useStartPlanPreview.ts(1,15): error TS2305: Module '"@mode/shared"' has no exported member 'StartPlanPreviewConfig'.
+packages/ui/src/settings/ModelProviderSection.tsx(28,54): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/settings/PluginsSection.tsx(1331,17): error TS2322: Type '{ workspacePath: string; workspaceIdentity: string | undefined; remoteSessionId: string | undefined; remoteTarget: RemoteTarget | undefined; localWorkspacePath: string | undefined; ... 9 more ...; showMarketplaceBreadcrumb: boolean; }' is not assignable to type 'IntrinsicAttributes & McpSettingsSectionProps'.
+  Property 'isWebRemoteControl' does not exist on type 'IntrinsicAttributes & McpSettingsSectionProps'.
+packages/ui/src/settings/PluginsSection.tsx(1361,17): error TS2322: Type '{ workspacePath: string; workspaceIdentity: string | undefined; remoteSessionId: string | undefined; remoteTarget: RemoteTarget | undefined; isWebRemoteControl: boolean; ... 7 more ...; onVisibleCountChange: (count: number) => void; }' is not assignable to type 'IntrinsicAttributes & SkillsSectionProps'.
+  Property 'isWebRemoteControl' does not exist on type 'IntrinsicAttributes & SkillsSectionProps'.
+packages/ui/src/settings/PluginStoreSourcesDialog.tsx(85,26): error TS2554: Expected 3 arguments, but got 2.
+packages/ui/src/SettingsPage.tsx(55,8): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/store/embeddedBrowserPermissionStore.ts(2,15): error TS2305: Module '"@mode/shared"' has no exported member 'EmbeddedBrowserPermissionPromptEvent'.
+packages/ui/src/store/offPeakTaskStore.ts(173,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+packages/ui/src/test-actions.ts(22,53): error TS2339: Property 'submitBotGroupInput' does not exist on type 'IModeTaskService'.
+packages/ui/src/v4/composer/V4ComposerToolbar.tsx(94,54): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/v4/ConversationComposer.tsx(1062,64): error TS2345: Argument of type '{ inputRoutingMode: "guide" | "startNow" | "enqueue" | "reject" | "choice"; }' is not assignable to parameter of type '{ inputRoutingMode: "guide" | "startNow" | "enqueue" | "reject" | "choice"; isMobileTextInputViewport: boolean; isWebRemoteControl: boolean; }'.
+  Type '{ inputRoutingMode: "guide" | "startNow" | "enqueue" | "reject" | "choice"; }' is missing the following properties from type '{ inputRoutingMode: "guide" | "startNow" | "enqueue" | "reject" | "choice"; isMobileTextInputViewport: boolean; isWebRemoteControl: boolean; }': isMobileTextInputViewport, isWebRemoteControl
+packages/ui/src/v4/ConversationQuotaBanner.tsx(3,15): error TS2305: Module '"@mode/shared"' has no exported member 'CodingPlanBillingDiscountConfig'.
+packages/ui/src/v4/ConversationRowView.tsx(2182,48): error TS2554: Expected 3 arguments, but got 1.
+packages/ui/src/v4/ConversationTurnGroup.tsx(1719,15): error TS2322: Type '{ rowId: number; entityId: string | undefined; text: string; createdAt: number; compactForRemoteControl: boolean | undefined; feedback: AssistantMessageFeedback | null; ... 7 more ...; className: string; }' is not assignable to type 'IntrinsicAttributes & { rowId: number; entityId?: string | undefined; text: string; createdAt: number; feedback?: AssistantMessageFeedback | null | undefined; ... 6 more ...; className?: string | undefined; }'.
+  Property 'compactForRemoteControl' does not exist on type 'IntrinsicAttributes & { rowId: number; entityId?: string | undefined; text: string; createdAt: number; feedback?: AssistantMessageFeedback | null | undefined; ... 6 more ...; className?: string | undefined; }'.
+packages/ui/src/v4/conversationTurnRenderUnitTypes.ts(2,15): error TS2305: Module '"@mode/shared"' has no exported member 'BotTopicPreparation'.
+packages/ui/src/v4/sessionDataLayer.ts(87,76): error TS2554: Expected 2 arguments, but got 3.
+packages/ui/src/v4/V4ChatPane.tsx(133,9): error TS2322: Type '{ paneId: string; readOnly: boolean; sessionId: string | null; workspacePath: string; workspaceIdentity: string | undefined; isDesktop: boolean; compactForRemoteControl: boolean; provider: "glm" | undefined; ... 32 more ...; onSearchResultHighlightDone: ((requestId: number) => void) | undefined; }' is not assignable to type 'IntrinsicAttributes & SessionPaneProps'.
+  Property 'compactForRemoteControl' does not exist on type 'IntrinsicAttributes & SessionPaneProps'.
+packages/ui/src/v4/V4WorkspaceChatArea.tsx(222,42): error TS2304: Cannot find name 'PRIMARY_LEAF'.
+packages/ui/src/v4/WorkbenchPane.tsx(562,11): error TS2322: Type '{ paneId: string; readOnly: boolean; sessionId: string | null; activeSelectionSideChatSessionId: string | null; workspacePath: string; workspaceIdentity: string | undefined; remoteSessionId: string | undefined; ... 42 more ...; onSearchResultHighlightDone: ((requestId: number) => void) | undefined; }' is not assignable to type 'IntrinsicAttributes & SessionPaneProps'.
+  Property 'compactForRemoteControl' does not exist on type 'IntrinsicAttributes & SessionPaneProps'.
+packages/ui/src/WebRemoteControlMobileTaskHome.tsx(352,58): error TS2353: Object literal may only specify known properties, and 'mobileNavigationIntent' does not exist in type 'WebRemoteControlWorkspaceTarget'.
+packages/ui/src/WindowsCaptionMenuButton.tsx(60,58): error TS2741: Property 'captureWindowScreenshot' is missing in type 'IPlatformService' but required in type 'Pick<IPlatformService, "exportLogs" | "openExternal" | "captureWindowScreenshot">'.
+packages/ui/src/workspace-grouped-tasks/task-item.tsx(105,9): error TS2322: Type '{ task: ModeTaskMeta; currentGroupId: string | undefined; groups: TaskGroupMenuItem[]; remoteSessionId: string | undefined; activeWorkspacePath: string; ... 15 more ...; tooltipsDisabled: boolean | undefined; }' is not assignable to type 'IntrinsicAttributes & { task: ModeTaskMeta; currentGroupId?: string | undefined; groups: TaskGroupMenuItem[]; remoteSessionId?: string | undefined; ... 15 more ...; tooltipsDisabled?: boolean | undefined; }'.
+  Property 'mobileActiveTaskKey' does not exist on type 'IntrinsicAttributes & { task: ModeTaskMeta; currentGroupId?: string | undefined; groups: TaskGroupMenuItem[]; remoteSessionId?: string | undefined; ... 15 more ...; tooltipsDisabled?: boolean | undefined; }'.
+packages/ui/src/WorkspaceEditorButtonGroup.tsx(127,26): error TS2367: This comparison appears to be unintentional because the types '"lan" | "ssh" | "wsl" | "docker" | undefined' and '"server"' have no overlap.
+packages/ui/src/WorkspaceSidebarFooterUsageSummary.tsx(24,8): error TS2307: Cannot find module '@/lib/accountProviderAccess.js' or its corresponding type declarations.
+packages/ui/src/WorkspaceWebRemoteControlTrigger.tsx(187,9): error TS2322: Type '{ open: boolean; onOpenChange: Dispatch<SetStateAction<boolean>>; workspacePath: string; workspaceIdentity: string | undefined; remoteSessionId: string | undefined; initialTaskId: string | undefined; }' is not assignable to type 'IntrinsicAttributes & { open: boolean; onOpenChange: (open: boolean) => void; workspacePath: string; workspaceIdentity?: string | undefined; }'.
+  Property 'remoteSessionId' does not exist on type 'IntrinsicAttributes & { open: boolean; onOpenChange: (open: boolean) => void; workspacePath: string; workspaceIdentity?: string | undefined; }'.
+packages/web/src/auth/webZaiOAuthConfig.ts(62,35): error TS2551: Property 'webRemoteCallbackUrl' does not exist on type 'ModeEndpointUrls'. Did you mean 'webShareCallbackUrl'?
+packages/web/src/webRemoteControlTransport.ts(569,20): error TS2693: 'WebRemoteControlAppPayload' only refers to a type, but is being used as a value here.
+packages/client/src/messageport.ts(39,5): error TS2322: Type 'RemoteServiceAccess' is not assignable to type 'IServiceAccessor'.
+  Types of property 'genUiService' are incompatible.
+    Type 'IGitService' is missing the following properties from type 'IGenUiService': readDocument, prepareSandbox, getState, setState, and 2 more.
+packages/client/src/remoteServiceAccess.ts(94,12): error TS2416: Property 'genUiService' in type 'RemoteServiceAccess' is not assignable to the same property in base type 'IServiceAccessor'.
+  Type 'IGitService' is missing the following properties from type 'IGenUiService': readDocument, prepareSandbox, getState, setState, and 2 more.
+packages/client/src/websocket.ts(104,3): error TS2322: Type 'RemoteServiceAccess' is not assignable to type 'IServiceAccessor'.
+  Types of property 'genUiService' are incompatible.
+    Type 'IGitService' is missing the following properties from type 'IGenUiService': readDocument, prepareSandbox, getState, setState, and 2 more.
+packages/desktop/src/host/pluginSandbox/index.ts(28,47): error TS2339: Property 'PluginSandboxRegisterRequest' does not exist on type '{ readonly DatabaseStartupState: "database-startup-state"; readonly RemoteWorkspaceConnectionLog: "remote-workspace-connection-log"; readonly RemoteWorkspaceConnected: "remote-workspace-connected"; ... 47 more ...; readonly ProviderProvisioningExecutionResult: "provider-provisioning-execution-result"; }'.
+packages/desktop/src/host/remoteDynamicWorkflowUserMode.ts(15,47): error TS2344: Type '"syncDynamicWorkflowUserMode"' does not satisfy the constraint 'keyof IModeAgentService'.
+packages/desktop/src/host/remoteDynamicWorkflowUserMode.ts(22,31): error TS2367: This comparison appears to be unintentional because the types '"wsl" | "docker" | "ssh" | "lan"' and '"server"' have no overlap.
+packages/desktop/src/host/remoteDynamicWorkflowUserMode.ts(25,17): error TS18046: 'connection.modeAgentService.syncDynamicWorkflowUserMode' is of type 'unknown'.
+packages/desktop/src/host/remoteWorkspaceServiceCollection.ts(149,32): error TS7006: Parameter 'family' implicitly has an 'any' type.
+packages/desktop/src/host/remoteWorkspaceServiceCollection.ts(169,37): error TS7006: Parameter 'access' implicitly has an 'any' type.
+packages/desktop/src/host/remoteWorkspaceServiceCollection.ts(175,27): error TS7006: Parameter 'providerId' implicitly has an 'any' type.
+packages/desktop/src/host/remoteWorkspaceServiceCollection.ts(176,38): error TS7006: Parameter 'providerId' implicitly has an 'any' type.
+packages/desktop/src/host/remoteWorkspaceServiceCollection.ts(176,50): error TS7006: Parameter 'family' implicitly has an 'any' type.
+packages/desktop/src/host/remoteWorkspaceServiceCollection.ts(187,31): error TS7006: Parameter 'access' implicitly has an 'any' type.
+packages/desktop/src/host/serverRemoteConnection.ts(111,24): error TS2339: Property 'token' does not exist on type 'SSHConnectOptions'.
+packages/desktop/src/host/serverRemoteConnection.ts(172,24): error TS2339: Property 'token' does not exist on type 'SSHConnectOptions'.
+packages/desktop/src/host/serverRemoteConnection.ts(212,26): error TS2339: Property 'token' does not exist on type 'SSHConnectOptions'.
+packages/desktop/src/host/serverRemoteConnection.ts(259,57): error TS2339: Property 'url' does not exist on type 'SSHConnectOptions'.
+packages/desktop/src/host/windowHostControllerProjection.ts(159,7): error TS2322: Type 'ModeTaskMeta' is not assignable to type '{ taskId: string; traceId: string; title: string; workspacePath: string; createdAt: number; updatedAt: number; mode: "default" | "auto" | "plan" | "build" | "edit" | "yolo" | "guarded" | "acceptEdits" | "dontAsk" | "bypassPermissions" | "autoEdit"; ... 15 more ...; target?: { ...; } | ... 1 more ... | undefined; }'.
+  Property 'provider' is optional in type 'ModeTaskMeta' but required in type '{ taskId: string; traceId: string; title: string; workspacePath: string; createdAt: number; updatedAt: number; mode: "default" | "auto" | "plan" | "build" | "edit" | "yolo" | "guarded" | "acceptEdits" | "dontAsk" | "bypassPermissions" | "autoEdit"; ... 15 more ...; target?: { ...; } | ... 1 more ... | undefined; }'.
+packages/desktop/src/host/windowRemoteConnectionRegistry.ts(130,10): error TS2678: Type '"server"' is not comparable to type '"wsl" | "docker" | "ssh" | "lan"'.
+packages/desktop/src/host/windowRemoteConnectionRegistry.ts(576,46): error TS2367: This comparison appears to be unintentional because the types '"wsl" | "ssh" | "lan"' and '"server"' have no overlap.
+packages/provider/src/effective-model-selection.ts(1,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/effective-model-selection.ts(31,24): error TS18046: 'state' is of type 'unknown'.
+packages/provider/src/facades.ts(154,34): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/facades.ts(612,26): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/index.ts(1,15): error TS2307: Cannot find module './account-provider-resolution.js' or its corresponding type declarations.
+packages/provider/src/index.ts(2,15): error TS2307: Cannot find module './account-provider-service.js' or its corresponding type declarations.
+packages/provider/src/index.ts(3,15): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/resolver.ts(23,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/provider/src/sources.ts(8,44): error TS2307: Cannot find module './account-provider-state.js' or its corresponding type declarations.
+packages/server/src/remote/connect.ts(305,5): error TS2322: Type 'RemoteServiceAccess' is not assignable to type 'IServiceAccessor'.
+  Types of property 'genUiService' are incompatible.
+    Type 'IGitService' is missing the following properties from type 'IGenUiService': readDocument, prepareSandbox, getState, setState, and 2 more.
+ ELIFECYCLE  Command failed with exit code 1.
