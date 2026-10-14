@@ -141,12 +141,6 @@ export const ServiceChannels = {
   OnboardingRecord: "onboarding-record",
   /** 远程工作区对话记录镜像（本机与对端各存一份只读投影） */
   ConversationMirror: "conversation-mirror",
-  /** 用户反馈提交服务 */
-  Feedback: "feedback",
-  /** 云端内容（对话框素材）服务 */
-  CloudContent: "cloud-content",
-  /** 营销触达（横幅与弹窗）服务 */
-  MarketingTouch: "marketing-touch",
   /** 高速卡片服务 */
   HighspeedCard: "highspeed-card",
   /** 输出风格服务 */

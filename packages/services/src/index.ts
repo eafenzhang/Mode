@@ -295,7 +295,6 @@ export type {
 export { IClientConfigService } from "./client-config/clientConfig.js";
 
 // --- 并入后补丁: @mode/services ---
-export { type FeedbackUploadProgress, IFeedbackService } from './feedback/feedback.js';
 export { IHighspeedCardService } from './highspeed/highspeedCard.js';
 export { localRuntimeNetworkCapture } from './mode-agent/localRuntimeNetworkCapture.js';
 export { type TopicResourcePeers, createTopicResourcePeers } from './mode-agent/topicResourcePeers.js';
