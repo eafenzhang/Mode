@@ -1,4 +1,5 @@
 import type { RequestVerificationProof } from "./request-security-edition/verification-policy.js";
+export type { RequestVerificationProof };
 /* eslint-disable max-lines -- Coding Plan 订阅协议类型需要集中导出给 UI、services 和 RPC 共享，拆散会增加跨包类型入口复杂度。 */
 import type { Locale } from "./protocol.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
