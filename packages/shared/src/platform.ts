@@ -920,6 +920,11 @@ export interface IPlatformService {
   /** 清空某站点的全部持久权限状态。 */
   resetEmbeddedBrowserSitePermission?(payload: { origin: string }): Promise<void>;
   /**
+   * 截取当前窗口的一帧，返回 PNG data URL；平台不支持或截图失败时返回 null。
+   * 只用于用户主动发起的操作（如反馈附带截图），不参与任何自动上报。
+   */
+  captureWindowScreenshot?(): Promise<{ dataUrl: string } | null>;
+  /**
    * 插件 UI 沙箱的平台端口（宿主与网页交互、创建/销毁沙箱、消费用户手势）。
    * 未实现该能力的平台（web / 远程）缺席，插件 UI 卡据此降级。
    */

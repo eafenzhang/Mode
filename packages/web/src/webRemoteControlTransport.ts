@@ -192,6 +192,32 @@ function safePayloadMetadata(payload: unknown): Record<string, string | undefine
   };
 }
 
+/** App 层 payload 的 mode_type 白名单（rpc-frame 由 isRawTransportCandidate 单独处理）。 */
+const APP_PAYLOAD_TYPES: ReadonlySet<string> = new Set([
+  "bootstrap-request",
+  "bootstrap-response",
+  "workspace-list-request",
+  "workspace-list-response",
+  "workspace-list-updated",
+  "workspace-bridge-open",
+  "workspace-bridge-ready",
+  "workspace-bridge-error",
+  "workspace-reconnect-request",
+  "workspace-reconnect-response",
+  "mobile-view-state-update",
+  "platform-request",
+  "platform-response",
+  "bridge-degraded",
+  "app-error",
+  "mobile-diagnostic",
+]);
+
+function isAppPayloadCandidate(payload: unknown): payload is WebRemoteControlAppPayload {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
+  const type = (payload as { mode_type?: unknown }).mode_type;
+  return typeof type === "string" && APP_PAYLOAD_TYPES.has(type);
+}
+
 function isRawTransportCandidate(payload: unknown): boolean {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
   const type = (payload as { mode_type?: unknown }).mode_type;
@@ -566,11 +592,10 @@ export class WebRemoteControlTerminalTransport {
     if (isRawTransportCandidate(payload) && this.options.onRawTransportPayload?.(payload)) {
       return;
     }
-    const parsed = WebRemoteControlAppPayload(payload);
-    if (!parsed) {
+    if (!isAppPayloadCandidate(payload)) {
       return;
     }
-    this.options.onPayload(parsed);
+    this.options.onPayload(payload);
   }
 
   private startHeartbeat(): void {

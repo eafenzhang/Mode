@@ -83,6 +83,14 @@ export function getAppConfigDir(): string {
   return join(getModeDataRootDir(), "v2");
 }
 
+/**
+ * Provider 配置目录：与 app 配置同层，`provider_config.json` 就落在这里
+ * （见 docs/specs/flatten-provider-zones.md 的存量迁移节）。
+ */
+export function getProviderWorkspaceConfigDir(): string {
+  return join(getModeDataRootDir(), "v2");
+}
+
 function readEnvValue(env: Record<string, string | undefined>, key: string): string | undefined {
   const direct = env[key]?.trim();
   if (direct) {
