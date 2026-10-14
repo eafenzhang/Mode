@@ -305,7 +305,6 @@ function createMcpProgressEvent(
     toolCallId: context.toolCallId as ToolCallProgressPayload["toolCallId"],
     toolName,
     elapsedMs: Math.max(0, Date.now() - startedAt),
-    progress: progress.progress,
     ...(progress.total !== undefined ? { total: progress.total } : {}),
     ...(progress.message !== undefined ? { message: progress.message } : {}),
   };

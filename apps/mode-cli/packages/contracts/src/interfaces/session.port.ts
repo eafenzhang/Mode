@@ -320,7 +320,8 @@ export interface PendingTurnAttachment {
   type: "file" | "image" | "video" | "pdf" | "url";
   path?: string;
   content?: string;
-  sourceKind?: "clipboard-text";
+  /** `topic-history` 为话题历史沉淀出的临时附件；与 core 的 TurnAttachment 取值域保持一致。 */
+  sourceKind?: "clipboard-text" | "topic-history";
   filename?: string;
   mimeType?: string;
   sizeBytes?: number;
