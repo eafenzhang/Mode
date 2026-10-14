@@ -42,9 +42,9 @@ export interface WorkspaceHeaderTitleSectionProps {
   nativeSessionLogPath: string | null;
   nativeSessionLogExists: boolean;
   nativeSessionLogLoading: boolean;
-  providerWorkspaceConfigPath: string | null;
-  providerWorkspaceConfigExists: boolean;
-  providerWorkspaceConfigLoading: boolean;
+  providerWorkspaceConfigPath?: string | null;
+  providerWorkspaceConfigExists?: boolean;
+  providerWorkspaceConfigLoading?: boolean;
   onReloadSession?: (options?: WorkspaceHeaderReloadSessionOptions) => void | Promise<void>;
   reloadSessionDisabled?: boolean;
   reloadSessionPending?: boolean;

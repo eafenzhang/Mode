@@ -91,9 +91,10 @@ export function WorkspaceHeader({
   nativeSessionLogPath: string | null;
   nativeSessionLogExists: boolean;
   nativeSessionLogLoading: boolean;
-  providerWorkspaceConfigPath: string | null;
-  providerWorkspaceConfigExists: boolean;
-  providerWorkspaceConfigLoading: boolean;
+  /** provider 配置文件落点（可选：宿主没有该能力时为 undefined，头部不显示该项）。 */
+  providerWorkspaceConfigPath?: string | null;
+  providerWorkspaceConfigExists?: boolean;
+  providerWorkspaceConfigLoading?: boolean;
   workspaceHeaderState: WorkspaceHeaderState;
   gitSummary: GitRepositorySummary;
   gitDirtyFileCount: number;
