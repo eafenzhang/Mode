@@ -82,6 +82,16 @@ export interface SessionEvent {
 
 export const SessionEventType = {
   SessionCreated: "session_created",
+  /** 同步插件 UI 资源与加速卡指标的变化事件。 */
+  PluginUiResourceUpdated: "plugin_ui_resource_updated",
+  /** 同步插件 UI 资源与加速卡指标的变化事件。 */
+  PluginUiResourceListChanged: "plugin_ui_resource_list_changed",
+  /** 同步插件 UI 资源与加速卡指标的变化事件。 */
+  PluginUiAppToolCallRequested: "plugin_ui_app_tool_call_requested",
+  /** 同步插件 UI 资源与加速卡指标的变化事件。 */
+  PluginUiInstanceClosed: "plugin_ui_instance_closed",
+  /** 同步插件 UI 资源与加速卡指标的变化事件。 */
+  HighspeedMetricsUpdated: "highspeed_metrics_updated",
   /** 执行作用域 Selection 失败后回退到会话模型（Highspeed 加速卡等）。 */
   TurnExecutionModelFallback: "turn_execution_model_fallback",
   SessionResumed: "session_resumed",

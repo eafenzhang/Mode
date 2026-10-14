@@ -294,8 +294,39 @@ export type TurnSteerSource = "plan_approval_feedback" | "workflow_refine_feedba
 export type TurnSteerDeliveryMode = "guide" | "queue";
 
 /** 协议无关的输入 intent metadata；bootstrap v4 在事件边界组装为 ConversationInputIntent。 */
+/** message.data metadata.highspeed 的持久化契约；不包含运行时凭据。 */
+export interface HighspeedMessageMetadata {
+  schemaVersion: 1;
+  cardId: string;
+  taskId: string;
+  provider: string;
+  model: string;
+  issuedAt: number;
+  expiresAt: number;
+  regularTps?: number;
+  outputTokens?: number;
+  durationMs?: number;
+  savedDurationMs?: number;
+  modelDurationMs?: number;
+  toolDurationMs?: number;
+  otherDurationMs?: number;
+  fallbackAt?: number;
+  fallbackReason?: "highspeed_card_expired" | "highspeed_request_failed";
+}
+
 export interface TurnInputIntentMetadata {
   planEnabled?: boolean;
+  /** 用户「引用对话消息」时随输入固定的引用片段（协议边界保真透传）。 */
+  conversationQuotes?: Array<{
+    text: string;
+    path?: string;
+    senderName?: string;
+    senderId?: string;
+    messageId?: string;
+    sentAt?: string;
+  }>;
+  /** Highspeed 加速卡轮次的持久化元数据；普通轮次缺席。 */
+  highspeed?: HighspeedMessageMetadata;
   sourceCommandId: string;
   queueItemId: string;
   clientId: string;
