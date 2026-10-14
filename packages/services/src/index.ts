@@ -293,13 +293,3 @@ export type {
   PromptAttachmentTransferProgress,
 } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
 export { IClientConfigService } from "./client-config/clientConfig.js";
-export { IGenUiService } from "./gen-ui/index.js";
-
-// --- 并入后补丁: @mode/services ---
-export { IHighspeedCardService } from './highspeed/highspeedCard.js';
-export { localRuntimeNetworkCapture } from './mode-agent/localRuntimeNetworkCapture.js';
-export { IOutputStyleService } from './output-style/index.js';
-export { IPluginUiAppToolsService } from './plugin-ui-bridge/appToolsContract.js';
-export { IPluginUiBridgeService, type PluginUiPluginScope } from './plugin-ui-bridge/contract.js';
-export { IPluginUiSamplingService } from './plugin-ui-bridge/samplingContract.js';
-export { type PluginUiReadResourceResult, type PluginUiSurfaceEntry } from './plugin-ui-bridge/contract.js';

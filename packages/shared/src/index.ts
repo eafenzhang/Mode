@@ -88,6 +88,7 @@ export * from "./official-mcp-auth.js";
 export * from "./official-mcp-tool-error.js";
 export * from "./conversation-message-projection-policy.js";
 export * from "./conversation-share.js";
+export * from "./conversation-mirror.js";
 export * from "./officialPlatformPolicy.js";
 export * from "./conversation-preview-artifacts.js";
 export * from "./mode-session-task-status.js";

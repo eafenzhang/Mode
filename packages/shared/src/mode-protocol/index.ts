@@ -749,6 +749,20 @@ export const modeSessionImportHistorySchema = z.discriminatedUnion("source", [
       messages: z.array(modeSessionImportMessageSchema).min(1),
     })
     .strict(),
+  // 远程工作区对话记录镜像（docs/specs/remote-workspace-conversation-mirror.md）：
+  // 对端机器在同一路径下、本机本地 scope 产生的会话，按 sessionId 确定性派生目标 id 导入成真实会话；
+  // 导入完成即 resume，因此镜像会话与本地对话同质（可续聊 / 可置顶归档删除 / 进任务搜索）。
+  z
+    .object({
+      source: z.literal("remoteMirror"),
+      title: z.string().trim().min(1),
+      createdAt: timestampMsSchema.optional(),
+      updatedAt: timestampMsSchema.optional(),
+      /** 来源机器上的会话 id：重导入判据与诊断用（目标 id 由调用方按它派生）。 */
+      originSessionId: nonEmptyString,
+      messages: z.array(modeSessionImportMessageSchema).min(1),
+    })
+    .strict(),
   z
     .object({
       source: z.literal("sharedContext"),

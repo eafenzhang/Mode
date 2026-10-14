@@ -2,7 +2,6 @@ import { ProxyChannel, type IChannelClient } from "@mode/rpc";
 import {
   IFileService,
   IMediaPreviewService,
-  IGenUiService,
   IGitService,
   IGitCheckpointService,
   ISystemService,
@@ -28,14 +27,10 @@ import {
   IClientConfigService,
   IClientScenesService,
   IOffPeakTaskService,
-  IHighspeedCardService,
   ISkillsService,
   ISkillSyncService,
   IConversationMirrorService,
   IMcpSyncService,
-  IPluginUiAppToolsService,
-  IPluginUiSamplingService,
-  IPluginUiBridgeService,
   IPluginSyncService,
   IPluginsService,
   IPluginManagementService,
@@ -43,7 +38,6 @@ import {
   ICommandsService,
   IHooksService,
   IMemoryService,
-  IOutputStyleService,
   ISettingsSyncService,
   IPromptAttachmentTransferService,
   IWindowControllerService,
@@ -87,15 +81,10 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly clientConfigService: IClientConfigService;
   readonly clientScenesService: IClientScenesService;
   readonly offPeakTaskService: IOffPeakTaskService;
-  readonly highspeedCardService: IHighspeedCardService;
   readonly skillsService: ISkillsService;
   readonly skillSyncService: ISkillSyncService;
   readonly conversationMirrorService: IConversationMirrorService;
   readonly mcpSyncService: IMcpSyncService;
-  readonly genUiService: IGenUiService;
-  readonly pluginUiBridgeService: IPluginUiBridgeService;
-  readonly pluginUiSamplingService: IPluginUiSamplingService;
-  readonly pluginUiAppToolsService: IPluginUiAppToolsService;
   readonly pluginSyncService: IPluginSyncService;
   readonly pluginsService: IPluginsService;
   readonly pluginManagementService: IPluginManagementService;
@@ -103,7 +92,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly commandsService: ICommandsService;
   readonly hooksService: IHooksService;
   readonly memoryService: IMemoryService;
-  readonly outputStyleService: IOutputStyleService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
 
@@ -197,9 +185,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.offPeakTaskService = ProxyChannel.toService<IOffPeakTaskService>(
       channelClient.getChannel(IOffPeakTaskService.channelName),
     );
-    this.highspeedCardService = ProxyChannel.toService<IHighspeedCardService>(
-      channelClient.getChannel(IHighspeedCardService.channelName),
-    );
     this.skillsService = ProxyChannel.toService<ISkillsService>(
       channelClient.getChannel(ISkillsService.channelName),
     );
@@ -211,18 +196,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.mcpSyncService = ProxyChannel.toService<IMcpSyncService>(
       channelClient.getChannel(IMcpSyncService.channelName),
-    );
-    this.genUiService = ProxyChannel.toService<IGenUiService>(
-      channelClient.getChannel(IGenUiService.channelName),
-    );
-    this.pluginUiBridgeService = ProxyChannel.toService<IPluginUiBridgeService>(
-      channelClient.getChannel(IPluginUiBridgeService.channelName),
-    );
-    this.pluginUiSamplingService = ProxyChannel.toService<IPluginUiSamplingService>(
-      channelClient.getChannel(IPluginUiSamplingService.channelName),
-    );
-    this.pluginUiAppToolsService = ProxyChannel.toService<IPluginUiAppToolsService>(
-      channelClient.getChannel(IPluginUiAppToolsService.channelName),
     );
     this.pluginSyncService = ProxyChannel.toService<IPluginSyncService>(
       channelClient.getChannel(IPluginSyncService.channelName),
@@ -244,9 +217,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.memoryService = ProxyChannel.toService<IMemoryService>(
       channelClient.getChannel(IMemoryService.channelName),
-    );
-    this.outputStyleService = ProxyChannel.toService<IOutputStyleService>(
-      channelClient.getChannel(IOutputStyleService.channelName),
     );
     this.settingsSyncService = ProxyChannel.toService<ISettingsSyncService>(
       channelClient.getChannel(ISettingsSyncService.channelName),

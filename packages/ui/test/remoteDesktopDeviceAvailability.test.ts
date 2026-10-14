@@ -8,6 +8,7 @@ import test from "node:test";
 const {
   resolveRemoteDesktopDeviceAvailability,
   resolveRemoteDesktopDeviceLabel,
+  resolveRemoteDesktopDeviceStatusPill,
   filterUnpairedDiscoveredPeers,
 } = await import("../src/remote-desktop/deviceAvailability.js");
 
@@ -63,7 +64,12 @@ test("在线且能力位为真才可连接", () => {
   assert.deepEqual(
     resolveRemoteDesktopDeviceAvailability({
       status: "ok",
-      capability: { remoteDesktop: true, remoteDesktopNative: true, online: true, name: "DESKTOP-1" },
+      capability: {
+        remoteDesktop: true,
+        remoteDesktopNative: true,
+        online: true,
+        name: "DESKTOP-1",
+      },
     }),
     { canConnect: true, reason: null },
   );
@@ -73,7 +79,10 @@ test("在线且能力位为真才可连接", () => {
 test("本机被控中：即使对端就绪也整卡置灰", () => {
   assert.deepEqual(
     resolveRemoteDesktopDeviceAvailability(
-      { status: "ok", capability: { remoteDesktop: true, remoteDesktopNative: true, online: true } },
+      {
+        status: "ok",
+        capability: { remoteDesktop: true, remoteDesktopNative: true, online: true },
+      },
       { locallyControlled: true },
     ),
     { canConnect: false, reason: "locally-controlled" },
@@ -114,4 +123,81 @@ test("检测列表过滤已配对设备：保留未配对、统计隐藏数", ()
     visible: peers,
     hiddenCount: 0,
   });
+});
+
+// UI 规则「设备页」2026-10-14 改版：状态胶囊与「进入桌面」预览块同源（都投影自同一份探测结果），
+// 胶囊只表达状态，可操作性由预览块表达。色调是展示层映射，这里只锁语义与 i18n key。
+test("状态胶囊：探测中 / 状态未知用弱化档（不冒充离线）", () => {
+  assert.deepEqual(resolveRemoteDesktopDeviceStatusPill(undefined), {
+    labelId: "remoteDesktop.device.status.probing",
+    tone: "muted",
+  });
+  assert.deepEqual(resolveRemoteDesktopDeviceStatusPill({ status: "probing" }), {
+    labelId: "remoteDesktop.device.status.probing",
+    tone: "muted",
+  });
+  assert.deepEqual(resolveRemoteDesktopDeviceStatusPill({ status: "probe-failed" }), {
+    labelId: "remoteDesktop.device.status.unknown",
+    tone: "muted",
+  });
+});
+
+test("状态胶囊：离线 / 不支持用提醒档", () => {
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceStatusPill({
+      status: "ok",
+      capability: { remoteDesktop: true, remoteDesktopNative: true, online: false },
+    }),
+    { labelId: "remoteDesktop.device.status.offline", tone: "attention" },
+  );
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceStatusPill({
+      status: "ok",
+      capability: { remoteDesktop: false, remoteDesktopNative: false, online: true },
+    }),
+    { labelId: "remoteDesktop.device.status.unsupported", tone: "attention" },
+  );
+  // 有 remoteDesktop 但缺 native（旧版本）走同一档同一文案。
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceStatusPill({
+      status: "ok",
+      capability: { remoteDesktop: true, remoteDesktopNative: false, online: true },
+    }),
+    { labelId: "remoteDesktop.device.status.unsupported", tone: "attention" },
+  );
+});
+
+test("状态胶囊：仅「在线 + 两个能力位都为真」用就绪档", () => {
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceStatusPill({
+      status: "ok",
+      capability: { remoteDesktop: true, remoteDesktopNative: true, online: true },
+    }),
+    { labelId: "remoteDesktop.device.status.ready", tone: "ready" },
+  );
+});
+
+// 胶囊（状态）与预览块（可操作性）必须同源：任一探测结果下，就绪档 ⇔ canConnect。
+test("状态胶囊就绪档与可连接判定同源", () => {
+  const probes = [
+    undefined,
+    { status: "probing" },
+    { status: "probe-failed" },
+    { status: "ok", capability: { remoteDesktop: true, remoteDesktopNative: true, online: false } },
+    {
+      status: "ok",
+      capability: { remoteDesktop: false, remoteDesktopNative: false, online: true },
+    },
+    { status: "ok", capability: { remoteDesktop: true, remoteDesktopNative: false, online: true } },
+    { status: "ok", capability: { remoteDesktop: true, remoteDesktopNative: true, online: true } },
+  ];
+  for (const probe of probes) {
+    const ready = resolveRemoteDesktopDeviceStatusPill(probe).tone === "ready";
+    const { canConnect, reason } = resolveRemoteDesktopDeviceAvailability(probe);
+    assert.equal(ready, canConnect, `探测状态 ${JSON.stringify(probe)} 的胶囊与入口不一致`);
+    // 入口置灰（非本机被控）时，预览块一定拿得到原因文案 key。
+    if (!canConnect) {
+      assert.notEqual(reason, null);
+    }
+  }
 });

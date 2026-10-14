@@ -141,16 +141,6 @@ export const ServiceChannels = {
   OnboardingRecord: "onboarding-record",
   /** 远程工作区对话记录镜像（本机与对端各存一份只读投影） */
   ConversationMirror: "conversation-mirror",
-  /** 高速卡片服务 */
-  HighspeedCard: "highspeed-card",
-  /** 输出风格服务 */
-  OutputStyle: "output-style",
-  /** 插件 UI 桥：ui:// 资源读取、沙箱登记与工具调用代理 */
-  PluginUiBridge: "plugin-ui-bridge",
-  /** 插件 UI 采样服务 */
-  PluginUiSampling: "plugin-ui-sampling",
-  /** 插件 UI App-Provided Tools 登记 / 认领 / 回传 */
-  PluginUiAppTools: "plugin-ui-app-tools",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];
@@ -676,8 +666,6 @@ export const HostResponseTypes = {
   ProviderProvisioningSourceChanged: "provider-provisioning-source-changed",
   /** host → main：一次 Remote Environment 同步执行完毕。 */
   ProviderProvisioningExecutionResult: "provider-provisioning-execution-result",
-  /** host → main：插件 UI 沙箱登记请求的结果回执 */
-  PluginSandboxRegisterRequest: "plugin-sandbox-register-request",
 } as const;
 
 // ============================================================================
