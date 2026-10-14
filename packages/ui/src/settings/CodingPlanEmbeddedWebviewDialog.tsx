@@ -10,6 +10,7 @@ import { EmbeddedWebsiteHeader } from "@/components/EmbeddedWebsiteHeader.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useModeStoreWithDefault } from "@/store/StoreProvider.js";
 import { normalizeThemePreference, resolveTheme } from "@/useTheme.js";
+import type { CodingPlanWebviewLocale } from "@mode/shared";
 import type { CodingPlanProviderId } from "@/settings/model-provider-section/constants.js";
 import {
   buildCodingPlanEmbeddedWebviewUrl,
@@ -89,8 +90,9 @@ export function CodingPlanEmbeddedWebviewDialog({
   const webviewRef = useRef<ElectronWebviewTag | null>(null);
   const onOpenResultRef = useRef(onOpenResult);
   onOpenResultRef.current = onOpenResult;
-  // 当前 locale 作为 webview 语言 hint / 注入值；Locale 与 CodingPlanWebviewLocale 同构。
-  const webviewLocale = locale;
+  // 官网 WebView 只认 zh-CN / en-US（见 shared 的 CodingPlanWebviewLocale）；
+  // App 侧新增了 fa-IR 等 locale，注入前必须收敛到 WebView 支持集，否则官网首帧会拿到未知语言。
+  const webviewLocale: CodingPlanWebviewLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
   const webviewCleanupRef = useRef<(() => void) | null>(null);
   // webview 是否已 dom-ready：executeJavaScript 只在 ready 后调用，
   // 否则会抛 "WebView must be attached to the DOM and dom-ready emitted"。
