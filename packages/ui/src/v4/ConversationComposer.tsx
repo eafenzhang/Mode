@@ -102,7 +102,10 @@ import {
   type ChatComposerAttachment,
 } from "@/lib/chatAttachments.js";
 import { resolveChatPlaceholderKey } from "@/lib/chatPlaceholder.js";
-import { resolveChatEnterShortcut } from "@/lib/mobileTextInput.js";
+import {
+  resolveChatEnterShortcut,
+  useIsMobileTextInputViewport,
+} from "@/lib/mobileTextInput.js";
 import { appendPromptHistoryEntry } from "@/lib/promptHistory.js";
 import {
   persistPromptHistoryEntries,
@@ -345,6 +348,10 @@ function arePromptHistoryEntriesEqual(left: readonly string[], right: readonly s
 
 interface ConversationComposerProps {
   snapshot: ConversationSnapshot | null;
+  /**
+   * 手机 Web 远控链路（窄屏）。与「视口是否移动」分开：桌面窄窗口/触屏不应改变 Ctrl+Enter 语义。
+   */
+  isWebRemoteControl?: boolean;
   /** 草稿 scope（sessionId；draft 态 null → "__draft__" scope）。 */
   sessionId?: string | null;
   /** Skill catalog authority；草稿预热完成后为 prewarmSessionId，不改变 task/draft 身份。 */
@@ -468,6 +475,7 @@ function formatAttachmentLineCount(attachment: ChatComposerAttachment, locale: s
 
 function ConversationComposerImpl({
   snapshot,
+  isWebRemoteControl = false,
   sessionId = null,
   skillCatalogSessionId = sessionId,
   draftMode = false,
@@ -1059,8 +1067,11 @@ function ConversationComposerImpl({
   }, [workspacePath]);
 
   const mode = snapshot?.inputRouting.mode ?? "startNow";
+  const isMobileTextInputViewport = useIsMobileTextInputViewport();
   const modifiedEnterSubmits = shouldEnableModifiedEnterSubmit({
     inputRoutingMode: mode,
+    isMobileTextInputViewport,
+    isWebRemoteControl,
   });
   const canStop = Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
