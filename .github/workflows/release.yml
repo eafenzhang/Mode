@@ -320,6 +320,10 @@ jobs:
           set -euo pipefail
           cargo test --manifest-path crates/browser-import-helper/Cargo.toml
           cargo clippy --manifest-path crates/browser-import-helper/Cargo.toml --all-targets -- -D warnings
+          # 契约 A 的黑盒对拍：先产出旧产物（oracle，走 csc）与 Rust 产物，再逐字段比对。
+          node packages/desktop/scripts/build-windows-browser-import-helper.mjs
+          cargo build --manifest-path crates/browser-import-helper/Cargo.toml --target x86_64-pc-windows-msvc
+          node --test packages/desktop/tests/browser-import-helper-contract.test.mjs
 
       - name: Bundle desktop app
         env:
