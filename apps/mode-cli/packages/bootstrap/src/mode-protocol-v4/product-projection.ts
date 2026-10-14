@@ -307,6 +307,8 @@ export interface ConversationEditTarget {
     text: string;
     sourceCommandId?: string;
     clientId?: string;
+    /** 用户引用对话消息的片段；编辑重放时要原样带回。 */
+    conversationQuotes?: TurnInputIntentMetadata["conversationQuotes"];
     attachments?: CanonicalUserIntentFact["attachments"];
     queueItemId?: string;
     admissionSeq?: number;
