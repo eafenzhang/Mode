@@ -1,30 +1,3 @@
-export { hasConfiguredStandaloneCodingPlan, logoutModeCli } from "./auth-login-persistence.js";
-import {
-  persistStandaloneCodingPlanConnection,
-  type StandaloneCodingPlanPersistenceResult,
-} from "./auth-login-persistence.js";
-export { ModeCliLoginError } from "./auth-login-contract.js";
-export type {
-  CodingPlanProviderId,
-  LoginModeCliOptions,
-  LoginModeCliResult,
-  LoginBigmodelCodingPlanOptions,
-  LoginBigmodelCodingPlanResult,
-  ConfigureCodingPlanApiKeyOptions,
-  ConfigureCodingPlanApiKeyResult,
-  LogoutModeCliOptions,
-  LogoutModeCliResult,
-} from "./auth-login-contract.js";
-import {
-  ModeCliLoginError,
-  type CodingPlanProviderId,
-  type LoginModeCliOptions,
-  type LoginModeCliResult,
-  type LoginBigmodelCodingPlanOptions,
-  type LoginBigmodelCodingPlanResult,
-  type ConfigureCodingPlanApiKeyOptions,
-  type ConfigureCodingPlanApiKeyResult,
-} from "./auth-login-contract.js";
 import {
   createCodingPlanApiKeyResolver,
   createSharedModeCredentialStore,
@@ -32,24 +5,125 @@ import {
   createCliOAuthPollToken,
   openUrlInBrowser,
   SHARED_MODE_CREDENTIAL_KEYS,
+  type BrowserOpenResult,
+  type SharedModeCredentialStore,
   type CliOAuthClient,
+  type CliOAuthInitData,
+  type CliOAuthPollData,
+  type CliOAuthUser,
 } from "@mode/adapters";
 import { createConfig } from "@mode/adapters/config";
 import { createNodeHttpClientAdapter } from "@mode/adapters/http";
 import type { EnvRecord } from "@mode/adapters/model";
 import { buildModeEndpointUrls, resolveRuntimeModeEndpointOrigin } from "@mode/shared";
-import { setTimeout as delay } from "node:timers/promises";
-import { createStandaloneAccountIdentityFromSecret } from "./app/standalone-account-provider-runtime.js";
+import {
+  NodeModelSelectionConfigRepository,
+  NodePersonalProviderConfigRepository,
+  PERSONAL_PROVIDER_CONFIG_FILE_NAME,
+  MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
+} from "@mode/provider-node";
+import { readLegacyCliPersonalProviderConfig } from "./app/legacy-cli-personal-provider-config-importer.js";
+import { dirname, join } from "node:path";
+import {
+  createStandaloneAccountIdentityFromSecret,
+  hasStandaloneCodingPlanAccess,
+  readStandaloneCodingPlanProviders,
+  resolveStandaloneCodingPlanProvider,
+  standaloneAccountIdentityCredentialKey,
+  standaloneAccountProviderCredentialKey,
+} from "./app/standalone-account-provider-runtime.js";
 import { throwIfAborted, waitWithAbort } from "./auth-login-abort.js";
+import { setTimeout as delay } from "node:timers/promises";
 import { pollUntilReady } from "./auth-login-polling.js";
 
 const DEFAULT_LOGIN_TIMEOUT_MS = 5 * 60 * 1_000;
 
-/**
- * Z.ai 与 BigModel 共用服务端轮询登录：init 拿授权地址，浏览器授权后轮询到 ready，
- * 再解析项目访问材料并写入凭据与默认模型。OAuth 登录不落盘派生 API Key，
- * 运行时按 `authSource: "oauth"` 用访问令牌换取请求凭据。
- */
+export type CodingPlanProviderId = "bigmodel" | "zai";
+
+export interface LoginModeCliOptions {
+  providerId?: CodingPlanProviderId;
+  abortSignal?: AbortSignal;
+  apiKeyResolver?: ReturnType<typeof createCodingPlanApiKeyResolver>;
+  baseUrl?: string;
+  credentialStore?: SharedModeCredentialStore;
+  env?: EnvRecord;
+  httpClient?: Parameters<typeof createCliOAuthClient>[0]["httpClient"];
+  noBrowser?: boolean;
+  now?: () => number;
+  onAuthorizeUrl?: (data: CliOAuthInitData) => void | Promise<void>;
+  onBrowserOpen?: (result: BrowserOpenResult) => void | Promise<void>;
+  onPollStatus?: (data: CliOAuthPollData) => void | Promise<void>;
+  openBrowser?: (url: string) => Promise<BrowserOpenResult>;
+  pollToken?: string;
+  sleep?: (ms: number) => Promise<void>;
+  timeoutMs?: number;
+  personalProviderConfigPath?: string;
+}
+
+export interface LoginModeCliResult {
+  browser?: BrowserOpenResult;
+  configPath: string;
+  credentialsPath: string;
+  model: string;
+  providerId: CodingPlanProviderId;
+  user: CliOAuthUser;
+}
+
+export type LoginBigmodelCodingPlanOptions = Omit<LoginModeCliOptions, "providerId">;
+export type LoginBigmodelCodingPlanResult = LoginModeCliResult & { providerId: "bigmodel" };
+
+export interface ConfigureCodingPlanApiKeyOptions {
+  apiKey: string;
+  credentialStore?: SharedModeCredentialStore;
+  env?: EnvRecord;
+  personalProviderConfigPath?: string;
+  providerId: CodingPlanProviderId;
+}
+
+export interface ConfigureCodingPlanApiKeyResult {
+  configPath: string;
+  model: string;
+  providerId: CodingPlanProviderId;
+}
+
+export interface LogoutModeCliOptions {
+  credentialStore?: SharedModeCredentialStore;
+  env?: EnvRecord;
+}
+
+export interface LogoutModeCliResult {
+  credentialsPath: string;
+}
+
+export async function hasConfiguredStandaloneCodingPlan(
+  options: {
+    credentialStore?: SharedModeCredentialStore;
+    env?: EnvRecord;
+  } = {},
+): Promise<boolean> {
+  const credentialStore =
+    options.credentialStore ?? createSharedModeCredentialStore({ env: options.env });
+  return hasStandaloneCodingPlanAccess(credentialStore, options.env ?? process.env);
+}
+
+export class ModeCliLoginError extends Error {
+  readonly code:
+    | "auth_failed"
+    | "auth_timeout"
+    | "config_update_failed"
+    | "credential_write_failed";
+
+  constructor(
+    code: ModeCliLoginError["code"],
+    message: string,
+    options: { cause?: unknown } = {},
+  ) {
+    super(message, options);
+    this.name = "ModeCliLoginError";
+    this.code = code;
+  }
+}
+
 export async function loginModeCli(
   options: LoginModeCliOptions = {},
 ): Promise<LoginModeCliResult> {
@@ -98,8 +172,8 @@ export async function loginModeCli(
           ? timeoutError()
           : new ModeCliLoginError(code, "Authorization failed. Please retry login."),
     });
-    const material = await waitWithAbort(
-      resolveCodingPlanMaterial({
+    const apiKey = await waitWithAbort(
+      resolveCodingPlanApiKey({
         accessToken: readyData.accessToken,
         env,
         httpClient: options.httpClient,
@@ -109,16 +183,8 @@ export async function loginModeCli(
       }),
       signal,
     );
-    // 已取消或已超时的登录不能把迟到的 ready 响应写入凭据。
+    // A cancelled/expired attempt must not persist a late ready response or API key.
     throwIfAborted(signal);
-    // Z.ai 以账号用户 ID 作为连接身份；BigModel 的项目令牌按组织与项目签发，
-    // 连接身份沿用组织与项目的稳定摘要，与运行时的令牌缓存范围一致。
-    const accountIdentity =
-      providerId === "zai"
-        ? readyData.user.user_id
-        : createStandaloneAccountIdentityFromSecret(
-            JSON.stringify([material.organizationId, material.projectId]),
-          );
     try {
       if (providerId === "zai") {
         await credentialStore.saveZaiLoginCredentials({
@@ -127,7 +193,6 @@ export async function loginModeCli(
           user: readyData.user,
         });
       } else {
-        const displayName = readyData.user.name || readyData.user.email || readyData.user.user_id;
         await credentialStore.saveMany({
           [SHARED_MODE_CREDENTIAL_KEYS.activeProvider]: providerId,
           [SHARED_MODE_CREDENTIAL_KEYS.modeJwtToken]: readyData.token,
@@ -136,9 +201,9 @@ export async function loginModeCli(
             ? { [SHARED_MODE_CREDENTIAL_KEYS.bigmodelRefreshToken]: readyData.refreshToken }
             : {}),
           [SHARED_MODE_CREDENTIAL_KEYS.bigmodelUserInfo]: JSON.stringify({
-            id: accountIdentity,
-            username: displayName,
-            displayName,
+            id: readyData.user.user_id,
+            username: readyData.user.name || readyData.user.email || readyData.user.user_id,
+            displayName: readyData.user.name || readyData.user.email || readyData.user.user_id,
             rawProfile: readyData.user,
           }),
         });
@@ -154,8 +219,8 @@ export async function loginModeCli(
     let configPatch: StandaloneCodingPlanPersistenceResult;
     try {
       configPatch = await persistStandaloneCodingPlanConnection({
-        accountIdentity,
-        authSource: "oauth",
+        accountIdentity: readyData.user.user_id,
+        apiKey,
         credentialStore,
         env,
         personalProviderConfigPath: options.personalProviderConfigPath,
@@ -214,6 +279,90 @@ export async function configureCodingPlanApiKey(
   };
 }
 
+export async function logoutModeCli(
+  options: LogoutModeCliOptions = {},
+): Promise<LogoutModeCliResult> {
+  const credentialStore =
+    options.credentialStore ?? createSharedModeCredentialStore({ env: options.env });
+  const providerIds = (await readStandaloneCodingPlanProviders(options.env ?? process.env)).map(
+    ({ providerId }) => providerId,
+  );
+  const identityKeys = providerIds.map(standaloneAccountIdentityCredentialKey);
+  const identities = await credentialStore.loadMany(identityKeys);
+  const dynamicApiKeyKeys = providerIds.flatMap((providerId) => {
+    const identity = identities[standaloneAccountIdentityCredentialKey(providerId)]?.trim();
+    return identity
+      ? [
+          standaloneAccountProviderCredentialKey({
+            providerId,
+            accountIdentity: identity,
+          }),
+        ]
+      : [];
+  });
+  const keys = [
+    ...Object.values(SHARED_MODE_CREDENTIAL_KEYS),
+    ...identityKeys,
+    ...dynamicApiKeyKeys,
+  ];
+  const current = await credentialStore.loadMany(keys);
+  await credentialStore.deleteIfValues(
+    Object.fromEntries(
+      Object.entries(current).flatMap(([key, value]) => (value === null ? [] : [[key, value]])),
+    ),
+  );
+  return {
+    credentialsPath: credentialStore.filePath,
+  };
+}
+
+interface StandaloneCodingPlanPersistenceResult {
+  readonly mainModel: string;
+  readonly path: string;
+}
+
+async function persistStandaloneCodingPlanConnection(input: {
+  readonly accountIdentity: string;
+  readonly apiKey: string;
+  readonly credentialStore: SharedModeCredentialStore;
+  readonly env: EnvRecord;
+  readonly personalProviderConfigPath?: string;
+  readonly providerId: CodingPlanProviderId;
+}): Promise<StandaloneCodingPlanPersistenceResult> {
+  const configuredProvider = await resolveStandaloneCodingPlanProvider(input.providerId, input.env);
+  const providerId = configuredProvider.providerId;
+  const modelId = configuredProvider.modelId;
+  const credentialKey = standaloneAccountProviderCredentialKey({
+    providerId,
+    accountIdentity: input.accountIdentity,
+  });
+  await input.credentialStore.saveMany({
+    [standaloneAccountIdentityCredentialKey(providerId)]: input.accountIdentity,
+    [credentialKey]: input.apiKey,
+  });
+  const path =
+    input.personalProviderConfigPath ??
+    input.env[MODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]?.trim() ??
+    join(dirname(input.credentialStore.filePath), PERSONAL_PROVIDER_CONFIG_FILE_NAME);
+  // 登录与运行时共享文件和事务；首次写入仍先保留旧用户 Provider，不能仅写默认值。
+  const personalRepository = new NodePersonalProviderConfigRepository({
+    filePath: path,
+    importLegacy: () => readLegacyCliPersonalProviderConfig({}),
+    pollingIntervalMs: false,
+  });
+  const repository = new NodeModelSelectionConfigRepository({ personalRepository });
+  try {
+    await repository.saveConfiguredDefault({ providerId, modelId });
+  } finally {
+    repository.dispose();
+    personalRepository.dispose();
+  }
+  return {
+    mainModel: `${providerId}/${modelId}`,
+    path,
+  };
+}
+
 function createOAuthClient(options: LoginModeCliOptions, env: EnvRecord): CliOAuthClient {
   return createCliOAuthClient({
     baseUrl:
@@ -238,20 +387,20 @@ function createDefaultHttpClient(env: EnvRecord) {
   });
 }
 
-async function resolveCodingPlanMaterial(input: {
+async function resolveCodingPlanApiKey(input: {
   accessToken: string;
   env: EnvRecord;
   httpClient?: Parameters<typeof createCodingPlanApiKeyResolver>[0]["httpClient"];
   family: CodingPlanProviderId;
-  signal?: AbortSignal;
   resolver?: ReturnType<typeof createCodingPlanApiKeyResolver>;
-}) {
+  signal?: AbortSignal;
+}): Promise<string> {
   const resolver =
     input.resolver ??
     createCodingPlanApiKeyResolver({
       httpClient: input.httpClient ?? createDefaultHttpClient(input.env),
     });
-  return resolver.resolveMaterial(
+  return resolver.resolve(
     {
       accessToken: input.accessToken,
       family: input.family,

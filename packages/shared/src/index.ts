@@ -313,3 +313,7 @@ export type { AgentProfileParseDiagnostic } from './subagent-profile.js';
 export type { AgentProfileLoadResult } from './subagent-profile.js';
 export { isHighspeedProviderId } from './highspeed.js';
 export { channelReplyPartsSchema } from './channel-mention.js';
+export { highspeedMessageMetaSchema } from './highspeed.js';
+export { requestVerificationTimeoutMessage } from './request-security-edition/verification-policy.js';
+export { elideSessionSnapshotForIndex } from './mode-session-content-profile.js';
+export { networkCaptureControlSchema } from './networkCapture.js';

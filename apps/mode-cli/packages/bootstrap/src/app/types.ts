@@ -107,7 +107,6 @@ import type { ModelProviderSourceTitle } from "../model-config.js";
 import type { ModeInstalledPluginData } from "../plugins.js";
 import type { SessionTranscriptMessage } from "../session-transcript.js";
 import type { NodeReplBrowserBroker } from "./node-repl-browser-broker.js";
-import type { WorkspaceHookPolicy } from "@mode/contracts";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 import type { WorkspaceHookReviewCommandResult } from "./workspace-hook-review-controller.js";
 export type { ModeModelOption } from "@mode/shared";
