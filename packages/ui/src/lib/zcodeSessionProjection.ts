@@ -84,8 +84,8 @@ import {
   type ModeUserInputRequestParams,
   type ModeUserInputResponse,
   modeContextUsageBreakdownSchema,
-} from "@zcode/shared";
-import { errorAttributionSchema } from "@zcode/shared/mode-protocol-v4";
+} from "@mode/shared";
+import { errorAttributionSchema } from "@mode/shared/mode-protocol-v4";
 import { logger } from "@/logger.js";
 
 const MODEL_CONFIG_ID = "model";

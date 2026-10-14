@@ -1,4 +1,4 @@
-import { MODE_AGENT_PROVIDER } from "@zcode/shared";
+import { MODE_AGENT_PROVIDER } from "@mode/shared";
 import type { IRemoteBackend } from "./backend.js";
 import { type DeployLoggers, waitForClose } from "./deployShared.js";
 import { quotePosixPathArg } from "./posixShell.js";

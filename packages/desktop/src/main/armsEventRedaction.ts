@@ -1,4 +1,4 @@
-import { redactTelemetryText, redactTelemetryUrl } from "@zcode/shared";
+import { redactTelemetryText, redactTelemetryUrl } from "@mode/shared";
 
 /**
  * ARMS SDK 自动采集事件离开本机前的脱敏收口。

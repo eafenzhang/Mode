@@ -1,5 +1,5 @@
 import armsRum from "@arms/rum-electron";
-import type { ArmsRumEnv, FinalArmsCustomEventPayload } from "@zcode/shared";
+import type { ArmsRumEnv, FinalArmsCustomEventPayload } from "@mode/shared";
 
 import type { ZCodeDataSizeScanResult } from "./zcodeDataSizeScanner.js";
 import {

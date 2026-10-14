@@ -13,7 +13,7 @@ import type {
   ModeStreamEvent,
   ModeTimelineStatus,
   ModeUsage,
-} from "@zcode/shared";
+} from "@mode/shared";
 import {
   CUSTOM_SUPPLIER_KEY_PREFIX,
   GHOST_SUPPLIER_KEY_PREFIX,
@@ -21,7 +21,7 @@ import {
   createUuid,
   computeLineChangeStat,
   decodeCustomModelValue,
-} from "@zcode/shared";
+} from "@mode/shared";
 interface ComposerInputTimingState {
   inputStartTime: number;
   inputFirstCharTime: number;

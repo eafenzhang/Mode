@@ -1,4 +1,4 @@
-import type { IModeAgentService } from "@zcode/services";
+import type { IModeAgentService } from "@mode/services";
 import { useServices } from "@/hooks/useServices.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 

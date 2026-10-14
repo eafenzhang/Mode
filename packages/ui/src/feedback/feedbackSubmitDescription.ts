@@ -1,10 +1,10 @@
-import { redactFeedbackText } from "@zcode/shared";
+import { redactFeedbackText } from "@mode/shared";
 import type { FeedbackAgentModelContext } from "@/feedback/feedbackSubmitModelContext.js";
 import type {
   FeedbackTicketModule,
   FeedbackTicketSeverity,
   FeedbackTicketType,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 const TITLE_MAX = 80;
 const FEEDBACK_ZCODE_AGENT_LABEL = "ZCode Agent";

@@ -2,7 +2,7 @@ import {
   MODE_AGENT_RUNTIME,
   MODE_AGENT_PROVIDER,
   type RemoteResourcePackageId,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type { IRemoteBackend, RemoteEnvironment } from "./backend.js";
 import {
   REMOTE_BASE,

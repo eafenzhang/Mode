@@ -26,7 +26,7 @@ import {
   type AgentLaneResourceSample,
   type ProcessResourceRole,
   type ProcessResourceRuntimeSurface,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { recordExternalAppResourceSample } from "./processResourceExternalAppSamples.js";
 import type {
   ProcessResourceSampleContext,

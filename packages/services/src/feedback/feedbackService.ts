@@ -1,14 +1,14 @@
 import { basename, join } from "node:path";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
-import type { ApiClient, FeedbackDeviceInfo } from "@zcode/shared";
+import type { ApiClient, FeedbackDeviceInfo } from "@mode/shared";
 import {
   buildRuntimeModeApiUrl,
   MODE_BUILD_TIME,
   MODE_COMMIT,
   MODE_VERSION,
-} from "@zcode/shared";
-import { Emitter } from "@zcode/rpc";
+} from "@mode/shared";
+import { Emitter } from "@mode/rpc";
 import { arch, platform, release, type as osType } from "node:os";
 
 import type { ICredentialService } from "../credential/credential.js";

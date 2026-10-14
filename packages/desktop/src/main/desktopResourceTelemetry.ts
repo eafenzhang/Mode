@@ -11,7 +11,7 @@ import {
   type ProcessResourceRuntimeSurface,
   PROCESS_RESOURCE_EVENT_NAMES,
   zcodeToolExecResourceSchema,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { BrowserWindow } from "electron";
 import os from "node:os";
 import { getSharedFinalArmsCustomEventE2EController } from "./desktopArmsCustomEvent.js";

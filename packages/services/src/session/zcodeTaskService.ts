@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- ZCode task wrapper service 接口集中承载 app/runtime API，拆散会让替换阶段更难追踪。 */
-import type { Event } from "@zcode/rpc";
-import { ServiceChannels } from "@zcode/shared";
-import type { CommandPayloadMap } from "@zcode/shared/mode-protocol-v4";
+import type { Event } from "@mode/rpc";
+import { ServiceChannels } from "@mode/shared";
+import type { CommandPayloadMap } from "@mode/shared/mode-protocol-v4";
 import { createServiceDescriptor } from "#src/descriptors.js";
 import type {
   ModeImportSessionsResult,
@@ -37,7 +37,7 @@ import type {
   ModelSelection,
   ModeBackgroundTurnAttribution,
   ModeAutomationBotDeliveryTarget,
-} from "@zcode/shared";
+} from "@mode/shared";
 import type {
   SessionMessageDeliveryResult,
   SessionMessageSendRequested,
@@ -291,7 +291,7 @@ export interface IZCodeTaskService {
     ownerId: string;
     botId: string;
     chatId: string;
-  }): Promise<import("@zcode/shared/mode-protocol-v4").CommandAck>;
+  }): Promise<import("@mode/shared/mode-protocol-v4").CommandAck>;
   submitBotGroupInput?(params: {
     workspacePath?: string;
     workspaceIdentity?: string;
@@ -299,10 +299,10 @@ export interface IZCodeTaskService {
     remoteSessionId?: string;
     commandId: string;
     content: string;
-    conversationQuotes?: import("@zcode/shared").ConversationSelectionText[];
+    conversationQuotes?: import("@mode/shared").ConversationSelectionText[];
     attachments?: ModePromptAttachment[];
-    source: import("@zcode/shared").BotGroupInputSource;
-  }): Promise<import("@zcode/shared/mode-protocol-v4").CommandAck>;
+    source: import("@mode/shared").BotGroupInputSource;
+  }): Promise<import("@mode/shared/mode-protocol-v4").CommandAck>;
 
   /** 发送 prompt 到指定 task */
   sendPrompt(

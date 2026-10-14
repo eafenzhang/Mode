@@ -3,7 +3,7 @@ import {
   resolveTelemetryProviderScope,
   type ArmsCustomEventPayload,
   type IPlatformService,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { logger } from "@/logger.js";
 import {
   getProviderBusinessErrorUiAction,

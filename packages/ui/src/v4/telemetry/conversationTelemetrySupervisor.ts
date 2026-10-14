@@ -9,8 +9,8 @@ import type {
   ModeContextCompactionTimelineMeta,
   ModeStreamEvent,
   ModeUsage,
-} from "@zcode/shared";
-import type { ConversationTelemetryFact } from "@zcode/shared/mode-protocol-v4";
+} from "@mode/shared";
+import type { ConversationTelemetryFact } from "@mode/shared/mode-protocol-v4";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import {
   reportChatErrorBannerTelemetry,
@@ -67,7 +67,7 @@ const MAX_BUFFERED_COMMANDS = 200;
 type TelemetryPlatform = Pick<IPlatformService, "reportArmsCustomEvent" | "reportTelemetryEvent">;
 
 export interface ConversationPromptTelemetrySeed {
-  localTtft?: import("@zcode/shared").LocalTtftContext;
+  localTtft?: import("@mode/shared").LocalTtftContext;
   /** 用户触发原始发送动作的 renderer 时钟。 */
   sendTime: number;
   /** 发送瞬间冻结的旧版模型/模式/套餐字段。 */

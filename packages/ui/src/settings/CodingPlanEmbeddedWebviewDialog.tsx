@@ -33,7 +33,7 @@ import {
   type CodingPlanPurchaseCompletePayload,
   MODE_ENV,
   MODE_VERSION,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 interface CodingPlanEmbeddedWebviewDialogProps {
   credentialService: {

@@ -1,6 +1,6 @@
-import type { IDisposable } from "@zcode/rpc";
-import type { IModeAgentService } from "@zcode/services";
-import { HostResponseTypes, type ProcessResourceRuntimeSurface } from "@zcode/shared";
+import type { IDisposable } from "@mode/rpc";
+import type { IModeAgentService } from "@mode/services";
+import { HostResponseTypes, type ProcessResourceRuntimeSurface } from "@mode/shared";
 
 export function registerHostToolExecResourceTelemetry(options: {
   agentService: Pick<IModeAgentService, "onDynamicToolExecResource">;

@@ -14,7 +14,7 @@ import {
   type UsageMcpQuotaScope,
   type UsageMcpQuotaSnapshot,
   type UsageQuotaLimit,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   buildOfficialMcpAuthHeaders,

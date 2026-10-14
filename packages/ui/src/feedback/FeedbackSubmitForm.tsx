@@ -10,7 +10,7 @@ import {
   type FeedbackTicketModule,
   type FeedbackTicketSeverity,
   type FeedbackTicketType,
-} from "@zcode/shared";
+} from "@mode/shared";
 import { toast } from "@/components/ui/toast.js";
 import { FeedbackErrorTip } from "@/feedback/feedbackBadges.js";
 import { readFeedbackContactPreference } from "@/feedback/feedbackContactPreference.js";
@@ -47,8 +47,8 @@ import {
   DEFAULT_FEEDBACK_TYPE,
   startSimplifiedFeedbackSubmission,
 } from "@/feedback/feedbackSubmitSubmission.js";
-import type { IFeedbackService } from "@zcode/services";
-import type { IPlatformService } from "@zcode/shared";
+import type { IFeedbackService } from "@mode/services";
+import type { IPlatformService } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";

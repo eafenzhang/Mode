@@ -1,4 +1,4 @@
-import type { ModeTaskMeta } from "@zcode/shared";
+import type { ModeTaskMeta } from "@mode/shared";
 
 function hasOwnTaskMetaField<T extends keyof ModeTaskMeta>(task: ModeTaskMeta, key: T) {
   return Object.prototype.hasOwnProperty.call(task, key);

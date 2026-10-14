@@ -3,7 +3,7 @@ import {
   type ZCodeRuntimeEnv,
   ZCODE_ARMS_RUM_ENDPOINT,
   ZCODE_VERSION,
-} from "@zcode/shared";
+} from "@mode/shared";
 
 /** 主进程 init 的 browserCollectors，经 autoInject 注入到 renderer 的 RumSDK.init(collectors) */
 export const ARMS_BROWSER_COLLECTORS = {

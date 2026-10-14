@@ -9,11 +9,11 @@ import {
   type MouseEvent,
 } from "react";
 import { ArrowUpRightIcon, MoonIcon, SunIcon } from "lucide-react";
-import { BIGMODEL_PROVIDER_ID, ZAI_PROVIDER_ID } from "@zcode/shared";
-import type { ConversationSharePreview } from "@zcode/shared";
-import { ConversationShareReadonlyTimeline } from "@zcode/ui/conversation-share-readonly";
-import { renderOAuthProviderIcon } from "@zcode/ui/oauth-provider-icon";
-import { applyTheme, resolveTheme, type Theme } from "@zcode/ui/useTheme";
+import { BIGMODEL_PROVIDER_ID, ZAI_PROVIDER_ID } from "@mode/shared";
+import type { ConversationSharePreview } from "@mode/shared";
+import { ConversationShareReadonlyTimeline } from "@mode/ui/conversation-share-readonly";
+import { renderOAuthProviderIcon } from "@mode/ui/oauth-provider-icon";
+import { applyTheme, resolveTheme, type Theme } from "@mode/ui/useTheme";
 import "./conversationShareLandingPage.css";
 import type { WebOAuthProviderId } from "../auth/browserOAuthCredentialRepo.js";
 import {

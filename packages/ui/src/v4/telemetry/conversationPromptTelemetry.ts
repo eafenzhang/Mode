@@ -1,4 +1,4 @@
-import { MODE_AGENT_PROVIDER, type PlanIdentitySnapshot, type ModeProvider } from "@zcode/shared";
+import { MODE_AGENT_PROVIDER, type PlanIdentitySnapshot, type ModeProvider } from "@mode/shared";
 import { buildPromptTelemetryExtraDetail } from "@/lib/messageTelemetry.js";
 import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import {

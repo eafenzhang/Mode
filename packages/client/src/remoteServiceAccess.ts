@@ -1,4 +1,3 @@
-import { IGitService } from "@mode/services";
 import { ProxyChannel, type IChannelClient } from "@mode/rpc";
 import {
   IFileService,

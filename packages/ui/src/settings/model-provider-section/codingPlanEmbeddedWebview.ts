@@ -8,8 +8,8 @@ import {
   type ModeEnv,
   MODE_ENV,
   ZAI_PROVIDER_ID,
-} from "@zcode/shared";
-import type { CodingPlanWebviewLocale } from "@zcode/shared";
+} from "@mode/shared";
+import type { CodingPlanWebviewLocale } from "@mode/shared";
 import type { CodingPlanFunnelContext } from "@/lib/codingPlanFunnelTelemetry.js";
 import type { CodingPlanProviderId } from "@/settings/model-provider-section/constants.js";
 

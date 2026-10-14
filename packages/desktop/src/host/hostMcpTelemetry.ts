@@ -1,7 +1,7 @@
-import type { IDisposable } from "@zcode/rpc";
-import type { IModeAgentService } from "@zcode/services";
-import type { ProcessResourceRuntimeSurface } from "@zcode/shared";
-import { HostResponseTypes } from "@zcode/shared";
+import type { IDisposable } from "@mode/rpc";
+import type { IModeAgentService } from "@mode/services";
+import type { ProcessResourceRuntimeSurface } from "@mode/shared";
+import { HostResponseTypes } from "@mode/shared";
 
 interface RegisterHostMcpTelemetryOptions {
   agentService: Pick<IModeAgentService, "onDynamicMcpTelemetry">;

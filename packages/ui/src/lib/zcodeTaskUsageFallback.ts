@@ -1,4 +1,4 @@
-import type { ModeUsage } from "@zcode/shared";
+import type { ModeUsage } from "@mode/shared";
 import type { TaskUsageState } from "@/store/zcodeSessionStoreTypes.js";
 
 interface TaskUsageKeyParams {

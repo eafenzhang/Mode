@@ -1,5 +1,5 @@
-import type { ModeError, ModeTaskMeta, TraceId } from "@zcode/shared";
-import { errorAttributionSchema, type ErrorAttribution } from "@zcode/shared/mode-protocol-v4";
+import type { ModeError, ModeTaskMeta, TraceId } from "@mode/shared";
+import { errorAttributionSchema, type ErrorAttribution } from "@mode/shared/mode-protocol-v4";
 import { resolveRequestVerificationBusinessCode } from "@/lib/providerBusinessError.js";
 
 export interface ZCodeUiError extends ModeError {
