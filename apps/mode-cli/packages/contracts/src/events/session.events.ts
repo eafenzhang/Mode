@@ -82,6 +82,8 @@ export interface SessionEvent {
 
 export const SessionEventType = {
   SessionCreated: "session_created",
+  /** 执行作用域 Selection 失败后回退到会话模型（Highspeed 加速卡等）。 */
+  TurnExecutionModelFallback: "turn_execution_model_fallback",
   SessionResumed: "session_resumed",
   SessionForked: "session_forked",
   SessionCompacted: "session_compacted",

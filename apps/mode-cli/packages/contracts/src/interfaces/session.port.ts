@@ -30,6 +30,22 @@ import type { ModelSelection } from "../model/model.js";
 // -----------------------------------------------
 
 export type CollaborationMode = "plan" | "build" | "edit" | "yolo" | "guarded" | "auto";
+/** 执行作用域 Selection 的退回原因（Highspeed 加速卡失败后回退到会话模型继续本轮）。 */
+export type TurnExecutionModelFallbackReason =
+  | "highspeed_card_expired"
+  | "highspeed_request_failed";
+
+/**
+ * 子代理的权限模式继承规则：父会话处于 `guarded` 时子代理必须跟随（安全边界不能被子代理放宽），
+ * 其余情况用调用方给定的 fallback。
+ */
+export function inheritPermissionMode(
+  parent: CollaborationMode | undefined,
+  fallback: CollaborationMode | undefined,
+): CollaborationMode | undefined {
+  return parent === "guarded" ? "guarded" : fallback;
+}
+
 export type SessionStatus = "idle" | "running" | "waiting" | "paused" | "completed" | "error";
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type InputDelivery = "auto" | "start_turn" | "steer_active_turn";
