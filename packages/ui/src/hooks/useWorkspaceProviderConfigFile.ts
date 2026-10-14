@@ -164,12 +164,13 @@ export function useWorkspaceProviderConfigFile(
       `[useWorkspaceProviderConfigFile] 开始读取 provider 配置路径 workspace=${workspacePath} provider=${provider} scope=${modeServiceScope} session=${remoteSessionId ?? "none"}`,
     );
 
-    void modeTaskService
-      .getWorkspaceProviderConfigFile({
-        workspacePath,
-        ...(workspaceIdentity ? { workspaceIdentity } : {}),
-        provider,
-      })
+    const getConfigFilePath = modeTaskService.getWorkspaceProviderConfigFile?.bind(modeTaskService);
+    if (!getConfigFilePath) return;
+    void getConfigFilePath({
+      workspacePath,
+      ...(workspaceIdentity ? { workspaceIdentity } : {}),
+      provider,
+    })
       .then((result) => {
         if (disposed || requestVersionRef.current !== requestVersion) {
           return;

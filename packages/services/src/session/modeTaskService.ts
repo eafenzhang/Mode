@@ -197,6 +197,15 @@ export interface ModeTaskReadyOutcome {
  * Mode Agent server 维护，新功能应优先走 IModeSessionService。
  */
 export interface IModeTaskService {
+  /**
+   * 读取某 provider 在目标工作区配置文件（`.mode-plugin` 之外的 provider 配置）里的落点，
+   * 供设置页展示与「在文件管理器打开」使用；未实现该能力的宿主返回 undefined 即可。
+   */
+  getWorkspaceProviderConfigFile?(input: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    provider: ModeProvider;
+  }): Promise<{ path: string | null; exists: boolean }>;
   // ---- 生命周期 ----
 
   /** 检查 agent runtime 是否可用 */
