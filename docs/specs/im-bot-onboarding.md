@@ -214,6 +214,22 @@ UI 只写 `enabled` 并读 `getStatus()`；运行时启停由 services 的 `reco
 - 未采纳的候选项：钉钉 AI 卡片模板、心跳、私聊「全部用户」三项经用户确认**保留**
   （它们属于使用场景判断，用户判定为仍在场景内）。
 
+### R7 只读兼容面清单（2026-10-16 核对确认，**不是遗漏，勿"补全"**）
+
+产品面收口在 4 个通道，但数据面刻意保留下面这些"只读兼容"的残留。它们的存在是**刻意的**，
+每一处都请在改动前先读本节：
+
+| 面 | 现状 | 处置口径 |
+| --- | --- | --- |
+| `packages/shared/src/bots.ts` 的 `botProviders` | 含 `telegram` / `lark` / `webhook` / `discord`（+ 历史字面量 `astrbot`） | 服务层适配器与运行时照旧保留，存量配置继续能跑；**不进新建面板** |
+| `packages/ui/src/botsUi.ts` 的 `BOT_PROVIDERS` | 只有 `weixin` / `wecom` / `feishu` / `dingtalk`，四项 `implemented: true` | **新建面板的唯一事实源**；与上面那个枚举不一致是刻意的 |
+| Telegram 接入面板 | 已删（`TelegramBotFatherQrPanel`、`TELEGRAM_BOTFATHER_URL`、BotsDialog 里的 `usePlatform`） | 存量 telegram 配置**不能再经 UI 编辑凭据**，但凭既有凭据仍可运行 |
+| `RETIRED_BOT_PROVIDERS` | 解析配置时丢弃（AstrBot 已彻底下线） | 与"只读兼容"不同：这些是真删除，配置里的记录会被解析阶段清理 |
+| `BotGroupChatConfig.allowedGroups` | 群白名单已下线，字段仅保留以便解析 | 不恢复功能；群服务范围现在由「私聊方式 + 群聊方式」决定 |
+
+判断某个 provider 属"只读兼容"还是"已下线"的唯一依据：是否出现在 `RETIRED_BOT_PROVIDERS` 里。
+只读兼容项**不新增 UI、不新增文案**，但也不删服务层代码——删了会让存量配置的机器人直接失效。
+
 ## 已对齐基线（回复侧，本轮不改）
 
 回复侧的"对齐 MyAgents"已分四轮落地，本 spec 只固化引用，不重新打开：

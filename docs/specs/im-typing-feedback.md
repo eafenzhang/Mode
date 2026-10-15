@@ -40,7 +40,12 @@
 ## 非目标
 
 - 钉钉 / webhook 的等待反馈（当前无任何 typing 能力，需单独设计）。
-- 微信 `message_state=1` 流式实验（公开世界无人验证服务端是否接受，留作后续探针）。
+  **2026-10-16 复核**：钉钉有 AI 卡片，理论上能照企微占位流做"开一条静态卡片 + 出站同流接管"，
+  但受 `dingtalkUseAiCard` 门控（未开启时 `supportsStreamingCardReply` 直接为 false），收益面比企微窄；
+  已并入 [im-bot-channel-probes.md](./im-bot-channel-probes.md) 的 **P7** 待实机确认，
+  确认成立再实现，**不先写假占位**。
+- 微信 `message_state=1` 流式实验（公开世界无人验证服务端是否接受，留作后续探针。
+  2026-10-16 已并入探针清单的 **P2**）。
 - 桌面会话时间线的打点气泡（`conversation-typing-bubble.md` 单独维护）。
 - 跨对话 turnGate 静默等待提示（bot-workspace-turn-admission.md 的 v1 已知限制，文案留待产品决策）。
 
