@@ -3,7 +3,7 @@ import test from "node:test";
 
 // 群聊历史缓冲：未触发消息按会话暂存，作为下次被 @ 时的上下文；带上限与 LRU 淘汰。
 
-test("append/drain：按会话隔离，drain 后清空", async () => {
+test("append/snapshot：按会话隔离，读取后不清空（旧 drain 语义已废止）", async () => {
   const { createGroupHistoryBuffer } = await import("../src/bots/groupHistory.js");
   const buffer = createGroupHistoryBuffer();
   buffer.append("bot-1", "chat-A", { senderName: "Zhang", text: "先跑一下构建" });
@@ -11,14 +11,14 @@ test("append/drain：按会话隔离，drain 后清空", async () => {
   buffer.append("bot-1", "chat-B", { text: "另一个群" });
   buffer.append("bot-2", "chat-A", { text: "另一个 bot" });
 
-  const drained = buffer.drain("bot-1", "chat-A");
-  assert.equal(drained.length, 1);
-  assert.equal(drained[0].senderName, "Zhang");
-  assert.equal(drained[0].text, "先跑一下构建");
-  // drain 后为空；其他键不受影响
-  assert.deepEqual(buffer.drain("bot-1", "chat-A"), []);
-  assert.equal(buffer.drain("bot-1", "chat-B").length, 1);
-  assert.equal(buffer.drain("bot-2", "chat-A").length, 1);
+  const first = buffer.snapshot("bot-1", "chat-A");
+  assert.equal(first.length, 1);
+  assert.equal(first[0].senderName, "Zhang");
+  assert.equal(first[0].text, "先跑一下构建");
+  // G7 的核心变更：快照不清空，同一群下次触发仍能看到之前的内容
+  assert.equal(buffer.snapshot("bot-1", "chat-A").length, 1);
+  assert.equal(buffer.snapshot("bot-1", "chat-B").length, 1);
+  assert.equal(buffer.snapshot("bot-2", "chat-A").length, 1);
 });
 
 test("单群上限 30 条，超出丢弃最旧；长消息截断", async () => {
@@ -29,12 +29,12 @@ test("单群上限 30 条，超出丢弃最旧；长消息截断", async () => {
   for (let index = 0; index < GROUP_HISTORY_MAX_PER_GROUP + 5; index += 1) {
     buffer.append("bot-1", "chat-A", { text: `msg-${index}` });
   }
-  const drained = buffer.drain("bot-1", "chat-A");
-  assert.equal(drained.length, GROUP_HISTORY_MAX_PER_GROUP);
-  assert.equal(drained[0].text, "msg-5");
+  const entries = buffer.snapshot("bot-1", "chat-A");
+  assert.equal(entries.length, GROUP_HISTORY_MAX_PER_GROUP);
+  assert.equal(entries[0].text, "msg-5");
 
   buffer.append("bot-1", "chat-A", { text: "x".repeat(500) });
-  const [long] = buffer.drain("bot-1", "chat-A");
+  const [long] = buffer.snapshot("bot-1", "chat-A").slice(-1);
   assert.ok(long.text.length <= 201);
   assert.ok(long.text.endsWith("…"));
 });
@@ -47,12 +47,56 @@ test("clear/clearBot：分别清空单群与该 bot 的全部群", async () => {
   buffer.append("bot-2", "chat-A", { text: "c" });
 
   buffer.clear("bot-1", "chat-A");
-  assert.equal(buffer.drain("bot-1", "chat-A").length, 0);
-  assert.equal(buffer.drain("bot-1", "chat-B").length, 1);
+  assert.equal(buffer.snapshot("bot-1", "chat-A").length, 0);
+  assert.equal(buffer.snapshot("bot-1", "chat-B").length, 1);
 
   buffer.clearBot("bot-1");
-  assert.equal(buffer.drain("bot-1", "chat-B").length, 0);
-  assert.equal(buffer.drain("bot-2", "chat-A").length, 1);
+  assert.equal(buffer.snapshot("bot-1", "chat-B").length, 0);
+  assert.equal(buffer.snapshot("bot-2", "chat-A").length, 1);
+});
+
+test("hydrate/serialize：跨重启恢复，幂等，非法快照按没有历史处理", async () => {
+  const { createGroupHistoryBuffer } = await import("../src/bots/groupHistory.js");
+  const source = createGroupHistoryBuffer();
+  source.append("bot-1", "chat-A", { senderName: "Zhang", text: "重启前的群聊" });
+  const snapshot = source.serialize();
+  assert.equal(snapshot.version, 1);
+  assert.equal(snapshot.bots["bot-1"]?.["chat-A"]?.length, 1);
+
+  const restored = createGroupHistoryBuffer();
+  restored.hydrate(snapshot);
+  assert.equal(restored.snapshot("bot-1", "chat-A")[0]?.text, "重启前的群聊");
+
+  // 幂等：第二次 hydrate 被忽略（不会覆盖恢复后新写入的内容）
+  restored.append("bot-1", "chat-A", { text: "恢复之后的新消息" });
+  restored.hydrate(snapshot);
+  assert.equal(restored.snapshot("bot-1", "chat-A").length, 2);
+
+  // 非法快照：版本不符 / 条目缺字段 / null 都不应凭空造出历史
+  const invalid = createGroupHistoryBuffer();
+  invalid.hydrate({ version: 2, bots: { "bot-1": { "chat-A": [{ text: "x", at: 1 }] } } } as never);
+  invalid.hydrate(null);
+  assert.equal(invalid.size(), 0);
+
+  const partiallyBad = createGroupHistoryBuffer();
+  partiallyBad.hydrate({
+    version: 1,
+    bots: { "bot-1": { "chat-A": [{ text: "有效", at: 1 }, { text: "缺时间戳" }, null] } },
+  } as never);
+  const kept = partiallyBad.snapshot("bot-1", "chat-A");
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0]?.text, "有效");
+  // 恢复时同样套用条数上限
+  const overflow = createGroupHistoryBuffer();
+  overflow.hydrate({
+    version: 1,
+    bots: {
+      "bot-1": {
+        "chat-A": Array.from({ length: 40 }, (_, index) => ({ text: `m-${index}`, at: index })),
+      },
+    },
+  });
+  assert.equal(overflow.snapshot("bot-1", "chat-A").length, 30);
 });
 
 test("formatGroupHistoryContext：无历史返回 null；中英渲染带首尾标记与 [from: 名字 时间]", async () => {

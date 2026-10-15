@@ -143,6 +143,7 @@ import { createFeishuBotProvider } from "./providers/feishuProvider.js";
 import { formatBotMessage, type BotMessageId } from "./messages.js";
 import { drainCompleteBotReplySegments, hasSentenceBoundary } from "./botText.js";
 import { createGroupHistoryBuffer, formatGroupHistoryContext } from "./groupHistory.js";
+import { createGroupHistoryPersistence } from "./groupHistoryStore.js";
 import {
   buildGroupTurnPrompt,
   formatBotProviderLabel,
@@ -877,7 +878,23 @@ export function createBotsService(
   // 必须在 providers 之前创建，runtime 在其后创建时复用同一实例。
   const wecomConnection = createWeComConnectionRegistry();
   // 群聊历史：未被 @ / 非绑定用户的消息按会话暂存，触发时作为上下文注入。
+  // 落盘走独立文件 + 去抖（docs/specs/im-bot-group-chat-alignment.md「G7 实现口径」）：
+  // 群消息高频入站，挂进 bot-state 会让每条群消息都触发一次全量状态写盘。
   const groupHistory = createGroupHistoryBuffer();
+  const groupHistoryPersistence = createGroupHistoryPersistence();
+  let groupHistoryLoaded: Promise<void> | undefined;
+  /** 落盘快照只在首次入站前恢复一次；恢复失败按"没有历史"处理，不阻塞入站。 */
+  function ensureGroupHistoryLoaded(): Promise<void> {
+    groupHistoryLoaded ??= groupHistoryPersistence
+      .load()
+      .then((snapshot) => groupHistory.hydrate(snapshot))
+      .catch(() => undefined);
+    return groupHistoryLoaded;
+  }
+  /** 改动历史后排队落盘（去抖），失败只记 warn——历史丢几条不影响回合正确性。 */
+  function persistGroupHistory(): void {
+    groupHistoryPersistence.schedule(groupHistory.serialize());
+  }
   /** 一次性迁移标记：旧绑定表导入（settings.botBindingByWorkspace）与 path→identity key 升级共用。 */
   let workspaceKeyUpgradeChecked = false;
   const providers: Record<BotProvider, BotProviderAdapter | null> = {
@@ -4104,6 +4121,9 @@ export function createBotsService(
     if (!adapter) {
       return { ok: false, replies: [], status: 400 };
     }
+    // 群历史在首个入站前恢复一次：写入点（withAuthorizedContext 的未授权分支）在这条链路下游，
+    // 而那里不会经过 readContext，所以恢复钩子必须放在这里（唯一的入站入口）。
+    await ensureGroupHistoryLoaded();
     const locale = await readMessageLocale();
     const config = await repo.readConfig();
     const callbackBot = findCallbackBot(config, provider, payload);
@@ -6140,6 +6160,7 @@ export function createBotsService(
           ...(message.actor.displayName ? { senderName: message.actor.displayName } : {}),
           text: message.text,
         });
+        persistGroupHistory();
         return { ok: false, reply: [] };
       }
       // 群白名单已下线：群聊默认不限制任何群——服务谁由「私聊方式」与「群聊方式」共同决定。
@@ -6149,6 +6170,7 @@ export function createBotsService(
           ...(message.actor.displayName ? { senderName: message.actor.displayName } : {}),
           text: message.text,
         });
+        persistGroupHistory();
         return { ok: false, reply: [] };
       }
     }
@@ -6626,7 +6648,8 @@ export function createBotsService(
       : "disabled";
     if (isGroupTurn && message.actor.chatId) {
       const historyContext = formatGroupHistoryContext(
-        groupHistory.drain(auth.bot.id, message.actor.chatId),
+        // 快照而非取走：被触发一次之后历史仍在，同一群下次触发仍能看到之前的内容。
+        groupHistory.snapshot(auth.bot.id, message.actor.chatId),
         auth.locale,
       );
       const groupPromptInput: GroupTurnPromptInput = {
@@ -7832,6 +7855,7 @@ export function createBotsService(
             // /new 开新会话：该群的旧历史不再作为上下文（否则会把上一话题带进新会话）。
             if (message.actor.chatType === "group" && message.actor.chatId) {
               groupHistory.clear(message.botId, message.actor.chatId);
+              persistGroupHistory();
             }
             return createStatusReply(message.actor, context, auth.locale);
           }
@@ -8787,6 +8811,8 @@ export function createBotsService(
         feishuRuntime.dispose(),
         wecomRuntime.dispose(),
         dingtalkRuntime.dispose(),
+        // 群历史是去抖落盘的：退出前补一次同步 flush，避免丢掉待写快照。
+        groupHistoryPersistence.dispose(),
       ]).then(() => undefined);
       return shutdownPromise;
     },

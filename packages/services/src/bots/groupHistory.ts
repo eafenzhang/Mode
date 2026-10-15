@@ -4,7 +4,12 @@ import { formatGroupTimestamp } from "./groupPrompt.js";
 /**
  * 群聊历史缓冲：未被 @ / 未被处理的群消息按会话暂存，作为下一次触发时的上下文。
  * 群聊里机器人不该回应每条消息，但完全失忆会让"刚说过的事"接不上；
- * 这里用一个带上限的内存缓冲折中（与 MyAgents 的 GroupHistoryBuffer 同一思路）。
+ * 这里用一个带上限的缓冲折中（与 MyAgents 的 GroupHistoryBuffer 同一思路）。
+ *
+ * 读取语义是**快照**而非取走：被触发一次之后历史仍在，同一群下次触发还能看到
+ * （旧 `drain()` 的"取走即清空"已废止）。落盘由 `groupHistoryStore` 负责——
+ * 历史不进 `bot-state`，避免高频入站触发全量状态写盘
+ * （docs/specs/im-bot-group-chat-alignment.md「G7 实现口径」）。
  */
 
 export interface GroupHistoryEntry {
@@ -22,16 +27,53 @@ function groupKey(botId: string, chatId: string): string {
   return `${botId}\u0000${chatId}`;
 }
 
+/** 落盘形态：{ 版本, bots: { [botId]: { [chatId]: entries } } }。 */
+export interface GroupHistorySnapshot {
+  version: 1;
+  bots: Record<string, Record<string, GroupHistoryEntry[]>>;
+}
+
 export interface GroupHistoryBuffer {
   append(botId: string, chatId: string, entry: Omit<GroupHistoryEntry, "at">): void;
-  drain(botId: string, chatId: string): GroupHistoryEntry[];
+  /** 读取该群历史但**不清空**（触发回合后仍保留）。 */
+  snapshot(botId: string, chatId: string): GroupHistoryEntry[];
   clear(botId: string, chatId: string): void;
   clearBot(botId: string): void;
   size(): number;
+  /** 从落盘快照恢复；幂等（已恢复过则忽略），非法内容按空处理。 */
+  hydrate(snapshot: GroupHistorySnapshot | null | undefined): void;
+  /** 导出全部历史用于落盘。 */
+  serialize(): GroupHistorySnapshot;
+}
+
+/** 归一化单条历史：非法条目丢弃，超长截断。 */
+function normalizeEntry(value: unknown): GroupHistoryEntry | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const raw = value as Partial<GroupHistoryEntry>;
+  if (typeof raw.text !== "string" || typeof raw.at !== "number") {
+    return null;
+  }
+  const text = raw.text.trim();
+  if (!text) {
+    return null;
+  }
+  return {
+    ...(typeof raw.senderName === "string" && raw.senderName.trim()
+      ? { senderName: raw.senderName.trim() }
+      : {}),
+    text:
+      text.length > GROUP_HISTORY_ENTRY_MAX_CHARS
+        ? `${text.slice(0, GROUP_HISTORY_ENTRY_MAX_CHARS)}…`
+        : text,
+    at: raw.at,
+  };
 }
 
 export function createGroupHistoryBuffer(): GroupHistoryBuffer {
   const groups = new Map<string, GroupHistoryEntry[]>();
+  let hydrated = false;
 
   const touch = (key: string): GroupHistoryEntry[] => {
     const existing = groups.get(key);
@@ -53,6 +95,12 @@ export function createGroupHistoryBuffer(): GroupHistoryBuffer {
     return created;
   };
 
+  const trimGroup = (entries: GroupHistoryEntry[]): void => {
+    while (entries.length > GROUP_HISTORY_MAX_PER_GROUP) {
+      entries.shift();
+    }
+  };
+
   return {
     append(botId, chatId, entry) {
       const text = entry.text.trim();
@@ -68,15 +116,10 @@ export function createGroupHistoryBuffer(): GroupHistoryBuffer {
             : text,
         at: Date.now(),
       });
-      while (entries.length > GROUP_HISTORY_MAX_PER_GROUP) {
-        entries.shift();
-      }
+      trimGroup(entries);
     },
-    drain(botId, chatId) {
-      const key = groupKey(botId, chatId);
-      const entries = groups.get(key) ?? [];
-      groups.delete(key);
-      return entries;
+    snapshot(botId, chatId) {
+      return groups.get(groupKey(botId, chatId)) ?? [];
     },
     clear(botId, chatId) {
       groups.delete(groupKey(botId, chatId));
@@ -92,6 +135,47 @@ export function createGroupHistoryBuffer(): GroupHistoryBuffer {
     },
     size() {
       return groups.size;
+    },
+    hydrate(snapshot) {
+      if (hydrated) {
+        return;
+      }
+      hydrated = true;
+      if (!snapshot || snapshot.version !== 1) {
+        return;
+      }
+      for (const [botId, byChat] of Object.entries(snapshot.bots ?? {})) {
+        for (const [chatId, entries] of Object.entries(byChat ?? {})) {
+          const normalized = (Array.isArray(entries) ? entries : [])
+            .map(normalizeEntry)
+            .filter((item): item is GroupHistoryEntry => item !== null);
+          if (normalized.length === 0) {
+            continue;
+          }
+          trimGroup(normalized);
+          groups.set(groupKey(botId, chatId), normalized);
+          while (groups.size > GROUP_HISTORY_MAX_GROUPS) {
+            const oldest = groups.keys().next().value;
+            if (oldest === undefined) {
+              break;
+            }
+            groups.delete(oldest);
+          }
+        }
+      }
+    },
+    serialize() {
+      const bots: Record<string, Record<string, GroupHistoryEntry[]>> = {};
+      for (const [key, entries] of groups.entries()) {
+        const separator = key.indexOf("\u0000");
+        if (separator < 0) {
+          continue;
+        }
+        const botId = key.slice(0, separator);
+        const chatId = key.slice(separator + 1);
+        (bots[botId] ??= {})[chatId] = [...entries];
+      }
+      return { version: 1, bots };
     },
   };
 }
