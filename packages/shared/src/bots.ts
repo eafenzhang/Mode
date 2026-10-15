@@ -312,6 +312,18 @@ export interface BotDraftOptions {
   mode?: string;
 }
 
+/**
+ * 入队时已物化到本地缓存的附件（docs/specs/bot-queued-message-attachments.md）。
+ * 只记展示元数据与本地路径：base64 写进状态文件会把 bot-state 撑到 MB 级。
+ */
+export interface BotQueuedAttachment {
+  kind: BotInboundAttachmentKind;
+  filename: string;
+  mimeType: string;
+  localPath: string;
+  sizeBytes?: number;
+}
+
 /** 任务运行中暂存的入站消息；任务终态后按序自动投递。 */
 export interface BotQueuedMessage {
   text: string;
@@ -320,6 +332,8 @@ export interface BotQueuedMessage {
   providerUserId?: string;
   displayName?: string;
   chatId?: string;
+  /** 入队前已物化的附件；补投时按 localPath 读回，不再访问会过期的下载链接。 */
+  attachments?: BotQueuedAttachment[];
 }
 
 /** 出站投递失败后停放的回复（微信 context 过期等场景），随对话槽位持久化，新入站后按序补投。 */
@@ -906,6 +920,19 @@ const botConversationStateSchema = z.object({
           providerUserId: z.string().min(1).optional(),
           displayName: z.string().optional(),
           chatId: z.string().optional(),
+          attachments: z
+            .array(
+              z
+                .object({
+                  kind: z.enum(["image", "audio", "video", "file"]),
+                  filename: z.string(),
+                  mimeType: z.string(),
+                  localPath: z.string(),
+                  sizeBytes: z.number().optional(),
+                })
+                .strict(),
+            )
+            .optional(),
         })
         .strict(),
     )

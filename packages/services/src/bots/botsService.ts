@@ -47,6 +47,7 @@ import {
   type BotInboundMessage,
   type BotOutboundMessage,
   type BotPendingElicitation,
+  type BotQueuedAttachment,
   type BotQueuedMessage,
   type BotStructuredElicitationResponse,
   isFeishuBotProvider,
@@ -157,8 +158,11 @@ import {
   resolveOutboundMediaKind,
 } from "./botMedia.js";
 import {
+  BOT_QUEUED_ATTACHMENT_BUDGET_BYTES,
+  attachmentBytes,
   enqueueQueuedMessage,
   dequeueQueuedMessage,
+  queuedAttachmentBytes,
   type EnqueueQueuedMessageResult,
 } from "./messageQueue.js";
 import {
@@ -1199,6 +1203,7 @@ export function createBotsService(
   async function queueContextMessage(
     context: BotContextState,
     message: BotInboundMessage,
+    attachments?: readonly BotQueuedAttachment[],
   ): Promise<EnqueueQueuedMessageResult> {
     // 锁内原子 RMW（docs/specs/bot-state-ownership.md 规则 1）。
     let result: EnqueueQueuedMessageResult | undefined;
@@ -1213,6 +1218,7 @@ export function createBotsService(
         providerUserId: message.actor.providerUserId,
         displayName: message.actor.displayName,
         chatId: message.actor.chatId,
+        ...(attachments && attachments.length > 0 ? { attachments: [...attachments] } : {}),
       });
       result = enqueued;
       channel.conversations[context.conversationKey] = {
@@ -1281,10 +1287,24 @@ export function createBotsService(
             : {}),
       };
       try {
+        // 入队时已物化的附件在这里重建：resolveAttachmentBytes 的第一跳就是读 localPath，
+        // 补投全程不回网络（docs/specs/bot-queued-message-attachments.md 规则 3）。
+        const queuedReceivedAt = queued.receivedAt;
+        const drainedAttachments: BotInboundAttachment[] = (queued.attachments ?? []).map(
+          (item, index) => ({
+            id: `queued-${queuedReceivedAt}-${index}`,
+            kind: item.kind,
+            filename: item.filename,
+            mimeType: item.mimeType,
+            localPath: item.localPath,
+            ...(item.sizeBytes !== undefined ? { sizeBytes: item.sizeBytes } : {}),
+          }),
+        );
         await handleMessage({
           botId: bot.id,
           actor,
           text: queued.text,
+          ...(drainedAttachments.length > 0 ? { attachments: drainedAttachments } : {}),
           receivedAt: queued.receivedAt,
         });
       } catch (error) {
@@ -2177,6 +2197,50 @@ export function createBotsService(
       localPath,
       sizeBytes: params.data.byteLength,
     };
+  }
+
+  /**
+   * 入队前把附件物化到本地缓存（docs/specs/bot-queued-message-attachments.md）：
+   * 队列项只记 localPath，补投时不再依赖会过期的下载链接。任一步失败返回 null，
+   * 由调用方回退成"不入队"——不新增"部分附件入队"这种中间态。
+   */
+  async function materializeQueuedAttachments(
+    bot: BotConfig,
+    message: BotInboundMessage,
+  ): Promise<BotQueuedAttachment[] | null> {
+    const rawAttachments = (message.attachments ?? []).slice(0, BOT_MAX_ATTACHMENTS_PER_MESSAGE);
+    if (rawAttachments.length === 0) {
+      return [];
+    }
+    const queued: BotQueuedAttachment[] = [];
+    for (const rawAttachment of rawAttachments) {
+      try {
+        const resolved = await resolveAttachmentBytes(bot, rawAttachment, message.actor);
+        if (!resolved || resolved.data.byteLength > BOT_MAX_ATTACHMENT_SIZE_BYTES) {
+          return null;
+        }
+        const cached = await cacheResolvedAttachment({
+          bot,
+          message,
+          attachment: resolved.attachment,
+          data: resolved.data,
+        });
+        if (!cached.localPath) {
+          return null;
+        }
+        queued.push({
+          kind: cached.kind,
+          filename: cached.filename,
+          mimeType: cached.mimeType,
+          localPath: cached.localPath,
+          ...(cached.sizeBytes !== undefined ? { sizeBytes: cached.sizeBytes } : {}),
+        });
+      } catch {
+        // 下载失败 / 超时 / 写盘失败：一律视为不可入队，交回调用方提示用户稍后重发。
+        return null;
+      }
+    }
+    return queued;
   }
 
   async function prepareBotMessageContent(
@@ -6515,12 +6579,21 @@ export function createBotsService(
       if (options.heartbeat) {
         return [];
       }
-      // 任务运行中：纯文本消息入队，任务终态后自动按序投递。
-      // 带附件的消息不排队（附件下载链接是瞬时的，重投递时会失效），仍请用户稍后重发。
-      if (message.attachments && message.attachments.length > 0) {
+      // 任务运行中：消息入队，任务终态后自动按序投递。
+      // 带附件的消息先把附件物化到本地缓存再入队——下载链接是瞬时的，但已缓存的字节不是；
+      // 物化失败或超出队列附件预算时回退为"请稍后重发"（docs/specs/bot-queued-message-attachments.md）。
+      const queuedAttachments = await materializeQueuedAttachments(auth.bot, message);
+      if (queuedAttachments === null) {
         return [createOutbound(message.actor, msg(auth.locale, "taskRunning"))];
       }
-      const queued = await queueContextMessage(auth.context, message);
+      if (
+        queuedAttachmentBytes(auth.context.queuedMessages) +
+          attachmentBytes(queuedAttachments) >
+        BOT_QUEUED_ATTACHMENT_BUDGET_BYTES
+      ) {
+        return [createOutbound(message.actor, msg(auth.locale, "taskRunning"))];
+      }
+      const queued = await queueContextMessage(auth.context, message, queuedAttachments);
       const replies = [
         createOutbound(
           message.actor,
