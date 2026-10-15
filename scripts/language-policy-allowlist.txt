@@ -113,6 +113,7 @@ scripts/architecture/index.mjs
 scripts/architecture/policy.mjs
 scripts/bootstrap.mjs
 scripts/browser-import-helper-oracle.mjs
+scripts/build-browser-import-helper.mjs
 scripts/build-cua-helper.mjs
 scripts/build-desktop-agent-bytecode.mjs
 scripts/build-desktop-agent-cli.mjs

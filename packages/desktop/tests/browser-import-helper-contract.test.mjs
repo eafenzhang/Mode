@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { test } from "node:test";
 import {
+  hasExplicitOracle,
   ORACLE_PATH,
   resolveRustHelperPath,
   runOracle,
@@ -22,9 +23,13 @@ const HOST_VERSION_TOKEN = "MODE_BROWSER_IMPORT_HELPER";
 // 这里只把它当「旧产物的观察值」，不当作我们要对齐的契约。
 const ORACLE_VERSION_TOKEN = "ZCODE_BROWSER_IMPORT_HELPER";
 
-const oracleSkip = existsSync(ORACLE_PATH)
-  ? false
-  : `旧产物不在场（${ORACLE_PATH}）；仅 Windows 且需先 prepare:browser-import-helper`;
+// 默认落点已被 Rust helper 占用（prepare:browser-import-helper 现指 Rust），
+// 所以对拍旧 C# 产物必须显式给出路径，否则会用 Rust 产物冒充旧产物。
+const oracleSkip = !hasExplicitOracle()
+  ? "未指定 MODE_BROWSER_IMPORT_ORACLE_PATH（默认落点已是 Rust 产物）"
+  : existsSync(ORACLE_PATH)
+    ? false
+    : `旧产物不在场（${ORACLE_PATH}）；先跑 prepare:browser-import-helper:oracle`;
 const rustHelperPath = resolveRustHelperPath();
 const rustSkip = rustHelperPath
   ? false

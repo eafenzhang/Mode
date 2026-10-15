@@ -25,11 +25,22 @@ serde_json、clap 或手写解析（对齐既有精度要求，见 Task 3）、N
 - stderr 不是契约（宿主 `stdio[2] = "ignore"`）：任何诊断信息不得只写 stderr 就当已交付。
 - 本机（`win32 10.0.19044`）**无 dotnet/csc**，但 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
   存在，`pnpm --filter @mode/desktop prepare:browser-import-helper` 可产出 oracle（已验证）。
-- 开发机（Git Bash，2026-10-15 实测）**无可用 Rust 链接器**：MSVC 未安装，且 `/usr/bin/link`
-  （coreutils）会抢占 `link.exe` 名字；gnu 目标又缺 `x86_64-w64-mingw32-gcc`。
-  故本机只能 `cargo check` / `cargo clippy`（均绿）；**单元测试必须在 CI Windows 腿执行**
-  （已在 `release.yml` 加 `browser-import helper crate tests and clippy` 步骤）。
-  要在本机跑测试需先装 VS Build Tools 或 mingw-w64——**未执行，属需人拍板的环境变更**。
+- ~~开发机（Git Bash，2026-10-15 实测）无可用 Rust 链接器~~ **该结论已作废（2026-10-16 复测）**：
+  MSVC 确实未安装、`/usr/bin/link` 仍会抢占 `link.exe` 名字，但电脑控制一期落地时已在本机装配出
+  gnu 路线工具链（`~/.rust-tools/llvm-mingw-20261006-ucrt-x86_64/bin/x86_64-w64-mingw32-clang`
+  作 linker + rustup 的 `stable-x86_64-pc-windows-gnu` toolchain），`scripts/build-cua-helper.mjs`
+  一直在用它。**因此本机可以完整构建与跑测**，无需装 VS Build Tools，也不构成环境变更：
+
+  ```bash
+  export PATH="$HOME/.rust-tools/llvm-mingw-20261006-ucrt-x86_64/bin:$HOME/.cargo/bin:$PATH"
+  export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$HOME/.rust-tools/llvm-mingw-20261006-ucrt-x86_64/bin/x86_64-w64-mingw32-clang"
+  cargo +stable-x86_64-pc-windows-gnu test --manifest-path crates/browser-import-helper/Cargo.toml \
+    --target x86_64-pc-windows-gnu
+  ```
+
+  已实测：`cargo test` 21 个用例全绿、`cargo clippy --all-targets -- -D warnings` 零告警。
+  `scripts/build-browser-import-helper.mjs` 把这套装配固化下来，CI 用 `MODE_BROWSER_IMPORT_TARGET`
+  注入 msvc 即可走另一条腿。
 - 不得为「让测试过」放宽契约；失败一律 fail-closed 并映射契约 B 的 reason。
 
 ---
@@ -149,7 +160,7 @@ git commit -m "test(browser-import): oracle 黑盒取数 harness 与契约断言
   `enum Mode { Version, Broker { parent_pid: u32 }, UsageError }`；
   `cli::version_banner() -> String` 返回契约 A 的 5 字段行。
 
-- [ ] **Step 1: 写失败的测试**
+- [x] **Step 1: 写失败的测试**（已落地 `crates/browser-import-helper/tests/cli.rs`）
 
 ```rust
 // crates/browser-import-helper/tests/cli.rs
@@ -261,18 +272,29 @@ fn main() {
 }
 ```
 
-- [x] **Step 4: 编译面确认**（本机只能做到这一步）
+- [x] **Step 4: 编译与测试面确认**（2026-10-16 本机全绿）
 
-Run: `cargo check --manifest-path crates/browser-import-helper/Cargo.toml --all-targets`
-Run: `cargo clippy --manifest-path crates/browser-import-helper/Cargo.toml --all-targets -- -D warnings`
-Expected: 两者均绿（已验证）。**`cargo test` 本机跑不了**——无链接器（见 Global Constraints），
-单测改由 CI Windows 腿执行，已接线。
+Run: `cargo check / clippy --all-targets -- -D warnings` → 均绿。
+Run: `cargo +stable-x86_64-pc-windows-gnu test --target x86_64-pc-windows-gnu` → **21 个用例全绿**
+（`cli` 6 + `protocol` 11 + `broker_cli` 4）。原「`cargo test` 本机跑不了」的结论已作废，
+见 Global Constraints 的工具链口径。
 
-- [ ] **Step 5: 与 oracle 对拍 `--version`**〔待能出产物的环境〕
+- [x] **Step 5: 与 oracle 对拍 `--version`**（2026-10-16 本机完成）
 
-在 Task 1 的 harness 加 `runRustHelper()` 并列比较：除第 4/5 字段（版本与 git 修订，构建期注入）
-外，字段 0/1/2 必须逐字节一致。**阻塞点**：本机产不出 `mode-browser-import-helper.exe`，
-需 CI 或装了链接器的机器。
+harness 已含 `runRustHelper()` 与并列比较用例「Rust 与旧产物的协议版本和架构字段一致」。
+**修正原假设**：字段 0 **不应**逐字节一致——旧产物发 `ZCODE_BROWSER_IMPORT_HELPER`，Rust 按宿主
+契约发 `MODE_BROWSER_IMPORT_HELPER`，这个差异正是要修的品牌缺陷（见契约 spec）。因此对拍口径
+是 `slice(1, 3)`（协议版本 + 架构字段）一致，字段 0 由两处各自按口径断言。
+
+实测（`MODE_BROWSER_IMPORT_ORACLE_PATH=/tmp/oracle-csharp-backup.exe`）：
+5 passed / 0 failed。旧产物 `ZCODE_…\t2\tx64\t0.0.1\t4e1800d3`，
+Rust `MODE_…\t2\tx64\t0.0.1\tb3d0f6ac` —— 第 2/3/4 字段一致。
+
+> **落点冲突（必须知道）**：旧 C# 产物与 Rust 产物共用同一落点
+> `packages/desktop/bundled-tools/win32-x64/browser-import/`。`prepare:browser-import-helper`
+> 现已指向 Rust，因此对拍旧产物必须显式 `MODE_BROWSER_IMPORT_ORACLE_PATH=<留存副本>`，
+> 否则 harness 会把 Rust 产物当旧产物（未指定时对拍用例整条 skip，不给假绿）。
+> 旧 C# 仍可用 `prepare:browser-import-helper:oracle` 复现。
 
 - [x] **Step 6: 提交**（已落地）
 
@@ -312,7 +334,7 @@ git commit -m "feat(browser-import): Rust helper 骨架与 --version 契约 A"
   `pub const REASONS: [&str; 15]`（白名单 13 + 宿主单独识别 2）、`HOST_WHITELIST_REASONS`、
   `HOST_SPECIAL_REASONS`、`KEY_LEN`。
 
-- [ ] **Step 1: 写失败的测试**
+- [x] **Step 1: 写失败的测试**（已落地 `crates/browser-import-helper/tests/protocol.rs`）
 
 ```rust
 // crates/browser-import-helper/tests/protocol.rs
@@ -354,7 +376,7 @@ fn reason_set_matches_host_whitelist() {
 }
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**（已验：`unresolved import browser_import_helper::protocol`）
 
 Run: `cargo test --manifest-path crates/browser-import-helper/Cargo.toml --test protocol`
 Expected: FAIL —— `unresolved import browser_import_helper::protocol`
@@ -395,12 +417,12 @@ pub fn err_response(reason: &str) -> String {
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**（2026-10-16 本机 gnu target：`protocol` 11 + `cli` 6 + `broker_cli` 4 全绿）
 
 Run: `cargo test --manifest-path crates/browser-import-helper/Cargo.toml`
 Expected: PASS（全部用例）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**（已落地）
 
 ```bash
 git add crates/browser-import-helper
@@ -489,12 +511,27 @@ git commit -m "feat(browser-import): 提权与服务通道（fail-closed 到契�
 > 与路线图 Global Constraints 一致：同一窗口期只允许一处改 `electron-builder.config.js`（CUA 一期的
 > `tools/cua-helper` 已落地，本任务只加/改 browser-import 一项）。
 
-- [ ] **Step 1: 写构建脚本**（对齐 `scripts/build-cua-helper.mjs` 的形态：探测 cargo → 构建 → 复制 → 校验存在）
-- [ ] **Step 2: 跑构建** Run: `pnpm --filter @mode/desktop prepare:browser-import-helper`
-  Expected: 产出同路径 exe，且 `--version` 与 oracle 前 3 字段一致
-- [ ] **Step 3: 删 C# 与旧脚本，跑语言门禁** Run: `node scripts/check-language-policy.mjs`
-  Expected: PASS（C# 行已移除，无残留 .cs）
-- [ ] **Step 4: 提交** `git commit -m "build(browser-import): helper 改由 Rust 产出，删 C# 实现"`
+- [x] **Step 1: 写构建脚本**（2026-10-16 落地 `scripts/build-browser-import-helper.mjs`）
+  形态对齐 `scripts/build-cua-helper.mjs`：装配 gnu 工具链（llvm-mingw linker + gnu-host toolchain）
+  → cargo 构建 → 复制到 `bundled-tools/win32-<arch>/browser-import/` → 产物自检。
+  非 win32 平台打印 skip 并退出 0（helper 是 Windows 专有，mac/linux 腿不该因此变红）。
+  目标三元组可用 `MODE_BROWSER_IMPORT_TARGET` 覆盖（CI 注入 msvc）。另注入
+  `MODE_APP_VERSION`（取根 `package.json` 的 version）与 `MODE_GIT_REVISION` 供契约 A 第 4/5 字段。
+  **Deviation**：`prepare:browser-import-helper` 改指新脚本，但**旧脚本不删**，改以
+  `prepare:browser-import-helper:oracle` 保留 —— P2 未落地前 C# 是唯一有解封路径的实现，
+  且对拍需要能复现旧产物（见 Task 2 Step 5 的落点冲突说明）。
+- [x] **Step 2: 跑构建**（2026-10-16 本机实测）
+  Run: `pnpm --filter @mode/desktop prepare:browser-import-helper`
+  Result: 产出 `bundled-tools/win32-x64/browser-import/mode-browser-import-helper.exe`，
+  自检输出 `MODE_BROWSER_IMPORT_HELPER	2	x64	0.0.1	b3d0f6ac`。
+  **修正**：原写「与 oracle 前 3 字段一致」有误 —— 第 1 字段按设计**必须不同**（品牌缺陷修正），
+  实际一致的是第 2/3/4 字段。
+- [ ] **Step 3: 删 C# 与旧脚本**〔**未执行，按计划自身的前置条件阻塞**〕
+  Task 5 前置写明「在 Task 5 通过真机验收前，`Program.cs` 不得删除」。P2/P3 需要真实 Windows
+  交互式会话做 UAC 验收，无法无人值守完成。故：`Program.cs` 与其 allowlist 行**保留**，
+  语言条 C# 归零这项 M0 验收条件仍不满足。
+  `node scripts/check-language-policy.mjs` → PASS（225 受管文件；C# 行属预期保留）。
+- [x] **Step 4: 提交**（2026-10-16）`build(browser-import): helper 改由 Rust 产出，C# 暂留作 oracle`
 
 ---
 
@@ -505,10 +542,22 @@ git commit -m "feat(browser-import): 提权与服务通道（fail-closed 到契�
 - Modify: `docs/plans/2026-10-09-tauri-rewrite-roadmap.md`（勾掉 M0 任务 6）
 
 - [ ] **Step 1: CI 接线**：与 `crates/mode-cua-ax` 同形（rust-cache 的 `workspaces` 加本 crate）。
+  〔未执行——该 crate 目前不在任何 workspace 里，M1 Task 1 建根 workspace 时一并接线更合适〕
 - [ ] **Step 2: 实机验收**（**必须真机，人工执行**）：Windows 上装 Chrome，登录并写入 cookie，
   从打包版 app 触发一次「导入浏览器数据」，成功取回 32 字节密钥；再验一次拒绝 UAC →
   宿主报 `chrome_cookie_elevation_cancelled`。
-- [ ] **Step 3: 更新路线图并提交**（见计划交付说明）。
+  〔阻塞：需要交互式 UAC 会话，无人值守执行会弹窗挂住〕
+- [x] **Step 3: 更新路线图并提交**（见计划交付说明）。
+
+### 本轮（2026-10-16）额外发现：打包接线缺失
+
+宿主按 `resources/browser-import/<helper 文件名>` 解析（`windowsChromeAppBoundKey.ts:119`），
+但本仓库 `electron-builder.config.js` 的 `extraResources` **没有 browser-import 映射**，
+即打包态的 helper 从未分发（与路线图 M0 任务 6 已记录的「已发布安装件 resources/ 下没有
+browser-import 目录」一致，不是新回归）。补这项要连带处理打包态 Authenticode 校验
+（宿主在 `isPackaged` 下比对 helper 与 app 的签名）与 opt-in 构建开关，无法在本机验证，
+留给 P3 与 P2 一起做。**本轮刻意不动 `electron-builder.config.js`**
+（路线图 Global Constraints：同一窗口期只允许一处改动）。
 
 ---
 

@@ -44,6 +44,13 @@ pub fn parse(args: &[String]) -> Mode {
     }
 }
 
+/// 构建期注入的应用版本：构建脚本从 `packages/desktop/package.json` 读出后经
+/// `MODE_APP_VERSION` 传入；直接 `cargo build` 时退回 crate 版本。契约里第 4/5 字段
+/// 本就是构建期注入，对拍只比前 3 字段。
+pub fn app_version() -> &'static str {
+    option_env!("MODE_APP_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))
+}
+
 /// 契约 A：制表符分隔 5 字段 `<协议名>\t<协议版本>\t<架构>\t<应用版本>\t<git 修订>`。
 pub fn version_banner() -> String {
     format!(
@@ -51,7 +58,7 @@ pub fn version_banner() -> String {
         VERSION_PROTOCOL,
         PROTOCOL_VERSION,
         arch_token(),
-        env!("CARGO_PKG_VERSION"),
+        app_version(),
         option_env!("MODE_GIT_REVISION").unwrap_or("unknown"),
     )
 }

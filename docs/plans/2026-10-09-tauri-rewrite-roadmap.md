@@ -75,11 +75,16 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - [ ] **`crates/browser-import-helper` 重写 C#（M0 关闭条件）**〔2026-10-15 补齐计划与契约〕：**新发现的纪律约束**——`Program.cs` 与 `upstream/zcode-baseline` 逐文件 diff **只差 1 行**（1 insertion / 1 deletion），属 `clean-room-policy.md` 口径下的上游衍生实现文件，**禁读**；「先写行为对拍测试（同输入 → 与 C# 版输出一致）」必须按**黑盒**执行，不得打开旧实现照着写。
   - 契约真源：`docs/specs/browser-import-helper-contract.md`（黑盒实测 + 接口面：`--version` 五字段横幅、`--broker --parent-pid` 的 tab 分隔 3 字段请求/响应、宿主 reason 白名单 13 项、90s 超时与 128KiB stdout 上限）。
   - 执行计划：`docs/plans/2026-10-15-browser-import-helper-rust-port.md`（P1 纯逻辑可本机验，P2 提权/服务通道/密钥解封需真实 Windows 会话，P3 接线删 C#）。
-  - 本机前置已验：无 dotnet/csc，但 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 可用，`pnpm --filter @mode/desktop prepare:browser-import-helper` 能产出 oracle。
+  - 本机前置已验：无 dotnet/csc，但 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 可用，`pnpm --filter @mode/desktop prepare:browser-import-helper:oracle` 能产出 oracle（2026-10-16 起：`prepare:browser-import-helper` 已改指 Rust 构建，C# 的构建入口挪到带 `:oracle` 后缀的脚本）。
   - **实测发现的现役缺陷（2026-10-15）**：旧 C# 产物对 `--version` 横幅与 broker 回帧**都发 `ZCODE_*` 品牌**，而宿主断言 `MODE_BROWSER_IMPORT_HELPER` / `MODE_BROWSER_IMPORT_V1`——两者不符。补充核实：已发布的 Mode 安装件 `app.asar` 里**只有 `MODE_*`**、且 `resources/` 下**没有 browser-import 目录**，即该 helper 未随本仓库的发布件一起分发；所以这是**代码库内的一致性缺陷**（一旦启用就会失败），不是线上事故。Rust 版按宿主契约实现（`rejects_legacy_zcode_token` / `responses_never_use_the_version_token` 反向锁），替换 C# 即修复。
   - **解封面 spike 结论（2026-10-15）**：机制是 Chrome 的 COM elevator（`IElevator2::DecryptData`，路径校验面向浏览器进程）。关键否证：**旧产物在本机（Chrome 155 已安装并运行）用真实 app-bound 密钥也只回 `broker_initialization_failed`**，成功路径没有参照物。详见 `docs/plans/2026-10-15-browser-import-abe-spike.md`；验收改自证口径（解开真实 cookie 密文），且**若结论指向进程注入则需独立立项与安全评审**。
   - **解封路径需真机**（本机无 Chrome、需 UAC 交互式会话），故 **C# 暂不删除**：删早了会让该功能直接不可用。删除条件是 P2 落地并在真机跑通「导入一次 + 拒绝 UAC」两条验收。
   - 验收：Windows 实机导入一次浏览器数据成功（含拒绝 UAC → `chrome_cookie_elevation_cancelled`）；语言条 C# 归零。
+  - **2026-10-16 进展（P1 收口 + 构建接线；阶段仍未关闭）**：
+    1. **「本机无 Rust 链接器」的结论作废**——电脑控制一期落地时已在本机装配出 gnu 路线工具链（`~/.rust-tools/llvm-mingw-*/bin/x86_64-w64-mingw32-clang` 作 linker + rustup `stable-x86_64-pc-windows-gnu`），`scripts/build-cua-helper.mjs` 一直在用它。实测本机 `cargo test` **21 个用例全绿**、`clippy --all-targets -- -D warnings` **零告警**；无需装 VS Build Tools，**不构成环境变更**。
+    2. **构建接线落地**：新增 `scripts/build-browser-import-helper.mjs`（固化 gnu 工具链装配、产物自检、非 win32 平台 skip、`MODE_BROWSER_IMPORT_TARGET` 可覆盖），`prepare:browser-import-helper` 改指它；本机实测产出 `bundled-tools/win32-x64/browser-import/mode-browser-import-helper.exe`。旧 C# 脚本**不删**，改挂 `prepare:browser-import-helper:oracle`，以便继续复现旧产物做黑盒对拍。
+    3. **黑盒对拍闭环**：Rust 与旧产物在「协议版本 + 架构 + 应用版本」3 字段一致；第 1 字段按设计**不同**（旧产物 `ZCODE_*`、Rust `MODE_*`，正是要修的品牌缺陷）。契约测试 5 passed（含对拍用例）。落点冲突已处理：两个产物共用 `bundled-tools/win32-x64/browser-import/`，对拍旧产物须显式给 `MODE_BROWSER_IMPORT_ORACLE_PATH`，未指定时对拍用例整条 skip（不给假绿）。
+    4. **仍未完成**：P2（提权 / 服务通道 / 密钥解封）需要真实 Windows 交互式会话做 UAC 验收，无人值守执行会弹窗挂住；故 `Program.cs` 与其语言政策 allowlist 行保留、**C# 语言条未归零**，`electron-builder.config.js` 的 browser-import `extraResources` 接线与打包态 Authenticode 校验一并留到 P3（本轮刻意不动该文件，遵守 Global Constraints 的「同一窗口期只允许一处改动」）。**M0 仍以本任务未完成论**。
 - [ ] **mode-cua JS→TS（让行）**〔本批让行，待电脑控制一期收口〕：等电脑控制一期收口后再执行（该目录正在被并行会话开发）；`.d.ts` 手写声明删除，改由 tsc 产出。
 - [ ] **（可选）过渡版瘦身**〔本批未执行〕：按上轮结论修 `files` 白名单（echarts/mermaid/pdfjs/lucide/shiki/katex 等渲染层库已在 `out/renderer` bundle 内，asar 不再重复装其 node_modules）+ `compression: "max"`，本地出包对比体积并记录。**与 CUA 一期对 `electron-builder.config.js` 的改动错峰，同一窗口期只动一处。**
 
