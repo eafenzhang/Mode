@@ -1,27 +1,28 @@
 /**
- * `rd/*` IPC 面（main 侧注册）。
+ * `rd/*` IPC 面（main 侧注册；renderer/preload 封装由 T5 接）。
  *
- * 命名与形状由 `IPlatformService` 的 rd* 声明复刻到 preload/renderer；改名字必须四处同步
- * （main 常量 → shared platform → preload → renderer 桥）。
- *
- * 系统 RDP 方案下应用不是会话端点：这里只有「探对端、发起、看会话、断会话、被控设置」
- * 五类，画面/输入/剪贴板/音频没有任何通道（docs/specs/remote-desktop-system-rdp.md 接口节）。
+ * 命名与形状**冻结**：T5 的 `IPlatformService` 与缓存客户端按这里的字符串消费，不要重命名。
+ * 仅新增通道可扩；现有通道的请求/响应字段不得改。
  */
 export const REMOTE_DESKTOP_IPC = {
-  /** invoke(serverId) → { online, remoteDesktop, systemRdp?, name? }（经 host 用已存令牌探对端 server-info）。 */
+  /** invoke(serverId) → { remoteDesktop, online, name? }（经 host 用已存令牌探对端 server-info）。 */
   GetPeerCapability: "rd/get-peer-capability",
-  /** invoke(RdpConnectRequest) → RdpConnectResult（生成 .rdp 并启动 mstsc）。 */
-  Connect: "rd/connect",
-  /** invoke() → RdpSessionRecord[]（仅本进程启动的会话）。 */
-  GetSessions: "rd/get-sessions",
-  /** invoke(sessionId) → { ok }（终止该会话的 mstsc 进程）。 */
-  Disconnect: "rd/disconnect",
-  /** invoke(serverId) → RdpConnectionOptions（每设备连接选项，按 serverId 记忆）。 */
-  GetRdpOptions: "rd/get-rdp-options",
-  /** invoke(serverId, options) → RdpConnectionOptions（写入后回读最新值）。 */
-  SetRdpOptions: "rd/set-rdp-options",
-  /** invoke() → { sharingEnabled, systemRdp? }（被控设置面）。 */
+  /** invoke(serverId) → { ok: true } | { error: RemoteDesktopErrorCode }。 */
+  StartSession: "rd/start-session",
+  /** invoke() → { controlled: boolean }（本机被控状态，设备页置灰用）。 */
+  GetControlledState: "rd/get-controlled-state",
+  /** invoke(message: RemoteDesktopSignalMessage)（main 校验后写出）。 */
+  SendSignal: "rd/send-signal",
+  /** invoke(reason?)（先发 bye 再收尾）。 */
+  EndSession: "rd/end-session",
+  /** invoke() → { enabled, authorizedClients }（被控设置面）。 */
   GetServerState: "rd/get-server-state",
-  /** invoke(enabled) → { sharingEnabled, systemRdp? }。 */
+  /** invoke(enabled) → { enabled, authorizedClients }。 */
   SetServerEnabled: "rd/set-server-enabled",
+  /** invoke(clientId) → { enabled, authorizedClients }。 */
+  RevokeClient: "rd/revoke-client",
+  /** invoke(clientId) → { enabled, authorizedClients }（与同意窗「记住此设备」同一写路径）。 */
+  AuthorizeClient: "rd/authorize-client",
+  /** push（main → renderer）：{ kind:"state", state, error? } | { kind:"signal", message }。 */
+  SessionEvent: "rd/session-event",
 } as const;

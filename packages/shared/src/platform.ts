@@ -15,12 +15,11 @@ import type {
   LanPairedPeerWorkspaces,
 } from "./lanAccess.js";
 import type {
-  RdpConnectRequest,
-  RdpConnectResult,
-  RdpConnectionOptions,
-  RdpServerState,
-  RdpSessionRecord,
-} from "./remote-desktop-rdp.js";
+  RemoteDesktopCodec,
+  RemoteDesktopErrorCode,
+  RemoteDesktopQuality,
+  RemoteDesktopSignalMessage,
+} from "./remote-desktop.js";
 import type {
   LoadCliMcpFromUserDirectoryRequest,
   LoadCliMcpFromUserDirectoryResult,
@@ -984,18 +983,18 @@ export interface IPlatformService {
    */
   getDeviceId(): string;
 
-  // ---- 远程桌面（系统 RDP）（docs/specs/remote-desktop-system-rdp.md；仅 Windows 桌面端为真实能力）----
-  // 应用**不是会话端点**：连接 = 生成临时 `.rdp` 并启动系统 mstsc，画面/输入/剪贴板/音频
-  // 全部由 Windows RDP 承担。故这里只有「探对端、发起、列会话、断会话、被控设置」五类，
-  // 没有任何媒体或输入通道。形状真源仍是 desktop 侧 `remoteDesktop/ipcChannels.ts`；
-  // Web / 手机远控没有 mstsc，按「不支持」先例返回稳定错误码。
+  // ---- 局域网远程桌面（docs/specs/lan-remote-desktop.md；仅 Windows 桌面端为真实能力）----
+  // 主控侧会话控制全部经 main：对端能力探测、发起会话、信令转发、结束；
+  // 被控侧设置面（总开关 + 已授权设备）同理由 main 经 host 现读现写。
+  // 形状真源是 desktop 侧 `remoteDesktop/ipcChannels.ts`（冻结）；Web / 手机远控没有宿主
+  // Helper 与采集面，按「不支持」先例返回空态或稳定错误码。
 
   /** 探测某个已配对对端的能力位与在线状态（main 经 host 用已存令牌拉对端 server-info）。 */
   rdGetPeerCapability(serverId: string): Promise<{
-    /** 对端 `server-info.capabilities.remoteDesktop`（提示性共享位）；旧对端缺键 = false。 */
+    /** 对端 `server-info.capabilities.remoteDesktop`；旧对端缺键 = false（不支持）。 */
     remoteDesktop: boolean;
-    /** 对端系统 RDP 真实状态；旧对端/探测未就绪 = 缺键（状态未知，UI 不据此置灰）。 */
-    systemRdp?: { enabled: boolean; editionOk: boolean };
+    /** 对端支持原生媒体面（纯直替版本门）；旧对端缺键 = false。 */
+    remoteDesktopNative: boolean;
     /** 宿主探测是否成功；false 时能力位不可信，按离线展示。 */
     online: boolean;
     /** 对端自报名（可选）。 */
@@ -1003,35 +1002,80 @@ export interface IPlatformService {
   }>;
 
   /**
-   * 发起连接：生成临时 `.rdp` 并启动 mstsc。失败返回稳定原因
-   * （`invalid_address` / `invalid_username` = `.rdp` 注入校验拦下；`launch_failed`）。
+   * 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成）；失败返回稳定错误码。
+   * 契约 E：成功时附带 `mediaUrl` = `ws://<对端host>:<port>/ws/remote-desktop-media?mediaTicket=<t>`，
+   * 由主控 host 从被控 POST 响应拼出、经本返回值直达 renderer（不走信令 union）。
+   * 画质档位（P1-3）：`quality` 随会话请求下发给被控（fps/maxWidth/初始码率）；
+   * 缺省 = 被控按默认档（旧主控不带该参数）。
+   * 编码 codec 偏好（HEVC 选型 2026-10-13）：`codec` 由 renderer 按本地解码能力
+   * 预检后下发（缺省/非法 = h264）；被控无硬件 HEVC 时回退，解码按码流自描述跟随。
    */
-  rdConnect(request: RdpConnectRequest): Promise<RdpConnectResult>;
-
-  /** 列出本应用启动且仍在运行的 RDP 会话（不跨应用重启持久化）。 */
-  rdGetSessions(): Promise<RdpSessionRecord[]>;
-
-  /** 断开某条会话（终止对应 mstsc 进程）。 */
-  rdDisconnect(sessionId: string): Promise<{ ok: boolean }>;
-
-  /** 读某设备的连接选项（未设置 = 空对象，UI 用缺省值）。 */
-  rdGetRdpOptions(serverId: string): Promise<RdpConnectionOptions>;
-
-  /** 写某设备的连接选项，返回回读后的最新值。 */
-  rdSetRdpOptions(
+  rdStartSession(
     serverId: string,
-    options: RdpConnectionOptions,
-  ): Promise<RdpConnectionOptions>;
+    quality?: RemoteDesktopQuality,
+    codec?: RemoteDesktopCodec,
+  ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }>;
 
   /**
-   * 读取被控设置面状态（提示性共享开关 + 系统 RDP 真实状态）；
-   * 读失败由实现按 fail-closed 兜底（开关按关、系统状态按未知）。
+   * 读取本机是否处于被控状态（被控会话状态机 phase !== "idle"，含同意弹窗中）。
+   * 设备页据此整卡置灰；发起瞬间的权威拦截在 main 的 rd/start-session（locally_controlled）。
    */
-  rdGetServerState(): Promise<RdpServerState>;
+  rdGetControlledState(): Promise<{ controlled: boolean }>;
+
+  /** 向被控端写出信令消息（main 校验后经 WS 转发；未建立会话时丢弃）。 */
+  rdSendSignal(message: RemoteDesktopSignalMessage): void;
+
+  /** 结束当前主控会话（main 先带出 bye 再收尾）。 */
+  rdEndSession(reason?: "user-end" | "error"): Promise<void>;
+
+  /** 读取被控设置面状态（总开关 + 已授权设备 + 编码能力缓存）；读失败由实现按 fail-closed 兜底。 */
+  rdGetServerState(): Promise<{
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+    /** 编码能力缓存（P1-3）：unknown = 尚未有真实会话观测。 */
+    encoderCapability: "unknown" | "available" | "unavailable";
+  }>;
+
+  /** 写被控总开关；关开关会立即终止进行中的被控会话。返回最新状态。 */
+  rdSetServerEnabled(enabled: boolean): Promise<{
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
+  }>;
+
+  /** 撤销某个已授权设备（下次连接重新弹同意窗）。返回最新状态。 */
+  rdRevokeClient(clientId: string): Promise<{
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
+  }>;
 
   /**
-   * 写提示性共享开关。**关掉它不会断开任何 RDP 连接**——系统 RDP 监听 3389，
-   * 本应用拦不住（spec 产品规则 5）；它只影响本机是否作为可远控设备出现在对端设备页。
+   * 授权某个已配对设备（设置页开关；与同意窗「记住此设备」写同一记录字段）。
+   * 返回最新状态。
    */
-  rdSetServerEnabled(enabled: boolean): Promise<RdpServerState>;
+  rdAuthorizeClient(clientId: string): Promise<{
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
+  }>;
+
+  /**
+   * 订阅主控会话事件，返回 disposer。
+   * - `state`：信令连接生命周期（connected 后 renderer 发 `hello` 起媒体协商）；
+   *   `retryable` = 传输断开（非 bye/本地结束），renderer 可走会话级重连退避（P2-1）；
+   * - `signal`：对端信令（T1 union；main 已校验，仅转发）。
+   */
+  onRemoteDesktopSessionEvent(
+    handler: (
+      event:
+        | {
+            kind: "state";
+            state: "connecting" | "connected" | "closed";
+            error?: RemoteDesktopErrorCode;
+            retryable?: boolean;
+          }
+        | { kind: "signal"; message: RemoteDesktopSignalMessage },
+    ) => void,
+  ): () => void;
 }

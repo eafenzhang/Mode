@@ -66,6 +66,7 @@ import {
   resolveWorkspaceShellWindowChromeClass,
 } from "@/app-shell/workspaceShellWindowChrome.js";
 import { cn } from "@/components/lib/utils.js";
+import { resolveTopOverlayClearancePaddingClass } from "@/lib/topOverlayClearance.js";
 import { Button } from "@/components/ui/button.js";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable.js";
 import { toast } from "@/components/ui/toast.js";
@@ -1779,10 +1780,17 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                               variant="panel"
                               className="h-full"
                             >
-                              {/* 会话画面已移至外部 mstsc 窗口，设备页不再需要顶部浮层让位。 */}
                               <RemoteDesktopHome
                                 isDesktop={Boolean(isDesktop)}
                                 active={workspaceMainView === "remote-desktop"}
+                                topOverlayClearancePaddingClass={
+                                  resolveTopOverlayClearancePaddingClass({
+                                    isSidebarVisible,
+                                    isMacDesktop,
+                                    isMacFullscreen,
+                                    hasUpdateReady: hasUpdateStatusButton,
+                                  }) ?? undefined
+                                }
                               />
                             </ScopedErrorBoundary>
                           </main>

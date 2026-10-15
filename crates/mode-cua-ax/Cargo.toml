@@ -11,7 +11,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # serde-json：napi 的 serde_json::Value ⇄ JS 互转实现由该 feature 门控（serde 本身不够，
 # Task 5 的 perform.payload 需要——编译期实测）。
-napi = { version = "2", features = ["serde", "serde-json"] }
+# napi4：ThreadsafeFunction 模块（契约 A 帧/状态回调）位于 `feature = "napi4"` 门后
+# （默认只开 napi3）；追加不改版本、不删既有项。
+napi = { version = "2", features = ["serde", "serde-json", "napi4"] }
 napi-derive = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -32,6 +34,18 @@ windows = { version = "0.58", features = [
   "Win32_Storage_FileSystem",
   # Task 6：OpenInputDesktop（锁屏探测），编译强制新增。
   "Win32_System_StationsAndDesktops",
+  # Task 2（原生媒体面 P1）：DXGI Desktop Duplication + D3D11 纹理 + MF 视频编码。
+  "Win32_Graphics_Dxgi",
+  "Win32_Graphics_Direct3D",
+  "Win32_Graphics_Direct3D11",
+  "Win32_Media",
+  # Task 2 编译强制新增：DXGI_FORMAT/DXGI_OUTPUT_DESC/DXGI_COLOR_SPACE 及
+  # D3D11_TEXTURE2D_DESC 等结构都在 Dxgi::Common 命名空间（Win32_Graphics_Dxgi 不含它，
+  # windows-rs 特性是叶子命名空间粒度，父特性不隐含子特性）。
+  "Win32_Graphics_Dxgi_Common",
+  # Task 2 编译强制新增：MFStartup/MFTEnumEx/IMFTransform/IMFSample 等 Media Foundation
+  # API 位于 Win32::Media::MediaFoundation（Win32_Media 仅是父命名空间）。
+  "Win32_Media_MediaFoundation",
 ] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 

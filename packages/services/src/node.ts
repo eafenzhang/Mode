@@ -151,7 +151,7 @@ export {
   normalizeCuaHelperArch,
   normalizeCuaHelperArchs,
 } from "./cua-permission-broker/cuaHelperInstaller.js";
-// CUA 远控注入端口（docs/specs/lan-remote-computer-use.md）：
+// 远程桌面被控注入端口（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：
 // 解析/入口工厂供宿主装配与测试注入（socket 解析点、helper 创建入口）；
 // Local Host 装配实例经 getCuaRawInputInjector 侧表读取。
 export {
@@ -548,6 +548,10 @@ import {
   type CuaRawInputInjector,
 } from "./cua-permission-broker/cuaRawInput.js";
 import {
+  createCuaRdMediaController,
+  type CuaRdMediaController,
+} from "./cua-permission-broker/cuaRdMedia.js";
+import {
   isCuaExcludedRemoteWorkspaceIdentity,
   resolveCuaWorkspaceEnablement,
 } from "./cuaEnablement.js";
@@ -741,12 +745,26 @@ const cuaRawInputInjectors = new WeakMap<ServiceCollection, CuaRawInputInjector>
  * 远程桌面被控输入注入端口（经既有 CUA Helper 通道调用 broker raw_input）。
  * 与 accountRequestAuth / providerProvisioning 同口径：只按 ServiceCollection 侧表暴露给
  * host 装配层，不注册进服务集合，避免 renderer 经通用 RPC Channel 触达 Helper
- * （docs/specs/lan-remote-computer-use.md 安全边界：令牌与输入注入不出 main/host）。
+ * （docs/specs/lan-remote-desktop.md 安全边界：令牌与输入注入不出 main/host）。
  */
 export function getCuaRawInputInjector(
   services: ServiceCollection,
 ): CuaRawInputInjector | undefined {
   return cuaRawInputInjectors.get(services);
+}
+
+const cuaRdMediaControllers = new WeakMap<ServiceCollection, CuaRdMediaController>();
+
+/**
+ * 远程桌面媒体面注入端口（经既有 CUA Helper 通道调用 broker rd_media_*）。
+ * 与 cuaRawInputInjectors 同口径：只按 ServiceCollection 侧表暴露给 host 装配层，
+ * 不注册进服务集合，避免 renderer 经通用 RPC Channel 触达 Helper
+ * （docs/specs/lan-remote-desktop.md 安全边界：媒体指令与 Helper 控制面不出 main/host）。
+ */
+export function getCuaRdMediaController(
+  services: ServiceCollection,
+): CuaRdMediaController | undefined {
+  return cuaRdMediaControllers.get(services);
 }
 
 const managedHostApiNetworkTransports = new WeakMap<ServiceCollection, HostApiNetworkTransport>();
@@ -789,7 +807,11 @@ export function shouldEnableDefaultCuaProductHelper(
  *   ssh/wsl/docker 与无法解析的非空串维持排除；
  * - 已显式注入 resolver 时不重复创建。
  *
- * 准入理由为 CUA 插件启用（主控不再经 helper 向对端注入输入，远程桌面被控已不是准入理由）。
+ * 准入理由为并列两项（外部只增不减的 OR）：
+ * - CUA 插件启用（既有唯一理由）；
+ * - 远程桌面被控总开关开（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：被控注入
+ *   走既有 Helper 通道的 raw_input，插件关闭时同样必须能建 Helper；authority 与 identity
+ *   条件不变（开关打开不豁免 desktop-local 与 ssh/wsl/docker 排除）。
  *
  * 平台/环境层面的启用与否另由 shouldEnableDefaultCuaProductHelper 决定。
  */
@@ -798,9 +820,12 @@ export function shouldCreateDefaultCuaProductHelper(opts: {
   hasRemoteWorkspaceIdentity?: boolean;
   hasInjectedResolver: boolean;
   hasBuiltInCuaPlugin: boolean;
+  /** 被控开关读取点（缺省 = 关闭，产品规则 1「默认关」）；懒读取，插件已放行时不求值。 */
+  isRemoteDesktopServerEnabled?: () => boolean;
 }): boolean {
+  const isRemoteDesktopServerEnabled = opts.isRemoteDesktopServerEnabled ?? (() => false);
   return (
-    opts.hasBuiltInCuaPlugin &&
+    (opts.hasBuiltInCuaPlugin || isRemoteDesktopServerEnabled()) &&
     opts.serviceAuthorityMode === "desktop-local" &&
     !opts.hasRemoteWorkspaceIdentity &&
     !opts.hasInjectedResolver
@@ -1422,6 +1447,13 @@ export function createLocalServices(options: {
   ) => void;
   serviceAuthorityMode?: ServiceAuthorityMode;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
+  /**
+   * 远程桌面被控总开关读取点（设置页「远程桌面」分区，默认关；docs/specs/lan-remote-desktop.md）。
+   * 它是 helper 创建准入的第二理由（与 CUA 插件启用并列，见 shouldCreateDefaultCuaProductHelper）：
+   * 被控注入经既有 Helper 通道的 raw_input，插件关闭但被控开关打开时同样需要建 Helper。
+   * 缺省 = 关闭；host 侧接线（设置存储注入）由桌面装配层负责，services 不读设置文件。
+   */
+  isRemoteDesktopServerEnabled?: () => boolean;
   agentRuntimeContext?: {
     getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
@@ -1808,6 +1840,8 @@ export function createLocalServices(options: {
           ),
           hasInjectedResolver: Boolean(options?.cuaProductMcpServerResolver),
           hasBuiltInCuaPlugin: isCuaEnabledForContext(context),
+          // 被控开关优先级与插件并列；缺省关闭，宿主装配层（桌面 host）注入真实读取点。
+          isRemoteDesktopServerEnabled: options?.isRemoteDesktopServerEnabled,
         }),
       shouldRetainCurrent: shouldRetainDefaultCuaProductHelper,
       create: () => createManagedDefaultCuaProductHelper(context),
@@ -1857,17 +1891,17 @@ export function createLocalServices(options: {
     }
   };
 
-  // CUA raw_input 注入端口的 socket 解析：
+  // 远程桌面被控注入端口的 socket 解析（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：
   // 优先托管 host 的 live socket（cuaPipSessionService.resolveCredentials 同口径的 peek，
   // 绝不 acquire/拉起），否则回落到稳定 socket 探测（env 发现 + 300ms ping，probe-only）。
   // 复用既有 helper 通道 = 不新建第二条生命周期、不自行 fork；不可达时由注入端口直接
-  // fail closed 抛 helper_unavailable。
+  // fail closed 抛 helper_unavailable，会话失败语义归被控 main 桥。
   //
-  // T3c 追加第三支：前两支都解析不到时，经**与 CUA demand 同一创建入口**
+  // T3c 追加第三支：被控开关打开且前两支都解析不到时，经**与 CUA demand 同一创建入口**
   // （getOrCreateDefaultCuaProductHelper：同一 admission 谓词、同一 CuaHelperLifecycleManager）
-  // 拉起一次 Helper（admission 仍要求 CUA 插件启用）。拉起沿用 host 既有冷启动/健康探测/超时
-  // 与代际语义；失败退避沿用 spawn env 路径同一窗口常量，失败结果仍收敛为 helper_unavailable
-  //（不加重试轰炸、不做本地兜底）。
+  // 拉起一次 Helper——插件关闭但被控开关打开时，此前没有任何 demand 会创建 Helper，注入必然
+  // helper_unavailable。拉起沿用 host 既有冷启动/健康探测/超时与代际语义；失败退避沿用 spawn
+  // env 路径同一窗口常量，失败结果仍收敛为 helper_unavailable（不加重试轰炸、不做本地兜底）。
   const ensureCuaHelperForRemoteDesktopInput = async (): Promise<string | null> => {
     const helper = await getOrCreateDefaultCuaProductHelper();
     if (!helper || !isDefaultCuaProductHelperCurrent(helper)) return null;
@@ -1878,7 +1912,7 @@ export function createLocalServices(options: {
       // 持有并负责 dispose，注入端口把这次失败收敛为 helper_unavailable。
       createServiceLogger("cua-product-helper").warn(
         undefined,
-        "CUA Helper startup for raw_input failed; injection stays fail-closed",
+        "Remote desktop CUA Helper startup failed; raw input stays fail-closed",
         {
           errorName: error instanceof Error ? error.name : typeof error,
           message: error instanceof Error ? error.message : String(error),
@@ -1898,10 +1932,16 @@ export function createLocalServices(options: {
         : null;
     },
     probeStableSocketPath: probeStableCuaHelperSocket,
+    isRemoteDesktopServerEnabled: options?.isRemoteDesktopServerEnabled,
     ensureRemoteDesktopHelper: ensureCuaHelperForRemoteDesktopInput,
     ensureFailureBackoffMs: CUA_PRODUCT_HELPER_AGENT_ENV_RETRY_MS,
   });
   const cuaRawInputInjector = createCuaRawInputInjector({
+    resolveSocketPath: resolveCuaRawInputSocketPath,
+  });
+  // 媒体面（rd_media_start/switch/stop）与 raw_input 共用同一 socket 解析链（同一 helper、
+  // 同一管道、同一被控准入与退避）：媒体指令不另走一套发现/拉起口径。
+  const cuaRdMediaController = createCuaRdMediaController({
     resolveSocketPath: resolveCuaRawInputSocketPath,
   });
 
@@ -2786,6 +2826,7 @@ export function createLocalServices(options: {
   // 远控注入端口是 Local Host 进程内能力：只按侧表交给 host 装配层，不注册进服务集合
   // （renderer 不得经 RPC 触达 Helper；见 getCuaRawInputInjector 注释）。
   cuaRawInputInjectors.set(services, cuaRawInputInjector);
+  cuaRdMediaControllers.set(services, cuaRdMediaController);
 
   providerRuntimes.set(services, providerRuntime);
   providerProvisioningSources.set(services, providerProvisioningSource);

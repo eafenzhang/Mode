@@ -66,40 +66,46 @@ import type {
   IPlatformService,
 } from "@mode/shared";
 import { InternalChannels, PlatformChannels, formatModeRendererProcessName } from "@mode/shared";
+import type {
+  RemoteDesktopCodec,
+  RemoteDesktopQuality,
+  RemoteDesktopSignalMessage,
+} from "@mode/shared/remote-desktop";
 import { createOAuthCallbackHandler } from "./oauthCallbackBridge.js";
 
 // `rd/*` 通道名冻结在 main 的 remoteDesktop/ipcChannels.ts；preload 不跨项目 import main，
 // 因此这里逐字复制常量（改名字必须两边同步，见该文件顶部注释）。
 const REMOTE_DESKTOP_IPC = {
   GetPeerCapability: "rd/get-peer-capability",
-  Connect: "rd/connect",
-  GetSessions: "rd/get-sessions",
-  Disconnect: "rd/disconnect",
-  GetRdpOptions: "rd/get-rdp-options",
-  SetRdpOptions: "rd/set-rdp-options",
+  StartSession: "rd/start-session",
+  GetControlledState: "rd/get-controlled-state",
+  SendSignal: "rd/send-signal",
+  EndSession: "rd/end-session",
   GetServerState: "rd/get-server-state",
   SetServerEnabled: "rd/set-server-enabled",
+  RevokeClient: "rd/revoke-client",
+  AuthorizeClient: "rd/authorize-client",
+  SessionEvent: "rd/session-event",
 } as const;
 
-// 远程桌面平台面形状真源是 shared `IPlatformService` 的 rd* 声明（含 main 侧 IPC 形状）。
+// 远程桌面平台面形状真源是 shared `IPlatformService` 的 rd* 声明（含 main 冻结的 IPC 形状）。
 // shared 入口按白名单再导出，这里用派生类型引用，避免手写第二份形状。
 type RemoteDesktopPlatformSurface = IPlatformService;
 type RemoteDesktopPeerCapabilityResult = Awaited<
   ReturnType<RemoteDesktopPlatformSurface["rdGetPeerCapability"]>
 >;
-type RemoteDesktopConnectRequest = Parameters<RemoteDesktopPlatformSurface["rdConnect"]>[0];
-type RemoteDesktopConnectResult = Awaited<
-  ReturnType<RemoteDesktopPlatformSurface["rdConnect"]>
+type RemoteDesktopStartSessionResult = Awaited<
+  ReturnType<RemoteDesktopPlatformSurface["rdStartSession"]>
 >;
-type RemoteDesktopSessionListResult = Awaited<
-  ReturnType<RemoteDesktopPlatformSurface["rdGetSessions"]>
->;
-type RemoteDesktopRdpOptions = Awaited<
-  ReturnType<RemoteDesktopPlatformSurface["rdGetRdpOptions"]>
+type RemoteDesktopControlledStateResult = Awaited<
+  ReturnType<RemoteDesktopPlatformSurface["rdGetControlledState"]>
 >;
 type RemoteDesktopServerStateResult = Awaited<
   ReturnType<RemoteDesktopPlatformSurface["rdGetServerState"]>
 >;
+type RemoteDesktopSessionEvent = Parameters<
+  Parameters<RemoteDesktopPlatformSurface["onRemoteDesktopSessionEvent"]>[0]
+>[0];
 
 const updateReadyCallbacks = new Set<(version: string) => void>();
 const updateStateCallbacks = new Set<(payload: UpdateStatePayload) => void>();
@@ -358,30 +364,39 @@ contextBridge.exposeInMainWorld("mode", {
   /** 探测已配对对端的远程桌面能力位与在线状态（main 经 host 用已存令牌拉 server-info） */
   rdGetPeerCapability: (serverId: string): Promise<RemoteDesktopPeerCapabilityResult> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetPeerCapability, serverId),
-  /** 发起连接：main 生成临时 `.rdp` 并启动系统 mstsc（画面/输入全由 RDP 承担） */
-  rdConnect: (request: RemoteDesktopConnectRequest): Promise<RemoteDesktopConnectResult> =>
-    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.Connect, request),
-  /** 列出本应用启动且仍在运行的 RDP 会话 */
-  rdGetSessions: (): Promise<RemoteDesktopSessionListResult> =>
-    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetSessions),
-  /** 断开某条会话（终止对应 mstsc 进程） */
-  rdDisconnect: (sessionId: string): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.Disconnect, sessionId),
-  /** 读某设备的 RDP 连接选项（未设置 = 空对象） */
-  rdGetRdpOptions: (serverId: string): Promise<RemoteDesktopRdpOptions> =>
-    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetRdpOptions, serverId),
-  /** 写某设备的 RDP 连接选项，返回回读值 */
-  rdSetRdpOptions: (
+  /** 发起远程桌面会话：被控同意 + 票据 + 信令 WS 全部由 main 完成；quality = 画质档位（P1-3）；
+   *  codec = 编码偏好（HEVC 选型，缺省 h264） */
+  rdStartSession: (
     serverId: string,
-    options: RemoteDesktopRdpOptions,
-  ): Promise<RemoteDesktopRdpOptions> =>
-    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.SetRdpOptions, serverId, options),
-  /** 读取被控设置面状态（提示性共享开关 + 系统 RDP 真实状态） */
+    quality?: RemoteDesktopQuality,
+    codec?: RemoteDesktopCodec,
+  ): Promise<RemoteDesktopStartSessionResult> =>
+    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.StartSession, serverId, quality, codec),
+  /** 读取本机被控状态（设备页置灰用；发起瞬间由 main 权威拦截） */
+  rdGetControlledState: (): Promise<RemoteDesktopControlledStateResult> =>
+    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetControlledState),
+  /** 写出信令消息（main 校验后转发；未建立会话时丢弃） */
+  rdSendSignal: (message: RemoteDesktopSignalMessage): Promise<void> =>
+    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.SendSignal, message),
+  /** 结束当前主控会话（main 先带出 bye 再收尾） */
+  rdEndSession: (reason?: "user-end" | "error"): Promise<void> =>
+    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.EndSession, reason),
+  /** 读取被控设置面状态（总开关 + 已授权设备） */
   rdGetServerState: (): Promise<RemoteDesktopServerStateResult> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetServerState),
-  /** 写提示性共享开关（不影响系统远程桌面，见 shared 声明注释） */
+  /** 写被控总开关（关开关立即终止进行中的被控会话） */
   rdSetServerEnabled: (enabled: boolean): Promise<RemoteDesktopServerStateResult> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.SetServerEnabled, enabled),
+  /** 撤销某个已授权设备 */
+  rdRevokeClient: (clientId: string): Promise<RemoteDesktopServerStateResult> =>
+    ipcRenderer.invoke(REMOTE_DESKTOP_IPC.RevokeClient, clientId),
+  /** 订阅主控会话事件（连接状态 / 对端信令），返回 disposer */
+  onRemoteDesktopSessionEvent: (callback: (event: RemoteDesktopSessionEvent) => void) => {
+    const handler = (_event: unknown, payload: unknown) =>
+      callback(payload as RemoteDesktopSessionEvent);
+    ipcRenderer.on(REMOTE_DESKTOP_IPC.SessionEvent, handler);
+    return () => ipcRenderer.removeListener(REMOTE_DESKTOP_IPC.SessionEvent, handler);
+  },
   /** 检查目录是否已在其他窗口打开 */
   activateOrSetWorkspace: (path: string): Promise<{ activated: boolean }> =>
     ipcRenderer.invoke(PlatformChannels.ActivateOrSetWorkspace, path),

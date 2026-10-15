@@ -5,17 +5,22 @@ import type { ServiceCollection } from "@mode/services";
 import { serverRemoteInfoSchema } from "@mode/shared";
 import { createHttpServer } from "../src/http.js";
 
-// 远程桌面设备能力位（spec: docs/specs/remote-desktop-system-rdp.md 产品规则 5）：
+// 远程桌面设备能力位（spec: docs/specs/lan-remote-desktop.md 产品规则 5）与
+// 原生媒体面版本门（docs/specs/lan-remote-desktop-native-media.md 版本门）：
 // 只有被控 host（desktop LAN access server）显式声明时才发键；缺键 = 旧对端不支持。
 // 组合口径（win32 && 被控开关 && kill-switch）在 lanAccessServer 侧按纯函数断言。
 
 async function fetchServerInfo(options: {
   remoteDesktopCapability?: boolean | (() => boolean);
+  remoteDesktopNativeCapability?: boolean | (() => boolean);
 }) {
   const server = createHttpServer({} as unknown as ServiceCollection, 0, {
     host: "127.0.0.1",
     ...(options.remoteDesktopCapability !== undefined
       ? { remoteDesktopCapability: options.remoteDesktopCapability }
+      : {}),
+    ...(options.remoteDesktopNativeCapability !== undefined
+      ? { remoteDesktopNativeCapability: options.remoteDesktopNativeCapability }
       : {}),
   });
   await new Promise<void>((resolve) => server.once("listening", () => resolve()));
@@ -75,4 +80,14 @@ test("函数形式：按每次握手现取（被控开关是可变设置，打�
   } finally {
     await handle.close();
   }
+});
+
+test("声明 remoteDesktopNativeCapability:() => true 时 capabilities.remoteDesktopNative 为 true", async () => {
+  const info = await fetchServerInfo({ remoteDesktopNativeCapability: () => true });
+  assert.equal(info?.capabilities.remoteDesktopNative, true);
+});
+
+test("未声明 remoteDesktopNativeCapability 时键缺省（旧 Server 不发 native 键）", async () => {
+  const info = await fetchServerInfo({});
+  assert.equal(info?.capabilities.remoteDesktopNative, undefined);
 });

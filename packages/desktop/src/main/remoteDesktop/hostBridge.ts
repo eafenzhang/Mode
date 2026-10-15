@@ -5,15 +5,10 @@
  * - 出站：把消息发给「RD 宿主」——收到过 host→main RD 消息的那个 host（更准确），
  *   没有则退回第一个存活 host（同 desktopLanAccess 的 owner host 选择先例）；
  * - 入站：desktopHostProcess 收到 parentPort 消息时按类型分流到这里（共享 schema 之前）；
- * - 请求/响应关联：server-state / peer-probe 按 requestId 回收（15s 超时）；
- * - host 退出清理：宿主消失即把在途请求失败。
- *
- * 系统 RDP 方案下不再有会话类请求：连接由主控本地启动 mstsc，不需要 host 参与，
- * 故这里没有 90s 等待窗口，也没有任何会话回调
- * （docs/specs/remote-desktop-system-rdp.md 架构节）。
+ * - 请求/响应关联：server-state / peer-probe / peer-session-open 按 requestId 回收（10s 超时）；
+ * - host 退出清理：宿主消失即把在途请求失败、并通知会话协调器收口（信令通道已断）。
  */
 import { randomUUID } from "node:crypto";
-import type { SystemRdpCapability } from "@mode/shared";
 import {
   RemoteDesktopHostMessageTypes,
   isRemoteDesktopMessageTypeTag,
@@ -21,53 +16,95 @@ import {
   type RemoteDesktopMessageFromHost,
   type RemoteDesktopMessageToHost,
 } from "./hostMessages.js";
+import type { RemoteDesktopCodec, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { listLiveHostProcesses } from "../resourceManagerWindow.js";
+import {
+  buildPeerSessionOpenOutcome,
+  type RemoteDesktopPeerSessionOpenOutcome,
+} from "./peerSessionOpenOutcome.js";
 
-/** 探测与被控设置读写的预算：都不含人机等待（无同意窗），15s 足够。 */
-const RD_REQUEST_TIMEOUT_MS = 15_000;
+// 会话类请求（peer-session-open）要等被控同意窗（60s 同意 + 75s 兜底），
+// 预算须覆盖整个等待期（spec: lan-remote-desktop 事件顺序 ② 主控侧等待预算 90s）；
+// host 侧 remoteDesktopPeerClient 的会话 POST 同为 90s，探测仍走其 10s 短预算。
+const RD_REQUEST_TIMEOUT_MS = 90_000;
 
 export interface RemoteDesktopHostLogger {
   info(...args: unknown[]): void;
   warn(...args: unknown[]): void;
 }
 
-/** 对端能力探测结果（与 host 侧 RemoteDesktopPeerInfo 同形）。 */
-export interface RemoteDesktopPeerProbeResult {
-  online: boolean;
-  remoteDesktop: boolean;
-  systemRdp?: SystemRdpCapability;
-  name?: string;
-}
-
-/** 被控设置面状态（与 shared 的 RdpServerState 同形）。 */
-export interface RemoteDesktopServerStateResult {
-  sharingEnabled: boolean;
-  systemRdp?: SystemRdpCapability;
+/** 会话侧回调：hostBridge 不 import coordinator，避免模块环。 */
+export interface RemoteDesktopHostSessionHandlers {
+  handleConsentRequest(
+    message: Extract<
+      RemoteDesktopMessageFromHost,
+      { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopConsentRequest }
+    >,
+  ): void;
+  handleSignalFromHost(
+    message: Extract<
+      RemoteDesktopMessageFromHost,
+      { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopSignalFromHost }
+    >,
+  ): void;
+  handleSessionClosed(
+    message: Extract<
+      RemoteDesktopMessageFromHost,
+      { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed }
+    >,
+  ): void;
+  handleMediaStatus(
+    message: Extract<
+      RemoteDesktopMessageFromHost,
+      { type: typeof RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus }
+    >,
+  ): void;
+  handleHostGone(): void;
 }
 
 type PendingRequest =
   | {
       kind: "server-state";
-      resolve: (value: RemoteDesktopServerStateResult) => void;
+      resolve: (value: {
+        enabled: boolean;
+        authorizedClients: Array<{ id: string; label: string }>;
+        encoderCapability: "unknown" | "available" | "unavailable";
+      }) => void;
       reject: (error: Error) => void;
       timer: ReturnType<typeof setTimeout>;
     }
   | {
       kind: "peer-probe";
-      resolve: (value: RemoteDesktopPeerProbeResult) => void;
+      resolve: (value: {
+        online: boolean;
+        remoteDesktop: boolean;
+        remoteDesktopNative: boolean;
+        name?: string;
+      }) => void;
+      reject: (error: Error) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  | {
+      kind: "peer-session-open";
+      // 契约 E：成功分支必须带 mediaUrl（renderer 直连 media WS 的唯一地址来源），
+      // 映射收敛在 buildPeerSessionOpenOutcome（纯函数，夹具有回归断言）。
+      resolve: (value: RemoteDesktopPeerSessionOpenOutcome) => void;
       reject: (error: Error) => void;
       timer: ReturnType<typeof setTimeout>;
     };
 
 let logger: RemoteDesktopHostLogger | null = null;
-/** 收到过 RD 消息的 host；host 退出时清空。 */
+let sessionHandlers: RemoteDesktopHostSessionHandlers | null = null;
+/** 收到过 RD 消息的 host（consent/signal 会话宿主）；host 退出时清空。 */
 let activeHostLabel: string | null = null;
 const pendingRequests = new Map<string, PendingRequest>();
 
 export function configureRemoteDesktopHostBridge(options: {
   logger: RemoteDesktopHostLogger;
+  sessionHandlers: RemoteDesktopHostSessionHandlers;
 }): void {
   logger = options.logger;
+  sessionHandlers = options.sessionHandlers;
 }
 
 function pickHost(): { label: string; child: { postMessage: (message: unknown) => void } } | null {
@@ -84,7 +121,7 @@ function pickHost(): { label: string; child: { postMessage: (message: unknown) =
   return hosts[0] ?? null;
 }
 
-/** 出站：发给 RD 宿主。返回 false = 当前没有可用 host。 */
+/** 出站：发给 RD 宿主。返回 false = 当前没有可用 host（会话应据此收口）。 */
 export function sendRemoteDesktopMessageToHost(message: RemoteDesktopMessageToHost): boolean {
   const host = pickHost();
   if (!host) {
@@ -144,32 +181,105 @@ function requestToHost(
   });
 }
 
-export async function requestRemoteDesktopServerState(): Promise<RemoteDesktopServerStateResult> {
+export async function requestRemoteDesktopServerState(): Promise<{
+  enabled: boolean;
+  authorizedClients: Array<{ id: string; label: string }>;
+  encoderCapability: "unknown" | "available" | "unavailable";
+}> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopServerStateRequest },
     "server-state",
   );
-  return (await promise) as RemoteDesktopServerStateResult;
+  return (await promise) as {
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
+  };
 }
 
-export async function requestRemoteDesktopSetServerEnabled(
-  enabled: boolean,
-): Promise<RemoteDesktopServerStateResult> {
+export async function requestRemoteDesktopSetServerEnabled(enabled: boolean): Promise<{
+  enabled: boolean;
+  authorizedClients: Array<{ id: string; label: string }>;
+  encoderCapability: "unknown" | "available" | "unavailable";
+}> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopSetServerEnabled, enabled },
     "server-state",
   );
-  return (await promise) as RemoteDesktopServerStateResult;
+  return (await promise) as {
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
+  };
 }
 
-export async function requestRemoteDesktopPeerProbe(
-  serverId: string,
-): Promise<RemoteDesktopPeerProbeResult> {
+export async function requestRemoteDesktopRevokeClient(clientId: string): Promise<{
+  enabled: boolean;
+  authorizedClients: Array<{ id: string; label: string }>;
+  encoderCapability: "unknown" | "available" | "unavailable";
+}> {
+  const promise = requestToHost(
+    { type: RemoteDesktopHostMessageTypes.RemoteDesktopRevokeClient, clientId },
+    "server-state",
+  );
+  return (await promise) as {
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
+  };
+}
+
+export async function requestRemoteDesktopAuthorizeClient(clientId: string): Promise<{
+  enabled: boolean;
+  authorizedClients: Array<{ id: string; label: string }>;
+  encoderCapability: "unknown" | "available" | "unavailable";
+}> {
+  const promise = requestToHost(
+    { type: RemoteDesktopHostMessageTypes.RemoteDesktopAuthorizeClient, clientId },
+    "server-state",
+  );
+  return (await promise) as {
+    enabled: boolean;
+    authorizedClients: Array<{ id: string; label: string }>;
+    encoderCapability: "unknown" | "available" | "unavailable";
+  };
+}
+
+export async function requestRemoteDesktopPeerProbe(serverId: string): Promise<{
+  online: boolean;
+  remoteDesktop: boolean;
+  remoteDesktopNative: boolean;
+  name?: string;
+}> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe, serverId },
     "peer-probe",
   );
-  return (await promise) as RemoteDesktopPeerProbeResult;
+  return (await promise) as {
+    online: boolean;
+    remoteDesktop: boolean;
+    remoteDesktopNative: boolean;
+    name?: string;
+  };
+}
+
+export async function requestRemoteDesktopPeerSessionOpen(
+  serverId: string,
+  quality?: RemoteDesktopQuality,
+  codec?: RemoteDesktopCodec,
+): Promise<RemoteDesktopPeerSessionOpenOutcome> {
+  const promise = requestToHost(
+    {
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen,
+      serverId,
+      // 画质档位（P1-3）：主控选择的预设随会话请求下发给被控。
+      ...(quality ? { quality } : {}),
+      // 编码 codec 偏好（HEVC 选型 2026-10-13）：随会话请求下发（schema optional）。
+      ...(codec ? { codec } : {}),
+    },
+    "peer-session-open",
+  );
+  return (await promise) as RemoteDesktopPeerSessionOpenOutcome;
 }
 
 /**
@@ -187,7 +297,24 @@ export function handleRemoteDesktopHostMessage(label: string, data: unknown): bo
     return true;
   }
   activeHostLabel = label;
-  const message: RemoteDesktopMessageFromHost = parsed.data;
+  const message = parsed.data;
+  if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopConsentRequest) {
+    sessionHandlers?.handleConsentRequest(message);
+    return true;
+  }
+  if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopSignalFromHost) {
+    sessionHandlers?.handleSignalFromHost(message);
+    return true;
+  }
+  if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed) {
+    sessionHandlers?.handleSessionClosed(message);
+    return true;
+  }
+  if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus) {
+    // 通知型（无 requestId）：必须在最后的 pending 回收分支之前拦截，否则会被当成 peer-session-open 回帖丢弃。
+    sessionHandlers?.handleMediaStatus(message);
+    return true;
+  }
   if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopServerStateResult) {
     settlePending(message.requestId, "server-state", (pending) => {
       if (!message.ok) {
@@ -195,25 +322,32 @@ export function handleRemoteDesktopHostMessage(label: string, data: unknown): bo
         return;
       }
       pending.resolve({
-        sharingEnabled: message.sharingEnabled ?? false,
-        // 缺字段 = 探测未就绪/失败 → 状态未知（不猜测）。
-        ...(message.systemRdp ? { systemRdp: message.systemRdp } : {}),
+        enabled: message.enabled,
+        authorizedClients: message.authorizedClients,
+        // 旧 host 不带该字段 → unknown（不猜测；UI 只在明确 unavailable 时提示）。
+        encoderCapability: message.encoderCapability ?? "unknown",
       });
     });
     return true;
   }
-  settlePending(message.requestId, "peer-probe", (pending) => {
-    pending.resolve({
-      online: message.online,
-      remoteDesktop: message.remoteDesktop,
-      ...(message.systemRdp ? { systemRdp: message.systemRdp } : {}),
-      ...(message.name ? { name: message.name } : {}),
+  if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult) {
+    settlePending(message.requestId, "peer-probe", (pending) => {
+      pending.resolve({
+        online: message.online,
+        remoteDesktop: message.remoteDesktop,
+        remoteDesktopNative: message.remoteDesktopNative,
+        ...(message.name ? { name: message.name } : {}),
+      });
     });
+    return true;
+  }
+  settlePending(message.requestId, "peer-session-open", (pending) => {
+    pending.resolve(buildPeerSessionOpenOutcome(message));
   });
   return true;
 }
 
-/** host 退出（desktopHostProcess）：在途请求全部失败。 */
+/** host 退出（desktopHostProcess）：在途请求失败 + 会话协调器收口（信令通道已断）。 */
 export function forgetRemoteDesktopHost(label: string): void {
   for (const [requestId, pending] of pendingRequests) {
     pending.reject(new Error("宿主进程已退出"));
@@ -222,5 +356,6 @@ export function forgetRemoteDesktopHost(label: string): void {
   }
   if (activeHostLabel === label) {
     activeHostLabel = null;
+    sessionHandlers?.handleHostGone();
   }
 }

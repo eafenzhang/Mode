@@ -46,9 +46,9 @@ assert.equal(state.port, null);
 assert.deepEqual(state.addresses, []);
 assert.equal(state.pairCode, null);
 assert.equal(state.clients.length, 2, "配对记录不随监听开关消失");
-assert.equal(state.clients[0].remoteDesktopAuthorized, true, "历史字段原样保留（不抹掉老数据）");
+assert.equal(state.clients[0].remoteDesktopAuthorized, true, "逐设备授权保留");
 assert.equal(state.clients[0].lastWorkspacePath, "D:\\work\\demo");
-assert.equal(state.clients[1].remoteDesktopAuthorized, undefined, "无该字段的记录不受影响");
+assert.equal(state.clients[1].remoteDesktopAuthorized, undefined, "缺键 = 未授权");
 
 // ── 2. 空/畸形记录：读失败降级为空列表，不抛错 ──
 assert.deepEqual((await readDisabledLanAccessState(fakeCredentials(null))).clients, []);

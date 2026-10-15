@@ -6306,41 +6306,36 @@ const enUS: Record<string, string> = {
   "settings.lanAccess.refreshPairedPeers": "Refresh",
   "settings.lanAccess.firewallHint":
     "Your system may ask for firewall permission the first time; allow private-network access.",
-  // Remote Desktop (system RDP): docs/specs/remote-desktop-system-rdp.md.
-  // The app is not a session endpoint: connecting just writes a temporary .rdp and spawns mstsc.
+  // Remote-desktop authorization per paired device (same field as "remember this device").
+  "settings.lanAccess.rdAuthorized": "Remote desktop: authorized (connects without confirmation)",
+  "settings.lanAccess.rdUnauthorized": "Remote desktop: not authorized (asks on this machine)",
+  "settings.lanAccess.rdAuthorizeFor": "Allow {name} to control this machine remotely",
+  "settings.lanAccess.rdRevokeFor": "Revoke remote-desktop authorization for {name}",
+  "settings.lanAccess.rdUpdateFailed": "Failed to update remote-desktop authorization",
+  // Remote Desktop (docs/specs/lan-remote-desktop.md): controlled-side settings section,
+  // controlling-side device page / session surface, and the controlled-side overlay copy.
+  // The consent/indicator keys mirror the wording of desktop's windowsContent.ts dictionary.
   "settings.remoteDesktop.title": "Remote control",
-  "settings.remoteDesktop.sharing.label": "Share this machine as remotely controllable in this app",
-  "settings.remoteDesktop.sharing.on":
-    "On. This machine appears on paired peers' device pages (does not affect system Remote Desktop).",
-  "settings.remoteDesktop.sharing.off":
-    "Off. This machine does not appear on peers' device pages (does not affect system Remote Desktop).",
-  "settings.remoteDesktop.sharing.hint":
-    "Advisory switch: it does not affect system Remote Desktop. Whether system Remote Desktop accepts connections is decided by Windows and your credentials, and turning this off does not disconnect any RDP session.",
-  "settings.remoteDesktop.toggleFailed": "Couldn't change the sharing switch",
-  "settings.remoteDesktop.loadFailed": "Couldn't read Remote Control status",
-  "settings.remoteDesktop.systemRdp.label": "System Remote Desktop",
-  "settings.remoteDesktop.systemRdp.status.enabled":
-    "Enabled; other computers can connect via system Remote Desktop.",
-  "settings.remoteDesktop.systemRdp.status.disabled":
-    "Not enabled; follow the guidance below to allow system Remote Desktop connections.",
-  "settings.remoteDesktop.systemRdp.status.homeEdition":
-    "Home edition cannot act as a host; Windows Pro or Enterprise is required.",
-  "settings.remoteDesktop.systemRdp.status.unknown":
-    "Unknown (probe not ready or read failed); availability can't be confirmed right now.",
-  "settings.remoteDesktop.systemRdp.badge.enabled": "Enabled",
-  "settings.remoteDesktop.systemRdp.badge.disabled": "Not enabled",
-  "settings.remoteDesktop.systemRdp.badge.homeEdition": "Unsupported (Home)",
-  "settings.remoteDesktop.systemRdp.badge.unknown": "Unknown",
-  "settings.remoteDesktop.systemRdp.guidance":
-    "How to enable system Remote Desktop:\n1. Open Settings → System → Remote Desktop and turn on Remote Desktop.\n2. Firewall: Settings → Privacy & security → Windows Security → Firewall & network protection, then allow Remote Desktop.\n3. The account must have a password (blank-password accounts can't log on over the network).\n4. Windows Home edition cannot be controlled; use Pro or Enterprise.",
-  "settings.remoteDesktop.systemRdp.copyGuidance": "Copy steps",
-  "settings.remoteDesktop.systemRdp.guidanceCopied": "Steps copied",
-  "settings.remoteDesktop.systemRdp.homeEditionNote":
-    "This system is Home edition: it cannot host system Remote Desktop sessions.",
+  "settings.remoteDesktop.enable": "Allow remote control",
+  "settings.remoteDesktop.statusEnabled":
+    "On. A consent prompt appears when a paired device connects.",
+  "settings.remoteDesktop.statusDisabled":
+    "Off. Connection requests are rejected outright (default).",
+  "settings.remoteDesktop.toggleFailed": "Couldn't change Remote Desktop",
+  "settings.remoteDesktop.refresh": "Refresh",
+  "settings.remoteDesktop.loadFailed": "Couldn't read Remote Desktop status",
+  "settings.remoteDesktop.authorizedClients": "Remembered devices",
+  "settings.remoteDesktop.noClients":
+    "No device remembered yet; every connection asks for consent again.",
+  "settings.remoteDesktop.clientCount": "{count} device(s) remembered",
+  "settings.remoteDesktop.revoke": "Revoke {name}",
+  "settings.remoteDesktop.revokeFailed": "Couldn't revoke the device",
   "settings.remoteDesktop.securityHint":
-    "Once system Remote Desktop is enabled, any reachable device with valid credentials can connect; this app cannot block it.",
+    "Trust comes from the existing LAN pairing: unpaired devices cannot connect, an active session always shows an overlay, and you can end it locally at any time.",
   "settings.remoteDesktop.lanHint":
     "Both computers must be Windows machines on the same LAN (or Tailscale).",
+  "settings.remoteDesktop.encoderUnavailable":
+    "No hardware H.264 encoder available: remote desktop sessions will show no picture (check the GPU driver).",
   "workspace.openRemoteDesktop": "Remote control",
   "remoteDesktop.title": "Remote control",
   "remoteDesktop.breadcrumbLabel": "Remote control path",
@@ -6353,18 +6348,20 @@ const enUS: Record<string, string> = {
   "remoteDesktop.devices.empty":
     "No paired device yet. Use Detect devices above to find Windows computers on the same LAN, then pair with the code shown under Settings · Remote Control on the other side.",
   "remoteDesktop.devices.openLanAccess": "Open remote control settings",
+  "remoteDesktop.devices.connect": "Connect",
+  // Quality presets (P1-3): chosen before connecting, sent with the session request.
+  "remoteDesktop.quality.label": "Quality",
+  "remoteDesktop.quality.sharp": "Sharp",
+  "remoteDesktop.quality.balanced": "Balanced",
+  "remoteDesktop.quality.smooth": "Smooth",
+  "remoteDesktop.devices.locallyControlledBanner":
+    "This machine is being controlled remotely; disconnect that session to start a remote connection.",
   "remoteDesktop.device.status.ready": "Ready",
   "remoteDesktop.device.status.probing": "Checking",
   "remoteDesktop.device.status.unknown": "Unknown",
   "remoteDesktop.device.status.offline": "Offline",
-  "remoteDesktop.device.status.notShared": "Not shared",
-  "remoteDesktop.device.status.homeEdition": "Unsupported (Home)",
-  "remoteDesktop.device.status.rdpDisabled": "Not enabled",
+  "remoteDesktop.device.status.unsupported": "Unsupported",
   "remoteDesktop.device.open": "Open desktop",
-  "remoteDesktop.device.opening": "Opening…",
-  "remoteDesktop.device.openHint":
-    "Opens in the system Remote Desktop window; the screen is not shown inside the app.",
-  "remoteDesktop.device.options": "Options",
   "remoteDesktop.device.reprobe": "Check again",
   "remoteDesktop.device.rename": "Rename",
   "remoteDesktop.device.save": "Save",
@@ -6377,45 +6374,53 @@ const enUS: Record<string, string> = {
   "remoteDesktop.addDevice.collapse": "Collapse",
   "remoteDesktop.addDevice.pairedHidden":
     "Paired devices are hidden from the detect list ({count} hidden)",
+  "remoteDesktop.device.reason.ready": "Ready",
   "remoteDesktop.device.reason.probing": "Checking peer capability…",
   "remoteDesktop.device.reason.probe-failed": "Couldn't check the peer; retry later.",
   "remoteDesktop.device.reason.offline": "Peer is offline or unreachable",
-  "remoteDesktop.device.reason.not-shared":
-    "Peer has not shared this device for remote control",
-  "remoteDesktop.device.reason.system-rdp-home":
-    "Peer is Windows Home edition; system Remote Desktop is unavailable",
-  "remoteDesktop.device.reason.system-rdp-disabled":
-    "System Remote Desktop is not enabled on the peer",
-  "remoteDesktop.options.title": "Connection options",
-  "remoteDesktop.options.fullscreen": "Full screen",
-  "remoteDesktop.options.multimon": "Use all monitors",
-  "remoteDesktop.options.clipboard": "Clipboard redirection",
-  "remoteDesktop.options.audio.label": "Audio",
-  "remoteDesktop.options.audio.local": "Play on this machine",
-  "remoteDesktop.options.audio.remote": "Leave on the peer",
-  "remoteDesktop.options.audio.disabled": "Disabled",
-  "remoteDesktop.options.username.label": "User name",
-  "remoteDesktop.options.username.placeholder": "DESKTOP-1\\user",
-  "remoteDesktop.options.username.hint":
-    "Only the user name is pre-filled; Windows collects the password and the app never stores it.",
-  "remoteDesktop.options.port.label": "RDP port",
-  "remoteDesktop.options.port.invalid": "Port must be between 1 and 65535",
-  "remoteDesktop.options.confirm": "Save and connect",
-  "remoteDesktop.options.loading": "Loading options…",
-  "remoteDesktop.sessions.title": "Active sessions",
-  "remoteDesktop.sessions.count": "{count}",
-  "remoteDesktop.sessions.startedAt": "Started {time}",
-  "remoteDesktop.sessions.disconnect": "Disconnect",
-  "remoteDesktop.sessions.disconnectFor": "Disconnect {name}",
-  "remoteDesktop.sessions.hint":
-    "Sessions run in separate system Remote Desktop windows; this list only tracks connections started by this app.",
-  "remoteDesktop.connect.opened": "Opened “{name}” in the system Remote Desktop window.",
-  "remoteDesktop.connect.failed.invalid_address":
-    "The address is invalid, so the connection was refused.",
-  "remoteDesktop.connect.failed.invalid_username":
-    "The user name is invalid (no newlines or control characters).",
-  "remoteDesktop.connect.failed.launch_failed":
-    "Couldn't start system Remote Desktop (mstsc).",
+  "remoteDesktop.device.reason.unsupported":
+    "Peer doesn't support Remote Desktop (turned off or too old)",
+  "remoteDesktop.device.reason.locally-controlled":
+    "This device is being remotely controlled; disconnect first to start one",
+  "remoteDesktop.session.connecting": "Connecting to the peer…",
+  "remoteDesktop.session.waitingPeer": "Waiting for the peer's screen…",
+  "remoteDesktop.session.negotiating": "Setting up the video channel…",
+  "remoteDesktop.session.live": "Screen connected",
+  "remoteDesktop.session.awaitingFrames":
+    "Connected; waiting for the first frame from the peer…",
+  "remoteDesktop.session.reconnecting": "Screen interrupted, recovering…",
+  "remoteDesktop.session.frozen": "The peer's screen is locked; the screen is frozen",
+  "remoteDesktop.session.backToDevices": "Back to devices",
+  "remoteDesktop.session.monitor": "Monitor",
+  "remoteDesktop.session.fullscreen": "Full screen",
+  "remoteDesktop.session.exitFullscreen": "Exit full screen",
+  "remoteDesktop.session.disconnect": "Disconnect",
+  "remoteDesktop.session.fps": "{value} fps",
+  "remoteDesktop.session.bitrate": "Bitrate {value} Mbps",
+  "remoteDesktop.session.drops": "Dropped {count}",
+  "remoteDesktop.session.rtt": "Latency {value} ms",
+  "remoteDesktop.session.frameAge": "E2E ~{value} ms",
+  "remoteDesktop.session.closed.user": "Session disconnected.",
+  "remoteDesktop.session.closed.remote": "The peer ended the remote control.",
+  "remoteDesktop.session.closed.error": "The session ended with an error.",
+  "remoteDesktop.error.consent_denied": "The peer denied the request.",
+  "remoteDesktop.error.consent_timeout":
+    "The peer didn't confirm within 60 seconds; the request timed out.",
+  "remoteDesktop.error.disabled": "Remote Desktop is off on the peer.",
+  "remoteDesktop.error.busy": "The peer is being controlled by another device.",
+  "remoteDesktop.error.unsupported": "The peer doesn't support Remote Desktop.",
+  "remoteDesktop.error.unauthorized": "The pairing credential is no longer valid; pair again.",
+  "remoteDesktop.error.stale_ticket": "The session ticket expired; try again.",
+  "remoteDesktop.error.locally_controlled":
+    "This device is being remotely controlled; disconnect it first.",
+  "remoteDesktop.error.internal": "An internal error occurred; try again.",
+  "remoteDesktop.consent.title": "{device} wants to control this device",
+  "remoteDesktop.consent.allow": "Allow",
+  "remoteDesktop.consent.deny": "Deny",
+  "remoteDesktop.consent.remember": "Remember this device",
+  "remoteDesktop.consent.timeout": "Denied automatically in {seconds}s",
+  "remoteDesktop.indicator.text": "{device} is controlling this device",
+  "remoteDesktop.indicator.end": "End",
   "settings.computerUse.toggleLabel": "Enable Computer Use",
   "settings.computerUse.toggleDescription":
     "Turning this on enables Computer Use — its MCP server and skills.",

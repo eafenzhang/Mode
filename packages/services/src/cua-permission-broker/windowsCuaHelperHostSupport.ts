@@ -72,9 +72,10 @@ export const defaultHealthProbe = (socketPath: string, timeoutMs: number): Promi
   probeHelperHealth(socketPath, { timeoutMs });
 
 /**
- * helper 子进程 stderr/stdout 接线：按行中继：
- * - 含 `panicked at` 的行 → **error 落盘**（Rust panic 不带前缀，worker 线程死因若丢进
- *   debug 在生产日志里零痕迹）；
+ * helper 子进程 stderr/stdout 接线（spec: lan-remote-desktop-native-media 失败语义
+ * 「helper 侧 `[rd_media]` 运行告警必须接入主日志」）：Rust `warn()` 走 stderr eprintln，
+ * 此前 stdio 继承下打包态无消费者、日志零落点（2026-10-13 排查实证）。按行中继：
+ * - 含 `[rd_media]` 的行 → **warn 落盘**（GPU 合成回退/形状渲染失败等运行期降级，生产可见）；
  * - 其余 stderr 行 → debug（高频/开发诊断，按日志纪律不进生产盘）；
  * - stdout 仅排空（helper 契约走 IPC fork channel，内容不消费；不读会写满管道阻塞子进程）。
  * 行缓冲跨 chunk 拼接（`\r\n` 归一），流为 null（继承路径/假件）时空操作。
@@ -93,9 +94,11 @@ export function relayHelperChildStdio(
     const trimmed = line.replace(/\r$/u, "").trimEnd();
     if (!trimmed) return;
     const meta = { source: "cua-helper-stderr", generation: context.generation, pid };
-    if (trimmed.includes("panicked at")) {
-      // Rust panic 走 stderr：必须升 error 落盘，否则 worker 线程死于 panic
-      // 在生产日志里零痕迹（2026-10-13 排查盲区）。
+    if (trimmed.includes("[rd_media]")) {
+      logger.warn(undefined, trimmed, meta);
+    } else if (trimmed.includes("panicked at")) {
+      // Rust panic 走 stderr 且不带 [rd_media] 前缀——必须升 error 落盘，
+      // 否则 worker 线程死于 panic 在生产日志里零痕迹（2026-10-13 排查盲区）。
       logger.error(undefined, trimmed, meta);
     } else {
       logger.debug(undefined, trimmed, meta);

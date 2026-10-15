@@ -1,6 +1,6 @@
 /**
- * 远程桌面共享位夹具（spec: docs/specs/remote-desktop-system-rdp.md 产品规则 5/7）：
- * 口径 = win32 && 打包层 kill-switch 未触发 && 提示性共享开关开（**不是**安全闸门，拦不住 3389）。纯函数断言，跨平台可跑
+ * 远程桌面能力位夹具（spec: docs/specs/lan-remote-desktop.md 产品规则 5）：
+ * 口径 = win32 && 打包层 kill-switch 未触发 && 被控总开关开。纯函数断言，跨平台可跑
  * （组合逻辑不依赖真实 process.platform，故 macOS/Linux CI 也能验证 win32 分支）。
  * 失效模式（未实现时）：非 win32 放行 / kill-switch 压不住 / 开关关仍报支持 → 断言失败。
  */

@@ -46,10 +46,18 @@ import {
   type BotProvider,
   type ServerRemoteInfo,
   type ServerRemoteWorkspaceInfo,
-  type SystemRdpCapability,
 } from "@mode/shared";
+// 远程桌面协议面单独入口（T1），根入口不重导出，避免把桌面链路类型带进所有消费方。
+import {
+  remoteDesktopCodecSchema,
+  remoteDesktopQualitySchema,
+  type RemoteDesktopCodec,
+  type RemoteDesktopErrorCode,
+  type RemoteDesktopQuality,
+} from "@mode/shared/remote-desktop";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
+import { createRemoteDesktopTicketStore } from "./remoteDesktopTicket.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -260,18 +268,49 @@ interface HttpServerOptions {
    */
   computerUseCapability?: boolean;
   /**
-   * 设备级远程桌面提示性共享位（LAN 能力协商）。只有 win32 被控且共享开关开启的 desktop
-   * LAN access server 会传值；不传 = 不声明该键（docs/specs/remote-desktop-system-rdp.md 产品规则 5）。
-   * 共享开关是可变设置：函数形式按每次握手现取（同 workspaces 先例），
+   * 设备级远程桌面能力位（LAN 能力协商）。只有 win32 被控且总开关开启的 desktop
+   * LAN access server 会传值；不传 = 不声明该键（docs/specs/lan-remote-desktop.md 产品规则 5）。
+   * 被控总开关是可变设置：函数形式按每次握手现取（同 workspaces 先例），
    * 冻结布尔会让「开关打开」必须重启监听才生效。
    */
   remoteDesktopCapability?: boolean | (() => boolean);
   /**
-   * 设备级系统 RDP 状态（LAN 能力协商，同 spec 接口节）。与 remoteDesktopCapability 同口径：
-   * 只有被控 desktop LAN access server 会传值，不传/返回 undefined = 不声明该键（状态未知）。
-   * 同步取值——注册表探测结果由被控 host 的探测模块带 TTL 缓存，握手路径不做 IO。
+   * 设备级原生媒体面能力位（纯直替版本门，LAN 能力协商）。与 remoteDesktopCapability
+   * 同口径：只有被控 desktop LAN access server 会传值，不传 = 不声明该键；
+   * 函数形式按每次握手现取（docs/specs/lan-remote-desktop-native-media.md 版本门 1）。
    */
-  systemRdpCapability?: SystemRdpCapability | (() => SystemRdpCapability | undefined);
+  remoteDesktopNativeCapability?: boolean | (() => boolean);
+  /**
+   * 局域网远程桌面被控 hook（docs/specs/lan-remote-desktop.md 接口变更 2）：
+   * 提供时暴露 POST /api/remote-desktop/session 与 GET /ws/remote-desktop。
+   * 会话请求由宿主裁决（同意流），票据签发与单次消费由本模块兜底；
+   * 信令单帧（RemoteDesktopSignalMessage JSON）交给 onSessionSocket 的宿主转发，本模块不解析内容。
+   * onMediaSocket 可选：媒体 WS（/ws/remote-desktop-media）的交接口，缺省时该端点 501。
+   */
+  remoteDesktop?: RemoteDesktopHooks;
+}
+
+/** 远程桌面被控 hook：请求会话（可含被控同意）与升级后的信令 / 媒体 socket 交接。 */
+export interface RemoteDesktopHooks {
+  requestSession(
+    clientId: string,
+    quality?: RemoteDesktopQuality,
+    codec?: RemoteDesktopCodec,
+  ): Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+  /**
+   * 信令 WS 交接。`session.reissueMediaTicket` 供宿主在会话内处理
+   * `{type:"request-media-ticket"}`（媒体 WS 瞬断重连，P2-1）：重签一张媒体票
+   * （单次消费、30s、绑定同 clientId）——票据 store 在本模块，宿主不持有。
+   */
+  onSessionSocket(
+    clientId: string,
+    socket: WebSocket,
+    session?: {
+      reissueMediaTicket?: () => { mediaTicket: string; expiresAt: number };
+    },
+  ): void;
+  /** 媒体 WS 升级成功后的交接（收发逻辑由宿主侧 relay 承担，本模块不解析帧）。 */
+  onMediaSocket?(clientId: string, socket: WebSocket): void;
 }
 
 /** 服务端形态局域网被连端的端点面（唯一所有者 = packages/server 的 lanAccessHost）。 */
@@ -281,6 +320,31 @@ export interface LanAccessHostEndpoint {
   createPairCode(): LanAccessState;
   removeClient(clientId: string): Promise<LanAccessState>;
   resetTokens(): Promise<LanAccessState>;
+}
+
+/**
+ * 会话请求失败时的 HTTP 状态：稳定错误码是主要契约（对端按 code 出文案），
+ * 状态码只做传输层归类（docs/specs/lan-remote-desktop.md 降级与失败语义）。
+ */
+function remoteDesktopErrorStatus(code: RemoteDesktopErrorCode): 401 | 403 | 409 | 500 | 501 {
+  switch (code) {
+    case "unauthorized":
+    case "stale_ticket":
+      return 401;
+    case "disabled":
+    case "consent_denied":
+    case "consent_timeout":
+      return 403;
+    case "busy":
+    // locally_controlled 是主控侧本地闸门（spec 产品规则 9），被控 server 不会产生；
+    // 此处仅为枚举穷尽映射，语义与 busy 同类（冲突）。
+    case "locally_controlled":
+      return 409;
+    case "unsupported":
+      return 501;
+    case "internal":
+      return 500;
+  }
 }
 
 function readTrimmedEnv(name: string): string | undefined {
@@ -332,8 +396,7 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
       ...(options.computerUseCapability !== undefined
         ? { computerUse: options.computerUseCapability }
         : {}),
-      // remoteDesktop 同口径：不声明 = 缺键 = 不共享
-      //（docs/specs/remote-desktop-system-rdp.md 产品规则 5）。
+      // remoteDesktop 同口径：不声明 = 缺键 = 不支持（docs/specs/lan-remote-desktop.md）。
       ...(options.remoteDesktopCapability !== undefined
         ? {
             remoteDesktop:
@@ -342,14 +405,16 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
                 : options.remoteDesktopCapability,
           }
         : {}),
-      // systemRdp 同口径：取值函数返回 undefined = 不发键（探测未就绪/失败 = 状态未知）。
-      ...(() => {
-        const raw =
-          typeof options.systemRdpCapability === "function"
-            ? options.systemRdpCapability()
-            : options.systemRdpCapability;
-        return raw === undefined ? {} : { systemRdp: raw };
-      })(),
+      // remoteDesktopNative 同口径：不声明 = 缺键 = 旧对端
+      //（docs/specs/lan-remote-desktop-native-media.md 版本门 1）。
+      ...(options.remoteDesktopNativeCapability !== undefined
+        ? {
+            remoteDesktopNative:
+              typeof options.remoteDesktopNativeCapability === "function"
+                ? options.remoteDesktopNativeCapability()
+                : options.remoteDesktopNativeCapability,
+          }
+        : {}),
     },
   };
 }
@@ -477,14 +542,26 @@ function staticContentType(filePath: string): string {
   return staticMimeTypes[extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
 
+/** /ws/remote-desktop 与 /ws/remote-desktop-media 升级中间件 → 升级处理器之间传递的上下文变量。 */
+interface HttpServerVariables {
+  remoteDesktopClientId: string;
+  remoteDesktopMediaClientId: string;
+}
+
 export function createHttpServer(
   services: ServiceCollection,
   port = 3030,
   options: HttpServerOptions = {},
 ) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: HttpServerVariables }>();
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   const hostCapabilities = createHostCapabilityStore();
+  // 远程桌面票据与 host capability 分开存放：消费方、绑定关系（clientId）与生命周期都不同。
+  const remoteDesktopTickets = createRemoteDesktopTicketStore();
+  // 信令票与媒体票各一个 store（接口签名不变，靠实例隔离）：混用同一 store 会让两张票
+  // 变得可互换——信令票能升级 media 端点、mediaTicket 能升级信令端点，违反「双票据各自
+  // 单次消费、互不能开对方端点」（spec media WS 消息节 + 本任务验收）。
+  const remoteDesktopMediaTickets = createRemoteDesktopTicketStore();
 
   const authToken = options.authToken?.trim();
   const verifyAuthToken = options.verifyAuthToken;
@@ -493,6 +570,13 @@ export function createHttpServer(
       const pathname = new URL(c.req.url).pathname;
       // 配对接口是「登录前引导」：客户端此时没有令牌，凭一次性配对码换取。
       if (pathname === "/api/lan/pair") {
+        await next();
+        return;
+      }
+      // media 端点以会话票据为唯一凭证（spec 原文：票据单次消费、30s、绑定 clientId）：
+      // 票据是令牌鉴权 POST 的产物，renderer 无对端长期令牌也不应持有，故豁免全局令牌校验
+      // （票据校验在 media 专用中间件里单次消费）。
+      if (pathname === "/ws/remote-desktop-media") {
         await next();
         return;
       }
@@ -513,6 +597,55 @@ export function createHttpServer(
 
   app.get("/api/server-info", async (c) => c.json(await createServerInfo(options)));
   app.post("/api/rpc-host-capability", (c) => c.json(hostCapabilities.issue()));
+
+  /** 与鉴权同一令牌校验路径：把当前请求出示的令牌解析为已配对客户端 id（解析不到返回 null）。 */
+  const resolveLanClientId = (c: Context): string | null => {
+    const presented = readPresentedLiteToken(c).token;
+    if (!presented || !options.resolveLanClientByToken) {
+      return null;
+    }
+    return options.resolveLanClientByToken(presented);
+  };
+
+  // 局域网远程桌面：发起方凭设备令牌请求受控会话，被控端裁决（同意/开关/busy）后
+  // 签发一次性票据。请求体无必需字段——发起方身份只来自令牌，避免第二套身份来源。
+  app.post("/api/remote-desktop/session", async (c) => {
+    const remoteDesktop = options.remoteDesktop;
+    if (!remoteDesktop) {
+      // 未配置 hooks 的 server（普通 web / 非被控 host）不提供该端点语义。
+      return c.json({ error: "Remote desktop is not available" }, 501);
+    }
+    const clientId = resolveLanClientId(c);
+    if (!clientId) {
+      // 令牌过了鉴权但解析不到 clientId：无法绑定票据，按未授权拒绝。
+      return c.json({ code: "unauthorized" satisfies RemoteDesktopErrorCode }, 401);
+    }
+    // 画质档位（P1-3）：主控选择随请求下发；缺省/非法值回缺省档（旧主控兼容，
+    // 非法值不报错——画质是优化参数，不值得让会话失败）。
+    const qualityParam = c.req.query("quality");
+    const parsedQuality = qualityParam ? remoteDesktopQualitySchema.safeParse(qualityParam) : null;
+    // 编码 codec 偏好（HEVC 选型 2026-10-13）：与画质同款宽容口径——非法/缺省回 h264；
+    // 被控无硬件 HEVC 时仍会在 helper 侧回退（解码串由码流自描述兜底，不需要失败）。
+    const codecParam = c.req.query("codec");
+    const parsedCodec = codecParam ? remoteDesktopCodecSchema.safeParse(codecParam) : null;
+    const result = await remoteDesktop.requestSession(
+      clientId,
+      parsedQuality?.success ? parsedQuality.data : undefined,
+      parsedCodec?.success ? parsedCodec.data : undefined,
+    );
+    if ("error" in result) {
+      return c.json({ code: result.error }, remoteDesktopErrorStatus(result.error));
+    }
+    // 平铺返回（既有消费者读 issued.ticket / issued.expiresAt，不能整体换成嵌套对象）：
+    // 信令票走 ticket、媒体票走 mediaTicket，两张票分别签发、各自单次消费。
+    const signaling = remoteDesktopTickets.issue(clientId);
+    const media = remoteDesktopMediaTickets.issue(clientId);
+    return c.json({
+      ticket: signaling.ticket,
+      mediaTicket: media.ticket,
+      expiresAt: signaling.expiresAt,
+    });
+  });
 
   // 局域网配对：一次性配对码 → 该设备专属长期令牌。失败不区分「码错/过期」，
   // 避免给扫描者提供探测信号。
@@ -600,6 +733,80 @@ export function createHttpServer(
     await next();
   });
   app.get("/ws/host", upgradeTrustedHostWebSocket);
+
+  // 局域网远程桌面信令通道：票据单次消费升级（30s、绑定 clientId），
+  // 之后宿主只做 JSON 单帧转发（RemoteDesktopSignalMessage），本模块不解析 SDP/ICE。
+  // 失败形态与 /ws/host 一致：返回 JSON 响应、不升级连接。
+  const upgradeRemoteDesktopWebSocket = upgradeWebSocket((c) => ({
+    onOpen(_event, ws) {
+      // LAN 低延迟：显式关 Nagle（服务端 socket 不自带此设置；小控制帧会吃 Nagle×延迟 ACK 抖动）。
+      (ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } })._socket?.setNoDelay?.(true);
+      const remoteDesktop = options.remoteDesktop;
+      const clientId = c.get("remoteDesktopClientId");
+      if (!remoteDesktop || !clientId) {
+        // 消费与升级之间 host 被撤下（或配置变更）：不留下无归属的信令连接。
+        ws.close(4001, "Remote desktop session unavailable");
+        return;
+      }
+      remoteDesktop.onSessionSocket(clientId, ws.raw as WebSocket, {
+        // 媒体 WS 瞬断重连（P2-1）：票据 store 在本模块，重签能力随会话上下文交给宿主；
+        // 重签出的票与 POST 签发的票同构（单次消费、30s、绑定同 clientId）。
+        reissueMediaTicket: () => {
+          const issued = remoteDesktopMediaTickets.issue(clientId);
+          return { mediaTicket: issued.ticket, expiresAt: issued.expiresAt };
+        },
+      });
+    },
+  }));
+  app.use("/ws/remote-desktop", async (c, next) => {
+    const remoteDesktop = options.remoteDesktop;
+    if (!remoteDesktop) {
+      return c.json({ error: "Remote desktop is not available" }, 501);
+    }
+    const ticket = new URL(c.req.url).searchParams.get("ticket") ?? undefined;
+    const clientId = resolveLanClientId(c);
+    if (!clientId || !remoteDesktopTickets.consume(ticket, clientId)) {
+      return c.json({ code: "stale_ticket" satisfies RemoteDesktopErrorCode }, 401);
+    }
+    c.set("remoteDesktopClientId", clientId);
+    await next();
+  });
+  app.get("/ws/remote-desktop", upgradeRemoteDesktopWebSocket);
+
+  // 局域网远程桌面媒体通道：独立的 mediaTicket store（媒体票据与信令票据互不能开
+  // 对方端点），且以票据为唯一凭证——不校验请求方令牌（spec 原文：票据单次消费、
+  // 30s、绑定 clientId；renderer 不持有对端长期令牌）。票据在升级中间件单次消费，
+  // 升级后的帧交给宿主的 onMediaSocket（本模块不解析二进制/JSON 媒体消息）。
+  const upgradeRemoteDesktopMediaWebSocket = upgradeWebSocket((c) => ({
+    onOpen(_event, ws) {
+      // LAN 低延迟：媒体帧尾包与控制面小帧同样受益于关 Nagle（与信令通道同款设置）。
+      (ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } })._socket?.setNoDelay?.(true);
+      const remoteDesktop = options.remoteDesktop;
+      const clientId = c.get("remoteDesktopMediaClientId");
+      if (!remoteDesktop?.onMediaSocket || !clientId) {
+        // 消费与升级之间 host 被撤下（或配置变更）：不留下无归属的媒体连接。
+        ws.close(4001, "Remote desktop media unavailable");
+        return;
+      }
+      remoteDesktop.onMediaSocket(clientId, ws.raw as WebSocket);
+    },
+  }));
+  app.use("/ws/remote-desktop-media", async (c, next) => {
+    const remoteDesktop = options.remoteDesktop;
+    if (!remoteDesktop?.onMediaSocket) {
+      return c.json({ error: "Remote desktop is not available" }, 501);
+    }
+    const mediaTicket = new URL(c.req.url).searchParams.get("mediaTicket") ?? undefined;
+    // 票据即凭证：不查请求方令牌（全局鉴权对该路径已豁免），由票据原子消费并反解出
+    // 签发时绑定的 clientId——票据过期/未知/重放一律 401，双 store 各自独立。
+    const clientId = remoteDesktopMediaTickets.consumeAndResolveClientId(mediaTicket);
+    if (!clientId) {
+      return c.json({ code: "stale_ticket" satisfies RemoteDesktopErrorCode }, 401);
+    }
+    c.set("remoteDesktopMediaClientId", clientId);
+    await next();
+  });
+  app.get("/ws/remote-desktop-media", upgradeRemoteDesktopMediaWebSocket);
 
   // Web 模式下发起远程连接
   app.post("/api/connect-remote", async (c) => {

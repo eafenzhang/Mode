@@ -237,3 +237,68 @@ test("参数校验在触碰 addon 之前拒绝，invalid_request 不进 napi", a
   assert.equal(await codeOf("list_windows", { pid: 1.5 }), "invalid_request");
   assert.deepEqual(touched, [], "校验失败不得触碰 addon");
 });
+
+test("rd_media_*（契约 G）：参数校验先拦、stop 未启动幂等", async () => {
+  // Task 7（lan-remote-desktop-native-media）：rd_media_start/switch/stop 三个 broker 方法
+  // 的入参面校验（缺参/类型错 → invalid_request，同 raw_input 范式）。本用例只验证校验与
+  // stop 幂等：非法请求不得触达媒体泵（也就不会建网络连接）。
+  const calls = [];
+  const addon = {
+    rd_media_start: (opts) => {
+      calls.push(["start", opts]);
+    },
+    rd_media_switch: (rect) => {
+      calls.push(["switch", rect]);
+    },
+    rd_media_stop: () => {
+      calls.push(["stop"]);
+    },
+  };
+  const backend = createBackend(addon);
+  const call = (method, params) => dispatchRequest(backend, { id: "1", method, params });
+  const codeOf = async (method, params) => (await call(method, params)).error?.code;
+
+  const rect = { x: -1920, y: 0, width: 1920, height: 1080 }; // x 为负：多屏负原点合法
+  const valid = {
+    rect,
+    maxWidth: 1920,
+    fps: 60,
+    bitrateBps: 8_000_000,
+    endpoint: { host: "127.0.0.1", port: 1 },
+    key: "11".repeat(32),
+    salt: "22".repeat(8),
+  };
+  const without = (key) => {
+    const p = { ...valid };
+    delete p[key];
+    return p;
+  };
+
+  // stop 未 start 即幂等 {ok:true}，且不触 addon（mediaPump 无会话直接返回）
+  assert.deepEqual(await call("rd_media_stop", {}), { ok: true, result: { ok: true } });
+  assert.deepEqual(calls, []);
+
+  // start：7 个键逐一缺席 → invalid_request
+  for (const key of ["rect", "maxWidth", "fps", "bitrateBps", "endpoint", "key", "salt"]) {
+    assert.equal(await codeOf("rd_media_start", without(key)), "invalid_request", `缺 ${key}`);
+  }
+  // 类型/域错：rect 非对象、字段非 i32、数值非 u32、endpoint 缺字段、key 非字符串
+  assert.equal(await codeOf("rd_media_start", { ...valid, rect: 5 }), "invalid_request");
+  assert.equal(await codeOf("rd_media_start", { ...valid, rect: { ...rect, y: 1.5 } }), "invalid_request");
+  assert.equal(await codeOf("rd_media_start", { ...valid, rect: { ...rect, width: 2 ** 31 } }), "invalid_request");
+  assert.equal(await codeOf("rd_media_start", { ...valid, fps: "60" }), "invalid_request");
+  assert.equal(await codeOf("rd_media_start", { ...valid, maxWidth: -1 }), "invalid_request");
+  assert.equal(await codeOf("rd_media_start", { ...valid, endpoint: {} }), "invalid_request");
+  assert.equal(await codeOf("rd_media_start", { ...valid, endpoint: { host: "127.0.0.1", port: 1.5 } }), "invalid_request");
+  // 端口域：connect 只接受 1..65535，越界（含 0）先拦，不让 ERR_SOCKET_BAD_PORT 漏成非 17 码
+  assert.equal(await codeOf("rd_media_start", { ...valid, endpoint: { host: "127.0.0.1", port: 0 } }), "invalid_request");
+  assert.equal(await codeOf("rd_media_start", { ...valid, endpoint: { host: "127.0.0.1", port: 65536 } }), "invalid_request");
+  assert.equal(await codeOf("rd_media_start", { ...valid, key: 11 }), "invalid_request");
+
+  // switch：缺 rect / rect 类型错 → invalid_request
+  assert.equal(await codeOf("rd_media_switch", {}), "invalid_request");
+  assert.equal(await codeOf("rd_media_switch", { rect: "0,0,1,1" }), "invalid_request");
+  assert.equal(await codeOf("rd_media_switch", { rect: { ...rect, height: null } }), "invalid_request");
+
+  assert.deepEqual(calls, [], "校验失败不得触碰 addon / mediaPump");
+});

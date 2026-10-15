@@ -19,16 +19,15 @@ import {
   type ServerRemoteWorkspaceInfo,
   isModeCuaInternalFeatureEnabled,
 } from "@mode/shared";
+import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { createHttpServer } from "@mode/server";
 import type { ICredentialService, ServiceCollection } from "@mode/services";
 import { formatLogPrefix } from "@mode/shared";
-import { createHostSystemRdpProbe } from "./remoteDesktopSharing.js";
-import type { SystemRdpProbe } from "./systemRdpState.js";
 
 const log = (...args: unknown[]) => console.log(formatLogPrefix("lanAccess", process.pid), ...args);
 const warn = (...args: unknown[]) => console.warn(formatLogPrefix("lanAccess", process.pid), ...args);
 
-/** 远程桌面打包层 kill-switch 的 env 键（docs/specs/remote-desktop-system-rdp.md 产品规则 7）。 */
+/** 远程桌面打包层 kill-switch 的 env 键（docs/specs/lan-remote-desktop.md 接口变更 6）。 */
 export const MODE_REMOTE_DESKTOP_KILL_SWITCH_ENV_KEY = "MODE_REMOTE_DESKTOP_KILL_SWITCH";
 
 /**
@@ -53,13 +52,21 @@ export function computeRemoteDesktopCapability(params: {
 }
 
 /**
- * 局域网访问服务端：监听局域网、应答发现、校验逐设备令牌、受理配对码。
+ * 逐设备远程桌面授权（docs/specs/lan-remote-desktop.md 状态所有者「逐设备授权」）：
+ * 挂在既有 lan client 记录上的可选布尔字段，旧数据缺键 = 未授权（兼容）。
  */
+export interface LanAccessClientRecordWithRemoteDesktop extends LanAccessClientRecord {
+  remoteDesktopAuthorized?: boolean;
+}
+
+/** 局域网访问服务端：监听局域网、应答发现、校验逐设备令牌、受理配对码。 */
 export interface LanAccessServerHandle {
   getState(): LanAccessState;
   createPairCode(): LanAccessState;
   removeClient(clientId: string): Promise<LanAccessState>;
   resetTokens(): Promise<LanAccessState>;
+  /** 运行期这些记录的唯一内存写者就是本 handle：写授权必须经它（含 persist）。 */
+  setClientRemoteDesktopAuthorized(clientId: string, authorized: boolean): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -71,16 +78,27 @@ export interface StartLanAccessServerParams {
   appVersion: string;
   machineName: string;
   /**
-   * 提示性共享开关读取点（设置页写，默认关）。握手即时求值（能力位不持久化）；
-   * 缺省 = 关。**不是安全闸门**——系统 RDP 监听 3389，本应用拦不住任何连接，
-   * 它只决定本机是否出现在对端设备页（docs/specs/remote-desktop-system-rdp.md 产品规则 5）。
+   * 远程桌面被控总开关读取点（设置页「远程桌面」分区，默认关）。
+   * 握手即时求值（能力位不持久化）；缺省 = 关闭。T6 接入设置存储。
    */
   isRemoteDesktopServerEnabled?: () => boolean;
   /**
-   * 系统 RDP 状态探测（被控 host 持有唯一实例，含 TTL 缓存；能力位取值必须是同步的）。
-   * 缺省 = 本模块自建一个（测试与独立装配场景）；未就绪/失败时返回 undefined → 不发能力键。
+   * 远程桌面被控 hook 注入点（T3 接 main 桥：同意流 / 信令转发 / 媒体 WS 交接）。
+   * 缺省实现：requestSession 一律拒绝（disabled）、onSessionSocket 与 onMediaSocket 直接关闭连接。
    */
-  systemRdpProbe?: SystemRdpProbe | null;
+  remoteDesktop?: {
+    requestSession?: (
+      clientId: string,
+      quality?: RemoteDesktopQuality,
+    ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
+    /** `session.reissueMediaTicket`：媒体 WS 瞬断重连（P2-1）的票据重签（由 server 层注入）。 */
+    onSessionSocket?: (
+      clientId: string,
+      socket: WebSocket,
+      session?: { reissueMediaTicket?: () => { mediaTicket: string; expiresAt: number } },
+    ) => void;
+    onMediaSocket?: (clientId: string, socket: WebSocket) => void;
+  };
 }
 
 /** 定长比较；长度不同直接失败，不做 pad（令牌是 base64url 定长串）。 */
@@ -132,11 +150,12 @@ async function waitForListenPort(server: unknown, fallback: number): Promise<num
 }
 
 /**
- * 读 lan client 记录（凭据服务 JSON 数组）：唯一真相 = 这个键与这份字段集合。
+ * 读 lan client 记录（凭据服务 JSON 数组）。导出给远程桌面的逐设备授权读写入口复用，
+ * 避免第二处复刻记录形状（唯一真相 = 这个键与这份字段集合）。
  */
 export async function readLanAccessClientRecords(
   credentials: ICredentialService,
-): Promise<LanAccessClientRecord[]> {
+): Promise<LanAccessClientRecordWithRemoteDesktop[]> {
   const raw = await credentials.load(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY);
   if (!raw) {
     return [];
@@ -147,11 +166,11 @@ export async function readLanAccessClientRecords(
       return [];
     }
     return parsed
-      .filter((item): item is LanAccessClientRecord => {
+      .filter((item): item is LanAccessClientRecordWithRemoteDesktop => {
         if (!item || typeof item !== "object") {
           return false;
         }
-        const record = item as Partial<LanAccessClientRecord>;
+        const record = item as Partial<LanAccessClientRecordWithRemoteDesktop>;
         return typeof record.id === "string" && record.id.length > 0;
       })
       .map((record) => ({
@@ -162,8 +181,7 @@ export async function readLanAccessClientRecords(
         ...(typeof record.lastWorkspacePath === "string" && record.lastWorkspacePath
           ? { lastWorkspacePath: record.lastWorkspacePath }
           : {}),
-        // 历史字段（逐设备授权）已随系统 RDP 方案作废：老数据里可能还带着它，
-        // 读时保留原值以免写回时抹掉（共享 schema 仍声明该键，见 lanAccess.ts）。
+        // 远程桌面逐设备授权：只认显式 true（缺键/旧数据 = 未授权），写回时必须保留。
         ...(record.remoteDesktopAuthorized === true ? { remoteDesktopAuthorized: true } : {}),
       }));
   } catch {
@@ -171,10 +189,10 @@ export async function readLanAccessClientRecords(
   }
 }
 
-/** 写回 lan client 记录数组。 */
+/** 写回 lan client 记录数组（仅无活 handle 的远程桌面授权写路径使用；见 remoteDesktopServer.ts）。 */
 export async function writeLanAccessClientRecords(
   credentials: ICredentialService,
-  records: LanAccessClientRecord[],
+  records: LanAccessClientRecordWithRemoteDesktop[],
 ): Promise<void> {
   await credentials.save(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY, JSON.stringify(records));
 }
@@ -304,11 +322,6 @@ export async function startLanAccessServer(
     return { token, serverId, name: params.machineName };
   };
 
-  // 系统 RDP 探测（仅 win32）：只读 HKLM，握手时取缓存值（见 systemRdpState.ts 头注释）。
-  // 被控 host 持有唯一实例（设置页与能力位共用同一份缓存）；缺省自建以支持独立装配与测试。
-  const systemRdpProbe =
-    params.systemRdpProbe ?? createHostSystemRdpProbe(process.platform, (message) => warn(message));
-
   const server = createHttpServer(params.services, LAN_ACCESS_DEFAULT_PORT, {
     host: "0.0.0.0",
     authRequired: true,
@@ -325,18 +338,41 @@ export async function startLanAccessServer(
     computerUseCapability:
       (process.platform === "win32" || process.platform === "darwin") &&
       isModeCuaInternalFeatureEnabled(process.env),
-    // 远程桌面**提示性共享位** = win32 && kill-switch 未触发 && 共享开关开（缺省关）。
-    // 开关是可变设置，按每次握手现取；它只影响对端设备页的展示，拦不住 3389
-    // （docs/specs/remote-desktop-system-rdp.md 产品规则 5）。
+    // 远程桌面能力位 = win32 && kill-switch 未触发 && 被控开关开（缺省关）。
+    // 开关是可变设置，按每次握手现取（能力位本身不持久化，docs/specs/lan-remote-desktop.md 产品规则 5）。
     remoteDesktopCapability: () =>
       computeRemoteDesktopCapability({
         platform: process.platform,
         killSwitchEngaged: isRemoteDesktopKillSwitchEngaged(process.env),
         serverEnabled: params.isRemoteDesktopServerEnabled?.() ?? false,
       }),
-    // 系统 RDP 真实状态（同 spec 接口节）：注册表现读、带 TTL 缓存，握手路径不做 IO；
-    // 探测未就绪/失败返回 undefined = 不发能力键（对端按状态未知呈现，不谎报可用）。
-    systemRdpCapability: () => systemRdpProbe?.get(),
+    // 原生媒体面版本门（docs/specs/lan-remote-desktop-native-media.md 版本门 1）：
+    // 本期纯直替——native ≡ remoteDesktop，故用同一表达式再算一遍（两键必然同值）；
+    // 未来若要兼容旧版 WebRTC 对端，再在这里解耦成独立判定。
+    remoteDesktopNativeCapability: () =>
+      computeRemoteDesktopCapability({
+        platform: process.platform,
+        killSwitchEngaged: isRemoteDesktopKillSwitchEngaged(process.env),
+        serverEnabled: params.isRemoteDesktopServerEnabled?.() ?? false,
+      }),
+    // T3 接 main 桥：缺省实现下会话请求一律拒绝、信令 socket 断链，不落地半开状态。
+    remoteDesktop: {
+      requestSession:
+        params.remoteDesktop?.requestSession ??
+        (async (): Promise<{ error: RemoteDesktopErrorCode }> => ({ error: "disabled" })),
+      onSessionSocket:
+        params.remoteDesktop?.onSessionSocket ??
+        ((_clientId: string, socket: WebSocket) => {
+          socket.close(4001, "remote desktop not wired");
+        }),
+      // 缺省关闭（与 onSessionSocket 同模式）：媒体票已被消费，但没有 relay 可挂，
+      // 不留下无归属的媒体连接。
+      onMediaSocket:
+        params.remoteDesktop?.onMediaSocket ??
+        ((_clientId: string, socket: WebSocket) => {
+          socket.close(4001, "remote desktop media not wired");
+        }),
+    },
   });
   const port = await waitForListenPort(server, LAN_ACCESS_DEFAULT_PORT);
 
@@ -409,6 +445,18 @@ export async function startLanAccessServer(
       lastTouchAt.clear();
       await persistClients();
       return getState();
+    },
+    async setClientRemoteDesktopAuthorized(clientId: string, authorized: boolean): Promise<void> {
+      const target = clients.find((item) => item.id === clientId);
+      if (!target) {
+        return;
+      }
+      if (authorized) {
+        target.remoteDesktopAuthorized = true;
+      } else {
+        delete target.remoteDesktopAuthorized;
+      }
+      await persistClients();
     },
     async dispose(): Promise<void> {
       if (disposed) {

@@ -35,3 +35,28 @@ test("computerUse 非布尔解析失败（fail closed）", () => {
   });
   assert.equal(parsed.success, false);
 });
+
+// 原生媒体面版本门 remoteDesktopNative（docs/specs/lan-remote-desktop-native-media.md 版本门 1）：
+// 与 computerUse 同口径——旧对端缺键解析通过（握手按不支持收口），非布尔 fail closed。
+test("旧对端 capabilities 无 remoteDesktopNative 键仍解析通过（缺键=旧对端）", () => {
+  const parsed = serverRemoteInfoSchema.safeParse(baseInfo);
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.success && parsed.data.capabilities.remoteDesktopNative, undefined);
+});
+
+test("新对端 remoteDesktopNative 布尔位保留", () => {
+  const parsed = serverRemoteInfoSchema.safeParse({
+    ...baseInfo,
+    capabilities: { ...baseInfo.capabilities, remoteDesktopNative: true },
+  });
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.success && parsed.data.capabilities.remoteDesktopNative, true);
+});
+
+test("remoteDesktopNative 非布尔解析失败（fail closed）", () => {
+  const parsed = serverRemoteInfoSchema.safeParse({
+    ...baseInfo,
+    capabilities: { ...baseInfo.capabilities, remoteDesktopNative: "yes" },
+  });
+  assert.equal(parsed.success, false);
+});
