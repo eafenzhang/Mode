@@ -4,6 +4,7 @@ import {
   buildConversationMirrorRecord,
   buildMirrorImportSessionId,
   mergeMirrorSourceTasks,
+  resolveConversationMirrorWindowSize,
   selectMirrorSourceTasks,
   selectOwnMirrorSourceTasks,
   shouldImportMirrorRecord,
@@ -25,8 +26,9 @@ import type { IModeSessionService, IModeTaskService, IServiceAccessor } from "@m
  * 与本机以对端身份打开该工作区时产生的会话（带 identity）。后者才是「本机在远端工作区发起的对话」，
  * 只取前者会在双机路径不同时恒为空——那会让本机发起的远端对话永远到不了对端。
  *
- * 同步窗口 = 调用方传入的 `windowSize`（侧栏分页窗口）：默认只处理最近 5 条，用户展开更多后
- * 调用方按新窗口重新触发一轮，因此导入量随可见列表增长，而不是一次性灌满。
+ * 同步窗口 = 调用方传入的 `windowSize`（侧栏分页窗口）经 `resolveConversationMirrorWindowSize`
+ * 归一：一轮至少处理最近 10 条、至多 20 条；用户展开更多后调用方按新窗口重新触发一轮，
+ * 因此导入量随可见列表增长，而不是一次性灌满。
  *
  * 幂等与跳过判据都不依赖本地台账：目标 scope 自己的 task meta `updatedAt` 就是「已导入到哪一版」。
  */
@@ -40,7 +42,10 @@ export interface ConversationMirrorSyncParams {
   localServices: IServiceAccessor;
   /** 本地工作区没有对端，不跑②方向。 */
   isRemoteTarget: boolean;
-  /** 本轮处理的来源会话条数（按 updatedAt 取最新前 N 条）。缺省取硬上限。 */
+  /**
+   * 本轮处理的来源会话条数基准（侧栏可见条数；按 updatedAt 取最新前 N 条）。
+   * 实际窗口经 `resolveConversationMirrorWindowSize` 归一：至少 10 条、至多 20 条。
+   */
   windowSize?: number;
   onWarning?: (message: string, error?: unknown) => void;
 }
@@ -94,7 +99,8 @@ export async function runConversationMirrorSync(
     };
   }
 
-  const windowSize = resolveWindowSize(params.windowSize);
+  // 侧栏可见条数只是基准：窗口口径统一在 shared（至少 10 条、至多 20 条）。
+  const windowSize = resolveConversationMirrorWindowSize(params.windowSize);
   const readLimit = resolveSourceReadLimit(windowSize);
   const readMessagesFrom = (
     services: IServiceAccessor,
@@ -202,14 +208,6 @@ export async function runConversationMirrorSync(
     status: "ready",
     error: "",
   };
-}
-
-/** 窗口缺省取硬上限；非正数按 1 处理，避免把「窗口 0」误表达成「不同步」。 */
-function resolveWindowSize(windowSize: number | undefined): number {
-  if (typeof windowSize !== "number" || !Number.isFinite(windowSize)) {
-    return CONVERSATION_MIRROR_LIMITS.maxRecords;
-  }
-  return Math.max(1, Math.min(Math.floor(windowSize), CONVERSATION_MIRROR_LIMITS.maxRecords));
 }
 
 /**

@@ -403,12 +403,40 @@ test("②方向覆盖本机在远端工作区发起的对话：来源取视图 s
   assert.deepEqual(local.readCalls, []);
 });
 
+/** 12 条来源会话，updatedAt = 100…1200（越大越新）。窗口用例都在这个量级上取，避开 10 条下限。 */
+function windowRows(): Array<{ taskId: string; updatedAt: number }> {
+  return Array.from({ length: 12 }, (_unused, index) => ({
+    taskId: `t-${index}`,
+    updatedAt: (index + 1) * 100,
+  }));
+}
+
+/** 期望的导入序列：按 updatedAt 倒序取最新的前 count 条。 */
+function expectedImportOrder(count: number): string[] {
+  return Array.from({ length: count }, (_unused, index) =>
+    buildMirrorImportSessionId(`t-${11 - index}`),
+  );
+}
+
+test("同步窗口至少 10 条：侧栏默认只可见 5 条时也同步最近 10 条", async () => {
+  const narrow = createMachine({ localScope: windowRows() });
+  await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: narrow.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: createMachine({}).services,
+    isRemoteTarget: true,
+    windowSize: 5,
+  });
+
+  assert.deepEqual(
+    viewDirectionCalls(narrow.createCalls).map((call) => call.sessionId),
+    expectedImportOrder(10),
+  );
+});
+
 test("同步窗口只处理最新的 N 条：窗口变大后更旧的记录才会被同步（对应侧栏「展开更多」）", async () => {
-  const rows = [
-    { taskId: "old-1", updatedAt: 100 },
-    { taskId: "old-2", updatedAt: 200 },
-    { taskId: "new-1", updatedAt: 300 },
-  ];
+  const rows = windowRows();
 
   const narrow = createMachine({ localScope: rows });
   await runConversationMirrorSync({
@@ -417,11 +445,11 @@ test("同步窗口只处理最新的 N 条：窗口变大后更旧的记录才�
     viewWorkspaceIdentity: VIEW_IDENTITY,
     localServices: createMachine({}).services,
     isRemoteTarget: true,
-    windowSize: 2,
+    windowSize: 10,
   });
   assert.deepEqual(
     viewDirectionCalls(narrow.createCalls).map((call) => call.sessionId),
-    [buildMirrorImportSessionId("new-1"), buildMirrorImportSessionId("old-2")],
+    expectedImportOrder(10),
   );
 
   const wide = createMachine({ localScope: rows });
@@ -431,14 +459,10 @@ test("同步窗口只处理最新的 N 条：窗口变大后更旧的记录才�
     viewWorkspaceIdentity: VIEW_IDENTITY,
     localServices: createMachine({}).services,
     isRemoteTarget: true,
-    windowSize: 3,
+    windowSize: 12,
   });
   assert.deepEqual(
     viewDirectionCalls(wide.createCalls).map((call) => call.sessionId),
-    [
-      buildMirrorImportSessionId("new-1"),
-      buildMirrorImportSessionId("old-2"),
-      buildMirrorImportSessionId("old-1"),
-    ],
+    expectedImportOrder(12),
   );
 });

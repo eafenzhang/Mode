@@ -1023,6 +1023,28 @@ export function resolveImportedHistoryTimestamps(params: {
   };
 }
 
+/**
+ * 把导入历史的时间线回填到活跃 record 上——与 `resumeSession` 对冷会话的回填同一裁决。
+ *
+ * `createRecord` 把 `createdAt/updatedAt` 写死为 `Date.now()`，而 `record.updatedAt` 是
+ * sessions-index `lastActivityAt` 的事实源（v4-bridge `getSessionIndexMeta`），后者又决定
+ * tasks-index 的 `updatedAt` 与侧栏排序。导入会话不回填就会出现三处不一致：
+ * ①镜像会话在侧栏按**导入顺序**排列而不是来源的真实时间轴（一轮导入多条时新旧颠倒）；
+ * ②与冷启动后（会话不在活跃 runtime，改读 `session.time.updated`）的排序不一致；
+ * ③目标 meta 的水位被顶到「导入那一刻」，两端时钟有偏差时会反复重导。
+ *
+ * 只回填导入这一刻的时间线；此后用户在镜像会话里继续对话，正常活动事件照旧把
+ * `record.updatedAt` 推到现在（`onSessionEvent` 的 activity 分支），语义不变。
+ */
+export function applyImportedHistoryTimelineToRecord(
+  record: Pick<ModeProtocolSessionRecord, "createdAt" | "updatedAt">,
+  timeline: { createdAt: number; updatedAt: number },
+): void {
+  record.createdAt = timeline.createdAt;
+  // 与落盘时的 `time.updated` 同一算法：倒挂的 updatedAt 不能把会话压到创建时刻之前。
+  record.updatedAt = Math.max(timeline.createdAt, timeline.updatedAt);
+}
+
 async function persistImportedSessionHistory(params: {
   context: ModeProtocolAgentServerContext;
   record: ModeProtocolSessionRecord;
@@ -1153,6 +1175,7 @@ async function persistImportedSessionHistory(params: {
       updated: Math.max(createdAt, updatedAt),
     },
   });
+  applyImportedHistoryTimelineToRecord(params.record, { createdAt, updatedAt });
 
   const removedMessageCount = await removePreviousImportedSessionHistory({
     sessionStore,

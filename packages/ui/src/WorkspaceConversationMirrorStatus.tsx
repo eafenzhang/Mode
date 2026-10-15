@@ -24,7 +24,10 @@ export function WorkspaceConversationMirrorStatus({
   remoteSessionId?: string | null;
   remoteTarget?: unknown;
   localServices: IServiceAccessor;
-  /** 侧栏该工作区当前可见的会话条数：镜像同步窗口，展开更多后随之增长。 */
+  /**
+   * 侧栏该工作区当前可见的会话条数：镜像同步窗口的基准（实际窗口至少 10 条、至多 20 条，
+   * 见 `resolveConversationMirrorWindowSize`），展开更多后随之增长。
+   */
   windowSize: number;
 }) {
   const { intl } = useModeIntl();

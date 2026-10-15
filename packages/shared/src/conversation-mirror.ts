@@ -34,11 +34,16 @@ export const CONVERSATION_MIRROR_DIR_NAME = "conversation-mirror";
 
 export const CONVERSATION_MIRROR_LIMITS = {
   /**
-   * 单轮处理的来源会话条数上限（按 updatedAt 降序取最新的前 N 条）。
+   * 单轮**至少**处理的来源会话条数（按 updatedAt 降序取最新的前 N 条）。
    *
-   * 实际窗口由调用方传入（侧栏分页窗口，见 `selectMirrorSourceTasks` 的 maxRecords 参数）：
-   * 默认只同步最近 5 条，用户「展开更多」把窗口 +5 后，调用方按新窗口重新跑一轮。
-   * 这里是硬上限，同时也是任务列表查询的读取上限基准。
+   * 窗口基准是调用方传入的侧栏可见条数，但它的默认值只有 5（`WORKSPACE_TASK_PAGE_SIZE`），
+   * 刚连上的远端工作区因此只搬过来 5 条对话。镜像的最低口径提到 10 条，同步窗口随侧栏
+   * 可见条数增长（上限 maxRecords），见 `resolveConversationMirrorWindowSize`。
+   */
+  minWindowSize: 10,
+  /**
+   * 单轮处理的来源会话条数硬上限，同时也是任务列表查询的读取上限基准。
+   * 远端 RPC 的请求参数不能随窗口无限增长。
    */
   maxRecords: 20,
   /** 单条会话最多导入的消息条数（保留尾部）。 */
@@ -52,6 +57,7 @@ export const CONVERSATION_MIRROR_LIMITS = {
 } as const;
 
 export interface ConversationMirrorLimits {
+  minWindowSize: number;
   maxRecords: number;
   maxMessagesPerSession: number;
   maxTextCharsPerMessage: number;
@@ -222,6 +228,24 @@ export function isMirrorSessionId(sessionId: string): boolean {
  */
 export function isMirrorEligibleTask(task: ConversationMirrorSourceTask): boolean {
   return !task.workspaceIdentity?.trim();
+}
+
+/**
+ * 单轮实际窗口：以调用方给的侧栏可见条数为基准，下限 `minWindowSize`、上限 `maxRecords`。
+ *
+ * 侧栏可见条数只是**基准**不是准确口径：默认 5 条，用户「展开更多」每次 +5。镜像如果直接照它取，
+ * 刚连上的远端工作区只会搬过来 5 条对话，而「展开更多」又要等一次点击才补——所以最低取 10 条，
+ * 仍随可见条数增长。非法值（未传 / NaN / 负数）按下限处理，不能把「没传窗口」当成「不同步」。
+ */
+export function resolveConversationMirrorWindowSize(
+  visibleCount: number | undefined,
+  limits: ConversationMirrorLimits = CONVERSATION_MIRROR_LIMITS,
+): number {
+  const requested =
+    typeof visibleCount === "number" && Number.isFinite(visibleCount)
+      ? Math.floor(visibleCount)
+      : limits.minWindowSize;
+  return Math.min(Math.max(requested, limits.minWindowSize), limits.maxRecords);
 }
 
 /** 按 updatedAt 取最新的前 N 条可镜像候选（记录本身还有消息数/字节上限兜底）。 */

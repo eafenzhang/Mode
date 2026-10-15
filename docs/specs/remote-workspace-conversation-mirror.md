@@ -2,7 +2,34 @@
 
 状态：已实现。挂载点已随 v0.0.43 发版；2026-10-15 补修「冷会话读不出消息」导致镜像导入恒为 0 的缺口（见下节）；
 同日第二轮修复「`session/messages` 返回值不是 wire 形状导致读取必失败 / ②方向来源 scope 取错 /
-只在挂载时跑一轮 / 导入时间线被压平」四处（见「2026-10-15 第二轮修复」）。
+只在挂载时跑一轮 / 导入时间线被压平」四处（见「2026-10-15 第二轮修复」）；
+同日第三轮按产品口径把单轮窗口提到**至少 10 条**，并把导入会话的**活跃 record 时间线回填**，
+让镜像在侧栏按来源的真实时间轴排列（见「2026-10-15 第三轮调整」）。
+
+## 2026-10-15 第三轮调整（一轮 10 条 + 按真实时间轴排序）
+
+两条产品口径：
+
+**① 一轮至少同步 10 条**。窗口基准原本直接取侧栏可见条数，而它默认只有 5
+（`WORKSPACE_TASK_PAGE_SIZE`），于是刚连上的远端工作区只搬过来 5 条对话，剩下 5 条要等用户点一次
+「展开更多」。现在窗口口径收敛到 shared 的唯一函数 `resolveConversationMirrorWindowSize`：
+**下限 10 条**（`CONVERSATION_MIRROR_LIMITS.minWindowSize`）、仍随可见条数增长、上限 20 条
+（`maxRecords` 不变，远端 RPC 参数有界）。「展开更多」依旧把更旧的记录带进来（验收场景 9 不变）。
+
+**② 同步过来的对话按来源的真实时间轴排序**。会话列表的 `updatedAt` 取自 sessions-index 的
+`lastActivityAt`，而它的唯一事实源是活跃 record 的 `record.updatedAt`（v4-bridge `getSessionIndexMeta`），
+再经 `modeTaskIndexSyncer` 落到 tasks-index 的 `updatedAt`、最后由
+`compareModeTaskListItems(..., "updated")` 决定侧栏顺序。问题出在
+`materializeSessionRecord` 把 `createdAt/updatedAt` 写死成 `Date.now()`：导入会话不回填，
+`lastActivityAt` 就是**导入那一刻**，同一轮导入的 10 条于是按**导入顺序**（`selectMirrorSourceTasks`
+是 updatedAt 降序，即从新到旧）排列，落到侧栏正好**新旧颠倒**；重启后会话变冷、改读
+`session.time.updated`（真实时间）又会翻回来，同一批会话在两端 / 两次启动间顺序不一致。
+修法：`persistImportedSessionHistory` 落盘后调 `applyImportedHistoryTimelineToRecord`，把
+`createdAt/updatedAt` 回填成 `resolveImportedHistoryTimestamps` 的结果——与 `resumeSession`
+对冷会话的回填同一裁决（那边早已这么做，注释见 `server-operations.ts`）。此后用户在镜像会话里
+续聊，正常活动事件照旧把 `record.updatedAt` 推到现在，语义不变。
+
+**仍未实机验证**：需要两端都升级才能观察到 10 条窗口与镜像的真实时间轴排序。
 
 ## 2026-10-15 第二轮修复（同步失败 / 两端不一致 / 单边可见 / 无分页）
 
@@ -115,8 +142,12 @@ CLI 侧有 `resolveImportedHistoryTimestamps` 的水位单测；`session/create`
 - 「双向」= 一轮同步同时做两件事：① 对端记录 → **本机当前视图 scope**；② 本机记录 → **对端本地 scope**。
 - 「每次连接时自动同步」= 远端 workspace attach 就绪（`rpcReady`）时自动跑一轮；之后**任一来来源 scope
   发生变更（新开 / 续聊任务）时防抖补跑一轮**，因此连接之后新产生的对话也会传过去。
-- **窗口有界且随可见列表增长**：一轮只处理每个来源最近 `windowSize` 条会话，`windowSize` = 侧栏该工作区
-  当前可见的会话条数（默认 5，`展开更多` 每次 +5）。窗口变大时按新窗口重跑，不会一次性把远端历史灌满。
+- **窗口有界且随可见列表增长**：一轮只处理每个来源最近 `windowSize` 条会话。`windowSize` 以侧栏该工作区
+  当前可见的会话条数（默认 5，`展开更多` 每次 +5）为基准，经 `resolveConversationMirrorWindowSize`
+  归一为**至少 10 条、至多 20 条**：刚连上就同步最近 10 条，窗口变大时按新窗口重跑，
+  不会一次性把远端历史灌满。
+- **同步过来的对话按来源的真实时间轴排序**：导入会话的 `createdAt/updatedAt` 取来源会话的真实时间线
+  （不是导入时刻），因此侧栏顺序与来源机器一致，也与重启后的冷启动顺序一致（见「第三轮调整」②）。
 
 ### 归属与执行位置（本 spec 的核心裁决）
 
@@ -158,7 +189,8 @@ CLI 侧有 `resolveImportedHistoryTimestamps` 的水位单测；`session/create`
    这同时挡住「本机副本被对端搬回来」的回声和第三台机器副本的扩散。
 4. **幂等**：确定性 id + CLI 的 `removePreviousImportedSessionHistory`（按 `metadata.migrationSource` 清理旧导入消息）
    保证重复导入只覆盖导入消息、**保留用户后续在镜像会话里真实聊出的消息**。
-5. **有界**：单轮每个方向最多处理 `windowSize` 条会话（硬上限 20，见「2026-10-15 第二轮修复」成因 D）；
+5. **有界**：单轮每个方向处理 `windowSize` 条会话，`windowSize` = 侧栏可见条数取下限 10、上限 20
+   （见「2026-10-15 第三轮调整」①，成因 D 定的是窗口可随可见列表增长这件事）；
    每条最多 200 条消息、单条文本 ≤ 4000 字符、单条记录 ≤ 256 KiB（超限丢最旧消息并置 `truncated`），
    为远端 RPC 物理帧（1 MiB）留余量。
 6. **失败不阻断**：导入失败只记 warn + 视图状态，不阻断 workspace 连接、任务列表与会话主链路；
@@ -220,26 +252,31 @@ A 连接 B 的远端工作区 W（rpcReady + 工作区行已展开 → 挂载镜
 6. 对端为旧版本（CLI 不认 `remoteMirror`）→ 明确提示，连接与任务列表不受影响。
 7. 断开远端连接后镜像会话不可见（属于对端机器），重新连接后仍在。
 8. **连接之后**任一端新开 / 续聊的对话，另一端无需重连即可看到（工作区事件触发的防抖重同步）。
-9. **窗口**：默认只同步每端最近 5 条；侧栏「展开更多」后窗口 +5，更旧的记录随之被同步；
-   两端同一来源会话的创建 / 更新时间与排序一致（CLI 透传 `updatedAt`）。
+9. **窗口**：一轮至少同步每端最近 10 条（侧栏默认只可见 5 条也一样）；侧栏「展开更多」后窗口 +5，
+   更旧的记录随之被同步，上限 20 条。
+10. **排序**：镜像会话在侧栏按来源的**真实时间轴**排列（不是导入顺序），且与重启后冷启动的顺序一致；
+    两端同一来源会话的创建 / 更新时间一致（CLI 透传 `updatedAt` 并回填活跃 record）。
 
 ## 测试
 
 - 单测（shared）：`packages/shared/test/conversation-mirror.test.ts`——确定性 id 派生稳定、镜像前缀判定、
-  ①方向过滤 identity 行 / ②方向保留 identity 行（两个谓词不同）、窗口取最新 N 条、多来源按 taskId 合并去重、
-  消息提取（跳过隐藏 synthetic / 空文本）、有界化（会话数 / 消息数 / 文本长度 / 单记录字节预算 → `truncated`）、
-  导入 payload 构造。
-- 单测（ui）：`packages/ui/test/conversationMirrorSync.test.ts`（11 例）——夹具按双机拓扑搭，远端机的本地 scope
+  ①方向过滤 identity 行 / ②方向保留 identity 行（两个谓词不同）、窗口取最新 N 条、
+  窗口口径归一（可见 5 条 → 10 条；随可见条数增长并以 20 条封顶；未传 / NaN / 0 取下限）、
+  多来源按 taskId 合并去重、消息提取（跳过隐藏 synthetic / 空文本）、
+  有界化（会话数 / 消息数 / 文本长度 / 单记录字节预算 → `truncated`）、导入 payload 构造。
+- 单测（ui）：`packages/ui/test/conversationMirrorSync.test.ts`（12 例）——夹具按双机拓扑搭，远端机的本地 scope
   同时是①方向的来源与②方向的目标、视图 scope 是①的目标与②的来源，避免两边共用一份服务桩而掩盖方向接错。
   覆盖：两个方向各落一个 scope（视图带 identity / 反向不带）、②方向处理本机在远端工作区发起的对话、
-  窗口只处理最新 N 条且变大后更旧的记录才进来、目标不更旧不重导、mirror 前缀不被当新来源也不被再搬一次、
+  窗口至少 10 条且变大后更旧的记录才进来、目标不更旧不重导、mirror 前缀不被当新来源也不被再搬一次、
   对端不支持时整轮降级、空记录不导入、单条读取失败只跳过该条、本地工作区不做任何镜像。
 - CLI 侧（`apps/mode-cli/packages/bootstrap/test/`）：
   `session-messages-cold-read.test.mts` 除冷读语义外，**必须**断言返回值通过
   `modeSessionMessagesResultSchema`（成因 0 的回归守卫——只断言文本内容就漏掉了形状错误，
   这正是它上一轮漏过 ZodError 的原因）；
   `imported-history-timestamps.test.mts` 钉住 `remoteMirror` 透传 `createdAt/updatedAt`
-  （这是镜像「已同步到哪一版」的水位，被压成 `createdAt` 会导致两端不一致 + 每轮重导）。
+  （这是镜像「已同步到哪一版」的水位，被压成 `createdAt` 会导致两端不一致 + 每轮重导），
+  以及同一份时间线回填到活跃 record（`applyImportedHistoryTimelineToRecord`）——不回填则
+  sessions-index `lastActivityAt` 落在导入那一刻，镜像按导入顺序排在侧栏最前）。
   **仍缺**：`session/create` 带 `importedHistory.source="remoteMirror"` 端到端落盘为可续聊会话的用例。
 - E2E（交互改动必需）：远端工作区连接后镜像会话进入任务列表并可续聊；两端各发起一条对话后对方可见。
 - 验证：`pnpm typecheck`（另需 `pnpm --filter @mode/bootstrap typecheck`）、`pnpm lint`、

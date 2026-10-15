@@ -46,7 +46,10 @@ export function useWorkspaceConversationMirror(params: {
   isRemoteTarget: boolean;
   /** 远端连接代次；重连后需要重新同步。 */
   remoteSessionId?: string | null;
-  /** 侧栏当前可见的会话条数：镜像同步窗口（默认 5，展开更多后 +5）。 */
+  /**
+   * 侧栏当前可见的会话条数：镜像同步窗口的基准（实际窗口至少 10 条、至多 20 条；
+   * 侧栏默认可见 5 条，展开更多后 +5）。窗口变化会改 runKey，按新窗口重跑一轮。
+   */
   windowSize: number;
   enabled: boolean;
 }): { state: WorkspaceConversationMirrorState; refresh: () => void } {

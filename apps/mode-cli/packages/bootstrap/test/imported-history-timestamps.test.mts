@@ -6,11 +6,18 @@
  * 曾经 remoteMirror 走的是「非 claudeCode ⇒ updatedAt = createdAt」分支：镜像会话的 updatedAt
  * 恒等于创建时刻，于是①两端排序 / 时间戳不一致，②每轮同步都判定「来源更新」而重导一遍。
  *
+ * 后半段钉住**同一份时间线的第二处落点**：活跃 record 的 createdAt/updatedAt。createRecord 把它们
+ * 写死为 Date.now()，而 record.updatedAt 是 sessions-index `lastActivityAt`（→ tasks-index
+ * `updatedAt` → 侧栏排序）的事实源；不回填的话镜像会话按导入顺序排列而不是来源的真实时间轴。
+ *
  * 运行：pnpm --filter @mode/bootstrap test
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveImportedHistoryTimestamps } from "../src/mode-protocol/server-operations.js";
+import {
+  applyImportedHistoryTimelineToRecord,
+  resolveImportedHistoryTimestamps,
+} from "../src/mode-protocol/server-operations.js";
 import type { ModeSessionCreateParams } from "@mode/shared";
 
 type ImportedHistory = NonNullable<ModeSessionCreateParams["importedHistory"]>;
@@ -84,6 +91,26 @@ test("claudeCode 行为不变：同样透传 updatedAt 并用消息时间兜底"
     createdAt: 5_000,
     updatedAt: 7_000,
   });
+});
+
+test("活跃 record 回填导入时间线：sessions-index 的 lastActivityAt 不落在导入那一刻", () => {
+  // createRecord 造出来的初始值就是「导入那一刻」——镜像会话在侧栏因此会被顶到最前，
+  // 且同一轮导入的多条之间按导入顺序（而不是来源时间）排列。
+  const record = { createdAt: NOW, updatedAt: NOW };
+
+  applyImportedHistoryTimelineToRecord(record, { createdAt: 1_000, updatedAt: 9_000 });
+
+  assert.equal(record.createdAt, 1_000);
+  assert.equal(record.updatedAt, 9_000);
+});
+
+test("活跃 record 回填：updatedAt 倒挂时以 createdAt 兜底，不把会话压到创建之前", () => {
+  const record = { createdAt: NOW, updatedAt: NOW };
+
+  applyImportedHistoryTimelineToRecord(record, { createdAt: 5_000, updatedAt: 4_000 });
+
+  assert.equal(record.createdAt, 5_000);
+  assert.equal(record.updatedAt, 5_000);
 });
 
 test("没有真实时间线的来源（sharedContext）只有一个时刻：updatedAt 退化为 createdAt", () => {

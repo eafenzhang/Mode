@@ -57,6 +57,22 @@ test("确定性目标 id：同来源同 id，不同来源不同 id，带 mirror-
   assert.equal(isMirrorSessionId("ses-abc"), false);
 });
 
+test("单轮窗口：默认侧栏可见 5 条时按 10 条同步，随可见条数增长并以 20 条封顶", async () => {
+  const { CONVERSATION_MIRROR_LIMITS, resolveConversationMirrorWindowSize } =
+    await import("../src/conversation-mirror.js");
+
+  // 侧栏默认只可见 5 条（WORKSPACE_TASK_PAGE_SIZE），镜像不能跟着只同步 5 条。
+  assert.equal(resolveConversationMirrorWindowSize(5), 10);
+  assert.equal(resolveConversationMirrorWindowSize(10), 10);
+  // 「展开更多」后仍随可见条数增长，直到硬上限。
+  assert.equal(resolveConversationMirrorWindowSize(15), 15);
+  assert.equal(resolveConversationMirrorWindowSize(40), CONVERSATION_MIRROR_LIMITS.maxRecords);
+  // 未传 / 非法值取下限，不能被误当成「不同步」。
+  assert.equal(resolveConversationMirrorWindowSize(undefined), 10);
+  assert.equal(resolveConversationMirrorWindowSize(Number.NaN), 10);
+  assert.equal(resolveConversationMirrorWindowSize(0), 10);
+});
+
 test("只选本机本地 scope 会话：带 identity 的行与镜像副本都不参与镜像", async () => {
   const { selectMirrorSourceTasks } = await import("../src/conversation-mirror.js");
 
