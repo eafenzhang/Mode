@@ -160,10 +160,22 @@ Expected: FAIL——`Cannot find module './driver.mjs'`。
 - [ ] **Step 4b: mock provider（对拍可重复性的前提）**
 
 没有这一步，对拍会被模型的不确定性污染：同一个 prompt 两次跑出不同工具序列，用例就会随机红。
-实现方式二选一，Task 0 内定稿并写进 spec：
-(a) 复用仓库已有的 mock/录制面（先在 spec 里查证有没有，`mode-cua-plugin` 与
-`packages/desktop/mock-cdn` 是线索，不要假设）；
-(b) 新建一个「按 prompt 哈希返回固定 tool_calls 序列」的本地 provider 实现。
+
+**这一步的前置查证已在 2026-10-16 做完，结论是「没有可复用的面，要新建」**（查证范围与结果
+写下来，省得下一个人再查一遍）：
+
+| 线索 | 查询结果 |
+| --- | --- |
+| `packages/desktop/mock-cdn/` | 只有 `components/` 与 `releases/`，是插件市场的 mock CDN，不是模型侧 |
+| `config/provider/mode-builtin.json` | 只有 `schemaVersion`/`revision`/`config`，是内置 provider 清单 |
+| `packages/provider/src/**`、`packages/provider-node/src/**` | 无 `test` / `mock` / `fake` 的 provider id |
+| 全局搜 `mockProvider` / `MODE_MOCK` / `cassette` / `recordReplay` / `fixtureProvider` | 无命中 |
+| 全局搜 `MODE_E2E` / `fakeProvider` / `stubProvider` | 只命中 `run-production-build.mjs`（与模型无关） |
+
+所以走 **(b)：新建一个本地 mock provider**——按 prompt 哈希返回固定的 tool_calls / 文本序列。
+落点建议 `packages/provider-node/src/`（那里放 provider 的具体实现），入口用一个
+`MODE_ORACLE_PROVIDER` 之类的显式开关，**默认关闭**，绝不能在不设开关时被开发者的日常运行选到。
+
 **验收**：同一个 prompt 连跑两次，工具调用序列与应用事件流（除时间戳/id）逐字相同。
 
 - [ ] **Step 5: 三层对拍比较器 + 第一批夹具**
@@ -448,9 +460,9 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 2. 本机只能验 Windows，而 M2 的核心是**对拍**，需要在能起旧运行时的环境里跑真实模型与
    mock provider；先按 Task 0 把 oracle 与夹具框架立起来，再谈实现。
 
-**开工前必须先解决的一件事**：Task 0 Step 4b 的 mock/录制 provider 方案。它是整阶段的
-可重复性前提，而且需要先查证仓库里有没有现成的录制面（`packages/desktop/mock-cdn` 与
-`mode-cua-plugin` 是线索）——有就复用，没有才新建。
+**开工后第一件事**：Task 0 Step 4b 的 mock provider（它是整阶段可重复性的前提）。
+前置查证已在 2026-10-16 完成并写进 Task 0——仓库里**没有**现成的 mock/录制面可复用，
+按结论新建即可，不用再查。
 
 ---
 
