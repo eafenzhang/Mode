@@ -1,6 +1,9 @@
 # 远程桌面（系统 RDP / mstsc 直连）
 
-状态：已拍板（2026-10-15）。**本文是本功能的唯一权威**，取代 `lan-remote-desktop.md`（已收敛为指向本文的存根）与已删除的 `lan-remote-desktop-native-media.md`。
+状态：已拍板（2026-10-15）。**本文是系统 RDP 路径的唯一权威**，取代 `lan-remote-desktop.md`（已收敛为历史存根）与已删除的 `lan-remote-desktop-native-media.md`。
+
+2026-10-15 追加决定：本路径**与应用内自研路径并存**（[in-app-remote-desktop.md](./in-app-remote-desktop.md)），
+设备页两条入口各自置灰判据；本文的产品规则只约束 mstsc 这条路径，两者不共享会话状态。
 
 关联：[lan-remote-attach.md](./lan-remote-attach.md)（LAN 配对、令牌与握手时序）、[lan-discovery.md](./lan-discovery.md)（设备发现）、[lan-paired-devices.md](./lan-paired-devices.md)（已配对设备管理）、[lan-host-server-mode.md](./lan-host-server-mode.md)、[lan-remote-computer-use.md](./lan-remote-computer-use.md)（模型驱动的远端电脑控制，与本功能互补且与之无代码耦合）、[clean-room-policy.md](./clean-room-policy.md)。
 
