@@ -6357,6 +6357,8 @@ const enUS: Record<string, string> = {
   "remoteDesktop.clipboard.label": "Clipboard sync",
   "remoteDesktop.clipboard.on": "Clipboard sync on — click to turn off",
   "remoteDesktop.clipboard.off": "Clipboard sync off — click to turn on",
+  "remoteDesktop.sas.label": "Ctrl+Alt+Del (not supported on this path)",
+  "remoteDesktop.sas.hint": "This path cannot send Ctrl+Alt+Del: Windows blocks user-mode SAS injection, which would require a service on the controlled machine (not installed). Use that machine's own keyboard for this step.",
   "remoteDesktop.devices.locallyControlledBanner":
     "This machine is being controlled remotely; disconnect that session to start a remote connection.",
   "remoteDesktop.device.status.ready": "Ready",

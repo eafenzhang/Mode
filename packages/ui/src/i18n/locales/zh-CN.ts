@@ -6072,6 +6072,8 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.clipboard.label": "剪贴板同步",
   "remoteDesktop.clipboard.on": "剪贴板同步已开启，点击关闭",
   "remoteDesktop.clipboard.off": "剪贴板同步已关闭，点击开启",
+  "remoteDesktop.sas.label": "Ctrl+Alt+Del（本路径不支持）",
+  "remoteDesktop.sas.hint": "本路径不支持发送 Ctrl+Alt+Del：Windows 禁止用户态进程合成 SAS，需要在被控端安装服务（当前没有）。这一步请用被控端本机的键盘完成。",
   "remoteDesktop.devices.locallyControlledBanner":
     "本机正在被远程控制；断开被控后即可发起远程连接。",
   "remoteDesktop.device.status.ready": "可用",

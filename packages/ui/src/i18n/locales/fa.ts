@@ -6265,6 +6265,8 @@ const faIR: Record<string, string> = {
   "remoteDesktop.clipboard.label": "همگام‌سازی کلیپ‌بورد",
   "remoteDesktop.clipboard.on": "همگام‌سازی کلیپ‌بورد روشن است — برای خاموش کردن کلیک کنید",
   "remoteDesktop.clipboard.off": "همگام‌سازی کلیپ‌بورد خاموش است — برای روشن کردن کلیک کنید",
+  "remoteDesktop.sas.label": "Ctrl+Alt+Del (در این مسیر پشتیبانی نمی‌شود)",
+  "remoteDesktop.sas.hint": "این مسیر نمی‌تواند Ctrl+Alt+Del بفرستد: ویندوز تزریق SAS از فضای کاربر را مسدود می‌کند و این کار نیازمند سرویس روی دستگاه کنترل‌شده است (نصب نیست). برای این کار از صفحه‌کلید خودِ آن دستگاه استفاده کنید.",
   "remoteDesktop.devices.locallyControlledBanner":
     "این دستگاه در حال کنترل از راه دور است؛ پس از قطع آن می‌توانید اتصال از راه دور آغاز کنید.",
   "remoteDesktop.device.status.ready": "آماده",

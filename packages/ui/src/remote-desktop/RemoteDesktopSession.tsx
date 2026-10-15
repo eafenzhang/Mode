@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   ClipboardCheck,
   ClipboardX,
+  Keyboard,
   LoaderIcon,
   Lock,
   Maximize2,
@@ -24,6 +25,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip.js";
 import {
   Select,
   SelectContent,
@@ -240,6 +247,34 @@ export function RemoteDesktopSession({
               </SelectItem>
             </SelectContent>
           </Select>
+          {/* SAS（Ctrl+Alt+Del）：本路径**做不到**——Windows 禁止用户态进程合成 SAS，
+              需要被控端装服务并放行 SendSAS 策略（对标 RustDesk 的 service 组件，我方无此设施）。
+              做成「禁用按钮 + 原因 tooltip」：既不是点了没反应的假按钮，也不是静默缺失
+              （spec 产品规则 11）。 */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* 禁用按钮不产生指针事件：用 span 承载触发器（Radix 的既有做法）。 */}
+                <span className="inline-flex cursor-not-allowed">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled
+                    data-testid="remote-desktop-sas-unavailable"
+                    aria-label={intl.formatMessage({ id: "remoteDesktop.sas.label" })}
+                    className="gap-1 text-ui-sm text-foreground-subtle"
+                  >
+                    <Keyboard className="size-4" />
+                    <span className="hidden sm:inline">Ctrl+Alt+Del</span>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-ui-sm">
+                {intl.formatMessage({ id: "remoteDesktop.sas.hint" })}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {view.monitors.length > 0 ? (
             <Select
               value={view.selectedDisplayId ?? undefined}
