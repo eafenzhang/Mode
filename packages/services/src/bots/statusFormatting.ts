@@ -5,6 +5,7 @@ import {
   type ModeTaskMeta,
 } from "@mode/shared";
 import { buildPerTurnChangeSummaries } from "../session/taskChangeSummary.js";
+import { deriveBotFileChangeKinds, type BotFileChangeKind } from "./botChangeSummary.js";
 
 const MS_IN_SECOND = 1_000;
 const MS_IN_MINUTE = 60 * MS_IN_SECOND;
@@ -91,6 +92,23 @@ export function readLatestAssistantTurnChangeSummary(snapshot: ModeSessionFile |
   // 第三方完成回复只应该展示本轮 assistant 对应 turnIndex 的文件变更。
   const summary = buildPerTurnChangeSummaries(snapshot.fileChanges).get(latestAssistantTurnIndex) ?? null;
   return summary && summary.fileCount > 0 && summary.files.length > 0 ? summary : null;
+}
+
+/**
+ * 同一口径取出本轮每个文件的变更类型（新增 / 修改 / 删除），供 IM 回复展示。
+ * 单独一个函数而不是改上面那个的返回值：变更类型只影响第三方消息的渲染，
+ * 不该让 UI / 状态侧也背上这个字段。
+ */
+export function readLatestAssistantTurnChangeKinds(
+  snapshot: ModeSessionFile | null,
+): Map<string, BotFileChangeKind> {
+  const latestAssistantTurnIndex = snapshot?.messages.findLast(
+    (message) => message.role === "assistant" && message.turnIndex !== undefined,
+  )?.turnIndex;
+  if (latestAssistantTurnIndex === undefined) {
+    return new Map();
+  }
+  return deriveBotFileChangeKinds(snapshot?.fileChanges, latestAssistantTurnIndex);
 }
 
 export function normalizeStatusProgressText(value: string): string {

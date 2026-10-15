@@ -10,6 +10,7 @@ import {
   getPermissionRequestPreview,
 } from "@mode/shared";
 import { normalizeBotMessageLocale } from "./messages.js";
+import type { BotFileChangeKind } from "./botChangeSummary.js";
 
 export interface BotReplyToolCallState {
   toolId: string;
@@ -26,6 +27,8 @@ export interface BotReplyToolCallState {
 interface BotReplyFormatOptions {
   workspacePath?: string;
   locale?: Locale;
+  /** 每个文件的变更类型（新增 / 修改 / 删除）；缺省时只显示路径与行数增删。 */
+  changeKinds?: ReadonlyMap<string, BotFileChangeKind>;
 }
 
 export type BotAssistantReplyBlock =
@@ -65,6 +68,9 @@ const formatterMessages = {
     changeSummary: "变更摘要",
     moreToolCalls: "还有 {count} 个工具调用",
     moreFiles: "还有 {count} 个文件",
+    added: "新增",
+    modified: "修改",
+    deleted: "删除",
   },
   "en-US": {
     toolCalls: "Tool calls:",
@@ -81,6 +87,9 @@ const formatterMessages = {
     changeSummary: "Change summary",
     moreToolCalls: "{count} more tool calls",
     moreFiles: "{count} more files",
+    added: "Added",
+    modified: "Modified",
+    deleted: "Deleted",
   },
 } as const;
 
@@ -343,7 +352,7 @@ export function isBotToolCallReplyTerminal(
 
 function formatBotChangeSummary(
   changeSummary?: ModeTaskChangeSummary | null,
-  options?: Pick<BotReplyFormatOptions, "locale">,
+  options?: Pick<BotReplyFormatOptions, "locale" | "changeKinds">,
 ): string {
   if (!changeSummary || changeSummary.fileCount <= 0 || changeSummary.files.length === 0) {
     return "";
@@ -354,7 +363,12 @@ function formatBotChangeSummary(
       : `${t(options?.locale, "changeSummary")}：${changeSummary.fileCount} 个文件，${formatBotDiffCount(changeSummary)}`,
   ];
   for (const file of changeSummary.files.slice(0, MAX_TOOL_SUMMARY_ITEMS)) {
-    lines.push(`- ${formatMarkdownInlineCode(file.path)} (${formatBotDiffCount(file)})`);
+    // 变更类型由调用方从原始快照推导（本地推导，不动共享摘要类型）：
+    // 新建文件与改过的文件此前在回复里长得一样。
+    const kind = options?.changeKinds?.get(file.path);
+    lines.push(
+      `- ${kind ? `${t(options?.locale, kind)} ` : ""}${formatMarkdownInlineCode(file.path)} (${formatBotDiffCount(file)})`,
+    );
   }
   if (changeSummary.files.length > MAX_TOOL_SUMMARY_ITEMS) {
     lines.push(`- ${t(options?.locale, "moreFiles").replace("{count}", String(changeSummary.files.length - MAX_TOOL_SUMMARY_ITEMS))}`);
@@ -412,6 +426,7 @@ export function formatBotAssistantReplyBlocks(
     }
     const text = formatBotChangeSummary(block.changeSummary, {
       locale: options?.locale,
+      changeKinds: options?.changeKinds,
     });
     if (text) {
       messages.push(...splitLongReplyText(text));

@@ -228,6 +228,7 @@ import {
   formatTaskRunningDuration,
   normalizeStatusProgressText,
   readLatestAssistantTurnChangeSummary,
+  readLatestAssistantTurnChangeKinds,
   readLatestTaskProgress,
   readTaskWorkedDurationMs,
   taskStatus,
@@ -5800,12 +5801,15 @@ export function createBotsService(
             })
             .catch(() => null);
           const latestTurnChangeSummary = readLatestAssistantTurnChangeSummary(completedSnapshot);
+          // 新增 / 修改 / 删除的判定从原始快照本地推导（不动共享摘要类型）。
+          const turnChangeKinds = readLatestAssistantTurnChangeKinds(completedSnapshot);
           if (supportsStreamingCardReply()) {
             const changeSummaryMessages = formatBotAssistantReplyBlocks(
               createAssistantReplyBlocks([], new Map(), mode, latestTurnChangeSummary),
               {
                 workspacePath: context.workspacePath,
                 locale,
+                changeKinds: turnChangeKinds,
               },
             );
             if (changeSummaryMessages.length > 0) {
@@ -5827,6 +5831,7 @@ export function createBotsService(
             replyMessages = formatBotAssistantReplyBlocks(replyBlocks, {
               workspacePath: context.workspacePath,
               locale,
+              changeKinds: turnChangeKinds,
             });
           } else {
             await flushAssistantReplyBuffer(true);
@@ -5839,6 +5844,7 @@ export function createBotsService(
             replyMessages = formatBotAssistantReplyBlocks(changeSummaryBlocks, {
               workspacePath: context.workspacePath,
               locale,
+              changeKinds: turnChangeKinds,
             });
           }
           if (replyMessages.length === 0 && !sentAnyAssistantReply) {

@@ -46,6 +46,35 @@
 - **待实机**：企微真实对话确认默认走流式卡片——同一条消息随回复增长、终稿 finish 收口；
   `/reply` 切回标准回复后恢复离散气泡。
 
+## 变更摘要区分新增/修改/删除（2026-10-16 补充）
+
+**背景**：交付内容里的变更摘要只有文件数 + 行数增删，新建的文件和改过的文件在 IM 回复里
+长得一模一样（`ModeTaskChangedFileSummary` 只有 `added` / `removed` / `writeCount`）。
+
+**规则**：每行文件前加上变更类型标签（`新增` / `修改` / `删除`，英文 Added / Modified / Deleted），
+判定口径：
+
+- `beforeContent === null` → **新增**；
+- 最终内容为空且原本有内容 → **删除**；
+- 其余 → **修改**；
+- 同一文件同轮多次写入时，取首个快照的 `beforeContent` 与末个快照的 `afterContent`（与
+  `buildPerTurnChangeSummaries` 的聚合口径一致）。
+
+**实现位置（刻意选择）**：判定在 **bot 层本地推导**（`packages/services/src/bots/botChangeSummary.ts`），
+`ModeTaskChangedFileSummary` **不加字段**——它是 v4 传输面的类型（`mode-protocol-v4` +
+`validation` + UI 侧另有一份同名推导），加字段要同步四处 schema 与两份生产者，
+而 bot 已经持有会话文件的原始快照，本地推导即可。**不要**为了这个展示需求去扩共享协议类型。
+
+**验收场景**
+
+1. 单测（`bot-change-summary-kinds.test.ts`）：三种类型判定、同轮多次写入的聚合、
+   只取目标轮次、渲染标签（中英）与"无类型时退回原格式"。
+2. 覆盖范围：正文（`assistant_changes` / `assistant_toolcalls_changes`）与流式卡片终稿同源，
+   两条路径都传同一份类型表。
+3. 回归：`pnpm --filter @mode/services test`、`pnpm typecheck`、`pnpm lint`、
+   `pnpm architecture:check --changed` 全绿。
+4. **待实机**：一次包含"新建文件 + 改文件 + 删文件"的任务，IM 回复的变更摘要里三种标签都能看到。
+
 ## 逐块刷出（2026-10-16 补充）
 
 ### 背景
