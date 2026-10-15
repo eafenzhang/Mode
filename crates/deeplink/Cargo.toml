@@ -3,8 +3,22 @@ name = "deeplink"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
-description = "Tauri 侧 deeplink 面（最小骨架；规格见 docs/specs/tauri-platform-commands.md）"
+description = "Tauri 侧 deeplink 面（路线图 M1 任务 6）：mode:// 解析、冷启动缓存与事件投递"
 
 [lib]
 name = "deeplink"
 path = "src/lib.rs"
+
+[build-dependencies]
+tauri-test-manifest = { path = "../tauri-test-manifest" }
+
+[dependencies]
+# 深链事件载荷与事件名是跨端契约，真源在 protocol（由生成器导出到 TS）。
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+# 深链 URL 解析用 `url`：它对 `mode://host/path` 这种自有 scheme 也会切出 host/path/query，
+# 且 query_pairs() 自带百分号解码（旧线契约里有 `%3A%5C` 这种转义路径）。
+url.workspace = true
+tauri.workspace = true
+tauri-plugin-deep-link.workspace = true

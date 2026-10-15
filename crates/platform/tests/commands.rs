@@ -42,7 +42,11 @@ fn registers_exactly_the_m1_slice() {
 fn js_names_match_handler_function_names() {
     assert_eq!(M1_HANDLER_PATHS.len(), M1_SLICE.len());
     for (js_name, handler_path) in registered_names().iter().zip(M1_HANDLER_PATHS) {
-        let function_name = handler_path.rsplit("::").next().unwrap_or(handler_path).trim();
+        let function_name = handler_path
+            .rsplit("::")
+            .next()
+            .unwrap_or(handler_path)
+            .trim();
         assert_eq!(
             to_camel_case(function_name),
             *js_name,

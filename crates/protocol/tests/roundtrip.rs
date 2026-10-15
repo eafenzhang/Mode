@@ -44,8 +44,14 @@ fn task_notification_status_covers_every_contract_value() {
     let values = [
         (TaskNotificationStatus::Completed, "completed"),
         (TaskNotificationStatus::Failed, "failed"),
-        (TaskNotificationStatus::PermissionRequest, "permission_request"),
-        (TaskNotificationStatus::ElicitationRequest, "elicitation_request"),
+        (
+            TaskNotificationStatus::PermissionRequest,
+            "permission_request",
+        ),
+        (
+            TaskNotificationStatus::ElicitationRequest,
+            "elicitation_request",
+        ),
         (TaskNotificationStatus::FeedbackUpdate, "feedback_update"),
     ];
     for (status, expected) in values {
@@ -127,14 +133,20 @@ fn save_file_request_rejects_violating_unions() {
         source_url: None,
         suggested_name: "a.bin".to_string(),
     };
-    assert_eq!(neither.validate(), Err(SaveFileRequestError::MissingPayload));
+    assert_eq!(
+        neither.validate(),
+        Err(SaveFileRequestError::MissingPayload)
+    );
 
     let both = SaveFileRequest {
         data: Some(vec![0]),
         source_url: Some("https://example.invalid/a.png".to_string()),
         suggested_name: "a.bin".to_string(),
     };
-    assert_eq!(both.validate(), Err(SaveFileRequestError::ConflictingPayload));
+    assert_eq!(
+        both.validate(),
+        Err(SaveFileRequestError::ConflictingPayload)
+    );
 }
 
 #[test]

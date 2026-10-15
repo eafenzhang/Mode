@@ -10,7 +10,10 @@ use tauri_plugin_opener::OpenerExt;
 /// M1 **不收紧 scheme**——收紧会改变现网行为（`mailto:`、编辑器 deep link 等都在用），
 /// 那是一次需要单独对齐的加固决策，不在骨架期顺手做。只拒绝空串/纯空白。
 #[tauri::command]
-pub fn open_external<R: tauri::Runtime>(app: tauri::AppHandle<R>, url: String) -> Result<(), String> {
+pub fn open_external<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    url: String,
+) -> Result<(), String> {
     if url.trim().is_empty() {
         return Err("empty_url".to_string());
     }
@@ -25,7 +28,10 @@ pub fn open_external<R: tauri::Runtime>(app: tauri::AppHandle<R>, url: String) -
 /// 故按路径类型分派：目录 → 用文件管理器打开；文件 → 在父目录里选中它。
 /// 路径不存在时明确失败，不静默返回 success。
 #[tauri::command]
-pub fn open_in_file_manager<R: tauri::Runtime>(app: tauri::AppHandle<R>, path: String) -> OpenPathResult {
+pub fn open_in_file_manager<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    path: String,
+) -> OpenPathResult {
     match Path::new(&path).metadata() {
         Ok(metadata) if metadata.is_dir() => match app.opener().open_path(path, None::<&str>) {
             Ok(()) => OpenPathResult {

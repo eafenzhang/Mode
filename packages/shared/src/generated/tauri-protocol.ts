@@ -4,6 +4,8 @@
 //   node scripts/generate-tauri-protocol.mjs
 // CI 用 `--check` 断言生成物无漂移。
 
+export const DEEP_LINK_EVENT = "mode:deep-link";
+
 export interface ApplicationIconInfo {
   "iconDataUrl": string;
 }
@@ -22,6 +24,15 @@ export type ApplicationIconLocator = {
 export interface ApplicationIconRequest {
   "locators": ApplicationIconLocator[];
 }
+
+export interface DeepLinkEvent {
+  "code"?: string;
+  "kind": DeepLinkEventKind;
+  "path"?: string;
+  "url": string;
+}
+
+export type DeepLinkEventKind = "oauth-callback" | "payment-callback" | "workspace-open" | "share-import" | "unrecognized";
 
 export interface OpenPathResult {
   "error"?: string;

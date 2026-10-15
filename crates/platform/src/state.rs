@@ -52,6 +52,8 @@ impl AppState {
     /// 互斥锁只在「读/写一个字段」的临界区持有，且临界区内不做 IO，
     /// 因此中毒（panic during lock）不会留下不一致状态，可直接取回内部值。
     fn lock(&self) -> std::sync::MutexGuard<'_, Snapshot> {
-        self.inner.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }

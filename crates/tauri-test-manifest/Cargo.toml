@@ -1,0 +1,10 @@
+[package]
+name = "tauri-test-manifest"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "构建期助手：给依赖 tao/tauri 的 crate 的测试目标注入 comctl32 v6 应用清单"
+
+[lib]
+name = "tauri_test_manifest"
+path = "src/lib.rs"

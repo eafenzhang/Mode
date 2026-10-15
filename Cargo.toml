@@ -14,6 +14,7 @@ members = [
   "crates/browser-import-helper",
   "crates/platform",
   "crates/protocol",
+  "crates/tauri-test-manifest",
   "crates/updater",
   "crates/tray",
   "crates/deeplink",
@@ -35,4 +36,7 @@ tauri = "2"
 tauri-build = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-deep-link = "2"
+url = "2"
 tauri-plugin-notification = "2"

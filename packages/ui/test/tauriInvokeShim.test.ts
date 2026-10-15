@@ -4,13 +4,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { DEEP_LINK_EVENT } from "@mode/shared";
+
 import {
   createTauriPlatformService,
+  M1_EVENT_SUBSCRIBED_METHODS,
   M1_IMPLEMENTED_COMMANDS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
   normalizeApplicationIconRequest,
   notImplementedUntilM3,
+  type TauriEventEnvelope,
   type TauriInvoke,
+  type TauriListen,
+  type TauriUnlisten,
 } from "../src/platform/tauri-invoke-shim.js";
 
 // 让 logger 走静默分支，避免用例输出里混进预期内的 warn。
@@ -29,9 +35,52 @@ function recordingInvoke(result: unknown = null, reject = false) {
   return { calls, invoke };
 }
 
+/**
+ * 记录订阅的 listen 替身。
+ *
+ * `holdSetup` 让订阅的 Promise 一直悬着，用来验证「握手必须等订阅装好」这条顺序语义。
+ */
+function recordingListen(options: { holdSetup?: boolean } = {}) {
+  const handlers = new Map<string, Set<(envelope: TauriEventEnvelope<unknown>) => void>>();
+  const unlistened: string[] = [];
+  const releaseSetup: Array<() => void> = [];
+
+  const listen: TauriListen = <T>(event: string, handler: (e: TauriEventEnvelope<T>) => void) => {
+    const set = handlers.get(event) ?? new Set();
+    const typed = handler as (envelope: TauriEventEnvelope<unknown>) => void;
+    set.add(typed);
+    handlers.set(event, set);
+
+    const unlisten: TauriUnlisten = () => {
+      set.delete(typed);
+      unlistened.push(event);
+    };
+    if (!options.holdSetup) return Promise.resolve(unlisten);
+    return new Promise<TauriUnlisten>((resolve) => {
+      releaseSetup.push(() => resolve(unlisten));
+    });
+  };
+
+  /** 把一条事件投给当前所有订阅者。 */
+  const emit = (event: string, payload: unknown): void => {
+    for (const handler of handlers.get(event) ?? []) {
+      handler({ event, payload });
+    }
+  };
+
+  const releasePendingSetups = (): void => {
+    for (const release of releaseSetup.splice(0)) release();
+  };
+
+  return { listen, emit, unlistened, releasePendingSetups };
+}
+
+/** 不订阅任何事件的安静替身，给只测命令映射的用例。 */
+const noopListen = recordingListen().listen;
+
 test("M1 切片表的 10 条命令都被实现（不是靠抛错桩占位）", () => {
   const { invoke } = recordingInvoke();
-  const service = createTauriPlatformService(invoke) as Record<string, unknown>;
+  const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
   assert.equal(M1_IMPLEMENTED_COMMANDS.length, 10);
   for (const name of M1_IMPLEMENTED_COMMANDS) {
     assert.equal(typeof service[name], "function", `${name} 应是函数`);
@@ -40,7 +89,7 @@ test("M1 切片表的 10 条命令都被实现（不是靠抛错桩占位）", (
 
 test("命令名逐字映射到 invoke，参数用命令签名的字段名", async () => {
   const { calls, invoke } = recordingInvoke(null);
-  const service = createTauriPlatformService(invoke);
+  const service = createTauriPlatformService(invoke, noopListen);
 
   await service.selectDirectory?.();
   await service.selectFile?.();
@@ -56,33 +105,41 @@ test("命令名逐字映射到 invoke，参数用命令签名的字段名", asyn
     body: "正文",
   });
   await service.saveFile?.({ data: new Uint8Array([1, 2]) as unknown as ArrayBuffer, suggestedName: "a.bin" } as never);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  // notifyRendererReady 先等订阅就位再 invoke（顺序语义在下面的专门用例里断言），
+  // 因此它在序列里的落点取决于微任务调度，不适合放进「同步命令的先后顺序」断言。
+  const synchronousCommands = calls
+    .map((call) => call.command)
+    .filter((command) => command !== "notifyRendererReady");
 
-  assert.deepEqual(
-    calls.map((call) => call.command),
-    [
-      "selectDirectory",
-      "selectFile",
-      "openExternal",
-      "syncWindowTabs",
-      "syncWindowUnreadCount",
-      "notifyRendererReady",
-      "openInFileManager",
-      "showTaskNotification",
-      "saveFile",
-    ],
+  assert.deepEqual(synchronousCommands, [
+    "selectDirectory",
+    "selectFile",
+    "openExternal",
+    "syncWindowTabs",
+    "syncWindowUnreadCount",
+    "openInFileManager",
+    "showTaskNotification",
+    "saveFile",
+  ]);
+  assert.ok(
+    calls.some((call) => call.command === "notifyRendererReady"),
+    "notifyRendererReady 也必须真的发出去",
   );
-  assert.deepEqual(calls[2]?.args, { url: "https://example.test/oauth" });
-  assert.deepEqual(calls[3]?.args, { paths: ["D:/ws/a", "D:/ws/b"] });
-  assert.deepEqual(calls[4]?.args, { count: 3 });
-  assert.deepEqual(calls[6]?.args, { path: "D:/ws" });
-  assert.deepEqual(calls[7]?.args, {
+  // 按命令名取参，不靠下标：序列里混着一次异步落点的握手。
+  const argsOf = (command: string) => calls.find((call) => call.command === command)?.args;
+  assert.deepEqual(argsOf("openExternal"), { url: "https://example.test/oauth" });
+  assert.deepEqual(argsOf("syncWindowTabs"), { paths: ["D:/ws/a", "D:/ws/b"] });
+  assert.deepEqual(argsOf("syncWindowUnreadCount"), { count: 3 });
+  assert.deepEqual(argsOf("openInFileManager"), { path: "D:/ws" });
+  assert.deepEqual(argsOf("showTaskNotification"), {
     payload: { taskId: "t1", status: "completed", title: "标题", body: "正文" },
   });
 });
 
 test("getApplicationIcon 把裸字符串归一成结构化 locator 再发", async () => {
   const { calls, invoke } = recordingInvoke(null);
-  const service = createTauriPlatformService(invoke);
+  const service = createTauriPlatformService(invoke, noopListen);
   await service.getApplicationIcon?.("com.apple.Safari");
   assert.deepEqual(calls[0]?.args, {
     request: {
@@ -102,7 +159,7 @@ test("normalizeApplicationIconRequest：已经是结构化入参时原样透传"
 
 test("未实现的**必选**方法调用即抛 not_implemented_until_m3（带方法名）", () => {
   const { invoke } = recordingInvoke();
-  const service = createTauriPlatformService(invoke) as Record<string, unknown>;
+  const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
   assert.ok(M1_UNIMPLEMENTED_REQUIRED_METHODS.length > 0);
   for (const name of M1_UNIMPLEMENTED_REQUIRED_METHODS) {
     assert.equal(typeof service[name], "function", `${name} 应有抛错桩`);
@@ -118,7 +175,7 @@ test("未实现的**必选**方法调用即抛 not_implemented_until_m3（带方
 
 test("可选的未实现方法**保持缺席**，让调用方的 ?. 守卫继续生效", () => {
   const { invoke } = recordingInvoke();
-  const service = createTauriPlatformService(invoke) as Record<string, unknown>;
+  const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
   // 这些在 IPlatformService 里带 ?，塞抛错桩会把「不支持就跳过」变成「直接崩」。
   for (const name of ["selectFiles", "printPageToPdf", "onShareImport", "getUpdateState"]) {
     assert.equal(service[name], undefined, `${name} 应缺席而不是抛错桩`);
@@ -127,7 +184,7 @@ test("可选的未实现方法**保持缺席**，让调用方的 ?. 守卫继续
 
 test("返回 void 的命令：invoke 失败不让进程炸，也不产生未处理的 rejection", async () => {
   const { invoke } = recordingInvoke(null, true);
-  const service = createTauriPlatformService(invoke);
+  const service = createTauriPlatformService(invoke, noopListen);
 
   const unhandled: unknown[] = [];
   const onUnhandled = (reason: unknown) => unhandled.push(reason);
@@ -149,4 +206,125 @@ test("notImplementedUntilM3 的文案格式稳定（调用点靠它分流）", (
     notImplementedUntilM3("openInEditor").message,
     "not_implemented_until_m3: openInEditor",
   );
+});
+
+// ------------------------------------------------------------------ 事件通道
+
+test("订阅的事件名取自跨端契约（crates/protocol → 生成物），不是手抄字符串", () => {
+  const { listen, unlistened } = recordingListen();
+  const subscribed: string[] = [];
+  const spyingListen: TauriListen = (event, handler) => {
+    subscribed.push(event);
+    return listen(event, handler);
+  };
+  const service = createTauriPlatformService(recordingInvoke().invoke, spyingListen);
+  service.onOAuthCallback?.(() => {});
+  service.onPaymentCallback?.(() => {});
+  assert.deepEqual(subscribed, [DEEP_LINK_EVENT, DEEP_LINK_EVENT]);
+  assert.equal(DEEP_LINK_EVENT, "mode:deep-link");
+  assert.deepEqual(unlistened, []);
+});
+
+test("深链事件按 kind 分流，只把 url 交给对应回调", () => {
+  const { listen, emit } = recordingListen();
+  const service = createTauriPlatformService(recordingInvoke().invoke, listen);
+  const oauthUrls: string[] = [];
+  const paymentUrls: string[] = [];
+  service.onOAuthCallback?.((url) => oauthUrls.push(url));
+  service.onPaymentCallback?.((url) => paymentUrls.push(url));
+
+  emit(DEEP_LINK_EVENT, { kind: "oauth-callback", url: "mode://oauth/callback?state=1" });
+  emit(DEEP_LINK_EVENT, { kind: "payment-callback", url: "mode://payment/callback?state=2" });
+  // 非本通道的 kind 必须被过滤掉（M1 不订阅它们，但宿主会照常 emit）。
+  emit(DEEP_LINK_EVENT, { kind: "workspace-open", url: "mode://workspace/open?path=/a", path: "/a" });
+  emit(DEEP_LINK_EVENT, { kind: "unrecognized", url: "mode://nope" });
+
+  assert.deepEqual(oauthUrls, ["mode://oauth/callback?state=1"]);
+  assert.deepEqual(paymentUrls, ["mode://payment/callback?state=2"]);
+});
+
+test("畸形的深链载荷被跳过而不是抛，不影响后续事件", () => {
+  const { listen, emit } = recordingListen();
+  const service = createTauriPlatformService(recordingInvoke().invoke, listen);
+  const urls: string[] = [];
+  service.onOAuthCallback?.((url) => urls.push(url));
+
+  emit(DEEP_LINK_EVENT, undefined);
+  emit(DEEP_LINK_EVENT, "not-an-object");
+  emit(DEEP_LINK_EVENT, { kind: "oauth-callback" });
+  emit(DEEP_LINK_EVENT, { kind: "oauth-callback", url: "" });
+  emit(DEEP_LINK_EVENT, { kind: "oauth-callback", url: "mode://oauth/callback?state=ok" });
+
+  assert.deepEqual(urls, ["mode://oauth/callback?state=ok"]);
+});
+
+test("退订后不再收到事件；订阅未装好就退订也不会留悬挂监听", async () => {
+  const { listen, emit, unlistened, releasePendingSetups } = recordingListen({ holdSetup: true });
+  const service = createTauriPlatformService(recordingInvoke().invoke, listen);
+  const urls: string[] = [];
+  const dispose = service.onOAuthCallback?.((url) => urls.push(url));
+  assert.ok(dispose);
+
+  // 订阅的 Promise 还悬着就退订：兑现时应当自己退订，而不是把监听留在表里。
+  dispose();
+  releasePendingSetups();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(unlistened, [DEEP_LINK_EVENT]);
+
+  emit(DEEP_LINK_EVENT, { kind: "oauth-callback", url: "mode://oauth/callback?state=late" });
+  assert.deepEqual(urls, [], "已退订的回调不应再被触发");
+});
+
+test("退订是同步返回的（接口契约），且正常路径下真的摘掉监听", async () => {
+  const { listen, emit, unlistened } = recordingListen();
+  const service = createTauriPlatformService(recordingInvoke().invoke, listen);
+  const urls: string[] = [];
+  const dispose = service.onOAuthCallback?.((url) => urls.push(url));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  emit(DEEP_LINK_EVENT, { kind: "oauth-callback", url: "mode://oauth/callback?state=first" });
+  dispose?.();
+  emit(DEEP_LINK_EVENT, { kind: "oauth-callback", url: "mode://oauth/callback?state=second" });
+
+  assert.deepEqual(urls, ["mode://oauth/callback?state=first"]);
+  assert.deepEqual(unlistened, [DEEP_LINK_EVENT]);
+});
+
+test("notifyRendererReady 必须等订阅装好再握手（否则冷启动深链会丢）", async () => {
+  const { listen, releasePendingSetups } = recordingListen({ holdSetup: true });
+  const { calls, invoke } = recordingInvoke();
+  const service = createTauriPlatformService(invoke, listen);
+
+  service.onOAuthCallback?.(() => {});
+  service.notifyRendererReady?.();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(
+    calls.map((call) => call.command),
+    [],
+    "订阅未就位时不得发握手：宿主会立刻补发冷启动深链，此刻没人接",
+  );
+
+  releasePendingSetups();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(calls.map((call) => call.command), ["notifyRendererReady"]);
+});
+
+test("M1 事件订阅方法都在服务上真实存在（不是抛错桩）", () => {
+  const service = createTauriPlatformService(
+    recordingInvoke().invoke,
+    noopListen,
+  ) as Record<string, unknown>;
+  for (const name of M1_EVENT_SUBSCRIBED_METHODS) {
+    assert.equal(typeof service[name], "function", `${name} 应是函数`);
+    // 事件订阅方法不该出现在「未实现必选」清单里——两处都登记会让抛错桩覆盖真实现。
+    assert.ok(
+      !(M1_UNIMPLEMENTED_REQUIRED_METHODS as readonly string[]).includes(name),
+      `${name} 不应同时登记为未实现`,
+    );
+    // 也不能出现在命令切片表里：它们走事件，Rust 侧没有同名命令。
+    assert.ok(
+      !(M1_IMPLEMENTED_COMMANDS as readonly string[]).includes(name),
+      `${name} 不是命令`,
+    );
+  }
 });

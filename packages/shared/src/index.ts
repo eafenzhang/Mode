@@ -106,6 +106,16 @@ export * from "./dynamic-workflow-feature.js";
 export * from "./markdown-artifact-images.js";
 export * from "./serviceAuthority.js";
 export * from "./server-remote.js";
+// Tauri 侧协议生成物（真源 crates/protocol，CI 用 `--check` 断言无漂移）。
+// **只再导出没有手写对应物的符号**：生成模块里其余类型（`SaveFileRequest`、
+// `TaskNotificationPayload`、`ApplicationIconInfo` …）与 platform.ts 的手写声明同名，
+// 整模块 `export *` 会撞名。platform.ts 是渲染层实际使用的接口面，生成物是它的漂移哨兵；
+// 深链事件两样都没有手写副本，所以直接由生成物供给。
+export {
+  DEEP_LINK_EVENT,
+  type DeepLinkEvent,
+  type DeepLinkEventKind,
+} from "./generated/tauri-protocol.js";
 
 export interface ICredentialStore {
   get(key: string): Promise<string | null>;

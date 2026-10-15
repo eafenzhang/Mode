@@ -121,3 +121,50 @@ pub struct OpenPathResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
+
+/// 渲染层订阅的深链事件名。
+///
+/// 真源在 Rust 侧（`crates/deeplink` 用它 emit，渲染层用它 `listen`）。事件名写错是
+/// **静默失效**——订阅装上了但永远收不到，所以它和协议字段一样由生成器导出到 TS，
+/// 由 CI 的漂移断言兜住，不靠人手抄（见 `emit-schema.rs` 的 `$constants` 段）。
+pub const DEEP_LINK_EVENT: &str = "mode:deep-link";
+
+/// `DeepLinkEvent["kind"]` 的取值集合。
+///
+/// 每个变体**显式写 `rename`**，不用 `rename_all`：serde 的 kebab-case 会把
+/// `OAuthCallback` 切成 `o-auth-callback`（连续大写被当成词边界）。线上取值必须与 TS
+/// 侧逐字一致，所以写死而不是靠命名转换规则推导。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub enum DeepLinkEventKind {
+    #[serde(rename = "oauth-callback")]
+    OAuthCallback,
+    #[serde(rename = "payment-callback")]
+    PaymentCallback,
+    #[serde(rename = "workspace-open")]
+    WorkspaceOpen,
+    #[serde(rename = "share-import")]
+    ShareImport,
+    #[serde(rename = "unrecognized")]
+    Unrecognized,
+}
+
+/// 深链事件载荷（宿主 → 渲染层）。
+///
+/// M1 只接线 `oauth-callback` / `payment-callback`（spec §2 的「只落一个示范」是下限，
+/// 支付走同一条链路所以一并接）；另外三种 `kind` 是**可观察性**：渲染层按 `kind` 过滤，
+/// 未认领的链接不会静默消失。
+///
+/// 用**单个**事件名 + `kind` 判别，而不是每种意图一个事件名：M3 补齐各订阅语义时
+/// 不需要新增事件名，渲染层也不必为每种意图装一次监听。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeepLinkEvent {
+    pub kind: DeepLinkEventKind,
+    /// 链接原文。`workspace-open` / `share-import` 也带上，便于按原文定位问题
+    /// （它们只保了解析后的字段，原文不在别处）。
+    pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+}

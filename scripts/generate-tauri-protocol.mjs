@@ -6,6 +6,10 @@
 // 开发机与 CI 装一个额外的 CLI。走 schemars + 本脚本的路线，生成器就在仓库里，
 // 且 Rust 侧已有 schemars 依赖（协议类型本来就要 derive JsonSchema）。
 //
+// 产物含两部分：类型声明（schemars schema 转出）与**跨端字面量**（`$constants`，
+// 例如深链事件名）。字面量也走生成而不是手抄，因为「事件名写错」是静默失效：
+// 订阅装上了却永远收不到，只有 CI 的漂移断言能兜住。
+//
 // 用法：
 //   node scripts/generate-tauri-protocol.mjs           # 写入生成物
 //   node scripts/generate-tauri-protocol.mjs --check   # 只校验，有漂移则退出 1
@@ -138,6 +142,26 @@ function inlineObjectType(schema, indent) {
   return `{\n${lines.join("\n")}\n${pad}}`;
 }
 
+/** 常量键：schema bundle 里以 `$` 开头的那一项，值形如 `{ NAME: "literal" }`。
+ *
+ * 单列成一个键而不是混进类型里，是为了让「哪些是类型、哪些是字面量」在数据层就分开：
+ * 渲染顺序与转义规则都不同，混在一起就要靠命名猜。 */
+const CONSTANTS_KEY = "$constants";
+
+/** 字面量声明：`export const NAME = "value";`。
+ *
+ * 只接受字符串字面量：TS 生成物是给人读的协议面，放数字/布尔会诱使两边开始
+ * 往这里塞可变的配置值，那就不是「跨端契约」了。 */
+function tsConstantsDeclaration(constants) {
+  const lines = Object.entries(constants).map(([name, value]) => {
+    if (typeof value !== "string") {
+      return fail(`$constants.${name} 不是字符串字面量：${JSON.stringify(value)}`);
+    }
+    return `export const ${name} = ${JSON.stringify(value)};`;
+  });
+  return lines;
+}
+
 /** 顶层声明：对象 → interface，其余 → type 别名。 */
 function tsDeclaration(name, schema) {
   if (schema.oneOf || isStringEnums(schema)) {
@@ -157,8 +181,12 @@ function tsDeclaration(name, schema) {
 }
 
 function renderModule(bundle) {
-  const names = Object.keys(bundle).sort();
-  const declarations = names.map((name) => tsDeclaration(name, bundle[name]));
+  const constants = bundle[CONSTANTS_KEY] ?? {};
+  const typeNames = Object.keys(bundle)
+    .filter((name) => name !== CONSTANTS_KEY)
+    .sort();
+  const constantDeclarations = tsConstantsDeclaration(constants);
+  const declarations = typeNames.map((name) => tsDeclaration(name, bundle[name]));
   return [
     "// 本文件由 scripts/generate-tauri-protocol.mjs 生成，请勿手改。",
     "//",
@@ -166,6 +194,7 @@ function renderModule(bundle) {
     "//   node scripts/generate-tauri-protocol.mjs",
     "// CI 用 `--check` 断言生成物无漂移。",
     "",
+    ...(constantDeclarations.length > 0 ? [...constantDeclarations, ""] : []),
     ...declarations.flatMap((declaration) => [declaration, ""]),
   ]
     .join("\n")

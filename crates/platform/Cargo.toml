@@ -9,8 +9,14 @@ description = "IPlatformService 的 Rust 对应：Tauri 平台命令面（规格
 name = "platform"
 path = "src/lib.rs"
 
+[build-dependencies]
+tauri-test-manifest = { path = "../tauri-test-manifest" }
+
 [dependencies]
 protocol = { path = "../protocol" }
+# 深链的冷启动队列由 `notifyRendererReady` 触发回放（见 commands/window.rs），
+# 所以 platform 需要拿到 deeplink 的托管状态。依赖方向单向：platform -> deeplink。
+deeplink = { path = "../deeplink" }
 serde.workspace = true
 serde_json.workspace = true
 # 对话框命令是回调式 API，用 oneshot 把它接成 async command 的返回值。

@@ -21,3 +21,5 @@ deeplink = { path = "../../../crates/deeplink" }
 serde.workspace = true
 serde_json.workspace = true
 tauri.workspace = true
+# main.rs 要注册插件本体（deeplink crate 只用它的 API），故这里直接依赖。
+tauri-plugin-deep-link.workspace = true

@@ -1,5 +1,5 @@
 /**
- * Tauri `invoke()` 适配层（路线图 M1 Task 4 的 shim 部分）。
+ * Tauri `invoke()` 适配层（路线图 M1 Task 4 的 shim 部分 + Task 6 的事件通道）。
  *
  * 规格：`docs/specs/tauri-platform-commands.md`。命令名与 `IPlatformService` 逐字对齐，
  * Rust 侧 `crates/platform` 的切片表是另一端；两边任何一处改名，都会被
@@ -16,19 +16,55 @@
  *
  * 覆盖关系由下面的 `_allRequiredMembersCovered` 在**编译期**校验：协议新增一条必选方法
  * 而本文件没跟上时，`pnpm typecheck` 会直接报错。
+ *
+ * ## 事件通道（M1 唯一一条：深链回调）
+ *
+ * `onOAuthCallback` / `onPaymentCallback` 订阅的是宿主 emit 的同一个深链事件
+ * [`DEEP_LINK_EVENT`]，按载荷里的 `kind` 分流。事件名、载荷类型与 `kind` 取值全部来自
+ * `crates/protocol`（生成物），不手抄——事件名写错是**静默失效**（订阅装上了却永远收不到）。
  */
 import type {
   ApplicationIconRequest,
+  DeepLinkEvent,
+  DeepLinkEventKind,
   IPlatformService,
   SaveFileRequest,
   SaveFileResult,
   TaskNotificationPayload,
 } from "@mode/shared";
+import { DEEP_LINK_EVENT } from "@mode/shared";
 
 import { logger } from "../logger.js";
 
 /** Tauri 的 `invoke`（由 `@tauri-apps/api/core` 提供）。这里只依赖这个形状，便于注入测试替身。 */
 export type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+
+/** 退订句柄，与 `@tauri-apps/api/event` 的 `UnlistenFn` 同形。 */
+export type TauriUnlisten = () => void;
+
+/** 事件载荷信封，与 `@tauri-apps/api/event` 的 `Event<T>` 同形。 */
+export type TauriEventEnvelope<T> = { event: string; payload: T };
+
+/** Tauri 的 `listen`。同样只依赖形状，注入测试替身用。 */
+export type TauriListen = <T>(
+  event: string,
+  handler: (envelope: TauriEventEnvelope<T>) => void,
+) => Promise<TauriUnlisten>;
+
+/** 深链回调映射到事件载荷的 `kind` 值。取值来自生成物，不手抄。 */
+const DEEP_LINK_CALLBACK_KINDS = {
+  onOAuthCallback: "oauth-callback",
+  onPaymentCallback: "payment-callback",
+} as const satisfies Record<string, DeepLinkEventKind>;
+
+// 编译期守卫：上面两个映射值必须是 DeepLinkEventKind 的成员（`satisfies` 已覆盖），
+// 且必须覆盖本层实现的两条订阅方法。
+type DeepLinkCallbackMethod = keyof typeof DEEP_LINK_CALLBACK_KINDS;
+const _deepLinkCallbackMethods: readonly DeepLinkCallbackMethod[] = [
+  "onOAuthCallback",
+  "onPaymentCallback",
+];
+void _deepLinkCallbackMethods;
 
 /** M1 切片表：与 `crates/platform/src/commands/mod.rs` 的 `command_slice!` 逐条对应。 */
 export const M1_IMPLEMENTED_COMMANDS = [
@@ -70,8 +106,6 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "openCommunity",
   "canOpenCommunity",
   "registerOAuthState",
-  "onOAuthCallback",
-  "onPaymentCallback",
   "syncActiveTaskSession",
   "onFocusTab",
   "onNewTab",
@@ -107,7 +141,18 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "onRemoteDesktopSessionEvent",
 ] as const;
 
+/**
+ * M1 通过**事件通道**实现（不是命令，见 spec §2）的方法。
+ *
+ * 单列一份而不是直接混进 `M1_IMPLEMENTED_COMMANDS`：那张表是「Rust 侧有同名
+ * `#[tauri::command]`」的清单，由 `crates/platform/tests/commands.rs` 对拍；
+ * 这两条方法走的是宿主单向 emit 的事件，Rust 侧没有对应命令，混进去会让那张表的
+ * 语义变脏、也过不了跨端名字守卫。
+ */
+export const M1_EVENT_SUBSCRIBED_METHODS = ["onOAuthCallback", "onPaymentCallback"] as const;
+
 type ImplementedCommand = (typeof M1_IMPLEMENTED_COMMANDS)[number];
+type EventSubscribedCommand = (typeof M1_EVENT_SUBSCRIBED_METHODS)[number];
 type UnimplementedRequired = (typeof M1_UNIMPLEMENTED_REQUIRED_METHODS)[number];
 
 /** `IPlatformService` 里没有 `?` 的成员名。 */
@@ -118,7 +163,7 @@ type RequiredMemberName = {
 /** 既没实现、也没登记成「未实现必选」的必选成员。正常应为 `never`。 */
 type UncoveredRequiredMember = Exclude<
   RequiredMemberName,
-  ImplementedCommand | UnimplementedRequired
+  ImplementedCommand | EventSubscribedCommand | UnimplementedRequired
 >;
 
 // 编译期穷尽检查：不等于 never 时，这一行的类型不匹配会直接报错。
@@ -153,12 +198,24 @@ export function normalizeApplicationIconRequest(
 }
 
 /**
- * 建一个只覆盖 M1 切片表的 `IPlatformService` 视图。
+ * 建一个只覆盖 M1 切片表（命令面 + 一条深链事件通道）的 `IPlatformService` 视图。
  *
  * 返回类型是 `Partial<IPlatformService>`：它**不是**完整实现，别当成 Electron 线的
  * `desktopPlatform` 用。
+ *
+ * `listen` 是必填参数（不是可选的第二参数）：`onOAuthCallback` 无法在没有订阅能力时
+ * 成立，允许省略就会退化成「订阅装不上但调用方以为装上了」——那正是本文件开头
+ * 反对的假值。省略它在 TS 层就是编译错误。
  */
-export function createTauriPlatformService(invoke: TauriInvoke): Partial<IPlatformService> {
+export function createTauriPlatformService(
+  invoke: TauriInvoke,
+  listen: TauriListen,
+): Partial<IPlatformService> {
+  /**
+   * 尚未装好的订阅。`notifyRendererReady` 必须等它们全部完成再握手（见下）。
+   */
+  const pendingSubscriptions: Promise<void>[] = [];
+
   const service: Partial<IPlatformService> = {
     openExternal(url: string): void {
       fireAndForget(invoke, "openExternal", { url });
@@ -182,7 +239,15 @@ export function createTauriPlatformService(invoke: TauriInvoke): Partial<IPlatfo
       fireAndForget(invoke, "showTaskNotification", { payload });
     },
     notifyRendererReady(): void {
-      fireAndForget(invoke, "notifyRendererReady");
+      // **顺序是语义，不是实现细节**：宿主收到这次握手就会立刻补发积压的冷启动深链
+      // （`crates/platform/src/commands/window.rs` 的 notify_renderer_ready）。
+      // 订阅还没生效就握手，补发的事件没人接——正好把握手要解决的问题又制造一遍。
+      // 所以先等全部订阅就位，再发握手。
+      void Promise.all(pendingSubscriptions)
+        .then(() => invoke("notifyRendererReady"))
+        .catch((error: unknown) => {
+          logger.warn("[tauri-platform] notifyRendererReady 调用失败", error);
+        });
     },
     syncWindowTabs(paths: string[]): void {
       fireAndForget(invoke, "syncWindowTabs", { paths });
@@ -195,6 +260,24 @@ export function createTauriPlatformService(invoke: TauriInvoke): Partial<IPlatfo
         request: normalizeApplicationIconRequest(request),
       }) as ReturnType<NonNullable<IPlatformService["getApplicationIcon"]>>;
     },
+    onOAuthCallback(callback: (url: string) => void): () => void {
+      const unsubscribe = subscribeDeepLink(
+        listen,
+        DEEP_LINK_CALLBACK_KINDS.onOAuthCallback,
+        callback,
+      );
+      pendingSubscriptions.push(unsubscribe.ready);
+      return unsubscribe.dispose;
+    },
+    onPaymentCallback(callback: (url: string) => void): () => void {
+      const unsubscribe = subscribeDeepLink(
+        listen,
+        DEEP_LINK_CALLBACK_KINDS.onPaymentCallback,
+        callback,
+      );
+      pendingSubscriptions.push(unsubscribe.ready);
+      return unsubscribe.dispose;
+    },
   };
 
   for (const method of M1_UNIMPLEMENTED_REQUIRED_METHODS) {
@@ -204,6 +287,56 @@ export function createTauriPlatformService(invoke: TauriInvoke): Partial<IPlatfo
   }
 
   return service;
+}
+
+/**
+ * 订阅深链事件里某一类 `kind`。
+ *
+ * 返回同步的 `dispose`（接口契约要求退订函数是同步的）与异步的 `ready`
+ * （`listen` 本身是异步的，握手前要等它）。
+ *
+ * 退订与「订阅还没装好就退订」的竞态：`dispose` 先置位，`listen` 兑现时若发现已退订
+ * 就立刻自己退订，不留悬挂监听。
+ */
+function subscribeDeepLink(
+  listen: TauriListen,
+  kind: DeepLinkEventKind,
+  callback: (url: string) => void,
+): { dispose: () => void; ready: Promise<void> } {
+  let disposed = false;
+  let unlisten: TauriUnlisten | null = null;
+
+  const ready = listen<DeepLinkEvent>(DEEP_LINK_EVENT, (envelope) => {
+    const payload = envelope?.payload;
+    // 载荷来自 IPC，不能假设它符合类型：形状不对时**跳过而不是抛**，
+    // 一个畸形事件不该打断整条订阅。
+    if (!payload || typeof payload !== "object") return;
+    if (payload.kind !== kind) return;
+    if (typeof payload.url !== "string" || payload.url.length === 0) return;
+    callback(payload.url);
+  }).then(
+    (stop) => {
+      if (disposed) {
+        stop();
+        return;
+      }
+      unlisten = stop;
+    },
+    (error: unknown) => {
+      // 订阅失败必须能被看到：否则表现是「OAuth 回调永远不来」，与「用户没完成登录」
+      // 无法区分。这里不重试——重试策略属 M3 的连接管理层。
+      logger.warn(`[tauri-platform] 订阅 ${DEEP_LINK_EVENT}（${kind}）失败`, error);
+    },
+  );
+
+  return {
+    dispose: () => {
+      disposed = true;
+      unlisten?.();
+      unlisten = null;
+    },
+    ready,
+  };
 }
 
 /**

@@ -3,8 +3,13 @@ name = "updater"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
-description = "Tauri 侧 updater 面（最小骨架；规格见 docs/specs/tauri-platform-commands.md）"
+description = "Tauri 侧 updater 面（路线图 M1 任务 6）：与旧线共用 GitHub Releases feed"
 
 [lib]
 name = "updater"
 path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+tauri.workspace = true
+tauri-plugin-updater.workspace = true
