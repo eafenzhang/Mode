@@ -90,12 +90,14 @@ function fakeAddon(listeners) {
       listeners.bitrates = [...(listeners.bitrates ?? []), bps];
     },
     // P1.1 剪贴板面（契约 A 的 napi 导出）：读取可注入（listeners.clipboardRead），
-    // 写入只记录（listeners.clipboardWrites）——泵的行为才是被测对象。
+    // 写入记录到 listeners.clipboardWrites，并可选回调 listeners.clipboardWrite——需要
+    // 「写入后读回就是新值」的真剪贴板语义时用它把读取接上去（泵的行为才是被测对象）。
     clipboard_read_text() {
       return listeners.clipboardRead ? listeners.clipboardRead() : null;
     },
     clipboard_write_text(text) {
       listeners.clipboardWrites = [...(listeners.clipboardWrites ?? []), text];
+      listeners.clipboardWrite?.(text);
     },
   };
 }
@@ -435,7 +437,17 @@ test("剪贴板：会话基线不上报；本端变化才上报 kind5；同值�
 });
 
 test("剪贴板：kind6 落到本端剪贴板，且刚写进去的值不会被当成变化回弹", async () => {
-  const listeners = { clipboardRead: () => "旧值" };
+  // 夹具必须是**真剪贴板语义**：写入返回后读回就是刚写的内容。曾经这里是「读取固定返回旧值、
+  // 等 kind6 落地后再手工翻转返回值」，于是「写完成」到「翻转」之间留出一个窗口——落在窗口里的
+  // 轮询读到旧值，就把它当成本端变化上报，用例随负载偶发红（2026-10-15 卡住了 release 的 verify）。
+  // 那不是泵的缺陷：真实 clipboard_write_text 返回后读回必定是新值；期间被别的进程改写才该上报。
+  const clipboard = { text: "旧值" };
+  const listeners = {
+    clipboardRead: () => clipboard.text,
+    clipboardWrite: (text) => {
+      clipboard.text = text;
+    },
+  };
   await withPump(
     listeners,
     async (relay, pump) => {
@@ -449,7 +461,7 @@ test("剪贴板：kind6 落到本端剪贴板，且刚写进去的值不会被�
       await waitFor(() => (listeners.clipboardWrites ?? []).length === 1);
       assert.deepEqual(listeners.clipboardWrites, ["来自主控"]);
       // 写入后本端剪贴板即该文本，轮询会读到它：必须被认作「刚应用过」，不得回弹上报。
-      listeners.clipboardRead = () => "来自主控";
+      assert.equal(clipboard.text, "来自主控");
       await sleep(150);
       assert.deepEqual(clipboardFrames(relay.collector.frames), [], "刚写入的值不回弹");
     },
