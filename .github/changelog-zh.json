@@ -18,5 +18,6 @@
   "86a44b3": "Bridges AstrBot into the official BotsService as a transport provider: loopback WebSocket (bridge v2) to the AstrBot plugin, with interactive permission / question / menu selections, reconnect replay and task-stream settlement (#1).",
   "d042521": "README 顶部新增功能总览与截图。",
   "e701117": "版本号提升至 3.14.7。",
-  "0c4e115": "发布收尾：补齐 v3.14.7 的中英双语 changelog 条目（英文提交补中文说明，#1/#8 的中文提交补英文说明）。"
+  "0c4e115": "发布收尾：补齐 v3.14.7 的中英双语 changelog 条目（英文提交补中文说明，#1/#8 的中文提交补英文说明）。",
+  "40f54065": "远程控制：被控电脑没有硬件 H.264 编码器时（老显卡、虚拟机、缺显卡驱动等）自动回退系统软件编码，画面照常显示（设置页会提示 CPU 占用与延迟更高），不再直接连不上。"
 }
