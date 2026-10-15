@@ -153,15 +153,29 @@ tray 1 / updater 2 / tauri-test-manifest 2）、`clippy -D warnings` 零告警�
 
 **目标：** 把会话循环、工具执行、权限引擎、双链路语义搬到 Rust，且与旧 TS 运行时**行为对拍**通过。
 
+**子计划：** `docs/plans/2026-10-16-tauri-agent-runtime.md`（2026-10-16 产出，含四项决策记录
+DR-07…DR-10、任务切分、对拍 oracle 契约与风险对冲；Task 0–2 已到逐步骤可执行，
+Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 M2 节的口径修正」一节**：
+本节的工具名清单与实际注册表不符（见下）。
+
 **Files:**
 - Create: `crates/agent-core/`（session loop、streaming、CommandInbox、owner/lease、权限引擎）、`crates/agent-tools/`（fs/git/shell/pty[portable-pty]/browser 桥）、`crates/agent-protocol/`（stdio/WS 帧，对应 `packages/shared/src/mode-protocol`）、`docs/specs/tauri-agent-runtime.md`
 - Test: `crates/agent-core/tests/`（对拍套件）、复用 `pnpm --filter @mode/services test` 作为行为规格
 
 **Interfaces:**
 - Consumes: `crates/protocol`（M1）、`crates/platform`（工具要弹审批 UI 走平台命令）。
-- Produces: `agent_core::runtime::Runtime::run(prompt) -> Stream<Event>`（事件枚举与 TS 侧 `mode-protocol` 事件一一对应，typeshare 导出）、`agent_tools::registry()` 工具声明表（name/schema/权限等级，供权限引擎与 UI 审批用）。
+- Produces: `agent_core::runtime::Runtime::run(prompt) -> Stream<Event>`、`agent_tools::registry()` 工具声明表（name/schema/权限等级，供权限引擎与 UI 审批用）。
+  〔口径修正〕原写的「typeshare 导出」不成立：**运行时协议在 M2 期间仍以 TS 为真源**
+  （DR-07）——旧 TS 运行时此刻还在现网跑并充当对拍 oracle，把真源翻到 Rust 会让「对拍」
+  退化成「自己对自己」。做法改成 `crates/agent-protocol` 做 TS 的镜像，用**共享 JSON 夹具
+  两端同断言**；真源翻转是 M4/M5 删掉 TS 运行时时的事。另：M1 也没用 typeshare（改走
+  schemars + 仓库内生成脚本），这一行原文是与 M1 实际产物的另一处不一致。
 
-- [ ] **只读工具先行**：read/glob/grep/list —— 先写对拍测试（同一 prompt 分别喂旧运行时与新运行时，比较工具调用序列与最终文件快照），再实现，全绿提交。
+- [ ] **只读工具先行**〔口径修正〕：**不是** `read/glob/grep/list` —— 真源
+  `packages/shared/src/tool-identity.ts` 的 `MODE_KNOWN_TOOL_NAMES` 是 PascalCase，且**没有
+  `list` 工具**（目录列举由 `Glob` 覆盖）。本项实际范围 = `Read` / `Glob` / `Grep`。
+  先写对拍测试（同一 prompt 分别喂旧运行时与新运行时，比较工具调用序列与最终文件快照），
+  再实现，全绿提交。
 - [ ] **文件写与 diff 呈现**：edit/write/patch 工具，接入审批（allow-once / allow-always / project-always 三态持久化，复用旧版数据格式）。
 - [ ] **shell 与 pty**：portable-pty + CommandInbox 串行准入；对拍含超时、取消、退出码语义。
 - [ ] **会话流与重放**：`desktop-continuous`（不落重放）与 `web-remote-replayable`（快照+队列重放）两条链路分别验证——各写一套 E2E，改 stream/snapshot/queue 时双跑。
