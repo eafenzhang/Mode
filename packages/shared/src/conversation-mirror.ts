@@ -33,7 +33,13 @@ export const CONVERSATION_MIRROR_VERSION = 1;
 export const CONVERSATION_MIRROR_DIR_NAME = "conversation-mirror";
 
 export const CONVERSATION_MIRROR_LIMITS = {
-  /** 单轮最多处理的来源会话条数（按 updatedAt 降序取最新）。 */
+  /**
+   * 单轮处理的来源会话条数上限（按 updatedAt 降序取最新的前 N 条）。
+   *
+   * 实际窗口由调用方传入（侧栏分页窗口，见 `selectMirrorSourceTasks` 的 maxRecords 参数）：
+   * 默认只同步最近 5 条，用户「展开更多」把窗口 +5 后，调用方按新窗口重新跑一轮。
+   * 这里是硬上限，同时也是任务列表查询的读取上限基准。
+   */
   maxRecords: 20,
   /** 单条会话最多导入的消息条数（保留尾部）。 */
   maxMessagesPerSession: 200,
@@ -228,6 +234,46 @@ export function selectMirrorSourceTasks(
     .slice()
     .sort((left, right) => right.updatedAt - left.updatedAt)
     .slice(0, maxRecords);
+}
+
+/**
+ * ②方向（本机记录 → 对端本地 scope）的来源筛选。
+ *
+ * 与①方向**必须不同**：这里要保留带 `workspaceIdentity` 的行。本机连上远端工作区后在其中发起的对话，
+ * 落在「以对端身份打开的那个 scope」里（`{workspacePath, workspaceIdentity: 本机 attach 身份}`），
+ * 只取不带 identity 的本机本地 scope 会让②方向在双机路径不同时恒为空——
+ * 这就是「本机发起的远端对话，远端看不到」的成因。
+ *
+ * 镜像副本（`mirror-` 前缀）仍然跳过：那是①方向或第三方导入进来的内容，再转发一次就成环。
+ */
+export function selectOwnMirrorSourceTasks(
+  tasks: readonly ConversationMirrorSourceTask[],
+  maxRecords: number = CONVERSATION_MIRROR_LIMITS.maxRecords,
+): ConversationMirrorSourceTask[] {
+  return tasks
+    .filter((task) => !isMirrorSessionId(task.taskId))
+    .slice()
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, maxRecords);
+}
+
+/**
+ * ②方向合并多份来源（本机本地 scope + 本机视图 scope）：按 taskId 去重并保留 updatedAt 较新的一条。
+ * 两个 scope 分属不同机器，正常情况下不会有同 id；去重只为让重复读取不产生重复导入尝试。
+ */
+export function mergeMirrorSourceTasks(
+  sources: ReadonlyArray<readonly ConversationMirrorSourceTask[]>,
+): ConversationMirrorSourceTask[] {
+  const byTaskId = new Map<string, ConversationMirrorSourceTask>();
+  for (const tasks of sources) {
+    for (const task of tasks) {
+      const existing = byTaskId.get(task.taskId);
+      if (!existing || task.updatedAt > existing.updatedAt) {
+        byTaskId.set(task.taskId, task);
+      }
+    }
+  }
+  return [...byTaskId.values()];
 }
 
 /** 只取可读文本：工具输入输出、附件字节、隐藏的 synthetic 消息都不进镜像。 */

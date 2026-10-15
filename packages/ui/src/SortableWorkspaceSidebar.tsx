@@ -23,6 +23,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
   taskItems,
   taskListLoading,
   taskListHasMore,
+  taskListVisibleLimit,
   taskListHasUnread = false,
   taskListLiveWorkflowCount = 0,
   workspaceKey,
@@ -48,6 +49,8 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
   taskItems: ModeTaskMeta[];
   taskListLoading: boolean;
   taskListHasMore: boolean;
+  /** 该工作区当前可见的会话条数（侧栏分页窗口）：同时是远端对话记录镜像的同步窗口。 */
+  taskListVisibleLimit: number;
   taskListHasUnread?: boolean;
   taskListLiveWorkflowCount?: number;
   workspaceKey: string;
@@ -117,6 +120,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
       taskItems={taskItems}
       taskListLoading={taskListLoading}
       taskListHasMore={taskListHasMore}
+      taskListVisibleLimit={taskListVisibleLimit}
       taskListHasUnread={taskListHasUnread}
       taskListLiveWorkflowCount={taskListLiveWorkflowCount}
       onShowMoreTasks={handleShowMoreTasks}

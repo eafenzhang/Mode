@@ -140,6 +140,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   taskItems,
   taskListLoading,
   taskListHasMore,
+  taskListVisibleLimit,
   taskListHasUnread = false,
   taskListLiveWorkflowCount = 0,
   onShowMoreTasks,
@@ -168,6 +169,8 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   taskItems: ModeTaskMeta[];
   taskListLoading: boolean;
   taskListHasMore: boolean;
+  /** 该工作区当前可见的会话条数（侧栏分页窗口）：同时是远端对话记录镜像的同步窗口。 */
+  taskListVisibleLimit: number;
   taskListHasUnread?: boolean;
   /** 组内在跑的工作流 run 数；项目收起时在未读点旁画脉冲灯（>1 带数量）。 */
   taskListLiveWorkflowCount?: number;
@@ -1146,6 +1149,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
             remoteSessionId={tab.remoteSessionId}
             remoteTarget={tab.remoteTarget}
             localServices={baseServices}
+            windowSize={taskListVisibleLimit}
           />
         </CollapsibleContent>
       </Collapsible>

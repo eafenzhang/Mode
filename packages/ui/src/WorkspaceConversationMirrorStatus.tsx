@@ -17,12 +17,15 @@ export function WorkspaceConversationMirrorStatus({
   remoteSessionId,
   remoteTarget,
   localServices,
+  windowSize,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string | null;
   remoteTarget?: unknown;
   localServices: IServiceAccessor;
+  /** 侧栏该工作区当前可见的会话条数：镜像同步窗口，展开更多后随之增长。 */
+  windowSize: number;
 }) {
   const { intl } = useModeIntl();
   const resolution = useWorkspaceServicesResolution(
@@ -38,6 +41,7 @@ export function WorkspaceConversationMirrorStatus({
     localServices,
     isRemoteTarget: resolution.isRemoteTarget,
     remoteSessionId: remoteSessionId ?? null,
+    windowSize,
     enabled: resolution.isRemoteTarget && resolution.rpcReady,
   });
 

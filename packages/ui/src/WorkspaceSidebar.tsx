@@ -94,6 +94,7 @@ import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import {
   increaseWorkspaceTaskVisibleLimit,
   resolveVisibleWorkspaceTaskKeys,
+  resolveWorkspaceTaskVisibleLimit,
   retainWorkspaceTaskVisibleLimits,
   WORKSPACE_TASK_PAGE_SIZE,
   type WorkspaceTaskVisibleLimitByKey,
@@ -1563,6 +1564,11 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                             }
                                             taskListLoading={taskLoading}
                                             taskListHasMore={taskGroup?.hasMore ?? false}
+                                            taskListVisibleLimit={resolveWorkspaceTaskVisibleLimit(
+                                              workspaceTaskVisibleLimitByKey,
+                                              workspaceKey,
+                                              WORKSPACE_TASK_PAGE_SIZE,
+                                            )}
                                             taskListHasUnread={taskGroup?.hasUnread ?? false}
                                             taskListLiveWorkflowCount={
                                               taskGroup?.liveWorkflowCount ?? 0

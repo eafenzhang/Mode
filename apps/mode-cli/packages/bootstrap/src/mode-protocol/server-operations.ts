@@ -87,6 +87,7 @@ import {
   buildSessionSnapshot,
   buildWorkspaceRef,
   formatProtocolModelSelection,
+  mapMessageWithParts,
   mapSessionEventForProtocol,
   mapSessionInfo,
   resolveSessionContextUsage,
@@ -994,6 +995,34 @@ async function removePreviousImportedSessionHistory(params: {
   return removedCount;
 }
 
+/**
+ * 导入历史的时间线。createdAt / updatedAt 决定导入会话的 `time.created` / `time.updated`，
+ * 进而决定 tasks-index 的 `updatedAt`——它同时是远程对话记录镜像「已同步到哪一版」的水位。
+ *
+ * claudeCode 与 remoteMirror 都带真实时间线，必须透传（缺失时用首/末条消息时间兜底）；
+ * 其余来源（如 sharedContext）只有一个时刻，退化到 createdAt。remoteMirror 曾经落在这里，
+ * 于是镜像会话的 updatedAt 恒等于创建时刻：两端排序不一致，且每轮同步都判定「来源更新」而重导。
+ */
+export function resolveImportedHistoryTimestamps(params: {
+  importedHistory: NonNullable<ModeSessionCreateParams["importedHistory"]>;
+  now: number;
+}): { createdAt: number; updatedAt: number } {
+  const { importedHistory, now } = params;
+  const hasRealTimeline =
+    importedHistory.source === "claudeCode" || importedHistory.source === "remoteMirror";
+  const createdAt =
+    importedHistory.createdAt ??
+    (hasRealTimeline ? importedHistory.messages[0]?.timestamp : undefined) ??
+    now;
+  if (!hasRealTimeline) {
+    return { createdAt, updatedAt: createdAt };
+  }
+  return {
+    createdAt,
+    updatedAt: importedHistory.updatedAt ?? importedHistory.messages.at(-1)?.timestamp ?? createdAt,
+  };
+}
+
 async function persistImportedSessionHistory(params: {
   context: ModeProtocolAgentServerContext;
   record: ModeProtocolSessionRecord;
@@ -1010,16 +1039,7 @@ async function persistImportedSessionHistory(params: {
   const workspace = params.record.workspace;
   const workspaceIdentity = workspace.workspaceIdentity?.trim();
   const now = Date.now();
-  const createdAt =
-    importedHistory.createdAt ??
-    (importedHistory.source === "claudeCode"
-      ? importedHistory.messages[0]?.timestamp
-      : undefined) ??
-    now;
-  const updatedAt =
-    importedHistory.source === "claudeCode"
-      ? (importedHistory.updatedAt ?? importedHistory.messages.at(-1)?.timestamp ?? createdAt)
-      : createdAt;
+  const { createdAt, updatedAt } = resolveImportedHistoryTimestamps({ importedHistory, now });
   // 历史导入不执行模型；未绑定时保留消息内容，不能要求当前选择或伪造消息来源。
   const currentModel = optionalModelSelectionFromString(params.record.app.getModel());
   const providerId = currentModel?.providerId as ModelProviderId | undefined;
@@ -1876,8 +1896,14 @@ export async function readMessages(context: ModeProtocolAgentServerContext, rawP
     ? allMessages.findIndex((message) => String(message.info.id) === params.afterMessageId)
     : -1;
   const messages = afterMessageIndex >= 0 ? allMessages.slice(afterMessageIndex + 1) : allMessages;
+  const selected = params.limit ? messages.slice(-params.limit) : messages;
+  // store 行是内部形状（`info.id` / `part.messageID`），wire 合同是 `info.messageId`
+  // （`modeSessionMessagesResultSchema`）。合法但语义不匹配的 payload 之前原样返回，client 侧
+  // `resolveResponse` 逐条校验时报 `info.messageId: expected string, received undefined`，
+  // 于是一个「有消息的会话」永远读不出来（只有空会话碰巧通过校验）——镜像恒导入 0 的真因。
+  // 快照路径一直走这同一个 mapper（session-mapper.ts），这里补齐读消息路径。
   return {
-    messages: params.limit ? messages.slice(-params.limit) : messages,
+    messages: selected.map(mapMessageWithParts),
   };
 }
 

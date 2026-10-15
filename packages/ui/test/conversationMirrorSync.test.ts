@@ -6,8 +6,10 @@ import { runConversationMirrorSync } from "../src/lib/conversationMirrorSync.js"
 /**
  * 远程工作区对话记录镜像的编排回归（docs/specs/remote-workspace-conversation-mirror.md）。
  *
- * 夹具按真实拓扑搭两台机器：远端机的「本地 scope」既是①方向的来源、又是②方向的目标，
- * 本机只提供②方向的来源。两边共用一份服务桩会让来源与目标重合，掩盖方向接错的问题。
+ * 夹具按真实拓扑搭两台机器：远端机的「本地 scope」是①方向的来源、又是②方向的目标；
+ * 远端机的「视图 scope」（带 identity）是①方向的目标、又是②方向的来源（本机连上远端工作区后
+ * 在其中发起的对话就落在这里）；本机只提供②方向的另一个来源（同路径本地 scope）。
+ * 两边共用一份服务桩会让来源与目标重合，掩盖方向接错的问题。
  */
 
 const WORKSPACE_PATH = "D:/proj";
@@ -372,4 +374,71 @@ test("本地工作区不做任何镜像：来源与目标是同一个 scope，�
   assert.equal(result.importedIntoPeerLocal, 0);
   assert.equal(machine.createCalls.length, 0);
   assert.equal(machine.listScopes.length, 0);
+});
+
+test("②方向覆盖本机在远端工作区发起的对话：来源取视图 scope，仍落到对端本地 scope", async () => {
+  const remote = createMachine({
+    localScope: [],
+    // 本机连上远端工作区后在其中开的对话：落在对端机器、带本机 attach 身份。
+    viewScope: [{ taskId: "mine-in-remote", title: "本机在远端工作区开的", updatedAt: 800 }],
+  });
+  const local = createMachine({ localScope: [] });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.importedIntoPeerLocal, 1);
+  const [peerImport] = peerLocalCalls(remote.createCalls);
+  assert.ok(peerImport, "本机在远端工作区的对话必须被导到对端本地 scope");
+  assert.equal(peerImport.sessionId, buildMirrorImportSessionId("mine-in-remote"));
+  assert.equal(peerImport.importedHistory?.originSessionId, "mine-in-remote");
+  // 消息回它所在的机器读：这条落在远端机器上，不能拿本机 host 去读。
+  assert.deepEqual(remote.readCalls, ["mine-in-remote"]);
+  assert.deepEqual(local.readCalls, []);
+});
+
+test("同步窗口只处理最新的 N 条：窗口变大后更旧的记录才会被同步（对应侧栏「展开更多」）", async () => {
+  const rows = [
+    { taskId: "old-1", updatedAt: 100 },
+    { taskId: "old-2", updatedAt: 200 },
+    { taskId: "new-1", updatedAt: 300 },
+  ];
+
+  const narrow = createMachine({ localScope: rows });
+  await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: narrow.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: createMachine({}).services,
+    isRemoteTarget: true,
+    windowSize: 2,
+  });
+  assert.deepEqual(
+    viewDirectionCalls(narrow.createCalls).map((call) => call.sessionId),
+    [buildMirrorImportSessionId("new-1"), buildMirrorImportSessionId("old-2")],
+  );
+
+  const wide = createMachine({ localScope: rows });
+  await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: wide.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: createMachine({}).services,
+    isRemoteTarget: true,
+    windowSize: 3,
+  });
+  assert.deepEqual(
+    viewDirectionCalls(wide.createCalls).map((call) => call.sessionId),
+    [
+      buildMirrorImportSessionId("new-1"),
+      buildMirrorImportSessionId("old-2"),
+      buildMirrorImportSessionId("old-1"),
+    ],
+  );
 });

@@ -3,7 +3,8 @@
  * 运行：npx tsx --test packages/shared/test/conversation-mirror.test.ts
  *
  * 钉住四件容易回归的事：
- * 1) 只镜像本机本地 scope 会话，且镜像副本（mirror- 前缀）不再被转发；
+ * 1) ①方向只镜像对端本地 scope 会话（带 identity 的行被过滤），②方向反过来必须保留 identity 行
+ *    （本机在远端工作区发起的对话就在那个 scope 里）；两边都跳过镜像副本（mirror- 前缀）防回声；
  * 2) 目标会话 id 由来源会话 id 确定性派生（重同步幂等，重连换端口也不重复）；
  * 3) 有界化：消息条数 / 单条文本长度 / 单记录字节预算，超限置 truncated；
  * 4) 导入 payload 与「是否需要导入」判据。
@@ -84,6 +85,70 @@ test("只选本机本地 scope 会话：带 identity 的行与镜像副本都不
   assert.deepEqual(
     selected.map((task) => task.taskId),
     ["blank-identity", "local-old"],
+  );
+});
+
+test("②方向来源必须保留带 identity 的行：那正是「本机在远端工作区发起的对话」", async () => {
+  const { selectOwnMirrorSourceTasks } = await import("../src/conversation-mirror.js");
+
+  const selected = selectOwnMirrorSourceTasks(
+    [
+      { taskId: "local-old", title: "old", createdAt: 1, updatedAt: 10 },
+      {
+        taskId: "mine-in-remote",
+        title: "本机在远端工作区开的对话",
+        createdAt: 1,
+        updatedAt: 99,
+        workspaceIdentity: "remote:lan:h:1:D:/p",
+      },
+      { taskId: "mirror-ses-x", title: "①方向导进来的副本", createdAt: 1, updatedAt: 98 },
+    ],
+    5,
+  );
+
+  // identity 行必须入选（只取本地 scope 会让②方向在双机路径不同时恒为空）；
+  // 镜像副本仍要跳过，否则会成环。
+  assert.deepEqual(
+    selected.map((task) => task.taskId),
+    ["mine-in-remote", "local-old"],
+  );
+});
+
+test("②方向窗口按 updatedAt 取最新 N 条：展开更多时窗口变大，新进的记录才会被处理", async () => {
+  const { selectOwnMirrorSourceTasks } = await import("../src/conversation-mirror.js");
+  const tasks = [
+    { taskId: "a", title: "a", createdAt: 1, updatedAt: 10 },
+    { taskId: "b", title: "b", createdAt: 1, updatedAt: 20 },
+    { taskId: "c", title: "c", createdAt: 1, updatedAt: 30 },
+  ];
+
+  assert.deepEqual(
+    selectOwnMirrorSourceTasks(tasks, 2).map((task) => task.taskId),
+    ["c", "b"],
+  );
+  assert.deepEqual(
+    selectOwnMirrorSourceTasks(tasks, 5).map((task) => task.taskId),
+    ["c", "b", "a"],
+  );
+});
+
+test("②方向合并多份来源：按 taskId 去重并保留 updatedAt 较新的一条", async () => {
+  const { mergeMirrorSourceTasks } = await import("../src/conversation-mirror.js");
+
+  const merged = mergeMirrorSourceTasks([
+    [{ taskId: "same", title: "旧", createdAt: 1, updatedAt: 10 }],
+    [
+      { taskId: "same", title: "新", createdAt: 1, updatedAt: 50 },
+      { taskId: "only-local", title: "本地", createdAt: 1, updatedAt: 20 },
+    ],
+  ]);
+
+  assert.deepEqual(
+    merged.map((task) => [task.taskId, task.title]),
+    [
+      ["same", "新"],
+      ["only-local", "本地"],
+    ],
   );
 });
 
