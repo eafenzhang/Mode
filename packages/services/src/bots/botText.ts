@@ -1,9 +1,10 @@
 /**
- * Bot 出站文本工具：跨平台共用的分片与"首帧是否成形"判断。
+ * Bot 出站文本工具：跨平台共用的分片、"首帧是否成形"判断、片段切分与纯文本降级。
  *
  * 分片按 markdown 结构优先级切分（段落 → 行 → 硬切），避免把代码块、列表或单词
  * 拦腰截断；首帧判断用于流式回复的创建门槛，避免出现只有一两个字符的占位首帧；
- * 片段切分用于离散气泡档的逐块刷出（见 docs/specs/bot-reply-granularity.md）。
+ * 片段切分用于离散气泡档的逐块刷出（见 docs/specs/bot-reply-granularity.md）；
+ * 纯文本降级给不渲染 markdown 的通道（微信）用（见 docs/specs/bot-reply-text-format.md）。
  */
 
 /** 首帧最小字符数（按码点计数，中文与 emoji 都算一个字符）。 */
@@ -20,6 +21,12 @@ const STRONG_BOUNDARY = /[\n。！？；;.!?]/u;
 
 /** 弱边界：仅在兜底切分时使用；宁可断在标点/空白处，也不硬切词。 */
 const WEAK_BOUNDARY = /[\s，、：,:]/u;
+
+/**
+ * 强调标记的左边界：行首，或空白 / 常见标点与开括号之后。
+ * 用它保护 globstar 通配路径——那里的双星号前面是斜杠，不算强调标记。
+ */
+const EMPHASIS_BOUNDARY = String.raw`(^|[\s，。；：、！？,;:!?)（(\[【"'—-])`;
 
 /**
  * 内容是否已"成形"，值得作为流式首帧发出：
@@ -125,4 +132,33 @@ export function drainCompleteBotReplySegments(
     messages: splitBotText(prefix, limit),
     rest: chars.slice(cut).join("").replace(/^\n+/u, ""),
   };
+}
+
+const codeFenceLine = /^[ \t]*```[^\n]*$/gmu;
+const inlineCode = /`([^`\n]+)`/gu;
+const boldAsterisk = new RegExp(`${EMPHASIS_BOUNDARY}\\*\\*([^*\\n]+)\\*\\*`, "gmu");
+const boldUnderscore = new RegExp(`${EMPHASIS_BOUNDARY}__([^_\\n]+)__`, "gmu");
+const headingMarker = /^[ \t]{0,3}#{1,6}[ \t]+/gmu;
+const markdownLink = /\[([^\]\n]*)\]\(([^)\s]+)\)/gu;
+
+/**
+ * 纯文本通道的 markdown 降级（docs/specs/bot-reply-text-format.md）。
+ *
+ * 业务层文案是按 markdown 写的（粗体包命令、行内代码包路径、井号标题），
+ * 但微信 iLink 的 `text_item` 是纯文本，不降级就会把标记原样显示给用户。
+ *
+ * 只剥离我们主动产生的标记；单个星号/下划线的斜体、行首的列表符一律不碰——
+ * 回复里经常出现 glob（`src/*.ts`）与文件名（`my_file_name.md`），按斜体配对会吃掉它们。
+ * 幂等：剥离后的文本再降级不变。
+ */
+export function toPlainTextReply(text: string): string {
+  return text
+    // 代码围栏行整行去掉，围栏内部内容原样保留。
+    .replace(codeFenceLine, "")
+    .replace(inlineCode, "$1")
+    .replace(boldAsterisk, "$1$2")
+    .replace(boldUnderscore, "$1$2")
+    // 标题标记去掉，标题文字保留。
+    .replace(headingMarker, "")
+    .replace(markdownLink, "$1 ($2)");
 }

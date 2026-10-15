@@ -11,6 +11,7 @@ import type { BotProviderAdapter, BotTypingTarget } from "./types.js";
 import { fetchBotProviderJson } from "#src/bots/providers/providerRequest.js";
 import type { BotProviderJsonResponse } from "#src/bots/providers/providerRequest.js";
 import { BotSendError, type BotSendFailureCode } from "#src/bots/outboundDelivery.js";
+import { toPlainTextReply } from "#src/bots/botText.js";
 
 export const DEFAULT_WEIXIN_ILINK_BASE_URL = "https://ilinkai.weixin.qq.com";
 const WEIXIN_BOT_API_PREFIX = "/ilink/bot";
@@ -594,9 +595,13 @@ function buildWeixinClientId(): string {
 }
 
 function buildWeixinText(message: BotOutboundMessage): string {
+  // 微信 iLink 只发 text_item（type 1）纯文本，不渲染 markdown；业务层文案是按 markdown
+  // 写的（`**/帮助**`、`` `src/a.ts` ``、`#### 标题`），不降级就会把标记原样显示给用户
+  // （docs/specs/bot-reply-text-format.md）。
+  const plain = toPlainTextReply(message.text);
   // Bugfix: 微信 iLink 纯文本在不同客户端上对 LF 的处理不完全一致。
   // 发送前统一成 CRLF，把业务层的多行回复表达为文本硬换行，避免 /status 这类状态行被折叠。
-  return message.text.replace(/\r\n|\r|\n/g, "\r\n");
+  return plain.replace(/\r\n|\r|\n/g, "\r\n");
 }
 
 function buildInboundMessage(
