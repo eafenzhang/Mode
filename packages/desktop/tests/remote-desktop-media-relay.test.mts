@@ -2,14 +2,14 @@
 /**
  * host 媒体中继回归：本地管道长度前缀分帧、kind 路由、media WS 上行（ready/ping/输入）、
  * 背压丢弃与超长帧防御。运行：
- * node --test packages/desktop/tests/remote-desktop-media-relay.test.mts
+ * pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts
  * 扩展名 .mts：语言政策新测试禁 .mjs（docs/specs/language-policy.md）。
- * 直接 import src 用 .ts 扩展名（与 remote-workspace-session-services.test.mts 同口径）：
- * node --test 原生 type stripping 不做 .js → .ts 重写，简报里的 .js 写法在该入口下无法解析。
+ * 入口走 tsx（2026-10-15 起）：本文件经中继间接 import 了带 `.js` 后缀的本地模块，而
+ * `node --test` 的原生类型剥离不做 .js → .ts 重写，会 ERR_MODULE_NOT_FOUND。
  * 每个用例用 try/finally 收口：断言失败时也必须关掉回环连接，否则进程句柄挂住不退。
  *
  * server 级收口场景（bye 关中继回归）经 RD_MEDIA_RELAY_SERVER_CASE=1 的 tsx 子进程执行：
- * remoteDesktopServer 的 .js 后缀与 @mode 别名只有 tsx 能解析，node --test 原生剥离不行。
+ * remoteDesktopServer 的 .js 后缀与 @mode 别名只有 tsx 能解析。
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -559,6 +559,34 @@ if (process.env[SERVER_CASE_ENV] === "1") {
       relay.close(); // 幂等：重复关闭不抛
     } finally {
       cleanup(relay);
+    }
+  });
+
+  test("剪贴板（P1.1）：kind5 采纳即下行 clip；重复值不重发；clip-mode 关闭后停止采纳", () => {
+    const { ws: fakeWs, texts } = makeFakeWs();
+    const relay = createRemoteDesktopMediaRelay({ logger: noopLogger });
+    const clips = () => texts.map((text) => JSON.parse(text) as { t: string; text?: string });
+    try {
+      relay.attachWebSocket(fakeWs);
+      relay.handlePipeData(pipeFrame(5, Buffer.from("来自被控", "utf8")));
+      assert.deepEqual(clips(), [{ t: "clip", text: "来自被控" }], "首次变化即下行");
+      // 同值重复上报（helper 轮询会反复读到同一文本）：门已登记，不重复下行。
+      relay.handlePipeData(pipeFrame(5, Buffer.from("来自被控", "utf8")));
+      assert.equal(texts.length, 1, "重复值不重发");
+      // 开关关闭：新值不再采纳（关闭只停同步，不影响画面/输入）。
+      relay.handleWsMessage(JSON.stringify({ t: "clip-mode", enabled: false }), false);
+      relay.handlePipeData(pipeFrame(5, Buffer.from("关闭期的新值", "utf8")));
+      assert.equal(texts.length, 1, "关闭后不采纳");
+      // 重新打开：下一次变化照常下行（关闭期间的旧值不会补发）。
+      relay.handleWsMessage(JSON.stringify({ t: "clip-mode", enabled: true }), false);
+      relay.handlePipeData(pipeFrame(5, Buffer.from("重开后的新值", "utf8")));
+      assert.deepEqual(clips().at(-1), { t: "clip", text: "重开后的新值" });
+      // 非法开关载荷与空文本：丢弃且不改变后续行为。
+      relay.handleWsMessage(JSON.stringify({ t: "clip-mode" }), false);
+      relay.handlePipeData(pipeFrame(5, Buffer.alloc(0)));
+      assert.equal(texts.length, 2, "非法载荷不产生下行");
+    } finally {
+      relay.close();
     }
   });
 

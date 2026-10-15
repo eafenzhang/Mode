@@ -106,6 +106,21 @@ pub fn raw_input_napi(req: RawInputRequestNapi) -> napi::Result<RawInputResultNa
   )
 }
 
+// 剪贴板文本（P1.1，docs/specs/in-app-remote-desktop.md 产品规则 7）：broker 方法
+// `clipboard_read_text` / `clipboard_write_text`，供 helper 媒体泵在会话内做文本同步。
+// 只碰 CF_UNICODETEXT（与 paste 同一实现面，见 clipboard.rs 的已知边界：非文本格式不参与）。
+// 读取：格式不存在返回 null（「当前没有文本」是合法状态），占用/失败按 AxError 上抛——
+// 调用方（helper 媒体泵）按「本 tick 无变化」处理，不把一次争用当成会话故障。
+#[napi(js_name = "clipboard_read_text")]
+pub fn clipboard_read_text_napi() -> napi::Result<Option<String>> {
+  to_napi(clipboard::read_text())
+}
+
+#[napi(js_name = "clipboard_write_text")]
+pub fn clipboard_write_text_napi(text: String) -> napi::Result<()> {
+  to_napi(clipboard::write_text(&text))
+}
+
 // 远控媒体面（docs/specs/lan-remote-desktop-native-media.md 契约 A）：broker 方法
 // `rd_media_start` / `rd_media_switch` / `rd_media_stop`。三个 `#[napi]` 导出与对象
 // 形状定义在 `rd_media::napi`（随模块注册，与 capture.rs 的 `capture` 导出同范式；

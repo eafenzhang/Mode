@@ -83,9 +83,16 @@
 
 ## P1：补齐四个缺口（逐项独立交付）
 
-- **T1.1 剪贴板文本双向**：helper 读（`clipboard.rs` 已有 `read_text`/`write_text`/`ClipboardBackup`）
-  + renderer 写；走独立 kind 的新通道，不进视频管道；**回环抑制**（来源标记，收到同内容不回写）；
-  会话面开关 + i18n。验收：连续复制不振荡、双端粘贴均正确。
+- **T1.1 剪贴板文本**（拆两段，各自可独立验收）：
+  - **T1.1a 被控 → 主控（已完成，2026-10-15 下午）**：Rust 增 `clipboard_read_text`/`clipboard_write_text`
+    两个 napi 导出（复用既有 `clipboard.rs`）；helper 媒体泵新增 kind5（变化才上报，会话建立时以本端
+    既有内容为基线——**同步从「变化」开始**，连上不顶掉对端剪贴板）与 kind6（落地主控文本）；
+    宿主媒体中继持被控侧的门（shared 回环抑制状态机）并把采纳的文本下行 `{t:"clip"}`；
+    renderer 侧 `clipboardSync.ts` 持有主控侧的门并写本机剪贴板；会话面操作栏开关（默认开）经
+    媒体 WS 上行 `clip-mode`。文本上限 128K 码元；空文本不参与。
+  - **T1.1b 主控 → 被控（未开始）**：需要主控侧「观测本机剪贴板变化」的读取面（Electron `clipboard.readText`
+    经 IPC，四处同步：main 常量 → preload → shared platform → renderer 桥），renderer 轮询后
+    经同一 `{t:"clip"}` 上行；被控侧复用既有 kind6。语义门与开关已在 T1.1a 就位，故这一段是纯接线。
 - **T1.2 音频（被控 → 主控）**：helper 内 WASAPI 采集 + Opus 编码 → 与视频同一传输（新 kind）→
   renderer 解码播放（`AudioDecoder`/WebAudio）；开关默认开。新增依赖需过第三方台账（Opus 是 BSD 系，风险低）。
   验收：被控端播放有声音、关闭即静音、不劣化视频时延。
@@ -130,4 +137,16 @@
 
 ## 实现进度
 
-- [ ] P0 未开始。
+- [x] **P0 完成（2026-10-15）**：`revert 54aeb907`（`86830a9f`）恢复自研媒体面并移除系统 RDP 路径；
+  验证全绿（typecheck/lint/architecture、shared 71 / services 328 / server 30 / desktop 72 / ui 149 / mode-cua 134）；
+  顺带修正 ui `remoteDesktopDecoder` 的过期断言并把 ui 测试接进 CI verify。
+- [x] **T1.1a 完成（2026-10-15）**：剪贴板文本「被控 → 主控」端到端（Rust 两个 napi 导出、helper kind5/kind6、
+  宿主中继语义门、renderer 落地、操作栏开关 + i18n 三份）；shared 回环抑制状态机与 5 条单测、5 条 UI 单测。
+  **Rust 侧本机无法编译，由 CI 判定**。
+- [ ] T1.1b 主控 → 被控（纯接线，见上）。
+- **已知缺口（T1.1a 遗留）**：helper 侧（`mediaPump` 的剪贴板轮询、kind5 上报、kind6 落地）没有单测——
+  需要给现有 `packages/mode-cua/test/media-pump.test.mjs` 加假 addon/假管道的用例；同时注意
+  `packages/mode-cua` 的测试**不在 CI**（verify 只跑 shared/services/server/ui/core/desktop），
+  所以即使补了也不会被自动守住。两件事一起做才算把这段收干净。
+- [ ] T1.2 音频、T1.3 多屏铺开、T1.4 SAS 明示。
+- [ ] 实机验收（两台 Windows，含家庭版）——**P0 与 T1.1a 都还没有实机证据**。

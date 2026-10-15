@@ -6354,6 +6354,9 @@ const enUS: Record<string, string> = {
   "remoteDesktop.quality.sharp": "Sharp",
   "remoteDesktop.quality.balanced": "Balanced",
   "remoteDesktop.quality.smooth": "Smooth",
+  "remoteDesktop.clipboard.label": "Clipboard sync",
+  "remoteDesktop.clipboard.on": "Clipboard sync on — click to turn off",
+  "remoteDesktop.clipboard.off": "Clipboard sync off — click to turn on",
   "remoteDesktop.devices.locallyControlledBanner":
     "This machine is being controlled remotely; disconnect that session to start a remote connection.",
   "remoteDesktop.device.status.ready": "Ready",

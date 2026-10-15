@@ -6262,6 +6262,9 @@ const faIR: Record<string, string> = {
   "remoteDesktop.quality.sharp": "واضح",
   "remoteDesktop.quality.balanced": "متعادل",
   "remoteDesktop.quality.smooth": "روان",
+  "remoteDesktop.clipboard.label": "همگام‌سازی کلیپ‌بورد",
+  "remoteDesktop.clipboard.on": "همگام‌سازی کلیپ‌بورد روشن است — برای خاموش کردن کلیک کنید",
+  "remoteDesktop.clipboard.off": "همگام‌سازی کلیپ‌بورد خاموش است — برای روشن کردن کلیک کنید",
   "remoteDesktop.devices.locallyControlledBanner":
     "این دستگاه در حال کنترل از راه دور است؛ پس از قطع آن می‌توانید اتصال از راه دور آغاز کنید.",
   "remoteDesktop.device.status.ready": "آماده",

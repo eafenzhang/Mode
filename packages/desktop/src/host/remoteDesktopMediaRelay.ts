@@ -6,8 +6,10 @@
  * - 分帧：`[u32 len 大端][u8 kind][payload]` 的粘包/半包重组，超长帧防御后按 kind 分发；
  * - 路由：kind0 帧密文 → 出口回调（缺省 = 写当前 media WS，128KB 背压丢帧 + 丢帧即请关键帧）；
  *   kind1 采集状态 → 只回调（冻结状态唯一所有者在 remoteDesktopServer，此处不落状态）；
+ *   kind5 剪贴板文本（被控 → 主控）→ **语义门在本模块**：采纳即下行 `{t:"clip"}`，
+ *   不采纳（重复值 / 已关闭 / 超限）静默丢弃（helper 只负责「变化才发」的流量抑制）；
  *   media WS 上行：ready → 开流指令（幂等一次）、ping → 立即 pong、need-key/set-bitrate →
- *   下行到 helper（kind3/kind4）、其余对象 → 输入透传；
+ *   下行到 helper（kind3/kind4）、clip-mode → 剪贴板同步开关（P1.1）、其余对象 → 输入透传；
  * - 中继**不解密**：kind0 payload 原样搬运，明文密钥与明文帧都不经过 host（spec 安全节）。
  *
  * 回调实体接线归属：onStatus 已由 Task 6 接（remoteDesktopServer → MediaStatus 通知 main）；
@@ -15,6 +17,8 @@
  * onInput/onFrame 由 Task 14 接；本模块只保证注入点与缺省出口可用。
  */
 import { createServer, type Server, type Socket } from "node:net";
+
+import { createRemoteDesktopClipboardGate } from "./remoteDesktopClipboardGate.js";
 
 /**
  * media WS 最小鸭子类型：只要求中继真正用到的四个成员，
@@ -99,6 +103,8 @@ export function createRemoteDesktopMediaRelay(
    * 先到的 ready 若直接丢弃开流指令会导致 helper 永远不推流。
    */
   let openRequested = false;
+  // 被控侧剪贴板门（P1.1）：判据与出站都在 remoteDesktopClipboardGate，本模块只送字节。
+  const clipboardGate = createRemoteDesktopClipboardGate({ getWebSocket: () => currentWs, logger });
   /** 背压丢帧只 warn 一次（每个 WS 挂接周期），避免 60fps 下刷屏。 */
   let backpressureWarned = false;
   /** 丢帧爆发标记：进入丢弃时请求一次关键帧，恢复发送后复位（下一轮爆发可再次请求）。 */
@@ -203,15 +209,10 @@ export function createRemoteDesktopMediaRelay(
       }
       return;
     }
-    if (kind === 1) {
-      dispatchStatus(body.subarray(1));
-      return;
-    }
-    if (kind === 2) {
-      // 方向越权：开流指令只允许 host→helper 下发，helper 侧出现即协议破坏。
-      logger.warn("[rd-media-relay] unexpected kind=2 from helper, dropped");
-      return;
-    }
+    if (kind === 1) { dispatchStatus(body.subarray(1)); return; }
+    // kind5 剪贴板（被控 → 主控，P1.1）：采纳判据与出站都在 gate，本模块只送字节。
+    if (kind === 5) { clipboardGate.handleHelperText(body.subarray(1).toString("utf8")); return; }
+    if (kind === 2) { logger.warn("[rd-media-relay] unexpected kind=2 from helper, dropped"); return; }
     logger.warn(`[rd-media-relay] unknown pipe kind=${String(kind)}, dropped`);
   };
 
@@ -312,6 +313,8 @@ export function createRemoteDesktopMediaRelay(
       }
       return;
     }
+    // 剪贴板同步开关（P1.1）：会话级、默认开；判据在 clipboardGate。
+    if (message.t === "clip-mode") { if (!clipboardGate.handleModeMessage(message)) logger.warn("[rd-media-relay] invalid clip-mode, dropped"); return; }
     // renderer 侧解码落后/丢帧后的关键帧请求：下行到 helper（kind3）。
     if (message.t === "need-key") { requestHelperKey(); return; }
     if (message.t === "set-bitrate") {

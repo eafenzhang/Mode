@@ -10,7 +10,11 @@ import {
   remoteDesktopControlEventSchema,
   remoteDesktopPointerEventSchema,
   remoteDesktopQualitySchema,
+  remoteDesktopClipboardEventSchema,
+  remoteDesktopClipboardModeSchema,
   remoteDesktopSignalMessageSchema,
+  REMOTE_DESKTOP_CLIPBOARD_MAX_CHARS,
+  createRemoteDesktopClipboardSync,
 } from "../src/remote-desktop.js";
 import { serverRemoteInfoSchema } from "../src/server-remote.js";
 
@@ -231,6 +235,89 @@ test("断线重连信号（P2-1）：request-media-ticket / media-ticket 形状�
   );
   assert.equal(
     remoteDesktopSignalMessageSchema.safeParse({ type: "request-media-ticket", extra: 1 }).success,
+    false,
+    "strict：未知键拒绝",
+  );
+});
+
+// ---- 剪贴板同步（P1.1）----
+
+test("剪贴板同步：本端变化上行一次，同值再观测即忽略", () => {
+  const sync = createRemoteDesktopClipboardSync();
+  assert.equal(sync.observeLocal("A"), "push");
+  assert.equal(sync.observeLocal("A"), "ignore", "同值不算变化（轮询会反复读到同一文本）");
+  assert.equal(sync.observeLocal(null), "ignore", "无文本不算变化");
+  assert.equal(sync.observeLocal(""), "ignore", "空文本不参与同步");
+  assert.equal(sync.observeLocal("B"), "push");
+});
+
+test("剪贴板同步：回环抑制——应用对端文本后本地轮询不得再弹回去", () => {
+  const sync = createRemoteDesktopClipboardSync();
+  assert.equal(sync.observeRemote("来自对端"), "apply");
+  // 关键断言：写入本端剪贴板后，本端轮询会立刻读到同一个值；它必须被认作「刚应用过」。
+  assert.equal(sync.observeLocal("来自对端"), "ignore");
+  assert.equal(sync.observeRemote("来自对端"), "ignore", "对端重发同值同样忽略");
+});
+
+test("剪贴板同步：超限文本两个方向都忽略（不制造只有一侧存在的值）", () => {
+  const sync = createRemoteDesktopClipboardSync();
+  const tooLong = "x".repeat(REMOTE_DESKTOP_CLIPBOARD_MAX_CHARS + 1);
+  assert.equal(sync.observeLocal(tooLong), "ignore");
+  assert.equal(sync.observeRemote(tooLong), "ignore");
+  const atLimit = "x".repeat(REMOTE_DESKTOP_CLIPBOARD_MAX_CHARS);
+  assert.equal(sync.observeLocal(atLimit), "push", "恰好等于上限仍同步");
+});
+
+test("剪贴板同步：关闭即双向静默，重新打开不补发关闭期间的值", () => {
+  const sync = createRemoteDesktopClipboardSync();
+  assert.equal(sync.observeLocal("先前"), "push");
+  sync.setEnabled(false);
+  assert.equal(sync.isEnabled(), false);
+  assert.equal(sync.observeLocal("关闭期间复制"), "ignore", "关闭时不采集");
+  assert.equal(sync.observeRemote("关闭期间对端复制"), "ignore", "关闭时也不应用");
+  sync.setEnabled(true);
+  assert.equal(
+    sync.observeLocal("关闭期间复制"),
+    "push",
+    "重开后关闭期的变化相对 lastSynced 仍是新值：上行一次并登记",
+  );
+  assert.equal(sync.observeLocal("关闭期间复制"), "ignore", "登记后同值不再上行");
+});
+
+test("剪贴板事件 schema：strict + 上下限", () => {
+  assert.equal(remoteDesktopClipboardEventSchema.safeParse({ t: "clip", text: "hi" }).success, true);
+  assert.equal(
+    remoteDesktopClipboardEventSchema.safeParse({ t: "clip", text: "" }).success,
+    false,
+    "空文本不是合法事件（宁可不上行，也不要发出无意义的清空）",
+  );
+  assert.equal(
+    remoteDesktopClipboardEventSchema.safeParse({
+      t: "clip",
+      text: "x".repeat(REMOTE_DESKTOP_CLIPBOARD_MAX_CHARS + 1),
+    }).success,
+    false,
+    "超限拒绝",
+  );
+  assert.equal(
+    remoteDesktopClipboardEventSchema.safeParse({ t: "clip", text: "hi", extra: 1 }).success,
+    false,
+    "strict：未知键拒绝",
+  );
+});
+
+test("剪贴板开关事件 schema：strict + 布尔必填", () => {
+  assert.equal(
+    remoteDesktopClipboardModeSchema.safeParse({ t: "clip-mode", enabled: false }).success,
+    true,
+  );
+  assert.equal(
+    remoteDesktopClipboardModeSchema.safeParse({ t: "clip-mode" }).success,
+    false,
+    "enabled 必填（不做缺省推断，避免新旧端语义含糊）",
+  );
+  assert.equal(
+    remoteDesktopClipboardModeSchema.safeParse({ t: "clip-mode", enabled: true, extra: 1 }).success,
     false,
     "strict：未知键拒绝",
   );

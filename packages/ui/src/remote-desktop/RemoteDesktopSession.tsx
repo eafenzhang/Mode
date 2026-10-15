@@ -12,6 +12,8 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  ClipboardCheck,
+  ClipboardX,
   LoaderIcon,
   Lock,
   Maximize2,
@@ -72,7 +74,17 @@ export function RemoteDesktopSession({
   onExit: () => void;
 }) {
   const { intl } = useModeIntl();
-  const { view, stats, containerRef, canvasRef, selectMonitor, disconnect, switchQuality } =
+  const {
+    view,
+    stats,
+    containerRef,
+    canvasRef,
+    selectMonitor,
+    disconnect,
+    switchQuality,
+    clipboardEnabled,
+    setClipboardEnabled,
+  } =
     // 页级记忆回写走 hook 的 onQualityChanged（手动改档与自动降档共用）。
     useRemoteDesktopSession({ serverId, quality, onQualityChanged: onQualityChange });
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -168,6 +180,36 @@ export function RemoteDesktopSession({
           <span className="truncate">{deviceName}</span>
         </div>
         <div className="ms-auto flex flex-wrap items-center gap-2">
+          {/* 剪贴板同步开关（P1.1）：本端立即生效并上行给被控中继；关闭只停同步，
+              不影响画面与输入。未连接时禁用（会话建立后才存在同步面）。 */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="remote-desktop-clipboard-toggle"
+            aria-pressed={clipboardEnabled}
+            aria-label={intl.formatMessage({
+              id: clipboardEnabled ? "remoteDesktop.clipboard.on" : "remoteDesktop.clipboard.off",
+            })}
+            disabled={view.phase !== "connected"}
+            className={cn(
+              "gap-1 text-ui-sm",
+              clipboardEnabled ? "text-foreground" : "text-foreground-subtle",
+            )}
+            onClick={() => {
+              setClipboardEnabled(!clipboardEnabled);
+              refocusContainer();
+            }}
+          >
+            {clipboardEnabled ? (
+              <ClipboardCheck className="size-4" />
+            ) : (
+              <ClipboardX className="size-4" />
+            )}
+            <span className="hidden sm:inline">
+              {intl.formatMessage({ id: "remoteDesktop.clipboard.label" })}
+            </span>
+          </Button>
           {/* 画质档位（P1-3 入口 2026-10-13 移入会话面操作栏）：未连接/改档重建中禁用；
               改档 = bye + 以新档重建（fps/maxWidth 会话建立时定型，spec 画质档位节）。 */}
           <Select

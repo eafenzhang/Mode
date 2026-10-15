@@ -6069,6 +6069,9 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.quality.sharp": "清晰",
   "remoteDesktop.quality.balanced": "均衡",
   "remoteDesktop.quality.smooth": "流畅",
+  "remoteDesktop.clipboard.label": "剪贴板同步",
+  "remoteDesktop.clipboard.on": "剪贴板同步已开启，点击关闭",
+  "remoteDesktop.clipboard.off": "剪贴板同步已关闭，点击开启",
   "remoteDesktop.devices.locallyControlledBanner":
     "本机正在被远程控制；断开被控后即可发起远程连接。",
   "remoteDesktop.device.status.ready": "可用",

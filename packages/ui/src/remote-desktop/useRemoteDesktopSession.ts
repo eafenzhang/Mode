@@ -26,6 +26,10 @@ import {
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { logger } from "@/logger.js";
 import { attachRemoteDesktopInput, type RemoteDesktopInputCapture } from "./InputCapture.js";
+import {
+  createRemoteDesktopClipboardApplier,
+  type RemoteDesktopClipboardApplier,
+} from "./clipboardSync.js";
 import { createNativeMediaSession, probeHevcDecodeSupport, type NativeMediaSession } from "./nativeMediaSession.js";
 import {
   applyCodecProbe,
@@ -80,6 +84,13 @@ export interface UseRemoteDesktopSessionResult {
    * 免二次同意；busy/瞬时错误按既有退避自动重试）。调用方须先更新 quality props。
    */
   switchQuality: (next: RemoteDesktopQuality) => Promise<void>;
+  /**
+   * 剪贴板同步开关状态（P1.1a，spec 产品规则 7）：默认开。
+   * 关闭只停同步——本端不再把下行文本落进剪贴板，并同时上行 `clip-mode` 让被控中继
+   * 停止采纳；画面与输入不受影响。
+   */
+  clipboardEnabled: boolean;
+  setClipboardEnabled: (enabled: boolean) => void;
 }
 
 export function useRemoteDesktopSession(options: {
@@ -440,6 +451,9 @@ export function useRemoteDesktopSession(options: {
       const detail = (
         event as CustomEvent<{ t?: string; ts?: number; reason?: string; hostTs?: number }>
       ).detail;
+      // 剪贴板同步（P1.1a）：下行 `{t:"clip"}` 是否落到本机剪贴板由 applier 判定
+      // （回环抑制与开关都在门里，本处只转发，不做第二次判断）。
+      clipboardApplierRef.current?.onControlMessage(detail);
       if (detail?.t === "pong" && typeof detail.ts === "number") {
         // RTT = 收到时刻 - ping 时间戳；异步写入 collector，随下一拍 3s 采样进入状态条。
         const rttMs = Date.now() - detail.ts;
@@ -562,6 +576,35 @@ export function useRemoteDesktopSession(options: {
     dispatchRef.current({ type: "local-end" });
   }, []);
 
+  // ---- 剪贴板同步（P1.1a：被控 → 主控）----
+  // 门（回环抑制 + 开关）在 applier 内；这里只提供写入器与开关的上行。
+  const clipboardApplierRef = useRef<RemoteDesktopClipboardApplier | null>(null);
+  if (clipboardApplierRef.current === null) {
+    clipboardApplierRef.current = createRemoteDesktopClipboardApplier({
+      writeText: async (text) => {
+        // 与 UI 其它复制入口同口径：走 navigator.clipboard（Electron 下写剪贴板无需授权）。
+        if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+          throw new Error("clipboard write unavailable");
+        }
+        await navigator.clipboard.writeText(text);
+      },
+      onWriteError: (error) => {
+        // 写失败只记日志：剪贴板失败不该影响画面与输入（门已登记该值，不会反复重试）。
+        logger.warn("[remote-desktop] 剪贴板写入失败:", error);
+      },
+    });
+  }
+  const [clipboardEnabled, setClipboardEnabled] = useState(
+    () => clipboardApplierRef.current?.isEnabled() ?? true,
+  );
+  const setRemoteClipboardEnabled = useCallback((enabled: boolean) => {
+    clipboardApplierRef.current?.setEnabled(enabled);
+    setClipboardEnabled(enabled);
+    // 上行到被控中继（媒体 WS 同通道，P1.1）：开关是会话级的，两侧必须一致。
+    // 未连接时 send 是 no-op——此时 renderer 侧的门已生效，下行文本不会被落地。
+    sessionRef.current?.send({ t: "clip-mode", enabled });
+  }, []);
+
   return {
     view,
     stats,
@@ -570,5 +613,7 @@ export function useRemoteDesktopSession(options: {
     selectMonitor,
     disconnect,
     switchQuality,
+    clipboardEnabled,
+    setClipboardEnabled: setRemoteClipboardEnabled,
   };
 }

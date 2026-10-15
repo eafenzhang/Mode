@@ -4,11 +4,14 @@
 //                [ciphertext‖tag(16B)]，逐帧 AES-256-GCM；IV 不随帧传，key 32B、
 //                IV = salt(8B) ∥ seq(4B 大端)（spec 安全节）。
 //                kind1 状态 = UTF-8 JSON {"frozen":bool[,"reason":string]}（host 转 freeze/unfreeze 信令）。
+//                kind5 剪贴板 = UTF-8 文本（本端剪贴板**变化**时上报；语义门在 host，见下）。
 //   host→helper：kind2 开流指令 = [u32BE 1][0x02]；**ready 门控**——收到前只采集不推流
 //                （避免中继在 media WS 未就绪时缓冲堆积）。
 //                kind3 紧急关键帧 = [u32BE 1][0x03]（renderer 解码落后 / 中继背压丢帧时请求；
 //                只读 flag 语义、无 payload；ready 前忽略）。
 //                kind4 动态码率 = [u32BE 5][0x04][u32BE bps]（自适应链路的下行方向盘；ready 前忽略）。
+//                kind6 剪贴板写入 = [u32BE 1+n][0x06][UTF-8 文本]（host 采纳主控文本后要求落到
+//                本端剪贴板；写入失败只丢本次，下一次轮询会重新上报真实值）。
 // 分帧总口径：[u32 len 大端][u8 kind][payload]，len = 1 + payload.length（与 host 中继同契约）。
 import { createCipheriv } from "node:crypto";
 import { connect } from "node:net";
@@ -16,6 +19,14 @@ import { connect } from "node:net";
 import { parseAxError } from "./errors.mjs";
 
 const invalid = (message) => Object.assign(new Error(message), { code: "invalid_request" });
+
+// 入站 payload 上限（kind6 的剪贴板文本要放进这一条消息）：文本上限是 128K UTF-16 码元
+// （shared 侧 schema），UTF-8 最坏 3 字节/码元 ≈ 384 KiB，留一倍余量。超过即按协议破坏弃缓冲。
+const MAX_INBOX_PAYLOAD = 512 * 1024;
+
+// 剪贴板轮询间隔：文本同步是便利功能，700ms 对「复制→粘贴」的体感足够，
+// 又不会让 OpenClipboard 争用变成常态。
+const CLIPBOARD_POLL_MS = 700;
 
 // 与 server.mjs callAddon 同口径：napi 抛 "<code>:<msg>" 串 → parseAxError 拆 17 码重缠
 // （拆不出前缀归 internal，保原文诊断）；本模块的 invalid_request 在 addon 调用之外抛出，
@@ -50,6 +61,7 @@ export function createMediaPump(addon) {
     const session = state;
     if (!session) return { ok: true }; // 幂等（契约 G）：未启动/已收口都安全返回
     state = null; // 先摘身份：TSFN 队列里迟到的帧回调立即失效，stop 后不得再写管道
+    if (session.clipboardTimer) clearInterval(session.clipboardTimer);
     try {
       await callAddon(() => addon.rd_media_stop());
     } catch {
@@ -87,7 +99,7 @@ export function createMediaPump(addon) {
       inbox = inbox.length === 0 ? chunk : Buffer.concat([inbox, chunk]);
       while (inbox.length >= 4) {
         const len = inbox.readUInt32BE(0);
-        if (len < 1 || len > 5) {
+        if (len < 1 || len > 1 + MAX_INBOX_PAYLOAD) {
           inbox = Buffer.alloc(0); // 长度越界：协议破坏，弃缓冲重来
           return;
         }
@@ -116,6 +128,8 @@ export function createMediaPump(addon) {
               /* 同上：失败只丢本次调整，保持原码率 */
             }
           }
+        } else if (kind === 6 && body.length > 1 && session.ready) {
+          void applyClipboardText(session, body.subarray(1).toString("utf8"));
         }
       }
     });
@@ -141,6 +155,11 @@ export function createMediaPump(addon) {
       socket.destroy();
       throw error;
     }
+    // 剪贴板同步：基线 = 会话建立时本端已有内容——**同步从「变化」开始**，连接本身不该把
+    // 对端的既有剪贴板顶掉（那是打扰，不是同步）。基线取不到（争用/无文本）就留 null，
+    // 此时第一次变化照常上报，语义正确。
+    session.lastClipboard = await readClipboardText();
+    session.clipboardTimer = setInterval(() => void pollClipboard(session), CLIPBOARD_POLL_MS);
     return { ok: true };
   }
 
@@ -176,6 +195,39 @@ export function createMediaPump(addon) {
   function emitStatus(session, status) {
     if (state !== session) return;
     writeKind(session, 1, Buffer.from(JSON.stringify(status), "utf8"));
+  }
+
+  // 剪贴板读取（kind5 的数据源）：失败只代表「本 tick 没读到」（OpenClipboard 被别的进程
+  // 短暂占用是常态），不当作会话故障、不重试——下一次轮询自然覆盖。
+  async function readClipboardText() {
+    try {
+      const text = await addon.clipboard_read_text?.();
+      return typeof text === "string" && text.length > 0 ? text : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // 剪贴板轮询（helper→host kind5）：**只做「变化才发」的流量抑制**，语义门（回环抑制与
+  // 开关）归 host——一处拥有，避免两端各持一份判据而漂移。
+  async function pollClipboard(session) {
+    if (state !== session) return;
+    const text = await readClipboardText();
+    if (text === null || text === session.lastClipboard) return;
+    session.lastClipboard = text;
+    writeKind(session, 5, Buffer.from(text, "utf8"));
+  }
+
+  // 主控文本落到本端剪贴板（host→helper kind6）：写成功后登记 lastClipboard，
+  // 否则本端轮询会把刚写进去的值当成「本端变化」再报一次（对端虽会忽略，但没必要）。
+  // 写失败不登记——下一次轮询上报真实值，让 host 的门看到「期望值与实际值不一致」。
+  async function applyClipboardText(session, text) {
+    try {
+      await addon.clipboard_write_text?.(text);
+      session.lastClipboard = text;
+    } catch {
+      /* 写入失败：留给下一次轮询纠正，不打断会话 */
+    }
   }
 
   function writeKind(session, kind, payload) {

@@ -360,8 +360,15 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         // 下行 JSON 是协议内数据：解析失败按单条丢弃，不让坏数据变成未捕获异常。
         return;
       }
-      if (msg.t === "pong" || msg.t === "freeze" || msg.t === "unfreeze") {
-        // freeze/unfreeze/pong 通道：Task 10/13 订阅（替代已删除的 reducer 信号直染）。
+      if (
+        msg.t === "pong" ||
+        msg.t === "freeze" ||
+        msg.t === "unfreeze" ||
+        // 剪贴板文本（P1.1）：与 freeze/unfreeze 同一订阅面（rd-media-control），
+        // 由会话面的剪贴板同步模块消费——应用与开关都在那里，本模块只转发。
+        msg.t === "clip"
+      ) {
+        // freeze/unfreeze/pong/clip 通道：Task 10/13 订阅（替代已删除的 reducer 信号直染）。
         window.dispatchEvent(new CustomEvent("rd-media-control", { detail: msg }));
       }
       return;

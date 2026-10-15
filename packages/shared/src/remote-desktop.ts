@@ -243,3 +243,84 @@ export const remoteDesktopCodecSchema = z.enum(["h264", "hevc"]);
 export type RemoteDesktopCodec = z.infer<typeof remoteDesktopCodecSchema>;
 
 export const DEFAULT_REMOTE_DESKTOP_CODEC: RemoteDesktopCodec = "h264";
+
+// ---- 剪贴板同步（P1.1，spec 产品规则 7）----
+
+/**
+ * 文本上限（UTF-16 码元口径）。剪贴板内容千奇百怪，一条巨型文本会把媒体 WS 与中继的
+ * 单帧预算撑爆（明文 JSON 同样占一帧），故超限**不下发**：同步是便利功能，
+ * 不值得为它引入分片协议。
+ */
+export const REMOTE_DESKTOP_CLIPBOARD_MAX_CHARS = 128 * 1024;
+
+/** 媒体 WS 的剪贴板 JSON：两个方向同形，方向由发送方决定。 */
+export const remoteDesktopClipboardEventSchema = z
+  .object({
+    t: z.literal("clip"),
+    text: z.string().min(1).max(REMOTE_DESKTOP_CLIPBOARD_MAX_CHARS),
+  })
+  .strict();
+export type RemoteDesktopClipboardEvent = z.infer<typeof remoteDesktopClipboardEventSchema>;
+
+/** 剪贴板同步开关（主控 renderer → 被控 host，经媒体 WS 上行；会话级，默认开）。 */
+export const remoteDesktopClipboardModeSchema = z
+  .object({ t: z.literal("clip-mode"), enabled: z.boolean() })
+  .strict();
+export type RemoteDesktopClipboardMode = z.infer<typeof remoteDesktopClipboardModeSchema>;
+
+/**
+ * 剪贴板双向同步的回环抑制状态机（纯逻辑；两端各持一个实例）。
+ *
+ * 为什么必须有它：收到对端文本 → 写入本端剪贴板 → 本端轮询立刻观测到「变化」→ 又发回对端
+ * → 对端再写回来……不设门就是无限振荡。判据只有一条：**已经同步过的值再被观测到不算变化**，
+ * 无论它是本端刚写进去的还是刚收到并应用的，都被登记为 lastSynced。
+ *
+ * 语义边界：
+ * - 空文本不参与同步（「清空剪贴板」不是可表达的事件）；
+ * - 超限文本两个方向都忽略：不下发，也不写入本端（不制造只有一侧存在的值）；
+ * - 关闭不重置 lastSynced：重新打开时不会把关闭期间累积的值当作新变化弹回去。
+ */
+export interface RemoteDesktopClipboardSync {
+  /** 本端剪贴板观测到文本：`"push"` = 应上行，`"ignore"` = 忽略。 */
+  observeLocal(text: string | null): "push" | "ignore";
+  /** 收到对端文本：`"apply"` = 应写入本端剪贴板，`"ignore"` = 忽略。 */
+  observeRemote(text: string): "apply" | "ignore";
+  setEnabled(enabled: boolean): void;
+  isEnabled(): boolean;
+}
+
+export function createRemoteDesktopClipboardSync(
+  enabledInitially = true,
+): RemoteDesktopClipboardSync {
+  let enabled = enabledInitially;
+  let lastSynced: string | null = null;
+
+  const usable = (text: string | null): text is string =>
+    enabled &&
+    typeof text === "string" &&
+    text.length > 0 &&
+    text.length <= REMOTE_DESKTOP_CLIPBOARD_MAX_CHARS;
+
+  return {
+    observeLocal(text) {
+      if (!usable(text) || text === lastSynced) {
+        return "ignore";
+      }
+      lastSynced = text;
+      return "push";
+    },
+    observeRemote(text) {
+      if (!usable(text) || text === lastSynced) {
+        return "ignore";
+      }
+      lastSynced = text;
+      return "apply";
+    },
+    setEnabled(next) {
+      enabled = next;
+    },
+    isEnabled() {
+      return enabled;
+    },
+  };
+}

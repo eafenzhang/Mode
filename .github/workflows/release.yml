@@ -239,7 +239,7 @@ jobs:
           pnpm --filter @mode/server test
           pnpm --filter @mode/ui test
           pnpm --filter @mode/core test
-          node --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts
+          pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts
 
   desktop:
     needs: [release, verify]
