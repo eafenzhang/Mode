@@ -178,6 +178,8 @@ function createWebPlatform(): IPlatformService {
     rdGetControlledState: () => Promise.resolve({ controlled: false }),
     rdSendSignal: () => {},
     rdEndSession: () => Promise.resolve(),
+    // Web / 浏览器端没有本机剪贴板观测面：返回空文本，读侧据此判「无变化」。
+    rdReadClipboardText: () => Promise.resolve(""),
     rdGetServerState: () =>
       Promise.resolve({ enabled: false, authorizedClients: [], encoderCapability: "unknown" }),
     rdSetServerEnabled: () => Promise.reject(new Error("Web mode does not serve remote desktop")),

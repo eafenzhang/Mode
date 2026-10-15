@@ -53,6 +53,7 @@ export function createDesktopPlatform(options: {
       void window.mode.rdSendSignal(message).catch(() => undefined);
     },
     rdEndSession: (reason) => window.mode.rdEndSession(reason),
+    rdReadClipboardText: () => window.mode.rdReadClipboardText(),
     rdGetServerState: () => window.mode.rdGetServerState(),
     rdSetServerEnabled: (enabled) => window.mode.rdSetServerEnabled(enabled),
     rdRevokeClient: (clientId) => window.mode.rdRevokeClient(clientId),

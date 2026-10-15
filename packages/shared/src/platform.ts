@@ -1027,6 +1027,12 @@ export interface IPlatformService {
 
   /** 结束当前主控会话（main 先带出 bye 再收尾）。 */
   rdEndSession(reason?: "user-end" | "error"): Promise<void>;
+  /**
+   * 读本机剪贴板文本（P1.1b 剪贴板同步的观测面）：无文本返回空串。
+   * 走 main 的 Electron clipboard，而不是 renderer 的 navigator.clipboard——读剪贴板在
+   * Chromium 里受 clipboard-read 权限约束，主进程没有这层不确定性。
+   */
+  rdReadClipboardText(): Promise<string>;
 
   /** 读取被控设置面状态（总开关 + 已授权设备 + 编码能力缓存）；读失败由实现按 fail-closed 兜底。 */
   rdGetServerState(): Promise<{

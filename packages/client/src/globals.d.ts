@@ -364,6 +364,8 @@ declare global {
       ): Promise<void>;
       /** 结束当前主控会话 */
       rdEndSession(reason?: "user-end" | "error"): Promise<void>;
+      /** 读本机剪贴板文本（P1.1b：剪贴板同步的观测面；无文本 = ""） */
+      rdReadClipboardText(): ReturnType<import("@mode/shared").IPlatformService["rdReadClipboardText"]>;
       /** 读取被控设置面状态（总开关 + 已授权设备） */
       rdGetServerState(): ReturnType<import("@mode/shared").IPlatformService["rdGetServerState"]>;
       /** 写被控总开关 */

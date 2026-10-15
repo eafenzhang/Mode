@@ -58,7 +58,7 @@
 4. **输入共享**：远端输入与本地键鼠共用同一物理会话，无接管互斥（与系统 RDP 语义相反，是家庭版可被控的前提）。
 5. **被控中不可发起**：本机处于被控状态（口径 = 被控会话状态机 `phase !== "idle"`）时禁止再发起主控会话；权威闸门在主控 main，稳定错误码 `locally_controlled`。
 6. **坐标映射与光标**：画面按视频实际尺寸 letterbox 适配；主控坐标以所选显示器源分辨率归一化传输，被控端换算为虚拟屏绝对坐标（复用 `input.rs` 的 VIRTUALDESK 归一化）；混合 DPI 多屏按源分辨率独立处理；画面内显示对端光标（采集自带合成），主控隐藏本地光标避免双光标。
-7. **剪贴板（文本）**：会话面操作栏提供开关，默认开；**只同步文本**（CF_UNICODETEXT 口径，与既有 paste 同一实现面），文件与图片不在范围内；单条上限 128K 码元，超限两个方向都忽略（不下发、也不落地）。回环抑制的判据是唯一一条：**已经同步过的值再被观测到不算变化**——无论它是本端刚写进去的还是刚收到并应用的。当前落地范围见「分期」的 P1.1a/P1.1b。
+7. **剪贴板（文本）**：会话面操作栏提供开关，默认开；**只同步文本**（CF_UNICODETEXT 口径，与既有 paste 同一实现面），文件与图片不在范围内；单条上限 128K 码元，超限两个方向都忽略（不下发、也不落地）。**双向均已上线**（被控 → 主控与被控 ← 主控）：任一端剪贴板变化经媒体 WS 的 `{t:"clip"}` 送到另一端并写入。回环抑制的判据是唯一一条：**已经同步过的值再被观测到不算变化**——无论它是本端刚写进去的还是刚收到并应用的。主控侧读本机剪贴板走 `rd/read-clipboard-text`（main 的 Electron clipboard），不用 renderer 的 `navigator.clipboard`（读剪贴板受 clipboard-read 权限约束）。
 8. **音频**：被控端系统声音单向送到主控（对标 RDP `audiomode=local`）；会话面提供开关，默认开；编解码为 Opus；不提供麦克风上行。
 9. **多显示器**：默认「跟随被控端当前主屏」，可选「全部铺开」（多路流或单张虚拟屏合成，实现层决定）；选择入口在会话面操作栏。
 10. **画质档位**：清晰/均衡/流畅三档（fps、maxWidth、码率见实现层参数），会话面可切；会话中改档 = 重建会话（既有链路），拥塞时自动降档只降不升。
@@ -122,9 +122,9 @@ helper ──采集状态事件──► host ──信令 freeze/unfreeze──
   （`host/systemRdpState.ts`、`server-remote.ts` 的类型、server 侧注入）。
 - **IPC（`rd/*`）**：回到自研面 `rd/get-peer-capability`、`rd/start-session`、`rd/get-controlled-state`、
   `rd/send-signal`、`rd/end-session`、`rd/session-event`、`rd/get-server-state`、`rd/authorize-client`、
-  `rd/revoke-client`；**删除 RDP 面** `rd/connect`、`rd/get-sessions`、`rd/disconnect`、
-  `rd/get-rdp-options`、`rd/set-rdp-options`。四处同步纪律不变：main 常量 → preload →
-  shared `IPlatformService` → renderer 桥。
+  `rd/revoke-client`，以及 P1.1b 新增的 `rd/read-clipboard-text`（读本机剪贴板文本，供剪贴板上行观测）；
+  **删除 RDP 面** `rd/connect`、`rd/get-sessions`、`rd/disconnect`、`rd/get-rdp-options`、
+  `rd/set-rdp-options`。四处同步纪律不变：main 常量 → preload → shared `IPlatformService` → renderer 桥。
 - **协议**：信令 union v2 恢复（hello/monitors/select-monitor/bye/error/media-open/freeze/unfreeze/
   request-media-ticket）；媒体 WS 帧格式与 IV 构造沿用二代设计（见实现层）。
 - **消息契约**：`main ↔ host` 的 RD 消息族回到二代集合（被控设置面 + 主控对端探测 + 媒体/信号族），

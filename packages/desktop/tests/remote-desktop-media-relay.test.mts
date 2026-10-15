@@ -616,3 +616,39 @@ if (process.env[SERVER_CASE_ENV] === "1") {
     assert.match(output, /RD_MEDIA_RELAY_SERVER_CASE_OK/u, `场景未完成断言：\n${output}`);
   });
 }
+
+test("剪贴板上行（P1.1b）：主控文本经 kind6 落到 helper；被控端回弹的同值被门挡住", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const { ws: fakeWs, texts } = makeFakeWs();
+  const relay = createRemoteDesktopMediaRelay({ logger: noopLogger });
+  const port = await relay.listen();
+  const helper = connect({ host: "127.0.0.1", port });
+  const helperFrames: Buffer[] = [];
+  try {
+    await once(helper, "connect");
+    helper.on("data", (chunk) => helperFrames.push(chunk as Buffer));
+    relay.attachWebSocket(fakeWs);
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: "来自主控" }), false);
+    await waitFor(() => Buffer.concat(helperFrames).length > 0, { timeoutMs: 5_000 });
+    // 管道帧 = [u32 len][u8 kind][payload]：kind6 = 落剪贴板，载荷是 UTF-8 原文。
+    const frame = Buffer.concat(helperFrames);
+    assert.equal(frame[4], 6, "下行到 helper 的 kind 必须是 6");
+    assert.equal(frame.subarray(5).toString("utf8"), "来自主控");
+    // 被控端把同一文本当「本端变化」上报（写入后轮询必然读到它）：门已登记 → 不再下行。
+    relay.handlePipeData(pipeFrame(5, Buffer.from("来自主控", "utf8")));
+    assert.equal(texts.length, 0, "回弹的同值不下行（否则两端互相顶剪贴板）");
+    // 真正的新变化照常下行。
+    relay.handlePipeData(pipeFrame(5, Buffer.from("被控端新复制", "utf8")));
+    assert.deepEqual(
+      texts.map((text) => JSON.parse(text)),
+      [{ t: "clip", text: "被控端新复制" }],
+    );
+    // 非法上行载荷：丢弃且不写 helper。
+    const before = Buffer.concat(helperFrames).length;
+    relay.handleWsMessage(JSON.stringify({ t: "clip" }), false);
+    assert.equal(Buffer.concat(helperFrames).length, before, "非法 clip 不产生 kind6（分派是同步的）");
+  } finally {
+    helper.destroy();
+    relay.close();
+  }
+});

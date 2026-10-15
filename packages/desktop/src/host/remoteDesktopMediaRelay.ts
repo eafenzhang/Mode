@@ -112,11 +112,11 @@ export function createRemoteDesktopMediaRelay(
   /** kind3 去抖时间戳（Date.now 口径）。 */
   let lastKeyRequestAt = 0;
 
-  /** 向 helper 写一帧控制消息（kind2/3/4；payload 缺省为空）。helper 未接通时跳过：
-   * 控制面丢了不断流——kind3（丢帧恢复）/kind4（自适应码率）按契约静默，下一轮爆发或
-   * 下一次采样自会重试，此前对它们打 warn 与本契约文案矛盾（2026-10-14 修）；
-   * kind2（开流）有挂起补发兜底，走到这里只可能是竞态，保留一行 warn 留痕。 */
-  const writeHelperControl = (kind: 2 | 3 | 4, payload?: Buffer): void => {
+  /** 向 helper 写一帧控制消息（kind2/3/4/6；payload 缺省为空）。helper 未接通时跳过：
+   * 控制面丢了不断流——kind3（丢帧恢复）/kind4（自适应码率）/kind6（剪贴板落地）按契约静默，
+   * 下一轮爆发、下一次采样或下一次剪贴板变化自会重试，此前对它们打 warn 与本契约文案矛盾
+   * （2026-10-14 修）；kind2（开流）有挂起补发兜底，走到这里只可能是竞态，保留一行 warn 留痕。 */
+  const writeHelperControl = (kind: 2 | 3 | 4 | 6, payload?: Buffer): void => {
     const socket = helperSocket;
     if (!socket || socket.destroyed) {
       if (kind === 2) {
@@ -315,6 +315,8 @@ export function createRemoteDesktopMediaRelay(
     }
     // 剪贴板同步开关（P1.1）：会话级、默认开；判据在 clipboardGate。
     if (message.t === "clip-mode") { if (!clipboardGate.handleModeMessage(message)) logger.warn("[rd-media-relay] invalid clip-mode, dropped"); return; }
+    // 剪贴板上行（主控 → 被控，P1.1b）：校验与采纳在 gate，采纳的文本经 kind6 落到被控剪贴板。
+    if (message.t === "clip") { clipboardGate.handleControllerText(message, (text) => writeHelperControl(6, Buffer.from(text, "utf8"))); return; }
     // renderer 侧解码落后/丢帧后的关键帧请求：下行到 helper（kind3）。
     if (message.t === "need-key") { requestHelperKey(); return; }
     if (message.t === "set-bitrate") {

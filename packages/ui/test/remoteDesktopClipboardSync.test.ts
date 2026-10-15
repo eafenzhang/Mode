@@ -73,3 +73,19 @@ test("剪贴板下行：写入失败上报错误但不抛出（不得影响画�
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(h.errors, [failure], "失败经 onWriteError 上报");
 });
+
+test("剪贴板上行（P1.1b）：本机变化上行一次；写进去的值与空文本都不上行", () => {
+  const h = createHarness();
+  assert.equal(h.applier.observeLocalText("本机复制的"), true);
+  assert.equal(h.applier.observeLocalText("本机复制的"), false, "同值不重复上行");
+  assert.equal(h.applier.observeLocalText(""), false, "空文本不参与同步");
+  assert.equal(h.applier.observeLocalText(null), false, "读不到文本不算变化");
+  // 下行写入本机剪贴板后，轮询会读到同一个值：必须被认作「刚应用过」，不得弹回对端。
+  h.applier.onControlMessage({ t: "clip", text: "来自对端" });
+  assert.equal(h.applier.observeLocalText("来自对端"), false, "刚写入的值不回弹");
+  // 关闭后本机变化也不上行（开关是双向的）。
+  h.applier.setEnabled(false);
+  assert.equal(h.applier.observeLocalText("关闭期复制的"), false);
+  h.applier.setEnabled(true);
+  assert.equal(h.applier.observeLocalText("关闭期复制的"), true, "重开后该值相对 lastSynced 仍是新值");
+});

@@ -11,6 +11,7 @@
  */
 import {
   createRemoteDesktopClipboardSync,
+  remoteDesktopClipboardEventSchema,
   remoteDesktopClipboardModeSchema,
   type RemoteDesktopClipboardSync,
 } from "@mode/shared/remote-desktop";
@@ -24,6 +25,11 @@ export interface RemoteDesktopClipboardGateOptions {
 export interface RemoteDesktopClipboardGate {
   /** helper→host kind5（被控端剪贴板变化）：采纳则立刻下行；重复值/已关闭/超限静默丢弃。 */
   handleHelperText(text: string): void;
+  /**
+   * media WS 上行 `{t:"clip", text}`（主控剪贴板 → 被控，P1.1b）：载荷合法即返回 true，
+   * 采纳时经 `write` 落到被控剪贴板；重复值/已关闭/超限不写（静默）。
+   */
+  handleControllerText(message: unknown, write: (text: string) => void): boolean;
   /** media WS 上行 `{t:"clip-mode"}`：应用开关；返回 false = 载荷非法（调用方记 warn）。 */
   handleModeMessage(message: unknown): boolean;
   isEnabled(): boolean;
@@ -35,7 +41,8 @@ export function createRemoteDesktopClipboardGate(
   const sync: RemoteDesktopClipboardSync = createRemoteDesktopClipboardSync();
   return {
     handleHelperText(text) {
-      if (sync.observeRemote(text) !== "apply") {
+      // 被控端**本端**剪贴板变了：observeLocal 语义（登记后同值不再上行）。
+      if (sync.observeLocal(text) !== "push") {
         return;
       }
       const ws = options.getWebSocket();
@@ -47,6 +54,21 @@ export function createRemoteDesktopClipboardGate(
       } catch (error) {
         options.logger.warn("[rd-media-relay] clipboard send failed:", error);
       }
+    },
+    handleControllerText(message, write) {
+      const parsed = remoteDesktopClipboardEventSchema.safeParse(message);
+      if (!parsed.success) {
+        return false;
+      }
+      // 对端文本要落到被控端：observeRemote 语义（写进去的值会被本端轮询读到，不得回弹）。
+      if (sync.observeRemote(parsed.data.text) === "apply") {
+        try {
+          write(parsed.data.text);
+        } catch (error) {
+          options.logger.warn("[rd-media-relay] clipboard write to helper failed:", error);
+        }
+      }
+      return true;
     },
     handleModeMessage(message) {
       const parsed = remoteDesktopClipboardModeSchema.safeParse(message);

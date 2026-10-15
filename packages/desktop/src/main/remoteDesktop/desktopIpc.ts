@@ -8,7 +8,7 @@
  *
  * 主控会话只有一条（单主控单被控）；被控会话与设置面彼此独立，本模块不做互斥（被控侧由 host 判 busy）。
  */
-import { app, ipcMain } from "electron";
+import { app, clipboard, ipcMain } from "electron";
 import type { Locale } from "@mode/shared";
 import {
   remoteDesktopCodecSchema,
@@ -114,6 +114,10 @@ export function registerRemoteDesktopIpcHandlers(options: RemoteDesktopIpcOption
     }
     controller.sendSignal(parsed.data);
   });
+
+  // 读本机剪贴板文本（P1.1b 剪贴板同步的观测面）：主进程 Electron clipboard，
+  // 不经 renderer 的 navigator.clipboard（读剪贴板受 clipboard-read 权限约束）。
+  ipcMain.handle(REMOTE_DESKTOP_IPC.ReadClipboardText, () => clipboard.readText());
 
   ipcMain.handle(REMOTE_DESKTOP_IPC.EndSession, async (_event, rawReason: unknown) => {
     await controller.end(rawReason === "error" ? "error" : "user-end");

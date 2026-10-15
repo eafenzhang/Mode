@@ -65,6 +65,12 @@ import {
 /** 统计刷新节拍（spec UI 规则：状态条 3s 刷新）；轮询 effect 按此节拍采样 nativeStats 并发 ping。 */
 const REMOTE_DESKTOP_STATS_INTERVAL_MS = 3000;
 
+/**
+ * 剪贴板轮询间隔（P1.1b）：与被控 helper 侧同量级——文本同步是便利功能，
+ * 再快也只是把 OpenClipboard 争用变成常态（读的是本机剪贴板，代价是 IPC + 权限检查）。
+ */
+const REMOTE_DESKTOP_CLIPBOARD_POLL_MS = 700;
+
 /** 媒体票重签单次预算（信令存活时应远快于此；超时按本轮失败走下一档退避）。 */
 const MEDIA_TICKET_REQUEST_TIMEOUT_MS = 2_500;
 
@@ -604,6 +610,33 @@ export function useRemoteDesktopSession(options: {
     // 未连接时 send 是 no-op——此时 renderer 侧的门已生效，下行文本不会被落地。
     sessionRef.current?.send({ t: "clip-mode", enabled });
   }, []);
+
+  // ---- 剪贴板同步（P1.1b：主控 → 被控）----
+  // 轮询本机剪贴板，变化即上行 `{t:"clip"}`（被控中继采纳后落到它的剪贴板）。
+  // 只在已连接且开关打开时轮询；读到空文本/同值由门判定为「无变化」，不发。
+  useEffect(() => {
+    if (view.phase !== "connected" || !clipboardEnabled) {
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      void platform.rdReadClipboardText().then(
+        (text) => {
+          if (cancelled) return;
+          if (!clipboardApplierRef.current?.observeLocalText(text)) return;
+          sessionRef.current?.send({ t: "clip", text });
+        },
+        (error: unknown) => {
+          // 读失败按「本拍无变化」处理：剪贴板争用是常态，不该打断会话。
+          logger.debug("[remote-desktop] 剪贴板读取失败:", error);
+        },
+      );
+    }, REMOTE_DESKTOP_CLIPBOARD_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [platform, view.phase, clipboardEnabled]);
 
   return {
     view,

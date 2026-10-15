@@ -381,6 +381,9 @@ contextBridge.exposeInMainWorld("mode", {
   /** 结束当前主控会话（main 先带出 bye 再收尾） */
   rdEndSession: (reason?: "user-end" | "error"): Promise<void> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.EndSession, reason),
+    /** 读本机剪贴板文本（P1.1b 剪贴板同步的观测面；无文本 = 空串） */
+    rdReadClipboardText: (): Promise<string> =>
+      ipcRenderer.invoke(REMOTE_DESKTOP_IPC.ReadClipboardText),
   /** 读取被控设置面状态（总开关 + 已授权设备） */
   rdGetServerState: (): Promise<RemoteDesktopServerStateResult> =>
     ipcRenderer.invoke(REMOTE_DESKTOP_IPC.GetServerState),

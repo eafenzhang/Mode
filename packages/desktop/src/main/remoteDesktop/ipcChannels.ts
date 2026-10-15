@@ -15,6 +15,8 @@ export const REMOTE_DESKTOP_IPC = {
   SendSignal: "rd/send-signal",
   /** invoke(reason?)（先发 bye 再收尾）。 */
   EndSession: "rd/end-session",
+  /** invoke() → string（读本机剪贴板文本，P1.1b 剪贴板同步的观测面；无文本 = ""）。 */
+  ReadClipboardText: "rd/read-clipboard-text",
   /** invoke() → { enabled, authorizedClients }（被控设置面）。 */
   GetServerState: "rd/get-server-state",
   /** invoke(enabled) → { enabled, authorizedClients }。 */

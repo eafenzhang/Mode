@@ -19,6 +19,11 @@ export type RemoteClipboardWriter = (text: string) => Promise<void>;
 export interface RemoteDesktopClipboardApplier {
   /** `rd-media-control` 事件入口：只认 `{t:"clip",text}`，其余原样忽略。 */
   onControlMessage(detail: unknown): void;
+  /**
+   * 轮询读到的本机剪贴板文本（P1.1b）：返回 true = 应当上行给被控端。
+   * 同值/空文本/超限/已关闭都返回 false。
+   */
+  observeLocalText(text: string | null): boolean;
   /** 会话面开关：本端立即生效（开关同时上行给被控中继，两侧一致）。 */
   setEnabled(enabled: boolean): void;
   isEnabled(): boolean;
@@ -46,6 +51,9 @@ export function createRemoteDesktopClipboardApplier(
       void options.writeText(message.text).catch((error: unknown) => {
         options.onWriteError?.(error);
       });
+    },
+    observeLocalText(text) {
+      return gate.observeLocal(text) === "push";
     },
     setEnabled(enabled) {
       gate.setEnabled(enabled);
