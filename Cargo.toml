@@ -1,0 +1,38 @@
+# Rust workspace 根（路线图 M1 任务 1）。
+#
+# 成员显式列举而非 `crates/*` 通配，理由见 docs/plans/2026-10-15-tauri-skeleton.md
+# 「workspace 成员口径」：
+#   1. 加入 workspace 会把 target 目录上移到仓库根，而 scripts/build-cua-helper.mjs
+#      期望 crates/mode-cua-ax/target/<triple>/release/mode_cua_ax.dll —— 现役已发布
+#      addon 的构建会直接断；
+#   2. workspace 会用根锁文件重解析它的依赖图，windows/napi 版本可能被动漂移。
+# 把 crates/mode-cua-ax 并入 workspace 是独立任务（要连带改 build-cua-helper.mjs 的路径、
+# CI rust-cache 的 workspaces、删成员锁文件），完成后才能去掉下面的 exclude。
+[workspace]
+resolver = "2"
+members = [
+  "crates/browser-import-helper",
+  "crates/platform",
+  "crates/protocol",
+  "crates/updater",
+  "crates/tray",
+  "crates/deeplink",
+  "apps/desktop-tauri/src-tauri",
+]
+exclude = ["crates/mode-cua-ax"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+tauri = "2"
+tauri-build = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"

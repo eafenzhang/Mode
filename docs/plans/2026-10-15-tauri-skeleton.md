@@ -76,7 +76,10 @@
 3. **capability 规则**——`src-tauri/capabilities/default.json` 只开本切片所需权限，逐条列白名单。
 4. **验收场景**——「开窗 → 渲染 UI → 10 命令全绿」的 E2E 步骤与失败判据。
 
-- [ ] **Step 1: 写 workspace 根与两个 crate 骨架**
+- [x] **Step 1: 写 workspace 根与两个 crate 骨架**（2026-10-16 落地；实际建了计划列出的全部 crate。
+  另外发现并处理了两个 workspace 化带来的连带项，见文末「2026-10-16 执行记录」）
+
+**已落地**（2026-10-16），内容与下面草稿一致：
 
 ```toml
 # Cargo.toml
@@ -100,13 +103,14 @@ edition = "2021"
 version = "0.1.0"
 ```
 
-- [ ] **Step 2: 跑 workspace 解析**
+- [x] **Step 2: 跑 workspace 解析**（2026-10-16 通过）
 
 Run: `cargo metadata --no-deps --format-version 1 > /dev/null && echo OK`
 Expected: `OK`（注意：`crates/mode-cua-ax` 与 `crates/browser-import-helper` 会一并成为成员，
 若它们的 `[package]` 与 workspace 冲突，改在其 Cargo.toml 显式声明而非改根）
 
-- [ ] **Step 3: 骨架 main + 空窗口**
+- [x] **Step 3: 骨架 main + 空窗口**（2026-10-16 落地；`main.rs` 调 `platform::commands::init`，
+  占位前端在 `apps/desktop-tauri/dist/index.html`，Task 4 换成 renderer 产物）
 
 ```rust
 // apps/desktop-tauri/src-tauri/src/main.rs
@@ -119,12 +123,22 @@ fn main() {
 }
 ```
 
-- [ ] **Step 4: 本机构建**
+- [x] **Step 4: 本机构建**（2026-10-16 实测通过）
 
-Run: `cargo build --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml`
-Expected: 成功（首次拉取 crates.io 依赖，耗时较长）
+Run: `cargo +stable-x86_64-pc-windows-gnu build -p mode-tauri --target x86_64-pc-windows-gnu`
+Expected: 成功（首次拉取 crates.io 依赖，耗时较长）——**已通过**，产出 `ModeTauri.exe`。
 
-- [ ] **Step 5: CI job（`tauri-skeleton`）与提交**
+本机 gnu 路线的工具链装配（llvm-mingw linker + `+stable-x86_64-pc-windows-gnu`）
+已由 `scripts/build-browser-import-helper.mjs` 固化，同款 env 可直接复用；
+计划原文「本机无 Rust 链接器」的假设已作废（见 browser-import 计划 Global Constraints）。
+
+- [x] **Step 5: CI job（`tauri-skeleton`）与提交**（2026-10-16）
+
+**Deviation**：没有新开独立 job，而是把 `Tauri skeleton tests and clippy` 作为**步骤**挂进
+`desktop` job 的 Windows 腿——与既有的 CUA helper / browser-import helper 两步同形。
+理由：`desktop` job 的矩阵当前只有 Windows x64 一条腿（mac/linux 已从发版矩阵移除），
+再开一个 job 会重复检出与 pnpm 安装；且同形步骤便于 rust-cache 复用同一个 workspace 条目。
+CI 里同时把 rust-cache 的 `workspaces` 换成 `crates/mode-cua-ax` + `.`（根 workspace）。
 
 ```bash
 git add Cargo.toml crates/platform crates/protocol apps/desktop-tauri docs/specs/tauri-platform-commands.md pnpm-workspace.yaml .github/workflows/release.yml
@@ -145,7 +159,7 @@ git commit -m "feat(tauri): M1 骨架——workspace 根、平台/协议 crate�
 - Produces: `platform::commands::init(builder: tauri::Builder) -> tauri::Builder`，
   注册 Task 1 表格里的 10 个命令名。
 
-- [ ] **Step 1: 写失败的测试**（对纯粹可测的部分：命令名注册表与参数往返）
+- [x] **Step 1: 写失败的测试**（对纯粹可测的部分：命令名注册表、名字映射守卫）
 
 ```rust
 // crates/platform/tests/commands.rs
@@ -161,12 +175,16 @@ fn registers_exactly_the_m1_slice() {
 }
 ```
 
-- [ ] **Step 2: 跑测试确认失败** Run: `cargo test -p platform` Expected: FAIL（未定义）
-- [ ] **Step 3: 逐个实现**：每个命令先写 `tauri::test` 级测试再实现（红→绿）；
-  `selectFile`/`selectDirectory`/`saveFile` 走 `tauri-plugin-dialog`，`openExternal`/`openInFileManager`
-  走 `tauri-plugin-opener`，`showTaskNotification` 走 `tauri-plugin-notification`。
-- [ ] **Step 4: 跑测试确认通过** Run: `cargo test -p platform && cargo clippy -p platform -- -D warnings`
-- [ ] **Step 5: 提交** `git commit -m "feat(tauri): M1 平台命令面 10 命令（TDD）"`
+- [x] **Step 2: 跑测试确认失败**（编译期 `unresolved import platform::commands`）
+- [x] **Step 3: 逐个实现**（2026-10-16 落地）
+  切片表由 `commands/mod.rs` 的 `command_slice!` 宏声明为唯一真源（命令名 ↔ 处理函数成对），
+  `init()` 与 `registered_names()` 都从它派生。**Deviation**：没有为每条命令都写 `tauri::test`
+  级用例——`tauri::test` 需要一个 webview mock 运行时，属于骨架期之外的投入；本步改为
+  「切片表 + 名字映射守卫」自动测，命令的真人核对列进 spec §4 的验收表。
+  `getApplicationIcon` 与 `saveFile` 的 `sourceUrl` 分支按 spec §5 登记为部分实现。
+- [x] **Step 4: 跑测试确认通过**（2026-10-16：3 passed；clippy `-p platform -p protocol -p mode-tauri --all-targets -- -D warnings` 零告警）
+  Run: `cargo test -p platform && cargo clippy -p platform -- -D warnings`
+- [x] **Step 5: 提交**（2026-10-16）
 
 ---
 
@@ -183,14 +201,14 @@ fn registers_exactly_the_m1_slice() {
   `ApplicationIconRequest`（字段与 `packages/shared/src/platform.ts` 同名同义）；
   生成脚本输出 TS 类型 + CI 漂移断言。
 
-- [ ] **Step 1: 写往返测试**（serde 序列化与 TS 侧同名 JSON 互认）
-- [ ] **Step 2: 实现结构体 + `#[derive(JsonSchema, Serialize, Deserialize)]`**
-- [ ] **Step 3: 生成 TS 并断言无漂移**
+- [ ] **Step 1: 写往返测试**（serde 序列化与 TS 侧同名 JSON 互认）〔未做〕
+- [x] **Step 2: 实现结构体 + `#[derive(JsonSchema, Serialize, Deserialize)]`**（2026-10-16 落地 `crates/protocol/src/lib.rs`：`TaskNotificationPayload`/`TaskNotificationStatus`/`ApplicationIconLocator`/`ApplicationIconRequest`/`ApplicationIconInfo`/`SaveFileRequest`/`SaveFileResult`/`OpenPathResult`，全部 `rename_all = "camelCase"`，`SaveFileRequest::validate()` 落实 TS 的「data 与 sourceUrl 恰有其一」不变量）
+- [ ] **Step 3: 生成 TS 并断言无漂移**〔未做，见文末执行记录〕
 
 Run: `node scripts/generate-tauri-protocol.mjs --check`
 Expected: 首次生成后写入文件；再次运行无 diff
 
-- [ ] **Step 4: 提交** `git commit -m "feat(tauri): 协议 schemars/typeshare 双端生成与漂移断言"`
+- [ ] **Step 4: 提交**〔待 Step 1/3 完成后一起提交〕
 
 ---
 
@@ -251,3 +269,49 @@ Expected: 首次生成后写入文件；再次运行无 diff
 | 存量 renderer 产物依赖 Electron 专有 API | Task 4 的 shim 显式抛 `not_implemented_until_m3`，不用假值掩盖 |
 | typeshare 生成的 TS 与既有 `platform.ts` 语义漂移 | Task 3 往返测试 + CI `--check` 双保险 |
 | 体积目标 25MB 受 renderer 资产（53MB 解包口径）牵制 | Task 5 先记基线，超预算时上报而不静默放宽 |
+
+---
+
+## 2026-10-16 执行记录
+
+### 已完成
+
+- **Task 1 全部步骤**：workspace 根 `Cargo.toml`、`crates/{platform,protocol,updater,tray,deeplink}`、
+  `apps/desktop-tauri/src-tauri`（含 `tauri.conf.json` / capabilities / 图标 / 占位前端）、
+  阶段 spec `docs/specs/tauri-platform-commands.md`、`pnpm-workspace.yaml` 纳入壳目录、
+  CI 步骤接入。
+- **Task 2 的代码与自动化测试**：10 条命令全部注册并可调用（3 个用例全绿，clippy 零告警）。
+  spec §5 明确登记了 `getApplicationIcon` 与 `saveFile(sourceUrl)` 两处**部分实现**。
+- **Task 3 的 Rust 侧**（Step 2）：协议类型真源落地。Step 1/3（往返测试 + TS 生成与漂移断言）未做。
+
+### workspace 化的两个连带项（计划原文没列，必须知道）
+
+1. **target 目录上移**：成员 crate 的产物从 `crates/<c>/target/...` 移到仓库根 `target/...`。
+   计划里只为 `crates/mode-cua-ax` 点了这条风险（所以它被 `exclude`），但同样命中
+   `crates/browser-import-helper`：`scripts/browser-import-helper-oracle.mjs` 的
+   `resolveRustHelperPath()` 与 `scripts/build-browser-import-helper.mjs` 的产物路径都已改为
+   根 `target/`（并支持 `CARGO_TARGET_DIR` 覆盖），根 `.gitignore` 增加 `/target`，
+   成员锁文件 `crates/browser-import-helper/Cargo.lock` 删除（workspace 用根锁文件）。
+2. **comctl32 v6 清单**：`cargo test -p platform` 的二进制会被链入 tao 的 Windows GUI 代码，
+   而测试二进制不带应用清单，直接 `STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139)`。
+   修法是 `crates/platform/build.rs` 只对**测试目标**注入清单（`rustc-link-arg-tests`，
+   MSVC 走 link.exe 的 `/MANIFESTINPUT`，gnu 走 windres）。
+   详细因果见该文件与 `docs/specs/tauri-platform-commands.md` §4.1——**不要用 tauri-winres**，
+   它会把资源库传播给依赖方并与 app 自己的清单撞车。
+
+### 与原计划的口径差异（都已在正文标注）
+
+| 项 | 计划 | 实际 | 原因 |
+| --- | --- | --- | --- |
+| CI 接线 | 新开 `tauri-skeleton` job | 挂进 `desktop` job 的 Windows 腿 | 该 job 矩阵当前只有 Windows 一条腿，单开 job 要重复检出与安装 |
+| 命令级测试 | 每命令一个 `tauri::test` 用例 | 切片表 + 名字映射守卫自动测，其余人工核对 | `tauri::test` 需要 webview mock 运行时，超出骨架期投入 |
+| capabilities | 列 6 条插件权限 | 只留 `core:default` | 本切片的插件调用都在 Rust 侧，不经渲染层 IPC，`allow-*` 没有调用方（实证：列了会直接报 permission not found） |
+| workspace 成员 | 只提醒 mode-cua-ax 的风险 | 另处理 browser-import-helper 的 target/lock 连带项 | 同一机制的必然结果，计划漏列 |
+
+### 仍未做（Task 3 Step 1/3、Task 4、Task 5、Task 6）
+
+- Task 3：TS 生成脚本（`scripts/generate-tauri-protocol.mjs`）与漂移断言；
+- Task 4：存量 renderer 挂载与 `tauri-invoke-shim.ts` 适配层；
+- Task 5：三平台出包与体积基线（当前发版矩阵只有 Windows x64，与 M1 验收的"三平台"不一致，
+  这点需要先对齐）；
+- Task 6：updater / deeplink / tray 最小面。

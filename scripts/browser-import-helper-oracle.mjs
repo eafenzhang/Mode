@@ -35,8 +35,11 @@ const RUST_HELPER_FILENAME = "mode-browser-import-helper.exe";
 
 /// Rust 侧产物的候选路径：Windows 本地默认 gnu 交叉目标，CI 走 msvc。
 /// 找不到时返回 null，由调用方决定 skip（而不是给假绿）。
+///
+/// target 根在 **workspace 根**（仓库根）而不是 crate 目录——该 crate 是根 workspace 的成员，
+/// cargo 会把 target 上移；`cargo metadata` 之前是这个坑最容易翻的地方。
 export function resolveRustHelperPath() {
-  const crateRoot = join(repoRoot, "crates", "browser-import-helper", "target");
+  const crateRoot = process.env.CARGO_TARGET_DIR || join(repoRoot, "target");
   const candidates = [
     join(crateRoot, "x86_64-pc-windows-gnu", "debug", RUST_HELPER_FILENAME),
     join(crateRoot, "x86_64-pc-windows-msvc", "debug", RUST_HELPER_FILENAME),

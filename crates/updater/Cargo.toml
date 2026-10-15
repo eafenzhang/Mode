@@ -1,0 +1,10 @@
+[package]
+name = "updater"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Tauri 侧 updater 面（最小骨架；规格见 docs/specs/tauri-platform-commands.md）"
+
+[lib]
+name = "updater"
+path = "src/lib.rs"

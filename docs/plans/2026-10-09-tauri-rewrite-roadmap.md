@@ -106,14 +106,22 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - Consumes: 存量 `packages/ui`（DR-02 挂载）、`packages/shared/src/platform.ts` 的 `IPlatformService` 方法清单（作为 Rust 命令面的**接口规格**，只读签名与文档，不读实现）。
 - Produces: `platform::commands`（`#[tauri::command]`，与 `IPlatformService` 逐方法同名同参）、`protocol` crate 导出的 TS 类型（`typeshare` 生成 `packages/shared/src/generated/tauri-protocol.ts`）、`ModeTauri.exe` 安装包（≤25MB 目标）。
 
-- [ ] **脚手架**：`cargo create-tauri-app`（react-ts 模板）落 `apps/desktop-tauri`，`rust-toolchain.toml` 已在 M0 钉版（2026-10-15，`channel = "stable"`）〔若后续把交叉目标口径写进该文件，需同步 `scripts/build-cua-helper.mjs` 的 `MODE_CUA_AX_TARGET` 默认值〕；CI 加 `cargo test` + `cargo clippy -D warnings`。
-- [ ] **平台命令面**：按 `IPlatformService` 签名清单逐个实现（文件对话框、剪贴板、通知、托盘、深链、代理设置、更新检查 stub、shell open）；每个命令先写 tauri::test / 集成测试再实现（红→绿）。
-- [ ] **协议双端**：新 Rust 结构体 `#[derive(schemars::JsonSchema, Serialize, Deserialize)]` → typeshare 导出 TS；CI 断言生成文件无漂移；存量 TS 协议保持真源，Rust 侧 serde 类型 + 契约测试对拍（复用 `packages/services` 的 contract 测试思路）。
+- [x] **脚手架**（2026-10-16 落地）：**Deviation**：没用 `cargo create-tauri-app` 落 react-ts 模板——骨架只需要一个空窗口，手写 `tauri.conf.json` + `main.rs` 更可控（模板会额外带一套前端构建链，与 DR-02「挂载存量 UI」冲突）。根 `Cargo.toml` workspace 显式列举成员并 `exclude = ["crates/mode-cua-ax"]`；CI 加 `cargo test -p platform -p protocol` + `clippy --all-targets -D warnings`。
+- [x] **平台命令面**（2026-10-16，10 条注册可调用）：切片表由 `command_slice!` 宏声明为唯一真源，`init()` 与 `registered_names()` 从它派生，另有「JS 名 = 处理函数名 camelCase」守卫。**两处部分实现**（spec §5 登记）：`getApplicationIcon` 一律返回 `null`（真实取值要按平台做原生图标解码）；`saveFile` 的 `sourceUrl` 分支明确返回 `not_implemented_until_m3` 而不是静默写空文件。原计划列的「剪贴板 / 托盘 / 深链 / 代理设置 / 更新检查」不在 10 条切片内，留 Task 6 与 M3。
+- [ ] **协议双端**：Rust 侧真源已落地（`crates/protocol`，8 个类型，全部 `rename_all = "camelCase"`，含 `SaveFileRequest` 的「data 与 sourceUrl 恰有其一」不变量）；**TS 生成脚本与漂移断言未做**（typeshare 未接入，改用 schemars + 生成脚本的路线待定）。
 - [ ] **UI 挂载（DR-02）**：现有 renderer 产物以 `frontendDist` 方式挂进 Tauri；验证窗口内 UI 正常、RPC 走 `platform::commands` 适配层（`window.mode` shim → `invoke()`）。
 - [ ] **三平台出包**：release.yml 增加 tauri job（`tauri build`），产出 `Mode-<版本>-<平台>-<架构>.<ext>` 命名一致的产物；记录三平台安装包体积基线。
 - [ ] **更新链 stub**：`tauri-plugin-updater` 接现有 GitHub Releases 清单格式（与旧线共用 feed，版本号延续）。
 
 **阶段验收：** 三平台安装包全绿且 Windows ≤30MB（争取 25MB；renderer 资产 53MB 解包口径是主要变量）；Tauri 版可完成"打开窗口 → 渲染 UI → 走通 10 个平台命令"的 E2E；`cargo clippy -D warnings` 零告警；不带任何 Node 运行时。
+
+〔**2026-10-16 进度**：Task 1 全部、Task 2 代码与自动化测试、Task 3 的 Rust 侧已完成，
+本机实测 `cargo test -p platform` 3 用例全绿、`clippy --all-targets -D warnings` 零告警、
+`cargo build -p mode-tauri` 产出 `ModeTauri.exe`、`pnpm typecheck` 通过。
+**Task 3 的 TS 生成/漂移断言、Task 4（UI 挂载）、Task 5（出包与体积）、Task 6（updater/deeplink/tray）
+均未做**；另需注意发版矩阵当前只有 Windows x64 一条腿，与本节"三平台"验收口径不一致，
+属需要先对齐的既有差异。详细记录见 `docs/plans/2026-10-15-tauri-skeleton.md` 的
+「2026-10-16 执行记录」。〕
 
 ---
 

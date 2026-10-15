@@ -88,6 +88,8 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
 
+  apps/desktop-tauri: {}
+
   apps/mode-cli:
     dependencies:
       dotenv:

@@ -1,0 +1,23 @@
+[package]
+name = "mode-tauri"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Mode 桌面端 Tauri v2 壳（路线图 M1）"
+
+[[bin]]
+name = "ModeTauri"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+platform = { path = "../../../crates/platform" }
+protocol = { path = "../../../crates/protocol" }
+updater = { path = "../../../crates/updater" }
+tray = { path = "../../../crates/tray" }
+deeplink = { path = "../../../crates/deeplink" }
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true

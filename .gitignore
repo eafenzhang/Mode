@@ -91,3 +91,7 @@ packages/mode-cua/dist-cua-helper/
 
 # 远程桌面本机 spike 工作区（一次性实验 harness；新 .mjs 受语言政策限制不入库）。
 .spike/
+
+# Rust workspace 的 target 目录已上移到仓库根（Cargo.toml 的 [workspace]）。
+# crates/mode-cua-ax 不在 workspace 里，仍用它自己的 crates/mode-cua-ax/.gitignore。
+/target

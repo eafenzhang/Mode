@@ -146,11 +146,10 @@ async function main() {
   const env = buildCargoEnv(target, appVersion, gitRevision);
   runCargo(target, env);
 
+  // 该 crate 是仓库根 workspace 的成员，产物落 root/target 而不是 crate/target
+  // （cargo 把 target 目录上移到 workspace 根）。CARGO_TARGET_DIR 可覆盖。
   const built = join(
-    repoRoot,
-    "crates",
-    "browser-import-helper",
-    "target",
+    process.env.CARGO_TARGET_DIR || join(repoRoot, "target"),
     target,
     "release",
     helperFilename,

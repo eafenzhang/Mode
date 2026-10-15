@@ -1,0 +1,10 @@
+[package]
+name = "tray"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Tauri 侧 tray 面（最小骨架；规格见 docs/specs/tauri-platform-commands.md）"
+
+[lib]
+name = "tray"
+path = "src/lib.rs"

@@ -294,9 +294,12 @@ jobs:
         if: matrix.target == 'win'
         uses: Swatinem/rust-cache@v2
         with:
+          # `.` = 仓库根的 workspace（platform / protocol / updater / tray / deeplink /
+          # browser-import-helper / apps/desktop-tauri/src-tauri）。mode-cua-ax 刻意不在该
+          # workspace 里（见根 Cargo.toml 的 exclude 说明），所以它仍是独立条目。
           workspaces: |
             crates/mode-cua-ax
-            crates/browser-import-helper
+            .
 
       - name: Build and stage CUA helper
         if: matrix.target == 'win'
@@ -313,8 +316,8 @@ jobs:
           cargo clippy --manifest-path crates/mode-cua-ax/Cargo.toml --all-targets -- -D warnings
 
       # browser-import helper（M0 任务 6 的 C#→Rust 重写）：这里是纯逻辑层，
-      # 不碰 UAC 与真实 Chrome。开发机（Git Bash）无可用链接器，单测只能在
-      # 装了 MSVC 的 Windows 腿执行。
+      # 不碰 UAC 与真实 Chrome。P2（提权/服务通道/密钥解封）要真实交互式会话，
+      # 仍需人工实机验收；本步只覆盖可自动化的契约面。
       - name: browser-import helper crate tests and clippy
         if: matrix.target == 'win'
         shell: bash
@@ -322,10 +325,25 @@ jobs:
           set -euo pipefail
           cargo test --manifest-path crates/browser-import-helper/Cargo.toml
           cargo clippy --manifest-path crates/browser-import-helper/Cargo.toml --all-targets -- -D warnings
-          # 契约 A 的黑盒对拍：先产出旧产物（oracle，走 csc）与 Rust 产物，再逐字段比对。
+          # 契约 A 的黑盒对拍：旧 C# 产物与 Rust 产物**共用同一落点**，所以先把旧产物
+          # 编出来留一份副本，再用 Rust 构建脚本覆盖落点，最后带着显式 oracle 路径跑契约测试
+          # （harness 未拿到 MODE_BROWSER_IMPORT_ORACLE_PATH 时会对拍用例整条 skip，不给假绿）。
           node packages/desktop/scripts/build-windows-browser-import-helper.mjs
-          cargo build --manifest-path crates/browser-import-helper/Cargo.toml --target x86_64-pc-windows-msvc
-          node --test packages/desktop/tests/browser-import-helper-contract.test.mjs
+          cp packages/desktop/bundled-tools/win32-x64/browser-import/mode-browser-import-helper.exe             "$RUNNER_TEMP/browser-import-oracle.exe"
+          MODE_BROWSER_IMPORT_TARGET=x86_64-pc-windows-msvc pnpm --filter @mode/desktop prepare:browser-import-helper
+          MODE_BROWSER_IMPORT_ORACLE_PATH="$RUNNER_TEMP/browser-import-oracle.exe"             node --test packages/desktop/tests/browser-import-helper-contract.test.mjs
+
+      # M1 Tauri 骨架：平台命令面（crates/platform）+ 协议真源（crates/protocol）+ 壳（mode-tauri）。
+      # 注意 `cargo test -p platform` 需要 comctl32 v6 应用清单，由 crates/platform/build.rs 只对
+      # 测试目标注入（该文件的注释解释了为什么不能用 tauri-winres：它会把资源库传播给依赖方，
+      # 与 app 自己的清单撞车）。CI 走 msvc，走 build.rs 里的 /MANIFESTINPUT 分支，不依赖 rc.exe。
+      - name: Tauri skeleton tests and clippy
+        if: matrix.target == 'win'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test -p platform -p protocol
+          cargo clippy -p platform -p protocol -p mode-tauri --all-targets -- -D warnings
 
       - name: Bundle desktop app
         env:

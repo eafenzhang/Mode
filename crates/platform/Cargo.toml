@@ -1,0 +1,22 @@
+[package]
+name = "platform"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "IPlatformService 的 Rust 对应：Tauri 平台命令面（规格见 docs/specs/tauri-platform-commands.md）"
+
+[lib]
+name = "platform"
+path = "src/lib.rs"
+
+[dependencies]
+protocol = { path = "../protocol" }
+serde.workspace = true
+serde_json.workspace = true
+# 对话框命令是回调式 API，用 oneshot 把它接成 async command 的返回值。
+# tauri 的 async_runtime 只再导出 mpsc，没有 oneshot，故直接依赖 tokio（版本与 tauri 同族）。
+tokio = { workspace = true }
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-notification.workspace = true
+tauri-plugin-opener.workspace = true

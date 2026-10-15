@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "M1 平台命令面的最小权限集。逐条对应 docs/specs/tauri-platform-commands.md 的 capability 规则节。",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

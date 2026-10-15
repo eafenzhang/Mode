@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mode（Tauri 骨架）</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        height: 100vh;
+        background: #111;
+        color: #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      M1 骨架占位页。真正的挂载在 Task 4：frontendDist 改指存量 renderer 产物，位置见
+      docs/specs/tauri-platform-commands.md。目录名用 frontend/ 而非 dist/ 是因为仓库根的
+      .gitignore 忽略了所有 dist/，用 dist/ 会让全新检出拿不到这份占位页、构建直接失败。
+    -->
+    <main>
+      <h1>Mode — Tauri 骨架</h1>
+      <p>占位前端；Task 4 会换成存量 renderer 产物。</p>
+    </main>
+  </body>
+</html>

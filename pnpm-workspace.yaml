@@ -3,6 +3,9 @@ packages:
   - apps/mode-cli
   - apps/mode-cli/packages/*
   - apps/mode-cli/tools/*
+  # M1 Tauri 骨架。壳本身没有 Node 依赖，列出它只是把 npm 侧入口（build:rust/test:rust）
+  # 纳入既有 workspace 惯例，避免以后再加一个「游离的」目录。
+  - apps/desktop-tauri
 supportedArchitectures:
   os:
     - current
