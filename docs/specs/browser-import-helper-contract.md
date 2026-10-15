@@ -83,6 +83,12 @@ MODE_BROWSER_IMPORT_V1\t<base64(appBoundKey[4:])>\t<base64(chromeExecutablePath)
 | 畸形帧、缺字段、**空 stdin** | 1 | **空**（不发 ERR 帧） |
 | `--parent-pid 0`（其余合法） | 1 | `…V1\tERR\thelper_failed` |
 | 合法帧 + 存活 pid（后续步骤失败） | 1 | **空** |
+| **真实 app-bound 密钥 + 真实 chrome.exe + Chrome 155 已运行** | 0 | `…V1\tERR\tbroker_initialization_failed` |
+
+最后一行是 2026-10-15 在装有 Chrome 155.0.8059.80 的机器上的实测：**旧产物在该环境下也进不到成功路径**。
+因此本契约的**成功路径在这台机器上无法用旧产物对拍**，验收改用自证口径（见
+`docs/plans/2026-10-15-browser-import-abe-spike.md`）：取回 32 字节密钥后解开 Chrome `Cookies`
+库中的真实 AES-256-GCM 密文即为通过。
 
 即：**只有部分失败路径以 ERR 帧上报**，其余为静默非零退出。宿主对空 stdout 一律判
 `invalid_response`。Rust 版对「能判定为契约内失败」的情形发 ERR 帧，对「无法判定／尚未实现」

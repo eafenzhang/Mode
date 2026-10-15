@@ -76,7 +76,8 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
   - 契约真源：`docs/specs/browser-import-helper-contract.md`（黑盒实测 + 接口面：`--version` 五字段横幅、`--broker --parent-pid` 的 tab 分隔 3 字段请求/响应、宿主 reason 白名单 13 项、90s 超时与 128KiB stdout 上限）。
   - 执行计划：`docs/plans/2026-10-15-browser-import-helper-rust-port.md`（P1 纯逻辑可本机验，P2 提权/服务通道/密钥解封需真实 Windows 会话，P3 接线删 C#）。
   - 本机前置已验：无 dotnet/csc，但 `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe` 可用，`pnpm --filter @mode/desktop prepare:browser-import-helper` 能产出 oracle。
-  - **实测发现的现役缺陷（2026-10-15）**：旧 C# 产物对 `--version` 横幅与 broker 回帧**都发 `ZCODE_*` 品牌**，而宿主断言 `MODE_BROWSER_IMPORT_HELPER` / `MODE_BROWSER_IMPORT_V1`——即 Windows 下 Chrome app-bound 密钥导入在当前代码里必然判 `invalid_response`。Rust 版按宿主契约实现（`rejects_legacy_zcode_token` / `responses_never_use_the_version_token` 反向锁），**替换 C# 即修复**。
+  - **实测发现的现役缺陷（2026-10-15）**：旧 C# 产物对 `--version` 横幅与 broker 回帧**都发 `ZCODE_*` 品牌**，而宿主断言 `MODE_BROWSER_IMPORT_HELPER` / `MODE_BROWSER_IMPORT_V1`——两者不符。补充核实：已发布的 Mode 安装件 `app.asar` 里**只有 `MODE_*`**、且 `resources/` 下**没有 browser-import 目录**，即该 helper 未随本仓库的发布件一起分发；所以这是**代码库内的一致性缺陷**（一旦启用就会失败），不是线上事故。Rust 版按宿主契约实现（`rejects_legacy_zcode_token` / `responses_never_use_the_version_token` 反向锁），替换 C# 即修复。
+  - **解封面 spike 结论（2026-10-15）**：机制是 Chrome 的 COM elevator（`IElevator2::DecryptData`，路径校验面向浏览器进程）。关键否证：**旧产物在本机（Chrome 155 已安装并运行）用真实 app-bound 密钥也只回 `broker_initialization_failed`**，成功路径没有参照物。详见 `docs/plans/2026-10-15-browser-import-abe-spike.md`；验收改自证口径（解开真实 cookie 密文），且**若结论指向进程注入则需独立立项与安全评审**。
   - **解封路径需真机**（本机无 Chrome、需 UAC 交互式会话），故 **C# 暂不删除**：删早了会让该功能直接不可用。删除条件是 P2 落地并在真机跑通「导入一次 + 拒绝 UAC」两条验收。
   - 验收：Windows 实机导入一次浏览器数据成功（含拒绝 UAC → `chrome_cookie_elevation_cancelled`）；语言条 C# 归零。
 - [ ] **mode-cua JS→TS（让行）**〔本批让行，待电脑控制一期收口〕：等电脑控制一期收口后再执行（该目录正在被并行会话开发）；`.d.ts` 手写声明删除，改由 tsc 产出。

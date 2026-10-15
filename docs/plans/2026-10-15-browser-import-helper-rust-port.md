@@ -449,13 +449,12 @@ git commit -m "feat(browser-import): 提权与服务通道（fail-closed 到契�
 
 ### Task 5: Chrome app-bound 密钥解封
 
-> **前置：需要一次公开资料 spike（2026-10-15 判定）。** 解封算法属契约 spec 的「不可观测」面
-> ——黑盒只能观察输入输出，看不到算法；`clean-room-policy.md` 禁止回读旧 C# 实现。
-> 合法取材是**公开资料**（Chromium 是开源的，其 app-bound encryption 实现与相关公开分析
-> 都在许可范围内；Microsoft 的 DPAPI/CNG 文档同理）。动手前先用一次 spike 把算法、所需 API
-> 与「为什么必须提权」写清楚，产出并入本 spec 的「不可观测」节，再写实现。
->
-> **在 Task 5 通过真机验收前，`Program.cs` 不得删除**（见 P3 与路线图：删早了 Chrome 数据导入直接不可用）。
+> **前置：spike 已做一半，卡点见 `docs/plans/2026-10-15-browser-import-abe-spike.md`（2026-10-15）。**
+> 已确认机制是 Chrome 的 COM elevator（`IElevator2::DecryptData`），且**旧产物在本机（Chrome 155）
+> 用真实密钥也拿不到成功路径**（`broker_initialization_failed`）——成功路径没有参照物。
+> 因此：① 验收口径改为**自证**（取回密钥后解开真实 cookie 密文）；② 若结论指向浏览器进程注入，
+> 该实现属安全敏感代码，需独立立项与评审，**不在本计划里静默推进**。
+> 在 Task 5 通过真机验收前，`Program.cs` 不得删除（删早了 Chrome 数据导入直接不可用）。
 
 **Files:**
 - Create: `crates/browser-import-helper/src/decrypt.rs`
