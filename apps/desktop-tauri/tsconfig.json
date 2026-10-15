@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    // 跟随 tsconfig.base.json 的 es2024，只补 DOM：本工程会 typecheck 跨包的共享源码
+    // （@mode/ui/tauri-platform 及其依赖），lib 低于共享源码的用法会报出与壳无关的错。
+    "lib": ["es2024", "DOM", "DOM.Iterable"],
+    "types": [],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "jsx": "preserve"
+  },
+  "include": ["frontend/src/**/*.ts", "vite.config.ts"]
+}

@@ -1,0 +1,132 @@
+/* 骨架验收台的样式：只求可读，不引入设计系统（产品 UI 由 M4 的 clean-room 前端负责）。 */
+:root {
+  color-scheme: dark;
+  --bg: #111214;
+  --card: #1a1c1f;
+  --border: #2a2d31;
+  --text: #e8eaed;
+  --muted: #9aa0a6;
+  --accent: #38bdf8;
+  --danger: #f87171;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+
+#root {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+h1 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+h2 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.hint {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+.command,
+.deeplink {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.deeplink {
+  margin-top: 24px;
+}
+
+.command-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.command-name {
+  color: var(--accent);
+  font: 600 13px/1.5 ui-monospace, monospace;
+}
+
+.command-summary {
+  color: var(--muted);
+}
+
+.fields {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 220px;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.field input {
+  background: #0d0e10;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  padding: 6px 8px;
+}
+
+.actions {
+  margin-top: 10px;
+}
+
+.run {
+  background: #212429;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 14px;
+}
+
+.run:hover {
+  border-color: var(--accent);
+}
+
+.result {
+  background: #0d0e10;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: 12px/1.5 ui-monospace, monospace;
+  margin: 10px 0 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.result-error {
+  border-color: var(--danger);
+  color: var(--danger);
+}

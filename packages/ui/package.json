@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./tauri-platform": "./src/platform/tauri-invoke-shim.ts",
     "./useTheme": "./src/useTheme.ts",
     "./conversation-share-readonly": "./src/v4/ConversationShareReadonlyTimeline.tsx",
     "./oauth-provider-icon": "./src/lib/oauthProviderIcon.tsx",

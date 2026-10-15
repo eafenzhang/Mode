@@ -4,7 +4,8 @@
   "version": "0.0.1",
   "identifier": "dev.mode.app",
   "build": {
-    "frontendDist": "../frontend"
+    "beforeBuildCommand": "pnpm --dir ../.. --filter @mode/desktop-tauri run build:frontend",
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [

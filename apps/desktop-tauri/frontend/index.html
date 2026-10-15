@@ -2,28 +2,23 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <title>Mode（Tauri 骨架）</title>
-    <style>
-      body {
-        font-family: system-ui, sans-serif;
-        margin: 0;
-        display: grid;
-        place-items: center;
-        height: 100vh;
-        background: #111;
-        color: #eee;
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mode — Tauri 骨架</title>
   </head>
   <body>
     <!--
-      M1 骨架占位页。真正的挂载在 Task 4：frontendDist 改指存量 renderer 产物，位置见
-      docs/specs/tauri-platform-commands.md。目录名用 frontend/ 而非 dist/ 是因为仓库根的
-      .gitignore 忽略了所有 dist/，用 dist/ 会让全新检出拿不到这份占位页、构建直接失败。
+      M1 骨架前端（规格 docs/specs/tauri-platform-commands.md §4）。
+
+      这个页面**不是产品 UI**，是平台命令面的联调与验收台：渲染 10 条命令的触发入口、
+      显示返回结果与错误、并把深链事件打出来。
+
+      为什么不是存量 renderer：`packages/desktop/src/renderer/main.tsx` 的启动链要求一个
+      Node Host 通过 MessagePort 提供 IServiceAccessor（`connectViaMessagePort` +
+      DatabaseStartupAdmission 的 30s 就绪等待），那正是 M3 的 sidecar。没有 Host 时挂载
+      存量 renderer 只会停在启动/失败屏，把它当「渲染 UI」交付是假的。
+      详见 docs/plans/2026-10-15-tauri-skeleton.md 的「Task 4 Step 2b 执行记录」。
     -->
-    <main>
-      <h1>Mode — Tauri 骨架</h1>
-      <p>占位前端；Task 4 会换成存量 renderer 产物。</p>
-    </main>
+    <div id="root"></div>
+    <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

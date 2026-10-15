@@ -4,7 +4,19 @@
   "private": true,
   "description": "Mode 桌面端 Tauri v2 壳（M1 骨架）。平台命令面规格见 docs/specs/tauri-platform-commands.md。",
   "scripts": {
+    "build:frontend": "vite build",
+    "dev:frontend": "vite",
     "build:rust": "cargo build -p mode-tauri",
-    "test:rust": "cargo test -p platform"
+    "test:rust": "cargo test -p platform -p protocol -p deeplink -p tray -p updater -p tauri-test-manifest",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "tauri:build": "cargo tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.2"
+  },
+  "dependencies": {
+    "@mode/ui": "workspace:*"
   }
 }

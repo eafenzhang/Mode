@@ -423,6 +423,130 @@ jobs:
           path: dist/release-checksums/desktop-${{ matrix.target }}-${{ matrix.arch }}.txt
           retention-days: 1
 
+  # M1 Tauri 骨架的三平台出包与体积基线（路线图 M1 Task 5）。
+  #
+  # **产物发到 workflow artifacts，不进 Release**：Tauri 这条线在 M5 之前不是发布线，
+  # 而它的产物名与旧 Electron 线**完全一致**（`Mode-<版本>-<平台>-<架构>.<ext>`，
+  # AGENTS.md 的命名约定），同名上传会 clobber 掉用户正在下载的 Electron 安装包。
+  # 保持同一套名字、先只发 artifacts，M5「release.yml 只出 Tauri 产物」时只需把上传目标
+  # 从 artifacts 换成 Release，用户侧的文件名契约不用动。
+  #
+  # 三平台腿**未在本机验证过**（本机只有 Windows + gnu 工具链）：macOS 与 Linux 腿按
+  # Tauri v2 官方要求列依赖，首次 CI 运行必须盯一下这几处：
+  #   - Linux：webkit2gtk/soup3 的 dev 包名随发行版变动（见下面 apt 列表）；
+  #     AppImage 打包依赖 FUSE，容器里靠 APPIMAGE_EXTRACT_AND_RUN=1 绕过，
+  #     若仍失败可改用 `--bundles deb`（deb 只需 dpkg-deb，风险最低）。
+  #   - macOS：arm64 runner（macos-14）出 aarch64-apple-darwin 产物。
+  tauri:
+    needs: [release, verify]
+    if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: win
+            arch: x64
+            rustTarget: x86_64-pc-windows-msvc
+            bundles: nsis
+            ext: exe
+          - runner: macos-14
+            target: mac
+            arch: arm64
+            rustTarget: aarch64-apple-darwin
+            bundles: dmg
+            ext: dmg
+          - runner: ubuntu-24.04
+            target: linux
+            arch: x64
+            rustTarget: x86_64-unknown-linux-gnu
+            bundles: appimage
+            ext: AppImage
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Tauri v2 在 Linux 上要 GTK/WebKitGTK 的开发包；Windows/macOS 用系统自带 WebView。
+      - name: Install Linux system dependencies
+        if: matrix.target == 'linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl wget file libssl-dev libxdo-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev librsvg2-dev patchelf libayatana-appindicator3-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rustTarget }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # 与 desktop job 同一口径：根 workspace + 刻意排除的 CUA addon。
+          workspaces: |
+            crates/mode-cua-ax
+            .
+          key: tauri-${{ matrix.rustTarget }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `tauri build` 会先跑 tauri.conf.json 的 beforeBuildCommand（前端 Vite 构建），
+      # 所以这里不用单独构建前端。
+      - name: Build Tauri bundles
+        shell: bash
+        env:
+          # AppImage 的打包器（linuxdeploy）默认要求能挂载 FUSE，容器里没有；
+          # 这个变量让 AppImage 以自解压方式运行，绕开 FUSE。
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          set -euo pipefail
+          pnpm --filter @mode/desktop-tauri exec tauri build \
+            --target "${{ matrix.rustTarget }}" \
+            --bundles "${{ matrix.bundles }}" \
+            --config "{\"version\":\"${{ needs.release.outputs.version }}\"}"
+
+      # 改名到发布契约的格式，并落一份 sha256 与体积记录——体积是三指标之一
+      # （路线图「度量与预算」），在 CI 里留痕而不是靠人记。
+      - name: Collect installer and record size
+        shell: bash
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
+          EXT: ${{ matrix.ext }}
+          RUST_TARGET: ${{ matrix.rustTarget }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          bundle_dir="target/${RUST_TARGET}/release/bundle"
+          candidates=("$bundle_dir"/*/*."$EXT")
+          if [ ${#candidates[@]} -ne 1 ]; then
+            echo "::error::expected exactly one *.$EXT under $bundle_dir, found ${#candidates[@]}"
+            find "$bundle_dir" -maxdepth 3 -type f || true
+            exit 1
+          fi
+          mkdir -p dist/tauri
+          out="dist/tauri/Mode-${VERSION}-${TARGET}-${ARCH}.${EXT}"
+          cp "${candidates[0]}" "$out"
+          node scripts/tauri-bundle-report.ts "$out"
+
+      - name: Upload Tauri bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-${{ matrix.target }}-${{ matrix.arch }}
+          path: dist/tauri/
+          retention-days: 14
+
   # fnOS（飞牛）原生安装包：与桌面矩阵同一触发条件（推送自动发版 / 手工勾选构建产物）。
   # scripts/build-fnos-fpk.ts 内部复用 build:mode 发行产物并捆绑 linux-x64 Node 运行时，
   # 自执行结构断言与发行冒烟（CI 为 POSIX，冒烟会真实运行）——失败即失败，不产出可疑安装包。
