@@ -1996,11 +1996,9 @@ app.whenReady().then(async () => {
     deviceMid,
   });
   registerLanAccessIpcHandlers({ logger });
-  // 局域网远程桌面（docs/specs/lan-remote-desktop.md）：主控 rd/* IPC + 被控会话协调器。
-  registerRemoteDesktopIpcHandlers({
-    logger,
-    getLocale: () => currentApplicationLocale,
-  });
+  // 远程桌面（系统 RDP，docs/specs/remote-desktop-system-rdp.md）：
+  // 主控 rd/* IPC（生成 .rdp + 启动 mstsc）+ 被控设置面（共享开关 + 系统 RDP 状态）。
+  registerRemoteDesktopIpcHandlers({ logger });
 
   registerRemoteIpcHandlers({
     logger,

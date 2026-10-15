@@ -2,29 +2,48 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangleIcon,
   CheckIcon,
+  Copy,
   LoaderIcon,
   MonitorSmartphone,
   Radar,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import type { LanAccessClientRecord, LanAccessState } from "@mode/shared";
+import type { LanAccessState } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
+import { cn } from "@/components/lib/utils.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { LanAccessPairedPeersCard } from "@/settings/LanAccessPairedPeersCard.js";
 import { RemoteControlPairedClientsList } from "@/settings/RemoteControlPairedClientsList.js";
+import { logger } from "@/logger.js";
+import type { RemoteDesktopServerState } from "@/remote-desktop/platformTypes.js";
 
-const EMPTY_STATE: LanAccessState = {
+const EMPTY_LAN_STATE: LanAccessState = {
   enabled: false,
   port: null,
   addresses: [],
   pairCode: null,
   clients: [],
 };
+
+const EMPTY_RD_STATE: RemoteDesktopServerState = { sharingEnabled: false };
+
+/** 系统 RDP 状态 → 展示档（spec 产品规则 4/8：只检测、不改系统设置，不做一键开启）。 */
+type SystemRdpFacet = "enabled" | "disabled" | "homeEdition" | "unknown";
+
+function resolveSystemRdpFacet(state: RemoteDesktopServerState): SystemRdpFacet {
+  if (!state.systemRdp) {
+    return "unknown";
+  }
+  if (state.systemRdp.editionOk === false) {
+    return "homeEdition";
+  }
+  return state.systemRdp.enabled ? "enabled" : "disabled";
+}
 
 function formatRemaining(expiresAt: number, now: number): string {
   const remainingSeconds = Math.max(0, Math.round((expiresAt - now) / 1000));
@@ -34,24 +53,18 @@ function formatRemaining(expiresAt: number, now: number): string {
 }
 
 /**
- * 设置页「远程控制」分区（2026-10-13 合并原「远程桌面」与「局域网访问」两张卡片）：
- * - 本机被控卡片：允许局域网访问 / 允许被远程控制两个总开关、配对码、已配对设备单列表；
- * - 已配对设备列表行 = LAN 配对记录本身：名称 / 最近使用 / 最近工作区 /
- *   远程桌面授权开关（写记录上的 `remoteDesktopAuthorized`，与同意窗「记住此设备」同字段）/
- *   移除；列表与配对记录同寿命——监听未开启时 host 从凭据读取展示，不依赖服务端在跑；
- * - 「我配对的对端」（客户端视角）保持独立卡片，与主控设备页共用同一份配对记录。
- * 规格：docs/specs/lan-remote-desktop.md UI 规则「被控端」、docs/specs/lan-paired-devices.md。
+ * 设置页「远程控制」分区（spec: docs/specs/remote-desktop-system-rdp.md 产品规则 4/5/6）：
+ * - LAN 访问开关与配对码：不变；
+ * - **提示性共享开关**（原「允许被远程控制」总开关）：UI 明写「不影响系统远程桌面」——
+ *   它只决定本机是否作为可远控设备出现在对端设备页（能力位），不是安全闸门；
+ * - **系统远程桌面状态行**：显示 `systemRdp.enabled` / `editionOk`，未启用时给可复制的开启指引；
+ * - **逐设备授权开关已删除**：系统 RDP 下授权发生在 Windows 登录，应用没有执行点，保留即为假控制。
  */
 export function RemoteControlSettingsSection() {
   const { intl } = useModeIntl();
   const platform = usePlatform();
-  const [state, setState] = useState<LanAccessState>(EMPTY_STATE);
-  const [rdEnabled, setRdEnabled] = useState(false);
-  // 编码能力缓存（P1-3）：unknown = 尚无真实会话观测；unavailable = 本机无硬件编码器
-  // （远程桌面会连上但不出画面），设置页据此给提示。
-  const [encoderCapability, setEncoderCapability] = useState<
-    "unknown" | "available" | "unavailable"
-  >("unknown");
+  const [state, setState] = useState<LanAccessState>(EMPTY_LAN_STATE);
+  const [rdState, setRdState] = useState<RemoteDesktopServerState>(EMPTY_RD_STATE);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -62,7 +75,7 @@ export function RemoteControlSettingsSection() {
     setError("");
   };
 
-  /** 只重读 LAN 状态（授权/撤销开关改的是记录上的标记，单列表行内状态要立刻跟上）。 */
+  /** 只重读 LAN 状态（移除设备改的是记录本身，单列表行内状态要立刻跟上）。 */
   const reloadLanState = useCallback(async () => {
     const next = await platform.getLanAccessState();
     applyState(next);
@@ -84,8 +97,8 @@ export function RemoteControlSettingsSection() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      // 两个总开关的状态各读各的；读失败按 fail-closed（关）展示，写路径仍以 main 现读为准。
-      const [lanState, rdState] = await Promise.allSettled([
+      // LAN 状态与系统远程桌面状态各读各的；读失败按 fail-closed（关/未知）展示。
+      const [lanState, rdResult] = await Promise.allSettled([
         platform.getLanAccessState(),
         platform.rdGetServerState(),
       ]);
@@ -99,10 +112,7 @@ export function RemoteControlSettingsSection() {
           lanState.reason instanceof Error ? lanState.reason.message : String(lanState.reason),
         );
       }
-      setRdEnabled(rdState.status === "fulfilled" ? rdState.value.enabled : false);
-      setEncoderCapability(
-        rdState.status === "fulfilled" ? (rdState.value.encoderCapability ?? "unknown") : "unknown",
-      );
+      setRdState(rdResult.status === "fulfilled" ? rdResult.value : EMPTY_RD_STATE);
       setLoading(false);
     })();
     return () => {
@@ -135,14 +145,15 @@ export function RemoteControlSettingsSection() {
     [],
   );
 
-  /** 被控总开关（允许被远程控制）：关开关 main 会立即终止进行中的被控会话。 */
-  const toggleRdEnabled = useCallback(
+  /**
+   * 提示性共享开关：写 main 凭据存储 `remote-desktop:server-enabled`。
+   * 关掉它**不会**断开任何 RDP 连接（系统 RDP 独立监听 3389，本应用拦不住）。
+   */
+  const toggleSharing = useCallback(
     async (enabled: boolean) => {
       setBusy(true);
       try {
-        const next = await platform.rdSetServerEnabled(enabled);
-        setRdEnabled(next.enabled);
-        setEncoderCapability(next.encoderCapability ?? "unknown");
+        setRdState(await platform.rdSetServerEnabled(enabled));
         setError("");
       } catch (caught) {
         const message = caught instanceof Error ? caught.message : String(caught);
@@ -155,29 +166,21 @@ export function RemoteControlSettingsSection() {
     [intl, platform],
   );
 
-  /** 逐设备远程桌面授权开关：与同意窗「记住此设备」写同一记录字段。 */
-  const setClientAuthorized = useCallback(
-    async (client: LanAccessClientRecord, authorized: boolean) => {
-      setBusy(true);
-      try {
-        if (authorized) {
-          await platform.rdAuthorizeClient(client.id);
-        } else {
-          await platform.rdRevokeClient(client.id);
-        }
-        await reloadLanState();
-      } catch (caught) {
-        const message = caught instanceof Error ? caught.message : String(caught);
-        setError(message);
-        toast(
-          `${intl.formatMessage({ id: "settings.lanAccess.rdUpdateFailed" })}：${message}`,
+  const systemRdpFacet = resolveSystemRdpFacet(rdState);
+  const guidanceVisible = systemRdpFacet !== "enabled" && systemRdpFacet !== "unknown";
+  const guidanceText = intl.formatMessage({ id: "settings.remoteDesktop.systemRdp.guidance" });
+
+  const copyGuidance = useCallback(() => {
+    void navigator.clipboard
+      .writeText(guidanceText)
+      .then(() => toast(intl.formatMessage({ id: "settings.remoteDesktop.systemRdp.guidanceCopied" })))
+      .catch((caught: unknown) => {
+        logger.warn(
+          "[remote-desktop] 复制开启指引失败:",
+          caught instanceof Error ? caught.message : String(caught),
         );
-      } finally {
-        setBusy(false);
-      }
-    },
-    [intl, platform, reloadLanState],
-  );
+      });
+  }, [guidanceText, intl]);
 
   const statusText = state.enabled
     ? intl.formatMessage(
@@ -214,24 +217,71 @@ export function RemoteControlSettingsSection() {
             )
           }
         />
+        {/* 提示性共享开关：明写不影响系统远程桌面（spec 产品规则 5）。 */}
         <SettingsRow
-          label={intl.formatMessage({ id: "settings.remoteDesktop.enable" })}
-          description={intl.formatMessage({
-            id: rdEnabled
-              ? "settings.remoteDesktop.statusEnabled"
-              : "settings.remoteDesktop.statusDisabled",
-          })}
+          label={intl.formatMessage({ id: "settings.remoteDesktop.sharing.label" })}
+          description={
+            rdState.sharingEnabled
+              ? intl.formatMessage({ id: "settings.remoteDesktop.sharing.on" })
+              : intl.formatMessage({ id: "settings.remoteDesktop.sharing.off" })
+          }
           control={
             loading ? (
               <LoaderIcon className="size-4 animate-spin text-foreground-subtle" />
             ) : (
               <Switch
-                checked={rdEnabled}
+                checked={rdState.sharingEnabled}
                 disabled={busy}
-                aria-label={intl.formatMessage({ id: "settings.remoteDesktop.enable" })}
-                onCheckedChange={(checked) => void toggleRdEnabled(checked)}
+                aria-label={intl.formatMessage({ id: "settings.remoteDesktop.sharing.label" })}
+                onCheckedChange={(checked) => void toggleSharing(checked)}
               />
             )
+          }
+          detail={
+            <p
+              data-testid="remote-desktop-sharing-hint"
+              className="text-ui-xs text-foreground-subtle"
+            >
+              {intl.formatMessage({ id: "settings.remoteDesktop.sharing.hint" })}
+            </p>
+          }
+        />
+        {/* 系统远程桌面状态行：只读探测结果 + 未启用时的可复制指引。 */}
+        <SettingsRow
+          label={intl.formatMessage({ id: "settings.remoteDesktop.systemRdp.label" })}
+          description={intl.formatMessage({
+            id: `settings.remoteDesktop.systemRdp.status.${systemRdpFacet}`,
+          })}
+          control={
+            loading ? (
+              <LoaderIcon className="size-4 animate-spin text-foreground-subtle" />
+            ) : (
+              <span
+                data-testid="remote-desktop-system-rdp-status"
+                data-facet={systemRdpFacet}
+                className={cn(
+                  "text-ui-base",
+                  systemRdpFacet === "enabled" ? "text-success" : "text-foreground-subtle",
+                )}
+              >
+                {intl.formatMessage({
+                  id: `settings.remoteDesktop.systemRdp.badge.${systemRdpFacet}`,
+                })}
+              </span>
+            )
+          }
+          detail={
+            guidanceVisible ? (
+              <div className="space-y-2 rounded-lg border border-dashed border-border bg-surface px-3 py-2">
+                <pre className="whitespace-pre-wrap font-sans text-ui-xs text-foreground-subtle">
+                  {guidanceText}
+                </pre>
+                <Button type="button" variant="outline" size="sm" onClick={copyGuidance}>
+                  <Copy className="size-3.5" />
+                  {intl.formatMessage({ id: "settings.remoteDesktop.systemRdp.copyGuidance" })}
+                </Button>
+              </div>
+            ) : undefined
           }
         />
         {state.enabled ? (
@@ -312,9 +362,6 @@ export function RemoteControlSettingsSection() {
               <RemoteControlPairedClientsList
                 clients={state.clients}
                 busy={busy}
-                onSetAuthorized={(client, authorized) =>
-                  void setClientAuthorized(client, authorized)
-                }
                 onRemove={(clientId) =>
                   void run(
                     () => platform.removeLanAccessClient(clientId),
@@ -337,16 +384,6 @@ export function RemoteControlSettingsSection() {
       <LanAccessPairedPeersCard onError={setError} />
 
       <div className="space-y-2 px-1 text-ui-base text-foreground-subtle">
-        {/* 编码能力缓存（P1-3）：无硬件编码器是「连上但永远不出画面」的根因，显式提示。 */}
-        {encoderCapability === "unavailable" ? (
-          <p
-            data-testid="remote-desktop-encoder-unavailable"
-            className="flex items-start gap-1.5 text-warning"
-          >
-            <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
-            {intl.formatMessage({ id: "settings.remoteDesktop.encoderUnavailable" })}
-          </p>
-        ) : null}
         <p className="flex items-start gap-1.5">
           {state.enabled ? (
             <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-success" />
@@ -357,6 +394,7 @@ export function RemoteControlSettingsSection() {
             id: state.enabled ? "settings.lanAccess.firewallHint" : "settings.lanAccess.description",
           })}
         </p>
+        {/* 提示：本应用拦不住 RDP 连接（spec 已知限制）。 */}
         <p className="flex items-start gap-1.5">
           <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
           {intl.formatMessage({ id: "settings.remoteDesktop.securityHint" })}
@@ -365,6 +403,12 @@ export function RemoteControlSettingsSection() {
           <MonitorSmartphone className="mt-0.5 size-3.5 flex-none" />
           {intl.formatMessage({ id: "settings.remoteDesktop.lanHint" })}
         </p>
+        {rdState.systemRdp?.editionOk === false ? (
+          <p className="flex items-start gap-1.5 text-warning">
+            <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
+            {intl.formatMessage({ id: "settings.remoteDesktop.systemRdp.homeEditionNote" })}
+          </p>
+        ) : null}
       </div>
       {error ? <p className="px-1 text-ui-base text-destructive">{error}</p> : null}
     </div>

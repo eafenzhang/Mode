@@ -1,164 +1,153 @@
 /**
- * `rd/*` IPC 面注册（main 侧；命名与形状冻结见 ipcChannels.ts，renderer 桥由 T5 接）。
+ * `rd/*` IPC 面注册（main 侧；通道名与形状见 ipcChannels.ts）。
  *
- * 覆盖交付 C 的全部 invoke 与 push：
- * - 主控：get-peer-capability / start-session / send-signal / end-session（controllerSession）
- * - 被控设置面：get-server-state / set-server-enabled / revoke-client（经 host 读写被控存储）
- * - push：`rd/session-event`（主控会话 state/signal）
- *
- * 主控会话只有一条（单主控单被控）；被控会话与设置面彼此独立，本模块不做互斥（被控侧由 host 判 busy）。
+ * 本模块是主控侧唯一的侧效应入口：发起 = 生成临时 `.rdp` + 启动 mstsc；
+ * 被控设置面 = 提示性共享开关 + 系统 RDP 状态（经 host 现读现写）。
+ * 画面/输入/剪贴板/音频没有任何通道——全部由 Windows RDP 承担
+ * （docs/specs/remote-desktop-system-rdp.md 架构节）。
  */
+import { spawn } from "node:child_process";
+import { join } from "node:path";
 import { app, ipcMain } from "electron";
-import type { Locale } from "@mode/shared";
 import {
-  remoteDesktopCodecSchema,
-  remoteDesktopQualitySchema,
-  remoteDesktopSignalMessageSchema,
-  type RemoteDesktopErrorCode,
-} from "@mode/shared/remote-desktop";
+  rdpConnectionOptionsSchema,
+  rdpConnectRequestSchema,
+  type RdpConnectResult,
+  type RdpConnectionOptions,
+  type RdpServerState,
+} from "@mode/shared/remote-desktop-rdp";
 import { REMOTE_DESKTOP_IPC } from "./ipcChannels.js";
-import { requestRemoteDesktopPeerProbe } from "./hostBridge.js";
 import {
-  authorizeRemoteDesktopClient,
-  readRemoteDesktopServerState,
-  revokeRemoteDesktopClient,
-  setRemoteDesktopServerEnabled,
-} from "./settings.js";
-import {
-  handleRemoteDesktopAppQuit,
-  handleRemoteDesktopServerDisabled,
-  initializeRemoteDesktopSessionCoordinator,
-  getRemoteDesktopServerSessionState,
-} from "./coordinator.js";
-import { createRemoteDesktopControllerSession } from "./controllerSession.js";
-import { isRemoteDesktopSessionBusy } from "./sessionState.js";
+  requestRemoteDesktopPeerProbe,
+  requestRemoteDesktopServerState,
+  requestRemoteDesktopSetServerEnabled,
+} from "./hostBridge.js";
+import { createRdpLauncher } from "./rdpLauncher.js";
+import { createRdpOptionsStore } from "./rdpOptions.js";
 
 export interface RemoteDesktopIpcOptions {
   logger: {
     info(...args: unknown[]): void;
     warn(...args: unknown[]): void;
   };
-  getLocale: () => Locale;
 }
 
-function readServerId(raw: unknown): string {
+/**
+ * 终止进程树：mstsc 会派生窗口/子进程，只杀父进程可能留下孤儿窗口。
+ * 进程已消失时 taskkill 返回非 0，属于正常竞态（exit 处理已清理跟踪）。
+ */
+async function killProcessTree(pid: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const killer = spawn("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
+      windowsHide: true,
+      stdio: "ignore",
+    });
+    killer.once("exit", () => resolve());
+    killer.once("error", () => resolve());
+  });
+}
+
+function readNonEmptyString(raw: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
 export function registerRemoteDesktopIpcHandlers(options: RemoteDesktopIpcOptions): void {
-  // 被控会话协调器（同意/指示/采集/信令/注入）与 hostBridge 绑定。
-  initializeRemoteDesktopSessionCoordinator({
+  const launcher = createRdpLauncher({
+    // detached：会话不随应用退出而终止（mstsc 是独立进程，spec 事件顺序 ④）。
+    spawn: (command, args) =>
+      spawn(command, [...args], { detached: true, stdio: "ignore", windowsHide: false }),
+    tempDir: join(app.getPath("temp"), "mode-rdp"),
+    killTree: killProcessTree,
     logger: options.logger,
-    getLocale: options.getLocale,
   });
-  const controller = createRemoteDesktopControllerSession({ logger: options.logger });
+  const optionsStore = createRdpOptionsStore(app.getPath("userData"));
 
   ipcMain.handle(REMOTE_DESKTOP_IPC.GetPeerCapability, async (_event, rawServerId: unknown) => {
-    const serverId = readServerId(rawServerId);
+    const serverId = readNonEmptyString(rawServerId);
     if (!serverId) {
-      return { remoteDesktop: false, remoteDesktopNative: false, online: false };
+      return { remoteDesktop: false, online: false };
     }
     try {
       const info = await requestRemoteDesktopPeerProbe(serverId);
       return {
         remoteDesktop: info.remoteDesktop,
-        // 版本门（纯直替）：透传探测结果，renderer 设备页据此判定可连接性。
-        remoteDesktopNative: info.remoteDesktopNative,
+        ...(info.systemRdp ? { systemRdp: info.systemRdp } : {}),
         online: info.online,
         ...(info.name ? { name: info.name } : {}),
       };
     } catch (error) {
       // 宿主不可达/超时：一律按离线展示（能力位不猜测），由用户手动重试。
       options.logger.warn("[remote-desktop] peer capability probe failed:", error);
-      return { remoteDesktop: false, remoteDesktopNative: false, online: false };
+      return { remoteDesktop: false, online: false };
     }
   });
 
   ipcMain.handle(
-    REMOTE_DESKTOP_IPC.StartSession,
-    async (
-      event,
-      rawServerId: unknown,
-      rawQuality?: unknown,
-      rawCodec?: unknown,
-    ): Promise<{ ok: true; mediaUrl?: string } | { error: RemoteDesktopErrorCode }> => {
-      const serverId = readServerId(rawServerId);
-      if (!serverId) {
-        return { error: "internal" };
+    REMOTE_DESKTOP_IPC.Connect,
+    async (_event, rawRequest: unknown): Promise<RdpConnectResult> => {
+      const parsed = rdpConnectRequestSchema.safeParse(rawRequest);
+      if (!parsed.success) {
+        // 非法载荷按地址问题归因：renderer 只可能从设备记录/用户输入拼出这两个值。
+        options.logger.warn("[remote-desktop] rd/connect payload rejected");
+        return { ok: false, reason: "invalid_address" };
       }
-      // 画质档位（P1-3）：非法/缺省按 undefined 走被控默认档（画质是优化参数，
-      // 不值得让会话失败）。
-      const parsedQuality = remoteDesktopQualitySchema.safeParse(rawQuality);
-      const quality = parsedQuality.success ? parsedQuality.data : undefined;
-      // 编码 codec 偏好（HEVC 选型）：同款宽容口径——非法/缺省按 undefined 走 h264。
-      const parsedCodec = remoteDesktopCodecSchema.safeParse(rawCodec);
-      const codec = parsedCodec.success ? parsedCodec.data : undefined;
-      // 产品规则 9（被控中不可发起）：权威闸门在 main——本机被控状态机非 idle（含同意弹窗中）
-      // 时拒绝，防双向互控的输入串台与画面套娃；设备页的置灰只是同规则的 UI 投影。
-      if (isRemoteDesktopSessionBusy(getRemoteDesktopServerSessionState())) {
-        return { error: "locally_controlled" };
-      }
-      return await controller.start(serverId, quality, codec, event.sender);
+      return await launcher.connect(parsed.data);
     },
   );
 
-  ipcMain.handle(REMOTE_DESKTOP_IPC.GetControlledState, async () => ({
-    controlled: isRemoteDesktopSessionBusy(getRemoteDesktopServerSessionState()),
-  }));
+  ipcMain.handle(REMOTE_DESKTOP_IPC.GetSessions, () => launcher.list());
 
-  ipcMain.handle(REMOTE_DESKTOP_IPC.SendSignal, (_event, rawMessage: unknown) => {
-    const parsed = remoteDesktopSignalMessageSchema.safeParse(rawMessage);
-    if (!parsed.success) {
-      options.logger.warn("[remote-desktop] rd/send-signal payload rejected");
-      return;
+  ipcMain.handle(REMOTE_DESKTOP_IPC.Disconnect, async (_event, rawSessionId: unknown) => {
+    const sessionId = readNonEmptyString(rawSessionId);
+    if (!sessionId) {
+      return { ok: false };
     }
-    controller.sendSignal(parsed.data);
+    return await launcher.disconnect(sessionId);
   });
 
-  ipcMain.handle(REMOTE_DESKTOP_IPC.EndSession, async (_event, rawReason: unknown) => {
-    await controller.end(rawReason === "error" ? "error" : "user-end");
+  ipcMain.handle(REMOTE_DESKTOP_IPC.GetRdpOptions, async (_event, rawServerId: unknown) => {
+    const serverId = readNonEmptyString(rawServerId);
+    return serverId ? await optionsStore.read(serverId) : {};
   });
 
-  ipcMain.handle(REMOTE_DESKTOP_IPC.GetServerState, async () => {
+  ipcMain.handle(
+    REMOTE_DESKTOP_IPC.SetRdpOptions,
+    async (_event, rawServerId: unknown, rawOptions: unknown): Promise<RdpConnectionOptions> => {
+      const serverId = readNonEmptyString(rawServerId);
+      if (!serverId) {
+        return {};
+      }
+      const parsed = rdpConnectionOptionsSchema.safeParse(rawOptions);
+      if (!parsed.success) {
+        options.logger.warn("[remote-desktop] rd/set-rdp-options payload rejected");
+        return await optionsStore.read(serverId);
+      }
+      await optionsStore.write(serverId, parsed.data);
+      return await optionsStore.read(serverId);
+    },
+  );
+
+  ipcMain.handle(REMOTE_DESKTOP_IPC.GetServerState, async (): Promise<RdpServerState> => {
     try {
-      return await readRemoteDesktopServerState();
+      return await requestRemoteDesktopServerState();
     } catch (error) {
-      // 读失败按「关 + 空授权」fail-closed 展示；写路径仍以 host 现读为准。
+      // 读失败按「未共享 + 状态未知」fail-closed 展示；写路径仍以 host 现读为准。
       options.logger.warn("[remote-desktop] read server state failed:", error);
-      return { enabled: false, authorizedClients: [] };
+      return { sharingEnabled: false };
     }
   });
 
-  ipcMain.handle(REMOTE_DESKTOP_IPC.SetServerEnabled, async (_event, rawEnabled: unknown) => {
-    const enabled = rawEnabled === true;
-    const state = await setRemoteDesktopServerEnabled(enabled);
-    if (!enabled) {
-      // 关开关 = 终止进行中会话（spec 事件顺序 ⑥），主控侧会收到 closed。
-      handleRemoteDesktopServerDisabled();
-    }
-    return state;
-  });
-
-  ipcMain.handle(REMOTE_DESKTOP_IPC.RevokeClient, async (_event, rawClientId: unknown) => {
-    const clientId = readServerId(rawClientId);
-    if (!clientId) {
-      throw new Error("clientId 不能为空");
-    }
-    return await revokeRemoteDesktopClient(clientId);
-  });
-
-  ipcMain.handle(REMOTE_DESKTOP_IPC.AuthorizeClient, async (_event, rawClientId: unknown) => {
-    const clientId = readServerId(rawClientId);
-    if (!clientId) {
-      throw new Error("clientId 不能为空");
-    }
-    return await authorizeRemoteDesktopClient(clientId);
-  });
+  ipcMain.handle(
+    REMOTE_DESKTOP_IPC.SetServerEnabled,
+    async (_event, rawEnabled: unknown): Promise<RdpServerState> => {
+      // 关共享开关**不终止任何 RDP 连接**：它拦不住系统 RDP（spec 产品规则 5），
+      // 只是让本机不再出现在对端设备页。
+      return await requestRemoteDesktopSetServerEnabled(rawEnabled === true);
+    },
+  );
 
   app.on("before-quit", () => {
-    // 应用退出：被控先收口（bye 尽可能带出），主控再发 bye 关 WS（对端也会因 WS 断开而结束）。
-    handleRemoteDesktopAppQuit();
-    void controller.end("user-end");
-    controller.dispose();
+    // 只清理临时 `.rdp`；不终止会话——用户关应用不该掐断正在用的远程桌面。
+    void launcher.cleanupOnQuit();
   });
 }

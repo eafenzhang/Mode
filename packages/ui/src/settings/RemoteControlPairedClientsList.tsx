@@ -1,26 +1,23 @@
 /**
- * 设置页「远程控制 · 已配对设备」列表（从 RemoteControlSettingsSection 拆出，max-lines 约束）：
- * 行 = LAN 配对记录本身——名称 / 最近使用 / 最近工作区 / 远程桌面授权开关
- * （写记录上的 `remoteDesktopAuthorized`，与同意窗「记住此设备」同字段）/ 移除；
- * 底部「重置全部令牌」。纯展示 + 回调，状态与写路径都由父组件持有。
- * 规格：docs/specs/lan-remote-desktop.md UI 规则「被控端」、docs/specs/lan-paired-devices.md。
+ * 设置页「远程控制 · 配对过本机的设备」列表（纯展示 + 回调，状态与写路径由父组件持有）。
+ *
+ * 行 = LAN 配对记录本身：名称 / 最近使用 / 最近工作区 / 移除；底部「重置全部令牌」。
+ * **逐设备远程桌面授权开关已删除**（spec: docs/specs/remote-desktop-system-rdp.md 产品规则 6）：
+ * 系统 RDP 下授权发生在 Windows 登录，本应用没有执行点，保留开关即为假控制。
  */
 import { ShieldOff, Trash2 } from "lucide-react";
 import type { LanAccessClientRecord } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { Switch } from "@/components/ui/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function RemoteControlPairedClientsList({
   clients,
   busy,
-  onSetAuthorized,
   onRemove,
   onResetTokens,
 }: {
   clients: LanAccessClientRecord[];
   busy: boolean;
-  onSetAuthorized: (client: LanAccessClientRecord, authorized: boolean) => void;
   onRemove: (clientId: string) => void;
   onResetTokens: () => void;
 }) {
@@ -30,7 +27,6 @@ export function RemoteControlPairedClientsList({
       <ul className="space-y-2" data-testid="remote-desktop-paired-clients">
         {clients.map((client) => {
           const name = client.label || client.id;
-          const authorized = client.remoteDesktopAuthorized === true;
           return (
             <li
               key={client.id}
@@ -54,28 +50,8 @@ export function RemoteControlPairedClientsList({
                       )
                     : intl.formatMessage({ id: "settings.lanAccess.noLastWorkspace" })}
                 </span>
-                <span className="mt-0.5 block text-ui-xs text-foreground-subtle">
-                  {intl.formatMessage({
-                    id: authorized
-                      ? "settings.lanAccess.rdAuthorized"
-                      : "settings.lanAccess.rdUnauthorized",
-                  })}
-                </span>
               </span>
               <span className="flex shrink-0 items-center gap-1.5">
-                <Switch
-                  checked={authorized}
-                  disabled={busy}
-                  aria-label={intl.formatMessage(
-                    {
-                      id: authorized
-                        ? "settings.lanAccess.rdRevokeFor"
-                        : "settings.lanAccess.rdAuthorizeFor",
-                    },
-                    { name },
-                  )}
-                  onCheckedChange={(checked) => onSetAuthorized(client, checked)}
-                />
                 <Button
                   type="button"
                   variant="ghost"

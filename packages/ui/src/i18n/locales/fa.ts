@@ -6216,34 +6216,41 @@ const faIR: Record<string, string> = {
   "settings.lanAccess.refreshPairedPeers": "تازه‌سازی",
   "settings.lanAccess.firewallHint":
     "بار نخست ممکن است سیستم اجازه فایروال بخواهد؛ دسترسی شبکه خصوصی را مجاز کنید.",
-  // مجوز رومیزی از راه دور برای هر دستگاه جفت‌شده (همان فیلد «این دستگاه را به خاطر بسپار»).
-  "settings.lanAccess.rdAuthorized": "رومیزی از راه دور: مجاز (بدون تأیید وصل می‌شود)",
-  "settings.lanAccess.rdUnauthorized": "رومیزی از راه دور: غیرمجاز (هنگام اتصال تأیید می‌خواهد)",
-  "settings.lanAccess.rdAuthorizeFor": "اجازه دادن به {name} برای کنترل از راه دور این دستگاه",
-  "settings.lanAccess.rdRevokeFor": "لغو مجوز رومیزی از راه دور برای {name}",
-  "settings.lanAccess.rdUpdateFailed": "به‌روزرسانی مجوز رومیزی از راه دور ناموفق بود",
-  // رومیزی از راه دور (docs/specs/lan-remote-desktop.md): بخش تنظیمات سمت کنترل‌شده،
-  // صفحه دستگاه‌ها و صفحه نشست سمت کنترل‌کننده، و لایه‌های سمت کنترل‌شده.
+  // رومیزی از راه دور (سیستم RDP): docs/specs/remote-desktop-system-rdp.md.
+  // این برنامه نقطه پایانی نشست نیست — اتصال یعنی ساخت فایل .rdp موقت و اجرای mstsc.
   "settings.remoteDesktop.title": "کنترل از راه دور",
-  "settings.remoteDesktop.enable": "اجازه کنترل از راه دور",
-  "settings.remoteDesktop.statusEnabled":
-    "روشن است؛ هنگام اتصال دستگاه پیوندشده پنجره تأیید نمایش داده می‌شود.",
-  "settings.remoteDesktop.statusDisabled": "خاموش است؛ درخواست‌های اتصال مستقیم رد می‌شوند (پیش‌فرض).",
-  "settings.remoteDesktop.toggleFailed": "تغییر رومیزی از راه دور ناموفق بود",
-  "settings.remoteDesktop.refresh": "تازه‌سازی",
-  "settings.remoteDesktop.loadFailed": "خواندن وضعیت رومیزی از راه دور ناموفق بود",
-  "settings.remoteDesktop.authorizedClients": "دستگاه‌های مجاز",
-  "settings.remoteDesktop.noClients":
-    "هنوز دستگاهی به خاطر سپرده نشده است؛ هر اتصال دوباره تأیید می‌خواهد.",
-  "settings.remoteDesktop.clientCount": "{count} دستگاه به خاطر سپرده شده",
-  "settings.remoteDesktop.revoke": "لغو دسترسی {name}",
-  "settings.remoteDesktop.revokeFailed": "لغو دسترسی دستگاه ناموفق بود",
+  "settings.remoteDesktop.sharing.label": "نمایش این دستگاه به‌عنوان قابل‌کنترل از راه دور در این برنامه",
+  "settings.remoteDesktop.sharing.on":
+    "روشن است؛ این دستگاه در صفحه دستگاه‌های همتاهای پیوندشده دیده می‌شود (روی رومیزی از راه دور سیستم تأثیری ندارد).",
+  "settings.remoteDesktop.sharing.off":
+    "خاموش است؛ این دستگاه در صفحه دستگاه‌های همتا دیده نمی‌شود (روی رومیزی از راه دور سیستم تأثیری ندارد).",
+  "settings.remoteDesktop.sharing.hint":
+    "کلید اطلاع‌رسانی: روی رومیزی از راه دور سیستم تأثیری ندارد. اینکه رومیزی از راه دور سیستم اتصال بپذیرد به ویندوز و اعتبارنامه‌ها بستگی دارد و خاموش کردن این کلید هیچ نشست RDP را قطع نمی‌کند.",
+  "settings.remoteDesktop.toggleFailed": "تغییر کلید اشتراک‌گذاری ناموفق بود",
+  "settings.remoteDesktop.loadFailed": "خواندن وضعیت کنترل از راه دور ناموفق بود",
+  "settings.remoteDesktop.systemRdp.label": "رومیزی از راه دور سیستم",
+  "settings.remoteDesktop.systemRdp.status.enabled":
+    "فعال است؛ رایانه‌های دیگر می‌توانند با رومیزی از راه دور سیستم وصل شوند.",
+  "settings.remoteDesktop.systemRdp.status.disabled":
+    "فعال نیست؛ برای پذیرش اتصال، راهنمای زیر را دنبال کنید.",
+  "settings.remoteDesktop.systemRdp.status.homeEdition":
+    "نسخه Home نمی‌تواند میزبان باشد؛ ویندوز Pro یا Enterprise لازم است.",
+  "settings.remoteDesktop.systemRdp.status.unknown":
+    "نامشخص (کاوش آماده نیست یا خواندن ناموفق بود)؛ اکنون نمی‌توان در دسترس بودن را تأیید کرد.",
+  "settings.remoteDesktop.systemRdp.badge.enabled": "فعال",
+  "settings.remoteDesktop.systemRdp.badge.disabled": "غیرفعال",
+  "settings.remoteDesktop.systemRdp.badge.homeEdition": "نسخه Home پشتیبانی نمی‌شود",
+  "settings.remoteDesktop.systemRdp.badge.unknown": "نامشخص",
+  "settings.remoteDesktop.systemRdp.guidance":
+    "روش فعال‌سازی رومیزی از راه دور سیستم:\n۱. تنظیمات → سیستم → رومیزی از راه دور را باز کنید و آن را روشن کنید.\n۲. فایروال: تنظیمات → حریم خصوصی و امنیت → امنیت ویندوز → فایروال و محافظت شبکه، سپس «رومیزی از راه دور» را مجاز کنید.\n۳. حساب کاربری باید رمز داشته باشد (حساب بدون رمز به‌طور پیش‌فرض اجازه ورود شبکه‌ای ندارد).\n۴. ویندوز نسخه Home را نمی‌توان کنترل کرد؛ از Pro یا Enterprise استفاده کنید.",
+  "settings.remoteDesktop.systemRdp.copyGuidance": "رونوشت راهنما",
+  "settings.remoteDesktop.systemRdp.guidanceCopied": "راهنما رونوشت شد",
+  "settings.remoteDesktop.systemRdp.homeEditionNote":
+    "این سیستم نسخه Home است: نمی‌تواند میزبان رومیزی از راه دور سیستم باشد.",
   "settings.remoteDesktop.securityHint":
-    "مبنای اعتماد همان پیوند شبکه محلی است: دستگاه پیوندنشده نمی‌تواند وصل شود، در طول نشست همیشه لایه نمایش داده می‌شود و می‌توانید هر لحظه آن را پایان دهید.",
+    "پس از فعال شدن رومیزی از راه دور سیستم، هر دستگاه قابل‌دسترسی با اعتبارنامه معتبر می‌تواند وصل شود و این برنامه نمی‌تواند جلوی آن را بگیرد.",
   "settings.remoteDesktop.lanHint":
     "هر دو رایانه باید ویندوز و در یک شبکه محلی (یا Tailscale) باشند.",
-  "settings.remoteDesktop.encoderUnavailable":
-    "هیچ رمزگذار سخت‌افزاری H.264 در دسترس نیست: نشست رومیزی از راه دور تصویری نخواهد داشت (درایور گرافیک را بررسی کنید).",
   "workspace.openRemoteDesktop": "کنترل از راه دور",
   "remoteDesktop.title": "کنترل از راه دور",
   "remoteDesktop.breadcrumbLabel": "مسیر کنترل از راه دور",
@@ -6256,20 +6263,18 @@ const faIR: Record<string, string> = {
   "remoteDesktop.devices.empty":
     "هنوز دستگاهی پیوند نشده است. با «شناسایی دستگاه‌ها» در بالا رایانه‌های ویندوزی همین شبکه محلی را پیدا کنید و با کد «تنظیمات · کنترل از راه دور» دستگاه مقابل پیوند دهید.",
   "remoteDesktop.devices.openLanAccess": "باز کردن تنظیمات کنترل از راه دور",
-  "remoteDesktop.devices.connect": "اتصال",
-  // پیش‌تنظیم‌های کیفیت (P1-3): پیش از اتصال انتخاب و همراه درخواست نشست ارسال می‌شود.
-  "remoteDesktop.quality.label": "کیفیت",
-  "remoteDesktop.quality.sharp": "واضح",
-  "remoteDesktop.quality.balanced": "متعادل",
-  "remoteDesktop.quality.smooth": "روان",
-  "remoteDesktop.devices.locallyControlledBanner":
-    "این دستگاه در حال کنترل از راه دور است؛ پس از قطع آن می‌توانید اتصال از راه دور آغاز کنید.",
   "remoteDesktop.device.status.ready": "آماده",
   "remoteDesktop.device.status.probing": "در حال بررسی",
   "remoteDesktop.device.status.unknown": "نامشخص",
   "remoteDesktop.device.status.offline": "آفلاین",
-  "remoteDesktop.device.status.unsupported": "پشتیبانی نمی‌شود",
+  "remoteDesktop.device.status.notShared": "به اشتراک گذاشته نشده",
+  "remoteDesktop.device.status.homeEdition": "نسخه Home پشتیبانی نمی‌شود",
+  "remoteDesktop.device.status.rdpDisabled": "فعال نشده",
   "remoteDesktop.device.open": "ورود به دسکتاپ",
+  "remoteDesktop.device.opening": "در حال باز کردن…",
+  "remoteDesktop.device.openHint":
+    "در پنجره رومیزی از راه دور سیستم باز می‌شود؛ تصویر داخل برنامه نمایش داده نمی‌شود.",
+  "remoteDesktop.device.options": "گزینه‌ها",
   "remoteDesktop.device.reprobe": "بررسی دوباره",
   "remoteDesktop.device.rename": "تغییر نام",
   "remoteDesktop.device.save": "ذخیره",
@@ -6282,51 +6287,44 @@ const faIR: Record<string, string> = {
   "remoteDesktop.addDevice.collapse": "بستن",
   "remoteDesktop.addDevice.pairedHidden":
     "دستگاه‌های پیوندشده در فهرست شناسایی نمایش داده نمی‌شوند ({count} مورد پنهان)",
-  "remoteDesktop.device.reason.ready": "دستگاه مقابل آماده است",
   "remoteDesktop.device.reason.probing": "در حال بررسی توانمندی دستگاه مقابل…",
   "remoteDesktop.device.reason.probe-failed": "بررسی وضعیت دستگاه مقابل ممکن نشد؛ بعداً تلاش کنید.",
   "remoteDesktop.device.reason.offline": "دستگاه مقابل آفلاین یا در دسترس نیست",
-  "remoteDesktop.device.reason.unsupported":
-    "دستگاه مقابل از رومیزی از راه دور پشتیبانی نمی‌کند (خاموش یا نسخه قدیمی)",
-  "remoteDesktop.device.reason.locally-controlled":
-    "این دستگاه از راه دور کنترل می‌شود؛ برای شروع، ابتدا قطع کنید",
-  "remoteDesktop.session.connecting": "در حال اتصال به دستگاه مقابل…",
-  "remoteDesktop.session.waitingPeer": "در انتظار تصویر دستگاه مقابل…",
-  "remoteDesktop.session.negotiating": "در حال برپایی کانال تصویر…",
-  "remoteDesktop.session.live": "تصویر وصل شد",
-  "remoteDesktop.session.awaitingFrames": "وصل شد؛ در انتظار نخستین فریم دستگاه مقابل…",
-  "remoteDesktop.session.reconnecting": "تصویر قطع شده؛ در حال بازیابی…",
-  "remoteDesktop.session.frozen": "صفحه دستگاه مقابل قفل شده؛ تصویر منجمد است",
-  "remoteDesktop.session.backToDevices": "بازگشت به فهرست دستگاه‌ها",
-  "remoteDesktop.session.monitor": "نمایشگر",
-  "remoteDesktop.session.fullscreen": "تمام‌صفحه",
-  "remoteDesktop.session.exitFullscreen": "خروج از تمام‌صفحه",
-  "remoteDesktop.session.disconnect": "قطع",
-  "remoteDesktop.session.fps": "{value} fps",
-  "remoteDesktop.session.bitrate": "نرخ بیت {value} Mbps",
-  "remoteDesktop.session.drops": "حذف‌شده {count}",
-  "remoteDesktop.session.rtt": "تأخیر {value} ms",
-  "remoteDesktop.session.frameAge": "تأخیر سرتاسری ~{value} ms",
-  "remoteDesktop.session.closed.user": "نشست قطع شد.",
-  "remoteDesktop.session.closed.remote": "دستگاه مقابل کنترل از راه دور را پایان داد.",
-  "remoteDesktop.session.closed.error": "نشست با خطا پایان یافت.",
-  "remoteDesktop.error.consent_denied": "دستگاه مقابل درخواست را رد کرد.",
-  "remoteDesktop.error.consent_timeout": "دستگاه مقابل در ۶۰ ثانیه تأیید نکرد؛ درخواست منقضی شد.",
-  "remoteDesktop.error.disabled": "رومیزی از راه دور روی دستگاه مقابل خاموش است.",
-  "remoteDesktop.error.busy": "دستگاه مقابل در کنترل دستگاه دیگری است.",
-  "remoteDesktop.error.unsupported": "دستگاه مقابل از رومیزی از راه دور پشتیبانی نمی‌کند.",
-  "remoteDesktop.error.unauthorized": "توکن پیوند نامعتبر شده است؛ دوباره پیوند دهید.",
-  "remoteDesktop.error.stale_ticket": "بلیت نشست منقضی شد؛ دوباره تلاش کنید.",
-  "remoteDesktop.error.locally_controlled":
-    "این دستگاه از راه دور کنترل می‌شود؛ ابتدا آن را قطع کنید.",
-  "remoteDesktop.error.internal": "خطای داخلی رخ داد؛ دوباره تلاش کنید.",
-  "remoteDesktop.consent.title": "{device} درخواست کنترل این دستگاه را دارد",
-  "remoteDesktop.consent.allow": "اجازه",
-  "remoteDesktop.consent.deny": "رد",
-  "remoteDesktop.consent.remember": "به خاطر سپردن این دستگاه",
-  "remoteDesktop.consent.timeout": "تا {seconds} ثانیه دیگر خودکار رد می‌شود",
-  "remoteDesktop.indicator.text": "{device} در حال کنترل این دستگاه است",
-  "remoteDesktop.indicator.end": "پایان",
+  "remoteDesktop.device.reason.not-shared":
+    "دستگاه مقابل خود را برای کنترل از راه دور به اشتراک نگذاشته است",
+  "remoteDesktop.device.reason.system-rdp-home":
+    "دستگاه مقابل نسخه Home ویندوز است؛ رومیزی از راه دور سیستم در دسترس نیست",
+  "remoteDesktop.device.reason.system-rdp-disabled":
+    "رومیزی از راه دور سیستم روی دستگاه مقابل فعال نشده است",
+  "remoteDesktop.options.title": "گزینه‌های اتصال",
+  "remoteDesktop.options.fullscreen": "تمام‌صفحه",
+  "remoteDesktop.options.multimon": "استفاده از همه نمایشگرها",
+  "remoteDesktop.options.clipboard": "تغییر مسیر کلیپ‌بورد",
+  "remoteDesktop.options.audio.label": "صدا",
+  "remoteDesktop.options.audio.local": "پخش روی این دستگاه",
+  "remoteDesktop.options.audio.remote": "ماندن روی دستگاه مقابل",
+  "remoteDesktop.options.audio.disabled": "غیرفعال",
+  "remoteDesktop.options.username.label": "نام کاربری",
+  "remoteDesktop.options.username.placeholder": "DESKTOP-1\\user",
+  "remoteDesktop.options.username.hint":
+    "فقط نام کاربری پیش‌پر می‌شود؛ رمز را ویندوز دریافت می‌کند و برنامه آن را ذخیره نمی‌کند.",
+  "remoteDesktop.options.port.label": "درگاه RDP",
+  "remoteDesktop.options.port.invalid": "درگاه باید بین ۱ تا ۶۵۵۳۵ باشد",
+  "remoteDesktop.options.confirm": "ذخیره و اتصال",
+  "remoteDesktop.options.loading": "در حال خواندن گزینه‌ها…",
+  "remoteDesktop.sessions.title": "نشست‌های فعال",
+  "remoteDesktop.sessions.count": "{count}",
+  "remoteDesktop.sessions.startedAt": "شروع در {time}",
+  "remoteDesktop.sessions.disconnect": "قطع",
+  "remoteDesktop.sessions.disconnectFor": "قطع {name}",
+  "remoteDesktop.sessions.hint":
+    "نشست‌ها در پنجره‌های جداگانه رومیزی از راه دور سیستم اجرا می‌شوند؛ این فهرست فقط اتصال‌های آغازشده توسط این برنامه را دنبال می‌کند.",
+  "remoteDesktop.connect.opened": "«{name}» در پنجره رومیزی از راه دور سیستم باز شد.",
+  "remoteDesktop.connect.failed.invalid_address": "نشانی نامعتبر است؛ اتصال رد شد.",
+  "remoteDesktop.connect.failed.invalid_username":
+    "نام کاربری نامعتبر است (بدون خط جدید یا نویسه کنترلی).",
+  "remoteDesktop.connect.failed.launch_failed":
+    "اجرای رومیزی از راه دور سیستم (mstsc) ممکن نشد.",
   "settings.computerUse.toggleLabel": "فعال‌سازی Computer Use",
   "settings.computerUse.toggleDescription":
     "با روشن کردن این گزینه، Computer Use فعال می‌شود — یعنی سرور MCP و مهارت‌های آن.",

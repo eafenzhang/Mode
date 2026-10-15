@@ -3,7 +3,7 @@ import net from "node:net";
 import test from "node:test";
 import { BrokerError, CuaHelperError, mintBrokerSocketPath } from "@mode/cua/broker";
 
-// 远程桌面（LAN）Task 3b：helper 准入第二理由与被控注入端口。
+// CUA raw_input 注入端口：helper 准入谓词（唯一理由 = CUA 插件启用）与注入 socket 解析。
 // 准入谓词走 ../src/node.js（重装配模块，沿用 cua-helper-admission.test.ts 的动态导入形态）；
 // 注入端口直接导入目标模块，socket 与 broker 客户端按依赖注入替换（目录既有 mock 风格）。
 const { shouldCreateDefaultCuaProductHelper } = await import("../src/node.js");
@@ -11,8 +11,8 @@ const { isCuaExcludedRemoteWorkspaceIdentity } = await import("../src/cuaEnablem
 const { createCuaRawInputInjector, createCuaRawInputSocketResolver } =
   await import("../src/cua-permission-broker/cuaRawInput.js");
 
-// ── 准入矩阵（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）──
-// desktop-local + 无 remote identity + 未注入 resolver 的基准；两个准入理由各自独立可放行。
+// ── 准入矩阵（唯一理由 = CUA 插件启用）──
+// desktop-local + 无 remote identity + 未注入 resolver 的基准。
 const ADMISSION_BASE = {
   serviceAuthorityMode: "desktop-local" as const,
   hasRemoteWorkspaceIdentity: false,
@@ -20,49 +20,23 @@ const ADMISSION_BASE = {
   hasBuiltInCuaPlugin: false,
 };
 
-test("准入第二理由：被控开关开 → 建（与 CUA 插件启用并列）", () => {
-  assert.equal(
-    shouldCreateDefaultCuaProductHelper({
-      ...ADMISSION_BASE,
-      isRemoteDesktopServerEnabled: () => true,
-    }),
-    true,
-  );
-});
-
-test("准入：开关关 + 插件关 → 不建；缺省读取点即关闭（默认关）", () => {
-  assert.equal(
-    shouldCreateDefaultCuaProductHelper({
-      ...ADMISSION_BASE,
-      isRemoteDesktopServerEnabled: () => false,
-    }),
-    false,
-  );
+test("准入：插件关 → 不建（缺省）", () => {
   assert.equal(shouldCreateDefaultCuaProductHelper({ ...ADMISSION_BASE }), false);
 });
 
-test("准入：插件已放行时不再读取开关（懒读取，不产生多余设置读）", () => {
-  let reads = 0;
+test("准入：插件已放行 + desktop-local → 建", () => {
   assert.equal(
-    shouldCreateDefaultCuaProductHelper({
-      ...ADMISSION_BASE,
-      hasBuiltInCuaPlugin: true,
-      isRemoteDesktopServerEnabled: () => {
-        reads += 1;
-        return false;
-      },
-    }),
+    shouldCreateDefaultCuaProductHelper({ ...ADMISSION_BASE, hasBuiltInCuaPlugin: true }),
     true,
   );
-  assert.equal(reads, 0);
 });
 
-test("准入：开关开但 authority 不满足（desktop-attached-remote / standalone-server）→ 不建", () => {
+test("准入：插件开但 authority 不满足（desktop-attached-remote / standalone-server）→ 不建", () => {
   assert.equal(
     shouldCreateDefaultCuaProductHelper({
       ...ADMISSION_BASE,
       serviceAuthorityMode: "desktop-attached-remote",
-      isRemoteDesktopServerEnabled: () => true,
+      hasBuiltInCuaPlugin: true,
     }),
     false,
   );
@@ -70,13 +44,13 @@ test("准入：开关开但 authority 不满足（desktop-attached-remote / stan
     shouldCreateDefaultCuaProductHelper({
       ...ADMISSION_BASE,
       serviceAuthorityMode: "standalone-server",
-      isRemoteDesktopServerEnabled: () => true,
+      hasBuiltInCuaPlugin: true,
     }),
     false,
   );
 });
 
-test("准入：开关开 + ssh/wsl/docker identity → 不建（identity 排除不因开关放宽）", () => {
+test("准入：插件开 + ssh/wsl/docker identity → 不建（identity 排除不因插件放宽）", () => {
   for (const identity of [
     "remote:ssh:host:22:alice:/tmp/ws",
     "remote:wsl:Ubuntu:/tmp/ws",
@@ -86,7 +60,7 @@ test("准入：开关开 + ssh/wsl/docker identity → 不建（identity 排除�
       shouldCreateDefaultCuaProductHelper({
         ...ADMISSION_BASE,
         hasRemoteWorkspaceIdentity: isCuaExcludedRemoteWorkspaceIdentity(identity),
-        isRemoteDesktopServerEnabled: () => true,
+        hasBuiltInCuaPlugin: true,
       }),
       false,
       identity,
@@ -94,7 +68,7 @@ test("准入：开关开 + ssh/wsl/docker identity → 不建（identity 排除�
   }
 });
 
-test("准入：desktop-local + lan identity 既有行为不回归（两条理由各自放行）", () => {
+test("准入：desktop-local + lan identity 既有行为不回归（插件放行即建）", () => {
   const hasRemoteWorkspaceIdentity = isCuaExcludedRemoteWorkspaceIdentity(
     "remote:lan:192.168.1.5:3030:/tmp/ws",
   );
@@ -107,41 +81,32 @@ test("准入：desktop-local + lan identity 既有行为不回归（两条理由
     }),
     true,
   );
-  assert.equal(
-    shouldCreateDefaultCuaProductHelper({
-      ...ADMISSION_BASE,
-      hasRemoteWorkspaceIdentity,
-      isRemoteDesktopServerEnabled: () => true,
-    }),
-    true,
-  );
 });
 
-test("准入：开关开但已注入 resolver → 不建（不重复创建）", () => {
+test("准入：插件开但已注入 resolver → 不建（不重复创建）", () => {
   assert.equal(
     shouldCreateDefaultCuaProductHelper({
       ...ADMISSION_BASE,
       hasInjectedResolver: true,
-      isRemoteDesktopServerEnabled: () => true,
+      hasBuiltInCuaPlugin: true,
     }),
     false,
   );
 });
 
-// ── 注入 socket 解析：live → 稳定 socket → 被控开关打开时触发创建（T3c 遗留 #1）──
+// ── 注入 socket 解析：live → 稳定 socket → 注入创建入口（T3c 遗留 #1）──
 // 创建入口按依赖注入替换（宿主装配层实际接的是 getOrCreateDefaultCuaProductHelper +
 // host.start，同一 admission 与生命周期）；此处只断言触发条件与失败收敛。
 
 const noLive = () => null;
 const noStable = async () => null;
 
-test("就绪保障：开关开 + 无 live/stable helper → 触发创建入口，并返回拉起的 socket", async () => {
+test("就绪保障：无 live/stable helper → 触发创建入口，并返回拉起的 socket", async () => {
   const createdSocketPath = mintBrokerSocketPath();
   let ensureCalls = 0;
   const resolver = createCuaRawInputSocketResolver({
     resolveLiveSocketPath: noLive,
     probeStableSocketPath: noStable,
-    isRemoteDesktopServerEnabled: () => true,
     ensureRemoteDesktopHelper: async () => {
       ensureCalls += 1;
       return createdSocketPath;
@@ -151,36 +116,18 @@ test("就绪保障：开关开 + 无 live/stable helper → 触发创建入口�
   assert.equal(ensureCalls, 1);
 });
 
-test("就绪保障：开关关 → 不触发创建入口（缺省读取点同样保持 probe-only）", async () => {
-  for (const isRemoteDesktopServerEnabled of [() => false, undefined]) {
-    let ensureCalls = 0;
-    let probeCalls = 0;
-    const resolver = createCuaRawInputSocketResolver({
-      resolveLiveSocketPath: noLive,
-      probeStableSocketPath: async () => {
-        probeCalls += 1;
-        return null;
-      },
-      isRemoteDesktopServerEnabled,
-      ensureRemoteDesktopHelper: async () => {
-        ensureCalls += 1;
-        return "\\\\.\\pipe\\mode-cua-created";
-      },
-    });
-    assert.equal(await resolver(), null);
-    assert.equal(ensureCalls, 0);
-    // 既有发现口径不变：开关关闭时仍做 probe（能力位/会话侧不受影响）。
-    assert.equal(probeCalls, 1);
-  }
-});
-
-test("就绪保障：宿主未注入创建入口 → 不触发、返回 null（T3b probe-only 语义不回归）", async () => {
+test("就绪保障：宿主未注入创建入口 → 不触发、返回 null（probe-only 语义不回归）", async () => {
+  let probeCalls = 0;
   const resolver = createCuaRawInputSocketResolver({
     resolveLiveSocketPath: noLive,
-    probeStableSocketPath: noStable,
-    isRemoteDesktopServerEnabled: () => true,
+    probeStableSocketPath: async () => {
+      probeCalls += 1;
+      return null;
+    },
   });
   assert.equal(await resolver(), null);
+  // 既有发现口径不变：无创建入口时仍做 probe（能力位/会话侧不受影响）。
+  assert.equal(probeCalls, 1);
 });
 
 test("就绪保障：live socket / 稳定 socket 命中时不触发创建入口（既有发现优先复用）", async () => {
@@ -201,7 +148,6 @@ test("就绪保障：live socket / 稳定 socket 命中时不触发创建入口�
     const resolver = createCuaRawInputSocketResolver({
       resolveLiveSocketPath: () => scenario.live,
       probeStableSocketPath: async () => scenario.stable,
-      isRemoteDesktopServerEnabled: () => true,
       ensureRemoteDesktopHelper: async () => {
         ensureCalls += 1;
         return "\\\\.\\pipe\\mode-cua-created";
@@ -216,7 +162,6 @@ test("就绪保障：创建失败 → 解析返回 null，注入端口报 helper
   const resolver = createCuaRawInputSocketResolver({
     resolveLiveSocketPath: noLive,
     probeStableSocketPath: noStable,
-    isRemoteDesktopServerEnabled: () => true,
     ensureRemoteDesktopHelper: async () => null,
   });
   assert.equal(await resolver(), null);
@@ -231,7 +176,6 @@ test("就绪保障：创建入口抛错 → 同样收敛为 helper_unavailable�
   const resolver = createCuaRawInputSocketResolver({
     resolveLiveSocketPath: noLive,
     probeStableSocketPath: noStable,
-    isRemoteDesktopServerEnabled: () => true,
     ensureRemoteDesktopHelper: async () => {
       throw new Error("windows cua runtime resolution failed");
     },
@@ -255,7 +199,6 @@ test("就绪保障：并发解析共享同一在途尝试 → 创建入口只被
   const resolver = createCuaRawInputSocketResolver({
     resolveLiveSocketPath: noLive,
     probeStableSocketPath: noStable,
-    isRemoteDesktopServerEnabled: () => true,
     ensureRemoteDesktopHelper: async () => {
       ensureCalls += 1;
       await gate;
@@ -278,7 +221,6 @@ test("就绪保障：失败退避窗口内不重复触发，窗口过后允许�
   const resolver = createCuaRawInputSocketResolver({
     resolveLiveSocketPath: noLive,
     probeStableSocketPath: noStable,
-    isRemoteDesktopServerEnabled: () => true,
     ensureRemoteDesktopHelper: async () => {
       ensureCalls += 1;
       return outcome;
@@ -317,7 +259,6 @@ test("就绪保障：拉起后的 socket 直接供既有 raw_input 通道使用�
     const resolver = createCuaRawInputSocketResolver({
       resolveLiveSocketPath: noLive,
       probeStableSocketPath: noStable,
-      isRemoteDesktopServerEnabled: () => true,
       ensureRemoteDesktopHelper: async () => socketPath,
     });
     const injector = createCuaRawInputInjector({ resolveSocketPath: resolver });

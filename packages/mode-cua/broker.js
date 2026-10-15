@@ -100,11 +100,6 @@ const BROKER_METHODS = new Set([
   "raw_input",
   "launch_app",
   "screen_probe",
-  // 远程桌面媒体面（lan-remote-desktop-native-media 契约 G）：起采集/换屏/收口管道，
-  // 写路径，故意不列入 READONLY_METHODS。
-  "rd_media_start",
-  "rd_media_switch",
-  "rd_media_stop",
 ]);
 const READONLY_METHODS = new Set([
   "health",

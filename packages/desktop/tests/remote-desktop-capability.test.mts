@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-test("远程桌面能力位：win32 && kill-switch 未触发 && 被控开关开", async () => {
+test("远程桌面共享位：win32 && kill-switch 未触发 && 提示性共享开关开", async () => {
   const fixture = fileURLToPath(
     new URL("./fixtures/remote-desktop-capability.ts", import.meta.url),
   );

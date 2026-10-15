@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-// 远程桌面设备页可用性判定（docs/specs/lan-remote-desktop.md 产品规则 1/5 与降级语义；
-// 原生媒体面版本门见 docs/specs/lan-remote-desktop-native-media.md）：
-// 能力位缺键 = 不支持、探测失败/离线一律置灰、只有「在线 + 两个能力位都为真」才可连接。
-// 纯函数单测；shared 的坐标/键盘纯函数不在此重复覆盖（packages/shared/test 已测）。
+// 远程桌面设备页可用性判定（docs/specs/remote-desktop-system-rdp.md 产品规则 7/8 与失败语义表）：
+// 判据优先级 = 探测中/探测失败 → 离线 → 未共享（提示性共享位 false）→ 家庭版 → 未开启系统 RDP → 可连接；
+// systemRdp 缺键 = 状态未知（不置灰，失败交给 mstsc 自身）；
+// 共享位参与置灰 = 尊重对端机主的共享意愿（否则被控端开关在 UI 上等于不存在）。
+// 纯函数单测。
 const {
   resolveRemoteDesktopDeviceAvailability,
   resolveRemoteDesktopDeviceLabel,
@@ -30,44 +31,79 @@ test("探测失败按置灰处理（能力位不猜测）", () => {
   });
 });
 
-test("对端离线：即使能力位为真也不可连接", () => {
-  assert.deepEqual(
-    resolveRemoteDesktopDeviceAvailability({
-      status: "ok",
-      capability: { remoteDesktop: true, remoteDesktopNative: true, online: false },
-    }),
-    { canConnect: false, reason: "offline" },
-  );
-});
-
-test("旧对端缺键（能力位 false）显示不支持", () => {
-  assert.deepEqual(
-    resolveRemoteDesktopDeviceAvailability({
-      status: "ok",
-      capability: { remoteDesktop: false, remoteDesktopNative: false, online: true },
-    }),
-    { canConnect: false, reason: "unsupported" },
-  );
-});
-
-test("对端有 remoteDesktop 但缺 remoteDesktopNative（旧版本）→ 不支持", () => {
-  assert.deepEqual(
-    resolveRemoteDesktopDeviceAvailability({
-      status: "ok",
-      capability: { remoteDesktop: true, remoteDesktopNative: false, online: true },
-    }),
-    { canConnect: false, reason: "unsupported" },
-  );
-});
-
-test("在线且能力位为真才可连接", () => {
+test("对端离线：即使系统 RDP 就绪也不可连接", () => {
   assert.deepEqual(
     resolveRemoteDesktopDeviceAvailability({
       status: "ok",
       capability: {
         remoteDesktop: true,
-        remoteDesktopNative: true,
+        online: false,
+        systemRdp: { enabled: true, editionOk: true },
+      },
+    }),
+    { canConnect: false, reason: "offline" },
+  );
+});
+
+test("对端为家庭版：置灰并优先于「未开启」", () => {
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: {
+        remoteDesktop: true,
         online: true,
+        systemRdp: { enabled: true, editionOk: false },
+      },
+    }),
+    { canConnect: false, reason: "system-rdp-home" },
+  );
+  // 家庭版且未开启：根因是家庭版（用户想开也开不了），故 home 优先。
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: {
+        remoteDesktop: true,
+        online: true,
+        systemRdp: { enabled: false, editionOk: false },
+      },
+    }),
+    { canConnect: false, reason: "system-rdp-home" },
+  );
+});
+
+test("对端未开启系统远程桌面：置灰", () => {
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: {
+        remoteDesktop: true,
+        online: true,
+        systemRdp: { enabled: false, editionOk: true },
+      },
+    }),
+    { canConnect: false, reason: "system-rdp-disabled" },
+  );
+});
+
+// spec 失败语义表：「systemRdp 缺键（旧对端）→ 不置灰，按状态未知呈现」。
+test("systemRdp 缺键 = 状态未知，不置灰（仍允许发起）", () => {
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: { remoteDesktop: true, online: true },
+    }),
+    { canConnect: true, reason: null },
+  );
+});
+
+test("在线且系统 RDP 就绪才可连接", () => {
+  assert.deepEqual(
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: {
+        remoteDesktop: true,
+        online: true,
+        systemRdp: { enabled: true, editionOk: true },
         name: "DESKTOP-1",
       },
     }),
@@ -75,22 +111,30 @@ test("在线且能力位为真才可连接", () => {
   );
 });
 
-// 产品规则 9（被控中不可发起）：本机被控状态优先于一切对端探测结果。
-test("本机被控中：即使对端就绪也整卡置灰", () => {
+// 提示性共享位：它是**对端机主的共享意愿声明**，参与置灰；否则被控端开关在 UI 上等于不存在。
+test("对端未共享为可远控设备：置灰（先于系统能力检查）", () => {
   assert.deepEqual(
-    resolveRemoteDesktopDeviceAvailability(
-      {
-        status: "ok",
-        capability: { remoteDesktop: true, remoteDesktopNative: true, online: true },
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: {
+        remoteDesktop: false,
+        online: true,
+        systemRdp: { enabled: true, editionOk: true },
       },
-      { locallyControlled: true },
-    ),
-    { canConnect: false, reason: "locally-controlled" },
+    }),
+    { canConnect: false, reason: "not-shared" },
   );
-  // 对端还在探测时，被控原因也优先展示（更可操作）。
+  // 未共享且家庭版：先暴露「未共享」（对端的意愿），开启后再自然暴露家庭版根因。
   assert.deepEqual(
-    resolveRemoteDesktopDeviceAvailability({ status: "probing" }, { locallyControlled: true }),
-    { canConnect: false, reason: "locally-controlled" },
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: {
+        remoteDesktop: false,
+        online: true,
+        systemRdp: { enabled: false, editionOk: false },
+      },
+    }),
+    { canConnect: false, reason: "not-shared" },
   );
 });
 
@@ -100,7 +144,7 @@ test("设备展示名优先自报名，其次回退 serverId", () => {
   assert.equal(resolveRemoteDesktopDeviceLabel({ serverId: "srv-1" }), "srv-1");
 });
 
-// UI 规则「设备页」：检测列表只列未配对设备；全部被过滤时 hiddenCount 供空态提示。
+// 检测列表只列未配对设备；全部被过滤时 hiddenCount 供空态提示。
 test("检测列表过滤已配对设备：保留未配对、统计隐藏数", () => {
   const peers = [
     { serverId: "srv-a", host: "192.168.1.2", port: 45880 },
@@ -111,22 +155,18 @@ test("检测列表过滤已配对设备：保留未配对、统计隐藏数", ()
     visible: [peers[1], peers[2]],
     hiddenCount: 1,
   });
-  // 无配对：原样返回，hiddenCount=0。
   assert.deepEqual(filterUnpairedDiscoveredPeers(peers, []), { visible: peers, hiddenCount: 0 });
-  // 全部已配对：visible 空、hiddenCount = 总数（调用方给「均已配对」提示）。
   assert.deepEqual(filterUnpairedDiscoveredPeers(peers, ["srv-a", "srv-b", "srv-c"]), {
     visible: [],
     hiddenCount: 3,
   });
-  // 配对列表含未出现的 serverId：不影响结果。
   assert.deepEqual(filterUnpairedDiscoveredPeers(peers, ["srv-x"]), {
     visible: peers,
     hiddenCount: 0,
   });
 });
 
-// UI 规则「设备页」2026-10-14 改版：状态胶囊与「进入桌面」预览块同源（都投影自同一份探测结果），
-// 胶囊只表达状态，可操作性由预览块表达。色调是展示层映射，这里只锁语义与 i18n key。
+// 状态胶囊与连接入口同源（都投影自同一份探测结果）：胶囊只表达状态。
 test("状态胶囊：探测中 / 状态未知用弱化档（不冒充离线）", () => {
   assert.deepEqual(resolveRemoteDesktopDeviceStatusPill(undefined), {
     labelId: "remoteDesktop.device.status.probing",
@@ -142,62 +182,91 @@ test("状态胶囊：探测中 / 状态未知用弱化档（不冒充离线）",
   });
 });
 
-test("状态胶囊：离线 / 不支持用提醒档", () => {
+test("状态胶囊：离线 / 家庭版 / 未开启用提醒档", () => {
   assert.deepEqual(
     resolveRemoteDesktopDeviceStatusPill({
       status: "ok",
-      capability: { remoteDesktop: true, remoteDesktopNative: true, online: false },
+      capability: { remoteDesktop: true, online: false },
     }),
     { labelId: "remoteDesktop.device.status.offline", tone: "attention" },
   );
   assert.deepEqual(
     resolveRemoteDesktopDeviceStatusPill({
       status: "ok",
-      capability: { remoteDesktop: false, remoteDesktopNative: false, online: true },
+      capability: { remoteDesktop: true, online: true, systemRdp: { enabled: true, editionOk: false } },
     }),
-    { labelId: "remoteDesktop.device.status.unsupported", tone: "attention" },
+    { labelId: "remoteDesktop.device.status.homeEdition", tone: "attention" },
   );
-  // 有 remoteDesktop 但缺 native（旧版本）走同一档同一文案。
   assert.deepEqual(
     resolveRemoteDesktopDeviceStatusPill({
       status: "ok",
-      capability: { remoteDesktop: true, remoteDesktopNative: false, online: true },
+      capability: { remoteDesktop: true, online: true, systemRdp: { enabled: false, editionOk: true } },
     }),
-    { labelId: "remoteDesktop.device.status.unsupported", tone: "attention" },
+    { labelId: "remoteDesktop.device.status.rdpDisabled", tone: "attention" },
   );
 });
 
-test("状态胶囊：仅「在线 + 两个能力位都为真」用就绪档", () => {
-  assert.deepEqual(
-    resolveRemoteDesktopDeviceStatusPill({
-      status: "ok",
-      capability: { remoteDesktop: true, remoteDesktopNative: true, online: true },
-    }),
-    { labelId: "remoteDesktop.device.status.ready", tone: "ready" },
-  );
-});
-
-// 胶囊（状态）与预览块（可操作性）必须同源：任一探测结果下，就绪档 ⇔ canConnect。
-test("状态胶囊就绪档与可连接判定同源", () => {
+test("状态胶囊：就绪档与可连接判定同源", () => {
   const probes = [
     undefined,
     { status: "probing" },
     { status: "probe-failed" },
-    { status: "ok", capability: { remoteDesktop: true, remoteDesktopNative: true, online: false } },
     {
       status: "ok",
-      capability: { remoteDesktop: false, remoteDesktopNative: false, online: true },
+      capability: { remoteDesktop: true, online: false, systemRdp: { enabled: true, editionOk: true } },
     },
-    { status: "ok", capability: { remoteDesktop: true, remoteDesktopNative: false, online: true } },
-    { status: "ok", capability: { remoteDesktop: true, remoteDesktopNative: true, online: true } },
+    {
+      status: "ok",
+      capability: { remoteDesktop: true, online: true, systemRdp: { enabled: true, editionOk: false } },
+    },
+    {
+      status: "ok",
+      capability: { remoteDesktop: true, online: true, systemRdp: { enabled: false, editionOk: true } },
+    },
+    {
+      status: "ok",
+      capability: { remoteDesktop: false, online: true, systemRdp: { enabled: true, editionOk: true } },
+    },
+    { status: "ok", capability: { remoteDesktop: true, online: true } },
   ];
   for (const probe of probes) {
     const ready = resolveRemoteDesktopDeviceStatusPill(probe).tone === "ready";
     const { canConnect, reason } = resolveRemoteDesktopDeviceAvailability(probe);
     assert.equal(ready, canConnect, `探测状态 ${JSON.stringify(probe)} 的胶囊与入口不一致`);
-    // 入口置灰（非本机被控）时，预览块一定拿得到原因文案 key。
     if (!canConnect) {
       assert.notEqual(reason, null);
     }
   }
+});
+
+// 置灰时必定有原因文案 key（设备卡直接用它取 i18n）。
+test("置灰原因都能映射到稳定文案 key", () => {
+  const reasons = [
+    resolveRemoteDesktopDeviceAvailability(undefined).reason,
+    resolveRemoteDesktopDeviceAvailability({ status: "probe-failed" }).reason,
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: { remoteDesktop: true, online: false },
+    }).reason,
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: { remoteDesktop: false, online: true },
+    }).reason,
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: { remoteDesktop: true, online: true, systemRdp: { enabled: true, editionOk: false } },
+    }).reason,
+    resolveRemoteDesktopDeviceAvailability({
+      status: "ok",
+      capability: { remoteDesktop: true, online: true, systemRdp: { enabled: false, editionOk: true } },
+    }).reason,
+  ];
+  assert.deepEqual(reasons, [
+    "probing",
+    "probe-failed",
+    "offline",
+    "not-shared",
+    "system-rdp-home",
+    "system-rdp-disabled",
+  ]);
 });

@@ -1,11 +1,11 @@
 // 远程桌面（LAN）被控端输入注入端口：经既有 CUA Helper 通道调用 broker 方法 raw_input
-// （docs/specs/lan-remote-desktop.md「接口变更」第 4 条 / 状态所有者表「输入注入 = 既有 CUA Helper」）。
+// （docs/specs/lan-remote-computer-use.md：输入注入 = 既有 CUA Helper）。
 //
 // 本层刻意最薄，边界如下（勿在此扩张语义）：
 // - 只做一次调用：不重试（实时链路，失败语义由被控 main 桥决定，不靠超时掩盖）；
 // - 不做前台/权限校验与 CUA 动作语义（Rust raw_input 已定：无 UIA 预检、无 ensure_foreground）；
 // - 不持有 Helper 生命周期：socket 由解析点提供，宿主装配侧（node.ts）复用既有「托管 host 的
-//   live socket → 稳定 socket 探测」发现口径；解析不到且被控开关打开时，经**注入的创建入口**
+//   live socket → 稳定 socket 探测」发现口径；解析不到且宿主注入了创建入口时，经**注入的创建入口**
 //   触发一次拉起（与 CUA demand 同一入口与生命周期，见 createCuaRawInputSocketResolver）。
 import {
   BrokerError,
@@ -115,8 +115,6 @@ export interface CreateCuaRawInputSocketResolverOptions {
   resolveLiveSocketPath?: () => string | null | undefined;
   /** 稳定 socket 探测（probe-only，不拉起）；缺省 resolveBrokerSocketPath() 的 env 发现口径。 */
   probeStableSocketPath?: () => Promise<string | null>;
-  /** 被控总开关读取点；缺省 = 关闭（与 shouldCreateDefaultCuaProductHelper 同缺省）。 */
-  isRemoteDesktopServerEnabled?: () => boolean;
   /**
    * 创建入口（宿主装配层注入）：与 CUA demand 同一 admission 与生命周期，返回可用 socket 或
    * null（不可达/拉起失败）。缺省 = 不触发创建（保持 probe-only 语义）。
@@ -130,11 +128,11 @@ export interface CreateCuaRawInputSocketResolverOptions {
 }
 
 /**
- * 注入 socket 解析策略（唯一所有者）：live peek → 稳定 socket 探测 → 被控开关打开时触发创建。
+ * 注入 socket 解析策略（唯一所有者）：live peek → 稳定 socket 探测 → 宿主注入了创建入口时触发创建。
  *
- * 纪律（docs/specs/lan-remote-desktop.md）：
- * - 前两支只发现、不拉起：既有 helper 一律优先复用，开关关闭时不产生任何 helper 副作用；
- * - 触发创建只在被控开关打开时发生，且创建过程完全归注入的创建入口（同一 admission、同一
+ * 纪律：
+ * - 前两支只发现、不拉起：既有 helper 一律优先复用；
+ * - 触发创建只发生在宿主注入了创建入口时，且创建过程完全归注入的创建入口（同一 admission、同一
  *   生命周期、同一冷启动/健康/超时与代际语义）；本层不 fork、不写 helper 状态；
  * - 并发帧共享同一在途尝试（不产生并发拉起）；失败后在退避窗口内直接返回 null，
  *   失败语义仍是「解析不到」→ 注入端口抛 helper_unavailable（不落本地兜底、不重试掩盖）。
@@ -145,7 +143,6 @@ export function createCuaRawInputSocketResolver(
   const resolveLiveSocketPath = options.resolveLiveSocketPath ?? ((): null => null);
   const probeStableSocketPath =
     options.probeStableSocketPath ?? (async () => resolveBrokerSocketPath());
-  const isRemoteDesktopServerEnabled = options.isRemoteDesktopServerEnabled ?? (() => false);
   const ensureRemoteDesktopHelper = options.ensureRemoteDesktopHelper;
   const ensureFailureBackoffMs = options.ensureFailureBackoffMs ?? 0;
   let ensureInFlight: Promise<string | null> | undefined;
@@ -178,8 +175,8 @@ export function createCuaRawInputSocketResolver(
     if (live) return live;
     const stable = await probeStableSocketPath();
     if (stable) return stable;
-    // 开关关闭（或宿主未接线）时不做任何创建尝试：被控需求不存在，创建归 CUA 自身 demand 路径。
-    if (!ensureRemoteDesktopHelper || !isRemoteDesktopServerEnabled()) return null;
+    // 宿主未接线创建入口时不做任何创建尝试：保持 probe-only，创建归 CUA 自身 demand 路径。
+    if (!ensureRemoteDesktopHelper) return null;
     return await ensureHelperOnce(ensureRemoteDesktopHelper);
   };
 }

@@ -1,5 +1,4 @@
 import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@mode/shared";
-import type { RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
 
@@ -43,21 +42,15 @@ export function createDesktopPlatform(options: {
     getLanPeerWorkspaces: (serverId) => window.mode.getLanPeerWorkspaces(serverId),
     removeLanPairedPeer: (serverId) => window.mode.removeLanPairedPeer(serverId),
     renameLanPairedPeer: (serverId, name) => window.mode.renameLanPairedPeer(serverId, name),
-    // 局域网远程桌面（main 的 rd/* IPC；通道名与形状冻结在 main/remoteDesktop/ipcChannels.ts）。
+    // 远程桌面（系统 RDP）：main 的 rd/* IPC；通道名与形状真源见 main/remoteDesktop/ipcChannels.ts。
     rdGetPeerCapability: (serverId) => window.mode.rdGetPeerCapability(serverId),
-    rdStartSession: (serverId, quality, codec) =>
-      window.mode.rdStartSession(serverId, quality, codec),
-    rdGetControlledState: () => window.mode.rdGetControlledState(),
-    // 信令是高频小包，直接透传给 main；失败只记日志不抛出，避免打断媒体面。
-    rdSendSignal: (message: RemoteDesktopSignalMessage) => {
-      void window.mode.rdSendSignal(message).catch(() => undefined);
-    },
-    rdEndSession: (reason) => window.mode.rdEndSession(reason),
+    rdConnect: (request) => window.mode.rdConnect(request),
+    rdGetSessions: () => window.mode.rdGetSessions(),
+    rdDisconnect: (sessionId) => window.mode.rdDisconnect(sessionId),
+    rdGetRdpOptions: (serverId) => window.mode.rdGetRdpOptions(serverId),
+    rdSetRdpOptions: (serverId, options) => window.mode.rdSetRdpOptions(serverId, options),
     rdGetServerState: () => window.mode.rdGetServerState(),
     rdSetServerEnabled: (enabled) => window.mode.rdSetServerEnabled(enabled),
-    rdRevokeClient: (clientId) => window.mode.rdRevokeClient(clientId),
-    rdAuthorizeClient: (clientId) => window.mode.rdAuthorizeClient(clientId),
-    onRemoteDesktopSessionEvent: (handler) => window.mode.onRemoteDesktopSessionEvent(handler),
     loadMcpFromUserDirectory: (payload) => window.mode.loadMcpFromUserDirectory(payload),
     saveMcpToUserDirectory: (payload) => window.mode.saveMcpToUserDirectory(payload),
     migrateLegacyCommonMcp: (payload) => window.mode.migrateLegacyCommonMcp(payload),

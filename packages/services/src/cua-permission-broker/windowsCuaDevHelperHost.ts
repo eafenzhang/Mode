@@ -325,7 +325,7 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
           ELECTRON_RUN_AS_NODE: "1",
         },
         // silent：stderr/stdout 走管道由 relayHelperChildStdio 按行中继进主日志
-        //（`[rd_media]` 运行告警必须落盘，spec: lan-remote-desktop-native-media 失败语义）；
+        //（panic 行落 error、其余落 debug）；
         // stdout 同时被排空，避免不读管道写满阻塞子进程。
         silent: true,
       });

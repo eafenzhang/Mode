@@ -344,48 +344,34 @@ declare global {
       /** 同步标题栏亮暗色 */
       setTitleBarTheme(theme: DesktopTitleBarTheme): Promise<void>;
 
-      // ---- 局域网远程桌面（main 的 `rd/*` IPC 面；命名与形状冻结在 ipcChannels.ts）----
+      // ---- 远程桌面（系统 RDP；main 的 `rd/*` IPC 面，命名与形状见 ipcChannels.ts）----
       /** 探测已配对对端的能力位与在线状态（经 host 用已存令牌拉 server-info） */
       rdGetPeerCapability(
         serverId: string,
       ): ReturnType<import("@mode/shared").IPlatformService["rdGetPeerCapability"]>;
-      /** 发起远程桌面会话（被控同意 + 票据 + 信令 WS 由 main 完成）；quality = 画质档位（P1-3） */
-      rdStartSession(
+      /** 发起连接：main 生成临时 `.rdp` 并启动系统 mstsc */
+      rdConnect(
+        request: Parameters<import("@mode/shared").IPlatformService["rdConnect"]>[0],
+      ): ReturnType<import("@mode/shared").IPlatformService["rdConnect"]>;
+      /** 列出本应用启动且仍在运行的 RDP 会话 */
+      rdGetSessions(): ReturnType<import("@mode/shared").IPlatformService["rdGetSessions"]>;
+      /** 断开某条会话（终止对应 mstsc 进程） */
+      rdDisconnect(sessionId: string): Promise<{ ok: boolean }>;
+      /** 读某设备的 RDP 连接选项 */
+      rdGetRdpOptions(
         serverId: string,
-        quality?: import("@mode/shared/remote-desktop").RemoteDesktopQuality,
-      ): ReturnType<import("@mode/shared").IPlatformService["rdStartSession"]>;
-      /** 读取本机被控状态（设备页置灰用） */
-      rdGetControlledState(): ReturnType<
-        import("@mode/shared").IPlatformService["rdGetControlledState"]
-      >;
-      /** 写出信令消息（main 校验后转发） */
-      rdSendSignal(
-        message: import("@mode/shared/remote-desktop").RemoteDesktopSignalMessage,
-      ): Promise<void>;
-      /** 结束当前主控会话 */
-      rdEndSession(reason?: "user-end" | "error"): Promise<void>;
-      /** 读取被控设置面状态（总开关 + 已授权设备） */
+      ): ReturnType<import("@mode/shared").IPlatformService["rdGetRdpOptions"]>;
+      /** 写某设备的 RDP 连接选项 */
+      rdSetRdpOptions(
+        serverId: string,
+        options: Parameters<import("@mode/shared").IPlatformService["rdSetRdpOptions"]>[1],
+      ): ReturnType<import("@mode/shared").IPlatformService["rdSetRdpOptions"]>;
+      /** 读取被控设置面状态（提示性共享开关 + 系统 RDP 状态） */
       rdGetServerState(): ReturnType<import("@mode/shared").IPlatformService["rdGetServerState"]>;
-      /** 写被控总开关 */
+      /** 写提示性共享开关（不影响系统远程桌面） */
       rdSetServerEnabled(
         enabled: boolean,
       ): ReturnType<import("@mode/shared").IPlatformService["rdSetServerEnabled"]>;
-      /** 撤销某个已授权设备 */
-      rdRevokeClient(
-        clientId: string,
-      ): ReturnType<import("@mode/shared").IPlatformService["rdRevokeClient"]>;
-      /** 授权某个已配对设备（设置页开关） */
-      rdAuthorizeClient(
-        clientId: string,
-      ): ReturnType<import("@mode/shared").IPlatformService["rdAuthorizeClient"]>;
-      /** 订阅主控会话事件（连接状态 / 对端信令），返回 disposer */
-      onRemoteDesktopSessionEvent(
-        callback: (
-          event: Parameters<
-            Parameters<import("@mode/shared").IPlatformService["onRemoteDesktopSessionEvent"]>[0]
-          >[0],
-        ) => void,
-      ): () => void;
     };
   }
 }

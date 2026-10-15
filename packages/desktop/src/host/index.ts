@@ -47,8 +47,6 @@ import {
 import {
   createLocalServices,
   getOffPeakRequestAuthBuilder,
-  getCuaRawInputInjector,
-  getCuaRdMediaController,
   disposeServiceResources,
   disposeServiceResourcesAndWait,
   AutomationRepo,
@@ -71,24 +69,19 @@ import {
   startLanAccessServer,
   type LanAccessServerHandle,
 } from "./lanAccessServer.js";
-import {
-  createRemoteDesktopHostServer,
-  parseRemoteDesktopMessageToHost,
-  type RemoteDesktopHostServer,
-} from "./remoteDesktopServer.js";
-import { openRemoteDesktopPeerSession, probeRemoteDesktopPeer } from "./remoteDesktopPeerClient.js";
+import { parseRemoteDesktopMessageToHost } from "./remoteDesktopMessages.js";
 import { RemoteDesktopHostMessageTypes } from "./remoteDesktopMessages.js";
 import type {
   RemoteDesktopMessageFromHost,
   RemoteDesktopMessageToHost,
-  RemoteDesktopRawInputEvent,
 } from "./remoteDesktopMessages.js";
-import type { WebSocket } from "ws";
-import type {
-  RemoteDesktopCodec,
-  RemoteDesktopErrorCode,
-  RemoteDesktopQuality,
-} from "@mode/shared/remote-desktop";
+import { probeRemoteDesktopPeer } from "./remoteDesktopPeerProbe.js";
+import {
+  createHostSystemRdpProbe,
+  readRemoteDesktopSharing,
+  writeRemoteDesktopSharing,
+} from "./remoteDesktopSharing.js";
+import type { SystemRdpProbe } from "./systemRdpState.js";
 import {
   createLanPromptAttachmentTransferService,
   materializeLanPromptAttachments,
@@ -2018,220 +2011,113 @@ async function retireAstrBotBridge(services: ServiceCollection): Promise<void> {
   await credentials?.delete(BOTS_BRIDGE_TOKEN_KEY).catch(() => undefined);
 }
 let activeLanAccess: LanAccessServerHandle | null = null;
+
 /**
- * 远程桌面被控服务器（每 host 进程一个）。设置读写面不需要 lanAccessServer 在跑，
- * 因此它的生命周期独立于 activeLanAccess；只有它把 `getActiveLanAccessServer` 当写者用。
+ * 被控端远程桌面只剩两件事：**提示性共享开关**（决定本机是否出现在对端设备页）与
+ * **系统 RDP 状态探测**（注册表现读）。
+ *
+ * 应用不再是会话端点——连接由主控本地生成 `.rdp` 并启动 mstsc，被控端应用完全不参与，
+ * 因此这里没有会话服务器、没有同意窗、没有采集、没有注入
+ * （docs/specs/remote-desktop-system-rdp.md 架构节）。
  */
-let activeRemoteDesktop: RemoteDesktopHostServer | null = null;
 /** host → main 的 RD 消息出口。 */
 function postRemoteDesktopToMain(message: RemoteDesktopMessageFromHost): void {
   parentPort?.postMessage(message);
 }
 
-/** 幂等创建：设置页/同意流/注入都需要它，凭据服务缺失时 fail-closed（返回 null）。 */
-async function ensureRemoteDesktopHostServer(
-  services: ServiceCollection,
-): Promise<RemoteDesktopHostServer | null> {
-  if (activeRemoteDesktop) {
-    return activeRemoteDesktop;
-  }
-  const credentials = services.getOptional(ICredentialService);
-  if (!credentials) {
-    logger.warn("remote desktop unavailable: credential service missing");
-    return null;
-  }
-  // T3b 交付的 services 注入端口（签名一致：events → {dispatched}，socket 来源复用既有 helper
-  // 通道，不新起 helper）。取不到时（旧 services / 测试装配）remoteDesktopServer 退回 broker 直连兜底。
-  const cuaRawInputInjector = getCuaRawInputInjector(services);
-  // Task 8 注入的 rd_media 媒体面端口（同侧表口径，经同一 helper socket 解析链）：
-  // 取不到时 Media* 分支静默跳过；注入后失败只 warn、不断会话（P2 语义）。
-  const cuaRdMediaController = getCuaRdMediaController(services);
-  const server = createRemoteDesktopHostServer({
-    credentials,
-    logger,
-    postToMain: postRemoteDesktopToMain,
-    getActiveLanAccessServer: () => activeLanAccess,
-    ...(cuaRawInputInjector
-      ? {
-          injectRawInput: (events: RemoteDesktopRawInputEvent[]) => cuaRawInputInjector(events),
-        }
-      : {}),
-    ...(cuaRdMediaController ? { callRdMedia: cuaRdMediaController } : {}),
-    // 编码能力缓存持久化（冷启动显示能力提示；真实会话观测覆盖，不按 GPU 指纹分卡）。
-    encoderCapabilityPath: join(getAppConfigDir(), "rd-encoder-capability.json"),
-  });
-  await server.loadServerState();
-  activeRemoteDesktop = server;
-  return activeRemoteDesktop;
+/**
+ * 共享开关的内存镜像：能力位取值是**同步**的（server-info 握手路径不做 IO），
+ * 故冷读一次后由写路径维护；未就绪时按关（fail-closed）。
+ */
+let remoteDesktopSharingEnabled = false;
+/** 系统 RDP 探测（仅 win32 创建；带 TTL 缓存，见 systemRdpState.ts）。 */
+let systemRdpProbe: SystemRdpProbe | null = null;
+
+function resolveSystemRdpProbe(): SystemRdpProbe | null {
+  systemRdpProbe ??= createHostSystemRdpProbe(process.platform, (message) => logger.warn(message));
+  return systemRdpProbe;
 }
 
-/** lanAccessServer 的 RD hooks：未初始化时保持 T2 的 fail-closed 缺省语义。 */
-function resolveRemoteDesktopHooks(): {
-  requestSession: (
-    clientId: string,
-    quality?: RemoteDesktopQuality,
-    codec?: RemoteDesktopCodec,
-  ) => Promise<{ ok: true } | { error: RemoteDesktopErrorCode }>;
-  onSessionSocket: (
-    clientId: string,
-    socket: WebSocket,
-    session?: { reissueMediaTicket?: () => { mediaTicket: string; expiresAt: number } },
-  ) => void;
-  onMediaSocket: (clientId: string, socket: WebSocket) => void;
-} {
-  return {
-    requestSession: async (
-      clientId: string,
-      quality?: RemoteDesktopQuality,
-      codec?: RemoteDesktopCodec,
-    ) =>
-      activeRemoteDesktop?.hooks.requestSession(clientId, quality, codec) ?? {
-        error: "disabled" as const,
-      },
-    onSessionSocket: (clientId: string, socket: WebSocket, session) => {
-      if (activeRemoteDesktop) {
-        activeRemoteDesktop.hooks.onSessionSocket(clientId, socket, session);
-        return;
-      }
-      try {
-        socket.close(4001, "remote desktop not wired");
-      } catch {
-        // 幂等失败忽略。
-      }
-    },
-    // 媒体 WS 与信令同构：RD server 未初始化时 fail-closed 关闭，不留无归属连接。
-    onMediaSocket: (clientId: string, socket: WebSocket) => {
-      if (activeRemoteDesktop) {
-        activeRemoteDesktop.hooks.onMediaSocket(clientId, socket);
-        return;
-      }
-      try {
-        socket.close(4001, "remote desktop media not wired");
-      } catch {
-        // 幂等失败忽略。
-      }
-    },
-  };
+/** 同步读共享开关（lanAccessServer 的能力位与 services 准入读它）。 */
+function isRemoteDesktopSharingEnabled(): boolean {
+  return remoteDesktopSharingEnabled;
+}
+
+/** 冷读共享开关（host 启动与 LAN 懒初始化各一次）。凭据服务缺失或读失败都按关。 */
+async function loadRemoteDesktopSharing(services: ServiceCollection): Promise<void> {
+  const credentials = services.getOptional(ICredentialService);
+  if (!credentials) {
+    return;
+  }
+  try {
+    remoteDesktopSharingEnabled = await readRemoteDesktopSharing(credentials);
+  } catch (error) {
+    logger.warn("read remote desktop sharing failed", error);
+  }
 }
 
 /**
- * RD 消息分派：peer 操作只需要凭据服务，设置/会话/注入需要 RD server。
- * server 未就绪时懒初始化一次（与 ensureLanAccessStarted 里的初始化幂等）。
+ * RD 消息分派：两类消息各自需要凭据服务（对端探测用对端令牌；设置面读被控共享开关与系统状态）。
+ * 事件循环里没有会话、没有同意窗，故不需要任何服务器实例，也不会悬挂。
  */
 async function handleRemoteDesktopMessage(message: RemoteDesktopMessageToHost): Promise<void> {
   const services = activeServices;
-  if (
-    message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe ||
-    message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen
-  ) {
-    if (!services) {
-      // probe 与 session-open 各自回对应 kind：main 的 hostBridge 按 pending.kind 匹配回收，
-      // 回错 kind 会让 probe 悬挂到 10s 超时、设备页误判「对端离线或不可达」。
-      postRemoteDesktopToMain(
-        message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe
-          ? {
-              type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,
-              requestId: message.requestId,
-              online: false,
-              remoteDesktop: false,
-              // 版本门 fail-closed：未就绪时不能声称支持原生媒体面（缺省 = 旧对端语义）。
-              remoteDesktopNative: false,
-            }
-          : {
-              type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
-              requestId: message.requestId,
-              ok: false,
-              error: "host services 未就绪",
-            },
-      );
-      return;
-    }
-    await handleRemoteDesktopPeerMessage(message, services);
-    return;
-  }
-  const server =
-    activeRemoteDesktop ??
-    (services ? await ensureRemoteDesktopHostServer(services).catch(() => null) : null);
-  if (!server) {
-    logger.warn(`remote desktop message dropped: host server unavailable (${message.type})`);
-    return;
-  }
-  server.handleMessage(message);
-}
+  const credentials = services?.getOptional(ICredentialService) ?? null;
 
-/** 主控方向：探对端能力位 / 请求对端受控会话（令牌不出 host，见 remoteDesktopPeerClient.ts）。 */
-async function handleRemoteDesktopPeerMessage(
-  msg: {
-    requestId: string;
-    type: "remote-desktop-peer-probe" | "remote-desktop-peer-session-open";
-    serverId: string;
-    /** 画质档位（P1-3，仅 session-open 携带；schema 已校验枚举，缺省 = 旧主控）。 */
-    quality?: RemoteDesktopQuality;
-    /** 编码 codec 偏好（HEVC 选型 2026-10-13，仅 session-open 携带；缺省 = 旧主控 h264）。 */
-    codec?: RemoteDesktopCodec;
-  },
-  services: ServiceCollection,
-): Promise<void> {
-  const credentials = services.getOptional(ICredentialService);
+  // 主控方向：探对端能力位（令牌不出 host，见 remoteDesktopPeerProbe.ts）。
+  if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe) {
+    const info = credentials
+      ? await probeRemoteDesktopPeer(credentials, message.serverId).catch((error: unknown) => {
+          logger.warn("remote desktop peer probe failed", error);
+          return null;
+        })
+      : null;
+    postRemoteDesktopToMain({
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,
+      requestId: message.requestId,
+      online: info?.online ?? false,
+      remoteDesktop: info?.remoteDesktop ?? false,
+      ...(info?.systemRdp ? { systemRdp: info.systemRdp } : {}),
+      ...(info?.name ? { name: info.name } : {}),
+    });
+    return;
+  }
+
+  // 被控设置面：共享开关读写 + 系统 RDP 状态现探测。
+  if (!credentials) {
+    postRemoteDesktopToMain({
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopServerStateResult,
+      requestId: message.requestId,
+      ok: false,
+      error: "凭据服务不可用",
+    });
+    return;
+  }
   try {
-    if (!credentials) {
-      throw new Error("凭据服务不可用");
+    if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopSetServerEnabled) {
+      await writeRemoteDesktopSharing(credentials, message.enabled);
     }
-    if (msg.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe) {
-      const info = await probeRemoteDesktopPeer(credentials, msg.serverId);
-      postRemoteDesktopToMain({
-        type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,
-        requestId: msg.requestId,
-        online: info.online,
-        remoteDesktop: info.remoteDesktop,
-        remoteDesktopNative: info.remoteDesktopNative,
-        ...(info.name ? { name: info.name } : {}),
-      });
-      return;
-    }
-    const result = await openRemoteDesktopPeerSession(
-      credentials,
-      msg.serverId,
-      msg.quality,
-      msg.codec,
-    );
-    postRemoteDesktopToMain(
-      result.ok
-        ? {
-            type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
-            requestId: msg.requestId,
-            ok: true,
-            wsUrl: result.wsUrl,
-            // 契约 E：mediaUrl 随开流结果过桥到 main，再经 rdStartSession 直达 renderer。
-            mediaUrl: result.mediaUrl,
-          }
-        : {
-            type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
-            requestId: msg.requestId,
-            ok: false,
-            ...(result.errorCode ? { errorCode: result.errorCode } : {}),
-            error: result.error,
-          },
-    );
+    // 读与「写后回读」走同一条路径：共享开关取凭据真值（不信任内存镜像），
+    // 系统 RDP 状态强制探测一次（TTL 缓存之外的显式刷新，设置页要看到刚改过的系统设置）。
+    const [sharingEnabled, systemRdp] = await Promise.all([
+      readRemoteDesktopSharing(credentials),
+      Promise.resolve(resolveSystemRdpProbe()?.refresh() ?? null),
+    ]);
+    remoteDesktopSharingEnabled = sharingEnabled;
+    postRemoteDesktopToMain({
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopServerStateResult,
+      requestId: message.requestId,
+      ok: true,
+      sharingEnabled,
+      ...(systemRdp ? { systemRdp } : {}),
+    });
   } catch (error) {
-    // 异常也按请求类型回对应 kind（同上：kind 不匹配会导致 probe 悬挂到超时）。
-    postRemoteDesktopToMain(
-      msg.type === RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe
-        ? {
-            type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,
-            requestId: msg.requestId,
-            online: false,
-            remoteDesktop: false,
-            // 同上：异常分支 fail-closed，不声称支持原生媒体面。
-            remoteDesktopNative: false,
-          }
-        : {
-            type: RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
-            requestId: msg.requestId,
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          },
-    );
+    postRemoteDesktopToMain({
+      type: RemoteDesktopHostMessageTypes.RemoteDesktopServerStateResult,
+      requestId: message.requestId,
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -2250,18 +2136,17 @@ async function ensureLanAccessStarted(
     logger.warn("lan access unavailable: credential service missing");
     return null;
   }
-  // 远程桌面：被控开关读取点 + 同意流/信令 hooks（spec 事件顺序 ②③⑤⑥）。
-  await ensureRemoteDesktopHostServer(services).catch((error: unknown) => {
-    logger.warn("remote desktop host server init failed", error);
-  });
+  // 远程桌面：只需冷读一次共享开关——能力位按每次握手现取，且取值必须同步。
+  await loadRemoteDesktopSharing(services);
   activeLanAccess = await startLanAccessServer({
     services,
     credentials,
     getWorkspaces: () => collectLanAccessWorkspaces(services),
     appVersion: MODE_VERSION,
     machineName: hostname() || "Mode",
-    isRemoteDesktopServerEnabled: () => activeRemoteDesktop?.isServerEnabled() ?? false,
-    remoteDesktop: resolveRemoteDesktopHooks(),
+    isRemoteDesktopServerEnabled: isRemoteDesktopSharingEnabled,
+    // 唯一探测实例：设置页与能力位共用同一份 TTL 缓存。
+    systemRdpProbe: resolveSystemRdpProbe(),
   });
   return activeLanAccess;
 }
@@ -2865,9 +2750,8 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
     offPeakTaskRepo.close();
 
     await stopLanAccess();
-    // 远程桌面：host 退出即收口（关 WS、清 pending 同意；采集窗与指示浮层归 main 收口）。
-    activeRemoteDesktop?.dispose();
-    activeRemoteDesktop = null;
+    // 远程桌面：host 退出无需收口会话（会话在外部 mstsc 进程里，本进程不持有）。
+    systemRdpProbe = null;
 
     if (activeSessionRealtimePort) {
       activeSessionRealtimePort.dispose();
@@ -2937,8 +2821,8 @@ function disposeHostResourcesBestEffort(reason: string): void {
   offPeakTaskRepo.close();
   void windowRemoteConnectionRegistry.dispose();
 
-  activeRemoteDesktop?.dispose();
-  activeRemoteDesktop = null;
+  systemRdpProbe = null;
+  remoteDesktopSharingEnabled = false;
 
   if (activeServices) {
     try {
@@ -3677,10 +3561,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               // 接口变更 4）：enablement 门在 services 侧（shouldUseCuaPermissionService，
               // 含 macOS 平台判定），main 底层另有 darwin 检查，此处不叠加平台条件。
               cuaPermissionOnboardingOpener: openCuaPermissionOnboardingViaMain,
-              // 远程桌面被控总开关（T3b 准入第二理由 + T3c 首次注入按需拉起都读它）：
-              // 惰性读取 activeRemoteDesktop 的同步缓存（本函数先于 ensureRemoteDesktopHostServer
-              // 执行，首次求值必然发生在 RD server 建好之后；与 lanAccessServer 的读取点同源）。
-              isRemoteDesktopServerEnabled: () => activeRemoteDesktop?.isServerEnabled() ?? false,
             });
             activeServices = initializedServices;
             activeHostApiNetworkTransport = hostApiNetworkTransport;
@@ -3701,9 +3581,9 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         await restoreLanAccessIfEnabled(services).catch((error) => {
           logger.warn("restore lan access failed", error);
         });
-        // 远程桌面被控服务器：冷读持久化的总开关（能力位按每次握手现取，见 remoteDesktopServer.ts）。
-        await ensureRemoteDesktopHostServer(services).catch((error) => {
-          logger.warn("initialize remote desktop host server failed", error);
+        // 远程桌面：冷读共享开关（能力位按每次握手现取，见 remoteDesktopSharing.ts）。
+        await loadRemoteDesktopSharing(services).catch((error: unknown) => {
+          logger.warn("load remote desktop sharing failed", error);
         });
         hasDisposedHostResources = false;
         disposeHostResourcesInFlight = null;

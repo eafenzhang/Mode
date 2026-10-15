@@ -1,291 +1,203 @@
 /**
- * 远程桌面 main↔host 消息契约与双端镜像夹具（spec: docs/specs/lan-remote-desktop.md 事件顺序 ②③⑤⑥）。
+ * 远程桌面 main↔host 消息契约与双端镜像夹具
+ * （spec: docs/specs/remote-desktop-system-rdp.md 接口节）。
  *
  * 两条断言链：
  * 1. 漂移：`src/host/remoteDesktopMessages.ts` 与 `src/main/remoteDesktop/hostMessages.ts`
- *    的类型表 / 常量 / 校验结果必须逐条一致（两文件是镜像，无法共享单一模块，见文件头注释）；
- * 2. 契约：两个方向的消息形状 + 帧上限 + 注入事件严格校验 + 准入判定。
+ *    是两个进程入口的镜像（无法共享单一模块），类型表、标签全集与解析判定必须逐条一致；
+ * 2. 契约：现存两族的正反例、已删消息族不得复活、parentPort 分流不误吞共享消息。
+ *
+ * 失效模式（未实现时）：一侧改了 schema 另一侧没跟上 → 跨进程消息被静默判成「未消费」
+ * 而丢弃，症状是设置面/探测面永久无回帖且无报错。
  */
 import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// 与其它桌面夹具同口径：先隔离数据目录再动态导入。
 process.env.MODE_DATA_BASE_DIR = await mkdtemp(join(tmpdir(), "mode-rd-messages-"));
+
 const host = await import("../../src/host/remoteDesktopMessages.js");
 const main = await import("../../src/main/remoteDesktop/hostMessages.js");
-const { evaluateRemoteDesktopRequest } = await import("../../src/host/remoteDesktopAdmission.js");
 
-// ── 漂移：类型表与常量逐条一致 ──
+// ────────────────────────── 漂移：镜像必须逐条一致 ──────────────────────────
+
 assert.deepEqual(
   { ...host.RemoteDesktopHostMessageTypes },
   { ...main.RemoteDesktopHostMessageTypes },
   "两端消息类型表必须逐字一致",
 );
 assert.deepEqual(
+  [...host.REMOTE_DESKTOP_MESSAGE_TYPE_TAGS],
+  [...main.REMOTE_DESKTOP_MESSAGE_TYPE_TAGS],
+  "两端类型标签全集必须逐字一致",
+);
+
+// 标签全集是冻结契约：系统 RDP 方案下只剩「被控设置读写 + 对端探测」五条。
+// 加/删消息族必须同时改这里、两份镜像与 spec 接口节。
+assert.deepEqual(
   [...host.REMOTE_DESKTOP_MESSAGE_TYPE_TAGS].sort(),
-  [...main.REMOTE_DESKTOP_MESSAGE_TYPE_TAGS].sort(),
-);
-assert.equal(host.REMOTE_DESKTOP_INJECT_MAX_EVENTS, main.REMOTE_DESKTOP_INJECT_MAX_EVENTS);
-assert.equal(host.REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES, main.REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES);
-assert.equal(host.REMOTE_DESKTOP_INJECT_MAX_EVENTS, 512, "与 Rust MAX_RAW_INPUT_EVENTS 同口径");
-assert.equal(host.REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES, 64 * 1024);
-assert.equal(main.isRemoteDesktopMessageTypeTag("lan-access-get-state"), false, "共享消息不得被 RD 集合误吞");
-assert.equal(main.isRemoteDesktopMessageTypeTag(host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart), true);
-// P4 直替：注入不再走 main→host 消息面（media WS 上行经 host 的 onInput 形状门直达注入端口），
-// 旧 remote-desktop-inject 消息必须被拒（任何方向都不再接受）。
-assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({
-    type: "remote-desktop-inject",
-    events: [{ k: "move", x: 0, y: 0 }],
-  }).success,
-  false,
-  "remote-desktop-inject 已随 WebRTC 面移除",
+  [
+    "remote-desktop-peer-probe",
+    "remote-desktop-peer-probe-result",
+    "remote-desktop-server-enabled-set",
+    "remote-desktop-server-state-request",
+    "remote-desktop-server-state-result",
+  ],
+  "消息族已变更：同步两份镜像与 spec 接口节后再改本断言",
 );
 
-// ── 契约样例：覆盖六个会话消息 + 设置面 + 主控对端操作 ──
-const toHostSamples = [
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopConsentResult,
-    clientId: "client-a",
-    decision: "allow",
-    remember: true,
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopConsentResult,
-    clientId: "client-a",
-    decision: "deny",
-    remember: false,
-    reason: "timeout",
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopSignalToHost,
-    // P4 起主控侧只产 hello/select-monitor/bye/error（offer/answer/ice 随媒体面移除）。
-    message: { type: "select-monitor", displayId: "1" },
-  },
-  { type: host.RemoteDesktopHostMessageTypes.RemoteDesktopServerStateRequest, requestId: "r1" },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopSetServerEnabled,
-    requestId: "r2",
-    enabled: true,
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopRevokeClient,
-    requestId: "r3",
-    clientId: "client-a",
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopAuthorizeClient,
-    requestId: "r6",
-    clientId: "client-a",
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbe,
-    requestId: "r4",
-    serverId: "server-x",
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpen,
-    requestId: "r5",
-    serverId: "server-x",
-    // 画质档位（P1-3）：随会话请求下发；strict schema 漏字段会整条丢弃会话请求。
-    quality: "balanced",
-  },
-  // P2 原生媒体面（契约 F）：开流/换屏/停流是通知型（无 requestId）。
-  // rect + virtualRect（Task 14 fix round 1）：host 输入换算基准（monitor 物理矩形 + 虚拟屏 union）。
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
-    rect: { x: 0, y: 0, width: 2880, height: 1620 },
-    virtualRect: { x: -1920, y: 0, width: 4800, height: 1620 },
-    key: "a".repeat(64),
-    salt: "b".repeat(16),
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
-    rect: { x: -1920, y: 0, width: 1920, height: 1080 },
-    virtualRect: { x: -1920, y: 0, width: 4800, height: 1620 },
-  },
-  { type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStop },
-];
-const fromHostSamples = [
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopConsentRequest,
-    clientId: "client-a",
-    label: "Office-PC",
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopSignalFromHost,
-    message: { type: "monitors", monitors: [{ displayId: "1", label: "Screen 1", widthPx: 1920, heightPx: 1080, scaleFactor: 1, primary: true }] },
-  },
-  { type: host.RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed, reason: "peer-end" },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopServerStateResult,
-    requestId: "r1",
-    ok: true,
-    enabled: true,
-    authorizedClients: [{ id: "client-a", label: "Office-PC" }],
-    // 编码能力缓存（P1-3）：真实会话观测结果；strict 漏字段会让设置面读数整条丢弃。
-    encoderCapability: "available",
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopPeerProbeResult,
-    requestId: "r4",
-    online: true,
-    remoteDesktop: true,
-    // 原生媒体面版本门（纯直替）：strict schema 漏字段会整条丢弃，双端镜像必须同步声明。
-    remoteDesktopNative: true,
-    name: "Peer",
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopPeerSessionOpenResult,
-    requestId: "r5",
-    ok: true,
-    wsUrl: "ws://192.168.1.4:3030/ws/remote-desktop?ticket=t",
-    // 契约 E 媒体面地址：两端 schema 必须同步声明（strict 漏字段会整条丢弃主控的 open 回帖）。
-    mediaUrl: "wss://192.168.1.4:3030/ws/remote-desktop-media?ticket=t2",
-  },
-  // P2 原生媒体面（契约 F）：冻结状态通知（host → main，通知型）。
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus,
-    frozen: true,
-    reason: "locked",
-  },
-  {
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus,
-    frozen: false,
-  },
-];
-for (const sample of toHostSamples) {
-  const parsedByHost = host.remoteDesktopMessageToHostSchema.safeParse(sample);
-  const parsedByMain = main.remoteDesktopMessageToHostSchema.safeParse(sample);
-  assert.equal(parsedByHost.success, true, `host 必须接受 ${sample.type}`);
-  assert.equal(parsedByMain.success, true, `main 镜像必须接受 ${sample.type}`);
-  assert.deepEqual(parsedByHost.data, parsedByMain.data, `${sample.type} 两端解析结果必须一致`);
-}
-for (const sample of fromHostSamples) {
-  const parsedByMain = main.remoteDesktopMessageFromHostSchema.safeParse(sample);
-  const parsedByHost = host.remoteDesktopMessageFromHostSchema.safeParse(sample);
-  assert.equal(parsedByMain.success, true, `main 必须接受 ${sample.type}`);
-  assert.equal(parsedByHost.success, true, `host 镜像必须接受 ${sample.type}`);
-  assert.deepEqual(parsedByMain.data, parsedByHost.data);
+// ────────────────────────── 分流：不误吞、不复活 ──────────────────────────
+
+// 随自研媒体面删除的消息族：任何方向都不得再命中 RD 标签集合——命中的话，parentPort
+// 入口会把不存在的消息判成已消费，吞掉本该走共享 schema 的帧。
+for (const removed of [
+  "remote-desktop-consent-result",
+  "remote-desktop-signal",
+  "remote-desktop-inject",
+  "remote-desktop-media-start",
+  "remote-desktop-session-open-result",
+]) {
+  assert.equal(host.isRemoteDesktopMessageTypeTag(removed), false, `${removed} 必须已移除`);
+  assert.equal(main.isRemoteDesktopMessageTypeTag(removed), false, `${removed} 必须已移除`);
+  assert.equal(host.parseRemoteDesktopMessageToHost({ type: removed }), null);
+  assert.equal(main.parseRemoteDesktopMessageToHost({ type: removed }), null);
 }
 
-// ── 严格校验：未知键 / 越界 / 未知类型一律拒绝 ──
-assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({ ...toHostSamples[0], extra: 1 }).success,
-  false,
-  "未知键必须拒绝",
-);
-// ── 注入事件严格校验（raw_input 同形事件）：host 的 media WS onInput 形状门复用同一 schema，
-// 双端镜像必须同口径（vk 域 / 坐标域 / 文本非空）──
-assert.equal(
-  main.remoteDesktopRawInputEventSchema.safeParse({ k: "move", x: 0, y: 65536 }).success,
-  false,
-  "越界坐标必须拒绝（0..65535）",
-);
-assert.equal(
-  main.remoteDesktopRawInputEventSchema.safeParse({ k: "key", vk: 0, down: true }).success,
-  false,
-  "vk=0 不属于 raw_input 面（1..255）",
-);
-assert.equal(
-  host.remoteDesktopRawInputEventSchema.safeParse({ k: "move", x: 0, y: 65535 }).success,
-  true,
-  "host 镜像接受同形事件",
-);
-// 未知键（strict）与未知消息类型同样拒绝。
-assert.equal(
-  main.remoteDesktopRawInputEventSchema.safeParse({ k: "move", x: 0, y: 0, extra: 1 }).success,
-  false,
-  "raw_input 事件未知键必须拒绝",
-);
-assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({
-    type: "remote-desktop-unknown",
-  }).success,
-  false,
-);
+// 同一 parentPort 入口还承载共享消息：RD 集合不得误吞。
+assert.equal(main.isRemoteDesktopMessageTypeTag("lan-access-get-state"), false);
+assert.equal(main.parseRemoteDesktopMessageToHost({ type: "lan-access-get-state" }), null);
 
-// ── 媒体面消息严格校验（契约 F）：key/salt 只收 64/16 位 hex；通知型不带 requestId；
-// rect/virtualRect（fix round 1）双端同口径且缺一不可 ──
-assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
-    rect: { x: 0, y: 0, width: 1920, height: 1080 },
-    virtualRect: { x: 0, y: 0, width: 1920, height: 1080 },
-    key: "A".repeat(64),
-    salt: "b".repeat(16),
-  }).success,
-  false,
-  "key 必须是小写 hex（与 media-open 信令同一口径）",
-);
-assert.equal(
-  host.remoteDesktopMessageToHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
-    rect: { x: 0, y: 0, width: 1920, height: 1080 },
-    virtualRect: { x: 0, y: 0, width: 1920, height: 1080 },
-    key: "a".repeat(64),
-    salt: "b".repeat(15),
-  }).success,
-  false,
-  "salt 必须是 16 位 hex",
-);
-assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
-    rect: { x: 0, y: 0, width: 1920, height: 1080 },
-    // virtualRect 缺失：输入换算基准不完整，必须整条拒绝（strict），不允许「缺省当单屏」。
-    key: "a".repeat(64),
-    salt: "b".repeat(16),
-  }).success,
-  false,
-  "MediaStart 缺 virtualRect 必须拒绝",
-);
-assert.equal(
-  main.remoteDesktopMessageToHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaSwitch,
-    rect: { x: 0, y: 0, width: 1920, height: 1080 },
-    virtualRect: { x: 0, y: 0, width: 1920, height: 1080 },
-    requestId: "r",
-  }).success,
-  false,
-  "MediaSwitch 是通知型消息，多带 requestId 必须拒绝（strict）",
-);
-assert.equal(
-  host.remoteDesktopMessageFromHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStatus,
-    frozen: "yes",
-  }).success,
-  false,
-  "MediaStatus.frozen 必须是 boolean",
-);
-assert.equal(
-  main.remoteDesktopMessageFromHostSchema.safeParse({
-    type: host.RemoteDesktopHostMessageTypes.RemoteDesktopMediaStart,
-    rect: { x: 0, y: 0, width: 1920, height: 1080 },
-    virtualRect: { x: 0, y: 0, width: 1920, height: 1080 },
-    key: "a".repeat(64),
-    salt: "b".repeat(16),
-  }).success,
-  false,
-  "main→host 消息不得被 host→main 联合体误收",
-);
+// ────────────────────────── 契约正例 ──────────────────────────
 
-// ── 准入判定（产品规则 1/5）：kill-switch 优先，总开关关 = disabled ──
+const toHostStateRequest = { type: "remote-desktop-server-state-request", requestId: "req-1" };
+const toHostSetEnabled = {
+  type: "remote-desktop-server-enabled-set",
+  requestId: "req-1",
+  enabled: true,
+};
+const toHostPeerProbe = {
+  type: "remote-desktop-peer-probe",
+  requestId: "req-1",
+  serverId: "peer-a",
+};
+const fromHostStateOk = {
+  type: "remote-desktop-server-state-result",
+  requestId: "req-1",
+  ok: true,
+  sharingEnabled: false,
+};
+const fromHostStateWithSystemRdp = {
+  type: "remote-desktop-server-state-result",
+  requestId: "req-1",
+  ok: true,
+  sharingEnabled: true,
+  systemRdp: { enabled: true, editionOk: true },
+};
+// ok=false 时共享位与系统状态都可缺（写失败只带 error）。
+const fromHostStateFailed = {
+  type: "remote-desktop-server-state-result",
+  requestId: "req-1",
+  ok: false,
+  error: "credential-unavailable",
+};
+const fromHostProbeOnline = {
+  type: "remote-desktop-peer-probe-result",
+  requestId: "req-1",
+  online: true,
+  remoteDesktop: true,
+  systemRdp: { enabled: false, editionOk: true },
+  name: "PC-B",
+};
+// 探测失败一律 online:false（含缺键降级）。
+const fromHostProbeOffline = {
+  type: "remote-desktop-peer-probe-result",
+  requestId: "req-1",
+  online: false,
+  remoteDesktop: false,
+};
+
+const toHostValid = [toHostStateRequest, toHostSetEnabled, toHostPeerProbe];
+const fromHostValid = [
+  fromHostStateOk,
+  fromHostStateWithSystemRdp,
+  fromHostStateFailed,
+  fromHostProbeOnline,
+  fromHostProbeOffline,
+];
+
+for (const sample of toHostValid) {
+  assert.equal(
+    host.remoteDesktopMessageToHostSchema.safeParse(sample).success,
+    true,
+    `正例必须通过：${JSON.stringify(sample)}`,
+  );
+}
+for (const sample of fromHostValid) {
+  assert.equal(
+    host.remoteDesktopMessageFromHostSchema.safeParse(sample).success,
+    true,
+    `正例必须通过：${JSON.stringify(sample)}`,
+  );
+}
+
+// ────────────────────────── 契约反例 + 双端判定一致 ──────────────────────────
+
+const invalid = [
+  // requestId 必填且 trim 后非空
+  { type: "remote-desktop-server-state-request" },
+  { type: "remote-desktop-server-state-request", requestId: "   " },
+  // .strict()：未知键一律拒（这里是旧协议残留字段的典型形态）
+  { type: "remote-desktop-server-state-request", requestId: "req-1", quality: "smooth" },
+  // 各自必填字段缺失
+  { type: "remote-desktop-server-enabled-set", requestId: "req-1" },
+  { type: "remote-desktop-peer-probe", requestId: "req-1" },
+  { type: "remote-desktop-peer-probe-result", requestId: "req-1", online: true },
+  // systemRdp 形状不符（两字段都必填且为 boolean）
+  {
+    type: "remote-desktop-server-state-result",
+    requestId: "req-1",
+    ok: true,
+    systemRdp: { enabled: "yes", editionOk: true },
+  },
+  { type: "remote-desktop-peer-probe-result", requestId: "req-1", online: true, remoteDesktop: true, systemRdp: { enabled: true } },
+  // 未登记类型
+  { type: "remote-desktop-unknown", requestId: "req-1" },
+];
+
+for (const sample of invalid) {
+  const inHost = host.remoteDesktopMessageToHostSchema.safeParse(sample).success;
+  const inMain = main.remoteDesktopMessageToHostSchema.safeParse(sample).success;
+  assert.equal(inHost, inMain, `两端对同一帧判定必须一致：${JSON.stringify(sample)}`);
+  assert.equal(inHost, false, `反例必须被拒：${JSON.stringify(sample)}`);
+
+  const fromHostOk = host.remoteDesktopMessageFromHostSchema.safeParse(sample).success;
+  const fromHostMainOk = main.remoteDesktopMessageFromHostSchema.safeParse(sample).success;
+  assert.equal(fromHostOk, fromHostMainOk, `两端对同一帧判定必须一致：${JSON.stringify(sample)}`);
+  assert.equal(fromHostOk, false, `反例必须被拒：${JSON.stringify(sample)}`);
+}
+
+// ────────────────────────── 分流入口行为 ──────────────────────────
+
+const parsed = host.parseRemoteDesktopMessageToHost(toHostPeerProbe);
+assert.equal(parsed?.requestId, "req-1", "标签命中且合法 → 返回解析结果");
 assert.deepEqual(
-  evaluateRemoteDesktopRequest({ killSwitchEngaged: true, serverEnabled: true }),
-  { action: "reject", error: "disabled" },
+  { ...parsed },
+  { ...toHostPeerProbe },
+  "分流不得改写载荷（原样透传给业务处理）",
 );
+assert.equal(
+  host.parseRemoteDesktopMessageToHost({ type: "remote-desktop-peer-probe", requestId: "" }),
+  null,
+  "标签命中但 schema 不合法 → null（调用方按未消费处理，不双报错）",
+);
+assert.equal(host.parseRemoteDesktopMessageToHost(null), null);
+assert.equal(host.parseRemoteDesktopMessageToHost("remote-desktop-peer-probe"), null);
 assert.deepEqual(
-  evaluateRemoteDesktopRequest({ killSwitchEngaged: false, serverEnabled: false }),
-  { action: "reject", error: "disabled" },
+  { ...main.parseRemoteDesktopMessageToHost(toHostStateRequest) },
+  { ...toHostStateRequest },
+  "main 侧镜像分流结果必须与 host 侧一致",
 );
-assert.deepEqual(
-  evaluateRemoteDesktopRequest({ killSwitchEngaged: true, serverEnabled: false }),
-  { action: "reject", error: "disabled" },
-);
-assert.deepEqual(evaluateRemoteDesktopRequest({ killSwitchEngaged: false, serverEnabled: true }), {
-  action: "consent",
-});
 
 console.log("REMOTE_DESKTOP_HOST_MESSAGES_OK");

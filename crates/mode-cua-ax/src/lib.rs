@@ -3,7 +3,7 @@
 // capture/perform/input/clipboard 已落地（Task 4/5）；launch/screen 由 Task 6 落地
 // （最后两个模块），Task 1 挂起的模块清单至此收齐。
 pub mod apps; pub mod capture; pub mod clipboard; pub mod error; pub mod input; pub mod launch;
-pub mod observe; pub mod perform; pub mod screen; pub mod rd_media; pub mod uia_thread;
+pub mod observe; pub mod perform; pub mod screen; pub mod uia_thread;
 use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
 use error::AxResult;
@@ -81,7 +81,7 @@ pub fn perform_napi(req: PerformRequestNapi) -> napi::Result<PerformResultNapi> 
   )
 }
 
-// 远控注入面（docs/specs/lan-remote-desktop.md「接口变更」第 4 条）：broker 方法
+// CUA 注入面（docs/specs/lan-remote-computer-use.md）：broker 方法
 // `raw_input`，params `{ events: RawInputEvent[] }` → `{ dispatched: n }`。
 // events 是入参面的自由 JSON（形状逐条严格校验在 input::parse_raw_input），
 // 与 perform.payload 同口径；无窗口参数——目标即「对端当前前台窗口」。
@@ -105,13 +105,6 @@ pub fn raw_input_napi(req: RawInputRequestNapi) -> napi::Result<RawInputResultNa
       }),
   )
 }
-
-// 远控媒体面（docs/specs/lan-remote-desktop-native-media.md 契约 A）：broker 方法
-// `rd_media_start` / `rd_media_switch` / `rd_media_stop`。三个 `#[napi]` 导出与对象
-// 形状定义在 `rd_media::napi`（随模块注册，与 capture.rs 的 `capture` 导出同范式；
-// 本文件的 `pub mod rd_media;` 即挂载点），Task 7 helper 直调这三个 snake_case 符号。
-// 单参回调形状（onFrame/onStatus 首参即载荷）由 `rd_media::napi` 的
-// `ErrorStrategy::Fatal` TSFN 保证——与契约 A 的 TS 声明逐字一致。
 
 // Task 6：launch 入参是请求面（SDK 保证 name/bundleId 二选一），不加 use_nullable
 // （入参口径同 ObserveRequestNapi）；裸字符串按 bundleId 传入，归一化在 launch::target_from。

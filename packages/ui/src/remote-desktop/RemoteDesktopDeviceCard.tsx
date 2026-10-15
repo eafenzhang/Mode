@@ -1,27 +1,35 @@
 /**
- * 远程控制设备页 · 单张设备卡（从 RemoteDesktopHome 拆出，max-lines 约束；纯展示 + 卡片内
- * 交互状态）。三段结构（docs/specs/lan-remote-desktop.md UI 规则「设备页」，2026-10-14 改版）：
+ * 远程控制设备页 · 单张设备卡（纯展示 + 卡片内交互状态）。
+ * 三段结构（docs/specs/remote-desktop-system-rdp.md 产品规则 2/8/9）：
  *   ① 头部 = 状态胶囊 + 设备名 + `host:port`；重命名时原位切换输入框；
- *   ② 主体 = 固定 16:9 预览块，整块即「进入桌面」入口（不可用时原位给原因，块高固定，
+ *   ② 主体 = 固定 16:9 连接块，整块即「进入桌面」入口（不可用时原位给原因，块高固定，
  *      所以置灰原因的出现/消失不会引起卡片高度跳变）；
- *   ③ 底部 = 设备操作行（重新检测 / 重命名 / 删除；删除两段确认）。
- * 状态胶囊与可用性都是探测结果的纯投影，卡内不维护第二份状态。
+ *   ③ 底部 = 设备操作行（重新检测 / 连接选项 / 重命名 / 删除；删除两段确认）。
+ *
+ * 连接只是「启动系统 RDP 客户端」：卡片不渲染任何画面，连接成功与否看外部 mstsc 窗口。
+ * 状态胶囊与可用性都是探测结果的纯投影，卡内不维护第二份状态；连接选项草稿是纯编辑态，
+ * 持久化真源在主控 main（`rdGetRdpOptions`/`rdSetRdpOptions`），故不构成重复状态源。
  */
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Check,
   MonitorSmartphone,
   Pencil,
   RefreshCw,
+  SlidersHorizontal,
   Trash2,
   WifiOff,
 } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
+import type { RdpConnectionOptions } from "@mode/shared/remote-desktop-rdp";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
+import { usePlatform } from "@/hooks/usePlatform.js";
+import { logger } from "@/logger.js";
 import {
   resolveRemoteDesktopDeviceAvailability,
   resolveRemoteDesktopDeviceLabel,
@@ -29,6 +37,13 @@ import {
   type RemoteDesktopDeviceProbe,
   type RemoteDesktopDeviceStatusTone,
 } from "@/remote-desktop/deviceAvailability.js";
+import {
+  RDP_OPTION_DEFAULTS,
+  resolveRdpOptions,
+  toRdpConnectionOptions,
+  type ResolvedRdpOptions,
+} from "@/remote-desktop/rdpOptions.js";
+import { RemoteDesktopConnectOptions } from "@/remote-desktop/RemoteDesktopConnectOptions.js";
 
 /** 状态语义 → 胶囊色调（语义投影在 deviceAvailability.ts，可纯函数单测）。 */
 const STATUS_PILL_TONES: Record<
@@ -90,8 +105,8 @@ function DeviceActionButton({
 export function RemoteDesktopDeviceCard({
   peer,
   probe,
-  locallyControlled,
   busy,
+  connecting,
   onRename,
   onDelete,
   onReprobe,
@@ -100,24 +115,32 @@ export function RemoteDesktopDeviceCard({
 }: {
   peer: LanPairedPeer;
   probe: RemoteDesktopDeviceProbe | undefined;
-  locallyControlled: boolean;
-  /** 父级操作互斥（重命名/删除共用同一个 busy；卡片内不自建第二份并发控制）。 */
+  /** 父级操作互斥（重命名/删除/连接共用同一个 busy；卡片内不自建第二份并发控制）。 */
   busy: boolean;
+  /** 本设备是否正在发起连接（父级连接态投影，卡内不猜）。 */
+  connecting: boolean;
   onRename: (serverId: string, name: string) => Promise<void>;
   onDelete: (serverId: string) => Promise<void>;
   /** 单卡重新探测能力位（探测中由探测状态自身互斥，不占父级 busy）。 */
   onReprobe: (serverId: string) => void;
-  /** 发起连接（画质档位已移至会话面顶部操作栏——spec: native-media「画质档位」2026-10-13）。 */
-  onConnect: (peer: LanPairedPeer) => void;
+  /**
+   * 发起连接。不带 options = 用 main 里已存的选项；带 options = 先持久化再连接
+   * （连接选项面板的「确认」路径）。
+   */
+  onConnect: (peer: LanPairedPeer, options?: RdpConnectionOptions) => void;
   onError: (message: string) => void;
 }) {
   const { intl } = useModeIntl();
+  const platform = usePlatform();
   const [editing, setEditing] = useState<{ name: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [draftOptions, setDraftOptions] = useState<ResolvedRdpOptions | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(false);
 
   const name = resolveRemoteDesktopDeviceLabel(peer);
   const address = peer.host && peer.port ? `${peer.host}:${peer.port}` : peer.serverId;
-  const availability = resolveRemoteDesktopDeviceAvailability(probe, { locallyControlled });
+  const availability = resolveRemoteDesktopDeviceAvailability(probe);
   const blockedReason = availability.reason;
   const probing = !probe || probe.status === "probing";
   const offline = blockedReason === "offline" || blockedReason === "probe-failed";
@@ -134,6 +157,30 @@ export function RemoteDesktopDeviceCard({
       onError(error instanceof Error ? error.message : String(error));
     }
   };
+
+  /** 打开连接选项面板：读 main 里该设备已存选项作为草稿（读失败按缺省值编辑）。 */
+  const openOptions = useCallback(
+    (open: boolean) => {
+      setOptionsOpen(open);
+      if (!open) {
+        setDraftOptions(null);
+        return;
+      }
+      setOptionsLoading(true);
+      setDraftOptions(RDP_OPTION_DEFAULTS);
+      void platform
+        .rdGetRdpOptions(peer.serverId)
+        .then((stored) => setDraftOptions(resolveRdpOptions(stored)))
+        .catch((error) => {
+          logger.warn(
+            `[remote-desktop] 读取连接选项失败 serverId=${peer.serverId}，按缺省值编辑:`,
+            error instanceof Error ? error.message : String(error),
+          );
+        })
+        .finally(() => setOptionsLoading(false));
+    },
+    [peer.serverId, platform],
+  );
 
   return (
     /* overflow-hidden：底部操作行的 hover 底色要按卡片圆角裁切。 */
@@ -189,15 +236,15 @@ export function RemoteDesktopDeviceCard({
         )}
 
         {/* 连接入口：整块预览即按钮。块高由 16:9 比例锁定，置灰原因在原位出现/消失
-            都不会改变卡片高度（spec 产品规则 5 的「高度跳变」约束）。 */}
+            都不会改变卡片高度。成功后画面在外部 mstsc 窗口，这里不渲染任何画面。 */}
         <button
           type="button"
           data-testid="remote-desktop-device-open"
-          disabled={!availability.canConnect}
+          disabled={!availability.canConnect || busy}
           onClick={() => onConnect(peer)}
           className={cn(
             "group/enter flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-border bg-surface px-4 text-center transition-colors",
-            availability.canConnect
+            availability.canConnect && !busy
               ? "hover:border-input-border-hover hover:bg-surface-hover"
               : "cursor-not-allowed",
           )}
@@ -213,11 +260,15 @@ export function RemoteDesktopDeviceCard({
               availability.canConnect ? "text-foreground" : "text-foreground-subtlest",
             )}
           >
-            {intl.formatMessage({ id: "remoteDesktop.device.open" })}
+            {connecting
+              ? intl.formatMessage({ id: "remoteDesktop.device.opening" })
+              : intl.formatMessage({ id: "remoteDesktop.device.open" })}
             <ArrowRight
               className={cn(
                 "size-4",
-                availability.canConnect && "transition-transform group-hover/enter:translate-x-0.5",
+                availability.canConnect &&
+                  !busy &&
+                  "transition-transform group-hover/enter:translate-x-0.5",
               )}
             />
           </span>
@@ -226,12 +277,16 @@ export function RemoteDesktopDeviceCard({
             <span className="line-clamp-2 text-ui-xs text-foreground-subtle">
               {intl.formatMessage({ id: `remoteDesktop.device.reason.${blockedReason}` })}
             </span>
-          ) : null}
+          ) : (
+            <span className="line-clamp-2 text-ui-xs text-foreground-subtle">
+              {intl.formatMessage({ id: "remoteDesktop.device.openHint" })}
+            </span>
+          )}
         </button>
       </div>
 
       {editing ? null : confirmingDelete ? (
-        /* 两段确认（spec UI 规则「设备页」）：替换操作行，不弹二次对话框。 */
+        /* 两段确认：替换操作行，不弹二次对话框。 */
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-border px-3 py-2">
           <span className="min-w-0 truncate text-ui-xs text-foreground-subtle">
             {intl.formatMessage({ id: "remoteDesktop.device.deleteAsk" }, { name })}
@@ -275,6 +330,41 @@ export function RemoteDesktopDeviceCard({
             disabled={busy || probing}
             onClick={() => onReprobe(peer.serverId)}
           />
+          <span aria-hidden="true" className="w-px shrink-0 self-stretch bg-border" />
+          {/* 连接选项：按设备记忆（读 main 已存值），确认即持久化 + 发起连接。 */}
+          <Popover open={optionsOpen} onOpenChange={openOptions}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                data-testid="remote-desktop-device-options"
+                disabled={busy || !availability.canConnect}
+                className="flex min-w-0 flex-1 items-center justify-center gap-1.5 py-2.5 text-ui-sm text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+              >
+                <SlidersHorizontal className="size-3.5 shrink-0" />
+                <span className="truncate">
+                  {intl.formatMessage({ id: "remoteDesktop.device.options" })}
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-auto">
+              {draftOptions ? (
+                <RemoteDesktopConnectOptions
+                  options={draftOptions}
+                  busy={busy || optionsLoading}
+                  onChange={setDraftOptions}
+                  onConfirm={() => {
+                    setOptionsOpen(false);
+                    onConnect(peer, toRdpConnectionOptions(draftOptions));
+                  }}
+                  onCancel={() => setOptionsOpen(false)}
+                />
+              ) : (
+                <span className="text-ui-base text-foreground-subtle">
+                  {intl.formatMessage({ id: "remoteDesktop.options.loading" })}
+                </span>
+              )}
+            </PopoverContent>
+          </Popover>
           <span aria-hidden="true" className="w-px shrink-0 self-stretch bg-border" />
           <DeviceActionButton
             testId="remote-desktop-device-rename"

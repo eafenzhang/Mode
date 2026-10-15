@@ -1,7 +1,7 @@
 //! Task 4 `raw_input` 解析器测试（纯函数面：**不注入真实输入**）。
 //!
 //! 真实注入（SendInput）不进自动化：本文件只钉解析边界与空序列的派发计数，
-//! 实机注入在 T7 两机验收按 `docs/specs/lan-remote-desktop.md` 场景执行。
+//! 实机注入随 CUA 场景验收（docs/specs/lan-remote-computer-use.md）。
 //!
 //! 口径（brief A 节）：逐条严格校验——未知键 / 未知 k / 缺字段 / 越界一律
 //! `invalid_request`；`events` ≤ 512 条、`text` ≤ 4096 字符、wheel `amount` ≤ 20。
