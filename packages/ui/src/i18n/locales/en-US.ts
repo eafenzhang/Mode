@@ -6336,7 +6336,9 @@ const enUS: Record<string, string> = {
   "settings.remoteDesktop.lanHint":
     "Both computers must be Windows machines on the same LAN (or Tailscale).",
   "settings.remoteDesktop.encoderUnavailable":
-    "No hardware H.264 encoder available: remote desktop sessions will show no picture (check the GPU driver).",
+    "No usable H.264 encoder (neither hardware nor the system software encoder): remote desktop sessions will show no picture.",
+  "settings.remoteDesktop.encoderSoftwareFallback":
+    "No hardware encoder on this machine: remote desktop fell back to the system software encoder. Video still works, with higher CPU usage and latency.",
   "workspace.openRemoteDesktop": "Remote control",
   "remoteDesktop.title": "Remote control",
   "remoteDesktop.breadcrumbLabel": "Remote control path",

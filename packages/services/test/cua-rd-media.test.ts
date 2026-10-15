@@ -8,17 +8,22 @@ const { createCuaRdMediaController } = await import("../src/cua-permission-broke
 
 const FAKE_SOCKET = "\\\\.\\pipe\\mode-cua-rd-media-test";
 
-test("媒体调用：method/params/timeout 原样透传，成功 resolve void", async () => {
+test("媒体调用：method/params/timeout 原样透传，broker 结果原样 resolve", async () => {
   const captured: Array<Record<string, unknown>> = [];
   const controller = createCuaRdMediaController({
     resolveSocketPath: () => FAKE_SOCKET,
     callBrokerMethod: async (args) => {
       captured.push(args as unknown as Record<string, unknown>);
-      return { started: true };
+      // 软件回退（2026-10-15）：被控 host 从 rd_media_start 的 result 读编码器来源，
+      // 故本层必须原样透传 broker 结果（不得吞成 void）。
+      return { ok: true, encoder: "software" };
     },
   });
   const params = { rect: { x: 0, y: 0, width: 100, height: 100 } };
-  assert.equal(await controller("rd_media_start", params), undefined);
+  assert.deepEqual(await controller("rd_media_start", params), {
+    ok: true,
+    encoder: "software",
+  });
   // 超时口径：媒体面单次调用 15s（napi 建流 ~10s + 余量），switch/stop 同预算。
   assert.deepEqual(captured, [
     { socketPath: FAKE_SOCKET, method: "rd_media_start", params, timeoutMs: 15_000 },

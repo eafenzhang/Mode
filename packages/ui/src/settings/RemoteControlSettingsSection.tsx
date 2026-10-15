@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangleIcon,
   CheckIcon,
+  Cpu,
   LoaderIcon,
   MonitorSmartphone,
   Radar,
@@ -9,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { LanAccessClientRecord, LanAccessState } from "@mode/shared";
+import type { RemoteDesktopEncoderCapability } from "@mode/shared/remote-desktop";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
@@ -47,11 +49,12 @@ export function RemoteControlSettingsSection() {
   const platform = usePlatform();
   const [state, setState] = useState<LanAccessState>(EMPTY_STATE);
   const [rdEnabled, setRdEnabled] = useState(false);
-  // 编码能力缓存（P1-3）：unknown = 尚无真实会话观测；unavailable = 本机无硬件编码器
-  // （远程桌面会连上但不出画面），设置页据此给提示。
-  const [encoderCapability, setEncoderCapability] = useState<
-    "unknown" | "available" | "unavailable"
-  >("unknown");
+  // 编码能力缓存（P1-3 → 2026-10-15 增 software 态）：unknown = 尚无真实会话观测；
+  // software = 本机无硬件编码器、已回退系统软件编码（能出画面但要提示代价）；
+  // unavailable = 硬软两路都拿不到编码器（会话起不来），设置页据此给提示。
+  const [encoderCapability, setEncoderCapability] = useState<RemoteDesktopEncoderCapability>(
+    "unknown",
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -337,7 +340,8 @@ export function RemoteControlSettingsSection() {
       <LanAccessPairedPeersCard onError={setError} />
 
       <div className="space-y-2 px-1 text-ui-base text-foreground-subtle">
-        {/* 编码能力缓存（P1-3）：无硬件编码器是「连上但永远不出画面」的根因，显式提示。 */}
+        {/* 编码能力缓存（P1-3 → 2026-10-15 增 software 态）：unavailable = 会话根本起不来的
+            根因（硬软两路都没有编码器）；software = 能出画面但走了系统软件编码，提示代价。 */}
         {encoderCapability === "unavailable" ? (
           <p
             data-testid="remote-desktop-encoder-unavailable"
@@ -345,6 +349,12 @@ export function RemoteControlSettingsSection() {
           >
             <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
             {intl.formatMessage({ id: "settings.remoteDesktop.encoderUnavailable" })}
+          </p>
+        ) : null}
+        {encoderCapability === "software" ? (
+          <p data-testid="remote-desktop-encoder-software" className="flex items-start gap-1.5">
+            <Cpu className="mt-0.5 size-3.5 shrink-0" />
+            {intl.formatMessage({ id: "settings.remoteDesktop.encoderSoftwareFallback" })}
           </p>
         ) : null}
         <p className="flex items-start gap-1.5">

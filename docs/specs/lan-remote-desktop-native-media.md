@@ -108,14 +108,17 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
   且 RTT ≥120ms——先让码率两档吸收，不动辄重建）时自动以更低画质档重建会话
   （复用改档重建链路，状态条经历「正在恢复」；30s 冷却，仍拥塞可再降一档）。
   **只降不升**：升档是用户在操作栏的手动动作（自动回升会在阈值附近振荡）。
-- **编码能力缓存**：被控 host 从**真实会话**的 `rd_media_start` 结果观测硬件编码器可用性
-  （成功 = available；错误含「无可用硬件 H.264 编码器」= unavailable；无会话发生 = unknown），
+- **编码能力缓存**：被控 host 从**真实会话**的 `rd_media_start` 结果观测编码器面
+  （成功且回报 `encoder:"hardware"` = available；成功但回报 `encoder:"software"` = **software**
+  （软件回退，见「编码」节）；错误含「无可用 H.264 编码器」= unavailable（硬软两路都不行）；
+  无会话发生 = unknown），
   **持久化（2026-10-13，对标 UU capability cache）**：观测值落 app 配置目录
   `rd-encoder-capability.json`、host 启动回读——冷启动即可显示能力提示（无需等首次会话）；
   不按 GPU 指纹分卡、不预探测：GPU/驱动变更后的过期值由**下一次真实会话观测自愈覆盖**；
   读取白名单收敛、损坏文件按无缓存。
-  随 `RemoteDesktopServerStateResult.encoderCapability` 暴露给设置页——unavailable 时显示
-  「未检测到硬件 H.264 编码器」提示（连上但不出画面的根因自诊断）。缓存为 host 进程级
+  随 `RemoteDesktopServerStateResult.encoderCapability` 暴露给设置页——software 时提示
+  「无硬件编码器，已回退软件编码（CPU 占用与延迟更高）」、unavailable 时提示
+  「未检测到可用的 H.264 编码器」（会话起不来的根因自诊断）。缓存为 host 进程级
   内存（每次启动从零观测），不额外拉起 helper 做预探测（探测动作与首次会话共用同一路径）。
 
 ## 被控 Rust（`crates/mode-cua-ax/src/rd_media/`）
@@ -145,7 +148,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
     改由 user32 快照**轮询补帧**——快照判重 / 15ms 节流 / clean 重合成与 DUPL 指针-only
     分支同语义；否则远控侧动鼠标画面纹丝不动、只有桌面像素恰好变化才刷新（2026-10-13
     实测「连上但卡死」根因；harness 用动画窗口产帧会掩盖此洞）。正常环境不走轮询。
-- **编码**：MF 视频编码器（`MFT_ENUM_FLAG_HARDWARE` 选「H.264 HW」，Win10 系统自带）；输入 D3D11 纹理 → D3D11 Video Processor 出 NV12（承担 >1080p 缩放）→ MF `MFT_MESSAGE_SET_D3D_MANAGER` 全 GPU 路径。参数：平均码率 8Mbps、GOP 120 帧（≈2s@60fps）、`select-monitor` / 分辨率变化强制 IDR。
+- **编码**：MF 视频编码器（首选 `MFT_ENUM_FLAG_HARDWARE` 的「H.264 HW」，Win10 系统自带；枚举不到可激活候选时回退系统软件编码器，见下「软件编码回退」）；输入 D3D11 纹理 → D3D11 Video Processor 出 NV12（承担 >1080p 缩放）→ MF `MFT_MESSAGE_SET_D3D_MANAGER` 全 GPU 路径。参数：平均码率 8Mbps、GOP 120 帧（≈2s@60fps）、`select-monitor` / 分辨率变化强制 IDR。
   - **HEVC 选型（2026-10-13，对标 UU 按 GPU 协商 H.265）**：主控发会话请求前用
     `VideoDecoder.isConfigSupported` 预检本机 HEVC 解码，`rdStartSession` 携 codec 偏好
     （`h264`|`hevc`，缺省/旧主控 = `h264`）→ `POST /api/remote-desktop/session?codec=` →
@@ -161,6 +164,16 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
     1. **解锁**：读 `MF_TRANSFORM_ASYNC` 判定；异步时配置媒体类型前置 `MF_TRANSFORM_ASYNC_UNLOCK=TRUE`，否则首次 `SetInputType` 报 `MF_E_TRANSFORM_ASYNC_LOCKED (0xC00D6D77)`。
     2. **事件模型**：解锁只是入场券——此后必须 QI `IMFMediaEventGenerator` 按 MS「Asynchronous MFTs」驱动：`MFT_MESSAGE_NOTIFY_BEGIN_STREAMING` + `START_OF_STREAM` 开头流；输入只在收到 `METransformNeedInput` 后 `ProcessInput`（未请求的帧直接丢弃，实时语义），输出只在收到 `METransformHaveOutput` 后 `ProcessOutput`（其余时机调用返回 `E_UNEXPECTED (0x8000FFFF)`）。flush / D3D 互操作运行期回退后事件队列作废，须等新的 NeedInput 再恢复送帧。
     以上两步缺一都表现为「会话连上但画面永远不出」。同步 MFT 无 `MF_TRANSFORM_ASYNC` 属性，走原有同步泵，行为不变。回归由 `crates/mode-cua-ax/tests/rd_media.rs` 的 `hardware_h264_encoder_builds_with_async_unlock` 兜住（无硬件自适应环境跳过）；真实出流由本机探针验证（动画窗口下 ~22fps 连续帧、事件模型稳态每帧配对）。
+  - **软件编码回退（2026-10-15）**：无硬件编码器的机器（老卡如 Fermi 世代 Quadro、虚拟机、被控端自身跑在
+    RDP 会话里、缺厂商驱动的机器）此前是**整会话不出画面**的硬失败。现在在硬件口径（`HARDWARE|SORTANDFILTER`）
+    枚举不到可激活 MFT 时，**再跑一次软件口径枚举**（`SYNCMFT|SORTANDFILTER`）取系统自带软件编码器
+    （微软 `H264 Encoder MFT`，Win10 恒定可用）继续推流，并 `warn` 一条运行告警。
+    必须**另跑一次枚举**而不是去掉 `HARDWARE` 标志：去掉标志会把已激活失败的硬件候选重新排在前面。
+    编码阶梯（`codec` 偏好 → 实际编码器）：硬件 HEVC → 硬件 H.264 → 软件 H.264；**不落软件 HEVC**
+    （微软软件 HEVC 编码器需额外安装 HEVC 扩展，而软件 H.264 恒定可用且开销更小）。软件 MFT 是同步
+    MFT（无 `MF_TRANSFORM_ASYNC` 属性）→ 走既有同步泵，事件模型路径不变。
+    `rd_media_start` 回报**实际生效的编码器种类**（`encoder:"hardware"|"software"`）供能力缓存与设置页提示。
+    软硬两路都不可用才按既有失败语义收口（`unavailable` + `unsupported` 错误码）。
   - **降级预案**：D3D11↔MF 互操作在目标环境不可用时，改为 CPU 拷回 + GDI 光标合成 + BGRA→NV12 转换后走系统内存输入（1080p60 预算内），协议与上层零改动。
 - **帧循环**：目标 60fps（跟随显示刷新率）；DUPL `ACCESS_LOST`（锁屏/安全桌面/会话切换）→ 状态事件 → 信令 `freeze`，恢复后 `unfreeze` 并强制 IDR。
 - **napi 导出**：`rdMediaStart(opts)`（含帧回调 ThreadsafeFunction、状态回调）、`rdMediaSwitch(monitor)`、`rdMediaStop()`；纯逻辑（帧头打包、GOP 标记、IV 派生）保持可 `cargo test` 的独立函数。
@@ -248,6 +261,7 @@ WebRTC 屏幕共享的端到端延迟由浏览器栈决定：30/60fps 帧量化 
 | 失败 | 归因与行为 |
 | --- | --- |
 | 旧对端缺 `remoteDesktopNative` / hello 版本不符 | `unsupported`：设备页置灰文案或会话内错误展示，**不回退 WebRTC** |
+| 无硬件 H.264 编码器 | 非致命：**回退系统软件编码器**（见「编码」节）继续出流，warn 一条运行告警；能力缓存记 `software`，设置页提示 CPU/延迟代价。仅当软件口径也拿不到编码器时按下一行收口 |
 | helper 未拉起 / DUPL 或 MF 编码器创建失败 | `unsupported`（能力面缺失，不自动重试；重拉 Helper 走既有按需拉起与退避） |
 | 媒体 WS 瞬断（信令存活） | **自动重连（P2-1）**：renderer 经信令 `{type:"request-media-ticket"}` 重签媒体票（同 clientId、单次消费、30s；被控在会话 WS 上本地回帖 `media-ticket`，不落信令转发面）→ 重连媒体 WS 续流。断流期间中继丢帧（不缓冲）；重连后只放行关键帧 + 首个关键帧强制重配解码器（防花屏残留）+ 立即请 IDR。退避 250ms→2s、8 次上限，耗尽或本端已收口则按压媒失败收口 |
 | 整会话传输断开（信令 WS 断，非 bye/本地结束） | **自动重连（P2-1）**：main 推 `closed{retryable}` → renderer 退避重走 `POST /api/remote-desktop/session`（新票据/新 key/salt/mediaUrl 全量重建）；被控对 **90s 窗口内同 clientId** 重连复用最近一次「用户允许」（不二次弹窗；总开关/单会话互斥仍逐次校验）。busy/internal 可重试，明确拒绝（disabled/consent_denied 等）立即按错误码收口 |

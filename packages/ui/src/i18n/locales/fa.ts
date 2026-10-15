@@ -6244,7 +6244,9 @@ const faIR: Record<string, string> = {
   "settings.remoteDesktop.lanHint":
     "هر دو رایانه باید ویندوز و در یک شبکه محلی (یا Tailscale) باشند.",
   "settings.remoteDesktop.encoderUnavailable":
-    "هیچ رمزگذار سخت‌افزاری H.264 در دسترس نیست: نشست رومیزی از راه دور تصویری نخواهد داشت (درایور گرافیک را بررسی کنید).",
+    "هیچ رمزگذار H.264 قابل استفاده‌ای یافت نشد (نه سخت‌افزاری و نه نرم‌افزاری سیستم): نشست رومیزی از راه دور تصویری نخواهد داشت.",
+  "settings.remoteDesktop.encoderSoftwareFallback":
+    "رمزگذار سخت‌افزاری روی این دستگاه در دسترس نیست: کنترل از راه دور به رمزگذار نرم‌افزاری سیستم بازگشته است؛ تصویر نمایش داده می‌شود اما مصرف CPU و تأخیر بیشتر است.",
   "workspace.openRemoteDesktop": "کنترل از راه دور",
   "remoteDesktop.title": "کنترل از راه دور",
   "remoteDesktop.breadcrumbLabel": "مسیر کنترل از راه دور",

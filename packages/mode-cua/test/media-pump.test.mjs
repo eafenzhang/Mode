@@ -512,3 +512,41 @@ test("剪贴板：读取失败与写入失败都不打断会话（只丢本次�
     CLIPBOARD_PUMP_OPTIONS,
   );
 });
+
+test("start 结果透传 addon 回报的编码器来源（spec「软件编码回退」2026-10-15）", async () => {
+  // host 侧能力缓存只认这一个字段：addon 回报 software → 设置页必须给「已回退软件编码」提示；
+  // addon 未回报（旧产物）→ 字段缺席，由 host 按「不猜」处理。
+  const relay = await startRelay();
+  const pump = createMediaPump({
+    rd_media_start() {
+      return { encoder: "software" };
+    },
+    rd_media_switch() {},
+    rd_media_stop() {},
+  });
+  const relayOld = await startRelay();
+  const pumpOld = createMediaPump({
+    rd_media_start() {
+      return undefined; // 旧 addon：napi 不再返回结果对象
+    },
+    rd_media_switch() {},
+    rd_media_stop() {},
+  });
+  try {
+    const result = await pump.start(startParams(relay.port));
+    assert.equal(result.ok, true, "start 成功语义不变");
+    assert.equal(result.encoder, "software", "编码器来源必须透传给 host");
+    const oldResult = await pumpOld.start(startParams(relayOld.port));
+    assert.equal(oldResult.encoder, undefined, "旧 addon 不回报 → 字段缺席（不猜测）");
+    assert.equal(
+      Object.hasOwn(oldResult, "encoder"),
+      false,
+      "缺省时不写空字段（host 按缺席判 unknown 语义）",
+    );
+  } finally {
+    await pump.stop();
+    await pumpOld.stop();
+    await relay.close();
+    await relayOld.close();
+  }
+});

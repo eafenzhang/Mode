@@ -16,6 +16,7 @@ import type {
 } from "./lanAccess.js";
 import type {
   RemoteDesktopCodec,
+  RemoteDesktopEncoderCapability,
   RemoteDesktopErrorCode,
   RemoteDesktopQuality,
   RemoteDesktopSignalMessage,
@@ -1039,21 +1040,21 @@ export interface IPlatformService {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
     /** 编码能力缓存（P1-3）：unknown = 尚未有真实会话观测。 */
-    encoderCapability: "unknown" | "available" | "unavailable";
+    encoderCapability: RemoteDesktopEncoderCapability;
   }>;
 
   /** 写被控总开关；关开关会立即终止进行中的被控会话。返回最新状态。 */
   rdSetServerEnabled(enabled: boolean): Promise<{
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
-    encoderCapability: "unknown" | "available" | "unavailable";
+    encoderCapability: RemoteDesktopEncoderCapability;
   }>;
 
   /** 撤销某个已授权设备（下次连接重新弹同意窗）。返回最新状态。 */
   rdRevokeClient(clientId: string): Promise<{
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
-    encoderCapability: "unknown" | "available" | "unavailable";
+    encoderCapability: RemoteDesktopEncoderCapability;
   }>;
 
   /**
@@ -1063,7 +1064,7 @@ export interface IPlatformService {
   rdAuthorizeClient(clientId: string): Promise<{
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
-    encoderCapability: "unknown" | "available" | "unavailable";
+    encoderCapability: RemoteDesktopEncoderCapability;
   }>;
 
   /**

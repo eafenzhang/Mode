@@ -38,6 +38,7 @@ import {
   type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
 import {
+  encoderCapabilityFromStartResult,
   loadPersistedEncoderCapability,
   persistEncoderCapability,
   type EncoderCapability,
@@ -117,11 +118,16 @@ export interface RemoteDesktopHostServer {
   dispose(): void;
 }
 
-/** rd_media helper 注入端口：method ∈ rd_media_*（napi 面），params 为 helper 契约参数。 */
+/**
+ * rd_media helper 注入端口：method ∈ rd_media_*（napi 面），params 为 helper 契约参数。
+ * `rd_media_start` 的返回值被透传给调用方判编码器来源（`{encoder:"hardware"|"software"}`，
+ * 见 `encoderCapabilityFromStartResult`）；switch/stop 的返回值不关心。
+ */
 export type RemoteDesktopMediaCall = (
   method: "rd_media_start" | "rd_media_switch" | "rd_media_stop",
   params: object,
-) => Promise<void>;
+) => Promise<unknown>;
+
 
 interface PendingConsent {
   clientId: string;
@@ -166,9 +172,10 @@ export function createRemoteDesktopHostServer(options: {
    */
   let sessionCodec: RemoteDesktopCodec = DEFAULT_REMOTE_DESKTOP_CODEC;
   /**
-   * 编码能力缓存（P1-3）：从真实会话的 rd_media_start 结果观测，避免被控端为探测
-   * 额外拉起一次 helper；会话发生前恒为 unknown（不猜测）。unavailable = 本机无
-   * 可用硬件 H.264 编码器（远程桌面会连上但永远不出画面），设置页据此给出提示。
+   * 编码能力缓存（P1-3 → 2026-10-15 增 software 态）：从真实会话的 rd_media_start 结果
+   * 观测（含 helper 回报的编码器来源），避免被控端为探测额外拉起一次 helper；会话发生前
+   * 恒为 unknown（不猜测）。software = 本机无硬件编码器、已回退系统软件编码（能出画面，
+   * 但 CPU/延迟更高）；unavailable = 硬软两路都拿不到编码器（会话根本起不来）。
    * 持久化（2026-10-13）：观测值按 `encoderCapabilityPath` 落盘、启动时回读
    * （冷启动即可显示提示）；不按 GPU 指纹分卡——GPU 变更由下一次真实会话自愈。
    */
@@ -761,7 +768,7 @@ export function createRemoteDesktopHostServer(options: {
           try {
             const port = await mediaRelay.listen();
             const preset = REMOTE_DESKTOP_QUALITY_PRESETS[sessionQuality];
-            await callRdMedia("rd_media_start", {
+            const result = await callRdMedia("rd_media_start", {
               rect: message.rect,
               maxWidth: preset.maxWidth,
               fps: preset.fps,
@@ -772,13 +779,15 @@ export function createRemoteDesktopHostServer(options: {
               key: message.key,
               salt: message.salt,
             });
-            // 编码能力缓存（P1-3）：真实会话成功即记 available（无需额外探测拉起 helper）；
-            // setEncoderCapability 同步落盘，冷启动即可显示。
-            setEncoderCapability("available");
+            // 编码能力缓存（P1-3 → 2026-10-15 增 software 态）：真实会话成功即按 helper 回报的
+            // 编码器来源记 available/software（无需额外探测拉起 helper）；setEncoderCapability
+            // 同步落盘，冷启动即可显示。
+            setEncoderCapability(encoderCapabilityFromStartResult(result));
           } catch (error) {
             const messageText = error instanceof Error ? error.message : String(error);
-            // 本机无硬件编码器是「连上但永远不出画面」的根因：单独记住，设置页给提示。
-            if (messageText.includes("无可用硬件 H.264 编码器")) {
+            // 硬编与软件回退两路都拿不到编码器是「会话根本起不来」的根因：单独记住，设置页给提示。
+            // 匹配的是 Rust 侧两路合成后的错误串（`无可用 H.264 编码器（硬件口径：…；软件口径：…）`）。
+            if (messageText.includes("无可用 H.264 编码器")) {
               setEncoderCapability("unavailable");
             }
             logger.warn("[remote-desktop] rd_media_start failed:", messageText);

@@ -75,43 +75,62 @@ fn hardware_h264_encoder_builds_with_async_unlock() {
     // 无 D3D 设备或设备无 VP 能力（基础显示适配器/无桌面会话的 CI）：环境能力缺失，跳过。
     return;
   };
-  match mode_cua_ax::rd_media::encode::Encoder::new(
+  // 2026-10-15 起硬件口径失败会走**软件回退**（spec「软件编码回退」），故此用例不再有
+  // 「无硬件编码器 → 跳过」的分支：H.264 建流在 Windows 上必须成功（硬编或软件编码器）。
+  // 有硬编的机器上仍是异步解锁的原始回归面（漏解锁 → SetInputType 失败 → 本用例变红）。
+  let encoder = mode_cua_ax::rd_media::encode::Encoder::new(
     &device,
     1920,
     1080,
     60,
     8_000_000,
     mode_cua_ax::rd_media::encode::RdEncodeCodec::H264,
-  ) {
-    Ok(_encoder) => {}
-    // 环境根本没有硬件 H.264 编码器（CI 无 GPU 自适应）：能力面缺失，跳过。
-    Err(error) if error.message.contains("无可用硬件 H.264 编码器") => {}
-    // 枚举调用本身在受限环境失败：同属能力缺失，跳过。
-    Err(error) if error.message.contains("MFTEnumEx(硬件 H.264) 失败") => {}
-    Err(error) => panic!("硬件 H.264 编码器应可配置（异步 MFT 必须先解锁）: {error}"),
-  }
+  )
+  .expect("H.264 编码器应可配置（硬件 MFT 或软件回退）");
+  assert_eq!(
+    encoder.codec(),
+    mode_cua_ax::rd_media::encode::RdEncodeCodec::H264,
+    "H.264 偏好不得落到别的 codec"
+  );
 }
 
 #[test]
-fn hevc_codec_builds_or_falls_back_to_h264() {
-  // HEVC 选型（spec: native-media「HEVC 选型」）：有硬件 HEVC MFT → 成功建流；
-  // 无 → **回退 H.264**（不报错——偏好与实际不一致由码流自描述兜底）。
-  // 只有 H.264 也缺失时才失败（与 H.264 用例同款环境跳过口径）。
+fn hevc_ladder_never_lands_on_software_hevc() {
+  // HEVC 选型阶梯（spec「HEVC 选型」+「软件编码回退」2026-10-15）：
+  // 硬件 HEVC → 硬件 H.264 → 软件 H.264；**不落软件 HEVC**（微软软件 HEVC 编码器要额外
+  // 装扩展，而软件 H.264 恒定可用且开销更小）。无硬编机器上这条就是真实路径。
   let Some(device) = mode_cua_ax::rd_media::capture::create_device_for_tests() else {
     return; // 无设备/无 VP 能力：环境能力缺失，跳过
   };
-  match mode_cua_ax::rd_media::encode::Encoder::new(
+  let encoder = mode_cua_ax::rd_media::encode::Encoder::new(
     &device,
     1920,
     1080,
     60,
     8_000_000,
     mode_cua_ax::rd_media::encode::RdEncodeCodec::Hevc,
-  ) {
-    Ok(_encoder) => {}
-    Err(error) if error.message.contains("无可用硬件 H.264 编码器") => {}
-    Err(error) if error.message.contains("MFTEnumEx(硬件 H.264) 失败") => {}
-    Err(error) => panic!("HEVC 选型应成功或回退 H.264（不硬失败）: {error}"),
+  )
+  .expect("HEVC 偏好应成功（硬编 HEVC 或回退 H.264）");
+  if encoder.encoder_kind() == mode_cua_ax::rd_media::encode::RdEncoderKind::Software {
+    assert_eq!(
+      encoder.codec(),
+      mode_cua_ax::rd_media::encode::RdEncodeCodec::H264,
+      "软件回退只走 H.264，不得落软件 HEVC"
+    );
+  }
+}
+
+#[test]
+fn software_h264_encoder_is_available() {
+  // 软件回退口径独立覆盖（spec「软件编码回退」）：系统自带软件 H.264 编码器
+  // （微软 `H264 Encoder MFT`）是「无硬编机器也能出画面」的前提，必须真实可激活。
+  // 本用例在**有硬编的机器与 CI 上**同样跑（否则这条路径只在无硬编机器上被走到）。
+  use mode_cua_ax::rd_media::encode::{probe_encoder_for_tests, RdEncodeCodec, RdEncoderKind};
+  match probe_encoder_for_tests(RdEncodeCodec::H264, RdEncoderKind::Software) {
+    Ok(()) => {}
+    // 枚举调用在受限环境（Server Core / N 版无编码器包的 Windows）失败：环境能力缺失，跳过。
+    Err(error) if error.message.contains("MFTEnumEx(软件 H.264) 失败") => {}
+    Err(error) => panic!("微软软件 H.264 编码器应可激活（无硬编机器的出画前提）: {error}"),
   }
 }
 

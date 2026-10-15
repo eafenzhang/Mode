@@ -18,7 +18,7 @@ use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFun
 use napi_derive::napi;
 
 use super::capture::{CaptureFrame, ComScope, DuplicationOutput};
-use super::encode::{Encoder, RdEncodeCodec};
+use super::encode::{Encoder, RdEncodeCodec, RdEncoderKind};
 use super::warn;
 use crate::error::{AxError, AxResult};
 
@@ -46,6 +46,13 @@ pub struct RdMediaFrameNapi {
 pub struct RdMediaStatusNapi {
   pub frozen: bool,
   pub reason: Option<String>,
+}
+
+/// 建流结果（spec: native-media「软件编码回退」2026-10-15）：回报实际生效的编码器来源，
+/// 供 helper/host 判能力（`"hardware"` = 硬件编码器；`"software"` = 已回退软件编码）。
+#[napi(object)]
+pub struct RdMediaStartResult {
+  pub encoder: String,
 }
 
 // 入参对象：只需要 FromNapiValue（JS → Rust）。关掉 ToNapiValue 生成——TSFN 字段
@@ -100,8 +107,8 @@ const SETUP_TIMEOUT: Duration = Duration::from_secs(10);
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> { m.lock().unwrap_or_else(|e| e.into_inner()) }
 
 #[napi(js_name = "rd_media_start")]
-pub fn rd_media_start_napi(opts: RdMediaStartOptions) -> napi::Result<()> {
-  crate::to_napi(start(opts))
+pub fn rd_media_start_napi(opts: RdMediaStartOptions) -> napi::Result<RdMediaStartResult> {
+  crate::to_napi(start(opts)).map(|encoder| RdMediaStartResult { encoder: encoder.as_str().into() })
 }
 
 #[napi(js_name = "rd_media_switch")]
@@ -145,7 +152,8 @@ pub fn stop_for_tests() { stop(); }
 /// 线程已初始化 COM，而 JS（Node helper）线程未必——worker 内用 `ComScope`
 /// （capture.rs 的 RAII 守卫）自管 COM，JS 线程零 Win32；② Win32 调用保持全部
 /// 圈在 capture/encode 模块（组织约束）。
-fn start(opts: RdMediaStartOptions) -> AxResult<()> {
+/// 返回实际生效的编码器来源（建流在 worker 内完成，经 ready 通道回传）。
+fn start(opts: RdMediaStartOptions) -> AxResult<RdEncoderKind> {
   let rect = (
     opts.rect.x,
     opts.rect.y,
@@ -169,7 +177,7 @@ fn start(opts: RdMediaStartOptions) -> AxResult<()> {
   let stop_flag = Arc::new(AtomicBool::new(false));
   let pending_rect = Arc::new(Mutex::new(None));
   let worker_id = NEXT_WORKER_ID.fetch_add(1, Ordering::Relaxed);
-  let (ready_tx, ready_rx) = mpsc::channel::<AxResult<()>>();
+  let (ready_tx, ready_rx) = mpsc::channel::<AxResult<RdEncoderKind>>();
   // 两段握手的第二段：start 把句柄落进全局槽后才放行 worker 进循环——否则
   // worker 建流成功后立刻出错退出、在落槽前 clear_self 会留假活句柄（竞态）。
   let (go_tx, go_rx) = mpsc::channel::<()>();
@@ -192,12 +200,13 @@ fn start(opts: RdMediaStartOptions) -> AxResult<()> {
   };
   let join = spawn.map_err(|e| AxError::internal(format!("采集线程创建失败: {e}")))?;
   match ready_rx.recv_timeout(SETUP_TIMEOUT) {
-    // 建流成功：先把句柄交给全局槽（switch 从这里起可见），再放行 worker 进循环。
-    Ok(Ok(())) => {
+    // 建流成功：先把句柄交给全局槽（switch 从这里起可见），再放行 worker 进循环；
+    // 返回编码器来源（硬编/软件回退）供上层判能力。
+    Ok(Ok(encoder_kind)) => {
       *locked(&STARTED) =
         Some(MediaWorkerHandle { worker_id, stop: stop_flag, pending_rect, join: Some(join) });
       let _ = go_tx.send(());
-      Ok(())
+      Ok(encoder_kind)
     }
     // 建流失败：worker 已退出（dup/enc 随其作用域释放），错误直回 JS；句柄不落槽。
     // 不内联 join——即使驱动在 RAII 释放里卡住也不阻塞 JS 线程，转后台收尸。
@@ -285,7 +294,7 @@ fn worker_loop(
   on_frame: ThreadsafeFunction<RdMediaFrameNapi, ErrorStrategy::Fatal>,
   on_status: ThreadsafeFunction<RdMediaStatusNapi, ErrorStrategy::Fatal>,
   worker_id: u64,
-  ready: mpsc::Sender<AxResult<()>>,
+  ready: mpsc::Sender<AxResult<RdEncoderKind>>,
   go: mpsc::Receiver<()>,
 ) {
   // COM（MTA，RAII）：MF/部分硬件 MFT 假定调用线程已初始化 COM——建流与整个
@@ -309,7 +318,8 @@ fn worker_loop(
     }
   };
   let mut dup_slot: Option<DuplicationOutput> = Some(dup);
-  if ready.send(Ok(())).is_err() {
+  // 建流成功即回报编码器来源（硬编/软件回退）——能力缓存的唯一观测来源在这里。
+  if ready.send(Ok(enc.encoder_kind())).is_err() {
     return; // start 已超时放弃（stop_flag 亦已置位）——不开流直接退出
   }
   // 等 start 把句柄落进全局槽后再进循环（两段握手，见 start 内注释）：

@@ -136,8 +136,9 @@ export function createMediaPump(addon, options = {}) {
       }
     });
 
+    let startResult;
     try {
-      await callAddon(() =>
+      startResult = await callAddon(() =>
         addon.rd_media_start({
           rect: params.rect,
           maxWidth: params.maxWidth,
@@ -162,7 +163,9 @@ export function createMediaPump(addon, options = {}) {
     // 此时第一次变化照常上报，语义正确。
     session.lastClipboard = await readClipboardText();
     session.clipboardTimer = setInterval(() => void pollClipboard(session), clipboardPollMs);
-    return { ok: true };
+    // 编码器来源（spec「软件编码回退」2026-10-15）：原样回报给 host 判能力
+    // （"hardware" | "software"）。napi 未回报（旧 addon）时字段缺席 = 不猜测。
+    return { ok: true, ...(startResult?.encoder ? { encoder: startResult.encoder } : {}) };
   }
 
   async function switchMonitor(params) {

@@ -6051,7 +6051,9 @@ const zhCN: Record<string, string> = {
     "信任来源是既有的局域网配对；未配对设备无法发起，进行中的会话会持续显示浮层且本机可随时结束。",
   "settings.remoteDesktop.lanHint": "需要两台 Windows 电脑在同一局域网（或 Tailscale）内。",
   "settings.remoteDesktop.encoderUnavailable":
-    "未检测到可用的硬件 H.264 编码器：远程桌面会话将无法出画面（请检查显卡驱动）。",
+    "未检测到可用的 H.264 编码器（硬件与系统软件编码均不可用）：远程桌面会话将无法出画面。",
+  "settings.remoteDesktop.encoderSoftwareFallback":
+    "本机没有可用的硬件编码器：远程桌面已回退系统软件编码，画面可正常显示，但 CPU 占用与延迟会更高。",
   "workspace.openRemoteDesktop": "远程控制",
   "remoteDesktop.title": "远程控制",
   "remoteDesktop.breadcrumbLabel": "远程控制路径",

@@ -16,7 +16,11 @@ import {
   type RemoteDesktopMessageFromHost,
   type RemoteDesktopMessageToHost,
 } from "./hostMessages.js";
-import type { RemoteDesktopCodec, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
+import type {
+  RemoteDesktopCodec,
+  RemoteDesktopEncoderCapability,
+  RemoteDesktopQuality,
+} from "@mode/shared/remote-desktop";
 import { listLiveHostProcesses } from "../resourceManagerWindow.js";
 import {
   buildPeerSessionOpenOutcome,
@@ -68,7 +72,7 @@ type PendingRequest =
       resolve: (value: {
         enabled: boolean;
         authorizedClients: Array<{ id: string; label: string }>;
-        encoderCapability: "unknown" | "available" | "unavailable";
+        encoderCapability: RemoteDesktopEncoderCapability;
       }) => void;
       reject: (error: Error) => void;
       timer: ReturnType<typeof setTimeout>;
@@ -184,7 +188,7 @@ function requestToHost(
 export async function requestRemoteDesktopServerState(): Promise<{
   enabled: boolean;
   authorizedClients: Array<{ id: string; label: string }>;
-  encoderCapability: "unknown" | "available" | "unavailable";
+  encoderCapability: RemoteDesktopEncoderCapability;
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopServerStateRequest },
@@ -193,14 +197,14 @@ export async function requestRemoteDesktopServerState(): Promise<{
   return (await promise) as {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
-    encoderCapability: "unknown" | "available" | "unavailable";
+    encoderCapability: RemoteDesktopEncoderCapability;
   };
 }
 
 export async function requestRemoteDesktopSetServerEnabled(enabled: boolean): Promise<{
   enabled: boolean;
   authorizedClients: Array<{ id: string; label: string }>;
-  encoderCapability: "unknown" | "available" | "unavailable";
+  encoderCapability: RemoteDesktopEncoderCapability;
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopSetServerEnabled, enabled },
@@ -209,14 +213,14 @@ export async function requestRemoteDesktopSetServerEnabled(enabled: boolean): Pr
   return (await promise) as {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
-    encoderCapability: "unknown" | "available" | "unavailable";
+    encoderCapability: RemoteDesktopEncoderCapability;
   };
 }
 
 export async function requestRemoteDesktopRevokeClient(clientId: string): Promise<{
   enabled: boolean;
   authorizedClients: Array<{ id: string; label: string }>;
-  encoderCapability: "unknown" | "available" | "unavailable";
+  encoderCapability: RemoteDesktopEncoderCapability;
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopRevokeClient, clientId },
@@ -225,14 +229,14 @@ export async function requestRemoteDesktopRevokeClient(clientId: string): Promis
   return (await promise) as {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
-    encoderCapability: "unknown" | "available" | "unavailable";
+    encoderCapability: RemoteDesktopEncoderCapability;
   };
 }
 
 export async function requestRemoteDesktopAuthorizeClient(clientId: string): Promise<{
   enabled: boolean;
   authorizedClients: Array<{ id: string; label: string }>;
-  encoderCapability: "unknown" | "available" | "unavailable";
+  encoderCapability: RemoteDesktopEncoderCapability;
 }> {
   const promise = requestToHost(
     { type: RemoteDesktopHostMessageTypes.RemoteDesktopAuthorizeClient, clientId },
@@ -241,7 +245,7 @@ export async function requestRemoteDesktopAuthorizeClient(clientId: string): Pro
   return (await promise) as {
     enabled: boolean;
     authorizedClients: Array<{ id: string; label: string }>;
-    encoderCapability: "unknown" | "available" | "unavailable";
+    encoderCapability: RemoteDesktopEncoderCapability;
   };
 }
 

@@ -28,6 +28,7 @@
 import { z } from "zod";
 import {
   remoteDesktopCodecSchema,
+  remoteDesktopEncoderCapabilitySchema,
   remoteDesktopQualitySchema,
   remoteDesktopSignalMessageSchema,
 } from "@mode/shared/remote-desktop";
@@ -146,8 +147,9 @@ export const remoteDesktopServerStateResultSchema = z
     ok: z.boolean(),
     enabled: z.boolean(),
     authorizedClients: z.array(remoteDesktopAuthorizedClientSchema),
-    // 编码能力缓存（P1-3）：从真实会话的 rd_media_start 结果观测；旧 host 缺省 = unknown。
-    encoderCapability: z.enum(["unknown", "available", "unavailable"]).optional(),
+    // 编码能力缓存（P1-3，2026-10-15 增 software 态）：从真实会话的 rd_media_start 结果观测
+    // （含 helper 回报的编码器来源）；旧 host 缺省 = unknown。
+    encoderCapability: remoteDesktopEncoderCapabilitySchema.optional(),
     error: z.string().optional(),
   })
   .strict();

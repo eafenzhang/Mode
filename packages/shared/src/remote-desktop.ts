@@ -244,6 +244,24 @@ export type RemoteDesktopCodec = z.infer<typeof remoteDesktopCodecSchema>;
 
 export const DEFAULT_REMOTE_DESKTOP_CODEC: RemoteDesktopCodec = "h264";
 
+// ---- 编码能力缓存（P1-3 → 2026-10-15 增 software 态）----
+
+/**
+ * 被控端编码器面的观测值（spec: native-media「编码能力缓存」/「软件编码回退」）：
+ * - `unknown`：尚无真实会话观测（不猜能力）；
+ * - `available`：会话建流用的是硬件编码器 MFT；
+ * - `software`：本机没有可用的硬件编码器，会话回退**系统软件编码器**继续出画面
+ *   ——**不是失败**，但 CPU 占用与延迟更高，设置页据此给代价提示；
+ * - `unavailable`：硬件与软件两路都拿不到编码器，会话起不来（根因提示）。
+ */
+export const remoteDesktopEncoderCapabilitySchema = z.enum([
+  "unknown",
+  "available",
+  "software",
+  "unavailable",
+]);
+export type RemoteDesktopEncoderCapability = z.infer<typeof remoteDesktopEncoderCapabilitySchema>;
+
 // ---- 剪贴板同步（P1.1，spec 产品规则 7）----
 
 /**

@@ -14,11 +14,13 @@ import { BrokerError, CuaHelperError, callBrokerMethod } from "@mode/cua/broker"
  * 注入端口签名：一次 rd_media 调用。
  * method 联合与 host 侧 RemoteDesktopMediaCall 一致（rd_media_start/switch/stop，napi 面）；
  * params 是 helper 契约参数，本层不复刻逐字段校验。
+ * 返回值原样透传 broker 的 result（`rd_media_start` 带 `{encoder:"hardware"|"software"}`，
+ * 供被控 host 判编码器来源；switch/stop 的 result 无消费者）。
  */
 export type CuaRdMediaController = (
   method: "rd_media_start" | "rd_media_switch" | "rd_media_stop",
   params: object,
-) => Promise<void>;
+) => Promise<unknown>;
 
 export interface CreateCuaRdMediaControllerOptions {
   /** 注入 socket 解析点；返回 null/undefined 表示 helper 不可达（只报错，不拉起、不重试）。 */
@@ -86,7 +88,7 @@ export function createCuaRdMediaController(
       });
     }
     try {
-      await invokeBroker({ socketPath, method, params, timeoutMs });
+      return await invokeBroker({ socketPath, method, params, timeoutMs });
     } catch (error) {
       throw toRdMediaError(error);
     }

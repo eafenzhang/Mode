@@ -57,6 +57,7 @@ use windows::Win32::Media::MediaFoundation::{
   MFVideoInterlace_Progressive, IMFActivate, IMFMediaType, IMFSample, IMFTransform,
   MFT_CATEGORY_VIDEO_ENCODER,
   MFTEnumEx, MFT_ENUM_FLAG, MFT_ENUM_FLAG_HARDWARE, MFT_ENUM_FLAG_SORTANDFILTER,
+  MFT_ENUM_FLAG_SYNCMFT,
   MFT_MESSAGE_COMMAND_DRAIN, MFT_MESSAGE_COMMAND_FLUSH, MFT_MESSAGE_NOTIFY_BEGIN_STREAMING,
   MFT_MESSAGE_NOTIFY_END_OF_STREAM,
   MFT_MESSAGE_NOTIFY_START_OF_STREAM, MFT_MESSAGE_SET_D3D_MANAGER, MFT_OUTPUT_DATA_BUFFER,
@@ -66,10 +67,19 @@ use windows::Win32::Media::MediaFoundation::{
 };
 use windows::core::{GUID, Interface, IUnknown, VARIANT};
 
-use super::capture::create_texture;
+use super::capture::{create_texture, ComScope};
 use super::state::{contains_hevc_idr, contains_idr, reduce, EncoderAction, EncoderState};
 use super::warn;
 use crate::error::{AxError, AxResult};
+
+/// 枚举口径①（主路径）：硬件 MFT。
+const HARDWARE_ENUM_FLAGS: MFT_ENUM_FLAG =
+  MFT_ENUM_FLAG(MFT_ENUM_FLAG_HARDWARE.0 | MFT_ENUM_FLAG_SORTANDFILTER.0);
+/// 枚举口径②（软件回退，2026-10-15）：**不带** `HARDWARE`——该标志会把系统自带软件编码器
+/// （微软 `H264 Encoder MFT`）排除；用 `SYNCMFT` 只收同步 MFT，因而与硬件候选互不重叠
+/// （硬件编码器都是异步 MFT），不会把刚激活失败的硬件候选重新排进来。
+const SOFTWARE_ENUM_FLAGS: MFT_ENUM_FLAG =
+  MFT_ENUM_FLAG(MFT_ENUM_FLAG_SYNCMFT.0 | MFT_ENUM_FLAG_SORTANDFILTER.0);
 
 /// GOP 目标（spec「编码」：GOP 120 帧 ≈ 2s@60fps）。MFT 侧无 GOP 属性，由状态机
 /// 每 120 帧触发一次 flush-IDR 实现「每 GOP 一个关键帧」。
@@ -84,6 +94,25 @@ const MF_TICKS: i64 = 90_000;
 pub enum RdEncodeCodec {
   H264,
   Hevc,
+}
+
+/// 实际生效的编码器来源（spec: native-media「软件编码回退」2026-10-15）：硬件 MFT 优先，
+/// 硬件口径枚举不到可激活候选时回退系统自带软件编码器。回报给 helper/host，用于能力缓存
+/// 与设置页提示（software = 能出画面但 CPU 占用与延迟更高，不是失败）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RdEncoderKind {
+  Hardware,
+  Software,
+}
+
+impl RdEncoderKind {
+  /// wire 口径（`rd_media_start` 结果字段 / 能力缓存值域），小写短串。
+  pub fn as_str(self) -> &'static str {
+    match self {
+      RdEncoderKind::Hardware => "hardware",
+      RdEncoderKind::Software => "software",
+    }
+  }
 }
 
 /// MF 进程级引用计数：`MFStartup` 只在首个编码器建立时调用，最后一个编码器
@@ -174,6 +203,8 @@ pub struct Encoder {
   codec: RdEncodeCodec,
   /// ICodecAPI（可用时）：实时提示 + B 帧=0 + 免 flush 强制 IDR；None = 全走回退。
   codec_api: Option<ICodecAPI>,
+  /// 实际生效的编码器来源（硬件/软件回退）：换屏等重建沿用它，并回报给上层做能力提示。
+  encoder_kind: RdEncoderKind,
   /// 强制 IDR 模式（见 `ForceKeyMode`）。
   force_key_mode: ForceKeyMode,
   /// 异步 MFT（MF_TRANSFORM_ASYNC=TRUE；硬件 H.264 编码器普遍如此）必须走事件模型：
@@ -229,6 +260,11 @@ impl Encoder {
     self.codec
   }
 
+  /// 实际生效的编码器来源（hardware = 硬件 MFT，software = 回退系统软件编码器）。
+  pub fn encoder_kind(&self) -> RdEncoderKind {
+    self.encoder_kind
+  }
+
   fn build(
     device: &ID3D11Device,
     out_w: u32,
@@ -253,12 +289,24 @@ impl Encoder {
       .map_err(|e| AxError::internal(format!("ID3D11VideoContext1 QI 失败: {e}")))?;
     // codec 激活：HEVC 优先按 subtype=HEVC 枚举，无硬件 HEVC MFT 回退 H.264
     //（warn 不失败——偏好与实际不一致由码流自描述兜底，spec「HEVC 选型」）。
-    let (mf, async_mode) = match codec {
+    // 软件回退（2026-10-15，spec「软件编码回退」）后编码阶梯为：
+    // 硬件 HEVC → 硬件 H.264 → 软件 H.264；**不落软件 HEVC**。
+    let (mf, async_mode, encoder_kind) = match codec {
       RdEncodeCodec::H264 => activate_encoder(&MFVideoFormat_H264, "H.264")?,
       RdEncodeCodec::Hevc => match activate_encoder(&MFVideoFormat_HEVC, "HEVC") {
-        Ok(v) => v,
+        Ok((mf, async_mode, RdEncoderKind::Hardware)) => {
+          (mf, async_mode, RdEncoderKind::Hardware)
+        }
+        // 只剩软件 HEVC 时不采纳：微软软件 HEVC 编码器要额外装 HEVC 扩展，而软件 H.264
+        // 恒定可用且开销更小——偏好让位于更稳的那条路（上面已按软件口径激活过一次，
+        // 未采用的 transform 随作用域释放，不额外占用）。
+        Ok((_, _, RdEncoderKind::Software)) => {
+          warn("HEVC 只剩软件编码器，改用软件 H.264（软件 HEVC 需额外扩展且开销更大）");
+          codec = RdEncodeCodec::H264;
+          activate_encoder(&MFVideoFormat_H264, "H.264")?
+        }
         Err(e) => {
-          warn(&format!("HEVC 硬件编码不可用，回退 H.264: {e}"));
+          warn(&format!("HEVC 编码器不可用，回退 H.264: {e}"));
           codec = RdEncodeCodec::H264;
           activate_encoder(&MFVideoFormat_H264, "H.264")?
         }
@@ -359,6 +407,7 @@ impl Encoder {
       profile,
       codec,
       codec_api,
+      encoder_kind,
       force_key_mode,
       async_mode,
       events,
@@ -982,13 +1031,17 @@ fn unlock_async_mft(mf: &IMFTransform) -> bool {
   }
 }
 
-/// 枚举硬件视频编码器（输出 subtype 参数化：H.264/HEVC）并激活。
-/// 返回 (transform, 是否异步 MFT)。
+/// 按给定标志位枚举视频编码器（输出 subtype 参数化：H.264/HEVC）并激活首个可用者。
+/// 返回 (transform, 是否异步 MFT)；无候选或全部激活失败返回该口径的稳定错误。
 ///
 /// 选择口径：简报写「取含 "H.264" 描述者」，但 windows 0.58 元数据没有
 /// `MF_TRANSFORM_FRIENDLY_NAME` 常量——改用等价且更强的类型过滤
 /// （输入 NV12 + 输出目标 subtype + `SORTANDFILTER` 排序），首个可激活且可配类型的胜出。
-fn activate_encoder(subtype: &GUID, label: &str) -> AxResult<(IMFTransform, bool)> {
+fn enumerate_encoder(
+  subtype: &GUID,
+  mode_label: &str,
+  flags: MFT_ENUM_FLAG,
+) -> AxResult<(IMFTransform, bool)> {
   let input_info = MFT_REGISTER_TYPE_INFO {
     guidMajorType: MFMediaType_Video,
     guidSubtype: MFVideoFormat_NV12,
@@ -997,8 +1050,6 @@ fn activate_encoder(subtype: &GUID, label: &str) -> AxResult<(IMFTransform, bool
     guidMajorType: MFMediaType_Video,
     guidSubtype: *subtype,
   };
-  let flags =
-    MFT_ENUM_FLAG(MFT_ENUM_FLAG_HARDWARE.0 | MFT_ENUM_FLAG_SORTANDFILTER.0);
   let mut arr: *mut Option<IMFActivate> = std::ptr::null_mut();
   let mut count = 0u32;
   // unsafe 依据（块级）：MFTEnumEx 分配激活器数组，本函数负责逐个取用后
@@ -1012,7 +1063,7 @@ fn activate_encoder(subtype: &GUID, label: &str) -> AxResult<(IMFTransform, bool
       &mut arr,
       &mut count,
     )
-    .map_err(|e| AxError::new("unimplemented", format!("MFTEnumEx(硬件 {label}) 失败: {e}")))?;
+    .map_err(|e| AxError::new("unimplemented", format!("MFTEnumEx({mode_label}) 失败: {e}")))?;
   }
   let mut activated: Option<IMFTransform> = None;
   let mut activated_async = false;
@@ -1040,8 +1091,64 @@ fn activate_encoder(subtype: &GUID, label: &str) -> AxResult<(IMFTransform, bool
   activated
     .map(|transform| (transform, activated_async))
     .ok_or_else(|| {
-      AxError::new("unimplemented", format!("无可用硬件 {label} 编码器（MFTEnumEx 无候选或激活失败）"))
+      AxError::new("unimplemented", format!("无可用{mode_label}编码器（MFTEnumEx 无候选或激活失败）"))
     })
+}
+
+/// 枚举并激活视频编码器，**硬编优先、软件兜底**（spec「软件编码回退」2026-10-15）。
+/// 返回 (transform, 是否异步 MFT, 编码器来源)。
+///
+/// 为什么软件回退要**另跑一次枚举**而不是直接去掉 `HARDWARE` 标志：`MFT_ENUM_FLAG_HARDWARE`
+/// 会把系统自带的软件编码器（微软 `H264 Encoder MFT`，Win10 恒定可用）排除，所以硬件口径
+/// 空手而归时，去标志的那次枚举会把**刚激活失败的硬件候选重新排在前面**（SORTANDFILTER
+/// 的优先级顺序不变），又原样失败一轮。改用 `SYNCMFT` 口径单独枚举软件 MFT——软件编码器
+/// 都是同步 MFT，硬件候选不属于该类，两轮互不重叠。
+fn activate_encoder(subtype: &GUID, label: &str) -> AxResult<(IMFTransform, bool, RdEncoderKind)> {
+  match enumerate_encoder(subtype, &format!("硬件 {label}"), HARDWARE_ENUM_FLAGS) {
+    Ok((transform, async_mode)) => Ok((transform, async_mode, RdEncoderKind::Hardware)),
+    Err(hardware_error) => {
+      // 运行期回退必须留痕（spec「helper 侧 [rd_media] 运行告警必须接入主日志」）：
+      // 无硬编机器此前是整会话不出画面，日志里只有一句「无可用硬件编码器」。
+      warn(&format!(
+        "无可用硬件 {label} 编码器，回退系统软件编码器（CPU 占用与延迟升高）: {hardware_error}"
+      ));
+      match enumerate_encoder(subtype, &format!("软件 {label}"), SOFTWARE_ENUM_FLAGS) {
+        Ok((transform, async_mode)) => Ok((transform, async_mode, RdEncoderKind::Software)),
+        Err(software_error) => Err(AxError::new(
+          "unimplemented",
+          format!("无可用 {label} 编码器（硬件口径：{hardware_error}；软件口径：{software_error}）"),
+        )),
+      }
+    }
+  }
+}
+
+/// 测试专用（沿 capture.rs `create_device_for_tests` / `stop_for_tests` 口径）：
+/// 只按 `kind` 指定的口径枚举激活目标 codec 的编码器并立即释放，返回该口径是否可用。
+///
+/// 用途：在**有硬编的机器与 CI 上**独立覆盖软件回退口径——否则这条路径只在无硬编机器上
+/// 被走到，回归时是盲区（用户那台 Quadro 2000 正是只走软件路的情形）。
+pub fn probe_encoder_for_tests(codec: RdEncodeCodec, kind: RdEncoderKind) -> AxResult<()> {
+  let subtype = match codec {
+    RdEncodeCodec::H264 => MFVideoFormat_H264,
+    RdEncodeCodec::Hevc => MFVideoFormat_HEVC,
+  };
+  let mode_label = match (codec, kind) {
+    (RdEncodeCodec::H264, RdEncoderKind::Hardware) => "硬件 H.264",
+    (RdEncodeCodec::Hevc, RdEncoderKind::Hardware) => "硬件 HEVC",
+    (RdEncodeCodec::H264, RdEncoderKind::Software) => "软件 H.264",
+    (RdEncodeCodec::Hevc, RdEncoderKind::Software) => "软件 HEVC",
+  };
+  let flags = match kind {
+    RdEncoderKind::Hardware => HARDWARE_ENUM_FLAGS,
+    RdEncoderKind::Software => SOFTWARE_ENUM_FLAGS,
+  };
+  // MFTEnumEx 要求调用线程已初始化 COM（与 worker 内同路径），MF 平台同理。
+  let _com = ComScope::enter();
+  mf_acquire()?;
+  let result = enumerate_encoder(&subtype, mode_label, flags).map(|_| ());
+  mf_release();
+  result
 }
 
 /// 配置输入/输出 media type（MS 编码器口径：输入 NV12+尺寸+帧率+逐行；
@@ -1258,5 +1365,41 @@ pub fn to_annex_b(data: &[u8]) -> Cow<'_, [u8]> {
     Cow::Owned(out)
   } else {
     Cow::Borrowed(data)
+  }
+}
+
+/// 编码器来源与两轮枚举口径的契约测试（spec「软件编码回退」2026-10-15）。
+#[cfg(test)]
+mod encoder_kind_tests {
+  use super::*;
+
+  /// wire 契约：helper → host 的结果字段与能力缓存字面量都按这两个值判编码器来源，
+  /// 改动即静默破坏设置页提示（用例把它钉住）。
+  #[test]
+  fn encoder_kind_wire_strings_are_stable() {
+    assert_eq!(RdEncoderKind::Hardware.as_str(), "hardware");
+    assert_eq!(RdEncoderKind::Software.as_str(), "software");
+  }
+
+  /// 两轮口径必须互不重叠（「另跑一次枚举」的依据）：软件口径不带 HARDWARE 标志
+  /// （带了就把系统软件编码器排除掉），且只收同步 MFT（硬件编码器都是异步 MFT，
+  /// 因而不会把刚激活失败的硬件候选重新排进来）。
+  #[test]
+  fn software_pass_is_disjoint_from_hardware_pass() {
+    assert_eq!(
+      HARDWARE_ENUM_FLAGS.0 & MFT_ENUM_FLAG_HARDWARE.0,
+      MFT_ENUM_FLAG_HARDWARE.0,
+      "硬件口径必须带 HARDWARE 标志"
+    );
+    assert_eq!(
+      SOFTWARE_ENUM_FLAGS.0 & MFT_ENUM_FLAG_HARDWARE.0,
+      0,
+      "软件口径不得带 HARDWARE 标志"
+    );
+    assert_eq!(
+      SOFTWARE_ENUM_FLAGS.0 & MFT_ENUM_FLAG_SYNCMFT.0,
+      MFT_ENUM_FLAG_SYNCMFT.0,
+      "软件口径只收同步 MFT"
+    );
   }
 }
