@@ -1,5 +1,37 @@
 # 远程工作区对话记录镜像（Conversation Mirror）
 
+状态：已实现（2026-10-15 补回 UI 挂载点）；**待提交发版**——已发布的 v0.0.41 / v0.0.42 都不含该挂载，线上仍不触发。
+
+## 实现状态（2026-10-15 核查与修复）
+
+链路各段均已落地：协议 `packages/shared/src/mode-protocol/index.ts`（`source: z.literal("remoteMirror")`）、
+共享逻辑 `packages/shared/src/conversation-mirror.ts`、UI 编排 `packages/ui/src/lib/conversationMirrorSync.ts`、
+CLI 通用持久化 `apps/mode-cli/packages/bootstrap/src/mode-protocol/server-operations.ts` 的
+`persistImportedSessionHistory`（`remoteMirror` 走通用分支，无专属分支）。
+
+**曾经不生效的原因**：唯一触发组件 `packages/ui/src/WorkspaceConversationMirrorStatus.tsx` 的挂载点
+被 `8242a576`（在 v0.0.36 基线上重建主线）摘掉——该提交重写 `packages/ui/src` 时删掉了
+`WorkspaceSidebarItem.tsx` 里对它的 import 与渲染，组件沦为孤儿，于是
+`useWorkspaceConversationMirror` → `runConversationMirrorSync` → `session/create` + `importedHistory`
+整条链永不触发（功能代码在、调用点没了；typecheck / lint 不会报，因为孤儿组件是合法代码）。
+2026-10-15 已在 `WorkspaceSidebarItem.tsx` 的 `CollapsibleContent` 内、`TaskList` 之后补回该挂载，
+与重建前的旧树（`backup/main-before-rebuild`）一致。
+
+**该挂载是整条链的唯一触发点**，且位于 `CollapsibleContent` 内——Radix 折叠时会卸载子树，所以自动同步
+实际由「工作区行展开」门控。这条门控方向上与不变量 7（只处理用户正在使用的工作区）一致，而「激活工作区
+必然展开」（`tabStore` 的 `activateTab → ensureWorkspaceExpanded`）保证了连上远端就会同步一轮，因此挂载位置
+保持不动；代价是改动该处结构时必须重新确认这条依赖——孤儿组件是合法代码，typecheck / lint 都不会报。
+
+**版本事实**：v0.0.39 / v0.0.40 含该挂载（重建前主线）；v0.0.41、v0.0.42（= `origin/main`）不含。
+所以本修复必须重新发版才在客户端生效，只改工作区对已安装的 app 没有影响。
+
+**测试**：UI 编排单测已补（`packages/ui/test/conversationMirrorSync.test.ts`，8 例）。
+CLI 侧仍缺 `remoteMirror` 源的单测，见「测试」一节。
+
+**仍未补的一处（不阻断主链）**：`WorkspaceConversationMirrorSection.tsx`、`ConversationMirrorRecordDialog.tsx`
+只存在于 `.plan/recovered/`（会话库恢复产物），源码树没有；本 spec 的设计不需要它们
+（镜像会话本身进任务列表，无需记录列表视图）。
+
 ## 产品规则
 
 ### 范围
@@ -9,7 +41,8 @@
 - **镜像产物是真会话，不是只读投影**：镜像记录以 `session/create` + `importedHistory` 导入成目标 scope 下的真实会话，
   与本地对话完全同质——可继续对话、可置顶 / 归档 / 改名 / 删除、进任务搜索与 `@` 提及。
 - 「双向」= 一轮同步同时做两件事：① 对端记录 → **本机当前视图 scope**；② 本机记录 → **对端本地 scope**。
-- 「每次连接时自动同步」= 远端 workspace attach 就绪（`rpcReady`）或该 workspace 被激活时自动跑一轮。
+- 「每次连接时自动同步」= 远端 workspace attach 就绪（`rpcReady`）时自动跑一轮。触发点挂在工作区行内，
+  Radix 折叠会卸载子树，所以「激活工作区必然展开」是这条自动同步的隐含前提（见「实现状态」）。
 
 ### 归属与执行位置（本 spec 的核心裁决）
 
@@ -37,7 +70,8 @@
 1. **镜像只导入、不复制产品态**：导入只调用 `session/create`（含 `importedHistory`），不改 task meta。
    因此重同步不会覆盖用户已设置的置顶 / 归档 / 删除 tombstone / 标题覆盖（tasks-index 只补缺失行，负向 membership 不复活）。
 2. **只镜像本机本地 scope 的记录**：带 `workspaceIdentity` 的行属于「以对端身份打开的工作区」，转发它等于转发对端内容。
-3. **镜像副本不再被转发**：镜像会话 id 统一为 `mirror-<sha256(originSessionId)[0:24]>`，读取对端本地 scope 时跳过该前缀。
+3. **镜像副本不再被转发**：镜像会话 id 统一为 `mirror-<originSessionId>`（直接拼来源 id，不做哈希——
+   Renderer 侧不能依赖 `node:crypto`，且日志与库里能直接看出镜像来源），读取对端本地 scope 时跳过该前缀。
    这同时挡住「本机副本被对端搬回来」的回声和第三台机器副本的扩散。
 4. **幂等**：确定性 id + CLI 的 `removePreviousImportedSessionHistory`（按 `metadata.migrationSource` 清理旧导入消息）
    保证重复导入只覆盖导入消息、**保留用户后续在镜像会话里真实聊出的消息**。
@@ -51,7 +85,7 @@
 ### 事件顺序
 
 ```text
-A 连接 B 的远端工作区 W（rpcReady / 激活）
+A 连接 B 的远端工作区 W（rpcReady + 工作区行已展开 → 挂载镜像状态组件）
   │
   ├─ ① 对端记录 → A 的视图 scope（会话落在 B 上）
   │   remote.modeTaskService.listTaskList({workspacePath: W})               ← 取 B 的本地 scope 行
@@ -60,7 +94,7 @@ A 连接 B 的远端工作区 W（rpcReady / 激活）
   │     └ 仅当 origin.updatedAt > 目标 meta.updatedAt 才继续（未变则跳过）
   │   remote.modeSessionService.readSessionMessages({W, sessionId}) → 提取文本 + 截断
   │   remote.modeSessionService.createSession({
-  │       sessionId: mirror-<hash>, persistence: "immediate",
+  │       sessionId: mirror-<originSessionId>, persistence: "immediate",
   │       workspace: {workspacePath: W, workspaceIdentity: R},
   │       importedHistory: {source: "remoteMirror", title, createdAt, updatedAt, originSessionId, messages}})
   │     └ CLI：upsert 会话 → 清理旧导入消息 → 写消息/part(migrationSource) → app.resume()（可续聊）
@@ -95,10 +129,14 @@ A 连接 B 的远端工作区 W（rpcReady / 激活）
 
 - 单测（shared）：确定性 id 派生稳定、镜像前缀判定、本地 scope 过滤、消息提取（跳过隐藏 synthetic / 空文本）、
   有界化（会话数 / 消息数 / 文本长度 / 单记录字节预算 → `truncated`）、导入 payload 构造。
-- 单测（ui）：来源记录变更才导入（meta 更新时间比较）、mirror 前缀不转发、两个方向的 workspace ref 正确
-  （视图 scope 带 identity，对端本地 scope 不带）、对端不支持时降级、空记录不导入、单条失败不影响其余。
-- CLI 侧（`apps/mode-cli`）：`session/create` 带 `importedHistory.source="remoteMirror"` 能落盘为可续聊会话，
-  重导入保留后续真实消息（沿用既有 `mode-protocol.test.ts` 导入用例模式）。
+- 单测（ui）：`packages/ui/test/conversationMirrorSync.test.ts`（8 例）——夹具按双机拓扑搭，远端机的本地 scope
+  同时是①方向的来源与②方向的目标，避免两边共用一份服务桩而掩盖方向接错。覆盖：两个方向各落一个 scope
+  （视图带 identity / 反向不带）、目标不更旧不重导、mirror 前缀不被当新来源也不被再搬一次、对端不支持时整轮降级、
+  空记录不导入、单条读取失败只跳过该条、本地工作区不做任何镜像。
+- CLI 侧（`apps/mode-cli`）：**仍缺**。`session/create` 带 `importedHistory.source="remoteMirror"` 应能落盘为
+  可续聊会话，且重导入保留后续真实消息。注意本 spec 早先引用的 `mode-protocol.test.ts` 在当前源码树里不存在
+  （只在 `node_modules` 里有上游旧副本），补测前要先确认现有 bootstrap 测试骨架（`tsx --test test/*.test.mts`）能驱动
+  `persistImportedSessionHistory`。
 - E2E（交互改动必需）：远端工作区连接后镜像会话进入任务列表并可续聊。
 - 验证：`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`，目标包测试按实际入口执行并如实报告。
 

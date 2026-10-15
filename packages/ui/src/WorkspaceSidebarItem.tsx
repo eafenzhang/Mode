@@ -52,6 +52,7 @@ import {
   formatRemoteWorkspaceDisplayLabel,
 } from "@/lib/remoteWorkspaceHistory.js";
 import { TaskList } from "@/TaskList.js";
+import { WorkspaceConversationMirrorStatus } from "@/WorkspaceConversationMirrorStatus.js";
 import { selectWorkspaceModeState, useModeSessionStore } from "@/store/modeSessionStore.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
@@ -1133,6 +1134,18 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
             onArchiveTask={handleArchiveTask}
             onSetTaskUnread={handleSetTaskUnread}
             readOnlyReason={readOnlyReason}
+          />
+          {/* 远端对话记录镜像的**唯一触发点**：useWorkspaceConversationMirror 只在挂载时跑一轮同步，
+              正常状态（同步中/对端版本过低/失败之外）渲染 null，镜像会话本身进上面的任务列表。
+              它在 CollapsibleContent 内，依赖「激活工作区必然展开」（tabStore 的 activateTab →
+              ensureWorkspaceExpanded），因此摘掉或外移都会静默停掉 session/create+importedHistory 整条链——
+              重建提交 8242a576 就是漏搬了这一处，功能代码齐全但永远不触发。 */}
+          <WorkspaceConversationMirrorStatus
+            workspacePath={tab.workspacePath}
+            workspaceIdentity={tab.workspaceIdentity}
+            remoteSessionId={tab.remoteSessionId}
+            remoteTarget={tab.remoteTarget}
+            localServices={baseServices}
           />
         </CollapsibleContent>
       </Collapsible>
