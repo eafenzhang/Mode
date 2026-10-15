@@ -9,7 +9,19 @@
     {
       // 测试文件天然会堆叠大量场景与断言，继续复用生产代码的行数上限会造成误报，
       // 因此只对 test/spec 文件关闭 max-lines，避免放宽业务代码约束。
-      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+      // 扩展名覆盖 .ts/.tsx/.mts/.mjs：仓库有三类测试入口——tsconfig 项目（.ts）、
+      // `node --test` 直跑的 .mts、helper 的纯 ESM（.mjs）。只列前两者会让同性质的
+      // 测试被迫在文件头写 eslint-disable（2026-10-15 补全并删掉那处 workaround）。
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.test.mts",
+        "**/*.test.mjs",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/*.spec.mts",
+        "**/*.spec.mjs"
+      ],
       "rules": {
         "max-lines": "off"
       }

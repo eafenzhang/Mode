@@ -238,6 +238,7 @@ jobs:
           pnpm --filter @mode/services test
           pnpm --filter @mode/server test
           pnpm --filter @mode/ui test
+          pnpm --filter @mode/cua test
           pnpm --filter @mode/core test
           pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts
 

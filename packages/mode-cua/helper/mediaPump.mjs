@@ -53,7 +53,9 @@ function u32be(n) {
   return b;
 }
 
-export function createMediaPump(addon) {
+export function createMediaPump(addon, options = {}) {
+  /** 剪贴板轮询间隔：可在测试里注入更短的周期（生产用缺省值）。 */
+  const clipboardPollMs = options.clipboardPollMs ?? CLIPBOARD_POLL_MS;
   /** 当前会话（null = 未启动）；回调一律按会话身份过滤，见 emitFrame 的迟到投递说明。 */
   let state = null;
 
@@ -159,7 +161,7 @@ export function createMediaPump(addon) {
     // 对端的既有剪贴板顶掉（那是打扰，不是同步）。基线取不到（争用/无文本）就留 null，
     // 此时第一次变化照常上报，语义正确。
     session.lastClipboard = await readClipboardText();
-    session.clipboardTimer = setInterval(() => void pollClipboard(session), CLIPBOARD_POLL_MS);
+    session.clipboardTimer = setInterval(() => void pollClipboard(session), clipboardPollMs);
     return { ok: true };
   }
 

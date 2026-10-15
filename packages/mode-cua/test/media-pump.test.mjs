@@ -89,6 +89,14 @@ function fakeAddon(listeners) {
     rd_media_set_bitrate(bps) {
       listeners.bitrates = [...(listeners.bitrates ?? []), bps];
     },
+    // P1.1 剪贴板面（契约 A 的 napi 导出）：读取可注入（listeners.clipboardRead），
+    // 写入只记录（listeners.clipboardWrites）——泵的行为才是被测对象。
+    clipboard_read_text() {
+      return listeners.clipboardRead ? listeners.clipboardRead() : null;
+    },
+    clipboard_write_text(text) {
+      listeners.clipboardWrites = [...(listeners.clipboardWrites ?? []), text];
+    },
   };
 }
 
@@ -125,9 +133,9 @@ function startParams(port, { keyHex = "11".repeat(32), saltHex = "22".repeat(8) 
 }
 
 // 收口纪律：测试失败也要关掉回环 server 与泵，否则悬挂连接会卡住 test runner 进程。
-async function withPump(listeners, body) {
+async function withPump(listeners, body, pumpOptions = {}) {
   const relay = await startRelay();
-  const pump = createMediaPump(fakeAddon(listeners));
+  const pump = createMediaPump(fakeAddon(listeners), pumpOptions);
   try {
     await body(relay, pump);
   } finally {
@@ -393,4 +401,102 @@ test("管道被 host 断开：帧/状态写入不抛穿（TSFN Fatal 下不可�
     assert.deepEqual(await pump.stop(), { ok: true });
     assert.deepEqual(await pump.stop(), { ok: true });
   });
+});
+
+// ---- P1.1 剪贴板（helper 侧哑读写 + 变化才发；判据在宿主中继，不在此处）----
+
+const CLIPBOARD_PUMP_OPTIONS = { clipboardPollMs: 20 };
+
+/** kind5 帧 = [0x05][UTF-8 文本]；用于按文本内容断言上报。 */
+function clipboardFrames(frames) {
+  return frames.filter((frame) => frame[0] === 5).map((frame) => frame.subarray(1).toString("utf8"));
+}
+
+test("剪贴板：会话基线不上报；本端变化才上报 kind5；同值不重复", async () => {
+  const listeners = { clipboardRead: () => "基线文本" };
+  await withPump(
+    listeners,
+    async (relay, pump) => {
+      await pump.start(startParams(relay.port));
+      await openStream(relay);
+      // 基线语义：会话建立时读到的内容不上报——连上就把对端剪贴板顶掉是打扰，不是同步。
+      await sleep(150);
+      assert.deepEqual(clipboardFrames(relay.collector.frames), [], "基线不上报");
+      // 变化：下一拍上报一次，载荷是本端原文（UTF-8）。
+      listeners.clipboardRead = () => "变了";
+      await waitFor(() => clipboardFrames(relay.collector.frames).length === 1);
+      assert.deepEqual(clipboardFrames(relay.collector.frames), ["变了"]);
+      // 轮询会反复读到同一文本：不再上报（流量抑制；语义门在 host）。
+      await sleep(150);
+      assert.deepEqual(clipboardFrames(relay.collector.frames), ["变了"], "同值不重复上报");
+    },
+    CLIPBOARD_PUMP_OPTIONS,
+  );
+});
+
+test("剪贴板：kind6 落到本端剪贴板，且刚写进去的值不会被当成变化回弹", async () => {
+  const listeners = { clipboardRead: () => "旧值" };
+  await withPump(
+    listeners,
+    async (relay, pump) => {
+      await pump.start(startParams(relay.port));
+      await openStream(relay);
+      // kind6 = [u32BE len][0x06][UTF-8 文本]
+      const payload = Buffer.from("来自主控", "utf8");
+      relay.hostSides[0].write(
+        Buffer.concat([u32be(1 + payload.length), Buffer.from([6]), payload]),
+      );
+      await waitFor(() => (listeners.clipboardWrites ?? []).length === 1);
+      assert.deepEqual(listeners.clipboardWrites, ["来自主控"]);
+      // 写入后本端剪贴板即该文本，轮询会读到它：必须被认作「刚应用过」，不得回弹上报。
+      listeners.clipboardRead = () => "来自主控";
+      await sleep(150);
+      assert.deepEqual(clipboardFrames(relay.collector.frames), [], "刚写入的值不回弹");
+    },
+    CLIPBOARD_PUMP_OPTIONS,
+  );
+});
+
+test("剪贴板：读取失败与写入失败都不打断会话（只丢本次）", async () => {
+  const listeners = {
+    clipboardRead: () => {
+      throw new Error("OpenClipboard 被占用");
+    },
+  };
+  await withPump(
+    listeners,
+    async (relay, pump) => {
+      await pump.start(startParams(relay.port));
+      await openStream(relay);
+      await sleep(150);
+      assert.deepEqual(clipboardFrames(relay.collector.frames), [], "读失败 = 本拍无变化");
+      // 写入失败：kind6 不抛穿（addon 抛 → 泵吞掉，会话继续）。
+      listeners.clipboardWrites = undefined;
+      const failing = createMediaPump(
+        {
+          ...fakeAddon(listeners),
+          clipboard_write_text() {
+            throw new Error("SetClipboardData 失败");
+          },
+        },
+        CLIPBOARD_PUMP_OPTIONS,
+      );
+      const relay2 = await startRelay();
+      try {
+        await failing.start(startParams(relay2.port));
+        // 直接等 host 侧连接后下发 kind2，再发 kind6：写失败不得让连接断开。
+        await openStream(relay2);
+        const payload = Buffer.from("写不进去", "utf8");
+        relay2.hostSides[0].write(
+          Buffer.concat([u32be(1 + payload.length), Buffer.from([6]), payload]),
+        );
+        await sleep(150);
+        assert.equal(relay2.hostSides[0].destroyed, false, "写失败不断管");
+      } finally {
+        await failing.stop();
+        await relay2.close();
+      }
+    },
+    CLIPBOARD_PUMP_OPTIONS,
+  );
 });

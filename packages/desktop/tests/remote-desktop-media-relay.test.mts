@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- 测试文件堆叠分帧/背压/收口场景；oxlint 的 test 豁免（.oxlintrc.json）只匹配 *.test.ts 未覆盖 .mts，本豁免与其同一口径。 */
 /**
  * host 媒体中继回归：本地管道长度前缀分帧、kind 路由、media WS 上行（ready/ping/输入）、
  * 背压丢弃与超长帧防御。运行：
