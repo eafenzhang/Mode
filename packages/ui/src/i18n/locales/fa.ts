@@ -1977,6 +1977,7 @@ const faIR: Record<string, string> = {
   // آینهٔ گفتگوی فضای کاری از راه دور (سوابق به‌صورت گفتگوی واقعی وارد می‌شوند)
   "conversationMirror.syncing": "در حال همگام‌سازی سوابق گفتگوی از راه دور...",
   "conversationMirror.unsupported": "نسخهٔ طرف مقابل قدیمی است و سوابق گفتگو همگام‌سازی نمی‌شود",
+  "conversationMirror.degraded": "هیچ سابقهٔ گفتگویی خوانده نشد؛ دوباره تلاش کنید",
   "conversationMirror.error": "همگام‌سازی سوابق گفتگو ناموفق بود",
   "conversationMirror.retry": "تلاش دوباره برای همگام‌سازی سوابق گفتگو",
   "taskList.showMore": "نمایش بیشتر",

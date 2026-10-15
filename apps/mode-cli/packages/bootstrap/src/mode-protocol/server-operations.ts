@@ -1865,8 +1865,13 @@ export async function readSessionContextUsage(
 
 export async function readMessages(context: ModeProtocolAgentServerContext, rawParams: unknown) {
   const params = parseParams(modeSessionMessagesParamsSchema, rawParams);
-  const record = requireSession(context, params.sessionId);
-  const allMessages = await readActiveSessionMessages(context, record);
+  // 冷会话（不在活跃 runtime 里）也允许读：消息本来就只落在 session store 上，活跃路径也只是把
+  // store 结果再套一层 rewind 投影。若沿用 requireSession 抛错，远程工作区对话镜像就永远读不到
+  // 对端任何一条记录（docs/specs/remote-workspace-conversation-mirror.md 不变量 7）。
+  const record = context.sessions.get(params.sessionId);
+  const allMessages = record
+    ? await readActiveSessionMessages(context, record)
+    : await readColdSessionMessages(context, params.sessionId);
   const afterMessageIndex = params.afterMessageId
     ? allMessages.findIndex((message) => String(message.info.id) === params.afterMessageId)
     : -1;
@@ -3794,6 +3799,35 @@ async function readActiveSessionMessages(
     readSessionRewindEvents(record),
   ]);
   return projectActiveSessionMessages(messages, session, rewindEvents);
+}
+
+/**
+ * 冷会话读取：只从 session store 取，不把会话恢复进 runtime。
+ *
+ * 事件存储是内存态（`create-app` 的 `createInMemorySessionEventStore`），会话不在 runtime 里就没有
+ * rewind 事件可读，因此这里只保留「落盘 revert」那一层投影——**与活跃读不承诺逐字节等价**，镜像需要的
+ * role + 文本 + 时间戳不受影响。
+ *
+ * 刻意用 `sessionStore.getSession` 而不是 `getPersistedSession`：后者会顺带修复旧版远端工作区路径，
+ * 那是写操作，被动读取不应该触发对端数据变更。
+ */
+async function readColdSessionMessages(
+  context: ModeProtocolAgentServerContext,
+  sessionId: string,
+): Promise<MessageWithParts[]> {
+  const sessionStore = context.deps.sessionStore;
+  const session = sessionStore ? await sessionStore.getSession(sessionId as SessionId) : null;
+  if (!sessionStore || !session) {
+    // session 真的不存在时保持原有错误语义：不能伪装成「空会话」，否则调用方无法区分
+    // 「没有消息」和「id 已失效」，镜像也就没法把陈旧引用和空记录分开处理。
+    throw new ProtocolRequestError(
+      modeProtocolErrorCodes.sessionUnavailable,
+      `Session is not active: ${sessionId}`,
+    );
+  }
+  // 复用冷恢复路径同一个只读入口，不另起第二份「从 store 取消息」的实现。
+  const messages = await readPersistedSessionMessages(context, sessionId);
+  return projectActiveSessionMessages(messages, session, []);
 }
 
 async function readSessionRewindEvents(

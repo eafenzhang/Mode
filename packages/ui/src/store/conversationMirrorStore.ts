@@ -7,7 +7,17 @@ import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
  * 镜像产物是**真会话**（导入到目标 scope，见 docs/specs/remote-workspace-conversation-mirror.md），
  * 会话本身由任务列表承载，这里只保留「这一轮同步怎么样」——用来在侧栏给出降级提示与重试入口。
  */
-export type ConversationMirrorStatus = "idle" | "syncing" | "ready" | "unsupported" | "error";
+/**
+ * degraded = 本轮有记录可读但一条都没读成功（0 导入 + 有读取失败），与 ready（本来就没东西可同步）区分。
+ * 典型来源是对端 CLI 没有冷读能力，`session/messages` 对冷会话全部抛错。
+ */
+export type ConversationMirrorStatus =
+  | "idle"
+  | "syncing"
+  | "ready"
+  | "degraded"
+  | "unsupported"
+  | "error";
 
 export interface WorkspaceConversationMirrorState {
   status: ConversationMirrorStatus;
@@ -33,6 +43,11 @@ interface ConversationMirrorStoreState {
     result: { importedCount: number; syncedAt: number },
   ) => void;
   setMirrorUnsupported: (
+    workspacePath: string,
+    workspaceIdentity: string | undefined,
+    error: unknown,
+  ) => void;
+  setMirrorDegraded: (
     workspacePath: string,
     workspaceIdentity: string | undefined,
     error: unknown,
@@ -93,6 +108,12 @@ export const useConversationMirrorStore = create<ConversationMirrorStoreState>()
     setMirrorUnsupported: (workspacePath, workspaceIdentity, error) => {
       patch(workspacePath, workspaceIdentity, {
         status: "unsupported",
+        error: resolveErrorMessage(error),
+      });
+    },
+    setMirrorDegraded: (workspacePath, workspaceIdentity, error) => {
+      patch(workspacePath, workspaceIdentity, {
+        status: "degraded",
         error: resolveErrorMessage(error),
       });
     },

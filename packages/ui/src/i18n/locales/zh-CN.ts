@@ -1852,6 +1852,7 @@ const zhCN: Record<string, string> = {
   // 远程工作区对话记录镜像（导入成真实会话）
   "conversationMirror.syncing": "正在同步远端对话记录...",
   "conversationMirror.unsupported": "对端版本过低，无法同步对话记录",
+  "conversationMirror.degraded": "对话记录同步未能读回任何内容，请重试",
   "conversationMirror.error": "对话记录同步失败",
   "conversationMirror.retry": "重新同步对话记录",
   "taskList.showMore": "显示更多",

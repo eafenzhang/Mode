@@ -330,6 +330,33 @@ test("单条记录读取失败只跳过该条，其余继续", async () => {
   assert.ok(warnings.some((message) => message.includes("bad")));
 });
 
+test("有记录但全部读取失败：报 degraded 而不是 ready，别把全面失败伪装成没东西可同步", async () => {
+  const remote = createMachine({
+    localScope: [
+      { taskId: "peer-1", updatedAt: 600 },
+      { taskId: "peer-2", updatedAt: 500 },
+    ],
+    // 对端 CLI 没有冷读能力时，每个冷会话都抛这个错——正是恒导入 0 的那次线上故障。
+    readMessages: async () => {
+      throw new Error("Session is not active: peer-1");
+    },
+  });
+  const local = createMachine({ localScope: [] });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  assert.equal(result.status, "degraded");
+  assert.match(result.error, /Session is not active/);
+  assert.equal(result.importedIntoView, 0);
+  assert.equal(remote.createCalls.length, 0);
+});
+
 test("本地工作区不做任何镜像：来源与目标是同一个 scope，导入只会凭空造副本", async () => {
   const machine = createMachine({ localScope: [{ taskId: "mine-1", updatedAt: 700 }] });
 

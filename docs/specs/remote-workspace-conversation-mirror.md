@@ -1,6 +1,6 @@
 # 远程工作区对话记录镜像（Conversation Mirror）
 
-状态：已实现（2026-10-15 补回 UI 挂载点）；**待提交发版**——已发布的 v0.0.41 / v0.0.42 都不含该挂载，线上仍不触发。
+状态：已实现。挂载点已随 v0.0.43 发版；2026-10-15 补修「冷会话读不出消息」导致镜像导入恒为 0 的缺口（见下节）。
 
 ## 实现状态（2026-10-15 核查与修复）
 
@@ -27,6 +27,19 @@ CLI 通用持久化 `apps/mode-cli/packages/bootstrap/src/mode-protocol/server-o
 
 **测试**：UI 编排单测已补（`packages/ui/test/conversationMirrorSync.test.ts`，8 例）。
 CLI 侧仍缺 `remoteMirror` 源的单测，见「测试」一节。
+
+## 2026-10-15 冷读修复（镜像此前恒导入 0）
+
+**症状**：链路全部就位、挂载点也在，但一轮同步导入 0 条，且 UI 与日志都看不出异常。实测（v0.0.43，双机互连）：本机 host 当天处理 239 次 `mode-session.readSessionMessages`——该 RPC 全仓只有镜像在调用——**0 次成功**，全部 `Session is not active`；CLI 侧对应 140 条 `mode_protocol.session.require_missing`（`activeSessionCount: 0`、`hasSessionStore: true`），`session/create` 为 0。
+
+**根因**：`readMessages` 先调 `requireSession`，而它只查 `context.sessions`（活跃 runtime），冷会话直接抛错。数据其实一直都在 store 上——同一文件里的本地 helper `readSessionMessages` 本来就是 `sessionStore.messages(...)`。于是「对端会话没被 resume 过」时，①方向必然逐条读失败、`continue`，本轮 `importedCount: 0` 且仍返回 `ready`。
+
+**修法**：`readMessages` 改为冷读容忍——命中活跃 runtime 走原路径，未命中则只读 session store（`sessionStore.getSession` + `sessionStore.messages`）再套既有投影。**不物化 runtime**，因此不变量 7 原样成立。
+
+**两处必须如实记录的语义边界**：
+
+- 冷读**不等价于**活跃读：事件存储是内存态（`create-app` 的 `createInMemorySessionEventStore`），冷会话没有 rewind 事件可读，所以冷读只保留「落盘 revert」那一层投影。镜像只需要 role + 文本 + 时间戳，可接受；但不要把两者当同一份结果。
+- 冷读刻意用 `sessionStore.getSession` 而非 `getPersistedSession`：后者会顺带修复旧版远端工作区路径，属于写操作，被动读取不该触发对端数据变更。
 
 **仍未补的一处（不阻断主链）**：`WorkspaceConversationMirrorSection.tsx`、`ConversationMirrorRecordDialog.tsx`
 只存在于 `.plan/recovered/`（会话库恢复产物），源码树没有；本 spec 的设计不需要它们
@@ -55,6 +68,10 @@ CLI 侧仍缺 `remoteMirror` 源的单测，见「测试」一节。
 - 由此继承两条例证：① 断开连接后镜像会话与远端工作区普通会话一样不可见（不是本地离线副本）；
   ② 对端机器打开该工作区时，会看到本机记录导入进来的会话（这就是「互相看到」）。
 - **一个来源记录只会被导入到一个 scope**（按方向固定），因此确定性 id 不需要带 scope，重连换端口也不会产生重复。
+- ②方向的**来源 scope 是本机在同一路径下的本地 scope**（`tab.workspacePath`，**不是** `localWorkspacePath`）。
+  `localWorkspacePath` 是「本地 → 远端」的配置同步锚点（技能 / MCP / 插件），两侧通常不是同一个工程；
+  拿它当会话来源会把 A 工程的对话灌进 B 工程的工作区，因此不采用。代价：双机路径不同的连接
+  （如远端 `D:\gas-hub-xp` 对本地 `D:\ZCodium`）②方向恒为空，只有①方向生效。
 
 ### 状态所有者
 
@@ -80,7 +97,8 @@ CLI 侧仍缺 `remoteMirror` 源的单测，见「测试」一节。
 6. **失败不阻断**：导入失败只记 warn + 视图状态，不阻断 workspace 连接、任务列表与会话主链路；
    对端 CLI 不认识 `remoteMirror` 时判为「对端版本过低」，本轮不再重试，UI 给出可读提示。
 7. **不启动额外 runtime**：只处理用户正在使用的工作区；列举走任务列表（被动观察者），
-   消息读取走既有 `session/messages`（冷会话由 CLI 自行从 store 恢复）。
+   消息读取走既有 `session/messages`。冷会话由 CLI **只读 session store** 提供（不 resume、不物化 runtime，
+   见「2026-10-15 冷读修复」），因此读取结果不再取决于「对端该会话是否活跃」。
 
 ### 事件顺序
 
@@ -110,6 +128,7 @@ A 连接 B 的远端工作区 W（rpcReady + 工作区行已展开 → 挂载镜
 | ---------------------------------------- | -------------------------------------------------------------------- |
 | 对端 CLI 不认识 `remoteMirror`（旧版本） | 视图标 unsupported +「对端版本过低，无法同步对话记录」，本轮不再重试 |
 | 单条记录读取 / 导入失败                  | 跳过该条 + warn，其余继续                                            |
+| 有记录可读但**本轮全部读取失败**         | 视图标 degraded + 重试入口（对端 CLI 无冷读能力时即此状态），不得伪装成 ready |
 | 本机在该路径下无本地记录                 | 跳过②方向（不导入空内容）                                            |
 | 记录内容为空（全是工具调用 / 隐藏消息）  | 跳过该条（不导入空会话）                                             |
 | 目标 meta 更新时间 ≥ 来源更新时间        | 跳过（无需台账即可幂等，重连不重复导入）                             |

@@ -60,7 +60,9 @@ export function useWorkspaceConversationMirror(params: {
       localServices,
       isRemoteTarget,
       onWarning: (message, error) => {
-        logger.warn("[conversation-mirror]", message, error);
+        // 必须走 lifecycle：logger.warn 在生产构建里被门控成 no-op，镜像的失败诊断会整条丢失，
+        // 排查时「日志里没有镜像告警」会被误读成「没跑过」（见 packages/ui/src/logger.ts）。
+        logger.lifecycle.warn("[conversation-mirror]", message, error);
       },
     })
       .then((result) => {
@@ -72,6 +74,10 @@ export function useWorkspaceConversationMirror(params: {
           current.setMirrorUnsupported(workspacePath, workspaceIdentity, result.error);
           return;
         }
+        if (result.status === "degraded") {
+          current.setMirrorDegraded(workspacePath, workspaceIdentity, result.error);
+          return;
+        }
         current.setMirrorResult(workspacePath, workspaceIdentity, {
           importedCount: result.importedIntoView + result.importedIntoPeerLocal,
           syncedAt: Date.now(),
@@ -81,7 +87,7 @@ export function useWorkspaceConversationMirror(params: {
         if (!isCurrentRun()) {
           return;
         }
-        logger.warn("[conversation-mirror] 同步失败", error);
+        logger.lifecycle.warn("[conversation-mirror] 同步失败", error);
         useConversationMirrorStore
           .getState()
           .setMirrorError(workspacePath, workspaceIdentity, error);

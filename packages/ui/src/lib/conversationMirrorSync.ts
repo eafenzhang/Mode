@@ -40,10 +40,23 @@ export interface ConversationMirrorSyncResult {
   /**
    * unsupported = 对端 CLI 不认识 `remoteMirror` 导入源（版本过低）。
    * 判定是启发式的：首个导入失败即中止本轮，避免对 N 条记录各撞一次同样的错误。
+   *
+   * degraded = 本轮有记录可读，但**一条都没读成功**（0 导入 + 有读取失败）。这跟「本来就没东西可同步」
+   * 必须区分开：后者是 ready。典型场景是对端 CLI 没有冷读能力，`session/messages` 对每个冷会话都抛
+   * `Session is not active`，于是整轮静默导入 0 条——只报 ready 会让这种全面失败永远看不见。
    */
-  status: "ready" | "unsupported";
-  /** unsupported 时的原始错误文案，供 UI / 日志诊断。 */
+  status: "ready" | "degraded" | "unsupported";
+  /** unsupported / degraded 时的原始错误文案，供 UI / 日志诊断。 */
   error: string;
+}
+
+interface ImportScopeOutcome {
+  imported: number;
+  /** 来源消息读取失败条数；用来把「全面读失败」和「本来就没东西同步」区分开。 */
+  readFailures: number;
+  /** 最后一次读取失败的原文，供 degraded 状态提示。 */
+  lastReadError: string;
+  unsupportedError: string;
 }
 
 type SourceMessages = Awaited<ReturnType<IModeSessionService["readSessionMessages"]>>;
@@ -100,6 +113,8 @@ export async function runConversationMirrorSync(
 
   // ② 本机本地 scope → 对端本地 scope（落在对端机器自己的本地工作区）。
   let importedIntoPeerLocal = 0;
+  let localReadFailures = 0;
+  let lastReadError = viewOutcome.lastReadError;
   if (params.isRemoteTarget) {
     const localSource = await readScopeTasks(params.localServices.modeTaskService, {
       workspacePath: params.workspacePath,
@@ -118,6 +133,10 @@ export async function runConversationMirrorSync(
       warn,
     });
     importedIntoPeerLocal = localOutcome.imported;
+    localReadFailures = localOutcome.readFailures;
+    if (localOutcome.lastReadError) {
+      lastReadError = localOutcome.lastReadError;
+    }
     if (localOutcome.unsupportedError) {
       return {
         importedIntoView: viewOutcome.imported,
@@ -126,6 +145,17 @@ export async function runConversationMirrorSync(
         error: localOutcome.unsupportedError,
       };
     }
+  }
+
+  // 一条都没导入、却有读取失败：整轮是「读不出来」而不是「没东西可同步」。
+  // 继续报 ready 会让这种全面失败在 UI 上永远不可见（组件在 ready 下渲染 null）。
+  if (viewOutcome.imported + importedIntoPeerLocal === 0 && viewOutcome.readFailures + localReadFailures > 0) {
+    return {
+      importedIntoView: viewOutcome.imported,
+      importedIntoPeerLocal,
+      status: "degraded",
+      error: lastReadError,
+    };
   }
 
   return {
@@ -174,8 +204,10 @@ async function importScopeRecords(params: {
   readSourceMessages: (taskId: string) => Promise<SourceMessages>;
   importWorkspace: { workspacePath: string; workspaceIdentity?: string };
   warn: (message: string, error?: unknown) => void;
-}): Promise<{ imported: number; unsupportedError: string }> {
+}): Promise<ImportScopeOutcome> {
   let imported = 0;
+  let readFailures = 0;
+  let lastReadError = "";
 
   for (const task of selectMirrorSourceTasks(params.sourceTasks)) {
     const mirrorSessionId = buildMirrorImportSessionId(task.taskId);
@@ -183,6 +215,8 @@ async function importScopeRecords(params: {
     try {
       messages = await params.readSourceMessages(task.taskId);
     } catch (error) {
+      readFailures += 1;
+      lastReadError = formatError(error);
       params.warn(`读取会话 ${task.taskId} 失败，已跳过`, error);
       continue;
     }
@@ -212,11 +246,11 @@ async function importScopeRecords(params: {
     } catch (error) {
       // 首个失败即视为对端不支持该导入源（旧 CLI 的 strict schema 会拒绝 remoteMirror）：
       // 同一台机器上其余记录必然同样失败，继续尝试只会把同一个错误放大 N 次。
-      return { imported, unsupportedError: formatError(error) };
+      return { imported, readFailures, lastReadError, unsupportedError: formatError(error) };
     }
   }
 
-  return { imported, unsupportedError: "" };
+  return { imported, readFailures, lastReadError, unsupportedError: "" };
 }
 
 function formatError(error: unknown): string {

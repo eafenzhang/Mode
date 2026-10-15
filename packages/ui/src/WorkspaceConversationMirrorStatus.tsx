@@ -44,7 +44,10 @@ export function WorkspaceConversationMirrorStatus({
   const showSyncing = state.status === "syncing";
   const showUnsupported = state.status === "unsupported";
   const showError = state.status === "error";
-  if (!showSyncing && !showUnsupported && !showError) {
+  // degraded（有记录但一条都没读成功）必须渲染：它以前被吞进 ready，整轮全面失败的镜像在界面上
+  // 完全不可见，用户只会觉得「什么都没同步过来」而拿不到任何线索。
+  const showDegraded = state.status === "degraded";
+  if (!showSyncing && !showUnsupported && !showError && !showDegraded) {
     return null;
   }
 
@@ -59,7 +62,9 @@ export function WorkspaceConversationMirrorStatus({
           ? intl.formatMessage({ id: "conversationMirror.unsupported" })
           : showError
             ? intl.formatMessage({ id: "conversationMirror.error" })
-            : intl.formatMessage({ id: "conversationMirror.syncing" })}
+            : showDegraded
+              ? intl.formatMessage({ id: "conversationMirror.degraded" })
+              : intl.formatMessage({ id: "conversationMirror.syncing" })}
       </span>
       {showSyncing ? (
         <RefreshCw className="h-3 w-3 shrink-0 animate-spin" />
