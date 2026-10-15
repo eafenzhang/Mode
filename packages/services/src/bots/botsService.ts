@@ -140,7 +140,7 @@ import {
 } from "./providers/weixinRegistration.js";
 import { createFeishuBotProvider } from "./providers/feishuProvider.js";
 import { formatBotMessage, type BotMessageId } from "./messages.js";
-import { hasSentenceBoundary } from "./botText.js";
+import { drainCompleteBotReplySegments, hasSentenceBoundary } from "./botText.js";
 import { createGroupHistoryBuffer, formatGroupHistoryContext } from "./groupHistory.js";
 import {
   buildGroupTurnPrompt,
@@ -5425,7 +5425,14 @@ export function createBotsService(
       ) {
         return;
       }
-      const extracted = extractBotAssistantResponseMessages(assistantReplyBuffer, force);
+      // 逐块刷出（docs/specs/bot-reply-granularity.md「逐块刷出」）：
+      // 非强制刷出时只切出已成形的前缀，纯文本回合不再等回合末一次性冒出。
+      // 群聊「全部消息」模式必须整段等到终态：该模式靠整段回复是否只有 <NO_REPLY>
+      // 决定静默，中途发言会在判定前就把内容落到群里，破坏"沉默无痕"。
+      const progressive = !force && !groupSilenceCapable;
+      const extracted = progressive
+        ? drainCompleteBotReplySegments(assistantReplyBuffer)
+        : extractBotAssistantResponseMessages(assistantReplyBuffer, force);
       assistantReplyBuffer = extracted.rest;
       for (const text of extracted.messages) {
         sentAnyAssistantReply = true;
@@ -5468,7 +5475,8 @@ export function createBotsService(
         }
         if (getMode() !== "summary_changes") {
           assistantReplyBuffer += event.content;
-          // 第三方平台消息是离散气泡；formatter 负责把当前 buffer 按长度约束拆成可发送消息。
+          // 第三方平台消息是离散气泡：每批增量都尝试切出已成形的前缀发出去，
+          // 尾巴留在 buffer 等下一批；终态与工具事件再做强制刷出。
           await flushAssistantReplyBuffer(false);
         }
         return;

@@ -1,6 +1,9 @@
 # Bot 回复粒度（replyMode）默认值与选择
 
-状态：已批准（2026-10-12）。关联：[wecom-reply-feedback.md](./wecom-reply-feedback.md)（企微占位流与流式接管细节）、[im-typing-feedback.md](./im-typing-feedback.md)（等待期反馈）。
+状态：已批准（2026-10-12）；2026-10-16 补充「逐块刷出」规则（见文末）。关联：
+[wecom-reply-feedback.md](./wecom-reply-feedback.md)（企微占位流与流式接管细节）、
+[im-typing-feedback.md](./im-typing-feedback.md)（等待期反馈）、
+[im-bot-group-chat-alignment.md](./im-bot-group-chat-alignment.md)（群聊「全部消息」模式的沉默回执）。
 
 ## 产品规则
 
@@ -42,3 +45,55 @@
 - 已验证：见验收 1/2/4 的实际执行结果（随实现提交记录）。
 - **待实机**：企微真实对话确认默认走流式卡片——同一条消息随回复增长、终稿 finish 收口；
   `/reply` 切回标准回复后恢复离散气泡。
+
+## 逐块刷出（2026-10-16 补充）
+
+### 背景
+
+`assistant_changes`（标准回复）与 `assistant_toolcalls_changes`（完整回复）两档走的是**离散气泡**，
+但正文此前只在工具事件或回合末成块发出：`extractBotAssistantResponseMessages(buffer, false)`
+恒返回空，于是**纯文本回合整段在回合末一次性冒出**，长回答期间 IM 里只有 typing 票在动。
+企微/飞书走 `streaming_card`，不受此影响；其余通道的默认档正是受影响的那一类。
+
+### R1 逐块刷出（气泡两档）
+
+回合进行中，气泡档按「完整片段」刷出，不再一律等回合末：
+
+- **片段边界**取强边界：换行，或句末标点 `。！？.!?；;`。
+- 切出的前缀不足 **20 字符**（按码点，含 emoji）时不单独成气泡，继续攒——
+  避免出现「好的。」这种一句话一个气泡的碎片化。
+- 单段超过 **600 字符**仍无强边界时，退到弱边界（`，、：,`）或空白处切一刀，
+  保证长段落也有进度；**纯 CJK 且无空白无标点**时与今天一致（继续等回合末），
+  不硬切汉字。
+- 片段内仍超长时，由既有 `splitLongReplyText` 按长度上限继续分片。
+- 发送仍走 per-bot FIFO 队列（`outboundDelivery.ts` 的最小间隔不变），流事件本身已按任务串行消费。
+
+### R2 例外：群聊「全部消息」模式不逐块刷出
+
+该模式（`groupSilenceCapable`）靠**整段回复是否只有 `<NO_REPLY>`** 决定静默，
+中途发言会在判定之前就把内容落到群里，破坏「沉默时完全无痕」的既有契约。
+因此它的回合维持原行为：不建流式卡片、不发中途工具摘要、正文在回合末一次落定。
+群聊 `mention` 模式与私聊不受此例外影响。
+
+### R3 不受影响的部分
+
+- `summary_changes`、`streaming_card` 两档的发送路径与时机不变；
+- **终稿构成不变**：仍只含助手正文 + 变更摘要，工具与思考不进交付内容。
+
+### 与既有「非目标」的关系
+
+[bot-outbound-target.md](./bot-outbound-target.md) 非目标里的「不改分片」是**那一轮**的边界
+（指卡片渲染构成与分片）；本轮改的是气泡档的**发送时机与边界**，卡片的渲染构成、
+占位流接管与出站目标均未改动。该条按本条更新理解，不另开 spec。
+
+### 验收场景
+
+1. 单测（`bot-reply-segments.test.ts`）：只有弱边界或内容不足 20 字符时不刷出；
+   出现句末标点且前缀够长时按边界切成一次性片段、余量留在 buffer；
+   超长无强边界段可被 600 字符兜底切开且不丢字符；纯 CJK 无边界时不切。
+2. 源码契约（`bot-reply-segments.test.ts`）：`flushAssistantReplyBuffer` 的非强制分支
+   在 `groupSilenceCapable` 回合不得走逐块刷出（否则 `<NO_REPLY>` 之前已有气泡落地）。
+3. 回归：`pnpm --filter @mode/services test`、`pnpm typecheck`、`pnpm lint`、
+   `pnpm architecture:check --changed` 全绿。
+4. **待实机**：微信 / 钉钉私聊发一个多段回答，正文应随生成分次到达，而不是回合末整段落下；
+   群里（`always` 模式）仍应保持沉默无痕。
