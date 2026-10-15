@@ -109,7 +109,8 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - [x] **脚手架**（2026-10-16 落地）：**Deviation**：没用 `cargo create-tauri-app` 落 react-ts 模板——骨架只需要一个空窗口，手写 `tauri.conf.json` + `main.rs` 更可控（模板会额外带一套前端构建链，与 DR-02「挂载存量 UI」冲突）。根 `Cargo.toml` workspace 显式列举成员并 `exclude = ["crates/mode-cua-ax"]`；CI 加 `cargo test -p platform -p protocol` + `clippy --all-targets -D warnings`。
 - [x] **平台命令面**（2026-10-16，10 条注册可调用）：切片表由 `command_slice!` 宏声明为唯一真源，`init()` 与 `registered_names()` 从它派生，另有「JS 名 = 处理函数名 camelCase」守卫。**两处部分实现**（spec §5 登记）：`getApplicationIcon` 一律返回 `null`（真实取值要按平台做原生图标解码）；`saveFile` 的 `sourceUrl` 分支明确返回 `not_implemented_until_m3` 而不是静默写空文件。原计划列的「剪贴板 / 托盘 / 深链 / 代理设置 / 更新检查」不在 10 条切片内，留 Task 6 与 M3。
 - [x] **协议双端**（2026-10-16 落地）：Rust 侧真源 `crates/protocol`（8 个类型，全部 `rename_all = "camelCase"`，含 `SaveFileRequest` 的「data 与 sourceUrl 恰有其一」不变量）+ 往返测试 6 用例。**Deviation**：没用 typeshare，改走 `crates/protocol/src/bin/emit-schema.rs`（schemars → JSON Schema）+ `scripts/generate-tauri-protocol.mjs`（→ `packages/shared/src/generated/tauri-protocol.ts`），`--check` 已接进 CI，避免额外安装 CLI。生成器有一条约定：可选字段去掉 schemars 给的 `null` 分支（对应 Rust 侧 `skip_serializing_if`），产物因此与 `platform.ts` 手写声明一致。
-- [ ] **UI 挂载（DR-02）**：现有 renderer 产物以 `frontendDist` 方式挂进 Tauri；验证窗口内 UI 正常、RPC 走 `platform::commands` 适配层（`window.mode` shim → `invoke()`）。
+- [ ] **UI 挂载（DR-02）**〔**部分完成**〕：适配层 `packages/ui/src/platform/tauri-invoke-shim.ts` 已落地（8 用例全绿，含编译期穷尽检查——协议新增必选方法而 shim 没跟上时 typecheck 报错）。**挂载本身未做**：`frontendDist` 仍指向占位页，需要先解决 renderer 对 Electron preload `window.mode` 的依赖（适配层必须在 renderer 启动前注入）。
+
 - [ ] **三平台出包**：release.yml 增加 tauri job（`tauri build`），产出 `Mode-<版本>-<平台>-<架构>.<ext>` 命名一致的产物；记录三平台安装包体积基线。
 - [ ] **更新链 stub**：`tauri-plugin-updater` 接现有 GitHub Releases 清单格式（与旧线共用 feed，版本号延续）。
 
@@ -119,7 +120,7 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 本机实测 `cargo test -p platform` 3 + `cargo test -p protocol` 6 用例全绿、
 `clippy --all-targets -D warnings` 零告警、`cargo build -p mode-tauri` 产出 `ModeTauri.exe`、
 `pnpm typecheck` 通过、协议生成物 `--check` 无漂移。
-**Task 4（UI 挂载）、Task 5（出包与体积）、Task 6（updater/deeplink/tray）均未做**；另需注意发版矩阵当前只有 Windows x64 一条腿，与本节"三平台"验收口径不一致，
+**Task 4 只完成适配层（挂载未做）、Task 5（出包与体积）、Task 6（updater/deeplink/tray）未做**；另需注意发版矩阵当前只有 Windows x64 一条腿，与本节"三平台"验收口径不一致，
 属需要先对齐的既有差异。详细记录见 `docs/plans/2026-10-15-tauri-skeleton.md` 的
 「2026-10-16 执行记录」。〕
 

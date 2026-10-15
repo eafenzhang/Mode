@@ -65,7 +65,7 @@ function readSchemaBundle() {
 /** `#/definitions/Foo` → `Foo`；其它 ref 形式一律报错而不是猜。 */
 function refName(ref) {
   const match = /^#\/definitions\/([\w.]+)$/u.exec(ref);
-  if (!match) fail(`无法解析 \$ref：${ref}`);
+  if (!match) fail(`无法解析 $ref：${ref}`);
   return match[1];
 }
 

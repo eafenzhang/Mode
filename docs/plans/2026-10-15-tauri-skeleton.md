@@ -232,10 +232,19 @@ Expected: 首次生成后写入文件；再次运行无 diff
 - Produces: `createTauriPlatformService(): Partial<IPlatformService>`（**只实现 10 个**，
   其余方法显式抛 `not_implemented_until_m3`，不得静默返回假值）。
 
-- [ ] **Step 1: 写失败的测试**：shim 对未实现方法必须抛错（不得 resolve undefined）。
-- [ ] **Step 2: 实现 shim 并挂载 frontendDist。**
-- [ ] **Step 3: 本机跑 E2E 场景**：开窗 → UI 渲染 → 依次触发 10 个命令，人工核对。
-- [ ] **Step 4: 提交** `git commit -m "feat(tauri): 存量 UI 挂载与 invoke 适配层"`
+- [x] **Step 1: 写失败的测试**（2026-10-16 落地 `packages/ui/test/tauriInvokeShim.test.ts`，8 用例全绿）
+- [x] **Step 2a: 实现 shim**（2026-10-16 落地 `packages/ui/src/platform/tauri-invoke-shim.ts`）
+  **Deviation（重要）**：原计划「未实现方法一律抛错」被拆成了按接口可选性分流——
+  `IPlatformService` 里带 `?` 的方法**保持缺席**（调用方用 `?.` 守卫，塞抛错桩会把
+  「平台不支持就跳过」变成「直接崩」），只有**必选**方法才装 `not_implemented_until_m3` 抛错桩
+  （59 条）。覆盖关系由类型层面的穷尽检查 `_allRequiredMembersCovered` 在编译期守住：
+  协议新增必选方法而 shim 没跟上时 `pnpm typecheck` 直接报错。
+- [ ] **Step 2b: 挂载 frontendDist**〔**未做**〕
+  当前 `frontendDist` 指向 `apps/desktop-tauri/frontend/`（占位页）。改成存量 renderer 产物
+  需要先解决 renderer 对 `window.mode`（Electron preload）的依赖：适配层必须在 renderer 启动
+  前注入，否则渲染层直接崩。这是一块真实的集成工作，不是改一行配置。
+- [ ] **Step 3: 本机跑 E2E 场景**〔**未做**，依赖 Step 2b〕：开窗 → UI 渲染 → 依次触发 10 个命令，人工核对。
+- [x] **Step 4: 提交**（2026-10-16，shim 部分）
 
 ---
 
@@ -293,6 +302,7 @@ Expected: 首次生成后写入文件；再次运行无 diff
   spec §5 明确登记了 `getApplicationIcon` 与 `saveFile(sourceUrl)` 两处**部分实现**。
 - **Task 3 全部步骤**：协议类型真源（`crates/protocol`）、往返测试、TS 生成脚本与漂移断言
   （`node scripts/generate-tauri-protocol.mjs --check`，已接进 CI 的 Tauri skeleton 步骤）。
+- **Task 4 的适配层部分**：`packages/ui/src/platform/tauri-invoke-shim.ts` + 8 个用例。
 
 ### workspace 化的两个连带项（计划原文没列，必须知道）
 
@@ -318,9 +328,9 @@ Expected: 首次生成后写入文件；再次运行无 diff
 | capabilities | 列 6 条插件权限 | 只留 `core:default` | 本切片的插件调用都在 Rust 侧，不经渲染层 IPC，`allow-*` 没有调用方（实证：列了会直接报 permission not found） |
 | workspace 成员 | 只提醒 mode-cua-ax 的风险 | 另处理 browser-import-helper 的 target/lock 连带项 | 同一机制的必然结果，计划漏列 |
 
-### 仍未做（Task 4、Task 5、Task 6）
+### 仍未做（Task 4 Step 2b/3、Task 5、Task 6）
 
-- Task 4：存量 renderer 挂载与 `tauri-invoke-shim.ts` 适配层；
+- Task 4：`invoke` 适配层已落地并测过（8 用例），**存量 renderer 的挂载未做**（见 Step 2b 的说明）；
 - Task 5：三平台出包与体积基线（当前发版矩阵只有 Windows x64，与 M1 验收的"三平台"不一致，
   这点需要先对齐）；
 - Task 6：updater / deeplink / tray 最小面。
