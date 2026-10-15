@@ -239,11 +239,20 @@ Expected: 首次生成后写入文件；再次运行无 diff
   「平台不支持就跳过」变成「直接崩」），只有**必选**方法才装 `not_implemented_until_m3` 抛错桩
   （59 条）。覆盖关系由类型层面的穷尽检查 `_allRequiredMembersCovered` 在编译期守住：
   协议新增必选方法而 shim 没跟上时 `pnpm typecheck` 直接报错。
-- [ ] **Step 2b: 挂载 frontendDist**〔**未做**〕
-  当前 `frontendDist` 指向 `apps/desktop-tauri/frontend/`（占位页）。改成存量 renderer 产物
-  需要先解决 renderer 对 `window.mode`（Electron preload）的依赖：适配层必须在 renderer 启动
-  前注入，否则渲染层直接崩。这是一块真实的集成工作，不是改一行配置。
-- [ ] **Step 3: 本机跑 E2E 场景**〔**未做**，依赖 Step 2b〕：开窗 → UI 渲染 → 依次触发 10 个命令，人工核对。
+- [x] **Step 2b: 挂载前端**〔2026-10-16 落地，**Deviation**〕
+  **原计划的「frontendDist 指向 renderer 产物」实测做不到**：存量 renderer 的启动链不只需要
+  `window.mode`，还要一个 Node Host 经 MessagePort 提供 `IServiceAccessor` 与数据库启动通道
+  （`DatabaseStartupAdmission` 30s 就绪等待），那正是 M3 的 sidecar（DR-01）；没有 Host 只会
+  停在启动/失败屏，把它当「渲染 UI」交付是假的。证据表在
+  `docs/specs/tauri-platform-commands.md` §4.2。
+  实际落地：`apps/desktop-tauri/frontend/` 改成 Vite + TS 的**命令面验收台**——渲染 10 条命令的
+  触发入口与结果、深链回调面板、启动即握手。`frontendDist` 指向构建产物 `../dist`，
+  `beforeBuildCommand` 跑前端构建（产物不入库）。命令表用 `satisfies` + 编译期守卫保证
+  覆盖切片表每一条。
+- [ ] **Step 3: 本机跑 E2E 场景**〔**未做，需人工**〕：开窗 → 渲染 → 依次触发 10 个命令并核对。
+  步骤与判据见 spec §4；对话框/通知/文件管理器这几项必须真人看窗口，无人值守跑不了。
+  另：本机启动会把现役 `mode://` 注册改指到 `target/` 下的调试产物（对本机可见的副作用），
+  所以这一轮刻意没有代跑，留给人工验收一并做。
 - [x] **Step 4: 提交**（2026-10-16，shim 部分）
 
 ---
@@ -254,9 +263,18 @@ Expected: 首次生成后写入文件；再次运行无 diff
 - Modify: `.github/workflows/release.yml`（`tauri build` job，产物名 `Mode-<版本>-<平台>-<架构>.<ext>`）
 - Create: `docs/specs/tauri-platform-commands.md` 附录（三平台体积记录）
 
-- [ ] **Step 1: 加 `tauri build` job**（三平台矩阵，与旧线产物名一致，避免 Release 说明两套）。
-- [ ] **Step 2: 记录体积**：Windows NSIS ≤30MB（争取 25MB）；mac/linux 同表记录。
-- [ ] **Step 3: 提交** `git commit -m "ci(tauri): 三平台出包与体积基线"`
+- [x] **Step 1: 加 `tauri build` job**〔2026-10-16〕三平台矩阵（win/msvc+nsis、mac-14/arm64+dmg、
+  ubuntu-24.04/x64+appimage），产物名按发布契约 `Mode-<版本>-<平台>-<架构>.<ext>`。
+  **两处与计划原文不同，都已写进 workflow 注释与 spec §8**：
+  (a) 产物**只发 workflow artifacts，不进 Release**——Tauri 与旧 Electron 线的产物名逐字相同，
+  同名 `--clobber` 会覆盖用户正在下载的安装包；M5 换上传目标即可，用户侧契约不变。
+  (b) 该 job **不挂进 `publish` 的 needs**——三条腿都没在本机验证过，挂上去会让每次 push 都卡成 draft；
+  转正条件是首次 CI 三腿全绿。
+- [x] **Step 2: 记录体积**〔2026-10-16〕Windows NSIS **7.19 MiB**（本机实测，CI 同款命令）；
+  mac/linux 待首次 CI 记录。落点：`scripts/tauri-bundle-report.ts` 写 job summary 与
+  artifact 目录的 `size.txt`，基线表在 spec §8.2。注意该数字**尚未含产品 UI 资产**（本阶段是
+  验收台前端），M3 挂载真实 UI 后必须重测。
+- [x] **Step 3: 提交**〔2026-10-16〕
 
 ---
 
@@ -265,15 +283,29 @@ Expected: 首次生成后写入文件；再次运行无 diff
 **Files:**
 - Create: `crates/updater/src/lib.rs`、`crates/deeplink/src/lib.rs`、`crates/tray/src/lib.rs`
 
-- [ ] **Step 1: `tauri-plugin-updater` 接现有 GitHub Releases 清单格式**（与旧线共用 feed，版本号延续）。
-- [ ] **Step 2: deep-link 与 tray 落最小可用面**（`onOAuthCallback` 用 deep-link 打通）。
-- [ ] **Step 3: 提交** `git commit -m "feat(tauri): updater/deeplink/tray 最小面"`
+- [x] **Step 1: `tauri-plugin-updater` 接现有 GitHub Releases 清单格式**〔2026-10-16〕
+  与旧线共用 feed（`eafenzhang/Mode`），只声明 `latest.json` 端点 + 注册插件，**不注册任何
+  更新命令**；**不设 pubkey**，让 `check()` 明确失败而不是静默放行未签名更新。
+- [x] **Step 2: deep-link 与 tray 落最小可用面**〔2026-10-16〕
+  - `crates/deeplink`：解析（行为规格取自 `packages/desktop/tests/deep-link-scheme-compat.test.mjs`
+    的断言，黑盒）+ 冷启动缓存路由（`DeepLinkSink` 抽象让时序可单测）+ Tauri 事件投递。
+    注册只注册 `mode`，旧 `zcode://` 只在处理侧兼容。
+  - `crates/tray`：显示主窗口/退出两项；build 失败降级成 stderr，不阻断启动。
+  - `onOAuthCallback` / `onPaymentCallback` 端到端打通：`crates/protocol` 出新的事件名与载荷
+    类型（跨端契约真源，生成器新增 `$constants` 段，`--check` 从此也兜住事件名写错），
+    shim 用生成的常量订阅、按 `kind` 分流。**握手顺序是语义**：`notifyRendererReady`
+    先等订阅装好再发，否则宿主补发的冷启动深链没人接（有专门用例钉住）。
+- [x] **Step 3: 提交**〔2026-10-16〕
 
 ---
 
 ## 阶段验收
 
-1. 三平台安装包全绿且 Windows ≤30MB（争取 25MB）；
+**当前状态（2026-10-16 第二批后）**：第 3、5 项已由自动化断言守住；第 4 项由架构保证
+（前端是静态资源，无 Node 运行时）；第 1 项只差 macOS/Linux 两条腿的首次 CI；
+第 2 项只差人工核对（见「仍未做」）。
+
+1. 三平台安装包全绿且 Windows ≤30MB（争取 25MB）；Windows 实测 **7.19 MiB**（未含产品 UI 资产）
 2. Tauri 版完成「开窗 → 渲染 UI → 走通 10 个平台命令」E2E；
 3. `cargo clippy -D warnings` 零告警；`cargo test` 全绿；
 4. 安装包内不含 Node 运行时；
@@ -328,9 +360,46 @@ Expected: 首次生成后写入文件；再次运行无 diff
 | capabilities | 列 6 条插件权限 | 只留 `core:default` | 本切片的插件调用都在 Rust 侧，不经渲染层 IPC，`allow-*` 没有调用方（实证：列了会直接报 permission not found） |
 | workspace 成员 | 只提醒 mode-cua-ax 的风险 | 另处理 browser-import-helper 的 target/lock 连带项 | 同一机制的必然结果，计划漏列 |
 
-### 仍未做（Task 4 Step 2b/3、Task 5、Task 6）
+### 仍未做（截至 2026-10-16 第二批）
 
-- Task 4：`invoke` 适配层已落地并测过（8 用例），**存量 renderer 的挂载未做**（见 Step 2b 的说明）；
-- Task 5：三平台出包与体积基线（当前发版矩阵只有 Windows x64，与 M1 验收的"三平台"不一致，
-  这点需要先对齐）；
-- Task 6：updater / deeplink / tray 最小面。
+- **Task 4 Step 3（E2E 人工核对）**：只有这一项，且必须是真人看窗口/对话框。
+  判据表见 `docs/specs/tauri-platform-commands.md` §4。
+
+---
+
+## 2026-10-16 执行记录（第二批：Task 4 Step 2b/3、Task 5、Task 6）
+
+### 已完成
+
+- **Task 6 全部步骤**：`crates/deeplink`（解析 + 冷启动缓存 + 事件投递）、`crates/tray`、
+  `crates/updater` 三块最小面，以及 `onOAuthCallback` / `onPaymentCallback` 的端到端接线。
+- **Task 4 Step 2b（Deviation）**：`apps/desktop-tauri/frontend/` 变成 Vite + TS 的命令面
+  验收台，`frontendDist` 指向构建产物、`beforeBuildCommand` 负责构建。
+- **Task 5 Step 1/2**：三平台 `tauri build` job + 体积记录脚本；Windows NSIS 实测 7.19 MiB。
+
+### 第二批发现的连带项
+
+1. **comctl32 v6 测试清单不再只影响 platform**：`crates/deeplink` 一旦依赖 tauri，它的
+   集成测试目标同样会 `STATUS_ENTRYPOINT_NOT_FOUND`。故把 `platform/build.rs` 的那套逻辑
+   抽成构建依赖 **`crates/tauri-test-manifest`**（各 crate 的 `build.rs` 只剩一行调用）——
+   M2/M3 还会加依赖 tauri 的 crate，抄多份等于把同一个坑复制多份。
+2. **跨端契约的第三种形态：常量**。深链事件名（`mode:deep-link`）与 `kind` 取值必须两端逐字
+   一致，写错是**静默失效**（订阅装上了却永远收不到）。做法是把它和协议类型一起放进
+   `crates/protocol`，生成器新增 `$constants` 段导出，`--check` 从此也兜住这类错误。
+3. **`@mode/shared` 的生成物不能整模块 `export *`**：它与 `platform.ts` 的手写声明同名
+   （`SaveFileRequest` / `TaskNotificationPayload` / `ApplicationIconInfo` …）。故
+   `packages/shared/src/index.ts` 只再导出**没有手写对应物**的符号（深链三个）。
+4. **根 `Cargo.lock` 上个提交漏了**：workspace 建了但锁文件没入库，CI 无法复现依赖图。
+   本批补提交。
+5. **`frontendDist` 从「提交进仓库的占位页」改成「构建产物」**：占位页当时是为了躲避根
+   `.gitignore` 的 `dist/`，现在改由 `beforeBuildCommand` 现做，产物落在被忽略的 `dist/`
+   才是对的（不再需要把构建产物入库）。
+
+### 与计划原文的口径差异（第二批）
+
+| 项 | 计划 | 实际 | 原因 |
+| --- | --- | --- | --- |
+| Task 4 Step 2b | `frontendDist` 指向 renderer 产物 | 交付命令面验收台，renderer 挂载移到 M3 | renderer 启动链依赖 Node Host（M3 sidecar），没有 Host 只会停在失败屏；证据表见 spec §4.2 |
+| Task 5 产物去向 | 与旧线共用 Release | 只发 workflow artifacts | 产物名与旧线逐字相同，同名上传会 clobber 用户的安装包；M5 换目标 |
+| Task 5 门禁 | — | 不挂 `publish.needs` | 三条腿未本机验证，挂上去会让每次 push 卡成 draft |
+| Task 5 体积表 | 三平台都记 | 只记了 Windows | 本机只有 Windows + gnu 工具链；mac/linux 待首次 CI |

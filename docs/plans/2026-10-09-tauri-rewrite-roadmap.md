@@ -109,20 +109,43 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - [x] **脚手架**（2026-10-16 落地）：**Deviation**：没用 `cargo create-tauri-app` 落 react-ts 模板——骨架只需要一个空窗口，手写 `tauri.conf.json` + `main.rs` 更可控（模板会额外带一套前端构建链，与 DR-02「挂载存量 UI」冲突）。根 `Cargo.toml` workspace 显式列举成员并 `exclude = ["crates/mode-cua-ax"]`；CI 加 `cargo test -p platform -p protocol` + `clippy --all-targets -D warnings`。
 - [x] **平台命令面**（2026-10-16，10 条注册可调用）：切片表由 `command_slice!` 宏声明为唯一真源，`init()` 与 `registered_names()` 从它派生，另有「JS 名 = 处理函数名 camelCase」守卫。**两处部分实现**（spec §5 登记）：`getApplicationIcon` 一律返回 `null`（真实取值要按平台做原生图标解码）；`saveFile` 的 `sourceUrl` 分支明确返回 `not_implemented_until_m3` 而不是静默写空文件。原计划列的「剪贴板 / 托盘 / 深链 / 代理设置 / 更新检查」不在 10 条切片内，留 Task 6 与 M3。
 - [x] **协议双端**（2026-10-16 落地）：Rust 侧真源 `crates/protocol`（8 个类型，全部 `rename_all = "camelCase"`，含 `SaveFileRequest` 的「data 与 sourceUrl 恰有其一」不变量）+ 往返测试 6 用例。**Deviation**：没用 typeshare，改走 `crates/protocol/src/bin/emit-schema.rs`（schemars → JSON Schema）+ `scripts/generate-tauri-protocol.mjs`（→ `packages/shared/src/generated/tauri-protocol.ts`），`--check` 已接进 CI，避免额外安装 CLI。生成器有一条约定：可选字段去掉 schemars 给的 `null` 分支（对应 Rust 侧 `skip_serializing_if`），产物因此与 `platform.ts` 手写声明一致。
-- [ ] **UI 挂载（DR-02）**〔**部分完成**〕：适配层 `packages/ui/src/platform/tauri-invoke-shim.ts` 已落地（8 用例全绿，含编译期穷尽检查——协议新增必选方法而 shim 没跟上时 typecheck 报错）。**挂载本身未做**：`frontendDist` 仍指向占位页，需要先解决 renderer 对 Electron preload `window.mode` 的依赖（适配层必须在 renderer 启动前注入）。
-
-- [ ] **三平台出包**：release.yml 增加 tauri job（`tauri build`），产出 `Mode-<版本>-<平台>-<架构>.<ext>` 命名一致的产物；记录三平台安装包体积基线。
-- [ ] **更新链 stub**：`tauri-plugin-updater` 接现有 GitHub Releases 清单格式（与旧线共用 feed，版本号延续）。
+- [x] **UI 挂载（DR-02）**〔2026-10-16 落地，**Deviation**〕：适配层
+  `packages/ui/src/platform/tauri-invoke-shim.ts` 已落地（15 用例全绿，含编译期穷尽检查——
+  协议新增必选方法而 shim 没跟上时 typecheck 报错），并从 `@mode/ui` 的 `./tauri-platform`
+  子路径对壳公开。**挂载本身改成命令面验收台**：计划原文的「`frontendDist` 指向 renderer 产物」
+  实测做不到——存量 renderer 的启动链要求 Node Host 经 MessagePort 提供 `IServiceAccessor`
+  与数据库启动通道，那正是 M3 的 sidecar（DR-01）；没有 Host 只会停在启动/失败屏。
+  证据表见 `docs/specs/tauri-platform-commands.md` §4.2，产品 UI 挂载登记到 M3。
+- [x] **三平台出包**〔2026-10-16〕：release.yml 新增 `tauri` job（win/msvc+nsis、
+  mac-14/arm64+dmg、ubuntu-24.04/x64+appimage），产物名 `Mode-<版本>-<平台>-<架构>.<ext>`。
+  **产物只发 workflow artifacts、不进 Release**（与旧线同名会互相覆盖），也**不挂 publish 门禁**
+  （三条腿未本机验证）——两处偏差与转正条件写在 workflow 注释与 spec §8。
+  体积基线：Windows NSIS **7.19 MiB**（实测，未含产品 UI 资产），mac/linux 待首次 CI。
+- [x] **更新链 stub**〔2026-10-16〕：`tauri-plugin-updater` 接现有 GitHub Releases feed
+  （与旧线共用 `eafenzhang/Mode`、版本号延续），只声明 `latest.json` 端点 + 注册插件；
+  不注册更新命令、不设 pubkey（让 `check()` 明确失败而不是静默放行未签名更新）。
 
 **阶段验收：** 三平台安装包全绿且 Windows ≤30MB（争取 25MB；renderer 资产 53MB 解包口径是主要变量）；Tauri 版可完成"打开窗口 → 渲染 UI → 走通 10 个平台命令"的 E2E；`cargo clippy -D warnings` 零告警；不带任何 Node 运行时。
 
-〔**2026-10-16 进度**：Task 1、Task 2（代码与自动化测试）、Task 3 全部完成，
-本机实测 `cargo test -p platform` 3 + `cargo test -p protocol` 6 用例全绿、
-`clippy --all-targets -D warnings` 零告警、`cargo build -p mode-tauri` 产出 `ModeTauri.exe`、
-`pnpm typecheck` 通过、协议生成物 `--check` 无漂移。
-**Task 4 只完成适配层（挂载未做）、Task 5（出包与体积）、Task 6（updater/deeplink/tray）未做**；另需注意发版矩阵当前只有 Windows x64 一条腿，与本节"三平台"验收口径不一致，
-属需要先对齐的既有差异。详细记录见 `docs/plans/2026-10-15-tauri-skeleton.md` 的
-「2026-10-16 执行记录」。〕
+〔**2026-10-16 进度（第二批后）**：Task 1–6 的代码与自动化都已经落地，
+本机实测 `cargo test` **35 用例全绿**（platform 3 / protocol 6+5 / deeplink 7+9 /
+tray 1 / updater 2 / tauri-test-manifest 2）、`clippy -D warnings` 零告警、`rustfmt --check`
+干净、`cargo build -p mode-tauri` 与 `tauri build --bundles nsis` 均产出产物
+（NSIS 安装包 7.19 MiB）、`pnpm typecheck`（含壳前端）通过、协议生成物 `--check` 无漂移、
+语言政策门禁通过、release.yml 经 YAML 解析确认三平台矩阵。
+
+**M1 仍未关闭，只差两件**：
+1. **Task 4 Step 3 的人工 E2E**（开窗 → 渲染 → 10 命令 + 深链各核对一次），
+   判据表见 spec §4；对话框/通知/文件管理器必须真人看窗口。
+2. **macOS / Linux 两条出包腿的首次 CI 运行**（本机只有 Windows + gnu 工具链）。
+
+**两处需要人来决定的口径差异**（都已在 spec 登记）：
+- Tauri 产物目前**只发 workflow artifacts**，因为它与旧 Electron 线产物名逐字相同；
+  改发 Release 要等 M5「release.yml 只出 Tauri 产物」。
+- `tauri` job **没挂进 `publish` 的 `needs`**：三条腿未验证过，挂上去会让每次 push 都卡成 draft；
+  建议在首次 CI 三腿全绿后再转正为门禁。
+
+详细记录见 `docs/plans/2026-10-15-tauri-skeleton.md` 的两份「2026-10-16 执行记录」。〕
 
 ---
 
