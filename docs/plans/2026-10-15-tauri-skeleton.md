@@ -201,14 +201,23 @@ fn registers_exactly_the_m1_slice() {
   `ApplicationIconRequest`（字段与 `packages/shared/src/platform.ts` 同名同义）；
   生成脚本输出 TS 类型 + CI 漂移断言。
 
-- [ ] **Step 1: 写往返测试**（serde 序列化与 TS 侧同名 JSON 互认）〔未做〕
+- [x] **Step 1: 写往返测试**（2026-10-16 落地 `crates/protocol/tests/roundtrip.rs`，6 用例全绿）
+  钉住的是**线协议**形状：字段名 camelCase、`Option` 字段「缺席而非 null」、判别联合的
+  `kind` 取值、`SaveFileRequest` 的联合不变量。（serde 序列化与 TS 侧同名 JSON 互认）〔已做〕
 - [x] **Step 2: 实现结构体 + `#[derive(JsonSchema, Serialize, Deserialize)]`**（2026-10-16 落地 `crates/protocol/src/lib.rs`：`TaskNotificationPayload`/`TaskNotificationStatus`/`ApplicationIconLocator`/`ApplicationIconRequest`/`ApplicationIconInfo`/`SaveFileRequest`/`SaveFileResult`/`OpenPathResult`，全部 `rename_all = "camelCase"`，`SaveFileRequest::validate()` 落实 TS 的「data 与 sourceUrl 恰有其一」不变量）
-- [ ] **Step 3: 生成 TS 并断言无漂移**〔未做，见文末执行记录〕
+- [x] **Step 3: 生成 TS 并断言无漂移**（2026-10-16 落地）
+  **Deviation**：没用 typeshare，改走 schemars + 仓库内生成脚本——typeshare 要在开发机与 CI
+  额外装一个 CLI，而 Rust 侧本来就要 derive `JsonSchema`。实现为：
+  `crates/protocol/src/bin/emit-schema.rs`（打印 8 个类型的 JSON Schema）→
+  `scripts/generate-tauri-protocol.mjs`（转 TS，写 `packages/shared/src/generated/tauri-protocol.ts`）。
+  生成器有一条必须知道的约定：schemars 把 `Option<T>` 表成 `type: ["T","null"]`，无法区分
+  「真的可空」与「`skip_serializing_if` 跳过的 Option」，故**可选字段一律去掉 null 分支**，
+  产物因此与 `platform.ts` 的手写声明逐字一致。这条约定写在生成器注释里。
 
 Run: `node scripts/generate-tauri-protocol.mjs --check`
 Expected: 首次生成后写入文件；再次运行无 diff
 
-- [ ] **Step 4: 提交**〔待 Step 1/3 完成后一起提交〕
+- [x] **Step 4: 提交**（2026-10-16）
 
 ---
 
@@ -282,7 +291,8 @@ Expected: 首次生成后写入文件；再次运行无 diff
   CI 步骤接入。
 - **Task 2 的代码与自动化测试**：10 条命令全部注册并可调用（3 个用例全绿，clippy 零告警）。
   spec §5 明确登记了 `getApplicationIcon` 与 `saveFile(sourceUrl)` 两处**部分实现**。
-- **Task 3 的 Rust 侧**（Step 2）：协议类型真源落地。Step 1/3（往返测试 + TS 生成与漂移断言）未做。
+- **Task 3 全部步骤**：协议类型真源（`crates/protocol`）、往返测试、TS 生成脚本与漂移断言
+  （`node scripts/generate-tauri-protocol.mjs --check`，已接进 CI 的 Tauri skeleton 步骤）。
 
 ### workspace 化的两个连带项（计划原文没列，必须知道）
 
@@ -308,9 +318,8 @@ Expected: 首次生成后写入文件；再次运行无 diff
 | capabilities | 列 6 条插件权限 | 只留 `core:default` | 本切片的插件调用都在 Rust 侧，不经渲染层 IPC，`allow-*` 没有调用方（实证：列了会直接报 permission not found） |
 | workspace 成员 | 只提醒 mode-cua-ax 的风险 | 另处理 browser-import-helper 的 target/lock 连带项 | 同一机制的必然结果，计划漏列 |
 
-### 仍未做（Task 3 Step 1/3、Task 4、Task 5、Task 6）
+### 仍未做（Task 4、Task 5、Task 6）
 
-- Task 3：TS 生成脚本（`scripts/generate-tauri-protocol.mjs`）与漂移断言；
 - Task 4：存量 renderer 挂载与 `tauri-invoke-shim.ts` 适配层；
 - Task 5：三平台出包与体积基线（当前发版矩阵只有 Windows x64，与 M1 验收的"三平台"不一致，
   这点需要先对齐）；

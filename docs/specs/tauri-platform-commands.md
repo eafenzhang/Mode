@@ -140,7 +140,13 @@ VERSIONINFO，连"让 platform 出清单、app 去掉自己的"这条退路也�
   `TaskNotificationPayload` / `ApplicationIconRequest` 等类型的**真源**，
   带 `#[derive(schemars::JsonSchema, Serialize, Deserialize)]`；
 - 导出方向单向：Rust → TS（`packages/shared/src/generated/tauri-protocol.ts`），
-  由 `scripts/generate-tauri-protocol.mjs` 生成，CI 断言生成物无漂移；
+  由 `crates/protocol/src/bin/emit-schema.rs`（schemars → JSON Schema）+
+  `scripts/generate-tauri-protocol.mjs` 生成，CI 用 `--check` 断言生成物无漂移；
+- **生成器的唯一约定**：schemars 把 `Option<T>` 表成 `type: ["T","null"]`，无法区分
+  「真的可空」与「`skip_serializing_if` 跳过的 Option」。因此本 crate 的 `Option` 字段
+  **一律带 `skip_serializing_if = "Option::is_none"`**，生成器则把可选字段的 `null` 分支去掉，
+  产物于是与 `platform.ts` 的手写声明逐字一致。要新增「必须写作 null 的可选字段」时，
+  先改这条约定，不要让生成物悄悄变形；
 - 字段名逐一对齐 TS：TS 是 camelCase，故 Rust 结构体一律
   `#[serde(rename_all = "camelCase")]`；
 - `SaveFileRequest` 在 TS 侧是「`data` 与 `sourceUrl` 二者恰有其一」的联合，

@@ -344,6 +344,9 @@ jobs:
           set -euo pipefail
           cargo test -p platform -p protocol
           cargo clippy -p platform -p protocol -p mode-tauri --all-targets -- -D warnings
+          # 协议双端：生成物必须与 crates/protocol 一致（漂移即红）。CI 是 msvc，脚本默认的
+          # `cargo run -q -p protocol --bin emit-schema` 直接可用，不需要额外环境。
+          node scripts/generate-tauri-protocol.mjs --check
 
       - name: Bundle desktop app
         env:
