@@ -78,15 +78,33 @@ pub fn resolve_config<R: Runtime>(app: &AppHandle<R>) -> HostConfig {
         .or_else(default_sidecar_cwd)
         .unwrap_or_else(|| Path::new(".").to_path_buf());
 
-    let node = std::env::var_os("MODE_HOST_NODE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("node"));
+    // 资源目录：打包形态的落点（Task 5 把 `host-sidecar/`、`node/`、`config/` 放进安装包的资源目录）。
+    // 开发形态下 `resource_dir()` 仍然返回一个真实目录（target/debug），所以它**不是**
+    // 「有没有打包」的判据——判据是候选文件在不在（见 `pick_entry` / `pick_node`）。
+    let resource_dir = app.path().resource_dir().ok();
+    // Node 可执行文件的挑选（优先级与理由见 `sidecar_host::pick_node`）：
+    // 显式覆写 → 随包 Node（`<resource>/node/node.exe`）→ PATH 上的 `node`。
+    let node_override = std::env::var_os("MODE_HOST_NODE");
+    let bundled_node: Vec<PathBuf> = resource_dir
+        .as_ref()
+        .map(|dir| {
+            ["node/node.exe", "node/node"]
+                .into_iter()
+                .map(|relative| dir.join(relative))
+                .collect()
+        })
+        .unwrap_or_default();
+    let node = sidecar_host::pick_node(node_override.as_deref(), &bundled_node);
+
     let mut config = match resolve_entry(app) {
         Some(entry) => HostConfig::for_sidecar_entry(entry, cwd),
         // 没有入口也别在这里失败：交给 `spawn_host` 转成推给渲染层的 failed 状态。
         None => HostConfig::unavailable(node.clone(), cwd),
     };
     config.node = node;
+    // Host 按它解析 `config/provider/mode-builtin.json`（host-standalone 的
+    // `resolveBuiltinProviderConfig` 第二档）。传空目录没有意义，所以只在真有资源目录时传。
+    config.resources_dir = resource_dir;
     config.startup_id = startup_id.clone();
     config.attempt_id = format!("{startup_id}-a1");
     // `MODE_DATA_BASE_DIR` 是**基**目录：原样透传给子进程，由 Host 派生 `{base}/.mode`

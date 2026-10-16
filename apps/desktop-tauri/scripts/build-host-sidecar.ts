@@ -1,5 +1,5 @@
 /**
- * Host sidecar 的打包形态（M3 Task 2 · DR-T2-3）。
+ * Host sidecar 的打包形态（M3 Task 2 · DR-T2-3；发运集与剪枝归 M3 Task 5）。
  *
  * ## 决定：单文件 ESM bundle + 随包带**外部依赖**的 node_modules 子集
  *
@@ -18,13 +18,16 @@
  *
  * **落点**照 Task 1 壳侧的候选枚举：`<resource>/host-sidecar/index.mjs`
  * （`apps/desktop-tauri/src-tauri/src/host.rs` 的 `resolve_entry`）。本脚本产出
- * `apps/desktop-tauri/dist-host-sidecar/host-sidecar/index.mjs`，Task 3/5 把它放进 bundle 资源目录。
+ * `apps/desktop-tauri/dist-host-sidecar/host-sidecar/index.mjs`，
+ * `--stage` 再把 bundle + externals 闭包 + 随包 Node 装成**发运集**（Task 5，
+ * 详见 `host-sidecar-ship.ts` 的文件头与 `docs/specs/tauri-renderer-host.md` §13.2）。
  *
  * ## 体积数字必须有出处
  *
- * 脚本跑完打印**实测**字节数（bundle 文件 + 每个 external 包目录的实际占用），
- * 这些数字是 Task 5 体积门禁的输入（DR-T2-3 的代价条款：门禁不达标时改的是打包策略，
- * 不是门禁）。报告同时写进 `docs/specs/tauri-renderer-host.md` 的证据登记。
+ * 脚本跑完打印**实测**字节数（bundle 文件 + 每个 external 包目录的实际占用 + 发运集实测值），
+ * 这些数字是体积门禁的输入（DR-T2-3 的代价条款：门禁不达标时改的是打包策略，不是门禁）。
+ * **每个数字都标注它测在哪张脸上**：本脚本给的是**未压缩文件字节**（「诊断，不是门禁口径」），
+ * 门禁口径是 NSIS 安装包字节，由 `measure-installer-budgets.ts` 出。
  *
  * ## 自验（默认开）
  *
@@ -33,19 +36,37 @@
  * 只是一次成功的文件写入——而本仓库反复吃亏的正是「产物生成了，但没人跑过它」。
  *
  * ```bash
- * node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts            # 打包 + 自验 + 报体积
+ * node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts                  # 打包 + 自验 + 报体积
  * node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts --no-verify
+ * node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts --stage pruned   # 造发运集（Task 5）
+ * node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts --stage core --no-verify
  * ```
  */
 import { spawn } from "node:child_process";
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ChannelClient, Emitter, VSBuffer, type IChannel, type IMessagePassingProtocol } from "@mode/rpc";
+import {
+  ChannelClient,
+  Emitter,
+  VSBuffer,
+  type IChannel,
+  type IMessagePassingProtocol,
+} from "@mode/rpc";
 import { build } from "esbuild";
+
+import {
+  BUILTIN_PROVIDER_CONFIG,
+  RUNTIME_EXTERNALS,
+  collectExternalClosure,
+  formatBytes,
+  measureTree,
+  stageShipSet,
+  type ShipVariant,
+} from "./host-sidecar-ship.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(here, "..");
@@ -57,127 +78,16 @@ const ENTRY = resolve(repoRoot, "packages/desktop/src/host-standalone/index.ts")
 /** 产物落点：`<outDir>/host-sidecar/index.mjs`（壳侧候选枚举的第一个名字）。 */
 const OUT_DIR = resolve(appDir, "dist-host-sidecar");
 const OUT_FILE = join(OUT_DIR, "host-sidecar", "index.mjs");
-
-/**
- * 保持 external 的运行时依赖（**逐字**取自 `packages/desktop/tsup.config.ts`：
- * 那批服务在 Electron 宿主上验证过的同一份取舍）。这些包随包带，不进 bundle：
- * `node-pty` 是原生模块，其余几个内部有动态 `require`，内联进 ESM 会在运行时抛
- * `Dynamic require of "x" is not supported`。
- */
-const RUNTIME_EXTERNALS = [
-  "node-pty",
-  "ssh2",
-  "undici",
-  "@larksuiteoapi/node-sdk",
-  "yaml",
-  "node-forge",
-  "yauzl",
-  "@wecom/aibot-node-sdk",
-];
+/** 发运集落点（`bundle.resources` 指向它；`dist-host-sidecar/` 已在 `.gitignore` 里）。 */
+const STAGE_ROOT = join(OUT_DIR, "ship");
 
 const require_ = createRequire(import.meta.url);
 
-function formatBytes(bytes: number): string {
-  return `${bytes} B (${(bytes / 1024 / 1024).toFixed(2)} MiB)`;
-}
-
-/** 一个包目录的实际占用（递归求和）。**跳过嵌套的 `node_modules`**：那一层的依赖由闭包
- *  遍历单独解析并计数（见 `collectExternalClosure`），在这里再算一遍就是双计。 */
-function directorySize(root: string): number {
-  let total = 0;
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (entry.name === "node_modules") continue;
-    const path = join(root, entry.name);
-    // `statSync` 而不是 Dirent：pnpm 的目录项常是符号链接，跟进去才是真实占用。
-    let stat: ReturnType<typeof statSync>;
-    try {
-      stat = statSync(path);
-    } catch {
-      continue; // 断链/权限：跳过（下面另有「解析不到」的显式记账，不静默）
-    }
-    if (stat.isDirectory()) total += directorySize(path);
-    else if (stat.isFile()) total += stat.size;
-  }
-  return total;
-}
-
-interface ExternalClosureEntry {
-  name: string;
-  version: string;
-  /** 该包**自己**目录的占用（不含它的依赖）。 */
-  bytes: number;
-}
-
-interface ExternalClosure {
-  /** 直接 external 的包（清单里的那些）。 */
-  roots: ExternalClosureEntry[];
-  /** 去重后的全部包（含传递依赖）。 */
-  packages: ExternalClosureEntry[];
-  /** 直接 external 的 own-dir 之和：**下界**（不含传递依赖）。 */
-  ownBytes: number;
-  /** 传递闭包去重后的占用：打包形态实际要带的东西。 */
-  closureBytes: number;
-  /** 解析不到的依赖名（报出来，不静默——静默会让体积数字偏小）。 */
-  unresolved: string[];
-}
-
-/**
- * 算 external 的**传递闭包**。
- *
- * 为什么不能只加直接 external 的目录：本 checkout 是 hoisted 布局，`@wecom/aibot-node-sdk`
- * 这类包自己的目录里**没有** `node_modules`，它的 `axios`/`ws` 等依赖被提升到别处——
- * 只加外层目录会得到 91.92 MiB 而真实闭包是 102.98 MiB（复评 I2 的实测差额）。
- * 所以按 `package.json` 的 `dependencies`/`optionalDependencies` 逐层解析，
- * 以**解析到的 package.json 路径**去重（不同版本不会互相覆盖），再求和。
- */
-function collectExternalClosure(roots: string[]): ExternalClosure {
-  const seen = new Map<string, ExternalClosureEntry>();
-  const unresolved: string[] = [];
-  const queue = roots.map((name) => ({ name, from: [appDir, repoRoot] }));
-  while (queue.length > 0) {
-    const { name, from } = queue.shift() as { name: string; from: string[] };
-    let packageJsonPath: string;
-    try {
-      packageJsonPath = require_.resolve(`${name}/package.json`, { paths: from });
-    } catch {
-      unresolved.push(name);
-      continue;
-    }
-    if (seen.has(packageJsonPath)) continue;
-    const packageDir = dirname(packageJsonPath);
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-      version?: unknown;
-      dependencies?: Record<string, string>;
-      optionalDependencies?: Record<string, string>;
-    };
-    seen.set(packageJsonPath, {
-      name,
-      version: String(packageJson.version ?? "?"),
-      bytes: directorySize(packageDir),
-    });
-    // 依赖表合并：两个可选的 `?? {}` 回退是多余写法（lint 规则），取值时再兜底。
-    const dependencyNames = [
-      ...Object.keys(packageJson.dependencies ?? {}),
-      ...Object.keys(packageJson.optionalDependencies ?? {}),
-    ];
-    for (const dependency of dependencyNames) {
-      queue.push({ name: dependency, from: [packageDir] });
-    }
-  }
-  const packages = [...seen.values()].sort((left, right) => right.bytes - left.bytes);
-  const sum = (entries: ExternalClosureEntry[]): number =>
-    entries.reduce((total, entry) => total + entry.bytes, 0);
-  return {
-    roots: packages.filter((entry) => roots.includes(entry.name)),
-    packages,
-    ownBytes: sum(packages.filter((entry) => roots.includes(entry.name))),
-    closureBytes: sum(packages),
-    unresolved,
-  };
-}
-
 async function bundle(): Promise<number> {
-  rmSync(OUT_DIR, { recursive: true, force: true });
+  // 只清**本脚本自己的产物目录**，不清整个 `dist-host-sidecar/`：那里还有发运集与
+  // `measure-installer-budgets.ts` 采集安装包用的 `installers/`。第一版清的是整个根目录，
+  // 后果是「跑一次构建就抹掉上一个档采集好的安装包」——三档体积表因此在构建之间静默残缺。
+  rmSync(join(OUT_DIR, "host-sidecar"), { recursive: true, force: true });
   mkdirSync(dirname(OUT_FILE), { recursive: true });
   await build({
     entryPoints: [ENTRY],
@@ -189,7 +99,7 @@ async function bundle(): Promise<number> {
     target: "node24",
     external: RUNTIME_EXTERNALS,
     sourcemap: false,
-    // 产物要能被人读：出问题时至少能看出哪段代码在跑（体积由 Task 5 的门禁管，不靠压行）。
+    // 产物要能被人读：出问题时至少能看出哪段代码在跑（体积由门禁管，不靠压行）。
     minify: false,
     legalComments: "none",
     logLevel: "warning",
@@ -219,16 +129,13 @@ async function bundle(): Promise<number> {
  * 理由：本机环境变量里往往已经有那个覆写（装了 Mode 的机器就有），若不隔离，自验会在
  * 「env 档」绿灯下报「打包形态 OK」，而**打包形态真正要用的那一档**（资源目录）从没被走过。
  */
-async function verifyBundle(): Promise<string> {
+async function verifyBundle(entryFile: string = OUT_FILE): Promise<string> {
   const sandbox = join(tmpdir(), `mode-host-bundle-${process.pid}`);
   const resources = join(sandbox, "resources");
   mkdirSync(join(resources, "config", "provider"), { recursive: true });
   // 用仓库里那份真配置（不是造一个空文件：服务可能真读它的内容）。
-  copyFileSync(
-    join(repoRoot, "config", "provider", "mode-builtin.json"),
-    join(resources, "config", "provider", "mode-builtin.json"),
-  );
-  const child = spawn(process.execPath, [OUT_FILE], {
+  copyFileSync(join(repoRoot, BUILTIN_PROVIDER_CONFIG), join(resources, BUILTIN_PROVIDER_CONFIG));
+  const child = spawn(process.execPath, [entryFile], {
     cwd: repoRoot,
     env: {
       ...process.env,
@@ -267,7 +174,9 @@ async function verifyBundle(): Promise<string> {
       const header = Buffer.alloc(4);
       header.writeUInt32BE(bytes.byteLength, 0);
       child.stdin.write(header);
-      child.stdin.write(Buffer.from(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength));
+      child.stdin.write(
+        Buffer.from(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength),
+      );
     },
     onMessage: messages.event,
   };
@@ -275,7 +184,10 @@ async function verifyBundle(): Promise<string> {
 
   try {
     await new Promise<void>((resolveInit, rejectInit) => {
-      const timer = setTimeout(() => rejectInit(new Error(`30s 内没有 Initialize；stderr:\n${stderr}`)), 30_000);
+      const timer = setTimeout(
+        () => rejectInit(new Error(`30s 内没有 Initialize；stderr:\n${stderr}`)),
+        30_000,
+      );
       client.onDidInitialize(() => {
         clearTimeout(timer);
         resolveInit();
@@ -291,7 +203,7 @@ async function verifyBundle(): Promise<string> {
       };
     }>("describe");
     if (describe.serviceSurface?.kind !== "services") {
-      throw new Error(`打包产物的服务面不是真服务：${JSON.stringify(describe.serviceSurface)}`);
+      throw new Error(`产物的服务面不是真服务：${JSON.stringify(describe.serviceSurface)}`);
     }
     // 打包形态真正要用的那一档必须是它（见函数头：不隔离就会被 env 档的绿灯掩盖）。
     if (describe.serviceSurface.builtinProviderConfigSource !== "resources") {
@@ -328,45 +240,117 @@ async function verifyBundle(): Promise<string> {
   }
 }
 
-const verify = !process.argv.includes("--no-verify");
+/**
+ * 解析 `--stage [variant]`；未给出 `--stage` 时返回 null（只打包、不发运）。
+ *
+ * 档名可以省略：省略时读 `MODE_TAURI_SHIP_VARIANT`，再退回产品默认档 `pruned`。
+ * 这样**同一个入口**既能被 CI/人工的 `tauri build`（`beforeBuildCommand` 里的
+ * `--stage`，不写档名 → 产品档）用，也能被体积测量脚本用（设环境变量选 unpruned/core）。
+ */
+function parseStageVariant(argv: string[]): ShipVariant | null {
+  const index = argv.indexOf("--stage");
+  if (index < 0) return null;
+  const next = argv[index + 1];
+  const value =
+    next !== undefined && !next.startsWith("--")
+      ? next
+      : process.env.MODE_TAURI_SHIP_VARIANT?.trim() || "pruned";
+  if (value !== "core" && value !== "pruned" && value !== "unpruned") {
+    throw new Error(`未知的发运档 ${value}（可选：core | pruned | unpruned）`);
+  }
+  return value;
+}
 
 /**
- * 入口（`async main` 而不是顶层 await：本包的 `.ts` 由 tsx 按 CJS 跑，顶层 await 不被支持）。
+ * 造发运集并报体积。**两组数字都要有**（DR-T5-2）：
+ * 剪枝省下的**原始**字节（未压缩文件字节和，诊断面）与剪枝后发运集的实际字节。
+ * 「安装包里省了多少」在门禁面上量，由 `measure-installer-budgets.ts` 出。
+ *
+ * 返回发运集里的入口脚本路径，供调用方**再跑一次**自验（剪枝后的文件集才是会被装到
+ * 用户机器上的那一份；只验 bundle 等于没验剪枝）。
  */
-async function main(): Promise<void> {
-  const bundleBytes = await bundle();
-  const closure = collectExternalClosure(RUNTIME_EXTERNALS);
-  let verifyResult = "(跳过)";
-  if (verify) verifyResult = await verifyBundle();
+function reportShipSet(variant: ShipVariant): string {
+  const closure = collectExternalClosure(RUNTIME_EXTERNALS, [appDir, repoRoot], require_.resolve);
+  if (closure.collisions.length > 0) {
+    throw new Error(`externals 闭包里有同名不同版本的包：${closure.collisions.join(", ")}`);
+  }
+  const rawClosureBytes = closure.packages.reduce((total, entry) => total + entry.bytes, 0);
+  const nodeSource = process.env.MODE_HOST_NODE_BUNDLE?.trim() || process.execPath;
 
-  console.log("[host-sidecar] 打包形态 = 单文件 ESM bundle + external 的 node_modules 子集");
-  console.log(`[host-sidecar] bundle        ${OUT_FILE}`);
-  console.log(`[host-sidecar] bundle 体积   ${formatBytes(bundleBytes)}`);
+  rmSync(STAGE_ROOT, { recursive: true, force: true });
+  const report = stageShipSet({
+    variant,
+    bundleFile: OUT_FILE,
+    stageRoot: STAGE_ROOT,
+    nodeSource,
+    builtinProviderConfigSource: join(repoRoot, BUILTIN_PROVIDER_CONFIG),
+    closure,
+  });
+
+  console.log(`[host-sidecar] 发运集档 = ${variant}（bundle.resources 指向 ${STAGE_ROOT}）`);
   console.log(
-    `[host-sidecar] externals 目录（直接 external，own-dir，**下界**） ${formatBytes(closure.ownBytes)}`,
+    `[host-sidecar] externals 目录（直接 external，own-dir，**下界**） ${formatBytes(closure.roots.reduce((total, entry) => total + entry.bytes, 0))}`,
   );
   for (const item of closure.roots) {
     console.log(`[host-sidecar]   - ${item.name}@${item.version} ${formatBytes(item.bytes)}`);
   }
   console.log(
     `[host-sidecar] externals 闭包（含传递依赖，去重 ${closure.packages.length} 个包）` +
-      ` ${formatBytes(closure.closureBytes)}`,
+      ` ${formatBytes(rawClosureBytes)}（**未剪枝**，诊断面）`,
   );
-  const closureOnly = closure.packages.filter((entry) => !RUNTIME_EXTERNALS.includes(entry.name));
-  for (const item of closureOnly.slice(0, 8)) {
-    console.log(`[host-sidecar]   + ${item.name}@${item.version} ${formatBytes(item.bytes)}`);
-  }
-  if (closureOnly.length > 8) {
-    console.log(`[host-sidecar]   + …另有 ${closureOnly.length - 8} 个传递依赖`);
-  }
   if (closure.unresolved.length > 0) {
     console.log(`[host-sidecar] ⚠ 解析不到的依赖（数字因此偏小）：${closure.unresolved.join(",")}`);
   }
+  if (report.node) {
+    console.log(
+      `[host-sidecar] 随包 Node ${report.node.source} → node/node.exe ${formatBytes(report.node.bytes)}` +
+        `（Node ${process.version}；只拷可执行文件本体）`,
+    );
+  }
   console.log(
-    `[host-sidecar] 合计（bundle + externals 闭包） ${formatBytes(bundleBytes + closure.closureBytes)}` +
-      `（bundle 与 externals 的分账见 spec §13；**不含 Node 运行时本身**）`,
+    `[host-sidecar] 发运集实测（**未压缩文件字节和**，诊断，不是门禁口径）：` +
+      ` ${formatBytes(report.bytes)} 共 ${report.files} 个文件，平铺 ${report.packages} 个包`,
   );
+  const stagedExternals = measureTree(join(STAGE_ROOT, "host-sidecar", "node_modules"));
+  console.log(
+    `[host-sidecar]   其中 externals（**剪枝后**）： ${formatBytes(stagedExternals.bytes)}` +
+      ` 共 ${stagedExternals.files} 个文件`,
+  );
+  console.log(
+    `[host-sidecar] 剪枝**原始**收益 = 未剪枝闭包 − 剪枝后 externals =` +
+      ` ${formatBytes(rawClosureBytes - stagedExternals.bytes)}（**诊断，不是门禁口径**；` +
+      "安装包里省了多少由 measure-installer-budgets.ts 在门禁面上量）",
+  );
+  return join(STAGE_ROOT, "host-sidecar", "index.mjs");
+}
+
+const verify = !process.argv.includes("--no-verify");
+
+/**
+ * 入口（`async main` 而不是顶层 await：本包的 `.ts` 由 tsx 按 CJS 跑，顶层 await 不被支持）。
+ */
+async function main(): Promise<void> {
+  const stageVariant = parseStageVariant(process.argv.slice(2));
+  const bundleBytes = await bundle();
+  // `--stage` 档必须真跑一次产物自验：发运集是「会被装到用户机器上的那一份」，
+  // 它比 bundle 本身更需要被跑过（Task 5 的纪律：剪枝后必须实跑）。
+  let verifyResult = "(跳过)";
+  if (verify) verifyResult = await verifyBundle();
+
+  console.log("[host-sidecar] 打包形态 = 单文件 ESM bundle + external 的 node_modules 子集");
+  console.log(`[host-sidecar] bundle        ${OUT_FILE}`);
+  console.log(
+    `[host-sidecar] bundle 体积   ${formatBytes(bundleBytes)}（未压缩文件字节和，诊断面）`,
+  );
+  let stagedVerify = "(跳过)";
+  if (stageVariant) {
+    const stagedEntry = reportShipSet(stageVariant);
+    // `core` 档刻意不发 externals（那是预算 (a) 的口径），所以它跑不起来——不假装跑过。
+    if (verify && stageVariant !== "core") stagedVerify = await verifyBundle(stagedEntry);
+  }
   console.log(`[host-sidecar] 自验          ${verifyResult}`);
+  if (stageVariant)
+    console.log(`[host-sidecar] 发运集自验    ${stagedVerify}（平铺布局 + 剪枝后的文件集）`);
 }
 
 void main().catch((error: unknown) => {

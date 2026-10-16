@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "identifier": "dev.mode.app",
   "build": {
-    "beforeBuildCommand": "pnpm --dir ../.. --filter @mode/desktop-tauri run build:frontend-for-tauri",
+    "beforeBuildCommand": "pnpm --dir ../.. --filter @mode/desktop-tauri run build:package-inputs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -17,6 +17,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "../dist-host-sidecar/ship/host-sidecar": "host-sidecar",
+      "../dist-host-sidecar/ship/node": "node",
+      "../dist-host-sidecar/ship/config": "config"
+    },
     "icon": [
       "icons/icon.ico",
       "icons/icon.png",

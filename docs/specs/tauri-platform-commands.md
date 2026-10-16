@@ -295,18 +295,32 @@ workflow artifacts**：Tauri 线在 M5 之前不是发布线，而它与旧 Elec
 日志留在运行记录里），等真正要转正时这批证据就是起点。`continue-on-error` 与「不在 `needs` 里」
 是两件事：前者管 job 的成败判定，后者管发布是否被门禁卡住；转正时两者一起去掉。
 
-### 8.2 体积基线（Windows 本机实测，2026-10-16）
+### 8.2 体积基线（Windows 本机实测）
 
-| 平台 | 体积 | 状态 |
+| 平台 | 体积（**NSIS 安装包字节**，门禁脸） | 状态 |
 | --- | --- | --- |
-| Windows x64（NSIS） | **7.19 MiB** | 本机实测（`tauri build --bundles nsis`，验收台前端） |
+| Windows x64（NSIS，M1 验收台前端） | **7.19 MiB** | M1 本机实测（2026-10-16） |
+| Windows x64（NSIS，**真产品 UI + Host sidecar**，预算 **(a) 核心**） | **23.29 MiB** | **M3 Task 5 实测**（2026-10-17；`mode-tauri` 壳 + 内嵌 renderer 产物 + Host bundle + `config/`，**不含**随身 Node 与 externals） |
+| Windows x64（NSIS，**产品档总包**） | **51.50 MiB** | **M3 Task 5 实测**（= 上者 + 随包 Node v24.18.1 + 剪枝后的 externals 闭包） |
+| Windows x64（NSIS，**预算 (b) = 总包 − 核心**） | **28.22 MiB** | **M3 Task 5 实测**（整包 LZMA 的增量） |
 | macOS arm64（dmg） | 待首次 CI 记录 | 未测 |
 | Linux x64（AppImage） | 待首次 CI 记录 | 未测 |
 
 口径与路线图一致：**NSIS 安装包字节数**（`tauri-bundle-report.ts` 算 MiB = 字节 / 1024²，
-并写进 job summary 与 artifact 目录里的 `size.txt`）。目标初装 ≤30MB（争取 25MB），
-Windows 实测 7.19 MiB，余量充足——注意这个数字**还没含产品 UI 的 renderer 资产**
-（M1 是验收台前端，§4.2），M3 挂载真实 UI 后必须重测并更新本表。
+并写进 job summary 与 artifact 目录里的 `size.txt`）。目标初装 ≤30MB（争取 25MB）——
+M1 的 7.19 MiB 是**验收台前端**时代的数，**没有含产品 UI 的 renderer 资产**；本节按 M1 的
+「M3 挂载真实 UI 后必须重测并更新本表」补上了 M3 Task 5 的三行。
+
+**门禁结论（M3 Ruling 26 的两份预算，均按本表的口径量）**：**(a) 核心 23.29 MiB ≤ 30MB，达标**；
+**(b) 的数值待定**（Task 5 只产出数字与建议，不改门禁，见
+`docs/plans/2026-10-16-m3-packaging-size.md` 的 DR-T5-3）。
+完整口径、三个包（`core`/`pruned`/`unpruned`）的定义、剪枝的原始/压缩对照与原始输出在
+`docs/specs/tauri-renderer-host.md` §13.2/§13.4。
+
+> **一处必须读清的对照**：Task 3 曾报过「核心 54.41 MiB」，那是**未压缩文件字节之和、且不含壳 exe**——
+> **不是这张表的口径**。两者并不矛盾：同一个系统在同一时刻，换到门禁真正使用的尺子上是 23.29 MiB。
+> 历史上这个数字出过三次口径事故（载荷求和 / 传递闭包 / 不含壳 exe 的文件求和），
+> 所以本表的每一行都注明它测在哪张脸上。
 
 ### 8.3 macOS / Linux 腿的已知风险（**当前不处理**，转正时再解决）
 

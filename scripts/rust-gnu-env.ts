@@ -13,6 +13,15 @@
 //  1. 目录不存在时**静默跳过**——CI 的 msvc / Linux runner 天然没有这些目录，同一份代码
 //     必须在那边退化成「什么都不做」；
 //  2. **一律不覆盖调用方已显式设置的环境变量**。
+//
+// 类型注解说明（2026-10-17，M3 Task 5）：本模块原先**没有类型注解**，那时它只被 `.mjs` /
+// `.ts` 构建脚本 import（`scripts/` 不在任何 tsc 工程里），所以 typescript 从没看过它。M3
+// Task 5 新增的 `measure-installer-budgets.ts` 落在 `apps/desktop-tauri/tsconfig.json` 的
+// `include: ["scripts/**/*.ts"]` 里，它 import 本模块 → 本模块第一次进入 tsc 的输入集合，
+// 于是「隐式 any」这类问题立刻变成 typecheck 红（release 的门禁）。修法是**在这里补注解**，
+// 不是去改调用方的调用形状绕开类型：注解在编译后被完全擦除，**不可能改变运行时行为**，
+// 而把调用形状改成「能让类型过」的样子会真的改动行为。
+// 函数签名保持不变（同样的参数个数与语义），两个 `.mjs` 消费者不受影响。
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { delimiter, join } from "node:path";
@@ -23,32 +32,32 @@ export const GNU_HOST_TOOLCHAIN = "stable-x86_64-pc-windows-gnu";
 /** llvm-mingw 的版本目录名。升级工具链时只改这一处。 */
 const LLVM_MINGW_DIR = "llvm-mingw-20261006-ucrt-x86_64";
 
-export function homeDir() {
+export function homeDir(): string {
   return process.env.USERPROFILE || process.env.HOME || "";
 }
 
 /** llvm-mingw 的 bin：提供 `*-w64-mingw32-clang`（linker）与 `dlltool`。 */
-export function llvmMingwBinDir(home = homeDir()) {
+export function llvmMingwBinDir(home: string = homeDir()): string {
   return join(home, ".rust-tools", LLVM_MINGW_DIR, "bin");
 }
 
 /** cargo 的 bin 目录：调用方的 PATH 里不一定有它（如从 IDE 启动）。 */
-export function cargoBinDir(home = homeDir()) {
+export function cargoBinDir(home: string = homeDir()): string {
   return join(home, ".cargo", "bin");
 }
 
-/** 是否 gnu 目标三元组（宿主或交叉）。 */
-export function isGnuTarget(target) {
+/** 是否 gnu 目标三元组（宿主或交叉）。`unknown` 入参是有意的：调用方可能传 `undefined`（无目标）。 */
+export function isGnuTarget(target: unknown): target is string {
   return typeof target === "string" && target.endsWith("-pc-windows-gnu");
 }
 
 /** loongarch/其他架构目前不走这条路线，只认这两个前缀。 */
-function gnuToolPrefix(target) {
+function gnuToolPrefix(target: string): string {
   return target.startsWith("aarch64") ? "aarch64-w64-mingw32" : "x86_64-w64-mingw32";
 }
 
 /** cargo 的 linker 覆盖变量名：`CARGO_TARGET_<TRIPLE>_LINKER`。 */
-export function targetLinkerVar(target) {
+export function targetLinkerVar(target: string): string {
   return `CARGO_TARGET_${target.toUpperCase().replaceAll("-", "_")}_LINKER`;
 }
 
@@ -63,13 +72,13 @@ export function targetLinkerVar(target) {
  * 与 `docs/plans/2026-10-09-tauri-rewrite-roadmap.md` 记的口径（这个 clang 作 linker）
  * 对齐。
  */
-function resolveGnuLinker(bin, target) {
+function resolveGnuLinker(bin: string, target: string): string | null {
   const bare = join(bin, `${gnuToolPrefix(target)}-clang`);
   return [`${bare}.exe`, bare].find((candidate) => existsSync(candidate)) ?? null;
 }
 
 /** 未显式指定时按本机架构选默认 gnu target。 */
-export function defaultGnuTarget(arch = process.arch) {
+export function defaultGnuTarget(arch: string | undefined = process.arch): string {
   return arch === "arm64" ? "aarch64-pc-windows-gnu" : "x86_64-pc-windows-gnu";
 }
 
@@ -82,10 +91,10 @@ export function defaultGnuTarget(arch = process.arch) {
  * 环境块的排序。所以两个键名都认，口径与 `scripts/mise-toolchain-env.mjs` 的
  * `withPinnedNodePath` 一致。
  */
-export function prependPath(env, dir) {
+export function prependPath(env: NodeJS.ProcessEnv, dir: string): void {
   const key = typeof env.PATH === "string" ? "PATH" : "Path";
   const current = (env[key] ?? "").split(delimiter).filter(Boolean);
-  const sameEntry = (a, b) =>
+  const sameEntry = (a: string, b: string): boolean =>
     a.replace(/[/\\]+/gu, "").toLowerCase() === b.replace(/[/\\]+/gu, "").toLowerCase();
   if (!existsSync(dir) || current.some((entry) => sameEntry(entry, dir))) return;
   env[key] = [dir, ...current].join(delimiter);
@@ -96,7 +105,11 @@ export function prependPath(env, dir) {
  *
  * 非 gnu 目标、或本机没有 llvm-mingw（CI）时什么都不做。
  */
-export function applyGnuToolchain(env, target, home = homeDir()) {
+export function applyGnuToolchain(
+  env: NodeJS.ProcessEnv,
+  target: string | undefined,
+  home: string = homeDir(),
+): void {
   if (!isGnuTarget(target)) return;
   const bin = llvmMingwBinDir(home);
   prependPath(env, bin);
@@ -111,7 +124,10 @@ export function applyGnuToolchain(env, target, home = homeDir()) {
  *
  * 返回新对象，不改动 `baseEnv`。
  */
-export function withCargoEnv(baseEnv, { target, home = homeDir() } = {}) {
+export function withCargoEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  { target, home = homeDir() }: { target?: string | undefined; home?: string } = {},
+): NodeJS.ProcessEnv {
   const env = { ...baseEnv };
   prependPath(env, cargoBinDir(home));
   applyGnuToolchain(env, target, home);
@@ -128,7 +144,10 @@ export function withCargoEnv(baseEnv, { target, home = homeDir() } = {}) {
  * 探测必须用**装配后**的 `env`：`~/.cargo/bin` 未必在调用方 PATH 上，漏掉会静默退回
  * msvc-host toolchain（其宿主产物要链 `link.exe`，本机无 MSVC 时整条构建炸掉）。
  */
-export function cargoHostToolchainArgs(env, target) {
+export function cargoHostToolchainArgs(
+  env: NodeJS.ProcessEnv,
+  target: string | undefined,
+): string[] {
   if (!isGnuTarget(target)) return [];
   const probe = spawnSync("rustup", ["toolchain", "list"], { encoding: "utf8", env });
   if (probe.status !== 0) return [];

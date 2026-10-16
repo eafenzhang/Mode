@@ -84,6 +84,8 @@ DR-T3-2 的验收台处置、DR-T3-3 三条义务的逐条处置）都是本任�
 平台面清单落到壳 stderr（§10.12）。
 **仍未验**：打包形态里 sidecar 与随包 Node 的落点、以及「核心」预算在**壳 exe** 那一半的数字
 （Task 5）；真 renderer 产物被内嵌进 exe 后的启动耗时尚无测量。
+**〔Task 5 追加·原地标注〕上面这三条都做掉了**：安装形态的落点、两份预算（**含壳 exe**）与冷启动
+都在门禁脸上实测，见 §13.4 / §13.5；安装 → 重装 → 跑的整段见 §13.6。原文保留以留痕。
 
 ## 1. 组件与所有权
 
@@ -927,6 +929,11 @@ dist/dev/assets/index-CBCUVagc.js   278.32 kB │ gzip: 74.41 kB │ map: 1,530.
 | **和 (a) 的关系** | Ruling 26 的 (a)「核心 ≤30MB」按上面的口径量；本任务**不改它的编号与数值**，只把基准从「验收台时代」换成「真产品 UI 时代」 |
 | **Task 5 欠的两次测量** | ① **release exe 实测体积**（`tauri build` 产物，`frontendDist` 已内嵌 + `windows_subsystem = "windows"`）；② **冷启动耗时**。这两条只写在§13.1 与§20 里，本任务不代它量 |
 
+**〔Task 5 追加·原地标注〕这两条都已实测**：① 换算到门禁脸是 core 档安装包 **23.29 MiB**（§13.4）；
+② 冷启动 `T_ready` 中位数 **825 ms**、`T_surface` 中位数 **962 ms**（release，N=7，§13.5）。
+上面那张表里的「54.41 MiB」是未压缩文件字节和、且不含壳 exe——**它不是门禁脸**；
+两套数字并存没问题，**混用才是问题**（§13.2 的口径表）。
+
 **数字的口径**：`*.map` 之外的资产在不同次构建之间有**几百字节**的波动
 （本节上面两段输出就是同一份代码的两次运行：51,951,518 B 与 51,951,888 B），
 所以「49.54 / 49.55 MiB」都对——量级与结论不受影响，
@@ -952,6 +959,18 @@ dist/dev/assets/index-CBCUVagc.js   278.32 kB │ gzip: 74.41 kB │ map: 1,530.
    （某个包把类型包写进了 `dependencies`）与 `protobufjs` 的未安装可选依赖 `long`。
 3. `@larksuiteoapi/node-sdk` 24.33 MiB 必须走 external（链路上有动态 `require("util")`）。
    要更小得评估「只带用到的子路径」或换打包方式——**不要在门禁上妥协**。
+
+**〔Task 5 追加〕这三条线索的处置**（每条都有实测，落点在 §13.4 与 §13.5）：
+
+1. **裁了，但只裁 `prebuilds/` 里的非目标平台**：保留 `win32-x64`（含 `build/Release/conpty`），
+   裁掉 `win32-arm64` 与 `darwin-*`（规则与理由在 `apps/desktop-tauri/scripts/host-sidecar-ship.ts`
+   的 `PRUNE_RULES`，用例在 `apps/desktop-tauri/test/shipSet.test.mts`）。
+   **实测把 4.3:1 那个估算也纠正了**：这一个剪枝动作原始省 **30.41 MiB**（含 `@types/node` 的 2.24 MiB），
+   在安装包里只省 **2.80 MiB**——原始/压缩 ≈ **10.9 : 1**，比估的还差（对「裁一点就想让门禁动」更不利）。
+2. **`@types/node` 已按剪枝规则整个不发**（它在 `dependencies` 里但是纯类型包）；`long` 仍未安装
+   （可选依赖），脚本把它单列在 `unresolved` 里，**不静默**。
+3. **`@larksuiteoapi/node-sdk` 仍然走 external**（没有为了体积去动它）。它的 `types/index.d.ts`
+   15.09 MiB 是安装目录里最大的单个文件——**M5 若要继续压 (b)，这是首选的下一站**。
 
 **踩到的坑（值得下一个任务知道）**：内联进来的 CJS 依赖里有**动态** `require("events")`，
 esbuild 的 ESM 产物把它留成 `__require`，运行时报
@@ -1047,6 +1066,236 @@ services + 存储准备 + `server.ready()`**。
 **已知误差（如实登记，不掩盖）**：读取管道上的行有毫秒级延迟，两个标记都带这一份误差；
 样本内不做任何 CPU 隔离，所以离散度反映的是这台机器当时的实际抖动。
 机器：本机（Windows 10.0.19044 x64，见 §13.5 的原始输出），**不是** CI runner。
+
+---
+
+### 13.4 两份预算的实测值（M3 Task 5 · DR-T5-1；**数字在 §13.2 的口径之后**）
+
+口径见 §13.2（`ebb42eab` 提交，**只有口径、没有数字**；本节是它承诺的回填）。
+命令（一次出三个包，用差值得到两份预算）：
+
+```bash
+$ node --import tsx apps/desktop-tauri/scripts/measure-installer-budgets.ts
+```
+
+原始输出（本机 Windows x64，2026-10-17；**三档同一批**，逐字）：
+
+```text
+[budgets] === 门禁脸：NSIS 安装包字节（statSync 实测，MiB = 字节 / 1024²）===
+[budgets] core      24416114 B (23.29 MiB)  D:\ZCodium\apps\desktop-tauri\dist-host-sidecar\installers\Mode-0.0.1-win-x64-core.exe
+[budgets]           sha256 a80641885a597e61423a35535468942b8fd5e935205596cc5522a7d495e018c3
+[budgets] pruned    54004423 B (51.50 MiB)  D:\ZCodium\apps\desktop-tauri\dist-host-sidecar\installers\Mode-0.0.1-win-x64-pruned.exe
+[budgets]           sha256 3e6b15a190b5dc2a98c5bcc4b3d24b845e5c4ffd6cf8ca33088153e547b40746
+[budgets] unpruned  56936976 B (54.30 MiB)  D:\ZCodium\apps\desktop-tauri\dist-host-sidecar\installers\Mode-0.0.1-win-x64-unpruned.exe
+[budgets]           sha256 5667a2598f0f5dc4814e651d35350b4bdf5ac29d5e361ae8f459d27db2a399ba
+[budgets] **(a) 核心预算 = core 档的安装包字节 = 24416114 B (23.29 MiB)**（壳 exe + UI 资产 + Host bundle + config/；不含 Node 运行时与 externals）
+[budgets] 总包（product 档）= 54004423 B (51.50 MiB)
+[budgets] **(b) 运行时 + 服务面 = pruned − core = 29588309 B (28.22 MiB)**（增量）：LZMA 压的是整包，所以这是「加进去以后包变大多少」，不是子集单独压缩后的字节
+[budgets] **剪枝的压缩收益 = unpruned − pruned = 2932553 B (2.80 MiB)**（门禁脸）
+```
+
+| 数字 | 实测值 | 它测在哪张脸上 |
+| --- | --- | --- |
+| **(a) 核心预算** | **24,416,114 B（23.29 MiB）** | **NSIS 安装包字节**（门禁脸） |
+| 总包（产品档） | **54,004,423 B（51.50 MiB）** | **NSIS 安装包字节** |
+| **(b) 运行时 + 服务面**（增量） | **29,588,309 B（28.22 MiB）** | **NSIS 安装包字节**（差值） |
+| 剪枝的**压缩**收益 | **2,932,553 B（2.80 MiB）** | **NSIS 安装包字节**（差值） |
+| 剪枝的**原始**收益 | **31,889,844 B（30.41 MiB）** | **诊断，不是门禁口径**（未压缩文件字节和） |
+
+**这份数字推翻了当初放宽 (a) 的理由，必须写清楚（DR-T5-3：数字与建议归本任务，改门禁归人）**：
+
+- **≤30MB 在正确的脸上是达标的**：(a) 实测 **23.29 MiB**。Ruling 26 之前认为「核心预算明显不可达」，
+  依据是 Task 3 的 **54.41 MiB**——而那个数字量的是**未压缩文件字节和、且不含壳 exe**
+  （§13.1 那张「量在哪张脸上」的表就是为它加的）。**三张脸互换了三次的代价在这里具体化**：
+  同一个系统，换到门禁真正用的尺子上，结论从「不可达」变成「有余量 22%」。
+- 本任务**没有**改门禁数值（DR-T5-3），只把实测值、命令与原始输出摆出来，并给出建议：
+  (a) **不需要改**；(b) 建议给一个有头寸的预算（例如 ≤35 MiB，当前 28.22 MiB），或按「总包 ≤60 MiB」管。
+- **总包仍然大于最初的单一「核心 ≤30MB」**（51.50 MiB）：那正是 Ruling 31 放宽的那一条，本任务不动它。
+
+**三档各自的未压缩诊断值**（同一批 `build-host-sidecar.ts --stage` 的原文；**诊断，不是门禁口径**）：
+
+```text
+[host-sidecar] bundle 体积   5115501 B (4.88 MiB)（未压缩文件字节和，诊断面）
+[host-sidecar] 发运集实测（**未压缩文件字节和**，诊断，不是门禁口径）： 5309709 B (5.06 MiB) 共 2 个文件，平铺 0 个包          ← core 档
+[host-sidecar]   其中 externals（**剪枝后**）： 0 B (0.00 MiB) 共 0 个文件
+[host-sidecar] externals 闭包（含传递依赖，去重 66 个包） 107593418 B (102.61 MiB)（**未剪枝**，诊断面）
+[host-sidecar] 随包 Node C:\Program Files\nodejs\node.exe → node/node.exe 92540232 B (88.25 MiB)（Node v24.18.1；只拷可执行文件本体）
+[host-sidecar] 发运集实测（**未压缩文件字节和**，诊断，不是门禁口径）： 173553515 B (165.51 MiB) 共 1888 个文件，平铺 66 个包   ← pruned 档
+[host-sidecar]   其中 externals（**剪枝后**）： 75703574 B (72.20 MiB) 共 1885 个文件
+[host-sidecar] 剪枝**原始**收益 = 未剪枝闭包 − 剪枝后 externals = 31889844 B (30.41 MiB)（**诊断，不是门禁口径**；安装包里省了多少由 measure-installer-budgets.ts 在门禁面上量）
+[host-sidecar] 发运集实测（**未压缩文件字节和**，诊断，不是门禁口径）： 205443359 B (195.93 MiB) 共 1993 个文件，平铺 66 个包   ← unpruned 档
+[host-sidecar]   其中 externals（**剪枝后**）： 107593418 B (102.61 MiB) 共 1990 个文件
+```
+
+**DR-T5-2 的原始/压缩对照表**（同一个剪枝动作的两种读法）：
+
+| 读法 | 收益 | 倍数 |
+| --- | --- | --- |
+| **原始**（`prebuilds/win32-arm64` + `prebuilds/darwin-*` 28.17 MiB，加 `@types/node` 2.24 MiB） | **30,418,844 B（30.41 MiB）** | — |
+| **压缩后**（安装包字节：`unpruned − pruned`） | **2,932,553 B（2.80 MiB）** | 原始 / 压缩 ≈ **10.9 : 1** |
+
+**这条推翻了 Task 2 给出的 4.3 : 1 估算，是方向相同的**：`.node` 的压缩比**比估的还好**，
+所以「裁掉 28 MiB 在门禁上只值几 MiB」这个结论**成立且更强**——它只值 **2.80 MiB**，
+占 (b) 的 9.9%。**只报原始值会把一次 30 MiB 的「优化」在门禁上读成一次大改动**，这正是 DR-T5-2 要防的。
+
+### 13.5 冷启动实测（M3 Task 5 · DR-T5-4；按 §13.3 的口径）
+
+口径见 §13.3（同样在数字之前提交）。命令与被测对象：
+
+```bash
+# 先真装一次（隔离目录；静默安装 NSIS）
+$ node --import tsx apps/desktop-tauri/scripts/verify-installed.ts \
+    --installer apps/desktop-tauri/dist-host-sidecar/installers/Mode-0.0.1-win-x64-pruned.exe \
+    --work-dir D:\tmp\m3t5e --install-dir D:\tmp\m3t5e\install --install-only
+$ node --import tsx apps/desktop-tauri/scripts/measure-cold-start.ts --release "D:\tmp\m3t5e\install\ModeTauri.exe"
+$ node --import tsx apps/desktop-tauri/scripts/measure-cold-start.ts --debug target/debug/ModeTauri.exe
+```
+
+被测对象是**已安装的** `ModeTauri.exe`（52,908,544 B）——注意主 exe 名是 Cargo 的 bin 名，
+不是 `productName`（§13.6 有这条的失败现场记录）。
+
+**release（结论）原始输出**（下面这一份是**最终代码**跑出来的那一轮；`m3t5e`）：
+
+```text
+[cold-start] 档=release exe=D:\tmp\m3t5e\install\ModeTauri.exe 52908544 B
+[cold-start] 样本间的残留检查：按路径过滤 D:\tmp\m3t5e\install\node
+[cold-start] 口径：每样本一个新空数据基目录 + HOME/USERPROFILE 双覆写；N=7；统计量=中位数；第 1 个样本单列（首次，文件缓存也冷）
+[cold-start] 样本 1: T_ready=1111 ms T_surface=1212 ms 收尾=wm_close 失败=false
+[cold-start] 样本 2: T_ready=848 ms T_surface=1013 ms 收尾=wm_close 失败=false
+[cold-start] 样本 3: T_ready=839 ms T_surface=962 ms 收尾=wm_close 失败=false
+[cold-start] 样本 4: T_ready=786 ms T_surface=945 ms 收尾=wm_close 失败=false
+[cold-start] 样本 5: T_ready=818 ms T_surface=953 ms 收尾=wm_close 失败=false
+[cold-start] 样本 6: T_ready=825 ms T_surface=955 ms 收尾=wm_close 失败=false
+[cold-start] 样本 7: T_ready=822 ms T_surface=963 ms 收尾=wm_close 失败=false
+[cold-start] === 结论（档=release）===
+[cold-start] 有效样本 7/7（失败=没出现 ready 行或出现 startup_failed）
+[cold-start] 第 1 个样本（首次，文件缓存也冷）：T_ready=1111 ms T_surface=1212 ms
+[cold-start] T_ready   全部有效样本 中位数 825 ms，最小 786 ms，最大 1111 ms（n=7）
+[cold-start] T_surface 全部有效样本 中位数 962 ms，最小 945 ms，最大 1212 ms（n=7）
+[cold-start] 去掉第 1 个之后的 T_ready   中位数 824 ms，最小 786 ms，最大 848 ms（n=6）
+[cold-start] 去掉第 1 个之后的 T_surface 中位数 959 ms，最小 945 ms，最大 1013 ms（n=6）
+```
+
+**debug（对照）原始输出**（`target/debug/ModeTauri.exe`，375,349,248 B；同一份源码）：
+
+```text
+[cold-start] 档=debug exe=D:\ZCodium\target\debug\ModeTauri.exe 375349248 B
+[cold-start] 样本 1: T_ready=1030 ms T_surface=1366 ms 收尾=wm_close 失败=false
+[cold-start] 样本 2: T_ready=1002 ms T_surface=1362 ms 收尾=wm_close 失败=false
+[cold-start] 样本 3: T_ready=1028 ms T_surface=1354 ms 收尾=wm_close 失败=false
+[cold-start] 样本 4: T_ready=1041 ms T_surface=1357 ms 收尾=wm_close 失败=false
+[cold-start] 样本 5: T_ready=1052 ms T_surface=1369 ms 收尾=wm_close 失败=false
+[cold-start] 样本 6: T_ready=1026 ms T_surface=1359 ms 收尾=wm_close 失败=false
+[cold-start] 样本 7: T_ready=1033 ms T_surface=1350 ms 收尾=wm_close 失败=false
+[cold-start] T_ready   全部有效样本 中位数 1030 ms，最小 1002 ms，最大 1052 ms（n=7）
+[cold-start] T_surface 全部有效样本 中位数 1359 ms，最小 1350 ms，最大 1369 ms（n=7）
+[cold-start] 去掉第 1 个之后的 T_ready   中位数 1031 ms，最小 1002 ms，最大 1052 ms（n=6）
+[cold-start] 去掉第 1 个之后的 T_surface 中位数 1358 ms，最小 1350 ms，最大 1369 ms（n=6）
+```
+
+| 档 | `T_ready` 中位数（范围） | `T_surface` 中位数（范围） | 第 1 个样本（冷文件缓存） |
+| --- | --- | --- | --- |
+| **release（结论）** | **825 ms**（786–1111） | **962 ms**（945–1212） | 1111 / 1212 ms |
+| debug（对照） | 1030 ms（1002–1052） | 1359 ms（1350–1369） | 1030 / 1366 ms |
+
+**读法（不许读大）**：
+
+- 「安装后首次启动」这次多花约 **285 ms**（1111 vs 824 的中位数），落在第 1 个样本上——
+  这正是口径里要求单列它的理由（OS 对 exe 与 1888 个资源文件的文件缓存是冷的）。
+  它同时也说明为什么**只报中位数**：把首样本混进去只会让「这台机器上启动多快」这个数变模糊。
+- `T_ready` 是 **DR-M3-1 那笔代价的实测值**：壳进程 + 随包 Node v24.18.1 + 40 个服务频道 +
+  空数据根的建库与迁移，**不到一秒**。debug 比 release 慢 205 ms——**debug 不是「慢一倍」**，
+  说明这段时间由 Node 运行时与存储准备主导，而不是由 Rust 壳的优化级别主导。
+- **重复性**：同一份代码在**前一版脚本**上跑过一轮，release 是 839 / 983 ms（首样本 1104 / 1230）、
+  debug 是 1032 / 1366 ms——两轮的中位数相差 14 ms 与 21 ms，**离散度比这台机器的抖动小**。
+  两轮都留在报告里（数字不取最好的一次）。
+- **本口径不测闸门放行那一段**（§13.3 已写清理由：没有既有的外部可观察点，加探针就是改被测对象）。
+  **替代证据在 §13.6**：那一次的运行里产品 UI 真的挂上了（界面内容与业务帧都在），
+  所以「闸门能放行」有证据，只是**耗时没有进这两个统计量**。
+
+### 13.6 安装后的验证：install → reinstall → run（M3 Task 5 · Step 5）
+
+命令（安装包 = 产品档 `pruned`；数据隔离靠 `MODE_DATA_BASE_DIR` + `HOME`/`USERPROFILE` 双覆写，
+用户真实 `~/.mode` 全程未被触碰）：
+
+```bash
+$ node --import tsx apps/desktop-tauri/scripts/verify-installed.ts \
+    --installer apps/desktop-tauri/dist-host-sidecar/installers/Mode-0.0.1-win-x64-pruned.exe \
+    --work-dir D:\tmp\m3t5c --install-dir D:\tmp\m3t5c\install --keep
+```
+
+原始输出（节选，逐字；完整转录见任务报告）：
+
+```text
+[verify] 安装包 D:\ZCodium\...\Mode-0.0.1-win-x64-pruned.exe 54004423 B (51.50 MiB)
+[verify] 静默安装：...\Mode-0.0.1-win-x64-pruned.exe /S /D=D:\tmp\m3t5c\install
+[verify] 首次安装完成，主 exe = D:\tmp\m3t5c\install\ModeTauri.exe
+
+[verify] === 1b. 覆盖重装（install → reinstall → run 的那一段）===
+  [PASS] 覆盖重装后主 exe 与安装包内的产物一致（同一份字节） — D:\tmp\m3t5c\install\ModeTauri.exe 重装前 52908544 B / b4e92ed97d5e9292… → 重装后 52908544 B / b4e92ed97d5e9292…
+  [PASS] 安装目录里有 Host sidecar — D:\tmp\m3t5c\install\host-sidecar\index.mjs
+  [PASS] 安装目录里有随包 Node — D:\tmp\m3t5c\install\node\node.exe
+  [PASS] 安装目录里有 Built-in Provider Config — D:\tmp\m3t5c\install\config\provider\mode-builtin.json
+  [PASS] 产品页资产名在壳 exe 里 — 与安装包同批的 ...\Mode-0.0.1-win-x64-pruned.exe.index.html：277 个引用资产，未命中 0 个；exe 52908544 B
+  [PASS] 验收台不在 dist/ 里 — 本机 dist/dev 不存在（发布路径已用 --no-bench 装配过）
+  [PASS] 安装目录里没有验收台（dev/） — dist/dev 未进资源目录：D:\tmp\m3t5c\install
+
+[verify] === 3. 产品壳跑得起来（隔离数据基目录）===
+    1005ms [err] [mode-host-sidecar] native_deps sqlite=ok(3.53.1) pty=ok(spawnVerified=false) cua=not-injected
+    1072ms [err] [mode-host-sidecar] ready startupId=host-… dataBaseDir=D:\tmp\m3t5d\shell-base-1680089998 dataRoot=D:\tmp\m3t5d\shell-base-1680089998\.mode source=MODE_DATA_BASE_DIR channels=40 node=v24.18.1 shutdown=false
+    1229ms [err] [mode-tauri] platform_surface implemented=17 rejecting=31 noop=25 absent=1 degraded=0 reasons=
+  [PASS] Host 报出 ready（经壳的 stderr 转发） — T_ready = 1072 ms
+  [PASS] 注入层上报平台面清单（页面 + 注入 + IPC 都通了） — T_surface = 1229 ms；[mode-tauri] platform_surface implemented=17 rejecting=31 noop=25 absent=1 degraded=0 reasons=
+  [PASS] 没有 startup_failed — stderr 里没有 Host 的结构化失败行
+  [PASS] 收尾方式 — WM_CLOSE（正常退出路径）
+  [PASS] 真服务写进了隔离数据根 — D:\tmp\m3t5d\shell-base-1680089998\.mode → ["v2","workspace"]
+  [PASS] 宿主的真实 ~/.mode 未被本轮的隔离跑改动 — 跑之前 [".mode-root.json","cli","plugin-workspace","runtime","tmp","v2","workspace"] → 跑之后 [同]
+  [PASS] 退出后没有安装目录里的 node.exe 残留 — 0 个
+
+[verify] === 4. 用安装目录里的 node + sidecar 真开一个终端 ===
+  [PASS] 安装目录里的 sidecar 服务面 — kind=services，Node v24.18.1
+  [PASS] 随包 Node + 资源目录档的 Built-in Provider Config — source=resources exists=true
+  [PASS] 发运集里有目标平台的 node-pty 原生 artifact（win32-x64） — …\prebuilds\win32-x64\conpty.node, …\conpty_console_list.node, …\pty.node
+  [PASS] 剪枝确实把非目标平台的 prebuilds 裁掉了 — win32-arm64 / darwin-* 都不在发运集里
+  [PASS] conpty 那条路要用的 build/Release/conpty 没被连带裁掉 — …\node-pty\build\Release\conpty
+  [PASS] `node:sqlite` 真读写 — sqlite_version=3.53.1 roundTrip=41
+  [PASS] 深探测档真起过 pty 并跑出一条命令（剪枝没弄坏 node-pty） — spawned=true exitCode=0 output="…pty-ok\r\n…" error=undefined
+  [PASS] `terminal` 频道端到端：建 pty + 写命令 + 读回输出 — shell=powershell.exe backend=conpty；输出 997 字符（含标记=true）
+[verify] === 结论：22/22 条通过 ===
+```
+
+**这次验证关掉了什么**（逐条对上任务书）：
+
+1. **「NSIS 安装 → 重装 → 跑」这一段此前从未走过**（`4aa30270` 的收口只在**非打包的 release 壳**上验过，
+   见 `host-startup-failure-diagnosis.md` §6 第 1 条）：现在**三步都走过**，且重装后主 exe 与安装包内
+   产物**同字节**（不是「重装器什么都没做」）。
+2. **安装后的产物里确实是产品页 + sidecar**：277 个引用资产**零未命中**（比对基准是**与这个包同批的**
+   `dist/index.html` 快照，理由见下），`host-sidecar/index.mjs`、`node/node.exe`、`config/…` 都在，
+   且**验收台（`dev/`）既不在 dist 里、也不在资源目录里**——「把验收台当交付物」这个错被两处挡住。
+3. **剪枝被真跑过，不是只报了个数**：安装目录里的 `node.exe` + 安装目录里的 `index.mjs` 真开了一个 pty，
+   退出码 0、输出里有标记，并且走 `terminal` 频道端到端拿到 `powershell.exe`（conpty）的回显。
+4. **数据隔离**：真写入落在 `{base}/.mode`；用户真实 `~/.mode` 的条目集合**跑前跑后一致**。
+5. **平台面清单在窗口态发布构建里的落点（§20 第 1 条）**：**可观察的那一半被证实了**——
+   被测对象是 `windows_subsystem = "windows"` 的**安装后** release exe，它的 `platform_surface`
+   行确实出现在**父进程接管的管道**上。**不能观察到的那一半仍未关闭**（从资源管理器双击启动时没有
+   控制台可读），维持登记，代价见 §20 第 1 条的追加段。
+
+**两个实测踩到的坑（都写在这里免得下一个任务重踩）**：
+
+- **主 exe 名是 `ModeTauri.exe`，不是 `Mode.exe`**：Tauri 的 NSIS 装出来的是 **Cargo 的 bin 名**。
+  第一版验证脚本写死 `Mode.exe`，症状是「装完了却报找不到 exe」——安装本身是成功的。
+- **产物资产名的比对基准必须与安装包同批**：三档各重跑一次 Vite 构建，而 renderer 产物在两次构建
+  之间有几百字节波动（§13.1 记过），**入口 chunk 与 CSS chunk 的内容哈希会跟着变**。拿「最后那次
+  构建的 dist」核对「更早那个档的包」会报 2/277 未命中——**那是跨批比对的假红，不是产物有问题**。
+  处置：`measure-installer-budgets.ts` 在采集时把当时的 `dist/index.html` 快照成
+  `<安装包>.index.html`，验证脚本以**快照**为基准并如实标注它是哪一批。
+
+**`IChannel.call` 的入参形状也是坑（实测）**：客户端 `getChannel().call(command, arg)` 的第二参在
+服务端是 `target.apply(handler, args || [])`——所以**位置参数要包成数组**。传裸对象 `{ cols, rows, cwd }`
+等于一个参数都不传，服务收到 `undefined` 并当场抛
+`TypeError: Cannot read properties of undefined (reading 'cwd')`。第一版验证脚本正是这样写的；
+`terminal` 的契约在 `packages/services/src/terminal/terminal.ts` 的接口里
+（`create({cols, rows, cwd})`），调用形状错了**不会**被类型系统拦住（那里是 `IChannel`）。
 
 ---
 
@@ -1612,6 +1861,15 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 | 2 | **release exe 的实测体积**（`frontendDist` 内嵌之后的真值） | §13.1：本任务只量了「未压缩文件字节之和」这张脸（54.41 MiB，**不含**壳 exe） | **Task 5** |
 | 3 | **冷启动耗时** | §13.1 末段：本任务只用 debug 构建跑通了功能，没有量过内嵌资产被解出/加载的耗时 | **Task 5** |
 | 4 | **`required-features` 门住的 bin 不在 clippy 覆盖里** | `clippy --workspace --all-targets -- -D warnings` 只覆盖默认 feature 的 target，所以三个 opt-in harness（`PortTransportHarness`/`HostRoundtripHarness`/`ProductUiHarness`）**没有 lint 覆盖**（`Cargo.toml` 里已就地写明要单独跑的命令）。**本轮真跑了它**，抓到并修掉两处 `clippy::let_unit_value`（两个 harness 的 watchdog 里 `let _ = exit_handle.exit(0)`）；跑过之后三个 bin 都干净，但「将来新加的 bin 会被自动 lint 吗」这个结构性问题仍在 | **Task 5**（把 `--features … --bins` 那一档接进 CI 门禁属于改门禁，超出本任务授权） |
+
+### 20.1 Task 5 对第 1–4 条的处置（**原地标注，不改写原措辞**）
+
+| # | 现状 | 依据 |
+| --- | --- | --- |
+| 1 | **可观察的那一半关掉了，另一半仍登记**。安装后的 release exe（`windows_subsystem = "windows"`）在**父进程接管的管道**上确实打出了 `platform_surface`（§13.6 的原始输出）——这是 Task 3 当时只敢断言「被重定向时才可见」的那条的**实测**。**从资源管理器双击启动时没有控制台**，这一半**仍未关闭**；本条**继续为开放项**，代价：发布形态下用户侧的「降级清单」不可得，排障必须由发起进程带 `MODE_*` 跑法。两个候选设计（随包 Node 的日志目录 / 一个显式的诊断文件）都**需要改壳的行为**（新增落点、清理策略、隐私面），属产品逻辑，Task 5 的硬约束是「只打包与测量」，所以**不自行实施**，交 M5 定 | §13.6、`docs/plans/2026-10-17-m5-release-cutover-input.md` §6.3 |
+| 2 | **已实测**：门禁脸上是 core 档安装包 **23.29 MiB**（含壳 exe）；壳 exe 本身 52,908,544 B（未压缩，作为诊断） | §13.4（命令与原始输出）、§13.5（被测 exe 字节数） |
+| 3 | **已实测**：release `T_ready` 中位数 **825 ms**、`T_surface` 中位数 **962 ms**（N=7，每样本新空数据根）；debug 作对照为 1030 / 1359 ms。同代码另一轮为 839 / 983 与 1032 / 1366（重复性见 §13.5） | §13.5（两档完整原始输出） |
+| 4 | **本轮**再跑了一次单独那一档（`clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`，退出码 0）。**结构性缺口不变**：新加的 harness bin 仍可能悄悄漏 lint，且把这一档接进 CI 属于改门禁——本条继续为开放项，接手方仍是「下一个改 CI 门禁的人」 | 本任务的验证记录 |
 | 5 | **`disk` 摘要一直是 `[]`** | §18 ③（附判据）+ §15.3 的 M2 原地标注：壳侧 `to_state_json()` 写死 `disk: []`，上游没给事实。**〔Task 4 追加〕重查判据：`state.disk` 仍零消费方**，所以 Task 4 不产出（见 §18 ③ 的追加段） | **Task 4 之后的第一个「有消费者」的任务**，条件明写在两处之一出现时：① 渲染层/UI 开始读 `state.disk`；② 有人把 `startupDiskSampler`（`packages/desktop/src/host/startupDiskSampler.ts`）搬进 `packages/desktop/src/host-standalone/`。届时**那个人**定「谁产出、谁合并」，本条目保持可见直到那时 |
 | 6 | **`sequence` 的单一所有者** | §18 ② + §15.3 的 M6：Host 的 `StartupStateMachine` 与壳的 `StartupMonitor` 各自从 0 自增，渲染层的 `acceptState` 会丢掉 `sequence <= state.sequence` 的合并流。**〔Task 4 追加〕本任务没有引入合并流**（第二实例转发走的是无序号的事件通道），所以条件未触发 | **下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的「中间阶段」接进壳发布的状态流的那个人**（触发条件：任何一个 Host 侧产生的进度值进入壳发布的 `DatabaseStartupState` 流）。答案只有两种，且必须选一个：壳转发 Host 的序号，或壳按自己的发布重编号（Host 的序号只作内部诊断） |
 | 7 | **验收台（bench）留在开发档的代价** | §17 / DR-T3-2：1.73 MiB（§13.1 的 `dev/` 行是它的实测出处）+ 内部命令面暴露在开发档产物里；**发布产物里没有** | 已处置（DR-T3-2），无未决项 |
