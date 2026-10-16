@@ -129,7 +129,7 @@ harness 的位置与角色：
 | --- | --- |
 | `apps/desktop-tauri/test/harness/port-transport/frontend/{index.html,main.ts,injected-bridge.ts,shared-shim.ts}` | harness 页 + 注入桥（**测试资产**；页面用 alias 指向**真实出处**：`@mode/rpc` 包入口、`@renderer-admission` = 未改动的渲染层准入类） |
 | `apps/desktop-tauri/test/harness/port-transport/vite.config.ts` | 页面构建 + 诊断端点（`/spike-log`，独立于 Tauri invoke） |
-| `apps/desktop-tauri/src/bin/port_transport_harness.rs` | 壳侧：Rust 建窗 + init 脚本 + `spike_host_send`/`spike_host_recv`/`spike_report`（`required-features = ["port-transport-harness"]` 门住，默认构建不带它） |
+| `apps/desktop-tauri/src-tauri/src/bin/port_transport_harness.rs` | 壳侧：Rust 建窗 + init 脚本 + `spike_host_send`/`spike_host_recv`/`spike_report`（`required-features = ["port-transport-harness"]` 门住，默认构建不带它） |
 | `apps/desktop-tauri/src-tauri/capabilities/port-transport-harness.json` | harness 窗口的能力集（label 在产品里不存在；它存在的意义见 §4.2 的第三点） |
 | `apps/desktop-tauri/test/fixtures/stdioChannelHost.mts` | Host 替身（真 `ChannelServer` + `spike.ping`），harness 与自动化测试**共用同一份** |
 
@@ -532,7 +532,7 @@ harness 的 Rust bin 用 `required-features` 门住：默认 `cargo build -p mod
 - 想要**最小可跑的实现参考**：`test/harness/port-transport/frontend/injected-bridge.ts`
   （注入桥，纯 JS，含两个占位符：`__SPIKE_STARTUP_ID__`、`__SPIKE_WRAP_PORT_MESSAGE__`）
   + `src-tauri/src/bin/port_transport_harness.rs`（建窗、两个 command、看门狗、退出码）。
-  两者合计约 330 行，含全部注释与诊断；**照 §4 的五条约束改写成产品实现**即可。
+  两者合计 396 行，含全部注释与诊断；**照 §4 的五条约束改写成产品实现**即可。
 - 想要**回归**：直接跑 §7 的自动化用例，再按 §3.2 跑三种模式核对退出码。
 - **Task 1 的第一个集成步骤**：把「真 Host + 真端口 + `Initialize` + 一次真 RPC」落成一条已提交的
   测试（本 spike 的 `portMessagePath.test.mts` 把它降到了 Node 侧等价物；Task 1 要在真 Host 上重做），
