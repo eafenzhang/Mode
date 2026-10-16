@@ -313,6 +313,30 @@ mock 的应答是**请求内容的纯函数**，不是计数器也不是随机�
    夹具里的 `read-twice-one-turn` 保留**单元素** `parallelGroups`（两个独立批次），
    因为那是最贴合「同一次 turn 里连续两次工具调用」这条要求、且不依赖竞态的形状；
    并行批次的折叠规则由 `compare.test.mts` 的纯函数用例覆盖。
+6. **已知缺陷（待决）：v1 宿主 schema 落后于线上，host 今天会丢掉两类会话事件。**
+   （Task 1 发现，2026-10-16 复评确认；本项**不在 Task 1 修**，需独立调查与决定。）
+   实测证据（两条真实帧 + 跑一遍 zod 即可复现）：运行时发出的
+   `turn.started` 载荷带 `executionStartedAt`（小数毫秒），
+   `tool.updated` / `kind:"started"` 带 `readOnly` 与 `sideEffectScope`；
+   而 `packages/shared/src/mode-protocol/index.ts` 的对应载荷 schema 没有声明这三个字段，
+   且各成员都是 `.strict()` ⇒ `modeSessionEventSchema.safeParse(真实帧)` 失败，
+   报 `unrecognized_keys: ["executionStartedAt"]` / `["readOnly","sideEffectScope"]`。
+   宿主路径用同一个 `modeSessionEventSchema` 校验 `session/event`，失败即记日志并丢弃整条事件，
+   所以**每一次 `turn.started`、每一次 `tool.updated`/`started` 都会被丢掉**（不是"文档不准"，
+   是线上丢事件）。两个锚点，删一个之前请先解决本项：
+   - 常数 `KNOWN_V1_PAYLOAD_LAG`（`packages/desktop/tests/agent-runtime-oracle/protocol-fixtures.test.mts`）
+     —— 它断言「被拒绝的键逐字等于表里的键」，schema 或运行时任一侧动了都会红；
+   - 本节 —— 它说明这张表为什么存在、后果是什么。
+   Rust 镜像按**线上取值**建模（`execution_started_at: Option<f64>`、`read_only`、`side_effect_scope`），
+   即镜像跟线上走、与 v1 schema 的滞后无关。
+7. **协议夹具（Task 1）的规范化口径**：协议夹具住
+   `packages/shared/test/fixtures/agent-protocol/`（与 §3.1 的行为夹具分居，见 ledger Ruling 3），
+   录的是 stdio 的**整帧原样**，唯一例外是**机器相关路径前缀**换成占位符：
+   `<data-root>`（隔离根）/ `<cwd>`（会话工作目录）/ `<tmp>`（系统临时目录）/ `<repo>`（本 checkout 根），
+   词表与 `normalize.mts` 一致；单反斜杠与 JSON 转义的双反斜杠两种形态都换（同 §3 的路径规则）。
+   理由：本机账户短名与 checkout 绝对路径既不属仓库、也不带来测试力量，而夹具的保真度要求的是
+   形状与类型。规范化在录制器 `record-protocol-fixtures.mts` 里做（重录结果因此确定），
+   并带一条「夹具里不得残留机器路径」的守卫。
 
 ## 验收场景（Task 0）
 

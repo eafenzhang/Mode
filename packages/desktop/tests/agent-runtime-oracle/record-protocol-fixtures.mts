@@ -3,13 +3,15 @@
 // 用法：pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/record-protocol-fixtures.mts
 //
 // 纪律（与 Task 0 的 record.mts 同口径，ledger Ruling 6）：
-//   夹具**只能录不能写**。这里跑两遍旧运行时（读成功 / 读不存在），把 stdout / stdin 上
-//   **整帧原样**挑出来落盘——不裁剪、不手改、不合成。挑选是按 method/type/kind 谓词
-//   「找不到就抛错」（fail-closed），所以夹具内容一定来自真实运行。
+//   夹具**只能录不能写**。这里跑几遍旧运行时（读成功 / 读不存在 / 标题生成 / 精简应答），把
+//   stdout / stdin 上**整帧原样**挑出来落盘——不裁剪、不手改、不合成。挑选是按 method/type/kind
+//   谓词「找不到就抛错」（fail-closed），所以夹具内容一定来自真实运行。
 //
-// 为什么不裁剪：Brief 允许「再裁到被测字段」，但本任务选的帧本来就短（最大 ~800B），
-//   原样保留反而更容易核对（把任一帧贴回一次新捕获的 stdout 即可逐字比对）；
-//   裁剪是一次人工编辑，会削弱「这是真实帧」这个结论。
+// 唯一的例外是**机器相关路径前缀**：录完整帧会把本机的账户短名与 checkout 绝对路径写进仓库
+//   （`C:\Users\ADMINI~1\AppData\Local\Temp\…`、`file:///D:/ZCodium/apps/…`），那些字节既没有
+//   测试价值也不属于仓库。故落盘前把这些**前缀**换成占位符（`<data-root>` / `<cwd>` / `<tmp>` /
+//   `<repo>`，与 Task 0 的 `normalize.mts` 同一套词），其余字节逐字保留。规范化在录制器里做，
+//   所以重录结果确定；口径同时写进 spec §6。
 //
 // 产物：packages/shared/test/fixtures/agent-protocol/*.json —— **两端共读同一个目录**：
 //   - TS 侧 packages/desktop/tests/agent-runtime-oracle/protocol-fixtures.test.mts
@@ -25,6 +27,8 @@ import { fileURLToPath } from "node:url";
 
 import { startOracleRuntime, seedWorkspace } from "./driver.mjs";
 import type { MockStep } from "./mock-provider.mjs";
+
+const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url)).replace(/[\\/]+$/, "");
 
 /** 一次 oracle 运行捕获到的双向原始帧（stdout = 运行时→host，stdin = host→运行时）。 */
 type WireTrace = {
@@ -53,8 +57,22 @@ const FIXTURE_DIR = fileURLToPath(
 
 const TERMINAL_EVENT_TYPES = new Set(["turn.completed", "turn.failed"]);
 
-/** 两遍 oracle：一次读成功（有 result/batch），一次读不存在（有 error）。 */
-const RUNS: readonly { script: MockStep[]; seed: Record<string, string>; prompt: string }[] = [
+/** 一次捕获要跑的形状与它需要的开关。 */
+type CaptureRun = {
+  script: MockStep[];
+  seed: Record<string, string>;
+  prompt: string;
+  /** 标题生成默认关（对拍口径）；只有录 `messageID` 的那次开。 */
+  titleGenerationEnabled?: boolean;
+  /** 覆盖 host 对反向请求的应答内容；传精简版可录到「旧 host 省略带默认值的字段」。 */
+  runtimePreferencesReply?: Record<string, unknown>;
+  /** 只建会话不提交输入（录 host 自己写出的那一帧够用，省一轮）。 */
+  skipSend?: boolean;
+};
+
+/** 四遍 oracle：读成功（有 result/batch）/ 读不存在（有 error）/ 标题生成（有 messageID）/
+ *  精简应答（旧 host 形状）。 */
+const RUNS: readonly CaptureRun[] = [
   {
     script: [
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/hello.txt" } }] },
@@ -71,9 +89,66 @@ const RUNS: readonly { script: MockStep[]; seed: Record<string, string>; prompt:
     seed: { "hello.txt": "hello\n" },
     prompt: "读一下 missing.txt；读不到就回一句话说明失败原因。",
   },
+  {
+    script: [
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/hello.txt" } }] },
+      { text: "hello.txt 里写的是 hello。" },
+    ],
+    seed: { "hello.txt": "hello\n" },
+    prompt: "读一下 hello.txt，回一句话说明它写了什么。",
+    // `session.titleUpdated` 的 `messageID` 只在**生成**路径上出现（首句标题那条没有它），
+    // 所以要单独开一次标题生成，否则这个字段永远不进夹具（Task 1 复评 Important 1）。
+    titleGenerationEnabled: true,
+  },
+  {
+    script: [{ toolCalls: [{ name: "Read", input: { file_path: "${cwd}/hello.txt" } }] }],
+    seed: { "hello.txt": "hello\n" },
+    prompt: "（不提交输入，只录 host 写出的精简应答）",
+    // 协议里 memoryEnabled / askUserQuestionAutoResolutionEnabled /
+    // modelContextBudgetStrategy 带 `.default(...)`：旧 host 可以省略。
+    // 传精简版能同时证明两件事——运行时**接受**省略，以及夹具钉住这一形状。
+    runtimePreferencesReply: { nativeSearchEnhancementsEnabled: false },
+    skipSend: true,
+  },
 ];
 
-async function captureOnce(run: (typeof RUNS)[number]): Promise<WireTrace> {
+/**
+ * 机器相关前缀 → 占位符。顺序有讲究：更具体的前缀（隔离根、工作目录）必须先换，
+ * 否则会被 `tmpdir()` 或 checkout 根吃掉一半。
+ */
+function machinePathRules(dataRoot: string, cwd: string): { from: string; to: string }[] {
+  const rules = [
+    { from: dataRoot, to: "<data-root>" },
+    { from: cwd, to: "<cwd>" },
+    { from: tmpdir(), to: "<tmp>" },
+    { from: REPO_ROOT.replaceAll("\\", "/"), to: "<repo>" },
+    { from: REPO_ROOT, to: "<repo>" },
+  ];
+  // 单反斜杠与 JSON 转义的双反斜杠两种形态都要换（spec §3 的同一条规则）：
+  // 工具入参的 JSON 文本（`model.streaming` 的 delta）里路径是双反斜杠。
+  return rules.flatMap((rule) => [rule, { from: rule.from.replaceAll("\\", "\\\\"), to: rule.to }]);
+}
+
+function replacePathPrefixes(value: string, rules: { from: string; to: string }[]): string {
+  return rules.reduce((text, rule) => text.replaceAll(rule.from, rule.to), value);
+}
+
+/** 深走一遍帧，把所有字符串里的机器相关前缀换成占位符；结构与其余字节不动。 */
+function normalizeMachinePaths<T>(value: T, rules: { from: string; to: string }[]): T {
+  if (typeof value === "string") return replacePathPrefixes(value, rules) as T;
+  if (Array.isArray(value)) return value.map((item) => normalizeMachinePaths(item, rules)) as T;
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, inner]) => [
+        key,
+        normalizeMachinePaths(inner, rules),
+      ]),
+    ) as T;
+  }
+  return value;
+}
+
+async function captureOnce(run: CaptureRun): Promise<WireTrace> {
   const dataRoot = await mkdtemp(join(tmpdir(), "mode-protocol-fixture-"));
   const cwd = await mkdtemp(join(tmpdir(), "mode-protocol-fixture-ws-"));
   const trace: WireTrace = { stdout: [], stdin: [] };
@@ -85,25 +160,33 @@ async function captureOnce(run: (typeof RUNS)[number]): Promise<WireTrace> {
       script: run.script,
       onRawFrame: (frame) => trace.stdout.push(frame),
       onRawWrite: (frame) => trace.stdin.push(frame),
+      titleGenerationEnabled: run.titleGenerationEnabled,
+      runtimePreferencesReply: run.runtimePreferencesReply,
     });
     try {
-      await session.send(run.prompt);
-      const deadline = Date.now() + 90_000;
-      for await (const event of session.events) {
-        if (TERMINAL_EVENT_TYPES.has(event.type)) break;
-        if (Date.now() > deadline) throw new Error("oracle 会话 90s 内没有终态事件");
+      if (!run.skipSend) {
+        await session.send(run.prompt);
+        const deadline = Date.now() + 90_000;
+        for await (const event of session.events) {
+          if (TERMINAL_EVENT_TYPES.has(event.type)) break;
+          if (Date.now() > deadline) throw new Error("oracle 会话 90s 内没有终态事件");
+        }
+        // 终态之后还有收尾帧（标题生成是异步的）；给一段沉降时间再收手。
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        // 让运行时发出**真实的错误应答帧**（错误形状只在这里出现）。
+        // 用一条 M2 真会发的命令 + 不存在的 sessionId，命中协议里已声明的 -32004。
+        await session
+          .request("session/send", { sessionId: "sess_does_not_exist", content: "x" })
+          .catch(() => undefined);
       }
-      // 终态之后还有收尾帧；给一小段沉降时间再收手。
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      // 让运行时发出**真实的错误应答帧**（错误形状只在这里出现）。
-      // 用一条 M2 真会发的命令 + 不存在的 sessionId，命中协议里已声明的 -32004。
-      await session
-        .request("session/send", { sessionId: "sess_does_not_exist", content: "x" })
-        .catch(() => undefined);
     } finally {
       await session.stop();
     }
-    return trace;
+    const rules = machinePathRules(dataRoot, cwd);
+    return {
+      stdout: trace.stdout.map((frame) => normalizeMachinePaths(frame, rules)),
+      stdin: trace.stdin.map((frame) => normalizeMachinePaths(frame, rules)),
+    };
   } finally {
     await rm(dataRoot, { recursive: true, force: true });
     await rm(cwd, { recursive: true, force: true });
@@ -163,8 +246,10 @@ function requestMethodById(trace: WireTrace, id: unknown): string | undefined {
 
 const success = await captureOnce(RUNS[0]);
 const failure = await captureOnce(RUNS[1]);
+const titles = await captureOnce(RUNS[2]);
+const minimalReply = await captureOnce(RUNS[3]);
 
-/** 应答帧夹具：`respondsTo` 由 id 关联从捕获推出来，不手写。 */
+/** 运行时→host 的应答帧夹具：`respondsTo` 由 id 关联从**这次捕获自己的** trace 推出来。 */
 function responseFixture(
   trace: WireTrace,
   method: string,
@@ -175,6 +260,30 @@ function responseFixture(
   const respondsTo = requestMethodById(trace, frame.id);
   if (respondsTo === undefined) {
     throw new Error(`${fixtureCase}：应答帧没有解析出 respondsTo，夹具不自描述`);
+  }
+  return { case: fixtureCase, direction: "runtime->host", respondsTo, note, frame };
+}
+
+/** host→runtime 的应答帧夹具（host 写出的那一半）：`respondsTo` 同样从自己的 trace 推。 */
+function hostReplyFixture(trace: WireTrace, fixtureCase: string, note: string): ProtocolFixture {
+  const frame = pick(trace, "stdin", "host 对反向请求的应答", (item) => item.result !== undefined);
+  const respondsTo = requestMethodById(trace, frame.id);
+  if (respondsTo === undefined) {
+    throw new Error(`${fixtureCase}：应答帧没有解析出 respondsTo，夹具不自描述`);
+  }
+  return { case: fixtureCase, direction: "host->runtime", respondsTo, note, frame };
+}
+
+/** 运行时→host 的**错误应答**帧夹具：错误形状只在运行时报错时出现（见 driver.request 的说明）。 */
+function errorResponseFixture(
+  trace: WireTrace,
+  fixtureCase: string,
+  note: string,
+): ProtocolFixture {
+  const frame = pick(trace, "stdout", "错误应答帧", isErrorFrame);
+  const respondsTo = requestMethodById(trace, frame.id);
+  if (respondsTo === undefined) {
+    throw new Error(`${fixtureCase}：错误应答帧没有解析出 respondsTo，夹具不自描述`);
   }
   return { case: fixtureCase, direction: "runtime->host", respondsTo, note, frame };
 }
@@ -197,22 +306,41 @@ const fixtures: ProtocolFixture[] = [
     "response-session-send",
     "session/send 的应答（受理确认）。id 与 host 发出的那条请求相同。",
   ),
-  {
-    case: "error-response-session-unavailable",
-    direction: "runtime->host",
-    note: "运行时发出的错误应答帧；code -32004 就是协议里声明的 sessionUnavailable。",
-    frame: pick(success, "stdout", "错误应答帧", isErrorFrame),
-  },
+  errorResponseFixture(
+    success,
+    "error-response-session-unavailable",
+    "运行时发出的错误应答帧；code -32004 就是协议里声明的 sessionUnavailable。",
+  ),
   {
     case: "session-event-title-updated",
     direction: "runtime->host",
-    note: "首个会话事件（本地生成的首句标题，不依赖模型）。",
-    frame: pick(success, "stdout", "session.titleUpdated", isEvent("session.titleUpdated")),
+    note: "首个会话事件（本地生成的首句标题，不依赖模型）。这条是 source=first_input，不带 messageID。",
+    frame: pick(
+      success,
+      "stdout",
+      "session.titleUpdated/first_input",
+      (frame) =>
+        isEvent("session.titleUpdated")(frame) &&
+        (frame.params as { payload?: { source?: string } }).payload?.source === "first_input",
+    ),
+  },
+  {
+    case: "session-event-title-updated-generated",
+    direction: "runtime->host",
+    note: "标题**生成**路径（多一次模型调用）：这条才带 messageID，是镜像里 messageID 字段的唯一证据来源。",
+    frame: pick(
+      titles,
+      "stdout",
+      "session.titleUpdated/generated",
+      (frame) =>
+        isEvent("session.titleUpdated")(frame) &&
+        (frame.params as { payload?: { source?: string } }).payload?.source === "generated",
+    ),
   },
   {
     case: "session-event-turn-started",
     direction: "runtime->host",
-    note: "turn 起点。载荷里的 executionStartedAt 是线上字段，而 v1 共享 schema 尚未声明它（见 TS 侧的已知滞后表）。",
+    note: "turn 起点。载荷里的 executionStartedAt 是线上字段，而 v1 共享 schema 尚未声明它（见 TS 侧的已知滞后表与 spec §6 的已知缺陷）。",
     frame: pick(success, "stdout", "turn.started", isEvent("turn.started")),
   },
   {
@@ -237,7 +365,7 @@ const fixtures: ProtocolFixture[] = [
   {
     case: "session-event-tool-updated-started",
     direction: "runtime->host",
-    note: "开始事件。载荷里的 readOnly / sideEffectScope 是线上字段，而 v1 共享 schema 尚未声明它们（见 TS 侧的已知滞后表）。",
+    note: "开始事件。载荷里的 readOnly / sideEffectScope 是线上字段，而 v1 共享 schema 尚未声明它们（见 TS 侧的已知滞后表与 spec §6 的已知缺陷）。",
     frame: pick(success, "stdout", "tool.updated/started", isToolUpdated("started")),
   },
   {
@@ -281,28 +409,31 @@ const fixtures: ProtocolFixture[] = [
     note: "host 提交输入的请求：sessionId + content。",
     frame: pick(success, "stdin", "session/send 请求", (frame) => frame.method === "session/send"),
   },
-  {
-    case: "response-runtime-preferences",
-    direction: "host->runtime",
-    note: "host 对反向请求的应答（镜像方向：Rust host 将来要发出这一帧）。",
-    frame: pick(
-      success,
-      "stdin",
-      "对 session/requestRuntimePreferences 的应答",
-      (frame) => frame.result !== undefined,
-    ),
-  },
+  hostReplyFixture(
+    success,
+    "response-runtime-preferences",
+    "host 对反向请求的应答（镜像方向：Rust host 将来要发出这一帧），四个字段都在。",
+  ),
+  hostReplyFixture(
+    minimalReply,
+    "response-runtime-preferences-minimal",
+    "旧 host 的合法精简应答：省掉协议里带 .default(...) 的三个字段。它能录到，同时证明运行时接受这种省略（session/create 没失败）。",
+  ),
 ];
 
-// 自描述守卫：应答帧（含错误应答）必须带上「应答哪条请求」，否则两端无从知道该用哪个
-// result/error schema。关系由 id 从捕获推出，不手写。
+// 自描述守卫：应答帧（无 method）必须带上「应答哪条请求」，否则两端无从知道该用哪个 result schema。
 for (const fixture of fixtures) {
-  if (fixture.respondsTo === undefined && fixture.frame.method === undefined) {
-    const respondsTo = requestMethodById(success, fixture.frame.id);
-    if (respondsTo === undefined) {
-      throw new Error(`${fixture.case}：应答帧没有解析出 respondsTo，夹具不自描述`);
-    }
-    fixture.respondsTo = respondsTo;
+  if (fixture.frame.method === undefined && fixture.respondsTo === undefined) {
+    throw new Error(`${fixture.case}：应答帧没有 respondsTo，夹具不自描述`);
+  }
+}
+
+// 路径泄漏守卫：机器相关前缀必须已经被换成占位符，否则夹具会把本机账户名与 checkout 路径带进仓库。
+const MACHINE_PATH = /[A-Za-z]:[\\/]{1,2}(Users|ZCodium)/;
+for (const fixture of fixtures) {
+  const serialized = JSON.stringify(fixture);
+  if (MACHINE_PATH.test(serialized)) {
+    throw new Error(`${fixture.case}：夹具里还有机器相关路径，规范化规则漏了形态`);
   }
 }
 

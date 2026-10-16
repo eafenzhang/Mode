@@ -21,7 +21,8 @@ use agent_protocol::session::{
 };
 use agent_protocol::session_event::{
     ModelStreamingKind, ModelStreamingPayload, SessionEvent, SessionEventType,
-    SessionTitleUpdatedPayload, ToolUpdatedPayload, TurnCompletedPayload, TurnStartedPayload,
+    SessionTitleUpdatedPayload, TitleSource, ToolUpdatedPayload, TurnCompletedPayload,
+    TurnStartedPayload,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -132,7 +133,25 @@ fn exercise_event_payload(case: &str, event: &SessionEvent) -> String {
             let payload: SessionTitleUpdatedPayload = decode_payload(case, event);
             assert!(!payload.title.is_empty(), "{case}：标题事件应当带标题");
             assert_no_unmodeled_payload_fields(case, &payload.extra);
-            "session.titleUpdated".to_string()
+            // `messageID` 只在**生成**路径上出现（首句标题那条 `source:"first_input"` 不带），
+            // 所以两个形状都要有夹具，否则这个字段永远没人验证（Task 1 复评 Important 1）。
+            if payload.source == TitleSource::Generated {
+                assert!(
+                    payload.message_id.is_some(),
+                    "{case}：生成路径的标题事件必须带 messageID"
+                );
+            } else {
+                assert!(
+                    payload.message_id.is_none(),
+                    "{case}：非生成路径的标题事件不该带 messageID"
+                );
+            }
+            // 覆盖键用**线上取值**（不是 Debug 名）：source 的取值本身就是被测面的一部分。
+            let source = serde_json::to_value(payload.source).unwrap();
+            format!(
+                "session.titleUpdated:{}",
+                source.as_str().unwrap_or("<non-string>")
+            )
         }
         SessionEventType::TurnStarted => {
             let payload: TurnStartedPayload = decode_payload(case, event);
@@ -209,7 +228,8 @@ fn exercise_event_payload(case: &str, event: &SessionEvent) -> String {
 /// 面板上的覆盖清单：夹具**必须**覆盖到这些事件键，否则「解析成功」可能只是因为没读载荷。
 fn expected_exercised_event_keys() -> BTreeSet<String> {
     [
-        "session.titleUpdated",
+        "session.titleUpdated:first_input",
+        "session.titleUpdated:generated",
         "turn.started",
         "turn.completed",
         "model.streaming:tool_call",
@@ -327,6 +347,59 @@ fn host_command_fixtures_decode_into_typed_params_and_results() {
         .map(str::to_string)
         .collect::<BTreeSet<_>>(),
         "夹具覆盖的命令与预期不一致：多/少一条就要显式改这张清单"
+    );
+}
+
+/// 协议里 `memoryEnabled` / `askUserQuestionAutoResolutionEnabled` /
+/// `modelContextBudgetStrategy` 带 `.default(...)`——旧 host 的合法应答可以**省略**它们
+/// （Task 1 复评 Minor 2）。
+///
+/// 镜像必须**保留省略**（`None`），而不是在解析时替协议补上默认值：否则「读一条合法旧应答、
+/// 再写回去」会凭空多出字段，round-trip 相等这条断言就比协议本身更严，会给出假红。
+/// 需要协议的默认值时由消费方 `unwrap_or(false)` / `unwrap_or_default()`——枚举的 `Default`
+/// 实现就是协议声明的默认值本身。
+#[test]
+fn runtime_preferences_preserve_omitted_defaults() {
+    let mut shapes = BTreeSet::new();
+    for (case, fixture) in &load_fixtures() {
+        if fixture.responds_to.as_deref() != Some("session/requestRuntimePreferences") {
+            continue;
+        }
+        let Frame::Response(response) = parse_frame(case, fixture).unwrap() else {
+            continue;
+        };
+        let result: RuntimePreferencesResult = decode(case, &response.result);
+        for (wire_key, mirrored_omitted) in [
+            ("memoryEnabled", result.memory_enabled.is_none()),
+            (
+                "askUserQuestionAutoResolutionEnabled",
+                result.ask_user_question_auto_resolution_enabled.is_none(),
+            ),
+            (
+                "modelContextBudgetStrategy",
+                result.model_context_budget_strategy.is_none(),
+            ),
+        ] {
+            assert_eq!(
+                mirrored_omitted,
+                response.result.get(wire_key).is_none(),
+                "{case}：{wire_key} 在线上是省略的，镜像也必须保持省略（不许补默认值）"
+            );
+        }
+        assert_eq!(
+            serde_json::to_value(&result).unwrap(),
+            response.result,
+            "{case}：省略必须原样写回"
+        );
+        shapes.insert(format!("omitsDefaults={}", result.memory_enabled.is_none()));
+    }
+    assert_eq!(
+        shapes,
+        ["omitsDefaults=false", "omitsDefaults=true"]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>(),
+        "两种形状都要有夹具：字段都在的完整应答 + 省略带默认值字段的精简应答"
     );
 }
 

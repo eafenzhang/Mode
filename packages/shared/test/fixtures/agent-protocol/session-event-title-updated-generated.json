@@ -1,0 +1,24 @@
+{
+  "case": "session-event-title-updated-generated",
+  "direction": "runtime->host",
+  "note": "标题**生成**路径（多一次模型调用）：这条才带 messageID，是镜像里 messageID 字段的唯一证据来源。",
+  "frame": {
+    "method": "session/event",
+    "params": {
+      "deliveryKind": "desktop-continuous",
+      "eventId": "6bfe59b4-584e-42d3-8441-8b5092a79e2d",
+      "payload": {
+        "messageID": "msg_mvahvo0d_24935f8c-476e-4046-a2b5-ebb778b7d2f4",
+        "previousTitle": "读一下 hello.txt，回一句话说明它写了什么。",
+        "source": "generated",
+        "title": "oracle-mock"
+      },
+      "seq": 22,
+      "sessionId": "sess_9260726f-aa4f-4ce0-aa6a-caa44c43b23d",
+      "timestamp": 1792126560167,
+      "traceId": "519178d0-1f01-431a-b63d-12ab010570ab",
+      "turnId": "turn_424a51d1-c859-46e4-abfb-b4ab7ec4f6cc",
+      "type": "session.titleUpdated"
+    }
+  }
+}

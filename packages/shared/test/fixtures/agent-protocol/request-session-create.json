@@ -7,8 +7,8 @@
     "method": "session/create",
     "params": {
       "workspace": {
-        "workspacePath": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-g9uITs",
-        "workspaceKey": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-g9uITs"
+        "workspacePath": "<cwd>",
+        "workspaceKey": "<cwd>"
       },
       "model": {
         "providerId": "oracle-mock",

@@ -179,7 +179,14 @@ pub enum TitleSource {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTitleUpdatedPayload {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// 线上的键是 `messageID`（**大写 ID**），不是 `messageId`：`rename_all = "camelCase"`
+    /// 会把 Rust 的 `message_id` 写成 `messageId`，与线上不符，所以这里显式 `rename`。
+    /// 两处允许输入都这么写：`mode-protocol/index.ts` 的
+    /// `modeSessionTitleUpdatedEventPayloadSchema.messageID` 与 CLI contracts 的
+    /// `SessionTitleUpdatedPayload.messageID`。
+    /// 该字段只在**生成**路径上出现（首句标题那条 `source:"first_input"` 不带），
+    /// 所以夹具里两条形状都有（见 `session-event-title-updated{,-generated}.json`）。
+    #[serde(rename = "messageID", default, skip_serializing_if = "Option::is_none")]
     pub message_id: Option<String>,
     pub previous_title: String,
     pub source: TitleSource,

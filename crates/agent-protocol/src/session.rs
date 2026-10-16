@@ -121,6 +121,9 @@ pub struct RuntimePreferencesRequestParams {
 }
 
 /// `modelContextBudgetStrategy` 的取值。
+///
+/// `Default` 就是协议声明的默认值（`preflight-v1`）：字段本身建成 `Option` 以保留「省略」，
+/// 需要协议的默认值时空缺由消费方用 `unwrap_or_default()` 补。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ModelContextBudgetStrategy {
     #[serde(rename = "legacy")]
@@ -130,28 +133,29 @@ pub enum ModelContextBudgetStrategy {
     PreflightV1,
 }
 
-fn enabled() -> bool {
-    true
-}
-
 /// host 对 `session/requestRuntimePreferences` 的应答（**镜像方向**：Rust host 将来要发出它）。
 ///
 /// `memoryEnabled` / `askUserQuestionAutoResolutionEnabled` / `modelContextBudgetStrategy`
-/// 在协议里带默认值——即旧 host 可以不传，运行时按默认走；镜像必须保留这个性质，
-/// 否则一个合法的旧应答会被判成解析失败。
+/// 在协议里带 `.default(...)`——即旧 host 可以**省略**它们，运行时按默认走。
+///
+/// 镜像把这三个字段建模成 `Option`，就是为了**保留省略**：如果解析时替协议补上默认值，
+/// 「读一条合法的旧应答、再写回去」会凭空多出字段，round-trip 相等这条断言就比协议更严，
+/// 会给出假红（Task 1 复评 Minor 2）。需要协议的默认值时由消费方自己取：
+/// `unwrap_or(false)` / `unwrap_or(true)` / `unwrap_or_default()`
+/// （`ModelContextBudgetStrategy` 的 `Default` 实现就是协议声明的默认值本身）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimePreferencesResult {
     pub native_search_enhancements_enabled: bool,
-    #[serde(default)]
-    pub memory_enabled: bool,
-    #[serde(default = "enabled")]
-    pub ask_user_question_auto_resolution_enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ask_user_question_auto_resolution_enabled: Option<bool>,
     /// 未建模（M2 捕获里未出现）：原样保留。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub integrated_terminal_shell: Option<Value>,
-    #[serde(default)]
-    pub model_context_budget_strategy: ModelContextBudgetStrategy,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_context_budget_strategy: Option<ModelContextBudgetStrategy>,
     #[serde(flatten)]
     pub extra: ExtraFields,
 }

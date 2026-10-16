@@ -1,7 +1,8 @@
 {
   "case": "response-runtime-preferences",
   "direction": "host->runtime",
-  "note": "host 对反向请求的应答（镜像方向：Rust host 将来要发出这一帧）。",
+  "respondsTo": "session/requestRuntimePreferences",
+  "note": "host 对反向请求的应答（镜像方向：Rust host 将来要发出这一帧），四个字段都在。",
   "frame": {
     "id": "server-1",
     "result": {
@@ -10,6 +11,5 @@
       "askUserQuestionAutoResolutionEnabled": true,
       "modelContextBudgetStrategy": "preflight-v1"
     }
-  },
-  "respondsTo": "session/requestRuntimePreferences"
+  }
 }

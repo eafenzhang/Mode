@@ -1,25 +1,25 @@
 {
   "case": "session-event-tool-updated-started",
   "direction": "runtime->host",
-  "note": "开始事件。载荷里的 readOnly / sideEffectScope 是线上字段，而 v1 共享 schema 尚未声明它们（见 TS 侧的已知滞后表）。",
+  "note": "开始事件。载荷里的 readOnly / sideEffectScope 是线上字段，而 v1 共享 schema 尚未声明它们（见 TS 侧的已知滞后表与 spec §6 的已知缺陷）。",
   "frame": {
     "method": "session/event",
     "params": {
       "deliveryKind": "desktop-continuous",
-      "eventId": "6e269126-7b49-4b34-a996-9b499ffb973f",
+      "eventId": "bc12b079-66cb-4ae6-9d35-ae09b9c0fe1a",
       "payload": {
         "toolCallId": "toolu_mock_0_0",
         "toolName": "Read",
-        "startedAt": 1792125496847,
+        "startedAt": 1792126536336,
         "readOnly": true,
         "sideEffectScope": "none",
         "kind": "started"
       },
       "seq": 10,
-      "sessionId": "sess_47e01e0d-bf03-4569-bae5-b51c44e83da3",
-      "timestamp": 1792125496847,
-      "traceId": "2b1e7619-4fa5-4a5d-99f0-29069cc88713",
-      "turnId": "turn_d9d422b2-4e30-47fb-8a9e-8330b21d3d1c",
+      "sessionId": "sess_9549f943-982c-4e86-869e-54406a4979c3",
+      "timestamp": 1792126536336,
+      "traceId": "0f0389d5-22d6-438a-ad40-e1d3569b9861",
+      "turnId": "turn_8629534a-3c81-43a1-b9a3-b96f9926d6c7",
       "type": "tool.updated"
     }
   }

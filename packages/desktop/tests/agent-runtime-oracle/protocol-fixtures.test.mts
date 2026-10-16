@@ -42,10 +42,17 @@ const FIXTURE_DIR = fileURLToPath(
 );
 
 /**
- * v1 共享 schema **落后于线上**的两处载荷字段（本任务调查实测，2026-10-16）：
- * 运行时发得出、而 `modeSessionEventSchema` 的载荷 schema 还没声明，`.strict()` 会因此
- * 丢掉整条事件。这里把它记成显式常量并断言「差的就是这一组」：
- * 谁将来补齐了 schema（或运行时又加了新字段），这条断言会红，逼着两端一起动。
+ * v1 共享 schema **落后于线上**的两处载荷字段（Task 1 实测，2026-10-16）。
+ *
+ * 后果不是「文档不准」，而是**线上正在丢事件**：宿主路径用 `modeSessionEventSchema.safeParse(...)`
+ * 校验 `session/event`，解析失败就把整条事件记日志丢掉。而这两条载荷都带 schema 未声明的键，
+ * 且各成员是 `.strict()` —— 拿两组真实帧跑一遍 zod，两条都被 `unrecognized_keys` 拒绝。
+ * 也就是说：**每一次 `turn.started`、每一次 `tool.updated` / `kind:"started"` 今天都被宿主丢掉了。**
+ *
+ * 本任务不修它（属产品侧 schema 变更，影响面横跨桌面与远端，要独立调查与决定，见
+ * `docs/specs/tauri-agent-runtime.md` §6 的「已知缺陷（待决）」一项）。这里把它钉成显式常量，
+ * 并断言「被拒绝的键逐字等于表里的键」：谁补齐了 schema、或运行时又加了新字段，这条断言都会红。
+ * **删这张表之前先解决那处缺陷**——别让「为什么有这张表」消失。
  */
 const KNOWN_V1_PAYLOAD_LAG: Record<string, readonly string[]> = {
   "turn.started": ["executionStartedAt"],
@@ -177,7 +184,8 @@ test("会话事件的载荷能被 v1 session event schema 接受，或只差已�
     assert.ok(
       declared !== undefined,
       `${fixture.case}（${lagKey}）的载荷被 v1 schema 拒绝，但滞后表里没有它：` +
-        `${JSON.stringify(parsed.error.issues)}。要么补镜像/补 schema，要么把滞后写进表里。`,
+        `${JSON.stringify(parsed.error.issues)}。要么补镜像/补 schema，要么把滞后写进表里` +
+        `（这张表的后果见 KNOWN_V1_PAYLOAD_LAG 的注释：宿主会丢掉这类事件）。`,
     );
     assert.deepEqual(
       unrecognizedKeys(parsed.error),

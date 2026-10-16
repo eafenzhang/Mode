@@ -1,0 +1,12 @@
+{
+  "case": "response-runtime-preferences-minimal",
+  "direction": "host->runtime",
+  "respondsTo": "session/requestRuntimePreferences",
+  "note": "旧 host 的合法精简应答：省掉协议里带 .default(...) 的三个字段。它能录到，同时证明运行时接受这种省略（session/create 没失败）。",
+  "frame": {
+    "id": "server-1",
+    "result": {
+      "nativeSearchEnhancementsEnabled": false
+    }
+  }
+}

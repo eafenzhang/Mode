@@ -6,23 +6,23 @@
     "method": "session/event",
     "params": {
       "deliveryKind": "desktop-continuous",
-      "eventId": "11dc8803-097c-4f37-9a7b-a28b486ddba7",
+      "eventId": "e842f7b5-180c-422f-a9d7-6f2b2535c731",
       "payload": {
         "toolCallId": "toolu_mock_0_0",
         "error": {
           "type": "tool_execution_failed",
-          "message": "File does not exist. Note: your current working directory is C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-KzGQLh.",
+          "message": "File does not exist. Note: your current working directory is <cwd>.",
           "code": "TOOL_EXECUTION_FAILED",
-          "detail": "code=read_file_not_found\nFile not found: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-KzGQLh\\missing.txt\nENOENT: no such file or directory, stat 'C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-KzGQLh\\missing.txt'",
-          "stack": "Error: File does not exist. Note: your current working directory is C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-KzGQLh.\n    at createCoreError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at readHandler (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:168:19)"
+          "detail": "code=read_file_not_found\nFile not found: <cwd>\\missing.txt\nENOENT: no such file or directory, stat '<cwd>\\missing.txt'",
+          "stack": "Error: File does not exist. Note: your current working directory is <cwd>.\n    at createCoreError (file:///<repo>/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at readHandler (file:///<repo>/apps/mode-cli/packages/core/dist/tool/handlers/read.js:168:19)"
         },
         "kind": "error"
       },
       "seq": 13,
-      "sessionId": "sess_4eb45bb0-3126-477c-902a-78cb8f13e800",
-      "timestamp": 1792125507967,
-      "traceId": "f84d24c8-4b8b-40fe-9eaf-ca7eb632583a",
-      "turnId": "turn_95c18d8b-c262-4720-bdb3-a23114906956",
+      "sessionId": "sess_ad6832f4-9c33-4eab-8710-6a8c420fe06f",
+      "timestamp": 1792126548270,
+      "traceId": "46181b75-a884-469e-b58f-21b05fbe9b92",
+      "turnId": "turn_87833d84-4de2-467f-8195-704d0c5de75d",
       "type": "tool.updated"
     }
   }

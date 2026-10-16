@@ -72,11 +72,25 @@ export type OracleRuntimeOptions = {
    * 钩子是只读观察——抛出异常会原样冒到 stdout 处理路径，不吞不掩。
    */
   onRawFrame?: (frame: Record<string, unknown>) => void;
-  /**
-   * 纯观测钩子：driver 写出的每一行（控制器方向：请求 / 应答 / 错误应答）。
+  /** 纯观测钩子：driver 写出的每一行（控制器方向：请求 / 应答 / 错误应答）。
    * 与 `onRawFrame` 对称，用于录制「host 必须发出的那一半」。
    */
   onRawWrite?: (message: Record<string, unknown>) => void;
+  /**
+   * 建会话时是否开启标题生成；**默认关闭**。
+   *
+   * 对拍一律关掉（spec §1.5）：标题生成是一次额外模型调用，到达时刻不确定，会让事件流尾部
+   * 顺序不稳定。但 `session.titleUpdated` 的 `messageID` 只在**生成**路径上出现
+   * （首句标题那条是 `source:"first_input"`，不带它），所以录协议夹具时要把这条路开起来。
+   */
+  titleGenerationEnabled?: boolean;
+  /**
+   * 仅录制/诊断用：覆盖 host 对 `session/requestRuntimePreferences` 的应答内容。
+   *
+   * 默认发完整应答（四个字段都带）。传入精简版（省略协议里带 `.default(...)` 的字段）可以录到
+   * 「旧 host 的合法精简应答」这一形状，同时验证运行时确实接受省略——这正是那些默认值声明的用途。
+   */
+  runtimePreferencesReply?: Record<string, unknown>;
 };
 
 /**
@@ -242,7 +256,10 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
   const handleInbound = (frame: Record<string, unknown>): void => {
     const method = String(frame.method);
     if (method === "session/requestRuntimePreferences") {
-      write({ id: frame.id, result: RUNTIME_PREFERENCES_RESULT });
+      write({
+        id: frame.id,
+        result: options.runtimePreferencesReply ?? RUNTIME_PREFERENCES_RESULT,
+      });
       return;
     }
     if (method === "interaction/requestPermission") {
@@ -367,8 +384,8 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
       },
       thoughtLevel: "disabled",
       // 标题生成是一次额外的模型调用，它的到达时刻不确定，会让事件流尾部顺序不稳定；
-      // 它与被测行为（会话循环 / 工具执行）无关，对拍一律关掉。
-      titleGenerationEnabled: false,
+      // 它与被测行为（会话循环 / 工具执行）无关，对拍一律关掉（默认）；录协议夹具时可开。
+      titleGenerationEnabled: options.titleGenerationEnabled ?? false,
     })) as { sessionId?: string; session?: { sessionId?: string } } | undefined;
     // 实测形状：sessionId 嵌在 `session.sessionId`（顶层没有）。
     const sessionId = created?.sessionId ?? created?.session?.sessionId;

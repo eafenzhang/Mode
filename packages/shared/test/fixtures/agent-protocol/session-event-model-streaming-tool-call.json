@@ -6,23 +6,23 @@
     "method": "session/event",
     "params": {
       "deliveryKind": "desktop-continuous",
-      "eventId": "000a72df-9142-493f-8a12-024e3484f29a",
+      "eventId": "3945638e-eace-4c4d-9418-766e001adecd",
       "payload": {
-        "assistantMessageId": "msg_mvah8zaf_a715835e-ee15-42a3-93f9-4352cb12e142",
+        "assistantMessageId": "msg_mvahv9cx_6c5307dc-1aa4-48c9-9deb-345d7eba9dc0",
         "delta": "",
         "done": false,
         "input": {
-          "file_path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-g9uITs/hello.txt"
+          "file_path": "<cwd>/hello.txt"
         },
         "kind": "tool_call",
         "toolCallId": "toolu_mock_0_0",
         "toolName": "Read"
       },
       "seq": 8,
-      "sessionId": "sess_47e01e0d-bf03-4569-bae5-b51c44e83da3",
-      "timestamp": 1792125496834,
-      "traceId": "2b1e7619-4fa5-4a5d-99f0-29069cc88713",
-      "turnId": "turn_d9d422b2-4e30-47fb-8a9e-8330b21d3d1c",
+      "sessionId": "sess_9549f943-982c-4e86-869e-54406a4979c3",
+      "timestamp": 1792126536324,
+      "traceId": "0f0389d5-22d6-438a-ad40-e1d3569b9861",
+      "turnId": "turn_8629534a-3c81-43a1-b9a3-b96f9926d6c7",
       "type": "model.streaming"
     }
   }

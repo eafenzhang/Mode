@@ -6,7 +6,7 @@
     "id": "server-1",
     "method": "session/requestRuntimePreferences",
     "params": {
-      "sessionId": "sess_47e01e0d-bf03-4569-bae5-b51c44e83da3",
+      "sessionId": "sess_9549f943-982c-4e86-869e-54406a4979c3",
       "scope": "runtime-materialization"
     }
   }
