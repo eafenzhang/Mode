@@ -226,18 +226,54 @@ const current = (() => {
   }
 })();
 
+/** 比对用的规范化：只统一换行。
+ *
+ * 生成物是文本，CRLF 与 LF 的差异**不是**协议漂移。Windows 上 `core.autocrlf=true`
+ * （Git for Windows 的默认值，GitHub 的 windows runner 也是）会把该文件检出成 CRLF，
+ * 而生成器写 LF —— 2026-10-16 的发布正是被这个假阳性挡下的：本地 LF 通过、CI CRLF 失败，
+ * 报的却是"漂移"，于是三版连发失败都指向了不存在的问题。 */
+function normalizeEol(text) {
+  return text.replace(/\r\n/gu, "\n");
+}
+
+/** 漂移时给出可诊断的信息：先区分「只有换行不同」，再指出第一处内容差异。
+ * 只报一句"漂移"会让下一个遇到的人重走一遍定位路。 */
+function describeDrift(currentText, generatedText) {
+  if (normalizeEol(currentText) === generatedText) {
+    return "差异仅在换行符（CRLF vs LF），内容一致——请检查检出配置，不要重新生成。";
+  }
+  const currentLines = normalizeEol(currentText).split("\n");
+  const generatedLines = generatedText.split("\n");
+  for (let i = 0; i < Math.max(currentLines.length, generatedLines.length); i += 1) {
+    if (currentLines[i] !== generatedLines[i]) {
+      return [
+        `首个差异在第 ${i + 1} 行：`,
+        `  当前：${JSON.stringify(currentLines[i] ?? "<EOF>")}`,
+        `  应为：${JSON.stringify(generatedLines[i] ?? "<EOF>")}`,
+      ].join("\n");
+    }
+  }
+  return "未定位到具体差异（内容相同但字节不同）。";
+}
+
+/** 内容是否已与生成物一致（换行不计）。 */
+function contentMatches(currentText) {
+  return currentText !== null && normalizeEol(currentText) === generated;
+}
+
 if (checkOnly) {
-  if (current === generated) {
+  if (contentMatches(current)) {
     console.log(`[generate-tauri-protocol] 无漂移：${relFromRepo(outputPath)}`);
     process.exit(0);
   }
   fail(
     `${relFromRepo(outputPath)} 与 crates/protocol 漂移。\n` +
-      "运行 `node scripts/generate-tauri-protocol.mjs` 重新生成并提交。",
+      (current === null ? "文件不存在。" : describeDrift(current, generated)) +
+      "\n运行 `node scripts/generate-tauri-protocol.mjs` 重新生成并提交。",
   );
 }
 
-if (current === generated) {
+if (contentMatches(current)) {
   console.log(`[generate-tauri-protocol] 已是最新：${relFromRepo(outputPath)}`);
 } else {
   writeFileSync(outputPath, generated);
