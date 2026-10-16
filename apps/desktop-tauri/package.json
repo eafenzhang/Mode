@@ -9,7 +9,8 @@
     "build:rust": "cargo build -p mode-tauri",
     "test:rust": "cargo test -p platform -p protocol -p deeplink -p tray -p updater -p tauri-test-manifest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "tauri:build": "cargo tauri build"
+    "tauri:build": "cargo tauri build",
+    "test": "node --import tsx --test test/*.test.mts"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
