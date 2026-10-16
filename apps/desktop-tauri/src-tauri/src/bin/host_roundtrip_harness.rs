@@ -46,6 +46,8 @@ fn main() {
             tauri::WebviewUrl::App(std::path::PathBuf::from("harness/host-sidecar/index.html")),
             "M3 Task 1 · host round trip",
             &startup_id,
+            // 这个 harness 的页面是测试资产（自己实现接收形状），不需要窗外的探针。
+            None,
         )?;
 
         let exit_handle = handle.clone();

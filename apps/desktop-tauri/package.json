@@ -5,6 +5,9 @@
   "description": "Mode 桌面端 Tauri v2 壳（M1 骨架）。平台命令面规格见 docs/specs/tauri-platform-commands.md。",
   "scripts": {
     "build:frontend": "vite build",
+    "build:frontend-for-tauri": "node --import tsx scripts/build-renderer-for-tauri.ts --no-bench",
+    "build:frontend-with-bench": "node --import tsx scripts/build-renderer-for-tauri.ts",
+    "build:host-sidecar": "node --import tsx scripts/build-host-sidecar.ts",
     "dev:frontend": "vite",
     "build:rust": "cargo build -p mode-tauri",
     "test:rust": "cargo test -p platform -p protocol -p deeplink -p tray -p updater -p tauri-test-manifest",

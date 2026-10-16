@@ -23,7 +23,7 @@ use serde_json::json;
 /// `databaseStartupStateSchema` 的 `schemaVersion` 字面量。
 const SCHEMA_VERSION: u32 = 1;
 
-/// 发布给渲染层的阶段（只列 Task 1 用得到的三种；真启动过程的分段是 Task 2 的范围）。
+/// 发布给渲染层的阶段（只列壳**自己**能判断的三档；Host 报来的分段是 [`StartupStage`]）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StartupPhase {
     /// 已决定拉起 Host，但还没拿到它的第一帧。
@@ -44,7 +44,65 @@ impl StartupPhase {
     }
 }
 
+/// **应用启动阶段**的完整取值集合（= `databaseStartupPhaseSchema` 的六个取值）。
+///
+/// 与 [`StartupPhase`] 分开的理由是所有权：壳发布的是它能判断的粗粒度 `phase`，
+/// 而 `failedPhase` 可以带上**阶段精确**的事实——那是 Host 进程内的真事实
+/// （`preparing_host_storage` / `starting_services`），壳从 Host 的结构化 stderr 行里读到它
+/// （[`crate::host_stderr`]）。两者共用一个词汇表是渲染层 schema 的形态，不是我们的选择。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartupStage {
+    Starting,
+    PreparingHostStorage,
+    PreparingSessionStorage,
+    StartingServices,
+    Ready,
+    Failed,
+}
+
+impl StartupStage {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Starting => "starting",
+            Self::PreparingHostStorage => "preparing_host_storage",
+            Self::PreparingSessionStorage => "preparing_session_storage",
+            Self::StartingServices => "starting_services",
+            Self::Ready => "ready",
+            Self::Failed => "failed",
+        }
+    }
+
+    /// 解析 Host 报来的阶段名。**认不出就返回 `None`**：猜一个阶段比说「不知道」危险，
+    /// 渲染层的重试判据（`canRetryDatabaseStartup`）读的就是这个字段。
+    pub fn from_wire(value: &str) -> Option<Self> {
+        match value {
+            "starting" => Some(Self::Starting),
+            "preparing_host_storage" => Some(Self::PreparingHostStorage),
+            "preparing_session_storage" => Some(Self::PreparingSessionStorage),
+            "starting_services" => Some(Self::StartingServices),
+            "ready" => Some(Self::Ready),
+            "failed" => Some(Self::Failed),
+            _ => None,
+        }
+    }
+}
+
+impl From<StartupPhase> for StartupStage {
+    fn from(phase: StartupPhase) -> Self {
+        match phase {
+            StartupPhase::Starting => Self::Starting,
+            StartupPhase::Ready => Self::Ready,
+            StartupPhase::Failed => Self::Failed,
+        }
+    }
+}
+
 /// 失败原因码（取值必须落在 `databaseStartupErrorCodeSchema` 里）。
+///
+/// 前四个是壳**自己**能判断的（拉不起进程 / 传输断开 / 超时 / 配置非法）；
+/// 其余八个是 Host 侧的 `classifyDatabaseStartupError` 可能给出的分类，
+/// 壳通过结构化 stderr 行把它们**原样转发**给渲染层（DR-T3-3 ①：失败原因要精确到阶段，
+/// 而不是一律塌成「就绪前退出」）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StartupErrorCode {
     /// 拉不起 Host 进程：node / 入口缺失或不可执行（打包形态落点问题会先撞在这里）。
@@ -55,6 +113,22 @@ pub enum StartupErrorCode {
     StartupStatusTimeout,
     /// 运行时不支持（例如入口需要 tsx 而壳侧环境没有它）。
     UnsupportedRuntime,
+    /// Host 报来的分类：磁盘满 / 配额。
+    StorageFull,
+    /// Host 报来的分类：权限。
+    PermissionDenied,
+    /// Host 报来的分类：IO。
+    IoError,
+    /// Host 报来的分类：内存。
+    OutOfMemory,
+    /// Host 报来的分类：库损坏。
+    Corrupt,
+    /// Host 报来的分类：拿不到锁。
+    LockTimeout,
+    /// Host 报来的分类：校验和不符。
+    ChecksumMismatch,
+    /// Host 报来的分类兜底：SQL / 存储打开失败（Host 认不出更具体的分类时用它）。
+    SqlFailed,
 }
 
 impl StartupErrorCode {
@@ -64,6 +138,33 @@ impl StartupErrorCode {
             Self::TransportClosed => "transport_closed",
             Self::StartupStatusTimeout => "startup_status_timeout",
             Self::UnsupportedRuntime => "unsupported_runtime",
+            Self::StorageFull => "storage_full",
+            Self::PermissionDenied => "permission_denied",
+            Self::IoError => "io_error",
+            Self::OutOfMemory => "out_of_memory",
+            Self::Corrupt => "corrupt",
+            Self::LockTimeout => "lock_timeout",
+            Self::ChecksumMismatch => "checksum_mismatch",
+            Self::SqlFailed => "sql_failed",
+        }
+    }
+
+    /// 解析 Host 报来的错误码。**认不出就返回 `None`**（不猜：错码会让渲染层按错的语义画失败屏）。
+    pub fn from_wire(value: &str) -> Option<Self> {
+        match value {
+            "open_failed" => Some(Self::OpenFailed),
+            "transport_closed" => Some(Self::TransportClosed),
+            "startup_status_timeout" => Some(Self::StartupStatusTimeout),
+            "unsupported_runtime" => Some(Self::UnsupportedRuntime),
+            "storage_full" => Some(Self::StorageFull),
+            "permission_denied" => Some(Self::PermissionDenied),
+            "io_error" => Some(Self::IoError),
+            "out_of_memory" => Some(Self::OutOfMemory),
+            "corrupt" => Some(Self::Corrupt),
+            "lock_timeout" => Some(Self::LockTimeout),
+            "checksum_mismatch" => Some(Self::ChecksumMismatch),
+            "sql_failed" => Some(Self::SqlFailed),
+            _ => None,
         }
     }
 }
@@ -78,7 +179,7 @@ pub struct StartupSnapshot {
     pub updated_at_ms: u64,
     pub phase: StartupPhase,
     pub error_code: Option<StartupErrorCode>,
-    pub failed_phase: Option<StartupPhase>,
+    pub failed_phase: Option<StartupStage>,
 }
 
 impl StartupSnapshot {
@@ -92,8 +193,10 @@ impl StartupSnapshot {
             "startedAt": self.started_at_ms,
             "updatedAt": self.updated_at_ms,
             "phase": self.phase.as_str(),
-            // Task 1 的 Host 不碰磁盘；真盘面摘要（`StartupDiskSummary`）是 Task 2 的范围，
-            // 这里给空数组（schema 要求该字段存在）。
+            // `disk` 恒为空数组：**渲染层不消费它**（本 checkout 里没有任何一处读 `state.disk`），
+            // 而它的真产出在 Electron Host 的 `startupDiskSampler`（本包不跑那一层）。
+            // Task 3 的处置是**移交**（理由与判据见 spec 的 §15.3 / Task 3 的 DR-T3-3 ③），
+            // 不是「忘了填」——schema 要求该字段存在，所以给空数组。
             "disk": [],
         });
         if let Some(error_code) = self.error_code {
@@ -143,7 +246,7 @@ impl StartupMonitor {
         &self,
         phase: StartupPhase,
         error_code: Option<StartupErrorCode>,
-        failed_phase: Option<StartupPhase>,
+        failed_phase: Option<StartupStage>,
     ) {
         let mut snapshot = match self.snapshot.lock() {
             Ok(guard) => guard,
@@ -211,7 +314,11 @@ mod tests {
     #[test]
     fn publish_increments_sequence_and_carries_failure_fields() {
         let monitor = StartupMonitor::new("startup-2", "attempt-2");
-        monitor.publish(StartupPhase::Failed, Some(StartupErrorCode::TransportClosed), Some(StartupPhase::Starting));
+        monitor.publish(
+            StartupPhase::Failed,
+            Some(StartupErrorCode::TransportClosed),
+            Some(StartupStage::Starting),
+        );
         let state = monitor.snapshot().to_state_json();
         assert_eq!(state["sequence"], json!(1));
         assert_eq!(state["phase"], json!("failed"));
@@ -244,5 +351,51 @@ mod tests {
         assert_eq!(StartupErrorCode::TransportClosed.as_str(), "transport_closed");
         assert_eq!(StartupErrorCode::StartupStatusTimeout.as_str(), "startup_status_timeout");
         assert_eq!(StartupErrorCode::UnsupportedRuntime.as_str(), "unsupported_runtime");
+        // Host 侧分类（DR-T3-3 ① 起壳会把它们原样转发给渲染层）。
+        assert_eq!(StartupErrorCode::StorageFull.as_str(), "storage_full");
+        assert_eq!(StartupErrorCode::PermissionDenied.as_str(), "permission_denied");
+        assert_eq!(StartupErrorCode::IoError.as_str(), "io_error");
+        assert_eq!(StartupErrorCode::OutOfMemory.as_str(), "out_of_memory");
+        assert_eq!(StartupErrorCode::Corrupt.as_str(), "corrupt");
+        assert_eq!(StartupErrorCode::LockTimeout.as_str(), "lock_timeout");
+        assert_eq!(StartupErrorCode::ChecksumMismatch.as_str(), "checksum_mismatch");
+        assert_eq!(StartupErrorCode::SqlFailed.as_str(), "sql_failed");
+        // 阶段词汇表：六个取值一个都不能少（少了就没法把 Host 的分段报给渲染层）。
+        for (stage, wire) in [
+            (StartupStage::Starting, "starting"),
+            (StartupStage::PreparingHostStorage, "preparing_host_storage"),
+            (StartupStage::PreparingSessionStorage, "preparing_session_storage"),
+            (StartupStage::StartingServices, "starting_services"),
+            (StartupStage::Ready, "ready"),
+            (StartupStage::Failed, "failed"),
+        ] {
+            assert_eq!(stage.as_str(), wire);
+            assert_eq!(StartupStage::from_wire(wire), Some(stage), "{wire} 必须能解回来");
+        }
+    }
+
+    #[test]
+    fn from_wire_round_trips_every_wire_name_and_rejects_unknown_ones() {
+        for code in [
+            StartupErrorCode::OpenFailed,
+            StartupErrorCode::TransportClosed,
+            StartupErrorCode::StartupStatusTimeout,
+            StartupErrorCode::UnsupportedRuntime,
+            StartupErrorCode::StorageFull,
+            StartupErrorCode::PermissionDenied,
+            StartupErrorCode::IoError,
+            StartupErrorCode::OutOfMemory,
+            StartupErrorCode::Corrupt,
+            StartupErrorCode::LockTimeout,
+            StartupErrorCode::ChecksumMismatch,
+            StartupErrorCode::SqlFailed,
+        ] {
+            assert_eq!(StartupErrorCode::from_wire(code.as_str()), Some(code));
+        }
+        // 认不出来就说不知道：错码会让渲染层按错的语义画失败屏（`canRetryDatabaseStartup` 读它）。
+        assert_eq!(StartupErrorCode::from_wire("?"), None);
+        assert_eq!(StartupErrorCode::from_wire("ENOSPC"), None);
+        assert_eq!(StartupStage::from_wire("?"), None);
+        assert_eq!(StartupStage::from_wire("preparing_host_storage "), None);
     }
 }

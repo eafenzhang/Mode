@@ -21,8 +21,9 @@ use std::thread;
 use std::time::Duration;
 
 use crate::frame::{read_frame, write_frame};
+use crate::host_stderr::{StartupFailureFacts, StderrMonitor};
 use crate::startup::{
-    StartupErrorCode, StartupMonitor, StartupPhase, StartupSnapshot,
+    StartupErrorCode, StartupMonitor, StartupPhase, StartupSnapshot, StartupStage,
 };
 
 /// 入方向（Host → 页面）队列的默认容量（帧数）。满了读线程阻塞 = 真背压，
@@ -36,6 +37,13 @@ const DEFAULT_INBOUND_CAPACITY: usize = 256;
 /// 那个 30s 计时器一收到状态就被拆除，因此投出 `starting` 之后，本期限与 `failed` 推送
 /// 是渲染层唯一的失败来源（见 `startup.rs` 的模块注释）。
 pub const DEFAULT_READY_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// 等 Host stderr 读干（EOF）的上限。
+///
+/// Host 一退出，它与我们之间那根 stderr 管道就该 EOF；但这个等待是**有界**的：
+/// Host 可能把 stderr 交给了后代进程（`node-pty` 起的 shell），那些后代仍握着写端，
+/// 于是 EOF 会晚到甚至不来。等不到就退回粗粒度原因（如实的降级，不是假装知道）。
+pub const DEFAULT_STDERR_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 起 Host 需要的全部输入。`entry = None` 表示「只跑 `node_args`」——留给监督用例
 /// 起一个可控的沉默子进程。
@@ -168,6 +176,8 @@ struct HostInner {
     inbound_space: Condvar,
     startup: StartupMonitor,
     capacity: usize,
+    /// Host stderr 的观察者：留痕 + 结构化失败事实（DR-T3-3 ①）。
+    stderr: Arc<StderrMonitor>,
 }
 
 /// 壳持有的句柄：可克隆（Tauri 的 `State` 需要共享），生命周期由 Rust 壳负责。
@@ -217,12 +227,17 @@ impl HostHandle {
             .env("MODE_DATA_BASE_DIR", &config.data_base_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            // Host 的日志走壳的 stderr：本地跑壳时直接看得见（帧只在 stdout 上走）。
-            .stderr(Stdio::inherit());
+            // Host 的日志仍然要能被看见（帧只在 stdout 上走），但我们要**读**它才能拿到
+            // 结构化的失败事实，所以改成管道：读线程把每一行原样转到壳的 stderr
+            // （留痕不丢，本地跑壳照样看得见）并顺手解析 startup_failed。
+            .stderr(Stdio::piped());
 
         let mut child = command.spawn().map_err(HostError::Spawn)?;
         let stdin = child.stdin.take();
         let stdout = child.stdout.take().expect("stdout 是 piped");
+        let stderr = child.stderr.take().expect("stderr 是 piped");
+        let stderr_monitor = StderrMonitor::new();
+        stderr_monitor.spawn(stderr);
 
         let inner = Arc::new(HostInner {
             startup_id: config.startup_id.clone(),
@@ -238,6 +253,7 @@ impl HostHandle {
             inbound_space: Condvar::new(),
             startup: StartupMonitor::new(config.startup_id.clone(), config.attempt_id.clone()),
             capacity: config.inbound_capacity.max(1),
+            stderr: Arc::clone(&stderr_monitor),
         });
 
         let reader_inner = inner.clone();
@@ -265,7 +281,7 @@ impl HostHandle {
             watchdog_inner.startup.publish(
                 StartupPhase::Failed,
                 Some(StartupErrorCode::StartupStatusTimeout),
-                Some(StartupPhase::Starting),
+                Some(StartupStage::Starting),
             );
             mark_closed(&watchdog_inner);
             // 沉默的 Host 没有任何价值，留着只会变成孤儿；这里直接收摊。
@@ -291,11 +307,12 @@ impl HostHandle {
             inbound_space: Condvar::new(),
             startup: StartupMonitor::new(config.startup_id.clone(), config.attempt_id.clone()),
             capacity: 1,
+            stderr: StderrMonitor::new(),
         });
         inner.startup.publish(
             StartupPhase::Failed,
             Some(error.startup_error_code()),
-            Some(StartupPhase::Starting),
+            Some(StartupStage::Starting),
         );
         Self { inner }
     }
@@ -390,12 +407,12 @@ fn read_loop(inner: Arc<HostInner>, mut stdout: BufReader<impl Read>) {
                 push_inbound(&inner, frame);
             }
             Ok(None) => {
-                fail_if_not_shutting_down(&inner, StartupErrorCode::TransportClosed, "host_stdout_eof");
+                fail_with_host_facts(&inner, StartupErrorCode::TransportClosed, "host_stdout_eof");
                 mark_closed(&inner);
                 return;
             }
             Err(_) => {
-                fail_if_not_shutting_down(&inner, StartupErrorCode::TransportClosed, "host_stdout_error");
+                fail_with_host_facts(&inner, StartupErrorCode::TransportClosed, "host_stdout_error");
                 mark_closed(&inner);
                 return;
             }
@@ -415,8 +432,26 @@ fn reap_loop(inner: Arc<HostInner>, mut child: Child) {
         Ok(status) => format!("host_exit_code={}", status.code().unwrap_or(-1)),
         Err(error) => format!("host_wait_failed={error}"),
     };
-    fail_if_not_shutting_down(&inner, StartupErrorCode::TransportClosed, &reason);
+    fail_with_host_facts(&inner, StartupErrorCode::TransportClosed, &reason);
     mark_closed(&inner);
+}
+
+/// 发布失败**之前**先把 Host 报来的结构化失败事实收齐（DR-T3-3 ①）。
+///
+/// 顺序是语义，不是优化：Host 先写 stderr、再退出，而**stdout EOF 通常比 stderr 那行先到**
+/// （实测：不等的话 `host_stdout_eof` 会抢在事实之前把状态发布成 `transport_closed`/`starting`）。
+/// 等待是**有界**的（[`DEFAULT_STDERR_DRAIN_TIMEOUT`]）：Host 可能把 stderr 交给了后代进程，
+/// EOF 会晚到甚至不来，那时如实退回粗粒度原因，不假装知道。
+fn fail_with_host_facts(inner: &HostInner, code: StartupErrorCode, reason: &str) {
+    if !inner.shutting_down.load(Ordering::SeqCst)
+        && !inner.stderr.wait_drained(DEFAULT_STDERR_DRAIN_TIMEOUT)
+    {
+        eprintln!(
+            "[sidecar-host] stderr 未在 {:?} 内读干，失败原因退回粗粒度（Host 可能把 stderr 交给了后代进程）",
+            DEFAULT_STDERR_DRAIN_TIMEOUT
+        );
+    }
+    fail_if_not_shutting_down(inner, code, reason);
 }
 
 /// 只有「还没就绪」或「已经就绪」的 Host 会被判失败；已失败的不重复发布（单赢家）。
@@ -436,10 +471,17 @@ fn fail_if_not_shutting_down(inner: &HostInner, code: StartupErrorCode, reason: 
         return;
     }
     eprintln!("[sidecar-host] host 停止：{reason}");
+    // Host 报过结构化失败事实时**用它**：粗粒度码只是壳能自己判断的兜底
+    // （DR-T3-3 ①：渲染层看到的原因要与 Host 知道的同精度）。两个字段各自独立降级：
+    // 只认出错码就只换错码，阶段仍旧报壳能判断的那一档。
+    let facts = inner.stderr.facts().unwrap_or(StartupFailureFacts {
+        failed_phase: None,
+        error_code: None,
+    });
     inner.startup.publish(
         StartupPhase::Failed,
-        Some(code),
-        Some(StartupPhase::Starting),
+        Some(facts.error_code.unwrap_or(code)),
+        Some(facts.failed_phase.unwrap_or(StartupStage::Starting)),
     );
 }
 

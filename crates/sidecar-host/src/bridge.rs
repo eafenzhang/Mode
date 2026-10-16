@@ -20,6 +20,14 @@ pub const COMMAND_NAMES: &[&str] = &[CMD_SEND, CMD_RECV, CMD_STATE];
 /// 注入脚本模板（占位符见 `bridge.ts` 顶部注释）。
 const TEMPLATE: &str = include_str!("bridge.ts");
 
+/// `window.mode` 的注入内容（**拼在桥脚本之前**，见 `bridge_script`）。
+///
+/// 为什么单独一个文件：它与桥脚本是两件事（一个是平台面适配层，一个是端口/状态传输），
+/// 而且 `oxlint` 的 `max-lines` 上限是 400——合在一起会顶到线。
+/// **顺序不是排版问题**：renderer 入口模块求值期就读 `window.mode`（DR-T3-1），
+/// 所以它必须排在前面，且两者同属**一个** `initialization_script`（document-start 求值）。
+const WINDOW_MODE_TEMPLATE: &str = include_str!("window_mode.ts");
+
 /// 把 startupId 与命令名填进模板，得到可直接交给 `initialization_script` 的脚本。
 ///
 /// startupId 只允许 `[A-Za-z0-9_-]`：它来自壳生成的实例 id，但注入脚本是**字符串拼接**，
@@ -35,7 +43,10 @@ pub fn bridge_script(startup_id: &str) -> String {
             }
         })
         .collect();
-    TEMPLATE
+    // `window.mode` 在前：renderer 的**入口模块求值期**就会读它（见 `window_mode.ts` 的文件头）。
+    // 两段拼成一段脚本而不是两次 `initialization_script`：同一段脚本文本的求值顺序是确定的，
+    // 不依赖 Tauri 对多次注册的拼接顺序。
+    format!("{WINDOW_MODE_TEMPLATE}\n{TEMPLATE}")
         .replace("__MODE_HOST_STARTUP_ID__", &safe_id)
         .replace("__MODE_HOST_CMD_SEND__", CMD_SEND)
         .replace("__MODE_HOST_CMD_RECV__", CMD_RECV)
@@ -94,6 +105,30 @@ mod tests {
                 .chars()
                 .all(|character| character.is_ascii_alphanumeric() || character == '-' || character == '_'),
             "注入的 id 只允许 [A-Za-z0-9_-]，实际：{injected}"
+        );
+    }
+
+    /// `window.mode` 的注入必须排在端口桥之前：renderer 的**入口模块求值期**就会读它
+    /// （DR-T3-1 的顺序性质）。这条断言只守「脚本文本内部的顺序」，端到端的行为断言在
+    /// `apps/desktop-tauri/test/windowModeInjection.test.mts`（真跑脚本、真读探针）。
+    #[test]
+    fn window_mode_is_installed_before_the_rest_of_the_bridge() {
+        let script = bridge_script("host-sequencing");
+        let mode_assignment = script
+            .find("window.mode = mode")
+            .expect("注入脚本必须赋值 window.mode（renderer 入口模块求值期就读它）");
+        let deferred_delivery = script
+            .find("DOMContentLoaded")
+            .expect("桥脚本把投递推迟到 DOMContentLoaded（spike §4.5）");
+        assert!(
+            mode_assignment < deferred_delivery,
+            "window.mode 必须在任何延迟点之前就位：赋值在下标 {mode_assignment}，延迟点在下标 {deferred_delivery}"
+        );
+        // 拼接顺序的负向守卫：只把桥脚本注入进去（没有 window_mode 模板）必须被这条断言抓住。
+        let bridge_only = TEMPLATE.to_string();
+        assert!(
+            !bridge_only.contains("window.mode = mode"),
+            "桥脚本自己不得提供 window.mode（否则这条顺序断言是空的）"
         );
     }
 }

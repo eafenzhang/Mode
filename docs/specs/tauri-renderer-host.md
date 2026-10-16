@@ -11,6 +11,12 @@ M1 的挂载缺口表 `docs/specs/tauri-platform-commands.md` §4.2。
 I2（`MODE_DATA_BASE_DIR` 语义）、I3（typecheck 覆盖）、I4（CI 接线与口径）、I5（框架无关拆分的理由）
 与若干 Minor 都已落进下面的正文；改动痕迹见 §10 的证据登记与 `task-1-report.md` 的 fix round 1 小节。
 
+**2026-10-16 M3 Task 3 再修订（真产品 UI 挂载）**：§0 的状态、§1 的「注入层所有权」（`window.mode`）、
+§3 的失败映射表（`failedPhase` **不再一律 `starting`**）、§5 的覆盖分工、§8 的边界（6 关闭 / 11、12 移交）、
+§10.8–§10.10 的证据、§13 的「核心」预算基准、以及新增的 §16–§18（Step 1 的两句可核对陈述、
+DR-T3-2 的验收台处置、DR-T3-3 三条义务的逐条处置）都是本任务的产物。**渲染层仍未改动**
+（`git diff -- packages/desktop/src/renderer/**` 为空）。
+
 **2026-10-16 M3 Task 2 再修订（服务面换真）**：§0 的状态、§1 的所有权（`deferInit` 使「第一帧」= 服务面齐备）、
 §2 的环境契约（新增三条）、§3.1（`listen` 危险的**守卫实现**）、§4（真服务**会写盘**之后的隔离口径）、
 §5 的覆盖分工、§8 的边界与新增的 §11–§14（startup 序列与映射口径、原生依赖、打包形态与体积、
@@ -22,26 +28,28 @@ I2（`MODE_DATA_BASE_DIR` 语义）、I3（typecheck 覆盖）、I4（CI 接线�
 一个承载 `ChannelServer` 的真 `MessagePort`，以及一条 database-startup 状态流——
 于是渲染层**未改动**的启动闸门会放行（`phase === "ready"` 且两端 `startupId` 同代）。
 
-**Task 2 之后的状态（本文件当前描述的对象）**：服务面是**真的** `packages/services`（§11.1 的
-启动序列，`createLocalServices` + `exposeOnChannelServer`），闸门由**真实启动**驱动——
-入口用 `deferInit = true`，`server.ready()`（即壳看到的「第一帧」）**在真存储打开、真服务频道
-全部注册之后**才发，所以「闸门放行」与「服务面齐备」在时序上是同一件事（§1 末段）。
-失败路径同样是产品件：Host 启动失败 → 结构化落 stderr 并以非零码退出 → 壳的 reaper 推
-`failed(transport_closed)`（§3.1、§10.4、§10.5）。
+**Task 3 之后的状态（本文件当前描述的对象）**：`frontendDist` 的根是**真 renderer 的构建产物**
+（§16 的两句可核对陈述），`window.mode` 由**同一个 `initialization_script`** 在 document-start
+注入（§1 末段、§17），真机实测：真产品 UI 挂载成功、`#root` 里有 React 子树、页面渲染出产品界面、
+端口上**两个方向**都有真实业务帧（§10.9）。失败路径也精确到了阶段：壳读 Host 的结构化 stderr 行，
+把 `failedPhase` / `errorCode` **原样转发**给渲染层（§3 的映射表、§10.8）。
 
-**仍然没做到（都不在 Task 2 的授权内，逐条登记）**：
+**Task 3 的授权面（写清边界，免得下游误读）**：这一轮动的是**构建接线与注入**——
+`apps/desktop-tauri/**`（装配脚本、`frontendDist`、harness）、`crates/sidecar-host/**`（注入脚本内容、
+失败事实通道）与本文档。**渲染层源码零改动**（硬约束）。
 
-- **真实 renderer 挂载**（Task 3 换 `frontendDist`）——本任务的全部真机证据用的是集成测试页
-  （`test/harness/host-sidecar/**`），它不是渲染层；
-- **Host 的分段阶段没有传到渲染层**：`preparing_host_storage` / `starting_services` 这些是
-  Host 进程内的真事实（`host.describe().startup.history` 可观察、有用例钉住），但**没有**一条
-  Host → 壳的通道把它们合并进壳发布的 `DatabaseStartupState` 流。渲染层看到的仍是
-  `starting` → `ready`（或 `failed`）。理由：那条通道要动传输层，而本任务的约束是
-  「不改壳/传输层」——**差额登记在这里**，Task 3/4 定 transport 时一并处理；
-- **窗口模型、跨窗口广播、手机远控**（Task 3/4）：`createLocalServices` 的缺省注入下这些能力
+**仍然没做到（逐条登记）**：
+
+- **窗口模型、跨窗口广播、手机远控**（Task 4）：`createLocalServices` 的缺省注入下这些能力
   各自表现为「不可用/空操作」（`parentPort` 传 null 时广播为空操作），不是静默走另一条路径；
 - **崩溃重启策略**：§14 明确登记为不做（含理由与代价）；
-- **CUA 资产在打包形态里的落点**（Task 5）：探针只验证「注入了但不存在 = 失败」（§12）。
+- **CUA 资产在打包形态里的落点**（Task 5）：探针只验证「注入了但不存在 = 失败」（§12）；
+- **非 M1 的 `window.mode` 能力**：按声明返回形态分两类处置（§17）——要读值的返回**被拒 Promise**，
+  没有要读的值的降级为**留痕空操作**。两类都是「能力不存在」的如实表达，但它们**不是实现**：
+  远端桌面、局域网配对、WSL/Docker 探测、应用图标解码、编辑器列表、更新链在 Tauri 壳里都还不工作；
+- **`sequence` 归属（DR-T3-3 ②）**：本任务**没有**合并 Host 与壳的状态流，所以两个计数器互不相干
+  （壳仍是唯一发布者）。移交 Task 4，理由写在 §18；
+- **`disk` 摘要（DR-T3-3 ③）**：**渲染层不消费它**，所以本任务不产出。移交，理由写在 §18。
 
 **渲染层的超时口径（复评 I4(b) 纠正）**：渲染层在**一条状态都没收到**时 30 秒后画失败屏
 （`packages/desktop/src/renderer/src/main.tsx` 的启动计时器）；那个计时器**一收到任何状态就被拆除**。
@@ -49,8 +57,10 @@ I2（`MODE_DATA_BASE_DIR` 语义）、I3（typecheck 覆盖）、I4（CI 接线�
 失败信号**。这也是 DR-T1-3 把「失败必须由壳主动推」定成硬要求的原因；
 （本文件早期版本写成「40 秒」「超时是兜底」，两者都不准确，已改。）
 
-**仍然未验**：真实 renderer 挂载（Task 3 换 `frontendDist`）、`node:sqlite`/`node-pty` 在
-sidecar 里可用（Task 2）、打包形态的 sidecar 落点与体积（Task 3/5）。
+**Task 3 已验**（真机、原始输出见 §10.8–§10.9）：`frontendDist` 指向真 renderer 产物后，
+**真产品 UI 挂载成功**且业务帧双向往返；失败路径的阶段精确原因送达渲染层。
+**仍未验**：打包形态里 sidecar 与随包 Node 的落点、以及「核心」预算在**壳 exe** 那一半的数字
+（Task 5）；真 renderer 产物被内嵌进 exe 后的启动耗时尚无测量。
 
 ## 1. 组件与所有权
 
@@ -70,17 +80,25 @@ sidecar 里可用（Task 2）、打包形态的 sidecar 落点与体积（Task 3
 **startupId 的所有权**：壳生成、经环境变量 `MODE_HOST_STARTUP_ID` 交给 Host，并烘进注入桥。
 「端口负载的 `databaseStartupId`」与「状态流的 `startupId`」由此天然同代——这正是闸门的判据。
 
+**注入层（`window.mode`）的所有权（Task 3 起）**：Tauri 没有 preload / `contextBridge`，
+所以 renderer 启动时读的 `window.mode` 由**同一个** `initialization_script` 提供，
+内容在 `crates/sidecar-host/src/window_mode.ts`（纯 JS 模板，`include_str!` 拼在桥脚本**之前**）。
+**顺序是正确性的一部分**：renderer 的入口模块在求值期就建桌面平台服务
+（`renderer/src/main.tsx` 顶层的 `createDesktopPlatform(...)`），缺席时那个模块当场抛、
+React 永远挂不上。顺序性质由两处断言守着——CI 的 `test/windowModeInjection.test.mts`
+（含一条**敏感性对照**：把赋值挪进 `DOMContentLoaded` 的变体必须读不到 `window.mode`）
+与真机探针（§10.9 的 `modeAtDocumentStart`）。切片与降级口径见 §17。
+
 **发布状态的所有权（Task 1 的口径，Task 2 不动）**：**壳是渲染层看到的 `DatabaseStartupState`
 的唯一发布者**（`crates/sidecar-host/src/startup.rs` 的 `StartupMonitor`）。它合并两类事实：
 
 - Host 进程事实（壳直接观测）：就绪判据是 **Host 的第一帧**（`ChannelServer` 的 `Initialize`）；
   失败判据是起不来 / 就绪前退出 / 就绪期限内没有第一帧 / 就绪后崩；
-- **Host 报告的分段阶段（`preparing_host_storage` 等）本任务没有合并进来**：那需要一条
-  Host → 壳 的通道（壳现在是「字节双向搬运」，没有解析 Host 语义的通道）。差额的**代价是
-  真实的**：真机失败跑里 Host 自己报的是 `errorCode=sql_failed failedPhase=preparing_host_storage`，
-  而渲染层收到的是壳能判断的 `transport_closed` / `failedPhase=starting`（§10.6 的原始输出）。
-  「失败要能被推给渲染层」这条硬要求达成；「失败原因要精确到阶段」这条**未达成**，登记为
-  Task 3/4 定 transport 时的输入。
+- **Host 报告的分段阶段（Task 3 起已合并）**：Host 启动失败时会往 stderr 写一行结构化的
+  `startup_failed phase=… failedPhase=… errorCode=…`，而壳**本来就把 Host 的 stderr 收上来留痕**
+  ——Task 3 把那条留痕通道升级成「留痕 + 解析」（`crates/sidecar-host/src/host_stderr.rs`），
+  于是壳发布的 `failed` 带上 Host 报的阶段与错码（§3 的映射表）。**这不是第二条状态流**：
+  壳仍是唯一发布者、`sequence` 仍只有壳一个计数器，被转发的只有**终态那一行**的两个字段。
 
 为什么不让渲染层同时听两个发布者：闸门的判据是「同代匹配」，两个发布者会让「同代」的语义分裂。
 
@@ -143,19 +161,28 @@ harness bin 保留原名，两者是不同二进制，互不影响）：
 | 就绪前退出 / 传输断开（含**就绪后崩**） | `transport_closed` | reader 读 EOF / reaper 收到退出 |
 | 就绪期限内没有第一帧 | `startup_status_timeout` | 看门狗（默认 20s；渲染层那个计时器是 30s 且收到状态即拆除） |
 | 配置非法（既无入口、也无 node 参数、或数据基目录为空） | `unsupported_runtime` | `HostHandle::spawn` 的配置校验 |
+| **Host 自己报的启动失败**（stderr 的 `startup_failed … errorCode=<x>`） | **Host 报的那个码**（`storage_full`/`permission_denied`/`io_error`/`out_of_memory`/`corrupt`/`lock_timeout`/`checksum_mismatch`/`sql_failed`） | 壳读 Host stderr 的那一行（`host_stderr.rs`），在发布 `failed` 之前等它读干（有界 2s） |
 
-`failedPhase` 一律记 `starting`（壳能判断的最细粒度在 Task 2 之后仍是「拉起 Host」这一段）。
+`failedPhase` **不再一律 `starting`**（Task 3 · DR-T3-3 ①）：Host 报阶段时就报它报的那一段
+（真机失败现场是 `failedPhase=preparing_host_storage errorCode=sql_failed`，见 §10.8），
+报不出来（字段缺失/认不出/那一行没出现）才退回 `starting` + 壳能判断的粗粒度码。
+**两个字段各自独立降级**：只认出错码就只换错码，阶段仍报壳能判断的那一档；两个都认不出就整条退回
+（不猜——`canRetryDatabaseStartup` 按这两个字段决定给不给「重试」，错码会让渲染层按错的语义画失败屏）。
+
+**为什么不新增第二条状态流**：壳**本来就**把 Host 的 stderr 收上来留痕（本地跑壳时那是排障的唯一入口），
+所以「读那一行」不需要新的传输机制；被转发的只有**终态**那一行的两个字段，中途的分段阶段
+（`preparing_host_storage` 的 9 次上报等）仍然只在 Host 进程内可见（`host.describe().startup.history`）。
 三个监督线程用一个原子量 CAS 决定**谁**能发布终态，所以不会出现「先 failed 后 ready」这种自相矛盾的流。
 
-**Host 内部的启动失败走哪条**（Task 2 的实测口径）：Host 自己在启动序列里抛错时，
+**Host 内部的启动失败走哪条**（Task 3 之后的口径）：Host 自己在启动序列里抛错时，
 它就是「就绪前退出」——结构化落 stderr（`startup_failed phase=failed failedPhase=… errorCode=…`）、
-**不写任何帧**、以非零码退出，于是壳的 reaper 报 `failed(transport_closed)`、`failedPhase=starting`。
-**渲染层看到的原因比 Host 知道的粗**（Host 报的是 `sql_failed`/`preparing_host_storage`，
-渲染层收到 `transport_closed`/`starting`）——这是 §1 登记的差额，不是 bug；「失败被推给渲染层」
-这条硬要求已达成（DR-T1-3），「原因精确到阶段」留给 Task 3/4 的 Host → 壳通道。
-两半都有自动化：Host 侧 `packages/desktop/tests/startupFailure.test.mts`（错码必须在渲染层
+**不写任何帧**、以非零码退出；壳的 reaper 报 `failed`，**原因取自那一行**（§3 的表最后一行）。
+**渲染层看到的原因与 Host 知道的同精度**（真机实测：`errorCode=sql_failed`、`failedPhase=preparing_host_storage`，
+见 §10.8）——Task 2 登记的那个差额由 Task 3 关闭（DR-T3-3 ①）。
+两侧都有自动化：Host 侧 `packages/desktop/tests/startupFailure.test.mts`（错码必须在渲染层
 词汇表里、失败时零帧、非零退出），壳侧 `crates/sidecar-host/tests/host_lifecycle.rs`
-（就绪前退出 → `failed` + error code）。
+的 `a_host_that_reports_a_stage_precise_failure_has_it_forwarded_verbatim`（真起 Node 子进程，
+断言两个字段原样出现在发布的 `to_state_json()` 里）。
 
 ### 3.1 「`listen` 抛错会杀死 Host」这条危险的**处置**（复评 C1 → Task 2 落地）
 
@@ -243,6 +270,11 @@ harness bin 保留原名，两者是不同二进制，互不影响）：
 | **真服务面 / 守卫 / 真启动序列** | `apps/desktop-tauri/test/realServices.test.mts`（5 条）：真命令真返回、`listen` 守卫（Host 存活 + 在途 RPC + 零事件 + 可观察）、stdout 守卫（真服务日志不污染帧流）、数据根口径、启动序列（`ready` 只在频道全注册后发布） | **是**（verify job） |
 | **startup 映射（夹具驱动，四条路径）** | `packages/desktop/tests/startupMapping.test.mts`（8 条）+ `packages/desktop/tests/fixtures/startup-storage/*.json`（9 个夹具，覆盖 `starting` / 迁移中 / `ready` / `failed`）；另含**事实路径**（= 生产路径，含帧带不了的 `maintaining`）与**「入口不得自己写应用阶段」的源码扫描**（复评 I1） | **是**（verify job） |
 | **Host 启动失败的语义** | `packages/desktop/tests/startupFailure.test.mts`：错码必须落在渲染层 schema 的取值集里、失败时**零帧**、非零退出、不得越过失败点报 ready | **是**（verify job） |
+| **`window.mode` 的注入（顺序 + 切片 + 降级口径）** | `apps/desktop-tauri/test/windowModeInjection.test.mts`（5 条）：document-start 探针 + **敏感性对照**（晚注入变体必须读不到）+ 投递仍推迟到 `DOMContentLoaded` + M1 切片同名同参 + 必需成员的分类（被拒 Promise / 留痕空操作）与 `globals.d.ts` 声明形态**机械对拍** | **是**（verify job） |
+| **失败事实的解析**（DR-T3-3 ① 的壳侧） | `crates/sidecar-host/src/host_stderr.rs` 6 条单测（真机那一行的原文、非终态行、字段各自缺失、同名键取第一次、EOF 放行）+ `host_lifecycle.rs` 的端到端一条 | **是**（`cargo test -p sidecar-host`） |
+| **壳入口页的挑选** | `sidecar-host::pick_shell_entry` 单测（默认产品页；相对覆写生效；绝对路径/上跳一律退回） | **是**（同上） |
+| **真 renderer 产物的装配与「核心」体积** | `apps/desktop-tauri/scripts/build-renderer-for-tauri.ts`（装配 + 实测体积打印） | **否**（构建脚本，人工/发版流程跑；数字见 §13） |
+| **真产品 UI 挂载 + 业务帧双向往返** | `apps/desktop-tauri/test/productUiMount.test.mts`（**opt-in，默认 skip**，1 条） | **不能**（要真 webview） |
 | 纯端口路径回归（Task 0 的） | `test/portMessagePath.test.mts`、`test/hostChannelStdio.test.mts` | **是**（同上） |
 | 跨语言字面量（频道名/命令名/状态词汇） | `packages/desktop/tests/host-standalone.test.mts` | **是**（verify job） |
 | **打包形态产出得出来、且跑得起来** | `apps/desktop-tauri/scripts/build-host-sidecar.ts` 的自验档：esbuild 打包后用 `node` 直接起产物，走一次 `host.describe` RPC | **否**（构建脚本，人工/发版流程跑；体积数字见 §13） |
@@ -269,8 +301,17 @@ MODE_TAURI_WEBVIEW_ROUNDTRIP=1 node --import tsx --test apps/desktop-tauri/test/
   `errorCode: "transport_closed"`（且整条状态过真 schema）、`gateOpened: false`、
   `startupIdMatches: true`（失败状态与注入桥同代，否则渲染层会把它当陈旧状态丢掉）。
 
-**漏跑这条 = 端口路径或失败推送悄悄坏掉而发布流程说全绿**——这正是本仓库反复吃亏的那类失败
-（DR-T1-2 的代价）。
+```bash
+MODE_TAURI_PRODUCT_UI=1 node --import tsx --test apps/desktop-tauri/test/productUiMount.test.mts
+```
+
+判据（用例自己断言，原始输出样例见 §10.9）：`modeAtDocumentStart === "object"`、
+`mounted === true`、`phase === "ready"`、`acceptedFrames > 0`（出方向被壳收下）、
+`pumpFramesGrewAfterReady === true`（放行后入方向继续有帧）、`uiText` 非空**且不含
+`not_implemented_until_m3`**（界面不是错误边界画出来的）、退出不留孤儿。
+
+**漏跑这两条 = 端口路径、失败推送或真产品 UI 悄悄坏掉而发布流程说全绿**——这正是本仓库反复吃亏的
+那类失败（DR-T1-2 的代价）。
 
 ### 人工可观察的开发形态
 
@@ -327,8 +368,10 @@ startupId 生成）落在 app crate 里，**没有自动化覆盖**（§5 的表
    别的平台上靠 Host 的 stdin EOF 保护兜底，未在本阶段验证。打包形态的 `node-pty` 预编译件
    也按 Windows 口径讨论（§13 的裁剪建议）。
 5. **没有重启策略**（§14 是 DR-T2-4 的正式处置，含「为什么现在不做」的实测理由）。
-6. **分段启动阶段没有传到渲染层**（§1 末段 + §10.6 的原始输出）：Host 报
-   `sql_failed`/`preparing_host_storage`，渲染层收 `transport_closed`/`starting`。
+6. ~~**分段启动阶段没有传到渲染层**~~（**Task 3 关闭**，DR-T3-3 ①）：Host 报的
+   `failedPhase` / `errorCode` 现在由壳原样转发（§3 的表、§10.8 的原始输出）。
+   **仍然**没传的是**中途**的分段阶段（`preparing_host_storage` 的多次上报、`starting_services`）——
+   它们只在 Host 进程内可见（`host.describe().startup.history`），渲染层只在**失败时**得到阶段名。
 7. **`listen` 守卫的拒绝对客户端不可见**（§3.1 的代价）：要变成 RPC 错误得改 `packages/rpc`。
 8. **`startupMapping` 的夹具是按声明 schema 构造的**，不是 M2 的真实录制（本 checkout 里
    `packages/shared/test/fixtures/agent-protocol/`、`packages/desktop/tests/agent-runtime-oracle/fixtures/`
@@ -336,10 +379,12 @@ startupId 生成）落在 app crate 里，**没有自动化覆盖**（§5 的表
    不证明「对某台机器某次真实运行录下来的字节成立」（§11.3）。
 9. **CUA 资产在打包形态里的落点未验**：探针只覆盖「注入了但不存在 = 失败」（§12.1）。
 10. **`host.describe().startup.history` 是本进程的诊断事实**，不是渲染层可见的状态（同上第 6 条）。
-11. **磁盘摘要没实现**：状态里的 `disk` 恒为 `[]`（schema 要求该字段存在）。将来运行时给出
-    `StartupDiskSummary` 时，谁填它、谁负责合并没有定（复评 M2，登记在 §15.3）。
-12. **`sequence` 的拥有者未定**：Host 与壳各自从 0 自增，而渲染层按 `sequence` 丢弃旧状态；
-    Task 3/4 合并两股流之前必须先定唯一拥有者（复评 M6，登记在 §15.3）。
+11. **磁盘摘要没实现**（Task 3 的处置是**移交**，见 §18③）：状态里的 `disk` 恒为 `[]`
+    （schema 要求该字段存在）。判据是「渲染层是否消费」——本 checkout 里**没有任何一处读
+    `state.disk`**，所以本任务不产出它。
+12. **`sequence` 的拥有者未定**（Task 3 的处置是**移交**，见 §18②）：Host 与壳各自从 0 自增，
+    而渲染层按 `sequence` 丢弃旧状态。Task 3 **没有**合并两股流（只转发终态那一行的两个字段），
+    所以两个计数器仍然互不相干、也不需要统一；合并状态流是 Task 4 的事。
 
 ## 9. 纪律登记（clean-room）
 
@@ -756,11 +801,53 @@ $ node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts
 
 **门禁口径（复评 C1 · Ruling 26：已拆成两份预算）**：产品阶段原来的单一「核心包 ≤30MB」门禁
 在选定架构下**不可达**（单是 `node.exe` gzip 后 33.91 MiB 就越过 30MB），因此拆成
-**(a) 核心**（壳 + UI 资产 + Host bundle，沿用 ≤30MB；Host bundle 本任务实测 4.87 MiB）与
+**(a) 核心**（壳 + UI 资产 + Host bundle，沿用 ≤30MB）与
 **(b) Node 运行时 + sidecar externals**（基准：闭包 102.61 MiB + `node.exe` 88.25 MiB / gzip 33.91 MiB，
 门禁数值由 Task 5 定）。完整的算术、代价与「唯一能兑现原目标的替代方案（Rust 重写 Host）」
 登记在阶段计划 `docs/plans/2026-10-16-tauri-m3-ecosystem.md` 的「体积门禁拆分登记」——
 **本文件的数字是那两份预算的当前基准，不是失败**。
+
+### 13.1 「核心」预算的 Task 3 基准（**把产品 UI 资产算进来之后**，必须重记）
+
+Task 2 的 4.87 MiB 只是 **Host bundle**，那时的 `frontendDist` 是 M1 的命令面验收台（几十 KB）。
+Task 3 把**真 renderer 的构建产物**放进去之后，那一份预算必须重测——数字如下（本机实测）：
+
+```bash
+$ node --import tsx apps/desktop-tauri/scripts/build-renderer-for-tauri.ts --skip-renderer-build --no-bench
+[renderer-for-tauri] 跳过 renderer 构建（--skip-renderer-build）：复用 out/renderer 现有产物
+[renderer-for-tauri] 装配 dist 根：D:\ZCodium\packages\desktop\out
+enderer → D:\ZCodiumpps\desktop-tauri\dist（排除 *.map）
+[renderer-for-tauri] 不构建验收台（--no-bench）：发布产物里没有 dev/ 入口
+[renderer-for-tauri] 产品 UI 资产（含辅助页，不含 *.map）： 51951518 B (49.54 MiB)
+[renderer-for-tauri] 装配后的前端根 dist 合计：              51951518 B (49.54 MiB) 共 4328 个文件
+[renderer-for-tauri] Host bundle（Task 2 的产物，另行构建）：  5106411 B (4.87 MiB)
+[renderer-for-tauri] 「核心」合计（UI 资产 + Host bundle）：   57057929 B (54.41 MiB)（不含壳 exe，壳由 Task 5 实测）
+```
+
+（`--skip-renderer-build` 只是复用上一轮的 `out/renderer`；不带它时脚本会先跑一次
+`vite build --mode production`——实测 15–17s。带 `--no-bench` 的那一档就是**发布路径**，
+与 `tauri.conf.json` 的 `beforeBuildCommand` 同一条命令。）
+
+| 项 | 字节 | 说明 |
+| --- | --- | --- |
+| 产品 UI 资产（不含 `*.map`） | **49.54 MiB** | renderer 生产构建产物，4328 个文件（`index.html` + `assets/**` + `material-icons/**` + `pdfjs/**`） |
+| Host bundle | **4.87 MiB** | Task 2 的产物（§13 上表） |
+| **「核心」合计（不含壳 exe）** | **54.41 MiB** | 对照 Ruling 26 的 (a) ≤30MB |
+
+**这是一条实测出来的越界，必须读清它是什么、不是什么**：
+
+- **不是回归**：Task 3 之前那一份根本没把产品 UI 算进去（那时挂的是验收台），所以从来没有
+  「54 MiB → 30 MiB 以内的产品 UI」这个状态。Ruling 26 的 (a) 门禁是**按验收台时代的形态**写的。
+- **不是本任务能收的口子**：清单里能砍的主要是 `*.map`（生产构建里 81.00 MiB，本任务**已经砍掉**：Tauri 把
+  `frontendDist` 内嵌进可执行文件，地图在那里没有消费者，还把整棵源码摊给解开产物的人）与
+  renderer 自身的代码分割策略——后者是 **Electron 线共用的构建配置**（`packages/desktop/vite.config.ts`），
+  动它等于同时改另一条发布线，不在本任务授权内。
+- **处置**：按计划书的纪律，本任务**只更新基准、不重新谈判门禁**（阶段计划的风险表：
+  「产品 UI 资产让『核心』预算大幅上升而被误读成回归 → Ruling 26 已把门禁拆两份；本任务只更新基准」）。
+  壳 exe 那一半的数字与是否要重谈 (a) 的数值，是 **Task 5 与该任务的人决定**，
+  输入是这里的 54.41 MiB + Task 5 实测的 release exe。
+- **一处仍需实测的未知**：49.54 MiB 资产被 `tauri::generate_context!` **内嵌**进 exe 之后，
+  release 构建的体积与**启动耗时**都没有量过（本任务只用 debug 构建跑通了功能）。Task 5 要一并量。
 
 自验是**默认开**的：脚本用 `node <bundle>`（不带 tsx）起产物，走一次 `host.describe` 的 RPC 往返，
 断言 `serviceSurface.kind === "services"`，**并断言 Built-in Provider Config 走的是「资源目录」档**
@@ -898,3 +985,221 @@ Task 1 登记的理由是「Host 没有真存储，重启没有可恢复的状�
   两条路都退出（`index.ts` 的 catch）。
 
 
+
+---
+
+# Task 3：真实产品 UI 挂载（本文件的新增面）
+
+## 10.8 真机失败路径：阶段精确的失败原因**已经**到达渲染层（DR-T3-3 ①）
+
+同一个 opt-in webview 用例（`test/webviewRoundTrip.test.mts` 的失败路径），把数据**基**目录的
+位置放成一个文件（`ENOTDIR` 是确定性的）：
+
+```text
+$ MODE_TAURI_WEBVIEW_ROUNDTRIP=1 node --import tsx --test apps/desktop-tauri/test/webviewRoundTrip.test.mts
+HARNESS host startupId=host-9380-1792152964552 pid=6980 dataRootHint=见 host.describe
+ROUNDTRIP_PAGE_REPORT {"status":"startup_failed","gateOpened":false,"portSeen":true,
+ "portIsRealMessagePort":true,"initializeObserved":false,"schemaAccepted":true,"statePhase":"failed",
+ "stateStartupId":"host-9380-1792152964552","failedPhase":"preparing_host_storage",
+ "errorCode":"sql_failed","startupIdMatches":true}
+HARNESS watchdog_exit
+HARNESS host_shutdown pid=6980
+✔ 真 webview（失败路径）：真启动失败时页面收到 failed + errorCode，闸门不放行 (36728.3005ms)
+ℹ tests 2   ℹ pass 2   ℹ fail 0
+```
+
+与 §10.6（Task 2 的原文）逐字对照：那一次渲染层收到 `"failedPhase":"starting"`、
+`"errorCode":"transport_closed"`，现在收到 `"failedPhase":"preparing_host_storage"`、
+`"errorCode":"sql_failed"`——**与 Host 自己报的完全一致**。这条不是措辞变化：
+`canRetryDatabaseStartup`（`packages/shared/src/database-startup.ts`）把 `transport_closed`
+列为不可重试，而 `sql_failed` + `preparing_host_storage` 会给出「重试」这条路。
+
+## 10.9 真产品 UI 在 Tauri 壳里挂载（Step 4）
+
+```bash
+$ MODE_TAURI_PRODUCT_UI=1 node --import tsx --test apps/desktop-tauri/test/productUiMount.test.mts
+HARNESS host startupId=host-15528-1792153244136 pid=…
+[mode-host-sidecar] services_ready channels=40 builtinConfig=env(exists=true)
+[mode-host-sidecar] ready startupId=host-15528-1792153244136 dataBaseDir=…\data dataRoot=…\data\.mode
+  source=MODE_DATA_BASE_DIR channels=40 node=v24.18.1 shutdown=false
+PRODUCT_UI_PAGE_LOG probe_document_start mode=object keys=64
+PRODUCT_UI_PAGE_LOG ready_frame_watermark pumpFrames=8 sentFrames=17
+PRODUCT_UI_REPORT {"status":"ok","modeAtDocumentStart":"object","modeKeyCountAtDocumentStart":64,
+ "modeDiagnosticsAtDocumentStart":{"implemented":12,"notImplemented":27,"deliberatelyAbsent":["log"]},
+ "probeError":null,"rendererStarted":true,"mounted":true,"eagerPlatformCreated":true,
+ "startupId":"host-15528-1792153244136","portDelivered":true,"phase":"ready",
+ "pumpFrames":44,"sentFrames":55,"acceptedFrames":55,"readyFrameWatermark":8,
+ "pumpFramesGrewAfterReady":true,"bridgeError":null,
+ "degraded":["not_implemented_noop:onRemoteConnectionLog","not_implemented_noop:onRemoteSessionClosed",
+   "not_implemented_noop:onBotRemoteWorkspaceReconnected","not_implemented_noop:onFocusTab",
+   "not_implemented_noop:onNewTab","not_implemented_noop:onNewTask",
+   "not_implemented_noop:onTaskNotificationClick","not_implemented_noop:onUpdateCheckResult",
+   "not_implemented_noop:setApplicationLocale","not_implemented_noop:syncActiveTaskSession",
+   "not_implemented_noop:onPostUpdateReleaseNotes","not_implemented_rejected:getInstalledEditors",
+   "not_implemented_noop:onUpdateReady","not_implemented_rejected:canOpenCommunity",
+   "not_implemented_noop:setTitleBarTheme"],
+ "uiText":"命令面板 搜索并执行当前工作区可用的命令。 新建任务 Ctrl+N 搜索 Ctrl+K 自动化 插件市场
+   远程控制 分组 项目 项目 尚未打开项目 任务 还没有任务 Mode 移动端远程控制 晚上好呀，今天辛苦啦
+   当前没有可用模型。请配置自定义模型。 配置 选择项目 向 Mode 提问，使用 @ 添加上下文，
+   使用 / 选择命令或能力 添加上下文 变更前确认 管理模型 发送",
+ "elapsedMs":7754}
+✔ 真产品 UI：renderer 产物在 Tauri 壳里挂载、window.mode 先于页面脚本、业务帧真的走通 (72571.6612ms)
+ℹ tests 1   ℹ pass 1   ℹ fail 0
+```
+
+**这张输出证了四件事**（每条都在用例里是断言，不是读出来的印象）：
+
+1. `modeAtDocumentStart: "object"`（`modeKeyCountAtDocumentStart: 64`）——**探针在 document-start
+   就读到了 `window.mode`**，而页面的 `type="module"` 脚本还没开始执行。这是 DR-T3-1 那条顺序性质
+   在**真页面、真 webview**上的观测（CI 里的等价断言见 `windowModeInjection.test.mts`）。
+2. `mounted: true` + `rendererStarted: true` + `phase: "ready"`——真 renderer 的入口模块跑完、
+   React 挂在 `#root` 上、启动闸门放行。`uiText` 是**产品界面本身**（命令面板、任务、项目、
+   移动端远程控制、聊天输入区），**不含 `not_implemented_until_m3`**（用例断言了这一条：
+   界面不是错误边界画出来的）。
+3. `acceptedFrames: 55`——**出方向** 55 帧被壳收下并写进 Host 的 stdin；`pumpFrames` 从放行时的
+   `8` 长到 `44`，`pumpFramesGrewAfterReady: true`——**入方向**在放行之后继续有帧。Host 只对请求
+   作答（`parentPort` 为 null 时广播是空操作），所以「入方向持续增长」= 渲染层的请求到了**真服务**
+   并拿到应答。UI 文本里那句「当前没有可用模型。请配置自定义模型。」正是这类应答的产物：
+   隔离沙箱里没有模型配置，真 `model-selection`/provider 服务如实回答空，界面照实渲染。
+4. `degraded` 是**完整**清单（15 条，不截断）：13 条 `not_implemented_noop:*` + 2 条
+   `not_implemented_rejected:*`（`getInstalledEditors`、`canOpenCommunity`）。
+   对照 §10.10：这两条在上一轮是**同步抛**，结果是界面被错误边界接管；改成被拒 Promise 之后
+   界面照常渲染（`uiText` 里没有任何错误屏）。用例的断言是「降级里不得有非 `not_implemented_*`
+   的条目」（缺 Tauri 全局、缺事件 API、订阅失败、invoke 失败都算真坏），
+   而**能力缺失本身必须是可见的**，这正是 `degraded` 的用途。
+
+**这份证据没证什么**（不许把边界读大）：它没有驱动 UI 的某个业务动作（那需要依赖渲染层内部选择器，
+而渲染层源码本任务不可改），所以「业务面可用」的判据是**数据面**（业务帧双向往返 + 服务派生的界面
+内容），不是「点某个按钮完成了某件事」。更强的判据留给 M4/M5 的 E2E。
+
+## 10.10 注入层两轮修法的失败现场（**为什么最终不是「同步抛」**）
+
+第一轮（只给「必选未实现」配同步抛错的桩）真机跑出来的界面是**错误屏**：
+
+```text
+"uiText":"应用界面出了点问题 刚才的页面错误已经被拦住了，所以不会直接白屏。… 
+ not_implemented_until_m3: onRemoteConnectionLog 重试 刷新应用 …"
+```
+
+修法一：按**声明返回形态**把这类成员（返回 disposer / `void` / `Promise<void>`，即「没有要读的值」）
+改成**留痕空操作**。第二轮跑出的是**区域级**错误屏：
+
+```text
+"uiText":"这块界面出了点问题 错误已经限制在当前区域，其它功能可以继续使用。…
+ not_implemented_until_m3: canOpenCommunity 重试此区域 刷新应用 …"
+```
+
+修法二：把「要读值」的那一类（`Promise<T>`，T ≠ void）从**同步抛**改成**返回被拒的 Promise**——
+错误里仍然带着方法名（M1 口径的价值全在），但失败被限制在调用点的 Promise 语义里，
+不再掀翻一棵正在渲染的树。**注入层从此不同步抛任何东西**，第三轮跑出的就是 §10.9 那份干净界面。
+
+**这条偏离要一起读**：M1 的 spec §2 写的是「未实现的方法必须**显式抛出** `not_implemented_until_m3`」。
+本条**保留了那句话的意图**（绝不静默返回假值、错误必须能定位到方法名），但把「抛」的形式
+按**实测**分成同步/异步两种：渲染层在**渲染期**就会不加守卫地调这些方法，
+同步抛的代价是界面被错误边界接管（上面两轮原始输出就是证据）。
+CI 用例把这条口径钉死：既断言「不得同步抛」，也断言拒绝消息里带方法名、且降级必须留痕。
+
+---
+
+## 16. Step 1 的两句可核对陈述（renderer 产物路径 + 首次消费点）
+
+**① 产物路径**：`packages/desktop` 的 renderer 构建输出是 **`packages/desktop/out/renderer`**
+（`packages/desktop/vite.config.ts` 的 `build.outDir = "../../out/renderer"`）。
+它是一个**多入口**产物：`index.html`（主窗口）、`resource-manager.html`、`cua-permission-panel.html`、
+`data-root-decision.html`，外加 `assets/**`、`material-icons/**`、`pdfjs/**`。
+Tauri 的 `frontendDist` 指向的是**装配出来的根** `apps/desktop-tauri/dist`（见 §17），
+根上的 `index.html` 就是它；壳用 `WebviewUrl::App(pick_shell_entry(None))` 加载。
+生产构建（`--mode production`）实测：**总计 130.54 MiB**（4328 个源资产 + 2469 个 `*.map`），
+其中 `*.map` **81.00 MiB**（2469 个），**去掉地图 49.54 MiB**（§13.1 的数字就是这一份）。
+（对照：dev 构建（`sourcemap: true`）是 151.0 MiB / 2770 个地图——**两个数不能混用**，
+本任务先量错过一次，正过来。）
+
+**② 首次消费点**：renderer 在**入口模块求值期**首次消费 `window.mode`——`main.tsx` 的顶层语句
+`const desktopPlatform = createDesktopPlatform({ isLocalDevelopmentRuntime })`
+（`packages/desktop/src/renderer/src/main.tsx:138`）。**在那之前 `window.mode` 已经不能被推迟**，
+理由是 `createDesktopPlatform` 返回的对象字面量里有若干**非惰性**的条件表达式
+（`window.mode.openCuaPermissionOnboarding ? … : undefined` 这类，`desktopPlatform.ts` 的
+对象字面量内）。所以「注入早于页面脚本」不是优化，是**能不能挂上**：缺席时那个表达式
+在模块求值期就抛 `TypeError`，React 永远挂不上。
+
+**这条陈述的读法边界（clean-room）**：①② 只用到了**接口面与模块图**（`vite.config.ts` 是构建配置；
+`main.tsx` 与 `desktopPlatform.ts` 只读了导出签名与**模块顶层的语句结构**）。
+为了让「非惰性」这句不是推论，任务报告登记了一处**必须读的实体**：`desktopPlatform.ts`
+第 60–90 行（对象字面量里那几个条件表达式）——非读它不可，因为「首次消费点在哪」正是本任务
+要写进 spec 的结论，而它由那几行的求值时机决定。其余实现体未读。
+
+## 17. DR-T3-2 的落地：产品页为默认入口，验收台降为开发/诊断入口
+
+**决定**：`dist/` 的根是**真 renderer 的构建产物**（默认入口）；M1 的命令面验收台构建到
+**`dist/dev/`**，由环境变量 `MODE_TAURI_SHELL_ENTRY` 切换（开发跑
+`MODE_TAURI_SHELL_ENTRY=dev/index.html`）。
+
+**发布产物里有没有它**：**没有**。发布路径用
+`pnpm --filter @mode/desktop-tauri run build:frontend-for-tauri`（= 装配脚本 + `--no-bench`），
+它不构建 `dev/`；`tauri.conf.json` 的 `beforeBuildCommand` 就是这一条。代价与收益都是 DR-T3-2
+里写明的：验收台多占体积（实测 1.73 MiB）并把内部命令面（10 条命令 + 深链面板）暴露在产物里，
+而它对用户没有价值；反过来，删掉它就失去命令面的可视化回归面，所以它**留在仓库里、留在开发档**。
+
+**入口挑选规则**（`sidecar_host::pick_shell_entry`，纯函数、有单测）：默认 `index.html`；
+覆写只接受**相对**路径且不含 `..`/盘符/前导分隔符（这个值会直接进 `WebviewUrl::App`，
+允许绝对路径等于把「加载哪个页面」变成任意本地文件读取），不合法一律退回产品页。
+
+## 18. DR-T3-3 三条义务的逐条处置
+
+### ① 阶段精确的失败原因送达渲染层 —— **本任务做掉**（§3 的表、§10.8 的原始输出）
+
+判据是「本任务用不用得上它」：用得上，而且**它直接改变用户看到的东西**。
+壳读 Host 的结构化 stderr 行并把它当失败原因转发（`host_stderr.rs`），两个字段各自独立降级。
+覆盖：`host_stderr.rs` 的单测（含真机那一行的原文）+ `host_lifecycle.rs` 的端到端一条（真起子进程）
++ opt-in 真机失败路径（§10.8）。**顺带的产物**：`test/webviewRoundTrip.test.mts` 的失败判据
+从「粗粒度」改成「阶段精确」，那条断言现在比原来强。
+
+### ② `sequence` 归属 —— **移交 Task 4**
+
+**理由（不是「以后再说」）**：本任务**没有合并两股状态流**。新增的只有「读 Host 终态那一行的
+两个字段」，而**发布状态仍然全部由壳产生**（`StartupMonitor`），`sequence` 仍然是壳自己的单一计数器，
+Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的流里。**不合并就没有第二个拥有者**，
+也就不需要在这一轮定归属——现在去定，等于为一条还不存在的流规定语义。
+触发条件与要定的事写清：Task 4 一旦把 Host 的中途阶段（`preparing_host_storage` 的多段上报、
+`starting_services`）接进壳发布的状态流，就必须**只有一个** `sequence` 拥有者
+（要么壳转发 Host 的序号、要么壳按自己的发布重编号、Host 的序号只作内部诊断），
+否则渲染层的 `acceptState`（拒绝 `sequence <= state.sequence`）会把合并流当旧状态丢掉。
+
+
+### ③ `disk` 摘要 —— **移交（附判据）**
+
+**判据是「渲染层是否消费它」，答案是「不消费」**：本 checkout 里没有任何一处读
+`state.disk`（`packages/ui/src` 里与 disk 有关的全是资源管理器的盘面卡片与 i18n 文案，
+数据来自别的服务；`packages/desktop/src/renderer/src/main.tsx` 里那一处 `disk: []`
+是渲染层自己造占位状态）。它的真产出在 **Electron Host 的 `startupDiskSampler`**
+（`packages/desktop/src/host/startupDiskSampler.ts`，那是另一条宿主路径上的东西）。
+所以现在实现它＝写一段没有消费者的代码。**移交条件**：等有消费方（例如设置页要显示启动期磁盘读数），
+或者等 Task 4/5 把 `startupDiskSampler` 那一层也搬进 sidecar——那时再定「谁产出、谁负责合并」。
+`schema` 要求该字段存在，所以壳继续发空数组，注释里写明了这是**决策**而不是遗忘
+（`crates/sidecar-host/src/startup.rs` 的 `to_state_json`）。
+
+## 19. 本任务的 clean-room 登记
+
+- **新增（全部新写）**：`crates/sidecar-host/src/{window_mode.ts,host_stderr.rs}`、
+  `apps/desktop-tauri/{scripts/build-renderer-for-tauri.ts,src-tauri/src/bin/product_ui_harness.rs}`、
+  `apps/desktop-tauri/test/{windowModeInjection.test.mts,productUiMount.test.mts}`、
+  `apps/desktop-tauri/test/harness/product-ui/probe.ts`；
+- **上游衍生文件里只读接口面**：
+  - `packages/client/src/globals.d.ts`——`interface Window { mode: … }` 的**成员名与可选性/返回类型**
+    （用 `typescript` 编译器 API 读声明，不读任何实现）；
+  - `packages/shared/src/database-startup.ts`——`databaseStartupPhaseSchema` /
+    `databaseStartupErrorCodeSchema` 的**取值集合**与 `canRetryDatabaseStartup` 的**签名与判据来源**
+    （用它解释「为什么阶段精确会影响用户看到什么」，不抄实现）；
+  - `packages/shared/src/generated/tauri-protocol.ts`——`DEEP_LINK_EVENT` 与 `DeepLinkEventKind`
+    的**生成物字面量**（跨语言一致性的真源）；
+  - `packages/ui/src/platform/tauri-invoke-shim.ts`——**是 M1 新写的文件**（不在 baseline 里，
+    已核实），读它的导出切片（`M1_IMPLEMENTED_COMMANDS` / `M1_UNIMPLEMENTED_REQUIRED_METHODS` /
+    `M1_EVENT_SUBSCRIBED_METHODS`）与「未实现的方法显式抛」的口径；
+- **必须读的实体（唯一一处，登记原因）**：`packages/desktop/src/renderer/src/desktopPlatform.ts`
+  **第 60–90 行**——对象字面量里那几个非惰性的 `window.mode.X ? … : undefined` 条件表达式。
+  非读它不可的理由：Step 1 要写下的结论是「renderer 在哪一步**首次消费** `window.mode`」，
+  而「模块求值期就消费」这个判断成立与否，正好取决于那几行的求值时机（惰性箭头函数不算消费）。
+  它直接决定了本任务最关键的那条正确性属性（注入必须先于页面脚本），所以不能靠推理下结论。
+- **未读**：`packages/desktop/src/renderer/**` 的任何其它实现体（`main.tsx` 只读了模块顶层的语句
+  结构与 import 列表）、`packages/desktop/vite.config.ts` 之外的构建脚本内部实现、
+  `packages/rpc/**` 的实现体。**渲染层零改动**：`git diff -- packages/desktop/src/renderer/**` 为空。

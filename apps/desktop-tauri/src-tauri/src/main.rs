@@ -55,12 +55,21 @@ fn main() {
 
         // 窗口必须在 Rust 侧建：`WindowConfig` 没有 `initialization_script` 字段，
         // 配置里的窗口拿不到注入（见 mode_tauri::window 的模块文档）。
+        //
+        // 入口页默认是**真产品 UI**（renderer 的构建产物 `dist/index.html`，M3 Task 3 接线）；
+        // M1 的命令面验收台按 DR-T3-2 保留为开发/诊断入口，用
+        // `MODE_TAURI_SHELL_ENTRY=dev/index.html` 进（挑选规则与白名单在
+        // `sidecar_host::pick_shell_entry`，那边有用例覆盖）。
         mode_tauri::build_host_window(
             &handle,
             mode_tauri::MAIN_WINDOW_LABEL,
-            tauri::WebviewUrl::App(std::path::PathBuf::from("index.html")),
+            tauri::WebviewUrl::App(sidecar_host::pick_shell_entry(
+                std::env::var_os("MODE_TAURI_SHELL_ENTRY").as_deref(),
+            )),
             "Mode",
             &startup_id,
+            // 产品壳不追加任何注入：`window.mode` 已经在桥脚本里（见 crates/sidecar-host/src/bridge.rs）。
+            None,
         )?;
         Ok(())
     });

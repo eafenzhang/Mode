@@ -105,6 +105,20 @@ function startSink(): Promise<Sink> {
   });
 }
 
+/** 装配 `dist/` 根（真 renderer 产物 + 验收台）。它自己清 `dist/`，所以必须最先跑。 */
+function assembleFrontendRoot(): void {
+  const result = spawnSync(
+    process.execPath,
+    ["--import", "tsx", resolve(appDir, "scripts/build-renderer-for-tauri.ts")],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
+  assert.equal(result.status, 0, "装配前端根失败（scripts/build-renderer-for-tauri.ts）");
+  assert.ok(
+    existsSync(join(appDir, "dist/index.html")),
+    "装配后的 dist 里必须有产品页 index.html",
+  );
+}
+
 /** 用仓库自带的 vite 构建一个配置（不经过 pnpm：路径与版本都确定）。 */
 function buildFrontend(configPath: string): void {
   const result = spawnSync(process.execPath, [viteBin, "build", "--config", configPath], {
@@ -229,7 +243,11 @@ test(
   async () => {
     // 顺序不能倒：`frontendDist` 由 `tauri::generate_context!()` 在**编译期**内嵌，
     // 先编 Rust 会把页面漏在外面（Task 0 的 spike §3.2 实测过这个坑）。两条用例共用一次构建。
-    buildFrontend(resolve(appDir, "vite.config.ts"));
+    //
+    // 第一步改走装配脚本（M3 Task 3）：`dist/` 的根现在是**真产品 UI**
+    // （`scripts/build-renderer-for-tauri.ts`），验收台降为 `dist/dev/`。这里连产品页一起装配，
+    // 是为了让本用例编译进去的 `frontendDist` 就是产品形态，而不是「只有测试页的目录」。
+    assembleFrontendRoot();
     buildFrontend(resolve(appDir, "test/harness/host-sidecar/vite.config.ts"));
     buildHarnessBin();
 
@@ -292,13 +310,21 @@ test(
       );
       assert.equal(report.statePhase, "failed");
       assert.equal(report.schemaAccepted, true, "failed 状态必须过真 schema（否则渲染层整条丢掉）");
-      // ② 错码必须是渲染层词汇表里的值，且落在失败发生的那一步上。
-      //    `schemaAccepted: true` 已经证明整条状态（含 errorCode）过了页面里那份**真**
-      //    `databaseStartupStateSchema`（`.strict()`）；这里再钉住具体取值，防止「合法但报错错了」。
-      assert.equal(report.schemaAccepted, true, "failed 状态必须过真 schema（否则渲染层整条丢掉）");
-      // 壳的 reaper 报的是「就绪前退出/传输断开」这一类（Host 在发第一帧之前就死了）。
-      assert.equal(report.errorCode, "transport_closed");
-      assert.equal(report.failedPhase, "starting", "失败发生在「拉起 Host」这一段");
+      // ② **失败原因必须与 Host 知道的同精度**（M3 Task 3 · DR-T3-3 ①）。
+      //    从前壳只能判断「就绪前退出」，于是渲染层收到 `transport_closed`/`starting`；
+      //    现在壳读 Host 的结构化 stderr 行（`startup_failed … failedPhase=… errorCode=…`）
+      //    并把两个字段原样转发。这一步不是措辞问题：渲染层的 `canRetryDatabaseStartup`
+      //    按这两个字段决定给不给「重试」，而 `transport_closed` 在不可重试集合里。
+      assert.equal(
+        report.errorCode,
+        "sql_failed",
+        `失败错码必须来自 Host 的分类（现场是基目录被文件占住 → ENOTDIR）：${JSON.stringify(report)}`,
+      );
+      assert.equal(
+        report.failedPhase,
+        "preparing_host_storage",
+        "失败阶段必须精确到「准备任务索引」那一段，而不是一律 starting",
+      );
       // ③ 闸门**不许**放行：失败就是失败，不能给出「挂上了但什么都不工作」的形态。
       assert.equal(report.gateOpened, false, "启动失败时闸门不得放行");
       assert.equal(report.initializeObserved, false, "失败路径下不该有 Initialize");

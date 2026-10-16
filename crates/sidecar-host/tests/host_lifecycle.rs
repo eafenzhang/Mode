@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use sidecar_host::process::process_exists;
 use sidecar_host::{
-    HostConfig, HostError, HostHandle, StartupErrorCode, StartupPhase, StartupSnapshot,
+    HostConfig, HostError, HostHandle, StartupErrorCode, StartupPhase, StartupSnapshot, StartupStage,
 };
 
 /// 仓库根（`crates/sidecar-host` 上溯两级）。
@@ -241,7 +241,47 @@ fn a_host_that_exits_before_ready_reports_failed_with_an_error_code() {
         Some(StartupErrorCode::TransportClosed),
         "就绪前退出必须报 transport_closed（渲染层据此画失败屏，而不是等超时）"
     );
-    assert_eq!(snapshot.failed_phase, Some(StartupPhase::Starting));
+    assert_eq!(snapshot.failed_phase, Some(StartupStage::Starting));
+    let _ = handle.shutdown();
+}
+
+#[test]
+fn a_host_that_reports_a_stage_precise_failure_has_it_forwarded_verbatim() {
+    // DR-T3-3 ①：Host 知道的是 `sql_failed` / `preparing_host_storage`，壳必须把这两个字段
+    // **原样**送到渲染层，而不是塌成 `transport_closed` / `starting`。这不只是措辞：
+    // 渲染层的 `canRetryDatabaseStartup` 按 `failedPhase` + `errorCode` 决定给不给「重试」，
+    // 而粗粒度原因（transport_closed）会把它算成不可重试。
+    let script = concat!(
+        "process.stderr.write('[mode-host-sidecar] startup_failed phase=failed ",
+        "failedPhase=preparing_host_storage errorCode=sql_failed error=ENOTDIR: not a directory');",
+        "process.exit(1);"
+    );
+    let mut config = silent_config("stage-precise", script);
+    config.ready_timeout = Duration::from_secs(30);
+
+    let handle = HostHandle::spawn(config).expect("拉起子进程");
+    let snapshot = wait_for_failed(&handle, Duration::from_secs(20));
+    assert_eq!(snapshot.phase, StartupPhase::Failed);
+    assert_eq!(
+        snapshot.error_code,
+        Some(StartupErrorCode::SqlFailed),
+        "Host 报的错码必须原样送到渲染层（不是壳自己判断的 transport_closed）"
+    );
+    assert_eq!(
+        snapshot.failed_phase,
+        Some(StartupStage::PreparingHostStorage),
+        "失败阶段必须精确到 Host 报的那一段"
+    );
+    // 渲染层读的是序列化之后的字段名/取值，所以在这里也钉一遍（.strict() schema，写错就整条丢）。
+    let serialized = snapshot.to_state_json().to_string();
+    assert!(
+        serialized.contains("\"errorCode\":\"sql_failed\""),
+        "序列化后的 errorCode 必须是 sql_failed：{serialized}"
+    );
+    assert!(
+        serialized.contains("\"failedPhase\":\"preparing_host_storage\""),
+        "序列化后的 failedPhase 必须是 preparing_host_storage：{serialized}"
+    );
     let _ = handle.shutdown();
 }
 

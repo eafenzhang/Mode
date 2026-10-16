@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "identifier": "dev.mode.app",
   "build": {
-    "beforeBuildCommand": "pnpm --dir ../.. --filter @mode/desktop-tauri run build:frontend",
+    "beforeBuildCommand": "pnpm --dir ../.. --filter @mode/desktop-tauri run build:frontend-for-tauri",
     "frontendDist": "../dist"
   },
   "app": {

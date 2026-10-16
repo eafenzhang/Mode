@@ -16,17 +16,26 @@ pub const MAIN_WINDOW_LABEL: &str = "main";
 ///
 /// `url` 是页面来源：**必须是本地内容（asset 协议）**——远端 `http://` 来源拿不到 app 命令
 /// （spike §4.2 实测：`!is_local` 会强制走 ACL，而 app 命令不在 `allowed_commands` 里）。
+///
+/// `extra_init_script` 追加一段注入脚本（排在桥之后、页面脚本之前）。产品壳传 `None`；
+/// 真产品 UI 的 opt-in 集成测试用它挂一个**探针**（页面本身是 renderer 的产物，不能改，
+/// 详见 `docs/specs/tauri-renderer-host.md` 的覆盖分工）。追加而不是替换，
+/// 所以「桥先到、探针后到」这个相对顺序是确定的。
 pub fn build_host_window<R: Runtime>(
     app: &AppHandle<R>,
     label: &str,
     url: WebviewUrl,
     title: &str,
     startup_id: &str,
+    extra_init_script: Option<&str>,
 ) -> tauri::Result<WebviewWindow<R>> {
-    tauri::WebviewWindowBuilder::new(app, label, url)
+    let mut builder = tauri::WebviewWindowBuilder::new(app, label, url)
         .title(title)
         .inner_size(1280.0, 800.0)
         .resizable(true)
-        .initialization_script(sidecar_host::bridge::bridge_script(startup_id))
-        .build()
+        .initialization_script(sidecar_host::bridge::bridge_script(startup_id));
+    if let Some(script) = extra_init_script {
+        builder = builder.initialization_script(script);
+    }
+    builder.build()
 }

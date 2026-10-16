@@ -32,7 +32,18 @@
   var bridgeState = {
     startupId: STARTUP_ID,
     portDelivered: false,
+    /** 入方向（Host → 页面）搬运过的帧数。 */
     pumpFrames: 0,
+    /**
+     * 出方向（页面 → Host）搬运过的帧数。
+     *
+     * 与 `pumpFrames` 分开计数是因为两者的**语义不同**：入方向一上来就有 Host 的 `Initialize`，
+     * 所以它非零不能说明渲染层发过东西；出方向非零才说明**页面侧**真的在这条端口上说话了
+     * （真产品 UI 挂载后的 M3 Task 3 E2E 用它当业务流量证据）。
+     */
+    sentFrames: 0,
+    /** 其中壳**收下**并且已经写进 Host stdin 的帧数（出方向端到端可用的强证据）。 */
+    acceptedFrames: 0,
     stateSequence: null,
     phase: null,
     error: null,
@@ -67,9 +78,16 @@
   // 出方向：协议层发出来的本来就是 Uint8Array（VSBuffer.buffer），整包过 IPC 即可。
   shellPort.addEventListener("message", function (event) {
     try {
-      internals.invoke(CMD_SEND, event.data).catch(function (error) {
-        fail("host_send_failed", error);
-      });
+      bridgeState.sentFrames += 1;
+      internals
+        .invoke(CMD_SEND, event.data)
+        .then(function () {
+          // 壳收下了这一帧（已写进 Host 的 stdin）——出方向可用的**强**证据。
+          bridgeState.acceptedFrames += 1;
+        })
+        .catch(function (error) {
+          fail("host_send_failed", error);
+        });
     } catch (error) {
       fail("host_send_threw", error);
     }

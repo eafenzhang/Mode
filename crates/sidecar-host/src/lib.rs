@@ -29,17 +29,20 @@
 //! ## 职责
 //!
 //! - [`process`]：spawn / 监督 / 退出清理（不留孤儿）/ 就绪与失败的单赢家判定；
+//! - [`host_stderr`]：Host stderr 的留痕与**结构化失败事实**抽取（DR-T3-3 ①：把「准备任务索引
+//!   时存储打开失败」这类阶段精确的原因送到渲染层，而不是塌成粗粒度 `transport_closed`）；
 //! - [`startup`]：发布给渲染层的 `DatabaseStartupState`（壳是唯一发布者，见该模块注释）；
 //! - [`frame`]：`[4 字节大端长度][payload]` 帧编解码；
-//! - [`bridge`]：注入 webview 的桥脚本模板与占位符替换。
+//! - [`bridge`]：注入 webview 的桥脚本模板（含 `window.mode` 的平台面适配层）与占位符替换。
 
 pub mod bridge;
 pub mod frame;
+pub mod host_stderr;
 pub mod process;
 pub mod startup;
 
 pub use process::{HostConfig, HostError, HostHandle};
-pub use startup::{StartupErrorCode, StartupPhase, StartupSnapshot};
+pub use startup::{StartupErrorCode, StartupPhase, StartupSnapshot, StartupStage};
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -81,6 +84,32 @@ pub fn pick_entry(env_override: Option<&OsStr>, candidates: &[PathBuf]) -> Optio
         return path.exists().then_some(path);
     }
     candidates.iter().find(|candidate| candidate.exists()).cloned()
+}
+
+/// 壳加载的**前端入口页**（webview 的 `WebviewUrl::App(…)`）挑选：纯函数，因此可被用例覆盖。
+///
+/// 产品页是默认（`index.html`，真 renderer 的构建产物）。M1 的命令面验收台按 DR-T3-2
+/// 保留为**开发/诊断入口**：它是对拍与命令面回归的工具，不能一删了之，但也不该进发布产物
+/// （多占体积、并把内部命令面暴露出去）。所以它由 `MODE_TAURI_SHELL_ENTRY` 显式切换
+/// ——开发跑 `MODE_TAURI_SHELL_ENTRY=dev/index.html` 就能进验收台。
+///
+/// 白名单两条，理由：
+///
+/// 1. 只接受**相对**路径（不含盘符/前导分隔符/`..`）：这个值会直接进 `WebviewUrl::App`，
+///    允许绝对路径或上跳就等于把「壳加载哪个页面」变成任意本地文件读取；
+/// 2. 空值视同未设置（与 `MODE_DATA_BASE_DIR` / `MODE_HOST_SIDECAR_ENTRY` 同口径）。
+pub fn pick_shell_entry(env_override: Option<&OsStr>) -> PathBuf {
+    let default = Path::new("index.html");
+    let Some(raw) = env_override.filter(|value| !value.is_empty()) else {
+        return default.to_path_buf();
+    };
+    let Some(text) = raw.to_str() else {
+        return default.to_path_buf();
+    };
+    if text.starts_with('/') || text.starts_with('\\') || text.contains(':') || text.contains("..") {
+        return default.to_path_buf();
+    }
+    PathBuf::from(text)
 }
 
 #[cfg(test)]
@@ -153,5 +182,32 @@ mod tests {
             "没有覆写时取第一个存在的候选"
         );
         assert_eq!(pick_entry(None, &[PathBuf::from("missing-1")]), None);
+    }
+
+    #[test]
+    fn shell_entry_defaults_to_the_product_page_and_only_allows_relative_overrides() {
+        assert_eq!(
+            pick_shell_entry(None),
+            PathBuf::from("index.html"),
+            "默认必须是产品页（真 renderer 的产物），而不是验收台"
+        );
+        assert_eq!(
+            pick_shell_entry(Some(OsStr::new("dev/index.html"))),
+            PathBuf::from("dev/index.html"),
+            "验收台按 DR-T3-2 作开发入口：相对路径的覆写要生效"
+        );
+        assert_eq!(
+            pick_shell_entry(Some(OsStr::new(""))),
+            PathBuf::from("index.html"),
+            "空覆写等于没有覆写"
+        );
+        // 这个值会直接进 `WebviewUrl::App`：绝对路径与上跳都不接受，一律退回产品页。
+        for hostile in ["C:/Windows/win.ini", "/etc/passwd", "\\\\server\\share", "../../secret.html"] {
+            assert_eq!(
+                pick_shell_entry(Some(OsStr::new(hostile))),
+                PathBuf::from("index.html"),
+                "{hostile} 不是合法的壳入口，必须退回产品页"
+            );
+        }
     }
 }
