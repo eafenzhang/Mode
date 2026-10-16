@@ -90,6 +90,7 @@ MB 级，并让每次锁内 RMW 都背上这份体积。
 ## 非目标
 
 - 不改队列上限、丢最旧语义与跨对话准入（`bot-workspace-turn-admission.md`）；
-- **不做附件缓存的清理策略**（既有 `cacheResolvedAttachment` 本就长期保留文件，属存量问题，
-  另立项；本 spec 不扩大也不修复它——只是新增的入队路径复用同一目录）；
+- **附件缓存的清理策略不在本 spec**——已另立项：[bot-attachment-cache-retention.md](./bot-attachment-cache-retention.md)
+  （2026-10-16 复核：该缓存不仅没有保留期，还被存储清理按 `config` 类保护掉，属无界增长，
+  不再是"存量问题"）。本 spec 只保证新增的入队路径复用同一目录；
 - 不改即时（非排队）消息的附件处理链路。

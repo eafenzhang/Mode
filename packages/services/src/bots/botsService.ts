@@ -142,6 +142,10 @@ import {
 import { createFeishuBotProvider } from "./providers/feishuProvider.js";
 import { formatBotMessage, type BotMessageId } from "./messages.js";
 import { drainCompleteBotReplySegments, hasSentenceBoundary } from "./botText.js";
+import {
+  BOT_ATTACHMENT_CACHE_PRUNE_INTERVAL_MS,
+  pruneAttachmentCache,
+} from "./attachmentCacheRetention.js";
 import { createGroupHistoryBuffer, formatGroupHistoryContext } from "./groupHistory.js";
 import { createGroupHistoryPersistence } from "./groupHistoryStore.js";
 import {
@@ -895,6 +899,60 @@ export function createBotsService(
   /** 改动历史后排队落盘（去抖），失败只记 warn——历史丢几条不影响回合正确性。 */
   function persistGroupHistory(): void {
     groupHistoryPersistence.schedule(groupHistory.serialize());
+  }
+
+  /**
+   * 附件缓存清理（docs/specs/bot-attachment-cache-retention.md）：缓存写入后没有任何回收路径，
+   * 且被存储清理按 config 类保护掉（CLEANABILITY.config = none），属无界增长，故在这里补
+   * 保留期与总量上限。节流时间戳是进程内的，可丢——重启后多跑一次无害。
+   */
+  let attachmentCachePrunedAt = 0;
+  /** 受保护集合：仍被排队消息引用的附件文件（R3）。权威来源就是状态文件，不新增状态。 */
+  function collectQueuedAttachmentPaths(state: BotsStateFile): Set<string> {
+    const paths = new Set<string>();
+    for (const channel of Object.values(state.bots)) {
+      for (const context of Object.values(channel.conversations)) {
+        for (const queued of context.queuedMessages ?? []) {
+          for (const attachment of queued.attachments ?? []) {
+            if (attachment.localPath) {
+              paths.add(attachment.localPath);
+            }
+          }
+        }
+      }
+    }
+    return paths;
+  }
+  async function pruneAttachmentCacheIfDue(): Promise<void> {
+    const now = Date.now();
+    if (now - attachmentCachePrunedAt < BOT_ATTACHMENT_CACHE_PRUNE_INTERVAL_MS) {
+      return;
+    }
+    attachmentCachePrunedAt = now;
+    try {
+      // 受保护集合必须在枚举之前取状态快照：补投侧读不到 localPath 会让**整条**排队消息
+      // （含正文）一起丢，不是只丢附件，所以这批文件一个都不能删。
+      const protectedPaths = collectQueuedAttachmentPaths(await repo.readState());
+      const result = await pruneAttachmentCache({
+        rootDir: join(getAppConfigDir(), "bot-attachments"),
+        protectedPaths,
+        now,
+      });
+      if (result.deletedCount > 0 || result.failedCount > 0) {
+        botsLogger.info(
+          undefined,
+          `attachment cache pruned deleted=${result.deletedCount} freedBytes=${result.freedBytes} failed=${result.failedCount}`,
+        );
+      }
+    } catch (error) {
+      // 后台维护，失败只记 warn：不能让它把入站链路带崩（R4）。
+      botsLogger.warn(
+        undefined,
+        `attachment cache prune failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
   /** 一次性迁移标记：旧绑定表导入（settings.botBindingByWorkspace）与 path→identity key 升级共用。 */
   let workspaceKeyUpgradeChecked = false;
@@ -2183,10 +2241,21 @@ export function createBotsService(
       };
     }
     if (attachment.localPath) {
-      return {
-        attachment,
-        data: await readFile(attachment.localPath),
-      };
+      try {
+        return {
+          attachment,
+          data: await readFile(attachment.localPath),
+        };
+      } catch (error) {
+        // Bugfix: 缓存文件可能已被保留期清理（docs/specs/bot-attachment-cache-retention.md R5）。
+        // 必须返回 null 而非抛出——补投侧的 handleMessage 外层只有 warn + return，
+        // 抛出去会让整条排队消息（含正文）一起丢，而不只是丢这个附件。
+        // 只吞 ENOENT：权限等其他读错误是真的故障，仍要暴露出来。
+        if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+          return null;
+        }
+        throw error;
+      }
     }
     const provider = providers[bot.provider];
     const downloaded = await provider?.downloadAttachment?.(bot, attachment, actor);
@@ -4125,6 +4194,9 @@ export function createBotsService(
     // 群历史在首个入站前恢复一次：写入点（withAuthorizedContext 的未授权分支）在这条链路下游，
     // 而那里不会经过 readContext，所以恢复钩子必须放在这里（唯一的入站入口）。
     await ensureGroupHistoryLoaded();
+    // 附件缓存清理走同一入口（进程内节流，非首次也会被节流挡掉）。不 await 到底：
+    // 清理是后台维护，不该让入站等它跑完目录枚举。
+    void pruneAttachmentCacheIfDue();
     const locale = await readMessageLocale();
     const config = await repo.readConfig();
     const callbackBot = findCallbackBot(config, provider, payload);
