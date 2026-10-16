@@ -227,14 +227,21 @@ Rust 侧用例**不实现第二份比较器**——它把自身投影成同一�
 | 正文形状 | 每行 `"{行号}` + 制表符 + `{该行文本}"`，用换行连接；按换行切段并**保留末尾空段**；每段去掉**行尾一个**回车（行内回车保留） |
 | 行号 | `number = offset + 返回序号`，`offset` 缺省 1；起点 = `max(offset-1, 0)`。所以 `offset: 0` 从 **0** 开始编号（怪癖，实测照实现） |
 | `limit` | 是**行数**（不是结束行号）；缺省 = 无上限（2500 行的文件一次读完，声明的「up to 2000 lines」与实测不符） |
-| `offset` 越界 | **成功**，正文是 `<system-reminder>Warning: …shorter than the provided offset ({offset}). The file has {行数} lines.…`；判据是 `offset >= 行数`（行数含末尾空段：空文件按 1 行算） |
+| `offset` 越界 | **成功**，正文是提醒。判据是 `offset > **真实行数**`，真实行数**不含末尾空段**（`"a
+b"`→2、`"a
+b
+"`→2、`""`→0）：`"a
+b"` 配 offset 2 给正文，而 `"a
+b
+"` 配 offset 3 给 `…shorter than the provided offset (3). The file has 3 lines.`（消息里的行数是**段数**）。空文件另有一支：`offset: 1` 走上面那条，`offset > 1` 走 `…the contents are empty.` |
 | 路径 | 相对 `file_path` 按**会话工作目录**解析（声明说必须绝对路径，实测不然）；未知入参键被忽略（声明的 `additionalProperties: false` 没被执行） |
 | token 预算 | 估算 `ceil(字节数/3)`；上限 **25000**；判据是**严格大于**；作用在**被选中的范围**（源文本字节数）上，不是整个文件 |
-| 超预算：给了范围 | `offset` **非零**或给了 `limit` → 错误 `read_output_too_many_tokens`，`message` 里的 token 数就是选中范围的估算值 |
+| 超预算：给了范围 | `offset` **键存在且非零**、或给了 `limit` → 错误 `read_output_too_many_tokens`，`message` 里的 token 数就是选中范围的估算值。**`offset: 0` 不算显式**（超预算的单行文件加 `offset: 0` 得到的是部分视图） |
 | 超预算：没给范围 | 成功 + **部分视图**：提醒头 + 按行累加「行长+1」直到 **63750** 字节预算（预算窗口由七个样本夹为 [63750, 63754)）；首行自身就超预算时改走另一条提醒头 + 首行截到 63750 个字符（两个样本给出一模一样的正文长度 64043） |
-| 文件大小 | **256KB** 上限只在「没给范围」的路径上生效（给了 `limit` 的 304999 字节文件走的是 token 错误） |
+| 文件大小 | **256KB** 上限只在**没给 `limit`** 时生效（给了 `limit: 5000` 的 304999 字节文件走 token 错误），且**先于** token 检查（没给 `limit` 的 302499 字节文件加 `offset: 2` 得到大小错误，尽管按 token 也会超）；`message` 里的 KB 数是**整个文件**的大小 |
 | 扩展名 | 二进制**正表**（`.bin`/`.exe`/`.zip`）在读前预检拒绝；图片（`.png`/`.jpg`/`.gif`/`.webp`）属 M2 范围外、返回 fail-loud 标记；**其余一律按文本读**（含没扩展名的 `Makefile` 与没观察过的 `.xyz`——所以「文本」是默认档，不是白名单） |
 | 编码 | 含 NUL（或非法 UTF-8）→ `FileSystemPortError` / `unsupported`，`message` = `Unsupported or binary text encoding: {path}` |
+| 越界提醒的先后 | 提醒**先于**两道上限（超预算的单行文件加 `offset: 2` 得到提醒、不是 token 错误） |
 | **会话内重复读** | 同一会话里**同入参**再读同一文件 → 成功但正文是 `Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.`。键 = **解析后的路径 + range**；判「文件变了没有」用 **mtime**（只改 mtime 也给正文；改内容但把 mtime 恢复仍给填充语）；**错误不去重**；跨 turn 仍然命中（状态是会话级的） |
 
 第三层（事件流）对拍在只读切片上**尚未**做：Rust 侧只发工具面事件（见 `crates/agent-core/src/session.rs`），
@@ -324,7 +331,7 @@ mock 的应答是**请求内容的纯函数**，不是计数器也不是随机�
 
 〔**Task 2 观察，2026-10-16，待裁决**〕上面那句「只读切片是 `Read` / `Glob` / `Grep`」**与实测不符**：
 `MODE_KNOWN_TOOL_NAMES` 是**渲染用**的名字表（UI 渲染历史会话的工具行要用它），不是运行时的注册表。
-按 clean-room 的黑盒对拍（探针 `packages/desktop/tests/agent-runtime-oracle/probe-read-only.mts`
+按 clean-room 的黑盒对拍（探针 `packages/desktop/tests/agent-runtime-oracle/probe-tool-surface.mts`
 的 `tools` / `absence` 两组，命令与原始输出见该文件头部）：
 
 - 运行时在 stdio 会话面**固定声明 21 条工具**，只读切片里**只有 `Read`**；

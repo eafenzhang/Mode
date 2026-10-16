@@ -10,7 +10,7 @@
 //! `packages/shared/src/tool-identity.ts` 的 `MODE_KNOWN_TOOL_NAMES` 推出来的，而那张表是
 //! **渲染用**的名字表（UI 要渲染历史会话里的工具行），不是运行时的注册表。
 //!
-//! 黑盒观察（2026-10-16，探针 `packages/desktop/tests/agent-runtime-oracle/probe-read-only.mts`
+//! 黑盒观察（2026-10-16，探针 `packages/desktop/tests/agent-runtime-oracle/probe-tool-surface.mts`
 //! 的 `tools` / `absence` 两组）：
 //!
 //! 1. 运行时对外声明的工具清单是固定的 21 条，其中只读切片里**只有 `Read`**；

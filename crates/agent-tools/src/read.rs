@@ -1,7 +1,7 @@
 //! `Read`：读一个文本文件并按 `cat -n` 形式带行号返回。
 //!
 //! **每一条语义都来自黑盒观察**（2026-10-16，探针
-//! `packages/desktop/tests/agent-runtime-oracle/probe-read-only.mts` 的 `read` / `trunc` /
+//! `probe-read.mts`（`read` / `trunc` / `limit-edge` / `partial` / `ext` / `offset-warning` 组）
 //! `limit-edge` 三组；行为夹具 `fixtures/read-offset-edges.json`、`read-error-paths.json`
 //! 把其中最要紧的那些逐字钉住）。本文件不读旧实现的实现体。
 //!
@@ -13,11 +13,11 @@
 //! （探针 `tools` 组打印的那条 `Read` 声明）。两条实测与声明不符，照实记录、**按实测实现**：
 //!
 //! - 声明说 `additionalProperties: false`，实测多一个未知键（`nope: 1`）**照样成功**
-//!   （探针 `read` #14；夹具 `read-offset-edges` 里没有它，见下条说明）。
+//!   （`probe-read.mts` 的 `read` 组 `unknown-key`）。
 //! - 声明说 `file_path` 必须是绝对路径，实测相对路径按会话工作目录解析并成功
-//!   （探针 `read` #13；夹具 `read-offset-edges` 的工具调用 #5 就是这条）。
+//!   （`probe-read.mts` 的 `read` 组 `no-trailing-newline` 同组；夹具 `read-offset-edges` 第 6 个调用就是这条）。
 //! - 声明说「Reads up to 2000 lines by default」，实测 2500 行的文件一次读到 2500 行
-//!   （探针 `trunc` #1），即**没有** 2000 行默认上限——默认上限是 token 预算。
+//!   （`probe-read.mts` 的 `trunc` 组 `slim-2500x60` 同组的 `bytes-74999`），即**没有** 2000 行默认上限。
 //!
 //! ## 2. 分行、行尾 `\r`、行号
 //!
@@ -27,7 +27,7 @@
 //! - 返回正文 = 各行 `"{number}\t{text}"` 用 `\n` 连接；
 //!   `number = offset + 返回序号`（`offset` 缺省为 1）。所以 `offset: 1` 从 1 编号，
 //!   而 `offset: 0` 会从 **0** 开始编号、且从第 1 行开始取（起点 = `max(offset-1, 0)`）——
-//!   `offset: 0` 的这条怪癖是实测（探针 `read` #4：`"1\n2\n3\n"` → `"0\t1\n1\t2\n2\t3\n3\t"`）。
+//!   `offset: 0` 的这条怪癖是实测（`probe-read.mts` 的 `read` 组 `offset-0`：`"1\n2\n3\n"` → `"0\t1\n1\t2\n2\t3\n3\t"`）。
 //! - `limit` 是**行数**不是结束行号（`offset: 2, limit: 1` → 只回第 2 行）。
 //!
 //! ## 3. `offset` 越过最后一行：**成功**，正文是一条 system-reminder
@@ -86,20 +86,36 @@
 //! 校验顺序在观察里没有两条同时触发的样本，故本实现的顺序是**选定**的（先 JSON Schema 的
 //! 类型/范围闸门、再 zod 精化、最后路径非空），并在下面的注释里逐处标出。
 //!
-//! # 本实现**刻意不做**的两件事（不是遗漏，是 M2 无法忠实实现）
+//! # `offset` 越界提醒与两道上限的**先后**
 //!
-//! 1. **隐式路径的部分视图行数**：文件超 token 预算又没有 `offset`/`limit` 时，运行时返回
-//!    一条提醒头 + 前若干行（2500×60 的文件给的是「lines 1-1045 of 2500」）。这条提醒头的
-//!    **文案**是逐字观察到的（[`PARTIAL_VIEW_HEADER_TEMPLATE`]），但**截取多少行**的规则
-//!    只从一个样本反推不出来（不是按字节预算：1045 行格式化后 66818 字节 + 头 267 字节，
-//!    远小于 25000×3；也不是按行数比例：1045/2500 与 25000/50833 不等）。按纪律**不猜**：
-//!    这条路径返回 [`crate::unimplemented_surface`]，它的 `error.type` 是 M2 内部标记，
-//!    不可能被误当成 oracle 答复（`agent-core` 的对拍用例显式断言它不出现）。
-//! 2. **图片/视频扩展名**：实测扩展名 `.PNG`（大小写不敏感）会被导到图片读取路径
-//!    （内容不是真图片时答复 `Unable to decode image data` / `read_image_processing_failed`）。
-//!    图片与视频面在 M2 范围之外（要模态内容与解码），本实现对**观察到的** `png`
-//!    返回 [`crate::unimplemented_surface`]；其余扩展名集合没有观察，不猜。
-//!    **残留风险**：`.jpg` 等未观察到的图片扩展名会被当文本处理。
+//! 提醒**先于**两道上限（实测：超预算的单行文件加 `offset: 2` 得到的是提醒、不是 token 错误），
+//! 判据是 `offset > 真实行数`，而**真实行数不含末尾那个空段**：
+//!
+//! | 文件 | 段数 | 真实行数 | `offset` | 结果 |
+//! | --- | --- | --- | --- | --- |
+//! | `"a\nb"` | 2 | 2 | 2 | 正文（`2\tb`） |
+//! | `"a\nb\n"` | 3 | 2 | 3 | 提醒 `…offset (3). The file has 3 lines.` |
+//! | `"1\n2\n3\n"` | 4 | 3 | 3 | 正文 |
+//! | `""` | 1 | 0 | 1 | 提醒 `…offset (1). The file has 1 lines.` |
+//! | `""` | 1 | 0 | 2 | **另一条**提醒 `…the contents are empty.` |
+//! 全部来自 `probe-read.mts` 的 `offset-warning` 组；其中「同段数、不同末尾」的两行是它给出的
+//! 决定性样本（`w-twoline-offset-2` 与 `w-threeline-offset-3`）。
+//!
+//! 上限的先后也已实测：**没给 `limit` 时大小上限在 token 检查之前**（302499 字节的文件加
+//! `offset: 2` 得到大小错误），而**给了 `limit` 时没有大小上限**（304999 字节的文件加
+//! `limit: 5000` 得到 token 错误）。`offset: 0` 既不算显式、也让路径保持隐式
+//! （超预算的单行文件加 `offset: 0` 得到**部分视图**），所以「显式」的判据是
+//! 「`offset` 键存在且非零，或给了 `limit`」。
+//!
+//! # 本实现**刻意不做**的唯一一件事：图片面
+//!
+//! 实测 `png`/`jpg`/`gif`/`webp` 会被导到图片读取路径（内容不是真图片时答复
+//! `Unable to decode image data` / `read_image_processing_failed`）。图片与视频要模态内容与解码，
+//! 属 M2 范围外，所以这一档（以及**没观察到的**扩展名里可能是图片的那些）返回
+//! [`crate::unimplemented_surface`]；`agent-core` 的对拍用例显式断言这个标记不出现。
+//! 文本是**默认档**（`.xyz` 这种没观察过的扩展名也按文本读成功，见夹具
+//! `read-extension-tables`），所以「未观察到的扩展名」不构成缺口；残留未知只是
+//! **没观察到的二进制扩展名**（见报告 §8.4）。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -149,6 +165,11 @@ pub const TOKEN_LIMIT: u64 = 25_000;
 ///
 /// 边界本身（`>` 还是 `>=`）没有样本落在 262144 上，取 `>`：实测里 302499 触发、152499 不触发。
 pub const FILE_SIZE_LIMIT_BYTES: u64 = 262_144;
+
+/// 观察值：**空文件 + `offset > 1`** 时那条 system-reminder（`offset-warning` 组的
+/// `w-empty-offset-2` 逐字录到）。空文件 + 缺省 `offset: 1` 走的是下面那条越界提醒。
+pub const EMPTY_FILE_TEMPLATE: &str =
+    "<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>";
 
 /// 观察值：`offset` 越界时那条 system-reminder 的模板。
 pub const OFFSET_WARNING_TEMPLATE: &str = "<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {lines} lines.</system-reminder>";
@@ -461,6 +482,18 @@ fn extension_of(path: &Path) -> Option<String> {
         .map(str::to_lowercase)
 }
 
+/// 「真实行数」= 段数减去**末尾那个空段**（文件以换行结尾时切出来的空段不算一行）。
+///
+/// 这是越界提醒的判据（见 `select_and_format`）："\n"a\nb"\n" 是 2，"\n"a\nb\n"\n" 也是 2，
+/// `""` 是 **0**（空文件还有单独一支提醒）。实测依据在 `probe-read.mts` 的 `offset-warning` 组。
+fn real_line_count(content: &str, segments: usize) -> i64 {
+    if content.is_empty() {
+        return 0;
+    }
+    let trailing = usize::from(content.ends_with('\n'));
+    i64::try_from(segments - trailing).unwrap_or(i64::MAX)
+}
+
 /// 按 `\n` 切段并去掉每段行尾的一个 `\r`；末尾空段保留。
 fn split_lines(content: &str) -> Vec<&str> {
     content
@@ -550,12 +583,26 @@ fn mtime_of(path: &str) -> Option<std::time::SystemTime> {
 fn select_and_format(content: &str, args: &Value, bytes: &[u8]) -> Result<ToolOutcome, ToolError> {
     let lines = split_lines(content);
     let line_count = lines.len();
-    let offset = integer_field(args, "offset")?.unwrap_or(1);
+    let offset_arg = integer_field(args, "offset")?;
+    // 缺省 offset 是 1（行号从 1 起算），但**缺省**与**显式给 0** 在下面要分开：
+    // 缺省不是「显式范围」，而显式给 0 也不是（实测 `w-big-overbudget-offset-0`）。
+    let offset = offset_arg.unwrap_or(1);
     let limit = integer_field(args, "limit")?;
-    // 「显式」= `offset` 或 `limit` 任一出现（实测：只给 `offset: 2` 也走严格错误）。
-    let explicit = args.get("offset").is_some() || limit.is_some();
+    // 「显式」的判据由实测夹出来（`probe-read.mts` 的 `offset-warning` / `trunc` 组）：
+    // 只给 `offset: 2` → 走严格错误（显式）；而 **`offset: 0` 走隐式路径**——超预算的单行文件
+    // （75001 字节）加 `offset: 0` 得到的是**部分视图**（正文 64043 字节），加 `offset: 2`
+    // 得到的是越界提醒。所以判据是「`offset` 非零」，不是「`offset` 键存在」。
+    let explicit = offset_arg.is_some_and(|value| value != 0) || limit.is_some();
 
-    if offset >= line_count as i64 {
+    // 越界提醒**先于**两道上限判断（实测：超预算的单行文件加 `offset: 2` 给提醒、不是 token 错误）。
+    // 判据是 `offset > 真实行数`，而**真实行数不含末尾那个空段**："\n"a\nb"\n"（2 段、
+    // 末尾非空）配 offset 2 给正文，而 "\n"a\nb\n"\n"（3 段、末尾空）配 offset 3 给提醒。
+    // 两处提醒文案都由 `offset-warning` 组逐字录到。
+    let real_lines = real_line_count(content, line_count);
+    if offset > real_lines {
+        if content.is_empty() && offset > 1 {
+            return Ok(ToolOutcome::text(EMPTY_FILE_TEMPLATE));
+        }
         return Ok(ToolOutcome::text(
             OFFSET_WARNING_TEMPLATE
                 .replace("{offset}", &offset.to_string())
@@ -573,33 +620,33 @@ fn select_and_format(content: &str, args: &Value, bytes: &[u8]) -> Result<ToolOu
     };
     let selected = &lines[start..end];
 
-    if explicit {
-        let selected_bytes = source_bytes(selected);
-        let tokens = estimated_tokens(selected_bytes);
-        if tokens > TOKEN_LIMIT {
+    // 大小上限（256KB）**只在没给 `limit` 时生效**，而且**先于** token 检查：实测
+    // ① 给了 `limit: 5000` 的 304999 字节文件得到的是 token 错误（不是大小错误）；
+    // ② 没给 `limit` 的 `wide.txt`（302499 字节）加 `offset: 2` 得到的是**大小错误**
+    //    （哪怕按 token 算它也会超）——所以大小检查在 token 检查之前。
+    let file_size = bytes.len() as u64;
+    if limit.is_none() && file_size > FILE_SIZE_LIMIT_BYTES {
+        return Err(ToolError {
+            error_type: "tool_execution_failed",
+            message: TOO_LARGE_TEMPLATE.replace("{kb}", &kilobytes(file_size)),
+            code: Some("TOOL_EXECUTION_FAILED"),
+            detail: Some("code=read_file_too_large".to_string()),
+        });
+    }
+
+    let selected_tokens = estimated_tokens(source_bytes(selected));
+    if selected_tokens > TOKEN_LIMIT {
+        // 显式范围（`offset` 非零或给了 `limit`）→ 直接报错；两者都没给 → 给**部分视图**。
+        if explicit {
             return Err(ToolError {
                 error_type: "tool_execution_failed",
-                message: TOO_MANY_TOKENS_TEMPLATE.replace("{tokens}", &tokens.to_string()),
+                message: TOO_MANY_TOKENS_TEMPLATE.replace("{tokens}", &selected_tokens.to_string()),
                 code: Some("TOOL_EXECUTION_FAILED"),
                 detail: Some("code=read_output_too_many_tokens".to_string()),
             });
         }
-    } else {
-        // 隐式路径：先大小上限（只在这条路径上生效——实测加了 limit 的 304999 字节文件
-        // 走的是 token 错误而不是大小错误）。
-        let file_size = bytes.len() as u64;
-        if file_size > FILE_SIZE_LIMIT_BYTES {
-            return Err(ToolError {
-                error_type: "tool_execution_failed",
-                message: TOO_LARGE_TEMPLATE.replace("{kb}", &kilobytes(file_size)),
-                code: Some("TOOL_EXECUTION_FAILED"),
-                detail: Some("code=read_file_too_large".to_string()),
-            });
-        }
-        let tokens = estimated_tokens(file_size);
-        if tokens > TOKEN_LIMIT {
-            return Ok(partial_view(&lines, tokens));
-        }
+        // 隐式路径下选中范围就是整个文件（没有 offset、也没有 limit），所以这里两个口径相同。
+        return Ok(partial_view(&lines, estimated_tokens(file_size)));
     }
 
     Ok(ToolOutcome::text(format_lines(selected, offset)))

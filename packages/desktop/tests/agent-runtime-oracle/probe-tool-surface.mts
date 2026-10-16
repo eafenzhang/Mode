@@ -24,16 +24,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { startOracleRuntime } from "./driver.mjs";
-import { runtimePreferencesReply } from "./probe-support.mjs";
+import {
+  drain,
+  runGroup,
+  runtimePreferencesReply,
+  type Probe,
+  type ProbeGroup,
+} from "./probe-support.mjs";
 
 /**
  * **不存在**的工具（`Glob` / `Grep`）被脚本化调用时的结果——用来证明「会话面没有注册它们」，
  * 而不是「注册了但没对外声明」。见文件头结论 1。
  *
- * `Agent` 作为正对照放在同一组里：它**有**注册，所以拿到的是别的错误
- * （例如入参校验失败 / 子代理缺席），而不是 `tool_not_found`。
+ * `Agent` 作为正对照放在同一组里：它**有**注册，所以拿到的是别的错误，而不是 `tool_not_found`。
+ * **实测答案（2026-10-16，本组 probe #6 `agent-positive-control`，空入参）**：
+ * `ok: false`，`message: "Tool input failed inputSchema validation"`——同一个 `tool_execution_failed`
+ * 形状，但**不是** `Tool not found: Agent`，所以「注册了」这件事是这条探测证明的。
  */
-function absenceGroup(): Group {
+function absenceGroup(): ProbeGroup {
   const seed: Record<string, string> = {
     "one.txt": "alpha\nBeta\ngamma alpha\ndelta\n",
     "sub/two.ts": "const a = 1;\n",

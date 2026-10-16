@@ -101,7 +101,8 @@ export type OracleRuntimeOptions = {
   /**
    * 追加到 `app-server --stdio` 之后的 CLI 参数，**只为诊断工具面**（Task 2 加的）。
    *
-   * 实测（2026-10-16，探针 `probe-read-only.mts`）：`--surface desktop`、`--mode build|plan`、
+   * 实测（2026-10-16，探针 `probe-tool-surface.mts` 的 `tools` 组，自动化版是 `tool-surface.test.mts`）：
+   * `--surface desktop`、`--mode build|plan`、
    * `--disallowed-tools Bash` 都**不改变**运行时对外声明的工具清单（正对照：`--disallowed-tools
    * Bash` 下 `Bash` 照样被声明），所以这个逃生口在只读切片上没有用上——留着是为了让下一个人
    * 能用一条命令复现上面这条否证，而不是再猜一遍。

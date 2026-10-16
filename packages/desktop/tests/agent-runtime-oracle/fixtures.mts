@@ -113,6 +113,8 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
       "crlf.txt": "x\r\ny\r\n",
       "rel.txt": "rel\n",
     },
+    // 单行、无结尾换行（60000 字符 → 20000 tokens，仍在预算内）。
+    generatedSeed: { "single.txt": { char: "q", width: 60_000, lines: 1 } },
     script: [
       // 行号从 offset 起算，编号 = offset + 返回序号（观察：offset 1 → `1\t1\n2\t2\n3\t3\n4\t`）。
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/o1.txt", offset: 1 } }] },
@@ -126,6 +128,12 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/crlf.txt" } }] },
       // 相对路径按会话工作目录解析（工具描述说必须绝对路径，实测不然）。
       { toolCalls: [{ name: "Read", input: { file_path: "rel.txt" } }] },
+      // 空文件 + `offset > 1` → **另一条**提醒文案（`the contents are empty.`）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/empty.txt", offset: 2 } }] },
+      // 单行文件（无结尾换行）+ `offset: 2` → 越界提醒，且「The file has 1 lines.」
+      // ——「真实行数不含末尾空段」这条判据的决定性样本（2 段 + offset 2 给正文的对照见
+      // `probe-read.mts` 的 `offset-warning` 组 `w-twoline-offset-2`）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/single.txt", offset: 2 } }] },
       { text: "都读完了。" },
     ],
   },
@@ -195,7 +203,7 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
   //      写进夹具不现实）；三条的输出都很短，所以这一个夹具就能把错误文案钉住。
   {
     case: "read-truncation-errors",
-    prompt: "按三种读法各读一次，把结果原样说出来。",
+    prompt: "按这几种读法各读一次，把结果原样说出来。",
     seed: {},
     generatedSeed: {
       "big.txt": { char: "z", width: 60, lines: 2500 },
@@ -208,23 +216,33 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/big.txt", offset: 2 } }] },
       // 什么都不给 + 文件 > 256KB → 大小错误（不是 token 错误）。
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/wide.txt" } }] },
-      { text: "三条错误都试过了。" },
+      // 「显式」判据的决定性一对：**`offset: 0` 走隐式**（→ 大小错误），`offset: 2` 走显式
+      // （→ token 错误）。这一对把 `read.rs` 里 `offset != 0 || limit.is_some()` 钉住。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/wide.txt", offset: 0 } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/wide.txt", offset: 2 } }] },
+      { text: "五条都试过了。" },
     ],
   },
   // ---- Task 2 fix round：**部分视图**（复评 Important 3）。两条调用：
   //      均匀文件（按行累加到 63750 字节预算）+ 首行自身就超预算的单行文件（另一条提醒头）。
   {
     case: "read-partial-view",
-    prompt: "读这个很大的文件，把看到的开头原样说出来。",
+    prompt: "读这两个很大的文件，把看到的开头原样说出来。",
     seed: {},
     // 只放**一条**调用：部分视图的正文天生就是 ~64KB，夹具里会存两遍（toolCalls + result 事件），
     // 两条就是 ~290KB。首行自身超预算的那条分支（另一条提醒头）由**探针**
     // `probe-read.mts` 的 `trunc` 组（bytes-75001 / bytes-75003）记录，并由 `read.rs` 的单元测试
     // 按观察到的定值长度（64043）钉住——「要么把探针用例提交、要么别引用它」。
-    generatedSeed: { "uniform.txt": { char: "z", width: 60, lines: 2500 } },
+    generatedSeed: {
+      "uniform.txt": { char: "z", width: 60, lines: 2500 },
+      // **首行自身就超预算**的单行文件 → 走另一条提醒头（`read.rs::PARTIAL_FIRST_LINE_TEMPLATE`），
+      // 正文 = 提醒头 + 行号前缀 + 63750 个字符（两个探针样本给出完全相同的 64043）。
+      "one-line.txt": { char: "z", width: 75_003, lines: 1 },
+    },
     script: [
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/uniform.txt" } }] },
-      { text: "那个大文件看过了。" },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/one-line.txt" } }] },
+      { text: "两个大文件都看过了。" },
     ],
   },
   // ---- Task 2 fix round：**没观察到的扩展名 fail loud**（复评 Minor 4）。探针 `probe-read.mts`
