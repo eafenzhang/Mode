@@ -1,0 +1,24 @@
+{
+  "case": "request-session-create",
+  "direction": "host->runtime",
+  "note": "host 建会话的请求（命令封套的实测形状）：workspace + 显式 model + 关掉标题生成。",
+  "frame": {
+    "id": 1,
+    "method": "session/create",
+    "params": {
+      "workspace": {
+        "workspacePath": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-g9uITs",
+        "workspaceKey": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-g9uITs"
+      },
+      "model": {
+        "providerId": "oracle-mock",
+        "modelId": "mock-1",
+        "options": {
+          "reasoningLevel": "disabled"
+        }
+      },
+      "thoughtLevel": "disabled",
+      "titleGenerationEnabled": false
+    }
+  }
+}

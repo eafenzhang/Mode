@@ -1,0 +1,24 @@
+{
+  "case": "session-event-tool-updated-batch",
+  "direction": "runtime->host",
+  "note": "并行批次完成汇总；completion 顺序是竞态，这一帧只描述批次本身。",
+  "frame": {
+    "method": "session/event",
+    "params": {
+      "deliveryKind": "desktop-continuous",
+      "eventId": "b931f589-a08f-470d-a28d-8dd44b90986f",
+      "payload": {
+        "toolCallIds": ["toolu_mock_0_0"],
+        "successCount": 1,
+        "errorCount": 0,
+        "kind": "batch"
+      },
+      "seq": 14,
+      "sessionId": "sess_47e01e0d-bf03-4569-bae5-b51c44e83da3",
+      "timestamp": 1792125496880,
+      "traceId": "2b1e7619-4fa5-4a5d-99f0-29069cc88713",
+      "turnId": "turn_d9d422b2-4e30-47fb-8a9e-8330b21d3d1c",
+      "type": "tool.updated"
+    }
+  }
+}

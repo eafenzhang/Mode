@@ -1,0 +1,13 @@
+{
+  "case": "error-response-session-unavailable",
+  "direction": "runtime->host",
+  "note": "运行时发出的错误应答帧；code -32004 就是协议里声明的 sessionUnavailable。",
+  "frame": {
+    "error": {
+      "code": -32004,
+      "message": "Session is not active: sess_does_not_exist"
+    },
+    "id": 4
+  },
+  "respondsTo": "session/send"
+}

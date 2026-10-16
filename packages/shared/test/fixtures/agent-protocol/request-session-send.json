@@ -1,0 +1,13 @@
+{
+  "case": "request-session-send",
+  "direction": "host->runtime",
+  "note": "host 提交输入的请求：sessionId + content。",
+  "frame": {
+    "id": 3,
+    "method": "session/send",
+    "params": {
+      "sessionId": "sess_47e01e0d-bf03-4569-bae5-b51c44e83da3",
+      "content": "读一下 hello.txt，回一句话说明它写了什么。"
+    }
+  }
+}

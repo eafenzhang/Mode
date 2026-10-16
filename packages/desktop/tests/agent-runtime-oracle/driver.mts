@@ -34,6 +34,13 @@ export type OracleEvent = { type: string; payload: unknown };
 
 export type OracleSession = {
   readonly sessionId: string;
+  /**
+   * 发一条任意请求并等应答；**仅供夹具录制与诊断**，对拍用例不直接用
+   * （直接发请求会绕过 `send()` 的「受理」断言，只读切片用不到这条通路）。
+   * 存在的理由：错误应答帧（`{id, error}`）只在运行时报错时出现，
+   * 复用它才能录到**运行时真的发出**的错误形状，而不是自己编一个。
+   */
+  request(method: string, params: unknown): Promise<unknown>;
   /** 提交一次用户输入并等待 CLI 受理（不等 turn 结束——turn 的终态从事件流里读）。 */
   send(prompt: string): Promise<void>;
   /** 会话事件流；`stop()` 后关闭。支持 `for await … break`。 */
@@ -56,6 +63,20 @@ export type OracleRuntimeOptions = {
   cwd: string;
   /** mock provider 的剧本；不传用内置默认剧本，见 DEFAULT_SCRIPT。 */
   script?: MockStep[];
+  /**
+   * 纯观测钩子：每收到一条**已解析但未映射**的 stdout 帧就回调一次。
+   *
+   * 存在的理由：`OracleEvent` 是驱动层视图（`session/event` 被拍平成 `{type, payload}`，
+   * 丢掉了 `eventId/seq/timestamp` 等信封字段；`{id}` 也被丢掉）。协议夹具要的是**线上形状**，
+   * 所以这里提供一条不经过映射的观察口，避免为了录夹具去复制一份 spawn/隔离/握手实现。
+   * 钩子是只读观察——抛出异常会原样冒到 stdout 处理路径，不吞不掩。
+   */
+  onRawFrame?: (frame: Record<string, unknown>) => void;
+  /**
+   * 纯观测钩子：driver 写出的每一行（控制器方向：请求 / 应答 / 错误应答）。
+   * 与 `onRawFrame` 对称，用于录制「host 必须发出的那一半」。
+   */
+  onRawWrite?: (message: Record<string, unknown>) => void;
 };
 
 /**
@@ -192,6 +213,9 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
   >();
 
   const write = (message: unknown): void => {
+    if (typeof message === "object" && message !== null) {
+      options.onRawWrite?.(message as Record<string, unknown>);
+    }
     if (child?.stdin?.writable) {
       child.stdin.write(`${JSON.stringify(message)}\n`);
     }
@@ -311,6 +335,7 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
         continue;
       }
       waitForStorageReady.onFrame(frame);
+      options.onRawFrame?.(frame);
       handleFrame(frame);
     }
   });
@@ -358,6 +383,7 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
 
     return {
       sessionId,
+      request,
       async send(prompt: string) {
         const result = (await request("session/send", { sessionId, content: prompt })) as
           | { accepted?: boolean }

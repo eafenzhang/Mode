@@ -1,0 +1,34 @@
+{
+  "case": "session-event-tool-updated-result",
+  "direction": "runtime->host",
+  "note": "成功结果：result.success / result.content 是工具输出层的取值处。",
+  "frame": {
+    "method": "session/event",
+    "params": {
+      "deliveryKind": "desktop-continuous",
+      "eventId": "7ffb4f51-5185-4e20-9425-7e81acb7d6b3",
+      "payload": {
+        "toolCallId": "toolu_mock_0_0",
+        "result": {
+          "success": true,
+          "content": "1\thello\n2\t",
+          "perf": {
+            "totalMs": 32
+          },
+          "truncated": false,
+          "originalBytes": 10,
+          "returnedBytes": 10,
+          "budgetStrategy": "truncate"
+        },
+        "duration": 27,
+        "kind": "result"
+      },
+      "seq": 13,
+      "sessionId": "sess_47e01e0d-bf03-4569-bae5-b51c44e83da3",
+      "timestamp": 1792125496876,
+      "traceId": "2b1e7619-4fa5-4a5d-99f0-29069cc88713",
+      "turnId": "turn_d9d422b2-4e30-47fb-8a9e-8330b21d3d1c",
+      "type": "tool.updated"
+    }
+  }
+}

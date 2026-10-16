@@ -1,0 +1,29 @@
+{
+  "case": "session-event-tool-updated-error",
+  "direction": "runtime->host",
+  "note": "失败结果（读不存在的文件）：载荷走 error 分支，没有 result。",
+  "frame": {
+    "method": "session/event",
+    "params": {
+      "deliveryKind": "desktop-continuous",
+      "eventId": "11dc8803-097c-4f37-9a7b-a28b486ddba7",
+      "payload": {
+        "toolCallId": "toolu_mock_0_0",
+        "error": {
+          "type": "tool_execution_failed",
+          "message": "File does not exist. Note: your current working directory is C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-KzGQLh.",
+          "code": "TOOL_EXECUTION_FAILED",
+          "detail": "code=read_file_not_found\nFile not found: C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-KzGQLh\\missing.txt\nENOENT: no such file or directory, stat 'C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-KzGQLh\\missing.txt'",
+          "stack": "Error: File does not exist. Note: your current working directory is C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\mode-protocol-fixture-ws-KzGQLh.\n    at createCoreError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at readHandler (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:168:19)"
+        },
+        "kind": "error"
+      },
+      "seq": 13,
+      "sessionId": "sess_4eb45bb0-3126-477c-902a-78cb8f13e800",
+      "timestamp": 1792125507967,
+      "traceId": "f84d24c8-4b8b-40fe-9eaf-ca7eb632583a",
+      "turnId": "turn_95c18d8b-c262-4720-bdb3-a23114906956",
+      "type": "tool.updated"
+    }
+  }
+}

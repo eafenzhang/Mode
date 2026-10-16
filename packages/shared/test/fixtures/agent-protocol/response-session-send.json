@@ -1,0 +1,14 @@
+{
+  "case": "response-session-send",
+  "direction": "runtime->host",
+  "respondsTo": "session/send",
+  "note": "session/send 的应答（受理确认）。id 与 host 发出的那条请求相同。",
+  "frame": {
+    "id": 3,
+    "result": {
+      "accepted": true,
+      "sessionId": "sess_47e01e0d-bf03-4569-bae5-b51c44e83da3",
+      "stateRevision": 3
+    }
+  }
+}
