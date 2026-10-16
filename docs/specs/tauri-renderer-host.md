@@ -11,15 +11,37 @@ M1 的挂载缺口表 `docs/specs/tauri-platform-commands.md` §4.2。
 I2（`MODE_DATA_BASE_DIR` 语义）、I3（typecheck 覆盖）、I4（CI 接线与口径）、I5（框架无关拆分的理由）
 与若干 Minor 都已落进下面的正文；改动痕迹见 §10 的证据登记与 `task-1-report.md` 的 fix round 1 小节。
 
+**2026-10-16 M3 Task 2 再修订（服务面换真）**：§0 的状态、§1 的所有权（`deferInit` 使「第一帧」= 服务面齐备）、
+§2 的环境契约（新增三条）、§3.1（`listen` 危险的**守卫实现**）、§4（真服务**会写盘**之后的隔离口径）、
+§5 的覆盖分工、§8 的边界与新增的 §11–§14（startup 序列与映射口径、原生依赖、打包形态与体积、
+崩溃重启策略）都是本任务的产物。**渲染层仍未改动**。
+
 ## 0. 本任务做到哪、没做到哪（先读这条）
 
 **做到**：Tauri 壳能拉起一个 Node **Host sidecar**，把渲染层要的两样东西送进 webview——
 一个承载 `ChannelServer` 的真 `MessagePort`，以及一条 database-startup 状态流——
 于是渲染层**未改动**的启动闸门会放行（`phase === "ready"` 且两端 `startupId` 同代）。
 
-**没做到（Task 2 的范围）**：服务面全是 **stub**。UI 会挂载，但几乎所有交互都会失败——
-这是**预期的中间态**（DR-T1-1：本任务的「成功」定义是闸门放行，不是服务可用）。
-不要把这时的「UI 能显示」读成「能发布」。
+**Task 2 之后的状态（本文件当前描述的对象）**：服务面是**真的** `packages/services`（§11.1 的
+启动序列，`createLocalServices` + `exposeOnChannelServer`），闸门由**真实启动**驱动——
+入口用 `deferInit = true`，`server.ready()`（即壳看到的「第一帧」）**在真存储打开、真服务频道
+全部注册之后**才发，所以「闸门放行」与「服务面齐备」在时序上是同一件事（§1 末段）。
+失败路径同样是产品件：Host 启动失败 → 结构化落 stderr 并以非零码退出 → 壳的 reaper 推
+`failed(transport_closed)`（§3.1、§10.4、§10.5）。
+
+**仍然没做到（都不在 Task 2 的授权内，逐条登记）**：
+
+- **真实 renderer 挂载**（Task 3 换 `frontendDist`）——本任务的全部真机证据用的是集成测试页
+  （`test/harness/host-sidecar/**`），它不是渲染层；
+- **Host 的分段阶段没有传到渲染层**：`preparing_host_storage` / `starting_services` 这些是
+  Host 进程内的真事实（`host.describe().startup.history` 可观察、有用例钉住），但**没有**一条
+  Host → 壳的通道把它们合并进壳发布的 `DatabaseStartupState` 流。渲染层看到的仍是
+  `starting` → `ready`（或 `failed`）。理由：那条通道要动传输层，而本任务的约束是
+  「不改壳/传输层」——**差额登记在这里**，Task 3/4 定 transport 时一并处理；
+- **窗口模型、跨窗口广播、手机远控**（Task 3/4）：`createLocalServices` 的缺省注入下这些能力
+  各自表现为「不可用/空操作」（`parentPort` 传 null 时广播为空操作），不是静默走另一条路径；
+- **崩溃重启策略**：§14 明确登记为不做（含理由与代价）；
+- **CUA 资产在打包形态里的落点**（Task 5）：探针只验证「注入了但不存在 = 失败」（§12）。
 
 **渲染层的超时口径（复评 I4(b) 纠正）**：渲染层在**一条状态都没收到**时 30 秒后画失败屏
 （`packages/desktop/src/renderer/src/main.tsx` 的启动计时器）；那个计时器**一收到任何状态就被拆除**。
@@ -35,18 +57,30 @@ sidecar 里可用（Task 2）、打包形态的 sidecar 落点与体积（Task 3
 | 组件 | 位置 | 职责 | 不做什么 |
 | --- | --- | --- | --- |
 | Rust 壳 | `apps/desktop-tauri/src-tauri`（`main.rs`、`host.rs`、`window.rs`） | 建窗口 + 注入桥；spawn/监督 Host；两个 raw 帧命令 + 一个状态长轮询；退出时收 Host | 不持业务状态（`AGENTS.md` 的「进程、协议与远程控制」） |
-| Host sidecar | `packages/desktop/src/host-standalone/**`（Node，入口 `index.ts`） | 真 `ChannelServer` + 服务频道（Task 1 为 stub）；数据根解析；帧形状校验 | 不建窗口、不碰 Tauri |
+| Host sidecar | `packages/desktop/src/host-standalone/**`（Node，入口 `index.ts`） | 真 `ChannelServer` + **真服务面**（`createLocalServices`，40 个频道，§11.1）；数据根解析；帧形状校验；**三条守卫**（stdout 只走帧、`listen` 不抛、派发不炸）；真启动序列 | 不建窗口、不碰 Tauri；不实现窗口模型/远控（Task 3/4） |
 | 进程/传输库 | `crates/sidecar-host/**` | spawn/监督/帧编解码/桥脚本/启动状态/路径挑选纯函数 | **不引用任何 Tauri 类型**（理由见 §6） |
+
+**「第一帧」为什么等于「服务面齐备」（Task 2 换掉了合成 ready）**：入口用
+`new ChannelServer(protocol, ctx, 1000, /* deferInit */ true)`，`server.ready()` 在
+**真存储打开 + 全部服务频道注册**之后才调；而 `ready()` 就是那第一帧（`Initialize`）。
+于是壳的就绪判据（§1 末段的所有权口径）不需要新增通道就自动变成了「真启动完成」——
+真机实测的 `startup.history` 是 `["1:preparing_host_storage" ×9, "10:starting_services", "11:ready"]`
+（§10.5）。这条顺序不靠人记得：`apps/desktop-tauri/test/realServices.test.mts` 有断言。
 
 **startupId 的所有权**：壳生成、经环境变量 `MODE_HOST_STARTUP_ID` 交给 Host，并烘进注入桥。
 「端口负载的 `databaseStartupId`」与「状态流的 `startupId`」由此天然同代——这正是闸门的判据。
 
-**发布状态的所有权（Task 1 的口径）**：**壳是渲染层看到的 `DatabaseStartupState` 的唯一发布者**
-（`crates/sidecar-host/src/startup.rs` 的 `StartupMonitor`）。它合并两类事实：
+**发布状态的所有权（Task 1 的口径，Task 2 不动）**：**壳是渲染层看到的 `DatabaseStartupState`
+的唯一发布者**（`crates/sidecar-host/src/startup.rs` 的 `StartupMonitor`）。它合并两类事实：
 
 - Host 进程事实（壳直接观测）：就绪判据是 **Host 的第一帧**（`ChannelServer` 的 `Initialize`）；
   失败判据是起不来 / 就绪前退出 / 就绪期限内没有第一帧 / 就绪后崩；
-- Task 2 起，Host 报告的分段阶段（`preparing_host_storage` 等）要经壳**合并**进同一份状态再发布。
+- **Host 报告的分段阶段（`preparing_host_storage` 等）本任务没有合并进来**：那需要一条
+  Host → 壳 的通道（壳现在是「字节双向搬运」，没有解析 Host 语义的通道）。差额的**代价是
+  真实的**：真机失败跑里 Host 自己报的是 `errorCode=sql_failed failedPhase=preparing_host_storage`，
+  而渲染层收到的是壳能判断的 `transport_closed` / `failedPhase=starting`（§10.6 的原始输出）。
+  「失败要能被推给渲染层」这条硬要求达成；「失败原因要精确到阶段」这条**未达成**，登记为
+  Task 3/4 定 transport 时的输入。
 
 为什么不让渲染层同时听两个发布者：闸门的判据是「同代匹配」，两个发布者会让「同代」的语义分裂。
 
@@ -60,6 +94,9 @@ sidecar 里可用（Task 2）、打包形态的 sidecar 落点与体积（Task 3
 | `MODE_HOST_SIDECAR_ENTRY` | 进程环境 → 壳 | 入口脚本显式路径（开发/测试用；打包形态走资源目录） |
 | `MODE_HOST_NODE` | 进程环境 → 壳 | Node 可执行文件（默认 PATH 上的 `node`） |
 | `MODE_HOST_SIDECAR_CWD` | 进程环境 → 壳 | Host 工作目录（`--import tsx` 的裸模块解析从它开始） |
+| `MODE_HOST_NATIVE_DEP_PROBE` | 进程环境 → Host | 设为 `spawn` 时原生依赖探针**真起一个 pty**（测试用；产品默认不设，见 §12） |
+| `MODE_BUILTIN_PROVIDER_CONFIG_FILE` | 进程环境 → Host | Mode Built-in Provider Config 的显式路径（第一优先，见 §12.2） |
+| `MODE_HOST_RESOURCES_DIR` | 进程环境 → Host | 打包形态的资源目录（第二优先；里面的 `config/provider/mode-builtin.json`） |
 
 `HOME`/`USERPROFILE` 一栏在 fix round 1 更正：壳**不**显式设置它们（早期版本的表写错。
 隔离靠「测试自己在父进程环境里覆写这两条 + 壳把值透传给子进程」实现——子进程默认继承父环境）。
@@ -107,25 +144,58 @@ harness bin 保留原名，两者是不同二进制，互不影响）：
 | 就绪期限内没有第一帧 | `startup_status_timeout` | 看门狗（默认 20s；渲染层那个计时器是 30s 且收到状态即拆除） |
 | 配置非法（既无入口、也无 node 参数、或数据基目录为空） | `unsupported_runtime` | `HostHandle::spawn` 的配置校验 |
 
-`failedPhase` 一律记 `starting`（Task 1 只有「拉起 Host」这一段）。三个监督线程用一个原子量
-CAS 决定**谁**能发布终态，所以不会出现「先 failed 后 ready」这种自相矛盾的流。
+`failedPhase` 一律记 `starting`（壳能判断的最细粒度在 Task 2 之后仍是「拉起 Host」这一段）。
+三个监督线程用一个原子量 CAS 决定**谁**能发布终态，所以不会出现「先 failed 后 ready」这种自相矛盾的流。
 
-### 3.1 stub 的失败形态，以及一条**会杀死 Host** 的路径（复评 C1）
+**Host 内部的启动失败走哪条**（Task 2 的实测口径）：Host 自己在启动序列里抛错时，
+它就是「就绪前退出」——结构化落 stderr（`startup_failed phase=failed failedPhase=… errorCode=…`）、
+**不写任何帧**、以非零码退出，于是壳的 reaper 报 `failed(transport_closed)`、`failedPhase=starting`。
+**渲染层看到的原因比 Host 知道的粗**（Host 报的是 `sql_failed`/`preparing_host_storage`，
+渲染层收到 `transport_closed`/`starting`）——这是 §1 登记的差额，不是 bug；「失败被推给渲染层」
+这条硬要求已达成（DR-T1-3），「原因精确到阶段」留给 Task 3/4 的 Host → 壳通道。
+两半都有自动化：Host 侧 `packages/desktop/tests/startupFailure.test.mts`（错码必须在渲染层
+词汇表里、失败时零帧、非零退出），壳侧 `crates/sidecar-host/tests/host_lifecycle.rs`
+（就绪前退出 → `failed` + error code）。
 
-- `call(command)`：显式拒绝，文案带频道名与命令名，错误对象带 `code: "not_implemented"`。
-  **绝不**返回 `undefined` 或空对象——那会让调用方把「没实现」读成「成功但没数据」。
-- `listen(event)`：**不能抛错**。`ChannelServer.onEventListen`（`packages/rpc/src/channelServer.ts`）
-  调 `channel.listen(...)` 时**没有 try/catch**（对照 `onPromise` 会
-  `try { channel.call } catch { Promise.reject }`）。stub 在 `listen` 里抛错的实测后果：
-  异常穿出 `onRawMessage` → `Emitter.fire` → stdin 的 `data` 处理函数，**Host 进程当场死亡**，
-  同一端口上的在途 RPC 全部变成 `transport_closed`；而渲染层一挂载就会订阅服务事件，
-  于是「闸门放行后几秒 Host 就死」。stub 因此返回一个**永不发事件的 Event**（不假装有事件），
-  同时**不静默**：第一次订阅在 stderr 留一条 `not_implemented` 记录，累计次数在
-  `host.describe` 的 `stubEventSubscriptions` 里可观察。
-- **危险面的通用表述（Task 2 必读）**：**任何服务只要在 `listen` 里抛错，就会杀死 Host**——
-  壳/传输侧对 channel dispatch 没有守卫。Task 2 接真服务时若发现真实现会抛，
-  修的位置是**壳/传输侧**（给 dispatch 加守卫并把它变成 RPC 错误），不是逐个服务打补丁；
-  在那之前，每个 `IServerChannel` 实现都得自己保证 `listen` 不抛。
+### 3.1 「`listen` 抛错会杀死 Host」这条危险的**处置**（复评 C1 → Task 2 落地）
+
+**危险本身没变**：`ChannelServer.onEventListen` 调 `channel.listen(...)` 时**没有 try/catch**
+（对照 `onPromise` 会 `try { channel.call } catch { Promise.reject }`）；一次同步抛出会穿出
+`onRawMessage` → `Emitter.fire` → stdin 的 `data` 处理函数，**Host 进程当场死亡**，同一端口上的
+在途 RPC 全部变 `transport_closed`。Task 1 的 stub 自己踩过，于是把这条写成本任务的必读危险。
+
+**Task 2 真服务面会踩**：真服务由 `ProxyChannel.fromService` 包装，未知事件名**直接抛**。
+实测现场（`apps/desktop-tauri/test/realServices.test.mts` 的用例，stderr 留痕）：
+`listen_guard setting.onDidChange: … Event not found`。事件名在真服务面里**不由本仓库的一个地方
+决定**：`IServiceAccessor` 上有若干**可选**服务（`cuaPermissionService?` /
+`windowControllerService?` / `conversationMirrorService?` …），远端与本地提供的面不同，
+而渲染层按 host 无关的方式订阅——所以「未知事件名」不是异常输入，是**正常可能的输入**。
+
+**修的位置与理由（不逐个服务打补丁）**：守卫装在 Host 入口的**两个唯一派发边界**上
+（`packages/desktop/src/host-standalone/channelGuard.ts`）：
+
+1. `exposeOnChannelServer` 收的那个 `IChannelServer.registerChannel` —— 每个频道在进真
+   `ChannelServer` 之前被包一层，`listen` 的同步抛出降级为「永不发事件的 Event + 留痕 + 计数」
+   （**含 Host 自己的诊断频道 `host`**——Task 1 复评的 deferred minor「我们自己的 channel 也违反
+   自己立的规矩」由此闭合，`realServices.test.mts` 的守卫用例直接订阅 `host.onAnything` 钉住）；
+2. 入口喂给 `ChannelServer` 的派发点（`messages.fire(...)`）——协议层/序列化层的任何同步异常
+   只被记账，不再带走进程。
+
+为什么不在 `crates/sidecar-host`（壳）里修：壳**只搬字节**，它没有解析 channel 语义的通道，
+拿不到「这是哪次 `listen`」；真正未加护的调用点在 `packages/rpc`（Electron 路径共用，本任务不改）。
+所以「一次性的、装在派发边界上」的两个位置就是本进程能给的最靠近源头的守卫。
+
+**已知代价（不藏）**：`listen` 被拦下时**调用方看不出订阅失败**（`IServerChannel.listen` 同步
+返回 Event，没有错误通道；`IChannelServer` 只暴露 `registerChannel`/`ready`，外部无法替这条请求
+回一个 RPC 错误）。所以现在的语义是「安全降级 + 可观察」：不投假事件、stderr 留痕、
+计数进 `host.describe().serviceSurface.guardedSubscriptions`。**要把它变成客户端的 RPC 错误，
+必须改 `packages/rpc` 的 `onEventListen`**（把 `channel.listen` 的抛出转成 `ResponseType.Error`）
+——那超出本任务授权，登记为后续任务的输入。
+
+**Task 2 把它做成了断言，而不是靠人记得**：`apps/desktop-tauri/test/realServices.test.mts` 的
+「listen 守卫」用例断言四件事——坏订阅后 Host 仍活着、同一条传输上的**在途 RPC 照常完成**、
+一个事件都不投、拒绝可观察（stderr + 计数）；`apps/desktop-tauri/test/portRoundTrip.test.mts`
+在**产品入口**上再钉一遍同样的四件事（并发 RPC 版本）。
 
 ## 4. 数据隔离与数据根口径（复评 I2）
 
@@ -148,11 +218,19 @@ CAS 决定**谁**能发布终态，所以不会出现「先 failed 后 ready」�
 - **代价与决策记录**：早期版本把基目录当根用（`dataRoot = MODE_DATA_BASE_DIR ?? home/.mode`），
   后果是真服务会把数据写进 `<base>/.mode/.mode`；Task 1 不写盘所以看不出来，
   Task 2 一接真存储就会落错地方。复评把它钉为产品路径缺陷，本文件记录**采用仓库既有口径**。
-- **Task 1 的 Host 不写盘**：没有任何存储实现（`grep node:fs packages/desktop/src/host-standalone`
-  零命中），数据根只用于隔离与上报；用例断言运行后隔离目录里**连基目录都不出现**。
-- 测试与本地跑一律 `MODE_DATA_BASE_DIR` + `HOME`/`USERPROFILE` **双覆写**，并**对隔离生效做断言**
-  （`apps/desktop-tauri/test/portRoundTrip.test.mts` 断言两条覆写各自生效、根等于 `{base}/.mode`，
-  且不产生任何目录）。
+- **Task 2 起 Host 真写盘**（Task 1 那条「不写盘」的口径已作废）：真存储会在 `{base}/.mode`
+  下建 `v2/tasks-index.sqlite` 与它的 WAL，真服务会写设置/凭据文件。因此隔离断言必须升级形态——
+  「隔离目录里不出现目录」现在**必然为假**，把它留着就是一条假断言（Task 1 的 I2 教训：
+  「测试把错语义钉死」）。新形态是三条一起断言：
+  ① 两条覆写各自生效、根等于 `{base}/.mode`；② **写入确实发生在隔离根里**（否则断言是空的）；
+  ③ 用户**真实**的数据根没被碰（比对存在性与条目集合——不比对目录 mtime，别的进程对真实根的
+  正常写入会让 mtime 变，那是假红）。
+  落点：`apps/desktop-tauri/test/portRoundTrip.test.mts`（产品入口）与
+  `apps/desktop-tauri/test/realServices.test.mts`（真服务写的确实是 `{base}/.mode`）。
+- **失败是造得出来的、且是确定性的**：数据**基**目录的位置上放一个**文件** → 真存储
+  `mkdir {base}` / 打开 sqlite 必然 `ENOTDIR`。实测见 §10.4；这条既当失败语义用例的输入
+  （`packages/desktop/tests/startupFailure.test.mts`），也当 opt-in 真机失败路径的输入（§10.6）。
+- 测试与本地跑一律 `MODE_DATA_BASE_DIR` + `HOME`/`USERPROFILE` **双覆写**，并**对隔离生效做断言**。
 
 ## 5. 覆盖分工（哪些自动化、哪些必须人工）
 
@@ -160,19 +238,20 @@ CAS 决定**谁**能发布终态，所以不会出现「先 failed 后 ready」�
 | --- | --- | --- |
 | Host 的进程/监督/帧/启动状态 | `cargo test -p sidecar-host`（15 单测 + 9 集成；**真拉 Node 子进程**） | **是**（Windows 腿，release.yml） |
 | 跨语言帧边界（Rust 编码 ↔ Node 解码） | `the_shell_frame_path_reaches_the_host_and_gets_a_reply`：Rust 写一帧真请求、读回真应答 | **是**（同上） |
-| 端口往返（真实产品 Host） | `apps/desktop-tauri/test/portRoundTrip.test.mts`：真 Host + 真 `MessagePort` + 真 `ChannelClient`；含「订阅事件不杀 Host」「坏帧丢弃」「数据隔离」 | **是**（verify job，release.yml） |
+| 端口往返（真实产品 Host） | `apps/desktop-tauri/test/portRoundTrip.test.mts`：真 Host + 真 `MessagePort` + 真 `ChannelClient`；含「未知命令显式报错」「订阅事件不杀 Host 且带走不了在途 RPC」「坏帧丢弃」「数据隔离（真写入 + 真实根未被碰）」 | **是**（verify job，release.yml） |
+| **原生依赖在 sidecar 里可用**（DR-T2-1） | `apps/desktop-tauri/test/nativeDeps.test.mts`：本进程 `node:sqlite` 真读写 + `node-pty` 原生 artifact；**再起生产 Host** 用 `MODE_HOST_NATIVE_DEP_PROBE=spawn` 在 sidecar 进程里**真起一个 pty** | **是**（verify job） |
+| **真服务面 / 守卫 / 真启动序列** | `apps/desktop-tauri/test/realServices.test.mts`（5 条）：真命令真返回、`listen` 守卫（Host 存活 + 在途 RPC + 零事件 + 可观察）、stdout 守卫（真服务日志不污染帧流）、数据根口径、启动序列（`ready` 只在频道全注册后发布） | **是**（verify job） |
+| **startup 映射（夹具驱动，四条路径）** | `packages/desktop/tests/startupMapping.test.mts` + `packages/desktop/tests/fixtures/startup-storage/*.json`（9 个夹具，覆盖 `starting` / 迁移中 / `ready` / `failed`） | **是**（verify job） |
+| **Host 启动失败的语义** | `packages/desktop/tests/startupFailure.test.mts`：错码必须落在渲染层 schema 的取值集里、失败时**零帧**、非零退出、不得越过失败点报 ready | **是**（verify job） |
 | 纯端口路径回归（Task 0 的） | `test/portMessagePath.test.mts`、`test/hostChannelStdio.test.mts` | **是**（同上） |
 | 跨语言字面量（频道名/命令名/状态词汇） | `packages/desktop/tests/host-standalone.test.mts` | **是**（verify job） |
-| **真 webview 的注入/转移/ACL/时序** | `apps/desktop-tauri/test/webviewRoundTrip.test.mts`（**opt-in，默认 skip**） | **不能** |
+| **打包形态产出得出来、且跑得起来** | `apps/desktop-tauri/scripts/build-host-sidecar.ts` 的自验档：esbuild 打包后用 `node` 直接起产物，走一次 `host.describe` RPC | **否**（构建脚本，人工/发版流程跑；体积数字见 §13） |
+| **真 webview 的注入/转移/ACL/时序 + 成功/失败两条路径** | `apps/desktop-tauri/test/webviewRoundTrip.test.mts`（**opt-in，默认 skip**，2 条） | **不能** |
 | `mode_tauri::host::{resolve_config, resolve_entry}`（壳侧的候选枚举、家目录、startupId 生成） | **无自动化覆盖**：要测它们就得把 `AppHandle`/具体 runtime 带进测试二进制（§6），只在 opt-in webview 跑里被走到 | 否（**登记在案的缺口**） |
 | `host_send`/`host_recv`/`host_startup_state` 的 Tauri 命令**包装层** | 命令体本身没有自动化（本仓不引入 `tauri::test` webview mock 运行时，M1 已定）；其**逻辑**（`send_frame`/`next_frame`/`wait_for_startup_change`/`to_state_json`）由 crate 用例覆盖 | 否（**登记在案的缺口**） |
 | 测试 harness 页面（`test/harness/**`）的**类型检查** | 不在任何 tsc 工程里（vite alias 解析到浏览器 shim 与真实渲染层源码，用 tsc 解析会把 node 侧 barrel 拉进 DOM 工程）；构建与运行由 vite/tsx 负责 | 否（**登记在案的缺口**） |
 
-**崩溃重启策略：本任务刻意不做（复评 M11 要求登记）**。理由：Task 1 的 Host 没有真存储，
-「重启」没有可恢复的状态语义；而 Task 2 一旦接上 `node:sqlite`，重启时机必须与
-数据库锁/迁移事务的语义绑定（半个迁移没提交时重启比失败更糟）。DR-T1-3 的判据是
-「不留孤儿 + 失败要能被推给渲染层」，两条都已由本任务达成；重启策略登记为**Task 2 的输入**，
-届时连同 `databaseStartupControl` 的 `retry` 语义一起定。
+**崩溃重启策略：Task 2 仍然刻意不做，理由与代价写在 §14（DR-T2-4 的处置）**。
 
 ### 发版前人工跑一次（发布流程上的硬要求）
 
@@ -180,11 +259,18 @@ CAS 决定**谁**能发布终态，所以不会出现「先 failed 后 ready」�
 MODE_TAURI_WEBVIEW_ROUNDTRIP=1 node --import tsx --test apps/desktop-tauri/test/webviewRoundTrip.test.mts
 ```
 
-判据（自动断言）：`status: "ok"`、`gateOpened: true`、`portIsRealMessagePort: true`、
-`initializeObserved: true`、`schemaAccepted: true`、`statePhase: "ready"`、
-`startupIdMatches: true`、`describe.dataBaseDir` 等于临时基目录、`describe.dataRoot` 等于
-`{base}/.mode`、进程表里不残留 Host。
-**漏跑这条 = 端口路径悄悄坏掉而发布流程说全绿**——这正是本仓库反复吃亏的那类失败（DR-T1-2 的代价）。
+判据（两条用例都是自动断言，原始输出样例见 §10.5/§10.6）：
+
+- **成功路径**：`status: "ok"`、`gateOpened: true`、`portIsRealMessagePort: true`、
+  `initializeObserved: true`、`schemaAccepted: true`、`statePhase: "ready"`、`startupIdMatches: true`、
+  `describe.dataBaseDir` 等于临时基目录、`describe.dataRoot` 等于 `{base}/.mode`、
+  隔离目录里**出现**真数据根（证明服务面是真的）、进程表里不残留 Host；
+- **失败路径**：`status: "startup_failed"`、`statePhase: "failed"`、`failedPhase: "starting"`、
+  `errorCode: "transport_closed"`（且整条状态过真 schema）、`gateOpened: false`、
+  `startupIdMatches: true`（失败状态与注入桥同代，否则渲染层会把它当陈旧状态丢掉）。
+
+**漏跑这条 = 端口路径或失败推送悄悄坏掉而发布流程说全绿**——这正是本仓库反复吃亏的那类失败
+（DR-T1-2 的代价）。
 
 ### 人工可观察的开发形态
 
@@ -234,10 +320,22 @@ startupId 生成）落在 app crate 里，**没有自动化覆盖**（§5 的表
 1. **桥的 `host_recv` 用有界队列 + 阻塞背压**（默认 256 帧，满了读线程阻塞，不丢帧）；
    `MessagePortFlowControl` 那一层没有用（Task 0 spike §5 的未验证项 3）。
 2. **Tauri `Channel<Response>` 的 raw 推送路径未实测**（spike §5 的未验证项 5）——本任务没用到它。
-3. **打包形态未验**：资源目录里的 sidecar 落点、随包的 Node 运行时、体积（Task 3/5）。
+3. **打包形态：本任务已定并实测体积（§13），但「放进安装包」没做**：资源目录里的 sidecar 落点、
+   随包的 Node 运行时、`node_modules` 子集的实际排布、以及 **Node 运行时本身的体积**都不在本任务
+   范围内（Task 3/5）。§13 的数字**不含** Node 运行时。
 4. **macOS / Linux 不在本阶段范围**（Ruling 20）：`taskkill /T` 是 Windows 的收树手段，
-   别的平台上靠 Host 的 stdin EOF 保护兜底，未在本阶段验证。
-5. **没有重启策略**（§5 已登记理由）。
+   别的平台上靠 Host 的 stdin EOF 保护兜底，未在本阶段验证。打包形态的 `node-pty` 预编译件
+   也按 Windows 口径讨论（§13 的裁剪建议）。
+5. **没有重启策略**（§14 是 DR-T2-4 的正式处置，含「为什么现在不做」的实测理由）。
+6. **分段启动阶段没有传到渲染层**（§1 末段 + §10.6 的原始输出）：Host 报
+   `sql_failed`/`preparing_host_storage`，渲染层收 `transport_closed`/`starting`。
+7. **`listen` 守卫的拒绝对客户端不可见**（§3.1 的代价）：要变成 RPC 错误得改 `packages/rpc`。
+8. **`startupMapping` 的夹具是按声明 schema 构造的**，不是 M2 的真实录制（本 checkout 里
+   `packages/shared/test/fixtures/agent-protocol/`、`packages/desktop/tests/agent-runtime-oracle/fixtures/`
+   都没有 `startup/storageState` 帧；`grep` 零命中）。它证明「翻译对**声明的协议形状**成立」，
+   不证明「对某台机器某次真实运行录下来的字节成立」（§11.3）。
+9. **CUA 资产在打包形态里的落点未验**：探针只覆盖「注入了但不存在 = 失败」（§12.1）。
+10. **`host.describe().startup.history` 是本进程的诊断事实**，不是渲染层可见的状态（同上第 6 条）。
 
 ## 9. 纪律登记（clean-room）
 
@@ -245,7 +343,8 @@ startupId 生成）落在 app crate 里，**没有自动化覆盖**（§5 的表
 - 上游衍生文件里**只读接口面**：`packages/rpc` 的导出签名与类型声明（`MessagePortLike`、
   `ChannelServer` 的构造与 `ready()`、`IServerChannel`、`Event`/`toDisposable`、`VSBuffer`、
   `BufferReader`/`deserialize`）、`packages/shared` 的常量与 zod schema（`InternalChannels`、
-  `ServiceChannels`、`databaseStartupStateSchema` 及其错误码/阶段枚举）、
+  `ServiceChannels`、`databaseStartupStateSchema` / `modeStorageStartupStateSchema` 及其错误码/阶段枚举、
+  `DatabaseMigrationFacts`、`classifyDatabaseStartupError`）、
   `packages/services/src/paths.ts` 的**数据根口径**（`getDataBaseDir`/`getModeDataRootDir`）、
   `packages/desktop/src/renderer/src/databaseStartupAdmission.ts`（**作为未改动源码被集成测试与
   验收台 import**，不读实现体做重写）；
@@ -254,6 +353,26 @@ startupId 生成）落在 app crate 里，**没有自动化覆盖**（§5 的表
 - 帧 envelope 的形状（首字节是序列化层标签而非 `RequestType`）是用 `@mode/rpc` 的公开
   反序列化面**跑出来**的（`deserialize` 真客户端帧 → `[100, 0, "host", "describe"]`）；
 - 渲染层零改动：`git diff` 对 `packages/desktop/src/renderer/**` 为空。
+
+### 9.1 Task 2 的追加登记（真服务面这一轮）
+
+- **`ProxyChannel.fromService` 的 `listen` 对未知事件名会抛**这条：**没有读实现体**，
+  是在 `apps/desktop-tauri/test/realServices.test.mts` 里用**真服务入口 + 真订阅**观测到的
+  （stderr 的 `listen_guard … Event not found`）。文件（`packages/rpc/src/proxy-channel.ts`）未打开。
+- **真服务面的装配知识来自公共入口的签名**：`@mode/services/node` 的
+  `createLocalServices` / `disposeServiceResourcesAndWait` 与 `ServiceCollection.exposeOnChannelServer`
+  的**调用形状**（用 `host.describe().serviceSurface.channelCount = 40` 与真命令返回真值**验证**，
+  不是照抄装配代码）；逐个 `createXxxService` 的构造参数**没有**读——那正是本任务不 deep import
+  的理由（§11.1）。
+- **`prepareTasksIndexStorage(path, onPhase)` 的回调形状**（阶段名 `checking`/`waiting_for_lock`/
+  `migrating`/`committing`/`ready` + 迁移事实）取自 `@mode/services/storage-startup` 的**导出签名**；
+  它在产品入口里的**使用**经真机跑验证（§10.5 的 `storage_prepared` 与 `startup.history`）。
+- **数据**：`MODE_DATA_BASE_DIR` 语义来自 `packages/services/src/paths.ts` 的注释与
+  `getModeDataRootDir()` 的返回式（Task 1 已登记），Task 2 用**真服务写出的实际路径**
+  再验证一次（§10.5 的 `dataRoot`）。
+- **未读**：`packages/services/**` 的任何函数体、`packages/desktop/src/host/index.ts`（Electron 那侧的
+  装配）、`packages/desktop/src/renderer/src/main.tsx` 的实现体。Task 2 需要知道「渲染层要什么形状」
+  的部分全部由 `@mode/shared` 的 zod schema 与 `databaseStartupAdmission` 的**类接口**给出。
 
 ## 10. 证据登记（可复核的原始输出）
 
@@ -356,3 +475,314 @@ Host 通道（M3 Task 1）
 
 即「被强杀也不留孤儿」由 Host 自己的 stdin EOF 保护兜住（第二道保险）；隔离目录
 `D:/tmp/mode-local-run2/` 下只有一个空的 `home`——**基目录与 `.mode` 都没被创建**（Task 1 不写盘）。
+> 注：上面 §10.1–§10.3 是 **Task 1**（stub 时代）的证据，保留是因为它们是 C1/I2 的失败现场；
+> 其中「stub」相关的形态在 Task 2 已被真服务面取代（§10.7 起是 Task 2 的证据）。
+> §10.3 那句「基目录与 `.mode` 都没被创建」只在 Task 1 成立，Task 2 起 Host 会写盘（§4）。
+
+---
+
+## Task 2 的证据（§10.4–§10.7）
+
+### 10.4 原生依赖在 sidecar 里可用（DR-T2-1 的判定）
+
+```bash
+$ cd apps/desktop-tauri && node --import tsx --test test/nativeDeps.test.mts
+```
+
+```text
+✔ 原生依赖在 sidecar 的 loader 下可加载：node:sqlite 真读写、node-pty 模块与原生 artifact 到位 (11.9945ms)
+✔ CUA 资产路径：未注入不是失败，注入了不存在的路径必须是失败 (1.5176ms)
+✔ 生产 Host sidecar 自己报告原生依赖可用，并真起一个 pty（同一进程内的证据） (3306.8321ms)
+ℹ tests 3   ℹ pass 3   ℹ fail 0
+```
+
+sidecar 进程内自报的那份（`host.describe().nativeDeps`，真机跑的原文见 §10.5）：
+
+```json
+"nativeDeps":{"sqlite":{"ok":true,"version":"3.53.1","roundTrip":41},
+ "pty":{"ok":true,"spawnVerified":false,"nativeArtifacts":["prebuilds\\win32-x64\\conpty.node","prebuilds\\win32-x64\\pty.node"]},
+ "cua":{"injected":false,"ok":false}}
+```
+
+`roundTrip: 41` 是写进去再读回来的值（不是「import 没抛错」）；`spawnVerified: false` 是**默认档**的
+如实形态（产品启动不真起 pty），深探测档（`MODE_HOST_NATIVE_DEP_PROBE=spawn`）在用例里真起一个 pty
+并断言 `exitCode=0` + 输出里有 `pty-ok`。**结论：DR-M3-1 的前提成立，不需要重开决策。**
+
+### 10.5 opt-in 真 webview（成功路径）——真启动驱动闸门
+
+```bash
+$ MODE_TAURI_WEBVIEW_ROUNDTRIP=1 node --import tsx --test apps/desktop-tauri/test/webviewRoundTrip.test.mts
+```
+
+```text
+HARNESS host startupId=host-4772-1792147712344 pid=12944
+ROUNDTRIP_PAGE_LOG port event.source===window=true ports.length=1 real_message_port=true databaseStartupId=host-4772-1792147712344
+ROUNDTRIP_PAGE_LOG state phase=starting startupId=host-4772-1792147712344
+[mode-host-sidecar] native_deps sqlite=ok(3.53.1) pty=ok(spawnVerified=false) cua=not-injected
+[mode-host-sidecar] storage_prepared path=C:\…\mode-host-webview-6hfz4r\data\.mode\v2\tasks-index.sqlite
+[2026-10-16 18:48:34.391] [pid:12944] [cua-pip-session] [cua-pip-session] wiring resolved { enabled: false, … }
+[mode-host-sidecar] services_ready channels=40 builtinConfig=env(exists=true)
+[mode-host-sidecar] ready startupId=host-4772-1792147712344 dataBaseDir=C:\…\data dataRoot=C:\…\data\.mode source=MODE_DATA_BASE_DIR channels=40 node=v24.18.1 shutdown=false
+ROUNDTRIP_PAGE_LOG state phase=ready startupId=host-4772-1792147712344
+ROUNDTRIP_PAGE_LOG gate_opened port_is_message_port=true
+ROUNDTRIP_PAGE_LOG rpc_ok name=mode-host-sidecar pid=12944
+ROUNDTRIP_PAGE_REPORT {"status":"ok","gateOpened":true,"portIsRealMessagePort":true,"initializeObserved":true,
+ "schemaAccepted":true,"statePhase":"ready","stateStartupId":"host-4772-1792147712344","startupIdMatches":true,
+ "describe":{"name":"mode-host-sidecar","pid":12944,…,
+  "serviceChannels":["file","media-preview","git","git-checkpoint","system","terminal","setting",…,"model-selection"],
+  "serviceSurface":{"kind":"services","channelCount":40,…,"stdoutDiverted":1,
+   "stdoutSamples":["[2026-10-16 18:48:34.391] [pid:12944] [cua-pip-session] …"]},
+  "nativeDeps":{…},
+  "startup":{"phase":"ready","sequence":11,"attemptId":"attempt-host-4772-1792147712344",
+   "history":["1:preparing_host_storage","2:preparing_host_storage",…,"9:preparing_host_storage",
+              "10:starting_services","11:ready"]}}}
+HARNESS watchdog_exit
+HARNESS host_shutdown pid=12944
+✔ 真 webview（成功路径）：产品壳 + 产品 Host 让渲染层的启动闸门放行，且退出不留孤儿 (30212.0389ms)
+```
+
+三点值得单独指出：① `startup.history` 是**真阶段序列**（存储 → 服务 → ready），不是合成值；
+② `stdoutDiverted: 1` + 样本是 `cua-pip-session` 的日志 —— 那条守卫在真机上确实拦到了
+一条**会冲散帧流**的写入（没有它，这次往返会以「RPC 全挂」告终）；③ `serviceChannels` 是 40 个
+**真服务**频道，`rpc_ok` 说明渲染层的接收形状下真业务命令能走通。
+
+### 10.6 opt-in 真 webview（失败路径）——`failed` 是到达渲染层的唯一失败信号
+
+同一个文件里的第二条用例，把数据**基**目录的位置放成一个**文件**（`ENOTDIR` 是确定性的）：
+**产品 Host 入口、产品壳、产品桥，没有替身**。
+
+```text
+HARNESS host startupId=host-9928-1792147739290 pid=12860
+ROUNDTRIP_PAGE_LOG state phase=starting startupId=host-9928-1792147739290
+[mode-host-sidecar] startup_failed phase=failed failedPhase=preparing_host_storage errorCode=sql_failed error=ENOTDIR: not a directory, mkdir 'C:\…\mode-host-webview-Ky72BX\data'
+[sidecar-host] host 停止：host_stdout_eof
+ROUNDTRIP_PAGE_LOG state phase=failed startupId=host-9928-1792147739290
+ROUNDTRIP_PAGE_REPORT {"status":"startup_failed","gateOpened":false,"portSeen":true,"portIsRealMessagePort":true,
+ "initializeObserved":false,"schemaAccepted":true,"statePhase":"failed",
+ "stateStartupId":"host-9928-1792147739290","failedPhase":"starting",
+ "errorCode":"transport_closed","startupIdMatches":true}
+✔ 真 webview（失败路径）：真启动失败时页面收到 failed + errorCode，闸门不放行 (27000.6566ms)
+```
+
+**这张输出同时证了两件事和一条差额**：① 失败**到达**了页面（`phase=failed` + schema 通过 +
+同代匹配），而按 §0 的口径，这是渲染层此后唯一的失败信号；② 闸门**没有**放行
+（`gateOpened:false`、`initializeObserved:false`）；③ **差额**：Host 知道的是
+`sql_failed`/`preparing_host_storage`，渲染层收到的是 `transport_closed`/`starting`
+——壳只能判断「就绪前退出」。这条差额已登记（§1、§8.6），修它要一条 Host → 壳的通道（Task 3/4）。
+
+### 10.7 CI 里的那几条（真服务面 / 守卫 / 启动失败 / 映射）
+
+```bash
+$ node --import tsx --test packages/desktop/tests/startupMapping.test.mts
+✔ starting：状态机初值就是 starting，且字段全过 schema (7.088ms)
+✔ 迁移中：库内阶段进 databasePhase，应用阶段由 databaseKind 决定（两个库各一条） (3.9442ms)
+✔ ready：单个库 ready 不等于应用 ready（应用 ready 只在服务面装配完成后发布） (0.7119ms)
+✔ failed：errorCode + failedPhase + 细节码都必须能落到渲染层读的字段上 (0.584ms)
+✔ failed（本机路径）：异常用仓库既有分类，不自己编错码；无分类依据时落 sql_failed (0.5873ms)
+✔ 全部夹具都覆盖到位：每个 databaseKind × 关键库内阶段都能翻译，且没有未映射的 kind (1.6507ms)
+ℹ tests 6   ℹ pass 6   ℹ fail 0
+
+$ node --import tsx --test packages/desktop/tests/startupFailure.test.mts
+✔ 真启动失败：Host 报 failed + errorCode、不写任何帧、以非零码退出 (992.1253ms)
+ℹ tests 1   ℹ pass 1   ℹ fail 0
+
+$ cd apps/desktop-tauri && node --import tsx --test test/realServices.test.mts test/portRoundTrip.test.mts
+✔ 真实服务面：真实业务命令经端口返回真值（不再是 stub 的 not_implemented） (2218.5192ms)
+✔ 真实服务的 listen 守卫：订阅一个不存在的事件不会杀死 Host，也不给「订阅成功」的假象 (2772.1406ms)
+✔ stdout 守卫：真实服务写 stdout 不会污染帧流，字节被转到 stderr 并计数 (2199.9589ms)
+✔ 数据根口径：真实服务的写入落在 {base}/.mode，不出现 {base}/.mode/.mode (2480.8274ms)
+✔ 真启动序列：ready 由真存储 + 真服务装配推进，且只在全部服务频道注册之后发布 (…)
+✔ 生产 Host sidecar：Initialize 与一次真 RPC 往返可以走端口 (2100.2688ms)
+✔ 真服务面对未知命令显式报错（不返回 undefined / 空对象），stub 的 not_implemented 已消失 (2199.7279ms)
+✔ 订阅未知事件不杀 Host，也不带走同一条传输上的在途 RPC (2382.8259ms)
+✔ Host 入口拒绝形状不合法的帧，不会把 ChannelServer 带崩 (2436.2006ms)
+✔ 数据隔离是真的：两条覆写各自生效，真写入落在隔离根，用户真实 ~/.mode 未被触碰 (4251.2267ms)
+```
+
+---
+
+## 11. 真服务面与启动序列（Task 2 · DR-T2-2 的落点）
+
+### 11.1 装配口径：走公共入口，不 deep import
+
+`packages/desktop/src/host-standalone/serviceAccessor.ts` 用 `@mode/services/node` 的
+`createLocalServices({ modeBuiltinProviderConfigFilePath })` 一次装配全部服务，再用
+`services.exposeOnChannelServer(guardedServer)` 把频道交出来（`guardedServer` 是套了 §3.1 守卫的
+`IChannelServer`）。**不逐个 `createXxxService`**：45 个服务各有构造参数与相互依赖，手写装配等于把
+装配知识抄一份到本包——那份抄写就是漂移源，而且必然牵到 `#src/...` 内部路径（违反「不 deep import」）。
+
+**与 Electron Host 的装配差异（登记）**：Electron 侧在 app 层还传了窗口级 `overrides`，
+以及 `parentPort`、`settingService`、`hostApiNetworkTransport` 等注入点。本任务只做**服务面本身**；
+缺省注入下这些能力各自表现为「不可用/空操作」（`parentPort` 传 null 时广播为空操作），
+不是静默走另一条路径。窗口模型与附件调度是 Task 3。
+
+### 11.2 真启动序列（Host 进程内）
+
+```text
+starting                  ← 状态机初值（还什么都没做）
+  preparing_host_storage  ← prepareTasksIndexStorage：真开 DatabaseSync、真跑迁移，
+                             按库内阶段回调 checking / waiting_for_lock / migrating / maintaining /
+                             committing / ready + 迁移事实（真机实测 9 次上报，见 §10.5）
+  starting_services       ← createLocalServices + exposeOnChannelServer（40 个频道）
+ready                     ← 全部频道注册进 ChannelServer 之后（deferInit 的 server.ready()）
+```
+
+任一步抛出 → `failed` + `errorCode`（`classifyDatabaseStartupError`，不自己编分类）、
+结构化写 stderr、`process.exit(1)`（§3 的口径与 §10.6 的现场）。
+
+### 11.3 `startup/storageState` → `DatabaseStartupState` 的**显式翻译**（DR-T2-2）
+
+两个词汇表看起来像，其实不是一回事：
+
+| 来源 | phase 取值 | 说的是 |
+| --- | --- | --- |
+| 运行时 `startup/storageState` 帧 | `checking` / `waiting_for_lock` / `migrating` / `committing` / `ready` / `failed` | **一个数据库**此刻在干什么 |
+| 渲染层 `DatabaseStartupState` | `starting` / `preparing_host_storage` / `preparing_session_storage` / `starting_services` / `ready` / `failed` | **整个应用启动**走到哪一步 |
+
+映射规则（`packages/desktop/src/host-standalone/startupMapping.ts` 的 `StartupStateMachine`）：
+
+1. **应用阶段由 `databaseKind` 决定**（`tasks-index` → `preparing_host_storage`，
+   `session` → `preparing_session_storage`；i18n 文案分别是「准备任务索引 / 准备聊天记录」）；
+   枚举未来加值时**必须显式决定**（`never` 检查，不静默落进某个分支）；
+2. **库内阶段原样进 `databasePhase`**（两边声明的公共部分逐字一致）；
+3. **运行时的 `ready` 只把 `databasePhase` 推到 `ready`，不把应用阶段推成 `ready`** ——
+   应用 `ready` 由 Host 自己（服务面装配完成）说了算：一个库 ready 不等于应用 ready；
+4. **失败**：`failed` 带 `errorCode`（帧 schema 的 `superRefine` 强制）→ 应用 `failed` +
+   `failedPhase`（失败停在哪个应用阶段）+ 同码 + 细节码（`sqliteCode`/`systemCode`/`migrationId`）；
+5. **`migration`（`DatabaseMigrationFacts`）两边是同一个 schema**，原样带过；正在迁移/提交时
+   另填 `currentMigration` 与 `migrationBaselines`（渲染层的重试判据读它）；
+6. 状态机的**每个输出都过一次 `databaseStartupStateSchema.parse`**：在某个字段写错的**那一刻**就红，
+   而不是等渲染层因 `.strict()` 把整条消息静默丢掉（症状是「闸门不放行、也没有失败原因」）。
+
+**`sequence` 不直通**：状态自身的 `sequence` 是**本机发布计数器**（从 0 单调递增，与壳的
+`StartupMonitor` 同义，渲染层按它丢弃旧状态）；帧里那个 `sequence` 是**单库流**的序号。
+直通会在两个库交替上报时倒退，而「旧状态不得覆盖新状态」是消费侧的语义。
+
+**夹具**：`packages/desktop/tests/fixtures/startup-storage/*.json`（9 个），覆盖四条路径——
+`starting`（状态机初值）、迁移中（`checking`/`waiting_for_lock`/`migrating`/`committing` × 两个
+`databaseKind`）、`ready`（两个库各一条 + 应用 ready 由 Host 发布）、`failed`（权限、锁超时，
+含 `sqliteCode`/`systemCode`/`migrationId`）。每个夹具**先过 `modeStorageStartupStateSchema`**
+才有资格当输入，每个输出**再过 `databaseStartupStateSchema`**（§8.8 的差额：夹具是按声明 schema
+构造的，不是 M2 的真实录制——本 checkout 里没有那份录制）。
+
+---
+
+## 12. 原生依赖与 Built-in Provider Config（Task 2 · DR-T2-1）
+
+### 12.1 三类原生资产怎么证
+
+`packages/desktop/src/host-standalone/nativeDeps.ts`（**生产代码里的探针**，不只是测试）：
+
+| 资产 | 默认档（产品启动跑） | 深探测档（`MODE_HOST_NATIVE_DEP_PROBE=spawn`，测试用） |
+| --- | --- | --- |
+| `node:sqlite` | **真读写**：`:memory:` 建表 → 插入 41 → 查回 → 读 `sqlite_version()`（「import 没抛错」证明不了语句执行链路可用） | 同左 |
+| `node-pty` | 模块加载 + API 面（`spawn`/`fork`/`createTerminal`）+ **原生 artifact 存在性**（`build/Release` → `build/Debug` → `prebuilds/<platform>-<arch>`，与 node-pty 自己的搜索顺序一致） | 再**真起一个 pty** 跑 `cmd /c echo pty-ok`，断言退出码与输出 |
+| CUA 资产（经 `MODE_CUA_BUNDLED_HELPER_APP_PATH` 注入） | 未注入 = **不是失败**（opt-in 特性缺省关闭）；注入了不存在的路径 = **失败**（否则「配置写错」会被读成「CUA 正常但没启用」） | 同左 |
+
+**为什么探针在生产代码里**：DR-M3-1 选 Node sidecar 的唯一理由是复用存量 `packages/services`，
+那层依赖 ABI 敏感的原生资产；「原生依赖到底好不好」若是只有测试知道的事实，产品每次启动时
+它就是不可观察的——而这是「判错就要重开决策」的量级。探针**非致命**（失败只记账并上报）：
+一个原生依赖坏掉仍能渲染大部分 UI，比「Host 直接不启动」对用户更有利；真正用到它的服务自己会抛，
+那才是它该失败的地方。结果在 `host.describe().nativeDeps`，用例断言它与真机行为一致（§10.4）。
+
+**Windows 上为什么必须有「真起进程」那一档**：node-pty 在 win32 **没有**任何「加载绑定」的公开入口
+（`exports.native` 在 win32 恒为 `null`，真加载只发生在 `spawn` 里），所以「模块与 artifact 在」
+证不了绑定可用；而为了自检在每次产品启动时真起一个 shell 是有副作用的动作。两档分别把话说清楚，
+不用一个布尔占位掩盖差别。
+
+### 12.2 Built-in Provider Config 的落点
+
+`resolveBuiltinProviderConfig`（`serviceAccessor.ts`）按**显式覆写 → 打包资源目录 → 开发态仓库相对**
+解析，并**把命中来源一起报出来**（`source: "env" | "resources" | "repo"`）——三个候选都可能给出一个
+「看起来对」的路径，只有来源能定位配置错误。**不 import** `packages/desktop/src/main/desktopProviderConfig.ts`：
+那份实现 import 了 `electron`，在 sidecar 里不可用（「无 Electron」正是本包存在的理由之一）。
+
+---
+
+## 13. 打包形态与体积（Task 2 · DR-T2-3）
+
+**决定**：sidecar 打包成**单文件 ESM bundle**（esbuild），**原生/运行时依赖保持 external**
+并随包带它们的 `node_modules` 子集。落点照壳侧候选枚举：`<resource>/host-sidecar/index.mjs`。
+external 清单一字不改地取自 Electron 那条已经跑在生产上的清单
+（`packages/desktop/tsup.config.ts` 的 `desktopNodeRuntimeExternals`）——同一批服务在另一条宿主
+路径上验证过的取舍，不是本任务新发明的。
+
+两个候选的取舍见 `apps/desktop-tauri/scripts/build-host-sidecar.ts` 的文件头；要点是**可判定**：
+bundle 后运行时依赖面收敛成一个文件 + 一张显式 external 清单，而「随包带源码树」的依赖面是
+「此刻恰好能解析」，出问题的症状是启动期才暴露的解析错误。
+
+**实测（2026-10-16，本机 Windows）**：
+
+```bash
+$ node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts
+[host-sidecar] 打包形态 = 单文件 ESM bundle + external 的 node_modules 子集
+[host-sidecar] bundle        D:\ZCodium\apps\desktop-tauri\dist-host-sidecar\host-sidecar\index.mjs
+[host-sidecar] bundle 体积   5104874 B (4.87 MiB)
+[host-sidecar] externals 体积 96389444 B (91.92 MiB)
+[host-sidecar]   - node-pty@1.1.0 65621790 B (62.58 MiB)
+[host-sidecar]   - ssh2@1.17.0 1119022 B (1.07 MiB)
+[host-sidecar]   - undici@6.24.1 1184934 B (1.13 MiB)
+[host-sidecar]   - @larksuiteoapi/node-sdk@1.61.1 25515934 B (24.33 MiB)
+[host-sidecar]   - yaml@2.9.0 685953 B (0.65 MiB)
+[host-sidecar]   - node-forge@1.4.0 1647637 B (1.57 MiB)
+[host-sidecar]   - yauzl@3.3.0 97675 B (0.09 MiB)
+[host-sidecar]   - @wecom/aibot-node-sdk@1.0.7 516499 B (0.49 MiB)
+[host-sidecar] 合计          101494318 B (96.79 MiB)（bundle + externals；不含 Node 运行时本身）
+[host-sidecar] 自验          mode-host-sidecar channels=40
+```
+
+自验是**默认开**的：脚本用 `node <bundle>`（不带 tsx）起产物，走一次 `host.describe` 的 RPC 往返，
+断言 `serviceSurface.kind === "services"`。否则「打包形态」只是一次成功的文件写入，
+而本仓库反复吃亏的正是「产物生成了，但没人跑过它」。
+
+**交给 Task 5 的两条实测线索**（数字是量出来的，不是估的）：
+
+1. `node-pty` 的 62.58 MiB 里 **60.63 MiB 是 `prebuilds/`**，其中 `win32-x64` 31.09 MiB、
+   `win32-arm64` 29.34 MiB、`darwin-*` 0.20 MiB。**Windows-only（Ruling 20）下裁掉非本平台
+   prebuilds 是纯粹的收益**；连 `win32-arm64` 一起裁（本阶段没把 Windows ARM64 当目标）
+   则 node-pty ≈ 36.08 MiB、externals ≈ 66.85 MiB、合计 ≈ 71.7 MiB。**裁不裁、裁到什么平台
+   由 Task 5 与安装包平台矩阵一起定**（本任务不替它决定）。
+2. `@larksuiteoapi/node-sdk` 24.33 MiB 全部走 external（它的链路上有动态 `require("util")`）。
+   若 Task 5 需要更小，可评估「只带实际用到的子路径」或换打包方式——**不要在门禁上妥协**。
+
+**踩到的坑（值得下一个任务知道）**：内联进来的 CJS 依赖里有**动态** `require("events")`，
+esbuild 的 ESM 产物把它留成 `__require`，运行时报
+`Dynamic require of "events" is not supported`——而且是在**服务面装配那一步**才炸
+（`startup_failed … failedPhase=starting_services errorCode=sql_failed`，存储已经开好了）。
+banner 里给产物一个真的 `require`（`createRequire(import.meta.url)`）即可收口，
+`__require` 的判定正是 `typeof require !== "undefined" ? require : 抛错`。**这条只有真跑产物才看得见**
+——又一次印证本仓库那条纪律：产物必须被跑过。
+
+---
+
+## 14. 崩溃重启策略（Task 2 · DR-T2-4 的处置）
+
+**处置：本任务仍然不做重启，理由与代价在这里写清；不允许以「计划提过、规格没写、代码没有」的形态存在。**
+
+Task 1 登记的理由是「Host 没有真存储，重启没有可恢复的状态语义，而重启时机必须与数据库锁/
+迁移事务绑定」。**Task 2 之后这条理由已经变弱**（真 sqlite 与真迁移都在了，sqlite 的事务性也意味着
+半个迁移不会留下半提交状态），所以本任务给出一条**更硬、且与实现无关**的理由：
+
+> **delivered port 不可重建**。渲染层拿到的那条 `MessagePort` 是**页面内**建的、由注入桥接到
+> 这个 Host 进程的 stdin/stdout（Task 0 的路线 1′）。Host 重启 = 一个新的 `ChannelServer` +
+> 一条新的端口；**旧端口永远不可能再工作**。在渲染层不知情的情况下重启，产出的正是本项目
+> 反复吃亏的那种失败面：UI「挂着」，所有 RPC 静默失败。所以重启必须在**渲染层可见的状态机**里
+> 发生（`databaseStartupControl` 的 `retry` 语义 + 重新投递端口的路径），那是 Task 3/4 与
+> 窗口/附件模型一起定的事，不是本进程能单独决定的。
+>
+> 补充（对**启动期**失败而言，重启的期望收益本来就是 0）：真启动失败是**确定性**的
+> （基目录被文件占了、盘符只读、父目录不存在），「重启一次再失败」只是把失败推迟一个来回。
+
+**今天的实际行为（有断言，不是「没人管」）**：
+
+- 启动期失败 → Host 结构化落 stderr 并 `exit(1)` → 壳的 reaper 推 `failed(transport_closed)`，
+  渲染层画失败屏（§10.6 的真机现场；`packages/desktop/tests/startupFailure.test.mts`）；
+- 就绪**之后**崩 → 同一 reaper 推 `failed(transport_closed)`，且**不会**出现「先 failed 后 ready」
+  这种自相矛盾的流（三个监督线程用一个原子量 CAS 决定谁能发布终态）：
+  `crates/sidecar-host/tests/host_lifecycle.rs` 的
+  `a_host_that_dies_after_ready_publishes_failed_transport_closed`；
+- 壳被强杀也不留孤儿（Host 的 stdin EOF 保护 + 壳的 `taskkill /T`），§10.3 的实测。
+
+**交给 Task 3/4 的输入**：`databaseStartupControl` 的 `retry` 语义 + 端口重新投递路径
+（谁重新生成 `databaseStartupId`、渲染层如何丢弃旧端口）。
+

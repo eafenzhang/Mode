@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "attemptId": "attempt-fixture-3",
+  "sequence": 1,
+  "databaseId": "tasks-index",
+  "databaseKind": "tasks-index",
+  "phase": "failed",
+  "elapsedMs": 31,
+  "errorCode": "permission_denied",
+  "sqliteCode": 3,
+  "systemCode": "EACCES"
+}

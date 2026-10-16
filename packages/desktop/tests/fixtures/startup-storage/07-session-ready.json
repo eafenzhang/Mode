@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "attemptId": "attempt-fixture-2",
+  "sequence": 2,
+  "databaseId": "session-3f0c1a",
+  "databaseKind": "session",
+  "phase": "ready",
+  "elapsedMs": 210
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "attemptId": "attempt-fixture-1",
+  "sequence": 1,
+  "databaseId": "tasks-index",
+  "databaseKind": "tasks-index",
+  "phase": "checking",
+  "elapsedMs": 0
+}

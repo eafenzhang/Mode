@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "attemptId": "attempt-fixture-1",
+  "sequence": 4,
+  "databaseId": "tasks-index",
+  "databaseKind": "tasks-index",
+  "phase": "committing",
+  "elapsedMs": 410,
+  "migration": {
+    "kind": "upgrade",
+    "executedCount": 3,
+    "committedCount": 3,
+    "lastAppliedMigrationId": "2026-08-01-add-task-archive"
+  }
+}

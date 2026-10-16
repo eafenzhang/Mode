@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "attemptId": "attempt-fixture-4",
+  "sequence": 1,
+  "databaseId": "session-9d2b77",
+  "databaseKind": "session",
+  "phase": "failed",
+  "elapsedMs": 60001,
+  "errorCode": "lock_timeout",
+  "migrationId": "2026-08-01-add-task-archive"
+}

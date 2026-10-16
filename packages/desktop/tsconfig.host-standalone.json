@@ -15,5 +15,19 @@
   // 产品 Host 入口（`src/host-standalone`，任务书里点名的空档）与它的跨语言契约用例。
   // 这两处此前只经 tsx 运行，而 tsx 只剥类型不做检查——2026-10-16 的复评把它列为 I3：
   // `pnpm typecheck` 通过时，对本任务新增的代码其实什么都没说。
-  "include": ["src/host-standalone", "tests/host-standalone.test.mts"]
+  //
+  // M3 Task 2 补上 `references`（与 `packages/services/tsconfig.json` 补 rpc 引用的理由同一处）：
+  // 本工程现在真依赖 `@mode/services`（真服务面），**没有** references 时 tsc 会把 services 的
+  // 整棵源码树当普通源码重复检查一遍，于是它自己的编译选项（`lib: ["es2025"]`、`@types/node-forge`）
+  // 在这里失效，报出与 host-standalone 无关的错（`MapIterator.toArray`、`node-forge` 无声明）。
+  // 加了 references，tsc 消费的是 services 的声明产物（由根 `tsc -b` 先建），错位消失。
+  "references": [{ "path": "../shared" }, { "path": "../services" }],
+  // M3 Task 2 把本任务新增的两个用例也纳进来：`pnpm typecheck` 只有覆盖到它们，
+  // 才算对新增代码说了话（tsx 只剥类型不做检查——Task 1 的 I3 教训）。
+  "include": [
+    "src/host-standalone",
+    "tests/host-standalone.test.mts",
+    "tests/startupMapping.test.mts",
+    "tests/startupFailure.test.mts"
+  ]
 }

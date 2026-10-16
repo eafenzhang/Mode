@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "attemptId": "attempt-fixture-2",
+  "sequence": 1,
+  "databaseId": "session-3f0c1a",
+  "databaseKind": "session",
+  "phase": "migrating",
+  "elapsedMs": 88,
+  "completed": 1,
+  "total": 4,
+  "migration": {
+    "kind": "initialize",
+    "executedCount": 1,
+    "committedCount": 0,
+    "lastAppliedMigrationId": null
+  }
+}

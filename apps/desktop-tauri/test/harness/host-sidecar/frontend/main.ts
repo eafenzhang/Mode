@@ -79,6 +79,11 @@ const seen = {
 
 log("page_loaded");
 
+/** 注入桥报的 startupId（端口负载与状态流的同代判据都用它）。 */
+function deliveredStartupId(): string | null {
+  return window.__MODE_HOST_BRIDGE__?.startupId ?? null;
+}
+
 function maybeRun(): void {
   const port = admission.takeReadyPort();
   if (!port || started) return;
@@ -102,7 +107,7 @@ async function runRoundTrip(port: MessagePort): Promise<void> {
     );
     log(`rpc_ok name=${String(describe.name)} pid=${String(describe.pid)}`);
 
-    const deliveredStartupId = window.__MODE_HOST_BRIDGE__?.startupId ?? null;
+    const delivered = deliveredStartupId();
     report({
       status: "ok",
       gateOpened: true,
@@ -111,7 +116,7 @@ async function runRoundTrip(port: MessagePort): Promise<void> {
       schemaAccepted: seen.schemaAccepted,
       statePhase: seen.statePhase,
       stateStartupId: seen.stateStartupId,
-      startupIdMatches: seen.stateStartupId !== null && seen.stateStartupId === deliveredStartupId,
+      startupIdMatches: seen.stateStartupId !== null && seen.stateStartupId === delivered,
       describe,
     });
   } catch (error) {
@@ -138,6 +143,27 @@ window.addEventListener("message", (event: MessageEvent) => {
     seen.statePhase = parsed.data.phase;
     seen.stateStartupId = parsed.data.startupId;
     log(`state phase=${parsed.data.phase} startupId=${parsed.data.startupId}`);
+    if (parsed.data.phase === "failed") {
+      // Task 2 的失败路径（DR-T1-3）：渲染层一旦收到任何状态就**拆掉自己的 30s 计时器**，
+      // 所以 `failed` + `errorCode` 是此后唯一的失败信号 —— 收到就必须报告，不能只记一行日志
+      // 然后等那个（对渲染层而言已经不存在了的）超时。`failedPhase` 一起报，因为渲染层的
+      // 重试/退出判据读它。
+      report({
+        status: "startup_failed",
+        gateOpened: false,
+        portSeen: seen.port,
+        portIsRealMessagePort: seen.portIsRealMessagePort,
+        initializeObserved: false,
+        schemaAccepted: seen.schemaAccepted,
+        statePhase: parsed.data.phase,
+        stateStartupId: parsed.data.startupId,
+        failedPhase: parsed.data.failedPhase ?? null,
+        errorCode: parsed.data.errorCode ?? null,
+        startupIdMatches:
+          seen.stateStartupId !== null && seen.stateStartupId === deliveredStartupId(),
+      });
+      return;
+    }
     if (admission.acceptState(parsed.data)) maybeRun();
     return;
   }

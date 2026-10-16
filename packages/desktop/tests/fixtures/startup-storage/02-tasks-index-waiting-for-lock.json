@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "attemptId": "attempt-fixture-1",
+  "sequence": 2,
+  "databaseId": "tasks-index",
+  "databaseKind": "tasks-index",
+  "phase": "waiting_for_lock",
+  "elapsedMs": 120,
+  "migration": {
+    "kind": "initialize",
+    "executedCount": 0,
+    "committedCount": 0,
+    "lastAppliedMigrationId": null
+  }
+}
