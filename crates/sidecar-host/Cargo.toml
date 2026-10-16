@@ -1,0 +1,10 @@
+[package]
+name = "sidecar-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Mode 桌面端 Host sidecar 的进程监督与字节传输（M3 Task 1，框架无关）"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

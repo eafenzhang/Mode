@@ -7,6 +7,7 @@
  */
 import "./styles.css";
 import { renderHarness } from "./harness.js";
+import { renderHostChannelPanel } from "./hostChannel.js";
 import { createPlatform } from "./platform.js";
 
 const root = document.getElementById("root");
@@ -16,6 +17,9 @@ if (!root) {
 
 try {
   renderHarness(root, createPlatform());
+  // M3 Task 1：把「端口 + database-startup 状态流」到没到页面印出来——这是渲染层启动闸门的
+  // 两条输入，也是本页唯一能肉眼验证 Host 通道的地方。
+  renderHostChannelPanel(root);
 } catch (error) {
   // 启动失败必须看得见（骨架期没有日志通道，直接写进页面）。
   root.replaceChildren();

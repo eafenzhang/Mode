@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 description = "Mode 桌面端 Tauri v2 壳（路线图 M1）"
+# 本包有 lib + 三个 bin（产品壳、Task 0 harness、Task 1 opt-in harness），
+# 不定默认 bin 的话 `cargo run -p mode-tauri` 会因歧义失败（M1 spec §4 的命令）。
+default-run = "ModeTauri"
 
 [[bin]]
 name = "ModeTauri"
@@ -15,16 +18,28 @@ path = "src/main.rs"
 # 只有显式 `--features port-transport-harness` 才编出这个 bin。
 port-transport-harness = []
 
+# M3 Task 1 的 opt-in 集成 harness（同上，测试资产）。
+host-roundtrip = []
+
 [[bin]]
 name = "PortTransportHarness"
 path = "src/bin/port_transport_harness.rs"
 required-features = ["port-transport-harness"]
+
+# M3 Task 1 的 opt-in 真 webview 往返 harness（测试资产，见
+# docs/specs/tauri-renderer-host.md）。同样用 required-features 门住：
+# 默认构建 / `tauri build` / `clippy --all-targets` 都不带它。
+[[bin]]
+name = "HostRoundtripHarness"
+path = "src/bin/host_roundtrip_harness.rs"
+required-features = ["host-roundtrip"]
 
 [build-dependencies]
 tauri-build.workspace = true
 
 [dependencies]
 platform = { path = "../../../crates/platform" }
+sidecar-host = { path = "../../../crates/sidecar-host" }
 protocol = { path = "../../../crates/protocol" }
 updater = { path = "../../../crates/updater" }
 tray = { path = "../../../crates/tray" }

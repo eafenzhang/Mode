@@ -29,14 +29,43 @@ macro_rules! command_slice {
         /// 处理函数的 Rust 路径，供守卫用例核对 camelCase 映射。
         pub const M1_HANDLER_PATHS: &[&str] = &[$(stringify!($handler)),+];
 
-        /// 注册插件、托管状态与切片表里的全部命令。
+        /// 切片表的 handler 值：调用方（壳）用它把额外命令并进**同一个** `invoke_handler`。
+        pub fn handler<R: tauri::Runtime>(
+        ) -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+            tauri::generate_handler![$($handler),+]
+        }
+
+        /// 注册插件、托管状态与切片表里的全部命令（= `init_with_extra(builder, |_| false)`）。
         pub fn init<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+            init_with_extra(builder, |_| false)
+        }
+
+        /// 同 [`init`]，但把切片表**未命中**的命令名交给 `extra`（M3 的壳侧 Host 命令走这里）。
+        ///
+        /// 追加命令只能从这个入口进：`tauri::Builder::invoke_handler` 是**覆盖**语义
+        /// （`tauri-2.12.4/src/app.rs:1727` 直接赋值），两个 crate 各调一次会静默丢掉先注册的那批；
+        /// 而 `generate_handler!` 生成的闭包吃 `Invoke<R>` 的**所有权**，没法把它们串起来调两次。
+        /// 所以这里按命令名派发：先认切片表，命中不了再交给 `extra`。
+        ///
+        /// 注意 `M1_COMMANDS` 仍是切片表的唯一真源——`extra` 里再写一个同名命令会被切片表吃掉。
+        pub fn init_with_extra<R, F>(builder: tauri::Builder<R>, extra: F) -> tauri::Builder<R>
+        where
+            R: tauri::Runtime,
+            F: Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static,
+        {
+            let slice = handler::<R>();
             builder
                 .plugin(tauri_plugin_dialog::init())
                 .plugin(tauri_plugin_notification::init())
                 .plugin(tauri_plugin_opener::init())
                 .manage(crate::AppState::default())
-                .invoke_handler(tauri::generate_handler![$($handler),+])
+                .invoke_handler(move |invoke| {
+                    if M1_COMMANDS.contains(&invoke.message.command()) {
+                        slice(invoke)
+                    } else {
+                        extra(invoke)
+                    }
+                })
         }
     };
 }

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>M3 Task 1 · host round trip</title>
+  </head>
+  <body>
+    <h1>M3 Task 1 · 产品壳 + 产品 Host 的端口往返</h1>
+    <p>
+      本页是 <strong>opt-in 集成测试</strong>的页面（测试资产，不是产品 UI）：它用渲染层**未改动**的
+      `DatabaseStartupAdmission` 当闸门，拿注入桥送来的端口跑一次真 `ChannelClient` 往返，
+      再把结果 fetch 到测试自己起的 sink。CI 跑不了（要真 webview），见
+      <code>docs/specs/tauri-renderer-host.md</code>。
+    </p>
+    <pre id="out"></pre>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

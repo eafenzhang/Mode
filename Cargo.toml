@@ -17,6 +17,7 @@ members = [
   "crates/browser-import-helper",
   "crates/platform",
   "crates/protocol",
+  "crates/sidecar-host",
   "crates/tauri-test-manifest",
   "crates/updater",
   "crates/tray",
