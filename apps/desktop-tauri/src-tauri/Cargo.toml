@@ -39,6 +39,17 @@ path = "src/bin/host_roundtrip_harness.rs"
 required-features = ["host-roundtrip"]
 
 # M3 Task 3 的 opt-in 真产品 UI harness（同上）。
+#
+# **已知代价（复评 Minor 11，登记为 Task 5 的输入）**：`required-features` 门住的 bin
+# **不在 `clippy --workspace --all-targets -- -D warnings` 的检查范围里**——`--all-targets`
+# 只覆盖默认 feature 的 target，所以这三个 harness 源码事实上**没有 lint 覆盖**。
+# 要覆盖它们得单独跑
+# `clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`。
+# 本任务没有把它接进 CI 门禁（改门禁超出本任务授权），登记在 spec 的 §20 开放项里。
+# **复评 Minor 11 那轮真跑了这条命令**，抓到并修掉两处 `clippy::let_unit_value`
+# （`HostRoundtripHarness`/`ProductUiHarness` 的 watchdog 线程里 `let _ = exit_handle.exit(0)`；
+# 该命令返回 `()`，`let _ =` 是多余的）。剩下的风险是**结构性的**：将来再加 harness bin
+# 仍可能悄悄漏掉 lint——那属于 CI 门禁，仍归 §20 第 4 条。
 [[bin]]
 name = "ProductUiHarness"
 path = "src/bin/product_ui_harness.rs"

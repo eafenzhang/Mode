@@ -33,15 +33,27 @@
  *   原始输出见 `docs/specs/tauri-renderer-host.md` §10.8；
  * - `DELIBERATELY_ABSENT_REQUIRED`：唯一例外，见下面的注释。
  *
- * 成员清单不是手抄的「感觉」：`windowModeInjection.test.mts` 会拿
- * `packages/client/src/globals.d.ts`（`window.mode` 的类型声明真源）与
- * `@mode/ui/tauri-platform` 导出的 M1 切片逐名对拍，多一个/少一个/拼错一个都当场红。
+ * 成员清单不是手抄的「感觉」，而且**两处真源都要对**：
+ *
+ * - `packages/client/src/globals.d.ts` 是 `window.mode` 的声明真源——按声明返回形态自动分类；
+ * - **renderer 的调用面**是第二处真源：它引用了 123 个成员、其中 11 个**没有**在那份声明里
+ *   （它们由 `IPlatformService`（`packages/shared/src/platform.ts`）声明，适配层直接透传）。
+ *   本文件据此补上渲染层**不加守卫就会调**的那些（`createTempTextAttachment`、
+ *   `loadMcpFromUserDirectory`、`saveMcpToUserDirectory`、`migrateLegacyCommonMcp`、
+ *   `renameLanPairedPeer`），分类同样按 `IPlatformService` 的返回形态。
+ *
+ * `windowModeInjection.test.mts` 两头都守：声明面逐名对拍 + **扫渲染层源码取出「被直接调用
+ * （没有 `?.`）的成员名」再要求它们全部被覆盖**。只守声明面是不够的——「从一个文件枚举面、
+ * 而消费者在另一个文件调用」正是本仓库反复吃亏的那类缺口（review I1）。
  *
  * ## 依赖 `withGlobalTauri`
  *
- * 命令与事件都走 `window.__TAURI__`（`tauri.conf.json` 的 `app.withGlobalTauri: true`，
- * M1 的验收台也已依赖它）。**延迟解析**：Tauri 注入全局与用户 init script 的先后顺序不是本层
- * 能约定的，所以在脚本求值期**不**读它，只在方法被调用时才取——否则一个顺序差异就会让
+ * **命令通道**走 `window.__TAURI__.core.invoke`，兜底 `window.__TAURI_INTERNALS__.invoke`
+ * （见 `commandChannel` 的注释：前者依赖 `withGlobalTauri` 开关，后者是 Tauri 注入 IPC 的必到那一路）。
+ * **事件订阅**只能走 `window.__TAURI__.event.listen`（`tauri.conf.json` 的 `app.withGlobalTauri: true`），
+ * 缺席时降级为 no-op 订阅并**留痕**（`no_event_api`）。
+ * **两者都延迟解析**：Tauri 注入全局与用户 init script 的先后顺序不是本层能约定的，
+ * 所以在脚本求值期**不**读它们，只在方法被调用时才取——否则一个顺序差异就会让
  * `window.mode` 整个缺席。
  *
  * ## 已知缺口（登记，不静默）
@@ -58,6 +70,8 @@
   var DEEP_LINK_EVENT = "mode:deep-link";
   var KIND_OAUTH = "oauth-callback";
   var KIND_PAYMENT = "payment-callback";
+  // 命令名由 Rust 侧注入（`crate::bridge` 的占位符替换），不手抄：wire 名的唯一真源在那边。
+  var CMD_PLATFORM_REPORT = "__MODE_HOST_CMD_PLATFORM_REPORT__";
 
   /** M1 切片表的 10 条命令（与 `crates/platform/src/commands/mod.rs` 的切片表同名）。 */
   var M1_COMMANDS = [
@@ -91,6 +105,7 @@
    */
   var REJECTING_REQUIRED = [
     "connectRemote",
+    "createTempTextAttachment",
     "isDockerAvailable",
     "listWSLDistros",
     "listDockerContainers",
@@ -105,6 +120,8 @@
     "getLanPairedPeers",
     "getLanPeerWorkspaces",
     "canOpenCommunity",
+    "loadMcpFromUserDirectory",
+    "migrateLegacyCommonMcp",
     "openExternalFile",
     "exportLogs",
     "getInstalledEditors",
@@ -117,6 +134,7 @@
     "rdSetServerEnabled",
     "rdRevokeClient",
     "rdAuthorizeClient",
+    "saveMcpToUserDirectory",
   ];
   /**
    * 必选、M1 未实现，但**调用方不消费返回值**的成员：留一个「降级空操作」并留痕。
@@ -138,6 +156,7 @@
   var NO_OP_REQUIRED = [
     "disposeRemoteSession",
     "removeLanPairedPeer",
+    "renameLanPairedPeer",
     "onRemoteConnectionLog",
     "onRemoteSessionClosed",
     "onBotRemoteWorkspaceReconnected",
@@ -165,6 +184,11 @@
   /** 必选但**故意留空**的成员（理由见文件头「已知缺口」）。 */
   var DELIBERATELY_ABSENT_REQUIRED = ["log"];
 
+  // 诊断上报的次数上限（见文件末的 reportPlatformSurface）：在**任何**降级可能发生之前就初始化，
+  // 免得「计数还是 undefined」把上限变成 NaN 从而失效。
+  var MAX_SURFACE_REPORTS = 5;
+  var surfaceReports = 0;
+
   var diagnostics = {
     source: "sidecar-host/window_mode.ts",
     implemented: M1_COMMANDS.slice().concat(M1_EVENT_SUBSCRIBED),
@@ -181,6 +205,8 @@
     if (degradedSeen[reason]) return;
     degradedSeen[reason] = true;
     diagnostics.degraded.push(reason);
+    // 降级是**事后**发生的（渲染层挂载时才调那些方法），所以每出现一个新理由就更新一条记录。
+    reportPlatformSurface();
     try {
       console.warn("[mode-window] " + reason + ": " + String(detail));
     } catch {
@@ -198,6 +224,12 @@
    */
   function makeNoOp(method) {
     function noop() {}
+    // thenable 是**刻意设计**的一部分：「没有要读的值」的成员在声明里既有返回 disposer 的、
+    // 也有返回 `Promise<void>` 的，而注入层拿不到调用点的消费方式；一个既非函数也非 thenable
+    // 的返回（例如裸 `undefined`）会让订阅型调用方在下一行二次崩（`dispose is not a function`），
+    // 比缺口本身更糟。这条与「可调用」一起被 `windowModeInjection.test.mts` 的三种消费形态断言钉住。
+    // oxlint 的 `unicorn/no-thenable` 是这条设计的**预期**告警，这里显式关掉它（本仓只加了这一条）。
+    // eslint-disable-next-line unicorn/no-thenable
     noop.then = function (onFulfilled) {
       if (typeof onFulfilled === "function") onFulfilled(undefined);
       return noop;
@@ -215,18 +247,28 @@
     };
   }
 
-  /** 延迟解析 Tauri 全局：注入那一刻它可能还没到（见文件头）。 */
-  function tauriCore() {
+  /**
+   * 延迟解析命令通道：注入那一刻它可能还没到（见文件头），所以只在方法被调用时才取。
+   *
+   * **两条候选，顺序固定**：`window.__TAURI__.core.invoke`（`withGlobalTauri` 暴露的公开面）
+   * 优先，`window.__TAURI_INTERNALS__.invoke` 兜底（Tauri 自己的 IPC 入口，桥脚本已经在用它
+   * ——真机实测证明它在 document-start 就在）。为什么不只用前者：`withGlobalTauri` 是
+   * `tauri.conf.json` 的一个开关，关掉它不该让整层平台面（以及诊断上报）一起消失；
+   * 而 `__TAURI_INTERNALS__` 是 Tauri 注入 IPC 的**必到**那一路。
+   */
+  function commandChannel() {
     var api = window.__TAURI__;
-    if (!api || !api.core || typeof api.core.invoke !== "function") return null;
-    return api.core;
+    if (api && api.core && typeof api.core.invoke === "function") return api.core;
+    var internals = window.__TAURI_INTERNALS__;
+    if (internals && typeof internals.invoke === "function") return internals;
+    return null;
   }
 
   function invoke(command, args) {
-    var core = tauriCore();
-    // 不静默吞：壳没配好（`withGlobalTauri` 关着）必须是响亮的失败，而不是「命令返回空」。
-    if (!core) throw new Error("mode_window_no_tauri_api: " + command);
-    return core.invoke(command, args);
+    var channel = commandChannel();
+    // 不静默吞：两条通道都没有 = 壳没配好，必须是响亮的失败，而不是「命令返回空」。
+    if (!channel) throw new Error("mode_window_no_tauri_api: " + command);
+    return channel.invoke(command, args);
   }
 
   /** 返回 `void` 的命令只能发后不管；失败必须留痕（IPC 断/命令改名都在这里现形）。 */
@@ -350,4 +392,59 @@
   }
 
   window.mode = mode;
+
+  /**
+   * 把平台面清单送上**产品诊断面**（review I3 的处置）。
+   *
+   * 为什么需要它：`diagnostics.degraded` 只在页面里，而 `console` 与 devtools 在 release 里
+   * 都不存在（`tauri = "2"` 不启 devtools，`console.warn` 也没有捕获方）——于是「没有要读的值的
+   * 成员被降级为空操作」这件事在真机上**不可见**，而调用方收到的还是**成功**。这条命令把清单送到
+   * 壳的 stderr（与 Host 的结构化失败行同一条通道，壳本来就把它当诊断面），让「能力缺失」在产品的
+   * 诊断记录里留下一条。
+   *
+   * 时序：`DOMContentLoaded` 时先报一次（此时只能报**清单**，降级还没发生）；此后每出现一个新的
+   * 降级理由再报一次，**上限 `MAX_SURFACE_REPORTS` 次**（去重后的降级至多几十条，不设上限会把
+   * stderr 刷满）。每一次报的都是**当前完整**清单，所以最后一条就是全量。
+   */
+  // 函数声明会提升，所以 `degrade`（可能在任何位置被调用）可以安全地引用它。
+  function reportPlatformSurface() {
+    if (!(surfaceReports < MAX_SURFACE_REPORTS)) return;
+    surfaceReports += 1;
+    // **载荷必须包在参数名里**：Tauri v2 按 `#[tauri::command]` 的参数名映射入参，
+    // 壳侧是 `host_platform_report(report: PlatformSurfaceReport)`，所以传 `{ report: … }`。
+    // 传错形状时 invoke 会拒绝（症状：清单永远不出现），所以这条由 CI 的 vm 用例钉住
+    // （`windowModeInjection.test.mts` 断言 invoke 的入参形状）。
+    var payload = {
+      report: {
+        implemented: diagnostics.implemented,
+        notImplemented: diagnostics.notImplemented,
+        noOp: diagnostics.noOp,
+        deliberatelyAbsent: diagnostics.deliberatelyAbsent,
+        degraded: diagnostics.degraded,
+      },
+    };
+    try {
+      invoke(CMD_PLATFORM_REPORT, payload).catch(function (error) {
+        // 上报失败也要留痕（否则「清单永远不出现」这种症状没有任何线索）：
+        // 记进账本 —— 下一次成功的上报会把它带走；`degrade` 按理由去重，所以不会自激。
+        degrade("platform_report_failed", error);
+      });
+    } catch (error) {
+      degrade("platform_report_threw", error);
+    }
+  }
+
+  if (typeof document !== "undefined" && document.addEventListener) {
+    if (document.readyState === "loading") {
+      document.addEventListener(
+        "DOMContentLoaded",
+        function () {
+          reportPlatformSurface();
+        },
+        { once: true },
+      );
+    } else {
+      reportPlatformSurface();
+    }
+  }
 })();

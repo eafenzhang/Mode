@@ -8,6 +8,10 @@
 //! 2. **追加一段探针**注入脚本（`test/harness/product-ui/probe.ts`）。页面不能改
 //!    （renderer 源码零改动是硬约束），所以观测只能从注入做。
 //!
+//! 它还有第二种用途：**只撤掉 `window.mode` 的负向对照**（`MODE_PRODUCT_UI_WITHHOLD_WINDOW_MODE=1`）。
+//! 那一条把「renderer 在入口模块求值期消费 `window.mode`，缺席就抛」从**读实现体的推论**变成
+//! **观察到的行为**——clean-room 复评要求的就是这个（见 `host_bridge_script` 的注释与 spec §19）。
+//!
 //! ```text
 //! node scripts/rust-cargo.ts build -p mode-tauri --features product-ui-harness --bin ProductUiHarness
 //! MODE_TAURI_PRODUCT_UI=1 node --import tsx --test apps/desktop-tauri/test/productUiMount.test.mts
@@ -19,7 +23,18 @@ use std::time::Duration;
 use tauri::Manager;
 
 /// 探针脚本（测试资产；**注入**而不是改页面，见文件头）。
+///
+/// 探针要知道本次跑的是**哪一档**（产品档 / 撤掉 `window.mode` 的负向档），因为两档的收工条件不同：
+/// 产品档等挂载成功，负向档在**第一次页面错误**时就可以收工并如实报告。占位符由本文件替换。
 const PROBE_SCRIPT: &str = include_str!("../../../test/harness/product-ui/probe.ts");
+
+/// 是否撤掉 `window.mode` 的注入（负向对照）。
+fn withhold_window_mode() -> bool {
+    matches!(
+        std::env::var("MODE_PRODUCT_UI_WITHHOLD_WINDOW_MODE").as_deref(),
+        Ok("1")
+    )
+}
 
 fn watchdog_ms() -> u64 {
     std::env::var("MODE_PRODUCT_UI_TIMEOUT_MS")
@@ -38,24 +53,39 @@ fn main() {
         let host = mode_tauri::spawn_host(&handle);
         let startup_id = host.startup_id().to_string();
         println!("HARNESS host startupId={startup_id} pid={}", host.pid());
-        app.manage(host);
 
         // 与产品壳**同一段注入**（`bridge_script` 内含 `window.mode`），入口页也取产品默认值
         // （`pick_shell_entry` 在未覆写时返回 `index.html`）。
+        let withhold = withhold_window_mode();
+        let injection = if withhold {
+            sidecar_host::bridge::host_bridge_script(&startup_id)
+        } else {
+            sidecar_host::bridge::bridge_script(&startup_id)
+        };
+        let probe = PROBE_SCRIPT.replace(
+            "__MODE_PRODUCT_UI_EXPECT__",
+            if withhold { "withheld" } else { "mounted" },
+        );
+        println!(
+            "HARNESS injection={} startupId={startup_id} pid={}",
+            if withhold { "bridge_only" } else { "window_mode+bridge" },
+            host.pid()
+        );
+        app.manage(host);
         mode_tauri::build_host_window(
             &handle,
             mode_tauri::MAIN_WINDOW_LABEL,
             tauri::WebviewUrl::App(sidecar_host::pick_shell_entry(None)),
             "M3 Task 3 · product UI",
-            &startup_id,
-            Some(PROBE_SCRIPT),
+            &injection,
+            Some(&probe),
         )?;
 
         let exit_handle = handle.clone();
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(watchdog_ms()));
             println!("HARNESS watchdog_exit");
-            let _ = exit_handle.exit(0);
+            exit_handle.exit(0);
         });
         Ok(())
     });

@@ -16,7 +16,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use sidecar_host::bridge::{CMD_RECV, CMD_SEND, CMD_STATE};
+use sidecar_host::bridge::{CMD_PLATFORM_REPORT, CMD_RECV, CMD_SEND, CMD_STATE};
 use sidecar_host::{data_base_dir_from, HostConfig, HostHandle};
 use tauri::{AppHandle, Manager, Runtime, State};
 
@@ -146,10 +146,73 @@ pub async fn host_startup_state(
     .map_err(|error| error.to_string())
 }
 
+/// 页面上报的平台面清单（`window.mode` 的切片与降级）。字段名与
+/// `crates/sidecar-host/src/window_mode.ts` 的诊断面一一对应。
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformSurfaceReport {
+    implemented: Vec<String>,
+    not_implemented: Vec<String>,
+    no_op: Vec<String>,
+    deliberately_absent: Vec<String>,
+    degraded: Vec<String>,
+}
+
+/// 单条清单的长度上限：这是**产品诊断面**，不是数据通道。注入层报的是自己的成员表，
+/// 不设上限就等于让一条 IPC 把 stderr 刷爆（页面是本应用自己的本地内容，但边界仍要写死）。
+const MAX_REPORT_ENTRIES: usize = 64;
+/// 每条名字的长度上限（成员名都是标识符，超长即异常输入）。
+const MAX_REPORT_NAME_LEN: usize = 128;
+
+/// 页面上报平台面清单 → 壳把它落到**自己的 stderr**（DR-T3-3 的 I3 处置）。
+///
+/// **为什么需要这条命令**：注入层对「没有要读的值」的成员只能降级为空操作——**调用方收到的是
+/// 成功**，而 release 里既没有 devtools 也没有 console 捕获（`tauri = "2"` 默认不启 devtools），
+/// 于是那条降级在真机上不可见。这条命令把清单送进**已有的 stderr 诊断通道**（Host 的结构化失败行
+/// 走的就是它），让「能力缺失」在产品侧留下一条记录。
+///
+/// 壳**不解释**这份清单（不据它做任何决定）：它只是把渲染层自己的话记下来。
+#[tauri::command(rename = "host_platform_report")]
+pub fn host_platform_report(report: PlatformSurfaceReport) -> Result<(), String> {
+    let bounded = |names: &[String]| -> String {
+        let mut rendered: Vec<String> = names
+            .iter()
+            .take(MAX_REPORT_ENTRIES)
+            .map(|name| {
+                let mut clipped: String = name.chars().take(MAX_REPORT_NAME_LEN).collect();
+                if clipped.chars().any(|c| c.is_whitespace()) {
+                    clipped = "<invalid-name>".to_string();
+                }
+                clipped
+            })
+            .collect();
+        if names.len() > MAX_REPORT_ENTRIES {
+            rendered.push(format!("+{} more", names.len() - MAX_REPORT_ENTRIES));
+        }
+        rendered.join(",")
+    };
+    // 一行、键值形态：与 Host 的结构化失败行（`startup_failed phase=… errorCode=…`）同一种读法。
+    eprintln!(
+        "[mode-tauri] platform_surface implemented={} rejecting={} noop={} absent={} degraded={} reasons={}",
+        report.implemented.len(),
+        report.not_implemented.len(),
+        report.no_op.len(),
+        report.deliberately_absent.len(),
+        report.degraded.len(),
+        bounded(&report.degraded),
+    );
+    Ok(())
+}
+
 /// 本模块注册的命令，交给 `platform::commands::init_with_extra` 并进同一个 `invoke_handler`。
 pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
-    tauri::generate_handler![host_send, host_recv, host_startup_state]
+    tauri::generate_handler![
+        host_send,
+        host_recv,
+        host_startup_state,
+        host_platform_report
+    ]
 }
 
 /// 命令名清单（与 `sidecar_host::bridge::COMMAND_NAMES` 同源；由 Node 侧守卫用例比对）。
-pub const COMMAND_NAMES: &[&str] = &[CMD_SEND, CMD_RECV, CMD_STATE];
+pub const COMMAND_NAMES: &[&str] = &[CMD_SEND, CMD_RECV, CMD_STATE, CMD_PLATFORM_REPORT];

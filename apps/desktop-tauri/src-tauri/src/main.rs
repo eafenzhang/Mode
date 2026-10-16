@@ -67,8 +67,8 @@ fn main() {
                 std::env::var_os("MODE_TAURI_SHELL_ENTRY").as_deref(),
             )),
             "Mode",
-            &startup_id,
-            // 产品壳不追加任何注入：`window.mode` 已经在桥脚本里（见 crates/sidecar-host/src/bridge.rs）。
+            // 产品注入：`window.mode`（平台面适配层）+ Host 桥，一段脚本文本、document-start 求值。
+            &sidecar_host::bridge::bridge_script(&startup_id),
             None,
         )?;
         Ok(())

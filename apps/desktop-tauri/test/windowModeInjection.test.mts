@@ -5,11 +5,14 @@
  * ## 为什么这条用例必须存在（DR-T3-1 的代价）
  *
  * Tauri 没有 preload / `contextBridge`，所以 renderer 启动时读的 `window.mode` 只能由**页面加载前**
- * 的注入提供。`packages/desktop/src/renderer/src/main.tsx` 在**模块求值期**就建桌面平台服务
- * （`const desktopPlatform = createDesktopPlatform({...})`，顶层语句），而 `createDesktopPlatform`
- * 返回的对象字面量里有若干**非惰性**的 `window.mode.X ? … : undefined` 条件表达式——也就是说
- * `window.mode` 缺席时，renderer 的入口模块**当场抛**，React 永远挂不上。
- * 「注入早于 renderer 第一次访问」由此成为**正确性的一部分**，不能靠「一般是够快的」。
+ * 的注入提供。renderer 的入口模块（`main.tsx` 的顶层语句）在**模块求值期**就建桌面平台服务，
+ * 而 `window.mode` 缺席时入口模块**当场抛**、React 永远挂不上——所以
+ * 「注入早于 renderer 第一次访问」是**正确性的一部分**，不能靠「一般是够快的」。
+ *
+ * **这条事实的来源是黑盒对照，不是读渲染层实现**：`productUiMount.test.mts` 的真机负向对照
+ * （`MODE_PRODUCT_UI_WITHHOLD_WINDOW_MODE=1`，只撤掉 `window.mode` 这一段注入）观察到的就是
+ * 「入口模块抛 + `mounted === false`」。原先这里把「非惰性条件表达式」当作依据，那是读上游衍生
+ * 文件实现体得到的结论，已按 clean-room 记为**违规**（spec §19.1）；本注释不再复述那个依据。
  *
  * 所以本用例断言三件事：
  *
@@ -26,12 +29,14 @@
  *    （调用方本来就用 `?.` 守卫，塞桩会把「平台不支持」变成「直接崩」）。
  *
  * 注入脚本的**文本**不是手抄的：用例从 `crates/sidecar-host/src/bridge.rs` 的 `include_str!`
- * 清单与 `.replace(…)` 清单派生（那两处是注入的真源），所以「新加一个模板忘了代入」或
- * 「加了模板但没被注入」都会当场红。
+ * 清单与 `.replace(…)` 清单派生（那两处是注入的真源）。它能抓的是「加了模板文件却没进
+ * `include_str!` 清单」与「占了位却没有代入」；**抓不到**「模板进了清单但 `bridge_script()`
+ * 忘了拼接它」——那条由 Rust 侧的 `window_mode_is_installed_before_the_rest_of_the_bridge`
+ * 与真机用例守（这里刻意不假装覆盖它）。
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -41,6 +46,7 @@ import {
   M1_EVENT_SUBSCRIBED_METHODS,
   M1_IMPLEMENTED_COMMANDS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
+  normalizeApplicationIconRequest,
 } from "@mode/ui/tauri-platform";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -99,7 +105,9 @@ function readInjectionManifest(bridgeRs: string): InjectionManifest {
     (match) => {
       const placeholder = match[1]!;
       const expression = match[2]!.trim();
-      if (expression.includes("safe_id")) {
+      // startupId 那个占位符由用例给值；按**占位符名**判断而不是按代入表达式的写法，
+      // 这样重命名 Rust 侧的局部变量不会把用例搞红（`sanitized_startup_id` 撞过一次）。
+      if (placeholder === "__MODE_HOST_STARTUP_ID__") {
         return { placeholder, value: TEST_STARTUP_ID };
       }
       const referenced = [...consts.keys()].find((name) => expression.includes(name));
@@ -150,6 +158,8 @@ interface Page {
   flushMicrotasks(): Promise<void>;
   postMessages: Array<{ payload: unknown; transferred: unknown[] }>;
   invokes: Array<{ command: string; args: unknown }>;
+  /** 注入脚本注册过的深链监听（I2 的配对断言用）。 */
+  deepLinkListeners: Array<{ event: string; handler: (envelope: unknown) => void }>;
   readyState(): string;
 }
 
@@ -224,9 +234,16 @@ function createPage(): Page {
     return Promise.resolve(null);
   };
   sandbox.__TAURI_INTERNALS__ = { invoke: recordInvoke };
+  // 事件订阅要能**被喂**：I2 的 kind↔方法配对断言靠它（只断言「两个 kind 字符串出现过」是抓不到对调的）。
+  const listenCalls: Array<{ event: string; handler: (envelope: unknown) => void }> = [];
   sandbox.__TAURI__ = {
     core: { invoke: recordInvoke },
-    event: { listen: () => Promise.resolve(() => {}) },
+    event: {
+      listen: (event: string, handler: (envelope: unknown) => void) => {
+        listenCalls.push({ event, handler });
+        return Promise.resolve(() => {});
+      },
+    },
   };
 
   const context = createContext(sandbox);
@@ -242,6 +259,7 @@ function createPage(): Page {
     flushMicrotasks: () => new Promise((resolveFlush) => setImmediate(resolveFlush)),
     postMessages,
     invokes,
+    deepLinkListeners: listenCalls,
     readyState: () => (sandbox.document as { readyState: string }).readyState,
   };
 }
@@ -341,6 +359,40 @@ function readWindowModeDeclaration(): ModeDeclaration {
   return { required, optional, requiredThrowing, requiredWithoutConsumedValue };
 }
 
+/**
+ * 第二处声明真源：`IPlatformService`（`packages/shared/src/platform.ts`）。
+ *
+ * 为什么需要（review I1）：渲染层引用的 123 个 `window.mode` 成员里有 11 个**不在**
+ * `globals.d.ts` 里——它们由 `IPlatformService` 声明、被适配层直接透传。只读一处声明，
+ * 「消费者在另一个文件里调用」的那批就没人守。返回 `name → 是否「没有要读的值」`，
+ * 分类复用同一个形态判据。
+ */
+function readPlatformServiceDeclaration(): Map<string, boolean> {
+  const relative = "packages/shared/src/platform.ts";
+  const file = ts.createSourceFile(
+    relative,
+    read(relative),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const found = new Map<string, boolean>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isInterfaceDeclaration(node) && node.name.text === "IPlatformService") {
+      for (const member of node.members) {
+        if ((!ts.isMethodSignature(member) && !ts.isPropertySignature(member)) || !member.name) {
+          continue;
+        }
+        found.set(member.name.getText(file), returnsNoConsumedValue(member));
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  assert.ok(found.size > 30, `IPlatformService 的成员只读到 ${found.size} 个，解析可能没命中`);
+  return found;
+}
+
 // ---------------------------------------------------------------------------
 // 用例
 // ---------------------------------------------------------------------------
@@ -404,6 +456,165 @@ test("port 与状态流的投递仍然推迟到 DOMContentLoaded（spike §4.5 �
   );
 });
 
+/**
+ * 渲染层的 `window.mode` 使用面：从**消费者**一侧枚举，而不是从声明文件一侧。
+ *
+ * 为什么需要它（review I1）：`packages/client/src/globals.d.ts` 是 `window.mode` 的声明真源，
+ * 但渲染层实际引用了 **123** 个成员、其中 **11** 个没有在那份声明里（它们由
+ * `IPlatformService` 声明、由适配层直接透传）。只守声明面就会漏掉「消费者在另一个文件里
+ * 直接调用」的那些——那正是本仓库反复吃亏的那类缺口。
+ *
+ * 分类按**调用形态**（不是按名字）：跟一个成员名后面的是 `(`（或 `!(`）时，缺席就会抛
+ * `TypeError: ... is not a function`，所以它**必须被覆盖**；`?.`、`!`前的属性读、以及
+ * `window.mode.X ? … : undefined` 这类存在性判断在缺席时都是安全的（属性读到 `undefined`
+ * 不会抛）。
+ */
+function readRendererWindowModeUsage(): {
+  unsafeCalls: string[];
+  /** 用了 `!`（非空断言）调用的成员，但**同一个文件里没有存在性判断**——那才是真的没守卫。 */
+  unguardedNonNullCalls: string[];
+  safeOnly: string[];
+  fileCount: number;
+} {
+  // 两个根都扫：运行时它们是同一个渲染层 bundle（适配层在 renderer，`logger` 等在 ui）。
+  const roots = [
+    resolve(repoRoot, "packages/desktop/src/renderer"),
+    resolve(repoRoot, "packages/ui/src"),
+  ];
+  const files: string[] = [];
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(ts|tsx)$/.test(entry.name)) files.push(full);
+    }
+  };
+  for (const root of roots) walk(root);
+
+  const unsafe = new Set<string>();
+  const safe = new Set<string>();
+  const nonNull = new Set<string>();
+  const unguardedNonNull = new Set<string>();
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    /** 同一文件里出现过 `window.mode.X ? …` / `?? ` / `&&` / `typeof window.mode.X` —— 缺席已被处理。 */
+    const presenceTested = new Set<string>();
+    for (const match of source.matchAll(
+      /window\.mode\.([A-Za-z_$][\w$]*)\s*(?:\?\?|&&|\?(?![.?]))|typeof window\.mode\.([A-Za-z_$][\w$]*)/g,
+    )) {
+      presenceTested.add((match[1] ?? match[2])!);
+    }
+    for (const match of source.matchAll(/window\.mode\.([A-Za-z_$][\w$]*)/g)) {
+      const name = match[1]!;
+      const tail = source.slice(match.index + match[0].length, match.index + match[0].length + 4);
+      if (/^\s*!\s*\(/.test(tail)) {
+        nonNull.add(name);
+        // `X ? () => X!() : undefined` 是**有守卫**的：三元为假时那个箭头根本不会被创建。
+        if (!presenceTested.has(name)) unguardedNonNull.add(name);
+      } else if (/^\s*\(/.test(tail)) {
+        unsafe.add(name);
+      } else {
+        safe.add(name);
+      }
+    }
+  }
+  return {
+    unsafeCalls: [...unsafe].sort(),
+    unguardedNonNullCalls: [...unguardedNonNull].sort(),
+    safeOnly: [...safe].filter((name) => !unsafe.has(name) && !nonNull.has(name)).sort(),
+    fileCount: files.length,
+  };
+}
+
+test("平台面清单会在 DOMContentLoaded 后上报给壳（入参形状对得上，I3 的可见面）", async () => {
+  // review I3 的机制断言：清单必须**离开页面**（release 里没有 devtools/console），
+  // 而这条 invoke 的**入参形状**是它成不成立的关键——Tauri v2 按 `#[tauri::command]` 的
+  // 参数名映射，壳侧是 `host_platform_report(report: …)`，所以必须是 `{ report: {…} }`。
+  // 真机侧的同一条断言在 `productUiMount.test.mts`（看壳的 stderr 里有没有那行）。
+  const page = createPage();
+  page.evaluate(emitInjectedScript());
+  page.fireDomContentLoaded();
+  await page.flushMicrotasks();
+
+  const call = page.invokes.find((candidate) => candidate.command === "host_platform_report");
+  assert.ok(call, `DOMContentLoaded 后必须上报平台面清单，实际调用：${JSON.stringify(page.invokes)}`);
+  const args = JSON.parse(JSON.stringify(call.args)) as {
+    report?: Record<string, unknown>;
+  };
+  assert.ok(args.report, `入参必须包在 \`report\` 参数名里（Tauri 按参数名映射）：${JSON.stringify(args)}`);
+  const report = args.report!;
+  for (const field of ["implemented", "notImplemented", "noOp", "deliberatelyAbsent", "degraded"]) {
+    assert.ok(Array.isArray(report[field]), `清单里必须有 ${field}（与壳侧的 PlatformSurfaceReport 对应）`);
+  }
+  assert.ok(
+    (report.implemented as string[]).includes("selectDirectory"),
+    "清单里的 implemented 必须是注入层的真实切片",
+  );
+  assert.ok(
+    (report.notImplemented as string[]).includes("connectRemote"),
+    "清单里的 notImplemented（要读值的那类）必须与注入层一致",
+  );
+
+  // 降级**事后**发生（渲染层挂载时才调），所以更新一条记录是可观察的：再调一次被降级的方法，
+  // 应当触发第二次上报（带上新的 degraded 条目）。
+  page.probe("window.mode.onFocusTab(function () {});");
+  await page.flushMicrotasks();
+  const reports = page.invokes.filter((candidate) => candidate.command === "host_platform_report");
+  assert.ok(
+    reports.length >= 2,
+    "出现新的降级理由时必须再报一条（否则清单永远停在 DOMContentLoaded 那一刻的空账本）",
+  );
+  const latest = JSON.parse(JSON.stringify(reports[reports.length - 1]!.args)) as {
+    report: { degraded: string[] };
+  };
+  assert.ok(
+    latest.report.degraded.includes("not_implemented_noop:onFocusTab"),
+    `最后一次上报必须带上新的降级条目：${JSON.stringify(latest.report.degraded)}`,
+  );
+});
+
+test("渲染层**直接调用**（没有 ?. 守卫）的 window.mode 成员必须全部被注入覆盖", () => {
+  const page = createPage();
+  page.evaluate(emitInjectedScript());
+  const injected = new Set(Array.from(page.probe("Object.keys(window.mode)") as string[]));
+  // 故意留空的成员也在 `window.mode` 上不存在，所以单独把它算进口径（它是显式决策，见下一组用例）。
+  for (const name of DELIBERATELY_ABSENT_REQUIRED_MEMBERS) injected.delete(name);
+
+  const usage = readRendererWindowModeUsage();
+  // 先证扫描本身不是空转：目录扫不到文件、或者只扫到几个名字时，下面的断言会变成假绿灯。
+  assert.ok(
+    usage.fileCount > 1000,
+    `渲染层源码文件数异常（扫到 ${usage.fileCount} 个），扫描根可能错了`,
+  );
+  assert.ok(
+    usage.unsafeCalls.length >= 30,
+    `直接调用的成员只扫到 ${usage.unsafeCalls.length} 个，扫描规则可能坏了：${usage.unsafeCalls.join(", ")}`,
+  );
+  assert.ok(
+    usage.unsafeCalls.length + usage.safeOnly.length >= 100,
+    `引用到的成员总数 ${usage.unsafeCalls.length + usage.safeOnly.length} 明显偏少（正常 ≥120）`,
+  );
+
+  // `!` 断言式调用（`X ? () => X!() : undefined`）只有在**同一文件里没有存在性判断**时才算没守卫；
+  // 这条把上面的启发式变成可检查的不变式（否则「带 ! 的调用一律放过」会随时间变成漏网）。
+  assert.deepEqual(
+    usage.unguardedNonNullCalls,
+    [],
+    `这些成员用非空断言调用了，但同一文件里没有存在性判断——那等于没有守卫，` +
+      `要么补守卫，要么把它们纳入覆盖：${usage.unguardedNonNullCalls.join(", ")}`,
+  );
+
+  const uncovered = usage.unsafeCalls.filter((name) => !injected.has(name));
+  assert.deepEqual(
+    uncovered,
+    [],
+    `渲染层会不加守卫地调这些成员，但注入里没有它们——在 Tauri 壳里会抛 ` +
+      `"TypeError: window.mode.X is not a function" 且不留痕（review I1）。` +
+      `按返回形态补进 window_mode.ts 的 REJECTING_REQUIRED（要读值）或 NO_OP_REQUIRED（没有要读的值）：` +
+      `${uncovered.join(", ")}`,
+  );
+});
+
 test("注入的 window.mode 与 M1 适配层切片一致：命令同名同参，事件订阅走深链事件", async () => {
   const page = createPage();
   page.evaluate(emitInjectedScript());
@@ -443,14 +654,94 @@ test("注入的 window.mode 与 M1 适配层切片一致：命令同名同参，
   for (const method of M1_EVENT_SUBSCRIBED_METHODS) {
     assert.ok(names.includes(method), `${method} 必须在注入的 window.mode 上（否则 OAuth 链断）`);
   }
+
+  // 入参归一化必须与 M1 的 `normalizeApplicationIconRequest` **逐字段一致**：
+  // Rust 命令只收结构化 locator，字符串喂错形状会被反序列化拒掉（`getApplicationIcon` 直接报错）。
+  // 早先版本只在注释里声称「两处由本用例对拍」而实际没有断言（review I2）——现在是断言。
+  const sample = "com.example.app";
+  await page.probe(`window.mode.getApplicationIcon(${JSON.stringify(sample)})`);
+  await page.flushMicrotasks();
+  const iconCall = page.invokes.find((call) => call.command === "getApplicationIcon");
+  assert.ok(iconCall, "getApplicationIcon 必须真的走到壳命令");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(iconCall.args)),
+    JSON.parse(JSON.stringify({ request: normalizeApplicationIconRequest(sample) })),
+    "注入层的图标入参归一化必须与 M1 的 normalizeApplicationIconRequest 同形（两处口径分叉即红）",
+  );
 });
 
-test("必选成员要么是真实现、要么显式抛 / 降级留痕；可选成员一律缺席", async () => {
+test("深链订阅：kind 与方法的配对是可观察行为，不是「两个字符串都出现过」", async () => {
+  // 为什么单独一条（review I2）：原先只断言两个 kind 字面量**都出现在文件里**——
+  // 把 `KIND_OAUTH` 与 `KIND_PAYMENT` 对调，那种断言照样绿。这里按行为验证：
+  // 喂一个 kind，只有对应的方法该被回调。
   const page = createPage();
   page.evaluate(emitInjectedScript());
-  const names = page.probe("Object.keys(window.mode).sort()") as string[];
+  page.probe(
+    "window.__probe = { oauth: [], payment: [] };" +
+      "window.mode.onOAuthCallback(function (url) { window.__probe.oauth.push(url); });" +
+      "window.mode.onPaymentCallback(function (url) { window.__probe.payment.push(url); });",
+  );
+  await page.flushMicrotasks();
+
+  const event = readDeepLinkEventName();
+  assert.equal(page.deepLinkListeners.length, 2, "两条订阅方法都必须真的注册监听");
+  for (const listener of page.deepLinkListeners) {
+    assert.equal(listener.event, event, `订阅的必须是宿主 emit 的深链事件 ${event}`);
+  }
+
+  const deliver = (payload: Record<string, unknown>): void => {
+    for (const listener of page.deepLinkListeners) {
+      listener.handler({ event, payload });
+    }
+  };
+
+  const recorded = (key: "oauth" | "payment"): string[] =>
+    Array.from(page.probe(`window.__probe.${key}`) as string[]);
+
+  deliver({ kind: "oauth-callback", url: "mode://oauth/callback?state=oauth-1" });
+  assert.deepEqual(
+    recorded("oauth"),
+    ["mode://oauth/callback?state=oauth-1"],
+    "oauth-callback 必须打到 onOAuthCallback",
+  );
+  assert.deepEqual(
+    recorded("payment"),
+    [],
+    "oauth-callback 不得打到 onPaymentCallback（两条方法对调过就会红）",
+  );
+
+  deliver({ kind: "payment-callback", url: "mode://pay/callback?state=pay-1" });
+  assert.deepEqual(
+    recorded("payment"),
+    ["mode://pay/callback?state=pay-1"],
+    "payment-callback 必须打到 onPaymentCallback",
+  );
+  assert.deepEqual(
+    recorded("oauth"),
+    ["mode://oauth/callback?state=oauth-1"],
+    "payment-callback 不得追加到 onOAuthCallback",
+  );
+
+  // 形状不对的载荷（IPC 来的东西不能假设类型）只跳过，不抛、也不误投。
+  deliver({ kind: "oauth-callback" } as Record<string, unknown>);
+  deliver({ kind: "oauth-callback", url: 42 } as unknown as Record<string, unknown>);
+  deliver({ url: "mode://oauth/callback?state=no-kind" } as Record<string, unknown>);
+  assert.deepEqual(
+    recorded("oauth"),
+    ["mode://oauth/callback?state=oauth-1"],
+    "畸形载荷必须被跳过（否则一次畸形事件会打断整条订阅）",
+  );
+  assert.deepEqual(recorded("payment"), ["mode://pay/callback?state=pay-1"]);
+});
+
+test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成员一律缺席（两处声明真源都守）", async () => {
+  const page = createPage();
+  page.evaluate(emitInjectedScript());
+  const names = Array.from(page.probe("Object.keys(window.mode)") as string[]).sort();
   const declared = readWindowModeDeclaration();
   const declaredAll = new Set([...declared.required, ...declared.optional]);
+  const platformService = readPlatformServiceDeclaration();
+  const usage = readRendererWindowModeUsage();
 
   assert.equal(
     names.length,
@@ -458,21 +749,52 @@ test("必选成员要么是真实现、要么显式抛 / 降级留痕；可选�
     "需要的键应当是可枚举的自有属性",
   );
 
-  // 注入的成员名必须都是 window.mode 类型里声明过的——防止拼错一个名字（拼错即静默失效）。
+  // 注入的成员名必须都能在**声明面**里找到依据——防止拼错一个名字（拼错即静默失效）。
   for (const name of names) {
-    assert.ok(declaredAll.has(name), `注入的 window.mode 出现了未声明的成员 ${name}`);
+    assert.ok(
+      declaredAll.has(name) || platformService.has(name),
+      `注入的 window.mode 出现了两处声明里都没有的成员 ${name}`,
+    );
   }
 
   const implemented = new Set<string>([...M1_IMPLEMENTED_COMMANDS, ...M1_EVENT_SUBSCRIBED_METHODS]);
   const absent = new Set(DELIBERATELY_ABSENT_REQUIRED_MEMBERS);
-  // 声明的返回形态决定注入层该给什么：要读值的 → 显式抛；没有要读的值 → 降级空操作。
-  const expectedThrowers = declared.requiredThrowing.filter(
-    (name) => !implemented.has(name) && !absent.has(name),
+  assert.deepEqual(
+    [...absent],
+    DELIBERATELY_ABSENT_REQUIRED_MEMBERS,
+    "「故意留空」的必选成员清单是显式决策，改它必须同时改这里与 spec",
   );
-  const expectedNoOps = declared.requiredWithoutConsumedValue.filter(
-    (name) => !implemented.has(name) && !absent.has(name),
+
+  // 声明的返回形态决定注入层给什么：要读值的 → 被拒 Promise；没有要读的值 → 降级空操作。
+  const expectedThrowers = new Set<string>();
+  const expectedNoOps = new Set<string>();
+  const classify = (name: string, withoutConsumedValue: boolean): void => {
+    (withoutConsumedValue ? expectedNoOps : expectedThrowers).add(name);
+  };
+  for (const name of declared.requiredThrowing) {
+    if (!implemented.has(name) && !absent.has(name)) classify(name, false);
+  }
+  for (const name of declared.requiredWithoutConsumedValue) {
+    if (!implemented.has(name) && !absent.has(name)) classify(name, true);
+  }
+
+  // 消费者侧的那批：渲染层**直接调用**但 `globals.d.ts` 没声明 —— 由 `IPlatformService` 定形态。
+  // （注意：其中四个在 `IPlatformService` 里声明成可选，渲染层却**不加守卫**地调它们——
+  //  这正是「覆盖规则必须跟着调用点走」的原因，见 review I1。）
+  const consumerOnly = usage.unsafeCalls.filter((name) => !declaredAll.has(name));
+  assert.ok(
+    consumerOnly.length > 0,
+    "应当存在「渲染层直接调用、但 globals.d.ts 未声明」的成员（否则这段断言是空的）",
   );
-  assert.ok(expectedThrowers.length > 0 && expectedNoOps.length > 0, "两类桩都不该为空");
+  for (const name of consumerOnly) {
+    const withoutConsumedValue = platformService.get(name);
+    assert.ok(
+      withoutConsumedValue !== undefined,
+      `${name} 被渲染层直接调用，但 globals.d.ts 与 IPlatformService 都没声明它——` +
+        `形态未知就不能猜，必须先确定它的返回形态`,
+    );
+    classify(name, withoutConsumedValue);
+  }
 
   // 可选成员不得被塞桩：调用方用 `?.` 守卫，「缺席」才是正确形态。
   for (const name of declared.optional) {
@@ -481,14 +803,9 @@ test("必选成员要么是真实现、要么显式抛 / 降级留痕；可选�
       `可选成员 ${name} 不得被注入（缺席才是「平台不支持」的正确形态；唯一例外是 M1 已实现的切片）`,
     );
   }
-  assert.deepEqual(
-    [...absent],
-    DELIBERATELY_ABSENT_REQUIRED_MEMBERS,
-    "「故意留空」的必选成员清单是显式决策，改它必须同时改这里与 spec",
-  );
 
   // ① 要读值的必选成员：调用必须返回一个**带方法名的被拒 Promise**——不返回假值，
-  //    也不同步抛（实测：渲染期同步抛会掀翻整棵树，见 spec §10.8/§10.9）。
+  //    也不同步抛（实测：渲染期同步抛会掀翻整棵树，见 spec §10.9/§10.10）。
   for (const name of expectedThrowers) {
     assert.ok(names.includes(name), `未实现的必选成员 ${name} 必须注入（不静默缺席）`);
     assert.equal(
@@ -522,9 +839,7 @@ test("必选成员要么是真实现、要么显式抛 / 降级留痕；可选�
       `not_implemented_until_m3: ${name}`,
       `${name} 的拒绝必须带方法名（M1 口径：失败点要能定位，不是 undefined is not a function）`,
     );
-    const degraded = Array.from(
-      page.probe("window.__MODE_WINDOW_MODE__.degraded") as string[],
-    );
+    const degraded = Array.from(page.probe("window.__MODE_WINDOW_MODE__.degraded") as string[]);
     assert.ok(
       degraded.includes(`not_implemented_rejected:${name}`),
       `${name} 的拒绝必须留痕：${degraded.join(", ")}`,
@@ -541,7 +856,7 @@ test("必选成员要么是真实现、要么显式抛 / 降级留痕；可选�
          var disposable = false;
          try { result(); disposable = true; } catch (error) { disposable = String(error); }
          if (typeof result.then !== "function") {
-           return { callable: callable, disposable: disposable, thenable: false, viaCall: null };
+           return { callable: callable, disposable: disposable, thenable: false };
          }
          return { callable: callable, disposable: disposable, thenable: true };
        })()`,
@@ -551,38 +866,40 @@ test("必选成员要么是真实现、要么显式抛 / 降级留痕；可选�
     assert.equal(probe.thenable, true, `${name} 的降级返回值必须可 await（通知型调用方会 await/catch）`);
     await page.probe(`window.mode.${name}()`);
     await page.flushMicrotasks();
-    const degraded = page.probe("window.__MODE_WINDOW_MODE__.degraded") as string[];
+    const degraded = Array.from(page.probe("window.__MODE_WINDOW_MODE__.degraded") as string[]);
     assert.ok(
       degraded.includes(`not_implemented_noop:${name}`),
       `${name} 的降级必须留痕（degraded），不能静默装成成功：${degraded.join(", ")}`,
     );
   }
 
-  // ③ 分类必须**只由声明形态决定**：注入的桩集合要与上面机械算出的两类一一对上。
-  // `Array.from`：注入脚本在另一个 realm（`node:vm`），跨 realm 的数组直接 deepStrictEqual
-  // 会在原型上不等（内容一样也红）。
-  const injectedNoOps = Array.from(
-    page.probe("window.__MODE_WINDOW_MODE__.noOp") as string[],
-  ).sort();
+  // ③ 分类必须**只由声明形态决定**：注入的两类集合要机械算出的两类一一对上。
+  //    `Array.from`：注入脚本在另一个 realm（`node:vm`），跨 realm 的数组直接 deepStrictEqual
+  //    会在原型上不等（内容一样也红）。
+  const injectedNoOps = Array.from(page.probe("window.__MODE_WINDOW_MODE__.noOp") as string[]).sort();
   const injectedThrowers = Array.from(
     page.probe("window.__MODE_WINDOW_MODE__.notImplemented") as string[],
   ).sort();
-  assert.deepEqual(injectedNoOps, [...expectedNoOps].sort(), "空操作成员集必须等于「声明没有要读的值」那一类");
+  assert.deepEqual(
+    injectedNoOps,
+    [...expectedNoOps].sort(),
+    "空操作成员集必须等于「声明没有要读的值」那一类",
+  );
   assert.deepEqual(
     injectedThrowers,
     [...expectedThrowers].sort(),
-    "抛错成员集必须等于「声明会返回被消费的值」那一类",
+    "被拒成员集必须等于「声明会返回被消费的值」那一类",
   );
 
   // ④ M1 自己的「未实现必选」清单里，凡是 window.mode 也声明的名字，都必须被注入
-  //    （两套接口面交叉的部分不能有沉默缺口）——要么抛、要么降级，但都要在。
+  //    （两套接口面交叉的部分不能有沉默缺口）——要么被拒、要么降级，但都要在。
   const intersection = M1_UNIMPLEMENTED_REQUIRED_METHODS.filter((name) =>
     declared.required.includes(name),
   );
   assert.ok(intersection.length > 0, "两套接口面必有交叉，否则这条断言是空的");
   for (const name of intersection) {
     assert.ok(
-      expectedThrowers.includes(name) || expectedNoOps.includes(name),
+      expectedThrowers.has(name) || expectedNoOps.has(name),
       `${name} 在 M1 里也是未实现的必选方法，必须被注入`,
     );
   }

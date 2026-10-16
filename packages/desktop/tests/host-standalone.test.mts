@@ -77,12 +77,13 @@ test("壳的命令 wire 名与注入桥里的命令名逐字一致", () => {
   const names = [...bridge.matchAll(/pub const CMD_\w+: &str = "([a-z_]+)"/g)]
     .map((match) => match[1])
     .filter((name): name is string => typeof name === "string");
-  assert.equal(names.length, 3, `bridge.rs 里应有三个命令名常量，实际：${names.join(", ")}`);
-
   const shell = read(SHELL_HOST);
   const declared = [...shell.matchAll(/#\[tauri::command\(rename = "([a-z_]+)"\)\]/g)]
     .map((match) => match[1])
     .filter((name): name is string => typeof name === "string");
+  // **集合相等**，不写死条数：两个方向的漂移都要抓（多了/少了/改名），而`等 3 个`这种常数
+  // 会在每次新增命令时变成一处需要手改的债（M3 Task 3 加 `host_platform_report` 就撞了一次）。
+  assert.ok(names.length > 0, "bridge.rs 里应有命令名常量");
   assert.deepEqual(
     [...declared].sort(),
     [...names].sort(),

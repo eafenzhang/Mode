@@ -13,9 +13,11 @@ pub const CMD_SEND: &str = "host_send";
 pub const CMD_RECV: &str = "host_recv";
 /// 启动状态长轮询的命令名。
 pub const CMD_STATE: &str = "host_startup_state";
+/// 页面上报平台面清单（`window.mode` 的切片与降级）的命令名。
+pub const CMD_PLATFORM_REPORT: &str = "host_platform_report";
 
-/// 三个命令名（守卫用例与 CI 检查的清单）。
-pub const COMMAND_NAMES: &[&str] = &[CMD_SEND, CMD_RECV, CMD_STATE];
+/// 注入脚本用到的全部命令名（守卫用例与 CI 检查的清单）。
+pub const COMMAND_NAMES: &[&str] = &[CMD_SEND, CMD_RECV, CMD_STATE, CMD_PLATFORM_REPORT];
 
 /// 注入脚本模板（占位符见 `bridge.ts` 顶部注释）。
 const TEMPLATE: &str = include_str!("bridge.ts");
@@ -28,12 +30,10 @@ const TEMPLATE: &str = include_str!("bridge.ts");
 /// 所以它必须排在前面，且两者同属**一个** `initialization_script`（document-start 求值）。
 const WINDOW_MODE_TEMPLATE: &str = include_str!("window_mode.ts");
 
-/// 把 startupId 与命令名填进模板，得到可直接交给 `initialization_script` 的脚本。
-///
-/// startupId 只允许 `[A-Za-z0-9_-]`：它来自壳生成的实例 id，但注入脚本是**字符串拼接**，
-/// 不设防的话一个引号就能改脚本语义，所以这里做一次白名单化（不合法字符替换为 `-`）。
-pub fn bridge_script(startup_id: &str) -> String {
-    let safe_id: String = startup_id
+/// startupId 的白名单化：注入脚本是字符串拼接，一个引号就能改脚本语义，所以只放行
+/// `[A-Za-z0-9_-]`（不合法字符替换为 `-`）。
+fn sanitize_startup_id(startup_id: &str) -> String {
+    startup_id
         .chars()
         .map(|character| {
             if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
@@ -42,15 +42,41 @@ pub fn bridge_script(startup_id: &str) -> String {
                 '-'
             }
         })
-        .collect();
-    // `window.mode` 在前：renderer 的**入口模块求值期**就会读它（见 `window_mode.ts` 的文件头）。
-    // 两段拼成一段脚本而不是两次 `initialization_script`：同一段脚本文本的求值顺序是确定的，
-    // 不依赖 Tauri 对多次注册的拼接顺序。
-    format!("{WINDOW_MODE_TEMPLATE}\n{TEMPLATE}")
-        .replace("__MODE_HOST_STARTUP_ID__", &safe_id)
+        .collect()
+}
+
+/// 填入 startupId 与全部命令名占位符。
+fn substitute(template: &str, sanitized_startup_id: &str) -> String {
+    template
+        .replace("__MODE_HOST_STARTUP_ID__", sanitized_startup_id)
         .replace("__MODE_HOST_CMD_SEND__", CMD_SEND)
         .replace("__MODE_HOST_CMD_RECV__", CMD_RECV)
         .replace("__MODE_HOST_CMD_STATE__", CMD_STATE)
+        .replace("__MODE_HOST_CMD_PLATFORM_REPORT__", CMD_PLATFORM_REPORT)
+}
+
+/// **产品注入**：`window.mode` + Host 桥，拼成一段脚本交给一个 `initialization_script`。
+///
+/// `window.mode` 在前：renderer 的**入口模块求值期**就会读它（见 `window_mode.ts` 的文件头）。
+/// 两段拼成一段脚本文本而不是两次 `initialization_script`：同一段文本的求值顺序是确定的，
+/// 不依赖 Tauri 对多次注册的拼接顺序。
+pub fn bridge_script(startup_id: &str) -> String {
+    substitute(
+        &format!("{WINDOW_MODE_TEMPLATE}\n{TEMPLATE}"),
+        &sanitize_startup_id(startup_id),
+    )
+}
+
+/// **仅 Host 桥**（不含 `window.mode`）：留给「清醒的负向对照」的注入。
+///
+/// 为什么产品代码里要有这条「缺一块」的路径（clean-room 复评要求的）：
+/// 「renderer 在入口模块求值期消费 `window.mode`，缺席就抛、React 挂不上」这条结论，
+/// 早先是**读实现体**推出来的（`desktopPlatform.ts` 的非惰性条件表达式）。有这条路径之后，
+/// opt-in 真机用例可以**只撤掉注入**去观察那个抛（`productUiMount.test.mts` 的负向对照用例），
+/// 结论就落在**观察到的行为**上而不是落在读上游实现体上——这正是
+/// `docs/specs/clean-room-policy.md` 要的东西。
+pub fn host_bridge_script(startup_id: &str) -> String {
+    substitute(TEMPLATE, &sanitize_startup_id(startup_id))
 }
 
 #[cfg(test)]

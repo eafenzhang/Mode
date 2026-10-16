@@ -45,8 +45,9 @@ fn main() {
             mode_tauri::MAIN_WINDOW_LABEL,
             tauri::WebviewUrl::App(std::path::PathBuf::from("harness/host-sidecar/index.html")),
             "M3 Task 1 · host round trip",
-            &startup_id,
-            // 这个 harness 的页面是测试资产（自己实现接收形状），不需要窗外的探针。
+            // 这个 harness 也要**产品注入**：它验的是产品路径（含 `window.mode`）。
+            &sidecar_host::bridge::bridge_script(&startup_id),
+            // 页面是测试资产（自己实现接收形状），不需要窗外的探针。
             None,
         )?;
 
@@ -54,7 +55,7 @@ fn main() {
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(watchdog_ms()));
             println!("HARNESS watchdog_exit");
-            let _ = exit_handle.exit(0);
+            exit_handle.exit(0);
         });
         Ok(())
     });
