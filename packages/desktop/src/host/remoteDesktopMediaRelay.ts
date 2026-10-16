@@ -8,6 +8,7 @@
  *   kind1 采集状态 → 只回调（冻结状态唯一所有者在 remoteDesktopServer，此处不落状态）；
  *   kind5 剪贴板文本（被控 → 主控）→ **语义门在本模块**：采纳即下行 `{t:"clip"}`，
  *   不采纳（重复值 / 已关闭 / 超限）静默丢弃（helper 只负责「变化才发」的流量抑制）；
+ *   media WS 未挂接时采纳的值由门留存最新一条、重挂接时补上行（与 kind6 同一形态，理由见门内）；
  *   media WS 上行：ready → 开流指令（幂等一次）、ping → 立即 pong、need-key/set-bitrate →
  *   下行到 helper（kind3/kind4）、clip-mode → 剪贴板同步开关（P1.1）、其余对象 → 输入透传；
  * - 中继**不解密**：kind0 payload 原样搬运，明文密钥与明文帧都不经过 host（spec 安全节）。
@@ -389,7 +390,7 @@ export function createRemoteDesktopMediaRelay(
       logger.info("[rd-media-relay] helper pipe connected");
       try { options.onHelperConnected?.(); } catch { /* 观测钩子失败不影响推流 */ }
       flushOpenStream(); // ready 先于 helper 到达时，在此补发被挂起的开流指令。
-      clipboardGate.flushPendingWrite(); // 未接通窗口里采纳过的剪贴板文本同样在此补写（kind6 挂起位）。
+      clipboardGate.flushPendingToHelper(); // 未接通窗口里采纳过的剪贴板文本同样在此补写（kind6 挂起位）。
     });
     await new Promise<void>((resolve, reject) => {
       const onListening = (): void => {
@@ -452,6 +453,10 @@ export function createRemoteDesktopMediaRelay(
       }
     }
     currentWs = ws;
+    // 剪贴板 kind5 挂起位补上行：媒体 WS 断连期间（helper 仍连通、仍在轮询）采纳过的被控文本
+    // 在此补发一次——门已把该值登记成 lastSynced，重连后它不会再被判定为变化（见 gate 的
+    // pendingToController 注释）；与重挂接后 controller 的新值同拍处理，不做排队。
+    clipboardGate.flushPendingToController();
     backpressureWarned = false; // 新连接重新给一次背压 warn 观测机会。
     ws.on?.("message", (data: unknown, isBinary: unknown) => {
       if (currentWs !== ws) {
@@ -508,7 +513,7 @@ export function createRemoteDesktopMediaRelay(
     }
     readySent = false; // 会话收口：下一条会话重新允许下发开流指令。
     openRequested = false;
-    clipboardGate.clearPendingWrite(); // 会话收口：未落地的剪贴板文本不跨会话补写（下一条会话重新同步）。
+    clipboardGate.clearPending(); // 会话收口：未落地/未上行的剪贴板文本不跨会话补发（下一条会话重新同步）。
     backpressureWarned = false;
     dropBurst = false;
     lastKeyRequestAt = 0;

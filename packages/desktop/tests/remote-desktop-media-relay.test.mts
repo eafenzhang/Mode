@@ -859,3 +859,166 @@ test("剪贴板上行（P1.1b）：会话收口作废留存值，不跨会话补
     cleanup(relay, helper);
   }
 });
+
+/**
+ * 可驱动事件的 fake media WS：中继在 attachWebSocket 里订阅 message/close/error，
+ * 而「媒体 WS 断开、helper 仍连通」这个窗口只能由 close 事件打开——用例必须能触发它。
+ */
+function makeEventedWs(): {
+  ws: WsLike;
+  texts: string[];
+  fire(event: string, ...args: unknown[]): void;
+} {
+  const texts: string[] = [];
+  const handlers = new Map<string, Array<(...a: unknown[]) => void>>();
+  const ws: WsLike = {
+    send: (data) => {
+      if (typeof data === "string") {
+        texts.push(data);
+      }
+    },
+    on: (event, cb) => {
+      const list = handlers.get(event) ?? [];
+      list.push(cb as unknown as (...a: unknown[]) => void);
+      handlers.set(event, list);
+    },
+  };
+  return {
+    ws,
+    texts,
+    fire(event, ...args) {
+      for (const handler of handlers.get(event) ?? []) {
+        handler(...args);
+      }
+    },
+  };
+}
+
+test("剪贴板下行（P1.1）：media WS 断连窗口里被控端的复制不丢——重挂接后补上行", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const logs = makeLogCollector();
+  const first = makeEventedWs();
+  const second = makeEventedWs();
+  const relay = createRemoteDesktopMediaRelay({ logger: logs.logger });
+  try {
+    relay.attachWebSocket(first.ws);
+    // 正常期：被控端本端变化立刻上行。
+    relay.handlePipeData(pipeFrame(5, Buffer.from("正常期", "utf8")));
+    assert.deepEqual(first.texts.map((text) => JSON.parse(text)), [{ t: "clip", text: "正常期" }]);
+    // 媒体 WS 断开：**helper 仍连通、仍在 700ms 轮询**。中继的 close 订阅只清 currentWs
+    //（remoteDesktopMediaRelay 的 attachWebSocket），不关 helper 管道——rd_media_stop 只在
+    // 会话收口/控制模式里发。产品里这就是「媒体面瞬断后按 250ms~2s 退避重连」的窗口
+    //（nativeMediaSession 的 onRequestMediaUrl 拿新票据 → host onMediaSocket → 重新 attach）。
+    first.fire("close");
+    relay.handlePipeData(pipeFrame(5, Buffer.from("断连期被控端复制", "utf8")));
+    assert.equal(first.texts.length, 1, "被关闭的旧 WS 不该再收到上行");
+    assert.equal(second.texts.length, 0, "新 WS 尚未挂接");
+    // 未上行必须留痕：修复前这条路径完全静默（零日志、UI 无任何指示）。
+    assert.ok(
+      logs.infos.some((line) =>
+        line.includes("media ws not attached, clipboard text held for flush"),
+      ),
+      `未挂接时应留下「已留存待补上行」的日志，实际：${JSON.stringify(logs.infos)}`,
+    );
+    // 主控重连媒体 WS → 中继重新挂接 → 补上行恰好一条，载荷逐字节相等。
+    relay.attachWebSocket(second.ws);
+    assert.deepEqual(
+      second.texts.map((text) => JSON.parse(text)),
+      [{ t: "clip", text: "断连期被控端复制" }],
+      "重挂接后补上行恰好一条",
+    );
+    // 补上行的同值不重复：helper 轮询会反复读到同一文本，门已登记该值。
+    relay.handlePipeData(pipeFrame(5, Buffer.from("断连期被控端复制", "utf8")));
+    assert.equal(second.texts.length, 1, "同值不重复上行");
+    // 挂接后的新变化照常上行。
+    relay.handlePipeData(pipeFrame(5, Buffer.from("重连后的新值", "utf8")));
+    assert.deepEqual(second.texts.map((text) => JSON.parse(text)), [
+      { t: "clip", text: "断连期被控端复制" },
+      { t: "clip", text: "重连后的新值" },
+    ]);
+  } finally {
+    relay.close();
+  }
+});
+
+test("剪贴板下行（P1.1）：断连期只留存最新值（顶掉旧的，不排队）", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const first = makeEventedWs();
+  const second = makeEventedWs();
+  const relay = createRemoteDesktopMediaRelay({ logger: noopLogger });
+  try {
+    relay.attachWebSocket(first.ws);
+    first.fire("close");
+    // 断连期连来两条（被控端连复制两次）：剪贴板是「最新值」语义，只补最新一条，绝不成队列。
+    relay.handlePipeData(pipeFrame(5, Buffer.from("断连期第一条（应被顶掉）", "utf8")));
+    relay.handlePipeData(pipeFrame(5, Buffer.from("断连期第二条（应上行）", "utf8")));
+    relay.attachWebSocket(second.ws);
+    assert.deepEqual(
+      second.texts.map((text) => JSON.parse(text)),
+      [{ t: "clip", text: "断连期第二条（应上行）" }],
+      "只补最新一条（旧值不排队、不补发）",
+    );
+  } finally {
+    relay.close();
+  }
+});
+
+test("剪贴板下行（P1.1）：会话收口作废上行的留存值，不跨会话补上行", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const logs = makeLogCollector();
+  const first = makeEventedWs();
+  const second = makeEventedWs();
+  const relay = createRemoteDesktopMediaRelay({ logger: logs.logger });
+  try {
+    relay.attachWebSocket(first.ws);
+    first.fire("close");
+    relay.handlePipeData(pipeFrame(5, Buffer.from("上一会话的留存值", "utf8")));
+    relay.close();
+    // 收口作废也要留痕（这条是「明确丢弃」，不能静默）。
+    assert.ok(
+      logs.infos.some((line) => line.includes("(upstream) discarded: session closed")),
+      `会话收口作废留存值时应留日志，实际：${JSON.stringify(logs.infos)}`,
+    );
+    // 新会话重新挂接媒体 WS：上一会话没上行的值不得写进新会话的主控剪贴板。
+    relay.attachWebSocket(second.ws);
+    assert.equal(second.texts.length, 0, "跨会话的留存值不得补上行");
+    // 正向对照：新会话的新变化照常上行（证明通道可用，上面的「没有」是真没有）。
+    relay.handlePipeData(pipeFrame(5, Buffer.from("新会话的新值", "utf8")));
+    assert.deepEqual(
+      second.texts.map((text) => JSON.parse(text)),
+      [{ t: "clip", text: "新会话的新值" }],
+    );
+  } finally {
+    relay.close();
+  }
+});
+
+test("剪贴板下行（P1.1）：开关关闭作废未上行的留存值；重开后新值照常上行", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const logs = makeLogCollector();
+  const first = makeEventedWs();
+  const second = makeEventedWs();
+  const relay = createRemoteDesktopMediaRelay({ logger: logs.logger });
+  try {
+    relay.attachWebSocket(first.ws);
+    first.fire("close");
+    relay.handlePipeData(pipeFrame(5, Buffer.from("关闭前的留存值", "utf8")));
+    // 关掉同步即作废留存值：开关关着的时候不该再往主控剪贴板写任何东西。
+    relay.handleWsMessage(JSON.stringify({ t: "clip-mode", enabled: false }), false);
+    assert.ok(
+      logs.infos.some((line) => line.includes("(upstream) discarded: clipboard disabled")),
+      `关开关作废留存值时应留日志，实际：${JSON.stringify(logs.infos)}`,
+    );
+    relay.attachWebSocket(second.ws);
+    relay.handleWsMessage(JSON.stringify({ t: "clip-mode", enabled: true }), false);
+    assert.equal(second.texts.length, 0, "被作废的留存值不得补上行");
+    // 正向对照：重开后的新值必须真的上行。
+    relay.handlePipeData(pipeFrame(5, Buffer.from("重开后的新值", "utf8")));
+    assert.deepEqual(
+      second.texts.map((text) => JSON.parse(text)),
+      [{ t: "clip", text: "重开后的新值" }],
+    );
+  } finally {
+    relay.close();
+  }
+});
