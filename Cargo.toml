@@ -11,6 +11,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "crates/agent-core",
   "crates/browser-import-helper",
   "crates/platform",
   "crates/protocol",

@@ -1,0 +1,12 @@
+[package]
+name = "agent-core"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "M2 会话运行时的 Rust 侧骨架：会话循环、CommandInbox、owner/lease 与权限引擎的落点"
+
+[lib]
+name = "agent_core"
+path = "src/lib.rs"
+
+[dependencies]
