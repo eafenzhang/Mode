@@ -12,14 +12,19 @@
  *
  * 环境变量（壳负责设置，见 spec 的「环境契约」）：
  * - `MODE_HOST_STARTUP_ID`：本次 Host 实例的启动代 id；省略时按 pid 兜底生成（仅便于裸跑）。
- * - `MODE_DATA_BASE_DIR` / `HOME` / `USERPROFILE`：数据根解析，见 `./dataRoot.js`。
+ * - `MODE_DATA_BASE_DIR`：数据**基**目录覆写（不是数据根）；`HOME` / `USERPROFILE`：家目录兜底。
+ *   数据根 = `{base}/.mode`，见 `./dataRoot.js`。
  *
  * stdout **只用于帧**（任何日志都走 stderr），否则字节流会被日志污染。
  */
 import { ChannelServer, Emitter, VSBuffer, type IMessagePassingProtocol, type IServerChannel } from "@mode/rpc";
 
 import { resolveDataRoot } from "./dataRoot.js";
-import { createStubServiceChannels, serviceChannelNames } from "./stubAccessor.js";
+import {
+  createStubServiceChannels,
+  serviceChannelNames,
+  stubEventSubscriptions,
+} from "./stubAccessor.js";
 import { createFrameDecoder, isRpcRequestFrame, writeFrame } from "./stdioFrames.js";
 
 /** 诊断频道名：不属于 `ServiceChannels`，只报 Host 自身的身份与进程事实（只读，无副作用）。 */
@@ -66,24 +71,51 @@ process.stdin.on("error", (error: Error) => {
   log(`stdin_error ${error.message}`);
 });
 
+/** `host.describe` 的载荷（同一份类型也贴在测试里：跨语言契约只看字段名）。 */
+interface HostDescribePayload {
+  name: string;
+  protocolVersion: number;
+  pid: number;
+  nodeVersion: string;
+  platform: string;
+  arch: string;
+  startupId: string;
+  dataBaseDir: string;
+  dataRoot: string;
+  dataBaseDirSource: string;
+  rejectedFrames: number;
+  stubEventSubscriptions: number;
+  serviceChannels: string[];
+}
+
+function describeHost(): HostDescribePayload {
+  return {
+    name: "mode-host-sidecar",
+    protocolVersion: 1,
+    pid: process.pid,
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    startupId,
+    // 两个都给：`dataBaseDir` 是 MODE_DATA_BASE_DIR 的语义（基目录），
+    // `dataRoot` 是真数据根（= base/.mode）。只报一个正是当初把口径搞反的原因。
+    dataBaseDir: dataRoot.dataBaseDir,
+    dataRoot: dataRoot.dataRoot,
+    dataBaseDirSource: dataRoot.source,
+    rejectedFrames,
+    // stub 被订阅过多少次：stub 的 listen 不抛错（抛错会杀死 Host），
+    // 但拒绝必须可观察，所以计数报在这里、第一次订阅在 stderr 上留痕。
+    stubEventSubscriptions: stubEventSubscriptions(),
+    serviceChannels: serviceChannelNames(),
+  };
+}
+
 /** 诊断频道：只报事实，不做任何业务动作（M1 的 smoke 吃过「没法观察渲染层」的亏）。 */
 const hostChannel: IServerChannel<string> = {
-  async call(_ctx, command) {
-    if (command === "describe") {
-      return {
-        name: "mode-host-sidecar",
-        protocolVersion: 1,
-        pid: process.pid,
-        nodeVersion: process.version,
-        platform: process.platform,
-        arch: process.arch,
-        startupId,
-        dataRoot: dataRoot.dataRoot,
-        dataRootSource: dataRoot.source,
-        rejectedFrames,
-        serviceChannels: serviceChannelNames(),
-      };
-    }
+  // `IServerChannel.call<T>` 是泛型的（客户端按自己的期望定型），实现只能把已知载荷
+  // 断言成 T —— 断言收在这一处，不在每个分支里撒。
+  async call<T>(_ctx: string, command: string): Promise<T> {
+    if (command === "describe") return describeHost() as T;
     throw new Error(`unknown command ${command}`);
   },
   listen(_ctx, event) {
@@ -107,6 +139,7 @@ server.registerChannel(HOST_CHANNEL, hostChannel);
 server.ready();
 
 log(
-  `ready startupId=${startupId} dataRoot=${dataRoot.dataRoot} source=${dataRoot.source}` +
+  `ready startupId=${startupId} dataBaseDir=${dataRoot.dataBaseDir} dataRoot=${dataRoot.dataRoot}` +
+    ` source=${dataRoot.source}` +
     ` channels=${serviceChannels.length + 1} node=${process.version}`,
 );

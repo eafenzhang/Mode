@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use sidecar_host::bridge::{CMD_RECV, CMD_SEND, CMD_STATE};
-use sidecar_host::{data_root_from, HostConfig, HostHandle};
+use sidecar_host::{data_base_dir_from, HostConfig, HostHandle};
 use tauri::{AppHandle, Manager, Runtime, State};
 
 /// 入方向长轮询的单次上限：到点回空帧，页面立刻再轮询（不把一次 invoke 挂太久）。
@@ -45,26 +45,18 @@ fn repo_root() -> PathBuf {
 /// 不硬编码绝对路径：资源目录那档是打包形态（Task 3/5 把 sidecar 落进去），
 /// 仓库相对那档只在 debug 构建存在，纯粹是开发便利（release 下编译器不会把它编进去）。
 fn resolve_entry<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    if let Some(explicit) = std::env::var_os("MODE_HOST_SIDECAR_ENTRY").filter(|v| !v.is_empty()) {
-        let path = PathBuf::from(explicit);
-        return path.exists().then_some(path);
-    }
+    // 候选枚举需要 AppHandle（资源目录）；**挑选规则**本身在 `sidecar_host::pick_entry` 里，
+    // 那部分是纯函数、有单测（本文件整体没有自动化覆盖，见 spec 的覆盖分工）。
+    let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(resource_dir) = app.path().resource_dir() {
         for relative in ["host-sidecar/index.mjs", "host-sidecar/index.ts"] {
-            let candidate = resource_dir.join(relative);
-            if candidate.exists() {
-                return Some(candidate);
-            }
+            candidates.push(resource_dir.join(relative));
         }
     }
     #[cfg(debug_assertions)]
-    {
-        let candidate = repo_root().join("packages/desktop/src/host-standalone/index.ts");
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-    None
+    candidates.push(repo_root().join("packages/desktop/src/host-standalone/index.ts"));
+
+    sidecar_host::pick_entry(std::env::var_os("MODE_HOST_SIDECAR_ENTRY").as_deref(), &candidates)
 }
 
 /// 开发形态下的默认工作目录：仓库根（`--import tsx` 的裸模块解析从这里开始）。
@@ -86,25 +78,22 @@ pub fn resolve_config<R: Runtime>(app: &AppHandle<R>) -> HostConfig {
         .or_else(default_sidecar_cwd)
         .unwrap_or_else(|| Path::new(".").to_path_buf());
 
+    let node = std::env::var_os("MODE_HOST_NODE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("node"));
     let mut config = match resolve_entry(app) {
         Some(entry) => HostConfig::for_sidecar_entry(entry, cwd),
         // 没有入口也别在这里失败：交给 `spawn_host` 转成推给渲染层的 failed 状态。
-        None => {
-            let mut config = sidecar_host::process::silent_config("");
-            config.node_args.clear();
-            config.entry = None;
-            config.cwd = cwd;
-            config
-        }
+        None => HostConfig::unavailable(node.clone(), cwd),
     };
-    config.node = std::env::var_os("MODE_HOST_NODE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("node"));
+    config.node = node;
     config.startup_id = startup_id.clone();
     config.attempt_id = format!("{startup_id}-a1");
-    config.data_root = {
+    // `MODE_DATA_BASE_DIR` 是**基**目录：原样透传给子进程，由 Host 派生 `{base}/.mode`
+    // （口径见 sidecar_host::data_base_dir_from 与 docs/specs/tauri-renderer-host.md §4）。
+    config.data_base_dir = {
         let home = app.path().home_dir().unwrap_or_else(|_| PathBuf::from("."));
-        data_root_from(std::env::var_os("MODE_DATA_BASE_DIR").as_deref(), &home)
+        data_base_dir_from(std::env::var_os("MODE_DATA_BASE_DIR").as_deref(), &home)
     };
     config
 }

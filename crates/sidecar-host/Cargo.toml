@@ -6,5 +6,5 @@ publish.workspace = true
 description = "Mode 桌面端 Host sidecar 的进程监督与字节传输（M3 Task 1，框架无关）"
 
 [dependencies]
-serde.workspace = true
+# 只用到 serde_json（启动状态直接构造 Value）；不引 serde 的 derive，免得留个没人用的依赖。
 serde_json.workspace = true

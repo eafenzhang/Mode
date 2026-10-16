@@ -46,7 +46,14 @@ interface PageReport {
   statePhase?: string | null;
   stateStartupId?: string | null;
   startupIdMatches?: boolean;
-  describe?: { name?: string; pid?: number; dataRoot?: string; startupId?: string; serviceChannels?: string[] };
+  describe?: {
+    name?: string;
+    pid?: number;
+    dataBaseDir?: string;
+    dataRoot?: string;
+    startupId?: string;
+    serviceChannels?: string[];
+  };
   message?: string;
   bridge?: unknown;
 }
@@ -170,7 +177,13 @@ test(
       assert.equal(report.statePhase, "ready", "壳推给渲染层的状态是 ready");
       assert.equal(report.startupIdMatches, true, "端口负载的 databaseStartupId 与状态 startupId 同代");
       assert.equal(report.describe?.name, "mode-host-sidecar", "端口背后是产品 Host");
-      assert.equal(report.describe?.dataRoot, dataRoot, "数据隔离生效（MODE_DATA_BASE_DIR 覆写）");
+      // `MODE_DATA_BASE_DIR` 是**基**目录：根 = {base}/.mode（口径同 packages/services/src/paths.ts）。
+      assert.equal(report.describe?.dataBaseDir, dataRoot, "数据隔离生效（覆写的基目录）");
+      assert.equal(
+        report.describe?.dataRoot,
+        join(dataRoot, ".mode"),
+        "数据根 = {base}/.mode（不是把基目录当根，见 2026-10-16 复评 I2）",
+      );
       assert.ok(
         (report.describe?.serviceChannels?.length ?? 0) >= 40,
         "Host 暴露了完整（stub）服务面",

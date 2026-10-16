@@ -13,7 +13,10 @@
  * 3. **Host 入口自己校验帧形状**：非 RPC 帧必须被丢弃而不是把 `ChannelServer` 带崩
  *    （spike 文档 §4.6 的实测崩溃：非 RPC 帧 → `TypeError: Cannot read properties of undefined`）；
  * 4. **数据隔离生效**：`MODE_DATA_BASE_DIR` 与 `HOME`/`USERPROFILE` 两条覆写都能改变 Host 认到的
- *    数据根，且运行完**不会**在隔离目录里真造出 `.mode`（Task 1 的 Host 不写盘）。
+ *    数据**基**目录，数据根按仓库既有口径取 `{base}/.mode`
+ *    （`packages/services/src/paths.ts` 的 `getModeDataRootDir`），且运行完**不会**在隔离目录里
+ *    真造出 `.mode`（Task 1 的 Host 不写盘）。`HOME`/`USERPROFILE` 由用例注入的环境继承到子进程
+ *    （壳不显式覆写），所以两条覆写都必须断言。
  *
  * 真 webview 那一半（`initialization_script` 注入、`window.postMessage` + transfer、
  * `event.source === window`、ACL、投递时序）CI 跑不了：由
@@ -143,10 +146,14 @@ function startHost(options: {
 interface HostDescribe {
   name: string;
   pid: number;
+  stubEventSubscriptions?: number;
   nodeVersion: string;
   startupId: string;
+  /** 数据**基**目录：`MODE_DATA_BASE_DIR` 的语义（不是数据根）。 */
+  dataBaseDir: string;
+  /** 数据根 = `{dataBaseDir}/.mode`（与 packages/services/src/paths.ts 同口径）。 */
   dataRoot: string;
-  dataRootSource: string;
+  dataBaseDirSource: string;
   serviceChannels: string[];
 }
 
@@ -210,8 +217,13 @@ test("生产 Host sidecar：Initialize 与一次真 RPC 往返可以走端口", 
     assert.ok(describe.pid > 0, "返回值来自子进程");
     assert.match(describe.nodeVersion, /^v\d+\./);
     assert.equal(describe.startupId, STARTUP_ID, "Host 认到的 startupId 来自壳给的环境变量");
-    assert.equal(describe.dataRoot, dataBaseDir, "MODE_DATA_BASE_DIR 覆写生效");
-    assert.equal(describe.dataRootSource, "MODE_DATA_BASE_DIR");
+    assert.equal(describe.dataBaseDir, dataBaseDir, "MODE_DATA_BASE_DIR 覆写的是**基**目录");
+    assert.equal(
+      describe.dataRoot,
+      join(dataBaseDir, ".mode"),
+      "数据根 = {base}/.mode（口径同 packages/services/src/paths.ts 的 getModeDataRootDir）",
+    );
+    assert.equal(describe.dataBaseDirSource, "MODE_DATA_BASE_DIR");
     assert.ok(
       describe.serviceChannels.length >= 40,
       `stub 服务面覆盖全部服务频道，实际 ${describe.serviceChannels.length} 个`,
@@ -260,6 +272,58 @@ test("stub 服务面对每个命令都显式 not_implemented（不返回 undefin
   }
 });
 
+test("订阅 stub 服务事件不会杀死 Host，且不给「订阅成功」的假象", async () => {
+  // 这条守的是一个**能杀掉 Host** 的路径：`ChannelServer.onEventListen` 调 `channel.listen(...)`
+  // 时**没有 try/catch**（`packages/rpc/src/channelServer.ts`），而渲染层一挂载就会订阅服务事件
+  // （`EventListen` 请求）。stub 若在 listen 里抛错，异常会穿出 onRawMessage → Emitter.fire →
+  // stdin 的 data 处理函数，Host 当场死掉，任务里的在途 RPC 全部 `transport_closed`。
+  // 所以 stub 的 listen 必须**不抛**：返回一个永不发事件的 Event（不假装有事件），
+  // 同时在 stderr 上留一次可诊断的拒绝记录（不静默吞掉）。
+  const sandbox = mkdtempSync(join(tmpdir(), "mode-host-listen-"));
+  const { host, client } = await connect({ home: join(sandbox, "home") });
+  try {
+    const describe = await callWithTimeout(
+      client.getChannel<IChannel>("host").call<HostDescribe>("describe"),
+      "host.describe",
+    );
+    const channelName = describe.serviceChannels[0];
+    assert.ok(channelName, "Host 应至少暴露一个服务频道");
+
+    const received: unknown[] = [];
+    const subscription = client
+      .getChannel<IChannel>(channelName)
+      .listen("onDidChange")((value: unknown) => received.push(value));
+    await delay(500);
+
+    // ① 订阅没有把 Host 带走（这是本用例存在的首要理由）。
+    assert.equal(
+      host.child.exitCode,
+      null,
+      `订阅服务事件后 Host 必须还活着；stderr:
+${host.stderr()}`,
+    );
+    // ② 同一条传输上的后续 RPC 仍然可用。
+    const again = await callWithTimeout(
+      client.getChannel<IChannel>("host").call<HostDescribe>("describe"),
+      "host.describe(订阅之后)",
+    );
+    assert.equal(again.name, "mode-host-sidecar");
+    // ③ 不假装有事件：一个都没投。
+    assert.deepEqual(received, [], "stub 永不发事件，不能给「订阅成功」的假象");
+    // ④ 也不静默吞掉：stderr 上留过拒绝记录，且能从 host.describe 观察到订阅计数。
+    assert.match(host.stderr(), /not_implemented/, "拒绝必须留痕（stderr）");
+    assert.ok(
+      (again.stubEventSubscriptions ?? 0) >= 1,
+      `host.describe 应能观察到订阅计数，实际 ${String(again.stubEventSubscriptions)}`,
+    );
+    subscription.dispose();
+  } finally {
+    client.dispose();
+    host.stop();
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
 test("Host 入口拒绝形状不合法的帧，不会把 ChannelServer 带崩", async () => {
   const sandbox = mkdtempSync(join(tmpdir(), "mode-host-garbage-"));
   const { host, client } = await connect({ home: join(sandbox, "home") });
@@ -289,15 +353,20 @@ test("数据隔离：两条覆写都生效，且运行后不产生真实数据�
   // ① MODE_DATA_BASE_DIR 优先；
   const sandboxEnv = mkdtempSync(join(tmpdir(), "mode-host-isolation-env-"));
   const envHome = join(sandboxEnv, "home");
-  const envDataRoot = join(sandboxEnv, "data");
-  const caseA = await connect({ dataBaseDir: envDataRoot, home: envHome });
+  const envBaseDir = join(sandboxEnv, "data");
+  const caseA = await connect({ dataBaseDir: envBaseDir, home: envHome });
   try {
     const describe = await callWithTimeout(
       caseA.client.getChannel<IChannel>("host").call<HostDescribe>("describe"),
       "host.describe(caseA)",
     );
-    assert.equal(describe.dataRoot, envDataRoot);
-    assert.equal(describe.dataRootSource, "MODE_DATA_BASE_DIR");
+    assert.equal(describe.dataBaseDir, envBaseDir, "覆写的是基目录");
+    assert.equal(
+      describe.dataRoot,
+      join(envBaseDir, ".mode"),
+      "根是基目录下的 .mode —— 不是把基目录当根（2026-10-16 复评钉的 I2）",
+    );
+    assert.equal(describe.dataBaseDirSource, "MODE_DATA_BASE_DIR");
   } finally {
     caseA.client.dispose();
     caseA.host.stop();
@@ -312,8 +381,9 @@ test("数据隔离：两条覆写都生效，且运行后不产生真实数据�
       caseB.client.getChannel<IChannel>("host").call<HostDescribe>("describe"),
       "host.describe(caseB)",
     );
+    assert.equal(describe.dataBaseDir, onlyHome, "没有覆写时基目录就是家目录");
     assert.equal(describe.dataRoot, join(onlyHome, ".mode"));
-    assert.equal(describe.dataRootSource, "home");
+    assert.equal(describe.dataBaseDirSource, "home");
   } finally {
     caseB.client.dispose();
     caseB.host.stop();
@@ -325,7 +395,12 @@ test("数据隔离：两条覆写都生效，且运行后不产生真实数据�
     false,
     "Task 1 的 Host 不写盘：隔离目录里不得出现 .mode（更不得碰用户真实数据根）",
   );
-  assert.equal(existsSync(envDataRoot), false, "MODE_DATA_BASE_DIR 分支同样不得造目录");
+  assert.equal(existsSync(envBaseDir), false, "MODE_DATA_BASE_DIR 分支同样不得造目录（连基目录都不建）");
+  assert.equal(
+    existsSync(join(envBaseDir, ".mode")),
+    false,
+    "数据根（{base}/.mode）同样不得被 Task 1 的 Host 创建",
+  );
 
   rmSync(sandboxEnv, { recursive: true, force: true });
   rmSync(sandboxHome, { recursive: true, force: true });

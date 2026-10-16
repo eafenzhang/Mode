@@ -241,6 +241,10 @@ jobs:
           pnpm --filter @mode/cua test
           pnpm --filter @mode/core test
           pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts
+          # M3 Task 1：Host sidecar 的端口往返（真 Host + 真 MessagePort + 真 rpc）+ Task 0 的端口回归。
+          # 用例自己起 node 子进程；opt-in 的真 webview 那条默认 skip（CI 没有真窗口，覆盖分工见
+          # docs/specs/tauri-renderer-host.md 的「覆盖分工」）。
+          pnpm --filter @mode/desktop-tauri test
 
   desktop:
     needs: [release, verify]
@@ -355,9 +359,11 @@ jobs:
           # `updater` 也在列表里：它的 conf↔常量守卫（端点 / pubkey）是 app 启动 panic 那条
           # 缺陷的回归网——当时正是因为没人跑它的用例，缺陷一路走到实机 smoke 才暴露。
           # 它的测试二进制实测不 import comctl32（对照 platform 的会），故不需要 v6 清单。
-          cargo test -p platform -p protocol -p updater
-          # clippy 覆盖 M1 的全部 Rust crate；deeplink/tray 只编译不跑测试，零运行期风险。
-          cargo clippy -p platform -p protocol -p mode-tauri -p updater -p deeplink -p tray \
+          # sidecar-host 的用例会真拉 Node 子进程（产品 Host 入口），需要 PATH 上有 node。
+          cargo test -p platform -p protocol -p updater -p sidecar-host
+          # clippy 覆盖 M1 的全部 Rust crate + M3 Task 1 的 sidecar-host；
+          # deeplink/tray 只编译不跑测试，零运行期风险。
+          cargo clippy -p platform -p protocol -p mode-tauri -p updater -p deeplink -p tray -p sidecar-host \
             --all-targets -- -D warnings
           # 协议双端：生成物必须与 crates/protocol 一致（漂移即红）。CI 是 msvc，脚本默认的
           # `cargo run -q -p protocol --bin emit-schema` 直接可用，不需要额外环境。

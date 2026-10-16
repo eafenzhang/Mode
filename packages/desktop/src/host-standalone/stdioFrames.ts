@@ -70,10 +70,13 @@ export function writeFrame(stream: Writable, bytes: Uint8Array): void {
 export function createFrameDecoder(
   onFrame: (frame: Uint8Array) => void,
   onReject: (reason: string) => void,
-): (chunk: Buffer) => void {
-  let pending = Buffer.alloc(0);
+): (chunk: Buffer<ArrayBufferLike>) => void {
+  // Node 24 的 `Buffer` 带 `ArrayBufferLike` 泛型：`Buffer.alloc` 给的是 `Buffer<ArrayBuffer>`，
+  // 而 `stream.on("data")` 投进来的是 `Buffer<ArrayBufferLike>`。统一按后者声明，
+  // 免得每次赋值都要断言一次。
+  let pending: Buffer<ArrayBufferLike> = Buffer.alloc(0);
   let broken = false;
-  return (chunk: Buffer): void => {
+  return (chunk: Buffer<ArrayBufferLike>): void => {
     if (broken) return;
     pending = pending.length === 0 ? chunk : Buffer.concat([pending, chunk]);
     for (;;) {

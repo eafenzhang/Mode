@@ -1,12 +1,15 @@
 //! 发布给渲染层的 database-startup 状态：**壳是唯一的发布者**（M3 Task 1 的所有权口径）。
 //!
 //! 渲染层的启动闸门是「`phase === "ready"` 且端口的 `databaseStartupId` 与状态的 `startupId` 同代」，
-//! 40 秒不满足就画失败屏。所以这条流必须满足两件事：
+//! 且在**一条状态都没到**时 30 秒后画失败屏（`renderer/src/main.tsx` 的启动计时器）。
+//! 注意那个计时器**一收到任何状态就被拆除**：一旦 `starting` 已经投出去，渲染层就再也没有
+//! 自己的超时了——**壳推的 `failed` 是此后唯一的失败信号**（复评 I4(b) 纠正的口径：
+//! 「超时是兜底」只在第一帧状态到达之前成立）。所以这条流必须满足两件事：
 //!
 //! 1. **字段严格等于** `packages/shared/src/database-startup.ts` 的 `databaseStartupStateSchema`
 //!    （zod `.strict()`：多一个字段就整条消息被判非法 → 渲染层静默丢弃 → 失败屏）；
 //! 2. **失败必须是壳能主动推的**：sidecar 起不来 / 崩了要推 `phase: "failed"` + `errorCode`，
-//!    不能让渲染层等到超时（DR-T1-3：超时是兜底，不是主路径）。
+//!    不能指望渲染层自己超时（DR-T1-3：状态一旦开始投递，就只有 `failed` 能告诉它出事了）。
 //!
 //! 词汇表的跨语言一致性不是靠「记得同步」：`packages/desktop/tests/host-standalone.test.mts`
 //! 会扫本文件的 `=> "..."` 字面量，逐个比对 `databaseStartupPhaseSchema` /

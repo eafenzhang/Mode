@@ -16,8 +16,10 @@ export function writeFrame(stream: Writable, bytes: Uint8Array): void {
 }
 
 /** 返回一个可反复投喂 stdout/stderr chunk 的解码器（自管粘包/分片）。 */
-export function createFrameDecoder(onFrame: (frame: Uint8Array) => void): (chunk: Buffer) => void {
-  let pending = Buffer.alloc(0);
+export function createFrameDecoder(onFrame: (frame: Uint8Array) => void): (chunk: Buffer<ArrayBufferLike>) => void {
+  // Node 24 的 `Buffer` 带 `ArrayBufferLike` 泛型：`Buffer.alloc` 是 `Buffer<ArrayBuffer>`，
+  // 而 `stream.on("data")` 投进来的是 `Buffer<ArrayBufferLike>`（纯类型标注，无行为变化）。
+  let pending: Buffer<ArrayBufferLike> = Buffer.alloc(0);
   return (chunk: Buffer): void => {
     pending = pending.length === 0 ? chunk : Buffer.concat([pending, chunk]);
     for (;;) {

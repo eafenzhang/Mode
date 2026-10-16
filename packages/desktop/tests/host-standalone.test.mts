@@ -56,7 +56,9 @@ test("注入桥与验收台面板用的频道名等于 InternalChannels 的真�
   // 反向：桥脚本里的 mode: 名字只能是被允许的那几个（写错一个不会被正向断言抓到）。
   // 第三个是**桥自己的诊断事件**（`mode:host-bridge-error`），不是渲染层的频道——
   // 它只被验收台面板与集成测试页监听，与 InternalChannels 无关，故在这里显式列出。
-  const referenced = [...read(BRIDGE_SCRIPT).matchAll(/"(mode:[a-z-]+)"/g)].map((match) => match[1]);
+  const referenced = [...read(BRIDGE_SCRIPT).matchAll(/"(mode:[a-z-]+)"/g)]
+    .map((match) => match[1])
+    .filter((name): name is string => typeof name === "string");
   const allowed = new Set<string>([
     InternalChannels.DatabaseStartupState,
     InternalChannels.ServicePort,
@@ -72,13 +74,15 @@ test("注入桥与验收台面板用的频道名等于 InternalChannels 的真�
 
 test("壳的命令 wire 名与注入桥里的命令名逐字一致", () => {
   const bridge = read(BRIDGE_RUST);
-  const names = [...bridge.matchAll(/pub const CMD_\w+: &str = "([a-z_]+)"/g)].map((match) => match[1]);
+  const names = [...bridge.matchAll(/pub const CMD_\w+: &str = "([a-z_]+)"/g)]
+    .map((match) => match[1])
+    .filter((name): name is string => typeof name === "string");
   assert.equal(names.length, 3, `bridge.rs 里应有三个命令名常量，实际：${names.join(", ")}`);
 
   const shell = read(SHELL_HOST);
-  const declared = [...shell.matchAll(/#\[tauri::command\(rename = "([a-z_]+)"\)\]/g)].map(
-    (match) => match[1],
-  );
+  const declared = [...shell.matchAll(/#\[tauri::command\(rename = "([a-z_]+)"\)\]/g)]
+    .map((match) => match[1])
+    .filter((name): name is string => typeof name === "string");
   assert.deepEqual(
     [...declared].sort(),
     [...names].sort(),
@@ -89,7 +93,9 @@ test("壳的命令 wire 名与注入桥里的命令名逐字一致", () => {
 test("壳发布的 phase / errorCode 字面量都落在真 schema 的取值集合里", () => {
   const source = read(STARTUP_RUST);
   // `=> "字面量"` 只出现在 StartupPhase/StartupErrorCode 的 as_str 实现里。
-  const literals = [...source.matchAll(/=> "([a-z_]+)"/g)].map((match) => match[1]);
+  const literals = [...source.matchAll(/=> "([a-z_]+)"/g)]
+    .map((match) => match[1])
+    .filter((name): name is string => typeof name === "string");
   assert.ok(literals.length > 0, "startup.rs 里应能扫到 as_str 的字符串字面量");
 
   const phases = new Set<string>(databaseStartupPhaseSchema.options);

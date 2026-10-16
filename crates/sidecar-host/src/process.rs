@@ -13,7 +13,7 @@
 //! Host 会带 `node-pty` 子进程），失败再退回直接 kill；`shutdown` 幂等，可重复调用。
 
 use std::io::{BufReader, Read};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
@@ -29,7 +29,12 @@ use crate::startup::{
 /// 不是丢帧：`ChannelServer` 的应答丢了就会变成 RPC 超时。
 const DEFAULT_INBOUND_CAPACITY: usize = 256;
 
-/// 就绪期限的默认值：渲染层的失败屏在 40s，这里必须显著更早，好让渲染层拿到**原因**而不是超时。
+/// 就绪期限的默认值。
+///
+/// 渲染层「一条状态都没收到」的失败屏在 30s（`renderer/src/main.tsx`），所以这里必须显著更早，
+/// 好在渲染层等待期间就把**原因**（`failed` + `errorCode`）推给它。
+/// 那个 30s 计时器一收到状态就被拆除，因此投出 `starting` 之后，本期限与 `failed` 推送
+/// 是渲染层唯一的失败来源（见 `startup.rs` 的模块注释）。
 pub const DEFAULT_READY_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// 起 Host 需要的全部输入。`entry = None` 表示「只跑 `node_args`」——留给监督用例
@@ -46,8 +51,9 @@ pub struct HostConfig {
     pub cwd: PathBuf,
     pub startup_id: String,
     pub attempt_id: String,
-    /// 数据根：通过 `MODE_DATA_BASE_DIR` 传给 Host（隔离口径见 `docs/specs/tauri-renderer-host.md`）。
-    pub data_root: PathBuf,
+    /// 数据**基**目录：原样通过 `MODE_DATA_BASE_DIR` 传给 Host（Host 自己派生 `{base}/.mode`）。
+    /// 语义是「替换 homedir() 前缀」，不是「数据根」——见 `crate::data_base_dir_from` 的注释。
+    pub data_base_dir: PathBuf,
     pub ready_timeout: Duration,
     pub inbound_capacity: usize,
 }
@@ -71,7 +77,25 @@ impl HostConfig {
             cwd: cwd.into(),
             startup_id: String::new(),
             attempt_id: String::new(),
-            data_root: PathBuf::new(),
+            data_base_dir: PathBuf::new(),
+            ready_timeout: DEFAULT_READY_TIMEOUT,
+            inbound_capacity: DEFAULT_INBOUND_CAPACITY,
+        }
+    }
+
+    /// 起不了 Host 时的占位配置：没有入口、也没有 node 参数，`spawn` 会以 `InvalidConfig` 失败。
+    ///
+    /// 存在的理由：壳在「入口解析不到」时仍需要一个**可查询**的句柄来承载失败状态
+    /// （DR-T1-3：渲染层必须拿到 `failed` + `errorCode`，而不是等超时）。
+    pub fn unavailable(node: impl Into<PathBuf>, cwd: impl Into<PathBuf>) -> Self {
+        Self {
+            node: node.into(),
+            node_args: Vec::new(),
+            entry: None,
+            cwd: cwd.into(),
+            startup_id: String::new(),
+            attempt_id: String::new(),
+            data_base_dir: PathBuf::new(),
             ready_timeout: DEFAULT_READY_TIMEOUT,
             inbound_capacity: DEFAULT_INBOUND_CAPACITY,
         }
@@ -179,11 +203,18 @@ impl HostHandle {
                 "既没有入口脚本也没有 node 参数".to_string(),
             ));
         }
+        // 隔离纪律（M8）：空基目录会被当成「未设置」，让 Host 悄悄指向开发者真实的数据根。
+        // 隔离必须由配置类型/校验保证，不能靠每个调用点记得设。
+        if config.data_base_dir.as_os_str().is_empty() {
+            return Err(HostError::InvalidConfig(
+                "data_base_dir 为空：拒绝在没有显式数据基目录的情况下启动 Host（隔离纪律）".to_string(),
+            ));
+        }
         let mut command = config.command();
         command
             .current_dir(&config.cwd)
             .env("MODE_HOST_STARTUP_ID", &config.startup_id)
-            .env("MODE_DATA_BASE_DIR", &config.data_root)
+            .env("MODE_DATA_BASE_DIR", &config.data_base_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             // Host 的日志走壳的 stderr：本地跑壳时直接看得见（帧只在 stdout 上走）。
@@ -466,39 +497,5 @@ pub fn process_exists(pid: u32) -> bool {
         }
         // 查不到工具链时保守地说「还在」：宁可让用例失败，也不谎报「没有孤儿」。
         Err(_) => true,
-    }
-}
-
-/// 测试与诊断用的辅助：等 Host 到某个阶段（默认就绪）。
-pub fn wait_for_phase(handle: &HostHandle, phase: StartupPhase, timeout: Duration) -> bool {
-    let deadline = std::time::Instant::now() + timeout;
-    let mut since = None;
-    loop {
-        let snapshot = handle.wait_for_startup_change(since, Duration::from_millis(50));
-        if snapshot.phase == phase {
-            return true;
-        }
-        if snapshot.phase == StartupPhase::Failed {
-            return false;
-        }
-        since = Some(snapshot.sequence);
-        if std::time::Instant::now() >= deadline {
-            return false;
-        }
-    }
-}
-
-/// 便捷构造：把 `entry` 换成一个「沉默但活着」的 node 进程（监督用例用）。
-pub fn silent_config(script: &str) -> HostConfig {
-    HostConfig {
-        node: PathBuf::from("node"),
-        node_args: vec!["--eval".to_string(), script.to_string()],
-        entry: None,
-        cwd: Path::new(".").to_path_buf(),
-        startup_id: "silent-startup".to_string(),
-        attempt_id: "silent-attempt".to_string(),
-        data_root: PathBuf::from("."),
-        ready_timeout: DEFAULT_READY_TIMEOUT,
-        inbound_capacity: DEFAULT_INBOUND_CAPACITY,
     }
 }

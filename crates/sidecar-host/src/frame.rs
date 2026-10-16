@@ -2,8 +2,15 @@
 //!
 //! 形状取自 M3 Task 0 的 spike（`docs/plans/2026-10-16-m3-port-transport-spike.md` §4.4）：
 //! 两侧都**不解释**载荷——它就是 `packages/rpc` 的不透明 RPC 字节，帧只在进程边界上负责
-//! 长度分帧。Node 侧有同形状的实现（`packages/desktop/src/host-standalone/stdioFrames.ts`）；
-//! 两处一致由 `apps/desktop-tauri/test/portRoundTrip.test.mts` 的真往返守住（谁改坏谁红）。
+//! 长度分帧。Node 侧有同形状的实现（`packages/desktop/src/host-standalone/stdioFrames.ts`），
+//! 跨语言一致性由**两侧各自的用例**守着，而不是靠这句话：
+//!
+//! - `tests/host_lifecycle.rs::the_shell_frame_path_reaches_the_host_and_gets_a_reply`
+//!   用 Rust 的编码器写一帧真请求、读回真应答（Rust 编码 → Node 解码 → Node 编码 → Rust 解码）；
+//! - `apps/desktop-tauri/test/portRoundTrip.test.mts` 从 Node 侧驱动产品 Host 走完整往返。
+//!
+//! 复评 I4(c) 之前，这里只写了「由 portRoundTrip 守住」——但那条用例的壳侧用的是
+//! `test/fixtures/stdioFrames.mts`（Task 0 的替身编解码），产品实现改了端序它也照样绿。
 //!
 //! 读方向必须**带上限**：长度前缀是攻击面，没有上限的 `read_exact` 会让一个畸形长度
 //! 把壳的内存吃光。

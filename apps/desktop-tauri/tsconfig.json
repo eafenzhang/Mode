@@ -9,11 +9,17 @@
     // 跟随 tsconfig.base.json 的 es2024，只补 DOM：本工程会 typecheck 跨包的共享源码
     // （@mode/ui/tauri-platform 及其依赖），lib 低于共享源码的用法会报出与壳无关的错。
     "lib": ["es2024", "DOM", "DOM.Iterable"],
-    "types": [],
+    // 测试用例（test/*.test.mts）用 node 内置模块；同时打开 .mts 扩展名导入
+    // （两个用例都 import `./fixtures/stdioFrames.mts`，这是 tsx/node 的原生跑法）。
+    "types": ["node"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": false,
+    "allowImportingTsExtensions": true,
     "jsx": "preserve"
   },
-  "include": ["frontend/src/**/*.ts", "vite.config.ts"]
+  // 新增：包内测试用例（含 M3 Task 1 的 portRoundTrip / opt-in webviewRoundTrip）。
+  // 刻意**不含** `test/harness/**`：那些页面靠 vite 的 alias 解析 `@mode/shared`（浏览器 shim）
+  // 与真实渲染层源码，用 tsc 解析它们会把 node 侧的 shared barrel 拉进一个 DOM 工程，
+  // 检查出来的错与这些页面无关（构建与运行由 vite/tsx 负责，见各自的 vite.config）。
+  "include": ["frontend/src/**/*.ts", "vite.config.ts", "test/*.test.mts"]
 }

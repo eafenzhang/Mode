@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // 与 apps/desktop-tauri/tsconfig.json 同一种「只检查、不发射」的工程形态：
+    // base 里的 composite/declaration 是给会被 `tsc -b` 引用的子工程用的，本工程两者都不需要。
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "lib": ["es2024"],
+    "types": ["node"]
+  },
+  // 覆盖 M3 Task 1 新增、而此前**不在任何 tsc 工程里**的两棵树：
+  // 产品 Host 入口（`src/host-standalone`，任务书里点名的空档）与它的跨语言契约用例。
+  // 这两处此前只经 tsx 运行，而 tsx 只剥类型不做检查——2026-10-16 的复评把它列为 I3：
+  // `pnpm typecheck` 通过时，对本任务新增的代码其实什么都没说。
+  "include": ["src/host-standalone", "tests/host-standalone.test.mts"]
+}
