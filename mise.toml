@@ -35,3 +35,13 @@ run = "mise exec -- node scripts/mise-run.mjs pnpm typecheck"
 [tasks.lint]
 description = "Run the root linter."
 run = "mise exec -- node scripts/mise-run.mjs pnpm lint"
+
+# 本地 Rust 构建需要装配 gnu 工具链：本机默认 toolchain 的 host 是 msvc，而机器上没装
+# VS Build Tools（Git Bash 自带的 coreutils `link` 又会挡住 `link.exe`）。装配口径在
+# scripts/rust-gnu-env.mjs，本 task 只是把它包成一条命令，参数原样透传给 cargo：
+#   mise run rust -- test --workspace
+#   mise run rust -- build --release -p mode-tauri
+# CI 走 msvc / Linux，用不上这条（装配在那边退化成 no-op），直接调 cargo 即可。
+[tasks.rust]
+description = "Run a cargo subcommand with the local gnu toolchain assembled."
+run = "mise exec -- node scripts/rust-cargo.mjs"

@@ -97,18 +97,20 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 1. 构建壳：`pnpm --filter @mode/desktop-tauri exec tauri build`（或本机 `cargo run -p mode-tauri`），
    启动后主窗口可见；
 
-   > **本机（Windows + gnu）直接调 cargo 时**要自己装配工具链，否则会以
-   > `dlltool.exe: program not found` 或 `link: extra operand` 失败：
-   > 本机默认 toolchain 的 host 是 msvc 而本机没装 VS，Git Bash 的 coreutils `link`
-   > 又会挡住 MSVC 的 `link.exe`。口径与 `scripts/build-browser-import-helper.mjs` 一致：
+   > **本机（Windows + gnu）不要直接调 cargo**：本机默认 toolchain 的 host 是 msvc，而
+   > 机器上没装 VS Build Tools（Git Bash 自带的 coreutils `link` 还会挡住 MSVC 的
+   > `link.exe`），会以 `dlltool.exe: program not found` 或 `link: extra operand` 失败。
+   > 工具链装配口径收敛在 `scripts/rust-gnu-env.mjs`（唯一出处），用包装器一条命令即可
+   > ——CI 是 msvc / Linux，装配在那边退化成 no-op，直接调 cargo 即可，不必经它：
    >
    > ```bash
-   > export PATH="$HOME/.rust-tools/llvm-mingw-20261006-ucrt-x86_64/bin:$HOME/.cargo/bin:$PATH"
-   > export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$HOME/.rust-tools/llvm-mingw-20261006-ucrt-x86_64/bin/x86_64-w64-mingw32-clang"
-   > cargo +stable-x86_64-pc-windows-gnu build --release -p mode-tauri
+   > node scripts/rust-cargo.mjs build --release -p mode-tauri   # 等价于 mise run rust -- build --release -p mode-tauri
+   > node scripts/rust-cargo.mjs test --workspace
    > ```
    >
-   > 产物落在 `target/release/ModeTauri.exe`（不显式传 `--target` 时按 host toolchain 落这里）。
+   > 产出落在 `target/release/ModeTauri.exe`：包装器刻意**不注入 `--target`**，按宿主
+   > toolchain 构建（宿主被换成 gnu），所以落在 `target/<profile>` 而不是
+   > `target/<triple>/<profile>`。
 2. 前端挂载（§4.2）：窗口里渲染出 M1 命令面验收台，深链订阅已装好并在启动时发出握手；
 3. 依次触发 10 个命令，逐条判据：
 

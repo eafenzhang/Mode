@@ -16,11 +16,14 @@
 //
 // 环境变量：
 //   MODE_PROTOCOL_SCHEMA_CMD  覆盖取 schema 的命令（默认 cargo run -q -p protocol --bin emit-schema）
-//   MODE_RUST_TARGET          追加 `--target <三元组>`（本地 gnu 路线需要，CI msvc 不需要）
+//   MODE_RUST_TARGET          追加 `--target <三元组>`，只用于显式指定交叉目标；
+//                             不设时按本机架构走宿主构建，本地 gnu 工具链由本脚本自己装配
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { cargoHostToolchainArgs, defaultGnuTarget, withCargoEnv } from "./rust-gnu-env.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = join(repoRoot, "packages", "shared", "src", "generated", "tauri-protocol.ts");
@@ -41,21 +44,32 @@ function readSchemaBundle() {
   const [command, ...baseArgs] = override
     ? override.split(/\s+/u)
     : ["cargo", "run", "-q", "-p", "protocol", "--bin", "emit-schema"];
-  const target = process.env.MODE_RUST_TARGET?.trim();
-  const args = target ? [...baseArgs, "--target", target] : baseArgs;
-  const result = spawnSync(command, args, {
+  const explicitTarget = process.env.MODE_RUST_TARGET?.trim();
+  // 未指定 target 时 cargo 按**宿主** toolchain 构建；本机宿主默认是 msvc，而下面会用
+  // `+toolchain` 把它换成 gnu 宿主，所以「有效目标」就是本机架构对应的 gnu 三元组。
+  // 它同时决定 linker 变量名与是否装配 llvm-mingw，不能再拿 explicitTarget 当它用。
+  const effectiveTarget =
+    explicitTarget ?? (process.platform === "win32" ? defaultGnuTarget() : undefined);
+  const args = explicitTarget ? [...baseArgs, "--target", explicitTarget] : baseArgs;
+  // 本地 gnu 路线自己装配，**不再要求调用方 export PATH / CARGO_TARGET_<triple>_LINKER**
+  // （装配口径见 scripts/rust-gnu-env.mjs；CI 的 msvc / Linux runner 上它退化成 no-op）。
+  const env = withCargoEnv(process.env, { target: effectiveTarget });
+  // `+toolchain` 只对 cargo 生效：MODE_PROTOCOL_SCHEMA_CMD 可能换成任意命令。
+  const toolchainArgs = command === "cargo" ? cargoHostToolchainArgs(env, effectiveTarget) : [];
+  const commandArgs = [...toolchainArgs, ...args];
+  const result = spawnSync(command, commandArgs, {
     cwd: repoRoot,
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
-    // 本地 gnu 路线需要调用方把 llvm-mingw 的 bin 放进 PATH 并提供
-    // CARGO_TARGET_<triple>_LINKER；这里原样继承环境，不做二次装配。
-    env: process.env,
+    env,
   });
   if (result.error) {
     fail(`无法执行 ${command}：${result.error.message}`);
   }
   if (result.status !== 0) {
-    fail(`${command} ${args.join(" ")} 失败（exit ${result.status}）：\n${result.stderr ?? ""}`);
+    fail(
+      `${command} ${commandArgs.join(" ")} 失败（exit ${result.status}）：\n${result.stderr ?? ""}`,
+    );
   }
   try {
     return JSON.parse(result.stdout);
