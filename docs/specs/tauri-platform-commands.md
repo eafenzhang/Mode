@@ -135,6 +135,15 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 5. `cargo clippy -D warnings` 零告警；`cargo test` 全绿（含 §1 的名字守卫）；
 6. 安装包内不含 Node 运行时。
 
+   > **这一条是 M1 阶段口径，对「产品阶段」已被修订**（2026-10-16）。它描述的是 M1 骨架的真实
+   > 状态——前端是纯静态资源，壳体确实没有 Node 运行时——对此仍然成立。但真实 UI **必须**由
+   > Host 提供 `IServiceAccessor` 才能挂载（§4.2 的证据表），而 Host 跑的是存量 TS services 层
+   > （含 `node:sqlite`/`node-pty` 原生依赖），所以**产品阶段必然携带 Node 运行时**。
+   > 修订后的口径与依据见 `docs/plans/2026-10-16-tauri-m3-ecosystem.md` 的 **DR-M3-1**：
+   > 产品阶段的对应门禁改为 **M3 的体积门禁（核心 ≤30MB）+ 实测 Node 运行时的落点与代价**。
+   > 若「产品不得带 Node」是硬约束，唯一替代是把 Host/services 层也用 Rust 实现——那等于新增一个
+   > M2 量级的阶段，需要重新决策。
+
 **自动化覆盖边界**：命令注册表、名字映射、协议往返、`SaveFileRequest` 不变量、
 `AppState` 写入、深链解析与投递时序、适配层的命令映射与订阅分流是自动化的；
 上表里需要真人看窗口/对话框的项属**人工核对**，无人值守环境（CI）跑不了，记录在 PR 里。
