@@ -76,11 +76,22 @@ CLI 会向 host 发反向请求；不应答会让 `session/create` 在 15s 后�
 | 追加 `HOME` / `USERPROFILE`=`<隔离根>` | CLI 布局也落进隔离根（实测：`<根>/.mode/cli/{db,log,plugins}`），真实根不再新增行 |
 
 因此 driver 必须同时注入 `MODE_DATA_BASE_DIR`、`HOME`、`USERPROFILE`（`MODE_HOME` 一并注入，
-语义相同），并**断言** `<隔离根>/.mode/.mode-root.json` 在启动后存在——归属文件是
-`docs/specs/mode-data-root.md` 定义的「数据根是本次进程的数据目录」的证据。
+语义相同），并在启动后**断言两条**隔离事实，任一不成立立刻失败：
+
+1. `<隔离根>/.mode/.mode-root.json` 存在——归属文件是 `docs/specs/mode-data-root.md` 定义的
+   「数据根是本次进程的数据目录」的证据；
+2. **`<隔离根>/.mode/cli/log` 存在**——CLI 布局的哨兵。
+
+第 2 条才是关键：上表第 2 行说明「只设 `MODE_DATA_BASE_DIR`」时第 1 条**照样成立**，
+而 CLI 布局漏到真实数据根。也就是说，如果哪天 `HOME`/`USERPROFILE` 覆盖被删掉，
+只断言第 1 条的对拍会**全绿**，同时每次运行都在往用户生产数据根写会话日志与 db。
+`cli/log` 由 CLI logger 在进程启动早期创建，它存不存在恰好等价于「HOME 覆盖生效了没有」。
 
 对拍**不得**继承调用方的 `MODE_PERSONAL_PROVIDER_CONFIG_FILE`：该变量在开发机上指向
 真实凭据文件，继承会让对拍打到真实模型并按 token 计费。
+
+数据根本身还要过 `assertDataRootIsolated()`：指向真实数据根（含多代旧根 `~/.zcodium`、`~/.zcode`，
+见 `docs/specs/p2-mode-naming.md`）时直接抛错。
 
 ### 1.5 模型必须可指定
 
@@ -100,14 +111,14 @@ CLI 会向 host 发反向请求；不应答会让 `session/create` 在 15s 后�
 会让事件流尾部顺序不稳定，且与被测行为（会话循环 / 工具执行）无关。首帧
 `session.titleUpdated`（`source:"first_input"`）是本地生成的，不依赖模型，仍然保留。
 
-### 1.7 工具入参在事件流里的位置
+### 1.6 工具入参在事件流里的位置
 
 实测：`tool.updated` 的 `kind:"scheduled"` 事件**故意不带 `input`**
 （`inputOmitted:true` + `inputRef:"model_stream"`），调用入参只出现在
 `model.streaming` 的 `kind:"tool_call"` 事件里。第一层（工具调用序列）的入参必须从那里取，
 否则会拿 `null` 跟 `null` 比，工具入参整整一层失去意义。
 
-### 1.6 退出
+### 1.7 退出
 
 `stop()` 先关 stdin（stdin 关闭时进程正常退出，观察：空 stdin 启动完成后 `exit 0`），
 5s 未退出则 kill，再 2s 未退则 SIGKILL。杀不干净会让后续用例抢不到数据根锁。
@@ -142,29 +153,42 @@ Rust 侧用例**不实现第二份比较器**——它把自身投影成同一�
 
 ### 2.3 事件流
 
-投影：`{type, payload}` 序列，逐事件过 §3 白名单规范化，随后按 §3 的「无序组」规则折叠。
+投影：`{type, payload}` 序列，先按 §3 的**两类无序组**折叠，再逐事件过 §3 白名单规范化
+（先后顺序不能反：折叠要读原始 payload 才能分辨「哪几个事件属于同一次工具调用」，
+而排序键必须用规范化后的值，否则键里带随机 id、两次运行的排序结果会不同）。
 
 比较规则：**按序逐条比较**；同位置 `type` 不同即报差异；`type` 相同则比规范化后的 payload。
-序列长度不同即报差异。
+序列长度不同即报差异。被折叠掉的只有 §3 明列的两类顺序（状态推送、并行批次的完成事件）；
+其余顺序——尤其是 `scheduled` 的调度顺序与单次调用内部的 `result`/`batch` 先后——逐字比。
 
 ## 3. 不平等的合法差异（白名单）
 
 不给这份白名单，对拍会因时间戳/端口逐条报错，最后被人关掉——所以规则必须显式、有限、可评审。
-规范化的唯一实现是 `packages/desktop/tests/agent-runtime-oracle/normalize.mts`，两端都按它做。
+
+**规则的唯一真源是本表**（`packages/desktop/tests/agent-runtime-oracle/normalize.mts` 是它在 TS 侧的
+实现，供 TS 发起的对拍管线使用）。Rust 侧用例**不复制这份实现**：它按本表把自己的事件流投影成
+同一形状后做精确相等断言。**只有比较规则（差集算法）是单份实现**——投影必然两端各写一次，
+因为两端各自产生事件流；规则表相同、实现分工明确，才不会漂移。
 
 | 类别 | 规则 | 理由 |
 | --- | --- | --- |
 | id（键） | 键名在白名单集合里的值替换为 `<id>`；id 数组键（`toolCallIds`、`committedToolCallIds`、`pendingRequestIds`…）替换为 `<ids>` | 每次运行的 uuid / 会话 id / 工具调用 id 必然不同。集合**显式列举**（`eventId`/`sessionId`/`turnId`/`messageId`/`messageID`/`toolCallId`/`requestId`/`spanId`/`parentSpanId`/`attemptId`/`operationId`/`logicalCallId`/`resultPartId`/`mcpId`…），不用 `.*Id$` 通配——那会连 `providerId` / `modelId` 这类事实键一起抹掉 |
-| id（值） | 字符串里出现 uuid → 该 uuid 换成 `<id>`；出现带前缀的随机记号（`msg_`/`part_`/`sess_`/`turn_`/`call_`/`toolu_`/`query_`/`span_`/`trace_` + ≥4 位）→ 换成 `<<前缀>-id>` | 同一个 id 会平铺在正文里（`anchorId` 形如 `msg_xxx_<uuid>:toolu_mock_0_0:tool-result`）。保留 `:tool-result` 这类结构词，只折叠随机部分 |
+| id（容器） | **只对 id 容器键**（`schedule.parallelGroups`、`schedule.executionOrder`）生效：容器里的每个字符串元素换成 `<id>`，**结构与分组保留** | 容器的形状（并行分组数、每组条数、执行顺序长度）是行为，元素身份不是。**不做「见到 `call_xxx` 就当 id」的按形状匹配**：那会误伤工具输出正文（`Read`/`Grep` 结果里出现 `part_number_2`、`call_site_info`、`msg_hello.txt` 是必然的），而正文差异正是 M2 只读工具要对拍的东西 |
+| id（值） | 字符串里出现的 **uuid** 换成 `<id>`（一段文本里可能有多处，全部替换） | 同一个 id 会平铺在非 id 键的正文里（如 `anchorId` 形如 `msg_xxx_<uuid>:toolu_x:tool-result`）。uuid 形状是唯一可靠、不会误伤正文的判据 |
 | 时间 | 键名匹配 `^(timestamp\|duration\|date\|elapsedMs\|.*At\|.*Ms)$` 的值（数值**或** ISO 串）替换为 `<time>` | 时钟必然不同：`startedAt`/`committedAt`/`timestamp` 是 ISO 串，`durationMs`/`timeToFirstTextMs` 是数值，`date` 是 HTTP 响应头的当前时刻 |
 | 端口 | 形如 `http://127.0.0.1:<port>` / `ws://localhost:<port>` 的串替换为 `<loopback-url>` | mock provider 端口是 `listen(0)` 取的临时端口 |
 | 进程内路径 | 出现隔离根 / 工作目录 / 系统临时目录的前缀替换为 `<data-root>` / `<cwd>` / `<tmp>`；**单反斜杠与 JSON 转义的双反斜杠两种形态都要换** | 每次运行都是新的 mkdtemp 目录；`model.streaming` 的 `delta` 是工具入参的 JSON 文本，里面的路径是双反斜杠 |
-| 无序组 | 连续同类型且类型属于 `UNORDERED_EVENT_TYPES`（当前只有 `session.updated`）的一段，折叠成按稳定 JSON 串排序的集合后再比 | 状态推送由不同子系统并发发出，相对顺序不是行为。**其余类型一律按序比**（工具事件的顺序就是调度行为） |
+| 无序组①：状态推送 | 连续同类型且类型属于 `UNORDERED_EVENT_TYPES`（当前只有 `session.updated`）的一段，折叠成按稳定 JSON 串排序的集合后再比 | 状态推送由不同子系统并发发出，相对顺序不是行为 |
+| 无序组②：**并行批次的完成事件** | 同一个 assistant 消息里的多个工具调用会被运行时并行执行；它们的 **完成类事件**（`tool.updated` 的 `result` / `error` / `batch`）到达顺序**不属于契约**。判定必须同时满足：该段是连续同类型 `tool.updated`、**整段都是完成类事件**、且涉及 **≥2 个不同 `toolCallId``**；满足则折叠成排序后的集合。 | 谁先跑完是竞态。**只**豁免这一种情形：调度顺序（`scheduled`）与单次调用内部的 `result`/`batch` 先后仍逐字比——它们才是行为。排序键必须用**规范化后**的 payload，否则键里带随机 id，两次运行的排序结果会不同 |
 | 环境相关计数 | `toolCount`、`chars` 的值替换为 `<count>` | 工具面与提示词规模取决于机器上装了哪些 MCP / 技能 / 插件的版本，不是被测量行为 |
 | 传输层头 | `requestHeaders` / `responseHeaders` 的值整体折叠成 `<headers>`（`requestHeaderCount` / `responseHeaderCount` 保留） | 头里是版本号、平台、时区与当前时刻；HTTP 头是环境事实，不是运行时行为 |
 
 上面没列的一律**逐字比**。要新增白名单，先改本表再改 `normalize.mts`，并在 PR 里说明为什么
 差异是合法的而不是缺陷。白名单不足时用例会变**红**（不是静默放过），加规则是一次显式决定。
+
+**并行批次的实测证据**（2026-10-16）：同一次 assistant 消息里的两个 `Read` 调用，
+两次运行的 `result` 事件（`alpha` / `beta`）会互换位置；`scheduled` 顺序始终稳定。
+没有无序组②，20 个真实模型任务的验收（阶段验收第 3 项）永远无法判定。
 
 夹具的第二个纪律：**期望值只能从 oracle 录，不能手写**。手写期望值等于把「我以为的行为」当规格，
 正是 clean-room 要避免的；配套的实现约束是 §4.2 的 mock provider——没有它，录下来的期望值
@@ -232,8 +256,11 @@ Rust 侧用例**不实现第二份比较器**——它把自身投影成同一�
 `packages/provider-node/dist/provider-config-file-codec.d.ts` 的**类型声明**（接口面），
 不是实现体。
 
-**默认关闭**：`oracle-mock` 只存在于 driver 写出的临时配置文件里，不设
-`MODE_ORACLE_PROVIDER`/不指向该文件时，任何日常运行都不会选到它——不新增任何默认可达的代码路径。
+**默认关闭**：`oracle-mock` 只存在于 **driver 写出的那份临时 personal provider config** 里。
+运行时之所以会选到它，仅仅因为 driver 把 `MODE_PERSONAL_PROVIDER_CONFIG_FILE` 指向了那份文件；
+不指向它时（日常开发、桌面、CLI 的任何正常路径）provider 清单里根本没有 `oracle-mock`，
+不新增任何默认可达的代码路径。**没有 `MODE_ORACLE_PROVIDER` 这类开关**——
+配置指向就是全部机制（见 §4.2 第 1、2 步）。
 
 ### 4.3 确定性口径
 
@@ -279,22 +306,29 @@ mock 的应答是**请求内容的纯函数**，不是计数器也不是随机�
 3. **MCP 子进程启动约 5s**：一次 oracle 会话约 10s，对拍用例应整文件串行、控制用例数量。
 4. **HOME 重定向**会影响子进程看到的 `~/.agents/skills` 等用户级目录（隔离后为空），
    故本机夹具的期望值只在「同样的隔离条件」下可复现；换机器需重新录制。
-5. **并行批次**：同一个 assistant 消息里的多个工具调用会被运行时并行执行
+5. **并行批次的完成顺序是竞态**（不是缺陷）：同一个 assistant 消息里的多个工具调用会被并行执行
    （观察：`tool.updated` 的 `scheduled` 带 `canRunParallel:true` 与 `schedule.parallelGroups`），
-   它们的 `result` / `batch` 事件到达顺序是竞态——实测同一条夹具两次运行会在
-   `result`（alpha/beta）之间换位。夹具因此**避开并行批次**（`read-twice-one-turn` 用两个
-   独立的批次表达「同一次 turn 里连续两次工具调用」）。
-   要在对拍里覆盖并行调度，需要先在 §3 里为「不同工具调用之间的完成顺序」立一条显式的换位规则
-   （只容忍换位、不容忍同一次调用的阶段乱序），再实现它——这是后续任务的显式决定，不是这里的默认值。
-   注意：工具调用的**调度顺序**仍然被逐字比较（第一层按 scheduled 顺序、事件流层按序比），
-   并行只豁免「谁先跑完」。
+   实测同一条输入两次运行会在两条 `result`（alpha/beta）之间换位，而 `scheduled` 顺序始终稳定。
+   处置见 §3 无序组②：只豁免「谁先跑完」，调度顺序与单次调用内部的阶段先后仍逐字比。
+   夹具里的 `read-twice-one-turn` 保留**单元素** `parallelGroups`（两个独立批次），
+   因为那是最贴合「同一次 turn 里连续两次工具调用」这条要求、且不依赖竞态的形状；
+   并行批次的折叠规则由 `compare.test.mts` 的纯函数用例覆盖。
 
 ## 验收场景（Task 0）
 
-1. `pnpm exec tsx --test packages/desktop/tests/agent-runtime-oracle/driver.test.mts`
-   → oracle 能起来、能吐 `turn.started` 与终态、能干净退出；隔离根下存在 `.mode/.mode-root.json`。
-2. `repeatability.test.mts` → 同 prompt 两次运行，三层（工具调用 / 文件快照 / 事件流）一致。
-3. `fixtures.test.mts` → 3 条夹具（只读一次成功 / 读不存在的文件 / 同 turn 连续两次工具调用）
-   全部回放一致；夹具的 `expect` 由 oracle 录制。
-4. `compare.test.mts` → 比较器对人为注入的差异报出差异（比较器不能是恒真函数）。
-5. `cargo clippy --workspace --all-targets -- -D warnings` 零告警；`pnpm lint` 不高于基线。
+1. `pnpm test:agent-runtime-oracle`（唯一入口；等价于
+   `pnpm exec tsx --test packages/desktop/tests/agent-runtime-oracle/*.test.mts`）
+   → 全绿。其中：
+   - `driver.test.mts` → oracle 能起来、能吐 `turn.started` 与终态、能干净退出；
+   - `isolation.test.mts` → 指向真实数据根（含旧根）直接抛错；隔离根下**归属文件与 CLI 布局
+     都存在**；模型流量全部打到 mock provider；无解析失败行；
+   - `repeatability.test.mts` → 同 prompt 两次运行，三层（工具调用 / 文件快照 / 事件流）一致；
+   - `fixtures.test.mts` → 3 条夹具（只读一次成功 / 读不存在的文件 / 同 turn 连续两次工具调用）
+     全部回放一致；夹具的 `expect` 由 oracle 录制；
+   - `compare.test.mts` → 比较器对人为注入的差异报出差异（不能是恒真函数），
+     且并行批次折叠不会吃掉工具输出差异。
+2. 隔离哨兵可判伪：把 driver 的 `HOME`/`USERPROFILE` 覆盖改成别的目录，
+   `isolation.test.mts` 必须**红**（spec §1.4 第 2 条）。
+3. `cargo clippy --workspace --all-targets -- -D warnings` 零告警；`pnpm lint` 不高于基线。
+4. 本套件**不进** `verify:pre-push` / release gate：它依赖机器环境（§6.4），
+   接进 CI 是 Task 7 Step 2 的事。

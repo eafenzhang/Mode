@@ -29,7 +29,10 @@ export type NormalizeContext = {
   tmpDir: string;
 };
 
-/** 并发推送的状态帧相对顺序不是行为（spec §3「无序组」）。 */
+/**
+ * 状态推送类型：并发发出的相对顺序不是行为（spec §3「无序组」）。
+ * 并行批次的完成事件也属于无序组，但判定更窄——见 `isUnorderedRun`。
+ */
 export const UNORDERED_EVENT_TYPES: readonly string[] = ["session.updated"];
 
 /**
@@ -68,6 +71,9 @@ const VOLATILE_ID_KEYS = new Set([
   "messageID",
   "assistantMessageId",
   "parentMessageId",
+  // `anchorId` 形如 `msg_<随机>_<uuid>:<toolCallId>:tool-result`：
+  // 值里的 uuid 会被替换，但随机的 `msg_…_` 前缀只能靠键名折叠（见 fixtures.test.mts 的守卫）。
+  "anchorId",
   "anchorMessageId",
   "summaryMessageId",
   "toolCallId",
@@ -103,6 +109,16 @@ const VOLATILE_ID_LIST_KEYS = new Set([
   "committedToolCallIds",
 ]);
 
+/**
+ * id 容器键：容器的**结构**是行为（并行分组数、每组条数、执行顺序的条数），
+ * 元素身份不是。只把最内层的字符串元素换成 `<id>`。
+ *
+ * 为什么不用「值里见到 `call_xxx` 就换掉」这种按形状匹配的规则：它会误伤工具输出正文
+ * （`Read`/`Grep` 的结果里出现 `part_number_2`、`call_site_info` 这类普通文本是必然的），
+ * 而正文差异恰恰是 M2 只读工具要对拍的东西（spec §3 的 id 规则只认 uuid 与 id 容器）。
+ */
+const ID_CONTAINER_KEYS = new Set(["parallelGroups", "executionOrder"]);
+
 /** 时间键：值一律换成 `<time>`（`date` 是 HTTP 响应头里的当前时刻）。 */
 const TIME_KEYS = /^(timestamp|duration|date|elapsedMs|.*At|.*Ms)$/;
 
@@ -115,11 +131,9 @@ const ENVIRONMENT_COUNT_KEYS = new Set(["toolCount", "chars"]);
  */
 const TRANSPORT_HEADER_KEYS = new Set(["requestHeaders", "responseHeaders"]);
 
-const UUID_PATTERN = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/;
+/** 全局标志：一段文本里可能有多个 id（`…:call_x:call_y`），只换第一个会漏。 */
+const UUID_PATTERN = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
 const LOOPBACK_URL_PATTERN = /\b(?:https?|wss?):\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
-/** 带前缀的 id 记号（`msg_<随机>_<uuid>`、`part_<随机>`、`toolu_mock_0_0`）。 */
-const PREFIXED_ID_PATTERN =
-  /\b(msg|part|sess|turn|call|toolu|query|req|span|trace)_[A-Za-z0-9_]{4,}/g;
 
 /** 稳定序列化：键递归排序，用于比较与排序键。 */
 export function stableStringify(value: unknown): string {
@@ -151,12 +165,11 @@ function normalizeString(value: string, context: NormalizeContext): string {
     }
   }
   result = result.replace(LOOPBACK_URL_PATTERN, "<loopback-url>");
-  if (UUID_PATTERN.test(result)) {
-    // 平铺在正文里的 id（`sess_<uuid>`）折叠成标记。
-    result = result.replace(UUID_PATTERN, "<id>");
-  }
-  // 再折叠带前缀的随机记号，保留可读结构（如 `…:tool-result`）。
-  result = result.replace(PREFIXED_ID_PATTERN, "<$1-id>");
+  // 平铺在正文里的 uuid（`sess_<uuid>`、`msg_xxx_<uuid>:…`）折叠成标记。
+  // **只认 uuid 形状**，不做「见到 `xxx_yyy` 就当 id」的按形状匹配：那会把工具输出正文
+  // （`part_number_2`、`call_site_info`、`msg_hello.txt`）一起吃掉，
+  // 而正文差异正是 M2 只读工具要对拍的东西。
+  result = result.replace(UUID_PATTERN, "<id>");
   return result;
 }
 
@@ -174,6 +187,13 @@ function jsonEscaped(value: string): string {
   return JSON.stringify(value).slice(1, -1);
 }
 
+/** id 容器内部：字符串元素就是 id，整体换成 `<id>`，结构（分组/顺序的形状）保留。 */
+function normalizeIdContainer(value: unknown): unknown {
+  if (typeof value === "string") return "<id>";
+  if (Array.isArray(value)) return value.map((item) => normalizeIdContainer(item));
+  return value;
+}
+
 /** 按 spec §3 的白名单规范化一个 payload。 */
 export function normalizeValue(value: unknown, context: NormalizeContext): unknown {
   if (typeof value === "string") return normalizeString(value, context);
@@ -188,6 +208,7 @@ export function normalizeValue(value: unknown, context: NormalizeContext): unkno
       entries.map(([key, inner]) => {
         if (TRANSPORT_HEADER_KEYS.has(key)) return [key, "<headers>"];
         if (VOLATILE_ID_LIST_KEYS.has(key)) return [key, "<ids>"];
+        if (ID_CONTAINER_KEYS.has(key)) return [key, normalizeIdContainer(inner)];
         if (VOLATILE_ID_KEYS.has(key)) return [key, "<id>"];
         if (ENVIRONMENT_COUNT_KEYS.has(key)) return [key, "<count>"];
         // 时间键不限数值：`timestamp` / `committedAt` 是 ISO 字符串，`durationMs` 才是数值。
@@ -256,39 +277,77 @@ export function projectToolCalls(
   return calls;
 }
 
-/** 第三层投影：逐事件规范化 + 折叠无序组。 */
+/** 第三层投影：折叠无序组 + 逐事件规范化。 */
 export function projectEventStream(
   events: readonly OracleEvent[],
   context: NormalizeContext,
 ): NormalizedEvent[] {
-  const normalized = events.map((event) => ({
+  // 先折叠（折叠要读**原始** payload 才能分辨「哪几个事件属于同一次工具调用」），
+  // 再规范化。排序键用规范化后的值，否则键里会带上随机 id，两次运行的排序结果可能不同。
+  const folded = foldUnorderedRuns(events, (payload) =>
+    stableStringify(normalizeValue(payload ?? null, context)),
+  );
+  return folded.map((event) => ({
     type: event.type,
     payload: normalizeValue(event.payload ?? null, context),
   }));
-  return foldUnorderedRuns(normalized);
 }
 
-/** 连续同类型的无序段折叠成按稳定串排序的集合（spec §3「无序组」）。 */
-export function foldUnorderedRuns(events: readonly NormalizedEvent[]): NormalizedEvent[] {
-  const folded: NormalizedEvent[] = [];
+/**
+ * 把一个**连续同类型**段判定为无序组（spec §3「无序组」）：
+ *
+ * - 状态推送（`UNORDERED_EVENT_TYPES`）：并发发出的相对顺序不是行为；
+ * - 并行批次的完成事件：同一个 assistant 消息里的多个工具调用会被并行执行，
+ *   谁先跑完是竞态。只在「整段都是完成类事件（result/error/batch）**且**涉及 ≥2 个不同
+ *   工具调用」时才成立——单次调用的 `result`/`batch` 先后、`scheduled`/`started` 的调度顺序
+ *   都不折叠（那是行为）。
+ */
+function isUnorderedRun(run: readonly OracleEvent[]): boolean {
+  const first = run[0];
+  if (!first) return false;
+  if (UNORDERED_EVENT_TYPES.includes(first.type)) return true;
+  if (first.type !== "tool.updated") return false;
+  const toolCallIds = new Set<string>();
+  for (const event of run) {
+    const payload = (event.payload ?? {}) as Record<string, unknown>;
+    const kind = payload.kind;
+    if (kind !== "result" && kind !== "error" && kind !== "batch") return false;
+    if (typeof payload.toolCallId === "string") toolCallIds.add(payload.toolCallId);
+    const list = payload.toolCallIds;
+    if (Array.isArray(list)) {
+      for (const id of list) {
+        if (typeof id === "string") toolCallIds.add(id);
+      }
+    }
+  }
+  return toolCallIds.size >= 2;
+}
+
+/** 连续同类型的无序段折叠成按稳定串排序的集合。 */
+function foldUnorderedRuns(
+  events: readonly OracleEvent[],
+  sortKey: (payload: unknown) => string,
+): OracleEvent[] {
+  const folded: OracleEvent[] = [];
   let index = 0;
   while (index < events.length) {
-    const current = events[index] as NormalizedEvent;
-    if (!UNORDERED_EVENT_TYPES.includes(current.type)) {
-      folded.push(current);
-      index += 1;
-      continue;
-    }
+    const current = events[index] as OracleEvent;
     let end = index;
     while (end < events.length && events[end]?.type === current.type) {
       end += 1;
     }
-    const run = events.slice(index, end).sort((left, right) => {
-      const a = stableStringify(left.payload);
-      const b = stableStringify(right.payload);
-      return a < b ? -1 : a > b ? 1 : 0;
-    });
-    folded.push(...run);
+    const run = events.slice(index, end);
+    if (isUnorderedRun(run)) {
+      folded.push(
+        ...[...run].sort((left, right) => {
+          const a = sortKey(left.payload);
+          const b = sortKey(right.payload);
+          return a < b ? -1 : a > b ? 1 : 0;
+        }),
+      );
+    } else {
+      folded.push(...run);
+    }
     index = end;
   }
   return folded;

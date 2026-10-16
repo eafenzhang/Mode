@@ -184,8 +184,8 @@
           "parallelGroupIndex": 0,
           "canRunParallel": true,
           "schedule": {
-            "parallelGroups": [["<toolu-id>"]],
-            "executionOrder": ["<toolu-id>"]
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
           },
           "kind": "scheduled",
           "inputByteLength": 94,
@@ -350,7 +350,7 @@
       {
         "type": "streamRecovery.updated",
         "payload": {
-          "anchorId": "<msg-id><id>:<toolu-id>:tool-result",
+          "anchorId": "<id>",
           "attemptId": "<id>",
           "kind": "tool_result",
           "assistantMessageId": "<id>",
@@ -472,8 +472,8 @@
           "parallelGroupIndex": 0,
           "canRunParallel": true,
           "schedule": {
-            "parallelGroups": [["<toolu-id>"]],
-            "executionOrder": ["<toolu-id>"]
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
           },
           "kind": "scheduled",
           "inputByteLength": 94,
@@ -638,7 +638,7 @@
       {
         "type": "streamRecovery.updated",
         "payload": {
-          "anchorId": "<msg-id><id>:<toolu-id>:tool-result",
+          "anchorId": "<id>",
           "attemptId": "<id>",
           "kind": "tool_result",
           "assistantMessageId": "<id>",

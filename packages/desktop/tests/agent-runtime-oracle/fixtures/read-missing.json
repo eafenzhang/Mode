@@ -164,8 +164,8 @@
           "parallelGroupIndex": 0,
           "canRunParallel": true,
           "schedule": {
-            "parallelGroups": [["<toolu-id>"]],
-            "executionOrder": ["<toolu-id>"]
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
           },
           "kind": "scheduled",
           "inputByteLength": 100,
@@ -325,7 +325,7 @@
       {
         "type": "streamRecovery.updated",
         "payload": {
-          "anchorId": "<msg-id><id>:<toolu-id>:tool-result",
+          "anchorId": "<id>",
           "attemptId": "<id>",
           "kind": "tool_error",
           "assistantMessageId": "<id>",

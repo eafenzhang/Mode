@@ -47,7 +47,8 @@
     "architecture:report": "node scripts/architecture/architecture-check.mjs report",
     "architecture:baseline:update": "node scripts/architecture/architecture-check.mjs baseline:update",
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
-    "orca:evidence": "node harness/orca-evidence/run.mjs"
+    "orca:evidence": "node harness/orca-evidence/run.mjs",
+    "test:agent-runtime-oracle": "tsx --test packages/desktop/tests/agent-runtime-oracle/*.test.mts"
   },
   "dependencies": {
     "border-beam": "^1.0.1",

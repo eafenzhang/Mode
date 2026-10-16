@@ -78,13 +78,50 @@ const RUNTIME_PREFERENCES_RESULT = {
 const REQUEST_TIMEOUT_MS = 60_000;
 const STARTUP_TIMEOUT_MS = 60_000;
 
-/** 数据根不能落在用户真实数据根上——对拍最贵的错误就是污染生产数据（spec §1.4）。 */
+/**
+ * 数据根不能落在用户真实数据根上——对拍最贵的错误就是污染生产数据（spec §1.4）。
+ * 多代旧根（`.zcodium`、`.zcode`）一并拒绝，见 `docs/specs/p2-mode-naming.md`。
+ */
 export function assertDataRootIsolated(dataRoot: string): void {
   const resolved = resolve(dataRoot);
-  for (const forbidden of [join(homedir(), ".mode"), join(homedir(), ".mode")]) {
+  const home = homedir();
+  for (const name of [".mode", ".zcodium", ".zcode"]) {
+    const forbidden = join(home, name);
     if (resolved === forbidden || resolved.startsWith(`${forbidden}${sep}`)) {
       throw new Error(`对拍数据根指向用户真实数据根：${resolved}`);
     }
+  }
+}
+
+/**
+ * 隔离根下的 **CLI 布局** 哨兵路径。
+ *
+ * 只断言归属文件是不够的：实测（spec §1.4 的表）只设 `MODE_DATA_BASE_DIR` 时，
+ * 归属文件**照样**落在隔离根，而 CLI 布局（`cli/log`、`cli/db`、`cli/rollout`…）
+ * 仍然写用户真实 `~/.mode/cli/**`。也就是说「删掉 `HOME`/`USERPROFILE` 覆盖」这个最危险的
+ * 回归会让归属文件断言全绿、而每次对拍都在污染生产数据根。
+ * `cli/log` 由 CLI 的 logger 在进程启动早期创建，所以它是否存在，
+ * 恰好等价于「HOME 覆盖生效了没有」。
+ */
+export function cliLayoutSentinelPath(dataRoot: string): string {
+  return join(dataRoot, ".mode", "cli", "log");
+}
+
+/**
+ * 启动后必须成立的两条隔离事实：数据根归属 + CLI 布局都落在隔离根里。
+ * 任一条不成立就**立刻失败**，绝不继续跑（对拍写进生产数据根是不可接受的代价）。
+ */
+export function assertIsolationInEffect(dataRoot: string): void {
+  const manifestPath = join(dataRoot, ".mode", ".mode-root.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error(`oracle 未在隔离根写下归属文件：${manifestPath}；数据根隔离没有生效`);
+  }
+  const cliLayoutPath = cliLayoutSentinelPath(dataRoot);
+  if (!existsSync(cliLayoutPath)) {
+    throw new Error(
+      `oracle 的 CLI 布局没有落在隔离根（缺 ${cliLayoutPath}）：` +
+        `HOME/USERPROFILE 覆盖失效，本次运行正在写用户真实 ~/.mode/cli；已中止`,
+    );
   }
 }
 
@@ -293,11 +330,8 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
       STARTUP_TIMEOUT_MS,
       "oracle 启动（storage ready）",
     );
-    // 归属文件是「本次进程的数据目录就是隔离根」的证据（docs/specs/mode-data-root.md）。
-    const manifestPath = join(dataRoot, ".mode", ".mode-root.json");
-    if (!existsSync(manifestPath)) {
-      throw new Error(`oracle 未在隔离根写下归属文件：${manifestPath}；数据根隔离没有生效`);
-    }
+    // 隔离生效的判据：归属文件 + CLI 布局都在隔离根里（见 assertIsolationInEffect）。
+    assertIsolationInEffect(dataRoot);
 
     const created = (await request("session/create", {
       workspace: { workspacePath: cwd, workspaceKey: cwd },
