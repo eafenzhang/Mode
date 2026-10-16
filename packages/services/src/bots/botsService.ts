@@ -7706,6 +7706,8 @@ export function createBotsService(
       workspacePath: string;
       workspaceIdentity?: string;
       text: string;
+      /** 本次桌面发送附带的附件数量。镜像只发文本，数量用于显式告知未同步，不再静默省略。 */
+      attachmentCount?: number;
     }): Promise<void> {
       const text = params.text.trim();
       if (!text) {
@@ -7717,6 +7719,15 @@ export function createBotsService(
       const config = await repo.readConfig();
       const workspaceKey = getWorkspaceKey(params.workspacePath, params.workspaceIdentity);
       const locale = await readMessageLocale();
+      // 桌面附件不进镜像：把用户本地文件自动上传到 IM 平台（群聊里还会到其他人手里）是
+      // 一次隐式的数据外发，不该由镜像顺手决定。改为显式告知未同步——静默省略会让 IM 侧的
+      // 读者以为提问是完整的，属可见的错。是否要传附件留给后续按通道显式决策。
+      const attachmentsSkipped =
+        (params.attachmentCount ?? 0) > 0
+          ? formatBotMessage(locale, "desktopPromptMirrorAttachmentsSkipped", {
+              count: params.attachmentCount ?? 0,
+            })
+          : "";
       for (const [botId, channel] of Object.entries(state.bots)) {
         const bot = findBot(config, botId);
         if (!bot || !bot.enabled) {
@@ -7747,7 +7758,7 @@ export function createBotsService(
               botId: bot.id,
               provider: bot.provider,
               providerUserId: mirrorUserId,
-              text: formatBotMessage(locale, "desktopPromptMirror", { text }),
+              text: formatBotMessage(locale, "desktopPromptMirror", { text }) + attachmentsSkipped,
             });
           } catch (error) {
             botsLogger.warn(

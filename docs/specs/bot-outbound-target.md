@@ -86,40 +86,36 @@ task 终态 ──▶ 卡片终稿收口；命令/错误/澄清/媒体走 create
 4. **待实机**：企微群 @机器人，回复出现在**群里**且与桌面端会话正文一致；群里占位被同一条
    流收口（不再残留「思考中…」）；桌面端发消息时镜像进群而非绑定用户私聊。
 
-## 桌面输入镜像的附件缺口（2026-10-16 复核，**尚未实现**）
+## 桌面输入镜像的附件口径（2026-10-16 决策并落地）
 
-**现状**：`notifyDesktopUserMessage` 的参数只有 `text`，镜像时也只发文本
-（`adapter.send(bot, { providerUserId: context.conversationId, text })`）。
-所以**桌面端带附件发一条消息时，IM 侧只看到文字**，文件本身没有过去。
+**原缺口**：`notifyDesktopUserMessage` 的参数只有 `text`，镜像只发文本，所以桌面端带附件发消息时
+IM 侧只看到文字、文件没过去。反方向是完整的：IM → 桌面走 `prepareBotMessageContent`，
+附件会下载、缓存并作为 prompt 附件进入回合（`cacheResolvedAttachment`）。
 
-反方向是完整的：IM → 桌面走 `prepareBotMessageContent`，附件会下载、缓存并作为
-prompt 附件进入回合（`cacheResolvedAttachment`）。
+**决策：附件不进镜像，但必须在 IM 侧显式告知未同步。** 两个可选口径里选了后者，理由各自成立：
 
-**为什么本轮不实现（只留设计）**：不是"接一下"就完的，缺的是**字节来源**这一层。
-逐点核实后的集成点如下（供实现时直接用）：
+- **静默跳过——否决**。IM 侧的读者会以为这次提问是完整的，属**可见的错**。本项目在出站投递上
+  已立过同一条规矩（`bot-outbound-delivery.md`：失败必达、用户可见），镜像没有理由更宽松。
+- **自动镜像附件——否决**。把用户的本地文件上传到 IM 平台是**一次隐式的数据外发**，群聊场景下
+  还意味着文件到了其他人手里。用户把附件加在**桌面会话**上，不等于同意把它发给 IM 平台，
+  这个同意不该由镜像代签。日后若要按通道开放（大概率只有私聊合理），是独立决策。
 
-1. **UI 侧数据在手**：`packages/ui/src/v4/SessionPane.tsx` 的发送回调里
-   `readyAttachments: readonly AttachmentRef[]` 就在作用域内（同一回调里已用它构造
-   `attachments: readyAttachments` 发给 Agent），镜像的两处调用点（冷启动 / 续跑分支）
-   也都在这个回调里 —— 所以"取到附件清单"不需要新的状态。
-2. **`AttachmentRef` 是引用不是字节**：本地桌面文件带 `localPath`（注释写明是"零拷贝 ready"），
-   其余形态要靠 UI 的 `attachmentRead` / `attachmentReadRange` 读回 —— 而这两个是
-   **UI 侧能力，服务层拿不到**。因此服务层只能镜像"有 `localPath` 的附件"，
-   或者需要把读取能力也注入进服务层（后者是接口面扩张，得有明确理由）。
-3. **投递侧已经具备**：媒体出站走既有 `deliverBotMedia` + `providers[].sendMedia`，
-   目标用与文本同一条 `resolveOutboundTarget` → 桌面输入镜像的目标是
-   `context.conversationId`（规则 2）。
-4. **接口面改动**：`IBotsService.notifyDesktopUserMessage` 需要增加
-   `attachments?: readonly BotMirroredAttachment[]`（`{ kind, filename, mimeType, localPath }`），
-   服务层对每个绑定该 task 的对话：先发文本、再逐个发媒体；单个失败只 warn，
-   不能让一个附件把整条镜像打断。
+**已实现（2026-10-16）**：
 
-**待定决策（实现前必须回答）**：**没有 `localPath` 的附件怎么办**——是静默跳过、
-还是在文本里补一句"（桌面端还发了 N 个附件，IM 侧未同步）"？前者会让人以为没发过，
-后者是"半截提示"。这项属于产品取舍，不能由实现顺手决定。
+- `IBotsService.notifyDesktopUserMessage` 增加 `attachmentCount?: number`（`packages/services/src/bots/bots.ts`）；
+- 服务层把未同步提示拼在镜像正文**之后**（同一条消息，不另发一条），文案 `desktopPromptMirrorAttachmentsSkipped`；
+- 渲染层两处镜像调用点（`SessionPane.tsx`：新建会话 / 既有会话）传 `readyAttachments.length`。
 
-**验收场景（实现时）**：桌面端在绑定会话里发一张本地图片 → IM 侧收到文本 + 图片；
-其中一张附件上传失败 → 文本与其余附件仍到达，只 warn。**待实机**。
+**集成点（将来真要传附件时直接用）**：
+
+1. UI 侧 `readyAttachments` 已在发送回调作用域内，取清单不需要新的状态；
+2. `AttachmentRef` 是引用不是字节——本地文件带 `localPath`（零拷贝 ready），其余形态要靠 UI 的
+   `attachmentRead` / `attachmentReadRange`，而那是 **UI 侧能力、服务层拿不到**；
+3. 投递侧已具备：`deliverBotMedia` + `providers[].sendMedia`，目标复用 `resolveOutboundTarget`。
+
+**验收**：桌面端在绑定会话里带 1 个以上附件发消息 → IM 侧文本末尾出现「（另有 N 个附件未同步到本会话）」；
+不带附件时不出现该提示。两端都有单测钉住（`services/test/bot-outbound-target.test.ts`、
+`ui/test/sessionPaneMirrorAttachments.test.ts`）。**待实机**。
 
 ## 非目标
 

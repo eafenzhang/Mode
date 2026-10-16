@@ -2320,7 +2320,7 @@ export function SessionPane({
    * 只在渲染层用户主动发送时触发，机器人自身产生的回合不经过这里，天然没有回声。
    */
   const mirrorDesktopPromptToIm = useCallback(
-    (targetTaskId: string, text: string) => {
+    (targetTaskId: string, text: string, attachmentCount = 0) => {
       if (!targetTaskId || !text.trim()) {
         return;
       }
@@ -2330,6 +2330,8 @@ export function SessionPane({
           workspacePath,
           ...(workspaceIdentity ? { workspaceIdentity } : {}),
           text,
+          // 镜像只同步文本；数量传过去让 IM 侧知道这一次的提问还带着附件。
+          ...(attachmentCount > 0 ? { attachmentCount } : {}),
         })
         .catch((error: unknown) => {
           logger.warn(
@@ -2666,7 +2668,7 @@ export function SessionPane({
             [sendAck.reasonCode, sendAck.message].filter(Boolean).join(": ") || "sendText 被拒绝",
           );
         }
-        mirrorDesktopPromptToIm(newSessionId, effectiveText);
+        mirrorDesktopPromptToIm(newSessionId, effectiveText, readyAttachments.length);
         handleDraftSessionCreated(newSessionId, groupedDraftTaskAtSend);
         return;
       }
@@ -2716,7 +2718,7 @@ export function SessionPane({
           [ack.reasonCode, ack.message].filter(Boolean).join(": ") || "sendText 被拒绝",
         );
       }
-      mirrorDesktopPromptToIm(sessionId, effectiveText);
+      mirrorDesktopPromptToIm(sessionId, effectiveText, readyAttachments.length);
       if (heldQueueDisposition === "clearQueueAndSend") {
         settleCurrentQueueInputs(sessionId);
       }

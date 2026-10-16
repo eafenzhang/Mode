@@ -66,6 +66,20 @@ test("流式卡片目标：state.providerUserId 取所属会话，不是发送�
   );
 });
 
+test("桌面输入镜像：附件不进镜像，但必须在 IM 侧显式告知未同步", () => {
+  const source = requireSource();
+  const mirror = windowAfter(source, "async notifyDesktopUserMessage", 110);
+  assert.ok(mirror.includes("attachmentCount"), "镜像接口必须接收附件数量，否则无从告知");
+  assert.ok(
+    mirror.includes("desktopPromptMirrorAttachmentsSkipped"),
+    "有附件时必须带上未同步提示——静默省略会让 IM 侧读者以为这次提问是完整的",
+  );
+  assert.ok(
+    mirror.includes("+ attachmentsSkipped"),
+    "提示必须接在镜像正文之后（同一条消息），不得另发一条",
+  );
+});
+
 test("桌面输入镜像：目标是本对话，群回群、私聊回本人", () => {
   const source = requireSource();
   const mirror = windowAfter(source, "async notifyDesktopUserMessage", 70);

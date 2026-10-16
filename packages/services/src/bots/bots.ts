@@ -277,6 +277,8 @@ export interface IBotsService {
     workspacePath: string;
     workspaceIdentity?: string;
     text: string;
+    /** 本次桌面发送附带的附件数量；镜像只发文本，数量用于在 IM 侧显式告知未同步。 */
+    attachmentCount?: number;
   }): Promise<void>;
 
   /**
