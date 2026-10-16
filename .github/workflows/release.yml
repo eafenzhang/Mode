@@ -337,6 +337,16 @@ jobs:
       # 注意 `cargo test -p platform` 需要 comctl32 v6 应用清单，由 crates/platform/build.rs 只对
       # 测试目标注入（该文件的注释解释了为什么不能用 tauri-winres：它会把资源库传播给依赖方，
       # 与 app 自己的清单撞车）。CI 走 msvc，走 build.rs 里的 /MANIFESTINPUT 分支，不依赖 rc.exe。
+      #
+      # 前置：mode-tauri 的 tauri::generate_context!() 在**编译期**读 tauri.conf.json 的
+      # frontendDist（../dist），该目录不存在就 proc macro panic。tauri 任务靠 beforeBuildCommand
+      # 产出它，下面这一步的 clippy 却直接编译 mode-tauri——2026-10-16 v0.0.49 发不出去就是缺这个前置
+      # （desktop 在 publish 的 needs 里，一个与安装包无关的编译前置就能拦下整次发布）。
+      - name: Build Tauri frontend
+        if: matrix.target == 'win'
+        shell: bash
+        run: pnpm --filter @mode/desktop-tauri run build:frontend
+
       - name: Tauri skeleton tests and clippy
         if: matrix.target == 'win'
         shell: bash
