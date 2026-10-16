@@ -277,11 +277,18 @@ UI 只读 getStatus() / getConfig() ◀─────────────�
 1. **通道封闭**：`BOT_PROVIDERS` 仍为 4 项；新建面板渲染 4 个按钮；无新增 provider 条目。
 2. **飞书双路**：无凭据时扫码与手填两个入口同时可用；手填保存后 `credentialRef` 与
    `feishuAppId` 同时落盘，且随后自动进入 `/bind` 分支（复用既有状态机，不新增路径）。
-   - 自动化现状：`packages/ui` **没有测试运行器**（`packages/ui/package.json` 只有 lint；CI 的
-     verify 只跑 shared / services / server / core / desktop），因此本项暂以
-     `pnpm typecheck` + `pnpm lint` + 人工实机为准，不新造一个不会被执行的测试文件。
-     若后续给 `packages/ui` 接入 `node --test` 运行器，本项应补为对
-     `FeishuSetupPanel` 的渲染契约测试。
+   - 自动化现状（2026-10-16 **更正**）：`packages/ui` **有**测试运行器
+     （`"test": "tsx --tsconfig tsconfig.json --test test/*.test.ts"`），CI 也会执行它
+     （`.github/workflows/release.yml` 的 verify 步骤：`pnpm --filter @mode/ui test`，
+     与 shared / services / server / cua / core / desktop 并列；`packages/ui/test/` 下已有 30 个测试文件）。
+     原文"没有测试运行器、CI 不跑 ui 测试"是过期描述，且会误导后来者**放弃给 UI 补测试**，
+     故在此更正而不是删掉——它记录过一次误判。
+   - 但 UI 侧**没有 DOM 环境**（未引入 jsdom / testing-library），所以能写的只有
+     **纯函数测试与源码契约测试**（读 `.tsx` 源文本断言接线与调用点），**不能**做渲染测试。
+     本项已按此口径落地：`ui/test/feishuSetupDualPath.test.ts` 断言两条入口同时声明并各自绑定到
+     控件、手填按钮受「App ID 与 secret 都非空」门控、且 `handleSaveFeishuManual` 在**同一次**
+     `saveBot` 里落 `feishuAppId` + 凭据（不绕 `credentialService`）并复用既有校验状态机。
+     仍未覆盖的是**渲染结果本身**（按钮是否可见、DOM 结构），要等引入 DOM 环境另立任务。
 3. **微信两态**：仅有 `credentialRef` 时显示"凭据就绪、未激活"；收到首条入站消息写入
    `weixinActivatedAt` 后转为"已激活"。不出现 `/bind` 入口。
 4. **三段状态一致性**：卡片状态行与 `getStatus()` 输出逐项一致（同一 bot 在扫码前 / 扫码后 /
