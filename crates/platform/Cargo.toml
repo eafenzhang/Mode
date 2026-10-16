@@ -12,6 +12,11 @@ path = "src/lib.rs"
 [build-dependencies]
 tauri-test-manifest = { path = "../tauri-test-manifest" }
 
+[dev-dependencies]
+# `saveFile(sourceUrl)` 的 TLS 路径用例要一个**自签证书的本地 TLS 服务**
+# （只做测试：产品代码里没有任何证书生成）。
+rcgen.workspace = true
+
 [dependencies]
 protocol = { path = "../protocol" }
 # 深链的冷启动队列由 `notifyRendererReady` 触发回放（见 commands/window.rs），

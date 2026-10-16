@@ -9,6 +9,7 @@ import { DEEP_LINK_EVENT } from "@mode/shared";
 import {
   createTauriPlatformService,
   EVENT_SUBSCRIBED_METHODS,
+  WINDOW_CONTROL_METHODS,
   M1_IMPLEMENTED_COMMANDS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
   normalizeApplicationIconRequest,
@@ -178,15 +179,17 @@ test("可选的未实现方法**保持缺席**，让调用方的 ?. 守卫继续
   const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
   // 这些在 IPlatformService 里带 ? 且**本层没实现**，塞抛错桩会把「不支持就跳过」变成「直接崩」。
   //
-  // 注意：`onShareImport` / `onOpenWorkspacePath` 也曾在这份清单里，M3 Task 4 之后它们
-  // **有真实现**（宿主确实会发那两个深链 kind，见 `EVENT_SUBSCRIBED_METHODS`），
-  // 所以从「缺席」挪到了「实现」这一侧——这条用例只该列真的没实现的可选成员。
+  // 注意：这份清单只该列**真的没实现**的可选成员。三个名字先后从它里面挪走了，理由各自如下
+  // （不写理由的挪动等于把这条纪律悄悄放宽）：
+  // - `onShareImport` / `onOpenWorkspacePath`：宿主确实会发那两个深链 kind，**有真实现**
+  //   （见 `EVENT_SUBSCRIBED_METHODS`）；
+  // - `getDesktopWindowChromeState`：**有真实现**（M3 Task 4 fix round，见 `WINDOW_CONTROL_METHODS`）
+  //   ——它是产品自绘标题栏读初态的成员，用户报的「标题栏点了没反应」里就包括它的缺席。
   for (const name of [
     "selectFiles",
     "printPageToPdf",
     "onBrowserViewRestore",
     "onCloseActiveContextRequest",
-    "getDesktopWindowChromeState",
     "getUpdateState",
   ]) {
     assert.equal(service[name], undefined, `${name} 应缺席而不是抛错桩`);
@@ -352,6 +355,41 @@ test("notifyRendererReady 必须等订阅装好再握手（否则冷启动深链
   releasePendingSetups();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(calls.map((call) => call.command), ["notifyRendererReady"]);
+});
+
+test("窗口控制面（自绘标题栏）真的走到壳：命令带 id、状态读回来、订阅可退订", async () => {
+  // 为什么不是「有这个方法就算过」：用户报的就是「按钮点了没反应」——一个**返回 resolve 的
+  // 空操作桩**同样能通过纯形状断言。所以这里断言的是**行为**：invoke 真的被调用、
+  // 参数是壳的参数名、状态取自壳的返回、订阅返回可调用的同步 disposer。
+  const { calls, invoke } = recordingInvoke({
+    isMaximized: true,
+    supportsNativeRoundedCorners: false,
+  });
+  const service = createTauriPlatformService(invoke, noopListen);
+  for (const name of WINDOW_CONTROL_METHODS) {
+    assert.equal(typeof (service as Record<string, unknown>)[name], "function", `${name} 应存在`);
+  }
+
+  await service.executeDesktopCommand?.("minimizeWindow");
+  assert.deepEqual(
+    calls,
+    [{ command: "executeDesktopCommand", args: { command: "minimizeWindow" } }],
+    "命令 id 必须原样打到壳（空操作桩不会产生这次调用）",
+  );
+
+  const state = await service.getDesktopWindowChromeState?.();
+  assert.deepEqual(
+    state,
+    { isMaximized: true, supportsNativeRoundedCorners: false },
+    "chrome 状态必须来自壳的返回（自己造一个 false 会让图标永远停在「最大化」）",
+  );
+  assert.equal(calls[calls.length - 1]?.command, "getDesktopWindowChromeState");
+
+  // 订阅：窗口 API 缺席时按本层纪律**留痕降级**成 no-op disposer（不抛、也不假成功），
+  // 且返回的 disposer 可调用（调用方就是这么用的）。
+  const dispose = service.onDesktopWindowChromeStateChanged?.(() => {});
+  assert.equal(typeof dispose, "function", "订阅必须返回同步 disposer");
+  dispose?.();
 });
 
 test("事件订阅方法都在服务上真实存在（不是抛错桩）", () => {

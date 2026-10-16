@@ -366,9 +366,15 @@ jobs:
           # 缺陷的回归网——当时正是因为没人跑它的用例，缺陷一路走到实机 smoke 才暴露。
           # 它的测试二进制实测不 import comctl32（对照 platform 的会），故不需要 v6 清单。
           # sidecar-host 的用例会真拉 Node 子进程（产品 Host 入口），需要 PATH 上有 node。
-          cargo test -p platform -p protocol -p updater -p sidecar-host
+          #
+          # `deeplink` 进列表（Ruling 29，2026-10-16）：M3 Task 4 之后它不再是「只编译」的纯类型面
+          # ——第二实例转发的**判据**（`forwardable_second_instance_url` 的 argv 前缀匹配）与
+          # 冷启动回放的**时序**（`router.rs` 的缓存/回放）都住在这里，改错就是「点链接没反应」
+          # 而 CI 全绿。它的测试目标已经带 comctl32 v6 清单（`crates/deeplink/build.rs` →
+          # `tauri-test-manifest`，spec §4.1 那条链接约束），所以 Windows 腿跑得起来。
+          cargo test -p platform -p protocol -p updater -p deeplink -p sidecar-host
           # clippy 覆盖 M1 的全部 Rust crate + M3 Task 1 的 sidecar-host；
-          # deeplink/tray 只编译不跑测试，零运行期风险。
+          # `tray` 仍然只编译不跑测试（装配面，没有自己的断言）。
           cargo clippy -p platform -p protocol -p mode-tauri -p updater -p deeplink -p tray -p sidecar-host \
             --all-targets -- -D warnings
           # 协议双端：生成物必须与 crates/protocol 一致（漂移即红）。CI 是 msvc，脚本默认的

@@ -36,6 +36,11 @@ fn withhold_window_mode() -> bool {
     )
 }
 
+/// 是否跑窗口控制序列（见 `PROBE_SCRIPT` 的 `WINDOW_CONTROLS`）。
+fn window_controls() -> bool {
+    matches!(std::env::var("MODE_PRODUCT_UI_WINDOW_CONTROLS").as_deref(), Ok("1"))
+}
+
 fn watchdog_ms() -> u64 {
     std::env::var("MODE_PRODUCT_UI_TIMEOUT_MS")
         .ok()
@@ -49,7 +54,7 @@ fn main() {
     // 是按 app identifier 建的，产品壳与 harness 共用同一个 identifier，所以第二实例（同一个
     // 可执行文件 + 深链在 argv 里）能转发到本进程。注册顺序同样是「最先」（见 single_instance.rs）。
     let builder = mode_tauri::single_instance::install(tauri::Builder::default());
-    let builder = platform::commands::init_with_extra(builder, mode_tauri::host_handler());
+    let builder = platform::commands::init_with_extra(builder, mode_tauri::extra_handler());
 
     let builder = builder.setup(|app| {
         let handle = app.handle().clone();
@@ -72,10 +77,17 @@ fn main() {
         } else {
             sidecar_host::bridge::bridge_script(&startup_id)
         };
-        let probe = PROBE_SCRIPT.replace(
-            "__MODE_PRODUCT_UI_EXPECT__",
-            if withhold { "withheld" } else { "mounted" },
-        );
+        let probe = PROBE_SCRIPT
+            .replace(
+                "__MODE_PRODUCT_UI_EXPECT__",
+                if withhold { "withheld" } else { "mounted" },
+            )
+            // 窗口控制序列是**可选档**（`windowControls.test.mts` 打开）：它最后会**真关窗**，
+            // 所以默认档绝不能跑——那会让 productUiMount 那条用例的窗口半路消失。
+            .replace(
+                "__MODE_PRODUCT_UI_WINDOW_CONTROLS__",
+                if window_controls() { "1" } else { "0" },
+            );
         println!(
             "HARNESS injection={} startupId={startup_id} pid={}",
             if withhold { "bridge_only" } else { "window_mode+bridge" },
@@ -89,6 +101,9 @@ fn main() {
             "M3 Task 3 · product UI",
             &injection,
             Some(&probe),
+            // 产品页**无边框**：本 harness 刻意与产品壳同形，包括这一点——
+            // 「自绘标题栏的三个按钮」正是它要一起验的东西（见 test/windowControls.test.mts）。
+            true,
         )?;
 
         let exit_handle = handle.clone();

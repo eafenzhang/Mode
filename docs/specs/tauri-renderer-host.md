@@ -1475,7 +1475,10 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
     的**生成物字面量**（跨语言一致性的真源）；
   - `packages/ui/src/platform/tauri-invoke-shim.ts`——**是 M1 新写的文件**（不在 baseline 里，
     已核实），读它的导出切片（`M1_IMPLEMENTED_COMMANDS` / `M1_UNIMPLEMENTED_REQUIRED_METHODS` /
-    `M1_EVENT_SUBSCRIBED_METHODS`）与「未实现的方法显式抛」的口径。
+    `EVENT_SUBSCRIBED_METHODS`；**M3 Task 4 追加**：后者的 M1 名字是 `M1_EVENT_SUBSCRIBED_METHODS`，
+    Task 4 接线 `onShareImport` / `onOpenWorkspacePath` 时**改了名**（名字要与内容相符），
+    同时新增 `WINDOW_CONTROL_METHODS`（自绘标题栏的三个成员，见
+    `docs/specs/tauri-platform-commands.md` §9.5））与「未实现的方法显式抛」的口径。
 
 ### 19.1 违规登记（**如实记为违规，不粉饰成「必须读」**）
 

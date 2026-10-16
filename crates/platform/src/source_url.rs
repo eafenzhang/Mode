@@ -98,20 +98,53 @@ pub fn is_supported_url(url: &str) -> bool {
     lower.starts_with("http://") || lower.starts_with("https://")
 }
 
-/// 有上限地取回一份远端内容。
+/// 取回失败：稳定的**码** + 只给诊断的**细节**。
+///
+/// 为什么把细节单独带出来（Ruling 30）：`save_file_source_url_failed` 这一类码对用户/UI 足够，
+/// 但它把「证书不对」「连不上」「协议错」压成同一个字符串——排查时看不出区别。细节**不跨端**
+/// （不进 `SaveFileResult.error`，远端不能通过错误文案影响界面），只进壳的 stderr 诊断行。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FetchFailure {
+    pub kind: FetchError,
+    /// 底层错误原文（TLS/证书/连接细节）。**只进日志**。
+    pub detail: String,
+}
+
+impl FetchFailure {
+    fn new(kind: FetchError, detail: impl Into<String>) -> Self {
+        Self {
+            kind,
+            detail: detail.into(),
+        }
+    }
+}
+
+/// 有上限地取回一份远端内容（命令面用的那一层：只回稳定码）。
 ///
 /// 失败一律返回 [`FetchError`]，**不返回部分内容**——调用方（命令面）只在 `Ok` 时才写盘，
 /// 所以「失败」与「写了一半」在结构上不可能同时发生。
 pub async fn fetch_bounded(url: &str, limits: Limits) -> Result<Vec<u8>, FetchError> {
+    fetch_bounded_detailed(url, limits)
+        .await
+        .map_err(|failure| failure.kind)
+}
+
+/// 同 [`fetch_bounded`]，但把**失败细节**也带出来（诊断与 TLS 用例用）。
+///
+/// 两者共用同一段实现：不存在「测试跑的那条」与「产品跑的那条」分叉的可能。
+pub async fn fetch_bounded_detailed(url: &str, limits: Limits) -> Result<Vec<u8>, FetchFailure> {
     if !is_supported_url(url) {
-        return Err(FetchError::UnsupportedScheme);
+        return Err(FetchFailure::new(
+            FetchError::UnsupportedScheme,
+            format!("scheme 不受支持：{}", url.trim()),
+        ));
     }
     install_crypto_provider();
 
     let client = reqwest::Client::builder()
         .timeout(limits.timeout)
         .build()
-        .map_err(|_| FetchError::Failed)?;
+        .map_err(|error| FetchFailure::new(FetchError::Failed, error.to_string()))?;
 
     let response = client
         .get(url.trim())
@@ -120,13 +153,19 @@ pub async fn fetch_bounded(url: &str, limits: Limits) -> Result<Vec<u8>, FetchEr
         .map_err(|error| classify(&error))?;
 
     if !response.status().is_success() {
-        return Err(FetchError::Failed);
+        return Err(FetchFailure::new(
+            FetchError::Failed,
+            format!("HTTP {}", response.status()),
+        ));
     }
 
     // 先看声明值：远端自己说了超限就立刻失败，不必下载（也避免「读到一半才发现」）。
     if let Some(declared) = response.content_length() {
         if declared > limits.max_bytes {
-            return Err(FetchError::TooLarge);
+            return Err(FetchFailure::new(
+                FetchError::TooLarge,
+                format!("Content-Length {declared} > 上限 {}", limits.max_bytes),
+            ));
         }
     }
 
@@ -137,7 +176,10 @@ pub async fn fetch_bounded(url: &str, limits: Limits) -> Result<Vec<u8>, FetchEr
         let chunk = chunk.map_err(|error| classify(&error))?;
         let next_len = body.len() as u64 + chunk.len() as u64;
         if next_len > limits.max_bytes {
-            return Err(FetchError::TooLarge);
+            return Err(FetchFailure::new(
+                FetchError::TooLarge,
+                format!("已读 {next_len} 字节 > 上限 {}", limits.max_bytes),
+            ));
         }
         body.extend_from_slice(&chunk);
     }
@@ -146,12 +188,29 @@ pub async fn fetch_bounded(url: &str, limits: Limits) -> Result<Vec<u8>, FetchEr
 
 /// 把 reqwest 的错误收敛成稳定的四类。超时是**单独一类**：它与「连不上」对用户含义不同
 /// （一个是远端慢，一个是远端不可用），也让用例能把超时钉住而不是混进 `Failed`。
-fn classify(error: &reqwest::Error) -> FetchError {
-    if error.is_timeout() {
+fn classify(error: &reqwest::Error) -> FetchFailure {
+    let kind = if error.is_timeout() {
         FetchError::Timeout
     } else {
         FetchError::Failed
+    };
+    FetchFailure::new(kind, describe(error))
+}
+
+/// 把 reqwest 的错误**连同 source 链**写出来。
+///
+/// 为什么不能只用 `error.to_string()`（实测）：reqwest 的顶层文案是
+/// `error sending request for url (…)`——**根因不在里面**。证书被拒的真正原因
+/// （`invalid peer certificate: UnknownIssuer`）挂在 `source()` 链上，不看链就等于把
+/// 「证书不对 / 连不上 / 协议错」压成同一句话，而这正是 Ruling 30 要分开的三种现场。
+fn describe(error: &reqwest::Error) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut source = std::error::Error::source(error);
+    while let Some(cause) = source {
+        parts.push(cause.to_string());
+        source = cause.source();
     }
+    parts.join(" <- ")
 }
 
 /// 装进程级 TLS provider（重复调用安全）。见模块文档「TLS provider 为什么要自己装」。

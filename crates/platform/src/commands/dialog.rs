@@ -135,15 +135,18 @@ pub async fn save_file<R: tauri::Runtime>(
         return failed("save_file_missing_payload");
     };
 
-    match source_url::fetch_bounded(&source_url, source_url::Limits::PRODUCT).await {
+    match source_url::fetch_bounded_detailed(&source_url, source_url::Limits::PRODUCT).await {
         Ok(bytes) => write_bytes(path, &bytes),
-        Err(error) => {
-            // 细节只进诊断（stderr），上抛的是稳定码：UI 按码决定文案，不该被 URL 细节影响。
+        Err(failure) => {
+            // 细节只进诊断（stderr），上抛的是稳定码：UI 按码决定文案，不该被 URL/远端细节影响。
+            // （细节进日志正是 Ruling 30 要的东西：`…_failed` 一个码压着「证书不对 / 连不上 /
+            //  协议错」三种完全不同的现场。）
             eprintln!(
-                "[saveFile] sourceUrl 取回失败（{}）：{source_url}",
-                error.code()
+                "[saveFile] sourceUrl 取回失败（{}）：{source_url} 详情：{}",
+                failure.kind.code(),
+                failure.detail
             );
-            failed(error.code())
+            failed(failure.kind.code())
         }
     }
 }

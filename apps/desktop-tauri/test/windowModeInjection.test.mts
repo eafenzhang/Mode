@@ -45,6 +45,7 @@ import ts from "typescript";
 import {
   EVENT_SUBSCRIBED_METHODS,
   M1_IMPLEMENTED_COMMANDS,
+  WINDOW_CONTROL_METHODS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
   normalizeApplicationIconRequest,
 } from "@mode/ui/tauri-platform";
@@ -97,7 +98,10 @@ function readInjectionManifest(bridgeRs: string): InjectionManifest {
   assert.ok(templates.length > 0, `${BRIDGE_RUST} 里应有 include_str! 的模板清单`);
 
   const consts = new Map<string, string>();
-  for (const match of production.matchAll(/pub const (CMD_\w+): &str = "([a-z_]+)"/g)) {
+  // wire 名既有 snake_case（Host 通道的四个）也有 camelCase（窗口控制面那两个，M1 的 rename
+  // 契约要求命令名与 IPlatformService 逐字一致 → 就是 camelCase）。这里按**标识符**的字符集收，
+  // 不要写成 `[a-z_]+`：那会让 camelCase 的命令在清单解析里静默消失（本用例自己踩过一次）。
+  for (const match of production.matchAll(/pub const (CMD_\w+): &str = "([A-Za-z][A-Za-z0-9_]*)"/g)) {
     consts.set(match[1]!, match[2]!);
   }
 
@@ -152,6 +156,8 @@ function emitInjectedScript(): string {
 
 interface Page {
   evaluate(script: string): void;
+  /** 放行所有到期的定时器回调（去抖路径用；顺序按注册顺序，足够确定）。 */
+  fireTimers(): void;
   /** 读一个全局表达式（探针用法：先读，后断言）。 */
   probe(expression: string): unknown;
   fireDomContentLoaded(): void;
@@ -212,12 +218,19 @@ function createPage(): Page {
     return { port1: new FakePort(), port2: new FakePort() };
   };
   sandbox.CustomEvent = CustomEvent;
+  // 测试里不让定时器自己跑：时序要能被显式控制，否则断言变成「等一会儿再看」。
+  // 但**要能手动放行**（窗口 chrome 状态那条订阅是去抖的：没有这一步就测不到它的触发路径）。
+  let nextTimerId = 1;
+  const timers = new Map<number, () => void>();
   sandbox.setTimeout = (callback: () => void) => {
-    // 测试里不让定时器自己跑：投递时序要能被显式控制，否则断言变成「等一会儿再看」。
-    void callback;
-    return 0;
+    const id = nextTimerId;
+    nextTimerId += 1;
+    timers.set(id, callback);
+    return id;
   };
-  sandbox.clearTimeout = () => {};
+  sandbox.clearTimeout = (id: number) => {
+    timers.delete(id);
+  };
   sandbox.document = {
     readyState: "loading",
     addEventListener: (type: string, handler: () => void) => {
@@ -231,6 +244,20 @@ function createPage(): Page {
   const recordInvoke = (command: string, args?: unknown): Promise<unknown> => {
     invokes.push({ command, args });
     if (command === "host_recv") return new Promise(() => {});
+    // 窗口 chrome 状态：壳的返回形状是 `{ isMaximized, … }`，替身也得给形状
+    // （注入层对形状做校验：给 null 会被判成「读取失败」，那条路径单独有用例）。
+    if (command === "getDesktopWindowChromeState") {
+      // 像真 IPC 一样回一份**拷贝**（结构化克隆语义）：直接把替身对象交出去会让
+      // 「改替身」与「改上一份读到的状态」变成同一件事，去重逻辑的断言就失去意义。
+      const source =
+        (sandbox.__chrome as Record<string, unknown> | undefined) ??
+        (((sandbox.__chrome = {
+          isMaximized: false,
+          macOSMajorVersion: null,
+          supportsNativeRoundedCorners: false,
+        }) as unknown) as Record<string, unknown>);
+      return Promise.resolve({ ...source });
+    }
     return Promise.resolve(null);
   };
   sandbox.__TAURI_INTERNALS__ = { invoke: recordInvoke };
@@ -252,6 +279,11 @@ function createPage(): Page {
       runInContext(script, context);
     },
     probe: (expression: string) => runInContext(expression, context),
+    fireTimers: () => {
+      const pending = [...timers.values()];
+      timers.clear();
+      for (const callback of pending) callback();
+    },
     fireDomContentLoaded: () => {
       (sandbox.document as { readyState: string }).readyState = "complete";
       for (const handler of domContentLoaded.splice(0)) handler();
@@ -670,6 +702,109 @@ test("注入的 window.mode 与 M1 适配层切片一致：命令同名同参，
   );
 });
 
+test("窗口控制面（自绘标题栏）真的接上了壳：三个成员都在，且命令/状态/订阅都可观察", async () => {
+  // 用户报的缺陷就是这里：这三个成员在 Tauri 壳里曾经是「降级空操作 / 缺席」，
+  // 于是标题栏的三个按钮点了没反应。这条用例是它们的**回归网**：
+  // ① 三个成员必须都注入（撤掉任一 → 这条红）；
+  // ② `executeDesktopCommand` 必须真的把命令 id 发到壳（不是返回假值/空操作）；
+  // ③ `getDesktopWindowChromeState` 必须回壳给的状态，形状不对时**拒绝**而不是把 undefined
+  //    交给调用方画图标；
+  // ④ `onDesktopWindowChromeStateChanged` 必须在状态真的变了时才回调（去重），并返回 disposer。
+  const page = createPage();
+  page.evaluate(emitInjectedScript());
+  for (const name of WINDOW_CONTROL_METHODS) {
+    // 注意：`page.probe` 返回的是**表达式的结果**，所以这里不能再套一层 `typeof`
+    // （套了就变成 `typeof "function"`，恒为 "string"）。
+    assert.equal(
+      page.probe(`typeof window.mode.${name}`),
+      "function",
+      `${name} 必须注入（自绘标题栏依赖它；缺席即「点了没反应」）`,
+    );
+  }
+
+  // ② 命令 id 原样发到壳：壳按 id 派发（窗口级的那些落到窗口上，其余带回 success:false）。
+  page.probe("window.mode.executeDesktopCommand('minimizeWindow');");
+  await page.flushMicrotasks();
+  const executed = page.invokes.filter((call) => call.command === "executeDesktopCommand");
+  assert.equal(
+    executed.length,
+    1,
+    `executeDesktopCommand 必须真的走壳命令；本次记录到的调用：${JSON.stringify(page.invokes)}`,
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(executed[0]!.args)),
+    { command: "minimizeWindow" },
+    "命令 id 必须按壳的参数名（`command`）传，且原样不动",
+  );
+
+  // ③ 状态读取：壳给什么就回什么（不自己造 isMaximized）。
+  const state = await page.probe("window.mode.getDesktopWindowChromeState()");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(state)),
+    { isMaximized: false, macOSMajorVersion: null, supportsNativeRoundedCorners: false },
+    "chrome 状态必须原样来自壳",
+  );
+});
+
+test("窗口 chrome 状态订阅：只在状态真的变了时回调，且退订后不再回调", async () => {
+  const page = createPage();
+  page.evaluate(emitInjectedScript());
+  // 壳侧的状态用可变的替身喂：先 false，切到 true 再读。
+  page.probe(
+    "window.__chrome = { isMaximized: false, macOSMajorVersion: null, supportsNativeRoundedCorners: false };" +
+      "window.__windowApi = { resizedHandler: null };" +
+      "window.__TAURI__ = window.__TAURI__ || {};" +
+      "window.__TAURI__.window = {" +
+      "  getCurrentWindow: function () {" +
+      "    return {" +
+      "      onResized: function (callback) { window.__windowApi.resizedHandler = callback; return Promise.resolve(function () {}); }" +
+      "    };" +
+      "  }" +
+      "};" +
+      "window.__seen = [];" +
+      "window.__disposeChrome = window.mode.onDesktopWindowChromeStateChanged(function (s) { window.__seen.push(s.isMaximized); });",
+  );
+  await page.flushMicrotasks();
+
+  // 订阅后立即读一次（调用方拿它当初值）：壳此刻报 false。
+  assert.deepEqual(
+    Array.from(page.probe("window.__seen") as boolean[]),
+    [false],
+    `订阅后必须立即给一次初值（标题栏靠它决定画哪个图标）；调用记录：${JSON.stringify(page.invokes)}，` +
+      `降级：${JSON.stringify(page.probe("window.__MODE_WINDOW_MODE__.degraded"))}`,
+  );
+
+  // 状态没变 → 尺寸变化也不该再回调（去重）。
+  page.probe("window.__windowApi.resizedHandler();");
+  page.fireTimers();
+  await page.flushMicrotasks();
+  assert.deepEqual(
+    Array.from(page.probe("window.__seen") as boolean[]),
+    [false],
+    "状态没变时不得重复回调（拖拽改尺寸会连发 resize 事件）",
+  );
+
+  // 状态真的变了（最大化）→ 回调一次。
+  page.probe("window.__chrome.isMaximized = true; window.__windowApi.resizedHandler();");
+  page.fireTimers();
+  await page.flushMicrotasks();
+  assert.deepEqual(
+    Array.from(page.probe("window.__seen") as boolean[]),
+    [false, true],
+    "状态真的变了必须回调（否则最大化之后图标停在「最大化」上）",
+  );
+
+  // 退订：disposer 同步返回且此后不再回调。
+  page.probe("window.__disposeChrome(); window.__chrome.isMaximized = false; window.__windowApi.resizedHandler();");
+  page.fireTimers();
+  await page.flushMicrotasks();
+  assert.deepEqual(
+    Array.from(page.probe("window.__seen") as boolean[]),
+    [false, true],
+    "退订后不得再回调",
+  );
+});
+
 test("深链订阅：kind 与方法的配对是可观察行为，不是「两个字符串都出现过」", async () => {
   // 为什么单独一条（review I2）：原先只断言两个 kind 字面量**都出现在文件里**——
   // 把 `KIND_OAUTH` 与 `KIND_PAYMENT` 对调，那种断言照样绿。这里按行为验证：
@@ -791,7 +926,11 @@ test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成�
     );
   }
 
-  const implemented = new Set<string>([...M1_IMPLEMENTED_COMMANDS, ...EVENT_SUBSCRIBED_METHODS]);
+  const implemented = new Set<string>([
+    ...M1_IMPLEMENTED_COMMANDS,
+    ...EVENT_SUBSCRIBED_METHODS,
+    ...WINDOW_CONTROL_METHODS,
+  ]);
   const absent = new Set(DELIBERATELY_ABSENT_REQUIRED_MEMBERS);
   assert.deepEqual(
     [...absent],

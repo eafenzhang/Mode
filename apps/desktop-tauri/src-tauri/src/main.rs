@@ -16,8 +16,11 @@
 //!    会托管 `AppState`，而深链的路由状态在 `setup` 里托管——插件注册晚于此没有影响，
 //!    但深链事件源（插件）必须先存在于 app 上，`deeplink::install` 才拿得到
 //!    `deep_link()` 扩展。
-//! 2. `DeepLinkRouter` 必须在 `deeplink::install` **之前** `manage`：install 里有两条路
-//!    要用它（运行期的 `on_open_url` 回调、冷启动的 argv 解析）。
+//! 2. 深链路由状态由 `deeplink::install` **自己**托管（它第一件事就是幂等的
+//!    `deeplink::manage_state`），因为 install 里有两条路要用它（运行期的 `on_open_url` 回调、
+//!    冷启动的 argv 解析）。**不再由本文件 `app.manage`**：两处都管会让「谁拥有它」变成两说
+//!    （M3 Task 4 fix round 把早先那句「必须在 install 之前 manage」改掉了——那时确实是
+//!    main.rs 自己管的，现在不是了）。
 //! 3. 托盘最后装：它是附加入口，任何一步先失败都不应该连带它。
 //! 4. **Host 先起、窗口后建**（M3 Task 1）：窗口的注入桥要拿 `startupId`，而 startupId 是
 //!    起 Host 时生成的；先建窗口就会拿到一个没有对应 Host 的 id。
@@ -39,8 +42,8 @@ fn main() {
         .plugin(updater::plugin())
         .plugin(tauri_plugin_deep_link::init());
 
-    // 切片表里没有的命令名交给壳的 Host 命令（见头部注释的最后一段）。
-    let builder = platform::commands::init_with_extra(builder, mode_tauri::host_handler());
+    // 切片表里没有的命令名交给壳侧的追加命令（Host 通道 + 窗口控制面，见头部注释的最后一段）。
+    let builder = platform::commands::init_with_extra(builder, mode_tauri::extra_handler());
 
     let builder = builder.setup(|app| {
         let handle = app.handle().clone();
@@ -64,6 +67,11 @@ fn main() {
         // M1 的命令面验收台按 DR-T3-2 保留为开发/诊断入口，用
         // `MODE_TAURI_SHELL_ENTRY=dev/index.html` 进（挑选规则与白名单在
         // `sidecar_host::pick_shell_entry`，那边有用例覆盖）。
+        // 无边框的判据是**入口页是不是产品页**：产品 UI 自绘标题栏（三个窗口按钮 + 若干
+        // `[app-region:drag]` 区域），开发/诊断入口（验收台）没有，所以后者保留系统栏
+        // ——否则开发期那个窗口既移不动也关不掉。理由与拖动为什么仍然可用见
+        // `mode_tauri::window` 的模块文档。
+        let entry_overridden = std::env::var_os("MODE_TAURI_SHELL_ENTRY").is_some();
         mode_tauri::build_host_window(
             &handle,
             mode_tauri::MAIN_WINDOW_LABEL,
@@ -74,6 +82,7 @@ fn main() {
             // 产品注入：`window.mode`（平台面适配层）+ Host 桥，一段脚本文本、document-start 求值。
             &sidecar_host::bridge::bridge_script(&startup_id),
             None,
+            !entry_overridden,
         )?;
         Ok(())
     });

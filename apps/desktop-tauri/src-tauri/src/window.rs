@@ -6,11 +6,32 @@
 //!
 //! 因此产品壳的 `app.windows` 是空数组，窗口在这里建（label 仍是 `main`，
 //! `capabilities/default.json` 的 `windows: ["main"]` 照旧生效）。
+//!
+//! ## `decorations`：产品页无边框、开发页保留系统栏（M3 Task 4 fix round）
+//!
+//! 产品 UI **自己画标题栏**（`packages/ui` 的 `DesktopWindowControls` 三个按钮 + 若干
+//! `[app-region:drag]` 区域），所以系统标题栏必须在产品窗口上去掉——否则用户看到**两条**标题栏，
+//! 而上面那条的按钮还是死的（`executeDesktopCommand` 在注入层是降级空操作，见
+//! `src/window_controls.rs`）。两者是一件事的两半，必须一起做。
+//!
+//! **拖动为什么不会因为去掉系统栏而失效**：wry 在 Windows 上无条件开了 WebView2 的非客户区支持
+//! （`wry 0.57.0` 的 `src/webview2/mod.rs`：`settings9.SetIsNonClientRegionSupportEnabled(true)`），
+//! 于是页面 CSS 里的 `app-region: drag` / `no-drag` 由 WebView2 自己按非客户区处理——
+//! 也就是说渲染层声明的那一片可拖区域**不需要任何 Electron 式的宿主配合**。这正是
+//! 「不带宽限地去做无边框」的前提；反过来，如果那条设置没开，无边框窗口会变成一块**移不动**的板子
+//! ——比死按钮更糟，所以本模块把这条依赖写在注释里而不是让它隐式存在。
+//!
+//! **例外**：M1 的命令面验收台（`MODE_TAURI_SHELL_ENTRY=dev/index.html`）与集成测试页
+//! **保留系统栏**——那两页是测试资产，没有自绘标题栏，去掉系统栏会让它们既移不动也关不掉
+//! （开发期很痛）。判据由调用方给 `decorations`，不在这里按 URL 猜。
 
 use tauri::{AppHandle, Runtime, WebviewUrl, WebviewWindow};
 
 /// 主窗口的 label（与 `capabilities/default.json` 一致，不要改）。
 pub const MAIN_WINDOW_LABEL: &str = "main";
+
+/// 初始逻辑尺寸（`resetWindowSize` 也回到这个尺寸，两处同源）。
+pub const DEFAULT_WINDOW_SIZE: (f64, f64) = (1280.0, 800.0);
 
 /// 建一个带 Host 桥的窗口。
 ///
@@ -33,11 +54,14 @@ pub fn build_host_window<R: Runtime>(
     title: &str,
     injection: &str,
     extra_init_script: Option<&str>,
+    decorations: bool,
 ) -> tauri::Result<WebviewWindow<R>> {
     let mut builder = tauri::WebviewWindowBuilder::new(app, label, url)
         .title(title)
-        .inner_size(1280.0, 800.0)
+        .inner_size(DEFAULT_WINDOW_SIZE.0, DEFAULT_WINDOW_SIZE.1)
         .resizable(true)
+        // 见模块文档：产品页（自绘标题栏）无边框；测试/开发页保留系统栏。
+        .decorations(decorations)
         .initialization_script(injection);
     if let Some(script) = extra_init_script {
         builder = builder.initialization_script(script);

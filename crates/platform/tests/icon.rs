@@ -12,7 +12,19 @@
 //!
 //! 为什么把「编码器」单独测：它是**契约形状的唯一载体**（前缀 + 真 PNG），而这部分不依赖
 //! Shell/GDI，任何机器上都能跑——所以它不该和「有没有桌面」捆在一起。
+use base64::Engine as _;
 use protocol::{ApplicationIconLocator, ApplicationIconRequest};
+
+/// 把 `data:…;base64,…` 里那段 base64 解出来（只在真机探针里用）。
+#[cfg(target_os = "windows")]
+fn decode_data_url(data_url: &str) -> Vec<u8> {
+    let encoded = data_url
+        .strip_prefix("data:image/png;base64,")
+        .unwrap_or_else(|| panic!("data URL 前缀不对：{data_url}"));
+    base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .expect("前缀之后必须是合法 base64")
+}
 
 /// 不可解析的 locator：路径不存在、空串、以及只带 macOS bundle id。
 fn unresolvable_locators() -> Vec<ApplicationIconLocator> {
@@ -145,14 +157,19 @@ mod windows_shape {
 
 /// **opt-in 真机探针**：对系统里真实存在的 exe 走完整原生解码。
 ///
-/// 跑法与判据见 spec 的证据登记；默认 `return`（并打一行说明，避免读成「跑了但没输出」）。
+/// 为什么是 `#[ignore]` 而不是「读环境变量就 return」：早先那种写法让默认的
+/// `cargo test -p platform` 打出一行 `... ok`——**它其实没跑**，而 `eprintln!` 还被 libtest 的
+/// 捕获吞掉。`#[ignore]` 是「没跑」的诚实编码：默认输出里就是 `ignored`。
+///
+/// ```bash
+/// MODE_TAURI_ICON_PROBE=1 node scripts/rust-cargo.ts test -p platform --test icon -- --ignored --nocapture
+/// ```
 #[cfg(target_os = "windows")]
 #[test]
+#[ignore = "opt-in：要真 Windows 桌面会话的 Shell（MODE_TAURI_ICON_PROBE=1 才跑）"]
 fn real_icon_probe_on_a_system_executable() {
     if std::env::var("MODE_TAURI_ICON_PROBE").as_deref() != Ok("1") {
-        eprintln!(
-            "[icon-probe] 跳过：设 MODE_TAURI_ICON_PROBE=1 才跑（要真 Windows 桌面会话的 Shell）"
-        );
+        eprintln!("[icon-probe] 跳过：设 MODE_TAURI_ICON_PROBE=1 才跑（要用真机的 Shell）");
         return;
     }
     let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
@@ -165,14 +182,39 @@ fn real_icon_probe_on_a_system_executable() {
     let Some(info) = result else {
         panic!("真实存在的 {notepad} 必须取到图标（取不到就是原生解码坏了）");
     };
+    // 标签要说清量的是哪一段：这是**整个 data URL 的字符数**（前缀 + base64 载荷），
+    // 不是 base64 载荷长度、也不是图片字节数——早先写成 `base64_bytes` 是标错了。
     println!(
-        "[icon-probe] path={notepad} prefix={} base64_bytes={}",
-        &info.icon_data_url[.."data:image/png;base64,".len().min(info.icon_data_url.len())],
+        "[icon-probe] path={notepad} data_url_chars={}",
         info.icon_data_url.len()
     );
     assert!(
         info.icon_data_url.starts_with("data:image/png;base64,"),
         "真实图标的载体必须是 PNG data URL：{}",
         info.icon_data_url
+    );
+
+    // 解回 PNG 并断言**像素不是退化的**：只断言「前缀 + 尺寸」的话，一张尺寸正确但全黑/全透明
+    // 的 PNG 照样通过（那对用户就是「图标没显示出来」）。这里要求：拿到非空像素、
+    // 至少有一个不透明像素、且颜色/透明度**至少有两种取值**。
+    let decoded = decode_data_url(&info.icon_data_url);
+    let decoder = png::Decoder::new(std::io::Cursor::new(&decoded));
+    let mut reader = decoder.read_info().expect("取回的 PNG 必须能解码");
+    let mut buffer = vec![0u8; reader.output_buffer_size().expect("PNG 尺寸过大")];
+    let frame = reader.next_frame(&mut buffer).expect("PNG 必须有一帧");
+    let pixels = &buffer[..frame.buffer_size()];
+    assert!(!pixels.is_empty(), "解码后的像素不该是空的");
+    let (pixels4, _remainder) = pixels.as_chunks::<4>();
+    let distinct = pixels4
+        .iter()
+        .map(|pixel| (pixel[0], pixel[1], pixel[2], pixel[3]))
+        .collect::<std::collections::HashSet<_>>();
+    assert!(
+        distinct.len() > 1,
+        "图标至少要有两种像素取值（全黑/全透明说明解码链坏了，而尺寸仍然是对的）"
+    );
+    assert!(
+        pixels4.iter().any(|pixel| pixel[3] > 0),
+        "至少要有一个不透明像素（否则图标是全透明的，等于没显示）"
     );
 }

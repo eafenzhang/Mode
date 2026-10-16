@@ -29,6 +29,8 @@
   var LOG_ENDPOINT = "http://127.0.0.1:5177/product-ui-log";
   /** 本档期望：`mounted`（产品档）或 `withheld`（撤掉 window.mode 的负向档）。由 harness bin 替换。 */
   var EXPECT = "__MODE_PRODUCT_UI_EXPECT__";
+  /** 是否跑窗口控制序列（"1" 开；由 harness bin 按环境变量替换，默认 "0"）。 */
+  var WINDOW_CONTROLS = "__MODE_PRODUCT_UI_WINDOW_CONTROLS__";
   var PROBE = {
     modeAtDocumentStart: typeof window.mode,
     modeKeyCountAtDocumentStart: 0,
@@ -36,6 +38,14 @@
     commandChannelAtDocumentStart: "unknown",
     /** 深链订阅是否装上了（下面 ①.5 的观察面；`null` = 还没试）。 */
     deepLinkSubscribed: null,
+    /** 窗口尺寸与「页面视口」的差（无边框窗口应≈0；有系统标题栏时是标题栏+边框的高度）。 */
+    frameDeltaX: null,
+    frameDeltaY: null,
+    /** 页面里声明的可拖区域（`app-region: drag`）与不可拖区域的数量。 */
+    dragRegionCount: null,
+    noDragRegionCount: null,
+    /** 顶部 48px 内的可拖区域数量——**这是「窗口移得动」的必要条件**（见 window.rs 的说明）。 */
+    topDragRegionCount: null,
   };
   /**
    * 收到的深链 URL（M3 Task 4 的单实例转发用这条观察面）。
@@ -139,6 +149,53 @@
   }
   log("deep_link_subscribe ok=" + PROBE.deepLinkSubscribed);
 
+  // ①.6 窗口形态：**在 document-start 读一次**。
+  //     `outerHeight - innerHeight` 就是「系统给窗口加的非客户区高度」：有系统标题栏时是
+  //     标题栏+边框（本机实测 30+ px），无边框时≈0。这是在**真窗口**上验「只有一条标题栏」的
+  //     唯一可自动化指标（看不见的窗口边框没法断言）。
+  try {
+    PROBE.frameDeltaX = window.outerWidth - window.innerWidth;
+    PROBE.frameDeltaY = window.outerHeight - window.innerHeight;
+    log("frame_delta x=" + PROBE.frameDeltaX + " y=" + PROBE.frameDeltaY);
+  } catch (error) {
+    log("frame_probe_failed " + String(error));
+  }
+
+  /**
+   * 量页面声明的可拖区域（`app-region: drag` / `no-drag`）。
+   *
+   * **必须等 DOM 建好之后再量**（本探针最初在 document-start 量，量到 0——那时 body 还是空的，
+   * 而 React 还没渲染；「0 个可拖区域」看起来正好像「渲染层没声明拖动」这个真缺陷）。
+   * 渲染层用 Tailwind 的任意属性（`[app-region:drag]`）声明，DOM 的 class 里带字面量
+   * `app-region`，所以先按 class 找、再用 computed style 确认**属性真的生效**
+   * （只数 class 会把「写了但没编译进 CSS」当成有）。
+   */
+  function measureDragRegions() {
+    var drag = 0;
+    var noDrag = 0;
+    var topDrag = 0;
+    var candidates = document.querySelectorAll('[class*="app-region"]');
+    for (var index = 0; index < candidates.length; index += 1) {
+      var element = candidates[index];
+      var computed = window.getComputedStyle(element);
+      var value = (
+        computed.getPropertyValue("app-region") ||
+        computed.getPropertyValue("-webkit-app-region") ||
+        ""
+      ).trim();
+      if (value === "drag") {
+        drag += 1;
+        var rect = element.getBoundingClientRect();
+        if (rect.top < 48 && rect.width > 0 && rect.height > 0) topDrag += 1;
+      } else if (value === "no-drag") {
+        noDrag += 1;
+      }
+    }
+    PROBE.dragRegionCount = drag;
+    PROBE.noDragRegionCount = noDrag;
+    PROBE.topDragRegionCount = topDrag;
+  }
+
   /** 渲染层挂载的可观察形态：`#root` 里有子树。 */
   function mounted() {
     var root = document.getElementById("root");
@@ -169,6 +226,17 @@
   function finish(status, extra) {
     if (reported) return;
     reported = true;
+    // DOM 此刻已经建好（挂载路径是主要场景）：量可拖区域，并留一行原始输出。
+    try {
+      measureDragRegions();
+      log(
+        "drag_regions drag=" + PROBE.dragRegionCount +
+          " top_drag=" + PROBE.topDragRegionCount +
+          " no_drag=" + PROBE.noDragRegionCount,
+      );
+    } catch (error) {
+      log("drag_region_probe_failed " + String(error));
+    }
     var state = bridge();
     var payload = {
       status: status,
@@ -179,6 +247,11 @@
       commandChannelAtDocumentStart: PROBE.commandChannelAtDocumentStart,
       deepLinkSubscribed: PROBE.deepLinkSubscribed,
       deepLinkUrls: deepLinkUrls.slice(),
+      frameDeltaX: PROBE.frameDeltaX,
+      frameDeltaY: PROBE.frameDeltaY,
+      dragRegionCount: PROBE.dragRegionCount,
+      noDragRegionCount: PROBE.noDragRegionCount,
+      topDragRegionCount: PROBE.topDragRegionCount,
       probeError: PROBE.probeError || null,
       rendererStarted: typeof window.__MODE_RENDERER_START__ === "number",
       mounted: mounted(),
@@ -216,6 +289,9 @@
   // ② 定一个就绪水位：闸门放行（phase=ready）那一刻的入方向帧数。
   //    两件事**各自独立**地等：就绪水位（看业务应答）与挂载（看真产品 UI）。
   //    早先把「挂载」当成收工条件，结果 React 一提交就把轮询停了，水位永远没取到。
+  // 窗口控制序列独立于报告：挂载之后（report 已发）再跑，免得它的步骤混进挂载判据的时间窗。
+  setTimeout(runWindowControlSequence, 8000);
+
   var watermarkTimer = setInterval(function () {
     var state = bridge();
     if (state && state.phase === "ready" && readyFrameWatermark === null) {
@@ -235,6 +311,75 @@
       }, 6000);
     }
   }, 250);
+
+  /**
+   * 窗口控制序列（**可选档**：由 harness 用一个占位符打开，见 `product_ui_harness.rs`）。
+   *
+   * 为什么要在页面里自驱：测试进程没法驱动这个页面（WebView2 的 devtools/CDP 接不上，
+   * 见 M1 §4.3），所以「点标题栏」这一步只能在页面里做。每一步都打一行日志，
+   * 断言在测试进程里读 sink。
+   *
+   * 三件事各自对应一个用户可感知的缺陷：按钮发不出命令（死按钮）、状态读不回来（图标停在
+   * 「最大化」）、以及**关不掉**（最后一步真关窗——测试据此断言进程真的退出）。
+   */
+  function runWindowControlSequence() {
+    if (WINDOW_CONTROLS !== "1") return;
+    var mode = window.mode;
+    if (!mode || typeof mode.executeDesktopCommand !== "function") {
+      log("window_control_unavailable");
+      return;
+    }
+    function chromeState() {
+      return mode.getDesktopWindowChromeState();
+    }
+    function describe(state) {
+      return JSON.stringify(state && { isMaximized: state.isMaximized });
+    }
+    chromeState().then(
+      function (state) {
+        log("window_control chrome_initial " + describe(state));
+        return mode.executeDesktopCommand("toggleMaximizeWindow");
+      },
+      function (error) {
+        log("window_control chrome_initial_failed " + String(error));
+      },
+    )
+      .then(function (result) {
+        log("window_control maximize_result " + JSON.stringify(result));
+        return new Promise(function (resolve) { setTimeout(resolve, 600); });
+      })
+      .then(chromeState)
+      .then(function (state) {
+        log("window_control chrome_maximized " + describe(state));
+        return mode.executeDesktopCommand("toggleMaximizeWindow");
+      })
+      .then(function (result) {
+        log("window_control restore_result " + JSON.stringify(result));
+        return new Promise(function (resolve) { setTimeout(resolve, 600); });
+      })
+      .then(chromeState)
+      .then(function (state) {
+        log("window_control chrome_restored " + describe(state));
+        // 订阅面：状态变化必须能被观察到（否则最大化之后图标停在「最大化」上）。
+        return mode.executeDesktopCommand("minimizeWindow");
+      })
+      .then(function (result) {
+        log("window_control minimize_result " + JSON.stringify(result));
+        return new Promise(function (resolve) { setTimeout(resolve, 600); });
+      })
+      .then(function () {
+        log("window_control close_requested");
+        return mode.executeDesktopCommand("closeWindow");
+      })
+      .then(
+        function () {
+          // 走到这里说明 close 已发出；窗口随后被销毁，不再有输出。
+        },
+        function (error) {
+          log("window_control_sequence_failed " + String(error));
+        },
+      );
+  }
 
   // ③ 兜底：到点如实报告（挂不上也必须有原始输出，而不是只留一句「超时」）。
   //    负向档若一直没等到错误（例如注入其实没被撤掉）也走这里，报告 `expect`/`windowErrors`

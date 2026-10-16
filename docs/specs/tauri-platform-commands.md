@@ -400,14 +400,30 @@ macOS-only locator 安全跳过、编码器产出真 PNG；**真实取值是 opt
 
 - 两者是**公开常量**，`crates/platform/tests/source_url.rs` 的 `the_product_limits_are_pinned`
   钉住数值：改上限必须同时改那条用例与本节。
-- **失败不写任何字节**：命令面只在取回 `Ok` 之后调 `std::fs::write`，所以「失败」与「写了一半」
-  在结构上不可能同时发生；失败时结果里**不带 `path`**（那个路径上不存在文件）。
+- **取回失败时不写任何字节**（这句只管**取回**这一段）：命令面只在取回 `Ok` 之后调
+  `std::fs::write`，所以「取回失败」与「写了一半」在结构上不可能同时发生；取回失败的结果里
+  **不带 `path`**（那个路径上不存在文件）。
+- **写盘失败是另一回事（与 Electron 线的取舍一致）**：`std::fs::write` 失败时结果**带 `path` +
+  底层 I/O 错误**——路径是用户选的，且那里**可能已经留下半截文件**（磁盘满是典型现场：写到一半
+  才失败）。把位置报出来，用户才知道去哪儿看/清理；把 `path` 吞掉会让「写失败了」变成
+  「什么都没发生」。这条与上面那句是**两种结局**，不要合并读。
 - 错码是稳定契约：`save_file_source_url_unsupported_scheme` / `…_too_large` / `…_timeout` /
-  `…_failed`（细节只进 stderr 诊断）。
+  `…_failed`；**细节只进 stderr 诊断行**（`FetchFailure.detail`，含 reqwest 的 `source()` 链——
+  Ruling 30：`…_failed` 一个码压着「证书不对 / 连不上 / 协议错」三种现场，不看链就分不开）。
 - **顺序取舍**：先让用户选路径、再取回（最坏情况是「选完路径再等 30s」）；反过来先取回再弹
   对话框会让「用户还没决定保存」就先发生一次网络下载。
 - TLS：`reqwest` 以 `rustls-no-provider` 档编译（与 `tauri-plugin-updater` 同一档），
   provider 由本模块装一次 `ring`（`install_default` 重复调用安全）。
+  **TLS 路径的运行证据**（Ruling 30）：`crates/platform/tests/source_url_tls.rs` 用**自签证书的本地
+  TLS 服务**真跑握手——断言失败落在**证书校验**（自签不在系统信任库）、且**不是**「没装
+  provider」（服务端用显式 provider，所以进程默认 provider 只可能由产品代码装）、并直接断言
+  `CryptoProvider::get_default().is_some()`。
+  **未覆盖并登记**：一次**成功**的 HTTPS 往返。本函数的客户端只信任系统根
+  （`rustls-platform-verifier`），让本地自签服务被接受只有两条路——给产品代码加「注入信任根」的
+  测试钩子（改产品行为）、或把自签根装进系统信任库（Windows 上 `certutil` 装 Root 会弹安全确认，
+  无人值守不可接受），两条都不做。成功档由 **opt-in 真网络探针**补
+  （`MODE_TAURI_HTTPS_PROBE=1 … --test source_url_tls -- --ignored`，本机实测
+  `https://example.com/` → 577 字节）。
 
 ### 9.4 订阅型方法的逐条处置
 
@@ -421,7 +437,8 @@ M1 §5 登记的是「`onOAuthCallback` / `onPaymentCallback` 之外的订阅型
 | `onOAuthCallback` / `onPaymentCallback` | 已实现（M1） | — |
 | `onFocusTab` / `onNewTab` / `onNewTask` / `onOpenWorkspace` | **登记为不做** | 事件源是**壳自己的菜单/托盘/快捷键**（旧线由 Electron main 发）。本阶段壳没有这些入口的**发送方**，也没有窗口模型（多 tab 语义属 M4） |
 | `onTaskNotificationClick` | **登记为不做** | 需要「通知被点」的回调链（`tauri-plugin-notification` 的通知点击事件 + 任务 id 回传）。当前只做了「展示通知」（`showTaskNotification`） |
-| `onWindowFullscreenChanged` | **登记为不做** | 壳**有**窗口事件的来源（`RunEvent::WindowEvent` + `is_fullscreen()`），但发它需要**新增一个事件名**（协议 + 注入层 + 生成物三处一起动）。本任务的授权是「复用既有通道」，新增通道属窗口模型（M4）的改动 |
+| `onWindowFullscreenChanged` | **登记为不做** | 壳**有**窗口事件的来源（`RunEvent::WindowEvent` + `is_fullscreen()`），但发它需要**新增一个事件名**（协议 + 注入层 + 生成物三处一起动）。本任务的授权是「复用既有通道」，新增通道属窗口模型（M4）的改动。**注意它没有随 §9.5 一起接上**：§9.5 的 chrome 状态里没有 `isFullscreen` 字段（声明如此），所以那个布尔值没有来源 |
+| `executeDesktopCommand` / `getDesktopWindowChromeState` / `onDesktopWindowChromeStateChanged` | **实现**（fix round，用户报障） | 见 §9.5：自绘标题栏依赖它们，而注入层从前把它们当「降级空操作 / 缺席」 |
 | `onRemoteConnectionLog` / `onRemoteSessionClosed` / `onBotRemoteWorkspaceReconnected` / `onRemoteDesktopSessionEvent` | **登记为不做** | 手机远控/远端会话的事件源在**远控链路**（attachment 调度、远端传输），本阶段不涉及 |
 | `onUpdateReady` / `onUpdateCheckResult` / `onPostUpdateReleaseNotes` | **登记为不做** | 更新链只声明了 feed 端点与插件（M1 §5 的「更新链的实际可用」归口 M5），壳不注册更新命令，也没有可发的事件 |
 
@@ -440,7 +457,58 @@ M1 §5 登记的是「`onOAuthCallback` / `onPaymentCallback` 之外的订阅型
   `startupDiskSampler` 只在 Electron 的 `hostDatabaseStartup` 路径上），所以本任务不产出，
   继续移交并把条目**留在 Host 契约 §20 的开放项里**（第 5 条）。
 
-### 9.5 本节的证据登记（原始输出）
+### 9.5 自绘标题栏（窗口控制面）——fix round 的用户报障
+
+**报的是什么**：产品的自绘标题栏**点了没反应**（最小化/最大化不动），而且**系统标题栏还在**
+——两条标题栏。成因的**两半都不在渲染层**：
+
+| 半边 | 现场 | 修法 |
+| --- | --- | --- |
+| 按钮是死的 | 三个按钮发的是 `platform.executeDesktopCommand(DesktopCommandIds.MinimizeWindow / ToggleMaximizeWindow / CloseWindow)`（`packages/ui/src/DesktopWindowControls.tsx` 的调用面）。而注入层把 `executeDesktopCommand` 归在「没有要读的值」那一类**降级空操作**里（它声明返回 `Promise<void>`），`getDesktopWindowChromeState` / `onDesktopWindowChromeStateChanged` 干脆缺席 | 三个成员都接上壳的**窗口控制面**（§下面的表） |
+| 系统标题栏还在 | `tauri.conf.json` 里没有任何 `decorations` 设置 → Tauri 窗口是**有边框**的 | 产品窗口 `decorations(false)`（`mode_tauri::window` 的 `build_host_window` 参数） |
+
+**两半必须一起做**：只接线不去掉系统栏 = 两条标题栏；只去掉系统栏不接线 = 一条死栏。
+**拖动是第三条，必须一起验**：无边框窗口如果连拖都拖不动，比死按钮更糟。
+
+**成员清单（名字逐字取自声明，不发明）**：
+
+| 成员 | 声明（`IPlatformService` / `globals.d.ts`） | 实现 |
+| --- | --- | --- |
+| `executeDesktopCommand` | 必选，`(command: DesktopCommandId) => Promise<void>` | 壳侧命令 `executeDesktopCommand`；注入层按 id 原样转发 |
+| `getDesktopWindowChromeState` | 可选，`() => Promise<DesktopWindowChromeState>` | 壳侧命令 `getDesktopWindowChromeState`（`isMaximized` 真值） |
+| `onDesktopWindowChromeStateChanged` | 可选，`(handler: (state: DesktopWindowChromeState) => void) => () => void` | 注入层组合：窗口 `onResized`（Tauri **内置**事件）→ 去抖 120ms → 重读状态 → 只在 `isMaximized` 变了才回调 |
+
+**命令 id 的处置**：`DesktopCommandIds` 有 27 个 id，窗口级的五个由壳实现
+（`closeWindow` / `minimizeWindow` / `toggleMaximizeWindow` / `toggleFullScreen` /
+`resetWindowSize`，见 `apps/desktop-tauri/src-tauri/src/window_controls.rs`）。其余 id
+**不假装成功**：返回 `{ success: false, error: "desktop_command_unsupported: <id>" }` 并在壳的
+stderr 留一行（声明的返回是 `Promise<unknown>`，所以这是形状内的取值；既不抛、也不谎报）。
+
+**拖动为什么不会因为去掉系统栏而失效**（这条是前提，不是巧合）：wry 在 Windows 上无条件打开
+WebView2 的非客户区支持（`wry 0.57.0` 的 `src/webview2/mod.rs`：
+`settings9.SetIsNonClientRegionSupportEnabled(true)`），于是页面 CSS 里的
+`app-region: drag` / `no-drag` 由 WebView2 按非客户区处理——渲染层声明的可拖区域**不需要宿主配合**。
+渲染层确实声明了它们（本机实测：3 个 `drag` 区域、14 个 `no-drag` 区域，3 个 drag 都在顶部 48px 内）。
+
+**无边框的例外**：开发/诊断入口（`MODE_TAURI_SHELL_ENTRY=dev/index.html` 的验收台）与集成测试页
+**保留系统栏**——那两页没有自绘标题栏，去掉系统栏会让它们既移不动也关不掉。判据是
+「入口页是否被覆写」，写在校验点（`main.rs`）而不是按 URL 猜。
+
+**macOS 半边未实现且本阶段不验**（Ruling 20）：无边框参数是跨平台的，红绿灯（traffic lights）
+的占位语义与 `supportsNativeRoundedCorners` 的 macOS 取值都没有 macOS 构建可验。
+
+#### 自动 vs 人工（fix round 的覆盖分工）
+
+| 判据 | 怎么覆盖 |
+| --- | --- |
+| 无边框（只有一条标题栏） | **自动**：`windowControls.test.mts` 断言 `outerHeight - innerHeight` ≈ 0（本机实测 0；有系统栏时是 30+） |
+| 可拖区域存在 | **自动**：探针在 DOM 建好后按 computed style 数 `app-region: drag` 区域（实测 3 个，全在顶部） |
+| 按钮打到壳 | **自动**：最大化切换 → 读回 `isMaximized: true` → 切回 → `false`；最小化返回 `success: true`；两层独立证据（注入层的调用 + 壳 stderr 的 `window_control command=… ok=true`） |
+| 关得掉 | **自动**：序列最后真发 `closeWindow`，断言进程退出且不残留 Host |
+| **用鼠标真的拖动窗口** | **人工**（要真实指针输入，自动化做不到）：发版前手拖一次标题栏。可自动化的必要条件（drag 区域存在 + WebView2 非客户区支持打开）都在上面的自动档里 |
+| 图标形状/任务栏状态等视觉结果 | **人工**（同上） |
+
+### 9.6 本节的证据登记（原始输出）
 
 **单实例**（opt-in 真机；RED 是修复前的现场）：
 
@@ -468,6 +536,49 @@ $ MODE_TAURI_ICON_PROBE=1 node scripts/rust-cargo.ts test -p platform --test ico
 test result: ok. 1 passed; 0 failed
 ```
 
+**TLS 路径**（Ruling 30；自签证书的本地服务，`--nocapture` 的原始输出）：
+
+```text
+$ node scripts/rust-cargo.ts test -p platform --test source_url_tls
+running 3 tests
+test real_https_probe_over_the_public_internet ... ignored, opt-in：要真网络
+test the_failure_detail_is_carried_but_the_code_stays_stable ... ok
+test a_self_signed_https_endpoint_fails_at_certificate_validation_with_a_provider_installed ... ok
+test result: ok. 2 passed; 0 failed; 1 ignored
+
+# 失败细节真身（证明失败落在证书校验、且不是「没装 provider」）：
+[tls-probe] kind=Failed detail=error sending request for url (https://127.0.0.1:…/payload)
+  <- client error (Connect) <- invalid peer certificate: Other(OtherError(CaUsedAsEndEntity))
+  <- invalid peer certificate: Other(OtherError(CaUsedAsEndEntity))
+
+# 成功档（opt-in 真网络；本机实测）：
+$ MODE_TAURI_HTTPS_PROBE=1 node scripts/rust-cargo.ts test -p platform --test source_url_tls -- --ignored --nocapture
+[https-probe] url=https://example.com/ bytes=577
+test result: ok. 1 passed; 0 failed; 0 ignored
+```
+
+**自绘标题栏（§9.5；opt-in 真窗口）**：
+
+```text
+$ cd apps/desktop-tauri && MODE_TAURI_WINDOW_CONTROLS=1 node --import tsx --test test/windowControls.test.mts
+WINDOW_CONTROLS_PAGE_LOG frame_delta x=0 y=0
+WINDOW_CONTROLS_PAGE_LOG drag_regions drag=3 top_drag=3 no_drag=14
+WINDOW_CONTROLS_PAGE_LOG window_control chrome_initial {"isMaximized":false}
+[mode-tauri] window_control command=toggleMaximizeWindow window=main ok=true
+WINDOW_CONTROLS_PAGE_LOG window_control chrome_maximized {"isMaximized":true}
+WINDOW_CONTROLS_PAGE_LOG window_control chrome_restored {"isMaximized":false}
+[mode-tauri] window_control command=minimizeWindow window=main ok=true
+[mode-tauri] window_control command=closeWindow window=main ok=true
+WINDOW_CONTROLS_PAGE_LOG window_control close_requested
+HARNESS host_shutdown pid=15104
+✔ 自绘标题栏在真窗口上可用：无边框、可拖区域在、三个按钮真的打到壳、且关得掉 (42878.4014ms)
+ℹ tests 1   ℹ pass 1   ℹ fail 0
+```
+
+（`frame_delta y=0` = 无系统标题栏；`drag=3 / top_drag=3` = 顶部三处可拖区域；
+`chrome_initial→chrome_maximized→chrome_restored` 是 `isMaximized` 的真值往返——
+空操作桩不会有这个往返。）
+
 **`sourceUrl` 的上限**（CI 即可跑，真 socket、不碰外网）：
 
 ```text
@@ -482,7 +593,7 @@ test the_failure_codes_are_stable ... ok
 test result: ok. 6 passed; 0 failed
 ```
 
-### 9.6 与既有语义的关系（本任务的追加口径）
+### 9.7 与既有语义的关系（本任务的追加口径）
 
 - **单实例不削弱 owner/lease**：它只保证「同一个 workspace 不重复起 Host」，附件调度与
   owner/lease 语义一个字没动；多窗口下的窗口模型是 M4 的事（§9.1 的代价条款）。

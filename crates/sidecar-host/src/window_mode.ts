@@ -84,6 +84,9 @@
   var KIND_WORKSPACE_OPEN = "workspace-open";
   // 命令名由 Rust 侧注入（`crate::bridge` 的占位符替换），不手抄：wire 名的唯一真源在那边。
   var CMD_PLATFORM_REPORT = "__MODE_HOST_CMD_PLATFORM_REPORT__";
+  // 窗口控制面的两个命令（壳 crate 的 `window_controls.rs`；`bridge.rs` 持有名字的真源）。
+  var CMD_EXECUTE_DESKTOP_COMMAND = "__MODE_HOST_CMD_EXECUTE_DESKTOP_COMMAND__";
+  var CMD_WINDOW_CHROME_STATE = "__MODE_HOST_CMD_WINDOW_CHROME_STATE__";
 
   /** M1 切片表的 10 条命令（与 `crates/platform/src/commands/mod.rs` 的切片表同名）。 */
   var M1_COMMANDS = [
@@ -110,6 +113,20 @@
     "onPaymentCallback",
     "onShareImport",
     "onOpenWorkspacePath",
+  ];
+  /**
+   * 窗口控制面（M3 Task 4 fix round）：产品 UI 的**自绘标题栏**就调这几个。
+   *
+   * 从前它们分别是「降级空操作」（`executeDesktopCommand`，必选、返回 `Promise<void>`）与
+   * 「缺席」（`getDesktopWindowChromeState` / `onDesktopWindowChromeStateChanged`，可选）——
+   * 症状是**用户点了最小化/最大化/关闭没有任何反应**，而系统标题栏还画在同一条位置上
+   * （两条标题栏）。现在三个都走壳的窗口控制面（`window_controls.rs`），系统标题栏在产品窗口上
+   * 也去掉了（`mode_tauri::window` 的 `decorations`）。
+   */
+  var WINDOW_CONTROL = [
+    "executeDesktopCommand",
+    "getDesktopWindowChromeState",
+    "onDesktopWindowChromeStateChanged",
   ];
   /**
    * 必选、M1 未实现，且**调用方会消费返回值**的成员：调用返回一个**被拒的 Promise**。
@@ -197,7 +214,6 @@
     "onPostUpdateReleaseNotes",
     "acknowledgePostUpdateReleaseNotes",
     "quitAndInstallUpdate",
-    "executeDesktopCommand",
     "setApplicationLocale",
     "setTitleBarTheme",
     "rdSendSignal",
@@ -214,7 +230,7 @@
 
   var diagnostics = {
     source: "sidecar-host/window_mode.ts",
-    implemented: M1_COMMANDS.slice().concat(EVENT_SUBSCRIBED),
+    implemented: M1_COMMANDS.slice().concat(EVENT_SUBSCRIBED).concat(WINDOW_CONTROL),
     notImplemented: REJECTING_REQUIRED.slice(),
     noOp: NO_OP_REQUIRED.slice(),
     deliberatelyAbsent: DELIBERATELY_ABSENT_REQUIRED.slice(),
@@ -341,6 +357,111 @@
   }
 
   /**
+   * 命令通道的**可等待**包装：同步抛出也转成被拒的 Promise。
+   *
+   * 为什么需要：窗口控制与 chrome 状态的调用点是 `void platform.executeDesktopCommand(id).catch(…)`
+   * （`DesktopWindowControls.tsx`）——`invoke()` 在「两条通道都没有」时是**同步抛**，
+   * 那会直接穿出调用方的 `.catch`，在渲染期变成一次 render 错误（本层反复强调的形态）。
+   * 所以这里统一转成 Promise：失败留在调用点的 Promise 语义里，且**留痕**。
+   */
+  function invokeAsync(command, args) {
+    try {
+      return invoke(command, args);
+    } catch (error) {
+      degrade("invoke_threw:" + command, error);
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * 读一次窗口 chrome 状态（`DesktopWindowChromeState`：`{ isMaximized, … }`）。
+   *
+   * 形状校验收在**一个**地方：`isMaximized` 不是布尔就当读取失败（`Promise.reject` + 留痕），
+   * 不把 `undefined` 交给渲染层去画图标——那会变成「图标随机」而不是「读取失败」。
+   */
+  function readWindowChromeState() {
+    return invokeAsync(CMD_WINDOW_CHROME_STATE).then(function (state) {
+      if (!state || typeof state !== "object" || typeof state.isMaximized !== "boolean") {
+        degrade("chrome_state_shape", CMD_WINDOW_CHROME_STATE);
+        return Promise.reject(new Error("mode_window_chrome_state_invalid"));
+      }
+      return state;
+    });
+  }
+
+  /**
+   * 订阅窗口 chrome 状态变化，返回同步的 disposer。
+   *
+   * **为什么不是一条新事件通道**：最大化/还原/全屏都会让窗口尺寸变化，所以这里用 Tauri **内置**的
+   * 窗口 `onResized` 事件做触发点，去抖后**重读**一次状态，只在 `isMaximized` 真的变了才回调。
+   * 新增一个「窗口状态」事件名要动协议、生成物与两侧守卫（那是窗口模型层级的决定，本任务没有授权），
+   * 而这条路用的全是既有能力。代价写在 spec 里：一次状态变化最多带来一次多余的读取（去抖 120ms）、
+   * 以及「尺寸没变的状态变化不会被观察到」——在最大化/还原/全屏这三种情形下尺寸一定变。
+   */
+  function subscribeWindowChromeState(handler) {
+    var api = window.__TAURI__;
+    var current = api && api.window && typeof api.window.getCurrentWindow === "function"
+      ? api.window.getCurrentWindow()
+      : null;
+    if (!current || typeof current.onResized !== "function") {
+      // 降级但**不静默**（与深链订阅同款）：订阅装不上不是「订阅成功但没有回调」。
+      degrade("no_window_api", "onDesktopWindowChromeStateChanged");
+      return function () {};
+    }
+    var disposed = false;
+    var timer = null;
+    var stop = null;
+    // 只记**上一个布尔值**（不是上一份状态对象）：IPC 每次给的是新对象，但把引用留着等于
+    // 让「外部对象被改动」也能骗过比较——那正是这条去重的反面。
+    var lastMaximized = null;
+    function refresh() {
+      if (disposed) return;
+      readWindowChromeState().then(
+        function (state) {
+          if (disposed) return;
+          if (lastMaximized === state.isMaximized) return;
+          lastMaximized = state.isMaximized;
+          handler(state);
+        },
+        function (error) {
+          degrade("chrome_state_failed", error);
+        },
+      );
+    }
+    // 去抖：拖拽改变尺寸会连发事件，而这里只关心「状态是不是变了」。
+    function schedule() {
+      if (disposed || timer !== null) return;
+      timer = setTimeout(function () {
+        timer = null;
+        refresh();
+      }, 120);
+    }
+    void current.onResized(schedule).then(
+      function (unlisten) {
+        if (disposed) {
+          unlisten();
+          return;
+        }
+        stop = unlisten;
+      },
+      function (error) {
+        degrade("subscribe_failed:onDesktopWindowChromeStateChanged", error);
+      },
+    );
+    // 订上就先读一次：调用方（标题栏）拿它当订阅后的初值。
+    refresh();
+    return function () {
+      disposed = true;
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (typeof stop === "function") stop();
+      stop = null;
+    };
+  }
+
+  /**
    * 订阅深链事件里某一类 `kind`，返回同步的 disposer。
    *
    * `project` 把事件载荷投影成**该订阅方法要的东西**：五种 `kind` 共用一个事件名，
@@ -415,6 +536,17 @@
     // 类型里是可选成员（renderer 用 `?.` 守卫），但 M1 命令面把它实现了，所以给出真实现。
     getApplicationIcon: function (request) {
       return invoke("getApplicationIcon", { request: normalizeIconRequest(request) });
+    },
+    // 窗口控制面：命令 id 的取值集合来自 `DesktopCommandIds`（`@mode/shared`），
+    // 壳侧只实现窗口级的那些（见 `window_controls.rs`），其余 id 带回 `success: false`。
+    executeDesktopCommand: function (command) {
+      return invokeAsync(CMD_EXECUTE_DESKTOP_COMMAND, { command: command });
+    },
+    getDesktopWindowChromeState: function () {
+      return readWindowChromeState();
+    },
+    onDesktopWindowChromeStateChanged: function (handler) {
+      return subscribeWindowChromeState(handler);
     },
     onOAuthCallback: function (callback) {
       return subscribeDeepLink(KIND_OAUTH, projectUrl, callback);

@@ -15,9 +15,24 @@ pub const CMD_RECV: &str = "host_recv";
 pub const CMD_STATE: &str = "host_startup_state";
 /// 页面上报平台面清单（`window.mode` 的切片与降级）的命令名。
 pub const CMD_PLATFORM_REPORT: &str = "host_platform_report";
+/// 窗口级命令（自绘标题栏的三个按钮 + 全屏/重置尺寸）的命令名。
+///
+/// 它是**壳 crate** 里的命令（`apps/desktop-tauri/src-tauri/src/window_controls.rs`），
+/// 但 wire 名的真源与其它注入用到的命令名放在一起：注入层要按名字 `invoke`，
+/// 而「脚本里的名字」与「壳注册的名字」只能有一处真源（否则是静默的 `Command not found`）。
+pub const CMD_EXECUTE_DESKTOP_COMMAND: &str = "executeDesktopCommand";
+/// 读窗口 chrome 状态（`isMaximized`）的命令名（同上，壳 crate 的实现）。
+pub const CMD_WINDOW_CHROME_STATE: &str = "getDesktopWindowChromeState";
 
 /// 注入脚本用到的全部命令名（守卫用例与 CI 检查的清单）。
-pub const COMMAND_NAMES: &[&str] = &[CMD_SEND, CMD_RECV, CMD_STATE, CMD_PLATFORM_REPORT];
+pub const COMMAND_NAMES: &[&str] = &[
+    CMD_SEND,
+    CMD_RECV,
+    CMD_STATE,
+    CMD_PLATFORM_REPORT,
+    CMD_EXECUTE_DESKTOP_COMMAND,
+    CMD_WINDOW_CHROME_STATE,
+];
 
 /// 注入脚本模板（占位符见 `bridge.ts` 顶部注释）。
 const TEMPLATE: &str = include_str!("bridge.ts");
@@ -53,6 +68,8 @@ fn substitute(template: &str, sanitized_startup_id: &str) -> String {
         .replace("__MODE_HOST_CMD_RECV__", CMD_RECV)
         .replace("__MODE_HOST_CMD_STATE__", CMD_STATE)
         .replace("__MODE_HOST_CMD_PLATFORM_REPORT__", CMD_PLATFORM_REPORT)
+        .replace("__MODE_HOST_CMD_EXECUTE_DESKTOP_COMMAND__", CMD_EXECUTE_DESKTOP_COMMAND)
+        .replace("__MODE_HOST_CMD_WINDOW_CHROME_STATE__", CMD_WINDOW_CHROME_STATE)
 }
 
 /// **产品注入**：`window.mode` + Host 桥，拼成一段脚本交给一个 `initialization_script`。
@@ -91,6 +108,8 @@ mod tests {
             "__MODE_HOST_CMD_SEND__",
             "__MODE_HOST_CMD_RECV__",
             "__MODE_HOST_CMD_STATE__",
+            "__MODE_HOST_CMD_EXECUTE_DESKTOP_COMMAND__",
+            "__MODE_HOST_CMD_WINDOW_CHROME_STATE__",
         ] {
             assert!(
                 !script.contains(placeholder),

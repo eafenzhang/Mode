@@ -29,7 +29,7 @@ fn watchdog_ms() -> u64 {
 
 fn main() {
     let builder = tauri::Builder::default();
-    let builder = platform::commands::init_with_extra(builder, mode_tauri::host_handler());
+    let builder = platform::commands::init_with_extra(builder, mode_tauri::extra_handler());
 
     let builder = builder.setup(|app| {
         let handle = app.handle().clone();
@@ -49,6 +49,9 @@ fn main() {
             &sidecar_host::bridge::bridge_script(&startup_id),
             // 页面是测试资产（自己实现接收形状），不需要窗外的探针。
             None,
+            // 集成测试页没有自绘标题栏 → **保留系统栏**：无边框会让它既移不动也关不掉
+            // （见 mode_tauri::window 的模块文档）。
+            true,
         )?;
 
         let exit_handle = handle.clone();

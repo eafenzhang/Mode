@@ -27,6 +27,8 @@ import type {
   ApplicationIconRequest,
   DeepLinkEvent,
   DeepLinkEventKind,
+  DesktopCommandId,
+  DesktopWindowChromeState,
   IPlatformService,
   SaveFileRequest,
   SaveFileResult,
@@ -51,6 +53,17 @@ export type TauriListen = <T>(
   handler: (envelope: TauriEventEnvelope<T>) => void,
 ) => Promise<TauriUnlisten>;
 
+/**
+ * 窗口控制面的 wire 名。
+ *
+ * 与注入层同源、但**不能共享一个常量**：注入层的名字由壳用占位符注入
+ * （`crates/sidecar-host/src/bridge.rs` 是真源），而这一层是 TS 侧的另一条适配路径
+ * （开发用的验收台页），它拿不到那段注入。两处的一致性由注入层的用例守
+ * （`windowModeInjection.test.mts` 断言壳的 `window_controls.rs` 里的 `rename` 字面量）。
+ */
+const EXECUTE_DESKTOP_COMMAND = "executeDesktopCommand";
+const GET_WINDOW_CHROME_STATE = "getDesktopWindowChromeState";
+
 /** 深链回调映射到事件载荷的 `kind` 值。取值来自生成物，不手抄。 */
 const DEEP_LINK_CALLBACK_KINDS = {
   onOAuthCallback: "oauth-callback",
@@ -59,16 +72,42 @@ const DEEP_LINK_CALLBACK_KINDS = {
   onOpenWorkspacePath: "workspace-open",
 } as const satisfies Record<string, DeepLinkEventKind>;
 
-// 编译期守卫：上面的映射值必须是 DeepLinkEventKind 的成员（`satisfies` 已覆盖），
-// 且必须覆盖本层实现的**全部**深链订阅方法（漏一条这个类型就不成立）。
+/**
+ * 编译期守卫（**两个方向，缺一不可**；措辞按构造能真正保证的东西写）：
+ *
+ * - `_everySubscribedMethodHasAKind` 拒绝**多**：`EVENT_SUBSCRIBED_METHODS` 里出现一个不在
+ *   `DEEP_LINK_CALLBACK_KINDS` 里的名字 → 类型不匹配，`tsc` 红；
+ * - `_everyKindHasASubscribedMethod` 拒绝**漏**：往 `DEEP_LINK_CALLBACK_KINDS` 里加一个 `kind`
+ *   却没有对应的订阅方法 → `Exclude<…>` 不再是 `never`，同样在编译期红。
+ *
+ * （早先这里只有前一个方向、却写成「漏一条这个类型就不成立」——**那句话与构造不符**，
+ * 已改正。① 本轮还发现：这段守卫的一次修改因为替换文本对不上而**静默没生效**，
+ * 是靠「故意加一个 kind，看 tsc 会不会红」的 RED 检查才抓出来的——守卫本身也要被验。）
+ */
 type DeepLinkCallbackMethod = keyof typeof DEEP_LINK_CALLBACK_KINDS;
-const _deepLinkCallbackMethods: readonly DeepLinkCallbackMethod[] = [
+
+const _everySubscribedMethodHasAKind: readonly DeepLinkCallbackMethod[] = [
   "onOAuthCallback",
   "onPaymentCallback",
   "onShareImport",
   "onOpenWorkspacePath",
 ];
-void _deepLinkCallbackMethods;
+void _everySubscribedMethodHasAKind;
+
+/**
+ * 映射里有、但 `EVENT_SUBSCRIBED_METHODS` 里没有的成员（正常应为 `never`）。
+ *
+ * 第二个类型参数是**订阅方法清单**（`EventSubscribedCommand`），不是映射的键：
+ * 写成 `Exclude<键, 键>` 恒等于 `never`，那种「守卫」永远不会红（本文件写过一次，
+ * 被自证的 RED 检查抓出来）。
+ */
+type UnsubscribedDeepLinkKind = Exclude<
+  keyof typeof DEEP_LINK_CALLBACK_KINDS,
+  EventSubscribedCommand
+>;
+
+const _everyKindHasASubscribedMethod: UnsubscribedDeepLinkKind extends never ? true : never = true;
+void _everyKindHasASubscribedMethod;
 
 /** M1 切片表：与 `crates/platform/src/commands/mod.rs` 的 `command_slice!` 逐条对应。 */
 export const M1_IMPLEMENTED_COMMANDS = [
@@ -128,7 +167,6 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "quitAndInstallUpdate",
   "getInstalledEditors",
   "openInEditor",
-  "executeDesktopCommand",
   "setApplicationLocale",
   "setTitleBarTheme",
   "getDeviceId",
@@ -167,8 +205,23 @@ export const EVENT_SUBSCRIBED_METHODS = [
   "onOpenWorkspacePath",
 ] as const;
 
+/**
+ * **窗口控制面**（M3 Task 4 fix round）：产品 UI 的自绘标题栏调用的成员。
+ *
+ * 单列一份的理由与 `EVENT_SUBSCRIBED_METHODS` 相同（它们既不是 M1 切片里的命令、也不是事件订阅的
+ * 深链面），但更要紧的是**清单本身就是守卫**：`windowModeInjection.test.mts` 会断言这几个成员
+ * 在注入的 `window.mode` 上真的存在——将来谁把它们撤掉（或又退回「降级空操作」），
+ * 那条断言就红。用户报的缺陷正是「它们在 Tauri 壳里是死的」（点标题栏没反应）。
+ */
+export const WINDOW_CONTROL_METHODS = [
+  "executeDesktopCommand",
+  "getDesktopWindowChromeState",
+  "onDesktopWindowChromeStateChanged",
+] as const;
+
 type ImplementedCommand = (typeof M1_IMPLEMENTED_COMMANDS)[number];
 type EventSubscribedCommand = (typeof EVENT_SUBSCRIBED_METHODS)[number];
+type WindowControlCommand = (typeof WINDOW_CONTROL_METHODS)[number];
 type UnimplementedRequired = (typeof M1_UNIMPLEMENTED_REQUIRED_METHODS)[number];
 
 /** `IPlatformService` 里没有 `?` 的成员名。 */
@@ -179,7 +232,7 @@ type RequiredMemberName = {
 /** 既没实现、也没登记成「未实现必选」的必选成员。正常应为 `never`。 */
 type UncoveredRequiredMember = Exclude<
   RequiredMemberName,
-  ImplementedCommand | EventSubscribedCommand | UnimplementedRequired
+  ImplementedCommand | EventSubscribedCommand | WindowControlCommand | UnimplementedRequired
 >;
 
 // 编译期穷尽检查：不等于 never 时，这一行的类型不匹配会直接报错。
@@ -319,6 +372,21 @@ export function createTauriPlatformService(
       pendingSubscriptions.push(unsubscribe.ready);
       return unsubscribe.dispose;
     },
+    // ---- 窗口控制面（自绘标题栏）------------------------------------------------
+    // 三个按钮分别发 `minimizeWindow` / `toggleMaximizeWindow` / `closeWindow`，挂载时读一次
+    // chrome 状态决定画「最大化」还是「还原」图标。命令 id 的取值集合在 `@mode/shared` 的
+    // `DesktopCommandIds`；壳只实现窗口级的那些，其余 id 带回 `{ success: false, error }`。
+    executeDesktopCommand(command: DesktopCommandId): Promise<unknown> {
+      return invoke(EXECUTE_DESKTOP_COMMAND, { command });
+    },
+    getDesktopWindowChromeState(): Promise<DesktopWindowChromeState> {
+      return invoke(GET_WINDOW_CHROME_STATE) as Promise<DesktopWindowChromeState>;
+    },
+    onDesktopWindowChromeStateChanged(
+      handler: (state: DesktopWindowChromeState) => void,
+    ): () => void {
+      return subscribeWindowChromeState(invoke, handler);
+    },
   };
 
   for (const method of M1_UNIMPLEMENTED_REQUIRED_METHODS) {
@@ -341,6 +409,87 @@ function urlFromPayload(payload: DeepLinkEvent): string | undefined {
 /** `path` 投影（`workspace-open` 用）。 */
 function pathFromPayload(payload: DeepLinkEvent): string | undefined {
   return typeof payload.path === "string" && payload.path.length > 0 ? payload.path : undefined;
+}
+
+/**
+ * 订阅窗口 chrome 状态变化（`onDesktopWindowChromeStateChanged`）。
+ *
+ * 与注入层同一套做法：用 Tauri **内置**的窗口 `onResized` 做触发点（最大化/还原/全屏都会改尺寸），
+ * 去抖后重读状态，只在 `isMaximized` 真的变了才回调——因为新增一个「窗口状态」事件名要动协议与
+ * 两侧守卫，那是窗口模型层级的决定。
+ *
+ * 窗口 API 来自 Tauri 注入的全局（`withGlobalTauri: true` 下的 `window.__TAURI__.window`）；
+ * 缺席时按本层纪律**留痕降级**（不假装订阅成功）。订阅后立即读一次，调用方拿它当初值。
+ */
+function subscribeWindowChromeState(
+  invoke: TauriInvoke,
+  handler: (state: DesktopWindowChromeState) => void,
+): () => void {
+  const tauri = (globalThis as { __TAURI__?: { window?: { getCurrentWindow?: () => unknown } } })
+    .__TAURI__;
+  const current = tauri?.window?.getCurrentWindow
+    ? (tauri.window.getCurrentWindow() as {
+        onResized?: (callback: () => void) => Promise<() => void>;
+      })
+    : null;
+  if (!current || typeof current.onResized !== "function") {
+    logger.warn("[tauri-platform] 窗口 API 不可用：onDesktopWindowChromeStateChanged 无法订阅");
+    return () => {};
+  }
+
+  let disposed = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let unlisten: (() => void) | null = null;
+  // 只记上一个布尔值（不是上一份状态对象）：去重比的是「状态有没有变」，
+  // 留引用会让「外部把那个对象改了」也能骗过比较。
+  let lastMaximized: boolean | null = null;
+
+  const refresh = (): void => {
+    if (disposed) return;
+    void (invoke(GET_WINDOW_CHROME_STATE) as Promise<DesktopWindowChromeState>).then(
+      (state) => {
+        if (disposed) return;
+        if (!state || typeof state.isMaximized !== "boolean") return;
+        if (lastMaximized === state.isMaximized) return;
+        lastMaximized = state.isMaximized;
+        handler(state);
+      },
+      (error: unknown) => {
+        logger.warn("[tauri-platform] 读取窗口 chrome 状态失败", error);
+      },
+    );
+  };
+  const schedule = (): void => {
+    if (disposed || timer !== null) return;
+    timer = setTimeout(() => {
+      timer = null;
+      refresh();
+    }, 120);
+  };
+
+  void current.onResized(schedule).then(
+    (stop) => {
+      if (disposed) {
+        stop();
+        return;
+      }
+      unlisten = stop;
+    },
+    (error: unknown) => {
+      logger.warn("[tauri-platform] 订阅窗口 resize 失败", error);
+    },
+  );
+  refresh();
+
+  return () => {
+    disposed = true;
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    unlisten?.();
+    unlisten = null;
+  };
 }
 
 /**
