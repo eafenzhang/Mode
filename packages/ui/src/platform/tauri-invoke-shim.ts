@@ -58,8 +58,12 @@ export type TauriListen = <T>(
  *
  * 与注入层同源、但**不能共享一个常量**：注入层的名字由壳用占位符注入
  * （`crates/sidecar-host/src/bridge.rs` 是真源），而这一层是 TS 侧的另一条适配路径
- * （开发用的验收台页），它拿不到那段注入。两处的一致性由注入层的用例守
- * （`windowModeInjection.test.mts` 断言壳的 `window_controls.rs` 里的 `rename` 字面量）。
+ * （开发用的验收台页），它拿不到那段注入。
+ *
+ * 三处字面量的一致性由 `windowModeInjection.test.mts` 的
+ * 「壳侧窗口控制面的 rename 字面量必须与注入名一致」守：它把
+ * `apps/desktop-tauri/src-tauri/src/window_controls.rs` 的 `rename` 字面量、`bridge.rs` 的
+ * `CMD_*` 常量、以及本文件的这两个常量**逐个对拍**（任一处漂移即红）。
  */
 const EXECUTE_DESKTOP_COMMAND = "executeDesktopCommand";
 const GET_WINDOW_CHROME_STATE = "getDesktopWindowChromeState";

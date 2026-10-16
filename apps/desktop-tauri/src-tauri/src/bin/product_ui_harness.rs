@@ -36,6 +36,18 @@ fn withhold_window_mode() -> bool {
     )
 }
 
+/// **敏感性对照**：强制给窗口加系统标题栏（默认关）。
+///
+/// 为什么要有这一档：`windowControls.test.mts` 拿「无边框」当用户可见的判据，而一条**看不出
+/// 两种形态差别**的判据等于没有判据——本轮就漏过一次判据写反（产品窗口反而有系统栏）。
+/// 这一档把窗口做成**有**系统栏，用例必须能在这一档上看出**相反**的结果。
+fn force_decorations() -> bool {
+    matches!(
+        std::env::var("MODE_PRODUCT_UI_FORCE_DECORATIONS").as_deref(),
+        Ok("1")
+    )
+}
+
 /// 是否跑窗口控制序列（见 `PROBE_SCRIPT` 的 `WINDOW_CONTROLS`）。
 fn window_controls() -> bool {
     matches!(std::env::var("MODE_PRODUCT_UI_WINDOW_CONTROLS").as_deref(), Ok("1"))
@@ -94,17 +106,28 @@ fn main() {
             host.pid()
         );
         app.manage(host);
-        mode_tauri::build_host_window(
+        // **产品页 → 无边框**：与产品壳同一个判据（`decorations_for_shell_entry(None)`），
+        // 不在这里另写一遍——调用点自己写判据正是这次判错的地方。对照档见 `force_decorations`。
+        let expected_decorations = force_decorations() || sidecar_host::decorations_for_shell_entry(None);
+        let window = mode_tauri::build_host_window(
             &handle,
             mode_tauri::MAIN_WINDOW_LABEL,
             tauri::WebviewUrl::App(sidecar_host::pick_shell_entry(None)),
             "M3 Task 3 · product UI",
             &injection,
             Some(&probe),
-            // 产品页**无边框**：本 harness 刻意与产品壳同形，包括这一点——
-            // 「自绘标题栏的三个按钮」正是它要一起验的东西（见 test/windowControls.test.mts）。
-            true,
+            expected_decorations,
         )?;
+        // 窗口形态的**运行时观察**：读窗口自己的 `is_decorated()`，不是读刚传进去的参数。
+        // 「参数传对了」与「窗口真的那样」是两件事——判据写反那次正是前者看着对、后者是错的。
+        match window.is_decorated() {
+            Ok(actual) => println!(
+                "HARNESS window decorations_expected={expected_decorations} decorations_actual={actual}"
+            ),
+            Err(error) => println!(
+                "HARNESS window decorations_expected={expected_decorations} decorations_actual=unknown error={error}"
+            ),
+        }
 
         let exit_handle = handle.clone();
         std::thread::spawn(move || {

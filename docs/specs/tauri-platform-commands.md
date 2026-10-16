@@ -490,9 +490,24 @@ WebView2 的非客户区支持（`wry 0.57.0` 的 `src/webview2/mod.rs`：
 `app-region: drag` / `no-drag` 由 WebView2 按非客户区处理——渲染层声明的可拖区域**不需要宿主配合**。
 渲染层确实声明了它们（本机实测：3 个 `drag` 区域、14 个 `no-drag` 区域，3 个 drag 都在顶部 48px 内）。
 
-**无边框的例外**：开发/诊断入口（`MODE_TAURI_SHELL_ENTRY=dev/index.html` 的验收台）与集成测试页
-**保留系统栏**——那两页没有自绘标题栏，去掉系统栏会让它们既移不动也关不掉。判据是
-「入口页是否被覆写」，写在校验点（`main.rs`）而不是按 URL 猜。
+**无边框的判据与例外**：判据是 `sidecar_host::decorations_for_shell_entry(MODE_TAURI_SHELL_ENTRY)`
+（**纯函数、在 CI 覆盖的 crate 里、两个方向都有用例**），产品入口（未覆写）→ `decorations(false)`
+（无边框）；开发/诊断入口（验收台）与集成测试页 → `decorations(true)`（保留系统栏——那两页没有自绘
+标题栏，去掉系统栏会让它们既移不动也关不掉）。入口页与窗口形态用的是**同一个输入**，所以两处判据
+不可能分叉；调用点不再自己写判据（**这条正是被写反过的地方**：`!entry_overridden` 直接进
+`decorations` 会让产品窗口带系统栏、验收台无边框——用户报的第二个症状就是它的产物）。
+
+**「无边框」怎么验（判据换过一次，把过程记下来）**：
+
+| 观察 | 有没有区分力 | 结论 |
+| --- | --- | --- |
+| 窗口自己的 `is_decorated()`（harness 打 `HARNESS window decorations_expected=… decorations_actual=…`） | **有**：产品档 `false` / 对照档 `true`（实测） | **这是判据** |
+| `outerHeight - innerHeight`（`frameDeltaY`） | **没有**：产品档 0、**有系统标题栏时也是 0**（实测） | **不能当判据**，只在报告里留作排查；它在 WebView2 里量的是 webview 自己的客户区，看不到宿主窗口的非客户区 |
+
+判据写反那次之所以没被抓住，就是因为当时用的正是那条**没有区分力**的次级观察。所以
+`windowControls.test.mts` 有两条用例：主用例断言 ①（`is_decorated`）+ ②（可拖区域）+
+③（按钮打到壳）+ ④（关得掉）；**敏感性对照**把窗口做成**有**系统标题栏，断言 `is_decorated` 读到
+`true`、并**记录**次级观察仍是 0（它变了会红，提示可以升级判据）。
 
 **macOS 半边未实现且本阶段不验**（Ruling 20）：无边框参数是跨平台的，红绿灯（traffic lights）
 的占位语义与 `supportsNativeRoundedCorners` 的 macOS 取值都没有 macOS 构建可验。
@@ -501,12 +516,13 @@ WebView2 的非客户区支持（`wry 0.57.0` 的 `src/webview2/mod.rs`：
 
 | 判据 | 怎么覆盖 |
 | --- | --- |
-| 无边框（只有一条标题栏） | **自动**：`windowControls.test.mts` 断言 `outerHeight - innerHeight` ≈ 0（本机实测 0；有系统栏时是 30+） |
+| 无边框（只有一条标题栏） | **自动**：`windowControls.test.mts` 断言窗口自己的 `is_decorated() === false`（产品档）/ `=== true`（敏感性对照档）；`crates/sidecar-host` 的单测 `only_the_product_entry_is_frameless` 钉住判据本身（两个方向，进 CI） |
 | 可拖区域存在 | **自动**：探针在 DOM 建好后按 computed style 数 `app-region: drag` 区域（实测 3 个，全在顶部） |
 | 按钮打到壳 | **自动**：最大化切换 → 读回 `isMaximized: true` → 切回 → `false`；最小化返回 `success: true`；两层独立证据（注入层的调用 + 壳 stderr 的 `window_control command=… ok=true`） |
 | 关得掉 | **自动**：序列最后真发 `closeWindow`，断言进程退出且不残留 Host |
 | **用鼠标真的拖动窗口** | **人工**（要真实指针输入，自动化做不到）：发版前手拖一次标题栏。可自动化的必要条件（drag 区域存在 + WebView2 非客户区支持打开）都在上面的自动档里 |
 | 图标形状/任务栏状态等视觉结果 | **人工**（同上） |
+| 命令名字面量不漂移 | **自动**：`windowModeInjection.test.mts` 的「壳侧窗口控制面的 rename 字面量必须与注入名一致」——`window_controls.rs` 的 `rename` 字面量 ↔ `bridge.rs` 的 `CMD_*` 常量双向对拍（漂移即运行期 `Command not found`） |
 
 ### 9.6 本节的证据登记（原始输出）
 
@@ -557,27 +573,47 @@ $ MODE_TAURI_HTTPS_PROBE=1 node scripts/rust-cargo.ts test -p platform --test so
 test result: ok. 1 passed; 0 failed; 0 ignored
 ```
 
-**自绘标题栏（§9.5；opt-in 真窗口）**：
+**自绘标题栏（§9.5；opt-in 真窗口，**按提交的参数**重跑，原始输出）**：
 
 ```text
 $ cd apps/desktop-tauri && MODE_TAURI_WINDOW_CONTROLS=1 node --import tsx --test test/windowControls.test.mts
+HARNESS window decorations_expected=false decorations_actual=false
 WINDOW_CONTROLS_PAGE_LOG frame_delta x=0 y=0
 WINDOW_CONTROLS_PAGE_LOG drag_regions drag=3 top_drag=3 no_drag=14
-WINDOW_CONTROLS_PAGE_LOG window_control chrome_initial {"isMaximized":false}
-[mode-tauri] window_control command=toggleMaximizeWindow window=main ok=true
-WINDOW_CONTROLS_PAGE_LOG window_control chrome_maximized {"isMaximized":true}
-WINDOW_CONTROLS_PAGE_LOG window_control chrome_restored {"isMaximized":false}
-[mode-tauri] window_control command=minimizeWindow window=main ok=true
-[mode-tauri] window_control command=closeWindow window=main ok=true
+WINDOW_CONTROLS_PAGE_LOG window_control chrome_before_toggle {"isMaximized":false}
+[mode-tauri] window_control command=toggleMaximizeWindow window=main ok=true at_ms=0 is_maximized=true
+WINDOW_CONTROLS_PAGE_LOG window_control chrome_after_toggle_1 {"isMaximized":true}
+[mode-tauri] window_control command=toggleMaximizeWindow window=main ok=true at_ms=619 is_maximized=false
+WINDOW_CONTROLS_PAGE_LOG window_control chrome_after_toggle_2 {"isMaximized":false}
+[mode-tauri] window_control command=minimizeWindow window=main ok=true at_ms=1248 is_maximized=false
+WINDOW_CONTROLS_PAGE_LOG window_control minimize_result {"success":true}
+[mode-tauri] window_control command=closeWindow window=main ok=true at_ms=1852 is_maximized=false
 WINDOW_CONTROLS_PAGE_LOG window_control close_requested
-HARNESS host_shutdown pid=15104
-✔ 自绘标题栏在真窗口上可用：无边框、可拖区域在、三个按钮真的打到壳、且关得掉 (42878.4014ms)
-ℹ tests 1   ℹ pass 1   ℹ fail 0
+✔ 自绘标题栏在真窗口上可用：无边框、可拖区域在、三个按钮真的打到壳、且关得掉 (41286.0146ms)
+# 敏感性对照档（MODE_PRODUCT_UI_FORCE_DECORATIONS=1，见下一条断言）
+HARNESS window decorations_expected=true decorations_actual=true
+WINDOW_CONTROLS_CONTROL frameDeltaY=0 frameDeltaX=0
+✔ 敏感性对照：加系统标题栏时必须看得出来（判据没有区分力就等于没有判据） (72005.5244ms)
+ℹ tests 2   ℹ pass 2   ℹ fail 0
 ```
 
-（`frame_delta y=0` = 无系统标题栏；`drag=3 / top_drag=3` = 顶部三处可拖区域；
-`chrome_initial→chrome_maximized→chrome_restored` 是 `isMaximized` 的真值往返——
-空操作桩不会有这个往返。）
+读法：`decorations_actual=false` 是**窗口自己的状态**（产品档无边框）；对照档 `true` 说明这条观察
+真的在读窗口，而**同一档里 `frameDeltaY` 仍是 0** —— 即 `outerHeight - innerHeight` 在 WebView2 下
+**看不出**非客户区（它不能当判据，见 §9.5 的表）。`at_ms` 是壳进程内的毫秒数：
+`toggleMaximizeWindow` 的往返（`false→true→false`）、`minimizeWindow`、`closeWindow` 都在毫秒级。
+
+**判据写反时的 RED（同一套用例，把调用点的极性翻回去）**：
+
+```text
+# ① 单测（进 CI：cargo test -p sidecar-host）
+test tests::only_the_product_entry_is_frameless ... FAILED
+  panicked at crates\sidecar-host\src\lib.rs:216: 产品入口（未覆写）必须是**无边框**…
+
+# ② opt-in 真机
+HARNESS window decorations_expected=true decorations_actual=true
+✖ 自绘标题栏在真窗口上可用：… (39755.1055ms)
+  AssertionError: 产品入口必须请求**无边框**（decorations=false）：{"expected":"true","actual":"true"}
+```
 
 **`sourceUrl` 的上限**（CI 即可跑，真 socket、不碰外网）：
 

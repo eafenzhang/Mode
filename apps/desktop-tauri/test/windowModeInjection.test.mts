@@ -56,6 +56,8 @@ const read = (relativePath: string): string =>
   readFileSync(resolve(repoRoot, relativePath), "utf8");
 
 const BRIDGE_RUST = "crates/sidecar-host/src/bridge.rs";
+/** 壳侧窗口控制面的实现（M3 Task 4 fix round 的 `rename` 字面量真源之一）。 */
+const WINDOW_CONTROLS_RUST = "apps/desktop-tauri/src-tauri/src/window_controls.rs";
 const MODE_WINDOW_DECLARATION = "packages/client/src/globals.d.ts";
 /** 深链事件名与 kind 的**生成物**真源（`crates/protocol` 单向导出；CI 用 `--check` 防漂移）。 */
 const GENERATED_PROTOCOL = "packages/shared/src/generated/tauri-protocol.ts";
@@ -700,6 +702,63 @@ test("注入的 window.mode 与 M1 适配层切片一致：命令同名同参，
     JSON.parse(JSON.stringify({ request: normalizeApplicationIconRequest(sample) })),
     "注入层的图标入参归一化必须与 M1 的 normalizeApplicationIconRequest 同形（两处口径分叉即红）",
   );
+});
+
+test("壳侧窗口控制面的 rename 字面量必须与注入名一致（漂移即红）", () => {
+  // 为什么单独一条：`#[tauri::command(rename = "…")]` 只吃**字面量**，而注入层按名字 `invoke`，
+  // 所以壳 crate 里必然有一份重复的命令名。两处漂移的症状是运行期 `Command … not found`
+  // ——正是用户报过的「标题栏点了没反应」。本轮补充这条守卫之前，那两份字面量**没有任何
+  // 东西在守**（注释里声称有守卫是假的，已改正）。
+  //
+  // 三处对拍：`window_controls.rs` 的 rename 字面量 ↔ `bridge.rs` 的 `CMD_*` 常量 ↔
+  // 注入脚本里实际出现的名字（后者由上面那条用例按行为证）。
+  const controlsSource = read(WINDOW_CONTROLS_RUST);
+  // 命令名字面量按**标识符**收：注释里也会出现 `rename = "…"` 这种示意写法（本文件自己踩过），
+  // 用 `[^"]+` 会把那个省略号当成一条命令。
+  const renames = [
+    ...controlsSource.matchAll(/#\[tauri::command\(rename = "([A-Za-z][A-Za-z0-9]*)"\)\]/g),
+  ].map((match) => match[1]!);
+  assert.ok(
+    renames.length > 0,
+    `${WINDOW_CONTROLS_RUST} 里应能读到 rename 字面量（读不到说明扫描规则失效了）`,
+  );
+
+  // `bridge.rs` 里被注入进脚本的命令名常量（按名字取，不看值）。
+  const bridgeSource = read(BRIDGE_RUST);
+  const constants = new Map(
+    [...bridgeSource.matchAll(/pub const (CMD_\w+): &str = "([^"]+)"/g)].map((match) => [
+      match[1]!,
+      match[2]!,
+    ]),
+  );
+  const windowControlConstants = [
+    "CMD_EXECUTE_DESKTOP_COMMAND",
+    "CMD_WINDOW_CHROME_STATE",
+  ];
+  for (const name of windowControlConstants) {
+    assert.ok(
+      constants.has(name),
+      `${BRIDGE_RUST} 里应有 ${name}（注入层按它 invoke）`,
+    );
+  }
+
+  // ① 壳注册的每个窗口控制命令都必须出现在 `bridge.rs` 的命令名常量里。
+  for (const rename of renames) {
+    assert.ok(
+      [...constants.values()].includes(rename),
+      `${WINDOW_CONTROLS_RUST} 注册了 "${rename}"，但 ${BRIDGE_RUST} 的 CMD_* 常量里没有它` +
+        `（注入层不会 invoke 这个名字 → 那条命令永远收不到调用）`,
+    );
+  }
+  // ② 反向：`bridge.rs` 声称注入会给这两个名字，壳就必须真的注册它们
+  //    （少了就是「注入发得出去、壳不认」——同样是死按钮）。
+  for (const name of windowControlConstants) {
+    assert.ok(
+      renames.includes(constants.get(name)!),
+      `${BRIDGE_RUST} 的 ${name} 是 "${constants.get(name)}"，但 ${WINDOW_CONTROLS_RUST} 没有` +
+        `用这个名字注册命令（漂移即运行期 Command not found）`,
+    );
+  }
 });
 
 test("窗口控制面（自绘标题栏）真的接上了壳：三个成员都在，且命令/状态/订阅都可观察", async () => {

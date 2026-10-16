@@ -2,8 +2,10 @@
 //!
 //! 契约来自 `IPlatformService` 的两个成员（**只读接口面**：声明与文档注释，不读实现体）：
 //!
-//! - `executeDesktopCommand(command: DesktopCommandId): Promise<void>`（**必选**）——
-//!   「执行桌面窗口级命令（标题栏菜单、缩放、窗口控制等）」；
+//! - `executeDesktopCommand(command: DesktopCommandId): Promise<unknown>`（**必选**）——
+//!   「执行桌面窗口级命令（标题栏菜单、缩放、窗口控制等）」。**返回类型是 `unknown` 而不是
+//!   `void`**（真源：`packages/shared/src/platform.ts`），所以下面用
+//!   `{ success: false, error }` 表达「这个 id 我做不到」是**形状内**的取值；
 //! - `getDesktopWindowChromeState?(): Promise<DesktopWindowChromeState>`（可选）——返回
 //!   `{ isMaximized, macOSMajorVersion?, supportsNativeRoundedCorners }`。
 //!
@@ -40,7 +42,19 @@ use tauri::{Runtime, WebviewWindow};
 
 use crate::window::DEFAULT_WINDOW_SIZE;
 
-/// 本模块注册的命令名（Node 侧守卫用例按它核对注入层发的名字）。
+/// 计时起点（用于诊断行里的 `at_ms`）：由 [`handler`] 在 app 构建期初始化，所以约等于进程启动。
+fn started_at() -> &'static std::time::Instant {
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    START.get_or_init(std::time::Instant::now)
+}
+
+/// 本模块注册的命令名。
+///
+/// **这里的字面量是重复的，且已经被守**：`#[tauri::command(rename = "…")]` 只吃字面量，而注入层
+/// 按名字 `invoke`——两处漂移的症状是运行期 `Command … not found`（也就是「标题栏又死了」）。
+/// 守它的是 `apps/desktop-tauri/test/windowModeInjection.test.mts` 的
+/// 「壳侧窗口控制面的 rename 字面量必须与注入名一致」：它读本文件与
+/// `crates/sidecar-host/src/bridge.rs` 的 `CMD_*` 常量逐个对拍（两个方向都查）。
 pub const COMMAND_NAMES: &[&str] = &[CMD_EXECUTE_DESKTOP_COMMAND, CMD_WINDOW_CHROME_STATE];
 
 /// `executeDesktopCommand` 的 wire 名（注入层按它 `invoke`）。
@@ -50,6 +64,10 @@ pub const CMD_WINDOW_CHROME_STATE: &str = "getDesktopWindowChromeState";
 
 /// 本模块的命令，交给 [`crate::extra_handler`] 与 host 的命令合成同一个 `invoke_handler`。
 pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    // 提前把计时起点钉住：`started_at()` 是惰性的，第一次调用才初始化的话，**第一条诊断行
+    // 恒是 `at_ms=0`**（那正是最需要看清「是谁在什么时候调的」的那一条）。handler 在 app 构建期
+    // 就被调用，所以这里初始化得到的起点≈进程启动。
+    let _ = started_at();
     tauri::generate_handler![execute_desktop_command, get_desktop_window_chrome_state]
 }
 
@@ -62,13 +80,18 @@ pub fn execute_desktop_command<R: Runtime>(window: WebviewWindow<R>, command: St
     let outcome = apply_window_command(&window, &command);
     // 控制台留痕：这是「自绘标题栏的按钮有没有真的走到壳」的唯一诊断面
     // （用户点按钮时没有别的可观察点），也是 opt-in 用例的判据之一。
+    //
+    // `at_ms` 是**进程启动以来的毫秒数**：同一条链路里可能有两个调用方（用户/渲染层的启动恢复
+    // 与测试探针），只有时间能区分它们——本轮就是靠它才看清「启动后 1 秒那次 toggle 不是探针发的」。
+    let at_ms = started_at().elapsed().as_millis();
+    let maximized = window.is_maximized().unwrap_or(false);
     match &outcome {
         Ok(()) => eprintln!(
-            "[mode-tauri] window_control command={command} window={} ok=true",
+            "[mode-tauri] window_control command={command} window={} ok=true at_ms={at_ms} is_maximized={maximized}",
             window.label()
         ),
         Err(reason) => eprintln!(
-            "[mode-tauri] window_control command={command} window={} ok=false reason={reason}",
+            "[mode-tauri] window_control command={command} window={} ok=false reason={reason} at_ms={at_ms}",
             window.label()
         ),
     }

@@ -112,6 +112,30 @@ pub fn pick_shell_entry(env_override: Option<&OsStr>) -> PathBuf {
     PathBuf::from(text)
 }
 
+/// 壳窗口**要不要系统的边框与标题栏**（`WebviewWindowBuilder::decorations` 的取值）。
+///
+/// **语义容易搞反，所以它在这里、且有用例**：`decorations(true)` = **有**系统标题栏
+/// （`tauri-2.12.4` 的 `webview_window.rs` → `tauri-runtime-wry` → `tao` 的
+/// `with_decorations`，契约是「要不要边框与标题栏」）。而产品 UI **自己画标题栏**
+/// （`packages/ui` 的 `DesktopWindowControls` + `[app-region:drag]` 区域），所以：
+///
+/// | 入口 | 覆写 | 返回值 | 为什么 |
+/// | --- | --- | --- | --- |
+/// | 产品页（`index.html`，真 renderer 产物） | 未覆写 | **`false`（无边框）** | 否则用户看到**两条**标题栏：系统的那条 + 自绘的那条 |
+/// | 开发/诊断入口（验收台）与集成测试页 | 覆写 / 显式指定 | **`true`（保留系统栏）** | 那两页没有自绘标题栏，去掉系统栏会让它们既移不动也关不掉 |
+///
+/// 与 [`pick_shell_entry`] 同一个参数（`MODE_TAURI_SHELL_ENTRY` 的原始值），所以两处判据不可能分叉。
+///
+/// **这曾经被写反过**（`!entry_overridden` 直接进 `decorations`）：产品窗口两条标题栏、
+/// 验收台反而无边框——用户报的就是前一半。纯函数 + 两个方向的用例就是让那种反转在 CI 里红。
+pub fn decorations_for_shell_entry(env_override: Option<&OsStr>) -> bool {
+    // 空值视同未设置：与 `pick_shell_entry` 同口径（不然 `MODE_TAURI_SHELL_ENTRY=` 会让
+    // 产品窗口变成有边框、或让验收台变成无边框——两种都错）。
+    env_override
+        .filter(|value| !value.is_empty())
+        .is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,6 +206,26 @@ mod tests {
             "没有覆写时取第一个存在的候选"
         );
         assert_eq!(pick_entry(None, &[PathBuf::from("missing-1")]), None);
+    }
+
+    /// 无边框策略：**产品入口无边框、开发/诊断入口保留系统栏**（两个方向都钉住）。
+    ///
+    /// 这条用例是「用户报障」的回归网：把判据写反（`!entry_overridden`）产品窗口就会有两条
+    /// 标题栏，而验收台会变成一块移不动也关不掉的板子——两个方向都在这里红。
+    #[test]
+    fn only_the_product_entry_is_frameless() {
+        assert!(
+            !decorations_for_shell_entry(None),
+            "产品入口（未覆写）必须是**无边框**：自绘标题栏是产品 UI 唯一的那条栏"
+        );
+        assert!(
+            !decorations_for_shell_entry(Some(OsStr::new(""))),
+            "空覆写等于没有覆写（与 pick_shell_entry 同口径）→ 仍是产品入口 → 无边框"
+        );
+        assert!(
+            decorations_for_shell_entry(Some(OsStr::new("dev/index.html"))),
+            "验收台（开发/诊断入口）必须**保留系统栏**：它没有自绘标题栏，去掉会移不动也关不掉"
+        );
     }
 
     #[test]

@@ -337,7 +337,7 @@
     }
     chromeState().then(
       function (state) {
-        log("window_control chrome_initial " + describe(state));
+        log("window_control chrome_before_toggle " + describe(state));
         return mode.executeDesktopCommand("toggleMaximizeWindow");
       },
       function (error) {
@@ -350,7 +350,7 @@
       })
       .then(chromeState)
       .then(function (state) {
-        log("window_control chrome_maximized " + describe(state));
+        log("window_control chrome_after_toggle_1 " + describe(state));
         return mode.executeDesktopCommand("toggleMaximizeWindow");
       })
       .then(function (result) {
@@ -359,7 +359,7 @@
       })
       .then(chromeState)
       .then(function (state) {
-        log("window_control chrome_restored " + describe(state));
+        log("window_control chrome_after_toggle_2 " + describe(state));
         // 订阅面：状态变化必须能被观察到（否则最大化之后图标停在「最大化」上）。
         return mode.executeDesktopCommand("minimizeWindow");
       })

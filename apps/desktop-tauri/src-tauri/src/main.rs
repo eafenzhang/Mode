@@ -67,22 +67,23 @@ fn main() {
         // M1 的命令面验收台按 DR-T3-2 保留为开发/诊断入口，用
         // `MODE_TAURI_SHELL_ENTRY=dev/index.html` 进（挑选规则与白名单在
         // `sidecar_host::pick_shell_entry`，那边有用例覆盖）。
-        // 无边框的判据是**入口页是不是产品页**：产品 UI 自绘标题栏（三个窗口按钮 + 若干
-        // `[app-region:drag]` 区域），开发/诊断入口（验收台）没有，所以后者保留系统栏
-        // ——否则开发期那个窗口既移不动也关不掉。理由与拖动为什么仍然可用见
-        // `mode_tauri::window` 的模块文档。
-        let entry_overridden = std::env::var_os("MODE_TAURI_SHELL_ENTRY").is_some();
+        // 入口页与**窗口形态**用的是同一个输入（`MODE_TAURI_SHELL_ENTRY`），所以两处判据
+        // 不可能分叉：产品页（未覆写）→ 无边框（产品 UI 自绘标题栏）；开发/诊断入口与集成
+        // 测试页 → 保留系统栏（那两页没有自绘标题栏，去掉会既移不动也关不掉）。
+        //
+        // 判据本身住在 `sidecar_host::decorations_for_shell_entry`（**纯函数、有用例**）：
+        // 它在调用点写反过一次（`!entry_overridden`），症状就是用户报的「系统标题栏还在」。
+        // 理由与拖动为什么仍然可用见 `mode_tauri::window` 的模块文档。
+        let entry_override = std::env::var_os("MODE_TAURI_SHELL_ENTRY");
         mode_tauri::build_host_window(
             &handle,
             mode_tauri::MAIN_WINDOW_LABEL,
-            tauri::WebviewUrl::App(sidecar_host::pick_shell_entry(
-                std::env::var_os("MODE_TAURI_SHELL_ENTRY").as_deref(),
-            )),
+            tauri::WebviewUrl::App(sidecar_host::pick_shell_entry(entry_override.as_deref())),
             "Mode",
             // 产品注入：`window.mode`（平台面适配层）+ Host 桥，一段脚本文本、document-start 求值。
             &sidecar_host::bridge::bridge_script(&startup_id),
             None,
-            !entry_overridden,
+            sidecar_host::decorations_for_shell_entry(entry_override.as_deref()),
         )?;
         Ok(())
     });

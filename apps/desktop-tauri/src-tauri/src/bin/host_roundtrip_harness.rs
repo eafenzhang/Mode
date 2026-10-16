@@ -49,9 +49,11 @@ fn main() {
             &sidecar_host::bridge::bridge_script(&startup_id),
             // 页面是测试资产（自己实现接收形状），不需要窗外的探针。
             None,
-            // 集成测试页没有自绘标题栏 → **保留系统栏**：无边框会让它既移不动也关不掉
-            // （见 mode_tauri::window 的模块文档）。
-            true,
+            // 集成测试页**不是产品入口** → 保留系统栏：无边框会让它既移不动也关不掉
+            // （见 mode_tauri::window 的模块文档）。判据走同一个纯函数，不在这里另写一遍。
+            sidecar_host::decorations_for_shell_entry(Some(std::ffi::OsStr::new(
+                "harness/host-sidecar/index.html",
+            ))),
         )?;
 
         let exit_handle = handle.clone();
