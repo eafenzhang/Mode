@@ -161,7 +161,9 @@ node scripts/rust-cargo.ts build --release -p mode-tauri \
 `2` = 模式名不认识。
 
 页面侧日志在 dev server 的 stdout，行前缀 `SPIKE_PAGE_LOG`（**这条通道独立于 Tauri invoke**，
-所以 `remote` 模式下 invoke 全被拒时仍然看得到页面在做什么）。
+所以 `remote` 模式下 invoke 全被拒时仍然看得到页面在做什么）。这个 dev server 的两种角色要分清：
+对 `local`/`no-wrap` 它**只是日志出口**（不起也能跑通，只是看不到页面侧证据）；对 `remote` 它是
+**页面本身的来源**（模式加载的就是 `http://127.0.0.1:5176/`），必须起。
 
 ### 3.3 原始输出（最终二进制，四种运行）
 
