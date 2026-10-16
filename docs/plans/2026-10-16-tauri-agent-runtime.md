@@ -45,19 +45,28 @@ serde/serde_json、schemars（仅新增的 Tauri 面用）；测试侧复用 `ts
 
 路线图 M2 的任务 1 写的是「read/glob/grep/**list** —— 只读工具先行」。**实际工具名不是这样**：
 真源是 `packages/shared/src/tool-identity.ts` 的 `MODE_KNOWN_TOOL_NAMES`，取值为 PascalCase，
-且**没有 `list` 工具**。M2 的只读切片因此是：
+且**没有 `list` 工具**。
+
+> **2026-10-16 修正（Ruling 17，实测）**：上面那张表本身也有错。`MODE_KNOWN_TOOL_NAMES` 是一张
+> **渲染用**的名字表，不等于运行时真正注册的工具集。Task 2 的实测结果是：旧运行时在 stdio 会话面
+> 上**只注册了 `Read`**，调用 `Glob` / `Grep` 返回 `tool_not_found`（已录进夹具
+> `packages/desktop/tests/agent-runtime-oracle/fixtures/read-absent-search-tools.json`）。
+> **M2 的只读切片因此 = `Read`**，不实现 `Glob`/`Grep`——M2 的验收是「与旧运行时行为对拍」，
+> 实现一个运行时没有的工具等于**没有 oracle 可比**。下表的 `Glob`/`Grep` 两行按此作废；
+> 其余行（`Bash`/`Write`/`Edit`/`ApplyPatch`/订阅型）**尚未实测**，Task 3 起开工前必须先跑
+> 一次工具面观察，不要照抄本表。
 
 | 路线图写法 | 实际工具名 | M2 归属 |
 | --- | --- | --- |
-| read | `Read` | Task 2 |
-| glob | `Glob` | Task 2 |
-| grep | `Grep` | Task 2 |
-| list | *不存在* | 目录列举由 `Glob` 覆盖；不新造工具 |
-| （未提） | `Bash` | Task 4（shell 与 pty） |
-| （未提） | `Write` / `Edit` / `ApplyPatch` | Task 3 |
+| read | `Read` | Task 2（**唯一实测存在的只读工具**） |
+| glob | ~~`Glob`~~ | **作废**：运行时未注册，调用得 `tool_not_found` | 
+| grep | ~~`Grep`~~ | **作废**：同上 |
+| list | *不存在* | 不新造工具 |
+| （未提） | `Bash` | Task 4（shell 与 pty）——**未实测，开工前先观察** |
+| （未提） | `Write` / `Edit` / `ApplyPatch` | Task 3——**未实测，开工前先观察** |
 | （未提） | `WebFetch` / `WebSearch` | **M3**（要网络策略与 sidecar 的取回面） |
 | （未提） | `Task` / `Agent` / `Skill` / `js` / `mcp__node_repl__*` | **M3**（子代理与 node-repl 宿主都在 sidecar） |
-| （未提） | `TodoRead` / `TodoWrite` / `GoalRead` / `AskUserQuestion` / `SendMessage` 等 | Task 5/6（要会话状态与交互面） |
+| （未提） | `TodoRead` / `TodoWrite` / `GoalRead` / `AskUserQuestion` / `SendMessage` 等 | Task 5/6（要会话状态与交互面）——**未实测** |
 
 `MODE_KNOWN_TOOL_NAMES` 里还有一档 `ModeToolFamily`（`file-read | file-write | shell | search |
 todo | ask-user-question | agent | skill | goal | session-context | message | task-control |
@@ -288,10 +297,10 @@ git commit -m "feat(agent-protocol): M2 Task 1——v4 帧协议的 Rust 镜像�
 
 ---
 
-### Task 2: 只读工具（`Read` / `Glob` / `Grep`）
+### Task 2: 只读工具（**`Read`**——`Glob`/`Grep` 运行时未注册，见上方口径修正）
 
 **Files:**
-- Create: `crates/agent-tools/{Cargo.toml,src/lib.rs,src/read.rs,src/glob.rs,src/grep.rs}`
+- Create: `crates/agent-tools/{Cargo.toml,src/lib.rs,src/read.rs}`
 - Modify: `crates/agent-core/src/lib.rs`（接上工具注册表与最小会话循环）
 - Test: `crates/agent-tools/tests/read_only.rs`、`crates/agent-core/tests/read_only_parity.rs`
 
@@ -312,13 +321,17 @@ git commit -m "feat(agent-protocol): M2 Task 1——v4 帧协议的 Rust 镜像�
 的可执行文件、比较），Rust 侧的用例只测「给定 args → 输出」的纯函数层。**别做双向驱动**——
 两个进程互相起会带来复杂的生命周期问题，而收益为零。
 
-- [ ] **Step 2: 跑测试确认失败**；**Step 3: 实现三个工具**（只读、无副作用）
+- [ ] **Step 2: 跑测试确认失败**；**Step 3: 实现 `Read`**（只读、无副作用）
+      〔2026-10-16 按 Ruling 17 修正：原写「实现三个工具」，但 `Glob`/`Grep` 运行时未注册，
+      不实现；见上方口径修正表〕
 
 `Read` 的关键语义（用对拍确认，不要凭印象）：行号前缀格式、截断上限与截断提示文案、
 二进制文件与超长行的处理、`offset`/`limit` 的边界。
-`Glob`：排序规则、忽略目录（`.git`/`node_modules` 等，**以 oracle 的观察为准**）、结果上限。
-`Grep`：`output_mode` 三档、`-i`/`-n`/`-A`/`-B`/`-C` 的组合、正则/字面量开关、
-「无匹配」是空结果还是错误。
+**另外三类是 Task 2 实测才发现必须覆盖的**（原表没列，都是行为而不是猜测）：
+① 同一 path+range 的**重复读取去重**（返回 "Wasted call …" 桩，会话级、跨 turn 生效，键是
+**解析后的路径 + range**，错误不去重）；② 超预算时的**部分视图**与它的行数预算；
+③ 未注册工具的**同形答复**（`tool_not_found`），即「调用一个运行时没有的工具」本身也是一条
+要对拍的行为。
 
 - [ ] **Step 4: 跑测试确认通过**；**Step 5: 提交**
 
