@@ -20,6 +20,33 @@ import { Event } from "./foundation.js";
 
 export type RPCLogger = (message: string, ...args: unknown[]) => void;
 
+/**
+ * 单条日志里错误文案的字符上限。
+ *
+ * 直接把 error 交给 logger 会把它的 message 原文写出去，而 ZodError 之类的 message 是把**每个**
+ * 校验 issue 都序列化出来的 JSON：实测有单次失败就产出 2.9 MB 单行日志的记录（会话消息校验失败），
+ * 一天下来日志被撑到 231 MB。日志用来定位问题，不需要完整错误载荷——截断保留头部即可，
+ * 需要全文时由调用方自己决定怎么处理。
+ */
+const MAX_LOGGED_ERROR_CHARS = 2_000;
+const MAX_LOGGED_STACK_CHARS = 1_000;
+
+function boundLogText(text: string, maxChars: number): string {
+  return text.length <= maxChars ? text : `${text.slice(0, maxChars)}…（共 ${text.length} 字符，已截断）`;
+}
+
+/** 把错误投影成有界的日志载荷；非 Error 值原样返回（它们本来就没有 message 字段）。 */
+function summarizeErrorForLog(error: unknown): unknown {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+  return {
+    name: error.name,
+    message: boundLogText(error.message, MAX_LOGGED_ERROR_CHARS),
+    ...(error.stack ? { stack: boundLogText(error.stack, MAX_LOGGED_STACK_CHARS) } : {}),
+  };
+}
+
 // ============================================================================
 // LoggingServerChannel —— 装饰单个 IServerChannel，记录 call/listen
 // ============================================================================
@@ -45,7 +72,7 @@ class LoggingServerChannel<TContext> implements IServerChannel<TContext> {
       return result;
     } catch (err) {
       const elapsed = (performance.now() - start).toFixed(1);
-      this.logger(`[rpc:call] ${this.channelName}.${command} FAIL (${elapsed}ms)`, err);
+      this.logger(`[rpc:call] ${this.channelName}.${command} FAIL (${elapsed}ms)`, summarizeErrorForLog(err));
       throw err;
     }
   }
@@ -56,7 +83,7 @@ class LoggingServerChannel<TContext> implements IServerChannel<TContext> {
       this.logger(`[rpc:listen] ${this.channelName}.${event} subscribed`);
       return result;
     } catch (err) {
-      this.logger(`[rpc:listen] ${this.channelName}.${event} FAIL`, err);
+      this.logger(`[rpc:listen] ${this.channelName}.${event} FAIL`, summarizeErrorForLog(err));
       throw err;
     }
   }
@@ -115,7 +142,7 @@ class LoggingChannel implements IChannel {
       return result;
     } catch (err) {
       const elapsed = (performance.now() - start).toFixed(1);
-      this.logger(`[rpc:call] ${this.channelName}.${command} → FAIL (${elapsed}ms)`, err);
+      this.logger(`[rpc:call] ${this.channelName}.${command} → FAIL (${elapsed}ms)`, summarizeErrorForLog(err));
       throw err;
     }
   }

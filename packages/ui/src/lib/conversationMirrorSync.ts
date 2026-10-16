@@ -3,14 +3,18 @@ import {
   buildConversationMirrorImportedHistory,
   buildConversationMirrorRecord,
   buildMirrorImportSessionId,
+  isMirrorEligibleTask,
+  isMirrorSessionId,
   mergeMirrorSourceTasks,
   resolveConversationMirrorWindowSize,
   selectMirrorSourceTasks,
   selectOwnMirrorSourceTasks,
   shouldImportMirrorRecord,
+  shouldReadMirrorSource,
   type ConversationMirrorSourceTask,
 } from "@mode/shared/conversation-mirror";
 import type { IModeSessionService, IModeTaskService, IServiceAccessor } from "@mode/services";
+import type { ConversationMirrorReadBackoff } from "@/lib/conversationMirrorReadBackoff.js";
 
 /**
  * 一轮远程工作区对话记录镜像同步（docs/specs/remote-workspace-conversation-mirror.md）。
@@ -47,6 +51,11 @@ export interface ConversationMirrorSyncParams {
    * 实际窗口经 `resolveConversationMirrorWindowSize` 归一：至少 10 条、至多 20 条。
    */
   windowSize?: number;
+  /**
+   * 读取失败的退避表（可选）。传入后：失败过的来源在冷静期内不再重读，但本轮仍会按失败计入状态。
+   * 不传即旧行为（每轮都重试），供只关心编排的调用方使用。
+   */
+  readBackoff?: ConversationMirrorReadBackoff;
   onWarning?: (message: string, error?: unknown) => void;
 }
 
@@ -55,11 +64,13 @@ export interface ConversationMirrorSyncResult {
   importedIntoPeerLocal: number;
   /**
    * unsupported = 对端 CLI 不认识 `remoteMirror` 导入源（版本过低）。
-   * 判定是启发式的：首个导入失败即中止本轮，避免对 N 条记录各撞一次同样的错误。
+   * 只有「载荷被对端 schema 拒收」这一类才这么判（`-32602` / `-32601` / 错误文案点名导入字段），
+   * 且首个失败即中止本轮，避免对 N 条记录各撞一次同样的错误。超时、网络中断等暂时性导入失败不算。
    *
-   * degraded = 本轮有记录可读，但**一条都没读成功**（0 导入 + 有读取失败）。这跟「本来就没东西可同步」
-   * 必须区分开：后者是 ready。典型场景是对端 CLI 没有冷读能力，`session/messages` 对每个冷会话都抛
-   * `Session is not active`，于是整轮静默导入 0 条——只报 ready 会让这种全面失败永远看不见。
+   * degraded = 本轮有来源没同步上，却一条都没导入成功（0 导入 + 有读取失败 / 退避跳过 / 导入失败）。
+   * 这跟「本来就没东西可同步」必须区分开：后者是 ready。典型场景是对端 CLI 没有冷读能力，
+   * `session/messages` 对每个冷会话都抛 `Session is not active`，于是整轮静默导入 0 条——
+   * 只报 ready 会让这种全面失败永远看不见。
    */
   status: "ready" | "degraded" | "unsupported";
   /** unsupported / degraded 时的原始错误文案，供 UI / 日志诊断。 */
@@ -70,8 +81,18 @@ interface ImportScopeOutcome {
   imported: number;
   /** 来源消息读取失败条数；用来把「全面读失败」和「本来就没东西同步」区分开。 */
   readFailures: number;
-  /** 最后一次读取失败的原文，供 degraded 状态提示。 */
-  lastReadError: string;
+  /**
+   * 处在退避期、本轮**没有重读**的失败来源条数。它不计入 `readFailures`（那会变成「每轮都撞同一个错」），
+   * 但必须参与状态判定：否则持续失败的会话会被退避洗成 ready。
+   */
+  suppressedFailures: number;
+  /**
+   * 导入（`session/create`）失败条数。只有「对端不认这个导入源」才中止整轮；其余（超时、网络、
+   * 对端繁忙）都是可重试的暂时失败，逐条跳过并计入状态，不能把一次抖动放大成整轮方向判死。
+   */
+  importFailures: number;
+  /** 最后一次失败的原文（读取或导入），供 degraded 状态提示。 */
+  lastError: string;
   unsupportedError: string;
 }
 
@@ -101,7 +122,6 @@ export async function runConversationMirrorSync(
 
   // 侧栏可见条数只是基准：窗口口径统一在 shared（至少 10 条、至多 20 条）。
   const windowSize = resolveConversationMirrorWindowSize(params.windowSize);
-  const readLimit = resolveSourceReadLimit(windowSize);
   const readMessagesFrom = (
     services: IServiceAccessor,
     taskId: string,
@@ -113,15 +133,21 @@ export async function runConversationMirrorSync(
     });
 
   // ① 对端本地 scope → 当前视图 scope。
-  const peerLocal = await readScopeTasks(params.viewServices.modeTaskService, {
-    workspacePath: params.workspacePath,
-    limit: readLimit,
-  });
-  const viewTargets = await readScopeTasks(params.viewServices.modeTaskService, {
-    workspacePath: params.workspacePath,
-    ...(params.viewWorkspaceIdentity ? { workspaceIdentity: params.viewWorkspaceIdentity } : {}),
-    limit: readLimit,
-  });
+  const peerLocal = await readScopeTasksForWindow(
+    params.viewServices.modeTaskService,
+    { workspacePath: params.workspacePath },
+    keepAsPeerLocalSource,
+    windowSize,
+  );
+  const viewTargets = await readScopeTasksForWindow(
+    params.viewServices.modeTaskService,
+    {
+      workspacePath: params.workspacePath,
+      ...(params.viewWorkspaceIdentity ? { workspaceIdentity: params.viewWorkspaceIdentity } : {}),
+    },
+    keepAsOwnSource,
+    windowSize,
+  );
   const viewOutcome = await importScopeRecords({
     sources: [
       {
@@ -136,6 +162,7 @@ export async function runConversationMirrorSync(
       workspacePath: params.workspacePath,
       ...(params.viewWorkspaceIdentity ? { workspaceIdentity: params.viewWorkspaceIdentity } : {}),
     },
+    ...(params.readBackoff ? { readBackoff: params.readBackoff } : {}),
     warn,
   });
   if (viewOutcome.unsupportedError) {
@@ -151,12 +178,16 @@ export async function runConversationMirrorSync(
   // ② 本机在该工作区的记录 → 对端本地 scope（落在对端机器自己的本地工作区）。
   let importedIntoPeerLocal = 0;
   let localReadFailures = 0;
-  let lastReadError = viewOutcome.lastReadError;
+  let localSuppressedFailures = 0;
+  let localImportFailures = 0;
+  let lastError = viewOutcome.lastError;
   {
-    const localScope = await readScopeTasks(params.localServices.modeTaskService, {
-      workspacePath: params.workspacePath,
-      limit: readLimit,
-    });
+    const localScope = await readScopeTasksForWindow(
+      params.localServices.modeTaskService,
+      { workspacePath: params.workspacePath },
+      keepAsOwnSource,
+      windowSize,
+    );
     const localOutcome = await importScopeRecords({
       sources: [
         // 本机以对端身份打开该工作区时发起的对话（落在对端机器上）。
@@ -174,12 +205,15 @@ export async function runConversationMirrorSync(
       targetUpdatedAtById: indexByTaskId(peerLocal.items),
       sessionService: params.viewServices.modeSessionService,
       importWorkspace: { workspacePath: params.workspacePath },
+      ...(params.readBackoff ? { readBackoff: params.readBackoff } : {}),
       warn,
     });
     importedIntoPeerLocal = localOutcome.imported;
     localReadFailures = localOutcome.readFailures;
-    if (localOutcome.lastReadError) {
-      lastReadError = localOutcome.lastReadError;
+    localSuppressedFailures = localOutcome.suppressedFailures;
+    localImportFailures = localOutcome.importFailures;
+    if (localOutcome.lastError) {
+      lastError = localOutcome.lastError;
     }
     if (localOutcome.unsupportedError) {
       return {
@@ -191,14 +225,23 @@ export async function runConversationMirrorSync(
     }
   }
 
-  // 一条都没导入、却有读取失败：整轮是「读不出来」而不是「没东西可同步」。
+  // 一条都没导入、却有「没同步上」的来源：整轮是「同步失败」而不是「没东西可同步」。
   // 继续报 ready 会让这种全面失败在 UI 上永远不可见（组件在 ready 下渲染 null）。
-  if (viewOutcome.imported + importedIntoPeerLocal === 0 && viewOutcome.readFailures + localReadFailures > 0) {
+  // 退避跳过同样计入：持续失败的来源在冷静期内不再重读，但它依然没同步上，不能因此变成 ready。
+  // 导入失败（可重试的暂时失败）也要计入，否则「读得到但写不进去」会被洗成 ready。
+  const unsyncedSources =
+    viewOutcome.readFailures +
+    localReadFailures +
+    viewOutcome.suppressedFailures +
+    localSuppressedFailures +
+    viewOutcome.importFailures +
+    localImportFailures;
+  if (viewOutcome.imported + importedIntoPeerLocal === 0 && unsyncedSources > 0) {
     return {
       importedIntoView: viewOutcome.imported,
       importedIntoPeerLocal,
       status: "degraded",
-      error: lastReadError,
+      error: lastError,
     };
   }
 
@@ -211,14 +254,62 @@ export async function runConversationMirrorSync(
 }
 
 /**
- * 任务列表读取上限：来源列表里混着镜像副本（会被跳过），窗口之上要多读一点给它们留位置。
- * 仍然有界——远端 RPC 的请求参数不能随窗口无限增长。
+ * 任务列表读取的**起始**上限：来源列表里混着镜像副本（会被跳过），窗口之上多读一点给它们留位置。
+ * 一个混着副本的列表里，「多读一点」并不保证够——不够时由 `readScopeTasksForWindow` 逐级补页。
  */
 function resolveSourceReadLimit(windowSize: number): number {
   return Math.min(
     CONVERSATION_MIRROR_LIMITS.maxRecords * 2,
     CONVERSATION_MIRROR_LIMITS.maxRecords + windowSize,
   );
+}
+
+/**
+ * 单次来源列表读取的深度上限。补页不能无界，否则「来源 scope 里全是镜像副本」会退化成把整张
+ * 任务表拉回来。
+ */
+const MIRROR_SOURCE_DEEP_READ_LIMIT = 200;
+
+/**
+ * ①方向来源的可用性判据：只认对端本地 scope（无 identity）且非镜像副本。
+ * 与 `selectMirrorSourceTasks` 取的是同一个谓词，这里只是在**取列表时**就要用它决定是否补页。
+ */
+function keepAsPeerLocalSource(task: ConversationMirrorSourceTask): boolean {
+  return isMirrorEligibleTask(task) && !isMirrorSessionId(task.taskId);
+}
+
+/**
+ * ②方向来源的可用性判据：保留 identity 行（本机在远端工作区发起的对话），只跳过镜像副本。
+ * 与 `selectOwnMirrorSourceTasks` 同谓词；两个方向不能共用（不变量 2）。
+ */
+function keepAsOwnSource(task: ConversationMirrorSourceTask): boolean {
+  return !isMirrorSessionId(task.taskId);
+}
+
+/**
+ * 取一页来源列表，并在页内可用来源不足 `windowSize` 时逐级补页。
+ *
+ * 列表按 `updatedAt` 取最新 N 条，而镜像副本会长期留在来源 scope 里（它们的 `updatedAt` 是来源的
+ * 真实时间，排位靠前）。固定取一页的话，对端本地 scope 的头部被副本占满时，这一页里真实来源就不足
+ * `windowSize` 条，**更旧的来源会永远同步不过来**。所以这里按「可用条数」而不是「总条数」判停。
+ *
+ * 停止条件：可用来源已够 / 这一页本来就不满（列表到底了）/ 已到深度上限。
+ */
+async function readScopeTasksForWindow(
+  modeTaskService: Pick<IModeTaskService, "listTaskList">,
+  scope: { workspacePath: string; workspaceIdentity?: string },
+  keep: (task: ConversationMirrorSourceTask) => boolean,
+  windowSize: number,
+): Promise<{ items: ConversationMirrorSourceTask[] }> {
+  let limit = resolveSourceReadLimit(windowSize);
+  for (;;) {
+    const page = await readScopeTasks(modeTaskService, { ...scope, limit });
+    const usable = page.items.reduce((count, task) => (keep(task) ? count + 1 : count), 0);
+    if (usable >= windowSize || page.items.length < limit || limit >= MIRROR_SOURCE_DEEP_READ_LIMIT) {
+      return page;
+    }
+    limit = Math.min(limit * 2, MIRROR_SOURCE_DEEP_READ_LIMIT);
+  }
 }
 
 function indexByTaskId(items: readonly ConversationMirrorSourceTask[]): Map<string, number> {
@@ -258,11 +349,14 @@ async function importScopeRecords(params: {
   targetUpdatedAtById: Map<string, number>;
   sessionService: Pick<IModeSessionService, "createSession">;
   importWorkspace: { workspacePath: string; workspaceIdentity?: string };
+  readBackoff?: ConversationMirrorReadBackoff;
   warn: (message: string, error?: unknown) => void;
 }): Promise<ImportScopeOutcome> {
   let imported = 0;
   let readFailures = 0;
-  let lastReadError = "";
+  let suppressedFailures = 0;
+  let importFailures = 0;
+  let lastError = "";
 
   const selected = params.selector(
     mergeMirrorSourceTasks(params.sources.map((source) => source.tasks)),
@@ -277,6 +371,23 @@ async function importScopeRecords(params: {
   for (const task of selected) {
     const readMessages = readMessagesByTaskId.get(task.taskId);
     const mirrorSessionId = buildMirrorImportSessionId(task.taskId);
+    const targetUpdatedAt = params.targetUpdatedAtById.get(mirrorSessionId);
+    // 水位在读取之前就已知：目标端已是最新版时连消息都不读。
+    // 读消息是整轮最贵的一步，「先读后判」会让每轮空转都付出满负荷代价（spec 第四轮修复 成因 A）。
+    if (!shouldReadMirrorSource({ task, targetUpdatedAt })) {
+      continue;
+    }
+    // 稳定读不出来的来源（例如 wire 校验拒收的 part 形态）在冷静期内不再重试，
+    // 但仍然计入状态：跳过不是为了把它当成「已同步」。
+    const suppressedError = params.readBackoff?.shouldSkip(task.taskId);
+    if (suppressedError !== undefined) {
+      suppressedFailures += 1;
+      if (!lastError) {
+        lastError = suppressedError;
+      }
+      continue;
+    }
+
     let messages: SourceMessages;
     try {
       if (!readMessages) {
@@ -285,10 +396,13 @@ async function importScopeRecords(params: {
       messages = await readMessages(task.taskId);
     } catch (error) {
       readFailures += 1;
-      lastReadError = formatError(error);
-      params.warn(`读取会话 ${task.taskId} 失败，已跳过`, error);
+      const detail = formatError(error);
+      lastError = detail;
+      params.readBackoff?.recordFailure(task.taskId, detail);
+      params.warn(`读取会话 ${task.taskId} 失败，已跳过：${boundLogText(detail)}`);
       continue;
     }
+    params.readBackoff?.recordSuccess(task.taskId);
 
     const record = buildConversationMirrorRecord({ task, messages });
     if (!record) {
@@ -298,7 +412,7 @@ async function importScopeRecords(params: {
     if (
       !shouldImportMirrorRecord({
         record,
-        targetUpdatedAt: params.targetUpdatedAtById.get(mirrorSessionId),
+        targetUpdatedAt,
       })
     ) {
       continue;
@@ -313,13 +427,62 @@ async function importScopeRecords(params: {
       });
       imported += 1;
     } catch (error) {
-      // 首个失败即视为对端不支持该导入源（旧 CLI 的 strict schema 会拒绝 remoteMirror）：
-      // 同一台机器上其余记录必然同样失败，继续尝试只会把同一个错误放大 N 次。
-      return { imported, readFailures, lastReadError, unsupportedError: formatError(error) };
+      const detail = formatError(error);
+      if (isUnsupportedImportSourceError(error)) {
+        // 对端不认这个导入源（旧 CLI 的 strict schema 拒绝 remoteMirror）：同一台机器上其余记录
+        // 必然同样失败，首个失败即中止该方向，不再把同一个错误放大 N 次。
+        return {
+          imported,
+          readFailures,
+          suppressedFailures,
+          importFailures,
+          lastError,
+          unsupportedError: detail,
+        };
+      }
+      // 其余失败（超时 / 网络 / 对端繁忙 / 磁盘错误）都是可重试的暂时失败：只跳过这一条并继续，
+      // 否则一次抖动就会把整轮方向判死，还会在 UI 上给出「对端版本过低」这个错误理由。
+      importFailures += 1;
+      lastError = detail;
+      params.warn(`导入会话 ${task.taskId} 失败，已跳过：${boundLogText(detail)}`);
     }
   }
 
-  return { imported, readFailures, lastReadError, unsupportedError: "" };
+  return { imported, readFailures, suppressedFailures, importFailures, lastError, unsupportedError: "" };
+}
+
+/**
+ * 对端是否**因为不认这个导入源**而拒绝。只有这一类才是「对端版本过低」：
+ *
+ * - `-32602`：旧 CLI 的 strict schema 把 `importedHistory` 判为 invalid params（校验路径会出现在
+ *   message 里，见 `summarizeParamsError`）；
+ * - `-32601`：更旧的 CLI 连 `session/create` 都没有。
+ *
+ * 其余错误（超时、连接中断、对端 busy）都不该按版本问题处理——把它们和「版本过低」混为一谈，
+ * 会让一次抖动把整轮方向判死并给出错误的用户提示。
+ */
+function isUnsupportedImportSourceError(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+  if (code === -32602 || code === -32601) {
+    return true;
+  }
+  const text = formatError(error).toLowerCase();
+  return text.includes("remotemirror") || text.includes("importedhistory");
+}
+
+/**
+ * 单条日志的错误文案上限。ZodError 的 message 会把每个校验 issue 全部序列化出来
+ * （实测有单条 2.9 MB 的日志行），进日志前必须截断。
+ */
+const MAX_LOG_ERROR_CHARS = 400;
+
+function boundLogText(text: string): string {
+  return text.length <= MAX_LOG_ERROR_CHARS
+    ? text
+    : `${text.slice(0, MAX_LOG_ERROR_CHARS)}…（共 ${text.length} 字符，已截断）`;
 }
 
 function formatError(error: unknown): string {

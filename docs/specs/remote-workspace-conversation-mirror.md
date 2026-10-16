@@ -4,7 +4,102 @@
 同日第二轮修复「`session/messages` 返回值不是 wire 形状导致读取必失败 / ②方向来源 scope 取错 /
 只在挂载时跑一轮 / 导入时间线被压平」四处（见「2026-10-15 第二轮修复」）；
 同日第三轮按产品口径把单轮窗口提到**至少 10 条**，并把导入会话的**活跃 record 时间线回填**，
-让镜像在侧栏按来源的真实时间轴排列（见「2026-10-15 第三轮调整」）。
+让镜像在侧栏按来源的真实时间轴排列（见「2026-10-15 第三轮调整」）；
+同日第四轮把**同步本身的开销与轮次并发**收口（见「2026-10-15 第四轮修复」）——
+前几轮把「对不对」修完了，这一轮修的是「跑不完」；
+2026-10-16 第五轮按「读一次要多久」与「失败怎么归类」继续收口（见「2026-10-16 第五轮修复」）：
+`limit` 下推到会话消息查询、来源列表按**可用条数**补页、导入失败区分「对端真的不认这个导入源」与「暂时性错误」。
+
+**发版事实（必读）**：第四轮修复此前只存在于工作区、从未提交，因此 **v0.0.52 及更早的已安装版本都不含第四、第五轮**；
+第四轮之前只有第一至第三轮随 v0.0.43 / v0.0.45 / v0.0.46 发过。这两轮必须重新发版才在客户端生效，
+且第四轮的轮次串行化与读取退避需要**两端都升级**才能观察到实际效果。
+
+## 2026-10-16 第五轮修复（读取量级 / 来源列表补页 / 导入失败分类）
+
+第四轮修掉了「跑不完」（轮次自激、空转轮满负荷、失败无出口）。第五轮修的是第四轮之后仍然残留的
+「慢」与「有时候不同步」——它们都不是并发问题，而是**单次操作的成本量级**与**失败的分类口径**。
+
+**成因 A（读的量级是整条会话，不是窗口）**：镜像单次读传 `limit: 200`，但 CLI 的 `readMessages` 一直是
+「把 store 里的消息全量取出 → 找锚点 / 切片 → 最后才 `slice(-limit)`」；而 `sessionStore.messages({ sessionID })`
+的入参只有 `sessionID`（`repositories/messages.ts` 两条**不带 LIMIT** 的 `select *`，再逐行
+`decodeMessageRow` / `decodePartRow`）。于是单次读取的耗时与**会话历史长度**成正比，而不是与窗口成正比——
+第四轮把并发排队去掉了，每次读取的量级没变，长会话上依旧慢。
+
+修法：`sessionStore.messages()` 增加可选 `limit`，语义 = 取**最新** N 条（逆序查询后翻回正序，parts 用同一逆序
+子查询过滤），与「全量读 + `slice(-N)`」逐项相等。`readMessages` **只在下推语义成立时**才交出去：
+
+- 无 `afterMessageId`：有锚点时锚点可能落在尾部窗口之外，必须先全量读再切片；
+- 会话**不带 conversation rewind 账本**（`applyRewindBranch` 会按 `created/target` 裁剪历史，输入被截断结果会不同）；
+- `limit` 非正 / NaN / 非整数一律退化成全量读（坏参数不能把会话读成空）。
+
+活跃路径保持全量读：它还要套 runtime 的 rewind 事件投影，且活跃会话通常只有一条。
+
+**成因 B（来源列表一页可能装不下 windowSize 条可用来源 → 更旧的来源永远同步不过来）**：来源列表按
+`updatedAt` 取最新 N 条，而镜像副本会长期留在来源 scope 里，且它们的 `updatedAt` 是**来源的真实时间**
+（回填后），排位靠前。原来固定取一页（`maxRecords + windowSize` = 30–40 条），于是对端本地 scope 的头部被
+副本占满时，这一页里真实来源可能不足 10 条——**更旧的来源既不会被导入也不会报错**，静默地永远漏掉。
+
+修法：`readScopeTasksForWindow` 按**可用条数**（而不是总条数）判停，不足 `windowSize` 就逐级翻倍补页
+（30 → 60 → 120 …），上限 `MIRROR_SOURCE_DEEP_READ_LIMIT = 200`；这一页本来就不满（列表到底了）或到上限即停。
+可用性谓词与两个方向的选择器同源：① `isMirrorEligibleTask && !isMirrorSessionId`，
+② `!isMirrorSessionId`（保留 identity 行）。
+
+**成因 C（导入失败的分类太粗 → 一次抖动把整轮判死并报错成「版本过低」）**：`importScopeRecords` 原来是
+「首个 `createSession` 失败即返回 `unsupportedError`」，调用方据此把整轮判成 `unsupported`。但
+`createSession` 的失败也可能只是 RPC 超时（默认 3 分钟）、连接中断、对端繁忙、磁盘错误——这些是可重试的，
+却被当成「对端版本过低，无法同步对话记录」，并且中止该方向。
+
+修法：`isUnsupportedImportSourceError` 只认「载荷被对端 schema 拒收」——错误码 `-32602`（旧 CLI 的 strict
+schema 把 `importedHistory` 判为 invalid params，校验路径会出现在 message 里）或 `-32601`（更旧的 CLI 连
+`session/create` 都没有），或错误文案点名 `importedHistory` / `remoteMirror`。其余失败逐条跳过并计入
+`importFailures`；本轮 0 导入且存在这类失败时报 degraded（与读取失败、退避跳过同样不能被洗成 ready）。
+
+**仍未实机验证**：成因 A 的收益取决于来源会话长度，需要真实长会话才能观察到量级差异（本机单测钉住的是
+「语义等价」与「何时下推」）；成因 B / C 需要构造「来源 scope 混着大量镜像副本」「对端暂时不可用」的真实场景。
+两端升级依旧是前提（读取是被读的那台机器在服务，导入落在承载工作区的那台机器上）。
+
+## 2026-10-15 第四轮修复（同步自激：读不完的轮次）
+
+**症状**：连上远端工作区后侧栏长期停在「正在同步远端对话记录...」，几小时不结束；当日日志涨到 231 MB
+（前几日 5–8 MB），单行最大 2.9 MB。实测（本机 host 日志）：`mode-session.readSessionMessages`
+当天成功 1032 次 / 失败 421 次，且**单次读取耗时随时间恶化**——20 点均值 3 s，21 点 707 次调用均值 139 s，
+全天中位数 92 s、P90 289 s、最慢 359 s。
+
+**三个叠加成因**（互相放大，单独修任何一个都还会卡）：
+
+- **成因 A（空转轮和真干活轮一样贵）**：`importScopeRecords` 先读消息、**之后**才判水位，
+  于是「目标端已是最新」的轮次照样把 `windowSize`（10–20）条会话的全部消息（每条最多 200 条）读一遍。
+  读之前就能判定的事，被放到了读之后。
+- **成因 B（轮次可以重叠，且会自我放大）**：`useWorkspaceConversationMirror` 收到来源 scope 事件就开新一轮，
+  **不检查上一轮是否还在跑**；间隔下限按「距上轮**开始**」计，而一轮要几分钟，于是每个事件都叠一轮，
+  并发读堆在 host 上互相排队，单次读取越等越久——读取更慢又让轮次更长，正反馈。
+- **成因 C（失败没有出口）**：`file` part 的 `url` 在按路径引用附件时就是空字符串
+  （生产者：`apps/mode-cli/packages/core/src/runtime/helpers/attachments.ts` 的 `url: attachment.content ?? ""`，
+  连 `media-observability.ts` 都把 `"empty"` 单列一类），而 wire 合同 `mode-protocol-legacy-types.ts` 的
+  `file` 变体把 `url` 声明成 `nonEmptyString`。只要有这么一条 part，**整条 `session/messages` 响应校验失败**，
+  该会话永远读不出来；镜像又没有负缓存，于是每一轮都重试同一条会话并打印包含全部校验 issue 的错误
+  （这就是 2.9 MB 单行日志的来源）。
+
+**修法**（对应上面的 A/B/C，加一条日志治理）：
+
+1. **水位前置**：新增共享纯函数 `shouldReadMirrorSource({task, targetUpdatedAt})`，在**读消息之前**判定；
+   读之后原有的 `shouldImportMirrorRecord` 保留为权威兜底。两者同源——`buildConversationMirrorRecord`
+   的 `updatedAt` 直接取 `task.updatedAt`，所以前置判定与后置判定是同一条判据，前置等价、只是省掉一次读。
+2. **单轮串行化**：同一 workspace 同一时刻只跑一轮；轮内到达的事件只置「待重跑」，等当前轮结束再补跑一次
+   （不是丢掉，也不是叠一轮）。串行化后「间隔下限」不再是防自激的主力，退化为抖动抑制。
+3. **读失败退避**：新增 `createConversationMirrorReadBackoff()`（Renderer 侧，按来源 taskId 记退避），
+   失败一次退避 60 s 起、指数翻倍、上限 10 min，成功即清零。退避期内的来源不再重读，但**仍计入状态**：
+   本轮 0 导入且存在「读取失败 + 退避跳过」时照旧报 degraded（不能让持续失败被退避洗成 ready）。
+   手动「重新同步」会先清退避，保证重试是真重试。
+4. **wire 容忍空 url**：`file` 变体的 `url` 从 `nonEmptyString` 放宽为 `z.string()`，与生产者契约
+   （`session-store.port.ts` 的 `url: string`）一致。消费端本来就按真值判断（`ai-elements/attachments.tsx`
+   的 `data.url`、`ChatMediaAttachmentPreviewDialog` 的 `attachment?.url`），空串等价「不可渲染」，
+   不会把 `<img src="">` 发出去。
+5. **日志有界**：`packages/rpc/src/logging-middleware.ts` 在打 FAIL 前把错误裁剪成
+   `{name, message(截断), stack(截断)}`；镜像的 warn 也改为带上错误文案的字符串（原来传原始 error 对象，
+   序列化成 `{}`，既丢了诊断信息又可能把整段校验明细塞进日志）。
+
+**仍未实机验证**：需要两端都升级才能观察轮次串行化与退避的实际效果（本轮的验证是单测 + 本机日志口径）。
 
 ## 2026-10-15 第三轮调整（一轮 10 条 + 按真实时间轴排序）
 
@@ -142,6 +237,8 @@ CLI 侧有 `resolveImportedHistoryTimestamps` 的水位单测；`session/create`
 - 「双向」= 一轮同步同时做两件事：① 对端记录 → **本机当前视图 scope**；② 本机记录 → **对端本地 scope**。
 - 「每次连接时自动同步」= 远端 workspace attach 就绪（`rpcReady`）时自动跑一轮；之后**任一来来源 scope
   发生变更（新开 / 续聊任务）时防抖补跑一轮**，因此连接之后新产生的对话也会传过去。
+  **补跑不叠轮**：同一 workspace 同时只跑一轮，轮内到达的事件合并成「结束后补跑一次」；
+  **空转轮先判后读**：目标 scope 的 task meta 水位不前进就不读消息（见「第四轮修复」成因 A/B）。
 - **窗口有界且随可见列表增长**：一轮只处理每个来源最近 `windowSize` 条会话。`windowSize` 以侧栏该工作区
   当前可见的会话条数（默认 5，`展开更多` 每次 +5）为基准，经 `resolveConversationMirrorWindowSize`
   归一为**至少 10 条、至多 20 条**：刚连上就同步最近 10 条，窗口变大时按新窗口重跑，
@@ -193,24 +290,50 @@ CLI 侧有 `resolveImportedHistoryTimestamps` 的水位单测；`session/create`
    （见「2026-10-15 第三轮调整」①，成因 D 定的是窗口可随可见列表增长这件事）；
    每条最多 200 条消息、单条文本 ≤ 4000 字符、单条记录 ≤ 256 KiB（超限丢最旧消息并置 `truncated`），
    为远端 RPC 物理帧（1 MiB）留余量。
+   单次读取只取最新 200 条：`limit` **下推到存储查询**，因此单次读取成本与窗口成正比、与会话历史长度无关
+   （见「2026-10-16 第五轮修复」成因 A）。
+   来源列表按**可用条数**补页，深度上限 `MIRROR_SOURCE_DEEP_READ_LIMIT = 200`（见成因 B）。
 6. **失败不阻断**：导入失败只记 warn + 视图状态，不阻断 workspace 连接、任务列表与会话主链路；
    对端 CLI 不认识 `remoteMirror` 时判为「对端版本过低」，本轮不再重试，UI 给出可读提示。
+   **这个判定只认「载荷被对端 schema 拒收」**（`-32602` / `-32601`，或错误文案点名
+   `importedHistory` / `remoteMirror`）；超时、网络中断等暂时性导入失败只跳过该条并计入
+   `importFailures`，不得判成「版本过低」，也不得中止整轮方向（见「2026-10-16 第五轮修复」成因 C）。
+   单条来源读取失败按 taskId 退避（60 s 起、指数翻倍、上限 10 min），退避期内不再重读但**仍计失败信号**，
+   因此持续失败既不会每轮重撞、也不会被洗成 ready；手动重试先清退避。
+7. **读之前就能判定的事不拖到读之后**：目标 scope 水位不前进的来源**不读消息**。
+   同一口径的另一半是**读的量级也不拖到读之后**：`limit` 下推到存储查询，单次读取只取最新 N 条，
+   而不是把整条会话取出再切片（「2026-10-16 第五轮修复」成因 A）。
+   这是「空转轮 ≈ 满负荷轮」的修法，也是同一 workspace 同时只跑一轮的前提（见「第四轮修复」）。
+   状态归属：轮次串行与退避表都是 Renderer 侧状态，所有权在 `useWorkspaceConversationMirror`
+   这一个 hook 实例内（每工作区一份），不进 store、不跨窗口共享。
 7. **不启动额外 runtime**：只处理用户正在使用的工作区；列举走任务列表（被动观察者），
    消息读取走既有 `session/messages`。冷会话由 CLI **只读 session store** 提供（不 resume、不物化 runtime，
    见「2026-10-15 冷读修复」），因此读取结果不再取决于「对端该会话是否活跃」。
 
 ### 事件顺序
 
+`A` 连接 `B` 的远端工作区 `W`（`rpcReady` + 工作区行已展开 → 挂载镜像状态组件）
+
+触发源：连接就绪 / 窗口（侧栏可见条数）变大 / 两个来源 scope 的
+`workspace_task_list_changed`（防抖 1.2 s，且距上轮开始 ≥ 20 s）/ 手动重试。
+**触发不等于开轮**：已有一轮在跑时只置 `pending`，当前轮结束后补跑一次（第四轮修复 2）。
+
 ```text
-A 连接 B 的远端工作区 W（rpcReady + 工作区行已展开 → 挂载镜像状态组件）
-  │   触发：连接就绪 / 窗口（侧栏可见条数）变大 / 两个来源 scope 的
-  │        workspace_task_list_changed（防抖 1.2s）/ 手动重试
-  │
-  ├─ ① 对端记录 → A 的视图 scope（会话落在 B 上）
+事件 → 防抖 (≥1.2s, 距上轮开始 ≥20s) ┬─ 无轮在跑 → 开轮
+                                    └─ 有轮在跑 → pending=true（结束后补跑一轮，不再叠加）
+轮：列目标 scope meta（水位表）
+    └ 逐条来源：shouldReadMirrorSource? ── 否 → 跳过（不读消息，第四轮成因 A）
+                                        └ 是 → 退避期内? ── 是 → 跳过 + 仍计失败信号
+                                                          └ 否 → 读消息
+                                                                 ├ 失败 → 记退避 + 计失败
+                                                                 └ 成功 → 清退避 → 后置幂等判定 → 导入
+```
+```text
+① 对端记录 → A 的视图 scope（会话落在 B 上）
   │   remote.modeTaskService.listTaskList({workspacePath: W})               ← 取 B 的本地 scope 行
   │     └ 过滤：带 identity 的行（对端身份）与 mirror- 前缀（副本）都跳过；取最新 windowSize 条
   │   remote.modeTaskService.listTaskList({workspacePath: W, identity: R})  ← 目标 scope 现有 meta
-  │     └ 仅当 origin.updatedAt > 目标 meta.updatedAt 才继续（未变则跳过）
+  │     └ shouldReadMirrorSource：origin.updatedAt > 目标 meta.updatedAt 才继续（未变则连消息都不读）
   │   remote.modeSessionService.readSessionMessages({W, sessionId}) → 提取文本 + 截断
   │   remote.modeSessionService.createSession({
   │       sessionId: mirror-<originSessionId>, persistence: "immediate",
@@ -233,8 +356,11 @@ A 连接 B 的远端工作区 W（rpcReady + 工作区行已展开 → 挂载镜
 
 | 场景                                     | 行为                                                                 |
 | ---------------------------------------- | -------------------------------------------------------------------- |
-| 对端 CLI 不认识 `remoteMirror`（旧版本） | 视图标 unsupported +「对端版本过低，无法同步对话记录」，本轮不再重试 |
-| 单条记录读取 / 导入失败                  | 跳过该条 + warn，其余继续                                            |
+| 对端 CLI 不认识 `remoteMirror`（旧版本） | 视图标 unsupported +「对端版本过低，无法同步对话记录」，本轮不再重试；判定只认「载荷被对端 schema 拒收」（`-32602` / `-32601` / 文案点名导入字段） |
+| 单条记录读取失败                         | 跳过该条 + warn，其余继续                                            |
+| 单条导入失败（超时 / 网络等暂时性错误）  | 跳过该条 + warn + 计 `importFailures`；本轮 0 导入时报 degraded，**不判「版本过低」、不中止方向** |
+| 来源列表一页装不下 windowSize 条可用来源 | 按可用条数逐级补页（30 → 60 → 120 …，上限 200），直到够或列表到底 |
+| 单条来源连续读取失败                     | 按 taskId 退避（60 s → 10 min 封顶，成功清零），退避期内不重读、仍计失败信号 |
 | 有记录可读但**本轮全部读取失败**         | 视图标 degraded + 重试入口（对端 CLI 无冷读能力时即此状态），不得伪装成 ready |
 | 本机在该路径下无本地记录                 | ②方向只跳过这部分来源（另一个来源 scope 照常处理），不导入空内容      |
 | 记录内容为空（全是工具调用 / 隐藏消息）  | 跳过该条（不导入空会话）                                             |
@@ -264,20 +390,36 @@ A 连接 B 的远端工作区 W（rpcReady + 工作区行已展开 → 挂载镜
   窗口口径归一（可见 5 条 → 10 条；随可见条数增长并以 20 条封顶；未传 / NaN / 0 取下限）、
   多来源按 taskId 合并去重、消息提取（跳过隐藏 synthetic / 空文本）、
   有界化（会话数 / 消息数 / 文本长度 / 单记录字节预算 → `truncated`）、导入 payload 构造。
-- 单测（ui）：`packages/ui/test/conversationMirrorSync.test.ts`（12 例）——夹具按双机拓扑搭，远端机的本地 scope
+- 单测（ui）：`packages/ui/test/conversationMirrorSync.test.ts`——夹具按双机拓扑搭，远端机的本地 scope
   同时是①方向的来源与②方向的目标、视图 scope 是①的目标与②的来源，避免两边共用一份服务桩而掩盖方向接错。
   覆盖：两个方向各落一个 scope（视图带 identity / 反向不带）、②方向处理本机在远端工作区发起的对话、
   窗口至少 10 条且变大后更旧的记录才进来、目标不更旧不重导、mirror 前缀不被当新来源也不被再搬一次、
   对端不支持时整轮降级、空记录不导入、单条读取失败只跳过该条、本地工作区不做任何镜像。
+  「第四轮修复」补：**水位不前进时连消息都不读**（断言读取次数为 0，这是空转轮的开销来源）、
+  **退避期内不重读但本轮仍报 degraded**、**成功读取后清退避（下一轮恢复读取）**。
+  「第五轮修复」补：**来源列表被镜像副本占满时逐级补页**（断言起始一页 = 30 且确有更大的补页请求、
+  真实来源仍被导入）、**暂时性导入失败报 degraded 而不是 unsupported**、
+  **`-32602` 拒收判 unsupported 且首个失败即中止该方向**。
+- 单测（shared）：`packages/shared/test/conversation-mirror.test.ts` 另需覆盖 `shouldReadMirrorSource`
+  与 `shouldImportMirrorRecord` **同判据**（同一 `updatedAt` 关系下两者结论一致）——这条等价性是
+  「读之前判」能替代「读之后判」的全部依据。
+- 单测（shared 协议）：`packages/shared/test/mode-protocol-*.test.ts` 断言 `file` part 的空 `url`
+  能通过 `modeSessionMessagesResultSchema`（第四轮成因 C 的回归守卫：这条以前会让整条会话读不出来）。
 - CLI 侧（`apps/mode-cli/packages/bootstrap/test/`）：
   `session-messages-cold-read.test.mts` 除冷读语义外，**必须**断言返回值通过
   `modeSessionMessagesResultSchema`（成因 0 的回归守卫——只断言文本内容就漏掉了形状错误，
   这正是它上一轮漏过 ZodError 的原因）；
+  「第五轮修复」再补三条：冷读且无 `afterMessageId` 时 **`limit` 下推到 store**（断言 store 收到的入参
+  就是 `{sessionID, limit}`）、带 `afterMessageId` 时**不下推**、会话带 conversation rewind 账本时**不下推**。
   `imported-history-timestamps.test.mts` 钉住 `remoteMirror` 透传 `createdAt/updatedAt`
   （这是镜像「已同步到哪一版」的水位，被压成 `createdAt` 会导致两端不一致 + 每轮重导），
   以及同一份时间线回填到活跃 record（`applyImportedHistoryTimelineToRecord`）——不回填则
-  sessions-index `lastActivityAt` 落在导入那一刻，镜像按导入顺序排在侧栏最前）。
+  sessions-index `lastActivityAt` 落在导入那一刻，镜像按导入顺序排在侧栏最前。
   **仍缺**：`session/create` 带 `importedHistory.source="remoteMirror"` 端到端落盘为可续聊会话的用例。
+- 单测（adapters）：`apps/mode-cli/packages/adapters/test/session-store-messages-limit.test.mts`——用真实
+  sqlite session store 落 5 条带 part 的消息，钉住 `messages({ sessionID, limit })` 的语义：只取最新 N 条、
+  与全量读的尾部**逐项相等（含 parts）**、limit 超总数返回全部、非法 limit（0 / 负数 / NaN / 非整数）
+  退化成全量读。这条是「下推等价于 `slice(-N)`」这个前提的守卫——只在编排层用桩断言参数会被 SQL 写错蒙混过关。
 - E2E（交互改动必需）：远端工作区连接后镜像会话进入任务列表并可续聊；两端各发起一条对话后对方可见。
 - 验证：`pnpm typecheck`（另需 `pnpm --filter @mode/bootstrap typecheck`）、`pnpm lint`、
   `pnpm architecture:check --changed`，目标包测试按实际入口执行并如实报告。

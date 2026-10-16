@@ -1125,7 +1125,11 @@ export interface SessionStorePort {
     sessionID: SessionId;
     messageID: MessageId;
   }): Promise<MessageWithParts | null>;
-  messages(input: { sessionID: SessionId }): Promise<MessageWithParts[]>;
+  /**
+   * 读会话消息（含 parts）。`limit` 省略即全量读；传入时只返回**最新**的 limit 条，
+   * 语义与全量读再 `slice(-limit)` 一致，但不必把整条会话解码一遍（长会话下这是量级差异）。
+   */
+  messages(input: { sessionID: SessionId; limit?: number }): Promise<MessageWithParts[]>;
   saveSessionEntry?(input: SessionEntryInfo): Promise<void>;
   sessionEntries?(input: {
     sessionID: SessionId;

@@ -218,29 +218,89 @@ export async function removePart(
   );
 }
 
+/**
+ * 消息正序：`sequence` 为空的旧行排在最后，其余按 sequence → time_created → rowid。
+ * 逆序（取最新 N 条）必须与它严格对称——改一处就要同步改另一处，否则「最新 N 条」会错位。
+ */
+const MESSAGE_ORDER_ASCENDING = "sequence is null, sequence, time_created, rowid";
+const MESSAGE_ORDER_DESCENDING =
+  "sequence is null desc, sequence desc, time_created desc, rowid desc";
+const PART_ORDER = "message_id, sequence is null, sequence, time_created, id";
+
+/**
+ * 把可选 limit 归一成「正整数或 undefined」：未传 / 0 / 负数 / NaN / 非整数都表示不限制。
+ * 坏参数退化成全量读，而不是把会话读成空。
+ */
+function resolveMessageLimit(limit: number | undefined): number | undefined {
+  if (typeof limit !== "number" || !Number.isFinite(limit)) {
+    return undefined;
+  }
+  const normalized = Math.floor(limit);
+  return normalized > 0 ? normalized : undefined;
+}
+
+/**
+ * 读会话消息（含 parts）。
+ *
+ * `limit` 省略即全量读（历史行为）。传入时只返回**最新**的 limit 条消息及其 parts，语义与调用方
+ * 先全量读再 `slice(-limit)` 逐项一致，但省掉了对整条会话逐行解码的开销——远端对话镜像单次只读
+ * 200 条，若在长会话上仍把全部消息与 part 取出再丢弃，单次读取耗时就会随历史长度线性增长。
+ */
 export async function messages(
   db: DatabaseSync,
-  input: { sessionID: SessionId },
+  input: { sessionID: SessionId; limit?: number },
 ): Promise<MessageWithParts[]> {
-  const messageRows = db
-    .prepare(
-      `
+  const limit = resolveMessageLimit(input.limit);
+  const messageRows = (
+    limit === undefined
+      ? db
+          .prepare(
+            `
       select * from message
       where session_id = ?
-      order by sequence is null, sequence, time_created, rowid
+      order by ${MESSAGE_ORDER_ASCENDING}
       `,
-    )
-    .all(input.sessionID) as unknown as MessageRow[];
+          )
+          .all(input.sessionID)
+      : db
+          .prepare(
+            `
+      select * from message
+      where session_id = ?
+      order by ${MESSAGE_ORDER_DESCENDING}
+      limit ?
+      `,
+          )
+          .all(input.sessionID, limit)
+  ) as unknown as MessageRow[];
+  if (limit !== undefined) {
+    // 逆序取最新 N 条后再翻回正序，与全量读 + slice(-N) 的结果一致。
+    messageRows.reverse();
+  }
 
-  const partRows = db
-    .prepare(
-      `
+  const partRows = (
+    limit === undefined
+      ? db
+          .prepare(
+            `
       select * from part
       where session_id = ?
-      order by message_id, sequence is null, sequence, time_created, id
+      order by ${PART_ORDER}
       `,
-    )
-    .all(input.sessionID) as unknown as PartRow[];
+          )
+          .all(input.sessionID)
+      : db
+          .prepare(
+            `
+      select * from part
+      where session_id = ? and message_id in (
+        select id from message where session_id = ? order by ${MESSAGE_ORDER_DESCENDING} limit ?
+      )
+      order by ${PART_ORDER}
+      `,
+          )
+          .all(input.sessionID, input.sessionID, limit)
+  ) as unknown as PartRow[];
   const partsByMessage = new Map<string, MessagePart[]>();
 
   for (const row of partRows) {

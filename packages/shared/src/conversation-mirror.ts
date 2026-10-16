@@ -416,14 +416,40 @@ export function buildConversationMirrorImportedHistory(
   };
 }
 
+/**
+ * 水位判据：来源版本是否比目标 scope 现有版本新。目标端没有该会话（或没有 meta）时视为需要处理。
+ *
+ * 「读之前判」与「读之后判」共用一个判据函数：`buildConversationMirrorRecord` 的 `updatedAt`
+ * 直接取 `task.updatedAt`，所以 `shouldReadMirrorSource`（省一次读）与 `shouldImportMirrorRecord`
+ * （权威判定）在同一 `updatedAt` 关系下结论必然一致——前置只是把同一件事提前做。
+ */
+function isMirrorSourceNewer(
+  sourceUpdatedAt: number,
+  targetUpdatedAt: number | null | undefined,
+): boolean {
+  if (typeof targetUpdatedAt !== "number") {
+    return true;
+  }
+  return sourceUpdatedAt > targetUpdatedAt;
+}
+
+/**
+ * 是否值得为这条来源**读一次消息**。读消息是整轮里最贵的一步（单会话最多 200 条消息走 RPC），
+ * 而水位在读取之前就已知——不先判会变成「每轮空转都把全部来源重读一遍」，
+ * 空转轮与真干活轮一样贵，轮次也就永远跑不完（见 spec「2026-10-15 第四轮修复」成因 A）。
+ */
+export function shouldReadMirrorSource(params: {
+  task: ConversationMirrorSourceTask;
+  targetUpdatedAt: number | null | undefined;
+}): boolean {
+  return isMirrorSourceNewer(params.task.updatedAt, params.targetUpdatedAt);
+}
+
 /** 是否需要对这条来源记录执行导入：目标 scope 里已有同一镜像会话且不更旧时跳过。 */
 export function shouldImportMirrorRecord(params: {
   record: ConversationMirrorRecord;
   targetUpdatedAt: number | null | undefined;
 }): boolean {
   // 目标 task meta 的 updatedAt 由会话快照投影而来；用户续聊后它会前进，因此不会反复重导。
-  if (typeof params.targetUpdatedAt !== "number") {
-    return true;
-  }
-  return params.record.updatedAt > params.targetUpdatedAt;
+  return isMirrorSourceNewer(params.record.updatedAt, params.targetUpdatedAt);
 }

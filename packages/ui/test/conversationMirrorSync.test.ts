@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildMirrorImportSessionId } from "@mode/shared/conversation-mirror";
 import { runConversationMirrorSync } from "../src/lib/conversationMirrorSync.js";
+import { createConversationMirrorReadBackoff } from "../src/lib/conversationMirrorReadBackoff.js";
 
 /**
  * 远程工作区对话记录镜像的编排回归（docs/specs/remote-workspace-conversation-mirror.md）。
@@ -55,16 +56,23 @@ function createMachine(params: MachineParams) {
   const createCalls: CreateCall[] = [];
   const readCalls: string[] = [];
   const listScopes: Array<{ workspacePath: string; workspaceIdentity?: string }> = [];
+  /** 每次来源列表读取请求的 limit，用来观测「一页装不下可用来源时逐级补页」。 */
+  const requestedLimits: number[] = [];
 
   const modeTaskService = {
     async listTaskList(query: {
       workspaceScopes: Array<{ workspacePath: string; workspaceIdentity?: string }>;
+      limit?: number;
     }) {
       const scope = query.workspaceScopes[0] ?? { workspacePath: WORKSPACE_PATH };
       listScopes.push(scope);
+      requestedLimits.push(query.limit ?? 0);
       const rows = scope.workspaceIdentity ? (params.viewScope ?? []) : (params.localScope ?? []);
+      // 真实 listTaskList 按 updatedAt 取「最新 N 条」；夹具数组本身就是「新 → 旧」顺序，
+      // 所以直接截前 N 条即可，让补页行为在测试里可观测。
+      const page = typeof query.limit === "number" ? rows.slice(0, query.limit) : rows;
       return {
-        items: rows.map((row) => ({
+        items: page.map((row) => ({
           taskId: row.taskId,
           traceId: `trace-${row.taskId}`,
           title: row.title ?? row.taskId,
@@ -78,7 +86,7 @@ function createMachine(params: MachineParams) {
           archived: false,
         })),
         total: rows.length,
-        hasMore: false,
+        hasMore: page.length < rows.length,
       };
     },
   };
@@ -105,6 +113,7 @@ function createMachine(params: MachineParams) {
     createCalls,
     readCalls,
     listScopes,
+    requestedLimits,
   };
 }
 
@@ -465,4 +474,183 @@ test("同步窗口只处理最新的 N 条：窗口变大后更旧的记录才�
     viewDirectionCalls(wide.createCalls).map((call) => call.sessionId),
     expectedImportOrder(12),
   );
+});
+
+test("水位不前进时连消息都不读：空转轮不再按满负荷重读全部来源", async () => {
+  // 目标 scope 已有同版本镜像会话 → 这条来源没有什么可同步的。
+  const remote = createMachine({
+    localScope: [{ taskId: "peer-1", title: "对端会话", updatedAt: 400 }],
+    viewScope: [
+      { taskId: buildMirrorImportSessionId("peer-1"), title: "已是最新", updatedAt: 400 },
+    ],
+  });
+  const local = createMachine({ localScope: [] });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.importedIntoView, 0);
+  // 读消息是整轮最贵的一步（单会话最多 200 条走 RPC），水位在读取之前就已知：
+  // 「先读后判」会让每轮空转都付出满负荷代价，轮次因此永远跑不完。
+  assert.deepEqual(remote.readCalls, []);
+  assert.deepEqual(local.readCalls, []);
+});
+
+test("读取失败的来源进入退避：下一轮不重读，但本轮仍如实报 degraded", async () => {
+  const remote = createMachine({
+    localScope: [{ taskId: "peer-1", title: "读不出来的会话", updatedAt: 500 }],
+    readMessages: async () => {
+      // 线上形态：file part 的空 url 让整条响应过不了 wire 校验。
+      throw new Error('ZodError: [{"path":["messages",67,"parts",1,"url"]}]');
+    },
+  });
+  const local = createMachine({ localScope: [] });
+  const readBackoff = createConversationMirrorReadBackoff();
+
+  const first = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+    readBackoff,
+  });
+  assert.equal(first.status, "degraded");
+  assert.equal(first.error.includes("parts"), true, "degraded 要带上失败原文，否则 UI 侧无法诊断");
+  assert.deepEqual(remote.readCalls, ["peer-1"]);
+
+  const second = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+    readBackoff,
+  });
+  // 退避期内不再重读同一条来源：否则每轮撞同一个错误、打同一段日志。
+  assert.deepEqual(remote.readCalls, ["peer-1"]);
+  // 但退避不能把「这条会话始终没同步上」洗成 ready。
+  assert.equal(second.status, "degraded");
+});
+
+test("退避清掉后恢复读取，成功一次即把该来源移出退避", async () => {
+  let failing = true;
+  const remote = createMachine({
+    localScope: [{ taskId: "peer-1", title: "先失败后成功的会话", updatedAt: 500 }],
+    readMessages: async () => {
+      if (failing) {
+        throw new Error("boom");
+      }
+      return [textMessage("内容-peer-1")];
+    },
+  });
+  const local = createMachine({ localScope: [] });
+  const readBackoff = createConversationMirrorReadBackoff();
+  const params = {
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+    readBackoff,
+  } as const;
+
+  assert.equal((await runConversationMirrorSync(params)).status, "degraded");
+  assert.deepEqual(remote.readCalls, ["peer-1"]);
+
+  failing = false;
+  // 手动重试语义：hook 的 refresh 先清退避，再跑一轮。
+  readBackoff.reset();
+  const retried = await runConversationMirrorSync(params);
+
+  assert.equal(retried.status, "ready");
+  assert.equal(retried.importedIntoView, 1);
+  assert.deepEqual(remote.readCalls, ["peer-1", "peer-1"]);
+  assert.equal(readBackoff.shouldSkip("peer-1"), undefined);
+});
+
+test("来源列表被镜像副本占满时逐级补页：真实来源仍会同步过来（不再只取固定一页）", async () => {
+  // 40 条镜像副本排在最前（updatedAt 更新）——一台机器用久之后，对端本地 scope 头部的真实形态。
+  // 旧的固定一页口径（maxRecords + windowSize = 30）在这里取不到任何真实来源，更旧的来源就永远同步不过来。
+  const mirrorRows = Array.from({ length: 40 }, (_, index) => ({
+    taskId: buildMirrorImportSessionId(`imported-${index}`),
+    updatedAt: 10_000 - index,
+  }));
+  const remote = createMachine({
+    localScope: [...mirrorRows, { taskId: "peer-real", title: "真实来源", updatedAt: 100 }],
+  });
+  const local = createMachine({ localScope: [] });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  assert.equal(result.status, "ready");
+  assert.equal(result.importedIntoView, 1);
+  assert.ok(
+    remote.createCalls.some((call) => call.sessionId === buildMirrorImportSessionId("peer-real")),
+    "真实来源必须被导入，不能因为一页被镜像副本占满就漏掉",
+  );
+  const firstLimit = remote.requestedLimits[0] ?? 0;
+  assert.equal(firstLimit, 30, "起始一页 = maxRecords(20) + windowSize(10)");
+  assert.ok(
+    remote.requestedLimits.some((limit) => limit > firstLimit),
+    "页内可用来源不足 windowSize 时必须补页",
+  );
+});
+
+test("导入失败是暂时性错误（超时 / 网络）时只跳过该条并报 degraded，不误判为对端版本过低", async () => {
+  const remote = createMachine({
+    localScope: [{ taskId: "peer-1", updatedAt: 500 }],
+    createSession: async () => {
+      throw new Error("mode-protocol request timed out after 180000ms");
+    },
+  });
+  const local = createMachine({ localScope: [] });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  // 一次抖动不该把整轮方向判死，更不该给出「对端版本过低」这个错误理由。
+  assert.equal(result.status, "degraded");
+  assert.match(result.error, /timed out/);
+});
+
+test("对端以 -32602 拒绝导入载荷时判为版本过低（即使错误文案没带字段名）", async () => {
+  const remote = createMachine({
+    localScope: [
+      { taskId: "peer-1", updatedAt: 500 },
+      { taskId: "peer-2", updatedAt: 400 },
+    ],
+    createSession: async () => {
+      throw Object.assign(new Error("Invalid params"), { code: -32602 });
+    },
+  });
+  const local = createMachine({ localScope: [] });
+
+  const result = await runConversationMirrorSync({
+    workspacePath: WORKSPACE_PATH,
+    viewServices: remote.services,
+    viewWorkspaceIdentity: VIEW_IDENTITY,
+    localServices: local.services,
+    isRemoteTarget: true,
+  });
+
+  assert.equal(result.status, "unsupported");
+  assert.equal(remote.createCalls.length, 1, "首个失败即中止该方向，不再逐条重撞同一个错误");
 });

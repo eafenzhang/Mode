@@ -379,7 +379,12 @@ export const modeMessagePartSchema = z.discriminatedUnion("type", [
       type: z.literal("file"),
       mime: nonEmptyString,
       filename: z.string().optional(),
-      url: nonEmptyString,
+      // url 允许空串：按路径引用的附件在存储里就是 `url: ""`（生产者
+      // `core/src/runtime/helpers/attachments.ts` 的 `url: attachment.content ?? ""`，
+      // telemetry 也把这种形态单列为 "empty"）。这里原来要求非空，导致**整条**
+      // session/messages 响应校验失败、该会话再也读不出来（镜像因此每轮重试同一条）。
+      // 消费端按真值判断（attachments.tsx 的 `data.url`），空串等价「不可渲染」。
+      url: z.string(),
       metadata: jsonObjectSchema.optional(),
     })
     .strict(),

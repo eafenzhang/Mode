@@ -28,14 +28,44 @@ function persistedMessage(id: string, text: string): unknown {
   };
 }
 
-function fakeStore(session: unknown, messages: unknown[], calls: string[] = []) {
+/**
+ * 带附件（file part）的持久化消息。`url` 按路径引用附件时就是空字符串
+ * （生产者：`core/src/runtime/helpers/attachments.ts` 的 `url: attachment.content ?? ""`），
+ * wire 合同必须容忍它——旧合同要求非空，导致**整条** `session/messages` 响应校验失败，
+ * 该会话再也读不出来（镜像因此每轮重试同一条，见 spec「第四轮修复」成因 C）。
+ */
+function persistedFileMessage(id: string, url: string): unknown {
+  return {
+    info: { id, sessionID: SESSION_ID, role: "user", time: { created: 1 }, agent: "mode-agent" },
+    parts: [
+      { id: `${id}-p0`, sessionID: SESSION_ID, messageID: id, type: "text", text: "看看这个文件" },
+      {
+        id: `${id}-p1`,
+        sessionID: SESSION_ID,
+        messageID: id,
+        type: "file",
+        mime: "text/plain",
+        filename: "notes.txt",
+        url,
+      },
+    ],
+  };
+}
+
+function fakeStore(
+  session: unknown,
+  messages: unknown[],
+  calls: string[] = [],
+  messageReads: unknown[] = [],
+) {
   return {
     async getSession() {
       calls.push("getSession");
       return session;
     },
-    async messages() {
+    async messages(input: unknown) {
       calls.push("messages");
+      messageReads.push(input);
       return messages;
     },
   };
@@ -115,6 +145,59 @@ test("冷读沿用 limit / afterMessageId 切片语义", async () => {
   );
 });
 
+test("limit 下推到 store：冷读且无 afterMessageId 时只取最新 N 条，不再全量取出再切片", async () => {
+  const messageReads: unknown[] = [];
+  const { context } = makeContext(
+    fakeStore(
+      { id: SESSION_ID },
+      [persistedMessage("m1", "a"), persistedMessage("m2", "b"), persistedMessage("m3", "c")],
+      [],
+      messageReads,
+    ),
+  );
+
+  await readMessages(context, { sessionId: SESSION_ID, limit: 2 });
+
+  // 关键：limit 交给查询，而不是「全量读 + slice(-limit)」——后者在长会话上把整条历史都解码一遍
+  // （docs/specs/remote-workspace-conversation-mirror.md「第五轮修复」）。
+  assert.deepEqual(messageReads, [{ sessionID: SESSION_ID, limit: 2 }]);
+});
+
+test("带 afterMessageId 时不下推 limit：锚点可能落在窗口之外，必须全量读后再切片", async () => {
+  const messageReads: unknown[] = [];
+  const { context } = makeContext(
+    fakeStore(
+      { id: SESSION_ID },
+      [persistedMessage("m1", "a"), persistedMessage("m2", "b")],
+      [],
+      messageReads,
+    ),
+  );
+
+  await readMessages(context, { sessionId: SESSION_ID, afterMessageId: "m1", limit: 2 });
+
+  assert.deepEqual(messageReads, [{ sessionID: SESSION_ID }]);
+});
+
+test("会话带对话 rewind 账本时不下推 limit：投影要按旧分支裁剪，输入被截断结果会不同", async () => {
+  const messageReads: unknown[] = [];
+  const { context } = makeContext(
+    fakeStore(
+      {
+        id: SESSION_ID,
+        revert: { createdMessageID: "m2", targetMessageID: "m1" },
+      },
+      [persistedMessage("m1", "a"), persistedMessage("m2", "b"), persistedMessage("m3", "c")],
+      [],
+      messageReads,
+    ),
+  );
+
+  await readMessages(context, { sessionId: SESSION_ID, limit: 2 });
+
+  assert.deepEqual(messageReads, [{ sessionID: SESSION_ID }]);
+});
+
 test("session 根本不存在时保持 sessionUnavailable，不伪装成空会话", async () => {
   const { context } = makeContext(fakeStore(null, []));
 
@@ -137,4 +220,25 @@ test("没有 session store 时同样失败，不静默返回空列表", async ()
       return true;
     },
   );
+});
+
+test("按路径引用的附件（file part 的空 url）不再让整条会话读取失败", async () => {
+  const { context } = makeContext(
+    fakeStore({ id: SESSION_ID }, [persistedFileMessage("m1", "")]),
+  );
+
+  const result = await readMessages(context, { sessionId: SESSION_ID });
+
+  const parsed = modeSessionMessagesResultSchema.safeParse(result);
+  assert.equal(parsed.success, true, parsed.success ? "" : JSON.stringify(parsed.error.issues));
+  const filePart = result.messages[0]?.parts[1];
+  assert.equal(filePart?.type, "file");
+  assert.equal(filePart?.url, "");
+
+  // 放宽只针对「空串」：url 仍是必填字符串，不能顺势变成任意值。
+  const notAString = await readMessages(
+    makeContext(fakeStore({ id: SESSION_ID }, [persistedFileMessage("m1", 0 as never)])).context,
+    { sessionId: SESSION_ID },
+  );
+  assert.equal(modeSessionMessagesResultSchema.safeParse(notAString).success, false);
 });

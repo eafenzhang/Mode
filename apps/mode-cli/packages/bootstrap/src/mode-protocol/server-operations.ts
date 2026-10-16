@@ -1912,9 +1912,13 @@ export async function readMessages(context: ModeProtocolAgentServerContext, rawP
   // store 结果再套一层 rewind 投影。若沿用 requireSession 抛错，远程工作区对话镜像就永远读不到
   // 对端任何一条记录（docs/specs/remote-workspace-conversation-mirror.md 不变量 7）。
   const record = context.sessions.get(params.sessionId);
+  // `limit` 只在「取最新 N 条」这一种语义下才能下推到存储查询。带 `afterMessageId` 时锚点可能落在
+  // 窗口之外，必须先全量读再切片；活跃路径还要套 rewind 投影，同样保持全量（活跃会话通常只有一条）。
+  const pushDownLimit =
+    !params.afterMessageId && params.limit && params.limit > 0 ? params.limit : undefined;
   const allMessages = record
     ? await readActiveSessionMessages(context, record)
-    : await readColdSessionMessages(context, params.sessionId);
+    : await readColdSessionMessages(context, params.sessionId, pushDownLimit);
   const afterMessageIndex = params.afterMessageId
     ? allMessages.findIndex((message) => String(message.info.id) === params.afterMessageId)
     : -1;
@@ -3490,9 +3494,11 @@ async function createRecord(
 async function readPersistedSessionMessages(
   context: ModeProtocolAgentServerContext,
   sessionId: string,
+  limit?: number,
 ): Promise<MessageWithParts[]> {
   return await (context.deps.sessionStore?.messages({
     sessionID: sessionId as SessionId,
+    ...(limit !== undefined ? { limit } : {}),
   }) ?? []);
 }
 
@@ -3863,6 +3869,7 @@ async function readActiveSessionMessages(
 async function readColdSessionMessages(
   context: ModeProtocolAgentServerContext,
   sessionId: string,
+  limit?: number,
 ): Promise<MessageWithParts[]> {
   const sessionStore = context.deps.sessionStore;
   const session = sessionStore ? await sessionStore.getSession(sessionId as SessionId) : null;
@@ -3874,9 +3881,24 @@ async function readColdSessionMessages(
       `Session is not active: ${sessionId}`,
     );
   }
+  // 只有「投影是恒等函数」时才能把 limit 下推到存储。会话带 conversation rewind 账本时投影会按旧分支
+  // 裁剪历史，输入被截断会让结果与全量读不同——所以那种会话照旧全量读。
+  const canPushDownLimit = limit !== undefined && !hasConversationRewind(session);
   // 复用冷恢复路径同一个只读入口，不另起第二份「从 store 取消息」的实现。
-  const messages = await readPersistedSessionMessages(context, sessionId);
+  const messages = await readPersistedSessionMessages(
+    context,
+    sessionId,
+    canPushDownLimit ? limit : undefined,
+  );
   return projectActiveSessionMessages(messages, session, []);
+}
+
+/**
+ * 会话是否带「对话 rewind」账本。有它时 `projectActiveSessionMessages` 会按 `created/target` 裁剪
+ * 历史（见 `applyRewindBranch`），因此读消息不能只取尾部窗口。
+ */
+function hasConversationRewind(session: SessionInfo): boolean {
+  return Boolean(session.revert?.createdMessageID && session.revert?.targetMessageID);
 }
 
 async function readSessionRewindEvents(

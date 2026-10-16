@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { IServiceAccessor } from "@mode/services";
 import { runConversationMirrorSync } from "@/lib/conversationMirrorSync.js";
+import {
+  createConversationMirrorReadBackoff,
+  type ConversationMirrorReadBackoff,
+} from "@/lib/conversationMirrorReadBackoff.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { logger } from "@/logger.js";
 import {
@@ -21,6 +25,9 @@ const MIRROR_RESYNC_DEBOUNCE_MS = 1_200;
  * （`resolveImportedHistoryTimestamps`），对端是旧版本时会退回 `createdAt`，
  * 于是每轮都判定「来源更新」→ 再导 → 再发事件。间隔下限把最坏情况收敛成低频空转，
  * 而不是持续重导。
+ *
+ * 注意：间隔按「距上轮**开始**」计，所以它只负责压抖动——真正防自激的是「同一 workspace
+ * 同时只跑一轮」（见下），否则一轮要几分钟时每个事件都会叠一轮，读取堆成队列、越等越慢。
  */
 const MIRROR_RESYNC_MIN_INTERVAL_MS = 20_000;
 
@@ -31,8 +38,14 @@ const MIRROR_RESYNC_MIN_INTERVAL_MS = 20_000;
  * - `enabled`（远端连接就绪）后跑一轮；同一 workspaceKey + 连接代次 + 窗口只跑一次；
  * - `windowSize` 变大（用户在侧栏「展开更多」）时按新窗口重跑，导入量随可见列表增长；
  * - 两个来源 scope 出现 `workspace_task_list_changed` 时防抖重跑，让两端新发起的对话自动传过去
- *   （只挂载时跑一轮的话，连接之后任一端新开的对话永远到不了另一端）；相邻两轮有间隔下限，
- *   避免镜像自身的写入触发无休止重跑。
+ *   （只挂载时跑一轮的话，连接之后任一端新开的对话永远到不了另一端）。
+ *
+ * **同一 workspace 同时只跑一轮**：轮次在跑时到达的触发只置 `pending`，当前轮结束后补跑一次。
+ * 允许叠轮的话，一轮几分钟 + 事件每几十秒一次 = 读取永远在排队，单次读取从秒级涨到百秒级，
+ * 同步再也跑不完（spec「第四轮修复」成因 B）。
+ *
+ * 读取失败按来源退避（见 `createConversationMirrorReadBackoff`）：稳定读不出来的会话不再每轮重撞，
+ * 但仍然计入 degraded 状态。
  *
  * 同步失败只落到 store 状态（不抛出），镜像不阻断主链路。
  */
@@ -68,6 +81,20 @@ export function useWorkspaceConversationMirror(params: {
   const runIdRef = useRef(0);
   const resyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRunStartedAtRef = useRef(0);
+  /** 本轮是否在跑：轮次串行化的守卫（同一 hook 实例 = 同一 workspace 行）。 */
+  const runningRef = useRef(false);
+  /** 跑动期间到达的触发：结束后补跑一次，不叠加。 */
+  const pendingResyncRef = useRef(false);
+  /** 读取失败的退避表：一次挂载一份，故意不进 store（重挂载重试一次是期望行为）。 */
+  const readBackoffRef = useRef<ConversationMirrorReadBackoff | null>(null);
+  const unmountedRef = useRef(false);
+
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
 
   const state = useConversationMirrorStore((store) =>
     selectWorkspaceConversationMirror(store, workspacePath, workspaceIdentity),
@@ -81,10 +108,17 @@ export function useWorkspaceConversationMirror(params: {
     if (lastRunKeyRef.current === runKey) {
       return;
     }
+    if (runningRef.current) {
+      // 已有一轮在跑：不叠一轮，只记「结束后补跑一次」。
+      pendingResyncRef.current = true;
+      return;
+    }
     lastRunKeyRef.current = runKey;
     lastRunStartedAtRef.current = Date.now();
     const runId = (runIdRef.current += 1);
     const isCurrentRun = (): boolean => runIdRef.current === runId;
+    const readBackoff = (readBackoffRef.current ??= createConversationMirrorReadBackoff());
+    runningRef.current = true;
 
     const store = useConversationMirrorStore.getState();
     store.setMirrorSyncing(workspacePath, workspaceIdentity);
@@ -96,10 +130,12 @@ export function useWorkspaceConversationMirror(params: {
       localServices,
       isRemoteTarget,
       windowSize,
-      onWarning: (message, error) => {
+      readBackoff,
+      onWarning: (message) => {
         // 必须走 lifecycle：logger.warn 在生产构建里被门控成 no-op，镜像的失败诊断会整条丢失，
         // 排查时「日志里没有镜像告警」会被误读成「没跑过」（见 packages/ui/src/logger.ts）。
-        logger.lifecycle.warn("[conversation-mirror]", message, error);
+        // 只传已截断的文案：原始 error 对象序列化成 `{}`，既丢信息又可能把整段校验明细灌进日志。
+        logger.lifecycle.warn("[conversation-mirror]", message);
       },
     })
       .then((result) => {
@@ -128,6 +164,15 @@ export function useWorkspaceConversationMirror(params: {
         useConversationMirrorStore
           .getState()
           .setMirrorError(workspacePath, workspaceIdentity, error);
+      })
+      .finally(() => {
+        runningRef.current = false;
+        if (pendingResyncRef.current) {
+          pendingResyncRef.current = false;
+          if (!unmountedRef.current) {
+            setRefreshNonce((nonce) => nonce + 1);
+          }
+        }
       });
   }, [
     enabled,
@@ -199,6 +244,8 @@ export function useWorkspaceConversationMirror(params: {
   }, [enabled, isRemoteTarget, viewServices, workspacePath, workspaceIdentity]);
 
   const refresh = useCallback(() => {
+    // 手动重试必须是真重试：先清退避，否则刚失败过的来源会被自己的冷静期挡在门外。
+    readBackoffRef.current?.reset();
     setRefreshNonce((nonce) => nonce + 1);
   }, []);
 

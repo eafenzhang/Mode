@@ -294,3 +294,30 @@ test("是否需要导入：目标缺失或更旧才导入（用户续聊后目�
   assert.equal(shouldImportMirrorRecord({ record, targetUpdatedAt: 100 }), false);
   assert.equal(shouldImportMirrorRecord({ record, targetUpdatedAt: 200 }), false);
 });
+
+test("读之前判与读之后判同判据：同一 updatedAt 关系下两者结论一致", async () => {
+  const { shouldImportMirrorRecord, shouldReadMirrorSource } = await import(
+    "../src/conversation-mirror.js"
+  );
+  // `buildConversationMirrorRecord` 的 updatedAt 直接取 task.updatedAt，
+  // 所以「省掉一次读」的前置判定必须在任何水位组合下都跟权威判定一致——
+  // 不一致就会出现「跳过读取但本该导入」的静默漏同步。
+  const task = { taskId: "ses-1", title: "t", createdAt: 1, updatedAt: 100 };
+  const record = {
+    sessionId: "ses-1",
+    title: "t",
+    createdAt: 1,
+    updatedAt: 100,
+    messageCount: 1,
+    truncated: false,
+    messages: [{ role: "user" as const, text: "x" }],
+  };
+
+  for (const targetUpdatedAt of [undefined, 99, 100, 200]) {
+    assert.equal(
+      shouldReadMirrorSource({ task, targetUpdatedAt }),
+      shouldImportMirrorRecord({ record, targetUpdatedAt }),
+      `targetUpdatedAt=${String(targetUpdatedAt)} 时两个判据必须一致`,
+    );
+  }
+});
