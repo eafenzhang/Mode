@@ -79,6 +79,17 @@ await withIsolatedRoots(async ({ dataRoot, cwd }) => {
   process.stdout.write("\n### local_setting ###\n");
   await dumpLocalSetting(dataRoot);
 
+  // 累积的边界：**同一条规则再来一次**会不会去重？「一次勾选带几条规则」？
+  //
+  // **必须换一个全新的隔离根**：同一个 dataRoot+cwd 下 a.txt/b.txt 已经被上面的会话允许过，
+  // 规则生效后审批请求根本不会发（实测 `重复写：审批请求 0 次`），那样等于什么都没探到。
+  process.stdout.write(`\n########## 累积边界（全新隔离根）##########\n`);
+  await withIsolatedRoots(async (fresh) => {
+    await runDuplicateSession(fresh.dataRoot, fresh.cwd);
+    process.stdout.write("\n### 重复之后 ###\n");
+    await dumpLocalSetting(fresh.dataRoot);
+  }, { "a.txt": "a0\n", "b.txt": "b0\n" });
+
   // 第二个 cwd：验证 scope_id 的 slug 形状与「两个项目互不污染」。
   const otherCwd = await mkdtemp(join(tmpdir(), "mode-probe-ws-other-"));
   try {
@@ -106,3 +117,47 @@ await withIsolatedRoots(async ({ dataRoot, cwd }) => {
     await rm(otherCwd, { recursive: true, force: true });
   }
 }, { "a.txt": "a0\n", "b.txt": "b0\n", "c.txt": "c0\n" });
+
+/**
+ * 三次 `allow_project`：a.txt → b.txt → **a.txt 再来一次**（同 toolName+ruleContent）。
+ * 观察 allow[] 是「追加」还是「去重」，以及一次更新里带了几条规则。
+ */
+async function runDuplicateSession(dataRoot: string, cwd: string): Promise<void> {
+  const targets = ["a.txt", "b.txt", "a.txt"];
+  const requests: Record<string, unknown>[] = [];
+  const session = await startOracleRuntime({
+    dataRoot,
+    cwd,
+    script: [
+      ...targets.flatMap((name) => [
+        { toolCalls: [{ name: "Read", input: { file_path: `\${cwd}/${name}` } }] },
+        { toolCalls: [{ name: "Write", input: { file_path: `\${cwd}/${name}`, content: "z\n" } }] },
+      ]),
+      { text: "dup done" },
+    ],
+    onRawFrame: (frame) => {
+      if (frame.method === "interaction/requestPermission") {
+        requests.push(frame.params as Record<string, unknown>);
+      }
+    },
+    permissionReply: (params) => optionResponse(params, "allow_project"),
+  });
+  try {
+    await session.send("dup writes");
+    await drain(session.events);
+    process.stdout.write(
+      `\n== 重复写：审批请求 ${requests.length} 次（第 3 次是 a.txt 的重放）==\n`,
+    );
+    for (const [index, request] of requests.entries()) {
+      const options = Array.isArray(request.options) ? request.options : [];
+      const project = options.find(
+        (raw) => (raw as { optionId?: unknown }).optionId === "allow_project",
+      ) as { response?: { permissionUpdates?: unknown[] } } | undefined;
+      process.stdout.write(
+        `  #${index} rules: ${JSON.stringify(project?.response?.permissionUpdates)}\n`,
+      );
+    }
+  } finally {
+    await session.stop();
+  }
+}
