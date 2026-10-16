@@ -24,6 +24,7 @@ use std::fs;
 
 use serde_json::Value;
 
+use crate::messages::{validation_error, CREATED_TEMPLATE, NOT_READ_MESSAGE, UPDATED_TEMPLATE};
 use crate::path_policy::{empty_path_error, resolve};
 use crate::{unimplemented_surface, FileState, ToolContext, ToolError, ToolOutcome};
 
@@ -51,29 +52,12 @@ pub const WRITE_INPUT_SCHEMA: &str = r#"{
   "$schema": "https://json-schema.org/draft/2020-12/schema"
 }"#;
 
-/// 新建成功的正文模板（`{path}` 处填**原样入参**，不是解析后的绝对路径——夹具 `write-relative-path`）。
-pub const CREATED_TEMPLATE: &str = "File created successfully at: {path} (file state is current in your context — no need to Read it back)";
-/// 覆盖成功的正文模板（同上，`{path}` 是原样入参）。
-pub const UPDATED_TEMPLATE: &str = "The file {path} has been updated successfully. (file state is current in your context — no need to Read it back)";
-/// 覆盖未读文件时的失败文案（逐字）。
-pub const NOT_READ_MESSAGE: &str =
-    "File has not been read yet. Read it first before writing to it.";
-/// 入参校验失败的文案（逐字；`Write` 与 `Edit` 共用）。
-pub const VALIDATION_MESSAGE: &str = "Tool input failed inputSchema validation";
+// 成功文案与「未读」文案由 `crate::messages` 持有——`Edit` 用的是**逐字相同**的那几条，
+// 两份必然漂。这里只留 `Write` 独有的错误码。
 
 /// 解析 [`WRITE_INPUT_SCHEMA`]（同一份常量，供注册表用）。
 pub fn write_input_schema() -> Value {
     serde_json::from_str(WRITE_INPUT_SCHEMA).expect("WRITE_INPUT_SCHEMA 是合法 JSON（有单测钉住）")
-}
-
-/// 入参校验失败的答复（观察到的形状：有 `code`、**无 `detail`**）。
-pub fn validation_error() -> ToolError {
-    ToolError {
-        error_type: "tool_execution_failed",
-        message: VALIDATION_MESSAGE.to_string(),
-        code: Some("TOOL_EXECUTION_FAILED"),
-        detail: None,
-    }
 }
 
 /// 覆盖未读文件的答复——`detail` 是 `code=write_file_not_read`（与 `Edit` 的**不同**，

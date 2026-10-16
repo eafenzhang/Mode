@@ -172,9 +172,9 @@ impl Session {
                     match (&call.name[..], &result) {
                         // 读成功 → 记进去重表，同时进入「本会话碰过它」集合。
                         ("Read", Ok(_)) => self.file_state.record(&call.input, &context),
-                        // 写成功 → 该文件也进入「已读」状态（观察：成功文案自述
+                        // 写/编辑成功 → 该文件也进入「已读」状态（观察：成功文案自述
                         // 「file state is current in your context — no need to Read it back」）。
-                        ("Write", Ok(_)) => {
+                        ("Write" | "Edit", Ok(_)) => {
                             if let Some(file_path) =
                                 call.input.get("file_path").and_then(Value::as_str)
                             {

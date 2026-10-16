@@ -82,24 +82,27 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-write-rules.mts
 
 ---
 
-### Task B：`Edit` 的行为对拍
+### Task B：`Edit` 的行为对拍（**已完成，2026-10-17**）
 
 **Files:**
-- Create: `crates/agent-tools/src/edit.rs`
-- Create: `crates/agent-tools/tests/edit_parity.rs`
-- Create: `packages/desktop/tests/agent-runtime-oracle/fixtures/edit-*.json`
-- Modify: `packages/desktop/tests/agent-runtime-oracle/probe-write.mts`（加 `edit` 探针组补观察）
+- Create: `crates/agent-tools/src/edit.rs`、`crates/agent-tools/src/messages.rs`（`Write`/`Edit` 逐字相同的文案共用一份）
+- Create: `packages/desktop/tests/agent-runtime-oracle/fixtures/edit-*.json`（10 条，由 `record.mts` 录）
+- Create: `packages/desktop/tests/agent-runtime-oracle/probe-edit.mts`（17 组观察）
+- Create: `packages/desktop/tests/agent-runtime-oracle/fixtures-write.mts`（写工具的夹具从 `fixtures.mts` 拆出，守 `max-lines`）
 
-**Interfaces:**
-- Produces: `agent_tools::edit::spec()` 与 `invoke` 分支。
+- [x] **Step B1：把 `Edit` 的行为观察补全**——结论落 spec §3.3.1（**检查顺序**表 + 六档错误码
+      + 成功文案两条 + 纯子串匹配口径）。为定顺序专门加了 5 组「两条判据同时成立」的探针。
+- [x] **Step B2–B5：录夹具 → 对拍用例 → 实现 → 跑通**——10 条夹具覆盖 `code=1/3/4/6/8/9` 六档
+      与三种成功文案；`agent-core` 32 passed、oracle 73 passed。
 
-- [ ] **Step B1：先把 `Edit` 的行为观察补全**
+**B 阶段落地时才发现的两条**（都是「形状只能从 oracle 拿」的实例）：
 
-§3.3 目前只观察到「未读就编辑 → 报错」这一条。**开工第一件事**是把这些探完并录进 §3.3：
-替换必须唯一（重复串的报错文案）、`old_string` 不存在、`new_string == old_string`、
-`replace_all` 的语义、成功文案、是否也写 `readFileState`、多行 `old_string` 的匹配口径。
-
-- [ ] **Step B2：录夹具 → Step B3：写失败的对拍用例 → Step B4：实现 `Edit` → Step B5：跑通提交**
+1. `new_string` 为空、`old_string` 非空时，**空 `old_string` 在文件不存在时等于「新建」**——
+   而它的成功文案是 **UPDATED 那条**（`The file … has been updated successfully.`），
+   **不是** `Write` 的「File created successfully at: …」。第一版照 `Write` 抄，被
+   `edit-empty-old-creates` 夹具当场判红。
+2. `replace_all: true` 的成功文案**只看这个开关**，不看实际命中几次（只命中 1 次时仍是
+   「All occurrences were successfully replaced.」）。
 
 ---
 

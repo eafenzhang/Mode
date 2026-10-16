@@ -405,3 +405,55 @@ fn write_precondition_is_scoped_to_the_session() {
         "未读覆盖的失败文案应与录制一致"
     );
 }
+
+// ---- Task 3 Task B：`Edit` 的对拍（spec §3.3.1 的观察出处）。
+
+#[test]
+fn edit_unique_parity() {
+    assert_parity("edit-unique");
+}
+
+#[test]
+fn edit_replace_all_parity() {
+    assert_parity("edit-replace-all");
+}
+
+#[test]
+fn edit_not_found_parity() {
+    assert_parity("edit-not-found");
+}
+
+#[test]
+fn edit_ambiguous_parity() {
+    assert_parity("edit-ambiguous");
+}
+
+#[test]
+fn edit_same_string_parity() {
+    assert_parity("edit-same-string");
+}
+
+#[test]
+fn edit_no_read_parity() {
+    assert_parity("edit-no-read");
+}
+
+#[test]
+fn edit_missing_file_parity() {
+    assert_parity("edit-missing-file");
+}
+
+#[test]
+fn edit_empty_old_creates_parity() {
+    assert_parity("edit-empty-old-creates");
+}
+
+#[test]
+fn edit_empty_old_existing_parity() {
+    assert_parity("edit-empty-old-existing");
+}
+
+#[test]
+fn edit_missing_new_string_parity() {
+    assert_parity("edit-missing-new-string");
+}

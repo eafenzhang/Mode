@@ -38,6 +38,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod edit;
+mod messages;
 mod path_policy;
 pub mod read;
 /// 测试支撑（投影助手）。放在库里是为了让 `agent-core` 的对拍用例复用**同一份**投影，
@@ -46,6 +48,7 @@ pub mod read;
 pub mod test_support;
 pub mod write;
 
+pub use edit::{edit_input_schema, EDIT_DESCRIPTION, EDIT_INPUT_SCHEMA};
 pub use read::{
     estimated_tokens, FileState, READ_DESCRIPTION, READ_INPUT_SCHEMA, TOKEN_LIMIT, WASTED_CALL,
 };
@@ -195,6 +198,12 @@ pub fn registry() -> Vec<ToolSpec> {
             schema: write_input_schema(),
             read_only: false,
         },
+        ToolSpec {
+            name: "Edit",
+            family: ModeToolFamily::FileWrite,
+            schema: edit_input_schema(),
+            read_only: false,
+        },
     ]
 }
 
@@ -224,6 +233,7 @@ pub fn invoke_by_name(
     match tool_name {
         "Read" => read::invoke(args, ctx),
         "Write" => write::invoke(args, ctx, files),
+        "Edit" => edit::invoke(args, ctx, files),
         other => Err(not_found(other)),
     }
 }

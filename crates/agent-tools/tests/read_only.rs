@@ -149,14 +149,15 @@ fn read_only_tools_leave_the_workspace_untouched() {
 fn registry_contains_only_read_from_the_read_only_slice() {
     let specs = registry();
     let names: Vec<&str> = specs.iter().map(|spec| spec.name).collect();
-    assert_eq!(names, vec!["Read", "Write"]);
+    assert_eq!(names, vec!["Read", "Write", "Edit"]);
     assert_eq!(specs[0].family, ModeToolFamily::FileRead);
     assert!(specs[0].read_only);
-    assert_eq!(specs[1].family, ModeToolFamily::FileWrite);
-    assert!(
-        !specs[1].read_only,
-        "`Write` 的 `started` 事件是 `readOnly:false` / `sideEffectScope:\"workspace\"`"
-    );
+    // 两个写工具：`file-write` 档、非只读——`started` 事件是
+    // `readOnly:false` / `sideEffectScope:"workspace"`（夹具 `write-new` 的录制）。
+    for spec in &specs[1..] {
+        assert_eq!(spec.family, ModeToolFamily::FileWrite);
+        assert!(!spec.read_only, "{} 不该是只读的", spec.name);
+    }
     // 未注册的三个：Glob / Grep（Task 2 实测）与 ApplyPatch（Task 3 实测）都不在表里。
     for absent in ["Glob", "Grep", "ApplyPatch"] {
         assert!(

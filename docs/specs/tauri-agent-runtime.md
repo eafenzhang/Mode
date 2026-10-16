@@ -320,6 +320,41 @@ b
 目标架构中 DB 由 M3 的 Node Host 侧持有（`node:sqlite`）。Rust 侧是直连 sqlite 还是经 Host 代理，
 属架构分叉，需人在 Task 3 子计划里定。
 
+#### 3.3.1 `Edit` 的行为（Task 3 Task B 观察，2026-10-17）
+
+出处：探针 `packages/desktop/tests/agent-runtime-oracle/probe-edit.mts`（17 组，
+含专门探「判据先后」的 5 组）。**判据的先后是探出来的，不是推的**——每组只触发一条错误时看不出顺序。
+
+**检查顺序（逐条有观察）**：
+
+| # | 判据 | 答复 |
+| --- | --- | --- |
+| 1 | `old_string == new_string` | 失败 `No changes to make: old_string and new_string are exactly the same.` / `code=1` / `detail=code=1` |
+| 2 | 文件**不存在** 且 `old_string` 非空 | 失败 `File does not exist. Note: your current working directory is {cwd}.` / `code=4` |
+| 2' | 文件**不存在** 且 `old_string` 为空 | **成功**（把 `new_string` 当内容**新建**该文件），文案同普通成功 |
+| 3 | 文件存在但**本会话没读过** | 失败 `File has not been read yet. Read it first before writing to it.` / `code=6` / `detail=code=6` |
+| 4 | `old_string` 为空（文件存在） | 失败 `Cannot create new file - file already exists.` / `code=3` / `detail=code=3` |
+| 5 | 子串出现 0 次 | 失败 `String to replace not found in file. String: {old_string}` / `code=8` |
+| 6 | 出现 ≥2 次且 `replace_all` 非 true | 失败 `Found {n} matches of the string to replace, but replace_all is false. To replace all occurrences, set replace_all to true. To replace only one occurrence, please provide more context to uniquely identify the instance. String: {old_string}` / `code=9` |
+| 7 | 否则 | **成功**，按 `replace_all` 决定替换一处或全部 |
+
+**先后的决定性样本**：`old==new` + 文件不存在 → 拿到 `code=1`（不是 4）；文件不存在 + 未读 → 拿到
+`code=4`（不是 6）；文件存在 + 未读 + `old==new` → 拿到 `code=1`（不是 6）；未读 + 串不存在 → 拿到
+`code=6`（不是 8）。
+
+**匹配口径**：**纯子串**，不做行/缩进感知——`old_string: "indented"` 在
+`"  indented\nnot indented\n"` 上算 **2 次**（匹配到两行的子串），因此报 `code=9`。
+
+**成功文案**（`{path}` 同样是**原样回显入参**）：
+
+- 不带 `replace_all`：`The file {path} has been updated successfully. (file state is current in your context — no need to Read it back)`
+- 带 `replace_all`：`The file {path} has been updated. All occurrences were successfully replaced. (file state is current in your context — no need to Read it back)`
+  ——**只看 `replace_all` 这个开关，不看实际命中几次**（`replace_all: true` 只命中 1 次时仍是这条）。
+
+`Edit` 与 `Write` 的**同一错误、不同 code**（各自的夹具分开钉，别互相抄）：
+「覆盖未读文件」在 `Write` 是 `code=TOOL_EXECUTION_FAILED` / `detail=code=write_file_not_read`，
+在 `Edit` 是 `code=6` / `detail=code=6`。
+
 ## 4. 对拍可重复性：mock provider
 
 ### 4.1 为什么必须有
