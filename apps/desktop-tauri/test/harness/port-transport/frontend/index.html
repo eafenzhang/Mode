@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>M3 Task 0 · 端口传输 harness</title>
+    <script>
+      // 最早的一行诊断：证明页面 JS 被执行（走 fetch，不依赖 Tauri invoke 是否可用）。
+      fetch("http://127.0.0.1:5176/spike-log?stage=html_inline_ran");
+    </script>
+  </head>
+  <body>
+    <h1>M3 Task 0 · 端口传输 harness</h1>
+    <pre id="out"></pre>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,10 +1,12 @@
 /**
- * M3 Task 0 端口传输 spike 留下的**可回归验证**（无 GUI，可进 CI）：
+ * 覆盖范围：**Host 侧的 stdio 帧 + 真 `ChannelServer`/`ChannelClient` 的 RPC 语义**。
  *
- * 用真实 `packages/rpc` 的 `ChannelClient` 与 `test/fixtures/stdioChannelHost.ts`（真实 `ChannelServer`）
- * 在 stdio 长度前缀帧上做一次真实 RPC——这正是 Tauri 壳与 Host 之间、以及壳与页面之间要搬运的那条
- * 链路的 Node 侧一半。结论与 webview 侧的实测见
- * `docs/plans/2026-10-16-m3-port-transport-spike.md`。
+ * 它 spawn `test/fixtures/stdioChannelHost.mts`（真 `ChannelServer`），用测试自己搭的
+ * `IMessagePassingProtocol` 在 stdio 帧上做真实 Initialize 与真实 promise 往返。
+ * **它不覆盖 webview 端口路径**（`window.postMessage` + transfer、`MessagePortProtocol` 的
+ * 收帧类型、`DatabaseStartupAdmission` 的准入）——那一半由
+ * `test/portMessagePath.test.mts`（Node 侧真实 `MessagePort`，自动化）与
+ * `test/harness/port-transport`（真 webview，人工，见 spike 文档 §3.2）覆盖。
  *
  * 运行：`pnpm --filter @mode/desktop-tauri test`
  */
@@ -14,15 +16,13 @@ import { dirname, resolve } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ChannelClient } from "../../../packages/rpc/src/channelClient.js";
-import { VSBuffer } from "../../../packages/rpc/src/buffer.js";
-import { Emitter } from "../../../packages/rpc/src/foundation.js";
-import type { IChannel } from "../../../packages/rpc/src/channels.shared.js";
-import type { IMessagePassingProtocol } from "../../../packages/rpc/src/protocol.js";
+import { ChannelClient, Emitter, VSBuffer, type IChannel, type IMessagePassingProtocol } from "@mode/rpc";
+
+import { createFrameDecoder, writeFrame } from "./fixtures/stdioFrames.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../..");
-const hostScript = resolve(repoRoot, "apps/desktop-tauri/test/fixtures/stdioChannelHost.ts");
+const hostScript = resolve(repoRoot, "apps/desktop-tauri/test/fixtures/stdioChannelHost.mts");
 
 interface StdioHost {
   child: ChildProcessWithoutNullStreams;
@@ -30,7 +30,7 @@ interface StdioHost {
   stderr: () => string;
 }
 
-/** 与 Rust 壳用的同一套帧格式：[4 字节大端长度][payload]。 */
+/** 与 harness 的壳用同一套帧格式（共用 `writeFrame` / `createFrameDecoder`）。 */
 function startStdioHost(): StdioHost {
   const child = spawn("node", ["--import", "tsx", hostScript], {
     cwd: repoRoot,
@@ -44,27 +44,10 @@ function startStdioHost(): StdioHost {
 
   const messages = new Emitter<VSBuffer>();
   const protocol: IMessagePassingProtocol = {
-    send: (buffer) => {
-      const header = Buffer.alloc(4);
-      header.writeUInt32BE(buffer.buffer.byteLength, 0);
-      child.stdin.write(header);
-      child.stdin.write(Buffer.from(buffer.buffer));
-    },
+    send: (buffer) => writeFrame(child.stdin, buffer.buffer),
     onMessage: messages.event,
   };
-
-  let pending = Buffer.alloc(0);
-  child.stdout.on("data", (chunk: Buffer) => {
-    pending = pending.length === 0 ? chunk : Buffer.concat([pending, chunk]);
-    for (;;) {
-      if (pending.length < 4) return;
-      const length = pending.readUInt32BE(0);
-      if (pending.length < 4 + length) return;
-      const body = pending.subarray(4, 4 + length);
-      pending = pending.subarray(4 + length);
-      messages.fire(VSBuffer.wrap(new Uint8Array(body)));
-    }
-  });
+  child.stdout.on("data", createFrameDecoder((frame) => messages.fire(VSBuffer.wrap(frame))));
 
   return { child, protocol, stderr: () => stderrText };
 }

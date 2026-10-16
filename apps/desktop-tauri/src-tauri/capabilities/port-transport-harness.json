@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "port-transport-harness",
+  "description": "M3 Task 0 端口传输 harness 的窗口能力集（**测试资产**）。窗口 label `port-transport-harness` 在产品里不存在，因此对产品 ACL 无影响。保留它的原因：harness 的 `remote` 模式要复现「即便窗口在 capability 里、且声明了 remote.urls，远端 http 来源仍然拿不到 app 命令」（app 命令不在 allowed_commands 里，而 !is_local 会强制走 ACL）——声明的存在正是这条结论成立的条件。",
+  "local": true,
+  "remote": {
+    "urls": ["http://127.0.0.1:5176"]
+  },
+  "windows": ["port-transport-harness"],
+  "permissions": ["core:default"]
+}

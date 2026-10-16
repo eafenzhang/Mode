@@ -9,6 +9,17 @@ description = "Mode 桌面端 Tauri v2 壳（路线图 M1）"
 name = "ModeTauri"
 path = "src/main.rs"
 
+[features]
+# M3 Task 0 的端口传输 harness（测试资产，见 docs/plans/2026-10-16-m3-port-transport-spike.md）。
+# 用 required-features 门住：默认构建 / `tauri build` / `clippy --all-targets` 都不带它，
+# 只有显式 `--features port-transport-harness` 才编出这个 bin。
+port-transport-harness = []
+
+[[bin]]
+name = "PortTransportHarness"
+path = "src/bin/port_transport_harness.rs"
+required-features = ["port-transport-harness"]
+
 [build-dependencies]
 tauri-build.workspace = true
 

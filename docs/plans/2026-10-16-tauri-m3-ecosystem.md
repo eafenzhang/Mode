@@ -8,8 +8,8 @@
 > 它们的细节取决于 Task 0 的实测结果，现在写满代码块等于产出会作废的计划（M2 计划
 > 用同一条理由，见 `docs/plans/2026-10-16-tauri-agent-runtime.md` 文末）。
 
-**Goal:** 把存量 renderer 挂到 Tauri 壳上，补齐 M1 登记给 M3 的平台面缺口，并把三平台出包与
-体积验证到位——使 Tauri 版从「命令面验收台」变成**可发布的产品**，从而让 M5 有能力把发布线
+**Goal:** 把存量 renderer 挂到 Tauri 壳上，补齐 M1 登记给 M3 的平台面缺口，并把 **Windows 出包**与
+体积验证到位（macOS / Linux 两腿在本阶段**延后**，理由与代价见文末「范围收窄登记」）——使 Tauri 版从「命令面验收台」变成**可发布的产品**，从而让 M5 有能力把发布线
 从旧 Electron 线切过来。
 
 **Architecture:** 渲染层不直接说话，它等待一个 **Host** 经 `MessagePort` 递上
@@ -38,6 +38,9 @@ oracle 驱动思路。
   `git rev-parse upstream/zcode-baseline` 实测是 `aac4755666d09fdcd70272fcf063c077a639015f`。
   开工前先确认哪个是权威，否则接口面判定可能整体错位。这项差异记在本计划里而不是顺手改 spec——
   它是既有文档问题，与 M3 无关但会影响 M3 的纪律执行。〕
+- **接口面的判定**：**一个函数的实现体（function body）不算接口面**。只读「导出签名、类型声明、
+  协议形状、测试断言的输入输出」；确需读某段实体时，必须在任务报告里写明**文件 + 行号范围 +
+  为什么非读不可**（M3 Task 0 的 spike 文档 §9 是这样登记的样本）。
 - **既有语义不得丢失**：`workspaceIdentity` 贯穿、每窗口一个 window-scoped Local Host、
   远程 workspace 由窗口内连接注册表管理（`AGENTS.md` 的「进程、协议与远程控制」）。
   renderer 挂载不得绕过 Host 的 owner/lease 语义。
@@ -51,7 +54,7 @@ oracle 驱动思路。
 
 ---
 
-## 决策记录（开工前先读，DR-M3-1 需要人确认）
+## 决策记录（开工前先读；DR-M3-1 已由人确认，2026-10-16）
 
 取证范围：`packages/desktop/src/{renderer,preload,main,host}/**`、`packages/rpc/src/**`、
 `packages/shared/src/{channels,database-startup}.ts`、`packages/services/src/accessor.ts`。
@@ -89,20 +92,30 @@ Rust 侧要重新建立 oracle）。DR-01 已经把「Node sidecar」定为插�
 **代价（若判错）**：产品将携带 **Node 运行时**，与 M1 验收写的「安装包内**不带任何 Node 运行时**」
 （`docs/specs/tauri-platform-commands.md` §4 末、路线图 M1 验收）**直接冲突**。
 
-**因此本计划的裁决**：**M1 那条口径对「产品阶段」修订**——它描述的是 M1 骨架（纯静态资源）的真实
+**结论（人已于 2026-10-16 确认）**：判据是 **「哪种快就先上哪种」**——Node sidecar 胜出，因为它
+复用存量 TypeScript services 层；把 Host/services 层用 Rust 重写要多写约 45 个服务，而且**没有对拍
+资源**（旧实现是 TS，Rust 侧要重新建立 oracle），慢一个数量级。
+
+**确认后的口径**：**M1 那条口径对「产品阶段」修订**——它描述的是 M1 骨架（纯静态资源）的真实
 状态，成立；但真实 UI 必须由 Host 提供 `IServiceAccessor` 才能挂载，所以产品阶段必然带 Node。
-替代口径改为 **M3 的体积门禁**：核心安装包 ≤30MB（沿用 M3 既有验收），并在 Task 5 实测。
-**若「产品不得带 Node」是硬约束**，唯一替代是把 Host/services 层也用 Rust 实现——那是一次远大于
-本计划的改动（等于新增一个 M2 量级的阶段），需要重新决策而不是在 M3 里硬塞。
+替代口径为 **M3 的体积门禁**：核心安装包 ≤30MB（沿用 M3 既有验收），并在 Task 5 实测。
+**代价已被接受**：产品携带 Node 运行时（`docs/specs/tauri-platform-commands.md` §4 第 6 条已按此口径
+加注）。
+
+**未采取的选项（保留记录）**：把 Host/services 层也用 Rust 实现——那是比本计划大一个量级的改动
+（等于新增一个 M2 量级的阶段）。这条岔路口记在这里而不是删掉：**若日后判定「产品不得带 Node」
+的代价不可接受，要重开的就是这一处。**
 
 ### DR-M3-2：Host sidecar **随包发布**，插件/MCP/Skills 的负载仍按需下载
 
 DR-01 只说了插件宿主「首启按需下载、校验 sha256、健康探测」。但 Host 是**UI 能渲染的前提**：
 若 Host 也按需下载，全新安装 + 断网 = 失败屏，这与 M3 验收的「断网时核心功能全在」直接冲突。
 
-**决策**：Host sidecar（含其 Node 运行时）**随安装包发布**；插件/MCP/Skills 宿主负载保持 DR-01 的
-按需下载。两者是同一份 Node 运行时还是两份，由 Task 1 按体积实测决定（一份更省体积，但会让
-「插件宿主可独立升级」变复杂）。
+**决策（2026-10-16 确认，判据同样取「哪种快就先上哪种」）**：Host sidecar（含其 Node 运行时）
+**随安装包发布**，**不做** CDN 下载 / sha256 校验 / 首启健康探测那一套——按需下载要多出一套
+基础设施与首启 UX，而 Host 是**UI 能渲染的前提**，不能依赖网络。插件/MCP/Skills 宿主负载保持
+DR-01 的按需下载。两者是同一份 Node 运行时还是两份，由 Task 1 按体积实测决定（一份更省体积，
+但会让「插件宿主可独立升级」变复杂）。
 
 **代价（若判错）**：安装包体积上升（Node 运行时本身在历史证据里是 ~50MB 量级：
 `scripts/fnos-fpk/build-lib.ts` 对捆绑 `node` 有 `>50MB` 的异常断言；而
@@ -136,12 +149,12 @@ Electron 有一条 Tauri 没有的路径：preload 里 `contextBridge` + `ipcRen
 | §5 登记项 | 本计划归属 |
 | --- | --- |
 | 存量 renderer 的挂载 | Task 1–3（本阶段主线） |
-| `getApplicationIcon` 的原生图标解码 | Task 4（Windows GDI / macOS `NSWorkspace`） |
+| `getApplicationIcon` 的原生图标解码 | Task 4（Windows GDI；macOS `NSWorkspace` 半边**未实现且本阶段不验**——本阶段没有在范围内的 macOS 构建，写了也验不了） |
 | `saveFile` 的 `sourceUrl` 分支 | Task 4（需要一个带超时/大小上限的 HTTP 取回面） |
 | `onOAuthCallback`/`onPaymentCallback` 之外的订阅型方法 | Task 4（依赖 Host 的事件源，Task 1–3 打通后才有） |
 | 深链的单实例转发 | Task 4（窗口模型：Windows 上点链接不能再起新进程） |
 | Tauri 产物进 Release | **不在本计划**：M5 |
-| 更新链的实际可用（签名密钥、`latest.json`、三平台演练） | **不在本计划**：M5 |
+| 更新链的实际可用（签名密钥、`latest.json`、三平台演练） | **不在本计划**：M5；三平台演练在 M5 之前**由本阶段的延后决定顺延**（见「范围收窄登记」） |
 
 ---
 
@@ -197,8 +210,16 @@ Expected: 同上，记录可行性与**渲染层是否必须改动**。
 
 `docs/plans/2026-10-16-m3-port-transport-spike.md` 至少含：结论（选了哪条路线及为什么）、
 证据（命令 + 原始输出 + 关键 API 名）、**渲染层是否需要改**、以及「Task 1 可以据此开始」的明确
-一句。实验代码按结论处置：能进 tests 的移进 `apps/desktop-tauri/` 的测试面，其余删除——
-不留一次性脚本在仓库里。
+一句。
+
+**复现面必须提交**（2026-10-16 修订，原「不留一次性脚本」口径已作废）：spike 的全部价值在于
+「它证明过某件事」，所以**复现就是产出**——harness 以最小且有文档的形态留在 `apps/desktop-tauri/`
+下、由测试拥有（本次落地：`test/harness/port-transport/` + `test/fixtures/`，Rust 侧 bin 用
+`required-features` 门住，默认构建/`tauri build`/`clippy --all-targets` 都不带它）。
+只有**当已提交的自动化测试覆盖了同一条路径**时，才可以删掉对应的手工 harness；反过来，删掉
+复现面只留一段结论，等于把证据降格为不可复核的断言——**这是本计划第一版的原话，此处更正。**
+
+**在文档里写清覆盖分工**：哪些路径由自动化测试守着、哪些只能人工复现（附确切命令与判据）。
 
 ```bash
 git add docs/plans/2026-10-16-m3-port-transport-spike.md apps/desktop-tauri
@@ -265,18 +286,24 @@ git commit -m "spike(tauri): M3 Task 0——MessagePort 抵达 Tauri webview 的
 ### Task 4: 补齐 §5 登记的平台面缺口
 
 **- [ ] Step 1–5: 大纲**
-`getApplicationIcon` 的原生图标解码（Windows GDI / macOS `NSWorkspace`）、`saveFile` 的
+`getApplicationIcon` 的原生图标解码（Windows GDI；macOS `NSWorkspace` 半边**不在本阶段范围**：无 macOS 构建可验）、`saveFile` 的
 `sourceUrl`（HTTP 取回 + 超时/大小上限）、其余订阅型方法、**深链单实例转发**（窗口模型：
 Windows 上应用在跑时点 `mode://` 必须交给已有实例，不能再起新进程）。
 
 ---
 
-### Task 5: 三平台出包 + 体积门禁（把「可发布」做实）
+### Task 5: **Windows 出包** + 体积门禁（把「可发布」做实）
 
 **- [ ] Step 1–4: 大纲**
-三平台都出真实产物（macOS/Linux 两条腿要解冻）；**实测核心安装包体积并对照 ≤30MB**（这一步同时
-回答 DR-M3-2 的代价）；确认安装包内到底是什么 Node 运行时、放在哪、是否可被用户看见；
-产出交给 M5 的输入清单（产物名、安装方式、更新链需要什么）。
+**Windows 出真实产物**；**实测核心安装包体积并对照 ≤30MB**（这一步同时回答 DR-M3-2 的代价）；
+确认安装包内到底是什么 Node 运行时、放在哪、是否可被用户看见；产出交给 M5 的输入清单
+（产物名、安装方式、更新链需要什么）。
+
+**macOS / Linux 两条腿本阶段不做（2026-10-16 决定，登记而非省略）**：与该决定一致的是 M1 已经
+把这两条 CI 腿挂成 `continue-on-error`（`docs/specs/tauri-platform-commands.md` §8.1），§8.3 也把
+它们的风险登记为未解决。**解冻条件**：本阶段结束后重开，成本主要是 webkit2gtk/libsoup3 的
+发行版差异（Linux）与 aarch64 目标确认（macOS），即 §8.3 那两条已知风险的收口；在此之前
+**不要**把「三平台全绿」当作 M3 的完成条件。
 
 ---
 
@@ -284,7 +311,10 @@ Windows 上应用在跑时点 `mode://` 必须交给已有实例，不能再起�
 
 1. Tauri 壳能渲染**真实产品 UI**（不是验收台），且 Host ready 判定在 30s 内成立；
 2. §5 登记的四项平台面缺口关闭，深链不再起新进程；
-3. 三平台安装包全绿，核心包 ≤30MB，且**实测**说明了 Node 运行时的落点与代价；
+3. **Windows 安装包全绿，核心包 ≤30MB**，且**实测**说明了 Node 运行时的落点与代价；
+   macOS / Linux **未验**，属**本阶段已知边界**（延后决定见「范围收窄登记」；注意
+   `docs/plans/2026-10-09-tauri-rewrite-roadmap.md` 的 M3 验收原文写的是「三平台安装包体积
+   保持核心 ≤30MB」——**本计划对路线图 M3 验收的这一条做了收窄**，且该收窄是经人决定的）；
 4. `clippy -D warnings` 零告警、可跑用例全绿、`pnpm verify:pre-push` 通过；
 5. 交给 M5 的输入清单就位（M5 据此切换发布线、配签名密钥与 `latest.json`）。
 
@@ -296,7 +326,27 @@ Windows 上应用在跑时点 `mode://` 必须交给已有实例，不能再起�
 | 体积失控（Node 运行时 + host 闭包） | Task 5 前就实测闭包体积，而不是最后才发现；DR-M3-2 已把「一份还是两份运行时」留给实测决定 |
 | 原生模块 ABI（`node:sqlite`/`node-pty`/CUA）在 sidecar 里跑不起来 | Task 2 的第一件事就是验证它们，失败即早暴露 |
 | 改渲染层踩 clean-room | renderer 是上游衍生文件：只读接口面；任何改动都写成 Task 0/Task 3 的产出与决策记录 |
+| **三平台延后（macOS/Linux 出包）** | 对冲是「M5 前解冻」，且 Windows 上的体积 / Node 运行时结论对三平台**有可迁移性，但不构成验证**；M5 切换发布线需要三平台产物，因此这笔风险被推到 M5（见「范围收窄登记」） |
 | 与 M2 线争抢同一 checkout / 同一批文件 | 两条线的文件面基本不重叠（M2 在 `crates/agent-*`，M3 在 `crates/sidecar-host` + `apps/desktop-tauri` + `packages/desktop/src/host-standalone`）；提交一律显式路径 |
+
+---
+
+## 范围收窄登记（2026-10-16，经人决定）
+
+**收窄内容**：macOS / Linux 的**出包与体积验证**移出本阶段（Task 5 与阶段验收第 3 条已按此改写）；
+`getApplicationIcon` 的 macOS 半边、以及 M5 的三平台演练一并顺延。
+
+**动机与代价（必须一起读，不能只读「不做」三个字）**：
+
+- 动机：这两条腿在本机无法构建/验证（本机只有 Windows + gnu 工具链；M1 §8.3 已把 Linux 的
+  webkit2gtk/libsoup3 依赖与 macOS 的 aarch64 目标确认登记为**未解决风险**）。先上能验的那条腿，
+  最快把「可发布」做实——与 DR-M3-1 / DR-M3-2 同一条判据（哪种快就先上哪种）。
+- **代价：M5 切换发布线需要三平台产物**，所以这笔风险不是消失了，而是**被推到 M5**。
+  Windows 上得到的体积与 Node 运行时结论对三平台**有可迁移性，但不构成验证**。
+- **与上游权威的不一致（这条是登记的重点）**：`docs/plans/2026-10-09-tauri-rewrite-roadmap.md` 的
+  M3 验收原文写的是「三平台安装包体积保持核心 ≤30MB」。本计划**收窄**了它，且这是**经人决定的范围
+  收窄**；路线图文件本身不改（它是阶段权威，改写它等于把收窄藏起来），收窄只记在本计划与 M3 账本里。
+- 解冻条件见 Task 5 里的那一段（§8.3 两条已知风险的收口）。
 
 ---
 

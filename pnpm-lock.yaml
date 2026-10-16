@@ -94,6 +94,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
     devDependencies:
+      '@mode/rpc':
+        specifier: workspace:*
+        version: link:../../packages/rpc
       '@tauri-apps/cli':
         specifier: ^2
         version: 2.12.3
