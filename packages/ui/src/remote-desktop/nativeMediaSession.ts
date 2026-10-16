@@ -95,6 +95,13 @@ export interface NativeMediaSessionOptions {
 export interface NativeMediaSession {
   /** ready 由 ws open 发出（首条 send 亦作幂等补发保险）；随后原样上行事件对象。 */
   send(event: object): void;
+  /**
+   * 上行通道是否就绪（媒体 WS 处于 OPEN）。
+   * 为什么需要它：`send` 在未 OPEN（会话尚未 open-media / 正在重连）时是**静默 no-op**，
+   * 对「允许丢」的输入透传没问题，但对「送出去才算数」的上行（剪贴板 `{t:"clip"}`：门一旦登记
+   * 该值就再也不会判定为变化）必须先问通道，否则登记成功而发送落空 = 这次同步永久丢失。
+   */
+  isOpen(): boolean;
   ping(ts: number): void;
   /** 时钟偏移标定（被控时钟 − 本端时钟 ≈ hostTs − ts − RTT/2；pong 每拍更新）。 */
   setClockOffset(offsetMs: number): void;
@@ -472,6 +479,10 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         readySent = true;
       }
       socket.send(JSON.stringify(event));
+    },
+    isOpen() {
+      const socket = ws;
+      return socket !== null && socket.readyState === WebSocket.OPEN;
     },
     ping(ts) {
       const socket = ws;

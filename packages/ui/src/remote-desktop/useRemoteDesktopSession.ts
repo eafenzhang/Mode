@@ -623,8 +623,15 @@ export function useRemoteDesktopSession(options: {
       void platform.rdReadClipboardText().then(
         (text) => {
           if (cancelled) return;
+          // 判定与发送必须落在同一拍、对着同一个就绪通道：媒体 WS 未 OPEN 时 `send` 是静默 no-op
+          // （nativeMediaSession.send——`phase === "connected"` 只表示信令通道就绪，媒体 WS 要等
+          // media-open 才建立，helper 更晚），而门只要登记了该值，同一个值就再也不会被判定为变化。
+          // 先登记后送不出 = 一次真实的剪贴板同步永久静默丢失（只有换一个值才会重来）。
+          // 通道没就绪就整拍跳过：值没进过门，通道就绪后的下一拍自然会带上它。
+          const session = sessionRef.current;
+          if (!session?.isOpen()) return;
           if (!clipboardApplierRef.current?.observeLocalText(text)) return;
-          sessionRef.current?.send({ t: "clip", text });
+          session.send({ t: "clip", text });
         },
         (error: unknown) => {
           // 读失败按「本拍无变化」处理：剪贴板争用是常态，不该打断会话。

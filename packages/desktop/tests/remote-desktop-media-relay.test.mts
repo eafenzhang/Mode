@@ -33,6 +33,21 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 const noopLogger = { info(): void {}, warn(): void {} };
 
+/**
+ * 收集日志的 logger：剪贴板同步的两条「未落地」路径（helper 未接通时留存、会话收口/关开关时作废）
+ * 都必须留痕——它们在修复前是**静默**的，静默正是这个缺陷长期不可见的原因。
+ */
+function makeLogCollector(): {
+  logger: { info(...args: unknown[]): void; warn(...args: unknown[]): void };
+  infos: string[];
+  warns: string[];
+} {
+  const infos: string[] = [];
+  const warns: string[] = [];
+  const record = (sink: string[]) => (...args: unknown[]) => sink.push(args.map(String).join(" "));
+  return { logger: { info: record(infos), warn: record(warns) }, infos, warns };
+}
+
 /** 只收集帧的 fake media WS（WsLike 最小鸭子类型；bufferedAmount 由 buffered.amount 可变模拟）。 */
 function makeFakeWs(): {
   ws: WsLike;
@@ -666,5 +681,181 @@ test("剪贴板上行（P1.1b）：主控文本经 kind6 落到 helper；被控�
   } finally {
     helper.destroy();
     relay.close();
+  }
+});
+
+test("剪贴板上行（P1.1b）：helper 未接通期到达的主控文本不丢——接通后补写 kind6", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const { ws: fakeWs, texts } = makeFakeWs();
+  const logs = makeLogCollector();
+  let resolveHelperConnected!: () => void;
+  const helperConnected = new Promise<void>((resolve) => {
+    resolveHelperConnected = resolve;
+  });
+  const relay = createRemoteDesktopMediaRelay({
+    logger: logs.logger,
+    onHelperConnected: () => resolveHelperConnected(),
+  });
+  const port = await relay.listen();
+  const helper = connect({ host: "127.0.0.1", port });
+  const helperFrames: Buffer[] = [];
+  // 监听先于 `connect` 挂上：补写帧是与 helper 注册同拍写出的，晚挂监听会漏读（流暂停只保证不丢字节，
+  // 但不能保证字节还在「已读」列表里——最稳的做法是注册前就把 collector 挂好）。
+  helper.on("data", (chunk) => helperFrames.push(chunk as Buffer));
+  const pendingText = "未接通期的主控值";
+  const pendingFrameBytes = 5 + Buffer.byteLength(pendingText);
+  const framesLength = (): number => Buffer.concat(helperFrames).length;
+  try {
+    // 时序：同意后中继即 listen，主控媒体 WS 随之挂接；helper 要等 MediaStart → rd_media_start
+    // 拉起进程后才连上来。这段「未接通窗口」里到达的 kind6 在修复前被静默丢弃（只有 kind2 打 warn），
+    // 而两侧的门都已把该值登记成 lastSynced——同一个值再也不会被判定为变化，于是这次同步永久丢失。
+    relay.attachWebSocket(fakeWs);
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: pendingText }), false);
+    await once(helper, "connect");
+    await helperConnected;
+    // 接通即补写：kind6 载荷逐字节等于挂起时的原文，且只补一条。
+    await waitFor(() => framesLength() >= pendingFrameBytes, "helper 接通后补写 kind6");
+    const frame = Buffer.concat(helperFrames);
+    assert.equal(frame[4], 6, "补写帧的 kind 必须是 6");
+    assert.equal(frame.subarray(5).toString("utf8"), pendingText);
+    assert.equal(frame.length, pendingFrameBytes, "只补写挂起的那一条（不排队、不重复）");
+    // 补写之后挂起位必须清空：被控端把该值当「本端变化」回弹时仍由门挡住，不会二次下行。
+    relay.handlePipeData(pipeFrame(5, Buffer.from(pendingText, "utf8")));
+    assert.equal(texts.length, 0, "回弹的同值不下行");
+    // 接通后的普通上行不受补写影响：新值照常落 helper 一次。
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: "接通后的新值" }), false);
+    const drained = pendingFrameBytes + 5 + Buffer.byteLength("接通后的新值");
+    await waitFor(() => framesLength() >= drained, "接通后的新值照常落 helper");
+    const after = Buffer.concat(helperFrames);
+    assert.equal(after.length, drained, "新增一次上行只产生一帧");
+    assert.equal(after.subarray(pendingFrameBytes + 5).toString("utf8"), "接通后的新值");
+    // 留存必须留痕：修复前这条路径连日志都没有，链路完全不可观测。
+    assert.ok(
+      logs.infos.some((line) => line.includes("held for flush")),
+      `未接通时应留下「已留存待补写」的日志，实际：${JSON.stringify(logs.infos)}`,
+    );
+  } finally {
+    cleanup(relay, helper);
+  }
+});
+
+test("剪贴板上行（P1.1b）：未接通期只留存最新值（顶掉旧的，不排队）", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const { ws: fakeWs } = makeFakeWs();
+  let resolveHelperConnected!: () => void;
+  const helperConnected = new Promise<void>((resolve) => {
+    resolveHelperConnected = resolve;
+  });
+  const relay = createRemoteDesktopMediaRelay({
+    logger: noopLogger,
+    onHelperConnected: () => resolveHelperConnected(),
+  });
+  const port = await relay.listen();
+  const helper = connect({ host: "127.0.0.1", port });
+  const helperFrames: Buffer[] = [];
+  helper.on("data", (chunk) => helperFrames.push(chunk as Buffer));
+  const latest = "第二条（应落地）";
+  const latestFrameBytes = 5 + Buffer.byteLength(latest);
+  try {
+    relay.attachWebSocket(fakeWs);
+    // helper 未接通期间连来两条：剪贴板是「最新值」语义，只补最新的一条，绝不成队列。
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: "第一条（应被顶掉）" }), false);
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: latest }), false);
+    await once(helper, "connect");
+    await helperConnected;
+    await waitFor(() => Buffer.concat(helperFrames).length >= latestFrameBytes, "接通后补写最新一条");
+    const frame = Buffer.concat(helperFrames);
+    assert.equal(frame.length, latestFrameBytes, "只补最新一条（旧值不排队、不补发）");
+    assert.equal(frame.subarray(5).toString("utf8"), latest);
+  } finally {
+    cleanup(relay, helper);
+  }
+});
+
+test("剪贴板上行（P1.1b）：开关关闭作废未落地的留存值；重开后新值照常落地", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const { ws: fakeWs } = makeFakeWs();
+  const logs = makeLogCollector();
+  let resolveHelperConnected!: () => void;
+  const helperConnected = new Promise<void>((resolve) => {
+    resolveHelperConnected = resolve;
+  });
+  const relay = createRemoteDesktopMediaRelay({
+    logger: logs.logger,
+    onHelperConnected: () => resolveHelperConnected(),
+  });
+  const port = await relay.listen();
+  const helper = connect({ host: "127.0.0.1", port });
+  const helperFrames: Buffer[] = [];
+  helper.on("data", (chunk) => helperFrames.push(chunk as Buffer));
+  const reopened = "重开后的新值";
+  const reopenedFrameBytes = 5 + Buffer.byteLength(reopened);
+  try {
+    relay.attachWebSocket(fakeWs);
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: "关闭前的留存值" }), false);
+    // 关掉同步即作废留存值：开关关着的时候不该再往被控剪贴板写任何东西。
+    relay.handleWsMessage(JSON.stringify({ t: "clip-mode", enabled: false }), false);
+    // 作废也要留痕（否则「关开关吞掉一次同步」同样无从察觉）。
+    assert.ok(
+      logs.infos.some((line) => line.includes("discarded: clipboard disabled")),
+      `关开关作废留存值时应留日志，实际：${JSON.stringify(logs.infos)}`,
+    );
+    await once(helper, "connect");
+    await helperConnected;
+    relay.handleWsMessage(JSON.stringify({ t: "clip-mode", enabled: true }), false);
+    // 正向对照：重开后的新值必须真的落地（证明通道与写出路径可用，上面的「没写」是真没写）。
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: reopened }), false);
+    await waitFor(() => Buffer.concat(helperFrames).length >= reopenedFrameBytes, "重开后的新值落地");
+    const frame = Buffer.concat(helperFrames);
+    assert.equal(frame.length, reopenedFrameBytes, "被作废的留存值不得出现（只应有新值这一帧）");
+    assert.equal(frame.subarray(5).toString("utf8"), reopened);
+  } finally {
+    cleanup(relay, helper);
+  }
+});
+
+test("剪贴板上行（P1.1b）：会话收口作废留存值，不跨会话补写", async () => {
+  if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
+  const { ws: fakeWs } = makeFakeWs();
+  const logs = makeLogCollector();
+  let resolveHelperConnected!: () => void;
+  const helperConnected = new Promise<void>((resolve) => {
+    resolveHelperConnected = resolve;
+  });
+  // 同一中继实例跨会话（close → listen 重开，产品里就是「结束会话后再连一次」）：
+  // 留存位属于会话，不能把上一会话没落地的值补写进新会话的剪贴板。
+  const relay = createRemoteDesktopMediaRelay({
+    logger: logs.logger,
+    onHelperConnected: () => resolveHelperConnected(),
+  });
+  let helper: Socket | undefined;
+  const helperFrames: Buffer[] = [];
+  const current = "新会话的值";
+  const currentFrameBytes = 5 + Buffer.byteLength(current);
+  try {
+    await relay.listen();
+    relay.attachWebSocket(fakeWs);
+    // 上一会话：helper 从未接通 → 值留在挂起位；随后会话收口。
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: "上一会话的留存值" }), false);
+    relay.close();
+    // 收口作废也要留痕（这条是「明确丢弃」，不能静默）。
+    assert.ok(
+      logs.infos.some((line) => line.includes("discarded: session closed")),
+      `会话收口作废留存值时应留日志，实际：${JSON.stringify(logs.infos)}`,
+    );
+    // 新会话：重新开中继口并挂接媒体 WS（close 已把当前 WS 置空），helper 这次连上来。
+    const port = await relay.listen();
+    relay.attachWebSocket(fakeWs);
+    helper = connect({ host: "127.0.0.1", port });
+    helper.on("data", (chunk) => helperFrames.push(chunk as Buffer));
+    await once(helper, "connect");
+    await helperConnected;
+    relay.handleWsMessage(JSON.stringify({ t: "clip", text: current }), false);
+    await waitFor(() => Buffer.concat(helperFrames).length >= currentFrameBytes, "新会话的新值落地");
+    const frame = Buffer.concat(helperFrames);
+    assert.equal(frame.length, currentFrameBytes, "跨会话的留存值不得补写（只应有新会话这一帧）");
+    assert.equal(frame.subarray(5).toString("utf8"), current);
+  } finally {
+    cleanup(relay, helper);
   }
 });

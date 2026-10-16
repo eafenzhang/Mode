@@ -103,8 +103,6 @@ export function createRemoteDesktopMediaRelay(
    * 先到的 ready 若直接丢弃开流指令会导致 helper 永远不推流。
    */
   let openRequested = false;
-  // 被控侧剪贴板门（P1.1）：判据与出站都在 remoteDesktopClipboardGate，本模块只送字节。
-  const clipboardGate = createRemoteDesktopClipboardGate({ getWebSocket: () => currentWs, logger });
   /** 背压丢帧只 warn 一次（每个 WS 挂接周期），避免 60fps 下刷屏。 */
   let backpressureWarned = false;
   /** 丢帧爆发标记：进入丢弃时请求一次关键帧，恢复发送后复位（下一轮爆发可再次请求）。 */
@@ -112,22 +110,24 @@ export function createRemoteDesktopMediaRelay(
   /** kind3 去抖时间戳（Date.now 口径）。 */
   let lastKeyRequestAt = 0;
 
-  /** 向 helper 写一帧控制消息（kind2/3/4/6；payload 缺省为空）。helper 未接通时跳过：
-   * 控制面丢了不断流——kind3（丢帧恢复）/kind4（自适应码率）/kind6（剪贴板落地）按契约静默，
-   * 下一轮爆发、下一次采样或下一次剪贴板变化自会重试，此前对它们打 warn 与本契约文案矛盾
-   * （2026-10-14 修）；kind2（开流）有挂起补发兜底，走到这里只可能是竞态，保留一行 warn 留痕。 */
-  const writeHelperControl = (kind: 2 | 3 | 4 | 6, payload?: Buffer): void => {
+  /** 向 helper 写一帧控制消息（kind2/3/4/6；payload 缺省为空），返回是否真写进了管道。
+   * helper 未接通时跳过（返回 false）：控制面丢了不断流——kind3（丢帧恢复）/kind4（自适应码率）
+   * 是可重算的提示，下一轮爆发、下一次采样自会重试，此前对它们打 warn 与本契约文案矛盾
+   * （2026-10-14 修）；kind2（开流）与 kind6（剪贴板落地）承载的是**状态**而不是提示，调用方另有
+   * 挂起补发（见 openRequested 与 clipboardGate 的挂起位），所以这里只回报结果，不替它们决定。 */
+  const writeHelperControl = (kind: 2 | 3 | 4 | 6, payload?: Buffer): boolean => {
     const socket = helperSocket;
-    if (!socket || socket.destroyed) {
-      if (kind === 2) {
-        logger.warn("[rd-media-relay] send kind=2 skipped: helper not connected");
-      }
-      return;
-    }
+    if (!socket || socket.destroyed) { if (kind === 2) logger.warn("[rd-media-relay] send kind=2 skipped: helper not connected"); return false; }
     const frame = Buffer.concat([Buffer.alloc(4), Buffer.from([kind]), payload ?? Buffer.alloc(0)]);
     frame.writeUInt32BE(frame.length - 4, 0); // len = body = kind + payload
     socket.write(frame);
+    return true;
   };
+
+  // 被控侧剪贴板门（P1.1）：判据与出站都在 remoteDesktopClipboardGate，本模块只送字节与回报写入结果
+  // （kind6 未接通时由门留存、helper 接通后补写——值丢一次就是永久丢失，理由见门内注释）。
+  const writeClipboardFrame = (text: string): boolean => writeHelperControl(6, Buffer.from(text, "utf8"));
+  const clipboardGate = createRemoteDesktopClipboardGate({ getWebSocket: () => currentWs, writeHelper: writeClipboardFrame, logger });
 
   /** 紧急关键帧请求（kind3）：同链路丢帧恢复；300ms 去抖防刷屏。 */
   const requestHelperKey = (): void => {
@@ -315,8 +315,9 @@ export function createRemoteDesktopMediaRelay(
     }
     // 剪贴板同步开关（P1.1）：会话级、默认开；判据在 clipboardGate。
     if (message.t === "clip-mode") { if (!clipboardGate.handleModeMessage(message)) logger.warn("[rd-media-relay] invalid clip-mode, dropped"); return; }
-    // 剪贴板上行（主控 → 被控，P1.1b）：校验与采纳在 gate，采纳的文本经 kind6 落到被控剪贴板。
-    if (message.t === "clip") { clipboardGate.handleControllerText(message, (text) => writeHelperControl(6, Buffer.from(text, "utf8"))); return; }
+    // 剪贴板上行（主控 → 被控，P1.1b）：校验与采纳在 gate，采纳的文本经 kind6 落到被控剪贴板
+    //（gate 未接通时留存该值，helper 接通后由 flushPendingWrite 补写）。
+    if (message.t === "clip") { clipboardGate.handleControllerText(message); return; }
     // renderer 侧解码落后/丢帧后的关键帧请求：下行到 helper（kind3）。
     if (message.t === "need-key") { requestHelperKey(); return; }
     if (message.t === "set-bitrate") {
@@ -388,6 +389,7 @@ export function createRemoteDesktopMediaRelay(
       logger.info("[rd-media-relay] helper pipe connected");
       try { options.onHelperConnected?.(); } catch { /* 观测钩子失败不影响推流 */ }
       flushOpenStream(); // ready 先于 helper 到达时，在此补发被挂起的开流指令。
+      clipboardGate.flushPendingWrite(); // 未接通窗口里采纳过的剪贴板文本同样在此补写（kind6 挂起位）。
     });
     await new Promise<void>((resolve, reject) => {
       const onListening = (): void => {
@@ -506,6 +508,7 @@ export function createRemoteDesktopMediaRelay(
     }
     readySent = false; // 会话收口：下一条会话重新允许下发开流指令。
     openRequested = false;
+    clipboardGate.clearPendingWrite(); // 会话收口：未落地的剪贴板文本不跨会话补写（下一条会话重新同步）。
     backpressureWarned = false;
     dropBurst = false;
     lastKeyRequestAt = 0;
