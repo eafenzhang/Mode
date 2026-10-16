@@ -368,4 +368,4 @@ Task 0 之后各出子计划，落点：
 | Task 2 真服务面 + startup 通道 | `docs/plans/2026-XX-XX-m3-services-startup.md` |
 | Task 3 挂载存量 renderer | `docs/plans/2026-XX-XX-m3-renderer-mount.md` |
 | Task 4 §5 平台面缺口 | `docs/plans/2026-XX-XX-m3-platform-gaps.md` |
-| Task 5 三平台出包与体积 | `docs/plans/2026-XX-XX-m3-packaging-size.md` |
+| Task 5 Windows 出包与体积 | `docs/plans/2026-XX-XX-m3-packaging-size.md` |
