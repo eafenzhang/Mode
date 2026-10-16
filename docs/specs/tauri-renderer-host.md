@@ -241,7 +241,7 @@ harness bin 保留原名，两者是不同二进制，互不影响）：
 | 端口往返（真实产品 Host） | `apps/desktop-tauri/test/portRoundTrip.test.mts`：真 Host + 真 `MessagePort` + 真 `ChannelClient`；含「未知命令显式报错」「订阅事件不杀 Host 且带走不了在途 RPC」「坏帧丢弃」「数据隔离（真写入 + 真实根未被碰）」 | **是**（verify job，release.yml） |
 | **原生依赖在 sidecar 里可用**（DR-T2-1） | `apps/desktop-tauri/test/nativeDeps.test.mts`：本进程 `node:sqlite` 真读写 + `node-pty` 原生 artifact；**再起生产 Host** 用 `MODE_HOST_NATIVE_DEP_PROBE=spawn` 在 sidecar 进程里**真起一个 pty** | **是**（verify job） |
 | **真服务面 / 守卫 / 真启动序列** | `apps/desktop-tauri/test/realServices.test.mts`（5 条）：真命令真返回、`listen` 守卫（Host 存活 + 在途 RPC + 零事件 + 可观察）、stdout 守卫（真服务日志不污染帧流）、数据根口径、启动序列（`ready` 只在频道全注册后发布） | **是**（verify job） |
-| **startup 映射（夹具驱动，四条路径）** | `packages/desktop/tests/startupMapping.test.mts` + `packages/desktop/tests/fixtures/startup-storage/*.json`（9 个夹具，覆盖 `starting` / 迁移中 / `ready` / `failed`） | **是**（verify job） |
+| **startup 映射（夹具驱动，四条路径）** | `packages/desktop/tests/startupMapping.test.mts`（8 条）+ `packages/desktop/tests/fixtures/startup-storage/*.json`（9 个夹具，覆盖 `starting` / 迁移中 / `ready` / `failed`）；另含**事实路径**（= 生产路径，含帧带不了的 `maintaining`）与**「入口不得自己写应用阶段」的源码扫描**（复评 I1） | **是**（verify job） |
 | **Host 启动失败的语义** | `packages/desktop/tests/startupFailure.test.mts`：错码必须落在渲染层 schema 的取值集里、失败时**零帧**、非零退出、不得越过失败点报 ready | **是**（verify job） |
 | 纯端口路径回归（Task 0 的） | `test/portMessagePath.test.mts`、`test/hostChannelStdio.test.mts` | **是**（同上） |
 | 跨语言字面量（频道名/命令名/状态词汇） | `packages/desktop/tests/host-standalone.test.mts` | **是**（verify job） |
@@ -336,6 +336,10 @@ startupId 生成）落在 app crate 里，**没有自动化覆盖**（§5 的表
    不证明「对某台机器某次真实运行录下来的字节成立」（§11.3）。
 9. **CUA 资产在打包形态里的落点未验**：探针只覆盖「注入了但不存在 = 失败」（§12.1）。
 10. **`host.describe().startup.history` 是本进程的诊断事实**，不是渲染层可见的状态（同上第 6 条）。
+11. **磁盘摘要没实现**：状态里的 `disk` 恒为 `[]`（schema 要求该字段存在）。将来运行时给出
+    `StartupDiskSummary` 时，谁填它、谁负责合并没有定（复评 M2，登记在 §15.3）。
+12. **`sequence` 的拥有者未定**：Host 与壳各自从 0 自增，而渲染层按 `sequence` 丢弃旧状态；
+    Task 3/4 合并两股流之前必须先定唯一拥有者（复评 M6，登记在 §15.3）。
 
 ## 9. 纪律登记（clean-room）
 
@@ -711,39 +715,73 @@ external 清单一字不改地取自 Electron 那条已经跑在生产上的清�
 bundle 后运行时依赖面收敛成一个文件 + 一张显式 external 清单，而「随包带源码树」的依赖面是
 「此刻恰好能解析」，出问题的症状是启动期才暴露的解析错误。
 
-**实测（2026-10-16，本机 Windows）**：
+**实测（2026-10-16，本机 Windows；fix round 1 重跑，含传递闭包）**：
 
 ```bash
 $ node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts
 [host-sidecar] 打包形态 = 单文件 ESM bundle + external 的 node_modules 子集
-[host-sidecar] bundle        D:\ZCodium\apps\desktop-tauri\dist-host-sidecar\host-sidecar\index.mjs
-[host-sidecar] bundle 体积   5104874 B (4.87 MiB)
-[host-sidecar] externals 体积 96389444 B (91.92 MiB)
+[host-sidecar] bundle 体积   5106411 B (4.87 MiB)
+[host-sidecar] externals 目录（直接 external，own-dir，**下界**） 96389444 B (91.92 MiB)
 [host-sidecar]   - node-pty@1.1.0 65621790 B (62.58 MiB)
-[host-sidecar]   - ssh2@1.17.0 1119022 B (1.07 MiB)
-[host-sidecar]   - undici@6.24.1 1184934 B (1.13 MiB)
 [host-sidecar]   - @larksuiteoapi/node-sdk@1.61.1 25515934 B (24.33 MiB)
-[host-sidecar]   - yaml@2.9.0 685953 B (0.65 MiB)
 [host-sidecar]   - node-forge@1.4.0 1647637 B (1.57 MiB)
-[host-sidecar]   - yauzl@3.3.0 97675 B (0.09 MiB)
+[host-sidecar]   - undici@6.24.1 1184934 B (1.13 MiB)
+[host-sidecar]   - ssh2@1.17.0 1119022 B (1.07 MiB)
+[host-sidecar]   - yaml@2.9.0 685953 B (0.65 MiB)
 [host-sidecar]   - @wecom/aibot-node-sdk@1.0.7 516499 B (0.49 MiB)
-[host-sidecar] 合计          101494318 B (96.79 MiB)（bundle + externals；不含 Node 运行时本身）
-[host-sidecar] 自验          mode-host-sidecar channels=40
+[host-sidecar]   - yauzl@3.3.0 97675 B (0.09 MiB)
+[host-sidecar] externals 闭包（含传递依赖，去重 66 个包） 107593418 B (102.61 MiB)
+[host-sidecar]   + protobufjs@7.5.5 2949726 B (2.81 MiB)
+[host-sidecar]   + axios@1.13.6 2423319 B (2.31 MiB)
+[host-sidecar]   + @types/node@25.6.0 2349988 B (2.24 MiB)
+[host-sidecar]   + cpu-features@0.0.10 576021 B (0.55 MiB)
+[host-sidecar]   + nan@2.26.2 453821 B (0.43 MiB)
+[host-sidecar]   + node-addon-api@7.1.1 396312 B (0.38 MiB)
+[host-sidecar]   + qs@6.15.1 312854 B (0.30 MiB)
+[host-sidecar]   + mime-db@1.52.0 205539 B (0.20 MiB)
+[host-sidecar]   + …另有 50 个传递依赖
+[host-sidecar] ⚠ 解析不到的依赖（数字因此偏小）：long
+[host-sidecar] 合计（bundle + externals 闭包） 112699829 B (107.48 MiB)（**不含 Node 运行时本身**）
+[host-sidecar] 自验          mode-host-sidecar channels=40 builtinConfig=resources(exists=true)
 ```
 
+**两列数字的区别（复评 I2）**：`own-dir` 那一列只加**直接 external** 的包目录，
+在本 checkout 的 hoisted 布局下**不含**被提升上去的传递依赖，所以它只是**下界**；
+「闭包」那一列按 `package.json` 的 `dependencies`/`optionalDependencies` 逐层解析、
+以解析到的 package.json 路径去重后求和（跳过多层嵌套的 `node_modules` 以免双计），
+66 个包 / **102.61 MiB** 才是打包形态实际要带的量。一个解析不到的依赖（`long`，`protobufjs`
+的可选依赖，本 checkout 未安装）单独列出来——**不静默**，否则数字会偏小而看起来正常。
+（复评给的闭包是 102.98 MiB，与此处 102.61 MiB 的差额=测量法不同：本脚本跳过嵌套
+`node_modules` 并把未安装的 `long` 列为 unresolved。）
+
+**门禁口径（复评 C1 · Ruling 26：已拆成两份预算）**：产品阶段原来的单一「核心包 ≤30MB」门禁
+在选定架构下**不可达**（单是 `node.exe` gzip 后 33.91 MiB 就越过 30MB），因此拆成
+**(a) 核心**（壳 + UI 资产 + Host bundle，沿用 ≤30MB；Host bundle 本任务实测 4.87 MiB）与
+**(b) Node 运行时 + sidecar externals**（基准：闭包 102.61 MiB + `node.exe` 88.25 MiB / gzip 33.91 MiB，
+门禁数值由 Task 5 定）。完整的算术、代价与「唯一能兑现原目标的替代方案（Rust 重写 Host）」
+登记在阶段计划 `docs/plans/2026-10-16-tauri-m3-ecosystem.md` 的「体积门禁拆分登记」——
+**本文件的数字是那两份预算的当前基准，不是失败**。
+
 自验是**默认开**的：脚本用 `node <bundle>`（不带 tsx）起产物，走一次 `host.describe` 的 RPC 往返，
-断言 `serviceSurface.kind === "services"`。否则「打包形态」只是一次成功的文件写入，
-而本仓库反复吃亏的正是「产物生成了，但没人跑过它」。
+断言 `serviceSurface.kind === "services"`，**并断言 Built-in Provider Config 走的是「资源目录」档**
+（`builtinProviderConfigSource === "resources"` 且文件存在——复评 M3：自验刻意清掉
+`MODE_BUILTIN_PROVIDER_CONFIG_FILE`、改设 `MODE_HOST_RESOURCES_DIR` 指向一份临时资源目录，
+否则本机装了 Mode 时会在 env 档的绿灯下报「打包形态 OK」，而打包形态真正要用的那一档从没被走过）。
+否则「打包形态」只是一次成功的文件写入，而本仓库反复吃亏的正是「产物生成了，但没人跑过它」。
 
-**交给 Task 5 的两条实测线索**（数字是量出来的，不是估的）：
+**交给 Task 5 的三条实测线索**（数字是量出来的，不是估的；**MB/MiB 一律按 1024 进制**）：
 
-1. `node-pty` 的 62.58 MiB 里 **60.63 MiB 是 `prebuilds/`**，其中 `win32-x64` 31.09 MiB、
-   `win32-arm64` 29.34 MiB、`darwin-*` 0.20 MiB。**Windows-only（Ruling 20）下裁掉非本平台
-   prebuilds 是纯粹的收益**；连 `win32-arm64` 一起裁（本阶段没把 Windows ARM64 当目标）
-   则 node-pty ≈ 36.08 MiB、externals ≈ 66.85 MiB、合计 ≈ 71.7 MiB。**裁不裁、裁到什么平台
-   由 Task 5 与安装包平台矩阵一起定**（本任务不替它决定）。
-2. `@larksuiteoapi/node-sdk` 24.33 MiB 全部走 external（它的链路上有动态 `require("util")`）。
-   若 Task 5 需要更小，可评估「只带实际用到的子路径」或换打包方式——**不要在门禁上妥协**。
+1. `node-pty` 的 62.58 MiB 里 **57.82 MiB 是 `prebuilds/`**（= 60,632,144 B），其中
+   `win32-x64` **29.65 MiB**、`win32-arm64` **27.98 MiB**、`darwin-*` **0.19 MiB**。
+   Windows-only（Ruling 20）下裁掉非本平台预编译件是纯收益（原始省 0.19 MiB）；
+   连 `win32-arm64` 一起裁（本阶段没把 Windows ARM64 当目标）**原始**省 28.17 MiB，
+   则 node-pty ≈ **34.41 MiB**、externals 闭包 ≈ **63.75 MiB**。
+   **但安装包里的收益要按压缩比打折**：`.node` 约 **4.3:1**，所以那 28.17 MiB 在安装包里
+   只值 **~6.6 MiB**。**裁不裁、裁到什么平台由 Task 5 与安装包平台矩阵一起定**（本任务不替它决定）。
+2. 闭包里有两块**运行期不需要**的东西，值得 Task 5 单独评估：`@types/node` **2.24 MiB**
+   （某个包把类型包写进了 `dependencies`）与 `protobufjs` 的未安装可选依赖 `long`。
+3. `@larksuiteoapi/node-sdk` 24.33 MiB 必须走 external（链路上有动态 `require("util")`）。
+   要更小得评估「只带用到的子路径」或换打包方式——**不要在门禁上妥协**。
 
 **踩到的坑（值得下一个任务知道）**：内联进来的 CJS 依赖里有**动态** `require("events")`，
 esbuild 的 ESM 产物把它留成 `__require`，运行时报
@@ -752,6 +790,12 @@ esbuild 的 ESM 产物把它留成 `__require`，运行时报
 banner 里给产物一个真的 `require`（`createRequire(import.meta.url)`）即可收口，
 `__require` 的判定正是 `typeof require !== "undefined" ? require : 抛错`。**这条只有真跑产物才看得见**
 ——又一次印证本仓库那条纪律：产物必须被跑过。
+
+**单位口径的订正（复评 M1）**：本节上一版把 `prebuilds` 子树按 **10^6** 算却标成 MiB
+（写成 60.63「MiB」而真值是 57.82 MiB），连带把裁剪后的推算值高估了约 4.5%；
+`ee46dea3` 的提交信息里有同一处笔误。表头三行（4.87 / 91.92 / 96.79 MiB）当时就是对的，
+本轮所有数字统一按 1024 进制重算。**提交信息不改写**（那需要 amend/rebase，本轮纪律不允许），
+订正记在这里与 fix round 1 的提交信息里。
 
 ---
 
@@ -763,11 +807,15 @@ Task 1 登记的理由是「Host 没有真存储，重启没有可恢复的状�
 迁移事务绑定」。**Task 2 之后这条理由已经变弱**（真 sqlite 与真迁移都在了，sqlite 的事务性也意味着
 半个迁移不会留下半提交状态），所以本任务给出一条**更硬、且与实现无关**的理由：
 
-> **delivered port 不可重建**。渲染层拿到的那条 `MessagePort` 是**页面内**建的、由注入桥接到
-> 这个 Host 进程的 stdin/stdout（Task 0 的路线 1′）。Host 重启 = 一个新的 `ChannelServer` +
-> 一条新的端口；**旧端口永远不可能再工作**。在渲染层不知情的情况下重启，产出的正是本项目
-> 反复吃亏的那种失败面：UI「挂着」，所有 RPC 静默失败。所以重启必须在**渲染层可见的状态机**里
-> 发生（`databaseStartupControl` 的 `retry` 语义 + 重新投递端口的路径），那是 Task 3/4 与
+> **已挂载的渲染层无法在不经可见状态机的情况下换端口**（复评 M7 订正过措辞：早先写成
+> 「delivered port 不可重建」，字面上过了——端口当然可以新建，壳也随时能再建一个）。
+> 真正的约束是：渲染层手里那条 `MessagePort` 是**页面内**建的、由注入桥接到**这个** Host 进程的
+> stdin/stdout（Task 0 的路线 1′），而它的**消费点已经固定**——`DatabaseStartupAdmission` 只在
+> 「同代 `startupId` + `phase === ready`」时交一次端口，之后渲染层持有的就是那个对象。
+> Host 重启会产出一个新的 `ChannelServer` **和一条新端口**；要让渲染层换过去，必须有一条
+> **渲染层可见的**状态迁移（新的 `databaseStartupId` + 重新走一次准入），否则旧端口上的所有 RPC
+> 静默失败——UI「挂着」而没有任何信号。所以重启必须在**渲染层可见的状态机**里发生
+> （`databaseStartupControl` 的 `retry` 语义 + 端口重新投递路径），那是 Task 3/4 与
 > 窗口/附件模型一起定的事，不是本进程能单独决定的。
 >
 > 补充（对**启动期**失败而言，重启的期望收益本来就是 0）：真启动失败是**确定性**的
@@ -785,4 +833,68 @@ Task 1 登记的理由是「Host 没有真存储，重启没有可恢复的状�
 
 **交给 Task 3/4 的输入**：`databaseStartupControl` 的 `retry` 语义 + 端口重新投递路径
 （谁重新生成 `databaseStartupId`、渲染层如何丢弃旧端口）。
+
+---
+
+## 15. fix round 1 的登记（复评 C1 + I1–I4 + M1–M8）
+
+### 15.1 阶段验收的逐条映射（复评 I3 要求：不许把「半交付」读成「已达成」）
+
+| 阶段验收条目 | Task 2 的状态 |
+| --- | --- |
+| 1. 真实 `IServiceAccessor` 装配完成，UI 挂载后**至少一个真实业务面可用** | **达成**（40 个真频道；`system.info`/`setting.get` 返回真值、未知命令报 `Method not found`：§10.7；真机 RPC 走通：§10.5） |
+| 2. 闸门由**真实** startup 状态驱动；**失败时渲染层收到 `failed` + `errorCode`** | **半交付**：①「闸门由真启动驱动」**达成**（`deferInit` 使第一帧 = 服务面齐备，§1/§10.5）；②「失败**到达**渲染层」**达成**（§10.6 真机 `failed` + `transport_closed`）；③「失败**原因精确到阶段**」**未达成，且是 Task 3/4 的义务不是本任务的成果**——Host 的分段阶段没有离开进程，壳只能判断「就绪前退出」，所以渲染层看到的是粗粒度 `transport_closed`。**不要**把这一条读成已完成（§1 末段、§8.6、§10.6 的差额） |
+| 3. 原生依赖在 sidecar 里实测可用 + 自动化用例 | **达成**（§10.4/§12） |
+| 4. 没有任何服务因 `listen` 抛错杀死 Host（有断言） | **达成**（§3.1；两层守卫 + 4 个断言 + **合法订阅不被吞**的新断言，见 §15.2） |
+| 5. 数据隔离：测试与本地跑不碰真实 `~/.mode`，且无「忘设就指向真实根」的路径 | **达成**（§4：真写入落隔离根 + 真实根的具体路径未被创建；空 base 拒绝在 crate 用例里） |
+| 6. sidecar 打包形态落地且**体积实测** | **达成**（§13；闭包口径已按复评 I2 改为真实闭包，并给出下界列） |
+| 7. 渲染层未修改；`clippy -D warnings` 零告警、`pnpm verify:pre-push` 通过、新用例落在 CI 入口 | **达成**（§2.4） |
+| 8. 重启策略按 DR-T2-4 落地或明确登记 | **达成**（§14，含措辞订正 M7） |
+
+### 15.2 复评 I1：翻译只有一份实现（本轮的**行为改动**）
+
+早先的形态是「映射写了两遍」：`index.ts` 的启动序列把应用阶段**硬编码**成
+`"preparing_host_storage"`，而夹具驱动用例测的是 `startupMapping.ts` 的 `applyStorageFrame`
+——**绿的是没跑的那条路**。现在的形态：
+
+- `applyStorageFact(fact)` 是**唯一**的翻译实现（`applicationPhaseForDatabaseKind` + 库内相位 +
+  迁移事实 + 失败字段都在里面）；真存储回调（生产路径）**直接调它**；
+- `applyStorageFrame(frame)` 只是「帧 → 事实」的适配（`storageFactFromFrame`），
+  Task 3/4 的 Host → 壳通道落地后由它接帧；
+- 新增一条**源码扫描用例**（`packages/desktop/tests/startupMapping.test.mts`）钉住：
+  入口必须调 `applyStorageFact`，且**代码里**不得出现 `"preparing_host_storage"` /
+  `"preparing_session_storage"` 字面量（注释先剥掉——写这条用例时真被自己的注释触发过一次。
+  **该用例做过 RED 验证**：把入口改回硬编码后它当场红，改回即绿）；
+- 顺带发现一个真实的类型差并补测：真存储的相位集合比 wire 帧**多一个 `maintaining`**
+  （`modeStorageStartupStateSchema` 的枚举里没有它，`DatabaseStartupState.databasePhase` 里有），
+  所以「事实」比「帧」宽一格——帧路径永远测不到这一格，只有事实路径能（新用例覆盖）。
+
+### 15.3 复评 I2/M2/M3/M6/M8 的登记
+
+- **I2（体积口径）**：已改成**真实传递闭包**并保留 own-dir 列作显式**下界**，未解析依赖单独列出
+  （§13）。旧的实现只量外层目录却在注释里声称「嵌套依赖也算进去」——那是一句与实现不符的话，
+  已删。
+- **M2（`disk: []` 硬编码）**：`startupMapping.ts` 每个状态都写死 `disk: []`（schema 要求该字段），
+  **本轮没有实现磁盘摘要**。风险：将来运行时给出盘面摘要时，仍会被这里丢掉（静默）。已登记为
+  Task 3/4 的输入（谁产出 `StartupDiskSummary`、谁负责填）。
+- **M3（自验的配置解析档）**：自验现在**覆盖并断言**「资源目录」档（§13），不再靠 env 档的绿灯。
+- **M6（两个 `sequence` 计数器）**：Host 的 `StartupStateMachine` 从 0 自增发布；壳的
+  `StartupMonitor` 也自己从 0 自增，而渲染层的 `acceptState` 拒绝 `sequence <= state.sequence`。
+  **这是一笔未决的所有权**：Task 3/4 加 Host → 壳通道时，必须**只有一个** `sequence` 拥有者
+  （要么壳转发 Host 的序号、要么壳按自己的发布重编号并让 Host 的序号只作内部诊断），
+  否则合并流会被渲染层当成旧状态丢掉。登记在此，本轮不动（改它就要改壳/传输层）。
+- **M8（守卫落点偏离计划）**：计划写的是「修的位置在**壳/传输侧**」，实际落在 **Host 的两个派发边界**
+  上。**这是偏离，理由与判据写下来备查**：壳只搬字节、拿不到「哪一次 `listen`」；真正未加护的调用点
+  在 `packages/rpc` 的 `onEventListen`（Electron 路径共用，本任务不可改）。落点保住了计划那条的
+  **意图**（「不逐个服务打补丁」——守卫在唯一的 `registerChannel` 入口上，一次覆盖全部频道），
+  代价（客户端看不到拒绝、要变成 RPC 错误必须改 `packages/rpc`）在 §3.1 写清。
+- **补：合法订阅必须仍然工作（复评 I4）**：守卫的「已知代价」正是「一次回归就可能把所有订阅静默
+  吞掉」，而此前**所有** `listen` 用例订阅的都是不存在的事件名——那种回归会让套件全绿而渲染层的
+  响应式静默死掉。新增断言：订阅 `broadcast` 频道的**真事件** `onMessage`，断言
+  `guardedSubscriptions` 与 `dispatchGuards` **都不变**、stderr 无 `listen_guard` 痕迹、
+  Host 存活（`apps/desktop-tauri/test/realServices.test.mts`）。
+- **补：生产入口的启动失败退出必须无界**（复评 M4）：`process.exit(1)` 原先只挂在
+  `stderr.write` 的回调里；回调不触发就等于 Host 挂着等壳的看门狗。现在回调 + **2s 兜底定时器**
+  两条路都退出（`index.ts` 的 catch）。
+
 

@@ -237,3 +237,67 @@ test("全部夹具都覆盖到位：每个 databaseKind × 关键库内阶段都
     assert.ok(seen.has(required), `夹具缺少 ${required}`);
   }
 });
+
+test("库内事实路径（= 生产路径）：帧带不了的相位（`maintaining`）也能翻译并过 schema", () => {
+  // 这条守的是复评 I1 的核心：**出货的那条路**（真存储回调 → `applyStorageFact`）必须是被断言的
+  // 那一个函数。顺带钉住一个真实的类型差：wire 帧的 phase 枚举里**没有** `maintaining`
+  // （`modeStorageStartupStateSchema`），而真存储的 `TasksStoragePhase` 有——所以「事实」比「帧」
+  // 宽一格，只有事实路径能表达它，帧路径永远测不到这一格。
+  const machine = newMachine();
+  const maintaining = machine.applyStorageFact({
+    databaseId: "tasks-index",
+    databaseKind: "tasks-index",
+    phase: "maintaining",
+  });
+  assertStateShape(maintaining, "maintaining（事实路径）");
+  assert.equal(maintaining.phase, "preparing_host_storage", "应用阶段由 databaseKind 决定");
+  assert.equal(
+    maintaining.databasePhase,
+    "maintaining",
+    "`maintaining` 必须能落到 databasePhase（渲染层的词汇表允许它）",
+  );
+
+  // 事实路径的失败形态与帧路径同源（同一个实现），所以失败字段的语义也一致。
+  const failed = newMachine().applyStorageFact({
+    databaseId: "session-1",
+    databaseKind: "session",
+    phase: "failed",
+    errorCode: "lock_timeout",
+    migrationId: "2026-08-01-add-task-archive",
+  });
+  assertStateShape(failed, "fact-failed");
+  assert.equal(failed.phase, "failed");
+  assert.equal(failed.failedPhase, "preparing_session_storage");
+  assert.equal(failed.errorCode, "lock_timeout");
+  assert.equal(failed.migrationId, "2026-08-01-add-task-archive");
+});
+
+test("生产入口不得自己写应用阶段：翻译只有一份实现，且入口走它（复评 I1 的守卫）", () => {
+  // 复评 I1 的原始缺陷：入口把应用阶段硬编码成字面量，于是**夹具断言的是死代码**
+  // （夹具测 `applyStorageFrame`，出货的是另一段内联映射）——绿的是没跑的那条路。
+  // 这条源码扫描（本仓对跨语言字面量的同一套做法）钉住两件事：入口必须调 `applyStorageFact`，
+  // 且**代码**里不得出现 storage 派生出来的那两个应用阶段字面量。
+  // 注释要先剥掉：解释这个缺陷的注释本身就会引用那两个名字（写这条用例时真踩到过），
+  // 所以扫描对象是剥掉块注释与整行注释之后的源码——只剥这两种，本文件的字符串里没有 `//`。
+  const sourcePath = resolve(here, "../src/host-standalone/index.ts");
+  const code = readFileSync(sourcePath, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^[ \t]*\/\/.*$/gm, "");
+
+  assert.ok(
+    code.includes("applyStorageFact("),
+    "入口必须调用 StartupStateMachine.applyStorageFact（与夹具同一条路径）",
+  );
+  for (const phase of ["preparing_host_storage", "preparing_session_storage"]) {
+    assert.ok(
+      !code.includes(`"${phase}"`),
+      `入口不得硬编码应用阶段 "${phase}"：那是 applicationPhaseForDatabaseKind 的职责` +
+        "（硬编码 = 夹具测的是死代码，出货的那条路无人断言）",
+    );
+  }
+  assert.doesNotMatch(
+    code,
+    /startup\.report\(\s*"preparing_/,
+    "入口不得直接 report storage 派生的应用阶段（必须经 applyStorageFact）",
+  );
+});

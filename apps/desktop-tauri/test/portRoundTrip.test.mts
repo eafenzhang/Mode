@@ -436,10 +436,9 @@ test("数据隔离是真的：两条覆写各自生效，真写入落在隔离�
   // Task 1 的 Host 不写盘，所以当时的断言是「隔离目录里连目录都不出现」。Task 2 换上真服务后
   // 那条断言变成**假断言**（真服务会写 sqlite/WAL/设置文件，它必然为 false），但被守的事实
   // 不能因此丢掉——它升级成更强的形态：**写入确实发生了**（否则断言是空的）、写入落在
-  // 隔离根里、且用户真实的数据根一字未动。
+  // 隔离根里、且用户真实数据根里**本次会写出的那些具体路径**没有被创建（④）。
   const realRoot = join(homedir(), ".mode");
-  const realEntriesBefore = listEntries(realRoot);
-  const realExistedBefore = realEntriesBefore !== null;
+  const realExistedBefore = new Set(listEntries(realRoot) ?? []);
 
   // ① MODE_DATA_BASE_DIR 优先；
   const sandboxEnv = mkdtempSync(join(tmpdir(), "mode-host-isolation-env-"));
@@ -497,19 +496,18 @@ test("数据隔离是真的：两条覆写各自生效，真写入落在隔离�
   );
   assert.equal(existsSync(join(onlyHome, ".mode", ".mode")), false, "同上（HOME 分支）");
 
-  // ④ 用户真实数据根：比对**存在性与条目集合**，不比对目录 mtime——mtime 会被别的进程对真实
-  //    根的写入（它会正常发生）改变，拿它当判据会假红；条目集合只在「真的有人往里加/删东西」时变。
-  const realEntriesAfter = listEntries(realRoot);
-  assert.equal(
-    realEntriesAfter !== null,
-    realExistedBefore,
-    `本次运行不得创建或删除用户真实数据根 ${realRoot}`,
-  );
-  if (realEntriesBefore && realEntriesAfter) {
-    assert.deepEqual(
-      realEntriesAfter,
-      realEntriesBefore,
-      `用户真实数据根的条目集合不得被本次运行改变（${realRoot}）`,
+  // ④ 用户真实数据根：**只比对本次运行真的会写出来的那些具体路径**（复评 M5）。
+  //    不比对整份条目集合——本 checkout 有三个 agent 并行，任何进程在真实根里建一个无关条目
+  //    都会把集合比对判成假红；而「整根存在性」在装了 Mode 的机器上恒为 true，又什么都证不了。
+  //    具体路径来自隔离根里**实测写出来的**顶层条目，所以它既非空断言、也不会被无关写入干扰。
+  const writtenNames = listEntries(join(envBaseDir, ".mode")) ?? [];
+  assert.ok(writtenNames.length > 0, "隔离根里必须有真服务写出的条目（否则这条断言的输入是空的）");
+  for (const name of writtenNames) {
+    // 具体路径：`<root>/<name>`（真服务会写的那些名字，比如 v2）。
+    assert.equal(
+      existsSync(join(realRoot, name)),
+      realExistedBefore.has(name),
+      `真服务在隔离根里写出的 "${name}" 不得出现在用户真实数据根 ${realRoot} 里`,
     );
   }
 

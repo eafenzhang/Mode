@@ -56,6 +56,56 @@ export type StartupPhaseName = DatabaseStartupState["phase"];
 /** 库内阶段名（`DatabaseStartupState["databasePhase"]` 的非可选形态）。 */
 export type DatabasePhaseName = NonNullable<DatabaseStartupState["databasePhase"]>;
 
+/**
+ * 「一个数据库此刻在干什么」的**事实相位**：真存储回调的全集。
+ *
+ * 比 wire 帧的相位多一个 `maintaining`（`modeStorageStartupStateSchema` 的 `phase` 枚举没有它，
+ * 真存储的 `TasksStoragePhase` 有）——所以事实不能用帧的类型来表达，否则生产路径那一步会被
+ * 类型系统逼着丢掉 `maintaining`（丢掉就是渲染层看不到「迁移后修复中」）。
+ */
+export type DatabasePhaseFact =
+  | "checking"
+  | "waiting_for_lock"
+  | "migrating"
+  | "maintaining"
+  | "committing"
+  | "ready";
+
+/**
+ * 一条**库内事实**：真存储回调与 wire 帧在这一点上同形（`databaseId` / `databaseKind` /
+ * 库内相位 / 迁移事实 / 失败细节）。
+ *
+ * 这个类型是「翻译」的输入——生产路径（真存储回调）与夹具路径（`applyStorageFrame`）
+ * 都构造它，然后走**同一个** `StartupStateMachine.applyStorageFact`。
+ */
+export interface StoragePhaseFact {
+  databaseId?: string;
+  databaseKind: ModeStorageStartupState["databaseKind"];
+  /** 库内相位；`failed` 表示这个库失败了（翻译成应用 `failed`，不进 `databasePhase`）。 */
+  phase: DatabasePhaseFact | "failed";
+  migration?: DatabaseMigrationFacts;
+  errorCode?: DatabaseStartupErrorCode;
+  sqliteCode?: number;
+  systemCode?: string;
+  migrationId?: string;
+}
+
+/**
+ * wire 帧 → 事实。**唯一**需要知道帧形状的地方（真存储回调直接构造事实，不经这里）。
+ */
+export function storageFactFromFrame(frame: ModeStorageStartupState): StoragePhaseFact {
+  return {
+    ...(frame.databaseId !== undefined ? { databaseId: frame.databaseId } : {}),
+    databaseKind: frame.databaseKind,
+    phase: frame.phase,
+    ...(frame.migration ? { migration: frame.migration } : {}),
+    ...(frame.errorCode !== undefined ? { errorCode: frame.errorCode } : {}),
+    ...(frame.sqliteCode !== undefined ? { sqliteCode: frame.sqliteCode } : {}),
+    ...(frame.systemCode !== undefined ? { systemCode: frame.systemCode } : {}),
+    ...(frame.migrationId !== undefined ? { migrationId: frame.migrationId } : {}),
+  };
+}
+
 /** `databaseKind` → 应用阶段：这是「显式翻译」的核心一条。 */
 export function applicationPhaseForDatabaseKind(
   databaseKind: ModeStorageStartupState["databaseKind"],
@@ -76,10 +126,8 @@ export function applicationPhaseForDatabaseKind(
   }
 }
 
-/** 运行时的库内 phase → 状态里的 `databasePhase`（`failed` 不进这一栏，它走应用 `failed`）。 */
-function databasePhaseForRuntimePhase(
-  phase: ModeStorageStartupState["phase"],
-): DatabasePhaseName | undefined {
+/** 库内相位 → 状态里的 `databasePhase`（`failed` 不进这一栏，它走应用 `failed`）。 */
+function databasePhaseForFactPhase(phase: DatabasePhaseFact | "failed"): DatabasePhaseName | undefined {
   return phase === "failed" ? undefined : phase;
 }
 
@@ -201,36 +249,48 @@ export class StartupStateMachine {
   }
 
   /**
-   * **夹具驱动的翻译**：把一帧真实形状的运行时 `startup/storageState` 应用到状态机上。
+   * **唯一的翻译实现**：库内事实 → 应用阶段（DR-T2-2 的「显式翻译」就在这里）。
    *
-   * 帧本身先过一次 `modeStorageStartupStateSchema` 是**调用方**的事（用例里做了），
-   * 这里只负责「事实 → 应用阶段」的映射，因为它可能被喂未校验的对象（测试构造、协议直通），
-   * 所以不做二次校验而是只读需要的字段。
+   * **生产路径与夹具路径都走这一个函数**——真存储回调（`index.ts` 的 `preparing_host_storage`
+   * 那一段）直接调它，夹具经 `applyStorageFrame` 调它。这条纪律是本任务复评的 I1：
+   * 复评前的形态是「映射写了两遍」（入口把应用阶段硬编码成字面量），于是**夹具断言的是死代码**，
+   * 出货的那条路无人断言——出问题只会表现为「渲染层的进度文案指错东西」，最难查。
+   * 现在有一条源码扫描用例钉住「入口不得硬编码应用阶段、必须调本函数」。
    */
-  applyStorageFrame(frame: ModeStorageStartupState): DatabaseStartupState {
-    const applicationPhase = applicationPhaseForDatabaseKind(frame.databaseKind);
-    if (frame.phase === "failed") {
+  applyStorageFact(fact: StoragePhaseFact): DatabaseStartupState {
+    const applicationPhase = applicationPhaseForDatabaseKind(fact.databaseKind);
+    if (fact.phase === "failed") {
       return this.report("failed", {
         // 失败帧说得出「哪个库」→ 应用阶段（`failedPhase`），那正是重试/退出判据要读的字段。
         failedPhase: applicationPhase,
-        databaseId: frame.databaseId,
-        databaseKind: frame.databaseKind,
-        errorCode: frame.errorCode ?? "sql_failed",
-        ...(frame.sqliteCode !== undefined ? { sqliteCode: frame.sqliteCode } : {}),
-        ...(frame.systemCode !== undefined ? { systemCode: frame.systemCode } : {}),
-        ...(frame.migrationId !== undefined ? { migrationId: frame.migrationId } : {}),
-        ...(frame.migration ? { migration: frame.migration } : {}),
+        ...(fact.databaseId !== undefined ? { databaseId: fact.databaseId } : {}),
+        databaseKind: fact.databaseKind,
+        errorCode: fact.errorCode ?? "sql_failed",
+        ...(fact.sqliteCode !== undefined ? { sqliteCode: fact.sqliteCode } : {}),
+        ...(fact.systemCode !== undefined ? { systemCode: fact.systemCode } : {}),
+        ...(fact.migrationId !== undefined ? { migrationId: fact.migrationId } : {}),
+        ...(fact.migration ? { migration: fact.migration } : {}),
       });
     }
+    const databasePhase = databasePhaseForFactPhase(fact.phase);
     const detail: StartupReportDetail = {
-      databaseId: frame.databaseId,
-      databaseKind: frame.databaseKind,
-      ...(databasePhaseForRuntimePhase(frame.phase)
-        ? { databasePhase: databasePhaseForRuntimePhase(frame.phase) }
-        : {}),
-      ...(frame.migration ? { migration: frame.migration } : {}),
+      ...(fact.databaseId !== undefined ? { databaseId: fact.databaseId } : {}),
+      databaseKind: fact.databaseKind,
+      ...(databasePhase ? { databasePhase } : {}),
+      ...(fact.migration ? { migration: fact.migration } : {}),
     };
     return this.report(applicationPhase, detail);
+  }
+
+  /**
+   * **夹具驱动的翻译**：把一帧真实形状的运行时 `startup/storageState` 应用到状态机上
+   * （DR-T2-2 要求的输入形状；也是 Task 3/4 那条 Host → 壳 通道落地后要调的入口）。
+   *
+   * 帧本身先过一次 `modeStorageStartupStateSchema` 是**调用方**的事（用例里做了），
+   * 这里只负责「帧 → 事实」的形状转换，翻译逻辑在 `applyStorageFact` 里（同一份）。
+   */
+  applyStorageFrame(frame: ModeStorageStartupState): DatabaseStartupState {
+    return this.applyStorageFact(storageFactFromFrame(frame));
   }
 
   snapshot(): DatabaseStartupState {

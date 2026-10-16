@@ -143,6 +143,37 @@ test("真实服务的 listen 守卫：订阅一个不存在的事件不会杀死
     assert.deepEqual(hostReceived, [], "诊断频道也没有事件可投");
     assert.match(connection.stderr(), /listen_guard host\.onAnything/, "诊断频道的拒绝同样留痕");
     hostSubscription.dispose();
+
+    // ⑥ **合法的订阅必须仍然工作**（复评 I4）。上面 ⑤/① 订阅的都是**不存在**的事件名，
+    //    所以如果守卫退化成「把所有订阅都吞掉」，这一组用例会全绿而渲染层的响应式静默死掉
+    //    —— 正是 `channelGuard.ts` 的「已知代价」描述的那个失败面。这里用一个**真事件**
+    //    （`broadcast` 频道声明的 `onMessage: Event<BroadcastMessage>`）钉住：守卫一次都不该介入。
+    const beforeValid = await describeHost(connection);
+    const validReceived: unknown[] = [];
+    const validSubscription = connection.client
+      .getChannel("broadcast")
+      .listen<unknown>("onMessage")((value: unknown) => validReceived.push(value));
+    await delayMs(300);
+    const afterValid = await describeHost(connection);
+    assert.equal(connection.child.exitCode, null, "合法订阅之后 Host 必须活着");
+    assert.equal(
+      afterValid.serviceSurface?.guardedSubscriptions,
+      beforeValid.serviceSurface?.guardedSubscriptions,
+      "合法事件名不得被守卫拦下（否则渲染层的响应式会静默失效，而套件还是绿的）",
+    );
+    // 派发守卫也必须没动过：否则「`listen` 抛了、只是被第二层兜住」也会让上面那条断言通过。
+    assert.equal(
+      afterValid.serviceSurface?.dispatchGuards,
+      beforeValid.serviceSurface?.dispatchGuards,
+      "合法订阅不得触发派发守卫（两层守卫任一介入都说明这条订阅没被接受）",
+    );
+    assert.doesNotMatch(
+      connection.stderr(),
+      /listen_guard broadcast\.onMessage/,
+      "合法订阅不得留下 listen_guard 痕迹",
+    );
+    assert.deepEqual(validReceived, [], "缺省注入下没有跨窗口广播来源，所以一个事件都不该到");
+    validSubscription.dispose();
   } finally {
     await disposeHost(connection);
     await removeSandbox(box.root);

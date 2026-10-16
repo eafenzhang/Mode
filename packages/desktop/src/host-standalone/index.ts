@@ -242,28 +242,33 @@ async function bootstrap(): Promise<ChannelServer> {
       ` cua=${nativeDeps.cua.injected ? `injected(${String(nativeDeps.cua.ok)})` : "not-injected"}`,
   );
 
-  // ② 真存储：任务索引（应用阶段 preparing_host_storage，i18n 文案「准备任务索引」）。
+  // ② 真存储：任务索引（应用阶段 `preparing_host_storage`，i18n 文案「准备任务索引」）。
   //    用公共入口 `@mode/services/storage-startup` 的 `prepareTasksIndexStorage`：
   //    它在进程内真开 `DatabaseSync`、真跑迁移，并按库内阶段回调（checking/waiting_for_lock/
   //    migrating/maintaining/committing/ready + 迁移事实）——这就是「真 startup」的来源。
+  //
+  //    **库内事实一律经 `startup.applyStorageFact` 翻译**（不在本文件里判断应用阶段）：
+  //    那条路径就是夹具驱动用例断言的那一个函数（DR-T2-2 的「显式翻译」只有一份实现）。
+  //    复评 I1 的原始缺陷正是这里把 "preparing_host_storage" 写成字面量——夹具测的是死代码。
   const { getTasksIndexDatabasePath, prepareTasksIndexStorage } = await import(
     "@mode/services/storage-startup"
   );
-  startup.report("preparing_host_storage", {
-    databaseId: "tasks-index",
-    databaseKind: "tasks-index",
-    databasePhase: "checking",
-  });
-  recordStartupState();
-  const tasksIndexPath = getTasksIndexDatabasePath();
-  await prepareTasksIndexStorage(tasksIndexPath, (phase, migration) => {
-    startup.report("preparing_host_storage", {
-      databaseId: "tasks-index",
-      databaseKind: "tasks-index",
-      databasePhase: phase,
+  const TASKS_INDEX_DATABASE = { databaseId: "tasks-index", databaseKind: "tasks-index" } as const;
+  const reportTasksIndexPhase = (
+    phase: Parameters<Parameters<typeof prepareTasksIndexStorage>[1]>[0],
+    migration?: Parameters<Parameters<typeof prepareTasksIndexStorage>[1]>[1],
+  ): void => {
+    startup.applyStorageFact({
+      ...TASKS_INDEX_DATABASE,
+      phase,
       ...(migration ? { migration } : {}),
     });
     recordStartupState();
+  };
+  reportTasksIndexPhase("checking");
+  const tasksIndexPath = getTasksIndexDatabasePath();
+  await prepareTasksIndexStorage(tasksIndexPath, (phase, migration) => {
+    reportTasksIndexPhase(phase, migration);
   });
   log(`storage_prepared path=${tasksIndexPath}`);
 
@@ -306,14 +311,18 @@ try {
   const failed = startup.fail(error);
   recordStartupState();
   // 结构化留痕（壳侧看不到 RPC 之前的状态，这条是排障的唯一入口）。
+  //
+  // 退出必须是**无条件**的：渲染层收到第一条状态后没有自己的超时，只有壳推的 `failed` 能告诉它
+  // 出事了（DR-T1-3）。若把 `process.exit(1)` 只挂在 write 回调里，那个回调因为任何原因不触发
+  // （管道背压、句柄半写）就等于 Host 带着半可用的进程挂在那里，只剩壳的看门狗兜底——
+  // 所以这里同时给一个**兜底定时器**：写成功就走回调（及时），写不成 2s 内也退（有界）。
+  const exitAfterFailure = (): void => process.exit(1);
   process.stderr.write(
     `[mode-host-sidecar] startup_failed phase=${failed.phase}` +
       ` failedPhase=${failed.failedPhase ?? "?"} errorCode=${failed.errorCode ?? "?"}` +
       ` error=${describeError(error)}\n`,
-    () => {
-      // 退出让壳的 reaper 立刻推 `failed(transport_closed)`：渲染层收到第一条状态后没有自己的
-      // 超时，所以「失败必须被外面推」这条硬要求只能由壳满足（spec §3 的 DR-T1-3）。
-      process.exit(1);
-    },
+    exitAfterFailure,
   );
+  // 不用 `unref()`：这个定时器的作用就是**撑住**事件循环直到退出（stdin 此刻还开着）。
+  setTimeout(exitAfterFailure, 2_000);
 }
