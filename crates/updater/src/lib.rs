@@ -43,13 +43,24 @@ pub fn manifest_endpoint() -> String {
 
 /// 组装 updater 插件。
 ///
-/// **M1 不设 pubkey**：签名密钥与三平台签名流水线属 M5。没有 pubkey 时插件的
-/// `check()` 会明确报错（而不是静默放行未签名的更新），这正是想要的行为——
-/// 骨架期不可能被误当成「更新链已可用」。
+/// ## 配置必须写在 `tauri.conf.json`，且 `pubkey` 不能省（**实测过的坑**）
 ///
-/// 返回类型的第二个参数是插件自己的配置类型（`tauri_plugin_updater::Config`），
-/// 它由 `tauri.conf.json` 的 `plugins.updater` 段提供；M1 该段刻意留空，
-/// 因为端点与签名密钥都还没定稿。
+/// 插件通过 `tauri_plugin_updater::Config` 反序列化 `plugins.updater` 段。该结构体的
+/// `pubkey: String` **没有 `#[serde(default)]`**，于是：
+///
+/// - 整段缺席 → Tauri 传 `null` → `PluginInitialization("updater", "invalid type: null,
+///   expected struct Config")`，**app 启动即 panic**；
+/// - 段存在但少了 `pubkey` 键 → `missing field pubkey`，同样起不来。
+///
+/// 所以「M1 不设 pubkey」这件事**做不到字面意思**：字段必须在。M1 的取值是**空串**，
+/// 语义上等价于「没有密钥」——空串走到 `verify_signature` 里会在
+/// `base64_to_string("")` → `PublicKey::decode("")` 处报错，**fail closed**，
+/// 不会静默放行未签名的更新（已核对 `tauri-plugin-updater-2.14.0/src/updater.rs:1901`）。
+/// M5 签发真密钥时把这个值换掉即可。
+///
+/// 端点同时写在 `crates/updater` 的 [`manifest_endpoint`] 与 conf 两处，原因见
+/// `the_app_conf_endpoint_matches_the_constant`：`Builder` 没有 `endpoints()`，
+/// 端点只能从配置来，常量是给代码与单测看的那份；两者由测试钉死，改一处即红。
 pub fn plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_plugin_updater::Config> {
     tauri_plugin_updater::Builder::new().build()
 }
@@ -72,5 +83,50 @@ mod tests {
         // 旧线用 latest*.yml。这条断言把该前提写下来，改名即红。
         assert!(TAURI_MANIFEST_ASSET.ends_with(".json"));
         assert!(manifest_endpoint().ends_with(TAURI_MANIFEST_ASSET));
+    }
+
+    /// app 的 `tauri.conf.json`。`include_str!` 让路径在**编译期**校验：conf 被挪走时
+    /// 这里直接编译失败，不会留一条运行时才炸的路径。
+    ///
+    /// 本 crate 反过来知道 app 的 conf 位置，是刻意的：插件的运行期配置只能来自 conf，
+    /// 而端点常量住在本 crate，两者必须一致。让**常量这一侧**来断言，是为了让
+    /// 「端点是什么」这件事在代码里有唯一可读的出处，conf 只是它的落地副本。
+    const APP_CONF: &str = include_str!("../../../apps/desktop-tauri/src-tauri/tauri.conf.json");
+
+    fn app_conf() -> serde_json::Value {
+        serde_json::from_str(APP_CONF).expect("tauri.conf.json 必须是合法 JSON")
+    }
+
+    /// `Builder` 没有 `endpoints()`，端点只能写在 conf 里；本 crate 的
+    /// [`manifest_endpoint`] 是同一串 URL 的另一份。这条断言把两份钉死，改一处即红。
+    #[test]
+    fn the_app_conf_endpoint_matches_the_constant() {
+        let conf = app_conf();
+        let endpoints = conf["plugins"]["updater"]["endpoints"]
+            .as_array()
+            .expect("plugins.updater.endpoints 必须存在且是数组");
+        assert_eq!(endpoints.len(), 1, "M1 只声明一个端点");
+        assert_eq!(
+            endpoints[0].as_str(),
+            Some(manifest_endpoint().as_str()),
+            "conf 的端点与 manifest_endpoint() 漂移了"
+        );
+    }
+
+    /// `pubkey` 是**必填字段**，它的缺席正是 app 起不来的原因（见 [`plugin`] 的文档）。
+    /// 这条断言把「M1 的取值是空串」这个刻意的状态写下来：M5 签发真密钥时该断言会红，
+    /// 那时要连带把上面 `plugin` 的文档与 spec §5 一起改——这是有意的摩擦。
+    #[test]
+    fn the_app_conf_declares_an_empty_pubkey_for_m1() {
+        let conf = app_conf();
+        let pubkey = conf["plugins"]["updater"]
+            .get("pubkey")
+            .expect("plugins.updater.pubkey 缺失会让 app 启动即 panic");
+        assert_eq!(
+            pubkey.as_str(),
+            Some(""),
+            "M1 无签名密钥，此处应为空串（fail closed）；\
+             M5 换成真 key 时请同步更新本断言、plugin 的文档与 spec §5"
+        );
     }
 }

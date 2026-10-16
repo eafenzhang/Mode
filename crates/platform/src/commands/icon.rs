@@ -20,7 +20,7 @@ use protocol::{ApplicationIconInfo, ApplicationIconRequest};
 /// 字符串入参在适配层（`packages/ui/src/platform/tauri-invoke-shim.ts`）归一成
 /// `{ locators: [{ kind: "darwin-bundle-id", value }] }` 后再过桥，
 /// 因为 Tauri 的 `invoke` 参数是强类型的，联合类型无法在命令签名上表达。
-#[tauri::command]
+#[tauri::command(rename = "getApplicationIcon")]
 pub fn get_application_icon(_request: ApplicationIconRequest) -> Option<ApplicationIconInfo> {
     None
 }

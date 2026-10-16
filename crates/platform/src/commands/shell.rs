@@ -9,7 +9,7 @@ use tauri_plugin_opener::OpenerExt;
 /// 语义与既有 `openExternal` 对齐：把 URL 交给系统默认处理器（OAuth 跳转、外部链接）。
 /// M1 **不收紧 scheme**——收紧会改变现网行为（`mailto:`、编辑器 deep link 等都在用），
 /// 那是一次需要单独对齐的加固决策，不在骨架期顺手做。只拒绝空串/纯空白。
-#[tauri::command]
+#[tauri::command(rename = "openExternal")]
 pub fn open_external<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     url: String,
@@ -27,7 +27,7 @@ pub fn open_external<R: tauri::Runtime>(
 /// 调用面两种形态都有（`useFileContextActions` 传文件、`WorkspaceFileTree` 等传目录），
 /// 故按路径类型分派：目录 → 用文件管理器打开；文件 → 在父目录里选中它。
 /// 路径不存在时明确失败，不静默返回 success。
-#[tauri::command]
+#[tauri::command(rename = "openInFileManager")]
 pub fn open_in_file_manager<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     path: String,

@@ -21,8 +21,21 @@ Node/TS 侧提供，经 sidecar（M3）接入。因此本阶段：
 M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 （`packages/shared/src/platform.ts`）**逐字一致**——渲染层的适配层按同名映射，
 改名即断链。切片表的唯一真源是 `crates/platform/src/commands/mod.rs` 的宏调用：
-命令名与处理函数成对声明，`init()` 与 `registered_names()` 都从它派生，
-并由 `crates/platform/tests/commands.rs` 守卫「JS 名 = 处理函数名的 camelCase 形式」。
+命令名与处理函数成对声明，`init()` 与 `registered_names()` 都从它派生。
+
+**每个处理函数必须自己写一遍 `#[tauri::command(rename = "<切片表里的同一名字>")]`。**
+这不是冗余，是这条契约能成立的唯一方式：
+
+- Tauri v2 的命令名**默认是函数名的 snake_case 原文**（`tauri-macros` 的
+  `command/wrapper.rs`：无 `rename` 时取 `stringify!(ident)`），**不会自动转 camelCase**，
+  且这一版没有 `rename_all`；handler 是按 `#[tauri::command]` 生成的
+  `__tauri_command_name_*` 宏的返回值做 `match` 的。
+- 也就是说 wire 名**不存在于任何 Rust 常量里**，只有源码能证明它。少了 `rename`，
+  `invoke("openExternal")` 命不中 `open_external` 分支，运行时才报
+  `Command openExternal not found`（见 §4.3 的实测）。
+- 因此守卫不能只比两个常量：`crates/platform/tests/commands.rs` 的
+  `every_command_declares_a_camel_case_wire_name` **扫源码**，逐条断言
+  `rename` 字面量 == camelCase(函数名)，并断言其集合等于切片表。去掉任一 `rename` 即红。
 
 | # | 方法 | 签名（来自接口面） | M1 实现口径 |
 | --- | --- | --- | --- |
@@ -83,6 +96,19 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 
 1. 构建壳：`pnpm --filter @mode/desktop-tauri exec tauri build`（或本机 `cargo run -p mode-tauri`），
    启动后主窗口可见；
+
+   > **本机（Windows + gnu）直接调 cargo 时**要自己装配工具链，否则会以
+   > `dlltool.exe: program not found` 或 `link: extra operand` 失败：
+   > 本机默认 toolchain 的 host 是 msvc 而本机没装 VS，Git Bash 的 coreutils `link`
+   > 又会挡住 MSVC 的 `link.exe`。口径与 `scripts/build-browser-import-helper.mjs` 一致：
+   >
+   > ```bash
+   > export PATH="$HOME/.rust-tools/llvm-mingw-20261006-ucrt-x86_64/bin:$HOME/.cargo/bin:$PATH"
+   > export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$HOME/.rust-tools/llvm-mingw-20261006-ucrt-x86_64/bin/x86_64-w64-mingw32-clang"
+   > cargo +stable-x86_64-pc-windows-gnu build --release -p mode-tauri
+   > ```
+   >
+   > 产物落在 `target/release/ModeTauri.exe`（不显式传 `--target` 时按 host toolchain 落这里）。
 2. 前端挂载（§4.2）：窗口里渲染出 M1 命令面验收台，深链订阅已装好并在启动时发出握手；
 3. 依次触发 10 个命令，逐条判据：
 
@@ -143,6 +169,40 @@ lib 的单测模块。原因是一条 Windows 链接约束链：
 （渲染 10 条命令的触发入口与结果、订阅深链事件并显示回调），把「渲染产品 UI」按上表
 登记到 M3。验收台的命令表用 `satisfies` + 编译期守卫保证覆盖切片表每一条
 （漏一条 `pnpm typecheck` 直接报错），不会出现「验收台绿了但命令面没验完」。
+
+### 4.3 本机 smoke 执行记录（2026-10-16，**发现了三个自动化没覆盖的缺陷**）
+
+按「Tauri 产物进 Release」之外的另一处人工项补跑：本机启动壳 + 深链端到端。
+**结论：修完之后 §4 的第 1、2、4 项与命令通路实测通过；对话框/通知类仍需真人看窗口。**
+
+观测手段（无人值守下怎么看渲染层）：WebView2 **不认**
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`（wry 自己设了 `additional_browser_args`，
+环境变量被覆盖），CDP 接不上；改用 UI Automation 的 `TextPattern` 读文档文本，
+锚点用 `AutomationElement::FromHandle(hwnd)`（从桌面根往下走常常只看到外层 Pane）。
+脚本留在 `.plan/uia-doc.ps1`，人工验收可复用。
+
+跑出来的三个缺陷（**都已修**，每个都补了能真正抓住它的守卫）：
+
+| # | 症状 | 根因 | 为什么自动化没抓到 |
+| --- | --- | --- | --- |
+| 1 | 壳启动即 panic，窗口根本不出来 | `plugins.updater` 段缺席 → Tauri 传 `null` → `PluginInitialization("updater", "invalid type: null, expected struct Config")`。`tauri_plugin_updater::Config.pubkey` 是**必填**（无 `serde(default)`），「不设 pubkey」做不到字面意思 | 只跑过 `cargo build`（编译过）与 `cargo test`（不启 app），没有任何一步真的启动过窗口 |
+| 2 | 10 条命令**全部** `Command X not found` | 见 §1：`#[tauri::command]` 默认按 snake_case 注册，切片表的 camelCase 名一个都命不中 | 旧守卫只比 `M1_COMMANDS` 与 `M1_HANDLER_PATHS` 两个常量，二者本来就自洽；wire 名不在常量里 |
+| 3 | 面板恒显示 `(尚无回调)`，深链收不到 | **#2 的症状**：`notifyRendererReady` 的 invoke 也命不中 → 宿主收不到握手 → 冷启动队列永不回放（`crates/deeplink` 的 router 与单测都对，队列确实积压了 1 条） | router 的单测覆盖了缓存/回放时序，但没人验证过「渲染层能不能真的把握手发出来」 |
+
+顺带核实的两个否定结论（都查过、都不是原因，避免下次重走）：
+
+- **不是 capability 问题**：10 条命令是本应用的 `#[tauri::command]`，不需要 capability 条目。
+  Tauri 的 `generate_handler!` 确实会在**应用 ACL 存在时**静默剔除未授权命令
+  （`filter_unused_commands`，会 `println!` 一行 "Removed unused commands from …"），
+  但那条路径只在 `build > removeUnusedCommands` 打开（CLI 设 `REMOVE_UNUSED_COMMANDS`
+  环境变量）时才生效；本仓没开，`allowed-commands.json` 也不存在。
+- **不是 `generate_handler!` 嵌套在 `macro_rules!` 里的问题**：`:path` 片段传进 proc macro
+  能正常解析，handler 里注册的名字来自函数自己的 `__tauri_command_name_*` 宏，与嵌套无关。
+
+**回滚方式**：跑 smoke 会把本机 `HKCU\Software\Classes\mode` 的 `shell\open\command`
+从已安装的 Electron 应用改指到 `target/` 下的调试产物（`app.deep_link().register()` 的
+副作用）。本次已用跑前导出的 `reg export` 备份还原（备份留在 `.plan/mode-protocol-backup.reg`）；
+再跑时同样先 `reg export` 备份、跑后 `reg import` 还原。
 
 ## 5. M1 未完成项（明确登记，不假装完成）
 
@@ -207,6 +267,12 @@ workflow artifacts**：Tauri 线在 M5 之前不是发布线，而它与旧 Elec
 工具链），把未验证的腿挂成发布门禁会让每次 push 都卡成 draft。转正是 M1 阶段收口时的事，
 条件写在下节。
 
+**macOS / Linux 两条腿先不处理**（2026-10-16 决定）：这两条腿编译失败**不该污染** Windows 腿
+与旧 Electron 线的绿灯，故 job 上加 `continue-on-error: ${{ matrix.target != 'win' }}`——
+只让非 Windows 腿不判红，**不删矩阵**：产物与日志仍然采集（编译失败时上面的步骤会失败，
+日志留在运行记录里），等真正要转正时这批证据就是起点。`continue-on-error` 与「不在 `needs` 里」
+是两件事：前者管 job 的成败判定，后者管发布是否被门禁卡住；转正时两者一起去掉。
+
 ### 8.2 体积基线（Windows 本机实测，2026-10-16）
 
 | 平台 | 体积 | 状态 |
@@ -220,9 +286,12 @@ workflow artifacts**：Tauri 线在 M5 之前不是发布线，而它与旧 Elec
 Windows 实测 7.19 MiB，余量充足——注意这个数字**还没含产品 UI 的 renderer 资产**
 （M1 是验收台前端，§4.2），M3 挂载真实 UI 后必须重测并更新本表。
 
-### 8.3 首次 CI 运行要盯的两处
+### 8.3 macOS / Linux 腿的已知风险（**当前不处理**，转正时再解决）
+
+2026-10-16 决定这两条腿先不处理（§8.1）。下面两处**已知风险按未解决登记**，不是「没问题」；
+转正前必须逐条确认，届时若 Linux 仍失败，备选是改用 `--bundles deb`（只需 `dpkg-deb`，
+风险最低）并同步 matrix 的 `ext` 与 §8.1 的表。
 
 - **Linux**：`webkit2gtk` / `libsoup3` 的 dev 包名随发行版变动；AppImage 的打包器
-  （linuxdeploy）依赖 FUSE，容器里靠 `APPIMAGE_EXTRACT_AND_RUN=1` 绕过。若仍失败，
-  改用 `--bundles deb`（只需 `dpkg-deb`，风险最低）并同步 matrix 的 `ext` 与 §8.1 的表。
-- **macOS**：确认产出的是 `aarch64-apple-darwin`（不是 Rosetta 下的 x86_64）。
+  （linuxdeploy）依赖 FUSE，容器里靠 `APPIMAGE_EXTRACT_AND_RUN=1` 绕过。**未验证**。
+- **macOS**：需确认产出的是 `aarch64-apple-darwin`（不是 Rosetta 下的 x86_64）。**未验证**。

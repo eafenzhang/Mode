@@ -15,7 +15,7 @@ use crate::AppState;
 /// 本命令就是那条握手的宿主端：渲染层把订阅装好之后才调它，所以**冷启动缓存的深链
 /// 在这里回放**（缓存与回放的时序在 `crates/deeplink` 的 router 里，有单元测试钉住）。
 /// 深链状态尚未托管时不报错——「没有深链要补发」是正常情形，不是失败。
-#[tauri::command]
+#[tauri::command(rename = "notifyRendererReady")]
 pub fn notify_renderer_ready<R: Runtime>(app: AppHandle<R>, state: State<'_, AppState>) {
     let _ = state.mark_renderer_ready();
     if let Some(router) = app.try_state::<deeplink::DeeplinkState<R>>() {
@@ -30,7 +30,7 @@ pub fn notify_renderer_ready<R: Runtime>(app: AppHandle<R>, state: State<'_, App
 /// `IPlatformService.syncWindowTabs(paths: string[]): void`
 ///
 /// 原语义：把当前窗口所有 tab 的 workspace 路径同步给 main，用于跨窗口去重。
-#[tauri::command]
+#[tauri::command(rename = "syncWindowTabs")]
 pub fn sync_window_tabs(state: State<'_, AppState>, paths: Vec<String>) {
     let _ = state.set_tabs(paths);
 }
@@ -38,7 +38,7 @@ pub fn sync_window_tabs(state: State<'_, AppState>, paths: Vec<String>) {
 /// `IPlatformService.syncWindowUnreadCount(count: number): void`
 ///
 /// 原语义：把当前窗口未读 task 数同步给宿主，用于 Dock / 任务栏徽标聚合。
-#[tauri::command]
+#[tauri::command(rename = "syncWindowUnreadCount")]
 pub fn sync_window_unread_count(state: State<'_, AppState>, count: u32) {
     let _ = state.set_unread_count(count);
 }

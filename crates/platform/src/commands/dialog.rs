@@ -29,14 +29,14 @@ fn path_string(picked: Option<FilePath>) -> Option<String> {
 }
 
 /// `IPlatformService.selectDirectory(): Promise<string | null>`
-#[tauri::command]
+#[tauri::command(rename = "selectDirectory")]
 pub async fn select_directory<R: tauri::Runtime>(app: AppHandle<R>) -> Option<String> {
     let picked = await_pick(|callback| app.dialog().file().pick_folder(callback)).await;
     path_string(picked)
 }
 
 /// `IPlatformService.selectFile(): Promise<string | null>`
-#[tauri::command]
+#[tauri::command(rename = "selectFile")]
 pub async fn select_file<R: tauri::Runtime>(app: AppHandle<R>) -> Option<String> {
     let picked = await_pick(|callback| app.dialog().file().pick_file(callback)).await;
     path_string(picked)
@@ -46,7 +46,7 @@ pub async fn select_file<R: tauri::Runtime>(app: AppHandle<R>) -> Option<String>
 ///
 /// `data` 分支（渲染层已持有字节）完整实现；`sourceUrl` 分支需要一次 HTTP 取回，
 /// M1 骨架没有 HTTP 客户端，**明确失败**而不是静默写空文件。
-#[tauri::command]
+#[tauri::command(rename = "saveFile")]
 pub async fn save_file<R: tauri::Runtime>(
     app: AppHandle<R>,
     payload: SaveFileRequest,

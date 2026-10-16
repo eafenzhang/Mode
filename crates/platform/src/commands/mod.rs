@@ -12,8 +12,15 @@ pub mod window;
 
 /// 生成切片表、handler 注册与名字上报。
 ///
-/// `$js => $handler` 里的 `$js` 必须等于 `$handler` 函数名的 camelCase 形式
-/// （Tauri 默认按 camelCase 暴露命令名）；`tests/commands.rs` 有对应守卫。
+/// `$js => $handler` 里的 `$js` 必须等于 `$handler` 函数名的 camelCase 形式，
+/// **并且每个处理函数自己也要写 `#[tauri::command(rename = "<同一个 $js>")]`**。
+///
+/// 后半句不是冗余：Tauri v2 的命令名默认是**函数名的 snake_case 原文**
+/// （`tauri-macros` 的 `command/wrapper.rs`：无 rename 时取 `stringify!(ident)`），
+/// 不会自动转 camelCase。少了 rename，渲染层的 `invoke("openExternal")`
+/// 命不中 `open_external` 分支，运行时才报 `Command openExternal not found`——
+/// 2026-10-16 的 smoke 就是被这个静默断链卡住的（10 条命令全部不可达）。
+/// `tests/commands.rs` 的 `every_command_declares_a_camel_case_wire_name` 扫源码守住这条。
 macro_rules! command_slice {
     ($($js:literal => $handler:path),+ $(,)?) => {
         /// M1 切片表里的命令名，与 `IPlatformService` 逐字一致。

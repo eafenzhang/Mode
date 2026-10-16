@@ -403,3 +403,30 @@ Expected: 首次生成后写入文件；再次运行无 diff
 | Task 5 产物去向 | 与旧线共用 Release | 只发 workflow artifacts | 产物名与旧线逐字相同，同名上传会 clobber 用户的安装包；M5 换目标 |
 | Task 5 门禁 | — | 不挂 `publish.needs` | 三条腿未本机验证，挂上去会让每次 push 卡成 draft |
 | Task 5 体积表 | 三平台都记 | 只记了 Windows | 本机只有 Windows + gnu 工具链；mac/linux 待首次 CI |
+
+## 2026-10-16 执行记录（第三批：深链 smoke，**修正第二批次的两处结论**）
+
+用户授权后补跑 Task 6 Step 2 的实机深链验证。**结论：自动化全绿的状态下，壳其实一个命令都
+调不通、深链一条都收不到。** 三个缺陷已修，明细见 `docs/specs/tauri-platform-commands.md` §4.3。
+
+| # | 症状 | 根因 | 修法 |
+| --- | --- | --- | --- |
+| 1 | 壳启动即 panic | `plugins.updater` 段缺席；`Config.pubkey` 是必填字段 | conf 补端点 + `pubkey: ""`（空串在 `PublicKey::decode` 处 fail closed），加两条 conf↔常量守卫 |
+| 2 | 10 条命令全部 `Command X not found` | `#[tauri::command]` 默认注册 snake_case 名，切片表的 camelCase 名一个都命不中 | 10 个处理函数逐个补 `rename = "<camelCase>"`，加扫源码的 wire-name 守卫 |
+| 3 | 深链收不到（面板恒 `(尚无回调)`） | **#2 的症状**：握手命令也命不中，宿主收不到 `notifyRendererReady`，冷启动队列永不回放 | 随 #2 一并解决 |
+
+**要更正第二批次的两处表述**：
+
+1. 第二批写「Task 6 Step 2 已通过」——**当时只证明了编译通过**，没有任何一步真的启动过窗口。
+   「已通过」应当读作「编译通过 + 单测通过」，运行期从未验证。
+2. 第二批把 `cargo build` 的成功当成了「骨架可用」的证据。实际证据链要包含**启动一次**：
+   本次 smoke 的入口就是直接跑二进制并把 stderr 重定向到文件（release 构建是
+   `windows_subsystem = "windows"`，没有控制台，但继承来的重定向句柄仍可写）。
+
+顺带记录一条本地环境事实（写进 spec §4 步骤 1 了）：本机直接调 cargo 必须自己装配
+gnu 工具链（`+stable-x86_64-pc-windows-gnu` + llvm-mingw 作 linker），否则会以
+`dlltool.exe: program not found` 或 `link: extra operand` 失败——本机没装 VS Build Tools，
+而 Git Bash 的 coreutils `link` 会挡住 MSVC 的 `link.exe`。
+
+**仍未做**：对话框/文件选择/系统通知这几项需要真人看窗口（无人值守跑不了）；
+macOS / Linux 出包腿按用户决定暂不处理。

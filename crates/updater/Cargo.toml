@@ -13,3 +13,7 @@ path = "src/lib.rs"
 serde.workspace = true
 tauri.workspace = true
 tauri-plugin-updater.workspace = true
+
+[dev-dependencies]
+# 单测读 app 的 tauri.conf.json，断言端点与 pubkey 两条约束（见 src/lib.rs 的测试）。
+serde_json.workspace = true
