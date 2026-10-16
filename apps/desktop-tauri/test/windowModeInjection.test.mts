@@ -43,7 +43,7 @@ import test from "node:test";
 import ts from "typescript";
 
 import {
-  M1_EVENT_SUBSCRIBED_METHODS,
+  EVENT_SUBSCRIBED_METHODS,
   M1_IMPLEMENTED_COMMANDS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
   normalizeApplicationIconRequest,
@@ -651,7 +651,7 @@ test("注入的 window.mode 与 M1 适配层切片一致：命令同名同参，
       `注入脚本里的深链 kind "${kind}" 必须与生成物一致`,
     );
   }
-  for (const method of M1_EVENT_SUBSCRIBED_METHODS) {
+  for (const method of EVENT_SUBSCRIBED_METHODS) {
     assert.ok(names.includes(method), `${method} 必须在注入的 window.mode 上（否则 OAuth 链断）`);
   }
 
@@ -674,17 +674,23 @@ test("深链订阅：kind 与方法的配对是可观察行为，不是「两个
   // 为什么单独一条（review I2）：原先只断言两个 kind 字面量**都出现在文件里**——
   // 把 `KIND_OAUTH` 与 `KIND_PAYMENT` 对调，那种断言照样绿。这里按行为验证：
   // 喂一个 kind，只有对应的方法该被回调。
+  //
+  // M3 Task 4 把订阅面从 2 条扩到 4 条（`share-import` / `workspace-open` 也有落点了），
+  // 所以配对断言也扩到四条，并且**载荷形状各按各的**（share 是 `{shareCode}`、
+  // workspace-open 是 `path`）——只断言「kind 出现过」抓不到投影写错。
   const page = createPage();
   page.evaluate(emitInjectedScript());
   page.probe(
-    "window.__probe = { oauth: [], payment: [] };" +
+    "window.__probe = { oauth: [], payment: [], share: [], workspace: [] };" +
       "window.mode.onOAuthCallback(function (url) { window.__probe.oauth.push(url); });" +
-      "window.mode.onPaymentCallback(function (url) { window.__probe.payment.push(url); });",
+      "window.mode.onPaymentCallback(function (url) { window.__probe.payment.push(url); });" +
+      "window.mode.onShareImport(function (payload) { window.__probe.share.push(payload); });" +
+      "window.mode.onOpenWorkspacePath(function (path) { window.__probe.workspace.push(path); });",
   );
   await page.flushMicrotasks();
 
   const event = readDeepLinkEventName();
-  assert.equal(page.deepLinkListeners.length, 2, "两条订阅方法都必须真的注册监听");
+  assert.equal(page.deepLinkListeners.length, 4, "四条订阅方法都必须真的注册监听");
   for (const listener of page.deepLinkListeners) {
     assert.equal(listener.event, event, `订阅的必须是宿主 emit 的深链事件 ${event}`);
   }
@@ -695,8 +701,15 @@ test("深链订阅：kind 与方法的配对是可观察行为，不是「两个
     }
   };
 
-  const recorded = (key: "oauth" | "payment"): string[] =>
-    Array.from(page.probe(`window.__probe.${key}`) as string[]);
+  const recorded = (key: "oauth" | "payment" | "share" | "workspace"): unknown[] =>
+    Array.from(page.probe(`window.__probe.${key}`) as unknown[]);
+  /**
+   * 跨 realm 比较：`share` 那一档的元素是**注入脚本 realm 里造的对象**，
+   * 而 `node:vm` 的跨 realm 对象在原型上不等于本 realm 的字面量（deepStrictEqual 会红）。
+   * 走一次 JSON 往返把形状（而不是原型）拿来比。
+   */
+  const recordedShape = (key: "oauth" | "payment" | "share" | "workspace"): unknown =>
+    JSON.parse(JSON.stringify(recorded(key)));
 
   deliver({ kind: "oauth-callback", url: "mode://oauth/callback?state=oauth-1" });
   assert.deepEqual(
@@ -721,6 +734,27 @@ test("深链订阅：kind 与方法的配对是可观察行为，不是「两个
     ["mode://oauth/callback?state=oauth-1"],
     "payment-callback 不得追加到 onOAuthCallback",
   );
+
+  // M3 Task 4 的两条：载荷形状**各自不同**，所以必须按各自的投影断言。
+  deliver({ kind: "share-import", url: "mode://share/import?code=abc", code: "abc" });
+  assert.deepEqual(
+    recordedShape("share"),
+    [{ shareCode: "abc" }],
+    "share-import 必须打到 onShareImport，且载荷是 {shareCode}（不是把 code 直接透传）",
+  );
+  deliver({ kind: "workspace-open", url: "mode://workspace/open?path=/w", path: "/w" });
+  assert.deepEqual(
+    recorded("workspace"),
+    ["/w"],
+    "workspace-open 必须打到 onOpenWorkspacePath，且给的是解析后的 path",
+  );
+  assert.deepEqual(recorded("oauth"), ["mode://oauth/callback?state=oauth-1"], "别的订阅不得被追加");
+
+  // 缺字段的两条：跳过，不喂半个载荷（回调拿到 `undefined` 会二次崩）。
+  deliver({ kind: "share-import", url: "mode://share/import" } as Record<string, unknown>);
+  deliver({ kind: "workspace-open", url: "mode://workspace/open" } as Record<string, unknown>);
+  assert.deepEqual(recordedShape("share"), [{ shareCode: "abc" }]);
+  assert.deepEqual(recorded("workspace"), ["/w"]);
 
   // 形状不对的载荷（IPC 来的东西不能假设类型）只跳过，不抛、也不误投。
   deliver({ kind: "oauth-callback" } as Record<string, unknown>);
@@ -757,7 +791,7 @@ test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成�
     );
   }
 
-  const implemented = new Set<string>([...M1_IMPLEMENTED_COMMANDS, ...M1_EVENT_SUBSCRIBED_METHODS]);
+  const implemented = new Set<string>([...M1_IMPLEMENTED_COMMANDS, ...EVENT_SUBSCRIBED_METHODS]);
   const absent = new Set(DELIBERATELY_ABSENT_REQUIRED_MEMBERS);
   assert.deepEqual(
     [...absent],

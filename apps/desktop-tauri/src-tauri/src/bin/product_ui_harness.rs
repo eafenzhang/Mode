@@ -44,11 +44,21 @@ fn watchdog_ms() -> u64 {
 }
 
 fn main() {
-    let builder = tauri::Builder::default();
+    // 与产品壳**同一批部件**，包括单实例插件（M3 Task 4）：`singleInstance.test.mts` 要它
+    // 来充当「已运行的实例」——探针在页面里，所以观测点只能挂在 harness 上；而互斥体/隐藏窗口
+    // 是按 app identifier 建的，产品壳与 harness 共用同一个 identifier，所以第二实例（同一个
+    // 可执行文件 + 深链在 argv 里）能转发到本进程。注册顺序同样是「最先」（见 single_instance.rs）。
+    let builder = mode_tauri::single_instance::install(tauri::Builder::default());
     let builder = platform::commands::init_with_extra(builder, mode_tauri::host_handler());
 
     let builder = builder.setup(|app| {
         let handle = app.handle().clone();
+
+        // 深链路由状态（**只托管、不注册 scheme**）：`singleInstance.test.mts` 要本进程充当
+        // 「已在运行的实例」并把转发进来的链接投到页面上，而投递路径就是这份路由。
+        // 刻意不用 `deeplink::install`——它会把 `mode://` 的默认 handler 指向本可执行文件，
+        // 那是真机上的持久副作用（测试不该改用户的注册表）。见 `deeplink::manage_state`。
+        deeplink::manage_state(&handle);
 
         let host = mode_tauri::spawn_host(&handle);
         let startup_id = host.startup_id().to_string();

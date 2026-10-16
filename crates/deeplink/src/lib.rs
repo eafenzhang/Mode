@@ -15,13 +15,24 @@
 //! CI 断言无漂移）；渲染层侧对应
 //! `packages/ui/src/platform/tauri-invoke-shim.ts` 的 `onOAuthCallback` / `onPaymentCallback`。
 //!
-//! ## M1 已知边界（登记不隐瞒）
+//! ## 三条入口，一条投递路径
 //!
-//! - **不做单实例转发**：Windows / Linux 上「应用已在运行 → 用户点 `mode://` 链接」会
-//!   起一个新进程（新窗口）。单实例会把窗口生命周期语义变复杂，与「每个窗口一个
-//!   window-scoped Local Host」（`AGENTS.md`）绑在一起，属 M3 的窗口模型决策。
-//! - 冷启动（应用没在跑）路径是完整的：scheme 已注册、URL 从 argv 解析、缓存到
-//!   renderer 握手后投递。
+//! 深链到达本进程只有三种方式，**它们共用 [`dispatch_raw`] 这一条投递实现**（`DeepLinkRouter`
+//! 的缓存/回放时序 + `TauriSink` 的 `emit`），所以「链接怎么进来的」不影响「链接怎么到渲染层」：
+//!
+//! | 入口 | 何时 | 谁接线 |
+//! | --- | --- | --- |
+//! | 运行期 `open-url`（macOS）/ 插件 emit 的 `new-url` | 应用已在运行、操作系统把链接交给它 | [`install`] |
+//! | 冷启动 argv | 应用没在跑，链接随命令行进来 | [`install`] → 等 renderer 握手后回放 |
+//! | **第二实例的 argv**（M3 Task 4 · DR-T4-1） | 应用已在运行、用户又点了一次 `mode://` 链接，操作系统**起了第二个进程** | [`forward_second_instance_args`]（壳的单实例回调调它） |
+//!
+//! 第三条的存在理由：Windows / Linux 上点击链接一定会起新进程，而第二个进程若走完整启动路径
+//! 就会**再建一个 Host、再建一个窗口**（第二份 workspace 状态）。单实例插件在**建窗口之前**
+//! 截住它、把 argv 交回第一个进程，**转发的落地就是上面这条既有投递路径**——不新增 IPC、
+//! 不新增事件名。窗口模型上的代价见 `docs/specs/tauri-platform-commands.md` 的单实例一节。
+//!
+//! 冷启动（应用没在跑）路径是完整的：scheme 已注册、URL 从 argv 解析、缓存到
+//! renderer 握手后投递。
 use protocol::{DeepLinkEvent, DeepLinkEventKind, DEEP_LINK_EVENT};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
@@ -82,13 +93,69 @@ impl<R: Runtime> DeepLinkSink for TauriSink<R> {
 /// 深链路由器作为 Tauri 托管状态的类型别名。
 pub type DeeplinkState<R> = DeepLinkRouter<TauriSink<R>>;
 
-/// 安装深链面：注册 scheme、监听运行期回调、把冷启动 argv 里的链接排进队列。
+/// 托管深链路由状态（幂等）。
+///
+/// **只托管状态，不注册 scheme**：注册会把 `mode://` 的默认 handler 指向当前可执行文件
+/// （见 [`install`]），那是真机上的持久副作用。产品壳走 `install`（两者都要），
+/// 而只做转发接线的测试 harness 用本函数——它要能**接住**深链，但不该改用户的注册表。
+pub fn manage_state<R: Runtime>(app: &AppHandle<R>) {
+    if app.try_state::<DeeplinkState<R>>().is_none() {
+        app.manage(DeepLinkRouter::new(TauriSink::new(app.clone())));
+    }
+}
+
+/// 把一条原始深链投进路由（**三条入口唯一的投递路径**）。
+///
+/// 返回 `false` 表示这次投递没有落地：路由状态还没托管（`setup` 尚未跑到），或者这条串
+/// 根本不是本应用认的深链（scheme 不认识）。两种情况都**只留痕不抛**——深链是尽力而为的入口，
+/// 让一次未识别的链接掀翻启动路径是本末倒置。
+pub fn dispatch_raw<R: Runtime>(app: &AppHandle<R>, raw: &str) -> bool {
+    let Some(router) = app.try_state::<DeeplinkState<R>>() else {
+        eprintln!("[deeplink] 路由状态尚未托管，忽略本次深链：{raw}");
+        return false;
+    };
+    router.dispatch(raw).is_some()
+}
+
+/// 第二实例的 argv 里要转交给已运行实例的那条深链（[`intent::extract_from_args`] 的语义面）。
+///
+/// 单独有这个函数是因为**它才是单实例转发的判据**：`None` = 这次启动没有链接
+/// （用户又点了一次图标），此时壳只聚焦既有窗口、不转任何东西。抽成纯函数让「转发什么」
+/// 可以在没有 `AppHandle` 的情况下被断言（见 `tests/intent.rs`）。
+pub fn forwardable_second_instance_url<I, S>(args: I) -> Option<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    intent::extract_from_args(args)
+}
+
+/// 第二实例转发（DR-T4-1）：把转发进来的 argv 解析成深链，走**既有**投递路径送进渲染层。
+///
+/// 返回值是**本次真正转发出去**的链接原文（`None` = 没有可转发的东西，或投递没落地），
+/// 供壳记一条诊断。**本函数不建窗口、不建 Host、不碰进程**——它只投一条事件。
+pub fn forward_second_instance_args<R: Runtime>(
+    app: &AppHandle<R>,
+    args: &[String],
+) -> Option<String> {
+    let raw = forwardable_second_instance_url(args)?;
+    dispatch_raw(app, &raw).then_some(raw)
+}
+
+/// 安装深链面：托管路由状态、注册 scheme、监听运行期回调、把冷启动 argv 里的链接排进队列。
 ///
 /// 调用点在 `setup`（此时 `AppHandle` 已可用）。注册失败不致命（例如无权限写注册表），
 /// 只记一条 stderr——**但冷启动解析仍然执行**，因为从命令行手动传入链接（开发与测试）
 /// 不依赖 scheme 注册。
+///
+/// **注册 scheme 是持久副作用**（它把 `mode://` 的默认 handler 指向当前可执行文件）：
+/// 只做接线的测试 harness 应当用 [`manage_state`]，不要走本函数。
 pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     use tauri_plugin_deep_link::DeepLinkExt;
+
+    // 先托管状态：下面两条路（运行期回调、冷启动 argv）都要用它。幂等，所以调用方
+    // 之前 manage 过也不会重复。
+    manage_state(app);
 
     // 注册给操作系统的 scheme 只有 `mode`（docs/specs/p2-mode-naming.md：不注册旧 scheme，
     // 避免与宿主应用争抢默认 handler）；旧 `zcode://` 只在**处理**侧兼容。
@@ -102,20 +169,17 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     // 不限制其余参数个数。冷启动路径统一走本 crate 的 [`intent::extract_from_args`]。
     let handle = app.clone();
     app.deep_link().on_open_url(move |event| {
-        let Some(router) = handle.try_state::<DeeplinkState<R>>() else {
-            eprintln!("[deeplink] 路由状态尚未托管，忽略本次 open-url");
-            return;
-        };
         for url in event.urls() {
-            router.dispatch(url.as_str());
+            // 与第二实例转发共用同一条投递路径（见 [`dispatch_raw`]）。
+            dispatch_raw(&handle, url.as_str());
         }
     });
 
     // 冷启动：链接随 argv 进来时窗口还不存在，解析结果进队列，等 notifyRendererReady 回放。
-    if let Some(router) = app.try_state::<DeeplinkState<R>>() {
-        if let Some(raw) = intent::extract_from_args(std::env::args()) {
-            router.dispatch(&raw);
-        }
+    // 这里刻意不走 `forwardable_second_instance_url`：本进程**不是**第二实例（单实例插件
+    // 已经把第二实例截在建窗口之前），而两条路径的判据同源（同一个 `extract_from_args`）。
+    if let Some(raw) = intent::extract_from_args(std::env::args()) {
+        dispatch_raw(app, &raw);
     }
 
     Ok(())

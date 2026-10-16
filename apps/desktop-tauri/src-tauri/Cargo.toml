@@ -59,6 +59,9 @@ required-features = ["product-ui-harness"]
 tauri-build.workspace = true
 
 [dependencies]
+# 单实例（M3 Task 4 · DR-T4-1）：Windows 上点 `mode://` 链接一定会起新进程，插件把第二个进程
+# 截在**建窗口之前**并把 argv 交回第一个进程（见 src/single_instance.rs 的模块文档）。
+tauri-plugin-single-instance.workspace = true
 platform = { path = "../../../crates/platform" }
 sidecar-host = { path = "../../../crates/sidecar-host" }
 protocol = { path = "../../../crates/protocol" }

@@ -22,7 +22,7 @@
  * `packages/client/src/globals.d.ts` 的声明机械对拍）：
  *
  * - `M1_COMMANDS`：M1 切片表的命令，逐个经 Tauri `invoke` 打到壳的 `#[tauri::command]`；
- * - `M1_EVENT_SUBSCRIBED`：M1 唯一接线的事件通道（深链），按载荷 `kind` 分流；
+ * - `EVENT_SUBSCRIBED`：走宿主深链事件通道的方法（五种 `kind` 全部有订阅点），按载荷 `kind` 分流；
  * - `REJECTING_REQUIRED`：**调用方会消费返回值**（`Promise<T>`，T ≠ void）的成员——
  *   调用返回一个带 `not_implemented_until_m3: <name>` 的**被拒 Promise**（不返回假值、
  *   也不同步抛：同步抛会掀翻正在渲染的树，实测见下）；
@@ -64,12 +64,24 @@
  *   缺口可观察：`window.__MODE_WINDOW_MODE__.deliberatelyAbsent`。
  * - 事件 API 缺席时（`withGlobalTauri` 被关掉）订阅降级为 no-op disposer 并**留痕**
  *   （`degraded` 计数 + console.warn），不是静默成功。
+ *
+ * ## M3 Task 4 的追加（深链面到此完整）
+ *
+ * `EVENT_SUBSCRIBED` 从 2 条扩到 4 条：`onShareImport` / `onOpenWorkspacePath` 在接口声明里就是
+ * **深链驱动**的，而宿主从 M1 起就投递 `share-import` / `workspace-open` 两个 `kind`——只是没有
+ * 订阅点（症状：链接到了渲染层却没人接）。**五种 `kind` 现在都有落点**（`unrecognized` 例外，
+ * 它本来就是「收到了但没人认领」的观察面）。其余订阅型方法的逐条登记见
+ * `docs/specs/tauri-platform-commands.md` §9.4。
  */
 (function () {
   var NOT_IMPLEMENTED_PREFIX = "not_implemented_until_m3";
   var DEEP_LINK_EVENT = "mode:deep-link";
   var KIND_OAUTH = "oauth-callback";
   var KIND_PAYMENT = "payment-callback";
+  // M3 Task 4 补的两条：`share-import` / `workspace-open` 从 M1 起就由宿主的路由投递
+  // （`crates/deeplink`），只是一直没有订阅点——于是链接到了渲染层却没人接。
+  var KIND_SHARE_IMPORT = "share-import";
+  var KIND_WORKSPACE_OPEN = "workspace-open";
   // 命令名由 Rust 侧注入（`crate::bridge` 的占位符替换），不手抄：wire 名的唯一真源在那边。
   var CMD_PLATFORM_REPORT = "__MODE_HOST_CMD_PLATFORM_REPORT__";
 
@@ -86,8 +98,19 @@
     "syncWindowUnreadCount",
     "getApplicationIcon",
   ];
-  /** M1 通过**事件通道**实现的两条订阅方法（不在命令表里）。 */
-  var M1_EVENT_SUBSCRIBED = ["onOAuthCallback", "onPaymentCallback"];
+  /**
+   * 通过**宿主深链事件通道**实现的订阅方法（不在命令表里）。
+   *
+   * M1 落前两条；M3 Task 4 把后两条也接上——它们在接口声明里就是**深链驱动**的
+   * （`mode://share/import?code=…` 与「deep link 直接打开本地工作区目录」），
+   * 而宿主从 M1 起就投递这两个 `kind`。至此宿主认得的五种深链在本层**全部有落点**。
+   */
+  var EVENT_SUBSCRIBED = [
+    "onOAuthCallback",
+    "onPaymentCallback",
+    "onShareImport",
+    "onOpenWorkspacePath",
+  ];
   /**
    * 必选、M1 未实现，且**调用方会消费返回值**的成员：调用返回一个**被拒的 Promise**。
    *
@@ -191,7 +214,7 @@
 
   var diagnostics = {
     source: "sidecar-host/window_mode.ts",
-    implemented: M1_COMMANDS.slice().concat(M1_EVENT_SUBSCRIBED),
+    implemented: M1_COMMANDS.slice().concat(EVENT_SUBSCRIBED),
     notImplemented: REJECTING_REQUIRED.slice(),
     noOp: NO_OP_REQUIRED.slice(),
     deliberatelyAbsent: DELIBERATELY_ABSENT_REQUIRED.slice(),
@@ -300,8 +323,30 @@
     };
   }
 
-  /** 订阅深链事件里某一类 `kind`，返回同步的 disposer。 */
-  function subscribeDeepLink(kind, callback) {
+  /** `url` 投影（oauth / payment）：形状不对给 `undefined`，由 subscribeDeepLink 跳过。 */
+  function projectUrl(payload) {
+    return typeof payload.url === "string" && payload.url.length > 0 ? payload.url : undefined;
+  }
+
+  /** `path` 投影（`workspace-open`）。 */
+  function projectPath(payload) {
+    return typeof payload.path === "string" && payload.path.length > 0 ? payload.path : undefined;
+  }
+
+  /** `{ shareCode }` 投影（`share-import`）：与 `IPlatformService.onShareImport?` 的载荷同形。 */
+  function projectShareCode(payload) {
+    return typeof payload.code === "string" && payload.code.length > 0
+      ? { shareCode: payload.code }
+      : undefined;
+  }
+
+  /**
+   * 订阅深链事件里某一类 `kind`，返回同步的 disposer。
+   *
+   * `project` 把事件载荷投影成**该订阅方法要的东西**：五种 `kind` 共用一个事件名，
+   * 投影是它们唯一的差别（oauth/payment 要原文，share 要 `{shareCode}`，workspace-open 要 `path`）。
+   */
+  function subscribeDeepLink(kind, project, callback) {
     var api = window.__TAURI__;
     if (!api || !api.event || typeof api.event.listen !== "function") {
       // 降级但**不静默**：缺事件 API 是「订阅装不上」，不是「订阅成功但没有回调」。
@@ -316,8 +361,9 @@
         // 载荷来自 IPC，不能假设它符合类型：形状不对就跳过，一个畸形事件不该打断整条订阅。
         if (!payload || typeof payload !== "object") return;
         if (payload.kind !== kind) return;
-        if (typeof payload.url !== "string" || payload.url.length === 0) return;
-        callback(payload.url);
+        var projected = project(payload);
+        if (projected === undefined) return;
+        callback(projected);
       })
       .then(
         function (unlisten) {
@@ -371,10 +417,18 @@
       return invoke("getApplicationIcon", { request: normalizeIconRequest(request) });
     },
     onOAuthCallback: function (callback) {
-      return subscribeDeepLink(KIND_OAUTH, callback);
+      return subscribeDeepLink(KIND_OAUTH, projectUrl, callback);
     },
     onPaymentCallback: function (callback) {
-      return subscribeDeepLink(KIND_PAYMENT, callback);
+      return subscribeDeepLink(KIND_PAYMENT, projectUrl, callback);
+    },
+    // 类型里是可选的（调用方用 `?.` 守卫），但宿主**确实会发**这两个 `kind`，
+    // 所以给出真实现而不是留空——「平台不支持」与「这条链路没接」是两件事。
+    onShareImport: function (callback) {
+      return subscribeDeepLink(KIND_SHARE_IMPORT, projectShareCode, callback);
+    },
+    onOpenWorkspacePath: function (callback) {
+      return subscribeDeepLink(KIND_WORKSPACE_OPEN, projectPath, callback);
     },
   };
 

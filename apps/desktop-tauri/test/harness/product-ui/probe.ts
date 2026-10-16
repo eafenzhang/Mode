@@ -34,7 +34,18 @@
     modeKeyCountAtDocumentStart: 0,
     modeDiagnosticsAtDocumentStart: null,
     commandChannelAtDocumentStart: "unknown",
+    /** 深链订阅是否装上了（下面 ①.5 的观察面；`null` = 还没试）。 */
+    deepLinkSubscribed: null,
   };
+  /**
+   * 收到的深链 URL（M3 Task 4 的单实例转发用这条观察面）。
+   *
+   * 为什么订阅这里而不是等页面自己：页面是 renderer 的产物，不许改。而「**已运行实例**的渲染层
+   * 收到了转发进来的链接」正是单实例最关键的判据——只有渲染层侧能观察它：转发链是
+   * `第二实例 argv → 壳的回调 → deeplink 路由 → 宿主 emit mode:deep-link → window.mode 的订阅`。
+   * 注入层实现的 `onOAuthCallback` 就是这个事件的订阅点，所以在这里订阅等于站在**渲染层的位置**。
+   */
+  var deepLinkUrls = [];
   /**
    * 页面错误。**必须在 document-start 注册**：我们等的是「renderer 入口模块求值期抛出来」的那个
    * 错误，而模块脚本在页面解析之后才跑——document-start 的监听能抓到它（负向对照的全部依据）。
@@ -109,6 +120,25 @@
     PROBE.probeError = String(error);
   }
 
+  // ①.5 深链订阅（紧跟 ①，同样是 document-start）：**必须先订阅再断言**，
+  // 且订阅失败要留痕——否则「转发没到」与「探针没订上」在用例里长得一模一样。
+  try {
+    if (window.mode && typeof window.mode.onOAuthCallback === "function") {
+      window.mode.onOAuthCallback(function (url) {
+        deepLinkUrls.push(url);
+        log("deep_link_received url=" + url);
+      });
+      PROBE.deepLinkSubscribed = true;
+    } else {
+      PROBE.deepLinkSubscribed = false;
+      log("deep_link_subscribe_unavailable");
+    }
+  } catch (error) {
+    PROBE.deepLinkSubscribed = false;
+    log("deep_link_subscribe_threw " + String(error));
+  }
+  log("deep_link_subscribe ok=" + PROBE.deepLinkSubscribed);
+
   /** 渲染层挂载的可观察形态：`#root` 里有子树。 */
   function mounted() {
     var root = document.getElementById("root");
@@ -147,6 +177,8 @@
       modeKeyCountAtDocumentStart: PROBE.modeKeyCountAtDocumentStart,
       modeDiagnosticsAtDocumentStart: PROBE.modeDiagnosticsAtDocumentStart,
       commandChannelAtDocumentStart: PROBE.commandChannelAtDocumentStart,
+      deepLinkSubscribed: PROBE.deepLinkSubscribed,
+      deepLinkUrls: deepLinkUrls.slice(),
       probeError: PROBE.probeError || null,
       rendererStarted: typeof window.__MODE_RENDERER_START__ === "number",
       mounted: mounted(),

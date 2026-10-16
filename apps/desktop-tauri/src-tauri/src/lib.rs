@@ -8,6 +8,7 @@
 //! 任务/会话状态归 Host（`crates/sidecar-host` 拉起的 Node sidecar）。
 
 pub mod host;
+pub mod single_instance;
 pub mod window;
 
 pub use host::{handler as host_handler, resolve_config, spawn_host, COMMAND_NAMES};

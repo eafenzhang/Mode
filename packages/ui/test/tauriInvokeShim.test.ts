@@ -8,7 +8,7 @@ import { DEEP_LINK_EVENT } from "@mode/shared";
 
 import {
   createTauriPlatformService,
-  M1_EVENT_SUBSCRIBED_METHODS,
+  EVENT_SUBSCRIBED_METHODS,
   M1_IMPLEMENTED_COMMANDS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
   normalizeApplicationIconRequest,
@@ -176,8 +176,19 @@ test("未实现的**必选**方法调用即抛 not_implemented_until_m3（带方
 test("可选的未实现方法**保持缺席**，让调用方的 ?. 守卫继续生效", () => {
   const { invoke } = recordingInvoke();
   const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
-  // 这些在 IPlatformService 里带 ?，塞抛错桩会把「不支持就跳过」变成「直接崩」。
-  for (const name of ["selectFiles", "printPageToPdf", "onShareImport", "getUpdateState"]) {
+  // 这些在 IPlatformService 里带 ? 且**本层没实现**，塞抛错桩会把「不支持就跳过」变成「直接崩」。
+  //
+  // 注意：`onShareImport` / `onOpenWorkspacePath` 也曾在这份清单里，M3 Task 4 之后它们
+  // **有真实现**（宿主确实会发那两个深链 kind，见 `EVENT_SUBSCRIBED_METHODS`），
+  // 所以从「缺席」挪到了「实现」这一侧——这条用例只该列真的没实现的可选成员。
+  for (const name of [
+    "selectFiles",
+    "printPageToPdf",
+    "onBrowserViewRestore",
+    "onCloseActiveContextRequest",
+    "getDesktopWindowChromeState",
+    "getUpdateState",
+  ]) {
     assert.equal(service[name], undefined, `${name} 应缺席而不是抛错桩`);
   }
 });
@@ -225,22 +236,56 @@ test("订阅的事件名取自跨端契约（crates/protocol → 生成物），
   assert.deepEqual(unlistened, []);
 });
 
-test("深链事件按 kind 分流，只把 url 交给对应回调", () => {
+test("深链事件按 kind 分流，且每种 kind 只交给它自己的回调（载荷形状各异）", () => {
   const { listen, emit } = recordingListen();
   const service = createTauriPlatformService(recordingInvoke().invoke, listen);
   const oauthUrls: string[] = [];
   const paymentUrls: string[] = [];
+  const shareCodes: Array<{ shareCode: string }> = [];
+  const workspacePaths: string[] = [];
   service.onOAuthCallback?.((url) => oauthUrls.push(url));
   service.onPaymentCallback?.((url) => paymentUrls.push(url));
+  service.onShareImport?.((payload) => shareCodes.push(payload));
+  service.onOpenWorkspacePath?.((path) => workspacePaths.push(path));
 
   emit(DEEP_LINK_EVENT, { kind: "oauth-callback", url: "mode://oauth/callback?state=1" });
   emit(DEEP_LINK_EVENT, { kind: "payment-callback", url: "mode://payment/callback?state=2" });
-  // 非本通道的 kind 必须被过滤掉（M1 不订阅它们，但宿主会照常 emit）。
-  emit(DEEP_LINK_EVENT, { kind: "workspace-open", url: "mode://workspace/open?path=/a", path: "/a" });
+  emit(DEEP_LINK_EVENT, {
+    kind: "share-import",
+    url: "mode://share/import?code=abc",
+    code: "abc",
+  });
+  emit(DEEP_LINK_EVENT, {
+    kind: "workspace-open",
+    url: "mode://workspace/open?path=/a",
+    path: "/a",
+  });
+  // 宿主会 emit 但没有订阅点的 kind 必须被过滤掉（`unrecognized` 是观察用的种类）。
   emit(DEEP_LINK_EVENT, { kind: "unrecognized", url: "mode://nope" });
 
   assert.deepEqual(oauthUrls, ["mode://oauth/callback?state=1"]);
   assert.deepEqual(paymentUrls, ["mode://payment/callback?state=2"]);
+  // `share-import` 交给回调的载荷形状来自声明（`{ shareCode }`），不是把 `code` 直接透传。
+  assert.deepEqual(shareCodes, [{ shareCode: "abc" }]);
+  assert.deepEqual(workspacePaths, ["/a"]);
+});
+
+test("`share-import` / `workspace-open` 缺字段时跳过，不喂半个载荷给回调", () => {
+  const { listen, emit } = recordingListen();
+  const service = createTauriPlatformService(recordingInvoke().invoke, listen);
+  const shareCodes: Array<{ shareCode: string }> = [];
+  const workspacePaths: string[] = [];
+  service.onShareImport?.((payload) => shareCodes.push(payload));
+  service.onOpenWorkspacePath?.((path) => workspacePaths.push(path));
+
+  emit(DEEP_LINK_EVENT, { kind: "share-import", url: "mode://share/import" });
+  emit(DEEP_LINK_EVENT, { kind: "share-import", url: "mode://share/import?code=", code: "" });
+  emit(DEEP_LINK_EVENT, { kind: "workspace-open", url: "mode://workspace/open" });
+  emit(DEEP_LINK_EVENT, { kind: "workspace-open", url: "mode://x", path: 42 });
+  emit(DEEP_LINK_EVENT, { kind: "workspace-open", url: "mode://x", path: "" });
+
+  assert.deepEqual(shareCodes, [], "缺 code 的 share-import 不得触发回调（回调会读到 undefined）");
+  assert.deepEqual(workspacePaths, [], "缺 path 的 workspace-open 不得触发回调");
 });
 
 test("畸形的深链载荷被跳过而不是抛，不影响后续事件", () => {
@@ -309,12 +354,12 @@ test("notifyRendererReady 必须等订阅装好再握手（否则冷启动深链
   assert.deepEqual(calls.map((call) => call.command), ["notifyRendererReady"]);
 });
 
-test("M1 事件订阅方法都在服务上真实存在（不是抛错桩）", () => {
+test("事件订阅方法都在服务上真实存在（不是抛错桩）", () => {
   const service = createTauriPlatformService(
     recordingInvoke().invoke,
     noopListen,
   ) as Record<string, unknown>;
-  for (const name of M1_EVENT_SUBSCRIBED_METHODS) {
+  for (const name of EVENT_SUBSCRIBED_METHODS) {
     assert.equal(typeof service[name], "function", `${name} 应是函数`);
     // 事件订阅方法不该出现在「未实现必选」清单里——两处都登记会让抛错桩覆盖真实现。
     assert.ok(

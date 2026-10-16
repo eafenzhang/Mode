@@ -42,13 +42,13 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 | 1 | `openExternal` | `(url: string) -> void` | `tauri-plugin-opener.open_url`；只拒空串，**不收紧 scheme**（收紧会改现网行为，属单独加固决策） |
 | 2 | `selectDirectory` | `() -> Promise<string \| null>` | `tauri-plugin-dialog` `pick_folder`；取消 → `null` |
 | 3 | `selectFile` | `() -> Promise<string \| null>` | `pick_file`；取消 → `null` |
-| 4 | `saveFile` | `(payload: SaveFileRequest) -> Promise<SaveFileResult>` | **部分实现**：`data` 分支完整；`sourceUrl` 分支需 HTTP 取回，M1 无 HTTP 客户端，明确返回 `error: "save_file_source_url_not_implemented_until_m3"`（不静默写空文件） |
+| 4 | `saveFile` | `(payload: SaveFileRequest) -> Promise<SaveFileResult>` | **已实现（M3 Task 4 起）**：`data` 分支与 `sourceUrl` 分支都完整；`sourceUrl` 走**有上限**的取回（超时 30s / 字节上限 64 MiB，见 §9.3），失败**不写任何字节**。M1 的占位错码 `save_file_source_url_not_implemented_until_m3` 已作废 |
 | 5 | `openInFileManager` | `(path: string) -> Promise<{success, error?}>` | 按路径类型分派：目录 → 文件管理器打开；文件 → 在父目录中选中；路径不可用 → `success: false` |
 | 6 | `showTaskNotification` | `(payload: TaskNotificationPayload) -> void` | `tauri-plugin-notification`；是否真正展示交系统 |
-| 7 | `notifyRendererReady` | `() -> void` | 记录就绪位到 `AppState`（deep link 转发在 Task 6） |
+| 7 | `notifyRendererReady` | `() -> void` | 记录就绪位到 `AppState`；**冷启动深链在这里回放**（缓存与回放时序在 `crates/deeplink` 的 router，有单测）。运行期与第二实例转发见 §2 与 §9.1 |
 | 8 | `syncWindowTabs` | `(paths: string[]) -> void` | 覆盖式写入 `AppState` |
 | 9 | `syncWindowUnreadCount` | `(count: number) -> void` | 覆盖式写入 `AppState` |
-| 10 | `getApplicationIcon` | `(req: ApplicationIconRequest) -> IconInfo \| null` | **部分实现**：命令可调用，一律返回 `null`。契约允许 `null` 且调用方已处理；真实取值需按平台做原生图标解码，见 §5 |
+| 10 | `getApplicationIcon` | `(req: ApplicationIconRequest) -> IconInfo \| null` | **已实现（Windows，M3 Task 4 起）**：Shell 取图标资源 + GDI 取像素 → PNG data URL；按 locator 顺序尝试，**取不到返回 `null`（契约允许），从不抛**。**macOS 半边未实现且本阶段不验**（Ruling 20），见 §9.2 |
 
 ### 非本地路径的处理
 
@@ -57,17 +57,28 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 
 ## 2. 事件通道
 
-订阅型方法（`onFocusTab` / `onNewTab` / `onOAuthCallback` / `onShareImport` …）在 M1 只落
-**一个**示范：
+**深链事件通道**（M1 落地、M3 Task 4 接线完成）：Tauri event + deep-link
+（`tauri-plugin-deep-link`，scheme 沿用既有 `mode`，见
+`packages/desktop/electron-builder.config.js` 的 `protocols`）。Rust 侧把解析结果 `emit` 成
+**一个**事件（`mode:deep-link`，事件名与 `kind` 取值都是 `crates/protocol` 的生成物），
+渲染层按载荷的 `kind` 分流。
 
-- `onOAuthCallback`：Tauri event + deep-link（`tauri-plugin-deep-link`，scheme 沿用既有
-  `mode`，见 `packages/desktop/electron-builder.config.js` 的 `protocols`）。
-  Rust 侧在收到 `mode://` 回调时 `emit` 一个事件，渲染层适配层把它接到
-  `onOAuthCallback` 的订阅语义上（Task 6 接线）。
+**五种 `kind` 现在都有订阅点**（`crates/deeplink` 一直投递全部五种，M1 只接了前两条）：
 
-其余订阅型方法**留 M3**：它们依赖 sidecar 提供的事件源，M1 没有可发的事件。
-适配层对未实现的方法必须**显式抛出** `not_implemented_until_m3`，不得静默返回假值或空订阅
-（见 `packages/ui/src/platform/tauri-invoke-shim.ts` 的测试）。
+| `kind` | 订阅方法 | 交给回调的东西 |
+| --- | --- | --- |
+| `oauth-callback` | `onOAuthCallback` | URL 原文 |
+| `payment-callback` | `onPaymentCallback` | URL 原文 |
+| `share-import` | `onShareImport` | `{ shareCode }`（M3 Task 4 接线） |
+| `workspace-open` | `onOpenWorkspacePath` | 解析后的 `path`（M3 Task 4 接线） |
+| `unrecognized` | 无订阅点（**刻意**：它是「宿主收到了但没人认领」的观察面） | — |
+
+其余订阅型方法（`onFocusTab` / `onNewTab` / `onNewTask` / `onWindowFullscreenChanged` /
+`onTaskNotificationClick` / `onRemote*` / 更新链的那几条 …）**逐条登记在 §9.4**：
+它们的事件源不是深链（菜单/托盘/远控/更新链），本阶段没有可发的事件，所以按声明返回形态
+降级为「被拒 Promise」或「留痕空操作」——**不静默返回假值或空订阅**
+（见 `crates/sidecar-host/src/window_mode.ts` 的两类清单与
+`apps/desktop-tauri/test/windowModeInjection.test.mts` 的机械对拍）。
 
 ## 3. capability 规则
 
@@ -120,7 +131,7 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 | `selectDirectory` | 选择框弹出；选中后返回值 = 所选绝对路径；取消返回 `null` | 返回值是 URI，或卡死 |
 | `selectFile` | 同上（文件） | 同上 |
 | `saveFile`（`data`） | 选定路径后文件落盘且字节一致；取消返回 `canceled: true` | 取消时 `success: true`；或写入 0 字节 |
-| `saveFile`（`sourceUrl`） | 返回 `success: false` + `save_file_source_url_not_implemented_until_m3` | 返回 `success: true` |
+| `saveFile`（`sourceUrl`） | 选定路径后从远端取回并落盘（字节一致）；超时/超上限时 `success: false` + 稳定错码（`save_file_source_url_timeout` / `…_too_large`），且**不产生文件**；取消仍返回 `canceled: true` | 超上限仍返回 `success: true`；或失败时留下半截文件 |
 | `openInFileManager`（目录） | 文件管理器打开该目录 | — |
 | `openInFileManager`（文件） | 文件管理器打开父目录并选中该文件 | 打开了文件本身（不是"在文件管理器里打开"） |
 | `openInFileManager`（不存在） | `success: false` + `path_unavailable` | `success: true` |
@@ -128,7 +139,7 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 | `notifyRendererReady` | 命令返回成功 | 抛错 |
 | `syncWindowTabs` | 命令返回成功 | 抛错 |
 | `syncWindowUnreadCount` | 命令返回成功 | 抛错 |
-| `getApplicationIcon` | 返回 `null`（M1 口径） | 抛错 |
+| `getApplicationIcon` | Windows：取到 `data:image/png;base64,…`（真实图标）或 `null`（取不到）；**任何情况下都不抛** | 抛错，或返回空串/非 PNG 载体的 data URL |
 
 4. 深链通道（M1 唯一接线的事件链）：用 `mode://oauth/callback?state=test` 打开应用，
    验收台的「深链回调」区出现该 URL；
@@ -217,13 +228,13 @@ lib 的单测模块。原因是一条 Windows 链接约束链：
 
 ## 5. M1 未完成项（明确登记，不假装完成）
 
-| 项 | 原因 | 归口 |
-| --- | --- | --- |
-| **存量 renderer 的挂载** | 启动链要求 Node Host 经 MessagePort 提供 `IServiceAccessor` 与数据库启动通道（§4.2 的证据表）；没有 Host 就只会停在启动/失败屏 | M3（DR-01 sidecar） |
-| `getApplicationIcon` 的原生图标解码 | 需按平台取 exe / AUMID / bundle 的图标资源并编码为位图数据 URL（Windows GDI、macOS `NSWorkspace`），是一件独立于命令面注册的活 | M3（与 CUA 展示面一起） |
-| `saveFile` 的 `sourceUrl` 分支 | 需要一个 HTTP 客户端与取回超时/大小上限的产品规则 | M3（sidecar 接入后） |
-| `onOAuthCallback` / `onPaymentCallback` 之外的订阅型方法 | 依赖 sidecar 的事件源 | M3 |
-| **深链的单实例转发** | Windows/Linux 上「应用已在运行 → 用户点 `mode://` 链接」会起新进程（新窗口）。单实例会改动窗口生命周期语义，与「每个窗口一个 window-scoped Local Host」绑在一起 | M3（窗口模型） |
+| 项 | 原因 | 归口 | M3 Task 4 的处置 |
+| --- | --- | --- | --- |
+| **存量 renderer 的挂载** | 启动链要求 Node Host 经 MessagePort 提供 `IServiceAccessor` 与数据库启动通道（§4.2 的证据表）；没有 Host 就只会停在启动/失败屏 | M3（DR-01 sidecar） | **Task 3 关闭** |
+| `getApplicationIcon` 的原生图标解码 | 需按平台取 exe / AUMID / bundle 的图标资源并编码为位图数据 URL（Windows GDI、macOS `NSWorkspace`），是一件独立于命令面注册的活 | M3（与 CUA 展示面一起） | **Windows 半边关闭**（§9.2）；**macOS 半边未实现且本阶段不验**（Ruling 20），仍留在本表 |
+| `saveFile` 的 `sourceUrl` 分支 | 需要一个 HTTP 客户端与取回超时/大小上限的产品规则 | M3（sidecar 接入后） | **关闭**（§9.3：超时 30s / 上限 64 MiB，均有用例） |
+| `onOAuthCallback` / `onPaymentCallback` 之外的订阅型方法 | 依赖 sidecar 的事件源 | M3 | **深链驱动的两条关闭**（`onShareImport` / `onOpenWorkspacePath`，§9.4）；其余**逐条登记**在 §9.4，事件源不在本阶段范围 |
+| **深链的单实例转发** | Windows/Linux 上「应用已在运行 → 用户点 `mode://` 链接」会起新进程（新窗口）。单实例会改动窗口生命周期语义，与「每个窗口一个 window-scoped Local Host」绑在一起 | M3（窗口模型） | **关闭**（§9.1：第二实例不建窗口、不建 Host；窗口模型的约束与代价见该节） |
 | **Tauri 产物进 Release** | 产物名与旧 Electron 线完全一致，同名会 clobber 掉用户正在下载的安装包；故 M1–M4 只发 workflow artifacts | M5（「release.yml 只出 Tauri 产物」） |
 | 更新链的实际可用 | 只声明了 feed 端点与插件；发布 `latest.json`、签名密钥、三平台更新演练都没做 | M5 |
 
@@ -306,3 +317,175 @@ Windows 实测 7.19 MiB，余量充足——注意这个数字**还没含产品 
 - **Linux**：`webkit2gtk` / `libsoup3` 的 dev 包名随发行版变动；AppImage 的打包器
   （linuxdeploy）依赖 FUSE，容器里靠 `APPIMAGE_EXTRACT_AND_RUN=1` 绕过。**未验证**。
 - **macOS**：需确认产出的是 `aarch64-apple-darwin`（不是 Rosetta 下的 x86_64）。**未验证**。
+
+## 9. M3 Task 4：平台面缺口收口
+
+第 1–6 节描述的是 M1 骨架；本节记的是 **M3 Task 4 关掉 §5 里登记给它那几项**之后的口径变化。
+命令名、签名与 `rename` 契约**一字未动**（`crates/platform/tests/commands.rs` 的守卫仍绿），
+动的只是实现体与接线。
+
+### 9.1 深链的单实例转发（DR-T4-1）
+
+**问题**：Windows/Linux 上「应用已在运行 → 用户点 `mode://` 链接」一定会**起一个新进程**
+（链接在 `argv` 里）。那个进程若走完整启动路径，就会再建一个 Host、再建一个窗口——
+也就是第二份 workspace 状态，与 `AGENTS.md` 的「每个窗口一个 window-scoped Local Host、
+本地 workspace 共享该 Host」相冲。
+
+**做法**：单实例（`tauri-plugin-single-instance`，在 `main.rs` 里**最先注册**）。第二个进程
+把 `argv` 交给已运行实例后**自己退出（码 0）**，不建窗口、不建 Host。
+
+**早退为什么是构造上成立的，而不是靠自觉**：插件把这段逻辑放在**插件 setup 钩子**里，而 Tauri
+的顺序是「插件 setup 钩子（`Builder::build` 期间的 `initialize_plugins`）→ 事件循环 Ready →
+app 的 `setup` 闭包」。本壳的**窗口与 Host 都只在 app `setup` 里建**，所以钩子里
+`process::exit(0)` 时二者都还不存在。证据：
+`apps/desktop-tauri/test/singleInstance.test.mts`（静态守卫钉「插件注册在 `.setup(` 之前」
+「`spawn_host`/`build_host_window` 只在 setup 里」；opt-in 真机用例钉「第二实例的输出里没有
+`host startupId=`」「进程表里 Host 数仍是 1」「深链到达了已运行实例的渲染层」）。
+
+**转发通道复用既有的事件通道**（不另造 IPC）：插件的回调把 `argv` 交给
+`deeplink::forward_second_instance_args` → 同一个 `DeepLinkRouter` → 同一个 `mode:deep-link`
+事件。也就是说**渲染层侧的通道与 M1 的深链完全一致**：没有新事件名、没有新命令、没有新的
+渲染层 IPC 面。第二实例的**参数搬运**（Windows 上是命名互斥体 + `WM_COPYDATA` 到第一个实例的
+隐藏窗口）由插件实现，本仓没有自己写进程间通道——「不另造 IPC」指的是**渲染层侧**，
+这一点在此写明，免得下游把它读成「一个字节的进程间通信都不许有」。
+
+**代价与边界（写清，不藏）**：
+
+- 单实例**改变了窗口生命周期语义**：从此「应用」= 一个进程。若 M4 的 UI 替换要支持**多窗口**，
+  这一层需要重新设计（多窗口下「第二个实例」要变成「把链接交给某个窗口」）。本任务只做
+  **「同一个 workspace 不重复起 Host」**，**不重构窗口管理**：转发路径只做「聚焦既有主窗口」
+  （否则用户再点一次图标会因为「什么都没发生」而以为应用坏了），不新建也不销毁任何窗口。
+- 聚焦窗口的调用点在 `apps/desktop-tauri/src-tauri/src/single_instance.rs`；静态守卫断言该文件
+  里**不出现** `build_host_window` / `WebviewWindowBuilder` / `spawn_host`。
+- **测试与产品壳共用 app identifier**（`dev.mode.app`）：所以 opt-in 用例在开跑前会先断言本机
+  没有其它 mode-tauri 二进制在跑（否则转发会交给那个实例，症状是用例报「A 没收到」而原因在环境）。
+- 只做 Windows/Linux 的共用路径（Ruling 20）；macOS 上的等价语义未在本阶段验证。
+
+### 9.2 `getApplicationIcon` 的原生解码（DR-T4-2）
+
+**Windows（已实现）**：`crates/platform/src/icon_windows.rs`：
+
+```text
+locator（按顺序试）→ 可执行文件路径 → SHGetFileInfoW(SHGFI_ICON|SHGFI_LARGEICON) 取 HICON
+  → GetIconInfo + GetDIBits 取 32bpp 像素 → BGRA→RGBA → PNG → data:image/png;base64,…
+```
+
+- **载体是 PNG**（`data:image/png;base64,`）：调用方把它塞进 `<img src>`，所以媒体类型必须是
+  浏览器认得的容器；`crates/platform/tests/icon.rs` 解回 base64 并断言 PNG 签名与 IHDR 的宽高。
+- **取不到就 `null`，绝不抛**（契约允许 `null` 且调用方已处理）；`darwin-bundle-id` 在 Windows 上
+  是**安全跳过**而不是抛错。
+- **AUMID 的已知边界**：Windows 没有「给定 AUMID 反查可执行文件」的公开 API，所以本实现把
+  AUMID 当**文件名/路径**处理并查 `App Paths`（`HKLM`/`HKCU` 的
+  `SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\<名字>.exe`）。取不到仍然是 `null`。
+- **一处实测发现（值得下一个读的人知道）**：`GetDIBits` 传 `NULL` 的 DC 在真机上返回 0
+  （像素一个都不给，而且 `GetLastError` 也是 0——症状只是「图标取不到」），必须给一个
+  `CreateCompatibleDC(NULL)` 出来的内存 DC。
+- **macOS 半边未实现且本阶段不验**（Ruling 20：本阶段没有 macOS 构建，写了也验不了）——
+  非 Windows 平台上该命令**仍然返回 `null`**，这是契约内的取值，不是错误。
+
+**覆盖分工**：CI（`cargo test -p platform`）跑契约形状——不可解析的 locator → `null`、
+macOS-only locator 安全跳过、编码器产出真 PNG；**真实取值是 opt-in 真机跑**
+（`MODE_TAURI_ICON_PROBE=1 cargo test -p platform --test icon -- --nocapture real_icon`
+对 `%SystemRoot%\System32\notepad.exe` 走完整原生路径），输出入仓见本节的证据登记。
+
+### 9.3 `saveFile` 的 `sourceUrl`：超时与大小上限（DR-T4-3）
+
+**这条路径的形态是「任意远端让应用写一个文件」**，所以上限是产品规则而不是实现细节：
+
+| 项 | 值 | 生效方式 |
+| --- | --- | --- |
+| 字节上限 | **64 MiB**（`source_url::PRODUCT_MAX_BYTES`） | ① 声明的 `Content-Length` 超限直接失败（不下载）；② **下载过程中**按累计字节判（不给长度/撒谎也吃不穿内存） |
+| 墙钟超时 | **30 s**（`source_url::PRODUCT_TIMEOUT`） | `reqwest::Client::timeout`，覆盖连接、首字节与整体传输 |
+| scheme | 只收 `http://` / `https://` | 在**发起请求之前**拒绝（`file://` 会把「远端取回」变成「本地任意文件读取 + 写到用户选的路径」，`data:` 也一样） |
+
+- 两者是**公开常量**，`crates/platform/tests/source_url.rs` 的 `the_product_limits_are_pinned`
+  钉住数值：改上限必须同时改那条用例与本节。
+- **失败不写任何字节**：命令面只在取回 `Ok` 之后调 `std::fs::write`，所以「失败」与「写了一半」
+  在结构上不可能同时发生；失败时结果里**不带 `path`**（那个路径上不存在文件）。
+- 错码是稳定契约：`save_file_source_url_unsupported_scheme` / `…_too_large` / `…_timeout` /
+  `…_failed`（细节只进 stderr 诊断）。
+- **顺序取舍**：先让用户选路径、再取回（最坏情况是「选完路径再等 30s」）；反过来先取回再弹
+  对话框会让「用户还没决定保存」就先发生一次网络下载。
+- TLS：`reqwest` 以 `rustls-no-provider` 档编译（与 `tauri-plugin-updater` 同一档），
+  provider 由本模块装一次 `ring`（`install_default` 重复调用安全）。
+
+### 9.4 订阅型方法的逐条处置
+
+M1 §5 登记的是「`onOAuthCallback` / `onPaymentCallback` 之外的订阅型方法」——本轮**逐条**处置。
+判据是「本阶段有没有**可发的事件源**」，而不是「好不好做」：
+
+| 成员 | 处置 | 理由 / 事件源现状 |
+| --- | --- | --- |
+| `onShareImport` | **关闭**（真实现） | 接口声明就是深链驱动（`mode://share/import?code=…`），而宿主从这个 kind 落地起就投递它——只是没有订阅点（§2 的表） |
+| `onOpenWorkspacePath` | **关闭**（真实现） | 同上（「main 进程通过 deep link 直接打开本地工作区目录」），`workspace-open` 一直是投递中的 kind |
+| `onOAuthCallback` / `onPaymentCallback` | 已实现（M1） | — |
+| `onFocusTab` / `onNewTab` / `onNewTask` / `onOpenWorkspace` | **登记为不做** | 事件源是**壳自己的菜单/托盘/快捷键**（旧线由 Electron main 发）。本阶段壳没有这些入口的**发送方**，也没有窗口模型（多 tab 语义属 M4） |
+| `onTaskNotificationClick` | **登记为不做** | 需要「通知被点」的回调链（`tauri-plugin-notification` 的通知点击事件 + 任务 id 回传）。当前只做了「展示通知」（`showTaskNotification`） |
+| `onWindowFullscreenChanged` | **登记为不做** | 壳**有**窗口事件的来源（`RunEvent::WindowEvent` + `is_fullscreen()`），但发它需要**新增一个事件名**（协议 + 注入层 + 生成物三处一起动）。本任务的授权是「复用既有通道」，新增通道属窗口模型（M4）的改动 |
+| `onRemoteConnectionLog` / `onRemoteSessionClosed` / `onBotRemoteWorkspaceReconnected` / `onRemoteDesktopSessionEvent` | **登记为不做** | 手机远控/远端会话的事件源在**远控链路**（attachment 调度、远端传输），本阶段不涉及 |
+| `onUpdateReady` / `onUpdateCheckResult` / `onPostUpdateReleaseNotes` | **登记为不做** | 更新链只声明了 feed 端点与插件（M1 §5 的「更新链的实际可用」归口 M5），壳不注册更新命令，也没有可发的事件 |
+
+**「登记为不做」不等于沉默**：这些成员在注入层按**声明返回形态**分成两类——
+要读值的（`Promise<T>`，T ≠ void）返回**带方法名的被拒 Promise**，没有要读的值的返回
+**留痕空操作**；两类都记进 `window.__MODE_WINDOW_MODE__`，并经 `host_platform_report`
+打到壳的 stderr（release 里没有 devtools）。所以「能力缺失」是可观察的，而不是伪装成成功。
+
+**两条承接义务的处置**（DR-T4-4，原文登记在 `docs/specs/tauri-renderer-host.md` §18/§20）：
+
+- **`sequence` 归属**：本任务**没有**引入任何合并的状态流——第二实例转发进的是**深链事件**
+  （事件没有序号），`host_startup_state` 的发布者仍然只有壳一个、`sequence` 仍然只有壳一个计数器。
+  所以「必须只有一个所有者」的条件**未被触发**，归属继续移交（接手方与条件见 Host 契约 §18 ②、
+  §20 第 6 条 —— 条件不变：**谁把 Host 的中间阶段接进壳发布的状态流，谁就必须同时定归属**）。
+- **`disk` 摘要**：判据是「有没有消费者」，本 checkout 里**没有**（`state.disk` 零消费方；
+  `startupDiskSampler` 只在 Electron 的 `hostDatabaseStartup` 路径上），所以本任务不产出，
+  继续移交并把条目**留在 Host 契约 §20 的开放项里**（第 5 条）。
+
+### 9.5 本节的证据登记（原始输出）
+
+**单实例**（opt-in 真机；RED 是修复前的现场）：
+
+```text
+# RED（修复前）：第二实例起了自己的 Host 与窗口
+✖ 第二实例把深链交给已运行实例后退出：不起第二个 Host、不建窗口，链接到达渲染层
+  AssertionError: 第二实例**不得**起第二个 Host，实际输出：
+  HARNESS host startupId=host-17100-1792159189021 pid=15920
+  HARNESS injection=window_mode+bridge startupId=host-17100-1792159189021 pid=15920
+  …
+
+# GREEN（修复后）
+✔ 单实例接线：插件最先注册、第二实例的转发走既有深链事件通道、且不建窗口 (1.2073ms)
+[single-instance] 第二个实例的深链已转入：mode://oauth/callback?state=single-instance-forward
+SINGLE_INSTANCE_PAGE_LOG deep_link_received url=mode://oauth/callback?state=single-instance-forward
+✔ 第二实例把深链交给已运行实例后退出：不起第二个 Host、不建窗口，链接到达渲染层 (76901.3761ms)
+ℹ tests 2   ℹ pass 2   ℹ fail 0
+```
+
+**图标（Windows 原生解码，opt-in 真机）**：
+
+```text
+$ MODE_TAURI_ICON_PROBE=1 node scripts/rust-cargo.ts test -p platform --test icon -- --nocapture real_icon
+[icon-probe] path=C:\Windows\System32\notepad.exe prefix=data:image/png;base64, base64_bytes=3054
+test result: ok. 1 passed; 0 failed
+```
+
+**`sourceUrl` 的上限**（CI 即可跑，真 socket、不碰外网）：
+
+```text
+$ node scripts/rust-cargo.ts test -p platform --test source_url
+running 6 tests
+test the_product_limits_are_pinned ... ok
+test a_body_over_the_cap_fails_instead_of_growing ... ok
+test a_stalled_response_times_out_as_its_own_failure ... ok
+test non_http_schemes_are_rejected_before_any_request ... ok
+test a_normal_response_yields_its_bytes ... ok
+test the_failure_codes_are_stable ... ok
+test result: ok. 6 passed; 0 failed
+```
+
+### 9.6 与既有语义的关系（本任务的追加口径）
+
+- **单实例不削弱 owner/lease**：它只保证「同一个 workspace 不重复起 Host」，附件调度与
+  owner/lease 语义一个字没动；多窗口下的窗口模型是 M4 的事（§9.1 的代价条款）。
+- **命令面契约不动**：`crates/platform/tests/commands.rs` 的四条守卫（切片表、camelCase 映射、
+  `rename` 源码扫描、无重名）在本任务后仍然全绿——本任务只换实现体。
+- **渲染层零改动**：`git diff -- packages/desktop/src/renderer/**` 为空（硬约束）。

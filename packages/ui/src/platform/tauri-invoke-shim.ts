@@ -55,14 +55,18 @@ export type TauriListen = <T>(
 const DEEP_LINK_CALLBACK_KINDS = {
   onOAuthCallback: "oauth-callback",
   onPaymentCallback: "payment-callback",
+  onShareImport: "share-import",
+  onOpenWorkspacePath: "workspace-open",
 } as const satisfies Record<string, DeepLinkEventKind>;
 
-// 编译期守卫：上面两个映射值必须是 DeepLinkEventKind 的成员（`satisfies` 已覆盖），
-// 且必须覆盖本层实现的两条订阅方法。
+// 编译期守卫：上面的映射值必须是 DeepLinkEventKind 的成员（`satisfies` 已覆盖），
+// 且必须覆盖本层实现的**全部**深链订阅方法（漏一条这个类型就不成立）。
 type DeepLinkCallbackMethod = keyof typeof DEEP_LINK_CALLBACK_KINDS;
 const _deepLinkCallbackMethods: readonly DeepLinkCallbackMethod[] = [
   "onOAuthCallback",
   "onPaymentCallback",
+  "onShareImport",
+  "onOpenWorkspacePath",
 ];
 void _deepLinkCallbackMethods;
 
@@ -142,17 +146,29 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
 ] as const;
 
 /**
- * M1 通过**事件通道**实现（不是命令，见 spec §2）的方法。
+ * 通过**宿主的深链事件通道**实现（不是命令，见 spec §2）的方法。
  *
  * 单列一份而不是直接混进 `M1_IMPLEMENTED_COMMANDS`：那张表是「Rust 侧有同名
  * `#[tauri::command]`」的清单，由 `crates/platform/tests/commands.rs` 对拍；
- * 这两条方法走的是宿主单向 emit 的事件，Rust 侧没有对应命令，混进去会让那张表的
+ * 这些方法走的是宿主单向 emit 的事件，Rust 侧没有对应命令，混进去会让那张表的
  * 语义变脏、也过不了跨端名字守卫。
+ *
+ * 名单演进：M1 落 `onOAuthCallback` / `onPaymentCallback`（spec §2 的「只落一个示范」是下限，
+ * 支付走同一条链路所以一并接）；**M3 Task 4 把剩下两条也接上**——`onShareImport` 与
+ * `onOpenWorkspacePath` 在接口声明里就是**深链驱动**的（见 `packages/shared/src/platform.ts`
+ * 的文档注释：`mode://share/import?code=…` / 「通过 deep link 直接打开本地工作区目录」），
+ * 而 `share-import` / `workspace-open` 两个 `kind` 从 M1 起就由路由投递，只是一直没有订阅点。
+ * 于是「宿主认得的五种深链」在本层**全部有落点**，没有「投了但没人接」的种类。
  */
-export const M1_EVENT_SUBSCRIBED_METHODS = ["onOAuthCallback", "onPaymentCallback"] as const;
+export const EVENT_SUBSCRIBED_METHODS = [
+  "onOAuthCallback",
+  "onPaymentCallback",
+  "onShareImport",
+  "onOpenWorkspacePath",
+] as const;
 
 type ImplementedCommand = (typeof M1_IMPLEMENTED_COMMANDS)[number];
-type EventSubscribedCommand = (typeof M1_EVENT_SUBSCRIBED_METHODS)[number];
+type EventSubscribedCommand = (typeof EVENT_SUBSCRIBED_METHODS)[number];
 type UnimplementedRequired = (typeof M1_UNIMPLEMENTED_REQUIRED_METHODS)[number];
 
 /** `IPlatformService` 里没有 `?` 的成员名。 */
@@ -264,6 +280,7 @@ export function createTauriPlatformService(
       const unsubscribe = subscribeDeepLink(
         listen,
         DEEP_LINK_CALLBACK_KINDS.onOAuthCallback,
+        urlFromPayload,
         callback,
       );
       pendingSubscriptions.push(unsubscribe.ready);
@@ -273,6 +290,30 @@ export function createTauriPlatformService(
       const unsubscribe = subscribeDeepLink(
         listen,
         DEEP_LINK_CALLBACK_KINDS.onPaymentCallback,
+        urlFromPayload,
+        callback,
+      );
+      pendingSubscriptions.push(unsubscribe.ready);
+      return unsubscribe.dispose;
+    },
+    onShareImport(callback: (payload: { shareCode: string }) => void): () => void {
+      const unsubscribe = subscribeDeepLink(
+        listen,
+        DEEP_LINK_CALLBACK_KINDS.onShareImport,
+        (payload) =>
+          typeof payload.code === "string" && payload.code.length > 0
+            ? { shareCode: payload.code }
+            : undefined,
+        callback,
+      );
+      pendingSubscriptions.push(unsubscribe.ready);
+      return unsubscribe.dispose;
+    },
+    onOpenWorkspacePath(callback: (path: string) => void): () => void {
+      const unsubscribe = subscribeDeepLink(
+        listen,
+        DEEP_LINK_CALLBACK_KINDS.onOpenWorkspacePath,
+        pathFromPayload,
         callback,
       );
       pendingSubscriptions.push(unsubscribe.ready);
@@ -289,8 +330,25 @@ export function createTauriPlatformService(
   return service;
 }
 
+/** 深链载荷里的一种「要交给订阅方的东西」；投影不出来（缺字段/形状不对）就是 `undefined`。 */
+type DeepLinkProjection<T> = (payload: DeepLinkEvent) => T | undefined;
+
+/** `url` 投影（oauth / payment 用）；形状不对返回 `undefined` 而不是抛。 */
+function urlFromPayload(payload: DeepLinkEvent): string | undefined {
+  return typeof payload.url === "string" && payload.url.length > 0 ? payload.url : undefined;
+}
+
+/** `path` 投影（`workspace-open` 用）。 */
+function pathFromPayload(payload: DeepLinkEvent): string | undefined {
+  return typeof payload.path === "string" && payload.path.length > 0 ? payload.path : undefined;
+}
+
 /**
  * 订阅深链事件里某一类 `kind`。
+ *
+ * `project` 把事件载荷投影成**该订阅方法要的东西**（oauth/payment 是 `url`，share 是
+ * `{ shareCode }`，workspace-open 是 `path`）：五种 `kind` 共用同一个事件名，投影是唯一的差别，
+ * 所以它必须在这里显式给出来，而不是让每条订阅各自读字段。
  *
  * 返回同步的 `dispose`（接口契约要求退订函数是同步的）与异步的 `ready`
  * （`listen` 本身是异步的，握手前要等它）。
@@ -298,10 +356,11 @@ export function createTauriPlatformService(
  * 退订与「订阅还没装好就退订」的竞态：`dispose` 先置位，`listen` 兑现时若发现已退订
  * 就立刻自己退订，不留悬挂监听。
  */
-function subscribeDeepLink(
+function subscribeDeepLink<T>(
   listen: TauriListen,
   kind: DeepLinkEventKind,
-  callback: (url: string) => void,
+  project: DeepLinkProjection<T>,
+  callback: (value: T) => void,
 ): { dispose: () => void; ready: Promise<void> } {
   let disposed = false;
   let unlisten: TauriUnlisten | null = null;
@@ -312,8 +371,9 @@ function subscribeDeepLink(
     // 一个畸形事件不该打断整条订阅。
     if (!payload || typeof payload !== "object") return;
     if (payload.kind !== kind) return;
-    if (typeof payload.url !== "string" || payload.url.length === 0) return;
-    callback(payload.url);
+    const projected = project(payload);
+    if (projected === undefined) return;
+    callback(projected);
   }).then(
     (stop) => {
       if (disposed) {

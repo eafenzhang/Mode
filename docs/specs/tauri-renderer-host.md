@@ -11,6 +11,12 @@ M1 的挂载缺口表 `docs/specs/tauri-platform-commands.md` §4.2。
 I2（`MODE_DATA_BASE_DIR` 语义）、I3（typecheck 覆盖）、I4（CI 接线与口径）、I5（框架无关拆分的理由）
 与若干 Minor 都已落进下面的正文；改动痕迹见 §10 的证据登记与 `task-1-report.md` 的 fix round 1 小节。
 
+**2026-10-16 M3 Task 4 再修订（平台面缺口收口）**：本文件里属于 Task 4 义务的两条（DR-T4-4：
+`sequence` 归属、`disk` 摘要）**已按 §18 ②/③ 的原条件重新处置**——两条都**没有做到**，理由与
+接手方更新在 §18 与 **§20 第 5、6 条**（原地加注，不改写当时的措辞）。与平台面实现（单实例、
+图标、`sourceUrl` 上限、订阅型方法的逐条处置）相关的口径**不在本文件**，在
+`docs/specs/tauri-platform-commands.md` §9。**渲染层仍未改动**。
+
 **2026-10-16 M3 Task 3 再修订（真产品 UI 挂载）**：§0 的状态、§1 的「注入层所有权」（`window.mode`）、
 §3 的失败映射表（`failedPhase` **不再一律 `starting`**）、§5 的覆盖分工、§8 的边界（6 关闭 / 11、12 移交）、
 §10.8–§10.10 的证据、§13 的「核心」预算基准、以及新增的 §16–§18（Step 1 的两句可核对陈述、
@@ -46,7 +52,10 @@ DR-T3-2 的验收台处置、DR-T3-3 三条义务的逐条处置）都是本任�
 - **CUA 资产在打包形态里的落点**（Task 5）：探针只验证「注入了但不存在 = 失败」（§12）；
 - **非 M1 的 `window.mode` 能力**：按声明返回形态分两类处置（§10.10 的两轮修法）——要读值的返回**被拒 Promise**，
   没有要读的值的降级为**空操作**。两类都是「能力不存在」的如实表达，但它们**不是实现**：
-  远端桌面、局域网配对、WSL/Docker 探测、应用图标解码、编辑器列表、更新链在 Tauri 壳里都还不工作。
+  远端桌面、局域网配对、WSL/Docker 探测、编辑器列表、更新链在 Tauri 壳里都还不工作。
+  **〔Task 4 追加〕「应用图标解码」这一条已经不在这个清单里**：Windows 上它是真实现
+  （Shell + GDI → PNG data URL），macOS 半边仍未实现且本阶段不验（Ruling 20）——
+  口径在 `docs/specs/tauri-platform-commands.md` §9.2。
   **「缺失可见」的准确口径（复评 I3 纠正过这里）**：被拒的那一类**调用方拿得到**（拒绝里带方法名）；
   空操作那一类**调用方拿到的是成功**——所以它的可见性**必须由注入层自己制造**：一份平台面清单
   经 `host_platform_report` 送到**壳的 stderr**（§17.1 的机制、§10.12 的真机原始输出）。
@@ -55,7 +64,13 @@ DR-T3-2 的验收台处置、DR-T3-3 三条义务的逐条处置）都是本任�
   「窗口态发布构建里也有一个稳定的落点」是 **Task 5 的开放项**（它管打包与日志落点）；
 - **`sequence` 归属（DR-T3-3 ②）**：本任务**没有**合并 Host 与壳的状态流，所以两个计数器互不相干
   （壳仍是唯一发布者）。移交 Task 4，理由写在 §18；
+  **〔Task 4 追加〕仍未定，且 Task 4 也不需要对它动手**：Task 4 没有引入任何合并的状态流
+  （单实例转发进的是**深链事件**，事件没有序号；`host_startup_state` 的发布者仍然只有壳一个），
+  所以「必须只有一个 `sequence` 拥有者」的条件**未被触发**。归属按原条件继续移交，
+  接手方与触发条件见 **§20 第 6 条**（**不是**「移交到 Task 4 为止」，是「谁接中间阶段谁定」）；
 - **`disk` 摘要（DR-T3-3 ③）**：**渲染层不消费它**，所以本任务不产出。移交，理由写在 §18。
+  **〔Task 4 追加〕仍未实现，判据重查后不变**：`state.disk` 在本 checkout 里仍然零消费方
+  （`startupDiskSampler` 只挂在 Electron 的 `hostDatabaseStartup` 路径上）。归属见 **§20 第 5 条**。
 
 **渲染层的超时口径（复评 I4(b) 纠正）**：渲染层在**一条状态都没收到**时 30 秒后画失败屏
 （`packages/desktop/src/renderer/src/main.tsx` 的启动计时器）；那个计时器**一收到任何状态就被拆除**。
@@ -410,9 +425,13 @@ startupId 生成）落在 app crate 里，**没有自动化覆盖**（§5 的表
 11. **磁盘摘要没实现**（Task 3 的处置是**移交**，见 §18③）：状态里的 `disk` 恒为 `[]`
     （schema 要求该字段存在）。判据是「渲染层是否消费」——本 checkout 里**没有任何一处读
     `state.disk`**，所以本任务不产出它。
+    **〔Task 4 追加〕结论不变**：判据重查后仍无消费方（§18③ 的追加段），接手方与条件在 §20 第 5 条。
 12. **`sequence` 的拥有者未定**（Task 3 的处置是**移交**，见 §18②）：Host 与壳各自从 0 自增，
     而渲染层按 `sequence` 丢弃旧状态。Task 3 **没有**合并两股流（只转发终态那一行的两个字段），
     所以两个计数器仍然互不相干、也不需要统一；合并状态流是 Task 4 的事。
+    **〔Task 4 追加〕Task 4 也没有合并状态流**（它新增的唯一一条流是第二实例转发进来的深链，
+    走的是没有序号的**事件**通道），所以「唯一的 `sequence` 拥有者」仍然不需要现在定。
+    接手方与触发条件在 §20 第 6 条——**不是**「继续移交到下一个任务」这种匿名写法。
 
 ## 9. 纪律登记（clean-room）
 
@@ -1031,12 +1050,17 @@ Task 1 登记的理由是「Host 没有真存储，重启没有可恢复的状�
   **〔Task 3 追加·原地标注〕到 Task 3 为止仍未实现**：壳侧的 `to_state_json()` 依旧写死
   `disk: []`，只是把那行注释改成了「上游没给事实，本任务不替它编」。这条**不移交干净**——
   它留在 §18 ③ 的移交条目里并附判据（Task 3 的授权范围只覆盖「阶段精确的失败原因」）。
+  **〔Task 4 追加·原地标注〕判据重查后仍未实现**（`state.disk` 零消费方）：Task 4 不产出它，
+  接手方与条件写进 **§20 第 5 条**，条目保持可见。
 - **M3（自验的配置解析档）**：自验现在**覆盖并断言**「资源目录」档（§13），不再靠 env 档的绿灯。
 - **M6（两个 `sequence` 计数器）**：Host 的 `StartupStateMachine` 从 0 自增发布；壳的
   `StartupMonitor` 也自己从 0 自增，而渲染层的 `acceptState` 拒绝 `sequence <= state.sequence`。
   **这是一笔未决的所有权**：Task 3/4 加 Host → 壳通道时，必须**只有一个** `sequence` 拥有者
   （要么壳转发 Host 的序号、要么壳按自己的发布重编号并让 Host 的序号只作内部诊断），
   否则合并流会被渲染层当成旧状态丢掉。登记在此，本轮不动（改它就要改壳/传输层）。
+  **〔Task 4 追加·原地标注〕条件仍未触发**：Task 4 **没有**合并任何状态流（它新增的唯一条流是
+  第二实例转发进来的深链，走的是没有序号的**事件**通道），所以不需要现在定归属。
+  接手方与触发条件写进 **§20 第 6 条**（谁接中间阶段谁定），**不是**匿名移交。
 - **M8（守卫落点偏离计划）**：计划写的是「修的位置在**壳/传输侧**」，实际落在 **Host 的两个派发边界**
   上。**这是偏离，理由与判据写下来备查**：壳只搬字节、拿不到「哪一次 `listen`」；真正未加护的调用点
   在 `packages/rpc` 的 `onEventListen`（Electron 路径共用，本任务不可改）。落点保住了计划那条的
@@ -1394,7 +1418,16 @@ Tauri 的 `frontendDist` 指向的是**装配出来的根** `apps/desktop-tauri/
 + opt-in 真机失败路径（§10.8）。**顺带的产物**：`test/webviewRoundTrip.test.mts` 的失败判据
 从「粗粒度」改成「阶段精确」，那条断言现在比原来强。
 
-### ② `sequence` 归属 —— **移交 Task 4**
+### ② `sequence` 归属 —— **移交 Task 4** 〔Task 4 追加：条件仍未触发，按原条件继续移交〕
+
+**〔Task 4 的处置（2026-10-16）〕**：本任务**没有**引入合并的状态流，所以「唯一的 `sequence`
+拥有者」这件事**仍然不需要定**——去定它等于给一条不存在的流规定语义（与 Task 3 的理由同源）。
+本任务新增的流只有一条：**第二实例转发进来的深链**。它进的是 `DeepLinkRouter` → `mode:deep-link`
+**事件**通道，事件没有序号、渲染层也不按序号丢事件，所以它与 `host_startup_state` 的
+`sequence` 互不相干。**触发条件与接手方写死在 §20 第 6 条**（下一个把 Host 的中间阶段接进
+壳发布的状态流的人），不留匿名移交。
+
+
 
 **理由（不是「以后再说」）**：本任务**没有合并两股状态流**。新增的只有「读 Host 终态那一行的
 两个字段」，而**发布状态仍然全部由壳产生**（`StartupMonitor`），`sequence` 仍然是壳自己的单一计数器，
@@ -1406,7 +1439,15 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 否则渲染层的 `acceptState`（拒绝 `sequence <= state.sequence`）会把合并流当旧状态丢掉。
 
 
-### ③ `disk` 摘要 —— **移交（附判据）**
+### ③ `disk` 摘要 —— **移交（附判据）** 〔Task 4 追加：判据重查，结论不变〕
+
+**〔Task 4 的处置（2026-10-16）〕**：判据仍然是「有没有消费者」，**重查后答案仍是不消费**
+（`state.disk` 在 `packages/**` 里零消费方；`startupDiskSampler` 只被 Electron 的
+`packages/desktop/src/host/hostDatabaseStartup.ts` 使用，本任务的改动面不涉及它），
+所以 Task 4 **不产出**它——写一段没有消费者的代码是本仓库明确反对的形态。
+「谁产出、谁负责合并」写在 **§20 第 5 条**（接手方与条件都在那里，条目保持可见）。
+
+
 
 **判据是「渲染层是否消费它」，答案是「不消费」**：本 checkout 里没有任何一处读
 `state.disk`（`packages/ui/src` 里与 disk 有关的全是资源管理器的盘面卡片与 i18n 文案，
@@ -1487,7 +1528,7 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 | 2 | **release exe 的实测体积**（`frontendDist` 内嵌之后的真值） | §13.1：本任务只量了「未压缩文件字节之和」这张脸（54.41 MiB，**不含**壳 exe） | **Task 5** |
 | 3 | **冷启动耗时** | §13.1 末段：本任务只用 debug 构建跑通了功能，没有量过内嵌资产被解出/加载的耗时 | **Task 5** |
 | 4 | **`required-features` 门住的 bin 不在 clippy 覆盖里** | `clippy --workspace --all-targets -- -D warnings` 只覆盖默认 feature 的 target，所以三个 opt-in harness（`PortTransportHarness`/`HostRoundtripHarness`/`ProductUiHarness`）**没有 lint 覆盖**（`Cargo.toml` 里已就地写明要单独跑的命令）。**本轮真跑了它**，抓到并修掉两处 `clippy::let_unit_value`（两个 harness 的 watchdog 里 `let _ = exit_handle.exit(0)`）；跑过之后三个 bin 都干净，但「将来新加的 bin 会被自动 lint 吗」这个结构性问题仍在 | **Task 5**（把 `--features … --bins` 那一档接进 CI 门禁属于改门禁，超出本任务授权） |
-| 5 | **`disk` 摘要一直是 `[]`** | §18 ③（附判据）+ §15.3 的 M2 原地标注：壳侧 `to_state_json()` 写死 `disk: []`，上游没给事实 | **Task 4**（谁产出 `StartupDiskSummary`、谁负责填） |
-| 6 | **`sequence` 的单一所有者** | §18 ② + §15.3 的 M6：Host 的 `StartupStateMachine` 与壳的 `StartupMonitor` 各自从 0 自增，渲染层的 `acceptState` 会丢掉 `sequence <= state.sequence` 的合并流 | **Task 4**（加 Host → 壳通道时定） |
+| 5 | **`disk` 摘要一直是 `[]`** | §18 ③（附判据）+ §15.3 的 M2 原地标注：壳侧 `to_state_json()` 写死 `disk: []`，上游没给事实。**〔Task 4 追加〕重查判据：`state.disk` 仍零消费方**，所以 Task 4 不产出（见 §18 ③ 的追加段） | **Task 4 之后的第一个「有消费者」的任务**，条件明写在两处之一出现时：① 渲染层/UI 开始读 `state.disk`；② 有人把 `startupDiskSampler`（`packages/desktop/src/host/startupDiskSampler.ts`）搬进 `packages/desktop/src/host-standalone/`。届时**那个人**定「谁产出、谁合并」，本条目保持可见直到那时 |
+| 6 | **`sequence` 的单一所有者** | §18 ② + §15.3 的 M6：Host 的 `StartupStateMachine` 与壳的 `StartupMonitor` 各自从 0 自增，渲染层的 `acceptState` 会丢掉 `sequence <= state.sequence` 的合并流。**〔Task 4 追加〕本任务没有引入合并流**（第二实例转发走的是无序号的事件通道），所以条件未触发 | **下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的「中间阶段」接进壳发布的状态流的那个人**（触发条件：任何一个 Host 侧产生的进度值进入壳发布的 `DatabaseStartupState` 流）。答案只有两种，且必须选一个：壳转发 Host 的序号，或壳按自己的发布重编号（Host 的序号只作内部诊断） |
 | 7 | **验收台（bench）留在开发档的代价** | §17 / DR-T3-2：1.73 MiB（§13.1 的 `dev/` 行是它的实测出处）+ 内部命令面暴露在开发档产物里；**发布产物里没有** | 已处置（DR-T3-2），无未决项 |
 | 8 | **一处 clean-room 违规** | §19.1：读过 `desktopPlatform.ts` 第 60–90 行的实现体；结论已由 §10.11 的黑盒负向对照取代 | 已登记（本任务），供复核 |

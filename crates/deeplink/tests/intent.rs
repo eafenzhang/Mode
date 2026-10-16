@@ -3,7 +3,7 @@
 //! 取材：`packages/desktop/tests/deep-link-scheme-compat.test.mjs` 的断言（黑盒行为规格）。
 //! 用例名与断言语义逐条对应，便于两边对照；本文件不引用旧实现源码。
 use deeplink::intent::{extract_from_args, parse};
-use deeplink::{DeepLinkIntent, ACCEPTED_SCHEMES, REGISTERED_SCHEME};
+use deeplink::{forwardable_second_instance_url, DeepLinkIntent, ACCEPTED_SCHEMES, REGISTERED_SCHEME};
 
 #[test]
 fn oauth_callback_is_recognized_for_both_the_new_and_the_pre_rename_scheme() {
@@ -128,4 +128,58 @@ fn argv_extraction_matches_whole_token_prefixes_only() {
     assert_eq!(extract_from_args([r"C:\work\asmode.txt"]), None);
     assert_eq!(extract_from_args([r"C:\work\zcode.txt"]), None);
     assert_eq!(extract_from_args::<[&str; 0], &str>([]), None);
+}
+
+/// 第二实例转发（M3 Task 4 · DR-T4-1）要转交的那条深链。
+///
+/// 与 [`extract_from_args`] 同源，但这是**另一个调用点**：单实例插件把第二实例的 `argv`
+/// **原样**（含 `argv[0]` = 可执行文件路径、以及用户可能带的别的参数）送进壳的回调。
+/// 所以这里钉两件事：① 链接在 argv 的**任意位置**都能取到；② **没有链接**的第二次启动
+/// （用户又点了一次图标）必须给 `None`——那是「聚焦既有窗口」，不是「转发一条深链」。
+#[test]
+fn the_second_instance_argv_yields_the_deep_link_to_forward_or_nothing() {
+    // ① 操作系统的现场形态：argv[0] 是 exe 路径，链接随后。
+    let forwarded = [
+        r"C:\Program Files\Mode\Mode.exe".to_string(),
+        "mode://oauth/callback?state=second-instance".to_string(),
+    ];
+    assert_eq!(
+        forwardable_second_instance_url(&forwarded),
+        Some("mode://oauth/callback?state=second-instance".to_string())
+    );
+
+    // 链接不在第二位时也要取到（插件不保证参数顺序，用户也可能带了别的参数）。
+    let later = [
+        r"C:\Program Files\Mode\Mode.exe".to_string(),
+        "--old-instance".to_string(),
+        "mode://payment/callback?state=p2".to_string(),
+    ];
+    assert_eq!(
+        forwardable_second_instance_url(&later),
+        Some("mode://payment/callback?state=p2".to_string())
+    );
+
+    // 旧 scheme 也照收（改名前的链接仍然可用，与处理侧口径一致）。
+    assert_eq!(
+        forwardable_second_instance_url(vec![
+            r"C:\Mode\Mode.exe".to_string(),
+            "zcode://share/import?code=abc".to_string()
+        ]),
+        Some("zcode://share/import?code=abc".to_string())
+    );
+
+    // ② 只是又点了一次图标：没有链接 → 没有要转发的深链。
+    assert_eq!(
+        forwardable_second_instance_url(vec![r"C:\Mode\Mode.exe".to_string()]),
+        None
+    );
+    // 词中间含 scheme 的普通路径不算（同 `extract_from_args` 的口径）。
+    assert_eq!(
+        forwardable_second_instance_url(vec![
+            r"C:\Mode\Mode.exe".to_string(),
+            r"C:\work\asmode.txt".to_string()
+        ]),
+        None
+    );
+    assert_eq!(forwardable_second_instance_url(Vec::<String>::new()), None);
 }

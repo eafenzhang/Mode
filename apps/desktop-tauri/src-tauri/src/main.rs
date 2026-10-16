@@ -9,6 +9,9 @@
 //!
 //! ## 组装顺序是有效约束，不是随意排列
 //!
+//! 0. **单实例插件最先注册**（M3 Task 4）：插件 setup 钩子按注册顺序执行，而第二个进程的早退
+//!    就在钩子里。注册在窗口/Host 之后等于没做（那时它们已经建出来了）。见
+//!    `src/single_instance.rs`。
 //! 1. `deep-link` 插件必须**先于** `platform` 注册：`platform::commands::init_with_extra`
 //!    会托管 `AppState`，而深链的路由状态在 `setup` 里托管——插件注册晚于此没有影响，
 //!    但深链事件源（插件）必须先存在于 app 上，`deeplink::install` 才拿得到
@@ -28,7 +31,10 @@
 use tauri::Manager;
 
 fn main() {
-    let builder = tauri::Builder::default()
+    // **单实例必须是第一个插件**（M3 Task 4 · DR-T4-1）：插件按注册顺序跑 setup 钩子，而第二个
+    // 进程的早退就在钩子里——注册晚了它就会走完 app setup，建出第二个窗口与第二个 Host
+    // （见 src/single_instance.rs 的模块文档）。
+    let builder = mode_tauri::single_instance::install(tauri::Builder::default())
         // 更新链只声明端点与插件（M1 不注册更新命令，见 crates/updater 的模块文档）。
         .plugin(updater::plugin())
         .plugin(tauri_plugin_deep_link::init());
@@ -39,11 +45,9 @@ fn main() {
     let builder = builder.setup(|app| {
         let handle = app.handle().clone();
 
-        // 深链路由状态：冷启动队列的唯一所有者（见 crates/deeplink/src/router.rs）。
-        app.manage(deeplink::DeepLinkRouter::new(deeplink::TauriSink::new(
-            handle.clone(),
-        )));
-
+        // 深链面：托管路由状态（冷启动队列的唯一所有者，见 crates/deeplink/src/router.rs）+
+        // 注册 scheme + 接线运行期回调与冷启动 argv。第二实例转发进来的 argv 也落到这一份
+        // 路由上（`mode_tauri::single_instance`）。
         deeplink::install(&handle)?;
         tray::install(&handle)?;
 

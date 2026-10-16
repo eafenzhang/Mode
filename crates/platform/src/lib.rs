@@ -5,6 +5,9 @@
 //! **接口面**（方法签名与类型声明），不读实现体；命令名与参数逐字对齐，不做重命名。
 
 pub mod commands;
+#[cfg(target_os = "windows")]
+pub mod icon_windows;
+pub mod source_url;
 mod state;
 
 pub use state::AppState;
