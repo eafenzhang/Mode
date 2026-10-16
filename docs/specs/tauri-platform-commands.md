@@ -100,12 +100,12 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
    > **本机（Windows + gnu）不要直接调 cargo**：本机默认 toolchain 的 host 是 msvc，而
    > 机器上没装 VS Build Tools（Git Bash 自带的 coreutils `link` 还会挡住 MSVC 的
    > `link.exe`），会以 `dlltool.exe: program not found` 或 `link: extra operand` 失败。
-   > 工具链装配口径收敛在 `scripts/rust-gnu-env.mjs`（唯一出处），用包装器一条命令即可
+   > 工具链装配口径收敛在 `scripts/rust-gnu-env.ts`（唯一出处），用包装器一条命令即可
    > ——CI 是 msvc / Linux，装配在那边退化成 no-op，直接调 cargo 即可，不必经它：
    >
    > ```bash
-   > node scripts/rust-cargo.mjs build --release -p mode-tauri   # 等价于 mise run rust -- build --release -p mode-tauri
-   > node scripts/rust-cargo.mjs test --workspace
+   > node scripts/rust-cargo.ts build --release -p mode-tauri   # 等价于 mise run rust -- build --release -p mode-tauri
+   > node scripts/rust-cargo.ts test --workspace
    > ```
    >
    > 产出落在 `target/release/ModeTauri.exe`：包装器刻意**不注入 `--target`**，按宿主

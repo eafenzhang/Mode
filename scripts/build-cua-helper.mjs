@@ -11,7 +11,7 @@ import { createRequire } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { cargoHostToolchainArgs, homeDir, withCargoEnv } from "./rust-gnu-env.mjs";
+import { cargoHostToolchainArgs, homeDir, withCargoEnv } from "./rust-gnu-env.ts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const target = process.env.MODE_CUA_AX_TARGET || "x86_64-pc-windows-gnu";
@@ -38,7 +38,7 @@ function fail(message) {
   process.exit(1);
 }
 
-// gnu 工具链的装配口径（llvm-mingw 的 PATH 与 linker 变量）在 scripts/rust-gnu-env.mjs，
+// gnu 工具链的装配口径（llvm-mingw 的 PATH 与 linker 变量）在 scripts/rust-gnu-env.ts，
 // 那是唯一出处；本函数只补 CUA 专有的 libnode 空桩（napi-build 的形式要求）。
 function buildCargoEnv() {
   const env = withCargoEnv(process.env, { target });

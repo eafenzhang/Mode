@@ -14,7 +14,7 @@ import { arch as hostArch, platform as hostPlatform } from "node:process";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { cargoHostToolchainArgs, defaultGnuTarget, withCargoEnv } from "./rust-gnu-env.mjs";
+import { cargoHostToolchainArgs, defaultGnuTarget, withCargoEnv } from "./rust-gnu-env.ts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const crateManifest = join("crates", "browser-import-helper", "Cargo.toml");
@@ -41,7 +41,7 @@ function archToken() {
   return hostArch;
 }
 
-// gnu 工具链的装配口径在 scripts/rust-gnu-env.mjs（唯一出处）；这里只补本 helper 专有的
+// gnu 工具链的装配口径在 scripts/rust-gnu-env.ts（唯一出处）；这里只补本 helper 专有的
 // 两个构建期注入字段。
 function buildCargoEnv(target, appVersion, gitRevision) {
   // 契约 A 的第 4/5 字段是构建期注入；cargo 依据 rustc 的 env-dep 记录在取值变化时自动重建。

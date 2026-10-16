@@ -23,7 +23,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { cargoHostToolchainArgs, defaultGnuTarget, withCargoEnv } from "./rust-gnu-env.mjs";
+import { cargoHostToolchainArgs, defaultGnuTarget, withCargoEnv } from "./rust-gnu-env.ts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = join(repoRoot, "packages", "shared", "src", "generated", "tauri-protocol.ts");
@@ -52,7 +52,7 @@ function readSchemaBundle() {
     explicitTarget ?? (process.platform === "win32" ? defaultGnuTarget() : undefined);
   const args = explicitTarget ? [...baseArgs, "--target", explicitTarget] : baseArgs;
   // 本地 gnu 路线自己装配，**不再要求调用方 export PATH / CARGO_TARGET_<triple>_LINKER**
-  // （装配口径见 scripts/rust-gnu-env.mjs；CI 的 msvc / Linux runner 上它退化成 no-op）。
+  // （装配口径见 scripts/rust-gnu-env.ts；CI 的 msvc / Linux runner 上它退化成 no-op）。
   const env = withCargoEnv(process.env, { target: effectiveTarget });
   // `+toolchain` 只对 cargo 生效：MODE_PROTOCOL_SCHEMA_CMD 可能换成任意命令。
   const toolchainArgs = command === "cargo" ? cargoHostToolchainArgs(env, effectiveTarget) : [];
