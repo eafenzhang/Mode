@@ -1,7 +1,7 @@
 //! `Read`：读一个文本文件并按 `cat -n` 形式带行号返回。
 //!
 //! **每一条语义都来自黑盒观察**（2026-10-16，探针
-//! `probe-read.mts`（`read` / `trunc` / `limit-edge` / `partial` / `ext` / `offset-warning` 组）
+//! `probe-read.mts`（`read` / `trunc` / `limit-edge` / `partial` / `ext` 组）与 `probe-read-warnings.mts`（`offset-warning` 组）
 //! `limit-edge` 三组；行为夹具 `fixtures/read-offset-edges.json`、`read-error-paths.json`
 //! 把其中最要紧的那些逐字钉住）。本文件不读旧实现的实现体。
 //!
@@ -32,14 +32,15 @@
 //!
 //! ## 3. `offset` 越过最后一行：**成功**，正文是一条 system-reminder
 //!
-//! 判据是 `offset >= 行数`（行数含末尾空段：`"1\n2\n3\n"` 是 4 行、`""` 是 1 行）：
+//! 判据是 `offset > **真实行数**`，真实行数与两条文案的实测见本节末尾的规则表（**不是**
+//! 「`offset >= 段数`」——那条在单行文件上会多给一次提醒，是 fix round 2 修掉的缺陷）：
 //!
 //! ```text
 //! <system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {行数} lines.</system-reminder>
 //! ```
 //!
-//! 实测三点：`offset: 3`（4 行）正常返回；`offset: 4`（4 行）走警告；空文件缺省 `offset: 1`
-//! 也走警告（「The file has 1 lines」）。
+//! 实测（`probe-read-warnings.mts`）：`"1\n2\n3\n"`（真实行数 3）配 `offset: 3`
+//! 正常返回、配 `offset: 4` 走提醒；`"a\nb"`（真实行数 2）配 `offset: 2` 正常返回；空文件真实行数是 0。
 //!
 //! ## 4. 截断：token 预算，估算 = `ceil(字节 / 3)`
 //!
@@ -53,7 +54,7 @@
 //! | --- | --- | --- |
 //! | `Read` 2500×60（152499 B） | 152499 → 50833 tokens | 成功，但**返回部分视图**（带提醒头） |
 //! | 同上 `offset: 1, limit: 2000` | 121999 → 40667 tokens | **错误** `read_output_too_many_tokens` |
-//! | 同上 `offset: 2` | 152438 → 50813 tokens | **错误** 同上（所以「显式」的判据是 `offset` 或 `limit` 任一出现） |
+//! | 同上 `offset: 2` | 152438 → 50813 tokens | **错误** 同上（「显式」的判据见下面的规则表：`offset` 键存在**且非零**，或给了 `limit`） |
 //! | 同上 `limit: 3000`（夹到 2500 行） | 152499 → 50833 tokens | **错误** |
 //! | 同上 `limit: 1000` | 60999 → 20333 tokens | 成功，整段返回 |
 //! | 304999 B 文件 `limit: 5000` | 304999 → 101667 tokens | **错误**（token 错误，不是大小错误） |
@@ -62,12 +63,13 @@
 //! 「选中范围字节」的口径也由实测确定：是**源文本**里这些行用 `\n` 连接的字节数
 //! （`60×2000 + 1999 = 121999`），不是带 `"{n}\t"` 前缀后的长度（那会是 125999 → 42000）。
 //!
-//! ## 5. 文件大小上限 256KB，只作用于**没有** `offset`/`limit` 的路径
+//! ## 5. 文件大小上限 256KB，只作用于**没有** `limit` 的路径，且在 token 检查**之前**
 //!
 //! `Read` 302499 B（2500×120）→ 错误
 //! `File content (295.4KB) exceeds maximum allowed size (256KB). …`（295.4 = 302499/1024，一位小数）。
-//! 而 304999 B 的文件加 `limit: 5000` → **不是**大小错误，是 token 错误（见上表）。
-//! 所以显式给范围时不做大小检查。
+//! 而 304999 B 的文件加 `limit: 5000` → **不是**大小错误，是 token 错误（见上表）；302499 B 的文件加
+//! `offset: 2`（没给 `limit`）→ **仍是大小错误**（尽管按 token 也会超）。所以判据是**有没有给 `limit`**，
+//! 与 `offset` 无关；顺序也是实测的（夹具 `read-truncation-errors` 第 3/4/5 条三条大小错误并置）。
 //!
 //! ## 6. 错误形状（`error.type` / `code` / `detail` 都是观察值）
 //!
@@ -81,7 +83,7 @@
 //! | `offset` 非整数 / `offset < 0` / `limit` 非整数 | `tool_execution_failed` | `TOOL_EXECUTION_FAILED` | `message` = `Tool input failed inputSchema validation` |
 //! | `file_path` 为空串 | `tool_execution_failed` | `TOOL_EXECUTION_FAILED` | `message` = `Tool path must not be empty` |
 //! | 选中范围超出 token 预算 | `tool_execution_failed` | `TOOL_EXECUTION_FAILED` | `detail` 带 `read_output_too_many_tokens` |
-//! | 文件超出 256KB（隐式路径） | `tool_execution_failed` | `TOOL_EXECUTION_FAILED` | `detail` 带 `read_file_too_large` |
+//! | 文件超出 256KB（**没给 `limit`** 时） | `tool_execution_failed` | `TOOL_EXECUTION_FAILED` | `detail` 带 `read_file_too_large` |
 //!
 //! 校验顺序在观察里没有两条同时触发的样本，故本实现的顺序是**选定**的（先 JSON Schema 的
 //! 类型/范围闸门、再 zod 精化、最后路径非空），并在下面的注释里逐处标出。
@@ -98,7 +100,7 @@
 //! | `"1\n2\n3\n"` | 4 | 3 | 3 | 正文 |
 //! | `""` | 1 | 0 | 1 | 提醒 `…offset (1). The file has 1 lines.` |
 //! | `""` | 1 | 0 | 2 | **另一条**提醒 `…the contents are empty.` |
-//! 全部来自 `probe-read.mts` 的 `offset-warning` 组；其中「同段数、不同末尾」的两行是它给出的
+//! 全部来自 `probe-read-warnings.mts`；其中「同段数、不同末尾」的两行是它给出的
 //! 决定性样本（`w-twoline-offset-2` 与 `w-threeline-offset-3`）。
 //!
 //! 上限的先后也已实测：**没给 `limit` 时大小上限在 token 检查之前**（302499 字节的文件加
@@ -166,7 +168,7 @@ pub const TOKEN_LIMIT: u64 = 25_000;
 /// 边界本身（`>` 还是 `>=`）没有样本落在 262144 上，取 `>`：实测里 302499 触发、152499 不触发。
 pub const FILE_SIZE_LIMIT_BYTES: u64 = 262_144;
 
-/// 观察值：**空文件 + `offset > 1`** 时那条 system-reminder（`offset-warning` 组的
+/// 观察值：**空文件 + `offset > 1`** 时那条 system-reminder（`probe-read-warnings.mts` 的
 /// `w-empty-offset-2` 逐字录到）。空文件 + 缺省 `offset: 1` 走的是下面那条越界提醒。
 pub const EMPTY_FILE_TEMPLATE: &str =
     "<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>";
@@ -485,7 +487,7 @@ fn extension_of(path: &Path) -> Option<String> {
 /// 「真实行数」= 段数减去**末尾那个空段**（文件以换行结尾时切出来的空段不算一行）。
 ///
 /// 这是越界提醒的判据（见 `select_and_format`）："\n"a\nb"\n" 是 2，"\n"a\nb\n"\n" 也是 2，
-/// `""` 是 **0**（空文件还有单独一支提醒）。实测依据在 `probe-read.mts` 的 `offset-warning` 组。
+/// `""` 是 **0**（空文件还有单独一支提醒）。实测依据在 `probe-read-warnings.mts`。
 fn real_line_count(content: &str, segments: usize) -> i64 {
     if content.is_empty() {
         return 0;
@@ -588,7 +590,7 @@ fn select_and_format(content: &str, args: &Value, bytes: &[u8]) -> Result<ToolOu
     // 缺省不是「显式范围」，而显式给 0 也不是（实测 `w-big-overbudget-offset-0`）。
     let offset = offset_arg.unwrap_or(1);
     let limit = integer_field(args, "limit")?;
-    // 「显式」的判据由实测夹出来（`probe-read.mts` 的 `offset-warning` / `trunc` 组）：
+    // 「显式」的判据由实测夹出来（`probe-read-warnings.mts` / `trunc` 组）：
     // 只给 `offset: 2` → 走严格错误（显式）；而 **`offset: 0` 走隐式路径**——超预算的单行文件
     // （75001 字节）加 `offset: 0` 得到的是**部分视图**（正文 64043 字节），加 `offset: 2`
     // 得到的是越界提醒。所以判据是「`offset` 非零」，不是「`offset` 键存在」。
@@ -597,7 +599,7 @@ fn select_and_format(content: &str, args: &Value, bytes: &[u8]) -> Result<ToolOu
     // 越界提醒**先于**两道上限判断（实测：超预算的单行文件加 `offset: 2` 给提醒、不是 token 错误）。
     // 判据是 `offset > 真实行数`，而**真实行数不含末尾那个空段**："\n"a\nb"\n"（2 段、
     // 末尾非空）配 offset 2 给正文，而 "\n"a\nb\n"\n"（3 段、末尾空）配 offset 3 给提醒。
-    // 两处提醒文案都由 `offset-warning` 组逐字录到。
+    // 两处提醒文案都由 `probe-read-warnings.mts` 逐字录到。
     let real_lines = real_line_count(content, line_count);
     if offset > real_lines {
         if content.is_empty() && offset > 1 {

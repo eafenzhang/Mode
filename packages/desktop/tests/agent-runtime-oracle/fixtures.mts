@@ -130,9 +130,11 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
       { toolCalls: [{ name: "Read", input: { file_path: "rel.txt" } }] },
       // 空文件 + `offset > 1` → **另一条**提醒文案（`the contents are empty.`）。
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/empty.txt", offset: 2 } }] },
-      // 单行文件（无结尾换行）+ `offset: 2` → 越界提醒，且「The file has 1 lines.」
-      // ——「真实行数不含末尾空段」这条判据的决定性样本（2 段 + offset 2 给正文的对照见
-      // `probe-read.mts` 的 `offset-warning` 组 `w-twoline-offset-2`）。
+      // 单行文件（无结尾换行、真实行数 1）+ `offset: 2` → 越界提醒「The file has 1 lines.」。
+      // **它不是判据的决定性样本**：旧的 `offset >= 段数` 在同一条输入上也给同样的提醒
+      // （1 段、offset 2 两边都越界）。真正区分新旧判据的是
+      // `read-partial-view` 第 1 条（`offset: 0` + 超预算 → 部分视图，旧判据会给错误）
+      // 与探针 `probe-read.mts` 的 `w-twoline-offset-2` / `w-threeline-offset-3` 这一对。
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/single.txt", offset: 2 } }] },
       { text: "都读完了。" },
     ],
@@ -208,6 +210,7 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
     generatedSeed: {
       "big.txt": { char: "z", width: 60, lines: 2500 },
       "wide.txt": { char: "z", width: 120, lines: 2500 },
+      "huge.txt": { char: "z", width: 60, lines: 5000 },
     },
     script: [
       // 显式给 limit：选中范围（夹到 2500 行）= 152499 字节 → 50833 tokens > 25000 → 错误。
@@ -216,33 +219,46 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/big.txt", offset: 2 } }] },
       // 什么都不给 + 文件 > 256KB → 大小错误（不是 token 错误）。
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/wide.txt" } }] },
-      // 「显式」判据的决定性一对：**`offset: 0` 走隐式**（→ 大小错误），`offset: 2` 走显式
-      // （→ token 错误）。这一对把 `read.rs` 里 `offset != 0 || limit.is_some()` 钉住。
+      // 这一对**只钉「大小检查先于 token 检查」**：两个调用都录到大小错误（`295.4KB`），
+      // 因为没给 `limit` 时大小检查先跑、与 `offset` 无关。**它不区分「显式」判据**——
+      // 区分那一处的样本在 `read-partial-view` 第 1 条（`offset: 0` + 超预算但 <256KB
+      // → 部分视图；旧的 `args.get("offset").is_some()` 会在这里给 token 错误）。
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/wide.txt", offset: 0 } }] },
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/wide.txt", offset: 2 } }] },
-      { text: "五条都试过了。" },
+      // 给了 `limit` ⇒ **没有**大小上限（304999 B 的文件 + `limit: 5000` → token 错误 101667）。
+      // 这一条与上面三条大小错误并置，把「大小检查 ⟺ 没给 `limit`」两半都钉住。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/huge.txt", limit: 5000 } }] },
+      { text: "六条都试过了。" },
     ],
   },
   // ---- Task 2 fix round：**部分视图**（复评 Important 3）。两条调用：
   //      均匀文件（按行累加到 63750 字节预算）+ 首行自身就超预算的单行文件（另一条提醒头）。
   {
     case: "read-partial-view",
-    prompt: "读这两个很大的文件，把看到的开头原样说出来。",
+    prompt: "读这三个很大的文件，把看到的开头原样说出来。",
     seed: {},
-    // 只放**一条**调用：部分视图的正文天生就是 ~64KB，夹具里会存两遍（toolCalls + result 事件），
-    // 两条就是 ~290KB。首行自身超预算的那条分支（另一条提醒头）由**探针**
-    // `probe-read.mts` 的 `trunc` 组（bytes-75001 / bytes-75003）记录，并由 `read.rs` 的单元测试
-    // 按观察到的定值长度（64043）钉住——「要么把探针用例提交、要么别引用它」。
+    // 三条调用，每条都要付 ~64KB（部分视图的正文天生就那么大，夹具里存两遍：toolCalls + result 事件）：
+    // ① 均匀文件 → 按行累加到 63750 字节预算；② 首行自身超预算的单行文件 → 另一条提醒头（正文 64043）；
+    // ③ **`offset: 0` + 超预算但 <256KB** → 部分视图（这一条是「`offset: 0` 算隐式」的**唯一**对拍证据：
+    //   把 `read.rs` 的 `explicit` 换回 `args.get("offset").is_some()` 会让它变红）。
+    // 首行分支的观察出处是探针 `probe-read.mts` 的 `trunc` 组（`bytes-75001` / `bytes-75003`）。
     generatedSeed: {
       "uniform.txt": { char: "z", width: 60, lines: 2500 },
       // **首行自身就超预算**的单行文件 → 走另一条提醒头（`read.rs::PARTIAL_FIRST_LINE_TEMPLATE`），
       // 正文 = 提醒头 + 行号前缀 + 63750 个字符（两个探针样本给出完全相同的 64043）。
       "one-line.txt": { char: "z", width: 75_003, lines: 1 },
+      // 与 `uniform.txt` 同形状，专门给「`offset: 0` 算隐式」那条判据用（见下面第 3 个调用的注释）。
+      "zero.txt": { char: "z", width: 60, lines: 2500 },
     },
     script: [
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/uniform.txt" } }] },
       { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/one-line.txt" } }] },
-      { text: "两个大文件都看过了。" },
+      // **`offset: 0` + 超预算但 <256KB** → 部分视图（不是 token 错误）。
+      // 这是「`offset: 0` 算隐式」的**唯一**对拍证据：把 `read.rs` 的 `explicit` 换回
+      // `args.get("offset").is_some()`，这条就会变成 `read_output_too_many_tokens` 而红
+      // （另一侧「非零 offset → token 错误」由 `read-truncation-errors` 第 2 条 `offset: 2` 记录）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/zero.txt", offset: 0 } }] },
+      { text: "三个大文件都看过了。" },
     ],
   },
   // ---- Task 2 fix round：**没观察到的扩展名 fail loud**（复评 Minor 4）。探针 `probe-read.mts`

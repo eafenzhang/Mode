@@ -12,6 +12,7 @@
 // | --- | --- |
 // | `probe-tool-surface.mts` | 运行时对外声明了哪些工具（清单 / 反向请求 / 缺哪些工具） |
 // | `probe-read.mts` | `Read` 的入参语义与两道上限（行号、offset/limit、截断、部分视图） |
+// | `probe-read-warnings.mts` | 越界提醒的判据，以及它与两道上限的先后 |
 // | `probe-read-history.mts` | `Read` 的**会话内历史**（重复读去重、去重按什么判「变了」） |
 // | `probe-support.mts` | 三者共用的类型与打印口径（本文件） |
 //
