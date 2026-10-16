@@ -14,8 +14,25 @@ import { formatBotMessage as msg } from "./messages.js";
 /**
  * 群聊回合默认隐藏的工具：群成员（尤其"全部用户"放开的场景）不该驱动本机读写。
  * 与 MyAgents 的 DEFAULT_GROUP_TOOLS_DENY 对齐，并补上 ApplyPatch（本仓库另一种改文件工具）。
+ *
+ * 名单必须覆盖**全部**能落到本机文件/进程的入口，只列文件工具与 shell 会漏：
+ * - `js` / `mcp__node_repl__js` 能直接跑 fs / child_process，等价于 Bash + Write。两种拼写都要列，
+ *   因为工具名归一化只认 web_search 一个别名（core 的 tool-visibility），而 node_repl 经 MCP
+ *   暴露时带 mcp__ 前缀，属于两个不同的注册名。
+ * - 子代理与 workflow child 都不是绕过口：subagent 把父的 toolDisallowlist 传给 child，
+ *   resolveRuntimeDisallowedTools 在 child 上叠加而非替换，`Task` 因此拿不到被禁工具。
+ *
+ * 残留（未解决，属已知边界）：名字黑名单挡不住任意第三方 MCP server 提供的写能力——那些名字
+ * 在编译期不可知。要给群聊硬保证只能改白名单，属独立决策，不在本轮。
  */
-export const GROUP_CHAT_TOOL_DENYLIST: readonly string[] = ["Bash", "Edit", "Write", "ApplyPatch"];
+export const GROUP_CHAT_TOOL_DENYLIST: readonly string[] = [
+  "Bash",
+  "Edit",
+  "Write",
+  "ApplyPatch",
+  "js",
+  "mcp__node_repl__js",
+];
 
 /**
  * 模型主动沉默的标记。归一化后与 `<NO_REPLY>` / `NO_REPLY` 相等才算沉默，
@@ -102,6 +119,7 @@ export function buildGroupTurnPrompt(input: GroupTurnPromptInput): string {
       ? msg(locale, "groupPromptActivationAlways")
       : msg(locale, "groupPromptActivationMention"),
     msg(locale, "groupPromptSenderNote"),
+    msg(locale, "groupPromptUntrustedNote"),
   ];
   if (input.activation === "always") {
     ruleLines.push(msg(locale, "groupPromptReplyRules", { botName }));
