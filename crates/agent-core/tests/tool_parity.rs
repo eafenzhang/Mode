@@ -1,21 +1,24 @@
-//! 只读切片的**三层对拍**（第一层：工具调用序列；第二层：文件快照）。
+//! 工具切片（`Read` + `Write`）的**三层对拍**（第一层：工具调用序列；第二层：文件快照）。
 //!
 //! 期望值来自行为夹具 `packages/desktop/tests/agent-runtime-oracle/fixtures/*.json` 的 `expect`
 //! ——由 oracle 录制，**不是手写的**。本文件按 Ruling 4 的做法：把 Rust 会话循环发出的事件
 //! 投影成夹具里的同一形状（spec §2.1 的投影 + §3 的规范化），然后**精确相等**比较。
 //! 投影助手在 `agent_tools::test_support`（两端共用一份，避免出现第二份 §3 实现）。
 //!
+//! 命名（Task 3 改）：原名 `read_only_parity`。Task 3 起 `Write` 也走同一条会话循环对拍
+//! ——它有**会话级**前置条件（「先读再写」），只能在这一层验。
+//!
 //! **第三层（事件流）不在这里比**：Rust 侧目前只发工具面事件（见 `agent_core::session` 的
 //! 模块注释），模型流 / 状态推送 / 终态事件要 Task 5 才落地。硬比第三层会让这个任务变成
-//! 「把 Task 5 提前做一半」，而不是「把只读工具做对」。
+//! 「把 Task 5 提前做一半」，而不是「把工具做对」。
 //!
 //! 单独跑：`node scripts/rust-cargo.ts test -p agent-core`
 
-use std::fs;
-
 use agent_core::session::{Session, ToolCallRequest};
 use agent_core::{SessionEvent, ToolUpdatedPayload};
-use agent_tools::test_support::{load_fixture, project, project_input, Fixture, Workspace};
+use agent_tools::test_support::{
+    load_fixture, project, project_input, snapshot_directory, Fixture, Workspace,
+};
 use agent_tools::UNIMPLEMENTED_ERROR_TYPE;
 
 /// 夹具里的 `${cwd}` 是占位符，录到的入参已是规范化形状——因此脚本入参要做同一份投影。
@@ -151,20 +154,13 @@ fn assert_parity(case: &str) {
         }
     }
 
-    // 第二层：只读工具不改工作目录——键集与录制一致，内容逐字未变。
-    let mut keys: Vec<String> = fixture
-        .seed
-        .iter()
-        .map(|(relative, _)| relative.replace('\\', "/"))
-        .collect();
-    keys.sort();
-    let mut expected_keys = fixture.expect_file_keys.clone();
-    expected_keys.sort();
-    assert_eq!(keys, expected_keys, "{case}：文件快照键集不一致");
-    for (relative, bytes) in &fixture.seed {
-        let after = fs::read(workspace.path().join(relative)).expect("种子文件仍在");
-        assert_eq!(&after, bytes, "{case}：只读工具改了 {relative} 的内容");
-    }
+    // 第二层：跑完之后的工作目录快照必须与录制**逐字**一致（相对路径 → 内容 sha256）。
+    // 写成通用比较而不是「只读工具不改目录」：写工具会**新增**文件，只比键集会漏掉内容错。
+    assert_eq!(
+        snapshot_directory(workspace.path()),
+        fixture.expect_files,
+        "{case}：文件快照与录制不一致"
+    );
 }
 
 #[test]
@@ -334,4 +330,78 @@ fn read_history_is_scoped_to_the_session() {
     );
     // 而新会话内部照样会去重：同会话第二次读同一范围 → 填充语。
     assert_eq!(projected[1].2, stub_expected, "去重在会话内部仍然生效");
+}
+
+// ---- Task 3：`Write` 的对拍（spec §3.3 的观察出处；每条夹具由 `record.mts` 从 oracle 录）。
+
+#[test]
+fn write_new_parity() {
+    assert_parity("write-new");
+}
+
+#[test]
+fn write_overwrite_unread_parity() {
+    assert_parity("write-overwrite-unread");
+}
+
+#[test]
+fn write_overwrite_read_parity() {
+    assert_parity("write-overwrite-read");
+}
+
+#[test]
+fn write_empty_args_parity() {
+    assert_parity("write-empty-args");
+}
+
+#[test]
+fn write_missing_content_parity() {
+    assert_parity("write-missing-content");
+}
+
+#[test]
+fn write_empty_path_parity() {
+    assert_parity("write-empty-path");
+}
+
+#[test]
+fn write_relative_path_parity() {
+    assert_parity("write-relative-path");
+}
+
+/// 「先读再写」的前置条件也是**会话级**的：同一个 `Session` 上先 `Read` 再 `Write` → 成功；
+/// 换一个 `Session` 直接 `Write` 同一个文件 → `write_file_not_read`。
+///
+/// 期望值全部取自夹具：成功文案来自 `write-overwrite-read` 的录制，失败文案来自
+/// `write-overwrite-unread` 的录制——两段都不是手写的。
+#[test]
+fn write_precondition_is_scoped_to_the_session() {
+    let fixture = load_fixture("write-overwrite-read");
+    let workspace = Workspace::new("write-precondition-scope");
+    workspace.seed(&fixture.seed);
+    let calls = script_calls(&fixture, &workspace);
+    let read_expected = fixture.expect_calls[0].output.clone();
+    let write_expected = fixture.expect_calls[1].output.clone();
+
+    let mut session = Session::new("sess_w1", workspace.cwd());
+    let _ = session.begin_turn("先读再写");
+    let events = session.run_tool_batch(&calls[0..2]);
+    let projected = project_tool_calls(&events, &workspace.cwd());
+    assert_eq!(projected[0].2, read_expected, "先读应当成功");
+    assert!(projected[1].1, "同一会话里读过的文件可以覆盖");
+    assert_eq!(projected[1].2, write_expected, "覆盖成功文案应与录制一致");
+
+    // 换一个会话：没读过它 → 覆盖失败。若红，说明前置条件的记忆被挂到了进程/全局上。
+    let mut other = Session::new("sess_w2", workspace.cwd());
+    let _ = other.begin_turn("直接覆盖");
+    let events = other.run_tool_batch(&calls[1..2]);
+    let projected = project_tool_calls(&events, &workspace.cwd());
+    assert!(!projected[0].1, "新会话没有读过它，覆盖必须失败");
+    assert_eq!(
+        projected[0].2,
+        load_fixture("write-overwrite-unread").expect_calls[0]
+            .output
+            .clone(),
+        "未读覆盖的失败文案应与录制一致"
+    );
 }

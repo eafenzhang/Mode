@@ -172,7 +172,7 @@ Rust 侧用例**不实现第二份比较器**——它把自身投影成同一�
 
 | 类别 | 规则 | 理由 |
 | --- | --- | --- |
-| id（键） | 键名在白名单集合里的值替换为 `<id>`；id 数组键（`toolCallIds`、`committedToolCallIds`、`pendingRequestIds`…）替换为 `<ids>` | 每次运行的 uuid / 会话 id / 工具调用 id 必然不同。集合**显式列举**（`eventId`/`sessionId`/`turnId`/`messageId`/`messageID`/`toolCallId`/`requestId`/`spanId`/`parentSpanId`/`attemptId`/`operationId`/`logicalCallId`/`resultPartId`/`mcpId`…），不用 `.*Id$` 通配——那会连 `providerId` / `modelId` 这类事实键一起抹掉 |
+| id（键） | 键名在白名单集合里的值替换为 `<id>`；id 数组键（`toolCallIds`、`committedToolCallIds`、`pendingRequestIds`…）替换为 `<ids>` | 每次运行的 uuid / 会话 id / 工具调用 id 必然不同。集合**显式列举**（`eventId`/`sessionId`/`turnId`/`messageId`/`messageID`/`toolCallId`/`requestId`/`spanId`/`parentSpanId`/`attemptId`/`operationId`/`logicalCallId`/`resultPartId`/`mcpId`…），不用 `.*Id$` 通配——那会连 `providerId` / `modelId` 这类事实键一起抹掉。〔**Task 3 追加**：`targetMessageId` / `toolMessageId` —— `checkpoint.created` 的回指字段，值与 `messageId` 同类（`msg_<base36 时间戳>_<uuid>`），**前缀不是 uuid 形状**、正文的 uuid 折叠规吃不到它，只能靠键名折叠；与既有的 `anchorId` / `summaryMessageId` 同一条道理。写工具才会产生 checkpoint，所以只读切片时没暴露出来〕 |
 | id（容器） | **只对 id 容器键**（`schedule.parallelGroups`、`schedule.executionOrder`）生效：容器里的每个字符串元素换成 `<id>`，**结构与分组保留** | 容器的形状（并行分组数、每组条数、执行顺序长度）是行为，元素身份不是。**不做「见到 `call_xxx` 就当 id」的按形状匹配**：那会误伤工具输出正文（`Read`/`Grep` 结果里出现 `part_number_2`、`call_site_info`、`msg_hello.txt` 是必然的），而正文差异正是 M2 只读工具要对拍的东西 |
 | id（值） | 字符串里出现的 **uuid** 换成 `<id>`（一段文本里可能有多处，全部替换） | 同一个 id 会平铺在非 id 键的正文里（如 `anchorId` 形如 `msg_xxx_<uuid>:toolu_x:tool-result`）。uuid 形状是唯一可靠、不会误伤正文的判据 |
 | 时间 | 键名匹配 `^(timestamp\|duration\|date\|elapsedMs\|.*At\|.*Ms)$` 的值（数值**或** ISO 串）替换为 `<time>` | 时钟必然不同：`startedAt`/`committedAt`/`timestamp` 是 ISO 串，`durationMs`/`timeToFirstTextMs` 是数值，`date` 是 HTTP 响应头的当前时刻 |

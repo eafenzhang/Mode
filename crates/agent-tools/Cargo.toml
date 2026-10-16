@@ -12,3 +12,6 @@ path = "src/lib.rs"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+# 测试支撑（`test_support`）要算第二层的文件快照哈希；`test_support` 是 lib 的一部分，
+# 所以这里是普通依赖而不是 dev-dependency。
+sha2.workspace = true

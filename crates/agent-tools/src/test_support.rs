@@ -10,10 +10,12 @@
 //! （进程内路径前缀、平铺的 uuid），比较方式是 `assert_eq!`。
 #![doc(hidden)]
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 /// 一条脚本化的工具调用（夹具 `script[*].toolCalls[*]`）。
 #[derive(Debug, Clone)]
@@ -44,6 +46,11 @@ pub struct Fixture {
     pub expect_inputs: Vec<Value>,
     /// 第二层（文件快照）的键集。
     pub expect_file_keys: Vec<String>,
+    /// 第二层（文件快照）的完整投影：相对路径 → 内容 **sha256**（与 TS 侧
+    /// `normalize.mts` 的 `takeFileSnapshot` 同一口径，见 [`snapshot_directory`]）。
+    ///
+    /// 比 `expect_file_keys` 强：写工具会**新增**文件，只比键集会漏掉内容错。
+    pub expect_files: BTreeMap<String, String>,
     /// 每个 turn 里的工具调用条数（首个 turn 在前）。单 turn 夹具就是 `[全部]`。
     ///
     /// 「跨 turn」的观察（`Read` 的重复读去重）只能靠多 turn 夹具钉住，见 `fixtures.mts` 的注释。
@@ -67,6 +74,48 @@ pub fn fixture_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("packages/desktop/tests/agent-runtime-oracle/fixtures")
+}
+
+/// 第二层（文件快照）的 Rust 投影：递归走 `root`，键是**正斜杠分隔的相对路径**，值是内容
+/// **sha256 十六进制**。
+///
+/// 与 TS 侧 `normalize.mts` 的 `takeFileSnapshot` 逐条对齐：同一组跳过目录
+/// （`.git` / `node_modules` / `.mode`）、同样只收普通文件、同样的键形状。规则**只此一份**
+/// （Ruling 4：两份投影必然漂），TS 侧那一份是同一条规则的另一种语言。
+pub fn snapshot_directory(root: &Path) -> BTreeMap<String, String> {
+    const SKIP_DIRS: [&str; 3] = [".git", "node_modules", ".mode"];
+    let mut snapshot = BTreeMap::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(current) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(&current) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let absolute = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if absolute.is_dir() {
+                if SKIP_DIRS.contains(&name.as_str()) {
+                    continue;
+                }
+                pending.push(absolute);
+                continue;
+            }
+            if !absolute.is_file() {
+                continue;
+            }
+            let Ok(content) = std::fs::read(&absolute) else {
+                continue;
+            };
+            let relative = absolute
+                .strip_prefix(root)
+                .expect("走过的路径都在 root 下")
+                .to_string_lossy()
+                .replace('\\', "/");
+            let digest = Sha256::digest(&content);
+            snapshot.insert(relative, format!("{digest:x}"));
+        }
+    }
+    snapshot
 }
 
 /// 读一份行为夹具。缺文件直接 panic（夹具不在仓库里是配置错误，不是「跳过」）。
@@ -148,6 +197,20 @@ pub fn load_fixture(case: &str) -> Fixture {
         .keys()
         .cloned()
         .collect();
+    let expect_files: BTreeMap<String, String> = json["expect"]["files"]
+        .as_object()
+        .expect("expect.files 是对象")
+        .iter()
+        .map(|(key, value)| {
+            (
+                key.clone(),
+                value
+                    .as_str()
+                    .unwrap_or_else(|| panic!("expect.files[{key}] 是内容 sha256 字符串"))
+                    .to_string(),
+            )
+        })
+        .collect();
 
     // turn 切分：首个 turn = 总条数 − 后续 turn 的条数之和。
     let follow_ups: Vec<usize> = json["followUpTurns"]
@@ -208,6 +271,7 @@ pub fn load_fixture(case: &str) -> Fixture {
         expect_calls,
         expect_inputs,
         expect_file_keys,
+        expect_files,
         turn_sizes,
         expect_result_objects,
     }

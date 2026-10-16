@@ -38,15 +38,18 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod path_policy;
 pub mod read;
 /// 测试支撑（投影助手）。放在库里是为了让 `agent-core` 的对拍用例复用**同一份**投影，
 /// 而不是各写一份（两份投影必然漂，正是 Ruling 4 要避免的）。见模块注释。
 #[doc(hidden)]
 pub mod test_support;
+pub mod write;
 
 pub use read::{
-    estimated_tokens, ReadHistory, READ_DESCRIPTION, READ_INPUT_SCHEMA, TOKEN_LIMIT, WASTED_CALL,
+    estimated_tokens, FileState, READ_DESCRIPTION, READ_INPUT_SCHEMA, TOKEN_LIMIT, WASTED_CALL,
 };
+pub use write::{write_input_schema, WRITE_DESCRIPTION, WRITE_INPUT_SCHEMA};
 
 /// 工具分档（`packages/shared/src/tool-identity.ts` 的 `ModeToolFamily` 声明面，逐字对齐）。
 ///
@@ -173,16 +176,26 @@ pub fn unimplemented_surface(surface: &'static str, message: impl Into<String>) 
     }
 }
 
-/// M2 只读切片的注册表。
+/// M2 的工具注册表。
 ///
-/// 只有 `Read`：理由见 crate 文档（`Glob` / `Grep` 在会话面没有注册，实测答复 `tool_not_found`）。
+/// `Read` 与 `Write`：两者都由黑盒观察确认**已注册**（`Read` 见 crate 文档；`Write` 见
+/// `docs/specs/tauri-agent-runtime.md` §3.3 与夹具 `write-empty-args` 的正对照）。
+/// 计划里同列的 `ApplyPatch` **未声明也未注册**（调用得 `tool_not_found`），故不在表里。
 pub fn registry() -> Vec<ToolSpec> {
-    vec![ToolSpec {
-        name: "Read",
-        family: ModeToolFamily::FileRead,
-        schema: read_input_schema(),
-        read_only: true,
-    }]
+    vec![
+        ToolSpec {
+            name: "Read",
+            family: ModeToolFamily::FileRead,
+            schema: read_input_schema(),
+            read_only: true,
+        },
+        ToolSpec {
+            name: "Write",
+            family: ModeToolFamily::FileWrite,
+            schema: write_input_schema(),
+            read_only: false,
+        },
+    ]
 }
 
 /// 解析 [`READ_INPUT_SCHEMA`]（那条从 oracle 请求体里逐字抄下来的声明）。
@@ -199,13 +212,18 @@ pub fn lookup(tool_name: &str) -> Option<ToolSpec> {
 }
 
 /// 按名字执行一次工具调用；未注册的名字得到 [`not_found`]（与 oracle 的答复同形）。
+///
+/// `files` 是会话内的文件记忆（[`FileState`]）——`Write` 的「先读再写」前置条件要读它，
+/// `Read` 不用（它的去重由会话在调用前后处理，见 [`FileState`] 的注释）。
 pub fn invoke_by_name(
     tool_name: &str,
     args: &Value,
     ctx: &ToolContext,
+    files: &FileState,
 ) -> Result<ToolOutcome, ToolError> {
     match tool_name {
         "Read" => read::invoke(args, ctx),
+        "Write" => write::invoke(args, ctx, files),
         other => Err(not_found(other)),
     }
 }

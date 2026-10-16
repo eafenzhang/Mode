@@ -280,6 +280,78 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
       { text: "四个都试过了。" },
     ],
   },
+  // ---- Task 3 追加：`Write` 的行为（spec §3.3 的观察出处）。
+  //      剧本与种子是**输入**（人写）；`expect` 一律由 `record.mts` 从 oracle 录。
+  {
+    case: "write-new",
+    prompt: "用 Write 工具把 made.txt 创建出来，然后回一句话说明结果。",
+    seed: {},
+    script: [
+      { toolCalls: [{ name: "Write", input: { file_path: "${cwd}/made.txt", content: "hello write\nsecond line\n" } }] },
+      { text: "made.txt 创建成功。" },
+    ],
+  },
+  {
+    case: "write-overwrite-unread",
+    prompt: "用 Write 覆盖 existing.txt，然后说明结果。",
+    seed: { "existing.txt": "original\n" },
+    // 关键：**不先 Read**。观察到的是失败（`File has not been read yet.…`）。
+    script: [
+      { toolCalls: [{ name: "Write", input: { file_path: "${cwd}/existing.txt", content: "replaced\n" } }] },
+      { text: "覆盖失败了。" },
+    ],
+  },
+  {
+    case: "write-overwrite-read",
+    prompt: "先 Read 再 Write 覆盖 existing.txt，然后说明结果。",
+    seed: { "existing.txt": "original\n" },
+    script: [
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/existing.txt" } }] },
+      { toolCalls: [{ name: "Write", input: { file_path: "${cwd}/existing.txt", content: "replaced\n" } }] },
+      { text: "先读后写，成功了。" },
+    ],
+  },
+  {
+    case: "write-empty-args",
+    prompt: "用一个空的入参调用 Write，然后说明结果。",
+    seed: {},
+    // 正对照：空入参拿到的是 `inputSchema validation`（不是 `tool_not_found`），
+    // 即 `Write` **确实注册了**（同 Task 2 用 `Agent` 做正对照的思路）。
+    script: [{ toolCalls: [{ name: "Write", input: {} }] }, { text: "入参不合法。" }],
+  },
+  {
+    // 相对路径的入参：**成功文案里的路径是原样回显还是解析后的绝对路径**——
+    // 这条决定了实现要不要先解析再拼消息，不能靠猜（`Read` 的实测是「按 cwd 解析」，
+    // 但那是**读**的路径，写成功文案的拼法未必同源）。实测：成功文案里是**原样回显**。
+    case: "write-relative-path",
+    prompt: "用相对路径调用 Write 创建 rel-out.txt，然后说明结果。",
+    seed: {},
+    script: [
+      { toolCalls: [{ name: "Write", input: { file_path: "rel-out.txt", content: "rel\n" } }] },
+      { text: "写完了。" },
+    ],
+  },
+  {
+    // 只给 `file_path`、不给 `content`：把「缺必填字段」与「字段不是字符串」两条校验分支钉住，
+    // 免得实现自己发明一个错误形状。
+    case: "write-missing-content",
+    prompt: "只给 file_path 调用 Write，然后说明结果。",
+    seed: {},
+    script: [
+      { toolCalls: [{ name: "Write", input: { file_path: "${cwd}/only-path.txt" } }] },
+      { text: "缺 content。" },
+    ],
+  },
+  {
+    // 空字符串路径：**不是**「缺字段」，是否走校验分支要看实测（`Read` 那条是走校验错误的）。
+    case: "write-empty-path",
+    prompt: "用空字符串路径调用 Write，然后说明结果。",
+    seed: {},
+    script: [
+      { toolCalls: [{ name: "Write", input: { file_path: "", content: "x\n" } }] },
+      { text: "空路径。" },
+    ],
+  },
 ];
 
 export async function loadFixtures(): Promise<OracleFixture[]> {

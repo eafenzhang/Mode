@@ -20,15 +20,23 @@ use agent_protocol::session_event::{ProtocolErrorDetail, ToolResultObject};
 use agent_protocol::ExtraFields;
 
 pub use agent_tools::{
-    invoke_by_name, lookup, registry, ModeToolFamily, ToolContext, ToolError, ToolOutcome, ToolSpec,
+    invoke_by_name, lookup, registry, FileState, ModeToolFamily, ToolContext, ToolError,
+    ToolOutcome, ToolSpec,
 };
 
 /// 执行一次工具调用。
 ///
 /// `Ok` → `tool.updated` 的 `kind:"result"`；`Err` → `kind:"error"`。
 /// 未注册的工具名会得到与 oracle 同形的 `tool_not_found`（见 `agent_tools` 的 crate 文档）。
-pub fn invoke(spec: &ToolSpec, args: &Value, ctx: &ToolContext) -> Result<ToolOutcome, ToolError> {
-    invoke_by_name(spec.name, args, ctx)
+///
+/// `files` 是会话内的文件记忆：`Write` 的「先读再写」前置条件要读它（见 `agent_tools::FileState`）。
+pub fn invoke(
+    spec: &ToolSpec,
+    args: &Value,
+    ctx: &ToolContext,
+    files: &FileState,
+) -> Result<ToolOutcome, ToolError> {
+    invoke_by_name(spec.name, args, ctx, files)
 }
 
 /// `ToolOutcome` → `kind:"result"` 的 `result` 对象。

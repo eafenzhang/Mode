@@ -17,7 +17,7 @@ use std::time::{Duration, SystemTime};
 use agent_tools::read::TEXT_EXTENSIONS;
 use agent_tools::test_support::{load_fixture, project, project_input, Workspace};
 use agent_tools::{
-    estimated_tokens, invoke_by_name, registry, ModeToolFamily, ReadHistory, ToolContext,
+    estimated_tokens, invoke_by_name, registry, FileState, ModeToolFamily, ToolContext,
     UNIMPLEMENTED_ERROR_TYPE,
 };
 
@@ -47,7 +47,7 @@ fn assert_fixture(case: &str) {
             fixture.case
         );
 
-        let outcome = invoke_by_name(&call.name, &args, &context);
+        let outcome = invoke_by_name(&call.name, &args, &context, &FileState::new());
         let (ok, output) = match &outcome {
             Ok(result) => (true, project(&result.content, &context.cwd)),
             Err(error) => {
@@ -120,7 +120,7 @@ fn read_only_tools_leave_the_workspace_untouched() {
         };
         for call in &fixture.calls {
             let args = workspace.substitute(&call.input);
-            let _ = invoke_by_name(&call.name, &args, &context);
+            let _ = invoke_by_name(&call.name, &args, &context, &FileState::new());
         }
 
         let mut keys: Vec<String> = fixture
@@ -140,20 +140,30 @@ fn read_only_tools_leave_the_workspace_untouched() {
     }
 }
 
-/// 注册表的内容本身是观察结果：只读切片里**只有** `Read`；`Glob`/`Grep` 未注册。
+/// 注册表的内容本身是观察结果：`Read` 与 `Write` 各占一条；`Glob`/`Grep`/`ApplyPatch` 未注册。
 ///
-/// 证据：探针 `absence` 组（`Tool not found: Glob` / `Tool not found: Grep`）与夹具
-/// `read-absent-search-tools.json`。
+/// 证据：探针 `probe-tool-surface.mts`（`Read` 在声明里）与 `probe-write.mts`（`Write` 在声明里、
+/// `ApplyPatch` 不在且调用得 `tool_not_found`）；夹具 `read-absent-search-tools.json` 与
+/// `write-empty-args.json`（正对照：空入参拿 `inputSchema validation` 而不是 `tool_not_found`）。
 #[test]
 fn registry_contains_only_read_from_the_read_only_slice() {
     let specs = registry();
     let names: Vec<&str> = specs.iter().map(|spec| spec.name).collect();
-    assert_eq!(names, vec!["Read"]);
+    assert_eq!(names, vec!["Read", "Write"]);
     assert_eq!(specs[0].family, ModeToolFamily::FileRead);
     assert!(specs[0].read_only);
-    // Glob / Grep 必须**不**在注册表里：它们没有注册，调用得到 tool_not_found。
-    assert!(specs.iter().all(|spec| spec.name != "Glob"));
-    assert!(specs.iter().all(|spec| spec.name != "Grep"));
+    assert_eq!(specs[1].family, ModeToolFamily::FileWrite);
+    assert!(
+        !specs[1].read_only,
+        "`Write` 的 `started` 事件是 `readOnly:false` / `sideEffectScope:\"workspace\"`"
+    );
+    // 未注册的三个：Glob / Grep（Task 2 实测）与 ApplyPatch（Task 3 实测）都不在表里。
+    for absent in ["Glob", "Grep", "ApplyPatch"] {
+        assert!(
+            specs.iter().all(|spec| spec.name != absent),
+            "{absent} 不该在注册表里"
+        );
+    }
 }
 
 /// 未注册的名字答复的形状与观察到的 `tool_not_found` 逐字一致。
@@ -163,7 +173,7 @@ fn unknown_tool_names_answer_like_the_oracle() {
         cwd: ".".to_string(),
     };
     for name in ["Glob", "Grep"] {
-        let error = invoke_by_name(name, &serde_json::json!({}), &context)
+        let error = invoke_by_name(name, &serde_json::json!({}), &context, &FileState::new())
             .expect_err("未注册的工具必须失败");
         assert_eq!(error.error_type, "tool_not_found");
         assert_eq!(error.message, format!("Tool not found: {name}"));
@@ -225,7 +235,7 @@ fn observed_text_extensions_read_as_text() {
     };
     for (relative, _) in &seeds {
         let args = serde_json::json!({ "file_path": format!("{}/{relative}", context.cwd) });
-        let outcome = invoke_by_name("Read", &args, &context)
+        let outcome = invoke_by_name("Read", &args, &context, &FileState::new())
             .unwrap_or_else(|error| panic!("{relative} 应被当文本读：{}", error.message));
         assert_eq!(
             outcome.content,
@@ -256,7 +266,7 @@ fn repeat_reads_are_stubbed_by_mtime() {
         cwd: workspace.cwd(),
     };
     let args = serde_json::json!({ "file_path": format!("{}/a.txt", context.cwd) });
-    let mut history = ReadHistory::new();
+    let mut history = FileState::new();
 
     assert!(
         history.stub_for(&args, &context).is_none(),
@@ -309,7 +319,8 @@ fn unimplemented_marker_covers_the_image_path() {
         cwd: workspace.cwd(),
     };
     let args = serde_json::json!({ "file_path": format!("{}/pic.png", context.cwd) });
-    let error = invoke_by_name("Read", &args, &context).expect_err("图片扩展名走未实现的面");
+    let error = invoke_by_name("Read", &args, &context, &FileState::new())
+        .expect_err("图片扩展名走未实现的面");
     assert_eq!(error.error_type, UNIMPLEMENTED_ERROR_TYPE);
     assert!(
         error.detail.as_deref().unwrap_or("").contains("read_image"),
@@ -352,9 +363,10 @@ fn success_result_fields_match_the_recorded_events() {
                 continue;
             };
             let args = workspace.substitute(&call.input);
-            let outcome = invoke_by_name(&call.name, &args, &context).unwrap_or_else(|error| {
-                panic!("{case}：第 {index} 个调用本来应该成功：{}", error.message)
-            });
+            let outcome = invoke_by_name(&call.name, &args, &context, &FileState::new())
+                .unwrap_or_else(|error| {
+                    panic!("{case}：第 {index} 个调用本来应该成功：{}", error.message)
+                });
             assert_eq!(
                 outcome.truncated, recorded.truncated,
                 "{case} #{index} truncated"

@@ -52,35 +52,33 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-write-rules.mts
 
 ---
 
-### Task A：`Write` 的行为对拍
+### Task A：`Write` 的行为对拍（**已完成，2026-10-17**）
 
 **Files:**
-- Create: `crates/agent-tools/src/write.rs`
-- Create: `crates/agent-tools/tests/write_parity.rs`
-- Create: `packages/desktop/tests/agent-runtime-oracle/fixtures/write-*.json`（由 `record.mts` 录）
+- Create: `crates/agent-tools/src/write.rs`、`crates/agent-tools/src/path_policy.rs`（与 `Read` 共用的路径策略）
+- Create: `crates/agent-tools/tests/…`（复用 `agent-core/tests/tool_parity.rs`）
+- Create: `packages/desktop/tests/agent-runtime-oracle/fixtures/write-*.json`（7 条，由 `record.mts` 录）
 
-**Interfaces:**
-- Consumes: `agent_tools::ToolSpec` / `registry()`（Task 2 的既有约定）、
-  `agent_core::tool::{invoke, ToolContext, ToolOutcome, ToolError}`、
-  `Read` 留下的 `readFileState`（「读过没有」的判据来源，Task 2 已实现）。
-- Produces: `agent_tools::write::spec()` 与 `invoke` 分支。
+**Deviation（落地时才知道的）**：原计划把 `Write` 的前置条件做成 `write::invoke(args, ctx, already_read: bool)`。
+实际做成 **`invoke_by_name(name, args, ctx, files: &FileState)`**——因为「读过没有」这个状态
+**`Read` 的去重表也在用**，两份状态会各写各的（AGENTS.md 禁止重复状态）。做法是把 Task 2 的
+`ReadHistory` 改名 `FileState`（`read.rs`），加一个**路径级**集合，`Read` 成功与 `Write` 成功都写它；
+去重那部分的键与语义**一字未动**（18 个既有用例逐条仍绿）。
 
-- [ ] **Step A1：录夹具（先有 oracle 数据）**
+- [x] **Step A1：录夹具**——`write-new` / `write-overwrite-read` / `write-overwrite-unread` /
+      `write-empty-args` / `write-missing-content` / `write-empty-path` / `write-relative-path`。
+- [x] **Step A2/A3：对拍用例 + 实现**（TDD 顺序在 oracle 数据到手后倒过来走：先看录到的形状
+      再写实现，因为「形状」正是这一步要拿的东西）。
+- [x] **Step A4：跑通**——`agent-core` 22 passed、`agent-tools` 18 passed、oracle 套件 53 passed、
+      clippy 零告警、`pnpm verify:pre-push` 通过。
 
-新增 `write-new` / `write-overwrite-read` / `write-overwrite-unread` / `write-empty-args` 四条夹具，
-用 `record.mts` 让旧运行时跑出来录，**不手写期望值**。
+**A 阶段新增的两处对拍口径改动**（都在 spec §3 登记）：
 
-- [ ] **Step A2：写 Rust 侧对拍用例（先失败）**
-
-`crates/agent-tools/tests/write_parity.rs` 逐条夹具断言：结果 `success`、`content` 逐字、
-以及调用后的**文件快照**（`made.txt` 的字节）。三条错误路径断言 `error.type` / `message` / `detail`。
-
-- [ ] **Step A3：实现 `Write`**
-
-关键语义（全部以 §3.3 的观察为准）：新建成功文案 / 覆盖已读成功文案 / 覆盖未读报
-`write_file_not_read`；`file_path` 相对路径按会话 cwd 解析；写入后该文件进入「已读」状态。
-
-- [ ] **Step A4：跑通并提交**
+1. **第二层（文件快照）改成通用比较**：原实现断言「种子键集不变」，那是只读工具的假设；
+   写工具会**新增**文件。现改为 `snapshot_directory()`（Rust 侧投影，内容 sha256）与夹具的
+   `expect.files` 精确相等——与 TS 侧 `takeFileSnapshot` 同一口径。为此给 `agent-tools` 加了
+   `sha2` 依赖（已在 `Cargo.lock` 的传递依赖里，不新增第三方组件）。
+2. **白名单追加两个 id 键**：`targetMessageId` / `toolMessageId`（`checkpoint.created` 的回指字段）。
 
 ---
 

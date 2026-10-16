@@ -50,7 +50,7 @@ use agent_protocol::session_event::{
     ToolStartedPayload, ToolUpdatedPayload, TurnStartedPayload,
 };
 use agent_protocol::ExtraFields;
-use agent_tools::{lookup, ReadHistory, ToolContext, ToolOutcome, ToolSpec};
+use agent_tools::{lookup, FileState, ModeToolFamily, ToolContext, ToolOutcome, ToolSpec};
 
 use crate::tool::{error_object, result_object};
 
@@ -71,8 +71,9 @@ pub struct Session {
     turn_number: u64,
     sequence: u64,
     current_turn_id: Option<String>,
-    /// `Read` 的**会话内**重复读记忆（跨 turn 命中；见 `agent_tools::ReadHistory`）。
-    read_history: ReadHistory,
+    /// 会话内的文件记忆：`Read` 的重复读去重（跨 turn 命中）+ `Write` 的「先读再写」前置条件。
+    /// 见 `agent_tools::FileState`。
+    file_state: FileState,
 }
 
 impl Session {
@@ -83,7 +84,7 @@ impl Session {
             turn_number: 0,
             sequence: 0,
             current_turn_id: None,
-            read_history: ReadHistory::new(),
+            file_state: FileState::new(),
         }
     }
 
@@ -150,21 +151,37 @@ impl Session {
                 events.push(self.started_event(&turn_id, call, spec));
             }
 
-            // `Read` 的重复读去重：**会话状态**在这一层（工具本身是纯函数），见 ReadHistory 的注释。
+            // `Read` 的重复读去重：**会话状态**在这一层（工具本身是纯函数），见 FileState 的注释。
             // 命中就不调用工具，直接发一条与 oracle 同形的成功结果；
             // 只有**成功**的读才记进历史（实测：读不存在的文件两次都是错误，错误不去重）。
             let started = std::time::Instant::now();
             let stubbed = if call.name == "Read" {
-                self.read_history.stub_for(&call.input, &context)
+                self.file_state.stub_for(&call.input, &context)
             } else {
                 None
             };
             let outcome = match stubbed {
                 Some(stub) => Ok(stub),
                 None => {
-                    let result = agent_tools::invoke_by_name(&call.name, &call.input, &context);
-                    if call.name == "Read" && result.is_ok() {
-                        self.read_history.record(&call.input, &context);
+                    let result = agent_tools::invoke_by_name(
+                        &call.name,
+                        &call.input,
+                        &context,
+                        &self.file_state,
+                    );
+                    match (&call.name[..], &result) {
+                        // 读成功 → 记进去重表，同时进入「本会话碰过它」集合。
+                        ("Read", Ok(_)) => self.file_state.record(&call.input, &context),
+                        // 写成功 → 该文件也进入「已读」状态（观察：成功文案自述
+                        // 「file state is current in your context — no need to Read it back」）。
+                        ("Write", Ok(_)) => {
+                            if let Some(file_path) =
+                                call.input.get("file_path").and_then(Value::as_str)
+                            {
+                                self.file_state.record_written(file_path, &context);
+                            }
+                        }
+                        _ => {}
                     }
                     result
                 }
@@ -251,14 +268,15 @@ impl Session {
                 description: None,
             },
             started_at: ProtocolInstant::Ms(now_ms() as f64),
-            // 观察值：只读工具的 `started` 带 `readOnly: true` 与 `sideEffectScope: "none"`。
-            // 非只读工具的 `sideEffectScope` 取值集合没有观察（镜像注释也这么说），
-            // 所以那种情况**留空**而不是编一个档位。
+            // 观察值：只读工具的 `started` 带 `readOnly: true` 与 `sideEffectScope: "none"`；
+            // `Write`（`file-write`）带 `readOnly: false` 与 `sideEffectScope: "workspace"`
+            // （夹具 `write-new` / `write-overwrite-read` 的 `started` 事件）。
+            // 其余非只读档（shell / node-repl …）的取值集合**仍未观察**，所以那种情况留空而非编一个档位。
             read_only: Some(spec.read_only),
-            side_effect_scope: if spec.read_only {
-                Some("none".to_string())
-            } else {
-                None
+            side_effect_scope: match (spec.read_only, spec.family) {
+                (true, _) => Some("none".to_string()),
+                (false, ModeToolFamily::FileWrite) => Some("workspace".to_string()),
+                (false, _) => None,
             },
             tool_name: Some(call.name.clone()),
             extra: ExtraFields::new(),

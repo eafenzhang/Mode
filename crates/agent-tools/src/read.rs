@@ -120,10 +120,11 @@
 //! **没观察到的二进制扩展名**（见报告 §8.4）。
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde_json::Value;
 
+use crate::path_policy::{empty_path_error, resolve};
 use crate::{unimplemented_surface, ToolContext, ToolError, ToolOutcome};
 
 /// `Read` 的模型侧工具描述——从 oracle 的请求体里逐字抄下（探针 `tools` 组）。
@@ -388,12 +389,8 @@ fn validate(args: &Value) -> Result<String, ToolError> {
         }
     }
     if file_path.is_empty() {
-        return Err(ToolError {
-            error_type: "tool_execution_failed",
-            message: "Tool path must not be empty".to_string(),
-            code: Some("TOOL_EXECUTION_FAILED"),
-            detail: None,
-        });
+        // 与 `Write` 共用同一条错误（观察值一致），实现在 `crate::path_policy`。
+        return Err(empty_path_error());
     }
     Ok(file_path)
 }
@@ -462,21 +459,6 @@ fn binary_preflight_message(extension: &str) -> String {
     )
 }
 
-/// 相对路径按会话工作目录解析（实测成功；工具描述说必须绝对路径，实测不然）。
-///
-/// 末尾按**组件**重拼一次：观察到的消息里分隔符是原生形态（`Cannot read directory as text file:
-/// <cwd>\dir`），而 `PathBuf` 会原样保留输入里的分隔符——脚本给的 `file_path` 是正斜杠形式
-/// （夹具录到的入参就是 `<cwd>/dir`），不归一会让消息变成 `<cwd>/dir`，与观察值不符。
-fn resolve(file_path: &str, ctx: &ToolContext) -> PathBuf {
-    let candidate = Path::new(file_path);
-    let joined = if candidate.is_absolute() {
-        candidate.to_path_buf()
-    } else {
-        Path::new(&ctx.cwd).join(candidate)
-    };
-    joined.components().collect()
-}
-
 /// 小写扩展名（实测 `.PNG` 与 `.png` 同路）。
 fn extension_of(path: &Path) -> Option<String> {
     path.extension()
@@ -519,17 +501,29 @@ struct ReadKey {
     limit: Option<i64>,
 }
 
-/// **会话内**的重复读记忆：键 → 上次读到该文件时的 mtime。
+/// **会话内**的文件访问记忆，两个用途共用一份状态：
 ///
-/// 为什么是**状态**而不是纯函数的一部分：旧运行时的这条行为定义在会话上（跨 turn 仍然命中，
-/// `probe-read-history` 的 dedup 9-10），所以 Rust 侧也把记忆放在会话状态里——[`crate::read::invoke`]
-/// 保持纯函数，由会话在调用前后问它。
+/// 1. `Read` 的重复读去重——键（路径 + 范围）→ 上次读到该文件时的 mtime；
+/// 2. `Write` / `Edit` 的「先读再写」前置条件——**路径级**的「这个会话读过/写过它吗」。
+///
+/// 为什么是**状态**而不是纯函数的一部分：这两条行为都定义在会话上（去重跨 turn 仍然命中；
+/// 「先读再写」按会话计），所以 Rust 侧也把记忆放在会话状态里——[`crate::read::invoke`] 与
+/// `crate::write::invoke` 都保持纯函数，由会话在调用前后问它。
+///
+/// 命名（Task 3 改）：原名 `ReadHistory`。Task 3 起 `Write`/`Edit` 也读它，名字若继续叫
+/// `ReadHistory` 就成了假陈述，故改名并扩了一个路径级集合；**去重那部分的键与语义一字未动**。
 #[derive(Debug, Default)]
-pub struct ReadHistory {
+pub struct FileState {
+    /// 去重表：键 → 上次读到该文件时的 mtime（`Read` 专用，语义未变）。
     entries: std::collections::BTreeMap<ReadKey, std::time::SystemTime>,
+    /// 路径级的「本会话碰过它」集合（`Write` / `Edit` 的前置条件）。
+    ///
+    /// 与 `entries` 分开存是有意的：去重的键含范围，而前置条件问的是**路径**，
+    /// 两者粒度不同；`record` 会同时写两处，所以不会出现「读过但不知道读过」的状态。
+    known_paths: std::collections::BTreeSet<String>,
 }
 
-impl ReadHistory {
+impl FileState {
     pub fn new() -> Self {
         Self::default()
     }
@@ -551,9 +545,26 @@ impl ReadHistory {
     pub fn record(&mut self, args: &Value, ctx: &ToolContext) {
         if let Some(key) = read_key(args, ctx) {
             if let Some(mtime) = mtime_of(&key.path) {
+                self.known_paths.insert(key.path.clone());
                 self.entries.insert(key, mtime);
             }
         }
+    }
+
+    /// 本会话是否碰过这个路径（`Read` 成功过，或 `Write`/`Edit` 成功过）——`Write` 的前置条件。
+    ///
+    /// 观察出处：`docs/specs/tauri-agent-runtime.md` §3.3（`Write` 覆盖已存在但本会话未读过的文件
+    /// → `write_file_not_read`；读过的可以覆盖）。**按解析后的路径**判，与 `Read` 的路径解析同一份规则。
+    pub fn knows_path(&self, file_path: &str, ctx: &ToolContext) -> bool {
+        self.known_paths
+            .contains(&resolve(file_path, ctx).to_string_lossy().to_string())
+    }
+
+    /// 记下「写成功了」：`Write` / `Edit` 成功后该文件也进入「已读」状态（观察：成功文案里的
+    /// 「file state is current in your context — no need to Read it back」是这条语义的自述）。
+    pub fn record_written(&mut self, file_path: &str, ctx: &ToolContext) {
+        self.known_paths
+            .insert(resolve(file_path, ctx).to_string_lossy().to_string());
     }
 }
 

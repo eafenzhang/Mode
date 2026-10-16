@@ -34,6 +34,9 @@ publish = false
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# 只给 `agent-tools` 的测试支撑用：第二层（文件快照）的投影是内容 sha256，
+# 与 TS 侧 `normalize.mts` 的 `takeFileSnapshot` 同一口径（见该模块注释）。
+sha2 = "0.10"
 schemars = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
 tauri = "2"

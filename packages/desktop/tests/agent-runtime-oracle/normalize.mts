@@ -76,6 +76,11 @@ const VOLATILE_ID_KEYS = new Set([
   "anchorId",
   "anchorMessageId",
   "summaryMessageId",
+  // Task 3 追加：`checkpoint.created` 的回指字段。值与 `messageId` 同类
+  // （`msg_<base36 时间戳>_<uuid>`），前缀不是 uuid 形状、正文里的 uuid 折叠规不吃它，
+  // 所以只能靠键名折叠——与上面 `anchorId` 同一条道理。
+  "targetMessageId",
+  "toolMessageId",
   "toolCallId",
   "callId",
   "requestId",
