@@ -92,6 +92,14 @@ export type OracleRuntimeOptions = {
    */
   runtimePreferencesReply?: Record<string, unknown>;
   /**
+   * 仅录制/诊断用：覆盖 host 对 `interaction/requestPermission` 的应答。
+   *
+   * 默认放行（`{decision:"allow"}`）。Task 3 要对拍审批三态，需要按
+   * `options[].optionId` 回报不同的 `response`（`allow_once` / `allow_project` / `deny`），
+   * 所以这里做成「按请求算应答」的函数而不是固定值——请求里带着 `options`，调用方照抄即可。
+   */
+  permissionReply?: (params: Record<string, unknown>) => unknown;
+  /**
    * 纯观测钩子：mock provider 每收到一个请求体就回调一次（透传给 `startMockProvider`）。
    *
    * 存在的理由（Task 2）：运行时对外声明的**工具清单**只存在于这个请求里，
@@ -285,8 +293,12 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
       return;
     }
     if (method === "interaction/requestPermission") {
-      // Task 0 不测审批行为（审批三态在 Task 3 单独对拍），一律放行。
-      write({ id: frame.id, result: { decision: "allow" } });
+      // 默认放行（只读切片不需要审批行为）；审批三态由 Task 3 用 `permissionReply` 覆盖。
+      const params = (frame.params ?? {}) as Record<string, unknown>;
+      write({
+        id: frame.id,
+        result: options.permissionReply ? options.permissionReply(params) : { decision: "allow" },
+      });
       return;
     }
     write({ id: frame.id, error: { code: -32601, message: `oracle driver 未处理 ${method}` } });

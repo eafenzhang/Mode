@@ -247,6 +247,79 @@ b
 第三层（事件流）对拍在只读切片上**尚未**做：Rust 侧只发工具面事件（见 `crates/agent-core/src/session.rs`），
 `turn.completed` 需要的模型层数字与 JS 调用栈不在本任务范围；判据是第一层 + 第二层。
 
+### 3.3 写工具与审批（Task 3 开工前观察，2026-10-17）
+
+全部出自 `probe-write.mts`（`surface` / `call` / `perm` / `project` 四组）与
+`probe-write-rules.mts`。**这一节是「先观察再写计划」的产物**——M2 计划 Task 3 的标题与接口
+（`Write`/`Edit`/`ApplyPatch` + 四态 `Decision`）有两处与实测不符，逐条列出。
+
+**工具面（声明 ≠ 注册，Task 2 的教训在这里同样成立）**
+
+| 工具 | 对外声明 | 脚本化调用 | 结论 |
+| --- | --- | --- | --- |
+| `Write` | 在（21 条里） | 成功写入；空入参 → `Tool input failed inputSchema validation` | **已注册** |
+| `Edit` | 在 | 未读就写 → `File has not been read yet…`（不是 `tool_not_found`） | **已注册** |
+| `ApplyPatch` | **不在** | `{"type":"tool_not_found","message":"Tool not found: ApplyPatch"}` | **未声明、未注册** |
+| `MultiEdit` / `NotebookEdit` | 不在 | — | 不存在 |
+
+⇒ **Task 3 的实现范围 = `Write` + `Edit`；`ApplyPatch` 作废**（同 Ruling 17 对 `Glob`/`Grep` 的
+处置：实现一个运行时没有的工具等于没有 oracle）。文档标题里的 `ApplyPatch` 与
+「多文件与失败回滚」一并作废。
+
+**`Write` 的行为（观察值，不是推断）**
+
+| 场景 | 结果 |
+| --- | --- |
+| 新建文件 | 成功，正文 `File created successfully at: {path} (file state is current in your context — no need to Read it back)` |
+| 覆盖**未读**的已存在文件 | 失败 `tool_execution_failed` / `message`: `File has not been read yet. Read it first before writing to it.` / `detail`: `code=write_file_not_read` |
+| 覆盖**已读**的已存在文件 | 成功，正文 `The file {path} has been updated successfully. (file state is current in your context — no need to Read it back)` |
+| 入参形状 | `file_path`（必填）、`content`（必填）、`additionalProperties: false` |
+
+「读过没有」是**会话级**的（Task 2 的 `readFileState` 同源）；`Write` 成功后该文件也进入
+「已读」状态（正文后半句「no need to Read it back」是这条语义的自述）。
+
+**审批协议（`interaction/requestPermission`，逐字观察）**
+
+请求参数：`{ input, reason, requestId, riskLevel, sessionId, options[], toolCallId, toolName, turnId }`。
+`Write` 的 `reason` = `Tool has side effects and requires approval`，`riskLevel` = `medium`。
+
+`options` 有**三条**（不是计划写的四种决策）：
+
+| optionId | kind | response |
+| --- | --- | --- |
+| `allow_once` | `allow_once` | `{decision:"allow", reason:"Approved once"}` |
+| `allow_project` | `allow_always` | `{decision:"allow", reason:"Approved for this project", permissionUpdates:[{type:"addRules", behavior:"allow", rules:[{toolName, ruleContent}]}]}` |
+| `deny` | `deny` | `{decision:"deny", reason:"…The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing…"}` |
+
+⇒ 计划里的 `AllowOnce | AllowAlways | ProjectAlways | Deny` **四态应改成三态**；`allow_always`
+只是 `allow_project` 这条选项的 `kind` 标签，**没有独立的全局一直允许**。
+
+**落盘（Task 3 Step 1 的产物：格式以 oracle 观察为准）**
+
+`allow_project` **不写任何文件**（`cwd` 与数据根都无新增文件），它写的是运行时 DB 的一行——
+`.mode/cli/db/db.sqlite` 的 `local_setting` 表：
+
+| 列 | 值（逐字） |
+| --- | --- |
+| `scope` | `project` |
+| `scope_id` | `proj_` + cwd 路径**小写**、非字母数字的连续段折成单个 `-`（`C:\Users\X\ws` → `proj_c-users-x-ws`） |
+| `namespace` | `permission` |
+| `key` | `ruleset` |
+| `value` | `{"version":1,"allow":[{"toolName":"Write","ruleContent":"<原始大小写路径>"}]}` |
+| `schema_version` | `1` |
+
+配套事实：
+
+- 多条 `allow_project` **累积**进同一行的 `value.allow[]`（第二次只更新 `time_updated`）；
+- `deny` **不落盘**（ruleset 里只有 `allow[]`）；
+- 不同 cwd → 不同 `scope_id`，两行互不污染；
+- `permission` 表在本次全部观察里**恒为空**；
+- 同 `dataRoot` + 同 cwd 的**第二个会话不再发审批请求**（规则被读出来并生效）。
+
+**未决（写进计划，不自行拍板）**：这条持久化归**谁**写？观察里是运行时装进程自己写的，但
+目标架构中 DB 由 M3 的 Node Host 侧持有（`node:sqlite`）。Rust 侧是直连 sqlite 还是经 Host 代理，
+属架构分叉，需人在 Task 3 子计划里定。
+
 ## 4. 对拍可重复性：mock provider
 
 ### 4.1 为什么必须有

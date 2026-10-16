@@ -63,10 +63,19 @@ serde/serde_json、schemars（仅新增的 Tauri 面用）；测试侧复用 `ts
 | grep | ~~`Grep`~~ | **作废**：同上 |
 | list | *不存在* | 不新造工具 |
 | （未提） | `Bash` | Task 4（shell 与 pty）——**未实测，开工前先观察** |
-| （未提） | `Write` / `Edit` / `ApplyPatch` | Task 3——**未实测，开工前先观察** |
+| （未提） | `Write` / `Edit` | Task 3——**2026-10-17 实测：两条都已注册**（见 Ruling 18） |
+| （未提） | ~~`ApplyPatch`~~ | **作废**：既不在 21 条声明里，脚本化调用也返回 `tool_not_found` |
 | （未提） | `WebFetch` / `WebSearch` | **M3**（要网络策略与 sidecar 的取回面） |
 | （未提） | `Task` / `Agent` / `Skill` / `js` / `mcp__node_repl__*` | **M3**（子代理与 node-repl 宿主都在 sidecar） |
 | （未提） | `TodoRead` / `TodoWrite` / `GoalRead` / `AskUserQuestion` / `SendMessage` 等 | Task 5/6（要会话状态与交互面）——**未实测** |
+
+> **2026-10-17 修正（Ruling 18，实测）**：Task 3 开工前的工具面观察已做完，结论落在
+> `docs/specs/tauri-agent-runtime.md` §3.3。摘要：`Write` 与 `Edit` **都已注册**（不是只声明）；
+> **`ApplyPatch` 不在声明里、调用返回 `tool_not_found`**，因此 Task 3 的范围收窄为
+> `Write` + `Edit`；审批请求的 `options[]` 是**三条**（`allow_once` / `allow_project` / `deny`），
+> 计划里写的四态 `Decision` 作废；`allow_project` 的落盘是运行时 DB 的 `local_setting` 一行
+> （不是文件），**归谁持久化是一个待裁决的架构分叉**——三处都记在 Task 3 的子计划
+> `docs/plans/2026-10-17-agent-write-approval.md` 里。
 
 `MODE_KNOWN_TOOL_NAMES` 里还有一档 `ModeToolFamily`（`file-read | file-write | shell | search |
 todo | ask-user-question | agent | skill | goal | session-context | message | task-control |
@@ -341,15 +350,20 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 
 ---
 
-### Task 3: 文件写与 diff 呈现（`Write` / `Edit` / `ApplyPatch`）+ 审批三态
+### Task 3: 文件写与 diff 呈现（`Write` / `Edit`）+ 审批三态
 
-**Files:**
-- Create: `crates/agent-tools/src/write.rs`、`src/edit.rs`、`src/apply_patch.rs`
+> **子计划已产出（2026-10-17）**：`docs/plans/2026-10-17-agent-write-approval.md`。
+> 它以本节的骨架为底，按 Ruling 18 的实测**收窄了范围**（`ApplyPatch` 作废、`Decision` 改成三态）
+> 并把「`allow_project` 的持久化归谁写」列为**待用户裁决**的架构分叉。开工照子计划走。
+
+**Files:**（子计划修正版；原文列的 `src/apply_patch.rs` 已作废）
+- Create: `crates/agent-tools/src/write.rs`、`src/edit.rs`
 - Create: `crates/agent-core/src/approval.rs`
 - Modify: `crates/platform/src/commands/*`（审批 UI 走 M1 的命令面）
 - Test: `crates/agent-core/tests/write_approval.rs`
 
-**Interfaces:**
+**Interfaces:**〔原文保留，但四态 `Decision` 与「数据文件」两处已被 Ruling 18 实测推翻——
+实测是三态、落盘在 DB 的 `local_setting` 行；以子计划的 Interfaces 为准〕
 - Produces: `agent_core::approval::{Decision, ApprovalStore}`，
   `Decision = AllowOnce | AllowAlways | ProjectAlways | Deny`；
   **数据文件与旧版同格式**（路线图要求 M4 迁移零成本）——格式以 oracle 观察为准，不猜。
