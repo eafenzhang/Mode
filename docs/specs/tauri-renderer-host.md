@@ -967,6 +967,87 @@ banner 里给产物一个真的 `require`（`createRequire(import.meta.url)`）�
 本轮所有数字统一按 1024 进制重算。**提交信息不改写**（那需要 amend/rebase，本轮纪律不允许），
 订正记在这里与 fix round 1 的提交信息里。
 
+### 13.2 两份预算的测量口径（M3 Task 5 · DR-T5-1，**先写在测之前**）
+
+**这一节先于数字存在**：它对体积口径的定义在测量之前提交，数字在 §13.4 回填；
+用 `git log -p -- docs/specs/tauri-renderer-host.md` 可以核对「口径在先、数字在后」。
+理由：本数字历史上出过三次口径事故（96.79 MiB 是载荷求和、102.61 MiB 是传递闭包、
+54.41 MiB 是**不含壳 exe** 的未压缩文件字节和），每次换尺子都让「这次能不能过门禁」无解。
+
+**门禁口径（唯一）**：**NSIS 安装包自身的字节数** = 安装包文件的大小（`statSync().size`），
+MiB = 字节 / 1024²。落到具体路径是 `target/release/bundle/nsis/Mode_<版本>_x64-setup.exe`
+（CI 改名后是 `Mode-<版本>-win-x64.exe`）。这与 `tauri-platform-commands.md` §8.2 的历史约定、
+以及 CI 的 `scripts/tauri-bundle-report.ts` 算的**是同一个数**。
+
+**为什么 (a)/(b) 各自都能落在安装包字节面上**：NSIS 把全部载荷压成**一个** LZMA 流，
+从单一安装包里按文件读不回两半。所以做法是**出三个安装包**，用差值得到 (b)：
+
+| 记号 | 包里的资源 | 用途 |
+| --- | --- | --- |
+| `C_core` | `host-sidecar/index.mjs`（Host bundle）+ `config/provider/mode-builtin.json`；**不含** Node 运行时、**不含** externals 的 `node_modules` | 预算 **(a)** 的实测值 |
+| `C_pruned` | 上者 **+** 随包 Node **+** **剪枝后**的 externals `node_modules` | 预算总量 |
+| `C_unpruned` | 上者 **+** 随包 Node **+** **未剪枝**的 externals `node_modules` | 剪枝的**压缩**收益 |
+
+三者的 `frontendDist`（产品 UI 资产）与壳 exe 完全相同，**唯一的变量就是资源目录的内容**。
+
+| 数字 | 定义 | 它测在哪张脸上 |
+| --- | --- | --- |
+| **(a) 核心预算** | `bytes(C_core)` | **安装包字节**（门禁脸） |
+| **(b) 运行时 + 服务面预算** | `bytes(C_pruned) − bytes(C_core)`（**增量**，算术结果） | **安装包字节**（门禁脸） |
+| 总包 | `bytes(C_pruned)` | **安装包字节** |
+| 剪枝：**原始**收益 | 未剪枝闭包字节 − 剪枝后闭包字节 | **诊断，不是门禁口径**（未压缩文件字节和） |
+| 剪枝：**压缩**收益 | `bytes(C_unpruned) − bytes(C_pruned)` | **安装包字节**（门禁脸） |
+
+**说清 (b) 那个「增量」到底是什么**：LZMA 压的是**整包**，所以 `C_pruned − C_core` **不**等于
+「Node 运行时与 externals 各自单独压缩后的字节和」，而是「把这两样加进同一个包以后，
+包变大了多少」。它与「单独压缩某个子集」有出入，但**它就在门禁那张脸上**，
+也是门禁真正要管的那笔账。不要把它当成「(b) 的载荷」去与未压缩字节对比。
+
+**其余一切数字一律显式标注「诊断，不是门禁口径」**，并说明它测在哪张脸上
+（未压缩文件字节和 / 载荷求和 / 传递闭包 / 磁盘占用）。两套数字并存没问题，**混用才是问题**。
+
+### 13.3 冷启动的测量口径（M3 Task 5 · DR-T5-4，**先写在测之前**）
+
+同一条纪律：口径先于数字。`T_ready`/`T_surface` 两个起止点在这里定死，
+数字在 §13.5 回填。**不许**先测再随口解释测了什么。
+
+**观测方式**：测试进程 `spawn` **已安装的** `Mode.exe`，把它的 **stdout/stderr 都接成管道**，
+按行读；两个标记都是**既有诊断面的原文**，不新增任何探针（探针会改变被测对象）。
+
+**两个段（都从同一时刻起算）**：
+
+| 记号 | 起 | 止（外部可观察点） |
+| --- | --- | --- |
+| `T_ready` | 测试进程调用 `spawn` 之前记下的时刻（≈ `CreateProcess`） | 壳的 stderr 上出现 **Host 转来的** `[mode-host-sidecar] ready startupId=… dataBaseDir=… dataRoot=… channels=…`（`packages/desktop/src/host-standalone/index.ts` 在 `server.ready()` **之后**打它） |
+| `T_surface` | 同上 | 壳的 stderr 上出现 `[mode-tauri] platform_surface implemented=… rejecting=… noop=… absent=… degraded=… reasons=…`（`host_platform_report`，由页面注入层在 `DOMContentLoaded` 上报） |
+
+`T_ready` 涵盖的正是 DR-M3-1 那笔代价：**壳进程启动 + 随包 Node 运行时启动 + Host 装载
+services + 存储准备 + `server.ready()`**。
+`T_surface` 是 **webview 那一段的下界**：证明页面加载了产物、注入脚本执行了、
+`invoke` 这条 IPC 通了。
+
+**本口径不测的一段（写清，不假装测了）**：**闸门放行**（渲染层业务根挂载，即
+`phase === "ready"` 且 `databaseStartupId` 匹配之后 `App` 真正挂上）。原因不是不想测，
+而是它**没有已存在的外部可观察点**：壳不打印它，加一条探针就是改被测对象。
+代价与替代见 §13.5 与 §20 的追加登记。
+
+**样本与统计量**：
+
+- **每个样本一个全新的空数据基目录**（`MODE_DATA_BASE_DIR` 指向新目录，并**双覆写**
+  `HOME`/`USERPROFILE`），所以每个样本都含「首次启动 + 空数据根」的语义（建库 + 迁移）；
+- **第 1 个样本单独报**：它是安装后首次启动，OS 对 exe 与资源文件的**文件缓存也是冷的**；
+- **样本数 N = 7**（第 1 个 + 6 个）；
+- **统计量取中位数**（不取均值：单次调度抖动会直接把均值拖走），并同时报**最小值与最大值**
+  作为离散度；
+- **每个样本之间确认无残留进程**（上一个样本的 Host/pty 活着会影响下一个样本），
+  残留即整轮作废并重跑；
+- **debug 与 release 都测**；**release 是结论，debug 只作对照**（debug 构建是另一条代码路径：
+  资源目录候选里多一档仓库相对路径，且 `windows_subsystem` 不同）。
+
+**已知误差（如实登记，不掩盖）**：读取管道上的行有毫秒级延迟，两个标记都带这一份误差；
+样本内不做任何 CPU 隔离，所以离散度反映的是这台机器当时的实际抖动。
+机器：本机（Windows 10.0.19044 x64，见 §13.5 的原始输出），**不是** CI runner。
+
 ---
 
 ## 14. 崩溃重启策略（Task 2 · DR-T2-4 的处置）
