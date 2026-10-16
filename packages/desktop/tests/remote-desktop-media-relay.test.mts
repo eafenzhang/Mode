@@ -620,16 +620,32 @@ if (process.env[SERVER_CASE_ENV] === "1") {
 test("剪贴板上行（P1.1b）：主控文本经 kind6 落到 helper；被控端回弹的同值被门挡住", async () => {
   if (process.env[SERVER_CASE_ENV] === "1") return; // 子进程模式只跑 server 收口场景
   const { ws: fakeWs, texts } = makeFakeWs();
-  const relay = createRemoteDesktopMediaRelay({ logger: noopLogger });
+  // 服务端接通信号（与上面 kind2/3/4、背压两条用例同一手法）：客户端 `connect` 只表示本端握手
+  // 完成，**不保证中继已把 helperSocket 登记好**（实测约 3/4 的时刻，客户端 connect 回调先于
+  // 服务端 connection 回调运行）。而 kind6 按契约在中继未接通时静默跳过（fail-soft，只有 kind2
+  // 打 warn），因此「connect 后立刻发 clip」会真的丢掉这一帧——这正是本用例此前在 CI 上等待
+  // 超时的根因（2026-10-16 修），不是剪贴板上行路径的回归：它等的是中继自己的登记回调，
+  // 判定点因此落在「登记之后」，断言的仍是既有契约（kind6 载荷逐字节、回弹被门挡住）。
+  let resolveHelperConnected!: () => void;
+  const helperConnected = new Promise<void>((resolve) => {
+    resolveHelperConnected = resolve;
+  });
+  const relay = createRemoteDesktopMediaRelay({
+    logger: noopLogger,
+    onHelperConnected: () => resolveHelperConnected(),
+  });
   const port = await relay.listen();
   const helper = connect({ host: "127.0.0.1", port });
   const helperFrames: Buffer[] = [];
   try {
     await once(helper, "connect");
+    await helperConnected;
     helper.on("data", (chunk) => helperFrames.push(chunk as Buffer));
     relay.attachWebSocket(fakeWs);
     relay.handleWsMessage(JSON.stringify({ t: "clip", text: "来自主控" }), false);
-    await waitFor(() => Buffer.concat(helperFrames).length > 0, { timeoutMs: 5_000 });
+    // 第二个参数是「等什么」的描述（waitFor 签名要 string；旧写法误传 {timeoutMs}，
+    // 超时信息退化成 “[object Object]”，排障时看不出卡在哪一步）。
+    await waitFor(() => Buffer.concat(helperFrames).length > 0, "kind6 落到 helper 管道");
     // 管道帧 = [u32 len][u8 kind][payload]：kind6 = 落剪贴板，载荷是 UTF-8 原文。
     const frame = Buffer.concat(helperFrames);
     assert.equal(frame[4], 6, "下行到 helper 的 kind 必须是 6");
