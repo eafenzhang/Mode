@@ -44,6 +44,22 @@ pub struct Fixture {
     pub expect_inputs: Vec<Value>,
     /// 第二层（文件快照）的键集。
     pub expect_file_keys: Vec<String>,
+    /// 每个 turn 里的工具调用条数（首个 turn 在前）。单 turn 夹具就是 `[全部]`。
+    ///
+    /// 「跨 turn」的观察（`Read` 的重复读去重）只能靠多 turn 夹具钉住，见 `fixtures.mts` 的注释。
+    pub turn_sizes: Vec<usize>,
+    /// 每个调用的**结果对象**里那四个对拍要读的字段（`success`/`truncated`/两个字节计数/预算策略），
+    /// 从 `expect.events` 的 `tool.updated`/`result` 载荷里取（`None` = 该调用以错误结束）。
+    pub expect_result_objects: Vec<Option<ResultObject>>,
+}
+
+/// 录制到的 `tool.updated`/`result` 对象（只取对拍要用的字段）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResultObject {
+    pub truncated: bool,
+    pub original_bytes: u64,
+    pub returned_bytes: u64,
+    pub budget_strategy: String,
 }
 
 /// 行为夹具目录（`packages/desktop/tests/agent-runtime-oracle/fixtures`）。
@@ -83,6 +99,20 @@ pub fn load_fixture(case: &str) -> Fixture {
         }
     }
 
+    if let Some(object) = json["generatedSeed"].as_object() {
+        for (key, spec) in object {
+            let width = spec["width"].as_u64().expect("width") as usize;
+            let count = spec["lines"].as_u64().expect("lines") as usize;
+            let character = spec["char"].as_str().expect("char");
+            let line = character.repeat(width);
+            let content = std::iter::repeat_n(line, count).collect::<Vec<_>>().join(
+                "
+",
+            );
+            seed.push((key.clone(), content.into_bytes()));
+        }
+    }
+
     let mut calls = Vec::new();
     for step in json["script"].as_array().expect("script 是数组") {
         let Some(list) = step.get("toolCalls").and_then(Value::as_array) else {
@@ -96,7 +126,7 @@ pub fn load_fixture(case: &str) -> Fixture {
         }
     }
 
-    let expect_calls = json["expect"]["toolCalls"]
+    let expect_calls: Vec<ExpectedCall> = json["expect"]["toolCalls"]
         .as_array()
         .expect("expect.toolCalls 是数组")
         .iter()
@@ -106,18 +136,70 @@ pub fn load_fixture(case: &str) -> Fixture {
             output: call["output"].as_str().expect("输出是字符串").to_string(),
         })
         .collect();
-    let expect_inputs = json["expect"]["toolCalls"]
+    let expect_inputs: Vec<Value> = json["expect"]["toolCalls"]
         .as_array()
         .expect("expect.toolCalls 是数组")
         .iter()
         .map(|call| call["input"].clone())
         .collect();
-    let expect_file_keys = json["expect"]["files"]
+    let expect_file_keys: Vec<String> = json["expect"]["files"]
         .as_object()
         .expect("expect.files 是对象")
         .keys()
         .cloned()
         .collect();
+
+    // turn 切分：首个 turn = 总条数 − 后续 turn 的条数之和。
+    let follow_ups: Vec<usize> = json["followUpTurns"]
+        .as_array()
+        .map(|turns| {
+            turns
+                .iter()
+                .map(|turn| turn["calls"].as_u64().expect("calls") as usize)
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut turn_sizes = Vec::new();
+    if !follow_ups.is_empty() {
+        let tail: usize = follow_ups.iter().sum();
+        turn_sizes.push(calls.len().saturating_sub(tail));
+        turn_sizes.extend(follow_ups);
+    } else if !calls.is_empty() {
+        turn_sizes.push(calls.len());
+    }
+
+    // 结果对象：按 scheduled 首次出现顺序对齐（与第一层的折叠口径一致）。
+    let mut expect_result_objects: Vec<Option<ResultObject>> = vec![None; expect_calls.len()];
+    let mut order: Vec<String> = Vec::new();
+    let mut index_of: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for event in json["expect"]["events"].as_array().expect("events") {
+        if event["type"] != "tool.updated" {
+            continue;
+        }
+        let payload = &event["payload"];
+        let id = payload["toolCallId"].as_str().unwrap_or("").to_string();
+        match payload["kind"].as_str() {
+            Some("scheduled") => {
+                index_of.insert(id.clone(), order.len());
+                order.push(id);
+            }
+            Some("result") => {
+                if let Some(position) = index_of.get(&id) {
+                    let result = &payload["result"];
+                    expect_result_objects[*position] = Some(ResultObject {
+                        truncated: result["truncated"].as_bool().expect("truncated"),
+                        original_bytes: result["originalBytes"].as_u64().expect("originalBytes"),
+                        returned_bytes: result["returnedBytes"].as_u64().expect("returnedBytes"),
+                        budget_strategy: result["budgetStrategy"]
+                            .as_str()
+                            .expect("budgetStrategy")
+                            .to_string(),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
 
     Fixture {
         case: case.to_string(),
@@ -126,6 +208,31 @@ pub fn load_fixture(case: &str) -> Fixture {
         expect_calls,
         expect_inputs,
         expect_file_keys,
+        turn_sizes,
+        expect_result_objects,
+    }
+}
+
+impl Fixture {
+    /// 按 turn 切成 `(起, 止)` 下标区间，与录制时的 `followUpTurns` 一致。
+    ///
+    /// 用**下标**而不是切片：调用方手里的是它自己构造的调用结构（`agent-core` 传的是
+    /// `ToolCallRequest`），共用的是切分规则而不是元素类型。
+    pub fn turn_ranges(&self, total: usize) -> Vec<(usize, usize)> {
+        let mut ranges = Vec::new();
+        let mut start = 0;
+        for size in &self.turn_sizes {
+            let end = (start + size).min(total);
+            ranges.push((start, end));
+            start = end;
+        }
+        if start < total {
+            ranges.push((start, total));
+        }
+        if ranges.is_empty() {
+            ranges.push((0, total));
+        }
+        ranges
     }
 }
 

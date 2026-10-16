@@ -167,13 +167,93 @@ pub const PARTIAL_VIEW_HEADER_TEMPLATE: &str = "<system-reminder>The file is too
 /// 观察值：`limit <= 0` 时 `error.message` 的全部内容（zod 的序列化 issue 数组，逐字）。
 pub const LIMIT_TOO_SMALL_MESSAGE: &str = r#"[ { "code": "too_small", "minimum": 0, "type": "number", "inclusive": false, "exact": false, "message": "Number must be greater than 0", "path": [ "limit" ] } ]"#;
 
-/// 观察到的二进制扩展名（探针 `read` #10 / #12：`.bin` 不论内容都被读前预检拒绝）。
+/// **观察到的**二进制扩展名（探针 `probe-read.mts` 的 `ext` 组：读前预检拒绝，`message` 带扩展名）。
 ///
-/// 这只是**观察到的**那一档；完整表没有观察，不猜（见文件头「刻意不做」第 2 条）。
-const BINARY_EXTENSIONS: &[&str] = &["bin"];
+/// 这是一张**正表**：没观察到的二进制扩展名（`.7z`/`.dll` 之类）会走文本路径，由下面的编码检查
+/// （NUL / 非法 UTF-8）兜底而不是靠扩展名。这是本任务记录在案的残留未知（见报告）。
+const BINARY_EXTENSIONS: &[&str] = &["bin", "exe", "zip"];
 
-/// 观察到的图片扩展名（探针 `limit-edge` #4：`.PNG` 大小写不敏感地走图片路径）。
-const IMAGE_EXTENSIONS: &[&str] = &["png"];
+/// **观察到的**「按文本读」的扩展名（同一个 `ext` 组）。
+///
+/// 两处值得记：`.bmp` / `.pdf` 也被当**文本**读；而**没观察到的**扩展名（探针里的 `.xyz`）
+/// 同样读成功——所以「文本」是这条分流的**默认档**，这张表只用来记录观察覆盖，
+/// 不在代码里当白名单用（把未观察到的扩展名改成 fail-loud 会与 oracle 分叉，
+/// 复评 Minor 4 的处置因此按新观察调整，见报告）。
+pub const TEXT_EXTENSIONS: &[&str] = &[
+    "bmp", "cs", "css", "html", "json", "log", "md", "pdf", "py", "rs", "ts", "txt", "xyz", "yaml",
+];
+
+/// **观察到的**图片扩展名（`ext` 组 + `limit-edge`：`png`/`jpg`/`gif`/`webp` 走图片路径）。
+///
+/// 图片面要模态内容与解码，属 M2 范围外，所以这一档只用来**拦住它们**、返回 fail-loud 标记
+/// （而不是让它们掉进文本路径，返回一个看起来很像 oracle 的错误）。
+const IMAGE_EXTENSIONS: &[&str] = &["gif", "jpg", "png", "webp"];
+
+/// 部分视图的**字节预算**：按行累加「行长 + 1」直到放不下为止。
+///
+/// 值由**七个样本**夹出来（`probe-read.mts` 的 `partial` 组 p1/p2/p4/p6/p7/s0/s1）：
+///
+/// | 样本 | 行×宽 | 每行字节 | 显示行数 | 累加字节 | 再多一行 |
+/// | --- | --- | --- | --- | --- | --- |
+/// | p1 | 2500×60 | 61 | 1045 | 63745 | 63806 |
+/// | p2 | 1200×100 | 101 | 631 | 63731 | 63832 |
+/// | p4 | 400×250 | 251 | 253 | 63503 | 63754 |
+/// | p7 | 3000×30 | 31 | 2056 | 63736 | 63767 |
+/// | s1 | 900×84 | 85 | **750** | **63750** | 63835 |
+///
+/// 取交集得预算 ∈ [63750, 63754)：`s1` 恰好把下界顶到 63750（750×85 = 63750 被收下了），
+/// `p4` 给上界（再多一行 63754 放不下）。p6（两行：100 字符 + 75000 字符）只显示 **1** 行，
+/// 排除了「预算 ÷ 每行字节」的除法模型——是**逐行累加**。
+/// **为什么**是 63750（= 25000 × 3 × 0.85 的 15% 余量？）从行为观察不出来：只有值被观察到了。
+const PARTIAL_VIEW_BYTES: u64 = 63_750;
+
+/// 观察到的**首行自身就超预算**时的提醒头（`trunc` 组的 bytes-75001 / bytes-75003 逐字录到）。
+pub const PARTIAL_FIRST_LINE_TEMPLATE: &str = "<system-reminder>The file is too large to display in full ({tokens} estimated tokens, limit 25000). Showing a partial view of the first line because the first line alone exceeds the token budget. Use Read with a smaller range or use a search tool to find a specific section.</system-reminder>";
+
+/// 隐式路径超预算时的「部分视图」：提醒头 + 前若干行（或首行的前若干字符）。
+///
+/// 两个样本给的首行截断长度完全相同（单行 75001 与 75003 字节的文件正文都是 64043 字节），
+/// 即截断点是**定值**：289 字节的提醒头 + 2 个字符的行号前缀 + [`PARTIAL_VIEW_BYTES`] 个字符。
+fn partial_view(lines: &[&str], tokens: u64) -> ToolOutcome {
+    let mut consumed: u64 = 0;
+    let mut shown = 0_usize;
+    for line in lines {
+        let bytes = line.len() as u64 + 1;
+        if consumed + bytes > PARTIAL_VIEW_BYTES {
+            break;
+        }
+        consumed += bytes;
+        shown += 1;
+    }
+
+    if shown == 0 {
+        let header = PARTIAL_FIRST_LINE_TEMPLATE.replace("{tokens}", &tokens.to_string());
+        let kept: String = lines
+            .first()
+            .copied()
+            .unwrap_or("")
+            .chars()
+            .take(PARTIAL_VIEW_BYTES as usize)
+            .collect();
+        let body = format!("{header}{NL}{NL}1{TAB}{kept}");
+        return ToolOutcome::text(body);
+    }
+
+    let header = PARTIAL_VIEW_HEADER_TEMPLATE
+        .replace("{tokens}", &tokens.to_string())
+        .replace("{shown}", &shown.to_string())
+        .replace("{total}", &lines.len().to_string())
+        .replace("{next}", &(shown + 1).to_string());
+    ToolOutcome::text(format!(
+        "{header}{NL}{NL}{}",
+        format_lines(&lines[..shown], 1)
+    ))
+}
+
+/// 制表符与换行（用在 `format!` 里，避免把转义写进模板字符串）。
+/// 制表符（行号前缀用）与换行。
+const TAB: char = '\t';
+const NL: &str = "\n";
 
 /// token 估算：`ceil(字节 / 3)`（三个边界点实测，见文件头第 4 节）。
 pub fn estimated_tokens(bytes: u64) -> u64 {
@@ -389,6 +469,83 @@ fn split_lines(content: &str) -> Vec<&str> {
         .collect()
 }
 
+/// 重复读的填充语（逐字录到，见 `probe-read-history.mts` 的结论表）。
+pub const WASTED_CALL: &str =
+    "Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.";
+
+/// 去重键：**解析后的路径 + 范围**（`offset` 缺省归一成 1；`limit` 缺省是 `None`）。
+///
+/// 实测（`probe-read-history.mts`）：键含范围（换 `offset` 就回正文）、相对路径与绝对路径是同一个键、
+/// 别的文件读一遍不重置、跨 turn 仍然命中。
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct ReadKey {
+    path: String,
+    offset: i64,
+    limit: Option<i64>,
+}
+
+/// **会话内**的重复读记忆：键 → 上次读到该文件时的 mtime。
+///
+/// 为什么是**状态**而不是纯函数的一部分：旧运行时的这条行为定义在会话上（跨 turn 仍然命中，
+/// `probe-read-history` 的 dedup 9-10），所以 Rust 侧也把记忆放在会话状态里——[`crate::read::invoke`]
+/// 保持纯函数，由会话在调用前后问它。
+#[derive(Debug, Default)]
+pub struct ReadHistory {
+    entries: std::collections::BTreeMap<ReadKey, std::time::SystemTime>,
+}
+
+impl ReadHistory {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 命中时给出「Wasted call」结果：**键相同且文件 mtime 未变**。
+    ///
+    /// 判「变了」用的是 **mtime**（决定性实测：只把 mtime 往后拨、内容一字未改 → 给正文；
+    /// 改内容但把 mtime 恢复成原值 → 仍给填充语）。错误不进这张表——所以读不存在的文件
+    /// 连读两次都是错误（实测）。
+    pub fn stub_for(&self, args: &Value, ctx: &ToolContext) -> Option<ToolOutcome> {
+        let key = read_key(args, ctx)?;
+        let remembered = self.entries.get(&key)?;
+        let current = mtime_of(&key.path)?;
+        (current == *remembered).then(|| ToolOutcome::text(WASTED_CALL))
+    }
+
+    /// 记下这次读的 mtime。**只在成功读到文件之后调用**：文件不在（或读失败）时不记，
+    /// 于是重复的失败读会一直失败——这正是实测到的「错误不去重」。
+    pub fn record(&mut self, args: &Value, ctx: &ToolContext) {
+        if let Some(key) = read_key(args, ctx) {
+            if let Some(mtime) = mtime_of(&key.path) {
+                self.entries.insert(key, mtime);
+            }
+        }
+    }
+}
+
+/// 从入参算出键；入参不合法（`offset` 不是整数等）时给 `None`（那种情况走的是校验错误路径）。
+fn read_key(args: &Value, ctx: &ToolContext) -> Option<ReadKey> {
+    let file_path = args.get("file_path")?.as_str()?;
+    if file_path.is_empty() {
+        return None;
+    }
+    let offset = integer_field(args, "offset").ok()?.unwrap_or(1);
+    let limit = integer_field(args, "limit").ok()?;
+    Some(ReadKey {
+        path: resolve(file_path, ctx).to_string_lossy().to_string(),
+        offset,
+        limit,
+    })
+}
+
+/// 文件的 mtime；文件不存在或不是普通文件时 `None`。
+fn mtime_of(path: &str) -> Option<std::time::SystemTime> {
+    let metadata = fs::metadata(path).ok()?;
+    if !metadata.is_file() {
+        return None;
+    }
+    metadata.modified().ok()
+}
+
 /// 选中范围、做两道上限检查、拼出带行号的正文。
 fn select_and_format(content: &str, args: &Value, bytes: &[u8]) -> Result<ToolOutcome, ToolError> {
     let lines = split_lines(content);
@@ -441,15 +598,7 @@ fn select_and_format(content: &str, args: &Value, bytes: &[u8]) -> Result<ToolOu
         }
         let tokens = estimated_tokens(file_size);
         if tokens > TOKEN_LIMIT {
-            // 运行时在这里返回「部分视图」；截取规则只从一个样本反推不出来，不猜（见文件头）。
-            return Err(unimplemented_surface(
-                "read_partial_view",
-                format!(
-                    "{} 字节 / {tokens} tokens 超出 {TOKEN_LIMIT} 的 token 预算，\
-                     运行时此处返回部分视图；截取行数的规则未观测齐，见 read.rs 文件头",
-                    file_size
-                ),
-            ));
+            return Ok(partial_view(&lines, tokens));
         }
     }
 

@@ -99,8 +99,12 @@ fn assert_parity(case: &str) {
     let calls = script_calls(&fixture, &workspace);
 
     let mut session = Session::new("sess_parity", workspace.cwd());
-    let _turn = session.begin_turn("对拍：只读工具");
-    let events = session.run_tool_batch(&calls);
+    // 按夹具的 turn 切分驱动（`read-dedup` 的「跨 turn 仍然命中」只能这样验）。
+    let mut events = Vec::new();
+    for (start, end) in fixture.turn_ranges(calls.len()) {
+        events.push(session.begin_turn("对拍：只读工具"));
+        events.extend(session.run_tool_batch(&calls[start..end]));
+    }
 
     // 第一层：工具调用序列逐项按序比较（名字 / 成败 / 输出；入参见下）。
     let actual = project_tool_calls(&events, &workspace.cwd());
@@ -132,6 +136,9 @@ fn assert_parity(case: &str) {
 
     // 「M2 未实现的面」绝不能出现在对拍里（fail closed，见 agent_tools::UNIMPLEMENTED_ERROR_TYPE）。
     for event in &events {
+        if event.event_type != agent_core::SessionEventType::ToolUpdated {
+            continue;
+        }
         if let Some(ToolUpdatedPayload::Error(error)) = event
             .payload_as::<ToolUpdatedPayload>()
             .expect("载荷能解码")
@@ -271,4 +278,60 @@ fn emitted_events_round_trip_through_the_mirror() {
     sorted.sort_unstable();
     sorted.dedup();
     assert_eq!(sequences, sorted, "seq 必须严格递增");
+}
+
+#[test]
+fn read_dedup_parity() {
+    assert_parity("read-dedup");
+}
+
+#[test]
+fn read_truncation_errors_parity() {
+    assert_parity("read-truncation-errors");
+}
+
+#[test]
+fn read_partial_view_parity() {
+    assert_parity("read-partial-view");
+}
+
+#[test]
+fn read_extension_tables_parity() {
+    assert_parity("read-extension-tables");
+}
+
+/// 重复读的去重是**会话级**的：同一个 `Session` 上第二次读同一文件同一范围 → 填充语；
+/// 换一个 `Session` → 又给正文（状态不跨会话）。
+///
+/// 期望值不是手写的：第一条与第二条都来自夹具 `read-dedup` 的录制结果（由上面的
+/// `read_dedup_parity` 逐字比过），这里只补「换会话就重置」这半条——它由
+/// 「同一个纯函数 + 新会话」推不出别的结果，所以用夹具的第一条期望值当基准。
+#[test]
+fn read_history_is_scoped_to_the_session() {
+    let fixture = load_fixture("read-dedup");
+    let workspace = Workspace::new("read-history-scope");
+    workspace.seed(&fixture.seed);
+    let calls = script_calls(&fixture, &workspace);
+    let first_expected = fixture.expect_calls[0].output.clone();
+    let stub_expected = fixture.expect_calls[1].output.clone();
+
+    let mut session = Session::new("sess_a", workspace.cwd());
+    let _ = session.begin_turn("第一次");
+    let events = session.run_tool_batch(&calls[0..2]);
+    let projected = project_tool_calls(&events, &workspace.cwd());
+    assert_eq!(projected[0].2, first_expected, "首次读应给正文");
+    assert_eq!(projected[1].2, stub_expected, "同会话第二次读应给填充语");
+
+    // 换一个会话：**它的第一次读又给正文**——若记忆挂在进程/全局上，这里会命中上一会话留下的
+    // 记录（上一个会话对同一文件同一范围的第二次读是 stub），于是这条会红。
+    let mut other = Session::new("sess_b", workspace.cwd());
+    let _ = other.begin_turn("另一个会话");
+    let events = other.run_tool_batch(&calls[0..2]);
+    let projected = project_tool_calls(&events, &workspace.cwd());
+    assert_eq!(
+        projected[0].2, first_expected,
+        "新会话的第一次读应当给正文（去重记忆不跨会话）"
+    );
+    // 而新会话内部照样会去重：同会话第二次读同一范围 → 填充语。
+    assert_eq!(projected[1].2, stub_expected, "去重在会话内部仍然生效");
 }

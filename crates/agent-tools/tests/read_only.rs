@@ -6,15 +6,18 @@
 //! 比较。投影实现在 `agent_tools::test_support` 里（两端共用一份，见该模块注释）。
 //!
 //! 与 `crates/agent-core/tests/read_only_parity.rs` 的分工：那边走**会话循环 + 事件投影**
-//! （注册表、`tool.updated` 序列），这边走**工具本身**，不经循环。两边共读同一份录制结果。
+//! （注册表、`tool.updated` 序列、**会话级的重复读去重**），这边走**工具本身**，不经循环。
+//! 所以「需要会话状态」的夹具只在那边跑（见 `SESSION_HISTORY_CASES`）。
 //!
 //! 单独跑：`node scripts/rust-cargo.ts test -p agent-tools`
 
 use std::fs;
+use std::time::{Duration, SystemTime};
 
+use agent_tools::read::TEXT_EXTENSIONS;
 use agent_tools::test_support::{load_fixture, project, project_input, Workspace};
 use agent_tools::{
-    estimated_tokens, invoke_by_name, registry, ModeToolFamily, ToolContext,
+    estimated_tokens, invoke_by_name, registry, ModeToolFamily, ReadHistory, ToolContext,
     UNIMPLEMENTED_ERROR_TYPE,
 };
 
@@ -194,44 +197,186 @@ fn token_estimate_boundaries_match_the_recorded_probe() {
     assert_eq!(estimated_tokens(304_999), 101_667);
 }
 
-/// 只读工具的成功结果**形状不变量**，逐条夹具逐条调用地验：
-/// `success`（投影成 `ok`）为真时，`truncated` 为假（观察到的每个成功结果都是 `false`）、
-/// `budgetStrategy` 为 `"truncate"`，且两个字节计数都等于正文的 UTF-8 字节数。
-///
-/// 这三条是**不变量**而不是逐例抄下来的数字：前两条来自探针原始输出（每个成功结果都如此），
-/// 第三条由「含中文的那次观察 `originalBytes: 23` = 23 字节」定下。
+/// 观察到的文本扩展名（含 `.xyz` 这种「没专门观察过、但实测按文本读」的）都走文本路径，
+/// 且**没有扩展名**的文件（`Makefile`）也是。
 #[test]
-fn success_result_shape_invariants_hold_for_every_recorded_call() {
-    let mut successes = 0;
-    for case in [
-        "read-single",
-        "read-missing",
-        "read-twice-one-turn",
-        "read-offset-edges",
-        "read-error-paths",
-        "read-absent-search-tools",
-    ] {
+fn observed_text_extensions_read_as_text() {
+    let workspace = Workspace::new("text-extensions");
+    let mut seeds: Vec<(String, Vec<u8>)> = TEXT_EXTENSIONS
+        .iter()
+        .map(|extension| {
+            (
+                format!("sample.{extension}"),
+                b"hello
+"
+                .to_vec(),
+            )
+        })
+        .collect();
+    seeds.push((
+        "Makefile".to_string(),
+        b"hello
+"
+        .to_vec(),
+    ));
+    workspace.seed(&seeds);
+    let context = ToolContext {
+        cwd: workspace.cwd(),
+    };
+    for (relative, _) in &seeds {
+        let args = serde_json::json!({ "file_path": format!("{}/{relative}", context.cwd) });
+        let outcome = invoke_by_name("Read", &args, &context)
+            .unwrap_or_else(|error| panic!("{relative} 应被当文本读：{}", error.message));
+        assert_eq!(
+            outcome.content,
+            "1	hello
+2	",
+            "{relative}"
+        );
+    }
+}
+
+/// 重复读去重的**判据是 mtime**（探针 `probe-read-history.mts` 的 dedup3 是观察出处）：
+///
+/// - 同一入参、mtime 未变 → 命中（给「Wasted call」填充语）；
+/// - 只把 mtime 往后拨、内容一字未改 → **不命中**（也给正文）；
+/// - 另一个范围是另一个键；只有**成功**的读才进历史（读不存在的文件不留记录）。
+#[test]
+fn repeat_reads_are_stubbed_by_mtime() {
+    let workspace = Workspace::new("read-history");
+    workspace.seed(&[(
+        "a.txt".to_string(),
+        b"1
+2
+3
+"
+        .to_vec(),
+    )]);
+    let context = ToolContext {
+        cwd: workspace.cwd(),
+    };
+    let args = serde_json::json!({ "file_path": format!("{}/a.txt", context.cwd) });
+    let mut history = ReadHistory::new();
+
+    assert!(
+        history.stub_for(&args, &context).is_none(),
+        "首次读不该被去重"
+    );
+    history.record(&args, &context);
+    let stub = history
+        .stub_for(&args, &context)
+        .expect("同一文件同一范围的第二次读应当命中");
+    assert_eq!(stub.content, agent_tools::WASTED_CALL);
+    assert_eq!(stub.original_bytes, 95, "填充语的字节数也是观察值");
+
+    // 只碰 mtime（内容一字未改）→ 不命中（dedup3 #3 的观察）。
+    let file = fs::File::options()
+        .write(true)
+        .open(workspace.path().join("a.txt"))
+        .expect("打开");
+    file.set_modified(SystemTime::now() + Duration::from_secs(5))
+        .expect("改 mtime");
+    assert!(
+        history.stub_for(&args, &context).is_none(),
+        "mtime 变了就不该命中（实测：只碰 mtime 也给正文）"
+    );
+
+    let ranged = serde_json::json!({ "file_path": format!("{}/a.txt", context.cwd), "offset": 2 });
+    assert!(
+        history.stub_for(&ranged, &context).is_none(),
+        "不同的范围是不同的键"
+    );
+
+    let missing = serde_json::json!({ "file_path": format!("{}/absent.txt", context.cwd) });
+    history.record(&missing, &context);
+    assert!(
+        history.stub_for(&missing, &context).is_none(),
+        "读不存在的文件不留记录（实测：错误不去重）"
+    );
+}
+
+/// 未实现面的标记只留在**真的没观察齐**的地方：图片扩展名（探针 `ext` 组：`.png` 走图片路径）。
+#[test]
+fn unimplemented_marker_covers_the_image_path() {
+    let workspace = Workspace::new("image-marker");
+    workspace.seed(&[(
+        "pic.png".to_string(),
+        b"not really a png
+"
+        .to_vec(),
+    )]);
+    let context = ToolContext {
+        cwd: workspace.cwd(),
+    };
+    let args = serde_json::json!({ "file_path": format!("{}/pic.png", context.cwd) });
+    let error = invoke_by_name("Read", &args, &context).expect_err("图片扩展名走未实现的面");
+    assert_eq!(error.error_type, UNIMPLEMENTED_ERROR_TYPE);
+    assert!(
+        error.detail.as_deref().unwrap_or("").contains("read_image"),
+        "detail 应指明是图片面：{:?}",
+        error.detail
+    );
+}
+
+#[test]
+fn read_truncation_errors_matches_recorded_oracle() {
+    assert_fixture("read-truncation-errors");
+}
+
+#[test]
+fn read_partial_view_matches_recorded_oracle() {
+    assert_fixture("read-partial-view");
+}
+
+#[test]
+fn read_extension_tables_matches_recorded_oracle() {
+    assert_fixture("read-extension-tables");
+}
+
+/// 复评 Minor 7：成功结果的四个字段对着**录制的 `result` 对象**比，不是对着构造函数比。
+///
+/// 夹具的 `expect.events` 里带着 oracle 真正发出的 `result` 载荷（`truncated` / `originalBytes` /
+/// `returnedBytes` / `budgetStrategy`），所以这四条断言能**证伪** `ToolOutcome` 的取值。
+#[test]
+fn success_result_fields_match_the_recorded_events() {
+    let mut compared = 0;
+    for case in ["read-single", "read-twice-one-turn", "read-offset-edges"] {
         let fixture = load_fixture(case);
         let workspace = Workspace::new(case);
         workspace.seed(&fixture.seed);
         let context = ToolContext {
             cwd: workspace.cwd(),
         };
-        for call in &fixture.calls {
-            let args = workspace.substitute(&call.input);
-            let Ok(outcome) = invoke_by_name(&call.name, &args, &context) else {
+        for (index, call) in fixture.calls.iter().enumerate() {
+            let Some(recorded) = fixture.expect_result_objects[index].as_ref() else {
                 continue;
             };
-            successes += 1;
-            assert!(!outcome.truncated, "{case}：成功结果不该是 truncated");
-            assert_eq!(outcome.budget_strategy, "truncate", "{case}");
+            let args = workspace.substitute(&call.input);
+            let outcome = invoke_by_name(&call.name, &args, &context).unwrap_or_else(|error| {
+                panic!("{case}：第 {index} 个调用本来应该成功：{}", error.message)
+            });
             assert_eq!(
-                outcome.original_bytes,
-                outcome.content.len() as u64,
-                "{case}：originalBytes 应等于正文的 UTF-8 字节数"
+                outcome.truncated, recorded.truncated,
+                "{case} #{index} truncated"
             );
-            assert_eq!(outcome.returned_bytes, outcome.original_bytes, "{case}");
+            assert_eq!(
+                outcome.original_bytes, recorded.original_bytes,
+                "{case} #{index} originalBytes"
+            );
+            assert_eq!(
+                outcome.returned_bytes, recorded.returned_bytes,
+                "{case} #{index} returnedBytes"
+            );
+            assert_eq!(
+                outcome.budget_strategy,
+                recorded.budget_strategy.as_str(),
+                "{case} #{index} budgetStrategy"
+            );
+            compared += 1;
         }
     }
-    assert!(successes > 0, "一条成功结果都没有，这条不变量没验到东西");
+    assert!(
+        compared >= 3,
+        "只比了 {compared} 条成功结果，这条用例没验到东西"
+    );
 }

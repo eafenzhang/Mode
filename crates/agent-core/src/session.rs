@@ -50,7 +50,7 @@ use agent_protocol::session_event::{
     ToolStartedPayload, ToolUpdatedPayload, TurnStartedPayload,
 };
 use agent_protocol::ExtraFields;
-use agent_tools::{lookup, ToolContext, ToolOutcome, ToolSpec};
+use agent_tools::{lookup, ReadHistory, ToolContext, ToolOutcome, ToolSpec};
 
 use crate::tool::{error_object, result_object};
 
@@ -71,6 +71,8 @@ pub struct Session {
     turn_number: u64,
     sequence: u64,
     current_turn_id: Option<String>,
+    /// `Read` 的**会话内**重复读记忆（跨 turn 命中；见 `agent_tools::ReadHistory`）。
+    read_history: ReadHistory,
 }
 
 impl Session {
@@ -81,6 +83,7 @@ impl Session {
             turn_number: 0,
             sequence: 0,
             current_turn_id: None,
+            read_history: ReadHistory::new(),
         }
     }
 
@@ -147,8 +150,25 @@ impl Session {
                 events.push(self.started_event(&turn_id, call, spec));
             }
 
+            // `Read` 的重复读去重：**会话状态**在这一层（工具本身是纯函数），见 ReadHistory 的注释。
+            // 命中就不调用工具，直接发一条与 oracle 同形的成功结果；
+            // 只有**成功**的读才记进历史（实测：读不存在的文件两次都是错误，错误不去重）。
             let started = std::time::Instant::now();
-            let outcome = agent_tools::invoke_by_name(&call.name, &call.input, &context);
+            let stubbed = if call.name == "Read" {
+                self.read_history.stub_for(&call.input, &context)
+            } else {
+                None
+            };
+            let outcome = match stubbed {
+                Some(stub) => Ok(stub),
+                None => {
+                    let result = agent_tools::invoke_by_name(&call.name, &call.input, &context);
+                    if call.name == "Read" && result.is_ok() {
+                        self.read_history.record(&call.input, &context);
+                    }
+                    result
+                }
+            };
             let elapsed_ms = started.elapsed().as_millis() as u64;
             match outcome {
                 Ok(result) => {
@@ -266,8 +286,11 @@ impl Session {
                 description: None,
             },
             result: result_object(result, elapsed_ms),
-            // 观察值：成功结果的 `toolName` 是空串（夹具 `read-single` 的 result 载荷）。
-            tool_name: Some(String::new()),
+            // 观察值：成功结果的载荷里**没有** `toolName` 键（协议夹具
+            // `session-event-tool-updated-result.json` 与每条行为夹具的 result 载荷都如此）。
+            // 同一个帧里 `"delta": ""` / `"previousTitle": ""` 这类空串是**保留**的，所以
+            // 「键不存在」不是空串被剥掉的结果——`None` 才是忠实的投影（复评 Minor 5）。
+            tool_name: None,
             duration: elapsed_ms as f64,
             extra: ExtraFields::new(),
         };

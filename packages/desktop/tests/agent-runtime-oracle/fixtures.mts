@@ -30,9 +30,30 @@ export type FixtureCase = {
    * `.txt` 扩展名 + NUL 字节 → `FileSystemPortError` / `code=unsupported`）。
    */
   seedBytesHex?: Record<string, string>;
+  /**
+   * **生成**的种子文件：每行 `char.repeat(width)`，共 `lines` 行，用换行连接（不写结尾换行）。
+   *
+   * 存在的理由：截断/部分视图的用例需要 75KB–300KB 的文件，把正文写进夹具会让它大得离谱；
+   * 生成规则本身是**输入**（人写），`expect` 仍然由 oracle 录。
+   */
+  generatedSeed?: Record<string, { char: string; width: number; lines: number }>;
+  /**
+   * 后续 turn（同一会话内接着 send）。`calls` 是该 turn 里的工具调用条数，用来把扁平的
+   * `script` 切成 turn。
+   *
+   * 存在的理由：`Read` 的重复读去重是**会话级**状态，「跨 turn 仍然命中」这条只能用多 turn 夹具
+   * 钉住。注意剧本里必须夹一条 `{text}`：运行时的 turn 只在模型给出收尾文本时才结束，
+   * 否则「第二个 turn」的调用其实还在第一个 turn 里（`probe-read-history.mts` 的头注释记了这个坑）。
+   */
+  followUpTurns?: Array<{ prompt: string; calls: number }>;
   /** mock provider 剧本；`${cwd}` 在运行时替换成实际工作目录。 */
   script: MockStep[];
 };
+
+/** 生成种子的正文（`observeCase` 与夹具回放用同一套规则）。 */
+export function generatedContent(spec: { char: string; width: number; lines: number }): string {
+  return Array.from({ length: spec.lines }, () => spec.char.repeat(spec.width)).join("\n");
+}
 
 export type Observed = {
   toolCalls: ToolCall[];
@@ -145,6 +166,85 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
       { toolCalls: [{ name: "Grep", input: { pattern: "alpha", path: "${cwd}" } }] },
       { text: "两个都不是可用工具。" },
     ],
+  }, // ---- Task 2 fix round：`Read` 的**会话内历史**（重复读去重，复评 Important 1）。
+  //      四条要钉住的边界都在这一段里：同入参连读 → stub；换 range → 正文；
+  //      中间读别的文件不重置；跨 turn 仍然 stub（所以剧本里夹了收尾文本，见 followUpTurns）。
+  //      去重的「判变了」用 mtime 这一条由 `crates/agent-tools` 的单元测试用 `set_modified` 钉
+  //      （探针 `probe-read-history.mts` 的 dedup2/dedup3 是它的观察出处）。
+  {
+    case: "read-dedup",
+    prompt: "先把这个文件读两遍，再换成别的范围读一次，中间读一下另一个文件。",
+    seed: { "three.txt": "1\n2\n3\n", "other.txt": "other\n" },
+    followUpTurns: [{ prompt: "新开一轮，再读一遍同样那两个范围。", calls: 2 }],
+    script: [
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/three.txt" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/three.txt" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/three.txt", offset: 2 } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/other.txt" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/three.txt" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "three.txt" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/absent.txt" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/absent.txt" } }] },
+      { text: "第一个 turn 结束" },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/three.txt" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/three.txt", offset: 2 } }] },
+      { text: "第二个 turn 结束" },
+    ],
+  },
+  // ---- Task 2 fix round：**截断的三条错误路径**（复评 Minor 9）。种子是生成的（75KB–300KB，
+  //      写进夹具不现实）；三条的输出都很短，所以这一个夹具就能把错误文案钉住。
+  {
+    case: "read-truncation-errors",
+    prompt: "按三种读法各读一次，把结果原样说出来。",
+    seed: {},
+    generatedSeed: {
+      "big.txt": { char: "z", width: 60, lines: 2500 },
+      "wide.txt": { char: "z", width: 120, lines: 2500 },
+    },
+    script: [
+      // 显式给 limit：选中范围（夹到 2500 行）= 152499 字节 → 50833 tokens > 25000 → 错误。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/big.txt", limit: 3000 } }] },
+      // 只给非零 offset：选中范围 152438 字节 → 50813 tokens → 错误。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/big.txt", offset: 2 } }] },
+      // 什么都不给 + 文件 > 256KB → 大小错误（不是 token 错误）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/wide.txt" } }] },
+      { text: "三条错误都试过了。" },
+    ],
+  },
+  // ---- Task 2 fix round：**部分视图**（复评 Important 3）。两条调用：
+  //      均匀文件（按行累加到 63750 字节预算）+ 首行自身就超预算的单行文件（另一条提醒头）。
+  {
+    case: "read-partial-view",
+    prompt: "读这个很大的文件，把看到的开头原样说出来。",
+    seed: {},
+    // 只放**一条**调用：部分视图的正文天生就是 ~64KB，夹具里会存两遍（toolCalls + result 事件），
+    // 两条就是 ~290KB。首行自身超预算的那条分支（另一条提醒头）由**探针**
+    // `probe-read.mts` 的 `trunc` 组（bytes-75001 / bytes-75003）记录，并由 `read.rs` 的单元测试
+    // 按观察到的定值长度（64043）钉住——「要么把探针用例提交、要么别引用它」。
+    generatedSeed: { "uniform.txt": { char: "z", width: 60, lines: 2500 } },
+    script: [
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/uniform.txt" } }] },
+      { text: "那个大文件看过了。" },
+    ],
+  },
+  // ---- Task 2 fix round：**没观察到的扩展名 fail loud**（复评 Minor 4）。探针 `probe-read.mts`
+  //      的 `ext` 组是文本/二进制/图片三张表的观察出处。
+  {
+    case: "read-extension-tables",
+    prompt: "试几个不同扩展名的文件。",
+    seed: {
+      "a.rs": "fn main() {}\n",
+      "b.zip": "not really a zip\n",
+      "c.xyz": "unknown extension\n",
+      Makefile: "all:\n",
+    },
+    script: [
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/a.rs" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/b.zip" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/c.xyz" } }] },
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/Makefile" } }] },
+      { text: "四个都试过了。" },
+    ],
   },
 ];
 
@@ -178,6 +278,9 @@ export async function observeCase(fixtureCase: FixtureCase): Promise<Observed> {
       await mkdir(join(target, ".."), { recursive: true });
       await writeFile(target, Buffer.from(hex, "hex"));
     }
+    for (const [relativePath, spec] of Object.entries(fixtureCase.generatedSeed ?? {})) {
+      await seedWorkspace(cwd, { [relativePath]: generatedContent(spec) });
+    }
     const session = await startOracleRuntime({
       dataRoot,
       cwd,
@@ -185,15 +288,22 @@ export async function observeCase(fixtureCase: FixtureCase): Promise<Observed> {
     });
     let terminal: OracleEvent | undefined;
     try {
-      await session.send(fixtureCase.prompt);
-      const deadline = Date.now() + 90_000;
-      for await (const event of session.events) {
-        if (TERMINAL_EVENT_TYPES.has(event.type)) {
-          terminal = event;
-          break;
-        }
-        if (Date.now() > deadline) {
-          throw new Error(`oracle 会话在 90s 内没有终态事件（${fixtureCase.case}）`);
+      // 每个 turn 各等一个终态事件；`followUpTurns` 在同一会话里继续 send。
+      const prompts = [
+        fixtureCase.prompt,
+        ...(fixtureCase.followUpTurns ?? []).map((turn) => turn.prompt),
+      ];
+      for (const prompt of prompts) {
+        await session.send(prompt);
+        const deadline = Date.now() + 90_000;
+        for await (const event of session.events) {
+          if (TERMINAL_EVENT_TYPES.has(event.type)) {
+            terminal = event;
+            break;
+          }
+          if (Date.now() > deadline) {
+            throw new Error(`oracle 会话在 90s 内没有终态事件（${fixtureCase.case}）`);
+          }
         }
       }
       // 终态之后可能还有收尾帧（标题、状态推送）；给一小段沉降时间再取快照。

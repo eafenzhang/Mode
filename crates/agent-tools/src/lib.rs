@@ -44,7 +44,9 @@ pub mod read;
 #[doc(hidden)]
 pub mod test_support;
 
-pub use read::{estimated_tokens, READ_DESCRIPTION, READ_INPUT_SCHEMA, TOKEN_LIMIT};
+pub use read::{
+    estimated_tokens, ReadHistory, READ_DESCRIPTION, READ_INPUT_SCHEMA, TOKEN_LIMIT, WASTED_CALL,
+};
 
 /// 工具分档（`packages/shared/src/tool-identity.ts` 的 `ModeToolFamily` 声明面，逐字对齐）。
 ///
