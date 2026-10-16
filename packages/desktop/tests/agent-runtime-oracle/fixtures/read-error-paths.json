@@ -1,0 +1,2353 @@
+{
+  "case": "read-error-paths",
+  "prompt": "依次做这些读取，把每次的结果原样说一遍。",
+  "seed": {
+    "hello.txt": "hello\n",
+    "dir/inner.txt": "inner\n",
+    "blob.bin": "not really binary\n"
+  },
+  "seedBytesHex": {
+    "nulbytes.txt": "6100620a"
+  },
+  "script": [
+    {
+      "toolCalls": [
+        {
+          "name": "Read",
+          "input": {
+            "file_path": "${cwd}/absent.txt"
+          }
+        }
+      ]
+    },
+    {
+      "toolCalls": [
+        {
+          "name": "Read",
+          "input": {
+            "file_path": "${cwd}/dir"
+          }
+        }
+      ]
+    },
+    {
+      "toolCalls": [
+        {
+          "name": "Read",
+          "input": {
+            "file_path": "${cwd}/blob.bin"
+          }
+        }
+      ]
+    },
+    {
+      "toolCalls": [
+        {
+          "name": "Read",
+          "input": {
+            "file_path": "${cwd}/nulbytes.txt"
+          }
+        }
+      ]
+    },
+    {
+      "toolCalls": [
+        {
+          "name": "Read",
+          "input": {
+            "file_path": "${cwd}/hello.txt",
+            "limit": 0
+          }
+        }
+      ]
+    },
+    {
+      "toolCalls": [
+        {
+          "name": "Read",
+          "input": {
+            "file_path": "${cwd}/hello.txt",
+            "offset": "2"
+          }
+        }
+      ]
+    },
+    {
+      "toolCalls": [
+        {
+          "name": "Read",
+          "input": {
+            "file_path": ""
+          }
+        }
+      ]
+    },
+    {
+      "text": "七个分支都试过了。"
+    }
+  ],
+  "expect": {
+    "toolCalls": [
+      {
+        "name": "Read",
+        "input": {
+          "file_path": "<cwd>/absent.txt"
+        },
+        "ok": false,
+        "output": "File does not exist. Note: your current working directory is <cwd>."
+      },
+      {
+        "name": "Read",
+        "input": {
+          "file_path": "<cwd>/dir"
+        },
+        "ok": false,
+        "output": "Cannot read directory as text file: <cwd>\\dir"
+      },
+      {
+        "name": "Read",
+        "input": {
+          "file_path": "<cwd>/blob.bin"
+        },
+        "ok": false,
+        "output": "<tool_use_error>This tool cannot read binary files. The file appears to be a binary .bin file. Please use appropriate tools for binary file analysis.</tool_use_error>"
+      },
+      {
+        "name": "Read",
+        "input": {
+          "file_path": "<cwd>/nulbytes.txt"
+        },
+        "ok": false,
+        "output": "Unsupported or binary text encoding: <cwd>\\nulbytes.txt"
+      },
+      {
+        "name": "Read",
+        "input": {
+          "file_path": "<cwd>/hello.txt",
+          "limit": 0
+        },
+        "ok": false,
+        "output": "[ { \"code\": \"too_small\", \"minimum\": 0, \"type\": \"number\", \"inclusive\": false, \"exact\": false, \"message\": \"Number must be greater than 0\", \"path\": [ \"limit\" ] } ]"
+      },
+      {
+        "name": "Read",
+        "input": {
+          "file_path": "<cwd>/hello.txt",
+          "offset": "2"
+        },
+        "ok": false,
+        "output": "Tool input failed inputSchema validation"
+      },
+      {
+        "name": "Read",
+        "input": {
+          "file_path": ""
+        },
+        "ok": false,
+        "output": "Tool path must not be empty"
+      }
+    ],
+    "files": {
+      "blob.bin": "222753d4b58781c145775aee5fd5974465023b053d9d0c482c89e91621977d5d",
+      "dir/inner.txt": "940a68104d3b690442453f4be394b0a14721a174127d84c1c2f834b7ad05d684",
+      "hello.txt": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+      "nulbytes.txt": "3a100994c4e38751871e6e8eef9adad2b20177fdeaf650daacdcd74f4c9421e3"
+    },
+    "events": [
+      {
+        "type": "session.titleUpdated",
+        "payload": {
+          "previousTitle": "",
+          "source": "first_input",
+          "title": "依次做这些读取，把每次的结果原样说一遍。"
+        }
+      },
+      {
+        "type": "turn.started",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 0,
+          "input": "依次做这些读取，把每次的结果原样说一遍。",
+          "messageId": "<id>",
+          "foregroundExecutionId": "<id>",
+          "queryId": "<id>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 6,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"file_path\":\"<cwd>/absent.txt\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "file_path": "<cwd>/absent.txt"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Read",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 99,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "none",
+          "kind": "started"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 1,
+            "totalInputTokens": 10,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "tool_execution_failed",
+            "message": "File does not exist. Note: your current working directory is <cwd>.",
+            "code": "TOOL_EXECUTION_FAILED",
+            "detail": "code=read_file_not_found\nFile not found: <cwd>\\absent.txt\nENOENT: no such file or directory, stat '<cwd>\\absent.txt'",
+            "stack": "Error: File does not exist. Note: your current working directory is <cwd>.\n    at createCoreError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at readHandler (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:168:19)"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 8,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"file_path\":\"<cwd>/dir\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "file_path": "<cwd>/dir"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Read",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 92,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "none",
+          "kind": "started"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 2,
+            "totalInputTokens": 20,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "FileSystemPortError",
+            "message": "Cannot read directory as text file: <cwd>\\dir",
+            "code": "is_directory",
+            "stack": "FileSystemPortError: Cannot read directory as text file: <cwd>\\dir\n    at createFileSystemError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/interfaces/file-system.port.js:17:12)\n    at NodeFileSystemAdapter.readTextFileRange (file:///D:/ZCodium/apps/mode-cli/packages/adapters/dist/fs/index.js:195:23)\n    at async readTextFileForModel (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read-text.js:7:18)\n    at async readHandler (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:139:24)"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 10,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"file_path\":\"<cwd>/blob.bin\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "file_path": "<cwd>/blob.bin"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Read",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 97,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "none",
+          "kind": "started"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "tool_execution_failed",
+            "message": "<tool_use_error>This tool cannot read binary files. The file appears to be a binary .bin file. Please use appropriate tools for binary file analysis.</tool_use_error>",
+            "code": "TOOL_EXECUTION_FAILED",
+            "detail": "code=read_input_preflight_failed\n[ { \"code\": \"custom\", \"path\": [ \"file_path\" ], \"message\": \"This tool cannot read binary files. The file appears to be a binary .bin file. Please use appropriate tools for binary file analysis.\" } ]",
+            "stack": "Error: <tool_use_error>This tool cannot read binary files. The file appears to be a binary .bin file. Please use appropriate tools for binary file analysis.</tool_use_error>\n    at createCoreError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at parseReadInput (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:201:11)\n    at readHandler (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:94:49)\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/timeout.js:138:9\n    at new Promise (<anonymous>)\n    at executeWithTimeout (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/timeout.js:85:12)\n    at executeToolCallImpl (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:295:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:10:20\n    at async Promise.all (index 0)"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 3,
+            "totalInputTokens": 30,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 12,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"file_path\":\"<cwd>/nulbytes.txt\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "file_path": "<cwd>/nulbytes.txt"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Read",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 101,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "none",
+          "kind": "started"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 4,
+            "totalInputTokens": 40,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "FileSystemPortError",
+            "message": "Unsupported or binary text encoding: <cwd>\\nulbytes.txt",
+            "code": "unsupported",
+            "stack": "FileSystemPortError: Unsupported or binary text encoding: <cwd>\\nulbytes.txt\n    at createFileSystemError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/interfaces/file-system.port.js:17:12)\n    at createUnsupportedTextEncodingError (file:///D:/ZCodium/apps/mode-cli/packages/adapters/dist/fs/text-metadata.js:138:12)\n    at detectTextEncoding (file:///D:/ZCodium/apps/mode-cli/packages/adapters/dist/fs/text-metadata.js:19:15)\n    at decodeTextBuffer (file:///D:/ZCodium/apps/mode-cli/packages/adapters/dist/fs/text-metadata.js:32:42)\n    at readRangeFast (file:///D:/ZCodium/apps/mode-cli/packages/adapters/dist/fs/text-range-reader.js:28:21)\n    at async NodeFileSystemAdapter.readTextFileRange (file:///D:/ZCodium/apps/mode-cli/packages/adapters/dist/fs/index.js:208:20)\n    at async readTextFileForModel (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read-text.js:7:18)\n    at async readHandler (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:139:24)"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 14,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"file_path\":\"<cwd>/hello.txt\",\"limit\":0}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "file_path": "<cwd>/hello.txt",
+            "limit": 0
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Read",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 108,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "none",
+          "kind": "started"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "ZodError",
+            "message": "[ { \"code\": \"too_small\", \"minimum\": 0, \"type\": \"number\", \"inclusive\": false, \"exact\": false, \"message\": \"Number must be greater than 0\", \"path\": [ \"limit\" ] } ]",
+            "stack": "ZodError: [\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"type\": \"number\",\n    \"inclusive\": false,\n    \"exact\": false,\n    \"message\": \"Number must be greater than 0\",\n    \"path\": [\n      \"limit\"\n    ]\n  }\n]\n    at get error (file:///D:/ZCodium/apps/mode-cli/packages/contracts/node_modules/zod/v3/types.js:39:31)\n    at parseReadInput (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:195:72)\n    at readHandler (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:94:49)\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/timeout.js:138:9\n    at new Promise (<anonymous>)\n    at executeWithTimeout (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/timeout.js:85:12)\n    at executeToolCallImpl (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:295:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:10:20\n    at async Promise.all (index 0)"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 5,
+            "totalInputTokens": 50,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 16,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"file_path\":\"<cwd>/hello.txt\",\"offset\":\"2\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "file_path": "<cwd>/hello.txt",
+            "offset": "2"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Read",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 111,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "tool_execution_failed",
+            "message": "Tool input failed inputSchema validation",
+            "code": "TOOL_EXECUTION_FAILED",
+            "stack": "Error: Tool input failed inputSchema validation\n    at createCoreError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at createInputValidationError (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/validation.js:66:12)\n    at validateInitialModelToolInput (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/validation.js:56:12)\n    at executeToolCallImpl (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:95:36)\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:29:86\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:10:26\n    at Object.run (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/telemetry/runtime-telemetry.js:65:23)\n    at runToolCallWithTelemetry (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:8:18)\n    at executeToolCall (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:29:12)\n    at ToolExecutorImpl.execute (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/impl.js:75:16)"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 6,
+            "totalInputTokens": 60,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 18,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"file_path\":\"\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "file_path": ""
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Read"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Read",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 16,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "none",
+          "kind": "started"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "tool_execution_failed",
+            "message": "Tool path must not be empty",
+            "code": "TOOL_EXECUTION_FAILED",
+            "stack": "Error: Tool path must not be empty\n    at createCoreError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at resolveWorkspacePath (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/path-policy.js:11:15)\n    at readHandler (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/handlers/read.js:105:22)\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/timeout.js:138:9\n    at new Promise (<anonymous>)\n    at executeWithTimeout (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/timeout.js:85:12)\n    at executeToolCallImpl (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:295:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:10:20\n    at async Promise.all (index 0)"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 7,
+            "totalInputTokens": 70,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Read",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 20,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "七个分支都试过了。",
+          "done": false,
+          "kind": "text_delta"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "timeToFirstTextMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "七个分支都试过了。",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 8,
+            "totalInputTokens": 80,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 0
+        }
+      },
+      {
+        "type": "turn.completed",
+        "payload": {
+          "response": "七个分支都试过了。",
+          "tokenCount": 232,
+          "usage": {
+            "source": "provider",
+            "modelRequestCount": 8,
+            "inputTokens": 80,
+            "outputTokens": 152,
+            "totalTokens": 232,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0
+          },
+          "toolCallCount": 7,
+          "historyRoundCount": 8,
+          "duration": "<time>",
+          "resultType": "success",
+          "cacheStats": {
+            "totalMessages": 21,
+            "cachedMessages": 5,
+            "lastCacheHit": false
+          }
+        }
+      }
+    ]
+  }
+}

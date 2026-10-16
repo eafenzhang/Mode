@@ -297,6 +297,26 @@ mock 的应答是**请求内容的纯函数**，不是计数器也不是随机�
 工具真源是 `packages/shared/src/tool-identity.ts` 的 `MODE_KNOWN_TOOL_NAMES`（PascalCase）与
 `ModeToolFamily` 分档；M2 的只读切片是 `Read` / `Glob` / `Grep`。
 
+〔**Task 2 观察，2026-10-16，待裁决**〕上面那句「只读切片是 `Read` / `Glob` / `Grep`」**与实测不符**：
+`MODE_KNOWN_TOOL_NAMES` 是**渲染用**的名字表（UI 渲染历史会话的工具行要用它），不是运行时的注册表。
+按 clean-room 的黑盒对拍（探针 `packages/desktop/tests/agent-runtime-oracle/probe-read-only.mts`
+的 `tools` / `absence` 两组，命令与原始输出见该文件头部）：
+
+- 运行时在 stdio 会话面**固定声明 21 条工具**，只读切片里**只有 `Read`**；
+- 脚本化调用 `Glob` / `Grep` 的答复是
+  `{"type":"tool_not_found","message":"Tool not found: Glob","code":"TOOL_NOT_FOUND"}`——即**未注册**；
+- 那 21 条不随 `--surface desktop`、`--mode build|plan`、`--disallowed-tools`、
+  `nativeSearchEnhancementsEnabled` 变化（正对照：`--disallowed-tools Bash` 下 `Bash` 照样被声明）；
+- 一次会话里 `session/requestRuntimePreferences` 只出现两次（`runtime-materialization` 与
+  `user-execution` 各一次），没有第三个偏好可开关工具面。
+
+因此 `crates/agent-tools` 的注册表**只注册 `Read`**，`Glob`/`Grep` 的正确行为是「未注册 → 与
+oracle 同形的 `tool_not_found`」，并由行为夹具 `read-absent-search-tools.json` 录下证据。
+**这是产品口径问题，不在实现里自行决定**：建议 ledger 裁一条——M2 只读切片收窄为 `Read`
+（`Glob`/`Grep` 另找协议面或另立项）。另有一个未探索的分支供参考（**只从文件名得知、未打开实现体**）：
+`apps/mode-cli/packages/core/src/{tool/handlers/glob.ts,subagent/explore-tools.ts,tool/provider-visible-order.ts}`
+存在，`Glob`/`Grep` 可能属**子代理（explore）**的工具集，而子代理在 spec §5 里归 M3。
+
 ## 6. 已知误差与未决
 
 1. **协议面归属**：实测 CLI 的 stdio 会话面是 `session/*` + `session/event`（v1 命名的

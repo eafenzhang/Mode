@@ -91,6 +91,23 @@ export type OracleRuntimeOptions = {
    * 「旧 host 的合法精简应答」这一形状，同时验证运行时确实接受省略——这正是那些默认值声明的用途。
    */
   runtimePreferencesReply?: Record<string, unknown>;
+  /**
+   * 纯观测钩子：mock provider 每收到一个请求体就回调一次（透传给 `startMockProvider`）。
+   *
+   * 存在的理由（Task 2）：运行时对外声明的**工具清单**只存在于这个请求里，
+   * 是只读工具接口面唯一的黑盒观察点。钩子是只读观察，抛异常会原样冒出来。
+   */
+  onMockRequestBody?: (path: string, body: Record<string, unknown>) => void;
+  /**
+   * 追加到 `app-server --stdio` 之后的 CLI 参数，**只为诊断工具面**（Task 2 加的）。
+   *
+   * 实测（2026-10-16，探针 `probe-read-only.mts`）：`--surface desktop`、`--mode build|plan`、
+   * `--disallowed-tools Bash` 都**不改变**运行时对外声明的工具清单（正对照：`--disallowed-tools
+   * Bash` 下 `Bash` 照样被声明），所以这个逃生口在只读切片上没有用上——留着是为了让下一个人
+   * 能用一条命令复现上面这条否证，而不是再猜一遍。
+   * 空数组（默认）保持 Task 0/1 的启动口径不变。
+   */
+  extraCliArgs?: readonly string[];
 };
 
 /**
@@ -211,7 +228,11 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
 
   await mkdir(dataRoot, { recursive: true });
   const mockPersonalConfigPath = join(dataRoot, "oracle-personal-provider.json");
-  const mock = await startMockProvider(substituteCwd(options.script ?? DEFAULT_SCRIPT, cwd));
+  const mock = await startMockProvider(substituteCwd(options.script ?? DEFAULT_SCRIPT, cwd), {
+    onRequestBody: options.onMockRequestBody as
+      | ((path: string, body: { tools?: unknown[] }) => void)
+      | undefined,
+  });
   await writeOracleProviderConfig(mockPersonalConfigPath, mock.baseUrl);
 
   const frames: OracleEvent[] = [];
@@ -298,22 +319,26 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
     }
   };
 
-  child = spawn(process.execPath, [TSX_CLI, CLI_ENTRY, "app-server", "--stdio"], {
-    cwd: REPO_ROOT,
-    env: {
-      ...process.env,
-      // 版本化数据树（v2）走 MODE_DATA_BASE_DIR；CLI 布局（cli/db、cli/log…）走 HOME。
-      // 两者都要，否则对拍仍会写用户真实 ~/.mode/cli（spec §1.4 的实测事实）。
-      MODE_DATA_BASE_DIR: dataRoot,
-      MODE_HOME: dataRoot,
-      HOME: dataRoot,
-      USERPROFILE: dataRoot,
-      // 必须覆盖：开发机上这两个变量分别指向真实凭据文件与已安装应用的配置目录。
-      MODE_PERSONAL_PROVIDER_CONFIG_FILE: mockPersonalConfigPath,
-      MODE_BUILTIN_PROVIDER_CONFIG_FILE: BUILTIN_PROVIDER_CONFIG,
+  child = spawn(
+    process.execPath,
+    [TSX_CLI, CLI_ENTRY, "app-server", "--stdio", ...(options.extraCliArgs ?? [])],
+    {
+      cwd: REPO_ROOT,
+      env: {
+        ...process.env,
+        // 版本化数据树（v2）走 MODE_DATA_BASE_DIR；CLI 布局（cli/db、cli/log…）走 HOME。
+        // 两者都要，否则对拍仍会写用户真实 ~/.mode/cli（spec §1.4 的实测事实）。
+        MODE_DATA_BASE_DIR: dataRoot,
+        MODE_HOME: dataRoot,
+        HOME: dataRoot,
+        USERPROFILE: dataRoot,
+        // 必须覆盖：开发机上这两个变量分别指向真实凭据文件与已安装应用的配置目录。
+        MODE_PERSONAL_PROVIDER_CONFIG_FILE: mockPersonalConfigPath,
+        MODE_BUILTIN_PROVIDER_CONFIG_FILE: BUILTIN_PROVIDER_CONFIG,
+      },
+      stdio: ["pipe", "pipe", "pipe"],
     },
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  );
 
   let stdoutBuffer = "";
   const waitForStorageReady = (() => {

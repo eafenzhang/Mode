@@ -1,0 +1,830 @@
+{
+  "case": "read-absent-search-tools",
+  "prompt": "试一下这两个工具，把结果原样说出来。",
+  "seed": {
+    "one.txt": "alpha\n"
+  },
+  "script": [
+    {
+      "toolCalls": [
+        {
+          "name": "Glob",
+          "input": {
+            "pattern": "*.txt"
+          }
+        }
+      ]
+    },
+    {
+      "toolCalls": [
+        {
+          "name": "Grep",
+          "input": {
+            "pattern": "alpha",
+            "path": "${cwd}"
+          }
+        }
+      ]
+    },
+    {
+      "text": "两个都不是可用工具。"
+    }
+  ],
+  "expect": {
+    "toolCalls": [
+      {
+        "name": "Glob",
+        "input": {
+          "pattern": "*.txt"
+        },
+        "ok": false,
+        "output": "Tool not found: Glob"
+      },
+      {
+        "name": "Grep",
+        "input": {
+          "pattern": "alpha",
+          "path": "<cwd>"
+        },
+        "ok": false,
+        "output": "Tool not found: Grep"
+      }
+    ],
+    "files": {
+      "one.txt": "b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060"
+    },
+    "events": [
+      {
+        "type": "session.titleUpdated",
+        "payload": {
+          "previousTitle": "",
+          "source": "first_input",
+          "title": "试一下这两个工具，把结果原样说出来。"
+        }
+      },
+      {
+        "type": "turn.started",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 0,
+          "input": "试一下这两个工具，把结果原样说出来。",
+          "messageId": "<id>",
+          "foregroundExecutionId": "<id>",
+          "queryId": "<id>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 6,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Glob"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"pattern\":\"*.txt\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "pattern": "*.txt"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Glob"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 1,
+            "totalInputTokens": 10,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Glob",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 19,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "tool_not_found",
+            "message": "Tool not found: Glob",
+            "code": "TOOL_NOT_FOUND",
+            "stack": "Error: Tool not found: Glob\n    at createCoreError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at executeToolCallImpl (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:58:52)\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:29:86\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:10:26\n    at Object.run (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/telemetry/runtime-telemetry.js:65:23)\n    at runToolCallWithTelemetry (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:8:18)\n    at executeToolCall (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:29:12)\n    at ToolExecutorImpl.execute (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/impl.js:75:16)\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/impl.js:84:25\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/batch-runner.js:10:50"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Glob",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 8,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Grep"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"pattern\":\"alpha\",\"path\":\"<cwd>\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "pattern": "alpha",
+            "path": "<cwd>"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Grep"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 2,
+            "totalInputTokens": 20,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Grep",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": true,
+          "schedule": {
+            "parallelGroups": [["<id>"]],
+            "executionOrder": ["<id>"]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 101,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "error": {
+            "type": "tool_not_found",
+            "message": "Tool not found: Grep",
+            "code": "TOOL_NOT_FOUND",
+            "stack": "Error: Tool not found: Grep\n    at createCoreError (file:///D:/ZCodium/apps/mode-cli/packages/contracts/dist/errors/index.js:47:19)\n    at executeToolCallImpl (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:58:52)\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:29:86\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:10:26\n    at Object.run (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/telemetry/runtime-telemetry.js:65:23)\n    at runToolCallWithTelemetry (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/telemetry.js:8:18)\n    at executeToolCall (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/call-runner.js:29:12)\n    at ToolExecutorImpl.execute (file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/impl.js:75:16)\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/impl.js:84:25\n    at file:///D:/ZCodium/apps/mode-cli/packages/core/dist/tool/executor/batch-runner.js:10:50"
+          },
+          "kind": "error"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 0,
+          "errorCount": 1,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_error",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Grep",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 10,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "两个都不是可用工具。",
+          "done": false,
+          "kind": "text_delta"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "timeToFirstTextMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "两个都不是可用工具。",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 3,
+            "totalInputTokens": 30,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 0
+        }
+      },
+      {
+        "type": "turn.completed",
+        "payload": {
+          "response": "两个都不是可用工具。",
+          "tokenCount": 82,
+          "usage": {
+            "source": "provider",
+            "modelRequestCount": 3,
+            "inputTokens": 30,
+            "outputTokens": 52,
+            "totalTokens": 82,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0
+          },
+          "toolCallCount": 2,
+          "historyRoundCount": 3,
+          "duration": "<time>",
+          "resultType": "success",
+          "cacheStats": {
+            "totalMessages": 11,
+            "cachedMessages": 5,
+            "lastCacheHit": false
+          }
+        }
+      }
+    ]
+  }
+}

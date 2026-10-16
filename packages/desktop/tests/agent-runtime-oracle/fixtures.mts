@@ -24,6 +24,12 @@ export type FixtureCase = {
   prompt: string;
   /** 运行前落进工作目录的种子文件（输入的一部分）。 */
   seed: Record<string, string>;
+  /**
+   * **原始字节**种子（十六进制文本）：`seed` 只能表达 utf8 文本，而
+   * `Read` 的「非文本编码」分支必须用真的含 NUL 的字节才能触发（Task 2 观察：
+   * `.txt` 扩展名 + NUL 字节 → `FileSystemPortError` / `code=unsupported`）。
+   */
+  seedBytesHex?: Record<string, string>;
   /** mock provider 剧本；`${cwd}` 在运行时替换成实际工作目录。 */
   script: MockStep[];
 };
@@ -73,6 +79,73 @@ export const FIXTURE_CASES: readonly FixtureCase[] = [
       { text: "a.txt 是 alpha，b.txt 是 beta。" },
     ],
   },
+  // ---- Task 2 追加：`Read` 的编排名义与边界（每个 Read 各占一个 assistant 消息 = 一个批次，
+  //      避免把并行批次的完成顺序写进夹具；见 spec §6.5）。
+  {
+    case: "read-offset-edges",
+    prompt: "依次读这几个文件，把每次读到的原文都贴出来。",
+    seed: {
+      "o1.txt": "1\n2\n3\n",
+      "o2.txt": "1\n2\n3\n",
+      "o3.txt": "1\n2\n3\n",
+      "empty.txt": "",
+      "crlf.txt": "x\r\ny\r\n",
+      "rel.txt": "rel\n",
+    },
+    script: [
+      // 行号从 offset 起算，编号 = offset + 返回序号（观察：offset 1 → `1\t1\n2\t2\n3\t3\n4\t`）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/o1.txt", offset: 1 } }] },
+      // limit 是**行数**不是结束行号。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/o2.txt", offset: 2, limit: 1 } }] },
+      // offset 越过最后一行 → success + `<system-reminder>Warning: …shorter than the provided offset (4). The file has 4 lines.…`（成功而非错误）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/o3.txt", offset: 4 } }] },
+      // 空文件按 1 行算（末尾空段），因此默认 offset 1 就落在警告分支。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/empty.txt" } }] },
+      // CRLF：行尾 `\r` 被去掉，仍按 3 段编号。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/crlf.txt" } }] },
+      // 相对路径按会话工作目录解析（工具描述说必须绝对路径，实测不然）。
+      { toolCalls: [{ name: "Read", input: { file_path: "rel.txt" } }] },
+      { text: "都读完了。" },
+    ],
+  },
+  // ---- Task 2 追加：`Read` 的错误分类（每个分支一个调用，错误形状逐字进夹具）。
+  {
+    case: "read-error-paths",
+    prompt: "依次做这些读取，把每次的结果原样说一遍。",
+    seed: { "hello.txt": "hello\n", "dir/inner.txt": "inner\n", "blob.bin": "not really binary\n" },
+    // 文件名**不能**叫 `nul.txt`：Windows 上 `nul.<任意扩展名>` 是老式 NUL 设备名，
+    // 写进去的字节会被丢弃、读出来是空——那会录到一个假观察。
+    seedBytesHex: { "nulbytes.txt": "6100620a" },
+    script: [
+      // 不存在 → tool_execution_failed / read_file_not_found，message 里带会话工作目录。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/absent.txt" } }] },
+      // 目录 → FileSystemPortError / is_directory（注意：与上一条的 error.type 不同）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/dir" } }] },
+      // 扩展名 `.bin` → 读前预检拒绝（与文件内容无关：这个 .bin 里其实是普通文本）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/blob.bin" } }] },
+      // `.txt` + NUL 字节 → 走**另一个**错误：读文件端口报「不支持的文本编码」。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/nulbytes.txt" } }] },
+      // limit 0 → zod 精化失败（error.type 是 ZodError，message 是序列化后的 issue 数组）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/hello.txt", limit: 0 } }] },
+      // offset 不是整数 → 走 inputSchema 校验拒绝（与上一条又不同）。
+      { toolCalls: [{ name: "Read", input: { file_path: "${cwd}/hello.txt", offset: "2" } }] },
+      // 空 file_path → 路径非空校验。
+      { toolCalls: [{ name: "Read", input: { file_path: "" } }] },
+      { text: "七个分支都试过了。" },
+    ],
+  },
+  // ---- Task 2 追加：**只读切片里不存在的两个工具**（`Glob` / `Grep`）。
+  //      它们仍由脚本化调用发出，因为要录的正是「运行时对它们的真实答复」。
+  {
+    case: "read-absent-search-tools",
+    prompt: "试一下这两个工具，把结果原样说出来。",
+    seed: { "one.txt": "alpha\n" },
+    script: [
+      { toolCalls: [{ name: "Glob", input: { pattern: "*.txt" } }] },
+      { toolCalls: [{ name: "Grep", input: { pattern: "alpha", path: "${cwd}" } }] },
+      { text: "两个都不是可用工具。" },
+    ],
+  },
 ];
 
 export async function loadFixtures(): Promise<OracleFixture[]> {
@@ -100,6 +173,11 @@ export async function observeCase(fixtureCase: FixtureCase): Promise<Observed> {
   const cwd = await mkdtemp(join(tmpdir(), "mode-oracle-fixture-ws-"));
   try {
     await seedWorkspace(cwd, fixtureCase.seed);
+    for (const [relativePath, hex] of Object.entries(fixtureCase.seedBytesHex ?? {})) {
+      const target = join(cwd, relativePath);
+      await mkdir(join(target, ".."), { recursive: true });
+      await writeFile(target, Buffer.from(hex, "hex"));
+    }
     const session = await startOracleRuntime({
       dataRoot,
       cwd,

@@ -138,7 +138,21 @@ function writeJsonResponse(res: import("node:http").ServerResponse): void {
   );
 }
 
-export async function startMockProvider(script: MockStep[]): Promise<MockProvider> {
+export type MockProviderOptions = {
+  /**
+   * 纯观测钩子：每个请求体解析后回调一次。
+   *
+   * 存在的理由（Task 2）：模型侧的**工具清单**（`tools[].name/description/input_schema`）
+   * 只存在于这个请求里——它是运行时真正对外声明的工具接口面，黑盒观察它比重述一遍强。
+   * 钩子是只读观察，抛异常会原样冒到 HTTP 处理路径，不吞不掩。
+   */
+  onRequestBody?: (path: string, body: AnthropicBody) => void;
+};
+
+export async function startMockProvider(
+  script: MockStep[],
+  options: MockProviderOptions = {},
+): Promise<MockProvider> {
   const requestPaths: string[] = [];
   const server: Server = createServer((request, response) => {
     let body = "";
@@ -153,6 +167,7 @@ export async function startMockProvider(script: MockStep[]): Promise<MockProvide
       } catch {
         parsed = {};
       }
+      options.onRequestBody?.(request.url ?? "", parsed);
       if (parsed.stream !== true) {
         writeJsonResponse(response);
         return;

@@ -1,0 +1,303 @@
+//! 测试支撑：把 Rust 侧结果**投影成夹具里的同一形状**，供 `agent-tools` 与 `agent-core` 的对拍
+//! 用例共用。
+//!
+//! 为什么它住在库里而不是各自的 `tests/`：spec §3 的规则表只有**一份**实现（TS 侧
+//! `normalize.mts`，供 TS 发起的对拍管线用），Rust 侧按 Ruling 4 只做「投影后精确相等」。
+//! 如果两个 crate 各写一份投影，那两份必然会漂——正是 Ruling 4 要避免的漂移，只是换了个位置。
+//! 所以投影只写一次，放在这里，两个 crate 的用例都调它。
+//!
+//! 本模块**不**新增白名单规则、也**不**做部分匹配：规则逐条对应 spec §3 的表
+//! （进程内路径前缀、平铺的 uuid），比较方式是 `assert_eq!`。
+#![doc(hidden)]
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use serde_json::Value;
+
+/// 一条脚本化的工具调用（夹具 `script[*].toolCalls[*]`）。
+#[derive(Debug, Clone)]
+pub struct FixtureCall {
+    pub name: String,
+    pub input: Value,
+}
+
+/// 夹具里录制的一条工具调用结果（`expect.toolCalls[*]`，已是规范化形状）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExpectedCall {
+    pub name: String,
+    pub ok: bool,
+    pub output: String,
+}
+
+/// 一份行为夹具里本套件用得到的部分。
+#[derive(Debug)]
+pub struct Fixture {
+    pub case: String,
+    /// 种子文件（文本 + 原始字节），`(相对路径, 内容)`。
+    pub seed: Vec<(String, Vec<u8>)>,
+    /// 剧本里的工具调用序列。
+    pub calls: Vec<FixtureCall>,
+    /// 录制的期望值。
+    pub expect_calls: Vec<ExpectedCall>,
+    /// 录制的**规范化入参**（`expect.toolCalls[*].input`），用来验投影规则本身。
+    pub expect_inputs: Vec<Value>,
+    /// 第二层（文件快照）的键集。
+    pub expect_file_keys: Vec<String>,
+}
+
+/// 行为夹具目录（`packages/desktop/tests/agent-runtime-oracle/fixtures`）。
+pub fn fixture_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("packages/desktop/tests/agent-runtime-oracle/fixtures")
+}
+
+/// 读一份行为夹具。缺文件直接 panic（夹具不在仓库里是配置错误，不是「跳过」）。
+pub fn load_fixture(case: &str) -> Fixture {
+    let path = fixture_dir().join(format!("{case}.json"));
+    let raw = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("读不到夹具 {}：{error}", path.display()));
+    let json: Value = serde_json::from_str(&raw).expect("夹具是合法 JSON");
+
+    let mut seed: Vec<(String, Vec<u8>)> = json["seed"]
+        .as_object()
+        .map(|object| {
+            object
+                .iter()
+                .map(|(key, value)| {
+                    (
+                        key.clone(),
+                        value.as_str().expect("种子是文本").as_bytes().to_vec(),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Some(object) = json["seedBytesHex"].as_object() {
+        for (key, value) in object {
+            seed.push((
+                key.clone(),
+                hex_to_bytes(value.as_str().expect("十六进制文本")),
+            ));
+        }
+    }
+
+    let mut calls = Vec::new();
+    for step in json["script"].as_array().expect("script 是数组") {
+        let Some(list) = step.get("toolCalls").and_then(Value::as_array) else {
+            continue;
+        };
+        for call in list {
+            calls.push(FixtureCall {
+                name: call["name"].as_str().expect("工具名是字符串").to_string(),
+                input: call["input"].clone(),
+            });
+        }
+    }
+
+    let expect_calls = json["expect"]["toolCalls"]
+        .as_array()
+        .expect("expect.toolCalls 是数组")
+        .iter()
+        .map(|call| ExpectedCall {
+            name: call["name"].as_str().expect("名字").to_string(),
+            ok: call["ok"].as_bool().expect("ok 是布尔"),
+            output: call["output"].as_str().expect("输出是字符串").to_string(),
+        })
+        .collect();
+    let expect_inputs = json["expect"]["toolCalls"]
+        .as_array()
+        .expect("expect.toolCalls 是数组")
+        .iter()
+        .map(|call| call["input"].clone())
+        .collect();
+    let expect_file_keys = json["expect"]["files"]
+        .as_object()
+        .expect("expect.files 是对象")
+        .keys()
+        .cloned()
+        .collect();
+
+    Fixture {
+        case: case.to_string(),
+        seed,
+        calls,
+        expect_calls,
+        expect_inputs,
+        expect_file_keys,
+    }
+}
+
+fn hex_to_bytes(hex: &str) -> Vec<u8> {
+    (0..hex.len() / 2)
+        .map(|index| u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16).expect("十六进制"))
+        .collect()
+}
+
+/// 一次性临时工作目录（用例跑完即删；不为一条断言引 `tempfile`）。
+pub struct Workspace {
+    root: PathBuf,
+}
+
+/// 目录名逐实例唯一：用例并行跑，同名目录会被另一条用例的 `Drop` 删掉。
+static WORKSPACE_SEQ: AtomicUsize = AtomicUsize::new(0);
+
+impl Workspace {
+    pub fn new(case: &str) -> Self {
+        let sequence = WORKSPACE_SEQ.fetch_add(1, Ordering::SeqCst);
+        let root = std::env::temp_dir().join(format!(
+            "agent-runtime-parity-{case}-{}-{sequence}",
+            std::process::id()
+        ));
+        // 上一次失败留下的目录要清掉，否则种子文件会串味。
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("建临时工作目录");
+        Self { root }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.root
+    }
+
+    /// 工作目录的字符串形式（工具上下文用它）。
+    pub fn cwd(&self) -> String {
+        self.root.to_string_lossy().to_string()
+    }
+
+    pub fn seed(&self, files: &[(String, Vec<u8>)]) {
+        for (relative, bytes) in files {
+            let target = self.root.join(relative);
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent).expect("建种子目录");
+            }
+            std::fs::write(&target, bytes).expect("写种子文件");
+        }
+    }
+
+    /// 把夹具入参里的 `${cwd}` 换成**本次**的工作目录。
+    ///
+    /// 在**已解析的结构**上替换（不经过 JSON 文本）：录制侧 TS 的 `substituteCwd` 就是这么做的，
+    /// 而把它做成「序列化 → 文本替换 → 反解析」会把 Windows 路径的反斜杠插进 JSON 字符串里，
+    /// 直接变成非法转义。
+    ///
+    /// 用原生分隔符（不转成 `/`）：于是录到的入参是 `C:\…\ws/hello.txt` 这种「目录用反斜杠 +
+    /// 剧本自带的斜杠」的混形，投影后才与 `<cwd>/hello.txt` 一致；换成纯 `/` 会让 `PathBuf`
+    /// 保留正斜杠，目录错误的文案就与观察值对不上了。
+    pub fn substitute(&self, input: &Value) -> Value {
+        let cwd = self.cwd();
+        substitute_value(input, &cwd)
+    }
+}
+
+impl Drop for Workspace {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
+
+/// 在结构上替换 `${cwd}`（只在字符串值里换，不碰键与其他类型）。
+fn substitute_value(value: &Value, cwd: &str) -> Value {
+    match value {
+        Value::String(text) => Value::String(text.replace("${cwd}", cwd)),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| substitute_value(item, cwd))
+                .collect(),
+        ),
+        Value::Object(entries) => Value::Object(
+            entries
+                .iter()
+                .map(|(key, inner)| (key.clone(), substitute_value(inner, cwd)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// spec §3 的「进程内路径」与「id（值）」两条规则的 Rust 投影。
+///
+/// 只做两件事：把隔离根 / 工作目录 / 系统临时目录的前缀换成 `<data-root>` / `<cwd>` / `<tmp>`
+/// （长前缀在前，短前缀不会切坏长路径），把平铺在文本里的 uuid 换成 `<id>`。
+pub fn project(value: &str, workspace: &str) -> String {
+    let mut result = value.to_string();
+    let tmp = std::env::temp_dir();
+    // (前缀, 记号)：工作目录的两种书写（原生 / 正斜杠）都映射到同一个记号。
+    let workspace_native = workspace.to_string();
+    let workspace_posix = workspace.replace('\\', "/");
+    let tmp_native = tmp.to_string_lossy().to_string();
+    let tmp_posix = tmp.to_string_lossy().replace('\\', "/");
+    for (prefix, token) in [
+        (workspace_native.clone(), "<cwd>"),
+        (workspace_posix.clone(), "<cwd>"),
+        (tmp_native.clone(), "<tmp>"),
+        (tmp_posix.clone(), "<tmp>"),
+    ] {
+        if prefix.is_empty() {
+            continue;
+        }
+        result = result.replace(&prefix, token);
+        // JSON 文本里的转义形态：spec §3 明写「单反斜杠与 JSON 转义的双反斜杠两种形态都要换」。
+        // 比较入参时值会先序列化成 JSON 文本（`C:\\…\\ws`），不换这一形态就一条都对不上。
+        let escaped = prefix.replace('\\', "\\\\");
+        if escaped != prefix {
+            result = result.replace(&escaped, token);
+        }
+    }
+    replace_uuids(&result)
+}
+
+/// 入参投影：序列化后过同一份规则。
+pub fn project_input(input: &Value, workspace: &str) -> Value {
+    let text = project(
+        &serde_json::to_string(input).expect("入参可序列化"),
+        workspace,
+    );
+    serde_json::from_str(&text).expect("投影后仍是合法 JSON")
+}
+
+fn replace_uuids(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    let mut out = String::with_capacity(value.len());
+    let mut index = 0;
+    while index < chars.len() {
+        match uuid_len_at(&chars, index) {
+            Some(length) => {
+                out.push_str("<id>");
+                index += length;
+            }
+            None => {
+                out.push(chars[index]);
+                index += 1;
+            }
+        }
+    }
+    out
+}
+
+/// 若从 `start` 起是一个 uuid（8-4-4-4-12），返回它的字符长度。
+fn uuid_len_at(text: &[char], start: usize) -> Option<usize> {
+    const GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
+    const LENGTH: usize = 36;
+    if start + LENGTH > text.len() {
+        return None;
+    }
+    let slice = &text[start..start + LENGTH];
+    let mut cursor = 0;
+    for (group_index, group_len) in GROUPS.iter().enumerate() {
+        if group_index > 0 {
+            if slice[cursor] != '-' {
+                return None;
+            }
+            cursor += 1;
+        }
+        for _ in 0..*group_len {
+            if !slice[cursor].is_ascii_hexdigit() {
+                return None;
+            }
+            cursor += 1;
+        }
+    }
+    Some(LENGTH)
+}

@@ -13,6 +13,7 @@ resolver = "2"
 members = [
   "crates/agent-core",
   "crates/agent-protocol",
+  "crates/agent-tools",
   "crates/browser-import-helper",
   "crates/platform",
   "crates/protocol",
