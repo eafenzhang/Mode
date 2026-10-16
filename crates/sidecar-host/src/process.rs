@@ -62,6 +62,15 @@ pub struct HostConfig {
     /// 数据**基**目录：原样通过 `MODE_DATA_BASE_DIR` 传给 Host（Host 自己派生 `{base}/.mode`）。
     /// 语义是「替换 homedir() 前缀」，不是「数据根」——见 `crate::data_base_dir_from` 的注释。
     pub data_base_dir: PathBuf,
+    /// 打包形态的**资源目录**（经 `MODE_HOST_RESOURCES_DIR` 传给 Host）。
+    /// `None` = 不设这条环境变量，Host 侧退回「仓库相对」那一档（开发形态）。
+    ///
+    /// 为什么由壳设：Host 按它解析 `config/provider/mode-builtin.json`
+    /// （`packages/desktop/src/host-standalone/serviceAccessor.ts` 的 `resolveBuiltinProviderConfig`，
+    /// 第二档就是这条，那里的注释写着「壳负责设置」）。不设的后果不是崩溃，而是
+    /// **静默走到第三档**（仓库相对路径，安装后不存在）→ `exists=false`、内置 Provider 配置缺失。
+    /// 这种「不报错的错配置」正是要靠显式传参挡住的。
+    pub resources_dir: Option<PathBuf>,
     pub ready_timeout: Duration,
     pub inbound_capacity: usize,
 }
@@ -86,6 +95,7 @@ impl HostConfig {
             startup_id: String::new(),
             attempt_id: String::new(),
             data_base_dir: PathBuf::new(),
+            resources_dir: None,
             ready_timeout: DEFAULT_READY_TIMEOUT,
             inbound_capacity: DEFAULT_INBOUND_CAPACITY,
         }
@@ -104,6 +114,7 @@ impl HostConfig {
             startup_id: String::new(),
             attempt_id: String::new(),
             data_base_dir: PathBuf::new(),
+            resources_dir: None,
             ready_timeout: DEFAULT_READY_TIMEOUT,
             inbound_capacity: DEFAULT_INBOUND_CAPACITY,
         }
@@ -220,6 +231,22 @@ impl HostHandle {
                 "data_base_dir 为空：拒绝在没有显式数据基目录的情况下启动 Host（隔离纪律）".to_string(),
             ));
         }
+        // **交给 Node 之前统一去掉 verbatim 前缀**（`\\?\`），唯一的一处收口。
+        //
+        // 为什么收在这里而不是各调用点：能产出 verbatim 路径的是 Tauri 的 `resource_dir()`
+        // （内部 `canonicalize()`，见 `crate::strip_verbatim_prefix` 的文档），而入口、随包 Node、
+        // 资源目录、cwd 都可能从它派生。只在壳里改一处，下一个调用点就会重新踩上；
+        // 收在「Rust 路径 → 子进程 argv/env」这个边界上，就没有第二条路能把 verbatim 形态漏过去。
+        //
+        // 漏过去的后果是**静默的粗粒度失败**：node 在装载入口前就退出（`EISDIR: lstat 'C:'`），
+        // 连 Host 自己那行 `startup_failed` 都写不出来，渲染层只看到
+        // `transport_closed`/`starting`——正是 2026-10-17 用户报障的那一份 payload。
+        let mut config = config;
+        config.node = crate::strip_verbatim_prefix(&config.node);
+        config.entry = config.entry.as_deref().map(crate::strip_verbatim_prefix);
+        config.cwd = crate::strip_verbatim_prefix(&config.cwd);
+        config.data_base_dir = crate::strip_verbatim_prefix(&config.data_base_dir);
+        config.resources_dir = config.resources_dir.as_deref().map(crate::strip_verbatim_prefix);
         let mut command = config.command();
         command
             .current_dir(&config.cwd)
@@ -231,6 +258,11 @@ impl HostHandle {
             // 结构化的失败事实，所以改成管道：读线程把每一行原样转到壳的 stderr
             // （留痕不丢，本地跑壳照样看得见）并顺手解析 startup_failed。
             .stderr(Stdio::piped());
+        // 打包形态的资源目录：只在有值时设（`None` = 保持开发形态那一档，
+        // 不让一条空字符串把 Host 的「显式覆写优先」误触发成 `exists=false`）。
+        if let Some(resources_dir) = &config.resources_dir {
+            command.env("MODE_HOST_RESOURCES_DIR", resources_dir);
+        }
 
         let mut child = command.spawn().map_err(HostError::Spawn)?;
         let stdin = child.stdin.take();

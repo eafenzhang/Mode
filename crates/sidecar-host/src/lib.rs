@@ -86,6 +86,79 @@ pub fn pick_entry(env_override: Option<&OsStr>, candidates: &[PathBuf]) -> Optio
     candidates.iter().find(|candidate| candidate.exists()).cloned()
 }
 
+/// Node 可执行文件的挑选（纯函数，因此可被用例覆盖）。
+///
+/// 三档，**优先级是刻意的**：
+///
+/// 1. `MODE_HOST_NODE` 显式覆写**原样生效**（不做存在性检查）——与 [`pick_entry`] 的
+///    「显式覆写不做兜底」不同，这里的覆写只是一个可执行文件路径：写错了照样由
+///    `HostHandle::spawn` 以 `open_failed` 报出来（**响亮地失败**），所以静态检查在这里
+///    没有额外收益，反而会让「PATH 上的 `node`」这种合法值被误判。
+/// 2. **随包 Node**（打包形态，M3 Task 5）：资源目录下的 `node/node.exe`（Windows）或
+///    `node/node`。存在即用——它是安装包自带的那一个，用户机器上有没有 Node 与它无关
+///    （DR-M3-2：「Host 随安装包发布」，全新安装 + 断网也必须能起 UI）。
+/// 3. 退回裸名 `node`：交给 PATH 解析。这是**开发形态**的路径（仓库里跑壳时用的就是它）。
+///
+/// 为什么单独抽一个函数：候选枚举需要 `AppHandle`，而 `AppHandle` 会让本 crate 的测试二进制
+/// 起不来（见模块文档），所以「选哪一个」这条规则必须留在能跑用例的这一侧，
+/// 与 [`pick_entry`] / [`pick_shell_entry`] 同一种做法。
+pub fn pick_node(env_override: Option<&OsStr>, bundled_candidates: &[PathBuf]) -> PathBuf {
+    if let Some(explicit) = env_override.filter(|value| !value.is_empty()) {
+        return PathBuf::from(explicit);
+    }
+    bundled_candidates
+        .iter()
+        .find(|candidate| candidate.exists())
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("node"))
+}
+
+/// 去掉 Windows 扩展长度（verbatim）前缀，得到 Node 能解析的普通路径形态。
+///
+/// ## 为什么必须在起子进程**之前**做
+///
+/// 打包形态的入口来自 `app.path().resource_dir()`，而它的实现是
+/// `tauri_utils::platform::current_exe()` → `tauri-utils-2.10.2/src/platform/starting_binary.rs`
+/// 里的 `Self(dangerous_path.canonicalize())`。Windows 上 `Path::canonicalize()` 返回的正是
+/// **verbatim 形态** `\\?\C:\…`（UNC 则是 `\\?\UNC\server\share`）。
+///
+/// 把这种路径当**入口脚本**传给 node，Node 24 的主模块解析（`resolveMainPath` →
+/// `Module._findPath` → `fs.realpathSync`）解不了它，进程在**用户代码之前**就以
+/// `EISDIR: illegal operation on a directory, lstat 'C:'` 退出。后果是 Host 连
+/// `startup_failed` 那一行都来不及写（那一行在 `index.ts` 的 try/catch 里，而节点根本没走到
+/// 装载入口），壳只能报粗粒度的 `transport_closed` / `failedPhase=starting`。
+///
+/// 实测（同一份已打包的 `host-sidecar/index.mjs`，只换入口路径形态）：
+/// 普通绝对路径 → Host 就绪；`\\?\` 前缀 → node 退出码 1、约 100ms 即死。
+/// 详见 `.superpowers/sdd/2026-10-16-tauri-m3-ecosystem/host-startup-failure-diagnosis.md`。
+///
+/// ## 只认 verbatim 两种形态，其余原样返回
+///
+/// - `\\?\UNC\server\share` → `\\server\share`
+/// - `\\?\C:\…` → `C:\…`
+///
+/// 非 Windows 平台上 `\\?\` 不是特殊前缀，但这两种形态也不会出现，函数等价于恒等。
+/// 非 UTF-8 路径原样返回（不做有损改写）。
+///
+/// 已知代价：verbatim 前缀同时关闭了路径规范化，也是**超过 260 字符**长路径的唯一写法；
+/// 去掉之后超长路径会退回传统上限。当前安装落点远短于该上限，先以「node 能起」为准。
+pub fn strip_verbatim_prefix(path: &Path) -> PathBuf {
+    let Some(text) = path.to_str() else {
+        return path.to_path_buf();
+    };
+    if let Some(rest) = text
+        .get(..8)
+        .filter(|head| head.eq_ignore_ascii_case(r"\\?\UNC\"))
+        .map(|_| &text[8..])
+    {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    if let Some(rest) = text.strip_prefix(r"\\?\") {
+        return PathBuf::from(rest);
+    }
+    path.to_path_buf()
+}
+
 /// 壳加载的**前端入口页**（webview 的 `WebviewUrl::App(…)`）挑选：纯函数，因此可被用例覆盖。
 ///
 /// 产品页是默认（`index.html`，真 renderer 的构建产物）。M1 的命令面验收台按 DR-T3-2
@@ -228,6 +301,38 @@ mod tests {
         );
     }
 
+    /// 随包 Node 的挑选：**显式覆写 → 资源目录里的随包 node → PATH 上的裸名 `node`**。
+    ///
+    /// 三档都要钉住，因为漏掉任何一档都会让「安装包里到底跑的是哪个 Node」变成两说：
+    /// 打包形态若静默退回 PATH，用户机器上有没有 Node 就决定了 UI 能不能起
+    /// （DR-M3-2 要求 Host 随安装包发布）。
+    #[test]
+    fn node_resolution_prefers_override_then_bundled_then_path() {
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let bundled = manifest.join("Cargo.toml"); // 用一个真实存在的文件当「随包 node」
+
+        assert_eq!(
+            pick_node(Some(OsStr::new("D:/custom/node.exe")), std::slice::from_ref(&bundled)),
+            PathBuf::from("D:/custom/node.exe"),
+            "显式覆写优先，且原样生效（合法路径不因不存在被改写）"
+        );
+        assert_eq!(
+            pick_node(None, std::slice::from_ref(&bundled)),
+            bundled,
+            "没有覆写时用资源目录里那个随包 Node"
+        );
+        assert_eq!(
+            pick_node(None, &[manifest.join("no-such-node.exe")]),
+            PathBuf::from("node"),
+            "随包 Node 不存在时退回裸名 node（开发形态：PATH 解析）"
+        );
+        assert_eq!(
+            pick_node(Some(OsStr::new("")), std::slice::from_ref(&bundled)),
+            bundled,
+            "空覆写等于没有覆写（与 pick_entry / data_base_dir_from 同口径）"
+        );
+    }
+
     #[test]
     fn shell_entry_defaults_to_the_product_page_and_only_allows_relative_overrides() {
         assert_eq!(
@@ -251,6 +356,46 @@ mod tests {
                 pick_shell_entry(Some(OsStr::new(hostile))),
                 PathBuf::from("index.html"),
                 "{hostile} 不是合法的壳入口，必须退回产品页"
+            );
+        }
+    }
+
+    /// verbatim 前缀的剥离：**这是打包形态 Host 起不来的那个缺陷的回归网**。
+    ///
+    /// 事实链（数值与命令见 `host-startup-failure-diagnosis.md`）：`resource_dir()` 内部
+    /// `canonicalize()` → `\\?\C:\…` → 当入口传给 node → node 的 CJS 主模块解析
+    /// `realpathSync` 报 `EISDIR: lstat 'C:'` → 约 100ms 退出 → 壳只能报
+    /// `transport_closed`/`starting`。所以这两种 verbatim 形态必须被剥成普通路径，
+    /// 而**普通路径必须原样通过**（不能顺手改写出别的路径形态）。
+    #[test]
+    fn verbatim_windows_prefixes_are_stripped_and_normal_paths_pass_through() {
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\C:\Users\someone\install\host-sidecar\index.mjs")),
+            PathBuf::from(r"C:\Users\someone\install\host-sidecar\index.mjs"),
+            "驱动器形态：剥掉 \\\\?\\ 之后就是普通绝对路径"
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\UNC\server\share\index.mjs")),
+            PathBuf::from(r"\\server\share\index.mjs"),
+            "UNC 形态：\\\\.UNC. 要还原成 \\\\ 开头，不是变成相对路径"
+        );
+        assert_eq!(
+            strip_verbatim_prefix(Path::new(r"\\?\unc\server\share\index.mjs")),
+            PathBuf::from(r"\\server\share\index.mjs"),
+            "UNC 关键字大小写不敏感（Windows 上两种写法都出现过）"
+        );
+        // 普通路径不得被改写：多剥或少剥都会让「壳决定跑哪个入口」变成两说。
+        for untouched in [
+            r"C:\Users\someone\install\host-sidecar\index.mjs",
+            r"\\server\share\index.mjs",
+            "/usr/lib/mode/host-sidecar/index.mjs",
+            "packages/desktop/src/host-standalone/index.ts",
+            r"D:\ZCodium",
+        ] {
+            assert_eq!(
+                strip_verbatim_prefix(Path::new(untouched)),
+                PathBuf::from(untouched),
+                "{untouched} 不是 verbatim 形态，必须原样通过"
             );
         }
     }

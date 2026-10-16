@@ -374,3 +374,55 @@ fn spawn_refuses_an_empty_data_base_dir_instead_of_targeting_the_real_root() {
     let message = error.to_string();
     assert!(message.contains("data_base_dir"), "错误要点名字段：{message}");
 }
+
+/// 打包形态的 verbatim 入口（`\\?\C:\…`）也必须能起到 `ready`。
+///
+/// **这是 2026-10-17 用户报障那条路径的回归网**（诊断见
+/// `.superpowers/sdd/2026-10-16-tauri-m3-ecosystem/host-startup-failure-diagnosis.md`）：
+/// 壳的入口来自 `app.path().resource_dir()`，而 Tauri 的 `current_exe()` 内部做过
+/// `canonicalize()`（`tauri-utils-2.10.2/src/platform/starting_binary.rs`），Windows 上返回
+/// verbatim 形态。把这种路径当入口交给 node，node 在**装载入口之前**就以
+/// `EISDIR: illegal operation on a directory, lstat 'C:'` 退出（约 100ms），Host 连自己那行
+/// `startup_failed` 都写不出来，壳只能报 `transport_closed`/`starting`。
+///
+/// 用例刻意**不**构造一个假路径：它用 `canonicalize()` 取真实入口——也就是打包形态真正会拿到
+/// 的那种形态。所以「入口路径形态」这一条被钉在会失败的那一侧，而不是钉在方便测试的一侧。
+/// 去掉 `HostHandle::spawn` 里的 `strip_verbatim_prefix` 收口，本用例立刻红（实测过）。
+#[test]
+#[cfg(windows)]
+fn a_verbatim_windows_entry_path_still_reaches_ready() {
+    let entry = sidecar_entry()
+        .canonicalize()
+        .expect("入口必须存在（仓库相对路径）");
+    assert!(
+        entry.to_string_lossy().starts_with(r"\\?\"),
+        "前提：Windows 的 canonicalize() 返回 verbatim 形态；实际：{}",
+        entry.display()
+    );
+
+    let mut config = HostConfig::for_sidecar_entry(entry, repo_root());
+    config.startup_id = "test-verbatim-entry".to_string();
+    config.attempt_id = "test-verbatim-entry-a1".to_string();
+    config.data_base_dir = isolated_base_dir("verbatim-entry");
+    config.ready_timeout = Duration::from_secs(30);
+
+    let handle = HostHandle::spawn(config).expect("拉起真 Host");
+    assert!(
+        wait_for_phase(&handle, StartupPhase::Ready, Duration::from_secs(30)).is_some(),
+        "verbatim 入口必须也能起到 ready；当前快照：{:?}",
+        handle.startup_snapshot()
+    );
+    let _ = handle.shutdown();
+}
+
+/// 非 Windows 上 `canonicalize()` 不产生 verbatim 前缀（也没有这个概念）：
+/// 那个平台上这条路径不存在，不假装它验过什么。
+#[test]
+#[cfg(not(windows))]
+fn verbatim_entry_is_a_windows_only_path_form() {
+    assert!(!sidecar_entry()
+        .canonicalize()
+        .expect("入口必须存在")
+        .to_string_lossy()
+        .starts_with(r"\\?\"));
+}
