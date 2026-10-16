@@ -53,6 +53,24 @@ function readGroup(): Group {
         args: { file_path: "${cwd}/o1.txt", offset: 1 },
       },
       {
+        // 没有结尾换行的文件：仍然按「末尾空段」规则给出 2 行。
+        label: "no-trailing-newline",
+        seed: { "nt.txt": "a" + String.fromCharCode(10) + "b" },
+        args: { file_path: "${cwd}/nt.txt" },
+      },
+      // 多字节正文：`originalBytes` / `returnedBytes` 是 **UTF-8 字节数**（JS 的 `.length` 会更小）。
+      {
+      label: "utf8-multibyte",
+      seed: { "u8.txt": "中文行" + String.fromCharCode(10) + "second" + String.fromCharCode(10) },
+      args: { file_path: "${cwd}/u8.txt" },
+      },
+      // `limit <= 0` 走 zod 精化失败（`limit: 0` 的值在夹具 `read-error-paths` 里逐字录到）。
+      {
+      label: "limit-negative",
+      seed: { "ln.txt": "1" + String.fromCharCode(10) + "2" + String.fromCharCode(10) },
+      args: { file_path: "${cwd}/ln.txt", limit: -1 },
+      },
+      {
         label: "offset-3",
         seed: { "o3.txt": three },
         args: { file_path: "${cwd}/o3.txt", offset: 3 },
