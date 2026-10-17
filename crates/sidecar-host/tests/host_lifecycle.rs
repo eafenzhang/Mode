@@ -426,3 +426,26 @@ fn verbatim_entry_is_a_windows_only_path_form() {
         .to_string_lossy()
         .starts_with(r"\\?\"));
 }
+
+/// 启动时不能弹出黑色控制台窗口：随包 node.exe 是控制台子系统程序，壳是 GUI 进程，
+/// spawn 时必须显式 CREATE_NO_WINDOW。
+///
+/// 这一条没有可观测的行为断言（CI 没有桌面会话，看不到窗口是否出现），所以用源码守卫：
+/// 标志被误删时本用例直接红。实现见 `HostConfig::command`。
+#[test]
+fn spawning_node_requests_a_hidden_console() {
+    const SOURCE: &str = include_str!("../src/process.rs");
+    assert!(
+        SOURCE.contains("command.creation_flags(CREATE_NO_WINDOW)"),
+        "process.rs 必须给 node 子进程应用 CREATE_NO_WINDOW，否则启动时会弹出控制台窗口"
+    );
+    assert!(
+        SOURCE.contains("const CREATE_NO_WINDOW: u32 = 0x0800_0000;"),
+        "CREATE_NO_WINDOW 必须是 Win32 的 0x0800_0000"
+    );
+    let call_sites = SOURCE.matches("without_console_window(&mut command);").count();
+    assert!(
+        call_sites >= 3,
+        "node / taskkill / tasklist 三处 spawn 都要隐藏控制台；实际只有 {call_sites} 处"
+    );
+}

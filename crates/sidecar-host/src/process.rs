@@ -126,6 +126,7 @@ impl HostConfig {
         if let Some(entry) = &self.entry {
             command.arg(entry);
         }
+        without_console_window(&mut command);
         command
     }
 }
@@ -540,14 +541,32 @@ fn mark_closed(inner: &HostInner) {
     inner.inbound_space.notify_all();
 }
 
+/// 随包 node.exe 以及 `taskkill`/`tasklist` 都是控制台子系统程序，而壳是 GUI 进程：
+/// 直接 spawn 会让 Windows 新建可见控制台窗口（启动时弹出的黑色 node.exe 窗口）。
+/// CREATE_NO_WINDOW（0x0800_0000）让子进程不分配控制台，其派生的孙进程也继承不到。
+fn without_console_window(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = command;
+    }
+}
+
 /// 杀整棵进程树：Task 2 的 Host 会带 `node-pty` 之类的子进程，只杀直接子进程会留孤儿。
 /// `taskkill` 不可用（非 Windows 的开发环境）时退回「关 stdin 后等它自己退」+ 直接 kill。
 fn kill_tree_by_pid(pid: u32) {
-    let _ = Command::new("taskkill")
+    let mut command = Command::new("taskkill");
+    command
         .args(["/PID", &pid.to_string(), "/T", "/F"])
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
+        .stderr(Stdio::null());
+    without_console_window(&mut command);
+    let _ = command.status();
     // 判据不看 taskkill 的退出码（进程早就不在时它也会报失败），而是看进程表：
     // 先给它一点收摊时间，仍在才报警——这条日志必须只在**真失败**时出现。
     for _ in 0..5 {
@@ -561,9 +580,10 @@ fn kill_tree_by_pid(pid: u32) {
 
 /// 进程是否还在（Windows 上用 `tasklist` 查；用于「不留孤儿」的断言与诊断）。
 pub fn process_exists(pid: u32) -> bool {
-    let output = Command::new("tasklist")
-        .args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"])
-        .output();
+    let mut command = Command::new("tasklist");
+    command.args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"]);
+    without_console_window(&mut command);
+    let output = command.output();
     match output {
         Ok(output) => {
             let text = String::from_utf8_lossy(&output.stdout);
