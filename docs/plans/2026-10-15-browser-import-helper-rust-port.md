@@ -541,12 +541,17 @@ git commit -m "feat(browser-import): 提权与服务通道（fail-closed 到契�
 - Modify: `.github/workflows/release.yml`（Windows 腿加本 crate 的 `cargo test` / `clippy -D warnings`）
 - Modify: `docs/plans/2026-10-09-tauri-rewrite-roadmap.md`（勾掉 M0 任务 6）
 
-- [ ] **Step 1: CI 接线**：与 `crates/mode-cua-ax` 同形（rust-cache 的 `workspaces` 加本 crate）。
-  〔未执行——该 crate 目前不在任何 workspace 里，M1 Task 1 建根 workspace 时一并接线更合适〕
+- [x] **Step 1: CI 接线**〔2026-10-17 复核：已满足〕：`crates/browser-import-helper` 已在根
+  `Cargo.toml` 的 workspace 成员里；`release.yml` 已跑它的 `cargo test` / `clippy -D warnings`
+  与契约对拍（Windows 腿）。原「不在任何 workspace」的注记已过期。
 - [ ] **Step 2: 实机验收**（**必须真机，人工执行**）：Windows 上装 Chrome，登录并写入 cookie，
-  从打包版 app 触发一次「导入浏览器数据」，成功取回 32 字节密钥；再验一次拒绝 UAC →
+  从 dev（未打包）触发一次「导入浏览器数据」，允许 UAC；再验一次拒绝 UAC →
   宿主报 `chrome_cookie_elevation_cancelled`。
-  〔阻塞：需要交互式 UAC 会话，无人值守执行会弹窗挂住〕
+  〔**2026-10-17 已准备**：dev-only 的 Windows 入口、C# oracle 品牌兼容
+  （`MODE_BROWSER_IMPORT_ALLOW_LEGACY_ORACLE=1`）与逐步 runbook 已就位，见
+  `docs/plans/2026-10-17-browser-import-p2-dev-runbook.md`。
+  **打包态仍需** app 与 helper 的有效 Authenticode（当前仓库没有签名配置），本轮先走 dev。
+  阻塞：需要交互式 UAC 会话，无人值守执行会弹窗挂住〕
 - [x] **Step 3: 更新路线图并提交**（见计划交付说明）。
 
 ### 本轮（2026-10-16）额外发现：打包接线缺失

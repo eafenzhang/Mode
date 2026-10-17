@@ -13,6 +13,10 @@ import { isElectronAppPackaged } from "./desktopElectronApp.js";
 
 const HELPER_PROTOCOL = "MODE_BROWSER_IMPORT_V1";
 const HELPER_VERSION_PROTOCOL = "MODE_BROWSER_IMPORT_HELPER";
+// 旧 C# oracle 的品牌（`ZCODE_*`）。**仅** dev + 显式环境变量时接受，用于 M0 真机验收：
+// 它过不了生产门禁，正是因为本仓库要修的品牌缺陷（见 docs/plans/2026-10-15-browser-import-helper-rust-port.md）。
+const LEGACY_HELPER_PROTOCOL = "ZCODE_BROWSER_IMPORT_V1";
+const LEGACY_HELPER_VERSION_PROTOCOL = "ZCODE_BROWSER_IMPORT_HELPER";
 const HELPER_VERSION = "2";
 const HELPER_TIMEOUT_MS = 90_000;
 const HELPER_MAX_OUTPUT_BYTES = 128 * 1024;
@@ -78,6 +82,9 @@ interface ReadAppBoundKeyOptions {
   chromeExecutablePath: string;
   helperPath?: string;
   isPackaged?: boolean;
+  /** 测试注入用；缺省取构建期 `MODE_VERSION` / `MODE_COMMIT`。 */
+  expectedAppVersion?: string;
+  expectedBuildCommit?: string;
   logger: BrowserDataLogger;
   processArch?: string;
   resourcesPath?: string;
@@ -90,6 +97,16 @@ interface ReadAppBoundKeyOptions {
   userDataDir: string;
   trustedPowerShellPath?: string;
   verifySignature?: (helperPath: string, appExecutablePath: string) => Promise<boolean | string>;
+}
+
+/**
+ * 是否允许旧 C# oracle 的 `ZCODE_*` 品牌。
+ *
+ * 严格限定为 **未打包 + 显式设置 `MODE_BROWSER_IMPORT_ALLOW_LEGACY_ORACLE=1`**：
+ * 生产包永远走 `MODE_*`，这条兼容不会因为环境变量泄漏而放宽发布口径。
+ */
+function legacyOracleBrandAllowed(packaged: boolean): boolean {
+  return !packaged && process.env.MODE_BROWSER_IMPORT_ALLOW_LEGACY_ORACLE === "1";
 }
 
 function toSafeProcessError(error: unknown): { code?: string; name: string } {
@@ -363,10 +380,13 @@ async function verifyHelper(helperPath: string, options: ReadAppBoundKeyOptions)
     const fields = version.stdout.split("\t");
     const expectedAppVersion = options.expectedAppVersion ?? MODE_VERSION;
     const expectedBuildCommit = options.expectedBuildCommit ?? MODE_COMMIT;
+    const acceptedVersionProtocols = legacyOracleBrandAllowed(packaged)
+      ? [HELPER_VERSION_PROTOCOL, LEGACY_HELPER_VERSION_PROTOCOL]
+      : [HELPER_VERSION_PROTOCOL];
     if (
       version.exitCode !== 0 ||
       fields.length !== 5 ||
-      fields[0] !== HELPER_VERSION_PROTOCOL ||
+      !acceptedVersionProtocols.includes(fields[0]!) ||
       fields[1] !== HELPER_VERSION ||
       fields[2] !== (options.processArch ?? process.arch) ||
       (packaged && (fields[3] !== expectedAppVersion || fields[4] !== expectedBuildCommit))
@@ -386,10 +406,26 @@ async function verifyHelper(helperPath: string, options: ReadAppBoundKeyOptions)
   }
 }
 
-function parseHelperResponse(response: HelperProcessResult, logger: BrowserDataLogger): Buffer {
+function parseHelperResponse(
+  response: HelperProcessResult,
+  logger: BrowserDataLogger,
+  allowLegacyBrand = false,
+): Buffer {
   const fields = response.stdout.split("\t");
-  if (fields.length !== 3 || fields[0] !== HELPER_PROTOCOL) {
+  const acceptedProtocols = allowLegacyBrand
+    ? [HELPER_PROTOCOL, LEGACY_HELPER_PROTOCOL]
+    : [HELPER_PROTOCOL];
+  if (fields.length !== 3 || !acceptedProtocols.includes(fields[0]!)) {
     throwAppBoundDecryptionFailure(logger, "invalid_response");
+  }
+  if (allowLegacyBrand) {
+    // 只记协议与 ERR 的 reason；OK 的第三字段是密钥，绝不落日志。
+    logger.info("[browser-data] helper 响应（legacy oracle，dev）", {
+      protocol: fields[0],
+      result: fields[1],
+      reason: fields[1] === "ERR" ? fields[2] : undefined,
+      exitCode: response.exitCode,
+    });
   }
   if (fields[1] === "ERR") {
     if (fields[2] === "elevation_cancelled") {
@@ -435,15 +471,24 @@ export async function readWindowsChromeAppBoundKey(
 
   try {
     const helperPath = await resolveHelperPath(options);
-    const verifiedHelperHash = await verifyHelper(helperPath, options);
+    const packaged = options.isPackaged ?? isElectronAppPackaged();
+    const allowLegacyBrand = legacyOracleBrandAllowed(packaged);
+    if (allowLegacyBrand) {
+      options.logger.info("[browser-data] 使用 legacy oracle 品牌兼容（仅 dev）", {
+        helperPath,
+      });
+    }
+    const verifiedHelperHash = await verifyHelper(helperPath, {
+      ...options,
+      isPackaged: packaged,
+    });
     const encryptedKey = appBoundKey.subarray(4);
     const request = [
-      HELPER_PROTOCOL,
+      allowLegacyBrand ? LEGACY_HELPER_PROTOCOL : HELPER_PROTOCOL,
       encryptedKey.toString("base64"),
       Buffer.from(options.chromeExecutablePath, "utf8").toString("base64"),
     ].join("\t");
     const runHelper = options.runHelper ?? runHelperProcess;
-    const packaged = options.isPackaged ?? isElectronAppPackaged();
     const response = packaged
       ? await runLockedPackagedHelper({
           helperPath,
@@ -465,7 +510,7 @@ export async function readWindowsChromeAppBoundKey(
             }
           },
         );
-    return parseHelperResponse(response, options.logger);
+    return parseHelperResponse(response, options.logger, allowLegacyBrand);
   } catch (error) {
     if (error instanceof WindowsChromeAppBoundImportError) throw error;
     options.logger.warn(

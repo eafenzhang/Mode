@@ -240,8 +240,9 @@ export function BrowserSettingsSection({
           />
           {/* 导入登录状态是“开启内置浏览器控制”之后的配套动作，与开关同卡片表达先后关系；
               清除类破坏性操作仍留在“浏览器数据”分组。
-              Windows App-Bound 导入链路暂未开放，先隐藏入口但保留底层实现和清理能力。*/}
-          {!isWindowsDesktop ? (
+              Windows App-Bound 导入链路暂未开放：**生产构建隐藏入口**；dev 构建显示，
+              用于 M0 实机验收（配合 MODE_BROWSER_IMPORT_ALLOW_LEGACY_ORACLE 使用 C# oracle）。*/}
+          {!isWindowsDesktop || import.meta.env.DEV ? (
             <SettingsRow
               label={intl.formatMessage({ id: "settings.browser.import.title" })}
               description={intl.formatMessage({
