@@ -7,6 +7,11 @@
 > 更新链所需、人工前置项——**本计划的输入**）、路线图 M5 节、
 > `docs/specs/tauri-platform-commands.md` §8（产物去向与体积口径）、
 > `docs/specs/tauri-renderer-host.md` §13.4 与 §20（数字矛盾与开放项）。
+>
+> **状态（2026-10-18 巡检回填）**：Task 0–3 的**实现提交均已落地**——
+> Task 0 `7ad16584`（`RELEASE.md` 已入库）、Task 1 `b54cfd71`、Task 2 `eee3a83e`、
+> Task 3 `f21c2b75`，后续修复 `693d851d`、`e6bd3604`、`5f4a07a2`、`b395951c`。
+> 本文 Task 0 的步骤复选框**未回填**；GA、旧线 EOL、数据迁移演练与三指标终值仍待人执行/发布时收口。
 
 **Goal:** 让 **Tauri 版成为发布线**：`release.yml` 产出并发布 Tauri 产物，更新链真正可用，且
 「发布」这件事有一条可执行、可回滚、含人工前置项的清单。
