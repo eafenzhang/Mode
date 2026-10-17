@@ -147,6 +147,10 @@ Step 0 观察它的返回形状后二选一：
 
 **不许**在没观察前假装实现。
 
+**本轮决定（2026-10-17）**：**只做前台**。后台任务需要独立注册表与跨 turn 唤醒，且尚未观察；
+`run_in_background: true` 在 `bash.rs` 里显式返回 `m2_unimplemented_surface`
+（`surface=bash_run_in_background`），不编造线上形状。后台归 Task 4b。
+
 ### DR-T4-6：取消 = `session/stop` → 工具错误 + `turn.completed(cancelled)`
 
 已观察（`probe-bash-cancel.mts`）：
@@ -206,16 +210,22 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 
 ### Step 2：夹具与对拍用例
 
-- [ ] 用 `record.mts` 录制前台场景夹具：成功、非零退出、stderr、命令不存在、超时、
-      取消、入参校验失败。
-- [ ] 在 `crates/agent-core/tests/bash_and_inbox.rs` 写第一层（工具调用序列）与
-      第二层（文件快照，若命令产生文件）断言；输出内容逐字比较。
+- [x] 用 `record.mts` 录制前台场景夹具（`fixtures-bash.mts` 的 11 条）：成功、非零退出、
+      stdout/stderr 交错、尾随空白、空输出、命令不存在、超时（1s/1.5s）、入参校验失败。
+      取消没有夹具（`record.mts` 没有取消入口），由 `bash.rs` 的单测覆盖。
+- [x] 对拍断言落在 `crates/agent-core/tests/tool_parity.rs`（既有三层比较器的入口），
+      没有另建 `bash_and_inbox.rs`——新增一个入口会复制投影与比较逻辑（Ruling 4 禁止）。
+      11 条 `bash_*_parity` 全绿；文件快照为空（命令不产生文件）。
 
 ### Step 3：`Bash` 实现
 
-- [ ] `crates/agent-tools/src/bash.rs`：入参校验、执行、输出合并与 trim、退出码、超时。
-- [ ] 超时/取消的进程终止要**可验证**（测试里用可观察的子进程，不用 `sleep` 猜测）。
-- [ ] 不做 `run_in_background`（除非 DR-T4-5 判定并入）。
+- [x] `crates/agent-tools/src/bash.rs`：入参校验、管道执行、`exec 2>&1` 交错合并、`trim_end`、
+      退出码首行、超时（含 1.5s 的小数格式）、取消令牌、>30KB artifact 包装。
+- [x] 超时/取消的进程终止可验证：单测用 `sleep` 子进程 + 取消令牌（120ms 后置位），
+      断言 `TOOL_CANCELLED`；超时不清理孙进程，与 oracle 一致（见 DR-T4-3）。
+- [x] 不做 `run_in_background`（DR-T4-5 决定拆到 Task 4b；显式未实现标记）。
+- [ ] **artifact 落点接线**：`BashControl::artifact_dir` 已可注入，但会话的 `ToolContext`
+      还没有数据根/sessionId，注册表路径落系统临时目录；接线时替换即可（夹具不覆盖 >30KB）。
 
 ### Step 4：`CommandInbox`
 
@@ -225,10 +235,12 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 
 ### Step 5：门禁与收口
 
-- [ ] `node scripts/rust-cargo.ts test -p agent-core -p agent-tools` 全绿。
-- [ ] `node scripts/rust-cargo.ts clippy --all-targets -- -D warnings` 零告警。
-- [ ] `pnpm verify:pre-push` 通过。
-- [ ] 更新阶段 ledger 的 Task 进度；本地提交（不推送）。
+- [x] `node scripts/rust-cargo.ts test -p agent-core -p agent-tools` 全绿
+      （agent-core 43、agent-tools 11 + 18）。
+- [x] `node scripts/rust-cargo.ts clippy -p agent-tools -p agent-core --all-targets -- -D warnings`
+      零告警；`rustfmt --check` 干净。
+- [x] `pnpm verify:pre-push` 通过。
+- [x] 更新阶段 ledger 的 Task 进度；本地提交（不推送）。
 
 ---
 
@@ -249,3 +261,20 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 | 取消与超时被当成同一种结果 | Step 0 分别观察，文案不同就分开建模 |
 | 并发准入无观察依据 | 扩展 driver 后再实现；没有观察就不写「顺序保证」 |
 | `run_in_background` 把范围撑大 | DR-T4-5 明确二选一，不默认实现 |
+
+---
+
+## 执行记录（2026-10-17）
+
+- **夹具**：`packages/desktop/tests/agent-runtime-oracle/fixtures-bash.mts` 11 条，由
+  `record.mts` 从 oracle 录制；`fixtures.mts` 已组合进来。
+- **实现**：`crates/agent-tools/src/bash.rs`——管道执行（`exec 2>&1` 保证交错）、`trim_end`、
+  退出码首行、超时（1s/1.5s 格式）、取消令牌、>30KB artifact 包装；注册表新增 `Bash`
+  （`shell` 档、`read_only:true`，按观察值）。
+- **对拍**：`crates/agent-core/tests/tool_parity.rs` 新增 11 条 `bash_*_parity`；
+  `agent-core` 43 passed、`agent-tools` 11 + 18 passed。
+- **规范化**：新增「shell 诊断前缀」白名单（`bash: line N:` / `/usr/bin/bash: line N:` →
+  `<shell>: line <n>:`）；TS `normalize.mts` 与 Rust `test_support::project` 同步，
+  `bash-command-not-found` 已重录。
+- **未做**：`run_in_background`（Task 4b）、artifact 落点接线、
+  `CommandInbox`（DR-T4-7 待决）。

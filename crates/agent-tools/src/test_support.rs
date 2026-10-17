@@ -416,7 +416,36 @@ pub fn project(value: &str, workspace: &str) -> String {
             result = result.replace(&escaped, token);
         }
     }
-    replace_uuids(&result)
+    replace_shell_diagnostic_prefix(&replace_uuids(&result))
+}
+
+/// 把 `bash: line N:` / `/usr/bin/bash: line N:` / `C:\…\bash.exe: line N:` 折成
+/// `<shell>: line <n>:`。
+///
+/// 这些差异来自**怎么启动 bash**（argv[0] 与 `-lc` 包装的行数），不是工具行为；
+/// 与 `normalize.mts` 同名规则逐条对齐。
+fn replace_shell_diagnostic_prefix(value: &str) -> String {
+    value
+        .lines()
+        .map(|line| {
+            let Some(bash_at) = line.find("bash") else {
+                return line.to_string();
+            };
+            let after = &line[bash_at + "bash".len()..];
+            let after = after.strip_prefix(".exe").unwrap_or(after);
+            let Some(rest) = after.strip_prefix(": line ") else {
+                return line.to_string();
+            };
+            let Some(colon) = rest.find(':') else {
+                return line.to_string();
+            };
+            if !rest[..colon].chars().all(|c| c.is_ascii_digit()) {
+                return line.to_string();
+            }
+            format!("<shell>: line <n>:{}", &rest[colon + 1..])
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// 入参投影：序列化后过同一份规则。

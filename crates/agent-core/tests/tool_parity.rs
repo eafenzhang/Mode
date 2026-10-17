@@ -457,3 +457,58 @@ fn edit_empty_old_existing_parity() {
 fn edit_missing_new_string_parity() {
     assert_parity("edit-missing-new-string");
 }
+
+#[test]
+fn bash_stdout_parity() {
+    assert_parity("bash-stdout");
+}
+
+#[test]
+fn bash_exit_7_parity() {
+    assert_parity("bash-exit-7");
+}
+
+#[test]
+fn bash_output_then_exit_7_parity() {
+    assert_parity("bash-output-then-exit-7");
+}
+
+#[test]
+fn bash_stderr_parity() {
+    assert_parity("bash-stderr");
+}
+
+#[test]
+fn bash_mixed_streams_parity() {
+    assert_parity("bash-mixed-streams");
+}
+
+#[test]
+fn bash_empty_output_parity() {
+    assert_parity("bash-empty-output");
+}
+
+#[test]
+fn bash_trailing_whitespace_parity() {
+    assert_parity("bash-trailing-whitespace");
+}
+
+#[test]
+fn bash_command_not_found_parity() {
+    assert_parity("bash-command-not-found");
+}
+
+#[test]
+fn bash_timeout_parity() {
+    assert_parity("bash-timeout");
+}
+
+#[test]
+fn bash_timeout_fractional_parity() {
+    assert_parity("bash-timeout-fractional");
+}
+
+#[test]
+fn bash_empty_args_parity() {
+    assert_parity("bash-empty-args");
+}

@@ -1,0 +1,575 @@
+{
+  "case": "bash-stderr",
+  "prompt": "用 Bash 往 stderr 写一行，然后说明结果。",
+  "seed": {},
+  "script": [
+    {
+      "toolCalls": [
+        {
+          "name": "Bash",
+          "input": {
+            "command": "printf 'oops\\n' >&2",
+            "description": "Write to stderr"
+          }
+        }
+      ]
+    },
+    {
+      "text": "stderr 合并了。"
+    }
+  ],
+  "expect": {
+    "toolCalls": [
+      {
+        "name": "Bash",
+        "input": {
+          "command": "printf 'oops\\n' >&2",
+          "description": "Write to stderr"
+        },
+        "ok": true,
+        "output": "oops"
+      }
+    ],
+    "files": {},
+    "events": [
+      {
+        "type": "session.titleUpdated",
+        "payload": {
+          "previousTitle": "",
+          "source": "first_input",
+          "title": "用 Bash 往 stderr 写一行，然后说明结果。"
+        }
+      },
+      {
+        "type": "turn.started",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 0,
+          "input": "用 Bash 往 stderr 写一行，然后说明结果。",
+          "messageId": "<id>",
+          "foregroundExecutionId": "<id>",
+          "queryId": "<id>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 6,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Bash"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"command\":\"printf 'oops\\\\n' >&2\",\"description\":\"Write to stderr\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "command": "printf 'oops\\n' >&2",
+            "description": "Write to stderr"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Bash"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 1,
+            "totalInputTokens": 10,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Bash",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": false,
+          "schedule": {
+            "parallelGroups": [
+              [
+                "<id>"
+              ]
+            ],
+            "executionOrder": [
+              "<id>"
+            ]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 66,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Bash",
+          "startedAt": "<time>",
+          "readOnly": true,
+          "sideEffectScope": "none",
+          "kind": "started"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "result": {
+            "success": true,
+            "content": "oops",
+            "perf": {
+              "totalMs": "<time>",
+              "detail": {
+                "kind": "command",
+                "command": {
+                  "runMs": "<time>",
+                  "noOutputMs": "<time>",
+                  "exitCode": 0,
+                  "timedOut": false,
+                  "outputBytes": 5,
+                  "category": "other",
+                  "count": 1,
+                  "name": "other",
+                  "status": "completed",
+                  "hash": "bce9eed3a997b106"
+                }
+              }
+            },
+            "truncated": false,
+            "originalBytes": 4,
+            "returnedBytes": 4,
+            "budgetStrategy": "artifact"
+          },
+          "duration": "<time>",
+          "kind": "result"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 1,
+          "errorCount": 0,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_result",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Bash",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 8,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "stderr 合并了。",
+          "done": false,
+          "kind": "text_delta"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "timeToFirstTextMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "stderr 合并了。",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 2,
+            "totalInputTokens": 20,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 0
+        }
+      },
+      {
+        "type": "turn.completed",
+        "payload": {
+          "response": "stderr 合并了。",
+          "tokenCount": 52,
+          "usage": {
+            "source": "provider",
+            "modelRequestCount": 2,
+            "inputTokens": 20,
+            "outputTokens": 32,
+            "totalTokens": 52,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0
+          },
+          "toolCallCount": 1,
+          "historyRoundCount": 2,
+          "duration": "<time>",
+          "resultType": "success",
+          "cacheStats": {
+            "totalMessages": 9,
+            "cachedMessages": 5,
+            "lastCacheHit": false
+          }
+        }
+      }
+    ]
+  }
+}

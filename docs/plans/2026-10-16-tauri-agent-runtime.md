@@ -401,7 +401,11 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 - Produces: `agent_core::command_inbox::CommandInbox::admit(key: CommandKey) -> Admission`
   ——同一 key 的 busy/running 输入**串行准入**（`AGENTS.md` 的既有语义，不得用超时掩盖）。
 
-- [ ] **Step 1–6: 对拍含超时、取消、退出码语义**（大纲；细步骤见开工时另出的子计划）
+- [ ] **Step 1–6: 对拍含超时、取消、退出码语义**（大纲；细步骤见子计划）
+  〔**2026-10-17 进展**：`Bash` **前台**已实现并通过 11 条对拍——管道（oracle 实测不是 pty）、
+  超时/取消、退出码、stdout/stderr 交错、artifact 包装；`run_in_background` 显式未实现（Task 4b）。
+  `CommandInbox` 未开工：**DR-T4-7 待决**（会话面拒绝并发 prompt，队列在 host 层）。
+  详见 `docs/plans/2026-10-17-agent-shell-inbox.md` 的「执行记录」〕
 
 必须覆盖的判据：超时后进程是否真的被杀（含孙进程）、取消（用户中断）与超时的区分、
 退出码与信号的非零呈现、pty 与 pipe 两种模式下输出缓冲的差异、

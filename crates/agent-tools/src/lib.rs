@@ -38,6 +38,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod bash;
 pub mod edit;
 mod messages;
 mod path_policy;
@@ -48,6 +49,7 @@ pub mod read;
 pub mod test_support;
 pub mod write;
 
+pub use bash::{bash_input_schema, BashControl, Cancellation, BASH_DESCRIPTION, BASH_INPUT_SCHEMA};
 pub use edit::{edit_input_schema, EDIT_DESCRIPTION, EDIT_INPUT_SCHEMA};
 pub use read::{
     estimated_tokens, FileState, READ_DESCRIPTION, READ_INPUT_SCHEMA, TOKEN_LIMIT, WASTED_CALL,
@@ -130,6 +132,20 @@ impl ToolOutcome {
             budget_strategy: "truncate",
         }
     }
+
+    /// 输出超阈值、完整内容落盘后的成功结果：`budgetStrategy` 是 `"artifact"`，
+    /// `truncated` 仍为 `false`（观察：包装本身没有被截断）。
+    pub fn artifact(content: impl Into<String>) -> Self {
+        let content = content.into();
+        let bytes = content.len() as u64;
+        Self {
+            content,
+            truncated: false,
+            original_bytes: bytes,
+            returned_bytes: bytes,
+            budget_strategy: "artifact",
+        }
+    }
 }
 
 /// 一次工具失败（`tool.updated/kind:"error"` 的 `error` 对象，取对拍要用的字段）。
@@ -204,6 +220,14 @@ pub fn registry() -> Vec<ToolSpec> {
             schema: edit_input_schema(),
             read_only: false,
         },
+        ToolSpec {
+            name: "Bash",
+            family: ModeToolFamily::Shell,
+            schema: bash_input_schema(),
+            // 观察（spec §3.4）：`started` 载荷是 `readOnly:true` / `sideEffectScope:"none"`，
+            // 且本次没有发审批请求。按观察值登记，不按直觉推断。
+            read_only: true,
+        },
     ]
 }
 
@@ -234,6 +258,7 @@ pub fn invoke_by_name(
         "Read" => read::invoke(args, ctx),
         "Write" => write::invoke(args, ctx, files),
         "Edit" => edit::invoke(args, ctx, files),
+        "Bash" => bash::invoke(args, ctx),
         other => Err(not_found(other)),
     }
 }

@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { startOracleRuntime, seedWorkspace, type OracleEvent } from "./driver.mjs";
+import { BASH_FIXTURE_CASES } from "./fixtures-bash.mjs";
 import { WRITE_EDIT_FIXTURE_CASES } from "./fixtures-write.mjs";
 import type { MockStep } from "./mock-provider.mjs";
 import {
@@ -290,6 +291,7 @@ const READ_ONLY_FIXTURE_CASES: readonly FixtureCase[] = [
 export const FIXTURE_CASES: readonly FixtureCase[] = [
   ...READ_ONLY_FIXTURE_CASES,
   ...WRITE_EDIT_FIXTURE_CASES,
+  ...BASH_FIXTURE_CASES,
 ];
 
 

@@ -170,6 +170,9 @@ function normalizeString(value: string, context: NormalizeContext): string {
     }
   }
   result = result.replace(LOOPBACK_URL_PATTERN, "<loopback-url>");
+  // shell 诊断前缀：`bash: line 1:` / `/usr/bin/bash: line 3:` / `C:\…\bash.exe: line 1:`
+  // 的差别来自**怎么启动 bash**（argv[0] 与 -lc 包装行数），不是工具行为。正文其余部分仍逐字比。
+  result = result.replace(/(^|\n)[^\n]*?bash(?:\.exe)?: line \d+:/g, "$1<shell>: line <n>:");
   // 平铺在正文里的 uuid（`sess_<uuid>`、`msg_xxx_<uuid>:…`）折叠成标记。
   // **只认 uuid 形状**，不做「见到 `xxx_yyy` 就当 id」的按形状匹配：那会把工具输出正文
   // （`part_number_2`、`call_site_info`、`msg_hello.txt`）一起吃掉，

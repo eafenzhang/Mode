@@ -140,7 +140,8 @@ fn read_only_tools_leave_the_workspace_untouched() {
     }
 }
 
-/// 注册表的内容本身是观察结果：`Read` 与 `Write` 各占一条；`Glob`/`Grep`/`ApplyPatch` 未注册。
+/// 注册表的内容本身是观察结果：`Read` / `Write` / `Edit` / `Bash` 各占一条；
+/// `Glob`/`Grep`/`ApplyPatch` 未注册。
 ///
 /// 证据：探针 `probe-tool-surface.mts`（`Read` 在声明里）与 `probe-write.mts`（`Write` 在声明里、
 /// `ApplyPatch` 不在且调用得 `tool_not_found`）；夹具 `read-absent-search-tools.json` 与
@@ -149,15 +150,19 @@ fn read_only_tools_leave_the_workspace_untouched() {
 fn registry_contains_only_read_from_the_read_only_slice() {
     let specs = registry();
     let names: Vec<&str> = specs.iter().map(|spec| spec.name).collect();
-    assert_eq!(names, vec!["Read", "Write", "Edit"]);
+    assert_eq!(names, vec!["Read", "Write", "Edit", "Bash"]);
     assert_eq!(specs[0].family, ModeToolFamily::FileRead);
     assert!(specs[0].read_only);
     // 两个写工具：`file-write` 档、非只读——`started` 事件是
     // `readOnly:false` / `sideEffectScope:"workspace"`（夹具 `write-new` 的录制）。
-    for spec in &specs[1..] {
+    for spec in &specs[1..3] {
         assert_eq!(spec.family, ModeToolFamily::FileWrite);
         assert!(!spec.read_only, "{} 不该是只读的", spec.name);
     }
+    // `Bash`：`shell` 档，但观察到的 `started` 是 `readOnly:true` / `sideEffectScope:"none"`
+    // 且没有发审批请求（spec §3.4）——按观察值登记，不按直觉推断。
+    assert_eq!(specs[3].family, ModeToolFamily::Shell);
+    assert!(specs[3].read_only);
     // 未注册的三个：Glob / Grep（Task 2 实测）与 ApplyPatch（Task 3 实测）都不在表里。
     for absent in ["Glob", "Grep", "ApplyPatch"] {
         assert!(

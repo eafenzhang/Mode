@@ -32,6 +32,14 @@ const count = await runGroup({
       args: { command: "definitely_not_a_command_xyz", description: "Run a missing command" },
     },
     {
+      label: "timeout-1.5s",
+      args: { command: "sleep 3", timeout: 1500, description: "Sleep longer than 1.5s timeout" },
+    },
+    {
+      label: "output-then-exit-7",
+      args: { command: "printf 'before\\n'; exit 7", description: "Write output then exit 7" },
+    },
+    {
       label: "timeout-1s",
       args: { command: "sleep 5", timeout: 1000, description: "Sleep longer than timeout" },
     },

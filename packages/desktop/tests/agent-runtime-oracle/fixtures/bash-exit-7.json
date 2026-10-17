@@ -1,0 +1,653 @@
+{
+  "case": "bash-exit-7",
+  "prompt": "用 Bash 执行 exit 7，然后说明结果。",
+  "seed": {},
+  "script": [
+    {
+      "toolCalls": [
+        {
+          "name": "Bash",
+          "input": {
+            "command": "exit 7",
+            "description": "Exit with code 7"
+          }
+        }
+      ]
+    },
+    {
+      "text": "退出码是 7。"
+    }
+  ],
+  "expect": {
+    "toolCalls": [
+      {
+        "name": "Bash",
+        "input": {
+          "command": "exit 7",
+          "description": "Exit with code 7"
+        },
+        "ok": true,
+        "output": "Exit code 7"
+      }
+    ],
+    "files": {},
+    "events": [
+      {
+        "type": "session.titleUpdated",
+        "payload": {
+          "previousTitle": "",
+          "source": "first_input",
+          "title": "用 Bash 执行 exit 7，然后说明结果。"
+        }
+      },
+      {
+        "type": "turn.started",
+        "payload": {
+          "executionStartedAt": "<time>",
+          "turnNumber": 0,
+          "input": "用 Bash 执行 exit 7，然后说明结果。",
+          "messageId": "<id>",
+          "foregroundExecutionId": "<id>",
+          "queryId": "<id>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 6,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 0
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_start",
+          "toolCallId": "<id>",
+          "toolName": "Bash"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "{\"command\":\"exit 7\",\"description\":\"Exit with code 7\"}",
+          "done": false,
+          "kind": "tool_input_delta",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "kind": "tool_input_end",
+          "toolCallId": "<id>"
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "",
+          "done": false,
+          "input": {
+            "command": "exit 7",
+            "description": "Exit with code 7"
+          },
+          "kind": "tool_call",
+          "toolCallId": "<id>",
+          "toolName": "Bash"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 0
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "tool-calls",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 20,
+            "totalTokens": 30,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 1,
+            "totalInputTokens": 10,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 1
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "assistantMessageId": "<id>",
+          "toolName": "Bash",
+          "dependencies": [],
+          "parallelGroupIndex": 0,
+          "canRunParallel": false,
+          "schedule": {
+            "parallelGroups": [
+              [
+                "<id>"
+              ]
+            ],
+            "executionOrder": [
+              "<id>"
+            ]
+          },
+          "kind": "scheduled",
+          "inputByteLength": 53,
+          "inputOmitted": true,
+          "inputRef": "model_stream"
+        }
+      },
+      {
+        "type": "permission.requested",
+        "payload": {
+          "requestId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Bash",
+          "riskLevel": "high",
+          "reason": "High risk tools require explicit approval",
+          "input": {
+            "command": "exit 7",
+            "description": "Exit with code 7"
+          },
+          "suggestedPermissionUpdates": [
+            {
+              "behavior": "allow",
+              "rules": [
+                {
+                  "ruleContent": "exit 7",
+                  "toolName": "Bash"
+                }
+              ],
+              "type": "addRules"
+            }
+          ],
+          "fullAccessSupported": true,
+          "options": [
+            {
+              "kind": "allow_once",
+              "name": "Allow once",
+              "optionId": "allow_once",
+              "response": {
+                "decision": "allow",
+                "reason": "Approved once"
+              }
+            },
+            {
+              "description": "Do not ask again for matching requests in this project",
+              "kind": "allow_always",
+              "name": "Always allow in this project",
+              "optionId": "allow_project",
+              "response": {
+                "decision": "allow",
+                "permissionUpdates": [
+                  {
+                    "behavior": "allow",
+                    "rules": [
+                      {
+                        "ruleContent": "exit 7",
+                        "toolName": "Bash"
+                      }
+                    ],
+                    "type": "addRules"
+                  }
+                ],
+                "reason": "Approved for this project"
+              }
+            },
+            {
+              "kind": "deny",
+              "name": "Deny",
+              "optionId": "deny",
+              "response": {
+                "decision": "deny",
+                "reason": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed."
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "permission.resolved",
+        "payload": {
+          "requestId": "<id>",
+          "toolCallId": "<id>",
+          "decision": "allow"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "toolName": "Bash",
+          "startedAt": "<time>",
+          "readOnly": false,
+          "sideEffectScope": "system",
+          "kind": "started"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallId": "<id>",
+          "result": {
+            "success": true,
+            "content": "Exit code 7",
+            "perf": {
+              "totalMs": "<time>",
+              "permissionWaitMs": "<time>",
+              "detail": {
+                "kind": "command",
+                "command": {
+                  "runMs": "<time>",
+                  "noOutputMs": "<time>",
+                  "exitCode": 7,
+                  "timedOut": false,
+                  "outputBytes": 0,
+                  "category": "other",
+                  "count": 1,
+                  "name": "other",
+                  "status": "failed",
+                  "hash": "1ec64da5b9a0961b"
+                }
+              }
+            },
+            "truncated": false,
+            "originalBytes": 11,
+            "returnedBytes": 11,
+            "budgetStrategy": "artifact"
+          },
+          "duration": "<time>",
+          "kind": "result"
+        }
+      },
+      {
+        "type": "tool.updated",
+        "payload": {
+          "toolCallIds": "<ids>",
+          "successCount": 1,
+          "errorCount": 0,
+          "kind": "batch"
+        }
+      },
+      {
+        "type": "streamRecovery.updated",
+        "payload": {
+          "anchorId": "<id>",
+          "attemptId": "<id>",
+          "kind": "tool_result",
+          "assistantMessageId": "<id>",
+          "toolCallId": "<id>",
+          "toolName": "Bash",
+          "resultPartId": "<id>",
+          "committedToolCallIds": "<ids>",
+          "committedAt": "<time>"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "timestamp": "<time>",
+          "type": "model_request_started",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "messageCount": 8,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "toolCount": "<count>",
+          "iteration": 1
+        }
+      },
+      {
+        "type": "model.streaming",
+        "payload": {
+          "assistantMessageId": "<id>",
+          "delta": "退出码是 7。",
+          "done": false,
+          "kind": "text_delta"
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "baseURL": "<loopback-url>",
+          "maxAttempts": 11,
+          "providerId": "oracle-mock",
+          "modelId": "mock-1",
+          "modelRequestSessionType": "main",
+          "requestId": "<id>",
+          "sessionId": "<id>",
+          "spanId": "<id>",
+          "parentSpanId": "<id>",
+          "querySource": "main_turn",
+          "queryId": "<id>",
+          "traceId": "<id>",
+          "providerKind": "anthropic",
+          "transport": "sse",
+          "turnId": "<id>",
+          "modelCall": {
+            "operation": "agent_step",
+            "actorKind": "main",
+            "operationId": "<id>",
+            "reasoning": {
+              "capability": "unknown",
+              "requestedControl": "provider_default",
+              "requestedState": "provider_default",
+              "requestedLevel": "disabled",
+              "effectiveControl": "unknown",
+              "effectiveState": "unknown",
+              "effectiveLevel": "unknown"
+            },
+            "logicalCallId": "<id>",
+            "stepIndex": 1
+          },
+          "attempt": 1,
+          "durationMs": "<time>",
+          "requestHeaderCount": 16,
+          "requestHeaders": "<headers>",
+          "responseHeaderCount": 5,
+          "responseHeaders": "<headers>",
+          "finishReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "timeToFirstProviderEventMs": "<time>",
+          "timeToFirstContentMs": "<time>",
+          "timeToFirstTextMs": "<time>",
+          "streamStallCount": 0,
+          "streamOutputCommitted": true,
+          "timestamp": "<time>",
+          "type": "model_request_completed",
+          "_meta": {
+            "mode": {
+              "apiRetry": null
+            }
+          }
+        }
+      },
+      {
+        "type": "session.updated",
+        "payload": {
+          "content": "退出码是 7。",
+          "contextWindow": 200000,
+          "querySource": "main_turn",
+          "stopReason": "stop",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "totalTokens": 22,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0
+          },
+          "cacheHit": {
+            "inputTokens": 10,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "latestHitRate": 0,
+            "hitRate": 0,
+            "hitRateRequestCount": 2,
+            "totalInputTokens": 20,
+            "totalCacheReadTokens": 0,
+            "totalCacheWriteTokens": 0
+          },
+          "contextUsageBreakdown": [
+            {
+              "source": "system_prompt",
+              "chars": "<count>"
+            },
+            {
+              "source": "meta_user_context",
+              "chars": "<count>"
+            },
+            {
+              "source": "skills",
+              "chars": "<count>"
+            },
+            {
+              "source": "system_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "mcp_tool_schemas",
+              "chars": "<count>"
+            },
+            {
+              "source": "messages",
+              "chars": "<count>"
+            }
+          ],
+          "toolCallCount": 0
+        }
+      },
+      {
+        "type": "turn.completed",
+        "payload": {
+          "response": "退出码是 7。",
+          "tokenCount": 52,
+          "usage": {
+            "source": "provider",
+            "modelRequestCount": 2,
+            "inputTokens": 20,
+            "outputTokens": 32,
+            "totalTokens": 52,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 0,
+            "webFetchRequests": 0,
+            "webSearchRequests": 0
+          },
+          "toolCallCount": 1,
+          "historyRoundCount": 2,
+          "duration": "<time>",
+          "resultType": "success",
+          "cacheStats": {
+            "totalMessages": 9,
+            "cachedMessages": 5,
+            "lastCacheHit": false
+          }
+        }
+      }
+    ]
+  }
+}

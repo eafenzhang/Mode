@@ -177,6 +177,7 @@ Rust 侧用例**不实现第二份比较器**——它把自身投影成同一�
 | id（值） | 字符串里出现的 **uuid** 换成 `<id>`（一段文本里可能有多处，全部替换） | 同一个 id 会平铺在非 id 键的正文里（如 `anchorId` 形如 `msg_xxx_<uuid>:toolu_x:tool-result`）。uuid 形状是唯一可靠、不会误伤正文的判据 |
 | 时间 | 键名匹配 `^(timestamp\|duration\|date\|elapsedMs\|.*At\|.*Ms)$` 的值（数值**或** ISO 串）替换为 `<time>` | 时钟必然不同：`startedAt`/`committedAt`/`timestamp` 是 ISO 串，`durationMs`/`timeToFirstTextMs` 是数值，`date` 是 HTTP 响应头的当前时刻 |
 | 端口 | 形如 `http://127.0.0.1:<port>` / `ws://localhost:<port>` 的串替换为 `<loopback-url>` | mock provider 端口是 `listen(0)` 取的临时端口 |
+| shell 诊断前缀 | 行首的 `bash: line N:` / `/usr/bin/bash: line N:` / `C:\…\bash.exe: line N:` 折成 `<shell>: line <n>:` | 前缀里的 argv[0] 与行号取决于**怎么启动 bash**（PATH 上的 `bash`、Git Bash 的绝对路径、`-lc` 的包装行数），不是工具行为。正文其余部分（含 `command not found` 的完整句子）仍逐字比。〔Task 4 追加：`bash.rs` 走 PATH/Git Bash，oracle 走 `/usr/bin/bash`，不折这条 `bash-command-not-found` 夹具必红〕 |
 | 进程内路径 | 出现隔离根 / 工作目录 / 系统临时目录的前缀替换为 `<data-root>` / `<cwd>` / `<tmp>`；**单反斜杠与 JSON 转义的双反斜杠两种形态都要换** | 每次运行都是新的 mkdtemp 目录；`model.streaming` 的 `delta` 是工具入参的 JSON 文本，里面的路径是双反斜杠 |
 | 无序组①：状态推送 | 连续同类型且类型属于 `UNORDERED_EVENT_TYPES`（当前只有 `session.updated`）的一段，折叠成按稳定 JSON 串排序的集合后再比 | 状态推送由不同子系统并发发出，相对顺序不是行为 |
 | 无序组②：**并行批次的完成事件** | 同一个 assistant 消息里的多个工具调用会被运行时并行执行；它们的 **完成类事件**（`tool.updated` 的 `result` / `error` / `batch`）到达顺序**不属于契约**。判定必须同时满足：该段是连续同类型 `tool.updated`、**整段都是完成类事件**、且涉及 **≥2 个不同 `toolCallId``**；满足则折叠成排序后的集合。 | 谁先跑完是竞态。**只**豁免这一种情形：调度顺序（`scheduled`）与单次调用内部的 `result`/`batch` 先后仍逐字比——它们才是行为。排序键必须用**规范化后**的 payload，否则键里带随机 id，两次运行的排序结果会不同 |
