@@ -367,7 +367,7 @@ b
 
 ### 3.4 `Bash` 与取消（Task 4 Step 0 观察，2026-10-17）
 
-出处：`probe-bash.mts`（7 组）与 `probe-bash-cancel.mts`（运行中取消）。
+出处：`probe-bash.mts`（20+ 组）与 `probe-bash-cancel.mts`（运行中取消）。
 
 **输入与输出（逐字）**
 
@@ -376,6 +376,9 @@ b
 | `printf 'hello\nworld\n'` | `success=true`，`content: "hello\nworld"`（**末尾换行被去掉**） |
 | `exit 7` | **`success=true`**，`content: "Exit code 7"`（非零退出不是工具错误） |
 | `printf 'oops\n' >&2` | `success=true`，`content: "oops"`（**stderr 合并进 content**） |
+| `printf 'out1\n'; printf 'err1\n' >&2; printf 'out2\n'` | `content: "out1\nerr1\nout2"`（**按到达顺序交错**，不是先 stdout 后 stderr） |
+| `printf 'a\n\n\n'` / `printf 'a   \n'` | 都是 `content: "a"`（**`trim_end`：连尾随空格一起去掉**） |
+| `true` | `content: "(Bash completed with no output)"`（31 字节） |
 | `pwd` | `/c/Users/…`（**Git Bash / MSYS 路径**） |
 | `[ -t 1 ]` / `[ -t 0 ]` | `stdout:pipe stdin:pipe`（**不是 pty**，用管道） |
 | 不存在的命令 | `success=true`，`content: "Exit code 127\n/usr/bin/bash: line 3: …: command not found"` |
@@ -384,8 +387,8 @@ b
 
 **大输出（持久化包装）**
 
-- 4K / 8K / 16K / 20K / 24K / 28K 字节：内容是原文，`contentLength` 等于原始字节数。
-- 32K 及以上：工具结果是**包装**而不是原文（观察值约 2,251–2,254 字节）：
+- 4K / 8K / 16K / 20K / 24K / 28K / **30,000** 字节：内容是原文，`contentLength` 等于原始字节数。
+- **30,720** 字节及以上：工具结果是**包装**而不是原文（观察值约 2,251–2,254 字节）：
 
 ```text
 <persisted-output>
@@ -399,7 +402,7 @@ Preview (first 2KB):
 
 - 关键口径：`result.originalBytes` / `returnedBytes` 指的是**包装**（约 2.2KB），**不是**命令输出；
   `truncated=false`、`budgetStrategy=artifact`。完整输出落在上面的 `-stdout.log` 文件里。
-- 阈值在 **28,672 与 32,768 字节之间**（本次只钉到区间，精确字节未测）。
+- 阈值在 **30,000 与 30,720 字节之间**（30,000 直出、30,720 持久化；精确边界未测）。
 
 **取消（`probe-bash-cancel.mts`，运行中的 `sleep 30`）**
 

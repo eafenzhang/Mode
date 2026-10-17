@@ -38,6 +38,9 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-bash.mts
 | 不存在的命令 | `success=true`，`content: "Exit code 127\n/usr/bin/bash: line 3: …: command not found"` |
 | `sleep 5` + `timeout: 1000` | `success=true`，`content: "Command timed out after 1s\n<error>Command was aborted before completion</error>"` |
 | `{}`（缺 `command`） | `success=false`，`type=tool_execution_failed`，`message=Tool input failed inputSchema validation` |
+| stdout/stderr 交错 | `out1\nerr1\nout2`（**按到达顺序**合并，不是先 stdout 后 stderr） |
+| 尾随空白 | `a\n\n\n` 与 `a   \n` 都变成 `a`（**`trim_end`**） |
+| 空输出 | `(Bash completed with no output)` |
 
 声明面（`probe-write.mts surface`）：`Bash` 的 `input_schema` 为
 `{command: string(必填), timeout?: number(max 600000), description?: string,
@@ -61,11 +64,11 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 
 | 输入字节 | 结果 |
 | --- | --- |
-| 4K / 8K / 16K / 20K / 24K / 28K | 原文直出，`contentLength` = 原始字节数 |
-| 32K 及以上 | `<persisted-output>` 包装（约 2.2KB），完整输出落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log` |
+| 4K / 8K / 16K / 20K / 24K / 28K / 30,000 | 原文直出，`contentLength` = 原始字节数 |
+| 30,720 及以上 | `<persisted-output>` 包装（约 2.2KB），完整输出落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log` |
 
 包装的 `originalBytes`/`returnedBytes` 指的是**包装**而不是命令输出；`truncated=false`、
-`budgetStrategy=artifact`。阈值只钉到 **28,672–32,768 字节**区间，精确字节未测。
+`budgetStrategy=artifact`。阈值钉到 **30,000–30,720 字节**区间，精确字节未测。
 
 **并发输入（`probe-bash-admission.mts`）**
 
@@ -85,7 +88,7 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 
 1. **取消后的孙进程清理**：超时路径已观察（父 shell 被 abort，子进程 1s/2s 后仍 `alive`，
    即**不清理**）；取消路径尚未做同样的检查。
-2. **大输出阈值的精确字节**：已确认 28,672 直出、32,768 持久化，精确边界未测。
+2. **大输出阈值的精确字节**：已确认 30,000 直出、30,720 持久化，精确边界未测。
 4. **`run_in_background` / `TaskOutput` / `TaskStop`**：未测。它会影响「一个 turn 何时结束」，
    必须决定本轮做还是拆出去。
 5. **host 层 `CommandInbox` 的排队顺序与 key 粒度**：stdio 会话面只观察到拒绝（`-32010`），
@@ -129,8 +132,9 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 
 ### DR-T4-4：输出规范化
 
-已观察：stderr 合并、末尾换行去掉。实现里把「合并 + trim 末尾换行」做成**纯函数**并单测，
-避免与 oracle 的差异散落在进程处理代码里。
+已观察：stderr 与 stdout **按到达顺序交错**合并（不是先 stdout 后 stderr），随后 `trim_end`
+（尾随换行与空格都去掉）；无输出时是 `(Bash completed with no output)`。实现里把
+「合并 + trim_end + 空输出文案」做成**纯函数**并单测，避免差异散落在进程处理代码里。
 
 ### DR-T4-5：`run_in_background` 与 `TaskOutput` / `TaskStop` 的归属
 
@@ -187,7 +191,7 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - [x] 探 stdin/stdout 是否 TTY：`stdout:pipe stdin:pipe` → **不引入 `portable-pty`**（DR-T4-1 改判）。
 - [x] 探超时后的进程清理：父 shell abort 后，`sleep` 子进程 1s/2s 后仍 `alive`（**不清理孙进程**）；
       取消路径未测。
-- [x] 探大输出：4K–28K 直出、32K 起持久化包装；阈值钉到 28,672–32,768 区间，
+- [x] 探大输出：4K–30,000 直出、30,720 起持久化包装；阈值钉到 30,000–30,720 区间，
       artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
       精确字节与 pty vs pipe 仍未观察。
 - [ ] 探 `run_in_background` 的返回与后续事件。

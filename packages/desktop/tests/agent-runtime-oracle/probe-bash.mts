@@ -40,6 +40,31 @@ const count = await runGroup({
       args: {},
     },
     {
+      label: "mixed-streams",
+      args: {
+        command: "printf 'out1\\n'; printf 'err1\\n' >&2; printf 'out2\\n'",
+        description: "Interleave stdout and stderr",
+      },
+    },
+    {
+      label: "trailing-newlines",
+      args: {
+        command: "printf 'a\\n\\n\\n'",
+        description: "Write trailing newlines",
+      },
+    },
+    {
+      label: "trailing-spaces",
+      args: {
+        command: "printf 'a   \\n'",
+        description: "Write trailing spaces",
+      },
+    },
+    {
+      label: "empty-output",
+      args: { command: "true", description: "Exit successfully with no output" },
+    },
+    {
       label: "is-tty",
       args: {
         command:
@@ -112,6 +137,20 @@ const count = await runGroup({
       args: {
         command: "head -c 28672 /dev/zero | tr '\\0' 'k'",
         description: "Write 28672 bytes to stdout",
+      },
+    },
+    {
+      label: "large-output-30000",
+      args: {
+        command: "head -c 30000 /dev/zero | tr '\\0' 'l'",
+        description: "Write 30000 bytes to stdout",
+      },
+    },
+    {
+      label: "large-output-30720",
+      args: {
+        command: "head -c 30720 /dev/zero | tr '\\0' 'm'",
+        description: "Write 30720 bytes to stdout",
       },
     },
     {
