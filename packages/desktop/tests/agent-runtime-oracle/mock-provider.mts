@@ -20,8 +20,15 @@ export const ORACLE_MOCK_PROVIDER_ID = "oracle-mock";
 export const ORACLE_MOCK_MODEL_ID = "mock-1";
 
 export type MockToolCall = { name: string; input: Record<string, unknown> };
-/** 剧本一步：要么出工具调用，要么出终结文本。 */
-export type MockStep = { toolCalls: MockToolCall[] } | { text: string };
+/** 真正写进 SSE 的一步：要么出工具调用，要么出终结文本。 */
+export type MockStepBody = { toolCalls: MockToolCall[] } | { text: string };
+/**
+ * 剧本一步：静态正文，或由**请求内容**决定正文的纯函数。
+ *
+ * 后者的存在理由：有些工具的参数只有在运行时才产生（例如后台任务的 `task_id`），
+ * 静态剧本写不出来。函数仍满足「同输入得同输出」的确定性口径（spec §4.3）。
+ */
+export type MockStep = MockStepBody | ((body: AnthropicBody) => MockStepBody);
 
 export type MockProvider = {
   /** 形如 `http://127.0.0.1:<port>`，运行时据此拼 `/v1/messages`。 */
@@ -34,7 +41,7 @@ export type MockProvider = {
 type AnthropicBody = {
   stream?: boolean;
   tools?: unknown[];
-  messages?: { role?: string }[];
+  messages?: { role?: string; content?: unknown }[];
 };
 
 /** 剧本下标：请求里已完成的 assistant 轮数。纯函数，重试幂等。 */
@@ -54,7 +61,7 @@ function sse(res: import("node:http").ServerResponse, event: string, data: unkno
 
 function writeSseResponse(
   res: import("node:http").ServerResponse,
-  step: MockStep,
+  step: MockStepBody,
   index: number,
 ): void {
   res.writeHead(200, {
@@ -177,7 +184,8 @@ export async function startMockProvider(
         return;
       }
       const index = scriptIndexForRequest(parsed);
-      const step = script[Math.min(index, script.length - 1)];
+      const entry = script[Math.min(index, script.length - 1)];
+      const step = typeof entry === "function" ? entry(parsed) : entry;
       if (!step) {
         // 剧本为空是调用方的错（夹具必须给剧本），显式失败而不是回一个空事件流。
         response.writeHead(500, { "content-type": "application/json" });

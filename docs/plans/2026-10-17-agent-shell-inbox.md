@@ -86,14 +86,15 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 
 阶段计划要求对拍覆盖「超时、取消、退出码」，目前拿到退出码、超时与取消，以下仍只有表象：
 
-1. **取消后的孙进程清理**：超时路径已观察（父 shell 被 abort，子进程 1s/2s 后仍 `alive`，
-   即**不清理**）；取消路径尚未做同样的检查。
-2. **大输出阈值的精确字节**：已确认 30,000 直出、30,720 持久化，精确边界未测。
-4. **`run_in_background`（2026-10-18 已观察返回与后续事件**，见 spec §3.4）：立即返回 task id 与
-   artifact 路径，命令结束后**自动起一个新 turn** 并注入 `<task-notification>`。
-   `TaskOutput` / `TaskStop` 仍未测。
-5. **host 层 `CommandInbox` 的排队顺序与 key 粒度**：stdio 会话面只观察到拒绝（`-32010`），
+1. **大输出阈值的精确字节**：已确认 30,000 直出、30,720 持久化，精确边界未测。
+2. **host 层 `CommandInbox` 的排队顺序与 key 粒度**：stdio 会话面只观察到拒绝（`-32010`），
    排队层在它之上；需要新的观察路径或分层裁决（DR-T4-7）。
+
+以下曾列为未知，2026-10-18 已补齐（结论见 spec §3.4）：
+
+- 取消后的孙进程清理：与超时一致，**不清理**；
+- `run_in_background`：立即返回 task id/artifact 路径，完成时自动起通知 turn；
+- `TaskOutput` / `TaskStop`：声明面、成功文案、错误码与 TaskStop 的 `killed` 通知均已录。
 
 **Step 0 的产物**：`docs/specs/tauri-agent-runtime.md` §3.4（逐字观察）+ 扩展后的探针，
 以及把这些未知逐条写成「已观察 / 未观察」。
@@ -154,7 +155,13 @@ Step 0 观察它的返回形状后二选一：
 
 **2026-10-18 观察确认**：后台完成不是单发通知帧，而是**自动开一个新 turn**（`turn.started`
 的 `input` 是 `<task-notification>` XML），确实需要独立任务注册表 + 跨 turn 唤醒——
-Task 4b 保持独立；`TaskOutput` / `TaskStop` 仍未观察，实现前必须先补。
+Task 4b 保持独立。同日 `TaskOutput` / `TaskStop` 的声明面、成功/错误形状与 `killed` 通知
+也已补齐（`probe-task-control.mts`），Task 4b 的三个工具面**均已可观察**，可以开工。
+
+**Task 4b 的新依赖（2026-10-18 观察后）**：完成通知会**新开 turn**，而当前
+`agent_core::Session` 只有单 turn 内的 `run_tool_batch`，没有跨 turn 调度。因此 Task 4b 的
+「通知注入」必须等 Task 5 的会话循环（或先把 turn 调度抽出来）；可先独立落地的是
+**任务注册表 + `TaskOutput` / `TaskStop` 工具面**（用已录文案对拍），通知注入按 Task 5 接线。
 
 ### DR-T4-6：取消 = `session/stop` → 工具错误 + `turn.completed(cancelled)`
 
@@ -208,6 +215,9 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
       立即成功返回 task id + `artifactPath`；结束时自动起新 turn 注入 `<task-notification>`
       （`completed (exit code 0)` / `failed with exit code 7` 两种文案已录）；多任务按完成顺序
       各起一个 turn；stdout/stderr 合并落 `<toolCallId>-stdout.log` 且**不做尾随 trim**。
+- [x] 探 `TaskOutput` / `TaskStop`（2026-10-18，`probe-task-control.mts`）：声明面（含
+      `block`/`timeout` 默认值）、成功文案（TaskOutput 的 XML、TaskStop 的 JSON 字符串）、
+      不存在的 id 的两种错误码、TaskStop 的 `cancelled` 状态与 `killed` 通知。
 - [x] 探并发 `session/send`：第二条被拒绝（`-32010`），不是排队；host 层队列见 DR-T4-7。
 - [x] 结论写进 spec §3.4（已观察部分）；剩余未知已逐条列出。
 
@@ -308,3 +318,13 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
   顺序。`TaskOutput` / `TaskStop` 仍未观察，**Task 4b 不在本轮实现**。
 - 同时补测取消后的孙进程清理：`probe-bash-cancel.mts` 现在等 `child.pid` 落盘后再取消，
   孙进程 +0/+1s/+2s 均 `alive`——取消与超时一样**不清理**孙进程，已写进 spec §3.4。
+
+### 2026-10-18 巡检轮（第三次）：`TaskOutput` / `TaskStop` 观察
+
+- 新增探针 `packages/desktop/tests/agent-runtime-oracle/probe-task-control.mts`，复现命令：
+  `pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-task-control.mts`。
+- `mock-provider` 的剧本步骤新增函数形态（由请求内容决定工具调用），仅用于运行时才产生的参数
+  （如 `task_id`），仍满足 spec §4.3 的确定性口径。
+- 结论写入 spec §3.4：TaskOutput 的 XML 结果与 `artifact` 预算、TaskStop 的 JSON 字符串结果与
+  `cancelled` 状态、两种 `No task found with ID` 错误码、TaskStop 后的 `killed` 通知。
+- 剩余未知只有：大输出阈值精确字节、host 层 `CommandInbox`（DR-T4-7 待裁决）。

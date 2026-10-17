@@ -485,8 +485,53 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
   未提供时的文案**未观察**。
 - 旁证：数据根下同时出现 `.mode/cli/exec/shell-snapshots/…` 的 shell 快照文件（运行时既有行为）。
 
+**`TaskOutput` / `TaskStop`（`probe-task-control.mts`，2026-10-18）**
+
+声明面（逐字取自请求体）：
+
+| 工具 | input schema 要点 |
+| --- | --- |
+| `TaskOutput` | `task_id`（string）、`block`（boolean，default `true`）、`timeout`（number，0–600000，default `30000`）；`required` 列出三项，但**只传 `task_id` 也能通过校验**（有默认值的字段可省略） |
+| `TaskStop` | `task_id`（string）、`shell_id`（string，标 deprecated）；无 `required` |
+
+- `TaskOutput` 的成功结果是 **XML 形状**（`status:"completed"` 时）：
+
+```text
+<retrieval_status>success</retrieval_status>
+
+<task_id>exec_<uuid></task_id>
+
+<task_type>local_bash</task_type>
+
+<status>completed</status>
+
+<exit_code>0</exit_code>
+
+<output>
+<命令输出原文，保留换行>
+</output>
+```
+
+  `display = {kind:"task_output", retrievalStatus:"success", taskStatus:"completed", output:"<同 output>"}`；
+  `budgetStrategy:"artifact"`、`truncated:false`，两个字节数 = 结果正文的 UTF-8 长度（实测 232）。
+- `TaskStop` 的成功结果正文是 **JSON 字符串**（不是 XML）：
+
+```json
+{"message":"Successfully stopped task: exec_<uuid> (sleep 30)","task_id":"exec_<uuid>","task_type":"local_bash","command":"sleep 30"}
+```
+
+  `display = {kind:"task_stop", taskId, taskType, command, message}`；`budgetStrategy:"truncate"`（193 字节）。
+  `started` 载荷是 `readOnly:false` / `sideEffectScope:"session"`。
+- **不存在的 id**：两者都是 `tool_execution_failed`，message 同为
+  `No task found with ID: <id>`；但 `code` 不同——`TaskOutput` 是 `"2"`（detail `code=2`），
+  `TaskStop` 是 `TOOL_EXECUTION_FAILED`（detail `code=1 reason=background_task_not_found`）。
+- **TaskStop 的连带副作用**：先 `session.updated` 把任务从 `running`（带 `cancelRequestedAt`）
+  改成 `cancelled`（带 `completedAt` / `outputBytes` / `stdoutBytes` / `stderrBytes`）；随后仍注入
+  一个 `<task-notification>` turn：`<status>killed</status>`、
+  `<summary>Background command "<description>" was stopped</summary>`。
+
 **仍未观察（Step 0 剩余）**：大输出阈值的精确字节（只钉到 **30,000–30,720** 区间）；
-`TaskOutput` / `TaskStop`；host 层 `CommandInbox` 的排队顺序与 key 粒度。
+host 层 `CommandInbox` 的排队顺序与 key 粒度。
 
 ## 4. 对拍可重复性：mock provider
 
