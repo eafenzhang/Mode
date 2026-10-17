@@ -25,7 +25,8 @@ export type BrowserImportChannelErrorCode =
   | "channel_token_mismatch"
   | "payload_too_large"
   | "invalid_payload"
-  | "cookie_write_failed";
+  | "cookie_write_failed"
+  | "extension_missing";
 
 export interface BrowserImportChannelLogger {
   info: (...args: unknown[]) => void;
@@ -40,6 +41,8 @@ export interface BrowserImportChannelOptions {
    * 写入失败、TTL 到期）。调用方据此快速失败，而不是等满超时。
    */
   onError?: (code: BrowserImportChannelErrorCode) => void;
+  /** 扩展 popup 在未完成导入时关闭（Native host 转发 cancel）。 */
+  onCancel?: () => void;
   /** 测试/诊断可覆盖 channel.json 路径。 */
   channelPath?: string;
   /** 默认 60s；规格上限也是 60s。 */
@@ -84,7 +87,9 @@ export async function createBrowserImportChannel(
   );
 
   const sockets = new Set<Socket>();
+  let sawConnection = false;
   const server = createServer((socket) => {
+    sawConnection = true;
     sockets.add(socket);
     socket.once("close", () => sockets.delete(socket));
     // 客户端（native host）异常退出会产生 error 事件；没有监听器时 Node 会把它升级为
@@ -115,8 +120,8 @@ export async function createBrowserImportChannel(
     await rm(channelPath, { force: true });
   };
   const timer = setTimeout(() => {
-    // TTL 到期说明用户没有在窗口期内完成点击；先通知调用方再关闭。
-    options.onError?.("channel_timeout");
+    // 没有任何客户端连接时，更可能是扩展未安装/未启用；连接过但迟迟没有合法帧才是通道超时。
+    options.onError?.(sawConnection ? "channel_timeout" : "extension_missing");
     void close();
   }, ttlMs);
   timer.unref?.();
@@ -187,6 +192,12 @@ async function handleConnection(
         options.onError?.(payload.error);
         writeFrame(socket, { ok: false, error: payload.error });
       }
+      return;
+    }
+    if (payload.value.v === 1 && payload.value.kind === "cancel") {
+      options.logger?.info("[browser-import] import cancelled by extension");
+      options.onCancel?.();
+      writeFrame(socket, { ok: true });
       return;
     }
     const cookies = validateCookies(payload.value);

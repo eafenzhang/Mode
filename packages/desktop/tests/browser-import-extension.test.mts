@@ -16,6 +16,7 @@ import {
 
 const isWindows = process.platform === "win32";
 const log = { info: () => undefined, warn: () => undefined };
+const nativeHostProbe = async () => true;
 
 function frame(value: unknown): Buffer {
   const payload = Buffer.from(JSON.stringify(value), "utf8");
@@ -131,6 +132,7 @@ test("extension import writes cookies and flushes", { skip: !isWindows }, async 
   const pending = importCookiesFromExtension({
     targetSession,
     logger: log,
+    nativeHostProbe,
     channelPath,
     timeoutMs: 5000,
   });
@@ -173,6 +175,7 @@ test("extension import times out without a client", { skip: !isWindows }, async 
   const result = await importCookiesFromExtension({
     targetSession: { cookies: { set: async () => undefined, flushStore: async () => undefined } },
     logger: log,
+    nativeHostProbe,
     channelPath: join(dir, "channel.json"),
     timeoutMs: 100,
   });
@@ -187,6 +190,7 @@ test("wrong token fails fast with channel_token_mismatch", { skip: !isWindows },
   const pending = importCookiesFromExtension({
     targetSession: { cookies: { set: async () => undefined, flushStore: async () => undefined } },
     logger: log,
+    nativeHostProbe,
     channelPath,
     timeoutMs: 5000,
   });
@@ -220,6 +224,7 @@ test("invalid payload fails fast without writing", { skip: !isWindows }, async (
       },
     },
     logger: log,
+    nativeHostProbe,
     channelPath,
     timeoutMs: 5000,
   });
@@ -251,6 +256,7 @@ test("quitting closes waiting channels and removes channel.json", { skip: !isWin
   const pending = importCookiesFromExtension({
     targetSession: { cookies: { set: async () => undefined, flushStore: async () => undefined } },
     logger: log,
+    nativeHostProbe,
     channelPath,
     timeoutMs: 300,
   });
@@ -264,4 +270,59 @@ test("quitting closes waiting channels and removes channel.json", { skip: !isWin
     await pending.catch(() => undefined);
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("extension cancel resolves as import_cancelled", { skip: !isWindows }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mode-import-ext-"));
+  const channelPath = join(dir, "channel.json");
+  let writes = 0;
+  const pending = importCookiesFromExtension({
+    targetSession: {
+      cookies: {
+        set: async () => {
+          writes += 1;
+        },
+        flushStore: async () => undefined,
+      },
+    },
+    logger: log,
+    nativeHostProbe,
+    channelPath,
+    timeoutMs: 5000,
+  });
+  try {
+    await waitForFile(channelPath);
+    const info = JSON.parse(await readFile(channelPath, "utf8")) as {
+      pipe: string;
+      token: string;
+    };
+    const socket = await connected(info.pipe);
+    const incoming = reader(socket);
+    socket.write(frame({ v: 1, kind: "hello", token: info.token }));
+    assert.deepEqual(await incoming.next(), { ok: true });
+    socket.write(frame({ v: 1, kind: "cancel" }));
+    assert.deepEqual(await incoming.next(), { ok: true });
+    const result = await pending;
+    assert.equal(result.error, "import_cancelled");
+    assert.equal(writes, 0);
+    socket.destroy();
+  } finally {
+    await pending.catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("missing native host fails before opening a channel", { skip: !isWindows }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mode-import-ext-"));
+  const channelPath = join(dir, "channel.json");
+  const result = await importCookiesFromExtension({
+    targetSession: { cookies: { set: async () => undefined, flushStore: async () => undefined } },
+    logger: log,
+    nativeHostProbe: async () => false,
+    channelPath,
+    timeoutMs: 100,
+  });
+  assert.equal(result.error, "native_host_missing");
+  await assert.rejects(stat(channelPath));
+  await rm(dir, { recursive: true, force: true });
 });

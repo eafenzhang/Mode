@@ -76,14 +76,32 @@ fn validate_channel_info(info: &ChannelInfo, now: u64) -> Result<(), HostError> 
     Ok(())
 }
 
-/// 把已校验的 payload 交给 Mode main，返回 main 采纳的条数。
+/// 把已校验的 cookie payload 交给 Mode main，返回 main 采纳的条数。
 pub fn deliver(info: &ChannelInfo, payload: &[u8], timeout: Duration) -> Result<usize, HostError> {
+    let ack = deliver_raw(info, payload, timeout)?;
+    ack.get("count")
+        .and_then(Value::as_u64)
+        .map(|count| count as usize)
+        .ok_or(HostError::InvalidPayload("invalid_response"))
+}
+
+/// 把取消请求交给 Mode main；main 只需回 `ok`。
+pub fn deliver_cancel(
+    info: &ChannelInfo,
+    payload: &[u8],
+    timeout: Duration,
+) -> Result<(), HostError> {
+    let ack = deliver_raw(info, payload, timeout)?;
+    require_ok(ack)
+}
+
+fn deliver_raw(info: &ChannelInfo, payload: &[u8], timeout: Duration) -> Result<Value, HostError> {
     let stream = connect(&info.pipe)?;
     let owned_info = info.clone();
     let owned_payload = payload.to_vec();
     let (sender, receiver) = mpsc::channel();
     std::thread::spawn(move || {
-        let _ = sender.send(handshake(stream, &owned_info, &owned_payload));
+        let _ = sender.send(handshake_raw(stream, &owned_info, &owned_payload));
     });
     match receiver.recv_timeout(timeout) {
         Ok(result) => result,
@@ -106,12 +124,25 @@ fn connect(_pipe: &str) -> Result<std::fs::File, HostError> {
     Err(HostError::Channel("unsupported_platform"))
 }
 
-/// 握手 + 交付；抽成 `Read + Write` 便于单测用假流。
+/// 握手 + 交付 cookie payload；返回 main 采纳的条数。
 pub fn handshake<S: Read + Write>(
-    mut stream: S,
+    stream: S,
     info: &ChannelInfo,
     payload: &[u8],
 ) -> Result<usize, HostError> {
+    let ack = handshake_raw(stream, info, payload)?;
+    ack.get("count")
+        .and_then(Value::as_u64)
+        .map(|count| count as usize)
+        .ok_or(HostError::InvalidPayload("invalid_response"))
+}
+
+/// 握手 + 交付；返回 main 的完整 ack，供 cookie/cancel 两种语义共用。
+pub fn handshake_raw<S: Read + Write>(
+    mut stream: S,
+    info: &ChannelInfo,
+    payload: &[u8],
+) -> Result<Value, HostError> {
     let hello = serde_json::to_vec(&json!({
         "v": 1,
         "kind": "hello",
@@ -123,10 +154,7 @@ pub fn handshake<S: Read + Write>(
     write_message(&mut stream, payload)?;
     let ack = read_response(&mut stream)?;
     require_ok(ack.clone())?;
-    ack.get("count")
-        .and_then(Value::as_u64)
-        .map(|count| count as usize)
-        .ok_or(HostError::InvalidPayload("invalid_response"))
+    Ok(ack)
 }
 
 fn read_response<S: Read>(stream: &mut S) -> Result<Value, HostError> {
@@ -240,6 +268,27 @@ mod tests {
             serde_json::from_slice(&read_message(&mut requests).expect("hello")).expect("json");
         assert_eq!(hello["kind"], "hello");
         assert_eq!(hello["token"], info().token);
+        let sent = read_message(&mut requests).expect("payload");
+        assert_eq!(sent, payload);
+    }
+
+    #[test]
+    fn cancel_handshake_accepts_ack_without_count() {
+        let mut input = framed(json!({ "ok": true }));
+        input.extend(framed(json!({ "ok": true })));
+        let mut duplex = Duplex {
+            input: Cursor::new(input),
+            output: Vec::new(),
+        };
+        let payload = br#"{"v":1,"kind":"cancel"}"#.to_vec();
+        let ack = handshake_raw(&mut duplex, &info(), &payload).expect("handshake");
+        assert_eq!(ack["ok"], true);
+        assert!(ack.get("count").is_none());
+
+        let mut requests = Cursor::new(duplex.output);
+        let hello: Value =
+            serde_json::from_slice(&read_message(&mut requests).expect("hello")).expect("json");
+        assert_eq!(hello["kind"], "hello");
         let sent = read_message(&mut requests).expect("payload");
         assert_eq!(sent, payload);
     }

@@ -19,7 +19,8 @@ use serde_json::Value;
 
 pub mod channel;
 pub use channel::{
-    channel_path, deliver, handshake, load_channel_info, ChannelInfo, DEFAULT_HANDSHAKE_TIMEOUT,
+    channel_path, deliver, deliver_cancel, handshake, handshake_raw, load_channel_info,
+    ChannelInfo, DEFAULT_HANDSHAKE_TIMEOUT,
 };
 
 /// Chrome Native Messaging 的单条消息上限（1 MiB）。
@@ -123,6 +124,21 @@ pub struct CookieImportRequest {
     pub cookies: Vec<Cookie>,
 }
 
+/// 取消请求：扩展 popup 在未完成导入时关闭。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CancelRequest {
+    pub v: u32,
+    pub kind: String,
+}
+
+/// 一次 Native Messaging 请求。
+#[derive(Debug, Clone, PartialEq)]
+pub enum ImportRequest {
+    Cookies(CookieImportRequest),
+    Cancel,
+}
+
 /// 一条 cookie。字段名与 `chrome.cookies.Cookie` 的对外形状一致；只保留导入需要的字段。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -146,21 +162,38 @@ pub struct Cookie {
 const SAME_SITE_VALUES: [&str; 4] = ["no_restriction", "lax", "strict", "unspecified"];
 
 /// 校验并解析一条请求。
-pub fn parse_request(payload: &[u8]) -> Result<CookieImportRequest, HostError> {
-    let request: CookieImportRequest = serde_json::from_slice(payload)?;
-    if request.v != 1 {
-        return Err(HostError::InvalidPayload("unsupported_version"));
+pub fn parse_request(payload: &[u8]) -> Result<ImportRequest, HostError> {
+    #[derive(Deserialize)]
+    struct RawRequest {
+        v: u32,
+        kind: String,
     }
-    if request.kind != "cookies" {
-        return Err(HostError::InvalidPayload("unsupported_kind"));
+
+    // 先用最小形状拿版本与 kind：缺字段仍按 InvalidJson 处理，与既有错误语义一致。
+    let raw: RawRequest = serde_json::from_slice(payload)?;
+    match raw.kind.as_str() {
+        "cookies" => {
+            let request: CookieImportRequest = serde_json::from_slice(payload)?;
+            if request.v != 1 {
+                return Err(HostError::InvalidPayload("unsupported_version"));
+            }
+            if request.cookies.len() > MAX_COOKIES {
+                return Err(HostError::InvalidPayload("too_many_cookies"));
+            }
+            for cookie in &request.cookies {
+                validate_cookie(cookie)?;
+            }
+            Ok(ImportRequest::Cookies(request))
+        }
+        "cancel" => {
+            let _: CancelRequest = serde_json::from_slice(payload)?;
+            if raw.v != 1 {
+                return Err(HostError::InvalidPayload("unsupported_version"));
+            }
+            Ok(ImportRequest::Cancel)
+        }
+        _ => Err(HostError::InvalidPayload("unsupported_kind")),
     }
-    if request.cookies.len() > MAX_COOKIES {
-        return Err(HostError::InvalidPayload("too_many_cookies"));
-    }
-    for cookie in &request.cookies {
-        validate_cookie(cookie)?;
-    }
-    Ok(request)
 }
 
 fn validate_cookie(cookie: &Cookie) -> Result<(), HostError> {
@@ -239,9 +272,35 @@ mod tests {
         let mut reader = frame.as_slice();
         let payload = read_message(&mut reader).expect("read");
         let request = parse_request(&payload).expect("parse");
+        let ImportRequest::Cookies(request) = request else {
+            panic!("expected cookies request");
+        };
         assert_eq!(request.cookies.len(), 1);
         assert_eq!(request.cookies[0].name, "mode_test");
         assert_eq!(request.cookies[0].same_site.as_deref(), Some("lax"));
+    }
+
+    #[test]
+    fn cancel_request_is_accepted_without_cookies() {
+        let cancel = json!({ "v": 1, "kind": "cancel" });
+        assert!(matches!(
+            parse_request(&encoded(&cancel)),
+            Ok(ImportRequest::Cancel)
+        ));
+
+        let mut wrong_version = cancel.clone();
+        wrong_version["v"] = json!(2);
+        assert!(matches!(
+            parse_request(&encoded(&wrong_version)),
+            Err(HostError::InvalidPayload("unsupported_version"))
+        ));
+
+        let mut unknown = cancel;
+        unknown["extra"] = json!(true);
+        assert!(matches!(
+            parse_request(&encoded(&unknown)),
+            Err(HostError::InvalidJson(_))
+        ));
     }
 
     #[test]

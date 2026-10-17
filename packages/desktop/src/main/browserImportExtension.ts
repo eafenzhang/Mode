@@ -2,6 +2,8 @@
 //
 // 规格：`docs/specs/chrome-browser-import-extension.md` §3、§4.3、§5。
 // 与现有 app-bound helper 路径互斥：调用方在 `browserImportExtension` 为真时不再读 Chrome DB。
+import { readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
 import type { ChromeBrowserDataImportError } from "@mode/shared";
 
 import {
@@ -38,6 +40,8 @@ export interface BrowserImportExtensionOptions {
   /** 等待用户点击扩展的上限；默认 65s（通道自身 TTL 60s）。 */
   timeoutMs?: number;
   channelPath?: string;
+  /** 测试/诊断可覆盖 native host 预检。 */
+  nativeHostProbe?: () => Promise<boolean>;
 }
 
 export interface BrowserImportExtensionResult {
@@ -63,12 +67,50 @@ type ImportOutcome =
   | { status: "imported"; imported: number; skipped: number; failed: number }
   | { status: "failed"; error: ChromeBrowserDataImportError };
 
+/** 默认 Native host 清单路径（T5 注册脚本写入）。 */
+export function defaultNativeHostManifestPath(): string {
+  return join(
+    process.env.LOCALAPPDATA ?? process.env.TMP ?? process.cwd(),
+    "Mode",
+    "browser-import",
+    "native-host",
+    "com.mode.browser_import.json",
+  );
+}
+
+/**
+ * 预检 Native host：清单存在且 `path` 指向真实可执行文件。注册表指向别处时以清单为准
+ * （T5 的注册脚本总是把注册表只写到这份清单）。非 Windows 返回 true，避免影响其他平台。
+ */
+export async function checkNativeHostRegistered(
+  manifestPath = defaultNativeHostManifestPath(),
+): Promise<boolean> {
+  if (process.platform !== "win32") return true;
+  try {
+    const raw = await readFile(manifestPath, "utf8");
+    const manifest = JSON.parse(raw) as { path?: unknown };
+    if (typeof manifest.path !== "string" || manifest.path.length === 0) return false;
+    await stat(manifest.path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 打开一次导入通道并等待扩展送数据。成功返回写入条数；超时/失败返回稳定错误。
  */
 export async function importCookiesFromExtension(
   options: BrowserImportExtensionOptions,
 ): Promise<BrowserImportExtensionResult> {
+  const nativeHostAvailable = await (
+    options.nativeHostProbe ?? (() => checkNativeHostRegistered())
+  )();
+  if (!nativeHostAvailable) {
+    options.logger.warn("[browser-import] native host is not registered");
+    return { imported: 0, skipped: 0, failed: 0, error: "native_host_missing" };
+  }
+
   let settle: ((outcome: ImportOutcome) => void) | undefined;
   const outcome = new Promise<ImportOutcome>((resolve) => {
     settle = resolve;
@@ -81,6 +123,7 @@ export async function importCookiesFromExtension(
       logger: options.logger,
       // 通道判定失败时立刻结束等待，而不是让用户等满超时。
       onError: (code) => settle?.({ status: "failed", error: mapChannelError(code) }),
+      onCancel: () => settle?.({ status: "failed", error: "import_cancelled" }),
       onCookies: async (cookies) => {
         const stats = await writeCookies(options.targetSession, cookies, options.logger);
         settle?.({ status: "imported", ...stats });
@@ -125,6 +168,7 @@ function mapChannelError(code: BrowserImportChannelErrorCode): ChromeBrowserData
     case "payload_too_large":
     case "invalid_payload":
     case "cookie_write_failed":
+    case "extension_missing":
       return code;
   }
 }

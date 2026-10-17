@@ -140,7 +140,7 @@ test("invalid cookie payload is rejected", { skip: !isWindows }, async () => {
   }
 });
 
-test("ttl closes the channel and removes channel.json", { skip: !isWindows }, async () => {
+test("ttl without a client reports extension_missing", { skip: !isWindows }, async () => {
   const dir = await mkdtemp(join(tmpdir(), "mode-import-channel-"));
   const channelPath = join(dir, "channel.json");
   const errors: string[] = [];
@@ -152,9 +152,40 @@ test("ttl closes the channel and removes channel.json", { skip: !isWindows }, as
   });
   await new Promise((resolve) => setTimeout(resolve, 300));
   await assert.rejects(stat(channelPath));
-  assert.deepEqual(errors, ["channel_timeout"]);
+  assert.deepEqual(errors, ["extension_missing"]);
   await channel.close();
   await rm(dir, { recursive: true, force: true });
+});
+
+test("cancel payload resolves through onCancel", { skip: !isWindows }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mode-import-channel-"));
+  const channelPath = join(dir, "channel.json");
+  let cancelled = 0;
+  const channel = await createBrowserImportChannel({
+    channelPath,
+    ttlMs: 5000,
+    onCookies: () => 0,
+    onCancel: () => {
+      cancelled += 1;
+    },
+  });
+  try {
+    const info = JSON.parse(await readFile(channelPath, "utf8")) as {
+      pipe: string;
+      token: string;
+    };
+    const socket = await connected(info.pipe);
+    const incoming = reader(socket);
+    socket.write(frame({ v: 1, kind: "hello", token: info.token }));
+    assert.deepEqual(await incoming.next(), { ok: true });
+    socket.write(frame({ v: 1, kind: "cancel" }));
+    assert.deepEqual(await incoming.next(), { ok: true });
+    assert.equal(cancelled, 1);
+    socket.destroy();
+  } finally {
+    await channel.close();
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("reports terminal errors to the caller", { skip: !isWindows }, async () => {

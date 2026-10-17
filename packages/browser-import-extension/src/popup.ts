@@ -13,11 +13,23 @@ type NativeResponse = { ok?: boolean; count?: number; error?: string };
 const button = document.getElementById("import") as HTMLButtonElement;
 const statusText = document.getElementById("status") as HTMLParagraphElement;
 
+let finished = false;
+
+// popup 在导入完成前被关闭：尽力通知 native host，让 Mode 立即结束等待。
+// 页面卸载时消息可能被中断，因此主流程仍以自身超时兜底。
+window.addEventListener("pagehide", () => {
+  if (finished) return;
+  void chrome.runtime
+    .sendNativeMessage(HOST_NAME, { v: 1, kind: "cancel" })
+    .catch(() => undefined);
+});
+
 button.addEventListener("click", () => {
   void runImport();
 });
 
 async function runImport(): Promise<void> {
+  finished = false;
   button.disabled = true;
   statusText.textContent = "读取 cookie…";
   try {
@@ -53,6 +65,7 @@ async function runImport(): Promise<void> {
   } catch (error) {
     statusText.textContent = `失败：${error instanceof Error ? error.message : String(error)}`;
   } finally {
+    finished = true;
     button.disabled = false;
   }
 }

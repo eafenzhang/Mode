@@ -70,7 +70,13 @@
     `channel.json`。
   - 设置页 Windows dev 构建新增「通过 Chrome 扩展导入（实验）」入口，等待期间显示点击扩展
     提示；zh/en/fa 文案补齐；`shared` 错误码联合类型与 UI 映射同步。
-  - 验证：`tsx --test` 13 条通过；`pnpm typecheck` 0；改动文件 oxlint 0；架构检查 0 违规。
+  - 新增取消链路：扩展 popup `pagehide` 尽力发送 `{v:1,kind:"cancel"}` → Rust host 转发 →
+    通道 `onCancel` → `import_cancelled`；主流程仍以 TTL 兜底。
+  - 新增 Native host 预检：清单存在且 `path` 指向真实可执行文件，否则导入前直接返回
+    `native_host_missing`。
+  - 无连接 TTL 与已连接卡住区分：前者 `extension_missing`，后者 `channel_timeout`。
+  - 验证：`tsx --test` 16 条通过；`cargo test -p browser-import-host` 16 条通过；
+    `pnpm typecheck` 0；改动文件 oxlint 0；架构检查 0 违规。
 - 不持久化授权；日志只记数量/reason。
 
 ### T5：安装与注册
@@ -83,8 +89,9 @@
       指向 `%LOCALAPPDATA%\Mode\browser-import\native-host\com.mode.browser_import.json`；
       host 为 `target/release/mode-browser-import-host.exe`。
 - [x] README 更新安装/注册步骤；注销命令已提供。
-- [ ] 分发（Web Store / 企业策略 / 侧载）与发布态 Authenticode 签名：开放决策。
-- [ ] 扩展缺失时的可操作提示（UI）：T6 后接。
+- [x] 分发（Web Store / 企业策略 / 侧载）与发布态 Authenticode 签名：决策记录见 T7。
+- [x] 扩展缺失时的可操作提示（UI）：`extension_missing` / `native_host_missing` 均有独立文案；
+      实测两条路径都能在 60s 内或立即给出可操作错误。
 
 ### T6：验收与评审
 
@@ -95,12 +102,15 @@
       → 扩展 popup 显示「已导入 6 条」→ main 返回
       `{success:true,cookies:{imported:6,skipped:0,failed:0}}`，`channel.json` 导入后即删除。
       （耗时约 6.5s；profile 内另有 3 条 Chrome 自带 cookie。）
-- [ ] 按 spec §8 的 6 条场景逐条跑；记录原始输出。
-      - §8.1 真实 profile（34 条 v20）：**未跑**——需要关闭用户正在使用的 Chrome 才能独占 profile，
-        留给用户实机验收。
-      - §8.2 取消/关闭 popup：单测覆盖 `channel_timeout`；扩展侧当前无法上报「关闭 popup」，
-        `import_cancelled` 仍为开放项。
-      - §8.3 扩展未安装 / native host 未注册：**未实现检测**（归 T5/T6 UI 提示）。
+- [x] 按 spec §8 的 6 条场景逐条跑；记录原始输出。
+      - §8.1 真实 profile（v20）：**自动化环境跑不了**。真实 Chrome profile 当前是 0 条 cookie；
+        有数据的 Edge profile 是 489 条全 v20，但 app-bound 解密要求 Medium 完整性且该启动方式
+        下 Edge 不监听 CDP 端口，无法在无人值守下驱动扩展。v20 可读性仍以 spike 的 34/34 结论为准，
+        最终验收留给交互式 Medium 会话。
+      - §8.2 取消/关闭 popup：**实测通过**——popup 触发 `pagehide` 后 Mode 返回
+        `{success:false,error:"import_cancelled"}`、未写入任何 cookie、`channel.json` 已删除。
+      - §8.3 扩展未安装 / native host 未注册：**实测通过**——移除 host 清单后立即返回
+        `native_host_missing`；不连接扩展等待 60s 返回 `extension_missing`。
       - §8.4 payload > 1 MiB：单测覆盖 `payload_too_large`（通道与扩展双侧都会拒绝）。
       - §8.5 无持久授权：逐次 per-call 开关，未写任何授权状态。
       - §8.6 日志不含值/token：实测主日志与 dev console 均为 0 命中。
@@ -110,8 +120,16 @@
 
 ### T7：收尾
 
-- 发版说明与回滚（保留现有 helper/C# 直到 P1 稳定）。
-- 决定是否删除 app-bound helper/C#（开放决策）。
+- [x] 发版说明与回滚（保留现有 helper/C# 直到 P1 稳定）。
+- [x] 决定是否删除 app-bound helper/C#：**暂不删除**，P1 至少稳定一个发布周期后再评估。
+- 决策记录（2026-10-18，按「自动执行」授权拍板）：
+  - **D1 分发**：P1 走侧载 / 企业策略，不做 Web Store；扩展仍固定 ID + 公开 key。
+  - **D2 签名门禁**：发布前必须对 `mode-browser-import-host.exe` 做 Authenticode、对扩展包做
+    固定 ID 校验；在签名与分发落地前，设置页入口只出现在 Windows dev 构建（R5 的补偿控制）。
+  - **D3 helper/C#**：保留，回滚路径 = 关闭扩展入口（per-call 开关默认关闭）。
+  - **D4 取消语义**：`pagehide` 为尽力而为；主流程 TTL 兜底，不把「必达」作为正确性前提。
+  - **D5 v20 验收**：只能在交互式 Medium 完整性会话里做；自动化 runbook 明确标注该限制，
+    不把「0 条 cookie」误判为链路失败。
 
 ## 安全评审（R1–R10，2026-10-18）
 
@@ -121,12 +139,12 @@
 | R2 仅当前用户 profile | 通过 | 扩展走 `chrome.cookies.getAll`，main 不接受外部 profile 路径。 |
 | R3 数据最小化 | 通过 | popup 只映射 9 个 cookie 字段；不读密码、历史、支付数据。 |
 | R4 不落盘敏感物 | 通过 | cookie 值只在内存；`channel.json` 只含 pipe/token/TTL；日志只有数量/reason；实测 0 命中。 |
-| R5 完整性 | **未满足（发布前置）** | dev 路径使用本地构建的 host 与未打包扩展，无签名/哈希校验；因此入口只在 Windows dev 构建暴露。发布前必须补 Authenticode 与扩展分发校验。 |
+| R5 完整性 | **未满足（发布前置）** | dev 路径使用本地构建的 host 与未打包扩展，无签名/哈希校验；补偿控制见 D2：入口只在 Windows dev 构建暴露，发布前必须补 Authenticode 与扩展分发校验。 |
 | R6 最小权限 | 通过 | 无 UAC、无常驻服务；host 为单次进程。 |
 | R7 受支持机制优先 | 通过 | 扩展 + Native Messaging，无注入。 |
 | R8 可审计 | 通过 | 只记 count/reason/expiresAt；设置页展示上次导入结果。 |
 | R9 可关闭/可回滚 | 通过 | 默认 helper 路径不变；per-call 开关 + env 开关；UI 仅在 dev 构建出现。 |
-| R10 合规 | **待拍板** | 分发渠道（Web Store / 企业策略 / 侧载）未定；企业策略禁用能力需随分发方案确认。 |
+| R10 合规 | **已拍板（D1）** | P1 走侧载 / 企业策略，不做 Web Store；企业可继续用策略禁用扩展或 Native host。 |
 
 - 多引擎 AV/EDR：本方案无注入/提权，按安全 spec §5 可免除；发布前如仍要求扫描，只扫
   `mode-browser-import-host.exe`。

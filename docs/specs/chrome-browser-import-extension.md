@@ -59,6 +59,11 @@ Mode main（导入会话所有者）
         "expirationDate": 1234567890, "hostOnly": false } ] }
   ```
 - 响应：`{"ok": true, "count": 34}` 或 `{"ok": false, "error": "<稳定码>"}`。
+- 取消请求（popup 在导入完成前关闭时尽力发送）：
+  ```json
+  { "v": 1, "kind": "cancel" }
+  ```
+  响应：`{"ok": true}`。主流程仍以自身 TTL 兜底，不依赖这条消息必达。
 
 ### 4.2 Native host ↔ Mode main
 
@@ -82,6 +87,8 @@ Mode main（导入会话所有者）
 | 用户关闭 popup / 取消 | `import_cancelled` |
 | 消息超过上限且无法分片 | `payload_too_large` |
 | 管道不存在 / token 不匹配 | `channel_missing` / `channel_token_mismatch` |
+| 通道 TTL 内没有任何连接 | `extension_missing` |
+| 已连接但迟迟没有合法帧 | `channel_timeout` |
 | payload 形状不合法 | `invalid_payload` |
 | 写入内置浏览器失败 | `cookie_write_failed` |
 
