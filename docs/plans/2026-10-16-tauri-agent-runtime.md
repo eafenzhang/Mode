@@ -385,6 +385,9 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 
 ### Task 4: shell 与 pty（`Bash`）+ `CommandInbox` 串行准入
 
+**子计划：** `docs/plans/2026-10-17-agent-shell-inbox.md`（2026-10-17 产出，含已观察的
+`Bash` 行为、DR-T4-1…5 与 Step 0 的补观察清单；**实现未开工**）。
+
 **Files:**
 - Create: `crates/agent-tools/src/bash.rs`（portable-pty）
 - Create: `crates/agent-core/src/command_inbox.rs`
@@ -512,7 +515,7 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 | 任务 | 开工时应产出的子计划 |
 | --- | --- |
 | Task 3 文件写与 diff + 审批三态 | `docs/plans/2026-XX-XX-agent-write-approval.md` |
-| Task 4 shell 与 pty + CommandInbox | `docs/plans/2026-XX-XX-agent-shell-inbox.md` |
+| Task 4 shell 与 pty + CommandInbox | `docs/plans/2026-10-17-agent-shell-inbox.md`（已产出） |
 | Task 5 会话流与双链路重放 | `docs/plans/2026-XX-XX-agent-dual-linkage.md` |
 | Task 6 权限引擎 | `docs/plans/2026-XX-XX-agent-permission-engine.md` |
 | Task 7 对拍矩阵收口 | `docs/plans/2026-XX-XX-agent-parity-matrix.md` |
