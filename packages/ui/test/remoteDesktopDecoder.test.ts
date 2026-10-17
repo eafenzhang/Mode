@@ -223,6 +223,43 @@ test("关键帧 + delta：解码次数、chunk 类型与时间戳单调", async 
   assert.ok(second!.timestamp > first!.timestamp, "时间戳必须单调递增");
 });
 
+test("解密完成顺序颠倒时仍按到达顺序处理：delta 不越过在途关键帧", async () => {
+  const h = createHarness();
+  h.ws.fireOpen();
+  // 还原 CI Linux 上实测到的竞态：并发发起多个 WebCrypto decrypt 时，完成顺序无保证。
+  // 强制 seq=1（关键帧）晚于 seq=2（delta）完成——若逐帧并发处理，delta 会在 decoder
+  // 尚未建立时被丢弃，实际只剩 ["key"]（CI 断言失败的原貌）；按到达顺序串行处理才得到两帧。
+  const subtleProto = Object.getPrototypeOf(globalThis.crypto.subtle) as Pick<
+    SubtleCrypto,
+    "decrypt"
+  >;
+  const realDecrypt = subtleProto.decrypt;
+  subtleProto.decrypt = async function (algorithm, key, data) {
+    const iv = new Uint8Array((algorithm as AesGcmParams).iv as ArrayBuffer);
+    const seq = new DataView(iv.buffer, iv.byteOffset, iv.byteLength).getUint32(8, false);
+    if (seq === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return realDecrypt.call(globalThis.crypto.subtle, algorithm, key, data);
+  };
+  try {
+    h.ws.deliver(frameBytes(1, true, [...SPS, ...KEY_NAL]));
+    h.ws.deliver(frameBytes(2, false, DELTA_NAL));
+    // 关键帧解密被拖慢 20ms：轮询到两帧都落定（上限 500ms；修复前只会停在 1 帧）。
+    const deadline = Date.now() + 500;
+    while (StubVideoDecoder.decoded.length < 2 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  } finally {
+    subtleProto.decrypt = realDecrypt;
+  }
+  assert.deepEqual(
+    StubVideoDecoder.decoded.map((d) => d.type),
+    ["key", "delta"],
+    "到达顺序即解码顺序",
+  );
+});
+
 test("decoder 未配置前到达的 delta 帧被丢弃（不建 decoder、不抛）", async () => {
   const h = createHarness();
   h.ws.fireOpen();

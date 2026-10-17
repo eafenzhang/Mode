@@ -43,7 +43,6 @@ export function buildFrameIv(salt: Uint8Array, seq: number): Uint8Array {
   return iv;
 }
 
-
 /**
  * 解码队列门控（纯函数，测试见 remoteDesktopNativeSession.test.ts）：
  * delta 帧在解码排队 >2 时丢弃（解码跟不上到达时继续排队只会累计端到端延迟）；
@@ -128,6 +127,9 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
   ]);
   let lastSubmittedSeq = -1;
   let lastKeyRequestAt = 0;
+  // 帧处理串行化：并发 WebCrypto decrypt 的完成顺序无保证（CI Linux 实证 delta 先于关键帧
+  // 完成，使 delta 在 decoder 建立前被丢弃）；WS 到达顺序即 seq 顺序，逐帧串行即恢复契约。
+  let framePipeline: Promise<void> = Promise.resolve();
   // 帧龄：提交时按 chunk 时间戳记采集时刻，绘制时领回算出端到端年龄；
   // 时钟偏移由 pong 标定（未标定前只跳过帧龄读数，画面不受影响）。
   const capturedAtByTimestamp = new Map<number, number>();
@@ -318,11 +320,7 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
         opts.onDecoded?.();
         // 帧龄 = 本端绘制时刻 − 被控采集时刻 + 时钟偏移（glass-to-glass 近似）；
         // 缺采集戳（旧端/未知=0）或未标定偏移 → 跳过本帧读数。
-        if (
-          typeof capturedAtMs === "number" &&
-          capturedAtMs !== 0 &&
-          clockOffsetMs !== null
-        ) {
+        if (typeof capturedAtMs === "number" && capturedAtMs !== 0 && clockOffsetMs !== null) {
           opts.onFrameAgeMs?.(Date.now() - capturedAtMs + clockOffsetMs);
         }
       },
@@ -388,61 +386,67 @@ export function createNativeMediaSession(opts: NativeMediaSessionOptions): Nativ
     const receivedBytes = (event.data as ArrayBuffer).byteLength;
     bytesReceived += receivedBytes;
     opts.onBytesReceived?.(receivedBytes);
-    // 防乱序/迟到：解密是异步的，提交前先按 seq 水位过滤（廉价前置，省一次解密）。
+    // 防乱序/迟到：按 seq 水位过滤已提交的帧（廉价前置，省一次解密）。
     if (parsed.seq <= lastSubmittedSeq) return;
-    void (async () => {
-      let plain: Uint8Array;
-      try {
-        plain = await decryptAesGcm(await cryptoKeyPromise, buildFrameIv(salt, parsed.seq), parsed.body);
-      } catch {
-        return; // 单帧解密失败丢弃（连续失败由 transport 层收口）
-      }
-      if (stopped) return; // 解密期间收口：不得再建 decoder 或解码
-      // 解密期间更新帧已提交 → 本帧过期（异步完成顺序无保证）。
-      if (parsed.seq <= lastSubmittedSeq) return;
-      // 重连后的重同步（P2-1）：断流期间中继丢帧，delta 引用缺失数据——只放行关键帧，
-      // 否则解码器吃到坏帧整条会话被 error 收口。
-      if (awaitingKeyAfterReconnect) {
-        if (!parsed.key) {
-          return;
-        }
-        awaitingKeyAfterReconnect = false;
-      }
-      if (parsed.key) {
-        const codec = codecStringFromAnnexB(plain);
-        // decoder 的唯一建立点：首帧（decoder 尚未存在）或 SPS 变化（codec 串变化）才建/换；
-        // 重连后的首个关键帧强制重配（forceReconfigureNextKey）——清空旧码流状态防花屏残留。
-        // 这里必须在 decode 之前，否则 decoder 永远建不出来（曾因守卫放在本段之前而全程黑屏）。
-        if (codec && (decoder === null || codec !== configuredCodec || forceReconfigureNextKey)) {
-          configure(codec);
-        } else if (!codec && !decoder) {
-          // 关键帧没带 SPS 且 decoder 未建立：拿不到 codec 串就无法 configure，只能丢帧；
-          // 关键帧 ~2s 一次，warn 便于定位「ready 已发但一直黑屏」。
-          logger.warn("[rd-media] keyframe without SPS; decoder not configured");
-        }
-        forceReconfigureNextKey = false;
-      }
-      // 非关键帧在 decoder 未配置前丢弃（delta 无法独立解码，等下一个关键帧）。
-      if (!decoder || decoder.state !== "configured") return;
-      // 解码队列门控：跟不上到达的 delta 丢弃并请关键帧（继续排队 = 累计端到端延迟）。
-      const queueSize = decoder.decodeQueueSize;
-      opts.onDecodeQueue?.(queueSize);
-      if (shouldDropDeltaFrame(parsed.key, queueSize)) {
-        opts.onFrameDropped?.();
-        requestKey();
-        return;
-      }
-      lastSubmittedSeq = parsed.seq;
-      timestampBase += 1_000_000 / 60;
-      capturedAtByTimestamp.set(timestampBase, parsed.capturedAtMs);
-      decoder.decode(
-        new EncodedVideoChunk({
-          type: parsed.key ? "key" : "delta",
-          timestamp: timestampBase,
-          data: plain,
-        }),
+    // 按到达顺序串行处理：并发 decrypt 的完成顺序无保证（见 framePipeline 注释）。
+    framePipeline = framePipeline.then(() => processFrame(parsed)).catch(() => teardown());
+  };
+
+  /** 单帧后续处理：解密 → 关键帧建/换 decoder → 队列门控 → 提交解码。 */
+  const processFrame = async (parsed: ParsedMediaFrame): Promise<void> => {
+    if (stopped) return;
+    let plain: Uint8Array;
+    try {
+      plain = await decryptAesGcm(
+        await cryptoKeyPromise,
+        buildFrameIv(salt, parsed.seq),
+        parsed.body,
       );
-    })().catch(() => teardown());
+    } catch {
+      return; // 单帧解密失败丢弃（连续失败由 transport 层收口）
+    }
+    if (stopped) return; // 解密期间收口：不得再建 decoder 或解码
+    // 解密期间更新帧已提交 → 本帧过期（乱序/迟到帧）。
+    if (parsed.seq <= lastSubmittedSeq) return;
+    // 重连后的重同步（P2-1）：断流期间中继丢帧，delta 引用缺失数据——只放行关键帧，
+    // 否则解码器吃到坏帧整条会话被 error 收口。
+    if (awaitingKeyAfterReconnect) {
+      if (!parsed.key) return;
+      awaitingKeyAfterReconnect = false;
+    }
+    if (parsed.key) {
+      const codec = codecStringFromAnnexB(plain);
+      // decoder 的唯一建立点：首帧（decoder 尚未存在）或 SPS 变化（codec 串变化）才建/换；
+      // 重连后的首个关键帧强制重配（forceReconfigureNextKey）——清空旧码流状态防花屏残留。
+      // 这里必须在 decode 之前，否则 decoder 永远建不出来（曾因守卫放在本段之前而全程黑屏）。
+      if (codec && (decoder === null || codec !== configuredCodec || forceReconfigureNextKey)) {
+        configure(codec);
+      } else if (!codec && !decoder) {
+        // 关键帧没带 SPS 且 decoder 未建立：拿不到 codec 串就无法 configure，只能丢帧；
+        // 关键帧 ~2s 一次，warn 便于定位「ready 已发但一直黑屏」。
+        logger.warn("[rd-media] keyframe without SPS; decoder not configured");
+      }
+      forceReconfigureNextKey = false;
+    }
+    // 非关键帧在 decoder 未配置前丢弃（delta 无法独立解码，等下一个关键帧）。
+    if (!decoder || decoder.state !== "configured") return;
+    // 解码队列门控：跟不上到达的 delta 丢弃并请关键帧（继续排队 = 累计端到端延迟）。
+    opts.onDecodeQueue?.(decoder.decodeQueueSize);
+    if (shouldDropDeltaFrame(parsed.key, decoder.decodeQueueSize)) {
+      opts.onFrameDropped?.();
+      requestKey();
+      return;
+    }
+    lastSubmittedSeq = parsed.seq;
+    timestampBase += 1_000_000 / 60;
+    capturedAtByTimestamp.set(timestampBase, parsed.capturedAtMs);
+    decoder.decode(
+      new EncodedVideoChunk({
+        type: parsed.key ? "key" : "delta",
+        timestamp: timestampBase,
+        data: plain,
+      }),
+    );
   };
 
   /** 幂等收口：ws close/error、decoder error、stop() 任何路径都只通知 onTransportClosed 一次。 */
