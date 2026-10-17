@@ -82,3 +82,11 @@
 ⇒ 本轮所有 A 参照（含宿主链路）都产生在**提权会话**里；在非提权会话复测前，不能据此判定
 app-bound 解密“不可行”。B spike 的 T1 续项：标准用户会话复跑同一扩展 PoC。
 详见 `docs/plans/2026-10-17-chrome-abe-import-spike.md` 的 T1 执行记录。
+
+## 2026-10-18 Medium-IL 复测：P1 成立（推翻“需注入”的倾向）
+
+用过滤令牌（Medium 完整性）在真实 profile 上启动 Chrome，受支持的扩展 `chrome.cookies`
+读到 **34 条非空 cookie**，与 Cookies DB 的 **34 条 v20** 一一对应。
+⇒ **不需要注入**就能读 app-bound v20；之前的 `decryption_failed` / 扩展读 0 是
+**High 完整性会话**导致的。推荐路线改为 P1（扩展 + Native Messaging），P3/P4 仅在
+分发/策略不可接受时再评估。详见 `docs/plans/2026-10-17-chrome-abe-import-spike.md` 的 T1 最终结论。

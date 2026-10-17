@@ -20,10 +20,11 @@
    失败点在解密/电梯调用本身**；成功路径仍无参照物。
 4. 本机是管理员会话且 `ConsentPromptBehaviorAdmin=0`，提权静默、没有 UAC 弹窗；
    取消路径尚未验收（需要非提权会话或经授权的 UAC 策略变更）。
-5. **提权会话是强 confounder（2026-10-18 T1 追加）**：同一台机器、同一个真实 profile（33 条 v20
-   cookie），受支持的扩展 API 在管理员会话下读到 **0 条**；cookie 库未被删除（跑前跑后都是
-   33 条 v20）。这与 helper 的 `decryption_failed` 一致——**app-bound 解密的失败可能与“提权会话”
-   有关，而不是实现本身**。因此 A 的参照与 P1 的结论都必须在**非提权会话**复测后才能定论。
+5. **提权会话是强 confounder（2026-10-18 T1 追加，已解决）**：同一台机器、同一个真实 profile
+   （33 条 v20），受支持的扩展 API 在管理员会话下读到 **0 条**；cookie 库未被删除。
+   随后用 Medium 完整性令牌复测：扩展读到 **34 条非空 cookie**，与 DB 的 **34 条 v20** 一一对应
+   ——**P1 对 v20 成立**，之前的失败来自 High 完整性会话，而不是扩展 API 或实现本身。
+   详见下文「T1 最终结论」。
 
 ## 目标（可判定的问题）
 
@@ -169,3 +170,27 @@ Medium 完整性进程。**v20 复测必须在普通标准用户登录会话**�
 
 **清理**：临时账号与用户 profile 已删除；Chrome 全部停止；PsExec 服务/工具已删除；
 真实 profile 的 `Preferences` / `Secure Preferences` 已从备份还原；cookie 库未改动（33 条 `v20` 完整）。
+
+### T1 最终结论（2026-10-18）：P1 对 v20 成立
+
+用 `DuplicateTokenEx` + `SetTokenInformation(TokenIntegrityLevel, Medium)` +
+`CreateProcessWithTokenW` 在 **Administrator 用户上下文、Medium 完整性** 下启动 Chrome
+（真实 profile），再加载同一扩展：
+
+- 扩展上报：`total: 34, nonEmpty: 34`；
+- 真实 profile 的 Cookies DB：**34 条，全部 `v20`**；
+- **一一对应** ⇒ 受支持的 `chrome.cookies` API 能读取 app-bound v20 cookie，**无需注入**。
+- 之前读 0 的原因：管理员/High 完整性会话下 Chrome 无法完成 app-bound 解密（与 helper 的
+  `decryption_failed` 同源），不是扩展 API 的限制。
+
+**清理**：扩展已从真实 profile 移除（chrome://extensions 列表 0 项）；cookie 库未改动
+（34 条 v20 完整）；`Secure Preferences` 保留 Chrome 正常的卸载 tombstone（不再加载）；
+临时标准用户、复制 profile、PsExec/临时工具均已删除。
+
+### 路线结论与下一步
+
+- **P1 成立**：优先做「扩展 + Native Messaging」的实现规划，不再需要 P4 注入来读取 v20。
+- P1 仍未解决的是**产品化**：扩展分发（Web Store / 企业策略 / 侧载）、逐次授权与权限提示、
+  Native Messaging host 的安装/注册、以及按 `docs/specs/chrome-abe-import-security.md`
+  的 R1–R10 出实现 spec。
+- P3/P4 仅当 P1 的分发/策略不可接受时才重新评估；读能力本身已经证明。

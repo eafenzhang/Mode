@@ -594,3 +594,8 @@ browser-import 目录」一致，不是新回归）。补这项要连带处理�
   P2 的验收靠 Task 7 Step 2 的人工实机清单。
 - **签名**：包装态下宿主会校验 helper 的 Authenticode 签名与 app 一致；未签名的本地构建
   只走非包装路径（`isPackaged = false`），实机验收要覆盖包装态则需签名构建。
+
+> **2026-10-18 P1 复测结论**：Medium 完整性会话下，受支持的 Chrome 扩展读到真实 profile 的
+> **34 条非空 cookie**，与 Cookies DB 的 **34 条 v20** 一一对应——**app-bound v20 不需要注入**，
+> 之前的失败来自提权（High 完整性）会话。推荐路线改为 P1（扩展 + Native Messaging）；
+> 本计划的 P2 提权/解封与 C# 原位策略暂不继续，等 P1 的分发/授权方案定案。
