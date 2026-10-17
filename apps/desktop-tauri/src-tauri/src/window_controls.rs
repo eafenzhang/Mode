@@ -31,14 +31,15 @@
 //!
 //! `DesktopCommandIds` 有 27 个 id。窗口级的那几个本模块实现：
 //! `closeWindow` / `minimizeWindow` / `toggleMaximizeWindow` / `toggleFullScreen` /
-//! `resetWindowSize`。其余 id（`zoomIn`/`zoomOut`/`resetZoom`、`showAbout`、`checkForUpdates`、
-//! `relaunchApp`、`clearAllData`、`GetCuaOsSupport` …）**不属于窗口控制**：它们要么是渲染层自己
-//! 的菜单动作、要么依赖本阶段没接线的能力（更新链 / CUA 探测 / 数据清理）。对这些 id 返回
-//! `{ success: false, error: "desktop_command_unsupported: <id>" }` 并在壳的 stderr 留一行——
-//! 声明的返回是 `Promise<unknown>`（「返回值直通 main 进程 handler 的 return」），所以带
-//! `success: false` 的对象是形状内的取值，既不抛（不会掀翻界面），也不谎报执行过。
+//! `resetWindowSize`；`checkForUpdates` 由 M5 Task 1 接到真实的更新链
+//! （`updater::command::check_and_install`）。其余 id（`zoomIn`/`zoomOut`/`resetZoom`、
+//! `showAbout`、`relaunchApp`、`clearAllData`、`GetCuaOsSupport` …）**不属于窗口控制**：
+//! 它们要么是渲染层自己的菜单动作、要么依赖本阶段没接线的能力（CUA 探测 / 数据清理）。
+//! 对这些 id 返回 `{ success: false, error: "desktop_command_unsupported: <id>" }` 并在壳的
+//! stderr 留一行——声明的返回是 `Promise<unknown>`（「返回值直通 main 进程 handler 的 return」），
+//! 所以带 `success: false` 的对象是形状内的取值，既不抛（不会掀翻界面），也不谎报执行过。
 use serde_json::{json, Value};
-use tauri::{Runtime, WebviewWindow};
+use tauri::{Manager, Runtime, WebviewWindow};
 
 use crate::window::DEFAULT_WINDOW_SIZE;
 
@@ -76,7 +77,21 @@ pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + 
 /// `window` 由 Tauri 按**调用方的窗口**注入（不用 `get_webview_window("main")` 猜：
 /// 调用来自哪个窗口就作用在哪个窗口上，这在本阶段是同一个窗口，但语义不靠猜）。
 #[tauri::command(rename = "executeDesktopCommand")]
-pub fn execute_desktop_command<R: Runtime>(window: WebviewWindow<R>, command: String) -> Value {
+pub async fn execute_desktop_command<R: Runtime>(
+    window: WebviewWindow<R>,
+    command: String,
+) -> Value {
+    // 更新命令是唯一的异步分支：它要走网络、下载并启动安装器。成功时安装器会带走进程，
+    // 失败时返回 `{status:"error"}` 且旧版本继续运行（见 `updater::command` 的模块文档）。
+    if command == updater::command::CHECK_FOR_UPDATES_COMMAND {
+        let at_ms = started_at().elapsed().as_millis();
+        eprintln!(
+            "[mode-tauri] window_control command={command} window={} routed=updater at_ms={at_ms}",
+            window.label()
+        );
+        return updater::command::check_and_install(window.app_handle()).await;
+    }
+
     let outcome = apply_window_command(&window, &command);
     // 控制台留痕：这是「自绘标题栏的按钮有没有真的走到壳」的唯一诊断面
     // （用户点按钮时没有别的可观察点），也是 opt-in 用例的判据之一。

@@ -9,11 +9,18 @@ description = "Tauri 侧 updater 面（路线图 M1 任务 6）：与旧线共�
 name = "updater"
 path = "src/lib.rs"
 
+[build-dependencies]
+tauri-test-manifest = { path = "../tauri-test-manifest" }
+
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 tauri.workspace = true
 tauri-plugin-updater.workspace = true
 
 [dev-dependencies]
 # 单测读 app 的 tauri.conf.json，断言端点与 pubkey 两条约束（见 src/lib.rs 的测试）。
-serde_json.workspace = true
+base64.workspace = true
+# 守卫把 conf 里的 pubkey 真正解码成 minisign 公钥：非空还不够，必须是可用密钥。
+# 版本与 tauri-plugin-updater 2.14.0 依赖的 minisign-verify 一致（见 Cargo.lock）。
+minisign-verify = "0.3"

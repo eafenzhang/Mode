@@ -85,6 +85,21 @@ fn main() {
             None,
             sidecar_host::decorations_for_shell_entry(entry_override.as_deref()),
         )?;
+
+        // 更新演练用的确定性触发（M5 Task 1）：产品里的入口是「帮助 → 检查更新」，那需要人点；
+        // 安装后的自动化演练没有可靠的点按面，所以提供一个显式环境变量，走**同一条**
+        // `updater::command::check_and_install`。不设该变量时行为与之前完全一致。
+        //
+        // 注意：更新成功后 NSIS 以默认参数重启应用，环境变量会随安装器被继承；新版本会再做
+        // 一次检查并得到 up-to-date，不会形成循环（见 RELEASE.md 的演练步骤）。
+        if std::env::var_os("MODE_TAURI_CHECK_FOR_UPDATES").is_some() {
+            eprintln!("[mode-tauri] updater startup trigger enabled");
+            let updater_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let outcome = updater::command::check_and_install(&updater_handle).await;
+                eprintln!("[mode-tauri] updater startup trigger result={outcome}");
+            });
+        }
         Ok(())
     });
 

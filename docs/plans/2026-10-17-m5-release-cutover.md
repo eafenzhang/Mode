@@ -94,9 +94,11 @@ Modify `docs/specs/*` 的相关节（如需要）。
 
 ### Task 1: 签名密钥与 `latest.json`
 
-- [ ] **Step 1–5（大纲，开工时出子计划）**：生成密钥（私钥进 CI secret，**不入库**）、
+- [x] **Step 1–5（大纲，开工时出子计划）**：生成密钥（私钥进 CI secret，**不入库**）、
   `tauri build` 携带签名、发布 `latest.json`、把 pubkey 从空串换成真值（**这会让 M1 的那条
   「空串 fail closed」变成「真密钥校验」**，须同步改 spec 与守卫）、Windows 上旧版→新版真更新演练。
+  完成记录：`RELEASE.md` 的 1.4 / 2.2 V11 / 3.1–3.4 / 5.3；`createUpdaterArtifacts: true`
+  只产出 `.sig`，`latest.json` 由 `scripts/tauri-update-manifest.ts` 生成。
 
 ### Task 2: 切换发布线（DR-M5-1）
 

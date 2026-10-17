@@ -236,7 +236,7 @@ lib 的单测模块。原因是一条 Windows 链接约束链：
 | `onOAuthCallback` / `onPaymentCallback` 之外的订阅型方法 | 依赖 sidecar 的事件源 | M3 | **深链驱动的两条关闭**（`onShareImport` / `onOpenWorkspacePath`，§9.4）；其余**逐条登记**在 §9.4，事件源不在本阶段范围 |
 | **深链的单实例转发** | Windows/Linux 上「应用已在运行 → 用户点 `mode://` 链接」会起新进程（新窗口）。单实例会改动窗口生命周期语义，与「每个窗口一个 window-scoped Local Host」绑在一起 | M3（窗口模型） | **关闭**（§9.1：第二实例不建窗口、不建 Host；窗口模型的约束与代价见该节） |
 | **Tauri 产物进 Release** | 产物名与旧 Electron 线完全一致，同名会 clobber 掉用户正在下载的安装包；故 M1–M4 只发 workflow artifacts | M5（「release.yml 只出 Tauri 产物」） |
-| 更新链的实际可用 | 只声明了 feed 端点与插件；发布 `latest.json`、签名密钥、三平台更新演练都没做 | M5 |
+| 更新链的实际可用 | **M5 Task 1 关闭（Windows）**：`pubkey` 已从空串换成真实 minisign 公钥，发布构建产出 `latest.json`，产品入口 `executeDesktopCommand("checkForUpdates")` 已接到 `updater::command::check_and_install`。**空串仍是 fail closed**：没有 `pubkey` 的构建在 `PublicKey::decode("")` 处报错，永远无法更新——这一语义刻意保留。macOS/Linux 未演练（DR-M5-2） | M5 |
 
 ## 6. 协议双端生成
 
@@ -294,6 +294,14 @@ workflow artifacts**：Tauri 线在 M5 之前不是发布线，而它与旧 Elec
 只让非 Windows 腿不判红，**不删矩阵**：产物与日志仍然采集（编译失败时上面的步骤会失败，
 日志留在运行记录里），等真正要转正时这批证据就是起点。`continue-on-error` 与「不在 `needs` 里」
 是两件事：前者管 job 的成败判定，后者管发布是否被门禁卡住；转正时两者一起去掉。
+
+**更新产物（M5 Task 1 实测）**：`tauri.conf.json` 必须设
+`bundle.createUpdaterArtifacts: true`，否则 NSIS 目录里没有 `.sig`。设置了
+`TAURI_SIGNING_PRIVATE_KEY` 后，`tauri build` 产出
+`Mode_<版本>_x64-setup.exe` + `.exe.sig`，但**不产出 `latest.json`**；清单由
+`node scripts/tauri-update-manifest.ts` 生成（`version` / `pub_date` /
+`platforms["windows-x86_64"]{signature,url}`）。没有私钥时构建在 makensis 之后以非 0 退出：
+`A public key has been found, but no private key.`
 
 ### 8.2 体积基线（Windows 本机实测）
 
@@ -454,7 +462,7 @@ M1 §5 登记的是「`onOAuthCallback` / `onPaymentCallback` 之外的订阅型
 | `onWindowFullscreenChanged` | **登记为不做** | 壳**有**窗口事件的来源（`RunEvent::WindowEvent` + `is_fullscreen()`），但发它需要**新增一个事件名**（协议 + 注入层 + 生成物三处一起动）。本任务的授权是「复用既有通道」，新增通道属窗口模型（M4）的改动。**注意它没有随 §9.5 一起接上**：§9.5 的 chrome 状态里没有 `isFullscreen` 字段（声明如此），所以那个布尔值没有来源 |
 | `executeDesktopCommand` / `getDesktopWindowChromeState` / `onDesktopWindowChromeStateChanged` | **实现**（fix round，用户报障） | 见 §9.5：自绘标题栏依赖它们，而注入层从前把它们当「降级空操作 / 缺席」 |
 | `onRemoteConnectionLog` / `onRemoteSessionClosed` / `onBotRemoteWorkspaceReconnected` / `onRemoteDesktopSessionEvent` | **登记为不做** | 手机远控/远端会话的事件源在**远控链路**（attachment 调度、远端传输），本阶段不涉及 |
-| `onUpdateReady` / `onUpdateCheckResult` / `onPostUpdateReleaseNotes` | **登记为不做** | 更新链只声明了 feed 端点与插件（M1 §5 的「更新链的实际可用」归口 M5），壳不注册更新命令，也没有可发的事件 |
+| `onUpdateReady` / `onUpdateCheckResult` / `onPostUpdateReleaseNotes` | **登记为不做** | M5 Task 1 接了**命令式**触发（`executeDesktopCommand("checkForUpdates")` → `updater::command::check_and_install`），但没有把更新进度投影成这些事件；渲染层仍拿不到 `onUpdate*` 事件源，属后续增量 |
 
 **「登记为不做」不等于沉默**：这些成员在注入层按**声明返回形态**分成两类——
 要读值的（`Promise<T>`，T ≠ void）返回**带方法名的被拒 Promise**，没有要读的值的返回

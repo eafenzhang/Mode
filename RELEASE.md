@@ -86,7 +86,10 @@ pnpm install --frozen-lockfile
 # 产品页 + Host sidecar 发运集（tauri build 也会自动跑，这里显式跑一遍便于排错）
 pnpm --filter @mode/desktop-tauri run build:package-inputs
 
-# NSIS 安装包（Windows x64）
+# NSIS 安装包（Windows x64）。签名环境变量只在当前 shell，不落仓库。
+export TAURI_SIGNING_PRIVATE_KEY="$HOME/.mode-tauri-updater/mode-updater.key"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(cat "$HOME/.mode-tauri-updater/password.txt")"
+
 pnpm --filter @mode/desktop-tauri exec tauri build \
   --target x86_64-pc-windows-msvc \
   --bundles nsis \
@@ -96,11 +99,28 @@ pnpm --filter @mode/desktop-tauri exec tauri build \
 mkdir -p dist/tauri
 cp "target/x86_64-pc-windows-msvc/release/bundle/nsis/Mode_<版本>_x64-setup.exe" \
    "dist/tauri/Mode-<版本>-win-x64.exe"
+# .sig 必须与改名后的安装包同批；latest.json 的 signature 字段直接吃它
+cp "target/x86_64-pc-windows-msvc/release/bundle/nsis/Mode_<版本>_x64-setup.exe.sig" \
+   "dist/tauri/Mode-<版本>-win-x64.exe.sig"
 # 与安装包同批的前端入口快照：verify-installed.ts 用它比对「产品页资产名在壳 exe 里」
 cp "apps/desktop-tauri/dist/index.html" \
    "dist/tauri/Mode-<版本>-win-x64.exe.index.html"
 node scripts/tauri-bundle-report.ts "dist/tauri/Mode-<版本>-win-x64.exe"
+
+# 生成 updater 清单（Task 1 实测：tauri build 本身不产出 latest.json，只产出 .sig）
+node scripts/tauri-update-manifest.ts \
+  --version "<版本>" \
+  --artifact "dist/tauri/Mode-<版本>-win-x64.exe" \
+  --signature "dist/tauri/Mode-<版本>-win-x64.exe.sig" \
+  --url "https://github.com/eafenzhang/Mode/releases/download/v<版本>/Mode-<版本>-win-x64.exe" \
+  --output "dist/tauri/latest.json"
 ```
+
+> **本机工具链注记**：本机没有 MSVC Build Tools，`node scripts/rust-cargo.ts` 走
+> `x86_64-pc-windows-gnu`。M5 Task 1 的演练就是用 gnu 宿主工具链构建的
+> （`RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-gnu` + `~/.rust-tools/llvm-mingw-*` 的
+> `gcc`/`dlltool`/`windres`）；CI 仍用 msvc。两者的 NSIS 安装包格式与 updater 路径相同，
+> 但 **msvc 产物没有在本机重跑过**，见 2.2 V11 的边界说明。
 
 要求：Rust 稳定工具链含 `x86_64-pc-windows-msvc` 目标；Node 版本以 `mise.toml` 为准
 （CI 用 Node 24）。`scripts/tauri-bundle-report.ts` 会写 `<安装包>.sha256`、`size.txt`，
@@ -194,6 +214,10 @@ node scripts/generate-tauri-protocol.mjs --check
 **`release.yml` 的 `tauri` job** 构建 NSIS 安装包、改名、跑
 `node scripts/tauri-bundle-report.ts`（sha256 + 体积留痕），当前**只上传 workflow artifact**
 （`retention-days: 14`）。
+
+> **M5 Task 1 之后的前置项**：`tauri.conf.json` 已开 `createUpdaterArtifacts` 且 pubkey 非空。
+> 如果 CI secrets 里没有 `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`，这个 job 会在 makensis
+> 之后以非 0 退出（实测报错见 3.3）。先按 3.1.1 创建 secret，再推 `main`。
 
 本地推送前还必须跑（CI 不完整覆盖架构检查）：
 
@@ -331,30 +355,61 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
   判据：退出码 0。`--all-targets` 覆盖不到 `required-features` 门住的三个 harness bin
   （Host spec §20 第 4 条），所以这条必须单独跑。
 
-- [ ] **V11. 旧版 → 新版真更新演练（【Task 1 完成前不可执行】）**
+- [x] **V11. 旧版 → 新版真更新演练（M5 Task 1 已跑通；每次发版前仍需重跑）**
 
-  现状与拦截点（都可核对）：
-  - `apps/desktop-tauri/src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey` 是空串；
-    空串在 `PublicKey::decode("")` 处失败，语义是 **fail closed**：**已安装的应用无法更新**。
-  - `crates/updater` 只注册了插件与端点，**没有注册任何更新命令**；
-    `apps/desktop-tauri/src-tauri/src/window_controls.rs` 明确把 `checkForUpdates` 归为
-    `desktop_command_unsupported`。所以「点菜单检查更新」在今天的产品里不可用。
-  - Release 里还没有 `latest.json`。
+  **本任务的交付与实测结论**
 
-  Task 1 必须先交付：签名密钥、非空 pubkey、`latest.json`、以及**一个可执行的更新触发方式**
-  （注册 Tauri 更新命令，或一个可复现的 harness；具体取哪种由 Task 1 决定并留下原始输出）。
+  - `plugins.updater.pubkey` 已从空串换成真实 minisign 公钥；空串仍然是 fail closed
+    （`PublicKey::decode("")` 报错），意图保留。
+  - `bundle.createUpdaterArtifacts: true` 是必需的：没有它不产出 `.sig`。
+    **`tauri build` 本身不产出 `latest.json`**——Task 1 实测 NSIS 目录里只有
+    `Mode_<版本>_x64-setup.exe` 与 `.exe.sig`；清单由
+    `node scripts/tauri-update-manifest.ts` 生成。
+  - 可执行触发：
+    - 产品入口：帮助菜单 →「检查更新」→ `executeDesktopCommand("checkForUpdates")` →
+      `updater::command::check_and_install`；
+    - 演练入口：`MODE_TAURI_CHECK_FOR_UPDATES=1`（启动时走**同一个函数**）。
+      这样做的原因：安装后的自动化演练没有可靠的点按面；两者不是两套更新逻辑。
+  - 演练构建用 `--config` 把端点指向本地 HTTPS（`https://127.0.0.1:8443/latest.json`）
+    并开 `dangerousAcceptInvalidCerts`（自签证书）。这只用于本地演练，**不进发布产物**。
 
-  演练步骤（Task 1 定稿后逐项执行并留输出）：
-  1. 在隔离目录安装版本 N（带签名）。
-  2. 发布/提供版本 N+1 与 `latest.json`，且 N 的构建指向该 feed。
-     - 注意端点写死为
-       `https://github.com/eafenzhang/Mode/releases/latest/download/latest.json`；
-       GitHub 的 `/releases/latest/` 只解析**非预发布**的正式 release。若用预发布做演练，
-       必须用 `--config` 覆盖端点或改用正式 release，否则装好的 N 根本看不到 N+1。
-  3. 触发 N 的更新检查，确认：下载完成 → 签名校验通过 → 安装 → 重启 → 版本显示 N+1；
-     数据根（隔离目录）保持不变。
-  4. 负向对照：篡改 `latest.json` 或安装包签名，确认更新被拒绝、旧版本继续运行（fail closed）。
-  5. 「什么把它定下来」：Task 1 的更新链报告 + 上述两步的原始输出；在此之前不得宣称更新链可用。
+  **已执行的演练（原始输出在任务报告里）**
+
+  1. `0.0.1` 安装到隔离目录 `C:\Users\Administrator\.mode-tauri-drill\install-0.0.1`，
+     `latest.json` 指向 `0.0.2`。
+  2. 启动 `0.0.1`（`MODE_DATA_BASE_DIR` 指向隔离目录，`MODE_TAURI_CHECK_FOR_UPDATES=1`）：
+     日志依次出现
+     `updater check start current=0.0.1` →
+     `update_available ... version=0.0.2` →
+     `download complete bytes=54030393/54030393` →
+     `signature verified bytes=54030393 version=0.0.2`。
+  3. 旧进程以退出码 0 结束；安装目录里的 `ModeTauri.exe` 变为 `ProductVersion 0.0.2`；
+     重启后的进程 `StartTime` 晚于旧进程退出、`Path` 仍是该隔离安装目录。
+     旧进程日志里的 `dataRoot=...\.mode-tauri-drill\data\.mode` 证明隔离数据根生效；
+     演练前后 `~/.mode` 的 mtime 未变。
+  4. 负向对照：把 served 安装包中间 1 个字节翻转（签名不变）后重装 `0.0.1` 并触发：
+     日志出现 `updater download failed error=The signature verification failed`，
+     返回 `{"status":"error","phase":"download",...}`，进程继续以 `0.0.1` 运行。
+     （把清单里 **untrusted comment** 改一个字符不会失败——那一行不被 minisign 覆盖，
+     这不是漏洞；有效对照必须改签名覆盖的字节或产物本身。）
+
+  **每次发版前按下面步骤重跑（Windows 本机）**
+
+  1. 构建并签名版本 N（1.4），安装到隔离目录：
+     `Mode_<N>_x64-setup.exe /S /D=<空目录>`。
+  2. 准备 N+1 的安装包、`.sig` 与 `latest.json`，把清单与安装包放到一个 HTTPS feed 上；
+     N 的构建必须指向该 feed（正式发布用默认的 `/releases/latest/download/latest.json`；
+     演练用 `--config` 覆盖端点 + 自签证书）。
+  3. 启动 N（建议同时设 `MODE_DATA_BASE_DIR` 与 `MODE_TAURI_CHECK_FOR_UPDATES=1`，
+     或在产品里点「帮助 → 检查更新」），确认：下载完成 → 签名校验通过 → 安装器启动 →
+     重启 → 安装目录里的 exe `ProductVersion` 为 N+1，且新进程确实在跑。
+  4. 负向对照：翻转安装包 1 个字节（或改签名覆盖的字节），确认
+     `The signature verification failed`、进程仍为 N。
+  5. 清理：停止进程、恢复 `HKCU\Software\Classes\mode` 与卸载项（演练前 `reg export`，
+     演练后 `reg import`）、停止本地 feed。
+
+  **边界（不要读成三平台都验过）**：演练在 Windows x64、gnu 本地工具链构建的 NSIS
+  安装包上完成；msvc 产物、macOS/Linux 均未演练（DR-M5-2）。
 
 ### 2.3 绿 CI 不覆盖什么
 
@@ -370,7 +425,7 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
 
 | 密钥 | 用途 | 存放 | 当前状态 |
 | --- | --- | --- | --- |
-| **Tauri updater 密钥（minisign）** | 给安装包/更新清单签名，客户端校验 | 私钥只在 CI secrets：`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（名称出自 M3 交接文档 §3 第 1 条）；公钥可入库 | **未生成**【Task 1】 |
+| **Tauri updater 密钥（minisign）** | 给安装包/更新清单签名，客户端校验 | 私钥只在 CI secrets：`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；公钥已入库（`tauri.conf.json`） | **已生成**（M5 Task 1）；本机材料在仓库外，见 3.1.1 |
 | **Windows Authenticode 代码签名证书** | 消 SmartScreen「未知发布者」 | 证书与密码只在 CI secrets | **未使用**；release notes 明确写「安装包没有代码签名」（`release.yml` 的说明文本） |
 
 纪律：
@@ -383,16 +438,57 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
   不能依赖自动更新。
 - 生成/签名命令由 Task 1 固定并留下原始输出；本清单不复述未在本仓库验证过的 CLI 参数。
 
+#### 3.1.1 本机密钥材料与 CI secret（人工前置项）
+
+Task 1 用 `tauri signer generate` 生成，**没有写入仓库**：
+
+| 材料 | 本机路径（仓库外） | 去向 |
+| --- | --- | --- |
+| 私钥 | `C:\Users\Administrator\.mode-tauri-updater\mode-updater.key` | CI secret `TAURI_SIGNING_PRIVATE_KEY` |
+| 私钥密码 | `C:\Users\Administrator\.mode-tauri-updater\password.txt` | CI secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` |
+| 公钥 | `C:\Users\Administrator\.mode-tauri-updater\mode-updater.key.pub` | 已写入 `tauri.conf.json` 的 `plugins.updater.pubkey`（base64 原文） |
+
+**人工要做的一次性动作**（只核对/创建名称，不要在日志里回显值）：
+
+```bash
+gh secret set TAURI_SIGNING_PRIVATE_KEY < "$HOME/.mode-tauri-updater/mode-updater.key"
+gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD < "$HOME/.mode-tauri-updater/password.txt"
+gh secret list --app actions | grep TAURI_SIGNING
+```
+
+- 私钥文件与密码文件在创建 secret 后应离线保存（密码管理器或加密介质），不要提交、
+  不要贴进 Issue/PR/聊天记录。
+- CI 里的 `tauri build` 必须能读到这两个 secret；缺任意一个时构建不会产出可用签名
+  （见 3.3 的实测结论）。
+- 本地演练用 `TAURI_SIGNING_PRIVATE_KEY=<路径>` 或私钥内容均可；`signer sign` 需要
+  `TAURI_SIGNING_PRIVATE_KEY_PATH` 指向文件。
+
+#### 3.1.2 密钥轮换（写清楚代价）
+
+- **为什么不能随便换**：已安装的旧版本只信任它**内置**的 pubkey。直接把 conf 换成新公钥
+  后，旧版本会拒绝新版本签名。
+- **正常轮换（密钥未泄露）**：
+  1. 生成新 keypair；
+  2. 发一个**用旧私钥签名**、但 conf 里已含**新公钥**的过渡版本（版本号 +1）；
+  3. 之后的版本用新私钥签名。旧用户先升到过渡版，再信任新 key。
+- **泄露时**：同上也来不及（攻击者已能签任意版本）。此时必须立即轮换、发布新版本，
+  并明确告知用户**手动重装**；旧版本无法靠自动更新获救。
+- **何时最便宜**：第一次对用户正式发布之前。当前尚未 GA，轮换成本最低。
+
 ### 3.2 `pubkey` 的当前位置与今天的语义
 
 - 文件：`apps/desktop-tauri/src-tauri/tauri.conf.json`
 - 字段：`plugins.updater.pubkey`
-- 今天：`""`（空串）。`crates/updater/src/lib.rs` 的文档与单测
-  `the_app_conf_declares_an_empty_pubkey_for_m1` 把这一状态钉死。
-- 语义：空串在 `verify_signature` 的 `PublicKey::decode("")` 处报错，**fail closed**——
-  不会静默接受未签名更新，但也意味着**装了无法更新**。
-- Task 1 换成真 key 时，该单测会**故意变红**；必须同步更新断言、`plugin` 文档与 spec §5。
-  这是有意的摩擦，不要为了让测试变绿而删断言。
+- **M5 Task 1 起**：真实 minisign 公钥的 base64（`.pub` 文件原文）。
+  守卫在 `crates/updater/tests/conf_guard.rs` 的
+  `the_app_conf_declares_a_real_minisign_pubkey`：断言非空、base64 可解码、
+  且能被 `minisign-verify` 解析。
+- 语义：用这把公钥校验每个下载的安装包签名；签名不匹配则更新被拒绝，旧版本继续运行。
+- **空串仍然 fail closed**：`PublicKey::decode("")` 报错，任何没有 pubkey 的构建都无法更新。
+  这不是历史遗留，而是刻意保留的安全默认；守卫防止有人把 conf 改回空串却以为更新还能用。
+- 更新断言时同步改了 `crates/updater/src/lib.rs` 的 `plugin` 文档与
+  `docs/specs/tauri-platform-commands.md` §5 的对应句子；旧措辞「因为没有密钥而拒绝一切」
+  不再是当前状态，不要照着它排障。
 
 ### 3.3 `latest.json` 怎么产生、放哪里
 
@@ -401,11 +497,23 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
 - 它必须作为 **Release 资产** 上传；今天的 CI 只上传 workflow artifact，**没有这个资产**。
 - `latest.json` 的 `version` 必须与本次 tag 去掉 `v` 后一致，`pub_date` 与本次发布同源；
   不要手写第二份版本号。
-- **【待确认】** 当前 `tauri.conf.json` 没有 `bundle.createUpdaterArtifacts` 键。Tauri v2 是否需要
-  显式打开它才会产出 `.sig` 与 `latest.json`，仓库内没有原始输出可引。把它定下来的方法：
-  Task 1 在带签名环境变量的一次 `tauri build` 后检查
-  `target/x86_64-pc-windows-msvc/release/bundle/nsis/` 是否出现 `.sig` 与 `latest.json`；
-  若没有，再决定是否显式加该键，并把结论写进 spec。
+- **`bundle.createUpdaterArtifacts` = `true`（M5 Task 1 定稿，已提交）**：
+  - 不设该键时 schema 默认是 `false`，NSIS 目录里没有 `.sig`；
+  - 设为 `true` 且设置签名环境变量后，`tauri build` 产出
+    `Mode_<版本>_x64-setup.exe` 与 `Mode_<版本>_x64-setup.exe.sig`；
+  - **`tauri build` 本身不产出 `latest.json`**（本机实测：`find target -name latest.json` 为空）。
+    它是 `tauri-action` 一类发布工具生成的东西，本仓库用
+    `node scripts/tauri-update-manifest.ts` 从 `.sig` 生成。
+- `latest.json` 的结构（脚本写出，插件读取）：
+  `{version, notes, pub_date, platforms["windows-x86_64"]{signature,url}}`；
+  `signature` 是 `.sig` 文件**原文**，`url` 指向本次发布的安装包。
+- 签名环境变量缺失时的**实测行为**（`createUpdaterArtifacts: true` + 空 pubkey 之外的正常
+  conf + 不设 `TAURI_SIGNING_PRIVATE_KEY`）：`tauri build` 在产出 unsigned 安装包后
+  **以非 0 退出**，报
+  `A public key has been found, but no private key. Make sure to set TAURI_SIGNING_PRIVATE_KEY environment variable.`
+  也就是说它是 fail closed，但会留下一个**没有 `.sig` 的安装包**。
+  **人工前置项**：在推送本次提交前先创建 3.1.1 的两个 secret，否则 CI 的 `tauri` job
+  会因为缺少私钥而红（这是预期行为，不是新缺陷）。
 - `latest.json` 的上传属于 Task 2 的发布线切换；在它完成前，即使签名做对了，
   Release 里也不会有这个资产。
 
@@ -415,10 +523,15 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
       `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（只核对名称，不读取/打印值）。
 - [ ] `tauri.conf.json` 的 `plugins.updater.pubkey` 非空，且与 CI 使用的私钥配对；
       `crates/updater` 的空串守卫已按 Task 1 更新。
+- [ ] `bundle.createUpdaterArtifacts` 为 `true`，且构建确实产出了 `.exe.sig`
+      （不是「构建通过」就当作签名成功）。
 - [ ] Release 资产里有 `latest.json` 与安装包对应的 `.sig`。
-- [ ] `latest.json` 的 `version` 等于 tag 去掉 `v`；`pub_date` 存在；平台条目指向本次发布的
-      `Mode-<版本>-win-x64.exe`。
-- [ ] 负向校验：篡改签名/清单后更新被拒绝（由 V11 的第 4 步证明）。
+- [ ] `latest.json` 的 `version` 等于 tag 去掉 `v`；`pub_date` 存在；平台键是
+      `windows-x86_64`；条目指向本次发布的 `Mode-<版本>-win-x64.exe`。
+- [ ] **没有**把 `latest.json` 与旧线的 `latest*.yml` 当成同一个资产（两个文件名不同，
+      上传时不要互相 `--clobber`）。
+- [ ] 负向校验：篡改安装包字节后更新被拒绝（V11 第 4 步；只改清单的 untrusted comment
+      不足以构成负向对照）。
 - [ ] 私钥轮换预案已演练到「知道怎么换、知道旧用户会怎样」，且没有把任何私钥材料提交进仓库。
 
 ---
@@ -481,7 +594,10 @@ gh release view <tag> --json isDraft,isLatest,assets \
 
 - `Mode-<版本>-win-x64.exe`（Tauri 安装包）
 - `latest.json`（Tauri 更新清单）
-- 安装包对应的签名文件（Tauri 的 `.sig`；**确切文件名以 Task 1 的实际产物为准**）
+- 安装包对应的签名文件：`Mode-<版本>-win-x64.exe.sig`（M5 Task 1 实测的产物名；
+  `tauri build` 原名是 `Mode_<版本>_x64-setup.exe.sig`，改名后必须与安装包同名）
+- 旧 Electron 线的 `latest*.yml` / `*.blockmap`（如果本次 release 同时保留旧线资产；
+  与 `latest.json` 文件名不同，不冲突）
 - `sha256.txt`（合并校验清单；Task 2 需要让 `checksums` 覆盖 Tauri 的 `.exe`）
 - 旧 Electron 线的上一版资产仍在它自己的 release 里，没有被覆盖
 
@@ -490,6 +606,8 @@ gh release view <tag> --json isDraft,isLatest,assets \
 
 ### 4.5 发布前检查（全部勾完才允许人推送 `main`）
 
+- [ ] 3.1.1 的两个 CI secret 已创建（这是 `tauri` job 能产出 `.sig` 的前置条件；
+      缺私钥时构建会以非 0 退出）。
 - [ ] 2.1 的自动验证在本机与 CI 都是绿的（如实报告任何既有失败，不把失败写成通过）。
 - [ ] 2.2 的 V1–V11 全部勾完；V11 若未完成，先完成 Task 1。
 - [ ] 3.4 的签名检查全部勾完；`pubkey` 不是空串。
@@ -575,20 +693,28 @@ DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的�
    `sha256.txt`。然后在一台装有上一个 Electron 版本的机器上触发「检查更新」，确认能升到
    `<新版本>`。
 
-### 5.3 已经在坏 Tauri 版本上的用户
+### 5.3 已经在坏 Tauri 版本上的用户（M5 Task 1 演练后的定稿）
 
-这一条必须写清楚，不能假设「重发 Electron 就自动救回来」：
+**结论：无自动降级路径。** 依据是 updater 的默认版本比较与一次真演练：
 
-- **更新链尚未上线（Task 1 未完成，`pubkey` 仍为空串）**：Tauri 版**无法自动更新**。
-  这些用户只能手动下载回滚安装包（Electron 线）或修复后的 Tauri 版本。
-- **更新链已上线（Task 1 已完成）**：回滚 release 是 Electron 构建，**没有 `latest.json`**；
-  Tauri 客户端访问 `/releases/latest/download/latest.json` 会 404，按 fail closed 处理，
-  不会自动降级。因此：
-  - 对已装坏 Tauri 版的用户，**首选是发一个版本号更高的 Tauri 修复版**（正向修复）；
-  - 5.2 的 Electron 重发是**平台级回滚**，用于阻止新用户继续下载坏版本，并要求已装用户手动重装。
-- **【待确认】** Task 1/2 需要决定并写入记录：更新链上线后，Tauri 用户的回滚是「正向修复」
-  还是「手动重装」；这决定 5.2 是否足以覆盖全部用户。定下来的依据是一次真更新演练的失败/成功
-  两面输出，而不是推断。
+- Tauri updater 默认只接受**版本号更大**的清单；代码里没有开 `allowDowngrades`。
+- 回滚 release 是 Electron 构建，**没有 `latest.json`**；Tauri 客户端访问
+  `/releases/latest/download/latest.json` 得到 404，按 fail closed 处理，继续运行当前版本。
+- 演练确认：签名/下载失败时不会安装，旧版本继续运行（不会「装一半」或静默降级）。
+
+因此处置顺序是：
+
+1. **首选：发一个版本号更高的 Tauri 修复版**（正向修复）。这是唯一能让已更新用户
+   自动回到可用状态的路径。
+2. **平台级止血**：按 5.2 从旧 Electron tag 发一个更高版本号的 Electron release，
+   让**尚未更新**的用户和手动下载的用户拿到可用安装包。
+3. **已装坏 Tauri 版的用户**：必须**手动**安装修复后的 Tauri 版或 Electron 安装包。
+   不要向他们承诺「重发 Electron 就会自动回滚」——不会发生。
+4. 如果坏版本就是 Tauri 发布线的第一个版本、且用户量还小：优先走 1；同时把坏 release
+   标注「勿下载」但**保留**，供排障。
+
+**不要做的**：不要为了「让用户降级」在清单里写一个更小的版本号（默认比较会直接忽略）；
+不要删除坏 release；不要在旧 tag 上用 `--clobber`。
 
 ### 5.4 确保旧产物始终可下载
 
