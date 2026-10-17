@@ -5,6 +5,8 @@
   "description": "Chrome MV3 extension for importing the current profile's cookies into Mode (P1)",
   "scripts": {
     "build": "node --import tsx scripts/build.ts",
+    "register-native-host": "node --import tsx scripts/register-native-host.ts",
+    "unregister-native-host": "node --import tsx scripts/register-native-host.ts --unregister",
     "typecheck": "node ../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json"
   }
 }

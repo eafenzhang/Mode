@@ -15,9 +15,20 @@ pnpm --filter @mode/browser-import-extension build
 
 1. Chrome → `chrome://extensions` → 开启开发者模式；
 2. 「加载已解压的扩展程序」→ 选择 `packages/browser-import-extension/dist`；
-3. 需要先注册 Native host（T5）：
-   `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.mode.browser_import`
-   指向 host manifest，`allowed_origins` 含本扩展的 ID。
+3. 先构建并注册 Native host：
+
+   ```bash
+   node scripts/rust-cargo.ts build --release -p browser-import-host
+   pnpm --filter @mode/browser-import-extension register-native-host
+   ```
+
+   注册脚本会写 `%LOCALAPPDATA%\Mode\browser-import\native-host\com.mode.browser_import.json`
+   并创建 `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.mode.browser_import`。
+   扩展 ID 固定为 `bfgflaoohgcpcjkmefbddilhlmbbmoic`（manifest `key` 派生）。
+   注销：`pnpm --filter @mode/browser-import-extension unregister-native-host`。
+
+4. Mode 侧用 `MODE_BROWSER_IMPORT_EXTENSION=1` 启动，点击「导入浏览器数据」后，
+   在扩展 popup 里点击「导入到 Mode」。
 
 ## 边界
 
