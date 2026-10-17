@@ -85,6 +85,10 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
     2. **构建接线落地**：新增 `scripts/build-browser-import-helper.mjs`（固化 gnu 工具链装配、产物自检、非 win32 平台 skip、`MODE_BROWSER_IMPORT_TARGET` 可覆盖），`prepare:browser-import-helper` 改指它；本机实测产出 `bundled-tools/win32-x64/browser-import/mode-browser-import-helper.exe`。旧 C# 脚本**不删**，改挂 `prepare:browser-import-helper:oracle`，以便继续复现旧产物做黑盒对拍。
     3. **黑盒对拍闭环**：Rust 与旧产物在「协议版本 + 架构 + 应用版本」3 字段一致；第 1 字段按设计**不同**（旧产物 `ZCODE_*`、Rust `MODE_*`，正是要修的品牌缺陷）。契约测试 5 passed（含对拍用例）。落点冲突已处理：两个产物共用 `bundled-tools/win32-x64/browser-import/`，对拍旧产物须显式给 `MODE_BROWSER_IMPORT_ORACLE_PATH`，未指定时对拍用例整条 skip（不给假绿）。
     4. **仍未完成**：P2（提权 / 服务通道 / 密钥解封）需要真实 Windows 交互式会话做 UAC 验收，无人值守执行会弹窗挂住；故 `Program.cs` 与其语言政策 allowlist 行保留、**C# 语言条未归零**，`electron-builder.config.js` 的 browser-import `extraResources` 接线与打包态 Authenticode 校验一并留到 P3（本轮刻意不动该文件，遵守 Global Constraints 的「同一窗口期只允许一处改动」）。**M0 仍以本任务未完成论**。
+    - **2026-10-17 更新（用户选 B）**：A 参照已在宿主链路跑出（C# oracle → `ERR decryption_failed`；
+      本机提权静默、无 UAC 弹窗），成功路径仍不存在。P2 移交独立 spike
+      `docs/plans/2026-10-17-chrome-abe-import-spike.md`，安全门禁
+      `docs/specs/chrome-abe-import-security.md`；C# 保留、Rust 停在 P1、C# 归零继续挂起。
 - [ ] **mode-cua JS→TS（让行）**〔本批让行，待电脑控制一期收口〕：等电脑控制一期收口后再执行（该目录正在被并行会话开发）；`.d.ts` 手写声明删除，改由 tsc 产出。
 - [ ] **（可选）过渡版瘦身**〔本批未执行〕：按上轮结论修 `files` 白名单（echarts/mermaid/pdfjs/lucide/shiki/katex 等渲染层库已在 `out/renderer` bundle 内，asar 不再重复装其 node_modules）+ `compression: "max"`，本地出包对比体积并记录。**与 CUA 一期对 `electron-builder.config.js` 的改动错峰，同一窗口期只动一处。**
 

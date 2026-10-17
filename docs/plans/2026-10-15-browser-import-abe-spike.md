@@ -63,3 +63,12 @@
 
 **与上面第 4 条否证的差异**：直跑旧产物得到 `broker_initialization_failed`，宿主链路得到
 `decryption_failed`。说明 broker 初始化能过，失败点在解密/电梯调用本身；成功路径仍然没有参照物。
+
+## 2026-10-17 决策：B（独立 spike + 安全评审）
+
+用户选定 **B**：若产品必须支持当前 Chrome 的 v20 cookie 导入，把「浏览器进程内调用 / 注入 +
+通道」立为独立 spike，含安全评审，不混进 M0 收尾。
+
+- 计划：`docs/plans/2026-10-17-chrome-abe-import-spike.md`（候选路径 P1–P4、工作分解、退出标准）
+- 安全门禁：`docs/specs/chrome-abe-import-security.md`（威胁模型 R1–R10、go 条件）
+- 现状：C# 保留、Rust 停在 P1；P3 的「删 C#」继续挂起；M0 任务 6 仍未关闭。

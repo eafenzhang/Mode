@@ -433,6 +433,13 @@ git commit -m "feat(browser-import): broker wire 协议编解码与 reason 全�
 
 ## P2：需要真实 Windows 会话的层
 
+> **2026-10-17 决策（B）**：P2 的提权/服务通道/app-bound 解封**移交独立 spike**——
+> `docs/plans/2026-10-17-chrome-abe-import-spike.md`，安全门禁见
+> `docs/specs/chrome-abe-import-security.md`。本计划的 P2 不再直接推进；
+> C# 保持原位，Rust 停在 P1，P3 的「删 C#」继续挂起。
+> 理由：A 参照（宿主链路）止于 `ERR decryption_failed`，成功路径不存在；
+> 继续盲写提权/解封无法验收。
+
 ### Task 4: 提权与服务通道
 
 **Files:**
