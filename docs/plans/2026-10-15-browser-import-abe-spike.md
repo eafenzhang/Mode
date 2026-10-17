@@ -51,3 +51,15 @@
 | C | 先不碰解封，维持 C# 在位 | 功能保持现状；Rust 版停在 P1 |
 
 **明确不做**：把 P2 实现成「无解封能力」就替换 C#——那会把功能从「可能可用」变成「确定不可用」。
+
+## 2026-10-17 宿主链路复现（agent 代跑，路线 A）
+
+在真实 dev 环境用宿主链路驱动 C# oracle（dev-only 品牌兼容 + `allowElevatedChromeDecryption:true`）：
+
+- helper 原始响应：`ZCODE_BROWSER_IMPORT_V1	ERR	decryption_failed`（exit 0，stderr 空）；
+- 宿主映射：`chrome_cookie_app_bound_decryption_failed`；
+- cookies：`0 imported / 33 skipped`；
+- 本机是管理员会话且 `ConsentPromptBehaviorAdmin=0`，**没有 UAC 弹窗**，取消路径未验。
+
+**与上面第 4 条否证的差异**：直跑旧产物得到 `broker_initialization_failed`，宿主链路得到
+`decryption_failed`。说明 broker 初始化能过，失败点在解密/电梯调用本身；成功路径仍然没有参照物。

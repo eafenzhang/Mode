@@ -75,3 +75,27 @@ unset MODE_BROWSER_IMPORT_ALLOW_LEGACY_ORACLE               # 或关闭终端
 - C# oracle 是**参照物**，不是要发布的实现；它的 `ZCODE_*` 品牌正是 Rust 版要修的缺陷。
 - 成功路径没有参照：若 Run A 仍回 `broker_initialization_failed`，按 spike 的 A/B/C 决策处理——
   A 得到参照后再判断是否需要走 B（浏览器进程内调用 + 安全评审）。
+
+---
+
+## 2026-10-17 执行记录（agent 代跑）
+
+**环境**：Windows x64；管理员会话（`IsInRole(Administrator)=true`）；
+`EnableLUA=1` / `ConsentPromptBehaviorAdmin=0`（管理员静默提权，**不弹 UAC**）；
+Chrome `155.0.8059.84`；profile `Default`（33 条 cookie）。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 不带 `allowElevatedChromeDecryption` | `success:true`；cookies `0/33/0`；issues `["chrome_cookie_elevation_required"]`（预期：未授权提权就不尝试 v20） |
+| 带 `allowElevatedChromeDecryption:true` | helper 经 legacy 品牌兼容被调用；原始响应 `ZCODE_BROWSER_IMPORT_V1\tERR\tdecryption_failed`（exit 0）；宿主报 `chrome_cookie_app_bound_decryption_failed`；cookies 仍 `0/33/0` |
+| 直接黑盒跑 helper（同一请求） | stdout 同上；stderr 空；exit 0 |
+
+**UAC 取消路径未验**：本机是管理员会话且 `ConsentPromptBehaviorAdmin=0`，提权静默、没有弹窗可点
+「否」。要验取消路径需要**非提权会话**或临时改 UAC 策略（后者不应在未授权时做）。
+
+**参照结论（路线 A）**：旧 C# 实现在宿主驱动的真实链路上止于 `decryption_failed`
+（不同于 spike 直跑时的 `broker_initialization_failed`）——broker 已初始化，失败在解密/电梯调用阶段。
+**仍无成功路径**；接下来是选 B（进程内调用 + 安全评审）还是 C（C# 保持原位、Rust 停在 P1）。
+
+**恢复**：Rust helper 已重建并自检为 `MODE_BROWSER_IMPORT_HELPER 2 x64 0.0.1 257739bc`；
+dev app 已停止；未修改系统 UAC 策略。

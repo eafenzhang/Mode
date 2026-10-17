@@ -551,7 +551,10 @@ git commit -m "feat(browser-import): 提权与服务通道（fail-closed 到契�
   （`MODE_BROWSER_IMPORT_ALLOW_LEGACY_ORACLE=1`）与逐步 runbook 已就位，见
   `docs/plans/2026-10-17-browser-import-p2-dev-runbook.md`。
   **打包态仍需** app 与 helper 的有效 Authenticode（当前仓库没有签名配置），本轮先走 dev。
-  阻塞：需要交互式 UAC 会话，无人值守执行会弹窗挂住〕
+  〔**2026-10-17 agent 代跑结果**：dev 链路已跑通到 helper——C# oracle 返回
+  `ERR decryption_failed`，宿主报 `chrome_cookie_app_bound_decryption_failed`，
+  cookies `0/33`；本机管理员会话 `ConsentPromptBehaviorAdmin=0`，**没有 UAC 弹窗**，
+  取消路径未验。成功路径仍不存在；A/B/C 决策待定。详见 runbook 的执行记录〕
 - [x] **Step 3: 更新路线图并提交**（见计划交付说明）。
 
 ### 本轮（2026-10-16）额外发现：打包接线缺失
