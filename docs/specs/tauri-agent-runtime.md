@@ -404,6 +404,10 @@ Preview (first 2KB):
 - 关键口径：`result.originalBytes` / `returnedBytes` 指的是**包装**（约 2.2KB），**不是**命令输出；
   `truncated=false`、`budgetStrategy=artifact`。完整输出落在上面的 `-stdout.log` 文件里。
 - 阈值在 **30,000 与 30,720 字节之间**（30,000 直出、30,720 持久化；精确边界未测）。
+- Rust 侧落点接线（2026-10-18）：`ToolContext.artifact` 携带**已解析的 `.mode` 数据根**、
+  `sessionId` 与 `toolCallId`；`Session::with_data_root` 接线后 artifact 落
+  `{data_root}/cli/exec/{sessionId}/{toolCallId}-stdout.log`（观察路径里的 `<dataRoot>/.mode` 中，
+  `<dataRoot>` 是基目录，`.mode` 是这里的数据根）。未接线数据根的会话仍落系统临时目录。
 
 **取消（`probe-bash-cancel.mts`，运行中的 `sleep 30`）**
 

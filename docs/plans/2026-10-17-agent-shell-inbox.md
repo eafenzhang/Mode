@@ -224,8 +224,11 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - [x] 超时/取消的进程终止可验证：单测用 `sleep` 子进程 + 取消令牌（120ms 后置位），
       断言 `TOOL_CANCELLED`；超时不清理孙进程，与 oracle 一致（见 DR-T4-3）。
 - [x] 不做 `run_in_background`（DR-T4-5 决定拆到 Task 4b；显式未实现标记）。
-- [ ] **artifact 落点接线**：`BashControl::artifact_dir` 已可注入，但会话的 `ToolContext`
-      还没有数据根/sessionId，注册表路径落系统临时目录；接线时替换即可（夹具不覆盖 >30KB）。
+- [x] **artifact 落点接线**（2026-10-18）：`ToolContext.artifact` 带已解析的 `.mode` 数据根、
+      `sessionId` 与 `toolCallId`；`Session::with_data_root` + `tool_context_for_call` 把落点接进
+      注册表路径，文件名用观察值 `<toolCallId>-stdout.log`。未接线数据根时仍落系统临时目录。
+      用例：`agent-tools` 的 `artifact_location_from_context_uses_the_observed_path`、
+      `agent-core/tests/artifact_location.rs`（夹具仍不覆盖 >30KB，避免路径不可复现）。
 
 ### Step 4：`CommandInbox`
 
@@ -276,5 +279,13 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - **规范化**：新增「shell 诊断前缀」白名单（`bash: line N:` / `/usr/bin/bash: line N:` →
   `<shell>: line <n>:`）；TS `normalize.mts` 与 Rust `test_support::project` 同步，
   `bash-command-not-found` 已重录。
-- **未做**：`run_in_background`（Task 4b）、artifact 落点接线、
-  `CommandInbox`（DR-T4-7 待决）。
+- **未做**：`run_in_background`（Task 4b）、`CommandInbox`（DR-T4-7 待决）。
+
+## 执行记录（2026-10-18 巡检轮）
+
+- **artifact 落点接线**已补：`ToolContext.artifact`（`ArtifactLocation { data_root, session_id,
+  tool_call_id }`）+ `Session::with_data_root`。落点 `{data_root}/cli/exec/{sessionId}/
+  {toolCallId}-stdout.log`，未接线时保持临时目录。
+- 验证：`agent-tools` 12 passed（新增 1 条落点用例）、`agent-core` 全套 + 新增
+  `artifact_location` 1 passed、clippy `-D warnings` 零告警。
+- 仍未做：`run_in_background` 的**观察**（Task 4b 前置）、`CommandInbox`（DR-T4-7 待人裁决）。

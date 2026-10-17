@@ -28,6 +28,7 @@ fn assert_fixture(case: &str) {
     workspace.seed(&fixture.seed);
     let context = ToolContext {
         cwd: workspace.cwd(),
+        artifact: None,
     };
 
     assert_eq!(
@@ -117,6 +118,7 @@ fn read_only_tools_leave_the_workspace_untouched() {
         workspace.seed(&fixture.seed);
         let context = ToolContext {
             cwd: workspace.cwd(),
+            artifact: None,
         };
         for call in &fixture.calls {
             let args = workspace.substitute(&call.input);
@@ -177,6 +179,7 @@ fn registry_contains_only_read_from_the_read_only_slice() {
 fn unknown_tool_names_answer_like_the_oracle() {
     let context = ToolContext {
         cwd: ".".to_string(),
+        artifact: None,
     };
     for name in ["Glob", "Grep"] {
         let error = invoke_by_name(name, &serde_json::json!({}), &context, &FileState::new())
@@ -238,6 +241,7 @@ fn observed_text_extensions_read_as_text() {
     workspace.seed(&seeds);
     let context = ToolContext {
         cwd: workspace.cwd(),
+        artifact: None,
     };
     for (relative, _) in &seeds {
         let args = serde_json::json!({ "file_path": format!("{}/{relative}", context.cwd) });
@@ -270,6 +274,7 @@ fn repeat_reads_are_stubbed_by_mtime() {
     )]);
     let context = ToolContext {
         cwd: workspace.cwd(),
+        artifact: None,
     };
     let args = serde_json::json!({ "file_path": format!("{}/a.txt", context.cwd) });
     let mut history = FileState::new();
@@ -323,6 +328,7 @@ fn unimplemented_marker_covers_the_image_path() {
     )]);
     let context = ToolContext {
         cwd: workspace.cwd(),
+        artifact: None,
     };
     let args = serde_json::json!({ "file_path": format!("{}/pic.png", context.cwd) });
     let error = invoke_by_name("Read", &args, &context, &FileState::new())
@@ -363,6 +369,7 @@ fn success_result_fields_match_the_recorded_events() {
         workspace.seed(&fixture.seed);
         let context = ToolContext {
             cwd: workspace.cwd(),
+            artifact: None,
         };
         for (index, call) in fixture.calls.iter().enumerate() {
             let Some(recorded) = fixture.expect_result_objects[index].as_ref() else {

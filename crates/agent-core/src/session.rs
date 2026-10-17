@@ -39,6 +39,7 @@
 //! | `batch` | 一条 assistant 消息一批：`toolCallIds` + `successCount` + `errorCount` |
 //! | 事件信封 | `deliveryKind: "desktop-continuous"`，`seq` 单调，`eventId`/`traceId` 是 uuid |
 
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
@@ -50,7 +51,9 @@ use agent_protocol::session_event::{
     ToolStartedPayload, ToolUpdatedPayload, TurnStartedPayload,
 };
 use agent_protocol::ExtraFields;
-use agent_tools::{lookup, FileState, ModeToolFamily, ToolContext, ToolOutcome, ToolSpec};
+use agent_tools::{
+    lookup, ArtifactLocation, FileState, ModeToolFamily, ToolContext, ToolOutcome, ToolSpec,
+};
 
 use crate::tool::{error_object, result_object};
 
@@ -74,6 +77,8 @@ pub struct Session {
     /// 会话内的文件记忆：`Read` 的重复读去重（跨 turn 命中）+ `Write` 的「先读再写」前置条件。
     /// 见 `agent_tools::FileState`。
     file_state: FileState,
+    /// `.mode` 数据根（`{base}/.mode`）。`None` = 本会话还没接线数据根，工具 artifact 落临时目录。
+    data_root: Option<PathBuf>,
 }
 
 impl Session {
@@ -85,17 +90,40 @@ impl Session {
             sequence: 0,
             current_turn_id: None,
             file_state: FileState::new(),
+            data_root: None,
         }
+    }
+
+    /// 接线数据根：工具的大输出 artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/…`
+    /// （`data_root` 传已解析的 `.mode` 根，见 [`ArtifactLocation`]）。
+    pub fn with_data_root(mut self, data_root: impl Into<PathBuf>) -> Self {
+        self.data_root = Some(data_root.into());
+        self
     }
 
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
 
-    /// 工具执行上下文（工作目录就是会话工作目录）。
+    /// 工具执行上下文（工作目录就是会话工作目录；不带 artifact 落点）。
     pub fn tool_context(&self) -> ToolContext {
         ToolContext {
             cwd: self.cwd.clone(),
+            artifact: None,
+        }
+    }
+
+    /// 本次调用专用的上下文：已接线数据根时带上 artifact 落点。
+    ///
+    /// 落点形状来自 oracle 观察：`<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
+    pub fn tool_context_for_call(&self, tool_call_id: &str) -> ToolContext {
+        ToolContext {
+            cwd: self.cwd.clone(),
+            artifact: self.data_root.as_ref().map(|data_root| ArtifactLocation {
+                data_root: data_root.clone(),
+                session_id: self.session_id.clone(),
+                tool_call_id: tool_call_id.to_string(),
+            }),
         }
     }
 
@@ -132,7 +160,6 @@ impl Session {
             .current_turn_id
             .clone()
             .expect("run_tool_batch 之前必须先 begin_turn（否则事件没有归属 turn）");
-        let context = self.tool_context();
         let mut events = Vec::with_capacity(calls.len() * 3 + 1);
         let mut success_count = 0_u64;
         let mut error_count = 0_u64;
@@ -142,6 +169,8 @@ impl Session {
         let group: Vec<String> = calls.iter().map(|call| call.tool_call_id.clone()).collect();
 
         for call in calls {
+            // 每次调用各自的上下文：artifact 文件名要用本次 `toolCallId`（观察值）。
+            let context = self.tool_context_for_call(&call.tool_call_id);
             let spec = lookup(&call.name);
             events.push(self.scheduled_event(&turn_id, call, &group));
 

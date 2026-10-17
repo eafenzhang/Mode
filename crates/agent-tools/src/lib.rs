@@ -35,6 +35,8 @@
 //! 工具结果的**比较口径**在 spec §3 与 TS 侧 `normalize.mts` 里，本 crate 不实现第二份比较器、
 //! 也不扩大白名单：它只产出**线上形状**的工具结果/错误，由两端各自投影后精确相等比较。
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -91,11 +93,41 @@ pub struct ToolSpec {
     pub read_only: bool,
 }
 
+/// 大输出的 artifact 落点（观察：`<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`）。
+///
+/// 这里的 `data_root` 是**已解析的数据根** `{base}/.mode`（与 `sidecar-host` 的
+/// `data_root_from_base` 同口径），所以最终路径是
+/// `{data_root}/cli/exec/{session_id}/{tool_call_id}-stdout.log`；
+/// 观察记录里的 `<dataRoot>/.mode/…` 指基目录，不要在本结构上再拼一层 `.mode`。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtifactLocation {
+    pub data_root: PathBuf,
+    pub session_id: String,
+    pub tool_call_id: String,
+}
+
+impl ArtifactLocation {
+    /// artifact 目录：`{data_root}/cli/exec/{session_id}`。
+    pub fn dir(&self) -> PathBuf {
+        self.data_root
+            .join("cli")
+            .join("exec")
+            .join(&self.session_id)
+    }
+
+    /// artifact 文件名：`{tool_call_id}-stdout.log`（观察值）。
+    pub fn file_name(&self) -> String {
+        format!("{}-stdout.log", self.tool_call_id)
+    }
+}
+
 /// 工具执行上下文。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolContext {
     /// 会话工作目录：相对 `file_path` 按它解析（实测：工具描述说必须绝对路径，实际不然）。
     pub cwd: String,
+    /// 会话数据根与本次调用 id。`None` = 会话还没接线数据根（artifact 落系统临时目录）。
+    pub artifact: Option<ArtifactLocation>,
 }
 
 /// 一次成功的工具结果（`tool.updated/kind:"result"` 的 `result` 对象，取对拍要用的字段）。

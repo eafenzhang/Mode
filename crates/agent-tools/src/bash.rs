@@ -23,9 +23,9 @@
 //!   [`crate::UNIMPLEMENTED_ERROR_TYPE`]，不编造线上形状。
 //! - **pty**：oracle 的 `[ -t 1 ]` / `[ -t 0 ]` 都是假（pipe），所以用管道，不引 `portable-pty`。
 //! - **超时的孙进程清理**：oracle 只 abort 父 shell，子进程仍存活；这里保持一致（只 kill shell）。
-//! - **artifact 的真实落点**：oracle 落在 `<dataRoot>/.mode/cli/exec/<sessionId>/…`；
-//!   `ToolContext` 目前不带数据根/sessionId，所以 `BashControl::artifact_dir` 缺省时落系统临时目录。
-//!   接线到会话 artifact 目录时替换该字段即可（夹具不覆盖 >30KB，避免路径不可复现）。
+//! - **artifact 的真实落点**：oracle 落在 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
+//!   注册表路径按 [`ToolContext::artifact`] 派生；未接线数据根的会话仍落系统临时目录
+//!   （夹具不覆盖 >30KB，避免路径不可复现）。
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -119,11 +119,29 @@ impl Eq for Cancellation {}
 
 /// `Bash` 的执行控制面：取消令牌 + artifact 落点。
 ///
-/// 缺省值用于 [`invoke`]（注册表路径）：不取消、artifact 落系统临时目录。
+/// 缺省值用于 [`invoke_with_control`] 的直接调用方：不取消、artifact 落系统临时目录。
+/// 注册表路径（[`invoke`]）从 [`ToolContext::artifact`] 派生落点。
 #[derive(Debug, Clone, Default)]
 pub struct BashControl {
     pub cancel: Cancellation,
+    /// artifact 目录；`None` = 落系统临时目录。
     pub artifact_dir: Option<PathBuf>,
+    /// artifact 文件名；`None` = 用进程 id + 时间戳生成。会话路径下是
+    /// `<toolCallId>-stdout.log`（观察值）。
+    pub artifact_name: Option<String>,
+}
+
+impl BashControl {
+    /// 从会话上下文派生落点：已接线数据根时落
+    /// `{data_root}/cli/exec/{session_id}/{tool_call_id}-stdout.log`，否则保持临时目录。
+    fn from_context(ctx: &ToolContext) -> Self {
+        let artifact = ctx.artifact.as_ref();
+        Self {
+            cancel: Cancellation::new(),
+            artifact_dir: artifact.map(crate::ArtifactLocation::dir),
+            artifact_name: artifact.map(crate::ArtifactLocation::file_name),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -140,9 +158,9 @@ struct BashInput {
     dangerously_disable_sandbox: Option<bool>,
 }
 
-/// 执行一次 `Bash`（注册表路径：无取消、artifact 落临时目录）。
+/// 执行一次 `Bash`（注册表路径：无取消；artifact 落点由 [`ToolContext::artifact`] 决定）。
 pub fn invoke(args: &Value, ctx: &ToolContext) -> Result<ToolOutcome, ToolError> {
-    invoke_with_control(args, ctx, &BashControl::default())
+    invoke_with_control(args, ctx, &BashControl::from_context(ctx))
 }
 
 /// 执行一次 `Bash`，允许注入取消令牌与 artifact 落点（会话接线与单测用）。
@@ -306,7 +324,12 @@ fn persist_large_output(content: String, control: &BashControl) -> Result<String
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_nanos())
         .unwrap_or(0);
-    let path = dir.join(format!("bash-{}-{stamp}.log", std::process::id()));
+    // 已接线会话时用观察到的 `<toolCallId>-stdout.log`；未接线时保留临时目录下的可读名字。
+    let name = control
+        .artifact_name
+        .clone()
+        .unwrap_or_else(|| format!("bash-{}-{stamp}.log", std::process::id()));
+    let path = dir.join(name);
     std::fs::write(&path, content.as_bytes())
         .map_err(|error| unimplemented_surface("bash_artifact_write_failed", error.to_string()))?;
 
@@ -336,6 +359,7 @@ mod tests {
     fn context() -> ToolContext {
         ToolContext {
             cwd: std::env::temp_dir().to_string_lossy().to_string(),
+            artifact: None,
         }
     }
 
@@ -469,6 +493,7 @@ mod tests {
         let control = BashControl {
             cancel: Cancellation::new(),
             artifact_dir: Some(dir.clone()),
+            artifact_name: None,
         };
         let outcome = invoke_with_control(
             &json!({ "command": "head -c 31000 /dev/zero | tr '\\0' 'x'" }),
@@ -494,6 +519,49 @@ mod tests {
         assert_eq!(std::fs::read(&log).expect("读 artifact").len(), 31_000);
         assert!(Path::new(&log).exists(), "artifact 文件应存在");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn artifact_location_from_context_uses_the_observed_path() {
+        let base = std::env::temp_dir().join(format!(
+            "mode-bash-artifact-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|value| value.as_nanos())
+                .unwrap_or(0)
+        ));
+        let data_root = base.join(".mode");
+        let context = ToolContext {
+            cwd: std::env::temp_dir().to_string_lossy().to_string(),
+            artifact: Some(crate::ArtifactLocation {
+                data_root: data_root.clone(),
+                session_id: "sess_art".to_string(),
+                tool_call_id: "call_art".to_string(),
+            }),
+        };
+        let outcome = invoke(
+            &json!({ "command": "head -c 31000 /dev/zero | tr '\\0' 'x'" }),
+            &context,
+        )
+        .expect("大输出仍是成功结果");
+
+        let expected = data_root
+            .join("cli")
+            .join("exec")
+            .join("sess_art")
+            .join("call_art-stdout.log");
+        assert!(
+            expected.exists(),
+            "artifact 应落在 {expected:?}（观察值 <dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log）"
+        );
+        assert_eq!(std::fs::read(&expected).expect("读 artifact").len(), 31_000);
+        assert!(
+            outcome.content.contains(&expected.display().to_string()),
+            "包装里应写出真实落点：{}",
+            outcome.content
+        );
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]
