@@ -445,8 +445,42 @@ Preview (first 2KB):
 的排队层在**这个协议面之上**（host 层）；本探针直接打会话面，观察不到队列顺序。实现前必须
 先把分层定清楚（见 Task 4 子计划 DR-T4-7），不能把「会话面拒绝」误当成「CommandInbox 已实现」。
 
+**`run_in_background`（`probe-bash-background.mts`，2026-10-18 Task 4b 前置观察）**
+
+- **返回形状**：立即成功（不等待命令结束），`success=true`，正文逐字（344 字节）：
+
+```text
+Command running in background with ID: exec_<uuid>. Output is being written to: <path>. You will be notified when it completes. To check interim output, use Read on that file path.
+```
+
+- 结果字段与前台不同：`budgetStrategy:"artifact"`、且**多一个 `artifactPath`**（前台没有这个键）；
+  `truncated:false`，`originalBytes` / `returnedBytes` = 正文的 UTF-8 字节数。
+  `perf.detail.kind:"command"`、`command.status:"backgrounded"`。
+- **落盘**：`<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`；stdout 与 stderr
+  **按到达顺序合并**，且**保留尾随换行**（与前台成功结果的 `trim_end` 不同）；
+  没有输出时文件**仍存在且为空**（实测两条后台命令的日志分别为 `bg-out\nbg-err\n`、`bad-out\nbad-err\n`）。
+- **完成通知不是单发帧，而是自动开一个新 turn**：先 `session.updated`
+  `{toolName, toolCallId, taskId}`，再 `turn.started`，其 `input` 是注入的 XML：
+
+```text
+<task-notification>
+<task-id>exec_<uuid></task-id>
+<tool-use-id><toolCallId></tool-use-id>
+<output-file><...>-stdout.log</output-file>
+<status>completed|failed</status>
+<summary>Background command "<description>" completed (exit code 0)</summary>
+</task-notification>
+```
+
+  非零退出时 `<status>` 是 `failed`，`<summary>` 是
+  `Background command "<description>" failed with exit code 7`（逐字）。
+- **多任务按完成顺序各起一个 turn**（实测：1s 失败的先、2s 成功的后）；每个通知 turn 都以
+  `turn.completed(resultType:"success")` 结束，事件流不关闭。`<description>` 来自入参；
+  未提供时的文案**未观察**。
+- 旁证：数据根下同时出现 `.mode/cli/exec/shell-snapshots/…` 的 shell 快照文件（运行时既有行为）。
+
 **仍未观察（Step 0 剩余）**：**取消**后孙进程是否被清理（超时路径已观察：不清理）；
-大输出阈值的精确字节（只钉到 28,672–32,768 区间）；`run_in_background` / `TaskOutput` / `TaskStop`；
+大输出阈值的精确字节（只钉到 28,672–32,768 区间）；`TaskOutput` / `TaskStop`；
 host 层 `CommandInbox` 的排队顺序与 key 粒度。
 
 ## 4. 对拍可重复性：mock provider

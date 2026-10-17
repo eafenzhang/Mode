@@ -89,8 +89,9 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 1. **取消后的孙进程清理**：超时路径已观察（父 shell 被 abort，子进程 1s/2s 后仍 `alive`，
    即**不清理**）；取消路径尚未做同样的检查。
 2. **大输出阈值的精确字节**：已确认 30,000 直出、30,720 持久化，精确边界未测。
-4. **`run_in_background` / `TaskOutput` / `TaskStop`**：未测。它会影响「一个 turn 何时结束」，
-   必须决定本轮做还是拆出去。
+4. **`run_in_background`（2026-10-18 已观察返回与后续事件**，见 spec §3.4）：立即返回 task id 与
+   artifact 路径，命令结束后**自动起一个新 turn** 并注入 `<task-notification>`。
+   `TaskOutput` / `TaskStop` 仍未测。
 5. **host 层 `CommandInbox` 的排队顺序与 key 粒度**：stdio 会话面只观察到拒绝（`-32010`），
    排队层在它之上；需要新的观察路径或分层裁决（DR-T4-7）。
 
@@ -151,6 +152,10 @@ Step 0 观察它的返回形状后二选一：
 `run_in_background: true` 在 `bash.rs` 里显式返回 `m2_unimplemented_surface`
 （`surface=bash_run_in_background`），不编造线上形状。后台归 Task 4b。
 
+**2026-10-18 观察确认**：后台完成不是单发通知帧，而是**自动开一个新 turn**（`turn.started`
+的 `input` 是 `<task-notification>` XML），确实需要独立任务注册表 + 跨 turn 唤醒——
+Task 4b 保持独立；`TaskOutput` / `TaskStop` 仍未观察，实现前必须先补。
+
 ### DR-T4-6：取消 = `session/stop` → 工具错误 + `turn.completed(cancelled)`
 
 已观察（`probe-bash-cancel.mts`）：
@@ -198,7 +203,10 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - [x] 探大输出：4K–30,000 直出、30,720 起持久化包装；阈值钉到 30,000–30,720 区间，
       artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
       精确字节与 pty vs pipe 仍未观察。
-- [ ] 探 `run_in_background` 的返回与后续事件。
+- [x] 探 `run_in_background` 的返回与后续事件（2026-10-18，`probe-bash-background.mts`）：
+      立即成功返回 task id + `artifactPath`；结束时自动起新 turn 注入 `<task-notification>`
+      （`completed (exit code 0)` / `failed with exit code 7` 两种文案已录）；多任务按完成顺序
+      各起一个 turn；stdout/stderr 合并落 `<toolCallId>-stdout.log` 且**不做尾随 trim**。
 - [x] 探并发 `session/send`：第二条被拒绝（`-32010`），不是排队；host 层队列见 DR-T4-7。
 - [x] 结论写进 spec §3.4（已观察部分）；剩余未知已逐条列出。
 
@@ -289,3 +297,11 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - 验证：`agent-tools` 12 passed（新增 1 条落点用例）、`agent-core` 全套 + 新增
   `artifact_location` 1 passed、clippy `-D warnings` 零告警。
 - 仍未做：`run_in_background` 的**观察**（Task 4b 前置）、`CommandInbox`（DR-T4-7 待人裁决）。
+
+### 2026-10-18 巡检轮（第二次）：`run_in_background` 观察
+
+- 新增探针 `packages/desktop/tests/agent-runtime-oracle/probe-bash-background.mts`，复现命令：
+  `pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-bash-background.mts`。
+- 观察结论写入 `docs/specs/tauri-agent-runtime.md` §3.4：返回形状（`budgetStrategy:"artifact"` +
+  `artifactPath`）、日志落点与「不 trim」、完成通知 = 自动新 turn、成功/失败文案、多任务按完成
+  顺序。`TaskOutput` / `TaskStop` 仍未观察，**Task 4b 不在本轮实现**。
