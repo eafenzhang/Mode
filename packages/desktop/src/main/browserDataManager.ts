@@ -10,6 +10,7 @@ import {
   type ChromeCookieDatabaseBackup,
   type ChromeCookieHelper,
 } from "./chromeCookieManager.js";
+import { importCookiesFromExtension } from "./browserImportExtension.js";
 import {
   ChromeCookieAccessDeniedError,
   type MacChromeSafeStorageSecretReader,
@@ -72,6 +73,9 @@ function emptyImportResult(error?: ChromeBrowserDataImportError): ChromeBrowserD
 
 export async function importChromeBrowserData(options: {
   allowElevatedChromeDecryption?: boolean;
+  /** P1：走 Chrome 扩展 + Native Messaging，不读取 Chrome DB（与 helper 路径互斥）。 */
+  browserImportExtension?: boolean;
+  browserImportExtensionTimeoutMs?: number;
   chromeCookieDatabaseBackup?: ChromeCookieDatabaseBackup;
   chromeCookieHelper?: ChromeCookieHelper;
   chromeExecutableDiscovery?: () => Promise<string | null>;
@@ -92,6 +96,26 @@ export async function importChromeBrowserData(options: {
     chromeExecutablePath?: string;
   }) => Promise<ChromeLocalStorageImportStats>;
 }): Promise<ChromeBrowserDataImportResult> {
+  if (options.browserImportExtension) {
+    const targetSession =
+      options.targetSession ?? electronSession.fromPartition(EMBEDDED_BROWSER_PARTITION);
+    const outcome = await importCookiesFromExtension({
+      targetSession,
+      logger: options.logger,
+      timeoutMs: options.browserImportExtensionTimeoutMs,
+    });
+    return {
+      success: outcome.imported > 0,
+      cookies: {
+        imported: outcome.imported,
+        skipped: outcome.skipped,
+        failed: outcome.failed,
+      },
+      localStorage: emptyChromeLocalStorageImportStats(),
+      ...(outcome.error ? { error: outcome.error } : {}),
+    };
+  }
+
   const platform = options.platform ?? process.platform;
   let detectedChromeExecutablePath = options.chromeExecutablePath;
   if (platform !== "win32" && !options.profilePath && !detectedChromeExecutablePath) {

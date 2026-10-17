@@ -65,10 +65,16 @@
 
 ### T5：安装与注册
 
-- Native host manifest（`allowed_origins` 只含固定扩展 ID）。
-- 注册位置：`HKCU\Software\Google\Chrome\NativeMessagingHosts\com.mode.browser_import`。
-- 扩展安装指引/企业策略文档；扩展缺失时的可操作提示。
-- 发布态签名/哈希校验（fail-closed）。
+- [x] 固定扩展 ID：`src/manifest.json` 写入 2048-bit RSA 公钥 `key`；ID =
+      `bfgflaoohgcpcjkmefbddilhlmbbmoic`。
+- [x] Native host manifest 模板（`native-host/com.mode.browser_import.json`）+
+      注册/注销脚本 `scripts/register-native-host.ts`（写 `%LOCALAPPDATA%` 清单 + HKCU 注册表）。
+- [x] 实测注册成功：`reg query HKCU\Software\Google\Chrome\NativeMessagingHosts\com.mode.browser_import`
+      指向 `%LOCALAPPDATA%\Mode\browser-import\native-host\com.mode.browser_import.json`；
+      host 为 `target/release/mode-browser-import-host.exe`。
+- [x] README 更新安装/注册步骤；注销命令已提供。
+- [ ] 分发（Web Store / 企业策略 / 侧载）与发布态 Authenticode 签名：开放决策。
+- [ ] 扩展缺失时的可操作提示（UI）：T6 后接。
 
 ### T6：验收与评审
 
