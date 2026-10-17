@@ -49,10 +49,15 @@
 //! 所以哪一端单方面改类型而另一端没跟上，那一端就会红。
 
 pub mod frame;
+pub mod permission;
 pub mod session;
 pub mod session_event;
 
 pub use frame::{
-    ErrorObject, ErrorResponseFrame, ExtraFields, Frame, NotificationFrame, RequestFrame, RequestId,
-    ResponseFrame,
+    ErrorObject, ErrorResponseFrame, ExtraFields, Frame, NotificationFrame, RequestFrame,
+    RequestId, ResponseFrame,
+};
+pub use permission::{
+    PermissionDecision, PermissionOption, PermissionOptionKind, PermissionRequest,
+    PermissionResponse, PermissionRuleValue, PermissionUpdate, PermissionUpdateType, RuleBehavior,
 };

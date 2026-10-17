@@ -23,6 +23,7 @@
 //!    本任务没有这些数据，所以**不产出**终态事件，见 [`session`]）。
 //! 4. Task 6 落权限引擎（按 `ModeToolFamily` 分档的规则表）。
 
+pub mod approval;
 pub mod session;
 pub mod tool;
 

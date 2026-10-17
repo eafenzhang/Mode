@@ -122,8 +122,13 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-write-rules.mts
   - `Ruleset { version: 1, allow: Vec<PermissionRuleValue>, deny: … }`——`value` 的 JSON 形状必须与
     实测逐字一致（`{"version":1,"allow":[…]}`）。
 
-- [ ] **Step C1：按 §3.3 的逐字形状写类型 + 往返测试**（`serde` camelCase / snake_case 逐条核对）
-- [ ] **Step C2：`Ruleset` 的「累积 addRules」纯函数 + 用例**（同 toolName+ruleContent 去重）
+- [x] **Step C1：按 §3.3 的逐字形状写类型 + 往返测试**（`serde` camelCase / snake_case 逐条核对）
+- [x] **Step C2：`Ruleset` 的「累积 addRules」纯函数 + 用例**
+
+**C2 的口径修正（2026-10-17 落地时）**：原文写「同 toolName+ruleContent 去重」，但 spec §3.3
+「累积的边界」记录的是**重复规则在 oracle 不可达**（同路径第二次 `allow_project` 根本不会再发
+审批请求），并明确要求「不要假装有依据、按追加实现」。实现按 spec 走**纯追加**，
+用例 `duplicate_rules_are_appended_not_deduped` 钉住这个选择。
 
 ---
 
