@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Mode Browser Import",
+  "version": "0.0.1",
+  "description": "Import the current Chrome profile's cookies into Mode via Native Messaging.",
+  "permissions": ["cookies", "nativeMessaging"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Mode 浏览器数据导入",
+    "default_popup": "popup.html"
+  }
+}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mode 浏览器数据导入</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        width: 280px;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0 0 8px;
+      }
+      p {
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 12px;
+      }
+      button {
+        width: 100%;
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      #status {
+        margin-top: 12px;
+        color: color-mix(in srgb, currentColor 70%, transparent);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Mode 浏览器数据导入</h1>
+    <p>仅读取当前 Chrome profile 的 cookie，经本机 Native Messaging 交给 Mode；不会上传。</p>
+    <button id="import" type="button">导入到 Mode</button>
+    <p id="status"></p>
+    <script src="popup.js"></script>
+  </body>
+</html>

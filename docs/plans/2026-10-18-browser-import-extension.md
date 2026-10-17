@@ -44,10 +44,13 @@
 
 ### T3：扩展（TS 源码）
 
-- MV3 manifest：`cookies` + `nativeMessaging`；固定扩展 ID（manifest `key`）。
-- popup：用户点击「导入到 Mode」→ `chrome.cookies.getAll` → `sendNativeMessage`。
-- 构建：TS → `dist/`（gitignore），不做后台自动读取。
-- 验收：Medium 完整性、Chrome 155、真实 profile（34 条 v20）。
+- [x] 新增 `packages/browser-import-extension`：MV3 manifest（`cookies` + `nativeMessaging`）、
+      popup（用户点击 → `chrome.cookies.getAll` → `sendNativeMessage`）、最小 `chrome` 类型声明。
+- [x] 构建：`node --import tsx scripts/build.ts`（tsc → `dist/` + 复制 manifest/html；
+      `dist/` 已被根 `.gitignore` 忽略）；源码只含 TS/HTML/JSON。
+- [x] `pnpm --filter @mode/browser-import-extension typecheck` 与 `build` 均通过。
+- [ ] 固定扩展 ID（manifest `key`）与 Native host `allowed_origins`：归 T5。
+- [ ] 真机验收（Medium 完整性、Chrome 155、34 条 v20）：归 T6。
 
 ### T4：Mode main 接线
 
