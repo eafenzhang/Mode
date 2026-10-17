@@ -34,9 +34,13 @@
 
 ### T2：host ↔ app 命名管道
 
-- Mode main 生成管道名 + token + `channel.json`（ACL 当前用户）。
-- host 读取 channel.json，连接管道，token 握手，发送 payload；失败码见 spec §5。
-- 单测：token 不匹配、管道缺失、超时、payload 超限。
+- [x] **host 侧**：读取 `channel.json`、校验版本/管道名/token/TTL、连接命名管道、
+      `hello`+token → `ready` → 原样发送已校验 payload → 读 `count`；失败码映射到 spec §5。
+      实现 `crates/browser-import-host/src/channel.rs`（`ChannelInfo` / `deliver` / `handshake`）。
+- [x] 单测 5 条：hello/payload 帧、token 不匹配、非法 ready、缺 count、过期/非法管道/短 token。
+- [ ] **Mode main 侧**（T4）：生成管道名 + token + `channel.json`（ACL 当前用户）、握手服务、
+      TTL 清理；本 crate 只实现 host 侧。
+- [ ] Windows 命名管道的真机 E2E（T6）。
 
 ### T3：扩展（TS 源码）
 

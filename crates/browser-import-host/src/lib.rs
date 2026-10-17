@@ -17,6 +17,11 @@ use std::io::{self, Read, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod channel;
+pub use channel::{
+    channel_path, deliver, handshake, load_channel_info, ChannelInfo, DEFAULT_HANDSHAKE_TIMEOUT,
+};
+
 /// Chrome Native Messaging 的单条消息上限（1 MiB）。
 pub const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 /// 单次导入的 cookie 条数上限（防御性上限；正常 profile 远小于此）。
@@ -33,6 +38,8 @@ pub enum HostError {
     InvalidJson(serde_json::Error),
     /// JSON 合法但形状/取值不符合本协议。
     InvalidPayload(&'static str),
+    /// host ↔ app 通道失败（规格 §5 的 `channel_*` 码）。
+    Channel(&'static str),
 }
 
 impl HostError {
@@ -43,6 +50,7 @@ impl HostError {
             Self::TooLarge => "payload_too_large",
             Self::InvalidJson(_) => "invalid_json",
             Self::InvalidPayload(reason) => reason,
+            Self::Channel(code) => code,
         }
     }
 }
@@ -55,6 +63,7 @@ impl fmt::Display for HostError {
             Self::TooLarge => write!(formatter, "message exceeds {MAX_MESSAGE_BYTES} bytes"),
             Self::InvalidJson(error) => write!(formatter, "invalid json: {error}"),
             Self::InvalidPayload(reason) => write!(formatter, "invalid payload: {reason}"),
+            Self::Channel(code) => write!(formatter, "channel error: {code}"),
         }
     }
 }

@@ -1,13 +1,14 @@
-//! Native Messaging host 入口（P1/T1）。
+//! Native Messaging host 入口（P1/T2）。
 //!
 //! 只处理**一条**消息（`chrome.runtime.sendNativeMessage` 的语义）：读请求 → 校验 →
-//! 回稳定响应。T2 再把它接入 host ↔ app 的命名管道；本步不写任何 cookie。
+//! 交给 Mode main（命名管道 + 一次性 token）→ 回稳定响应。
 //!
 //! 纪律：stdout 只写长度前缀消息；诊断走 stderr，且不打印 cookie 值与 token。
 use std::io;
 
 use browser_import_host::{
-    error_response, parse_request, read_message, success_response, write_message,
+    channel_path, deliver, error_response, load_channel_info, parse_request, read_message,
+    success_response, write_message, DEFAULT_HANDSHAKE_TIMEOUT,
 };
 
 fn main() {
@@ -23,12 +24,19 @@ fn main() {
 
     match parse_request(&payload) {
         Ok(request) => {
-            // T1：只确认解析成功；T2 起把 request.cookies 交给 Mode main。
             eprintln!(
-                "[browser-import-host] parsed cookies={} (channel not wired yet)",
+                "[browser-import-host] parsed cookies={}",
                 request.cookies.len()
             );
-            respond(&success_response(request.cookies.len()));
+            let delivered = load_channel_info(&channel_path())
+                .and_then(|info| deliver(&info, &payload, DEFAULT_HANDSHAKE_TIMEOUT));
+            match delivered {
+                Ok(count) => respond(&success_response(count)),
+                Err(error) => {
+                    eprintln!("[browser-import-host] delivery failed: {}", error.code());
+                    respond(&error_response(error.code()));
+                }
+            }
         }
         Err(error) => {
             eprintln!("[browser-import-host] invalid request: {}", error.code());
