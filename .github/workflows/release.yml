@@ -547,16 +547,22 @@ jobs:
       # （publish.if 要求 needs.tauri.result == 'success'；Windows 腿的
       # continue-on-error 求值为 false）。mac/linux 腿仍不跑这些检查。
       #
-      # 前置：mode-tauri 的 tauri::generate_context!() 在**编译期**读 tauri.conf.json
-      # 的 frontendDist（../dist），目录不存在就 proc macro panic。用
-      # build:frontend-for-tauri（与发布路径 beforeBuildCommand 同一条产品装配命令），
-      # 而不是 build:frontend（那是开发/诊断档，产出 dist/dev/）。
+      # 两处编译前置，都由 build:package-inputs 一次备齐（它就是发布路径
+      # beforeBuildCommand 的同一条产品装配命令，不要换成 build:frontend——那是
+      # 开发/诊断档，产出 dist/dev/）：
+      #  1. tauri::generate_context!() 在编译期读 tauri.conf.json 的 frontendDist
+      #     （../dist），目录不存在就 proc macro panic；
+      #  2. tauri-build 在**每次** cargo 构建时把 bundle.resources 拷进 target，
+      #     所以 `../dist-host-sidecar/ship/{host-sidecar,node,config}` 也必须先存在。
+      #     只建前端时 ship 集缺失，build script 直接失败：
+      #     `resource path ..\dist-host-sidecar\ship\config doesn't exist`。
+      # 这样门禁面对的输入与真正 `tauri build` 时完全一致。
       - name: Rust verification (blocking release gate)
         if: matrix.target == 'win'
         shell: bash
         run: |
           set -euo pipefail
-          pnpm --filter @mode/desktop-tauri run build:frontend-for-tauri
+          pnpm --filter @mode/desktop-tauri run build:package-inputs
           # updater 的 conf↔常量守卫（端点 / pubkey 非空且可解析）也在这条命令里
           # （M5 评审 B4a）。sidecar-host 会真拉 Node 子进程，需要 PATH 上有 node。
           # `--locked`：锁文件漂移直接失败，不允许 CI 静默重写（M5 评审 B3）。
