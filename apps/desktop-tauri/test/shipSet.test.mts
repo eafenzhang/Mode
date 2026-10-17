@@ -94,27 +94,41 @@ test("剪枝：只留 win32-x64，且父目录本身不能连带被裁", () => {
   assert.equal(isPrunedOut("ssh2", "prebuilds/win32-arm64"), false, "规则只对写了规则的那个包生效");
 });
 
-test("发运集：剪枝档留下 win32-x64、丢掉别的平台，且不拷嵌套 node_modules", () => {
-  const root = mkdtempSync(join(tmpdir(), "mode-ship-test-"));
-  try {
-    const stageRoot = stageFixture(root, "pruned");
-    const vendor = join(stageRoot, "host-sidecar", "node_modules", "node-pty");
-    assert.ok(existsSync(join(vendor, "prebuilds", "win32-x64", "conpty.node")));
-    assert.ok(!existsSync(join(vendor, "prebuilds", "win32-arm64")), "非目标架构不应进发运集");
-    assert.ok(!existsSync(join(vendor, "prebuilds", "darwin-arm64")));
-    assert.ok(
-      !existsSync(join(vendor, "node_modules")),
-      "嵌套 node_modules 由闭包单独搬运，不该在这一层",
-    );
-    assert.ok(existsSync(join(vendor, "build", "Release", "conpty", "conpty.dll")));
-    // 三个落点都要在（壳按它们找人）：bundle、随包 Node、Built-in Provider Config。
-    assert.ok(existsSync(join(stageRoot, "host-sidecar", "index.mjs")));
-    assert.ok(existsSync(join(stageRoot, "node", "node.exe")));
-    assert.ok(existsSync(join(stageRoot, "config", "provider", "mode-builtin.json")));
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
+/**
+ * Ruling 20：发运集本阶段只出 `win32-x64`，且 `copyNodeRuntime` 在非 Windows 上写的是
+ * `node` 而不是产品契约里的 `node/node.exe`。因此这条「真实落点」断言只在 Windows 成立；
+ * 非 Windows 显式 skip 并说明理由，阻断发布的 Windows 腿在 release.yml 的 `tauri` job 里跑。
+ */
+const nonWindowsSkip =
+  process.platform === "win32"
+    ? false
+    : `仅 Windows 可跑（Ruling 20：发运集只出 win32-x64；当前平台 ${process.platform} 的随包运行时名为 node）`;
+
+test(
+  "发运集：剪枝档留下 win32-x64、丢掉别的平台，且不拷嵌套 node_modules",
+  { skip: nonWindowsSkip },
+  () => {
+    const root = mkdtempSync(join(tmpdir(), "mode-ship-test-"));
+    try {
+      const stageRoot = stageFixture(root, "pruned");
+      const vendor = join(stageRoot, "host-sidecar", "node_modules", "node-pty");
+      assert.ok(existsSync(join(vendor, "prebuilds", "win32-x64", "conpty.node")));
+      assert.ok(!existsSync(join(vendor, "prebuilds", "win32-arm64")), "非目标架构不应进发运集");
+      assert.ok(!existsSync(join(vendor, "prebuilds", "darwin-arm64")));
+      assert.ok(
+        !existsSync(join(vendor, "node_modules")),
+        "嵌套 node_modules 由闭包单独搬运，不该在这一层",
+      );
+      assert.ok(existsSync(join(vendor, "build", "Release", "conpty", "conpty.dll")));
+      // 三个落点都要在（壳按它们找人）：bundle、随包 Node、Built-in Provider Config。
+      assert.ok(existsSync(join(stageRoot, "host-sidecar", "index.mjs")));
+      assert.ok(existsSync(join(stageRoot, "node", "node.exe")));
+      assert.ok(existsSync(join(stageRoot, "config", "provider", "mode-builtin.json")));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
 
 test("发运集：core 档不带 Node 与 externals，但仍创建那两个空目录", () => {
   const root = mkdtempSync(join(tmpdir(), "mode-ship-test-"));

@@ -531,6 +531,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Ruling 20：`@mode/desktop-tauri` 的套件里有 Windows-only 用例（sidecar 内真起
+      # pty、win32-x64 发运集）。它们在 Ubuntu 的 `verify` job 上显式 skip；为了不让这些
+      # skip 变成「哪里都不跑」的假绿，整条套件必须在**阻断发布**的 Windows 腿再跑一遍
+      # （`publish` 的 needs 含 `tauri`，Windows 腿没有 continue-on-error）。
+      - name: Tauri Node test suite (blocking release gate)
+        if: matrix.target == 'win'
+        shell: bash
+        run: pnpm --filter @mode/desktop-tauri test
+
       # M5 评审 B2：Rust 验证套件必须在**阻断发布**的腿上跑。
       # 之前这些命令只在 `desktop`（continue-on-error、且不在 publish.needs）里，
       # 于是失败的 deeplink/sidecar-host 测试或协议漂移也能发出全绿 Release。

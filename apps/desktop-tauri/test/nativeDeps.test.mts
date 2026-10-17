@@ -77,24 +77,43 @@ test("CUA 资产路径：未注入不是失败，注入了不存在的路径必�
   assert.equal(injected.cua.path, bogus, "报告里必须带上被判失败的那个路径");
 });
 
-test("生产 Host sidecar 自己报告原生依赖可用，并真起一个 pty（同一进程内的证据）", async () => {
-  const sandbox = mkdtempSync(join(tmpdir(), "mode-host-native-"));
-  const connection = await connectProductionHost({
-    home: join(sandbox, "home"),
-    dataBaseDir: join(sandbox, "data"),
-    extraEnv: { MODE_HOST_NATIVE_DEP_PROBE: "spawn" },
-  });
-  try {
-    const describe = await describeHost(connection);
-    const native = describe.nativeDeps;
-    assert.ok(native, "host.describe 必须报告 sidecar 进程内的原生依赖探测结果");
-    assert.equal(native.sqlite.ok, true, `sidecar 内 node:sqlite：${JSON.stringify(native.sqlite)}`);
-    assert.equal(native.pty.ok, true, `sidecar 内 node-pty：${JSON.stringify(native.pty)}`);
-    assert.equal(native.pty.spawnVerified, true, "深探测档必须真起过 pty 并验证");
-    assert.equal(native.pty.exitCode, 0, `sidecar 内 pty 退出码：${JSON.stringify(native.pty)}`);
-    assert.match(native.pty.output ?? "", /pty-ok/, "sidecar 内 pty 的输出必须真的送回来");
-  } finally {
-    await disposeHost(connection);
-    await removeSandbox(sandbox);
-  }
-});
+/**
+ * Ruling 20：Tauri 产品本阶段**只出 Windows**。这条用例的强证据是 sidecar 进程里真起一个
+ * pty（Windows 上走 conpty）；在 Linux/macOS 上跑既不代表产品形态，也不能把平台差异
+ * 读成产品缺陷。非 Windows 必须**显式 skip 并给出理由**，而不是静默通过——
+ * 阻断发布的 Windows 腿在 `.github/workflows/release.yml` 的 `tauri` job 里跑这条套件。
+ */
+const nonWindowsSkip =
+  process.platform === "win32"
+    ? false
+    : `仅 Windows 可跑（Ruling 20：Tauri 产品本阶段只出 Windows；当前平台 ${process.platform}）`;
+
+test(
+  "生产 Host sidecar 自己报告原生依赖可用，并真起一个 pty（同一进程内的证据）",
+  { skip: nonWindowsSkip },
+  async () => {
+    const sandbox = mkdtempSync(join(tmpdir(), "mode-host-native-"));
+    const connection = await connectProductionHost({
+      home: join(sandbox, "home"),
+      dataBaseDir: join(sandbox, "data"),
+      extraEnv: { MODE_HOST_NATIVE_DEP_PROBE: "spawn" },
+    });
+    try {
+      const describe = await describeHost(connection);
+      const native = describe.nativeDeps;
+      assert.ok(native, "host.describe 必须报告 sidecar 进程内的原生依赖探测结果");
+      assert.equal(
+        native.sqlite.ok,
+        true,
+        `sidecar 内 node:sqlite：${JSON.stringify(native.sqlite)}`,
+      );
+      assert.equal(native.pty.ok, true, `sidecar 内 node-pty：${JSON.stringify(native.pty)}`);
+      assert.equal(native.pty.spawnVerified, true, "深探测档必须真起过 pty 并验证");
+      assert.equal(native.pty.exitCode, 0, `sidecar 内 pty 退出码：${JSON.stringify(native.pty)}`);
+      assert.match(native.pty.output ?? "", /pty-ok/, "sidecar 内 pty 的输出必须真的送回来");
+    } finally {
+      await disposeHost(connection);
+      await removeSandbox(sandbox);
+    }
+  },
+);
