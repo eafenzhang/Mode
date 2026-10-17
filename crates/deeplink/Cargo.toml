@@ -22,3 +22,7 @@ serde_json.workspace = true
 url.workspace = true
 tauri.workspace = true
 tauri-plugin-deep-link.workspace = true
+# 传递依赖钉：tauri-plugin-deep-link 2.6.2 的 Linux 分支用 ParseOption
+# { enabled_quote, enabled_escape } 初始化，而 rust-ini 在补丁版 0.21.3 里加了两个字段
+# （上游 semver 破坏），Linux 编译直接 E0063。Cargo.lock 钉在 0.21.1（未被 yank）；
+# 执行 cargo update 后若 Linux 腿变红，先看这里。
