@@ -54,8 +54,13 @@
 
 ### T4：Mode main 接线
 
-- 新增导入会话接收器：校验 token/payload → 复用 `importChromeCookies` 的写 session 路径。
-- 与现有 helper 路径互斥；失败码映射到 UI。
+- [x] **接收器**：`packages/desktop/src/main/browserImportChannel.ts`——生成命名管道 + 一次性
+      token + `channel.json`（TTL ≤60s）、帧读写、token 常量时间比较、payload 校验、
+      `onCookies` 回调、TTL 关闭与 channel.json 清理；日志只记数量/reason。
+- [x] 单测 4 条（Windows）：happy path、token 不匹配、非法 payload、TTL 清理。
+- [ ] **接到导入流程/UI**：启动通道 → 提示用户点击扩展 → 等待 payload → 写 Electron session
+      → 返回计数；与现有 helper 路径互斥；错误码映射到 UI。
+- [ ] 应用退出/异常时的通道清理（主进程生命周期接线）。
 - 不持久化授权；日志只记数量/reason。
 
 ### T5：安装与注册
