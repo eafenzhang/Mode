@@ -6,9 +6,9 @@
 >
 > - **【现在可执行】**：当前检出可直接跑。
 > - **【Task 1 完成前不可执行】**：依赖更新链（签名密钥、`latest.json`、真更新演练），见
->   `docs/plans/2026-10-17-m5-release-cutover.md` 的 Task 1。
+>   `docs/plans/2026-10-17-m5-release-cutover.md` 的 Task 1。**Task 1 已完成**。
 > - **【Task 2 完成前不可执行】**：依赖发布线切换（Tauri 产物进 Release、`publish` 依赖 `tauri`
->   job），见同一计划的 Task 2。
+>   job），见同一计划的 Task 2。**Task 2 已完成**（本清单已按切换后的流水线更新）。
 > - **【待确认】**：仓库里没有可引用的实现或原始输出；后面写明「什么能把它定下来」。
 
 依据：`.github/workflows/release.yml`、`apps/desktop-tauri/package.json`、
@@ -212,12 +212,21 @@ node scripts/generate-tauri-protocol.mjs --check
 ```
 
 **`release.yml` 的 `tauri` job** 构建 NSIS 安装包、改名、跑
-`node scripts/tauri-bundle-report.ts`（sha256 + 体积留痕），当前**只上传 workflow artifact**
-（`retention-days: 14`）。
+`node scripts/tauri-bundle-report.ts`（sha256 + 体积留痕）。M5 Task 2 起：
 
-> **M5 Task 1 之后的前置项**：`tauri.conf.json` 已开 `createUpdaterArtifacts` 且 pubkey 非空。
-> 如果 CI secrets 里没有 `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`，这个 job 会在 makensis
-> 之后以非 0 退出（实测报错见 3.3）。先按 3.1.1 创建 secret，再推 `main`。
+- **Windows 腿是唯一的 Release 产物来源**：签名（`TAURI_SIGNING_PRIVATE_KEY` /
+  `_PASSWORD`）→ 安装包 + `.sig` → `node scripts/tauri-update-manifest.ts` 生成
+  `latest.json` → `gh release upload` 三个文件 → 上传
+  `release-checksums-tauri-win-x64` 片段。
+- **macOS / Linux 腿**仍只上传 14 天期的 workflow artifact，`continue-on-error`；
+  它们不产出校验片段，也不参与发布判定。
+- **旧 Electron `desktop` job 仍构建**（保留回滚能力），但只上传
+  `electron-desktop-*` / `electron-checksums-*` workflow artifact，不再写 Release。
+
+> **M5 Task 1/2 之后的前置项**：`tauri.conf.json` 已开 `createUpdaterArtifacts` 且 pubkey 非空。
+> 如果 CI secrets 里没有 `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`，`Build Tauri bundles`
+> 会以非 0 退出（fail closed，实测报错见 3.3），不会留下可发布的未签名包。先按 3.1.1
+> 创建 secret，再推 `main`。
 
 本地推送前还必须跑（CI 不完整覆盖架构检查）：
 
@@ -227,10 +236,12 @@ pnpm lint
 pnpm verify:pre-push
 ```
 
-> **重要**：在 Task 2 完成前，`tauri` job **不在 `publish` 的 `needs` 里**，也不上传 Release。
-> 因此「CI 全绿」只说明 Tauri 能编译、能出包，**不代表 Tauri 被发布了**。Task 2 必须把
-> `tauri` 加入 `publish.needs`、把上传目标改成 Release，并验证同一次 run 不会同时上传
-> Electron 与 Tauri 的同名产物。
+> **重要（M5 Task 2 之后）**：`tauri` 已在 `publish.needs` 里，Windows 腿把
+> 安装包、`.sig`、`latest.json` 直接上传本次 Release。`publish` **不**断言
+> `needs.tauri.result == 'success'`（mac/linux 的 `continue-on-error` 会让矩阵 job
+> 的结果不可靠）；真正的门是 `checksums`：Windows 腿只在 Release 上传成功后才上传
+> 它的 `.exe` 校验片段，缺片段时 `checksums` 与 `publish` 都会失败。
+> 同一次 run 里 Electron 的 `desktop` job 不再上传 Release，所以两条线不会互覆。
 
 ### 2.2 人工验证（CI 做不到，发布前逐项勾）
 
@@ -514,8 +525,17 @@ gh secret list --app actions | grep TAURI_SIGNING
   也就是说它是 fail closed，但会留下一个**没有 `.sig` 的安装包**。
   **人工前置项**：在推送本次提交前先创建 3.1.1 的两个 secret，否则 CI 的 `tauri` job
   会因为缺少私钥而红（这是预期行为，不是新缺陷）。
-- `latest.json` 的上传属于 Task 2 的发布线切换；在它完成前，即使签名做对了，
-  Release 里也不会有这个资产。
+- **M5 Task 2 起**：`tauri` job 的 Windows 腿把 `latest.json` 与
+  `Mode-<版本>-win-x64.exe.sig` 作为 Release 资产上传；`latest.json` 的
+  `url` 指向同一 tag 的安装包。`latest*.yml` / `*.blockmap` 属于旧 Electron 线，
+  新发布线不再上传它们；两个文件名不同，不冲突。
+- **同一次 run 只允许一条线上传安装包**：Electron 的 `desktop` job 仍构建，但只上传
+  workflow artifact（`electron-desktop-*`）。这是 DR-M5-1 的 no-clobber 机制：
+  产物名逐字相同，但本次 run 里只有 Tauri Windows 腿执行 `gh release upload`。
+- **不要把它和 CLI 的 `latest.json` 混淆**：`scripts/build-mode.mjs` 也会在
+  `dist/mode/latest.json` 写一份 CLI tarball 的元数据（`scripts/mode-distribution` 用），
+  但 `fnos` job 只上传 `.fpk`，不上传这个文件。Release 里的 `latest.json` 只有
+  Tauri updater 这一份。
 
 ### 3.4 发布前的签名检查（Task 1/2 完成后勾）
 
@@ -525,7 +545,8 @@ gh secret list --app actions | grep TAURI_SIGNING
       `crates/updater` 的空串守卫已按 Task 1 更新。
 - [ ] `bundle.createUpdaterArtifacts` 为 `true`，且构建确实产出了 `.exe.sig`
       （不是「构建通过」就当作签名成功）。
-- [ ] Release 资产里有 `latest.json` 与安装包对应的 `.sig`。
+- [ ] Release 资产里有 `latest.json` 与安装包对应的 `.sig`（M5 Task 2 起由
+      `tauri` Windows 腿自动上传；要核对资产名，不能只看 CI 绿）。
 - [ ] `latest.json` 的 `version` 等于 tag 去掉 `v`；`pub_date` 存在；平台键是
       `windows-x86_64`；条目指向本次发布的 `Mode-<版本>-win-x64.exe`。
 - [ ] **没有**把 `latest.json` 与旧线的 `latest*.yml` 当成同一个资产（两个文件名不同，
@@ -551,12 +572,14 @@ gh secret list --app actions | grep TAURI_SIGNING
 - 版本推导（原样引用）：只认正式 tag `^v[0-9]+\.[0-9]+\.[0-9]+$`；取 `sort -V` 的最后一个，
   patch + 1；若该 tag 已被占用就继续 +1，直到不冲突。没有基线时从 `0.0.0` 起，即 `v0.0.1`。
 - 跳过：提交信息含 `[skip release]` 时整条流水线跳过。
-- 流程：`release`（校验版本、建 tag、建 draft release）→ `verify` → `desktop` / `tauri` / `fnos`
-  → `checksums` → `publish`。
-- `publish` 只在 `release`、`verify`、`desktop`、`checksums`、`fnos` 都成功时把 draft 公开；
-  正式版用 `--latest`，预发布用 `--prerelease`。
-- **【Task 2 完成前不可执行】** `tauri` 目前不在 `publish.needs`，上传目标是 workflow artifact；
-  所以今天的自动发版**不会**发布 Tauri 安装包，只会发布旧 Electron 线。
+- 流程：`release`（校验版本、建 tag、建 draft release）→ `verify` →
+  `desktop`（Electron，诊断/回滚构建）与 `tauri`（Windows 发布线）+ `fnos` →
+  `checksums` → `publish`。
+- `publish` 在 `release`、`verify`、`checksums`、`fnos` 成功（或按既有规则 skipped）时
+  公开 draft；`tauri` 的矩阵结果不作为硬门（见 2.1 的说明），Windows 腿是否成功由
+  `checksums` 的 `.exe` 片段证明。正式版用 `--latest`，预发布用 `--prerelease`。
+- **M5 Task 2 起**：自动发版发布的 Windows 安装包来自 **Tauri** 线；旧 Electron
+  `desktop` job 仍会构建，但只产出 workflow artifact。
 
 ### 4.3 手工触发（指定版本 / 预发布）
 
@@ -583,22 +606,22 @@ gh workflow run release.yml \
 规则：指定的正式版本**不能已存在**（tag 与 release 都会校验）；预发布版本不参与自动版本基线，
 也不会成为 `/releases/latest/` 指向的对象。
 
-### 4.4 发布后核对（【Task 2 完成前，Tauri 资产不在 Release，以下只能核对 Electron 线】）
+### 4.4 发布后核对（M5 Task 2 之后）
 
 ```bash
 gh release view <tag> --json isDraft,isLatest,assets \
   --jq '{draft:.isDraft,latest:.isLatest,assets:[.assets[].name]}'
 ```
 
-目标状态（Task 1 + Task 2 完成后）至少包含：
+目标状态至少包含：
 
-- `Mode-<版本>-win-x64.exe`（Tauri 安装包）
+- `Mode-<版本>-win-x64.exe`（Tauri 安装包，**本次 run 唯一上传的同名文件**）
 - `latest.json`（Tauri 更新清单）
-- 安装包对应的签名文件：`Mode-<版本>-win-x64.exe.sig`（M5 Task 1 实测的产物名；
-  `tauri build` 原名是 `Mode_<版本>_x64-setup.exe.sig`，改名后必须与安装包同名）
-- 旧 Electron 线的 `latest*.yml` / `*.blockmap`（如果本次 release 同时保留旧线资产；
-  与 `latest.json` 文件名不同，不冲突）
-- `sha256.txt`（合并校验清单；Task 2 需要让 `checksums` 覆盖 Tauri 的 `.exe`）
+- `Mode-<版本>-win-x64.exe.sig`（安装包签名；`tauri build` 原名是
+  `Mode_<版本>_x64-setup.exe.sig`，CI 改名后与安装包同名）
+- `sha256.txt`（合并校验清单；`checksums` 由 Tauri Windows 腿的片段驱动）
+- **不应出现**旧的 `latest*.yml` / `*.blockmap`：新发布线不上传它们
+  （它们只属于旧 Electron release；与 `latest.json` 文件名不同，不会互覆）
 - 旧 Electron 线的上一版资产仍在它自己的 release 里，没有被覆盖
 
 期望：`draft=false`；正式版 `latest=true`。若任一资产缺失，发布不完整，按第 5 节止血，
@@ -607,10 +630,12 @@ gh release view <tag> --json isDraft,isLatest,assets \
 ### 4.5 发布前检查（全部勾完才允许人推送 `main`）
 
 - [ ] 3.1.1 的两个 CI secret 已创建（这是 `tauri` job 能产出 `.sig` 的前置条件；
-      缺私钥时构建会以非 0 退出）。
+      缺私钥时 `Build Tauri bundles` 会以非 0 退出，fail closed）。
 - [ ] 2.1 的自动验证在本机与 CI 都是绿的（如实报告任何既有失败，不把失败写成通过）。
 - [ ] 2.2 的 V1–V11 全部勾完；V11 若未完成，先完成 Task 1。
 - [ ] 3.4 的签名检查全部勾完；`pubkey` 不是空串。
+- [ ] 本次发布线是 **Tauri Windows-only**；旧 Electron 线的上一版资产仍可下载，
+      回滚步骤（5.2 / 5.5）可用。
 - [ ] 本次是 Windows-only，且已知「三平台 GA」是登记偏差（1.6）。
 - [ ] 本地提交已报告给人；推送由人执行（4.1）。
 
@@ -633,6 +658,18 @@ gh release view <tag> --json isDraft,isLatest,assets \
 DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的构建能力在该提交里**不被删除**。
 因此回滚不是「把用户降级」，而是**用旧线的构建能力发一个版本号更高的新 release**——
 `electron-updater` 只按版本号向前更新，发一个更小的版本号用户收不到。
+
+> **M5 Task 2 切换之后，这条路径仍然可执行。** 切换提交只把 `publish` 的产物来源换成
+> Tauri，**没有删除** Electron 的 `desktop` job、`bundle:desktop` 脚本或旧 tag 的
+> workflow。回滚机制就是下面第 4 步：**在上一 Electron tag 上重新触发 workflow**。
+> 它用旧 tag 的提交和旧 tag 的 `release.yml` 构建 Electron、创建全新的 tag；旧 tag
+> 的 Release 资产不会被本次 Tauri 发布触碰（不同 tag，且新流水线从不删除资产）。
+>
+> **切换后的更新通道**：新的 Tauri release 只带 `latest.json`，没有 `latest.yml`。
+> 已安装的 Electron 用户在 `/releases/latest/download/latest.yml` 上得到 404，
+> `electron-updater` 会保持当前版本（不会误把 Tauri 安装包当成 Electron 更新）。
+> 只有从旧 tag 重新发布的回滚 release 才带 `latest.yml` 并成为 Latest，Electron
+> 用户那时才会收到回滚版本。
 
 步骤：
 
@@ -731,16 +768,19 @@ DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的�
 - workflow artifact 有 14 天保留期，**不能**把它当作回滚来源；回滚只依赖 Release 资产与旧 tag
   的构建能力。
 
-### 5.5 备选：revert 切换提交（【Task 2 完成后才存在】）
+### 5.5 备选：revert 切换提交（M5 Task 2 之后可用）
 
 如果旧 tag 的 workflow 不可用，而切换确实是单一提交：
 
 1. revert 该切换提交（不改其他提交）。
-2. 人推 `main`；自动发版取「最近正式 tag 的 patch + 1」，构建的仍是 Electron 线。
+2. 人推 `main`；自动发版取「最近正式 tag 的 patch + 1」，`publish` 的产物来源
+   随 revert 回到 Electron 线。
 3. 按 5.2 第 5 步核对新 release 与更新。
 
-这条路径依赖「旧 Electron 线的构建能力没有被切换提交删除」；如果切换时删了 Electron 的构建链，
-本路径不可用，只能走 5.2。**Task 2 必须在切换提交里保留旧线构建能力**。
+这条路径依赖「旧 Electron 线的构建能力没有被切换提交删除」。**M5 Task 2 的切换提交
+保留了 `desktop` job 与 `bundle:desktop` 脚本**，只把它的上传目标从 Release 改成
+workflow artifact；revert 会把上传目标一并恢复。若将来有人删除 Electron 构建链，
+本路径不可用，只能走 5.2。
 
 ### 5.6 回滚后验证与禁止项
 

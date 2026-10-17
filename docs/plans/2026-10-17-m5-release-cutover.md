@@ -102,9 +102,9 @@ Modify `docs/specs/*` 的相关节（如需要）。
 
 ### Task 2: 切换发布线（DR-M5-1）
 
-- [ ] **Step 1–5（大纲）**：`publish` 的产物来源从 Electron 换成 Tauri；旧线产物作为上一 release 的
+- [x] **Step 1–5（大纲）**：`publish` 的产物来源从 Electron 换成 Tauri；旧线产物作为上一 release 的
   资产**保留**；验证「同一次 run 不会既传 Electron 又传 Tauri 到同一 release」；本地 dry-run
-  （不 push）；提交。
+  （不 push）；提交。完成记录：`.superpowers/sdd/2026-10-16-tauri-m3-ecosystem/task-m5-2-report.md`。
 
 ### Task 3: 三指标门禁与收口
 

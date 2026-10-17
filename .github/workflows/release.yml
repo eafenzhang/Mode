@@ -149,11 +149,11 @@ jobs:
 
           - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
           - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口打开（走飞牛统一网关，登录态直达，异地也可用）。
-          - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包；`latest*.yml` 供应用内自动更新使用。
+          - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包；Windows 桌面端的应用内自动更新使用 `latest.json` 与安装包的 `.sig`（Tauri updater）。
 
           - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
           - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry (routed through the fnOS gateway with your desktop login, works remotely too).
-          - **Checksums and update metadata**: `sha256.txt` covers the installers; `latest*.yml` drives in-app updates.
+          - **Checksums and update metadata**: `sha256.txt` covers the installers; Windows desktop in-app updates use `latest.json` plus the installer's `.sig` (Tauri updater).
 
           ## 反馈 / Feedback
 
@@ -392,43 +392,27 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: pnpm bundle:desktop -- --os ${{ matrix.target }} --arch ${{ matrix.arch }}
 
-      - name: Upload desktop asset to release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.release.outputs.tag }}
-        run: |
-          set -euo pipefail
-          ls -la packages/desktop/dist/
-          # latest*.yml 是 electron-updater 的更新元数据，应用靠它做自动更新；
-          # zip 包与 blockmap 供差分下载（当前平台清单若有则一并上传，没有就由 nullglob 跳过）。
-          shopt -s nullglob
-          files=(
+      # M5 Task 2（DR-M5-1）：Electron 线保留构建能力用于回滚，但**不再写 Release**。
+      # Tauri Windows 腿使用逐字相同的产物名（Mode-<版本>-win-x64.exe）；同一次 run
+      # 若两边都上传，后上传的会 clobber 掉先上传的。这里只把 Electron 产物留成
+      # workflow artifact（14 天），发布路径只允许 Tauri 一条线。
+      - name: Upload electron desktop bundle (diagnostic artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-desktop-${{ matrix.target }}-${{ matrix.arch }}
+          path: |
             packages/desktop/dist/${{ matrix.glob }}
             packages/desktop/dist/latest*.yml
             packages/desktop/dist/*.zip
             packages/desktop/dist/*.blockmap
-          )
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "::error::no desktop assets matched in packages/desktop/dist"
-            exit 1
-          fi
-          # GitHub API 偶发连接失败（runner 网络抖动），上传重试 3 次；--clobber 让重试可安全覆盖。
-          for attempt in 1 2 3; do
-            if gh release upload "$TAG" "${files[@]}" --clobber; then
-              exit 0
-            fi
-            echo "::warning::gh release upload failed (attempt $attempt/3), retrying in 10s"
-            sleep 10
-          done
-          echo "::error::gh release upload failed after 3 attempts"
-          exit 1
+          if-no-files-found: error
+          retention-days: 14
 
       # 校验片段：只覆盖用户会直接下载运行的安装包（当前为 exe / zip）。
       # latest*.yml 与 *.blockmap 是 electron-updater 的更新元数据（应用内用其中
       # 的 sha512 校验），且两个 mac 架构会先后覆盖同名 latest-mac.yml，不能在此落哈希。
       # 用 node 计算（各 runner 都有），避免 sha256sum / shasum / certutil 的平台差异。
-      - name: Generate desktop checksums
+      - name: Generate Electron checksums (diagnostic only)
         shell: bash
         run: |
           set -euo pipefail
@@ -450,19 +434,24 @@ jobs:
             > "$GITHUB_WORKSPACE/dist/release-checksums/desktop-${{ matrix.target }}-${{ matrix.arch }}.txt"
           cat "$GITHUB_WORKSPACE/dist/release-checksums/desktop-${{ matrix.target }}-${{ matrix.arch }}.txt"
 
+      # 刻意**不叫** `release-checksums-*`：checksums job 按这个名字下载并合并。
+      # Electron 线已退出发布线，它的同名 .exe 片段若被合并会与 Tauri 的片段产生
+      # 重复条目（checksums job 会以 duplicate checksum 失败），也会让旧线看起来
+      # 仍在发布路径上。
       - uses: actions/upload-artifact@v4
         with:
-          name: release-checksums-desktop-${{ matrix.target }}-${{ matrix.arch }}
+          name: electron-checksums-desktop-${{ matrix.target }}-${{ matrix.arch }}
           path: dist/release-checksums/desktop-${{ matrix.target }}-${{ matrix.arch }}.txt
           retention-days: 1
 
   # M1 Tauri 骨架的三平台出包与体积基线（路线图 M1 Task 5）。
   #
-  # **产物发到 workflow artifacts，不进 Release**：Tauri 这条线在 M5 之前不是发布线，
-  # 而它的产物名与旧 Electron 线**完全一致**（`Mode-<版本>-<平台>-<架构>.<ext>`，
-  # AGENTS.md 的命名约定），同名上传会 clobber 掉用户正在下载的 Electron 安装包。
-  # 保持同一套名字、先只发 artifacts，M5「release.yml 只出 Tauri 产物」时只需把上传目标
-  # 从 artifacts 换成 Release，用户侧的文件名契约不用动。
+  # **M5 Task 2 起 Windows 腿进 Release，macOS/Linux 腿仍只发 workflow artifacts**：
+  # - Windows 腿上传安装包、`.sig` 与 `latest.json`；它是唯一的 Release 产物来源。
+  # - 旧 Electron `desktop` job 仍构建（保留回滚能力），但只上传 workflow artifact，
+  #   所以同一次 run 里不会有第二条线上传同名 `Mode-<版本>-win-x64.exe`（DR-M5-1）。
+  # - macOS/Linux 腿未验证，继续 `continue-on-error`；它们不参与 publish 的判定
+  #   （见 publish 的注释与 checksums job 的 `if`）。
   #
   # 三平台腿**未在本机验证过**（本机只有 Windows + gnu 工具链）：macOS 与 Linux 腿按
   # Tauri v2 官方要求列依赖，首次 CI 运行必须盯一下这几处：
@@ -496,9 +485,12 @@ jobs:
             bundles: appimage
             ext: AppImage
     # macOS / Linux 两条腿**先不处理**（口径见 docs/specs/tauri-platform-commands.md §8.1）：
-    # 本机只有 Windows + gnu 工具链，这两条腿没验证过，编译失败不该污染 Windows 腿与
-    # 旧 Electron 线的绿灯。continue-on-error 保留采集与日志（产物缺失时上面步骤会失败，
-    # 日志仍可读），只是不再把 job 判红。转正时连同 publish 的 needs 一起去掉。
+    # 本机只有 Windows + gnu 工具链，这两条腿没验证过，编译失败不该污染 Windows 腿。
+    # continue-on-error 保留采集与日志（产物缺失时上面步骤会失败，日志仍可读），
+    # 只是不再把 job 判红。M5 Task 2 把 Windows 腿接进发布路径时**没有**要求这两条腿
+    # 通过：publish 不断言 needs.tauri.result == 'success'，真正的门是 checksums job
+    # （它只接受 Windows 腿在 Release 上传成功后产出的校验片段）。三平台 GA 解冻时再撤掉
+    # continue-on-error，并把 publish/checksums 的门改成断言 tauri 成功。
     continue-on-error: ${{ matrix.target != 'win' }}
     runs-on: ${{ matrix.runner }}
     steps:
@@ -546,6 +538,13 @@ jobs:
           # AppImage 的打包器（linuxdeploy）默认要求能挂载 FUSE，容器里没有；
           # 这个变量让 AppImage 以自解压方式运行，绕开 FUSE。
           APPIMAGE_EXTRACT_AND_RUN: "1"
+          # Updater 签名（M5 Task 1/2）。`createUpdaterArtifacts: true` + 非空 pubkey
+          # 时，缺私钥会让 `tauri build` 以非 0 退出（fail closed，实测报错
+          # "A public key has been found, but no private key..."），不会静默发布
+          # 未签名包。secret 不存在时这里展开为空串，同样走 fail closed；所以
+          # 发布前必须先按 RELEASE.md 3.1.1 建好两个 secret。
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           pnpm --filter @mode/desktop-tauri exec tauri build \
@@ -559,6 +558,7 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ needs.release.outputs.version }}
+          TAG: ${{ needs.release.outputs.tag }}
           TARGET: ${{ matrix.target }}
           ARCH: ${{ matrix.arch }}
           EXT: ${{ matrix.ext }}
@@ -577,8 +577,83 @@ jobs:
           out="dist/tauri/Mode-${VERSION}-${TARGET}-${ARCH}.${EXT}"
           cp "${candidates[0]}" "$out"
           node scripts/tauri-bundle-report.ts "$out"
+          # Windows 是当前唯一进 Release 的腿：安装包、签名与 updater 清单必须同批产出。
+          if [ "$TARGET" = "win" ]; then
+            sig_src="${candidates[0]}.sig"
+            if [ ! -f "$sig_src" ]; then
+              echo "::error::missing $sig_src; TAURI_SIGNING_PRIVATE_KEY / _PASSWORD must be configured (fail closed)"
+              exit 1
+            fi
+            cp "$sig_src" "${out}.sig"
+            # 与安装包同批的前端入口快照（供 verify-installed.ts 比对；只留在
+            # workflow artifact 里，不上传 Release）。
+            cp "apps/desktop-tauri/dist/index.html" "${out}.index.html"
+            node scripts/tauri-update-manifest.ts \
+              --version "$VERSION" \
+              --artifact "$out" \
+              --signature "${out}.sig" \
+              --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/Mode-${VERSION}-win-x64.exe" \
+              --output "dist/tauri/latest.json"
+          fi
 
-      - name: Upload Tauri bundle
+      # M5 Task 2（DR-M5-1）：Release 的唯一安装包来源。只上传三个明确文件，
+      # 不用通配符——旧 Electron 线的 `latest*.yml` / `*.blockmap` 与 Tauri 的
+      # `latest.json` / `.sig` 文件名不同，但安装包名逐字相同；同一次 run 里
+      # Electron 的 desktop job 已不再上传 Release，所以 `--clobber` 只可能覆盖
+      # 本腿自己重试的文件，不会碰到旧 tag。
+      - name: Upload Tauri Windows assets to release
+        if: matrix.target == 'win'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          exe="dist/tauri/Mode-${VERSION}-win-x64.exe"
+          sig="${exe}.sig"
+          manifest="dist/tauri/latest.json"
+          for file in "$exe" "$sig" "$manifest"; do
+            test -f "$file" || { echo "::error::missing $file"; exit 1; }
+          done
+          # GitHub API 偶发连接失败（runner 网络抖动），上传重试 3 次；--clobber 让重试可安全覆盖。
+          for attempt in 1 2 3; do
+            if gh release upload "$TAG" "$exe" "$sig" "$manifest" --clobber; then
+              exit 0
+            fi
+            echo "::warning::gh release upload failed (attempt $attempt/3), retrying in 10s"
+            sleep 10
+          done
+          echo "::error::gh release upload failed after 3 attempts"
+          exit 1
+
+      # 校验片段必须在**Release 上传成功之后**生成并上传：checksums job 用它的
+      # 存在性当作「Windows 安装包确实进了本次 Release」的证明。若上面的上传失败，
+      # 本步及其后的 artifact 上传都会跳过，checksums 缺少 .exe 条目而失败，
+      # publish 因此不会公开一个缺安装包的 release。
+      - name: Generate Tauri checksum fragment
+        if: matrix.target == 'win'
+        shell: bash
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release-checksums
+          src="dist/tauri/Mode-${VERSION}-win-x64.exe.sha256"
+          test -f "$src" || { echo "::error::missing $src"; exit 1; }
+          cp "$src" dist/release-checksums/tauri-win-x64.txt
+          cat dist/release-checksums/tauri-win-x64.txt
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.target == 'win'
+        with:
+          name: release-checksums-tauri-win-x64
+          path: dist/release-checksums/tauri-win-x64.txt
+          retention-days: 1
+
+      # 诊断用 workflow artifact（含 .sig、latest.json、.index.html）。不是发布路径，
+      # 失败不影响 Release（但会让本腿变红；发布判定以 checksums 为准）。
+      - name: Upload Tauri bundle (diagnostic artifact)
         uses: actions/upload-artifact@v4
         with:
           name: tauri-${{ matrix.target }}-${{ matrix.arch }}
@@ -657,8 +732,16 @@ jobs:
           path: dist/release-checksums/fnos-x86_64.txt
           retention-days: 1
 
+  # 发布线的真正门：只合并 `release-checksums-*`。Tauri Windows 腿在上传 Release
+  # **之后**才上传 `release-checksums-tauri-win-x64`；Electron 的片段叫
+  # `electron-checksums-*`，不在这个模式里。macOS/Linux 腿没有片段，所以它们失败
+  # 不会挡住这里，但 Windows 腿失败会因缺少 `.exe` 条目而让本 job 失败。
   checksums:
-    needs: [release, desktop, fnos]
+    needs: [release, verify, tauri, fnos]
+    # `always()` 是必需的：tauri 是矩阵 job，mac/linux 的 continue-on-error 可能让
+    # 整个 job 的结果变成 failure，默认的门会跳过 checksums。这里只要求 Windows 腿
+    # 产出的片段存在——缺少时下面的 `.exe` 断言会失败，publish 因此不会公开 release。
+    if: ${{ always() && needs.release.result == 'success' && needs.verify.result == 'success' && needs.tauri.result != 'skipped' && needs.tauri.result != 'cancelled' && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -718,12 +801,22 @@ jobs:
           echo "::error::gh release upload failed after 3 attempts"
           exit 1
 
-  # 只有全部桌面平台产物、fnOS 安装包与完整校验清单都成功才公开 release；任一构建失败则保持 draft，
-  # 由人工排查后重跑或删除，避免不完整的版本出现在 Releases 与官网下载页。
-  # keep_draft=true（上游审计自动构建的测试版）：即使全部成功也保持 draft，不公开、不进入自动更新。
+  # 只有 Tauri Windows 安装包、fnOS 安装包与完整校验清单都成功才公开 release；
+  # 任一构建失败则保持 draft，由人工排查后重跑或删除，避免不完整的版本出现在
+  # Releases 与官网下载页。
+  # keep_draft=true（上游审计自动构建的测试版）：即使全部成功也保持 draft，不公开、
+  # 不进入自动更新。
+  #
+  # Windows-only（DR-M5-2）：tauri 是矩阵 job，macOS/Linux 两条腿继续
+  # `continue-on-error`。`needs.tauri.result` 不能单独当门——它在未验证的实验腿失败时
+  # 也可能是 failure。因此这里显式允许 tauri 的 failure，真正的门是 checksums：
+  # 只有 Windows 腿在 Release 上传成功后才会上传它的校验片段，Windows 腿失败时
+  # checksums 必然失败，publish 不会公开缺安装包的 release。
+  #
+  # Electron 的 desktop job 仍构建（保留回滚能力），但不进 needs、不写 Release。
   publish:
-    needs: [release, verify, desktop, checksums, fnos]
-    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
+    needs: [release, verify, tauri, checksums, fnos]
+    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.tauri.result == 'success' || needs.tauri.result == 'failure' || needs.tauri.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish release
