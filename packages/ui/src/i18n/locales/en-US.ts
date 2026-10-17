@@ -2569,6 +2569,28 @@ const enUS: Record<string, string> = {
   "settings.browser.import.description":
     "Bring your Chrome sign-in state into the built-in browser once, so the AI can open sites you are already signed in to and work more smoothly.",
   "settings.browser.import.action": "Import browser data",
+  "settings.browser.import.extensionTitle": "Import via Chrome extension (experimental)",
+  "settings.browser.import.extensionDescription":
+    "After installing the Mode import extension, click it in its popup to bring your current Chrome sign-in state into the built-in browser. Passwords and history are never read.",
+  "settings.browser.import.extensionAction": "Import via extension",
+  "settings.browser.import.extensionWaiting":
+    "Waiting for extension data: click the Mode import extension in the Chrome toolbar (up to 60 seconds).",
+  "settings.browser.import.extensionTimeout":
+    "No data arrived from the extension. Make sure the Mode import extension is installed and enabled, then try again.",
+  "settings.browser.import.extensionCancelled": "Import canceled; no cookies were written.",
+  "settings.browser.import.extensionMissing":
+    "The import extension was not detected. Install and enable the Mode import extension first.",
+  "settings.browser.import.nativeHostMissing":
+    "The native host is not registered or failed to start. Re-run the extension install script and try again.",
+  "settings.browser.import.extensionPayloadTooLarge":
+    "The extension payload exceeded 1 MiB; no cookies were written.",
+  "settings.browser.import.extensionInvalidPayload":
+    "The extension payload was malformed; no cookies were written.",
+  "settings.browser.import.extensionChannelFailed":
+    "The handshake with the extension channel failed. Try again.",
+  "settings.browser.import.extensionWriteFailed":
+    "Writing to the built-in browser failed. Try again.",
+  "settings.browser.import.extensionSuccess": "Imported {cookies} cookies via the extension.",
   "settings.browser.import.notFound":
     "No importable Chrome profile was found. Open Chrome and make sure the profile contains browsing data.",
   "settings.browser.import.ambiguous":

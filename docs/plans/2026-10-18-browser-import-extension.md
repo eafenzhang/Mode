@@ -58,9 +58,19 @@
       token + `channel.json`（TTL ≤60s）、帧读写、token 常量时间比较、payload 校验、
       `onCookies` 回调、TTL 关闭与 channel.json 清理；日志只记数量/reason。
 - [x] 单测 4 条（Windows）：happy path、token 不匹配、非法 payload、TTL 清理。
-- [ ] **接到导入流程/UI**：启动通道 → 提示用户点击扩展 → 等待 payload → 写 Electron session
+- [x] **接到导入流程/UI**：启动通道 → 提示用户点击扩展 → 等待 payload → 写 Electron session
       → 返回计数；与现有 helper 路径互斥；错误码映射到 UI。
-- [ ] 应用退出/异常时的通道清理（主进程生命周期接线）。
+- [x] 应用退出/异常时的通道清理（主进程生命周期接线）。
+- 执行记录（2026-10-18）：
+  - `browserImportChannel` 新增 `onError` 上报终止码（`channel_timeout` / `channel_token_mismatch` /
+    `payload_too_large` / `invalid_payload` / `cookie_write_failed`）；socket/server `error`
+    不再升级为未捕获异常；TTL 到期主动通知调用方。
+  - `browserImportExtension` 改为快速失败并返回 spec §5 稳定码；成功/失败计数改为真实
+    `skipped`/`failed`；新增 `closeActiveBrowserImportChannels()`，`will-quit` 时同步删除
+    `channel.json`。
+  - 设置页 Windows dev 构建新增「通过 Chrome 扩展导入（实验）」入口，等待期间显示点击扩展
+    提示；zh/en/fa 文案补齐；`shared` 错误码联合类型与 UI 映射同步。
+  - 验证：`tsx --test` 13 条通过；`pnpm typecheck` 0；改动文件 oxlint 0；架构检查 0 违规。
 - 不持久化授权；日志只记数量/reason。
 
 ### T5：安装与注册
@@ -80,15 +90,48 @@
 
 - [x] **Native host 二进制 → 命名管道 → 接收端 E2E**（不依赖 Chrome UI）：
       2 条 cookie → host 解析 2、接收端 `SERVER_COUNT 2`、host 回 `{ok:true,count:2}`、exit 0。
-- [ ] Chrome 扩展 → Native host → Mode main 写入的完整 E2E（Medium 完整性、真实 profile 34 条 v20）。
+- [x] **Chrome 扩展 → Native host → Mode main 写入的完整 E2E**：独立测试 profile（Chrome 155、
+      `Extensions.loadUnpacked` 加载 `packages/browser-import-extension/dist`）+ 3 条测试 cookie
+      → 扩展 popup 显示「已导入 6 条」→ main 返回
+      `{success:true,cookies:{imported:6,skipped:0,failed:0}}`，`channel.json` 导入后即删除。
+      （耗时约 6.5s；profile 内另有 3 条 Chrome 自带 cookie。）
 - [ ] 按 spec §8 的 6 条场景逐条跑；记录原始输出。
-- [ ] 安全评审 R1–R10；多引擎 AV/EDR（若涉及 host 注入/提权，本方案不需要）。
-- [ ] 日志/错误路径不含 cookie 值与 token。
+      - §8.1 真实 profile（34 条 v20）：**未跑**——需要关闭用户正在使用的 Chrome 才能独占 profile，
+        留给用户实机验收。
+      - §8.2 取消/关闭 popup：单测覆盖 `channel_timeout`；扩展侧当前无法上报「关闭 popup」，
+        `import_cancelled` 仍为开放项。
+      - §8.3 扩展未安装 / native host 未注册：**未实现检测**（归 T5/T6 UI 提示）。
+      - §8.4 payload > 1 MiB：单测覆盖 `payload_too_large`（通道与扩展双侧都会拒绝）。
+      - §8.5 无持久授权：逐次 per-call 开关，未写任何授权状态。
+      - §8.6 日志不含值/token：实测主日志与 dev console 均为 0 命中。
+- [x] 安全评审 R1–R10（结论见下节；R5/R10 仍有发布前开放项）。
+- [x] 日志/错误路径不含 cookie 值与 token（实测：`e2e_a/e2e_b/e2e_c`、测试 token 在主日志与
+      dev console 均 0 命中）。
 
 ### T7：收尾
 
 - 发版说明与回滚（保留现有 helper/C# 直到 P1 稳定）。
 - 决定是否删除 app-bound helper/C#（开放决策）。
+
+## 安全评审（R1–R10，2026-10-18）
+
+| # | 结论 | 证据 / 残余风险 |
+| --- | --- | --- |
+| R1 逐次授权 | 通过 | 每次调用只带本次 per-call 开关，无持久授权；通道一次性 token + TTL；重放命中 `channel_token_mismatch`（单测）。 |
+| R2 仅当前用户 profile | 通过 | 扩展走 `chrome.cookies.getAll`，main 不接受外部 profile 路径。 |
+| R3 数据最小化 | 通过 | popup 只映射 9 个 cookie 字段；不读密码、历史、支付数据。 |
+| R4 不落盘敏感物 | 通过 | cookie 值只在内存；`channel.json` 只含 pipe/token/TTL；日志只有数量/reason；实测 0 命中。 |
+| R5 完整性 | **未满足（发布前置）** | dev 路径使用本地构建的 host 与未打包扩展，无签名/哈希校验；因此入口只在 Windows dev 构建暴露。发布前必须补 Authenticode 与扩展分发校验。 |
+| R6 最小权限 | 通过 | 无 UAC、无常驻服务；host 为单次进程。 |
+| R7 受支持机制优先 | 通过 | 扩展 + Native Messaging，无注入。 |
+| R8 可审计 | 通过 | 只记 count/reason/expiresAt；设置页展示上次导入结果。 |
+| R9 可关闭/可回滚 | 通过 | 默认 helper 路径不变；per-call 开关 + env 开关；UI 仅在 dev 构建出现。 |
+| R10 合规 | **待拍板** | 分发渠道（Web Store / 企业策略 / 侧载）未定；企业策略禁用能力需随分发方案确认。 |
+
+- 多引擎 AV/EDR：本方案无注入/提权，按安全 spec §5 可免除；发布前如仍要求扫描，只扫
+  `mode-browser-import-host.exe`。
+- 打开项：R5（签名/哈希）、R10（分发与策略）、§8.3（扩展/host 缺失检测与 UI 指引）、
+  `import_cancelled`（扩展关闭信号）。
 
 ## 门禁
 

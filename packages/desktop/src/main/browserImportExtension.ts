@@ -6,6 +6,8 @@ import type { ChromeBrowserDataImportError } from "@mode/shared";
 
 import {
   createBrowserImportChannel,
+  type BrowserImportChannel,
+  type BrowserImportChannelErrorCode,
   type BrowserImportChannelLogger,
   type BrowserImportCookie,
 } from "./browserImportChannel.js";
@@ -48,48 +50,82 @@ export interface BrowserImportExtensionResult {
 const WRITE_CONCURRENCY = 16;
 const DEFAULT_TIMEOUT_MS = 65_000;
 
+/** 仍在等待扩展的通道；主进程退出时统一关闭，避免留下指向死管道的 channel.json。 */
+const activeChannels = new Set<BrowserImportChannel>();
+
+/** 主进程退出前调用：同步删除 channel.json 并断开等待中的套接字。幂等。 */
+export function closeActiveBrowserImportChannels(): void {
+  for (const channel of activeChannels) channel.dispose();
+  activeChannels.clear();
+}
+
+type ImportOutcome =
+  | { status: "imported"; imported: number; skipped: number; failed: number }
+  | { status: "failed"; error: ChromeBrowserDataImportError };
+
 /**
  * 打开一次导入通道并等待扩展送数据。成功返回写入条数；超时/失败返回稳定错误。
  */
 export async function importCookiesFromExtension(
   options: BrowserImportExtensionOptions,
 ): Promise<BrowserImportExtensionResult> {
-  let resolveDone: ((count: number) => void) | undefined;
-  const done = new Promise<number>((resolve) => {
-    resolveDone = resolve;
+  let settle: ((outcome: ImportOutcome) => void) | undefined;
+  const outcome = new Promise<ImportOutcome>((resolve) => {
+    settle = resolve;
   });
 
-  const channel = await createBrowserImportChannel({
-    channelPath: options.channelPath,
-    logger: options.logger,
-    onCookies: async (cookies) => {
-      const stats = await writeCookies(options.targetSession, cookies, options.logger);
-      resolveDone?.(stats.imported);
-      return stats.imported;
-    },
-  });
-
+  let channel: BrowserImportChannel;
   try {
-    const imported = await Promise.race([
-      done,
-      delay(options.timeoutMs ?? DEFAULT_TIMEOUT_MS).then<number>(() => {
-        throw new Error("channel_timeout");
-      }),
-    ]);
-    options.logger.info("[browser-import] extension import finished", { imported });
-    return { imported, skipped: 0, failed: 0 };
+    channel = await createBrowserImportChannel({
+      channelPath: options.channelPath,
+      logger: options.logger,
+      // 通道判定失败时立刻结束等待，而不是让用户等满超时。
+      onError: (code) => settle?.({ status: "failed", error: mapChannelError(code) }),
+      onCookies: async (cookies) => {
+        const stats = await writeCookies(options.targetSession, cookies, options.logger);
+        settle?.({ status: "imported", ...stats });
+        return stats.imported;
+      },
+    });
   } catch (error) {
-    options.logger.warn("[browser-import] extension import failed", {
+    options.logger.warn("[browser-import] channel creation failed", {
       reason: error instanceof Error ? error.message : String(error),
     });
-    return {
-      imported: 0,
-      skipped: 0,
-      failed: 0,
-      error: "chrome_browser_data_import_unavailable",
-    };
+    return { imported: 0, skipped: 0, failed: 0, error: "channel_missing" };
+  }
+
+  activeChannels.add(channel);
+  try {
+    const result = await Promise.race([
+      outcome,
+      delay(options.timeoutMs ?? DEFAULT_TIMEOUT_MS).then<ImportOutcome>(() => ({
+        status: "failed",
+        error: "channel_timeout",
+      })),
+    ]);
+    if (result.status === "failed") {
+      options.logger.warn("[browser-import] extension import failed", { reason: result.error });
+      return { imported: 0, skipped: 0, failed: 0, error: result.error };
+    }
+    options.logger.info("[browser-import] extension import finished", {
+      imported: result.imported,
+    });
+    return { imported: result.imported, skipped: result.skipped, failed: result.failed };
   } finally {
+    activeChannels.delete(channel);
     await channel.close();
+  }
+}
+
+/** 通道错误码 -> 共享契约的稳定错误码（spec §5）。 */
+function mapChannelError(code: BrowserImportChannelErrorCode): ChromeBrowserDataImportError {
+  switch (code) {
+    case "channel_timeout":
+    case "channel_token_mismatch":
+    case "payload_too_large":
+    case "invalid_payload":
+    case "cookie_write_failed":
+      return code;
   }
 }
 

@@ -1,37 +1,51 @@
-import type { ChromeBrowserDataImportResult } from "@mode/shared";
+import type { ChromeBrowserDataImportError, ChromeBrowserDataImportResult } from "@mode/shared";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
+
+/**
+ * 每个稳定错误码对应一条可操作提示。扩展通道的码见
+ * `docs/specs/chrome-browser-import-extension.md` §5；未列出的码统一落到 failed。
+ */
+const IMPORT_ERROR_MESSAGE_IDS: Partial<Record<ChromeBrowserDataImportError, string>> = {
+  chrome_profile_not_found: "settings.browser.import.notFound",
+  chrome_default_profile_not_found: "settings.browser.import.notFound",
+  chrome_profile_ambiguous: "settings.browser.import.ambiguous",
+  chrome_executable_not_found: "settings.browser.import.executableNotFound",
+  chrome_cookie_access_denied: "settings.browser.import.accessDenied",
+  chrome_cookie_elevation_required: "settings.browser.import.elevationRequired",
+  chrome_cookie_elevation_cancelled: "settings.browser.import.elevationCancelled",
+  chrome_cookie_helper_verification_failed: "settings.browser.import.helperVerificationFailed",
+  chrome_cookie_app_bound_decryption_failed: "settings.browser.import.appBoundFailed",
+  chrome_cookie_protection_unsupported: "settings.browser.import.cookieProtected",
+  chrome_profile_locked: "settings.browser.import.profileLocked",
+  chrome_local_storage_import_failed: "settings.browser.import.localStorageFailed",
+  channel_missing: "settings.browser.import.extensionChannelFailed",
+  channel_timeout: "settings.browser.import.extensionTimeout",
+  channel_token_mismatch: "settings.browser.import.extensionChannelFailed",
+  payload_too_large: "settings.browser.import.extensionPayloadTooLarge",
+  invalid_payload: "settings.browser.import.extensionInvalidPayload",
+  cookie_write_failed: "settings.browser.import.extensionWriteFailed",
+  import_cancelled: "settings.browser.import.extensionCancelled",
+  extension_missing: "settings.browser.import.extensionMissing",
+  native_host_missing: "settings.browser.import.nativeHostMissing",
+};
 
 export function formatImportSummary(
   result: ChromeBrowserDataImportResult,
   formatMessage: ReturnType<typeof useModeIntl>["intl"]["formatMessage"],
+  source: "native" | "extension" = "native",
 ): string {
   if (!result.success) {
     const errorMessageId =
-      result.error === "chrome_profile_not_found" ||
-      result.error === "chrome_default_profile_not_found"
-        ? "settings.browser.import.notFound"
-        : result.error === "chrome_profile_ambiguous"
-          ? "settings.browser.import.ambiguous"
-          : result.error === "chrome_executable_not_found"
-            ? "settings.browser.import.executableNotFound"
-            : result.error === "chrome_cookie_access_denied"
-              ? "settings.browser.import.accessDenied"
-              : result.error === "chrome_cookie_elevation_required"
-                ? "settings.browser.import.elevationRequired"
-                : result.error === "chrome_cookie_elevation_cancelled"
-                  ? "settings.browser.import.elevationCancelled"
-                  : result.error === "chrome_cookie_helper_verification_failed"
-                    ? "settings.browser.import.helperVerificationFailed"
-                    : result.error === "chrome_cookie_app_bound_decryption_failed"
-                      ? "settings.browser.import.appBoundFailed"
-                      : result.error === "chrome_cookie_protection_unsupported"
-                        ? "settings.browser.import.cookieProtected"
-                        : result.error === "chrome_profile_locked"
-                          ? "settings.browser.import.profileLocked"
-                          : result.error === "chrome_local_storage_import_failed"
-                            ? "settings.browser.import.localStorageFailed"
-                            : "settings.browser.import.failed";
+      (result.error ? IMPORT_ERROR_MESSAGE_IDS[result.error] : undefined) ??
+      "settings.browser.import.failed";
     return formatMessage({ id: errorMessageId });
+  }
+  if (source === "extension") {
+    // 扩展通道只导入 Cookie，没有 LocalStorage；避免复用会显示 0 条 LocalStorage 的文案。
+    return formatMessage(
+      { id: "settings.browser.import.extensionSuccess" },
+      { cookies: String(result.cookies.imported) },
+    );
   }
   const values = {
     cookies: String(result.cookies.imported),

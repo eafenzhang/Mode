@@ -2408,6 +2408,25 @@ const zhCN: Record<string, string> = {
   "settings.browser.import.description":
     "一次性把 Chrome 登录状态带到内置浏览器，AI 就能直接打开你已经登录的网站，操作更流畅。",
   "settings.browser.import.action": "导入浏览器数据",
+  "settings.browser.import.extensionTitle": "通过 Chrome 扩展导入（实验）",
+  "settings.browser.import.extensionDescription":
+    "安装 Mode 导入扩展后，在扩展弹窗中点一下即可导入当前 Chrome 登录状态；不读取密码与历史。",
+  "settings.browser.import.extensionAction": "通过扩展导入",
+  "settings.browser.import.extensionWaiting":
+    "正在等待扩展数据：请点击 Chrome 工具栏中的 Mode 导入扩展（最多等待 60 秒）。",
+  "settings.browser.import.extensionTimeout":
+    "没有收到扩展数据。请确认已安装并启用 Mode 导入扩展，然后重试。",
+  "settings.browser.import.extensionCancelled": "已取消导入，未写入任何 Cookie。",
+  "settings.browser.import.extensionMissing": "未检测到导入扩展。请先安装并启用 Mode 导入扩展。",
+  "settings.browser.import.nativeHostMissing":
+    "Native host 未注册或启动失败。请重新运行扩展安装脚本后重试。",
+  "settings.browser.import.extensionPayloadTooLarge":
+    "扩展发送的数据超过 1 MiB，未写入任何 Cookie。",
+  "settings.browser.import.extensionInvalidPayload":
+    "扩展发送的数据格式不正确，未写入任何 Cookie。",
+  "settings.browser.import.extensionChannelFailed": "与扩展的本地通道握手失败，请重试。",
+  "settings.browser.import.extensionWriteFailed": "写入内置浏览器失败，请重试。",
+  "settings.browser.import.extensionSuccess": "已通过扩展导入 {cookies} 个 Cookie。",
   "settings.browser.import.notFound":
     "未找到可导入的 Chrome Profile。请先打开 Chrome 并确认已有浏览数据。",
   "settings.browser.import.ambiguous":

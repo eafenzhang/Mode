@@ -37,7 +37,7 @@ interface BrowserSettingsSectionProps {
   onEmbeddedBrowserAllowInsecureCertificatesChange?: (enabled: boolean) => Promise<void>;
 }
 
-type BrowserDataOperation = "import" | "clear-cache" | "clear-all" | null;
+type BrowserDataOperation = "import" | "import-extension" | "clear-cache" | "clear-all" | null;
 
 function BrowserOperationButton({
   children,
@@ -102,6 +102,8 @@ export function BrowserSettingsSection({
   const [lastImportResult, setLastImportResult] = useState<ChromeBrowserDataImportResult | null>(
     null,
   );
+  const [lastExtensionImportResult, setLastExtensionImportResult] =
+    useState<ChromeBrowserDataImportResult | null>(null);
   const normalizedWorkspaceIdentity = workspaceIdentity?.trim() || null;
   const nativeActionsAvailable =
     isDesktop &&
@@ -180,6 +182,26 @@ export function BrowserSettingsSection({
     }
   }, [intl, platform]);
 
+  const handleImportExtension = useCallback(async () => {
+    if (!platform.importChromeBrowserData) return;
+    setPendingOperation("import-extension");
+    try {
+      // 只对本次调用生效：main 不持久化扩展通道选择，下一次仍由用户显式触发。
+      const result = await platform.importChromeBrowserData({ browserImportExtension: true });
+      setLastExtensionImportResult(result);
+      toast(formatImportSummary(result, intl.formatMessage, "extension"), {
+        durationMs: 5000,
+      });
+    } catch (error) {
+      logger.error("[browser-settings] 扩展导入 Chrome 数据失败", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      toast(intl.formatMessage({ id: "settings.browser.import.failed" }));
+    } finally {
+      setPendingOperation(null);
+    }
+  }, [intl, platform]);
+
   const handleClear = useCallback(
     async (mode: "cache" | "all") => {
       if (!platform.clearEmbeddedBrowserData) return;
@@ -243,29 +265,72 @@ export function BrowserSettingsSection({
               Windows App-Bound 导入链路暂未开放：**生产构建隐藏入口**；dev 构建显示，
               用于 M0 实机验收（配合 MODE_BROWSER_IMPORT_ALLOW_LEGACY_ORACLE 使用 C# oracle）。*/}
           {!isWindowsDesktop || import.meta.env.DEV ? (
-            <SettingsRow
-              label={intl.formatMessage({ id: "settings.browser.import.title" })}
-              description={intl.formatMessage({
-                id: "settings.browser.import.description",
-              })}
-              control={
-                <BrowserOperationButton
-                  operation="import"
-                  pendingOperation={pendingOperation}
-                  disabled={operationDisabled}
-                  onClick={() => void handleImport()}
-                >
-                  {intl.formatMessage({ id: "settings.browser.import.action" })}
-                </BrowserOperationButton>
-              }
-              detail={
-                lastImportResult ? (
-                  <div className="text-ui-base text-foreground-subtle">
-                    {formatImportSummary(lastImportResult, intl.formatMessage)}
-                  </div>
-                ) : undefined
-              }
-            />
+            <>
+              <SettingsRow
+                label={intl.formatMessage({ id: "settings.browser.import.title" })}
+                description={intl.formatMessage({
+                  id: "settings.browser.import.description",
+                })}
+                control={
+                  <BrowserOperationButton
+                    operation="import"
+                    pendingOperation={pendingOperation}
+                    disabled={operationDisabled}
+                    onClick={() => void handleImport()}
+                  >
+                    {intl.formatMessage({ id: "settings.browser.import.action" })}
+                  </BrowserOperationButton>
+                }
+                detail={
+                  lastImportResult ? (
+                    <div className="text-ui-base text-foreground-subtle">
+                      {formatImportSummary(lastImportResult, intl.formatMessage)}
+                    </div>
+                  ) : undefined
+                }
+              />
+              {/* P1 验收入口：扩展 + Native Messaging 只在 Windows dev 构建出现；
+                  生产构建等 T5 的分发决策（Web Store / 企业策略 / 侧载）后再放开。 */}
+              {isWindowsDesktop && import.meta.env.DEV ? (
+                <SettingsRow
+                  label={intl.formatMessage({
+                    id: "settings.browser.import.extensionTitle",
+                  })}
+                  description={intl.formatMessage({
+                    id: "settings.browser.import.extensionDescription",
+                  })}
+                  control={
+                    <BrowserOperationButton
+                      operation="import-extension"
+                      pendingOperation={pendingOperation}
+                      disabled={operationDisabled}
+                      onClick={() => void handleImportExtension()}
+                    >
+                      {intl.formatMessage({
+                        id: "settings.browser.import.extensionAction",
+                      })}
+                    </BrowserOperationButton>
+                  }
+                  detail={
+                    pendingOperation === "import-extension" ? (
+                      <div className="text-ui-base text-foreground-subtle">
+                        {intl.formatMessage({
+                          id: "settings.browser.import.extensionWaiting",
+                        })}
+                      </div>
+                    ) : lastExtensionImportResult ? (
+                      <div className="text-ui-base text-foreground-subtle">
+                        {formatImportSummary(
+                          lastExtensionImportResult,
+                          intl.formatMessage,
+                          "extension",
+                        )}
+                      </div>
+                    ) : undefined
+                  }
+                />
+              ) : null}
+            </>
           ) : null}
         </SettingsGroupCard>
       </section>

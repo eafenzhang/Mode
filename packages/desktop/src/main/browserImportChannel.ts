@@ -8,6 +8,7 @@
 // 安全（R1–R10）：token 一次性、TTL ≤60s、channel.json 在 `%LOCALAPPDATA%\Mode\browser-import`
 // 下（继承当前用户 ACL）、日志只记数量/reason、不记 cookie 值与 token。
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { rmSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { dirname, join } from "node:path";
@@ -18,6 +19,14 @@ const DEFAULT_TTL_MS = 60_000;
 
 export type BrowserImportCookie = Record<string, unknown>;
 
+/** 本通道能判定的终止错误码；与 spec §5 的稳定码一致。 */
+export type BrowserImportChannelErrorCode =
+  | "channel_timeout"
+  | "channel_token_mismatch"
+  | "payload_too_large"
+  | "invalid_payload"
+  | "cookie_write_failed";
+
 export interface BrowserImportChannelLogger {
   info: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
@@ -26,6 +35,11 @@ export interface BrowserImportChannelLogger {
 export interface BrowserImportChannelOptions {
   /** 收到一组合法 cookie 后的写入回调；返回写入条数。 */
   onCookies: (cookies: BrowserImportCookie[]) => Promise<number> | number;
+  /**
+   * 通道在本次导入结束前判定失败时调用一次（token 不匹配、payload 非法/超限、
+   * 写入失败、TTL 到期）。调用方据此快速失败，而不是等满超时。
+   */
+  onError?: (code: BrowserImportChannelErrorCode) => void;
   /** 测试/诊断可覆盖 channel.json 路径。 */
   channelPath?: string;
   /** 默认 60s；规格上限也是 60s。 */
@@ -37,6 +51,8 @@ export interface BrowserImportChannel {
   channelPath: string;
   /** 关闭服务、删除 channel.json；幂等。 */
   close: () => Promise<void>;
+  /** 进程即将退出时的同步清理：只删 channel.json 并断开套接字，不等待 server 关闭。 */
+  dispose: () => void;
 }
 
 type Frame = { v?: number; kind?: string; token?: string; cookies?: unknown };
@@ -71,26 +87,60 @@ export async function createBrowserImportChannel(
   const server = createServer((socket) => {
     sockets.add(socket);
     socket.once("close", () => sockets.delete(socket));
+    // 客户端（native host）异常退出会产生 error 事件；没有监听器时 Node 会把它升级为
+    // 未捕获异常并终止 main 进程。这里只记 reason，不记录 token/payload。
+    socket.on("error", (error) => {
+      options.logger?.warn("[browser-import] channel socket error", {
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    });
     void handleConnection(socket, token, options, ttlMs);
   });
   await listen(server, pipe);
+  // listen 成功后拒绝用的临时监听器已移除；之后的服务端错误同样不能变成未捕获异常。
+  server.on("error", (error) => {
+    options.logger?.warn("[browser-import] channel server error", {
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  });
 
   let closed = false;
   const close = async (): Promise<void> => {
     if (closed) return;
     closed = true;
+    clearTimeout(timer);
     for (const socket of sockets) socket.destroy();
     sockets.clear();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(channelPath, { force: true });
   };
   const timer = setTimeout(() => {
+    // TTL 到期说明用户没有在窗口期内完成点击；先通知调用方再关闭。
+    options.onError?.("channel_timeout");
     void close();
   }, ttlMs);
   timer.unref?.();
 
+  const dispose = (): void => {
+    if (closed) return;
+    closed = true;
+    clearTimeout(timer);
+    for (const socket of sockets) socket.destroy();
+    sockets.clear();
+    try {
+      server.close();
+    } catch {
+      // 进程退出路径上不处理 server 关闭错误。
+    }
+    try {
+      rmSync(channelPath, { force: true });
+    } catch {
+      // 文件已被监听器删除或目录不可写时忽略，进程退出不阻塞。
+    }
+  };
+
   options.logger?.info("[browser-import] channel ready", { channelPath, expiresAt });
-  return { channelPath, close };
+  return { channelPath, close, dispose };
 }
 
 function listen(server: Server, pipe: string): Promise<void> {
@@ -112,15 +162,36 @@ async function handleConnection(
   const reader = createFrameReader(socket);
   try {
     const hello = await reader.next(ttlMs);
-    if (!hello || hello.v !== 1 || hello.kind !== "hello" || !tokenMatches(hello.token, expectedToken)) {
+    if (!hello.ok) {
+      // 超时通常意味着客户端已断开，不必再回帧；形状错误则明确回复稳定码。
+      if (hello.error !== "channel_timeout") {
+        options.onError?.(hello.error);
+        writeFrame(socket, { ok: false, error: hello.error });
+      }
+      return;
+    }
+    if (
+      hello.value.v !== 1 ||
+      hello.value.kind !== "hello" ||
+      !tokenMatches(hello.value.token, expectedToken)
+    ) {
+      options.onError?.("channel_token_mismatch");
       writeFrame(socket, { ok: false, error: "channel_token_mismatch" });
       return;
     }
     writeFrame(socket, { ok: true });
 
     const payload = await reader.next(ttlMs);
-    const cookies = validateCookies(payload);
+    if (!payload.ok) {
+      if (payload.error !== "channel_timeout") {
+        options.onError?.(payload.error);
+        writeFrame(socket, { ok: false, error: payload.error });
+      }
+      return;
+    }
+    const cookies = validateCookies(payload.value);
     if (!cookies) {
+      options.onError?.("invalid_payload");
       writeFrame(socket, { ok: false, error: "invalid_payload" });
       return;
     }
@@ -131,6 +202,7 @@ async function handleConnection(
       options.logger?.warn("[browser-import] cookie write failed", {
         reason: error instanceof Error ? error.message : String(error),
       });
+      options.onError?.("cookie_write_failed");
       writeFrame(socket, { ok: false, error: "cookie_write_failed" });
       return;
     }
@@ -140,6 +212,7 @@ async function handleConnection(
     options.logger?.warn("[browser-import] channel failed", {
       reason: error instanceof Error ? error.message : String(error),
     });
+    options.onError?.("invalid_payload");
     writeFrame(socket, { ok: false, error: "invalid_payload" });
   } finally {
     socket.end();
@@ -180,55 +253,63 @@ function writeFrame(socket: Socket, value: unknown): void {
   if (!socket.destroyed) socket.write(frame);
 }
 
-function createFrameReader(socket: Socket): { next: (timeoutMs: number) => Promise<Frame | null> } {
+function createFrameReader(socket: Socket): {
+  next: (
+    timeoutMs: number,
+  ) => Promise<
+    | { ok: true; value: Frame }
+    | { ok: false; error: "channel_timeout" | "payload_too_large" | "invalid_payload" }
+  >;
+} {
   let buffered = Buffer.alloc(0);
   const frames: Frame[] = [];
-  const waiters: Array<(value: Frame | null) => void> = [];
+  const waiters: Array<(result: FrameReadResult) => void> = [];
 
   socket.on("data", (chunk: Buffer) => {
     buffered = Buffer.concat([buffered, chunk]);
     flush();
   });
 
-  function deliver(value: Frame | null): void {
+  function deliver(result: FrameReadResult): void {
     const waiter = waiters.shift();
-    if (waiter) waiter(value);
-    else if (value) frames.push(value);
+    if (waiter) waiter(result);
+    else if (result.ok) frames.push(result.value);
   }
 
   function flush(): void {
     while (buffered.length >= 4) {
       const length = buffered.readUInt32LE(0);
       if (length === 0 || length > MAX_MESSAGE_BYTES) {
+        // 长度前缀非法或超限都视为协议违规：清空缓冲并把当前等待者全部判失败。
         buffered = Buffer.alloc(0);
-        for (const waiter of waiters.splice(0)) waiter(null);
+        for (const waiter of waiters.splice(0)) waiter({ ok: false, error: "payload_too_large" });
         return;
       }
       if (buffered.length < 4 + length) return;
       const payload = buffered.subarray(4, 4 + length);
       buffered = buffered.subarray(4 + length);
       try {
-        deliver(JSON.parse(payload.toString("utf8")) as Frame);
+        deliver({ ok: true, value: JSON.parse(payload.toString("utf8")) as Frame });
       } catch {
-        deliver(null);
+        deliver({ ok: false, error: "invalid_payload" });
       }
     }
   }
 
   return {
-    next(timeoutMs: number): Promise<Frame | null> {
+    next(timeoutMs: number): Promise<FrameReadResult> {
       const queued = frames.shift();
-      if (queued) return Promise.resolve(queued);
+      if (queued) return Promise.resolve({ ok: true, value: queued });
       return new Promise((resolve) => {
         let timer: NodeJS.Timeout;
-        const handler = (value: Frame | null): void => {
+        const handler = (result: FrameReadResult): void => {
           clearTimeout(timer);
-          resolve(value);
+          resolve(result);
         };
         timer = setTimeout(() => {
           const index = waiters.indexOf(handler);
           if (index >= 0) waiters.splice(index, 1);
-          resolve(null);
+          resolve({ ok: false, error: "channel_timeout" });
         }, timeoutMs);
         waiters.push(handler);
         flush();
@@ -236,3 +317,7 @@ function createFrameReader(socket: Socket): { next: (timeoutMs: number) => Promi
     },
   };
 }
+
+type FrameReadResult =
+  | { ok: true; value: Frame }
+  | { ok: false; error: "channel_timeout" | "payload_too_large" | "invalid_payload" };

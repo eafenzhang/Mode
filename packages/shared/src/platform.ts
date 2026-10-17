@@ -369,11 +369,23 @@ export type ChromeBrowserDataImportError =
   | "chrome_import_not_supported"
   | "chrome_browser_data_import_unavailable"
   | "chrome_data_import_failed"
-  | "chrome_default_profile_not_found";
+  | "chrome_default_profile_not_found"
+  // P1：Chrome 扩展 + Native Messaging 通道（docs/specs/chrome-browser-import-extension.md §5）。
+  | "channel_missing"
+  | "channel_timeout"
+  | "channel_token_mismatch"
+  | "payload_too_large"
+  | "invalid_payload"
+  | "cookie_write_failed"
+  | "import_cancelled"
+  | "extension_missing"
+  | "native_host_missing";
 
 export interface ChromeBrowserDataImportOptions {
   /** Windows App-Bound Cookie 只能在本次显式确认后触发 UAC；不得持久化为全局授权。 */
   allowElevatedChromeDecryption?: boolean;
+  /** dev/验收：本次导入走 Chrome 扩展 + Native Messaging（P1），不读 Chrome DB。 */
+  browserImportExtension?: boolean;
 }
 
 /** Chrome 浏览器数据导入只返回数量和状态；Cookie/LocalStorage 值和解密材料不得跨进程。 */

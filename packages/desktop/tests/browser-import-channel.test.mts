@@ -143,13 +143,66 @@ test("invalid cookie payload is rejected", { skip: !isWindows }, async () => {
 test("ttl closes the channel and removes channel.json", { skip: !isWindows }, async () => {
   const dir = await mkdtemp(join(tmpdir(), "mode-import-channel-"));
   const channelPath = join(dir, "channel.json");
+  const errors: string[] = [];
   const channel = await createBrowserImportChannel({
     channelPath,
     ttlMs: 100,
     onCookies: () => 0,
+    onError: (code) => errors.push(code),
   });
   await new Promise((resolve) => setTimeout(resolve, 300));
   await assert.rejects(stat(channelPath));
+  assert.deepEqual(errors, ["channel_timeout"]);
   await channel.close();
   await rm(dir, { recursive: true, force: true });
+});
+
+test("reports terminal errors to the caller", { skip: !isWindows }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mode-import-channel-"));
+  const channelPath = join(dir, "channel.json");
+  const errors: string[] = [];
+  const channel = await createBrowserImportChannel({
+    channelPath,
+    ttlMs: 5000,
+    onCookies: () => 0,
+    onError: (code) => errors.push(code),
+  });
+  try {
+    const info = JSON.parse(await readFile(channelPath, "utf8")) as { pipe: string };
+    const socket = await connected(info.pipe);
+    const incoming = reader(socket);
+    socket.write(frame({ v: 1, kind: "hello", token: "wrong" }));
+    assert.deepEqual(await incoming.next(), { ok: false, error: "channel_token_mismatch" });
+    assert.deepEqual(errors, ["channel_token_mismatch"]);
+    socket.destroy();
+  } finally {
+    await channel.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("oversized frame is reported as payload_too_large", { skip: !isWindows }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mode-import-channel-"));
+  const channelPath = join(dir, "channel.json");
+  const errors: string[] = [];
+  const channel = await createBrowserImportChannel({
+    channelPath,
+    ttlMs: 5000,
+    onCookies: () => 0,
+    onError: (code) => errors.push(code),
+  });
+  try {
+    const info = JSON.parse(await readFile(channelPath, "utf8")) as { pipe: string };
+    const socket = await connected(info.pipe);
+    const incoming = reader(socket);
+    const header = Buffer.alloc(4);
+    header.writeUInt32LE(2 * 1024 * 1024, 0);
+    socket.write(header);
+    assert.deepEqual(await incoming.next(), { ok: false, error: "payload_too_large" });
+    assert.deepEqual(errors, ["payload_too_large"]);
+    socket.destroy();
+  } finally {
+    await channel.close();
+    await rm(dir, { recursive: true, force: true });
+  }
 });

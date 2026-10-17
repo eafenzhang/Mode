@@ -2544,6 +2544,28 @@ const faIR: Record<string, string> = {
   "settings.browser.import.description":
     "وضعیت ورود Chrome را یک‌بار به مرورگر داخلی منتقل کنید تا هوش مصنوعی بتواند سایت‌هایی را که از قبل در آن‌ها وارد شده‌اید باز کند و روان‌تر کار کند.",
   "settings.browser.import.action": "درون‌برد داده‌های مرورگر",
+  "settings.browser.import.extensionTitle": "درون‌برد با افزونه Chrome (آزمایشی)",
+  "settings.browser.import.extensionDescription":
+    "پس از نصب افزونه درون‌برد Mode، با یک کلیک در پنجره افزونه وضعیت ورود فعلی Chrome را به مرورگر داخلی منتقل کنید. رمزهای عبور و تاریخچه هرگز خوانده نمی‌شوند.",
+  "settings.browser.import.extensionAction": "درون‌برد با افزونه",
+  "settings.browser.import.extensionWaiting":
+    "در انتظار داده افزونه: افزونه درون‌برد Mode را در نوار ابزار Chrome کلیک کنید (حداکثر ۶۰ ثانیه).",
+  "settings.browser.import.extensionTimeout":
+    "داده‌ای از افزونه دریافت نشد. مطمئن شوید افزونه درون‌برد Mode نصب و فعال است و دوباره تلاش کنید.",
+  "settings.browser.import.extensionCancelled": "درون‌برد لغو شد؛ هیچ کوکی‌ای نوشته نشد.",
+  "settings.browser.import.extensionMissing":
+    "افزونه درون‌برد یافت نشد. ابتدا افزونه درون‌برد Mode را نصب و فعال کنید.",
+  "settings.browser.import.nativeHostMissing":
+    "Native host ثبت نشده یا راه‌اندازی نشد. اسکریپت نصب افزونه را دوباره اجرا کنید و تلاش کنید.",
+  "settings.browser.import.extensionPayloadTooLarge":
+    "داده ارسالی افزونه از ۱ مگابایت بیشتر بود؛ هیچ کوکی‌ای نوشته نشد.",
+  "settings.browser.import.extensionInvalidPayload":
+    "قالب داده ارسالی افزونه معتبر نبود؛ هیچ کوکی‌ای نوشته نشد.",
+  "settings.browser.import.extensionChannelFailed":
+    "دست‌دادن (handshake) با کانال محلی افزونه ناموفق بود. دوباره تلاش کنید.",
+  "settings.browser.import.extensionWriteFailed":
+    "نوشتن در مرورگر داخلی ناموفق بود. دوباره تلاش کنید.",
+  "settings.browser.import.extensionSuccess": "{cookies} کوکی با افزونه درون‌برد شد.",
   "settings.browser.import.notFound":
     "هیچ پروفایل Chrome قابل درون‌بردی یافت نشد. Chrome را باز کنید و مطمئن شوید پروفایل شامل داده‌های مرور است.",
   "settings.browser.import.ambiguous":

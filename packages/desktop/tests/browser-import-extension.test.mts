@@ -8,6 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  closeActiveBrowserImportChannels,
   importCookiesFromExtension,
   toElectronCookie,
   type BrowserImportCookieDetails,
@@ -176,6 +177,91 @@ test("extension import times out without a client", { skip: !isWindows }, async 
     timeoutMs: 100,
   });
   assert.equal(result.imported, 0);
-  assert.equal(result.error, "chrome_browser_data_import_unavailable");
+  assert.equal(result.error, "channel_timeout");
   await rm(dir, { recursive: true, force: true });
+});
+
+test("wrong token fails fast with channel_token_mismatch", { skip: !isWindows }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mode-import-ext-"));
+  const channelPath = join(dir, "channel.json");
+  const pending = importCookiesFromExtension({
+    targetSession: { cookies: { set: async () => undefined, flushStore: async () => undefined } },
+    logger: log,
+    channelPath,
+    timeoutMs: 5000,
+  });
+  try {
+    await waitForFile(channelPath);
+    const info = JSON.parse(await readFile(channelPath, "utf8")) as { pipe: string };
+    const socket = await connected(info.pipe);
+    const incoming = reader(socket);
+    socket.write(frame({ v: 1, kind: "hello", token: "wrong" }));
+    assert.deepEqual(await incoming.next(), { ok: false, error: "channel_token_mismatch" });
+    const result = await pending;
+    assert.equal(result.error, "channel_token_mismatch");
+    socket.destroy();
+  } finally {
+    await pending.catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("invalid payload fails fast without writing", { skip: !isWindows }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mode-import-ext-"));
+  const channelPath = join(dir, "channel.json");
+  let writes = 0;
+  const pending = importCookiesFromExtension({
+    targetSession: {
+      cookies: {
+        set: async () => {
+          writes += 1;
+        },
+        flushStore: async () => undefined,
+      },
+    },
+    logger: log,
+    channelPath,
+    timeoutMs: 5000,
+  });
+  try {
+    await waitForFile(channelPath);
+    const info = JSON.parse(await readFile(channelPath, "utf8")) as {
+      pipe: string;
+      token: string;
+    };
+    const socket = await connected(info.pipe);
+    const incoming = reader(socket);
+    socket.write(frame({ v: 1, kind: "hello", token: info.token }));
+    assert.deepEqual(await incoming.next(), { ok: true });
+    socket.write(frame({ v: 1, kind: "cookies", cookies: [{ name: 1 }] }));
+    assert.deepEqual(await incoming.next(), { ok: false, error: "invalid_payload" });
+    const result = await pending;
+    assert.equal(result.error, "invalid_payload");
+    assert.equal(writes, 0);
+    socket.destroy();
+  } finally {
+    await pending.catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("quitting closes waiting channels and removes channel.json", { skip: !isWindows }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mode-import-ext-"));
+  const channelPath = join(dir, "channel.json");
+  const pending = importCookiesFromExtension({
+    targetSession: { cookies: { set: async () => undefined, flushStore: async () => undefined } },
+    logger: log,
+    channelPath,
+    timeoutMs: 300,
+  });
+  try {
+    await waitForFile(channelPath);
+    closeActiveBrowserImportChannels();
+    await assert.rejects(stat(channelPath));
+    const result = await pending;
+    assert.equal(result.error, "channel_timeout");
+  } finally {
+    await pending.catch(() => undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
 });
