@@ -152,3 +152,20 @@
 `spikes/chrome-abe-extension/`（本地未入库；`.js/.mjs` 受语言政策约束，正式化前需 allowlist
 或按 spec 批准）。清理：临时 profile、扩展已移除，真实 profile 的 `Preferences` /
 `Secure Preferences` 已从备份还原（扩展 ID 不再出现）；cookie 库未改动。
+
+### T1 续：非提权会话尝试（2026-10-18）
+
+| 尝试 | 结果 |
+| --- | --- |
+| 全新标准用户 profile（临时账号） | 扩展能读到测试 cookie，但该 profile 的 cookie 是 **`v10`**、`Local State` **没有** `app_bound_encrypted_key` → **不是 v20 测试床** |
+| `runas /trustlevel:0x20000` | 仍是 `High Mandatory Level` |
+| 计划任务 `/RL LIMITED /IT` | 仍是 `High Mandatory Level`（内置 Administrator 不受 UAC 过滤） |
+| `Shell.Application.ShellExecute`（借 explorer 启动） | 仍是 `High Mandatory Level`（explorer 也是 High） |
+| `PsExec64 -l` | 受限进程无法运行（batch exit 1） |
+
+**结论**：当前机器是**内置 Administrator** 且 `ConsentPromptBehaviorAdmin=0`，所有可用的降权路径都产不出
+Medium 完整性进程。**v20 复测必须在普通标准用户登录会话**（非内置 Administrator、且 UAC 正常过滤）
+上进行；这是环境阻塞，不是代码问题。
+
+**清理**：临时账号与用户 profile 已删除；Chrome 全部停止；PsExec 服务/工具已删除；
+真实 profile 的 `Preferences` / `Secure Preferences` 已从备份还原；cookie 库未改动（33 条 `v20` 完整）。
