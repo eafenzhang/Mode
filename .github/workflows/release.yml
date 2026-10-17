@@ -220,8 +220,28 @@ jobs:
         run: pnpm typecheck
       - name: Lint
         run: pnpm lint
-      - name: Language policy gate
+      # 路线图 M5「三指标仪表入库」第 1 项：语言占比。
+      # 这条从 M3 起就在 verify 里跑；M5 Task 3 只把它显式标成指标门禁。
+      - name: Language policy metric (roadmap M5)
         run: node scripts/check-language-policy.mjs
+
+      # 路线图 M5「三指标仪表入库」第 2 项：上游重合度必须为 0。
+      # 命令名按路线图原文（`pnpm verify:self-developed`），由 M4 交付
+      # `scripts/upstream-overlap-check.mjs` + package.json script。
+      # **当前检出里这两样都不存在**（M4 未执行）；这里 fail closed，
+      # 不静默跳过一个指标，也不在 M5 自己发明一套重合度算法。
+      - name: Self-developed overlap metric (roadmap M5)
+        run: |
+          set -euo pipefail
+          if ! node -e 'const p=require("./package.json"); process.exit(p.scripts?.["verify:self-developed"] ? 0 : 1)'; then
+            echo "::error::verify:self-developed is not defined in package.json; the M4 upstream-overlap-check deliverable is missing, so the roadmap M5 overlap metric cannot be measured. Failing closed instead of skipping it."
+            exit 1
+          fi
+          if [ ! -f scripts/upstream-overlap-check.mjs ]; then
+            echo "::error::scripts/upstream-overlap-check.mjs is missing; the M4 overlap tool must exist before this metric can be green."
+            exit 1
+          fi
+          pnpm verify:self-developed
       - name: Shared, service, core and desktop tests
         run: |
           set -euo pipefail
@@ -249,6 +269,12 @@ jobs:
   desktop:
     needs: [release, verify]
     if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
+    # M5 Task 3：这是**诊断/回滚构建**，不是发布线的一部分。
+    # 它仍要跑（DR-M5-1/RELEASE.md 5.2：旧线构建能力必须可验证），但失败
+    # 不得把整次 run 判红、更不得挡住 publish。publish 的 needs 里没有它；
+    # 这里再把 job 级结果归一为 success（actions/runner#1161：continue-on-error
+    # 的 job 在 needs 里读到的仍是 success，UI 仍会显示这条腿失败）。
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -450,8 +476,8 @@ jobs:
   # - Windows 腿上传安装包、`.sig` 与 `latest.json`；它是唯一的 Release 产物来源。
   # - 旧 Electron `desktop` job 仍构建（保留回滚能力），但只上传 workflow artifact，
   #   所以同一次 run 里不会有第二条线上传同名 `Mode-<版本>-win-x64.exe`（DR-M5-1）。
-  # - macOS/Linux 腿未验证，继续 `continue-on-error`；它们不参与 publish 的判定
-  #   （见 publish 的注释与 checksums job 的 `if`）。
+  # - macOS/Linux 腿未验证，继续 `continue-on-error`；它们失败不会挡 publish
+  #   （job 级 continue-on-error 在 `needs` 里归一为 success，见本 job 下方注释）。
   #
   # 三平台腿**未在本机验证过**（本机只有 Windows + gnu 工具链）：macOS 与 Linux 腿按
   # Tauri v2 官方要求列依赖，首次 CI 运行必须盯一下这几处：
@@ -487,10 +513,15 @@ jobs:
     # macOS / Linux 两条腿**先不处理**（口径见 docs/specs/tauri-platform-commands.md §8.1）：
     # 本机只有 Windows + gnu 工具链，这两条腿没验证过，编译失败不该污染 Windows 腿。
     # continue-on-error 保留采集与日志（产物缺失时上面步骤会失败，日志仍可读），
-    # 只是不再把 job 判红。M5 Task 2 把 Windows 腿接进发布路径时**没有**要求这两条腿
-    # 通过：publish 不断言 needs.tauri.result == 'success'，真正的门是 checksums job
-    # （它只接受 Windows 腿在 Release 上传成功后产出的校验片段）。三平台 GA 解冻时再撤掉
-    # continue-on-error，并把 publish/checksums 的门改成断言 tauri 成功。
+    # 只是不再把 job 判红。
+    #
+    # M5 Task 3：publish/checksums 现在**直接断言** needs.tauri.result == 'success'。
+    # 这条断言对 Windows-only 仍然成立，因为 job 级 continue-on-error 会把失败腿在
+    # `needs` 结果里归一为 success（actions/runner#1161：UI 仍显示失败，但
+    # `needs.<job>.result` 是 success）。因此：
+    #   - Windows 腿失败（没有 continue-on-error）→ tauri.result = failure → publish 不跑；
+    #   - macOS/Linux 腿失败（continue-on-error）→ tauri.result = success → 不挡发布。
+    # 三平台 GA 解冻时撤掉这两条腿的 continue-on-error，门禁表达式不用再改。
     continue-on-error: ${{ matrix.target != 'win' }}
     runs-on: ${{ matrix.runner }}
     steps:
@@ -518,6 +549,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rustTarget }}
+          # §20 第 4 条：required-features 门住的 harness bin 要单独跑 clippy。
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -551,6 +584,21 @@ jobs:
             --target "${{ matrix.rustTarget }}" \
             --bundles "${{ matrix.bundles }}" \
             --config "{\"version\":\"${{ needs.release.outputs.version }}\"}"
+
+      # §20 第 4 条收口（M5 Task 3）：`cargo clippy --all-targets` 覆盖不到被
+      # `required-features` 门住的三个 harness bin（PortTransportHarness /
+      # HostRoundtripHarness / ProductUiHarness），所以它们可能悄悄漏 lint。
+      # 这一档原来只在发布前人工跑（RELEASE.md 2.2 V10）；接进 Windows 腿后，
+      # 新加的 harness bin 每次发布都会被 lint。放在 `Build Tauri bundles` 之后，
+      # 因为编译 mode-tauri 需要 tauri.conf.json 的 frontendDist（../dist）已存在。
+      - name: Opt-in harness clippy (required-features bins)
+        if: matrix.target == 'win'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo clippy -p mode-tauri \
+            --features port-transport-harness,host-roundtrip,product-ui-harness \
+            --bins -- -D warnings
 
       # 改名到发布契约的格式，并落一份 sha256 与体积记录——体积是三指标之一
       # （路线图「度量与预算」），在 CI 里留痕而不是靠人记。
@@ -593,8 +641,26 @@ jobs:
               --artifact "$out" \
               --signature "${out}.sig" \
               --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/Mode-${VERSION}-win-x64.exe" \
+              --notes "Release notes: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" \
               --output "dist/tauri/latest.json"
           fi
+
+      # 路线图 M5「三指标仪表入库」第 3 项：CI 记录安装包体积。
+      # `tauri-bundle-report.ts` 已按门禁脸（NSIS 安装包字节）把数字写进
+      # `dist/tauri/size.txt` 与 job summary；这里再做一个显式的必跑步骤，
+      # 防止以后有人删掉报告调用却让体积指标悄悄消失。
+      # **不设阈值**（DR-M5-2b：体积不作为发布阻断）；口径的人为决定仍开放，
+      # 见 docs/specs/tauri-renderer-host.md §13.4.1 与 RELEASE.md §1.5.1。
+      - name: Record installer size metric (roadmap M5)
+        if: matrix.target == 'win'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/tauri/size.txt || {
+            echo "::error::installer size metric was not recorded (dist/tauri/size.txt missing or empty)"
+            exit 1
+          }
+          cat dist/tauri/size.txt
 
       # M5 Task 2（DR-M5-1）：Release 的唯一安装包来源。只上传三个明确文件，
       # 不用通配符——旧 Electron 线的 `latest*.yml` / `*.blockmap` 与 Tauri 的
@@ -738,10 +804,12 @@ jobs:
   # 不会挡住这里，但 Windows 腿失败会因缺少 `.exe` 条目而让本 job 失败。
   checksums:
     needs: [release, verify, tauri, fnos]
-    # `always()` 是必需的：tauri 是矩阵 job，mac/linux 的 continue-on-error 可能让
-    # 整个 job 的结果变成 failure，默认的门会跳过 checksums。这里只要求 Windows 腿
-    # 产出的片段存在——缺少时下面的 `.exe` 断言会失败，publish 因此不会公开 release。
-    if: ${{ always() && needs.release.result == 'success' && needs.verify.result == 'success' && needs.tauri.result != 'skipped' && needs.tauri.result != 'cancelled' && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
+    # M5 Task 3：直接断言 tauri 成功。job 级 continue-on-error 会把失败腿在
+    # `needs` 结果里归一为 success（actions/runner#1161），所以这条断言只对
+    # Windows 腿（没有 continue-on-error）生效；mac/linux 失败仍不挡发布。
+    # 若 tauri 因 `build_artifacts=false` 被跳过，本 job 也跳过，publish 允许这种
+    # 手工无产物的发布路径（与改动前一致）。
+    if: ${{ always() && needs.release.result == 'success' && needs.verify.result == 'success' && needs.tauri.result == 'success' && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -808,15 +876,25 @@ jobs:
   # 不进入自动更新。
   #
   # Windows-only（DR-M5-2）：tauri 是矩阵 job，macOS/Linux 两条腿继续
-  # `continue-on-error`。`needs.tauri.result` 不能单独当门——它在未验证的实验腿失败时
-  # 也可能是 failure。因此这里显式允许 tauri 的 failure，真正的门是 checksums：
-  # 只有 Windows 腿在 Release 上传成功后才会上传它的校验片段，Windows 腿失败时
-  # checksums 必然失败，publish 不会公开缺安装包的 release。
+  # `continue-on-error`。
   #
-  # Electron 的 desktop job 仍构建（保留回滚能力），但不进 needs、不写 Release。
+  # M5 Task 3：这里**不再容忍** tauri 的 failure。job 级 continue-on-error 会把
+  # 失败腿在 `needs` 结果里归一为 success（actions/runner#1161；UI 仍显示失败），
+  # 所以 `needs.tauri.result == 'success'` 的实际含义是：
+  #   - Windows 腿成功（唯一硬门）→ 通过；
+  #   - Windows 腿失败（没有 continue-on-error）→ failure → publish 不跑，
+  #     不再依赖 checksums 的“缺片段”作为间接证明；
+  #   - macOS/Linux 腿失败（continue-on-error）→ 归一为 success → 不挡发布。
+  # `skipped` 只出现在手工触发且 `build_artifacts=false` 的既有路径里（此时
+  # checksums 也 skipped），保持与改动前一致。
+  #
+  # checksums 仍在 needs 里：它证明安装包/签名/清单确实进了本次 Release。
+  #
+  # Electron 的 desktop job 仍构建（保留回滚能力），但不进 needs、不写 Release，
+  # 且已声明 `continue-on-error: true`（诊断构建不得把 run 判红）。
   publish:
     needs: [release, verify, tauri, checksums, fnos]
-    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.tauri.result == 'success' || needs.tauri.result == 'failure' || needs.tauri.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
+    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.tauri.result == 'success' || needs.tauri.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

@@ -1138,6 +1138,21 @@ $ node --import tsx apps/desktop-tauri/scripts/measure-installer-budgets.ts
 所以「裁掉 28 MiB 在门禁上只值几 MiB」这个结论**成立且更强**——它只值 **2.80 MiB**，
 占 (b) 的 9.9%。**只报原始值会把一次 30 MiB 的「优化」在门禁上读成一次大改动**，这正是 DR-T5-2 要防的。
 
+#### 13.4.1 **仍未解决：≤30MB 到底指哪张脸（M5 Task 3 只登记，不改数）**
+
+本节把数字测出来了，但**没有解决口径本身**。仓库里同时存在两种读法，且都能找到原文：
+
+- **读法 A（核心面）**：路线图 M5 第 241 行写「初装 ≤30MB **核心** + sidecar 按需」，
+  按本节 (a) **23.29 MiB ≤ 30MB**，达标。
+- **读法 B（整包面）**：M5 计划 `docs/plans/2026-10-17-m5-release-cutover.md` 第 33 行写
+  「原门禁『≤30MB』指的是**整包**」，按本节总包 **51.50 MiB**，不达标。
+
+两者还牵涉产品形态：路线图的「sidecar 按需」与当前「随包 Node + externals」不一致。
+**M5 没有自行挑一个数字，也没有改门禁**（DR-T5-3 / DR-M5-2b：体积不作为发布阻断）。
+人需要给出：① 官方口径是哪张脸；② sidecar 是否必须改成按需下载。
+同一问题在 `RELEASE.md` §1.5.1 与 `docs/specs/tauri-platform-commands.md` §8.2 都有指向；
+三个地方必须一起改，不能只改一处。
+
 ### 13.5 冷启动实测（M3 Task 5 · DR-T5-4；按 §13.3 的口径）
 
 口径见 §13.3（同样在数字之前提交）。命令与被测对象：
@@ -1874,3 +1889,18 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 | 6 | **`sequence` 的单一所有者** | §18 ② + §15.3 的 M6：Host 的 `StartupStateMachine` 与壳的 `StartupMonitor` 各自从 0 自增，渲染层的 `acceptState` 会丢掉 `sequence <= state.sequence` 的合并流。**〔Task 4 追加〕本任务没有引入合并流**（第二实例转发走的是无序号的事件通道），所以条件未触发 | **下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的「中间阶段」接进壳发布的状态流的那个人**（触发条件：任何一个 Host 侧产生的进度值进入壳发布的 `DatabaseStartupState` 流）。答案只有两种，且必须选一个：壳转发 Host 的序号，或壳按自己的发布重编号（Host 的序号只作内部诊断） |
 | 7 | **验收台（bench）留在开发档的代价** | §17 / DR-T3-2：1.73 MiB（§13.1 的 `dev/` 行是它的实测出处）+ 内部命令面暴露在开发档产物里；**发布产物里没有** | 已处置（DR-T3-2），无未决项 |
 | 8 | **一处 clean-room 违规** | §19.1：读过 `desktopPlatform.ts` 第 60–90 行的实现体；结论已由 §10.11 的黑盒负向对照取代 | 已登记（本任务），供复核 |
+
+### 20.2 M5 Task 3 的最终处置（2026-10-17；不改写第 1–4 条与 §20.1 的原措辞）
+
+逐条收口：**关闭的带证据，仍开放的带成本与重开触发**。没有条目被静默删除。
+
+| # | 处置 | 证据 / 现状 | 成本与重开触发 |
+| --- | --- | --- | --- |
+| 1 | **仍开放**（re-registered） | §20.1 第 1 条：只在父进程接管的管道上可见；从资源管理器双击启动没有控制台。M5 的硬约束是「只动发布工程」，没有改壳的日志落点 | **成本**：发布形态下用户侧的降级清单不可得；排障必须由发起进程带 `MODE_*` 并以管道启动。**重开触发**：下一次改壳的日志/诊断（两个候选设计二选一：随包 Node 的日志目录，或显式诊断文件），或第一次需要向用户收集降级清单时。届时必须同时定清理策略与隐私面 |
+| 2 | **关闭** | §13.4 原始输出：门禁脸（NSIS 安装包字节）core 档 **24,416,114 B（23.29 MiB）**；壳 exe 本身 52,908,544 B 仅作未压缩诊断 | 无。数字与命令都在 §13.4；口径归属问题另见 §13.4.1（不是本条的重开） |
+| 3 | **关闭** | §13.5 原始输出：release `T_ready` 中位数 **825 ms**、`T_surface` **962 ms**（N=7，每样本新空数据根）；debug 对照 1030 / 1359 ms；另一轮 839 / 983 与 1032 / 1366 | 无。冷启动是报告项，不是硬阈值；数字与机器口径在 §13.5 |
+| 4 | **关闭** | M5 Task 3 把单独那一档接进**必跑门禁**：`.github/workflows/release.yml` 的 `tauri` Windows 腿新增 `Opt-in harness clippy (required-features bins)`，命令为 `cargo clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`；本机同一命令退出码 0（见 M5 Task 3 报告） | 无结构性缺口：新加的 harness bin 每次发布都会被 lint。若将来把 Windows 腿移出必跑路径，本条重开 |
+| 5 | **仍开放**（re-registered） | §18 ③ + §15.3：壳侧 `to_state_json()` 写死 `disk: []`，上游没给事实；重查仍**零消费方** | **成本**：启动状态里没有磁盘事实；当前没有用户可见缺陷，也没有消费者。**重开触发**（二者之一）：① 渲染层/UI 开始读 `state.disk`；② 有人把 `startupDiskSampler`（`packages/desktop/src/host/startupDiskSampler.ts`）搬进 `packages/desktop/src/host-standalone/`。届时由那个人定「谁产出、谁合并」 |
+| 6 | **仍开放**（re-registered） | §18 ② + §15.3 的 M6：Host 与壳各自从 0 自增；当前没有合并流（第二实例转发走无序号事件通道） | **成本**：若将来把 Host 的中间阶段接进壳发布的状态流，`acceptState` 可能丢掉 `sequence <= state.sequence` 的更新。**重开触发**：下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的中间阶段接进 `DatabaseStartupState` 的那个人。答案只能二选一：壳转发 Host 序号，或壳按自己的发布重编号（Host 序号只作内部诊断） |
+| 7 | **关闭**（已处置） | §17 / DR-T3-2：验收台只进开发档，发布路径用 `--no-bench`；发布产物里没有 `dist/dev/` | 无未决项 |
+| 8 | **关闭**（已登记，供复核） | §19.1：违规范围与替代判据都在；结论由 §10.11 的黑盒负向对照取代 | 无未决工程项；保留记录供复核 |

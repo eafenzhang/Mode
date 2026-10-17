@@ -108,11 +108,13 @@ cp "apps/desktop-tauri/dist/index.html" \
 node scripts/tauri-bundle-report.ts "dist/tauri/Mode-<版本>-win-x64.exe"
 
 # 生成 updater 清单（Task 1 实测：tauri build 本身不产出 latest.json，只产出 .sig）
+# `--notes` 不能留空：updater 会把它展示给用户；CI 里指向本次 Release 的 tag。
 node scripts/tauri-update-manifest.ts \
   --version "<版本>" \
   --artifact "dist/tauri/Mode-<版本>-win-x64.exe" \
   --signature "dist/tauri/Mode-<版本>-win-x64.exe.sig" \
   --url "https://github.com/eafenzhang/Mode/releases/download/v<版本>/Mode-<版本>-win-x64.exe" \
+  --notes "Release notes: https://github.com/eafenzhang/Mode/releases/tag/v<版本>" \
   --output "dist/tauri/latest.json"
 ```
 
@@ -149,6 +151,21 @@ node scripts/tauri-update-manifest.ts \
   `node --import tsx apps/desktop-tauri/scripts/measure-installer-budgets.ts`。
 - 重新开启体积门禁的条件：弱网安装或分发渠道提出硬限制时，重开 DR-M5-2b；届时优先的杠杆是
   「别把插件/技能负载打进包」，不是重写后端。
+
+#### 1.5.1 **仍未解决的口径问题（待人拍板，M5 不自行改数）**
+
+同一个「≤30MB」在仓库里指向两张不同的脸，这是 **§13.4 的数字矛盾**，M5 Task 3 只登记、不裁决：
+
+- **读法 A（核心面）**：路线图 M5 写的是「初装 ≤30MB **核心** + sidecar 按需」
+  （`docs/plans/2026-10-09-tauri-rewrite-roadmap.md` 第 241 行），spec §13.4 的 (a) 实测
+  **23.29 MiB ≤ 30MB**，按这张脸是达标的。
+- **读法 B（整包面）**：M5 计划 `docs/plans/2026-10-17-m5-release-cutover.md` 第 33 行写的是
+  「原门禁『≤30MB』指的是**整包**」；当前产品档总包实测 **51.50 MiB**，按这张脸不达标。
+
+两者还牵涉一个产品形态问题：路线图的「sidecar 按需」与当前「随包 Node + externals」不一致。
+**没有新的阈值**（DR-M5-2b 已放开阻断），也**没有**在本任务里挑一个数字。人需要给出：
+① 官方体积口径是哪张脸；② sidecar 是否必须改成按需下载。给出之前，发布按「只记录、不阻断」执行。
+交叉引用：`docs/specs/tauri-renderer-host.md` §13.4.1、`docs/specs/tauri-platform-commands.md` §8.2。
 
 ### 1.6 平台范围：Windows-only（登记偏差）
 
@@ -192,7 +209,9 @@ pnpm --filter @mode/desktop-tauri test
 `portRoundTrip`、`portMessagePath`、`hostChannelStdio`、`windowModeInjection`、`nativeDeps`、
 `realServices`、`shipSet` 等自动用例；四个 opt-in 用例默认 **skip**（见 2.2）。
 
-**`release.yml` 的 `desktop` job（Windows runner，仅 `matrix.target == 'win'`）** 跑：
+**`release.yml` 的 `desktop` job（Windows runner，仅 `matrix.target == 'win'`）** 跑下列步骤。
+**它是诊断/回滚构建，不是发布线的一部分**：`continue-on-error: true`，失败会在 UI 里显示，
+但不会把 run 判红，也不进 `publish` 的 needs。
 
 ```bash
 pnpm typecheck
@@ -216,12 +235,16 @@ node scripts/generate-tauri-protocol.mjs --check
 
 - **Windows 腿是唯一的 Release 产物来源**：签名（`TAURI_SIGNING_PRIVATE_KEY` /
   `_PASSWORD`）→ 安装包 + `.sig` → `node scripts/tauri-update-manifest.ts` 生成
-  `latest.json` → `gh release upload` 三个文件 → 上传
-  `release-checksums-tauri-win-x64` 片段。
+  `latest.json`（`--notes` 指向本次 tag，不再留空）→ `gh release upload` 三个文件 →
+  上传 `release-checksums-tauri-win-x64` 片段。Windows 腿还会跑
+  `cargo clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`
+  （§20 第 4 条的 required-features harness 覆盖）。
 - **macOS / Linux 腿**仍只上传 14 天期的 workflow artifact，`continue-on-error`；
-  它们不产出校验片段，也不参与发布判定。
+  它们不产出校验片段。job 级 `continue-on-error` 会把它们的失败在 `needs` 里归一为
+  `success`，所以不挡 Windows-only 发布（见下方「重要」）。
 - **旧 Electron `desktop` job 仍构建**（保留回滚能力），但只上传
-  `electron-desktop-*` / `electron-checksums-*` workflow artifact，不再写 Release。
+  `electron-desktop-*` / `electron-checksums-*` workflow artifact，不再写 Release；
+  它已声明 `continue-on-error: true`——诊断构建失败不会把整次 run 判红，也不挡 `publish`。
 
 > **M5 Task 1/2 之后的前置项**：`tauri.conf.json` 已开 `createUpdaterArtifacts` 且 pubkey 非空。
 > 如果 CI secrets 里没有 `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`，`Build Tauri bundles`
@@ -236,12 +259,26 @@ pnpm lint
 pnpm verify:pre-push
 ```
 
-> **重要（M5 Task 2 之后）**：`tauri` 已在 `publish.needs` 里，Windows 腿把
-> 安装包、`.sig`、`latest.json` 直接上传本次 Release。`publish` **不**断言
-> `needs.tauri.result == 'success'`（mac/linux 的 `continue-on-error` 会让矩阵 job
-> 的结果不可靠）；真正的门是 `checksums`：Windows 腿只在 Release 上传成功后才上传
-> 它的 `.exe` 校验片段，缺片段时 `checksums` 与 `publish` 都会失败。
+> **重要（M5 Task 3 之后）**：`publish` 与 `checksums` 现在**直接断言**
+> `needs.tauri.result == 'success'`。Windows 腿没有 `continue-on-error`，所以它失败时
+> 结果是 `failure`，`publish` 不会公开 release——**不再**依赖「checksums 缺片段」这条
+> 间接证明。macOS/Linux 腿仍有 job 级 `continue-on-error`；GitHub 会把这种腿在
+> `needs` 结果里归一为 `success`（`actions/runner#1161`，UI 仍显示该腿失败），所以它们
+> 失败不会挡 Windows-only 发布（DR-M5-2）。`checksums` 仍保留：它证明安装包、`.sig` 与
+> `latest.json` 确实进了本次 Release。
 > 同一次 run 里 Electron 的 `desktop` job 不再上传 Release，所以两条线不会互覆。
+
+**三指标与门禁（路线图 M5 第 241 行原文）**：
+
+| 指标 | 路线图原文 | 门禁落点 | 当前状态 |
+| --- | --- | --- | --- |
+| 重合度 | `pnpm verify:self-developed`（重合度 0） | `release.yml` 的 `verify` job：`Self-developed overlap metric` | **fail closed**。当前检出没有 `package.json` 的该 script，也没有 `scripts/upstream-overlap-check.mjs`（M4 未交付）；门禁会红并明确报出缺失，不静默跳过 |
+| 语言 | `scripts/check-language-policy.mjs`（语言） | `verify` job：`Language policy metric`；`pnpm verify:pre-push` 也跑 | 已接线 |
+| 体积 | CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需） | `tauri` Windows 腿：`Collect installer and record size` + 显式的 `Record installer size metric` | 已接线；按门禁脸记录，**不设阈值**（DR-M5-2b）。口径矛盾见 1.5.1 |
+
+> 体积的 CI 记录是**产品档总包**（当前 51.50 MiB）；「核心 23.29 MiB」由本机的三包脚本
+> `measure-installer-budgets.ts` 测量（1.5），不在 CI 里重复出三个包。别把 CI 的
+> `size.txt` 当成核心预算。
 
 ### 2.2 人工验证（CI 做不到，发布前逐项勾）
 
@@ -364,7 +401,8 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
   ```
 
   判据：退出码 0。`--all-targets` 覆盖不到 `required-features` 门住的三个 harness bin
-  （Host spec §20 第 4 条），所以这条必须单独跑。
+  （Host spec §20 第 4 条），所以这条必须单独跑。**M5 Task 3 起 CI 的 `tauri` Windows
+  腿也跑同一条命令**；这条人工项保留为发布前的本机重复确认。
 
 - [x] **V11. 旧版 → 新版真更新演练（M5 Task 1 已跑通；每次发版前仍需重跑）**
 
@@ -424,9 +462,22 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
 
 ### 2.3 绿 CI 不覆盖什么
 
-明确写下：**CI 全绿不覆盖 V1–V11**。原因是 CI 没有真 webview、没有真安装器、没有真实指针/肉眼、
+明确写下：**CI 全绿不覆盖 V1–V9 与 V11**（V10 的 harness clippy 已进 CI 的 `tauri`
+Windows 腿）。原因是 CI 没有真 webview、没有真安装器、没有真实指针/肉眼、
 没有可用的更新链；四个 opt-in 用例在 CI 里默认 skip（`MODE_TAURI_*` 环境变量未设置）。
 发布前必须逐项勾完 2.2，才能进入第 4 节的发布。
+
+### 2.4 已知开放项（不阻断发布，但必须可见）
+
+§20 逐条处置的权威表在 `docs/specs/tauri-renderer-host.md` §20.2。发布时只需要知道：
+
+- **仍开放（不阻断）**：§20 第 1 条（窗口态发布壳的平台面清单没有稳定落点；从资源管理器
+  双击启动看不到降级清单）、第 5 条（`state.disk` 恒为 `[]`，无消费方）、第 6 条
+  （Host/壳 `sequence` 单一所有者，合并流未引入）。每条的成本与重开触发见 spec §20.2。
+- **已关闭**：第 2、3 条（体积/冷启动已实测）、第 4 条（harness clippy 已进 CI）、
+  第 7 条（验收台不进发布产物）、第 8 条（clean-room 违规已登记）。
+- **待人口径**：§13.4.1 的体积口径矛盾，见本文件 1.5.1。它不属于 §20 的工程开放项，
+  但同样是发布线必须知道的问题。
 
 ---
 
@@ -575,11 +626,14 @@ gh secret list --app actions | grep TAURI_SIGNING
 - 流程：`release`（校验版本、建 tag、建 draft release）→ `verify` →
   `desktop`（Electron，诊断/回滚构建）与 `tauri`（Windows 发布线）+ `fnos` →
   `checksums` → `publish`。
-- `publish` 在 `release`、`verify`、`checksums`、`fnos` 成功（或按既有规则 skipped）时
-  公开 draft；`tauri` 的矩阵结果不作为硬门（见 2.1 的说明），Windows 腿是否成功由
-  `checksums` 的 `.exe` 片段证明。正式版用 `--latest`，预发布用 `--prerelease`。
+- `publish` 在 `release`、`verify`、`tauri`、`checksums`、`fnos` 成功（或按既有规则
+  skipped）时公开 draft。**M5 Task 3 起 `tauri` 是硬门**：Windows 腿失败时
+  `needs.tauri.result == 'failure'`，`publish` 不跑；macOS/Linux 腿的失败被
+  `continue-on-error` 在 `needs` 里归一为 `success`，不挡 Windows-only 发布（见 2.1）。
+  `checksums` 继续证明安装包/签名/清单确实进了 Release。正式版用 `--latest`，预发布用
+  `--prerelease`。
 - **M5 Task 2 起**：自动发版发布的 Windows 安装包来自 **Tauri** 线；旧 Electron
-  `desktop` job 仍会构建，但只产出 workflow artifact。
+  `desktop` job 仍会构建，但只产出 workflow artifact，且 `continue-on-error: true`。
 
 ### 4.3 手工触发（指定版本 / 预发布）
 
@@ -632,6 +686,9 @@ gh release view <tag> --json isDraft,isLatest,assets \
 - [ ] 3.1.1 的两个 CI secret 已创建（这是 `tauri` job 能产出 `.sig` 的前置条件；
       缺私钥时 `Build Tauri bundles` 会以非 0 退出，fail closed）。
 - [ ] 2.1 的自动验证在本机与 CI 都是绿的（如实报告任何既有失败，不把失败写成通过）。
+      **当前已知会红的一项**：`Self-developed overlap metric` 因为 M4 的
+      `scripts/upstream-overlap-check.mjs` / `verify:self-developed` 尚未交付而 fail closed。
+      在它变绿之前，路线图 M5 的「三指标全绿」不成立；不要把它当成环境抖动重跑掉。
 - [ ] 2.2 的 V1–V11 全部勾完；V11 若未完成，先完成 Task 1。
 - [ ] 3.4 的签名检查全部勾完；`pubkey` 不是空串。
 - [ ] 本次发布线是 **Tauri Windows-only**；旧 Electron 线的上一版资产仍可下载，
