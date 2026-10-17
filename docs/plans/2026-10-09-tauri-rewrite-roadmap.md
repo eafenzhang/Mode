@@ -137,7 +137,7 @@ tray 1 / updater 2 / tauri-test-manifest 2）、`clippy -D warnings` 零告警�
 **M1 仍未关闭，只差一件**：
 1. ~~**Task 4 Step 3 的人工 E2E**~~〔**2026-10-17 已执行**：10 命令 + 深链逐条核对，
    记录见 spec §4.4 与 `docs/plans/2026-10-15-tauri-skeleton.md` 的「第四批」；
-   `selectDirectory` 的选择分支与 `saveFile` 的 `sourceUrl` 分支仍未人工核对（后者验收台无入口）〕。
+   验收台补了 `saveFile(sourceUrl)` 入口，成功/取消/超限/超时四条分支均已核对〕。
 2. **macOS / Linux 两条出包腿的首次 CI 运行**（本机只有 Windows + gnu 工具链；需人推送触发）。
 
 **两处需要人来决定的口径差异**（都已在 spec 登记）：

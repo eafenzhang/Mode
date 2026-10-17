@@ -229,10 +229,10 @@ lib 的单测模块。原因是一条 Windows 链接约束链：
 | 命令 | 实测 |
 | --- | --- |
 | `openExternal` | `(void)`；Edge 打开 `example.test` |
-| `selectDirectory` | 取消 → `null`；**选择分支未验**（旧式文件夹框不接受键入路径） |
+| `selectDirectory` | 取消 → `null`；选择：地址栏键入 `D:\ZCodium\.plan` + 两次 Enter → 返回 `"D:\\ZCodium\\.plan"` |
 | `selectFile` | 取消 → `null`；选择 `D:\ZCodium\AGENTS.md` → 原样返回该路径 |
 | `saveFile`（`data`） | 取消 → `{"canceled":true,"success":false}`；写入 `D:\ZCodium\.plan\e2e-save.txt` → `{"path":…,"success":true}`，25 字节且内容一致 |
-| `saveFile`（`sourceUrl`） | **验收台没有入口**；不变量由自动化测试覆盖，未做人工核对 |
+| `saveFile`（`sourceUrl`） | 成功落盘（19 字节一致）、取消 → `canceled:true`、65MiB 源 → `save_file_source_url_too_large`（不留文件）、挂起源 → 30s 后 `save_file_source_url_timeout`（不留文件） |
 | `openInFileManager` | 不存在 → `{"success":false,"error":"path_unavailable: 系统找不到指定的文件。 (os error 2)"}`；目录/文件 → `{"success":true}`，Explorer 标题 `D:\ZCodium` |
 | `showTaskNotification` | `(void)`；系统通知可见，标题/正文与入参一致（`.plan/notification-shot.png`） |
 | `notifyRendererReady` / `syncWindowTabs` / `syncWindowUnreadCount` | 均 `(void)` |

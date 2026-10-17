@@ -441,10 +441,10 @@ UIA `TextPattern` 读数方案；本次补了 `.plan/uia-run.ps1`（按索引点
 | 命令 | 结果 |
 | --- | --- |
 | `openExternal` | `(void)`；Edge 打开 `example.test`（窗口标题证据） |
-| `selectDirectory` | 取消 → `null`；**选择分支未验**（旧式文件夹选择框不接受键入路径，Esc 后仍为 `null`） |
+| `selectDirectory` | 取消 → `null`；**选择分支已验**：地址栏键入 `D:\ZCodium\.plan` → Enter → Enter → 返回 `"D:\\ZCodium\\.plan"` |
 | `selectFile` | 取消 → `null`；选择 `D:\ZCodium\AGENTS.md` → 原样返回该路径 |
 | `saveFile`（`data`） | 取消 → `{"canceled":true,"success":false}`；写入 `D:\ZCodium\.plan\e2e-save.txt` → `{"path":…,"success":true}`，文件 25 字节且内容逐字一致 |
-| `saveFile`（`sourceUrl`） | **验收台没有该分支的入口**；由自动化测试覆盖不变量，未做人工核对 |
+| `saveFile`（`sourceUrl`） | 验收台已补入口：成功取回落盘（19 字节，内容一致）、取消 → `canceled:true`、`too_large`（65MiB 源）→ `save_file_source_url_too_large` 且不留文件、`slow` 源 → 30s 后 `save_file_source_url_timeout` 且不留文件 |
 | `openInFileManager`（不存在） | `{"success":false,"error":"path_unavailable: 系统找不到指定的文件。 (os error 2)"}` |
 | `openInFileManager`（目录/文件） | 均 `{"success":true}`；Explorer 窗口标题为 `D:\ZCodium`（文件打开父目录） |
 | `showTaskNotification` | `(void)`；系统通知可见，标题/正文与入参一致（截图 `.plan/notification-shot.png`） |
@@ -459,5 +459,5 @@ UIA `TextPattern` 读数方案；本次补了 `.plan/uia-run.ps1`（按索引点
 `target/release/ModeTauri.exe`；已按 §4.3 的口径用 `.plan/mode-protocol-backup.reg` 还原，
 复核当前值指回已安装的 `Mode.exe`。
 
-**仍未验**：`selectDirectory` 的选择分支；`saveFile` 的 `sourceUrl` 分支（验收台未暴露）。
+**已补齐**：`selectDirectory` 的选择分支与 `saveFile` 的 `sourceUrl` 分支（验收台已加入口）。
 M1 阶段关闭仍只差 macOS/Linux 出包腿的首次 CI（需人推送）。

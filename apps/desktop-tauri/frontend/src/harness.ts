@@ -83,6 +83,24 @@ const COMMAND_SPECS = [
       } as never),
   },
   {
+    name: "saveFile",
+    summary: "写盘（sourceUrl 分支）；取消返回 canceled: true",
+    fields: [
+      { key: "suggestedName", label: "suggestedName", initial: "mode-source.txt", kind: "text" },
+      {
+        key: "sourceUrl",
+        label: "sourceUrl",
+        initial: "http://127.0.0.1:8765/payload.txt",
+        kind: "text",
+      },
+    ],
+    call: (platform, values) =>
+      platform.saveFile?.({
+        suggestedName: values.suggestedName ?? "mode-source.txt",
+        sourceUrl: values.sourceUrl ?? "",
+      } as never),
+  },
+  {
     name: "openInFileManager",
     summary: "目录→打开；文件→在父目录里选中；不存在→success:false",
     fields: [{ key: "path", label: "path", initial: "", kind: "text" }],
