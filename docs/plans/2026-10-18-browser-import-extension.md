@@ -78,9 +78,12 @@
 
 ### T6：验收与评审
 
-- 按 spec §8 的 6 条场景逐条跑；记录原始输出。
-- 安全评审 R1–R10；多引擎 AV/EDR（若涉及 host 注入/提权，本方案不需要）。
-- 日志/错误路径不含 cookie 值与 token。
+- [x] **Native host 二进制 → 命名管道 → 接收端 E2E**（不依赖 Chrome UI）：
+      2 条 cookie → host 解析 2、接收端 `SERVER_COUNT 2`、host 回 `{ok:true,count:2}`、exit 0。
+- [ ] Chrome 扩展 → Native host → Mode main 写入的完整 E2E（Medium 完整性、真实 profile 34 条 v20）。
+- [ ] 按 spec §8 的 6 条场景逐条跑；记录原始输出。
+- [ ] 安全评审 R1–R10；多引擎 AV/EDR（若涉及 host 注入/提权，本方案不需要）。
+- [ ] 日志/错误路径不含 cookie 值与 token。
 
 ### T7：收尾
 
