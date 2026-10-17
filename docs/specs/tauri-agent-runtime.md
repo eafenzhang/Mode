@@ -365,6 +365,46 @@ b
 「覆盖未读文件」在 `Write` 是 `code=TOOL_EXECUTION_FAILED` / `detail=code=write_file_not_read`，
 在 `Edit` 是 `code=6` / `detail=code=6`。
 
+### 3.4 `Bash` 与取消（Task 4 Step 0 观察，2026-10-17）
+
+出处：`probe-bash.mts`（7 组）与 `probe-bash-cancel.mts`（运行中取消）。
+
+**输入与输出（逐字）**
+
+| 场景 | 结果 |
+| --- | --- |
+| `printf 'hello\nworld\n'` | `success=true`，`content: "hello\nworld"`（**末尾换行被去掉**） |
+| `exit 7` | **`success=true`**，`content: "Exit code 7"`（非零退出不是工具错误） |
+| `printf 'oops\n' >&2` | `success=true`，`content: "oops"`（**stderr 合并进 content**） |
+| `pwd` | `/c/Users/…`（**Git Bash / MSYS 路径**） |
+| 不存在的命令 | `success=true`，`content: "Exit code 127\n/usr/bin/bash: line 3: …: command not found"` |
+| `sleep 5` + `timeout: 1000` | `success=true`，`content: "Command timed out after 1s\n<error>Command was aborted before completion</error>"` |
+| `{}`（缺 `command`） | `success=false`，`type=tool_execution_failed`，`message=Tool input failed inputSchema validation` |
+
+**取消（`probe-bash-cancel.mts`，运行中的 `sleep 30`）**
+
+- 方法：`session/stop`，params `{sessionId}`，应答 `{}`。v1 方法表把它标为 deprecated（已收敛 v4
+  `stop`），但 stdio 运行时的线上行为仍是它。
+- 运行中的工具得到 `tool.updated` / `kind:"error"`：
+  `{"type":"tool_cancelled","message":"Bash was cancelled and the child process was asked to stop","code":"TOOL_CANCELLED"}`。
+- 随后是 `tool.updated` 的 `batch`（`successCount:0` / `errorCount:1`）与 `turn.completed`，
+  **`resultType:"cancelled"`**（不是 `turn.failed`）。
+- **取消后事件流不关闭**（会话仍在），所以「事件流结束」不能当取消成功的判据；
+  判据是 `turn.completed.resultType === "cancelled"`。
+- 与超时的区别：**超时是工具成功**（两行 content），**取消是工具错误** `TOOL_CANCELLED` + turn cancelled。
+  两者不能合并建模。
+
+**调度字段（观察值，不按直觉推断）**
+
+- `scheduled`：`canRunParallel:false`、`parallelGroupIndex:0`（Bash 一批一条）。
+- `started`：`readOnly:true`、`sideEffectScope:"none"`——**本次观察如此**；同时本次 `Bash`
+  **没有**发 `interaction/requestPermission`。不要据此推断权限模型；它只是当前线上的事实，
+  Task 4 的实现以这些字段为准。
+
+**仍未观察（Step 0 剩余）**：取消/超时后孙进程是否被真正清理；pty 与 pipe 的输出模式差异；
+输出截断阈值与 artifact 形状；`run_in_background` / `TaskOutput` / `TaskStop`；
+并发 `session/send` 在同一 key 下的准入顺序。
+
 ## 4. 对拍可重复性：mock provider
 
 ### 4.1 为什么必须有

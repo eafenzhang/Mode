@@ -44,27 +44,38 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-bash.mts
 run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 `additionalProperties: false`。
 
+**取消（`probe-bash-cancel.mts`，运行中的 `sleep 30`）**
+
+| 项 | 观察值 |
+| --- | --- |
+| 方法 | `session/stop` + `{sessionId}`，应答 `{}`（v1 线上仍有；声明里标 deprecated） |
+| 工具结果 | `tool.updated` / `kind:"error"`：`type:"tool_cancelled"`、`code:"TOOL_CANCELLED"`、`message:"Bash was cancelled and the child process was asked to stop"` |
+| 批次 | `successCount:0` / `errorCount:1` |
+| turn 终态 | `turn.completed` 且 **`resultType:"cancelled"`**（不是 `turn.failed`） |
+| 事件流 | **不关闭**（会话仍在）——不能用「流结束」判断取消成功 |
+
+**调度字段**：`scheduled.canRunParallel=false`；`started` 是 `readOnly:true` /
+`sideEffectScope:"none"`，且本次 `Bash` **没有**发审批请求。按观察值实现，不按直觉推断。
+
 **结论**：非零退出码与超时都**不是**工具层错误；工具错误只覆盖「入参校验失败」这类前置失败。
+**取消**则是工具错误（`TOOL_CANCELLED`）+ turn cancelled——三者的建模必须分开。
 这条与 `Write`/`Edit` 的 `tool_execution_failed` 语义不同，不能套用。
 
 ---
 
 ## 仍未观察（Step 0 必须先做，不许猜）
 
-阶段计划要求对拍覆盖「超时、取消、退出码」，目前只拿到退出码与超时，且有两处只有表象：
+阶段计划要求对拍覆盖「超时、取消、退出码」，目前拿到退出码、超时与取消，以下仍只有表象：
 
-1. **取消（用户中断）**：现有 driver 只有 `send()` 与 `stop()`，没有取消原语。
-   需要先黑盒探出会话面的取消方法名与事件（可能是 `session/interrupt` / `turn/cancel` 一类），
-   再比较「取消」与「超时」的内容差异。
-2. **超时是否真的杀掉进程（含孙进程）**：`content` 里的 aborted 文案不能证明 OS 层已清理。
-   需要观察超时后 `sleep` 子进程是否存活（Windows 上按 PID/命令行查）。
-3. **pty 与 pipe 两种模式的输出差异**：`pwd` 给出 MSYS 路径说明至少走了一次 shell；
+1. **超时/取消后进程是否真的被杀（含孙进程）**：`content` 与 `TOOL_CANCELLED` 的文案不能证明
+   OS 层已清理。需要观察 `sleep` 子进程在超时/取消后是否存活（Windows 上按 PID/命令行查）。
+2. **pty 与 pipe 两种模式的输出差异**：`pwd` 给出 MSYS 路径说明至少走了一次 shell；
    但「输出是否逐行流式」「是否伪终端」没有观察。
-4. **输出截断/artifact 的阈值**：结果里有 `truncated=false`、`budgetStrategy=artifact`，
+3. **输出截断/artifact 的阈值**：结果里有 `truncated=false`、`budgetStrategy=artifact`，
    但阈值与超限后的形状未测。
-5. **`run_in_background` / `TaskOutput` / `TaskStop`**：未测。它会影响「一个 turn 何时结束」，
+4. **`run_in_background` / `TaskOutput` / `TaskStop`**：未测。它会影响「一个 turn 何时结束」，
    必须决定本轮做还是拆出去。
-6. **`CommandInbox` 的准入顺序**：一个 mock script 里串行调用看不到并发。
+5. **`CommandInbox` 的准入顺序**：一个 mock script 里串行调用看不到并发。
    需要能在一个 turn 运行中再发 `session/send`（或直接写原始帧），观察第二条输入是排队、
    拒绝还是合并；以及 key 的粒度（session / workspace / 全局）。
 
@@ -97,7 +108,7 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 ### DR-T4-3：超时 → `success=true` + 两行文案
 
 已观察：`Command timed out after {秒}s` + `<error>Command was aborted before completion</error>`。
-超时**不是** `tool_execution_failed`；取消与超时的文案若在 Step 0 观察到不同，按观察分开建模。
+超时**不是** `tool_execution_failed`。取消已在 Step 0 观察到不同形状，见 DR-T4-6——两者分开建模。
 
 ### DR-T4-4：输出规范化
 
@@ -115,20 +126,33 @@ Step 0 观察它的返回形状后二选一：
 
 **不许**在没观察前假装实现。
 
+### DR-T4-6：取消 = `session/stop` → 工具错误 + `turn.completed(cancelled)`
+
+已观察（`probe-bash-cancel.mts`）：
+
+- 请求 `session/stop` + `{sessionId}`，应答 `{}`；
+- 运行中的工具得到 `tool_cancelled` / `TOOL_CANCELLED`；
+- 最终 `turn.completed` 的 `resultType` 是 `"cancelled"`，**不是** `turn.failed`；
+- 事件流不关闭。
+
+因此：超时与取消**不能**共用「成功 content」建模；取消要走工具错误路径，turn 终态要带
+`resultType: "cancelled"`。
+
 ---
 
 ## Task 步骤
 
 ### Step 0：补齐观察面（先做，阻塞后续）
 
-- [ ] 扩展 driver 的观测口：允许在 turn 运行中写原始帧（用于取消与并发准入），
-      不改变既有 `send()` 的语义。
-- [ ] 探取消：找到会话面的取消方法，记录请求/事件/最终 content。
-- [ ] 探超时后的进程清理：记录 `sleep` 子进程在超时前后是否存活。
+- [x] 扩展 driver 的观测口——**不需要**：`OracleSession.request()` 已存在，可直接在 turn 运行中
+      发取消请求（`probe-bash-cancel.mts` 用的就是它）。
+- [x] 探取消：方法是 `session/stop` + `{sessionId}`；工具错误 `TOOL_CANCELLED`；
+      `turn.completed(resultType:"cancelled")`；事件流不关闭。见 spec §3.4。
+- [ ] 探超时/取消后的进程清理：记录 `sleep` 子进程在超时前后是否存活。
 - [ ] 探输出模式：大输出（> 阈值）是否 `truncated=true`、artifact 落点与形状。
 - [ ] 探 `run_in_background` 的返回与后续事件。
 - [ ] 探并发 `session/send`：第二条输入在 busy/running 下的结果与 key 粒度。
-- [ ] 结论写进 spec §3.4；未观察到的逐条标注。
+- [x] 结论写进 spec §3.4（已观察部分）；剩余未知已逐条列出。
 
 ### Step 1：spec 先行
 
