@@ -386,10 +386,14 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 ### Task 4: shell 与 pty（`Bash`）+ `CommandInbox` 串行准入
 
 **子计划：** `docs/plans/2026-10-17-agent-shell-inbox.md`（2026-10-17 产出，含已观察的
-`Bash` 行为、DR-T4-1…5 与 Step 0 的补观察清单；**实现未开工**）。
+`Bash` 行为、DR-T4-1…7 与 Step 0 的补观察清单；**实现未开工**）。
+
+> **2026-10-17 观察后改判（DR-T4-1）**：stdio 会话面的 `[ -t 1 ]` / `[ -t 0 ]` 都是假
+> （`stdout:pipe stdin:pipe`），旧运行时用**管道**而不是伪终端。因此 `Bash` 用管道实现，
+> **不引入 `portable-pty`**，也不改第三方台账。
 
 **Files:**
-- Create: `crates/agent-tools/src/bash.rs`（portable-pty）
+- Create: `crates/agent-tools/src/bash.rs`（**管道**，不使用 portable-pty）
 - Create: `crates/agent-core/src/command_inbox.rs`
 - Test: `crates/agent-core/tests/bash_and_inbox.rs`
 

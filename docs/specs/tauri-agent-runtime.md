@@ -377,6 +377,7 @@ b
 | `exit 7` | **`success=true`**，`content: "Exit code 7"`（非零退出不是工具错误） |
 | `printf 'oops\n' >&2` | `success=true`，`content: "oops"`（**stderr 合并进 content**） |
 | `pwd` | `/c/Users/…`（**Git Bash / MSYS 路径**） |
+| `[ -t 1 ]` / `[ -t 0 ]` | `stdout:pipe stdin:pipe`（**不是 pty**，用管道） |
 | 不存在的命令 | `success=true`，`content: "Exit code 127\n/usr/bin/bash: line 3: …: command not found"` |
 | `sleep 5` + `timeout: 1000` | `success=true`，`content: "Command timed out after 1s\n<error>Command was aborted before completion</error>"` |
 | `{}`（缺 `command`） | `success=false`，`type=tool_execution_failed`，`message=Tool input failed inputSchema validation` |
@@ -413,6 +414,10 @@ Preview (first 2KB):
 - 与超时的区别：**超时是工具成功**（两行 content），**取消是工具错误** `TOOL_CANCELLED` + turn cancelled。
   两者不能合并建模。
 
+**超时的进程清理**：`sleep 30 & echo $! > child.pid; wait` 在 1s 超时后，父 shell 被 abort，
+但 `kill -0 $(cat child.pid)` 立刻检查是 **`alive`**，2 秒后再查仍是 **`alive`**——
+**超时不会清理孙进程**。Rust 侧若额外清理，就是与 oracle 的行为差异，必须显式登记。
+
 **调度字段（观察值，不按直觉推断）**
 
 - `scheduled`：`canRunParallel:false`、`parallelGroupIndex:0`（Bash 一批一条）。
@@ -432,7 +437,7 @@ Preview (first 2KB):
 的排队层在**这个协议面之上**（host 层）；本探针直接打会话面，观察不到队列顺序。实现前必须
 先把分层定清楚（见 Task 4 子计划 DR-T4-7），不能把「会话面拒绝」误当成「CommandInbox 已实现」。
 
-**仍未观察（Step 0 剩余）**：取消/超时后孙进程是否被真正清理；pty 与 pipe 的输出模式差异；
+**仍未观察（Step 0 剩余）**：**取消**后孙进程是否被清理（超时路径已观察：不清理）；
 大输出阈值的精确字节（只钉到 28,672–32,768 区间）；`run_in_background` / `TaskOutput` / `TaskStop`；
 host 层 `CommandInbox` 的排队顺序与 key 粒度。
 

@@ -83,11 +83,9 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 
 阶段计划要求对拍覆盖「超时、取消、退出码」，目前拿到退出码、超时与取消，以下仍只有表象：
 
-1. **超时/取消后进程是否真的被杀（含孙进程）**：`content` 与 `TOOL_CANCELLED` 的文案不能证明
-   OS 层已清理。需要观察 `sleep` 子进程在超时/取消后是否存活（Windows 上按 PID/命令行查）。
-2. **pty 与 pipe 两种模式的输出差异**：`pwd` 给出 MSYS 路径说明至少走了一次 shell；
-   但「输出是否逐行流式」「是否伪终端」没有观察。
-3. **大输出阈值的精确字节**：已确认 28,672 直出、32,768 持久化，精确边界未测。
+1. **取消后的孙进程清理**：超时路径已观察（父 shell 被 abort，子进程 1s/2s 后仍 `alive`，
+   即**不清理**）；取消路径尚未做同样的检查。
+2. **大输出阈值的精确字节**：已确认 28,672 直出、32,768 持久化，精确边界未测。
 4. **`run_in_background` / `TaskOutput` / `TaskStop`**：未测。它会影响「一个 turn 何时结束」，
    必须决定本轮做还是拆出去。
 5. **host 层 `CommandInbox` 的排队顺序与 key 粒度**：stdio 会话面只观察到拒绝（`-32010`），
@@ -100,19 +98,20 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 
 ## 决策记录
 
-### DR-T4-1：shell 后端用 `portable-pty`（按阶段计划），但先确认对拍面
+### DR-T4-1：**不引入 `portable-pty`**——oracle 走的是 pipe（Step 0 实测，取代阶段计划原文）
 
-阶段计划指定 `portable-pty`。它引入一个新的第三方 crate，需要：
+实测 `[ -t 1 ]` / `[ -t 0 ]` 都为假（`stdout:pipe stdin:pipe`），说明旧运行时的 `Bash`
+用**管道**而不是伪终端。阶段计划写的 `portable-pty` 会引入 ConPTY 的回显、换行与控制序列，
+与 oracle 的输出必然产生差异。
 
-- 加进根 `Cargo.toml` 的 `[workspace.dependencies]`（版本钉死，走 `Cargo.lock`）；
-- 更新 `third-party/inventory.json`（`inputs` 归一与 `copied.files` 两套哈希都要跑，
-  见 `third-party` 台账的既有口径）；
-- 若 `portable-pty` 的输出行为（换行、缓冲、EOF）与 oracle 不一致，**行为以 oracle 为准**，
-  必要时在 `bash.rs` 里做适配层，而不是把差异写成「已知差异」蒙混过去。
+**决定**：`crates/agent-tools/src/bash.rs` 用标准库的管道执行（`std::process::Command`
+或等价的异步实现），**不新增 `portable-pty`**，因此也不需要改第三方台账。
 
-**代价（若判错）**：`portable-pty` 在 Windows 上的 ConPTY 行为与 Git Bash/MSYS 不完全相同；
-若 oracle 实际走的是 `bash -lc` + pipe，那么引入 pty 反而制造差异。所以 Step 0 必须先观察
-「输出来源是 pty 还是 pipe」，再决定是否真的需要 pty。
+**代价**：没有 pty 的交互式能力（方向键、Ctrl-C 透传）；当前 oracle 也没有，所以 M2 对拍不受影响。
+将来若要做「真终端」再重新评估。
+
+**与阶段计划的偏差**：阶段计划 Task 4 的 Files 写的是 `portable-pty`；本计划按实测改判，
+在阶段计划 Task 4 节加一行指针，不改原路线图。
 
 ### DR-T4-2：非零退出码 → `success=true` + `Exit code N` 行
 
@@ -123,6 +122,10 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 
 已观察：`Command timed out after {秒}s` + `<error>Command was aborted before completion</error>`。
 超时**不是** `tool_execution_failed`。取消已在 Step 0 观察到不同形状，见 DR-T4-6——两者分开建模。
+
+**进程清理**（Step 0 补充）：`sleep 30 &` 超时后，父 shell 被 abort，但子进程在 1s 与 2s 后都仍
+`alive`——**超时不会清理孙进程**。Rust 侧为对拍保持一致；若要额外清理，必须在 spec 登记为
+有意差异（并说明用户体验收益），不能默默做。
 
 ### DR-T4-4：输出规范化
 
@@ -181,7 +184,9 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
       发取消请求（`probe-bash-cancel.mts` 用的就是它）。
 - [x] 探取消：方法是 `session/stop` + `{sessionId}`；工具错误 `TOOL_CANCELLED`；
       `turn.completed(resultType:"cancelled")`；事件流不关闭。见 spec §3.4。
-- [ ] 探超时/取消后的进程清理：记录 `sleep` 子进程在超时前后是否存活。
+- [x] 探 stdin/stdout 是否 TTY：`stdout:pipe stdin:pipe` → **不引入 `portable-pty`**（DR-T4-1 改判）。
+- [x] 探超时后的进程清理：父 shell abort 后，`sleep` 子进程 1s/2s 后仍 `alive`（**不清理孙进程**）；
+      取消路径未测。
 - [x] 探大输出：4K–28K 直出、32K 起持久化包装；阈值钉到 28,672–32,768 区间，
       artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
       精确字节与 pty vs pipe 仍未观察。

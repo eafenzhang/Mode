@@ -40,6 +40,39 @@ const count = await runGroup({
       args: {},
     },
     {
+      label: "is-tty",
+      args: {
+        command:
+          "if [ -t 1 ]; then printf 'stdout:tty'; else printf 'stdout:pipe'; fi; " +
+          "if [ -t 0 ]; then printf ' stdin:tty'; else printf ' stdin:pipe'; fi",
+        description: "Report whether stdout and stdin are TTYs",
+      },
+    },
+    {
+      label: "timeout-child",
+      args: {
+        command: "sleep 30 & echo $! > child.pid; wait",
+        timeout: 1000,
+        description: "Start a child then wait past the timeout",
+      },
+    },
+    {
+      label: "child-alive-after-timeout",
+      args: {
+        command:
+          "if kill -0 $(cat child.pid) 2>/dev/null; then printf alive; else printf dead; fi",
+        description: "Check whether the timed-out child still exists",
+      },
+    },
+    {
+      label: "child-alive-after-timeout-2s",
+      args: {
+        command:
+          "sleep 2; if kill -0 $(cat child.pid) 2>/dev/null; then printf alive; else printf dead; fi",
+        description: "Check the timed-out child again after two seconds",
+      },
+    },
+    {
       label: "large-output-4k",
       args: {
         command: "head -c 4096 /dev/zero | tr '\\0' 'e'",
