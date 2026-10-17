@@ -67,7 +67,10 @@ jobs:
           if [ "$EVENT_NAME" = "push" ]; then
             # 只认正式版 tag（v<major>.<minor>.<patch>）：预发布/审计 tag 不参与基线，
             # 否则自动版本会被推进到预发布序列上。
-            LATEST="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
+            # `--merged HEAD`：只认从本次提交可达的 tag。仓库里存在来自另一条历史的
+            # 孤儿 tag（如 v3.14.3，不是 main 的祖先），纯按大小排序会把它当基线，
+            # 把自动版本推到 3.14.x 那条线上。
+            LATEST="$(git tag --list --merged HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
             if [ -n "$LATEST" ]; then PRE="${LATEST#v}"; else PRE="0.0.0"; fi
             IFS=. read -r MA MI PA <<< "$PRE"
             PA=$((PA + 1))
