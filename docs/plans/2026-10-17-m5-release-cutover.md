@@ -113,7 +113,9 @@ Modify `docs/specs/*` 的相关节（如需要）。
   完成记录：`.superpowers/sdd/2026-10-16-tauri-m3-ecosystem/task-m5-3-report.md`。
   **口径备注**：路线图 M5 第 241 行给的三项是「重合度 / 语言 / 安装包体积」。语言与体积
   已接线；重合度按原文 `pnpm verify:self-developed` 接线，但 M4 的
-  `scripts/upstream-overlap-check.mjs` 尚未交付，因此门禁 **fail closed**，首次 CI 会红。
+  `scripts/upstream-overlap-check.mjs` 尚未交付。按人 2026-10-17 的 ruling，缺失时该步骤
+  **只告警并 exit 0（wired, not enforced）**，脚本出现后自动变成阻断；重开条件是删除
+  `release.yml` 里那段缺失分支。
 
 ---
 

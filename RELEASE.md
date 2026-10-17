@@ -270,15 +270,16 @@ pnpm verify:pre-push
 
 **三指标与门禁（路线图 M5 第 241 行原文）**：
 
-| 指标 | 路线图原文 | 门禁落点 | 当前状态 |
-| --- | --- | --- | --- |
-| 重合度 | `pnpm verify:self-developed`（重合度 0） | `release.yml` 的 `verify` job：`Self-developed overlap metric` | **fail closed**。当前检出没有 `package.json` 的该 script，也没有 `scripts/upstream-overlap-check.mjs`（M4 未交付）；门禁会红并明确报出缺失，不静默跳过 |
-| 语言 | `scripts/check-language-policy.mjs`（语言） | `verify` job：`Language policy metric`；`pnpm verify:pre-push` 也跑 | 已接线 |
-| 体积 | CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需） | `tauri` Windows 腿：`Collect installer and record size` + 显式的 `Record installer size metric` | 已接线；按门禁脸记录，**不设阈值**（DR-M5-2b）。口径矛盾见 1.5.1 |
+| 指标 | 路线图原文 | 门禁落点 | 今天的状态 | 何时变成阻断 |
+| --- | --- | --- | --- | --- |
+| 重合度 | `pnpm verify:self-developed`（重合度 0） | `release.yml` 的 `verify` job：`Upstream overlap metric (roadmap M5; non-blocking until M4 tool exists)` | **已接线、不阻断**：`scripts/upstream-overlap-check.mjs` 缺失时打印醒目告警并 `exit 0`（缺失工具由 M4 交付） | **脚本出现即自动阻断**：`scripts/upstream-overlap-check.mjs` 存在时，步骤跑 `pnpm verify:self-developed`，失败即让 `verify` 红。届时删除缺失分支（注释里写死的重开条件） |
+| 语言 | `scripts/check-language-policy.mjs`（语言） | `verify` job：`Language policy metric (roadmap M5)`；`pnpm verify:pre-push` 也跑 | **今天阻断**（脚本存在且通过） | 已生效 |
+| 体积 | CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需） | `tauri` Windows 腿：`Collect installer and record size` + `Record installer size metric (roadmap M5; NSIS installer face, recorded only)` | **只记录、不设阈值**（DR-M5-2b）；记录失败仍会让 `tauri` 红 | **当前不因数值阻断**。只有人重开 DR-M5-2b 并给出阈值时才会变成数值门禁；不要自编数字 |
 
-> 体积的 CI 记录是**产品档总包**（当前 51.50 MiB）；「核心 23.29 MiB」由本机的三包脚本
-> `measure-installer-budgets.ts` 测量（1.5），不在 CI 里重复出三个包。别把 CI 的
-> `size.txt` 当成核心预算。
+> 体积的脸必须写死：CI 的 `size.txt` 是**产品档总包**（core + 随包 Node/externals，当前
+> 51.50 MiB）在 **NSIS 安装包字节**这张脸上；路线图 M5 的「≤30MB 核心」在同一张脸上是
+> **23.29 MiB，已达标**（§13.4），由本机 `measure-installer-budgets.ts` 测，不在 CI 里
+> 重复出三个包。别把两者混读。
 
 ### 2.2 人工验证（CI 做不到，发布前逐项勾）
 
@@ -686,9 +687,9 @@ gh release view <tag> --json isDraft,isLatest,assets \
 - [ ] 3.1.1 的两个 CI secret 已创建（这是 `tauri` job 能产出 `.sig` 的前置条件；
       缺私钥时 `Build Tauri bundles` 会以非 0 退出，fail closed）。
 - [ ] 2.1 的自动验证在本机与 CI 都是绿的（如实报告任何既有失败，不把失败写成通过）。
-      **当前已知会红的一项**：`Self-developed overlap metric` 因为 M4 的
-      `scripts/upstream-overlap-check.mjs` / `verify:self-developed` 尚未交付而 fail closed。
-      在它变绿之前，路线图 M5 的「三指标全绿」不成立；不要把它当成环境抖动重跑掉。
+      **注意区分「已接线」与「已强制」**：重合度指标今天只接线、不阻断（M4 的
+      `scripts/upstream-overlap-check.mjs` 尚未交付，缺失时步骤打印告警并 `exit 0`）；
+      一旦该脚本出现，同一步骤自动改为阻断。不要把它读成「重合度已经验过」。
 - [ ] 2.2 的 V1–V11 全部勾完；V11 若未完成，先完成 Task 1。
 - [ ] 3.4 的签名检查全部勾完；`pubkey` 不是空串。
 - [ ] 本次发布线是 **Tauri Windows-only**；旧 Electron 线的上一版资产仍可下载，
