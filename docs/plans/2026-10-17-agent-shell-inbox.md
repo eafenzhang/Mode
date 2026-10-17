@@ -198,8 +198,9 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - [x] 探取消：方法是 `session/stop` + `{sessionId}`；工具错误 `TOOL_CANCELLED`；
       `turn.completed(resultType:"cancelled")`；事件流不关闭。见 spec §3.4。
 - [x] 探 stdin/stdout 是否 TTY：`stdout:pipe stdin:pipe` → **不引入 `portable-pty`**（DR-T4-1 改判）。
-- [x] 探超时后的进程清理：父 shell abort 后，`sleep` 子进程 1s/2s 后仍 `alive`（**不清理孙进程**）；
-      取消路径未测。
+- [x] 探超时后的进程清理：父 shell abort 后，`sleep` 子进程 1s/2s 后仍 `alive`（**不清理孙进程**）。
+- [x] 探**取消**后的进程清理（2026-10-18）：等 `child.pid` 落盘后再 `session/stop`，
+      孙进程在 +0/+1s/+2s 都 `alive`——**取消也不清理孙进程**（与超时一致）。
 - [x] 探大输出：4K–30,000 直出、30,720 起持久化包装；阈值钉到 30,000–30,720 区间，
       artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
       精确字节与 pty vs pipe 仍未观察。
@@ -305,3 +306,5 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - 观察结论写入 `docs/specs/tauri-agent-runtime.md` §3.4：返回形状（`budgetStrategy:"artifact"` +
   `artifactPath`）、日志落点与「不 trim」、完成通知 = 自动新 turn、成功/失败文案、多任务按完成
   顺序。`TaskOutput` / `TaskStop` 仍未观察，**Task 4b 不在本轮实现**。
+- 同时补测取消后的孙进程清理：`probe-bash-cancel.mts` 现在等 `child.pid` 落盘后再取消，
+  孙进程 +0/+1s/+2s 均 `alive`——取消与超时一样**不清理**孙进程，已写进 spec §3.4。

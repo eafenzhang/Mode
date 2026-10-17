@@ -426,6 +426,12 @@ Preview (first 2KB):
 但 `kill -0 $(cat child.pid)` 立刻检查是 **`alive`**，2 秒后再查仍是 **`alive`**——
 **超时不会清理孙进程**。Rust 侧若额外清理，就是与 oracle 的行为差异，必须显式登记。
 
+**取消的进程清理（2026-10-18 补测）**：同一形状在 `session/stop` 取消后，孙进程在
+**+0 / +1s / +2s 都是 `alive`**——**取消同样不清理孙进程**（与超时一致）。
+另注：含 `&` 的复合命令会先发 `permission.requested`（`riskLevel:"high"`、`started` 为
+`readOnly:false` / `sideEffectScope:"system"`），与本段前面 `sleep 30` 的「无审批」观察不同；
+不要按命令形状自行推断是否要审批。
+
 **调度字段（观察值，不按直觉推断）**
 
 - `scheduled`：`canRunParallel:false`、`parallelGroupIndex:0`（Bash 一批一条）。
@@ -479,9 +485,8 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
   未提供时的文案**未观察**。
 - 旁证：数据根下同时出现 `.mode/cli/exec/shell-snapshots/…` 的 shell 快照文件（运行时既有行为）。
 
-**仍未观察（Step 0 剩余）**：**取消**后孙进程是否被清理（超时路径已观察：不清理）；
-大输出阈值的精确字节（只钉到 28,672–32,768 区间）；`TaskOutput` / `TaskStop`；
-host 层 `CommandInbox` 的排队顺序与 key 粒度。
+**仍未观察（Step 0 剩余）**：大输出阈值的精确字节（只钉到 **30,000–30,720** 区间）；
+`TaskOutput` / `TaskStop`；host 层 `CommandInbox` 的排队顺序与 key 粒度。
 
 ## 4. 对拍可重复性：mock provider
 
