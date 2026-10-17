@@ -57,6 +57,22 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 **调度字段**：`scheduled.canRunParallel=false`；`started` 是 `readOnly:true` /
 `sideEffectScope:"none"`，且本次 `Bash` **没有**发审批请求。按观察值实现，不按直觉推断。
 
+**大输出（`probe-bash.mts` 的 4K–1M 组）**
+
+| 输入字节 | 结果 |
+| --- | --- |
+| 4K / 8K / 16K / 20K / 24K / 28K | 原文直出，`contentLength` = 原始字节数 |
+| 32K 及以上 | `<persisted-output>` 包装（约 2.2KB），完整输出落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log` |
+
+包装的 `originalBytes`/`returnedBytes` 指的是**包装**而不是命令输出；`truncated=false`、
+`budgetStrategy=artifact`。阈值只钉到 **28,672–32,768 字节**区间，精确字节未测。
+
+**并发输入（`probe-bash-admission.mts`）**
+
+上一 prompt 未结束时再发 `session/send` → 错误
+`{"code":-32010,"message":"A prompt is already running for this session"}`，**不是排队**。
+排队层在 stdio 会话面之上（host 层），本探针观察不到其顺序——见 DR-T4-7。
+
 **结论**：非零退出码与超时都**不是**工具层错误；工具错误只覆盖「入参校验失败」这类前置失败。
 **取消**则是工具错误（`TOOL_CANCELLED`）+ turn cancelled——三者的建模必须分开。
 这条与 `Write`/`Edit` 的 `tool_execution_failed` 语义不同，不能套用。
@@ -71,13 +87,11 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
    OS 层已清理。需要观察 `sleep` 子进程在超时/取消后是否存活（Windows 上按 PID/命令行查）。
 2. **pty 与 pipe 两种模式的输出差异**：`pwd` 给出 MSYS 路径说明至少走了一次 shell；
    但「输出是否逐行流式」「是否伪终端」没有观察。
-3. **输出截断/artifact 的阈值**：结果里有 `truncated=false`、`budgetStrategy=artifact`，
-   但阈值与超限后的形状未测。
+3. **大输出阈值的精确字节**：已确认 28,672 直出、32,768 持久化，精确边界未测。
 4. **`run_in_background` / `TaskOutput` / `TaskStop`**：未测。它会影响「一个 turn 何时结束」，
    必须决定本轮做还是拆出去。
-5. **`CommandInbox` 的准入顺序**：一个 mock script 里串行调用看不到并发。
-   需要能在一个 turn 运行中再发 `session/send`（或直接写原始帧），观察第二条输入是排队、
-   拒绝还是合并；以及 key 的粒度（session / workspace / 全局）。
+5. **host 层 `CommandInbox` 的排队顺序与 key 粒度**：stdio 会话面只观察到拒绝（`-32010`），
+   排队层在它之上；需要新的观察路径或分层裁决（DR-T4-7）。
 
 **Step 0 的产物**：`docs/specs/tauri-agent-runtime.md` §3.4（逐字观察）+ 扩展后的探针，
 以及把这些未知逐条写成「已观察 / 未观察」。
@@ -138,6 +152,25 @@ Step 0 观察它的返回形状后二选一：
 因此：超时与取消**不能**共用「成功 content」建模；取消要走工具错误路径，turn 终态要带
 `resultType: "cancelled"`。
 
+### DR-T4-7：`CommandInbox` 的分层——会话面拒绝，队列在 host 层（待决）
+
+观察：stdio 会话面的 `session/send` 在上一 prompt 未结束时返回
+`{"code":-32010,"message":"A prompt is already running for this session"}`，**不排队**。
+AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `CommandInbox` 串行准入」。
+两者不矛盾，但**分属两层**：
+
+- **会话面**（本任务镜像的 stdio 运行时）：拒绝并发 prompt，行为必须逐字对拍；
+- **host 层**（桌面/CLI 的输入面）：`CommandInbox` 负责把已接受的输入串行送到会话面。
+
+**待决（不自行拍板）**：`agent-core` 的 `CommandInbox` 是
+
+- (a) 只实现 host 层队列（需要新的 host 面观察）；
+- (b) 先镜像会话面的拒绝语义，`CommandInbox` 留到 host 接线（M3/M4）；
+- (c) 两者都做（会话面拒绝 + host 队列各自单测）。
+
+**建议 (c)**：会话面拒绝是已观察事实，先镜像；host 队列用独立接口 + 单测钉顺序，但**跨层对拍**
+要等 host 面可观察后再补，并如实登记。
+
 ---
 
 ## Task 步骤
@@ -149,9 +182,11 @@ Step 0 观察它的返回形状后二选一：
 - [x] 探取消：方法是 `session/stop` + `{sessionId}`；工具错误 `TOOL_CANCELLED`；
       `turn.completed(resultType:"cancelled")`；事件流不关闭。见 spec §3.4。
 - [ ] 探超时/取消后的进程清理：记录 `sleep` 子进程在超时前后是否存活。
-- [ ] 探输出模式：大输出（> 阈值）是否 `truncated=true`、artifact 落点与形状。
+- [x] 探大输出：4K–28K 直出、32K 起持久化包装；阈值钉到 28,672–32,768 区间，
+      artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
+      精确字节与 pty vs pipe 仍未观察。
 - [ ] 探 `run_in_background` 的返回与后续事件。
-- [ ] 探并发 `session/send`：第二条输入在 busy/running 下的结果与 key 粒度。
+- [x] 探并发 `session/send`：第二条被拒绝（`-32010`），不是排队；host 层队列见 DR-T4-7。
 - [x] 结论写进 spec §3.4（已观察部分）；剩余未知已逐条列出。
 
 ### Step 1：spec 先行

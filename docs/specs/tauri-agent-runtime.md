@@ -381,6 +381,25 @@ b
 | `sleep 5` + `timeout: 1000` | `success=true`，`content: "Command timed out after 1s\n<error>Command was aborted before completion</error>"` |
 | `{}`（缺 `command`） | `success=false`，`type=tool_execution_failed`，`message=Tool input failed inputSchema validation` |
 
+**大输出（持久化包装）**
+
+- 4K / 8K / 16K / 20K / 24K / 28K 字节：内容是原文，`contentLength` 等于原始字节数。
+- 32K 及以上：工具结果是**包装**而不是原文（观察值约 2,251–2,254 字节）：
+
+```text
+<persisted-output>
+Output too large (32KB). Full output saved to: <dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log
+
+Preview (first 2KB):
+<前 2048 字节>
+...
+</persisted-output>
+```
+
+- 关键口径：`result.originalBytes` / `returnedBytes` 指的是**包装**（约 2.2KB），**不是**命令输出；
+  `truncated=false`、`budgetStrategy=artifact`。完整输出落在上面的 `-stdout.log` 文件里。
+- 阈值在 **28,672 与 32,768 字节之间**（本次只钉到区间，精确字节未测）。
+
 **取消（`probe-bash-cancel.mts`，运行中的 `sleep 30`）**
 
 - 方法：`session/stop`，params `{sessionId}`，应答 `{}`。v1 方法表把它标为 deprecated（已收敛 v4
@@ -401,9 +420,21 @@ b
   **没有**发 `interaction/requestPermission`。不要据此推断权限模型；它只是当前线上的事实，
   Task 4 的实现以这些字段为准。
 
+**并发输入（`probe-bash-admission.mts`）**
+
+上一 prompt 未结束时再发 `session/send`，应答是**错误**而不是排队：
+
+```json
+{"code":-32010,"message":"A prompt is already running for this session"}
+```
+
+⇒ stdio 会话面**不做排队**。AGENTS.md 里「busy/running 输入由 CLI/runtime `CommandInbox` 串行准入」
+的排队层在**这个协议面之上**（host 层）；本探针直接打会话面，观察不到队列顺序。实现前必须
+先把分层定清楚（见 Task 4 子计划 DR-T4-7），不能把「会话面拒绝」误当成「CommandInbox 已实现」。
+
 **仍未观察（Step 0 剩余）**：取消/超时后孙进程是否被真正清理；pty 与 pipe 的输出模式差异；
-输出截断阈值与 artifact 形状；`run_in_background` / `TaskOutput` / `TaskStop`；
-并发 `session/send` 在同一 key 下的准入顺序。
+大输出阈值的精确字节（只钉到 28,672–32,768 区间）；`run_in_background` / `TaskOutput` / `TaskStop`；
+host 层 `CommandInbox` 的排队顺序与 key 粒度。
 
 ## 4. 对拍可重复性：mock provider
 
