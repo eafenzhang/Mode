@@ -20,6 +20,10 @@
    失败点在解密/电梯调用本身**；成功路径仍无参照物。
 4. 本机是管理员会话且 `ConsentPromptBehaviorAdmin=0`，提权静默、没有 UAC 弹窗；
    取消路径尚未验收（需要非提权会话或经授权的 UAC 策略变更）。
+5. **提权会话是强 confounder（2026-10-18 T1 追加）**：同一台机器、同一个真实 profile（33 条 v20
+   cookie），受支持的扩展 API 在管理员会话下读到 **0 条**；cookie 库未被删除（跑前跑后都是
+   33 条 v20）。这与 helper 的 `decryption_failed` 一致——**app-bound 解密的失败可能与“提权会话”
+   有关，而不是实现本身**。因此 A 的参照与 P1 的结论都必须在**非提权会话**复测后才能定论。
 
 ## 目标（可判定的问题）
 
@@ -107,3 +111,44 @@
 - `docs/plans/2026-10-15-browser-import-helper-rust-port.md`：P2 的 Task 4/5 标记为
   **移交本 spike**；C# 保留；P3 删除 C# 继续挂起。
 - `docs/plans/2026-10-09-tauri-rewrite-roadmap.md`：M0 任务 6 追加 B 的登记。
+
+---
+
+## T1 执行记录（2026-10-18，agent 代跑）
+
+**环境**：Windows x64；管理员会话；Chrome `155.0.8059.84`。
+
+### 结论 1：品牌版 Chrome 155 忽略 `--load-extension`
+
+起进程后扩展未加载（CDP 里只有内置组件的 service worker）。可行侧载路径是 UI 的
+「加载已解压的扩展程序」：用 UIA + **真实鼠标点击**打开文件夹选择框，键入扩展目录并确认，
+扩展成功加载（ID `npiphepkjbmedeeiocegnflkihjpkfde`）。
+⇒ 自动化 PoC 不能用 `--load-extension`；生产分发方式（商店/企业策略/侧载）仍需单独评估。
+
+### 结论 2：临时 profile（v10 cookie）——受支持 API 可读
+
+临时 profile 里用本地 HTTP 服务器写一条 `mode_abe_test` cookie（DB 前缀 `v10`），
+扩展的 `chrome.cookies.getAll` 返回 `total:4, sample.value:"poc-value"`。
+⇒ **不注入**、纯受支持 API 就能读到 cookie 明文，机制成立。
+
+### 结论 3：真实 profile（33 条 v20）在管理员会话下读到 0
+
+- 真实 profile 的 Cookies DB 跑前/跑后都是 **33 条 `v20`**（未被删除）；
+- 扩展在真实 profile 的 service worker 里 `chrome.cookies.getAll({})` 返回 **0 条**；
+- 与 C# helper 的 `decryption_failed` 一致。
+⇒ **提权会话是强 confounder**：Chrome 在管理员会话下可能无法完成 app-bound 解密（或电梯路径
+校验失败）。**v20 的可行性不能被本次实验判定**；必须在**非提权会话**复测同一扩展路径。
+
+### 下一步（T1 续）
+
+1. 在标准用户（非提权）会话里复跑本 PoC：
+   - 若扩展读到 33 条非空 v20 → **P1 成立**（分发方式另议）；
+   - 若仍为 0 → 受支持扩展 API 不覆盖 v20，转 P3/P4 评估。
+2. 生产分发：Web Store / 企业策略 / 侧载的取舍与用户摩擦。
+3. Native Messaging 通道：本次用本地 HTTP 上报只验证“读得到”；正式通道要另做 host 清单与注册。
+
+### PoC 资产
+
+`spikes/chrome-abe-extension/`（本地未入库；`.js/.mjs` 受语言政策约束，正式化前需 allowlist
+或按 spec 批准）。清理：临时 profile、扩展已移除，真实 profile 的 `Preferences` /
+`Secure Preferences` 已从备份还原（扩展 ID 不再出现）；cookie 库未改动。

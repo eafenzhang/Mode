@@ -99,3 +99,8 @@ Chrome `155.0.8059.84`；profile `Default`（33 条 cookie）。
 
 **恢复**：Rust helper 已重建并自检为 `MODE_BROWSER_IMPORT_HELPER 2 x64 0.0.1 257739bc`；
 dev app 已停止；未修改系统 UAC 策略。
+
+> **2026-10-18 追加（重要 confounder）**：上面所有结果都产生在**管理员会话**中。
+> 后续用受支持的 Chrome 扩展路径探测发现：同一真实 profile（33 条 v20）在管理员会话下
+> 扩展读到 0 条，而 cookie 库未被删除。**非提权会话复测前，不应把 `decryption_failed`
+> 当作“app-bound 不可行”的结论**。详见 B spike 的 T1 执行记录。

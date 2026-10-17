@@ -561,7 +561,10 @@ git commit -m "feat(browser-import): 提权与服务通道（fail-closed 到契�
   〔**2026-10-17 agent 代跑结果**：dev 链路已跑通到 helper——C# oracle 返回
   `ERR decryption_failed`，宿主报 `chrome_cookie_app_bound_decryption_failed`，
   cookies `0/33`；本机管理员会话 `ConsentPromptBehaviorAdmin=0`，**没有 UAC 弹窗**，
-  取消路径未验。成功路径仍不存在；A/B/C 决策待定。详见 runbook 的执行记录〕
+  取消路径未验。成功路径仍不存在；A/B/C 决策待定。详见 runbook 的执行记录。
+  〔**2026-10-18 追加**：该结果产生在**提权会话**；后续 T1 扩展探测显示同一真实 profile
+  在管理员会话下也读到 0 条 v20（库未删）。非提权会话复测前，不能判定 app-bound 不可行，
+  见 B spike 的 T1 执行记录〕
 - [x] **Step 3: 更新路线图并提交**（见计划交付说明）。
 
 ### 本轮（2026-10-16）额外发现：打包接线缺失

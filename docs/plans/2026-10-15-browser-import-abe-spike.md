@@ -72,3 +72,13 @@
 - 计划：`docs/plans/2026-10-17-chrome-abe-import-spike.md`（候选路径 P1–P4、工作分解、退出标准）
 - 安全门禁：`docs/specs/chrome-abe-import-security.md`（威胁模型 R1–R10、go 条件）
 - 现状：C# 保留、Rust 停在 P1；P3 的「删 C#」继续挂起；M0 任务 6 仍未关闭。
+
+## 2026-10-18 T1 追加：提权会话 confounder
+
+受支持的 Chrome 扩展路径（`chrome.cookies.getAll`，无注入）在临时 profile 上读到了 v10 cookie；
+但在**管理员会话**里对真实 profile（33 条 v20）返回 **0 条**，而 cookie 库跑前/跑后仍是 33 条 v20。
+这与 C# helper 的 `decryption_failed` 一致。
+
+⇒ 本轮所有 A 参照（含宿主链路）都产生在**提权会话**里；在非提权会话复测前，不能据此判定
+app-bound 解密“不可行”。B spike 的 T1 续项：标准用户会话复跑同一扩展 PoC。
+详见 `docs/plans/2026-10-17-chrome-abe-import-spike.md` 的 T1 执行记录。
