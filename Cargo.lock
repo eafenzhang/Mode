@@ -4938,10 +4938,22 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 name = "updater"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "minisign-verify",
  "serde",
  "serde_json",
  "tauri",
  "tauri-plugin-updater",
+ "tauri-test-manifest",
+]
+
+[[package]]
+name = "updater-verify"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "minisign-verify",
+ "serde_json",
 ]
 
 [[package]]

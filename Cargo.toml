@@ -20,6 +20,7 @@ members = [
   "crates/sidecar-host",
   "crates/tauri-test-manifest",
   "crates/updater",
+  "crates/updater-verify",
   "crates/tray",
   "crates/deeplink",
   "apps/desktop-tauri/src-tauri",

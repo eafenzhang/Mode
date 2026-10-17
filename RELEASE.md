@@ -180,6 +180,23 @@ node scripts/tauri-update-manifest.ts \
   Linux 的 `webkit2gtk`/`libsoup3` 包名与 AppImage 的 FUSE 绕过；macOS 需确认产出的是
   `aarch64-apple-darwin`。收口后重新开一次决策，再撤销本条偏差。
 
+### 1.7 安装身份与迁移：本版保持 `ModeTauri.exe`（开放决策）
+
+**本版决定（控制器 ruling，2026-10-17）：不重命名二进制，保持 `ModeTauri.exe`。**
+
+- 旧 Electron 线的主程序是 `Mode.exe`；Tauri 线是 `ModeTauri.exe`（Cargo 的
+  `[[bin]] name`，不是 `productName`）。
+- 因此本版与旧 Electron 版是**独立安装、并存**的：安装目录、快捷方式名称、卸载项
+  与用户数据目录都不共用。用户应预期「多出一份安装」，而不是就地升级旧版。
+  Release 说明必须把这件事写清楚（见 4.2）。
+- **为什么不现在改名**：改二进制名是打包身份变更，会同时改变
+  **① 安装路径、② 快捷方式名称、③ 卸载器条目、④ 用户数据目录**；每一项都需要
+  独立的安装/升级/回滚验证。在阻断项修复里盲改会制造比现状更糟的 bug。
+- **开放决策（未完成）**：把两条线的安装身份统一。它需要处理上面四项，并验证
+  「旧版 → 新版」的就地迁移（或明确的并行安装策略）。
+- **重开条件**：在这条发布线要**取代**旧版（而不是与旧版并存）的那个 release 之前；
+  届时先写迁移 spec 与验证场景，再改 bin 名/安装身份。**在此之前不要重命名。**
+
 ---
 
 ## 2. 验证
@@ -209,9 +226,9 @@ pnpm --filter @mode/desktop-tauri test
 `portRoundTrip`、`portMessagePath`、`hostChannelStdio`、`windowModeInjection`、`nativeDeps`、
 `realServices`、`shipSet` 等自动用例；四个 opt-in 用例默认 **skip**（见 2.2）。
 
-**`release.yml` 的 `desktop` job（Windows runner，仅 `matrix.target == 'win'`）** 跑下列步骤。
-**它是诊断/回滚构建，不是发布线的一部分**：`continue-on-error: true`，失败会在 UI 里显示，
-但不会把 run 判红，也不进 `publish` 的 needs。
+**`release.yml` 的 `desktop` job（Windows runner，仅 `matrix.target == 'win'`）** 是
+**诊断/回滚构建，不是发布线的一部分**：`continue-on-error: true`，失败会在 UI 里显示，
+但不会把 run 判红，也不进 `publish` 的 needs。它跑：
 
 ```bash
 pnpm typecheck
@@ -223,12 +240,12 @@ cargo clippy --manifest-path crates/browser-import-helper/Cargo.toml --all-targe
 node packages/desktop/scripts/build-windows-browser-import-helper.mjs
 pnpm --filter @mode/desktop prepare:browser-import-helper
 node --test packages/desktop/tests/browser-import-helper-contract.test.mjs
-pnpm --filter @mode/desktop-tauri run build:frontend-for-tauri
-cargo test -p platform -p protocol -p updater -p deeplink -p sidecar-host
-cargo clippy -p platform -p protocol -p mode-tauri -p updater -p deeplink -p tray -p sidecar-host \
-  --all-targets -- -D warnings
-node scripts/generate-tauri-protocol.mjs --check
 ```
+
+Tauri/协议/updater/deeplink/sidecar-host 的 Rust 验证套件**不在这个 job 里**：
+M5 整批评审 B2 发现它原先只在这个不阻断的 job 里跑，已移到下面 `tauri` job 的
+Windows 腿（阻断路径）。两个 helper 的测试/clippy 留在这里，因为它们覆盖的是
+Electron 诊断/回滚构建仍在使用、但不在根 workspace 里的独立 crate。
 
 **`release.yml` 的 `tauri` job** 构建 NSIS 安装包、改名、跑
 `node scripts/tauri-bundle-report.ts`（sha256 + 体积留痕）。M5 Task 2 起：
@@ -237,8 +254,19 @@ node scripts/generate-tauri-protocol.mjs --check
   `_PASSWORD`）→ 安装包 + `.sig` → `node scripts/tauri-update-manifest.ts` 生成
   `latest.json`（`--notes` 指向本次 tag，不再留空）→ `gh release upload` 三个文件 →
   上传 `release-checksums-tauri-win-x64` 片段。Windows 腿还会跑
-  `cargo clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`
+  `cargo clippy --locked -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`
   （§20 第 4 条的 required-features harness 覆盖）。
+- **阻断式 Rust 验证（M5 评审 B2）**：在 `Build Tauri bundles` 之前跑
+  `cargo test --locked -p platform -p protocol -p updater -p deeplink -p sidecar-host`、
+  `cargo clippy --locked --workspace --all-targets -- -D warnings` 与
+  `node scripts/generate-tauri-protocol.mjs --check`。任一步失败 →
+  `tauri.result == 'failure'` → `publish` 不跑；`desktop` job 不再是这些检查的唯一落点。
+  `--locked` 同时防止 CI 静默重写锁文件。
+- **签名验签（M5 评审 B4b）**：`Collect installer and record size` 之后跑
+  `cargo run --locked -q -p updater-verify -- <tauri.conf.json> <exe> <exe.sig>`，
+  用**已提交**的 `plugins.updater.pubkey` 做真正的 minisign 校验。缺 secret/`.sig`、
+  空 pubkey、私钥与入库公钥不匹配或产物被改都会让 Windows 腿失败（fail closed）；
+  仅「`.sig` 文件存在」不再构成通过条件。
 - **macOS / Linux 腿**仍只上传 14 天期的 workflow artifact，`continue-on-error`；
   它们不产出校验片段。job 级 `continue-on-error` 会把它们的失败在 `needs` 里归一为
   `success`，所以不挡 Windows-only 发布（见下方「重要」）。
@@ -405,7 +433,7 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
   （Host spec §20 第 4 条），所以这条必须单独跑。**M5 Task 3 起 CI 的 `tauri` Windows
   腿也跑同一条命令**；这条人工项保留为发布前的本机重复确认。
 
-- [x] **V11. 旧版 → 新版真更新演练（M5 Task 1 已跑通；每次发版前仍需重跑）**
+- [ ] **V11. 旧版 → 新版真更新演练（每次发版前必须重跑；M5 Task 1 跑过一次，不代表本次已完成）**
 
   **本任务的交付与实测结论**
 
@@ -424,6 +452,10 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
     并开 `dangerousAcceptInvalidCerts`（自签证书）。这只用于本地演练，**不进发布产物**。
 
   **已执行的演练（原始输出在任务报告里）**
+
+  > 下面是 M5 Task 1 的**一次性记录**（gnu 宿主工具链 + 本地 HTTPS feed + `0.0.1→0.0.2`），
+  > 它证明更新链的代码路径可用，但**不替代本次发布前的重跑**。上面的勾选框只代表
+  > 「本次发版前已按下面的步骤重跑」，不是永久完成的标记。
 
   1. `0.0.1` 安装到隔离目录 `C:\Users\Administrator\.mode-tauri-drill\install-0.0.1`，
      `latest.json` 指向 `0.0.2`。
@@ -463,10 +495,11 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
 
 ### 2.3 绿 CI 不覆盖什么
 
-明确写下：**CI 全绿不覆盖 V1–V9 与 V11**（V10 的 harness clippy 已进 CI 的 `tauri`
-Windows 腿）。原因是 CI 没有真 webview、没有真安装器、没有真实指针/肉眼、
-没有可用的更新链；四个 opt-in 用例在 CI 里默认 skip（`MODE_TAURI_*` 环境变量未设置）。
-发布前必须逐项勾完 2.2，才能进入第 4 节的发布。
+明确写下：**CI 全绿不覆盖 V1–V4、V6–V9 与 V11**（V5 的 `portRoundTrip` 已包含在
+CI 的 `pnpm --filter @mode/desktop-tauri test` 里，人工项只是发布前的本地复跑；
+V10 的 harness clippy 已进 CI 的 `tauri` Windows 腿）。原因是 CI 没有真 webview、
+没有真安装器、没有真实指针/肉眼、没有可用的更新链；四个 opt-in 用例在 CI 里默认
+skip（`MODE_TAURI_*` 环境变量未设置）。发布前必须逐项勾完 2.2，才能进入第 4 节的发布。
 
 ### 2.4 已知开放项（不阻断发布，但必须可见）
 
@@ -557,7 +590,10 @@ gh secret list --app actions | grep TAURI_SIGNING
 
 - 端点（常量 + conf 两处，由 `crates/updater` 的单测钉死）：
   `https://github.com/eafenzhang/Mode/releases/latest/download/latest.json`
-- 它必须作为 **Release 资产** 上传；今天的 CI 只上传 workflow artifact，**没有这个资产**。
+- 它必须作为 **Release 资产** 上传。M5 Task 2 起由 `tauri` 的 Windows 腿生成并上传：
+  `Collect installer and record size` 用 `scripts/tauri-update-manifest.ts` 写出
+  `dist/tauri/latest.json`，再由 `Upload Tauri Windows assets to release` 与
+  安装包、`.sig` 一起上传。
 - `latest.json` 的 `version` 必须与本次 tag 去掉 `v` 后一致，`pub_date` 与本次发布同源；
   不要手写第二份版本号。
 - **`bundle.createUpdaterArtifacts` = `true`（M5 Task 1 定稿，已提交）**：
@@ -597,6 +633,18 @@ gh secret list --app actions | grep TAURI_SIGNING
       `crates/updater` 的空串守卫已按 Task 1 更新。
 - [ ] `bundle.createUpdaterArtifacts` 为 `true`，且构建确实产出了 `.exe.sig`
       （不是「构建通过」就当作签名成功）。
+- [ ] **CI 已用入库公钥验签**：`tauri` Windows 腿的
+      `Verify updater signature against committed pubkey` 步骤跑过且为绿
+      （`crates/updater-verify`；缺 secret/签名、空 pubkey 或密钥对不匹配都会让它红）。
+      这一步与 `cargo test -p updater` 的 conf 守卫一起，分别覆盖「密钥对」与「pubkey 内容」。
+      本机复跑：
+
+      ```bash
+      node scripts/rust-cargo.ts run --locked -q -p updater-verify -- \
+        apps/desktop-tauri/src-tauri/tauri.conf.json \
+        "dist/tauri/Mode-<版本>-win-x64.exe" \
+        "dist/tauri/Mode-<版本>-win-x64.exe.sig"
+      ```
 - [ ] Release 资产里有 `latest.json` 与安装包对应的 `.sig`（M5 Task 2 起由
       `tauri` Windows 腿自动上传；要核对资产名，不能只看 CI 绿）。
 - [ ] `latest.json` 的 `version` 等于 tag 去掉 `v`；`pub_date` 存在；平台键是
@@ -635,6 +683,11 @@ gh secret list --app actions | grep TAURI_SIGNING
   `--prerelease`。
 - **M5 Task 2 起**：自动发版发布的 Windows 安装包来自 **Tauri** 线；旧 Electron
   `desktop` job 仍会构建，但只产出 workflow artifact，且 `continue-on-error: true`。
+- **Release 说明必须与实际升级路径一致（M5 评审 B1/B5）**：自动生成的说明里必须写清
+  「旧 Electron 用户需要手动安装一次」「本版之后的 Tauri 版本可在应用内
+  『帮助 → 检查更新』升级」「主程序是 `ModeTauri.exe`，与旧版独立并存」。
+  **不要**再写「已装过的用户不用手动下载」——切换后的 Release 没有 `latest.yml`，
+  旧客户端的 `electron-updater` 拿到 404（见 5.2），不会就地升级。
 
 ### 4.3 手工触发（指定版本 / 预发布）
 
@@ -690,7 +743,8 @@ gh release view <tag> --json isDraft,isLatest,assets \
       **注意区分「已接线」与「已强制」**：重合度指标今天只接线、不阻断（M4 的
       `scripts/upstream-overlap-check.mjs` 尚未交付，缺失时步骤打印告警并 `exit 0`）；
       一旦该脚本出现，同一步骤自动改为阻断。不要把它读成「重合度已经验过」。
-- [ ] 2.2 的 V1–V11 全部勾完；V11 若未完成，先完成 Task 1。
+- [ ] 2.2 的 V1–V11 全部勾完；**V11 必须在本次发版前重跑**（M5 Task 1 的
+      一次性演练不算本次；gnu 宿主 + 本地 feed 也不等于 msvc + GitHub feed）。
 - [ ] 3.4 的签名检查全部勾完；`pubkey` 不是空串。
 - [ ] 本次发布线是 **Tauri Windows-only**；旧 Electron 线的上一版资产仍可下载，
       回滚步骤（5.2 / 5.5）可用。
@@ -726,8 +780,10 @@ DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的�
 > **切换后的更新通道**：新的 Tauri release 只带 `latest.json`，没有 `latest.yml`。
 > 已安装的 Electron 用户在 `/releases/latest/download/latest.yml` 上得到 404，
 > `electron-updater` 会保持当前版本（不会误把 Tauri 安装包当成 Electron 更新）。
-> 只有从旧 tag 重新发布的回滚 release 才带 `latest.yml` 并成为 Latest，Electron
-> 用户那时才会收到回滚版本。
+> **因此旧 Electron 用户不会就地升级**：他们必须**手动下载并安装一次**本版
+> `Mode-<版本>-win-x64.exe`；装好之后，后续 Tauri 版本才走应用内
+> 「帮助 → 检查更新」。只有从旧 tag 重新发布的回滚 release 才带 `latest.yml`
+> 并成为 Latest，Electron 用户那时才会收到回滚版本。
 
 步骤：
 
@@ -826,7 +882,13 @@ DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的�
 - workflow artifact 有 14 天保留期，**不能**把它当作回滚来源；回滚只依赖 Release 资产与旧 tag
   的构建能力。
 
-### 5.5 备选：revert 切换提交（M5 Task 2 之后可用）
+### 5.5 备选：revert 切换提交（**需要手工解决冲突**）
+
+> **M5 评审补充（2026-10-17）：这条路径已经不能干净地 `git revert`。**
+> 切换提交之后，`f21c2b75` 与 `693d851d` 又改了 `release.yml` / `RELEASE.md` 的同一区域
+> （publish 条件、指标步骤、Rust 门禁）。直接 revert 会在这些位置产生冲突；
+> 必须**手工解决冲突**并重新跑完整的本地验证。**优先使用 5.2 的主路径**
+> （在上一 Electron tag 上重跑 workflow），它不依赖当前分支的 revert。
 
 如果旧 tag 的 workflow 不可用，而切换确实是单一提交：
 

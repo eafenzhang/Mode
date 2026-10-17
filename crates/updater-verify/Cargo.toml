@@ -1,0 +1,13 @@
+[package]
+name = "updater-verify"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "发布闸门：用 tauri.conf.json 里已提交的 pubkey 校验 updater 产物签名"
+
+[dependencies]
+# pubkey 在 conf 里是 `.pub` 文件文本的 base64（与 tauri-plugin-updater 的读取方式一致）。
+base64.workspace = true
+# 与 tauri-plugin-updater 2.14.0 使用的 minisign-verify 同版本（见 Cargo.lock）。
+minisign-verify = "0.3"
+serde_json.workspace = true

@@ -147,11 +147,17 @@ jobs:
 
           ## 安装与升级 / Install and update
 
-          - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。已装过的用户不用手动下载：应用内「设置 → 关于 → 检查更新」直接走本仓库 Releases 升级。
+          - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。
+            - **从旧 Electron 版升级**：这是 Tauri 实现的第一版，Release 里只有 `latest.json`、没有 `latest.yml`；旧客户端的应用内更新会拿到 404，**需要手动下载并安装一次**（`<PRODUCT>-<VERSION>-win-x64.exe`）。装好这一版后，后续 Tauri 版本可在应用内「帮助 → 检查更新」升级。
+            - **本版之后的 Tauri 版本**：应用内「帮助 → 检查更新」直接走本仓库 Releases 升级。
+            - **安装身份**：本版主程序是 `ModeTauri.exe`，旧 Electron 版是 `Mode.exe`。两者**独立安装、并存**（安装目录、快捷方式、卸载项和数据目录都不同），本版不会就地替换旧版；请预期多出一份安装。
           - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口打开（走飞牛统一网关，登录态直达，异地也可用）。
           - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包；Windows 桌面端的应用内自动更新使用 `latest.json` 与安装包的 `.sig`（Tauri updater）。
 
-          - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**. Installed clients update in place from this repository's Releases (Settings -> About -> Check for updates).
+          - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**.
+            - **Upgrading from the old Electron build**: this is the first Tauri release. It ships `latest.json` but no `latest.yml`, so the old client's in-app updater gets a 404; **download and install once manually** (`<PRODUCT>-<VERSION>-win-x64.exe`). After that one-time install, later Tauri releases update in place via **Help -> Check for updates**.
+            - **From this Tauri release onward**: in-app updates via **Help -> Check for updates** use this repository's Releases.
+            - **Install identity**: the main executable is `ModeTauri.exe`; the old Electron app is `Mode.exe`. They install **separately and side by side** (different install directory, shortcuts, uninstall entry, and user-data directory); this release does not replace the old app in place. Expect a second installation.
           - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry (routed through the fnOS gateway with your desktop login, works remotely too).
           - **Checksums and update metadata**: `sha256.txt` covers the installers; Windows desktop in-app updates use `latest.json` plus the installer's `.sig` (Tauri updater).
 
@@ -364,49 +370,10 @@ jobs:
           MODE_BROWSER_IMPORT_TARGET=x86_64-pc-windows-msvc pnpm --filter @mode/desktop prepare:browser-import-helper
           MODE_BROWSER_IMPORT_ORACLE_PATH="$RUNNER_TEMP/browser-import-oracle.exe"             node --test packages/desktop/tests/browser-import-helper-contract.test.mjs
 
-      # M1 Tauri 骨架：平台命令面（crates/platform）+ 协议真源（crates/protocol）+ 壳（mode-tauri）。
-      # 注意 `cargo test -p platform` 需要 comctl32 v6 应用清单，由 crates/platform/build.rs 只对
-      # 测试目标注入（该文件的注释解释了为什么不能用 tauri-winres：它会把资源库传播给依赖方，
-      # 与 app 自己的清单撞车）。CI 走 msvc，走 build.rs 里的 /MANIFESTINPUT 分支，不依赖 rc.exe。
-      #
-      # 前置：mode-tauri 的 tauri::generate_context!() 在**编译期**读 tauri.conf.json 的
-      # frontendDist（../dist），该目录不存在就 proc macro panic。tauri 任务靠 beforeBuildCommand
-      # 产出它，下面这一步的 clippy 却直接编译 mode-tauri——2026-10-16 v0.0.49 发不出去就是缺这个前置
-      # （desktop 在 publish 的 needs 里，一个与安装包无关的编译前置就能拦下整次发布）。
-      #
-      # 用 build:frontend-for-tauri（= 装配脚本 + --no-bench，与 beforeBuildCommand 同一条命令）
-      # **而不是** build:frontend：后者现在是 `vite build`，产出的是**开发/诊断档**的命令面验收台，
-      # 落在 dist/dev/——那样会在 dist/ 下留一个**没有产品页 index.html** 的壳目录，
-      # 编译能过（目录存在），但它既不是发布形态也不代表任何真实产物（复评 I5）。
-      # 这个步骤跑的东西必须与发布路径一致，否则「前置跑过了」这件事本身没有意义。
-      - name: Build Tauri frontend (product UI assembly, 与发布路径同一条)
-        if: matrix.target == 'win'
-        shell: bash
-        run: pnpm --filter @mode/desktop-tauri run build:frontend-for-tauri
-
-      - name: Tauri skeleton tests and clippy
-        if: matrix.target == 'win'
-        shell: bash
-        run: |
-          set -euo pipefail
-          # `updater` 也在列表里：它的 conf↔常量守卫（端点 / pubkey）是 app 启动 panic 那条
-          # 缺陷的回归网——当时正是因为没人跑它的用例，缺陷一路走到实机 smoke 才暴露。
-          # 它的测试二进制实测不 import comctl32（对照 platform 的会），故不需要 v6 清单。
-          # sidecar-host 的用例会真拉 Node 子进程（产品 Host 入口），需要 PATH 上有 node。
-          #
-          # `deeplink` 进列表（Ruling 29，2026-10-16）：M3 Task 4 之后它不再是「只编译」的纯类型面
-          # ——第二实例转发的**判据**（`forwardable_second_instance_url` 的 argv 前缀匹配）与
-          # 冷启动回放的**时序**（`router.rs` 的缓存/回放）都住在这里，改错就是「点链接没反应」
-          # 而 CI 全绿。它的测试目标已经带 comctl32 v6 清单（`crates/deeplink/build.rs` →
-          # `tauri-test-manifest`，spec §4.1 那条链接约束），所以 Windows 腿跑得起来。
-          cargo test -p platform -p protocol -p updater -p deeplink -p sidecar-host
-          # clippy 覆盖 M1 的全部 Rust crate + M3 Task 1 的 sidecar-host；
-          # `tray` 仍然只编译不跑测试（装配面，没有自己的断言）。
-          cargo clippy -p platform -p protocol -p mode-tauri -p updater -p deeplink -p tray -p sidecar-host \
-            --all-targets -- -D warnings
-          # 协议双端：生成物必须与 crates/protocol 一致（漂移即红）。CI 是 msvc，脚本默认的
-          # `cargo run -q -p protocol --bin emit-schema` 直接可用，不需要额外环境。
-          node scripts/generate-tauri-protocol.mjs --check
+      # M5 评审 B2：Tauri/协议/updater/deeplink/sidecar-host 的 Rust 验证套件已移到
+      # `tauri` job 的 Windows 腿（阻断发布的那条腿），不再在这个诊断 job 里重复跑。
+      # 这里保留 CUA helper 与 browser-import helper 的测试/clippy：它们覆盖的是
+      # Electron 诊断/回滚构建仍在使用、但不在 workspace 里的独立 crate。
 
       - name: Bundle desktop app
         env:
@@ -564,6 +531,33 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # M5 评审 B2：Rust 验证套件必须在**阻断发布**的腿上跑。
+      # 之前这些命令只在 `desktop`（continue-on-error、且不在 publish.needs）里，
+      # 于是失败的 deeplink/sidecar-host 测试或协议漂移也能发出全绿 Release。
+      # 现在放进 Windows 发布腿：任一步失败 → tauri.result = failure → publish 不跑
+      # （publish.if 要求 needs.tauri.result == 'success'；Windows 腿的
+      # continue-on-error 求值为 false）。mac/linux 腿仍不跑这些检查。
+      #
+      # 前置：mode-tauri 的 tauri::generate_context!() 在**编译期**读 tauri.conf.json
+      # 的 frontendDist（../dist），目录不存在就 proc macro panic。用
+      # build:frontend-for-tauri（与发布路径 beforeBuildCommand 同一条产品装配命令），
+      # 而不是 build:frontend（那是开发/诊断档，产出 dist/dev/）。
+      - name: Rust verification (blocking release gate)
+        if: matrix.target == 'win'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @mode/desktop-tauri run build:frontend-for-tauri
+          # updater 的 conf↔常量守卫（端点 / pubkey 非空且可解析）也在这条命令里
+          # （M5 评审 B4a）。sidecar-host 会真拉 Node 子进程，需要 PATH 上有 node。
+          # `--locked`：锁文件漂移直接失败，不允许 CI 静默重写（M5 评审 B3）。
+          cargo test --locked -p platform -p protocol -p updater -p deeplink -p sidecar-host
+          # `--all-targets` 覆盖 workspace 全部 crate 的 lib/bin/test/bench；
+          # 被 required-features 门住的三个 harness bin 由下面的单独步骤覆盖。
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          # 协议双端：生成物必须与 crates/protocol 一致（漂移即红）。
+          node scripts/generate-tauri-protocol.mjs --check
+
       # `tauri build` 会先跑 tauri.conf.json 的 beforeBuildCommand（前端 Vite 构建），
       # 所以这里不用单独构建前端。
       - name: Build Tauri bundles
@@ -597,7 +591,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo clippy -p mode-tauri \
+          cargo clippy --locked -p mode-tauri \
             --features port-transport-harness,host-roundtrip,product-ui-harness \
             --bins -- -D warnings
 
@@ -645,6 +639,23 @@ jobs:
               --notes "Release notes: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" \
               --output "dist/tauri/latest.json"
           fi
+
+      # M5 评审 B4(b)：用**已提交的** `tauri.conf.json` 公钥做真正的密码学校验。
+      # 只检查 `.sig` 文件存在不够：CI 私钥与入库 pubkey 不是一对时，文件在、签名
+      # 却是别人签的，应用装上后永远无法更新。`crates/updater-verify` 与客户端使用
+      # 同一个 `minisign-verify`；conf/pubkey/签名/安装包任一缺失、为空、为空串、
+      # 格式错误或验签失败都以非 0 退出（fail closed）→ 本腿失败 → publish 不跑。
+      - name: Verify updater signature against committed pubkey
+        if: matrix.target == 'win'
+        shell: bash
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          cargo run --locked --quiet -p updater-verify -- \
+            apps/desktop-tauri/src-tauri/tauri.conf.json \
+            "dist/tauri/Mode-${VERSION}-win-x64.exe" \
+            "dist/tauri/Mode-${VERSION}-win-x64.exe.sig"
 
       # 路线图 M5「三指标仪表入库」第 3 项：CI 记录安装包体积。
       # 口径：**NSIS 安装包字节**（`statSync().size`，MiB = 字节 / 1024²）。
