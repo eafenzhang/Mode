@@ -249,10 +249,9 @@ Expected: 首次生成后写入文件；再次运行无 diff
   触发入口与结果、深链回调面板、启动即握手。`frontendDist` 指向构建产物 `../dist`，
   `beforeBuildCommand` 跑前端构建（产物不入库）。命令表用 `satisfies` + 编译期守卫保证
   覆盖切片表每一条。
-- [ ] **Step 3: 本机跑 E2E 场景**〔**未做，需人工**〕：开窗 → 渲染 → 依次触发 10 个命令并核对。
-  步骤与判据见 spec §4；对话框/通知/文件管理器这几项必须真人看窗口，无人值守跑不了。
-  另：本机启动会把现役 `mode://` 注册改指到 `target/` 下的调试产物（对本机可见的副作用），
-  所以这一轮刻意没有代跑，留给人工验收一并做。
+- [x] **Step 3: 本机跑 E2E 场景**〔2026-10-17 执行；完整记录见文末「第四批」〕：开窗 → 渲染 →
+  依次触发 10 个命令并核对。步骤与判据见 spec §4。启动会临时改指 `mode://` 注册，
+  跑前备份、跑后已用 `.plan/mode-protocol-backup.reg` 还原。
 - [x] **Step 4: 提交**（2026-10-16，shim 部分）
 
 ---
@@ -430,3 +429,35 @@ gnu 工具链（`+stable-x86_64-pc-windows-gnu` + llvm-mingw 作 linker），否
 
 **仍未做**：对话框/文件选择/系统通知这几项需要真人看窗口（无人值守跑不了）；
 macOS / Linux 出包腿按用户决定暂不处理。
+
+## 2026-10-17 执行记录（第四批：Task 4 Step 3 的 M1 E2E 核对）
+
+**做法**：重建壳（`node scripts/rust-cargo.ts build --release -p mode-tauri`，1m17s）+
+验收台（`pnpm --filter @mode/desktop-tauri run build:frontend` → `dist/dev/`），以
+`MODE_TAURI_SHELL_ENTRY=dev/index.html` 启动。WebView2 仍接不上 CDP，沿用 §4.3 的
+UIA `TextPattern` 读数方案；本次补了 `.plan/uia-run.ps1`（按索引点按钮、设输入、取消/确认对话框）
+与 `.plan/uia-buttons.ps1`（枚举控件）。证据：`.plan/uia-after-<index>.txt`、`.plan/notification-shot.png`。
+
+| 命令 | 结果 |
+| --- | --- |
+| `openExternal` | `(void)`；Edge 打开 `example.test`（窗口标题证据） |
+| `selectDirectory` | 取消 → `null`；**选择分支未验**（旧式文件夹选择框不接受键入路径，Esc 后仍为 `null`） |
+| `selectFile` | 取消 → `null`；选择 `D:\ZCodium\AGENTS.md` → 原样返回该路径 |
+| `saveFile`（`data`） | 取消 → `{"canceled":true,"success":false}`；写入 `D:\ZCodium\.plan\e2e-save.txt` → `{"path":…,"success":true}`，文件 25 字节且内容逐字一致 |
+| `saveFile`（`sourceUrl`） | **验收台没有该分支的入口**；由自动化测试覆盖不变量，未做人工核对 |
+| `openInFileManager`（不存在） | `{"success":false,"error":"path_unavailable: 系统找不到指定的文件。 (os error 2)"}` |
+| `openInFileManager`（目录/文件） | 均 `{"success":true}`；Explorer 窗口标题为 `D:\ZCodium`（文件打开父目录） |
+| `showTaskNotification` | `(void)`；系统通知可见，标题/正文与入参一致（截图 `.plan/notification-shot.png`） |
+| `notifyRendererReady` / `syncWindowTabs` / `syncWindowUnreadCount` | 均 `(void)` |
+| `getApplicationIcon` | `null`（未抛错） |
+| 深链 | 再启动一次 `ModeTauri.exe "mode://oauth/callback?state=test"` → 验收台显示 `oauth-callback  mode://oauth/callback?state=test` |
+
+**门禁**：`cargo test -p platform -p protocol -p deeplink -p tray -p updater -p tauri-test-manifest`
+全绿（6/2/1/4/…）；`clippy --all-targets -D warnings` 零告警。
+
+**副作用与还原**：跑壳会把 `HKCU\Software\Classes\mode\shell\open\command` 临时改指到
+`target/release/ModeTauri.exe`；已按 §4.3 的口径用 `.plan/mode-protocol-backup.reg` 还原，
+复核当前值指回已安装的 `Mode.exe`。
+
+**仍未验**：`selectDirectory` 的选择分支；`saveFile` 的 `sourceUrl` 分支（验收台未暴露）。
+M1 阶段关闭仍只差 macOS/Linux 出包腿的首次 CI（需人推送）。

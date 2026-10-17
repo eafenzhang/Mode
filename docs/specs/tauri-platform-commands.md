@@ -221,6 +221,27 @@ lib 的单测模块。原因是一条 Windows 链接约束链：
 - **不是 `generate_handler!` 嵌套在 `macro_rules!` 里的问题**：`:path` 片段传进 proc macro
   能正常解析，handler 里注册的名字来自函数自己的 `__tauri_command_name_*` 宏，与嵌套无关。
 
+### 4.4 2026-10-17 E2E 实测（M1 Task 4 Step 3）
+
+重建壳与验收台后，以 `MODE_TAURI_SHELL_ENTRY=dev/index.html` 启动，用 UIA `TextPattern`
+读数、`ScrollItemPattern` + 鼠标点击/`InvokePattern` 触发。逐条结果：
+
+| 命令 | 实测 |
+| --- | --- |
+| `openExternal` | `(void)`；Edge 打开 `example.test` |
+| `selectDirectory` | 取消 → `null`；**选择分支未验**（旧式文件夹框不接受键入路径） |
+| `selectFile` | 取消 → `null`；选择 `D:\ZCodium\AGENTS.md` → 原样返回该路径 |
+| `saveFile`（`data`） | 取消 → `{"canceled":true,"success":false}`；写入 `D:\ZCodium\.plan\e2e-save.txt` → `{"path":…,"success":true}`，25 字节且内容一致 |
+| `saveFile`（`sourceUrl`） | **验收台没有入口**；不变量由自动化测试覆盖，未做人工核对 |
+| `openInFileManager` | 不存在 → `{"success":false,"error":"path_unavailable: 系统找不到指定的文件。 (os error 2)"}`；目录/文件 → `{"success":true}`，Explorer 标题 `D:\ZCodium` |
+| `showTaskNotification` | `(void)`；系统通知可见，标题/正文与入参一致（`.plan/notification-shot.png`） |
+| `notifyRendererReady` / `syncWindowTabs` / `syncWindowUnreadCount` | 均 `(void)` |
+| `getApplicationIcon` | `null`，未抛错 |
+| 深链 | 二次启动带 `mode://oauth/callback?state=test` → 验收台显示 `oauth-callback  mode://oauth/callback?state=test` |
+
+证据：`.plan/uia-after-<index>.txt`、`.plan/uia-run.ps1`、`.plan/uia-buttons.ps1`。
+Rust 门禁（`cargo test` 六个 crate + `clippy -D warnings`）同期全绿。
+
 **回滚方式**：跑 smoke 会把本机 `HKCU\Software\Classes\mode` 的 `shell\open\command`
 从已安装的 Electron 应用改指到 `target/` 下的调试产物（`app.deep_link().register()` 的
 副作用）。本次已用跑前导出的 `reg export` 备份还原（备份留在 `.plan/mode-protocol-backup.reg`）；

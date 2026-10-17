@@ -134,10 +134,11 @@ tray 1 / updater 2 / tauri-test-manifest 2）、`clippy -D warnings` 零告警�
 （NSIS 安装包 7.19 MiB）、`pnpm typecheck`（含壳前端）通过、协议生成物 `--check` 无漂移、
 语言政策门禁通过、release.yml 经 YAML 解析确认三平台矩阵。
 
-**M1 仍未关闭，只差两件**：
-1. **Task 4 Step 3 的人工 E2E**（开窗 → 渲染 → 10 命令 + 深链各核对一次），
-   判据表见 spec §4；对话框/通知/文件管理器必须真人看窗口。
-2. **macOS / Linux 两条出包腿的首次 CI 运行**（本机只有 Windows + gnu 工具链）。
+**M1 仍未关闭，只差一件**：
+1. ~~**Task 4 Step 3 的人工 E2E**~~〔**2026-10-17 已执行**：10 命令 + 深链逐条核对，
+   记录见 spec §4.4 与 `docs/plans/2026-10-15-tauri-skeleton.md` 的「第四批」；
+   `selectDirectory` 的选择分支与 `saveFile` 的 `sourceUrl` 分支仍未人工核对（后者验收台无入口）〕。
+2. **macOS / Linux 两条出包腿的首次 CI 运行**（本机只有 Windows + gnu 工具链；需人推送触发）。
 
 **两处需要人来决定的口径差异**（都已在 spec 登记）：
 - Tauri 产物目前**只发 workflow artifacts**，因为它与旧 Electron 线产物名逐字相同；
