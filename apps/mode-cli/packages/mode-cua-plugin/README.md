@@ -13,7 +13,7 @@ SDK 三类静态资产，不声明 mcpServers、不携带 native runtime**（宿
 
 | 路径                              | 作用                                                                            |
 | --------------------------------- | ------------------------------------------------------------------------------- |
-| `.mode-plugin/plugin.json`        | 发现清单（`name` 必须为 `computer-use`，版本对齐官方定义，**禁止 mcpServers**） |
+| `.tutto-plugin/plugin.json`        | 发现清单（`name` 必须为 `computer-use`，版本对齐官方定义，**禁止 mcpServers**） |
 | `docs/computer-use.md`            | 14 个方法的工具面规范；宿主经 `MODE_CUA_PLUGIN_ROOT/docs` 暴露给会话            |
 | `skills/computer-use/SKILL.md`    | 技能：教模型通过 node_repl 的 CUA bridge 驱动本机                               |
 | `scripts/computer-use-client.mjs` | 自研薄 SDK：方法名常量 + bridge 绑定（kernel 可从插件根动态 import）            |

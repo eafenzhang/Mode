@@ -1,4 +1,4 @@
-# Tutto：插件清单目录 `.mode-plugin → .tutto-plugin` 迁移清单（2026-10-19）
+# Tutto：插件清单目录 `.mode-plugin → .tutto-plugin` 迁移清单（2026-10-19，已完成）
 
 > 目标：新清单目录 `.tutto-plugin` 为主，读取旧 `.mode-plugin` / `.zcode-plugin` 兜底；
 > 新建/打包/seed 只写新名。属于 P3 spec S4 的一个原子任务，**一次提交完成**。
@@ -49,3 +49,10 @@ git mv apps/mode-cli/packages/node-repl-host/.mode-plugin \
 
 - 任一解析点漏改会导致「随包插件不可发现」或 SEA/远端资产缺清单；
 - 旧目录仍在缓存/已安装插件里，必须保留读取兜底至少一个发布周期。
+
+## 6. 执行结果（2026-10-19）
+
+- 三个随包插件清单目录已 `git mv` 到 `.tutto-plugin`；
+- 解析点全部切换并保留 `.mode-plugin` / `.zcode-plugin` 读取兜底；
+- services 379（371 pass / 8 skip）、adapters 13、bootstrap 30 全绿；
+- `git grep ".mode-plugin"` 剩余仅兼容列表、历史脚本与旧同步文件名。

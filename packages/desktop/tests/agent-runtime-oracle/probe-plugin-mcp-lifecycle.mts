@@ -62,9 +62,9 @@ const MCP_SERVER = [
 
 async function writePlugin(name: string, mcpServer: string) {
   const root = join(marketplaceRoot, "plugins", name);
-  await mkdir(join(root, ".mode-plugin"), { recursive: true });
+  await mkdir(join(root, ".tutto-plugin"), { recursive: true });
   await writeFile(
-    join(root, ".mode-plugin", "plugin.json"),
+    join(root, ".tutto-plugin", "plugin.json"),
     JSON.stringify({ name, version: "1.0.0", description: `${name} plugin` }, null, 2),
     "utf8",
   );

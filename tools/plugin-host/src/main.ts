@@ -6,7 +6,7 @@
 // 协议：一行一帧 NDJSON，与 `crates/plugin-host/src/protocol.rs` 一一对应。
 //
 // 发现：扫描 `<dataRoot>/.mode/cli/plugins/cache/<marketplace>/<plugin>/<version>/`，
-// 读取 `.mode-plugin/plugin.json` 与 `.mcp.json` 的 `mcpServers`，按需启动 MCP 服务器。
+// 读取 `.tutto-plugin/plugin.json`（兼容旧 `.mode-plugin`/`.zcode-plugin`）与 `.mcp.json`。
 // 工具名：`mcp__plugin_<plugin>_<server>__<tool>`（观察值）。
 // 元数据：插件 MCP 默认 medium/network/truncate；`node-repl-host` 是
 // high/system/artifact（观察值）。
@@ -117,10 +117,16 @@ async function discoverServers(): Promise<DiscoveredServer[]> {
       const version = versionNames[0];
       if (version === undefined) continue;
       const root = join(cacheRoot, marketplace.name, plugin.name, version);
-      let manifest: { name?: string };
-      try {
-        manifest = JSON.parse(await readFile(join(root, ".mode-plugin", "plugin.json"), "utf8"));
-      } catch {
+      let manifest: { name?: string } | null = null;
+      for (const dir of [".tutto-plugin", ".mode-plugin", ".zcode-plugin"]) {
+        try {
+          manifest = JSON.parse(await readFile(join(root, dir, "plugin.json"), "utf8"));
+          break;
+        } catch {
+          // 继续尝试上一代目录名。
+        }
+      }
+      if (!manifest) {
         continue;
       }
       const pluginName = manifest.name ?? plugin.name;
@@ -178,7 +184,9 @@ class McpClient {
     }
   }
 
-  async listTools(): Promise<Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>> {
+  async listTools(): Promise<
+    Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>
+  > {
     const result = (await this.request("tools/list", {})) as {
       tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
     };

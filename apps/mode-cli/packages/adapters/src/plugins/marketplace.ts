@@ -69,9 +69,12 @@ const MARKETPLACE_MANIFEST_RELATIVE_CANDIDATES = [
   "marketplace.json",
   ".agents/plugins/marketplace.json",
 ] as const;
-const MODE_MANIFEST_PATH = join(".mode-plugin", "plugin.json");
-/** 改名前的清单目录（.zcode-plugin）：继续可读。 */
-const MODE_LEGACY_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
+const MODE_MANIFEST_PATH = join(".tutto-plugin", "plugin.json");
+/** 改名前的清单目录（.mode-plugin、.zcode-plugin）：继续可读。 */
+const MODE_LEGACY_MANIFEST_PATHS = [
+  join(".mode-plugin", "plugin.json"),
+  join(".zcode-plugin", "plugin.json"),
+] as const;
 const CLAUDE_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const DEFAULT_VERSION = "0.0.0";
@@ -297,22 +300,27 @@ export function loadKnownMarketplacesSync(storageRoot: string): KnownMarketplace
 }
 
 export function ensureDefaultPluginMarketplaces(storageRoot: string): KnownMarketplaceRecord[] {
-  const known = pruneRetiredDefaultMarketplaces(storageRoot, loadKnownMarketplacesSync(storageRoot));
+  const known = pruneRetiredDefaultMarketplaces(
+    storageRoot,
+    loadKnownMarketplacesSync(storageRoot),
+  );
   const existingIds = new Set(known.map((record) => record.id));
   const now = new Date().toISOString();
   // 官方来源是否进入默认集合由 marketplace 开关（agent 进程策略）决定；
   // 本地内置插件与个人来源不经过该过滤。
   const missing = resolveDefaultPluginMarketplaces()
     .filter((marketplace) => !existingIds.has(marketplace.id))
-    .map((marketplace): KnownMarketplaceRecord => ({
-      id: marketplace.id,
-      source: defaultMarketplaceSourceFromString(marketplace.source),
-      name: marketplace.name,
-      description: marketplace.description,
-      addedAt: now,
-      ...(marketplace.lastUpdated ? { lastUpdated: marketplace.lastUpdated } : {}),
-      pluginCount: marketplace.pluginCount,
-    }));
+    .map(
+      (marketplace): KnownMarketplaceRecord => ({
+        id: marketplace.id,
+        source: defaultMarketplaceSourceFromString(marketplace.source),
+        name: marketplace.name,
+        description: marketplace.description,
+        addedAt: now,
+        ...(marketplace.lastUpdated ? { lastUpdated: marketplace.lastUpdated } : {}),
+        pluginCount: marketplace.pluginCount,
+      }),
+    );
   if (missing.length === 0) return known;
   const next = [...known, ...missing];
   writeKnownMarketplacesSync(storageRoot, next);
@@ -1801,10 +1809,7 @@ async function requestGitHubRawMarketplaceManifest(
 ): Promise<unknown | undefined> {
   const ref = source.ref?.trim() || "HEAD";
   const explicit = source.path?.trim().replace(/^\.\//, "");
-  const candidates = [
-    ...(explicit ? [explicit] : []),
-    ...MARKETPLACE_MANIFEST_RELATIVE_CANDIDATES,
-  ];
+  const candidates = [...(explicit ? [explicit] : []), ...MARKETPLACE_MANIFEST_RELATIVE_CANDIDATES];
   let lastError: unknown;
   for (const candidate of candidates) {
     const url = `https://raw.githubusercontent.com/${source.repo}/${ref}/${candidate}`;
@@ -2419,7 +2424,7 @@ function findMarketplaceManifestPath(rootPath: string, explicitPath?: string): s
 function findPluginManifestPath(rootPath: string): string | null {
   for (const candidate of [
     MODE_MANIFEST_PATH,
-    MODE_LEGACY_MANIFEST_PATH,
+    ...MODE_LEGACY_MANIFEST_PATHS,
     CLAUDE_MANIFEST_PATH,
     CODEX_MANIFEST_PATH,
   ]) {
@@ -2976,7 +2981,8 @@ export function hasBundledPluginPackage(input: {
 function hasPluginManifest(dir: string): boolean {
   return (
     directoryExists(dir) &&
-    (fileExists(join(dir, ".mode-plugin", "plugin.json")) ||
+    (fileExists(join(dir, ".tutto-plugin", "plugin.json")) ||
+      fileExists(join(dir, ".mode-plugin", "plugin.json")) ||
       fileExists(join(dir, ".zcode-plugin", "plugin.json")))
   );
 }

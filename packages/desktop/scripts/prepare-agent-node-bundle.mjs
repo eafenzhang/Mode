@@ -137,6 +137,7 @@ const bundledSkillPack = {
 };
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
+  ".tutto-plugin",
   ".mode-plugin",
   ".zcode-plugin",
   "README.md",
@@ -247,7 +248,7 @@ function stageBundle() {
 function stageOfficialPlugins() {
   for (const plugin of officialPluginPackages) {
     const sourceRoot = resolve(repoRoot, plugin.relativePath);
-    const manifestPath = [".mode-plugin", ".zcode-plugin"]
+    const manifestPath = [".tutto-plugin", ".mode-plugin", ".zcode-plugin"]
       .map((directoryName) => resolve(sourceRoot, directoryName, "plugin.json"))
       .find((candidate) => existsSync(candidate));
     if (!manifestPath) {

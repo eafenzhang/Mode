@@ -113,3 +113,10 @@
 - 插件同步归档元数据新名 `.tutto-plugin-sync.json`；读取旧对端归档时兜底
   `.mode-plugin-sync.json`，写入只用新名；
 - 新增 `plugin-sync-metadata-compat.test.ts`；services 379 tests 全绿。
+
+### S4 进展（2026-10-19，插件清单目录完成）
+
+- 随包插件目录 `browser-use-plugin` / `mode-cua-plugin` / `node-repl-host` 的清单目录
+  `git mv` 到 `.tutto-plugin`；adapters/bootstrap/CLI SEA/desktop 打包/server/services/oracle
+  fixtures 全部改为「`.tutto-plugin` 优先、`.mode-plugin` 与 `.zcode-plugin` 读取兜底」；
+- services 379（371 pass/8 skip）、adapters 13、bootstrap 30 全绿。

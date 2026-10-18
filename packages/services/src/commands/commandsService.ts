@@ -47,9 +47,12 @@ const COMMAND_AGENT_SOURCE_ORDER: readonly CommandAgentSource[] = MODE_COMMAND_A
 const ENABLE_OVERRIDE_KEY = "enable";
 const HOME_PREFIX = "~/";
 const MODE_INLINE_PLUGIN_MARKETPLACE = "inline";
-const MODE_PLUGIN_MANIFEST_PATH = join(".mode-plugin", "plugin.json");
-/** 改名前的清单目录（.zcode-plugin）：继续可读。 */
-const MODE_LEGACY_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
+const MODE_PLUGIN_MANIFEST_PATH = join(".tutto-plugin", "plugin.json");
+/** 改名前的清单目录（.mode-plugin、.zcode-plugin）：继续可读。 */
+const MODE_LEGACY_MANIFEST_PATHS = [
+  join(".mode-plugin", "plugin.json"),
+  join(".zcode-plugin", "plugin.json"),
+] as const;
 const CLAUDE_PLUGIN_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_PLUGIN_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const MODE_COMMAND_DESCRIPTOR: CommandAgentSourceDescriptor = {
@@ -204,9 +207,7 @@ function readBooleanRecord(value: unknown): Record<string, boolean> {
 
 function readStorageDirFromConfig(config: Record<string, unknown>): string {
   const storage = isRecord(config.storage) ? config.storage : {};
-  return typeof storage.dir === "string" && storage.dir.trim().length > 0
-    ? storage.dir
-    : "~/.mode";
+  return typeof storage.dir === "string" && storage.dir.trim().length > 0 ? storage.dir : "~/.mode";
 }
 
 function readPluginConfigFromConfig(config: Record<string, unknown>): PluginConfigSummary {
@@ -329,7 +330,7 @@ async function readPluginManifest(rootPath: string): Promise<PluginManifestSumma
 async function findPluginManifestPath(rootPath: string): Promise<string | null> {
   for (const manifestPath of [
     join(rootPath, MODE_PLUGIN_MANIFEST_PATH),
-    join(rootPath, MODE_LEGACY_MANIFEST_PATH),
+    ...MODE_LEGACY_MANIFEST_PATHS.map((relativePath) => join(rootPath, relativePath)),
     join(rootPath, CLAUDE_PLUGIN_MANIFEST_PATH),
     join(rootPath, CODEX_PLUGIN_MANIFEST_PATH),
   ]) {
@@ -404,8 +405,7 @@ async function resolvePluginCommandRootDescriptors(): Promise<PluginCommandRootD
       continue;
     }
     seenPluginIds.add(pluginId);
-    const defaultEnabled =
-      candidate.defaultEnabled || isDefaultEnabledOfficialPluginId(pluginId);
+    const defaultEnabled = candidate.defaultEnabled || isDefaultEnabledOfficialPluginId(pluginId);
     const enabled = config.enabledPlugins[pluginId] ?? defaultEnabled;
     if (!enabled) {
       continue;

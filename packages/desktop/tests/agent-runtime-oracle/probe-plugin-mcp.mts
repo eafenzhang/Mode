@@ -57,9 +57,9 @@ const MCP_SERVER = [
   "",
 ].join("\n");
 
-await mkdir(join(pluginRoot, ".mode-plugin"), { recursive: true });
+await mkdir(join(pluginRoot, ".tutto-plugin"), { recursive: true });
 await writeFile(
-  join(pluginRoot, ".mode-plugin", "plugin.json"),
+  join(pluginRoot, ".tutto-plugin", "plugin.json"),
   JSON.stringify({ name: "fixture", version: "1.0.0", description: "Fixture MCP plugin" }, null, 2),
   "utf8",
 );
