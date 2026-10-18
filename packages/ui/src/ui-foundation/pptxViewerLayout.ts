@@ -46,3 +46,16 @@ export function resolvePptxThumbnailScale(pageWidth: number, targetWidth: number
   }
   return targetWidth / pageWidth;
 }
+
+export function resolvePptxIntrinsicPoint(options: {
+  clientX: number;
+  clientY: number;
+  viewport: Pick<DOMRect, "left" | "top">;
+  scale: number;
+}): { x: number; y: number } {
+  const scale = options.scale > 0 ? options.scale : 1;
+  return {
+    x: (options.clientX - options.viewport.left) / scale,
+    y: (options.clientY - options.viewport.top) / scale,
+  };
+}

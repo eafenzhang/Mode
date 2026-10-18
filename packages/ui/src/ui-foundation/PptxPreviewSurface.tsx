@@ -115,6 +115,7 @@ export function PptxPreviewSurface({
   const [pageInput, setPageInput] = useState("1");
   const [zoomPercent, setZoomPercent] = useState(100);
   const pageRef = useRef<HTMLDivElement | null>(null);
+  const pageContentRef = useRef<HTMLDivElement | null>(null);
   const documentRef = useRef<PresentationPreviewDocument | null>(null);
 
   useEffect(() => {
@@ -149,7 +150,7 @@ export function PptxPreviewSurface({
   }, [data]);
 
   useEffect(() => {
-    const node = pageRef.current;
+    const node = pageContentRef.current;
     if (!document || !node) {
       return;
     }

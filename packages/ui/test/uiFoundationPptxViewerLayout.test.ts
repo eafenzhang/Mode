@@ -9,6 +9,7 @@ import {
   PPTX_MAX_ZOOM_PERCENT,
   PPTX_MIN_ZOOM_PERCENT,
   resolvePptxPageDisplaySize,
+  resolvePptxIntrinsicPoint,
   resolvePptxPageFromInput,
   resolvePptxThumbnailScale,
   stepPptxZoom,
@@ -48,4 +49,25 @@ test("缩略图缩放：按目标宽度等比，非法宽度回 1", () => {
   assert.equal(resolvePptxThumbnailScale(960, 96), 0.1);
   assert.equal(resolvePptxThumbnailScale(0, 96), 1);
   assert.equal(resolvePptxThumbnailScale(960, 0), 1);
+});
+
+test("坐标换算：客户端点按缩放换算到页面内在坐标", () => {
+  assert.deepEqual(
+    resolvePptxIntrinsicPoint({
+      clientX: 200,
+      clientY: 150,
+      viewport: { left: 100, top: 50 },
+      scale: 2,
+    }),
+    { x: 50, y: 50 },
+  );
+  assert.deepEqual(
+    resolvePptxIntrinsicPoint({
+      clientX: 120,
+      clientY: 60,
+      viewport: { left: 100, top: 50 },
+      scale: 0,
+    }),
+    { x: 20, y: 10 },
+  );
 });

@@ -262,6 +262,8 @@ success/warning/destructive。
 
 - 用 `pptxRendererPreviewEngine.open` 加载（复制 ArrayBuffer 防 detach），卸载时 dispose；
 - 单页渲染：页码变化时 `renderPage(index, container)`，等待 `handle.ready`，切换前 dispose 旧 handle；
+  页面按内在尺寸渲染，外层容器用 `transform: scale(zoom%)` 展出滚动范围；
+  指针坐标用 `resolvePptxIntrinsicPoint` 换算回页面内在坐标（供元素命中复用）；
 - 工具条：上一页/下一页/页码输入/缩放，复用 `pptxViewerLayout` 的纯函数；
 - 导航：`onNavigate({pageIndex|url})` 内部页跳转或交给 `onOpenBrowserUrl`；
 - 缩略图：传入 `labels.thumbnail` 时显示左栏，IntersectionObserver 懒渲染，
