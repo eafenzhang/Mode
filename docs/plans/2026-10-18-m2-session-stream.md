@@ -49,7 +49,10 @@
 
 ## 决策记录（开工前先读）
 
-### DR-T5-1：`web-remote-replayable` 的重放归谁实现（**待裁决**）
+### DR-T5-1：`web-remote-replayable` 的重放归谁实现（**已裁决 (a)**，2026-10-18）
+
+> 裁决方式：用户授权「不用问我，自动执行」，按本计划的建议取 **(a) Host/relay**。
+> Rust 侧只保留 `EventSink` 与 `deliveryKind` 透传；`replay.rs` 不实现。
 
 | 选项 | 含义 | 代价 |
 | --- | --- | --- |

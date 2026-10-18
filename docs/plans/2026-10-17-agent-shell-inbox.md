@@ -175,7 +175,11 @@ Task 4b 保持独立。同日 `TaskOutput` / `TaskStop` 的声明面、成功/�
 因此：超时与取消**不能**共用「成功 content」建模；取消要走工具错误路径，turn 终态要带
 `resultType: "cancelled"`。
 
-### DR-T4-7：`CommandInbox` 的分层——会话面拒绝，队列在 host 层（待决）
+### DR-T4-7：`CommandInbox` 的分层——会话面拒绝，队列在 host 层（**已裁决 (c)**，2026-10-18）
+
+> 裁决方式：用户授权「不用问我，自动执行」，按本计划的建议取 **(c)**：
+> 会话面的并发拒绝行为按观察镜像；host 层的 `CommandInbox` 用独立接口 + 单测钉顺序，
+> 跨层对拍等 host 面可观察后再补。
 
 观察：stdio 会话面的 `session/send` 在上一 prompt 未结束时返回
 `{"code":-32010,"message":"A prompt is already running for this session"}`，**不排队**。
