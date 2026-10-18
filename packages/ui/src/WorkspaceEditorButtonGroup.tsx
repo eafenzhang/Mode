@@ -8,7 +8,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { persistLastSelectedEditorId, readLastSelectedEditorId } from "@/lib/editorPreference.js";

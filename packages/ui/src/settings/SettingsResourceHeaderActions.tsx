@@ -13,7 +13,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 interface SettingsResourceHeaderActionsProps {

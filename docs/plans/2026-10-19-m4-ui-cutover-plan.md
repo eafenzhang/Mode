@@ -25,7 +25,7 @@
 | `switch` | 24 | ready | 2 |
 | `select` | 28 | ready（根状态 + 定位 + 键盘） | 2 |
 | `dialog` | 33 | ready | 2 |
-| `dropdown-menu` | 38 | 子件 ready；根/Trigger 待补 | 2 |
+| `dropdown-menu` | 38 | ready（根/Trigger/Content/Sub） | 2 |
 | `input` | 41 | ready | 3 |
 | `toast` | 63 | 仅视觉 Toast；堆叠/定位待补 | 3 |
 | `button` | 226 | ready | 3 |
@@ -141,3 +141,13 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 验证：UI 321 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：无 typeahead；`item-aligned` 的贴选项对齐未实现；`onOpenAutoFocus` 接受但自动聚焦由 adapter 决定。
+
+### 批次 2 收尾（2026-10-19 第七轮）
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `dropdown-menu` | 38 | 补根 `DropdownMenu`（受控/非受控 open、`closeMenu` 回焦触发器）、`Trigger`（asChild/disabled）、`Content`（`forceMount`、fixed 定位、Arrow/Home/End/Escape、外部点击、`onOpenAutoFocus/onCloseAutoFocus`）、`Item/CheckboxItem/RadioGroup/RadioItem/Label/Separator/Shortcut` 与 `Sub/SubTrigger/SubContent`（右侧浮层、指针离开延时关闭、ArrowLeft/Escape 回父级）；输出 `--radix-dropdown-menu-content-available-width/height` 变量 |
+
+验证：UI 325 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：`loop` 接受但当前总是循环；子菜单为点击/悬停双开、`modal` 接受后不锁滚动；
+`DropdownMenuItem` 的 `onSelect` 在 onClick 内触发（Radix 的键盘高亮语义由原生 focus 承担）。

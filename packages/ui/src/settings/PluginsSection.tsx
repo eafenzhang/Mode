@@ -18,7 +18,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";

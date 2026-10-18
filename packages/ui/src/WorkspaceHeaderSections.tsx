@@ -28,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   formatRemoteWorkspaceDisplayLabel,

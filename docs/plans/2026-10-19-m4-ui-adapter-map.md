@@ -14,7 +14,7 @@
 | `card.tsx` | `Card`、子件 | `adapters/card` | **已切换 4 处调用**；旧文件待看屏后删除 |
 | `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `adapters/dialog.tsx`（Dialog/Content/Trigger/Close/Header/Title/Description/Footer/Portal） | **adapter 已补**（2026-10-19） |
 | `alert-dialog.tsx` | 复合导出 | `adapters/alert-dialog` | **已切换 5 处调用**（Action/Cancel 走 DialogClose；asChild/Overlay 登记差异） |
-| `dropdown-menu.tsx` | 复合导出 | `Menu`/`MenuItem`/`MenuGroup`/`MenuSeparator`/`MenuCheckboxItem`/`MenuRadioItem` | **已补**（2026-10-19）；Trigger/Sub 待 adapter |
+| `dropdown-menu.tsx` | 复合导出 | `adapters/dropdown-menu` | **已切换 38 处调用**（2026-10-19）；根/Trigger/Content/Sub 已接线，`loop`/`modal` 登记差异 |
 | `popover.tsx` | 复合导出 | `adapters/popover` | **已切换 16 处调用**（2026-10-19）；定位自算 fixed，`collisionBoundary/sticky/hideWhenDetached/updatePositionStrategy` 接受后忽略 |
 | `select.tsx` | 复合导出 | `adapters/select` | **已切换 28 处调用**（2026-10-19）；根状态/定位/键盘已接线，`item-aligned` 与 typeahead 登记差异 |
 | `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`、`tabsListVariants` | `adapters/tabs` | **已切换 12 处调用**（2026-10-19）；支持 `variant/asChild/forceMount` |

@@ -80,7 +80,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import {
   Tooltip,

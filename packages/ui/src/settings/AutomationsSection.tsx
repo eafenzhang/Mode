@@ -32,7 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { toast as showToast, type ToastOptions } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";

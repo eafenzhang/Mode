@@ -5,7 +5,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { AutomationSwitchToggle } from "@/settings/AutomationSwitchToggle.js";
 import { AutomationChevronDownIcon, AutomationInfoIcon } from "@/settings/AutomationIcons.js";

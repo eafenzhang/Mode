@@ -93,13 +93,32 @@ export { Textarea, type TextareaProps } from "./textarea.js";
 export { Separator, type SeparatorProps } from "./separator.js";
 export { ScrollArea, ScrollBar, type ScrollAreaProps, type ScrollBarProps } from "./scroll-area.js";
 export {
+  DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  type DropdownMenuCheckboxItemProps,
+  type DropdownMenuContentProps,
+  type DropdownMenuItemProps,
+  type DropdownMenuLabelProps,
+  type DropdownMenuProps,
+  type DropdownMenuRadioGroupProps,
+  type DropdownMenuRadioItemProps,
+  type DropdownMenuSubContentProps,
+  type DropdownMenuSubProps,
+  type DropdownMenuSubTriggerProps,
+  type DropdownMenuTriggerProps,
 } from "./dropdown-menu.js";
 export {
   Select,

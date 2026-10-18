@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { usePluginCreator } from "@/hooks/usePluginCreator.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

@@ -9,7 +9,7 @@ import {
   TID_SIDEBAR_CODING_PLAN_USAGE_BUTTON,
 } from "@mode/shared";
 import { BarChart3Icon, RocketIcon } from "lucide-react";
-import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu.js";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/ui-foundation/adapters/dropdown-menu.js";
 import {
   resolveCodingPlanUsageRemainingState,
   type CodingPlanUsageAvailableProvider,

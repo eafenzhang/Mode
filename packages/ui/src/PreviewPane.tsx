@@ -62,7 +62,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { readLastSelectedEditorId } from "@/lib/editorPreference.js";
 import { PreviewPaneContent } from "@/previewPaneContent.js";
 import {

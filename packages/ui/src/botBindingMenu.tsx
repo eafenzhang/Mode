@@ -20,7 +20,7 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-} from "@/components/ui/dropdown-menu.js";
+} from "@/ui-foundation/adapters/dropdown-menu.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
