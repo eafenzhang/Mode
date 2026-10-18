@@ -40,10 +40,10 @@ export function cardClassName(options: CardClassNameOptions = {}): string {
     .join(" ");
 }
 
-/** 菜单 shell：bg-menu + rounded-lg + shadow-md + p-1。 */
+/** 菜单 shell：bg-menu + rounded-lg + shadow-md + p-1；交互浮层层级高于 Tooltip。 */
 export function menuClassName(className?: string): string {
   return [
-    "bg-menu border border-popover-border rounded-lg shadow-md p-1",
+    "z-50 bg-menu border border-popover-border rounded-lg shadow-md p-1",
     className,
   ]
     .filter(Boolean)
@@ -67,10 +67,10 @@ export function menuItemClassName(options: MenuItemClassNameOptions = {}): strin
     .join(" ");
 }
 
-/** 独立浮层：bg-popover + 从 xl 起的嵌套半径。 */
+/** 独立浮层：bg-popover + 从 xl 起的嵌套半径；位于 Tooltip 之上。 */
 export function popoverClassName(parentRadius: RadiusLevel = "none", className?: string): string {
   return [
-    "bg-popover border border-popover-border shadow-md",
+    "z-50 bg-popover border border-popover-border shadow-md",
     containerRadiusClass(parentRadius),
     className,
   ]
@@ -78,10 +78,10 @@ export function popoverClassName(parentRadius: RadiusLevel = "none", className?:
     .join(" ");
 }
 
-/** Dialog shell 固定 rounded-2xl；内部内容重新从 xl 起。 */
+/** Dialog shell 固定 rounded-2xl；内部内容重新从 xl 起；位于 Tooltip 之上。 */
 export function dialogClassName(className?: string): string {
   return [
-    "bg-popover border border-popover-border rounded-2xl shadow-md",
+    "z-50 bg-popover border border-popover-border rounded-2xl shadow-md",
     className,
   ]
     .filter(Boolean)

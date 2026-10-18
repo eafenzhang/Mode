@@ -153,6 +153,8 @@ success/warning/destructive。
 `radius.ts`），用例 `packages/ui/test/uiFoundationField.test.ts`。Surface 层在
 `surfaceStyles.ts` / `Card.tsx` / `Menu.tsx` / `Popover.tsx` / `Dialog.tsx`（Dialog 含
 焦点进入/恢复、Esc 关闭与 Tab 循环），用例 `packages/ui/test/uiFoundationSurface.test.ts`。
+反馈/导航层在 `feedbackStyles.ts` / `Tabs.tsx` / `Tooltip.tsx` / `Toast.tsx`（交互浮层 z-50
+高于 Tooltip z-40），用例 `packages/ui/test/uiFoundationFeedback.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围
