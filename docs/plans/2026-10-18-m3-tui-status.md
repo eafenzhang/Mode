@@ -149,4 +149,5 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第四批（`app-event-data`）：contextWindow 非负数值判定、错误文案提取与 Unknown 回退；
 - 第五批（`app-sidebar-shortcut`）：Ctrl+X leader 状态机（B/M/A 切换、超时与修饰键回退）；
 - 第六批（`app-compact-timeline`）：compact 命令识别（前缀/词边界/大小写/换行折叠）；
+- 第七批（`app-modified-files`）：同路径累加/前置顺序、100 条上限；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
