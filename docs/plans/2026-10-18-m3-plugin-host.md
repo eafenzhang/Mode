@@ -83,12 +83,12 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
       `<dataRoot>/.mode/cli/plugins/{cache,data,marketplaces}`、官方 cache 的
       `<name>/<version>/.mode-plugin/plugin.json`、`plugins list --json` 的逐项字段均已入
       spec §1。**`installed_plugins.json` 的完整记录样例仍未观察**。
-- [ ] **Step 0.2：观察旧运行时的插件工具面**（2026-10-18，部分）：默认隔离环境的 21 条里
-      已抓到 `mcp__node_repl__js` / `Skill` / `Agent` 的完整声明；fixture 写入官方 cache
-      会被 seed 覆盖（`probe-plugin-fixture.mts` 的负结果），**fixture 安装需走 marketplace
-      路径，尚未完成**。
-- [ ] **Step 0.3：观察工具调用与生命周期**（2026-10-18，部分）：`Skill` 缺参/未知名字与
-      未知 MCP 名字的错误形状已录；**MCP 启动耗时、负载缺失/断网/崩溃形状未观察**。
+- [x] **Step 0.2：观察旧运行时的插件工具面**（2026-10-18）：默认 21 条里抓到
+      `mcp__node_repl__js` / `Skill` / `Agent`；**fixture 通过本地 marketplace 安装成功**
+      （官方 cache 会被 seed 覆盖，不能手写），`Skill` 能用 namespaced 与裸名两种写法命中
+      （spec §5.6）。**MCP 服务器工具本身仍未观察**（fixture 没有 MCP）。
+- [ ] **Step 0.3：观察工具调用与生命周期**（2026-10-18，部分）：`Skill` 的缺参/未知名字、
+      fixture skill 的成功结果已录；**MCP 启动耗时、负载缺失/断网/崩溃形状未观察**。
 - [ ] **Step 0.4：观察权限面**（2026-10-18，部分）：`Skill` 与未知 MCP 都没有审批请求；
       **有副作用的插件工具（如 `mcp__node_repl__js`）是否审批未观察**，DR-PH-4 暂不实现。
 - [x] **Step 0.5：把结果写进 `docs/specs/plugin-host.md`**（2026-10-18），未观察项已逐条列出。

@@ -157,6 +157,30 @@
   `Session::run_turn`，插件工具结果 `e2e` 正确回到会话事件流。
 - 依赖方向：`plugin-host-adapter` 同时依赖 `agent-core` 与 `plugin-host`，两边都不反向依赖。
 
+## 5.6 fixture 安装与 Skill 发现（Task 0.2，2026-10-18）
+
+实现/复现：`probe-plugin-installed.mts`（自包含：建 marketplace → CLI 安装 → 同数据根跑 oracle）。
+
+- 本地 marketplace 清单（Codex 约定，被 `plugins validate` 接受）：
+
+```json
+{
+  "name": "fixture-marketplace",
+  "owner": { "name": "Fixture" },
+  "plugins": [{ "name": "fixture", "source": "./plugins/fixture", "description": "Fixture plugin" }]
+}
+```
+
+- 安装命令：`plugins marketplace add <dir> --scope user` → `plugins install fixture@fixture-marketplace --scope user`。
+- 落点：`<plugin storage>/cache/<marketplace>/<name>/<version>/`；`plugins list --json` 的
+  `rootPath` / `manifestPath` / `dataPath` 指向这里。
+- **Skill 布局**：`skills/<name>/SKILL.md`（frontmatter `name` + `description`）。
+- 调用 `Skill { skill: "fixture:fixture-skill" }` 与 `{ skill: "fixture-skill" }` **都能命中**；
+  结果是 `<skill_content name="…">…Base directory for this skill: <cache 路径>…</skill_content>`，
+  `budgetStrategy:"truncate"`。
+- **未观察**：MCP 服务器工具（fixture 的 `declaredMcpServerNames` 为空）、MCP 启动/失败/崩溃、
+  有副作用插件工具的权限面。
+
 ## 6. 复现
 
 ```bash
