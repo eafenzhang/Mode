@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {

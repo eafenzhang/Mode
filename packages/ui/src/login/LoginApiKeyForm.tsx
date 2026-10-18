@@ -15,7 +15,7 @@ import {
 } from "@mode/shared";
 import { Alert, AlertDescription } from "@/ui-foundation/adapters/alert.js";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import {
   Select,
   SelectContent,

@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/ui-foundation/adapters/card.js";
 import { Alert, AlertDescription, AlertTitle } from "@/ui-foundation/adapters/alert.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import {
   Select,
   SelectContent,

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type ComponentProps } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Command, CommandEmpty, CommandItem, CommandList } from "@/components/ui/command.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { Popover, PopoverAnchor, PopoverContent } from "@/ui-foundation/adapters/popover.js";
 import { shouldIgnoreRemoteConnectionHistoryPopoverInteractOutside } from "@/remote-connection/remoteConnectionHistoryPopover.js";
 

@@ -21,7 +21,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import {
   DropdownMenu,
   DropdownMenuContent,

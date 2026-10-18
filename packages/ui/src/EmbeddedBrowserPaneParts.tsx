@@ -33,7 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/ui-foundation/adapters/dropdown-menu.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import {
   isDefaultBrowserOpenableUrl,
   type BrowserGuestFailure,

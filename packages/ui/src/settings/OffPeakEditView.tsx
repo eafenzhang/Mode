@@ -18,7 +18,7 @@ import {
 } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { toast } from "@/components/ui/toast.js";
 import {
   AUTOMATION_FORM_FIELD_CLASSNAME,

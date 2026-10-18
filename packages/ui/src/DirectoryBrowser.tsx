@@ -5,7 +5,7 @@ import type { FileEntry } from "@mode/shared";
 import { FileIcon, FolderIcon, FolderSymlinkIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "./components/ui/button.js";
-import { Input } from "./components/ui/input.js";
+import { Input } from "./ui-foundation/adapters/input.js";
 import { useModeIntl } from "./i18n/IntlProvider.js";
 import { logger } from "./logger.js";
 

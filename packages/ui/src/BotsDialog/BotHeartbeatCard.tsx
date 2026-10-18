@@ -5,7 +5,7 @@ import {
   BOT_HEARTBEAT_MAX_INTERVAL_MINUTES,
   BOT_HEARTBEAT_MIN_INTERVAL_MINUTES,
 } from "@mode/shared";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 

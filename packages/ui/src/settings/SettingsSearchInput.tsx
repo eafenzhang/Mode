@@ -2,7 +2,7 @@ import { Search, X } from "lucide-react";
 import type { ComponentProps } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 
 export function SettingsSearchInput({
   className,

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Keyboard, Search, X } from "lucide-react";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatShortcutBindingLabel } from "@/shortcuts/label.js";
 import type { ShortcutKeySearch } from "./useShortcutKeySearch.js";

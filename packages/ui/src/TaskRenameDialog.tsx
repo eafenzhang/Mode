@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui-foundation/adapters/dialog.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
 import { logger } from "@/logger.js";
 

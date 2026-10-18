@@ -6,7 +6,7 @@ import {
   testId,
 } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import type { V4UserInputViewModel } from "@/v4/pendingInteractionAdapter.js";
 
 interface V4UserInputDialogProps {

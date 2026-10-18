@@ -7,7 +7,7 @@ import {
 } from "@mode/shared";
 import type { IOrcaRouterService } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { ApiKeyInput } from "./ApiKeyInput.js";

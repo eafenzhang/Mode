@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/ui-foundation/adapters/dialog.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { ModelConfigObject } from "@mode/provider";
 import type {

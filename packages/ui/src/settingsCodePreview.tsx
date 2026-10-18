@@ -2,7 +2,7 @@ import type { Theme } from "@/useTheme.js";
 import { useState } from "react";
 import { resolveTheme } from "@/useTheme.js";
 import { Card, CardContent } from "@/ui-foundation/adapters/card.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import {
   Select,

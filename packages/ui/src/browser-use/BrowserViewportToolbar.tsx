@@ -12,7 +12,7 @@ import {
   BROWSER_VIEWPORT_ZOOM_OPTIONS,
   type BrowserViewportZoom,
 } from "@/browser-use/browserViewportZoom.js";
-import { Input } from "@/components/ui/input.js";
+import { Input } from "@/ui-foundation/adapters/input.js";
 import {
   Select,
   SelectContent,
