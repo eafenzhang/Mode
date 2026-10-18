@@ -242,8 +242,10 @@ success/warning/destructive。
 - `enableSyntaxHighlighting=false` 或语言不支持时渲染纯文本；否则异步 Shiki token；
 - `wrapLongLines` 切换 `whitespace-pre-wrap break-words` / 横向滚动；字号由 `fontSizePx` 控制；
 - 注释卡按 `endLine` 归档到行后；`topComment` 的范围文案用 `L<n>`／`L<n>–<m>` 表示；
-- 注释、选区与 gutter 工具属于完整 CodeViewer，不在只读子集范围；
-  行模型提供 `groupCodeViewCommentsByEndLine` 与 `formatCodeViewLineRange` 两个纯函数供第二层复用。
+- 注释、选区与 gutter 工具属于完整 CodeViewer；
+- 第二层起 `CodeView` 支持：注释卡按 `endLine` 渲染在行后、`topComment` 摘要置顶
+  （`topCommentShowRange` 显示范围、`topCommentNotice` 显示提示）、删除注释回调；
+- 行模型提供 `groupCodeViewCommentsByEndLine` 与 `formatCodeViewLineRange` 两个纯函数。
 
 ## 3. 布局与响应式
 

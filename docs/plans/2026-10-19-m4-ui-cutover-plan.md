@@ -326,7 +326,8 @@ pdf.js 与 Vite `?url` worker。
 
 1. 〔2026-10-19 完成〕扩展行模型：`codeViewLines.ts` 增加 `groupCodeViewCommentsByEndLine` /
    `formatCodeViewLineRange` 纯函数 + 单测；
-2. `CodeView` 增加注释卡（删除回调）、`topComment` 摘要、`markedLines` 与 `focusedRange` 联动；
+2. 〔2026-10-19 注释/topComment 完成〕`CodeView` 增加注释卡（删除回调）与 `topComment`
+   摘要（范围文案/提示）；`markedLines` 与 `focusedRange` 已在第一步完成；
 3. 选区：点击/拖拽行生成 range，gutter `+` 触发 `onSubmitCodeComment({range, selectedText, comment})`；
 4. 切换 `previewPaneCodeContent` 渲染点，删除旧 CodeViewer 的最后一处业务引用；
 5. 真窗口看屏验收（人工），通过后按 D8 删除旧文件。

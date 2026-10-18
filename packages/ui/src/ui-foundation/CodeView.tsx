@@ -11,12 +11,17 @@ import {
 } from "react";
 import type { BundledTheme } from "shiki";
 
+import { Button } from "./Button.js";
+
+import type { CodeCommentPreview } from "@/lib/codeCommentContext.js";
+import type { CodeCommentLabels } from "@/components/ui/code-viewer.js";
+import type { TokenizedCode } from "@/lib/shikiHighlighter.js";
 import {
-  highlightCode,
-  shouldUseSyntaxHighlighting,
-  type TokenizedCode,
-} from "@/lib/shikiHighlighter.js";
-import { buildCodeViewLineModels, type CodeViewRange } from "./codeViewLines.js";
+  buildCodeViewLineModels,
+  formatCodeViewLineRange,
+  groupCodeViewCommentsByEndLine,
+  type CodeViewRange,
+} from "./codeViewLines.js";
 
 const MAX_HIGHLIGHT_CHARS = 200_000;
 
@@ -32,6 +37,12 @@ export interface CodeViewProps extends Omit<HTMLAttributes<HTMLDivElement>, "chi
   markedLines?: readonly number[];
   focusedRange?: CodeViewRange | null;
   focusRequestId?: string;
+  comments?: readonly CodeCommentPreview[];
+  topComment?: CodeCommentPreview | null;
+  topCommentShowRange?: boolean;
+  topCommentNotice?: string;
+  labels?: Partial<CodeCommentLabels>;
+  onDeleteCodeComment?: (commentId: string) => void;
 }
 
 export function CodeView({
@@ -46,6 +57,12 @@ export function CodeView({
   markedLines,
   focusedRange,
   focusRequestId,
+  comments,
+  topComment,
+  topCommentShowRange = false,
+  topCommentNotice,
+  labels,
+  onDeleteCodeComment,
   className,
   style,
   ...rest
@@ -63,23 +80,26 @@ export function CodeView({
       }),
     [lines.length, firstLineNumber, markedLines, focusedRange],
   );
+  const commentsByLine = useMemo(() => groupCodeViewCommentsByEndLine(comments ?? []), [comments]);
 
   useEffect(() => {
     let cancelled = false;
-    if (
-      !enableSyntaxHighlighting ||
-      !code ||
-      code.length > MAX_HIGHLIGHT_CHARS ||
-      !shouldUseSyntaxHighlighting(language)
-    ) {
+    if (!enableSyntaxHighlighting || !code || code.length > MAX_HIGHLIGHT_CHARS) {
       setTokens(null);
       return;
     }
-    highlightCode(code, language, theme, (result) => {
-      if (!cancelled) {
-        setTokens(result);
-      }
-    });
+    void import("@/lib/shikiHighlighter.js").then(
+      ({ highlightCode, shouldUseSyntaxHighlighting }) => {
+        if (cancelled || !shouldUseSyntaxHighlighting(language)) {
+          return;
+        }
+        highlightCode(code, language, theme, (result) => {
+          if (!cancelled) {
+            setTokens(result);
+          }
+        });
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -112,6 +132,25 @@ export function CodeView({
         .join(" ")}
       style={containerStyle}
     >
+      {topComment ? (
+        <div
+          data-slot="code-view-top-comment"
+          className="mb-1 rounded-md border border-border bg-surface px-3 py-1.5 text-ui-sm text-foreground-subtle"
+        >
+          {topCommentShowRange ? (
+            <span className="me-2 font-mono text-ui-xs">
+              {formatCodeViewLineRange({
+                startLine: topComment.startLine,
+                endLine: topComment.endLine,
+              })}
+            </span>
+          ) : null}
+          <span className="text-foreground">{topComment.comment}</span>
+          {topCommentNotice ? (
+            <div className="mt-1 text-ui-xs text-foreground-subtlest">{topCommentNotice}</div>
+          ) : null}
+        </div>
+      ) : null}
       {lines.map((line, index) => {
         const model = models[index] ?? {
           index,
@@ -160,6 +199,48 @@ export function CodeView({
           </div>
         );
       })}
+      {Array.from(commentsByLine.entries()).map(([endLine, lineComments]) => (
+        <div key={`comments-${endLine}`} data-slot="code-view-comments" className="px-3 pb-1">
+          {lineComments.map((comment) => (
+            <div
+              key={comment.id}
+              data-comment-id={comment.id}
+              className="mt-1 rounded-md border border-border bg-surface px-3 py-1.5 text-ui-sm text-foreground-subtle"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-ui-xs">
+                  {formatCodeViewLineRange({
+                    startLine: comment.startLine,
+                    endLine: comment.endLine,
+                  })}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-foreground">{comment.comment}</span>
+                {onDeleteCodeComment ? (
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={labels?.deleteComment ?? "Delete comment"}
+                    onClick={() => onDeleteCodeComment(comment.id)}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 16 16"
+                      className="size-3"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    >
+                      <path d="M4 4l8 8M12 4l-8 8" />
+                    </svg>
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

@@ -5,6 +5,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import { CodeView } from "../src/ui-foundation/CodeView.js";
 import {
   buildCodeViewLineModels,
   formatCodeViewLineRange,
@@ -62,4 +66,34 @@ test("范围文案：单行 L<n>，跨行 L<n>–<m>，反向输入自动归一"
   assert.equal(formatCodeViewLineRange({ startLine: 3, endLine: 3 }), "L3");
   assert.equal(formatCodeViewLineRange({ startLine: 3, endLine: 5 }), "L3–5");
   assert.equal(formatCodeViewLineRange({ startLine: 5, endLine: 3 }), "L3–5");
+});
+
+const COMMENT = {
+  id: "c1",
+  startLine: 2,
+  endLine: 3,
+  sourceTitle: "a.ts",
+  selectedText: "const a = 1;",
+  comment: "rename this",
+};
+
+test("CodeView 第二层：topComment 范围/提示与行后注释卡", () => {
+  const html = renderToStaticMarkup(
+    createElement(CodeView, {
+      code: ["line1", "line2", "line3"].join(String.fromCharCode(10)),
+      language: "typescript",
+      enableSyntaxHighlighting: false,
+      topComment: { ...COMMENT, startLine: 2, endLine: 4 },
+      topCommentShowRange: true,
+      topCommentNotice: "1 comment",
+      comments: [COMMENT],
+    }),
+  );
+  assert.match(html, /data-slot="code-view-top-comment"/);
+  assert.match(html, /L2–4/);
+  assert.match(html, /1 comment/);
+  assert.match(html, /data-slot="code-view-comments"/);
+  assert.match(html, /data-comment-id="c1"/);
+  assert.match(html, /L2–3/);
+  assert.match(html, /rename this/);
 });
