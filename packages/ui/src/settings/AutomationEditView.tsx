@@ -97,7 +97,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { ScrollArea } from "@/components/ui/scroll-area.js";
+import { ScrollArea } from "@/ui-foundation/adapters/scroll-area.js";
 import { cn } from "@/components/lib/utils.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import { resolveLocalizedAutomationCreateTitle } from "@/settings/automationEditLocalizedTitle.js";

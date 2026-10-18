@@ -77,3 +77,14 @@ checkbox → alert → textarea`（可加 `badge`）。
 3. Tooltip 的显示策略；
 4. Toast 的堆叠/定位；
 5. `button` 的 226 个引用点需要按屏分批，不能一次替换。
+
+## 批次 1 执行记录（2026-10-19）
+
+| 模块 | 动作 | 结果 |
+| --- | --- | --- |
+| `separator` | `button-group.tsx` 的相对 import 改到 adapter；旧文件无其他引用 | **旧文件已删除**（`components/ui/separator.tsx`） |
+| `avatar` | `WorkspaceSidebarFooter.tsx` 改到 `adapters/avatar` | 类型/测试通过；**旧文件待人工看屏后删除** |
+| `scroll-area` | `AutomationEditView.tsx`、`ConversationShareSelectionPanel.tsx` 改到 `adapters/scroll-area` | 类型/测试通过；`type`/`scrollbarClassName` 被 adapter 接受但**暂不生效**（只影响滚动条可见性）；旧文件待看屏后删除 |
+| `radio-group` | 无旧文件/无引用 | 无需动作 |
+
+验证：`pnpm --filter @mode/ui test` 309 passed、`pnpm typecheck` 通过。

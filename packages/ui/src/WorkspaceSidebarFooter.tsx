@@ -3,7 +3,7 @@ import type { Locale, UserInfo } from "@mode/shared";
 import { memo, useCallback, useEffect, useState } from "react";
 import { DesktopCommandIds, TID_LOGIN_TRIGGER, TID_TASK_SETTINGS_BUTTON } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.js";
+import { Avatar, AvatarFallback, AvatarImage } from "@/ui-foundation/adapters/avatar.js";
 import { ModeAboutLogo } from "@/components/ui/ModeAboutLogo.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";

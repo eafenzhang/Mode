@@ -21,10 +21,10 @@
 | `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `Tooltip`/`TooltipContent`/`TooltipProvider`/`TooltipTrigger` | **已补静态语义**（2026-10-19）；显示/隐藏与延迟策略待接线 |
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |
 | `badge.tsx` | `Badge`、`badgeVariants` | `Badge` + `badgeClassName` | **已补**（2026-10-19） |
-| `separator.tsx` | `Separator` | `Separator` + `separatorClassName` | **已补**（2026-10-19） |
-| `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | `ScrollArea` / `ScrollBar` | **基础件已补**（2026-10-19）；adapter 待补 |
+| `separator.tsx` | `Separator` | `adapters/separator` | **已切换并删除旧文件**（2026-10-19） |
+| `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | `adapters/scroll-area` | **已切换 2 处调用**；`type`/`scrollbarClassName` 静默忽略（待接线） |
 | `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | `Checkbox` / `Switch` / `RadioGroup` / `Progress` | **基础件已补**（2026-10-19）；adapter 待补 |
-| `avatar.tsx` | `Avatar*` | `Avatar` / `AvatarImage` / `AvatarFallback` / `AvatarBadge` / `AvatarGroup` / `AvatarGroupCount` | **基础件已补**（2026-10-19）；adapter 待补 |
+| `avatar.tsx` | `Avatar*` | `adapters/avatar` | **已切换 1 处调用**；旧文件待看屏后删除 |
 | `alert.tsx` | `Alert*` | `Alert` / `AlertTitle` / `AlertDescription` / `AlertAction` | **基础件已补**；adapter 待补 |
 
 ## 2. 业务面映射
