@@ -141,10 +141,14 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
   `EventSink { fn emit(&mut self, event: SessionEvent); }`。
 - `SessionEvent.delivery_kind` 由调用方指定；`seq` 单调。
 
-- [ ] **Step 1：对拍纯文本 turn**（事件类型、顺序、关键载荷字段）。
-- [ ] **Step 2：接上工具循环**（复用 Task 2–4 的实现与对拍夹具）。
-- [ ] **Step 3：`turn.completed` 的 `resultType` 与统计字段按观察填充。**
-- [ ] **Step 4：跑通并提交。**
+- [x] **Step 1：对拍纯文本 turn**（2026-10-18：`run_turn` + `turn_stream.rs`）。
+- [x] **Step 2：接上工具循环**（复用 Task 2–4 的实现；工具批次后自动进入下一轮模型请求）。
+- [x] **Step 3：`turn.completed` 的 `resultType` 与统计字段按观察填充**
+      （usage 的 10 个键、`tokenCount` = input+output 累计、`historyRoundCount` = 模型请求数）。
+- [x] **Step 4：跑通并提交。**
+      **登记差异**：oracle 的 `session.updated` / `streamRecovery.updated` 尚未产出
+      （需要消息计数与追踪 id）；本步只保证 `turn.started` / `model.streaming` /
+      `tool.updated` / `turn.completed` 的顺序与载荷。
 
 ---
 
@@ -219,3 +223,13 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
   工具步产出 `tool_input_start → delta → end → tool_call` 的固定顺序。
 - 测试：`provider_script.rs` 4 条（选步、delta 顺序、确定性、空剧本报错）；
   `agent-protocol` 的 progress 往返 1 条。
+
+### 2026-10-18 巡检轮（Task 2）
+
+- `crates/agent-core/src/stream.rs`：`EventSink`（`Vec<SessionEvent>` 直接实现）+ `TurnError`。
+- `Session::run_turn(prompt, provider, sink)`：`turn.started` → `model.streaming` ×N →
+  （工具批次：`tool.updated` scheduled/started/result/batch）→ 下一轮模型流 → `turn.completed`；
+  消息历史在 `Session` 内存里维护，工具结果回写给下一轮请求。
+- `turn_stream.rs` 2 条：纯文本（3 个事件、tokenCount=22）与工具 turn（11 个事件、
+  tokenCount=52、`historyRoundCount=2`）。
+- **已登记差异**：未产出 `session.updated` / `streamRecovery.updated`。

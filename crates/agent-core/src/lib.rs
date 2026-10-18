@@ -26,6 +26,7 @@
 pub mod approval;
 pub mod provider;
 pub mod session;
+pub mod stream;
 pub mod tool;
 
 pub use agent_protocol::session_event::{
@@ -38,3 +39,4 @@ pub use provider::{
     ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelToolCall, ModelUsage,
     ProviderError, ScriptStep, ScriptToolCall, ScriptedProvider,
 };
+pub use stream::{EventSink, TurnError};

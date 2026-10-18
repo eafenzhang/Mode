@@ -47,9 +47,10 @@ use serde::Serialize;
 use serde_json::Value;
 
 use agent_protocol::session_event::{
-    DeliveryKind, ProtocolInstant, SessionEvent, SessionEventType, ToolBatchPayload,
-    ToolCallIdentity, ToolErrorPayload, ToolResultPayload, ToolSchedule, ToolScheduledPayload,
-    ToolStartedPayload, ToolUpdatedPayload, TurnStartedPayload,
+    DeliveryKind, ModelStreamingKind, ModelStreamingPayload, ProtocolInstant, SessionEvent,
+    SessionEventType, ToolBatchPayload, ToolCallIdentity, ToolErrorPayload, ToolResultPayload,
+    ToolSchedule, ToolScheduledPayload, ToolStartedPayload, ToolUpdatedPayload,
+    TurnCompletedPayload, TurnResultType, TurnStartedPayload,
 };
 use agent_protocol::ExtraFields;
 use agent_tools::{
@@ -57,6 +58,8 @@ use agent_tools::{
     ToolSpec,
 };
 
+use crate::provider::{ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelUsage};
+use crate::stream::{EventSink, TurnError};
 use crate::tool::{error_object, result_object};
 
 /// 模型流里的一条工具调用（`model.streaming` / `kind:"tool_call"` 的入参来源，spec §1.6）。
@@ -67,9 +70,10 @@ pub struct ToolCallRequest {
     pub input: Value,
 }
 
-/// 会话的工具执行循环。
+/// 会话循环：工具面 + 可选的模型驱动 turn（[`Session::run_turn`]）。
 ///
-/// **只拥有工具面**：不持有消息历史、不发模型请求、不落盘（那些是宿主与后续任务的事）。
+/// 不落盘：消息历史只在内存里，持久化归宿主。`web-remote-replayable` 的快照/队列
+/// 归 Host/relay（DR-T5-1），本结构只保证 `desktop-continuous` 的实时事件顺序。
 pub struct Session {
     session_id: String,
     cwd: String,
@@ -82,8 +86,10 @@ pub struct Session {
     /// `.mode` 数据根（`{base}/.mode`）。`None` = 本会话还没接线数据根，工具 artifact 落临时目录。
     data_root: Option<PathBuf>,
     /// 后台任务表：`Bash(run_in_background)` 登记，`TaskOutput` / `TaskStop` 消费。
-    /// 完成通知（新 turn）不在本骨架里，归 Task 5。
+    /// 完成通知（新 turn）不在本骨架里，归 Task 5C。
     tasks: Arc<TaskRegistry>,
+    /// 模型视角的消息历史（`run_turn` 维护；不含持久化格式）。
+    messages: Vec<ModelMessage>,
 }
 
 impl Session {
@@ -97,7 +103,13 @@ impl Session {
             file_state: FileState::new(),
             data_root: None,
             tasks: Arc::new(TaskRegistry::new()),
+            messages: Vec::new(),
         }
+    }
+
+    /// 模型视角的消息历史（只读；持久化格式归宿主）。
+    pub fn messages(&self) -> &[ModelMessage] {
+        &self.messages
     }
 
     /// 接线数据根：工具的大输出 artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/…`
@@ -157,6 +169,248 @@ impl Session {
             extra: ExtraFields::new(),
         };
         self.emit(&turn_id, SessionEventType::TurnStarted, &payload)
+    }
+
+    /// 跑完一个完整 turn：模型流 →（可选）工具批次 → 终态。
+    ///
+    /// 事件顺序按 spec §3.5：`turn.started` → `model.streaming` ×N →（工具事件）→
+    /// 下一轮模型流 → `turn.completed`。oracle 还会发若干 `session.updated` /
+    /// `streamRecovery.updated`（需要消息计数与追踪 id），本步**不产出**，差异已登记。
+    ///
+    /// 只实现 `desktop-continuous` 的实时语义；重放归 Host/relay（DR-T5-1）。
+    pub fn run_turn(
+        &mut self,
+        prompt: &str,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+    ) -> Result<(), TurnError> {
+        let started_at = std::time::Instant::now();
+        sink.emit(self.begin_turn(prompt));
+        self.messages.push(ModelMessage::User(prompt.to_string()));
+        let turn_id = self
+            .current_turn_id
+            .clone()
+            .expect("begin_turn 已设置 turn id");
+        let tools: Vec<String> = agent_tools::registry()
+            .iter()
+            .map(|spec| spec.name.to_string())
+            .collect();
+
+        let mut usage = ModelUsage::default();
+        let mut model_requests = 0_u64;
+        let mut tool_call_count = 0_u64;
+
+        let response_text = loop {
+            model_requests += 1;
+            let request = ModelRequest {
+                messages: self.messages.clone(),
+                tools: tools.clone(),
+            };
+            let response = provider
+                .stream(&request)
+                .map_err(|error| TurnError::new(error.message))?;
+            usage.input_tokens += response.usage.input_tokens;
+            usage.output_tokens += response.usage.output_tokens;
+            usage.cache_read_tokens += response.usage.cache_read_tokens;
+            usage.cache_write_tokens += response.usage.cache_write_tokens;
+            usage.reasoning_tokens += response.usage.reasoning_tokens;
+
+            let mut text = String::new();
+            let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
+            for delta in &response.deltas {
+                if let ModelDelta::Text { text: chunk } = delta {
+                    text.push_str(chunk);
+                }
+                if let ModelDelta::ToolCall {
+                    tool_call_id,
+                    tool_name,
+                    input,
+                } = delta
+                {
+                    tool_calls.push(ToolCallRequest {
+                        tool_call_id: tool_call_id.clone(),
+                        name: tool_name.clone(),
+                        input: input.clone(),
+                    });
+                }
+                let event = self.model_streaming_event(&turn_id, model_requests, delta);
+                sink.emit(event);
+            }
+
+            if tool_calls.is_empty() {
+                self.messages.push(ModelMessage::Assistant {
+                    text: Some(text.clone()),
+                    tool_calls: Vec::new(),
+                });
+                break text;
+            }
+
+            self.messages.push(ModelMessage::Assistant {
+                text: if text.is_empty() { None } else { Some(text) },
+                tool_calls: tool_calls
+                    .iter()
+                    .map(|call| crate::provider::ModelToolCall {
+                        tool_call_id: call.tool_call_id.clone(),
+                        tool_name: call.name.clone(),
+                        input: call.input.clone(),
+                    })
+                    .collect(),
+            });
+            tool_call_count += tool_calls.len() as u64;
+            let tool_events = self.run_tool_batch(&tool_calls);
+            self.record_tool_results(&tool_events);
+            for event in tool_events {
+                sink.emit(event);
+            }
+        };
+
+        let total_tokens = usage.input_tokens + usage.output_tokens;
+        let payload = TurnCompletedPayload {
+            response: response_text,
+            token_count: total_tokens,
+            usage: Some(serde_json::json!({
+                "source": "provider",
+                "modelRequestCount": model_requests,
+                "inputTokens": usage.input_tokens,
+                "outputTokens": usage.output_tokens,
+                "totalTokens": total_tokens,
+                "cacheReadTokens": usage.cache_read_tokens,
+                "cacheWriteTokens": usage.cache_write_tokens,
+                "reasoningTokens": usage.reasoning_tokens,
+                "webFetchRequests": 0,
+                "webSearchRequests": 0,
+            })),
+            tool_call_count,
+            history_round_count: Some(model_requests),
+            duration: started_at.elapsed().as_millis() as f64,
+            cache_stats: None,
+            input_id: None,
+            result_type: TurnResultType::Success,
+            background_subagent_result_consumed: None,
+            extra: ExtraFields::new(),
+        };
+        sink.emit(self.emit(&turn_id, SessionEventType::TurnCompleted, &payload));
+        Ok(())
+    }
+
+    /// 把模型 delta 投影成 `model.streaming` 事件（顺序即 delta 顺序）。
+    fn model_streaming_event(
+        &mut self,
+        turn_id: &str,
+        request_index: u64,
+        delta: &ModelDelta,
+    ) -> SessionEvent {
+        let assistant_message_id = Some(format!("msg_{}_{request_index}", self.session_id));
+        let payload = match delta {
+            ModelDelta::Text { text } => ModelStreamingPayload {
+                assistant_message_id,
+                delta: Some(text.clone()),
+                done: Some(false),
+                input: None,
+                kind: ModelStreamingKind::TextDelta,
+                part_id: None,
+                provider_executed: None,
+                tool_call_id: None,
+                tool_name: None,
+                extra: ExtraFields::new(),
+            },
+            ModelDelta::ToolInputStart {
+                tool_call_id,
+                tool_name,
+            } => ModelStreamingPayload {
+                assistant_message_id,
+                delta: Some(String::new()),
+                done: Some(false),
+                input: None,
+                kind: ModelStreamingKind::ToolInputStart,
+                part_id: None,
+                provider_executed: None,
+                tool_call_id: Some(tool_call_id.clone()),
+                tool_name: Some(tool_name.clone()),
+                extra: ExtraFields::new(),
+            },
+            ModelDelta::ToolInputDelta {
+                tool_call_id,
+                delta,
+            } => ModelStreamingPayload {
+                assistant_message_id,
+                delta: Some(delta.clone()),
+                done: Some(false),
+                input: None,
+                kind: ModelStreamingKind::ToolInputDelta,
+                part_id: None,
+                provider_executed: None,
+                tool_call_id: Some(tool_call_id.clone()),
+                tool_name: None,
+                extra: ExtraFields::new(),
+            },
+            ModelDelta::ToolInputEnd { tool_call_id } => ModelStreamingPayload {
+                assistant_message_id,
+                delta: Some(String::new()),
+                done: Some(false),
+                input: None,
+                kind: ModelStreamingKind::ToolInputEnd,
+                part_id: None,
+                provider_executed: None,
+                tool_call_id: Some(tool_call_id.clone()),
+                tool_name: None,
+                extra: ExtraFields::new(),
+            },
+            ModelDelta::ToolCall {
+                tool_call_id,
+                tool_name,
+                input,
+            } => ModelStreamingPayload {
+                assistant_message_id,
+                delta: Some(String::new()),
+                done: Some(false),
+                input: Some(input.clone()),
+                kind: ModelStreamingKind::ToolCall,
+                part_id: None,
+                provider_executed: None,
+                tool_call_id: Some(tool_call_id.clone()),
+                tool_name: Some(tool_name.clone()),
+                extra: ExtraFields::new(),
+            },
+        };
+        self.emit(turn_id, SessionEventType::ModelStreaming, &payload)
+    }
+
+    /// 把工具结果写回模型历史（下一轮请求要用）。
+    fn record_tool_results(&mut self, events: &[SessionEvent]) {
+        for event in events {
+            if event.event_type != SessionEventType::ToolUpdated {
+                continue;
+            }
+            let Some(payload) = event
+                .payload_as::<ToolUpdatedPayload>()
+                .expect("工具载荷能解码")
+            else {
+                continue;
+            };
+            match payload {
+                ToolUpdatedPayload::Result(result) => {
+                    let content = result
+                        .result
+                        .content
+                        .as_ref()
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    self.messages.push(ModelMessage::ToolResult {
+                        tool_call_id: result.call.tool_call_id,
+                        content,
+                    });
+                }
+                ToolUpdatedPayload::Error(error) => {
+                    self.messages.push(ModelMessage::ToolResult {
+                        tool_call_id: error.call.tool_call_id,
+                        content: error.error.message,
+                    });
+                }
+                _ => {}
+            }
+        }
     }
 
     /// 执行一条 assistant 消息里的若干工具调用，按观察到的顺序发事件。
