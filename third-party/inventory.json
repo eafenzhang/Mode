@@ -426,7 +426,7 @@
     "apps/mode-cli/tools/typescript/package.json": "d31f0abdcc4052b9175259a34ed03e4ad73bb1e146d56cecd5658dd0c7d4c8b8",
     "crates/mode-cua-ax/Cargo.lock": "a2d1bfe1f258c55ad1175f31c7097444120d89710f6b91b70fab36ed5664028d",
     "crates/mode-cua-ax/Cargo.toml": "abd3b4a09bf4484e6f95b4bbf1a9db00e838effc6fe6602d786f44ee4598f35b",
-    "package.json": "b33705f1791696e647b30dd349c795781c888f10fdd90e0c027f5451c1e471ab",
+    "package.json": "3b78ecfb7df3dbe6b67d190db525aa2144e8d4a14aa2af35f5cef1fae576666f",
     "packages/client/package.json": "ca66f666e9c5a1095a03c14b176fe95932e900cc4010a26b54bcf4be66e34097",
     "packages/desktop/package.json": "3d73d390b455280e5d323be9bd6c55fbb5465f3f18b4909f77abf244c4b72798",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
