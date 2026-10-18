@@ -8,6 +8,7 @@
 
 pub mod cache;
 pub mod manifest;
+pub mod protocol;
 
 pub use cache::{AssetCache, CacheError};
 pub use manifest::{ManifestError, PluginHostManifest};

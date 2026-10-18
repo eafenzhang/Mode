@@ -83,6 +83,28 @@
 - 实现：`crates/plugin-host`（`PluginHostManifest` + `AssetCache`；5 条用例覆盖下载/命中/
   篡改/断网缓存/路径逃逸）。
 
+## 5.2 sidecar 协议（Task 2 落地，2026-10-18）
+
+一行一帧 NDJSON；方法集合封闭（未知方法 `-32601`）。实现：
+`crates/plugin-host/src/protocol.rs`（Rust 严格解码）+ `tools/plugin-host/src/main.ts`（骨架）。
+
+| 方法 | params | result |
+| --- | --- | --- |
+| `host/hello` | `{}` | `{ protocolVersion: 1, tools: <n> }` |
+| `plugin/listTools` | `{}` | `{ tools: [{ name, description, inputSchema }] }` |
+| `plugin/callTool` | `{ toolName, input }` | `{ content }` |
+| `plugin/health` | `{}` | `{ ok: true, tools: <n> }` |
+| `host/shutdown` | `{}` | `{}`（随后进程退出） |
+
+- 帧形状：请求 `{id, method, params}`；应答 `{id, result}`；错误 `{id, error:{code,message}}`。
+- 协议级错误的保留 id 是 `0`；正常请求 id 从 1 开始。
+- 解析错误 `-32700`、非法请求 `-32600`、未知方法/工具 `-32601`。
+- 同时带 `method` 与 `result`（或 `error`）的帧是**非法帧**，解码直接失败，不猜。
+- 当前 sidecar 是骨架：`listTools` 只返回一个 fixture `echo` 工具，真实插件/MCP/Skills
+  发现与执行在 Task 3–5；`callTool` 的 `echo` 只回显 `input.text`。
+- 开发运行：`pnpm exec tsx tools/plugin-host/src/main.ts`（打包成 Task 1 的单文件 bundle
+  是后续步骤；当前按源码运行）。
+
 ## 6. 复现
 
 ```bash

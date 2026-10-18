@@ -121,11 +121,12 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - Create: `crates/plugin-host/src/protocol.rs`（帧类型与严格校验）
 - Test: `crates/plugin-host/tests/protocol.rs`
 
-- [ ] **Step 1：协议类型 + 往返测试**（`host/hello`、`plugin/listTools`、`plugin/callTool`、
-      `plugin/health`、`host/shutdown`）。
-- [ ] **Step 2：sidecar 入口**：启动后发 hello，按请求返回；未知方法返回错误帧。
+- [x] **Step 1：协议类型 + 往返测试**（2026-10-18）：`crates/plugin-host/src/protocol.rs`；
+      4 条用例覆盖请求/通知/应答/错误、换行转义、非法帧拒收。
+- [x] **Step 2：sidecar 入口**（2026-10-18）：`tools/plugin-host/src/main.ts` 骨架
+      （hello / listTools / callTool(echo) / health / shutdown），stdio 冒烟通过。
 - [ ] **Step 3：Rust 侧 spawn/监督**：超时、崩溃重启（退避）、退出时不留孤儿。
-- [ ] **Step 4：提交。**
+- [ ] **Step 4：提交**（Step 1/2 已随本轮提交；Step 3 完成后补）。
 
 ---
 
