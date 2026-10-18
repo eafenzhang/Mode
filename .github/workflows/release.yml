@@ -266,6 +266,9 @@ jobs:
           pnpm --filter @mode/services test
           pnpm --filter @mode/server test
           pnpm --filter @mode/ui test
+          # TUI 纯逻辑契约（宽度/键盘/侧栏/compact/事件数据等）；依赖 @mode/contracts 与
+          # @mode/i18n 的 dist，上面的 bootstrap 链已构建。
+          pnpm --filter @mode/tui test
           pnpm --filter @mode/cua test
           pnpm --filter @mode/core test
           pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts

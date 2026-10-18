@@ -154,4 +154,5 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第九批（`app-motion`）：spinner 帧序列/周期与负时间归一；
 - 第十批（`app-input`）：clampIndex 边界、modelCommandQuery 前缀与分隔语义；
 - 第十一批（`app-input` 续）：slash 命令过滤（名称/别名、大小写、空白终止）与可见窗口映射；
+- 已接入 `release.yml` 的 verify：在 bootstrap 链构建后执行 `pnpm --filter @mode/tui test`；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
