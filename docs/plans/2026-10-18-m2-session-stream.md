@@ -185,11 +185,16 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 
 ## Task 5：双链路 E2E 与门禁
 
-- [ ] **Step 1：`desktop-continuous` 一套 E2E**（事件顺序 + 断线语义）。
+- [x] **Step 1：`desktop-continuous` 一套 E2E**（2026-10-18）：`record-session-stream.mts` 录制
+      投影夹具 `fixtures/session-stream.json`（纯文本 + 工具 turn），Rust 侧
+      `crates/agent-core/tests/stream_parity.rs` 用 `run_turn` 产出同形投影后**逐字相等**。
+      断线语义由 push-only `EventSink` 保证（不保留历史）。
 - [ ] **Step 2：按 DR-T5-1 的裁决补 `web-remote-replayable` 的验证面**（若 (a)，验证
       `delivery_kind` 透传与 Host 的既有重放测试；若 (b)，跑 `replay.rs` 的队列用例）。
+      **当前状态：等待裁决；Step 1 的投影夹具可复用到 replayable 的同一投影。**
 - [ ] **Step 3：改 stream / snapshot / queue 时必须双跑**（路线图风险对冲）。
-- [ ] **Step 4：`cargo clippy -D warnings` + `cargo test` 全绿；提交。**
+      **当前只有 desktop 侧可跑；replayable 侧待 Step 2。**
+- [x] **Step 4：`cargo clippy -D warnings` + `cargo test` 全绿；提交。**
 
 ---
 
@@ -249,3 +254,12 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 - `Session::run_pending_notifications` 在空闲时把通知逐条跑成新 turn；忙时丢弃由调用方保证
   （oracle 行为，见 DR-T5-3）。
 - `task_notification.rs` 4 条：completed XML、failed summary、killed/stopped、通知 turn 的 input。
+
+### 2026-10-18 巡检轮（Task 5D）
+
+- 新增录制器 `record-session-stream.mts`：跑 oracle 的纯文本 turn 与工具 turn，只保留
+  `turn.started` / `model.streaming` / `tool.updated` / `turn.completed` 四类事件，
+  路径统一换成 `${cwd}`（含 JSON 文本里被转义一次的形态）。
+- 夹具 `fixtures/session-stream.json` + Rust 用例 `stream_parity.rs`：`run_turn` 的投影与
+  oracle **逐字相等**（文本 turn 3 个事件、工具 turn 11 个事件；tokenCount 22/52）。
+- 已登记差异：`session.updated` / `streamRecovery.updated` 不在投影内；replayable 侧待裁决。

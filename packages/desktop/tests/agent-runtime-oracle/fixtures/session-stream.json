@@ -1,0 +1,128 @@
+{
+  "case": "session-stream",
+  "direction": "oracle",
+  "frame": "session-event",
+  "note": "M2 Task 5D 投影：只含 turn.started / model.streaming / tool.updated / turn.completed；session.updated 与 streamRecovery.updated 不在投影内。",
+  "cases": [
+    {
+      "name": "text",
+      "prompt": "probe text turn",
+      "seed": {},
+      "steps": [
+        {
+          "text": "hello from mock"
+        }
+      ],
+      "expect": [
+        {
+          "type": "turn.started",
+          "turnNumber": 0,
+          "input": "probe text turn"
+        },
+        {
+          "type": "model.streaming",
+          "kind": "text_delta",
+          "delta": "hello from mock"
+        },
+        {
+          "type": "turn.completed",
+          "resultType": "success",
+          "tokenCount": 22,
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 12,
+            "modelRequestCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "tool",
+      "prompt": "probe tool turn",
+      "seed": {
+        "hello.txt": "hello\n"
+      },
+      "steps": [
+        {
+          "toolCalls": [
+            {
+              "name": "Read",
+              "input": {
+                "file_path": "${cwd}/hello.txt"
+              }
+            }
+          ]
+        },
+        {
+          "text": "tool turn done"
+        }
+      ],
+      "expect": [
+        {
+          "type": "turn.started",
+          "turnNumber": 0,
+          "input": "probe tool turn"
+        },
+        {
+          "type": "model.streaming",
+          "kind": "tool_input_start",
+          "toolCallId": "toolu_mock_0_0",
+          "toolName": "Read"
+        },
+        {
+          "type": "model.streaming",
+          "kind": "tool_input_delta",
+          "delta": "{\"file_path\":\"${cwd}/hello.txt\"}",
+          "toolCallId": "toolu_mock_0_0"
+        },
+        {
+          "type": "model.streaming",
+          "kind": "tool_input_end",
+          "toolCallId": "toolu_mock_0_0"
+        },
+        {
+          "type": "model.streaming",
+          "kind": "tool_call",
+          "input": {
+            "file_path": "${cwd}/hello.txt"
+          },
+          "toolCallId": "toolu_mock_0_0",
+          "toolName": "Read"
+        },
+        {
+          "type": "tool.updated",
+          "kind": "scheduled",
+          "toolName": "Read"
+        },
+        {
+          "type": "tool.updated",
+          "kind": "started",
+          "toolName": "Read"
+        },
+        {
+          "type": "tool.updated",
+          "kind": "result"
+        },
+        {
+          "type": "tool.updated",
+          "kind": "batch"
+        },
+        {
+          "type": "model.streaming",
+          "kind": "text_delta",
+          "delta": "tool turn done"
+        },
+        {
+          "type": "turn.completed",
+          "resultType": "success",
+          "tokenCount": 52,
+          "usage": {
+            "inputTokens": 20,
+            "outputTokens": 32,
+            "modelRequestCount": 2
+          }
+        }
+      ]
+    }
+  ]
+}
