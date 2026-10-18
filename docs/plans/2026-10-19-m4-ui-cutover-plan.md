@@ -6,7 +6,7 @@
 >
 > **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
 > command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
-> 引用集中在其余 viewer（pdf/code/pptx）；旧文件统一保留到人工看屏验收后删除。
+> 引用集中在 pdf/code/pptx viewer 与 pptx 选择操作条；旧文件统一保留到人工看屏验收后删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 
 ## 基础件切换顺序（按引用面从小到大）
@@ -262,3 +262,12 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 验证：UI 355 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：行号按数组下标从 1 开始（props 未提供起始行）；超大 patch 高亮阈值沿用 120k 字符。
+
+### 后续波次（2026-10-19 第十九轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `flip-metric-value` | 1 | 新增 foundation FlipMetricValue：逐字符渲染、`tabular-nums`、空格/标点宽度、值变化字符 `animate-in` 150ms、`prefers-reduced-motion` 降级、`animateInitial` |
+
+验证：UI 357 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：动画只对变化字符播放，不做旧实现的整列翻牌。

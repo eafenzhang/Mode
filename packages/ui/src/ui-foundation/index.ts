@@ -488,3 +488,4 @@ export {
   getHighlightedLightweightDiffLine,
   type HighlightedLightweightDiffPreviewProps,
 } from "./HighlightedLightweightDiffPreview.js";
+export { FlipMetricValue, type FlipMetricValueProps } from "./FlipMetricValue.js";

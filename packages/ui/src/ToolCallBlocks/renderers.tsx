@@ -3,7 +3,7 @@ import {
   getFileDisplayPath,
   resolveFileDisplayDescriptor,
 } from "@/lib/fileDisplay.js";
-import { FlipMetricValue } from "@/components/ui/flip-metric-value.js";
+import { FlipMetricValue } from "@/ui-foundation/adapters/flip-metric-value.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { inferEditOperation } from "@/ToolCallBlocks/fileSummaries.js";
 import type {

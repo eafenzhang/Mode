@@ -207,6 +207,13 @@ success/warning/destructive。
 - 颜色只用 diff 语义色（`bg-diff-added/removed`），不借用 success/destructive；
 - `renderLineContent` 允许调用方接管行内容（高亮版用它渲染 token）。
 
+### 2.17 FlipMetricValue
+
+- 逐字符渲染指标值，数字使用 `tabular-nums`，空格保留可断行宽度；
+- 值变化时对变化的字符做 `animate-in`（淡入 + 轻微上移），时长 150ms；
+- `prefers-reduced-motion: reduce` 时不播放动画；
+- `animateInitial` 控制首次渲染是否动画；`aria-label` 提供完整值，子字符对读屏隐藏。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -273,7 +280,8 @@ HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`
 `uiFoundationResizable.test.ts`；diff 呈现适配在 `adapters/diff-viewer.tsx`
 （纯计算在 `diffViewerStyles.ts`），用例 `uiFoundationDiffViewer.test.ts`；
 轻量 diff 在 `LightweightDiffPreview.tsx` / `HighlightedLightweightDiffPreview.tsx`
-（行契约在 `lightweightDiffTokens.ts`），用例 `uiFoundationLightweightDiff.test.ts`。
+（行契约在 `lightweightDiffTokens.ts`），用例 `uiFoundationLightweightDiff.test.ts`；
+指标翻牌在 `FlipMetricValue.tsx`，用例 `uiFoundationFlipMetric.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围
