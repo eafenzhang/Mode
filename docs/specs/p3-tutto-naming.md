@@ -39,6 +39,8 @@
 
 ## 子任务清单
 
+- 数据根迁移逐项清单见 `docs/plans/2026-10-19-tutto-data-root-migration.md`。
+
 - 插件清单目录迁移的逐文件清单见 `docs/plans/2026-10-19-tutto-plugin-dir-migration.md`。
 
 ## 验收
