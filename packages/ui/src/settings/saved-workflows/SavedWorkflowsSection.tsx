@@ -7,7 +7,7 @@ import {
   resolveWorkspaceKey,
 } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Spinner } from "@/components/ui/spinner.js";
+import { Spinner } from "@/ui-foundation/adapters/spinner.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

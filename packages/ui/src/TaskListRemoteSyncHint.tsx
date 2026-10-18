@@ -1,4 +1,4 @@
-import { Spinner } from "@/components/ui/spinner.js";
+import { Spinner } from "@/ui-foundation/adapters/spinner.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function TaskListRemoteSyncHint() {

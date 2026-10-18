@@ -26,6 +26,9 @@
 | `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | `adapters/*` | **已切换**：checkbox 6、progress 4、switch 24；radio 待切换 |
 | `avatar.tsx` | `Avatar*` | `adapters/avatar` | **已切换 1 处调用**；旧文件待看屏后删除 |
 | `alert.tsx` | `Alert*` | `adapters/alert` | **已切换 9 处调用**（variant→tone） |
+| `collapsible.tsx` | `Collapsible`、`CollapsibleTrigger`、`CollapsibleContent` | `adapters/collapsible` | **已切换 14 处调用**（2026-10-19）；`forceMount`/`asChild` 已支持 |
+| `spinner.tsx` | `Spinner` | `adapters/spinner` | **已切换 11 处调用**（2026-10-19）；内联 SVG，颜色继承 |
+| `context-menu.tsx` | 复合导出 | `adapters/context-menu` | **已切换 14 处调用**（2026-10-19）；复用 DropdownMenu 根/条目，`anchorPoint` 指针定位 |
 
 ## 2. 业务面映射
 

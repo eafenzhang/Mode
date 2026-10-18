@@ -14,7 +14,7 @@ import {
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
-} from "@/components/ui/context-menu.js";
+} from "@/ui-foundation/adapters/context-menu.js";
 import {
   DropdownMenuItem,
   DropdownMenuSub,

@@ -8,7 +8,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible.js";
+} from "@/ui-foundation/adapters/collapsible.js";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {

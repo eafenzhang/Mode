@@ -116,6 +116,16 @@ success/warning/destructive。
   不得覆盖活动浮层；键盘 focus 也应可触发；
 - Toast：`bg-toast`、紧凑 padding、`shadow-lg`、`rounded-2xl`。
 
+### 2.7 Collapsible / Spinner
+
+- Collapsible：只负责展开状态与 `data-state` 语义；内容关闭时默认不渲染，
+  `forceMount` 时保留 DOM 并标 `data-state="closed"`；触发器输出 `aria-expanded`
+  与 `aria-controls`，点击/键盘 Enter/Space 切换；
+- Collapsible 的视觉全部由调用方 `className` 决定（不引入自带边框/padding 的壳）；
+- Spinner：内联 SVG + `animate-spin`，颜色继承 `currentColor`，尺寸由调用方
+  `className`（`size-*`）决定；`role="status"`、`aria-label` 由调用方提供，
+  缺省时 `aria-hidden="true"`，不参与 Tab 顺序。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -171,6 +181,8 @@ success/warning/destructive。
 焦点进入/恢复、Esc 关闭与 Tab 循环），用例 `packages/ui/test/uiFoundationSurface.test.ts`。
 反馈/导航层在 `feedbackStyles.ts` / `Tabs.tsx` / `Tooltip.tsx` / `Toast.tsx`（交互浮层 z-50
 高于 Tooltip z-40），用例 `packages/ui/test/uiFoundationFeedback.test.ts`。
+展开器与加载指示在 `Collapsible.tsx` / `Spinner.tsx`，用例
+`packages/ui/test/uiFoundationCollapsibleSpinner.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

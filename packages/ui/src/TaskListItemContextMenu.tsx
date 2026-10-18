@@ -2,7 +2,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-} from "@/components/ui/context-menu.js";
+} from "@/ui-foundation/adapters/context-menu.js";
 import type { ReactNode } from "react";
 import { TaskActionMenuContent } from "@/TaskActionMenuContent.js";
 

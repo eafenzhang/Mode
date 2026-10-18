@@ -5,7 +5,7 @@ import {
   TID_WORKFLOW_META_SAVE,
 } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Spinner } from "@/components/ui/spinner.js";
+import { Spinner } from "@/ui-foundation/adapters/spinner.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";

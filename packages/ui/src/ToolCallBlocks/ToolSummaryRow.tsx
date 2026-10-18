@@ -2,7 +2,7 @@ import type { KeyboardEvent, ReactNode } from "react";
 import { ChevronRightIcon } from "lucide-react";
 import { testId, TID_TOOL_SUMMARY_TRIGGER } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { CollapsibleTrigger } from "@/components/ui/collapsible.js";
+import { CollapsibleTrigger } from "@/ui-foundation/adapters/collapsible.js";
 import { QueuedSummaryContent } from "@/ToolCallBlocks/QueuedSummaryContent.js";
 
 export interface ToolSummaryAction {

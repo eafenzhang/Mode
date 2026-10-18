@@ -13,7 +13,7 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu.js";
+} from "@/ui-foundation/adapters/context-menu.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";

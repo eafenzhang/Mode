@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useEffect, useRef, useState } from "react";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible.js";
+import { Collapsible, CollapsibleContent } from "@/ui-foundation/adapters/collapsible.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { CheckIcon, CopyIcon } from "lucide-react";

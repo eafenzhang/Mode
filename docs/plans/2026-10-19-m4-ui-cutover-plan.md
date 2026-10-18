@@ -4,9 +4,9 @@
 > 方法：`grep -rl "components/ui/<name>" packages/ui/src` 统计**引用文件数**（不是出现次数，
 > 也不是行数）；不读取旧实现体。
 >
-> **状态（2026-10-19）：清单内 21 个模块已全部切到 `ui-foundation/adapters`。**
-> 剩余 `components/ui/` 引用集中在 context-menu(14)、collapsible(14)、spinner(11)、
-> command(7)、chart(6) 与各 viewer，属后续波次；旧文件统一保留到人工看屏验收后删除。
+> **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu 已切到
+> `ui-foundation/adapters`。** 剩余 `components/ui/` 引用集中在 command(7)、chart(6)
+> 与各 viewer；旧文件统一保留到人工看屏验收后删除。
 
 ## 基础件切换顺序（按引用面从小到大）
 
@@ -190,3 +190,15 @@ checkbox → alert → textarea`（可加 `badge`）。
 | `badge` | 15 | 直接转发旧导出名 |
 
 验证：UI 325 passed、typecheck/lint/architecture/language/format 通过。
+
+### 后续波次（2026-10-19 第十二轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `collapsible` | 14 | 新增 foundation `Collapsible`：受控/非受控 open、`asChild` 根/触发器/内容、关闭默认不渲染、`forceMount` 保留并标 `data-state="closed"`、触发器 `aria-expanded` |
+| `spinner` | 11 | 新增 foundation `Spinner`：内联 SVG + `animate-spin`，颜色继承 `currentColor`；`label` 缺省时 `aria-hidden` 且 `focusable="false"` |
+| `context-menu` | 14 | 复用 DropdownMenu 根状态/条目/子菜单；右键写入视口坐标，`DropdownMenuContent` 新增 `anchorPoint` 支持指针定位 |
+
+验证：UI 335 passed、typecheck/lint/architecture/language/format（改动文件）通过。
+已知差异：`CollapsibleContent asChild` 只合并 `data-state`/ref；context-menu 的键盘导航沿用菜单实现，
+指针越界收敛与菜单一致。

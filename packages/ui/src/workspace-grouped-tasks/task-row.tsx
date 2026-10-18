@@ -7,7 +7,7 @@ import { isCronTask, isOffPeakTask, type ModeTaskMeta } from "@mode/shared";
 import { ArrowUpToLine, Clock, Cloud, Folder, ListTree, LoaderIcon, Moon, X } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { Badge } from "@/ui-foundation/adapters/badge.js";
-import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu.js";
+import { ContextMenu, ContextMenuTrigger } from "@/ui-foundation/adapters/context-menu.js";
 import {
   Tooltip,
   TooltipContent,

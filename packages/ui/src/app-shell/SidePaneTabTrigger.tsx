@@ -26,7 +26,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu.js";
+} from "@/ui-foundation/adapters/context-menu.js";
 import { TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import type { WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";

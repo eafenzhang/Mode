@@ -170,3 +170,29 @@ export {
   type TabsProps,
   type TabsTriggerProps,
 } from "./tabs.js";
+export {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  type CollapsibleContentProps,
+  type CollapsibleProps,
+  type CollapsibleTriggerProps,
+} from "./collapsible.js";
+export { Spinner, type SpinnerProps } from "./spinner.js";
+export {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+  type ContextMenuContentProps,
+  type ContextMenuItemProps,
+  type ContextMenuProps,
+  type ContextMenuSubContentProps,
+  type ContextMenuSubProps,
+  type ContextMenuSubTriggerProps,
+  type ContextMenuTriggerProps,
+} from "./context-menu.js";

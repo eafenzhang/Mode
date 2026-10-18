@@ -15,7 +15,7 @@ import { MODE_AGENT_PROVIDER } from "@mode/shared";
 import type { CommandAck, WorkflowRunState } from "@mode/shared/mode-protocol-v4";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTitle } from "@/ui-foundation/adapters/popover.js";
-import { Spinner } from "@/components/ui/spinner.js";
+import { Spinner } from "@/ui-foundation/adapters/spinner.js";
 import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";

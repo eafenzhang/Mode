@@ -13,14 +13,14 @@ export {
   type AvatarImageProps,
   type AvatarProps,
 } from "./Avatar.js";
+export { Alert, AlertAction, AlertDescription, AlertTitle, type AlertProps } from "./Alert.js";
 export {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-  type AlertProps,
-} from "./Alert.js";
-export { AppShell, ResizeHandle, type AppShellProps, type PanelResizeBinding, type ResizeHandleProps } from "./AppShell.js";
+  AppShell,
+  ResizeHandle,
+  type AppShellProps,
+  type PanelResizeBinding,
+  type ResizeHandleProps,
+} from "./AppShell.js";
 export { ApprovalBlock, type ApprovalBlockProps } from "./ApprovalBlock.js";
 export { Button, type ButtonProps } from "./Button.js";
 export { Checkbox, type CheckboxProps } from "./Checkbox.js";
@@ -84,12 +84,7 @@ export {
 export { OnboardingShell, type OnboardingShellProps } from "./Onboarding.js";
 export { Popover, type PopoverProps } from "./Popover.js";
 export { Progress, type ProgressProps } from "./Progress.js";
-export {
-  Radio,
-  RadioGroup,
-  type RadioGroupProps,
-  type RadioProps,
-} from "./RadioGroup.js";
+export { Radio, RadioGroup, type RadioGroupProps, type RadioProps } from "./RadioGroup.js";
 export {
   QueuedInputItem,
   QueuedInputList,
@@ -117,7 +112,12 @@ export {
   type QuickpickItemProps,
   type QuickpickListProps,
 } from "./Quickpick.js";
-export { ShortcutList, ShortcutRow, type ShortcutListProps, type ShortcutRowProps } from "./Shortcuts.js";
+export {
+  ShortcutList,
+  ShortcutRow,
+  type ShortcutListProps,
+  type ShortcutRowProps,
+} from "./Shortcuts.js";
 export { ScrollArea, ScrollBar, type ScrollAreaProps, type ScrollBarProps } from "./ScrollArea.js";
 export { SelectTrigger, type SelectTriggerProps } from "./SelectTrigger.js";
 export { Separator, type SeparatorProps } from "./Separator.js";
@@ -146,11 +146,7 @@ export {
 } from "./Settings.js";
 export { Switch, type SwitchProps } from "./Switch.js";
 export { Tab, Tabs, type TabProps, type TabsProps } from "./Tabs.js";
-export {
-  isTabNavigationKey,
-  nextTabIndex,
-  type TabNavigationKey,
-} from "./tabsKeyboard.js";
+export { isTabNavigationKey, nextTabIndex, type TabNavigationKey } from "./tabsKeyboard.js";
 export { Textarea, type TextareaProps } from "./Textarea.js";
 export { Toast, type ToastProps } from "./Toast.js";
 export { ToolBlock, type ToolBlockProps } from "./ToolBlock.js";
@@ -232,15 +228,8 @@ export {
   switchThumbClassName,
   switchTrackClassName,
 } from "./formStyles.js";
-export {
-  badgeClassName,
-  type BadgeClassNameOptions,
-  type BadgeTone,
-} from "./badgeStyles.js";
-export {
-  separatorClassName,
-  type SeparatorOrientation,
-} from "./separatorStyles.js";
+export { badgeClassName, type BadgeClassNameOptions, type BadgeTone } from "./badgeStyles.js";
+export { separatorClassName, type SeparatorOrientation } from "./separatorStyles.js";
 export {
   cardActionClassName,
   cardClassName,
@@ -423,3 +412,12 @@ export {
   shortcutListClassName,
   shortcutRowClassName,
 } from "./shortcutStyles.js";
+export {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  type CollapsibleContentProps,
+  type CollapsibleProps,
+  type CollapsibleTriggerProps,
+} from "./Collapsible.js";
+export { Spinner, type SpinnerProps } from "./Spinner.js";

@@ -34,6 +34,8 @@ export interface DropdownMenuContentProps extends HTMLAttributes<HTMLDivElement>
   alignOffset?: number;
   collisionPadding?: number;
   loop?: boolean;
+  /** ContextMenu 用：以视口坐标代替触发器 rect 定位。 */
+  anchorPoint?: { x: number; y: number } | null;
   onOpenAutoFocus?: (event: MenuSelectEvent) => void;
   onCloseAutoFocus?: (event: MenuSelectEvent) => void;
 }
@@ -48,6 +50,7 @@ export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuConten
       alignOffset = 0,
       collisionPadding = 8,
       loop: _loop,
+      anchorPoint,
       onOpenAutoFocus,
       onCloseAutoFocus,
       className,
@@ -79,8 +82,18 @@ export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuConten
       }
       const measure = (): void => {
         const rect = content.getBoundingClientRect();
+        const anchor = anchorPoint
+          ? ({
+              top: anchorPoint.y,
+              left: anchorPoint.x,
+              right: anchorPoint.x,
+              bottom: anchorPoint.y,
+              width: 0,
+              height: 0,
+            } as DOMRect)
+          : trigger.getBoundingClientRect();
         const next = computePopoverPoint({
-          anchor: trigger.getBoundingClientRect(),
+          anchor,
           content: { width: rect.width, height: rect.height },
           align,
           side,
@@ -104,7 +117,7 @@ export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuConten
         window.removeEventListener("resize", measure);
         window.removeEventListener("scroll", measure, true);
       };
-    }, [open, state, align, side, sideOffset, alignOffset, collisionPadding]);
+    }, [open, state, align, side, sideOffset, alignOffset, collisionPadding, anchorPoint]);
 
     useEffect(() => {
       if (!open || typeof document === "undefined") {

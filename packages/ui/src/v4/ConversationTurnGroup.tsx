@@ -27,7 +27,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible.js";
+} from "@/ui-foundation/adapters/collapsible.js";
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import {
   CronCreateAutomationCard,

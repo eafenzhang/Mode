@@ -13,7 +13,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible.js";
+} from "@/ui-foundation/adapters/collapsible.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayInline } from "@/lib/fileDisplay.js";
 import { toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";

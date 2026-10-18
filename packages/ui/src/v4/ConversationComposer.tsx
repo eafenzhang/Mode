@@ -75,7 +75,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui-foundation/adapters/dialog.js";
-import { Spinner } from "@/components/ui/spinner.js";
+import { Spinner } from "@/ui-foundation/adapters/spinner.js";
 import { ImagePreviewDialog } from "@/components/ai-elements/image-preview-dialog.js";
 import {
   ChatMediaAttachmentPreviewDialog,

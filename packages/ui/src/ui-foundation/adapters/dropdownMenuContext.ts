@@ -41,14 +41,11 @@ export function useDropdownRadioGroupAdapterState(): DropdownRadioGroupAdapterSt
   return useContext(DropdownRadioGroupAdapterContext);
 }
 
-export interface MenuSelectEvent {
-  defaultPrevented: boolean;
-  preventDefault: () => void;
-}
+export type MenuSelectEvent = Event;
 
+/** Radix 的 onSelect/焦点回调都收到可取消的 Event；用原生 Event 保持调用点类型兼容。 */
 export function menuSelectEvent(): MenuSelectEvent {
-  const event = { defaultPrevented: false, preventDefault: () => (event.defaultPrevented = true) };
-  return event;
+  return new Event("menu-select", { cancelable: true });
 }
 
 export const MENU_ITEM_SELECTOR =

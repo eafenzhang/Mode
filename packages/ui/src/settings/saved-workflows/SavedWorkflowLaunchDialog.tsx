@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui-foundation/adapters/select.js";
-import { Spinner } from "@/components/ui/spinner.js";
+import { Spinner } from "@/ui-foundation/adapters/spinner.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

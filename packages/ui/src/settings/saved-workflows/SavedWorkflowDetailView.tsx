@@ -12,7 +12,7 @@ import {
 import type { IModeAgentService, ModeAgentSavedWorkflowTarget } from "@mode/services";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Spinner } from "@/components/ui/spinner.js";
+import { Spinner } from "@/ui-foundation/adapters/spinner.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

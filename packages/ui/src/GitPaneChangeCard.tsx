@@ -9,7 +9,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu.js";
+} from "@/ui-foundation/adapters/context-menu.js";
 import { getDiffFallbackMessageId, getGitPaneDiffPreviewPlan } from "@/GitPane/helpers.js";
 import { FileDisplayInline } from "@/lib/fileDisplay.js";
 import type { GitPaneFileChange } from "@/hooks/useGitRepository.js";

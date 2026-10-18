@@ -6,7 +6,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible.js";
+} from "@/ui-foundation/adapters/collapsible.js";
 import { cn } from "@/components/lib/utils.js";
 import { buildWorkflowTimeline } from "@/components/workflow-timeline/timeline-model.js";
 import { workflowPhasesDetail } from "@/components/workflow-timeline/timeline-summary.js";

@@ -47,7 +47,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu.js";
+} from "@/ui-foundation/adapters/context-menu.js";
 import { MarkdownBlockquote } from "@/components/ai-elements/markdown-blockquote.js";
 import {
   MarkdownListItem,

@@ -14,7 +14,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from "@/components/ui/context-menu.js";
+} from "@/ui-foundation/adapters/context-menu.js";
 import {
   createPendingTerminalInputFallback,
   consumeTerminalInputFallbackHandledData,

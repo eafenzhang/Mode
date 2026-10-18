@@ -7,7 +7,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible.js";
+} from "@/ui-foundation/adapters/collapsible.js";
 import { cn } from "@/components/lib/utils.js";
 import { draftTimeline, scanWorkflowDraft } from "@/components/workflow-timeline/draft-scan.js";
 import { WorkflowArtifactStrip } from "@/components/workflow-timeline/WorkflowArtifactStrip.js";
