@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use agent_core::plugin_tools::{PluginToolDeclaration, PluginToolSource};
+use agent_core::plugin_tools::{PluginToolDeclaration, PluginToolError, PluginToolSource};
 use plugin_host::protocol::Method;
 use plugin_host::supervisor::{SidecarSupervisor, SupervisorError};
 use serde_json::{json, Value};
@@ -66,10 +66,18 @@ impl PluginToolSource for PluginHostSource {
             .collect()
     }
 
-    fn call_tool(&self, tool_name: &str, input: &Value) -> Result<Value, String> {
-        self.request(
-            Method::CallTool,
-            json!({ "toolName": tool_name, "input": input }),
-        )
+    fn call_tool(&self, tool_name: &str, input: &Value) -> Result<Value, PluginToolError> {
+        self.supervisor
+            .request(
+                Method::CallTool,
+                json!({ "toolName": tool_name, "input": input }),
+            )
+            .map_err(|error| match error {
+                SupervisorError::Closed => PluginToolError::sdk_closed(),
+                SupervisorError::Rpc(rpc) if rpc.message.contains("closed") => {
+                    PluginToolError::sdk_closed()
+                }
+                other => PluginToolError::tool_execution_failed(other.to_string()),
+            })
     }
 }

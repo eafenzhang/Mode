@@ -44,16 +44,20 @@ rl.on('line', (line) => {
 });
 "#;
 
-fn source() -> PluginHostSource {
+fn source_with(script: &str) -> PluginHostSource {
     let config = SupervisorConfig {
         program: PathBuf::from("node"),
-        args: vec!["-e".to_string(), FAKE_SIDECAR.to_string()],
+        args: vec!["-e".to_string(), script.to_string()],
         request_timeout: Duration::from_secs(2),
         initial_backoff: Duration::from_millis(10),
         max_backoff: Duration::from_millis(50),
     };
     let supervisor = Arc::new(SidecarSupervisor::start(config).expect("启动 sidecar"));
     PluginHostSource::new(supervisor)
+}
+
+fn source() -> PluginHostSource {
+    source_with(FAKE_SIDECAR)
 }
 
 #[test]
@@ -121,5 +125,43 @@ fn call_tool_returns_the_sidecar_content_and_maps_errors() {
     let error = source
         .call_tool("nope", &json!({}))
         .expect_err("未知工具应失败");
-    assert!(error.contains("Tool not found: nope"), "实际：{error}");
+    assert_eq!(error.error_type, "tool_execution_failed");
+    assert!(
+        error.message.contains("Tool not found: nope"),
+        "实际：{}",
+        error.message
+    );
+}
+
+const CRASH_SIDECAR: &str = r#"
+const rl = require('node:readline').createInterface({ input: process.stdin });
+rl.on('line', (line) => {
+  const frame = JSON.parse(line);
+  if (frame.method === 'plugin/refresh') {
+    process.stdout.write(JSON.stringify({ id: frame.id, result: { servers: 1 } }) + '\n');
+    return;
+  }
+  if (frame.method === 'plugin/listTools') {
+    process.stdout.write(JSON.stringify({ id: frame.id, result: { tools: [{
+      name: 'echo', description: 'Echo', inputSchema: { type: 'object' }
+    }] } }) + '\n');
+    return;
+  }
+  if (frame.method === 'plugin/callTool') {
+    process.exit(0);
+  }
+});
+"#;
+
+#[test]
+fn sidecar_crash_maps_to_sdk_error_and_restarts() {
+    let source = source_with(CRASH_SIDECAR);
+    let error = source
+        .call_tool("echo", &json!({}))
+        .expect_err("崩溃应失败");
+    assert_eq!(error.error_type, "SdkError");
+    assert_eq!(error.code.as_deref(), Some("CONNECTION_CLOSED"));
+
+    let tools = source.list_tools().expect("重启后应能列工具");
+    assert_eq!(tools.len(), 1);
 }

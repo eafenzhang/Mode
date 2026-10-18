@@ -187,7 +187,9 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 
 - [x] **Step 1：无缓存/无插件**（2026-10-18）：sidecar 扫本地 cache，不联网；空 cache 时
       `listTools` 返回 `[]`，核心功能不受影响。
-- [ ] **Step 2：sidecar 崩溃重启**：supervisor 单测已覆盖；Session 级 E2E 未做。
+- [x] **Step 2：sidecar 崩溃重启**（2026-10-18）：`PluginToolError` 对齐
+      `SdkError`/`CONNECTION_CLOSED`；adapter 用例覆盖「崩溃 → SdkError → 重启后列工具」；
+      `plugin_tools` 覆盖 Session 侧错误事件形状。
 - [x] **Step 3：E2E**（2026-10-18）：`probe-plugin-install-uninstall.mts`——安装前 `[]` →
       安装+refresh 工具出现并可调用 → 卸载+refresh 后 `[]`。
 - [ ] **Step 4：`cargo clippy -D warnings` + 相关测试全绿；提交。**

@@ -46,13 +46,37 @@ impl PluginToolDeclaration {
     }
 }
 
+/// 插件工具调用的错误。
+///
+/// 观察：MCP server 崩溃时 oracle 返回 `type:"SdkError"` / `message:"Connection closed"` /
+/// `code:"CONNECTION_CLOSED"`；其它失败是 `tool_execution_failed`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PluginToolError {
+    pub error_type: String,
     pub message: String,
+    pub code: Option<String>,
+}
+
+impl PluginToolError {
+    pub fn sdk_closed() -> Self {
+        Self {
+            error_type: "SdkError".to_string(),
+            message: "Connection closed".to_string(),
+            code: Some("CONNECTION_CLOSED".to_string()),
+        }
+    }
+
+    pub fn tool_execution_failed(message: impl Into<String>) -> Self {
+        Self {
+            error_type: "tool_execution_failed".to_string(),
+            message: message.into(),
+            code: Some("TOOL_EXECUTION_FAILED".to_string()),
+        }
+    }
 }
 
 pub trait PluginToolSource: Send + Sync {
     fn list_tools(&self) -> Result<Vec<PluginToolDeclaration>, String>;
     /// 返回值约定为 `{ "content": "<工具正文>" }`（与 sidecar 的 `plugin/callTool` 一致）。
-    fn call_tool(&self, tool_name: &str, input: &Value) -> Result<Value, String>;
+    fn call_tool(&self, tool_name: &str, input: &Value) -> Result<Value, PluginToolError>;
 }

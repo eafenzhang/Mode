@@ -205,12 +205,23 @@ impl Session {
                     Ok(ToolOutcome::text(content))
                 }
             }
-            Err(message) => Err(agent_tools::ToolError {
-                error_type: "tool_execution_failed",
-                message,
-                code: Some("TOOL_EXECUTION_FAILED"),
-                detail: None,
-            }),
+            Err(error) => {
+                let error_type: &'static str = if error.error_type == "SdkError" {
+                    "SdkError"
+                } else {
+                    "tool_execution_failed"
+                };
+                let code: Option<&'static str> = match error.code.as_deref() {
+                    Some("CONNECTION_CLOSED") => Some("CONNECTION_CLOSED"),
+                    _ => Some("TOOL_EXECUTION_FAILED"),
+                };
+                Err(agent_tools::ToolError {
+                    error_type,
+                    message: error.message,
+                    code,
+                    detail: None,
+                })
+            }
         }
     }
 

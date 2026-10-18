@@ -220,9 +220,10 @@
 - **崩溃**：调用 `crash` 让 server 退出 → 工具错误 `type:"SdkError"`、`message:"Connection closed"`、
   `code:"CONNECTION_CLOSED"`；**下一次 `echo` 调用自动重启 server 并成功**（约 138ms）。
 - **未观察**：反复崩溃/重启上限、启动超时、并行会话下的 server 复用。
-- 与 Rust 侧的差异：我们的 `SupervisorError::Closed` 目前映射为字符串，再落到
-  `tool_execution_failed`；oracle 的 MCP 崩溃是 `SdkError`/`CONNECTION_CLOSED`。Task 5 实现时
-  需要把这个错误形状对齐（或显式登记为差异）。
+- **Rust 侧已对齐（2026-10-18）**：`PluginToolError` 区分 `SdkError`（message
+  `Connection closed`、code `CONNECTION_CLOSED`）与 `tool_execution_failed`；
+  supervisor 的 `Closed` 或含 `closed` 的 RPC 错误映射为前者。下一次 refresh/listTools 会
+  重启 sidecar（adapter 用例覆盖：崩溃 → SdkError → 重启后可列工具）。
 
 ## 6. 复现
 

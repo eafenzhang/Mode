@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
-use agent_core::plugin_tools::{PluginToolDeclaration, PluginToolSource};
+use agent_core::plugin_tools::{PluginToolDeclaration, PluginToolError, PluginToolSource};
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
 use agent_core::{SessionEvent, SessionEventType};
@@ -46,17 +46,28 @@ impl PluginToolSource for FakeSource {
                 side_effect_scope: Some("system".to_string()),
                 budget_strategy: Some("artifact".to_string()),
             },
+            PluginToolDeclaration {
+                name: "plugin_crash".to_string(),
+                description: "Connection closed".to_string(),
+                input_schema: json!({ "type": "object" }),
+                risk_level: Some("high".to_string()),
+                side_effect_scope: Some("system".to_string()),
+                budget_strategy: Some("artifact".to_string()),
+            },
         ])
     }
 
-    fn call_tool(&self, tool_name: &str, input: &Value) -> Result<Value, String> {
+    fn call_tool(&self, tool_name: &str, input: &Value) -> Result<Value, PluginToolError> {
         match tool_name {
             "plugin_echo" => Ok(json!({
                 "content": input.get("text").and_then(Value::as_str).unwrap_or("")
             })),
-            "plugin_fail" => Err("boom".to_string()),
+            "plugin_fail" => Err(PluginToolError::tool_execution_failed("boom")),
             "plugin_high" => Ok(json!({ "content": "high-ok" })),
-            other => Err(format!("Tool not found: {other}")),
+            "plugin_crash" => Err(PluginToolError::sdk_closed()),
+            other => Err(PluginToolError::tool_execution_failed(format!(
+                "Tool not found: {other}"
+            ))),
         }
     }
 }
@@ -67,8 +78,8 @@ impl PluginToolSource for FailingSource {
     fn list_tools(&self) -> Result<Vec<PluginToolDeclaration>, String> {
         Err("sidecar unavailable".to_string())
     }
-    fn call_tool(&self, _tool_name: &str, _input: &Value) -> Result<Value, String> {
-        Err("unused".to_string())
+    fn call_tool(&self, _tool_name: &str, _input: &Value) -> Result<Value, PluginToolError> {
+        Err(PluginToolError::tool_execution_failed("unused"))
     }
 }
 
@@ -296,4 +307,33 @@ fn declared_high_risk_plugin_tool_uses_its_metadata() {
             .as_deref(),
         Some("artifact")
     );
+}
+
+#[test]
+fn sdk_error_shape_is_preserved() {
+    let dir = temp_dir("sdk-error");
+    let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
+        .with_plugin_tools(Arc::new(FakeSource))
+        .expect("listTools");
+    let provider = provider(vec![ScriptToolCall {
+        name: "plugin_crash".to_string(),
+        input: json!({}),
+    }]);
+    let mut sink = Vec::new();
+    session
+        .run_turn("crash", &provider, &mut sink)
+        .expect("turn");
+
+    let error = sink
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::ToolUpdated)
+        .filter_map(|event| event.payload_as::<ToolUpdatedPayload>().expect("能解码"))
+        .find_map(|payload| match payload {
+            ToolUpdatedPayload::Error(error) => Some(error),
+            _ => None,
+        })
+        .expect("应有错误事件");
+    assert_eq!(error.error.error_type, "SdkError");
+    assert_eq!(error.error.code.as_deref(), Some("CONNECTION_CLOSED"));
+    assert_eq!(error.error.message, "Connection closed");
 }
