@@ -162,6 +162,13 @@ jobs:
           changed=$(git --no-pager diff --numstat -- THIRD-PARTY-NOTICES.md third-party/inventory.json | wc -l)
           git --no-pager diff --stat -- THIRD-PARTY-NOTICES.md third-party/inventory.json
           if [ "$changed" -ne 0 ]; then
+            # 失败时把差异写进 job summary（日志需要管理员权限才能下载）。
+            {
+              echo "### Regenerated ledger diff"
+              echo '```diff'
+              git --no-pager diff -- THIRD-PARTY-NOTICES.md third-party/inventory.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
             echo "::error::重生成结果与已入库台账不一致（$changed 个文件有差异），生成不可复现"
             exit 1
           fi
