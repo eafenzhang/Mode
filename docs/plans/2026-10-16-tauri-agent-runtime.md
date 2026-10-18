@@ -489,9 +489,13 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
       盘点结果与分类表见 `docs/specs/agent-runtime-parity-matrix.md`；覆盖来源改为
       oracle 夹具 + `crates/agent-*/tests`。是否按此口径更新阶段验收第 5 条**待 ledger 裁决**。
 
-- [ ] **Step 2: 把覆盖率报告接进 CI**（新 job 或挂进现有 `verify`）
+- [x] **Step 2: 把覆盖率报告接进 CI**（2026-10-18）：`scripts/agent-runtime-parity-matrix.ts
+  --check` 挂进 release `verify` job；门禁语义不是行覆盖率，而是「services 测试必须归类 +
+  运行时对拍资产必须存在」。纯函数用例在
+  `packages/desktop/tests/agent-runtime-parity-matrix.test.mts`（4 例）。
+  实跑输出：60 个 services 测试全部归类、11/11 对拍资产存在。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**（2026-10-18，随 Step 2 一并提交）
 
 ---
 

@@ -234,6 +234,12 @@ jobs:
       - name: Language policy metric (roadmap M5)
         run: node scripts/check-language-policy.mjs
 
+      # 路线图 M2 Task 7：对拍矩阵的分类门禁（不是行覆盖率统计）。
+      # 新增 packages/services 测试必须显式归类，运行时对拍资产必须存在；
+      # 规则与清单见 docs/specs/agent-runtime-parity-matrix.md。
+      - name: Agent runtime parity matrix (roadmap M2)
+        run: pnpm exec tsx scripts/agent-runtime-parity-matrix.ts --check
+
       # 路线图 M5「三指标仪表入库」第 2 项：上游重合度必须为 0。
       # 命令名按路线图原文（`pnpm verify:self-developed`），由 M4 交付
       # `scripts/upstream-overlap-check.mjs` + package.json script。

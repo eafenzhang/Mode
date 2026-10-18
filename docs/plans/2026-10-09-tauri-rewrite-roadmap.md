@@ -191,7 +191,11 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 - [x] **权限引擎**〔2026-10-18 按实测回填〕：`permission_engine.rs` / `permission_channel.rs` /
   `approval.rs` / `rule_store.rs`；`allow_project` 落 `.mode/cli/db/db.sqlite` 的
   `local_setting`（D1 裁决「Rust 直连 sqlite」，含并发追加与丢失更新用例）。
-- [ ] **对拍矩阵收口**：把 services 198 个测试中与运行时相关的用例逐个转为 Rust 侧等价测试（转不动的记录原因进 spec），覆盖率报告进 CI。**尚未开始**；子计划待建（见 M2 计划 Task 7）。
+- [x] **对拍矩阵收口**〔2026-10-18 按实测改口径〕：`packages/services/test` 60 个文件里
+  **0 个**引用运行时会话面，原「198 个测试里挑运行时用例」的前提已过期；覆盖来源改为
+  oracle 夹具 + `crates/agent-*/tests`，分类与理由见 `docs/specs/agent-runtime-parity-matrix.md`。
+  CI 门禁 `scripts/agent-runtime-parity-matrix.ts --check` 已挂进 release `verify`
+  （60/60 归类、11/11 资产存在）。真实模型 20 个端到端任务仍属阶段验收第 3 条，未执行。
 
 **阶段验收：** 对拍套件全绿（工具序列 + 文件快照 + 事件流三层一致）；双链路 E2E 各自通过；用真实模型跑通 20 个端到端任务（改代码/跑测试/浏览器）无行为回归。
 

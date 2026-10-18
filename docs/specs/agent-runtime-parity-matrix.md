@@ -70,9 +70,36 @@
 | `crates/agent-tools/tests/read_only.rs` + `src/task.rs` 单测 | 工具纯函数层与任务注册表 |
 | `crates/agent-protocol/tests/fixtures.rs` / `progress.rs` | 协议帧形状（含 progress） |
 
+## CI 门禁（2026-10-18，Task 7 Step 2）
+
+**它是什么**：对「分类是否过期」的守卫，不是行覆盖率统计。运行：
+
+```bash
+pnpm exec tsx scripts/agent-runtime-parity-matrix.ts --check
+```
+
+挂在 release CI 的 `verify` job（`Language policy metric` 之后），失败即阻断发版。
+
+**规则**：
+
+1. `packages/services/test/*.test.ts` 每个文件必须命中且只命中一条分类规则
+   （`bot` / `cua` / `data` / `plugin` / `provider` / `host-untranslatable` / `misc`）；
+   出现新文件而没有任何规则命中 → 退出 1，提示补分类（写明「已转 / 转不动 / 不适用」）。
+2. 「运行时对拍资产」清单里的路径必须存在（上面那张表的路径）；文件被删/改名而清单未更新
+   → 退出 1。清单只列**入口文件**，目录级资产（oracle fixtures）按目录存在性检查。
+3. 输出固定摘要（各域文件数、未分类文件、缺失资产），`--json` 可输出机器可读版本。
+
+**不做什么**：不把 services 测试逐个转成 Rust（前提已过期，见上）；不计算行覆盖率；
+不检查 Rust 测试是否真的断言了某个场景——那由各测试文件自身保证。
+
+判定函数与清单在脚本里是纯函数导出（`classifyServicesTestFile` / `buildParityReport`），
+由 `packages/desktop/tests/agent-runtime-parity-matrix.test.mts` 覆盖；改分类规则时先改
+本 spec，再改脚本与测试。
+
 ## 待办（Task 7 后续）
 
 1. 若确认上述口径，更新阶段计划的 Task 7 步骤与阶段验收第 5 条（不再以
-   `packages/services` 为覆盖率分母）。
+   `packages/services` 为覆盖率分母）。〔2026-10-18：Task 7 Step 1/2 已按此口径落地〕
 2. 覆盖率报告进 CI 前，先定义「已转 / 转不动 / 不适用」的文件清单格式（本文件的表格即输入）。
+   〔2026-10-18：格式即脚本内的分类规则与上面的 CI 门禁一节〕
 3. 真实模型 20 个端到端任务（阶段验收第 3 条）仍未执行，需人参与与计费，不在自动巡检范围。
