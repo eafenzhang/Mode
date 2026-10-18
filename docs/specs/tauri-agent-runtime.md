@@ -395,6 +395,9 @@ CREATE TABLE local_setting (
 `rule_store.rs` 有一条 2 线程 × 20 次并发追加的用例。写失败记在 `rule_store_error()`。
 与 M3 Node Host 同时打开同一 DB 的剩余风险是 **Host 侧长事务**导致的等待，而不是丢更新。
 
+审批的宿主适配已提供本地半边：`ChannelPermissionHandler`（请求/应答 channel，
+通道断开按 deny）；把它接到 stdio 的 `interaction/requestPermission` 反向请求仍待 host 层。
+
 **未决（写进计划，不自行拍板）**：这条持久化归**谁**写？观察里是运行时装进程自己写的，但
 目标架构中 DB 由 M3 的 Node Host 侧持有（`node:sqlite`）。Rust 侧是直连 sqlite 还是经 Host 代理，
 属架构分叉，需人在 Task 3 子计划里定。

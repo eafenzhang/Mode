@@ -16,6 +16,8 @@
 //! 安全 allowlist 是**观察枚举**，不是从实现里搬来的：未观察到的安全命令可能被多问一次
 //! （保守方向）；`deny` 是用户答复，不是策略输出，所以 [`Decision`] 没有 Deny 变体。
 
+use std::sync::mpsc::{self, Receiver, Sender};
+
 use serde_json::Value;
 
 use agent_protocol::permission::{PermissionDecision, PermissionRequest, PermissionResponse};
@@ -41,6 +43,58 @@ impl PermissionHandler for AutoAllow {
             permission_updates: None,
             extra: ExtraFields::new(),
         }
+    }
+}
+
+/// 跨线程的审批适配器：把请求交给宿主线程，阻塞等待应答。
+///
+/// 这是 stdio `interaction/requestPermission` 反向请求的「本地半边」：宿主线程从
+/// [`Receiver<PermissionRequest>`] 取请求、转发给 host/UI，再把答复通过
+/// [`Sender<PermissionResponse>`] 送回。通道断开时按 **deny** 处理（fail closed），
+/// 不把「没人应答」当成允许。
+pub struct ChannelPermissionHandler {
+    requests: Sender<PermissionRequest>,
+    responses: Receiver<PermissionResponse>,
+}
+
+impl ChannelPermissionHandler {
+    /// 返回 `(handler, 请求接收端, 应答发送端)`。
+    pub fn pair() -> (
+        Self,
+        Receiver<PermissionRequest>,
+        Sender<PermissionResponse>,
+    ) {
+        let (requests, request_receiver) = mpsc::channel();
+        let (response_sender, responses) = mpsc::channel();
+        (
+            Self {
+                requests,
+                responses,
+            },
+            request_receiver,
+            response_sender,
+        )
+    }
+}
+
+impl PermissionHandler for ChannelPermissionHandler {
+    fn request(&mut self, request: &PermissionRequest) -> PermissionResponse {
+        if self.requests.send(request.clone()).is_err() {
+            return denied("permission channel closed");
+        }
+        self.responses
+            .recv()
+            .unwrap_or_else(|_| denied("permission channel closed"))
+    }
+}
+
+fn denied(reason: &str) -> PermissionResponse {
+    PermissionResponse {
+        decision: PermissionDecision::Deny,
+        reason: Some(reason.to_string()),
+        modified_input: None,
+        permission_updates: None,
+        extra: ExtraFields::new(),
     }
 }
 
