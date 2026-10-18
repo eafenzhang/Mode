@@ -140,13 +140,15 @@ impl Session {
     /// 载荷只填工具层知道的字段：`turnNumber` 与 `input`。`messageId` / `inputId` / `queryId` /
     /// `foregroundExecutionId` 由会话与模型层产生，这里留空而不是编造（Task 5 补）。
     pub fn begin_turn(&mut self, prompt: &str) -> SessionEvent {
+        // 观察值（spec §3.5）：第一个 turn 的 `turnNumber` 是 **0**，之后逐次 +1。
+        let turn_number = self.turn_number;
         self.turn_number += 1;
-        let turn_id = format!("turn_{}", self.turn_number);
+        let turn_id = format!("turn_{turn_number}");
         self.current_turn_id = Some(turn_id.clone());
         let payload = TurnStartedPayload {
             // 观察值：`executionStartedAt` 是小数毫秒。
             execution_started_at: Some(now_ms() as f64),
-            turn_number: self.turn_number,
+            turn_number,
             input: prompt.to_string(),
             input_id: None,
             query_id: None,

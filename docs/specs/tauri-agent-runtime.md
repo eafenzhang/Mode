@@ -559,6 +559,72 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
 **仍未观察（Step 0 剩余）**：大输出阈值的精确字节（只钉到 **30,000–30,720** 区间）；
 host 层 `CommandInbox` 的排队顺序与 key 粒度。
 
+### 3.5 会话流与后台通知准入（Task 5 Step 0 观察，2026-10-18）
+
+出处：`packages/desktop/tests/agent-runtime-oracle/probe-session-stream.mts`（三个用例）。
+
+**纯文本 turn 的事件顺序**（逐条，`desktop-continuous`）：
+
+```text
+session.titleUpdated
+turn.started
+session.updated（messageCount=6）
+session.updated（provider/model/请求元信息）
+model.streaming（kind:"text_delta"）
+session.updated（空载荷）
+session.updated（content、stopReason:"stop"、toolCallCount:0）
+turn.completed（resultType:"success"、tokenCount、usage）
+```
+
+- **`turn.started.turnNumber` 第一个是 `0`**（不是 1），之后逐次 +1；Rust 侧已修正并有单测
+  `crates/agent-core/tests/session_turn.rs`。
+- `turn.completed` 的 `usage` 键（10 个）：`source` / `modelRequestCount` / `inputTokens` /
+  `outputTokens` / `totalTokens` / `cacheReadTokens` / `cacheWriteTokens` / `reasoningTokens` /
+  `webFetchRequests` / `webSearchRequests`。
+- 本机从 `turn.started` 到 `model.streaming` 约 5s，是 MCP 启动开销（§6.3），不是会话语义。
+
+**工具 turn 的插入位置**（Read 为例）：
+
+```text
+… model.streaming（tool_input_start → tool_input_delta → tool_input_end → tool_call）
+tool.updated（scheduled）→ tool.updated（started）
+session.updated（assistant 消息：stopReason:"tool-calls"、toolCallCount:1）
+tool.updated（result）→ tool.updated（batch）→ streamRecovery.updated
+session.updated（messageCount=8）
+… model.streaming（text_delta）→ turn.completed
+```
+
+- **长跑 `Bash` 每约 1s 发一条 `tool.updated` / `kind:"progress"`**，载荷逐字（一次实测）：
+
+```json
+{"toolCallId":"toolu_mock_2_0","toolName":"Bash","elapsedMs":3049,"pid":21596,"stdoutBytes":0,"stderrBytes":0,"outputBytes":0,"outputPreview":{"text":"","fullText":"","totalLines":0,"totalBytes":0,"linesEstimated":false},"stdoutTail":"","kind":"progress"}
+```
+
+  `agent-protocol` 目前**刻意不建模** `progress` / `raw`（解析失败），Task 5 必须补 `progress`。
+
+**后台通知与运行中 turn 的相遇（DR-T5-3 的依据）**
+
+- 后台任务在**另一个 turn 运行期间**完成：`session.updated {status:"completed"}` 照常发出，
+  但**没有产生通知 turn**（该 turn 结束后空闲等待 20s 仍无）。
+- 对照（§3.4）：会话**空闲**时同一场景会立刻开通知 turn。
+- 结论：oracle **不排队，直接丢弃**。M2 对拍应按此实现；若产品要求排队，属**有意差异**，
+  需单独 spec 批准，不能默默改掉。
+
+**重放类型盘点（只读 `packages/shared` 声明面）**
+
+| 类型 | 关键字段 |
+| --- | --- |
+| `TaskStreamMirrorBatchEvent` | `taskId`、`runId`、`batchSeq`、`fromSeq`、`toSeq`、`ops[]`、`terminal` |
+| `TaskStreamMirrorOp` | 每条带 `seq`；`kind:"user_message"` 或 `kind:"stream_event"` |
+| `TaskStreamWatermark` | `runId`、`opSeq` |
+| `TaskSnapshotInvalidatedEvent` | `taskId`、`reason`、可选 `streamWatermark` |
+
+这些类型的所有者是 **Host/relay 层**（注释点名 desktop `taskRealtimeBus`/`taskRealtimeBridge`、
+services `sessionRealtimePort`）；stdio 运行时只发 `desktop-continuous`。M2 **不复制**快照/队列，
+只透传 `deliveryKind`（与 Task 5 子计划的 DR-T5-1 建议一致）。
+
+复现命令：`pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-session-stream.mts`。
+
 ## 4. 对拍可重复性：mock provider
 
 ### 4.1 为什么必须有

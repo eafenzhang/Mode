@@ -67,12 +67,15 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 重试、计费头）另立任务——理由：事件契约没定死之前写 HTTP 客户端会返工，而 clean-room
 要求我们不照抄旧 provider 实现。
 
-### DR-T5-3：通知 turn 的准入
+### DR-T5-3：通知 turn 的准入（**已由观察修正**）
 
-后台任务完成时若会话**空闲** → 立即开 turn；若**有 turn 在跑** → 排队，当前 turn 结束后
-按完成顺序补跑（与 Task 4 观察到的「多任务按完成顺序各起一个 turn」一致）。
-这层排队先做在 `agent-core` 的会话循环内（带单测），**host 层 `CommandInbox` 的跨层队列
-仍按 DR-T4-7 等人裁决**，两者不要混成一个概念。
+**观察（2026-10-18，spec §3.5）**：后台任务完成时若会话**空闲** → 立刻开通知 turn；
+若**有 turn 在跑** → **没有通知 turn**（turn 结束后空闲 20s 仍无，未观察到重试）。
+即 oracle **不排队、直接丢弃**。
+
+**决定**：M2 的对拍行为按 oracle 实现（不排队）。若要改成「忙时排队」，必须作为**有意差异**
+单独登记并由 spec 批准——不能拿产品直觉覆盖对拍基线。host 层 `CommandInbox`（DR-T4-7）
+仍是另一个概念，不要混谈。
 
 ### DR-T5-4：快照形状不自行发明
 
@@ -89,20 +92,16 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 - Create: `packages/desktop/tests/agent-runtime-oracle/probe-session-stream.mts`
 - Test: 复用 `pnpm exec tsx --test packages/desktop/tests/agent-runtime-oracle/*.test.mts`
 
-- [ ] **Step 0.1：录一次「纯文本 turn」的完整事件序列**（无工具调用）。要回答：
-      `turn.started` → `session.updated` ×N → `model.streaming` ×N → `turn.completed` 的
-      逐条顺序与载荷字段；`model.streaming` 的 `kind` 取值集合（`text_delta` /
-      `tool_input_start|delta|end` / `tool_call` 之外还有没有别的）。
-- [ ] **Step 0.2：录一次「工具 turn」的完整序列**，确认工具事件在模型流之间的插入位置，
-      以及 `turn.completed` 的 `resultType` 取值（`success` / `cancelled` / 其它）。
-- [ ] **Step 0.3：观察后台通知 turn 与正在运行的 turn 相遇时的行为**：先起一个长 turn，
-      再让后台任务完成，观察通知 turn 是排队、拒绝还是穿插（`probe-task-control.mts`
-      的动态剧本可复用）。
-- [ ] **Step 0.4：盘点 `web-remote-replayable` 的既有类型与测试**（只读声明面与测试，
-      不读 `packages/services/src/**` 的实现体）：`task-realtime.ts` 的
-      `task_snapshot_invalidated` / `task_stream_mirror_batch`（`fromSeq` / `toSeq` /
-      `batchSeq` / `terminal`）与相关测试，产出一张「谁维护游标、谁裁剪队列」的表。
-- [ ] **Step 0.5：把上述结果写进 spec §3.5，并把未观察项逐条列出。**
+- [x] **Step 0.1：录一次「纯文本 turn」的完整事件序列**（2026-10-18）：
+      顺序见 spec §3.5；`turn.started.turnNumber` 首个是 **0**（已修 Rust 侧并加单测）。
+- [x] **Step 0.2：录一次「工具 turn」的完整序列**（2026-10-18）：工具事件插在
+      `tool_call` 之后、下一次 `text_delta` 之前；另外发现长跑 Bash 的
+      `tool.updated kind:"progress"`（约 1s 一条）尚未建模。
+- [x] **Step 0.3：观察后台通知 turn 与正在运行的 turn 相遇**（2026-10-18）：
+      **没有通知 turn**（20s 内无重试）→ oracle 不排队、直接丢弃；DR-T5-3 已据此修正。
+- [x] **Step 0.4：盘点 `web-remote-replayable` 的类型**（2026-10-18）：见 spec §3.5 的表；
+      所有者是 Host/relay 层，M2 不复制。
+- [x] **Step 0.5：结果写进 spec §3.5**（2026-10-18）。
 
 **Step 0 的产物**：spec §3.5 + 可复现探针；没有观察到的形状不写进实现。
 
@@ -112,6 +111,8 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 
 **Files:**
 - Create: `crates/agent-core/src/provider.rs`
+- Modify: `crates/agent-protocol/src/session_event.rs`（补 `tool.updated` 的 `progress` kind，
+  载荷形状见 spec §3.5）
 - Test: `crates/agent-core/tests/provider_script.rs`
 
 **Interfaces:**
@@ -196,3 +197,14 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 | 把重放做进 agent-core，与 Host 重复 | DR-T5-1 建议 (a)，并由 ledger 裁决 |
 | 通知 turn 与用户输入竞争 | DR-T5-3 的排队语义 + 顺序用例；不与 host `CommandInbox` 混谈 |
 | 事件流第三层对拍引入时间字段噪声 | 沿用 spec §3 的时间白名单，只比规范化后的形状 |
+
+## 执行记录（2026-10-18 巡检轮）
+
+- **Step 0 全部完成**：新增 `probe-session-stream.mts`（纯文本 turn / 工具 turn /
+  通知与运行中 turn 三个用例）；结论写入 spec §3.5。
+- 发现并修正：`turn.started.turnNumber` 首个应为 **0**（新增
+  `crates/agent-core/tests/session_turn.rs`）。
+- 发现但未做：`tool.updated kind:"progress"`（约 1s 一条）尚未在 `agent-protocol` 建模，
+  归 Task 1 的前置。
+- 关键结论：后台任务在另一个 turn 运行期间完成时，oracle **不排队、直接丢弃**通知
+  （spec §3.5）；DR-T5-3 已据此从「排队」改为「按 oracle 丢弃」。
