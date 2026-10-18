@@ -80,6 +80,10 @@
   `DESIGN.md` 的列表/树规范；
 - 验收：本地/远程工作区、文件树刷新与搜索、任务列表分组与归档动作；
 - 注意：`workspaceIdentity` 与路径展示规则不得改动（AGENTS.md）。
+- **静态结构已起步（2026-10-19）**：`workspaceStyles.ts` / `Workspace.tsx`——文件树
+  （role=tree/treeitem、aria-level/selected/expanded、8+12px 缩进、选中/焦点态）、任务列表
+  （行高、选中态、标题截断、元数据弱化）、任务状态语义色与状态点；用例
+  `packages/ui/test/uiFoundationWorkspace.test.ts`。真实文件/任务数据与搜索仍待接线。
 
 ### P1.5 设置与插件（`settings/`、`v4/`、插件商店）
 

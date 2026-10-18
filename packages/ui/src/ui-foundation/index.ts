@@ -47,6 +47,18 @@ export { Textarea, type TextareaProps } from "./Textarea.js";
 export { Toast, type ToastProps } from "./Toast.js";
 export { ToolBlock, type ToolBlockProps } from "./ToolBlock.js";
 export { Tooltip, type TooltipProps } from "./Tooltip.js";
+export {
+  FileTree,
+  FileTreeItem,
+  TaskList,
+  TaskRow,
+  TaskStatusBadge,
+  type FileTreeItemProps,
+  type FileTreeProps,
+  type TaskListProps,
+  type TaskRowProps,
+  type TaskStatusBadgeProps,
+} from "./Workspace.js";
 export { WorkspaceHeader, type WorkspaceHeaderProps } from "./WorkspaceHeader.js";
 export { controlRadiusClass } from "./radius.js";
 export {
@@ -126,6 +138,23 @@ export {
   queuedInputTextClassName,
   type DiffLineKind,
 } from "./diffStyles.js";
+export {
+  FILE_TREE_INDENT_BASE_PX,
+  FILE_TREE_INDENT_STEP_PX,
+  fileTreeClassName,
+  fileTreeIconClassName,
+  fileTreeItemClassName,
+  fileTreeLabelClassName,
+  taskListClassName,
+  taskRowClassName,
+  taskRowMetaClassName,
+  taskRowTitleClassName,
+  taskStatusBadgeClassName,
+  taskStatusDotClassName,
+  type FileTreeItemClassNameOptions,
+  type TaskRowClassNameOptions,
+  type TaskStatus,
+} from "./workspaceStyles.js";
 export {
   clampPanelSize,
   isResizeKey,
