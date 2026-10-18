@@ -1,10 +1,5 @@
-export {
-  AppShell,
-  ResizeHandle,
-  type AppShellProps,
-  type PanelResizeBinding,
-  type ResizeHandleProps,
-} from "./AppShell.js";
+export { AppShell, ResizeHandle, type AppShellProps, type PanelResizeBinding, type ResizeHandleProps } from "./AppShell.js";
+export { ApprovalBlock, type ApprovalBlockProps } from "./ApprovalBlock.js";
 export { Button, type ButtonProps } from "./Button.js";
 export {
   ChatInputShell,
@@ -43,6 +38,7 @@ export {
 } from "./tabsKeyboard.js";
 export { Textarea, type TextareaProps } from "./Textarea.js";
 export { Toast, type ToastProps } from "./Toast.js";
+export { ToolBlock, type ToolBlockProps } from "./ToolBlock.js";
 export { Tooltip, type TooltipProps } from "./Tooltip.js";
 export { WorkspaceHeader, type WorkspaceHeaderProps } from "./WorkspaceHeader.js";
 export { controlRadiusClass } from "./radius.js";
@@ -96,6 +92,20 @@ export {
   workspaceHeaderSubtitleClassName,
   workspaceHeaderTitleClassName,
 } from "./headerStyles.js";
+export {
+  approvalActionsClassName,
+  approvalBlockClassName,
+  approvalDescriptionClassName,
+  approvalStatusClassName,
+  approvalTitleClassName,
+  toolBlockClassName,
+  toolBodyClassName,
+  toolHeaderClassName,
+  toolNameClassName,
+  toolStatusClassName,
+  type ApprovalStatus,
+  type ToolBlockState,
+} from "./toolStyles.js";
 export {
   clampPanelSize,
   isResizeKey,
