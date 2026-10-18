@@ -140,3 +140,37 @@
 - SEA 随包插件资产键前缀 `mode-official-plugins/` → `tutto-official-plugins/`（生产/消费同版本配对）；
 - 插件同步临时目录前缀 `mode-plugin-sync-` → `tutto-plugin-sync-`；
 - bootstrap 31、services 379（371 pass/8 skip）全绿。
+
+## 执行状态板（2026-10-19）
+
+### 已完成
+
+| 面 | 结果 | 提交 |
+| --- | --- | --- |
+| S1 可见身份 + 新图标 | productName/identifier/Tauri 标题/userData 迁移/图标/About/三语文案/产物名 | `18030a14` |
+| S4 deep link | `tutto://` 默认，兼容 `mode://`/`zcode://`；Tauri/Electron/Linux 双注册 | `3e674809` |
+| S4 LAN cookie | `tutto_lite_token`，三代读取、只写新名 | `ac9e35a1` |
+| S4 协议名 + MCP request-context | `Tutto Protocol` 三代握手；`com.tutto/*` 双旧键读取 | `9ae09baa` |
+| S4 忽略文件 | `.tuttoignore` 三代读取 | `28eb99db` |
+| S4 同步元数据 | `.tutto-plugin-sync.json`，旧归档可读 | `90f86508` |
+| S4 插件清单目录 | `.tutto-plugin` 新名 + 两代旧名兜底 | `a2cd942f` |
+| S4 seed 标记 | `.tutto-plugin-seed.json`，旧标记仍判定已 seed | `76149ea9` |
+| S5 根文档 | README/RELEASE 产品名与产物名 | `ca3a4407` |
+| S5 内部标识 | SEA 资产键、同步临时目录前缀 | `e72339dc` |
+| S3 对外环境变量 | 读取 `TUTTO_` → `MODE_` → 旧链；写入四代 | `93daf8ad` |
+
+### 待执行（需单独立项，不宜在巡检增量中做）
+
+| 面 | 规模/风险 | 前置清单 |
+| --- | --- | --- |
+| S3 数据根 `.mode → .tutto` | 288 处引用、归属文件/产品 id、oracle 脚本、迁移失败回退 | `2026-10-19-tutto-data-root-migration.md` |
+| S4 插件市场 id | 已装插件 id 归一、缓存与 CDN 清单兼容 | `2026-10-18-m3-plugin-market-status.md`（P2 口径） |
+| S2 `@mode/* → @tutto/*` | 29 包 + 锁文件，需要一次完整 install | — |
+| S5 目录改名 | `apps/mode-cli`、`packages/mode-*`、`scripts/mode-*` | — |
+
+### 外部契约例外（不改）
+
+- `OFFICIAL_MCP_AUTH_META_KEY = com.mode/official-mcp-auth`（已发布插件读取方）；
+- OAuth redirectUri `mode://oauth/callback`（外部服务登记未切换前）；
+- 仓库链接 `eafenzhang/Mode`（仓库本身未改名）；
+- 旧路径/旧 id/旧 cookie/旧 scheme 的**读取兼容**保留。
