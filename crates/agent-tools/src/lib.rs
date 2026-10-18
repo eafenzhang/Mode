@@ -59,8 +59,9 @@ pub use read::{
     estimated_tokens, FileState, READ_DESCRIPTION, READ_INPUT_SCHEMA, TOKEN_LIMIT, WASTED_CALL,
 };
 pub use task::{
-    preflight_error, task_output_input_schema, task_stop_input_schema, TaskRegistry, TaskStatus,
-    TASK_OUTPUT_DESCRIPTION, TASK_OUTPUT_INPUT_SCHEMA, TASK_STOP_DESCRIPTION, TASK_STOP_INPUT_SCHEMA,
+    preflight_error, task_output_input_schema, task_stop_input_schema, TaskNotification,
+    TaskRegistry, TaskStatus, TASK_OUTPUT_DESCRIPTION, TASK_OUTPUT_INPUT_SCHEMA,
+    TASK_STOP_DESCRIPTION, TASK_STOP_INPUT_SCHEMA,
 };
 pub use write::{write_input_schema, WRITE_DESCRIPTION, WRITE_INPUT_SCHEMA};
 
@@ -211,7 +212,10 @@ impl ToolOutcome {
     }
 
     /// 带 `display` 的 `artifact` 结果（`TaskOutput`）。
-    pub fn artifact_with_display(content: impl Into<String>, display_json: impl Into<String>) -> Self {
+    pub fn artifact_with_display(
+        content: impl Into<String>,
+        display_json: impl Into<String>,
+    ) -> Self {
         Self {
             display_json: Some(display_json.into()),
             ..Self::artifact(content)

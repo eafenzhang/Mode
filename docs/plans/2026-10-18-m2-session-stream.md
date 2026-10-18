@@ -168,11 +168,16 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 - Modify: `crates/agent-core/src/session.rs`（空闲开 turn / 忙时排队）
 - Test: `crates/agent-core/tests/task_notification_turn.rs`
 
-- [ ] **Step 1：`TaskRegistry` 提供完成订阅**（channel 或回调；只发一次，状态迁移后）。
-- [ ] **Step 2：会话循环收到通知 → 组 `<task-notification>` 文本 → 按 DR-T5-3 开 turn / 排队。**
-- [ ] **Step 3：对拍**——`turn.started.input` 与 spec §3.4 的 XML 逐字一致；
-      多个完成的顺序与观察一致；停止任务的通知是 `killed` + `was stopped`。
-- [ ] **Step 4：提交。**
+- [x] **Step 1：`TaskRegistry` 提供完成订阅**（2026-10-18：mpsc channel，终态迁移时只发一次；
+      `take_notifications()` 非阻塞取走）。
+- [x] **Step 2：会话循环收到通知 → 组 `<task-notification>` 文本 → 开 turn**
+      （`Session::run_pending_notifications`；只在空闲时调用，忙时丢弃由调用方保证——
+      与 oracle 一致，见 DR-T5-3）。
+- [x] **Step 3：对拍**——`turn.started.input` 与 spec §3.4 的 XML 逐字一致；
+      停止任务的通知是 `killed` + `was stopped`；失败是 `failed with exit code 7`。
+- [x] **Step 4：提交。**
+      **登记差异**：`description` 缺失时的 `<summary>` 文案未观察，当前退回命令原文；
+      XML 内容未做转义（观察样本里没有需要转义的字符）。
 
 ---
 
@@ -233,3 +238,12 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 - `turn_stream.rs` 2 条：纯文本（3 个事件、tokenCount=22）与工具 turn（11 个事件、
   tokenCount=52、`historyRoundCount=2`）。
 - **已登记差异**：未产出 `session.updated` / `streamRecovery.updated`。
+
+### 2026-10-18 巡检轮（Task 4 / 5C）
+
+- `TaskRegistry` 增加完成通知 channel：reaper 在 `completed` / `failed` 迁移时发一条，
+  `TaskStop` 在 `killed` 时发一条；`take_notifications()` 非阻塞取走。
+- `TaskNotification::to_xml()` 按观察拼 `<task-notification>`（completed / failed / killed 三种文案）。
+- `Session::run_pending_notifications` 在空闲时把通知逐条跑成新 turn；忙时丢弃由调用方保证
+  （oracle 行为，见 DR-T5-3）。
+- `task_notification.rs` 4 条：completed XML、failed summary、killed/stopped、通知 turn 的 input。

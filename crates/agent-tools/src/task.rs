@@ -28,6 +28,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -95,19 +96,95 @@ struct Entry {
     child: Option<Child>,
 }
 
+/// 一条后台任务完成通知（`<task-notification>` 的内容来源；观察见 spec §3.4）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskNotification {
+    pub task_id: String,
+    pub tool_call_id: String,
+    pub output_path: PathBuf,
+    pub status: TaskStatus,
+    pub exit_code: Option<i32>,
+    pub description: Option<String>,
+    pub command: String,
+}
+
+impl TaskNotification {
+    /// 注入新 turn 的 `input`（逐字形状见 spec §3.4）。
+    ///
+    /// 未观察分支：`description` 缺失时线上 `<summary>` 用什么文案未知，这里退回命令原文
+    /// 以免输出一个空引号；该差异在 spec §3.4 登记。
+    pub fn to_xml(&self) -> String {
+        let status = self.status.task_output_token();
+        let label = self.description.as_deref().unwrap_or(&self.command);
+        let summary = match self.status {
+            TaskStatus::Completed => format!(
+                "Background command \"{label}\" completed (exit code {})",
+                self.exit_code.unwrap_or(0)
+            ),
+            TaskStatus::Failed => format!(
+                "Background command \"{label}\" failed with exit code {}",
+                self.exit_code.unwrap_or(-1)
+            ),
+            TaskStatus::Cancelled => format!("Background command \"{label}\" was stopped"),
+            TaskStatus::Running => format!("Background command \"{label}\" is running"),
+        };
+        format!(
+            "<task-notification>\n<task-id>{}</task-id>\n<tool-use-id>{}</tool-use-id>\n<output-file>{}</output-file>\n<status>{}</status>\n<summary>{}</summary>\n</task-notification>",
+            self.task_id,
+            self.tool_call_id,
+            self.output_path.display(),
+            status,
+            summary
+        )
+    }
+}
+
 /// 会话级后台任务表。
 ///
 /// 放在 `Arc` 里由会话持有、经 [`ToolContext::tasks`] 传给工具；`Bash` 登记任务，
 /// `TaskOutput` / `TaskStop` 查询与停止。锁的粒度是**单个任务**（map 锁只在查表时持有），
 /// 因此 `TaskOutput(block:true)` 等待时不会阻塞别的任务。
-#[derive(Debug, Default)]
+///
+/// 任务进入终态时经 channel 发一条 [`TaskNotification`]；会话在**空闲时**用
+/// [`Self::take_notifications`] 取走并开通知 turn（oracle 忙时直接丢弃，见 spec §3.5）。
 pub struct TaskRegistry {
     entries: Mutex<HashMap<String, Arc<Mutex<Entry>>>>,
+    notifications_tx: Sender<TaskNotification>,
+    notifications_rx: Mutex<Receiver<TaskNotification>>,
+}
+
+impl Default for TaskRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Debug for TaskRegistry {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `mpsc::Receiver` 不实现 Debug；任务表本身也没有需要展示的内部状态。
+        formatter
+            .debug_struct("TaskRegistry")
+            .finish_non_exhaustive()
+    }
 }
 
 impl TaskRegistry {
     pub fn new() -> Self {
-        Self::default()
+        let (notifications_tx, notifications_rx) = mpsc::channel();
+        Self {
+            entries: Mutex::new(HashMap::new()),
+            notifications_tx,
+            notifications_rx: Mutex::new(notifications_rx),
+        }
+    }
+
+    /// 取走当前已排队的完成通知（非阻塞）。调用方负责决定「忙时丢弃」还是「空闲时开 turn」。
+    pub fn take_notifications(&self) -> Vec<TaskNotification> {
+        self.notifications_rx
+            .lock()
+            .expect("task notifications poisoned")
+            .try_iter()
+            .collect()
     }
 
     /// 登记一个已经 spawn 的进程，并启动回收线程（`try_wait` 轮询，20ms）。
@@ -134,7 +211,7 @@ impl TaskRegistry {
             .lock()
             .expect("task registry poisoned")
             .insert(id.clone(), Arc::clone(&entry));
-        spawn_reaper(entry);
+        spawn_reaper(entry, self.notifications_tx.clone());
         TaskRegistration { id, output_path }
     }
 
@@ -173,6 +250,8 @@ impl TaskRegistry {
             guard.status = TaskStatus::Cancelled;
             // 观察值：停止后的 TaskOutput 报 `<exit_code>137</exit_code>`（128+SIGKILL）。
             guard.exit_code = Some(137);
+            // 观察（spec §3.4）：TaskStop 之后仍会注入一条 `status=killed` 的通知。
+            let _ = self.notifications_tx.send(notification_from(&guard));
         }
         Some(snapshot_from(&guard))
     }
@@ -186,7 +265,7 @@ impl TaskRegistry {
     }
 }
 
-fn spawn_reaper(entry: Arc<Mutex<Entry>>) {
+fn spawn_reaper(entry: Arc<Mutex<Entry>>, notifications: Sender<TaskNotification>) {
     thread::spawn(move || loop {
         {
             let mut guard = entry.lock().expect("task entry poisoned");
@@ -205,18 +284,32 @@ fn spawn_reaper(entry: Arc<Mutex<Entry>>) {
                         TaskStatus::Failed
                     };
                     guard.child = None;
+                    let _ = notifications.send(notification_from(&guard));
                     return;
                 }
                 Ok(None) => {}
                 Err(_) => {
                     guard.status = TaskStatus::Failed;
                     guard.child = None;
+                    let _ = notifications.send(notification_from(&guard));
                     return;
                 }
             }
         }
         thread::sleep(Duration::from_millis(20));
     });
+}
+
+fn notification_from(entry: &Entry) -> TaskNotification {
+    TaskNotification {
+        task_id: entry.id.clone(),
+        tool_call_id: entry.tool_call_id.clone(),
+        output_path: entry.output_path.clone(),
+        status: entry.status,
+        exit_code: entry.exit_code,
+        description: entry.description.clone(),
+        command: entry.command.clone(),
+    }
 }
 
 fn snapshot_from(entry: &Entry) -> TaskSnapshot {

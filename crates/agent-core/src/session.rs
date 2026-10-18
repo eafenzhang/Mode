@@ -54,8 +54,8 @@ use agent_protocol::session_event::{
 };
 use agent_protocol::ExtraFields;
 use agent_tools::{
-    lookup, ArtifactLocation, FileState, ModeToolFamily, TaskRegistry, ToolContext, ToolOutcome,
-    ToolSpec,
+    lookup, ArtifactLocation, FileState, ModeToolFamily, TaskNotification, TaskRegistry,
+    ToolContext, ToolOutcome, ToolSpec,
 };
 
 use crate::provider::{ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelUsage};
@@ -110,6 +110,34 @@ impl Session {
     /// 模型视角的消息历史（只读；持久化格式归宿主）。
     pub fn messages(&self) -> &[ModelMessage] {
         &self.messages
+    }
+
+    /// 后台任务表（测试与后续 host 接线用）。
+    pub fn tasks(&self) -> &Arc<TaskRegistry> {
+        &self.tasks
+    }
+
+    /// 取走已排队的后台完成通知（非阻塞）。
+    pub fn take_task_notifications(&self) -> Vec<TaskNotification> {
+        self.tasks.take_notifications()
+    }
+
+    /// 在**空闲时**把排队中的通知逐条跑成新 turn。
+    ///
+    /// oracle 在忙时**直接丢弃**通知（spec §3.5）；因此调用方只能在空闲时调用本方法。
+    /// `&mut self` 保证它不会与 [`Self::run_turn`] 并发；是否在忙时丢弃由调用方决定，
+    /// 这里不偷偷替调用方排队。返回实际跑掉的通知条数。
+    pub fn run_pending_notifications(
+        &mut self,
+        provider: &dyn ModelProvider,
+        sink: &mut dyn EventSink,
+    ) -> Result<usize, TurnError> {
+        let notifications = self.tasks.take_notifications();
+        let count = notifications.len();
+        for notification in notifications {
+            self.run_turn(&notification.to_xml(), provider, sink)?;
+        }
+        Ok(count)
     }
 
     /// 接线数据根：工具的大输出 artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/…`
