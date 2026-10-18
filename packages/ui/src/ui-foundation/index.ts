@@ -29,6 +29,7 @@ export { Card, type CardProps } from "./Card.js";
 export { Dialog, type DialogProps } from "./Dialog.js";
 export { Input, type InputProps } from "./Input.js";
 export { Menu, MenuItem, type MenuItemProps, type MenuProps } from "./Menu.js";
+export { OnboardingShell, type OnboardingShellProps } from "./Onboarding.js";
 export { Popover, type PopoverProps } from "./Popover.js";
 export {
   QueuedInputItem,
@@ -48,6 +49,16 @@ export {
   type RemoteToolbarButtonProps,
   type TerminalPaneProps,
 } from "./Remote.js";
+export {
+  QuickpickEmpty,
+  QuickpickInput,
+  QuickpickItem,
+  QuickpickList,
+  QuickpickPanel,
+  type QuickpickItemProps,
+  type QuickpickListProps,
+} from "./Quickpick.js";
+export { ShortcutList, ShortcutRow, type ShortcutListProps, type ShortcutRowProps } from "./Shortcuts.js";
 export { SelectTrigger, type SelectTriggerProps } from "./SelectTrigger.js";
 export {
   PluginCard,
@@ -237,3 +248,28 @@ export {
   terminalPaneClassName,
   type RemoteToolbarButtonClassNameOptions,
 } from "./remoteStyles.js";
+export {
+  onboardingActionsClassName,
+  onboardingCardClassName,
+  onboardingContainerClassName,
+  onboardingDescriptionClassName,
+  onboardingStepDotClassName,
+  onboardingStepLabelClassName,
+  onboardingTitleClassName,
+  type OnboardingStepState,
+} from "./onboardingStyles.js";
+export {
+  quickpickEmptyClassName,
+  quickpickInputClassName,
+  quickpickItemClassName,
+  quickpickListClassName,
+  quickpickPanelClassName,
+  type QuickpickItemClassNameOptions,
+} from "./quickpickStyles.js";
+export {
+  shortcutKeyClassName,
+  shortcutKeysClassName,
+  shortcutLabelClassName,
+  shortcutListClassName,
+  shortcutRowClassName,
+} from "./shortcutStyles.js";

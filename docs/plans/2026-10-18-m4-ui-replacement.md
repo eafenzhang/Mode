@@ -111,6 +111,10 @@
 - `assets/`（324 个文件）的来源与等待决策见 `2026-10-18-m4-ui-assets-inventory.md`：
   284 个插件图标（278 个第三方品牌图标台账 `reviewRequired`）、25 个 provider 图标
   （21 个与上游一致、台账无条目）、42 个与上游 identical 的资产需重画/替换。
+- **静态结构已起步（2026-10-19）**：`onboardingStyles.ts` / `Onboarding.tsx`（步骤点状态、
+  卡片、操作槽）、`quickpickStyles.ts` / `Quickpick.tsx`（popover 面板、listbox/option、
+  空态）、`shortcutStyles.ts` / `Shortcuts.tsx`（dl/dt/dd + kbd mono）；用例
+  `packages/ui/test/uiFoundationMisc.test.ts`。settings-sync 与资产重画仍待后续。
 
 ## 验收
 
