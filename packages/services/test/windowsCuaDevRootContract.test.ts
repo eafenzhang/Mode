@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { resolveWindowsCuaRuntime } from "../src/cua-permission-broker/windowsCuaDevRuntime.js";
+import {
+  resolveWindowsCuaRuntime,
+  WindowsCuaDevRuntimeResolutionError,
+} from "../src/cua-permission-broker/windowsCuaDevRuntime.js";
 
 // 借真实消费方锁 Task 9 契约：产物缺失时跳过（先跑 pnpm build:cua-helper 生成
 // packages/mode-cua/dist-cua-helper），避免未构建贡献者的 pnpm --filter @mode/services test 误报失败。
@@ -20,16 +24,50 @@ const missingBuild = requiredArtifacts.some((file) => !existsSync(file));
 const skip: string | false =
   missingBuild && "dist-cua-helper 缺失：先运行 pnpm build:cua-helper 生成 CUA helper 产物";
 
-/** 与构建脚本同源推导桌面 electron 版本：env 覆盖优先，其次 packages/desktop/package.json（剥版本范围前缀）。 */
-async function deriveDesktopElectronVersion(): Promise<string> {
-  const override = process.env.MODE_CUA_ELECTRON_VERSION?.trim();
-  if (override) return override;
-  const desktopPkg = JSON.parse(
-    await readFile(fileURLToPath(new URL("../../desktop/package.json", import.meta.url)), "utf8"),
-  ) as { devDependencies?: Record<string, string>; dependencies?: Record<string, string> };
-  const declared = desktopPkg.devDependencies?.electron ?? desktopPkg.dependencies?.electron;
-  assert.ok(declared, "packages/desktop/package.json 必须声明 electron 版本");
-  return declared.replace(/^[\^~>=<\s]+/u, "");
+/** 与 scripts/build-cua-helper.mjs 的 REQUIRED_NAPI_VERSION 同源；改 crate features 时两处一起改。 */
+const REQUIRED_NAPI_VERSION = 4;
+
+function sha256Bytes(bytes: string | Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+/**
+ * 造一个只满足 manifest 契约的最小产品布局（不依赖本机是否构建过 helper），
+ * 用来覆盖 N-API 闸门的放行/拒绝分支。
+ */
+async function createPackagedFixture(manifestOverrides: Record<string, unknown> = {}): Promise<{
+  resourcesPath: string;
+  manifest: Record<string, unknown>;
+  cleanup: () => Promise<void>;
+}> {
+  const resourcesPath = await realpath(await mkdtemp(join(tmpdir(), "mode-cua-napi-fixture-")));
+  const helperRoot = join(resourcesPath, "tools", "cua-helper");
+  await mkdir(helperRoot, { recursive: true });
+  const entry = "console.log('cua fixture entry');\n";
+  const addon = Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]);
+  const manifest = {
+    schemaVersion: 2,
+    packageName: "@mode/cua",
+    packageVersion: "0.0.0-fixture",
+    platform: "win32",
+    arch: "x64",
+    napiVersion: REQUIRED_NAPI_VERSION,
+    entry: "entry.cjs",
+    addon: "cua_ax.node",
+    sha256: { entry: sha256Bytes(entry), addon: sha256Bytes(addon) },
+    ...manifestOverrides,
+  };
+  await writeFile(join(helperRoot, "entry.cjs"), entry);
+  await writeFile(join(helperRoot, "cua_ax.node"), addon);
+  await writeFile(
+    join(helperRoot, "runtime-manifest.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+  return {
+    resourcesPath,
+    manifest,
+    cleanup: () => rm(resourcesPath, { recursive: true, force: true }),
+  };
 }
 
 test("MODE_CUA_DEV_ROOT 按 modeCuaRuntime 契约解析构建产物", { skip }, async () => {
@@ -45,7 +83,6 @@ test("MODE_CUA_DEV_ROOT 按 modeCuaRuntime 契约解析构建产物", { skip }, 
 });
 
 test("runtime-manifest 通过打包模式校验（sha256 对齐真实文件字节）", { skip }, async () => {
-  const electronVersion = await deriveDesktopElectronVersion();
   const manifest = JSON.parse(
     await readFile(join(distRoot, "runtime-manifest.json"), "utf8"),
   ) as Record<string, unknown>;
@@ -53,12 +90,12 @@ test("runtime-manifest 通过打包模式校验（sha256 对齐真实文件字�
     name?: string;
     version?: string;
   };
-  assert.equal(manifest.schemaVersion, 1);
+  assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.packageName, "@mode/cua");
   assert.equal(manifest.packageVersion, modeCuaPkg.version);
   assert.equal(manifest.platform, "win32");
   assert.equal(manifest.arch, "x64");
-  assert.equal(manifest.electronVersion, electronVersion);
+  assert.equal(manifest.napiVersion, REQUIRED_NAPI_VERSION);
   assert.equal(manifest.entry, "entry.cjs");
   assert.equal(manifest.addon, "cua_ax.node");
 
@@ -81,7 +118,6 @@ test("runtime-manifest 通过打包模式校验（sha256 对齐真实文件字�
       // 对本功能的目标受众恰是环境耦合的偶发失败。
       env: {},
       resourcesPath,
-      electronVersion,
     });
     assert.equal(runtime.root, helperRoot);
     assert.match(runtime.entryPath, /entry\.cjs$/u);
@@ -89,5 +125,91 @@ test("runtime-manifest 通过打包模式校验（sha256 对齐真实文件字�
     assert.equal(runtime.commandEnv.ELECTRON_RUN_AS_NODE, "1");
   } finally {
     await rm(resourcesPath, { recursive: true, force: true });
+  }
+});
+
+test("runtime-manifest v2：纯 Node 宿主按 N-API 版本放行（无 electron 版本）", async () => {
+  const fixture = await createPackagedFixture();
+  try {
+    const runtime = await resolveWindowsCuaRuntime({
+      platform: "win32",
+      arch: "x64",
+      env: {},
+      resourcesPath: fixture.resourcesPath,
+      napiVersion: REQUIRED_NAPI_VERSION,
+    });
+    assert.equal(runtime.root, join(fixture.resourcesPath, "tools", "cua-helper"));
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("runtime-manifest v2：宿主 N-API 低于下限时 fail-closed", async () => {
+  const fixture = await createPackagedFixture();
+  try {
+    await assert.rejects(
+      resolveWindowsCuaRuntime({
+        platform: "win32",
+        arch: "x64",
+        env: {},
+        resourcesPath: fixture.resourcesPath,
+        napiVersion: REQUIRED_NAPI_VERSION - 1,
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof WindowsCuaDevRuntimeResolutionError);
+        assert.equal(error.reason, "incompatible-runtime-manifest");
+        return true;
+      },
+    );
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("runtime-manifest v2：取不到宿主 N-API 版本时 fail-closed", async () => {
+  const fixture = await createPackagedFixture();
+  try {
+    await assert.rejects(
+      resolveWindowsCuaRuntime({
+        platform: "win32",
+        arch: "x64",
+        env: {},
+        resourcesPath: fixture.resourcesPath,
+        napiVersion: Number.NaN,
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof WindowsCuaDevRuntimeResolutionError);
+        assert.equal(error.reason, "incompatible-runtime-manifest");
+        return true;
+      },
+    );
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("runtime-manifest v1（electronVersion）不再接受", async () => {
+  const fixture = await createPackagedFixture({
+    schemaVersion: 1,
+    napiVersion: undefined,
+    electronVersion: "41.0.3",
+  });
+  try {
+    await assert.rejects(
+      resolveWindowsCuaRuntime({
+        platform: "win32",
+        arch: "x64",
+        env: {},
+        resourcesPath: fixture.resourcesPath,
+        napiVersion: REQUIRED_NAPI_VERSION,
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof WindowsCuaDevRuntimeResolutionError);
+        assert.equal(error.reason, "incompatible-runtime-manifest");
+        return true;
+      },
+    );
+  } finally {
+    await fixture.cleanup();
   }
 });

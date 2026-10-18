@@ -30,7 +30,8 @@ interface WindowsCuaRuntimeResolveOptions {
   env?: NodeJS.ProcessEnv;
   resourcesPath?: string;
   arch?: NodeJS.Architecture;
-  electronVersion?: string;
+  /** 宿主可提供的 N-API 版本；默认读 `process.versions.napi`（Node/Electron 都有）。 */
+  napiVersion?: number;
   fileSystem?: WindowsCuaRuntimeFileSystem;
   hashBytes?: (bytes: string | Uint8Array) => Promise<string>;
 }
@@ -146,18 +147,31 @@ async function resolveDevelopmentRuntime(
 }
 
 interface RuntimeManifest {
-  schemaVersion: 1;
+  schemaVersion: 2;
   packageName: typeof EXPECTED_PACKAGE_NAME;
   packageVersion: string;
   platform: "win32";
   arch: NodeJS.Architecture;
-  electronVersion: string;
+  /** helper 原生插件要求的最低 N-API 版本（构建期由 napi crate features 决定）。 */
+  napiVersion: number;
   entry: string;
   addon: string;
   sha256: {
     entry: string;
     addon: string;
   };
+}
+
+/**
+ * 宿主实际可用的 N-API 版本。Node 与 Electron 都暴露 `process.versions.napi`；
+ * 纯 Node sidecar（Tauri M3）没有 `process.versions.electron`，所以兼容判据只能取 N-API。
+ * 取不到时返回 undefined，由 validateRuntimeManifest fail-closed。
+ */
+function resolveHostNapiVersion(): number | undefined {
+  const raw = process.versions.napi;
+  if (typeof raw !== "string" || raw.trim() === "") return undefined;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 async function resolvePackagedRuntime(
@@ -186,7 +200,7 @@ async function resolvePackagedRuntime(
   const manifest = await readRuntimeManifest(fileSystem, manifestPath, rootRealPath);
   validateRuntimeManifest(manifest, {
     arch: options.arch ?? process.arch,
-    electronVersion: options.electronVersion ?? process.versions.electron,
+    napiVersion: options.napiVersion ?? resolveHostNapiVersion(),
   });
 
   const entryPath = resolveManifestArtifact(root, manifest.entry, "entry");
@@ -282,7 +296,7 @@ async function requirePackagedRuntimeRoot(
 
 function validateRuntimeManifest(
   manifest: RuntimeManifest,
-  expected: { arch: NodeJS.Architecture; electronVersion?: string },
+  expected: { arch: NodeJS.Architecture; napiVersion?: number },
 ): void {
   const hashPattern = /^[0-9a-f]{64}$/u;
   const hasExactManifestKeys = hasExactKeys(manifest, [
@@ -291,7 +305,7 @@ function validateRuntimeManifest(
     "packageVersion",
     "platform",
     "arch",
-    "electronVersion",
+    "napiVersion",
     "entry",
     "addon",
     "sha256",
@@ -302,15 +316,17 @@ function validateRuntimeManifest(
     hasExactKeys(manifest.sha256, ["entry", "addon"]);
   const compatible =
     hasExactManifestKeys &&
-    manifest.schemaVersion === 1 &&
+    manifest.schemaVersion === 2 &&
     manifest.packageName === EXPECTED_PACKAGE_NAME &&
     isNonEmptyTrimmedString(manifest.packageVersion) &&
     manifest.platform === "win32" &&
     (manifest.arch === "x64" || manifest.arch === "arm64") &&
     manifest.arch === expected.arch &&
-    typeof expected.electronVersion === "string" &&
-    expected.electronVersion.length > 0 &&
-    manifest.electronVersion === expected.electronVersion &&
+    Number.isInteger(manifest.napiVersion) &&
+    manifest.napiVersion > 0 &&
+    typeof expected.napiVersion === "number" &&
+    Number.isInteger(expected.napiVersion) &&
+    expected.napiVersion >= manifest.napiVersion &&
     typeof manifest.entry === "string" &&
     typeof manifest.addon === "string" &&
     manifest.entry !== manifest.addon &&
@@ -318,9 +334,13 @@ function validateRuntimeManifest(
     hashPattern.test(manifest.sha256.entry) &&
     hashPattern.test(manifest.sha256.addon);
   if (compatible) return;
+  const napiDetail =
+    Number.isInteger(manifest.napiVersion) && typeof expected.napiVersion === "number"
+      ? ` (requires N-API >= ${manifest.napiVersion}, host provides ${expected.napiVersion})`
+      : "";
   throw new WindowsCuaDevRuntimeResolutionError(
     "incompatible-runtime-manifest",
-    `Windows CUA packaged runtime ${PRODUCT_RUNTIME_MANIFEST} is incompatible with this runtime.`,
+    `Windows CUA packaged runtime ${PRODUCT_RUNTIME_MANIFEST} is incompatible with this runtime${napiDetail}.`,
     PRODUCT_RUNTIME_MANIFEST,
   );
 }

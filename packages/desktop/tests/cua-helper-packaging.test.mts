@@ -94,12 +94,12 @@ function createDistFixture(): { root: string; sourceDir: string } {
   const entry = "console.log('cua fixture entry');\n";
   const addon = Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]);
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     packageName: "@mode/cua",
     packageVersion: "0.0.0-fixture",
     platform: "win32",
     arch: "x64",
-    electronVersion: "41.0.3",
+    napiVersion: 4,
     entry: "entry.cjs",
     addon: "cua_ax.node",
     sha256: {

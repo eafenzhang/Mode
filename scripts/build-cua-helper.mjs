@@ -1,8 +1,8 @@
 // CUA helper 构建脚本：cargo 产 Windows cdylib → 复制为 cua_ax.node，esbuild 把 helper 入口
 // 打成零依赖单文件 entry.cjs，最后按 resolveWindowsCuaRuntime 的 validateRuntimeManifest
-// 逐字契约写 runtime-manifest.json（schema/package/platform/arch/electron/entry/addon/sha256）。
+// 逐字契约写 runtime-manifest.json（schema/package/platform/arch/napi/entry/addon/sha256）。
 // 运行方式：仓库根 `pnpm build:cua-helper`；目标三元组可用 MODE_CUA_AX_TARGET 覆盖（默认 gnu，
-// CI 注入 msvc），electron 版本可用 MODE_CUA_ELECTRON_VERSION 覆盖。
+// CI 注入 msvc）。
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -32,6 +32,9 @@ const addonDll = join(
 const entryName = "entry.cjs";
 const addonName = "cua_ax.node";
 const manifestName = "runtime-manifest.json";
+// 与 crates/mode-cua-ax/Cargo.toml 的 napi features 对齐：默认 napi3 + 追加 napi4，
+// 即插件实际要求的最低 N-API 版本是 4。改 crate features 时必须同步这里。
+const REQUIRED_NAPI_VERSION = 4;
 
 function fail(message) {
   console.error(`[build-cua-helper] ${message}`);
@@ -69,20 +72,6 @@ async function sha256File(path) {
   return createHash("sha256")
     .update(await readFile(path))
     .digest("hex");
-}
-
-async function resolveElectronVersion() {
-  const override = process.env.MODE_CUA_ELECTRON_VERSION?.trim();
-  if (override) return override;
-  const desktopPkg = JSON.parse(
-    await readFile(join(repoRoot, "packages", "desktop", "package.json"), "utf8"),
-  );
-  const declared = desktopPkg.devDependencies?.electron ?? desktopPkg.dependencies?.electron;
-  if (typeof declared !== "string" || !declared.trim()) {
-    fail("packages/desktop/package.json 未声明 electron 版本，且 MODE_CUA_ELECTRON_VERSION 未设置");
-  }
-  // 剥离 ^ ~ >= 等版本范围前缀，manifest 需要纯版本号。
-  return declared.trim().replace(/^[\^~>=<\s]+/u, "");
 }
 
 async function bundleEntry() {
@@ -132,12 +121,12 @@ async function main() {
     await readFile(join(repoRoot, "packages", "mode-cua", "package.json"), "utf8"),
   );
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     packageName: "@mode/cua",
     packageVersion: modeCuaPkg.version,
     platform: "win32",
     arch: "x64",
-    electronVersion: await resolveElectronVersion(),
+    napiVersion: REQUIRED_NAPI_VERSION,
     entry: entryName,
     addon: addonName,
     sha256: {

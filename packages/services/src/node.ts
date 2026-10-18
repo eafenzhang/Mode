@@ -944,7 +944,7 @@ type CreateDefaultCuaProductHelperOptions = {
   env?: NodeJS.ProcessEnv;
   resourcesPath?: string;
   arch?: NodeJS.Architecture;
-  electronVersion?: string;
+  napiVersion?: number;
   resolveWindowsRuntime?: () => Promise<WindowsCuaRuntime>;
   createMacHost?: () => CuaHelperHost;
   createWindowsHost?: (runtime: WindowsCuaRuntime) => ManagedCuaProductHelperHost;
@@ -1136,7 +1136,7 @@ export function createDefaultCuaProductHelper(
             env,
             resourcesPath: options.resourcesPath,
             arch: options.arch,
-            electronVersion: options.electronVersion,
+            napiVersion: options.napiVersion,
           })),
       createHost:
         options.createWindowsHost ??

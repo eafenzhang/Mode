@@ -292,9 +292,14 @@
 - **构建脚本** `scripts/build-cua-helper.mjs`：
   `cargo build --release --target x86_64-pc-windows-msvc` → esbuild 打 helper 入口 →
   汇出 `dist-cua-helper/{entry.cjs, cua_ax.node, runtime-manifest.json}`；
-  manifest：`schemaVersion:1, packageName:"@mode/cua", packageVersion, platform:"win32",
-  arch, electronVersion(取桌面端 electron 版本，CI 注入), entry, addon, sha256{entry, addon}`
-  ——与 `resolveWindowsCuaRuntime` 既有校验逐字段一致。
+  manifest：`schemaVersion:2, packageName:"@mode/cua", packageVersion, platform:"win32",
+  arch, napiVersion(插件要求的最低 N-API 版本，由 napi crate 的 features 决定；当前
+  `napi4` ⇒ 4), entry, addon, sha256{entry, addon}`。
+- **宿主版本契约**：`resolveWindowsCuaRuntime` 要求宿主 `process.versions.napi` 存在且
+  `>= manifest.napiVersion`，不再比对 Electron 版本。理由：`cua_ax.node` 是 N-API 稳定
+  ABI（见上），精确 pin Electron 版本会把合法的纯 Node 宿主（Tauri M3 sidecar，没有
+  `process.versions.electron`）判死；构建配套关系由随包分发与 `sha256` 保证，ABI 兼容性
+  由 N-API 版本保证。宿主缺少 N-API 版本信息时仍 fail-closed。
 - **dev 根契约**：`packages/mode-cua/package.json` 增加
   `modeCuaRuntime:{schema:1, windows:{entry, nativeAddon}}`（相对包根的受包含路径，指向
   构建输出，gitignore）；`MODE_CUA_DEV_ROOT` 指到 `packages/mode-cua` 即可走
