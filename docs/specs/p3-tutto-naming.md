@@ -79,3 +79,13 @@
 - 桌面 LAN attach、`verify-lan-attach`、fnOS 网关 proxy 同步发送新名；
 - 测试 `packages/server/test/lan-cookie-compat.test.ts` 覆盖无令牌 401、三代 cookie 放行、
   只下发新名、错误令牌 401；server 测试 30/30 通过。
+
+### S4 进展（2026-10-19，协议名与 MCP request-context）
+
+- 协议名 `Tutto Protocol`；握手接受 `Tutto Protocol` → `Mode Protocol` → `ZCode Protocol`，
+  写入/回显只用新名；
+- MCP request-context 键 `com.tutto/request-context`；读取兜底
+  `com.mode/request-context`、`com.zcode/request-context`；
+- **例外**：`OFFICIAL_MCP_AUTH_META_KEY` 保持 `com.mode/official-mcp-auth`——读取方是
+  已发布插件的 server 进程，改名会破坏全部已装插件（spec 记录为外部契约例外）；
+- `plugin-marketplace-id-compat.test.ts` 5/5 通过（协议名接受/拒绝、request-context 双旧键）。

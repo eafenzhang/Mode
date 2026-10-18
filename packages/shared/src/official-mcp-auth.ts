@@ -28,9 +28,9 @@ export const OFFICIAL_MCP_AUTH_HEADER_NAMES = {
  *
  * 这是与插件进程之间的**跨语言协议常量**——Plugin 侧（如插件的 Python server）
  * 按同一字符串读取。改名即破坏所有已发布插件，等同于协议 breaking change。
- * 命名空间前缀沿用 `com.mode/`，与既有的 `com.mode/request-context` 一致；
- * 改名（ZCODIUM → Mode）前的拼写是 `com.zcode/official-mcp-auth`，仓库内没有读取侧
- * （读取方是官方插件的 server 进程），因此这里只记录历史值、不提供双读。
+ * 命名空间前缀**保持 `com.mode/`**：读取方是已发布插件里的 server 进程，
+ * 改名会破坏所有已安装插件；Tutto 改名不对这个外部契约做切换（spec P3 例外）。
+ * 更早的 `com.zcode/official-mcp-auth` 只记录历史值。
  */
 export const OFFICIAL_MCP_AUTH_META_KEY = "com.mode/official-mcp-auth" as const;
 
@@ -41,17 +41,23 @@ export const OFFICIAL_MCP_AUTH_META_KEY = "com.mode/official-mcp-auth" as const;
  * （`buildRequestMeta`）。旧 client / 旧版本的普通 JS 仍可执行，只有这个命名空间键
  * 会进入 Browser bridge，所以读取侧要同时认改名前的旧键。
  */
-export const MODE_MCP_REQUEST_CONTEXT_META_KEY = "com.mode/request-context" as const;
+export const MODE_MCP_REQUEST_CONTEXT_META_KEY = "com.tutto/request-context" as const;
 
-/** 改名（ZCODIUM → Mode）前的请求上下文键：只用于读兜底，写入一律用新键。 */
-export const MODE_MCP_REQUEST_CONTEXT_META_KEY_LEGACY = "com.zcode/request-context" as const;
+/** 改名前的请求上下文键（Mode / ZCode 两代）：只用于读兜底，写入一律用新键。 */
+export const MODE_MCP_REQUEST_CONTEXT_META_KEYS_LEGACY = [
+  "com.mode/request-context",
+  "com.zcode/request-context",
+] as const;
+/** 兼容旧导出名（单值时代），指向上一代键。 */
+export const MODE_MCP_REQUEST_CONTEXT_META_KEY_LEGACY = "com.mode/request-context" as const;
 
 /** 读请求上下文：新键优先，改名前的旧键兜底。第三方可扩展的顶层 `_meta` 不做其他推断。 */
-export function readModeMcpRequestContextMeta(
-  meta: Record<string, unknown> | undefined,
-): unknown {
+export function readModeMcpRequestContextMeta(meta: Record<string, unknown> | undefined): unknown {
   return (
-    meta?.[MODE_MCP_REQUEST_CONTEXT_META_KEY] ?? meta?.[MODE_MCP_REQUEST_CONTEXT_META_KEY_LEGACY]
+    meta?.[MODE_MCP_REQUEST_CONTEXT_META_KEY] ??
+    MODE_MCP_REQUEST_CONTEXT_META_KEYS_LEGACY.map((key) => meta?.[key]).find(
+      (value) => value !== undefined,
+    )
   );
 }
 
