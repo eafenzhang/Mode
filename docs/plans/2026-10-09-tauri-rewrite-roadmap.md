@@ -210,7 +210,9 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 > 插件市场见 `docs/plans/2026-10-18-m3-plugin-market-status.md`（DR-PM-1：sidecar 复用，
 > 32 条服务测试 + 5 条卡片投影测试全绿，M3 不新增 `crates/marketplace`）；
 > Web/手机远控见 `docs/plans/2026-10-18-m3-web-remote-status.md`（DR-WEB-1：sidecar 复用，
-> 156 条测试全绿，M3 不新增 `crates/server`）；TUI 尚未立项。
+> 156 条测试全绿，M3 不新增 `crates/server`）；
+> TUI 见 `docs/plans/2026-10-18-m3-tui-status.md`（DR-TUI-1：沿用 TS 客户端，M3 不新增
+> `crates/tui`；33 个场景仅有编译面证据，交互验收待人工）。
 
 **Files:**
 - Create: `crates/plugin-host/`（sidecar 生命周期管理：按需下载/启动/健康）、`crates/marketplace/`（`.mode-plugin` 清单与市场目录，兼容读旧格式）、`crates/lan/`（UDP 发现 + 配对码）、`crates/remote/`（russh / 系统 ssh 调用 + workspace attach）、`crates/server/`（axum，web-remote 链路）、`crates/tui/`（ratatui）、`crates/bots/`（IM 桥：HTTP/WS 直连或 sidecar 复用 TS SDK，按通道逐个决策）
@@ -229,7 +231,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 - [ ] **LAN 远连**：UDP 广播发现 + 6 位配对码 + 桌面即服务端——对照 `lan-discovery/lan-remote-attach/lan-paired-devices` 三个 spec 逐条验收（含旧客户端兼容窗口期口径，按 `lan-no-pre-rename-compat` 记忆：改名前版本不兼容）。〔2026-10-18 已跑 38 条相关测试全绿；剩两台机器人工验收，见 `2026-10-18-m3-lan-remote-status.md`〕
 - [ ] **SSH/WSL/Docker 远程 + workspaceIdentity**：身份 key `trim() || path` 贯穿，跨 Host 路由与 stale-run 防护的对拍测试。〔2026-10-18 相关用例已在 40 条 desktop 远程测试中通过（含判等口径与对新对端归属）；实机远程连接仍待人验收〕
 - [ ] **Web 端（axum）**：`web-remote-replayable` 链路 + 手机远控复用 Host attachment 的既有架构（AGENTS.md：不为手机另起运行时）。〔2026-10-18 盘点，DR-WEB-1〕由 Host sidecar 复用现有 `packages/server`，**M3 不新增 `crates/server`**；156 条相关测试全绿，剩两台设备人工验收，见 `2026-10-18-m3-web-remote-status.md`。
-- [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。**尚未立项**；需先盘点旧 TUI 场景清单。
+- [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。〔2026-10-18 盘点，DR-TUI-1〕沿用现有 TS/React TUI（`@mode/tui`），**M3 不新增 `crates/tui`**；33 个场景清单见 `2026-10-18-m3-tui-status.md`，当前只有类型面证据（`tsc --noEmit` 通过），交互验收待人工，纯逻辑模块可补单测。
 
 **阶段验收：** 每个域有对照旧版的 E2E 清单且全绿；sidecar 断网降级符合预期；三平台安装包体积保持核心 ≤30MB。
 
