@@ -126,7 +126,10 @@ success/warning/destructive。
 
 **实现落点（P1.2 静态骨架）**：`shellStyles.ts` / `AppShell.tsx`——会话/终端/Side Pane
 三个独立 frame、4px 间隔、4px 分隔条命中区（hover/focus/drag 2px 线）与 mobile drawer。
-拖拽换算与尺寸持久化属于交互层，尚未实现。
+**尺寸换算（2026-10-18）**：`resizeMath.ts`——`clampPanelSize` / `resizeFromPointer` /
+`resizeFromKeyboard`（方向键 ±16px、Home/End 到边界、bounds 归一）；`ResizeHandle` 在提供
+`size`/`bounds`/`onResize` 时支持键盘调整并输出 `aria-valuenow/min/max`。尺寸持久化归调用方
+的状态层（store/settings），组件不自己落盘。
 
 ## 4. 可访问性与 i18n
 

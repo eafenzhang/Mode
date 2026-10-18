@@ -2,7 +2,12 @@
 // 静态结构：会话 frame + 可选终端 frame + 可选 Side Pane + 4px 分隔条。
 // 拖拽/尺寸持久化留给 P1.2 的交互层；这里只提供可访问的 separator 与视觉契约。
 
-import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import {
+  forwardRef,
+  type HTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import {
   conversationColumnClassName,
@@ -14,15 +19,51 @@ import {
   workspaceShellClassName,
   type ResizeOrientation,
 } from "./shellStyles.js";
+import {
+  resizeFromKeyboard,
+  type ResizeBounds,
+} from "./resizeMath.js";
 
 export interface ResizeHandleProps extends HTMLAttributes<HTMLDivElement> {
   orientation: ResizeOrientation;
   label: string;
   dragging?: boolean;
+  /** 当前尺寸与边界；提供 size/bounds/onResize 时支持键盘调整。 */
+  size?: number;
+  bounds?: ResizeBounds;
+  onResize?: (size: number) => void;
+  step?: number;
 }
 
 export const ResizeHandle = forwardRef<HTMLDivElement, ResizeHandleProps>(
-  function ResizeHandle({ orientation, label, dragging = false, className, ...rest }, ref) {
+  function ResizeHandle(
+    {
+      orientation,
+      label,
+      dragging = false,
+      size,
+      bounds,
+      onResize,
+      step,
+      className,
+      onKeyDown,
+      ...rest
+    },
+    ref,
+  ) {
+    const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+      onKeyDown?.(event);
+      if (event.defaultPrevented || size === undefined || !bounds || !onResize) {
+        return;
+      }
+      const next = resizeFromKeyboard(size, event.key, bounds, step);
+      if (next === null) {
+        return;
+      }
+      event.preventDefault();
+      onResize(next);
+    };
+
     return (
       <div
         {...rest}
@@ -30,8 +71,12 @@ export const ResizeHandle = forwardRef<HTMLDivElement, ResizeHandleProps>(
         role="separator"
         aria-label={label}
         aria-orientation={orientation}
+        aria-valuenow={size}
+        aria-valuemin={bounds?.min}
+        aria-valuemax={bounds?.max}
         tabIndex={0}
         data-dragging={dragging || undefined}
+        onKeyDown={handleKeyDown}
         className={resizeHandleClassName(orientation, className)}
       />
     );

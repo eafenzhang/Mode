@@ -59,3 +59,13 @@ export {
   workspaceShellClassName,
   type ResizeOrientation,
 } from "./shellStyles.js";
+export {
+  clampPanelSize,
+  isResizeKey,
+  normalizeBounds,
+  resizeFromKeyboard,
+  resizeFromPointer,
+  RESIZE_KEYBOARD_STEP,
+  type ResizeBounds,
+  type ResizeKey,
+} from "./resizeMath.js";
