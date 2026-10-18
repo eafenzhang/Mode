@@ -145,4 +145,5 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   `wordWrappedLineCount`（空串至少一行、折行计数）；
 - 第二批（`app-keyboard-helpers`）：命令补全写入、输入历史导航条件、workflow 裸 +/- 展开闸门、
   Ctrl-C 两段式退出窗口、Shift+Tab 模式切换；
+- 第三批（`app-copy`）：可复制选区判定、copied/unavailable/failed/empty 状态映射；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
