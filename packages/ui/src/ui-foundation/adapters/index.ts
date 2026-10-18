@@ -115,10 +115,12 @@ export {
   type SelectValueProps,
 } from "./select.js";
 export {
+  Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
   type TooltipContentProps,
+  type TooltipProps,
   type TooltipProviderProps,
   type TooltipTriggerProps,
 } from "./tooltip.js";

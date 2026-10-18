@@ -8,7 +8,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip.js";
+} from "@/ui-foundation/adapters/tooltip.js";
 
 function scrollRemoteConnectionLogsToLatest(
   viewport: Pick<HTMLElement, "scrollHeight" | "scrollTop">,

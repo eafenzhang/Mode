@@ -87,7 +87,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip.js";
+} from "@/ui-foundation/adapters/tooltip.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import {
   Dialog,

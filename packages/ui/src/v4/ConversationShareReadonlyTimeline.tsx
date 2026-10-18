@@ -46,7 +46,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible.js";
-import { TooltipProvider } from "@/components/ui/tooltip.js";
+import { TooltipProvider } from "@/ui-foundation/adapters/tooltip.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import { ConversationUserInputBody } from "@/v4/ConversationUserInputBody.js";
 import { ConversationUserInputContent } from "@/v4/ConversationUserInputContent.js";

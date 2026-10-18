@@ -32,7 +32,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip.js";
+} from "@/ui-foundation/adapters/tooltip.js";
 import { AlertCircle, CheckIcon, ChevronDownIcon, LoaderIcon, PackageIcon } from "lucide-react";
 import {
   TID_CHAT_MODEL_SELECT_GROUP,

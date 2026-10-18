@@ -1,7 +1,7 @@
 import { CheckIcon, ChevronRightIcon, InfoIcon, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { TooltipProvider } from "@/components/ui/tooltip.js";
+import { TooltipProvider } from "@/ui-foundation/adapters/tooltip.js";
 
 const CONTEXT_USAGE_REFRESH_SUCCESS_MS = 1_000;
 

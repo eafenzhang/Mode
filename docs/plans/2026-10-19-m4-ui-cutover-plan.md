@@ -21,7 +21,7 @@
 | `tabs` | 12 | ready（variant/asChild/forceMount） | 2 |
 | `badge` | 15 | ready | 1（可随批 2） |
 | `popover` | 16 | ready（受控/非受控 + 定位 + Anchor） | 2 |
-| `tooltip` | 18 | 只有静态语义 | 2 |
+| `tooltip` | 18 | ready（悬停/聚焦 + 延迟 + 定位） | 2 |
 | `switch` | 24 | ready | 2 |
 | `select` | 28 | 子件 ready；根状态机待补 | 2 |
 | `dialog` | 33 | ready | 2 |
@@ -123,3 +123,12 @@ checkbox → alert → textarea`（可加 `badge`）。
 验证：UI 316 passed、typecheck/lint/architecture/language/format 通过。
 `PopoverContent` 由 `position: fixed` 直接渲染在组件树内（未使用 portal），
 外层 `overflow: hidden` 的容器可能裁切浮层；看屏时重点检查菜单类浮层。
+
+### 批次 2 续（2026-10-19 第五轮）
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `tooltip` | 18（含 `replay.ts` 的 `TooltipProvider` 再导出） | 补根 `Tooltip`：受控/非受控 open、`delayDuration` 继承 Provider（默认 0）、指针悬停/聚焦打开、离开/失焦关闭、Escape 关闭；`TooltipContent` 复用 Popover 定位数学并 portal 到 body；`skipDelayDuration` / `disableHoverableContent` 接受但暂不生效（登记为交互差异） |
+
+验证：UI 319 passed、typecheck/lint/architecture/language/format 通过。
+`ControlHintTooltip` 等自带 `open` 的调用点仍由外部分支控制显隐。

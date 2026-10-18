@@ -12,7 +12,7 @@ import type { HookExecutionProjection, HookInvocationRow } from "@mode/shared/mo
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/ui-foundation/adapters/tooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 type HookDetailStatus = "running" | "blocked" | "failed" | "cancelled" | "timedOut";

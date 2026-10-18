@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip.js";
+} from "@/ui-foundation/adapters/tooltip.js";
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 
 interface ControlHintTooltipProps {

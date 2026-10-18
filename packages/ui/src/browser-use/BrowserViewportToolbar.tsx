@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/ui-foundation/adapters/tooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 type ViewportDimension = "height" | "width";

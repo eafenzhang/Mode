@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { TooltipProvider } from "@/components/ui/tooltip.js";
+import { TooltipProvider } from "@/ui-foundation/adapters/tooltip.js";
 
 const SIDE_PANE_TAB_TOOLTIP_DELAY_MS = 1_500;
 

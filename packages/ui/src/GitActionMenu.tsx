@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { Textarea } from "@/ui-foundation/adapters/textarea.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/ui-foundation/adapters/tooltip.js";
 import { toast } from "@/components/ui/toast.js";
 import {
   buildGitBranchCommitPreviewFiles,

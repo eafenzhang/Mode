@@ -30,7 +30,7 @@ export { WorkflowTimeline } from "./components/workflow-timeline/WorkflowTimelin
 export { buildWorkflowTimeline } from "./components/workflow-timeline/timeline-model.js";
 export type { WorkflowCausalityGraphData } from "./components/workflow-graph/types.js";
 export { workflowRunOverlay } from "./components/workflow-graph/run-status.js";
-export { TooltipProvider } from "./components/ui/tooltip.js";
+export { TooltipProvider } from "./ui-foundation/adapters/tooltip.js";
 export { ServiceProvider } from "./hooks/useServices.js";
 export { PlatformProvider } from "./hooks/usePlatform.js";
 export { StoreProvider, useModeStore } from "./store/StoreProvider.js";

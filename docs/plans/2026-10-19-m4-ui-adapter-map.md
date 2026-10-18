@@ -18,7 +18,7 @@
 | `popover.tsx` | 复合导出 | `adapters/popover` | **已切换 16 处调用**（2026-10-19）；定位自算 fixed，`collisionBoundary/sticky/hideWhenDetached/updatePositionStrategy` 接受后忽略 |
 | `select.tsx` | 复合导出 | `SelectTrigger`/`SelectContent`/`SelectItem`/`SelectGroup`/`SelectValue` | **已补**（2026-10-19） |
 | `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`、`tabsListVariants` | `adapters/tabs` | **已切换 12 处调用**（2026-10-19）；支持 `variant/asChild/forceMount` |
-| `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `Tooltip`/`TooltipContent`/`TooltipProvider`/`TooltipTrigger` | **已补静态语义**（2026-10-19）；显示/隐藏与延迟策略待接线 |
+| `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `adapters/tooltip` | **已切换 18 处调用**（2026-10-19）；悬停/聚焦/延迟/Escape 已接线，`skipDelayDuration`/`disableHoverableContent` 接受后忽略 |
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |
 | `badge.tsx` | `Badge`、`badgeVariants` | `Badge` + `badgeClassName` | **已补**（2026-10-19） |
 | `separator.tsx` | `Separator` | `adapters/separator` | **已切换并删除旧文件**（2026-10-19） |

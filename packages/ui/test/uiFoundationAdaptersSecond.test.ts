@@ -50,7 +50,8 @@ test("select adapter 子件齐备", () => {
 test("tooltip adapter 子件齐备", () => {
   assert.ok(TooltipContent);
   assert.equal(typeof TooltipProvider, "function");
-  assert.equal(typeof TooltipTrigger, "function");
+  // Trigger 走 forwardRef，运行时是对象而不是函数。
+  assert.ok(TooltipTrigger);
 });
 
 test("菜单 label 类名通过排版守卫", () => {

@@ -44,7 +44,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip.js";
+} from "@/ui-foundation/adapters/tooltip.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
