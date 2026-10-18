@@ -67,3 +67,18 @@
 4. 〔已完成 2026-10-19〕补 Select Content/Item/Group/Value 与 Tooltip Provider/Trigger 静态语义；
 5. 〔已完成 2026-10-19〕补 Badge/Separator 两个高频缺口；
 6. 之后按 P1.2→P1.7 顺序落 adapter。
+
+## 6. adapter 第一批（2026-10-19 已落地）
+
+`packages/ui/src/ui-foundation/adapters/` 已提供旧导出名包装：
+
+- `button.tsx`：`Button`（`variant: default|primary|outline|secondary|ghost|destructive|link`，
+  `default → primary`）、`buttonVariants`、`mapButtonVariant/Size`；
+- `input.tsx`：`Input`、`inputVariants`（`fieldSize` 对应旧 size，未知值走默认）；
+- `card.tsx`：`Card` 全家族原样转发；
+- `badge.tsx`：`Badge`（旧 `variant` 归一到 tone）、`badgeVariants`；
+- `separator.tsx`：`Separator`。
+
+用例：`packages/ui/test/uiFoundationAdapters.test.ts`。**尚未覆盖** Dialog/Menu/Select/Tooltip
+的旧 props 子集——它们的 Trigger/Content 语义需要在切换对应屏时按调用方用法补齐，
+不在 adapter 里猜。
