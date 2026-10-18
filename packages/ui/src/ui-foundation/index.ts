@@ -15,6 +15,7 @@ export {
 export { Textarea, type TextareaProps } from "./Textarea.js";
 export { Toast, type ToastProps } from "./Toast.js";
 export { Tooltip, type TooltipProps } from "./Tooltip.js";
+export { WorkspaceHeader, type WorkspaceHeaderProps } from "./WorkspaceHeader.js";
 export { controlRadiusClass } from "./radius.js";
 export {
   buttonClassName,
@@ -59,6 +60,13 @@ export {
   workspaceShellClassName,
   type ResizeOrientation,
 } from "./shellStyles.js";
+export {
+  workspaceHeaderActionsClassName,
+  workspaceHeaderClassName,
+  workspaceHeaderLeadingClassName,
+  workspaceHeaderSubtitleClassName,
+  workspaceHeaderTitleClassName,
+} from "./headerStyles.js";
 export {
   clampPanelSize,
   isResizeKey,

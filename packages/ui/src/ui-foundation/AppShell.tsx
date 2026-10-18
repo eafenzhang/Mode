@@ -86,6 +86,8 @@ export const ResizeHandle = forwardRef<HTMLDivElement, ResizeHandleProps>(
 export interface AppShellProps extends HTMLAttributes<HTMLDivElement> {
   conversation: ReactNode;
   conversationLabel: string;
+  /** 会话 frame 内的 WorkspaceHeader（可选）。 */
+  header?: ReactNode;
   terminal?: ReactNode;
   terminalLabel?: string;
   sidePane?: ReactNode;
@@ -98,6 +100,7 @@ export const AppShell = forwardRef<HTMLDivElement, AppShellProps>(function AppSh
   {
     conversation,
     conversationLabel,
+    header,
     terminal,
     terminalLabel,
     sidePane,
@@ -112,6 +115,7 @@ export const AppShell = forwardRef<HTMLDivElement, AppShellProps>(function AppSh
     <div {...rest} ref={ref} className={workspaceShellClassName(className)}>
       <div className={conversationColumnClassName()}>
         <section aria-label={conversationLabel} className={conversationFrameClassName()}>
+          {header}
           {conversation}
         </section>
         {terminal ? (

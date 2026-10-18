@@ -125,7 +125,9 @@ success/warning/destructive。
 - 文本容器加 `min-w-0`，滚动容器加 `min-h-0`；优先 `w-full + max-w-*`。
 
 **实现落点（P1.2 静态骨架）**：`shellStyles.ts` / `AppShell.tsx`——会话/终端/Side Pane
-三个独立 frame、4px 间隔、4px 分隔条命中区（hover/focus/drag 2px 线）与 mobile drawer。
+三个独立 frame、4px 间隔、4px 分隔条命中区（hover/focus/drag 2px 线）与 mobile drawer；
+`AppShell.header` 渲染在会话 frame 内。`headerStyles.ts` / `WorkspaceHeader.tsx` 提供
+标题/副标题/状态/操作槽位（文案由调用方传入，`ms-auto` 适配 RTL）。
 **尺寸换算（2026-10-18）**：`resizeMath.ts`——`clampPanelSize` / `resizeFromPointer` /
 `resizeFromKeyboard`（方向键 ±16px、Home/End 到边界、bounds 归一）/ `pointerDelta`
 （竖向向右为正、横向向上为正）；`ResizeHandle` 在提供 `size`/`bounds`/`onResize` 时支持
