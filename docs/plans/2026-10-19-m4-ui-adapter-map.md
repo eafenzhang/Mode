@@ -22,9 +22,9 @@
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |
 | `badge.tsx` | `Badge`、`badgeVariants` | `Badge` + `badgeClassName` | **已补**（2026-10-19） |
 | `separator.tsx` | `Separator` | `Separator` + `separatorClassName` | **已补**（2026-10-19） |
-| `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | — | **缺口** |
+| `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | `ScrollArea` / `ScrollBar` | **基础件已补**（2026-10-19）；adapter 待补 |
 | `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | `Checkbox` / `Switch` / `RadioGroup` / `Progress` | **基础件已补**（2026-10-19）；adapter 待补 |
-| `avatar.tsx` | `Avatar*` | — | **缺口** |
+| `avatar.tsx` | `Avatar*` | `Avatar` / `AvatarImage` / `AvatarFallback` / `AvatarBadge` / `AvatarGroup` / `AvatarGroupCount` | **基础件已补**（2026-10-19）；adapter 待补 |
 | `alert.tsx` | `Alert*` | `Alert` / `AlertTitle` / `AlertDescription` / `AlertAction` | **基础件已补**；adapter 待补 |
 
 ## 2. 业务面映射

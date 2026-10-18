@@ -1,3 +1,18 @@
+/* oxlint-disable eslint(max-lines) -- ui-foundation 的公开导出 barrel；按组件/样式分组导出会拆出额外的空壳文件。 */
+export {
+  Avatar,
+  AvatarBadge,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+  type AvatarBadgeProps,
+  type AvatarFallbackProps,
+  type AvatarGroupCountProps,
+  type AvatarGroupProps,
+  type AvatarImageProps,
+  type AvatarProps,
+} from "./Avatar.js";
 export {
   Alert,
   AlertAction,
@@ -103,6 +118,7 @@ export {
   type QuickpickListProps,
 } from "./Quickpick.js";
 export { ShortcutList, ShortcutRow, type ShortcutListProps, type ShortcutRowProps } from "./Shortcuts.js";
+export { ScrollArea, ScrollBar, type ScrollAreaProps, type ScrollBarProps } from "./ScrollArea.js";
 export { SelectTrigger, type SelectTriggerProps } from "./SelectTrigger.js";
 export { Separator, type SeparatorProps } from "./Separator.js";
 export {
@@ -181,6 +197,21 @@ export {
   type FieldSize,
   type SelectTriggerClassNameOptions,
 } from "./inputStyles.js";
+export {
+  avatarBadgeClassName,
+  avatarClassName,
+  avatarFallbackClassName,
+  avatarGroupClassName,
+  avatarImageClassName,
+  type AvatarBadgeTone,
+  type AvatarSize,
+} from "./avatarStyles.js";
+export {
+  scrollAreaClassName,
+  scrollAreaViewportClassName,
+  scrollBarClassName,
+  type ScrollOrientation,
+} from "./scrollStyles.js";
 export {
   alertActionClassName,
   alertClassName,
