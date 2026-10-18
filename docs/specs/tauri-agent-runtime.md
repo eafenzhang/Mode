@@ -371,10 +371,27 @@ allowlist**」，不是黑名单。
   不同路径仍请求（实测两次请求分别是 `a.txt` 与 `b.txt`，第二次写 `a.txt` 没有请求）。
 - 不做前缀/通配/大小写归一（观察范围内没有这些形态）。
 
-**Rust 侧接线状态（2026-10-18）**：`permission::evaluate` 已接进 `run_tool_batch`；
-allow 走 `started → result`，deny 只留 `scheduled → batch(errorCount 1)`，
-`allow_project` 的规则保存在**会话内存**（`Session.ruleset`）并立即生效。
-**跨会话落盘仍未实现**（D1 未决：直连 sqlite vs 经 Host 代理）。
+**表结构（黑盒观察，`probe-rule-store.mts`，2026-10-18）**：
+
+```sql
+CREATE TABLE local_setting (
+  scope text not null,
+  scope_id text not null,
+  namespace text not null,
+  key text not null,
+  value text not null,
+  schema_version integer not null,
+  time_created integer not null,
+  time_updated integer not null,
+  primary key(scope, scope_id, namespace, key)
+)
+```
+
+**Rust 侧接线状态（2026-10-18，D1 裁决 (a)）**：`permission::evaluate` 已接进
+`run_tool_batch`；allow 走 `started → result`，deny 只留 `scheduled → batch(errorCount 1)`，
+`allow_project` 的规则在会话内立即生效，并由 `rule_store::SqliteRuleStore` **跨会话持久化**
+（`Session::with_sqlite_rules`；短连接读写，写失败记在 `rule_store_error()`）。
+与 M3 Node Host 同时打开同一 DB 的并发写风险是 (a) 的已知代价，**尚未消除**。
 
 **未决（写进计划，不自行拍板）**：这条持久化归**谁**写？观察里是运行时装进程自己写的，但
 目标架构中 DB 由 M3 的 Node Host 侧持有（`node:sqlite`）。Rust 侧是直连 sqlite 还是经 Host 代理，

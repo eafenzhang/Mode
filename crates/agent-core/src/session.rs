@@ -65,6 +65,7 @@ use agent_tools::{
 use crate::approval::Ruleset;
 use crate::permission::{AutoAllow, PermissionHandler, DENY_REASON};
 use crate::provider::{ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelUsage};
+use crate::rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 use crate::stream::{EventSink, TurnError};
 use crate::tool::{error_object, result_object};
 
@@ -98,12 +99,18 @@ pub struct Session {
     messages: Vec<ModelMessage>,
     /// 事件信封的投递链路。默认 `desktop-continuous`；另一条链路的快照/队列归 Host/relay。
     delivery_kind: DeliveryKind,
-    /// 会话内的 allow 规则（`allow_project` 的内存投影；落盘仍待 D1 裁决）。
+    /// 会话内的 allow 规则（`allow_project` 的投影；D1 裁决后可从 sqlite 加载/写回）。
     ruleset: Ruleset,
     /// 审批交互的消费端；默认 `AutoAllow`（等价于驱动默认应答）。
     permission_handler: Box<dyn PermissionHandler>,
     /// 审批请求 id 的单调序号（`perm_<n>`）。
     permission_seq: u64,
+    /// `allow_project` 的跨会话规则存储（D1 裁决 (a)：Rust 直连 sqlite）；`None` = 仅内存。
+    rule_store: Option<Box<dyn RuleStore>>,
+    /// 当前 cwd 对应的 `scope_id`（与规则库行匹配）。
+    rule_scope_id: Option<String>,
+    /// 最近一次落盘失败（不静默丢；宿主/测试可读）。
+    rule_store_error: Option<String>,
 }
 
 impl Session {
@@ -122,6 +129,9 @@ impl Session {
             ruleset: Ruleset::new(),
             permission_handler: Box::new(AutoAllow),
             permission_seq: 0,
+            rule_store: None,
+            rule_scope_id: None,
+            rule_store_error: None,
         }
     }
 
@@ -135,6 +145,27 @@ impl Session {
     pub fn with_permission_handler(mut self, handler: Box<dyn PermissionHandler>) -> Self {
         self.permission_handler = handler;
         self
+    }
+
+    /// 接线 `allow_project` 的跨会话规则（D1 裁决 (a)：Rust 直连 sqlite）。
+    ///
+    /// 构造时按 `cwd` 计算 `scope_id` 并**读取已有规则**；之后每次 `allow_project`
+    /// 应答都会 upsert 同一行。打开/读取失败不阻断会话（规则退化为内存），
+    /// 但写失败会记在 [`Self::rule_store_error`]，不静默吞掉。
+    pub fn with_sqlite_rules(mut self, db_path: impl Into<PathBuf>) -> Self {
+        let store = SqliteRuleStore::new(db_path);
+        let scope_id = scope_id_for(&self.cwd);
+        if let Some(ruleset) = store.load(&scope_id) {
+            self.ruleset = ruleset;
+        }
+        self.rule_store = Some(Box::new(store));
+        self.rule_scope_id = Some(scope_id);
+        self
+    }
+
+    /// 最近一次规则落盘失败（`None` = 没有失败）。
+    pub fn rule_store_error(&self) -> Option<&str> {
+        self.rule_store_error.as_deref()
     }
 
     /// 模型视角的消息历史（只读；持久化格式归宿主）。
@@ -539,6 +570,14 @@ impl Session {
                         }
                         if let Some(updates) = &response.permission_updates {
                             self.ruleset.apply_updates(updates);
+                            if let (Some(store), Some(scope)) =
+                                (&self.rule_store, &self.rule_scope_id)
+                            {
+                                match store.save(scope, &self.ruleset) {
+                                    Ok(()) => self.rule_store_error = None,
+                                    Err(error) => self.rule_store_error = Some(error),
+                                }
+                            }
                         }
                     }
                 }

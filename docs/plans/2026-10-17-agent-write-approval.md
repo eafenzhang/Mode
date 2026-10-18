@@ -132,10 +132,19 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-write-rules.mts
 
 ---
 
-### Task D（**待裁决后才能做**）：`ApprovalStore` 的持久化
+### Task D（**已裁决 (a)，2026-10-18 落地**）：`ApprovalStore` 的持久化
 
-见文末「待裁决 D1」。在裁决前**不写**这块实现，也不引入任何 Rust sqlite 依赖——
-先做 Task A/B/C，它们不依赖这个决定。
+裁决：**Rust 直连 sqlite**。实现：
+
+- `crates/agent-core/src/rule_store.rs`：`RuleStore` trait + `SqliteRuleStore`；
+- 每次读写开短连接（缩小与 M3 Node Host 同时打开 DB 的窗口，但**不消除**并发写风险，
+  这是选 (a) 的已知代价）；
+- `scope_id_for(cwd)` 与观察一致（小写、非字母数字段折成 `-`）；
+- 表结构是黑盒观察所得（`probe-rule-store.mts`），DDL 常量 `LOCAL_SETTING_DDL` 只用于
+  测试/排障；生产库由 Host 迁移创建，Rust 侧**不建表**；
+- `Session::with_sqlite_rules(db_path)` 构造时读回已有规则，`allow_project` 后 upsert；
+  写失败记在 `rule_store_error()`，不静默吞掉；
+- `rule_store.rs` 4 条用例：归一化、upsert 保留 `time_created`、缺库报错、**跨会话生效**。
 
 ---
 
@@ -149,8 +158,8 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-write-rules.mts
 | **(b) 经 Host 代理** | Rust 侧只发「加规则」请求，由 Host（`packages/services`）落库 | 需要一个**当前协议里没有的**方法（观察到的反向请求只有 preferences 与 permission 两条），属新增接口 |
 | **(c) 只在合入 M3 Host 后接** | M2 期间 `ApprovalStore` 用 trait + 内存实现，把 sqlite 落库留到接线时 | M2 的对拍只到「同会话/同进程内规则生效」，跨会话落盘的对拍**留白并登记** |
 
-**建议 (c)**：M2 的验收口径是**行为对拍**，而 (a)(b) 都要先定一个 M2 范围外的架构问题；
-(c) 不阻塞 Task A/B/C，且把「跨会话落盘未对拍」如实登记而不是假装过了。
+**最终裁决（2026-10-18，用户拍板）：(a) Rust 直连 sqlite。** 原建议是 (c)，但用户选择了
+(a)；已知代价（与 Host 同时打开同一个 DB 文件）作为 D1 的登记风险保留，不假装已经解决。
 
 ## 风险
 

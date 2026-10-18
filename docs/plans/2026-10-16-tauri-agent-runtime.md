@@ -466,8 +466,10 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
       会话按观察发 `permission.requested` / `permission.resolved`；allow 继续执行，
       deny 只留 `scheduled → batch(errorCount:1)`；`allow_project` 的规则在会话内存生效
       （`permission_flow.rs` 三条用例覆盖）。
-- [ ] **Step 3–5: 持久化与 host 适配**：`allow_project` 的跨会话落盘（D1 未决），以及
-      把 `PermissionHandler` 适配成 stdio 的 `interaction/requestPermission` 反向请求。
+- [x] **Step 3: 持久化**（2026-10-18，D1 裁决 (a)）：`rule_store.rs` + `SqliteRuleStore` +
+      `Session::with_sqlite_rules`；跨会话用例覆盖，写入失败不静默。
+- [ ] **Step 4–5: host 适配**：把 `PermissionHandler` 适配成 stdio 的
+      `interaction/requestPermission` 反向请求（D1 选 (a) 后 Host 不再代理落库）。
 
 数据文件与旧版同格式（同 Task 3 的做法：格式取自 oracle）。工具级确认（Tool-level confirmation）
 与 `AskUserQuestion` 的交互面复用 M1 的命令面。

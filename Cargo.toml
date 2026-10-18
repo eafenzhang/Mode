@@ -52,6 +52,9 @@ url = "2"
 # `saveFile(sourceUrl)` 的取回面（M3 Task 4 · DR-T4-3）。档位与 tauri-plugin-updater 一致：
 # reqwest 以 `rustls-no-provider` 编译，TLS provider 由使用者安装（见 crates/platform/src/source_url.rs）。
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream"] }
+# allow_project 规则的持久化（D1 裁决 (a)：Rust 直连 `.mode/cli/db/db.sqlite`）。
+# `bundled` 自带 SQLite 源码，避免依赖系统库版本；表结构是黑盒观察所得（spec §3.3）。
+rusqlite = { version = "0.32", features = ["bundled"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 futures-util = { version = "0.3", default-features = false }
 # 图标面的 Windows 原生解码（M3 Task 4 · DR-T4-2）：Shell 取图标 + GDI 取像素。

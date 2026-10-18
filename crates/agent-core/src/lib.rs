@@ -26,6 +26,7 @@
 pub mod approval;
 pub mod permission;
 pub mod provider;
+pub mod rule_store;
 pub mod session;
 pub mod stream;
 pub mod tool;
@@ -41,4 +42,5 @@ pub use provider::{
     ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelToolCall, ModelUsage,
     ProviderError, ScriptStep, ScriptToolCall, ScriptedProvider,
 };
+pub use rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 pub use stream::{EventSink, TurnError};
