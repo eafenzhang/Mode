@@ -4,7 +4,7 @@ import {
   buildHighlightedLightweightDiffCode,
   getHighlightedLightweightDiffLine,
   HighlightedLightweightDiffPreview,
-} from "@/components/ui/highlighted-lightweight-diff-preview.js";
+} from "@/ui-foundation/adapters/highlighted-lightweight-diff-preview.js";
 import { inferCodeLanguage, type PatchCodeViewerSource } from "@/lib/codeViewer.js";
 import { getPlainTextPatchPreviewLines } from "@/lib/patchDiffPreview.js";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";

@@ -265,3 +265,16 @@ export {
   type DiffViewerProps,
   type DiffViewerSelectedLineRange,
 } from "./diff-viewer.js";
+export {
+  LightweightDiffPreview,
+  getLightweightDiffLineParts,
+  type LightweightDiffLineKind,
+  type LightweightDiffLineParts,
+  type LightweightDiffPreviewProps,
+} from "./lightweight-diff-preview.js";
+export {
+  HighlightedLightweightDiffPreview,
+  buildHighlightedLightweightDiffCode,
+  getHighlightedLightweightDiffLine,
+  type HighlightedLightweightDiffPreviewProps,
+} from "./highlighted-lightweight-diff-preview.js";

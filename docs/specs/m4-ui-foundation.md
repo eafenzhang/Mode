@@ -197,6 +197,16 @@ success/warning/destructive。
 - `selectedLines` 透传库类型；`disableWorkerPool` 透传；
 - 外层 `className` 控制滚动/宽度，`diffClassName` 作用于 diff 根节点。
 
+### 2.16 Lightweight diff preview
+
+- 用于超大 patch / 多文件 patch 的降级预览：逐行读取，不构建富 diff；
+- 行分类：`+` = added、`-` = removed、其余 = context；`marker` 保留首字符，
+  `content` 去掉前缀；
+- 行号从 1 开始，受 `codePreviewSettings.showLineNumbers` 控制；行高/字号来自设置；
+  `wrapLongLines` 时使用 `whitespace-pre-wrap break-words`，否则横向滚动；
+- 颜色只用 diff 语义色（`bg-diff-added/removed`），不借用 success/destructive；
+- `renderLineContent` 允许调用方接管行内容（高亮版用它渲染 token）。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -261,7 +271,9 @@ HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`
 `uiFoundationInputGroupScroll.test.ts`；图表组合在 `Chart.tsx`，用例
 `uiFoundationChart.test.ts`；面板分隔在 `Resizable.tsx`，用例
 `uiFoundationResizable.test.ts`；diff 呈现适配在 `adapters/diff-viewer.tsx`
-（纯计算在 `diffViewerStyles.ts`），用例 `uiFoundationDiffViewer.test.ts`。
+（纯计算在 `diffViewerStyles.ts`），用例 `uiFoundationDiffViewer.test.ts`；
+轻量 diff 在 `LightweightDiffPreview.tsx` / `HighlightedLightweightDiffPreview.tsx`
+（行契约在 `lightweightDiffTokens.ts`），用例 `uiFoundationLightweightDiff.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

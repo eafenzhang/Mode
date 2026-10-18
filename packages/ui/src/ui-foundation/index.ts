@@ -475,3 +475,16 @@ export {
   type ResizablePanelGroupProps,
   type ResizablePanelProps,
 } from "./Resizable.js";
+export {
+  LightweightDiffPreview,
+  getLightweightDiffLineParts,
+  type LightweightDiffLineKind,
+  type LightweightDiffLineParts,
+  type LightweightDiffPreviewProps,
+} from "./LightweightDiffPreview.js";
+export {
+  HighlightedLightweightDiffPreview,
+  buildHighlightedLightweightDiffCode,
+  getHighlightedLightweightDiffLine,
+  type HighlightedLightweightDiffPreviewProps,
+} from "./HighlightedLightweightDiffPreview.js";

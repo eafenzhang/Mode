@@ -16,7 +16,7 @@ import type { GitPaneFileChange } from "@/hooks/useGitRepository.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
 import type { ResolvedTheme } from "@/useTheme.js";
-import { LightweightDiffPreview } from "@/components/ui/lightweight-diff-preview.js";
+import { LightweightDiffPreview } from "@/ui-foundation/adapters/lightweight-diff-preview.js";
 
 export function GitPaneChangeCard({
   change,

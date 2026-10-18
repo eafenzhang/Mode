@@ -6,7 +6,7 @@
 >
 > **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
 > command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
-> 引用集中在其余 viewer（pdf/code/pptx 与 lightweight 系列）；旧文件统一保留到人工看屏验收后删除。
+> 引用集中在其余 viewer（pdf/code/pptx）；旧文件统一保留到人工看屏验收后删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 
 ## 基础件切换顺序（按引用面从小到大）
@@ -252,3 +252,13 @@ checkbox → alert → textarea`（可加 `badge`）。
 验证：UI 351 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：`selectedLines` 沿用库类型，未做旧 API 的 side 归一；测试只覆盖纯样式/主题函数，
 避免在测试进程加载 @pierre/diffs 重型运行时。
+
+### 后续波次（2026-10-19 第十八轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `lightweight-diff-preview` | 2 | 新增 foundation：行分类（added/removed/context）、marker/content、行号、`wrapLongLines`、diff 语义色与 `renderLineContent` 接管 |
+| `highlighted-lightweight-diff-preview` | 2 | 新增 foundation：异步 Shiki token（>120k 字符或纯文本语言跳过），按行渲染 token，结构复用 lightweight；纯行契约拆到 `lightweightDiffTokens.ts` 便于单测 |
+
+验证：UI 355 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：行号按数组下标从 1 开始（props 未提供起始行）；超大 patch 高亮阈值沿用 120k 字符。
