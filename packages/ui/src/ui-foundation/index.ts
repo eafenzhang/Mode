@@ -186,6 +186,7 @@ export {
   dialogClassName,
   menuClassName,
   menuGroupClassName,
+  menuLabelClassName,
   menuItemClassName,
   dialogHeaderClassName,
   dialogTitleClassName,

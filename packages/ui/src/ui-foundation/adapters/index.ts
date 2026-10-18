@@ -30,3 +30,33 @@ export {
 } from "./card.js";
 export { Input, inputVariants, type AdapterInputProps } from "./input.js";
 export { Separator, type SeparatorProps } from "./separator.js";
+export {
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+} from "./dropdown-menu.js";
+export {
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+  type SelectContentProps,
+  type SelectGroupProps,
+  type SelectItemProps,
+  type SelectTriggerProps,
+  type SelectValueProps,
+} from "./select.js";
+export {
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  type TooltipContentProps,
+  type TooltipProviderProps,
+  type TooltipTriggerProps,
+} from "./tooltip.js";

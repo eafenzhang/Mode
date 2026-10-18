@@ -95,6 +95,12 @@ export function menuGroupClassName(className?: string): string {
   return ["flex flex-col gap-0.5", className].filter(Boolean).join(" ");
 }
 
+export function menuLabelClassName(className?: string): string {
+  return ["px-2 py-1 text-ui-xs text-foreground-subtlest", className]
+    .filter(Boolean)
+    .join(" ");
+}
+
 /** 独立浮层：bg-popover + 从 xl 起的嵌套半径；位于 Tooltip 之上。 */
 export function popoverClassName(parentRadius: RadiusLevel = "none", className?: string): string {
   return [

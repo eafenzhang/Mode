@@ -82,3 +82,12 @@
 用例：`packages/ui/test/uiFoundationAdapters.test.ts`。**尚未覆盖** Dialog/Menu/Select/Tooltip
 的旧 props 子集——它们的 Trigger/Content 语义需要在切换对应屏时按调用方用法补齐，
 不在 adapter 里猜。
+
+## 7. adapter 第二批（2026-10-19 已落地）
+
+- `dropdown-menu.tsx`：`DropdownMenuContent/Group/Item/CheckboxItem/RadioItem/Separator/Label`
+  （旧导出名）；根 DropdownMenu/Trigger/Sub 的开关语义留到切换时补；
+- `select.tsx`：`SelectContent/Group/Label/Item/Trigger/Value`；根 Select 状态机待切换；
+- `tooltip.tsx`：`TooltipProvider/Trigger/Content`；显示/隐藏策略待接线。
+
+用例：`packages/ui/test/uiFoundationAdaptersSecond.test.ts`。
