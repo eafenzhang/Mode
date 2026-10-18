@@ -4,10 +4,13 @@
 > 方法：`grep -rl "components/ui/<name>" packages/ui/src` 统计**引用文件数**（不是出现次数，
 > 也不是行数）；不读取旧实现体。
 >
-> **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
-> command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
-> 引用集中在 code-viewer 与 pptx-preview-viewer；旧文件统一保留到人工看屏验收后删除。
+> **状态（2026-10-19）：清单内 21 个模块 + 后续波次（collapsible/spinner/context-menu/
+> command/label/kbd/hover-card/input-group/scroll-fade/chart/resizable/diff-viewer/
+> lightweight+highlighted diff/pdf-viewer/pptx-selection-action-bar/flip-metric-value）已切到
+> `ui-foundation/adapters`。** 剩余业务引用只有 `code-viewer` 与 `pptx-preview-viewer`
+> （各 4 处，含类型引用与动态 import）；旧文件统一保留到人工看屏验收后删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
+> 迁移守卫 `uiFoundationMigrationGuard.test.ts` 会阻止业务代码回退到旧模块。
 
 ## 基础件切换顺序（按引用面从小到大）
 
