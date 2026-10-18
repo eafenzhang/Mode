@@ -146,7 +146,10 @@ success/warning/destructive。
 **实现落点（P1.1 已起步）**：圆角解析与排版守卫在
 `packages/ui/src/lib/uiFoundation.ts`（`resolveControlRadius` / `resolveNestedRadius` /
 `findUiTypographyViolations` / `UI_TEXT_TOKENS`），用例
-`packages/ui/test/uiFoundation.test.ts`。primitives 直接复用这些函数，不再各写一套。
+`packages/ui/test/uiFoundation.test.ts`。Button 的类名契约与 primitive 在
+`packages/ui/src/ui-foundation/`（`buttonStyles.ts` / `Button.tsx` / `index.ts`），
+用例 `packages/ui/test/uiFoundationButton.test.ts`。后续 primitives 复用这些函数，
+不再各写一套。
 
 ## 6. 不在本 spec 范围
 
