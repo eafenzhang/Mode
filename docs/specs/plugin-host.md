@@ -15,8 +15,20 @@
 | 内置官方 cache | 由 CLI seed；**不在** `installed_plugins.json` 里 | CLI seed | 只读 |
 | 组件类型 | `agent` / `command` / `skill` / `hook` / `mcp` / `lsp` | 插件清单 | 只读 |
 
-**未观察**：`installed_plugins.json` 在隔离数据根里的确切路径与一条完整记录样例；
-本轮的路径结论来自类型与测试引用，不是运行时取证。
+**黑盒取证（`probe-plugin-roots.mts` / `probe-plugin-fixture.mts`，2026-10-18）**：
+
+- 插件存储根：`<dataRoot>/.mode/cli/plugins/`，内含 `cache/`、`data/`、`marketplaces/`。
+- 官方 cache：`<插件存储根>/cache/mode-plugins-official/<name>/<version>/`；清单在
+  `<version>/.mode-plugin/plugin.json`。
+- `mode plugins list --json`（隔离 HOME）给出的逐项字段：
+  `id` / `name` / `version` / `marketplace` / `source` / `enabled` / `rootPath` /
+  `manifestPath` / `dataPath` / `declaredMcpServerNames` / `mcpServerNames` /
+  `skillCount` / `skillRootCount` / `commandRootCount` / `hookDetails` / `diagnostics`。
+- **官方 cache 由 CLI seed 覆盖**：手工写入的 fixture 插件在会话后消失，目录只剩
+  `browser-use` / `computer-use` / `node-repl-host` 三个内置插件。⇒ 不能靠写 cache 目录
+  安装插件；fixture 安装必须走 marketplace / 安装记录路径。
+- **未观察**：`installed_plugins.json` 的一条完整记录样例，以及本地 marketplace 的安装命令
+  （`plugins marketplace add <path>` / `plugins install` 的确切用法）。
 
 ## 2. 工具面（默认隔离环境）
 

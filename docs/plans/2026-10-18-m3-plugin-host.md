@@ -79,12 +79,14 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - Create: `packages/desktop/tests/agent-runtime-oracle/probe-plugin-host.mts`
 - Create/Modify: `docs/specs/plugin-host.md`（新 spec，记录观察）
 
-- [x] **Step 0.1：盘点插件数据面**（2026-10-18，部分）：`.mode-plugin/plugin.json` 的字段、
-      `installed_plugins.json` 的记录类型、`.agents/plugins/marketplace.json` 约定已入 spec §1；
-      **隔离数据根下的确切文件路径尚未取证**（列为未观察）。
+- [x] **Step 0.1：盘点插件数据面**（2026-10-18）：插件存储根
+      `<dataRoot>/.mode/cli/plugins/{cache,data,marketplaces}`、官方 cache 的
+      `<name>/<version>/.mode-plugin/plugin.json`、`plugins list --json` 的逐项字段均已入
+      spec §1。**`installed_plugins.json` 的完整记录样例仍未观察**。
 - [ ] **Step 0.2：观察旧运行时的插件工具面**（2026-10-18，部分）：默认隔离环境的 21 条里
-      已抓到 `mcp__node_repl__js` / `Skill` / `Agent` 的完整声明；**fixture 插件安装后的清单
-      变化尚未观察**。
+      已抓到 `mcp__node_repl__js` / `Skill` / `Agent` 的完整声明；fixture 写入官方 cache
+      会被 seed 覆盖（`probe-plugin-fixture.mts` 的负结果），**fixture 安装需走 marketplace
+      路径，尚未完成**。
 - [ ] **Step 0.3：观察工具调用与生命周期**（2026-10-18，部分）：`Skill` 缺参/未知名字与
       未知 MCP 名字的错误形状已录；**MCP 启动耗时、负载缺失/断网/崩溃形状未观察**。
 - [ ] **Step 0.4：观察权限面**（2026-10-18，部分）：`Skill` 与未知 MCP 都没有审批请求；
