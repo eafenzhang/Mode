@@ -161,4 +161,8 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第十四批（`app-transcript-errors`、`app-model-ref`）：系统错误消息加 `Error:` 前缀、
   空文案回退 Unknown error、保留原消息且不修改入参数组；模型展示按首个斜杠拆分
   provider/模型、无 provider 与空选择用占位符；
+- 第十五批（`app-tool-diff-display`、`app-selection-state`）：空 diff 的默认行集、
+  filePath 沿用与 file 占位、结构化 hunk 合成 diff 文本、truncated 生成 meta 提示行；
+  选择状态缺省返回 undefined、默认 filter 空且选中首项、下标夹取到有效范围、
+  cursor/query 保留；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
