@@ -18,6 +18,7 @@
     "dep:refs": "node scripts/dep-refs.mjs",
     "verify:pre-push": "pnpm run lint && node scripts/check-language-policy.mjs && pnpm run architecture:check -- --changed",
     "check:upstream-overlap": "tsx scripts/upstream-overlap-check.ts",
+    "check:rust-ledger": "tsx scripts/rust-ledger-gap.ts",
     "verify:self-developed": "tsx scripts/upstream-overlap-check.ts --strict",
     "build": "pnpm -r build",
     "build:desktop-agent:bytecode": "node scripts/build-desktop-agent-bytecode.mjs",

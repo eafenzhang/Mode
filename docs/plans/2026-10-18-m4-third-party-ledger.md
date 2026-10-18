@@ -96,13 +96,44 @@ Error: pnpm -r ls --prod --json --depth Infinity
 建议 (a)：与 README 里「保守并集，不声称每个平台都链接」的既有口径一致，也避免
 per-artifact 台账在 M5 切发布线时新增分支。
 
+## T2 覆盖门禁（2026-10-18 已实现）
+
+工具：`scripts/rust-ledger-gap.ts`，命令：
+
+```bash
+pnpm check:rust-ledger
+# 本机无 cargo 时：先生成 metadata 再传文件
+node scripts/rust-cargo.ts metadata --format-version 1 --locked > .plan/meta.json
+pnpm check:rust-ledger -- --metadata .plan/meta.json
+pnpm check:rust-ledger -- --json
+pnpm check:rust-ledger -- --strict   # T3 之后接成阻断门禁
+```
+
+口径：
+
+- **发布目标** = workspace 全部成员，排除 `tauri-test-manifest` 与 `updater-verify`
+  （可用 `--roots a,b` 覆盖）；
+- 每个目标取 `cargo metadata` 的 resolve 可达闭包，只统计 `source !== null` 的第三方 crate；
+- 覆盖判定是 **`name@version` 精确匹配**（版本漂移单独计数）；工作区自有 crate 不计入；
+- 外部 crate 缺 `license` 标识 → `unknownLicense`，`--strict` 同样失败（fail closed）。
+
+**实测（2026-10-18，根 `Cargo.lock`）**：`union: external 558, covered 44, missing 514,
+version-drift 31`。与上文「并集 574 / 499」的差异来自两处口径：上文把工作区 crate 计入了
+可达集合、且只按 crate 名比较；门禁排除工作区并拒绝版本漂移，因此更严格。
+
+当前**不接 CI**：缺项是 T3 之前的事实，接成阻断会让发布线必红。T3 重生成台账后，
+在 `licenses-notices.yml` 里加 `pnpm check:rust-ledger --strict`。
+
+
+
 ## 分阶段任务（M4）
 
 1. **T1 扩 scope 与输入**：`rust-sources.json` 增加 `targets`（`tauri-shell` / `agent-runtime` /
    `cua-helper`）并把生成输入从单一 `mode-cua-ax/Cargo.lock` 改为各目标 `Cargo.lock`
    或根 `Cargo.lock` 的可达闭包；scope 文案同步。
-2. **T2 覆盖门禁**：新增校验（Rust 或 `.ts` 脚本均可）：对每个 shipped target 的 resolve 图，
-   断言所有带 `license` 的 crate 都在台账中；缺一条即失败。放在 Linux CI 的 notices job。
+2. **T2 覆盖门禁**〔2026-10-18 已实现，见上一节〕：对每个 shipped target 的 resolve 图，
+   断言所有带 `license` 的 crate 都在台账中；缺一条即失败。当前 report，T3 后接
+   `--strict` 到 Linux CI 的 notices job。
 3. **T3 重生成与模板**：Linux CI 重生成 `THIRD-PARTY-NOTICES.md` 与 `inventory.json`，
    人工 review diff 后入库；NOTICE 的「Rust crates」段随之覆盖新目标。
 4. **T4 npm 侧复核**：M2/M3 没有新增生产 npm 依赖（插件宿主 bundle 用 esbuild，属 dev），

@@ -19,6 +19,9 @@ This directory holds the source material behind [THIRD-PARTY-NOTICES.md](../THIR
 
 - Regenerate the notice file and verify freshness: `node scripts/licenses.mjs notices`
 - Strict check (fails on incomplete or stale material): `node scripts/licenses.mjs notices --strict`
+- Rust ledger coverage for shipped targets (report until the M4 regeneration lands):
+  `pnpm check:rust-ledger` — see `docs/plans/2026-10-18-m4-third-party-ledger.md`. It exits non-zero
+  with `--strict` when a crate in a shipped target's resolve graph is missing from `rust-sources.json`.
 
 ## Where the notices ship
 
