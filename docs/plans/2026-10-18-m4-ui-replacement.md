@@ -43,9 +43,10 @@
 
 ### P1.1 设计基础（`components/` + 主题 token）
 
-- 依据：`DESIGN.md` 的色彩/字体/间距/圆角/组件规范；
+- 依据：`DESIGN.md` 与实现契约 `docs/specs/m4-ui-foundation.md`（token/字号/圆角算法/
+  primitive 状态矩阵/验收守卫）；
 - 产出：Button/Input/Card/Dialog/Menu/Tabs 等基础件的 clean-room 版本与 Story/示例页；
-- 验收：与 `DESIGN.md` 逐条对照；现有页面在新基础件上视觉无阻断；
+- 验收：与 `DESIGN.md` 逐条对照；圆角纯函数与 token 守卫用例；现有页面在新基础件上视觉无阻断；
 - 风险：`components/ui/*` 可能被大量页面直接引用，替换要保留导出签名。
 
 ### P1.2 应用外壳（`app-shell/` + `root/` + 窗口框架）
