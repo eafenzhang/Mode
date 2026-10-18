@@ -196,6 +196,21 @@
   `mcp__plugin_fixture_fixture__echo`）；工具总数 21 → 22。调用成功，正文 `hello from mcp`。
 - **未观察**：MCP 启动耗时、失败/断网/崩溃形状；非插件（全局）MCP 服务器的命名与风险。
 
+## 5.7 MCP 生命周期（Task 5 Step 3，2026-10-18）
+
+实现/复现：`probe-plugin-mcp-lifecycle.mts`（fixture 有 `echo` + `crash`；另有 `broken`
+插件的 command 指向不存在的文件）。
+
+- 启动：`startupMs ≈ 5468`（CLI + 两个 MCP 插件 + 内置 node_repl）；工具总数 23。
+- **坏 server 降级**：插件仍在 `plugins list` 里（`mcpServerNames:["plugin:broken:broken"]`），
+  `diagnostics` 为空；工具清单**不含**它的工具（静默缺失，不是启动失败）。
+- **崩溃**：调用 `crash` 让 server 退出 → 工具错误 `type:"SdkError"`、`message:"Connection closed"`、
+  `code:"CONNECTION_CLOSED"`；**下一次 `echo` 调用自动重启 server 并成功**（约 138ms）。
+- **未观察**：反复崩溃/重启上限、启动超时、并行会话下的 server 复用。
+- 与 Rust 侧的差异：我们的 `SupervisorError::Closed` 目前映射为字符串，再落到
+  `tool_execution_failed`；oracle 的 MCP 崩溃是 `SdkError`/`CONNECTION_CLOSED`。Task 5 实现时
+  需要把这个错误形状对齐（或显式登记为差异）。
+
 ## 6. 复现
 
 ```bash

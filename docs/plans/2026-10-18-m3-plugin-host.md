@@ -175,7 +175,8 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
       medium/network/truncate，node_repl 是 high/system/artifact。
 - [x] **Step 2：Skills 列表与调用**（2026-10-18）：fixture 的
       `skills/<name>/SKILL.md` 可被 `Skill` 用 namespaced/裸名两种写法命中。
-- [ ] **Step 3：启动耗时与缓存**：MCP 启动耗时、失败/断网/崩溃形状仍未观察。
+- [x] **Step 3：启动耗时与生命周期**（2026-10-18）：启动约 5.5s；坏 server 静默缺工具；
+      崩溃是 `SdkError`/`CONNECTION_CLOSED`，下一次调用自动重启。Rust 侧错误形状对齐待实现。
 - [x] **Step 4：测试 + 提交**（Step 1/2 的观察与实现已提交）。
 
 ---
