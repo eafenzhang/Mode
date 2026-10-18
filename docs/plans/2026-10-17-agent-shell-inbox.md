@@ -255,9 +255,13 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 
 ### Step 4：`CommandInbox`
 
-- [ ] `crates/agent-core/src/command_inbox.rs`：`admit(key)` 返回准入结果；
-      同 key 的 busy/running 输入串行排队，顺序由观察决定。
-- [ ] **禁止**用超时掩盖同步问题；用例直接断言准入顺序。
+- [x] `crates/agent-core/src/command_inbox.rs`：`admit(key)` 返回准入结果；
+      同 key 的 busy/running 输入串行排队，顺序由观察决定。〔2026-10-18 按 DR-T4-7 (c)
+      落地 host 层队列：同 key FIFO、`complete` 提升队首、stale 完成不改队列、
+      `cancel_queued` 只移除排队项；**没有超时**〕
+- [x] **禁止**用超时掩盖同步问题；用例直接断言准入顺序。
+      〔`crates/agent-core/tests/command_inbox.rs` 5 例：入队顺序、FIFO 提升、stale 完成、
+      多 key 隔离、只取消排队项〕
 
 ### Step 5：门禁与收口
 
@@ -360,3 +364,13 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
   `<status>running</status>`，无 `<exit_code>` / `<output>`；display 的 `retrievalStatus` 是
   `not_ready`（169 字节）。
 - 实现补 running 分支并新增断言；至此 TaskOutput 的四种状态形状全部有观察依据。
+
+### 2026-10-18 巡检轮（第七次）：host 层 `CommandInbox`
+
+- 按 DR-T4-7 裁决 (c) 落地 host 队列：`crates/agent-core/src/command_inbox.rs`。
+- 语义：同 key FIFO；第一个 `admit` 立即 running，其余 `Queued { position }`；
+  `complete` 只接受当前 running 的 id，成功提升队首，**stale 完成不改队列**；
+  `cancel_queued` 只移除排队项，running 的取消走 `complete`；**没有超时**。
+- 用例：`crates/agent-core/tests/command_inbox.rs` **5 passed**，直接断言顺序，不断言时长。
+- spec §3.4.1 登记为「设计接口，不是 oracle 观察值」；跨层对拍（会话面 `-32010` 拒绝
+  vs host 队列）等 host 面可观察后再补。

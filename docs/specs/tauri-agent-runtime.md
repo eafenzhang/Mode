@@ -660,7 +660,26 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
 `running` 四种结果形状均已按观察实现。完成通知的**自动调度**尚未实现：
 `Session::run_pending_notifications` 已可用，但需要调用方在空闲时触发（Task 5 的完整循环）。
 
-**仍未观察（Step 0 剩余）**：host 层 `CommandInbox` 的排队顺序与 key 粒度（DR-T4-7 待人裁决）。
+**仍未观察（Step 0 剩余）**：host 层 `CommandInbox` 的跨层行为；排队顺序与 key 粒度按下面的
+设计接口先行落地，跨层对拍等 host 面可观察后再补（DR-T4-7 已裁决 (c)）。
+
+### 3.4.1 `CommandInbox`（host 层队列，设计接口，2026-10-18）
+
+**这不是 oracle 观察值**。stdio 会话面只观察到并发 prompt 被拒绝（`-32010`
+`A prompt is already running for this session`，不排队）；host 层队列是为 AGENTS.md
+「已接受的 busy/running 输入串行准入」提供的独立接口，跨层对拍等 host 面可观察后再补。
+
+语义（`crates/agent-core/src/command_inbox.rs`）：
+
+- 调用方传 `key`（会话键；本地/远程的粒度由 Host 决定），**同 key FIFO**，不同 key 互不影响；
+- 第一个 `admit` 立即 `Started`；其余 `Queued { position }`（从 1 起，按到达顺序）；
+- `complete(key, id)` 只接受当前 running 的 id：成功则提升队首并返回其 id（`Promoted`），
+  没有排队项返回 `Idle`；**stale 完成**（id 不匹配）返回 `Stale`，**不改变队列**；
+- `cancel_queued(key, id)` 只移除排队项；running 的取消走 `complete`（oracle 的取消也以
+  终态收口，见 §3.4 的 `turn.completed(resultType:"cancelled")`）；
+- **不设超时**：准入顺序由调用方同步推进，禁止用超时掩盖同步问题（AGENTS.md）。
+
+用例 `crates/agent-core/tests/command_inbox.rs` 直接断言准入顺序（不断言等待时长）。
 
 ### 3.5 会话流与后台通知准入（Task 5 Step 0 观察，2026-10-18）
 

@@ -386,7 +386,7 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 ### Task 4: shell 与 pty（`Bash`）+ `CommandInbox` 串行准入
 
 **子计划：** `docs/plans/2026-10-17-agent-shell-inbox.md`（2026-10-17 产出，含已观察的
-`Bash` 行为、DR-T4-1…7 与 Step 0 的补观察清单；**实现未开工**）。
+`Bash` 行为、DR-T4-1…7 与 Step 0 的补观察清单；**2026-10-18 已收口**，含 CommandInbox）。
 
 > **2026-10-17 观察后改判（DR-T4-1）**：stdio 会话面的 `[ -t 1 ]` / `[ -t 0 ]` 都是假
 > （`stdout:pipe stdin:pipe`），旧运行时用**管道**而不是伪终端。因此 `Bash` 用管道实现，
@@ -401,11 +401,13 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 - Produces: `agent_core::command_inbox::CommandInbox::admit(key: CommandKey) -> Admission`
   ——同一 key 的 busy/running 输入**串行准入**（`AGENTS.md` 的既有语义，不得用超时掩盖）。
 
-- [ ] **Step 1–6: 对拍含超时、取消、退出码语义**（大纲；细步骤见子计划）
+- [x] **Step 1–6: 对拍含超时、取消、退出码语义**（2026-10-18 收口）
   〔**2026-10-17 进展**：`Bash` **前台**已实现并通过 11 条对拍——管道（oracle 实测不是 pty）、
-  超时/取消、退出码、stdout/stderr 交错、artifact 包装；`run_in_background` 显式未实现（Task 4b）。
-  `CommandInbox` 未开工：**DR-T4-7 待决**（会话面拒绝并发 prompt，队列在 host 层）。
-  详见 `docs/plans/2026-10-17-agent-shell-inbox.md` 的「执行记录」〕
+  超时/取消、退出码、stdout/stderr 交错、artifact 包装；`run_in_background` 见 Task 4b。
+  〔**2026-10-18 收口**：DR-T4-7 裁决 (c) 已落地——会话面并发拒绝按观察镜像，
+  host 层 `CommandInbox`（`crates/agent-core/src/command_inbox.rs`，同 key FIFO、
+  stale 完成不改队列、无超时）由 `crates/agent-core/tests/command_inbox.rs` 5 例钉住顺序；
+  跨层对拍等 host 面可观察后再补。详见 `docs/plans/2026-10-17-agent-shell-inbox.md`〕
 
 必须覆盖的判据：超时后进程是否真的被杀（含孙进程）、取消（用户中断）与超时的区分、
 退出码与信号的非零呈现、pty 与 pipe 两种模式下输出缓冲的差异、

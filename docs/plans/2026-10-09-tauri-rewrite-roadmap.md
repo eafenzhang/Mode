@@ -184,8 +184,10 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
   （`approval.rs`、`permission_flow.rs`，`ApplyPatch` 实测不存在、已作废）；
   `display.file_diff`（`crates/agent-tools/src/file_diff.rs`）已补，`Write` 覆盖与 `Edit`
   成功结果带 diff、新建 `Write` 不带（观察）；`tool_parity` 逐字段比较 `display`。
-- [ ] **shell 与 pty**：Bash 与超时/取消/退出码对拍已落地；oracle 实测管道而非 TTY
-  （`[ -t 1 ]` 为假），`portable-pty` **不需要**；`CommandInbox` 串行准入在 Host 层，尚未接入。
+- [x] **shell 与 pty**〔2026-10-18 收口〕：Bash 与超时/取消/退出码对拍已落地；oracle 实测
+  管道而非 TTY（`[ -t 1 ]` 为假），**不引入 `portable-pty`**；host 层 `CommandInbox`
+  （`crates/agent-core/src/command_inbox.rs`，同 key FIFO、stale 完成不改队列、无超时）
+  已按 DR-T4-7 (c) 落地并由 5 条用例钉住顺序。Host 实际接线在 M3/M4，跨层对拍待 host 面可观察。
 - [x] **会话流与重放**〔2026-10-18 收口〕：`desktop-continuous` 用
   `crates/agent-core/tests/stream_parity.rs`；`web-remote-replayable` 的 `deliveryKind`
   透传由 `turn_stream.rs` 锁定，重放语义归 Host（DR-T5-1 (a)），由
