@@ -19,6 +19,24 @@ export {
   type AdapterButtonVariant,
 } from "./button.js";
 export {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
+  AlertDialogPortal,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+  type AlertDialogActionProps,
+  type AlertDialogCancelProps,
+  type AlertDialogContentProps,
+  type AlertDialogProps,
+  type AlertDialogTriggerProps,
+} from "./alert-dialog.js";
+export {
   Alert,
   AlertAction,
   AlertDescription,

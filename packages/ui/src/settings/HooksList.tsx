@@ -3,7 +3,7 @@ import { Anchor, Download, ShieldCheck } from "lucide-react";
 import type { Hook, PluginHookDetail, PluginScope } from "@mode/shared";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { PluginInstallEmptyState } from "@/settings/PluginInstallEmptyState.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";

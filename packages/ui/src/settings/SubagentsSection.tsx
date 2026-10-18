@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { SettingsSearchInput } from "@/settings/SettingsSearchInput.js";
 import { SettingsFormActions } from "@/settings/SettingsFormActions.js";
 import { toast } from "@/components/ui/toast.js";

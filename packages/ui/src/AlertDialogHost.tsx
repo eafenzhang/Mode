@@ -7,7 +7,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog.js";
+} from "@/ui-foundation/adapters/alert-dialog.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useAlertDialogStore } from "@/store/alertDialogStore.js";

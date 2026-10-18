@@ -103,3 +103,12 @@ checkbox → alert → textarea`（可加 `badge`）。
 | `checkbox` | 6 | 兼容 `checked: boolean \| "indeterminate"` + `onCheckedChange`；`checkIconStrokeWidth` 接受后忽略 |
 
 `alert-dialog` 暂缓：旧导出集合包含 Action/Cancel 等组合语义，需单独补 adapter。
+
+### 批次 2 开始（2026-10-19 第三轮）
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `switch` | 24 | 接受旧 `size`（当前忽略，视觉差异登记）；`label` 缺省时取 `aria-label` |
+| `alert-dialog` | 5 | 复用 Dialog 组合；`Action/Cancel` 走 `DialogClose` + Button 并映射旧 `variant/size`；`asChild` 接受但未实现；`Overlay` 为空实现 |
+
+验证：UI 309 passed、typecheck/arch/language 通过。旧文件仍待看屏后删除。

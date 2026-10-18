@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type IMemoryService, type ProjectMemoryWorkspaceSummary } from "@mode/services";
 import { TID_SETTINGS_MEMORY_SWITCH } from "@mode/shared";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   MemorySettingsViewer,

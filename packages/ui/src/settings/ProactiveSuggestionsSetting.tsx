@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { toast } from "@/components/ui/toast.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { useOnboardingRecordService } from "@/hooks/useOnboardingRecordService.js";

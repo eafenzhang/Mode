@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { BotConfig } from "@mode/shared";
 import { Input } from "@/components/ui/input.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 

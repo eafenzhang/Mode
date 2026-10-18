@@ -13,7 +13,7 @@
 | `textarea.tsx` | `Textarea` | `adapters/textarea` | **已切换 9 处调用** |
 | `card.tsx` | `Card`、子件 | `adapters/card` | **已切换 4 处调用**；旧文件待看屏后删除 |
 | `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `adapters/dialog.tsx`（Dialog/Content/Trigger/Close/Header/Title/Description/Footer/Portal） | **adapter 已补**（2026-10-19） |
-| `alert-dialog.tsx` | 复合导出 | `adapters/dialog.tsx` + `Button` | **adapter 已补**（沿用 Dialog 组合） |
+| `alert-dialog.tsx` | 复合导出 | `adapters/alert-dialog` | **已切换 5 处调用**（Action/Cancel 走 DialogClose；asChild/Overlay 登记差异） |
 | `dropdown-menu.tsx` | 复合导出 | `Menu`/`MenuItem`/`MenuGroup`/`MenuSeparator`/`MenuCheckboxItem`/`MenuRadioItem` | **已补**（2026-10-19）；Trigger/Sub 待 adapter |
 | `popover.tsx` | 复合导出 | `Popover` | **部分**：Trigger/Content/Anchor 待补 |
 | `select.tsx` | 复合导出 | `SelectTrigger`/`SelectContent`/`SelectItem`/`SelectGroup`/`SelectValue` | **已补**（2026-10-19） |
@@ -23,7 +23,7 @@
 | `badge.tsx` | `Badge`、`badgeVariants` | `Badge` + `badgeClassName` | **已补**（2026-10-19） |
 | `separator.tsx` | `Separator` | `adapters/separator` | **已切换并删除旧文件**（2026-10-19） |
 | `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | `adapters/scroll-area` | **已切换 2 处调用**；`type`/`scrollbarClassName` 静默忽略（待接线） |
-| `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | `adapters/*` | **已切换**：checkbox 6 处、progress 4 处；switch/radio 待切换 |
+| `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | `adapters/*` | **已切换**：checkbox 6、progress 4、switch 24；radio 待切换 |
 | `avatar.tsx` | `Avatar*` | `adapters/avatar` | **已切换 1 处调用**；旧文件待看屏后删除 |
 | `alert.tsx` | `Alert*` | `adapters/alert` | **已切换 9 处调用**（variant→tone） |
 

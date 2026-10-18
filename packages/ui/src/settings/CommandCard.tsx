@@ -2,7 +2,7 @@ import { Terminal } from "lucide-react";
 import type { UserCommand, ModeCommand } from "@mode/shared";
 import { isPluginCommand, isUserCommand } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { settingsResourceRowInteraction } from "@/settings/settingsResourceRowInteraction.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import type { StorePluginItem } from "@/settings/pluginStoreListing.js";

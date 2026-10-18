@@ -14,7 +14,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog.js";
+} from "@/ui-foundation/adapters/alert-dialog.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatBytes } from "@/resource-manager/resourceUsageView.js";
 import { storageCategoryTitleId } from "./storageCategoryPresentation.js";

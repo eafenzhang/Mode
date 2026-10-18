@@ -4,7 +4,7 @@ import type { ModelConnectivityResult } from "@mode/shared";
 import { Loader2Icon, Trash2, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { ModelInputCapabilityBadge } from "@/components/ModelInputCapabilityBadge.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useProviderModelDraft } from "@/settings/model-provider-section/useProviderModelDraft.js";
 import { ProviderModelMetadataDialog } from "@/settings/model-provider-section/ProviderModelMetadataDialog.js";

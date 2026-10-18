@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { Spinner } from "@/components/ui/spinner.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { AutomationRunNowIcon } from "@/settings/AutomationDesignPrimitives.js";

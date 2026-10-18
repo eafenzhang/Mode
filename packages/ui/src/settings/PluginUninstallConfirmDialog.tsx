@@ -7,7 +7,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog.js";
+} from "@/ui-foundation/adapters/alert-dialog.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 // 卸载是破坏性的彻底清除（缓存 + data 目录 + config 残留），UI 各入口共用同一个确认弹窗，

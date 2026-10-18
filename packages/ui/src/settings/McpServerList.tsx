@@ -6,7 +6,7 @@ import {
   type ModeMcpServer,
 } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { settingsResourceRowInteraction } from "@/settings/settingsResourceRowInteraction.js";

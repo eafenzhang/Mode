@@ -8,7 +8,7 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction,
-} from "@/components/ui/alert-dialog.js";
+} from "@/ui-foundation/adapters/alert-dialog.js";
 /* New task 草稿页推荐提示词入口。
    推荐配置来自 Client Scenes 的 draft-suggestion scene。 */
 import type { CSSProperties } from "react";

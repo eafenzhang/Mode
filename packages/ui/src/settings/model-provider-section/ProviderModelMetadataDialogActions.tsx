@@ -1,7 +1,7 @@
 import { Loader2Icon, CircleAlertIcon, CheckCircle2Icon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { ModelConfigHelp } from "@/settings/model-provider-section/ModelConfigHelp.js";
 

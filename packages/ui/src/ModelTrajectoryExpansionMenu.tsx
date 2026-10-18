@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import type { IntlShape } from "@/ModelTrajectoryPaneParts.js";
 import {
   TRAJECTORY_EXPANSION_KINDS,

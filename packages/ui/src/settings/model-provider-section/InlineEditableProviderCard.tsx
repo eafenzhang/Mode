@@ -15,7 +15,7 @@ import {
 import { logger } from "@/logger.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
-import { Switch } from "@/components/ui/switch.js";
+import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
 import { resolvePendingProviderDraftSave, type ProviderDraftValues } from "./ProviderDraftSave.js";
