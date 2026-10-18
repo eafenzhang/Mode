@@ -24,6 +24,7 @@
 //! 4. Task 6 落权限引擎（按 `ModeToolFamily` 分档的规则表）。
 
 pub mod approval;
+pub mod permission;
 pub mod provider;
 pub mod session;
 pub mod stream;
@@ -35,6 +36,7 @@ pub use agent_protocol::session_event::{
     ToolUpdatedPayload,
 };
 pub use agent_tools::{ModeToolFamily, ToolContext, ToolError, ToolOutcome, ToolSpec};
+pub use permission::{evaluate as evaluate_permission, Decision as PermissionDecision};
 pub use provider::{
     ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelToolCall, ModelUsage,
     ProviderError, ScriptStep, ScriptToolCall, ScriptedProvider,

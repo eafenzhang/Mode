@@ -458,9 +458,13 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 **Interfaces:**
 - Produces: `agent_core::permission::Engine::evaluate(tool: &ToolSpec, args: &Value) -> Decision`。
 
-- [ ] **Step 1–5: 按 family + 命令模式实现 allow / ask，规则匹配走逐字相等**（大纲）
-      〔2026-10-18：规则匹配的纯函数 `Ruleset::allows` 已落地并有单测；命令模式矩阵仍待补，
-      补齐前不实现 Bash 的 ask 判定。〕
+- [x] **Step 1: 纯策略引擎**（2026-10-18）：`crates/agent-core/src/permission.rs` 的
+      `evaluate(tool, args, ruleset)`——Read/TaskControl → allow；Write/Edit → medium（规则
+      逐字命中则 allow）；Bash → 安全 allowlist 内 allow、否则 high。表驱动用例覆盖两批
+      77 条观察命令；规则匹配复用 `Ruleset::allows`。
+- [ ] **Step 2–5: 交互协议与接线**：`interaction/requestPermission` 的收发、deny 的
+      `scheduled → batch(errorCount:1)` 形状、以及会话循环里的接入（当前引擎是纯函数，
+      尚未接进 `run_tool_batch`）。
 
 数据文件与旧版同格式（同 Task 3 的做法：格式取自 oracle）。工具级确认（Tool-level confirmation）
 与 `AskUserQuestion` 的交互面复用 M1 的命令面。

@@ -340,8 +340,23 @@ b
 | `Bash` `sleep 1 &` | 有 | `high` | `High risk tools require explicit approval` |
 | `Bash` `rm -rf nonexistent-dir` | 有 | `high` | 同上 |
 
-⇒ **Bash 不是按 family 一律 ask**，而是按**命令模式**分类。当前只观察到 `&`（后台）与
-`rm -rf` 两个高危模式；**模式全集未观察**，实现时不能假装覆盖（Task 6 需继续补观察）。
+⇒ **Bash 不是按 family 一律 ask**，而是按**命令模式**分类：模型是「**默认 high + 安全
+allowlist**」，不是黑名单。
+
+第二批电池（只读/安全命令）进一步钉住 allowlist：
+
+- **无审批**：`ls` / `ls -la` / `pwd` / `head` / `tail` / `wc` / `find`（不带 `-delete`/`-exec`）/
+  `rg` / `git status|diff|log|show|branch|rev-parse` / `which` / `date` / `uname` / `whoami` /
+  `printf` / `true` / `sort` / `uniq` / `cut` / `test` / `[` / `echo`（带引号也可）/
+  `echo hi 2>/dev/null` / `stat` / `file` / `du` / `ps` / `df` / `grep -r`；
+  `|` / `;` / `&&` / `||` 只有在**每一段都安全**时才放行（`cat file1 | head -1`、
+  `pwd && echo hi`、`echo hi || true` 都是 none）。
+- **high**：文件重定向 `>` / `>>`、`$(...)`、反引号、后台 `&`、`sed -i`、`awk`、`env`、`tee`、
+  `xargs`、`eval`、`bash -c` / `sh -c`、`node` / `python` / `npm` / `pnpm`、`cmd`、`curl`、
+  `sudo`、`kill`、`find -delete`、`git reset --hard` / `git push`，以及所有写操作命令
+  （`mkdir` / `touch` / `cp` / `mv` / `rm` / `chmod`）。
+- 已知边界：allowlist 是**观察枚举**；未观察到的安全命令会被多问一次（保守方向）。
+  Rust 侧实现见 `crates/agent-core/src/permission.rs`（表驱动用例覆盖上述全部命令）。
 
 **`deny` 的答复形状**（同一探针）
 

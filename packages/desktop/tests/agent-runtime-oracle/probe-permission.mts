@@ -118,6 +118,88 @@ function printPermissionMatrix(captured: readonly Captured[]): void {
   }
 }
 
+const riskBattery: string[] = [
+  "echo hi",
+  "echo hi > out.txt",
+  "echo hi >> out.txt",
+  "echo hi | cat",
+  "echo $(echo hi)",
+  "echo `echo hi`",
+  "mkdir dir1",
+  "touch file1",
+  "cp file1 file2",
+  "mv file2 file3",
+  "rm file3",
+  "rm -r dir1",
+  "rm -rf dir1",
+  "chmod 600 file1",
+  "sed -i 's/a/b/' file1",
+  "git status",
+  "git diff",
+  "git reset --hard",
+  "git push",
+  "npm --version",
+  "pnpm --version",
+  "node -e \"console.log(1)\"",
+  "python -c \"print(1)\"",
+  "cmd /c echo hi",
+  "curl -s http://127.0.0.1:9",
+  "sudo true",
+  "kill -0 99999",
+  "find . -name '*.tmp' -delete",
+  "echo hi | xargs echo",
+  "eval \"echo hi\"",
+  "bash -c 'echo hi'",
+  "sh -c 'echo hi'",
+  "env",
+  "cat file1",
+  "grep hi file1",
+  "tee file4 <<< \"hi\"",
+  "echo hi &",
+];
+
+const riskBattery2: string[] = [
+  "ls",
+  "ls -la",
+  "pwd",
+  "head -1 file1",
+  "tail -1 file1",
+  "wc -l file1",
+  "find . -name '*.txt'",
+  "rg hi",
+  "git log",
+  "git show",
+  "git branch",
+  "git rev-parse HEAD",
+  "which bash",
+  "date",
+  "uname",
+  "whoami",
+  "printf hi",
+  "true",
+  "sort file1",
+  "uniq file1",
+  "cut -d: -f1 file1",
+  "awk '{print}' file1",
+  "echo $HOME",
+  "test -f file1",
+  "[ -f file1 ]",
+  "echo \"hi\"",
+  "echo 'hi'",
+  "echo hi 2>/dev/null",
+  "stat file1",
+  "file file1",
+  "du -sh .",
+  "ps",
+  "df -h",
+  "grep -r hi .",
+  "cat file1 | head -1",
+  "pwd && echo hi",
+  "echo hi; pwd",
+  "echo hi || true",
+  "echo hi | grep h",
+];
+
 const cwdPlaceholder = "${cwd}";
 const testCases: MockStep[] = [
   { toolCalls: [{ name: "Read", input: { file_path: `${cwdPlaceholder}/hello.txt` } }] },
@@ -167,6 +249,34 @@ await runCase("审批矩阵（默认 allow）", testCases, { "hello.txt": "hello
   await waitForTerminals(captured, 1, 60_000);
   printPermissionMatrix(captured);
 });
+
+async function runBattery(title: string, commands: string[]): Promise<void> {
+  const steps: MockStep[] = commands.map((command) => ({
+    toolCalls: [{ name: "Bash", input: { command, description: title } }],
+  }));
+  steps.push({ text: `${title} done` });
+  await runCase(title, steps, { "file1": "a\n" }, async ({ session, captured }) => {
+    await session.send(`probe ${title}`);
+    await waitForTerminals(captured, 1, 240_000);
+    const names = toolNameById(captured);
+    const permissions = new Map<string, unknown>();
+    for (const { frame } of captured) {
+      const event = observed(frame);
+      if (event?.type !== "permission.requested") continue;
+      permissions.set(String(event.payload.toolCallId), event.payload.riskLevel);
+    }
+    for (const [toolCallId] of names) {
+      const match = /^toolu_mock_(\d+)_/.exec(toolCallId);
+      const index = match ? Number(match[1]) : -1;
+      const command = index >= 0 ? commands[index] : "(unknown)";
+      const risk = permissions.get(toolCallId);
+      process.stdout.write(`${command}: ${risk === undefined ? "none" : String(risk)}\n`);
+    }
+  });
+}
+
+await runBattery("Bash 风险矩阵", riskBattery);
+await runBattery("Bash 安全命令", riskBattery2);
 
 // deny 的答复形状。
 await runCase(
