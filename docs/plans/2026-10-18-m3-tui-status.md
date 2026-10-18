@@ -169,4 +169,8 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   空增量返回原数组、消息完成清 streaming、思考完成按 id 置 thought、响应判定要求
   投影标记且去空白后完全相等；提及窗口的空列表/非正可视数、越界夹取、滚动起点与
   窗内选中下标；
+- 第十七批（`app-selection-keyboard`、`app-subagent-transcript`）：选择过滤只匹配
+  keywords（大小写不敏感子串、空过滤全量、过滤词优先于输入值）、下标夹取、可视窗口、
+  可打印键与输入展示；子代理快照默认空 transcript（Map 容器）、沿用 sessionId/消息、
+  未知事件被忽略且保持引用；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
