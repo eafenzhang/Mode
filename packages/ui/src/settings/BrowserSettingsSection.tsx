@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/ui-foundation/adapters/alert-dialog.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useModeSessionService } from "@/hooks/useModeSessionService.js";

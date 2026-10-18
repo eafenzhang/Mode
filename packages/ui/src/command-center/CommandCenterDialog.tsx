@@ -24,7 +24,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command.js";
 import { cn } from "@/components/lib/utils.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import type { LanPairedPeer, ServerRemoteWorkspaceInfo } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";

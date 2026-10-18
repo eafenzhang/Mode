@@ -12,7 +12,7 @@ import { useUsageEntitlementWithService } from "@/hooks/useUsageEntitlement.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
 import { resolveStartPlanRecommendation } from "@/lib/startPlanRecommendation.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { logger } from "@/logger.js";
 
 /** 推荐只编辑本次提交的选择；设置与额度仍由 App/Host 的原服务拥有。 */

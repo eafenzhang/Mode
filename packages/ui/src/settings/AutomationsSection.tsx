@@ -34,7 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/ui-foundation/adapters/dropdown-menu.js";
 import { Spinner } from "@/components/ui/spinner.js";
-import { toast as showToast, type ToastOptions } from "@/components/ui/toast.js";
+import { toast as showToast, type ToastOptions } from "@/ui-foundation/adapters/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { AutomationScheduledTemplateIcon } from "@/settings/AutomationScheduledTemplateIcon.js";

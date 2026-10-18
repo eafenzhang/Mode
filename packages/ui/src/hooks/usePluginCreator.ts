@@ -3,7 +3,7 @@ import { MODE_AGENT_PROVIDER } from "@mode/shared";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { logger } from "@/logger.js";
 import { loadPluginCreatorPrefill } from "@/settings/pluginCreatorPrefill.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";

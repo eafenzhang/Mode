@@ -14,7 +14,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 import { usePlatform } from "@/hooks/usePlatform.js";

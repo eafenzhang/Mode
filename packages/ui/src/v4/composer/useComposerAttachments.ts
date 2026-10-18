@@ -1,6 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- 附件采集、分 scope 上传调度和生命周期必须在同一 hook 中原子收口。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { nanoid } from "nanoid";
 import type { AttachmentRef } from "@mode/shared/mode-protocol-v4";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";

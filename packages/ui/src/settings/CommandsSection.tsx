@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button.js";
 import type { CommandConfig, UserCommand, ModeCommand } from "@mode/shared";
 import { isPluginCommand, isUserCommand, MODE_COMMAND_AGENT_SOURCE } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useCommands } from "@/hooks/useCommands.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";

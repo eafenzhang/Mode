@@ -3,7 +3,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { Plus } from "lucide-react";
 import type { Hook, HookConfig, ModeInstalledPluginSummary, ModePluginInfo } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { useModeSessionService } from "@/hooks/useModeSessionService.js";

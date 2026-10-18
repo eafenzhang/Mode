@@ -4,7 +4,7 @@ import type {
   GitLocalBranchListResult,
   GitRepositorySummary,
 } from "@mode/shared";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   buildGitBranchAutoCommitMessage,
   getPrimaryGitBranchIssue,

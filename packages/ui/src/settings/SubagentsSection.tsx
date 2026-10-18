@@ -30,7 +30,7 @@ import {
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { SettingsSearchInput } from "@/settings/SettingsSearchInput.js";
 import { SettingsFormActions } from "@/settings/SettingsFormActions.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   ModelConfigSelect,
   type ModelSelectFooterAction,

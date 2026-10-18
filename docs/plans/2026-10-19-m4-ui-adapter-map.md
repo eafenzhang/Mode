@@ -19,7 +19,7 @@
 | `select.tsx` | 复合导出 | `adapters/select` | **已切换 28 处调用**（2026-10-19）；根状态/定位/键盘已接线，`item-aligned` 与 typeahead 登记差异 |
 | `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`、`tabsListVariants` | `adapters/tabs` | **已切换 12 处调用**（2026-10-19）；支持 `variant/asChild/forceMount` |
 | `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `adapters/tooltip` | **已切换 18 处调用**（2026-10-19）；悬停/聚焦/延迟/Escape 已接线，`skipDelayDuration`/`disableHoverableContent` 接受后忽略 |
-| `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |
+| `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName`、`toast/updateToast/dismissToast` | `adapters/toast` | **已切换 63 处调用**（2026-10-19）；命令式队列 + 四向栈已补，`anchorId`/动画登记差异 |
 | `badge.tsx` | `Badge`、`badgeVariants` | `adapters/badge` | **已切换 15 处调用**（2026-10-19） |
 | `separator.tsx` | `Separator` | `adapters/separator` | **已切换并删除旧文件**（2026-10-19） |
 | `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | `adapters/scroll-area` | **已切换 2 处调用**；`type`/`scrollbarClassName` 静默忽略（待接线） |

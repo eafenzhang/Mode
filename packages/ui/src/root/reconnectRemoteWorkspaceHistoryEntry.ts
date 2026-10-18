@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { IPlatformService, RemoteWorkspaceSessionEntry } from "@mode/shared";
 import { stripRemoteTargetSecrets } from "@mode/shared";
 import type { IServiceAccessor } from "@mode/services";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   buildRemoteWorkspaceSessionMutation,
   buildRemoteWorkspaceIdentity,

@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   AUTOMATION_FORM_FIELD_CLASSNAME,
   AutomationChevronDownIcon,

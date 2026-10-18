@@ -69,7 +69,7 @@ import { cn } from "@/components/lib/utils.js";
 import { resolveTopOverlayClearancePaddingClass } from "@/lib/topOverlayClearance.js";
 import { Button } from "@/components/ui/button.js";
 import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { getGitDirtyFileCount } from "@/git-branch-switcher/display.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";

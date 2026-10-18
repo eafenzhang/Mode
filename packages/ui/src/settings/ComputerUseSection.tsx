@@ -23,7 +23,7 @@ import {
 } from "@mode/shared";
 import { isCuaPermissionStatusAvailable, type CuaPermissionRestartOptions } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";

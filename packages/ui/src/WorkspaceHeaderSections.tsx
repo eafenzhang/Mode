@@ -35,7 +35,7 @@ import {
   formatRemoteWorkspaceHeaderHostLabel,
 } from "@/lib/remoteWorkspaceHistory.js";
 import { resolveWorkspaceHeaderProvider } from "@/lib/workspaceHeaderProvider.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useModelTrajectoryStore } from "@/store/modelTrajectoryStore.js";
 import { resolveGitBranchTriggerLabel } from "@/git-branch-switcher/display.js";
 import type {

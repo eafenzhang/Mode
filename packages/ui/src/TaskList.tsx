@@ -5,7 +5,7 @@ import type { ModeTaskMeta } from "@mode/shared";
 import { TID_TASK_LIST, TID_TASK_EMPTY, TID_TASK_SETTINGS_BUTTON } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { NewTaskButtonGroup } from "@/NewTaskButtonGroup.js";

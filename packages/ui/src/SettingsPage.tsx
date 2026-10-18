@@ -26,7 +26,7 @@ import {
   testId,
 } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";

@@ -29,7 +29,7 @@ import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { resolveTaskFileTreeTargetFromTabs } from "@/lib/taskFileTreeTarget.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { selectWorkspaceModeState, useModeSessionStore } from "@/store/modeSessionStore.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";

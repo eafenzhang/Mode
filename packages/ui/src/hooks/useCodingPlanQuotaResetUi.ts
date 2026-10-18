@@ -8,7 +8,7 @@ import type {
   ModeAccountAccess,
   ModeProviderAccountAccess,
 } from "@mode/shared";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useStableAccountAccess } from "@/hooks/useStableAccountAccess.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

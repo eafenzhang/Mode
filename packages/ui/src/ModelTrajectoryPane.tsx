@@ -8,7 +8,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useModelTrajectory } from "@/hooks/useModelTrajectory.js";

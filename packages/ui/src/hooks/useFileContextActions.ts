@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { OpenInEditorRemoteTarget } from "@mode/shared";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { getContainingDirectoryPath } from "@/lib/path.js";

@@ -20,7 +20,7 @@ import {
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { refreshRemotePinnedTasksForSession } from "@/store/remotePinnedTaskStore.js";
 import { refreshRemoteTimelineTasksForSession } from "@/store/remoteTimelineTaskStore.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   buildRemoteWorkspaceIdentity,
   buildRemoteWorkspaceSessionMutation,

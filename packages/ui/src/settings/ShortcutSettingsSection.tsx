@@ -6,7 +6,7 @@ import {
   type ShortcutCommandId,
 } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useSettings } from "@/hooks/useSettingService.js";

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DesktopWindowChromeState, IPlatformService, UpdateStatePayload } from "@mode/shared";
 import { logger } from "@/logger.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 const MACOS_WINDOW_CONTROLS_DEFAULT_LEFT_PADDING_PX = 96;

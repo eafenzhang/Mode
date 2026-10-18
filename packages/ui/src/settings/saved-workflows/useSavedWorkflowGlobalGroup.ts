@@ -2,7 +2,7 @@
 // max-lines 400；载体是 `useServices().modeAgentService`，RPC 一律带 `{ scope: "global" }`。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ModeSavedWorkflowEntry, ModeSavedWorkflowRun } from "@mode/shared";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useServices } from "@/hooks/useServices.js";

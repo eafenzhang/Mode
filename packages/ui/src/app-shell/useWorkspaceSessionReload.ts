@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { IServiceAccessor } from "@mode/services";
 import type { ModeProvider } from "@mode/shared";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   buildWorkspaceSessionReloadDraftError,
   shouldDebounceWorkspaceSessionReload,

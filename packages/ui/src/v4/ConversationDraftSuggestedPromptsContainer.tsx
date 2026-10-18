@@ -21,7 +21,7 @@ import {
 } from "react";
 import { MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

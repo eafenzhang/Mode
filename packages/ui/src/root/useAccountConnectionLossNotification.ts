@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { IServiceAccessor } from "@mode/services";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import { toast, dismissToast } from "@/components/ui/toast.js";
+import { toast, dismissToast } from "@/ui-foundation/adapters/toast.js";
 import {
   createAccountConnectionRefreshObserver,
   type AccountConnectionLoss,

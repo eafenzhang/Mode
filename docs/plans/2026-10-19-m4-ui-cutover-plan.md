@@ -27,7 +27,7 @@
 | `dialog` | 33 | ready（含 overlay/关闭按钮） | 2 |
 | `dropdown-menu` | 38 | ready（根/Trigger/Content/Sub） | 2 |
 | `input` | 39 | ready · 已切换（size/htmlSize 兼容） | 3 |
-| `toast` | 63 | 仅视觉 Toast；堆叠/定位待补 | 3 |
+| `toast` | 63 | ready（命令式队列 + 四向栈） | 3 |
 | `button` | 226 | ready | 3 |
 
 **计数会随切换变化**：每批开始前重跑上面的 grep，不要用手写数字排期。
@@ -157,6 +157,15 @@ checkbox → alert → textarea`（可加 `badge`）。
 | `input` | 39 | 补旧 `size`（xs 归一到 sm）与 `htmlSize`（写原生 size），保留 `fieldSize/parentRadius/invalid`；补 `data-slot="input"` |
 
 验证：UI 325 passed、typecheck/lint/architecture/language/format 通过。
+
+### 批次 3 续（2026-10-19 第十轮）
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `toast` | 63 | 新增命令式队列 `toastStore`（`toast/updateToast/dismissToast`、`dedupeKey` 替换并置底、默认 3000ms）与 `toast.tsx` 宿主：首次调用挂 body，四向栈（top-center/top-right/bottom-left/bottom-center），`warning` 用 destructive 边框，action/dismiss 按钮按选项渲染 |
+
+验证：UI 328 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：`anchorId` 已存储但未做锚点定位；`info/update` 仅保留 data-variant，未加额外配色；toast 无进出场动画。
 已知差异：`loop` 接受但当前总是循环；子菜单为点击/悬停双开、`modal` 接受后不锁滚动；
 `DropdownMenuItem` 的 `onSelect` 在 onClick 内触发（Radix 的键盘高亮语义由原生 focus 承担）。
 

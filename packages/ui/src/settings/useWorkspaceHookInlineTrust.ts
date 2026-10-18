@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hook } from "@mode/shared";
 import type { IHooksService } from "@mode/services";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";

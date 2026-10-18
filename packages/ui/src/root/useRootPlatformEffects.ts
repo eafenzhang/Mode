@@ -6,7 +6,7 @@ import { isWorkspaceTab, type TabStoreState, type WindowTabState } from "@/store
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { logger } from "@/logger.js";
 import { seedImportedSessionDraft } from "@/v4/composer/newTaskDraft.js";
-import { dismissToast, toast, updateToast } from "@/components/ui/toast.js";
+import { dismissToast, toast, updateToast } from "@/ui-foundation/adapters/toast.js";
 import { matchesPrimaryShortcut } from "@/lib/keyboardShortcuts.js";
 import { isShortcutRecordingActive } from "@/shortcuts/bindings.js";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";

@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui-foundation/adapters/dialog.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

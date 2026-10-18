@@ -24,7 +24,7 @@ import {
 import { useServices } from "@/hooks/useServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   useBotTaskBinding,
   refreshBotTaskBindings,

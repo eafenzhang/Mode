@@ -89,7 +89,7 @@ import {
   scanWindowsReservedDeviceNameFiles,
 } from "@/lib/workspaceRemovalSafety.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 
 export type SortableBindings = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
 

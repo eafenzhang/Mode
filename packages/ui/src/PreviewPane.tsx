@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import type { FileBinaryPreview, FileMediaPreview, FileTextSlice } from "@mode/shared";
 import { TID_PREVIEW_PANE } from "@mode/shared";

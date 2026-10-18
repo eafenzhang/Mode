@@ -2,7 +2,7 @@ import type { EditorInfo } from "@mode/shared";
 import { ChevronDownIcon, CopyIcon, ExternalLinkIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import {
   DropdownMenu,

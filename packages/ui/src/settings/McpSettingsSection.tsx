@@ -23,7 +23,7 @@ import type {
 } from "@mode/shared";
 import { isModeAgentMcpStatusModeUnsupportedError, type IMcpSyncService } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
-import { toast } from "@/components/ui/toast.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";

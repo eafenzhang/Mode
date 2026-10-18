@@ -24,7 +24,7 @@ import {
   DialogTitle,
 } from "./ui-foundation/adapters/dialog.js";
 import { cn } from "./components/lib/utils.js";
-import { toast } from "./components/ui/toast.js";
+import { toast } from "./ui-foundation/adapters/toast.js";
 import { getProviderBusinessErrorMessageId } from "@/lib/providerBusinessError.js";
 import {
   isSuspiciousEmptyModelResultMessage,
