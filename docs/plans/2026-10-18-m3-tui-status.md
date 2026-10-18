@@ -176,4 +176,8 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第十八批（`app-tool-path-display`、`app-model` 常量）：POSIX 路径在 cwd 内转相对、
   容忍尾部斜杠、cwd 外与相对路径保持原样、空路径无展示值；审批决策常量与写入审批
   spec 的三态（`allow_once`/`allow_project`/`deny`）一致；
+- 第十九批（`app-tool-path-display` 续）：Windows 路径归一化——分隔符统一为反斜杠、
+  重复分隔符折叠、UNC 前导双斜杠保留、cwd 前缀剔除容忍尾部/混合分隔符与盘符大小写。
+  行为由输入形态驱动（模拟 `process.platform = linux` 输出一致），可安全在 Linux CI 运行；
+  上一轮“反斜杠被吞”结论是探针 heredoc 转义丢失造成的伪像，函数本身正确；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
