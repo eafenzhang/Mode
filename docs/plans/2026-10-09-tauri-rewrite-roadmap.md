@@ -176,16 +176,22 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
   两端同断言**；真源翻转是 M4/M5 删掉 TS 运行时时的事。另：M1 也没用 typeshare（改走
   schemars + 仓库内生成脚本），这一行原文是与 M1 实际产物的另一处不一致。
 
-- [ ] **只读工具先行**〔口径修正〕：**不是** `read/glob/grep/list` —— 真源
-  `packages/shared/src/tool-identity.ts` 的 `MODE_KNOWN_TOOL_NAMES` 是 PascalCase，且**没有
-  `list` 工具**（目录列举由 `Glob` 覆盖）。本项实际范围 = `Read` / `Glob` / `Grep`。
-  先写对拍测试（同一 prompt 分别喂旧运行时与新运行时，比较工具调用序列与最终文件快照），
-  再实现，全绿提交。
-- [ ] **文件写与 diff 呈现**：edit/write/patch 工具，接入审批（allow-once / allow-always / project-always 三态持久化，复用旧版数据格式）。
-- [ ] **shell 与 pty**：portable-pty + CommandInbox 串行准入；对拍含超时、取消、退出码语义。
-- [ ] **会话流与重放**：`desktop-continuous`（不落重放）与 `web-remote-replayable`（快照+队列重放）两条链路分别验证——各写一套 E2E，改 stream/snapshot/queue 时双跑。
-- [ ] **权限引擎**：规则表驱动（allow/deny/ask + 工具级确认），数据文件与旧版同格式（`M4` 迁移零成本）。
-- [ ] **对拍矩阵收口**：把 services 198 个测试中与运行时相关的用例逐个转为 Rust 侧等价测试（转不动的记录原因进 spec），覆盖率报告进 CI。
+- [x] **只读工具先行**〔口径修正，2026-10-18 按实测回填〕：`Glob`/`Grep` 在 oracle 运行时
+  **未注册**（调用返回 `tool_not_found`，见 spec §3.2 与 Ruling 17），因此实现范围实际是
+  `Read` + 「未注册工具不产生 `started`」的事件形状；对拍用例在
+  `crates/agent-tools/tests` 与 `crates/agent-core/tests/tool_parity.rs`。
+- [ ] **文件写与 diff 呈现**：`Write`/`Edit` 与审批已落地（`approval.rs`、`permission_flow.rs`，
+  `ApplyPatch` 实测不存在、已作废）；**diff 呈现面仍缺**，故不勾选。
+- [ ] **shell 与 pty**：Bash 与超时/取消/退出码对拍已落地；oracle 实测管道而非 TTY
+  （`[ -t 1 ]` 为假），`portable-pty` **不需要**；`CommandInbox` 串行准入在 Host 层，尚未接入。
+- [x] **会话流与重放**〔2026-10-18 收口〕：`desktop-continuous` 用
+  `crates/agent-core/tests/stream_parity.rs`；`web-remote-replayable` 的 `deliveryKind`
+  透传由 `turn_stream.rs` 锁定，重放语义归 Host（DR-T5-1 (a)），由
+  `packages/desktop/tests/task-realtime-replay.test.mts` 覆盖；改 stream/snapshot/queue 时两侧双跑。
+- [x] **权限引擎**〔2026-10-18 按实测回填〕：`permission_engine.rs` / `permission_channel.rs` /
+  `approval.rs` / `rule_store.rs`；`allow_project` 落 `.mode/cli/db/db.sqlite` 的
+  `local_setting`（D1 裁决「Rust 直连 sqlite」，含并发追加与丢失更新用例）。
+- [ ] **对拍矩阵收口**：把 services 198 个测试中与运行时相关的用例逐个转为 Rust 侧等价测试（转不动的记录原因进 spec），覆盖率报告进 CI。**尚未开始**；子计划待建（见 M2 计划 Task 7）。
 
 **阶段验收：** 对拍套件全绿（工具序列 + 文件快照 + 事件流三层一致）；双链路 E2E 各自通过；用真实模型跑通 20 个端到端任务（改代码/跑测试/浏览器）无行为回归。
 
