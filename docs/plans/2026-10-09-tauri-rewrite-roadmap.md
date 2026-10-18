@@ -195,6 +195,10 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 
 **目标：** 插件 sidecar、市场、IM bot、LAN 远连、SSH/WSL/Docker 远程、Web 端、TUI 全部落到新栈。
 
+> **生态域子计划（2026-10-18）**：插件/MCP/Skills 宿主见
+> `docs/plans/2026-10-18-m3-plugin-host.md`（含 DR-PH-1…5 与 Task 0 观察清单）；
+> IM bot / LAN / 远程 / Web / TUI 尚未立项。
+
 **Files:**
 - Create: `crates/plugin-host/`（sidecar 生命周期管理：按需下载/启动/健康）、`crates/marketplace/`（`.mode-plugin` 清单与市场目录，兼容读旧格式）、`crates/lan/`（UDP 发现 + 配对码）、`crates/remote/`（russh / 系统 ssh 调用 + workspace attach）、`crates/server/`（axum，web-remote 链路）、`crates/tui/`（ratatui）、`crates/bots/`（IM 桥：HTTP/WS 直连或 sidecar 复用 TS SDK，按通道逐个决策）
 - Modify: `apps/mode-cli`（旧 TUI 标记归档）、`docs/specs/` 对应各域 spec（沿用既有 `lan-*`、`remote-workspace-identity`、`plugin-store-availability` 等 spec 作为行为规格）
