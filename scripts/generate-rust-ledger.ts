@@ -107,11 +107,16 @@ export function parseSpdxIdentifiers(expression: string): string[] {
 }
 
 /**
- * MPL/LGPL 不由生成器自动补标准文本：前者是弱互惠（履约方式要人决定），后者在多选一
- * 许可里要先记录选择。其余宽松标识按内容匹配现有文本。
+ * 可自动附文本的标识：LGPL 是**多选一里的一个选项**，未明确选择前不附（避免被读成已选
+ * LGPL）；MPL 是必附的弱互惠文本，照附但保留人工 review（源码可得性/措辞）。
  */
-export function shouldAttachStandardText(expression: string): boolean {
-  return !/(?:MPL|LGPL)/i.test(expression);
+export function selectableLicenseIdentifiers(expression: string): string[] {
+  return parseSpdxIdentifiers(expression).filter((identifier) => !/^LGPL/i.test(identifier));
+}
+
+/** 该表达式是否仍需人工判断（MPL 履约或 LGPL 选择）。 */
+export function requiresHumanReview(expression: string): boolean {
+  return /(?:MPL|LGPL)/i.test(expression);
 }
 
 /** 按正文特征识别许可证文本；识别不出返回 null（调用方保留 reviewRequired）。 */
@@ -270,10 +275,10 @@ function buildEntries(
     let reviewNote: string | undefined;
     if (notices.length > 0) {
       licenseTextSource = "package";
-    } else if (shouldAttachStandardText(pkg.license)) {
-      const identifiers = parseSpdxIdentifiers(pkg.license);
+    } else {
+      const identifiers = selectableLicenseIdentifiers(pkg.license);
       const missing = identifiers.filter((identifier) => !standardTexts.has(identifier));
-      if (missing.length === 0) {
+      if (identifiers.length > 0 && missing.length === 0) {
         for (const identifier of identifiers) {
           const text = standardTexts.get(identifier)!;
           notices.push({
@@ -284,16 +289,22 @@ function buildEntries(
         }
         standardAttached += 1;
         licenseTextSource = "standard";
+      }
+      if (requiresHumanReview(pkg.license)) {
+        reviewRequired = true;
+        reviewNote = /MPL/i.test(pkg.license)
+          ? "no licence file; MPL-2.0 text attached, source-availability/notice wording requires human review"
+          : "no licence file; permissive texts attached, LGPL option not elected — license choice requires human review";
+      } else if (missing.length > 0 || identifiers.length === 0) {
+        reviewRequired = true;
+        reviewNote =
+          missing.length > 0
+            ? `no licence file; missing standard text for ${missing.join(", ")}`
+            : "no licence file; no usable license identifier";
+      } else {
         reviewNote =
           "no licence file in package; standard text attached from repository corpus";
-      } else {
-        reviewRequired = true;
-        reviewNote = `no licence file; missing standard text for ${missing.join(", ")}`;
       }
-    } else {
-      reviewRequired = true;
-      reviewNote =
-        "no licence file; MPL/LGPL handling or license election requires human review";
     }
 
     entries.push({

@@ -8,9 +8,10 @@
 
 - 候选台账 577 条中有 **47 条**在 registry 包内**没有根级许可证文件**；它们的 license
   标识来自 `Cargo.toml`。
-- 生成器已为其中 **44 条纯宽松项**按声明标识自动附上仓库标准文本
-  （`licenseTextSource: "standard"` + `reviewNote`），**剩余 3 条**仍标 `reviewRequired`：
-  `selectors@0.38.0`（MPL-2.0）与 `r-efi@5.3.0` / `6.0.0`（含 LGPL 选项）。
+- 生成器已为其中 **47 条**按声明标识自动附上仓库标准文本（`licenseTextSource: "standard"`
+  + `reviewNote`）；**3 条保留 `reviewRequired`**：`selectors@0.38.0`（已附 MPL-2.0 文本，
+  源码可得性/措辞待人）、`r-efi@5.3.0` / `6.0.0`（已附 MIT + Apache-2.0 文本，LGPL 选项
+  未附，许可选择待人）。
 - 47 条中 **42 条**可从发布目标到达，**5 条只在 CUA helper 图**（`napi` 家族：
   napi / napi-build / napi-derive / napi-derive-backend / napi-sys）。
 - `scripts/license-texts/` 现有 53 份文本，MIT/Apache/BSD/Zlib/MPL/LGPL 体裁均已存在，
@@ -47,13 +48,14 @@ mode-tauri -> tauri@2.12.4 -> tauri-utils@2.10.2 -> dom_query@0.28.0 -> selector
 （例如 `licenseTextSource: "standard"`）。人工只需抽样确认映射，不必逐条读文本。
 
 **2026-10-18 已落地**：生成器 `indexStandardLicenseTexts` 按正文特征建立
-标识符→文本索引，对 44 条纯宽松项自动附文本（`licenseTextSource: "standard"`），
-`reviewRequired` 从 47 降到 **3**。
+标识符→文本索引，对全部 47 条无包内文件的条目附文本（`licenseTextSource: "standard"`）；
+MPL 照附、LGPL 选项不附。`reviewRequired` 从 47 降到 **3**，且 3 条都已有对应许可文本，
+人工只需决定 `r-efi` 的许可选择与 `selectors` 的 MPL 履约措辞。
 
 ## 建议的 T1 收尾口径
 
 1. 〔已完成〕生成器增加「标准文本附加」：从现有 `scripts/license-texts/` 按标识选择文本
-   （MIT/Apache-2.0/BSD-3-Clause/Zlib）；MPL/LGPL 不自动附，保留人工判断；
+   （MIT/Apache-2.0/BSD-3-Clause/Zlib/MPL-2.0）；LGPL 选项不自动附，保留人工选择；
 2. 对 `r-efi` 记录选择（建议 MIT），对 `selectors` 记录 MPL 处理方式；
 3. 复核后 `reviewRequired` 数量应降为 **0**，或在条目上保留 `reviewNote` 说明
    （而不是静默丢弃标记）；

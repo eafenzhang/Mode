@@ -16,8 +16,9 @@ import {
   licenseMemberNames,
   parseLockPackages,
   parseSpdxIdentifiers,
+  requiresHumanReview,
+  selectableLicenseIdentifiers,
   sha256Hex,
-  shouldAttachStandardText,
 } from "../../../scripts/generate-rust-ledger.ts";
 
 test("Cargo.lock 解析 name/version/checksum，忽略 path 依赖", () => {
@@ -77,10 +78,15 @@ test("SPDX 表达式拆分覆盖 OR 与斜杠写法", () => {
   assert.deepEqual(parseSpdxIdentifiers("(MIT OR Apache-2.0)"), ["MIT", "Apache-2.0"]);
 });
 
-test("MPL/LGPL 不自动附标准文本，宽松标识才附", () => {
-  assert.equal(shouldAttachStandardText("MIT OR Apache-2.0"), true);
-  assert.equal(shouldAttachStandardText("MPL-2.0"), false);
-  assert.equal(shouldAttachStandardText("MIT OR Apache-2.0 OR LGPL-2.1-or-later"), false);
+test("LGPL 选项不自动附文本；MPL 附文本但仍需人工 review", () => {
+  assert.deepEqual(selectableLicenseIdentifiers("MPL-2.0"), ["MPL-2.0"]);
+  assert.deepEqual(
+    selectableLicenseIdentifiers("MIT OR Apache-2.0 OR LGPL-2.1-or-later"),
+    ["MIT", "Apache-2.0"],
+  );
+  assert.equal(requiresHumanReview("MIT OR Apache-2.0"), false);
+  assert.equal(requiresHumanReview("MPL-2.0"), true);
+  assert.equal(requiresHumanReview("MIT OR Apache-2.0 OR LGPL-2.1-or-later"), true);
 });
 
 test("许可证文本按正文特征分类", () => {

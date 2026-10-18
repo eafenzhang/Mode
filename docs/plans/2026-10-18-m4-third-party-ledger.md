@@ -146,9 +146,10 @@ pnpm exec tsx scripts/generate-rust-ledger.ts \
 ```
 
 **2026-10-18 实测**（输出在 `.plan/rust-ledger-candidate/`，未入库）：577 个组件
-（root 14 个目标 + mode-cua-ax）、300 份唯一许可证文本、**44 条按声明标识自动附标准文本**
-（MIT / Apache-2.0 / BSD-3-Clause / Zlib，`licenseTextSource: "standard"` + `reviewNote`）、
-**3 条仍为 `reviewRequired`**（`selectors@0.38.0` MPL-2.0、`r-efi@5.3.0` / `6.0.0` 含 LGPL 选项）；
+（root 14 个目标 + mode-cua-ax）、300 份唯一许可证文本、**47 条按声明标识自动附标准文本**
+（`licenseTextSource: "standard"` + `reviewNote`；其中 44 条纯宽松，3 条附文本后仍需人工判断）；
+**3 条保留 `reviewRequired`**：`selectors@0.38.0`（已附 MPL-2.0，源码可得性/措辞待人）、
+`r-efi@5.3.0` / `6.0.0`（已附 MIT + Apache-2.0，LGPL 选项未附，许可选择待人）；
 自校验 root 558/558、CUA 63/63、unknown-license 0；现有 63 条 CUA 条目全部包含。
 
 **为什么候选不直接提交**：
