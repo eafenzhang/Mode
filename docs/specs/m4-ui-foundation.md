@@ -251,6 +251,13 @@ success/warning/destructive。
 - 评论提交：`onSubmitCodeComment({ range, selectedText, comment })`，空评论不提交；
   取消/提交后清空选区；`labels` 提供 addComment/commentPlaceholder/submitComment/cancelComment。
 
+### 2.21 PPTX 预览布局（纯逻辑）
+
+- 页面显示尺寸 = 内在尺寸 × `zoomPercent / 100`，向上取整避免亚像素缝隙；
+- 放大/缩小按 `PPTX_ZOOM_STEP_PERCENT` 步进并夹在 25%–300%；
+- 页码输入非法时回退当前页，合法时夹在 1..pageCount；
+- 这些函数位于 `pptxViewerLayout.ts`，供 `pptx-preview-viewer` 适配层复用。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -323,7 +330,8 @@ PDF 预览在 `adapters/pdf-viewer.tsx`（纯输入/边界在 `pdfViewerSource.t
 `uiFoundationPdfViewer.test.ts`（只测纯函数，不加载 pdf.js）；PPTX 选区操作条在
 `adapters/pptx-selection-action-bar.tsx`（纯计算在 `pptxSelectionState.ts`），用例
 `uiFoundationPptxSelection.test.ts`；只读代码块在 `CodeView.tsx`（行模型
-`codeViewLines.ts`、选区 `codeViewSelection.ts`），用例 `uiFoundationCodeView.test.ts`。
+`codeViewLines.ts`、选区 `codeViewSelection.ts`），用例 `uiFoundationCodeView.test.ts`；
+PPTX 预览布局在 `pptxViewerLayout.ts`，用例 `uiFoundationPptxViewerLayout.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

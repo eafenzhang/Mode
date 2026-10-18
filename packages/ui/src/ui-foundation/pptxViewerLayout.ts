@@ -1,0 +1,41 @@
+// PPTX 预览的纯布局/控制逻辑（spec: §2.21）。
+import {
+  PPTX_MAX_ZOOM_PERCENT,
+  PPTX_MIN_ZOOM_PERCENT,
+  PPTX_ZOOM_STEP_PERCENT,
+  clampPresentationPageNumber,
+  clampPresentationZoomPercent,
+} from "@/presentation/presentationPreviewControls.js";
+import type { PresentationPageSize } from "@/presentation/types.js";
+
+export interface PptxPageDisplaySize {
+  width: number;
+  height: number;
+}
+
+export function resolvePptxPageDisplaySize(
+  pageSize: PresentationPageSize,
+  zoomPercent: number,
+): PptxPageDisplaySize {
+  const scale = clampPresentationZoomPercent(zoomPercent) / 100;
+  return {
+    width: Math.ceil(pageSize.width * scale),
+    height: Math.ceil(pageSize.height * scale),
+  };
+}
+
+export function stepPptxZoom(current: number, direction: "in" | "out"): number {
+  const delta = direction === "in" ? PPTX_ZOOM_STEP_PERCENT : -PPTX_ZOOM_STEP_PERCENT;
+  return clampPresentationZoomPercent(current + delta);
+}
+
+export function resolvePptxPageFromInput(
+  value: string,
+  pageCount: number,
+  fallback: number,
+): number {
+  const parsed = Number.parseInt(value, 10);
+  return clampPresentationPageNumber(Number.isFinite(parsed) ? parsed : fallback, pageCount);
+}
+
+export { PPTX_MAX_ZOOM_PERCENT, PPTX_MIN_ZOOM_PERCENT, PPTX_ZOOM_STEP_PERCENT };
