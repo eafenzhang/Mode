@@ -464,10 +464,10 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 - Create: `scripts/agent-runtime-parity-matrix.ts`（语言政策：新增禁入 `.mjs`）
 - Modify: `docs/specs/tauri-agent-runtime.md`（覆盖率报告与「转不动的用例」清单）
 
-- [ ] **Step 1: 盘点 `packages/services/test/*.test.ts`（59 个文件）里与运行时相关的用例**
-
-逐个判定三档：**已转**（有 Rust 侧等价用例）/ **转不动**（记录原因进 spec）/ **不适用**
-（与运行时无关，如 bot-*、cua-*、plugin-*）。产出一张表，作为覆盖率报告的输入。
+- [x] **Step 1: 盘点对拍覆盖来源**（2026-10-18）：`packages/services/test` 共 **60** 个文件，
+      其中 **0** 个引用运行时会话面；原「59 个文件里挑运行时用例」的前提已过期。
+      盘点结果与分类表见 `docs/specs/agent-runtime-parity-matrix.md`；覆盖来源改为
+      oracle 夹具 + `crates/agent-*/tests`。是否按此口径更新阶段验收第 5 条**待 ledger 裁决**。
 
 - [ ] **Step 2: 把覆盖率报告接进 CI**（新 job 或挂进现有 `verify`）
 
