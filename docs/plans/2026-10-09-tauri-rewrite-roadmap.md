@@ -250,7 +250,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 **目标：** 删光上游衍生代码，"与上游逐文件 diff 清零"成为 CI 可跑的硬门禁，台账与 NOTICE 收口。
 
 **Files:**
-- Create: `packages/ui-next/`（或按 `DESIGN.md` 重建 `packages/ui` 替代品）、`scripts/upstream-overlap-check.mjs`（对 `upstream/zcode-baseline` 逐文件哈希对比 + 改名归一哈希对比，方法沿用 2026-10-09 评估的口径：逐字节一致 / 仅品牌归一一致 / 实质不同三档）
+- Create: `packages/ui-next/`（或按 `DESIGN.md` 重建 `packages/ui` 替代品）、`scripts/upstream-overlap-check.ts`（对 `upstream/zcode-baseline` 逐文件哈希对比 + 品牌归一哈希对比，口径见 `docs/specs/upstream-overlap-metric.md`：逐字节一致 / 仅品牌归一一致 / 实质不同三档。**2026-10-18 已交付 report 模式**；文件名用 `.ts` 以过语言政策）
 - Modify: `THIRD-PARTY-NOTICES.md`、`third-party/copied-components.json`（重建：删除全部"上游衍生"条目，保留第三方组件条目）、`NOTICE.md` §4（diff 清零后改写为"当前代码不含上游实现，历史版本的 Apache 义务见基线分支"——**仍保留 zai-org/ZCode 链接与历史声明，不删**）
 
 **Interfaces:**
@@ -258,7 +258,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 - Produces: `pnpm verify:self-developed`（= upstream-overlap-check + scancode/licensee 扫描 + 台账新鲜度），进 CI 必跑。
 
 - [ ] **UI 替换**：按 `DESIGN.md` + 既有交互 spec 重写组件（渲染的是新 Tauri 前端，不回填旧 renderer）；逐屏与旧版截图对拍（允许视觉差异、不允许功能差异）。
-- [ ] **重合度归零**：`upstream-overlap-check` 在 CI 断言"逐字节一致 + 仅归一一致"两档的行数占比 = 0%；首次运行产出的残余清单按模块排期清零。
+- [ ] **重合度归零**：`upstream-overlap-check` 在 CI 断言"逐字节一致 + 仅归一一致"两档的行数占比 = 0%；首次运行产出的残余清单按模块排期清零。〔2026-10-18 工具已交付 report 模式：headline **14.79%**（identical 3051 文件/62,708 行，normalized 295 文件/35,878 行，同路径文本共 666,685 行）；`pnpm verify:self-developed` 为 strict，CI 在清零前只跑 report，见 spec `upstream-overlap-metric.md`〕
 - [ ] **第三方台账重建**：新依赖全量盘点（`scripts/licenses.mjs` 口径延续）；`copied-components.json` 中上游衍生条目删除、第三方条目（shadcn 思路自写组件、Material 图标去留、插件图标 reviewRequired）逐条复核。
 - [ ] **法务收口**：贡献者协议（CLA/DCO）挂进 PR 流程；软著登记材料（源码前后 30 页 + 说明）；"Mode"图形组合商标申请材料；`docs/specs/p2-mode-naming.md` 必须保留清单逐条复核不动。
 
@@ -273,7 +273,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 - [ ] **发布工程**：Tauri updater + 签名（三平台）、`release.yml` 只出 Tauri 产物、块映射/差分更新验证。
 - [ ] **旧线 EOL**：Electron 线打最后版本公告 EOL；`docs/plans` 与 spec 标注归档；仓库语言终态 = Rust + TS + HTML/CSS（目标 ≥99% 字节来自这两门 + 平台文件）。
 - [ ] **数据迁移终验**：`.mode` 数据根原样复用（协议未变）；从旧线最后一版升级到新线的实机迁移演练。
-- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需）。
+- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（headline 14.79%，M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕
 
 **阶段验收：** 三平台 GA 发布；三指标全绿并进必跑门禁。
 

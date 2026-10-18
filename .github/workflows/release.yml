@@ -240,24 +240,16 @@ jobs:
       - name: Agent runtime parity matrix (roadmap M2)
         run: pnpm exec tsx scripts/agent-runtime-parity-matrix.ts --check
 
-      # 路线图 M5「三指标仪表入库」第 2 项：上游重合度必须为 0。
-      # 命令名按路线图原文（`pnpm verify:self-developed`），由 M4 交付
-      # `scripts/upstream-overlap-check.mjs` + package.json script。
-      # **当前检出里它还不存在**（M4 未执行）。这里分两种状态：
-      #   - 脚本存在 → 运行 `pnpm verify:self-developed`，失败即**阻断**发布；
-      #   - 脚本缺失 → 打印一行醒目告警并 exit 0（**wired, not enforced**）。
-      # 为什么缺失时放行：一个命令根本不存在的“必跑门禁”无法变绿，会在 M4 落地前
-      # 永久卡住所有发布（包括保留中的 Electron 回滚线）。指标仍然接线在这里，
-      # 不会被人忘记；M4 交付脚本的当天，本步骤自动变成阻断，无需再改工作流。
-      # 重开条件：`scripts/upstream-overlap-check.mjs` 存在后，删除下面的缺失分支。
-      - name: Upstream overlap metric (roadmap M5; non-blocking until M4 tool exists)
-        run: |
-          set -euo pipefail
-          if [ ! -f scripts/upstream-overlap-check.mjs ]; then
-            echo "::warning title=M5 overlap metric wired but not enforced::scripts/upstream-overlap-check.mjs is missing; it is delivered by M4. The roadmap M5 overlap metric is WIRED HERE but NOT ENFORCED. This step exits 0 so M4's gap cannot block releases. When the script exists, delete this absence branch and the metric becomes blocking automatically."
-            exit 0
-          fi
-          pnpm verify:self-developed
+      # 路线图 M5「三指标仪表入库」第 2 项：上游重合度（目标 0）。
+      # 工具已交付：`scripts/upstream-overlap-check.ts`（口径见
+      # docs/specs/upstream-overlap-metric.md）。**当前只跑 report（非阻断）**：
+      # M4 的 UI/前端重写尚未开始，headline 明确 > 0；把未达标的阈值接成阻断会
+      # 让每次发版必红，等于锁死发布线。M4 清零后把命令改成 `pnpm verify:self-developed`
+      # （= `--strict`），本步骤即变成硬门禁。
+      # 基线分支 `upstream/zcode-baseline` 是本地分支，CI 克隆里通常不存在；
+      # report 模式在基线缺失时打印 `baseline unavailable` 并退出 0。
+      - name: Upstream overlap metric (roadmap M5; report-only until M4 reaches zero)
+        run: pnpm check:upstream-overlap
       - name: Shared, service, core and desktop tests
         run: |
           set -euo pipefail

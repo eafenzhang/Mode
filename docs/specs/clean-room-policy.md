@@ -21,9 +21,10 @@
 | 旧代码的日常 bugfix                                    | **不适用** | 只修行为不重写；若借机重写，重写部分回到适用范围               |
 
 本仓库约 56% 行数为上游衍生（路线图口径）。哪些文件属上游衍生不靠个人判断：
-M4 的 `scripts/upstream-overlap-check.mjs`（对基线分支逐文件哈希 + 改名归一哈希）就绪前，
-以上游基线分支 `upstream/zcode-baseline`（已存在，= 29628c9）的逐文件 diff 结果为准；
-脚本就绪后以脚本产物为准。
+`scripts/upstream-overlap-check.ts`（对基线分支逐文件哈希 + 品牌归一哈希，口径见
+`docs/specs/upstream-overlap-metric.md`；**2026-10-18 已交付 report 模式**）就绪后，
+以脚本产物为准；在此之前以上游基线分支 `upstream/zcode-baseline`
+（2026-10-14 审计后 = `aac4755`）的逐文件 diff 结果为准。
 
 ## 核心规则
 
