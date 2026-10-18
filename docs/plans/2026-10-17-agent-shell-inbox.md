@@ -65,10 +65,11 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 | 输入字节 | 结果 |
 | --- | --- |
 | 4K / 8K / 16K / 20K / 24K / 28K / 30,000 | 原文直出，`contentLength` = 原始字节数 |
-| 30,720 及以上 | `<persisted-output>` 包装（约 2.2KB），完整输出落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log` |
+| 30,001 及以上 | `<persisted-output>` 包装（约 2.2KB），完整输出落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log` |
 
 包装的 `originalBytes`/`returnedBytes` 指的是**包装**而不是命令输出；`truncated=false`、
-`budgetStrategy=artifact`。阈值钉到 **30,000–30,720 字节**区间，精确字节未测。
+`budgetStrategy=artifact`。**精确边界**（`probe-bash-threshold.mts`）：30,000 直出、30,001 起持久化。
+注意**小输出与超时结果的 `budgetStrategy` 也是 `"artifact"`**（`artifactPath` 只在大输出/后台出现）。
 
 **并发输入（`probe-bash-admission.mts`）**
 
@@ -86,8 +87,7 @@ run_in_background?: boolean, dangerouslyDisableSandbox?: boolean}`，
 
 阶段计划要求对拍覆盖「超时、取消、退出码」，目前拿到退出码、超时与取消，以下仍只有表象：
 
-1. **大输出阈值的精确字节**：已确认 30,000 直出、30,720 持久化，精确边界未测。
-2. **host 层 `CommandInbox` 的排队顺序与 key 粒度**：stdio 会话面只观察到拒绝（`-32010`），
+1. **host 层 `CommandInbox` 的排队顺序与 key 粒度**：stdio 会话面只观察到拒绝（`-32010`），
    排队层在它之上；需要新的观察路径或分层裁决（DR-T4-7）。
 
 以下曾列为未知，2026-10-18 已补齐（结论见 spec §3.4）：
@@ -208,9 +208,9 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - [x] 探超时后的进程清理：父 shell abort 后，`sleep` 子进程 1s/2s 后仍 `alive`（**不清理孙进程**）。
 - [x] 探**取消**后的进程清理（2026-10-18）：等 `child.pid` 落盘后再 `session/stop`，
       孙进程在 +0/+1s/+2s 都 `alive`——**取消也不清理孙进程**（与超时一致）。
-- [x] 探大输出：4K–30,000 直出、30,720 起持久化包装；阈值钉到 30,000–30,720 区间，
+- [x] 探大输出：4K–30,000 直出、**30,001 起**持久化包装（`probe-bash-threshold.mts` 已钉死）；
       artifact 落 `<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`。
-      精确字节与 pty vs pipe 仍未观察。
+      顺带修正：小输出/超时的 `budgetStrategy` 也是 `"artifact"`（Rust 侧原先用了 truncate）。
 - [x] 探 `run_in_background` 的返回与后续事件（2026-10-18，`probe-bash-background.mts`）：
       立即成功返回 task id + `artifactPath`；结束时自动起新 turn 注入 `<task-notification>`
       （`completed (exit code 0)` / `failed with exit code 7` 两种文案已录）；多任务按完成顺序

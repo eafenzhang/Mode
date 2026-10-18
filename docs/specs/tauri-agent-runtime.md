@@ -474,7 +474,11 @@ Preview (first 2KB):
 
 - 关键口径：`result.originalBytes` / `returnedBytes` 指的是**包装**（约 2.2KB），**不是**命令输出；
   `truncated=false`、`budgetStrategy=artifact`。完整输出落在上面的 `-stdout.log` 文件里。
-- 阈值在 **30,000 与 30,720 字节之间**（30,000 直出、30,720 持久化；精确边界未测）。
+- **精确阈值**（`probe-bash-threshold.mts`，2026-10-18）：**30,000 字节直出、30,001 字节起持久化**
+  （29,999 / 30,000 的正文长度分别就是原字节数；30,001 起变成约 2.2KB 的包装）。
+- **`budgetStrategy` 不是只有大输出才是 artifact**：小输出（如 `hello\nworld`）与超时结果的
+  `budgetStrategy` 也都是 `"artifact"`（`probe-bash-threshold` / 夹具 `bash-stdout` / `bash-timeout`）；
+  `artifactPath` 只在持久化包装与后台任务结果里出现。
 - Rust 侧落点接线（2026-10-18）：`ToolContext.artifact` 携带**已解析的 `.mode` 数据根**、
   `sessionId` 与 `toolCallId`；`Session::with_data_root` 接线后 artifact 落
   `{data_root}/cli/exec/{sessionId}/{toolCallId}-stdout.log`（观察路径里的 `<dataRoot>/.mode` 中，
@@ -624,11 +628,10 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
 
 **Rust 侧实现状态（2026-10-18）**：`TaskRegistry` + `TaskOutput` / `TaskStop` 已落地，
 `Bash(run_in_background)` 会登记任务并按上面的文案返回；`completed` / `failed` / `killed` /
-`running` 四种结果形状均已按观察实现。**完成通知 turn 尚未实现**（依赖 Task 5 的会话循环），
-这是本切片当前唯一已知的行为差异。
+`running` 四种结果形状均已按观察实现。完成通知的**自动调度**尚未实现：
+`Session::run_pending_notifications` 已可用，但需要调用方在空闲时触发（Task 5 的完整循环）。
 
-**仍未观察（Step 0 剩余）**：大输出阈值的精确字节（只钉到 **30,000–30,720** 区间）；
-host 层 `CommandInbox` 的排队顺序与 key 粒度。
+**仍未观察（Step 0 剩余）**：host 层 `CommandInbox` 的排队顺序与 key 粒度（DR-T4-7 待人裁决）。
 
 ### 3.5 会话流与后台通知准入（Task 5 Step 0 观察，2026-10-18）
 

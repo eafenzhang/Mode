@@ -14,7 +14,8 @@
 //! | 命令不存在 | `Exit code 127` + shell 的 `command not found` 行 | 夹具 `bash-command-not-found` |
 //! | 超时 | **成功**；`Command timed out after {秒}s` + `<error>Command was aborted before completion</error>` | 夹具 `bash-timeout` / `bash-timeout-fractional` |
 //! | 缺 `command` | `tool_execution_failed` / `Tool input failed inputSchema validation` | 夹具 `bash-empty-args` |
-//! | 输出超过阈值 | `<persisted-output>` 包装 + 完整输出落盘；`budgetStrategy=artifact` | spec §3.4「大输出」 |
+//! | 小输出 | `budgetStrategy` 也是 **`"artifact"`**（只是没有 `artifactPath`） | `probe-bash-threshold.mts` |
+//! | 输出超过 30,000 字节 | `<persisted-output>` 包装 + 完整输出落盘；`budgetStrategy=artifact` | spec §3.4「大输出」 |
 //! | 运行中取消 | 工具错误 `tool_cancelled` / `TOOL_CANCELLED` | spec §3.4「取消」 |
 //!
 //! # 刻意不做、也不假装做的
@@ -208,7 +209,8 @@ pub fn invoke_with_control(
         if started.elapsed() >= timeout {
             let _ = child.kill();
             let _ = child.wait();
-            return Ok(ToolOutcome::text(timeout_content(timeout_ms)));
+            // 观察：超时同样是 `budgetStrategy:"artifact"`（Bash 的通用预算策略）。
+            return Ok(ToolOutcome::artifact(timeout_content(timeout_ms)));
         }
         thread::sleep(Duration::from_millis(20));
     }
@@ -220,7 +222,9 @@ pub fn invoke_with_control(
     if content.len() > LARGE_OUTPUT_BYTES {
         return persist_large_output(content, control).map(ToolOutcome::artifact);
     }
-    Ok(ToolOutcome::text(content))
+    // 观察（probe-bash-threshold）：小输出的 `budgetStrategy` 也是 `"artifact"`，
+    // 只是没有 `artifactPath`。别把它当成 `"truncate"`（那是 TaskStop 等工具的取值）。
+    Ok(ToolOutcome::artifact(content))
 }
 
 /// 后台执行：立即登记任务并返回（不等待命令结束）。
@@ -436,7 +440,7 @@ mod tests {
     fn non_zero_exit_is_success_with_exit_code_first() {
         let exit = run("exit 7");
         assert_eq!(exit.content, "Exit code 7");
-        assert_eq!(exit.budget_strategy, "truncate");
+        assert_eq!(exit.budget_strategy, "artifact");
         assert_eq!(
             run("printf 'before\\n'; exit 7").content,
             "Exit code 7\nbefore"

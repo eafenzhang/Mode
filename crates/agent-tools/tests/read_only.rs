@@ -120,7 +120,7 @@ fn read_only_tools_leave_the_workspace_untouched() {
         let context = ToolContext {
             cwd: workspace.cwd(),
             artifact: None,
-        tasks: None,
+            tasks: None,
         };
         for call in &fixture.calls {
             let args = workspace.substitute(&call.input);
@@ -373,14 +373,20 @@ fn read_extension_tables_matches_recorded_oracle() {
 #[test]
 fn success_result_fields_match_the_recorded_events() {
     let mut compared = 0;
-    for case in ["read-single", "read-twice-one-turn", "read-offset-edges"] {
+    for case in [
+        "read-single",
+        "read-twice-one-turn",
+        "read-offset-edges",
+        // Bash 的小输出也必须是 artifact（probe-bash-threshold 的发现）。
+        "bash-stdout",
+    ] {
         let fixture = load_fixture(case);
         let workspace = Workspace::new(case);
         workspace.seed(&fixture.seed);
         let context = ToolContext {
             cwd: workspace.cwd(),
             artifact: None,
-        tasks: None,
+            tasks: None,
         };
         for (index, call) in fixture.calls.iter().enumerate() {
             let Some(recorded) = fixture.expect_result_objects[index].as_ref() else {
