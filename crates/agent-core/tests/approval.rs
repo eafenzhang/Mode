@@ -293,6 +293,22 @@ fn unknown_discriminants_are_rejected() {
 }
 
 #[test]
+fn ruleset_matches_exact_tool_and_rule_content() {
+    let ruleset: Ruleset = serde_json::from_value(json!({
+        "version": 1,
+        "allow": [{ "toolName": "Write", "ruleContent": "C:/ws/a.txt" }]
+    }))
+    .expect("规则集能解码");
+
+    assert!(ruleset.allows("Write", "C:/ws/a.txt"));
+    assert!(
+        !ruleset.allows("Write", "C:/ws/b.txt"),
+        "不同路径不应被同一条规则命中（观察：仍会请求审批）"
+    );
+    assert!(!ruleset.allows("Edit", "C:/ws/a.txt"), "工具名不同不应命中");
+}
+
+#[test]
 fn ruleset_preserves_unobserved_fields() {
     // 持久化行可能先于 Rust 侧扩展；extra 保证读取时不丢字段（写回也保留）。
     let observed = json!({

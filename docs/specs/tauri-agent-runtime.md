@@ -327,6 +327,35 @@ b
   （第一版就踩了，探针里留了注释）。⇒ 实现里对「去重」这件事**不要假装有依据**；
   `agent-core` 侧的规则合并按**追加**实现（与全部观察一致），并把这个未知登记在此。
 
+**风险分级与触发面（`probe-permission.mts`，2026-10-18）**
+
+| 调用 | 是否审批 | `riskLevel` | `reason` |
+| --- | --- | --- | --- |
+| `Read` | 无 | — | — |
+| `Write`（新文件） | 有 | `medium` | `Tool has side effects and requires approval` |
+| `Edit` | 有 | `medium` | 同上 |
+| `Bash` `echo hi` | **无** | — | — |
+| `Bash` `echo a; echo b` | **无** | — | — |
+| `Bash` `echo a && echo b` | **无** | — | — |
+| `Bash` `sleep 1 &` | 有 | `high` | `High risk tools require explicit approval` |
+| `Bash` `rm -rf nonexistent-dir` | 有 | `high` | 同上 |
+
+⇒ **Bash 不是按 family 一律 ask**，而是按**命令模式**分类。当前只观察到 `&`（后台）与
+`rm -rf` 两个高危模式；**模式全集未观察**，实现时不能假装覆盖（Task 6 需继续补观察）。
+
+**`deny` 的答复形状**（同一探针）
+
+- 事件序列只有 `scheduled` → `permission.requested` → `batch`（`successCount:0` / `errorCount:1`）；
+  **没有 `started`、没有 `result`、没有 `error` 帧**。turn 仍是 `resultType:"success"`，
+  并继续下一步模型轮（实测 response 为后续文本）。
+- `deny` **不落盘**。实现时不要把拒绝做成 `tool_execution_failed`——那是入参校验/执行失败的形状。
+
+**`allow_project` 的匹配范围**
+
+- 规则 `{toolName, ruleContent}` **逐字相等**才命中：同一路径的第二次 `Write` 不再请求；
+  不同路径仍请求（实测两次请求分别是 `a.txt` 与 `b.txt`，第二次写 `a.txt` 没有请求）。
+- 不做前缀/通配/大小写归一（观察范围内没有这些形态）。
+
 **未决（写进计划，不自行拍板）**：这条持久化归**谁**写？观察里是运行时装进程自己写的，但
 目标架构中 DB 由 M3 的 Node Host 侧持有（`node:sqlite`）。Rust 侧是直连 sqlite 还是经 Host 代理，
 属架构分叉，需人在 Task 3 子计划里定。

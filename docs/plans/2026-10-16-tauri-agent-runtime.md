@@ -444,6 +444,13 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 
 ### Task 6: 权限引擎（规则表驱动）
 
+> **2026-10-18 前置观察**（`probe-permission.mts`，结论在 spec §3.3）：
+> `Write` / `Edit` 是 `medium` 审批；`Read` 无审批；**`Bash` 不是按 family 一律 ask**——
+> `echo`、`;`、`&&` 都不问，`&`（后台）与 `rm -rf` 才是 `high`。高危命令的**模式全集未观察**，
+> 实现前必须先补矩阵，不能按直觉写一套模式表。`deny` 的形状是 `scheduled → batch`
+> （`errorCount:1`，没有 `started/result/error`），不是 `tool_execution_failed`；
+> `allow_project` 的规则匹配是 `toolName + ruleContent` **逐字相等**。
+
 **Files:**
 - Create: `crates/agent-core/src/permission.rs`
 - Test: `crates/agent-core/tests/permission_engine.rs`
@@ -451,7 +458,9 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 **Interfaces:**
 - Produces: `agent_core::permission::Engine::evaluate(tool: &ToolSpec, args: &Value) -> Decision`。
 
-- [ ] **Step 1–5: 按 `ModeToolFamily` 分档实现 allow / deny / ask 规则表**（大纲）
+- [ ] **Step 1–5: 按 family + 命令模式实现 allow / ask，规则匹配走逐字相等**（大纲）
+      〔2026-10-18：规则匹配的纯函数 `Ruleset::allows` 已落地并有单测；命令模式矩阵仍待补，
+      补齐前不实现 Bash 的 ask 判定。〕
 
 数据文件与旧版同格式（同 Task 3 的做法：格式取自 oracle）。工具级确认（Tool-level confirmation）
 与 `AskUserQuestion` 的交互面复用 M1 的命令面。

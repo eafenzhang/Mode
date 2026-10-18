@@ -63,6 +63,17 @@ impl Ruleset {
         next.apply_updates(updates);
         next
     }
+
+    /// 规则是否**精确命中**（`toolName` 与 `ruleContent` 都逐字相等）。
+    ///
+    /// 观察（spec §3.3）：`allow_project` 之后同一路径的第二次 Write 不再请求，
+    /// 不同路径仍会请求；因此匹配是逐字相等，不做前缀/通配。
+    /// `deny` 规则在观察里从未落盘，所以这里**只查 allow**，不发明 deny 优先级。
+    pub fn allows(&self, tool_name: &str, rule_content: &str) -> bool {
+        self.allow
+            .iter()
+            .any(|rule| rule.tool_name == tool_name && rule.rule_content == rule_content)
+    }
 }
 
 impl Default for Ruleset {
