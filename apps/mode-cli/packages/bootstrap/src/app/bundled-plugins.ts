@@ -39,7 +39,7 @@ import {
 } from "./official-plugin-seed-lock.js";
 
 const OFFICIAL_PLUGIN_MARKETPLACE = MODE_OFFICIAL_PLUGIN_MARKETPLACE;
-const SEA_PLUGIN_ASSET_PREFIX = "mode-official-plugins/";
+const SEA_PLUGIN_ASSET_PREFIX = "tutto-official-plugins/";
 const SEA_PLUGIN_MANIFEST_ASSET_KEY = `${SEA_PLUGIN_ASSET_PREFIX}manifest.json`;
 const SEED_MARKER_FILE = OFFICIAL_PLUGIN_SEED_MARKER_FILE;
 const SEED_LOCK_TOTAL_BUDGET_MS = 15_000;

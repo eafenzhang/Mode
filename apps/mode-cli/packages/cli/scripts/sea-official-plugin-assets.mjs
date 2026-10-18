@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
-export const seaOfficialPluginAssetPrefix = "mode-official-plugins/";
+export const seaOfficialPluginAssetPrefix = "tutto-official-plugins/";
 export const seaOfficialPluginManifestAssetKey = `${seaOfficialPluginAssetPrefix}manifest.json`;
 const browserUseRequiredRuntimePaths = [
   "scripts/browser-client.mjs",
@@ -30,7 +30,6 @@ export const officialSeaPlugins = [
     version: "0.6.0",
   },
   {
-
     marketplace: "mode-plugins-official",
     name: "browser-use",
     packageName: "@mode/browser-use-plugin",
