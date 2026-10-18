@@ -17,6 +17,18 @@
 - `scripts/license-texts/` 现有 53 份文本，MIT/Apache/BSD/Zlib/MPL/LGPL 体裁均已存在，
   补文本不需要新下载。
 
+## 裁决记录（2026-10-18，用户：按建议执行）
+
+1. **`r-efi` 许可**：MIT + Apache-2.0 双文本，**不选 LGPL**；生成器已按此附文本，
+   `reviewNote` 记录该选择。
+2. **`selectors` MPL-2.0**：采用 (a)——附 MPL-2.0 全文 + 源码可得性指向公开仓库
+   `https://github.com/eafenzhang/Mode` 的对应 release tag；`reviewRequired` 保留到 T3
+   notices 措辞 review 通过。
+3. **台账 scope**：采用 (a) 发布目标并集（Tauri 壳 + agent 运行时 + CUA helper），
+   即当前生成器实现的 577 条口径。
+4. **T3 触发**：仍由人推送/手动 `workflow_dispatch` 触发 Linux CI；本机 EMFILE，
+   不能代替 CI 生成。
+
 ## 需要真正判断的三处
 
 ### 1. `selectors@0.38.0`（MPL-2.0，唯一弱互惠项）

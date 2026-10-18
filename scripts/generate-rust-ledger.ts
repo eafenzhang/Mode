@@ -40,6 +40,8 @@ import {
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CUA_MANIFEST = "crates/mode-cua-ax/Cargo.toml";
 const CUA_TARGET = "mode-cua-ax";
+/** MPL-2.0 的源码可得性指向（2026-10-18 裁决：公开仓库对应 release tag）。 */
+const SOURCE_CODE_URL = "https://github.com/eafenzhang/Mode";
 
 export interface NoticeRecord {
   member: string;
@@ -293,8 +295,8 @@ function buildEntries(
       if (requiresHumanReview(pkg.license)) {
         reviewRequired = true;
         reviewNote = /MPL/i.test(pkg.license)
-          ? "no licence file; MPL-2.0 text attached, source-availability/notice wording requires human review"
-          : "no licence file; permissive texts attached, LGPL option not elected — license choice requires human review";
+          ? `no licence file; MPL-2.0 text attached; MPL-covered source available at ${SOURCE_CODE_URL} (release tag) — notice wording requires human review`
+          : "no licence file; permissive texts attached (MIT + Apache-2.0), LGPL option not elected — license choice recorded as MIT + Apache";
       } else if (missing.length > 0 || identifiers.length === 0) {
         reviewRequired = true;
         reviewNote =

@@ -96,6 +96,9 @@ Error: pnpm -r ls --prod --json --depth Infinity
 建议 (a)：与 README 里「保守并集，不声称每个平台都链接」的既有口径一致，也避免
 per-artifact 台账在 M5 切发布线时新增分支。
 
+**裁决（2026-10-18，用户：按建议执行）：采用 (a)。** 生成器已按并集实现（577 条候选）；
+T3 重生成后 `rust-sources.json` 的 `scope`/`targets` 即按此口径入库。
+
 ## T2 覆盖门禁（2026-10-18 已实现）
 
 工具：`scripts/rust-ledger-gap.ts`，命令：
