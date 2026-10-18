@@ -228,6 +228,17 @@
   supervisor 的 `Closed` 或含 `closed` 的 RPC 错误映射为前者。下一次 refresh/listTools 会
   重启 sidecar（adapter 用例覆盖：崩溃 → SdkError → 重启后可列工具）。
 
+## 5.9 sidecar bundle（2026-10-18）
+
+- 构建：`pnpm run build:plugin-host`（`scripts/build-plugin-host-bundle.ts`，esbuild 单文件
+  ESM）→ `dist/plugin-host/plugin-host.mjs`（约 9.1KB）+ `manifest.json`。
+- manifest 形状与 `crates/plugin-host/src/manifest.rs` 的 `PluginHostManifest` 一致；
+  `assetUrl` 默认是相对文件名 `plugin-host.mjs`，上传 CDN 时用
+  `MODE_PLUGIN_HOST_ASSET_URL` 覆盖；`sha256` 按 bundle 字节计算。
+- bundle 可直接用 `node` 跑；`probe-plugin-sidecar.mts` 支持
+  `MODE_PLUGIN_HOST_BUNDLE=<path>` 验证 bundle 形态（hello/listTools/callTool 全通过）。
+- **未做**：CDN 上传与真实 `assetUrl` 的部署、JS bundle 的 Node 版本矩阵。
+
 ## 6. 复现
 
 ```bash

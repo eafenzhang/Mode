@@ -62,10 +62,17 @@ await writeFile(
   "utf8",
 );
 
-const child = spawn(process.execPath, [TSX_CLI, SIDECAR_ENTRY], {
-  env: { ...process.env, MODE_DATA_BASE_DIR: dataRoot },
-  stdio: ["pipe", "pipe", "inherit"],
-});
+// 默认跑 tsx 源码；MODE_PLUGIN_HOST_BUNDLE 指向已构建的 bundle 时改跑 bundle。
+const bundleEntry = process.env.MODE_PLUGIN_HOST_BUNDLE?.trim();
+const child = bundleEntry
+  ? spawn(process.execPath, [bundleEntry], {
+      env: { ...process.env, MODE_DATA_BASE_DIR: dataRoot },
+      stdio: ["pipe", "pipe", "inherit"],
+    })
+  : spawn(process.execPath, [TSX_CLI, SIDECAR_ENTRY], {
+      env: { ...process.env, MODE_DATA_BASE_DIR: dataRoot },
+      stdio: ["pipe", "pipe", "inherit"],
+    });
 const lines = createInterface({ input: child.stdout });
 const queue: string[] = [];
 const waiters: Array<(line: string) => void> = [];

@@ -106,9 +106,10 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - Create: `tools/plugin-host/`（sidecar 入口与 bundle；语言政策：TS）
 - Test: `crates/plugin-host/tests/asset_cache.rs`
 
-- [x] **Step 1：定义 manifest 与缓存布局**（2026-10-18，spec §5.1）：`schemaVersion` / `version` /
-      `platform` / `entry` / `assetUrl` / `sha256`；单文件 bundle；缓存
-      `<dataRoot>/plugin-host/<version>/<entry>`。
+- [x] **Step 1：定义 manifest 与缓存布局**（2026-10-18，spec §5.1/5.9）：`schemaVersion` /
+      `version` / `platform` / `entry` / `assetUrl` / `sha256`；单文件 bundle；缓存
+      `<dataRoot>/plugin-host/<version>/<entry>`；`pnpm run build:plugin-host` 已产出
+      9.1KB bundle + manifest，探针可用 `MODE_PLUGIN_HOST_BUNDLE` 验证。
 - [x] **Step 2：实现下载/校验与失败语义**（2026-10-18）：`crates/plugin-host` 的
       `PluginHostManifest` + `AssetCache`；缓存优先、sha256、临时文件 + rename、不半写。
       **Deviation**：资产按单文件 bundle 处理（Node 运行时随 Host 发布），本任务不做解包。
