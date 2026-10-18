@@ -13,7 +13,7 @@ import {
   CommandList,
   CommandEmpty,
   CommandItem,
-} from "@/components/ui/command.js";
+} from "@/ui-foundation/adapters/command.js";
 import { PluginIcon } from "@/components/PluginIcon.js";
 import { usePluginReferenceCatalog } from "@/hooks/usePluginReferenceCatalog.js";
 import { requestPluginStoreOpen } from "@/lib/pluginStoreNavigation.js";

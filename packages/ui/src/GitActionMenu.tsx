@@ -17,7 +17,7 @@ import type {
 } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Command, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command.js";
+import { Command, CommandItem, CommandList, CommandShortcut } from "@/ui-foundation/adapters/command.js";
 import {
   Dialog,
   DialogContent,

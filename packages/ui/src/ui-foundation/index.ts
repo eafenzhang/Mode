@@ -421,3 +421,17 @@ export {
   type CollapsibleTriggerProps,
 } from "./Collapsible.js";
 export { Spinner, type SpinnerProps } from "./Spinner.js";
+export {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+  type CommandInputProps,
+  type CommandItemProps,
+} from "./Command.js";
+export { Label, type LabelProps } from "./Label.js";
+export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./Kbd.js";

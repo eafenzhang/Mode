@@ -126,6 +126,32 @@ success/warning/destructive。
   `className`（`size-*`）决定；`role="status"`、`aria-label` 由调用方提供，
   缺省时 `aria-hidden="true"`，不参与 Tab 顺序。
 
+### 2.8 Command palette
+
+- 容器沿用菜单语言：`bg-popover`、`border-popover-border`、`rounded-lg`；
+- 输入行在容器顶部，搜索图标与输入框 `text-ui-base`，输入框无独立边框/背景；
+- 列表可滚动并保持 `min-h-0`；分组标题 `text-ui-xs text-foreground-subtlest`；
+- 选项行与菜单一致（`rounded-md`、`px-2`、`gap-2`、hover/selected `bg-menu-hover`），
+  cmdk 的 `data-selected="true"` 必须映射到同一 hover 视觉；
+- 快捷键提示 `ms-auto text-ui-xs text-foreground-subtlest`；
+- `CommandDialog` 由 Dialog + Command 组合，标题/描述只做可访问性（`sr-only`），
+  不重复渲染可见标题。
+
+### 2.9 Label / Kbd
+
+- Label：`text-ui-sm font-medium text-foreground`，`htmlFor` 指向对应控件；
+  不改变控件的 disabled/required 语义；
+- Kbd：`rounded-sm border border-border bg-surface px-1 text-ui-xs text-foreground-subtle`；
+- KbdGroup：`inline-flex items-center gap-1`，用于组合键展示。
+
+### 2.10 HoverCard
+
+- 视觉沿用 Popover：`bg-popover` + `border-popover-border` + `rounded-xl` + `shadow-md`，
+  内容 padding 由调用方 `className` 决定；
+- 悬停/聚焦打开，默认 `openDelay≈700ms`、`closeDelay≈300ms`，可通过 props 覆盖；
+- 浮层本身可悬停：指针移入内容时取消关闭计时；
+- 定位与 Popover 共用视口收敛口径；Esc 关闭；关闭后焦点回到触发器。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -182,7 +208,10 @@ success/warning/destructive。
 反馈/导航层在 `feedbackStyles.ts` / `Tabs.tsx` / `Tooltip.tsx` / `Toast.tsx`（交互浮层 z-50
 高于 Tooltip z-40），用例 `packages/ui/test/uiFoundationFeedback.test.ts`。
 展开器与加载指示在 `Collapsible.tsx` / `Spinner.tsx`，用例
-`packages/ui/test/uiFoundationCollapsibleSpinner.test.ts`。
+`packages/ui/test/uiFoundationCollapsibleSpinner.test.ts`；
+命令面板与标签在 `Command.tsx` / `commandStyles.ts` / `Label.tsx` / `Kbd.tsx`，
+用例 `uiFoundationCommand.test.ts` / `uiFoundationLabelKbd.test.ts`；
+HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

@@ -22,7 +22,7 @@ import {
   CommandItem,
   CommandList,
   CommandShortcut,
-} from "@/components/ui/command.js";
+} from "@/ui-foundation/adapters/command.js";
 import { cn } from "@/components/lib/utils.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";

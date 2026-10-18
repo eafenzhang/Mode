@@ -29,6 +29,9 @@
 | `collapsible.tsx` | `Collapsible`、`CollapsibleTrigger`、`CollapsibleContent` | `adapters/collapsible` | **已切换 14 处调用**（2026-10-19）；`forceMount`/`asChild` 已支持 |
 | `spinner.tsx` | `Spinner` | `adapters/spinner` | **已切换 11 处调用**（2026-10-19）；内联 SVG，颜色继承 |
 | `context-menu.tsx` | 复合导出 | `adapters/context-menu` | **已切换 14 处调用**（2026-10-19）；复用 DropdownMenu 根/条目，`anchorPoint` 指针定位 |
+| `command.tsx` | 复合导出 | `adapters/command` | **已切换 7 处调用**（2026-10-19）；cmdk 提供过滤/键盘，`CommandDialog` 组合 Dialog |
+| `label.tsx` / `kbd.tsx` | `Label` / `Kbd`、`KbdGroup` | `adapters/label` / `adapters/kbd` | **已切换 1 + 1 处**（2026-10-19） |
+| `hover-card.tsx` | 复合导出 | `adapters/hover-card` | **已切换 3 处调用**（2026-10-19）；悬停延迟/可悬停内容/portal 定位 |
 
 ## 2. 业务面映射
 

@@ -25,7 +25,7 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card.js";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/ui-foundation/adapters/hover-card.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatRemoteSkillSyncTarget } from "@/settings/RemoteSkillSyncDialog.js";
 import {

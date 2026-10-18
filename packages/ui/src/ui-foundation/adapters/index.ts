@@ -196,3 +196,27 @@ export {
   type ContextMenuSubTriggerProps,
   type ContextMenuTriggerProps,
 } from "./context-menu.js";
+export {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+  type CommandDialogProps,
+  type CommandInputProps,
+  type CommandItemProps,
+} from "./command.js";
+export { Label, type LabelProps } from "./label.js";
+export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
+export {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+  type HoverCardContentProps,
+  type HoverCardProps,
+  type HoverCardTriggerProps,
+} from "./hover-card.js";

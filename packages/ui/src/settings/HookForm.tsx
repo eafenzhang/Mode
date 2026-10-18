@@ -3,7 +3,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
-import { Label } from "@/components/ui/label.js";
+import { Label } from "@/ui-foundation/adapters/label.js";
 import {
   Select,
   SelectContent,

@@ -1,7 +1,7 @@
 import { Keyboard, Pencil, Trash2 } from "lucide-react";
 import type { ShortcutCommandEntry, ShortcutCommandId } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Kbd, KbdGroup } from "@/components/ui/kbd.js";
+import { Kbd, KbdGroup } from "@/ui-foundation/adapters/kbd.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatShortcutBindingLabelParts } from "@/shortcuts/label.js";
 

@@ -4,9 +4,9 @@
 > 方法：`grep -rl "components/ui/<name>" packages/ui/src` 统计**引用文件数**（不是出现次数，
 > 也不是行数）；不读取旧实现体。
 >
-> **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu 已切到
-> `ui-foundation/adapters`。** 剩余 `components/ui/` 引用集中在 command(7)、chart(6)
-> 与各 viewer；旧文件统一保留到人工看屏验收后删除。
+> **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
+> command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
+> 引用集中在 chart(6) 与各 viewer；旧文件统一保留到人工看屏验收后删除。
 
 ## 基础件切换顺序（按引用面从小到大）
 
@@ -202,3 +202,14 @@ checkbox → alert → textarea`（可加 `badge`）。
 验证：UI 335 passed、typecheck/lint/architecture/language/format（改动文件）通过。
 已知差异：`CollapsibleContent asChild` 只合并 `data-state`/ref；context-menu 的键盘导航沿用菜单实现，
 指针越界收敛与菜单一致。
+
+### 后续波次（2026-10-19 第十三轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `command` | 7 | 新增 foundation `Command`（cmdk 公共 API：过滤/键盘/选中由库负责）；输入行保留 `data-slot="command-input"` 供搜索聚焦查询；`CommandDialog` 由 adapter 的 Dialog 组合，标题/描述仅 `sr-only` |
+| `label` / `kbd` | 1 / 1 | 新增 foundation `Label`、`Kbd`/`KbdGroup`；token 与语义元素直出 |
+| `hover-card` | 3 | 新增 adapter：`open/defaultOpen`、`openDelay=700`/`closeDelay=300`、内容可悬停、Escape 关闭并回焦；定位复用 Popover 数学并 portal 到 body |
+
+验证：UI 341 passed、typecheck/lint/architecture/language/format（改动文件）通过。
+已知差异：Command 的视觉细节由 cmdk data 属性承载；HoverCard 关闭后不自动恢复焦点（仅 Escape 路径）。

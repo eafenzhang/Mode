@@ -7,7 +7,7 @@ import {
   testId,
 } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card.js";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/ui-foundation/adapters/hover-card.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   buildConversationTurnNavigatorItems,

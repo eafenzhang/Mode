@@ -55,7 +55,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command.js";
+} from "@/ui-foundation/adapters/command.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import {
   Select,
