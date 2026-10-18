@@ -146,4 +146,5 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二批（`app-keyboard-helpers`）：命令补全写入、输入历史导航条件、workflow 裸 +/- 展开闸门、
   Ctrl-C 两段式退出窗口、Shift+Tab 模式切换；
 - 第三批（`app-copy`）：可复制选区判定、copied/unavailable/failed/empty 状态映射；
+- 第四批（`app-event-data`）：contextWindow 非负数值判定、错误文案提取与 Unknown 回退；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
