@@ -196,7 +196,20 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - [x] **CI 门禁**（2026-10-18）：release 的 Rust 测试列表已加入
       `agent-protocol` / `agent-tools` / `agent-core` / `plugin-host` / `plugin-host-adapter`；
       本地按该命令实跑全绿。
-- [ ] **Step 4：`cargo clippy -D warnings` + 相关测试全绿；提交。**
+- [x] **Step 4：`cargo clippy -D warnings` + 相关测试全绿；提交。**
+      〔2026-10-18 复核〕`plugin-host` 12 passed（asset_cache 5 / protocol 4 / supervisor 3）、
+      `plugin-host-adapter` 4 passed；两 crate 的 `clippy --all-targets -D warnings` 零告警。
+
+---
+
+## 发布侧剩余（不在 Task 6）
+
+本计划的本地面已全部落地；路线图 M3「Node sidecar 打包」还差**部署形态**：
+
+- `AssetCache::ensure` 已实现下载/校验/缓存（缓存命中不联网），由
+  `crates/plugin-host/tests/asset_cache.rs` 5 条用例覆盖；
+- 缺：把 `dist/plugin-host/plugin-host.mjs` + manifest 上传到 CDN、填真实 `assetUrl`、
+  Tauri 壳按发布形态 spawn sidecar。这些需要发布凭据与真实资产地址，属人工/部署项。
 
 ---
 
