@@ -1,3 +1,4 @@
+export { AppShell, ResizeHandle, type AppShellProps, type ResizeHandleProps } from "./AppShell.js";
 export { Button, type ButtonProps } from "./Button.js";
 export { Card, type CardProps } from "./Card.js";
 export { Dialog, type DialogProps } from "./Dialog.js";
@@ -48,3 +49,13 @@ export {
   type TabClassNameOptions,
   type ToastClassNameOptions,
 } from "./feedbackStyles.js";
+export {
+  conversationColumnClassName,
+  conversationFrameClassName,
+  mobileDrawerClassName,
+  resizeHandleClassName,
+  sidePaneFrameClassName,
+  terminalFrameClassName,
+  workspaceShellClassName,
+  type ResizeOrientation,
+} from "./shellStyles.js";

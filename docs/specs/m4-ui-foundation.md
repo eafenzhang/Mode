@@ -124,6 +124,10 @@ success/warning/destructive。
 - 断点只改布局/宽度/可见性/密度，不改变组件语义；主操作在所有断点保留；
 - 文本容器加 `min-w-0`，滚动容器加 `min-h-0`；优先 `w-full + max-w-*`。
 
+**实现落点（P1.2 静态骨架）**：`shellStyles.ts` / `AppShell.tsx`——会话/终端/Side Pane
+三个独立 frame、4px 间隔、4px 分隔条命中区（hover/focus/drag 2px 线）与 mobile drawer。
+拖拽换算与尺寸持久化属于交互层，尚未实现。
+
 ## 4. 可访问性与 i18n
 
 - 键盘导航是一等路径；可见焦点不可移除；
