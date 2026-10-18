@@ -12,6 +12,7 @@ import {
   resolvePptxIntrinsicPoint,
   resolvePptxPageFromInput,
   resolvePptxPdfFileName,
+  resolvePptxNavigationTarget,
   resolvePptxThumbnailScale,
   stepPptxZoom,
 } from "../src/ui-foundation/pptxViewerLayout.js";
@@ -78,4 +79,19 @@ test("PDF 文件名：去扩展名/非法字符，缺省 presentation.pdf", () =
   assert.equal(resolvePptxPdfFileName("a/b:c.pptx"), "a-b-c.pdf");
   assert.equal(resolvePptxPdfFileName(""), "presentation.pdf");
   assert.equal(resolvePptxPdfFileName(undefined), "presentation.pdf");
+});
+
+test("引用导航：fingerprint 不符 / 页码缺失 / 正常跳转", () => {
+  const base = { pageIndex: 2, currentSourceFingerprint: "fp", pageCount: 5 };
+  assert.deepEqual(resolvePptxNavigationTarget({ ...base, expectedSourceFingerprint: "other" }), {
+    status: "source-changed",
+  });
+  assert.deepEqual(
+    resolvePptxNavigationTarget({ ...base, pageIndex: 9, expectedSourceFingerprint: "fp" }),
+    { status: "page-missing", pageIndex: 9 },
+  );
+  assert.deepEqual(resolvePptxNavigationTarget({ ...base, expectedSourceFingerprint: "fp" }), {
+    status: "ok",
+    pageIndex: 2,
+  });
 });

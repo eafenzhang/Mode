@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { PdfViewerLabels } from "@/ui-foundation/adapters/pdf-viewer.js";
-import type { PptxPreviewViewerLabels } from "@/components/ui/pptx-preview-viewer.js";
+import type { PptxPreviewViewerLabels } from "@/ui-foundation/pptxPreviewLabels.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 /**

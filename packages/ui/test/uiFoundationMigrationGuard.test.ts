@@ -39,6 +39,7 @@ const MIGRATED_MODULES = [
   "popover",
   "progress",
   "pptx-selection-action-bar",
+  "pptx-preview-viewer",
   "resizable",
   "scroll-area",
   "scroll-fade-viewport",

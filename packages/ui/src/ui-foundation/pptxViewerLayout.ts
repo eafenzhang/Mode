@@ -68,3 +68,23 @@ export function resolvePptxPdfFileName(fileName?: string): string {
     .trim();
   return `${base || "presentation"}.pdf`;
 }
+
+export type PptxNavigationResult =
+  | { status: "ok"; pageIndex: number }
+  | { status: "source-changed" }
+  | { status: "page-missing"; pageIndex: number };
+
+export function resolvePptxNavigationTarget(options: {
+  pageIndex: number;
+  expectedSourceFingerprint: string;
+  currentSourceFingerprint: string;
+  pageCount: number;
+}): PptxNavigationResult {
+  if (options.expectedSourceFingerprint !== options.currentSourceFingerprint) {
+    return { status: "source-changed" };
+  }
+  if (options.pageIndex < 0 || options.pageIndex >= options.pageCount) {
+    return { status: "page-missing", pageIndex: options.pageIndex };
+  }
+  return { status: "ok", pageIndex: options.pageIndex };
+}

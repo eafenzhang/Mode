@@ -1,7 +1,7 @@
 // P1.1 PPTX 预览渲染面（spec: §2.22，pptx viewer 第一层的前半）。
 // 只负责加载、单页渲染与页码/缩放；缩略图、元素选择与导出在后续层补齐后才切换业务组件。
 
-import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -19,41 +19,29 @@ import {
   createPptxElementReference,
   dispatchPptxElementReferenceAddToChat,
   sha256Fingerprint,
-  type PptxElementReferenceSource,
 } from "@/lib/pptxElementReference.js";
 
 import { PptxSelectionActionBar } from "./adapters/pptx-selection-action-bar.js";
 
 import { Button } from "./Button.js";
 import { PptxThumbnail } from "./PptxPreviewThumbnail.js";
-import type { PptxPreviewSurfaceLabels } from "./pptxPreviewLabels.js";
+import type { PptxPreviewSurfaceProps } from "./pptxPreviewLabels.js";
 import { toast } from "./adapters/toast.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import {
   resolvePptxIntrinsicPoint,
+  resolvePptxNavigationTarget,
   resolvePptxPageDisplaySize,
   resolvePptxPageFromInput,
   stepPptxZoom,
 } from "./pptxViewerLayout.js";
-
-export interface PptxPreviewSurfaceProps extends HTMLAttributes<HTMLDivElement> {
-  data: ArrayBuffer;
-  labels: PptxPreviewSurfaceLabels;
-  referenceSource?: PptxElementReferenceSource;
-  referenceNavigation?: {
-    requestId: string;
-    pageIndex: number;
-    expectedSourceFingerprint: string;
-  };
-  fileName?: string;
-  onOpenBrowserUrl?: (url: string) => void;
-}
 
 export function PptxPreviewSurface({
   data,
   labels,
   referenceSource,
   referenceNavigation,
+  referenceNavigationReady = true,
   fileName,
   onOpenBrowserUrl,
   className,
@@ -120,16 +108,26 @@ export function PptxPreviewSurface({
   }, [data]);
 
   useEffect(() => {
-    if (!referenceNavigation || !document || !sourceFingerprint) {
+    if (!referenceNavigation || !document || !sourceFingerprint || !referenceNavigationReady) {
       return;
     }
-    if (referenceNavigation.expectedSourceFingerprint !== sourceFingerprint) {
+    const target = resolvePptxNavigationTarget({
+      pageIndex: referenceNavigation.pageIndex,
+      expectedSourceFingerprint: referenceNavigation.expectedSourceFingerprint,
+      currentSourceFingerprint: sourceFingerprint,
+      pageCount: document.pageCount,
+    });
+    if (target.status === "source-changed") {
+      toast(labels.referencedSourceChanged(referenceNavigation.pageIndex + 1));
       return;
     }
-    const next = Math.min(Math.max(1, referenceNavigation.pageIndex + 1), document.pageCount);
-    setPageNumber(next);
-    setPageInput(String(next));
-  }, [referenceNavigation, document, sourceFingerprint]);
+    if (target.status === "page-missing") {
+      toast(labels.referencedPageMissing(target.pageIndex + 1));
+      return;
+    }
+    setPageNumber(target.pageIndex + 1);
+    setPageInput(String(target.pageIndex + 1));
+  }, [referenceNavigation, referenceNavigationReady, document, sourceFingerprint, labels]);
 
   const exportPdf = async (): Promise<void> => {
     const printPageToPdf = platform?.printPageToPdf;
@@ -283,7 +281,7 @@ export function PptxPreviewSurface({
         </span>
       </div>
       <div className="flex min-h-0 flex-1">
-        {labels.thumbnail && document ? (
+        {document ? (
           <aside
             aria-label={labels.thumbnails}
             data-slot="pptx-preview-thumbnails"

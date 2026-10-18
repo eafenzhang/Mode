@@ -348,7 +348,9 @@ PDF 预览在 `adapters/pdf-viewer.tsx`（纯输入/边界在 `pdfViewerSource.t
 `adapters/pptx-selection-action-bar.tsx`（纯计算在 `pptxSelectionState.ts`），用例
 `uiFoundationPptxSelection.test.ts`；只读代码块在 `CodeView.tsx`（行模型
 `codeViewLines.ts`、选区 `codeViewSelection.ts`），用例 `uiFoundationCodeView.test.ts`；
-PPTX 预览布局在 `pptxViewerLayout.ts`，用例 `uiFoundationPptxViewerLayout.test.ts`。
+PPTX 预览在 `PptxPreviewSurface.tsx` / `PptxPreviewThumbnail.tsx` /
+`pptxPdfExport.ts`（布局与导航 `pptxViewerLayout.ts`，文案 `pptxPreviewLabels.ts`），
+用例 `uiFoundationPptxViewerLayout.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

@@ -1,11 +1,11 @@
 import { lazy, Suspense } from "react";
-import type { PptxPreviewViewerLabels } from "@/components/ui/pptx-preview-viewer.js";
+import type { PptxPreviewViewerLabels } from "@/ui-foundation/pptxPreviewLabels.js";
 import type { PptxElementReferenceSource } from "@/lib/pptxElementReference.js";
 import type { PptxReferencePreviewNavigation } from "@/lib/codeViewer.js";
 
-const PptxPreviewViewer = lazy(() =>
-  import("@/components/ui/pptx-preview-viewer.js").then((module) => ({
-    default: module.PptxPreviewViewer,
+const PptxPreviewSurface = lazy(() =>
+  import("@/ui-foundation/PptxPreviewSurface.js").then((module) => ({
+    default: module.PptxPreviewSurface,
   })),
 );
 
@@ -30,7 +30,7 @@ export function PptxPreviewContent({
     <Suspense
       fallback={<div className="p-3 text-ui-base text-foreground-subtle">{labels.loading}</div>}
     >
-      <PptxPreviewViewer
+      <PptxPreviewSurface
         data={data}
         fileName={fileName}
         labels={labels}

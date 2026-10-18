@@ -17,7 +17,7 @@ import { PptxPreviewContent } from "@/previewPanePptxContent.js";
 import { PatchFallbackContent } from "@/previewPanePatchFallbackContent.js";
 import { DiffViewer } from "@/ui-foundation/adapters/diff-viewer.js";
 import type { PdfViewerLabels, PdfViewerSource } from "@/ui-foundation/adapters/pdf-viewer.js";
-import type { PptxPreviewViewerLabels } from "@/components/ui/pptx-preview-viewer.js";
+import type { PptxPreviewViewerLabels } from "@/ui-foundation/pptxPreviewLabels.js";
 import type { CodeCommentPreview, CodeCommentRange } from "@/lib/codeCommentContext.js";
 import type { Theme } from "@/useTheme.js";
 import type { OfficeFilePreviewKind } from "@/lib/officeFilePreview.js";

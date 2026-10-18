@@ -4,11 +4,10 @@
 > 方法：`grep -rl "components/ui/<name>" packages/ui/src` 统计**引用文件数**（不是出现次数，
 > 也不是行数）；不读取旧实现体。
 >
-> **状态（2026-10-19）：清单内 21 个模块 + 后续波次（collapsible/spinner/context-menu/
-> command/label/kbd/hover-card/input-group/scroll-fade/chart/resizable/diff-viewer/
-> lightweight+highlighted diff/pdf-viewer/pptx-selection-action-bar/flip-metric-value）已切到
-> `ui-foundation/adapters`。** 剩余业务引用只有 `code-viewer` 与 `pptx-preview-viewer`
-> （各 4 处，含类型引用与动态 import）；旧文件统一保留到人工看屏验收后删除。
+> **状态（2026-10-19）：清单内 21 个模块 + 全部后续波次（含 chart/resizable/diff/pdf/
+> lightweight diff/code-view/pptx-preview-viewer）已切到 `ui-foundation`。**
+> 业务代码对 `components/ui/*` 的引用已清零，迁移守卫覆盖全部已迁移模块；
+> 旧文件统一保留到人工看屏验收后按 D8 删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 > 迁移守卫 `uiFoundationMigrationGuard.test.ts` 会阻止业务代码回退到旧模块。
 
@@ -345,3 +344,10 @@ pdf.js 与 Vite `?url` worker。
 3. 〔2026-10-19 完成于暂存组件〕PDF 导出（`renderPresentationToPrintHost` + `printPageToPdf` +
    `saveFile`，文件名 `resolvePptxPdfFileName`）与 reference navigation（fingerprint 匹配后跳页）；
 4. 每层都先补纯逻辑测试，再接 UI；旧文件在人工看屏后删除。
+
+### 最终切换（2026-10-19 第二十七轮）
+
+`previewPanePptxContent` 的动态 import 已从 `components/ui/pptx-preview-viewer` 切到
+`PptxPreviewSurface`；标签类型迁到 `pptxPreviewLabels.ts`，`referenceNavigationReady` 与
+fingerprint 校验同步接入；`pptx-preview-viewer` 加入迁移守卫。至此业务代码不再引用任何旧
+`components/ui/*` 模块。
