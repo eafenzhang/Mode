@@ -26,7 +26,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select.js";
+} from "@/ui-foundation/adapters/select.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { SettingsSearchInput } from "@/settings/SettingsSearchInput.js";
 import { SettingsFormActions } from "@/settings/SettingsFormActions.js";

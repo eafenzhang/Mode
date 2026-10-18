@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select.js";
+} from "@/ui-foundation/adapters/select.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 
 /** 「未绑定」选项的哨兵值：选中它即解除工作区绑定，让 bot 按 /项目 自由跟随。 */

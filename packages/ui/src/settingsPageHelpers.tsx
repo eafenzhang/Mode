@@ -22,7 +22,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select.js";
+} from "@/ui-foundation/adapters/select.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { Input } from "@/components/ui/input.js";
 import { Button } from "@/components/ui/button.js";

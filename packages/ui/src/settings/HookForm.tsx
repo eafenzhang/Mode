@@ -10,7 +10,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select.js";
+} from "@/ui-foundation/adapters/select.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import type { Hook, HookConfig, HookEvent, HookType } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

@@ -1,7 +1,7 @@
 // P1.1 Select trigger primitive（spec: docs/specs/m4-ui-foundation.md §2.2）。
 // 触发器保持输入框语义；展开面板由菜单 primitive 负责（shell rounded-lg）。
 
-import { forwardRef, type ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 import type { RadiusLevel } from "../lib/uiFoundation.js";
 import { selectTriggerClassName, type FieldSize } from "./inputStyles.js";
@@ -12,6 +12,8 @@ export interface SelectTriggerProps extends ButtonHTMLAttributes<HTMLButtonEleme
   invalid?: boolean;
   open?: boolean;
   showChevron?: boolean;
+  /** 自定义右侧指示器；缺省时使用内置箭头。 */
+  indicator?: ReactNode;
 }
 
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
@@ -22,6 +24,7 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
       invalid,
       open = false,
       showChevron = true,
+      indicator,
       className,
       children,
       disabled,
@@ -47,20 +50,22 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
         })}
       >
         <span className="min-w-0 truncate">{children}</span>
-        {showChevron ? (
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 16 16"
-            className="size-4 shrink-0 text-foreground-subtle"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M4 6l4 4 4-4" />
-          </svg>
-        ) : null}
+        {showChevron
+          ? (indicator ?? (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                className="size-4 shrink-0 text-foreground-subtle"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 6l4 4 4-4" />
+              </svg>
+            ))
+          : null}
       </button>
     );
   },

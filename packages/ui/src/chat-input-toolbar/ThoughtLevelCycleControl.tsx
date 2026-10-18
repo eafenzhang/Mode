@@ -10,7 +10,7 @@ import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.js";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/ui-foundation/adapters/select.js";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   isCoarseTouchDevice,

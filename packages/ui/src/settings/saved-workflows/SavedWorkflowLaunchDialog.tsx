@@ -24,7 +24,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select.js";
+} from "@/ui-foundation/adapters/select.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { cn } from "@/components/lib/utils.js";

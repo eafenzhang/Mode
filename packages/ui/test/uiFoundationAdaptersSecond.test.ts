@@ -44,7 +44,8 @@ test("select adapter 子件齐备", () => {
   for (const component of [SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue]) {
     assert.ok(component);
   }
-  assert.equal(typeof SelectLabel, "function");
+  // SelectLabel 走 forwardRef，运行时是对象而不是函数。
+  assert.ok(SelectLabel);
 });
 
 test("tooltip adapter 子件齐备", () => {

@@ -16,7 +16,7 @@
 | `alert-dialog.tsx` | 复合导出 | `adapters/alert-dialog` | **已切换 5 处调用**（Action/Cancel 走 DialogClose；asChild/Overlay 登记差异） |
 | `dropdown-menu.tsx` | 复合导出 | `Menu`/`MenuItem`/`MenuGroup`/`MenuSeparator`/`MenuCheckboxItem`/`MenuRadioItem` | **已补**（2026-10-19）；Trigger/Sub 待 adapter |
 | `popover.tsx` | 复合导出 | `adapters/popover` | **已切换 16 处调用**（2026-10-19）；定位自算 fixed，`collisionBoundary/sticky/hideWhenDetached/updatePositionStrategy` 接受后忽略 |
-| `select.tsx` | 复合导出 | `SelectTrigger`/`SelectContent`/`SelectItem`/`SelectGroup`/`SelectValue` | **已补**（2026-10-19） |
+| `select.tsx` | 复合导出 | `adapters/select` | **已切换 28 处调用**（2026-10-19）；根状态/定位/键盘已接线，`item-aligned` 与 typeahead 登记差异 |
 | `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`、`tabsListVariants` | `adapters/tabs` | **已切换 12 处调用**（2026-10-19）；支持 `variant/asChild/forceMount` |
 | `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `adapters/tooltip` | **已切换 18 处调用**（2026-10-19）；悬停/聚焦/延迟/Escape 已接线，`skipDelayDuration`/`disableHoverableContent` 接受后忽略 |
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |

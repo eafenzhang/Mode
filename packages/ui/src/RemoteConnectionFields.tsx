@@ -63,7 +63,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select.js";
+} from "@/ui-foundation/adapters/select.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 /** 局域网页字段：发现结果、地址、配对码与配对状态。 */

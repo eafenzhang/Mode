@@ -102,15 +102,18 @@ export {
   DropdownMenuSeparator,
 } from "./dropdown-menu.js";
 export {
+  Select,
   SelectContent,
   SelectGroup,
   SelectItem,
   SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
   type SelectContentProps,
   type SelectGroupProps,
   type SelectItemProps,
+  type SelectProps,
   type SelectTriggerProps,
   type SelectValueProps,
 } from "./select.js";

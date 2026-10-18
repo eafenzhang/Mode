@@ -23,7 +23,7 @@
 | `popover` | 16 | ready（受控/非受控 + 定位 + Anchor） | 2 |
 | `tooltip` | 18 | ready（悬停/聚焦 + 延迟 + 定位） | 2 |
 | `switch` | 24 | ready | 2 |
-| `select` | 28 | 子件 ready；根状态机待补 | 2 |
+| `select` | 28 | ready（根状态 + 定位 + 键盘） | 2 |
 | `dialog` | 33 | ready | 2 |
 | `dropdown-menu` | 38 | 子件 ready；根/Trigger 待补 | 2 |
 | `input` | 41 | ready | 3 |
@@ -132,3 +132,12 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 验证：UI 319 passed、typecheck/lint/architecture/language/format 通过。
 `ControlHintTooltip` 等自带 `open` 的调用点仍由外部分支控制显隐。
+
+### 批次 2 续（2026-10-19 第六轮）
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `select` | 28 | 补根 `Select`（受控/非受控 value 与 open）；内容常驻 DOM（关闭时 `hidden`）以便 `SelectValue` 从已挂载选项取文案；触发器支持旧 `variant`（input/default/outline/secondary/ghost/destructive）与自定义 `indicator`，`size="xs"` 归一到 `sm`；`position="item-aligned"` 与 `"popper"` 统一按 popper 定位；补 ArrowUp/Down 循环、Escape、外部点击关闭与 `onCloseAutoFocus`；`required/name` 接受但暂不生成隐藏 input |
+
+验证：UI 321 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：无 typeahead；`item-aligned` 的贴选项对齐未实现；`onOpenAutoFocus` 接受但自动聚焦由 adapter 决定。

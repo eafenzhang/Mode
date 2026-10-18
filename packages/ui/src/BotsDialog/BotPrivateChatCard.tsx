@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select.js";
+} from "@/ui-foundation/adapters/select.js";
 import { BindCodePanel, DetailPanel } from "@/BotsDialog/ProviderSettingsCard.js";
 import type { BindCodeState } from "@/BotsDialog/shared.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
