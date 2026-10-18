@@ -37,6 +37,10 @@
 - **S4 协议与生态标识**：deep link、cookie、MCP meta、市场 id、插件目录、协议名。
 - **S5 目录与文档**：`apps/mode-cli`、`packages/mode-*`、`scripts/mode-*`、`src/mode-*` 改名；README/NOTICE 指针与路线图。
 
+## 子任务清单
+
+- 插件清单目录迁移的逐文件清单见 `docs/plans/2026-10-19-tutto-plugin-dir-migration.md`。
+
 ## 验收
 
 1. 每阶段 `pnpm typecheck`、`pnpm lint`、相关包测试、`pnpm architecture:check --changed` 全绿；
