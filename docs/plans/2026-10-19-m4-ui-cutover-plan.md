@@ -10,6 +10,7 @@
 > 旧文件统一保留到人工看屏验收后按 D8 删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 > 迁移守卫 `uiFoundationMigrationGuard.test.ts` 会阻止业务代码回退到旧模块。
+> 人工看屏与删除步骤见 `2026-10-19-m4-ui-acceptance-checklist.md`。
 
 ## 基础件切换顺序（按引用面从小到大）
 
