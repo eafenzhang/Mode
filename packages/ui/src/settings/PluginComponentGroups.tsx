@@ -1,6 +1,6 @@
 import type { ModePluginComponentKind } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { Badge } from "@/components/ui/badge.js";
+import { Badge } from "@/ui-foundation/adapters/badge.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 /** 详情中单个组件项：名称（mono）+ 可选描述（次行）。 */

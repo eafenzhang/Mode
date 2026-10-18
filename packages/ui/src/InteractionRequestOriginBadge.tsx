@@ -1,6 +1,6 @@
 import type { ModeInteractionRequestOrigin } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { Badge } from "@/components/ui/badge.js";
+import { Badge } from "@/ui-foundation/adapters/badge.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function InteractionRequestOriginBadge({

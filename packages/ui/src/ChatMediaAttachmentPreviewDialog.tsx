@@ -6,7 +6,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog.js";
+} from "@/ui-foundation/adapters/dialog.js";
 import { Button } from "@/components/ui/button.js";
 import type { PdfViewerLabels, PdfViewerSource } from "@/components/ui/pdf-viewer.js";
 import { TID_V4_ATTACHMENT_DOWNLOAD, testId } from "@mode/shared";

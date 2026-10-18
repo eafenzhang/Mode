@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog.js";
+} from "@/ui-foundation/adapters/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { ModelConfigObject } from "@mode/provider";

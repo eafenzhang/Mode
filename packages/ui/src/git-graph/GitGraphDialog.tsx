@@ -8,7 +8,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog.js";
+} from "@/ui-foundation/adapters/dialog.js";
 import { toast } from "@/components/ui/toast.js";
 import { GitGraphPane } from "@/git-graph/GitGraphPane.js";
 import { useServices } from "@/hooks/useServices.js";

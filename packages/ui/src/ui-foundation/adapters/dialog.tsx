@@ -5,6 +5,7 @@ import {
   cloneElement,
   forwardRef,
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type HTMLAttributes,
@@ -35,6 +36,7 @@ export interface DialogProps {
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  modal?: boolean;
   children?: ReactNode;
 }
 
@@ -42,6 +44,7 @@ export function Dialog({
   open,
   defaultOpen = false,
   onOpenChange,
+  modal: _modal,
   children,
 }: DialogProps): ReactNode {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
@@ -62,32 +65,129 @@ export function Dialog({
 
 export interface DialogContentProps extends HTMLAttributes<HTMLDivElement> {
   labelledBy?: string;
+  showCloseButton?: boolean;
+  showOverlay?: boolean;
+  overlayClassName?: string;
+  onEscapeKeyDown?: (event: Event) => void;
+  onInteractOutside?: (event: { target: EventTarget | null; preventDefault: () => void }) => void;
+  onOpenAutoFocus?: (event: { preventDefault: () => void }) => void;
+  onCloseAutoFocus?: (event: { preventDefault: () => void }) => void;
 }
 
 export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(function DialogContent(
-  { className, children, labelledBy, ...rest },
+  {
+    className,
+    children,
+    labelledBy,
+    showCloseButton = true,
+    showOverlay = true,
+    overlayClassName,
+    onEscapeKeyDown,
+    onInteractOutside,
+    onOpenAutoFocus,
+    onCloseAutoFocus: _onCloseAutoFocus,
+    ...rest
+  },
   ref,
 ) {
   const state = useDialogAdapterState();
-  if (!state?.open) {
+  const open = state?.open ?? false;
+
+  useEffect(() => {
+    if (!open || typeof document === "undefined" || !onEscapeKeyDown) {
+      return;
+    }
+    const handleKey = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      onEscapeKeyDown(event);
+      if (event.defaultPrevented) {
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("keydown", handleKey, true);
+    return () => document.removeEventListener("keydown", handleKey, true);
+  }, [open, onEscapeKeyDown]);
+
+  if (!open || !state) {
     return null;
   }
+
+  const handleOverlayClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    const outside = {
+      defaultPrevented: false,
+      preventDefault: () => (outside.defaultPrevented = true),
+    };
+    onInteractOutside?.({ target: event.target, preventDefault: outside.preventDefault });
+    if (!outside.defaultPrevented) {
+      state.setOpen(false);
+    }
+  };
+
+  const hasWidth = /(^|\s)w-/.test(className ?? "");
+  const hasMaxWidth = /(^|\s)max-w-/.test(className ?? "");
+  const mergedPanelClassName = [
+    className,
+    "relative",
+    hasWidth ? "" : "w-full",
+    hasMaxWidth ? "" : "max-w-lg",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <FoundationDialog
-      {...rest}
-      ref={ref}
-      open
-      onClose={() => state.setOpen(false)}
-      labelledBy={labelledBy}
-      className={className}
+    <div
+      data-slot="dialog-overlay"
+      onClick={showOverlay ? handleOverlayClick : undefined}
+      className={[
+        "fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4",
+        showOverlay ? "bg-black/50" : "",
+        overlayClassName,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      {children}
-    </FoundationDialog>
+      <FoundationDialog
+        {...rest}
+        ref={ref}
+        open
+        onClose={() => state.setOpen(false)}
+        labelledBy={labelledBy}
+        data-slot="dialog-content"
+        className={mergedPanelClassName}
+      >
+        {children}
+        {showCloseButton ? (
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => state.setOpen(false)}
+            className="absolute end-3 top-3 inline-flex size-6 items-center justify-center rounded-sm text-foreground-subtle hover:bg-hover"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 16 16"
+              className="size-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            >
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        ) : null}
+      </FoundationDialog>
+    </div>
   );
 });
 
 export interface DialogTriggerProps {
   children: ClickableElement;
+  asChild?: boolean;
 }
 
 export function DialogTrigger({ children }: DialogTriggerProps): ReactElement {
@@ -103,6 +203,7 @@ export function DialogTrigger({ children }: DialogTriggerProps): ReactElement {
 
 export interface DialogCloseProps {
   children: ClickableElement;
+  asChild?: boolean;
 }
 
 export function DialogClose({ children }: DialogCloseProps): ReactElement {

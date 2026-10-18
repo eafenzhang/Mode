@@ -9,7 +9,7 @@ import {
 } from "@mode/shared";
 import { AlertTriangleIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button.js";
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog.js";
+import { Dialog, DialogContent, DialogHeader } from "@/ui-foundation/adapters/dialog.js";
 import { useCancelPendingRemoteConnection } from "@/hooks/useCancelPendingRemoteConnection.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useRemoteConnectionForm } from "@/hooks/useRemoteConnectionForm.js";

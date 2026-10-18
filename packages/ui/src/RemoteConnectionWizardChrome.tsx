@@ -1,6 +1,6 @@
 import { CheckIcon, MinusIcon, XIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
-import { DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
+import { DialogDescription, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import { Button } from "@/components/ui/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

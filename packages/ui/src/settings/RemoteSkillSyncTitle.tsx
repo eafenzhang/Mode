@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertCircleIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { DialogTitle } from "@/components/ui/dialog.js";
+import { DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function RemoteSkillSyncTitle() {

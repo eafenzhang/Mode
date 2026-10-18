@@ -7,7 +7,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog.js";
+} from "@/ui-foundation/adapters/dialog.js";
 import { Checkbox } from "@/ui-foundation/adapters/checkbox.js";
 import { Progress } from "@/ui-foundation/adapters/progress.js";
 import type { IntlInstance } from "@/i18n/IntlProvider.js";

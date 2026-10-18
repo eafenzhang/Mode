@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CodingPlanResetType } from "@mode/shared";
 import { CheckIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
+import { Dialog, DialogContent, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { getContextQuotaMeterGridClass } from "@/chat-input-toolbar/contextQuotaMeterGrid.js";
 import { burstCodingPlanQuotaResetConfetti } from "@/lib/codingPlanQuotaResetConfetti.js";

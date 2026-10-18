@@ -7,7 +7,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog.js";
+} from "@/ui-foundation/adapters/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import {

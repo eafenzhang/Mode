@@ -12,7 +12,7 @@
 | `input.tsx` | `Input`、`inputVariants` | `Input` + `inputClassName` | **可直接换**；variant 归一到 fieldSize |
 | `textarea.tsx` | `Textarea` | `adapters/textarea` | **已切换 9 处调用** |
 | `card.tsx` | `Card`、子件 | `adapters/card` | **已切换 4 处调用**；旧文件待看屏后删除 |
-| `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `adapters/dialog.tsx`（Dialog/Content/Trigger/Close/Header/Title/Description/Footer/Portal） | **adapter 已补**（2026-10-19） |
+| `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `adapters/dialog` | **已切换 33 处调用**（2026-10-19）；adapter 补遮罩/居中/关闭按钮，`modal` 与关闭后焦点恢复登记差异 |
 | `alert-dialog.tsx` | 复合导出 | `adapters/alert-dialog` | **已切换 5 处调用**（Action/Cancel 走 DialogClose；asChild/Overlay 登记差异） |
 | `dropdown-menu.tsx` | 复合导出 | `adapters/dropdown-menu` | **已切换 38 处调用**（2026-10-19）；根/Trigger/Content/Sub 已接线，`loop`/`modal` 登记差异 |
 | `popover.tsx` | 复合导出 | `adapters/popover` | **已切换 16 处调用**（2026-10-19）；定位自算 fixed，`collisionBoundary/sticky/hideWhenDetached/updatePositionStrategy` 接受后忽略 |
@@ -20,7 +20,7 @@
 | `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`、`tabsListVariants` | `adapters/tabs` | **已切换 12 处调用**（2026-10-19）；支持 `variant/asChild/forceMount` |
 | `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `adapters/tooltip` | **已切换 18 处调用**（2026-10-19）；悬停/聚焦/延迟/Escape 已接线，`skipDelayDuration`/`disableHoverableContent` 接受后忽略 |
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |
-| `badge.tsx` | `Badge`、`badgeVariants` | `Badge` + `badgeClassName` | **已补**（2026-10-19） |
+| `badge.tsx` | `Badge`、`badgeVariants` | `adapters/badge` | **已切换 15 处调用**（2026-10-19） |
 | `separator.tsx` | `Separator` | `adapters/separator` | **已切换并删除旧文件**（2026-10-19） |
 | `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | `adapters/scroll-area` | **已切换 2 处调用**；`type`/`scrollbarClassName` 静默忽略（待接线） |
 | `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | `adapters/*` | **已切换**：checkbox 6、progress 4、switch 24；radio 待切换 |

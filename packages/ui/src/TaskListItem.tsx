@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { isCronTask, isOffPeakTask, type ModeTaskMeta } from "@mode/shared";
 import { TID_TASK_ARCHIVE, TID_TASK_ITEM, testId } from "@mode/shared";
-import { Badge } from "@/components/ui/badge.js";
+import { Badge } from "@/ui-foundation/adapters/badge.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";

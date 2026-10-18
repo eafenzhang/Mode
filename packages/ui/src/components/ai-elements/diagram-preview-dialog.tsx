@@ -11,7 +11,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { Button } from "@/components/ui/button.js";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -1,5 +1,5 @@
 import { CircleDashed, Folder, UserRound } from "lucide-react";
-import { Badge } from "@/components/ui/badge.js";
+import { Badge } from "@/ui-foundation/adapters/badge.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function SettingsScopeBadge({

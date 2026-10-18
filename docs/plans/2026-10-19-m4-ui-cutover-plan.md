@@ -19,12 +19,12 @@
 | `alert` | 9 | ready（variant 映射） | 1 |
 | `textarea` | 9 | ready | 1 |
 | `tabs` | 12 | ready（variant/asChild/forceMount） | 2 |
-| `badge` | 15 | ready | 1（可随批 2） |
+| `badge` | 15 | ready · 已切换 | 1（随批 2） |
 | `popover` | 16 | ready（受控/非受控 + 定位 + Anchor） | 2 |
 | `tooltip` | 18 | ready（悬停/聚焦 + 延迟 + 定位） | 2 |
 | `switch` | 24 | ready | 2 |
 | `select` | 28 | ready（根状态 + 定位 + 键盘） | 2 |
-| `dialog` | 33 | ready | 2 |
+| `dialog` | 33 | ready（含 overlay/关闭按钮） | 2 |
 | `dropdown-menu` | 38 | ready（根/Trigger/Content/Sub） | 2 |
 | `input` | 41 | ready | 3 |
 | `toast` | 63 | 仅视觉 Toast；堆叠/定位待补 | 3 |
@@ -151,3 +151,12 @@ checkbox → alert → textarea`（可加 `badge`）。
 验证：UI 325 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：`loop` 接受但当前总是循环；子菜单为点击/悬停双开、`modal` 接受后不锁滚动；
 `DropdownMenuItem` 的 `onSelect` 在 onClick 内触发（Radix 的键盘高亮语义由原生 focus 承担）。
+
+### 批次 2 收尾（2026-10-19 第八轮）
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `dialog` | 33 | 补 `showOverlay/showCloseButton/overlayClassName`：adapter 渲染遮罩层并把面板居中（宽度缺省补 `w-full`，无 `max-w-*` 时补 `max-w-lg`）；`showCloseButton` 默认 true，内置关闭按钮；`onEscapeKeyDown` 走捕获阶段并尊重 `preventDefault`；`onInteractOutside` 接遮罩点击；`modal/onCloseAutoFocus` 接受后不生效 |
+| `badge` | 15 | 直接转发旧导出名 |
+
+验证：UI 325 passed、typecheck/lint/architecture/language/format 通过。

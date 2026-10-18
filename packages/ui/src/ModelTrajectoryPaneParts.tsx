@@ -5,7 +5,7 @@ import type {
 } from "@mode/services";
 import { Fragment } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { Badge } from "@/components/ui/badge.js";
+import { Badge } from "@/ui-foundation/adapters/badge.js";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
 import { ContentPartView, EmptyState, summarizeRecords } from "@/ModelTrajectoryPaneDetails.js";
 import { ExpandableTrajectoryMessage } from "@/ModelTrajectoryExpandableMessage.js";

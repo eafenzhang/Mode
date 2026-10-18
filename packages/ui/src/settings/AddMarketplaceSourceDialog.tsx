@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent } from "react";
 import { FolderOpen, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
+import { Dialog, DialogContent, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { cn } from "@/components/lib/utils.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";

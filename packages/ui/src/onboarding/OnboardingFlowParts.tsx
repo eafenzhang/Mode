@@ -16,7 +16,7 @@ import type {
 import { UNLIMITED_SCAN_LIMIT_INPUT } from "@/hooks/useClaudeSessionMigration.js";
 import { SettingsSyncSelectionStep } from "@/settings-sync/SettingsSyncSelectionStep.js";
 import type { useSettingsSync } from "@/hooks/useSettingsSync.js";
-import { Badge } from "@/components/ui/badge.js";
+import { Badge } from "@/ui-foundation/adapters/badge.js";
 import {
   ExternalAgentImportSelectionPanel,
   type ExternalAgentImportCategoryState,

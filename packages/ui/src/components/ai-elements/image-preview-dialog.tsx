@@ -12,7 +12,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import { toast } from "@/components/ui/toast.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

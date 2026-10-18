@@ -12,7 +12,7 @@ import {
 } from "@mode/shared";
 import type { ISkillSyncService } from "@mode/services";
 import { Button } from "@/components/ui/button.js";
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog.js";
+import { Dialog, DialogContent, DialogHeader } from "@/ui-foundation/adapters/dialog.js";
 import { useModeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
 import {
   RemoteSkillSyncSelectionList,

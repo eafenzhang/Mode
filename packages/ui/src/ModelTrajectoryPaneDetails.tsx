@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { ModeModelTrajectoryContentPart, ModeModelTrajectoryRecord } from "@mode/services";
-import { Badge } from "@/components/ui/badge.js";
+import { Badge } from "@/ui-foundation/adapters/badge.js";
 import { cn } from "@/components/lib/utils.js";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
 
