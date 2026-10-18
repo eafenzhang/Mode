@@ -5,12 +5,12 @@
 
 ## 1. 常量切换
 
-| 常量 | 现在 | 改成 | 兼容 |
-| --- | --- | --- | --- |
-| 数据根目录 | `.mode` | `.tutto` | 旧根 `.mode` / `.zcodium` / `.zcode` 仅迁移 |
-| 归属文件 | `.mode-root.json` | `.tutto-root.json` | 读旧文件判定历史根 |
-| 产品 id | `dev.mode.app` | `dev.tutto.app` | 接受 `dev.mode.app` / `dev.zcodium.app` |
-| 迁移动作 | copy 旧根 → 新根 | 不变 | 失败保留旧根，不回写、不删除 |
+| 常量       | 现在              | 改成               | 兼容                                        |
+| ---------- | ----------------- | ------------------ | ------------------------------------------- |
+| 数据根目录 | `.mode`           | `.tutto`           | 旧根 `.mode` / `.zcodium` / `.zcode` 仅迁移 |
+| 归属文件   | `.mode-root.json` | `.tutto-root.json` | 读旧文件判定历史根                          |
+| 产品 id    | `dev.mode.app`    | `dev.tutto.app`    | 接受 `dev.mode.app` / `dev.zcodium.app`     |
+| 迁移动作   | copy 旧根 → 新根  | 不变               | 失败保留旧根，不回写、不删除                |
 
 ## 2. 需要同步的落点
 
@@ -48,3 +48,36 @@ desktop CLI 的 data-root 相关测试、`pnpm architecture:check --changed`、�
 - 迁移方向写反会造成「新根空、旧数据看不到」；
 - 归属文件产品 id 校验漏旧值会让历史根被判 unowned；
 - oracle 脚本漏改会把测试数据写进真实 `.mode`。
+
+## 7. 执行前盘点（2026-10-19，只读核对源码，未改动）
+
+数据根有两类同名 `.mode` 目录，**不得混改**：
+
+1. **用户级数据根** `{base}/.mode`（本次 S3 范围）：凭证、日志、db、telemetry、
+   setting.json、全局 workflows、hooks 用户配置、MCP 用户目录、CLI 插件缓存等；
+2. **项目级命名空间** `<workspace>/.mode/`（保留到 S5）：commands、skills、agents、
+   workflows、workflow-drafts/runs、config.json、AGENTS.md、agent-memory。
+
+归属契约已集中：`packages/shared/src/data-root.ts`、`packages/services/src/paths.ts`、
+`packages/services/src/data-root/{ownership,migration}.ts`、`packages/desktop/src/host-standalone/dataRoot.ts`
+以及 `crates/sidecar-host/src/lib.rs` 的文档口径，共 6 个文件引用
+`MODE_DATA_ROOT_DIR_NAME`。
+
+用户级根仍有约 30 处字面量 `join(homedir()/dataBaseDir, ".mode", …)`，分布：
+
+- `apps/mode-cli/packages/adapters`：auth、device、exec、logging、model/runner-debug、
+  storage/session-store、workspace-hook-trust-store、workflow；
+- `apps/mode-cli/packages/cli`：clipboard-image、provider-runtime-env、sea-runtime-tools；
+- `apps/mode-cli/packages/debug/server`、`packages/contracts/src/config`；
+- `packages/desktop/src/main`：setting.json 引导、Chromium 硬件加速引导、exportLogs、
+  mcpUserDirectory、desktopRuntimeEnv 的 MODE_HOME 回退；
+- `packages/services`：commands/device/hooks/mcp-sync 等用户目录段。
+
+消费方必须同批切换：CLI 与 Desktop 共用 `{base}/.mode`，只改一侧会让迁移后的新根与
+CLI 新写入分叉。测试侧 `packages/services/test/dataRoot*.test.ts`（34 处）、
+`apps/desktop-tauri/test/{portRoundTrip,realServices,webviewRoundTrip}.test.mts`、
+`packages/desktop/tests/agent-runtime-oracle/*` 需要同步改为 `.tutto`，并保留至少一条
+「旧 `.mode` 可迁移」的回归用例。
+
+建议执行顺序（同一窗口内完成）：共享常量与 legacy 链 → shared/services 测试 →
+desktop 与 CLI 用户级路径 → oracle/desktop-tauri 测试 → spec 与 README 文案 → 全量验证。
