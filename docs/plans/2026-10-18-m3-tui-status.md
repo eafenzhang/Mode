@@ -143,4 +143,6 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 首批覆盖 `app-terminal-width` 的公开导出（黑盒契约，不读实现）：
   `displayWidth`（ASCII/东亚宽字符）、`truncateDisplay`（省略号/未超宽/空串）、
   `wordWrappedLineCount`（空串至少一行、折行计数）；
+- 第二批（`app-keyboard-helpers`）：命令补全写入、输入历史导航条件、workflow 裸 +/- 展开闸门、
+  Ctrl-C 两段式退出窗口、Shift+Tab 模式切换；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
