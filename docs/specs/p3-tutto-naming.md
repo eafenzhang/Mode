@@ -120,3 +120,8 @@
   `git mv` 到 `.tutto-plugin`；adapters/bootstrap/CLI SEA/desktop 打包/server/services/oracle
   fixtures 全部改为「`.tutto-plugin` 优先、`.mode-plugin` 与 `.zcode-plugin` 读取兜底」；
 - services 379（371 pass/8 skip）、adapters 13、bootstrap 30 全绿。
+
+### S4 进展（2026-10-19，seed 标记）
+
+- 随包插件 seed 标记新名 `.tutto-plugin-seed.json`；旧 `.zcode-plugin-seed.json` 仍用于
+  判定「已 seed」，写入只写新名；bootstrap 31 tests 全绿。

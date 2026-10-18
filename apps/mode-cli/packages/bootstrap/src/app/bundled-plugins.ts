@@ -1,3 +1,7 @@
+import {
+  OFFICIAL_PLUGIN_SEED_MARKER_FILE,
+  resolveOfficialPluginSeedMarkerFileName,
+} from "./official-plugin-seed-marker.js";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
@@ -37,7 +41,7 @@ import {
 const OFFICIAL_PLUGIN_MARKETPLACE = MODE_OFFICIAL_PLUGIN_MARKETPLACE;
 const SEA_PLUGIN_ASSET_PREFIX = "mode-official-plugins/";
 const SEA_PLUGIN_MANIFEST_ASSET_KEY = `${SEA_PLUGIN_ASSET_PREFIX}manifest.json`;
-const SEED_MARKER_FILE = ".zcode-plugin-seed.json";
+const SEED_MARKER_FILE = OFFICIAL_PLUGIN_SEED_MARKER_FILE;
 const SEED_LOCK_TOTAL_BUDGET_MS = 15_000;
 
 const includedTopLevelPaths = new Set([
@@ -477,7 +481,10 @@ function readSeedPluginDescription(
 }
 
 function isSeedCurrent(targetRoot: string, plugin: OfficialPluginSeedPluginSource): boolean {
-  const markerPath = join(targetRoot, SEED_MARKER_FILE);
+  const markerName = resolveOfficialPluginSeedMarkerFileName((name) =>
+    existsSync(join(targetRoot, name)),
+  );
+  const markerPath = join(targetRoot, markerName);
   if (!existsSync(markerPath)) return false;
   try {
     const marker = JSON.parse(readFileSync(markerPath, "utf8")) as ReturnType<typeof seedMarker>;
