@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { DiffViewer } from "@/components/ui/diff-viewer.js";
+import { DiffViewer } from "@/ui-foundation/adapters/diff-viewer.js";
 import { HighlightedLightweightDiffPreview } from "@/components/ui/highlighted-lightweight-diff-preview.js";
 import { inferCodeLanguage } from "@/lib/codeViewer.js";
 import { getPlainTextPatchFallbackLines } from "@/lib/patchDiffPreview.js";

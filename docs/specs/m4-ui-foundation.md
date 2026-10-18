@@ -188,6 +188,15 @@ success/warning/destructive。
 - `ResizableHandle` 映射 `Separator`，只给最小定位基类，视觉线/命中区由调用方 `className` 决定；
   分隔条 4px 命中区、2px 可见线遵循设计规范 §3。
 
+### 2.15 DiffViewer
+
+- 单文件 patch 用 `PatchDiff`，双文件内容用 `MultiFileDiff`（@pierre/diffs 公共 React API）；
+- `lightTheme`/`darkTheme` 组合成 `options.theme = {light, dark}`，`themeType` 决定当前主题；
+- 容器负责可滚动边界与 `--diffs-*` 变量（背景、字体族 `var(--font-mono)`、字号由 `fontSizePx`），
+  diff 本体沿用库的 Shadow DOM 渲染；
+- `selectedLines` 透传库类型；`disableWorkerPool` 透传；
+- 外层 `className` 控制滚动/宽度，`diffClassName` 作用于 diff 根节点。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -251,7 +260,8 @@ HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`
 输入组合与滚动遮罩在 `InputGroup.tsx` / `ScrollFadeViewport.tsx`，用例
 `uiFoundationInputGroupScroll.test.ts`；图表组合在 `Chart.tsx`，用例
 `uiFoundationChart.test.ts`；面板分隔在 `Resizable.tsx`，用例
-`uiFoundationResizable.test.ts`。
+`uiFoundationResizable.test.ts`；diff 呈现适配在 `adapters/diff-viewer.tsx`
+（纯计算在 `diffViewerStyles.ts`），用例 `uiFoundationDiffViewer.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

@@ -6,7 +6,7 @@
 >
 > **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
 > command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
-> 引用集中在各 viewer（pdf/code/diff/pptx 与 lightweight 系列）；旧文件统一保留到人工看屏验收后删除。
+> 引用集中在其余 viewer（pdf/code/pptx 与 lightweight 系列）；旧文件统一保留到人工看屏验收后删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 
 ## 基础件切换顺序（按引用面从小到大）
@@ -242,3 +242,13 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 验证：UI 348 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：未提供旧实现的额外 grip 图标；持久化键沿用调用方 `layoutId`。
+
+### 后续波次（2026-10-19 第十七轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `diff-viewer` | 3 | 新增 adapter：单文件 `PatchDiff` / 双文件 `MultiFileDiff`；`lightTheme`+`darkTheme` 组合为 `options.theme`，`themeType` 透传；容器提供 `--diffs-*` 背景/字体变量与 `fontSizePx`，`selectedLines`/`disableWorkerPool` 透传 |
+
+验证：UI 351 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：`selectedLines` 沿用库类型，未做旧 API 的 side 归一；测试只覆盖纯样式/主题函数，
+避免在测试进程加载 @pierre/diffs 重型运行时。

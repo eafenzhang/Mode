@@ -36,6 +36,7 @@
 | `scroll-fade-viewport.tsx` | `ScrollFadeViewport` | `adapters/scroll-fade-viewport` | **已切换 2 处调用**（2026-10-19）；上下渐变遮罩 |
 | `chart.tsx` | 复合导出 | `adapters/chart` | **已切换 6 处调用**（2026-10-19）；config→CSS 变量、tooltip/legend |
 | `resizable.tsx` | `ResizablePanelGroup`、`ResizablePanel`、`ResizableHandle` | `adapters/resizable` | **已切换 3 处调用**（2026-10-19）；layoutId 持久化 + SSR no-op storage |
+| `diff-viewer.tsx` | `DiffViewer` + `DiffViewerSelectedLineRange` | `adapters/diff-viewer` | **已切换 3 处调用**（2026-10-19）；Patch/MultiFile、主题与 `--diffs-*` 变量 |
 
 ## 2. 业务面映射
 

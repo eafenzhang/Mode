@@ -260,3 +260,8 @@ export {
   type ResizablePanelGroupProps,
   type ResizablePanelProps,
 } from "./resizable.js";
+export {
+  DiffViewer,
+  type DiffViewerProps,
+  type DiffViewerSelectedLineRange,
+} from "./diff-viewer.js";
