@@ -41,14 +41,19 @@ M5 作为硬门禁。它只产出**统计与路径清单**，绝不输出上游�
 
 二进制/非 UTF-8：不参与归一档（只有 `identical` 或 `distinct`），行数记 0。
 
+**vendored 排除**：`third-party/**` 与 `.agents/skills/**` 属 clean-room 政策里的「不适用」面
+（第三方复制件），**不参与 headline**，单独报告文件/行数与两档计数。把它们算进「自研重合度」
+会让 0% 永远不可达，也会掩盖真正的自研面。
+
 ## 指标
 
-- **文件计数**：各档文件数；`ours-only` / `upstream-only` 单列，不参与重合度。
-- **行数**：对两侧都是 UTF-8 文本的同路径文件，按 `\n` 切分（末尾换行不产生空行）。
+- **文件计数**：各档文件数；`ours-only` / `upstream-only` 单列，不参与重合度（vendored 不计入）。
+- **行数**：对两侧都是 UTF-8 文本的同路径**非 vendored** 文件，按 `\n` 切分（末尾换行不产生空行）。
   - 分子 = `identical` 与 `normalized` 的行数（取当前树侧）；
-  - 分母 = 所有同路径文本文件的行数（当前树侧）；
+  - 分母 = 所有同路径**非 vendored** 文本文件的行数（当前树侧）；
   - **headline = 分子 / 分母**，即路线图所说「两档的行数占比」。
 - 二进制文件只影响文件计数，不影响 headline。
+- vendored 单独一组输出（`vendored (excluded from headline): …`），口径同三档，但不进 headline。
 
 ## 退出码
 

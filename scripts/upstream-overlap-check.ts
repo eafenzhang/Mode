@@ -56,6 +56,16 @@ export function normalizeBrand(text: string): string {
     .replace(/zcode/gi, "mode");
 }
 
+/**
+ * clean-room 豁免的 vendored 前缀（`docs/specs/clean-room-policy.md` 的「不适用」行）。
+ * 它们不参与 headline——把第三方复制件算进「自研重合度」会让 0% 永远不可达。
+ */
+export const VENDORED_PREFIXES = ["third-party/", ".agents/skills/"] as const;
+
+export function isVendored(path: string): boolean {
+  return VENDORED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 /** 行数：按 `\n` 切分，末尾换行不产生空行；空文本 0 行。 */
 export function countLines(text: string): number {
   if (text.length === 0) {
@@ -228,7 +238,10 @@ function decodeText(bytes: Buffer): string | null {
 export interface OverlapReport {
   baseline: string;
   baselineSha: string | null;
+  /** 自研面（已排除 vendored）；headline 只看这一份。 */
   summary: OverlapSummary | null;
+  /** vendored 前缀下的同路径文件；单列报告，不参与 headline。 */
+  vendoredSummary: OverlapSummary | null;
   files: FileOverlap[];
   oursOnlyPaths: string[];
   upstreamOnlyPaths: string[];
@@ -241,6 +254,7 @@ async function computeReport(baseline: string): Promise<OverlapReport> {
       baseline,
       baselineSha: null,
       summary: null,
+      vendoredSummary: null,
       files: [],
       oursOnlyPaths: [],
       upstreamOnlyPaths: [],
@@ -250,8 +264,12 @@ async function computeReport(baseline: string): Promise<OverlapReport> {
   const ours = listTree("HEAD");
   const upstream = listTree(sha);
   const commonPaths = [...ours.keys()].filter((path) => upstream.has(path)).sort();
-  const oursOnlyPaths = [...ours.keys()].filter((path) => !upstream.has(path)).sort();
-  const upstreamOnlyPaths = [...upstream.keys()].filter((path) => !ours.has(path)).sort();
+  const oursOnlyPaths = [...ours.keys()]
+    .filter((path) => !upstream.has(path) && !isVendored(path))
+    .sort();
+  const upstreamOnlyPaths = [...upstream.keys()]
+    .filter((path) => !ours.has(path) && !isVendored(path))
+    .sort();
   const mismatched = commonPaths.filter((path) => ours.get(path)!.sha !== upstream.get(path)!.sha);
   const mismatchShas = new Set(mismatched.map((path) => ours.get(path)!.sha));
 
@@ -291,13 +309,20 @@ async function computeReport(baseline: string): Promise<OverlapReport> {
     };
   });
 
+  const trackedFiles = files.filter((file) => !isVendored(file.path));
+  const vendoredFiles = files.filter((file) => isVendored(file.path));
+
   return {
     baseline,
     baselineSha: sha,
-    summary: summarize(files, {
+    summary: summarize(trackedFiles, {
       oursOnly: oursOnlyPaths.length,
       upstreamOnly: upstreamOnlyPaths.length,
     }),
+    vendoredSummary:
+      vendoredFiles.length === 0
+        ? null
+        : summarize(vendoredFiles, { oursOnly: 0, upstreamOnly: 0 }),
     files,
     oursOnlyPaths,
     upstreamOnlyPaths,
@@ -321,6 +346,13 @@ function renderReport(report: OverlapReport, list: boolean): string {
     `distinct: ${summary.distinct.files} files / ${summary.distinct.lines} lines`,
     `headline: ${percent(summary.overlapRatio)} (${summary.overlapLines} of ${summary.commonLines} lines)`,
   ];
+  if (report.vendoredSummary) {
+    const vendored = report.vendoredSummary;
+    lines.push(
+      `vendored (excluded from headline): ${vendored.common} files / ${vendored.commonLines} lines ` +
+        `(identical ${vendored.identical.files}, normalized ${vendored.normalized.files})`,
+    );
+  }
   for (const [top, bucket] of [...topLevelCounts(report.files)].sort(([a], [b]) =>
     a.localeCompare(b),
   )) {
@@ -355,6 +387,7 @@ async function main(): Promise<void> {
           baseline: report.baseline,
           baselineSha: report.baselineSha,
           summary: report.summary,
+          vendored: report.vendoredSummary,
           oursOnly: report.oursOnlyPaths,
           upstreamOnly: report.upstreamOnlyPaths,
           identical: report.files.filter((file) => file.tier === "identical").map((file) => file.path),
