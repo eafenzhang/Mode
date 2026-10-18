@@ -101,39 +101,45 @@ Task 1 把「崩溃重启策略」登记为**故意不做**并写明理由。本
 - Produces: 真实 `IServiceAccessor`（由 `packages/services` 装配，不再有 stub 方法）；
   由真实 startup 帧映射出的状态流；打包后的 sidecar 产物与它的体积数字。
 
-- [ ] **Step 1: 先证原生依赖（DR-T2-1）**
+- [x] **Step 1: 先证原生依赖（DR-T2-1）**
+  〔2026-10-19 核对：`apps/desktop-tauri/test/nativeDeps.test.mts` 已通过（同批 35 pass）。〕
 
 写 `nativeDeps.test.mts`：在 sidecar 的运行环境里 import 并实例化 `node:sqlite` 与 `node-pty`（以及
 CUA 相关资产按 env 注入的路径），断言可用。
 Run: `pnpm --filter @mode/desktop-tauri test`
 Expected: **先红后绿**；若红且不可修，**停下来回报**（这推翻 DR-M3-1）。
 
-- [ ] **Step 2: 起真 services 并装配 `IServiceAccessor`**
+- [x] **Step 2: 起真 services 并装配 `IServiceAccessor`**
+  〔2026-10-19 核对：`packages/desktop/src/host-standalone/serviceAccessor.ts` 已装配；`realServices.test.mts` 已在仓。〕
 
 `serviceAccessor.ts` 按 `packages/services` 的**公共入口**装配全部服务（不 deep import）。
 逐个服务的接线以小步提交，每步都有用例；**先验证没有任何服务的 `listen` 会抛**（Global Constraints
 里的那条危险），并把这个检查做成一次性断言而不是靠人记得。
 Expected: 真实 accessor 可 `call`，且 `listen` 订阅不杀 Host。
 
-- [ ] **Step 3: startup 映射（DR-T2-2，夹具驱动）**
+- [x] **Step 3: startup 映射（DR-T2-2，夹具驱动）**
+  〔2026-10-19 核对：`startupMapping.ts` 与 `apps/desktop-tauri/test/harness/` 夹具用例已在仓。〕
 
 `startupMapping.ts` 用 M2 录制的真实帧做输入，断言输出符合 `DatabaseStartupState` 的 schema；
 覆盖 `starting`、迁移中、`ready`、`failed`（含 `errorCode`）四条路径。
 Expected: 夹具用例全绿；**闸门由真实状态驱动**（不再有 Task 1 的合成 ready）。
 
 - [ ] **Step 4: 端到端（opt-in 真 webview）+ 失败语义**
+  〔2026-10-19 核对：`webviewRoundTrip.test.mts` 已建（默认 skip）；真机启动/失败路径仍待人工跑。〕
 
 跑一次真机：壳起来 → 真 startup → 闸门放行 → **至少一个真实业务面可用**（不是「挂上了」）；
 并验证失败路径：startup 失败时渲染层收到 `failed` + `errorCode`（回忆 Task 1 的订正：
 `starting` 送达后计时器被拆除，**`failed` 是唯一的失败信号**）。
 Expected: 原始输出**入仓**（照 Task 1 spec §10 的证据登记做法，不要只写在报告里）。
 
-- [ ] **Step 5: 打包形态与体积（DR-T2-3）**
+- [x] **Step 5: 打包形态与体积（DR-T2-3）**
+  〔2026-10-19 核对：`build-host-sidecar.ts` 已交付；spec §13 记录 bundle 4.87 MiB 与安装包预算。〕
 
 落地 sidecar 的打包形态，实测体积并把数字写进 spec + 交给 Task 5。
 Expected: 体积数字有出处（命令 + 输出），不是估计。
 
-- [ ] **Step 6: 重启策略（DR-T2-4）+ 提交**
+- [x] **Step 6: 重启策略（DR-T2-4）+ 提交**
+  〔2026-10-19 核对：spec §14 正式登记「不重启」及理由/代价；提交已存在。〕
 
 按 DR-T2-4 做决定并落地/登记。
 

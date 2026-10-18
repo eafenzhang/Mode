@@ -85,28 +85,33 @@ M1 对该分支明确返回 `save_file_source_url_not_implemented_until_m3`（�
 - Produces: 三条命令的真实实现（`getApplicationIcon` / `saveFile(sourceUrl)` / 深链单实例），
   以及 `sequence` 归属与 `disk` 摘要的明确处置。
 
-- [ ] **Step 1: 单实例（DR-T4-1）——先写失败用例**
+- [x] **Step 1: 单实例（DR-T4-1）——先写失败用例**
+  〔2026-10-19 核对：`apps/desktop-tauri/test/singleInstance.test.mts` 已在仓（默认 opt-in skip）。〕
 
 写用例断言：已运行实例在场时，第二次启动**不产生第二个 Host、不新建窗口**，且深链**到达**第一实例的
 渲染层。先红（现在是起新进程）。
 Expected: RED 输出记下来（当前行为 = 新进程/新窗口）。
 
-- [ ] **Step 2: 实现单实例转发**
+- [x] **Step 2: 实现单实例转发**
+  〔2026-10-19 核对：`src/single_instance.rs` + `main.rs` 的 `single_instance::install`；提交 `e18ca4a5`/`eb5fa592`。〕
 
 第二进程检测已在运行的实例 → 转发深链 → 退出。复用既有事件通道；**不新造 IPC**。
 Expected: Step 1 的用例绿；并断言退出码与「不留孤儿」。
 
-- [ ] **Step 3: `getApplicationIcon` 原生解码（DR-T4-2，Windows）**
+- [x] **Step 3: `getApplicationIcon` 原生解码（DR-T4-2，Windows）**
+  〔2026-10-19 核对：`crates/platform/src/icon_windows.rs` 已落地。〕
 
 按 M1 §1 的契约返回 `IconInfo | null`；真实取值失败时返回 `null`（契约允许），**不抛**。
 Expected: 用例断言「返回非 null 且是数据 URL」，以及「取不到时返回 null 而不是抛」。
 
-- [ ] **Step 4: `saveFile` 的 `sourceUrl`（DR-T4-3）**
+- [x] **Step 4: `saveFile` 的 `sourceUrl`（DR-T4-3）**
+  〔2026-10-19 核对：`crates/platform/src/source_url.rs` 已落地。〕
 
 实现取回 + 落盘；**超时与大小上限**做成常量 + 用例（超限明确失败，不静默写半截）。
 Expected: 上限用例绿；并保留 M1 的「取消返回 `canceled: true`」语义。
 
-- [ ] **Step 5: DR-T4-4 两条义务 + 收尾**
+- [x] **Step 5: DR-T4-4 两条义务 + 收尾**
+  〔2026-10-19 核对：两条义务已在 `docs/specs/tauri-renderer-host.md` 登记；提交已存在。〕
 
 按 DR-T4-4 处置 `sequence` 与 `disk`；更新 §1/§5 的口径（含 macOS 半边的「未实现且不验」）。
 

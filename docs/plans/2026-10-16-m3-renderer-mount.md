@@ -86,13 +86,15 @@ Task 1/2 的评审登记了几条**属于 Task 3/4** 的义务，本任务必须
 - Produces: `window.mode` 在 renderer 首次访问前就位的保证（有断言）；
   指向真实 renderer 的 `frontendDist`；更新后的「核心」体积基准。
 
-- [ ] **Step 1: 摸清 renderer 的构建产物与 `window.mode` 的消费点（只读接口面）**
+- [x] **Step 1: 摸清 renderer 的构建产物与 `window.mode` 的消费点（只读接口面）**
+  〔2026-10-19 核对：`tauri.conf.json` 的 `frontendDist` 指向 `../dist`；`docs/specs/tauri-renderer-host.md` 已写明产物路径与首次消费点。〕
 
 确认 `packages/desktop` 的 renderer 构建输出在哪、`frontendDist` 该指向什么，以及 renderer 在
 启动链的**哪一步**首次读 `window.mode`（只读接口面/类型声明，不读实现体）。把结论写进 spec。
 Expected: spec 里出现「产物路径 + 首次消费点」两句可核对的陈述。
 
-- [ ] **Step 2: 注入 `window.mode`（TDD，RED 先行）**
+- [x] **Step 2: 注入 `window.mode`（TDD，RED 先行）**
+  〔2026-10-19 核对：`windowModeInjection.test.mts` 与 `.mts` 注入链已在仓并通过（35 pass 批次）。〕
 
 写 `windowModeInjection.test.mts`：断言注入的 shim 满足 `IPlatformService` 的 M1 切片，
 且未实现的方法**显式抛** `not_implemented_until_m3`（沿用 M1 口径，不静默返回假值）；
@@ -100,19 +102,22 @@ Expected: spec 里出现「产物路径 + 首次消费点」两句可核对的�
 Run: `pnpm --filter @mode/desktop-tauri test`
 Expected: **先红**（注入不存在），实现后绿。
 
-- [ ] **Step 3: 把 `frontendDist` 指向真实 renderer 产物（DR-T3-2）**
+- [x] **Step 3: 把 `frontendDist` 指向真实 renderer 产物（DR-T3-2）**
+  〔2026-10-19 核对：`build-renderer-for-tauri.ts` 装配产物；spec §13.4 记录 core 安装包 23.29 MiB。〕
 
 产品页为默认入口；验收台按 DR-T3-2 的决定保留为开发/诊断入口，并在 spec 写明它在**发布产物里
 是否存在**。**体积实测并更新「核心」预算基准**（Ruling 26 的两份预算）。
 Expected: 构建通过 + 体积数字有命令与输出。
 
 - [ ] **Step 4: 端到端——真实产品 UI 至少一个业务面可用**
+  〔2026-10-19 核对：`productUiMount.test.mts` 已建但默认 opt-in skip；真机业务面验收仍是人工项。〕
 
 opt-in 真机跑：壳起来 → 真 startup 放行 → **真实产品 UI 渲染** → 至少一个真实业务面走通
 （不是「能显示」）。原始输出**入仓**（沿用 spec §10 的证据登记做法）。
 Expected: 记录原始输出；渲染层源码 diff 为空。
 
-- [ ] **Step 5: 处置 DR-T3-3 的三条义务 + 提交**
+- [x] **Step 5: 处置 DR-T3-3 的三条义务 + 提交**
+  〔2026-10-19 核对：spec 已逐条登记（`sequence` 不合并、`disk` 移交、失败阶段透传）；提交 `057b7e9d`。〕
 
 逐条：做掉 ①（阶段精确失败原因送达渲染层）与 ③（`disk` 摘要，若渲染层确实消费），
 ② 明确移交并写理由。

@@ -102,7 +102,8 @@ sidecar；sidecar 崩溃时壳要能观察到并把 `phase: "failed"` + `errorCo
 - Produces（页面侧）：满足 `MessagePortLike` 的对象递到渲染层，配合 `DatabaseStartupState` 流使
   闸门放行。
 
-- [ ] **Step 1: 把端口往返立成提交的测试（本任务的第一个交付，RED 先行）**
+- [x] **Step 1: 把端口往返立成提交的测试（本任务的第一个交付，RED 先行）**
+  〔2026-10-19 核对：`apps/desktop-tauri/test/portRoundTrip.test.mts` 已在 `pnpm --filter @mode/desktop-tauri test` 中通过（同批 35 pass / 0 fail / 7 opt-in skip）。〕
 
 按 DR-T1-2 的第一层写 `apps/desktop-tauri/test/portRoundTrip.test.mts`：脚本里建**真实**
 `MessageChannel`，把 `port2` 接给一个真的 `ChannelServer`（背后是 stub accessor），`port1` 经
@@ -111,7 +112,8 @@ sidecar；sidecar 崩溃时壳要能观察到并把 `phase: "failed"` + `errorCo
 Run: `pnpm --filter @mode/desktop-tauri test`
 Expected: **FAIL**——`ChannelServer` 尚不存在（这是 RED；把失败输出记下来）。
 
-- [ ] **Step 2: 实现 Node sidecar 入口与 stub accessor**
+- [x] **Step 2: 实现 Node sidecar 入口与 stub accessor**
+  〔2026-10-19 核对：`packages/desktop/src/host-standalone/{index,serviceAccessor}.ts` 与 `packages/desktop/tests/host-standalone.test.mts` 已落地。〕
 
 `packages/desktop/src/host-standalone/`：入口读 env 决定 data root、起 `ChannelServer`
 （`packages/rpc` 的公共入口，**不要 deep import**）、背后是 stub accessor（每个方法显式
@@ -119,13 +121,15 @@ Expected: **FAIL**——`ChannelServer` 尚不存在（这是 RED；把失败输
 Run: 同 Step 1。
 Expected: PASS。
 
-- [ ] **Step 3: Rust 壳 spawn 与监督 sidecar**
+- [x] **Step 3: Rust 壳 spawn 与监督 sidecar**
+  〔2026-10-19 核对：`crates/sidecar-host` 已存在（含 `host_lifecycle`/`host_stderr` 用例）；本机 `cargo test` 受 MSVC `link.exe` 环境阻塞，未在此环境复跑。〕
 
 `crates/sidecar-host`：`spawn` 起 Node 入口（路径由 env 或资源目录解析，**不硬编码绝对路径**）、
 把 stdio 帧接到传输层、监督子进程。按 DR-T1-3 写**退出清理**与**崩溃上报**两条用例。
 Expected: 用例绿；壳正常退出后无残留进程。
 
-- [ ] **Step 4: 壳改用 Rust 建窗口 + 挂 init script + 注册 raw 帧 command**
+- [x] **Step 4: 壳改用 Rust 建窗口 + 挂 init script + 注册 raw 帧 command**
+  〔2026-10-19 核对：`main.rs` 用 `sidecar_host::bridge::bridge_script` + `WebviewUrl::App(pick_shell_entry(...))` 建窗；`windowModeInjection.test.mts` / `productUiMount.test.mts` 已在仓。〕
 
 按 spike 文档 §3 的实现骨架做：窗口在 Rust 建（`WindowConfig` 没有 init script 字段），
 页面侧脚本**在页面内**创建 `MessageChannel`，`port1` 交给渲染层、`port2` 桥回壳；
@@ -134,13 +138,15 @@ Command 的 ACL 需求以 spike 实测为准。
 Expected: 起壳后，前端页面里能看到注入的端口对象（用验收台页面打印）。
 
 - [ ] **Step 5: opt-in 集成测试 + 闸门放行验收**
+  〔2026-10-19 核对：`webviewRoundTrip.test.mts` 已建（默认 skip）；真窗口 30s 放行仍是人工项。〕
 
 写 `webviewRoundTrip.test.mts`（默认 skip，带 flag 才建真窗口）；然后人工跑一次：
 壳起来 → 渲染层在 **30s 内**看到 `phase: "ready"` 且 id 匹配 → 业务根挂载（此时会因 stub
 而大量失败，**这是预期的**，见 DR-T1-1）。
 Expected: 记录实际输出；把「必须人工跑」这条写进 `docs/specs/tauri-renderer-host.md` 与 M5 输入清单。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
+  〔2026-10-19 核对：提交已存在（`057b7e9d` 起）。〕
 
 ```bash
 git add crates/sidecar-host packages/desktop/src/host-standalone apps/desktop-tauri docs/specs/tauri-renderer-host.md Cargo.toml Cargo.lock

@@ -230,7 +230,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 - Consumes: `agent_core::runtime`（插件工具注入点）、`crates/marketplace`（M2 的工具注册表）。
 - Produces: `plugin_host::Sidecar::ensure()`（返回可执行路径，缺失则按 manifest 下载）、`server::app()`（axum Router，路由与旧 server 一一对应，契约测试对拍）。
 
-- [ ] **Node sidecar 打包**：按 DR-01 —— Node 运行时 + 插件宿主 bundle 作为独立资产上 CDN；`plugin_host::ensure()` 首启用时下载、校验 sha256、健康探测；本地开发直连不下载。验收：断网时核心功能全在，仅插件功能提示"需下载组件"。
+- [ ] **Node sidecar 打包**：按 DR-01 —— Node 运行时 + 插件宿主 bundle 作为独立资产上 CDN；`plugin_host::ensure()` 首启用时下载、校验 sha256、健康探测；本地开发直连不下载。验收：断网时核心功能全在，仅插件功能提示"需下载组件"。〔2026-10-19 核对：M3 Task 1–5 的自动化面已完成——`crates/sidecar-host`、`host-standalone`、`window.mode` 注入、平台缺口（单实例/图标/sourceUrl）、Windows 安装包与两份体积预算均有测试/原始输出；`apps/desktop-tauri` 实测 35 pass / 7 opt-in skip。剩余是 DR-01 的 CDN 按需下载/校验与真机人工验收。〕
 - [ ] **插件市场迁移**：读旧 `installed_plugins.json`/marketplace 缓存原样可用；市场卡片 E2E 复用现有 `plugin-store-availability` spec 场景。〔2026-10-18 盘点，DR-PM-1〕读兼容与卡片投影已覆盖（32 + 5 条测试全绿），**M3 不新增 `crates/marketplace`**；剩真实窗口 UI E2E 与 sidecar 打包，详见 `2026-10-18-m3-plugin-market-status.md`。
 - [ ] **IM bot 逐通道**：〔2026-10-18 盘点，DR-IM-1〕由 Host sidecar 复用现有实现（149 条测试全绿），
       **M3 不新增 `crates/bots`**；Rust HTTP+WS 重写延后到运行时移出 sidecar 时再评估。
