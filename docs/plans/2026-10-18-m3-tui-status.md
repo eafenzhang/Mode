@@ -43,71 +43,71 @@
 
 ### A. 启动与会话生命周期
 
-| # | 场景 | 证据来源 | 状态 |
-| --- | --- | --- | --- |
-| A1 | 冷启动：读取 `TuiStartupOptions`，建立会话并绘制空 transcript | `app-startup.tsx`、`app-empty-transcript.tsx` | 无自动化 |
-| A2 | 恢复/切换会话：会话元信息、标题、消息数正确 | `TuiSessionMetadata`、`app-turn-complete.ts` | 无自动化 |
-| A3 | 一轮对话完成：终态、用量/耗时、错误分支 | `app-turn-complete.ts`、`app-result.ts` | 无自动化 |
-| A4 | 紧凑时间线：长会话折叠与展开 | `app-compact-timeline.ts` | 无自动化 |
-| A5 | 排队输入：busy 时输入进入队列，空闲后按序提交 | `app-queued-inputs.tsx` | 无自动化 |
-| A6 | 输入历史：上下键召回与持久化边界 | `app-input-history.ts` | 无自动化 |
+| #   | 场景                                                          | 证据来源                                      | 状态     |
+| --- | ------------------------------------------------------------- | --------------------------------------------- | -------- |
+| A1  | 冷启动：读取 `TuiStartupOptions`，建立会话并绘制空 transcript | `app-startup.tsx`、`app-empty-transcript.tsx` | 无自动化 |
+| A2  | 恢复/切换会话：会话元信息、标题、消息数正确                   | `TuiSessionMetadata`、`app-turn-complete.ts`  | 无自动化 |
+| A3  | 一轮对话完成：终态、用量/耗时、错误分支                       | `app-turn-complete.ts`、`app-result.ts`       | 无自动化 |
+| A4  | 紧凑时间线：长会话折叠与展开                                  | `app-compact-timeline.ts`                     | 无自动化 |
+| A5  | 排队输入：busy 时输入进入队列，空闲后按序提交                 | `app-queued-inputs.tsx`                       | 无自动化 |
+| A6  | 输入历史：上下键召回与持久化边界                              | `app-input-history.ts`                        | 无自动化 |
 
 ### B. 流式输出
 
-| # | 场景 | 证据来源 | 状态 |
-| --- | --- | --- | --- |
-| B1 | 文本增量：`text_delta` 逐块追加，不重排 | `app-model-streaming.ts`、`app-transcript-stream.ts` | 无自动化 |
-| B2 | 工具输入增量：`tool_input_start/delta/end` 与最终 `tool_call` | 同上 | 无自动化 |
-| B3 | 思考块：reasoning 与正文分区渲染 | `app-thought-components.tsx` | 无自动化 |
-| B4 | Markdown/代码高亮：主题与终端宽度变化重排 | `app-markdown.tsx`、`app-markdown-theme.ts`、`app-terminal-width.ts` | 无自动化 |
-| B5 | 中断/取消：用户中断后流停止、终态正确 | `app-submit.ts`、`app-submit-controller.ts` | 无自动化 |
+| #   | 场景                                                          | 证据来源                                                             | 状态     |
+| --- | ------------------------------------------------------------- | -------------------------------------------------------------------- | -------- |
+| B1  | 文本增量：`text_delta` 逐块追加，不重排                       | `app-model-streaming.ts`、`app-transcript-stream.ts`                 | 无自动化 |
+| B2  | 工具输入增量：`tool_input_start/delta/end` 与最终 `tool_call` | 同上                                                                 | 无自动化 |
+| B3  | 思考块：reasoning 与正文分区渲染                              | `app-thought-components.tsx`                                         | 无自动化 |
+| B4  | Markdown/代码高亮：主题与终端宽度变化重排                     | `app-markdown.tsx`、`app-markdown-theme.ts`、`app-terminal-width.ts` | 无自动化 |
+| B5  | 中断/取消：用户中断后流停止、终态正确                         | `app-submit.ts`、`app-submit-controller.ts`                          | 无自动化 |
 
 ### C. 审批与提问
 
-| # | 场景 | 证据来源 | 状态 |
-| --- | --- | --- | --- |
-| C1 | `allow_once`：批准后工具继续，规则不落盘 | `app-approval.ts`、`app-approval-panel.tsx`、`TuiRequestPermission` | 无自动化 |
-| C2 | `allow_project`：批准后本项目后续同规则不再询问 | 同上 | 无自动化 |
-| C3 | `deny`：拒绝文案、工具不执行、会话继续 | 同上 | 无自动化 |
-| C4 | `AskUserQuestion`：问题面板、多选/自由输入与取消 | `app-question-panel.tsx`、`app-question-state.ts` | 无自动化 |
-| C5 | 审批与流式并发：审批期间流式事件不丢、不越序 | `app-permission.ts` | 无自动化 |
+| #   | 场景                                             | 证据来源                                                            | 状态     |
+| --- | ------------------------------------------------ | ------------------------------------------------------------------- | -------- |
+| C1  | `allow_once`：批准后工具继续，规则不落盘         | `app-approval.ts`、`app-approval-panel.tsx`、`TuiRequestPermission` | 无自动化 |
+| C2  | `allow_project`：批准后本项目后续同规则不再询问  | 同上                                                                | 无自动化 |
+| C3  | `deny`：拒绝文案、工具不执行、会话继续           | 同上                                                                | 无自动化 |
+| C4  | `AskUserQuestion`：问题面板、多选/自由输入与取消 | `app-question-panel.tsx`、`app-question-state.ts`                   | 无自动化 |
+| C5  | 审批与流式并发：审批期间流式事件不丢、不越序     | `app-permission.ts`                                                 | 无自动化 |
 
 ### D. 工具与 diff
 
-| # | 场景 | 证据来源 | 状态 |
-| --- | --- | --- | --- |
-| D1 | 工具卡片：scheduled/started/progress/result/batch 五态 | `app-tool-components.tsx`、`app-tool-transcript.ts` | 无自动化 |
-| D2 | diff 呈现：新增/删除行、上下文折叠 | `app-tool-diff-display.ts` | 无自动化 |
-| D3 | 路径展示：相对路径、过长路径截断 | `app-tool-path-display.ts` | 无自动化 |
-| D4 | 工具错误：`tool_execution_failed` 与未注册工具 | `app-transcript-errors.ts` | 无自动化 |
+| #   | 场景                                                   | 证据来源                                            | 状态     |
+| --- | ------------------------------------------------------ | --------------------------------------------------- | -------- |
+| D1  | 工具卡片：scheduled/started/progress/result/batch 五态 | `app-tool-components.tsx`、`app-tool-transcript.ts` | 无自动化 |
+| D2  | diff 呈现：新增/删除行、上下文折叠                     | `app-tool-diff-display.ts`                          | 无自动化 |
+| D3  | 路径展示：相对路径、过长路径截断                       | `app-tool-path-display.ts`                          | 无自动化 |
+| D4  | 工具错误：`tool_execution_failed` 与未注册工具         | `app-transcript-errors.ts`                          | 无自动化 |
 
 ### E. 输入与命令中心
 
-| # | 场景 | 证据来源 | 状态 |
-| --- | --- | --- | --- |
-| E1 | 输入面板：光标、换行、粘贴、状态行 | `app-input-pane.tsx`、`app-input-status.tsx` | 无自动化 |
-| E2 | 斜杠命令：补全、执行、错误 | `app-keyboard-suggestions.ts`、`TuiSlashCommandSuggestion` | 无自动化 |
-| E3 | 模式/模型/effort：切换命令与建议面板 | `app-mode-command.ts`、`app-model-command.ts`、`app-effort-command.ts`、`TuiSetMode` | 无自动化 |
-| E4 | 文件提及：`@` 补全与工作区建议 | `app-file-mentions.ts`、`app-file-mention-panel.tsx`、`TuiListWorkspacePathSuggestions` | 无自动化 |
-| E5 | 键盘帮助与快捷键：平台差异 | `app-keyboard.ts`、`app-keyboard-helpers.ts` | 无自动化 |
+| #   | 场景                                 | 证据来源                                                                                | 状态     |
+| --- | ------------------------------------ | --------------------------------------------------------------------------------------- | -------- |
+| E1  | 输入面板：光标、换行、粘贴、状态行   | `app-input-pane.tsx`、`app-input-status.tsx`                                            | 无自动化 |
+| E2  | 斜杠命令：补全、执行、错误           | `app-keyboard-suggestions.ts`、`TuiSlashCommandSuggestion`                              | 无自动化 |
+| E3  | 模式/模型/effort：切换命令与建议面板 | `app-mode-command.ts`、`app-model-command.ts`、`app-effort-command.ts`、`TuiSetMode`    | 无自动化 |
+| E4  | 文件提及：`@` 补全与工作区建议       | `app-file-mentions.ts`、`app-file-mention-panel.tsx`、`TuiListWorkspacePathSuggestions` | 无自动化 |
+| E5  | 键盘帮助与快捷键：平台差异           | `app-keyboard.ts`、`app-keyboard-helpers.ts`                                            | 无自动化 |
 
 ### F. 侧栏、子代理与工作流
 
-| # | 场景 | 证据来源 | 状态 |
-| --- | --- | --- | --- |
-| F1 | 侧栏：MCP、修改文件、子代理、API 区块 | `app-sidebar*.tsx`、`TuiListMcpServers` | 无自动化 |
-| F2 | 子代理：事件、transcript 快照、切换视图 | `app-subagent-*.ts`、`TuiReadSubagents`、`TuiReadSubagentTranscript` | 无自动化 |
-| F3 | 工作流：卡片、运行列表、重放、镜像到会话 | `app-workflow-*.ts`、`TuiListWorkflowRuns`、`TuiReplayWorkflowRuns` | 无自动化 |
+| #   | 场景                                     | 证据来源                                                             | 状态     |
+| --- | ---------------------------------------- | -------------------------------------------------------------------- | -------- |
+| F1  | 侧栏：MCP、修改文件、子代理、API 区块    | `app-sidebar*.tsx`、`TuiListMcpServers`                              | 无自动化 |
+| F2  | 子代理：事件、transcript 快照、切换视图  | `app-subagent-*.ts`、`TuiReadSubagents`、`TuiReadSubagentTranscript` | 无自动化 |
+| F3  | 工作流：卡片、运行列表、重放、镜像到会话 | `app-workflow-*.ts`、`TuiListWorkflowRuns`、`TuiReplayWorkflowRuns`  | 无自动化 |
 
 ### G. 系统面
 
-| # | 场景 | 证据来源 | 状态 |
-| --- | --- | --- | --- |
-| G1 | 主题同步：系统主题/设置变化实时生效 | `app-theme-sync.ts`、`theme/` | 无自动化 |
-| G2 | 语言/本地化：中英文切换与缺键回退 | `app-locale.ts`、`@mode/i18n` | 无自动化 |
-| G3 | 剪贴板：文本写入、图片读取（`TuiClipboardImage`） | `app-clipboard-image.ts`、`TuiWriteClipboardText` | 无自动化 |
-| G4 | 网络/复制状态：连接事件、复制反馈 | `app-network-events.ts`、`app-copy.ts` | 无自动化 |
-| G5 | 动效降级：motion 开关与无动画终端 | `app-motion.tsx` | 无自动化 |
+| #   | 场景                                              | 证据来源                                          | 状态     |
+| --- | ------------------------------------------------- | ------------------------------------------------- | -------- |
+| G1  | 主题同步：系统主题/设置变化实时生效               | `app-theme-sync.ts`、`theme/`                     | 无自动化 |
+| G2  | 语言/本地化：中英文切换与缺键回退                 | `app-locale.ts`、`@mode/i18n`                     | 无自动化 |
+| G3  | 剪贴板：文本写入、图片读取（`TuiClipboardImage`） | `app-clipboard-image.ts`、`TuiWriteClipboardText` | 无自动化 |
+| G4  | 网络/复制状态：连接事件、复制反馈                 | `app-network-events.ts`、`app-copy.ts`            | 无自动化 |
+| G5  | 动效降级：motion 开关与无动画终端                 | `app-motion.tsx`                                  | 无自动化 |
 
 ## 编译与类型面（2026-10-18 实跑）
 
@@ -156,4 +156,9 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第十一批（`app-input` 续）：slash 命令过滤（名称/别名、大小写、空白终止）与可见窗口映射；
 - 已接入 `release.yml` 的 verify：在 bootstrap 链构建后执行 `pnpm --filter @mode/tui test`；
 - 第十二批（`app-question-state`）：提问面板初始状态（首题/首选项、非编辑/非 review、空答案）；
+- 第十三批（`app-approval`）：审批决策文案（`allow_once`/`allow_project`，未知值与
+  `allow_always` 回退 Deny）、权限输入预览（字符串原样、其余紧凑 JSON、长文本不截断）；
+- 第十四批（`app-transcript-errors`、`app-model-ref`）：系统错误消息加 `Error:` 前缀、
+  空文案回退 Unknown error、保留原消息且不修改入参数组；模型展示按首个斜杠拆分
+  provider/模型、无 provider 与空选择用占位符；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
