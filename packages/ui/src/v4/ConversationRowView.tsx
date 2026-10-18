@@ -63,7 +63,7 @@ import {
   ChatMediaAttachmentPreviewDialog,
   type ChatMediaAttachmentPreviewTarget,
 } from "@/ChatMediaAttachmentPreviewDialog.js";
-import type { PdfViewerRangeSource } from "@/components/ui/pdf-viewer.js";
+import type { PdfViewerRangeSource } from "@/ui-foundation/adapters/pdf-viewer.js";
 import {
   MessageAction,
   MessageActions,

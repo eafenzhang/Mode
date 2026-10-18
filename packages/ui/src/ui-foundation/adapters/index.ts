@@ -279,3 +279,5 @@ export {
   type HighlightedLightweightDiffPreviewProps,
 } from "./highlighted-lightweight-diff-preview.js";
 export { FlipMetricValue, type FlipMetricValueProps } from "./flip-metric-value.js";
+// PdfViewer 不放进 barrel：它依赖 react-pdf 与 Vite 的 `?url` worker 导入，
+// 顶层再导出会让只想要轻量 adapter 的调用方/测试被迫加载 pdf.js。

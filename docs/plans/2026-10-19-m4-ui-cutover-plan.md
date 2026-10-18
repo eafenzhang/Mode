@@ -6,7 +6,7 @@
 >
 > **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
 > command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
-> 引用集中在 pdf/code/pptx viewer 与 pptx 选择操作条；旧文件统一保留到人工看屏验收后删除。
+> 引用集中在 code/pptx viewer 与 pptx 选择操作条；旧文件统一保留到人工看屏验收后删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 
 ## 基础件切换顺序（按引用面从小到大）
@@ -271,3 +271,13 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 验证：UI 357 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：动画只对变化字符播放，不做旧实现的整列翻牌。
+
+### 后续波次（2026-10-19 第二十轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `pdf-viewer` | 6（4 类型引用 + 2 动态 import） | 新增 adapter：react-pdf Document/Page；URL/Blob/ArrayBuffer/Uint8Array 归一（ArrayBuffer 复制防 detach）、range 传输（256 KiB chunk、关自动预取）；页码输入/前后页/25%–400% 缩放、Ctrl/Cmd+滚轮缩放、labels 覆盖、加载/失败/无数据文案 |
+
+验证：UI 361 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：缩放不再围绕指针锚点（旧实现的手势锚点/预览层未复刻）；`pdf-viewer` 不放进
+adapter barrel，避免只想要轻量 adapter 的调用方被迫加载 pdf.js 与 Vite `?url` worker。

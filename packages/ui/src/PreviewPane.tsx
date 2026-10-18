@@ -40,7 +40,7 @@ import {
   type CodeViewerSource,
   type MediaCodeViewerSource,
 } from "@/lib/codeViewer.js";
-import type { PdfViewerSource } from "@/components/ui/pdf-viewer.js";
+import type { PdfViewerSource } from "@/ui-foundation/adapters/pdf-viewer.js";
 import { normalizeCodeViewerSource } from "@/lib/codeViewerSource.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { getPathLeaf, isAbsoluteFilePath } from "@/lib/path.js";

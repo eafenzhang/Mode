@@ -40,6 +40,7 @@
 | `lightweight-diff-preview.tsx` | `LightweightDiffPreview` + 行解析 | `adapters/lightweight-diff-preview` | **已切换 2 处调用**（2026-10-19）；行分类/行号/换行策略 |
 | `highlighted-lightweight-diff-preview.tsx` | `HighlightedLightweightDiffPreview` + `buildHighlighted...` | `adapters/highlighted-lightweight-diff-preview` | **已切换 2 处调用**（2026-10-19）；异步 Shiki token |
 | `flip-metric-value.tsx` | `FlipMetricValue` | `adapters/flip-metric-value` | **已切换 1 处调用**（2026-10-19）；逐字符动画 |
+| `pdf-viewer.tsx` | `PdfViewer` + `PdfViewerLabels/Source/RangeSource` | `adapters/pdf-viewer` | **已切换 6 处引用**（2026-10-19）；react-pdf + range 传输；不进 barrel |
 
 ## 2. 业务面映射
 

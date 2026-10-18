@@ -214,6 +214,16 @@ success/warning/destructive。
 - `prefers-reduced-motion: reduce` 时不播放动画；
 - `animateInitial` 控制首次渲染是否动画；`aria-label` 提供完整值，子字符对读屏隐藏。
 
+### 2.18 PdfViewer
+
+- `source` 支持 URL/Blob/ArrayBuffer/Uint8Array 与 range 传输（`requestRange` + `totalBytes`）；
+  ArrayBuffer/Uint8Array 进入 pdf.js 前复制，避免 worker detach 影响调用方复用；
+- range 模式关闭自动预取/流式加载，chunk 256 KiB；
+- 工具栏提供上一页/下一页、页码输入（Enter/失焦提交并夹在 1..numPages）、放大/缩小
+  （25%–400%，步进 25%）；按钮用 `aria-label` 来自 `labels`；
+- 加载中/加载失败/无数据均给出可见文案；`onLoadError` 透传 Error；
+- 文档选项复用 `createPdfJsDocumentOptions`（cMap/字体资源），`labels` 只覆盖传入的键。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -281,7 +291,9 @@ HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`
 （纯计算在 `diffViewerStyles.ts`），用例 `uiFoundationDiffViewer.test.ts`；
 轻量 diff 在 `LightweightDiffPreview.tsx` / `HighlightedLightweightDiffPreview.tsx`
 （行契约在 `lightweightDiffTokens.ts`），用例 `uiFoundationLightweightDiff.test.ts`；
-指标翻牌在 `FlipMetricValue.tsx`，用例 `uiFoundationFlipMetric.test.ts`。
+指标翻牌在 `FlipMetricValue.tsx`，用例 `uiFoundationFlipMetric.test.ts`；
+PDF 预览在 `adapters/pdf-viewer.tsx`（纯输入/边界在 `pdfViewerSource.ts`），用例
+`uiFoundationPdfViewer.test.ts`（只测纯函数，不加载 pdf.js）。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围
