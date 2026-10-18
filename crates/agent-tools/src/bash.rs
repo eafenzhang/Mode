@@ -178,10 +178,7 @@ pub fn invoke_with_control(
         None => DEFAULT_TIMEOUT_MS,
     };
     if input.run_in_background == Some(true) {
-        return Err(unimplemented_surface(
-            "bash_run_in_background",
-            "run_in_background 尚未实现（Task 4b）",
-        ));
+        return start_background(&input.command, input.description, ctx, control);
     }
     // 未观察到 `dangerouslyDisableSandbox` 的行为差异；接受但无沙箱可关，保持透明。
     let _ = input.dangerously_disable_sandbox;
@@ -226,6 +223,66 @@ pub fn invoke_with_control(
     Ok(ToolOutcome::text(content))
 }
 
+/// 后台执行：立即登记任务并返回（不等待命令结束）。
+///
+/// 观察（spec §3.4）：结果是 `success=true` 的一段固定文案，`budgetStrategy:"artifact"`，
+/// 并带 `artifactPath`；输出文件在命令结束前也可读。**完成通知**（新 turn）不在这里做，
+/// 归 Task 5 的会话循环——本函数只把任务写进注册表。
+fn start_background(
+    command: &str,
+    description: Option<String>,
+    ctx: &ToolContext,
+    control: &BashControl,
+) -> Result<ToolOutcome, ToolError> {
+    let registry = ctx.tasks.as_ref().ok_or_else(|| {
+        unimplemented_surface(
+            "bash_run_in_background_unwired",
+            "会话未接线任务注册表，无法登记后台任务",
+        )
+    })?;
+    let dir = control
+        .artifact_dir
+        .clone()
+        .unwrap_or_else(|| std::env::temp_dir().join("mode-bash-artifacts"));
+    std::fs::create_dir_all(&dir)
+        .map_err(|error| unimplemented_surface("bash_artifact_dir_failed", error.to_string()))?;
+    // 文件名沿用 artifact 落点规则：会话接线时是观察到的 `<toolCallId>-stdout.log`。
+    let name = control
+        .artifact_name
+        .clone()
+        .unwrap_or_else(|| format!("bash-background-{}.log", std::process::id()));
+    let path = dir.join(&name);
+
+    let file = std::fs::File::create(&path)
+        .map_err(|error| unimplemented_surface("bash_artifact_write_failed", error.to_string()))?;
+    let mut command_builder = shell_command(command, ctx);
+    command_builder
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(file))
+        // `exec 2>&1` 已把 shell 的 fd2 指向 stdout（文件）；这里不发散管道，避免无人读取阻塞。
+        .stderr(Stdio::null());
+    let child = command_builder
+        .spawn()
+        .map_err(|error| unimplemented_surface("bash_spawn_failed", error.to_string()))?;
+
+    let tool_call_id = control
+        .artifact_name
+        .as_deref()
+        .and_then(|name| name.strip_suffix("-stdout.log"))
+        .unwrap_or("background")
+        .to_string();
+    let registration = registry.register(child, tool_call_id, command, description, path);
+    let content = format!(
+        "Command running in background with ID: {}. Output is being written to: {}. You will be notified when it completes. To check interim output, use Read on that file path.",
+        registration.id,
+        registration.output_path.display()
+    );
+    Ok(ToolOutcome::background(
+        content,
+        registration.output_path.display().to_string(),
+    ))
+}
+
 fn shell_command(command: &str, ctx: &ToolContext) -> Command {
     let mut cmd = Command::new(bash_program());
     // `exec 2>&1` 让**整段脚本**的 stderr 与 stdout 在同一个管道里按到达顺序交错。
@@ -250,7 +307,7 @@ fn shell_command(command: &str, ctx: &ToolContext) -> Command {
 ///
 /// 找不到时交给 `Command::new("bash")` 报 spawn 失败（显式标记，不静默降级到 `sh`——
 /// `sh` 的语法与 `bash` 不同，静默替换会把行为差异伪装成工具行为）。
-fn bash_program() -> PathBuf {
+pub(crate) fn bash_program() -> PathBuf {
     #[cfg(windows)]
     {
         for candidate in [
@@ -360,6 +417,7 @@ mod tests {
         ToolContext {
             cwd: std::env::temp_dir().to_string_lossy().to_string(),
             artifact: None,
+            tasks: None,
         }
     }
 
@@ -539,6 +597,7 @@ mod tests {
                 session_id: "sess_art".to_string(),
                 tool_call_id: "call_art".to_string(),
             }),
+            tasks: None,
         };
         let outcome = invoke(
             &json!({ "command": "head -c 31000 /dev/zero | tr '\\0' 'x'" }),
@@ -561,6 +620,69 @@ mod tests {
             "包装里应写出真实落点：{}",
             outcome.content
         );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn background_registers_a_task_and_returns_the_observed_message() {
+        let base = std::env::temp_dir().join(format!(
+            "mode-bash-bg-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|value| value.as_nanos())
+                .unwrap_or(0)
+        ));
+        let data_root = base.join(".mode");
+        let registry = std::sync::Arc::new(crate::TaskRegistry::new());
+        let context = ToolContext {
+            cwd: base.to_string_lossy().to_string(),
+            artifact: Some(crate::ArtifactLocation {
+                data_root: data_root.clone(),
+                session_id: "sess_bg".to_string(),
+                tool_call_id: "call_bg".to_string(),
+            }),
+            tasks: Some(std::sync::Arc::clone(&registry)),
+        };
+
+        let outcome = invoke(
+            &json!({
+                "command": "printf 'bg\\n'; sleep 0.2; printf 'done\\n'",
+                "run_in_background": true,
+                "description": "Background"
+            }),
+            &context,
+        )
+        .expect("后台启动应成功");
+
+        assert_eq!(outcome.budget_strategy, "artifact");
+        let expected = data_root
+            .join("cli")
+            .join("exec")
+            .join("sess_bg")
+            .join("call_bg-stdout.log");
+        assert_eq!(
+            outcome.artifact_path.as_deref(),
+            Some(expected.display().to_string().as_str())
+        );
+        assert!(outcome
+            .content
+            .starts_with("Command running in background with ID: exec_"));
+        assert!(outcome.content.contains(&expected.display().to_string()));
+
+        let id = outcome
+            .content
+            .split("ID: ")
+            .nth(1)
+            .and_then(|rest| rest.split('.').next())
+            .expect("正文里应有 task id")
+            .to_string();
+        let snapshot = registry
+            .snapshot(&id, true, std::time::Duration::from_secs(5))
+            .expect("任务应已登记");
+        assert_eq!(snapshot.status, crate::TaskStatus::Completed);
+        assert_eq!(snapshot.exit_code, Some(0));
+        assert_eq!(snapshot.output, "bg\ndone\n");
         let _ = std::fs::remove_dir_all(&base);
     }
 

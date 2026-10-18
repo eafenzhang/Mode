@@ -40,6 +40,7 @@
 //! | 事件信封 | `deliveryKind: "desktop-continuous"`，`seq` 单调，`eventId`/`traceId` 是 uuid |
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
@@ -52,7 +53,8 @@ use agent_protocol::session_event::{
 };
 use agent_protocol::ExtraFields;
 use agent_tools::{
-    lookup, ArtifactLocation, FileState, ModeToolFamily, ToolContext, ToolOutcome, ToolSpec,
+    lookup, ArtifactLocation, FileState, ModeToolFamily, TaskRegistry, ToolContext, ToolOutcome,
+    ToolSpec,
 };
 
 use crate::tool::{error_object, result_object};
@@ -79,6 +81,9 @@ pub struct Session {
     file_state: FileState,
     /// `.mode` 数据根（`{base}/.mode`）。`None` = 本会话还没接线数据根，工具 artifact 落临时目录。
     data_root: Option<PathBuf>,
+    /// 后台任务表：`Bash(run_in_background)` 登记，`TaskOutput` / `TaskStop` 消费。
+    /// 完成通知（新 turn）不在本骨架里，归 Task 5。
+    tasks: Arc<TaskRegistry>,
 }
 
 impl Session {
@@ -91,6 +96,7 @@ impl Session {
             current_turn_id: None,
             file_state: FileState::new(),
             data_root: None,
+            tasks: Arc::new(TaskRegistry::new()),
         }
     }
 
@@ -110,6 +116,7 @@ impl Session {
         ToolContext {
             cwd: self.cwd.clone(),
             artifact: None,
+            tasks: Some(Arc::clone(&self.tasks)),
         }
     }
 
@@ -124,6 +131,7 @@ impl Session {
                 session_id: self.session_id.clone(),
                 tool_call_id: tool_call_id.to_string(),
             }),
+            tasks: Some(Arc::clone(&self.tasks)),
         }
     }
 
@@ -177,6 +185,14 @@ impl Session {
             // 未注册的工具**没有** `started`（观察：`Glob`/`Grep` 的 `scheduled` 之后直接是
             // `error`）——工具在解析阶段就出局了，没有「开始执行」这一步。
             if let Some(spec) = &spec {
+                // `TaskOutput` 的查找是启动前检查（观察：找不到任务时 scheduled → error，
+                // **没有** started）；入参校验失败同样发生在这一层。
+                if let Some(error) = agent_tools::preflight_error(&call.name, &call.input, &context)
+                {
+                    error_count += 1;
+                    events.push(self.error_event(&turn_id, call, &error));
+                    continue;
+                }
                 events.push(self.started_event(&turn_id, call, spec));
             }
 
@@ -305,6 +321,8 @@ impl Session {
             side_effect_scope: match (spec.read_only, spec.family) {
                 (true, _) => Some("none".to_string()),
                 (false, ModeToolFamily::FileWrite) => Some("workspace".to_string()),
+                // 观察（spec §3.4）：`TaskStop` 的 started 是 `sideEffectScope:"session"`。
+                (false, ModeToolFamily::TaskControl) => Some("session".to_string()),
                 (false, _) => None,
             },
             tool_name: Some(call.name.clone()),

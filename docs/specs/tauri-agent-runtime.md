@@ -529,6 +529,21 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
   改成 `cancelled`（带 `completedAt` / `outputBytes` / `stdoutBytes` / `stderrBytes`）；随后仍注入
   一个 `<task-notification>` turn：`<status>killed</status>`、
   `<summary>Background command "<description>" was stopped</summary>`。
+- **调度/启动字段**：两者 `scheduled` 都是 `canRunParallel:true`、`parallelGroupIndex:0`；
+  `TaskOutput` 的 `started` 是 `readOnly:true` / `sideEffectScope:"none"`，
+  `TaskStop` 是 `readOnly:false` / `sideEffectScope:"session"`。
+- **失败发生在 started 之前还是之后**：`TaskOutput` 找不到任务时**没有 `started`**
+  （`scheduled` → `error`，说明查找是启动前的前置检查）；`TaskStop` 找不到任务时
+  **有 `started`**（`scheduled` → `started` → `error`）。
+- **缺 `task_id`**：`TaskOutput` 在入参校验阶段失败——`tool_execution_failed` /
+  `Tool input failed inputSchema validation` / code `TOOL_EXECUTION_FAILED`，
+  **同样没有 `started`**；`TaskStop` 在 handler 内失败——`tool_execution_failed` /
+  `Missing required parameter: task_id` / code `TOOL_EXECUTION_FAILED` / detail `code=1`，
+  **有 `started`**（与上面的阶段差异一致）。
+
+**Rust 侧实现状态（2026-10-18）**：`TaskRegistry` + `TaskOutput` / `TaskStop` 已落地，
+`Bash(run_in_background)` 会登记任务并按上面的文案返回。**完成通知 turn 尚未实现**
+（依赖 Task 5 的会话循环），这是本切片当前唯一已知的行为差异；工具结果文案仍照 oracle 写。
 
 **仍未观察（Step 0 剩余）**：大输出阈值的精确字节（只钉到 **30,000–30,720** 区间）；
 host 层 `CommandInbox` 的排队顺序与 key 粒度。

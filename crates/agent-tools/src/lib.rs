@@ -36,6 +36,7 @@
 //! 也不扩大白名单：它只产出**线上形状**的工具结果/错误，由两端各自投影后精确相等比较。
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -45,6 +46,7 @@ pub mod edit;
 mod messages;
 mod path_policy;
 pub mod read;
+pub mod task;
 /// 测试支撑（投影助手）。放在库里是为了让 `agent-core` 的对拍用例复用**同一份**投影，
 /// 而不是各写一份（两份投影必然漂，正是 Ruling 4 要避免的）。见模块注释。
 #[doc(hidden)]
@@ -55,6 +57,10 @@ pub use bash::{bash_input_schema, BashControl, Cancellation, BASH_DESCRIPTION, B
 pub use edit::{edit_input_schema, EDIT_DESCRIPTION, EDIT_INPUT_SCHEMA};
 pub use read::{
     estimated_tokens, FileState, READ_DESCRIPTION, READ_INPUT_SCHEMA, TOKEN_LIMIT, WASTED_CALL,
+};
+pub use task::{
+    preflight_error, task_output_input_schema, task_stop_input_schema, TaskRegistry, TaskStatus,
+    TASK_OUTPUT_DESCRIPTION, TASK_OUTPUT_INPUT_SCHEMA, TASK_STOP_DESCRIPTION, TASK_STOP_INPUT_SCHEMA,
 };
 pub use write::{write_input_schema, WRITE_DESCRIPTION, WRITE_INPUT_SCHEMA};
 
@@ -122,13 +128,29 @@ impl ArtifactLocation {
 }
 
 /// 工具执行上下文。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ToolContext {
     /// 会话工作目录：相对 `file_path` 按它解析（实测：工具描述说必须绝对路径，实际不然）。
     pub cwd: String,
     /// 会话数据根与本次调用 id。`None` = 会话还没接线数据根（artifact 落系统临时目录）。
     pub artifact: Option<ArtifactLocation>,
+    /// 会话级后台任务表。`None` = 该上下文不支持后台任务（`run_in_background` 会显式报未接线）。
+    pub tasks: Option<Arc<TaskRegistry>>,
 }
+
+impl PartialEq for ToolContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.cwd == other.cwd
+            && self.artifact == other.artifact
+            && match (&self.tasks, &other.tasks) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                _ => false,
+            }
+    }
+}
+
+impl Eq for ToolContext {}
 
 /// 一次成功的工具结果（`tool.updated/kind:"result"` 的 `result` 对象，取对拍要用的字段）。
 ///
@@ -146,8 +168,13 @@ pub struct ToolOutcome {
     pub original_bytes: u64,
     /// `result.returnedBytes`。
     pub returned_bytes: u64,
-    /// `result.budgetStrategy`（观察到恒为 `"truncate"`）。
+    /// `result.budgetStrategy`（`"truncate"` / `"artifact"`）。
     pub budget_strategy: &'static str,
+    /// `result.artifactPath`：后台 Bash 结果带的落点（观察值；前台结果没有这个键）。
+    pub artifact_path: Option<String>,
+    /// `result.display` 的 JSON 文本：`TaskOutput` / `TaskStop` 的结果带它。
+    /// 存文本而不是 `Value` 是为了让 `ToolOutcome` 保持 `Eq`。
+    pub display_json: Option<String>,
 }
 
 impl ToolOutcome {
@@ -162,6 +189,8 @@ impl ToolOutcome {
             original_bytes: bytes,
             returned_bytes: bytes,
             budget_strategy: "truncate",
+            artifact_path: None,
+            display_json: None,
         }
     }
 
@@ -176,6 +205,32 @@ impl ToolOutcome {
             original_bytes: bytes,
             returned_bytes: bytes,
             budget_strategy: "artifact",
+            artifact_path: None,
+            display_json: None,
+        }
+    }
+
+    /// 带 `display` 的 `artifact` 结果（`TaskOutput`）。
+    pub fn artifact_with_display(content: impl Into<String>, display_json: impl Into<String>) -> Self {
+        Self {
+            display_json: Some(display_json.into()),
+            ..Self::artifact(content)
+        }
+    }
+
+    /// 带 `display` 的 `truncate` 结果（`TaskStop`）。
+    pub fn text_with_display(content: impl Into<String>, display_json: impl Into<String>) -> Self {
+        Self {
+            display_json: Some(display_json.into()),
+            ..Self::text(content)
+        }
+    }
+
+    /// 后台 Bash 的立即结果：`budgetStrategy:"artifact"` + `artifactPath`。
+    pub fn background(content: impl Into<String>, artifact_path: impl Into<String>) -> Self {
+        Self {
+            artifact_path: Some(artifact_path.into()),
+            ..Self::artifact(content)
         }
     }
 }
@@ -260,6 +315,23 @@ pub fn registry() -> Vec<ToolSpec> {
             // 且本次没有发审批请求。按观察值登记，不按直觉推断。
             read_only: true,
         },
+        ToolSpec {
+            name: "TaskOutput",
+            family: ModeToolFamily::TaskControl,
+            schema: task_output_input_schema(),
+            // 观察（spec §3.4）：成功路径的 `started` 是 `readOnly:true` /
+            // `sideEffectScope:"none"`。
+            read_only: true,
+        },
+        ToolSpec {
+            name: "TaskStop",
+            family: ModeToolFamily::TaskControl,
+            schema: task_stop_input_schema(),
+            // 观察（spec §3.4）：`started` 是 `readOnly:false` /
+            // `sideEffectScope:"session"`。注意 `started_event` 目前只对 FileWrite 给
+            // `workspace`，TaskStop 的 `session` 由 session 侧特判（见 agent-core）。
+            read_only: false,
+        },
     ]
 }
 
@@ -291,6 +363,8 @@ pub fn invoke_by_name(
         "Write" => write::invoke(args, ctx, files),
         "Edit" => edit::invoke(args, ctx, files),
         "Bash" => bash::invoke(args, ctx),
+        "TaskOutput" => task::task_output(args, ctx),
+        "TaskStop" => task::task_stop(args, ctx),
         other => Err(not_found(other)),
     }
 }

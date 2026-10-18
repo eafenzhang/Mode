@@ -80,6 +80,22 @@ function toolNamesById(frames: readonly RawFrame[]): Map<string, string> {
   return names;
 }
 
+/** 打印调度/启动帧里与工具声明相关的字段（`readOnly` / `sideEffectScope` / 并行性）。 */
+function printLifecycle(frames: readonly RawFrame[], toolName: string): void {
+  const names = toolNamesById(frames);
+  for (const frame of frames) {
+    if (eventType(frame) !== "tool.updated") continue;
+    const payload = eventPayload(frame);
+    if (payload?.kind !== "scheduled" && payload?.kind !== "started") continue;
+    if (names.get(String(payload.toolCallId)) !== toolName) continue;
+    const keys: Record<string, unknown> = { kind: payload.kind };
+    for (const key of ["canRunParallel", "parallelGroupIndex", "readOnly", "sideEffectScope"]) {
+      if (payload[key] !== undefined) keys[key] = payload[key];
+    }
+    process.stdout.write(`${toolName} ${JSON.stringify(keys)}\n`);
+  }
+}
+
 /** 打印指定工具名的 result/error 帧（`scheduled`/`started` 不打印）。 */
 function printToolFrames(frames: readonly RawFrame[], toolName: string): void {
   const names = toolNamesById(frames);
@@ -150,7 +166,30 @@ await runCase(
           : `${name}: ${JSON.stringify(declaration, null, 2)}\n`,
       );
     }
+    process.stdout.write("\n-- 调度/启动字段 --\n");
+    printLifecycle(frames, "TaskOutput");
+    printLifecycle(frames, "TaskStop");
     process.stdout.write("\n-- 错误形状 --\n");
+    printToolFrames(frames, "TaskOutput");
+    printToolFrames(frames, "TaskStop");
+  },
+);
+
+// 1b) 缺 task_id：两个工具的入参校验形状。
+await runCase(
+  "缺少 task_id",
+  [
+    { toolCalls: [{ name: "TaskOutput", input: {} }] },
+    { toolCalls: [{ name: "TaskStop", input: {} }] },
+    { text: "probe missing input done" },
+  ],
+  async ({ session, frames }) => {
+    await session.send("probe missing task id input");
+    await waitForTerminals(frames, 1, 30_000);
+    process.stdout.write("\n-- 缺参调度/启动字段 --\n");
+    printLifecycle(frames, "TaskOutput");
+    printLifecycle(frames, "TaskStop");
+    process.stdout.write("\n-- 缺参错误形状 --\n");
     printToolFrames(frames, "TaskOutput");
     printToolFrames(frames, "TaskStop");
   },
@@ -185,6 +224,8 @@ await runCase(
     await session.send("start quick background");
     // 第 1 个终态是首 turn；第 2 个是通知 turn（内含 TaskOutput）。
     await waitForTerminals(frames, 2, 45_000);
+    process.stdout.write("\n-- TaskOutput 调度/启动字段 --\n");
+    printLifecycle(frames, "TaskOutput");
     process.stdout.write("\n-- TaskOutput 结果 --\n");
     printToolFrames(frames, "TaskOutput");
   },

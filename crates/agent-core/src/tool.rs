@@ -50,6 +50,15 @@ pub fn result_object(outcome: &ToolOutcome, elapsed_ms: u64) -> ToolResultObject
     extra.insert("originalBytes".to_string(), json!(outcome.original_bytes));
     extra.insert("returnedBytes".to_string(), json!(outcome.returned_bytes));
     extra.insert("budgetStrategy".to_string(), json!(outcome.budget_strategy));
+    // 观察（spec §3.4）：后台 Bash 的结果多一个 `artifactPath`；TaskOutput / TaskStop
+    // 多一个 `display` 对象。前台的普通结果没有这两个键。
+    if let Some(path) = &outcome.artifact_path {
+        extra.insert("artifactPath".to_string(), json!(path));
+    }
+    if let Some(display) = &outcome.display_json {
+        let value = serde_json::from_str(display).unwrap_or_else(|_| json!(display));
+        extra.insert("display".to_string(), value);
+    }
     ToolResultObject {
         success: Some(true),
         content: Some(Value::String(outcome.content.clone())),

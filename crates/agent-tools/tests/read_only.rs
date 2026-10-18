@@ -29,6 +29,7 @@ fn assert_fixture(case: &str) {
     let context = ToolContext {
         cwd: workspace.cwd(),
         artifact: None,
+        tasks: None,
     };
 
     assert_eq!(
@@ -119,6 +120,7 @@ fn read_only_tools_leave_the_workspace_untouched() {
         let context = ToolContext {
             cwd: workspace.cwd(),
             artifact: None,
+        tasks: None,
         };
         for call in &fixture.calls {
             let args = workspace.substitute(&call.input);
@@ -142,17 +144,21 @@ fn read_only_tools_leave_the_workspace_untouched() {
     }
 }
 
-/// 注册表的内容本身是观察结果：`Read` / `Write` / `Edit` / `Bash` 各占一条；
-/// `Glob`/`Grep`/`ApplyPatch` 未注册。
+/// 注册表的内容本身是观察结果：`Read` / `Write` / `Edit` / `Bash` 与 Task 4b 的
+/// `TaskOutput` / `TaskStop` 各占一条；`Glob`/`Grep`/`ApplyPatch` 未注册。
 ///
 /// 证据：探针 `probe-tool-surface.mts`（`Read` 在声明里）与 `probe-write.mts`（`Write` 在声明里、
 /// `ApplyPatch` 不在且调用得 `tool_not_found`）；夹具 `read-absent-search-tools.json` 与
-/// `write-empty-args.json`（正对照：空入参拿 `inputSchema validation` 而不是 `tool_not_found`）。
+/// `write-empty-args.json`（正对照：空入参拿 `inputSchema validation` 而不是 `tool_not_found`）；
+/// `probe-task-control.mts` 的请求体声明（Task 4b）。
 #[test]
 fn registry_contains_only_read_from_the_read_only_slice() {
     let specs = registry();
     let names: Vec<&str> = specs.iter().map(|spec| spec.name).collect();
-    assert_eq!(names, vec!["Read", "Write", "Edit", "Bash"]);
+    assert_eq!(
+        names,
+        vec!["Read", "Write", "Edit", "Bash", "TaskOutput", "TaskStop"]
+    );
     assert_eq!(specs[0].family, ModeToolFamily::FileRead);
     assert!(specs[0].read_only);
     // 两个写工具：`file-write` 档、非只读——`started` 事件是
@@ -180,6 +186,7 @@ fn unknown_tool_names_answer_like_the_oracle() {
     let context = ToolContext {
         cwd: ".".to_string(),
         artifact: None,
+        tasks: None,
     };
     for name in ["Glob", "Grep"] {
         let error = invoke_by_name(name, &serde_json::json!({}), &context, &FileState::new())
@@ -242,6 +249,7 @@ fn observed_text_extensions_read_as_text() {
     let context = ToolContext {
         cwd: workspace.cwd(),
         artifact: None,
+        tasks: None,
     };
     for (relative, _) in &seeds {
         let args = serde_json::json!({ "file_path": format!("{}/{relative}", context.cwd) });
@@ -275,6 +283,7 @@ fn repeat_reads_are_stubbed_by_mtime() {
     let context = ToolContext {
         cwd: workspace.cwd(),
         artifact: None,
+        tasks: None,
     };
     let args = serde_json::json!({ "file_path": format!("{}/a.txt", context.cwd) });
     let mut history = FileState::new();
@@ -329,6 +338,7 @@ fn unimplemented_marker_covers_the_image_path() {
     let context = ToolContext {
         cwd: workspace.cwd(),
         artifact: None,
+        tasks: None,
     };
     let args = serde_json::json!({ "file_path": format!("{}/pic.png", context.cwd) });
     let error = invoke_by_name("Read", &args, &context, &FileState::new())
@@ -370,6 +380,7 @@ fn success_result_fields_match_the_recorded_events() {
         let context = ToolContext {
             cwd: workspace.cwd(),
             artifact: None,
+        tasks: None,
         };
         for (index, call) in fixture.calls.iter().enumerate() {
             let Some(recorded) = fixture.expect_result_objects[index].as_ref() else {

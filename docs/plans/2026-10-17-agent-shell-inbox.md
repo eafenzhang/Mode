@@ -272,7 +272,8 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
    入参校验失败）；
 2. 超时/取消后进程确实被终止（测试可复现，不靠时间窗口）；
 3. 同 key 的并发输入按观察到的顺序串行准入；
-4. 未观察到的后台任务与 pty 差异如实登记，不写成已支持。
+4. 后台 `Bash` 的返回/落盘与 `TaskOutput` / `TaskStop` 的文案已按观察实现；
+   **完成通知 turn 未实现**（依赖 Task 5），pty 差异如实登记，不写成已支持。
 
 ## 风险
 
@@ -328,3 +329,15 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - 结论写入 spec §3.4：TaskOutput 的 XML 结果与 `artifact` 预算、TaskStop 的 JSON 字符串结果与
   `cancelled` 状态、两种 `No task found with ID` 错误码、TaskStop 后的 `killed` 通知。
 - 剩余未知只有：大输出阈值精确字节、host 层 `CommandInbox`（DR-T4-7 待裁决）。
+
+### 2026-10-18 巡检轮（第四次）：Task 4b 独立部分落地
+
+- **实现**：`crates/agent-tools/src/task.rs`——`TaskRegistry`（登记 + 回收线程 + 状态推进）、
+  `TaskOutput` / `TaskStop` 的声明与文案、`preflight_error`（TaskOutput 找不到任务时没有
+  `started`，与观察一致）；`ToolContext.tasks` 经 `Arc` 由会话持有。
+- **接线**：`Bash(run_in_background)` 现在真正 spawn、写
+  `<artifactId>-stdout.log`、返回 `artifact` 预算与 `artifactPath`；`ToolOutcome` 增加
+  `artifact_path` / `display_json`，`result_object` 投影到线上字段。
+- **未实现（已知差异）**：任务结束后的 `<task-notification>` 新 turn——依赖 Task 5 会话循环。
+- **测试**：`agent-tools` 20 unit + 18 read_only、`agent-core` 43 + 2（新增事件顺序）
+  + 9 + 1 全绿；clippy `-D warnings` 零告警。
