@@ -7,7 +7,7 @@ import { inferCodeLanguage } from "@/lib/codeViewer.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
-import type { CodeCommentLabels } from "@/components/ui/code-viewer.js";
+import type { CodeCommentLabels } from "@/ui-foundation/codeViewLabels.js";
 import { MarkdownPreviewContent } from "@/previewPaneMarkdownContent.js";
 import { CodeContent } from "@/previewPaneCodeContent.js";
 import { ImagePreviewContent, SvgPreviewContent } from "@/previewPaneImageContent.js";

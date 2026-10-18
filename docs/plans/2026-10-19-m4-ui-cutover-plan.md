@@ -328,8 +328,10 @@ pdf.js 与 Vite `?url` worker。
    `formatCodeViewLineRange` 纯函数 + 单测；
 2. 〔2026-10-19 注释/topComment 完成〕`CodeView` 增加注释卡（删除回调）与 `topComment`
    摘要（范围文案/提示）；`markedLines` 与 `focusedRange` 已在第一步完成；
-3. 选区：点击/拖拽行生成 range，gutter `+` 触发 `onSubmitCodeComment({range, selectedText, comment})`；
-4. 切换 `previewPaneCodeContent` 渲染点，删除旧 CodeViewer 的最后一处业务引用；
+3. 〔2026-10-19 完成〕选区：按下/拖过行生成 range，gutter `+` 打开评论草稿并调用
+   `onSubmitCodeComment({range, selectedText, comment})`；纯选区逻辑在 `codeViewSelection.ts`；
+4. 〔2026-10-19 完成〕切换 `previewPaneCodeContent` 渲染点，业务代码已无旧 CodeViewer 引用
+   （仅旧文件自身与历史目录）；`code-viewer` 已加入迁移守卫；
 5. 真窗口看屏验收（人工），通过后按 D8 删除旧文件。
 
 **B. `pptx-preview-viewer`**

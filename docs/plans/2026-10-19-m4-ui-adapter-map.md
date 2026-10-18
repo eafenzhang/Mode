@@ -42,7 +42,7 @@
 | `flip-metric-value.tsx` | `FlipMetricValue` | `adapters/flip-metric-value` | **已切换 1 处调用**（2026-10-19）；逐字符动画 |
 | `pdf-viewer.tsx` | `PdfViewer` + `PdfViewerLabels/Source/RangeSource` | `adapters/pdf-viewer` | **已切换 6 处引用**（2026-10-19）；react-pdf + range 传输；不进 barrel |
 | `pptx-selection-action-bar.tsx` | `PptxSelectionActionBar` | `adapters/pptx-selection-action-bar` | **已切换 1 处调用**（2026-10-19）；portal 定位、编辑态与 IME 处理 |
-| `code-viewer.tsx`（只读子集） | 聊天代码块 | `adapters/code-view` | **已切换 1 个渲染点**（2026-10-19）；行号/markedLines/focusedRange；注释/选区/gutter 仍走旧组件 |
+| `code-viewer.tsx` | `CodeViewer` + `CodeCommentLabels` | `adapters/code-view` | **两个渲染点全部切换**（2026-10-19）；行号/markedLines/focusedRange/注释卡/topComment/选区/gutter 评论 |
 
 ## 2. 业务面映射
 

@@ -2,8 +2,8 @@ import type { BundledLanguage, BundledTheme } from "shiki";
 import type { Ref, UIEventHandler } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { MermaidBlock } from "@/components/ai-elements/mermaid-block.js";
-import { CodeViewer } from "@/components/ui/code-viewer.js";
-import type { CodeCommentLabels } from "@/components/ui/code-viewer.js";
+import { CodeView } from "@/ui-foundation/adapters/code-view.js";
+import type { CodeCommentLabels } from "@/ui-foundation/codeViewLabels.js";
 import type { CodePreviewSettings } from "@/store/index.js";
 import type { CodeCommentPreview, CodeCommentRange } from "@/lib/codeCommentContext.js";
 import { isMermaidLanguage } from "@/lib/mermaidLanguage.js";
@@ -78,7 +78,7 @@ export function CodeContent({
   }
 
   return (
-    <CodeViewer
+    <CodeView
       code={code}
       language={language}
       showLineNumbers={codePreviewSettings.showLineNumbers}

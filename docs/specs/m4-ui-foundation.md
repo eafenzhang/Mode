@@ -245,7 +245,11 @@ success/warning/destructive。
 - 注释、选区与 gutter 工具属于完整 CodeViewer；
 - 第二层起 `CodeView` 支持：注释卡按 `endLine` 渲染在行后、`topComment` 摘要置顶
   （`topCommentShowRange` 显示范围、`topCommentNotice` 显示提示）、删除注释回调；
-- 行模型提供 `groupCodeViewCommentsByEndLine` 与 `formatCodeViewLineRange` 两个纯函数。
+- 行模型提供 `groupCodeViewCommentsByEndLine` 与 `formatCodeViewLineRange` 两个纯函数；
+- `enableLineSelection`：按下某行开始选区、拖过其它行扩展、松开结束，选中行加 `bg-selected`；
+- `enableGutterUtility`：行号侧显示 `+`，点击后选中该行并打开评论输入框；
+- 评论提交：`onSubmitCodeComment({ range, selectedText, comment })`，空评论不提交；
+  取消/提交后清空选区；`labels` 提供 addComment/commentPlaceholder/submitComment/cancelComment。
 
 ## 3. 布局与响应式
 
@@ -319,7 +323,7 @@ PDF 预览在 `adapters/pdf-viewer.tsx`（纯输入/边界在 `pdfViewerSource.t
 `uiFoundationPdfViewer.test.ts`（只测纯函数，不加载 pdf.js）；PPTX 选区操作条在
 `adapters/pptx-selection-action-bar.tsx`（纯计算在 `pptxSelectionState.ts`），用例
 `uiFoundationPptxSelection.test.ts`；只读代码块在 `CodeView.tsx`（行模型
-`codeViewLines.ts`），用例 `uiFoundationCodeView.test.ts`。
+`codeViewLines.ts`、选区 `codeViewSelection.ts`），用例 `uiFoundationCodeView.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

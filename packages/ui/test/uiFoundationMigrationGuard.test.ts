@@ -21,6 +21,7 @@ const MIGRATED_MODULES = [
   "chart",
   "checkbox",
   "collapsible",
+  "code-viewer",
   "command",
   "context-menu",
   "dialog",

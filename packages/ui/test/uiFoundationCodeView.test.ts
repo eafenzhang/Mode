@@ -14,6 +14,11 @@ import {
   formatCodeViewLineRange,
   groupCodeViewCommentsByEndLine,
 } from "../src/ui-foundation/codeViewLines.js";
+import {
+  getCodeViewSelectedText,
+  isCodeViewLineSelected,
+  normalizeCodeViewSelection,
+} from "../src/ui-foundation/codeViewSelection.js";
 
 test("CodeView 行模型：行号从 firstLineNumber 起", () => {
   const models = buildCodeViewLineModels({ lineCount: 3, firstLineNumber: 10 });
@@ -96,4 +101,41 @@ test("CodeView 第二层：topComment 范围/提示与行后注释卡", () => {
   assert.match(html, /data-comment-id="c1"/);
   assert.match(html, /L2–3/);
   assert.match(html, /rename this/);
+});
+
+test("选区：反向拖拽归一，选中判断按闭区间", () => {
+  const range = normalizeCodeViewSelection(5, 3);
+  assert.deepEqual(range, { startLine: 3, endLine: 5 });
+  assert.equal(isCodeViewLineSelected(range, 2), false);
+  assert.equal(isCodeViewLineSelected(range, 3), true);
+  assert.equal(isCodeViewLineSelected(range, 5), true);
+  assert.equal(isCodeViewLineSelected(range, 6), false);
+  assert.equal(isCodeViewLineSelected(null, 3), false);
+});
+
+test("选区文本：按 firstLineNumber 切片并夹取边界", () => {
+  const lines = ["a", "b", "c", "d"];
+  assert.equal(
+    getCodeViewSelectedText(lines, { startLine: 11, endLine: 12 }, 10),
+    ["b", "c"].join(String.fromCharCode(10)),
+  );
+  assert.equal(
+    getCodeViewSelectedText(lines, { startLine: 10, endLine: 13 }, 10),
+    ["a", "b", "c", "d"].join(String.fromCharCode(10)),
+  );
+  assert.equal(getCodeViewSelectedText(lines, null, 10), "");
+});
+
+test("gutter：启用后每行有 add 按钮", () => {
+  const html = renderToStaticMarkup(
+    createElement(CodeView, {
+      code: "x",
+      language: "text",
+      enableSyntaxHighlighting: false,
+      enableGutterUtility: true,
+      labels: { addComment: "Add comment" },
+    }),
+  );
+  assert.match(html, /data-slot="code-view-gutter-add"/);
+  assert.match(html, /aria-label="Add comment"/);
 });
