@@ -342,5 +342,6 @@ pdf.js 与 Vite `?url` worker。
    等缩略图与选择/导出层齐备后一次切换；PDF 导出与元素选择仍由旧组件承担；
 2. 〔2026-10-19 完成于暂存组件〕元素命中 → 选中框 → 选区操作条 → `createPptxElementReference`
    加入会话；source fingerprint 由数据内容计算；提示词块构建/解析/去重有测试；
-3. 第三层：PDF 导出（`presentationPdfPrintExport` + `saveFile`）与 reference navigation；
+3. 〔2026-10-19 完成于暂存组件〕PDF 导出（`renderPresentationToPrintHost` + `printPageToPdf` +
+   `saveFile`，文件名 `resolvePptxPdfFileName`）与 reference navigation（fingerprint 匹配后跳页）；
 4. 每层都先补纯逻辑测试，再接 UI；旧文件在人工看屏后删除。

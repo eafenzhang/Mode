@@ -59,3 +59,12 @@ export function resolvePptxIntrinsicPoint(options: {
     y: (options.clientY - options.viewport.top) / scale,
   };
 }
+
+export function resolvePptxPdfFileName(fileName?: string): string {
+  const base = (fileName ?? "")
+    .trim()
+    .replace(/\.[^.]+$/u, "")
+    .replace(/[/:*?"<>|]+/gu, "-")
+    .trim();
+  return `${base || "presentation"}.pdf`;
+}

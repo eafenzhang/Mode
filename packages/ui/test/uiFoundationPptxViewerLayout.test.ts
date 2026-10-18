@@ -11,6 +11,7 @@ import {
   resolvePptxPageDisplaySize,
   resolvePptxIntrinsicPoint,
   resolvePptxPageFromInput,
+  resolvePptxPdfFileName,
   resolvePptxThumbnailScale,
   stepPptxZoom,
 } from "../src/ui-foundation/pptxViewerLayout.js";
@@ -70,4 +71,11 @@ test("坐标换算：客户端点按缩放换算到页面内在坐标", () => {
     }),
     { x: 20, y: 10 },
   );
+});
+
+test("PDF 文件名：去扩展名/非法字符，缺省 presentation.pdf", () => {
+  assert.equal(resolvePptxPdfFileName("deck.pptx"), "deck.pdf");
+  assert.equal(resolvePptxPdfFileName("a/b:c.pptx"), "a-b-c.pdf");
+  assert.equal(resolvePptxPdfFileName(""), "presentation.pdf");
+  assert.equal(resolvePptxPdfFileName(undefined), "presentation.pdf");
 });

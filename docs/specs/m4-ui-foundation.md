@@ -270,7 +270,10 @@ success/warning/destructive。
   每页独立 render/dispose，宽度 96px 等比缩放；
 - 元素选择：工具条指针按钮切换；页面点击用 `resolvePptxIntrinsicPoint` + `hitTestPresentationElement`
   选中元素并叠加选中框；`referenceSource` 存在时通过已切好的选区操作条加入会话；
-- 加载失败显示 `loadError`；本层不含 PDF 导出。
+- PDF 导出：`printPageToPdf` + `saveFile` 平台能力存在时显示导出按钮；`renderPresentationToPrintHost`
+  全量渲染后打印，文件名由 `resolvePptxPdfFileName` 生成；成功/失败/取消分别处理；
+- reference navigation：`requestId` 变化且 fingerprint 匹配时跳到 `pageIndex`；
+- 加载失败显示 `loadError`。
 
 ## 3. 布局与响应式
 

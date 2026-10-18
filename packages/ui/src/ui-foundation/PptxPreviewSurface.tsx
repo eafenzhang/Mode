@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from "react
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  FileDownIcon,
+  Loader2Icon,
   MousePointer2Icon,
   ZoomInIcon,
   ZoomOutIcon,
@@ -24,6 +26,9 @@ import { PptxSelectionActionBar } from "./adapters/pptx-selection-action-bar.js"
 
 import { Button } from "./Button.js";
 import { PptxThumbnail } from "./PptxPreviewThumbnail.js";
+import type { PptxPreviewSurfaceLabels } from "./pptxPreviewLabels.js";
+import { toast } from "./adapters/toast.js";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import {
   resolvePptxIntrinsicPoint,
   resolvePptxPageDisplaySize,
@@ -31,28 +36,16 @@ import {
   stepPptxZoom,
 } from "./pptxViewerLayout.js";
 
-export interface PptxPreviewSurfaceLabels {
-  loading: string;
-  loadError: string;
-  previousPage: string;
-  nextPage: string;
-  pageInput: string;
-  zoomIn: string;
-  zoomOut: string;
-  thumbnails?: string;
-  thumbnail?: (pageNumber: number) => string;
-  selectElement?: string;
-  exitElementSelection?: string;
-  aiEdit?: string;
-  commentPlaceholder?: string;
-  cancelAiEdit?: string;
-  addToConversation?: string;
-}
-
 export interface PptxPreviewSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   data: ArrayBuffer;
   labels: PptxPreviewSurfaceLabels;
   referenceSource?: PptxElementReferenceSource;
+  referenceNavigation?: {
+    requestId: string;
+    pageIndex: number;
+    expectedSourceFingerprint: string;
+  };
+  fileName?: string;
   onOpenBrowserUrl?: (url: string) => void;
 }
 
@@ -60,6 +53,8 @@ export function PptxPreviewSurface({
   data,
   labels,
   referenceSource,
+  referenceNavigation,
+  fileName,
   onOpenBrowserUrl,
   className,
   ...rest
@@ -74,6 +69,8 @@ export function PptxPreviewSurface({
   const [editing, setEditing] = useState(false);
   const [viewport, setViewport] = useState<HTMLElement | null>(null);
   const [sourceFingerprint, setSourceFingerprint] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const platform = useOptionalPlatform();
   const pageRef = useRef<HTMLDivElement | null>(null);
   const pageContentRef = useRef<HTMLDivElement | null>(null);
   const documentRef = useRef<PresentationPreviewDocument | null>(null);
@@ -121,6 +118,42 @@ export function PptxPreviewSurface({
       cancelled = true;
     };
   }, [data]);
+
+  useEffect(() => {
+    if (!referenceNavigation || !document || !sourceFingerprint) {
+      return;
+    }
+    if (referenceNavigation.expectedSourceFingerprint !== sourceFingerprint) {
+      return;
+    }
+    const next = Math.min(Math.max(1, referenceNavigation.pageIndex + 1), document.pageCount);
+    setPageNumber(next);
+    setPageInput(String(next));
+  }, [referenceNavigation, document, sourceFingerprint]);
+
+  const exportPdf = async (): Promise<void> => {
+    const printPageToPdf = platform?.printPageToPdf;
+    const saveFile = platform?.saveFile;
+    if (!document || exporting || !printPageToPdf || !saveFile) {
+      return;
+    }
+    setExporting(true);
+    try {
+      const { exportPptxToPdf } = await import("./pptxPdfExport.js");
+      const result = await exportPptxToPdf({
+        document,
+        platform: { printPageToPdf, saveFile },
+        fileName,
+      });
+      if (result.status === "success") {
+        toast(labels.exportPdfSuccess?.(result.path) ?? result.path);
+      } else if (result.status === "failed") {
+        toast(labels.exportPdfFailed ?? "PDF export failed");
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     const node = pageContentRef.current;
@@ -211,6 +244,22 @@ export function PptxPreviewSurface({
         >
           <MousePointer2Icon className="size-3.5" />
         </Button>
+        {platform?.printPageToPdf && platform.saveFile ? (
+          <Button
+            aria-label={exporting ? labels.exportingPdf : labels.exportPdf}
+            title={exporting ? labels.exportingPdf : labels.exportPdf}
+            size="icon-xs"
+            variant="ghost"
+            disabled={exporting || !document}
+            onClick={() => void exportPdf()}
+          >
+            {exporting ? (
+              <Loader2Icon className="size-3.5 animate-spin" />
+            ) : (
+              <FileDownIcon className="size-3.5" />
+            )}
+          </Button>
+        ) : null}
         <span className="ms-auto flex items-center gap-1">
           <Button
             aria-label={labels.zoomOut}
