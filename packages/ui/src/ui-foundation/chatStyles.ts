@@ -16,8 +16,7 @@ export function messageRowClassName(role: ChatRole, className?: string): string 
 
 export function messageBubbleClassName(role: ChatRole, className?: string): string {
   const base: Record<ChatRole, string> = {
-    user:
-      "max-w-2xl rounded-xl border border-card-border bg-card px-4 py-2.5 text-ui-base text-foreground",
+    user: "max-w-2xl rounded-xl border border-card-border bg-card px-4 py-2.5 text-ui-base text-foreground",
     assistant: "max-w-3xl text-ui-base text-foreground",
     system: "max-w-2xl text-ui-sm text-foreground-subtle",
     tool: "max-w-3xl rounded-xl border border-border bg-surface px-3 py-2 font-mono text-ui-sm text-foreground",
@@ -43,10 +42,7 @@ export function emptyDescriptionClassName(className?: string): string {
 }
 
 export function streamingIndicatorClassName(className?: string): string {
-  return [
-    "inline-flex items-center gap-1 text-ui-xs text-foreground-subtlest",
-    className,
-  ]
+  return ["inline-flex items-center gap-1 text-ui-xs text-foreground-subtlest", className]
     .filter(Boolean)
     .join(" ");
 }

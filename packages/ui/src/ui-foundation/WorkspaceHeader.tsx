@@ -20,18 +20,13 @@ export interface WorkspaceHeaderProps extends Omit<HTMLAttributes<HTMLElement>, 
 }
 
 export const WorkspaceHeader = forwardRef<HTMLElement, WorkspaceHeaderProps>(
-  function WorkspaceHeader(
-    { title, subtitle, leading, status, actions, className, ...rest },
-    ref,
-  ) {
+  function WorkspaceHeader({ title, subtitle, leading, status, actions, className, ...rest }, ref) {
     return (
       <header {...rest} ref={ref} className={workspaceHeaderClassName(className)}>
         {leading ? <div className={workspaceHeaderLeadingClassName()}>{leading}</div> : null}
         <div className="min-w-0 flex-1">
           <div className={workspaceHeaderTitleClassName()}>{title}</div>
-          {subtitle ? (
-            <div className={workspaceHeaderSubtitleClassName()}>{subtitle}</div>
-          ) : null}
+          {subtitle ? <div className={workspaceHeaderSubtitleClassName()}>{subtitle}</div> : null}
         </div>
         {status ? <div className="shrink-0">{status}</div> : null}
         {actions ? <div className={workspaceHeaderActionsClassName()}>{actions}</div> : null}

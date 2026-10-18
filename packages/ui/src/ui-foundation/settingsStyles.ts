@@ -54,10 +54,7 @@ export type PluginAvailability = "bundledUnavailable" | "sourceUnavailable";
  * （plugin-store-availability 的卡片规则）。
  */
 export function pluginCardClassName(className?: string): string {
-  return [
-    "flex flex-col gap-3 rounded-xl border border-card-border bg-card p-4",
-    className,
-  ]
+  return ["flex flex-col gap-3 rounded-xl border border-card-border bg-card p-4", className]
     .filter(Boolean)
     .join(" ");
 }
@@ -80,9 +77,7 @@ export function pluginCardTitleClassName(className?: string): string {
 }
 
 export function pluginCardDescriptionClassName(className?: string): string {
-  return ["line-clamp-2 text-ui-sm text-foreground-subtle", className]
-    .filter(Boolean)
-    .join(" ");
+  return ["line-clamp-2 text-ui-sm text-foreground-subtle", className].filter(Boolean).join(" ");
 }
 
 export function pluginCardActionsClassName(className?: string): string {

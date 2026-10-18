@@ -14,7 +14,7 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
-} from "@/components/ui/input-group.js";
+} from "@/ui-foundation/adapters/input-group.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   MODEL_CONFIG_SELECT_BADGE_CLASS_NAME,

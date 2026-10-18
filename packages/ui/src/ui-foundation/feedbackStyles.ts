@@ -35,10 +35,7 @@ export function tooltipClassName(className?: string): string {
 }
 
 export function tooltipShortcutClassName(className?: string): string {
-  return [
-    "rounded-sm bg-tooltip-tag px-1 text-ui-xs text-tooltip-tag-foreground",
-    className,
-  ]
+  return ["rounded-sm bg-tooltip-tag px-1 text-ui-xs text-tooltip-tag-foreground", className]
     .filter(Boolean)
     .join(" ");
 }

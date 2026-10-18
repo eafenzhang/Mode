@@ -7,6 +7,7 @@
 > **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
 > command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
 > 引用集中在 chart(6) 与各 viewer；旧文件统一保留到人工看屏验收后删除。
+> `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 
 ## 基础件切换顺序（按引用面从小到大）
 
@@ -213,3 +214,13 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 验证：UI 341 passed、typecheck/lint/architecture/language/format（改动文件）通过。
 已知差异：Command 的视觉细节由 cmdk data 属性承载；HoverCard 关闭后不自动恢复焦点（仅 Escape 路径）。
+
+### 后续波次（2026-10-19 第十四轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `input-group` | 2 | 新增 foundation InputGroup：容器统一边框/焦点态，`InputGroupInput/Textarea` 去壳，Addon 支持 inline/block 四个方向，组内按钮复用 foundation Button（ghost + icon 尺寸） |
+| `scroll-fade-viewport` | 2 | 新增 foundation ScrollFadeViewport：ref 指向真实滚动元素，按上/下溢出方向给 1rem 渐变遮罩，`onScroll` 照常透传 |
+
+另：`packages/ui/src/ui-foundation/`（115 文件）已统一过一次 `oxfmt`，`fmt:check` 该目录全绿。
+验证：UI 343 passed、typecheck/lint/architecture/language/format 通过。

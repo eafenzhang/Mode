@@ -4,15 +4,17 @@
 import type { RadiusLevel } from "../lib/uiFoundation.js";
 import { controlRadiusClass } from "./radius.js";
 
-export type ButtonVariant =
-  | "primary"
-  | "outline"
-  | "secondary"
-  | "ghost"
-  | "destructive"
-  | "link";
+export type ButtonVariant = "primary" | "outline" | "secondary" | "ghost" | "destructive" | "link";
 
-export type ButtonSize = "xs" | "sm" | "default" | "lg" | "icon-xs" | "icon-sm" | "icon" | "icon-lg";
+export type ButtonSize =
+  | "xs"
+  | "sm"
+  | "default"
+  | "lg"
+  | "icon-xs"
+  | "icon-sm"
+  | "icon"
+  | "icon-lg";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: "bg-primary text-primary-foreground hover:bg-primary/90",

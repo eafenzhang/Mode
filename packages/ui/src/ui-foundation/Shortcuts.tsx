@@ -14,11 +14,12 @@ export interface ShortcutListProps extends HTMLAttributes<HTMLDListElement> {
   label?: string;
 }
 
-export const ShortcutList = forwardRef<HTMLDListElement, ShortcutListProps>(
-  function ShortcutList({ label, className, ...rest }, ref) {
-    return <dl {...rest} ref={ref} aria-label={label} className={shortcutListClassName(className)} />;
-  },
-);
+export const ShortcutList = forwardRef<HTMLDListElement, ShortcutListProps>(function ShortcutList(
+  { label, className, ...rest },
+  ref,
+) {
+  return <dl {...rest} ref={ref} aria-label={label} className={shortcutListClassName(className)} />;
+});
 
 export interface ShortcutRowProps {
   label: ReactNode;

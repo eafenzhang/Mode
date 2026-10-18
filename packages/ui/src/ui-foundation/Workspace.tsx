@@ -1,12 +1,7 @@
 // P1.4 文件树与任务列表静态结构（plan: docs/plans/2026-10-18-m4-ui-replacement.md P1.4）。
 // 只做展示与 ARIA；文件/任务数据由调用方注入。
 
-import {
-  forwardRef,
-  type HTMLAttributes,
-  type LiHTMLAttributes,
-  type ReactNode,
-} from "react";
+import { forwardRef, type HTMLAttributes, type LiHTMLAttributes, type ReactNode } from "react";
 
 import {
   FILE_TREE_INDENT_BASE_PX,
@@ -33,7 +28,13 @@ export const FileTree = forwardRef<HTMLUListElement, FileTreeProps>(function Fil
   ref,
 ) {
   return (
-    <ul {...rest} ref={ref} role="tree" aria-label={label} className={fileTreeClassName(className)} />
+    <ul
+      {...rest}
+      ref={ref}
+      role="tree"
+      aria-label={label}
+      className={fileTreeClassName(className)}
+    />
   );
 });
 
@@ -47,32 +48,30 @@ export interface FileTreeItemProps extends LiHTMLAttributes<HTMLLIElement> {
   children?: ReactNode;
 }
 
-export const FileTreeItem = forwardRef<HTMLLIElement, FileTreeItemProps>(
-  function FileTreeItem(
-    { depth, kind, label, icon, selected, expanded, className, children, style, ...rest },
-    ref,
-  ) {
-    return (
-      <li
-        {...rest}
-        ref={ref}
-        role="treeitem"
-        aria-level={depth + 1}
-        aria-selected={selected}
-        aria-expanded={kind === "folder" ? Boolean(expanded) : undefined}
-        style={{
-          ...style,
-          paddingInlineStart: FILE_TREE_INDENT_BASE_PX + depth * FILE_TREE_INDENT_STEP_PX,
-        }}
-        className={fileTreeItemClassName({ selected, className })}
-      >
-        {icon ? <span className={fileTreeIconClassName()}>{icon}</span> : null}
-        <span className={fileTreeLabelClassName()}>{label}</span>
-        {children ? <ul role="group">{children}</ul> : null}
-      </li>
-    );
-  },
-);
+export const FileTreeItem = forwardRef<HTMLLIElement, FileTreeItemProps>(function FileTreeItem(
+  { depth, kind, label, icon, selected, expanded, className, children, style, ...rest },
+  ref,
+) {
+  return (
+    <li
+      {...rest}
+      ref={ref}
+      role="treeitem"
+      aria-level={depth + 1}
+      aria-selected={selected}
+      aria-expanded={kind === "folder" ? Boolean(expanded) : undefined}
+      style={{
+        ...style,
+        paddingInlineStart: FILE_TREE_INDENT_BASE_PX + depth * FILE_TREE_INDENT_STEP_PX,
+      }}
+      className={fileTreeItemClassName({ selected, className })}
+    >
+      {icon ? <span className={fileTreeIconClassName()}>{icon}</span> : null}
+      <span className={fileTreeLabelClassName()}>{label}</span>
+      {children ? <ul role="group">{children}</ul> : null}
+    </li>
+  );
+});
 
 export interface TaskListProps extends HTMLAttributes<HTMLUListElement> {
   label: string;
@@ -82,9 +81,7 @@ export const TaskList = forwardRef<HTMLUListElement, TaskListProps>(function Tas
   { label, className, ...rest },
   ref,
 ) {
-  return (
-    <ul {...rest} ref={ref} aria-label={label} className={taskListClassName(className)} />
-  );
+  return <ul {...rest} ref={ref} aria-label={label} className={taskListClassName(className)} />;
 });
 
 export interface TaskStatusBadgeProps extends HTMLAttributes<HTMLSpanElement> {

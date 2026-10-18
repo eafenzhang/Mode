@@ -73,7 +73,13 @@ export function usePanelResize(options: UsePanelResizeOptions): PanelResize {
         return;
       }
       const coordinate = orientation === "vertical" ? event.clientX : event.clientY;
-      onResize(resizeFromPointer(drag.startSize, pointerDelta(orientation, drag.startCoordinate, coordinate), bounds));
+      onResize(
+        resizeFromPointer(
+          drag.startSize,
+          pointerDelta(orientation, drag.startCoordinate, coordinate),
+          bounds,
+        ),
+      );
     },
     [orientation, bounds, onResize],
   );
@@ -103,6 +109,12 @@ export function usePanelResize(options: UsePanelResizeOptions): PanelResize {
 
   return {
     dragging,
-    handleProps: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture },
+    handleProps: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel,
+      onLostPointerCapture,
+    },
   };
 }

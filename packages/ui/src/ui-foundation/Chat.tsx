@@ -76,7 +76,12 @@ export function StreamingIndicator({
   ...rest
 }: StreamingIndicatorProps): ReactNode {
   return (
-    <div {...rest} role="status" aria-label={label} className={streamingIndicatorClassName(className)}>
+    <div
+      {...rest}
+      role="status"
+      aria-label={label}
+      className={streamingIndicatorClassName(className)}
+    >
       {[0, 1, 2].map((index) => (
         <span
           key={index}

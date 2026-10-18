@@ -19,10 +19,7 @@ import {
   workspaceShellClassName,
   type ResizeOrientation,
 } from "./shellStyles.js";
-import {
-  resizeFromKeyboard,
-  type ResizeBounds,
-} from "./resizeMath.js";
+import { resizeFromKeyboard, type ResizeBounds } from "./resizeMath.js";
 import type { PanelResizeHandleProps } from "./usePanelResize.js";
 
 export interface ResizeHandleProps extends HTMLAttributes<HTMLDivElement> {
@@ -36,53 +33,51 @@ export interface ResizeHandleProps extends HTMLAttributes<HTMLDivElement> {
   step?: number;
 }
 
-export const ResizeHandle = forwardRef<HTMLDivElement, ResizeHandleProps>(
-  function ResizeHandle(
-    {
-      orientation,
-      label,
-      dragging = false,
-      size,
-      bounds,
-      onResize,
-      step,
-      className,
-      onKeyDown,
-      ...rest
-    },
-    ref,
-  ) {
-    const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-      onKeyDown?.(event);
-      if (event.defaultPrevented || size === undefined || !bounds || !onResize) {
-        return;
-      }
-      const next = resizeFromKeyboard(size, event.key, bounds, step);
-      if (next === null) {
-        return;
-      }
-      event.preventDefault();
-      onResize(next);
-    };
-
-    return (
-      <div
-        {...rest}
-        ref={ref}
-        role="separator"
-        aria-label={label}
-        aria-orientation={orientation}
-        aria-valuenow={size}
-        aria-valuemin={bounds?.min}
-        aria-valuemax={bounds?.max}
-        tabIndex={0}
-        data-dragging={dragging || undefined}
-        onKeyDown={handleKeyDown}
-        className={resizeHandleClassName(orientation, className)}
-      />
-    );
+export const ResizeHandle = forwardRef<HTMLDivElement, ResizeHandleProps>(function ResizeHandle(
+  {
+    orientation,
+    label,
+    dragging = false,
+    size,
+    bounds,
+    onResize,
+    step,
+    className,
+    onKeyDown,
+    ...rest
   },
-);
+  ref,
+) {
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented || size === undefined || !bounds || !onResize) {
+      return;
+    }
+    const next = resizeFromKeyboard(size, event.key, bounds, step);
+    if (next === null) {
+      return;
+    }
+    event.preventDefault();
+    onResize(next);
+  };
+
+  return (
+    <div
+      {...rest}
+      ref={ref}
+      role="separator"
+      aria-label={label}
+      aria-orientation={orientation}
+      aria-valuenow={size}
+      aria-valuemin={bounds?.min}
+      aria-valuemax={bounds?.max}
+      tabIndex={0}
+      data-dragging={dragging || undefined}
+      onKeyDown={handleKeyDown}
+      className={resizeHandleClassName(orientation, className)}
+    />
+  );
+});
 
 /** 由 usePanelResize 提供的尺寸 + 指针/键盘绑定。 */
 export interface PanelResizeBinding {

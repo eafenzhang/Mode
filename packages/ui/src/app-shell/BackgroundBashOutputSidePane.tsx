@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useRef } from "react";
 import { ArrowDownIcon, LoaderCircleIcon } from "lucide-react";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
+import { ScrollFadeViewport } from "@/ui-foundation/adapters/scroll-fade-viewport.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useBackgroundBashOutput } from "@/hooks/useBackgroundBashOutput.js";
 import { logger } from "@/logger.js";

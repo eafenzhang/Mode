@@ -1,19 +1,10 @@
 // P1.1 Menu primitive（spec: docs/specs/m4-ui-foundation.md §2.4）。
 // 菜单 shell rounded-lg；选项 rounded-md、紧凑行、2px 垂直间距由父级 gap-0.5 控制。
 
-import {
-  forwardRef,
-  type ButtonHTMLAttributes,
-  type HTMLAttributes,
-  type ReactNode,
-} from "react";
+import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
 
 import { Separator } from "./Separator.js";
-import {
-  menuClassName,
-  menuGroupClassName,
-  menuItemClassName,
-} from "./surfaceStyles.js";
+import { menuClassName, menuGroupClassName, menuItemClassName } from "./surfaceStyles.js";
 
 export interface MenuProps extends HTMLAttributes<HTMLDivElement> {
   label?: string;
@@ -60,7 +51,13 @@ export const MenuGroup = forwardRef<HTMLDivElement, MenuGroupProps>(function Men
   ref,
 ) {
   return (
-    <div {...rest} ref={ref} role="group" aria-label={label} className={menuGroupClassName(className)} />
+    <div
+      {...rest}
+      ref={ref}
+      role="group"
+      aria-label={label}
+      className={menuGroupClassName(className)}
+    />
   );
 });
 

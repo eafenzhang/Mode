@@ -18,12 +18,7 @@ export interface QueuedInputListProps extends HTMLAttributes<HTMLUListElement> {
 export const QueuedInputList = forwardRef<HTMLUListElement, QueuedInputListProps>(
   function QueuedInputList({ label, className, ...rest }, ref) {
     return (
-      <ul
-        {...rest}
-        ref={ref}
-        aria-label={label}
-        className={queuedInputListClassName(className)}
-      />
+      <ul {...rest} ref={ref} aria-label={label} className={queuedInputListClassName(className)} />
     );
   },
 );

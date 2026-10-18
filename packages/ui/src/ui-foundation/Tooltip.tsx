@@ -23,9 +23,7 @@ export const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(function Tooltip
   return (
     <div {...rest} ref={ref} role="tooltip" className={tooltipClassName(className)}>
       {children}
-      {shortcut ? (
-        <kbd className={tooltipShortcutClassName()}>{shortcut}</kbd>
-      ) : null}
+      {shortcut ? <kbd className={tooltipShortcutClassName()}>{shortcut}</kbd> : null}
     </div>
   );
 });

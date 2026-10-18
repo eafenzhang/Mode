@@ -6,13 +6,7 @@ export interface ResizeBounds {
   max: number;
 }
 
-export type ResizeKey =
-  | "ArrowLeft"
-  | "ArrowRight"
-  | "ArrowUp"
-  | "ArrowDown"
-  | "Home"
-  | "End";
+export type ResizeKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" | "Home" | "End";
 
 export const RESIZE_KEYBOARD_STEP = 16;
 
@@ -31,11 +25,7 @@ export function clampPanelSize(size: number, bounds: ResizeBounds): number {
 }
 
 /** 指针拖拽：从起始尺寸累加 delta（向内容外侧为正）。 */
-export function resizeFromPointer(
-  startSize: number,
-  delta: number,
-  bounds: ResizeBounds,
-): number {
+export function resizeFromPointer(startSize: number, delta: number, bounds: ResizeBounds): number {
   return clampPanelSize(startSize + delta, bounds);
 }
 

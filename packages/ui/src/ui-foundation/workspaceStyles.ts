@@ -6,9 +6,7 @@ export const FILE_TREE_INDENT_BASE_PX = 8;
 export const FILE_TREE_INDENT_STEP_PX = 12;
 
 export function fileTreeClassName(className?: string): string {
-  return ["flex min-h-0 flex-1 flex-col overflow-y-auto py-1", className]
-    .filter(Boolean)
-    .join(" ");
+  return ["flex min-h-0 flex-1 flex-col overflow-y-auto py-1", className].filter(Boolean).join(" ");
 }
 
 export interface FileTreeItemClassNameOptions {

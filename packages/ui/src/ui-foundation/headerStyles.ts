@@ -1,10 +1,7 @@
 // P1.2 WorkspaceHeader 的类名契约（spec: docs/specs/m4-ui-foundation.md §3）。
 
 export function workspaceHeaderClassName(className?: string): string {
-  return [
-    "flex min-h-9 shrink-0 items-center gap-2 border-b border-border px-3 py-1.5",
-    className,
-  ]
+  return ["flex min-h-9 shrink-0 items-center gap-2 border-b border-border px-3 py-1.5", className]
     .filter(Boolean)
     .join(" ");
 }

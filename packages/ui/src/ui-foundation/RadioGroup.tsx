@@ -13,7 +13,13 @@ export const RadioGroup = forwardRef<HTMLDivElement, RadioGroupProps>(function R
   ref,
 ) {
   return (
-    <div {...rest} ref={ref} role="radiogroup" aria-label={label} className={radioGroupClassName(className)} />
+    <div
+      {...rest}
+      ref={ref}
+      role="radiogroup"
+      aria-label={label}
+      className={radioGroupClassName(className)}
+    />
   );
 });
 

@@ -25,11 +25,12 @@ export const Avatar = forwardRef<HTMLSpanElement, AvatarProps>(function Avatar(
 
 export type AvatarImageProps = ImgHTMLAttributes<HTMLImageElement>;
 
-export const AvatarImage = forwardRef<HTMLImageElement, AvatarImageProps>(
-  function AvatarImage({ className, alt = "", ...rest }, ref) {
-    return <img {...rest} ref={ref} alt={alt} className={avatarImageClassName(className)} />;
-  },
-);
+export const AvatarImage = forwardRef<HTMLImageElement, AvatarImageProps>(function AvatarImage(
+  { className, alt = "", ...rest },
+  ref,
+) {
+  return <img {...rest} ref={ref} alt={alt} className={avatarImageClassName(className)} />;
+});
 
 export interface AvatarFallbackProps extends HTMLAttributes<HTMLSpanElement> {
   children?: ReactNode;
@@ -45,21 +46,30 @@ export interface AvatarBadgeProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: AvatarBadgeTone;
 }
 
-export const AvatarBadge = forwardRef<HTMLSpanElement, AvatarBadgeProps>(
-  function AvatarBadge({ tone, className, ...rest }, ref) {
-    return <span {...rest} ref={ref} aria-hidden="true" className={avatarBadgeClassName(tone, className)} />;
-  },
-);
+export const AvatarBadge = forwardRef<HTMLSpanElement, AvatarBadgeProps>(function AvatarBadge(
+  { tone, className, ...rest },
+  ref,
+) {
+  return (
+    <span
+      {...rest}
+      ref={ref}
+      aria-hidden="true"
+      className={avatarBadgeClassName(tone, className)}
+    />
+  );
+});
 
 export interface AvatarGroupProps extends HTMLAttributes<HTMLSpanElement> {
   children?: ReactNode;
 }
 
-export const AvatarGroup = forwardRef<HTMLSpanElement, AvatarGroupProps>(
-  function AvatarGroup({ className, ...rest }, ref) {
-    return <span {...rest} ref={ref} className={avatarGroupClassName(className)} />;
-  },
-);
+export const AvatarGroup = forwardRef<HTMLSpanElement, AvatarGroupProps>(function AvatarGroup(
+  { className, ...rest },
+  ref,
+) {
+  return <span {...rest} ref={ref} className={avatarGroupClassName(className)} />;
+});
 
 export interface AvatarGroupCountProps extends HTMLAttributes<HTMLSpanElement> {
   count: number;

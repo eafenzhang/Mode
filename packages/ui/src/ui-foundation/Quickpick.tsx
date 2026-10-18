@@ -24,7 +24,9 @@ export const QuickpickPanel = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivE
 
 export const QuickpickInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   function QuickpickInput({ className, ...rest }, ref) {
-    return <input {...rest} ref={ref} type="search" className={quickpickInputClassName(className)} />;
+    return (
+      <input {...rest} ref={ref} type="search" className={quickpickInputClassName(className)} />
+    );
   },
 );
 
@@ -35,7 +37,13 @@ export interface QuickpickListProps extends HTMLAttributes<HTMLUListElement> {
 export const QuickpickList = forwardRef<HTMLUListElement, QuickpickListProps>(
   function QuickpickList({ label, className, ...rest }, ref) {
     return (
-      <ul {...rest} ref={ref} role="listbox" aria-label={label} className={quickpickListClassName(className)} />
+      <ul
+        {...rest}
+        ref={ref}
+        role="listbox"
+        aria-label={label}
+        className={quickpickListClassName(className)}
+      />
     );
   },
 );
@@ -61,9 +69,6 @@ export const QuickpickItem = forwardRef<HTMLButtonElement, QuickpickItemProps>(
   },
 );
 
-export function QuickpickEmpty({
-  className,
-  children,
-}: HTMLAttributes<HTMLDivElement>): ReactNode {
+export function QuickpickEmpty({ className, children }: HTMLAttributes<HTMLDivElement>): ReactNode {
   return <div className={quickpickEmptyClassName(className)}>{children}</div>;
 }

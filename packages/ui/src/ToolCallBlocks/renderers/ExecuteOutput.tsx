@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { logger } from "@/logger.js";
-import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
+import { ScrollFadeViewport } from "@/ui-foundation/adapters/scroll-fade-viewport.js";
 
 export function ExecuteOutput({ text, running }: { text: string; running: boolean }) {
   const scroll = useRef<HTMLDivElement>(null);

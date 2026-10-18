@@ -4,8 +4,7 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 
 import { switchThumbClassName, switchTrackClassName } from "./formStyles.js";
 
-export interface SwitchProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> {
+export interface SwitchProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> {
   checked: boolean;
   onCheckedChange?: (checked: boolean) => void;
   /** 可访问名称（i18n）；缺省时由调用方通过 aria-label 提供。 */

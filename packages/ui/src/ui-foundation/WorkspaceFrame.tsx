@@ -6,18 +6,17 @@ import { useEffect, useState, type ReactElement } from "react";
 import { AppShell, type AppShellProps } from "./AppShell.js";
 import { usePanelResize } from "./usePanelResize.js";
 import type { ResizeBounds } from "./resizeMath.js";
-import {
-  resolveInitialPanelSize,
-  type PanelSizePersistence,
-} from "./panelSizePersistence.js";
+import { resolveInitialPanelSize, type PanelSizePersistence } from "./panelSizePersistence.js";
 
 const TERMINAL_BOUNDS: ResizeBounds = { min: 96, max: 480 };
 const SIDE_PANE_BOUNDS: ResizeBounds = { min: 240, max: 640 };
 const DEFAULT_TERMINAL_HEIGHT = 224;
 const DEFAULT_SIDE_PANE_WIDTH = 320;
 
-export interface WorkspaceFrameProps
-  extends Omit<AppShellProps, "terminalResize" | "sidePaneResize"> {
+export interface WorkspaceFrameProps extends Omit<
+  AppShellProps,
+  "terminalResize" | "sidePaneResize"
+> {
   initialTerminalHeight?: number;
   terminalBounds?: ResizeBounds;
   initialSidePaneWidth?: number;

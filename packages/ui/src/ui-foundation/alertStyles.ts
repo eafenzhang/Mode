@@ -16,7 +16,11 @@ export interface AlertClassNameOptions {
 
 export function alertClassName(options: AlertClassNameOptions = {}): string {
   const tone = options.tone ?? "neutral";
-  return ["flex items-start gap-3 rounded-xl border p-3", ALERT_TONE_CLASSES[tone], options.className]
+  return [
+    "flex items-start gap-3 rounded-xl border p-3",
+    ALERT_TONE_CLASSES[tone],
+    options.className,
+  ]
     .filter(Boolean)
     .join(" ");
 }

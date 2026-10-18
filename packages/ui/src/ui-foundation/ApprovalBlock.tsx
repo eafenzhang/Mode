@@ -21,34 +21,30 @@ export interface ApprovalBlockProps extends Omit<HTMLAttributes<HTMLElement>, "t
   actions?: ReactNode;
 }
 
-export const ApprovalBlock = forwardRef<HTMLElement, ApprovalBlockProps>(
-  function ApprovalBlock(
-    { title, description, status, statusLabel, actions, className, ...rest },
-    ref,
-  ) {
-    return (
-      <section
-        {...rest}
-        ref={ref}
-        aria-label={typeof title === "string" ? title : undefined}
-        data-status={status}
-        className={approvalBlockClassName(className)}
-      >
-        <div className="flex min-w-0 items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <div className={approvalTitleClassName()}>{title}</div>
-            {description ? (
-              <div className={approvalDescriptionClassName()}>{description}</div>
-            ) : null}
-          </div>
-          {statusLabel ? (
-            <span aria-live="polite" className={approvalStatusClassName(status)}>
-              {statusLabel}
-            </span>
-          ) : null}
+export const ApprovalBlock = forwardRef<HTMLElement, ApprovalBlockProps>(function ApprovalBlock(
+  { title, description, status, statusLabel, actions, className, ...rest },
+  ref,
+) {
+  return (
+    <section
+      {...rest}
+      ref={ref}
+      aria-label={typeof title === "string" ? title : undefined}
+      data-status={status}
+      className={approvalBlockClassName(className)}
+    >
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className={approvalTitleClassName()}>{title}</div>
+          {description ? <div className={approvalDescriptionClassName()}>{description}</div> : null}
         </div>
-        {actions ? <div className={approvalActionsClassName()}>{actions}</div> : null}
-      </section>
-    );
-  },
-);
+        {statusLabel ? (
+          <span aria-live="polite" className={approvalStatusClassName(status)}>
+            {statusLabel}
+          </span>
+        ) : null}
+      </div>
+      {actions ? <div className={approvalActionsClassName()}>{actions}</div> : null}
+    </section>
+  );
+});

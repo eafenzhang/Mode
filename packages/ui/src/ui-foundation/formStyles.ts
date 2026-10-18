@@ -67,9 +67,7 @@ export function progressTrackClassName(className?: string): string {
 }
 
 export function progressIndicatorClassName(className?: string): string {
-  return ["h-full rounded-full bg-primary transition-all", className]
-    .filter(Boolean)
-    .join(" ");
+  return ["h-full rounded-full bg-primary transition-all", className].filter(Boolean).join(" ");
 }
 
 /** 进度百分比：非法值归 0，超界 clamp，避免除零。 */

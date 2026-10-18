@@ -13,15 +13,11 @@ export function selectContentClassName(className?: string): string {
 
 /** 选项沿用菜单行语言；选中优先 check 标记，不做整行强填充。 */
 export function selectItemClassName(className?: string): string {
-  return [menuItemClassName(), "aria-selected:font-medium", className]
-    .filter(Boolean)
-    .join(" ");
+  return [menuItemClassName(), "aria-selected:font-medium", className].filter(Boolean).join(" ");
 }
 
 export function selectGroupLabelClassName(className?: string): string {
-  return ["px-2 py-1 text-ui-xs text-foreground-subtlest", className]
-    .filter(Boolean)
-    .join(" ");
+  return ["px-2 py-1 text-ui-xs text-foreground-subtlest", className].filter(Boolean).join(" ");
 }
 
 export interface SelectValueClassNameOptions {

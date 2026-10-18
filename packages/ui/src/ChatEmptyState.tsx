@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui-foundation/adapters/dropdown-menu.js";
-import { InputGroup, InputGroupAddon } from "@/components/ui/input-group.js";
+import { InputGroup, InputGroupAddon } from "@/ui-foundation/adapters/input-group.js";
 import {
   ChevronDownIcon,
   Cloud,

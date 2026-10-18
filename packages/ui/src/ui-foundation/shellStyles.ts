@@ -2,15 +2,11 @@
 // 只使用 DESIGN.md 的语义 token；布局 frame 不计入内容半径层级。
 
 export function workspaceShellClassName(className?: string): string {
-  return ["flex h-full min-h-0 w-full gap-1 bg-background", className]
-    .filter(Boolean)
-    .join(" ");
+  return ["flex h-full min-h-0 w-full gap-1 bg-background", className].filter(Boolean).join(" ");
 }
 
 export function conversationColumnClassName(className?: string): string {
-  return ["flex min-h-0 min-w-0 flex-1 flex-col gap-1", className]
-    .filter(Boolean)
-    .join(" ");
+  return ["flex min-h-0 min-w-0 flex-1 flex-col gap-1", className].filter(Boolean).join(" ");
 }
 
 export function conversationFrameClassName(className?: string): string {
@@ -46,10 +42,7 @@ export type ResizeOrientation = "vertical" | "horizontal";
  * 4px 透明命中区；hover/focus/drag 时显示 2px `foreground-subtlest/50` 线，
  * 线在两端按 frame 圆角内缩（DESIGN.md「Workspace layout」）。
  */
-export function resizeHandleClassName(
-  orientation: ResizeOrientation,
-  className?: string,
-): string {
+export function resizeHandleClassName(orientation: ResizeOrientation, className?: string): string {
   const axis =
     orientation === "vertical"
       ? "w-1 cursor-col-resize after:inset-y-2 after:left-1/2 after:w-0.5 after:-translate-x-1/2"

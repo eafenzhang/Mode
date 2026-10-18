@@ -152,6 +152,22 @@ success/warning/destructive。
 - 浮层本身可悬停：指针移入内容时取消关闭计时；
 - 定位与 Popover 共用视口收敛口径；Esc 关闭；关闭后焦点回到触发器。
 
+### 2.11 InputGroup
+
+- 容器与 Input 同语言：`border border-input-border bg-input rounded-md`，聚焦时
+  `focus-within:border-input-border-focused`；内部 input/textarea 去掉独立边框与背景；
+- Addon 用 `align`（`inline-start` / `inline-end` / `block-start` / `block-end`）表达位置，
+  行内 addon 与输入同高、`px-1.5`；
+- 组内按钮使用 Button 的 `ghost` 语义与 `icon-*` 尺寸，不引入第二套按钮样式；
+- 组内控件继承容器圆角，不再各自圆角。
+
+### 2.12 ScrollFadeViewport
+
+- 滚动容器在内容可向上/向下滚动时，用 1rem 渐变遮罩提示边界；
+- 无溢出或到达端点时对应方向不显示遮罩；
+- ref 必须指向真实滚动元素（调用方用它读写 `scrollTop`）；
+- 遮罩不影响命中与滚动，`onScroll` 等原生事件照常透传。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -211,7 +227,9 @@ success/warning/destructive。
 `packages/ui/test/uiFoundationCollapsibleSpinner.test.ts`；
 命令面板与标签在 `Command.tsx` / `commandStyles.ts` / `Label.tsx` / `Kbd.tsx`，
 用例 `uiFoundationCommand.test.ts` / `uiFoundationLabelKbd.test.ts`；
-HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`。
+HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`；
+输入组合与滚动遮罩在 `InputGroup.tsx` / `ScrollFadeViewport.tsx`，用例
+`uiFoundationInputGroupScroll.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

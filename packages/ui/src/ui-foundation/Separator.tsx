@@ -2,10 +2,7 @@
 
 import { forwardRef, type HTMLAttributes } from "react";
 
-import {
-  separatorClassName,
-  type SeparatorOrientation,
-} from "./separatorStyles.js";
+import { separatorClassName, type SeparatorOrientation } from "./separatorStyles.js";
 
 export interface SeparatorProps extends HTMLAttributes<HTMLDivElement> {
   orientation?: SeparatorOrientation;

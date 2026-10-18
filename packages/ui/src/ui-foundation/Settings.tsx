@@ -1,11 +1,6 @@
 // P1.5 设置页与插件卡片静态结构（plan: docs/plans/2026-10-18-m4-ui-replacement.md P1.5）。
 
-import {
-  forwardRef,
-  type ButtonHTMLAttributes,
-  type HTMLAttributes,
-  type ReactNode,
-} from "react";
+import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
 
 import {
   pluginAvailabilityBadgeClassName,
@@ -137,12 +132,7 @@ export interface PluginUnavailableHintProps extends HTMLAttributes<HTMLDivElemen
 export const PluginUnavailableHint = forwardRef<HTMLDivElement, PluginUnavailableHintProps>(
   function PluginUnavailableHint({ className, children, ...rest }, ref) {
     return (
-      <div
-        {...rest}
-        ref={ref}
-        role="note"
-        className={pluginDetailHintClassName(className)}
-      >
+      <div {...rest} ref={ref} role="note" className={pluginDetailHintClassName(className)}>
         {children}
       </div>
     );

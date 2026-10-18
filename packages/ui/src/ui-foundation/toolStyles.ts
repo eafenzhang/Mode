@@ -39,10 +39,7 @@ export function toolStatusClassName(state: ToolBlockState, className?: string): 
 
 /** 工具正文：技术内容用 mono；结果可能很长，保留换行并允许断词。 */
 export function toolBodyClassName(className?: string): string {
-  return [
-    "mt-2 whitespace-pre-wrap break-words font-mono text-ui-sm text-foreground",
-    className,
-  ]
+  return ["mt-2 whitespace-pre-wrap break-words font-mono text-ui-sm text-foreground", className]
     .filter(Boolean)
     .join(" ");
 }

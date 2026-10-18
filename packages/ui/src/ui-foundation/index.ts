@@ -435,3 +435,19 @@ export {
 } from "./Command.js";
 export { Label, type LabelProps } from "./Label.js";
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./Kbd.js";
+export {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+  InputGroupTextarea,
+  type InputGroupAddonAlign,
+  type InputGroupAddonProps,
+  type InputGroupButtonProps,
+  type InputGroupInputProps,
+  type InputGroupProps,
+  type InputGroupTextareaProps,
+  type InputGroupTextProps,
+} from "./InputGroup.js";
+export { ScrollFadeViewport, type ScrollFadeViewportProps } from "./ScrollFadeViewport.js";

@@ -66,10 +66,7 @@ export function cardActionClassName(className?: string): string {
 
 /** 菜单 shell：bg-menu + rounded-lg + shadow-md + p-1；交互浮层层级高于 Tooltip。 */
 export function menuClassName(className?: string): string {
-  return [
-    "z-50 bg-menu border border-popover-border rounded-lg shadow-md p-1",
-    className,
-  ]
+  return ["z-50 bg-menu border border-popover-border rounded-lg shadow-md p-1", className]
     .filter(Boolean)
     .join(" ");
 }
@@ -96,9 +93,7 @@ export function menuGroupClassName(className?: string): string {
 }
 
 export function menuLabelClassName(className?: string): string {
-  return ["px-2 py-1 text-ui-xs text-foreground-subtlest", className]
-    .filter(Boolean)
-    .join(" ");
+  return ["px-2 py-1 text-ui-xs text-foreground-subtlest", className].filter(Boolean).join(" ");
 }
 
 /** 独立浮层：bg-popover + 从 xl 起的嵌套半径；位于 Tooltip 之上。 */
@@ -114,10 +109,7 @@ export function popoverClassName(parentRadius: RadiusLevel = "none", className?:
 
 /** Dialog shell 固定 rounded-2xl；内部内容重新从 xl 起；位于 Tooltip 之上。 */
 export function dialogClassName(className?: string): string {
-  return [
-    "z-50 bg-popover border border-popover-border rounded-2xl shadow-md",
-    className,
-  ]
+  return ["z-50 bg-popover border border-popover-border rounded-2xl shadow-md", className]
     .filter(Boolean)
     .join(" ");
 }
