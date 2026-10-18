@@ -22,7 +22,7 @@ import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { PopoverAnchor } from "@/ui-foundation/adapters/popover.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
-import { PptxSelectionActionBar } from "@/components/ui/pptx-selection-action-bar.js";
+import { PptxSelectionActionBar } from "@/ui-foundation/adapters/pptx-selection-action-bar.js";
 import { cn } from "@/components/lib/utils.js";
 import { logger } from "@/logger.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";

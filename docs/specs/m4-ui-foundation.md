@@ -224,6 +224,14 @@ success/warning/destructive。
 - 加载中/加载失败/无数据均给出可见文案；`onLoadError` 透传 Error；
 - 文档选项复用 `createPdfJsDocumentOptions`（cMap/字体资源），`labels` 只覆盖传入的键。
 
+### 2.19 PptxSelectionActionBar
+
+- 内部保持 children（幻灯片渲染）原样，操作条通过 portal 定位在选区可视区顶部中央；
+- `boundary` 用于夹取水平位置，窗口 resize / 滚动时重新计算；
+- 非编辑态显示 AI 编辑与退出选择两个按钮；编辑态显示 textarea、取消与「加入会话」；
+- 提交前 trim，空内容不提交；Escape 在编辑态取消编辑、否则退出选择；IME 组合中不响应 Escape；
+- `disabled` 时所有动作禁用。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -293,7 +301,9 @@ HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`
 （行契约在 `lightweightDiffTokens.ts`），用例 `uiFoundationLightweightDiff.test.ts`；
 指标翻牌在 `FlipMetricValue.tsx`，用例 `uiFoundationFlipMetric.test.ts`；
 PDF 预览在 `adapters/pdf-viewer.tsx`（纯输入/边界在 `pdfViewerSource.ts`），用例
-`uiFoundationPdfViewer.test.ts`（只测纯函数，不加载 pdf.js）。
+`uiFoundationPdfViewer.test.ts`（只测纯函数，不加载 pdf.js）；PPTX 选区操作条在
+`adapters/pptx-selection-action-bar.tsx`（纯计算在 `pptxSelectionState.ts`），用例
+`uiFoundationPptxSelection.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

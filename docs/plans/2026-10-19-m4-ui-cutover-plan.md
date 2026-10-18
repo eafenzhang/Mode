@@ -6,7 +6,7 @@
 >
 > **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
 > command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
-> 引用集中在 code/pptx viewer 与 pptx 选择操作条；旧文件统一保留到人工看屏验收后删除。
+> 引用集中在 code-viewer 与 pptx-preview-viewer；旧文件统一保留到人工看屏验收后删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 
 ## 基础件切换顺序（按引用面从小到大）
@@ -281,3 +281,12 @@ checkbox → alert → textarea`（可加 `badge`）。
 验证：UI 361 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：缩放不再围绕指针锚点（旧实现的手势锚点/预览层未复刻）；`pdf-viewer` 不放进
 adapter barrel，避免只想要轻量 adapter 的调用方被迫加载 pdf.js 与 Vite `?url` worker。
+
+### 后续波次（2026-10-19 第二十一轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `pptx-selection-action-bar` | 1（被 pptx-preview-viewer 使用） | 新增 adapter：children 原位渲染，操作条 portal 到 body 并按 boundary 夹取水平位置；AI 编辑/退出选择、编辑态 textarea + 取消/加入会话；Escape 分态处理并跳过 IME；提交前 trim、空值不提交 |
+
+验证：UI 363 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：操作条垂直位置固定在 boundary 顶部（旧实现可能贴近选区），水平只做视口夹取。
