@@ -237,6 +237,14 @@
   `MODE_PLUGIN_HOST_ASSET_URL` 覆盖；`sha256` 按 bundle 字节计算。
 - bundle 可直接用 `node` 跑；`probe-plugin-sidecar.mts` 支持
   `MODE_PLUGIN_HOST_BUNDLE=<path>` 验证 bundle 形态（hello/listTools/callTool 全通过）。
+- **bundle 校验（2026-10-18 落地）**：`buildPluginHostBundle()` 可注入输出目录/entry/
+  version/platform/assetUrl，供测试复用。校验契约：
+  1. `manifest.schemaVersion=1`，`entry` 指向的文件存在且非空；
+  2. `sha256` 等于 bundle 字节的 sha256；
+  3. `assetUrl` 默认 `plugin-host.mjs`，环境变量/参数覆盖生效；
+  4. 以 `MODE_DATA_BASE_DIR=<空目录>` 启动 bundle，`plugin/health` 返回
+     `{ok:true,servers:0}`，`plugin/listTools` 返回 `{tools:[]}`；
+  5. 用例：`packages/desktop/tests/plugin-host-bundle.test.mts`（随 CI 的 desktop 测试跑）。
 - **未做**：CDN 上传与真实 `assetUrl` 的部署、JS bundle 的 Node 版本矩阵。
 
 ## 6. 复现
