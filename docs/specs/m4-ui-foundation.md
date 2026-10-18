@@ -148,7 +148,9 @@ success/warning/destructive。
 `findUiTypographyViolations` / `UI_TEXT_TOKENS`），用例
 `packages/ui/test/uiFoundation.test.ts`。Button 的类名契约与 primitive 在
 `packages/ui/src/ui-foundation/`（`buttonStyles.ts` / `Button.tsx` / `index.ts`），
-用例 `packages/ui/test/uiFoundationButton.test.ts`。后续 primitives 复用这些函数，
+用例 `packages/ui/test/uiFoundationButton.test.ts`。输入类控件在
+`inputStyles.ts` / `Input.tsx` / `Textarea.tsx` / `SelectTrigger.tsx`（半径映射共用
+`radius.ts`），用例 `packages/ui/test/uiFoundationField.test.ts`。后续 primitives 复用这些函数，
 不再各写一套。
 
 ## 6. 不在本 spec 范围

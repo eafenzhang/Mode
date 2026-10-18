@@ -1,10 +1,8 @@
 // P1.1 Button 的类名纯函数（spec: docs/specs/m4-ui-foundation.md §2.1）。
 // 只从 DESIGN.md 的语义 token 与尺寸表出发；不引用旧 button 实现。
 
-import {
-  resolveControlRadius,
-  type RadiusLevel,
-} from "../lib/uiFoundation.js";
+import type { RadiusLevel } from "../lib/uiFoundation.js";
+import { controlRadiusClass } from "./radius.js";
 
 export type ButtonVariant =
   | "primary"
@@ -36,15 +34,6 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   "icon-lg": "size-9 text-ui-base",
 };
 
-const RADIUS_CLASSES: Record<RadiusLevel, string> = {
-  none: "rounded-lg",
-  sm: "rounded-sm",
-  md: "rounded-md",
-  lg: "rounded-lg",
-  xl: "rounded-lg",
-  "2xl": "rounded-lg",
-};
-
 export interface ButtonClassNameOptions {
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -56,8 +45,7 @@ export interface ButtonClassNameOptions {
 export function buttonClassName(options: ButtonClassNameOptions = {}): string {
   const variant = options.variant ?? "primary";
   const size = options.size ?? "default";
-  const parentRadius = options.parentRadius ?? "xl";
-  const radius = RADIUS_CLASSES[resolveControlRadius(parentRadius)];
+  const radius = controlRadiusClass(options.parentRadius);
   return [
     "inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium",
     "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
