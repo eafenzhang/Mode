@@ -337,6 +337,8 @@ pdf.js 与 Vite `?url` worker。
 **B. `pptx-preview-viewer`**
 
 1. 第一层：`pptxRendererPreviewEngine.open` + 单页 `renderPage` + 页码/缩放工具条 + 缩略图懒加载；PDF 导出与元素选择先保留旧组件；
-2. 第二层：元素命中（已测 `hitTestPresentationElement`）→ 选区操作条（已切 adapter）→ `createPptxElementReference` 加入会话；
+2. 第二层：元素命中（已测 `hitTestPresentationElement`）→ 选区操作条（已切 adapter）→
+   `createPptxElementReference` 加入会话；提示词块构建/解析与去重已由
+   `uiFoundationPptxElementReference.test.ts` 钉住（2026-10-19）；
 3. 第三层：PDF 导出（`presentationPdfPrintExport`）与 reference navigation；
 4. 每层都先补纯逻辑测试，再接 UI；旧文件在人工看屏后删除。
