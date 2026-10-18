@@ -221,6 +221,8 @@ success/warning/destructive。
 - range 模式关闭自动预取/流式加载，chunk 256 KiB；
 - 工具栏提供上一页/下一页、页码输入（Enter/失焦提交并夹在 1..numPages）、放大/缩小
   （25%–400%，步进 25%）；按钮用 `aria-label` 来自 `labels`；
+- 缩放围绕指针（Ctrl/Cmd+滚轮）或视口中心（按钮），缩放后恢复滚动位置，
+  避免内容从可视区跳走；
 - 加载中/加载失败/无数据均给出可见文案；`onLoadError` 透传 Error；
 - 文档选项复用 `createPdfJsDocumentOptions`（cMap/字体资源），`labels` 只覆盖传入的键。
 

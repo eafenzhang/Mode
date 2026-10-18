@@ -1,7 +1,15 @@
 // M4 adapter：PdfViewer（旧 API：source/labels/onLoadError）。
 // 渲染交给 react-pdf；这里只做 source 归一、页码/缩放工具条与错误文案。
 
-import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 import { ChevronLeftIcon, ChevronRightIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
 import type { DocumentProps, PageProps } from "react-pdf";
@@ -9,6 +17,11 @@ import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 import { Button } from "../Button.js";
 import { createPdfJsDocumentOptions } from "@/lib/pdfJsAssets.js";
+import {
+  capturePdfZoomAnchor,
+  restorePdfZoomAnchor,
+  type PdfZoomAnchor,
+} from "@/components/ui/usePdfZoomOverlay.js";
 import {
   clampPdfPage,
   clampPdfScale,
@@ -78,6 +91,9 @@ export function PdfViewer({
   const [pageInput, setPageInput] = useState("1");
   const [scale, setScale] = useState(PDF_DEFAULT_SCALE);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const pageViewportRef = useRef<HTMLDivElement | null>(null);
+  const scaleRef = useRef(scale);
+  const [pendingAnchor, setPendingAnchor] = useState<PdfZoomAnchor | null>(null);
 
   const isRange = isPdfViewerRangeSource(source);
   const file = useMemo<DocumentProps["file"]>(() => {
@@ -102,7 +118,33 @@ export function PdfViewer({
     setPageInput(String(clamped));
   };
 
-  const changeScale = (next: number): void => setScale(clampPdfScale(next));
+  const changeScale = (next: number, pointer?: { clientX: number; clientY: number }): void => {
+    const container = scrollRef.current;
+    const viewport = pageViewportRef.current;
+    if (container && viewport) {
+      const anchor = capturePdfZoomAnchor(container, viewport, pointer);
+      if (anchor) {
+        setPendingAnchor(anchor);
+      }
+    }
+    setScale(clampPdfScale(next));
+  };
+
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
+  useLayoutEffect(() => {
+    if (!pendingAnchor) {
+      return;
+    }
+    const container = scrollRef.current;
+    const viewport = pageViewportRef.current;
+    if (container && viewport) {
+      restorePdfZoomAnchor(container, viewport, pendingAnchor);
+    }
+    setPendingAnchor(null);
+  }, [pendingAnchor]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -114,9 +156,10 @@ export function PdfViewer({
         return;
       }
       event.preventDefault();
-      setScale((current) =>
-        clampPdfScale(current + (event.deltaY < 0 ? PDF_ZOOM_STEP : -PDF_ZOOM_STEP)),
-      );
+      changeScale(scaleRef.current + (event.deltaY < 0 ? PDF_ZOOM_STEP : -PDF_ZOOM_STEP), {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
     };
     node.addEventListener("wheel", handleWheel, { passive: false });
     return () => node.removeEventListener("wheel", handleWheel);
@@ -202,14 +245,16 @@ export function PdfViewer({
           }}
           onLoadError={(error: Error) => onLoadError?.(error)}
         >
-          <Page
-            pageNumber={pageNumber}
-            scale={scale}
-            renderTextLayer
-            renderAnnotationLayer
-            className="mx-auto shadow-md"
-            loading=""
-          />
+          <div ref={pageViewportRef} className="mx-auto w-fit">
+            <Page
+              pageNumber={pageNumber}
+              scale={scale}
+              renderTextLayer
+              renderAnnotationLayer
+              className="shadow-md"
+              loading=""
+            />
+          </div>
         </Document>
       </div>
     </div>

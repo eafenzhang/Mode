@@ -7,6 +7,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  capturePdfZoomAnchor,
+  restorePdfZoomAnchor,
+} from "../src/components/ui/usePdfZoomOverlay.js";
+import {
   clampPdfPage,
   clampPdfScale,
   isPdfViewerRangeSource,
@@ -52,4 +56,49 @@ test("页码与缩放夹取到合法区间", () => {
   assert.equal(clampPdfScale(0.1), PDF_MIN_SCALE);
   assert.equal(clampPdfScale(10), PDF_MAX_SCALE);
   assert.equal(clampPdfScale(1.5), 1.5);
+});
+
+function fakeElement(rect: { left: number; top: number; width: number; height: number }) {
+  return {
+    getBoundingClientRect: () => ({
+      ...rect,
+      right: rect.left + rect.width,
+      bottom: rect.top + rect.height,
+      x: rect.left,
+      y: rect.top,
+      toJSON: () => ({}),
+    }),
+  } as unknown as HTMLDivElement;
+}
+
+test("缩放锚点：按指针相对页面的比例记录，越界时夹取", () => {
+  const container = fakeElement({ left: 0, top: 0, width: 1000, height: 800 });
+  const page = fakeElement({ left: 100, top: 100, width: 500, height: 600 });
+  const anchor = capturePdfZoomAnchor(container, page, { clientX: 350, clientY: 400 });
+  assert.deepEqual(anchor, {
+    clientX: 350,
+    clientY: 400,
+    pageXRatio: 0.5,
+    pageYRatio: 0.5,
+  });
+  const clamped = capturePdfZoomAnchor(container, page, { clientX: 9999, clientY: -50 });
+  assert.equal(clamped?.pageXRatio, 1);
+  assert.equal(clamped?.pageYRatio, 0);
+});
+
+test("缩放锚点：恢复时按滚动容器写回偏差", () => {
+  const container = {
+    scrollLeft: 0,
+    scrollTop: 0,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 1000, height: 800 }),
+  } as unknown as HTMLDivElement;
+  const page = fakeElement({ left: 120, top: 160, width: 600, height: 720 });
+  restorePdfZoomAnchor(container, page, {
+    clientX: 300,
+    clientY: 300,
+    pageXRatio: 0.5,
+    pageYRatio: 0.5,
+  });
+  assert.equal(container.scrollLeft, 120);
+  assert.equal(container.scrollTop, 220);
 });
