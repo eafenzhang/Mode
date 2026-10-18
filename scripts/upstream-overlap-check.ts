@@ -72,6 +72,23 @@ export function isExempt(path: string): boolean {
   return EXEMPT_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
+/**
+ * M4 范围豁免（2026-10-18 用户裁决，选项 (c)）：Host sidecar / 传输层是 M3 决定复用的
+ * Node 运行时，随 Rust 运行时迁移一起清零。单列报告、不进 headline；**不是永久豁免**——
+ * Rust 运行时迁移完成后必须移除本列表（见 spec 的重开条件）。
+ */
+export const DEFERRED_PREFIXES = [
+  "packages/services/",
+  "packages/shared/",
+  "packages/rpc/",
+  "packages/server/",
+  "packages/provider/",
+] as const;
+
+export function isDeferred(path: string): boolean {
+  return DEFERRED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 /** 行数：按 `\n` 切分，末尾换行不产生空行；空文本 0 行。 */
 export function countLines(text: string): number {
   if (text.length === 0) {
@@ -244,10 +261,12 @@ function decodeText(bytes: Buffer): string | null {
 export interface OverlapReport {
   baseline: string;
   baselineSha: string | null;
-  /** 自研面（已排除 vendored）；headline 只看这一份。 */
+  /** M4 计分面（已排除 vendored 与 M4 范围豁免）；headline 只看这一份。 */
   summary: OverlapSummary | null;
-  /** vendored 前缀下的同路径文件；单列报告，不参与 headline。 */
+  /** vendored / 许可证原文；单列报告，不参与 headline。 */
   excludedSummary: OverlapSummary | null;
+  /** M4 范围豁免（sidecar/传输层）；单列报告，随 Rust 运行时迁移清零。 */
+  deferredSummary: OverlapSummary | null;
   files: FileOverlap[];
   oursOnlyPaths: string[];
   upstreamOnlyPaths: string[];
@@ -261,6 +280,7 @@ async function computeReport(baseline: string): Promise<OverlapReport> {
       baselineSha: null,
       summary: null,
       excludedSummary: null,
+      deferredSummary: null,
       files: [],
       oursOnlyPaths: [],
       upstreamOnlyPaths: [],
@@ -271,10 +291,10 @@ async function computeReport(baseline: string): Promise<OverlapReport> {
   const upstream = listTree(sha);
   const commonPaths = [...ours.keys()].filter((path) => upstream.has(path)).sort();
   const oursOnlyPaths = [...ours.keys()]
-    .filter((path) => !upstream.has(path) && !isExempt(path))
+    .filter((path) => !upstream.has(path) && !isExempt(path) && !isDeferred(path))
     .sort();
   const upstreamOnlyPaths = [...upstream.keys()]
-    .filter((path) => !ours.has(path) && !isExempt(path))
+    .filter((path) => !ours.has(path) && !isExempt(path) && !isDeferred(path))
     .sort();
   const mismatched = commonPaths.filter((path) => ours.get(path)!.sha !== upstream.get(path)!.sha);
   const mismatchShas = new Set(mismatched.map((path) => ours.get(path)!.sha));
@@ -315,8 +335,11 @@ async function computeReport(baseline: string): Promise<OverlapReport> {
     };
   });
 
-  const trackedFiles = files.filter((file) => !isExempt(file.path));
   const excludedFiles = files.filter((file) => isExempt(file.path));
+  const deferredFiles = files.filter((file) => !isExempt(file.path) && isDeferred(file.path));
+  const trackedFiles = files.filter(
+    (file) => !isExempt(file.path) && !isDeferred(file.path),
+  );
 
   return {
     baseline,
@@ -329,6 +352,10 @@ async function computeReport(baseline: string): Promise<OverlapReport> {
       excludedFiles.length === 0
         ? null
         : summarize(excludedFiles, { oursOnly: 0, upstreamOnly: 0 }),
+    deferredSummary:
+      deferredFiles.length === 0
+        ? null
+        : summarize(deferredFiles, { oursOnly: 0, upstreamOnly: 0 }),
     files,
     oursOnlyPaths,
     upstreamOnlyPaths,
@@ -357,6 +384,14 @@ function renderReport(report: OverlapReport, list: boolean): string {
     lines.push(
       `excluded (from headline): ${excluded.common} files / ${excluded.commonLines} lines ` +
         `(identical ${excluded.identical.files}, normalized ${excluded.normalized.files})`,
+    );
+  }
+  if (report.deferredSummary) {
+    const deferred = report.deferredSummary;
+    lines.push(
+      `deferred (M4 scope exception; cleared with the Rust runtime migration): ` +
+        `${deferred.common} files / ${deferred.commonLines} lines ` +
+        `(identical ${deferred.identical.files}, normalized ${deferred.normalized.files})`,
     );
   }
   for (const [top, bucket] of [...topLevelCounts(report.files)].sort(([a], [b]) =>
@@ -394,6 +429,7 @@ async function main(): Promise<void> {
           baselineSha: report.baselineSha,
           summary: report.summary,
           excluded: report.excludedSummary,
+          deferred: report.deferredSummary,
           oursOnly: report.oursOnlyPaths,
           upstreamOnly: report.upstreamOnlyPaths,
           files: report.files,

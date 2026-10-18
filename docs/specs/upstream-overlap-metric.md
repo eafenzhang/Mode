@@ -45,22 +45,35 @@ M5 作为硬门禁。它只产出**统计与路径清单**，绝不输出上游�
 （第三方复制件），`scripts/license-texts/**` 是台账引用的第三方许可证原文；三者**不参与 headline**，
 单独报告文件/行数与两档计数。把它们算进「自研重合度」会让 0% 永远不可达，也会掩盖真正的自研面。
 
+**M4 范围豁免（2026-10-18 用户裁决，选项 (c)）**：Host sidecar / 传输层——
+`packages/services/**`、`packages/shared/**`、`packages/rpc/**`、`packages/server/**`、
+`packages/provider/**`——是 M3 决定复用的 Node 运行时，**随 Rust 运行时迁移一起清零**。
+这些路径不进 M4 headline，单列 `deferred (M4 scope exception; cleared with the Rust runtime migration)`。
+
+- 这不是永久豁免：Rust 运行时迁移完成（对应包被 Rust 实现替代或删除）后，必须从
+  `DEFERRED_PREFIXES` 移除并重新计入 headline；移除动作要改本 spec + 路线图，不能只改脚本。
+- 新增/扩大豁免前缀必须单独裁决并记录在案；脚本里的列表不是可随手扩的旋钮。
+- 当前实测：deferred 517 文件 / 122,689 行（identical 121、normalized 105）。
+
 ## 指标
 
-- **文件计数**：各档文件数；`ours-only` / `upstream-only` 单列，不参与重合度（vendored 不计入）。
-- **行数**：对两侧都是 UTF-8 文本的同路径**非 vendored** 文件，按 `\n` 切分（末尾换行不产生空行）。
+- **文件计数**：各档文件数；`ours-only` / `upstream-only` 单列，不参与重合度（vendored 与
+  M4 范围豁免不计入）。
+- **行数**：对两侧都是 UTF-8 文本的同路径**计分面**文件（排除 vendored 与 deferred），
+  按 `\n` 切分（末尾换行不产生空行）。
   - 分子 = `identical` 与 `normalized` 的行数（取当前树侧）；
-  - 分母 = 所有同路径**非 vendored** 文本文件的行数（当前树侧）；
+  - 分母 = 所有同路径计分面文本文件的行数（当前树侧）；
   - **headline = 分子 / 分母**，即路线图所说「两档的行数占比」。
 - 二进制文件只影响文件计数，不影响 headline。
-- 豁免面单独一组输出（`excluded (from headline): …`），口径同三档，但不进 headline。
+- 豁免面单独一组输出（`excluded (from headline): …`），deferred 单独一组
+  （`deferred (M4 scope exception; …)`），口径同三档，都不进 headline。
 
 ## 退出码
 
 | 模式 | 行为 |
 | --- | --- |
 | 默认（report） | 打印摘要与按顶层目录的分布，退出 0 |
-| `--json` | 输出机器可读 JSON：`summary` / `excluded` / `oursOnly` / `upstreamOnly`，外加 `files[]`（每项 `path`、`tier`、`lines`，供按模块排期）与 `identical` / `normalized` 路径数组，退出 0 |
+| `--json` | 输出机器可读 JSON：`summary` / `excluded` / `deferred` / `oursOnly` / `upstreamOnly`，外加 `files[]`（每项 `path`、`tier`、`lines`，供按模块排期）与 `identical` / `normalized` 路径数组，退出 0 |
 | `--list` | 追加两档的文件路径（仅路径，无内容） |
 | `--strict` | headline > 0 或基线缺失时退出 1/2；M4 完成前的 CI **不启用** |
 

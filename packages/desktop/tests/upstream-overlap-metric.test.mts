@@ -10,6 +10,7 @@ import test from "node:test";
 import {
   classifyPair,
   countLines,
+  isDeferred,
   isExempt,
   normalizeBrand,
   parseLsTree,
@@ -65,6 +66,21 @@ test("豁免前缀（vendored 与许可证原文）不参与 headline", () => {
   assert.equal(isExempt("scripts/license-texts/CC-BY-4.0.txt"), true);
   assert.equal(isExempt("packages/ui/src/app.tsx"), false);
   assert.equal(isExempt("third-partyish/file.ts"), false);
+});
+
+test("M4 范围豁免只覆盖 sidecar/传输层前缀", () => {
+  for (const path of [
+    "packages/services/src/node.ts",
+    "packages/shared/src/git.ts",
+    "packages/rpc/src/protocol.ts",
+    "packages/server/src/http.ts",
+    "packages/provider/src/config.ts",
+  ]) {
+    assert.equal(isDeferred(path), true, path);
+  }
+  assert.equal(isDeferred("packages/ui/src/App.tsx"), false);
+  assert.equal(isDeferred("packages/desktop/src/main/index.ts"), false);
+  assert.equal(isDeferred("packages/services-extra/x.ts"), false);
 });
 
 test("parseLsTree 只收 blob，跳过 tree 与 submodule", () => {
