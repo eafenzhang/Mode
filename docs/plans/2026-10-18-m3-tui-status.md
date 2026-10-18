@@ -180,4 +180,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   重复分隔符折叠、UNC 前导双斜杠保留、cwd 前缀剔除容忍尾部/混合分隔符与盘符大小写。
   行为由输入形态驱动（模拟 `process.platform = linux` 输出一致），可安全在 Linux CI 运行；
   上一轮“反斜杠被吞”结论是探针 heredoc 转义丢失造成的伪像，函数本身正确；
+- 第二十批（`app-event-data` 续）：`validContextUsage` 只保留非负数值的
+  contextUsed/contextWindow；`modelNetworkRequestTargetFromPayload` 仅在 url 为非空字符串时
+  采用，否则回退占位 `model`；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。

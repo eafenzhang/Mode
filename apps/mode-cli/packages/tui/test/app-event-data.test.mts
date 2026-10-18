@@ -5,7 +5,9 @@ import {
   cacheStatsFromPayload,
   contextWindowFromPayload,
   formatEventError,
+  modelNetworkRequestTargetFromPayload,
   usageFromPayload,
+  validContextUsage,
 } from "../src/app-event-data.js";
 
 test("contextWindowFromPayload：只认非负数值的 contextWindow", () => {
@@ -71,4 +73,27 @@ test("cacheStatsFromPayload：保留部分字段", () => {
   assert.equal(stats?.lastCacheHit, true);
   assert.equal(stats?.cacheReadTokens, undefined);
   assert.equal(stats?.totalMessages, undefined);
+});
+
+test("validContextUsage：只保留非负数值字段", () => {
+  assert.deepEqual(validContextUsage({ contextWindow: 100, contextUsed: 40 }), {
+    contextUsed: 40,
+    contextWindow: 100,
+  });
+  assert.deepEqual(validContextUsage({ contextWindow: 100, contextUsed: -1 }), {
+    contextWindow: 100,
+  });
+  assert.deepEqual(validContextUsage({ contextUsed: 0 }), { contextUsed: 0 });
+  assert.deepEqual(validContextUsage({ contextUsed: "4" } as never), {});
+  assert.deepEqual(validContextUsage({}), {});
+});
+
+test("modelNetworkRequestTargetFromPayload：非空字符串 url，否则回退 model", () => {
+  assert.equal(
+    modelNetworkRequestTargetFromPayload({ url: "https://api.example.com/v1" }).url,
+    "https://api.example.com/v1",
+  );
+  assert.equal(modelNetworkRequestTargetFromPayload({ url: "" }).url, "model");
+  assert.equal(modelNetworkRequestTargetFromPayload({ url: 42 }).url, "model");
+  assert.equal(modelNetworkRequestTargetFromPayload({}).url, "model");
 });
