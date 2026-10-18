@@ -10,7 +10,13 @@ import {
   type ReactNode,
 } from "react";
 
-import { dialogClassName } from "./surfaceStyles.js";
+import {
+  dialogClassName,
+  dialogDescriptionClassName,
+  dialogFooterClassName,
+  dialogHeaderClassName,
+  dialogTitleClassName,
+} from "./surfaceStyles.js";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -115,3 +121,27 @@ export const Dialog = forwardRef<HTMLDivElement, DialogProps>(function Dialog(
     </div>
   );
 });
+
+export const DialogHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function DialogHeader({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={dialogHeaderClassName(className)} />;
+  },
+);
+
+export const DialogTitle = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function DialogTitle({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={dialogTitleClassName(className)} />;
+  },
+);
+
+export const DialogDescription = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function DialogDescription({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={dialogDescriptionClassName(className)} />;
+  },
+);
+
+export const DialogFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function DialogFooter({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={dialogFooterClassName(className)} />;
+  },
+);

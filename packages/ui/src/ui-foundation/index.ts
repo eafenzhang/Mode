@@ -36,9 +36,28 @@ export {
   type CardProps,
 } from "./Card.js";
 export { Badge, type BadgeProps } from "./Badge.js";
-export { Dialog, type DialogProps } from "./Dialog.js";
+export {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  type DialogProps,
+} from "./Dialog.js";
 export { Input, type InputProps } from "./Input.js";
-export { Menu, MenuItem, type MenuItemProps, type MenuProps } from "./Menu.js";
+export {
+  Menu,
+  MenuCheckboxItem,
+  MenuGroup,
+  MenuItem,
+  MenuRadioItem,
+  MenuSeparator,
+  type MenuCheckboxItemProps,
+  type MenuGroupProps,
+  type MenuItemProps,
+  type MenuProps,
+  type MenuRadioItemProps,
+} from "./Menu.js";
 export { OnboardingShell, type OnboardingShellProps } from "./Onboarding.js";
 export { Popover, type PopoverProps } from "./Popover.js";
 export {
@@ -71,6 +90,17 @@ export {
 export { ShortcutList, ShortcutRow, type ShortcutListProps, type ShortcutRowProps } from "./Shortcuts.js";
 export { SelectTrigger, type SelectTriggerProps } from "./SelectTrigger.js";
 export { Separator, type SeparatorProps } from "./Separator.js";
+export {
+  SelectContent,
+  SelectGroup,
+  SelectGroupLabel,
+  SelectItem,
+  SelectValue,
+  type SelectContentProps,
+  type SelectGroupProps,
+  type SelectItemProps,
+  type SelectValueProps,
+} from "./Select.js";
 export {
   PluginCard,
   PluginUnavailableHint,
@@ -141,11 +171,23 @@ export {
   containerRadiusClass,
   dialogClassName,
   menuClassName,
+  menuGroupClassName,
   menuItemClassName,
+  dialogHeaderClassName,
+  dialogTitleClassName,
+  dialogDescriptionClassName,
+  dialogFooterClassName,
   popoverClassName,
   type CardClassNameOptions,
   type MenuItemClassNameOptions,
 } from "./surfaceStyles.js";
+export {
+  selectContentClassName,
+  selectGroupLabelClassName,
+  selectItemClassName,
+  selectValueClassName,
+  type SelectValueClassNameOptions,
+} from "./selectStyles.js";
 export {
   tabClassName,
   tabListClassName,

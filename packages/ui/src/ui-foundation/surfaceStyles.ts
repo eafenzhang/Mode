@@ -91,6 +91,10 @@ export function menuItemClassName(options: MenuItemClassNameOptions = {}): strin
     .join(" ");
 }
 
+export function menuGroupClassName(className?: string): string {
+  return ["flex flex-col gap-0.5", className].filter(Boolean).join(" ");
+}
+
 /** 独立浮层：bg-popover + 从 xl 起的嵌套半径；位于 Tooltip 之上。 */
 export function popoverClassName(parentRadius: RadiusLevel = "none", className?: string): string {
   return [
@@ -110,4 +114,20 @@ export function dialogClassName(className?: string): string {
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+export function dialogHeaderClassName(className?: string): string {
+  return ["flex flex-col gap-1.5", className].filter(Boolean).join(" ");
+}
+
+export function dialogTitleClassName(className?: string): string {
+  return ["text-ui-lg font-medium text-foreground", className].filter(Boolean).join(" ");
+}
+
+export function dialogDescriptionClassName(className?: string): string {
+  return ["text-ui-sm text-foreground-subtle", className].filter(Boolean).join(" ");
+}
+
+export function dialogFooterClassName(className?: string): string {
+  return ["flex items-center justify-end gap-2 pt-2", className].filter(Boolean).join(" ");
 }

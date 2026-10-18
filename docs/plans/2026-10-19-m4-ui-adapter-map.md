@@ -12,11 +12,11 @@
 | `input.tsx` | `Input`、`inputVariants` | `Input` + `inputClassName` | **可直接换**；variant 归一到 fieldSize |
 | `textarea.tsx` | `Textarea` | `Textarea` | **可直接换** |
 | `card.tsx` | `Card`、`CardHeader`、`CardTitle`、`CardDescription`、`CardContent`、`CardFooter`、`CardAction` | `Card` | **可直接换**：子件已补（Header/Title/Description/Content/Footer/Action） |
-| `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `Dialog` | **部分**：composable 待补 |
-| `alert-dialog.tsx` | 复合导出 | `Dialog` + `Button` | **部分**：同上 |
-| `dropdown-menu.tsx` | 复合导出 | `Menu` / `MenuItem` | **部分**：Trigger/Content/Sub/Separator/Checkbox/Radio 待补 |
+| `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `Dialog` + Header/Title/Description/Footer | **已补子件**（2026-10-19）；Trigger 语义待 adapter |
+| `alert-dialog.tsx` | 复合导出 | `Dialog` + `Button` | **已补子件**；Trigger 语义待 adapter |
+| `dropdown-menu.tsx` | 复合导出 | `Menu`/`MenuItem`/`MenuGroup`/`MenuSeparator`/`MenuCheckboxItem`/`MenuRadioItem` | **已补**（2026-10-19）；Trigger/Sub 待 adapter |
 | `popover.tsx` | 复合导出 | `Popover` | **部分**：Trigger/Content/Anchor 待补 |
-| `select.tsx` | 复合导出 | `SelectTrigger` | **部分**：Content/Item/Group/Value 待补 |
+| `select.tsx` | 复合导出 | `SelectTrigger`/`SelectContent`/`SelectItem`/`SelectGroup`/`SelectValue` | **已补**（2026-10-19） |
 | `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent` | `Tabs` / `Tab` | **部分**：命名对齐 + Content 待补 |
 | `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `Tooltip` | **部分**：Provider/Trigger 待补 |
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |
@@ -62,8 +62,8 @@
 ## 5. 下一步可执行项
 
 1. 〔已完成 2026-10-19〕补 Card 子组件（Header/Title/Description/Content/Footer/Action）；
-2. 补 Dialog 的 Header/Footer/Title/Description 与 Trigger 语义；
-3. 补 Menu 的 Trigger/Content/Separator/Checkbox/Radio；
-4. 补 Select Content/Item/Group/Value 与 Tooltip Trigger/Provider；
+2. 〔已完成 2026-10-19〕补 Dialog 的 Header/Footer/Title/Description；Trigger 语义留 adapter；
+3. 〔已完成 2026-10-19〕补 Menu 的 Group/Separator/Checkbox/Radio；Trigger/Sub 留 adapter；
+4. 〔已完成 2026-10-19〕补 Select Content/Item/Group/Value；Tooltip Trigger/Provider 待补；
 5. 〔已完成 2026-10-19〕补 Badge/Separator 两个高频缺口；
 6. 之后按 P1.2→P1.7 顺序落 adapter。
