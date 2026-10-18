@@ -200,7 +200,8 @@ Host 的传输实现怎么写、甚至 M4 的替换计划要不要跟着动。�
   - 渲染层**是否需要改**，若需要，改动点与最小改动面；
   - 一条可复现的验证命令与它的实测输出。
 
-- [ ] **Step 1: 读接口面，写下 spike 要回答的三个问题**
+- [x] **Step 1: 读接口面，写下 spike 要回答的三个问题**
+  〔2026-10-19 核对：三个问题与接口面结论已落在 spike 文档开头与 §3。〕
 
 只读接口面：`packages/rpc/src/protocol.ts` 的 `MessagePortLike`/`MessagePortProtocol`、
 `packages/rpc/src/channelServer.ts` 的 `ChannelServer` 构造函数与 `ready()`、
@@ -210,26 +211,30 @@ Host 的传输实现怎么写、甚至 M4 的替换计划要不要跟着动。�
 `connectViaMessagePort(port)` 调用点？**(c)** 注入对象的 `addEventListener/postMessage` 语义
 能否满足 `ChannelServer` 的 `Initialize` 往返？
 
-- [ ] **Step 2: 路线 (1) 的实测——Tauri 初始化脚本 + 端口转移**
+- [x] **Step 2: 路线 (1) 的实测——Tauri 初始化脚本 + 端口转移**
+  〔2026-10-19 核对：路线 1 字面机制不可行；可用形态 1′ 已跑通（Rust 挂 initialization_script → 页面建 MessageChannel → postMessage 转移 port1）。〕
 
 在 `apps/desktop-tauri/experiments/port-transport/` 里做最小验证：壳侧建端口、页面加载前注入
 一个能 `postMessage` 的对象、页面侧用它做一次往返打印结果。
 Run: `node scripts/rust-cargo.ts build --release -p mode-tauri` 后启动该实验壳。
 Expected: 记录**具体**结果——可以是「可行（附 API 名与最小代码）」或「不可行（附报错原文）」。
 
-- [ ] **Step 3: 路线 (2) 的实测——壳内桥 + `MessagePortLike` 适配器**
+- [x] **Step 3: 路线 (2) 的实测——壳内桥 + `MessagePortLike` 适配器**
+  〔2026-10-19 核对：1′ 已满足需求，未采用桥接路线；理由与对比写在 spike 文档。〕
 
 若 Step 2 不可行：壳起一个本地桥（Tauri IPC channel 或 loopback WebSocket），页面侧用一个满足
 `MessagePortLike` 的适配器包住它，再喂给 `connectViaMessagePort`。
 Expected: 同上，记录可行性与**渲染层是否必须改动**。
 
-- [ ] **Step 4: 路线 (3) 的评估——为什么必须新增传输**
+- [x] **Step 4: 路线 (3) 的评估——为什么必须新增传输**
+  〔2026-10-19 核对：未走到新增传输；1′ 渲染层零改动，故不需要 packages/rpc 新接口。〕
 
 只有在 (1)(2) 都不可行时才走。写明：需要 `packages/rpc` 提供什么新接口、谁消费、
 以及它对 M4 替换计划的影响。**若走到这一步，停下来向人确认**——这已超出「把存量 renderer 挂上」
 的范围，属新增接口设计。
 
-- [ ] **Step 5: 收口 spike 文档并提交**
+- [x] **Step 5: 收口 spike 文档并提交**
+  〔2026-10-19 核对：`docs/plans/2026-10-16-m3-port-transport-spike.md` 已完成，复现面在 `apps/desktop-tauri/test/harness/port-transport/`；提交 `76d7a417`/`f9457baa`/`5ea17bb3`。〕
 
 `docs/plans/2026-10-16-m3-port-transport-spike.md` 至少含：结论（选了哪条路线及为什么）、
 证据（命令 + 原始输出 + 关键 API 名）、**渲染层是否需要改**、以及「Task 1 可以据此开始」的明确
