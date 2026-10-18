@@ -193,6 +193,9 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
       `plugin_tools` 覆盖 Session 侧错误事件形状。
 - [x] **Step 3：E2E**（2026-10-18）：`probe-plugin-install-uninstall.mts`——安装前 `[]` →
       安装+refresh 工具出现并可调用 → 卸载+refresh 后 `[]`。
+- [x] **CI 门禁**（2026-10-18）：release 的 Rust 测试列表已加入
+      `agent-protocol` / `agent-tools` / `agent-core` / `plugin-host` / `plugin-host-adapter`；
+      本地按该命令实跑全绿。
 - [ ] **Step 4：`cargo clippy -D warnings` + 相关测试全绿；提交。**
 
 ---

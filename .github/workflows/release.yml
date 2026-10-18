@@ -569,7 +569,13 @@ jobs:
           # updater 的 conf↔常量守卫（端点 / pubkey 非空且可解析）也在这条命令里
           # （M5 评审 B4a）。sidecar-host 会真拉 Node 子进程，需要 PATH 上有 node。
           # `--locked`：锁文件漂移直接失败，不允许 CI 静默重写（M5 评审 B3）。
-          cargo test --locked -p platform -p protocol -p updater -p deeplink -p sidecar-host -p browser-import-host
+          # agent-* / plugin-host* 是 M2/M3 的运行时与插件宿主：虽然暂未随 Tauri 安装包
+          # 发布，但它们的对拍/生命周期套件必须持续跑，否则会在本地绿、发布时才发现腐烂。
+          # 这些测试会 spawn node 与 bash（GitHub Windows runner 的 PATH 上都有）。
+          cargo test --locked \
+            -p platform -p protocol -p updater -p deeplink -p sidecar-host -p browser-import-host \
+            -p agent-protocol -p agent-tools -p agent-core \
+            -p plugin-host -p plugin-host-adapter
           # `--all-targets` 覆盖 workspace 全部 crate 的 lib/bin/test/bench；
           # 被 required-features 门住的三个 harness bin 由下面的单独步骤覆盖。
           cargo clippy --locked --workspace --all-targets -- -D warnings
