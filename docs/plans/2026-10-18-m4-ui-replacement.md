@@ -10,6 +10,18 @@
 使 `packages/ui` 在重合度指标（`docs/specs/upstream-overlap-metric.md`）里归零，
 同时保持功能等价（允许视觉差异，不允许功能差异）。
 
+## D8 裁决（2026-10-19，用户拍板）
+
+| 项 | 决定 | 含义 |
+| --- | --- | --- |
+| 落点 | **(a) 原地重建 `packages/ui`** | `ui-foundation` 留在 `packages/ui/src/ui-foundation/`；不新建 `ui-next` |
+| 切换 | **(a) 逐屏替换 + adapter** | 保留旧导出名，一屏一屏验收后再删除旧实现 |
+| 状态层 | 推荐口径 | `store/`、`hooks/` 留在 `packages/ui`，新 UI 只替换渲染层 |
+| 旧代码 | **验收通过后删除** | 对应屏验收通过即删除旧组件；不长期双轨 |
+
+**影响**：`@mode/ui` 包名与 `App` 导出保持不变，调用方零改动；`ui-foundation/adapters/`
+承接旧 props 形状；每屏的删除动作以该屏的验收记录为前提。
+
 ## 当前读数（2026-10-18）
 
 `packages/ui/src` 在重合度指标中占 **32,626 行**（identical 19,312 + normalized 13,314），

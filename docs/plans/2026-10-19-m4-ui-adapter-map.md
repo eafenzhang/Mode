@@ -11,7 +11,7 @@
 | `button.tsx` | `Button`、`buttonVariants` | `ui-foundation/Button` + `buttonClassName` | **可直接换**；variant/size 名称需对齐 |
 | `input.tsx` | `Input`、`inputVariants` | `Input` + `inputClassName` | **可直接换**；variant 归一到 fieldSize |
 | `textarea.tsx` | `Textarea` | `Textarea` | **可直接换** |
-| `card.tsx` | `Card`、`CardHeader`、`CardTitle`、`CardDescription`、`CardContent`、`CardFooter`、`CardAction` | `Card` | **部分**：子组件待补 |
+| `card.tsx` | `Card`、`CardHeader`、`CardTitle`、`CardDescription`、`CardContent`、`CardFooter`、`CardAction` | `Card` | **可直接换**：子件已补（Header/Title/Description/Content/Footer/Action） |
 | `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `Dialog` | **部分**：composable 待补 |
 | `alert-dialog.tsx` | 复合导出 | `Dialog` + `Button` | **部分**：同上 |
 | `dropdown-menu.tsx` | 复合导出 | `Menu` / `MenuItem` | **部分**：Trigger/Content/Sub/Separator/Checkbox/Radio 待补 |
@@ -20,8 +20,8 @@
 | `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent` | `Tabs` / `Tab` | **部分**：命名对齐 + Content 待补 |
 | `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `Tooltip` | **部分**：Provider/Trigger 待补 |
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |
-| `badge.tsx` | `Badge`、`badgeVariants` | — | **缺口**：待新增 |
-| `separator.tsx` | `Separator` | — | **缺口** |
+| `badge.tsx` | `Badge`、`badgeVariants` | `Badge` + `badgeClassName` | **已补**（2026-10-19） |
+| `separator.tsx` | `Separator` | `Separator` + `separatorClassName` | **已补**（2026-10-19） |
 | `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | — | **缺口** |
 | `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | — | **缺口** |
 | `avatar.tsx` | `Avatar*` | — | **缺口** |
@@ -52,17 +52,18 @@
    （LexicalChatInput、Dialog/Menu 交互）；
 4. **状态不迁移**：`packages/ui/src/store/` 仍是唯一状态所有者；adapter 只换渲染。
 
-## 4. 与 D8 的关系
+## 4. D8 裁决（2026-10-19）：原地重建 + 逐屏 adapter
 
-- 选 `ui-next`：adapter 先放 `packages/ui/src/ui-foundation/adapters/`，cutover 时整体搬入新包；
-- 原地重建：adapter 直接覆盖 `components/ui/*` 的导出，旧实现保留到每屏验收通过后删除；
-- 两条路都以本表为切换清单，差别只在目录与删除时机。
+- 落点：`packages/ui` 原地重建，`ui-foundation` 保持现路径；不新建 `ui-next`；
+- 切换：adapter 直接覆盖 `components/ui/*` 的导出，旧实现按屏验收通过后删除；
+- 状态层：`store/`、`hooks/` 不动，adapter 只换渲染；
+- 入口：`@mode/ui` 包名与 `App` 导出不变，调用方零改动。
 
 ## 5. 下一步可执行项
 
-1. 补 Card 子组件（Header/Title/Description/Content/Footer/Action）；
+1. 〔已完成 2026-10-19〕补 Card 子组件（Header/Title/Description/Content/Footer/Action）；
 2. 补 Dialog 的 Header/Footer/Title/Description 与 Trigger 语义；
 3. 补 Menu 的 Trigger/Content/Separator/Checkbox/Radio；
 4. 补 Select Content/Item/Group/Value 与 Tooltip Trigger/Provider；
-5. 补 Badge/Separator 两个高频缺口；
+5. 〔已完成 2026-10-19〕补 Badge/Separator 两个高频缺口；
 6. 之后按 P1.2→P1.7 顺序落 adapter。
