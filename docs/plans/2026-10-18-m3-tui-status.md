@@ -150,4 +150,5 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第五批（`app-sidebar-shortcut`）：Ctrl+X leader 状态机（B/M/A 切换、超时与修饰键回退）；
 - 第六批（`app-compact-timeline`）：compact 命令识别（前缀/词边界/大小写/换行折叠）；
 - 第七批（`app-modified-files`）：同路径累加/前置顺序、100 条上限；
+- 第八批（`app-event-data` 扩展）：provider 计数形态默认值、serverToolUse 推导、usage/cache 空值；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
