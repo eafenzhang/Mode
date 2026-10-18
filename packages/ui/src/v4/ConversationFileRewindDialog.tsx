@@ -4,7 +4,7 @@ import {
   TID_V4_EDIT_WORKSPACE_CONFLICT_DIALOG,
 } from "@mode/shared";
 import type { V4ConversationFileRewindPreviewResult } from "@mode/shared/mode-protocol-v4";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Dialog,
   DialogContent,

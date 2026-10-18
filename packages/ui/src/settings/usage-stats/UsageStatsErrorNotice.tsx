@@ -1,5 +1,5 @@
 import { AlertTriangle, InfoIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
 import {

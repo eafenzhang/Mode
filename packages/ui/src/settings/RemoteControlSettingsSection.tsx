@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import type { LanAccessClientRecord, LanAccessState } from "@mode/shared";
 import type { RemoteDesktopEncoderCapability } from "@mode/shared/remote-desktop";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";

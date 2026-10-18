@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import type { LanPairedPeer, ServerRemoteWorkspaceInfo } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

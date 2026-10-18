@@ -8,7 +8,7 @@ import "react-pdf/dist/Page/TextLayer.css";
 import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import * as pdfZoom from "@/components/ui/usePdfZoomOverlay.js";
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { createPdfJsDocumentOptions } from "@/lib/pdfJsAssets.js";

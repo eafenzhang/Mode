@@ -1,7 +1,7 @@
 import { AlarmClock, GiftIcon, XIcon } from "lucide-react";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatCodingPlanQuotaResetCountdown } from "@/components/coding-plan-quota-reset/CodingPlanQuotaResetDialog.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 
 export const CONTEXT_QUOTA_RESET_URGENT_SECONDS = 180;
 

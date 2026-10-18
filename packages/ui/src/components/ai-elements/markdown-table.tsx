@@ -16,7 +16,7 @@ import {
   Maximize2Icon,
 } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Dialog,
   DialogContent,

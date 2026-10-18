@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
 import type { ChromeBrowserDataImportResult } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   AlertDialog,
   AlertDialogAction,

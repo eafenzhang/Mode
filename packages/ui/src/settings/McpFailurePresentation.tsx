@@ -1,6 +1,6 @@
 import { InfoIcon } from "lucide-react";
 import type { McpServerFailureKind } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

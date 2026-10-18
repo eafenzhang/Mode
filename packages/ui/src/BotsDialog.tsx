@@ -15,7 +15,7 @@ import {
   isFeishuBotProvider,
   normalizeBotReplyGranularity,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Dialog,
   DialogContent,

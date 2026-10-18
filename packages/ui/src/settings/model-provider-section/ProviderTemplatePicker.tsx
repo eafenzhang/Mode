@@ -8,7 +8,7 @@ import {
   TID_MODEL_PROVIDER_TEMPLATE_PICKER,
   testId,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";

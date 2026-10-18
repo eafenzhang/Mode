@@ -16,7 +16,7 @@ import {
   type ModeOffPeakTask,
   type ModelSelection,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";

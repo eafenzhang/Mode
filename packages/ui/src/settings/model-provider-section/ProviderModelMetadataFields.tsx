@@ -1,6 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import { TECHNICAL_INPUT_ATTRIBUTES } from "@/lib/technicalInputAttributes.js";

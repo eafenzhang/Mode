@@ -2,7 +2,7 @@ import type { ModeModelTrajectoryMessage } from "@mode/services";
 import { ArrowRightIcon, ChevronRightIcon, CircleAlertIcon, CopyIcon } from "lucide-react";
 import { useContext, useState } from "react";
 import { Badge } from "@/ui-foundation/adapters/badge.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import {
   Collapsible,

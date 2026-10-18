@@ -2,7 +2,7 @@ import type { ModeModelTrajectoryMessage } from "@mode/services";
 import { Maximize2Icon, Minimize2Icon } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Badge } from "@/ui-foundation/adapters/badge.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
 import { ContentPartView } from "@/ModelTrajectoryPaneDetails.js";

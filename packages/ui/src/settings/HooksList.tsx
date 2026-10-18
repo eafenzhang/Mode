@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Anchor, Download, ShieldCheck } from "lucide-react";
 import type { Hook, PluginHookDetail, PluginScope } from "@mode/shared";
 import { Badge } from "@/ui-foundation/adapters/badge.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { PluginInstallEmptyState } from "@/settings/PluginInstallEmptyState.js";

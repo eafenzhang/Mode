@@ -28,7 +28,7 @@
 | `dropdown-menu` | 38 | ready（根/Trigger/Content/Sub） | 2 |
 | `input` | 39 | ready · 已切换（size/htmlSize 兼容） | 3 |
 | `toast` | 63 | ready（命令式队列 + 四向栈） | 3 |
-| `button` | 226 | ready | 3 |
+| `button` | 226 | ready · 已切换 | 3 |
 
 **计数会随切换变化**：每批开始前重跑上面的 grep，不要用手写数字排期。
 
@@ -166,6 +166,15 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 验证：UI 328 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：`anchorId` 已存储但未做锚点定位；`info/update` 仅保留 data-variant，未加额外配色；toast 无进出场动画。
+
+### 批次 3 收尾（2026-10-19 第十一轮）
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `button` | 226 | 补旧 `warning` variant（secondary + 警告语义色）、`icon-md` size（归一到 icon）与 `data-slot/data-variant/data-size`；`asChild` 在旧调用点没有实际使用，暂不实现 |
+
+验证：UI 328 passed、typecheck/lint/architecture/language/format 通过。
+批次 1–3 的旧 `components/ui/*` 文件全部保留到人工看屏验收后统一删除（D8 第 4 条）。
 已知差异：`loop` 接受但当前总是循环；子菜单为点击/悬停双开、`modal` 接受后不锁滚动；
 `DropdownMenuItem` 的 `onSelect` 在 onClick 内触发（Radix 的键盘高亮语义由原生 focus 承担）。
 

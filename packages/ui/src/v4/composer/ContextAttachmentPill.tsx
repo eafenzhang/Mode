@@ -7,7 +7,7 @@ import {
   type AttachmentHoverCardContentProps,
 } from "@/components/ai-elements/attachments.js";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 
 interface ContextAttachmentPillProps {
   children: ReactNode;

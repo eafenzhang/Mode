@@ -16,7 +16,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import type { ModePluginComponentKind, ModePluginsDescribeResult } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";

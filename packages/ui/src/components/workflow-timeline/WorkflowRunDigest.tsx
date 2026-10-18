@@ -8,7 +8,7 @@ import {
 import { TID_CHAT_WORKFLOW_RUN_DIGEST, testId } from "@mode/shared";
 import type { WorkflowRunState } from "@mode/shared/mode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

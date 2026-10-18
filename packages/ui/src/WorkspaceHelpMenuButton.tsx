@@ -4,7 +4,7 @@ import {
   type DesktopCommandId,
 } from "@mode/shared";
 import { CircleHelpIcon, InfoIcon, RefreshCwIcon, SquareLibraryIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   DropdownMenu,
   DropdownMenuContent,

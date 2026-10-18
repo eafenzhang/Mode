@@ -58,7 +58,7 @@ import {
   TID_WORKSPACE_LIST,
 } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Tabs, TabsList, TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import {
   DropdownMenu,

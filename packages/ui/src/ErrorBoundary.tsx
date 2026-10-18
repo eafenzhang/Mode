@@ -8,7 +8,7 @@ import enUS from "@/i18n/locales/en-US.js";
 import faIR from "@/i18n/locales/fa.js";
 import { logger } from "@/logger.js";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { AlertTriangleIcon, RefreshCw } from "lucide-react";
 
 interface AppErrorBoundaryProps {

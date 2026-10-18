@@ -14,7 +14,7 @@ import {
   testId,
 } from "@mode/shared";
 import { Alert, AlertDescription } from "@/ui-foundation/adapters/alert.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import {
   Select,

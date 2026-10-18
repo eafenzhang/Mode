@@ -11,7 +11,7 @@ import { useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { EditorState } from "lexical";
 import { GoalIcon, Info, PaperclipIcon, PlusIcon, Workflow } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
 import { useSlashCommands } from "@/hooks/useSlashCommands.js";

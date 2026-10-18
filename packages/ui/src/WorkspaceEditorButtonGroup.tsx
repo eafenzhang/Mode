@@ -1,6 +1,6 @@
 import { createOpenInEditorRemoteTarget, type EditorInfo, type RemoteTarget } from "@mode/shared";
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,

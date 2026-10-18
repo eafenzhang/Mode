@@ -4,7 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { GitChangeSourceId, GitDiffResult } from "@mode/shared";
 import { TID_GIT_PANE } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { FileTextIcon, RefreshCw } from "lucide-react";
 import {
   Select,

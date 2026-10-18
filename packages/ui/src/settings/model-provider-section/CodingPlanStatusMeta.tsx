@@ -1,7 +1,7 @@
 import type { UsageEntitlementSubscriptionDetail } from "@mode/shared";
 import { Loader2Icon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export function CodingPlanStatusMeta({

@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui-foundation/adapters/dialog.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import type { PdfViewerLabels, PdfViewerSource } from "@/components/ui/pdf-viewer.js";
 import { TID_V4_ATTACHMENT_DOWNLOAD, testId } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

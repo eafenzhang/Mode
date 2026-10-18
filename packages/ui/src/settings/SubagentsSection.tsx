@@ -18,7 +18,7 @@ import {
   type SubAgentConfig,
 } from "@mode/shared";
 import type { ModelSelectionView } from "@mode/services";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import {
   Select,

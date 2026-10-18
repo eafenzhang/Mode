@@ -6,7 +6,7 @@ import {
   type OrcaCredentialSource,
 } from "@mode/shared";
 import type { IOrcaRouterService } from "@mode/services";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";

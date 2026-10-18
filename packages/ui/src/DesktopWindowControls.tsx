@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { DesktopCommandIds } from "@mode/shared";
 import { MinusIcon, XIcon } from "lucide-react";
 import { WindowMaximizeIcon, WindowRestoreIcon } from "@/components/icons/windowIcons.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";

@@ -22,7 +22,7 @@ import {
   MODE_CUA_OFFICIAL_PLUGIN_ID,
 } from "@mode/shared";
 import { isCuaPermissionStatusAvailable, type CuaPermissionRestartOptions } from "@mode/services";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { usePlatform } from "@/hooks/usePlatform.js";

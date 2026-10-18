@@ -27,7 +27,7 @@ import {
 import type { useSortable } from "@dnd-kit/sortable";
 import { BorderBeam } from "border-beam";
 import { STATUS_DOT } from "@/components/workflow-graph/run-status-presentation.js";
-import { Button, buttonVariants } from "@/components/ui/button.js";
+import { Button, buttonVariants } from "@/ui-foundation/adapters/button.js";
 import {
   Collapsible,
   CollapsibleContent,

@@ -5,7 +5,7 @@ import {
   TID_V4_SPLIT_CLOSE,
 } from "@mode/shared";
 import { XIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 /** 跨 workspace pane 的归属徽标（未来跨 workspace session 的多路径徽标在此扩展）。 */

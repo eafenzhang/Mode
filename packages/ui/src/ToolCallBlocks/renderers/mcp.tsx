@@ -8,7 +8,7 @@ import {
   CodeBlockTitle,
   CodeBlockWrapButton,
 } from "@/components/ai-elements/code-block.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Collapsible,
   CollapsibleContent,

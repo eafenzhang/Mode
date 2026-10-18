@@ -2,7 +2,7 @@ import { ChevronRightIcon, RotateCcwIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Collapsible,
   CollapsibleContent,

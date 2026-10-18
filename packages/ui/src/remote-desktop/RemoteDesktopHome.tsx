@@ -12,7 +12,7 @@ import { MonitorSmartphone, RefreshCw, Settings2 } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
 import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { DEFAULT_REMOTE_DESKTOP_QUALITY } from "@mode/shared/remote-desktop";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";

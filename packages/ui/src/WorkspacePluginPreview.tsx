@@ -18,7 +18,7 @@ import { PluginIcon } from "@/components/PluginIcon.js";
 import { usePluginReferenceCatalog } from "@/hooks/usePluginReferenceCatalog.js";
 import { requestPluginStoreOpen } from "@/lib/pluginStoreNavigation.js";
 import { buildPluginMentionMarkdown } from "@/mentions/mentionMarkdown.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { usePluginStoreOrder } from "@/hooks/usePluginStoreOrder.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

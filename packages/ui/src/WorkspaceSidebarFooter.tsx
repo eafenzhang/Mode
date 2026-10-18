@@ -6,7 +6,7 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui-foundation/adapters/avatar.js";
 import { ModeAboutLogo } from "@/components/ui/ModeAboutLogo.js";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   DropdownMenu,
   DropdownMenuContent,

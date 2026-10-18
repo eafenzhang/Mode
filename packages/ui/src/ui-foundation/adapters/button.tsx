@@ -15,7 +15,12 @@ export type AdapterButtonVariant =
   | "secondary"
   | "ghost"
   | "destructive"
+  | "warning"
   | "link";
+
+/** foundation 没有 warning，adapter 用 secondary 叠加语义色类。 */
+const WARNING_VARIANT_CLASS =
+  "bg-warning text-warning-foreground hover:bg-warning/90 focus-visible:border-warning/40 focus-visible:ring-warning/20";
 
 export type AdapterButtonSize =
   | "default"
@@ -23,16 +28,20 @@ export type AdapterButtonSize =
   | "sm"
   | "lg"
   | "icon"
+  | "icon-md"
   | "icon-xs"
   | "icon-sm"
   | "icon-lg";
 
 export function mapButtonVariant(variant: AdapterButtonVariant = "default"): ButtonVariant {
-  return variant === "default" ? "primary" : variant;
+  if (variant === "default") {
+    return "primary";
+  }
+  return variant === "warning" ? "secondary" : variant;
 }
 
 export function mapButtonSize(size: AdapterButtonSize = "default"): ButtonSize {
-  return size;
+  return size === "icon-md" ? "icon" : size;
 }
 
 export interface AdapterButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -43,9 +52,12 @@ export interface AdapterButtonProps extends ButtonHTMLAttributes<HTMLButtonEleme
 }
 
 export const Button = forwardRef<HTMLButtonElement, AdapterButtonProps>(function Button(
-  { variant, size, parentRadius, loading, ...rest },
+  { variant = "default", size = "default", parentRadius, loading, className, ...rest },
   ref,
 ) {
+  const mergedClassName = [className, variant === "warning" ? WARNING_VARIANT_CLASS : ""]
+    .filter(Boolean)
+    .join(" ");
   return (
     <FoundationButton
       {...rest}
@@ -54,6 +66,10 @@ export const Button = forwardRef<HTMLButtonElement, AdapterButtonProps>(function
       size={mapButtonSize(size)}
       parentRadius={parentRadius}
       loading={loading}
+      className={mergedClassName}
+      data-slot="button"
+      data-variant={variant}
+      data-size={size}
     />
   );
 });
@@ -66,10 +82,11 @@ export function buttonVariants(
     className?: string;
   } = {},
 ): string {
+  const warning = options.variant === "warning";
   return buttonClassName({
     variant: mapButtonVariant(options.variant),
     size: mapButtonSize(options.size),
     parentRadius: options.parentRadius,
-    className: options.className,
+    className: [options.className, warning ? WARNING_VARIANT_CLASS : ""].filter(Boolean).join(" "),
   });
 }

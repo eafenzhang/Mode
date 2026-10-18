@@ -1,7 +1,7 @@
 import { CheckIcon, MinusIcon, XIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { DialogDescription, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export type RemoteWizardStep = "kind" | "settings" | "connecting" | "directory";

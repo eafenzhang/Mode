@@ -10,7 +10,7 @@ import type {
   DataRootDecisionProgress,
   DataRootDecisionState,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import zhCN from "@/i18n/locales/zh-CN.js";
 import enUS from "@/i18n/locales/en-US.js";
 import faIR from "@/i18n/locales/fa.js";

@@ -1,7 +1,7 @@
 import { useState, type MouseEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { SkillSyncCandidate } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 export interface RemoteSkillSyncRow {

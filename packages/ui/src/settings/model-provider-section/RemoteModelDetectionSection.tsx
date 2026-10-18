@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Loader2Icon, Radar } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { TID_MODEL_PROVIDER_DETECT_MODELS_BUTTON } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

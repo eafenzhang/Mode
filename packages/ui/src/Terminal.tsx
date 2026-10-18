@@ -5,7 +5,7 @@ import { TID_TERMINAL, TID_TERMINAL_CLOSE_BUTTON } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { logger } from "@/logger.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Tabs, TabsContent, TabsList } from "@/ui-foundation/adapters/tabs.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { TerminalTabTrigger } from "@/terminal/TerminalTabTrigger.js";

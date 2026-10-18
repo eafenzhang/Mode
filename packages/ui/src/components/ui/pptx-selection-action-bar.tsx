@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { SparklesIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Popover, PopoverContent } from "@/ui-foundation/adapters/popover.js";
 import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";

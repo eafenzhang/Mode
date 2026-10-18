@@ -4,7 +4,7 @@ import type {
   ConversationShareFailureIssue,
   ConversationSharePreflightResult,
 } from "@mode/services";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Checkbox } from "@/ui-foundation/adapters/checkbox.js";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactNode } from "react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 
 function TaskRowActionButton({

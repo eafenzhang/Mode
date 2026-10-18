@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { canRetryDatabaseStartup, type DatabaseStartupState } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { RootStartupLoading } from "@/root/RootStartupLoading.js";
 
 export function GlobalDatabaseStartupLoading({

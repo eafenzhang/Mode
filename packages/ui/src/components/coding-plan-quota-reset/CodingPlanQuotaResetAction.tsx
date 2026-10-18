@@ -1,7 +1,7 @@
 import { CheckIcon, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { CodingPlanResetType } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { burstCodingPlanQuotaResetConfetti } from "@/lib/codingPlanQuotaResetConfetti.js";

@@ -9,7 +9,7 @@ import {
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { AutomationSwitchToggle } from "@/settings/AutomationSwitchToggle.js";
 import { AutomationChevronDownIcon, AutomationInfoIcon } from "@/settings/AutomationIcons.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { SettingsSegmentedTabs } from "@/settings/SettingsSegmentedTabs.js";
 
 export {

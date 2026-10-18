@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Loader2, RefreshCcw, TriangleAlert } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Card,
   CardAction,

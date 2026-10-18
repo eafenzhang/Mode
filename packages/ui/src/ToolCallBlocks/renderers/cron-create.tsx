@@ -1,7 +1,7 @@
 import { ClockIcon } from "lucide-react";
 import { TID_CRON_CREATE_CARD, TID_CRON_CREATE_OPEN } from "@mode/shared";
 import type { ModeAutomationScheduleRule } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { describeAutomationCardSchedule } from "@/settings/automationCardSchedule.js";

@@ -1,6 +1,6 @@
 import { memo, type ReactNode, useEffect, useRef, useState } from "react";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

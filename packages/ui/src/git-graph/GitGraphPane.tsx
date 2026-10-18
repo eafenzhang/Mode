@@ -1,7 +1,7 @@
 import { GitGraph, GitMergeIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { GitGraphCommitDetail } from "./GitGraphCommitDetail.js";
 import { formatCommitTime, getRefIcon, getShortHash } from "./GitGraphDisplay.js";

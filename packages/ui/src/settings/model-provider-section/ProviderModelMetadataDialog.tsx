@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 import { Loader2Icon, Pencil } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Dialog,
   DialogContent,

@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 命令管理面板集中维护列表、表单和外部导入入口，拆分会增加跨状态跳转成本 */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import type { CommandConfig, UserCommand, ModeCommand } from "@mode/shared";
 import { isPluginCommand, isUserCommand, MODE_COMMAND_AGENT_SOURCE } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

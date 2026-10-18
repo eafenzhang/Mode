@@ -11,7 +11,7 @@ import {
   type SkillSyncSizeLimitErrorData,
 } from "@mode/shared";
 import type { ISkillSyncService } from "@mode/services";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Dialog, DialogContent, DialogHeader } from "@/ui-foundation/adapters/dialog.js";
 import { useModeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
 import {

@@ -22,7 +22,7 @@ import type {
   ModePluginInfo,
 } from "@mode/shared";
 import { isModeAgentMcpStatusModeUnsupportedError, type IMcpSyncService } from "@mode/services";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

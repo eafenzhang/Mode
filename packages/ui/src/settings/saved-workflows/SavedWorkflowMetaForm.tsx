@@ -4,7 +4,7 @@ import {
   TID_WORKFLOW_META_DISCARD,
   TID_WORKFLOW_META_SAVE,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

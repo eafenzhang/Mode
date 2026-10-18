@@ -8,7 +8,7 @@ import {
   type RemoteTarget,
 } from "@mode/shared";
 import { TooltipProvider } from "@/ui-foundation/adapters/tooltip.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { useDynamicWorkflowAvailabilityLoader } from "@/hooks/useDynamicWorkflowAvailability.js";

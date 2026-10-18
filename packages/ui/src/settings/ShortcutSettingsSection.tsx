@@ -5,7 +5,7 @@ import {
   getDefaultShortcutBindings,
   type ShortcutCommandId,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
 import { usePlatform } from "@/hooks/usePlatform.js";

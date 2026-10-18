@@ -13,7 +13,7 @@ import {
 import { isCronTask, isOffPeakTask, type ModeTaskMeta } from "@mode/shared";
 import { TID_TASK_ARCHIVE, TID_TASK_ITEM, testId } from "@mode/shared";
 import { Badge } from "@/ui-foundation/adapters/badge.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { getPathLeaf } from "@/lib/path.js";

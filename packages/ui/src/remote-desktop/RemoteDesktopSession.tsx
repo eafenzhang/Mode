@@ -23,7 +23,7 @@ import {
   ScreenShare,
   Unplug,
 } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import {
   Tooltip,

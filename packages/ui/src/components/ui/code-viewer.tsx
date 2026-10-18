@@ -13,7 +13,7 @@ import { File, type FileOptions } from "@pierre/diffs/react";
 import type { BundledTheme } from "shiki";
 
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import type { CodeCommentPreview, CodeCommentRange } from "@/lib/codeCommentContext.js";
 import { isDarkCodePreviewTheme } from "@/lib/codePreviewPreferences.js";

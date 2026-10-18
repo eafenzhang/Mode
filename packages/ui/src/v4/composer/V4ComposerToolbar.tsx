@@ -38,7 +38,7 @@ import type {
   SessionUsageState,
 } from "@mode/shared/mode-protocol-v4";
 import { ModelConfigSelect, type ModelSelectGroup } from "@/ModelConfigSelect.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ChatContextUsage } from "@/chat-input-toolbar/display.js";
 import {
   hasChatCodingPlanUsageRemaining,

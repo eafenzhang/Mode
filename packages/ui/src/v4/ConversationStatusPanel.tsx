@@ -55,7 +55,7 @@ import type {
   WorkflowRunState,
 } from "@mode/shared/mode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   RUN_STATUS_DOT,
   RUN_STATUS_TEXT,

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { AlertTriangleIcon, LoaderIcon } from "lucide-react";
 import { TID_SSH_ERROR, type RemoteTarget } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {

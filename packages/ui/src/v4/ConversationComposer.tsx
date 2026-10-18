@@ -65,7 +65,7 @@ import {
   AttachmentInfo,
   AttachmentPreview,
 } from "@/components/ai-elements/attachments.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Dialog,
   DialogClose,

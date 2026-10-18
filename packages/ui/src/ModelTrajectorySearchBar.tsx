@@ -1,6 +1,6 @@
 import { ArrowDownIcon, ArrowUpIcon, SearchIcon, XIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import type { IntlShape } from "@/ModelTrajectoryPaneParts.js";
 
 export function ModelTrajectorySearchBar({

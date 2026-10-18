@@ -16,7 +16,7 @@ import {
   TID_RESOURCE_MANAGER_STORAGE_STATUS,
   TID_RESOURCE_MANAGER_STORAGE_TOTAL,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useStorageUsage } from "./useStorageUsage.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

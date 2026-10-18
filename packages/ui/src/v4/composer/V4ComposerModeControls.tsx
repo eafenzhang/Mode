@@ -18,7 +18,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
 } from "@/ui-foundation/adapters/dropdown-menu.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import {
   getModeOptionDisplayLabel,

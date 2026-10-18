@@ -2,7 +2,7 @@ import { memo, useMemo } from "react";
 import { ActivityIcon, BotIcon, SquareTerminalIcon, Workflow } from "lucide-react";
 import { TID_V4_COMPOSER_BACKGROUND_WORK_TRIGGER } from "@mode/shared";
 import type { BackgroundWorkSummary } from "@mode/shared/mode-protocol-v4";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

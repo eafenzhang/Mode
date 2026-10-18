@@ -1,6 +1,6 @@
 import { CloudDownload, RefreshCw } from "lucide-react";
 import type { IServiceAccessor } from "@mode/services";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useWorkspaceConversationMirror } from "@/hooks/useWorkspaceConversationMirror.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

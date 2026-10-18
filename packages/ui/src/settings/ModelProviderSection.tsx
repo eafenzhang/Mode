@@ -21,7 +21,7 @@ import {
   ZAI_PROVIDER_ID,
 } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useModelProviders } from "@/hooks/useModelProviders.js";
 import { resolveEntitledAccountProviderAccess } from "@/lib/accountProviderAccess.js";

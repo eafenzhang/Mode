@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Ban, ChevronRight, CircleCheck, Loader2, TriangleAlert } from "lucide-react";
 import { TID_WORKFLOW_RUN_ROW, testId, type ModeSavedWorkflowRun } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatDateTime } from "@/settings/automationFormat.js";

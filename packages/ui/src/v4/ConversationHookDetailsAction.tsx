@@ -10,7 +10,7 @@ import {
 import { TID_V4_HOOK_DETAILS_CONTENT, TID_V4_HOOK_DETAILS_TRIGGER, testId } from "@mode/shared";
 import type { HookExecutionProjection, HookInvocationRow } from "@mode/shared/mode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/ui-foundation/adapters/tooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

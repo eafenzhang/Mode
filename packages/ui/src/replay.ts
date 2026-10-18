@@ -37,5 +37,5 @@ export { StoreProvider, useModeStore } from "./store/StoreProvider.js";
 export { TabStoreProvider } from "./store/TabStoreProvider.js";
 export { DiffsWorkerPoolProvider } from "./root/DiffsWorkerPoolProvider.js";
 export { ModeIntlProvider, useModeIntl } from "./i18n/IntlProvider.js";
-export { Button } from "./components/ui/button.js";
+export { Button } from "./ui-foundation/adapters/button.js";
 export { cn } from "./components/lib/utils.js";

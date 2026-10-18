@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import {
   DropdownMenu,

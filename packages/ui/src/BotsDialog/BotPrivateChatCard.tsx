@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import type { BotConfig, BotPrivateChatMode } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Select,
   SelectContent,

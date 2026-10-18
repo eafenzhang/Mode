@@ -11,7 +11,7 @@ import {
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";

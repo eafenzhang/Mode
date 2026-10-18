@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Download, Loader2, Settings2 } from "lucide-react";
 import type { ModePluginMarketplaceSummary } from "@mode/shared";
 import { MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";

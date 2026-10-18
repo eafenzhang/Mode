@@ -7,7 +7,7 @@
  */
 import { ShieldOff, Trash2 } from "lucide-react";
 import type { LanAccessClientRecord } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

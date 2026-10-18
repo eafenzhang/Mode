@@ -2,7 +2,7 @@ import type { IPlatformService, UpdateStatePayload } from "@mode/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { UpdateStatusDialogController } from "@/UpdateStatusDialogController.js";
 import { UpdateReleaseNotesTooltip } from "@/UpdateReleaseNotesTooltip.js";

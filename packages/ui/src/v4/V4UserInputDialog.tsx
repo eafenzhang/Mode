@@ -5,7 +5,7 @@ import {
   TID_V4_USER_INPUT_TEXT,
   testId,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import type { V4UserInputViewModel } from "@/v4/pendingInteractionAdapter.js";
 

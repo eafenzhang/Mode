@@ -1,6 +1,6 @@
 import { Code2Icon, MessageSquareTextIcon, Trash2Icon } from "lucide-react";
 import type { AttachmentHoverCardContentProps } from "@/components/ai-elements/attachments.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { CodeCommentComposerAttachment } from "@/lib/codeCommentContext.js";
 import { ContextAttachmentPill } from "@/v4/composer/ContextAttachmentPill.js";

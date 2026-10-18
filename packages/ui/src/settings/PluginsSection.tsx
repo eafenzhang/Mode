@@ -11,7 +11,7 @@ import {
   Trash2,
   UploadCloud,
 } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   DropdownMenu,

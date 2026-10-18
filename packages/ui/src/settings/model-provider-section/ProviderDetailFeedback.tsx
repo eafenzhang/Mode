@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { CheckCircle2Icon, CircleAlertIcon, Loader2Icon, XIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 
 type ProviderDetailFeedbackState = "pending" | "success" | "failure";

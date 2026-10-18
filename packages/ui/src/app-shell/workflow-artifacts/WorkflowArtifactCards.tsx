@@ -7,7 +7,7 @@
  * contentType 分派**，这三样是分派**兜不住**时的落点，两者按职责本就该分开读。
  */
 
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatArtifactBytes } from "@/app-shell/workflow-artifacts/artifactPresentation.js";

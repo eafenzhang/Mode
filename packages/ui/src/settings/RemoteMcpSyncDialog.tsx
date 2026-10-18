@@ -10,7 +10,7 @@ import type {
   RemoteTarget,
 } from "@mode/shared";
 import type { IMcpSyncService } from "@mode/services";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatRemoteSkillSyncTarget } from "@/settings/RemoteSkillSyncDialog.js";

@@ -1,7 +1,7 @@
 import { TID_WORKSPACE_FILE_MANAGER_BUTTON, type RemoteTarget } from "@mode/shared";
 import { useEffect, useState } from "react";
 import { ChevronDown, FolderOpenIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";

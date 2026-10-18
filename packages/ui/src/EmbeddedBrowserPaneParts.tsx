@@ -26,7 +26,7 @@ import {
   TID_BROWSER_RESPONSIVE_BUTTON,
 } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   DropdownMenu,
   DropdownMenuContent,

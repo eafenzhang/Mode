@@ -18,7 +18,7 @@ import {
   ZoomInIcon,
   ZoomOutIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { PopoverAnchor } from "@/ui-foundation/adapters/popover.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";

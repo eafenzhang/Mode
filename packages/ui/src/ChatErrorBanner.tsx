@@ -15,7 +15,7 @@ import {
 import { AnchorIcon, CopyIcon, InfoIcon, SettingsIcon, X } from "lucide-react";
 import { useModeIntl } from "./i18n/IntlProvider.js";
 import type { IntlInstance } from "./i18n/IntlProvider.js";
-import { Button } from "./components/ui/button.js";
+import { Button } from "./ui-foundation/adapters/button.js";
 import {
   Dialog,
   DialogContent,

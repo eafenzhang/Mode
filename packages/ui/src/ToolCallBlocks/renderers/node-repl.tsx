@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { ChevronRightIcon, ExternalLinkIcon, SquareMousePointerIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   CodeBlock,
   CodeBlockActions,

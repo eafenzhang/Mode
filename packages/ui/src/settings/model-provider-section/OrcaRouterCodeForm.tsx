@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { TID_ORCAROUTER_SPEC } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

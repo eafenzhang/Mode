@@ -7,7 +7,7 @@ import type {
   V4ConversationFileChangesResult,
   V4ConversationFileRewindPreviewResult,
 } from "@mode/shared/mode-protocol-v4";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import {
   Collapsible,

@@ -31,7 +31,7 @@ import type {
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { Badge } from "@/ui-foundation/adapters/badge.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import {
   DropdownMenu,

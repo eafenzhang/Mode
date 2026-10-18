@@ -15,7 +15,7 @@ import {
   SquareIcon,
 } from "lucide-react";
 import type { WorkflowRunState, WorkflowRunUsage } from "@mode/shared/mode-protocol-v4";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { workflowRunResultView } from "@/app-shell/workflowRunPanel.js";

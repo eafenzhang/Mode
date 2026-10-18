@@ -25,7 +25,7 @@ import {
 } from "@/ui-foundation/adapters/select.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { SettingsBadge, SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

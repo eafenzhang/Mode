@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Trash2 } from "lucide-react";
 import { type CommandAgentSource, type CommandConfig, type UserCommand } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";

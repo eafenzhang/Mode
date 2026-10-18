@@ -1,6 +1,6 @@
 import { Plus, X } from "lucide-react";
 import type { ModeSavedWorkflowArgType } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import {
   Select,

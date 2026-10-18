@@ -16,7 +16,7 @@ import type {
   ModeTaskChangeSummary,
 } from "@mode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Command, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command.js";
 import {
   Dialog,

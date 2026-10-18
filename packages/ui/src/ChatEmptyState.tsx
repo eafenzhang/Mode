@@ -6,7 +6,7 @@
 /* eslint-disable max-lines -- 空态工作区菜单集中维护本地、远程与会话 workspace 的筛选和切换交互，局部样式扩展需保持同一套语义。 */
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,

@@ -11,7 +11,7 @@ import type { ModeElicitationQuestion, ModeElicitationRequest } from "@mode/shar
 import type { InteractionAutoResolution } from "@mode/shared/mode-protocol-v4";
 import { CheckIcon, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info } from "lucide-react";
 import { Badge } from "@/ui-foundation/adapters/badge.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import { InteractionRequestOriginBadge } from "@/InteractionRequestOriginBadge.js";

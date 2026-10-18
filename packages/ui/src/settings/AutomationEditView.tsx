@@ -64,7 +64,7 @@ import {
   AutomationInstructionsToolbar,
 } from "@/settings/AutomationInstructionsComposer.js";
 import { SettingsBreadcrumbReporter } from "@/settings/SettingsHeaderBreadcrumb.js";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import {

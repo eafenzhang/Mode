@@ -8,7 +8,7 @@
 
 | 旧模块（`packages/ui/src/components/ui/`） | 旧导出 | 新落点 | 状态 |
 | --- | --- | --- | --- |
-| `button.tsx` | `Button`、`buttonVariants` | `ui-foundation/Button` + `buttonClassName` | **可直接换**；variant/size 名称需对齐 |
+| `button.tsx` | `Button`、`buttonVariants` | `adapters/button` | **已切换 226 处调用**（2026-10-19）；warning/icon-md 已映射，`asChild` 未实现（无调用点） |
 | `input.tsx` | `Input`、`inputVariants` | `adapters/input` | **已切换 39 处调用**（2026-10-19）；`size` 归一到 fieldSize，`htmlSize` 映射原生 size |
 | `textarea.tsx` | `Textarea` | `adapters/textarea` | **已切换 9 处调用** |
 | `card.tsx` | `Card`、子件 | `adapters/card` | **已切换 4 处调用**；旧文件待看屏后删除 |

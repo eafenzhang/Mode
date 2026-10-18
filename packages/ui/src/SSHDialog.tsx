@@ -8,7 +8,7 @@ import {
   TID_SSH_SUCCESS,
 } from "@mode/shared";
 import { AlertTriangleIcon } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button.js";
+import { Button, buttonVariants } from "@/ui-foundation/adapters/button.js";
 import { Dialog, DialogContent, DialogHeader } from "@/ui-foundation/adapters/dialog.js";
 import { useCancelPendingRemoteConnection } from "@/hooks/useCancelPendingRemoteConnection.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";

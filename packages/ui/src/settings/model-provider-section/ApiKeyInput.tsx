@@ -1,6 +1,6 @@
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { TID_MODEL_PROVIDER_API_KEY_INPUT } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { TECHNICAL_INPUT_ATTRIBUTES } from "@/lib/technicalInputAttributes.js";

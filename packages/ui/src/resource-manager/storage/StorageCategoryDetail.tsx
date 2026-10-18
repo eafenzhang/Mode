@@ -9,7 +9,7 @@ import {
   TID_RESOURCE_MANAGER_STORAGE_DETAIL_ENTRY,
   testId,
 } from "@mode/shared";
-import { Button } from "@/components/ui/button.js";
+import { Button } from "@/ui-foundation/adapters/button.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { formatBytes } from "@/resource-manager/resourceUsageView.js";
 import {
