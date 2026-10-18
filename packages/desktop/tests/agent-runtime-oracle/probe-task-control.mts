@@ -264,6 +264,58 @@ await runCase(
   },
 );
 
+// 2c) `TaskOutput(block:false)` 对仍在运行的任务：返回 running 形状（不等待）。
+let runningTaskId: string | undefined;
+await runCase(
+  "TaskOutput 运行中（block=false）",
+  [
+    {
+      toolCalls: [
+        {
+          name: "Bash",
+          input: {
+            command: "sleep 5",
+            run_in_background: true,
+            description: "Running background",
+          },
+        },
+      ],
+    },
+    { text: "turn one done" },
+    (body) => {
+      if (lastUserText(body).includes("check running") && runningTaskId) {
+        return {
+          toolCalls: [
+            { name: "TaskOutput", input: { task_id: runningTaskId, block: false, timeout: 5000 } },
+          ],
+        };
+      }
+      return { text: "no check request" };
+    },
+    { text: "running check turn done" },
+  ],
+  async ({ session, frames }) => {
+    await session.send("start running background");
+    await waitForTerminals(frames, 1, 30_000);
+    for (const frame of frames) {
+      if (eventType(frame) !== "tool.updated") continue;
+      const payload = eventPayload(frame);
+      if (payload?.kind !== "result") continue;
+      const match = /exec_[0-9a-f-]+/.exec(JSON.stringify(payload.result ?? {}));
+      if (match) {
+        runningTaskId = match[0];
+        break;
+      }
+    }
+    process.stdout.write(`\n捕获到的运行中 task id: ${runningTaskId ?? "(未捕获)"}\n`);
+    if (!runningTaskId) return;
+    await session.send("check running");
+    await waitForTerminals(frames, 2, 30_000);
+    process.stdout.write("\n-- 运行中的 TaskOutput --\n");
+    printToolFrames(frames, "TaskOutput");
+  },
+);
+
 // 3) TaskStop 成功路径：抓到真实 id 后，用第二次用户输入让模型停掉长任务。
 let capturedTaskId: string | undefined;
 await runCase(

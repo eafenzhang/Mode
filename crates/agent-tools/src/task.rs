@@ -361,35 +361,52 @@ pub fn task_output(args: &Value, ctx: &ToolContext) -> Result<ToolOutcome, ToolE
         .snapshot(&input.task_id, block, timeout)
         .ok_or_else(|| not_found_output(&input.task_id))?;
 
-    // 逐字形状见 spec §3.4。
-    let head = format!(
-        "<retrieval_status>success</retrieval_status>\n\n<task_id>{}</task_id>\n\n<task_type>local_bash</task_type>\n\n<status>{}</status>\n\n<exit_code>{}</exit_code>",
-        snapshot.id,
-        snapshot.status.task_output_token(),
-        // running 时的退出码未观察，用 -1 显式表示「还没有」。
-        snapshot.exit_code.unwrap_or(-1),
+    // 逐字形状见 spec §3.4。三种已观察的分支：
+    // - running：`not_ready`，**没有** exit_code / output；
+    // - killed：`success` + 137，**没有** output；
+    // - completed / failed：`success` + 退出码 + output。
+    let task_block = format!(
+        "<task_id>{}</task_id>\n\n<task_type>local_bash</task_type>",
+        snapshot.id
     );
-    // 观察值：`killed` 的结果**没有 `<output>` 段**，display 也没有 `output` 键；
-    // 其它状态（completed / failed）带输出，且 display 的 output 不带文件末尾换行。
-    let (content, display) = if snapshot.status == TaskStatus::Cancelled {
-        (
-            head,
+    let (content, display) = match snapshot.status {
+        TaskStatus::Running => (
+            format!(
+                "<retrieval_status>not_ready</retrieval_status>\n\n{task_block}\n\n<status>running</status>"
+            ),
+            json!({
+                "kind": "task_output",
+                "retrievalStatus": "not_ready",
+                "taskStatus": "running",
+            }),
+        ),
+        TaskStatus::Cancelled => (
+            format!(
+                "<retrieval_status>success</retrieval_status>\n\n{task_block}\n\n<status>killed</status>\n\n<exit_code>137</exit_code>"
+            ),
             json!({
                 "kind": "task_output",
                 "retrievalStatus": "success",
-                "taskStatus": snapshot.status.task_output_token(),
+                "taskStatus": "killed",
             }),
-        )
-    } else {
-        (
-            format!("{head}\n\n<output>\n{}</output>", snapshot.output),
-            json!({
-                "kind": "task_output",
-                "retrievalStatus": "success",
-                "taskStatus": snapshot.status.task_output_token(),
-                "output": snapshot.output.trim_end(),
-            }),
-        )
+        ),
+        status => {
+            let head = format!(
+                "<retrieval_status>success</retrieval_status>\n\n{task_block}\n\n<status>{}</status>\n\n<exit_code>{}</exit_code>",
+                status.task_output_token(),
+                snapshot.exit_code.unwrap_or(-1),
+            );
+            (
+                format!("{head}\n\n<output>\n{}</output>", snapshot.output),
+                json!({
+                    "kind": "task_output",
+                    "retrievalStatus": "success",
+                    "taskStatus": status.task_output_token(),
+                    // 观察值：display 的 output 不带文件末尾换行。
+                    "output": snapshot.output.trim_end(),
+                }),
+            )
+        }
     };
     Ok(ToolOutcome::artifact_with_display(
         content,
@@ -620,6 +637,34 @@ mod tests {
                 .expect("合法 JSON");
         assert_eq!(display["taskStatus"], "failed");
         assert_eq!(display["output"], "bad");
+    }
+
+    #[test]
+    fn task_output_running_uses_not_ready_without_output() {
+        let registry = Arc::new(TaskRegistry::new());
+        let (child, path) = spawn_script("sleep 5");
+        let registration = registry.register(child, "call_bg", "sleep 5", None, path);
+        let ctx = registry_context(Arc::clone(&registry));
+
+        let outcome = task_output(
+            &json!({ "task_id": registration.id, "block": false, "timeout": 5000 }),
+            &ctx,
+        )
+        .expect("运行中的任务也可查询");
+        assert!(outcome
+            .content
+            .contains("<retrieval_status>not_ready</retrieval_status>"));
+        assert!(outcome.content.contains("<status>running</status>"));
+        assert!(!outcome.content.contains("<exit_code>"));
+        assert!(!outcome.content.contains("<output>"));
+        let display: Value =
+            serde_json::from_str(outcome.display_json.as_deref().expect("有 display"))
+                .expect("合法 JSON");
+        assert_eq!(display["retrievalStatus"], "not_ready");
+        assert_eq!(display["taskStatus"], "running");
+        assert!(display.get("output").is_none());
+
+        registry.stop(&registration.id).expect("清理运行中的任务");
     }
 
     #[test]

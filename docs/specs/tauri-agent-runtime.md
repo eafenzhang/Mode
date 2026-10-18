@@ -521,6 +521,9 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
   `{kind:"task_output", retrievalStatus:"success", taskStatus:"killed"}`（194 字节）。
   注意同一个任务在 `session.updated` 里的 `status` 是 **`cancelled`**——两个面用词不同，
   不要拿一个去推另一个。
+- **`running`（`block:false` 且任务未结束）**：`<retrieval_status>not_ready</retrieval_status>`、
+  `<status>running</status>`，且**没有 `<exit_code>` 与 `<output>` 段**；`display` 是
+  `{kind:"task_output", retrievalStatus:"not_ready", taskStatus:"running"}`（169 字节）。
 - `TaskStop` 的成功结果正文是 **JSON 字符串**（不是 XML）：
 
 ```json
@@ -549,9 +552,9 @@ Command running in background with ID: exec_<uuid>. Output is being written to: 
   **有 `started`**（与上面的阶段差异一致）。
 
 **Rust 侧实现状态（2026-10-18）**：`TaskRegistry` + `TaskOutput` / `TaskStop` 已落地，
-`Bash(run_in_background)` 会登记任务并按上面的文案返回；`completed` / `failed` / `killed`
-三种结果形状按观察实现。**完成通知 turn 尚未实现**（依赖 Task 5 的会话循环）；
-`running` 状态下 `TaskOutput(block:false)` 的形状仍未观察（实现里 `exit_code` 暂报 `-1`）。
+`Bash(run_in_background)` 会登记任务并按上面的文案返回；`completed` / `failed` / `killed` /
+`running` 四种结果形状均已按观察实现。**完成通知 turn 尚未实现**（依赖 Task 5 的会话循环），
+这是本切片当前唯一已知的行为差异。
 
 **仍未观察（Step 0 剩余）**：大输出阈值的精确字节（只钉到 **30,000–30,720** 区间）；
 host 层 `CommandInbox` 的排队顺序与 key 粒度。

@@ -348,4 +348,11 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - 观察：`failed` → `<status>failed</status>` + `<exit_code>7</exit_code>` + 正常 `<output>`；
   `killed` → `<status>killed</status>` + `<exit_code>137</exit_code>` 且**无 `<output>` 段**，
   `display` 也没有 `output` 键；同一任务在 `session.updated` 里是 `cancelled`（两面用词不同）。
-- 实现按观察修正，并补两条断言。仍未观察：`running` + `block:false` 的形状。
+- 实现按观察修正，并补两条断言。
+
+### 2026-10-18 巡检轮（第六次）：`running + block:false` 的形状
+
+- 探针新增运行中任务的 `TaskOutput(block:false)`：`<retrieval_status>not_ready</retrieval_status>`、
+  `<status>running</status>`，无 `<exit_code>` / `<output>`；display 的 `retrievalStatus` 是
+  `not_ready`（169 字节）。
+- 实现补 running 分支并新增断言；至此 TaskOutput 的四种状态形状全部有观察依据。
