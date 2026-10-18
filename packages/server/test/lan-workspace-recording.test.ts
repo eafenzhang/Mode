@@ -109,7 +109,7 @@ test("携带 workspacePath 的 RPC 录制到该连接的 clientId；纯 path 浏
 
     const capabilityResponse = await fetch(`http://127.0.0.1:${port}/api/rpc-host-capability`, {
       method: "POST",
-      headers: { cookie: `mode_lite_token=${encodeURIComponent(TOKEN)}` },
+      headers: { cookie: `tutto_lite_token=${encodeURIComponent(TOKEN)}` },
     });
     assert.equal(capabilityResponse.status, 200);
     const { capability } = (await capabilityResponse.json()) as { capability?: string };
@@ -118,7 +118,7 @@ test("携带 workspacePath 的 RPC 录制到该连接的 clientId；纯 path 浏
     ws = new WebSocket(`ws://127.0.0.1:${port}/ws/host`, {
       headers: {
         [MODE_RPC_HOST_CAPABILITY_HEADER]: capability,
-        cookie: `mode_lite_token=${encodeURIComponent(TOKEN)}`,
+        cookie: `tutto_lite_token=${encodeURIComponent(TOKEN)}`,
       },
     });
     const socket = wrapClientSocket(ws);

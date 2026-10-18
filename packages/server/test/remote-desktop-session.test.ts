@@ -16,7 +16,7 @@ const CLIENT_A = "lan-client-a";
 const CLIENT_B = "lan-client-b";
 const clientByToken: Record<string, string> = { [TOKEN_A]: CLIENT_A, [TOKEN_B]: CLIENT_B };
 
-const cookieFor = (token: string) => ({ cookie: `mode_lite_token=${encodeURIComponent(token)}` });
+const cookieFor = (token: string) => ({ cookie: `tutto_lite_token=${encodeURIComponent(token)}` });
 
 async function startServer(
   options: {
@@ -346,9 +346,12 @@ test("正常路径：放行 → 200 票据；票据升级后 JSON 单帧双向�
     // 单次消费：同一票据再来一次 → 401 stale_ticket（响应体经普通 GET 同路径核验）
     const replay = await connectUntilRejected(url, cookieFor(TOKEN_A));
     assert.equal(replay, 401);
-    const replayGet = await fetch(`${baseUrl}/ws/remote-desktop?ticket=${encodeURIComponent(issued.ticket)}`, {
-      headers: cookieFor(TOKEN_A),
-    });
+    const replayGet = await fetch(
+      `${baseUrl}/ws/remote-desktop?ticket=${encodeURIComponent(issued.ticket)}`,
+      {
+        headers: cookieFor(TOKEN_A),
+      },
+    );
     assert.equal(replayGet.status, 401);
     assert.deepEqual(await replayGet.json(), { code: "stale_ticket" });
   } finally {

@@ -71,3 +71,11 @@
 - 测试：`packages/desktop/tests/deep-link-scheme-compat.test.mjs` 4/4 通过
   （tutto/mode/zcode 接受、https 与非完全匹配的 scheme 拒绝、三种 scheme 解析 path）。
 - 仍待做：cookie、MCP meta、市场 id、插件目录、协议名。
+
+### S4 进展（2026-10-19，LAN cookie 完成）
+
+- 新 cookie 名 `tutto_lite_token`；读取链 `tutto_lite_token` → `mode_lite_token` → `zcode_lite_token`，
+  `Set-Cookie` 只写新名；
+- 桌面 LAN attach、`verify-lan-attach`、fnOS 网关 proxy 同步发送新名；
+- 测试 `packages/server/test/lan-cookie-compat.test.ts` 覆盖无令牌 401、三代 cookie 放行、
+  只下发新名、错误令牌 401；server 测试 30/30 通过。

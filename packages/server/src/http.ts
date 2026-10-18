@@ -151,10 +151,7 @@ class LanWorkspaceRecordingChannelServer<TContext> implements IChannelServer<TCo
   ) {}
 
   registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
-    this.inner.registerChannel(
-      channelName,
-      new LanRecordingServerChannel(channel, this.notify),
-    );
+    this.inner.registerChannel(channelName, new LanRecordingServerChannel(channel, this.notify));
   }
 
   ready(): void {
@@ -166,7 +163,10 @@ function setupChannelServer(
   ws: WebSocket,
   services: ServiceCollection,
   clientMode: "desktop-continuous" | "web-remote-replayable",
-  lanRecording?: { clientId: string; onWorkspace: (clientId: string, workspacePath: string) => void },
+  lanRecording?: {
+    clientId: string;
+    onWorkspace: (clientId: string, workspacePath: string) => void;
+  },
 ) {
   const socket = wrapWebSocket(ws);
   const protocol = new SocketProtocol(socket);
@@ -358,7 +358,9 @@ function resolveServerId(options: HttpServerOptions): string {
   );
 }
 
-async function resolveServerWorkspaces(options: HttpServerOptions): Promise<ServerRemoteWorkspaceInfo[]> {
+async function resolveServerWorkspaces(
+  options: HttpServerOptions,
+): Promise<ServerRemoteWorkspaceInfo[]> {
   if (typeof options.workspaces === "function") {
     try {
       return await options.workspaces();
@@ -419,10 +421,10 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
   };
 }
 
-const modeLiteTokenCookieName = "mode_lite_token";
-// 改名（ZCODIUM → Mode）前的 cookie 名：老客户端/手机浏览器里可能还留着它，
-// 读时兜底一次，避免升级后每次都要重新走 ?token= 链接。
-const legacyLiteTokenCookieName = "zcode_lite_token";
+const modeLiteTokenCookieName = "tutto_lite_token";
+// 改名（ZCODIUM → Mode → Tutto）前的 cookie 名：老客户端/手机浏览器里可能还留着它，
+// 读时逐级兜底，避免升级后每次都要重新走 ?token= 链接。
+const legacyLiteTokenCookieNames = ["mode_lite_token", "zcode_lite_token"] as const;
 
 const staticMimeTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -470,7 +472,9 @@ function readPresentedLiteToken(c: Context): { token: string | undefined; fromQu
   }
   const cookies = parseCookieHeader(c.req.header("cookie"));
   return {
-    token: cookies.get(modeLiteTokenCookieName) ?? cookies.get(legacyLiteTokenCookieName),
+    token:
+      cookies.get(modeLiteTokenCookieName) ??
+      legacyLiteTokenCookieNames.map((name) => cookies.get(name)).find(Boolean),
     fromQuery: false,
   };
 }
@@ -740,7 +744,9 @@ export function createHttpServer(
   const upgradeRemoteDesktopWebSocket = upgradeWebSocket((c) => ({
     onOpen(_event, ws) {
       // LAN 低延迟：显式关 Nagle（服务端 socket 不自带此设置；小控制帧会吃 Nagle×延迟 ACK 抖动）。
-      (ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } })._socket?.setNoDelay?.(true);
+      (
+        ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } }
+      )._socket?.setNoDelay?.(true);
       const remoteDesktop = options.remoteDesktop;
       const clientId = c.get("remoteDesktopClientId");
       if (!remoteDesktop || !clientId) {
@@ -780,7 +786,9 @@ export function createHttpServer(
   const upgradeRemoteDesktopMediaWebSocket = upgradeWebSocket((c) => ({
     onOpen(_event, ws) {
       // LAN 低延迟：媒体帧尾包与控制面小帧同样受益于关 Nagle（与信令通道同款设置）。
-      (ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } })._socket?.setNoDelay?.(true);
+      (
+        ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } }
+      )._socket?.setNoDelay?.(true);
       const remoteDesktop = options.remoteDesktop;
       const clientId = c.get("remoteDesktopMediaClientId");
       if (!remoteDesktop?.onMediaSocket || !clientId) {

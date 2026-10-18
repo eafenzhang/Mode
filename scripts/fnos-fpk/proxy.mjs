@@ -22,7 +22,7 @@ const listenPort = Number(process.env.MODE_FNOS_LISTEN_PORT || "0");
 const targetPort = Number(process.env.MODE_FNOS_TARGET_PORT || "3030");
 const prefix = (process.env.MODE_FNOS_PREFIX?.trim() || "/app/mode").replace(/\/+$/u, "");
 const tokenFile = process.env.MODE_FNOS_TOKEN_FILE?.trim() || "";
-const COOKIE_NAME = "mode_lite_token";
+const COOKIE_NAME = "tutto_lite_token";
 
 function loadToken() {
   try {
