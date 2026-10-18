@@ -153,6 +153,8 @@ pnpm exec tsx scripts/generate-rust-ledger.ts \
 **为什么候选不直接提交**：
 
 - 47 条 `reviewRequired` 需要人工确认（父 crate 的许可证是否覆盖、是否补标准条款）；
+  2026-10-18 已做分类（见 `2026-10-18-m4-rust-ledger-review.md`）：44 条纯宽松、
+  2 条 `r-efi` 含 LGPL 选项、1 条 `selectors` 为 MPL-2.0；只有后两类需要真正判断；
 - 台账入库会同时改变 `THIRD-PARTY-NOTICES.md` 的 Rust 段，属发布合规材料，必须走
   Linux CI 重生成 + diff review（T3），不能由巡检轮静默替换。
 
