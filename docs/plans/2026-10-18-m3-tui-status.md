@@ -152,4 +152,5 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第七批（`app-modified-files`）：同路径累加/前置顺序、100 条上限；
 - 第八批（`app-event-data` 扩展）：provider 计数形态默认值、serverToolUse 推导、usage/cache 空值；
 - 第九批（`app-motion`）：spinner 帧序列/周期与负时间归一；
+- 第十批（`app-input`）：clampIndex 边界、modelCommandQuery 前缀与分隔语义；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
