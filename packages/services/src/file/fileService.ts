@@ -20,7 +20,7 @@ import {
   type WorkspaceFileSearchFilter,
 } from "./workspaceFileMentionFilter.js";
 import {
-  WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME,
+  WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAMES,
   isWorkspaceFileSearchPathIgnored,
   loadWorkspaceFileSearchIgnoreRules,
   readWorkspaceFileSearchIgnore,
@@ -217,12 +217,16 @@ interface WorkspaceFileIndex {
 }
 
 async function statWorkspaceFileSearchIgnoreFingerprint(rootPath: string): Promise<string> {
-  try {
-    const fileStat = await stat(join(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME));
-    return `${fileStat.mtimeMs}:${fileStat.size}`;
-  } catch {
-    return "none";
+  const parts: string[] = [];
+  for (const fileName of WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAMES) {
+    try {
+      const fileStat = await stat(join(rootPath, fileName));
+      parts.push(`${fileName}:${fileStat.mtimeMs}:${fileStat.size}`);
+    } catch {
+      // 候选文件不存在时继续看下一代的旧名。
+    }
   }
+  return parts.length > 0 ? parts.join("|") : "none";
 }
 
 export function createFileService(options: CreateFileServiceOptions = {}): IFileService {
@@ -311,7 +315,9 @@ export function createFileService(options: CreateFileServiceOptions = {}): IFile
           for (const entry of children) {
             const entryPath = join(currentPath, entry.name);
             const relativePath = normalizeRelativePath(rootPath, entryPath);
-            if (relativePath === WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME) {
+            if (
+              (WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAMES as readonly string[]).includes(relativePath)
+            ) {
               continue;
             }
             const type = await resolveReaddirEntryType(

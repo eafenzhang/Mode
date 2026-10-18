@@ -89,3 +89,10 @@
 - **例外**：`OFFICIAL_MCP_AUTH_META_KEY` 保持 `com.mode/official-mcp-auth`——读取方是
   已发布插件的 server 进程，改名会破坏全部已装插件（spec 记录为外部契约例外）；
 - `plugin-marketplace-id-compat.test.ts` 5/5 通过（协议名接受/拒绝、request-context 双旧键）。
+
+### S4 进展（2026-10-19，忽略文件完成）
+
+- 新忽略文件名 `.tuttoignore`；读取链 `.tuttoignore` → `.modeignore` → `.zcodeignore`，
+  新建一律写新名；
+- 文件搜索指纹与跳过逻辑按三代文件名统一处理；
+- 新增 `workspace-ignore-file-compat.test.ts` 覆盖优先级与兜底；services 378 tests 全绿。

@@ -17,16 +17,35 @@ import type { ServiceLogger } from "../logger/serviceLogger.js";
  * `**` 跨层、目录后缀 `/`、字符类与转义。禁止在本仓库手写 gitignore 解析。
  */
 
-export const WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME = ".modeignore";
-/** 改名前的忽略文件名（.zcodeignore）：读取时继续兼容。 */
-export const LEGACY_WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME = ".zcodeignore";
+export const WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME = ".tuttoignore";
+/** 改名前的忽略文件名（.modeignore、.zcodeignore）：读取时继续兼容。 */
+export const LEGACY_WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAMES = [
+  ".modeignore",
+  ".zcodeignore",
+] as const;
 
-/** 解析忽略文件路径：新名优先，旧名兜底；两者都不存在时返回新名（新建一律用新名）。 */
+/** 按“新名优先、旧名依次兜底”挑选实际文件名；都不存在时返回新名（新建一律用新名）。 */
+export function pickWorkspaceIgnoreFileName(exists: (fileName: string) => boolean): string {
+  if (exists(WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME)) {
+    return WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME;
+  }
+  for (const legacy of LEGACY_WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAMES) {
+    if (exists(legacy)) {
+      return legacy;
+    }
+  }
+  return WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME;
+}
+
+export const WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAMES = [
+  WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME,
+  ...LEGACY_WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAMES,
+] as const;
+
+/** 解析忽略文件路径：新名优先，旧名兜底；所有候选都不存在时返回新名。 */
 function resolveWorkspaceIgnorePath(rootPath: string): string {
-  const primary = resolve(rootPath, WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
-  if (existsSync(primary)) return primary;
-  const legacy = resolve(rootPath, LEGACY_WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME);
-  return existsSync(legacy) ? legacy : primary;
+  const fileName = pickWorkspaceIgnoreFileName((name) => existsSync(resolve(rootPath, name)));
+  return resolve(rootPath, fileName);
 }
 const GITIGNORE_FILE_NAME = ".gitignore";
 
@@ -334,7 +353,7 @@ export async function loadWorkspaceFileSearchIgnoreRules(
   try {
     existing = await readOptionalFile(ignorePath);
   } catch (error) {
-    return degradeToInMemory(`读取 ${WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME} 失败`, error);
+    return degradeToInMemory(`读取 ${basename(resolveWorkspaceIgnorePath(rootPath))} 失败`, error);
   }
   if (existing !== null) {
     return { matcher: buildIgnoreMatcher(existing), source: "file" };
