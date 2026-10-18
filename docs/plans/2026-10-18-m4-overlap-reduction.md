@@ -18,6 +18,24 @@ excluded:    455 files / 82,661 lines（third-party、.agents/skills、license-t
 M4 验收目标是 `pnpm verify:self-developed`（strict）通过，即 **重叠行数 = 0**。
 当前 13.17% 折合约 7.7 万行，集中在四个包。
 
+## 复测（2026-10-19，UI adapter 波次之后）
+
+同一命令 `pnpm exec tsx scripts/upstream-overlap-check.ts`，baseline `upstream/zcode-baseline` @ `aac47556`：
+
+```text
+common files: 4169（ours-only 2811，upstream-only 10976）
+identical: 2657 files / 25,147 lines
+normalized:  188 files / 20,355 lines
+distinct:   1324 files / 415,810 lines
+headline:   9.86%（45,502 of 461,312 lines）
+excluded:    455 files / 82,668 lines（third-party、.agents/skills、license-texts）
+deferred:    517 files / 122,709 lines（M4 范围豁免，随 Rust 运行时迁移清零）
+```
+
+相对 2026-10-18 的 13.17%，headline 下降 3.31 个百分点；本轮的 UI adapter 切换（21 个基础件 +
+后续波次）把调用点从上游衍生组件挪到 clean-room `ui-foundation/adapters`，但**旧
+`components/ui/*` 仍按 D8 保留**，所以当前 9.86% 还未包含删除旧文件后的收益。
+
 ## 残余分布（只含 identical + normalized，已排除豁免面）
 
 | 模块 | 文件 | 行数 | identical | normalized |
