@@ -165,4 +165,8 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   filePath 沿用与 file 占位、结构化 hunk 合成 diff 文本、truncated 生成 meta 提示行；
   选择状态缺省返回 undefined、默认 filter 空且选中首项、下标夹取到有效范围、
   cursor/query 保留；
+- 第十六批（`app-transcript-stream`、`app-file-mentions`）：文本/思考增量同 id 累加、
+  空增量返回原数组、消息完成清 streaming、思考完成按 id 置 thought、响应判定要求
+  投影标记且去空白后完全相等；提及窗口的空列表/非正可视数、越界夹取、滚动起点与
+  窗内选中下标；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
