@@ -41,9 +41,9 @@ M5 作为硬门禁。它只产出**统计与路径清单**，绝不输出上游�
 
 二进制/非 UTF-8：不参与归一档（只有 `identical` 或 `distinct`），行数记 0。
 
-**vendored 排除**：`third-party/**` 与 `.agents/skills/**` 属 clean-room 政策里的「不适用」面
-（第三方复制件），**不参与 headline**，单独报告文件/行数与两档计数。把它们算进「自研重合度」
-会让 0% 永远不可达，也会掩盖真正的自研面。
+**豁免面排除**：`third-party/**`、`.agents/skills/**` 属 clean-room 政策里的「不适用」面
+（第三方复制件），`scripts/license-texts/**` 是台账引用的第三方许可证原文；三者**不参与 headline**，
+单独报告文件/行数与两档计数。把它们算进「自研重合度」会让 0% 永远不可达，也会掩盖真正的自研面。
 
 ## 指标
 
@@ -53,14 +53,14 @@ M5 作为硬门禁。它只产出**统计与路径清单**，绝不输出上游�
   - 分母 = 所有同路径**非 vendored** 文本文件的行数（当前树侧）；
   - **headline = 分子 / 分母**，即路线图所说「两档的行数占比」。
 - 二进制文件只影响文件计数，不影响 headline。
-- vendored 单独一组输出（`vendored (excluded from headline): …`），口径同三档，但不进 headline。
+- 豁免面单独一组输出（`excluded (from headline): …`），口径同三档，但不进 headline。
 
 ## 退出码
 
 | 模式 | 行为 |
 | --- | --- |
 | 默认（report） | 打印摘要与按顶层目录的分布，退出 0 |
-| `--json` | 输出机器可读 JSON（同字段），退出 0 |
+| `--json` | 输出机器可读 JSON：`summary` / `excluded` / `oursOnly` / `upstreamOnly`，外加 `files[]`（每项 `path`、`tier`、`lines`，供按模块排期）与 `identical` / `normalized` 路径数组，退出 0 |
 | `--list` | 追加两档的文件路径（仅路径，无内容） |
 | `--strict` | headline > 0 或基线缺失时退出 1/2；M4 完成前的 CI **不启用** |
 

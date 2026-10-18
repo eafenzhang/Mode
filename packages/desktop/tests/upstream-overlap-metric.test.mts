@@ -10,7 +10,7 @@ import test from "node:test";
 import {
   classifyPair,
   countLines,
-  isVendored,
+  isExempt,
   normalizeBrand,
   parseLsTree,
   summarize,
@@ -59,11 +59,12 @@ test("三档判定：同 blob → identical；归一相同 → normalized；其�
   );
 });
 
-test("vendored 前缀不参与 headline", () => {
-  assert.equal(isVendored("third-party/copied-components.json"), true);
-  assert.equal(isVendored(".agents/skills/foo/SKILL.md"), true);
-  assert.equal(isVendored("packages/ui/src/app.tsx"), false);
-  assert.equal(isVendored("third-partyish/file.ts"), false);
+test("豁免前缀（vendored 与许可证原文）不参与 headline", () => {
+  assert.equal(isExempt("third-party/copied-components.json"), true);
+  assert.equal(isExempt(".agents/skills/foo/SKILL.md"), true);
+  assert.equal(isExempt("scripts/license-texts/CC-BY-4.0.txt"), true);
+  assert.equal(isExempt("packages/ui/src/app.tsx"), false);
+  assert.equal(isExempt("third-partyish/file.ts"), false);
 });
 
 test("parseLsTree 只收 blob，跳过 tree 与 submodule", () => {
