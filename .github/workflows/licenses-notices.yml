@@ -169,6 +169,8 @@ jobs:
               git --no-pager diff -- THIRD-PARTY-NOTICES.md third-party/inventory.json
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+            diff_preview=$(git --no-pager diff --unified=0 -- THIRD-PARTY-NOTICES.md third-party/inventory.json | head -60 | tr '\n' ' ')
+            echo "::error title=Ledger diff preview::$diff_preview"
             echo "::error::重生成结果与已入库台账不一致（$changed 个文件有差异），生成不可复现"
             exit 1
           fi
