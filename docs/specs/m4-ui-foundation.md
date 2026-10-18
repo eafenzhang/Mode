@@ -150,8 +150,10 @@ success/warning/destructive。
 `packages/ui/src/ui-foundation/`（`buttonStyles.ts` / `Button.tsx` / `index.ts`），
 用例 `packages/ui/test/uiFoundationButton.test.ts`。输入类控件在
 `inputStyles.ts` / `Input.tsx` / `Textarea.tsx` / `SelectTrigger.tsx`（半径映射共用
-`radius.ts`），用例 `packages/ui/test/uiFoundationField.test.ts`。后续 primitives 复用这些函数，
-不再各写一套。
+`radius.ts`），用例 `packages/ui/test/uiFoundationField.test.ts`。Surface 层在
+`surfaceStyles.ts` / `Card.tsx` / `Menu.tsx` / `Popover.tsx` / `Dialog.tsx`（Dialog 含
+焦点进入/恢复、Esc 关闭与 Tab 循环），用例 `packages/ui/test/uiFoundationSurface.test.ts`。
+后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围
 
