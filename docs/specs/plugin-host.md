@@ -136,8 +136,11 @@
   （它们的 cwd 是插件目录，不先杀会在 Windows 上 EBUSY），再重扫 cache；adapter 的
   `list_tools` 每次先发 refresh。`probe-plugin-install-uninstall.mts` 验证：
   安装前 `[]` → 安装+refresh 后工具出现并可调用 → 卸载+refresh 后 `[]`。
-- **未做**：启用/禁用过滤（`installed_plugins.json` 的稳定读取口径未定）；sidecar 崩溃的
-  Session 级 E2E（supervisor 单测已覆盖重启）。
+- **启用/禁用过滤（2026-10-18）**：启用态在 `<dataRoot>/.mode/cli/config.json` 的
+  `plugins.enabledPlugins["<name>@<marketplace>"]`（`installed_plugins.json` **没有**
+  enabled 字段）。sidecar 每次 discovery 读取它：显式 `false` 跳过、显式 `true` 启用、
+  无记录时默认启用（官方默认关闭的 `computer-use` 除外）；`node-repl-host` 由内置面提供，跳过。
+- **未做**：sidecar 崩溃的 Session 级 E2E（supervisor/adapter 单测已覆盖重启）。
 - 开发运行：`pnpm exec tsx tools/plugin-host/src/main.ts`（打包成 Task 1 的单文件 bundle
   是后续步骤；当前按源码运行）。复现：`probe-plugin-sidecar.mts`。
 

@@ -76,7 +76,17 @@ function safeToken(value: string): string {
 }
 
 async function discoverServers(): Promise<DiscoveredServer[]> {
-  const cacheRoot = join(pluginStorageBase(), ".mode", "cli", "plugins", "cache");
+  const base = pluginStorageBase();
+  const cacheRoot = join(base, ".mode", "cli", "plugins", "cache");
+  let enabledPlugins: Record<string, boolean> = {};
+  try {
+    const config = JSON.parse(
+      await readFile(join(base, ".mode", "cli", "config.json"), "utf8"),
+    ) as { plugins?: { enabledPlugins?: Record<string, boolean> } };
+    enabledPlugins = config.plugins?.enabledPlugins ?? {};
+  } catch {
+    // 没有 config 时按默认启用处理（与 CLI 的默认集合一致的部分由此覆盖）。
+  }
   const discovered: DiscoveredServer[] = [];
   let marketplaces;
   try {
@@ -114,6 +124,11 @@ async function discoverServers(): Promise<DiscoveredServer[]> {
         continue;
       }
       const pluginName = manifest.name ?? plugin.name;
+      const pluginId = `${pluginName}@${marketplace.name}`;
+      const enabled = enabledPlugins[pluginId];
+      if (enabled === false) continue;
+      // 官方内置里默认关闭的 computer-use 没有显式配置时跳过；其余无配置按启用。
+      if (enabled === undefined && pluginName === "computer-use") continue;
       // 内置 node-repl 宿主不是用户插件；它的工具是 `mcp__node_repl__js`，由内置面提供。
       if (pluginName === "node-repl-host") continue;
       let mcp: { mcpServers?: Record<string, ServerConfig> };
@@ -122,10 +137,11 @@ async function discoverServers(): Promise<DiscoveredServer[]> {
       } catch {
         continue;
       }
-      const isNodeRepl = pluginName === "node-repl-host";
-      const metadata: ToolMetadata = isNodeRepl
-        ? { riskLevel: "high", sideEffectScope: "system", budgetStrategy: "artifact" }
-        : { riskLevel: "medium", sideEffectScope: "network", budgetStrategy: "truncate" };
+      const metadata: ToolMetadata = {
+        riskLevel: "medium",
+        sideEffectScope: "network",
+        budgetStrategy: "truncate",
+      };
       for (const [serverName, config] of Object.entries(mcp.mcpServers ?? {})) {
         discovered.push({
           plugin: pluginName,

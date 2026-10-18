@@ -117,6 +117,26 @@ try {
 
   // 先 refresh 让 sidecar 杀掉 MCP 子进程（它的 cwd 是插件目录），再删目录。
   await request("plugin/refresh");
+  // 启用/禁用开关在 .mode/cli/config.json 的 plugins.enabledPlugins。
+  const configPath = join(dataRoot, ".mode", "cli", "config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({ plugins: { enabledPlugins: { "fixture@fixture-marketplace": false } } }),
+    "utf8",
+  );
+  process.stdout.write("\n########## 禁用后（refresh）##########\n");
+  process.stdout.write(`tools=${JSON.stringify(await toolNames(true))}\n`);
+
+  await writeFile(
+    configPath,
+    JSON.stringify({ plugins: { enabledPlugins: { "fixture@fixture-marketplace": true } } }),
+    "utf8",
+  );
+  process.stdout.write("\n########## 重新启用（refresh）##########\n");
+  process.stdout.write(`tools=${JSON.stringify(await toolNames(true))}\n`);
+
+  // 先 refresh 让 sidecar 杀掉 MCP 子进程（它的 cwd 是插件目录），再删目录。
+  await request("plugin/refresh");
   await rm(pluginRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   process.stdout.write("\n########## 卸载后（refresh）##########\n");
   process.stdout.write(`tools=${JSON.stringify(await toolNames(true))}\n`);
