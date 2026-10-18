@@ -94,7 +94,8 @@ pub enum ModeToolFamily {
 /// 逐字抄下来的（见 [`read::READ_INPUT_SCHEMA`]），不是照 JSON Schema 规范重写一遍。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolSpec {
-    pub name: &'static str,
+    /// 工具名：内置工具是常量，插件工具是运行时从 sidecar 拿到的动态名字。
+    pub name: String,
     pub family: ModeToolFamily,
     pub schema: Value,
     pub read_only: bool,
@@ -294,25 +295,25 @@ pub fn unimplemented_surface(surface: &'static str, message: impl Into<String>) 
 pub fn registry() -> Vec<ToolSpec> {
     vec![
         ToolSpec {
-            name: "Read",
+            name: "Read".to_string(),
             family: ModeToolFamily::FileRead,
             schema: read_input_schema(),
             read_only: true,
         },
         ToolSpec {
-            name: "Write",
+            name: "Write".to_string(),
             family: ModeToolFamily::FileWrite,
             schema: write_input_schema(),
             read_only: false,
         },
         ToolSpec {
-            name: "Edit",
+            name: "Edit".to_string(),
             family: ModeToolFamily::FileWrite,
             schema: edit_input_schema(),
             read_only: false,
         },
         ToolSpec {
-            name: "Bash",
+            name: "Bash".to_string(),
             family: ModeToolFamily::Shell,
             schema: bash_input_schema(),
             // 观察（spec §3.4）：`started` 载荷是 `readOnly:true` / `sideEffectScope:"none"`，
@@ -320,7 +321,7 @@ pub fn registry() -> Vec<ToolSpec> {
             read_only: true,
         },
         ToolSpec {
-            name: "TaskOutput",
+            name: "TaskOutput".to_string(),
             family: ModeToolFamily::TaskControl,
             schema: task_output_input_schema(),
             // 观察（spec §3.4）：成功路径的 `started` 是 `readOnly:true` /
@@ -328,7 +329,7 @@ pub fn registry() -> Vec<ToolSpec> {
             read_only: true,
         },
         ToolSpec {
-            name: "TaskStop",
+            name: "TaskStop".to_string(),
             family: ModeToolFamily::TaskControl,
             schema: task_stop_input_schema(),
             // 观察（spec §3.4）：`started` 是 `readOnly:false` /

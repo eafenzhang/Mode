@@ -140,7 +140,7 @@ pub fn evaluate(tool: &ToolSpec, args: &Value, ruleset: &Ruleset) -> Decision {
         ModeToolFamily::FileRead => Decision::Allow,
         ModeToolFamily::FileWrite => {
             let path = args.get("file_path").and_then(Value::as_str);
-            if path.is_some_and(|path| ruleset.allows(tool.name, path)) {
+            if path.is_some_and(|path| ruleset.allows(&tool.name, path)) {
                 return Decision::Allow;
             }
             Decision::Ask {

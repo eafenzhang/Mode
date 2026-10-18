@@ -36,7 +36,7 @@ pub fn invoke(
     ctx: &ToolContext,
     files: &FileState,
 ) -> Result<ToolOutcome, ToolError> {
-    invoke_by_name(spec.name, args, ctx, files)
+    invoke_by_name(&spec.name, args, ctx, files)
 }
 
 /// `ToolOutcome` → `kind:"result"` 的 `result` 对象。

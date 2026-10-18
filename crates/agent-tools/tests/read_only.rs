@@ -154,7 +154,7 @@ fn read_only_tools_leave_the_workspace_untouched() {
 #[test]
 fn registry_contains_only_read_from_the_read_only_slice() {
     let specs = registry();
-    let names: Vec<&str> = specs.iter().map(|spec| spec.name).collect();
+    let names: Vec<&str> = specs.iter().map(|spec| spec.name.as_str()).collect();
     assert_eq!(
         names,
         vec!["Read", "Write", "Edit", "Bash", "TaskOutput", "TaskStop"]

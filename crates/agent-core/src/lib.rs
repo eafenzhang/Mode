@@ -25,6 +25,7 @@
 
 pub mod approval;
 pub mod permission;
+pub mod plugin_tools;
 pub mod provider;
 pub mod rule_store;
 pub mod session;
@@ -38,6 +39,7 @@ pub use agent_protocol::session_event::{
 };
 pub use agent_tools::{ModeToolFamily, ToolContext, ToolError, ToolOutcome, ToolSpec};
 pub use permission::{evaluate as evaluate_permission, Decision as PermissionDecision};
+pub use plugin_tools::{PluginToolDeclaration, PluginToolError, PluginToolSource};
 pub use provider::{
     ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelResponse, ModelToolCall, ModelUsage,
     ProviderError, ScriptStep, ScriptToolCall, ScriptedProvider,

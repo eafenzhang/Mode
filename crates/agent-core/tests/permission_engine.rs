@@ -11,7 +11,7 @@ use agent_core::{ModeToolFamily, ToolSpec};
 
 fn spec(name: &'static str, family: ModeToolFamily) -> ToolSpec {
     ToolSpec {
-        name,
+        name: name.to_string(),
         family,
         schema: json!({}),
         read_only: matches!(family, ModeToolFamily::FileRead),

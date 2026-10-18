@@ -58,12 +58,13 @@ use agent_protocol::session_event::{
 };
 use agent_protocol::ExtraFields;
 use agent_tools::{
-    lookup, ArtifactLocation, FileState, ModeToolFamily, TaskNotification, TaskRegistry,
-    ToolContext, ToolOutcome, ToolSpec,
+    ArtifactLocation, FileState, ModeToolFamily, TaskNotification, TaskRegistry, ToolContext,
+    ToolOutcome, ToolSpec,
 };
 
 use crate::approval::Ruleset;
 use crate::permission::{AutoAllow, PermissionHandler, DENY_REASON};
+use crate::plugin_tools::{PluginToolDeclaration, PluginToolSource};
 use crate::provider::{ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelUsage};
 use crate::rule_store::{scope_id_for, RuleStore, SqliteRuleStore};
 use crate::stream::{EventSink, TurnError};
@@ -111,6 +112,10 @@ pub struct Session {
     rule_scope_id: Option<String>,
     /// 最近一次落盘失败（不静默丢；宿主/测试可读）。
     rule_store_error: Option<String>,
+    /// 会话级插件工具（M3 Task 3）：静态 `registry()` 不变，插件工具追加在这里。
+    extra_tools: Vec<ToolSpec>,
+    /// 插件工具的执行源；`None` = 没有插件宿主（插件工具不会出现在表里）。
+    plugin_tools: Option<Arc<dyn PluginToolSource>>,
 }
 
 impl Session {
@@ -132,6 +137,69 @@ impl Session {
             rule_store: None,
             rule_scope_id: None,
             rule_store_error: None,
+            extra_tools: Vec::new(),
+            plugin_tools: None,
+        }
+    }
+
+    /// 接线插件工具源（M3 Task 3）：构造时拉一次 `listTools`，之后随会话使用。
+    ///
+    /// 插件工具的 `family`/`read_only` 目前是占位值（Task 0.4 未观察），权限引擎因此判 Allow；
+    /// Task 4 观察后再收紧。
+    pub fn with_plugin_tools(mut self, source: Arc<dyn PluginToolSource>) -> Result<Self, String> {
+        let declarations = source.list_tools()?;
+        self.extra_tools = declarations
+            .into_iter()
+            .map(PluginToolDeclaration::into_spec)
+            .collect();
+        self.plugin_tools = Some(source);
+        Ok(self)
+    }
+
+    /// 当前会话可见的工具（静态注册表 + 插件工具）。
+    pub fn tools(&self) -> Vec<ToolSpec> {
+        let mut tools = agent_tools::registry();
+        tools.extend(self.extra_tools.clone());
+        tools
+    }
+
+    fn lookup_tool(&self, name: &str) -> Option<ToolSpec> {
+        agent_tools::lookup(name).or_else(|| {
+            self.extra_tools
+                .iter()
+                .find(|spec| spec.name == name)
+                .cloned()
+        })
+    }
+
+    fn is_plugin_tool(&self, name: &str) -> bool {
+        self.extra_tools.iter().any(|spec| spec.name == name)
+    }
+
+    fn invoke_plugin_tool(
+        &self,
+        name: &str,
+        input: &Value,
+    ) -> Result<ToolOutcome, agent_tools::ToolError> {
+        let Some(source) = &self.plugin_tools else {
+            return Err(agent_tools::not_found(name));
+        };
+        match source.call_tool(name, input) {
+            Ok(value) => {
+                let content = value
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                // 插件结果的预算策略未观察；先按普通文本结果处理（Task 4 对拍后再收紧）。
+                Ok(ToolOutcome::text(content))
+            }
+            Err(message) => Err(agent_tools::ToolError {
+                error_type: "tool_execution_failed",
+                message,
+                code: Some("TOOL_EXECUTION_FAILED"),
+                detail: None,
+            }),
         }
     }
 
@@ -282,7 +350,8 @@ impl Session {
             .expect("begin_turn 已设置 turn id");
         let tools: Vec<String> = agent_tools::registry()
             .iter()
-            .map(|spec| spec.name.to_string())
+            .map(|spec| spec.name.clone())
+            .chain(self.extra_tools.iter().map(|spec| spec.name.clone()))
             .collect();
 
         let mut usage = ModelUsage::default();
@@ -524,7 +593,7 @@ impl Session {
         for call in calls {
             // 每次调用各自的上下文：artifact 文件名要用本次 `toolCallId`（观察值）。
             let context = self.tool_context_for_call(&call.tool_call_id);
-            let spec = lookup(&call.name);
+            let spec = self.lookup_tool(&call.name);
             events.push(self.scheduled_event(&turn_id, call, &group));
 
             // 未注册的工具**没有** `started`（观察：`Glob`/`Grep` 的 `scheduled` 之后直接是
@@ -596,12 +665,16 @@ impl Session {
             let outcome = match stubbed {
                 Some(stub) => Ok(stub),
                 None => {
-                    let result = agent_tools::invoke_by_name(
-                        &call.name,
-                        &call.input,
-                        &context,
-                        &self.file_state,
-                    );
+                    let result = if self.is_plugin_tool(&call.name) {
+                        self.invoke_plugin_tool(&call.name, &call.input)
+                    } else {
+                        agent_tools::invoke_by_name(
+                            &call.name,
+                            &call.input,
+                            &context,
+                            &self.file_state,
+                        )
+                    };
                     match (&call.name[..], &result) {
                         // 读成功 → 记进去重表，同时进入「本会话碰过它」集合。
                         ("Read", Ok(_)) => self.file_state.record(&call.input, &context),
@@ -664,7 +737,7 @@ impl Session {
             update_type: PermissionUpdateType::AddRules,
             behavior: RuleBehavior::Allow,
             rules: vec![PermissionRuleValue {
-                tool_name: spec.name.to_string(),
+                tool_name: spec.name.clone(),
                 rule_content,
                 extra: ExtraFields::new(),
             }],
@@ -727,7 +800,7 @@ impl Session {
             session_id: self.session_id.clone(),
             options,
             tool_call_id: call.tool_call_id.clone(),
-            tool_name: spec.name.to_string(),
+            tool_name: spec.name.clone(),
             turn_id: turn_id.to_string(),
             extra,
         }

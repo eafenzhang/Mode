@@ -118,6 +118,19 @@
 - `Drop` 时 kill + wait；写入失败会先失效当前子进程，下一次请求再 spawn。
 - 3 条集成用例（`node -e` 假 sidecar）：正常往返、挂起超时后仍可用、崩溃后下一次请求重启成功。
 
+## 5.4 工具注入（Task 3 落地，2026-10-18）
+
+- `ToolSpec.name` 从 `&'static str` 改为 `String`：内置工具是常量，插件工具是运行时名字。
+- `Session` 持有会话级 `extra_tools` + `plugin_tools`；`with_plugin_tools(source)` 构造时拉一次
+  `listTools`。静态 `registry()` **不变**，查找顺序是「静态表 → 插件表」。
+- `run_turn` 发给模型的工具名包含插件工具；`run_tool_batch` 对插件工具走
+  `plugin/callTool` → `{content}` → `ToolOutcome`；RPC 错误映射为
+  `tool_execution_failed` / `TOOL_EXECUTION_FAILED`。
+- 未知名字仍是 `tool_not_found`；`listTools` 失败会把错误交给构造方（不静默降级）。
+- **占位**：插件工具的 `family`/`read_only` 真实值未观察，当前登记为
+  `TaskControl` + `read_only:false`，权限引擎因此判 Allow；Task 4 观察后收紧。
+- 4 条用例：注入与调用、错误映射、未知名字、`listTools` 失败。
+
 ## 6. 复现
 
 ```bash

@@ -139,12 +139,13 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - Modify: `crates/agent-core/src/session.rs`（turn 开始时拉取插件工具）
 - Test: `crates/agent-core/tests/plugin_tools.rs`
 
-- [ ] **Step 1：会话级注册表**：静态 `registry()` 保持不变；新增 `Session` 持有的
-      `extra_tools: Vec<ToolSpec>`，查找/执行时先查静态表再查插件表。
-- [ ] **Step 2：`plugin/listTools` → `ToolSpec` 投影**（schema 逐字保留）。
-- [ ] **Step 3：测试**：fixture sidecar 返回两个工具；`lookup` 能命中，未知名字仍是
-      `tool_not_found`。
-- [ ] **Step 4：提交。**
+- [x] **Step 1：会话级注册表**（2026-10-18）：静态 `registry()` 不变；`Session` 持有
+      `extra_tools` + `plugin_tools`，查找顺序「静态 → 插件」。
+- [x] **Step 2：`plugin/listTools` → `ToolSpec` 投影**（2026-10-18）：`PluginToolSource` trait +
+      `with_plugin_tools`；schema 逐字保留。
+      **Deviation**：`ToolSpec.name` 改为 `String`（动态名字）。
+- [x] **Step 3：测试**（2026-10-18）：4 条（注入/调用、错误映射、未知名字、listTools 失败）。
+- [x] **Step 4：提交。**
 
 ---
 
