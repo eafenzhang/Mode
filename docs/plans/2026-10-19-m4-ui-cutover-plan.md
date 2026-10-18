@@ -302,3 +302,9 @@ pdf.js 与 Vite `?url` worker。
    半个组件造成混合实现。
 
 本步骤只增加测试，不改运行时行为。
+
+### 迁移守卫（2026-10-19）
+
+新增 `packages/ui/test/uiFoundationMigrationGuard.test.ts`：扫描 `packages/ui/src`（跳过
+`components/ui/` 历史实现目录），断言业务代码不再 import 37 个已迁移模块的
+`components/ui/<name>.js`。后续新增波次时把模块名补进清单即可防止回退。
