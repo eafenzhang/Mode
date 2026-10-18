@@ -415,6 +415,11 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
 
 ### Task 5: 会话流与重放（双链路各自验证）
 
+> **子计划已产出（2026-10-18）**：`docs/plans/2026-10-18-m2-session-stream.md`。
+> 它把本节拆成 5A 流式 turn 循环 / 5B 投递语义 / 5C 后台通知 turn，并登记了三条决策：
+> 重放归谁（DR-T5-1，建议 Host/relay）、provider 边界（DR-T5-2，先 trait + fake）、
+> 通知 turn 的准入（DR-T5-3）。**开工前先读它的 Task 0 观察清单。**
+
 **Files:**
 - Create: `crates/agent-core/src/session.rs`、`src/stream.rs`、`src/replay.rs`
 - Modify: `crates/agent-protocol/src/lib.rs`（补齐快照/增量需要的类型）
