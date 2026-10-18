@@ -696,7 +696,18 @@ session.updated（messageCount=8）
 
 这些类型的所有者是 **Host/relay 层**（注释点名 desktop `taskRealtimeBus`/`taskRealtimeBridge`、
 services `sessionRealtimePort`）；stdio 运行时只发 `desktop-continuous`。M2 **不复制**快照/队列，
-只透传 `deliveryKind`（与 Task 5 子计划的 DR-T5-1 建议一致）。
+只透传 `deliveryKind`（DR-T5-1 裁决 (a)）。
+
+**两端的验证面（DR-T5-1 落地后）**：
+
+- Rust 侧：`crates/agent-core/tests/turn_stream.rs` 的
+  `events_carry_the_requested_delivery_kind` 断言每个事件信封都带请求的 `deliveryKind`
+  （`web-remote-replayable` 用例）；sink 是 push-only，晚订阅者拿不到历史，没有补发路径。
+- Host 侧：`packages/desktop/tests/task-realtime-replay.test.mts` 锁住 main 进程
+  `TaskRealtimeBus` 的重放语义——flush 后接入的 Host 收到同 seq 流的
+  `deliveryPurpose: "observer"` 重放；批次未 flush 时接入收到
+  `task_snapshot_invalidated` / `stream_mirror_gap` 而不是断流；终态批次 flush 后删除，
+  不再产生过期重放。改 stream / snapshot / queue 时两侧测试必须一起跑。
 
 复现命令：`pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-session-stream.mts`。
 

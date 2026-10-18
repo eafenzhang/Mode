@@ -160,9 +160,10 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 - [x] **Step 1：`desktop-continuous` 的实时语义**（2026-10-18）：`Session::with_delivery_kind`
       让事件信封带请求的 `deliveryKind`；push-only 的 `EventSink` **不保留历史**（晚订阅者
       天然拿不到已发事件），没有额外补发路径。
-- [ ] **Step 2：若裁决 (a)**：只保留 `EventSink` 抽象 + `delivery_kind` 参数，
+- [x] **Step 2：若裁决 (a)**：只保留 `EventSink` 抽象 + `delivery_kind` 参数，
       在 spec 登记「重放归 Host/relay」；若裁决 (b)：另出 `replay.rs` 子计划，不在本任务里
-      静默实现。**当前状态：参数已就位，等待 DR-T5-1 裁决后收口。**
+      静默实现。〔2026-10-18 收口〕DR-T5-1 已裁决 **(a)**，spec §3.5 已登记所有权与两端验证面；
+      Rust 侧无 `replay.rs`，Host 侧重放由 `packages/desktop/tests/task-realtime-replay.test.mts` 锁定。
 
 ---
 
@@ -192,11 +193,13 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
       投影夹具 `fixtures/session-stream.json`（纯文本 + 工具 turn），Rust 侧
       `crates/agent-core/tests/stream_parity.rs` 用 `run_turn` 产出同形投影后**逐字相等**。
       断线语义由 push-only `EventSink` 保证（不保留历史）。
-- [ ] **Step 2：按 DR-T5-1 的裁决补 `web-remote-replayable` 的验证面**（若 (a)，验证
+- [x] **Step 2：按 DR-T5-1 的裁决补 `web-remote-replayable` 的验证面**（若 (a)，验证
       `delivery_kind` 透传与 Host 的既有重放测试；若 (b)，跑 `replay.rs` 的队列用例）。
-      **当前状态：等待裁决；Step 1 的投影夹具可复用到 replayable 的同一投影。**
-- [ ] **Step 3：改 stream / snapshot / queue 时必须双跑**（路线图风险对冲）。
-      **当前只有 desktop 侧可跑；replayable 侧待 Step 2。**
+      〔2026-10-18 收口，裁决 (a)〕：Rust 侧 `events_carry_the_requested_delivery_kind`；
+      Host 侧新增 `packages/desktop/tests/task-realtime-replay.test.mts`（3 例：observer 重放、
+      gap→快照失效、终态后不复放），已进 `packages/desktop/tests/*.test.mts` 的 CI 命令。
+- [x] **Step 3：改 stream / snapshot / queue 时必须双跑**（路线图风险对冲）。
+      〔2026-10-18〕两侧现已都可跑：desktop-continuous 用 `stream_parity.rs`，replayable 用上面的 Host 重放用例。
 - [x] **Step 4：`cargo clippy -D warnings` + `cargo test` 全绿；提交。**
 
 ---
