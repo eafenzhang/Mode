@@ -126,11 +126,44 @@ version-drift 31`。与上文「并集 574 / 499」的差异来自两处口径�
 
 
 
+## T1 台账生成器（2026-10-18 已实现，候选未入库）
+
+工具：`scripts/generate-rust-ledger.ts`。它读取两份 `cargo metadata`（根 workspace + 
+`crates/mode-cua-ax` 的独立 lock）、两份 `Cargo.lock` 的 checksum 与
+`$CARGO_HOME/registry/src` 里的许可证原文，产出：
+
+- `rust-sources.json`（与现有 schema 兼容，新增 `targets`；无许可证文件的条目标
+  `reviewRequired: true`）；
+- `license-texts/<sha256>.txt`（CRLF 归一后按内容哈希命名，与 notices 生成口径一致）。
+
+```bash
+node scripts/rust-cargo.ts metadata --format-version 1 --locked > .plan/root-meta.json
+node scripts/rust-cargo.ts metadata --manifest-path crates/mode-cua-ax/Cargo.toml \
+  --format-version 1 --locked > .plan/cua-meta.json
+pnpm exec tsx scripts/generate-rust-ledger.ts \
+  --root-metadata .plan/root-meta.json --cua-metadata .plan/cua-meta.json \
+  --out .plan/rust-ledger-candidate
+```
+
+**2026-10-18 实测**（输出在 `.plan/rust-ledger-candidate/`，未入库）：577 个组件
+（root 14 个目标 + mode-cua-ax）、300 份唯一许可证文本、47 个 `reviewRequired`
+（registry 包里没有根级许可证文件，多为 build/derive 辅助 crate，需逐条人工判断）；
+自校验 root 558/558、CUA 63/63、unknown-license 0；现有 63 条 CUA 条目全部包含。
+
+**为什么候选不直接提交**：
+
+- 47 条 `reviewRequired` 需要人工确认（父 crate 的许可证是否覆盖、是否补标准条款）；
+- 台账入库会同时改变 `THIRD-PARTY-NOTICES.md` 的 Rust 段，属发布合规材料，必须走
+  Linux CI 重生成 + diff review（T3），不能由巡检轮静默替换。
+
+**生成器已知边界**：只读 registry 源目录（不网络下载）；缺失源码目录时退出 1 并列出
+crate（提示先 `cargo fetch`）；git 依赖目前不存在（实测全部是 registry 源）。
+
 ## 分阶段任务（M4）
 
-1. **T1 扩 scope 与输入**：`rust-sources.json` 增加 `targets`（`tauri-shell` / `agent-runtime` /
-   `cua-helper`）并把生成输入从单一 `mode-cua-ax/Cargo.lock` 改为各目标 `Cargo.lock`
-   或根 `Cargo.lock` 的可达闭包；scope 文案同步。
+1. **T1 扩 scope 与输入**〔2026-10-18 生成器已实现，见上一节；台账候选待 T3 入库〕：
+   `rust-sources.json` 增加 `targets`（`tauri-shell` / `agent-runtime` / `cua-helper`）并把
+   生成输入从单一 `mode-cua-ax/Cargo.lock` 改为各目标可达闭包；scope 文案同步。
 2. **T2 覆盖门禁**〔2026-10-18 已实现，见上一节〕：对每个 shipped target 的 resolve 图，
    断言所有带 `license` 的 crate 都在台账中；缺一条即失败。当前 report，T3 后接
    `--strict` 到 Linux CI 的 notices job。

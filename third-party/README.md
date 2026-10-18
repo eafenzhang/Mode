@@ -22,6 +22,9 @@ This directory holds the source material behind [THIRD-PARTY-NOTICES.md](../THIR
 - Rust ledger coverage for shipped targets (report until the M4 regeneration lands):
   `pnpm check:rust-ledger` — see `docs/plans/2026-10-18-m4-third-party-ledger.md`. It exits non-zero
   with `--strict` when a crate in a shipped target's resolve graph is missing from `rust-sources.json`.
+- Generate a candidate Rust ledger from cargo metadata plus the registry cache (does **not** overwrite
+  this directory by default): `pnpm exec tsx scripts/generate-rust-ledger.ts --out .plan/rust-ledger-candidate`.
+  The candidate must be reviewed and regenerated through Linux CI before it is committed.
 
 ## Where the notices ship
 

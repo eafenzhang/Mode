@@ -241,13 +241,16 @@ function main(): void {
   const args = process.argv.slice(2);
   const metadataIndex = args.indexOf("--metadata");
   const metadataPath = metadataIndex >= 0 ? args[metadataIndex + 1] : null;
+  const ledgerIndex = args.indexOf("--ledger");
+  const ledgerPath =
+    ledgerIndex >= 0 ? resolve(REPO_ROOT, args[ledgerIndex + 1]) : resolve(REPO_ROOT, LEDGER_PATH);
   const json = args.includes("--json");
   const strict = args.includes("--strict");
   const rootsIndex = args.indexOf("--roots");
   const roots = rootsIndex >= 0 ? args[rootsIndex + 1].split(",").filter(Boolean) : undefined;
 
   const metadata = loadMetadata(metadataPath);
-  const ledger = JSON.parse(readFileSync(resolve(REPO_ROOT, LEDGER_PATH), "utf8")) as {
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8")) as {
     components: LedgerComponent[];
   };
   const audit = auditLedger(metadata, ledger.components, roots);
