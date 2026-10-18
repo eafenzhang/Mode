@@ -143,6 +143,11 @@ success/warning/destructive。
 7. **clean-room**：实现只引用本 spec、`DESIGN.md` 与 token 变量名；
    评审检查与非接口约定所致的逐字雷同。
 
+**实现落点（P1.1 已起步）**：圆角解析与排版守卫在
+`packages/ui/src/lib/uiFoundation.ts`（`resolveControlRadius` / `resolveNestedRadius` /
+`findUiTypographyViolations` / `UI_TEXT_TOKENS`），用例
+`packages/ui/test/uiFoundation.test.ts`。primitives 直接复用这些函数，不再各写一套。
+
 ## 6. 不在本 spec 范围
 
 - 具体业务页面（会话、设置、远程桌面等）——按 P1.2–P1.6 各自替换；
