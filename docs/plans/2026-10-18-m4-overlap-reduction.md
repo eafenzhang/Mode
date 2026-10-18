@@ -32,9 +32,12 @@ excluded:    455 files / 82,668 lines（third-party、.agents/skills、license-t
 deferred:    517 files / 122,709 lines（M4 范围豁免，随 Rust 运行时迁移清零）
 ```
 
-相对 2026-10-18 的 13.17%，headline 下降 3.31 个百分点；本轮的 UI adapter 切换（21 个基础件 +
-后续波次）把调用点从上游衍生组件挪到 clean-room `ui-foundation/adapters`，但**旧
-`components/ui/*` 仍按 D8 保留**，所以当前 9.86% 还未包含删除旧文件后的收益。
+相对 2026-10-18 的 13.17%，headline 下降 3.33 个百分点；UI adapter 切换把调用点从上游衍生
+组件挪到 clean-room `ui-foundation/adapters`，但**旧 `components/ui/*` 仍按 D8 保留**，所以当前
+读数还未包含删除旧文件后的收益。
+
+同日 CodeViewer 全量切换后再测：identical 2656 文件 / 25,042 行，normalized 188 文件 / 20,355 行，
+headline **9.84%**（45,397 / 461,312）。
 
 ## 残余分布（只含 identical + normalized，已排除豁免面）
 
