@@ -36,6 +36,18 @@ export {
   type QueuedInputItemProps,
   type QueuedInputListProps,
 } from "./QueuedInput.js";
+export {
+  PreviewPane,
+  RemoteStatusItem,
+  RemoteSurface,
+  RemoteToolbarButton,
+  TerminalPane,
+  type PreviewPaneProps,
+  type RemoteStatusItemProps,
+  type RemoteSurfaceProps,
+  type RemoteToolbarButtonProps,
+  type TerminalPaneProps,
+} from "./Remote.js";
 export { SelectTrigger, type SelectTriggerProps } from "./SelectTrigger.js";
 export {
   PluginCard,
@@ -211,3 +223,17 @@ export {
   type PanelSizePersistence,
 } from "./panelSizePersistence.js";
 export { WorkspaceFrame, type WorkspaceFrameProps } from "./WorkspaceFrame.js";
+export {
+  previewHeaderClassName,
+  previewPaneClassName,
+  remoteCanvasClassName,
+  remoteLayoutClassName,
+  remoteOfflineOverlayClassName,
+  remoteStatusItemClassName,
+  remoteStatusStripClassName,
+  remoteSurfaceClassName,
+  remoteToolbarButtonClassName,
+  remoteToolbarClassName,
+  terminalPaneClassName,
+  type RemoteToolbarButtonClassNameOptions,
+} from "./remoteStyles.js";

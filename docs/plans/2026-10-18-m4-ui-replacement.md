@@ -101,6 +101,9 @@
 - 依据：`in-app-remote-desktop.md`、`lan-remote-desktop*.md`、`remote-workspace-conversation-mirror.md`；
 - 验收：远程桌面输入映射/重连/剪贴板（已有 86 条 UI 纯逻辑测试可复用）、终端与预览面板；
 - 风险：这些面板与 Host/relay 的实时链路耦合，替换不得改变消息契约。
+- **静态结构已起步（2026-10-19）**：`remoteStyles.ts` / `Remote.tsx`——toolbar/画布/状态条
+  三段、图标按钮选中与焦点态、断流覆盖（不透明背景）、终端 mono 面板、预览 header；
+  用例 `packages/ui/test/uiFoundationRemote.test.ts`。媒体流与重连接线仍待后续。
 
 ### P1.7 零散面与资产
 
