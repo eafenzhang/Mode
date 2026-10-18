@@ -59,6 +59,30 @@
 - **未观察**：fixture 插件安装后的工具清单变化、启用/禁用开关的效果、MCP 服务器失败/
   断网/崩溃的形状、动态安装/卸载是否需要重启宿主。
 
+## 5.1 资产清单与缓存（Task 1 落地，2026-10-18）
+
+**清单**（新资产，CDN 上传时生成；不是旧格式）：
+
+```json
+{
+  "schemaVersion": 1,
+  "version": "0.1.0",
+  "platform": "win32-x64",
+  "entry": "plugin-host.mjs",
+  "assetUrl": "https://.../plugin-host-0.1.0.mjs",
+  "sha256": "<64 hex>"
+}
+```
+
+- `schemaVersion` 必须为 `1`；新增字段必须升版本（客户端 `deny_unknown_fields`）。
+- `entry` 必须是**单层文件名**（不允许 `/`、`\`、`..`）。
+- 资产是**单文件 bundle**：Node 运行时随 Host 发布（DR-M3-2），这里不打包/解包 Node。
+- 缓存布局：`<dataRoot>/plugin-host/<version>/<entry>`。
+- 语义：缓存命中且 sha256 一致 → **不联网**；未命中 → 下载 → 校验 → 临时文件 + rename；
+  sha256 不符或 HTTP 失败 → 报错且不落盘；断网 + 有效缓存 → 可用。
+- 实现：`crates/plugin-host`（`PluginHostManifest` + `AssetCache`；5 条用例覆盖下载/命中/
+  篡改/断网缓存/路径逃逸）。
+
 ## 6. 复现
 
 ```bash

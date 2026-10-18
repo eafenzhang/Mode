@@ -102,11 +102,15 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - Create: `tools/plugin-host/`（sidecar 入口与 bundle；语言政策：TS）
 - Test: `crates/plugin-host/tests/asset_cache.rs`
 
-- [ ] **Step 1：定义 manifest 与缓存布局**（sha256、version、entry、node 版本要求），
-      在 spec 里写清楚。
-- [ ] **Step 2：实现下载/校验/解包与失败语义**（断网、sha 不符、半包）。
-- [ ] **Step 3：测试**：本地 fixture manifest + 临时目录；断网用无效 URL 模拟。
-- [ ] **Step 4：提交。**
+- [x] **Step 1：定义 manifest 与缓存布局**（2026-10-18，spec §5.1）：`schemaVersion` / `version` /
+      `platform` / `entry` / `assetUrl` / `sha256`；单文件 bundle；缓存
+      `<dataRoot>/plugin-host/<version>/<entry>`。
+- [x] **Step 2：实现下载/校验与失败语义**（2026-10-18）：`crates/plugin-host` 的
+      `PluginHostManifest` + `AssetCache`；缓存优先、sha256、临时文件 + rename、不半写。
+      **Deviation**：资产按单文件 bundle 处理（Node 运行时随 Host 发布），本任务不做解包。
+- [x] **Step 3：测试**（2026-10-18）：本地 HTTP 服务 5 条——下载、缓存命中不联网、sha 篡改、
+      断网 + 有效缓存、entry 路径逃逸。
+- [x] **Step 4：提交。**
 
 ---
 
