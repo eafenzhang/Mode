@@ -87,8 +87,9 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
       `mcp__node_repl__js` / `Skill` / `Agent`；**fixture 通过本地 marketplace 安装成功**
       （官方 cache 会被 seed 覆盖，不能手写），`Skill` 能用 namespaced 与裸名两种写法命中
       （spec §5.6）。**MCP 服务器工具本身仍未观察**（fixture 没有 MCP）。
-- [ ] **Step 0.3：观察工具调用与生命周期**（2026-10-18，部分）：`Skill` 的缺参/未知名字、
-      fixture skill 的成功结果已录；**MCP 启动耗时、负载缺失/断网/崩溃形状未观察**。
+- [x] **Step 0.3：观察工具调用与生命周期**（2026-10-18）：fixture MCP 通过 `.mcp.json`
+      暴露 `mcp__plugin_fixture_fixture__echo`，调用成功（medium/network/truncate）；
+      `Skill` 的成功/失败形状也已录。**MCP 启动耗时、失败/断网/崩溃仍未观察**。
 - [x] **Step 0.4：观察权限面**（2026-10-18）：`Skill` 与未知 MCP 都没有审批；
       **`mcp__node_repl__js` 是 high 审批 + `sideEffectScope:"system"` + 结果 artifact**。
       只读 MCP/不同插件的风险分级仍未观察（当前实现按「插件工具一律 high」）。
@@ -169,12 +170,13 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 
 ## Task 5：MCP 与 Skills
 
-- [ ] **Step 1：MCP 服务器发现**（配置来源以 Step 0.1 的表为准）；工具名前缀
-      `mcp__<server>__<tool>`。
-- [ ] **Step 2：Skills 列表与调用**（若存量 Skills 只暴露提示词而非工具，按观察结果建模，
-      不硬塞成工具）。
-- [ ] **Step 3：启动耗时与缓存**：MCP 约 5s，会话开始时并发拉起，不阻塞纯文本 turn。
-- [ ] **Step 4：测试 + 提交。**
+- [x] **Step 1：MCP 服务器发现**（2026-10-18）：`.mcp.json` 的 `mcpServers` 被接受；
+      工具名 **`mcp__plugin_<plugin>_<server>__<tool>`**；插件 MCP 默认
+      medium/network/truncate，node_repl 是 high/system/artifact。
+- [x] **Step 2：Skills 列表与调用**（2026-10-18）：fixture 的
+      `skills/<name>/SKILL.md` 可被 `Skill` 用 namespaced/裸名两种写法命中。
+- [ ] **Step 3：启动耗时与缓存**：MCP 启动耗时、失败/断网/崩溃形状仍未观察。
+- [x] **Step 4：测试 + 提交**（Step 1/2 的观察与实现已提交）。
 
 ---
 

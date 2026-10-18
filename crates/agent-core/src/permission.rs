@@ -136,13 +136,23 @@ const SAFE_GIT_SUBCOMMANDS: [&str; 6] = ["status", "diff", "log", "show", "branc
 
 /// 判定一次工具调用。
 pub fn evaluate(tool: &ToolSpec, args: &Value, ruleset: &Ruleset) -> Decision {
-    // 观察（probe-plugin-permission）：`mcp__node_repl__js` 是 high 审批 +
-    // `sideEffectScope:"system"`。插件工具没有按入参分类的观察，先一律 high；
+    // 观察（probe-plugin-mcp）：插件 MCP 是 medium/network/truncate；
+    // 内置 `mcp__node_repl__js` 是 high/system/artifact。风险由声明携带，缺省 medium。
     // 规则对插件工具的匹配形状未观察，因此这里不查 ruleset。
-    if tool.plugin {
+    if let Some(meta) = &tool.plugin {
+        let risk_level = if meta.risk_level == "high" {
+            "high"
+        } else {
+            "medium"
+        };
+        let reason = if risk_level == "high" {
+            HIGH_RISK_REASON
+        } else {
+            SIDE_EFFECT_REASON
+        };
         return Decision::Ask {
-            risk_level: "high",
-            reason: HIGH_RISK_REASON,
+            risk_level,
+            reason,
         };
     }
     match tool.family {

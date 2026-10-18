@@ -49,10 +49,16 @@ impl PluginToolSource for PluginHostSource {
                     .get("inputSchema")
                     .cloned()
                     .ok_or_else(|| format!("tool {name} 缺少 inputSchema"))?;
+                // 三个可选元数据；sidecar 不声明时由 `into_spec` 取插件 MCP 的默认值。
+                let optional =
+                    |key: &str| tool.get(key).and_then(Value::as_str).map(str::to_string);
                 Ok(PluginToolDeclaration {
                     name: name.to_string(),
                     description: description.to_string(),
                     input_schema,
+                    risk_level: optional("riskLevel"),
+                    side_effect_scope: optional("sideEffectScope"),
+                    budget_strategy: optional("budgetStrategy"),
                 })
             })
             .collect()

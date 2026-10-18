@@ -26,11 +26,25 @@ impl PluginToolSource for FakeSource {
                     "required": ["text"],
                     "additionalProperties": false
                 }),
+                risk_level: None,
+                side_effect_scope: None,
+                budget_strategy: None,
             },
             PluginToolDeclaration {
                 name: "plugin_fail".to_string(),
                 description: "Always fails".to_string(),
                 input_schema: json!({ "type": "object" }),
+                risk_level: None,
+                side_effect_scope: None,
+                budget_strategy: None,
+            },
+            PluginToolDeclaration {
+                name: "plugin_high".to_string(),
+                description: "High risk".to_string(),
+                input_schema: json!({ "type": "object" }),
+                risk_level: Some("high".to_string()),
+                side_effect_scope: Some("system".to_string()),
+                budget_strategy: Some("artifact".to_string()),
             },
         ])
     }
@@ -41,6 +55,7 @@ impl PluginToolSource for FakeSource {
                 "content": input.get("text").and_then(Value::as_str).unwrap_or("")
             })),
             "plugin_fail" => Err("boom".to_string()),
+            "plugin_high" => Ok(json!({ "content": "high-ok" })),
             other => Err(format!("Tool not found: {other}")),
         }
     }
@@ -141,7 +156,7 @@ fn plugin_tools_are_injected_and_invoked() {
         })
         .collect();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].risk_level, "high");
+    assert_eq!(requests[0].risk_level, "medium");
     assert_eq!(requests[0].tool_name, "plugin_echo");
 
     let started = sink
@@ -153,7 +168,7 @@ fn plugin_tools_are_injected_and_invoked() {
             _ => None,
         })
         .expect("插件工具应有 started");
-    assert_eq!(started.side_effect_scope.as_deref(), Some("system"));
+    assert_eq!(started.side_effect_scope.as_deref(), Some("network"));
 
     let budget = sink
         .iter()
@@ -170,7 +185,7 @@ fn plugin_tools_are_injected_and_invoked() {
         budget
             .and_then(|value| value.as_str().map(str::to_string))
             .as_deref(),
-        Some("artifact")
+        Some("truncate")
     );
 }
 
@@ -224,4 +239,61 @@ fn list_tools_failure_surfaces_to_the_caller() {
         Err(error) => error,
     };
     assert_eq!(error, "sidecar unavailable");
+}
+
+#[test]
+fn declared_high_risk_plugin_tool_uses_its_metadata() {
+    let dir = temp_dir("high");
+    let mut session = Session::new("sess_plugin", dir.to_string_lossy().to_string())
+        .with_plugin_tools(Arc::new(FakeSource))
+        .expect("listTools");
+    let provider = provider(vec![ScriptToolCall {
+        name: "plugin_high".to_string(),
+        input: json!({}),
+    }]);
+    let mut sink = Vec::new();
+    session
+        .run_turn("high", &provider, &mut sink)
+        .expect("turn");
+
+    let requests: Vec<agent_protocol::permission::PermissionRequest> = sink
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::PermissionRequested)
+        .filter_map(|event| {
+            event
+                .payload_as::<agent_protocol::permission::PermissionRequest>()
+                .expect("能解码")
+        })
+        .collect();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].risk_level, "high");
+
+    let started = sink
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::ToolUpdated)
+        .filter_map(|event| event.payload_as::<ToolUpdatedPayload>().expect("能解码"))
+        .find_map(|payload| match payload {
+            ToolUpdatedPayload::Started(started) => Some(started),
+            _ => None,
+        })
+        .expect("应有 started");
+    assert_eq!(started.side_effect_scope.as_deref(), Some("system"));
+
+    let budget = sink
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::ToolUpdated)
+        .filter_map(|event| event.payload_as::<ToolUpdatedPayload>().expect("能解码"))
+        .find_map(|payload| match payload {
+            ToolUpdatedPayload::Result(result) => {
+                Some(result.result.extra.get("budgetStrategy").cloned())
+            }
+            _ => None,
+        })
+        .flatten();
+    assert_eq!(
+        budget
+            .and_then(|value| value.as_str().map(str::to_string))
+            .as_deref(),
+        Some("artifact")
+    );
 }

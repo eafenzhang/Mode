@@ -191,8 +191,19 @@ impl Session {
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                // 观察（probe-plugin-permission）：MCP 结果的 budgetStrategy 是 artifact。
-                Ok(ToolOutcome::artifact(content))
+                // 观察：插件 MCP 结果 truncate，内置 node_repl 是 artifact。
+                let budget = self
+                    .extra_tools
+                    .iter()
+                    .find(|tool| tool.name == name)
+                    .and_then(|tool| tool.plugin.as_ref())
+                    .map(|meta| meta.budget_strategy.as_str())
+                    .unwrap_or("truncate");
+                if budget == "artifact" {
+                    Ok(ToolOutcome::artifact(content))
+                } else {
+                    Ok(ToolOutcome::text(content))
+                }
             }
             Err(message) => Err(agent_tools::ToolError {
                 error_type: "tool_execution_failed",
@@ -870,9 +881,9 @@ impl Session {
             // （夹具 `write-new` / `write-overwrite-read` 的 `started` 事件）。
             // 其余非只读档（shell / node-repl …）的取值集合**仍未观察**，所以那种情况留空而非编一个档位。
             read_only: Some(spec.read_only),
-            side_effect_scope: if spec.plugin {
-                // 观察：`mcp__node_repl__js` 的 started 是 `sideEffectScope:"system"`。
-                Some("system".to_string())
+            side_effect_scope: if let Some(meta) = &spec.plugin {
+                // 观察：插件 MCP 是 `network`，内置 node_repl 是 `system`。
+                Some(meta.side_effect_scope.clone())
             } else {
                 match (spec.read_only, spec.family) {
                     (true, _) => Some("none".to_string()),

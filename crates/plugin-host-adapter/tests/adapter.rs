@@ -21,7 +21,8 @@ rl.on('line', (line) => {
   if (frame.method === 'plugin/listTools') {
     process.stdout.write(JSON.stringify({ id: frame.id, result: { tools: [{
       name: 'echo', description: 'Echo text',
-      inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
+      inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+      riskLevel: 'high', sideEffectScope: 'system', budgetStrategy: 'artifact'
     }] } }) + '\n');
     return;
   }
@@ -59,6 +60,9 @@ fn list_tools_maps_the_sidecar_declarations() {
     assert_eq!(tools[0].name, "echo");
     assert_eq!(tools[0].description, "Echo text");
     assert_eq!(tools[0].input_schema["required"][0], "text");
+    assert_eq!(tools[0].risk_level.as_deref(), Some("high"));
+    assert_eq!(tools[0].side_effect_scope.as_deref(), Some("system"));
+    assert_eq!(tools[0].budget_strategy.as_deref(), Some("artifact"));
 }
 
 fn tool_result(events: &[SessionEvent]) -> String {

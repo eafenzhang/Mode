@@ -88,6 +88,27 @@ pub enum ModeToolFamily {
     Workflow,
 }
 
+/// 插件工具的审批/副作用/预算元数据（M3 生态域 1）。
+///
+/// 观察：插件 MCP 是 `medium` / `network` / `truncate`；内置 `mcp__node_repl__js` 是
+/// `high` / `system` / `artifact`。缺省取插件 MCP 的观察值。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginToolMetadata {
+    pub risk_level: String,
+    pub side_effect_scope: String,
+    pub budget_strategy: String,
+}
+
+impl Default for PluginToolMetadata {
+    fn default() -> Self {
+        Self {
+            risk_level: "medium".to_string(),
+            side_effect_scope: "network".to_string(),
+            budget_strategy: "truncate".to_string(),
+        }
+    }
+}
+
 /// 一个工具对模型侧的声明（名字 / 分档 / 入参 schema / 是否只读）。
 ///
 /// `schema` 是运行时**实际发出去**的 `input_schema`——`Read` 那份是从 oracle 的请求体里
@@ -99,9 +120,10 @@ pub struct ToolSpec {
     pub family: ModeToolFamily,
     pub schema: Value,
     pub read_only: bool,
-    /// 是否来自插件/MCP sidecar。插件工具的审批与 `sideEffectScope` 与内置工具不同
-    /// （观察：`mcp__node_repl__js` 是 high 审批 + `sideEffectScope:"system"`）。
-    pub plugin: bool,
+    /// 来自插件/MCP sidecar 时的元数据；`None` = 内置工具。
+    /// 观察：插件 MCP 是 medium/network/truncate；内置 `mcp__node_repl__js` 是
+    /// high/system/artifact，因此不能只用一个 bool 表达。
+    pub plugin: Option<PluginToolMetadata>,
 }
 
 /// 大输出的 artifact 落点（观察：`<dataRoot>/.mode/cli/exec/<sessionId>/<toolCallId>-stdout.log`）。
@@ -302,21 +324,21 @@ pub fn registry() -> Vec<ToolSpec> {
             family: ModeToolFamily::FileRead,
             schema: read_input_schema(),
             read_only: true,
-            plugin: false,
+            plugin: None,
         },
         ToolSpec {
             name: "Write".to_string(),
             family: ModeToolFamily::FileWrite,
             schema: write_input_schema(),
             read_only: false,
-            plugin: false,
+            plugin: None,
         },
         ToolSpec {
             name: "Edit".to_string(),
             family: ModeToolFamily::FileWrite,
             schema: edit_input_schema(),
             read_only: false,
-            plugin: false,
+            plugin: None,
         },
         ToolSpec {
             name: "Bash".to_string(),
@@ -325,7 +347,7 @@ pub fn registry() -> Vec<ToolSpec> {
             // 观察（spec §3.4）：`started` 载荷是 `readOnly:true` / `sideEffectScope:"none"`，
             // 且本次没有发审批请求。按观察值登记，不按直觉推断。
             read_only: true,
-            plugin: false,
+            plugin: None,
         },
         ToolSpec {
             name: "TaskOutput".to_string(),
@@ -334,7 +356,7 @@ pub fn registry() -> Vec<ToolSpec> {
             // 观察（spec §3.4）：成功路径的 `started` 是 `readOnly:true` /
             // `sideEffectScope:"none"`。
             read_only: true,
-            plugin: false,
+            plugin: None,
         },
         ToolSpec {
             name: "TaskStop".to_string(),
@@ -344,7 +366,7 @@ pub fn registry() -> Vec<ToolSpec> {
             // `sideEffectScope:"session"`。注意 `started_event` 目前只对 FileWrite 给
             // `workspace`，TaskStop 的 `session` 由 session 侧特判（见 agent-core）。
             read_only: false,
-            plugin: false,
+            plugin: None,
         },
     ]
 }

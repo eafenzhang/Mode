@@ -15,7 +15,7 @@ fn spec(name: &'static str, family: ModeToolFamily) -> ToolSpec {
         family,
         schema: json!({}),
         read_only: matches!(family, ModeToolFamily::FileRead),
-        plugin: false,
+        plugin: None,
     }
 }
 

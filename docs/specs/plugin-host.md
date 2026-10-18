@@ -64,9 +64,16 @@
   - `permission.requested`：`riskLevel:"high"`、reason `High risk tools require explicit approval`；
   - `started`：`readOnly:false` / `sideEffectScope:"system"`；
   - 结果：`display.kind:"mcp_tool"`、`budgetStrategy:"artifact"`。
-- Rust 实现：`ToolSpec.plugin` 的工具**一律 high ask**、`started` 的 `sideEffectScope` 为
-  `"system"`、结果按 `artifact` 预算。`allow_project` 对插件工具的 `ruleContent` 形状**未观察**，
-  因此暂不把 `Ruleset` 用于插件工具；只读 MCP 工具是否也 high 也未观察。
+- **插件 MCP（fixture，`mcp__plugin_fixture_fixture__echo`）**：`riskLevel:"medium"`、
+  reason `Tool has side effects and requires approval`、options 三条；
+  `started` 是 `readOnly:false` / `sideEffectScope:"network"`；
+  结果 `budgetStrategy:"truncate"`，`display.kind:"mcp_tool"`。
+- Rust 实现：`ToolSpec.plugin` 携带 `PluginToolMetadata { riskLevel, sideEffectScope,
+  budgetStrategy }`；声明缺省取 **medium / network / truncate**（插件 MCP），
+  可由 sidecar 声明覆盖（内置 node_repl 显式 high/system/artifact）。权限 Ask 用声明的
+  risk；`started` 用声明的 scope；结果预算用声明策略。
+- **未观察**：`allow_project` 对插件工具的 `ruleContent` 形状，因此暂不把 `Ruleset`
+  用于插件工具；只读 MCP 工具是否也 medium/是否不问，也未观察。
 
 ## 5. 生命周期与负载
 
@@ -182,8 +189,12 @@
 - 调用 `Skill { skill: "fixture:fixture-skill" }` 与 `{ skill: "fixture-skill" }` **都能命中**；
   结果是 `<skill_content name="…">…Base directory for this skill: <cache 路径>…</skill_content>`，
   `budgetStrategy:"truncate"`。
-- **未观察**：MCP 服务器工具（fixture 的 `declaredMcpServerNames` 为空）、MCP 启动/失败/崩溃、
-  有副作用插件工具的权限面。
+- **MCP fixture（`probe-plugin-mcp.mts`）**：`.mcp.json` 的
+  `{ mcpServers: { fixture: { command, args } } }` 被接受；`plugins list` 显示
+  `declaredMcpServerNames:["fixture"]`、`mcpServerNames:["plugin:fixture:fixture"]`。
+- 工具名规范：**`mcp__plugin_<plugin>_<server>__<tool>`**（本 fixture 是
+  `mcp__plugin_fixture_fixture__echo`）；工具总数 21 → 22。调用成功，正文 `hello from mcp`。
+- **未观察**：MCP 启动耗时、失败/断网/崩溃形状；非插件（全局）MCP 服务器的命名与风险。
 
 ## 6. 复现
 
