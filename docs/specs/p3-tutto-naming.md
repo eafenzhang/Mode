@@ -125,3 +125,10 @@
 
 - 随包插件 seed 标记新名 `.tutto-plugin-seed.json`；旧 `.zcode-plugin-seed.json` 仍用于
   判定「已 seed」，写入只写新名；bootstrap 31 tests 全绿。
+
+### S3 进展（2026-10-19，对外环境变量读取层）
+
+- `readExternalEnvVar` 读取链改为 `TUTTO_*` → `MODE_*` → `ZCODIUM_*` → `ZCODE_*`；
+- `writeExternalEnvVar` 同时写 `TUTTO_*` 与三代旧名，覆盖新旧二进制混布；
+- `env-names.test.ts` 82 tests 全绿（新增 TUTTO 优先与四代写入断言）；
+- 仍待做：调用点/文档统一改用 `TUTTO_*` 作为主名、`.tutto` 数据根迁移、userData 之外的旧目录迁移。
