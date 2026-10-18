@@ -3132,7 +3132,7 @@
     "packages/web/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
     "patches/@ai-sdk__anthropic@3.0.81.patch": "d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18",
     "patches/@ai-sdk__openai-compatible@2.0.60.patch": "9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b",
-    "pnpm-lock.yaml": "1f04d9bb032c5dfbd6010413b877ae678b1586428d45b8aa27e934fc238f1563",
+    "pnpm-lock.yaml": "07bd24eab572f3e32bb7a33f38bb2b499259372c1e486c5183231d7fc82e5b83",
     "pnpm-workspace.yaml": "bc5e2a313d995ae81b8a01726843059a431b102b877d69765d5c9ed1020fd380",
     "scripts/license-texts/01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f.txt": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
     "scripts/license-texts/025436edff4cfcdde17a5811fdea78892d8482efd1abdec5a17872d07a4f2112.txt": "025436edff4cfcdde17a5811fdea78892d8482efd1abdec5a17872d07a4f2112",

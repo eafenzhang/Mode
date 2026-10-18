@@ -590,6 +590,8 @@ importers:
 
   apps/mode-cli/tools/typescript: {}
 
+  packages/browser-import-extension: {}
+
   packages/client:
     dependencies:
       '@mode/rpc':
