@@ -146,15 +146,15 @@ pnpm exec tsx scripts/generate-rust-ledger.ts \
 ```
 
 **2026-10-18 实测**（输出在 `.plan/rust-ledger-candidate/`，未入库）：577 个组件
-（root 14 个目标 + mode-cua-ax）、300 份唯一许可证文本、47 个 `reviewRequired`
-（registry 包里没有根级许可证文件，多为 build/derive 辅助 crate，需逐条人工判断）；
+（root 14 个目标 + mode-cua-ax）、300 份唯一许可证文本、**44 条按声明标识自动附标准文本**
+（MIT / Apache-2.0 / BSD-3-Clause / Zlib，`licenseTextSource: "standard"` + `reviewNote`）、
+**3 条仍为 `reviewRequired`**（`selectors@0.38.0` MPL-2.0、`r-efi@5.3.0` / `6.0.0` 含 LGPL 选项）；
 自校验 root 558/558、CUA 63/63、unknown-license 0；现有 63 条 CUA 条目全部包含。
 
 **为什么候选不直接提交**：
 
-- 47 条 `reviewRequired` 需要人工确认（父 crate 的许可证是否覆盖、是否补标准条款）；
-  2026-10-18 已做分类（见 `2026-10-18-m4-rust-ledger-review.md`）：44 条纯宽松、
-  2 条 `r-efi` 含 LGPL 选项、1 条 `selectors` 为 MPL-2.0；只有后两类需要真正判断；
+- 剩余 3 条需要人工判断：MPL-2.0 的履约方式与 `r-efi` 的许可选择（见
+  `2026-10-18-m4-rust-ledger-review.md`）；
 - 台账入库会同时改变 `THIRD-PARTY-NOTICES.md` 的 Rust 段，属发布合规材料，必须走
   Linux CI 重生成 + diff review（T3），不能由巡检轮静默替换。
 

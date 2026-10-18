@@ -51,6 +51,10 @@ export interface LedgerEntry extends LedgerComponent {
   checksum: string | null;
   notices: NoticeRecord[];
   reviewRequired?: boolean;
+  /** `package` = 包内文件；`standard` = 包内没有，按声明标识附仓库标准文本。 */
+  licenseTextSource?: "package" | "standard";
+  /** 人工 review 时需要看的说明（缺失原因/待决点）。 */
+  reviewNote?: string;
 }
 
 export interface LockPackage {
@@ -92,6 +96,86 @@ export function licenseMemberNames(fileNames: readonly string[]): string[] {
 
 export function sha256Hex(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+/** SPDX 表达式的标识符（`MIT OR Apache-2.0`、`MIT/Apache-2.0` 两种写法都拆）。 */
+export function parseSpdxIdentifiers(expression: string): string[] {
+  return expression
+    .split(/\s+(?:OR|AND)\s+|\//i)
+    .map((part) => part.trim().replace(/^\(|\)$/g, "").trim())
+    .filter(Boolean);
+}
+
+/**
+ * MPL/LGPL 不由生成器自动补标准文本：前者是弱互惠（履约方式要人决定），后者在多选一
+ * 许可里要先记录选择。其余宽松标识按内容匹配现有文本。
+ */
+export function shouldAttachStandardText(expression: string): boolean {
+  return !/(?:MPL|LGPL)/i.test(expression);
+}
+
+/** 按正文特征识别许可证文本；识别不出返回 null（调用方保留 reviewRequired）。 */
+export function classifyLicenseText(text: string): string | null {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("mozilla public license") && normalized.includes("version 2.0")) {
+    return "MPL-2.0";
+  }
+  if (
+    normalized.includes("gnu lesser general public license") &&
+    normalized.includes("version 2.1")
+  ) {
+    return "LGPL-2.1-or-later";
+  }
+  if (normalized.includes("apache license") && normalized.includes("version 2.0")) {
+    return "Apache-2.0";
+  }
+  if (normalized.includes("redistribution and use in source and binary forms")) {
+    return normalized.includes("neither the name") ? "BSD-3-Clause" : "BSD-2-Clause";
+  }
+  if (normalized.includes("this software is provided 'as-is'") ||
+      normalized.includes('this software is provided "as-is"')) {
+    return "Zlib";
+  }
+  if (normalized.includes("permission is hereby granted, free of charge")) {
+    return "MIT";
+  }
+  if (
+    normalized.includes("permission to use, copy, modify, and/or distribute this software") &&
+    normalized.includes("provided that the above copyright notice")
+  ) {
+    return "ISC";
+  }
+  if (normalized.includes("permission to use, copy, modify, and/or distribute this software")) {
+    return "0BSD";
+  }
+  if (normalized.includes("this is free and unencumbered software released into the public domain")) {
+    return "Unlicense";
+  }
+  return null;
+}
+
+export interface StandardText {
+  file: string;
+  sha256: string;
+}
+
+/** 扫描 `scripts/license-texts/`，按正文特征建立 标识符 → 文本 的索引。 */
+export function indexStandardLicenseTexts(directory: string): Map<string, StandardText> {
+  const index = new Map<string, StandardText>();
+  for (const fileName of readdirSync(directory)) {
+    if (!fileName.endsWith(".txt")) {
+      continue;
+    }
+    const bytes = readFileSync(join(directory, fileName));
+    const identifier = classifyLicenseText(bytes.toString("utf8"));
+    if (identifier && !index.has(identifier)) {
+      index.set(identifier, {
+        file: `scripts/license-texts/${fileName}`,
+        sha256: sha256Hex(bytes),
+      });
+    }
+  }
+  return index;
 }
 
 function loadMetadata(path: string | null, manifestPath?: string): CargoMetadata {
@@ -143,17 +227,20 @@ interface BuildResult {
   entries: LedgerEntry[];
   writtenNotices: Map<string, string>;
   missingSource: string[];
+  standardAttached: number;
 }
 
 function buildEntries(
   packages: ReadonlyArray<{ name: string; version: string; license: string; source: string | null }>,
   checksums: Map<string, string>,
   registry: Map<string, string>,
+  standardTexts: Map<string, StandardText>,
   noticesDir: string,
   writtenNotices: Map<string, string>,
 ): BuildResult {
   const entries: LedgerEntry[] = [];
   const missingSource: string[] = [];
+  let standardAttached = 0;
 
   for (const pkg of packages) {
     const dir = registry.get(`${pkg.name}-${pkg.version}`);
@@ -177,16 +264,50 @@ function buildEntries(
       }
       notices.push({ member, file, sha256: sha });
     }
+
+    let reviewRequired = false;
+    let licenseTextSource: "package" | "standard" | undefined;
+    let reviewNote: string | undefined;
+    if (notices.length > 0) {
+      licenseTextSource = "package";
+    } else if (shouldAttachStandardText(pkg.license)) {
+      const identifiers = parseSpdxIdentifiers(pkg.license);
+      const missing = identifiers.filter((identifier) => !standardTexts.has(identifier));
+      if (missing.length === 0) {
+        for (const identifier of identifiers) {
+          const text = standardTexts.get(identifier)!;
+          notices.push({
+            member: `LICENSE-${identifier.replace(/[^A-Za-z0-9.-]/g, "-")}`,
+            file: text.file,
+            sha256: text.sha256,
+          });
+        }
+        standardAttached += 1;
+        licenseTextSource = "standard";
+        reviewNote =
+          "no licence file in package; standard text attached from repository corpus";
+      } else {
+        reviewRequired = true;
+        reviewNote = `no licence file; missing standard text for ${missing.join(", ")}`;
+      }
+    } else {
+      reviewRequired = true;
+      reviewNote =
+        "no licence file; MPL/LGPL handling or license election requires human review";
+    }
+
     entries.push({
       id: pkg.name,
       version: pkg.version,
       license: pkg.license,
       checksum: checksums.get(`${pkg.name}@${pkg.version}`) ?? null,
       notices,
-      ...(notices.length === 0 ? { reviewRequired: true } : {}),
+      ...(reviewRequired ? { reviewRequired: true } : {}),
+      ...(licenseTextSource ? { licenseTextSource } : {}),
+      ...(reviewNote ? { reviewNote } : {}),
     });
   }
-  return { entries, writtenNotices, missingSource };
+  return { entries, writtenNotices, missingSource, standardAttached };
 }
 
 function main(): void {
@@ -225,8 +346,11 @@ function main(): void {
   }
 
   const registry = indexRegistrySources();
+  const standardTexts = indexStandardLicenseTexts(
+    join(REPO_ROOT, "scripts", "license-texts"),
+  );
   const noticesDir = join(outDir, "license-texts");
-  const { entries, writtenNotices, missingSource } = buildEntries(
+  const { entries, writtenNotices, missingSource, standardAttached } = buildEntries(
     [...unique.values()].sort((left, right) =>
       left.name !== right.name
         ? left.name < right.name
@@ -240,6 +364,7 @@ function main(): void {
     ),
     checksums,
     registry,
+    standardTexts,
     noticesDir,
     new Map(),
   );
@@ -280,6 +405,7 @@ function main(): void {
     [
       `rust-ledger: components ${entries.length}（root targets ${targets.length} + ${CUA_TARGET}）`,
       `license texts ${writtenNotices.size} unique`,
+      `standard texts attached ${standardAttached}`,
       `reviewRequired ${reviewRequired}`,
       `self-check: root missing ${rootAudit.union.missing.length}, cua missing ${cuaAudit.union.missing.length}, unknown-license ${unknown}`,
       `written ${join(outDir, "rust-sources.json")}`,

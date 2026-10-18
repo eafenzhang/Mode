@@ -1,4 +1,4 @@
-# M4 Rust 台账：47 条 reviewRequired 分类报告（2026-10-18）
+# M4 Rust 台账：reviewRequired 分类与收尾报告（2026-10-18）
 
 > 输入：`.plan/rust-ledger-candidate/rust-sources.json`（T1 生成器候选，未入库）中的
 > `reviewRequired` 条目、根 `cargo metadata` 的可达图、`scripts/license-texts/` 现有文本。
@@ -7,13 +7,12 @@
 ## 结论
 
 - 候选台账 577 条中有 **47 条**在 registry 包内**没有根级许可证文件**；它们的 license
-  标识来自 `Cargo.toml`。现有台账 scope 的约定是「无许可证文件的 crate 记录标准条款并
-  标 reviewRequired」，因此这 47 条不是生成器缺陷，而是待人工补文本/确认。
-- 其中 **42 条**可从发布目标到达，**5 条只在 CUA helper 图**（`napi` 家族：
+  标识来自 `Cargo.toml`。
+- 生成器已为其中 **44 条纯宽松项**按声明标识自动附上仓库标准文本
+  （`licenseTextSource: "standard"` + `reviewNote`），**剩余 3 条**仍标 `reviewRequired`：
+  `selectors@0.38.0`（MPL-2.0）与 `r-efi@5.3.0` / `6.0.0`（含 LGPL 选项）。
+- 47 条中 **42 条**可从发布目标到达，**5 条只在 CUA helper 图**（`napi` 家族：
   napi / napi-build / napi-derive / napi-derive-backend / napi-sys）。
-- 按许可证族：**44 条纯宽松**（MIT / Apache-2.0 / BSD-3-Clause / Zlib 等）、
-  **2 条含 LGPL 选项**（`r-efi@5.3.0`、`r-efi@6.0.0`：MIT OR Apache-2.0 OR LGPL-2.1-or-later）、
-  **1 条弱互惠**（`selectors@0.38.0`，MPL-2.0）。
 - `scripts/license-texts/` 现有 53 份文本，MIT/Apache/BSD/Zlib/MPL/LGPL 体裁均已存在，
   补文本不需要新下载。
 
@@ -47,10 +46,14 @@ mode-tauri -> tauri@2.12.4 -> tauri-utils@2.10.2 -> dom_query@0.28.0 -> selector
 处理方式：按声明的 SPDX 标识附加现有标准文本，`reviewRequired` 改为说明性字段
 （例如 `licenseTextSource: "standard"`）。人工只需抽样确认映射，不必逐条读文本。
 
+**2026-10-18 已落地**：生成器 `indexStandardLicenseTexts` 按正文特征建立
+标识符→文本索引，对 44 条纯宽松项自动附文本（`licenseTextSource: "standard"`），
+`reviewRequired` 从 47 降到 **3**。
+
 ## 建议的 T1 收尾口径
 
-1. 生成器增加「标准文本附加」：从现有 `scripts/license-texts/` 按标识选择文本
-   （MIT/Apache-2.0/BSD-3-Clause/Zlib/MPL-2.0；LGPL 仅在明确选择时使用）；
+1. 〔已完成〕生成器增加「标准文本附加」：从现有 `scripts/license-texts/` 按标识选择文本
+   （MIT/Apache-2.0/BSD-3-Clause/Zlib）；MPL/LGPL 不自动附，保留人工判断；
 2. 对 `r-efi` 记录选择（建议 MIT），对 `selectors` 记录 MPL 处理方式；
 3. 复核后 `reviewRequired` 数量应降为 **0**，或在条目上保留 `reviewNote` 说明
    （而不是静默丢弃标记）；
