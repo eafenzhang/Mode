@@ -173,4 +173,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   keywords（大小写不敏感子串、空过滤全量、过滤词优先于输入值）、下标夹取、可视窗口、
   可打印键与输入展示；子代理快照默认空 transcript（Map 容器）、沿用 sessionId/消息、
   未知事件被忽略且保持引用；
+- 第十八批（`app-tool-path-display`、`app-model` 常量）：POSIX 路径在 cwd 内转相对、
+  容忍尾部斜杠、cwd 外与相对路径保持原样、空路径无展示值；审批决策常量与写入审批
+  spec 的三态（`allow_once`/`allow_project`/`deny`）一致；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
