@@ -6,6 +6,29 @@ export {
   type ResizeHandleProps,
 } from "./AppShell.js";
 export { Button, type ButtonProps } from "./Button.js";
+export {
+  ChatInputShell,
+  EmptyChatState,
+  MessageList,
+  MessageRow,
+  StreamingIndicator,
+  type ChatInputShellProps,
+  type EmptyChatStateProps,
+  type MessageRowProps,
+  type StreamingIndicatorProps,
+} from "./Chat.js";
+export {
+  chatInputShellClassName,
+  chatInputToolbarClassName,
+  emptyDescriptionClassName,
+  emptyStateClassName,
+  emptyTitleClassName,
+  messageBubbleClassName,
+  messageListClassName,
+  messageRowClassName,
+  streamingIndicatorClassName,
+  type ChatRole,
+} from "./chatStyles.js";
 export { Card, type CardProps } from "./Card.js";
 export { Dialog, type DialogProps } from "./Dialog.js";
 export { Input, type InputProps } from "./Input.js";

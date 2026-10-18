@@ -62,6 +62,11 @@
 - 依据：`docs/specs/tauri-agent-runtime.md` 的事件流、`bot-*` 交互 spec 的展示口径；
 - 验收：流式/工具/审批/排队输入四类场景；现有 `packages/ui/test` 的纯逻辑用例全绿；
 - 风险：输入法与 IME、粘贴图片、@ 提及是回归高发区。
+- **静态结构已起步（2026-10-19）**：`packages/ui/src/ui-foundation/chatStyles.ts` +
+  `Chat.tsx`——消息列表（role=log/aria-live）、四种角色的行对齐与气泡（user 卡片、
+  assistant 无底、system 弱化、tool surface+mono）、空状态、流式指示、主输入 shell
+  （`rounded-2xl` 例外）与工具栏；用例 `packages/ui/test/uiFoundationChat.test.ts`。
+  真实事件接线与输入法/提及仍待后续。
 
 ### P1.4 工作区与任务（`workspace-file-tree/`、`workspace-grouped-tasks/`、git 面板）
 
