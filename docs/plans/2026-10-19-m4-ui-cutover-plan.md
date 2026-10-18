@@ -338,7 +338,7 @@ pdf.js 与 Vite `?url` worker。
 
 1. 第一层：`pptxRendererPreviewEngine.open` + 单页 `renderPage` + 页码/缩放工具条 + 缩略图懒加载；
    纯布局/控制逻辑已落 `pptxViewerLayout.ts` 并有单测（页面尺寸缩放、25%–300% 步进、页码输入回退/夹取）；
-   渲染面骨架已落 `PptxPreviewSurface.tsx`（open/renderPage/工具条/导航），**尚未接线**，
+   渲染面骨架已落 `PptxPreviewSurface.tsx`（open/renderPage/工具条/导航 + 缩略图懒加载），**尚未接线**，
    等缩略图与选择/导出层齐备后一次切换；PDF 导出与元素选择仍由旧组件承担；
 2. 第二层：元素命中（已测 `hitTestPresentationElement`）→ 选区操作条（已切 adapter）→
    `createPptxElementReference` 加入会话；提示词块构建/解析与去重已由

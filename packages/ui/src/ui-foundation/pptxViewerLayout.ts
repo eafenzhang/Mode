@@ -39,3 +39,10 @@ export function resolvePptxPageFromInput(
 }
 
 export { PPTX_MAX_ZOOM_PERCENT, PPTX_MIN_ZOOM_PERCENT, PPTX_ZOOM_STEP_PERCENT };
+
+export function resolvePptxThumbnailScale(pageWidth: number, targetWidth: number): number {
+  if (!Number.isFinite(pageWidth) || pageWidth <= 0 || targetWidth <= 0) {
+    return 1;
+  }
+  return targetWidth / pageWidth;
+}

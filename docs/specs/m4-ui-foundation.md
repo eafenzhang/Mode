@@ -264,7 +264,9 @@ success/warning/destructive。
 - 单页渲染：页码变化时 `renderPage(index, container)`，等待 `handle.ready`，切换前 dispose 旧 handle；
 - 工具条：上一页/下一页/页码输入/缩放，复用 `pptxViewerLayout` 的纯函数；
 - 导航：`onNavigate({pageIndex|url})` 内部页跳转或交给 `onOpenBrowserUrl`；
-- 加载失败显示 `loadError`；本层不含缩略图、元素选择与 PDF 导出。
+- 缩略图：传入 `labels.thumbnail` 时显示左栏，IntersectionObserver 懒渲染，
+  每页独立 render/dispose，宽度 96px 等比缩放；
+- 加载失败显示 `loadError`；本层不含元素选择与 PDF 导出。
 
 ## 3. 布局与响应式
 

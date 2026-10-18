@@ -10,6 +10,7 @@ import {
   PPTX_MIN_ZOOM_PERCENT,
   resolvePptxPageDisplaySize,
   resolvePptxPageFromInput,
+  resolvePptxThumbnailScale,
   stepPptxZoom,
 } from "../src/ui-foundation/pptxViewerLayout.js";
 
@@ -41,4 +42,10 @@ test("页码输入：非法回退当前页，合法夹在 1..pageCount", () => {
   assert.equal(resolvePptxPageFromInput("2", 5, 3), 2);
   assert.equal(resolvePptxPageFromInput("0", 5, 3), 1);
   assert.equal(resolvePptxPageFromInput("99", 5, 3), 5);
+});
+
+test("缩略图缩放：按目标宽度等比，非法宽度回 1", () => {
+  assert.equal(resolvePptxThumbnailScale(960, 96), 0.1);
+  assert.equal(resolvePptxThumbnailScale(0, 96), 1);
+  assert.equal(resolvePptxThumbnailScale(960, 0), 1);
 });

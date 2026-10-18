@@ -11,6 +11,7 @@ import { Button } from "./Button.js";
 import {
   resolvePptxPageDisplaySize,
   resolvePptxPageFromInput,
+  resolvePptxThumbnailScale,
   stepPptxZoom,
 } from "./pptxViewerLayout.js";
 
@@ -22,12 +23,83 @@ export interface PptxPreviewSurfaceLabels {
   pageInput: string;
   zoomIn: string;
   zoomOut: string;
+  thumbnails?: string;
+  thumbnail?: (pageNumber: number) => string;
 }
 
 export interface PptxPreviewSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   data: ArrayBuffer;
   labels: PptxPreviewSurfaceLabels;
   onOpenBrowserUrl?: (url: string) => void;
+}
+
+function PptxThumbnail({
+  document,
+  pageIndex,
+  selected,
+  label,
+  onSelect,
+}: {
+  document: PresentationPreviewDocument;
+  pageIndex: number;
+  selected: boolean;
+  label: string;
+  onSelect: () => void;
+}) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const node = buttonRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry?.isIntersecting ?? false),
+      { rootMargin: "200px 0px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const node = pageRef.current;
+    if (!visible || !node) {
+      return;
+    }
+    node.replaceChildren();
+    const handle = document.renderPage(pageIndex, node);
+    void handle.ready.catch(() => undefined);
+    return () => handle.dispose();
+  }, [visible, document, pageIndex]);
+
+  const scale = resolvePptxThumbnailScale(document.pageSize.width, 96);
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      aria-label={label}
+      aria-current={selected ? "page" : undefined}
+      data-thumbnail-index={pageIndex}
+      className={[
+        "w-28 shrink-0 overflow-hidden rounded-md border bg-surface p-1 text-start",
+        selected ? "border-input-border-focused" : "border-border hover:border-border-hover",
+      ].join(" ")}
+      onClick={onSelect}
+    >
+      <div
+        ref={pageRef}
+        style={{
+          width: 96,
+          height: Math.ceil(document.pageSize.height * scale),
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+        }}
+      />
+    </button>
+  );
 }
 
 export function PptxPreviewSurface({
@@ -175,21 +247,44 @@ export function PptxPreviewSurface({
           </Button>
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">
-        {failed ? (
-          <div className="p-4 text-ui-sm text-destructive">{labels.loadError}</div>
-        ) : document === null ? (
-          <div className="p-4 text-ui-sm text-foreground-subtle">{labels.loading}</div>
-        ) : (
-          <div
-            ref={pageRef}
-            data-slot="pptx-preview-page"
-            style={
-              displaySize ? { width: displaySize.width, height: displaySize.height } : undefined
-            }
-            className="mx-auto"
-          />
-        )}
+      <div className="flex min-h-0 flex-1">
+        {labels.thumbnail && document ? (
+          <aside
+            aria-label={labels.thumbnails}
+            data-slot="pptx-preview-thumbnails"
+            className="flex w-32 shrink-0 flex-col gap-2 overflow-y-auto border-e border-border p-2"
+          >
+            {Array.from({ length: document.pageCount }, (_, index) => (
+              <PptxThumbnail
+                key={index}
+                document={document}
+                pageIndex={index}
+                selected={pageNumber === index + 1}
+                label={labels.thumbnail?.(index + 1) ?? String(index + 1)}
+                onSelect={() => {
+                  setPageNumber(index + 1);
+                  setPageInput(String(index + 1));
+                }}
+              />
+            ))}
+          </aside>
+        ) : null}
+        <div className="min-h-0 flex-1 overflow-auto p-3">
+          {failed ? (
+            <div className="p-4 text-ui-sm text-destructive">{labels.loadError}</div>
+          ) : document === null ? (
+            <div className="p-4 text-ui-sm text-foreground-subtle">{labels.loading}</div>
+          ) : (
+            <div
+              ref={pageRef}
+              data-slot="pptx-preview-page"
+              style={
+                displaySize ? { width: displaySize.width, height: displaySize.height } : undefined
+              }
+              className="mx-auto"
+            />
+          )}
+        </div>
       </div>
     </div>
   );
