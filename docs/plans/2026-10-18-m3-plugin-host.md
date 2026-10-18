@@ -79,17 +79,17 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - Create: `packages/desktop/tests/agent-runtime-oracle/probe-plugin-host.mts`
 - Create/Modify: `docs/specs/plugin-host.md`（新 spec，记录观察）
 
-- [ ] **Step 0.1：盘点插件数据面**（只读类型/测试，不读实现体）：
-      `installed_plugins.json` 的字段、plugin root 的布局、`.mode-plugin` 清单、内置官方 cache
-      的位置；产出一张「路径 → 所有者 → 本计划是否只读」表。
-- [ ] **Step 0.2：观察旧运行时的插件工具面**：在隔离数据根里放一个最小 fixture 插件，
-      用 `probe-tool-surface.mts` 的方式启动 CLI，记录工具清单里插件/MCP 工具的名字、schema、
-      `toolName` 前缀；确认它们是否随 `--surface` / `--disallowed-tools` 变化。
-- [ ] **Step 0.3：观察工具调用与生命周期**：调用一个插件工具，记录请求/应答帧、启动耗时
-      （MCP 约 5s 的基线）、失败形状（插件不存在 / 负载缺失 / 断网）。
-- [ ] **Step 0.4：观察权限面**：插件工具是否触发审批、`riskLevel`/`reason` 是什么；
-      未观察到前 DR-PH-4 不实现。
-- [ ] **Step 0.5：把结果写进 `docs/specs/plugin-host.md`**，未观察项逐条列出。
+- [x] **Step 0.1：盘点插件数据面**（2026-10-18，部分）：`.mode-plugin/plugin.json` 的字段、
+      `installed_plugins.json` 的记录类型、`.agents/plugins/marketplace.json` 约定已入 spec §1；
+      **隔离数据根下的确切文件路径尚未取证**（列为未观察）。
+- [ ] **Step 0.2：观察旧运行时的插件工具面**（2026-10-18，部分）：默认隔离环境的 21 条里
+      已抓到 `mcp__node_repl__js` / `Skill` / `Agent` 的完整声明；**fixture 插件安装后的清单
+      变化尚未观察**。
+- [ ] **Step 0.3：观察工具调用与生命周期**（2026-10-18，部分）：`Skill` 缺参/未知名字与
+      未知 MCP 名字的错误形状已录；**MCP 启动耗时、负载缺失/断网/崩溃形状未观察**。
+- [ ] **Step 0.4：观察权限面**（2026-10-18，部分）：`Skill` 与未知 MCP 都没有审批请求；
+      **有副作用的插件工具（如 `mcp__node_repl__js`）是否审批未观察**，DR-PH-4 暂不实现。
+- [x] **Step 0.5：把结果写进 `docs/specs/plugin-host.md`**（2026-10-18），未观察项已逐条列出。
 
 **Step 0 的产物**：新 spec + 可复现探针；没有观察到的形状不写进实现。
 
