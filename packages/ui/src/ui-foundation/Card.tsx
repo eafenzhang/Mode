@@ -3,7 +3,15 @@
 import { forwardRef, type HTMLAttributes } from "react";
 
 import type { RadiusLevel } from "../lib/uiFoundation.js";
-import { cardClassName } from "./surfaceStyles.js";
+import {
+  cardActionClassName,
+  cardClassName,
+  cardContentClassName,
+  cardDescriptionClassName,
+  cardFooterClassName,
+  cardHeaderClassName,
+  cardTitleClassName,
+} from "./surfaceStyles.js";
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   parentRadius?: RadiusLevel;
@@ -24,3 +32,39 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     />
   );
 });
+
+export const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function CardHeader({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={cardHeaderClassName(className)} />;
+  },
+);
+
+export const CardTitle = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function CardTitle({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={cardTitleClassName(className)} />;
+  },
+);
+
+export const CardDescription = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function CardDescription({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={cardDescriptionClassName(className)} />;
+  },
+);
+
+export const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function CardContent({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={cardContentClassName(className)} />;
+  },
+);
+
+export const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function CardFooter({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={cardFooterClassName(className)} />;
+  },
+);
+
+export const CardAction = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function CardAction({ className, ...rest }, ref) {
+    return <div {...rest} ref={ref} className={cardActionClassName(className)} />;
+  },
+);

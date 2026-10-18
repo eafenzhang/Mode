@@ -25,7 +25,17 @@ export {
   streamingIndicatorClassName,
   type ChatRole,
 } from "./chatStyles.js";
-export { Card, type CardProps } from "./Card.js";
+export {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  type CardProps,
+} from "./Card.js";
+export { Badge, type BadgeProps } from "./Badge.js";
 export { Dialog, type DialogProps } from "./Dialog.js";
 export { Input, type InputProps } from "./Input.js";
 export { Menu, MenuItem, type MenuItemProps, type MenuProps } from "./Menu.js";
@@ -60,6 +70,7 @@ export {
 } from "./Quickpick.js";
 export { ShortcutList, ShortcutRow, type ShortcutListProps, type ShortcutRowProps } from "./Shortcuts.js";
 export { SelectTrigger, type SelectTriggerProps } from "./SelectTrigger.js";
+export { Separator, type SeparatorProps } from "./Separator.js";
 export {
   PluginCard,
   PluginUnavailableHint,
@@ -111,7 +122,22 @@ export {
   type SelectTriggerClassNameOptions,
 } from "./inputStyles.js";
 export {
+  badgeClassName,
+  type BadgeClassNameOptions,
+  type BadgeTone,
+} from "./badgeStyles.js";
+export {
+  separatorClassName,
+  type SeparatorOrientation,
+} from "./separatorStyles.js";
+export {
+  cardActionClassName,
   cardClassName,
+  cardContentClassName,
+  cardDescriptionClassName,
+  cardFooterClassName,
+  cardHeaderClassName,
+  cardTitleClassName,
   containerRadiusClass,
   dialogClassName,
   menuClassName,

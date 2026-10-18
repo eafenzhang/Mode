@@ -40,6 +40,30 @@ export function cardClassName(options: CardClassNameOptions = {}): string {
     .join(" ");
 }
 
+export function cardHeaderClassName(className?: string): string {
+  return ["flex items-start justify-between gap-2", className].filter(Boolean).join(" ");
+}
+
+export function cardTitleClassName(className?: string): string {
+  return ["text-ui-base font-medium text-foreground", className].filter(Boolean).join(" ");
+}
+
+export function cardDescriptionClassName(className?: string): string {
+  return ["text-ui-sm text-foreground-subtle", className].filter(Boolean).join(" ");
+}
+
+export function cardContentClassName(className?: string): string {
+  return ["min-w-0", className].filter(Boolean).join(" ");
+}
+
+export function cardFooterClassName(className?: string): string {
+  return ["flex items-center gap-2", className].filter(Boolean).join(" ");
+}
+
+export function cardActionClassName(className?: string): string {
+  return ["shrink-0", className].filter(Boolean).join(" ");
+}
+
 /** 菜单 shell：bg-menu + rounded-lg + shadow-md + p-1；交互浮层层级高于 Tooltip。 */
 export function menuClassName(className?: string): string {
   return [
