@@ -267,7 +267,7 @@ function buildModeEndpointPromptHtml(currentValue: string): string {
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Mode Endpoint</title>
+    <title>Tutto Endpoint</title>
     <style>
       :root { color-scheme: light dark; }
       body { margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }

@@ -153,14 +153,14 @@ jobs:
           - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。
             - **从旧 Electron 版升级**：这是 Tauri 实现的第一版，Release 里只有 `latest.json`、没有 `latest.yml`；旧客户端的应用内更新会拿到 404，**需要手动下载并安装一次**（`<PRODUCT>-<VERSION>-win-x64.exe`）。装好这一版后，后续 Tauri 版本可在应用内「帮助 → 检查更新」升级。
             - **本版之后的 Tauri 版本**：应用内「帮助 → 检查更新」直接走本仓库 Releases 升级。
-            - **安装身份**：本版主程序是 `ModeTauri.exe`，旧 Electron 版是 `Mode.exe`。两者**独立安装、并存**（安装目录、快捷方式、卸载项和数据目录都不同），本版不会就地替换旧版；请预期多出一份安装。
+            - **安装身份**：本版主程序是 `Tutto.exe`，旧 Electron 版是 `Mode.exe`。两者**独立安装、并存**（安装目录、快捷方式、卸载项和数据目录都不同），本版不会就地替换旧版；请预期多出一份安装。
           - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口打开（走飞牛统一网关，登录态直达，异地也可用）。
           - **校验与更新元数据**：`sha256.txt` 覆盖上方安装包；Windows 桌面端的应用内自动更新使用 `latest.json` 与安装包的 `.sig`（Tauri updater）。
 
           - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**.
             - **Upgrading from the old Electron build**: this is the first Tauri release. It ships `latest.json` but no `latest.yml`, so the old client's in-app updater gets a 404; **download and install once manually** (`<PRODUCT>-<VERSION>-win-x64.exe`). After that one-time install, later Tauri releases update in place via **Help -> Check for updates**.
             - **From this Tauri release onward**: in-app updates via **Help -> Check for updates** use this repository's Releases.
-            - **Install identity**: the main executable is `ModeTauri.exe`; the old Electron app is `Mode.exe`. They install **separately and side by side** (different install directory, shortcuts, uninstall entry, and user-data directory); this release does not replace the old app in place. Expect a second installation.
+            - **Install identity**: the main executable is `Tutto.exe`; the old Electron app is `Mode.exe`. They install **separately and side by side** (different install directory, shortcuts, uninstall entry, and user-data directory); this release does not replace the old app in place. Expect a second installation.
           - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry (routed through the fnOS gateway with your desktop login, works remotely too).
           - **Checksums and update metadata**: `sha256.txt` covers the installers; Windows desktop in-app updates use `latest.json` plus the installer's `.sig` (Tauri updater).
 
@@ -388,7 +388,7 @@ jobs:
         run: pnpm bundle:desktop -- --os ${{ matrix.target }} --arch ${{ matrix.arch }}
 
       # M5 Task 2（DR-M5-1）：Electron 线保留构建能力用于回滚，但**不再写 Release**。
-      # Tauri Windows 腿使用逐字相同的产物名（Mode-<版本>-win-x64.exe）；同一次 run
+      # Tauri Windows 腿使用逐字相同的产物名（Tutto-<版本>-win-x64.exe）；同一次 run
       # 若两边都上传，后上传的会 clobber 掉先上传的。这里只把 Electron 产物留成
       # workflow artifact（14 天），发布路径只允许 Tauri 一条线。
       - name: Upload electron desktop bundle (diagnostic artifact)
@@ -444,7 +444,7 @@ jobs:
   # **M5 Task 2 起 Windows 腿进 Release，macOS/Linux 腿仍只发 workflow artifacts**：
   # - Windows 腿上传安装包、`.sig` 与 `latest.json`；它是唯一的 Release 产物来源。
   # - 旧 Electron `desktop` job 仍构建（保留回滚能力），但只上传 workflow artifact，
-  #   所以同一次 run 里不会有第二条线上传同名 `Mode-<版本>-win-x64.exe`（DR-M5-1）。
+  #   所以同一次 run 里不会有第二条线上传同名 `Tutto-<版本>-win-x64.exe`（DR-M5-1）。
   # - macOS/Linux 腿未验证，继续 `continue-on-error`；它们失败不会挡 publish
   #   （job 级 continue-on-error 在 `needs` 里归一为 success，见本 job 下方注释）。
   #
@@ -639,7 +639,7 @@ jobs:
             exit 1
           fi
           mkdir -p dist/tauri
-          out="dist/tauri/Mode-${VERSION}-${TARGET}-${ARCH}.${EXT}"
+          out="dist/tauri/Tutto-${VERSION}-${TARGET}-${ARCH}.${EXT}"
           cp "${candidates[0]}" "$out"
           node scripts/tauri-bundle-report.ts "$out"
           # Windows 是当前唯一进 Release 的腿：安装包、签名与 updater 清单必须同批产出。
@@ -657,7 +657,7 @@ jobs:
               --version "$VERSION" \
               --artifact "$out" \
               --signature "${out}.sig" \
-              --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/Mode-${VERSION}-win-x64.exe" \
+              --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/Tutto-${VERSION}-win-x64.exe" \
               --notes "Release notes: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" \
               --output "dist/tauri/latest.json"
           fi
@@ -676,8 +676,8 @@ jobs:
           set -euo pipefail
           cargo run --locked --quiet -p updater-verify -- \
             apps/desktop-tauri/src-tauri/tauri.conf.json \
-            "dist/tauri/Mode-${VERSION}-win-x64.exe" \
-            "dist/tauri/Mode-${VERSION}-win-x64.exe.sig"
+            "dist/tauri/Tutto-${VERSION}-win-x64.exe" \
+            "dist/tauri/Tutto-${VERSION}-win-x64.exe.sig"
 
       # 路线图 M5「三指标仪表入库」第 3 项：CI 记录安装包体积。
       # 口径：**NSIS 安装包字节**（`statSync().size`，MiB = 字节 / 1024²）。
@@ -715,7 +715,7 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
-          exe="dist/tauri/Mode-${VERSION}-win-x64.exe"
+          exe="dist/tauri/Tutto-${VERSION}-win-x64.exe"
           sig="${exe}.sig"
           manifest="dist/tauri/latest.json"
           for file in "$exe" "$sig" "$manifest"; do
@@ -744,7 +744,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/release-checksums
-          src="dist/tauri/Mode-${VERSION}-win-x64.exe.sha256"
+          src="dist/tauri/Tutto-${VERSION}-win-x64.exe.sha256"
           test -f "$src" || { echo "::error::missing $src"; exit 1; }
           cp "$src" dist/release-checksums/tauri-win-x64.txt
           cat dist/release-checksums/tauri-win-x64.txt

@@ -79,7 +79,7 @@ fn main() {
             &handle,
             mode_tauri::MAIN_WINDOW_LABEL,
             tauri::WebviewUrl::App(sidecar_host::pick_shell_entry(entry_override.as_deref())),
-            "Mode",
+            "Tutto",
             // 产品注入：`window.mode`（平台面适配层）+ Host 桥，一段脚本文本、document-start 求值。
             &sidecar_host::bridge::bridge_script(&startup_id),
             None,
