@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/ui-foundation/adapters/dropdown-menu.js";
-import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable.js";
+import { ResizableHandle, ResizablePanel } from "@/ui-foundation/adapters/resizable.js";
 import { Tabs, TabsContent, TabsList } from "@/ui-foundation/adapters/tabs.js";
 import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
 import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";

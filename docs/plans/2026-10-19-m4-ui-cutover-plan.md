@@ -6,7 +6,7 @@
 >
 > **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
 > command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
-> 引用集中在各 viewer；旧文件统一保留到人工看屏验收后删除。
+> 引用集中在各 viewer（pdf/code/diff/pptx 与 lightweight 系列）；旧文件统一保留到人工看屏验收后删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 
 ## 基础件切换顺序（按引用面从小到大）
@@ -233,3 +233,12 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 验证：UI 346 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：只生成单套 CSS 变量（未区分明暗主题变量）；tooltip 的容器定位/动画交给 recharts。
+
+### 后续波次（2026-10-19 第十六轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `resizable` | 3 | 新增 foundation Resizable：`Group/Panel/Separator` 映射；`layoutId`（+`panelIds`）走 `useDefaultLayout` 持久化，SSR 下注入 no-op storage；`ResizableHandle` 只给最小定位基类，视觉线与命中区由调用方 className 决定 |
+
+验证：UI 348 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：未提供旧实现的额外 grip 图标；持久化键沿用调用方 `layoutId`。

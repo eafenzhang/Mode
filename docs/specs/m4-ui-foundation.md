@@ -180,6 +180,14 @@ success/warning/destructive。
 - `ChartLegend` / `ChartLegendContent` 与 tooltip 共用 label/color 查找规则；
 - 文本使用 `text-ui-xs`/`text-ui-sm`，数值列 `tabular-nums`。
 
+### 2.14 Resizable panels
+
+- `ResizablePanelGroup` 包装 react-resizable-panels 的 `Group`：`orientation` 默认 horizontal；
+  传 `layoutId`（+ 可选 `panelIds`）时通过 `useDefaultLayout` 持久化/恢复布局，不传则不持久化；
+- `ResizablePanel` 直接映射 `Panel`，保留 `panelRef`/`elementRef`/`defaultSize`/`minSize`/`maxSize`/`collapsible`；
+- `ResizableHandle` 映射 `Separator`，只给最小定位基类，视觉线/命中区由调用方 `className` 决定；
+  分隔条 4px 命中区、2px 可见线遵循设计规范 §3。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -242,7 +250,8 @@ success/warning/destructive。
 HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`；
 输入组合与滚动遮罩在 `InputGroup.tsx` / `ScrollFadeViewport.tsx`，用例
 `uiFoundationInputGroupScroll.test.ts`；图表组合在 `Chart.tsx`，用例
-`uiFoundationChart.test.ts`。
+`uiFoundationChart.test.ts`；面板分隔在 `Resizable.tsx`，用例
+`uiFoundationResizable.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

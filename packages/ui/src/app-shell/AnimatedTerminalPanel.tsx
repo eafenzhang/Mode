@@ -6,7 +6,7 @@ import type { IServiceAccessor } from "@mode/services";
 import { Terminal } from "@/Terminal.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { cn } from "@/components/lib/utils.js";
-import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable.js";
+import { ResizableHandle, ResizablePanel } from "@/ui-foundation/adapters/resizable.js";
 
 export function AnimatedTerminalPanel({
   services,

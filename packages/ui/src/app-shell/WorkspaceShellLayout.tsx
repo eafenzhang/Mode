@@ -68,7 +68,7 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { resolveTopOverlayClearancePaddingClass } from "@/lib/topOverlayClearance.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable.js";
+import { ResizablePanel, ResizablePanelGroup } from "@/ui-foundation/adapters/resizable.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { getGitDirtyFileCount } from "@/git-branch-switcher/display.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

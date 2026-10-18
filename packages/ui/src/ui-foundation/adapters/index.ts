@@ -252,3 +252,11 @@ export {
   type ChartTooltipContentProps,
   type ChartTooltipPayloadItem,
 } from "./chart.js";
+export {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  type ResizableHandleProps,
+  type ResizablePanelGroupProps,
+  type ResizablePanelProps,
+} from "./resizable.js";
