@@ -1,4 +1,10 @@
-export { AppShell, ResizeHandle, type AppShellProps, type ResizeHandleProps } from "./AppShell.js";
+export {
+  AppShell,
+  ResizeHandle,
+  type AppShellProps,
+  type PanelResizeBinding,
+  type ResizeHandleProps,
+} from "./AppShell.js";
 export { Button, type ButtonProps } from "./Button.js";
 export { Card, type CardProps } from "./Card.js";
 export { Dialog, type DialogProps } from "./Dialog.js";
@@ -84,3 +90,10 @@ export {
   type PanelResizeHandleProps,
   type UsePanelResizeOptions,
 } from "./usePanelResize.js";
+export {
+  createMemoryPanelSizePersistence,
+  resolveInitialPanelSize,
+  type PanelId,
+  type PanelSizePersistence,
+} from "./panelSizePersistence.js";
+export { WorkspaceFrame, type WorkspaceFrameProps } from "./WorkspaceFrame.js";

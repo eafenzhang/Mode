@@ -23,6 +23,7 @@ import {
   resizeFromKeyboard,
   type ResizeBounds,
 } from "./resizeMath.js";
+import type { PanelResizeHandleProps } from "./usePanelResize.js";
 
 export interface ResizeHandleProps extends HTMLAttributes<HTMLDivElement> {
   orientation: ResizeOrientation;
@@ -83,6 +84,15 @@ export const ResizeHandle = forwardRef<HTMLDivElement, ResizeHandleProps>(
   },
 );
 
+/** 由 usePanelResize 提供的尺寸 + 指针/键盘绑定。 */
+export interface PanelResizeBinding {
+  size: number;
+  bounds: ResizeBounds;
+  dragging: boolean;
+  onResize: (size: number) => void;
+  handleProps: PanelResizeHandleProps;
+}
+
 export interface AppShellProps extends HTMLAttributes<HTMLDivElement> {
   conversation: ReactNode;
   conversationLabel: string;
@@ -90,8 +100,10 @@ export interface AppShellProps extends HTMLAttributes<HTMLDivElement> {
   header?: ReactNode;
   terminal?: ReactNode;
   terminalLabel?: string;
+  terminalResize?: PanelResizeBinding;
   sidePane?: ReactNode;
   sidePaneLabel?: string;
+  sidePaneResize?: PanelResizeBinding;
   /** 手机远控的 drawer；存在时叠加在单列布局上。 */
   mobileDrawer?: ReactNode;
 }
@@ -103,8 +115,10 @@ export const AppShell = forwardRef<HTMLDivElement, AppShellProps>(function AppSh
     header,
     terminal,
     terminalLabel,
+    terminalResize,
     sidePane,
     sidePaneLabel,
+    sidePaneResize,
     mobileDrawer,
     className,
     ...rest
@@ -120,8 +134,20 @@ export const AppShell = forwardRef<HTMLDivElement, AppShellProps>(function AppSh
         </section>
         {terminal ? (
           <>
-            <ResizeHandle orientation="horizontal" label={terminalLabel ?? conversationLabel} />
-            <section aria-label={terminalLabel} className={terminalFrameClassName()}>
+            <ResizeHandle
+              {...(terminalResize?.handleProps ?? {})}
+              orientation="horizontal"
+              label={terminalLabel ?? conversationLabel}
+              dragging={terminalResize?.dragging}
+              size={terminalResize?.size}
+              bounds={terminalResize?.bounds}
+              onResize={terminalResize?.onResize}
+            />
+            <section
+              aria-label={terminalLabel}
+              style={terminalResize ? { height: terminalResize.size } : undefined}
+              className={terminalFrameClassName()}
+            >
               {terminal}
             </section>
           </>
@@ -129,8 +155,20 @@ export const AppShell = forwardRef<HTMLDivElement, AppShellProps>(function AppSh
       </div>
       {sidePane ? (
         <>
-          <ResizeHandle orientation="vertical" label={sidePaneLabel ?? conversationLabel} />
-          <aside aria-label={sidePaneLabel} className={sidePaneFrameClassName()}>
+          <ResizeHandle
+            {...(sidePaneResize?.handleProps ?? {})}
+            orientation="vertical"
+            label={sidePaneLabel ?? conversationLabel}
+            dragging={sidePaneResize?.dragging}
+            size={sidePaneResize?.size}
+            bounds={sidePaneResize?.bounds}
+            onResize={sidePaneResize?.onResize}
+          />
+          <aside
+            aria-label={sidePaneLabel}
+            style={sidePaneResize ? { width: sidePaneResize.size } : undefined}
+            className={sidePaneFrameClassName()}
+          >
             {sidePane}
           </aside>
         </>

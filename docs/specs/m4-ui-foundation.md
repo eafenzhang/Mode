@@ -133,7 +133,10 @@ success/warning/destructive。
 （竖向向右为正、横向向上为正）；`ResizeHandle` 在提供 `size`/`bounds`/`onResize` 时支持
 键盘调整并输出 `aria-valuenow/min/max`。`usePanelResize` 负责 pointer capture、拖拽态与
 实时换算（`data-dragging` 交给调用方）。尺寸持久化归调用方的状态层（store/settings），
-组件不自己落盘。
+组件不自己落盘。**组合（2026-10-19）**：`WorkspaceFrame` 持有 terminal/sidePane 尺寸，
+通过 `PanelResizeBinding` 把 `usePanelResize` 的指针/键盘绑定交给 `AppShell`；
+`panelSizePersistence.ts` 定义 `PanelSizePersistence` 契约（含内存实现与
+`resolveInitialPanelSize` 的 clamp）。
 
 ## 4. 可访问性与 i18n
 
