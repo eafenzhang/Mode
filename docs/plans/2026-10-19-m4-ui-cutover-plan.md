@@ -291,3 +291,14 @@ pdf.js 与 Vite `?url` worker。
 
 验证：UI 363 passed、typecheck/lint/architecture/language/format 通过。
 已知差异：操作条垂直位置固定在 boundary 顶部（旧实现可能贴近选区），水平只做视口夹取。
+
+### 剩余 viewer 的拆分约定（2026-10-19）
+
+`pptx-preview-viewer` / `code-viewer` 都属多特性组件，按两层推进：
+
+1. **纯控制逻辑先钉住**：PPTX 的页码/缩放夹取与元素命中测试已由
+   `uiFoundationPptxControls.test.ts` 覆盖（页码 1..N、25%–300%、zIndex/表格单元优先）；
+2. **再接渲染层**：PPTX 渲染/缩略图/导出与 CodeViewer 的注释/选区/gutter 分两步，避免一次替换
+   半个组件造成混合实现。
+
+本步骤只增加测试，不改运行时行为。
