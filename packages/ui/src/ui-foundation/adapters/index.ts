@@ -19,6 +19,29 @@ export {
   type AdapterButtonVariant,
 } from "./button.js";
 export {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+  mapAlertVariant,
+  type AdapterAlertProps,
+  type AdapterAlertVariant,
+} from "./alert.js";
+export {
+  Avatar,
+  AvatarBadge,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+  type AvatarBadgeProps,
+  type AvatarFallbackProps,
+  type AvatarGroupCountProps,
+  type AvatarGroupProps,
+  type AvatarImageProps,
+  type AvatarProps,
+} from "./avatar.js";
+export {
   Card,
   CardAction,
   CardContent,
@@ -43,8 +66,19 @@ export {
   type DialogProps,
   type DialogTriggerProps,
 } from "./dialog.js";
+export { Checkbox, type CheckboxProps } from "./checkbox.js";
 export { Input, inputVariants, type AdapterInputProps } from "./input.js";
+export { Progress, type ProgressProps } from "./progress.js";
+export { Radio, RadioGroup, type RadioGroupProps, type RadioProps } from "./radio-group.js";
+export { Switch, type SwitchProps } from "./switch.js";
+export { Textarea, type TextareaProps } from "./textarea.js";
 export { Separator, type SeparatorProps } from "./separator.js";
+export {
+  ScrollArea,
+  ScrollBar,
+  type ScrollAreaProps,
+  type ScrollBarProps,
+} from "./scroll-area.js";
 export {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,

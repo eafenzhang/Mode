@@ -57,3 +57,37 @@ test("菜单 label 类名通过排版守卫", () => {
   assert.match(menuLabelClassName(), /text-ui-xs/);
   assert.deepEqual(findUiTypographyViolations([menuLabelClassName()]), []);
 });
+
+test("Avatar/ScrollArea adapter 导出存在", async () => {
+  const adapters = await import("../src/ui-foundation/adapters/index.js");
+  for (const name of [
+    "Avatar",
+    "AvatarImage",
+    "AvatarFallback",
+    "AvatarBadge",
+    "AvatarGroup",
+    "AvatarGroupCount",
+    "ScrollArea",
+    "ScrollBar",
+  ] as const) {
+    assert.ok(adapters[name], `${name} 必须导出`);
+  }
+});
+
+test("剩余基础件 adapter 导出存在", async () => {
+  const adapters = await import("../src/ui-foundation/adapters/index.js");
+  for (const name of [
+    "Alert",
+    "AlertTitle",
+    "AlertDescription",
+    "AlertAction",
+    "Textarea",
+    "Checkbox",
+    "Switch",
+    "RadioGroup",
+    "Radio",
+    "Progress",
+  ] as const) {
+    assert.ok(adapters[name], `${name} 必须导出`);
+  }
+});

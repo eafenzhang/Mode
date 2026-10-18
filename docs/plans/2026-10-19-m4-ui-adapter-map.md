@@ -98,3 +98,9 @@
 `DialogContent`（打开时渲染 foundation Dialog，负责焦点/Esc/Tab）、`DialogTrigger`/`DialogClose`
 （克隆子元素 onClick，尊重 `defaultPrevented`）、`DialogPortal`（passthrough），并转发
 Header/Title/Description/Footer。用例用 `renderToStaticMarkup` 覆盖受控/非受控的渲染条件。
+
+## 9. 逐屏切换清单
+
+引用文件数、批次与验收记录格式见 `2026-10-19-m4-ui-cutover-plan.md`。
+批次 1 的 adapter 已全部就绪（`separator/radio-group/avatar/scroll-area/card/progress/alert-dialog/checkbox/alert/textarea`），
+可直接开始替换 import。
