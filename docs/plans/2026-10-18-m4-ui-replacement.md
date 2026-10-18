@@ -85,7 +85,9 @@
 ### P1.7 零散面与资产
 
 - `onboarding/`、`settings-sync`、`quickpick`、`shortcuts`、`assets/`；
-- `assets/`（324 个文件）需先按来源分类：第三方图标走 `third-party/` 台账，上游资产重画或删除。
+- `assets/`（324 个文件）的来源与等待决策见 `2026-10-18-m4-ui-assets-inventory.md`：
+  284 个插件图标（278 个第三方品牌图标台账 `reviewRequired`）、25 个 provider 图标
+  （21 个与上游一致、台账无条目）、42 个与上游 identical 的资产需重画/替换。
 
 ## 验收
 
