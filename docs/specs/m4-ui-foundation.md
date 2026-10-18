@@ -106,7 +106,9 @@ success/warning/destructive。
 ### 2.5 Tabs / Selection
 
 - 非活动 tab 中性；活动 tab 用更强 surface 对比，不用 brand 填充；
-- 列表/选中行用 `bg-selected`。
+- 列表/选中行用 `bg-selected`；
+- 键盘：Tab 进入 tablist；`ArrowLeft`/`ArrowRight` 循环聚焦，`Home`/`End` 到首尾；
+  焦点移动后由调用方决定是否激活（自动/手动激活模式），组件本身只移动焦点。
 
 ### 2.6 Tooltip / Toast
 
