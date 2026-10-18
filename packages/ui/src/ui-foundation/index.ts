@@ -37,6 +37,18 @@ export {
   type QueuedInputListProps,
 } from "./QueuedInput.js";
 export { SelectTrigger, type SelectTriggerProps } from "./SelectTrigger.js";
+export {
+  PluginCard,
+  PluginUnavailableHint,
+  SettingsLayout,
+  SettingsNavItem,
+  SettingsSection,
+  type PluginCardProps,
+  type PluginUnavailableHintProps,
+  type SettingsLayoutProps,
+  type SettingsNavItemProps,
+  type SettingsSectionProps,
+} from "./Settings.js";
 export { Tab, Tabs, type TabProps, type TabsProps } from "./Tabs.js";
 export {
   isTabNavigationKey,
@@ -155,6 +167,26 @@ export {
   type TaskRowClassNameOptions,
   type TaskStatus,
 } from "./workspaceStyles.js";
+export {
+  pluginAvailabilityBadgeClassName,
+  pluginCardActionsClassName,
+  pluginCardBodyClassName,
+  pluginCardClassName,
+  pluginCardDescriptionClassName,
+  pluginCardHeaderClassName,
+  pluginCardTitleClassName,
+  pluginDetailHintClassName,
+  pluginIconClassName,
+  settingsContentClassName,
+  settingsLayoutClassName,
+  settingsNavClassName,
+  settingsNavItemClassName,
+  settingsSectionClassName,
+  settingsSectionDescriptionClassName,
+  settingsSectionTitleClassName,
+  type PluginAvailability,
+  type SettingsNavItemClassNameOptions,
+} from "./settingsStyles.js";
 export {
   clampPanelSize,
   isResizeKey,

@@ -91,6 +91,10 @@
   `flatten-provider-zones.md`；
 - 验收：`plugin-store-availability` 的 6 个场景（卡片禁用、详情固定说明、已安装不受影响）；
 - 现状：卡片投影已有 node 侧测试，UI E2E 仍需人工。
+- **静态结构已起步（2026-10-19）**：`settingsStyles.ts` / `Settings.tsx`——设置布局/导航/
+  分区、插件卡片（brand 背板 `rounded-2xl` 例外、说明两行截断）、不可安装 pill、
+  详情固定说明（无重试入口）；用例 `packages/ui/test/uiFoundationSettings.test.ts`。
+  数据接线与 6 个 E2E 场景仍待后续。
 
 ### P1.6 远程与开发者面板（`remote-desktop/`、`remote-connection/`、`terminal/`、`browser-use/`、`preview*`）
 
