@@ -26,7 +26,7 @@ use serde_json::Value;
 
 use crate::messages::{validation_error, CREATED_TEMPLATE, NOT_READ_MESSAGE, UPDATED_TEMPLATE};
 use crate::path_policy::{empty_path_error, resolve};
-use crate::{unimplemented_surface, FileState, ToolContext, ToolError, ToolOutcome};
+use crate::{file_diff, unimplemented_surface, FileState, ToolContext, ToolError, ToolOutcome};
 
 /// `Write` 的模型侧工具描述——从 oracle 的请求体里逐字抄下（探针 `probe-write.mts surface`）。
 pub const WRITE_DESCRIPTION: &str = "Writes a file to the local filesystem, overwriting if one exists.\n\nWhen to use: creating a new file, or fully replacing one you've already Read. Overwriting an existing file you haven't Read will fail. For partial changes, use Edit instead.";
@@ -95,6 +95,14 @@ pub fn invoke(
         return Err(not_read_error());
     }
 
+    // 覆盖写要在写前留下旧正文，才能产出 `display.file_diff`（观察：新建 Write **没有** display，
+    // 覆盖有；见 `file_diff` 模块）。读不出来（非 UTF-8 等）时宁可不给 display，也不编一份。
+    let previous = if existed {
+        fs::read_to_string(&target).ok()
+    } else {
+        None
+    };
+
     // 写失败（IO 错误 / 父目录不存在 / 目标是目录）的形状**没有观察**——不假装，
     // 走显式标记让它在对拍里报红（见文件头的说明）。
     if let Err(error) = fs::write(&target, content) {
@@ -109,5 +117,13 @@ pub fn invoke(
     } else {
         CREATED_TEMPLATE
     };
-    Ok(ToolOutcome::text(template.replace("{path}", file_path)))
+    let text = template.replace("{path}", file_path);
+
+    let display = previous.and_then(|before| {
+        file_diff::file_diff_display(&target.to_string_lossy(), &before, content)
+    });
+    Ok(match display {
+        Some(display) => ToolOutcome::text_with_display(text, display),
+        None => ToolOutcome::text(text),
+    })
 }

@@ -180,8 +180,10 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
   **未注册**（调用返回 `tool_not_found`，见 spec §3.2 与 Ruling 17），因此实现范围实际是
   `Read` + 「未注册工具不产生 `started`」的事件形状；对拍用例在
   `crates/agent-tools/tests` 与 `crates/agent-core/tests/tool_parity.rs`。
-- [ ] **文件写与 diff 呈现**：`Write`/`Edit` 与审批已落地（`approval.rs`、`permission_flow.rs`，
-  `ApplyPatch` 实测不存在、已作废）；**diff 呈现面仍缺**，故不勾选。
+- [x] **文件写与 diff 呈现**〔2026-10-18 收口〕：`Write`/`Edit` 与审批已落地
+  （`approval.rs`、`permission_flow.rs`，`ApplyPatch` 实测不存在、已作废）；
+  `display.file_diff`（`crates/agent-tools/src/file_diff.rs`）已补，`Write` 覆盖与 `Edit`
+  成功结果带 diff、新建 `Write` 不带（观察）；`tool_parity` 逐字段比较 `display`。
 - [ ] **shell 与 pty**：Bash 与超时/取消/退出码对拍已落地；oracle 实测管道而非 TTY
   （`[ -t 1 ]` 为假），`portable-pty` **不需要**；`CommandInbox` 串行准入在 Host 层，尚未接入。
 - [x] **会话流与重放**〔2026-10-18 收口〕：`desktop-continuous` 用

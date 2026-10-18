@@ -437,6 +437,35 @@ CREATE TABLE local_setting (
 「覆盖未读文件」在 `Write` 是 `code=TOOL_EXECUTION_FAILED` / `detail=code=write_file_not_read`，
 在 `Edit` 是 `code=6` / `detail=code=6`。
 
+**结果里的 `display.file_diff`（2026-10-18 补观察并实现）**
+
+成功结果的 `display` 是 `Write` / `Edit` 的 diff 呈现来源；**新建 `Write` 没有 display**：
+
+| 工具 / 场景 | `display` | 夹具 |
+| --- | --- | --- |
+| `Write` 新建 | **无** | `write-new`、`write-relative-path` |
+| `Write` 覆盖已读文件 | `file_diff` | `write-overwrite-read` |
+| `Edit` 替换一处 / 全部 | `file_diff` | `edit-unique`、`edit-replace-all` |
+| `Edit` 空 `old_string` 新建 | `file_diff`（旧文件视为 0 行） | `edit-empty-old-creates` |
+| 失败结果 | 无 | 其余 `edit-*` / `write-*` 失败夹具 |
+
+形状（逐字）：
+
+```json
+{"kind":"file_diff","filePath":"<cwd>/target.txt","additions":1,"deletions":1,
+ "structuredPatch":[{"oldStart":1,"oldLines":3,"newStart":1,"newLines":3,
+                     "lines":[" alpha","-Beta","+BETA"," gamma"]}],
+ "truncated":false}
+```
+
+- `filePath` 是**解析后的绝对路径**，正斜杠形态（Windows 录制也是 `/`）；
+- `lines` 每行带前缀（`" "` / `"-"` / `"+"`），不含行尾换行；
+- 上下文行数取 unified diff 通行的 3；样本都是小文件，hunk 覆盖全文，无法从样本反推更细的常数；
+- 超过单批预算的 `truncated:true` 分支**未观察**，Rust 侧只产出 `false`（与所有样本一致）。
+
+Rust 实现：`crates/agent-tools/src/file_diff.rs`；`Write`/`Edit` 在写成功后调用它，
+对拍时 `tool_parity.rs` 逐字段比较 `display`（此前只解析不比较，故该缺口长期未暴露）。
+
 ### 3.4 `Bash` 与取消（Task 4 Step 0 观察，2026-10-17）
 
 出处：`probe-bash.mts`（20+ 组）与 `probe-bash-cancel.mts`（运行中取消）。
@@ -859,6 +888,12 @@ oracle 同形的 `tool_not_found`」，并由行为夹具 `read-absent-search-to
    理由：本机账户短名与 checkout 绝对路径既不属仓库、也不带来测试力量，而夹具的保真度要求的是
    形状与类型。规范化在录制器 `record-protocol-fixtures.mts` 里做（重录结果因此确定），
    并带一条「夹具里不得残留机器路径」的守卫。
+8. **`originalBytes` / `returnedBytes` 不参与跨机器对拍**（2026-10-18）：这两个数按正文的
+   UTF-8 字节计，而正文包含工作目录绝对路径（`Write`/`Edit`）或 shell 诊断前缀（`Bash`），
+   其长度随机器与目录名变化。实测：`write-new` 的 10 字节差 = 该用例工作目录与 `<cwd>`
+   的长度差；`bash-command-not-found` 的期望计数对应录制机的 shell 前缀。
+   `tool_parity.rs` 因此只比 `truncated` / `budgetStrategy` / `display`，字节计数留给
+   「同一隔离条件重录」的场景。**这不是产品差异**，不要在 Rust 侧为对齐数字改正文。
 
 ## 验收场景（Task 0）
 

@@ -104,6 +104,15 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-write-rules.mts
 2. `replace_all: true` 的成功文案**只看这个开关**，不看实际命中几次（只命中 1 次时仍是
    「All occurrences were successfully replaced.」）。
 
+**补做（2026-10-18，diff 呈现）**：`Write` 覆盖与 `Edit` 成功结果的 `display.file_diff`
+此前未实现——对拍只解析结果对象、没比较它。本轮补上：
+
+- `crates/agent-tools/src/file_diff.rs`（行级 LCS + 上下文 hunk，7 条单测覆盖四条夹具形状）；
+- `Write` 覆盖（新建无 display）与 `Edit`（含空 `old_string` 新建）在写成功后产出 display；
+- `tool_parity.rs` 逐字段比较 `display` / `truncated` / `budgetStrategy`；字节计数因依赖
+  目录与 shell 前缀长度不参与跨机器比较（spec §6.8）。
+- 实跑：`agent-core` 的 `tool_parity` **43 passed**，`agent-tools` 的 file_diff **7 passed**。
+
 ---
 
 ### Task C：审批面的 Rust 镜像

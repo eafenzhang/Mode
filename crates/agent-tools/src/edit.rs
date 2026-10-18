@@ -26,7 +26,7 @@ use serde_json::Value;
 
 use crate::messages::{validation_error, NOT_READ_MESSAGE, UPDATED_TEMPLATE};
 use crate::path_policy::{empty_path_error, resolve};
-use crate::{unimplemented_surface, FileState, ToolContext, ToolError, ToolOutcome};
+use crate::{file_diff, unimplemented_surface, FileState, ToolContext, ToolError, ToolOutcome};
 
 /// `Edit` 的模型侧工具描述——从 oracle 的请求体里逐字抄下（探针 `probe-write.mts surface`）。
 pub const EDIT_DESCRIPTION: &str = "Performs exact string replacement in a file.\n\n- You must Read the file in this conversation before editing, or the call will fail.\n- `old_string` must match the file exactly, including indentation, and be unique — the edit fails otherwise. Strip the Read line prefix (line number + tab) before matching.\n- `replace_all: true` replaces every occurrence instead.";
@@ -134,9 +134,14 @@ pub fn invoke(
                     format!("{file_path}：{error}"),
                 ));
             }
-            return Ok(ToolOutcome::text(
-                UPDATED_TEMPLATE.replace("{path}", file_path),
-            ));
+            // 观察（夹具 `edit-empty-old-creates`）：`Edit` 新建**有** `file_diff`（空 → 新内容），
+            // 与 `Write` 新建不同。
+            let text = UPDATED_TEMPLATE.replace("{path}", file_path);
+            let display = file_diff::file_diff_display(&target.to_string_lossy(), "", new_string);
+            return Ok(match display {
+                Some(display) => ToolOutcome::text_with_display(text, display),
+                None => ToolOutcome::text(text),
+            });
         }
         // 判据 2：决定性样本是「文件不存在 + 未读」→ code=4（不是 6），所以存在性**先于**未读检查。
         return Err(coded_error(
@@ -184,7 +189,7 @@ pub fn invoke(
     } else {
         content.replacen(old_string, new_string, 1)
     };
-    if let Err(error) = fs::write(&target, updated) {
+    if let Err(error) = fs::write(&target, &updated) {
         return Err(unimplemented_surface(
             "edit_io_error",
             format!("{file_path}：{error}"),
@@ -197,5 +202,11 @@ pub fn invoke(
     } else {
         UPDATED_TEMPLATE
     };
-    Ok(ToolOutcome::text(template.replace("{path}", file_path)))
+    let text = template.replace("{path}", file_path);
+    // 观察（夹具 `edit-unique` / `edit-replace-all`）：成功结果带 `file_diff`，旧正文是替换前内容。
+    let display = file_diff::file_diff_display(&target.to_string_lossy(), &content, &updated);
+    Ok(match display {
+        Some(display) => ToolOutcome::text_with_display(text, display),
+        None => ToolOutcome::text(text),
+    })
 }

@@ -55,18 +55,20 @@ pub struct Fixture {
     ///
     /// 「跨 turn」的观察（`Read` 的重复读去重）只能靠多 turn 夹具钉住，见 `fixtures.mts` 的注释。
     pub turn_sizes: Vec<usize>,
-    /// 每个调用的**结果对象**里那四个对拍要读的字段（`success`/`truncated`/两个字节计数/预算策略），
+    /// 每个调用的**结果对象**里对拍要读的字段（`truncated` / 两个字节计数 / 预算策略 / `display`），
     /// 从 `expect.events` 的 `tool.updated`/`result` 载荷里取（`None` = 该调用以错误结束）。
     pub expect_result_objects: Vec<Option<ResultObject>>,
 }
 
 /// 录制到的 `tool.updated`/`result` 对象（只取对拍要用的字段）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ResultObject {
     pub truncated: bool,
     pub original_bytes: u64,
     pub returned_bytes: u64,
     pub budget_strategy: String,
+    /// `result.display`（`Write`/`Edit` 成功时是 `file_diff`；`Read` 与新建 `Write` 没有）。
+    pub display: Option<serde_json::Value>,
 }
 
 /// 行为夹具目录（`packages/desktop/tests/agent-runtime-oracle/fixtures`）。
@@ -257,6 +259,7 @@ pub fn load_fixture(case: &str) -> Fixture {
                             .as_str()
                             .expect("budgetStrategy")
                             .to_string(),
+                        display: result.get("display").cloned(),
                     });
                 }
             }

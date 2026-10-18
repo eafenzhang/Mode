@@ -17,7 +17,7 @@
 use agent_core::session::{Session, ToolCallRequest};
 use agent_core::{SessionEvent, ToolUpdatedPayload};
 use agent_tools::test_support::{
-    load_fixture, project, project_input, snapshot_directory, Fixture, Workspace,
+    load_fixture, project, project_input, snapshot_directory, Fixture, ResultObject, Workspace,
 };
 use agent_tools::UNIMPLEMENTED_ERROR_TYPE;
 
@@ -41,12 +41,17 @@ fn script_calls(fixture: &Fixture, workspace: &Workspace) -> Vec<ToolCallRequest
 /// | 来源 | 取什么 |
 /// | --- | --- |
 /// | `tool.updated` / `scheduled` | `name = toolName`（入参在调度事件里**故意缺失**，由调用方比） |
-/// | `tool.updated` / `result` | `ok = result.success === true`，`output = result.content` |
+/// | `tool.updated` / `result` | `ok = result.success === true`，`output = result.content`，外加结果对象 |
 /// | `tool.updated` / `error` | `ok = false`，`output = error.message` |
-fn project_tool_calls(events: &[SessionEvent], workspace: &str) -> Vec<(String, bool, String)> {
+fn project_tool_calls(
+    events: &[SessionEvent],
+    workspace: &str,
+) -> Vec<(String, bool, String, Option<ResultObject>)> {
     let mut order: Vec<String> = Vec::new();
-    let mut by_id: std::collections::BTreeMap<String, (String, bool, String)> =
-        std::collections::BTreeMap::new();
+    let mut by_id: std::collections::BTreeMap<
+        String,
+        (String, bool, String, Option<ResultObject>),
+    > = std::collections::BTreeMap::new();
     for event in events {
         if event.event_type != agent_core::SessionEventType::ToolUpdated {
             continue;
@@ -61,7 +66,7 @@ fn project_tool_calls(events: &[SessionEvent], workspace: &str) -> Vec<(String, 
             ToolUpdatedPayload::Scheduled(scheduled) => {
                 let id = scheduled.call.tool_call_id.clone();
                 order.push(id.clone());
-                by_id.insert(id, (scheduled.tool_name, false, String::new()));
+                by_id.insert(id, (scheduled.tool_name, false, String::new(), None));
             }
             ToolUpdatedPayload::Started(_)
             | ToolUpdatedPayload::Progress(_)
@@ -80,6 +85,29 @@ fn project_tool_calls(events: &[SessionEvent], workspace: &str) -> Vec<(String, 
                         .unwrap_or(""),
                     workspace,
                 );
+                let extras = &result.result.extra;
+                slot.3 = Some(ResultObject {
+                    truncated: extras
+                        .get("truncated")
+                        .and_then(serde_json::Value::as_bool)
+                        .expect("result.truncated"),
+                    original_bytes: extras
+                        .get("originalBytes")
+                        .and_then(serde_json::Value::as_u64)
+                        .expect("result.originalBytes"),
+                    returned_bytes: extras
+                        .get("returnedBytes")
+                        .and_then(serde_json::Value::as_u64)
+                        .expect("result.returnedBytes"),
+                    budget_strategy: extras
+                        .get("budgetStrategy")
+                        .and_then(serde_json::Value::as_str)
+                        .expect("result.budgetStrategy")
+                        .to_string(),
+                    display: extras
+                        .get("display")
+                        .map(|value| project_input(value, workspace)),
+                });
             }
             ToolUpdatedPayload::Error(error) => {
                 let Some(slot) = by_id.get_mut(&error.call.tool_call_id) else {
@@ -128,6 +156,35 @@ fn assert_parity(case: &str) {
             got.2, expected.output,
             "{case}：第 {index} 个调用的输出与录制不一致"
         );
+        // 结果对象层：`truncated` / `budgetStrategy` / `display`（Write/Edit 的 `file_diff`）
+        // 逐字段比较。以前只解析不比较，diff 呈现缺失因此长期未被发现。
+        //
+        // 字节计数**不比**：`originalBytes` / `returnedBytes` 依赖工作目录长度（正文里含绝对路径）
+        // 与 shell 前缀的规范化差异，同一行为在不同机器上数值不同（证据：write-new 的 10 字节
+        // 差值 = cwd 与 `<cwd>` 的长度差；bash-command-not-found 的前缀第 1 行长度随 shell 变）。
+        // 这条口径登记在 spec §6.3「已知误差」，不是产品差异。
+        match (&got.3, &fixture.expect_result_objects[index]) {
+            (Some(actual_object), Some(expected_object)) => {
+                assert_eq!(
+                    actual_object.truncated, expected_object.truncated,
+                    "{case}：第 {index} 个调用的 truncated 与录制不一致"
+                );
+                assert_eq!(
+                    actual_object.budget_strategy, expected_object.budget_strategy,
+                    "{case}：第 {index} 个调用的 budgetStrategy 与录制不一致"
+                );
+                assert_eq!(
+                    actual_object.display, expected_object.display,
+                    "{case}：第 {index} 个调用的 display 与录制不一致"
+                );
+            }
+            (None, None) => {}
+            (actual_object, expected_object) => panic!(
+                "{case}：第 {index} 个调用的结果对象有无不一致（实际 {:?}，期望 {:?}）",
+                actual_object.is_some(),
+                expected_object.is_some()
+            ),
+        }
     }
 
     // 入参层：脚本入参投影后必须逐字等于录制的 `input`。

@@ -43,6 +43,7 @@ use serde_json::Value;
 
 pub mod bash;
 pub mod edit;
+pub mod file_diff;
 mod messages;
 mod path_policy;
 pub mod read;
