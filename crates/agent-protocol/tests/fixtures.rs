@@ -199,6 +199,14 @@ fn exercise_event_payload(case: &str, event: &SessionEvent) -> String {
                     assert_no_unmodeled_payload_fields(case, &fields.extra);
                     "tool.updated:started".to_string()
                 }
+                ToolUpdatedPayload::Progress(fields) => {
+                    assert_no_unmodeled_payload_fields(case, &fields.extra);
+                    assert!(
+                        !fields.tool_name.is_empty(),
+                        "{case}：进度事件应当带工具名"
+                    );
+                    "tool.updated:progress".to_string()
+                }
                 ToolUpdatedPayload::Result(fields) => {
                     assert_no_unmodeled_payload_fields(case, &fields.extra);
                     // `result` 本身是**开放对象**（工具自带的输出面），未建模字段是它的正常

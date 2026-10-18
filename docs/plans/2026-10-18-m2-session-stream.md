@@ -122,9 +122,10 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
   - `ModelStream` 产出 `ModelDelta`（文本 / 工具入参）与 `ModelUsage`（token / usage / cache）
 - 约束：fake 的剧本来自请求内容（同 TS mock provider 的确定性口径），不读真实文件、不计费。
 
-- [ ] **Step 1：先写失败的用例**——同一剧本两次运行产出逐字相同的事件序列。
-- [ ] **Step 2：实现 trait 与 fake。**
-- [ ] **Step 3：跑通并提交。**
+- [x] **Step 1：先写失败的用例**——同一剧本两次运行产出逐字相同的事件序列。
+- [x] **Step 2：实现 trait 与 fake。**
+- [x] **Step 3：跑通并提交。**（2026-10-18：`crates/agent-core/src/provider.rs` +
+      `tests/provider_script.rs`；`agent-protocol` 的 `progress` kind 也在同批落地。）
 
 ---
 
@@ -208,3 +209,13 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
   归 Task 1 的前置。
 - 关键结论：后台任务在另一个 turn 运行期间完成时，oracle **不排队、直接丢弃**通知
   （spec §3.5）；DR-T5-3 已据此从「排队」改为「按 oracle 丢弃」。
+
+### 2026-10-18 巡检轮（Task 1）
+
+- `agent-protocol` 补 `tool.updated / kind:"progress"` 的载荷
+  （`ToolProgressPayload` + `ToolProgressOutputPreview`），往返测试用 spec §3.5 的实测样本。
+- `agent-core::provider` 落 `ModelProvider` trait、`ModelRequest` / `ModelResponse` /
+  `ModelDelta` / `ModelUsage` 与 `ScriptedProvider`：下标 = `Assistant` 消息条数，
+  工具步产出 `tool_input_start → delta → end → tool_call` 的固定顺序。
+- 测试：`provider_script.rs` 4 条（选步、delta 顺序、确定性、空剧本报错）；
+  `agent-protocol` 的 progress 往返 1 条。

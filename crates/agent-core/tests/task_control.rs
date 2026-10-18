@@ -30,6 +30,7 @@ fn kinds(events: &[SessionEvent]) -> Vec<&'static str> {
         result.push(match payload {
             ToolUpdatedPayload::Scheduled(_) => "scheduled",
             ToolUpdatedPayload::Started(_) => "started",
+            ToolUpdatedPayload::Progress(_) => "progress",
             ToolUpdatedPayload::Result(_) => "result",
             ToolUpdatedPayload::Error(_) => "error",
             ToolUpdatedPayload::Batch(_) => "batch",

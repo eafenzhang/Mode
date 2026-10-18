@@ -600,7 +600,8 @@ session.updated（messageCount=8）
 {"toolCallId":"toolu_mock_2_0","toolName":"Bash","elapsedMs":3049,"pid":21596,"stdoutBytes":0,"stderrBytes":0,"outputBytes":0,"outputPreview":{"text":"","fullText":"","totalLines":0,"totalBytes":0,"linesEstimated":false},"stdoutTail":"","kind":"progress"}
 ```
 
-  `agent-protocol` 目前**刻意不建模** `progress` / `raw`（解析失败），Task 5 必须补 `progress`。
+  `progress` 已在 Rust 镜像建模（`ToolProgressPayload`，往返测试用上面这条样本）；
+  `raw` 仍未建模（出现时应解析失败，留给后续任务）。
 
 **后台通知与运行中 turn 的相遇（DR-T5-3 的依据）**
 

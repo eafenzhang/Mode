@@ -528,11 +528,41 @@ pub struct ToolBatchPayload {
     pub extra: ExtraFields,
 }
 
+/// `tool.updated` / `kind=progress` 的 `outputPreview`（观察：spec §3.5）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolProgressOutputPreview {
+    pub text: String,
+    pub full_text: String,
+    pub total_lines: u64,
+    pub total_bytes: u64,
+    pub lines_estimated: bool,
+    #[serde(flatten)]
+    pub extra: ExtraFields,
+}
+
+/// `tool.updated` / `kind=progress` 的载荷（长跑命令约每 1s 一条，观察：spec §3.5）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolProgressPayload {
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub elapsed_ms: u64,
+    pub pid: u64,
+    pub stdout_bytes: u64,
+    pub stderr_bytes: u64,
+    pub output_bytes: u64,
+    pub output_preview: ToolProgressOutputPreview,
+    pub stdout_tail: String,
+    #[serde(flatten)]
+    pub extra: ExtraFields,
+}
+
 /// `tool.updated` 的载荷：按 `kind` 判别的联合。
 ///
-/// 只建模 M2 只读切片实际会产生的 5 个 kind（scheduled/started/result/error/batch，实测覆盖）；
-/// 协议里还有 `progress`（长跑命令的进度）与 `raw`，它们出现时应当**解析失败**，由后续任务
-/// 按夹具补齐——静默接受一个没有镜像的 kind，等于把「未覆盖」伪装成「已覆盖」。
+/// 已建模 6 个 kind：scheduled / started / result / error / batch（Task 2–4 实测）与
+/// progress（Task 5 观察，spec §3.5）。协议里还有 `raw`，出现时应当**解析失败**，
+/// 由后续任务按夹具补齐——静默接受一个没有镜像的 kind，等于把「未覆盖」伪装成「已覆盖」。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum ToolUpdatedPayload {
@@ -540,6 +570,8 @@ pub enum ToolUpdatedPayload {
     Scheduled(ToolScheduledPayload),
     #[serde(rename = "started")]
     Started(ToolStartedPayload),
+    #[serde(rename = "progress")]
+    Progress(ToolProgressPayload),
     #[serde(rename = "result")]
     Result(ToolResultPayload),
     #[serde(rename = "error")]

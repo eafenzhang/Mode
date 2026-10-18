@@ -63,7 +63,9 @@ fn project_tool_calls(events: &[SessionEvent], workspace: &str) -> Vec<(String, 
                 order.push(id.clone());
                 by_id.insert(id, (scheduled.tool_name, false, String::new()));
             }
-            ToolUpdatedPayload::Started(_) | ToolUpdatedPayload::Batch(_) => {}
+            ToolUpdatedPayload::Started(_)
+            | ToolUpdatedPayload::Progress(_)
+            | ToolUpdatedPayload::Batch(_) => {}
             ToolUpdatedPayload::Result(result) => {
                 let Some(slot) = by_id.get_mut(&result.call.tool_call_id) else {
                     continue;
@@ -238,6 +240,7 @@ fn unregistered_tools_have_no_started_event() {
         .map(|payload| match payload {
             ToolUpdatedPayload::Scheduled(_) => "scheduled",
             ToolUpdatedPayload::Started(_) => "started",
+            ToolUpdatedPayload::Progress(_) => "progress",
             ToolUpdatedPayload::Result(_) => "result",
             ToolUpdatedPayload::Error(_) => "error",
             ToolUpdatedPayload::Batch(_) => "batch",
