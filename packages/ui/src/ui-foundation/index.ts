@@ -1,6 +1,7 @@
 export { AppShell, ResizeHandle, type AppShellProps, type PanelResizeBinding, type ResizeHandleProps } from "./AppShell.js";
 export { ApprovalBlock, type ApprovalBlockProps } from "./ApprovalBlock.js";
 export { Button, type ButtonProps } from "./Button.js";
+export { DiffBlock, DiffLine, type DiffBlockProps, type DiffLineProps } from "./DiffBlock.js";
 export {
   ChatInputShell,
   EmptyChatState,
@@ -29,6 +30,12 @@ export { Dialog, type DialogProps } from "./Dialog.js";
 export { Input, type InputProps } from "./Input.js";
 export { Menu, MenuItem, type MenuItemProps, type MenuProps } from "./Menu.js";
 export { Popover, type PopoverProps } from "./Popover.js";
+export {
+  QueuedInputItem,
+  QueuedInputList,
+  type QueuedInputItemProps,
+  type QueuedInputListProps,
+} from "./QueuedInput.js";
 export { SelectTrigger, type SelectTriggerProps } from "./SelectTrigger.js";
 export { Tab, Tabs, type TabProps, type TabsProps } from "./Tabs.js";
 export {
@@ -106,6 +113,19 @@ export {
   type ApprovalStatus,
   type ToolBlockState,
 } from "./toolStyles.js";
+export {
+  diffBlockClassName,
+  diffFilePathClassName,
+  diffHeaderClassName,
+  diffLineClassName,
+  diffMarker,
+  diffStatsClassName,
+  queuedInputActionsClassName,
+  queuedInputItemClassName,
+  queuedInputListClassName,
+  queuedInputTextClassName,
+  type DiffLineKind,
+} from "./diffStyles.js";
 export {
   clampPanelSize,
   isResizeKey,

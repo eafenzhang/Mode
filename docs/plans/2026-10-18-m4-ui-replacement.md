@@ -69,6 +69,9 @@
   **工具/审批块（2026-10-19）**：`toolStyles.ts` / `ToolBlock.tsx` / `ApprovalBlock.tsx`——
   scheduled/started/progress/result/error 五态、工具名与正文 mono、等待 confirmation 绿、
   允许/拒绝语义色、操作槽尾部对齐；用例 `packages/ui/test/uiFoundationTool.test.ts`。
+  **diff 与排队输入（2026-10-19）**：`diffStyles.ts` / `DiffBlock.tsx` / `QueuedInput.tsx`——
+  diff 专用 `diff-added`/`diff-removed`（不借用 success/destructive）、行首标记、排队输入
+  紧凑行与尾部操作槽；用例 `packages/ui/test/uiFoundationDiff.test.ts`。
   真实事件接线与输入法/提及仍待后续。
 
 ### P1.4 工作区与任务（`workspace-file-tree/`、`workspace-grouped-tasks/`、git 面板）
