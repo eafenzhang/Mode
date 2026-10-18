@@ -136,3 +136,11 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 
 **已登记差异**：`@mode/tui` 没有任何测试文件，CI 也不跑 TUI 测试；本清单是现状记录，
 不是「已完成验收」。
+
+## 纯逻辑测试补充（2026-10-19）
+
+- `@mode/tui` 新增 `test` 脚本（`tsx --test test/*.test.mts`）；
+- 首批覆盖 `app-terminal-width` 的公开导出（黑盒契约，不读实现）：
+  `displayWidth`（ASCII/东亚宽字符）、`truncateDisplay`（省略号/未超宽/空串）、
+  `wordWrappedLineCount`（空串至少一行、折行计数）；
+- 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
