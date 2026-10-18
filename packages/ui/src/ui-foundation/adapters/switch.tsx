@@ -4,8 +4,10 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 
 import { Switch as FoundationSwitch } from "../Switch.js";
 
-export interface SwitchProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange" | "type"> {
+export interface SwitchProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "onChange" | "type"
+> {
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   label?: string;

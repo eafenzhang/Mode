@@ -18,9 +18,9 @@
 | `checkbox` | 6 | ready | 1 |
 | `alert` | 9 | ready（variant 映射） | 1 |
 | `textarea` | 9 | ready | 1 |
-| `tabs` | 12 | **缺 adapter**（Tabs/Tab 已有基础件） | 2 |
+| `tabs` | 12 | ready（variant/asChild/forceMount） | 2 |
 | `badge` | 15 | ready | 1（可随批 2） |
-| `popover` | 16 | **缺 adapter** | 2 |
+| `popover` | 16 | ready（受控/非受控 + 定位 + Anchor） | 2 |
 | `tooltip` | 18 | 只有静态语义 | 2 |
 | `switch` | 24 | ready | 2 |
 | `select` | 28 | 子件 ready；根状态机待补 | 2 |
@@ -112,3 +112,14 @@ checkbox → alert → textarea`（可加 `badge`）。
 | `alert-dialog` | 5 | 复用 Dialog 组合；`Action/Cancel` 走 `DialogClose` + Button 并映射旧 `variant/size`；`asChild` 接受但未实现；`Overlay` 为空实现 |
 
 验证：UI 309 passed、typecheck/arch/language 通过。旧文件仍待看屏后删除。
+
+### 批次 2 续（2026-10-19 第四轮）
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `tabs` | 12 | `value/defaultValue/onValueChange` 根状态；`TabsList` 支持 `variant="line"`；`TabsTrigger` 支持 `asChild` 与 `data-state/data-active`；`TabsContent` 支持 `forceMount`（非激活保留在 DOM，标记 inactive） |
+| `popover` | 16 | 受控/非受控 open；`PopoverAnchor` 支持 `asChild` 与 `virtualRef`；`PopoverContent` 按锚点 rect 计算 fixed 坐标并输出 `--radix-popover-trigger-width` / `--radix-popover-content-available-height`；接线 `onInteractOutside/onPointerDownOutside/onFocusOutside/onEscapeKeyDown/onOpenAutoFocus/onCloseAutoFocus`；`collisionBoundary/sticky/hideWhenDetached/updatePositionStrategy` 接受但暂不生效（登记为视觉差异） |
+
+验证：UI 316 passed、typecheck/lint/architecture/language/format 通过。
+`PopoverContent` 由 `position: fixed` 直接渲染在组件树内（未使用 portal），
+外层 `overflow: hidden` 的容器可能裁切浮层；看屏时重点检查菜单类浮层。

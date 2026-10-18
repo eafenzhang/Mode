@@ -12,8 +12,10 @@ import { checkboxClassName } from "../formStyles.js";
 
 export type AdapterCheckboxChecked = boolean | "indeterminate";
 
-export interface CheckboxProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "checked" | "type" | "onChange"> {
+export interface CheckboxProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "checked" | "type" | "onChange"
+> {
   checked?: AdapterCheckboxChecked;
   onCheckedChange?: (checked: boolean | "indeterminate") => void;
   /** 旧 API 的勾选图标线宽；native checkbox 不使用，接受后忽略。 */

@@ -9,7 +9,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command.js";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { cn } from "@/components/lib/utils.js";
 import {
   GitBranchCreateDialog,

@@ -91,12 +91,7 @@ export { Radio, RadioGroup, type RadioGroupProps, type RadioProps } from "./radi
 export { Switch, type SwitchProps } from "./switch.js";
 export { Textarea, type TextareaProps } from "./textarea.js";
 export { Separator, type SeparatorProps } from "./separator.js";
-export {
-  ScrollArea,
-  ScrollBar,
-  type ScrollAreaProps,
-  type ScrollBarProps,
-} from "./scroll-area.js";
+export { ScrollArea, ScrollBar, type ScrollAreaProps, type ScrollBarProps } from "./scroll-area.js";
 export {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -127,3 +122,27 @@ export {
   type TooltipProviderProps,
   type TooltipTriggerProps,
 } from "./tooltip.js";
+export {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+  type PopoverAnchorProps,
+  type PopoverContentProps,
+  type PopoverProps,
+  type PopoverTriggerProps,
+} from "./popover.js";
+export {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  tabsListVariants,
+  type TabsContentProps,
+  type TabsListProps,
+  type TabsProps,
+  type TabsTriggerProps,
+} from "./tabs.js";

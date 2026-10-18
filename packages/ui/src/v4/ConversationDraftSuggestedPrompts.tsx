@@ -17,7 +17,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ClientSceneLucideIcon } from "@/components/ClientSceneLucideIcon.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover.js";
+import { Popover, PopoverAnchor, PopoverContent } from "@/ui-foundation/adapters/popover.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   resolveDraftSuggestedPromptText,

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState, type ComponentProps } from "rea
 import { cn } from "@/components/lib/utils.js";
 import { Command, CommandEmpty, CommandItem, CommandList } from "@/components/ui/command.js";
 import { Input } from "@/components/ui/input.js";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover.js";
+import { Popover, PopoverAnchor, PopoverContent } from "@/ui-foundation/adapters/popover.js";
 import { shouldIgnoreRemoteConnectionHistoryPopoverInteractOutside } from "@/remote-connection/remoteConnectionHistoryPopover.js";
 
 function matchesSuggestion(value: string, query: string): boolean {

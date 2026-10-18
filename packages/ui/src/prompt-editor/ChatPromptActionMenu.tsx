@@ -12,7 +12,7 @@ import type { EditorState } from "lexical";
 import { GoalIcon, Info, PaperclipIcon, PlusIcon, Workflow } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
 import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { normalizeSlashCommandValue } from "@/slashCommandHelpers.js";

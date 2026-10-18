@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { TabsTrigger } from "@/components/ui/tabs.js";
+import { TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import type { TerminalSessionDescriptor } from "@/terminal/terminalPanelState.js";
 
 export function TerminalTabTrigger({

@@ -2,7 +2,7 @@ import type { BrowserViewScreenshotSurfacePreparePayload } from "@mode/shared";
 import type { CSSProperties } from "react";
 import { UnifiedBrowserView } from "@/browser-use/UnifiedBrowserView.js";
 import { cn } from "@/components/lib/utils.js";
-import { TabsContent } from "@/components/ui/tabs.js";
+import { TabsContent } from "@/ui-foundation/adapters/tabs.js";
 import type { BrowserSidePaneMetadata, BrowserUseSidePaneTab } from "@/lib/workspaceSidePane.js";
 
 interface BrowserUseSidePaneContentProps {

@@ -11,7 +11,7 @@ import { TID_V4_HOOK_DETAILS_CONTENT, TID_V4_HOOK_DETAILS_TRIGGER, testId } from
 import type { HookExecutionProjection, HookInvocationRow } from "@mode/shared/mode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 

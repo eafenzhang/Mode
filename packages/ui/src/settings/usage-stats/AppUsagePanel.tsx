@@ -3,7 +3,7 @@ import { Fragment, lazy, useState } from "react";
 import { APP_USAGE_RANGES } from "@mode/shared";
 import type { AppUsageRange, AppUsageSnapshot } from "@mode/shared";
 import { Button } from "@/components/ui/button.js";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
+import { Tabs, TabsList, TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useAppUsageStats } from "@/hooks/useUsageStats.js";
 import { UsageChartLoadBoundary } from "@/settings/usage-stats/UsageChartLoadBoundary.js";

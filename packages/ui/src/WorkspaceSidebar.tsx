@@ -59,7 +59,7 @@ import {
 } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
+import { Tabs, TabsList, TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import {
   DropdownMenu,
   DropdownMenuContent,

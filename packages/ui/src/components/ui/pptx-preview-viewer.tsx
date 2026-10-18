@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
-import { PopoverAnchor } from "@/components/ui/popover.js";
+import { PopoverAnchor } from "@/ui-foundation/adapters/popover.js";
 import { toast } from "@/components/ui/toast.js";
 import { PptxSelectionActionBar } from "@/components/ui/pptx-selection-action-bar.js";
 import { cn } from "@/components/lib/utils.js";

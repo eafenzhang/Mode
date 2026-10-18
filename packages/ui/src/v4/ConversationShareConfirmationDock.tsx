@@ -3,7 +3,7 @@ import { memo, useRef } from "react";
 import { Circle, CircleAlert, CircleCheck, CircleX, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover.js";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import type { ConversationShareAccessMode } from "@mode/shared";
 import { ConversationSharePermissionPicker } from "@/ConversationSharePermissionPicker.js";

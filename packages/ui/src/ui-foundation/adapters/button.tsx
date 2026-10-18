@@ -6,11 +6,7 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 
 import type { RadiusLevel } from "../../lib/uiFoundation.js";
 import { Button as FoundationButton } from "../Button.js";
-import {
-  buttonClassName,
-  type ButtonSize,
-  type ButtonVariant,
-} from "../buttonStyles.js";
+import { buttonClassName, type ButtonSize, type ButtonVariant } from "../buttonStyles.js";
 
 export type AdapterButtonVariant =
   | "default"

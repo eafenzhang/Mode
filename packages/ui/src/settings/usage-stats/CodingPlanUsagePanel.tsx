@@ -15,7 +15,7 @@ import { LocalizedCodingPlanQuotaResetAction } from "@/components/coding-plan-qu
 import { CodingPlanQuotaResetOpportunity } from "@/components/coding-plan-quota-reset/CodingPlanQuotaResetOpportunity.js";
 import { buildCodingPlanQuotaResetDialogConfig } from "@/components/coding-plan-quota-reset/buildCodingPlanQuotaResetDialogConfig.js";
 import { Button } from "@/components/ui/button.js";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
+import { Tabs, TabsList, TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { BUILTIN_MODEL_PROVIDER_IDS } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";

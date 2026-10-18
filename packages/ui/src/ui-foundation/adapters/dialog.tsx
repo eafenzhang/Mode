@@ -20,10 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../Dialog.js";
-import {
-  DialogAdapterContext,
-  useDialogAdapterState,
-} from "./dialogContext.js";
+import { DialogAdapterContext, useDialogAdapterState } from "./dialogContext.js";
 
 export { DialogDescription, DialogFooter, DialogHeader, DialogTitle };
 
@@ -60,35 +57,34 @@ export function Dialog({
     [controlled, onOpenChange],
   );
   const value = useMemo(() => ({ open: current, setOpen }), [current, setOpen]);
-  return (
-    <DialogAdapterContext.Provider value={value}>{children}</DialogAdapterContext.Provider>
-  );
+  return <DialogAdapterContext.Provider value={value}>{children}</DialogAdapterContext.Provider>;
 }
 
 export interface DialogContentProps extends HTMLAttributes<HTMLDivElement> {
   labelledBy?: string;
 }
 
-export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
-  function DialogContent({ className, children, labelledBy, ...rest }, ref) {
-    const state = useDialogAdapterState();
-    if (!state?.open) {
-      return null;
-    }
-    return (
-      <FoundationDialog
-        {...rest}
-        ref={ref}
-        open
-        onClose={() => state.setOpen(false)}
-        labelledBy={labelledBy}
-        className={className}
-      >
-        {children}
-      </FoundationDialog>
-    );
-  },
-);
+export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(function DialogContent(
+  { className, children, labelledBy, ...rest },
+  ref,
+) {
+  const state = useDialogAdapterState();
+  if (!state?.open) {
+    return null;
+  }
+  return (
+    <FoundationDialog
+      {...rest}
+      ref={ref}
+      open
+      onClose={() => state.setOpen(false)}
+      labelledBy={labelledBy}
+      className={className}
+    >
+      {children}
+    </FoundationDialog>
+  );
+});
 
 export interface DialogTriggerProps {
   children: ClickableElement;

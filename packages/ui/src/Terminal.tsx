@@ -6,7 +6,7 @@ import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { logger } from "@/logger.js";
 import { Button } from "@/components/ui/button.js";
-import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs.js";
+import { Tabs, TabsContent, TabsList } from "@/ui-foundation/adapters/tabs.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { TerminalTabTrigger } from "@/terminal/TerminalTabTrigger.js";
 import { TerminalSession } from "@/terminal/TerminalSession.js";

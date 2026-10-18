@@ -6,7 +6,7 @@ import {
   type ResourceUsageSnapshot,
   type StorageManagementBridge,
 } from "@mode/shared";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
+import { Tabs, TabsList, TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import { useModeIntl } from "@/i18n/index.js";
 import { StorageSection } from "./storage/StorageSection.js";
 import { UNSAMPLED_PLACEHOLDER, UsageGroup, UsageMeter } from "./resourceUsageParts.js";

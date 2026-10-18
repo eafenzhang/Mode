@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import { Switch } from "@/ui-foundation/adapters/switch.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { TID_PLUGIN_STORE_BROWSE } from "@mode/shared";

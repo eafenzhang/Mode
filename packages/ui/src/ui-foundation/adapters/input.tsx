@@ -4,10 +4,7 @@ import { forwardRef, type InputHTMLAttributes } from "react";
 
 import type { RadiusLevel } from "../../lib/uiFoundation.js";
 import { Input as FoundationInput } from "../Input.js";
-import {
-  inputClassName,
-  type FieldSize,
-} from "../inputStyles.js";
+import { inputClassName, type FieldSize } from "../inputStyles.js";
 
 export interface AdapterInputProps extends InputHTMLAttributes<HTMLInputElement> {
   fieldSize?: FieldSize;

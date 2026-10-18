@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 type ModelConfigHelpField =
