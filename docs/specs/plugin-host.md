@@ -114,7 +114,8 @@
 | 方法 | params | result |
 | --- | --- | --- |
 | `host/hello` | `{}` | `{ protocolVersion: 1, tools: <n> }` |
-| `plugin/listTools` | `{}` | `{ tools: [{ name, description, inputSchema }] }` |
+| `plugin/refresh` | `{}` | `{ servers: <n> }`（杀掉现有 MCP 子进程并重扫 cache） |
+| `plugin/listTools` | `{ refresh?: boolean }` | `{ tools: [{ name, description, inputSchema, riskLevel?, sideEffectScope?, budgetStrategy? }] }` |
 | `plugin/callTool` | `{ toolName, input }` | `{ content }` |
 | `plugin/health` | `{}` | `{ ok: true, tools: <n> }` |
 | `host/shutdown` | `{}` | `{}`（随后进程退出） |
@@ -131,8 +132,12 @@
   medium/network/truncate；内置 node-repl-host 跳过，由内置面提供）。
 - 坏 server：`tools/list` 失败 → 该 server 的工具**静默缺失**；server 崩溃后下一次调用
   重新 spawn（与 oracle 行为一致）。
-- **未做**：启用/禁用过滤（`installed_plugins.json` 的稳定读取口径未定）；已有 sidecar
-  进程不会感知运行中的安装/卸载（需重启/重扫，Task 6）。
+- **运行中安装/卸载（Task 6，2026-10-18）**：`plugin/refresh` 会先 kill 现有 MCP 子进程
+  （它们的 cwd 是插件目录，不先杀会在 Windows 上 EBUSY），再重扫 cache；adapter 的
+  `list_tools` 每次先发 refresh。`probe-plugin-install-uninstall.mts` 验证：
+  安装前 `[]` → 安装+refresh 后工具出现并可调用 → 卸载+refresh 后 `[]`。
+- **未做**：启用/禁用过滤（`installed_plugins.json` 的稳定读取口径未定）；sidecar 崩溃的
+  Session 级 E2E（supervisor 单测已覆盖重启）。
 - 开发运行：`pnpm exec tsx tools/plugin-host/src/main.ts`（打包成 Task 1 的单文件 bundle
   是后续步骤；当前按源码运行）。复现：`probe-plugin-sidecar.mts`。
 

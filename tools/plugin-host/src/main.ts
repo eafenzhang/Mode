@@ -155,6 +155,13 @@ class McpClient {
     private readonly cwd: string,
   ) {}
 
+  shutdown(): void {
+    if (this.child !== null) {
+      this.child.kill();
+      this.child = null;
+    }
+  }
+
   async listTools(): Promise<Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>> {
     const result = (await this.request("tools/list", {})) as {
       tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
@@ -248,7 +255,12 @@ class McpClient {
   }
 }
 
-const servers = await discoverServers();
+let servers = await discoverServers();
+
+async function refreshServers(): Promise<void> {
+  for (const server of servers) server.client.shutdown();
+  servers = await discoverServers();
+}
 
 async function toolsFor(server: DiscoveredServer): Promise<ToolDeclaration[]> {
   if (server.tools !== null) return server.tools;
@@ -295,7 +307,12 @@ input.on("line", (line) => {
         case "host/hello":
           ok(id, { protocolVersion: PROTOCOL_VERSION, servers: servers.length });
           return;
+        case "plugin/refresh":
+          await refreshServers();
+          ok(id, { servers: servers.length });
+          return;
         case "plugin/listTools":
+          if (params.refresh === true) await refreshServers();
           ok(id, { tools: await allTools() });
           return;
         case "plugin/health":

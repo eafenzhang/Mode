@@ -29,6 +29,8 @@ impl PluginHostSource {
 
 impl PluginToolSource for PluginHostSource {
     fn list_tools(&self) -> Result<Vec<PluginToolDeclaration>, String> {
+        // 每次列清单前重扫插件 cache，让运行中的安装/卸载生效。
+        self.request(Method::Refresh, json!({}))?;
         let result = self.request(Method::ListTools, json!({}))?;
         let tools = result
             .get("tools")

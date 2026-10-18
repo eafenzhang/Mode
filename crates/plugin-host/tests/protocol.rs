@@ -80,6 +80,7 @@ fn rejects_invalid_shapes_instead_of_guessing() {
 fn method_names_are_the_wire_values() {
     for (method, wire) in [
         (Method::Hello, "host/hello"),
+        (Method::Refresh, "plugin/refresh"),
         (Method::ListTools, "plugin/listTools"),
         (Method::CallTool, "plugin/callTool"),
         (Method::Health, "plugin/health"),

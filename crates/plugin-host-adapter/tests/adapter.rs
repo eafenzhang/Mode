@@ -18,6 +18,10 @@ const FAKE_SIDECAR: &str = r#"
 const rl = require('node:readline').createInterface({ input: process.stdin });
 rl.on('line', (line) => {
   const frame = JSON.parse(line);
+  if (frame.method === 'plugin/refresh') {
+    process.stdout.write(JSON.stringify({ id: frame.id, result: { servers: 1 } }) + '\n');
+    return;
+  }
   if (frame.method === 'plugin/listTools') {
     process.stdout.write(JSON.stringify({ id: frame.id, result: { tools: [{
       name: 'echo', description: 'Echo text',

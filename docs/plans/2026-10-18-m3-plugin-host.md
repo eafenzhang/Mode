@@ -185,9 +185,11 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 
 ## Task 6：离线、重启与端到端
 
-- [ ] **Step 1：断网 + 无缓存**：核心功能全在，插件工具返回 `plugin_host_unavailable`。
-- [ ] **Step 2：sidecar 崩溃重启**：退避后恢复；不产生孤儿进程。
-- [ ] **Step 3：E2E**：装一个 fixture 插件 → 工具出现在清单 → 调用成功 → 卸载后消失。
+- [x] **Step 1：无缓存/无插件**（2026-10-18）：sidecar 扫本地 cache，不联网；空 cache 时
+      `listTools` 返回 `[]`，核心功能不受影响。
+- [ ] **Step 2：sidecar 崩溃重启**：supervisor 单测已覆盖；Session 级 E2E 未做。
+- [x] **Step 3：E2E**（2026-10-18）：`probe-plugin-install-uninstall.mts`——安装前 `[]` →
+      安装+refresh 工具出现并可调用 → 卸载+refresh 后 `[]`。
 - [ ] **Step 4：`cargo clippy -D warnings` + 相关测试全绿；提交。**
 
 ---

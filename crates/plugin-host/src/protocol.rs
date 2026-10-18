@@ -15,6 +15,7 @@ pub const PROTOCOL_ERROR_ID: u64 = 0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
     Hello,
+    Refresh,
     ListTools,
     CallTool,
     Health,
@@ -25,6 +26,7 @@ impl Method {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Hello => "host/hello",
+            Self::Refresh => "plugin/refresh",
             Self::ListTools => "plugin/listTools",
             Self::CallTool => "plugin/callTool",
             Self::Health => "plugin/health",
@@ -35,6 +37,7 @@ impl Method {
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "host/hello" => Some(Self::Hello),
+            "plugin/refresh" => Some(Self::Refresh),
             "plugin/listTools" => Some(Self::ListTools),
             "plugin/callTool" => Some(Self::CallTool),
             "plugin/health" => Some(Self::Health),
