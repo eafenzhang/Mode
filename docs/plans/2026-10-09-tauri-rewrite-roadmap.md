@@ -197,7 +197,9 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 
 > **生态域子计划（2026-10-18）**：插件/MCP/Skills 宿主见
 > `docs/plans/2026-10-18-m3-plugin-host.md`（含 DR-PH-1…5 与 Task 0 观察清单）；
-> IM bot / LAN / 远程 / Web / TUI 尚未立项。
+> LAN / 远程 / 远程桌面的验收现状见 `docs/plans/2026-10-18-m3-lan-remote-status.md`
+> （结论：由 Host sidecar 复用，38 条相关测试全绿，待两台机器人工验收）；
+> IM bot / Web / TUI 尚未立项。
 
 **Files:**
 - Create: `crates/plugin-host/`（sidecar 生命周期管理：按需下载/启动/健康）、`crates/marketplace/`（`.mode-plugin` 清单与市场目录，兼容读旧格式）、`crates/lan/`（UDP 发现 + 配对码）、`crates/remote/`（russh / 系统 ssh 调用 + workspace attach）、`crates/server/`（axum，web-remote 链路）、`crates/tui/`（ratatui）、`crates/bots/`（IM 桥：HTTP/WS 直连或 sidecar 复用 TS SDK，按通道逐个决策）
