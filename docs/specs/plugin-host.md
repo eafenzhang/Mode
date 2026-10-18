@@ -131,6 +131,20 @@
   `TaskControl` + `read_only:false`，权限引擎因此判 Allow；Task 4 观察后收紧。
 - 4 条用例：注入与调用、错误映射、未知名字、`listTools` 失败。
 
+## 5.5 sidecar → 会话的适配（Task 4 Step 1 落地，2026-10-18）
+
+实现：`crates/plugin-host-adapter`（`PluginHostSource`）。
+
+- `list_tools`：`plugin/listTools` 的 `{tools:[{name,description,inputSchema}]}` →
+  `agent_core::PluginToolDeclaration`（缺 `name` / `inputSchema` 直接报错，不静默补空）。
+- `call_tool`：`plugin/callTool {toolName,input}` → sidecar 的 `{content}`；RPC 错误原样转成
+  字符串交给会话层（会话再映射为 `tool_execution_failed`）。
+- 权限不在适配器里判断：仍由 `permission::evaluate` 在会话层执行（当前插件工具的
+  family/风险仍是占位值，Task 0.4 观察后收紧）。
+- 端到端用例：真实 `node -e` sidecar → `SidecarSupervisor` → `PluginHostSource` →
+  `Session::run_turn`，插件工具结果 `e2e` 正确回到会话事件流。
+- 依赖方向：`plugin-host-adapter` 同时依赖 `agent-core` 与 `plugin-host`，两边都不反向依赖。
+
 ## 6. 复现
 
 ```bash

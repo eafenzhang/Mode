@@ -1,0 +1,18 @@
+[package]
+name = "plugin-host-adapter"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "把插件宿主 sidecar 适配成 agent-core 的 PluginToolSource（M3 生态域 1 · Task 4）"
+
+[lib]
+name = "plugin_host_adapter"
+path = "src/lib.rs"
+
+[dependencies]
+agent-core = { path = "../agent-core" }
+plugin-host = { path = "../plugin-host" }
+serde_json.workspace = true
+
+[dev-dependencies]
+agent-protocol = { path = "../agent-protocol" }

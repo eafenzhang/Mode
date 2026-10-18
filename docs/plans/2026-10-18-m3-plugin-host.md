@@ -151,12 +151,14 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 
 ## Task 4：`plugin/callTool` 桥接与权限
 
-- [ ] **Step 1：调用桥**：Rust 工具调用 → `plugin/callTool` → 结果映射为 `ToolOutcome`；
-      错误映射沿用 `tool_execution_failed` / 插件自定义错误。
+- [x] **Step 1：调用桥**（2026-10-18）：新增 `crates/plugin-host-adapter` 的
+      `PluginHostSource`（`listTools`/`callTool` 映射）；会话侧已有
+      `plugin/callTool → ToolOutcome` 与 `tool_execution_failed` 映射。
 - [ ] **Step 2：权限**：按 Step 0.4 的观察把插件工具接进 `permission::evaluate`；
-      `allow_project` 复用 `Ruleset` 与 sqlite 持久化。
-- [ ] **Step 3：测试**：成功、失败、超时、sidecar 崩溃中途。
-- [ ] **Step 4：提交。**
+      `allow_project` 复用 `Ruleset` 与 sqlite 持久化。**当前是占位（一律 Allow），待观察**。
+- [x] **Step 3：测试**（2026-10-18）：适配器 3 条（声明映射、内容/错误、Session 端到端）；
+      超时/崩溃由 `plugin-host` 的 supervisor 用例覆盖。
+- [x] **Step 4：提交。**
 
 ---
 

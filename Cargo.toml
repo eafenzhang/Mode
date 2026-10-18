@@ -15,6 +15,7 @@ members = [
   "crates/agent-protocol",
   "crates/agent-tools",
   "crates/plugin-host",
+  "crates/plugin-host-adapter",
   "crates/browser-import-helper",
   "crates/browser-import-host",
   "crates/platform",
