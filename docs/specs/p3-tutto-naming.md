@@ -103,3 +103,9 @@
 - RELEASE.md 的产物名（`Tutto-…`、bundler 原始名 `Tutto_…`）、安装身份章节改为
   「Tutto 线与旧 Mode 线并存」，历史发布名保留为 `Mode-…`/`ModeTauri.exe`；
 - 仓库链接仍为 `eafenzhang/Mode`（仓库本身未改名）。
+
+### S4 进展（2026-10-19，插件同步元数据）
+
+- 插件同步归档元数据新名 `.tutto-plugin-sync.json`；读取旧对端归档时兜底
+  `.mode-plugin-sync.json`，写入只用新名；
+- 新增 `plugin-sync-metadata-compat.test.ts`；services 379 tests 全绿。

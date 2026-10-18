@@ -24,7 +24,7 @@ import type { IPluginSyncService } from "./pluginSync.js";
 import {
   createPluginSyncArchive,
   extractPluginSyncArchive,
-  PLUGIN_SYNC_METADATA_ARCHIVE_PATH,
+  resolvePluginSyncMetadataArchiveFileName,
   type PluginSyncArchiveMetadata,
 } from "./pluginSyncArchive.js";
 import { normalizePluginSyncRelativePath, resolvePluginSyncPathWithin } from "./pluginSyncPath.js";
@@ -537,7 +537,13 @@ async function importPluginsArchive(
 }
 
 async function readArchiveMetadata(tempRoot: string): Promise<PluginSyncArchiveMetadata> {
-  const raw = await readFile(join(tempRoot, PLUGIN_SYNC_METADATA_ARCHIVE_PATH), "utf-8");
+  const raw = await readFile(
+    join(
+      tempRoot,
+      resolvePluginSyncMetadataArchiveFileName((name) => existsSync(join(tempRoot, name))),
+    ),
+    "utf-8",
+  );
   const parsed = JSON.parse(raw) as unknown;
   if (!isRecord(parsed) || !Array.isArray(parsed.plugins)) {
     throw new Error("invalid plugin sync archive metadata");
@@ -566,7 +572,13 @@ async function readMarketplaceSourceArchiveMetadata(tempRoot: string): Promise<{
   directoryName: string;
   marketplaceId: string;
 }> {
-  const raw = await readFile(join(tempRoot, PLUGIN_SYNC_METADATA_ARCHIVE_PATH), "utf-8");
+  const raw = await readFile(
+    join(
+      tempRoot,
+      resolvePluginSyncMetadataArchiveFileName((name) => existsSync(join(tempRoot, name))),
+    ),
+    "utf-8",
+  );
   const parsed = JSON.parse(raw) as unknown;
   if (!isRecord(parsed) || !Array.isArray(parsed.marketplaceSources)) {
     throw new Error("invalid plugin marketplace source archive metadata");
