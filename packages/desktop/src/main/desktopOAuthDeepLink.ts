@@ -412,32 +412,38 @@ export function registerDeepLinkProtocol(
   },
   options: { iconPath?: string } = {},
 ) {
-  const scheme = "mode";
+  // 新 scheme 与旧 scheme 都注册：外部 OAuth 回调仍登记的是 mode://，
+  // 直接切换会让登录回调打不开；旧链接也继续由本应用处理。
+  const schemes = ["tutto", "mode"] as const;
 
   if (process.defaultApp && process.argv.length >= 2) {
     const entry = resolve(process.argv[1]!);
-    const ok = app.setAsDefaultProtocolClient(scheme, process.execPath, [entry]);
-    if (!ok) {
-      logger.warn("[deep-link] 注册协议失败（defaultApp）", {
-        scheme,
-        execPath: process.execPath,
-        entry: process.argv[1],
-      });
-    } else {
-      logger.info("[deep-link] 注册协议成功（defaultApp）", {
-        scheme,
-        execPath: process.execPath,
-        entry: process.argv[1],
-      });
+    for (const scheme of schemes) {
+      const ok = app.setAsDefaultProtocolClient(scheme, process.execPath, [entry]);
+      if (!ok) {
+        logger.warn("[deep-link] 注册协议失败（defaultApp）", {
+          scheme,
+          execPath: process.execPath,
+          entry: process.argv[1],
+        });
+      } else {
+        logger.info("[deep-link] 注册协议成功（defaultApp）", {
+          scheme,
+          execPath: process.execPath,
+          entry: process.argv[1],
+        });
+      }
     }
     return;
   }
 
-  const ok = app.setAsDefaultProtocolClient(scheme);
-  if (!ok) {
-    logger.warn("[deep-link] 注册协议失败", { scheme });
-  } else {
-    logger.info("[deep-link] 注册协议成功", { scheme });
+  for (const scheme of schemes) {
+    const ok = app.setAsDefaultProtocolClient(scheme);
+    if (!ok) {
+      logger.warn("[deep-link] 注册协议失败", { scheme });
+    } else {
+      logger.info("[deep-link] 注册协议成功", { scheme });
+    }
   }
 
   if (process.platform === "linux" && app.isPackaged) {

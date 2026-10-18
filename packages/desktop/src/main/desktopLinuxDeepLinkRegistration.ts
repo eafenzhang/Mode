@@ -9,7 +9,7 @@ import {
 } from "./desktopLinuxXdg.js";
 
 const LINUX_DEEP_LINK_DESKTOP_FILE = "mode.desktop";
-const LINUX_DEEP_LINK_MIME_TYPE = "x-scheme-handler/mode";
+const LINUX_DEEP_LINK_MIME_TYPES = ["x-scheme-handler/tutto", "x-scheme-handler/mode"] as const;
 // 归属标记：用于识别用户级 mode.desktop 是否由本应用写入（历史所有版本都带这行 Comment）。
 const LINUX_DESKTOP_ENTRY_OWNERSHIP_MARKER = "Comment=Mode";
 
@@ -124,7 +124,7 @@ function createLinuxDeepLinkDesktopEntry(params: {
     "Type=Application",
     `Icon=${iconName}`,
     "Categories=Development;",
-    `MimeType=${LINUX_DEEP_LINK_MIME_TYPE};`,
+    `MimeType=${LINUX_DEEP_LINK_MIME_TYPES.join(";")};`,
     `StartupWMClass=${productName}`,
     "",
   ].join("\n");

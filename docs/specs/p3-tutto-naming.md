@@ -59,3 +59,15 @@
 - 门禁：typecheck 0、UI 391 tests 全绿、UI lint 0 error、architecture 0、语言政策通过。
 - **未做（后续阶段）**：`@mode/*` 包名与目录、`MODE_*` 环境变量与 `.mode` 数据根/协议/cookie/
   市场 id/插件目录/deep link 的切换及兼容；CLI 命令名与二进制名。
+
+### S4 进展（2026-10-19，deep link 完成）
+
+- 新 scheme `tutto://` 为默认；识别链为 `tutto://` → `mode://` → `zcode://`；
+- Tauri deep-link 配置、Electron `setAsDefaultProtocolClient`、Linux `.desktop`
+  `MimeType` 同时注册 `tutto` 与 `mode`；
+- Finder 工作区工作流改用 `tutto://`；
+- **例外**：外部 OAuth 服务登记的 redirectUri 仍是 `mode://oauth/callback`，
+  在服务端完成新 URI 登记前不改，避免登录回调失效；
+- 测试：`packages/desktop/tests/deep-link-scheme-compat.test.mjs` 4/4 通过
+  （tutto/mode/zcode 接受、https 与非完全匹配的 scheme 拒绝、三种 scheme 解析 path）。
+- 仍待做：cookie、MCP meta、市场 id、插件目录、协议名。

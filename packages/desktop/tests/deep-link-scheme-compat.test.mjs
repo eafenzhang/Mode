@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { transpileModule, ModuleKind } from "typescript";
 
-// deep link 改名（zcode:// → mode://）后的兼容：只注册 mode，但依旧处理 zcode:// 传入链接。
+// deep link 改名（zcode:// → mode:// → tutto://）后的兼容：注册 tutto 与 mode，
+// 依旧处理 zcode:// 传入链接；OAuth 回调仍使用外部已登记的 mode://。
 // desktopDeepLinkUrl.ts 不依赖 electron，用 transpile + new Function 直接加载真实源码。
 const root = new URL("../../../", import.meta.url);
 
@@ -27,10 +28,12 @@ async function loadDeepLinkModule() {
 
 const deepLink = await loadDeepLinkModule();
 
-test("OAuth 回调：mode:// 与改名前的 zcode:// 都被识别", () => {
+test("OAuth 回调：tutto://、旧 mode:// 与更早的 zcode:// 都被识别", () => {
+  assert.equal(deepLink.isOAuthCallbackUrl(new URL("tutto://oauth/callback")), true);
   assert.equal(deepLink.isOAuthCallbackUrl(new URL("mode://oauth/callback")), true);
   assert.equal(deepLink.isOAuthCallbackUrl(new URL("zcode://oauth/callback")), true);
   assert.equal(deepLink.isOAuthCallbackUrl(new URL("https://oauth/callback")), false);
+  assert.equal(deepLink.isOAuthCallbackUrl(new URL("tuttoevil://oauth/callback")), false);
 });
 
 test("工作区打开：旧 scheme 链接仍可解析 path", () => {
