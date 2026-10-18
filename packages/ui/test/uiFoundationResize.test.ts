@@ -11,6 +11,7 @@ import {
   normalizeBounds,
   resizeFromKeyboard,
   resizeFromPointer,
+  pointerDelta,
   RESIZE_KEYBOARD_STEP,
 } from "../src/ui-foundation/resizeMath.js";
 
@@ -49,4 +50,11 @@ test("只把方向键与 Home/End 视为调整键", () => {
     assert.equal(isResizeKey(key), true);
   }
   assert.equal(isResizeKey("PageUp"), false);
+});
+
+test("指针位移方向：竖向向右为正，横向向上为正", () => {
+  assert.equal(pointerDelta("vertical", 100, 140), 40);
+  assert.equal(pointerDelta("vertical", 100, 60), -40);
+  assert.equal(pointerDelta("horizontal", 300, 260), 40);
+  assert.equal(pointerDelta("horizontal", 300, 340), -40);
 });

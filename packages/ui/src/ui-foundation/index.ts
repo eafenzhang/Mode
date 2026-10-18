@@ -63,9 +63,16 @@ export {
   clampPanelSize,
   isResizeKey,
   normalizeBounds,
+  pointerDelta,
   resizeFromKeyboard,
   resizeFromPointer,
   RESIZE_KEYBOARD_STEP,
   type ResizeBounds,
   type ResizeKey,
 } from "./resizeMath.js";
+export {
+  usePanelResize,
+  type PanelResize,
+  type PanelResizeHandleProps,
+  type UsePanelResizeOptions,
+} from "./usePanelResize.js";

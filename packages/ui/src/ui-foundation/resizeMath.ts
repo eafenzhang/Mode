@@ -39,6 +39,21 @@ export function resizeFromPointer(
   return clampPanelSize(startSize + delta, bounds);
 }
 
+/**
+ * 指针位移 → 尺寸增量：
+ * - 竖向分隔条（右侧 Side Pane）：向右拖增大宽度；
+ * - 横向分隔条（底部终端）：向上拖增大高度（clientY 减小）。
+ */
+export function pointerDelta(
+  orientation: "vertical" | "horizontal",
+  startCoordinate: number,
+  currentCoordinate: number,
+): number {
+  return orientation === "vertical"
+    ? currentCoordinate - startCoordinate
+    : startCoordinate - currentCoordinate;
+}
+
 export function isResizeKey(key: string): key is ResizeKey {
   return (
     key === "ArrowLeft" ||
