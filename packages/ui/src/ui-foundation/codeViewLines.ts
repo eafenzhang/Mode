@@ -26,3 +26,24 @@ export function buildCodeViewLineModels(options: {
     return { index, number, marked: marked.has(number), focused };
   });
 }
+
+export function groupCodeViewCommentsByEndLine<T extends { endLine: number }>(
+  comments: readonly T[],
+): Map<number, T[]> {
+  const grouped = new Map<number, T[]>();
+  for (const comment of comments) {
+    const existing = grouped.get(comment.endLine);
+    if (existing) {
+      existing.push(comment);
+    } else {
+      grouped.set(comment.endLine, [comment]);
+    }
+  }
+  return grouped;
+}
+
+export function formatCodeViewLineRange(range: CodeViewRange): string {
+  const start = Math.min(range.startLine, range.endLine);
+  const end = Math.max(range.startLine, range.endLine);
+  return start === end ? `L${start}` : `L${start}–${end}`;
+}

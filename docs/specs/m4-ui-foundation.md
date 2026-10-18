@@ -241,7 +241,9 @@ success/warning/destructive。
 - `focusedRange` 给行加选中背景；`focusRequestId` 变化时把该范围滚到可视区；
 - `enableSyntaxHighlighting=false` 或语言不支持时渲染纯文本；否则异步 Shiki token；
 - `wrapLongLines` 切换 `whitespace-pre-wrap break-words` / 横向滚动；字号由 `fontSizePx` 控制；
-- 注释、选区与 gutter 工具属于完整 CodeViewer，不在本组件范围。
+- 注释卡按 `endLine` 归档到行后；`topComment` 的范围文案用 `L<n>`／`L<n>–<m>` 表示；
+- 注释、选区与 gutter 工具属于完整 CodeViewer，不在只读子集范围；
+  行模型提供 `groupCodeViewCommentsByEndLine` 与 `formatCodeViewLineRange` 两个纯函数供第二层复用。
 
 ## 3. 布局与响应式
 
