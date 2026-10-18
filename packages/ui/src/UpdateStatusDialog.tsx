@@ -8,8 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { Checkbox } from "@/components/ui/checkbox.js";
-import { Progress } from "@/components/ui/progress.js";
+import { Checkbox } from "@/ui-foundation/adapters/checkbox.js";
+import { Progress } from "@/ui-foundation/adapters/progress.js";
 import type { IntlInstance } from "@/i18n/IntlProvider.js";
 import type { UpdateStatusDialogPhase } from "@/updateStatusModel.js";
 

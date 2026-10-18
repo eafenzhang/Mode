@@ -14,7 +14,7 @@ import type { BundledTheme } from "shiki";
 
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { Textarea } from "@/components/ui/textarea.js";
+import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import type { CodeCommentPreview, CodeCommentRange } from "@/lib/codeCommentContext.js";
 import { isDarkCodePreviewTheme } from "@/lib/codePreviewPreferences.js";
 import { DIFFS_PREFERRED_HIGHLIGHTER } from "@/lib/diffsHighlighterEngine.js";

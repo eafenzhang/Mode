@@ -88,3 +88,18 @@ checkbox → alert → textarea`（可加 `badge`）。
 | `radio-group` | 无旧文件/无引用 | 无需动作 |
 
 验证：`pnpm --filter @mode/ui test` 309 passed、`pnpm typecheck` 通过。
+
+### 批次 1 续（2026-10-19 第二轮）
+
+以下模块的全部 import 已切到 `ui-foundation/adapters`，类型与 UI 测试通过；
+旧文件**待人工看屏后删除**：
+
+| 模块 | 切换文件数 | adapter 兼容处理 |
+| --- | --- | --- |
+| `card` | 4 | 全家族直接转发 |
+| `progress` | 4 | 兼容旧 `indicatorClassName` 与 `segments`（分段渲染） |
+| `alert` | 9 | 旧 `variant` → tone |
+| `textarea` | 9（含 `input-group` 相对引用） | 直接转发 |
+| `checkbox` | 6 | 兼容 `checked: boolean \| "indeterminate"` + `onCheckedChange`；`checkIconStrokeWidth` 接受后忽略 |
+
+`alert-dialog` 暂缓：旧导出集合包含 Action/Cancel 等组合语义，需单独补 adapter。

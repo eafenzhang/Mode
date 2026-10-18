@@ -8,8 +8,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card.js";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.js";
+} from "@/ui-foundation/adapters/card.js";
+import { Alert, AlertDescription, AlertTitle } from "@/ui-foundation/adapters/alert.js";
 import { Input } from "@/components/ui/input.js";
 import {
   Select,

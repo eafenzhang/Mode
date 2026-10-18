@@ -21,7 +21,7 @@ import {
   ContextTrigger,
 } from "@/components/ai-elements/context.js";
 import { cn } from "@/components/lib/utils.js";
-import { Progress } from "@/components/ui/progress.js";
+import { Progress } from "@/ui-foundation/adapters/progress.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isSettingsTab } from "@/store/tabStore.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";

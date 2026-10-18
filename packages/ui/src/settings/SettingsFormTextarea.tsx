@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { Textarea } from "@/components/ui/textarea.js";
+import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 
 type SettingsFormTextareaProps = ComponentProps<typeof Textarea>;
 

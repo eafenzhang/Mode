@@ -5,10 +5,10 @@ import type {
   ModeImportedSessionSkippedItem,
 } from "@mode/shared";
 import type { ClaudeSessionMigrationSupportState } from "@/hooks/useClaudeSessionMigration.js";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.js";
+import { Alert, AlertDescription, AlertTitle } from "@/ui-foundation/adapters/alert.js";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.js";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/ui-foundation/adapters/card.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { cn } from "@/components/lib/utils.js";
 

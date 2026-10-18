@@ -12,7 +12,7 @@ import { useEffectiveShortcutBindings } from "@/shortcuts/useShortcutBindings.js
 import { matchesShortcutBinding } from "@/shortcuts/bindings.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
-import { Checkbox } from "@/components/ui/checkbox.js";
+import { Checkbox } from "@/ui-foundation/adapters/checkbox.js";
 import { useModeStore } from "@/store/StoreProvider.js";
 import type { InterfaceMode } from "@/lib/interfaceMode.js";
 import { logger } from "@/logger.js";

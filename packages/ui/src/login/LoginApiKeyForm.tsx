@@ -13,7 +13,7 @@ import {
   ZAI_PROVIDER_ID,
   testId,
 } from "@mode/shared";
-import { Alert, AlertDescription } from "@/components/ui/alert.js";
+import { Alert, AlertDescription } from "@/ui-foundation/adapters/alert.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import {

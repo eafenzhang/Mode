@@ -1,6 +1,6 @@
 import { CheckIcon, FolderIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { Progress } from "@/components/ui/progress.js";
+import { Progress } from "@/ui-foundation/adapters/progress.js";
 import {
   Select,
   SelectContent,

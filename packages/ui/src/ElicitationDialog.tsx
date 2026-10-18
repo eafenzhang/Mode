@@ -13,7 +13,7 @@ import { CheckIcon, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info } fr
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { Textarea } from "@/components/ui/textarea.js";
+import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import { InteractionRequestOriginBadge } from "@/InteractionRequestOriginBadge.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
 import type { ElicitationFormDraft } from "@/store/modeSessionStoreTypes.js";

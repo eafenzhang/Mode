@@ -2,7 +2,7 @@ import { CheckIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { Textarea } from "@/components/ui/textarea.js";
+import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import { TECHNICAL_INPUT_ATTRIBUTES } from "@/lib/technicalInputAttributes.js";
 import { modelEditorControlStyle } from "@/settings/model-provider-section/modelEditorControlStyle.js";
 

@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
-import { Textarea } from "@/components/ui/textarea.js";
+import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import {
   hasGitCommitIdentity,
   type GitBranchSwitchAssistDialogStep,

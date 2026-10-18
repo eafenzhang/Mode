@@ -15,7 +15,7 @@ import {
   TID_SETTINGS_MEMORY_WORKSPACE,
   testId,
 } from "@mode/shared";
-import { Alert, AlertDescription } from "@/components/ui/alert.js";
+import { Alert, AlertDescription } from "@/ui-foundation/adapters/alert.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { PluginScopeMenu } from "@/settings/PluginScopeMenu.js";

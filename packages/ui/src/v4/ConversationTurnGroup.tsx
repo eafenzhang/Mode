@@ -21,7 +21,7 @@ import type {
 import { ChatLoading } from "@/components/ai-elements/chat-loading.js";
 import { ChatApiRetryStatus } from "@/chat-input-toolbar/display.js";
 import { cn } from "@/components/lib/utils.js";
-import { Checkbox } from "@/components/ui/checkbox.js";
+import { Checkbox } from "@/ui-foundation/adapters/checkbox.js";
 import { MessageActions } from "@/components/ai-elements/message.js";
 import {
   Collapsible,

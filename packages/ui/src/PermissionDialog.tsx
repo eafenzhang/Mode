@@ -18,7 +18,7 @@ import {
 import { MAX_PERMISSION_FEEDBACK_CHARS } from "@mode/shared/mode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { Textarea } from "@/components/ui/textarea.js";
+import { Textarea } from "@/ui-foundation/adapters/textarea.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
 import {
   getPermissionOptionDisplayKind,

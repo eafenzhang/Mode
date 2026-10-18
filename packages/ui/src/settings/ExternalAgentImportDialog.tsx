@@ -39,7 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { Progress } from "@/components/ui/progress.js";
+import { Progress } from "@/ui-foundation/adapters/progress.js";
 import {
   Select,
   SelectContent,

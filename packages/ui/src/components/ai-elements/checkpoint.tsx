@@ -7,7 +7,7 @@
 "use client";
 
 import { Button } from "../ui/button.js";
-import { Separator } from "../ui/separator.js";
+import { Separator } from "@/ui-foundation/adapters/separator.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip.js";
 import { cn } from "../lib/utils.js";
 import type { LucideProps } from "lucide-react";

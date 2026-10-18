@@ -1,7 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cn } from "@/components/lib/utils.js";
-import { Checkbox } from "@/components/ui/checkbox.js";
+import { Checkbox } from "@/ui-foundation/adapters/checkbox.js";
 import { ScrollArea } from "@/ui-foundation/adapters/scroll-area.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { resolveConversationShareSelectionPanelMotion } from "@/v4/conversationShareModeMotion.js";
