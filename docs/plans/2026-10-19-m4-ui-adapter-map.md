@@ -12,8 +12,8 @@
 | `input.tsx` | `Input`、`inputVariants` | `Input` + `inputClassName` | **可直接换**；variant 归一到 fieldSize |
 | `textarea.tsx` | `Textarea` | `Textarea` | **可直接换** |
 | `card.tsx` | `Card`、`CardHeader`、`CardTitle`、`CardDescription`、`CardContent`、`CardFooter`、`CardAction` | `Card` | **可直接换**：子件已补（Header/Title/Description/Content/Footer/Action） |
-| `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `Dialog` + Header/Title/Description/Footer | **已补子件**（2026-10-19）；Trigger 语义待 adapter |
-| `alert-dialog.tsx` | 复合导出 | `Dialog` + `Button` | **已补子件**；Trigger 语义待 adapter |
+| `dialog.tsx` | 复合导出（Trigger/Content/Header/Title/Description/Footer…） | `adapters/dialog.tsx`（Dialog/Content/Trigger/Close/Header/Title/Description/Footer/Portal） | **adapter 已补**（2026-10-19） |
+| `alert-dialog.tsx` | 复合导出 | `adapters/dialog.tsx` + `Button` | **adapter 已补**（沿用 Dialog 组合） |
 | `dropdown-menu.tsx` | 复合导出 | `Menu`/`MenuItem`/`MenuGroup`/`MenuSeparator`/`MenuCheckboxItem`/`MenuRadioItem` | **已补**（2026-10-19）；Trigger/Sub 待 adapter |
 | `popover.tsx` | 复合导出 | `Popover` | **部分**：Trigger/Content/Anchor 待补 |
 | `select.tsx` | 复合导出 | `SelectTrigger`/`SelectContent`/`SelectItem`/`SelectGroup`/`SelectValue` | **已补**（2026-10-19） |
@@ -91,3 +91,10 @@
 - `tooltip.tsx`：`TooltipProvider/Trigger/Content`；显示/隐藏策略待接线。
 
 用例：`packages/ui/test/uiFoundationAdaptersSecond.test.ts`。
+
+## 8. Dialog adapter（2026-10-19 已落地）
+
+`adapters/dialog.tsx`：`Dialog`（受控 open / 非受控 defaultOpen + onOpenChange）、
+`DialogContent`（打开时渲染 foundation Dialog，负责焦点/Esc/Tab）、`DialogTrigger`/`DialogClose`
+（克隆子元素 onClick，尊重 `defaultPrevented`）、`DialogPortal`（passthrough），并转发
+Header/Title/Description/Footer。用例用 `renderToStaticMarkup` 覆盖受控/非受控的渲染条件。

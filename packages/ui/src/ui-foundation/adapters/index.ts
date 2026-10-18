@@ -28,6 +28,21 @@ export {
   CardTitle,
   type CardProps,
 } from "./card.js";
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+  type DialogCloseProps,
+  type DialogContentProps,
+  type DialogProps,
+  type DialogTriggerProps,
+} from "./dialog.js";
 export { Input, inputVariants, type AdapterInputProps } from "./input.js";
 export { Separator, type SeparatorProps } from "./separator.js";
 export {
