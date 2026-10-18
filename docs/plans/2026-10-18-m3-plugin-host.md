@@ -125,8 +125,10 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
       4 条用例覆盖请求/通知/应答/错误、换行转义、非法帧拒收。
 - [x] **Step 2：sidecar 入口**（2026-10-18）：`tools/plugin-host/src/main.ts` 骨架
       （hello / listTools / callTool(echo) / health / shutdown），stdio 冒烟通过。
-- [ ] **Step 3：Rust 侧 spawn/监督**：超时、崩溃重启（退避）、退出时不留孤儿。
-- [ ] **Step 4：提交**（Step 1/2 已随本轮提交；Step 3 完成后补）。
+- [x] **Step 3：Rust 侧 spawn/监督**（2026-10-18）：`supervisor.rs`——按 id 关联应答、
+      请求超时、崩溃后退避重启、按 generation 清理 pending、`Drop` kill+wait；
+      3 条 `node -e` 假 sidecar 集成用例。
+- [x] **Step 4：提交。**
 
 ---
 

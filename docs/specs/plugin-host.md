@@ -105,6 +105,19 @@
 - 开发运行：`pnpm exec tsx tools/plugin-host/src/main.ts`（打包成 Task 1 的单文件 bundle
   是后续步骤；当前按源码运行）。
 
+## 5.3 进程监督（Task 2 Step 3 落地，2026-10-18）
+
+实现：`crates/plugin-host/src/supervisor.rs`。
+
+- 子进程 stdin/stdout 走 NDJSON；stdout 由后台线程逐行解码，按 `id` 唤醒等待者。
+- 请求超时只影响该请求，**不杀进程**；`plugin/callTool` 失败**不自动重发**（可能有副作用，
+  重试是调用方的决定）。
+- 子进程退出后，下一次请求按退避重启（初值/上限可配；成功一次后重置）。
+- 每一代 reader 有自己的 `generation`：EOF 只让本代 pending 失败，不会误伤重启后的新请求；
+  `reader_closed` 标记解决「EOF 早于 reap」的窗口，避免往已关闭的 stdin 写。
+- `Drop` 时 kill + wait；写入失败会先失效当前子进程，下一次请求再 spawn。
+- 3 条集成用例（`node -e` 假 sidecar）：正常往返、挂起超时后仍可用、崩溃后下一次请求重启成功。
+
 ## 6. 复现
 
 ```bash
