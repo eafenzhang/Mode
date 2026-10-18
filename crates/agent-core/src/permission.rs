@@ -18,9 +18,31 @@
 
 use serde_json::Value;
 
+use agent_protocol::permission::{PermissionDecision, PermissionRequest, PermissionResponse};
+use agent_protocol::ExtraFields;
 use agent_tools::{ModeToolFamily, ToolSpec};
 
 use crate::approval::Ruleset;
+
+/// 审批交互的消费端：会话循环拿到 [`PermissionRequest`] 后交给它，取回答复。
+pub trait PermissionHandler {
+    fn request(&mut self, request: &PermissionRequest) -> PermissionResponse;
+}
+
+/// 默认策略：一律 `allow_once`（等价于驱动对权限请求的默认应答）。
+pub struct AutoAllow;
+
+impl PermissionHandler for AutoAllow {
+    fn request(&mut self, _request: &PermissionRequest) -> PermissionResponse {
+        PermissionResponse {
+            decision: PermissionDecision::Allow,
+            reason: Some("Approved once".to_string()),
+            modified_input: None,
+            permission_updates: None,
+            extra: ExtraFields::new(),
+        }
+    }
+}
 
 /// 权限判定。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,6 +62,8 @@ impl Decision {
 
 /// `Write` / `Edit` 的审批文案（逐字观察）。
 pub const SIDE_EFFECT_REASON: &str = "Tool has side effects and requires approval";
+/// `deny` 选项的答复文案（逐字观察）。
+pub const DENY_REASON: &str = "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.";
 /// Bash 高危命令的审批文案（逐字观察）。
 pub const HIGH_RISK_REASON: &str = "High risk tools require explicit approval";
 

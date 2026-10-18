@@ -371,6 +371,11 @@ allowlist**」，不是黑名单。
   不同路径仍请求（实测两次请求分别是 `a.txt` 与 `b.txt`，第二次写 `a.txt` 没有请求）。
 - 不做前缀/通配/大小写归一（观察范围内没有这些形态）。
 
+**Rust 侧接线状态（2026-10-18）**：`permission::evaluate` 已接进 `run_tool_batch`；
+allow 走 `started → result`，deny 只留 `scheduled → batch(errorCount 1)`，
+`allow_project` 的规则保存在**会话内存**（`Session.ruleset`）并立即生效。
+**跨会话落盘仍未实现**（D1 未决：直连 sqlite vs 经 Host 代理）。
+
 **未决（写进计划，不自行拍板）**：这条持久化归**谁**写？观察里是运行时装进程自己写的，但
 目标架构中 DB 由 M3 的 Node Host 侧持有（`node:sqlite`）。Rust 侧是直连 sqlite 还是经 Host 代理，
 属架构分叉，需人在 Task 3 子计划里定。

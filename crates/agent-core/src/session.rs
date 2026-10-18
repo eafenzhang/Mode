@@ -46,6 +46,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use serde_json::Value;
 
+use agent_protocol::permission::{
+    PermissionDecision, PermissionOption, PermissionOptionKind, PermissionRequest,
+    PermissionResponse, PermissionRuleValue, PermissionUpdate, PermissionUpdateType, RuleBehavior,
+};
 use agent_protocol::session_event::{
     DeliveryKind, ModelStreamingKind, ModelStreamingPayload, ProtocolInstant, SessionEvent,
     SessionEventType, ToolBatchPayload, ToolCallIdentity, ToolErrorPayload, ToolResultPayload,
@@ -58,6 +62,8 @@ use agent_tools::{
     ToolContext, ToolOutcome, ToolSpec,
 };
 
+use crate::approval::Ruleset;
+use crate::permission::{AutoAllow, PermissionHandler, DENY_REASON};
 use crate::provider::{ModelDelta, ModelMessage, ModelProvider, ModelRequest, ModelUsage};
 use crate::stream::{EventSink, TurnError};
 use crate::tool::{error_object, result_object};
@@ -92,6 +98,12 @@ pub struct Session {
     messages: Vec<ModelMessage>,
     /// 事件信封的投递链路。默认 `desktop-continuous`；另一条链路的快照/队列归 Host/relay。
     delivery_kind: DeliveryKind,
+    /// 会话内的 allow 规则（`allow_project` 的内存投影；落盘仍待 D1 裁决）。
+    ruleset: Ruleset,
+    /// 审批交互的消费端；默认 `AutoAllow`（等价于驱动默认应答）。
+    permission_handler: Box<dyn PermissionHandler>,
+    /// 审批请求 id 的单调序号（`perm_<n>`）。
+    permission_seq: u64,
 }
 
 impl Session {
@@ -107,12 +119,21 @@ impl Session {
             tasks: Arc::new(TaskRegistry::new()),
             messages: Vec::new(),
             delivery_kind: DeliveryKind::DesktopContinuous,
+            ruleset: Ruleset::new(),
+            permission_handler: Box::new(AutoAllow),
+            permission_seq: 0,
         }
     }
 
     /// 指定事件信封的投递链路（默认 `desktop-continuous`）。
     pub fn with_delivery_kind(mut self, delivery_kind: DeliveryKind) -> Self {
         self.delivery_kind = delivery_kind;
+        self
+    }
+
+    /// 替换审批交互的消费端（默认 `AutoAllow`）。
+    pub fn with_permission_handler(mut self, handler: Box<dyn PermissionHandler>) -> Self {
+        self.permission_handler = handler;
         self
     }
 
@@ -486,6 +507,41 @@ impl Session {
                     events.push(self.error_event(&turn_id, call, &error));
                     continue;
                 }
+                match crate::permission::evaluate(spec, &call.input, &self.ruleset) {
+                    crate::permission::Decision::Allow => {}
+                    crate::permission::Decision::Ask { risk_level, reason } => {
+                        let request =
+                            self.permission_request(&turn_id, call, spec, risk_level, reason);
+                        events.push(self.emit(
+                            &turn_id,
+                            SessionEventType::PermissionRequested,
+                            &request,
+                        ));
+                        let response = self.permission_handler.request(&request);
+                        let decision = response.decision;
+                        events.push(self.emit(
+                            &turn_id,
+                            SessionEventType::PermissionResolved,
+                            &serde_json::json!({
+                                "requestId": request.request_id,
+                                "toolCallId": request.tool_call_id,
+                                "decision": match decision {
+                                    PermissionDecision::Allow => "allow",
+                                    PermissionDecision::Deny => "deny",
+                                },
+                            }),
+                        ));
+                        if decision == PermissionDecision::Deny {
+                            // 观察：deny 只留下 scheduled + batch（errorCount 1），
+                            // 没有 started / result / error 帧。
+                            error_count += 1;
+                            continue;
+                        }
+                        if let Some(updates) = &response.permission_updates {
+                            self.ruleset.apply_updates(updates);
+                        }
+                    }
+                }
                 events.push(self.started_event(&turn_id, call, spec));
             }
 
@@ -545,6 +601,97 @@ impl Session {
         };
         events.push(self.emit_tool(&turn_id, ToolUpdatedPayload::Batch(batch)));
         events
+    }
+
+    /// 构造一条审批请求（三条选项的文案与响应逐字来自 spec §3.3）。
+    fn permission_request(
+        &mut self,
+        turn_id: &str,
+        call: &ToolCallRequest,
+        spec: &ToolSpec,
+        risk_level: &str,
+        reason: &str,
+    ) -> PermissionRequest {
+        self.permission_seq += 1;
+        let request_id = format!("perm_{}", self.permission_seq);
+        let rule_content = match spec.family {
+            ModeToolFamily::FileWrite => call.input.get("file_path").and_then(Value::as_str),
+            ModeToolFamily::Shell => call.input.get("command").and_then(Value::as_str),
+            _ => None,
+        }
+        .unwrap_or_default()
+        .to_string();
+        let update = PermissionUpdate {
+            update_type: PermissionUpdateType::AddRules,
+            behavior: RuleBehavior::Allow,
+            rules: vec![PermissionRuleValue {
+                tool_name: spec.name.to_string(),
+                rule_content,
+                extra: ExtraFields::new(),
+            }],
+            extra: ExtraFields::new(),
+        };
+        let make_response =
+            |decision: PermissionDecision,
+             response_reason: &str,
+             permission_updates: Option<Vec<PermissionUpdate>>| {
+                PermissionResponse {
+                    decision,
+                    reason: Some(response_reason.to_string()),
+                    modified_input: None,
+                    permission_updates,
+                    extra: ExtraFields::new(),
+                }
+            };
+        let options = vec![
+            PermissionOption {
+                option_id: "allow_once".to_string(),
+                kind: PermissionOptionKind::AllowOnce,
+                name: "Allow once".to_string(),
+                description: None,
+                response: make_response(PermissionDecision::Allow, "Approved once", None),
+                extra: ExtraFields::new(),
+            },
+            PermissionOption {
+                option_id: "allow_project".to_string(),
+                kind: PermissionOptionKind::AllowAlways,
+                name: "Always allow in this project".to_string(),
+                description: Some(
+                    "Do not ask again for matching requests in this project".to_string(),
+                ),
+                response: make_response(
+                    PermissionDecision::Allow,
+                    "Approved for this project",
+                    Some(vec![update.clone()]),
+                ),
+                extra: ExtraFields::new(),
+            },
+            PermissionOption {
+                option_id: "deny".to_string(),
+                kind: PermissionOptionKind::Deny,
+                name: "Deny".to_string(),
+                description: None,
+                response: make_response(PermissionDecision::Deny, DENY_REASON, None),
+                extra: ExtraFields::new(),
+            },
+        ];
+        let mut extra = ExtraFields::new();
+        extra.insert(
+            "suggestedPermissionUpdates".to_string(),
+            serde_json::json!([update]),
+        );
+        PermissionRequest {
+            input: call.input.clone(),
+            reason: reason.to_string(),
+            request_id,
+            risk_level: risk_level.to_string(),
+            session_id: self.session_id.clone(),
+            options,
+            tool_call_id: call.tool_call_id.clone(),
+            tool_name: spec.name.to_string(),
+            turn_id: turn_id.to_string(),
+            extra,
+        }
     }
 
     fn scheduled_event(

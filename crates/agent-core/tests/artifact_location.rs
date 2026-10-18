@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_core::session::{Session, ToolCallRequest};
-use agent_core::{SessionEvent, ToolUpdatedPayload};
+use agent_core::{SessionEvent, SessionEventType, ToolUpdatedPayload};
 use serde_json::json;
 
 fn temp_base(tag: &str) -> PathBuf {
@@ -30,6 +30,9 @@ fn temp_base(tag: &str) -> PathBuf {
 /// 取工具成功结果的正文（与对拍投影同一字段）。
 fn result_content(events: &[SessionEvent]) -> String {
     for event in events {
+        if event.event_type != SessionEventType::ToolUpdated {
+            continue;
+        }
         let Some(payload) = event
             .payload_as::<ToolUpdatedPayload>()
             .expect("载荷能解码")

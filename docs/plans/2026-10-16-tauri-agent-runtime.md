@@ -462,9 +462,12 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
       `evaluate(tool, args, ruleset)`——Read/TaskControl → allow；Write/Edit → medium（规则
       逐字命中则 allow）；Bash → 安全 allowlist 内 allow、否则 high。表驱动用例覆盖两批
       77 条观察命令；规则匹配复用 `Ruleset::allows`。
-- [ ] **Step 2–5: 交互协议与接线**：`interaction/requestPermission` 的收发、deny 的
-      `scheduled → batch(errorCount:1)` 形状、以及会话循环里的接入（当前引擎是纯函数，
-      尚未接进 `run_tool_batch`）。
+- [x] **Step 2: 会话循环接线**（2026-10-18）：`PermissionHandler` trait + 默认 `AutoAllow`；
+      会话按观察发 `permission.requested` / `permission.resolved`；allow 继续执行，
+      deny 只留 `scheduled → batch(errorCount:1)`；`allow_project` 的规则在会话内存生效
+      （`permission_flow.rs` 三条用例覆盖）。
+- [ ] **Step 3–5: 持久化与 host 适配**：`allow_project` 的跨会话落盘（D1 未决），以及
+      把 `PermissionHandler` 适配成 stdio 的 `interaction/requestPermission` 反向请求。
 
 数据文件与旧版同格式（同 Task 3 的做法：格式取自 oracle）。工具级确认（Tool-level confirmation）
 与 `AskUserQuestion` 的交互面复用 M1 的命令面。
