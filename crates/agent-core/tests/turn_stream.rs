@@ -11,7 +11,7 @@ use serde_json::json;
 
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::session::Session;
-use agent_core::{SessionEvent, SessionEventType};
+use agent_core::{DeliveryKind, SessionEvent, SessionEventType};
 use agent_protocol::session_event::{
     ModelStreamingKind, ModelStreamingPayload, TurnCompletedPayload,
 };
@@ -35,6 +35,27 @@ fn completed(events: &[SessionEvent]) -> TurnCompletedPayload {
         .find(|event| event.event_type == SessionEventType::TurnCompleted)
         .and_then(|event| event.payload_as::<TurnCompletedPayload>().expect("能解码"))
         .expect("应有 turn.completed")
+}
+
+#[test]
+fn events_carry_the_requested_delivery_kind() {
+    let dir = temp_dir("delivery");
+    let provider = ScriptedProvider::new(vec![ScriptStep::Text("hi".to_string())]);
+    let mut session = Session::new("sess_stream", dir.to_string_lossy().to_string())
+        .with_delivery_kind(DeliveryKind::WebRemoteReplayable);
+    let mut sink = Vec::new();
+
+    session
+        .run_turn("probe delivery", &provider, &mut sink)
+        .expect("turn 应成功");
+    assert!(!sink.is_empty());
+    assert!(
+        sink.iter()
+            .all(|event| event.delivery_kind == Some(DeliveryKind::WebRemoteReplayable)),
+        "每个事件都应带请求的 deliveryKind"
+    );
+
+    let _ = fs::remove_dir_all(&dir);
 }
 
 fn streaming(events: &[SessionEvent]) -> Vec<ModelStreamingPayload> {

@@ -154,10 +154,12 @@ Task 5 先落 `ModelProvider` trait + **脚本化 fake**（同 oracle 的 mock p
 
 ## Task 3：投递语义边界（按 DR-T5-1）
 
-- [ ] **Step 1：`desktop-continuous` 的负向用例**——晚订阅者拿不到已发事件，不做补发。
+- [x] **Step 1：`desktop-continuous` 的实时语义**（2026-10-18）：`Session::with_delivery_kind`
+      让事件信封带请求的 `deliveryKind`；push-only 的 `EventSink` **不保留历史**（晚订阅者
+      天然拿不到已发事件），没有额外补发路径。
 - [ ] **Step 2：若裁决 (a)**：只保留 `EventSink` 抽象 + `delivery_kind` 参数，
       在 spec 登记「重放归 Host/relay」；若裁决 (b)：另出 `replay.rs` 子计划，不在本任务里
-      静默实现。
+      静默实现。**当前状态：参数已就位，等待 DR-T5-1 裁决后收口。**
 
 ---
 

@@ -90,6 +90,8 @@ pub struct Session {
     tasks: Arc<TaskRegistry>,
     /// 模型视角的消息历史（`run_turn` 维护；不含持久化格式）。
     messages: Vec<ModelMessage>,
+    /// 事件信封的投递链路。默认 `desktop-continuous`；另一条链路的快照/队列归 Host/relay。
+    delivery_kind: DeliveryKind,
 }
 
 impl Session {
@@ -104,7 +106,14 @@ impl Session {
             data_root: None,
             tasks: Arc::new(TaskRegistry::new()),
             messages: Vec::new(),
+            delivery_kind: DeliveryKind::DesktopContinuous,
         }
+    }
+
+    /// 指定事件信封的投递链路（默认 `desktop-continuous`）。
+    pub fn with_delivery_kind(mut self, delivery_kind: DeliveryKind) -> Self {
+        self.delivery_kind = delivery_kind;
+        self
     }
 
     /// 模型视角的消息历史（只读；持久化格式归宿主）。
@@ -696,8 +705,9 @@ impl Session {
             seq: self.sequence,
             trace_id: None,
             timestamp: now_ms(),
-            // 观察值：对拍驱动订阅的是 `desktop-continuous`（协议夹具的信封）。
-            delivery_kind: Some(DeliveryKind::DesktopContinuous),
+            // 默认 `desktop-continuous`（协议夹具的信封）；另一条链路只透传标记，
+            // 快照/队列归 Host/relay（DR-T5-1）。
+            delivery_kind: Some(self.delivery_kind),
             event_type,
             payload: Some(serde_json::to_value(payload).expect("镜像类型可序列化")),
         }
