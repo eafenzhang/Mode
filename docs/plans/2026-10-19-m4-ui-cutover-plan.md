@@ -3,6 +3,10 @@
 > 依据 D8：原地重建 `packages/ui` + 逐屏 adapter + 验收通过后删除旧实现。
 > 方法：`grep -rl "components/ui/<name>" packages/ui/src` 统计**引用文件数**（不是出现次数，
 > 也不是行数）；不读取旧实现体。
+>
+> **状态（2026-10-19）：清单内 21 个模块已全部切到 `ui-foundation/adapters`。**
+> 剩余 `components/ui/` 引用集中在 context-menu(14)、collapsible(14)、spinner(11)、
+> command(7)、chart(6) 与各 viewer，属后续波次；旧文件统一保留到人工看屏验收后删除。
 
 ## 基础件切换顺序（按引用面从小到大）
 
