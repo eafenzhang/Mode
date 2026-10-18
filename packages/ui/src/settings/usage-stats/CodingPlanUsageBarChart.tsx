@@ -6,7 +6,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@/components/ui/chart.js";
+} from "@/ui-foundation/adapters/chart.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   UsageEmptyState,

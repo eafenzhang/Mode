@@ -1,5 +1,5 @@
 import type { AppUsageSnapshot } from "@mode/shared";
-import type { ChartConfig } from "@/components/ui/chart.js";
+import type { ChartConfig } from "@/ui-foundation/adapters/chart.js";
 import { getAppUsageModelChartColor } from "@/settings/usage-stats/appUsageChartPalette.js";
 
 const MAX_APP_USAGE_MODEL_PIE_SLICES = 6;

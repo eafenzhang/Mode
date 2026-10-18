@@ -47,7 +47,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@/components/ui/chart.js";
+} from "@/ui-foundation/adapters/chart.js";
 
 /** 点多到这个数以上就不画点了：一条挤满圆点的线比没有点更难读。 */
 const MAX_VISIBLE_DOTS = 60;

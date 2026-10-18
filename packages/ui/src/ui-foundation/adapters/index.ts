@@ -236,3 +236,19 @@ export {
   type InputGroupTextProps,
 } from "./input-group.js";
 export { ScrollFadeViewport, type ScrollFadeViewportProps } from "./scroll-fade-viewport.js";
+export {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartStyle,
+  ChartTooltip,
+  ChartTooltipContent,
+  useChart,
+  type ChartConfig,
+  type ChartConfigEntry,
+  type ChartContainerProps,
+  type ChartLegendContentProps,
+  type ChartLegendPayloadItem,
+  type ChartTooltipContentProps,
+  type ChartTooltipPayloadItem,
+} from "./chart.js";

@@ -168,6 +168,18 @@ success/warning/destructive。
 - ref 必须指向真实滚动元素（调用方用它读写 `scrollTop`）；
 - 遮罩不影响命中与滚动，`onScroll` 等原生事件照常透传。
 
+### 2.13 Chart
+
+- `ChartConfig` 的每项 `{ label?, icon?, color? }` 映射为容器内的 `--color-<key>` CSS 变量，
+  颜色可以是 token 或 `var(--color-*)`；
+- `ChartContainer` 只提供 `ResponsiveContainer`、config 上下文与尺寸类，不假设图表类型；
+  `responsive={false}` 时直接渲染子节点（静态渲染/测试）；
+- `ChartTooltipContent` 使用 Popover 语言（`bg-popover`、`border-popover-border`、`rounded-lg`、
+  `shadow-md`），支持 `indicator=dot|line|dashed`、`hideLabel`、`hideIndicator`、
+  `labelFormatter` 与 `formatter`；无 active/payload 时返回 null；
+- `ChartLegend` / `ChartLegendContent` 与 tooltip 共用 label/color 查找规则；
+- 文本使用 `text-ui-xs`/`text-ui-sm`，数值列 `tabular-nums`。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -229,7 +241,8 @@ success/warning/destructive。
 用例 `uiFoundationCommand.test.ts` / `uiFoundationLabelKbd.test.ts`；
 HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`；
 输入组合与滚动遮罩在 `InputGroup.tsx` / `ScrollFadeViewport.tsx`，用例
-`uiFoundationInputGroupScroll.test.ts`。
+`uiFoundationInputGroupScroll.test.ts`；图表组合在 `Chart.tsx`，用例
+`uiFoundationChart.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

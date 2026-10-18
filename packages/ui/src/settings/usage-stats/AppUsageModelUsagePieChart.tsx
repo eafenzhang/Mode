@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { Cell, Pie, PieChart } from "recharts";
 import type { AppUsageSnapshot } from "@mode/shared";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart.js";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/ui-foundation/adapters/chart.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   buildAppUsageModelPieChartViewModel,

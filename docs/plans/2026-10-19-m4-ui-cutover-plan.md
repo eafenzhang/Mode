@@ -6,7 +6,7 @@
 >
 > **状态（2026-10-19）：清单内 21 个模块 + 后续波次的 collapsible/spinner/context-menu/
 > command/label/kbd/hover-card 已切到 `ui-foundation/adapters`。** 剩余 `components/ui/`
-> 引用集中在 chart(6) 与各 viewer；旧文件统一保留到人工看屏验收后删除。
+> 引用集中在各 viewer；旧文件统一保留到人工看屏验收后删除。
 > `ui-foundation/` 目录的历史格式债务已清零（`oxfmt --check` 115 文件全绿）。
 
 ## 基础件切换顺序（按引用面从小到大）
@@ -224,3 +224,12 @@ checkbox → alert → textarea`（可加 `badge`）。
 
 另：`packages/ui/src/ui-foundation/`（115 文件）已统一过一次 `oxfmt`，`fmt:check` 该目录全绿。
 验证：UI 343 passed、typecheck/lint/architecture/language/format 通过。
+
+### 后续波次（2026-10-19 第十五轮）
+
+| 模块 | 切换文件数 | adapter 行为 |
+| --- | --- | --- |
+| `chart` | 6 | 新增 foundation Chart：`ChartConfig` → `--color-<key>` 变量、`ChartContainer`（ResponsiveContainer + `responsive={false}` 静态模式）、`ChartTooltipContent`（dot/line/dashed、hideLabel/hideIndicator、labelFormatter/formatter）、`ChartLegendContent` |
+
+验证：UI 346 passed、typecheck/lint/architecture/language/format 通过。
+已知差异：只生成单套 CSS 变量（未区分明暗主题变量）；tooltip 的容器定位/动画交给 recharts。
