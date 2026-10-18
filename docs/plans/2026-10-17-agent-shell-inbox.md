@@ -341,3 +341,11 @@ AGENTS.md 的既有语义是「已接受的 busy/running 输入由 CLI/runtime `
 - **未实现（已知差异）**：任务结束后的 `<task-notification>` 新 turn——依赖 Task 5 会话循环。
 - **测试**：`agent-tools` 20 unit + 18 read_only、`agent-core` 43 + 2（新增事件顺序）
   + 9 + 1 全绿；clippy `-D warnings` 零告警。
+
+### 2026-10-18 巡检轮（第五次）：失败与已停止任务的 `TaskOutput` 形状
+
+- 扩展 `probe-task-control.mts`：失败任务（`exit 7`）与停止后（`killed`）的 `TaskOutput`。
+- 观察：`failed` → `<status>failed</status>` + `<exit_code>7</exit_code>` + 正常 `<output>`；
+  `killed` → `<status>killed</status>` + `<exit_code>137</exit_code>` 且**无 `<output>` 段**，
+  `display` 也没有 `output` 键；同一任务在 `session.updated` 里是 `cancelled`（两面用词不同）。
+- 实现按观察修正，并补两条断言。仍未观察：`running` + `block:false` 的形状。

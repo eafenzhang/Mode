@@ -231,6 +231,39 @@ await runCase(
   },
 );
 
+// 2b) TaskOutput 失败任务：非零退出的后台命令，通知 turn 里取输出。
+await runCase(
+  "TaskOutput 失败任务",
+  [
+    {
+      toolCalls: [
+        {
+          name: "Bash",
+          input: {
+            command: "printf 'bad\\n'; exit 7",
+            run_in_background: true,
+            description: "Failing background",
+          },
+        },
+      ],
+    },
+    { text: "turn one done" },
+    (body) => {
+      const taskId = taskIdFromNotification(body);
+      return taskId
+        ? { toolCalls: [{ name: "TaskOutput", input: { task_id: taskId, block: true, timeout: 30_000 } }] }
+        : { text: "no task notification" };
+    },
+    { text: "failed output turn done" },
+  ],
+  async ({ session, frames }) => {
+    await session.send("start failing background");
+    await waitForTerminals(frames, 2, 45_000);
+    process.stdout.write("\n-- 失败任务的 TaskOutput --\n");
+    printToolFrames(frames, "TaskOutput");
+  },
+);
+
 // 3) TaskStop 成功路径：抓到真实 id 后，用第二次用户输入让模型停掉长任务。
 let capturedTaskId: string | undefined;
 await runCase(
@@ -256,6 +289,20 @@ await runCase(
       return { text: "nothing to stop" };
     },
     { text: "stop turn done" },
+    // 通知 turn（status=killed）走这一步；它不请求输出。
+    { text: "killed notification turn done" },
+    // 收到 "output it" 后用同一个 id 调 TaskOutput，观察 cancelled 状态的返回形状。
+    (body) => {
+      if (lastUserText(body).includes("output it") && capturedTaskId) {
+        return {
+          toolCalls: [
+            { name: "TaskOutput", input: { task_id: capturedTaskId, block: true, timeout: 5000 } },
+          ],
+        };
+      }
+      return { text: "no output request" };
+    },
+    { text: "output-after-stop done" },
   ],
   async ({ session, frames }) => {
     await session.send("start long background");
@@ -298,5 +345,12 @@ await runCase(
       const input = typeof payload.input === "string" ? payload.input : undefined;
       process.stdout.write(`${type}${input ? ` input=${JSON.stringify(input)}` : ""}\n`);
     }
+
+    // 等通知 turn 结束（否则 session/send 会撞上 -32010），再对已停止的任务取输出。
+    await waitForTerminals(frames, 3, 30_000);
+    await session.send("output it");
+    await waitForTerminals(frames, 4, 30_000);
+    process.stdout.write("\n-- 已停止任务的 TaskOutput --\n");
+    printToolFrames(frames, "TaskOutput");
   },
 );

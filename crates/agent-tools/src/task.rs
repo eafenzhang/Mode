@@ -48,13 +48,16 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
-    /// 线上 token（逐字）。
-    pub fn as_str(self) -> &'static str {
+    /// `TaskOutput` 结果里的线上 token（逐字）。
+    ///
+    /// **注意两个面用词不同**：停止后的任务在工具结果里是 `killed`，
+    /// 而 `session.updated` 的 `status` 是 `cancelled`（两者都是观察值）。
+    pub fn task_output_token(self) -> &'static str {
         match self {
             Self::Running => "running",
             Self::Completed => "completed",
             Self::Failed => "failed",
-            Self::Cancelled => "cancelled",
+            Self::Cancelled => "killed",
         }
     }
 }
@@ -168,6 +171,8 @@ impl TaskRegistry {
                 let _ = child.wait();
             }
             guard.status = TaskStatus::Cancelled;
+            // 观察值：停止后的 TaskOutput 报 `<exit_code>137</exit_code>`（128+SIGKILL）。
+            guard.exit_code = Some(137);
         }
         Some(snapshot_from(&guard))
     }
@@ -356,22 +361,36 @@ pub fn task_output(args: &Value, ctx: &ToolContext) -> Result<ToolOutcome, ToolE
         .snapshot(&input.task_id, block, timeout)
         .ok_or_else(|| not_found_output(&input.task_id))?;
 
-    // 逐字形状见 spec §3.4；`<output>` 后直接接文件原文（文件自带尾随换行）。
-    let content = format!(
-        "<retrieval_status>success</retrieval_status>\n\n<task_id>{}</task_id>\n\n<task_type>local_bash</task_type>\n\n<status>{}</status>\n\n<exit_code>{}</exit_code>\n\n<output>\n{}</output>",
+    // 逐字形状见 spec §3.4。
+    let head = format!(
+        "<retrieval_status>success</retrieval_status>\n\n<task_id>{}</task_id>\n\n<task_type>local_bash</task_type>\n\n<status>{}</status>\n\n<exit_code>{}</exit_code>",
         snapshot.id,
-        snapshot.status.as_str(),
+        snapshot.status.task_output_token(),
         // running 时的退出码未观察，用 -1 显式表示「还没有」。
         snapshot.exit_code.unwrap_or(-1),
-        snapshot.output
     );
-    let display = json!({
-        "kind": "task_output",
-        "retrievalStatus": "success",
-        "taskStatus": snapshot.status.as_str(),
-        // 观察值：display 的 output 不带文件末尾换行（XML 里的 <output> 保留原文）。
-        "output": snapshot.output.trim_end(),
-    });
+    // 观察值：`killed` 的结果**没有 `<output>` 段**，display 也没有 `output` 键；
+    // 其它状态（completed / failed）带输出，且 display 的 output 不带文件末尾换行。
+    let (content, display) = if snapshot.status == TaskStatus::Cancelled {
+        (
+            head,
+            json!({
+                "kind": "task_output",
+                "retrievalStatus": "success",
+                "taskStatus": snapshot.status.task_output_token(),
+            }),
+        )
+    } else {
+        (
+            format!("{head}\n\n<output>\n{}</output>", snapshot.output),
+            json!({
+                "kind": "task_output",
+                "retrievalStatus": "success",
+                "taskStatus": snapshot.status.task_output_token(),
+                "output": snapshot.output.trim_end(),
+            }),
+        )
+    };
     Ok(ToolOutcome::artifact_with_display(
         content,
         display.to_string(),
@@ -567,6 +586,40 @@ mod tests {
                 .expect("合法 JSON");
         assert_eq!(display["kind"], "task_stop");
         assert_eq!(display["taskId"], registration.id);
+
+        // 观察值：停止后 TaskOutput 是 `killed` + `137`，且没有 `<output>` 段。
+        let stopped =
+            task_output(&json!({ "task_id": registration.id }), &ctx).expect("停止后仍能查输出");
+        assert!(stopped.content.contains("<status>killed</status>"));
+        assert!(stopped.content.contains("<exit_code>137</exit_code>"));
+        assert!(!stopped.content.contains("<output>"));
+        let stopped_display: Value =
+            serde_json::from_str(stopped.display_json.as_deref().expect("有 display"))
+                .expect("合法 JSON");
+        assert_eq!(stopped_display["taskStatus"], "killed");
+        assert!(stopped_display.get("output").is_none());
+    }
+
+    #[test]
+    fn task_output_reports_failed_task_with_output() {
+        let registry = Arc::new(TaskRegistry::new());
+        let (child, path) = spawn_script("printf 'bad\\n'; exit 7");
+        let registration = registry.register(child, "call_bg", "bad", None, path);
+        let ctx = registry_context(Arc::clone(&registry));
+
+        let outcome = task_output(
+            &json!({ "task_id": registration.id, "block": true, "timeout": 5000 }),
+            &ctx,
+        )
+        .expect("失败任务也能读输出");
+        assert!(outcome.content.contains("<status>failed</status>"));
+        assert!(outcome.content.contains("<exit_code>7</exit_code>"));
+        assert!(outcome.content.contains("<output>\nbad\n</output>"));
+        let display: Value =
+            serde_json::from_str(outcome.display_json.as_deref().expect("有 display"))
+                .expect("合法 JSON");
+        assert_eq!(display["taskStatus"], "failed");
+        assert_eq!(display["output"], "bad");
     }
 
     #[test]
