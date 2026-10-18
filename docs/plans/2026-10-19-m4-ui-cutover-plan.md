@@ -340,8 +340,7 @@ pdf.js 与 Vite `?url` worker。
    纯布局/控制逻辑已落 `pptxViewerLayout.ts` 并有单测（页面尺寸缩放、25%–300% 步进、页码输入回退/夹取）；
    渲染面骨架已落 `PptxPreviewSurface.tsx`（open/renderPage/工具条/导航 + 缩略图懒加载），**尚未接线**，
    等缩略图与选择/导出层齐备后一次切换；PDF 导出与元素选择仍由旧组件承担；
-2. 第二层：元素命中（已测 `hitTestPresentationElement`）→ 选区操作条（已切 adapter）→
-   `createPptxElementReference` 加入会话；提示词块构建/解析与去重已由
-   `uiFoundationPptxElementReference.test.ts` 钉住（2026-10-19）；
-3. 第三层：PDF 导出（`presentationPdfPrintExport`）与 reference navigation；
+2. 〔2026-10-19 完成于暂存组件〕元素命中 → 选中框 → 选区操作条 → `createPptxElementReference`
+   加入会话；source fingerprint 由数据内容计算；提示词块构建/解析/去重有测试；
+3. 第三层：PDF 导出（`presentationPdfPrintExport` + `saveFile`）与 reference navigation；
 4. 每层都先补纯逻辑测试，再接 UI；旧文件在人工看屏后删除。

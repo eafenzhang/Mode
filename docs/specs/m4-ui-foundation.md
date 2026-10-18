@@ -268,7 +268,9 @@ success/warning/destructive。
 - 导航：`onNavigate({pageIndex|url})` 内部页跳转或交给 `onOpenBrowserUrl`；
 - 缩略图：传入 `labels.thumbnail` 时显示左栏，IntersectionObserver 懒渲染，
   每页独立 render/dispose，宽度 96px 等比缩放；
-- 加载失败显示 `loadError`；本层不含元素选择与 PDF 导出。
+- 元素选择：工具条指针按钮切换；页面点击用 `resolvePptxIntrinsicPoint` + `hitTestPresentationElement`
+  选中元素并叠加选中框；`referenceSource` 存在时通过已切好的选区操作条加入会话；
+- 加载失败显示 `loadError`；本层不含 PDF 导出。
 
 ## 3. 布局与响应式
 

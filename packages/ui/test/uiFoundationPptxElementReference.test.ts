@@ -8,6 +8,7 @@ import test from "node:test";
 import {
   addPptxElementReference,
   buildPromptWithPptxElementReferences,
+  createPptxElementReference,
   parsePromptPptxElementReferences,
   type PptxElementReference,
 } from "../src/lib/pptxElementReference.js";
@@ -58,4 +59,22 @@ test("提示词块：非法 JSON 保持原文且不产出引用", () => {
   const parsed = parsePromptPptxElementReferences(content);
   assert.equal(parsed.visibleContent, content);
   assert.deepEqual(parsed.pptxElementReferences, []);
+});
+
+test("创建引用：复制元素并补来源、裁剪文本与 comment", async () => {
+  const { id: _id, ...element } = reference({ text: "  title  " });
+  const created = await createPptxElementReference({
+    element,
+    workspacePath: "/ws",
+    sourcePath: "/ws/a.pptx",
+    sourceTitle: "a.pptx",
+    sourceFingerprint: `sha256:${"a".repeat(64)}`,
+    selectedText: " title ",
+    comment: "  fix  ",
+  });
+  assert.ok(created.id.length > 0);
+  assert.equal(created.nodeId, "node-1");
+  assert.equal(created.selectedText, "title");
+  assert.equal(created.comment, "fix");
+  assert.match(created.textFingerprint ?? "", /^sha256:[a-f0-9]{64}$/);
 });
