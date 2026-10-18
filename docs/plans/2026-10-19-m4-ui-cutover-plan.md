@@ -319,3 +319,20 @@ pdf.js 与 Vite `?url` worker。
 | `code-viewer`（只读子集） | `components/ai-elements/code-block.tsx`（聊天代码块） | 新增 foundation `CodeView`：行号、`markedLines` 行号警示色、`focusedRange` 行背景、`focusRequestId` 滚动定位、异步 Shiki token、换行/字号；注释/选区/gutter 仍由完整 CodeViewer 承担（预览面板暂不切换） |
 
 验证：UI 373 passed、typecheck/lint/architecture/language/format 通过。
+
+### 剩余两项的逐轮清单（2026-10-19 定稿）
+
+**A. `code-viewer` 第二层（注释/选区/gutter）**
+
+1. 扩展行模型：`codeViewLines.ts` 增加「注释按 endLine 归档」「topComment 范围文案」纯函数 + 单测；
+2. `CodeView` 增加注释卡（删除回调）、`topComment` 摘要、`markedLines` 与 `focusedRange` 联动；
+3. 选区：点击/拖拽行生成 range，gutter `+` 触发 `onSubmitCodeComment({range, selectedText, comment})`；
+4. 切换 `previewPaneCodeContent` 渲染点，删除旧 CodeViewer 的最后一处业务引用；
+5. 真窗口看屏验收（人工），通过后按 D8 删除旧文件。
+
+**B. `pptx-preview-viewer`**
+
+1. 第一层：`pptxRendererPreviewEngine.open` + 单页 `renderPage` + 页码/缩放工具条 + 缩略图懒加载；PDF 导出与元素选择先保留旧组件；
+2. 第二层：元素命中（已测 `hitTestPresentationElement`）→ 选区操作条（已切 adapter）→ `createPptxElementReference` 加入会话；
+3. 第三层：PDF 导出（`presentationPdfPrintExport`）与 reference navigation；
+4. 每层都先补纯逻辑测试，再接 UI；旧文件在人工看屏后删除。
