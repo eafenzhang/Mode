@@ -18,7 +18,9 @@
 > `docs/plans/2026-10-18-m3-plugin-host.md`；LAN/远程见
 > `docs/plans/2026-10-18-m3-lan-remote-status.md`（sidecar 复用，38 条测试全绿）；
 > IM bot 见 `docs/plans/2026-10-18-m3-im-bot-status.md`（sidecar 复用，149 条测试全绿）；
-> Web / TUI 尚未立项。
+> 插件市场见 `docs/plans/2026-10-18-m3-plugin-market-status.md`（sidecar 复用，
+> 32 + 5 条测试全绿）；Web/手机远控见 `docs/plans/2026-10-18-m3-web-remote-status.md`
+> （sidecar 复用，156 条测试全绿）；TUI 尚未立项。
 
 **Goal:** 把存量 renderer 挂到 Tauri 壳上，补齐 M1 登记给 M3 的平台面缺口，并把 **Windows 出包**与
 体积验证到位（macOS / Linux 两腿在本阶段**延后**，理由与代价见文末「范围收窄登记」）——使 Tauri 版从「命令面验收台」变成**可发布的产品**，从而让 M5 有能力把发布线
