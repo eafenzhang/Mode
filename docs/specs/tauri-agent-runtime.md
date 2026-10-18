@@ -390,8 +390,10 @@ CREATE TABLE local_setting (
 **Rust 侧接线状态（2026-10-18，D1 裁决 (a)）**：`permission::evaluate` 已接进
 `run_tool_batch`；allow 走 `started → result`，deny 只留 `scheduled → batch(errorCount 1)`，
 `allow_project` 的规则在会话内立即生效，并由 `rule_store::SqliteRuleStore` **跨会话持久化**
-（`Session::with_sqlite_rules`；短连接读写，写失败记在 `rule_store_error()`）。
-与 M3 Node Host 同时打开同一 DB 的并发写风险是 (a) 的已知代价，**尚未消除**。
+（`Session::with_sqlite_rules`）。写入采用 `BEGIN IMMEDIATE` + `busy_timeout(5s)` +
+**事务内读-合并-追加**（不是整份覆盖），两个会话并发追加不会互相丢规则；
+`rule_store.rs` 有一条 2 线程 × 20 次并发追加的用例。写失败记在 `rule_store_error()`。
+与 M3 Node Host 同时打开同一 DB 的剩余风险是 **Host 侧长事务**导致的等待，而不是丢更新。
 
 **未决（写进计划，不自行拍板）**：这条持久化归**谁**写？观察里是运行时装进程自己写的，但
 目标架构中 DB 由 M3 的 Node Host 侧持有（`node:sqlite`）。Rust 侧是直连 sqlite 还是经 Host 代理，

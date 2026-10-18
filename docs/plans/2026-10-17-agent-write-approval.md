@@ -137,8 +137,10 @@ pnpm exec tsx packages/desktop/tests/agent-runtime-oracle/probe-write-rules.mts
 裁决：**Rust 直连 sqlite**。实现：
 
 - `crates/agent-core/src/rule_store.rs`：`RuleStore` trait + `SqliteRuleStore`；
-- 每次读写开短连接（缩小与 M3 Node Host 同时打开 DB 的窗口，但**不消除**并发写风险，
-  这是选 (a) 的已知代价）；
+- 每次读写开短连接，并设置 `busy_timeout(5s)`；
+- 写入是 `BEGIN IMMEDIATE` 事务内的**读-合并-追加**（`append`），不是整份覆盖写：
+  两个会话各持旧副本时不会互相丢规则；剩余风险只是 Host 长事务导致的等待；
+- 并发用例：2 线程 × 20 次追加同一 `scope_id`，最终 40 条规则不丢；
 - `scope_id_for(cwd)` 与观察一致（小写、非字母数字段折成 `-`）；
 - 表结构是黑盒观察所得（`probe-rule-store.mts`），DDL 常量 `LOCAL_SETTING_DDL` 只用于
   测试/排障；生产库由 Host 迁移创建，Rust 侧**不建表**；

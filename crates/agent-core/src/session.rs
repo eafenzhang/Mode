@@ -573,7 +573,7 @@ impl Session {
                             if let (Some(store), Some(scope)) =
                                 (&self.rule_store, &self.rule_scope_id)
                             {
-                                match store.save(scope, &self.ruleset) {
+                                match store.append(scope, updates) {
                                     Ok(()) => self.rule_store_error = None,
                                     Err(error) => self.rule_store_error = Some(error),
                                 }

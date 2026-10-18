@@ -9,13 +9,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rusqlite::Connection;
 use serde_json::json;
 
-use agent_core::approval::Ruleset;
 use agent_core::permission::PermissionHandler;
 use agent_core::provider::{ScriptStep, ScriptToolCall, ScriptedProvider};
 use agent_core::rule_store::{scope_id_for, RuleStore, SqliteRuleStore, LOCAL_SETTING_DDL};
 use agent_core::session::Session;
 use agent_core::SessionEventType;
-use agent_protocol::permission::{PermissionRequest, PermissionResponse};
+use agent_protocol::permission::{
+    PermissionRequest, PermissionResponse, PermissionRuleValue, PermissionUpdate,
+    PermissionUpdateType, RuleBehavior,
+};
 
 fn temp_db(tag: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -35,17 +37,17 @@ fn temp_db(tag: &str) -> PathBuf {
     path
 }
 
-fn ruleset(paths: &[&str]) -> Ruleset {
-    let mut ruleset = Ruleset::new();
-    ruleset.allow = paths
-        .iter()
-        .map(|path| agent_protocol::permission::PermissionRuleValue {
+fn update(rule_content: &str) -> PermissionUpdate {
+    PermissionUpdate {
+        update_type: PermissionUpdateType::AddRules,
+        behavior: RuleBehavior::Allow,
+        rules: vec![PermissionRuleValue {
             tool_name: "Write".to_string(),
-            rule_content: (*path).to_string(),
+            rule_content: rule_content.to_string(),
             extra: agent_protocol::ExtraFields::new(),
-        })
-        .collect();
-    ruleset
+        }],
+        extra: agent_protocol::ExtraFields::new(),
+    }
 }
 
 struct ProjectOnce;
@@ -72,7 +74,7 @@ fn save_and_load_round_trip_and_upsert_keeps_created_time() {
     assert!(store.load("proj_x").is_none(), "空库应返回 None");
 
     store
-        .save("proj_x", &ruleset(&["C:/ws/a.txt"]))
+        .append("proj_x", &[update("C:/ws/a.txt")])
         .expect("第一次写入");
     let connection = Connection::open(&db).expect("打开库");
     let first: (i64, i64) = connection
@@ -86,7 +88,7 @@ fn save_and_load_round_trip_and_upsert_keeps_created_time() {
 
     std::thread::sleep(Duration::from_millis(5));
     store
-        .save("proj_x", &ruleset(&["C:/ws/a.txt", "C:/ws/b.txt"]))
+        .append("proj_x", &[update("C:/ws/b.txt")])
         .expect("第二次写入（upsert）");
 
     let loaded = store.load("proj_x").expect("应能读回");
@@ -133,7 +135,7 @@ fn missing_db_file_is_a_save_error_not_a_panic() {
             .join("db.sqlite"),
     );
     assert!(store.load("proj_x").is_none());
-    assert!(store.save("proj_x", &ruleset(&["C:/ws/a.txt"])).is_err());
+    assert!(store.append("proj_x", &[update("C:/ws/a.txt")]).is_err());
 }
 
 #[test]
@@ -186,4 +188,37 @@ fn allow_project_survives_into_a_new_session() {
         .count();
     assert_eq!(permission_requests, 0, "规则应跨会话生效");
     assert_eq!(fs::read_to_string(&path).expect("文件应存在"), "b\n");
+}
+
+#[test]
+fn concurrent_appends_do_not_lose_rules() {
+    use std::collections::HashSet;
+    use std::sync::Arc;
+
+    let db = temp_db("concurrent");
+    let store = Arc::new(SqliteRuleStore::new(db.clone()));
+    let mut handles = Vec::new();
+    for worker in 0..2 {
+        let store = Arc::clone(&store);
+        handles.push(std::thread::spawn(move || {
+            for index in 0..20 {
+                let content = format!("C:/ws/{worker}-{index}.txt");
+                store
+                    .append("proj_x", &[update(&content)])
+                    .expect("并发 append 不应失败");
+            }
+        }));
+    }
+    for handle in handles {
+        handle.join().expect("线程不应 panic");
+    }
+
+    let loaded = store.load("proj_x").expect("应能读回");
+    assert_eq!(loaded.allow.len(), 40, "并发追加不应丢规则");
+    let unique: HashSet<&str> = loaded
+        .allow
+        .iter()
+        .map(|rule| rule.rule_content.as_str())
+        .collect();
+    assert_eq!(unique.len(), 40);
 }
