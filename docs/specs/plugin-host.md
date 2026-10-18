@@ -123,10 +123,18 @@
 - 协议级错误的保留 id 是 `0`；正常请求 id 从 1 开始。
 - 解析错误 `-32700`、非法请求 `-32600`、未知方法/工具 `-32601`。
 - 同时带 `method` 与 `result`（或 `error`）的帧是**非法帧**，解码直接失败，不猜。
-- 当前 sidecar 是骨架：`listTools` 只返回一个 fixture `echo` 工具，真实插件/MCP/Skills
-  发现与执行在 Task 3–5；`callTool` 的 `echo` 只回显 `input.text`。
+- **真实发现（2026-10-18）**：sidecar 扫描
+  `<dataRoot>/.mode/cli/plugins/cache/<marketplace>/<plugin>/<version>/`，读
+  `.mode-plugin/plugin.json` 与 `.mcp.json` 的 `mcpServers`；按需 spawn MCP server
+  （initialize → tools/list → tools/call）。工具名 `mcp__plugin_<plugin>_<server>__<tool>`。
+- 工具声明附带可选元数据 `riskLevel` / `sideEffectScope` / `budgetStrategy`（插件 MCP 默认
+  medium/network/truncate；内置 node-repl-host 跳过，由内置面提供）。
+- 坏 server：`tools/list` 失败 → 该 server 的工具**静默缺失**；server 崩溃后下一次调用
+  重新 spawn（与 oracle 行为一致）。
+- **未做**：启用/禁用过滤（`installed_plugins.json` 的稳定读取口径未定）；已有 sidecar
+  进程不会感知运行中的安装/卸载（需重启/重扫，Task 6）。
 - 开发运行：`pnpm exec tsx tools/plugin-host/src/main.ts`（打包成 Task 1 的单文件 bundle
-  是后续步骤；当前按源码运行）。
+  是后续步骤；当前按源码运行）。复现：`probe-plugin-sidecar.mts`。
 
 ## 5.3 进程监督（Task 2 Step 3 落地，2026-10-18）
 

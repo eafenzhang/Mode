@@ -146,9 +146,11 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - [x] **Step 1：会话级注册表**（2026-10-18）：静态 `registry()` 不变；`Session` 持有
       `extra_tools` + `plugin_tools`，查找顺序「静态 → 插件」。
 - [x] **Step 2：`plugin/listTools` → `ToolSpec` 投影**（2026-10-18）：`PluginToolSource` trait +
-      `with_plugin_tools`；schema 逐字保留。
+      `with_plugin_tools`；schema 逐字保留。sidecar 已改为**真实扫描插件 cache + MCP 桥接**
+      （`probe-plugin-sidecar.mts`），不再返回 fixture echo。
       **Deviation**：`ToolSpec.name` 改为 `String`（动态名字）。
-- [x] **Step 3：测试**（2026-10-18）：4 条（注入/调用、错误映射、未知名字、listTools 失败）。
+- [x] **Step 3：测试**（2026-10-18）：5 条（注入/调用、错误映射、未知名字、listTools 失败、
+      high 元数据）；sidecar 探针端到端验证 listTools/callTool。
 - [x] **Step 4：提交。**
 
 ---
