@@ -21,7 +21,7 @@ import {
   useState,
 } from "react";
 import type { BundledTheme } from "shiki";
-import { CodeViewer } from "@/components/ui/code-viewer.js";
+import { CodeView } from "@/ui-foundation/adapters/code-view.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { isMermaidLanguage, shouldRenderMermaidCodeBlock } from "@/lib/mermaidLanguage.js";
@@ -333,7 +333,7 @@ export const CodeBlock = ({
               // className={cn(children ? "border-t border-border" : null)}
             />
           ) : (
-            <CodeViewer
+            <CodeView
               code={code}
               enableSyntaxHighlighting={enableSyntaxHighlighting}
               language={language}

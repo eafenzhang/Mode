@@ -234,6 +234,15 @@ success/warning/destructive。
 - 提交前 trim，空内容不提交；Escape 在编辑态取消编辑、否则退出选择；IME 组合中不响应 Escape；
 - `disabled` 时所有动作禁用。
 
+### 2.20 CodeView（只读代码块）
+
+- 用于聊天代码块等只读场景：逐行渲染，行号从 `firstLineNumber` 起；
+- `markedLines` 只改行号颜色（警示色），不改代码内容；
+- `focusedRange` 给行加选中背景；`focusRequestId` 变化时把该范围滚到可视区；
+- `enableSyntaxHighlighting=false` 或语言不支持时渲染纯文本；否则异步 Shiki token；
+- `wrapLongLines` 切换 `whitespace-pre-wrap break-words` / 横向滚动；字号由 `fontSizePx` 控制；
+- 注释、选区与 gutter 工具属于完整 CodeViewer，不在本组件范围。
+
 ## 3. 布局与响应式
 
 - 桌面/宽 Web：会话、终端、Side Pane 三个独立 frame；4px 可拖拽间隔；
@@ -305,7 +314,8 @@ HoverCard 在 `adapters/hover-card.tsx`，用例 `uiFoundationHoverCard.test.ts`
 PDF 预览在 `adapters/pdf-viewer.tsx`（纯输入/边界在 `pdfViewerSource.ts`），用例
 `uiFoundationPdfViewer.test.ts`（只测纯函数，不加载 pdf.js）；PPTX 选区操作条在
 `adapters/pptx-selection-action-bar.tsx`（纯计算在 `pptxSelectionState.ts`），用例
-`uiFoundationPptxSelection.test.ts`。
+`uiFoundationPptxSelection.test.ts`；只读代码块在 `CodeView.tsx`（行模型
+`codeViewLines.ts`），用例 `uiFoundationCodeView.test.ts`。
 后续 primitives 复用这些函数，不再各写一套。
 
 ## 6. 不在本 spec 范围

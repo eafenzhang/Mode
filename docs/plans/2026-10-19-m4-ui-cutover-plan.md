@@ -311,3 +311,11 @@ pdf.js 与 Vite `?url` worker。
 新增 `packages/ui/test/uiFoundationMigrationGuard.test.ts`：扫描 `packages/ui/src`（跳过
 `components/ui/` 历史实现目录），断言业务代码不再 import 37 个已迁移模块的
 `components/ui/<name>.js`。后续新增波次时把模块名补进清单即可防止回退。
+
+### 后续波次（2026-10-19 第二十二轮）
+
+| 模块 | 切换范围 | adapter 行为 |
+| --- | --- | --- |
+| `code-viewer`（只读子集） | `components/ai-elements/code-block.tsx`（聊天代码块） | 新增 foundation `CodeView`：行号、`markedLines` 行号警示色、`focusedRange` 行背景、`focusRequestId` 滚动定位、异步 Shiki token、换行/字号；注释/选区/gutter 仍由完整 CodeViewer 承担（预览面板暂不切换） |
+
+验证：UI 373 passed、typecheck/lint/architecture/language/format 通过。
