@@ -122,7 +122,21 @@ export {
 export { Textarea, type TextareaProps } from "./Textarea.js";
 export { Toast, type ToastProps } from "./Toast.js";
 export { ToolBlock, type ToolBlockProps } from "./ToolBlock.js";
-export { Tooltip, type TooltipProps } from "./Tooltip.js";
+export {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  type TooltipProps,
+  type TooltipTriggerProps,
+} from "./Tooltip.js";
+export { TooltipProvider, type TooltipProviderProps } from "./TooltipProvider.js";
+export {
+  DEFAULT_TOOLTIP_DELAY_MS,
+  MAX_TOOLTIP_DELAY_MS,
+  resolveTooltipDelay,
+  useTooltipConfig,
+  type TooltipConfig,
+} from "./tooltipContext.js";
 export {
   FileTree,
   FileTreeItem,

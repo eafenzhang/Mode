@@ -18,7 +18,7 @@
 | `popover.tsx` | 复合导出 | `Popover` | **部分**：Trigger/Content/Anchor 待补 |
 | `select.tsx` | 复合导出 | `SelectTrigger`/`SelectContent`/`SelectItem`/`SelectGroup`/`SelectValue` | **已补**（2026-10-19） |
 | `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent` | `Tabs` / `Tab` | **部分**：命名对齐 + Content 待补 |
-| `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `Tooltip` | **部分**：Provider/Trigger 待补 |
+| `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `Tooltip`/`TooltipContent`/`TooltipProvider`/`TooltipTrigger` | **已补静态语义**（2026-10-19）；显示/隐藏与延迟策略待接线 |
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName` | `Toast` | **部分**：堆叠/定位策略待补 |
 | `badge.tsx` | `Badge`、`badgeVariants` | `Badge` + `badgeClassName` | **已补**（2026-10-19） |
 | `separator.tsx` | `Separator` | `Separator` + `separatorClassName` | **已补**（2026-10-19） |
@@ -64,6 +64,6 @@
 1. 〔已完成 2026-10-19〕补 Card 子组件（Header/Title/Description/Content/Footer/Action）；
 2. 〔已完成 2026-10-19〕补 Dialog 的 Header/Footer/Title/Description；Trigger 语义留 adapter；
 3. 〔已完成 2026-10-19〕补 Menu 的 Group/Separator/Checkbox/Radio；Trigger/Sub 留 adapter；
-4. 〔已完成 2026-10-19〕补 Select Content/Item/Group/Value；Tooltip Trigger/Provider 待补；
+4. 〔已完成 2026-10-19〕补 Select Content/Item/Group/Value 与 Tooltip Provider/Trigger 静态语义；
 5. 〔已完成 2026-10-19〕补 Badge/Separator 两个高频缺口；
 6. 之后按 P1.2→P1.7 顺序落 adapter。
