@@ -1,7 +1,7 @@
-# Mode
+# Tutto
 
 <div align="center">
-  <img src="packages/desktop/build/icons/512x512.png" alt="Mode" width="96" height="96" />
+  <img src="packages/desktop/build/icons/512x512.png" alt="Tutto" width="96" height="96" />
   <p><strong>An AI coding workspace for desktop, browser and terminal — forked from ZCode, maintained independently.</strong></p>
 </div>
 
@@ -14,7 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-Mode keeps the product itself — an agent that plans, edits, runs and verifies code with you — and rebuilds it from the public source with monitoring and telemetry removed and the vendor platform retired. It is an independent audit fork of [zai-org/ZCode](https://github.com/zai-org/ZCode); the lineage is recorded in [NOTICE.md](NOTICE.md), and changes against the upstream baseline are traced by diffing this repository against that repo.
+Tutto keeps the product itself — an agent that plans, edits, runs and verifies code with you — and rebuilds it from the public source with monitoring and telemetry removed and the vendor platform retired. It is an independent audit fork of [zai-org/ZCode](https://github.com/zai-org/ZCode); the lineage is recorded in [NOTICE.md](NOTICE.md), and changes against the upstream baseline are traced by diffing this repository against that repo.
 
 ## What this fork is about
 
@@ -25,11 +25,11 @@ Mode keeps the product itself — an agent that plans, edits, runs and verifies 
 
 ## Highlights
 
-- **One agent, three interfaces**: the Electron desktop app, the browser workspace and the terminal TUI share one agent runtime and the same sessions. Remote workspaces work over SSH, WSL, Docker, or a **LAN peer** running Mode on another machine in the same network.
+- **One agent, three interfaces**: the Electron desktop app, the browser workspace and the terminal TUI share one agent runtime and the same sessions. Remote workspaces work over SSH, WSL, Docker, or a **LAN peer** running Tutto on another machine in the same network.
 - **Plans, edits, runs, verifies**: file changes arrive as diffs, terminal commands carry their context, and the agent checks its own work by running tests. A bundled browser plugin drives a real browser when a task needs one.
 - **Asks before it touches your project**: every edit, command and tool call can require approval — allow once, always in this project, or full access.
 - **IM bots**: drive a workspace from 微信 / 企业微信 / 飞书（中国）/ 钉钉. Each conversation keeps its own session binding (per person in private chat, per group in group chat), replies stream back into the chat, group chats can stay silent (WeCom only answers when mentioned), and an optional heartbeat posts a summary on a schedule.
-- **LAN remote connection**: another machine in the same network running Mode is discovered over UDP broadcast, paired with a one-time 6-digit code, and then used as a remote host — pick a workspace on it and chat as if it were local.
+- **LAN remote connection**: another machine in the same network running Tutto is discovered over UDP broadcast, paired with a one-time 6-digit code, and then used as a remote host — pick a workspace on it and chat as if it were local.
 - **Multi-agent collaboration**: sub-agents, dynamic workflows, skills and scheduled automations.
 - **Plugins, skills and MCP**: a built-in plugin set plus a marketplace with an offline official catalog; MCP servers are configured per user or workspace.
 - **Bring your own model**: built-in presets for DeepSeek, OpenAI, Anthropic, Moonshot Kimi, MiniMax, Z.AI (GLM), Alibaba, xAI, Xiaomi MiMo and OpenRouter, plus fully custom endpoints (Chat Completions, Responses, Anthropic Messages).
@@ -41,9 +41,9 @@ Installers are attached to the [Releases](https://github.com/eafenzhang/Mode/rel
 
 | Platform            | Asset                                  | First launch                                                                              |
 | ------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Windows x64         | `Mode-<version>-win-x64.exe`           | SmartScreen warns: **More info** → **Run anyway**                                         |
-| macOS Apple Silicon | `Mode-<version>-mac-arm64.dmg`         | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"` |
-| Linux x86_64        | `Mode-<version>-linux-x86_64.AppImage` | `chmod +x` the file, then run it                                                          |
+| Windows x64         | `Tutto-<version>-win-x64.exe`           | SmartScreen warns: **More info** → **Run anyway**                                         |
+| macOS Apple Silicon | `Tutto-<version>-mac-arm64.dmg`         | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Tutto.app" && open -a "Tutto"` |
+| Linux x86_64        | `Tutto-<version>-linux-x86_64.AppImage` | `chmod +x` the file, then run it                                                          |
 
 Installed desktop clients update themselves from this repository's releases.
 

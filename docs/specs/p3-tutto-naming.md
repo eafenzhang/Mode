@@ -96,3 +96,10 @@
   新建一律写新名；
 - 文件搜索指纹与跳过逻辑按三代文件名统一处理；
 - 新增 `workspace-ignore-file-compat.test.ts` 覆盖优先级与兜底；services 378 tests 全绿。
+
+### S5 文档进展（2026-10-19）
+
+- README（中英）标题、图标 alt、正文产品名与下载表产物名改为 Tutto；
+- RELEASE.md 的产物名（`Tutto-…`、bundler 原始名 `Tutto_…`）、安装身份章节改为
+  「Tutto 线与旧 Mode 线并存」，历史发布名保留为 `Mode-…`/`ModeTauri.exe`；
+- 仓库链接仍为 `eafenzhang/Mode`（仓库本身未改名）。
