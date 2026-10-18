@@ -15,7 +15,10 @@
 > 本文各任务的 `- [ ]` 复选框**未逐条回填**（执行记录以提交与 `docs/specs/tauri-renderer-host.md` 为准）；
 > 阶段验收是否全部满足仍需逐条复核，尤其 macOS / Linux 出包腿仍按文末「范围收窄登记」延后。
 > 路线图 M3 节里的**生态域**已开始拆分：插件/MCP/Skills 宿主见
-> `docs/plans/2026-10-18-m3-plugin-host.md`；IM bot / LAN / 远程 / Web / TUI 尚未立项。
+> `docs/plans/2026-10-18-m3-plugin-host.md`；LAN/远程见
+> `docs/plans/2026-10-18-m3-lan-remote-status.md`（sidecar 复用，38 条测试全绿）；
+> IM bot 见 `docs/plans/2026-10-18-m3-im-bot-status.md`（sidecar 复用，149 条测试全绿）；
+> Web / TUI 尚未立项。
 
 **Goal:** 把存量 renderer 挂到 Tauri 壳上，补齐 M1 登记给 M3 的平台面缺口，并把 **Windows 出包**与
 体积验证到位（macOS / Linux 两腿在本阶段**延后**，理由与代价见文末「范围收窄登记」）——使 Tauri 版从「命令面验收台」变成**可发布的产品**，从而让 M5 有能力把发布线

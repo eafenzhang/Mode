@@ -199,7 +199,9 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 > `docs/plans/2026-10-18-m3-plugin-host.md`（含 DR-PH-1…5 与 Task 0 观察清单）；
 > LAN / 远程 / 远程桌面的验收现状见 `docs/plans/2026-10-18-m3-lan-remote-status.md`
 > （结论：由 Host sidecar 复用，38 条相关测试全绿，待两台机器人工验收）；
-> IM bot / Web / TUI 尚未立项。
+> IM bot 见 `docs/plans/2026-10-18-m3-im-bot-status.md`（DR-IM-1：由 Host sidecar 复用，
+> 149 条现有测试全绿，M3 不新增 `crates/bots`；剩真账号逐通道人工验收）；
+> Web / TUI 尚未立项。
 
 **Files:**
 - Create: `crates/plugin-host/`（sidecar 生命周期管理：按需下载/启动/健康）、`crates/marketplace/`（`.mode-plugin` 清单与市场目录，兼容读旧格式）、`crates/lan/`（UDP 发现 + 配对码）、`crates/remote/`（russh / 系统 ssh 调用 + workspace attach）、`crates/server/`（axum，web-remote 链路）、`crates/tui/`（ratatui）、`crates/bots/`（IM 桥：HTTP/WS 直连或 sidecar 复用 TS SDK，按通道逐个决策）
@@ -211,8 +213,11 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 
 - [ ] **Node sidecar 打包**：按 DR-01 —— Node 运行时 + 插件宿主 bundle 作为独立资产上 CDN；`plugin_host::ensure()` 首启用时下载、校验 sha256、健康探测；本地开发直连不下载。验收：断网时核心功能全在，仅插件功能提示"需下载组件"。
 - [ ] **插件市场迁移**：读旧 `installed_plugins.json`/marketplace 缓存原样可用；市场卡片 E2E 复用现有 `plugin-store-availability` spec 场景。
-- [ ] **IM bot 逐通道**：飞书/企业微信/钉钉走 HTTP+WS 直连（reqwest/tungstenite），有 TS SDK 深依赖的通道先走 sidecar；心跳、群/私聊模式、会话绑定沿用既有 spec 与数据文件格式。
-- [ ] **LAN 远连**：UDP 广播发现 + 6 位配对码 + 桌面即服务端——对照 `lan-discovery/lan-remote-attach/lan-paired-devices` 三个 spec 逐条验收（含旧客户端兼容窗口期口径，按 `lan-no-pre-rename-compat` 记忆：改名前版本不兼容）。
+- [ ] **IM bot 逐通道**：〔2026-10-18 盘点，DR-IM-1〕由 Host sidecar 复用现有实现（149 条测试全绿），
+      **M3 不新增 `crates/bots`**；Rust HTTP+WS 重写延后到运行时移出 sidecar 时再评估。
+      剩余为飞书/企微/钉钉/微信的真账号人工验收，逐项见
+      `docs/plans/2026-10-18-m3-im-bot-status.md`。
+- [ ] **LAN 远连**：UDP 广播发现 + 6 位配对码 + 桌面即服务端——对照 `lan-discovery/lan-remote-attach/lan-paired-devices` 三个 spec 逐条验收（含旧客户端兼容窗口期口径，按 `lan-no-pre-rename-compat` 记忆：改名前版本不兼容）。〔2026-10-18 已跑 38 条相关测试全绿；剩两台机器人工验收，见 `2026-10-18-m3-lan-remote-status.md`〕
 - [ ] **SSH/WSL/Docker 远程 + workspaceIdentity**：身份 key `trim() || path` 贯穿，跨 Host 路由与 stale-run 防护的对拍测试。
 - [ ] **Web 端（axum）**：`web-remote-replayable` 链路 + 手机远控复用 Host attachment 的既有架构（AGENTS.md：不为手机另起运行时）。
 - [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。
