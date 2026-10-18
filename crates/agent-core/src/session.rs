@@ -191,8 +191,8 @@ impl Session {
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                // 插件结果的预算策略未观察；先按普通文本结果处理（Task 4 对拍后再收紧）。
-                Ok(ToolOutcome::text(content))
+                // 观察（probe-plugin-permission）：MCP 结果的 budgetStrategy 是 artifact。
+                Ok(ToolOutcome::artifact(content))
             }
             Err(message) => Err(agent_tools::ToolError {
                 error_type: "tool_execution_failed",
@@ -870,12 +870,17 @@ impl Session {
             // （夹具 `write-new` / `write-overwrite-read` 的 `started` 事件）。
             // 其余非只读档（shell / node-repl …）的取值集合**仍未观察**，所以那种情况留空而非编一个档位。
             read_only: Some(spec.read_only),
-            side_effect_scope: match (spec.read_only, spec.family) {
-                (true, _) => Some("none".to_string()),
-                (false, ModeToolFamily::FileWrite) => Some("workspace".to_string()),
-                // 观察（spec §3.4）：`TaskStop` 的 started 是 `sideEffectScope:"session"`。
-                (false, ModeToolFamily::TaskControl) => Some("session".to_string()),
-                (false, _) => None,
+            side_effect_scope: if spec.plugin {
+                // 观察：`mcp__node_repl__js` 的 started 是 `sideEffectScope:"system"`。
+                Some("system".to_string())
+            } else {
+                match (spec.read_only, spec.family) {
+                    (true, _) => Some("none".to_string()),
+                    (false, ModeToolFamily::FileWrite) => Some("workspace".to_string()),
+                    // 观察（spec §3.4）：`TaskStop` 的 started 是 `sideEffectScope:"session"`。
+                    (false, ModeToolFamily::TaskControl) => Some("session".to_string()),
+                    (false, _) => None,
+                }
             },
             tool_name: Some(call.name.clone()),
             extra: ExtraFields::new(),

@@ -60,9 +60,13 @@
 
 - 默认隔离环境下，`Skill`（非法/未知技能）与未知 MCP 工具调用**都没有**发
   `permission.requested`。
-- **未观察**：会产生副作用的插件工具（例如 `mcp__node_repl__js` 执行代码）是否审批、
-  `riskLevel` / `reason` 是什么。Task 0.4 未完成前，插件工具不接入 `permission::evaluate`
-  的「按插件工具分档」逻辑。
+- **`mcp__node_repl__js`（有副作用的 MCP 工具，`probe-plugin-permission.mts`）**：
+  - `permission.requested`：`riskLevel:"high"`、reason `High risk tools require explicit approval`；
+  - `started`：`readOnly:false` / `sideEffectScope:"system"`；
+  - 结果：`display.kind:"mcp_tool"`、`budgetStrategy:"artifact"`。
+- Rust 实现：`ToolSpec.plugin` 的工具**一律 high ask**、`started` 的 `sideEffectScope` 为
+  `"system"`、结果按 `artifact` 预算。`allow_project` 对插件工具的 `ruleContent` 形状**未观察**，
+  因此暂不把 `Ruleset` 用于插件工具；只读 MCP 工具是否也 high 也未观察。
 
 ## 5. 生命周期与负载
 

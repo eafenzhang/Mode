@@ -129,12 +129,48 @@ fn plugin_tools_are_injected_and_invoked() {
     let (ok, content) = tool_result(&sink);
     assert!(ok);
     assert_eq!(content, "hello");
+
+    // 观察：`mcp__node_repl__js` 是 high 审批；插件工具先按同一口径处理。
+    let requests: Vec<agent_protocol::permission::PermissionRequest> = sink
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::PermissionRequested)
+        .filter_map(|event| {
+            event
+                .payload_as::<agent_protocol::permission::PermissionRequest>()
+                .expect("能解码")
+        })
+        .collect();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].risk_level, "high");
+    assert_eq!(requests[0].tool_name, "plugin_echo");
+
+    let started = sink
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::ToolUpdated)
+        .filter_map(|event| event.payload_as::<ToolUpdatedPayload>().expect("能解码"))
+        .find_map(|payload| match payload {
+            ToolUpdatedPayload::Started(started) => Some(started),
+            _ => None,
+        })
+        .expect("插件工具应有 started");
+    assert_eq!(started.side_effect_scope.as_deref(), Some("system"));
+
+    let budget = sink
+        .iter()
+        .filter(|event| event.event_type == SessionEventType::ToolUpdated)
+        .filter_map(|event| event.payload_as::<ToolUpdatedPayload>().expect("能解码"))
+        .find_map(|payload| match payload {
+            ToolUpdatedPayload::Result(result) => {
+                Some(result.result.extra.get("budgetStrategy").cloned())
+            }
+            _ => None,
+        })
+        .flatten();
     assert_eq!(
-        sink.iter()
-            .filter(|event| event.event_type == SessionEventType::PermissionRequested)
-            .count(),
-        0,
-        "占位 family 目前判 Allow；Task 4 观察后再收紧"
+        budget
+            .and_then(|value| value.as_str().map(str::to_string))
+            .as_deref(),
+        Some("artifact")
     );
 }
 

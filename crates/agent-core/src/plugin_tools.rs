@@ -26,6 +26,7 @@ impl PluginToolDeclaration {
             family: ModeToolFamily::TaskControl,
             schema: self.input_schema,
             read_only: false,
+            plugin: true,
         }
     }
 }

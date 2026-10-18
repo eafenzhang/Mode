@@ -136,6 +136,15 @@ const SAFE_GIT_SUBCOMMANDS: [&str; 6] = ["status", "diff", "log", "show", "branc
 
 /// 判定一次工具调用。
 pub fn evaluate(tool: &ToolSpec, args: &Value, ruleset: &Ruleset) -> Decision {
+    // 观察（probe-plugin-permission）：`mcp__node_repl__js` 是 high 审批 +
+    // `sideEffectScope:"system"`。插件工具没有按入参分类的观察，先一律 high；
+    // 规则对插件工具的匹配形状未观察，因此这里不查 ruleset。
+    if tool.plugin {
+        return Decision::Ask {
+            risk_level: "high",
+            reason: HIGH_RISK_REASON,
+        };
+    }
     match tool.family {
         ModeToolFamily::FileRead => Decision::Allow,
         ModeToolFamily::FileWrite => {

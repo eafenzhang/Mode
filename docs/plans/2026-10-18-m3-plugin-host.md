@@ -89,8 +89,9 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
       （spec §5.6）。**MCP 服务器工具本身仍未观察**（fixture 没有 MCP）。
 - [ ] **Step 0.3：观察工具调用与生命周期**（2026-10-18，部分）：`Skill` 的缺参/未知名字、
       fixture skill 的成功结果已录；**MCP 启动耗时、负载缺失/断网/崩溃形状未观察**。
-- [ ] **Step 0.4：观察权限面**（2026-10-18，部分）：`Skill` 与未知 MCP 都没有审批请求；
-      **有副作用的插件工具（如 `mcp__node_repl__js`）是否审批未观察**，DR-PH-4 暂不实现。
+- [x] **Step 0.4：观察权限面**（2026-10-18）：`Skill` 与未知 MCP 都没有审批；
+      **`mcp__node_repl__js` 是 high 审批 + `sideEffectScope:"system"` + 结果 artifact**。
+      只读 MCP/不同插件的风险分级仍未观察（当前实现按「插件工具一律 high」）。
 - [x] **Step 0.5：把结果写进 `docs/specs/plugin-host.md`**（2026-10-18），未观察项已逐条列出。
 
 **Step 0 的产物**：新 spec + 可复现探针；没有观察到的形状不写进实现。
@@ -156,8 +157,10 @@ Web、TUI；把插件用 Rust 重写；插件代码的版权归属（第三方�
 - [x] **Step 1：调用桥**（2026-10-18）：新增 `crates/plugin-host-adapter` 的
       `PluginHostSource`（`listTools`/`callTool` 映射）；会话侧已有
       `plugin/callTool → ToolOutcome` 与 `tool_execution_failed` 映射。
-- [ ] **Step 2：权限**：按 Step 0.4 的观察把插件工具接进 `permission::evaluate`；
-      `allow_project` 复用 `Ruleset` 与 sqlite 持久化。**当前是占位（一律 Allow），待观察**。
+- [x] **Step 2：权限**（2026-10-18）：插件工具一律 high ask；`started` 的
+      `sideEffectScope` 为 `system`；结果按 `artifact` 预算。
+      **未覆盖**：`allow_project` 对插件工具的 `ruleContent` 形状未观察，暂不查 `Ruleset`；
+      只读 MCP 工具是否也 high 未观察。
 - [x] **Step 3：测试**（2026-10-18）：适配器 3 条（声明映射、内容/错误、Session 端到端）；
       超时/崩溃由 `plugin-host` 的 supervisor 用例覆盖。
 - [x] **Step 4：提交。**
