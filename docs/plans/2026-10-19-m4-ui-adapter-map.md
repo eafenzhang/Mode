@@ -23,9 +23,9 @@
 | `badge.tsx` | `Badge`、`badgeVariants` | `Badge` + `badgeClassName` | **已补**（2026-10-19） |
 | `separator.tsx` | `Separator` | `Separator` + `separatorClassName` | **已补**（2026-10-19） |
 | `scroll-area.tsx` | `ScrollArea`、`ScrollBar` | — | **缺口** |
-| `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | — | **缺口** |
+| `checkbox.tsx` / `switch.tsx` / `radio-group.tsx` / `progress.tsx` | 对应控件 | `Checkbox` / `Switch`（基础件） | **部分**：Checkbox/Switch 已补；RadioGroup/Progress 仍缺；adapter 待补 |
 | `avatar.tsx` | `Avatar*` | — | **缺口** |
-| `alert.tsx` | `Alert*` | — | **缺口** |
+| `alert.tsx` | `Alert*` | `Alert` / `AlertTitle` / `AlertDescription` / `AlertAction` | **基础件已补**；adapter 待补 |
 
 ## 2. 业务面映射
 

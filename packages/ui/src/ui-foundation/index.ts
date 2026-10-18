@@ -1,6 +1,14 @@
+export {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+  type AlertProps,
+} from "./Alert.js";
 export { AppShell, ResizeHandle, type AppShellProps, type PanelResizeBinding, type ResizeHandleProps } from "./AppShell.js";
 export { ApprovalBlock, type ApprovalBlockProps } from "./ApprovalBlock.js";
 export { Button, type ButtonProps } from "./Button.js";
+export { Checkbox, type CheckboxProps } from "./Checkbox.js";
 export { DiffBlock, DiffLine, type DiffBlockProps, type DiffLineProps } from "./DiffBlock.js";
 export {
   ChatInputShell,
@@ -113,6 +121,7 @@ export {
   type SettingsNavItemProps,
   type SettingsSectionProps,
 } from "./Settings.js";
+export { Switch, type SwitchProps } from "./Switch.js";
 export { Tab, Tabs, type TabProps, type TabsProps } from "./Tabs.js";
 export {
   isTabNavigationKey,
@@ -165,6 +174,20 @@ export {
   type FieldSize,
   type SelectTriggerClassNameOptions,
 } from "./inputStyles.js";
+export {
+  alertActionClassName,
+  alertClassName,
+  alertDescriptionClassName,
+  alertTitleClassName,
+  type AlertClassNameOptions,
+  type AlertTone,
+} from "./alertStyles.js";
+export {
+  checkboxClassName,
+  checkboxRowClassName,
+  switchThumbClassName,
+  switchTrackClassName,
+} from "./formStyles.js";
 export {
   badgeClassName,
   type BadgeClassNameOptions,
