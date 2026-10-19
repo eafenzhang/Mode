@@ -67,3 +67,20 @@ export function moveMenuFocus(container: HTMLElement | null, delta: 1 | -1): voi
       : (current - 1 + items.length) % items.length;
   items[next]?.focus();
 }
+
+/**
+ * 菜单内点击判定：子菜单内容被 portal 到父菜单 DOM 之外，父菜单的 mousedown
+ * 外部点击处理会把子菜单项当成“外部”并在 click 前关闭整棵菜单，导致
+ * `onSelect` 永不触发。子菜单内容携带顶层菜单的 `data-dropdown-menu-root`，
+ * 两处外部点击处理都按根 id 判定“仍在菜单内”。
+ */
+export function isInsideMenuPortal(
+  target: Node | null,
+  rootContentId: string | undefined,
+): boolean {
+  if (!target || !rootContentId) {
+    return false;
+  }
+  const element = (target as Element).closest?.("[data-dropdown-menu-root]");
+  return element?.getAttribute("data-dropdown-menu-root") === rootContentId;
+}

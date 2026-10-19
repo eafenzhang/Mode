@@ -84,3 +84,18 @@ test("DropdownMenu adapter：子菜单触发器与内容结构", () => {
   assert.match(html, /aria-haspopup="menu"/);
   assert.match(html, /data-slot="dropdown-menu-sub-content"|role="menu"/);
 });
+
+test("DropdownMenu adapter：子菜单 portal 内的点击不被父菜单当作外部点击", async () => {
+  const { isInsideMenuPortal } =
+    await import("../src/ui-foundation/adapters/dropdownMenuContext.js");
+  const inside = {
+    closest: () => ({ getAttribute: () => "menu-root" }),
+  } as never;
+  const outside = {
+    closest: () => ({ getAttribute: () => "other-menu" }),
+  } as never;
+  assert.equal(isInsideMenuPortal(inside, "menu-root"), true);
+  assert.equal(isInsideMenuPortal(outside, "menu-root"), false);
+  assert.equal(isInsideMenuPortal(inside, undefined), false);
+  assert.equal(isInsideMenuPortal(null, "menu-root"), false);
+});

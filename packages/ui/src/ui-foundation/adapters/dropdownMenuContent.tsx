@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { Menu as FoundationMenu } from "../Menu.js";
 import { mergeRefs } from "./domTargets.js";
 import {
+  isInsideMenuPortal,
   menuItemNodes,
   menuSelectEvent,
   moveMenuFocus,
@@ -127,7 +128,9 @@ export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuConten
         const target = event.target as Node | null;
         if (
           target &&
-          (contentRef.current?.contains(target) || state?.triggerRef.current?.contains(target))
+          (contentRef.current?.contains(target) ||
+            state?.triggerRef.current?.contains(target) ||
+            isInsideMenuPortal(target, state?.contentId))
         ) {
           return;
         }
@@ -202,6 +205,7 @@ export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuConten
         {...rest}
         ref={mergeRefs(ref, contentRef)}
         id={state?.contentId}
+        data-dropdown-menu-root={state?.contentId}
         hidden={!open}
         data-state={open ? "open" : "closed"}
         style={style}

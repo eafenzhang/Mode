@@ -26,6 +26,7 @@ import { menuClassName } from "../surfaceStyles.js";
 import { childRefOf, mergeRefs } from "./domTargets.js";
 import {
   DropdownSubAdapterContext,
+  isInsideMenuPortal,
   menuItemNodes,
   moveMenuFocus,
   useDropdownMenuAdapterState,
@@ -90,6 +91,7 @@ export interface DropdownMenuSubTriggerProps extends ButtonHTMLAttributes<HTMLBu
 export const DropdownMenuSubTrigger = forwardRef<HTMLButtonElement, DropdownMenuSubTriggerProps>(
   function DropdownMenuSubTrigger({ inset, asChild, className, children, onClick, ...rest }, ref) {
     const state = useDropdownSubAdapterState();
+    const root = useDropdownMenuAdapterState();
     const merged = [className, inset ? "ps-7.5" : ""].filter(Boolean).join(" ");
     const handleClick = (event: ReactMouseEvent<HTMLElement>): void => {
       onClick?.(event as ReactMouseEvent<HTMLButtonElement>);
@@ -167,6 +169,7 @@ export const DropdownMenuSubContent = forwardRef<HTMLDivElement, DropdownMenuSub
     ref,
   ) {
     const state = useDropdownSubAdapterState();
+    const root = useDropdownMenuAdapterState();
     const open = state?.open ?? false;
     const contentRef = useRef<HTMLDivElement | null>(null);
     const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,7 +236,9 @@ export const DropdownMenuSubContent = forwardRef<HTMLDivElement, DropdownMenuSub
         const target = event.target as Node | null;
         if (
           target &&
-          (contentRef.current?.contains(target) || state?.triggerRef.current?.contains(target))
+          (contentRef.current?.contains(target) ||
+            state?.triggerRef.current?.contains(target) ||
+            isInsideMenuPortal(target, root?.contentId))
         ) {
           return;
         }
@@ -290,6 +295,7 @@ export const DropdownMenuSubContent = forwardRef<HTMLDivElement, DropdownMenuSub
         {...rest}
         ref={mergeRefs(ref, contentRef)}
         id={state?.contentId}
+        data-dropdown-menu-root={root?.contentId}
         role="menu"
         hidden={!open}
         data-state={open ? "open" : "closed"}

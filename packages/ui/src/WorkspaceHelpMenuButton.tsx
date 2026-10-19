@@ -13,6 +13,8 @@ import {
 } from "@/ui-foundation/adapters/dropdown-menu.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import { updateCheckFeedback } from "@/desktopUpdateFeedback.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useDesktopUpdateMenu } from "@/hooks/useDesktopUpdateMenu.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
