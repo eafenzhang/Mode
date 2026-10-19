@@ -30,6 +30,7 @@ import {
   tarArgs,
   workDir,
 } from "./fnos-fpk/build-lib.ts";
+import { pruneDistribution } from "./mode-distribution/prune.mjs";
 import { verifyStructure, verifyTokenFlow } from "./fnos-fpk/verify.ts";
 
 const usage = `Usage:
@@ -141,6 +142,17 @@ async function main(): Promise<void> {
   await mkdir(pkgDir, { recursive: true });
   run("tar", tarArgs(["-xzf", distTarball, "-C", extractedDir]));
   await rename(join(extractedDir, "mode"), join(pkgDir, "app"));
+
+  // fnOS 只运行 linux-x64：把 build:mode 为多平台保留的其他原生件裁掉。
+  // 通用调试文件裁剪也在这里兜底执行，--reuse-tarball 复用旧包时同样生效。
+  const pruned = await pruneDistribution(join(pkgDir, "app"), {
+    targetPlatform: "linux",
+    targetArch: "x64",
+  });
+  console.log(
+    `[fnos] 目标平台裁剪：${pruned.files} 个文件，` +
+      `${(pruned.bytes / 1024 / 1024).toFixed(1)} MiB（未压缩，含 ${pruned.directories} 个目录）`,
+  );
 
   await stageNodeBinary(join(pkgDir, "app"), nodeVersion);
   await stageSkeleton(pkgDir, { version, port });

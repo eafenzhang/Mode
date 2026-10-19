@@ -3,7 +3,7 @@
 
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createWriteStream, readFileSync } from "node:fs";
+import { createReadStream, createWriteStream, readFileSync } from "node:fs";
 import {
   chmod,
   cp,
@@ -19,6 +19,7 @@ import {
 import { join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { createGzip } from "node:zlib";
 import assert from "node:assert/strict";
 
 export interface BuildOptions {
@@ -199,6 +200,14 @@ export async function stageNodeBinary(appDir: string, version: string): Promise<
   await mkdir(join(appDir, "runtime", "bin"), { recursive: true });
   await rename(join(extractDir, "node"), target);
   await chmod(target, 0o755).catch(() => {});
+  // 官方 Node 二进制仍带 .debug_* 与 .symtab（实测约 5.7MB）。Linux 打包机上 strip
+  // 可直接缩小包体；strip 不可用时保留原文件，不影响功能与后续的大小断言。
+  if (process.platform === "linux") {
+    const stripped = spawnSync("strip", ["--strip-unneeded", target], { stdio: "inherit" });
+    if (stripped.error || stripped.status !== 0) {
+      console.warn("[fnos] strip 不可用，保留 Node 原始符号表");
+    }
+  }
   const size = await checkElf(target, "捆绑 Node");
   if (size < 50 * 1024 * 1024) {
     throw new Error(`捆绑 Node 体积异常：${size}`);
@@ -306,6 +315,29 @@ export async function ensureFnpack(): Promise<string> {
   return file;
 }
 
+async function gzipFile(source: string, destination: string): Promise<void> {
+  await rm(destination, { force: true });
+  // 平台自带的 gzip -9 比 Node zlib 的 level 9 更紧凑（同一份 316MB payload 实测
+  // 87.61MB vs 89.02MB），所以优先用 CLI；没有 gzip 的环境回退到 Node zlib。
+  const handle = await open(destination, "w");
+  try {
+    const compressed = spawnSync("gzip", ["-9", "-n", "-c", source], {
+      stdio: ["ignore", handle.fd, "inherit"],
+    });
+    if (!compressed.error && compressed.status === 0) {
+      return;
+    }
+    console.warn("[fnos] gzip CLI 不可用，回退到 Node zlib（体积略大）");
+  } finally {
+    await handle.close();
+  }
+  await pipeline(
+    createReadStream(source),
+    createGzip({ level: 9 }),
+    createWriteStream(destination),
+  );
+}
+
 // fnpack build 后重打包：fnpack 在 Windows 不写执行位，必须补 cmd/* 0755（断言失败即失败）。
 export async function buildFpk(pkgDir: string, fnpackPath: string, outFile: string): Promise<void> {
   await rm(join(workDir, `${APPNAME}.fpk`), { force: true });
@@ -322,11 +354,29 @@ export async function buildFpk(pkgDir: string, fnpackPath: string, outFile: stri
   for (const entry of await readdir(join(repackDir, "cmd"))) {
     await chmod(join(repackDir, "cmd", entry), 0o755).catch(() => {});
   }
+
+  // fnpack 用默认级别压缩 app.tgz（实测 89.72MB）。用同一份 payload 以 gzip level 9
+  // 重建内层包（实测 87.61MB）：文件清单不变，只是压缩更彻底。入口名沿用 fnpack
+  // 的形态（LICENSE、agent 等直接位于包根，没有 `./` 前缀）。
+  const appSource = join(pkgDir, "app");
+  const appTarFile = join(workDir, `${APPNAME}.app.tar`);
+  const appEntries = (await readdir(appSource)).sort();
+  // fnpack 输出统一为 0/0 属主；重打包时保持同一口径，避免把构建机用户名写进安装包。
+  const ownerArgs = ["--owner=0", "--group=0", "--numeric-owner"];
+  await rm(appTarFile, { force: true });
+  run("tar", tarArgs(["-cf", appTarFile, ...ownerArgs, "-C", appSource, ...appEntries]));
+  await gzipFile(appTarFile, join(repackDir, "app.tgz"));
+  await rm(appTarFile, { force: true });
+
   const entries = (await readdir(repackDir)).sort();
   // win32 下 Node 的 chmod 不落执行位，用 GNU tar --mode 强制（Linux/macOS 用真实 chmod 即可）。
   const modeArgs = process.platform === "win32" ? ["--mode=a+rx"] : [];
-  await rm(outFile, { force: true });
-  run("tar", tarArgs(["-czf", outFile, ...modeArgs, "-C", repackDir, ...entries]));
+  // 先出未压缩 tar，再用 gzip level 9 压缩外层；格式仍是 fnOS 接受的 tar.gz。
+  const tarFile = join(workDir, `${APPNAME}.repack.tar`);
+  await rm(tarFile, { force: true });
+  run("tar", tarArgs(["-cf", tarFile, ...ownerArgs, ...modeArgs, "-C", repackDir, ...entries]));
+  await gzipFile(tarFile, outFile);
+  await rm(tarFile, { force: true });
 }
 
 export async function tarLines(

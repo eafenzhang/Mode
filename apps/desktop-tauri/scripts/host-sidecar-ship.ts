@@ -36,6 +36,7 @@
  * （安装包字节）两个收益：`.node` 二进制的压缩比与文本差一个量级，
  * 只报原始值会让一次 28 MiB 的裁切在门禁上看起来没作用。见 `docs/specs/tauri-renderer-host.md` §13.2。
  */
+import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
   cpSync,
@@ -81,10 +82,26 @@ function isUnder(relativePath: string, dir: string): boolean {
   return relativePath === dir || relativePath.startsWith(`${dir}/`);
 }
 
+/** 发运集的目标平台；默认就是构建机，交叉打包时由调用方传入。 */
+export interface PruneTarget {
+  platform: string;
+  arch: string;
+}
+
+export const DEFAULT_PRUNE_TARGET: PruneTarget = {
+  platform: process.platform,
+  arch: process.arch,
+};
+
+// 运行期不读取的调试/类型产物：source map、Windows PDB、TypeScript 声明与增量编译缓存。
+const DEBUG_ARTIFACT_PATTERN = /(?:\.map|\.pdb|\.tsbuildinfo|\.d\.ts|\.d\.mts|\.d\.cts)$/u;
+
+type PruneRule = (relativePath: string, target: PruneTarget) => boolean;
+
 /**
- * 剪枝规则：`包名 → (包内相对路径，正斜杠) => 是否不发`。
+ * 剪枝规则：`包名 → (包内相对路径，正斜杠，目标平台) => 是否不发`。
  *
- * 规则只写**有依据**的：目标是 Windows x64（Ruling 20 把本阶段的范围钉在 Windows），
+ * 规则只写**有依据**的：目标是构建机平台（Windows x64 / Linux x64），
  * 且 DR-T5-2 要求这一条同时报原始与压缩两个收益。
  *
  * **一条实测踩到的坑（两处，都被 `--stage` 的自验与逐包体积量出来）**：
@@ -97,24 +114,43 @@ function isUnder(relativePath: string, dir: string): boolean {
  *    （症状：node-pty 只剩 6 MB，比「只留 win32-x64」应有的 ~34 MiB 少了 29 MiB）。
  *    所以父目录一律**保留**，让子项各自被判定。
  */
-const PRUNE_RULES: Record<string, (relativePath: string) => boolean> = {
-  // node-pty 的 `prebuilds/` 是**每个平台**的预编译二进制（实测 57.82 MiB）。
-  // 只留 `win32-x64`：壳按 `prebuilds/{platform}-{arch}` 解析
-  // （`node-pty/lib/utils.js` 的 `loadNativeModule`），本阶段不出 Windows ARM64
-  // （阶段计划的范围收窄登记），darwin 的两档更不可能被加载。
-  // 注意 `build/Release/conpty/{OpenConsole.exe,conpty.dll}` **不裁**：conpty 那条路要用它。
-  "node-pty": (relativePath) => {
+const PRUNE_RULES: Record<string, PruneRule> = {
+  // node-pty 的 `prebuilds/` 是**每个平台**的预编译二进制（Windows 上实测 57.82 MiB）。
+  // 只留目标平台的 `prebuilds/{platform}-{arch}`：壳按这个路径解析
+  // （`node-pty/lib/utils.js` 的 `loadNativeModule`）。Linux AppImage 之前会连带
+  // Windows x64 的整套预编译件，既跑不到又占体积。
+  //
+  // 非 Windows 目标还要裁掉 Windows 专用的 conpty（OpenConsole.exe / conpty.dll）；
+  // `build/Release/pty.node` 是构建机为本平台编译的，目标平台与构建机一致时保留。
+  "node-pty": (relativePath, target) => {
     if (relativePath === "prebuilds") return false; // 父目录保留，否则下面的例外无从判定
-    if (!isUnder(relativePath, "prebuilds")) return false;
-    return !isUnder(relativePath, "prebuilds/win32-x64");
+    if (isUnder(relativePath, "prebuilds")) {
+      return !isUnder(relativePath, `prebuilds/${target.platform}-${target.arch}`);
+    }
+    if (target.platform !== "win32") {
+      if (isUnder(relativePath, "third_party/conpty")) return true;
+      if (isUnder(relativePath, "build/Release/conpty")) return true;
+    }
+    if (
+      relativePath === "build/Release" &&
+      (target.platform !== process.platform || target.arch !== process.arch)
+    ) {
+      return true;
+    }
+    return false;
   },
-  // 纯类型包（某个包把它写进了 `dependencies`）：运行期一次都不会被 require。
-  "@types/node": () => true,
 };
 
 /** 剪枝判定的唯一入口（`stageShipSet` 与用例都走它，免得用例测的不是产品走的那条）。 */
-export function isPrunedOut(packageName: string, relativePath: string): boolean {
-  return PRUNE_RULES[packageName]?.(relativePath) ?? false;
+export function isPrunedOut(
+  packageName: string,
+  relativePath: string,
+  target: PruneTarget = DEFAULT_PRUNE_TARGET,
+): boolean {
+  // 纯类型包（某个包把它写进了 `dependencies`）：运行期一次都不会被 require。
+  if (packageName.startsWith("@types/")) return true;
+  if (DEBUG_ARTIFACT_PATTERN.test(relativePath)) return true;
+  return PRUNE_RULES[packageName]?.(relativePath, target) ?? false;
 }
 
 /** 一个包在**发运集里**的文件清单（`relativePath` 用正斜杠，跨平台一致）。 */
@@ -378,5 +414,13 @@ export function copyNodeRuntime(
 ): { source: string; bytes: number } {
   const target = join(targetDir, process.platform === "win32" ? "node.exe" : "node");
   copyFileSync(nodeSource, target);
+  // Linux 的官方 Node 仍带 .debug_* 与 .symtab（实测约 5.7MB）。AppImage 里这份
+  // 运行时会被整包压缩，strip 后的收益按压缩比打折，但仍是净收益；strip 不可用时跳过。
+  if (process.platform === "linux") {
+    const stripped = spawnSync("strip", ["--strip-unneeded", target], { stdio: "ignore" });
+    if (stripped.error || stripped.status !== 0) {
+      console.warn("[host-sidecar] strip 不可用，保留随包 Node 原始符号表");
+    }
+  }
   return { source: nodeSource, bytes: statSync(target).size };
 }

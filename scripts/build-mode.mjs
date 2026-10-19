@@ -11,6 +11,7 @@ import {
   stageTuiRuntime,
 } from "./mode-distribution/assets.mjs";
 import { installScriptSource } from "./mode-distribution/installer.mjs";
+import { pruneDistribution } from "./mode-distribution/prune.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const defaultOutDir = resolve(root, "dist", "mode");
@@ -219,6 +220,14 @@ async function stageModePackage({ packageRoot, version }) {
   await stageTuiRuntime(packageRoot);
   await copyRuntimeNodeModules(packageRoot);
   await patchNodePtyPrebuilds(packageRoot);
+
+  // 发行包不携带 source map / PDB / 类型声明：它们是构建期诊断产物，运行期不会读取。
+  // 这一步在打 tar 之前做，因此 tarball 与 fnOS fpk 都受益。
+  const pruned = await pruneDistribution(packageRoot);
+  console.log(
+    `[mode] 发行包裁剪：${pruned.files} 个调试/类型文件，` +
+      `${(pruned.bytes / 1024 / 1024).toFixed(1)} MiB（未压缩）`,
+  );
 
   await mkdir(resolve(packageRoot, "bin"), {
     recursive: true,

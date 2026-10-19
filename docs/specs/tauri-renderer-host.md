@@ -1324,6 +1324,32 @@ $ node --import tsx apps/desktop-tauri/scripts/verify-installed.ts \
 `terminal` 的契约在 `packages/services/src/terminal/terminal.ts` 的接口里
 （`create({cols, rows, cwd})`），调用形状错了**不会**被类型系统拦住（那里是 `IChannel`）。
 
+### 13.7 目标平台裁剪与调试文件（2026-10-19）
+
+§13.4 的剪枝规则是在 Windows-only 阶段写的，保留了 `prebuilds/win32-x64`；Linux AppImage
+沿用同一份规则时，会把整套 Windows 预编译件带进 Linux 包。现在 `isPrunedOut` 接收
+`PruneTarget`（默认构建机 `process.platform` / `process.arch`），规则改为：
+
+- 只保留 `prebuilds/{platform}-{arch}`；非 Windows 目标删除 `third_party/conpty` 与
+  `build/Release/conpty`；交叉打包时删除构建机的 `build/Release`。
+- 所有 `@types/*` 包整个不发。
+- 所有 `.map`、`.pdb`、`.tsbuildinfo`、`.d.ts` / `.d.mts` / `.d.cts` 不发。此前
+  `@larksuiteoapi/node-sdk` 的 `types/index.d.ts`（15.09 MiB）是闭包内最大的单文件，
+  它只是类型声明，运行期不会被 require。
+- Linux 上随包 Node 在 `copyNodeRuntime` 里执行 `strip --strip-unneeded`；strip 不可用时
+  跳过并告警，不阻断构建。
+
+用例在 `apps/desktop-tauri/test/shipSet.test.mts`，同时覆盖 win32-x64 与 linux-x64 两个
+目标的纯规则断言；发运集落点断言仍在阻断发布的 Windows 腿执行。体积仍只记录、不设门禁
+（DR-M5-2b），本轮不改变 §13.2 的测量口径。
+
+本机 Windows x64 实测（2026-10-19，`build-host-sidecar.ts --stage`）：发运集
+**173,553,515 B（165.51 MiB）→ 146,328,676 B（139.55 MiB）**，其中 externals
+**75,703,574 B（72.20 MiB）→ 27,392,298 B（26.12 MiB）**；自验仍报
+`channels=43 builtinConfig=resources(exists=true)`。Linux AppImage 不在本机构建，
+其实际字节数由 CI 的 `Collect installer and record size` 记录；本轮只验证了规则与
+Windows 发运集，未在本机声称 Linux 安装包的最终数值。
+
 ---
 
 ## 14. 崩溃重启策略（Task 2 · DR-T2-4 的处置）

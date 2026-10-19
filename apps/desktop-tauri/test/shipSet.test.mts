@@ -32,13 +32,19 @@ const { isPrunedOut, stageShipSet } = require_(
   "../scripts/host-sidecar-ship.ts",
 ) as typeof import("../scripts/host-sidecar-ship.ts");
 
+const WIN_TARGET = { platform: "win32", arch: "x64" } as const;
+const LINUX_TARGET = { platform: "linux", arch: "x64" } as const;
+
 /** 造一棵最小的假包树：`node-pty` 的形状（prebuilds 三档 + 非 prebuilds 资产）。 */
 function makeFakeNodePty(root: string): string {
   const packageDir = join(root, "node-pty");
   const files = [
     "lib/index.js",
+    "lib/index.js.map",
+    "lib/index.d.ts",
     "build/Release/conpty/conpty.dll",
     "prebuilds/win32-x64/conpty.node",
+    "prebuilds/win32-x64/conpty.pdb",
     "prebuilds/win32-arm64/conpty.node",
     "prebuilds/darwin-arm64/pty.node",
   ];
@@ -81,17 +87,51 @@ function stageFixture(root: string, variant: "core" | "pruned" | "unpruned"): st
   return stageRoot;
 }
 
-test("剪枝：只留 win32-x64，且父目录本身不能连带被裁", () => {
-  assert.equal(isPrunedOut("node-pty", "prebuilds"), false, "父目录必须保留，否则例外无从判定");
-  assert.equal(isPrunedOut("node-pty", "prebuilds/win32-x64"), false, "目标平台的目录本体要留");
-  assert.equal(isPrunedOut("node-pty", "prebuilds/win32-x64/conpty.node"), false);
-  assert.equal(isPrunedOut("node-pty", "prebuilds/win32-arm64"), true, "非目标架构整档裁掉");
-  assert.equal(isPrunedOut("node-pty", "prebuilds/darwin-arm64/pty.node"), true);
-  assert.equal(isPrunedOut("node-pty", "lib/index.js"), false, "prebuilds 之外一律不动");
+test("剪枝：按目标平台只留自己的 prebuilds，且父目录本身不能连带被裁", () => {
+  assert.equal(
+    isPrunedOut("node-pty", "prebuilds", WIN_TARGET),
+    false,
+    "父目录必须保留，否则例外无从判定",
+  );
+  assert.equal(
+    isPrunedOut("node-pty", "prebuilds/win32-x64", WIN_TARGET),
+    false,
+    "目标平台的目录本体要留",
+  );
+  assert.equal(isPrunedOut("node-pty", "prebuilds/win32-x64/conpty.node", WIN_TARGET), false);
+  assert.equal(
+    isPrunedOut("node-pty", "prebuilds/win32-arm64", WIN_TARGET),
+    true,
+    "非目标架构整档裁掉",
+  );
+  assert.equal(isPrunedOut("node-pty", "prebuilds/darwin-arm64/pty.node", WIN_TARGET), true);
+  assert.equal(isPrunedOut("node-pty", "lib/index.js", WIN_TARGET), false, "prebuilds 之外不动");
   // conpty 那条路要用 build/Release/conpty（实测：裁了它 pty 就起不来）。
-  assert.equal(isPrunedOut("node-pty", "build/Release/conpty/conpty.dll"), false);
-  assert.equal(isPrunedOut("@types/node", "index.d.ts"), true, "纯类型包整个不发");
-  assert.equal(isPrunedOut("ssh2", "prebuilds/win32-arm64"), false, "规则只对写了规则的那个包生效");
+  assert.equal(isPrunedOut("node-pty", "build/Release/conpty/conpty.dll", WIN_TARGET), false);
+
+  // Linux AppImage：只留 linux-x64，Windows 预编译件与 conpty 都不进包。
+  assert.equal(isPrunedOut("node-pty", "prebuilds/linux-x64/pty.node", LINUX_TARGET), false);
+  assert.equal(isPrunedOut("node-pty", "prebuilds/win32-x64/pty.node", LINUX_TARGET), true);
+  assert.equal(isPrunedOut("node-pty", "third_party/conpty/OpenConsole.exe", LINUX_TARGET), true);
+  assert.equal(isPrunedOut("node-pty", "build/Release/conpty/conpty.dll", LINUX_TARGET), true);
+  assert.equal(isPrunedOut("node-pty", "build/Release/pty.node", LINUX_TARGET), false);
+
+  assert.equal(isPrunedOut("@types/node", "index.d.ts", WIN_TARGET), true, "纯类型包整个不发");
+  assert.equal(
+    isPrunedOut("@larksuiteoapi/node-sdk", "types/index.d.ts", WIN_TARGET),
+    true,
+    "类型声明运行期不读",
+  );
+  assert.equal(
+    isPrunedOut("ssh2", "lib/protocol.js.map", WIN_TARGET),
+    true,
+    "source map 运行期不读",
+  );
+  assert.equal(
+    isPrunedOut("ssh2", "prebuilds/win32-arm64", WIN_TARGET),
+    false,
+    "规则只对写了规则的那个包生效",
+  );
 });
 
 /**
@@ -115,6 +155,12 @@ test(
       assert.ok(existsSync(join(vendor, "prebuilds", "win32-x64", "conpty.node")));
       assert.ok(!existsSync(join(vendor, "prebuilds", "win32-arm64")), "非目标架构不应进发运集");
       assert.ok(!existsSync(join(vendor, "prebuilds", "darwin-arm64")));
+      assert.ok(!existsSync(join(vendor, "lib", "index.js.map")), "source map 不应进发运集");
+      assert.ok(!existsSync(join(vendor, "lib", "index.d.ts")), "类型声明不应进发运集");
+      assert.ok(
+        !existsSync(join(vendor, "prebuilds", "win32-x64", "conpty.pdb")),
+        "PDB 调试符号不应进发运集",
+      );
       assert.ok(
         !existsSync(join(vendor, "node_modules")),
         "嵌套 node_modules 由闭包单独搬运，不该在这一层",

@@ -11,14 +11,14 @@
 
 ## 产物与命名
 
-| 项 | 约定 |
-| --- | --- |
-| 构建命令 | `node scripts/build-fnos-fpk.ts`（`--help` 见参数） |
-| 产物 | `dist/fnos/releases/<version>/mode-<version>-x86_64.fpk` + `.sha256` |
-| 版本默认 | 最近 tag（`git describe --tags --abbrev=0`，去 `v` 前缀）；`--version` 覆盖 |
-| appname | `mode`；`platform = x86`（fnOS 当前主架构 x86_64） |
+| 项         | 约定                                                                                                                                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 构建命令   | `node scripts/build-fnos-fpk.ts`（`--help` 见参数）                                                                                                                                                              |
+| 产物       | `dist/fnos/releases/<version>/mode-<version>-x86_64.fpk` + `.sha256`                                                                                                                                             |
+| 版本默认   | 最近 tag（`git describe --tags --abbrev=0`，去 `v` 前缀）；`--version` 覆盖                                                                                                                                      |
+| appname    | `mode`；`platform = x86`（fnOS 当前主架构 x86_64）                                                                                                                                                               |
 | 捆绑运行时 | 官方 Node `v24.14.0` linux-x64（放 `runtime/bin/node`，随附 `runtime/LICENSE`）。镜像与仓库既有约定一致：`MODE_NODE_DIST_MIRROR`，默认 `https://cdn.npmmirror.com/binaries/node`，回退 `https://nodejs.org/dist` |
-| fnpack | 官方 `fnpack 1.2.3`；`MODE_FNPACK_PATH` 可指向本地二进制，否则按平台自动下载（win32-x64 校验 sha256） |
+| fnpack     | 官方 `fnpack 1.2.3`；`MODE_FNPACK_PATH` 可指向本地二进制，否则按平台自动下载（win32-x64 校验 sha256）                                                                                                            |
 
 打包机要求：Linux 或 Windows 均可。仓库 `pnpm-workspace.yaml` 的 `supportedArchitectures` 已包含 linux x64/arm64，`@lydell/node-pty-linux-*` 预编译件在开发机上齐备，因此 Windows 也能产出完整 linux-x64 发行包。
 
@@ -54,22 +54,32 @@
     ├── ui/images/icon_{64,256}.png
     ├── proxy.mjs             # 网关接入代理（监听 app.sock：前缀剥离 + 令牌注入）
     ├── bin/mode.mjs          # 发行包入口（runner）
-    ├── web/ server/ agent/ node_modules/   # build:mode 发行内容原样
+    ├── web/ server/ agent/ node_modules/   # build:mode 发行内容（已裁剪调试/类型文件与非目标平台原生件）
     └── runtime/                            # 捆绑的 linux-x64 Node 运行时
         ├── bin/node
         └── LICENSE                         # 再分发 Node 必须随附的许可文本
 ```
 
+## 体积裁剪（2026-10-19）
+
+- `build:mode` 在打 tar 前统一删除 source map、PDB、`.d.ts` / `.d.mts` / `.d.cts` 与 `.tsbuildinfo`。这些文件运行期不会被读取；web 生产构建本身使用 hidden sourcemap（HTML 不引用），删除不影响浏览器加载。
+- fnOS 在解包后再按 linux-x64 收窄原生件：只保留 `@mbears/opentui-core-linux-x64`、`koffi/build/koffi/linux_x64`、`node-pty/prebuilds/linux-x64`；删除其他平台的预编译件、Windows 专用 conpty，以及交叉打包时构建机产生的 `node-pty/build/Release`。
+- 最终 fpk 的内层 `app.tgz` 与外壳都由构建脚本以 gzip level 9 重打包（fnpack 原始输出为默认压缩级别）；内层文件清单与 fnpack 生成的一致，包内文件与执行位断言不变。
+- Linux 打包机上对捆绑 Node 执行 `strip --strip-unneeded`；strip 不可用时保留原文件并告警，不改变功能或 `>50MB` 断言。Node 的 LICENSE 仍随包分发。
+- 验收 1/2 的结构断言、令牌行为与发行冒烟不因裁剪变化；体积在构建日志与 Release 资产中记录。
+
+本机（Windows，复用 0.0.22 发行包）实测：**130,972,921 B → 87,041,841 B（-33.5%）**；结构断言与令牌行为检查通过。CI 在 Linux 打包机上还会对捆绑 Node 执行 strip，实际发布包会略小于此值。
+
 ## 运行时契约（状态所有者）
 
-| 状态 | 所有者（唯一写入方） | 持久位置 |
-| --- | --- | --- |
-| 服务进程（PID） | `cmd/main` | `$TRIM_PKGVAR/app.pid` |
-| 网关代理进程（PID） | `cmd/main` | `$TRIM_PKGVAR/proxy.pid`（socket：`$TRIM_APPDEST/app.sock`） |
-| 访问令牌 | `cmd/lib.sh`（`mode_ensure_token`） | `$TRIM_PKGETC/token`（0600） |
-| 凭据加密密钥 | `cmd/lib.sh`（`mode_ensure_credential_secret`） | `$TRIM_PKGETC/credential-secret`（0600） |
-| Mode 数据根 | Mode 自身初始化器（`initializeDataRootNonInteractive`） | `$TRIM_PKGVAR/.mode`（`MODE_DATA_BASE_DIR=$TRIM_PKGVAR`） |
-| 工作区 | `cmd/main` 每次 start 解析 | `etc/workspace` > `TRIM_DATA_ACCESSIBLE_PATHS` 首项 > `$TRIM_PKGVAR/workspace` |
+| 状态                | 所有者（唯一写入方）                                    | 持久位置                                                                       |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 服务进程（PID）     | `cmd/main`                                              | `$TRIM_PKGVAR/app.pid`                                                         |
+| 网关代理进程（PID） | `cmd/main`                                              | `$TRIM_PKGVAR/proxy.pid`（socket：`$TRIM_APPDEST/app.sock`）                   |
+| 访问令牌            | `cmd/lib.sh`（`mode_ensure_token`）                     | `$TRIM_PKGETC/token`（0600）                                                   |
+| 凭据加密密钥        | `cmd/lib.sh`（`mode_ensure_credential_secret`）         | `$TRIM_PKGETC/credential-secret`（0600）                                       |
+| Mode 数据根         | Mode 自身初始化器（`initializeDataRootNonInteractive`） | `$TRIM_PKGVAR/.mode`（`MODE_DATA_BASE_DIR=$TRIM_PKGVAR`）                      |
+| 工作区              | `cmd/main` 每次 start 解析                              | `etc/workspace` > `TRIM_DATA_ACCESSIBLE_PATHS` 首项 > `$TRIM_PKGVAR/workspace` |
 
 - 监听 `0.0.0.0:3030`；端口来源 `manifest.service_port` → `TRIM_SERVICE_PORT`（脚本兜底 3030）。非回环绑定必须带令牌（runner 的既有约束）。
 - 鉴权边界（与 `packages/server` 实现一致）：仅 `/api/*` 与 `/ws` 校验令牌；静态资源不拦。首次带 `?token=` 访问即落 HttpOnly Cookie，后续页面内 RPC 复用。
@@ -100,6 +110,7 @@
 ## Windows 打包的执行位问题
 
 fnpack 在 Windows 上打包不写入执行位（tar 成员一律 0666，官方工具行为）。处置：
+
 - 构建脚本对最终 fpk 重打包，用 GNU tar `--mode=a+rx` 强制 `cmd/*` 可执行，并对结果断言；断言失败即失败（不产出可疑产物）。
 - 捆绑 Node 与入口脚本的执行位在目标机由 `install_callback`（chmod 755）补齐；`cmd/main` 启动前再防御性 chmod；若 target 卷属主不允许，回退为复制到 `$TRIM_PKGVAR/runtime/bin/node` 执行（属主即运行用户）。
 
