@@ -83,13 +83,13 @@
 
 ### E. 输入与命令中心
 
-| #   | 场景                                 | 证据来源                                                                                | 状态                                  |
-| --- | ------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------- |
-| E1  | 输入面板：光标、换行、粘贴、状态行   | `app-input-pane.tsx`、`app-input-status.tsx`                                            | 无自动化                              |
-| E2  | 斜杠命令：补全、执行、错误           | `app-keyboard-suggestions.ts`、`TuiSlashCommandSuggestion`                              | 部分：补全/窗口（批 11、34）          |
-| E3  | 模式/模型/effort：切换命令与建议面板 | `app-mode-command.ts`、`app-model-command.ts`、`app-effort-command.ts`、`TuiSetMode`    | 部分：过滤/选择/补全（批 21、22、34） |
-| E4  | 文件提及：`@` 补全与工作区建议       | `app-file-mentions.ts`、`app-file-mention-panel.tsx`、`TuiListWorkspacePathSuggestions` | 部分：可视窗口（批 16）               |
-| E5  | 键盘帮助与快捷键：平台差异           | `app-keyboard.ts`、`app-keyboard-helpers.ts`                                            | 部分：快捷键逻辑（批 2、5、23、34）   |
+| #   | 场景                                 | 证据来源                                                                                | 状态                                    |
+| --- | ------------------------------------ | --------------------------------------------------------------------------------------- | --------------------------------------- |
+| E1  | 输入面板：光标、换行、粘贴、状态行   | `app-input-pane.tsx`、`app-input-status.tsx`                                            | 无自动化                                |
+| E2  | 斜杠命令：补全、执行、错误           | `app-keyboard-suggestions.ts`、`TuiSlashCommandSuggestion`                              | 部分：补全/窗口（批 11、34）            |
+| E3  | 模式/模型/effort：切换命令与建议面板 | `app-mode-command.ts`、`app-model-command.ts`、`app-effort-command.ts`、`TuiSetMode`    | 部分：过滤/选择/补全（批 21、22、34）   |
+| E4  | 文件提及：`@` 补全与工作区建议       | `app-file-mentions.ts`、`app-file-mention-panel.tsx`、`TuiListWorkspacePathSuggestions` | 部分：可视窗口（批 16）                 |
+| E5  | 键盘帮助与快捷键：平台差异           | `app-keyboard.ts`、`app-keyboard-helpers.ts`                                            | 部分：快捷键逻辑（批 2、5、23、34、35） |
 
 ### F. 侧栏、子代理与工作流
 
@@ -223,4 +223,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   可选 path；未知工具按数字/嵌套对象/数组/布尔/null 概括展示；
 - 第三十四批（`app-keyboard-helpers` 补全）：model/effort/mode 补全按选中项写回
   `/model provider/model`、`/effort id`、`/mode id`，下标夹取；无选中态或空列表不写草稿；
+- 第三十五批（`app-sidebar-keyboard`）：Ctrl+X 只消费按键并提示 leader；leader 后
+  B/M/A 分别切换侧栏、修改文件区块、API 区块，按键被消费并按展开/可见状态给出文案；
+  普通按键不消费也不改状态；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
