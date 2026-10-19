@@ -651,3 +651,20 @@ stale session / `REMOTE_WORKSPACE_IDENTITY_MISMATCH` 测试、真机 LAN 配对�
 - `pnpm --filter @mode/desktop-tauri test`：37 pass / 1 fail / 7 skip（失败项仍是工作区里
   另一条未提交 update-state 改动引起的 `onUpdateStateChanged` 断言，与本迁移无关）；
 - `pnpm typecheck` 通过；本次改动文件 oxlint 0 warning / 0 error。
+
+## 20. 执行记录（2026-10-19，预发布供真机验收）
+
+为满足两台 Windows 真机验收，用 `workflow_dispatch` 发了一个预发布（不顶掉 Latest，
+现有用户不会被自动更新拉进来）：
+
+- tag：`v0.0.61-audit.20261019`，指向 `aac5c154`；
+- run：`39278288517`，`release` / `verify` / fnos / macOS / Windows Tauri / Linux Tauri /
+  Electron diagnostic / checksums / publish 全部 success；
+- 产物：`Mode-0.0.61-audit.20261019-win-x64.exe`（51 MB）、macOS dmg、Linux AppImage、
+  fnos fpk、`latest.json`、`sha256.txt`；
+- 验收范围：LR-1 设备页（LAN 开关/配对/已配对设备与能力位）、LR-3 远程桌面（授权/同意弹窗/
+  多屏/剪贴板/断连重连）、LR-4 LAN 远程工作区（attach、对话/任务/文件/Git、关闭 tab 释放）。
+- 已知未完成：SSH/WSL/Docker 工作区返回不支持；bot reconnect 与 UI 断线重连降级未做；
+  远程桌面仅 Windows；LAN 按可信局域网模型（无 TLS）。
+
+验收通过后再发正式版 `v0.0.61`，并在发布说明写支持矩阵。
