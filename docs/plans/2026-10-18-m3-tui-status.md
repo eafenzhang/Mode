@@ -97,7 +97,7 @@
 | --- | ---------------------------------------- | -------------------------------------------------------------------- | ---------------------------- |
 | F1  | 侧栏：MCP、修改文件、子代理、API 区块    | `app-sidebar*.tsx`、`TuiListMcpServers`                              | 无自动化                     |
 | F2  | 子代理：事件、transcript 快照、切换视图  | `app-subagent-*.ts`、`TuiReadSubagents`、`TuiReadSubagentTranscript` | 部分：谓词/快照（批 17、27） |
-| F3  | 工作流：卡片、运行列表、重放、镜像到会话 | `app-workflow-*.ts`、`TuiListWorkflowRuns`、`TuiReplayWorkflowRuns`  | 部分：镜像/步数（批 39）     |
+| F3  | 工作流：卡片、运行列表、重放、镜像到会话 | `app-workflow-*.ts`、`TuiListWorkflowRuns`、`TuiReplayWorkflowRuns`  | 部分：镜像/步数（批 39、40） |
 
 ### G. 系统面
 
@@ -237,4 +237,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第三十九批（`app-workflow-mirror`）：步数 = 节点数 + 未入表数，settled 按 phase 与
   未入表结算数；卡片索引按 toolCallId 建表、无关联键的 run 不进表、日志缺省为空数组；
   种子逐个并入且已有 runId 不被覆盖；
+- 第四十批（`app-workflow-events`）：无 setter 时直接返回；无效 envelope 保持镜像引用；
+  `run-started` 建出运行态条目（revision 1、running、空 usage/actors/nodes）；同一事件
+  重放保持引用；`log` 折叠空白并追加到日志尾，空白日志不改日志；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
