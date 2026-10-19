@@ -906,6 +906,18 @@ const faIR: Record<string, string> = {
   "bots.groupChat.mode.disabled": "نادیده گرفتن گروه‌ها",
   "bots.groupChat.mode.mention": "@منشن",
   "bots.groupChat.mode.always": "همه پیام‌ها",
+  "bots.groupChat.permissions.pending": "گروه‌های در انتظار تأیید",
+  "bots.groupChat.permissions.approved": "گروه‌های تأییدشده",
+  "bots.groupChat.permissions.empty":
+    "هنوز تأیید گروهی ثبت نشده است؛ با دریافت نخستین پیام گروه، گروه ثبت می‌شود.",
+  "bots.groupChat.permissions.approve": "تأیید",
+  "bots.groupChat.permissions.reject": "رد",
+  "bots.groupChat.permissions.remove": "حذف",
+  "bots.deliveryMode.title": "روش ارسال پیام",
+  "bots.deliveryMode.description":
+    "پاسخ خودکار مستقیماً ارسال می‌شود. در حالت فقط ابزار، خروجی معمولی هوش مصنوعی به‌طور خودکار ارسال نمی‌شود و باید از myagents im send-message استفاده شود. رسید فرمان‌ها و مجوزها/پرسش‌ها تغییر نمی‌کنند.",
+  "bots.deliveryMode.auto": "پاسخ خودکار",
+  "bots.deliveryMode.toolOnly": "فقط ابزار",
   "bots.heartbeat.title": "ضربان ربات",
   "bots.heartbeat.description":
     "بررسی دوره‌ای فضای کاری ({min}–{max} دقیقه؛ 0 یعنی خاموش) که فقط هنگام تغییر گزارش می‌دهد و می‌توانید با HEARTBEAT.md دستور سفارشی بدهید.",

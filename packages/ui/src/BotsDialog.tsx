@@ -44,6 +44,7 @@ import {
 } from "@/BotsDialog/BotSummaryCard.js";
 import { ProviderSettingsCard } from "@/BotsDialog/ProviderSettingsCard.js";
 import { BotHeartbeatCard } from "@/BotsDialog/BotHeartbeatCard.js";
+import { BotDeliveryModeCard } from "@/BotsDialog/BotDeliveryModeCard.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { BotGroupChatCard } from "@/BotsDialog/BotGroupChatCard.js";
 import { BotPrivateChatCard } from "@/BotsDialog/BotPrivateChatCard.js";
@@ -1630,7 +1631,44 @@ export function BotsDialog({
 
                   <BotHeartbeatCard bot={selectedBot} onPatchBot={patchSelectedBot} />
 
-                  <BotGroupChatCard bot={selectedBot} onPatchBot={patchSelectedBot} />
+                  <BotDeliveryModeCard bot={selectedBot} onPatchBot={patchSelectedBot} />
+
+                  {selectedBot.provider === "weixin" ? null : (
+                    <BotGroupChatCard
+                      bot={selectedBot}
+                      onPatchBot={patchSelectedBot}
+                      onApproveGroup={async (groupId) => {
+                        const updated = await botsService.approveBotGroup({
+                          botId: selectedBot.id,
+                          groupId,
+                        });
+                        setConfig((previous) => ({
+                          ...previous,
+                          bots: previous.bots.map((bot) => (bot.id === updated.id ? updated : bot)),
+                        }));
+                      }}
+                      onRejectGroup={async (groupId) => {
+                        const updated = await botsService.rejectBotGroup({
+                          botId: selectedBot.id,
+                          groupId,
+                        });
+                        setConfig((previous) => ({
+                          ...previous,
+                          bots: previous.bots.map((bot) => (bot.id === updated.id ? updated : bot)),
+                        }));
+                      }}
+                      onRemoveGroup={async (groupId) => {
+                        const updated = await botsService.removeBotGroup({
+                          botId: selectedBot.id,
+                          groupId,
+                        });
+                        setConfig((previous) => ({
+                          ...previous,
+                          bots: previous.bots.map((bot) => (bot.id === updated.id ? updated : bot)),
+                        }));
+                      }}
+                    />
+                  )}
 
                   {selectedBot.provider === "dingtalk" ? (
                     <BotDingtalkCardConfigCard bot={selectedBot} onPatchBot={patchSelectedBot} />

@@ -587,7 +587,8 @@ const zhCN: Record<string, string> = {
   "bots.feishuAppSecretPlaceholder": "飞书 App Secret",
   "bots.feishuCredentialsMissing": "尚未配置飞书应用凭据。",
   "bots.feishuManualTitle": "或手动填写",
-  "bots.feishuManualDescription": "在飞书开放平台创建自建应用后，填写该应用的 App ID 与 App Secret。",
+  "bots.feishuManualDescription":
+    "在飞书开放平台创建自建应用后，填写该应用的 App ID 与 App Secret。",
   "bots.feishuSaveManual": "保存并接入",
   "bots.feishuManualSaved": "飞书凭据已保存。请在单聊中发送 /bind 完成绑定。",
   "bots.callbackSecretPlaceholder": "回调密钥",
@@ -815,6 +816,17 @@ const zhCN: Record<string, string> = {
   "bots.groupChat.mode.disabled": "不响应群聊",
   "bots.groupChat.mode.mention": "@提及",
   "bots.groupChat.mode.always": "全部消息",
+  "bots.groupChat.permissions.pending": "待审批群",
+  "bots.groupChat.permissions.approved": "已授权群",
+  "bots.groupChat.permissions.empty": "暂无群授权记录；机器人被拉进群后会在收到群消息时登记。",
+  "bots.groupChat.permissions.approve": "批准",
+  "bots.groupChat.permissions.reject": "拒绝",
+  "bots.groupChat.permissions.remove": "移除",
+  "bots.deliveryMode.title": "消息发送方式",
+  "bots.deliveryMode.description":
+    "自动回复会直接推送；仅工具发送时普通 AI 输出不外发，需要显式使用 myagents im send-message。命令回执和权限/提问不受影响。",
+  "bots.deliveryMode.auto": "自动回复",
+  "bots.deliveryMode.toolOnly": "仅工具发送",
   "bots.heartbeat.title": "机器人心跳",
   "bots.heartbeat.description":
     "定时唤醒检查工作区（0 关闭，{min}–{max} 分钟）：有变化时汇报，正常时静默，可用 HEARTBEAT.md 自定义指引。",

@@ -900,6 +900,18 @@ const enUS: Record<string, string> = {
   "bots.groupChat.mode.disabled": "Ignore groups",
   "bots.groupChat.mode.mention": "@mention",
   "bots.groupChat.mode.always": "All messages",
+  "bots.groupChat.permissions.pending": "Groups awaiting approval",
+  "bots.groupChat.permissions.approved": "Approved groups",
+  "bots.groupChat.permissions.empty":
+    "No group approvals yet; a group is registered when the bot receives its first message.",
+  "bots.groupChat.permissions.approve": "Approve",
+  "bots.groupChat.permissions.reject": "Reject",
+  "bots.groupChat.permissions.remove": "Remove",
+  "bots.deliveryMode.title": "Message delivery",
+  "bots.deliveryMode.description":
+    "Auto replies are pushed directly. With tool-only, ordinary AI output is not sent automatically; use myagents im send-message explicitly. Command receipts, permissions, and questions are unaffected.",
+  "bots.deliveryMode.auto": "Auto reply",
+  "bots.deliveryMode.toolOnly": "Tool only",
   "bots.heartbeat.title": "Agent heartbeat",
   "bots.heartbeat.description":
     "Wake the agent periodically to inspect the workspace (0 disables, {min}–{max} min): report on change, stay quiet otherwise; add HEARTBEAT.md for custom guidance.",
