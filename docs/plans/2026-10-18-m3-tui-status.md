@@ -190,4 +190,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二十二批（`app-input` model、`app-shiki-diff-view`）：model 过滤按 `provider/model`
   值、label 与 providerLabel 匹配，空查询全量，选择态产出与夹取；diff 视图在 121 列起
   切分栏、120 列及以下统一视图；
+- 第二十三批（`app-keyboard-suggestions`、`app-input` 剪贴板）：建议导航仅在选中态生效，
+  上下键移动并在边界夹取、消费按键，优先级 model → effort → mode → slash；剪贴板图片只
+  接受受支持的 image/\* 且 data URL 非空；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。

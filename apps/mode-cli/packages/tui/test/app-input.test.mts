@@ -5,6 +5,7 @@ import {
   clampIndex,
   filterEffortOptions,
   filterModelOptions,
+  isValidClipboardImage,
   filterSlashCommands,
   modelCommandQuery,
   reconcileModelCommandSelection,
@@ -149,4 +150,28 @@ test("model 选择：命令态才产出选中项，下标夹取到有效范围",
   assert.deepEqual(selectedModelOption("/model gpt", { selectedIndex: 9 }, MODELS), MODELS[1]);
   assert.equal(selectedModelOption("hello", { selectedIndex: 0 }, MODELS), undefined);
   assert.equal(selectedModelOption("/model gpt", undefined, MODELS), undefined);
+});
+
+test("剪贴板图片：仅接受受支持的 image/* 且带 data URL 的输入", () => {
+  assert.equal(
+    isValidClipboardImage({
+      mediaType: "image/png",
+      dataUrl: "data:image/png;base64,abc",
+    } as never),
+    true,
+  );
+  assert.equal(
+    isValidClipboardImage({
+      mediaType: "image/jpeg",
+      dataUrl: "data:image/jpeg;base64,abc",
+    } as never),
+    true,
+  );
+  assert.equal(isValidClipboardImage({ mediaType: "text/plain", dataUrl: "x" } as never), false);
+  assert.equal(isValidClipboardImage({ mediaType: "image/png", dataUrl: "x" } as never), false);
+  assert.equal(isValidClipboardImage({ mediaType: "image/png", dataUrl: "" } as never), false);
+  assert.equal(
+    isValidClipboardImage({ mediaType: "", dataUrl: "data:image/png;base64,a" } as never),
+    false,
+  );
 });
