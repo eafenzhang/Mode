@@ -113,40 +113,46 @@ Tauri 的主程序是 `ModeTauri.exe`，旧 Electron 线是 `Mode.exe`。这条�
 Modify `docs/specs/*` 的相关节（如需要）。
 
 - [x] **Step 1**: 把 M3 交接文档的输入整理成 `RELEASE.md` 的五段：**构建**（命令与产物名）、
-  **自动与人工验证的分界**（opt-in webview 测试、真鼠标拖拽与视觉、更新演练——这些**不在 CI**，
-  必须是发版前清单项）、**签名与清单**、**发布**、**回滚**（含「重新发布上一版 Electron」的具体步骤）。
-  〔2026-10-18 复核：`RELEASE.md` 已含 §1 构建 / §2 验证 / §3 签名与清单 / §4 发布 / §5 回滚；
-  §2/§3 明确列出 CI 不覆盖的人工项与更新演练〕
+      **自动与人工验证的分界**（opt-in webview 测试、真鼠标拖拽与视觉、更新演练——这些**不在 CI**，
+      必须是发版前清单项）、**签名与清单**、**发布**、**回滚**（含「重新发布上一版 Electron」的具体步骤）。
+      〔2026-10-18 复核：`RELEASE.md` 已含 §1 构建 / §2 验证 / §3 签名与清单 / §4 发布 / §5 回滚；
+      §2/§3 明确列出 CI 不覆盖的人工项与更新演练〕
 - [x] **Step 2**: 在 `RELEASE.md` 里明确写死：**发版由人推送触发**，agent 只到「本地可推送」为止。
-  〔2026-10-18 复核：`RELEASE.md` §4.1「推送由人执行，agent 不执行 `git push`（含 `--tags`）」〕
+      〔2026-10-18 复核：`RELEASE.md` §4.1「推送由人执行，agent 不执行 `git push`（含 `--tags`）」〕
 - [x] **Step 3**: 提交。 〔2026-10-18 复核：`RELEASE.md` 已在 `7ad16584` 入库，后续修订随 Task 1–3〕
 
 ### Task 1: 签名密钥与 `latest.json`
 
 - [x] **Step 1–5（大纲，开工时出子计划）**：生成密钥（私钥进 CI secret，**不入库**）、
-  `tauri build` 携带签名、发布 `latest.json`、把 pubkey 从空串换成真值（**这会让 M1 的那条
-  「空串 fail closed」变成「真密钥校验」**，须同步改 spec 与守卫）、Windows 上旧版→新版真更新演练。
-  完成记录：`RELEASE.md` 的 1.4 / 2.2 V11 / 3.1–3.4 / 5.3；`createUpdaterArtifacts: true`
-  只产出 `.sig`，`latest.json` 由 `scripts/tauri-update-manifest.ts` 生成。
+      `tauri build` 携带签名、发布 `latest.json`、把 pubkey 从空串换成真值（**这会让 M1 的那条
+      「空串 fail closed」变成「真密钥校验」**，须同步改 spec 与守卫）、Windows 上旧版→新版真更新演练。
+      完成记录：`RELEASE.md` 的 1.4 / 2.2 V11 / 3.1–3.4 / 5.3；`createUpdaterArtifacts: true`
+      只产出 `.sig`，`latest.json` 由 `scripts/tauri-update-manifest.ts` 生成。
 
 ### Task 2: 切换发布线（DR-M5-1）
 
 - [x] **Step 1–5（大纲）**：`publish` 的产物来源从 Electron 换成 Tauri；旧线产物作为上一 release 的
-  资产**保留**；验证「同一次 run 不会既传 Electron 又传 Tauri 到同一 release」；本地 dry-run
-  （不 push）；提交。完成记录：`.superpowers/sdd/2026-10-16-tauri-m3-ecosystem/task-m5-2-report.md`。
+      资产**保留**；验证「同一次 run 不会既传 Electron 又传 Tauri 到同一 release」；本地 dry-run
+      （不 push）；提交。完成记录：`.superpowers/sdd/2026-10-16-tauri-m3-ecosystem/task-m5-2-report.md`。
 
 ### Task 3: 三指标门禁与收口
 
 - [x] **Step 1–4（大纲）**：把 M5 验收里的指标接进必跑门禁（具体是哪三项以路线图 M5 节为准）；
-  处理 spec §13.4 的**数字矛盾**（待人给口径）；把 §20 的开放项逐条关闭或登记；提交。
-  完成记录：`.superpowers/sdd/2026-10-16-tauri-m3-ecosystem/task-m5-3-report.md`。
-  **口径备注**：路线图 M5 第 241 行给的三项是「重合度 / 语言 / 安装包体积」。语言与体积
-  已接线；重合度按原文 `pnpm verify:self-developed` 接线，但 M4 的
-  `scripts/upstream-overlap-check.mjs` 尚未交付。按人 2026-10-17 的 ruling，缺失时该步骤
-  **只告警并 exit 0（wired, not enforced）**，脚本出现后自动变成阻断；重开条件是删除
-  `release.yml` 里那段缺失分支。
+      处理 spec §13.4 的**数字矛盾**（待人给口径）；把 §20 的开放项逐条关闭或登记；提交。
+      完成记录：`.superpowers/sdd/2026-10-16-tauri-m3-ecosystem/task-m5-3-report.md`。
+      **口径备注**：路线图 M5 第 241 行给的三项是「重合度 / 语言 / 安装包体积」。语言与体积
+      已接线；重合度按原文 `pnpm verify:self-developed` 接线，但 M4 的
+      `scripts/upstream-overlap-check.mjs` 尚未交付。按人 2026-10-17 的 ruling，缺失时该步骤
+      **只告警并 exit 0（wired, not enforced）**，脚本出现后自动变成阻断；重开条件是删除
+      `release.yml` 里那段缺失分支。
 
 ---
+
+## 发布记录（2026-10-19）
+
+- **v0.0.57**：首个 Tauri 自动发版。首次 run 在 verify 失败（`tools/plugin-host` 误引 workspace 包，`0590b249` 修复）；重跑后五腿构建与 publish 成功。真机验收发现 **P0**：安装包未带 agent 运行时，发送任务/插件市场均不可用。
+- **v0.0.58**：`afb49a4c` 把 `agent/glm` 纳入发运集并注入启动命令；全部 job 绿，Release 已发布。本机安装后发送任务得到模型回复、插件市场目录正常加载。
+- 仍未完成：三平台签名、旧线 EOL、差分更新验证（见 M5 路线图「发布工程」）。
 
 ## 阶段验收
 
@@ -159,11 +165,11 @@ Modify `docs/specs/*` 的相关节（如需要）。
 
 ## 风险
 
-| 风险 | 对冲 |
-| --- | --- |
-| 同名产物互覆，用户在切换点下到坏包 | DR-M5-1：切换以单一提交完成，旧产物保留；本地 dry-run |
-| 私钥入库或泄露 | 只进 CI secret，不入仓库；写明轮换方式 |
-| 「三平台 GA」被静默收窄 | DR-M5-2 摆明两条路，未定前不写死；选了就登记偏差 |
-| 只有 CI 绿而人工项没做 | `RELEASE.md` 把人工项列成可勾清单，且写明它们不在 CI |
-| 又拿错尺子谈体积 | 沿用整包口径（NSIS 安装包字节）；§13.4 的矛盾交人 |
-| 回滚没有真实路径 | 回滚步骤必须是「重新发布上一个 Electron 版本」的具体命令，不是「回滚即可」 |
+| 风险                               | 对冲                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| 同名产物互覆，用户在切换点下到坏包 | DR-M5-1：切换以单一提交完成，旧产物保留；本地 dry-run                      |
+| 私钥入库或泄露                     | 只进 CI secret，不入仓库；写明轮换方式                                     |
+| 「三平台 GA」被静默收窄            | DR-M5-2 摆明两条路，未定前不写死；选了就登记偏差                           |
+| 只有 CI 绿而人工项没做             | `RELEASE.md` 把人工项列成可勾清单，且写明它们不在 CI                       |
+| 又拿错尺子谈体积                   | 沿用整包口径（NSIS 安装包字节）；§13.4 的矛盾交人                          |
+| 回滚没有真实路径                   | 回滚步骤必须是「重新发布上一个 Electron 版本」的具体命令，不是「回滚即可」 |

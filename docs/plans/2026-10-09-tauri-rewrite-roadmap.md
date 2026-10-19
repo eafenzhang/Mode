@@ -28,14 +28,14 @@
 
 ## 先拍板的五个决策（M0 决策记录，DR-01…DR-05）
 
-| # | 决策 | 结论 | 依据 |
-|---|---|---|---|
-| DR-01 | 插件宿主 | Rust 核心 + **Node sidecar 子进程**跑存量 TS 插件/MCP 工具/Skills；sidecar 首启按需下载 | 插件生态是 npm/TS（272 插件目录、Claude/Codex 兼容），换引擎=放弃生态；插件属第三方代码，不在"自研"口径内 |
-| DR-02 | 前端 UI 策略 | 骨架期（M1–M3）**可挂载现有 React UI** 加速联调（开发期不分发，不产生额外义务）；**M4 完成 clean-room 替换**，1.0 发布前删除全部上游衍生 UI | `packages/ui` 有 15.8 万行仅改名上游代码，终态必须替换；但第一版就重写 UI 会拖死骨架进度 |
-| DR-03 | 上游同步 | **立刻停掉** `upstream-audit.yml` 的定时同步（改 `workflow_dispatch`） | 继续同步=持续引入上游新版权，自研永远还不完 |
-| DR-04 | 上游基线 | 把上游 main 导入为本仓库 `upstream/zcode-baseline` 分支（一次性 fetch + branch） | 兑现 NOTICE"对照上游仓库 diff 追溯"；给 M4 的 diff 清零验收当标尺 |
-| DR-05 | 仓库形态 | **同仓库并存**（`crates/`、`apps/desktop-tauri/` 与旧栈同仓），旧栈打 EOL 后归档 | 复用协议定义、测试基线、CI 与第三方台账；避免双仓漂移 |
-| DR-06 | 与电脑控制（CUA）一期的归口 | 电脑控制并行会话已在做 **Rust addon（napi-rs + windows-rs）+ Rust 工具链接入 + electron-builder 打包**（`docs/specs/computer-use-windows-runtime.md`）——**Rust 工具链、cargo CI job、electron-builder 打包规则以先落地的一期为准**，M0 的 C# helper Rust 化跟进其约定；两者同期只允许一处改 `electron-builder.config.js` | 电脑控制一期实质上就是路线图要的"Rust 先行试水"，重复引入两套 Cargo workspace/CI 只会互相打架 |
+| #     | 决策                        | 结论                                                                                                                                                                                                                                                                                                                     | 依据                                                                                                      |
+| ----- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| DR-01 | 插件宿主                    | Rust 核心 + **Node sidecar 子进程**跑存量 TS 插件/MCP 工具/Skills；sidecar 首启按需下载                                                                                                                                                                                                                                  | 插件生态是 npm/TS（272 插件目录、Claude/Codex 兼容），换引擎=放弃生态；插件属第三方代码，不在"自研"口径内 |
+| DR-02 | 前端 UI 策略                | 骨架期（M1–M3）**可挂载现有 React UI** 加速联调（开发期不分发，不产生额外义务）；**M4 完成 clean-room 替换**，1.0 发布前删除全部上游衍生 UI                                                                                                                                                                              | `packages/ui` 有 15.8 万行仅改名上游代码，终态必须替换；但第一版就重写 UI 会拖死骨架进度                  |
+| DR-03 | 上游同步                    | **立刻停掉** `upstream-audit.yml` 的定时同步（改 `workflow_dispatch`）                                                                                                                                                                                                                                                   | 继续同步=持续引入上游新版权，自研永远还不完                                                               |
+| DR-04 | 上游基线                    | 把上游 main 导入为本仓库 `upstream/zcode-baseline` 分支（一次性 fetch + branch）                                                                                                                                                                                                                                         | 兑现 NOTICE"对照上游仓库 diff 追溯"；给 M4 的 diff 清零验收当标尺                                         |
+| DR-05 | 仓库形态                    | **同仓库并存**（`crates/`、`apps/desktop-tauri/` 与旧栈同仓），旧栈打 EOL 后归档                                                                                                                                                                                                                                         | 复用协议定义、测试基线、CI 与第三方台账；避免双仓漂移                                                     |
+| DR-06 | 与电脑控制（CUA）一期的归口 | 电脑控制并行会话已在做 **Rust addon（napi-rs + windows-rs）+ Rust 工具链接入 + electron-builder 打包**（`docs/specs/computer-use-windows-runtime.md`）——**Rust 工具链、cargo CI job、electron-builder 打包规则以先落地的一期为准**，M0 的 C# helper Rust 化跟进其约定；两者同期只允许一处改 `electron-builder.config.js` | 电脑控制一期实质上就是路线图要的"Rust 先行试水"，重复引入两套 Cargo workspace/CI 只会互相打架             |
 
 ---
 
@@ -57,12 +57,14 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 **目标：** 把"语言收窄、自研纪律、可验收基线"三件事在旧仓库先钉死，并用一个小 Rust 构件验证工具链。
 
 **Files:**
+
 - Modify: `.gitattributes`、`.github/workflows/upstream-audit.yml`、`AGENTS.md`
 - Create: `docs/specs/clean-room-policy.md`、`docs/specs/language-policy.md`、`scripts/check-language-policy.mjs`、`rust-toolchain.toml`、`crates/browser-import-helper/`（Rust 版 Windows 浏览器数据导入 helper）
 - Modify（协调后）: `packages/mode-cua/**`（JS → TS，归口并行会话）
 - 可选（过渡期发版线瘦身）: `packages/desktop/electron-builder.config.js`（修 asar 重复打包 + `compression: max`，见上轮实测：147MB → 目标 ~105MB）
 
 **Interfaces:**
+
 - Consumes: 无（起点）。
 - Produces: `scripts/check-language-policy.mjs`（CI 调用，退出码 0/1）、`crates/browser-import-helper` 的 CLI 契约（参数与现有 C# 版逐字节对齐）、clean-room 规则文本（后续所有阶段的 PR 检查项）。
 
@@ -103,10 +105,12 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 **子计划：** `docs/plans/2026-10-15-tauri-skeleton.md`（2026-10-15 产出，开工即用；含命令切片表、事件通道、capability 规则、体积基线与风险）。
 
 **Files:**
+
 - Create: `apps/desktop-tauri/`（`src-tauri/`：taui v2 工程 + `Cargo.toml` workspace 根挂 `crates/*`）、`crates/platform/`（IPlatformService 的 Rust 对应）、`crates/protocol/`（schemars + typeshare）、`crates/updater/`、`crates/tray/`、`crates/deeplink/`
 - Modify: `pnpm-workspace.yaml`（纳入 `apps/desktop-tauri`）、`.github/workflows/release.yml`（新增 tauri 出包 job）、`docs/specs/tauri-platform-commands.md`（本阶段 spec，开工时先写）
 
 **Interfaces:**
+
 - Consumes: 存量 `packages/ui`（DR-02 挂载）、`packages/shared/src/platform.ts` 的 `IPlatformService` 方法清单（作为 Rust 命令面的**接口规格**，只读签名与文档，不读实现）。
 - Produces: `platform::commands`（`#[tauri::command]`，与 `IPlatformService` 逐方法同名同参）、`protocol` crate 导出的 TS 类型（`typeshare` 生成 `packages/shared/src/generated/tauri-protocol.ts`）、`ModeTauri.exe` 安装包（≤25MB 目标）。
 
@@ -114,20 +118,20 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 - [x] **平台命令面**（2026-10-16，10 条注册可调用）：切片表由 `command_slice!` 宏声明为唯一真源，`init()` 与 `registered_names()` 从它派生，另有「JS 名 = 处理函数名 camelCase」守卫。**两处部分实现**（spec §5 登记）：`getApplicationIcon` 一律返回 `null`（真实取值要按平台做原生图标解码）；`saveFile` 的 `sourceUrl` 分支明确返回 `not_implemented_until_m3` 而不是静默写空文件。原计划列的「剪贴板 / 托盘 / 深链 / 代理设置 / 更新检查」不在 10 条切片内，留 Task 6 与 M3。
 - [x] **协议双端**（2026-10-16 落地）：Rust 侧真源 `crates/protocol`（8 个类型，全部 `rename_all = "camelCase"`，含 `SaveFileRequest` 的「data 与 sourceUrl 恰有其一」不变量）+ 往返测试 6 用例。**Deviation**：没用 typeshare，改走 `crates/protocol/src/bin/emit-schema.rs`（schemars → JSON Schema）+ `scripts/generate-tauri-protocol.mjs`（→ `packages/shared/src/generated/tauri-protocol.ts`），`--check` 已接进 CI，避免额外安装 CLI。生成器有一条约定：可选字段去掉 schemars 给的 `null` 分支（对应 Rust 侧 `skip_serializing_if`），产物因此与 `platform.ts` 手写声明一致。
 - [x] **UI 挂载（DR-02）**〔2026-10-16 落地，**Deviation**〕：适配层
-  `packages/ui/src/platform/tauri-invoke-shim.ts` 已落地（15 用例全绿，含编译期穷尽检查——
-  协议新增必选方法而 shim 没跟上时 typecheck 报错），并从 `@mode/ui` 的 `./tauri-platform`
-  子路径对壳公开。**挂载本身改成命令面验收台**：计划原文的「`frontendDist` 指向 renderer 产物」
-  实测做不到——存量 renderer 的启动链要求 Node Host 经 MessagePort 提供 `IServiceAccessor`
-  与数据库启动通道，那正是 M3 的 sidecar（DR-01）；没有 Host 只会停在启动/失败屏。
-  证据表见 `docs/specs/tauri-platform-commands.md` §4.2，产品 UI 挂载登记到 M3。
+      `packages/ui/src/platform/tauri-invoke-shim.ts` 已落地（15 用例全绿，含编译期穷尽检查——
+      协议新增必选方法而 shim 没跟上时 typecheck 报错），并从 `@mode/ui` 的 `./tauri-platform`
+      子路径对壳公开。**挂载本身改成命令面验收台**：计划原文的「`frontendDist` 指向 renderer 产物」
+      实测做不到——存量 renderer 的启动链要求 Node Host 经 MessagePort 提供 `IServiceAccessor`
+      与数据库启动通道，那正是 M3 的 sidecar（DR-01）；没有 Host 只会停在启动/失败屏。
+      证据表见 `docs/specs/tauri-platform-commands.md` §4.2，产品 UI 挂载登记到 M3。
 - [x] **三平台出包**〔2026-10-16〕：release.yml 新增 `tauri` job（win/msvc+nsis、
-  mac-14/arm64+dmg、ubuntu-24.04/x64+appimage），产物名 `Mode-<版本>-<平台>-<架构>.<ext>`。
-  **产物只发 workflow artifacts、不进 Release**（与旧线同名会互相覆盖），也**不挂 publish 门禁**
-  （三条腿未本机验证）——两处偏差与转正条件写在 workflow 注释与 spec §8。
-  体积基线：Windows NSIS **7.19 MiB**（实测，未含产品 UI 资产），mac/linux 待首次 CI。
+      mac-14/arm64+dmg、ubuntu-24.04/x64+appimage），产物名 `Mode-<版本>-<平台>-<架构>.<ext>`。
+      **产物只发 workflow artifacts、不进 Release**（与旧线同名会互相覆盖），也**不挂 publish 门禁**
+      （三条腿未本机验证）——两处偏差与转正条件写在 workflow 注释与 spec §8。
+      体积基线：Windows NSIS **7.19 MiB**（实测，未含产品 UI 资产），mac/linux 待首次 CI。
 - [x] **更新链 stub**〔2026-10-16〕：`tauri-plugin-updater` 接现有 GitHub Releases feed
-  （与旧线共用 `eafenzhang/Mode`、版本号延续），只声明 `latest.json` 端点 + 注册插件；
-  不注册更新命令、不设 pubkey（让 `check()` 明确失败而不是静默放行未签名更新）。
+      （与旧线共用 `eafenzhang/Mode`、版本号延续），只声明 `latest.json` 端点 + 注册插件；
+      不注册更新命令、不设 pubkey（让 `check()` 明确失败而不是静默放行未签名更新）。
 
 **阶段验收：** 三平台安装包全绿且 Windows ≤30MB（争取 25MB；renderer 资产 53MB 解包口径是主要变量）；Tauri 版可完成"打开窗口 → 渲染 UI → 走通 10 个平台命令"的 E2E；`cargo clippy -D warnings` 零告警；不带任何 Node 运行时。
 
@@ -139,12 +143,14 @@ tray 1 / updater 2 / tauri-test-manifest 2）、`clippy -D warnings` 零告警�
 语言政策门禁通过、release.yml 经 YAML 解析确认三平台矩阵。
 
 **M1 仍未关闭，只差一件**：
+
 1. ~~**Task 4 Step 3 的人工 E2E**~~〔**2026-10-17 已执行**：10 命令 + 深链逐条核对，
    记录见 spec §4.4 与 `docs/plans/2026-10-15-tauri-skeleton.md` 的「第四批」；
    验收台补了 `saveFile(sourceUrl)` 入口，成功/取消/超限/超时四条分支均已核对〕。
 2. **macOS / Linux 两条出包腿的首次 CI 运行**（本机只有 Windows + gnu 工具链；需人推送触发）。
 
 **两处需要人来决定的口径差异**（都已在 spec 登记）：
+
 - Tauri 产物目前**只发 workflow artifacts**，因为它与旧 Electron 线产物名逐字相同；
   改发 Release 要等 M5「release.yml 只出 Tauri 产物」。
 - `tauri` job **没挂进 `publish` 的 `needs`**：三条腿未验证过，挂上去会让每次 push 都卡成 draft；
@@ -164,10 +170,12 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 本节的工具名清单与实际注册表不符（见下）。
 
 **Files:**
+
 - Create: `crates/agent-core/`（session loop、streaming、CommandInbox、owner/lease、权限引擎）、`crates/agent-tools/`（fs/git/shell/pty[portable-pty]/browser 桥）、`crates/agent-protocol/`（stdio/WS 帧，对应 `packages/shared/src/mode-protocol`）、`docs/specs/tauri-agent-runtime.md`
 - Test: `crates/agent-core/tests/`（对拍套件）、复用 `pnpm --filter @mode/services test` 作为行为规格
 
 **Interfaces:**
+
 - Consumes: `crates/protocol`（M1）、`crates/platform`（工具要弹审批 UI 走平台命令）。
 - Produces: `agent_core::runtime::Runtime::run(prompt) -> Stream<Event>`、`agent_tools::registry()` 工具声明表（name/schema/权限等级，供权限引擎与 UI 审批用）。
   〔口径修正〕原写的「typeshare 导出」不成立：**运行时协议在 M2 期间仍以 TS 为真源**
@@ -177,29 +185,29 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
   schemars + 仓库内生成脚本），这一行原文是与 M1 实际产物的另一处不一致。
 
 - [x] **只读工具先行**〔口径修正，2026-10-18 按实测回填〕：`Glob`/`Grep` 在 oracle 运行时
-  **未注册**（调用返回 `tool_not_found`，见 spec §3.2 与 Ruling 17），因此实现范围实际是
-  `Read` + 「未注册工具不产生 `started`」的事件形状；对拍用例在
-  `crates/agent-tools/tests` 与 `crates/agent-core/tests/tool_parity.rs`。
+      **未注册**（调用返回 `tool_not_found`，见 spec §3.2 与 Ruling 17），因此实现范围实际是
+      `Read` + 「未注册工具不产生 `started`」的事件形状；对拍用例在
+      `crates/agent-tools/tests` 与 `crates/agent-core/tests/tool_parity.rs`。
 - [x] **文件写与 diff 呈现**〔2026-10-18 收口〕：`Write`/`Edit` 与审批已落地
-  （`approval.rs`、`permission_flow.rs`，`ApplyPatch` 实测不存在、已作废）；
-  `display.file_diff`（`crates/agent-tools/src/file_diff.rs`）已补，`Write` 覆盖与 `Edit`
-  成功结果带 diff、新建 `Write` 不带（观察）；`tool_parity` 逐字段比较 `display`。
+      （`approval.rs`、`permission_flow.rs`，`ApplyPatch` 实测不存在、已作废）；
+      `display.file_diff`（`crates/agent-tools/src/file_diff.rs`）已补，`Write` 覆盖与 `Edit`
+      成功结果带 diff、新建 `Write` 不带（观察）；`tool_parity` 逐字段比较 `display`。
 - [x] **shell 与 pty**〔2026-10-18 收口〕：Bash 与超时/取消/退出码对拍已落地；oracle 实测
-  管道而非 TTY（`[ -t 1 ]` 为假），**不引入 `portable-pty`**；host 层 `CommandInbox`
-  （`crates/agent-core/src/command_inbox.rs`，同 key FIFO、stale 完成不改队列、无超时）
-  已按 DR-T4-7 (c) 落地并由 5 条用例钉住顺序。Host 实际接线在 M3/M4，跨层对拍待 host 面可观察。
+      管道而非 TTY（`[ -t 1 ]` 为假），**不引入 `portable-pty`**；host 层 `CommandInbox`
+      （`crates/agent-core/src/command_inbox.rs`，同 key FIFO、stale 完成不改队列、无超时）
+      已按 DR-T4-7 (c) 落地并由 5 条用例钉住顺序。Host 实际接线在 M3/M4，跨层对拍待 host 面可观察。
 - [x] **会话流与重放**〔2026-10-18 收口〕：`desktop-continuous` 用
-  `crates/agent-core/tests/stream_parity.rs`；`web-remote-replayable` 的 `deliveryKind`
-  透传由 `turn_stream.rs` 锁定，重放语义归 Host（DR-T5-1 (a)），由
-  `packages/desktop/tests/task-realtime-replay.test.mts` 覆盖；改 stream/snapshot/queue 时两侧双跑。
+      `crates/agent-core/tests/stream_parity.rs`；`web-remote-replayable` 的 `deliveryKind`
+      透传由 `turn_stream.rs` 锁定，重放语义归 Host（DR-T5-1 (a)），由
+      `packages/desktop/tests/task-realtime-replay.test.mts` 覆盖；改 stream/snapshot/queue 时两侧双跑。
 - [x] **权限引擎**〔2026-10-18 按实测回填〕：`permission_engine.rs` / `permission_channel.rs` /
-  `approval.rs` / `rule_store.rs`；`allow_project` 落 `.mode/cli/db/db.sqlite` 的
-  `local_setting`（D1 裁决「Rust 直连 sqlite」，含并发追加与丢失更新用例）。
+      `approval.rs` / `rule_store.rs`；`allow_project` 落 `.mode/cli/db/db.sqlite` 的
+      `local_setting`（D1 裁决「Rust 直连 sqlite」，含并发追加与丢失更新用例）。
 - [x] **对拍矩阵收口**〔2026-10-18 按实测改口径〕：`packages/services/test` 60 个文件里
-  **0 个**引用运行时会话面，原「198 个测试里挑运行时用例」的前提已过期；覆盖来源改为
-  oracle 夹具 + `crates/agent-*/tests`，分类与理由见 `docs/specs/agent-runtime-parity-matrix.md`。
-  CI 门禁 `scripts/agent-runtime-parity-matrix.ts --check` 已挂进 release `verify`
-  （60/60 归类、11/11 资产存在）。真实模型 20 个端到端任务仍属阶段验收第 3 条，未执行。
+      **0 个**引用运行时会话面，原「198 个测试里挑运行时用例」的前提已过期；覆盖来源改为
+      oracle 夹具 + `crates/agent-*/tests`，分类与理由见 `docs/specs/agent-runtime-parity-matrix.md`。
+      CI 门禁 `scripts/agent-runtime-parity-matrix.ts --check` 已挂进 release `verify`
+      （60/60 归类、11/11 资产存在）。真实模型 20 个端到端任务仍属阶段验收第 3 条，未执行。
 
 **阶段验收：** 对拍套件全绿（工具序列 + 文件快照 + 事件流三层一致）；双链路 E2E 各自通过；用真实模型跑通 20 个端到端任务（改代码/跑测试/浏览器）无行为回归。
 
@@ -223,15 +231,18 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 > `crates/tui`；33 个场景仅有编译面证据，交互验收待人工）。
 
 **Files:**
+
 - Create: `crates/plugin-host/`（sidecar 生命周期管理：按需下载/启动/健康）、`crates/marketplace/`（`.mode-plugin` 清单与市场目录，兼容读旧格式）、`crates/lan/`（UDP 发现 + 配对码）、`crates/remote/`（russh / 系统 ssh 调用 + workspace attach）、`crates/server/`（axum，web-remote 链路）、`crates/tui/`（ratatui）、`crates/bots/`（IM 桥：HTTP/WS 直连或 sidecar 复用 TS SDK，按通道逐个决策）
 - Modify: `apps/mode-cli`（旧 TUI 标记归档）、`docs/specs/` 对应各域 spec（沿用既有 `lan-*`、`remote-workspace-identity`、`plugin-store-availability` 等 spec 作为行为规格）
 
 **Interfaces:**
+
 - Consumes: `agent_core::runtime`（插件工具注入点）、`crates/marketplace`（M2 的工具注册表）。
 - Produces: `plugin_host::Sidecar::ensure()`（返回可执行路径，缺失则按 manifest 下载）、`server::app()`（axum Router，路由与旧 server 一一对应，契约测试对拍）。
 
 - [ ] **Node sidecar 打包**：按 DR-01 —— Node 运行时 + 插件宿主 bundle 作为独立资产上 CDN；`plugin_host::ensure()` 首启用时下载、校验 sha256、健康探测；本地开发直连不下载。验收：断网时核心功能全在，仅插件功能提示"需下载组件"。〔2026-10-19 核对：M3 Task 1–5 的自动化面已完成——`crates/sidecar-host`、`host-standalone`、`window.mode` 注入、平台缺口（单实例/图标/sourceUrl）、Windows 安装包与两份体积预算均有测试/原始输出；`apps/desktop-tauri` 实测 35 pass / 7 opt-in skip。剩余是 DR-01 的 CDN 按需下载/校验与真机人工验收。〕
-- [ ] **插件市场迁移**：读旧 `installed_plugins.json`/marketplace 缓存原样可用；市场卡片 E2E 复用现有 `plugin-store-availability` spec 场景。〔2026-10-18 盘点，DR-PM-1〕读兼容与卡片投影已覆盖（32 + 5 条测试全绿），**M3 不新增 `crates/marketplace`**；剩真实窗口 UI E2E 与 sidecar 打包，详见 `2026-10-18-m3-plugin-market-status.md`。
+      〔2026-10-19 补记：v0.0.57 真机验收发现安装包未带 agent 运行时，发送任务与插件市场均失败；`afb49a4c` 把 `agent/glm` 纳入发运集并由 Host 注入启动命令，v0.0.58 本机复验任务发送与插件市场通过。〕
+- [ ] **插件市场迁移**：读旧 `installed_plugins.json`/marketplace 缓存原样可用；市场卡片 E2E 复用现有 `plugin-store-availability` spec 场景。〔2026-10-18 盘点，DR-PM-1〕读兼容与卡片投影已覆盖（32 + 5 条测试全绿），**M3 不新增 `crates/marketplace`**；剩真实窗口 UI E2E 与 sidecar 打包，详见 `2026-10-18-m3-plugin-market-status.md`。〔2026-10-19：v0.0.58 真机复验市场目录可正常加载（旧错误已随 agent 随包修复消失）；安装/卸载动作尚未逐项执行。〕
 - [ ] **IM bot 逐通道**：〔2026-10-18 盘点，DR-IM-1〕由 Host sidecar 复用现有实现（149 条测试全绿），
       **M3 不新增 `crates/bots`**；Rust HTTP+WS 重写延后到运行时移出 sidecar 时再评估。
       剩余为飞书/企微/钉钉/微信的真账号人工验收，逐项见
@@ -239,7 +250,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 - [ ] **LAN 远连**：UDP 广播发现 + 6 位配对码 + 桌面即服务端——对照 `lan-discovery/lan-remote-attach/lan-paired-devices` 三个 spec 逐条验收（含旧客户端兼容窗口期口径，按 `lan-no-pre-rename-compat` 记忆：改名前版本不兼容）。〔2026-10-18 已跑 38 条相关测试全绿；剩两台机器人工验收，见 `2026-10-18-m3-lan-remote-status.md`〕
 - [ ] **SSH/WSL/Docker 远程 + workspaceIdentity**：身份 key `trim() || path` 贯穿，跨 Host 路由与 stale-run 防护的对拍测试。〔2026-10-18 相关用例已在 40 条 desktop 远程测试中通过（含判等口径与对新对端归属）；实机远程连接仍待人验收〕
 - [ ] **Web 端（axum）**：`web-remote-replayable` 链路 + 手机远控复用 Host attachment 的既有架构（AGENTS.md：不为手机另起运行时）。〔2026-10-18 盘点，DR-WEB-1〕由 Host sidecar 复用现有 `packages/server`，**M3 不新增 `crates/server`**；156 条相关测试全绿，剩两台设备人工验收，见 `2026-10-18-m3-web-remote-status.md`。
-- [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。〔2026-10-18 盘点，DR-TUI-1〕沿用现有 TS/React TUI（`@mode/tui`），**M3 不新增 `crates/tui`**；33 个场景清单见 `2026-10-18-m3-tui-status.md`，当前只有类型面证据（`tsc --noEmit` 通过），交互验收待人工，纯逻辑模块可补单测。
+- [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。〔2026-10-18 盘点，DR-TUI-1〕沿用现有 TS/React TUI（`@mode/tui`），**M3 不新增 `crates/tui`**；33 个场景清单见 `2026-10-18-m3-tui-status.md`；当前已有 156 条纯逻辑契约测试并接入 release verify，渲染/焦点/落盘等交互验收仍待人工。
 
 **阶段验收：** 每个域有对照旧版的 E2E 清单且全绿；sidecar 断网降级符合预期；三平台安装包体积保持核心 ≤30MB。
 
@@ -250,6 +261,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 **目标：** 删光上游衍生代码，"与上游逐文件 diff 清零"成为 CI 可跑的硬门禁，台账与 NOTICE 收口。
 
 **Files:**
+
 - Create: `packages/ui-next/`（或按 `DESIGN.md` 重建 `packages/ui` 替代品）、`scripts/upstream-overlap-check.ts`（对 `upstream/zcode-baseline` 逐文件哈希对比 + 品牌归一哈希对比，口径见 `docs/specs/upstream-overlap-metric.md`：逐字节一致 / 仅品牌归一一致 / 实质不同三档。**2026-10-18 已交付 report 模式**；文件名用 `.ts` 以过语言政策）
 - Modify: `THIRD-PARTY-NOTICES.md`、`third-party/copied-components.json`（重建：删除全部"上游衍生"条目，保留第三方组件条目）、`NOTICE.md` §4（diff 清零后改写为"当前代码不含上游实现，历史版本的 Apache 义务见基线分支"——**仍保留 zai-org/ZCode 链接与历史声明，不删**）
 
@@ -261,6 +273,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 P1.1–P1.7 顺序、验收与两项待裁决）。
 
 **Interfaces:**
+
 - Consumes: M1–M3 全部产出；`DESIGN.md`（作为 UI 重写的唯一规格）。
 - Produces: `pnpm verify:self-developed`（= upstream-overlap-check + scancode/licensee 扫描 + 台账新鲜度），进 CI 必跑。
 
@@ -277,7 +290,7 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
 
 **目标：** 新线 GA、旧线 EOL、三指标（语言/体积/重合度）落到终值。
 
-- [ ] **发布工程**：Tauri updater + 签名（三平台）、`release.yml` 只出 Tauri 产物、块映射/差分更新验证。
+- [ ] **发布工程**：Tauri updater + 签名（三平台）、`release.yml` 只出 Tauri 产物、块映射/差分更新验证。〔2026-10-19：Windows Tauri 自动发版已连续跑通（v0.0.57 / v0.0.58：push → verify → 五腿构建 → publish）；三平台签名、旧线 EOL 与差分更新仍未完成。〕
 - [ ] **旧线 EOL**：Electron 线打最后版本公告 EOL；`docs/plans` 与 spec 标注归档；仓库语言终态 = Rust + TS + HTML/CSS（目标 ≥99% 字节来自这两门 + 平台文件）。
 - [ ] **数据迁移终验**：`.mode` 数据根原样复用（协议未变）；从旧线最后一版升级到新线的实机迁移演练。
 - [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕
@@ -288,13 +301,13 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
 
 ## 风险与对冲
 
-| 风险 | 对冲 |
-|---|---|
+| 风险                                          | 对冲                                                                                                  |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | 行为对拍测不出隐性语义（双链路、owner/lease） | M2 对拍矩阵三层（工具序列/文件快照/事件流）+ 20 个真实任务盲跑；每改 stream/snapshot/queue 双链路双跑 |
-| 插件/浏览器自动化等 TS 生态无法 Rust 化 | DR-01 sidecar 边界把它们挡在核心外；浏览器自动化（playwright-core 仅 TS）明确归 sidecar |
-| clean-room 被 AI 提示词无意破坏 | 禁读规则写进 AGENTS.md 与任务模板；PR 检查清单 + M4 硬门禁兜底 |
-| 工期失控（单人 18–30 个月） | 阶段门禁可停可续：每个 M 结束都是可发布检查点；旧线持续维护保住产品不失血 |
-| 并行会话/多人同仓冲突 | pathspec 提交纪律（已入记忆）、新目录（`crates/`、`apps/desktop-tauri`）与旧栈零重叠 |
+| 插件/浏览器自动化等 TS 生态无法 Rust 化       | DR-01 sidecar 边界把它们挡在核心外；浏览器自动化（playwright-core 仅 TS）明确归 sidecar               |
+| clean-room 被 AI 提示词无意破坏               | 禁读规则写进 AGENTS.md 与任务模板；PR 检查清单 + M4 硬门禁兜底                                        |
+| 工期失控（单人 18–30 个月）                   | 阶段门禁可停可续：每个 M 结束都是可发布检查点；旧线持续维护保住产品不失血                             |
+| 并行会话/多人同仓冲突                         | pathspec 提交纪律（已入记忆）、新目录（`crates/`、`apps/desktop-tauri`）与旧栈零重叠                  |
 
 ## 度量与预算
 

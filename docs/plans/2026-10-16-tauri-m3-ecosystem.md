@@ -114,6 +114,7 @@ Rust 侧要重新建立 oracle）。DR-01 已经把「Node sidecar」定为插�
 **确认后的口径**：**M1 那条口径对「产品阶段」修订**——它描述的是 M1 骨架（纯静态资源）的真实
 状态，成立；但真实 UI 必须由 Host 提供 `IServiceAccessor` 才能挂载，所以产品阶段必然带 Node。
 替代口径为 **M3 的体积门禁**：核心安装包 ≤30MB（沿用 M3 既有验收），并在 Task 5 实测。
+
 > **〔2026-10-16 后续更正（Ruling 26）〕** 上面这句「核心 ≤30MB」**已被实测推翻**，不是待办：
 > Task 2 量出 sidecar 载荷 96.79 MiB（真实传递闭包 ≥102.61 MiB），而那台机器上 `node.exe`
 > 光 gzip 就 33.91 MiB——**仅它一项就已超过 30MB**，剪掉跨平台 prebuilds 压缩后也只省约 6.6 MiB。
@@ -122,8 +123,8 @@ Rust 侧要重新建立 oracle）。DR-01 已经把「Node sidecar」定为插�
 > **这里留原文不动是为了让权威链可追**：DR-M3-1 当初就是这么写的，改动记在后续裁决里，而不是
 > 回头改写决策记录（同 Ruling 20 对路线图的处理）。要守住 ≤30MB 的唯一出路是把 Host/services
 > 层用 Rust 重写——即本条里被「快」字否掉的那条慢路径。
-**代价已被接受**：产品携带 Node 运行时（`docs/specs/tauri-platform-commands.md` §4 第 6 条已按此口径
-加注）。
+> **代价已被接受**：产品携带 Node 运行时（`docs/specs/tauri-platform-commands.md` §4 第 6 条已按此口径
+> 加注）。
 
 **未采取的选项（保留记录）**：把 Host/services 层也用 Rust 实现——那是比本计划大一个量级的改动
 （等于新增一个 M2 量级的阶段）。这条岔路口记在这里而不是删掉：**若日后判定「产品不得带 Node」
@@ -169,15 +170,15 @@ Electron 有一条 Tauri 没有的路径：preload 里 `contextBridge` + `ipcRen
 
 ## 与 M1 缺口清单的对应（`tauri-platform-commands.md` §5）
 
-| §5 登记项 | 本计划归属 |
-| --- | --- |
-| 存量 renderer 的挂载 | Task 1–3（本阶段主线） |
-| `getApplicationIcon` 的原生图标解码 | Task 4（Windows GDI；macOS `NSWorkspace` 半边**未实现且本阶段不验**——本阶段没有在范围内的 macOS 构建，写了也验不了） |
-| `saveFile` 的 `sourceUrl` 分支 | Task 4（需要一个带超时/大小上限的 HTTP 取回面） |
-| `onOAuthCallback`/`onPaymentCallback` 之外的订阅型方法 | Task 4（依赖 Host 的事件源，Task 1–3 打通后才有） |
-| 深链的单实例转发 | Task 4（窗口模型：Windows 上点链接不能再起新进程） |
-| Tauri 产物进 Release | **不在本计划**：M5 |
-| 更新链的实际可用（签名密钥、`latest.json`、三平台演练） | **不在本计划**：M5；三平台演练在 M5 之前**由本阶段的延后决定顺延**（见「范围收窄登记」） |
+| §5 登记项                                               | 本计划归属                                                                                                           |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 存量 renderer 的挂载                                    | Task 1–3（本阶段主线）                                                                                               |
+| `getApplicationIcon` 的原生图标解码                     | Task 4（Windows GDI；macOS `NSWorkspace` 半边**未实现且本阶段不验**——本阶段没有在范围内的 macOS 构建，写了也验不了） |
+| `saveFile` 的 `sourceUrl` 分支                          | Task 4（需要一个带超时/大小上限的 HTTP 取回面）                                                                      |
+| `onOAuthCallback`/`onPaymentCallback` 之外的订阅型方法  | Task 4（依赖 Host 的事件源，Task 1–3 打通后才有）                                                                    |
+| 深链的单实例转发                                        | Task 4（窗口模型：Windows 上点链接不能再起新进程）                                                                   |
+| Tauri 产物进 Release                                    | **不在本计划**：M5                                                                                                   |
+| 更新链的实际可用（签名密钥、`latest.json`、三平台演练） | **不在本计划**：M5；三平台演练在 M5 之前**由本阶段的延后决定顺延**（见「范围收窄登记」）                             |
 
 ---
 
@@ -188,11 +189,13 @@ Host 的传输实现怎么写、甚至 M4 的替换计划要不要跟着动。�
 挑一条路线，而这类「传输层猜错」的返工成本最高（要动渲染层启动链与 rpc 传输）。
 
 **Files:**
+
 - Create: `docs/plans/2026-10-16-m3-port-transport-spike.md`（spike 结论与决策记录）
 - Create: `apps/desktop-tauri/experiments/port-transport/`（一次性验证代码，**不入交付**；结论落文档后删除或移入 tests）
 - Test: 一次性脚本即可，不进 CI（spike 的产物是**结论**，不是可持续的用例）
 
 **Interfaces:**
+
 - Consumes: M1 的壳（`apps/desktop-tauri/src-tauri`，已能开窗并渲染前端）、
   `packages/rpc` 的 `ChannelServer`/`ChannelClient` 与 `MessagePortLike`。
 - Produces（写进 spike 文档，供 Task 1 引用）：
@@ -201,7 +204,7 @@ Host 的传输实现怎么写、甚至 M4 的替换计划要不要跟着动。�
   - 一条可复现的验证命令与它的实测输出。
 
 - [x] **Step 1: 读接口面，写下 spike 要回答的三个问题**
-  〔2026-10-19 核对：三个问题与接口面结论已落在 spike 文档开头与 §3。〕
+      〔2026-10-19 核对：三个问题与接口面结论已落在 spike 文档开头与 §3。〕
 
 只读接口面：`packages/rpc/src/protocol.ts` 的 `MessagePortLike`/`MessagePortProtocol`、
 `packages/rpc/src/channelServer.ts` 的 `ChannelServer` 构造函数与 `ready()`、
@@ -212,7 +215,7 @@ Host 的传输实现怎么写、甚至 M4 的替换计划要不要跟着动。�
 能否满足 `ChannelServer` 的 `Initialize` 往返？
 
 - [x] **Step 2: 路线 (1) 的实测——Tauri 初始化脚本 + 端口转移**
-  〔2026-10-19 核对：路线 1 字面机制不可行；可用形态 1′ 已跑通（Rust 挂 initialization_script → 页面建 MessageChannel → postMessage 转移 port1）。〕
+      〔2026-10-19 核对：路线 1 字面机制不可行；可用形态 1′ 已跑通（Rust 挂 initialization_script → 页面建 MessageChannel → postMessage 转移 port1）。〕
 
 在 `apps/desktop-tauri/experiments/port-transport/` 里做最小验证：壳侧建端口、页面加载前注入
 一个能 `postMessage` 的对象、页面侧用它做一次往返打印结果。
@@ -220,21 +223,21 @@ Run: `node scripts/rust-cargo.ts build --release -p mode-tauri` 后启动该实�
 Expected: 记录**具体**结果——可以是「可行（附 API 名与最小代码）」或「不可行（附报错原文）」。
 
 - [x] **Step 3: 路线 (2) 的实测——壳内桥 + `MessagePortLike` 适配器**
-  〔2026-10-19 核对：1′ 已满足需求，未采用桥接路线；理由与对比写在 spike 文档。〕
+      〔2026-10-19 核对：1′ 已满足需求，未采用桥接路线；理由与对比写在 spike 文档。〕
 
 若 Step 2 不可行：壳起一个本地桥（Tauri IPC channel 或 loopback WebSocket），页面侧用一个满足
 `MessagePortLike` 的适配器包住它，再喂给 `connectViaMessagePort`。
 Expected: 同上，记录可行性与**渲染层是否必须改动**。
 
 - [x] **Step 4: 路线 (3) 的评估——为什么必须新增传输**
-  〔2026-10-19 核对：未走到新增传输；1′ 渲染层零改动，故不需要 packages/rpc 新接口。〕
+      〔2026-10-19 核对：未走到新增传输；1′ 渲染层零改动，故不需要 packages/rpc 新接口。〕
 
 只有在 (1)(2) 都不可行时才走。写明：需要 `packages/rpc` 提供什么新接口、谁消费、
 以及它对 M4 替换计划的影响。**若走到这一步，停下来向人确认**——这已超出「把存量 renderer 挂上」
 的范围，属新增接口设计。
 
 - [x] **Step 5: 收口 spike 文档并提交**
-  〔2026-10-19 核对：`docs/plans/2026-10-16-m3-port-transport-spike.md` 已完成，复现面在 `apps/desktop-tauri/test/harness/port-transport/`；提交 `76d7a417`/`f9457baa`/`5ea17bb3`。〕
+      〔2026-10-19 核对：`docs/plans/2026-10-16-m3-port-transport-spike.md` 已完成，复现面在 `apps/desktop-tauri/test/harness/port-transport/`；提交 `76d7a417`/`f9457baa`/`5ea17bb3`。〕
 
 `docs/plans/2026-10-16-m3-port-transport-spike.md` 至少含：结论（选了哪条路线及为什么）、
 证据（命令 + 原始输出 + 关键 API 名）、**渲染层是否需要改**、以及「Task 1 可以据此开始」的明确
@@ -259,12 +262,14 @@ git commit -m "spike(tauri): M3 Task 0——MessagePort 抵达 Tauri webview 的
 ### Task 1: 最小 Host sidecar（骨架 + 控制通道）
 
 **Files:**
+
 - Create: `crates/sidecar-host/`（Rust 侧：spawn、监督、传输端口、退出清理）
 - Create: `packages/desktop/src/host-standalone/`（Node 侧入口：在无 Electron 环境下把
   `packages/desktop/src/host` 跑起来）
 - Test: `crates/sidecar-host/tests/`、`packages/desktop/tests/host-standalone/`
 
 **Interfaces:**
+
 - Consumes: Task 0 的传输路线。
 - Produces: `sidecar_host::spawn(app) -> HostHandle`（含 `port()` 取端口、`shutdown()`）；
   一个能对外暴露**空实现**（每个服务都返回 `not_implemented`）的 `IServiceAccessor`——
@@ -281,11 +286,13 @@ git commit -m "spike(tauri): M3 Task 0——MessagePort 抵达 Tauri webview 的
 ### Task 2: 真服务面 + database-startup 通道
 
 **Files:**
+
 - Modify: `packages/desktop/src/host-standalone/`（接真 `packages/services`）
 - Create: `packages/desktop/src/host-standalone/databaseStartup.ts`（把 `startup/storageState`
   流接到渲染层要的 `DatabaseStartupState`）
 
 **Interfaces:**
+
 - Consumes: Task 1 的 `HostHandle`、`IServiceAccessor`。
 - Produces: 真实 `IServiceAccessor`（45 个服务）+ 满足 30s 就绪判定的 startup 状态流。
 
@@ -300,6 +307,7 @@ git commit -m "spike(tauri): M3 Task 0——MessagePort 抵达 Tauri webview 的
 ### Task 3: 把存量 renderer 挂上 Tauri 壳
 
 **Files:**
+
 - Modify: `apps/desktop-tauri/frontend/`（从命令面验收台切到真实 renderer 产物）
 - Modify: `apps/desktop-tauri/src-tauri/tauri.conf.json`（`frontendDist` 指向真实 renderer 构建产物）
 
@@ -328,6 +336,8 @@ sidecar externals 用 Task 2 的实测基准，见「体积门禁拆分登记」
 Node 运行时、放在哪、是否可被用户看见；产出交给 M5 的输入清单
 （产物名、安装方式、更新链需要什么）。
 
+**2026-10-19 补记（agent 运行时随包）**：v0.0.57 首次真机验收发现 Tauri 发运集只有 Host/Node/config，未带 agent 运行时，发送任务与插件市场均报 `MODE_AGENT_SERVER_COMMAND is not configured`。`afb49a4c` 将 `agent/glm`（`mode.cjs` + 官方插件 + bundled-skills）纳入发运集与 `bundle.resources`，Host 启动时注入命令与 Built-in Provider Config；v0.0.58 本机验收通过。发运集未压缩体积 185.00 MiB（Node 88.25、externals 72.20、agent 约 17.6）。
+
 **macOS / Linux 两条腿本阶段不做（2026-10-16 决定，登记而非省略）**：与该决定一致的是 M1 已经
 把这两条 CI 腿挂成 `continue-on-error`（`docs/specs/tauri-platform-commands.md` §8.1），§8.3 也把
 它们的风险登记为未解决。**解冻条件**：本阶段结束后重开，成本主要是 webkit2gtk/libsoup3 的
@@ -347,23 +357,23 @@ Node 运行时、放在哪、是否可被用户看见；产出交给 M5 的输�
    - **(b) Node 运行时 + sidecar externals**——**单列预算**，基准由 Task 2 实测：
      externals 传递闭包 **102.61 MiB** + `node.exe` **88.25 MiB**（单文件 gzip 后 33.91 MiB）；
      门禁数值由 Task 5 在该基准上定（压成安装包后的实际增量才是要管的数）。
-   macOS / Linux **未验**，属**本阶段已知边界**（延后决定见「范围收窄登记」）；
-   注意 `docs/plans/2026-10-09-tauri-rewrite-roadmap.md` 的 M3 验收原文写的是「三平台安装包体积
-   保持核心 ≤30MB」——**本计划对路线图 M3 验收的这一条做了两处收窄**（平台数与门禁拆分），
-   两处都是经人决定的，登记见下面两节；
+     macOS / Linux **未验**，属**本阶段已知边界**（延后决定见「范围收窄登记」）；
+     注意 `docs/plans/2026-10-09-tauri-rewrite-roadmap.md` 的 M3 验收原文写的是「三平台安装包体积
+     保持核心 ≤30MB」——**本计划对路线图 M3 验收的这一条做了两处收窄**（平台数与门禁拆分），
+     两处都是经人决定的，登记见下面两节；
 4. `clippy -D warnings` 零告警、可跑用例全绿、`pnpm verify:pre-push` 通过；
 5. 交给 M5 的输入清单就位（M5 据此切换发布线、配签名密钥与 `latest.json`）。
 
 ## 风险
 
-| 风险 | 对冲 |
-| --- | --- |
-| **端口传输没有可行路线**（Task 0 全否） | 三种路线按「是否要改 renderer」排序逐一实测；走到需要改渲染层或新增 rpc 传输时**停下来向人确认**，不自行扩大范围 |
-| 体积失控（Node 运行时 + host 闭包） | Task 2 已实测闭包与 bundle 体积（§「体积门禁拆分登记」）；**门禁本身拆成核心 / 运行时两份**，避免用一份不可达的数字当门禁（那样它只会长期变红）；DR-M3-2 已把「一份还是两份运行时」留给实测决定 |
-| 原生模块 ABI（`node:sqlite`/`node-pty`/CUA）在 sidecar 里跑不起来 | **Task 2 已实测通过**（`node:sqlite` 真读写 + sidecar 内真起 pty，见 `docs/specs/tauri-renderer-host.md` §10.4/§12）：DR-M3-1 的前提成立 |
-| 改渲染层踩 clean-room | renderer 是上游衍生文件：只读接口面；任何改动都写成 Task 0/Task 3 的产出与决策记录 |
-| **三平台延后（macOS/Linux 出包）** | 对冲是「M5 前解冻」，且 Windows 上的体积 / Node 运行时结论对三平台**有可迁移性，但不构成验证**；M5 切换发布线需要三平台产物，因此这笔风险被推到 M5（见「范围收窄登记」） |
-| 与 M2 线争抢同一 checkout / 同一批文件 | 两条线的文件面基本不重叠（M2 在 `crates/agent-*`，M3 在 `crates/sidecar-host` + `apps/desktop-tauri` + `packages/desktop/src/host-standalone`）；提交一律显式路径 |
+| 风险                                                              | 对冲                                                                                                                                                                                            |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **端口传输没有可行路线**（Task 0 全否）                           | 三种路线按「是否要改 renderer」排序逐一实测；走到需要改渲染层或新增 rpc 传输时**停下来向人确认**，不自行扩大范围                                                                                |
+| 体积失控（Node 运行时 + host 闭包）                               | Task 2 已实测闭包与 bundle 体积（§「体积门禁拆分登记」）；**门禁本身拆成核心 / 运行时两份**，避免用一份不可达的数字当门禁（那样它只会长期变红）；DR-M3-2 已把「一份还是两份运行时」留给实测决定 |
+| 原生模块 ABI（`node:sqlite`/`node-pty`/CUA）在 sidecar 里跑不起来 | **Task 2 已实测通过**（`node:sqlite` 真读写 + sidecar 内真起 pty，见 `docs/specs/tauri-renderer-host.md` §10.4/§12）：DR-M3-1 的前提成立                                                        |
+| 改渲染层踩 clean-room                                             | renderer 是上游衍生文件：只读接口面；任何改动都写成 Task 0/Task 3 的产出与决策记录                                                                                                              |
+| **三平台延后（macOS/Linux 出包）**                                | 对冲是「M5 前解冻」，且 Windows 上的体积 / Node 运行时结论对三平台**有可迁移性，但不构成验证**；M5 切换发布线需要三平台产物，因此这笔风险被推到 M5（见「范围收窄登记」）                        |
+| 与 M2 线争抢同一 checkout / 同一批文件                            | 两条线的文件面基本不重叠（M2 在 `crates/agent-*`，M3 在 `crates/sidecar-host` + `apps/desktop-tauri` + `packages/desktop/src/host-standalone`）；提交一律显式路径                               |
 
 ---
 
@@ -390,9 +400,9 @@ Node 运行时、放在哪、是否可被用户看见；产出交给 M5 的输�
 
 **拆分内容**：产品阶段原来的单一「核心包 ≤30MB」门禁改成**两份分别测量、分别门禁的预算**：
 
-| 预算 | 内容 | 基准（Task 2 实测）/ 门禁 |
-| --- | --- | --- |
-| **(a) 核心** | Tauri 壳 exe + UI 资产 + **Host bundle** | 已测：Host bundle **5,106,411 B（4.87 MiB）**；壳与 UI 资产由 Task 5 实测 → 沿用原门禁 **≤30MB** |
+| 预算                    | 内容                                            | 基准（Task 2 实测）/ 门禁                                                                                                                        |
+| ----------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **(a) 核心**            | Tauri 壳 exe + UI 资产 + **Host bundle**        | 已测：Host bundle **5,106,411 B（4.87 MiB）**；壳与 UI 资产由 Task 5 实测 → 沿用原门禁 **≤30MB**                                                 |
 | **(b) 运行时 + 服务面** | **Node 运行时** + Host sidecar 的 external 依赖 | 已测：externals 传递闭包 **107,593,418 B（102.61 MiB）**；本机 `node.exe` **88.25 MiB**（单文件 gzip 33.91 MiB）→ 门禁数值由 Task 5 在该基准上定 |
 
 **为什么必须拆（算术，不是感觉）**：
@@ -445,10 +455,10 @@ Node 运行时、放在哪、是否可被用户看见；产出交给 M5 的输�
 
 Task 0 之后各出子计划，落点：
 
-| 任务 | 开工时应产出的子计划 |
-| --- | --- |
-| Task 1 最小 Host sidecar | `docs/plans/2026-XX-XX-m3-host-sidecar.md` |
+| 任务                           | 开工时应产出的子计划                           |
+| ------------------------------ | ---------------------------------------------- |
+| Task 1 最小 Host sidecar       | `docs/plans/2026-XX-XX-m3-host-sidecar.md`     |
 | Task 2 真服务面 + startup 通道 | `docs/plans/2026-XX-XX-m3-services-startup.md` |
-| Task 3 挂载存量 renderer | `docs/plans/2026-XX-XX-m3-renderer-mount.md` |
-| Task 4 §5 平台面缺口 | `docs/plans/2026-XX-XX-m3-platform-gaps.md` |
-| Task 5 Windows 出包与体积 | `docs/plans/2026-XX-XX-m3-packaging-size.md` |
+| Task 3 挂载存量 renderer       | `docs/plans/2026-XX-XX-m3-renderer-mount.md`   |
+| Task 4 §5 平台面缺口           | `docs/plans/2026-XX-XX-m3-platform-gaps.md`    |
+| Task 5 Windows 出包与体积      | `docs/plans/2026-XX-XX-m3-packaging-size.md`   |
