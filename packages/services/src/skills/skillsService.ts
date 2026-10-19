@@ -59,12 +59,9 @@ const SKILL_CLI_CONFIG_FILE = join(SKILL_CLI_SETTINGS_DIR, "config.json");
 const GIT_MARKER = ".git";
 const HOME_PREFIX = "~/";
 const MODE_INLINE_PLUGIN_MARKETPLACE = "inline";
-const MODE_PLUGIN_MANIFEST_PATH = join(".tutto-plugin", "plugin.json");
-/** 改名前的清单目录（.mode-plugin、.zcode-plugin）：继续可读。 */
-const MODE_LEGACY_MANIFEST_PATHS = [
-  join(".mode-plugin", "plugin.json"),
-  join(".zcode-plugin", "plugin.json"),
-] as const;
+const MODE_PLUGIN_MANIFEST_PATH = join(".mode-plugin", "plugin.json");
+/** 改名前的清单目录（.zcode-plugin）：继续可读。 */
+const MODE_LEGACY_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
 const CLAUDE_PLUGIN_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_PLUGIN_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 
@@ -659,7 +656,9 @@ function readBooleanRecord(value: unknown): Record<string, boolean> {
 
 function readStorageDirFromConfig(config: Record<string, unknown>): string {
   const storage = isObjectRecord(config.storage) ? config.storage : {};
-  return typeof storage.dir === "string" && storage.dir.trim().length > 0 ? storage.dir : "~/.mode";
+  return typeof storage.dir === "string" && storage.dir.trim().length > 0
+    ? storage.dir
+    : "~/.mode";
 }
 
 function resolveConfigPath(path: string): string {
@@ -760,7 +759,7 @@ async function readPluginManifest(rootPath: string): Promise<PluginManifestSumma
 async function findPluginManifestPath(rootPath: string): Promise<string | null> {
   for (const manifestPath of [
     join(rootPath, MODE_PLUGIN_MANIFEST_PATH),
-    ...MODE_LEGACY_MANIFEST_PATHS.map((relativePath) => join(rootPath, relativePath)),
+    join(rootPath, MODE_LEGACY_MANIFEST_PATH),
     join(rootPath, CLAUDE_PLUGIN_MANIFEST_PATH),
     join(rootPath, CODEX_PLUGIN_MANIFEST_PATH),
   ]) {
@@ -835,7 +834,8 @@ async function resolvePluginSkillRootDescriptors(): Promise<SkillRootDescriptor[
       continue;
     }
     seenPluginIds.add(pluginId);
-    const defaultEnabled = candidate.defaultEnabled || isDefaultEnabledOfficialPluginId(pluginId);
+    const defaultEnabled =
+      candidate.defaultEnabled || isDefaultEnabledOfficialPluginId(pluginId);
     const enabled = config.enabledPlugins[pluginId] ?? defaultEnabled;
     if (!enabled) {
       continue;

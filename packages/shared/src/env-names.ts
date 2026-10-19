@@ -2,8 +2,8 @@
  * 对外契约环境变量改名的兼容层。
  *
  * 改名分两步走到 Mode：`ZCODE_*`（上游名）→ `ZCODIUM_*`（P1a）→ `MODE_*`（P2，本次）。
- * - 读取端按 `TUTTO_*` → `MODE_*` → `ZCODIUM_*` → `ZCODE_*` 逐级回退，读到旧名时一次性弃用提示；
- * - 进程内给子进程传值时四代名字全部写上，覆盖新旧二进制混布（SSH 远端旧 agent 只认旧名）。
+ * - 读取端按 `MODE_*` → `ZCODIUM_*` → `ZCODE_*` 逐级回退，读到旧名时一次性弃用提示；
+ * - 进程内给子进程传值时三代名字全部写上，覆盖新旧二进制混布（SSH 远端旧 agent 只认旧名）。
  *
  * 名单见 docs/specs/p1a-external-env-renames.md 与 docs/specs/p2-mode-naming.md；
  * 仅覆盖用户/CI/文档/安装器真实会设置的对外变量，进程间内部变量不做兼容。
@@ -51,11 +51,6 @@ export const EXTERNAL_ENV_LEGACY_ALIASES: Readonly<Record<string, readonly strin
   MODE_APP_VERSION: ["ZCODIUM_APP_VERSION", "ZCODE_APP_VERSION"],
 } as const;
 
-/** Tutto 代对外名：`MODE_*` → `TUTTO_*`（新名优先读取；写入时与旧名一起写）。 */
-export function externalTuttoEnvName(name: string): string | undefined {
-  return name.startsWith("MODE_") ? `TUTTO_${name.slice("MODE_".length)}` : undefined;
-}
-
 /** 该名字是否有旧名兜底（用于给子进程传值时决定要不要写旧名）。 */
 export function externalEnvLegacyAliases(name: string): readonly string[] {
   return EXTERNAL_ENV_LEGACY_ALIASES[name] ?? [];
@@ -66,9 +61,6 @@ export function readExternalEnvVar(
   env: Record<string, string | undefined>,
   name: string,
 ): string | undefined {
-  const tuttoName = externalTuttoEnvName(name);
-  const tutto = tuttoName ? env[tuttoName]?.trim() : undefined;
-  if (tutto) return tutto;
   const primary = env[name]?.trim();
   if (primary) return primary;
   for (const legacyName of externalEnvLegacyAliases(name)) {
@@ -87,10 +79,7 @@ export function writeExternalEnvVar(
   name: string,
   value: string | undefined,
 ): void {
-  const tuttoName = externalTuttoEnvName(name);
-  const names = [tuttoName, name, ...externalEnvLegacyAliases(name)].filter(
-    (candidate): candidate is string => candidate !== undefined,
-  );
+  const names = [name, ...externalEnvLegacyAliases(name)];
   if (value === undefined) {
     for (const key of names) delete env[key];
     return;

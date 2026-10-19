@@ -1,7 +1,7 @@
-# Tutto
+# Mode
 
 <div align="center">
-  <img src="packages/desktop/build/icons/512x512.png" alt="Tutto" width="96" height="96" />
+  <img src="packages/desktop/build/icons/512x512.png" alt="Mode" width="96" height="96" />
   <p><strong>桌面端、浏览器与终端三端的 AI 编程工作区——源自 ZCode，独立维护。</strong></p>
 </div>
 
@@ -14,7 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-Tutto 保留产品本身——一个陪你规划、改代码、跑命令、自我验证的编程智能体——并从公开源码重新构建：监控与遥测全部移除，官方平台服务整体下线。它是 [zai-org/ZCode](https://github.com/zai-org/ZCode) 的独立审计分支，来龙去脉记在 [NOTICE.md](NOTICE.md)，与上游基线的差异可对照上游仓库逐文件 diff 追溯。
+Mode 保留产品本身——一个陪你规划、改代码、跑命令、自我验证的编程智能体——并从公开源码重新构建：监控与遥测全部移除，官方平台服务整体下线。它是 [zai-org/ZCode](https://github.com/zai-org/ZCode) 的独立审计分支，来龙去脉记在 [NOTICE.md](NOTICE.md)，与上游基线的差异可对照上游仓库逐文件 diff 追溯。
 
 ## 这个分支在做什么
 
@@ -25,11 +25,11 @@ Tutto 保留产品本身——一个陪你规划、改代码、跑命令、自�
 
 ## 功能一览
 
-- **一个 Agent，三种界面**：Electron 桌面端、浏览器工作区与终端 TUI 共用同一个 Agent 运行时和同一批会话；远程工作区支持 SSH、WSL、Docker，也支持**局域网里的另一台 Tutto**。
+- **一个 Agent，三种界面**：Electron 桌面端、浏览器工作区与终端 TUI 共用同一个 Agent 运行时和同一批会话；远程工作区支持 SSH、WSL、Docker，也支持**局域网里的另一台 Mode**。
 - **会规划、会改、会跑、会验证**：文件改动用 diff 呈现，终端命令带上下文，改完自己跑测试复核；需要网页任务时内置浏览器插件驱动真实浏览器。
 - **动手之前先征求许可**：每一次编辑、命令和工具调用都可以要求审批——仅本次允许、本项目内一直允许，或完全放行。
 - **IM 机器人**：在 微信 / 企业微信 / 飞书（中国）/ 钉钉 里直接驱动工作区。私聊按人、群聊按群各自绑定独立会话，回复流式发回聊天窗口，群聊可以保持安静（例如企业微信只在被 @ 时响应），可选心跳定时推送进展摘要。
-- **局域网远程连接**：同一网络里跑着 Tutto 的机器通过 UDP 广播被发现，用一次性 6 位配对码授权后即可当作远程主机使用——选一个对端工作区，像本地一样对话。
+- **局域网远程连接**：同一网络里跑着 Mode 的机器通过 UDP 广播被发现，用一次性 6 位配对码授权后即可当作远程主机使用——选一个对端工作区，像本地一样对话。
 - **多智能体协作**：子代理、动态工作流、技能与定时自动化。
 - **插件、技能与 MCP**：内置插件 + 带离线官方目录的插件市场；MCP 服务按用户或工作区配置。
 - **自带模型**：内置 DeepSeek、OpenAI、Anthropic、Moonshot Kimi、MiniMax、Z.AI（GLM）、阿里、xAI、小米 MiMo、OpenRouter 预设，也支持完全自定义端点（Chat Completions / Responses / Anthropic Messages）。
@@ -41,9 +41,9 @@ Tutto 保留产品本身——一个陪你规划、改代码、跑命令、自�
 
 | 平台                | 产物                                | 首次启动                                                                                  |
 | ------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| Windows x64         | `Tutto-<版本>-win-x64.exe`           | SmartScreen 提示时点「更多信息」→「仍要运行」                                             |
-| macOS Apple Silicon | `Tutto-<版本>-mac-arm64.dmg`         | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Tutto.app" && open -a "Tutto"` |
-| Linux x86_64        | `Tutto-<版本>-linux-x86_64.AppImage` | `chmod +x` 后直接运行                                                                     |
+| Windows x64         | `Mode-<版本>-win-x64.exe`           | SmartScreen 提示时点「更多信息」→「仍要运行」                                             |
+| macOS Apple Silicon | `Mode-<版本>-mac-arm64.dmg`         | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"` |
+| Linux x86_64        | `Mode-<版本>-linux-x86_64.AppImage` | `chmod +x` 后直接运行                                                                     |
 
 已安装的桌面端会从本仓库的 Releases 自动更新。
 

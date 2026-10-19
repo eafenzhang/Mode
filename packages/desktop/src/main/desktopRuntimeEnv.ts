@@ -62,9 +62,13 @@ function isTruthyRuntimeEnvOverride(name: string): boolean {
 // 这里允许测试显式隔离运行时身份，正常桌面/远控路径保持原来的默认值。
 export const runtimeApplicationName =
   readRuntimeEnvOverride("MODE_DESKTOP_APPLICATION_NAME") ??
-  (isLocalDevelopmentRuntime ? "Tutto Dev" : isPreviewPackagedRuntime ? "Tutto Preview" : "Tutto");
-// userData 目录名随产品名统一为 Tutto（Dev/Preview 后缀保留，各自独立）。
-const USER_DATA_DIRECTORY_BASE_NAME = "Tutto";
+  (isLocalDevelopmentRuntime
+    ? "Mode Dev"
+    : isPreviewPackagedRuntime
+      ? "Mode Preview"
+      : "Mode");
+// userData 目录名随产品名统一为 Mode（Dev/Preview 后缀保留，各自独立）。
+const USER_DATA_DIRECTORY_BASE_NAME = "Mode";
 export const runtimeUserDataDirectoryName = isLocalDevelopmentRuntime
   ? `${USER_DATA_DIRECTORY_BASE_NAME} Dev`
   : isPreviewPackagedRuntime
@@ -72,20 +76,16 @@ export const runtimeUserDataDirectoryName = isLocalDevelopmentRuntime
     : USER_DATA_DIRECTORY_BASE_NAME;
 
 /**
- * userData 里放的是登录态、窗口状态与各类缓存，Electron 自身不做迁移。改名
- * （ZCodium → Mode → Tutto）后这里在新目录缺失时把同口径的旧目录整体复制过来；
- * 复制失败就继续用旧目录——宁可用不上新名字，也不能让用户看起来「数据没了」。
+ * userData 里放的是登录态、窗口状态与各类缓存，Electron 自身不做迁移。改名（ZCodium → Mode）
+ * 后这里在新目录缺失时把同口径的旧目录整体复制过来；复制失败就继续用旧目录——
+ * 宁可用不上新名字，也不能让用户看起来「数据没了」。
  */
 function resolveUserDataPathWithLegacyMigration(): string {
   const appData = getElectronAppPath("appData");
   const target = join(appData, runtimeUserDataDirectoryName);
   if (existsSync(target)) return target;
-  const legacyCandidates = [
-    join(appData, runtimeUserDataDirectoryName.replace(/^Tutto/, "Mode")),
-    join(appData, runtimeUserDataDirectoryName.replace(/^Tutto/, "ZCodium")),
-  ];
-  const legacy = legacyCandidates.find((candidate) => existsSync(candidate));
-  if (!legacy) return target;
+  const legacy = join(appData, runtimeUserDataDirectoryName.replace(/^Mode/, "ZCodium"));
+  if (!existsSync(legacy)) return target;
   try {
     cpSync(legacy, target, { recursive: true, errorOnExist: false });
     return target;
@@ -102,7 +102,9 @@ export const shouldUseElectronDefaultUserDataPath = isTruthyRuntimeEnvOverride(
 );
 export const runtimeUserDataPath =
   readRuntimeEnvOverride("MODE_DESKTOP_USER_DATA_DIR") ??
-  (shouldUseElectronDefaultUserDataPath ? undefined : resolveUserDataPathWithLegacyMigration());
+  (shouldUseElectronDefaultUserDataPath
+    ? undefined
+    : resolveUserDataPathWithLegacyMigration());
 export const runtimeSessionDataPath =
   readRuntimeEnvOverride("MODE_DESKTOP_SESSION_DATA_DIR") ??
   (runtimeUserDataPath ? join(runtimeUserDataPath, "session") : undefined);

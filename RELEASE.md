@@ -24,22 +24,22 @@
 对外发布名固定为：
 
 ```text
-Tutto-<版本>-<平台>-<架构>.<扩展名>
+Mode-<版本>-<平台>-<架构>.<扩展名>
 ```
 
 Windows x64 的 Tauri 产物是：
 
 ```text
-Tutto-<版本>-win-x64.exe
+Mode-<版本>-win-x64.exe
 ```
 
 CI 在 `Collect installer and record size` 步骤里把 bundler 的本机名改成契约名
-（`.github/workflows/release.yml` 的 `out="dist/tauri/Tutto-${VERSION}-${TARGET}-${ARCH}.${EXT}"`）。
+（`.github/workflows/release.yml` 的 `out="dist/tauri/Mode-${VERSION}-${TARGET}-${ARCH}.${EXT}"`）。
 **本机 bundler 的原始名不是发布名**：`tauri build` 产出的是
-`target/x86_64-pc-windows-msvc/release/bundle/nsis/Tutto_<版本>_x64-setup.exe`（下划线，且带
+`target/x86_64-pc-windows-msvc/release/bundle/nsis/Mode_<版本>_x64-setup.exe`（下划线，且带
 setup 后缀）。不要直接把 bundler 原始名上传到 Release。
 
-旧 Electron 线的产物名同样是 `Tutto-<版本>-win-x64.exe`（改名前的历史发布是 `Mode-…`）
+旧 Electron 线的产物名同样是 `Mode-<版本>-win-x64.exe`
 （`packages/desktop/electron-builder.config.js` 的 `buildDesktopArtifactName("win")`）。
 这正是 DR-M5-1 要求「同一次 run 不能既传 Electron 又传 Tauri 到同一个 release」的原因。
 
@@ -97,23 +97,23 @@ pnpm --filter @mode/desktop-tauri exec tauri build \
 
 # 改成发布契约名，并落 sha256 与体积（与 CI 同一脚本）
 mkdir -p dist/tauri
-cp "target/x86_64-pc-windows-msvc/release/bundle/nsis/Tutto_<版本>_x64-setup.exe" \
-   "dist/tauri/Tutto-<版本>-win-x64.exe"
+cp "target/x86_64-pc-windows-msvc/release/bundle/nsis/Mode_<版本>_x64-setup.exe" \
+   "dist/tauri/Mode-<版本>-win-x64.exe"
 # .sig 必须与改名后的安装包同批；latest.json 的 signature 字段直接吃它
-cp "target/x86_64-pc-windows-msvc/release/bundle/nsis/Tutto_<版本>_x64-setup.exe.sig" \
-   "dist/tauri/Tutto-<版本>-win-x64.exe.sig"
+cp "target/x86_64-pc-windows-msvc/release/bundle/nsis/Mode_<版本>_x64-setup.exe.sig" \
+   "dist/tauri/Mode-<版本>-win-x64.exe.sig"
 # 与安装包同批的前端入口快照：verify-installed.ts 用它比对「产品页资产名在壳 exe 里」
 cp "apps/desktop-tauri/dist/index.html" \
-   "dist/tauri/Tutto-<版本>-win-x64.exe.index.html"
-node scripts/tauri-bundle-report.ts "dist/tauri/Tutto-<版本>-win-x64.exe"
+   "dist/tauri/Mode-<版本>-win-x64.exe.index.html"
+node scripts/tauri-bundle-report.ts "dist/tauri/Mode-<版本>-win-x64.exe"
 
 # 生成 updater 清单（Task 1 实测：tauri build 本身不产出 latest.json，只产出 .sig）
 # `--notes` 不能留空：updater 会把它展示给用户；CI 里指向本次 Release 的 tag。
 node scripts/tauri-update-manifest.ts \
   --version "<版本>" \
-  --artifact "dist/tauri/Tutto-<版本>-win-x64.exe" \
-  --signature "dist/tauri/Tutto-<版本>-win-x64.exe.sig" \
-  --url "https://github.com/eafenzhang/Mode/releases/download/v<版本>/Tutto-<版本>-win-x64.exe" \
+  --artifact "dist/tauri/Mode-<版本>-win-x64.exe" \
+  --signature "dist/tauri/Mode-<版本>-win-x64.exe.sig" \
+  --url "https://github.com/eafenzhang/Mode/releases/download/v<版本>/Mode-<版本>-win-x64.exe" \
   --notes "Release notes: https://github.com/eafenzhang/Mode/releases/tag/v<版本>" \
   --output "dist/tauri/latest.json"
 ```
@@ -180,21 +180,19 @@ node scripts/tauri-update-manifest.ts \
   Linux 的 `webkit2gtk`/`libsoup3` 包名与 AppImage 的 FUSE 绕过；macOS 需确认产出的是
   `aarch64-apple-darwin`。收口后重新开一次决策，再撤销本条偏差。
 
-### 1.7 安装身份与迁移：Tutto 线与旧 Mode 线并存
+### 1.7 安装身份与迁移：本版保持 `ModeTauri.exe`（开放决策）
 
-**2026-10-19 品牌切换：Tauri 线主程序随 `productName` 变为 `Tutto.exe`；
-改名前的 Tauri 发布仍是 `ModeTauri.exe`。**
+**本版决定（控制器 ruling，2026-10-17）：不重命名二进制，保持 `ModeTauri.exe`。**
 
-- 旧 Electron 线的主程序是 `Mode.exe`；改名前的 Tauri 线是 `ModeTauri.exe`；
-  本版起 Tauri 线是 `Tutto.exe`。
+- 旧 Electron 线的主程序是 `Mode.exe`；Tauri 线是 `ModeTauri.exe`（Cargo 的
+  `[[bin]] name`，不是 `productName`）。
 - 因此本版与旧 Electron 版是**独立安装、并存**的：安装目录、快捷方式名称、卸载项
   与用户数据目录都不共用。用户应预期「多出一份安装」，而不是就地升级旧版。
   Release 说明必须把这件事写清楚（见 4.2）。
 - **为什么不现在改名**：改二进制名是打包身份变更，会同时改变
   **① 安装路径、② 快捷方式名称、③ 卸载器条目、④ 用户数据目录**；每一项都需要
   独立的安装/升级/回滚验证。在阻断项修复里盲改会制造比现状更糟的 bug。
-- **开放决策（未完成）**：把 Tutto 线与旧 Mode 线的安装身份统一（或明确永久并存）。
-  它需要处理上面四项，并验证
+- **开放决策（未完成）**：把两条线的安装身份统一。它需要处理上面四项，并验证
   「旧版 → 新版」的就地迁移（或明确的并行安装策略）。
 - **重开条件**：在这条发布线要**取代**旧版（而不是与旧版并存）的那个 release 之前；
   届时先写迁移 spec 与验证场景，再改 bin 名/安装身份。**在此之前不要重命名。**
@@ -387,7 +385,7 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
 
   ```bash
   node --import tsx apps/desktop-tauri/scripts/verify-installed.ts \
-    --installer "dist/tauri/Tutto-<版本>-win-x64.exe" \
+    --installer "dist/tauri/Mode-<版本>-win-x64.exe" \
     --work-dir "<空的临时目录>" --install-dir "<空的临时目录>\install" --keep
   ```
 
@@ -404,10 +402,10 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
 
 - [ ] **V8. 安装后的产品 UI 目视运行**
 
-  用 V7 装出来的 `Tutto.exe` 启动一次（改名前的安装包仍是 `ModeTauri.exe`）（数据根继续隔离）：
+  用 V7 装出来的 `ModeTauri.exe` 启动一次（数据根继续隔离）：
 
   ```bash
-  MODE_DATA_BASE_DIR="<一个空的临时目录>" "<安装目录>\Tutto.exe"
+  MODE_DATA_BASE_DIR="<一个空的临时目录>" "<安装目录>\ModeTauri.exe"
   ```
 
   确认：产品 UI 真的渲染出来（不是启动/失败屏），窗口可交互；关闭后无残留 `node.exe`。
@@ -416,7 +414,7 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
 - [ ] **V9. 冷启动测量**
 
   ```bash
-  node --import tsx apps/desktop-tauri/scripts/measure-cold-start.ts --release "<安装目录>\Tutto.exe"
+  node --import tsx apps/desktop-tauri/scripts/measure-cold-start.ts --release "<安装目录>\ModeTauri.exe"
   ```
 
   判据：7/7 有效样本，不出现 `startup_failed`；中位数在 §13.5 的实测值量级
@@ -443,7 +441,7 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
     （`PublicKey::decode("")` 报错），意图保留。
   - `bundle.createUpdaterArtifacts: true` 是必需的：没有它不产出 `.sig`。
     **`tauri build` 本身不产出 `latest.json`**——Task 1 实测 NSIS 目录里只有
-    `Tutto_<版本>_x64-setup.exe` 与 `.exe.sig`；清单由
+    `Mode_<版本>_x64-setup.exe` 与 `.exe.sig`；清单由
     `node scripts/tauri-update-manifest.ts` 生成。
   - 可执行触发：
     - 产品入口：帮助菜单 →「检查更新」→ `executeDesktopCommand("checkForUpdates")` →
@@ -467,7 +465,7 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
      `update_available ... version=0.0.2` →
      `download complete bytes=54030393/54030393` →
      `signature verified bytes=54030393 version=0.0.2`。
-  3. 旧进程以退出码 0 结束；安装目录里的 `Tutto.exe` 变为 `ProductVersion 0.0.2`；
+  3. 旧进程以退出码 0 结束；安装目录里的 `ModeTauri.exe` 变为 `ProductVersion 0.0.2`；
      重启后的进程 `StartTime` 晚于旧进程退出、`Path` 仍是该隔离安装目录。
      旧进程日志里的 `dataRoot=...\.mode-tauri-drill\data\.mode` 证明隔离数据根生效；
      演练前后 `~/.mode` 的 mtime 未变。
@@ -601,7 +599,7 @@ gh secret list --app actions | grep TAURI_SIGNING
 - **`bundle.createUpdaterArtifacts` = `true`（M5 Task 1 定稿，已提交）**：
   - 不设该键时 schema 默认是 `false`，NSIS 目录里没有 `.sig`；
   - 设为 `true` 且设置签名环境变量后，`tauri build` 产出
-    `Tutto_<版本>_x64-setup.exe` 与 `Tutto_<版本>_x64-setup.exe.sig`；
+    `Mode_<版本>_x64-setup.exe` 与 `Mode_<版本>_x64-setup.exe.sig`；
   - **`tauri build` 本身不产出 `latest.json`**（本机实测：`find target -name latest.json` 为空）。
     它是 `tauri-action` 一类发布工具生成的东西，本仓库用
     `node scripts/tauri-update-manifest.ts` 从 `.sig` 生成。
@@ -616,7 +614,7 @@ gh secret list --app actions | grep TAURI_SIGNING
   **人工前置项**：在推送本次提交前先创建 3.1.1 的两个 secret，否则 CI 的 `tauri` job
   会因为缺少私钥而红（这是预期行为，不是新缺陷）。
 - **M5 Task 2 起**：`tauri` job 的 Windows 腿把 `latest.json` 与
-  `Tutto-<版本>-win-x64.exe.sig` 作为 Release 资产上传；`latest.json` 的
+  `Mode-<版本>-win-x64.exe.sig` 作为 Release 资产上传；`latest.json` 的
   `url` 指向同一 tag 的安装包。`latest*.yml` / `*.blockmap` 属于旧 Electron 线，
   新发布线不再上传它们；两个文件名不同，不冲突。
 - **同一次 run 只允许一条线上传安装包**：Electron 的 `desktop` job 仍构建，但只上传
@@ -644,13 +642,13 @@ gh secret list --app actions | grep TAURI_SIGNING
       ```bash
       node scripts/rust-cargo.ts run --locked -q -p updater-verify -- \
         apps/desktop-tauri/src-tauri/tauri.conf.json \
-        "dist/tauri/Tutto-<版本>-win-x64.exe" \
-        "dist/tauri/Tutto-<版本>-win-x64.exe.sig"
+        "dist/tauri/Mode-<版本>-win-x64.exe" \
+        "dist/tauri/Mode-<版本>-win-x64.exe.sig"
       ```
 - [ ] Release 资产里有 `latest.json` 与安装包对应的 `.sig`（M5 Task 2 起由
       `tauri` Windows 腿自动上传；要核对资产名，不能只看 CI 绿）。
 - [ ] `latest.json` 的 `version` 等于 tag 去掉 `v`；`pub_date` 存在；平台键是
-      `windows-x86_64`；条目指向本次发布的 `Tutto-<版本>-win-x64.exe`。
+      `windows-x86_64`；条目指向本次发布的 `Mode-<版本>-win-x64.exe`。
 - [ ] **没有**把 `latest.json` 与旧线的 `latest*.yml` 当成同一个资产（两个文件名不同，
       上传时不要互相 `--clobber`）。
 - [ ] 负向校验：篡改安装包字节后更新被拒绝（V11 第 4 步；只改清单的 untrusted comment
@@ -687,7 +685,7 @@ gh secret list --app actions | grep TAURI_SIGNING
   `desktop` job 仍会构建，但只产出 workflow artifact，且 `continue-on-error: true`。
 - **Release 说明必须与实际升级路径一致（M5 评审 B1/B5）**：自动生成的说明里必须写清
   「旧 Electron 用户需要手动安装一次」「本版之后的 Tauri 版本可在应用内
-  『帮助 → 检查更新』升级」「主程序是 `Tutto.exe`，与旧版独立并存」。
+  『帮助 → 检查更新』升级」「主程序是 `ModeTauri.exe`，与旧版独立并存」。
   **不要**再写「已装过的用户不用手动下载」——切换后的 Release 没有 `latest.yml`，
   旧客户端的 `electron-updater` 拿到 404（见 5.2），不会就地升级。
 
@@ -725,10 +723,10 @@ gh release view <tag> --json isDraft,isLatest,assets \
 
 目标状态至少包含：
 
-- `Tutto-<版本>-win-x64.exe`（Tauri 安装包，**本次 run 唯一上传的同名文件**）
+- `Mode-<版本>-win-x64.exe`（Tauri 安装包，**本次 run 唯一上传的同名文件**）
 - `latest.json`（Tauri 更新清单）
-- `Tutto-<版本>-win-x64.exe.sig`（安装包签名；`tauri build` 原名是
-  `Tutto_<版本>_x64-setup.exe.sig`，CI 改名后与安装包同名）
+- `Mode-<版本>-win-x64.exe.sig`（安装包签名；`tauri build` 原名是
+  `Mode_<版本>_x64-setup.exe.sig`，CI 改名后与安装包同名）
 - `sha256.txt`（合并校验清单；`checksums` 由 Tauri Windows 腿的片段驱动）
 - **不应出现**旧的 `latest*.yml` / `*.blockmap`：新发布线不上传它们
   （它们只属于旧 Electron release；与 `latest.json` 文件名不同，不会互覆）
@@ -783,7 +781,7 @@ DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的�
 > 已安装的 Electron 用户在 `/releases/latest/download/latest.yml` 上得到 404，
 > `electron-updater` 会保持当前版本（不会误把 Tauri 安装包当成 Electron 更新）。
 > **因此旧 Electron 用户不会就地升级**：他们必须**手动下载并安装一次**本版
-> `Tutto-<版本>-win-x64.exe`；装好之后，后续 Tauri 版本才走应用内
+> `Mode-<版本>-win-x64.exe`；装好之后，后续 Tauri 版本才走应用内
 > 「帮助 → 检查更新」。只有从旧 tag 重新发布的回滚 release 才带 `latest.yml`
 > 并成为 Latest，Electron 用户那时才会收到回滚版本。
 
@@ -797,7 +795,7 @@ DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的�
      --jq '{tag:.tagName,draft:.isDraft,assets:[.assets[].name]}'
    ```
 
-   必须看到该 tag 的 `Tutto-<旧版本>-win-x64.exe` 与 `latest*.yml`。
+   必须看到该 tag 的 `Mode-<旧版本>-win-x64.exe` 与 `latest*.yml`。
    Release 资产不会像 workflow artifact 那样 14 天过期；只要没人删 release，它们就还在。
    **不要对该 tag 执行 `gh release delete`，也不要在该 tag 上使用 `--clobber`。**
 
@@ -842,7 +840,7 @@ DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的�
      --jq '{draft:.isDraft,latest:.isLatest,assets:[.assets[].name]}'
    ```
 
-   期望：`draft=false`、`latest=true`，资产里有 `Tutto-<新版本>-win-x64.exe`、`latest*.yml`、
+   期望：`draft=false`、`latest=true`，资产里有 `Mode-<新版本>-win-x64.exe`、`latest*.yml`、
    `sha256.txt`。然后在一台装有上一个 Electron 版本的机器上触发「检查更新」，确认能升到
    `<新版本>`。
 

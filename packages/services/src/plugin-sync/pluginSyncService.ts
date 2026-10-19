@@ -25,7 +25,7 @@ import type { IPluginSyncService } from "./pluginSync.js";
 import {
   createPluginSyncArchive,
   extractPluginSyncArchive,
-  resolvePluginSyncMetadataArchiveFileName,
+  PLUGIN_SYNC_METADATA_ARCHIVE_PATH,
   type PluginSyncArchiveMetadata,
 } from "./pluginSyncArchive.js";
 import { normalizePluginSyncRelativePath, resolvePluginSyncPathWithin } from "./pluginSyncPath.js";
@@ -76,7 +76,6 @@ const USER_CONFIG_FILE_MODE = 0o600;
 const MARKETPLACE_SOURCE_ROOT_DIRECTORY = "marketplace-sources";
 const MIRRORED_MARKETPLACE_PLUGIN_ROOT = "plugins";
 const PLUGIN_MANIFEST_RELATIVE_PATHS = [
-  [".tutto-plugin", "plugin.json"],
   [".mode-plugin", "plugin.json"],
   [".zcode-plugin", "plugin.json"],
   [".claude-plugin", "plugin.json"],
@@ -440,7 +439,7 @@ async function importPluginsArchive(
   archive: Uint8Array,
   maxArchiveBytes: number,
 ): Promise<PluginSyncImportResult> {
-  const tempRoot = join(tmpdir(), `tutto-plugin-sync-${randomUUID()}`);
+  const tempRoot = join(tmpdir(), `mode-plugin-sync-${randomUUID()}`);
   try {
     await extractPluginSyncArchive(archive, tempRoot, {
       maxExtractedBytes: maxArchiveBytes,
@@ -539,13 +538,7 @@ async function importPluginsArchive(
 }
 
 async function readArchiveMetadata(tempRoot: string): Promise<PluginSyncArchiveMetadata> {
-  const raw = await readFile(
-    join(
-      tempRoot,
-      resolvePluginSyncMetadataArchiveFileName((name) => existsSync(join(tempRoot, name))),
-    ),
-    "utf-8",
-  );
+  const raw = await readFile(join(tempRoot, PLUGIN_SYNC_METADATA_ARCHIVE_PATH), "utf-8");
   const parsed = JSON.parse(raw) as unknown;
   if (!isRecord(parsed) || !Array.isArray(parsed.plugins)) {
     throw new Error("invalid plugin sync archive metadata");
@@ -574,13 +567,7 @@ async function readMarketplaceSourceArchiveMetadata(tempRoot: string): Promise<{
   directoryName: string;
   marketplaceId: string;
 }> {
-  const raw = await readFile(
-    join(
-      tempRoot,
-      resolvePluginSyncMetadataArchiveFileName((name) => existsSync(join(tempRoot, name))),
-    ),
-    "utf-8",
-  );
+  const raw = await readFile(join(tempRoot, PLUGIN_SYNC_METADATA_ARCHIVE_PATH), "utf-8");
   const parsed = JSON.parse(raw) as unknown;
   if (!isRecord(parsed) || !Array.isArray(parsed.marketplaceSources)) {
     throw new Error("invalid plugin marketplace source archive metadata");

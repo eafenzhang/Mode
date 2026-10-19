@@ -12,7 +12,7 @@ const faIR: Record<string, string> = {
   "startPlan.recommendation.dismiss": "دیگر نشان نده",
   "occupationOnboarding.stepMode": "حالت رابط کاربری",
   "occupationOnboarding.modeTitle": "حالت رابط کاربری خود را انتخاب کنید",
-  "occupationOnboarding.modeDescription": "دوست دارید Tutto کار خود را چگونه نمایش دهد؟",
+  "occupationOnboarding.modeDescription": "دوست دارید Mode کار خود را چگونه نمایش دهد؟",
   "occupationOnboarding.coding": "حالت کدنویسی",
   "occupationOnboarding.codingDescription":
     "می‌خواهم در سراسر فرایند توسعه، کد، خروجی دستورها و جزئیات تغییرها را ببینم.",
@@ -62,27 +62,27 @@ const faIR: Record<string, string> = {
   "occupationOnboarding.migrationDescription": "مهاجرت تاریخچهٔ گفتگوها از Claude Code",
   "occupationOnboarding.memory": "فعال‌سازی حافظهٔ فضای کاری",
   "occupationOnboarding.memoryDescription":
-    "به Tutto اجازه دهید ترجیحات و زمینهٔ کاری شما را به خاطر بسپارد.",
+    "به Mode اجازه دهید ترجیحات و زمینهٔ کاری شما را به خاطر بسپارد.",
   "occupationOnboarding.suggestions": "فعال‌سازی پیشنهادهای پیش‌دستانهٔ وظیفه",
   "occupationOnboarding.suggestionsDescription":
     "در گفتگوهای جدید پیشنهاد نشان داده می‌شود. با کلیک، کادر نوشتن پر می‌شود.",
   "occupationOnboarding.close": "خروج از راهنمای شروع",
-  "startup.global.silent": "در حال راه‌اندازی Tutto",
+  "startup.global.silent": "در حال راه‌اندازی Mode",
   "startup.global.upgrading": "ارتقای داده‌های محلی",
   "startup.global.initializing": "مقداردهی اولیهٔ داده‌های محلی",
   "startup.global.waiting": "در انتظار آماده‌سازی پایگاه داده",
   "startup.global.saving": "ذخیرهٔ به‌روزرسانی‌ها",
   "startup.global.finishing": "پایان راه‌اندازی",
   "startup.global.servicesFailed":
-    "داده‌های محلی آماده است، اما راه‌اندازی سرویس‌های برنامه ناموفق بود. اطلاعات عیب‌یابی را کپی کنید، سپس از برنامه خارج شده و Tutto را دوباره باز کنید.",
+    "داده‌های محلی آماده است، اما راه‌اندازی سرویس‌های برنامه ناموفق بود. اطلاعات عیب‌یابی را کپی کنید، سپس از برنامه خارج شده و Mode را دوباره باز کنید.",
   "startup.global.starting": "آماده‌سازی داده‌های محلی",
   "startup.global.preparing_host_storage": "آماده‌سازی نمایهٔ وظیفه‌ها",
   "startup.global.preparing_session_storage": "آماده‌سازی تاریخچهٔ گفتگوها",
-  "startup.global.starting_services": "راه‌اندازی Tutto",
+  "startup.global.starting_services": "راه‌اندازی Mode",
   "startup.global.ready": "داده‌های محلی آماده است",
   "startup.global.failed": "آماده‌سازی راه‌اندازی ناموفق بود",
   "startup.global.help":
-    "Tutto پس از پایان آماده‌سازی باز می‌شود. تاریخچه‌های بزرگ ممکن است بیشتر طول بکشند. لطفاً برنامه را باز نگه دارید.",
+    "Mode پس از پایان آماده‌سازی باز می‌شود. تاریخچه‌های بزرگ ممکن است بیشتر طول بکشند. لطفاً برنامه را باز نگه دارید.",
   "startup.global.diagnostic": "شناسهٔ عیب‌یابی",
   "startup.global.copy": "کپی اطلاعات عیب‌یابی",
   "startup.global.exit": "خروج",
@@ -103,15 +103,15 @@ const faIR: Record<string, string> = {
   "startup.global.error.open_failed":
     "باز کردن پایگاه داده ممکن نشد. بررسی کنید پوشهٔ داده وجود دارد و در دسترس است، سپس دوباره تلاش کنید.",
   "startup.global.error.lock_timeout":
-    "مهلت انتظار برای قفل نوشتن پایگاه داده به پایان رسید. ممکن است فرایند دیگری از Tutto یا CLI در حال به‌روزرسانی داده‌ها باشد. پس از پایان آن دوباره تلاش کنید.",
+    "مهلت انتظار برای قفل نوشتن پایگاه داده به پایان رسید. ممکن است فرایند دیگری از Mode یا CLI در حال به‌روزرسانی داده‌ها باشد. پس از پایان آن دوباره تلاش کنید.",
   "startup.global.error.sql_failed":
     "آماده‌سازی کامل نشد. اطلاعات عیب‌یابی را کپی کنید و لاگ‌ها را بررسی کنید. مشکل را برطرف کنید، سپس به‌صورت دستی دوباره تلاش کنید. برنامه به‌صورت خودکار تلاش مجدد نمی‌کند.",
   "startup.global.error.startup_status_timeout":
-    "هیچ وضعیتی از راه‌اندازی دریافت نشد. از برنامه خارج شده و Tutto را دوباره باز کنید. اگر دوباره ناموفق بود، اطلاعات عیب‌یابی را در اختیار پشتیبانی قرار دهید.",
+    "هیچ وضعیتی از راه‌اندازی دریافت نشد. از برنامه خارج شده و Mode را دوباره باز کنید. اگر دوباره ناموفق بود، اطلاعات عیب‌یابی را در اختیار پشتیبانی قرار دهید.",
   "startup.global.error.transport_closed":
-    "فرایند آماده‌سازی پایان یافت یا اتصالش قطع شد. برای بررسی دوبارهٔ سابقه‌های مهاجرت، از برنامه خارج شده و Tutto را دوباره باز کنید.",
+    "فرایند آماده‌سازی پایان یافت یا اتصالش قطع شد. برای بررسی دوبارهٔ سابقه‌های مهاجرت، از برنامه خارج شده و Mode را دوباره باز کنید.",
   "startup.global.error.unsupported_runtime":
-    "ایجنت پیکربندی‌شده از آماده‌سازی فضای ذخیره‌سازی پشتیبانی نمی‌کند. ایجنت همراه برنامه را بازیابی کنید، سپس Tutto را دوباره باز کنید.",
+    "ایجنت پیکربندی‌شده از آماده‌سازی فضای ذخیره‌سازی پشتیبانی نمی‌کند. ایجنت همراه برنامه را بازیابی کنید، سپس Mode را دوباره باز کنید.",
   "startup.database.checking": "بررسی تاریخچه",
   "startup.database.waiting_for_lock": "در انتظار آماده‌سازی داده‌ها توسط پنجرهٔ دیگر",
   "startup.database.migrating": "ارتقای تاریخچه",
@@ -161,7 +161,7 @@ const faIR: Record<string, string> = {
   "offPeak.chatCreated.queuedAt": "#{position} در صف",
   "offPeak.chatCreated.open": "رفتن به وظیفه‌های زمان بیکاری",
   "settings.computerUse.disabledToast":
-    "Computer Use غیرفعال است. برای اعمال شدن، گفتگوهای موجود به راه‌اندازی دوبارهٔ Tutto نیاز دارند.",
+    "Computer Use غیرفعال است. برای اعمال شدن، گفتگوهای موجود به راه‌اندازی دوبارهٔ Mode نیاز دارند.",
   "settings.modelProvider.connectionUnavailableNotice": "طرح فعلی در دسترس نیست.",
   "settings.modelProvider.switchConnection": "تغییر به «{connection}»",
   "settings.modelProvider.connectionSuggestionStale":
@@ -197,7 +197,7 @@ const faIR: Record<string, string> = {
   "conversationShare.permission.linkViewerHint": "امکان درون‌برد و ادامه دادن نیست",
   "conversationShare.permission.linkViewerSummary": "دارندگان لینک می‌توانند مشاهده کنند",
   "conversationShare.permission.linkEditor": "هر کس با لینک می‌تواند درون‌برد کند و ادامه دهد",
-  "conversationShare.permission.linkEditorHint": "درون‌برد به Tutto",
+  "conversationShare.permission.linkEditorHint": "درون‌برد به Mode",
   "conversationShare.permission.linkEditorSummary":
     "دارندگان لینک می‌توانند درون‌برد کند و ادامه دهد",
   "conversationShare.permission.privateSummary": "فقط من",
@@ -426,7 +426,7 @@ const faIR: Record<string, string> = {
   "conversationShare.import.committing": "در حال ایجاد گفتگوی مشترک‌شده",
   "conversationShare.import.complete": "درون‌برد اشتراک‌گذاری کامل شد",
   "conversationShare.import.loginRequired":
-    "این اشتراک‌گذاری به‌صورت ناشناس قابل درون‌برد نیست. وارد Tutto شوید و دوباره تلاش کنید",
+    "این اشتراک‌گذاری به‌صورت ناشناس قابل درون‌برد نیست. وارد Mode شوید و دوباره تلاش کنید",
   "conversationShare.import.notFound": "این اشتراک‌گذاری در دسترس نیست",
   "conversationShare.import.expired":
     "اشتراک‌گذاری منقضی شده است. از سازندهٔ آن بخواهید لینک جدیدی بسازد",
@@ -551,7 +551,7 @@ const faIR: Record<string, string> = {
   "confirmDialog.projectRemoveDescription":
     "پروژه «{projectName}» از نوار کناری حذف می‌شود، اما فایل‌های روی دیسک دست‌نخورده باقی می‌مانند.",
   "bots.title": "بات‌ها",
-  "bots.description": "اتصال گفت‌وگوهای خارجی و وب‌هوک‌ها به بات‌های Tutto.",
+  "bots.description": "اتصال گفت‌وگوهای خارجی و وب‌هوک‌ها به بات‌های Mode.",
   "bots.listTitle": "بات‌ها",
   "bots.addBot": "بات جدید",
   "bots.addBinding": "افزودن پیوند",
@@ -605,9 +605,9 @@ const faIR: Record<string, string> = {
   "bots.setup.guide.weixin.create.1":
     "ورود با کد QR در Weixin را آغاز کنید، کد QR را با Weixin اسکن کنید، سپس روی گوشی خود تأیید کنید.",
   "bots.setup.guide.weixin.create.2":
-    "Tutto به‌طور خودکار bot_token برگردانده‌شده از iLink را ذخیره می‌کند؛ پس از اسکن، در Weixin هر پیامی به بات بفرستید تا گفت‌وگو فعال شود.",
+    "Mode به‌طور خودکار bot_token برگردانده‌شده از iLink را ذخیره می‌کند؛ پس از اسکن، در Weixin هر پیامی به بات بفرستید تا گفت‌وگو فعال شود.",
   "bots.setup.guide.weixin.create.3":
-    "Tutto از کلاینت داخلی iLink استفاده می‌کند: `/ilink/bot/getupdates` برای long polling و `/ilink/bot/sendmessage` برای پاسخ‌ها.",
+    "Mode از کلاینت داخلی iLink استفاده می‌کند: `/ilink/bot/getupdates` برای long polling و `/ilink/bot/sendmessage` برای پاسخ‌ها.",
   "bots.setup.guide.weixin.bind.1": "گفت‌وگوی مستقیم Weixin را که می‌خواهید پیوند دهید باز کنید.",
   "bots.setup.guide.weixin.bind.2": "{command} را ارسال کنید.",
   "bots.setup.guide.weixin.bind.3":
@@ -624,13 +624,13 @@ const faIR: Record<string, string> = {
   "bots.setup.guide.feishu.bind.3":
     "پس از موفقیت پیوند به اینجا بازگردید تا پیش‌فرض‌های فضای کاری و CLI را تکمیل کنید.",
   "bots.setup.guide.webhook.create.1":
-    "حالت Webhook به بات بومی در محصول شخص ثالث نیازی ندارد؛ یکپارچه‌سازی شما فقط باید پیام‌ها را با POST به Tutto بفرستد.",
+    "حالت Webhook به بات بومی در محصول شخص ثالث نیازی ندارد؛ یکپارچه‌سازی شما فقط باید پیام‌ها را با POST به Mode بفرستد.",
   "bots.setup.guide.webhook.create.2":
     "ابتدا یک رمز مشترک تنظیم کنید؛ اگر می‌خواهید پاسخ‌های غیرهمزمان به شما پس فرستاده شوند، یک URL وب‌هوک خروجی هم اضافه کنید.",
   "bots.setup.guide.webhook.create.3":
     "برای هر کاربر خارجی یک userId پایدار نگه دارید تا پیوند و زمینه‌های آینده به همان شخص نگاشت شوند.",
   "bots.setup.guide.webhook.bind.1":
-    "یک فراخوانی برگشتی پیام خصوصی را با POST به نقطه پایانی `/api/bots/webhook` در Tutto بفرستید.",
+    "یک فراخوانی برگشتی پیام خصوصی را با POST به نقطه پایانی `/api/bots/webhook` در Mode بفرستید.",
   "bots.setup.guide.webhook.bind.3":
     "اگر بات رمز دارد، `x-mode-bot-secret` را هم بفرستید؛ سپس پس از موفقیت پیوند به اینجا بازگردید.",
   "bots.setup.footer.choose": "برای ادامه یک بات پشتیبانی‌شده انتخاب کنید.",
@@ -790,7 +790,7 @@ const faIR: Record<string, string> = {
   "bots.runtime.wecomReconnecting": "ربات WeCom در حال اتصال مجدد است.",
   "bots.runtime.wecomStopped": "اتصال ربات WeCom متوقف شد.",
   "bots.runtime.wecomKicked":
-    "اتصال توسط کلاینت دیگری تصاحب شد. آن را در پنجره‌های دیگر Tutto غیرفعال کنید و سپس اینجا فعال کنید.",
+    "اتصال توسط کلاینت دیگری تصاحب شد. آن را در پنجره‌های دیگر Mode غیرفعال کنید و سپس اینجا فعال کنید.",
   "bots.connected": "متصل",
   "bots.onboarding.credentials.done": "اعتبارنامه آماده است",
   "bots.onboarding.credentials.pending": "اعتبارنامه ناقص است",
@@ -806,7 +806,7 @@ const faIR: Record<string, string> = {
   "bots.runtime.telegramLongPollingStarting": "polling طولانی Telegram در حال آغاز است.",
   "bots.runtime.telegramLongPollingStopped": "polling طولانی Telegram متوقف شده است.",
   "bots.runtime.telegramLongPollingHandledElsewhere":
-    "polling طولانی Telegram توسط پنجره دیگری از Tutto مدیریت می‌شود.",
+    "polling طولانی Telegram توسط پنجره دیگری از Mode مدیریت می‌شود.",
   "bots.runtime.telegramTokenMissing": "اعتبارنامه بات Telegram موجود نیست.",
   "bots.runtime.telegramPollingFailedRetrying":
     "polling در Telegram ناموفق بود؛ در حال تلاش دوباره.",
@@ -972,14 +972,14 @@ const faIR: Record<string, string> = {
   "bots.unbindSuccess": "پیوند بات لغو شد",
   "bots.unbindFailed": "لغو پیوند بات ناموفق بود: {error}",
   "bots.deleteFailed": "حذف ربات ناموفق بود: {error}",
-  "welcome.title": "به Tutto خوش آمدید",
+  "welcome.title": "به Mode خوش آمدید",
   "welcome.username": "نام کاربری",
   "welcome.password": "رمز عبور",
   "welcome.login": "ورود",
   "welcome.loggingIn": "در حال ورود...",
   "welcome.loginFailed": "ورود ناموفق بود",
   "login.title": "راه‌اندازی API",
-  "login.description": "برای شروع استفاده از Tutto، یک کلید API پیکربندی کنید",
+  "login.description": "برای شروع استفاده از Mode، یک کلید API پیکربندی کنید",
   "login.oauth.activeProviderHint":
     "فراهم‌کننده فعال فعلی: {provider}. ورود دوباره، هویت فعلی را جایگزین می‌کند.",
   "login.oauth.loadingProviders": "در حال بارگذاری فراهم‌کننده‌های حساب...",
@@ -1023,7 +1023,7 @@ const faIR: Record<string, string> = {
   "app.currentTheme": "فعلی: {theme}",
   "app.login": "اتصال",
   "app.logout": "قطع اتصال",
-  "logout.confirm.title": "قطع اتصال و راه‌اندازی دوباره Tutto؟",
+  "logout.confirm.title": "قطع اتصال و راه‌اندازی دوباره Mode؟",
   "logout.confirm.descriptionWithRunningSessions":
     "{count} نشست در حال اجرا وجود دارد. قطع اتصال باعث قطع آن‌ها و راه‌اندازی دوباره برنامه می‌شود.",
   "logout.confirm.descriptionDefault":
@@ -1167,7 +1167,7 @@ const faIR: Record<string, string> = {
   "modelTrajectory.close": "بستن",
   "modelTrajectory.loading": "در حال بارگذاری مسیر…",
   "modelTrajectory.empty":
-    "هیچ فراخوانی مدلی ثبت نشده است (فقط Tutto Agent ورودی/خروجی مدل را می‌نویسد)",
+    "هیچ فراخوانی مدلی ثبت نشده است (فقط Mode Agent ورودی/خروجی مدل را می‌نویسد)",
   "modelTrajectory.error": "بارگذاری مسیر ناموفق بود",
   "modelTrajectory.truncatedNotice":
     "رکوردها بیش از حد است؛ فقط فراخوانی‌های اخیر نمایش داده می‌شوند",
@@ -1628,7 +1628,7 @@ const faIR: Record<string, string> = {
   "titleBar.menu.view.actualSize": "اندازه واقعی",
   "titleBar.menu.view.zoomIn": "بزرگ‌نمایی",
   "titleBar.menu.view.zoomOut": "کوچک‌نمایی",
-  "titleBar.menu.help.about": "درباره Tutto",
+  "titleBar.menu.help.about": "درباره Mode",
   "titleBar.menu.help.checkForUpdates": "بررسی وجود به‌روزرسانی",
   "sidebar.menu.community": "انجمن",
   "titleBar.menu.help.exportLogs": "برون‌برد لاگ‌ها",
@@ -1678,7 +1678,7 @@ const faIR: Record<string, string> = {
   "update.toast.ready": "نسخه v{version} دانلود شد؛ برای نصب، برنامه را دوباره راه‌اندازی کنید",
   "update.toast.devSkipped": "به‌روزرسانی‌ها در نسخه‌های توسعه غیرفعال است",
   "update.toast.error": "بررسی به‌روزرسانی ناموفق بود: {error}",
-  "forceUpdate.title": "برای ادامه، Tutto را به‌روزرسانی کنید",
+  "forceUpdate.title": "برای ادامه، Mode را به‌روزرسانی کنید",
   "forceUpdate.description":
     "نسخه فعلی شما v{currentVersion} است که از حداقل نسخه پشتیبانی‌شده یعنی v{minimalVersion} پایین‌تر است. پیش از ادامه کار با این کلاینت، ابتدا به‌روزرسانی کنید.",
   "forceUpdate.currentVersion": "نسخه فعلی",
@@ -1759,7 +1759,7 @@ const faIR: Record<string, string> = {
   "workspaceSidebar.notConnected": "متصل نیست",
   "workspaceSidebar.empty": "هنوز فضای کاری وجود ندارد. برای شروع، یک فضای کاری باز کنید.",
   "workspaceSidebar.unavailableLocalDirectory":
-    "پوشه فضای کاری وجود ندارد یا قابل دسترسی نیست. فعلاً فقط می‌توانید تاریخچه را ببینید. برای ادامه، پوشه را بازیابی کنید و Tutto را دوباره راه‌اندازی کنید.",
+    "پوشه فضای کاری وجود ندارد یا قابل دسترسی نیست. فعلاً فقط می‌توانید تاریخچه را ببینید. برای ادامه، پوشه را بازیابی کنید و Mode را دوباره راه‌اندازی کنید.",
   "workspaceSidebar.showSidebar": "نمایش/پنهان کردن نوار کناری",
   "workspaceSidebar.hideSidebar": "نمایش/پنهان کردن نوار کناری",
   "workspaceSidebar.toggleSidebar": "نمایش/پنهان کردن نوار کناری",
@@ -1800,7 +1800,7 @@ const faIR: Record<string, string> = {
   "ssh.assetInstallMode.local-download-upload": "دانلود روی سیستم محلی، سپس آپلود",
   "ssh.assetInstallMode.remote-download": "دانلود روی سرور از راه دور",
   "ssh.assetInstallModeDescription":
-    "دانلود روی سرور، زمان انتظار برای آپلود را کاهش می‌دهد، اما سرور باید به CDN مربوط به Tutto دسترسی داشته باشد و ابزارهای دانلود، استخراج و بررسی checksum را در اختیار داشته باشد.",
+    "دانلود روی سرور، زمان انتظار برای آپلود را کاهش می‌دهد، اما سرور باید به CDN مربوط به Mode دسترسی داشته باشد و ابزارهای دانلود، استخراج و بررسی checksum را در اختیار داشته باشد.",
   "ssh.password": "رمز عبور",
   "ssh.passwordPlaceholder": "رمز عبور SSH خود را وارد کنید",
   "ssh.privateKey": "کلید خصوصی",
@@ -1843,7 +1843,7 @@ const faIR: Record<string, string> = {
     "در حال برقراری اتصال {method} هستیم. می‌توانید روند راه‌اندازی را به صورت زنده اینجا دنبال کنید.",
   "webRemoteControl.trigger": "کنترل از راه دور با موبایل",
   "webRemoteControl.title": "کنترل از راه دور با موبایل",
-  "webRemoteControl.description": "کنترل فضاهای کاری Tutto از طریق چت‌بات‌ها.",
+  "webRemoteControl.description": "کنترل فضاهای کاری Mode از طریق چت‌بات‌ها.",
   "webRemoteControl.botChannel.title": "استفاده از کانال ربات",
   "webRemoteControl.botChannel.description": "برای دسترسی موبایلی طولانی‌مدت، یک چت‌بات متصل کنید.",
   "webRemoteControl.botChannel.weixin.title": "Weixin",
@@ -1874,14 +1874,14 @@ const faIR: Record<string, string> = {
   "remote.kind.wsl.wizardDescription": "Windows Subsystem for Linux",
   "remote.kind.docker.wizardDescription": "کانتینر محلی",
   "remote.kind.lan": "شبکه محلی",
-  "remote.kind.lan.wizardDescription": "نمونه‌های Tutto در شبکه محلی",
+  "remote.kind.lan.wizardDescription": "نمونه‌های Mode در شبکه محلی",
   "remote.lan.description":
-    "نمونه‌های Tutto را در شبکه پیدا کنید که دسترسی شبکه محلی دارند؛ اتصال نخست به کد پیوندی نیاز دارد که در دستگاه دیگر نمایش داده می‌شود.",
+    "نمونه‌های Mode را در شبکه پیدا کنید که دسترسی شبکه محلی دارند؛ اتصال نخست به کد پیوندی نیاز دارد که در دستگاه دیگر نمایش داده می‌شود.",
   "remote.lan.discoveredTitle": "دستگاه‌های یافت‌شده",
   "remote.lan.pairedTitle": "دستگاه‌های پیوندشده",
   "remote.lan.pairedHint": "دستگاه پیوندشده — اتصال مستقیم بدون کد پیوند.",
   "remote.lan.rescan": "جست‌وجوی دوباره",
-  "remote.lan.scanning": "در حال جست‌وجوی Tutto در شبکه…",
+  "remote.lan.scanning": "در حال جست‌وجوی Mode در شبکه…",
   "remote.lan.empty":
     "دستگاهی یافت نشد. نشانی را دستی وارد کنید یا بررسی کنید که در دستگاه دیگر دسترسی شبکه محلی روشن باشد.",
   "remote.lan.hostLabel": "نشانی",
@@ -2082,7 +2082,7 @@ const faIR: Record<string, string> = {
   "chat.changeSummary.reverted": "واگرد شد",
   "chat.changeSummary.rewindDialog.title": "واگرد تغییرات فایل‌ها",
   "chat.changeSummary.rewindDialog.description":
-    "Tutto پیش از نوشتن، محتوای فعلی فایل‌ها را دوباره بررسی می‌کند. اگر فرایند دیگری فایلی را تغییر داده باشد، هیچ فایلی نوشته نخواهد شد.",
+    "Mode پیش از نوشتن، محتوای فعلی فایل‌ها را دوباره بررسی می‌کند. اگر فرایند دیگری فایلی را تغییر داده باشد، هیچ فایلی نوشته نخواهد شد.",
   "chat.changeSummary.rewindDialog.loading": "در حال بررسی فایل‌های قابل واگرد…",
   "chat.changeSummary.rewindDialog.safeTitle": "{count} مورد امن برای واگرد",
   "chat.changeSummary.rewindDialog.unsafeTitle": "{count} مورد ناامن برای واگرد",
@@ -2243,7 +2243,7 @@ const faIR: Record<string, string> = {
     "در زمان اجرای ترمینال داخلی، در صورت امکان محیط پوسته ورود (login shell)، پروکسی، متغیرهای Kubernetes و قلم ترمینال محلی به ارث برود.",
   "settings.terminalFontFamily": "قلم ترمینال",
   "settings.terminalFontFamilyDescription":
-    "برای تشخیص خودکار تنظیمات ترمینال سیستم خالی بگذارید؛ برای بازنویسی قلم ترمینال Tutto مقداری تعیین کنید.",
+    "برای تشخیص خودکار تنظیمات ترمینال سیستم خالی بگذارید؛ برای بازنویسی قلم ترمینال Mode مقداری تعیین کنید.",
   "settings.terminalFontFamilyPlaceholder": "برای ارث‌بری خالی بگذارید، مثلاً MesloLGS NF, monospace",
   "settings.integratedTerminalShell": "پوسته ترمینال یکپارچه",
   "settings.integratedTerminalShellDescription":
@@ -2362,7 +2362,7 @@ const faIR: Record<string, string> = {
     "فراخوانی‌های متوالی Write، Edit و ApplyPatch را در یک بخش Changes گروه‌بندی می‌کند.",
   "settings.modeInteractionBehavior": "رفتار تعامل",
   "settings.modeInteractionBehaviorDescription":
-    "در حین اجرای Tutto، اقدام‌های بعدی را به صف اضافه کنید یا هدایت کنید تا پس از فراخوانی بعدی ابزار اجرا شوند.",
+    "در حین اجرای Mode، اقدام‌های بعدی را به صف اضافه کنید یا هدایت کنید تا پس از فراخوانی بعدی ابزار اجرا شوند.",
   "settings.modeInteractionBehavior.option.queue": "صف",
   "settings.modeInteractionBehavior.option.guide": "هدایت",
   "settings.askUserQuestionAutoResolution": "ادامه خودکار پرسش‌ها",
@@ -2395,7 +2395,7 @@ const faIR: Record<string, string> = {
   "settings.dataBaseDirCopying": "در حال کپی داده‌ها؛ لطفاً برنامه را نبندید...",
   "settings.dataBaseDirCopyFailed": "کپی داده‌ها ناموفق بود. مسیر تغییر نکرد.",
   "settings.dataBaseDirForbiddenInstallDir":
-    "پوشه داده‌ها نمی‌تواند پوشه نصب Tutto در Windows باشد. پوشه‌ای بیرون از محل نصب برنامه انتخاب کنید.",
+    "پوشه داده‌ها نمی‌تواند پوشه نصب Mode در Windows باشد. پوشه‌ای بیرون از محل نصب برنامه انتخاب کنید.",
   "settings.dataBaseDirRestartRequired":
     "داده‌ها ذخیره شد. برای اعمال، لطفاً برنامه را دوباره راه‌اندازی کنید.",
   "settings.locale.system": "پیش‌فرض سیستم",
@@ -2412,7 +2412,7 @@ const faIR: Record<string, string> = {
   "settings.migration.title": "مهاجرت",
   "settings.migration.sectionTitle": "مهاجرت تاریخچه Claude",
   "settings.migration.sectionDescription":
-    "تاریخچه بومی Claude Code را در این دستگاه اسکن کنید، در صورت تمایل بر اساس فضای کاری و بازه فعالیت فیلتر کنید، سپس نشست‌های انتخاب‌شده را به فهرست‌های وظیفه متناظر در Tutto درون‌بری کنید.",
+    "تاریخچه بومی Claude Code را در این دستگاه اسکن کنید، در صورت تمایل بر اساس فضای کاری و بازه فعالیت فیلتر کنید، سپس نشست‌های انتخاب‌شده را به فهرست‌های وظیفه متناظر در Mode درون‌بری کنید.",
   "settings.migration.badge.localOnly": "رکوردهای محلی Claude",
   "settings.migration.badge.manualOnly": "فقط دستی",
   "settings.migration.currentWorkspace": "فضای کاری فعلی",
@@ -2465,14 +2465,14 @@ const faIR: Record<string, string> = {
     "نشست مبدأ یافت نشد، یا دیگر با فیلتر فعلی فضای کاری مطابقت ندارد.",
   "settings.usageTitle": "آمار مصرف",
   "settings.usageDescription": "مرور فعالیت تقریبی و مصرف مدل تجمیع‌شده از نشست‌های محلی.",
-  "resourceManager.storage.summaryTotal": "مجموع مصرف‌شده توسط Tutto",
+  "resourceManager.storage.summaryTotal": "مجموع مصرف‌شده توسط Mode",
   "resourceManager.storage.scanning": "در حال محاسبه…",
   "resourceManager.storage.lastScanned": "آخرین محاسبه {time}",
   "resourceManager.storage.idle": "هنوز محاسبه نشده است",
   "resourceManager.storage.failed": "محاسبه ناموفق بود",
   "resourceManager.storage.rescan": "محاسبه دوباره",
   "resourceManager.storage.disk": "دیسک",
-  "resourceManager.storage.diskUsage": "Tutto از {used} استفاده می‌کند",
+  "resourceManager.storage.diskUsage": "Mode از {used} استفاده می‌کند",
   "resourceManager.storage.diskFree": "{free} آزاد از {total}",
   "resourceManager.storage.diskUnknown": "ظرفیت دیسک در دسترس نیست",
   "resourceManager.storage.roots": "پوشه‌های داده",
@@ -2539,22 +2539,22 @@ const faIR: Record<string, string> = {
   "settings.embeddedBrowserAllowInsecureCertificatesSavedHint":
     "تنظیمات گواهی ذخیره شد. برای اعمال شدن، برنامه را دوباره راه‌اندازی کنید.",
   "settings.browser.data.section": "داده‌های مرورگر",
-  "settings.browser.desktopOnly": "داده‌های مرورگر فقط در نسخه دسکتاپ Tutto قابل مدیریت هستند.",
+  "settings.browser.desktopOnly": "داده‌های مرورگر فقط در نسخه دسکتاپ Mode قابل مدیریت هستند.",
   "settings.browser.import.title": "درون‌برد وضعیت ورود Chrome",
   "settings.browser.import.description":
     "وضعیت ورود Chrome را یک‌بار به مرورگر داخلی منتقل کنید تا هوش مصنوعی بتواند سایت‌هایی را که از قبل در آن‌ها وارد شده‌اید باز کند و روان‌تر کار کند.",
   "settings.browser.import.action": "درون‌برد داده‌های مرورگر",
   "settings.browser.import.extensionTitle": "درون‌برد با افزونه Chrome (آزمایشی)",
   "settings.browser.import.extensionDescription":
-    "پس از نصب افزونه درون‌برد Tutto، با یک کلیک در پنجره افزونه وضعیت ورود فعلی Chrome را به مرورگر داخلی منتقل کنید. رمزهای عبور و تاریخچه هرگز خوانده نمی‌شوند.",
+    "پس از نصب افزونه درون‌برد Mode، با یک کلیک در پنجره افزونه وضعیت ورود فعلی Chrome را به مرورگر داخلی منتقل کنید. رمزهای عبور و تاریخچه هرگز خوانده نمی‌شوند.",
   "settings.browser.import.extensionAction": "درون‌برد با افزونه",
   "settings.browser.import.extensionWaiting":
-    "در انتظار داده افزونه: افزونه درون‌برد Tutto را در نوار ابزار Chrome کلیک کنید (حداکثر ۶۰ ثانیه).",
+    "در انتظار داده افزونه: افزونه درون‌برد Mode را در نوار ابزار Chrome کلیک کنید (حداکثر ۶۰ ثانیه).",
   "settings.browser.import.extensionTimeout":
-    "داده‌ای از افزونه دریافت نشد. مطمئن شوید افزونه درون‌برد Tutto نصب و فعال است و دوباره تلاش کنید.",
+    "داده‌ای از افزونه دریافت نشد. مطمئن شوید افزونه درون‌برد Mode نصب و فعال است و دوباره تلاش کنید.",
   "settings.browser.import.extensionCancelled": "درون‌برد لغو شد؛ هیچ کوکی‌ای نوشته نشد.",
   "settings.browser.import.extensionMissing":
-    "افزونه درون‌برد یافت نشد. ابتدا افزونه درون‌برد Tutto را نصب و فعال کنید.",
+    "افزونه درون‌برد یافت نشد. ابتدا افزونه درون‌برد Mode را نصب و فعال کنید.",
   "settings.browser.import.nativeHostMissing":
     "Native host ثبت نشده یا راه‌اندازی نشد. اسکریپت نصب افزونه را دوباره اجرا کنید و تلاش کنید.",
   "settings.browser.import.extensionPayloadTooLarge":
@@ -2579,13 +2579,13 @@ const faIR: Record<string, string> = {
   "settings.browser.import.elevationCancelled":
     "دسترسی مدیر در Windows لغو شد. هیچ کوکی‌ای درون‌برد نشد.",
   "settings.browser.import.helperVerificationFailed":
-    "Tutto نتوانست مؤلفه درون‌برد امن خود در Windows را تأیید کند. پیش از درون‌برد کوکی‌ها، Tutto را دوباره نصب یا به‌روزرسانی کنید.",
+    "Mode نتوانست مؤلفه درون‌برد امن خود در Windows را تأیید کند. پیش از درون‌برد کوکی‌ها، Mode را دوباره نصب یا به‌روزرسانی کنید.",
   "settings.browser.import.appBoundFailed":
     "Windows نتوانست کوکی‌های App-Bound مربوط به Chrome را باز کند. هیچ کوکی‌ای درون‌برد نشد.",
   "settings.browser.import.adminConfirmTitle":
     "اجازه دسترسی مدیر برای درون‌برد کوکی‌های Chrome داده شود؟",
   "settings.browser.import.adminConfirmDescription":
-    "Chrome در Windows از کوکی‌ها با رمزنگاری App-Bound محافظت می‌کند. فقط برای همین درون‌برد، Tutto دسترسی مدیر درخواست می‌کند، یک سرویس سیستمی موقت راه‌اندازی می‌کند و بلافاصله پس از آن آن را حذف می‌کند. رمزهای عبور Chrome هرگز خوانده یا درون‌برد نمی‌شوند.",
+    "Chrome در Windows از کوکی‌ها با رمزنگاری App-Bound محافظت می‌کند. فقط برای همین درون‌برد، Mode دسترسی مدیر درخواست می‌کند، یک سرویس سیستمی موقت راه‌اندازی می‌کند و بلافاصله پس از آن آن را حذف می‌کند. رمزهای عبور Chrome هرگز خوانده یا درون‌برد نمی‌شوند.",
   "settings.browser.import.adminConsent": "دسترسی مدیر را فقط برای همین درون‌برد کوکی تأیید می‌کنم",
   "settings.browser.import.adminConfirmAction": "ادامه و درخواست دسترسی",
   "settings.browser.import.cookieProtected":
@@ -2641,7 +2641,7 @@ const faIR: Record<string, string> = {
   "settings.previewBadge.dark": "تیره",
   "settings.modelProviderTitle": "تنظیمات مدل",
   "settings.mcpTitle": "سرورهای MCP",
-  "settings.mcp.description": "مدیریت پیکربندی‌های سرور MCP مورد استفاده Tutto Agent.",
+  "settings.mcp.description": "مدیریت پیکربندی‌های سرور MCP مورد استفاده Mode Agent.",
   "settings.mcp.create.open": "افزودن سرور MCP",
   "settings.mcp.import.open": "درون‌برد سرورهای MCP از ایجنت‌های خارجی",
   "settings.mcp.import.action": "درون‌برد",
@@ -2718,7 +2718,7 @@ const faIR: Record<string, string> = {
     "این سرور MCP افزونه بارگذاری شده، اما در حال حاضر متصل نیست.",
   "settings.mcp.host.active": "داخلی میزبان",
   "settings.mcp.host.activeDescription":
-    "Tutto این سرور MCP را برای افزونه {pluginName} ارائه می‌دهد. هویت زمان اجرای آن توسط میزبان مدیریت می‌شود.",
+    "Mode این سرور MCP را برای افزونه {pluginName} ارائه می‌دهد. هویت زمان اجرای آن توسط میزبان مدیریت می‌شود.",
   "settings.mcp.plugin.disabled": "افزونه غیرفعال است",
   "settings.mcp.plugin.disabledDescription":
     "این سرور MCP درون یک افزونه قرار دارد. برای بارگذاری آن، افزونه را فعال کنید.",
@@ -2730,7 +2730,7 @@ const faIR: Record<string, string> = {
     "برای تکمیل اتصال این سرور MCP افزونه، مجوزدهی را باز کنید.",
   "settings.mcp.oauth.openAuthorization": "باز کردن مجوزدهی",
   "settings.mcp.statusOnlyUnsupported":
-    "این Tutto Agent نمی‌تواند وضعیت OAuth را به‌روزرسانی کند. Tutto را ارتقا دهید یا دوباره راه‌اندازی کنید، سپس تنظیمات MCP را دوباره باز کنید تا یک به‌روزرسانی کامل انجام شود.",
+    "این Mode Agent نمی‌تواند وضعیت OAuth را به‌روزرسانی کند. Mode را ارتقا دهید یا دوباره راه‌اندازی کنید، سپس تنظیمات MCP را دوباره باز کنید تا یک به‌روزرسانی کامل انجام شود.",
   "settings.mcp.refreshFailed": "به‌روزرسانی وضعیت MCP ناموفق بود: {error}",
   "settings.mcp.status.toolCount": "{count} ابزار",
   "settings.mcp.status.connectedReason": "متصل و در دسترس.",
@@ -2823,7 +2823,7 @@ const faIR: Record<string, string> = {
   "settings.mcpServers.import.targetLabel": "مقصد درون‌برد",
   "settings.mcpServers.import.target.global": "درون‌برد به دامنه سراسری",
   "settings.mcpServers.import.target.project": "درون‌برد به پروژه",
-  "settings.mcpServers.import.importing": "در حال درون‌برد سرورهای MCP به Tutto",
+  "settings.mcpServers.import.importing": "در حال درون‌برد سرورهای MCP به Mode",
   "settings.mcpServers.import.imported": "درون‌برد شد",
   "settings.mcpServers.import.skipped": "رد شد",
   "settings.mcpServers.import.failed": "ناموفق",
@@ -2999,7 +2999,7 @@ const faIR: Record<string, string> = {
   "settings.modelProvider.startPlan.highlight.metering.description":
     "مصرف تنها پس از استفاده از مدل‌های پرچم‌دار GLM پلتفرم محاسبه می‌شود.",
   "settings.modelProvider.startPlan.compatibility":
-    "از BYOK و BYOA پشتیبانی می‌کند. Base URL، قالب API و API Key به‌صورت خودکار توسط Tutto مدیریت می‌شوند.",
+    "از BYOK و BYOA پشتیبانی می‌کند. Base URL، قالب API و API Key به‌صورت خودکار توسط Mode مدیریت می‌شوند.",
   "settings.modelProvider.codingPlan.title": "{provider} - طرح کدنویسی",
   "settings.modelProvider.codingPlan.webview.title": "طرح کدنویسی",
   "settings.modelProvider.codingPlan.webview.authInjectFailed":
@@ -3138,7 +3138,7 @@ const faIR: Record<string, string> = {
   "settings.modelProvider.resetForm": "بازنشانی فرم",
   "settings.modelProvider.fieldHelp": "درباره {field}",
   "settings.modelProvider.help.contextWindow":
-    "ظرفیت زمینه‌ای که مدل می‌تواند در هر لحظه پردازش کند، بر حسب توکن. Tutto از این مقدار برای مدیریت زمینه استفاده می‌کند.\nاز حد واقعی مدل فراتر نروید.",
+    "ظرفیت زمینه‌ای که مدل می‌تواند در هر لحظه پردازش کند، بر حسب توکن. Mode از این مقدار برای مدیریت زمینه استفاده می‌کند.\nاز حد واقعی مدل فراتر نروید.",
   "settings.modelProvider.help.maxOutputTokens":
     "حداکثر تعداد توکنی که یک درخواست از مدل می‌تواند تولید کند.\nاز حد واقعی مدل فراتر نروید.",
   "settings.modelProvider.help.inputModalities":
@@ -3154,7 +3154,7 @@ const faIR: Record<string, string> = {
   "settings.modelProvider.help.advanced":
     "**MFJS tool schema**: سازگاری با Moonshot Flavored JSON Schema را فعال می‌کند که معمولاً در API مدل Kimi شرکت Moonshot استفاده می‌شود. تنها زمانی فعال کنید که API مدل به این قالب نیاز داشته باشد.",
   "settings.modelProvider.help.followRecommendedConfig":
-    "بر اساس شناسه مدل، Base URL و قالب API با پیکربندی پیشنهادی مطابقت می‌دهد. Tutto پیشنهادها را مداوم به‌روزرسانی می‌کند و به‌طور خودکار برای شما همگام‌سازی می‌کند.\nهر تنظیمی را که به‌صورت دستی تغییر دهید، به مدیریت دستی درمی‌آید و دیگر پیشنهادها را دنبال نمی‌کند؛ سایر تنظیمات تحت مدیریت پیکربندی هوشمند باقی می‌مانند.",
+    "بر اساس شناسه مدل، Base URL و قالب API با پیکربندی پیشنهادی مطابقت می‌دهد. Mode پیشنهادها را مداوم به‌روزرسانی می‌کند و به‌طور خودکار برای شما همگام‌سازی می‌کند.\nهر تنظیمی را که به‌صورت دستی تغییر دهید، به مدیریت دستی درمی‌آید و دیگر پیشنهادها را دنبال نمی‌کند؛ سایر تنظیمات تحت مدیریت پیکربندی هوشمند باقی می‌مانند.",
   "settings.modelProvider.modelDefaultsLoaded": "پیکربندی هوشمند برای این مدل مطابقت یافت",
   "settings.modelProvider.modelConfigIncomplete": "پیکربندی مدل ناقص است",
   "settings.modelProvider.models": "فهرست مدل‌ها",
@@ -3286,7 +3286,7 @@ const faIR: Record<string, string> = {
   "settings.usage.entitlementFiveHourUsage": "باقی‌مانده 5 ساعته",
   "settings.usage.entitlementWeeklyUsage": "باقی‌مانده هفتگی",
   "settings.usage.entitlementMonthlyMcpUsage": "فراخوانی‌های ابزار",
-  "settings.usage.entitlementServerMcpUsage": "Tutto MCP",
+  "settings.usage.entitlementServerMcpUsage": "Mode MCP",
   "settings.usage.entitlementResetAt": "بازنشانی در {time}",
   "settings.usage.entitlementUsageDetails": "جزئیات مصرف ابزار",
   "settings.usage.entitlementPromptCap": "استخر پرامپت 5 ساعته",
@@ -3344,9 +3344,9 @@ const faIR: Record<string, string> = {
   "sidebar.usage.plan.fiveHour": "5 ساعت",
   "sidebar.usage.plan.weekly": "هفتگی",
   "sidebar.usage.plan.toolCalls": "فراخوانی‌های ابزار",
-  "sidebar.usage.plan.mcp": "Tutto MCP",
-  "sidebar.usage.plan.modeMcp": "Tutto MCP",
-  "sidebar.usage.plan.modeMcpDescription": "سهمیه تجمیعی روزانه برای افزونه‌های MCP داخلی Tutto",
+  "sidebar.usage.plan.mcp": "Mode MCP",
+  "sidebar.usage.plan.modeMcp": "Mode MCP",
+  "sidebar.usage.plan.modeMcpDescription": "سهمیه تجمیعی روزانه برای افزونه‌های MCP داخلی Mode",
   "chat.planUsage.title": "مصرف طرح",
   "chat.planUsage.titleWithPlan": "مصرف طرح {plan}",
   "chat.planUsage.providerFallback": "فراهم‌کننده فعلی",
@@ -3564,10 +3564,10 @@ const faIR: Record<string, string> = {
   "settings.skills.import.mode.copy": "کپی",
   "settings.skills.import.mode.symlink": "پیوند نمادین",
   "settings.skills.import.mode.copy.description":
-    "کل پوشه مهارت در Tutto کپی می‌شود. تغییرات بعدی در پوشه ایجنت خارجی به‌طور خودکار همگام نمی‌شوند.",
+    "کل پوشه مهارت در Mode کپی می‌شود. تغییرات بعدی در پوشه ایجنت خارجی به‌طور خودکار همگام نمی‌شوند.",
   "settings.skills.import.mode.symlink.description":
-    "یک پیوند پوشه به مهارت ایجنت خارجی ایجاد می‌شود. Tutto تغییرات بعدی منبع را دنبال می‌کند، اما مهارت به در دسترس ماندن آن مسیر منبع وابسته است.",
-  "settings.skills.import.importing": "در حال درون‌برد مهارت‌ها به Tutto",
+    "یک پیوند پوشه به مهارت ایجنت خارجی ایجاد می‌شود. Mode تغییرات بعدی منبع را دنبال می‌کند، اما مهارت به در دسترس ماندن آن مسیر منبع وابسته است.",
+  "settings.skills.import.importing": "در حال درون‌برد مهارت‌ها به Mode",
   "settings.skills.import.imported": "درون‌برد شد",
   "settings.skills.import.skipped": "رد شد",
   "settings.skills.import.failed": "ناموفق",
@@ -3642,7 +3642,7 @@ const faIR: Record<string, string> = {
   "settings.skills.diagnostics.code.skill_not_found": "مهارت یافت نشد",
   "settings.subagents.title": "ایجنت‌های فرعی",
   "settings.subagents.description":
-    "مدیریت فایل‌های Markdown ایجنت فرعیِ سطح کاربر که توسط Tutto Agent مصرف می‌شوند.",
+    "مدیریت فایل‌های Markdown ایجنت فرعیِ سطح کاربر که توسط Mode Agent مصرف می‌شوند.",
   "settings.subagents.workspaceScopeUnsupported":
     "ایجاد یا ویرایش در سطح فضای کاری پشتیبانی نمی‌شود",
   "settings.subagents.searchPlaceholder": "جستجوی ایجنت‌های فرعی...",
@@ -3785,7 +3785,7 @@ const faIR: Record<string, string> = {
   "settings.plugins.description":
     "افزونه‌های نصب‌شده را فعال یا غیرفعال کنید. افزونه‌ها مهارت‌ها، دستورها، هوک‌ها و سرورهای MCP را یکجا در اختیار شما می‌گذارند.",
   "settings.plugins.store.subtitle":
-    "Tutto را با مهارت‌ها، دستورها و سرورهای MCP از افزونه‌ها گسترش دهید",
+    "Mode را با مهارت‌ها، دستورها و سرورهای MCP از افزونه‌ها گسترش دهید",
   "settings.plugins.store.searchPlaceholder": "جستجوی افزونه‌ها",
   "settings.plugins.store.searchResults": "نتایج جستجو ({count})",
   "settings.plugins.store.searchEmpty": "هیچ افزونه‌ای با جستجوی شما مطابقت ندارد",
@@ -3806,7 +3806,7 @@ const faIR: Record<string, string> = {
     "این افزونه همراه کلاینت رسمی عرضه می‌شود و این شاخه بستهٔ آن را همراه ندارد؛ بنابراین اینجا نصب نمی‌شود.",
   "settings.plugins.store.sourceUnavailable": "منبع غیرفعال است",
   "settings.plugins.store.sourceUnavailableHint":
-    "منبع دانلود این افزونه روی پلتفرم رسمی است که Tutto دیگر به آن وصل نمی‌شود؛ بنابراین اینجا نصب نمی‌شود.",
+    "منبع دانلود این افزونه روی پلتفرم رسمی است که Mode دیگر به آن وصل نمی‌شود؛ بنابراین اینجا نصب نمی‌شود.",
   "settings.plugins.store.install": "نصب",
   "settings.plugins.store.tryNow": "هم‌اکنون امتحان کنید",
   "settings.plugins.store.sourceMissing":
@@ -3991,10 +3991,10 @@ const faIR: Record<string, string> = {
   "settings.plugins.import.mode.copy": "کپی",
   "settings.plugins.import.mode.symlink": "پیوند نمادین",
   "settings.plugins.import.mode.copy.description":
-    "کل پوشه افزونه در Tutto کپی و در plugins.dirs ثبت می‌شود. تغییرات بعدی در پوشه ایجنت خارجی به‌طور خودکار همگام نمی‌شوند.",
+    "کل پوشه افزونه در Mode کپی و در plugins.dirs ثبت می‌شود. تغییرات بعدی در پوشه ایجنت خارجی به‌طور خودکار همگام نمی‌شوند.",
   "settings.plugins.import.mode.symlink.description":
-    "یک پیوند پوشه به افزونه ایجنت خارجی ساخته و در plugins.dirs ثبت می‌شود. Tutto تغییرات بعدی منبع را دنبال می‌کند، اما افزونه به در دسترس ماندن آن مسیر منبع وابسته است.",
-  "settings.plugins.import.importing": "در حال درون‌برد افزونه‌ها در Tutto",
+    "یک پیوند پوشه به افزونه ایجنت خارجی ساخته و در plugins.dirs ثبت می‌شود. Mode تغییرات بعدی منبع را دنبال می‌کند، اما افزونه به در دسترس ماندن آن مسیر منبع وابسته است.",
+  "settings.plugins.import.importing": "در حال درون‌برد افزونه‌ها در Mode",
   "settings.plugins.import.imported": "درون‌برد شد",
   "settings.plugins.import.skipped": "رد شد",
   "settings.plugins.import.failed": "ناموفق",
@@ -4003,9 +4003,9 @@ const faIR: Record<string, string> = {
   "settings.plugins.import.finish": "انجام شد",
   "settings.commands.title": "دستورها",
   "settings.commands.description":
-    "فایل‌های دستور .md مربوط به Tutto Agent را مدیریت کنید. دستورها را می‌توان با /command-name در گفتگو فراخوانی کرد.",
+    "فایل‌های دستور .md مربوط به Mode Agent را مدیریت کنید. دستورها را می‌توان با /command-name در گفتگو فراخوانی کرد.",
   "settings.commands.sourceFilterLabel": "فیلتر منبع",
-  "settings.commands.source.modeAgent": "Tutto Agent",
+  "settings.commands.source.modeAgent": "Mode Agent",
   "settings.commands.add": "جدید",
   "settings.commands.addNew": "دستور جدید",
   "settings.commands.addDescription":
@@ -4063,10 +4063,10 @@ const faIR: Record<string, string> = {
   "settings.commands.import.mode.copy": "کپی",
   "settings.commands.import.mode.symlink": "پیوند نمادین",
   "settings.commands.import.mode.copy.description":
-    "فایل دستور در Tutto کپی می‌شود. تغییرات بعدی در فایل ایجنت خارجی به‌طور خودکار همگام نمی‌شوند.",
+    "فایل دستور در Mode کپی می‌شود. تغییرات بعدی در فایل ایجنت خارجی به‌طور خودکار همگام نمی‌شوند.",
   "settings.commands.import.mode.symlink.description":
-    "یک پیوند فایل به دستور ایجنت خارجی ساخته می‌شود. Tutto تغییرات بعدی منبع را دنبال می‌کند، اما دستور به در دسترس ماندن آن مسیر منبع وابسته است.",
-  "settings.commands.import.importing": "در حال درون‌برد دستورها در Tutto",
+    "یک پیوند فایل به دستور ایجنت خارجی ساخته می‌شود. Mode تغییرات بعدی منبع را دنبال می‌کند، اما دستور به در دسترس ماندن آن مسیر منبع وابسته است.",
+  "settings.commands.import.importing": "در حال درون‌برد دستورها در Mode",
   "settings.commands.import.imported": "درون‌برد شد",
   "settings.commands.import.skipped": "رد شد",
   "settings.commands.import.failed": "ناموفق",
@@ -4165,8 +4165,8 @@ const faIR: Record<string, string> = {
   "settingsSync.action.rescanning": "در حال اسکن...",
   "settingsSync.action.importSelected": "درون‌برد موارد انتخاب‌شده",
   "settingsSync.action.importing": "در حال درون‌برد...",
-  "settingsSync.action.finish": "شروع استفاده از Tutto",
-  "settingsSync.agent.mode": "ایجنت Tutto",
+  "settingsSync.action.finish": "شروع استفاده از Mode",
+  "settingsSync.agent.mode": "ایجنت Mode",
   "settingsSync.agent.claudeCode": "Claude Code",
   "settingsSync.agent.codexCli": "Codex CLI",
   "settingsSync.agent.openCode": "OpenCode",
@@ -4215,17 +4215,17 @@ const faIR: Record<string, string> = {
   "settingsSync.discovery.description":
     "تنظیمات قابل درون‌برد ایجنت‌ها دیگر به‌طور خودکار اسکن نمی‌شوند.",
   "settingsSync.discovery.helper":
-    "فقط موارد مفقود درون‌برد می‌شوند و تنظیمات فعلی Tutto شما بازنویسی نخواهد شد.",
+    "فقط موارد مفقود درون‌برد می‌شوند و تنظیمات فعلی Mode شما بازنویسی نخواهد شد.",
   "settingsSync.discovery.agentCount": "ایجنت‌های یافت‌شده: {count}",
   "settingsSync.discovery.categoryCount": "دسته‌های یافت‌شده: {count}",
   "settingsSync.discovery.error": "اسکن ناموفق بود: {error}",
   "settingsSync.discovery.continue": "ادامه",
-  "onboarding.dialog.title": "به Tutto خوش آمدید",
+  "onboarding.dialog.title": "به Mode خوش آمدید",
   "onboarding.dialog.description": "نحوه شروع نخستین نشست خود را انتخاب کنید.",
   "onboarding.wizard.label": "راهنمای مهاجرت",
   "onboarding.welcome.eyebrow": "راه‌اندازی نخستین اجرا",
-  "onboarding.welcome.title": "به Tutto خوش آمدید",
-  "onboarding.welcome.start": "شروع Tutto",
+  "onboarding.welcome.title": "به Mode خوش آمدید",
+  "onboarding.welcome.start": "شروع Mode",
   "onboarding.welcome.migrate": "راهنمای مهاجرت",
   "onboarding.welcome.helper":
     "تنظیمات ابزارهای موجود را هم‌اکنون درون‌برد کنید، یا صرف‌نظر کنید و بعداً از تنظیمات ادامه دهید.",
@@ -4247,7 +4247,7 @@ const faIR: Record<string, string> = {
   "onboarding.stepDescription.commandsImport":
     "پیش از مهاجرت نهایی، دستورهای انتخاب‌شده را از ایجنت‌های خارجی درون‌برد کنید.",
   "onboarding.stepDescription.migration":
-    "مهاجرت را شروع کنید و صبر کنید تا Tutto انتخاب‌های شما را درون‌برد کند.",
+    "مهاجرت را شروع کنید و صبر کنید تا Mode انتخاب‌های شما را درون‌برد کند.",
   "onboarding.sessions.empty":
     "هنوز فضای کاری وجود ندارد. تاریخچه محلی را اسکن کنید، سپس فضاهای کاری موردنظر برای مهاجرت را انتخاب کنید.",
   "onboarding.sessions.count": "{count} نشست",
@@ -4266,7 +4266,7 @@ const faIR: Record<string, string> = {
   "onboarding.agentsFile.error": "بررسی وضعیت مهاجرت AGENTS.md ممکن نشد: {error}",
   "onboarding.agentsFile.confirmTitle": "بازنویسی AGENTS.md پیش‌فرض؟",
   "onboarding.agentsFile.confirmDescription":
-    "Tutto فایل {source} را در {target} کپی می‌کند.\nاگر فایل مقصد از قبل موجود باشد، پیکربندی پیش‌فرض AGENTS در Tutto بازنویسی خواهد شد.",
+    "Mode فایل {source} را در {target} کپی می‌کند.\nاگر فایل مقصد از قبل موجود باشد، پیکربندی پیش‌فرض AGENTS در Mode بازنویسی خواهد شد.",
   "onboarding.agentsFile.confirmAction": "بازنویسی و مهاجرت",
   "onboarding.finish.summary.label.imported": "درون‌بردشده",
   "onboarding.finish.summary.label.skipped": "نادیده گرفته‌شده",
@@ -4343,8 +4343,8 @@ const faIR: Record<string, string> = {
   "chat.emptyResult.description":
     "این وظیفه بدون هیچ محتوای گفتگو به پایان رسید. ممکن است پیش از تولید پاسخ توسط مدل متوقف شده باشد.",
   "chat.placeholder.newTask":
-    "از Tutto هر چیزی بپرسید، @ برای افزودن زمینه، / برای دستورها یا قابلیت‌ها",
-  "chat.placeholder.newTaskMobile": "از Tutto هر چیزی بپرسید…",
+    "از Mode هر چیزی بپرسید، @ برای افزودن زمینه، / برای دستورها یا قابلیت‌ها",
+  "chat.placeholder.newTaskMobile": "از Mode هر چیزی بپرسید…",
   "chat.placeholder.followUpAsk": "درخواست تغییرات بعدی",
   "chat.placeholder.followUpQueue": "برای قرار دادن تغییرات بعدی در صف، به تایپ ادامه دهید",
   "chat.placeholder.loading": "در حال راه‌اندازی وظیفه...",
@@ -4606,7 +4606,7 @@ const faIR: Record<string, string> = {
   "chat.compact.duplicateBlocked": "یک فشرده‌سازی در حال اجراست یا در صف قرار دارد.",
   "chat.modelSwitch.contextWindowGuard.title": "پیش از تغییر مدل، زمینه را فشرده کنید",
   "chat.modelSwitch.contextWindowGuard.description":
-    "این گفتگو {used} توکن مصرف کرده است؛ بیش از {target} توکن زمینه در دسترس {modelName} پس از رزرو حداکثر خروجی.\nابتدا گفتگوی فعلی را با مدل فعلی فشرده کنید. اگر زمینه فشرده‌شده جا شود، Tutto تغییر مدل‌ها را ادامه می‌دهد.",
+    "این گفتگو {used} توکن مصرف کرده است؛ بیش از {target} توکن زمینه در دسترس {modelName} پس از رزرو حداکثر خروجی.\nابتدا گفتگوی فعلی را با مدل فعلی فشرده کنید. اگر زمینه فشرده‌شده جا شود، Mode تغییر مدل‌ها را ادامه می‌دهد.",
   "chat.modelSwitch.contextWindowGuard.compress": "فشرده‌سازی",
   "chat.modelSwitch.contextWindowGuard.runningBlocked":
     "این گفتگو زمینه‌ای بیشتر از زمینه در دسترس مدل مقصد پس از رزرو حداکثر خروجی مصرف کرده است. پیش از تغییر مدل باید گفتگو فشرده شود، اما وظیفه فعلی هنوز در حال اجراست و فشرده‌سازی زمینه در حال حاضر ممکن نیست. منتظر بمانید تا وظیفه تمام شود، سپس دوباره مدل را عوض کنید.",
@@ -4618,11 +4618,11 @@ const faIR: Record<string, string> = {
     "Computer Use در حالت انتظار است — در نخستین استفاده به‌صورت خودکار راه‌اندازی می‌شود",
   "chat.toolbar.computerUse.tooltip.starting": "در حال فعال‌سازی افزونه Computer Use…",
   "chat.toolbar.computerUse.tooltip.ready":
-    "Computer Use آماده است — کافی است بگویید می‌خواهید Tutto چه کاری انجام دهد",
+    "Computer Use آماده است — کافی است بگویید می‌خواهید Mode چه کاری انجام دهد",
   "chat.toolbar.computerUse.tooltip.permissionRequired":
     "مجوزهای macOS موجود نیست — برای اعطای مجوز کلیک کنید",
   "chat.toolbar.computerUse.tooltip.error":
-    "فعال‌سازی Computer Use ناموفق بود. لطفاً برنامه Tutto را دوباره راه‌اندازی کنید و تلاش دوباره انجام دهید، یا از Tutto بخواهید لاگ‌ها را بررسی کند",
+    "فعال‌سازی Computer Use ناموفق بود. لطفاً برنامه Mode را دوباره راه‌اندازی کنید و تلاش دوباره انجام دهید، یا از Mode بخواهید لاگ‌ها را بررسی کند",
   "chat.toolbar.computerUse.tooltip.sessionBusy":
     "یک گفتگو در حال اجراست. Computer Use فعلاً قابل تغییر نیست — پس از پایان آن دوباره تلاش کنید.",
   "chat.toolbar.mode.description":
@@ -4924,7 +4924,7 @@ const faIR: Record<string, string> = {
     "اتصال به ایجنت محلی ممکن نشد؛ گردش‌های کار سراسری در دسترس نیستند.",
   "workflows.hub.empty.title": "هنوز هیچ گردش کار ذخیره‌شده‌ای در پروژه‌های باز شما نیست",
   "workflows.hub.empty.hint":
-    "یک گردش کار را با Tutto در گفتگو طراحی کنید و وقتی درست کار کرد، از آن بخواهید گردش کار را در یک پروژه ذخیره کند. پروژه‌های بازنشده اینجا ظاهر نمی‌شوند.",
+    "یک گردش کار را با Mode در گفتگو طراحی کنید و وقتی درست کار کرد، از آن بخواهید گردش کار را در یک پروژه ذخیره کند. پروژه‌های بازنشده اینجا ظاهر نمی‌شوند.",
   "workflows.hub.noWorkspace": "برای دیدن گردش‌های کارش، یک فضای کاری باز کنید.",
   "workflows.hub.loadError": "خواندن گردش‌های کار ممکن نشد: {error}",
   "workflows.hub.invalid": "{count} فایل خوانده نشد",
@@ -4985,7 +4985,7 @@ const faIR: Record<string, string> = {
   "workflows.hub.detail.description": "توضیحات",
   "workflows.hub.detail.whenToUse": "چه زمانی استفاده شود",
   "workflows.hub.detail.whenToUse.help":
-    "راهنمای مسیریابی برای Tutto: اینکه این گردش کار چه زمانی انتخاب درستی است.",
+    "راهنمای مسیریابی برای Mode: اینکه این گردش کار چه زمانی انتخاب درستی است.",
   "workflows.hub.detail.args": "آرگومان‌ها",
   "workflows.hub.detail.args.name": "نام",
   "workflows.hub.detail.args.type": "نوع",
@@ -5006,7 +5006,7 @@ const faIR: Record<string, string> = {
   "workflows.hub.detail.meta.descriptionRequired": "توضیحات الزامی است",
   "workflows.hub.detail.script": "اسکریپت",
   "workflows.hub.detail.script.note":
-    "اسکریپت فقط‌خواندنی است. برای تغییر آن، با Tutto در گفتگو اصلاحش کنید و نسخه‌ای جدید ذخیره کنید.",
+    "اسکریپت فقط‌خواندنی است. برای تغییر آن، با Mode در گفتگو اصلاحش کنید و نسخه‌ای جدید ذخیره کنید.",
   "workflows.hub.detail.script.copy": "کپی اسکریپت",
   "workflows.hub.detail.loadError": "خواندن این گردش کار ممکن نشد: {reason}",
   "workflows.hub.detail.notFound": "این گردش کار دیگر در پروژه نیست.",
@@ -5499,7 +5499,7 @@ const faIR: Record<string, string> = {
   "chat.slash.skills.empty": "مهارت منطبقی یافت نشد",
   "chat.slash.subagents.title": "ایجنت‌ها",
   "chat.slash.subagents.empty": "ایجنت منطبقی یافت نشد",
-  "chat.slash.emptyUnavailable": "برای نشست فعلی Tutto Agent هیچ دستور اسلشی منتشر نشده است",
+  "chat.slash.emptyUnavailable": "برای نشست فعلی Mode Agent هیچ دستور اسلشی منتشر نشده است",
   "chat.slash.emptyResults": "دستور اسلش منطبقی یافت نشد",
   "chat.error.connectionLost": "اتصال به ایجنت قطع شد",
   "chat.error.processExited": "فرایند ایجنت به‌طور غیرمنتظره‌ای پایان یافت",
@@ -5726,7 +5726,7 @@ const faIR: Record<string, string> = {
   "resourceManager.cpu": "CPU",
   "resourceManager.memory": "حافظه",
   "resourceManager.storage": "فضای ذخیره‌سازی",
-  "resourceManager.appUsage": "Tutto",
+  "resourceManager.appUsage": "Mode",
   "resourceManager.systemUsage": "سیستم",
   "resourceManager.category.base": "خدمات پایه",
   "resourceManager.category.builtinPlugin": "افزونه‌های داخلی",
@@ -5793,7 +5793,7 @@ const faIR: Record<string, string> = {
   "automations.statusFilter.completed": "تکمیل‌شده",
   "automations.statusFilter.failed": "ناموفق",
   "automations.statusFilter.empty": "هیچ وظیفه‌ای با این فیلتر مطابقت ندارد",
-  "offPeak.keepAwakeBanner": "در حین اجرای گفت‌وگو در Tutto، رایانه خود را بیدار نگه دارید.",
+  "offPeak.keepAwakeBanner": "در حین اجرای گفت‌وگو در Mode، رایانه خود را بیدار نگه دارید.",
   "offPeak.sectionTitle": "وظایف زمان بیکاری",
   "offPeak.createButton": "ایجاد وظیفه زمان بیکاری",
   "offPeak.templates.sectionTitle": "قالب وظیفه زمان بیکاری",
@@ -5849,7 +5849,7 @@ const faIR: Record<string, string> = {
   "offPeak.form.titlePlaceholder": "مثلاً بازآرایی شبانه کد",
   "offPeak.form.instructionsLabel": "دستورالعمل‌ها",
   "offPeak.form.instructionsPlaceholder":
-    "وظیفه‌ای را توصیف کنید که Tutto بتواند در پس‌زمینه روی آن کار کند، شامل نتیجه مورد انتظار و هرگونه محدودیت…",
+    "وظیفه‌ای را توصیف کنید که Mode بتواند در پس‌زمینه روی آن کار کند، شامل نتیجه مورد انتظار و هرگونه محدودیت…",
   "offPeak.form.permissionWarning":
     "اجرای وظایف زمان بیکاری بدون حضور شما انجام می‌شود. اقداماتی که نیاز به تأیید دارند، وظیفه را تا زمان پاسخ شما متوقف می‌کنند.",
   "offPeak.form.modelLabel": "مدل",
@@ -6043,9 +6043,9 @@ const faIR: Record<string, string> = {
   "automations.runs.prevPage": "قبلی",
   "automations.runs.nextPage": "بعدی",
   "chat.cuaReadiness.toolsNotLoaded":
-    "Tutto Computer Use هنوز در حال آماده‌سازی است — ابزارهای آن هنوز بارگذاری نشده‌اند ({count} مورد بارگذاری شده). مجوزهای زیر را اعطا کنید؛ ابزارها پس از آماده شدن ابزار کمکی ظاهر می‌شوند.",
+    "Mode Computer Use هنوز در حال آماده‌سازی است — ابزارهای آن هنوز بارگذاری نشده‌اند ({count} مورد بارگذاری شده). مجوزهای زیر را اعطا کنید؛ ابزارها پس از آماده شدن ابزار کمکی ظاهر می‌شوند.",
   "chat.cuaReadiness.toolsPreparing":
-    "Tutto Computer Use هنوز در حال آماده‌سازی است — ابزارهای آن هنوز بارگذاری نشده‌اند. مجوزهای زیر را اعطا کنید؛ ابزارها پس از آماده شدن ابزار کمکی ظاهر می‌شوند.",
+    "Mode Computer Use هنوز در حال آماده‌سازی است — ابزارهای آن هنوز بارگذاری نشده‌اند. مجوزهای زیر را اعطا کنید؛ ابزارها پس از آماده شدن ابزار کمکی ظاهر می‌شوند.",
   "chat.toolCall.cua.requestAccess": "بررسی دسترسی Computer Use",
   "chat.toolCall.cua.appName": "Computer Use",
   "chat.toolCall.cua.group.completedLabel": "Computer Use",
@@ -6171,13 +6171,13 @@ const faIR: Record<string, string> = {
   "cuaPermission.live.cancel": "الان نه",
   // همسایه‌های فنی این بлок فارسی‌اند (نه انگلیسیِ خام)؛ همان سبک ادامه دارد.
   "cua.permission.remoteOnboardingDescription":
-    "Tutto برای ادامهٔ کنترل رایانه به مجوزهای زیر روی دستگاه دیگر در شبکه محلی نیاز دارد: {permissions}. راهنمای مجوزدهی روی همان دستگاه باز می‌شود؛ مجوز را در همان دستگاه اعطا کنید.",
+    "Mode برای ادامهٔ کنترل رایانه به مجوزهای زیر روی دستگاه دیگر در شبکه محلی نیاز دارد: {permissions}. راهنمای مجوزدهی روی همان دستگاه باز می‌شود؛ مجوز را در همان دستگاه اعطا کنید.",
   "cuaPermission.modal.restartButton": "راه‌اندازی دوباره Helper",
   "cuaPermission.modal.restarting": "در حال راه‌اندازی دوباره Helper…",
   "cuaPermission.modal.restartFailed": "راه‌اندازی دوباره Helper ناموفق بود: {error}",
-  "cuaPermission.modal.relaunchAppButton": "راه‌اندازی دوباره Tutto",
+  "cuaPermission.modal.relaunchAppButton": "راه‌اندازی دوباره Mode",
   "cuaPermission.modal.relaunchAppHint":
-    "پس از راه‌اندازی دوباره Helper هنوز کار نمی‌کند؟ Tutto را دوباره راه‌اندازی کنید تا فرایند Helper به‌طور کامل بارگذاری شود.",
+    "پس از راه‌اندازی دوباره Helper هنوز کار نمی‌کند؟ Mode را دوباره راه‌اندازی کنید تا فرایند Helper به‌طور کامل بارگذاری شود.",
   "cuaPermission.status.granted": "اعطا شده",
   "cuaPermission.status.missing": "ناموجود",
   "cuaPermission.status.unknown": "نامشخص",
@@ -6191,7 +6191,7 @@ const faIR: Record<string, string> = {
   "cuaPermission.tools.agentUpdateRequired":
     "ایجنت متصل برای بررسی آمادگی ایمن بیش از حد قدیمی است. آن را به‌روزرسانی یا دوباره راه‌اندازی کنید، سپس دوباره بررسی کنید.",
   "cuaPermission.tools.untrustedRuntime":
-    "ابزارهای Computer Use پیدا شد، اما از افزونه تأییدشدهٔ Tutto نیامده‌اند. نصب افزونه را بازبینی کنید، سپس دوباره بررسی کنید.",
+    "ابزارهای Computer Use پیدا شد، اما از افزونه تأییدشدهٔ Mode نیامده‌اند. نصب افزونه را بازبینی کنید، سپس دوباره بررسی کنید.",
   "cuaPermission.perm.accessibility": "دسترسی‌پذیری",
   "cuaPermission.perm.accessibility.purpose": "خواندن/هدایت عناصر UI + شبیه‌سازی ورودی",
   "cuaPermission.perm.screenRecording": "ضبط صفحه‌نمایش",
@@ -6202,11 +6202,11 @@ const faIR: Record<string, string> = {
     "لطفاً پیش از استفاده از آن، macOS را ارتقا دهید. راه‌اندازی مجوزها در نسخه‌های قدیمی‌تر امکان‌پذیر نیست.",
   "cuaPermission.ready": "مجوزها آماده است",
   "cuaPermission.ready.sessionValidationHint":
-    "Tutto هنگام شروع نخستین نشست شما، ابزارهای Computer Use را با دقیقاً همان نشست بررسی و تأیید می‌کند.",
+    "Mode هنگام شروع نخستین نشست شما، ابزارهای Computer Use را با دقیقاً همان نشست بررسی و تأیید می‌کند.",
   "settings.computerUse.title": "Computer Use",
   "settings.lanAccess.title": "دسترسی شبکه محلی",
   "settings.lanAccess.description":
-    "با روشن بودن، نمونه‌های دیگر Tutto در شبکه می‌توانند با کد پیوند به این دستگاه وصل شوند و از فضاهای کاری آن استفاده کنند. پیش‌فرض خاموش است.",
+    "با روشن بودن، نمونه‌های دیگر Mode در شبکه می‌توانند با کد پیوند به این دستگاه وصل شوند و از فضاهای کاری آن استفاده کنند. پیش‌فرض خاموش است.",
   "settings.lanAccess.enable": "اجازه دسترسی شبکه محلی",
   "settings.lanAccess.statusEnabled": "در حال گوش دادن روی {address}",
   "settings.lanAccess.statusDisabled": "خاموش",
@@ -6411,9 +6411,9 @@ const faIR: Record<string, string> = {
   "workflows.hub.history.note":
     "سوابق اجرا از دفتر رویداد گردش کارهای این پروژه می‌آید و با ری‌استارت باقی می‌ماند. «باز کردن اجرا» به گفت‌وگویی که آن را آغاز کرده برمی‌گردد و جزئیات اجرا را باز می‌کند.",
   "chat.quota.mcp.quotaExhausted":
-    "سهمیه امروز MCP «{server}» در Tutto تمام شد. فردا بازنشانی می‌شود.",
+    "سهمیه امروز MCP «{server}» در Mode تمام شد. فردا بازنشانی می‌شود.",
   "chat.quota.mcp.codingPlanRequired":
-    "سهمیه‌ای برای MCP «{server}» در Tutto وجود ندارد. برای استفاده، یک کلید API یا Coding Plan پیکربندی کنید.",
+    "سهمیه‌ای برای MCP «{server}» در Mode وجود ندارد. برای استفاده، یک کلید API یا Coding Plan پیکربندی کنید.",
   "offPeak.notify.completed.body": "«{title}» با موفقیت کامل شد.",
   "offPeak.notify.failed.body": "«{title}» با خطا متوقف شد.",
   "offPeak.newTask.bannerText":
@@ -6425,7 +6425,7 @@ const faIR: Record<string, string> = {
   "dataRoot.loading": "در حال آماده‌سازی…",
   "dataRoot.title": "محل ذخیره داده‌ها",
   "dataRoot.status.absentWithLegacy":
-    "پوشه‌های داده قدیمی پیدا شد (.zcodium مربوط به پیش از تغییر نام به Tutto، یا .zcode قدیمی‌تر). می‌توانید یکی را به پوشه داده جدید کپی کنید یا از نو شروع کنید؛ در هر دو حالت پوشه قدیمی دست‌نخورده می‌ماند.",
+    "پوشه‌های داده قدیمی پیدا شد (.zcodium مربوط به پیش از تغییر نام به Mode، یا .zcode قدیمی‌تر). می‌توانید یکی را به پوشه داده جدید کپی کنید یا از نو شروع کنید؛ در هر دو حالت پوشه قدیمی دست‌نخورده می‌ماند.",
   "dataRoot.status.unowned":
     "پوشه داده فعلی متعلق به این محصول نیست (ممکن است از شاخه دیگری یا به‌صورت دستی ساخته شده باشد). ابتدا یک نسخه پشتیبان گرفته می‌شود؛ چیزی حذف یا ادغام نمی‌شود.",
   "dataRoot.status.corrupt":

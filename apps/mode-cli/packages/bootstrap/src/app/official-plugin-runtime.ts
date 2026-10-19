@@ -17,11 +17,10 @@ type SeaModule = typeof import("node:sea");
 const MCP_SERVER_RELATIVE_PATH = ["dist", "mcp", "server.js"] as const;
 
 /**
- * 随包插件清单相对路径：新名 `.tutto-plugin` 为主，改名前的 `.mode-plugin` /
+ * 随包插件清单相对路径：新名 `.mode-plugin` 为主，改名（ZCODIUM → Mode）前的
  * `.zcode-plugin` 继续可读——旧 checkout / 旧缓存里的插件包仍是旧名。
  */
 const PLUGIN_MANIFEST_RELATIVE_PATHS = [
-  join(".tutto-plugin", "plugin.json"),
   join(".mode-plugin", "plugin.json"),
   join(".zcode-plugin", "plugin.json"),
 ] as const;

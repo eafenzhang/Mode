@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { DesktopCommandIds, TID_LOGIN_TRIGGER, TID_TASK_SETTINGS_BUTTON } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Avatar, AvatarFallback, AvatarImage } from "@/ui-foundation/adapters/avatar.js";
-import { TuttoLogo } from "@/ui-foundation/TuttoLogo.js";
+import { ModeAboutLogo } from "@/components/ui/ModeAboutLogo.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import {
@@ -137,7 +137,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               <span className="sr-only">{intl.formatMessage({ id: "common.loading" })}</span>
             </>
           ) : (
-            <TuttoLogo className="size-4" />
+            <ModeAboutLogo className="size-4" />
           )}
         </AvatarFallback>
       </Avatar>

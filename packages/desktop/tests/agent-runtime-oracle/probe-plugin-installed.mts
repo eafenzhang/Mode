@@ -37,10 +37,10 @@ function runCli(args: string[]): string {
 
 // 1) 最小 marketplace + 一个 skill 插件。
 const pluginRoot = join(marketplaceRoot, "plugins", "fixture");
-await mkdir(join(pluginRoot, ".tutto-plugin"), { recursive: true });
+await mkdir(join(pluginRoot, ".mode-plugin"), { recursive: true });
 await mkdir(join(pluginRoot, "skills", "fixture-skill"), { recursive: true });
 await writeFile(
-  join(pluginRoot, ".tutto-plugin", "plugin.json"),
+  join(pluginRoot, ".mode-plugin", "plugin.json"),
   JSON.stringify({ name: "fixture", version: "1.0.0", description: "Fixture plugin" }, null, 2),
   "utf8",
 );

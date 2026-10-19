@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Tutto Browser Import",
+  "name": "Mode Browser Import",
   "version": "0.0.1",
   "description": "Import the current Chrome profile's cookies into Mode via Native Messaging.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2MJ+IgxxkfEJBsVyK22V92wHNw6m3xTKvla+YyzOYFdYeag7V0FZhN3pQFwX9/3/3Ha6amu+3H0FUibbkosQVebAtJa3B2byHQmGckNYqhTC1mHCYDCTboWV5TBVeT43bVP/L4McXo6mXOytXgPwFWcTNMKtaBjM+nAA4afde3NIhrIM1mCG+oQvCeCZso0jr9gnOCoJ92TLqwJe7w06/3jvKPRq1beYe/j+kAIEj+ZBhINh26TaakrN6+u7cm+DHG5NOx65pcD3mYjw3FS4tIM05gsD+k9znqfDDw1VMHfgEy7klZjxiehfrJff0KI4VYVSlsszgBcElH3r/0+FgQIDAQAB",

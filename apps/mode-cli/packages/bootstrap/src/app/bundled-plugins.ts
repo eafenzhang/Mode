@@ -1,7 +1,3 @@
-import {
-  OFFICIAL_PLUGIN_SEED_MARKER_FILE,
-  resolveOfficialPluginSeedMarkerFileName,
-} from "./official-plugin-seed-marker.js";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
@@ -39,16 +35,15 @@ import {
 } from "./official-plugin-seed-lock.js";
 
 const OFFICIAL_PLUGIN_MARKETPLACE = MODE_OFFICIAL_PLUGIN_MARKETPLACE;
-const SEA_PLUGIN_ASSET_PREFIX = "tutto-official-plugins/";
+const SEA_PLUGIN_ASSET_PREFIX = "mode-official-plugins/";
 const SEA_PLUGIN_MANIFEST_ASSET_KEY = `${SEA_PLUGIN_ASSET_PREFIX}manifest.json`;
-const SEED_MARKER_FILE = OFFICIAL_PLUGIN_SEED_MARKER_FILE;
+const SEED_MARKER_FILE = ".zcode-plugin-seed.json";
 const SEED_LOCK_TOTAL_BUDGET_MS = 15_000;
 
 const includedTopLevelPaths = new Set([
   ".mcp.json",
-  // 随包插件清单目录：新名 `.tutto-plugin` 为主，改名前的 `.mode-plugin` / `.zcode-plugin` 继续可读
+  // 随包插件清单目录：新名 `.mode-plugin` 为主，改名前的 `.zcode-plugin` 继续可读
   // （旧 checkout / 旧缓存里的插件包仍是旧名，seed 与探测必须两者都认）。
-  ".tutto-plugin",
   ".mode-plugin",
   ".zcode-plugin",
   "README.md",
@@ -358,7 +353,7 @@ function resolveFilesystemPluginRoot(definition: OfficialPluginDefinition): stri
   for (const baseDir of candidateBaseDirs()) {
     for (const relativePath of definition.rootCandidates) {
       const rootPath = resolve(baseDir, relativePath);
-      // 随包插件的清单目录已改到 `.tutto-plugin`；这里必须新名优先、旧名兜底，
+      // S5b 把随包插件的清单目录改成了 `.mode-plugin`；这里必须新名优先、旧名兜底，
       // 否则 seed 源解析不到任何插件（表现为随包插件不再 seed、官方市场分片停在旧内容）。
       if (resolveOfficialPluginManifestPath(rootPath)) return rootPath;
     }
@@ -424,9 +419,7 @@ function writeOfficialMarketplace(storageRoot: string, source: OfficialPluginSee
   // 随包内置的官方目录快照（url/filesystem 条目）与随包插件包条目合并成一个本地分片：
   // 官方 CDN 目录已下线，公开分段的浏览面完全来自这份随包快照，离线可用。
   const bundledPackageNames = new Set(source.plugins.map((plugin) => plugin.definition.name));
-  const catalogEntries = (
-    BUNDLED_OFFICIAL_PLUGIN_CATALOG.plugins as readonly Record<string, unknown>[]
-  )
+  const catalogEntries = (BUNDLED_OFFICIAL_PLUGIN_CATALOG.plugins as readonly Record<string, unknown>[])
     .filter((entry) => {
       const name = typeof entry.name === "string" ? entry.name : "";
       return name.length > 0 && !bundledPackageNames.has(name);
@@ -435,22 +428,20 @@ function writeOfficialMarketplace(storageRoot: string, source: OfficialPluginSee
   writeBundledOfficialMarketplacePartitionSync({
     manifest: {
       name: OFFICIAL_PLUGIN_MARKETPLACE,
-      plugins: [
-        ...catalogEntries,
-        ...source.plugins.map((plugin) => {
-          // 商店信息（listing）与描述随目录条目下发：键名与 CDN 目录 schema 一致，
-          // 由 adapter 的同一套 parseEntryStoreListing 解析，UI 才能给内置插件渲染
-          // 显示名/分类/作者/示例提示词。描述取自插件包内 plugin.json（单一事实源）。
-          const description = readSeedPluginDescription(source, plugin);
-          return {
-            cachePath: officialPluginCacheRoot(storageRoot, plugin.definition),
-            ...(description ? { description } : {}),
-            name: plugin.definition.name,
-            source: source.kind,
-            version: plugin.definition.version,
-            ...(plugin.definition.listing ?? {}),
-          };
-        }),
+      plugins: [...catalogEntries, ...source.plugins.map((plugin) => {
+        // 商店信息（listing）与描述随目录条目下发：键名与 CDN 目录 schema 一致，
+        // 由 adapter 的同一套 parseEntryStoreListing 解析，UI 才能给内置插件渲染
+        // 显示名/分类/作者/示例提示词。描述取自插件包内 plugin.json（单一事实源）。
+        const description = readSeedPluginDescription(source, plugin);
+        return {
+          cachePath: officialPluginCacheRoot(storageRoot, plugin.definition),
+          ...(description ? { description } : {}),
+          name: plugin.definition.name,
+          source: source.kind,
+          version: plugin.definition.version,
+          ...(plugin.definition.listing ?? {}),
+        };
+      }),
       ],
       version: 1,
     },
@@ -464,7 +455,6 @@ function readSeedPluginDescription(
   plugin: OfficialPluginSeedPluginSource,
 ): string | undefined {
   const manifestFile =
-    plugin.files.find((file) => file.path === ".tutto-plugin/plugin.json") ??
     plugin.files.find((file) => file.path === ".mode-plugin/plugin.json") ??
     plugin.files.find((file) => file.path === ".zcode-plugin/plugin.json");
   if (!manifestFile) return undefined;
@@ -481,10 +471,7 @@ function readSeedPluginDescription(
 }
 
 function isSeedCurrent(targetRoot: string, plugin: OfficialPluginSeedPluginSource): boolean {
-  const markerName = resolveOfficialPluginSeedMarkerFileName((name) =>
-    existsSync(join(targetRoot, name)),
-  );
-  const markerPath = join(targetRoot, markerName);
+  const markerPath = join(targetRoot, SEED_MARKER_FILE);
   if (!existsSync(markerPath)) return false;
   try {
     const marker = JSON.parse(readFileSync(markerPath, "utf8")) as ReturnType<typeof seedMarker>;

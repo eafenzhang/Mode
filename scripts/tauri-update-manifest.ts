@@ -8,9 +8,9 @@
 // 用法：
 //   node scripts/tauri-update-manifest.ts \
 //     --version 0.0.2 \
-//     --artifact "dist/tauri/Tutto-0.0.2-win-x64.exe" \
-//     --signature "dist/tauri/Tutto-0.0.2-win-x64.exe.sig" \
-//     --url "https://github.com/eafenzhang/Mode/releases/download/v0.0.2/Tutto-0.0.2-win-x64.exe" \
+//     --artifact "dist/tauri/Mode-0.0.2-win-x64.exe" \
+//     --signature "dist/tauri/Mode-0.0.2-win-x64.exe.sig" \
+//     --url "https://github.com/eafenzhang/Mode/releases/download/v0.0.2/Mode-0.0.2-win-x64.exe" \
 //     --output "dist/tauri/latest.json"
 //
 // 可选：`--notes "<text>"`、`--pub-date "<RFC3339>"`（默认当前 UTC）。

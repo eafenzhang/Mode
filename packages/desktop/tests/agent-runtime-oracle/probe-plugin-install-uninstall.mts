@@ -27,9 +27,9 @@ const pluginRoot = join(
 const serverPath = join(pluginRoot, "mcp-server.mjs");
 
 async function installPlugin(): Promise<void> {
-  await mkdir(join(pluginRoot, ".tutto-plugin"), { recursive: true });
+  await mkdir(join(pluginRoot, ".mode-plugin"), { recursive: true });
   await writeFile(
-    join(pluginRoot, ".tutto-plugin", "plugin.json"),
+    join(pluginRoot, ".mode-plugin", "plugin.json"),
     JSON.stringify({ name: "fixture", version: "1.0.0", description: "Fixture" }, null, 2),
     "utf8",
   );

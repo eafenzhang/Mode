@@ -20,7 +20,7 @@ import { createLanAccessHost } from "../src/lanAccess.js";
 // 移除/重置的失效语义。失效模式（未实现时）：设置页动作全部拒绝、配对端点不存在。
 
 const STATIC_TOKEN = "lan-host-static-token";
-const STATIC_COOKIE = { cookie: `tutto_lite_token=${encodeURIComponent(STATIC_TOKEN)}` };
+const STATIC_COOKIE = { cookie: `mode_lite_token=${encodeURIComponent(STATIC_TOKEN)}` };
 
 function createMemoryCredentials(): ICredentialService {
   const store = new Map<string, string>();
@@ -166,7 +166,12 @@ test("默认关闭：/api/lan/* 要求静态令牌；配对拒绝且不签发", 
     assert.equal(state.port, null);
     assert.equal(state.pairCode, null);
 
-    const pair = await postJson(fx.base, "/api/lan/pair", { code: "AAAAAA" }, {});
+    const pair = await postJson(
+      fx.base,
+      "/api/lan/pair",
+      { code: "AAAAAA" },
+      {},
+    );
     assert.equal(pair.status, 401, "关闭态配对必须拒绝");
 
     const badBody = await postJson(fx.base, "/api/lan/enable", { enabled: "yes" });
@@ -199,11 +204,7 @@ test("配对 → server-info → capability → /ws/host 挂接与目录录制�
       {},
     );
     assert.equal(pairResponse.status, 200);
-    const pair = (await pairResponse.json()) as {
-      token?: string;
-      serverId?: string;
-      name?: string;
-    };
+    const pair = (await pairResponse.json()) as { token?: string; serverId?: string; name?: string };
     assert.ok(pair.token, "配对响应必须带令牌");
     assert.equal(pair.serverId, fx.host.getServerId(), "serverId 应为持久安装标识");
     assert.equal(pair.name, "test-nas");
@@ -216,7 +217,7 @@ test("配对 → server-info → capability → /ws/host 挂接与目录录制�
     );
     assert.equal(replay.status, 401, "同一配对码二次兑换必须拒绝（一次性）");
 
-    const lanCookie = { cookie: `tutto_lite_token=${encodeURIComponent(pair.token!)}` };
+    const lanCookie = { cookie: `mode_lite_token=${encodeURIComponent(pair.token!)}` };
     const infoResponse = await fetch(`${fx.base}/api/server-info?token=${pair.token}`);
     assert.equal(infoResponse.status, 200, "长期令牌应可读 server-info");
     const info = (await infoResponse.json()) as { serverId?: string; name?: string };
@@ -276,13 +277,17 @@ test("关闭门控与移除/重置的失效语义", async () => {
     assert.equal(off.enabled, false);
     assert.equal(off.pairCode, null);
     assert.equal(
-      await (async () => (await fetch(`${fx.base}/api/server-info?token=${token}`)).status)(),
+      await (async () =>
+        (await fetch(`${fx.base}/api/server-info?token=${token}`)).status)(),
       401,
       "关闭后长期令牌必须失效",
     );
     const afterOff = await postJson(fx.base, "/api/lan/pair", { code: "AAAAAA" }, {});
     assert.equal(afterOff.status, 401);
-    assert.equal((await fetch(`${fx.base}/api/lan/state`, { headers: STATIC_COOKIE })).status, 200);
+    assert.equal(
+      (await fetch(`${fx.base}/api/lan/state`, { headers: STATIC_COOKIE })).status,
+      200,
+    );
 
     // 重新开启：开关只门控不吊销，原令牌恢复可用。
     await postJson(fx.base, "/api/lan/enable", { enabled: true });

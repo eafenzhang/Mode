@@ -1,6 +1,6 @@
 import { ArrowRightIcon } from "lucide-react";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { TuttoLogo } from "@/ui-foundation/TuttoLogo.js";
+import { ModeAboutLogo } from "@/components/ui/ModeAboutLogo.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { OnboardingWelcomeAsciiVisual } from "@/onboarding/OnboardingWelcomeAsciiVisual.js";
 
@@ -22,7 +22,7 @@ export function OnboardingWelcomeView(props: { onStart: () => void; onOpenMigrat
               aria-label="Mode"
               role="img"
             >
-              <TuttoLogo className="h-auto w-8" />
+              <ModeAboutLogo className="h-auto w-8" />
             </div>
             <div className="text-4xl font-bold tracking-tight text-foreground">
               {intl.formatMessage({ id: "onboarding.welcome.title" })}

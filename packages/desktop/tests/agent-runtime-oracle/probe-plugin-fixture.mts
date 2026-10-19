@@ -23,10 +23,10 @@ const pluginRoot = join(
   "fixture",
   "1.0.0",
 );
-await mkdir(join(pluginRoot, ".tutto-plugin"), { recursive: true });
+await mkdir(join(pluginRoot, ".mode-plugin"), { recursive: true });
 await mkdir(join(pluginRoot, "commands"), { recursive: true });
 await writeFile(
-  join(pluginRoot, ".tutto-plugin", "plugin.json"),
+  join(pluginRoot, ".mode-plugin", "plugin.json"),
   JSON.stringify({ name: "fixture", version: "1.0.0", description: "Fixture plugin" }, null, 2),
   "utf8",
 );

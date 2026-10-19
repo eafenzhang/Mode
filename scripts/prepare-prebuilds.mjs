@@ -151,7 +151,6 @@ const remoteBundledSkillPack = {
 };
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
-  ".tutto-plugin",
   ".mode-plugin",
   ".zcode-plugin",
   "README.md",
@@ -179,9 +178,9 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
 const remoteOfficialPluginRequiredPaths = [
-  "packages/browser-use-plugin/.tutto-plugin/plugin.json",
-  "packages/node-repl-host/.tutto-plugin/plugin.json",
-  "packages/mode-cua-plugin/.tutto-plugin/plugin.json",
+  "packages/browser-use-plugin/.mode-plugin/plugin.json",
+  "packages/node-repl-host/.mode-plugin/plugin.json",
+  "packages/mode-cua-plugin/.mode-plugin/plugin.json",
 ];
 
 function readModeAgentRuntimeVersion() {
@@ -490,7 +489,7 @@ function assertRemoteOfficialPluginRuntime(plugin) {
 function stageRemoteOfficialPlugins(glmDir) {
   for (const plugin of remoteOfficialPluginPackages) {
     const sourceRoot = join(rootDir, plugin.relativePath);
-    const manifestPath = [".tutto-plugin", ".mode-plugin", ".zcode-plugin"]
+    const manifestPath = [".mode-plugin", ".zcode-plugin"]
       .map((directoryName) => join(sourceRoot, directoryName, "plugin.json"))
       .find((candidate) => existsSync(candidate));
     if (!manifestPath) {

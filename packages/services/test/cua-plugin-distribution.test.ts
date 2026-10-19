@@ -58,7 +58,7 @@ async function readText(path: string): Promise<string> {
 }
 
 test("producer 包清单：name/version 对齐定义且不声明 mcpServers", async () => {
-  const manifest = JSON.parse(await readText(join(pluginRoot, ".tutto-plugin", "plugin.json")));
+  const manifest = JSON.parse(await readText(join(pluginRoot, ".mode-plugin", "plugin.json")));
   assert.equal(manifest.name, "computer-use");
   assert.equal(
     "mcpServers" in manifest,
@@ -144,7 +144,7 @@ test("staging 清单接线：桌面与远端都 stage mode-cua-plugin", async ()
     "远端清单应含 stagedPath",
   );
   assert.ok(
-    remoteStage.includes("packages/mode-cua-plugin/.tutto-plugin/plugin.json"),
+    remoteStage.includes("packages/mode-cua-plugin/.mode-plugin/plugin.json"),
     "远端 requiredPaths 应校验插件 manifest 存在",
   );
 });

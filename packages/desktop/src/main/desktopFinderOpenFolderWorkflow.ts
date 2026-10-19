@@ -25,7 +25,7 @@ done
 
 if [ -n "$first" ]; then
   encoded=$(/usr/bin/osascript -l JavaScript -e 'function run(argv) { return encodeURIComponent(argv[0]); }' "$first")
-  /usr/bin/open "tutto://workspace/open?path=\${encoded}"
+  /usr/bin/open "mode://workspace/open?path=\${encoded}"
 fi
 `;
 

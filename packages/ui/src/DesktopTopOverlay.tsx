@@ -147,7 +147,7 @@ export function DesktopTopOverlay({
             >
               <img
                 src={appLogoUrl}
-                alt="Tutto"
+                alt="Mode"
                 className="size-5 transition-opacity duration-150 group-hover:opacity-0"
                 draggable={false}
               />

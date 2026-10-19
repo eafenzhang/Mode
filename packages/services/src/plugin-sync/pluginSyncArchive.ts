@@ -9,21 +9,7 @@ const gunzipAsync = promisify(gunzip);
 const TAR_BLOCK_SIZE = 512;
 const TAR_END_BLOCK_BYTES = TAR_BLOCK_SIZE * 2;
 
-export const PLUGIN_SYNC_METADATA_ARCHIVE_PATH = ".tutto-plugin-sync.json";
-/** 改名前的同步元数据文件名：读取旧对端归档时兜底。 */
-export const LEGACY_PLUGIN_SYNC_METADATA_ARCHIVE_PATHS = [".mode-plugin-sync.json"] as const;
-
-export function resolvePluginSyncMetadataArchiveFileName(
-  exists: (fileName: string) => boolean,
-): string {
-  if (exists(PLUGIN_SYNC_METADATA_ARCHIVE_PATH)) {
-    return PLUGIN_SYNC_METADATA_ARCHIVE_PATH;
-  }
-  return (
-    LEGACY_PLUGIN_SYNC_METADATA_ARCHIVE_PATHS.find((fileName) => exists(fileName)) ??
-    PLUGIN_SYNC_METADATA_ARCHIVE_PATH
-  );
-}
+export const PLUGIN_SYNC_METADATA_ARCHIVE_PATH = ".mode-plugin-sync.json";
 
 type PluginSyncArchiveEntry =
   | {

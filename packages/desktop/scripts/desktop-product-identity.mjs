@@ -1,25 +1,25 @@
 /**
  * 构建期开关：为真时安装包使用 Preview 身份，而后端环境仍由 `MODE_ENV` 单独决定。
  * 典型用法是 `MODE_ENV=production MODE_PREVIEW_IDENTITY=1`，得到一个连接生产后端、
- * 可与正式版并排安装的 `Tutto Preview`。
+ * 可与正式版并排安装的 `Mode Preview`。
  */
 export const MODE_PREVIEW_IDENTITY_ENV = "MODE_PREVIEW_IDENTITY";
 
 const PRODUCTION_IDENTITY = Object.freeze({
   flavor: "production",
-  appId: "dev.tutto.app",
-  productName: "Tutto",
-  linuxExecutableName: "tutto",
-  linuxPackageName: "tutto",
+  appId: "dev.mode.app",
+  productName: "Mode",
+  linuxExecutableName: "mode",
+  linuxPackageName: "mode",
   cuaHelperInstallVariant: null,
 });
 
 const PREVIEW_IDENTITY = Object.freeze({
   flavor: "preview",
-  appId: "dev.tutto.app.preview",
-  productName: "Tutto Preview",
-  linuxExecutableName: "tutto-preview",
-  linuxPackageName: "tutto-preview",
+  appId: "dev.mode.app.preview",
+  productName: "Mode Preview",
+  linuxExecutableName: "mode-preview",
+  linuxPackageName: "mode-preview",
   cuaHelperInstallVariant: "preview",
 });
 
@@ -84,7 +84,7 @@ export function resolveDesktopArtifactSuffix(env = process.env) {
  */
 export function resolveWindowsAppUserModelIdForFlavor(flavor, runtime = { isPackaged: true }) {
   if (runtime.isPackaged === false) {
-    return "cn.aminer.tutto";
+    return "cn.aminer.mode";
   }
   return desktopProductIdentities[flavor === "preview" ? "preview" : "production"].appId;
 }

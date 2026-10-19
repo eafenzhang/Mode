@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
-export const seaOfficialPluginAssetPrefix = "tutto-official-plugins/";
+export const seaOfficialPluginAssetPrefix = "mode-official-plugins/";
 export const seaOfficialPluginManifestAssetKey = `${seaOfficialPluginAssetPrefix}manifest.json`;
 const browserUseRequiredRuntimePaths = [
   "scripts/browser-client.mjs",
@@ -30,6 +30,7 @@ export const officialSeaPlugins = [
     version: "0.6.0",
   },
   {
+
     marketplace: "mode-plugins-official",
     name: "browser-use",
     packageName: "@mode/browser-use-plugin",
@@ -130,9 +131,8 @@ export const collectSeaOfficialPluginAssets = async ({
 };
 
 function hasPluginManifest(pluginRoot) {
-  // 随包插件清单目录改到 .tutto-plugin：新名优先，改名前的旧名继续可读。
+  // S5b 把随包插件清单目录改到 .mode-plugin：新名优先，改名前的旧名继续可读。
   return (
-    existsSync(join(pluginRoot, ".tutto-plugin", "plugin.json")) ||
     existsSync(join(pluginRoot, ".mode-plugin", "plugin.json")) ||
     existsSync(join(pluginRoot, ".zcode-plugin", "plugin.json"))
   );
@@ -193,7 +193,6 @@ const shouldSkipDirectory = (name) =>
 
 const includedTopLevelPaths = new Set([
   ".mcp.json",
-  ".tutto-plugin",
   ".mode-plugin",
   ".zcode-plugin",
   "README.md",

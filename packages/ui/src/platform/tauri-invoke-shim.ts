@@ -198,7 +198,7 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
  * 名单演进：M1 落 `onOAuthCallback` / `onPaymentCallback`（spec §2 的「只落一个示范」是下限，
  * 支付走同一条链路所以一并接）；**M3 Task 4 把剩下两条也接上**——`onShareImport` 与
  * `onOpenWorkspacePath` 在接口声明里就是**深链驱动**的（见 `packages/shared/src/platform.ts`
- * 的文档注释：`tutto://share/import?code=…`（旧 `mode://` 仍被接受） / 「通过 deep link 直接打开本地工作区目录」），
+ * 的文档注释：`mode://share/import?code=…` / 「通过 deep link 直接打开本地工作区目录」），
  * 而 `share-import` / `workspace-open` 两个 `kind` 从 M1 起就由路由投递，只是一直没有订阅点。
  * 于是「宿主认得的五种深链」在本层**全部有落点**，没有「投了但没人接」的种类。
  */
@@ -556,7 +556,11 @@ function subscribeDeepLink<T>(
  * 返回 `void` 的命令只能发后不管。**不能静默吞掉失败**——IPC 断了、命令没注册
  * （Rust 侧改名）都会在这里现形，所以统一记一条 warn 并把原始错误带上。
  */
-function fireAndForget(invoke: TauriInvoke, command: string, args?: Record<string, unknown>): void {
+function fireAndForget(
+  invoke: TauriInvoke,
+  command: string,
+  args?: Record<string, unknown>,
+): void {
   void invoke(command, args).catch((error: unknown) => {
     logger.warn(`[tauri-platform] ${command} 调用失败`, error);
   });

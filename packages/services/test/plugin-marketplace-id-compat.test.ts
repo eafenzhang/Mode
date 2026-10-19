@@ -83,11 +83,8 @@ test("官方插件缓存根：新目录优先，新目录不存在时沿用旧�
 });
 
 test("协议名握手：对外声明新名，校验同时接受改名前的旧名", () => {
-  assert.equal(MODE_PROTOCOL_NAME, "Tutto Protocol");
-  assert.deepEqual(
-    [...MODE_PROTOCOL_ACCEPTED_NAMES],
-    ["Tutto Protocol", "Mode Protocol", "ZCode Protocol"],
-  );
+  assert.equal(MODE_PROTOCOL_NAME, "Mode Protocol");
+  assert.deepEqual([...MODE_PROTOCOL_ACCEPTED_NAMES], ["Mode Protocol", "ZCode Protocol"]);
 
   // 用最小对象触发协议段校验：只要错误里没有 protocol.name，就说明该名字被接受。
   const nameIssuesFor = (name: string) => {
@@ -100,15 +97,11 @@ test("协议名握手：对外声明新名，校验同时接受改名前的旧�
   assert.equal(nameIssuesFor(MODE_PROTOCOL_NAME).length, 0, "新协议名必须被接受");
   assert.equal(nameIssuesFor("ZCode Protocol").length, 0, "远端旧 agent 的旧协议名必须被接受");
   assert.equal(nameIssuesFor("Mode Protocol v2").length, 1, "未知协议名仍要拒绝");
-  assert.equal(nameIssuesFor("Tutto Protocol").length, 0, "新协议名必须通过");
 });
 
 test("MCP _meta 请求上下文：新键优先，改名前的旧键兜底", () => {
   const context = { session_id: "s-1" };
-  assert.deepEqual(
-    readModeMcpRequestContextMeta({ [MODE_MCP_REQUEST_CONTEXT_META_KEY]: context }),
-    context,
-  );
+  assert.deepEqual(readModeMcpRequestContextMeta({ [MODE_MCP_REQUEST_CONTEXT_META_KEY]: context }), context);
   assert.deepEqual(
     readModeMcpRequestContextMeta({ [MODE_MCP_REQUEST_CONTEXT_META_KEY_LEGACY]: context }),
     context,

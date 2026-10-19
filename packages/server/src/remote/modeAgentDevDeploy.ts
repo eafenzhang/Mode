@@ -12,7 +12,10 @@ import {
   type DeployLoggers,
   waitForClose,
 } from "@mode/server/remote/deployShared.js";
-import { buildWriteLiteralFileCommand, quotePosixPathArg } from "@mode/server/remote/posixShell.js";
+import {
+  buildWriteLiteralFileCommand,
+  quotePosixPathArg,
+} from "@mode/server/remote/posixShell.js";
 import { createTarGzArchive } from "@mode/server/remote/localTarGz.js";
 import {
   buildRemoteAgentBundleWrapper,
@@ -110,11 +113,7 @@ async function hashDevelopmentOfficialPluginPackage(
   packageRoot: string,
   packageName: string,
 ): Promise<void> {
-  const manifestPath =
-    [".tutto-plugin", ".mode-plugin", ".zcode-plugin"]
-      .map((dir) => join(packageRoot, dir, "plugin.json"))
-      .find((candidate) => existsSync(candidate)) ??
-    join(packageRoot, ".tutto-plugin", "plugin.json");
+  const manifestPath = join(packageRoot, ".mode-plugin", "plugin.json");
   if (!existsSync(manifestPath)) {
     throw new Error(`[mode-agent-deploy] missing official plugin manifest: ${manifestPath}`);
   }
@@ -252,11 +251,7 @@ async function stageDevelopmentOfficialPluginPackages(params: {
   await mkdir(params.packagesDir, { recursive: true });
   for (const packageName of REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES) {
     const sourceRoot = join(params.repoRoot, "apps", "mode-cli", "packages", packageName);
-    const manifestPath =
-      [".tutto-plugin", ".mode-plugin", ".zcode-plugin"]
-        .map((dir) => join(sourceRoot, dir, "plugin.json"))
-        .find((candidate) => existsSync(candidate)) ??
-      join(sourceRoot, ".tutto-plugin", "plugin.json");
+    const manifestPath = join(sourceRoot, ".mode-plugin", "plugin.json");
     if (!existsSync(manifestPath)) {
       throw new Error(`[mode-agent-deploy] missing official plugin manifest: ${manifestPath}`);
     }

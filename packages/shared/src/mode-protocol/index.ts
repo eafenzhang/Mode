@@ -70,13 +70,13 @@ export {
   type HookInvocationRow,
 } from "../mode-protocol-v4/rows.js";
 
-export const MODE_PROTOCOL_NAME = "Tutto Protocol" as const;
-/** 改名（ZCODIUM → Mode → Tutto）前的协议名：远端旧 agent 混布时仍要能握手，只接受、不再声明。 */
-export const MODE_PROTOCOL_LEGACY_NAMES = ["Mode Protocol", "ZCode Protocol"] as const;
+export const MODE_PROTOCOL_NAME = "Mode Protocol" as const;
+/** 改名（ZCODIUM → Mode）前的协议名：SSH 远端旧 agent 混布时仍要能握手，只做接受、不再对外声明。 */
+export const MODE_PROTOCOL_LEGACY_NAME = "ZCode Protocol" as const;
 /** 握手校验接受的协议名（新名在前，回显与写入一律用新名）。 */
 export const MODE_PROTOCOL_ACCEPTED_NAMES = [
   MODE_PROTOCOL_NAME,
-  ...MODE_PROTOCOL_LEGACY_NAMES,
+  MODE_PROTOCOL_LEGACY_NAME,
 ] as const;
 export const MODE_PROTOCOL_VERSION = 1 as const;
 // V4 wire 与 legacy 主协议并存；禁止为了 V4 physical framing 改写 legacy 版本。
@@ -583,7 +583,9 @@ export const modeProcessChildProcessesResultSchema = z
   })
   .strict();
 export type ModeProcessChildProcess = z.infer<typeof modeProcessChildProcessSchema>;
-export type ModeProcessChildProcessesResult = z.infer<typeof modeProcessChildProcessesResultSchema>;
+export type ModeProcessChildProcessesResult = z.infer<
+  typeof modeProcessChildProcessesResultSchema
+>;
 
 export type ModeDeliveryKind = z.infer<typeof modeDeliveryKindSchema>;
 // TurnStarted 与持久 message 必须共用同一来源词表；否则 live event 能通过而 cold
@@ -2135,10 +2137,14 @@ export const modeWorkspaceGenerateTextResultSchema = z
       .optional(),
   })
   .strict();
-export type ModeWorkspaceGenerateTextParams = z.infer<typeof modeWorkspaceGenerateTextParamsSchema>;
+export type ModeWorkspaceGenerateTextParams = z.infer<
+  typeof modeWorkspaceGenerateTextParamsSchema
+>;
 export type ModeWorkspaceModelMessage = z.infer<typeof modeWorkspaceModelMessageSchema>;
 export type ModeWorkspaceModelTool = z.infer<typeof modeWorkspaceModelToolSchema>;
-export type ModeWorkspaceGenerateTextResult = z.infer<typeof modeWorkspaceGenerateTextResultSchema>;
+export type ModeWorkspaceGenerateTextResult = z.infer<
+  typeof modeWorkspaceGenerateTextResultSchema
+>;
 export const modeWorkspaceCancelGenerateTextParamsSchema = z
   .object({ operationId: nonEmptyString })
   .strict();
@@ -2638,7 +2644,9 @@ export const modePluginReferenceCatalogEntrySchema = z
     subagentNames: z.array(nonEmptyString).default([]),
   })
   .strict();
-export type ModePluginReferenceCatalogEntry = z.infer<typeof modePluginReferenceCatalogEntrySchema>;
+export type ModePluginReferenceCatalogEntry = z.infer<
+  typeof modePluginReferenceCatalogEntrySchema
+>;
 
 export const modePluginsReferenceCatalogParamsSchema = z
   .object({
@@ -2714,7 +2722,9 @@ export const modeSavedWorkflowArgDeclarationSchema = z
     default: z.unknown().optional(),
   })
   .strict();
-export type ModeSavedWorkflowArgDeclaration = z.infer<typeof modeSavedWorkflowArgDeclarationSchema>;
+export type ModeSavedWorkflowArgDeclaration = z.infer<
+  typeof modeSavedWorkflowArgDeclarationSchema
+>;
 export const modeSavedWorkflowArgsDeclarationSchema = z.record(
   z.string(),
   modeSavedWorkflowArgDeclarationSchema,
@@ -3262,7 +3272,9 @@ export const modePluginsRestoreBuiltinResultSchema = z
     diagnostics: z.array(modePluginDiagnosticSchema),
   })
   .strict();
-export type ModePluginsRestoreBuiltinResult = z.infer<typeof modePluginsRestoreBuiltinResultSchema>;
+export type ModePluginsRestoreBuiltinResult = z.infer<
+  typeof modePluginsRestoreBuiltinResultSchema
+>;
 
 export const modePluginsConfigureParamsSchema = z
   .object({
@@ -3503,12 +3515,16 @@ export const modeAutomationCheckTaskBindingParamsSchema = z
 export type ModeAutomationCheckTaskBindingProtocolParams = z.infer<
   typeof modeAutomationCheckTaskBindingParamsSchema
 >;
-export const modeAutomationCheckTaskBindingResultSchema = z.object({ bound: z.boolean() }).strict();
+export const modeAutomationCheckTaskBindingResultSchema = z
+  .object({ bound: z.boolean() })
+  .strict();
 export type ModeAutomationCheckTaskBindingProtocolResult = z.infer<
   typeof modeAutomationCheckTaskBindingResultSchema
 >;
 
-export const modeAutomationDeleteParamsSchema = z.object({ automationId: nonEmptyString }).strict();
+export const modeAutomationDeleteParamsSchema = z
+  .object({ automationId: nonEmptyString })
+  .strict();
 export type ModeAutomationDeleteProtocolParams = z.infer<typeof modeAutomationDeleteParamsSchema>;
 export const modeAutomationDeleteResultSchema = z.object({ deleted: z.boolean() }).strict();
 export type ModeAutomationDeleteProtocolResult = z.infer<typeof modeAutomationDeleteResultSchema>;

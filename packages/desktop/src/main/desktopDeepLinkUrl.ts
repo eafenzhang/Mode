@@ -1,8 +1,8 @@
-const DEEP_LINK_SCHEME = "tutto";
+const DEEP_LINK_SCHEME = "mode";
 // 改名（ZCODIUM → Mode）前的 scheme：只做「处理传入链接」，不注册、也不作为默认 handler
 // 争抢（见 registerDeepLinkProtocol）。旧版本发出的邮件/IM 链接仍会以 zcode:// 形式回传。
-const LEGACY_DEEP_LINK_SCHEMES = ["mode", "zcode"];
-const ACCEPTED_DEEP_LINK_SCHEMES = new Set([DEEP_LINK_SCHEME, ...LEGACY_DEEP_LINK_SCHEMES]);
+const LEGACY_DEEP_LINK_SCHEME = "zcode";
+const ACCEPTED_DEEP_LINK_SCHEMES = new Set([DEEP_LINK_SCHEME, LEGACY_DEEP_LINK_SCHEME]);
 const DEEP_LINK_RE = /\b(?:mode|zcode):(?:\/\/|\/)?[^\s"'<>]+/i;
 const OAUTH_CALLBACK_HOSTS = new Set(["oauth"]);
 const PAYMENT_CALLBACK_HOST = "payment";

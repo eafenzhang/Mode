@@ -307,7 +307,7 @@ function renderForceUpdatePromptHtml(text: ForceUpdateDialogText, locale: Locale
       <header class="titlebar">
         <div class="brand">
           <div class="brand-icon">${icon ? `<img src="${icon}" alt="" />` : "Z"}</div>
-          <div class="brand-title">Tutto</div>
+          <div class="brand-title">Mode</div>
         </div>
         <button class="close" type="button" data-action="quit" aria-label="${escapeHtml(text.quitButton)}">×</button>
       </header>

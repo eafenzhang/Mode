@@ -19,9 +19,9 @@ const definitionsPath = join(
 );
 // 三个随包 producer 包：listing 缺失时详情页用 manifest author 兜底，必须与 seed 同步。
 const manifestPaths = [
-  "apps/mode-cli/packages/browser-use-plugin/.tutto-plugin/plugin.json",
-  "apps/mode-cli/packages/node-repl-host/.tutto-plugin/plugin.json",
-  "apps/mode-cli/packages/mode-cua-plugin/.tutto-plugin/plugin.json",
+  "apps/mode-cli/packages/browser-use-plugin/.mode-plugin/plugin.json",
+  "apps/mode-cli/packages/node-repl-host/.mode-plugin/plugin.json",
+  "apps/mode-cli/packages/mode-cua-plugin/.mode-plugin/plugin.json",
 ] as const;
 
 test("官方市场 seed 只用 MODE_AUTHOR 声明开发者，值为 Mode", async () => {
