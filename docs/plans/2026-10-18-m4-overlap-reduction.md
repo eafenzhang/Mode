@@ -39,21 +39,36 @@ deferred:    517 files / 122,709 lines（M4 范围豁免，随 Rust 运行时迁
 同日 CodeViewer 全量切换后再测：identical 2656 文件 / 25,042 行，normalized 188 文件 / 20,355 行，
 headline **9.84%**（45,397 / 461,312）。
 
+2026-10-19 巡检复测（S3 数据根前置收敛与 TUI 契约之后，按已提交 HEAD `a9a25505`）：
+
+```text
+common files: 4169（ours-only 2858，upstream-only 10976）
+identical: 2655 files / 24,997 lines
+normalized:  188 files / 20,355 lines
+distinct:   1326 files / 415,966 lines
+headline:   9.83%（45,352 of 461,318 lines）
+excluded:    455 files / 82,668 lines
+deferred:    517 files / 122,794 lines（identical 121、normalized 105）
+```
+
+用户级数据根字面量收敛把 1 个 mode-cli/desktop 同路径文件（45 行）从 identical 移出；
+其余变化来自新增自研测试（ours-only，不进分母）。
+
 ## 残余分布（只含 identical + normalized，已排除豁免面）
 
-| 模块 | 文件 | 行数 | identical | normalized |
-| --- | --- | --- | --- | --- |
-| `packages/ui` | 432 | **32,648** | 299 / 19,334 | 133 / 13,314 |
-| `packages/services` | 99 | **12,766** | 35 / 4,095 | 64 / 8,671 |
-| `packages/desktop` | 1,229 | **9,135** | 1,187 / 4,214 | 42 / 4,921 |
-| `packages/shared` | 66 | **6,183** | 48 / 3,911 | 18 / 2,272 |
-| `packages/rpc` | 20 | **3,923** | 18 / 3,235 | 2 / 688 |
-| `packages/server` | 26 | 2,813 | 11 / 563 | 15 / 2,250 |
-| `packages/provider` | 15 | 2,362 | 9 / 946 | 6 / 1,416 |
-| `packages/formal-proof` | 7 | 1,896 | 5 / 968 | 2 / 928 |
-| `scripts` | 18 | 1,883 | 17 / 1,423 | 1 / 460 |
-| `packages/web` | 1,150 | 1,283 | 1,148 / 1,185 | 2 / 98 |
-| 其余（model-option-map / provider-node / client / 根配置等） | 29 | 2,117 | — | — |
+| 模块                                                         | 文件  | 行数       | identical     | normalized   |
+| ------------------------------------------------------------ | ----- | ---------- | ------------- | ------------ |
+| `packages/ui`                                                | 432   | **32,648** | 299 / 19,334  | 133 / 13,314 |
+| `packages/services`                                          | 99    | **12,766** | 35 / 4,095    | 64 / 8,671   |
+| `packages/desktop`                                           | 1,229 | **9,135**  | 1,187 / 4,214 | 42 / 4,921   |
+| `packages/shared`                                            | 66    | **6,183**  | 48 / 3,911    | 18 / 2,272   |
+| `packages/rpc`                                               | 20    | **3,923**  | 18 / 3,235    | 2 / 688      |
+| `packages/server`                                            | 26    | 2,813      | 11 / 563      | 15 / 2,250   |
+| `packages/provider`                                          | 15    | 2,362      | 9 / 946       | 6 / 1,416    |
+| `packages/formal-proof`                                      | 7     | 1,896      | 5 / 968       | 2 / 928      |
+| `scripts`                                                    | 18    | 1,883      | 17 / 1,423    | 1 / 460      |
+| `packages/web`                                               | 1,150 | 1,283      | 1,148 / 1,185 | 2 / 98       |
+| 其余（model-option-map / provider-node / client / 根配置等） | 29    | 2,117      | —             | —            |
 
 读数解释：
 
@@ -134,9 +149,9 @@ pnpm check:upstream-overlap -- --list            # 两档路径清单（无正�
 
 ## 风险
 
-| 风险 | 对冲 |
-| --- | --- |
-| 为了指标好看而扩大豁免 | 本次只限五个 sidecar/传输层前缀，有裁决记录与重开条件；扩豁免必须改 spec + 路线图 |
-| 删除 Electron 代码时误删 sidecar 仍在用的契约 | 先跑 `packages/services` / `packages/shared` 测试与 Tauri 端到端，再删 |
-| UI 替换期间路径移动导致 delta 抖动 | P0 的 per-PR delta 延后到 P1 结束再加 |
-| 指标与 clean-room 目的脱节 | headline 只统计计分面；豁免清单写明依据与到期条件（Rust 运行时迁移完成） |
+| 风险                                          | 对冲                                                                              |
+| --------------------------------------------- | --------------------------------------------------------------------------------- |
+| 为了指标好看而扩大豁免                        | 本次只限五个 sidecar/传输层前缀，有裁决记录与重开条件；扩豁免必须改 spec + 路线图 |
+| 删除 Electron 代码时误删 sidecar 仍在用的契约 | 先跑 `packages/services` / `packages/shared` 测试与 Tauri 端到端，再删            |
+| UI 替换期间路径移动导致 delta 抖动            | P0 的 per-PR delta 延后到 P1 结束再加                                             |
+| 指标与 clean-room 目的脱节                    | headline 只统计计分面；豁免清单写明依据与到期条件（Rust 运行时迁移完成）          |
