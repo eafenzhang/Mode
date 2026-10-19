@@ -187,7 +187,7 @@ import {
   removeFirstPendingDelivery,
   type BotSendFailureCode,
 } from "./outboundDelivery.js";
-import { createWorkspaceTurnGate } from "./workspaceTurnGate.js";
+import { createBotTurnGate } from "./botTurnGate.js";
 import {
   getWorkspaceBoundBots,
   removeBotFromOtherWorkspaces,
@@ -851,9 +851,10 @@ export function createBotsService(
   const typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
   const typingTargets = new Map<string, { bot: BotConfig; target: BotTypingTarget }>();
   const runningTasks = new Set<string>();
-  // 同 workspace 回合并入门：与 runningTasks 成对维护（add 前 enter、delete/clear 旁
-  // exit/reset），超限 FIFO 静默排队（docs/specs/bot-workspace-turn-admission.md）。
-  const turnGate = createWorkspaceTurnGate();
+  // Bot 回合全局准入：与 runningTasks 成对维护（add 前 enter、delete/clear 旁
+  // exit/reset），全局超限 FIFO 排队；同一会话的串行由 enqueueInboundProcessing 保证
+  // （docs/specs/bot-workspace-turn-admission.md）。
+  const turnGate = createBotTurnGate();
   const liveStatusProgressByTaskId = new Map<
     string,
     { kind: "message" | "thought" | "tool"; text: string }
@@ -6866,7 +6867,7 @@ export function createBotsService(
           );
         });
       }
-      // 同 workspace 回合并入上限：超限排队，终态释放后按序起跑
+      // Bot 回合全局有界并发：超限排队，终态释放后按全局 FIFO 起跑
       // （docs/specs/bot-workspace-turn-admission.md）。
       await turnGate.enter(
         getWorkspaceKey(context.workspacePath, context.workspaceIdentity),

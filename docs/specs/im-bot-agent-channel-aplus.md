@@ -65,6 +65,13 @@
 11. Bot 被移出群：失效群授权、清空群历史、停止发送。
 12. 群活动不更新 `lastActivePrivateTarget`。
 
+## 回合准入
+
+1. 同一会话（群或私聊）的入站与 bot 回合由 `enqueueInboundProcessing` 按对话键串行。
+2. 单服务实例内同时运行的 bot 回合总数 ≤ `BOT_GLOBAL_TURN_CONCURRENCY_CAP`（默认 8）。
+3. 超出上限按全局 FIFO 等待；首次挂起向发起方发一次 `turnQueued` 提示。
+4. 不再使用 workspace 级上限 2；不同群/私聊在全局槽位内并行。
+
 ## 平台能力
 
 | 平台     | 私聊 | 群聊      | mention    | 出站媒体  |

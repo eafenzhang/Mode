@@ -147,20 +147,30 @@ export interface BotSendQueue {
  */
 export function createBotSendQueue(minIntervalMs = BOT_SEND_MIN_INTERVAL_MS): BotSendQueue {
   const tails = new Map<string, Promise<unknown>>();
-  let nextStartAt = 0;
+  // 全局启动串行链：每个任务等上一任务「实际启动」后再计算等待，避免只预留
+  // 时间戳时 setTimeout 在负载下乱序触发，导致实际启动间隔小于下限。
+  let startTail: Promise<void> = Promise.resolve();
+  let lastStartedAt = 0;
+  const acquireStartSlot = (): Promise<void> => {
+    const scheduled = startTail
+      .catch(() => undefined)
+      .then(async (): Promise<void> => {
+        const waitMs = lastStartedAt + minIntervalMs - Date.now();
+        if (waitMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+        }
+        lastStartedAt = Date.now();
+      });
+    startTail = scheduled;
+    return scheduled;
+  };
   return {
     async run<T>(conversationKey: string, task: () => Promise<T>): Promise<T> {
       const previous = tails.get(conversationKey) ?? Promise.resolve();
       const current = previous
         .catch(() => undefined)
         .then(async (): Promise<T> => {
-          // 先同步预留下一个全局发送槽位再等待；否则并发调用会在同一时刻一起起跑。
-          const startAt = Math.max(Date.now(), nextStartAt);
-          nextStartAt = startAt + minIntervalMs;
-          const waitMs = startAt - Date.now();
-          if (waitMs > 0) {
-            await new Promise((resolve) => setTimeout(resolve, waitMs));
-          }
+          await acquireStartSlot();
           return task();
         });
       tails.set(conversationKey, current);
