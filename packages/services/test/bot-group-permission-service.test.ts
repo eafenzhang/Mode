@@ -153,3 +153,56 @@ test("approve/reject/remove：配置持久化、缺失群报错、拒绝/移除�
   assert.equal(history.bots[BOT_ID]?.["group-A"], undefined, "拒绝/移除必须清空群 A 历史");
   assert.equal(history.bots[BOT_ID]?.["group-B"], undefined, "拒绝必须清空群 B 历史");
 });
+
+test("群发现：首次群消息登记 pending；重复发现不重复登记；未授权只记历史", async () => {
+  const configDir = node.getAppConfigDir();
+  const current = JSON.parse(
+    readFileSync(join(configDir, "bot-config.v3.json"), "utf8"),
+  ) as { bots: Array<Record<string, unknown>> };
+  current.bots.push({
+    ...buildBotConfig().bots[0],
+    id: "bot-2",
+    name: "bot-2",
+    enabled: true,
+    groupChat: { activation: "mention" },
+  });
+  writeFileSync(join(configDir, "bot-config.v3.json"), `${JSON.stringify(current, null, 2)}\n`);
+
+  const botsService = hostServices!.get(services.IBotsService);
+  const inbound = (providerUserId: string, providerMessageId: string) => ({
+    botId: "bot-2",
+    text: "hi",
+    actor: {
+      provider: "wecom" as const,
+      botId: "bot-2",
+      providerUserId,
+      chatType: "group" as const,
+      chatId: "group-new",
+      isMention: true,
+      providerMessageId,
+    },
+  });
+
+  assert.deepEqual(await botsService.handleInboundMessage(inbound("stranger-1", "m1")), []);
+  assert.deepEqual(await botsService.handleInboundMessage(inbound("stranger-2", "m2")), []);
+
+  const config = await botsService.getConfig();
+  const permissions =
+    config.bots.find((bot) => bot.id === "bot-2")?.groupChat?.permissions ?? [];
+  assert.equal(
+    permissions.filter((permission) => permission.groupId === "group-new").length,
+    1,
+    "同一群的多条消息只能登记一条 pending",
+  );
+  assert.equal(permissions[0]?.status, "pending");
+
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  const history = JSON.parse(
+    readFileSync(join(configDir, "bot-group-history.v1.json"), "utf8"),
+  ) as { bots: Record<string, Record<string, unknown[]>> };
+  assert.equal(
+    history.bots["bot-2"]?.["group-new"]?.length,
+    2,
+    "未授权群消息只写历史，且两条都保留",
+  );
+});
