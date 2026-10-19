@@ -48,27 +48,30 @@ async function writeJson(path: string, value: unknown): Promise<void> {
 }
 
 export class BotsRepo {
+  /** 锁内读（含迁移固化）；仅供 readConfig / mutateConfig 在已持锁的临界区里调用。 */
+  private async readConfigLocked(path: string): Promise<BotsConfigFile> {
+    const current = await readOptionalJson(path);
+    // 回滚兼容：v3 已存在就只认 v3；损坏时暴露错误，绝不能恢复旧 Bot 或覆盖用户新修改。
+    if (current !== undefined) {
+      const parsed = botsConfigFileSchema.parse(current);
+      // 已下线通道（AstrBot 桥接）的记录在解析阶段被丢弃；在同一把文件锁内把清理结果固定下来，
+      // 否则磁盘上会长期留着再也读不到的记录。
+      if (countRetiredBotRecords(current) > 0) {
+        await writeJson(path, parsed);
+      }
+      return parsed;
+    }
+    const legacy = await readOptionalJson(join(getAppConfigDir(), BOTS_LEGACY_CONFIG_FILE));
+    const config = botsConfigFileSchema.parse(
+      legacy === undefined ? createDefaultBotsConfig() : importLegacyBotConfig(legacy),
+    );
+    await writeJson(path, config);
+    return config;
+  }
+
   async readConfig(): Promise<BotsConfigFile> {
     const path = join(getAppConfigDir(), BOTS_CONFIG_FILE);
-    return withFileLock(path, async () => {
-      const current = await readOptionalJson(path);
-      // 回滚兼容：v3 已存在就只认 v3；损坏时暴露错误，绝不能恢复旧 Bot 或覆盖用户新修改。
-      if (current !== undefined) {
-        const parsed = botsConfigFileSchema.parse(current);
-        // 已下线通道（AstrBot 桥接）的记录在解析阶段被丢弃；在同一把文件锁内把清理结果固定下来，
-        // 否则磁盘上会长期留着再也读不到的记录。
-        if (countRetiredBotRecords(current) > 0) {
-          await writeJson(path, parsed);
-        }
-        return parsed;
-      }
-      const legacy = await readOptionalJson(join(getAppConfigDir(), BOTS_LEGACY_CONFIG_FILE));
-      const config = botsConfigFileSchema.parse(
-        legacy === undefined ? createDefaultBotsConfig() : importLegacyBotConfig(legacy),
-      );
-      await writeJson(path, config);
-      return config;
-    });
+    return withFileLock(path, () => this.readConfigLocked(path));
   }
 
   async writeConfig(config: BotsConfigFile): Promise<BotsConfigFile> {
@@ -76,6 +79,24 @@ export class BotsRepo {
     const path = join(getAppConfigDir(), BOTS_CONFIG_FILE);
     await withFileLock(path, () => writeJson(path, parsed));
     return parsed;
+  }
+
+  /**
+   * 锁内原子读-改-写配置。群授权发现/批准/拒绝会在入站热路径并发发生，
+   * 不能用 readConfig…writeConfig 的快照覆盖模式。
+   * mutator 内禁止再调用 repo 的文件操作，避免同路径嵌套锁自锁。
+   */
+  async mutateConfig(
+    mutator: (config: BotsConfigFile) => void | Promise<void>,
+  ): Promise<BotsConfigFile> {
+    const path = join(getAppConfigDir(), BOTS_CONFIG_FILE);
+    return withFileLock(path, async () => {
+      const config = await this.readConfigLocked(path);
+      await mutator(config);
+      const parsed = botsConfigFileSchema.parse(config);
+      await writeJson(path, parsed);
+      return parsed;
+    });
   }
 
   /** 锁内读（含迁移固化）；仅供 readState / mutateState 在已持锁的临界区里调用。 */

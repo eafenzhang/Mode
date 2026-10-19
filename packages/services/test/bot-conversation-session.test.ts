@@ -217,8 +217,12 @@ test("服务层契约：上下文按对话槽位读写，绑定/投影/镜像都
     mirrorBlock.includes("const mirrorUserId = context.conversationId"),
     "镜像必须按持有会话的对话投递（群回群、私聊回本人）",
   );
-  // 6) 心跳目标：优先绑定会话的对话，其次最近私聊/群
-  assert.ok(source.includes("function pickHeartbeatConversation("), "缺少心跳目标对话选择");
+  // 6) 心跳目标：只走私聊（A+ 规则：群活动不得覆盖私聊 Heartbeat 目标），
+  // 选择逻辑收敛到 botHeartbeat 纯函数，服务只传入当前对话表。
+  assert.ok(
+    source.includes("pickHeartbeatConversation(listConversations(state, bot.id))"),
+    "缺少心跳目标对话选择（仅私聊）",
+  );
   // 7) 迁移细化：legacy 对话按绑定用户重映射，保住既有绑定
   assert.ok(
     source.includes("BOT_LEGACY_CONVERSATION_KEY") &&

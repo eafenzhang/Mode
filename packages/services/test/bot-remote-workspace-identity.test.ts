@@ -33,7 +33,7 @@ function buildBotEntry(id: string, allowedWorkspaces: string[]) {
   return {
     id,
     name: id,
-    provider: "webhook" as const,
+    provider: "wecom" as const,
     enabled: true,
     providerUserId: `${id}-user`,
     allowedWorkspaces,

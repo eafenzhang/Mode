@@ -1,6 +1,6 @@
 # IM Bot 按 MyAgents 重做（通道固定 4 个）
 
-状态：草案（2026-10-15）。**待用户拍板下节四处架构决策后转「已批准」，再进入编码。**
+状态：已被 [im-bot-agent-channel-aplus.md](./im-bot-agent-channel-aplus.md) 取代（2026-10-20，用户确认 A+：Agent 拥有 Channel、微信仅私聊、保留现有卡片 UI、运行时留在 Node services）。本文件保留为决策历史。
 用户指令（2026-10-15）：「imbot 根据 myagents 项目的 bot 机器人全部重做，但依然只支持当前的 4 通道。」
 
 关联：[im-bot-onboarding.md](./im-bot-onboarding.md)（接入现状，本 spec 的 B3 会**推翻**其 C2 约束）、
@@ -24,21 +24,22 @@
 
 ## 现状盘点（避免与本 spec 重复造轮子）
 
-| 面           | 现状                                                                              | 来源                                     |
-| ------------ | --------------------------------------------------------------------------------- | ---------------------------------------- |
-| 接入         | 四通道卡片式；飞书手填已补、微信两态已拆、三段状态行已接线、录入即验证已接        | `im-bot-onboarding.md`（R3-1/2/4/5 已实现） |
-| 通道集合     | 产品面固定 `weixin / wecom / feishu / dingtalk`（`packages/ui/src/botsUi.ts`）     | 本 spec 的硬约束 C1                      |
-| 回复粒度     | 四档 + provider 矩阵；企微默认 `streaming_card`，其余 `assistant_changes`         | `bot-reply-granularity.md`（已批准）     |
-| 回复流式     | 默认档为「按句边界分段」流式（delta 累积），非逐字打字机                          | `botsService.ts` + `providers/streamingText.ts` |
-| 群聊         | 仅自研 `groupHistory.ts`（内存、重启即丢）+ `groupPrompt.ts`；@ 只解析成布尔       | `im-bot-group-chat-alignment.md` 现状列  |
-| 变更摘要     | 只有文件数 + 行数增删，不区分文件级新增/修改/删除                                 | `mode-task-types-core.ts` 的 `ModeTaskChangeSummary` |
-| 标识呈现     | 侧栏绿点（扁平/时间线/置顶/分组已一致）+ 详情页顶部通道图标                        | `bot-binding-indicators.md`（2026-10-15 修正） |
+| 面       | 现状                                                                           | 来源                                                 |
+| -------- | ------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| 接入     | 四通道卡片式；飞书手填已补、微信两态已拆、三段状态行已接线、录入即验证已接     | `im-bot-onboarding.md`（R3-1/2/4/5 已实现）          |
+| 通道集合 | 产品面固定 `weixin / wecom / feishu / dingtalk`（`packages/ui/src/botsUi.ts`） | 本 spec 的硬约束 C1                                  |
+| 回复粒度 | 四档 + provider 矩阵；企微默认 `streaming_card`，其余 `assistant_changes`      | `bot-reply-granularity.md`（已批准）                 |
+| 回复流式 | 默认档为「按句边界分段」流式（delta 累积），非逐字打字机                       | `botsService.ts` + `providers/streamingText.ts`      |
+| 群聊     | 仅自研 `groupHistory.ts`（内存、重启即丢）+ `groupPrompt.ts`；@ 只解析成布尔   | `im-bot-group-chat-alignment.md` 现状列              |
+| 变更摘要 | 只有文件数 + 行数增删，不区分文件级新增/修改/删除                              | `mode-task-types-core.ts` 的 `ModeTaskChangeSummary` |
+| 标识呈现 | 侧栏绿点（扁平/时间线/置顶/分组已一致）+ 详情页顶部通道图标                    | `bot-binding-indicators.md`（2026-10-15 修正）       |
 
 ## 需要用户拍板的决策（这四条决定重做范围，未定前不编码）
 
 **D1 会话作用域是否升到话题级？**（`im-bot-group-chat-alignment.md` 的原 D1，仍未定）
 现状 `getBotActorConversation(chatType | providerUserId | chatId)` 没有话题/线程维度；MyAgents 的
 session key 形如 `im:telegram:private:12345`（新架构 `agent:` 前缀），群内按 thread 隔离。
+
 - 影响：G6 话题隔离 / G7 历史持久化 / G9 输入合并三项依赖它；牵动 `BotActor`、`BotContextState`、
   桌面会话映射、工作区绑定，以及 `bot-state.v3.json` 的版本迁移。
 - 选「升」= 一次数据结构迁移 + 群聊能力可以真正对齐；选「不升」= 群聊永久保持"单群单会话"的简化。
@@ -47,6 +48,7 @@ session key 形如 `im:telegram:private:12345`（新架构 `agent:` 前缀），
 参照侧：`ChannelConfig`（单通道）+ 父级 `AgentConfig`（providerId / model / permissionMode /
 mcpEnabledServers / heartbeat / runtime…），通道用 `overrides` 覆盖父级，**空值继承**。
 我们现状：一个 bot 就是单通道，配置里平铺 providerId / model / permissionMode / mcp。
+
 - 影响：若引入，配置 schema（`bot-config.v3.json`）与设置页都要改，且要给出继承语义的迁移；
   这不是"接线"，是一次配置模型迁移。
 - 选「不引入」= 保留平铺单通道模型，功能对齐但配置模型不同（需在 spec 里记为既定差异）。
@@ -55,6 +57,7 @@ mcpEnabledServers / heartbeat / runtime…），通道用 `overrides` 覆盖父�
 参照侧：创建向导 = ① Token / 凭据**验证** → ② 用户身份绑定（QR / 绑定码）→ ③ 启动；
 详情页管 provider / model / permission 覆盖；列表项只有 start / stop。
 我们现状：`ProviderSettingsCard` 卡片式详情 + `BotSummaryCard` 的 Switch，**刻意不做向导**（原 C2）。
+
 - 用户 2026-10-15 的「全部重做」若包含 UX 层，则 C2 作废，需要按向导重画接入流程。
 - 选「改向导」= 新建流程重画（含步骤状态机、可回退、错误态）；选「保持卡片式」= 只对齐字段与判据。
 
@@ -62,6 +65,7 @@ mcpEnabledServers / heartbeat / runtime…），通道用 `overrides` 覆盖父�
 参照侧：`src-tauri/src/im/`（commands / telegram / feishu / dingtalk / router / agent_channel）由 Rust 跑
 bot 实例，IM 消息经 router 注入 sidecar 会话，桌面端可"加入"同一会话续聊。
 我们现状：bot 运行时在 `packages/services/src/bots/`（TS）+ `*ChannelRuntime.ts`，桌面端**没有**"加入会话"入口。
+
 - 影响：迁移是跨语言重写，收益（长连接稳定性、与宿主同进程）与成本都很大；
   与 [tauri-rewrite-direction.md] 的四层评估口径一致，需要单独一轮。
 - 选「不迁」= 只补桌面端"加入/交接 bot 会话"的入口（行为对齐，不动运行时）。
@@ -87,12 +91,12 @@ bot 实例，IM 消息经 router 注入 sidecar 会话，桌面端可"加入"同
 
 ## 硬约束
 
-| #   | 约束                                             | 判据                                                        |
-| --- | ------------------------------------------------ | ----------------------------------------------------------- |
-| C1  | 通道封闭集 = 现有 4 个（weixin/wecom/feishu/dingtalk） | `BOT_PROVIDERS` 仍是 4 项；新建面板不出现第 5 个通道     |
-| C2  | 不读上游衍生实现、不读 MyAgents 源码             | 允许输入清单见下节；唯一行为来源是团队分析报告 §5           |
-| C3  | 状态所有者不变                                   | 凭据 = `credentialService`；配置 = `bot-config.v3.json`；绑定 = `bot-state.v3.json`；三份都不新增第二写入方 |
-| C4  | 非 4 通道 provider 只读兼容                      | telegram / lark / webhook / discord 不进产品面，已有配置仍可运行 |
+| #   | 约束                                                   | 判据                                                                                                        |
+| --- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| C1  | 通道封闭集 = 现有 4 个（weixin/wecom/feishu/dingtalk） | `BOT_PROVIDERS` 仍是 4 项；新建面板不出现第 5 个通道                                                        |
+| C2  | 不读上游衍生实现、不读 MyAgents 源码                   | 允许输入清单见下节；唯一行为来源是团队分析报告 §5                                                           |
+| C3  | 状态所有者不变                                         | 凭据 = `credentialService`；配置 = `bot-config.v3.json`；绑定 = `bot-state.v3.json`；三份都不新增第二写入方 |
+| C4  | 非 4 通道 provider 只读兼容                            | telegram / lark / webhook / discord 不进产品面，已有配置仍可运行                                            |
 
 ## 状态所有者与不变式
 
@@ -126,6 +130,7 @@ bot 实例，IM 消息经 router 注入 sidecar 会话，桌面端可"加入"同
     要不要恢复是独立的产品决策（与 D4 的「运行时是否迁出 services」分开判断）。
 
   因此阶段 0 剩余动作只有：本 spec 获批 + `bot-binding-indicators.md` 的实机验收。
+
 - **阶段 1（不依赖 D1/D4）**：N7 变更摘要类型 + 群聊 G3 引用原消息 / G4 成员名目录 / G5 附件群消息。
   **达标**：G3/G4/G5 按 `im-bot-group-chat-alignment.md` 的达标定义逐条给出证据（真机截图或单测）。
 - **阶段 2（依赖 D1）**：G6 话题隔离 / G7 历史持久化 / G9 输入合并，含 `bot-state` 版本迁移。

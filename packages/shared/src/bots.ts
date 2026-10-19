@@ -44,9 +44,9 @@ export type FeishuBotProvider = Extract<BotProvider, "feishu" | "lark">;
  */
 export const modeAutomationBotDeliveryTargetSchema = z
   .object({
-    // 具备主动推送能力的平台都可接收自动化终态回推：
-    // 飞书/Lark/微信（原有）+ Telegram（sendMessage）+ 企业微信（aibot_send_msg）。
-    provider: z.enum(["feishu", "lark", "weixin", "telegram", "wecom"]),
+    // 具备主动推送能力的平台都可接收自动化终态回推。
+    // Telegram 仅保留为历史数据兼容，不进入产品面。
+    provider: z.enum(["feishu", "lark", "weixin", "telegram", "wecom", "dingtalk"]),
     botId: z.string().trim().min(1),
     providerUserId: z.string().trim().min(1),
     chatType: z.enum(["private", "group"]),
@@ -114,11 +114,29 @@ export const BOT_HEARTBEAT_DEFAULT_INTERVAL_MINUTES = 60;
 /** 群聊激活模式：disabled = 完全不响应群聊（默认，与旧行为一致）。 */
 export type BotGroupActivation = "disabled" | "mention" | "always";
 
+/** 群授权状态：未批准的群只记录历史，不触发 AI。 */
+export type BotGroupPermissionStatus = "pending" | "approved";
+
+/** 群授权记录：群 ID 是身份，群名只用于展示。 */
+export interface BotGroupPermission {
+  groupId: string;
+  groupName: string;
+  platform: BotProvider;
+  status: BotGroupPermissionStatus;
+  discoveredAt: number;
+  addedBy?: string;
+}
+
 export interface BotGroupChatConfig {
   activation: BotGroupActivation;
   /** 旧配置遗留字段：群白名单已下线（群聊默认不限制任何群），解析时保留以兼容既有配置。 */
   allowedGroups?: string[];
+  /** 群授权记录；缺省视为没有已批准群。 */
+  permissions?: BotGroupPermission[];
 }
+
+/** 渠道输出模式：auto = 自动推送；tool_only = 仅显式工具发送。 */
+export type BotDeliveryMode = "auto" | "tool_only";
 
 /** 平台在群聊里的能力：决定「群聊方式」能提供哪些选项（与 MyAgents 的 groupActivation 对齐）。 */
 export interface BotGroupChatCapabilities {
@@ -132,26 +150,25 @@ export interface BotGroupChatCapabilities {
 }
 
 /**
- * 群聊能力矩阵：
- * - telegram / feishu / lark：自带 mentions / entities，可精确判定被 @（mention 模式据此静默）；
- * - dingtalk：平台在回调里给 isInAtList，同样可判定；
- * - wecom：平台只在被 @ 时下发群回调，天然只有 mention 语义，不提供「全部消息」；
- * - weixin / webhook：拿不到 @ 状态，只能「全部消息」（或关闭）；retired provider 一律不支持。
+ * 群聊能力矩阵（A+ 四通道）：
+ * - feishu / lark：自带 mentions，可精确判定被 @，也能收到未 @ 的群消息；
+ * - dingtalk：平台只下发 @ 消息，回调里给 isInAtList，只有 mention 语义；
+ * - wecom：平台只下发 @ 消息，只有 mention 语义；
+ * - weixin：按 A+ 只保留私聊，不提供任何群聊模式；
+ * - 其余历史 provider 一律不进入产品面，按最保守的 disabled 处理。
  */
 export function resolveBotGroupChatCapabilities(provider: BotProvider): BotGroupChatCapabilities {
   switch (provider) {
-    case "telegram":
     case "feishu":
     case "lark":
-    case "dingtalk":
       return { mention: true, always: true };
+    case "dingtalk":
     case "wecom":
       return { mention: true, always: false };
-    // 已下线通道（AstrBot 桥接）：不提供任何群聊模式。
-    case "astrbot":
+    case "weixin":
       return { mention: false, always: false };
     default:
-      return { mention: false, always: true };
+      return { mention: false, always: false };
   }
 }
 
@@ -255,6 +272,8 @@ export interface BotConfig {
   allowedWorkspaces: string[];
   /** 群聊激活模式；缺省 = disabled（群消息静默忽略）。 */
   groupChat?: BotGroupChatConfig;
+  /** 输出模式；缺省 auto，保持历史行为。 */
+  deliveryMode?: BotDeliveryMode;
   /** 心跳默认关闭；关闭时不产生任何后台唤醒。 */
   heartbeat?: BotHeartbeatConfig;
   allowedCommands: BotAllowedCommands;
@@ -759,9 +778,24 @@ export const botConfigSchema = z
         activation: z.enum(["disabled", "mention", "always"]),
         // 旧配置遗留字段：群白名单已下线，保留以便老配置继续解析（不再参与任何判定）。
         allowedGroups: z.array(z.string().min(1)).optional(),
+        permissions: z
+          .array(
+            z
+              .object({
+                groupId: z.string().min(1),
+                groupName: z.string(),
+                platform: z.enum(botProviders),
+                status: z.enum(["pending", "approved"]),
+                discoveredAt: z.number(),
+                addedBy: z.string().min(1).optional(),
+              })
+              .strict(),
+          )
+          .optional(),
       })
       .strict()
       .optional(),
+    deliveryMode: z.enum(["auto", "tool_only"]).optional(),
     // 警告：BotConfig 的每个新增字段都必须同时登记到这里——
     // botConfigSchema 是 .strict()，只加 TS 类型会让保存直接抛 ZodError（"Unrecognized key"）。
     heartbeat: z
@@ -790,7 +824,14 @@ export const botConfigSchema = z
   .strict();
 
 /** 已下线通道：这些 provider 的机器人记录在配置解析阶段直接丢弃。 */
-export const RETIRED_BOT_PROVIDERS: readonly string[] = ["astrbot"];
+// A+ 产品面只保留 weixin/wecom/feishu/dingtalk。
+// lark 作为飞书域名的历史别名继续兼容读取；其余 provider 在配置解析阶段丢弃。
+export const RETIRED_BOT_PROVIDERS: readonly string[] = [
+  "telegram",
+  "webhook",
+  "discord",
+  "astrbot",
+];
 
 function stripRetiredBotProviders(value: unknown): unknown {
   if (!value || typeof value !== "object") {

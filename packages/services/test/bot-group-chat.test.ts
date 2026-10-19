@@ -22,9 +22,8 @@ test("append/snapshot：按会话隔离，读取后不清空（旧 drain 语义�
 });
 
 test("单群上限 30 条，超出丢弃最旧；长消息截断", async () => {
-  const { createGroupHistoryBuffer, GROUP_HISTORY_MAX_PER_GROUP } = await import(
-    "../src/bots/groupHistory.js"
-  );
+  const { createGroupHistoryBuffer, GROUP_HISTORY_MAX_PER_GROUP } =
+    await import("../src/bots/groupHistory.js");
   const buffer = createGroupHistoryBuffer();
   for (let index = 0; index < GROUP_HISTORY_MAX_PER_GROUP + 5; index += 1) {
     buffer.append("bot-1", "chat-A", { text: `msg-${index}` });
@@ -128,64 +127,72 @@ const botsServiceSource = await import("node:fs/promises").then((fs) =>
   fs.readFile(new URL("../src/bots/botsService.ts", import.meta.url), "utf8").catch(() => null),
 );
 
-test("群聊门控不变量：静默忽略非绑定/未 @，并限制管理命令", {
-  skip: !botsServiceSource && "无法读取 botsService 源码",
-}, () => {
-  const source = botsServiceSource;
-  if (!source) return;
+test(
+  "群聊门控不变量：静默忽略非绑定/未 @，并限制管理命令",
+  {
+    skip: !botsServiceSource && "无法读取 botsService 源码",
+  },
+  () => {
+    const source = botsServiceSource;
+    if (!source) return;
 
-  const gateIndex = source.indexOf("const activation = bot.groupChat?.activation");
-  assert.ok(gateIndex >= 0, "未找到群聊激活门控");
-  const gate = source.slice(gateIndex, gateIndex + 1600);
-  assert.ok(gate.includes("isBoundSender"), "缺少绑定成员校验");
-  assert.ok(gate.includes('reply: []'), "非绑定成员必须静默忽略");
-  assert.ok(
-    gate.includes('activation === "mention" && message.actor.isMention !== true'),
-    "缺少 mention 模式判定",
-  );
-  // 历史缓冲与门控在同一分支内（未触发消息进入上下文）
-  assert.ok(gate.includes("groupHistory.append"), "未触发消息必须记入群历史");
+    const gateIndex = source.indexOf("const activation = bot.groupChat?.activation");
+    assert.ok(gateIndex >= 0, "未找到群聊激活门控");
+    const gate = source.slice(gateIndex, gateIndex + 2400);
+    assert.ok(gate.includes("approved"), "缺少群授权判定");
+    assert.ok(gate.includes("isAllowedSender"), "缺少白名单发送者判定");
+    assert.ok(gate.includes("reply: []"), "未授权群消息必须静默忽略");
+    assert.ok(
+      gate.includes('activation === "mention" && message.actor.isMention !== true'),
+      "缺少 mention 模式判定",
+    );
+    // 历史缓冲与门控在同一分支内（未触发消息进入上下文）
+    assert.ok(gate.includes("groupHistory.append"), "未触发消息必须记入群历史");
 
-  const restrictIndex = source.indexOf('command.type !== "message" &&');
-  assert.ok(restrictIndex >= 0, "缺少群聊命令限制");
-  const restrict = source.slice(restrictIndex, restrictIndex + 900);
-  assert.ok(restrict.includes('"groupCommandUnsupported"'), "群聊管理命令必须有引导文案");
-});
+    const restrictIndex = source.indexOf('command.type !== "message" &&');
+    assert.ok(restrictIndex >= 0, "缺少群聊命令限制");
+    const restrict = source.slice(restrictIndex, restrictIndex + 900);
+    assert.ok(restrict.includes("return [];"), "群聊管理命令必须静默丢弃");
+    assert.ok(!restrict.includes("groupCommandUnsupported"), "群聊不应再回管理命令提示");
+  },
+);
 // 群聊方式的选项由平台能力矩阵决定（与 MyAgents 的 groupActivation 对齐）：
 //   能识别 @ → 给「@提及」；能收到未 @ 的消息 → 给「全部消息」；
 //   企微只在被 @ 时下发群回调，因此只有 @提及（不能假装支持「全部消息」）。
 test("群聊方式：@提及 / 全部消息 选项按平台能力矩阵提供", async () => {
-  const { resolveBotGroupChatCapabilities, botProviderSupportsGroupMention } = await import(
-    "@mode/shared"
-  );
-  for (const provider of ["telegram", "feishu", "lark", "dingtalk"]) {
+  const { resolveBotGroupChatCapabilities, botProviderSupportsGroupMention } =
+    await import("@mode/shared");
+  for (const provider of ["feishu", "lark"]) {
     assert.deepEqual(
       resolveBotGroupChatCapabilities(provider),
       { mention: true, always: true },
       provider + " 应同时提供 @提及 与 全部消息",
     );
   }
-  // 企微：平台只在被 @ 时下发回调 → 只有 mention，没有 always
-  assert.deepEqual(resolveBotGroupChatCapabilities("wecom"), { mention: true, always: false });
-  assert.equal(botProviderSupportsGroupMention("wecom"), true);
-  for (const provider of ["weixin", "webhook", "discord"]) {
+  // 企微/钉钉：平台只在被 @ 时下发回调 → 只有 mention，没有 always
+  for (const provider of ["wecom", "dingtalk"]) {
     assert.deepEqual(
       resolveBotGroupChatCapabilities(provider),
-      { mention: false, always: true },
-      provider + " 无法识别 @，只能「全部消息」",
+      { mention: true, always: false },
+      provider + " 只有 mention 语义",
+    );
+    assert.equal(botProviderSupportsGroupMention(provider), true);
+  }
+  // 微信按 A+ 只保留私聊；其余历史 provider 不进入产品面。
+  for (const provider of ["weixin", "telegram", "webhook", "discord", "astrbot"] as const) {
+    assert.deepEqual(
+      resolveBotGroupChatCapabilities(provider),
+      { mention: false, always: false },
+      provider + " 不提供群聊模式",
     );
   }
-  // AstrBot 桥接已下线：字面量只为解析历史配置保留，不提供任何群聊模式
-  assert.deepEqual(resolveBotGroupChatCapabilities("astrbot"), {
-    mention: false,
-    always: false,
-  });
-  // 兼容入口仍然只表达"能否识别 @"
-  assert.equal(botProviderSupportsGroupMention("telegram"), true);
   assert.equal(botProviderSupportsGroupMention("weixin"), false);
 
   const card = await import("node:fs/promises").then((fs) =>
-    fs.readFile(new URL("../../../packages/ui/src/BotsDialog/BotGroupChatCard.tsx", import.meta.url), "utf8"),
+    fs.readFile(
+      new URL("../../../packages/ui/src/BotsDialog/BotGroupChatCard.tsx", import.meta.url),
+      "utf8",
+    ),
   );
   assert.ok(
     card.includes("capabilities.mention ? (") && card.includes('value="mention"'),
@@ -200,4 +207,3 @@ test("群聊方式：@提及 / 全部消息 选项按平台能力矩阵提供", 
     "平台无 always 语义时显示层必须收敛到 mention（企微存量配置）",
   );
 });
-

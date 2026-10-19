@@ -137,36 +137,38 @@ export function prependPendingDelivery(
 }
 
 export interface BotSendQueue {
-  run<T>(botId: string, task: () => Promise<T>): Promise<T>;
+  run<T>(conversationKey: string, task: () => Promise<T>): Promise<T>;
 }
 
 /**
- * per-bot FIFO 发送队列 + 最小间隔：同一 bot 的出站严格串行（微信/企微等
- * 平台侧限流与消息乱序都由这里兜住），不同 bot 互不阻塞。
+ * per-conversation FIFO 发送队列 + 全局最小启动间隔：同一对话内严格串行保序
+ * （消息乱序由这里兜住）；不同对话可并行，不再因为同一 bot 的其他私聊/群
+ * 发送慢而被整条队列拖住。全局间隔只平滑突发，不声称满足平台配额。
  */
 export function createBotSendQueue(minIntervalMs = BOT_SEND_MIN_INTERVAL_MS): BotSendQueue {
   const tails = new Map<string, Promise<unknown>>();
-  const lastStartedAtByBot = new Map<string, number>();
+  let nextStartAt = 0;
   return {
-    async run<T>(botId: string, task: () => Promise<T>): Promise<T> {
-      const previous = tails.get(botId) ?? Promise.resolve();
+    async run<T>(conversationKey: string, task: () => Promise<T>): Promise<T> {
+      const previous = tails.get(conversationKey) ?? Promise.resolve();
       const current = previous
         .catch(() => undefined)
         .then(async (): Promise<T> => {
-          const lastStartedAt = lastStartedAtByBot.get(botId) ?? 0;
-          const waitMs = lastStartedAt + minIntervalMs - Date.now();
+          // 先同步预留下一个全局发送槽位再等待；否则并发调用会在同一时刻一起起跑。
+          const startAt = Math.max(Date.now(), nextStartAt);
+          nextStartAt = startAt + minIntervalMs;
+          const waitMs = startAt - Date.now();
           if (waitMs > 0) {
             await new Promise((resolve) => setTimeout(resolve, waitMs));
           }
-          lastStartedAtByBot.set(botId, Date.now());
           return task();
         });
-      tails.set(botId, current);
+      tails.set(conversationKey, current);
       try {
         return await current;
       } finally {
-        if (tails.get(botId) === current) {
-          tails.delete(botId);
+        if (tails.get(conversationKey) === current) {
+          tails.delete(conversationKey);
         }
       }
     },

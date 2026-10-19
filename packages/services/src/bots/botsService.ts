@@ -155,7 +155,12 @@ import {
   isGroupSilenceReply,
   type GroupTurnPromptInput,
 } from "./groupPrompt.js";
-import { isHeartbeatDue, isHeartbeatOkOnly, normalizeBotHeartbeat } from "./botHeartbeat.js";
+import {
+  isHeartbeatDue,
+  isHeartbeatOkOnly,
+  normalizeBotHeartbeat,
+  pickHeartbeatConversation,
+} from "./botHeartbeat.js";
 import {
   BOT_MEDIA_FILE_LIMIT_BYTES,
   BOT_MEDIA_IMAGE_LIMIT_BYTES,
@@ -208,7 +213,6 @@ import {
   findAuthorizedBot,
   findCallbackBot,
   findBot,
-  getContextKey,
   isUserCommandAllowed,
   normalizeBotConfig,
   normalizeConfigBots,
@@ -948,9 +952,7 @@ export function createBotsService(
       // 后台维护，失败只记 warn：不能让它把入站链路带崩（R4）。
       botsLogger.warn(
         undefined,
-        `attachment cache prune failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `attachment cache prune failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -1869,31 +1871,14 @@ export function createBotsService(
   }
 
   /**
-   * 心跳目标对话：优先"绑定了桌面会话"的对话（用户正在桌面用它），其次最近活跃的私聊对话，
-   * 再次最近活跃的群对话。心跳是主动打扰，必须打在用户真正在用的那个对话上。
-   */
-  function pickHeartbeatConversation(
-    state: BotsStateFile,
-    bot: BotConfig,
-  ): BotConversationState | undefined {
-    const conversations = listConversations(state, bot.id);
-    const bound = conversations.filter((item) => item.mode === "task" && item.activeTaskId);
-    const pool = bound.length > 0 ? bound : conversations;
-    return (
-      pool.find((item) => item.conversationKind === "private") ??
-      pool.find((item) => item.conversationKind === "group") ??
-      conversations[0]
-    );
-  }
-
-  /**
    * 心跳回合：合成一条来自绑定用户的消息走正常管线（创建/复用任务、建流、排队），
    * 但以 heartbeat 标记强制摘要模式，且整段回复仅 HEARTBEAT_OK 时保持安静。
    * 工作区存在 HEARTBEAT.md 时把其内容作为检查指引（截断到 4KB）。
    */
   async function runHeartbeatTurn(bot: BotConfig): Promise<void> {
     const state = await repo.readState();
-    const context = pickHeartbeatConversation(state, bot);
+    // A+：心跳只投递私聊；群对话不参与目标选择，群活动不能把心跳引到群里。
+    const context = pickHeartbeatConversation(listConversations(state, bot.id));
     const heartbeatUserId = resolveBotProactiveUserId(bot, context, state);
     if (!context || !heartbeatUserId) {
       return;
@@ -1917,22 +1902,13 @@ export function createBotsService(
           ]
             .filter(Boolean)
             .join("\n\n");
-    const actor: BotActor =
-      context.conversationKind === "group"
-        ? {
-            provider: bot.provider,
-            botId: bot.id,
-            providerUserId: heartbeatUserId,
-            chatType: "group",
-            chatId: context.conversationId,
-            isMention: true,
-          }
-        : {
-            provider: bot.provider,
-            botId: bot.id,
-            providerUserId: heartbeatUserId,
-            chatType: "private",
-          };
+    // pickHeartbeatConversation 已保证 context 是私聊，心跳不会写进群会话。
+    const actor: BotActor = {
+      provider: bot.provider,
+      botId: bot.id,
+      providerUserId: heartbeatUserId,
+      chatType: "private",
+    };
     // 与用户消息共用同一串行队列：心跳不会与刚落地的用户回合并发写同一任务。
     await enqueueInboundProcessing(actor, async () => {
       await handleMessage({ botId: bot.id, text: prompt, actor }, { heartbeat: true });
@@ -1961,7 +1937,7 @@ export function createBotsService(
     const state = await repo.readState();
     for (const bot of config.bots) {
       const heartbeat = normalizeBotHeartbeat(bot.heartbeat);
-      const context = pickHeartbeatConversation(state, bot);
+      const context = pickHeartbeatConversation(listConversations(state, bot.id));
       if (
         !heartbeat ||
         !bot.enabled ||
@@ -3561,7 +3537,7 @@ export function createBotsService(
       };
       let status: "sent" | "parked";
       try {
-        status = await botSendQueue.run(bot.id, () =>
+        status = await botSendQueue.run(`${bot.id}:${deliveryMessage.providerUserId}`, () =>
           deliverWithRecovery(bot, deliveryMessage, { park: false }),
         );
       } catch (error) {
@@ -3606,14 +3582,26 @@ export function createBotsService(
     return current;
   }
 
-  async function sendOutbound(bot: BotConfig, message: BotOutboundMessage): Promise<void> {
+  async function sendOutbound(
+    bot: BotConfig,
+    message: BotOutboundMessage,
+    options: { automatic?: boolean } = {},
+  ): Promise<void> {
+    // tool_only：AI 自动输出不外发；命令回复、权限/提问等控制消息仍走原路径。
+    // 默认 false，调用方必须显式标记 automatic，避免误伤命令回执。
+    if (bot.deliveryMode === "tool_only" && options.automatic === true) {
+      return;
+    }
     const adapter = providers[bot.provider];
     if (!adapter) {
       return;
     }
     // 修复原因：微信出站在会话上下文过期后连续失败且回复被静默丢弃
-    // （2026-10-10 事故）。统一走 per-bot 串行队列 + 结构化恢复 + 停放补投。
-    await botSendQueue.run(bot.id, () => deliverWithRecovery(bot, message));
+    // （2026-10-10 事故）。统一走 per-conversation 串行队列 + 结构化恢复 + 停放补投；
+    // 同一 bot 的不同私聊/群不再互相排队。
+    await botSendQueue.run(`${bot.id}:${message.providerUserId}`, () =>
+      deliverWithRecovery(bot, message),
+    );
   }
 
   function buildInboundDeliveryKey(message: BotInboundMessage): string | null {
@@ -5435,6 +5423,9 @@ export function createBotsService(
       return blocks;
     };
     const syncStreamingCardReply = async (trigger: string, force = false): Promise<void> => {
+      if (bot.deliveryMode === "tool_only") {
+        return;
+      }
       if (!supportsStreamingCardReply()) {
         return;
       }
@@ -5593,7 +5584,7 @@ export function createBotsService(
       assistantReplyBuffer = extracted.rest;
       for (const text of extracted.messages) {
         sentAnyAssistantReply = true;
-        await sendOutbound(bot, createOutbound(actor, text));
+        await sendOutbound(bot, createOutbound(actor, text), { automatic: true });
       }
     };
     const modeTaskService = await resolveModeTaskServiceForContext(context);
@@ -5689,6 +5680,7 @@ export function createBotsService(
                 locale: await readMessageLocale(),
               }),
             ),
+            { automatic: true },
           );
         }
       }
@@ -5923,12 +5915,13 @@ export function createBotsService(
             await sendOutbound(
               bot,
               createOutbound(actor, locale === "en-US" ? "Task completed." : "任务已完成。"),
+              { automatic: true },
             );
             return;
           }
           for (const text of replyMessages) {
             sentAnyAssistantReply = true;
-            await sendOutbound(bot, createOutbound(actor, text));
+            await sendOutbound(bot, createOutbound(actor, text), { automatic: true });
           }
         } finally {
           providers[bot.provider]?.notifyTaskLifecycle?.(bot, actor, terminalPhase);
@@ -6221,30 +6214,55 @@ export function createBotsService(
     }
     if (message.actor.chatType !== "private") {
       const activation = bot.groupChat?.activation ?? "disabled";
-      if (activation === "disabled") {
-        return {
-          ok: false,
-          reply: [createOutbound(message.actor, msg(locale, "privateChatOnly"))],
-        };
+      const chatId = message.actor.chatId?.trim();
+      if (activation === "disabled" || !chatId) {
+        // 关闭群聊或缺少群身份：静默结束，不能把群消息回落到私聊或猜测目标。
+        return { ok: false, reply: [] };
       }
-      // 群聊服务哪些人：私聊方式=全部用户时任何群成员都可以驱动；否则只服务绑定用户。
-      // 未授权成员的消息记入上下文后静默忽略，既不外泄"这不是私聊"的提示，也不给别人刷机器人的机会。
+      const permissions = bot.groupChat?.permissions ?? [];
+      const approved = permissions.some(
+        (permission) => permission.groupId === chatId && permission.status === "approved",
+      );
       const boundUserId = bot.providerUserId?.trim();
-      const isBoundSender =
+      const isAllowedSender =
         privateChatAllUsers ||
-        (Boolean(boundUserId) && boundUserId === message.actor.providerUserId);
-      if (!isBoundSender) {
-        groupHistory.append(bot.id, message.actor.chatId ?? "", {
+        (Boolean(boundUserId) && boundUserId === message.actor.providerUserId) ||
+        Boolean(bot.allowedUsers?.includes(message.actor.providerUserId));
+      if (!approved && !isAllowedSender) {
+        // 首次发现未知群时登记 pending；未批准群只记录历史，不回复。
+        if (!permissions.some((permission) => permission.groupId === chatId)) {
+          await repo.mutateConfig((nextConfig) => {
+            const target = nextConfig.bots.find((candidate) => candidate.id === bot.id);
+            if (!target) return;
+            const currentPermissions = target.groupChat?.permissions ?? [];
+            if (currentPermissions.some((permission) => permission.groupId === chatId)) return;
+            target.groupChat = {
+              activation: target.groupChat?.activation ?? activation,
+              ...target.groupChat,
+              permissions: [
+                ...currentPermissions,
+                {
+                  groupId: chatId,
+                  groupName: chatId,
+                  platform: bot.provider,
+                  status: "pending",
+                  discoveredAt: Date.now(),
+                },
+              ],
+            };
+          });
+        }
+        groupHistory.append(bot.id, chatId, {
           ...(message.actor.displayName ? { senderName: message.actor.displayName } : {}),
           text: message.text,
         });
         persistGroupHistory();
         return { ok: false, reply: [] };
       }
-      // 群白名单已下线：群聊默认不限制任何群——服务谁由「私聊方式」与「群聊方式」共同决定。
+      // 已批准群：任何成员都可触发；白名单用户在未批准群也可触发。
       // mention 模式：未被 @ 的消息静默忽略（仅记入上下文，供下次被 @ 时参考）。
       if (activation === "mention" && message.actor.isMention !== true) {
-        groupHistory.append(bot.id, message.actor.chatId ?? "", {
+        groupHistory.append(bot.id, chatId, {
           ...(message.actor.displayName ? { senderName: message.actor.displayName } : {}),
           text: message.text,
         });
@@ -6253,7 +6271,13 @@ export function createBotsService(
       }
     }
     // 私聊方式=全部用户：不要求绑定，任何私聊用户都能驱动（命令权限按 bot 自身配置）。
-    const user = privateChatAllUsers ? bot : findBoundUser(bot, message.actor);
+    // 群聊在闸门处已经完成授权；群内任何成员都不应再被私聊绑定关系拦一次。
+    const user =
+      message.actor.chatType === "private"
+        ? privateChatAllUsers
+          ? bot
+          : findBoundUser(bot, message.actor)
+        : bot;
     if (!user) {
       return {
         ok: false,
@@ -6687,8 +6711,7 @@ export function createBotsService(
         return [createOutbound(message.actor, msg(auth.locale, "taskRunning"))];
       }
       if (
-        queuedAttachmentBytes(auth.context.queuedMessages) +
-          attachmentBytes(queuedAttachments) >
+        queuedAttachmentBytes(auth.context.queuedMessages) + attachmentBytes(queuedAttachments) >
         BOT_QUEUED_ATTACHMENT_BUDGET_BYTES
       ) {
         return [createOutbound(message.actor, msg(auth.locale, "taskRunning"))];
@@ -7883,6 +7906,76 @@ export function createBotsService(
         }
       });
     },
+    async approveBotGroup(params: { botId: string; groupId: string }) {
+      const groupId = params.groupId.trim();
+      const saved = await repo.mutateConfig((config) => {
+        const bot = config.bots.find((candidate) => candidate.id === params.botId);
+        if (!bot) throw new Error(`Bot not found: ${params.botId}`);
+        const permissions = bot.groupChat?.permissions ?? [];
+        const permission = permissions.find((candidate) => candidate.groupId === groupId);
+        if (!permission) throw new Error(`Group not found: ${groupId}`);
+        permission.status = "approved";
+        bot.groupChat = {
+          activation: bot.groupChat?.activation ?? "mention",
+          ...bot.groupChat,
+          permissions,
+        };
+      });
+      clearCandidateCaches();
+      weixinRuntime.scheduleRefresh(saved);
+      feishuRuntime.scheduleRefresh(saved);
+      wecomRuntime.scheduleRefresh(saved);
+      dingtalkRuntime.scheduleRefresh(saved);
+      const savedBot = saved.bots.find((candidate) => candidate.id === params.botId);
+      if (!savedBot) throw new Error(`Bot not found: ${params.botId}`);
+      return savedBot;
+    },
+    async rejectBotGroup(params: { botId: string; groupId: string }) {
+      const groupId = params.groupId.trim();
+      const saved = await repo.mutateConfig((config) => {
+        const bot = config.bots.find((candidate) => candidate.id === params.botId);
+        if (!bot) throw new Error(`Bot not found: ${params.botId}`);
+        const permissions = bot.groupChat?.permissions ?? [];
+        bot.groupChat = {
+          activation: bot.groupChat?.activation ?? "mention",
+          ...bot.groupChat,
+          permissions: permissions.filter((candidate) => candidate.groupId !== groupId),
+        };
+      });
+      groupHistory.clear(params.botId, groupId);
+      persistGroupHistory();
+      clearCandidateCaches();
+      weixinRuntime.scheduleRefresh(saved);
+      feishuRuntime.scheduleRefresh(saved);
+      wecomRuntime.scheduleRefresh(saved);
+      dingtalkRuntime.scheduleRefresh(saved);
+      const savedBot = saved.bots.find((candidate) => candidate.id === params.botId);
+      if (!savedBot) throw new Error(`Bot not found: ${params.botId}`);
+      return savedBot;
+    },
+    async removeBotGroup(params: { botId: string; groupId: string }) {
+      const groupId = params.groupId.trim();
+      const saved = await repo.mutateConfig((config) => {
+        const bot = config.bots.find((candidate) => candidate.id === params.botId);
+        if (!bot) throw new Error(`Bot not found: ${params.botId}`);
+        const permissions = bot.groupChat?.permissions ?? [];
+        bot.groupChat = {
+          activation: bot.groupChat?.activation ?? "mention",
+          ...bot.groupChat,
+          permissions: permissions.filter((candidate) => candidate.groupId !== groupId),
+        };
+      });
+      groupHistory.clear(params.botId, groupId);
+      persistGroupHistory();
+      clearCandidateCaches();
+      weixinRuntime.scheduleRefresh(saved);
+      feishuRuntime.scheduleRefresh(saved);
+      wecomRuntime.scheduleRefresh(saved);
+      dingtalkRuntime.scheduleRefresh(saved);
+      const savedBot = saved.bots.find((candidate) => candidate.id === params.botId);
+      if (!savedBot) throw new Error(`Bot not found: ${params.botId}`);
+      return savedBot;
+    },
     watchAutomationRun,
     async handleInboundMessage(message: BotInboundMessage) {
       return enqueueInboundProcessing(message.actor, async () => {
@@ -7906,19 +7999,13 @@ export function createBotsService(
         if (
           message.actor.chatType === "group" &&
           command.type !== "message" &&
-          command.type !== "help" &&
           command.type !== "stop" &&
-          command.type !== "selection.cancel" &&
           command.type !== "approve" &&
           command.type !== "deny"
         ) {
-          // 群聊只开对话类能力：管理命令（/model、/task 等）在群里会改变所有成员的会话上下文。
-          return [
-            createOutbound(
-              message.actor,
-              msg(await readMessageLocale(), "groupCommandUnsupported"),
-            ),
-          ];
+          // A+：群聊管理命令静默丢弃，不交给 AI、不写 binding、不回“仅支持私聊”提示。
+          // 只保留对话、停止和权限响应这类控制消息。
+          return [];
         }
         switch (command.type) {
           case "selection.cancel":

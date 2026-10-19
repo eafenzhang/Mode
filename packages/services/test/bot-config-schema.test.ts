@@ -60,7 +60,7 @@ test("botConfigSchema：未知字段仍然被严格拒绝（strict 语义不回�
       {
         id: "bot-x",
         name: "",
-        provider: "telegram",
+        provider: "weixin",
         enabled: true,
         allowedWorkspaces: ["*"],
         allowedCommands: {

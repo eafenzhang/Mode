@@ -60,10 +60,10 @@ test("存量迁移：企微沿用旧默认的记录翻转为 streaming_card，�
   ];
   assert.equal(wecomLegacy.replyMode, "streaming_card", "企微旧默认要迁到新默认");
 
-  const [telegramLegacy] = parse([botFixture("telegram", "assistant_changes")]) as [
+  const [dingtalkLegacy] = parse([botFixture("dingtalk", "assistant_changes")]) as [
     Record<string, unknown>,
   ];
-  assert.equal(telegramLegacy.replyMode, "assistant_changes", "其它 provider 不动");
+  assert.equal(dingtalkLegacy.replyMode, "assistant_changes", "其它 provider 不动");
 
   const [wecomSummary] = parse([botFixture("wecom", "summary_changes")]) as [
     Record<string, unknown>,

@@ -218,10 +218,10 @@ test("prependPendingDelivery：停放失败的提示排入队首，超限丢最�
   assert.equal(capped.dropped?.text, "m0");
 });
 
-test("createBotSendQueue：同 bot 严格 FIFO + 失败不阻塞后续；跨 bot 互不阻塞", async () => {
-  const { createBotSendQueue, BOT_SEND_MIN_INTERVAL_MS } =
-    await import("../src/bots/outboundDelivery.js");
-  const queue = createBotSendQueue(BOT_SEND_MIN_INTERVAL_MS);
+test("createBotSendQueue：同会话严格 FIFO + 失败不阻塞后续；跨会话互不阻塞", async () => {
+  const { createBotSendQueue } = await import("../src/bots/outboundDelivery.js");
+  // 单独验证队列保序，不受全局最小启动间隔影响；间隔由下一条用例覆盖。
+  const queue = createBotSendQueue(0);
   const order: string[] = [];
   const taskA1 = queue.run("botA", async () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
@@ -234,7 +234,7 @@ test("createBotSendQueue：同 bot 严格 FIFO + 失败不阻塞后续；跨 bot
     order.push("b1");
   });
   await Promise.all([taskA1, taskA2, taskB1]);
-  // 同 bot 顺序固定；botB 不被 botA 的慢任务阻塞（b1 在 a1 之前完成）
+  // 同会话顺序固定；不同会话不被慢任务阻塞（b1 在 a1 之前完成）
   assert.deepEqual(order, ["b1", "a1", "a2"]);
 
   // 上一个任务失败不阻塞后续任务，且错误原样抛给调用方
@@ -243,7 +243,7 @@ test("createBotSendQueue：同 bot 严格 FIFO + 失败不阻塞后续；跨 bot
   assert.equal(after, "ok");
 });
 
-test("createBotSendQueue：同 bot 相邻发送间隔不小于最小间隔", async () => {
+test("createBotSendQueue：同会话相邻发送间隔不小于最小间隔", async () => {
   const { createBotSendQueue } = await import("../src/bots/outboundDelivery.js");
   const minIntervalMs = 40;
   const queue = createBotSendQueue(minIntervalMs);
@@ -261,6 +261,30 @@ test("createBotSendQueue：同 bot 相邻发送间隔不小于最小间隔", asy
   // Date.now() 整数毫秒截断 + Node 计时器毫秒取整：实测间隔可比 minInterval 低 1ms
   // （2026-10-13 CI 实测 39ms < 40ms 红）。平台限流场景 1ms 无实义，断言留 1ms 容差。
   assert.ok(gap >= minIntervalMs - 1, `gap ${gap}ms < minInterval ${minIntervalMs}ms`);
+});
+
+test("createBotSendQueue：不同会话共享全局最小启动间隔", async () => {
+  const { createBotSendQueue } = await import("../src/bots/outboundDelivery.js");
+  const minIntervalMs = 40;
+  const queue = createBotSendQueue(minIntervalMs);
+  const starts: number[] = [];
+  await Promise.all([
+    queue.run("botD:conv1", async () => {
+      starts.push(Date.now());
+    }),
+    queue.run("botD:conv2", async () => {
+      starts.push(Date.now());
+    }),
+    queue.run("botE:conv3", async () => {
+      starts.push(Date.now());
+    }),
+  ]);
+  assert.equal(starts.length, 3);
+  const sorted = [...starts].sort((left, right) => left - right);
+  for (let index = 1; index < sorted.length; index += 1) {
+    const gap = sorted[index]! - sorted[index - 1]!;
+    assert.ok(gap >= minIntervalMs - 1, `gap ${gap}ms < minInterval ${minIntervalMs}ms`);
+  }
 });
 
 test("classifyWeixinRequestFailure：HTTP 状态与服务端 errmsg 映射到恢复分类", async () => {

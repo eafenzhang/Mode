@@ -53,6 +53,39 @@ test("isHeartbeatOkOnly：仅回执时抑制；附带任何实质内容都照常
   assert.equal(isHeartbeatOkOnly(""), false);
 });
 
+// A+：私聊是 Heartbeat 的唯一投递目标；群活动不得把心跳引到群里。
+test("pickHeartbeatConversation：只走私聊；有活动任务的私聊优先；只有群时跳过", async () => {
+  const { pickHeartbeatConversation } = await import("../src/bots/botHeartbeat.js");
+  type Conversation = Parameters<typeof pickHeartbeatConversation>[0][number];
+  const conversation = (
+    conversationKey: string,
+    conversationKind: "private" | "group",
+    mode: "draft" | "task" = "draft",
+    activeTaskId: string | null = null,
+  ) => ({ conversationKey, conversationKind, mode, activeTaskId }) as Conversation;
+
+  assert.equal(
+    pickHeartbeatConversation([conversation("group:g1", "group", "task", "task-1")]),
+    undefined,
+    "只有群对话时必须跳过心跳，不能回落到群",
+  );
+
+  const privateDraft = conversation("private:u1", "private");
+  const groupWithTask = conversation("group:g1", "group", "task", "task-1");
+  assert.equal(
+    pickHeartbeatConversation([groupWithTask, privateDraft]),
+    privateDraft,
+    "群里有活动任务也不能覆盖私聊目标",
+  );
+
+  const privateTask = conversation("private:u2", "private", "task", "task-2");
+  assert.equal(
+    pickHeartbeatConversation([privateDraft, privateTask]),
+    privateTask,
+    "优先选择正在桌面使用的私聊任务",
+  );
+});
+
 // 心跳不写会话：提示词标记是 UI 隐藏整轮的判据（服务与 UI 共用同一份共享常量）。
 test("isBotHeartbeatPromptText：只认心跳提示词开头，普通消息不受影响", async () => {
   const {

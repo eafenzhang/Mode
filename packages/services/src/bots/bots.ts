@@ -4,7 +4,6 @@ import type {
   ModeConfigOption,
   ModeProvider,
   BotConfig,
-  BotContextState,
   BotConversationKind,
   BotConversationState,
   BotInboundMessage,
@@ -203,7 +202,9 @@ export interface IBotsService {
   bindBotToWorkspace(params: BotWorkspaceBindingParams): Promise<void>;
   /** 解除工作区绑定；bot 恢复 allowedWorkspaces 自由切换。 */
   unbindBotFromWorkspace(params: BotWorkspaceBindingParams): Promise<void>;
-  getWorkspaceBotBinding(params: Omit<BotWorkspaceBindingParams, "botId">): Promise<BotWorkspaceBindingInfo>;
+  getWorkspaceBotBinding(
+    params: Omit<BotWorkspaceBindingParams, "botId">,
+  ): Promise<BotWorkspaceBindingInfo>;
   /** 该 bot 当前绑定的全部工作区；空数组表示未绑定（访问范围由用户自行管理）。 */
   listBotWorkspaceBindings(params: { botId: string }): Promise<BotWorkspaceRef[]>;
   /**
@@ -235,6 +236,12 @@ export interface IBotsService {
   createBindCode(params: BotCreateBindCodeParams): Promise<BotBindCodeResult>;
   getBotStates(): Promise<BotConversationState[]>;
   resetBotState(contextKey: string): Promise<void>;
+  /** 批准群授权；批准后该群所有成员可触发（仍受 mention gate 限制）。 */
+  approveBotGroup(params: { botId: string; groupId: string }): Promise<BotConfig>;
+  /** 拒绝待审批群；清空该群历史。 */
+  rejectBotGroup(params: { botId: string; groupId: string }): Promise<BotConfig>;
+  /** 移除已批准群；清空该群历史，后续消息只记历史不再触发。 */
+  removeBotGroup(params: { botId: string; groupId: string }): Promise<BotConfig>;
   /**
    * 把受信目录（当前工作区 / 应用数据目录 / 系统临时目录）内的文件作为媒体发到会话。
    * 路径越界、文件不存在或超过平台大小上限都会抛错。

@@ -1,4 +1,4 @@
-import type { BotHeartbeatConfig } from "@mode/shared";
+import type { BotConversationState, BotHeartbeatConfig } from "@mode/shared";
 import {
   BOT_HEARTBEAT_DEFAULT_INTERVAL_MINUTES,
   BOT_HEARTBEAT_MAX_INTERVAL_MINUTES,
@@ -50,6 +50,23 @@ export function isHeartbeatOkOnly(text: string): boolean {
     .trim()
     .toUpperCase();
   return stripped === "HEARTBEAT_OK" || stripped === "HEARTBEATOK";
+}
+
+/**
+ * 心跳目标只能是私聊对话（A+ 规则：私聊是 Heartbeat 的唯一投递目标，
+ * 群活动不得把心跳引到群里）。优先有活动任务的私聊（用户正在桌面使用），
+ * 否则第一个私聊对话；没有私聊就跳过本轮，不做群聊回落。
+ */
+export function pickHeartbeatConversation(
+  conversations: readonly BotConversationState[],
+): BotConversationState | undefined {
+  const privateConversations = conversations.filter(
+    (conversation) => conversation.conversationKind === "private",
+  );
+  const withActiveTask = privateConversations.filter(
+    (conversation) => conversation.mode === "task" && conversation.activeTaskId,
+  );
+  return withActiveTask[0] ?? privateConversations[0];
 }
 
 // 常量迁到 shared（配置语义与 UI 共用），这里转出保持既有引用不变。
