@@ -237,13 +237,6 @@ async function acquireBotRuntimeLock(
   return null;
 }
 
-export async function acquireTelegramPollingLock(
-  token: string,
-  botId: string,
-): Promise<BotRuntimeLock | null> {
-  return acquireBotRuntimeLock("telegram-polling", token, botId);
-}
-
 export async function acquireWeixinPollingLock(
   token: string,
   botId: string,

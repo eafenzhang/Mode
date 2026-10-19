@@ -30,8 +30,9 @@ export const botProviders = [
   "dingtalk",
   "discord",
   "wecom",
-  // 已下线通道：AstrBot 桥接整体移除。字面量只为解析历史 bot-config 文件保留，
-  // 读取配置时会连同记录一起丢弃（见 RETIRED_BOT_PROVIDERS），产品里不再可达。
+  // 已下线通道：Telegram / Webhook / Discord / AstrBot 整体移除。字面量只为解析
+  // 历史 bot-config 文件保留，读取配置时会连同记录一起丢弃
+  // （见 RETIRED_BOT_PROVIDERS），产品里不再可达。
   "astrbot",
 ] as const;
 

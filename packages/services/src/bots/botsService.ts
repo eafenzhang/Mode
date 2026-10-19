@@ -120,7 +120,6 @@ import type {
   BotTransientInteractionCardHandle,
   BotTypingTarget,
 } from "./providers/types.js";
-import { createTelegramBotProvider } from "./providers/telegramProvider.js";
 import { createWebhookBotProvider } from "./providers/webhookProvider.js";
 import { createWeixinBotProvider } from "./providers/weixinProvider.js";
 import { createWeComBotProvider } from "./providers/wecomProvider.js";
@@ -243,7 +242,6 @@ import {
   taskStatus,
   truncateLiveStatusProgressText,
 } from "./statusFormatting.js";
-import { createTelegramChannelRuntime } from "./telegramChannelRuntime.js";
 import { createWeixinChannelRuntime } from "./weixinChannelRuntime.js";
 import { createFeishuChannelRuntime } from "./feishuChannelRuntime.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
@@ -300,7 +298,6 @@ const BOT_REPLY_GRANULARITY_OPTIONS = [
 }>;
 
 const BOT_EXCLUSIVE_CREDENTIAL_PROVIDERS = new Set<BotProvider>([
-  "telegram",
   "feishu",
   "lark",
   // 钉钉：一个 AppKey/AppSecret 只应有一个启用的机器人消费 Stream 长连接。
@@ -313,9 +310,8 @@ const FEISHU_STREAMING_CARD_FAILURE_CIRCUIT_THRESHOLD = 3;
 const BOT_ELICITATION_PROGRESS_BROADCAST_TIMEOUT_MS = 1_000;
 const BOT_PROVIDER_CALLBACK_ACK_TIMEOUT_MS = 3_000;
 
-/** 各 provider 的流式回复最小编辑间隔；Telegram 编辑有速率压力，与飞书保持同一档。 */
+/** 各 provider 的流式回复最小编辑间隔；飞书/Lark 编辑有速率压力。 */
 const STREAMING_CARD_MIN_UPDATE_INTERVAL_MS_BY_PROVIDER: Partial<Record<BotProvider, number>> = {
-  telegram: 1_000,
   feishu: FEISHU_STREAMING_CARD_MIN_UPDATE_INTERVAL_MS,
   lark: FEISHU_STREAMING_CARD_MIN_UPDATE_INTERVAL_MS,
 };
@@ -605,14 +601,13 @@ function createOutbound(
 function resolveAutomationBotDeliveryTarget(
   actor: BotActor,
 ): ModeAutomationBotDeliveryTarget | undefined {
-  // 具备主动推送能力的平台：飞书/Lark、微信、Telegram、企业微信智能机器人。
-  // webhook 是入站协议，不作为投递目标。
+  // 具备主动推送能力的平台：飞书/Lark、微信、企业微信智能机器人。
+  // webhook 是入站协议，不作为投递目标；Telegram 已退出产品面。
   // 注意：用直接条件而不是布尔别名，TS 需要它来完成联合类型窄化。
   if (
     actor.provider !== "feishu" &&
     actor.provider !== "lark" &&
     actor.provider !== "weixin" &&
-    actor.provider !== "telegram" &&
     actor.provider !== "wecom"
   ) {
     return undefined;
@@ -960,11 +955,9 @@ export function createBotsService(
   /** 一次性迁移标记：旧绑定表导入（settings.botBindingByWorkspace）与 path→identity key 升级共用。 */
   let workspaceKeyUpgradeChecked = false;
   const providers: Record<BotProvider, BotProviderAdapter | null> = {
-    // AstrBot 桥接已下线：字面量仅为历史配置解析保留，没有适配器。
+    // AstrBot/Telegram 等已下线通道只为历史配置解析保留，没有适配器。
     astrbot: null,
-    telegram: createTelegramBotProvider({
-      loadCredential: (key) => deps.credentialService.load(key),
-    }),
+    telegram: null,
     webhook: createWebhookBotProvider({
       loadCredential: (key) => deps.credentialService.load(key),
     }),
@@ -1019,18 +1012,6 @@ export function createBotsService(
     },
     setRuntimeStatus,
   };
-  const telegramRuntime = createTelegramChannelRuntime({
-    runBackgroundTasks: runStartupBackgroundTasks,
-    credentialService: deps.credentialService,
-    telegramProvider: providers.telegram,
-    logger: botsLogger,
-    statusSink,
-    ensureBotStorageMigrated,
-    readConfig: () => repo.readConfig(),
-    readTelegramOffset,
-    writeTelegramOffset,
-    processProviderCallback,
-  });
   const weixinRuntime = createWeixinChannelRuntime({
     runBackgroundTasks: runStartupBackgroundTasks,
     credentialService: deps.credentialService,
@@ -1101,10 +1082,6 @@ export function createBotsService(
     });
   }
 
-  async function readTelegramOffset(botId: string): Promise<number | undefined> {
-    return (await repo.readState()).bots[botId]?.telegramOffset;
-  }
-
   async function readWecomDedup(botId: string): Promise<Array<{ id: string; at: number }>> {
     return (await repo.readState()).bots[botId]?.wecomRecentMessageIds ?? [];
   }
@@ -1126,10 +1103,6 @@ export function createBotsService(
     entries: Array<{ id: string; at: number }>,
   ): Promise<void> {
     await patchBotChannelState(botId, { wecomRecentMessageIds: entries });
-  }
-
-  async function writeTelegramOffset(botId: string, offset: number): Promise<void> {
-    await patchBotChannelState(botId, { telegramOffset: offset });
   }
 
   async function readWeixinGetUpdatesBuf(botId: string): Promise<string | undefined> {
@@ -7147,7 +7120,6 @@ export function createBotsService(
               provider: bot.provider,
               status: bot.enabled ? "idle" : "disabled",
               message: bot.enabled ? "Bot is configured." : "Bot is disabled.",
-              offset: state.bots[bot.id]?.telegramOffset,
               ...(state.bots[bot.id]?.weixinActivatedAt !== undefined
                 ? { weixinActivatedAt: state.bots[bot.id]!.weixinActivatedAt }
                 : {}),
@@ -7183,9 +7155,7 @@ export function createBotsService(
     },
     async saveConfig(config) {
       const savedConfig = await repo.writeConfig(normalizeConfigBots(config));
-      clearCandidateCaches();
-      telegramRuntime.scheduleRefresh(savedConfig);
-      weixinRuntime.scheduleRefresh(savedConfig);
+      clearCandidateCaches();      weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
       wecomRuntime.scheduleRefresh(savedConfig);
       dingtalkRuntime.scheduleRefresh(savedConfig);
@@ -7248,9 +7218,7 @@ export function createBotsService(
       const bots = config.bots.filter((item) => item.id !== bot.id);
       bots.push(bot);
       const savedConfig = await repo.writeConfig({ ...config, bots });
-      clearCandidateCaches();
-      telegramRuntime.scheduleRefresh(savedConfig);
-      weixinRuntime.scheduleRefresh(savedConfig);
+      clearCandidateCaches();      weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
       wecomRuntime.scheduleRefresh(savedConfig);
       dingtalkRuntime.scheduleRefresh(savedConfig);
@@ -7261,9 +7229,6 @@ export function createBotsService(
       const bot = findBot(config, botId);
       if (!bot) {
         throw new Error(`Bot not found: ${botId}`);
-      }
-      if (bot.provider === "telegram") {
-        void telegramRuntime.syncCommands({ ...bot, enabled: false });
       }
       if (isFeishuBotProvider(bot.provider)) {
         feishuRuntime.stopWebSocket(bot.id);
@@ -7289,9 +7254,7 @@ export function createBotsService(
       await repo.mutateState((state) => {
         delete state.bots[bot.id];
       });
-      clearCandidateCaches();
-      telegramRuntime.scheduleRefresh(savedConfig);
-      weixinRuntime.scheduleRefresh(savedConfig);
+      clearCandidateCaches();      weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
       wecomRuntime.scheduleRefresh(savedConfig);
       dingtalkRuntime.scheduleRefresh(savedConfig);
@@ -7306,9 +7269,6 @@ export function createBotsService(
     async deleteBot(botId: string) {
       const config = await repo.readConfig();
       const bot = findBot(config, botId);
-      if (bot?.provider === "telegram") {
-        void telegramRuntime.syncCommands({ ...bot, enabled: false });
-      }
       if (bot && isFeishuBotProvider(bot.provider)) {
         feishuRuntime.stopWebSocket(bot.id);
       }
@@ -7325,9 +7285,7 @@ export function createBotsService(
         ...config,
         bots: config.bots.filter((item) => item.id !== botId),
       });
-      clearCandidateCaches();
-      telegramRuntime.scheduleRefresh();
-      weixinRuntime.scheduleRefresh();
+      clearCandidateCaches();      weixinRuntime.scheduleRefresh();
       wecomRuntime.scheduleRefresh();
       dingtalkRuntime.scheduleRefresh();
       // 锁内原子 RMW；removedConversations 在 mutator 内捕获，dispose 在锁外
@@ -8939,7 +8897,6 @@ export function createBotsService(
       // Bugfix：host 的异步资源回收会优先调用 disposeAllAndWait。保留统一 Promise，确保并发关闭
       // 只执行一次，并在返回前等三类 Provider runtime 的请求、WebSocket 和跨进程锁全部收口。
       shutdownPromise = Promise.allSettled([
-        telegramRuntime.dispose(),
         weixinRuntime.dispose(),
         feishuRuntime.dispose(),
         wecomRuntime.dispose(),
@@ -8951,7 +8908,6 @@ export function createBotsService(
     },
   };
   if (runStartupBackgroundTasks) {
-    void telegramRuntime.refresh();
     void weixinRuntime.refresh();
     void feishuRuntime.refresh();
     void wecomRuntime.refresh();

@@ -130,12 +130,12 @@ test("迁移规划：/bind 写入的真实用户 id 不迁移，微信无 provid
 
 test("迁移规划：非微信 provider 的 providerUserId 永不触碰", async () => {
   const { planWeixinSelfIdMigration } = await import("../src/bots/weixinSelfId.js");
-  const telegram = makeWeixinBot({
-    provider: "telegram",
+  const dingtalk = makeWeixinBot({
+    provider: "dingtalk",
     providerUserId: "u1",
     displayName: "u1",
   });
-  const plan = planWeixinSelfIdMigration([telegram], makeState({}));
+  const plan = planWeixinSelfIdMigration([dingtalk], makeState({}));
   assert.equal(plan.changed, false);
   assert.equal(plan.bots[0]!.providerUserId, "u1");
 });

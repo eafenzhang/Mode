@@ -1,62 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-// Telegram 流式回复把流式卡片 blocks 渲染为 Markdown 文本后走 editMessageText。
-// 渲染是确定性的纯函数：正文拼接、工具摘要列表、状态指示符、运行中截断。
+// 已下线通道（Telegram）的流式渲染测试随运行时一起移除；
+// 本文件保留企业微信流式渲染与共享能力表契约。
 
-test("message blocks 拼接为正文；tools blocks 渲染为摘要列表", async () => {
-  const { renderStreamingCardStateToText } = await import(
-    "../src/bots/providers/telegramProvider.js"
-  );
-  const text = renderStreamingCardStateToText({
-    providerUserId: "u1",
-    status: "running",
-    blocks: [
-      { type: "message", text: "正在分析构建日志。\n\n" },
-      { type: "tools", toolIds: [], summaries: ["read src/a.ts", "run pnpm build"], title: "工具摘要" },
-      { type: "message", text: "  " },
-      { type: "message", text: "找到根因。" },
-    ],
-  });
-  assert.ok(text.includes("正在分析构建日志。"));
-  assert.ok(text.includes("**工具摘要**\n- read src/a.ts\n- run pnpm build"));
-  assert.ok(text.includes("找到根因。"));
-  assert.ok(text.endsWith("⏳"));
-  // 空白 message 块被过滤；正文、工具摘要、状态指示符共 3 个空段分隔
-  assert.equal(text.split("\n\n").length, 4);
-});
-
-test("completed 状态不追加指示符；error 追加 ❌", async () => {
-  const { renderStreamingCardStateToText } = await import(
-    "../src/bots/providers/telegramProvider.js"
-  );
-  const base = {
-    providerUserId: "u1",
-    blocks: [{ type: "message" as const, text: "完成。" }],
-  };
-  assert.equal(
-    renderStreamingCardStateToText({ ...base, status: "completed" }),
-    "完成。",
-  );
-  assert.ok(
-    renderStreamingCardStateToText({ ...base, status: "error" }).endsWith("❌"),
-  );
-});
-
-test("空内容渲染为空串（create 端不会发出占位空消息）", async () => {
-  const { renderStreamingCardStateToText } = await import(
-    "../src/bots/providers/telegramProvider.js"
-  );
-  assert.equal(
-    renderStreamingCardStateToText({ providerUserId: "u1", status: "running", blocks: [] }),
-    "",
-  );
-});
-
-test("共享层能力表：Telegram/企业微信支持全部粒度，微信不支持 streaming_card", async () => {
+test("共享层能力表：企业微信支持 streaming_card，微信不支持", async () => {
   const { getSupportedBotReplyGranularities } = await import("@mode/shared");
-  const telegram = getSupportedBotReplyGranularities("telegram");
-  assert.ok(telegram.includes("streaming_card"));
   // 企业微信智能机器人经 WebSocket replyStream 原生支持流式回复。
   const wecom = getSupportedBotReplyGranularities("wecom");
   assert.ok(wecom.includes("streaming_card"));
