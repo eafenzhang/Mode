@@ -229,4 +229,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第三十六批（`app-approval` 续）：描述优先 input.description、回退 reason；官方 CUA
   项目审批需 allow + addRules 且规则命中官方能力，并映射专属文案；作用域只取 Bash allow
   规则、前缀用省略号、最多 5 条，无 suggested updates 时从 input 取规则内容；
+- 第三十七批（`state` 基础助手）：asRecord 只接受对象、string/number/boolean 字段类型校验
+  （空串与空白保留、NaN/Infinity 拒绝）；千分位与耗时单位；截断含省略号计入上限；
+  大小写不敏感匹配与空查询恒匹配；prompt 归一与事件名下划线转空格；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
