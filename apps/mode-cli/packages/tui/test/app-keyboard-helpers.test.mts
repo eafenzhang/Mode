@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  completeEffortCommand,
+  completeModeCommand,
+  completeModelCommand,
   completeSlashCommand,
   createCtrlCExitGuard,
   isModeSwitchKey,
@@ -81,4 +84,59 @@ test("Ctrl-C：首按提示，窗口内再按确认退出，超时重新计时",
 test("模式切换键：Shift+Tab", () => {
   assert.equal(isModeSwitchKey({ name: "tab", shift: true } as never), true);
   assert.equal(isModeSwitchKey({ name: "tab", shift: false } as never), false);
+});
+
+test("命令补全：model/effort/mode 按选中项写回草稿，无选中或空列表不处理", () => {
+  const models = [
+    { ref: { providerId: "openai", modelId: "gpt-5" }, label: "GPT-5" },
+    { ref: { providerId: "x", modelId: "y" }, label: "Y" },
+  ] as never;
+  const efforts = [{ id: "low" }, { id: "high" }] as never;
+  const modes = [{ id: "plan" }, { id: "build" }] as never;
+
+  let draft: string | undefined;
+  assert.equal(
+    completeModelCommand(models, { selectedIndex: 1 }, (value) => {
+      draft = value;
+    }),
+    true,
+  );
+  assert.equal(draft, "/model x/y");
+
+  assert.equal(
+    completeModelCommand(models, { selectedIndex: 9 }, (value) => {
+      draft = value;
+    }),
+    true,
+  );
+  assert.equal(draft, "/model x/y");
+
+  assert.equal(
+    completeModelCommand(models, undefined, () => {
+      throw new Error("should not write");
+    }),
+    false,
+  );
+  assert.equal(
+    completeModelCommand([] as never, { selectedIndex: 0 }, () => {
+      throw new Error("should not write");
+    }),
+    false,
+  );
+
+  assert.equal(
+    completeEffortCommand(efforts, { selectedIndex: 1 }, (value) => {
+      draft = value;
+    }),
+    true,
+  );
+  assert.equal(draft, "/effort high");
+
+  assert.equal(
+    completeModeCommand(modes, { selectedIndex: 0 }, (value) => {
+      draft = value;
+    }),
+    true,
+  );
+  assert.equal(draft, "/mode plan");
 });

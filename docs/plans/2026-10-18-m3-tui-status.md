@@ -222,4 +222,6 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第三十三批（`app-tool-transcript` 投影）：Read 标题取文件名并展示 offset/limit；
   Bash 只展示 command；Write 展示 file_path、Edit 只给标题；Grep/Glob 展示 pattern 与
   可选 path；未知工具按数字/嵌套对象/数组/布尔/null 概括展示；
+- 第三十四批（`app-keyboard-helpers` 补全）：model/effort/mode 补全按选中项写回
+  `/model provider/model`、`/effort id`、`/mode id`，下标夹取；无选中态或空列表不写草稿；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
