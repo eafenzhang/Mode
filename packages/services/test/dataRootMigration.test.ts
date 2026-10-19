@@ -166,3 +166,35 @@ test(
     }
   },
 );
+
+test("discoverLegacyDataRootCandidates：逐代探测，只有末代 .zcode 也能发现", async () => {
+  const migration = await loadMigration();
+  const base = makeBase();
+  try {
+    const legacy = join(base, ".zcode");
+    mkdirSync(join(legacy, "v2"), { recursive: true });
+    writeFileSync(join(legacy, "v2", "setting.json"), "{}");
+    const candidates = migration.discoverLegacyDataRootCandidates(base);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0]?.legacyRoot, legacy);
+    assert.equal(candidates[0]?.isPrimaryBase, true);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("discoverLegacyDataRootCandidates：多代同时存在时取列表中最新的根", async () => {
+  const migration = await loadMigration();
+  const base = makeBase();
+  try {
+    const newest = join(base, ".zcodium");
+    const oldest = join(base, ".zcode");
+    mkdirSync(newest, { recursive: true });
+    mkdirSync(oldest, { recursive: true });
+    const candidates = migration.discoverLegacyDataRootCandidates(base);
+    assert.equal(candidates.length, 1);
+    assert.equal(candidates[0]?.legacyRoot, newest);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});

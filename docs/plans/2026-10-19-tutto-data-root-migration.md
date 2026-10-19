@@ -107,4 +107,5 @@ settings-sync/skill-sync/skills/storage/subagents）、mode-server-cli 与 plugi
 切换，只保留无行为变化的前置收敛；CUA 一期收口后按第 8 节清单一次性切换。
 
 顺带修复：`discoverLegacyDataRootCandidates` 原先只探测 legacy 列表的第一项，现按
-`LEGACY_MODE_DATA_ROOT_DIR_NAMES` 由新到旧取第一个存在的根（多代迁移一致）。
+`LEGACY_MODE_DATA_ROOT_DIR_NAMES` 由新到旧取第一个存在的根（多代迁移一致）。已补回归：
+只有末代 `.zcode` 时仍能发现；多代同时存在时取列表中最新的根。
