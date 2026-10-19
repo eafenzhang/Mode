@@ -206,3 +206,69 @@ test("群发现：首次群消息登记 pending；重复发现不重复登记；
     "未授权群消息只写历史，且两条都保留",
   );
 });
+
+test("已批准群：非 @ 静默入历史；@ 后任何成员进入触发链路", async () => {
+  const configDir = node.getAppConfigDir();
+  const current = JSON.parse(
+    readFileSync(join(configDir, "bot-config.v3.json"), "utf8"),
+  ) as { bots: Array<Record<string, unknown>> };
+  current.bots.push({
+    ...buildBotConfig().bots[0],
+    id: "bot-3",
+    name: "bot-3",
+    enabled: true,
+    allowedWorkspaces: ["*"],
+    groupChat: {
+      activation: "mention",
+      permissions: [
+        {
+          groupId: "group-live",
+          groupName: "Live group",
+          platform: "wecom",
+          status: "approved",
+          discoveredAt: 1,
+        },
+      ],
+    },
+  });
+  writeFileSync(join(configDir, "bot-config.v3.json"), `${JSON.stringify(current, null, 2)}\n`);
+
+  const botsService = hostServices!.get(services.IBotsService);
+  const inbound = (providerUserId: string, providerMessageId: string, isMention: boolean) => ({
+    botId: "bot-3",
+    text: "hi",
+    actor: {
+      provider: "wecom" as const,
+      botId: "bot-3",
+      providerUserId,
+      chatType: "group" as const,
+      chatId: "group-live",
+      isMention,
+      providerMessageId,
+    },
+  });
+
+  // 已批准群 + mention 模式：没有 @ 证据只写历史，不产生回复。
+  assert.deepEqual(await botsService.handleInboundMessage(inbound("stranger-1", "m1", false)), []);
+
+  // 已批准群 + @：任何成员都能通过群闸门；本用例没有可用工作区，
+  // 因此停在 noWorkspaceAllowed，而不是被私聊绑定关系静默丢弃。
+  const mentioned = await botsService.handleInboundMessage(inbound("stranger-2", "m2", true));
+  assert.ok(mentioned.length > 0, "已批准群被 @ 后必须进入触发链路，不能静默");
+
+  const config = await botsService.getConfig();
+  const permissions =
+    config.bots.find((bot) => bot.id === "bot-3")?.groupChat?.permissions ?? [];
+  assert.equal(permissions.length, 1, "已批准群不应再被登记为 pending");
+  assert.equal(permissions[0]?.status, "approved");
+
+  await new Promise((resolve) => setTimeout(resolve, 2_100));
+  const history = JSON.parse(
+    readFileSync(join(configDir, "bot-group-history.v1.json"), "utf8"),
+  ) as { bots: Record<string, Record<string, unknown[]>> };
+  assert.equal(
+    history.bots["bot-3"]?.["group-live"]?.length,
+    1,
+    "只有未 @ 的消息进入群历史，@ 触发的消息不重复写入",
+  );
+});
