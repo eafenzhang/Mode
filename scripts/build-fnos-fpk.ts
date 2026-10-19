@@ -30,7 +30,7 @@ import {
   tarArgs,
   workDir,
 } from "./fnos-fpk/build-lib.ts";
-import { pruneDistribution } from "./mode-distribution/prune.mjs";
+import { pruneDistribution } from "./mode-distribution/prune.ts";
 import { verifyStructure, verifyTokenFlow } from "./fnos-fpk/verify.ts";
 
 const usage = `Usage:

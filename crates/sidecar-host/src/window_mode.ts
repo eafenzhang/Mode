@@ -133,6 +133,20 @@
     "onDesktopWindowChromeStateChanged",
   ];
   /**
+   * 自动更新面（壳的 updater `extra_handler` + `mode:update-state` 事件）。
+   * 不在 M1 命令切片里，但注入层是实现；诊断与测试都按这份清单认「已实现」。
+   */
+  var UPDATE_STATE = [
+    "getUpdateState",
+    "onUpdateStateChanged",
+    "downloadUpdate",
+    "cancelUpdateDownload",
+    "quitAndInstallUpdate",
+    "skipUpdateVersion",
+    "getAutoUpdatePreferences",
+    "setAutoDownloadAndInstallUpdates",
+  ];
+  /**
    * 必选、M1 未实现，且**调用方会消费返回值**的成员：调用返回一个**被拒的 Promise**。
    *
    * 判据是机械的（`windowModeInjection.test.mts` 按声明返回值对拍）：声明返回
@@ -232,7 +246,10 @@
 
   var diagnostics = {
     source: "sidecar-host/window_mode.ts",
-    implemented: M1_COMMANDS.slice().concat(EVENT_SUBSCRIBED).concat(WINDOW_CONTROL),
+    implemented: M1_COMMANDS.slice()
+      .concat(EVENT_SUBSCRIBED)
+      .concat(WINDOW_CONTROL)
+      .concat(UPDATE_STATE),
     notImplemented: REJECTING_REQUIRED.slice(),
     noOp: NO_OP_REQUIRED.slice(),
     deliberatelyAbsent: DELIBERATELY_ABSENT_REQUIRED.slice(),

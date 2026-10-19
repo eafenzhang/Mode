@@ -165,12 +165,8 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "exportLogs",
   "onUpdateReady",
   "onUpdateCheckResult",
-  "downloadUpdate",
-  "cancelUpdateDownload",
-  "skipUpdateVersion",
   "onPostUpdateReleaseNotes",
   "acknowledgePostUpdateReleaseNotes",
-  "quitAndInstallUpdate",
   "getInstalledEditors",
   "openInEditor",
   "setApplicationLocale",
@@ -224,9 +220,28 @@ export const WINDOW_CONTROL_METHODS = [
   "onDesktopWindowChromeStateChanged",
 ] as const;
 
+/**
+ * **自动更新面**：壳的 updater 命令（`crates/updater` 的 `extra_handler`）与事件订阅。
+ *
+ * 这些成员不在 M1 命令切片里（Rust 侧走壳的追加 handler），但注入层**确实实现了**它们。
+ * 单列一份是为了让测试的「可选成员不得被注入」判定有第二处真源可查——早先它们被误判成
+ * 「未实现的可选成员」，CI 因此红。
+ */
+export const UPDATE_STATE_METHODS = [
+  "getUpdateState",
+  "onUpdateStateChanged",
+  "downloadUpdate",
+  "cancelUpdateDownload",
+  "quitAndInstallUpdate",
+  "skipUpdateVersion",
+  "getAutoUpdatePreferences",
+  "setAutoDownloadAndInstallUpdates",
+] as const;
+
 type ImplementedCommand = (typeof M1_IMPLEMENTED_COMMANDS)[number];
 type EventSubscribedCommand = (typeof EVENT_SUBSCRIBED_METHODS)[number];
 type WindowControlCommand = (typeof WINDOW_CONTROL_METHODS)[number];
+type UpdateStateMethod = (typeof UPDATE_STATE_METHODS)[number];
 type UnimplementedRequired = (typeof M1_UNIMPLEMENTED_REQUIRED_METHODS)[number];
 
 /** `IPlatformService` 里没有 `?` 的成员名。 */
@@ -237,7 +252,11 @@ type RequiredMemberName = {
 /** 既没实现、也没登记成「未实现必选」的必选成员。正常应为 `never`。 */
 type UncoveredRequiredMember = Exclude<
   RequiredMemberName,
-  ImplementedCommand | EventSubscribedCommand | WindowControlCommand | UnimplementedRequired
+  | ImplementedCommand
+  | EventSubscribedCommand
+  | WindowControlCommand
+  | UpdateStateMethod
+  | UnimplementedRequired
 >;
 
 // 编译期穷尽检查：不等于 never 时，这一行的类型不匹配会直接报错。

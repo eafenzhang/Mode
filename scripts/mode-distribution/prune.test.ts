@@ -8,7 +8,7 @@ import {
   isDistributionDebugFile,
   pruneDistribution,
   shouldPruneTargetDirectory,
-} from "./prune.mjs";
+} from "./prune.ts";
 
 function makeTree(files) {
   const root = mkdtempSync(join(tmpdir(), "mode-prune-test-"));

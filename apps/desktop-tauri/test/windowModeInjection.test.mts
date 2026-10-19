@@ -45,6 +45,7 @@ import ts from "typescript";
 import {
   EVENT_SUBSCRIBED_METHODS,
   M1_IMPLEMENTED_COMMANDS,
+  UPDATE_STATE_METHODS,
   WINDOW_CONTROL_METHODS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
   normalizeApplicationIconRequest,
@@ -1090,6 +1091,7 @@ test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成�
     ...M1_IMPLEMENTED_COMMANDS,
     ...EVENT_SUBSCRIBED_METHODS,
     ...WINDOW_CONTROL_METHODS,
+    ...UPDATE_STATE_METHODS,
   ]);
   const absent = new Set(DELIBERATELY_ABSENT_REQUIRED_MEMBERS);
   assert.deepEqual(

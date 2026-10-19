@@ -11,7 +11,7 @@ import {
   stageTuiRuntime,
 } from "./mode-distribution/assets.mjs";
 import { installScriptSource } from "./mode-distribution/installer.mjs";
-import { pruneDistribution } from "./mode-distribution/prune.mjs";
+import { pruneDistribution } from "./mode-distribution/prune.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const defaultOutDir = resolve(root, "dist", "mode");
