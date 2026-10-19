@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -50,7 +51,7 @@ async function readUserCliConfig(
 ): Promise<Record<string, unknown>> {
   try {
     const raw = await readFile(
-      join(resolveUserHomeDir(options), ".mode", "cli", "config.json"),
+      join(resolveUserHomeDir(options), MODE_DATA_ROOT_DIR_NAME, "cli", "config.json"),
       "utf8",
     );
     const parsed = JSON.parse(raw) as unknown;

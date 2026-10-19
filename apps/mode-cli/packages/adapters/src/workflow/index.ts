@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -32,7 +33,7 @@ interface WorkflowIndexFile {
   runs: WorkflowRunListItem[];
 }
 
-const DEFAULT_WORKFLOW_ROOT = join(homedir(), ".mode", "cli", "workflows");
+const DEFAULT_WORKFLOW_ROOT = join(homedir(), MODE_DATA_ROOT_DIR_NAME, "cli", "workflows");
 const WORKFLOW_DEFINITION_FILE_EXTENSION = ".json";
 
 export class NodeWorkflowStore implements WorkflowStorePort {

@@ -12,6 +12,7 @@
 // high/system/artifact（观察值）。
 //
 // 未做：启用/禁用过滤（缺 installed_plugins.json 的稳定读取口径）、Skills（Skill 是内置工具）。
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
@@ -77,11 +78,11 @@ function safeToken(value: string): string {
 
 async function discoverServers(): Promise<DiscoveredServer[]> {
   const base = pluginStorageBase();
-  const cacheRoot = join(base, ".mode", "cli", "plugins", "cache");
+  const cacheRoot = join(base, MODE_DATA_ROOT_DIR_NAME, "cli", "plugins", "cache");
   let enabledPlugins: Record<string, boolean> = {};
   try {
     const config = JSON.parse(
-      await readFile(join(base, ".mode", "cli", "config.json"), "utf8"),
+      await readFile(join(base, MODE_DATA_ROOT_DIR_NAME, "cli", "config.json"), "utf8"),
     ) as { plugins?: { enabledPlugins?: Record<string, boolean> } };
     enabledPlugins = config.plugins?.enabledPlugins ?? {};
   } catch {

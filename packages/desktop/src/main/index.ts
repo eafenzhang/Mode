@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { installOfficialPlatformNetworkPolicy } from "./desktopOfficialPlatformPolicy.js";
 /* eslint-disable max-lines */
 import { getDesktopDataRootStartupResult } from "./desktopEarlyDataBaseDirBootstrap.js";
@@ -461,7 +462,7 @@ async function runBrowserCommandOnView(params: {
 let currentDesktopZoomLevel = 0;
 let currentDesktopWindowSize: DesktopWindowSize | undefined;
 const preloadPath = join(import.meta.dirname, "../preload/index.cjs");
-const settingsFile = join(homedir(), ".mode", "v2", "setting.json");
+const settingsFile = join(homedir(), MODE_DATA_ROOT_DIR_NAME, "v2", "setting.json");
 let activeAppShutdownPolicy = resolveAppShutdownPolicy("normal", process.platform);
 let activeAppShutdownKind: AppShutdownKind | null = null;
 const WINDOWS_AGENT_FORCE_KILL_TIMEOUT_MS = 2_000;
@@ -818,8 +819,6 @@ function syncImmediateAppSettings(patch: Partial<AppSettings>) {
     keepAwakeWhileRunning = patch.keepAwakeWhileRunning;
     reconcileKeepAwakeBlocker();
   }
-
-
 
   if (typeof patch.receivePreviewUpdates === "boolean") {
     // receivePreviewUpdates 由 renderer host 写入 setting.json。

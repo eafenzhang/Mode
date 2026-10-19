@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
@@ -7,7 +8,7 @@ const COMMANDS_DIR = "commands";
 const GIT_MARKER = ".git";
 const HOME_PREFIX = "~/";
 const PRIORITY_STEP = 10;
-const USER_MODE_DIR = ".mode";
+const USER_MODE_DIR = MODE_DATA_ROOT_DIR_NAME;
 const PROJECT_MODE_DIR = ".mode";
 const AGENTS_DIR = ".agents";
 
@@ -100,7 +101,12 @@ function commandRootsForBase(
   // 合并而不是 fallback：兼容 `.agents` 命令和原生 `.mode` 命令需要同时可见。
   // 同一级别 `.mode` 先扫描，命令同名时仍按“先到先赢”处理。
   return [
-    root(join(baseDirectory, scope === "user" ? USER_MODE_DIR : PROJECT_MODE_DIR, COMMANDS_DIR), scope, "mode", nextPriority()),
+    root(
+      join(baseDirectory, scope === "user" ? USER_MODE_DIR : PROJECT_MODE_DIR, COMMANDS_DIR),
+      scope,
+      "mode",
+      nextPriority(),
+    ),
     root(join(baseDirectory, AGENTS_DIR, COMMANDS_DIR), scope, "agents", nextPriority()),
   ];
 }

@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +8,7 @@ interface ChromiumHardwareAccelerationApp {
 }
 
 function resolveChromiumHardwareAccelerationSettingsFile(homePath: string = homedir()): string {
-  return join(homePath, ".mode", "v2", "setting.json");
+  return join(homePath, MODE_DATA_ROOT_DIR_NAME, "v2", "setting.json");
 }
 
 function extractBootstrapChromiumHardwareAccelerationEnabled(rawValue: unknown): boolean {

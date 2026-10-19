@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- desktop runtime/env 解析需要集中维护 main/host/remote assets 的启动边界，拆分会扩大远程连接回归面。 */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { cpSync } from "node:fs";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -522,7 +523,7 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
             )
           ? rawInheritedEnv.MODE_CUA_BUNDLED_HELPER_APP_PATH?.trim() ||
             join(
-              rawInheritedEnv.MODE_HOME?.trim() || join(homedir(), ".mode"),
+              rawInheritedEnv.MODE_HOME?.trim() || join(homedir(), MODE_DATA_ROOT_DIR_NAME),
               "computer-use",
               "dev",
               DEV_HELPER_APP_NAME,

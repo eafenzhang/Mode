@@ -19,7 +19,11 @@ import {
   type UserCommand,
   type ModeCommand,
 } from "@mode/shared";
-import { canonicalPluginId, isDefaultEnabledOfficialPluginId } from "@mode/shared";
+import {
+  canonicalPluginId,
+  isDefaultEnabledOfficialPluginId,
+  MODE_DATA_ROOT_DIR_NAME,
+} from "@mode/shared";
 import { MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@mode/shared";
 import { resolveOfficialPluginCacheRoot } from "@mode/shared/node";
 import type { ICommandsService } from "./commands.js";
@@ -58,7 +62,7 @@ const CODEX_PLUGIN_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const MODE_COMMAND_DESCRIPTOR: CommandAgentSourceDescriptor = {
   agentSource: "modeAgent",
   directorySource: "mode",
-  userDirectorySegments: [".mode", "commands"],
+  userDirectorySegments: [MODE_DATA_ROOT_DIR_NAME, "commands"],
   workspaceDirectorySegments: [".mode", "commands"],
   fileExtension: ".md",
   format: "markdown",
@@ -92,7 +96,7 @@ function getUserCommandsRoot(agentSource?: CommandAgentSource): string {
 }
 
 function getUserCliConfigPath(): string {
-  return join(resolveUserHomeDir(), ".mode", "cli", "config.json");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "cli", "config.json");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

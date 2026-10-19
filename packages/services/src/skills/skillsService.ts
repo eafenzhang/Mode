@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- skill 发现 + 校验 + 状态 + 通用目录管理在同一服务里聚合，分层后跳转成本更高 */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import {
   access,
   appendFile,
@@ -52,8 +53,8 @@ interface ParsedFrontmatter {
 }
 
 const SKILL_META_FILE_NAME = "_meta.json";
-const SKILL_SETTINGS_DIR = join(resolveUserHomeDir(), ".mode", "v2");
-const SKILL_CLI_SETTINGS_DIR = join(resolveUserHomeDir(), ".mode", "cli");
+const SKILL_SETTINGS_DIR = join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "v2");
+const SKILL_CLI_SETTINGS_DIR = join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "cli");
 const SKILL_CLI_CONFIG_FILE = join(SKILL_CLI_SETTINGS_DIR, "config.json");
 const GIT_MARKER = ".git";
 const HOME_PREFIX = "~/";
@@ -90,7 +91,7 @@ function getWorkspaceAgentsSkillRoot(workspacePath: string): string {
 
 /** Mode Agent 用户级技能目录。 */
 function getUserModeSkillRoot(): string {
-  return join(resolveUserHomeDir(), ".mode", "skills");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "skills");
 }
 
 /** 兼容目录: 用户级 `~/.agents/skills`。 */

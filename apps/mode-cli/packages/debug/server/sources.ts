@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -16,11 +17,11 @@ import type {
 } from "./types.js";
 
 export function defaultLogDir(): string {
-  return join(homedir(), ".mode", "cli", "log");
+  return join(homedir(), MODE_DATA_ROOT_DIR_NAME, "cli", "log");
 }
 
 export function defaultDbPath(): string {
-  return join(homedir(), ".mode", "cli", "db", "db.sqlite");
+  return join(homedir(), MODE_DATA_ROOT_DIR_NAME, "cli", "db", "db.sqlite");
 }
 
 export async function loadLogs(options: ObservationOptions): Promise<SourceLoadResult<LogRecord>> {
@@ -176,10 +177,13 @@ function toEventRecord(record: JsonRecord): EventRecord | null {
   if (!type) return null;
 
   return {
-    id: stringValue(value.id) ?? stringValue(value.eventId) ?? `${record.sourcePath}:${record.line}`,
+    id:
+      stringValue(value.id) ?? stringValue(value.eventId) ?? `${record.sourcePath}:${record.line}`,
     type,
     timestamp:
-      stringValue(value.timestamp) ?? stringValue(value.occurredAt) ?? stringValue(value.recordedAt),
+      stringValue(value.timestamp) ??
+      stringValue(value.occurredAt) ??
+      stringValue(value.recordedAt),
     traceId: stringValue(value.traceId),
     sessionId: stringValue(value.sessionId),
     turnId: stringValue(value.turnId),

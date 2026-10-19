@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -30,7 +31,8 @@ type NodeClipboardImageReaderOptions = {
 };
 
 function resolveDefaultClipboardDirectory(processEnv: NodeJS.ProcessEnv = process.env): string {
-  const storageRoot = processEnv.MODE_STORAGE_DIR?.trim() || join(homedir(), ".mode");
+  const storageRoot =
+    processEnv.MODE_STORAGE_DIR?.trim() || join(homedir(), MODE_DATA_ROOT_DIR_NAME);
   return join(storageRoot, "clipboard");
 }
 

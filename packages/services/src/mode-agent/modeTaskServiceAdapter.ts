@@ -1,4 +1,5 @@
 /* oxlint-disable eslint(max-lines) -- 迁移期需要在一个门面里集中维护旧 task projection 到 Mode session 的协议适配。 */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -244,7 +245,7 @@ function formatModeAgentLogDate(now: Date): string {
 
 function resolveModeAgentCurrentLogFilePath(now = new Date()): string {
   const configuredLogDir = process.env.MODE_LOG_DIR?.trim();
-  const logDir = configuredLogDir || join(homedir(), ".mode", "cli", "log");
+  const logDir = configuredLogDir || join(homedir(), MODE_DATA_ROOT_DIR_NAME, "cli", "log");
   return join(logDir, `mode-${formatModeAgentLogDate(now)}.jsonl`);
 }
 
@@ -317,9 +318,7 @@ export function createModeTaskServiceAdapter(
     return toolDenylist.size > 0 ? [...toolDenylist] : undefined;
   }
 
-  function turnAttributionOf(
-    params: ModeBackgroundTurnAttribution,
-  ): ModeBackgroundTurnAttribution {
+  function turnAttributionOf(params: ModeBackgroundTurnAttribution): ModeBackgroundTurnAttribution {
     if (params.automationId) return { automationId: params.automationId };
     if (params.offPeakTaskId) {
       return {
@@ -1374,9 +1373,7 @@ export function createModeTaskServiceAdapter(
     return rememberIndexedTaskMeta(indexedMeta);
   }
 
-  async function syncTaskIndexSnapshot(
-    snapshot: ModeSessionStateSnapshot,
-  ): Promise<ModeTaskMeta> {
+  async function syncTaskIndexSnapshot(snapshot: ModeSessionStateSnapshot): Promise<ModeTaskMeta> {
     const meta = snapshotToMeta(snapshot);
     // 旧污染标签页的显式恢复不能把只读 child 再次写进主任务索引。
     if (snapshot.session.sessionKind === "subagent_child") return meta;
@@ -3827,9 +3824,7 @@ function isModeTaskGoalStatus(status: string | undefined): status is ModeTaskGoa
   );
 }
 
-function sessionTodosToPlanSteps(
-  todos: ModeSessionStateSnapshot["todos"],
-): ModePlanStep[] | null {
+function sessionTodosToPlanSteps(todos: ModeSessionStateSnapshot["todos"]): ModePlanStep[] | null {
   if (!todos || todos.length === 0) {
     return null;
   }
@@ -5420,9 +5415,7 @@ function recordAgentModelNetworkTelemetry(event: ModeSessionEvent): void {
   }
 }
 
-function agentModelNetworkObservationFromEvent(
-  event: ModeSessionEvent,
-): NetworkObservation | null {
+function agentModelNetworkObservationFromEvent(event: ModeSessionEvent): NetworkObservation | null {
   const payload = asRecord(event.payload);
   const type = stringValue(payload.type);
   if (type !== "model_request_completed" && type !== "model_request_failed") {

@@ -3,6 +3,7 @@
  */
 
 import type { CliMcpSource, McpFileFormat } from "@mode/shared";
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 
 /**
  * MCP 配置键名类型
@@ -22,7 +23,7 @@ export interface McpSourceDescriptor {
 export const MCP_SOURCE_DESCRIPTORS: McpSourceDescriptor[] = [
   {
     source: "zcodeagentmcp",
-    configDirSegments: [".mode", "cli"],
+    configDirSegments: [MODE_DATA_ROOT_DIR_NAME, "cli"],
     fileName: "config.json",
     format: "json",
     configKeyName: "mcp.servers",

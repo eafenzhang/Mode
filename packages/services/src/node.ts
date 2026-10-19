@@ -405,7 +405,7 @@ import {
   createOrcaProviderCredentialBinding,
   createOrcaRouterService,
 } from "./orcarouter/index.js";
-import { resolveOrcaOrigins } from "@mode/shared";
+import { resolveOrcaOrigins, MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { isCurrentOAuthCredentialRequest } from "#src/oauth/oauthUnauthorizedRequest.js";
 import { createOAuthProviderLogoutHandler } from "./oauth/oauthProviderLogout.js";
 import { OAuthCredentialRepo } from "./oauth/repo/oauthCredentialRepo.js";
@@ -1177,7 +1177,7 @@ export { isOfficialCuaPluginEnabledForWorkspace };
 
 export function hasGlobalCliModeCuaServer(env: NodeJS.ProcessEnv = process.env): boolean {
   const home = env.HOME?.trim() || homedir();
-  const configPath = join(home, ".mode", "cli", "config.json");
+  const configPath = join(home, MODE_DATA_ROOT_DIR_NAME, "cli", "config.json");
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(configPath, "utf8"));
@@ -1971,7 +1971,7 @@ export function createLocalServices(options: {
     const socketPath = resolveBrokerSocketPath();
     // standaloneHelperCandidatePaths 未在上游 exports 白名单——此处按同一规则枚举安装候选
     //（dev-desktop → dev/ 前缀；app 名一律取 helperConstants，不写字面量）。
-    const home = process.env.MODE_HOME?.trim() || join(homedir(), ".mode");
+    const home = process.env.MODE_HOME?.trim() || join(homedir(), MODE_DATA_ROOT_DIR_NAME);
     const baseRoot = join(home, "computer-use");
     // 安装布局见上游 helperLauncher.resolveCuaHelperInstallRoot：dev 是独立子根 `dev/` 且 app
     // 名换成 DEV_HELPER_APP_NAME；preview 是独立子根 `preview/` 但**沿用**稳定 app 名

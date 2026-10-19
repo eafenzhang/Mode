@@ -9,7 +9,7 @@ import {
   setDataBaseDir,
   type DataRootStatus,
 } from "@mode/services/node";
-import { MODE_VERSION } from "@mode/shared";
+import { MODE_VERSION, MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 
 type DataRootPendingStatus = Extract<DataRootStatus, { kind: "absent" | "unowned" | "corrupt" }>;
 
@@ -25,7 +25,7 @@ export type DesktopDataRootStartupResult =
   | { state: "pending"; baseDir: string; status: DataRootPendingStatus };
 
 function resolveBootstrapSettingsFile(homePath: string = homedir()): string {
-  return join(homePath, ".mode", "v2", "setting.json");
+  return join(homePath, MODE_DATA_ROOT_DIR_NAME, "v2", "setting.json");
 }
 
 function extractBootstrapDataBaseDir(rawValue: unknown): string | null {

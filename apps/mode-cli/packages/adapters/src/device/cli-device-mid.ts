@@ -1,7 +1,7 @@
 import { mkdir, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { createUuid } from "@mode/shared";
+import { createUuid, MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 
 const LOCK_RETRY_DELAY_MS = 10;
 const LOCK_RETRY_COUNT = 200;
@@ -54,10 +54,9 @@ export function ensureCliDeviceMid(options: EnsureCliDeviceMidOptions = {}): Pro
 
 function resolveCliTelemetryStateFile(options: EnsureCliDeviceMidOptions): string {
   const env = options.env ?? process.env;
-  const configuredBaseDir =
-    options.baseDir ?? env[MODE_DATA_BASE_DIR_ENV_KEY]?.trim() ?? homedir();
+  const configuredBaseDir = options.baseDir ?? env[MODE_DATA_BASE_DIR_ENV_KEY]?.trim() ?? homedir();
   const baseDir = configuredBaseDir.length > 0 ? configuredBaseDir : homedir();
-  return join(resolveUserPath(baseDir), ".mode", "v2", "telemetry-state.json");
+  return join(resolveUserPath(baseDir), MODE_DATA_ROOT_DIR_NAME, "v2", "telemetry-state.json");
 }
 
 async function ensurePersistedDeviceMid(input: {

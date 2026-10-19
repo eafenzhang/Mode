@@ -10,7 +10,11 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ModelTextResult } from "@mode/contracts";
-import { MODE_RUNTIME_ENV_KEY, normalizeModeRuntimeEnv } from "@mode/shared";
+import {
+  MODE_RUNTIME_ENV_KEY,
+  normalizeModeRuntimeEnv,
+  MODE_DATA_ROOT_DIR_NAME,
+} from "@mode/shared";
 import { redactAnthropicRequestMetadata } from "./anthropic-request-metadata.js";
 import type { EnvRecord } from "./model-execution.js";
 import { sanitizeModelIODebugRecord } from "./runner-debug-redaction.js";
@@ -587,7 +591,7 @@ function sanitizeFileSegment(value?: string): string {
 // storage profile 回滚删除了自定义 CLI 根模块，遗留 import 会让 adapters 无法构建。
 // 这里保持历史语义：开发态写 ~/.mode/cli/debug，生产态写 ~/.mode/cli/rollout。
 function getModelIOBaseDir(isDev: boolean): string {
-  return join(homedir(), ".mode", "cli", isDev ? "debug" : "rollout");
+  return join(homedir(), MODE_DATA_ROOT_DIR_NAME, "cli", isDev ? "debug" : "rollout");
 }
 
 function stringifyDebugRecord(record: Record<string, unknown>): string {

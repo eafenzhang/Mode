@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- MCP 同步服务集中维护用户目录读写、远端导入和 filesystem 路径改写，拆分会增加远端配置同步回归面。 */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -43,7 +44,7 @@ interface UserMcpRecord {
 const MODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
   source: "mode",
   directorySource: "mode",
-  userConfigDirSegments: [".mode", "cli"],
+  userConfigDirSegments: [MODE_DATA_ROOT_DIR_NAME, "cli"],
   workspaceConfigDirSegments: [".mode"],
   fileName: "config.json",
   configKeyName: "mcp.servers",
@@ -278,11 +279,7 @@ async function readDirectoryServersFromPreferredSources(
   scope: Exclude<McpScope, "common">,
   workspacePath?: string,
 ): Promise<NativeMcpServerRecord[]> {
-  const modeServers = await readDirectoryServersFromFile(
-    MODE_MCP_DESCRIPTOR,
-    scope,
-    workspacePath,
-  );
+  const modeServers = await readDirectoryServersFromFile(MODE_MCP_DESCRIPTOR, scope, workspacePath);
   if (modeServers.length > 0) {
     return modeServers;
   }

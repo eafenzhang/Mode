@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
@@ -7,7 +8,7 @@ const GIT_MARKER = ".git";
 const HOME_PREFIX = "~/";
 const PRIORITY_STEP = 10;
 const SKILLS_DIR = "skills";
-const USER_MODE_DIR = ".mode";
+const USER_MODE_DIR = MODE_DATA_ROOT_DIR_NAME;
 const PROJECT_MODE_DIR = ".mode";
 const AGENTS_DIR = ".agents";
 
@@ -100,7 +101,12 @@ function skillRootsForBase(
   // 合并而不是 fallback：用户可能同时安装原生 `.mode` skill 和兼容 `.agents` skill。
   // 同一级别仍保持 `.mode` 优先，后续同名按 root 顺序解析。
   return [
-    root(join(baseDirectory, scope === "user" ? USER_MODE_DIR : PROJECT_MODE_DIR, SKILLS_DIR), scope, "mode", nextPriority()),
+    root(
+      join(baseDirectory, scope === "user" ? USER_MODE_DIR : PROJECT_MODE_DIR, SKILLS_DIR),
+      scope,
+      "mode",
+      nextPriority(),
+    ),
     root(join(baseDirectory, AGENTS_DIR, SKILLS_DIR), scope, "agents", nextPriority()),
   ];
 }

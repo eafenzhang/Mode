@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve as resolvePath } from "node:path";
-import { MODE_AGENT_RUNTIME } from "@mode/shared";
+import { MODE_AGENT_RUNTIME, MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 
 const packagedResourcesPath =
   typeof (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath === "string"
@@ -59,7 +59,7 @@ export function findModeAgentRuntimeBinary(): string | null {
 
   const candidates = [
     packagedResourcesPath ? resolvePath(packagedResourcesPath, ...resourceSegments) : null,
-    resolvePath(homedir(), ".mode", "server", "agents", ...resourceSegments),
+    resolvePath(homedir(), MODE_DATA_ROOT_DIR_NAME, "server", "agents", ...resourceSegments),
     ...platformScopedRoots.map((root) =>
       root ? resolvePath(root, runtime.bundledResourceDir, ...entrySegments) : null,
     ),
@@ -87,7 +87,7 @@ export function findModeAgentRuntimeNodeBundle(): string | null {
 
   const candidates = [
     packagedResourcesPath ? resolvePath(packagedResourcesPath, ...resourceSegments) : null,
-    resolvePath(homedir(), ".mode", "server", "agents", ...resourceSegments),
+    resolvePath(homedir(), MODE_DATA_ROOT_DIR_NAME, "server", "agents", ...resourceSegments),
     ...platformScopedRoots.map((root) =>
       root ? resolvePath(root, runtime.bundledResourceDir, ...entrySegments) : null,
     ),

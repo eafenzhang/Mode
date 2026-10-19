@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- 导出日志流程涉及文件收集、脱敏与打包，集中维护便于排查与一致性 */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { constants, createReadStream, createWriteStream } from "node:fs";
 import {
   access,
@@ -31,7 +32,7 @@ function getModeDataDir() {
 }
 
 function getModeCliDir() {
-  return join(homedir(), ".mode", "cli");
+  return join(homedir(), MODE_DATA_ROOT_DIR_NAME, "cli");
 }
 
 function getModeCliLogDir() {
@@ -44,7 +45,7 @@ function getModeCliLogDir() {
  * helperExitLogPathFor）。同目录下还有 `.tokens` broker 凭据，收集时必须按文件名白名单。
  */
 function getCuaHelperRunDir() {
-  return join(homedir(), ".mode", "computer-use", "run");
+  return join(homedir(), MODE_DATA_ROOT_DIR_NAME, "computer-use", "run");
 }
 
 function isCuaHelperDiagnosticFileName(fileName: string): boolean {
@@ -953,7 +954,7 @@ async function createLogArchiveArtifacts(
   // 如果导出日志只扫描 v2，定位 agent CLI 启动、协议或崩溃问题时会缺少最关键的原生侧日志。
   await collectLogArchiveFilesFromDirectory(
     modeCliLogDir,
-    posix.join(".mode", "cli", "log"),
+    posix.join(MODE_DATA_ROOT_DIR_NAME, "cli", "log"),
     visitedDirs,
     files,
   );
@@ -964,12 +965,12 @@ async function createLogArchiveArtifacts(
   // 二者都不在 ~/.mode/cli/log 下，需要额外收集才能完整还原现场。
   await collectLogArchiveFile(
     join(modeCliDir, "config.json"),
-    posix.join(".mode", "cli", "config.json"),
+    posix.join(MODE_DATA_ROOT_DIR_NAME, "cli", "config.json"),
     files,
   );
   await collectLogArchiveFilesFromDirectory(
     join(modeCliDir, "rollout"),
-    posix.join(".mode", "cli", "rollout"),
+    posix.join(MODE_DATA_ROOT_DIR_NAME, "cli", "rollout"),
     visitedDirs,
     files,
   );
@@ -981,7 +982,7 @@ async function createLogArchiveArtifacts(
   // 同目录下有 .tokens broker 凭据，因此按文件名白名单只收 *.exit.log，不递归该目录。
   await collectLogArchiveFilesByName(
     getCuaHelperRunDir(),
-    posix.join(".mode", "computer-use", "run"),
+    posix.join(MODE_DATA_ROOT_DIR_NAME, "computer-use", "run"),
     isCuaHelperDiagnosticFileName,
     files,
   );

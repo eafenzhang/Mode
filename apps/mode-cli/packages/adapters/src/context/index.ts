@@ -2,6 +2,7 @@
 // Node Context Source Adapter
 // ============================================================
 
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { readFile, stat } from "node:fs/promises";
 import { arch, homedir, release } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -234,7 +235,7 @@ async function findDefaultUserInstructionFile(
     return undefined;
   }
 
-  const filePath = join(resolveUserHomeDir(env), ".mode", "AGENTS.md");
+  const filePath = join(resolveUserHomeDir(env), MODE_DATA_ROOT_DIR_NAME, "AGENTS.md");
   if (await isFile(filePath)) {
     return { filePath, fileName: "AGENTS.md" };
   }

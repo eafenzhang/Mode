@@ -1,5 +1,5 @@
 import { existsSync, realpathSync } from "node:fs";
-import { readExternalEnvVar } from "@mode/shared";
+import { readExternalEnvVar, MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 // 去智谱化只摘掉官方 CDN 远端源与数据目录缓存物化（套餐模板的投递/复活通道），
@@ -74,7 +74,8 @@ export async function prepareCliProviderRuntimeEnv(
       sea: options.sea ?? getSeaProviderConfigAssets(),
     }));
   const personalFilePath =
-    explicitPersonal ?? join(dataBaseDir, ".mode", "v2", PERSONAL_PROVIDER_CONFIG_FILE_NAME);
+    explicitPersonal ??
+    join(dataBaseDir, MODE_DATA_ROOT_DIR_NAME, "v2", PERSONAL_PROVIDER_CONFIG_FILE_NAME);
   // Mode 去智谱化：停用官方 CDN builtin 源后，数据目录缓存（曾承载远端下发
   // 的套餐模板）不再参与；builtin 配置唯一事实源是 bundled 仓库文件，由上游
   // 同步人工维护。
@@ -120,7 +121,7 @@ async function resolveBundledModeBuiltinProviderConfig(input: {
   if (input.sea?.isSea()) {
     const content = input.sea.getAsset(SEA_MODE_BUILTIN_PROVIDER_CONFIG_ASSET_KEY, "utf8");
     return materializeModeBuiltinProviderConfig({
-      environmentConfigRoot: join(input.dataBaseDir, ".mode", "v2"),
+      environmentConfigRoot: join(input.dataBaseDir, MODE_DATA_ROOT_DIR_NAME, "v2"),
       content,
     });
   }

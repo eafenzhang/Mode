@@ -1,4 +1,5 @@
 /* eslint-disable max-lines */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { access, lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
@@ -399,7 +400,12 @@ async function discoverPluginAgents(params: {
 
 async function readPluginConfig(options?: SubagentStorageOptions): Promise<PluginConfigSummary> {
   try {
-    const configPath = join(resolveUserHomeDir(options), ".mode", "cli", "config.json");
+    const configPath = join(
+      resolveUserHomeDir(options),
+      MODE_DATA_ROOT_DIR_NAME,
+      "cli",
+      "config.json",
+    );
     const raw = await readFile(configPath, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed)) return { enabledPlugins: {}, suppressedBuiltins: [] };

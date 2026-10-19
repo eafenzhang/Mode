@@ -7,7 +7,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { LogContext, LogEntry, Logger, LoggerFactory, LogRedactor } from "@mode/contracts";
 import { LogLevel, LogLevelName } from "@mode/contracts";
-import { MODE_RUNTIME_ENV_KEY, normalizeModeRuntimeEnv } from "@mode/shared";
+import {
+  MODE_RUNTIME_ENV_KEY,
+  normalizeModeRuntimeEnv,
+  MODE_DATA_ROOT_DIR_NAME,
+} from "@mode/shared";
 import {
   formatLocalLogDate,
   scheduleLogRetentionCleanup as scheduleRetentionCleanup,
@@ -220,7 +224,7 @@ export function createNodeLoggerFactory(options: NodeLoggerFactoryOptions = {}):
 }
 
 export function getDefaultLogDir(): string {
-  return join(homedir(), ".mode", "cli", "log");
+  return join(homedir(), MODE_DATA_ROOT_DIR_NAME, "cli", "log");
 }
 
 function getDefaultMinLevel(env: NodeJS.ProcessEnv | undefined): LogLevel {

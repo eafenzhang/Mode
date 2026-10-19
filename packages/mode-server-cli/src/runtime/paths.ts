@@ -1,5 +1,5 @@
 import { realpath } from "node:fs/promises";
-import { readExternalEnvVar } from "@mode/shared";
+import { readExternalEnvVar, MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 
@@ -23,7 +23,7 @@ export interface ServerLayout {
 
 function getDefaultServerDataRoot(): string {
   const configured = readExternalEnvVar(process.env, "MODE_DATA_BASE_DIR");
-  return join(configured || homedir(), ".mode", "server");
+  return join(configured || homedir(), MODE_DATA_ROOT_DIR_NAME, "server");
 }
 
 export function resolveServerLayout(serverRoot = getDefaultServerDataRoot()): ServerLayout {
@@ -80,7 +80,7 @@ export async function resolveCanonicalServerLayout(
 
 function inferDataBaseDir(serverRoot: string): string {
   const parent = dirname(serverRoot);
-  if (basename(serverRoot) === "server" && basename(parent) === ".mode") {
+  if (basename(serverRoot) === "server" && basename(parent) === MODE_DATA_ROOT_DIR_NAME) {
     return dirname(parent);
   }
   // 非标准的显式 server root 仍保持隔离，不向其父目录扩散 Agent/SQLite 数据。

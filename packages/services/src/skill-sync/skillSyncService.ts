@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- skill 同步服务集中维护候选扫描、远端判重和导入流程，避免拆分时扩大远端同步回归面。 */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, lstat, mkdir, readFile, readdir, realpath, rm, stat } from "node:fs/promises";
@@ -131,7 +132,7 @@ function resolveUserHomeDir(): string {
 }
 
 function getUserModeSkillRoot(): string {
-  return join(resolveUserHomeDir(), ".mode", "skills");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "skills");
 }
 
 function getUserAgentsSkillRoot(): string {

@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- settings-sync 需要集中维护外部 skills/commands/plugins/MCP 扫描、去重和导入状态机，后续按资源类别拆分 */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { existsSync } from "node:fs";
 import type {
   McpServerConfig,
@@ -432,7 +433,7 @@ function getWorkspaceModeSkillRoot(workspacePath: string): string {
 }
 
 function getUserModeSkillRoot(): string {
-  return join(resolveUserHomeDir(), ".mode", "skills");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "skills");
 }
 
 function getWorkspaceModeCommandRoot(workspacePath: string): string {
@@ -440,7 +441,7 @@ function getWorkspaceModeCommandRoot(workspacePath: string): string {
 }
 
 function getUserModeCommandRoot(): string {
-  return join(resolveUserHomeDir(), ".mode", "commands");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "commands");
 }
 
 function getWorkspaceModePluginRoot(workspacePath: string): string {
@@ -448,11 +449,11 @@ function getWorkspaceModePluginRoot(workspacePath: string): string {
 }
 
 function getUserModePluginRoot(): string {
-  return join(resolveUserHomeDir(), ".mode", "plugins");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "plugins");
 }
 
 function getUserModeCliConfigPath(): string {
-  return join(resolveUserHomeDir(), ".mode", "cli", "config.json");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "cli", "config.json");
 }
 
 function getWorkspaceModeConfigPath(workspacePath: string): string {

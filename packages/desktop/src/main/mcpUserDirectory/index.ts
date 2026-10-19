@@ -2,6 +2,7 @@
  * MCP 用户目录模块 - 主入口
  */
 
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -37,7 +38,7 @@ interface DirectoryMcpDescriptor {
 const MODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
   source: "zcodeagentmcp",
   directorySource: "mode",
-  userConfigDirSegments: [".mode", "cli"],
+  userConfigDirSegments: [MODE_DATA_ROOT_DIR_NAME, "cli"],
   workspaceConfigDirSegments: [".mode"],
   fileName: "config.json",
   format: "json",
@@ -335,11 +336,7 @@ async function readDirectoryServersFromPreferredSources(
   scope: Exclude<McpScope, "common">,
   workspacePath?: string,
 ): Promise<NativeMcpServerRecord[]> {
-  const modeServers = await readDirectoryServersFromFile(
-    MODE_MCP_DESCRIPTOR,
-    scope,
-    workspacePath,
-  );
+  const modeServers = await readDirectoryServersFromFile(MODE_MCP_DESCRIPTOR, scope, workspacePath);
   // `.mode` 是强优先级来源；只要读到 MCP server，同 scope 的 `.agents` 就不再参与。
   if (modeServers.length > 0) {
     return modeServers;

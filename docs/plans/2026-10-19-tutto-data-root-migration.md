@@ -81,3 +81,17 @@ CLI 新写入分叉。测试侧 `packages/services/test/dataRoot*.test.ts`（34 
 
 建议执行顺序（同一窗口内完成）：共享常量与 legacy 链 → shared/services 测试 →
 desktop 与 CLI 用户级路径 → oracle/desktop-tauri 测试 → spec 与 README 文案 → 全量验证。
+
+## 8. 第一阶段已落地（2026-10-19）
+
+用户级路径字面量已收敛到 `@mode/shared` 的 `MODE_DATA_ROOT_DIR_NAME`（常量值本阶段
+仍为 `.mode`，行为零变化）：mode-cli 的 adapters/cli/bootstrap/debug、desktop main、
+services（commands/device/hooks/mcp-sync/mode-agent/plugin-sync/runtime-tools/setting/
+settings-sync/skill-sync/skills/storage/subagents）、mode-server-cli 与 plugin-host。
+项目级 `<workspace>/.mode/`（commands/skills/agents/workflows/plans/config 等）保持字面量，
+留给 S5 目录改名。
+
+下一阶段切换常量值时仍需同步：`packages/shared/src/data-root.ts`（目录名、归属文件、
+产品 id 与 legacy 链）、`packages/desktop/src/host-standalone/dataRoot.ts` 的重复常量、
+`crates/sidecar-host/src/lib.rs`、Rust/TS 测试与 oracle 中的 `.mode` 夹具，以及
+`docs/specs/mode-data-root.md` 与 README。

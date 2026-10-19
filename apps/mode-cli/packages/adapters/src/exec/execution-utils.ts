@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExecutionRequest } from "@mode/contracts";
@@ -16,7 +17,8 @@ export const DEFAULT_PROGRESS_INTERVAL_MS = 1_000;
 export const DEFAULT_PROGRESS_TAIL_BYTES = 4 * 1024;
 
 export function resolveDefaultOutputRootDir(processEnv: NodeJS.ProcessEnv = process.env): string {
-  const storageRoot = processEnv.MODE_STORAGE_DIR?.trim() || join(homedir(), ".mode");
+  const storageRoot =
+    processEnv.MODE_STORAGE_DIR?.trim() || join(homedir(), MODE_DATA_ROOT_DIR_NAME);
   return join(storageRoot, "cli", "exec");
 }
 

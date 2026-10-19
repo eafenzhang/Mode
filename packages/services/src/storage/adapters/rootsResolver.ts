@@ -5,8 +5,9 @@
 import { join, resolve } from "node:path";
 import type { RootsResolverPort } from "../app/ports.js";
 import type { StorageRootSpec } from "@mode/shared";
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 
-const MODE_DATA_DIR_NAME = ".mode";
+const MODE_DATA_DIR_NAME = MODE_DATA_ROOT_DIR_NAME;
 
 export function resolveStorageRoots(params: {
   homeDir: string;

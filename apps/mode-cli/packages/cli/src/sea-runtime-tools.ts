@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { readExternalEnvVar } from "@mode/shared";
+import { readExternalEnvVar, MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -67,7 +67,7 @@ export async function ensureSeaRuntimeTools(
 
   const env = options.env ?? process.env;
   const configuredStorageRoot = options.storageRoot ?? readExternalEnvVar(env, "MODE_STORAGE_DIR");
-  const storageRoot = configuredStorageRoot || join(homedir(), ".mode");
+  const storageRoot = configuredStorageRoot || join(homedir(), MODE_DATA_ROOT_DIR_NAME);
   const runtimeEnv: CliEnv = {};
 
   for (const tool of manifest.tools) {

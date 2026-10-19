@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -7,10 +8,7 @@ import { createModeCredentialCipher, type ModeCredentialCipher } from "./credent
 
 const MODE_DATA_BASE_DIR_ENV_KEY = "MODE_DATA_BASE_DIR";
 const ZAI_PROVIDER_ID = "zai";
-const credentialChangeListeners = new Map<
-  string,
-  Set<() => void | Promise<void>>
->();
+const credentialChangeListeners = new Map<string, Set<() => void | Promise<void>>>();
 
 export const SHARED_MODE_CREDENTIAL_KEYS = {
   activeProvider: "oauth:active_provider",
@@ -286,7 +284,7 @@ export function resolveSharedModeCredentialsPath(
 
   const env = options.env ?? process.env;
   const baseDir = options.baseDir ?? env[MODE_DATA_BASE_DIR_ENV_KEY] ?? homedir();
-  return join(resolveUserPath(baseDir), ".mode", "v2", "credentials.json");
+  return join(resolveUserPath(baseDir), MODE_DATA_ROOT_DIR_NAME, "v2", "credentials.json");
 }
 
 async function readRawCredentialRecord(filePath: string): Promise<Record<string, string>> {

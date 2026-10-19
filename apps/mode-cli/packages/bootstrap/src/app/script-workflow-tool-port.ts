@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -114,12 +115,16 @@ export function createScriptWorkflowToolPort(deps: ScriptWorkflowToolPortDeps): 
             taskId: runId,
           };
           launchSnapshots.set(runId, snapshot);
-          deps.logger?.error("Background workflow failed before status was persisted", toError(error), {
-            event: "workflow.tool.background_failed",
-            module: "bootstrap.workflow",
-            runId,
-            status: "failed",
-          });
+          deps.logger?.error(
+            "Background workflow failed before status was persisted",
+            toError(error),
+            {
+              event: "workflow.tool.background_failed",
+              module: "bootstrap.workflow",
+              runId,
+              status: "failed",
+            },
+          );
           return snapshot;
         },
       );
@@ -315,7 +320,7 @@ async function resolveNamedWorkflowPath(
   const fileName = workflowFileName(name);
   const candidates = [
     join(deps.workingDirectory, ".mode", "workflows", fileName),
-    join(homedir(), ".mode", "workflows", fileName),
+    join(homedir(), MODE_DATA_ROOT_DIR_NAME, "workflows", fileName),
   ];
   const builtIn = BUILTIN_WORKFLOW_ALLOWLIST.get(name);
   if (builtIn) candidates.push(builtIn);

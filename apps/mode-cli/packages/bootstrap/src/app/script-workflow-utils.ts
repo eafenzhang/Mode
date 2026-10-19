@@ -1,3 +1,4 @@
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import type {
   ScriptWorkflowRunStats,
   ScriptWorkflowStorePort,
@@ -171,7 +172,7 @@ export function inferScriptWorkflowScope(
   workingDirectory: string,
 ): "explicit" | "project" | "user" {
   if (isWithin(scriptPath, join(workingDirectory, ".mode", "workflows"))) return "project";
-  if (isWithin(scriptPath, join(homedir(), ".mode", "workflows"))) return "user";
+  if (isWithin(scriptPath, join(homedir(), MODE_DATA_ROOT_DIR_NAME, "workflows"))) return "user";
   return "explicit";
 }
 

@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- plugin 同步需要集中维护候选扫描、归档安全、远端判重和配置写入，拆分会增加远端同步回归面。 */
+import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
@@ -219,11 +220,11 @@ function resolveUserHomeDir(): string {
 }
 
 function getUserModeConfigPath(): string {
-  return join(resolveUserHomeDir(), ".mode", "cli", "config.json");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "cli", "config.json");
 }
 
 function getUserModePluginRoot(): string {
-  return join(resolveUserHomeDir(), ".mode", "plugins");
+  return join(resolveUserHomeDir(), MODE_DATA_ROOT_DIR_NAME, "plugins");
 }
 
 async function collectLocalUserPluginCandidates(): Promise<PluginSyncCandidate[]> {
