@@ -7,6 +7,7 @@ import {
   progressPercent,
   progressTrackClassName,
 } from "../formStyles.js";
+import { cn } from "@/components/lib/utils.js";
 
 export interface ProgressSegment {
   id: string;
@@ -39,20 +40,20 @@ export const Progress = forwardRef<HTMLDivElement, ProgressProps>(function Progr
       aria-valuenow={value}
       aria-valuemin={0}
       aria-valuemax={max}
-      className={progressTrackClassName(
-        [hasSegments ? "flex" : null, className].filter(Boolean).join(" "),
-      )}
+      className={progressTrackClassName(cn([hasSegments ? "flex" : null, className]))}
     >
       {hasSegments ? (
         segments!.map((segment) => (
           <div
             key={segment.id}
+            data-slot="progress-indicator"
             className={progressIndicatorClassName(indicatorClassName)}
             style={{ ...segment.style, width: `${progressPercent(segment.percent, 100)}%` }}
           />
         ))
       ) : (
         <div
+          data-slot="progress-indicator"
           className={progressIndicatorClassName(indicatorClassName)}
           style={{ width: `${percent}%` }}
         />

@@ -77,13 +77,15 @@ export function WorkspaceHelpMenuButton({
         </DropdownMenuTrigger>
       </ControlHintTooltip>
       <DropdownMenuContent align="end" className="[app-region:no-drag]">
-        <DropdownMenuItem
-          data-testid="workspace-help-menu-resource-manager"
-          onSelect={() => execute(DesktopCommandIds.OpenResourceManager)}
-        >
-          <SquareLibraryIcon className="size-4" aria-hidden="true" />
-          {intl.formatMessage({ id: "titleBar.menu.help.resourceManager" })}
-        </DropdownMenuItem>
+        {platform.supportsResourceManager !== false ? (
+          <DropdownMenuItem
+            data-testid="workspace-help-menu-resource-manager"
+            onSelect={() => execute(DesktopCommandIds.OpenResourceManager)}
+          >
+            <SquareLibraryIcon className="size-4" aria-hidden="true" />
+            {intl.formatMessage({ id: "titleBar.menu.help.resourceManager" })}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           data-testid="workspace-help-menu-check-for-updates"
           disabled={updateMenu.disabled}

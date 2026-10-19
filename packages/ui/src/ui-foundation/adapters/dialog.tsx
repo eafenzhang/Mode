@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "../Dialog.js";
 import { DialogAdapterContext, useDialogAdapterState } from "./dialogContext.js";
+import { cn } from "@/components/lib/utils.js";
 
 export { DialogDescription, DialogFooter, DialogHeader, DialogTitle };
 
@@ -130,25 +131,21 @@ export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(func
 
   const hasWidth = /(^|\s)w-/.test(className ?? "");
   const hasMaxWidth = /(^|\s)max-w-/.test(className ?? "");
-  const mergedPanelClassName = [
+  const mergedPanelClassName = cn([
     className,
     "relative",
     hasWidth ? "" : "w-full",
     hasMaxWidth ? "" : "max-w-lg",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  ]);
   return (
     <div
       data-slot="dialog-overlay"
       onClick={showOverlay ? handleOverlayClick : undefined}
-      className={[
+      className={cn([
         "fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4",
         showOverlay ? "bg-black/50" : "",
         overlayClassName,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      ])}
     >
       <FoundationDialog
         {...rest}

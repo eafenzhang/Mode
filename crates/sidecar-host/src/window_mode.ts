@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 注入脚本集中维护平台面分类（命令、拒绝桩、事件订阅），拆分会破坏与注入测试的逐项对拍。 */
 /**
  * `window.mode` 的注入内容（**产品代码**，由 `crate::bridge` 用 `include_str!` 当文本注入到
  * `initialization_script` 的最前面，因此这里必须是纯 JS，不能出现 TS 类型）。
@@ -76,6 +77,7 @@
 (function () {
   var NOT_IMPLEMENTED_PREFIX = "not_implemented_until_m3";
   var DEEP_LINK_EVENT = "mode:deep-link";
+  var UPDATE_STATE_EVENT = "mode:update-state";
   var KIND_OAUTH = "oauth-callback";
   var KIND_PAYMENT = "payment-callback";
   // M3 Task 4 补的两条：`share-import` / `workspace-open` 从 M1 起就由宿主的路由投递
@@ -213,7 +215,6 @@
     "onUpdateCheckResult",
     "onPostUpdateReleaseNotes",
     "acknowledgePostUpdateReleaseNotes",
-    "quitAndInstallUpdate",
     "setApplicationLocale",
     "setTitleBarTheme",
     "rdSendSignal",
@@ -467,6 +468,40 @@
    * `project` 把事件载荷投影成**该订阅方法要的东西**：五种 `kind` 共用一个事件名，
    * 投影是它们唯一的差别（oauth/payment 要原文，share 要 `{shareCode}`，workspace-open 要 `path`）。
    */
+  function subscribeUpdateState(callback) {
+    var api = window.__TAURI__;
+    if (!api || !api.event || typeof api.event.listen !== "function") {
+      degrade("no_event_api", "update-state");
+      return function () {};
+    }
+    var disposed = false;
+    var stop = null;
+    void api.event
+      .listen(UPDATE_STATE_EVENT, function (envelope) {
+        var payload = envelope && envelope.payload;
+        if (payload && typeof payload === "object") {
+          callback(payload);
+        }
+      })
+      .then(
+        function (unlisten) {
+          if (disposed) {
+            unlisten();
+            return;
+          }
+          stop = unlisten;
+        },
+        function (error) {
+          degrade("subscribe_failed:update-state", error);
+        },
+      );
+    return function () {
+      disposed = true;
+      if (typeof stop === "function") stop();
+      stop = null;
+    };
+  }
+
   function subscribeDeepLink(kind, project, callback) {
     var api = window.__TAURI__;
     if (!api || !api.event || typeof api.event.listen !== "function") {
@@ -506,6 +541,10 @@
   }
 
   var mode = {
+    // MCP 目录读写仍由 REJECTING_REQUIRED 拒绝；渲染层据此改用 host 的 mcpSyncService。
+    supportsLocalMcpDirectory: false,
+    // 资源管理器窗口尚未移植到 Tauri 壳；帮助菜单据此隐藏该入口。
+    supportsResourceManager: false,
     openExternal: function (url) {
       fireAndForget("openExternal", { url: url });
     },
@@ -547,6 +586,30 @@
     },
     onDesktopWindowChromeStateChanged: function (handler) {
       return subscribeWindowChromeState(handler);
+    },
+    getUpdateState: function () {
+      return invoke("getUpdateState");
+    },
+    onUpdateStateChanged: function (callback) {
+      return subscribeUpdateState(callback);
+    },
+    downloadUpdate: function () {
+      return invoke("downloadUpdate");
+    },
+    cancelUpdateDownload: function () {
+      return invoke("cancelUpdateDownload");
+    },
+    quitAndInstallUpdate: function () {
+      return invoke("quitAndInstallUpdate");
+    },
+    skipUpdateVersion: function (version) {
+      return invoke("skipUpdateVersion", { version: version });
+    },
+    getAutoUpdatePreferences: function () {
+      return invoke("getAutoUpdatePreferences");
+    },
+    setAutoDownloadAndInstallUpdates: function (enabled) {
+      return invoke("setAutoDownloadAndInstallUpdates", { enabled: enabled });
     },
     onOAuthCallback: function (callback) {
       return subscribeDeepLink(KIND_OAUTH, projectUrl, callback);

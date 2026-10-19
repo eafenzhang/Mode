@@ -30,9 +30,12 @@ pub use window_controls::COMMAND_NAMES as WINDOW_CONTROL_COMMAND_NAMES;
 pub fn extra_handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static
 {
     let window_controls = window_controls::handler::<R>();
+    let update_state = updater::state::handler::<R>();
     let host = host::handler::<R>();
     move |invoke| {
-        if window_controls::COMMAND_NAMES.contains(&invoke.message.command()) {
+        if updater::state::COMMAND_NAMES.contains(&invoke.message.command()) {
+            update_state(invoke)
+        } else if window_controls::COMMAND_NAMES.contains(&invoke.message.command()) {
             window_controls(invoke)
         } else {
             host(invoke)

@@ -1,0 +1,252 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Mode</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        --startup-page-bg: #f4f4f5;
+        --about-primary: #0a0a0a;
+        --about-primary-foreground: #fafafa;
+        --about-primary-active: color-mix(in oklab, var(--about-primary) 80%, transparent);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--startup-page-bg);
+      }
+      body {
+        display: grid;
+        place-items: center;
+        padding: 0;
+        user-select: none;
+      }
+      .about-window {
+        width: 100%;
+        max-width: 256px;
+        height: 328px;
+        display: grid;
+        place-items: stretch;
+        padding: 0;
+        background: transparent;
+      }
+      .about-card {
+        width: 100%;
+        height: 100%;
+        padding: 22px 15px 14px;
+        display: flex;
+        flex-direction: column;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: #1d1d1f;
+        box-shadow: none;
+        app-region: drag;
+        -webkit-app-region: drag;
+      }
+      .content {
+        width: 100%;
+        max-width: 222px;
+        margin: 0 auto;
+        flex: 1;
+        min-height: 0;
+      }
+      .app-icon {
+        width: 52px;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        background: linear-gradient(180deg, #000000 0%, #151718 100%);
+        color: #ffffff;
+        box-shadow:
+          0 10px 13px -3px rgb(0 0 0 / 0.2),
+          0 4px 5px -3px rgb(0 0 0 / 0.2);
+      }
+      .app-logo {
+        width: 30px;
+        height: auto;
+        display: block;
+      }
+      .title {
+        margin: 20px 0 0;
+        font-size: 13.5px;
+        line-height: 1.18;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+      .meta {
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 17px;
+        font-size: 13px;
+        line-height: 1.2;
+        font-weight: 400;
+        letter-spacing: 0;
+        color: #303033;
+      }
+      .audit-notice {
+        font-size: 11px;
+        line-height: 1.35;
+        color: #6b7280;
+      }
+      .ok-button {
+        width: 100%;
+        height: 36px;
+        border: 0;
+        border-radius: 18px;
+        background: var(--about-primary);
+        color: var(--about-primary-foreground);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0;
+        outline: none;
+        cursor: default;
+        app-region: no-drag;
+        -webkit-app-region: no-drag;
+      }
+      .ok-button:active {
+        background: var(--about-primary-active);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --startup-page-bg: #171717;
+          --about-primary: #fafafa;
+          --about-primary-foreground: #0a0a0a;
+          --about-primary-active: color-mix(in oklab, var(--about-primary) 80%, transparent);
+        }
+        .about-card {
+          color: #e8e8e8;
+        }
+        .meta {
+          color: #e2e2e2;
+        }
+        .audit-notice {
+          color: #9ca3af;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="about-window" aria-label="Mode About Window">
+      <section class="about-card" role="dialog" aria-modal="true" aria-labelledby="about-title">
+        <div class="content">
+          <div class="app-icon" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="118"
+              height="102"
+              fill="none"
+              viewBox="190 258 644 556"
+              class="app-logo"
+              focusable="false"
+            >
+              <defs>
+                <linearGradient
+                  id="mode-brand-m-gradient"
+                  x1="756"
+                  y1="336"
+                  x2="300"
+                  y2="736"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0" stop-color="#38bdf8" />
+                  <stop offset="1" stop-color="#818cf8" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M268 736V336L512 592L756 336V736"
+                fill="none"
+                stroke="url(#mode-brand-m-gradient)"
+                stroke-width="132"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+          <h1 id="about-title" class="title">
+            <span id="app-name">Mode</span><br /><span id="version-label">版本</span>
+            <span id="version">0.0.0</span>
+          </h1>
+          <div class="meta">
+            <div id="copyright"></div>
+            <div class="audit-notice" id="audit-notice"></div>
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <button class="ok-button" type="button" autofocus id="ok-button">确定</button>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const messages = {
+          "zh-CN": {
+            version: "版本",
+            ok: "确定",
+            copyright: "版权所有 © {year} Mode。",
+            audit: "社区独立审计版本，与智谱（Z.AI）无隶属关系。",
+          },
+          "en-US": {
+            version: "version",
+            ok: "OK",
+            copyright: "Copyright © {year} Mode.",
+            audit: "Community audit build, not affiliated with Z.AI.",
+          },
+          "fa-IR": {
+            version: "نسخه",
+            ok: "تأیید",
+            copyright: "حق نشر © {year} Mode.",
+            audit: "نسخه ممیزی مستقل جامعه؛ وابسته به Z.AI نیست.",
+          },
+        };
+        const stored = localStorage.getItem("mode-locale-preference");
+        const system = (navigator.language || "en-US").toLowerCase();
+        const locale =
+          stored === "zh-CN"
+            ? "zh-CN"
+            : stored === "fa-IR"
+              ? "fa-IR"
+              : stored === "en-US"
+                ? "en-US"
+                : system.startsWith("zh")
+                  ? "zh-CN"
+                  : system.startsWith("fa")
+                    ? "fa-IR"
+                    : "en-US";
+        const text = messages[locale] || messages["en-US"];
+        const params = new URLSearchParams(location.search);
+        document.getElementById("version").textContent = params.get("version") || "0.0.0";
+        document.getElementById("version-label").textContent = text.version;
+        document.getElementById("ok-button").textContent = text.ok;
+        document.getElementById("copyright").textContent = text.copyright.replace(
+          "{year}",
+          String(new Date().getFullYear()),
+        );
+        document.getElementById("audit-notice").textContent = text.audit;
+        const close = () => {
+          try {
+            window.__TAURI__?.window?.getCurrentWindow?.().close();
+          } catch {
+            window.close();
+          }
+        };
+        document.getElementById("ok-button").addEventListener("click", close);
+        window.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" || event.key === "Enter") close();
+        });
+      })();
+    </script>
+  </body>
+</html>

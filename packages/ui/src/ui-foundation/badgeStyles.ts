@@ -1,3 +1,5 @@
+import { cn } from "@/components/lib/utils.js";
+
 // P1.1 基础件补漏：Badge 的类名契约（adapter map §5）。
 // 语义色只用于真实状态；默认 neutral。
 
@@ -19,12 +21,10 @@ export interface BadgeClassNameOptions {
 
 export function badgeClassName(options: BadgeClassNameOptions = {}): string {
   const tone = options.tone ?? "neutral";
-  return [
+  return cn([
     "inline-flex items-center gap-1 border border-border bg-surface px-1.5 py-0.5 text-ui-xs font-medium",
     options.pill ? "rounded-full" : "rounded-md",
     BADGE_TONE_CLASSES[tone],
     options.className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  ]);
 }

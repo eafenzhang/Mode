@@ -290,6 +290,10 @@ export function createTauriPlatformService(
   const pendingSubscriptions: Promise<void>[] = [];
 
   const service: Partial<IPlatformService> = {
+    // MCP 目录读写仍在 M1_UNIMPLEMENTED_REQUIRED_METHODS 的拒绝桩里；本地读取由 host 服务承担。
+    supportsLocalMcpDirectory: false,
+    // 资源管理器窗口尚未移植到 Tauri 壳；帮助菜单据此隐藏该入口。
+    supportsResourceManager: false,
     openExternal(url: string): void {
       fireAndForget(invoke, "openExternal", { url });
     },
@@ -556,11 +560,7 @@ function subscribeDeepLink<T>(
  * 返回 `void` 的命令只能发后不管。**不能静默吞掉失败**——IPC 断了、命令没注册
  * （Rust 侧改名）都会在这里现形，所以统一记一条 warn 并把原始错误带上。
  */
-function fireAndForget(
-  invoke: TauriInvoke,
-  command: string,
-  args?: Record<string, unknown>,
-): void {
+function fireAndForget(invoke: TauriInvoke, command: string, args?: Record<string, unknown>): void {
   void invoke(command, args).catch((error: unknown) => {
     logger.warn(`[tauri-platform] ${command} 调用失败`, error);
   });

@@ -3,6 +3,14 @@ import type { RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
 
+/** Tauri 壳的产品窗口同时注入这两个全局；Electron 两者都没有。 */
+function isTauriRendererRuntime(): boolean {
+  return (
+    typeof globalThis !== "undefined" &&
+    ("__TAURI__" in globalThis || "__TAURI_INTERNALS__" in globalThis)
+  );
+}
+
 export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
@@ -10,6 +18,11 @@ export function createDesktopPlatform(options: {
     canSelectFilePath: true,
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
+    // Tauri 的 window.mode 对 MCP 目录读写仍是 not_implemented_until_m3 桩；
+    // 本地 workspace 改走 host 的 mcpSyncService，避免 MCP 设置页永久停在加载中。
+    supportsLocalMcpDirectory: !isTauriRendererRuntime(),
+    // Tauri 骨架期没有资源管理器窗口（Electron 主进程能力），帮助菜单据此隐藏入口。
+    supportsResourceManager: !isTauriRendererRuntime(),
     selectDirectory: () => window.mode.selectDirectory(),
     selectFile: () => window.mode.selectFile(),
     selectFiles: () => window.mode.selectFiles?.() ?? Promise.resolve([]),
@@ -134,7 +147,9 @@ export function createDesktopPlatform(options: {
       window.mode.getUpdateState?.() ?? Promise.resolve({ kind: "idle", enabled: true }),
     downloadUpdate: () => window.mode.downloadUpdate?.() ?? Promise.resolve(),
     cancelUpdateDownload: () => window.mode.cancelUpdateDownload?.() ?? Promise.resolve(),
-    openUpdateStatusWindow: () => window.mode.openUpdateStatusWindow?.() ?? Promise.resolve(),
+    openUpdateStatusWindow: window.mode.openUpdateStatusWindow
+      ? () => window.mode.openUpdateStatusWindow!()
+      : undefined,
     getAutoUpdatePreferences: () =>
       window.mode.getAutoUpdatePreferences?.() ??
       Promise.resolve({ autoDownloadAndInstallUpdates: false }),

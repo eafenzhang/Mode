@@ -10,7 +10,12 @@ import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/ui-foundation/adapters/select.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/ui-foundation/adapters/select.js";
 import type { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   isCoarseTouchDevice,
@@ -289,7 +294,7 @@ export function ThoughtLevelCycleControl({
               />
             }
             className={cn(
-              "gap-1 rounded-lg px-1.5 py-1.5 text-ui-base",
+              "w-auto gap-1 rounded-lg px-1.5 py-1.5 text-ui-base",
               composerTriggerClassName,
               triggerClassName,
             )}

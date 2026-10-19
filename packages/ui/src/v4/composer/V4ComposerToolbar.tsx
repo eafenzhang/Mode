@@ -1051,7 +1051,7 @@ function V4ComposerModelControlsImpl({
           labelVisibilityClassName="hidden @sm/composer:inline-flex"
           indicatorClassName="block group-data-[composer-model-icon=true]/toolbar:hidden"
           triggerLabelClassName="block min-w-0 text-start group-data-[composer-model-icon=true]/toolbar:hidden [&>span]:max-w-full [&>span>span]:block [&>span>span]:truncate"
-          triggerClassName="composer-model-trigger group-data-[composer-model-icon=true]/toolbar:size-7 group-data-[composer-model-icon=true]/toolbar:p-0 group-data-[composer-model-icon=true]/toolbar:gap-0 group-data-[composer-model-icon=true]/toolbar:justify-center"
+          triggerClassName="composer-model-trigger h-7 group-data-[composer-model-icon=true]/toolbar:size-7 group-data-[composer-model-icon=true]/toolbar:p-0 group-data-[composer-model-icon=true]/toolbar:gap-0 group-data-[composer-model-icon=true]/toolbar:justify-center"
           triggerIconClassName="hidden group-data-[composer-model-icon=true]/toolbar:inline-flex"
           focusSelectorOnClose={V4_COMPOSER_INPUT_SELECTOR}
           providerSubmenuClassName={providerSubmenuClassName}
@@ -1068,6 +1068,7 @@ function V4ComposerModelControlsImpl({
           intl={intl}
           provider={displayProvider}
           shortcutLabel={thoughtShortcutLabel}
+          triggerClassName="h-7"
           triggerRef={thoughtTriggerRef}
           open={activeConfigPicker === "thought"}
           onOpenChange={handleThoughtPickerOpenChange}

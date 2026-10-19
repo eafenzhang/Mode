@@ -37,6 +37,7 @@ import {
   type PdfViewerRangeSource,
   type PdfViewerSource,
 } from "../pdfViewerSource.js";
+import { cn } from "@/components/lib/utils.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
@@ -169,7 +170,7 @@ export function PdfViewer({
     <div
       {...rest}
       data-slot="pdf-viewer"
-      className={["flex h-full min-h-0 flex-col", className].filter(Boolean).join(" ")}
+      className={cn(["flex h-full min-h-0 flex-col", className])}
     >
       <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-1">
         <Button

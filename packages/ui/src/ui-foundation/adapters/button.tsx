@@ -7,6 +7,7 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import type { RadiusLevel } from "../../lib/uiFoundation.js";
 import { Button as FoundationButton } from "../Button.js";
 import { buttonClassName, type ButtonSize, type ButtonVariant } from "../buttonStyles.js";
+import { cn } from "@/components/lib/utils.js";
 
 export type AdapterButtonVariant =
   | "default"
@@ -55,9 +56,7 @@ export const Button = forwardRef<HTMLButtonElement, AdapterButtonProps>(function
   { variant = "default", size = "default", parentRadius, loading, className, ...rest },
   ref,
 ) {
-  const mergedClassName = [className, variant === "warning" ? WARNING_VARIANT_CLASS : ""]
-    .filter(Boolean)
-    .join(" ");
+  const mergedClassName = cn([className, variant === "warning" ? WARNING_VARIANT_CLASS : ""]);
   return (
     <FoundationButton
       {...rest}
@@ -87,6 +86,6 @@ export function buttonVariants(
     variant: mapButtonVariant(options.variant),
     size: mapButtonSize(options.size),
     parentRadius: options.parentRadius,
-    className: [options.className, warning ? WARNING_VARIANT_CLASS : ""].filter(Boolean).join(" "),
+    className: cn([options.className, warning ? WARNING_VARIANT_CLASS : ""]),
   });
 }

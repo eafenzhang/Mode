@@ -1295,7 +1295,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
               onClick={onOpenCommandCenter}
               data-icon="inline-start"
               size="lg"
-              className="w-full justify-start gap-2 text-foreground hover:bg-surface-hover hover:text-foreground"
+              className="w-full justify-start gap-2 ps-2.5 pe-2.5 text-foreground hover:bg-surface-hover hover:text-foreground"
             >
               <Search className="size-4" />
               <span className="min-w-0 flex-1 truncate text-start">
@@ -1314,7 +1314,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                 isWindowsDesktop={isWindowsDesktop}
                 triggerVariant="ghost"
                 triggerSize="lg"
-                triggerClassName="w-full justify-start gap-2 text-foreground hover:bg-surface-hover hover:text-foreground"
+                triggerClassName="w-full justify-start gap-2 ps-2.5 pe-2.5 text-foreground hover:bg-surface-hover hover:text-foreground"
                 trigger={
                   <>
                     <Cloud className="size-4" />
@@ -1331,7 +1331,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
               size="lg"
               aria-pressed={automationsActive}
               className={cn(
-                "w-full justify-start gap-2 text-foreground hover:bg-surface-hover hover:text-foreground",
+                "w-full justify-start gap-2 ps-2.5 pe-2.5 text-foreground hover:bg-surface-hover hover:text-foreground",
                 automationsActive && "bg-selected text-foreground",
               )}
             >
@@ -1346,7 +1346,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
               size="lg"
               aria-pressed={pluginStoreActive}
               className={cn(
-                "w-full justify-start gap-2 text-foreground hover:bg-surface-hover hover:text-foreground",
+                "w-full justify-start gap-2 ps-2.5 pe-2.5 text-foreground hover:bg-surface-hover hover:text-foreground",
                 pluginStoreActive && "bg-selected text-foreground",
               )}
             >
@@ -1363,7 +1363,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                 size="lg"
                 aria-pressed={remoteDesktopActive}
                 className={cn(
-                  "w-full justify-start gap-2 text-foreground hover:bg-surface-hover hover:text-foreground",
+                  "w-full justify-start gap-2 ps-2.5 pe-2.5 text-foreground hover:bg-surface-hover hover:text-foreground",
                   remoteDesktopActive && "bg-selected text-foreground",
                 )}
               >

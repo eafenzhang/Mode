@@ -117,9 +117,25 @@ function resolveReadyVersion({
 }
 
 function getUpdateDownloadProgressValue(updateState: UpdateStatePayload | null) {
-  const rawProgressValue =
-    updateState?.kind === "download-progress" ? Number(updateState.progress) : 0;
-  return Number.isFinite(rawProgressValue) ? Math.max(0, Math.min(100, rawProgressValue)) : 0;
+  if (updateState?.kind !== "download-progress") {
+    return 0;
+  }
+  // progress 协议是 string：Tauri/历史实现可能给 "39%" 或 "39"，两种都要能落到进度条。
+  const parsed = Number.parseFloat(updateState.progress);
+  if (Number.isFinite(parsed)) {
+    return Math.max(0, Math.min(100, parsed));
+  }
+  const { transferredBytes, totalBytes } = updateState;
+  if (
+    typeof transferredBytes === "number" &&
+    Number.isFinite(transferredBytes) &&
+    typeof totalBytes === "number" &&
+    Number.isFinite(totalBytes) &&
+    totalBytes > 0
+  ) {
+    return Math.max(0, Math.min(100, (transferredBytes / totalBytes) * 100));
+  }
+  return 0;
 }
 
 function getUpdateReleaseNotesPayload(updateState: UpdateStatePayload | null) {

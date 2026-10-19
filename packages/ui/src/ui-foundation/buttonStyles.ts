@@ -3,6 +3,7 @@
 
 import type { RadiusLevel } from "../lib/uiFoundation.js";
 import { controlRadiusClass } from "./radius.js";
+import { cn } from "@/components/lib/utils.js";
 
 export type ButtonVariant = "primary" | "outline" | "secondary" | "ghost" | "destructive" | "link";
 
@@ -48,15 +49,16 @@ export function buttonClassName(options: ButtonClassNameOptions = {}): string {
   const variant = options.variant ?? "primary";
   const size = options.size ?? "default";
   const radius = controlRadiusClass(options.parentRadius);
-  return [
+  return cn([
     "inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium",
     "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
     "disabled:pointer-events-none disabled:opacity-50",
+    // 未显式指定尺寸的 Lucide 图标默认 24px，会在 28/32px 按钮里顶满。
+    // 只兜底没有 size-/w-/h- 类名的图标，显式尺寸（含 size-3.5）继续以调用点为准。
+    "[&_svg]:shrink-0 [&_svg:not([class*='size-']):not([class*='w-']):not([class*='h-'])]:size-4",
     VARIANT_CLASSES[variant],
     SIZE_CLASSES[size],
     radius,
     options.className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  ]);
 }

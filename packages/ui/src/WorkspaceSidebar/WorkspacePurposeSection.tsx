@@ -84,7 +84,7 @@ export function WorkspacePurposeSection({
               type="button"
               aria-label={dragHandleLabel}
               data-purpose-section-drag-handle={sortableId}
-              className="flex size-6 touch-none cursor-grab items-center justify-center rounded-md text-foreground-subtlest outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 active:cursor-grabbing"
+              className="flex size-7 touch-none cursor-grab items-center justify-center rounded-md text-foreground-subtlest outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 active:cursor-grabbing"
               {...attributes}
               {...listeners}
             >

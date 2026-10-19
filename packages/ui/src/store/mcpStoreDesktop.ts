@@ -12,7 +12,9 @@ import { logger } from "@/logger.js";
 export type McpPlatformService = Pick<
   IPlatformService,
   "loadMcpFromUserDirectory" | "saveMcpToUserDirectory" | "migrateLegacyCommonMcp"
->;
+> & {
+  supportsLocalMcpDirectory?: boolean;
+};
 
 export type McpDirectoryService = Pick<
   IMcpSyncService,

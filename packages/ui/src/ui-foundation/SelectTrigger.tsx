@@ -49,7 +49,7 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
           className,
         })}
       >
-        <span className="min-w-0 truncate">{children}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">{children}</span>
         {showChevron
           ? (indicator ?? (
               <svg

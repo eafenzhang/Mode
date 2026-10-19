@@ -72,6 +72,14 @@ export function updateCheckFeedback(
       variant: "info",
     };
   }
+  if (status === "update-available") {
+    return {
+      message: formatMessage("update.toast.available", {
+        version: typeof record["version"] === "string" ? record["version"] : "?",
+      }),
+      variant: "info",
+    };
+  }
   if (status === "busy") {
     return { message: formatMessage("desktopMenu.help.checkingForUpdates"), variant: "info" };
   }

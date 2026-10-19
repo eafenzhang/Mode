@@ -20,6 +20,7 @@ import { tabListClassName } from "../feedbackStyles.js";
 import { Tab, Tabs as FoundationTabs } from "../Tabs.js";
 import { childRefOf, mergeRefs } from "./domTargets.js";
 import { TabsAdapterContext, useTabsAdapterState } from "./tabsContext.js";
+import { cn } from "@/components/lib/utils.js";
 
 type ElementProps = Record<string, unknown>;
 
@@ -119,7 +120,7 @@ export const TabsTrigger = forwardRef<HTMLButtonElement, TabsTriggerProps>(funct
     const childProps = child.props as ElementProps;
     return cloneElement(child, {
       ...triggerState(selected ?? false),
-      className: [childProps.className, className].filter(Boolean).join(" ") || undefined,
+      className: cn([childProps.className, className]) || undefined,
       onClick: (event: MouseEvent<HTMLElement>) => {
         (childProps.onClick as ((event: MouseEvent<HTMLElement>) => void) | undefined)?.(event);
         handleClick(event);

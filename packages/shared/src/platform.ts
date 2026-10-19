@@ -663,6 +663,13 @@ export interface IPlatformService {
   /** 列出当前机器 SSH config 中可用于快速填表的 alias */
   listSSHConfigAliases(): Promise<SSHConfigAliasOption[]>;
 
+  /**
+   * 本平台是否实现了本地 MCP 目录读写。
+   * Tauri 骨架期这三个方法仍是 `not_implemented_until_m3`，由 host 的 mcpSyncService 代劳；
+   * Electron 省略该字段（视为支持），保持旧路径与 legacy 迁移行为不变。
+   */
+  supportsLocalMcpDirectory?: boolean;
+
   /** 读取宿主环境中的原生 MCP 用户目录配置；手机远控通过已连接桌面 host 转发。 */
   loadMcpFromUserDirectory?(
     payload?: LoadCliMcpFromUserDirectoryRequest,
@@ -981,6 +988,12 @@ export interface IPlatformService {
    *  返回值直通 main 进程 handler 的 return（大多数命令无返回值；
    *  GetCuaOsSupport 返回 CuaOsSupport），因此放宽为 unknown。 */
   executeDesktopCommand(command: DesktopCommandId): Promise<unknown>;
+
+  /**
+   * 桌面壳是否实现了「资源管理器」窗口。
+   * Tauri 骨架期尚未移植该窗口，菜单应隐藏入口，避免出现点击无反馈的死项。
+   */
+  supportsResourceManager?: boolean;
 
   /** 同步应用菜单语言，驱动 main 进程重建原生菜单 */
   setApplicationLocale(locale: Locale): Promise<void>;

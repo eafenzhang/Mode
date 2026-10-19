@@ -3,6 +3,7 @@
 
 import type { RadiusLevel } from "../lib/uiFoundation.js";
 import { controlRadiusClass } from "./radius.js";
+import { cn } from "@/components/lib/utils.js";
 
 export type FieldSize = "sm" | "default" | "lg";
 
@@ -32,7 +33,7 @@ export interface FieldClassNameOptions {
 }
 
 function join(parts: Array<string | false | undefined>): string {
-  return parts.filter(Boolean).join(" ");
+  return cn(parts);
 }
 
 export function inputClassName(options: FieldClassNameOptions = {}): string {

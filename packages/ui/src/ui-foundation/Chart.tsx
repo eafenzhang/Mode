@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import * as RechartsPrimitive from "recharts";
+import { cn } from "@/components/lib/utils.js";
 
 export interface ChartConfigEntry {
   label?: ReactNode;
@@ -58,7 +59,7 @@ export function ChartContainer({
         {...rest}
         data-chart={chartId}
         data-slot="chart"
-        className={["flex justify-center text-ui-xs", className].filter(Boolean).join(" ")}
+        className={cn(["flex justify-center text-ui-xs", className])}
       >
         <ChartStyle id={chartId} config={config} />
         {responsive ? (
@@ -151,12 +152,10 @@ export function ChartTooltipContent({
     <div
       {...rest}
       data-slot="chart-tooltip"
-      className={[
+      className={cn([
         "grid min-w-32 gap-1.5 rounded-lg border border-popover-border bg-popover px-2.5 py-1.5 shadow-md",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      ])}
     >
       {!hideLabel && resolvedLabel !== undefined && resolvedLabel !== null ? (
         <div className="font-medium text-foreground">
@@ -244,13 +243,11 @@ export function ChartLegendContent({
     <div
       {...rest}
       data-slot="chart-legend"
-      className={[
+      className={cn([
         "flex items-center justify-center gap-4",
         verticalAlign === "top" ? "pb-3" : "pt-3",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      ])}
     >
       {items.map((item, index) => {
         const key = nameKey ?? item.dataKey ?? item.value;

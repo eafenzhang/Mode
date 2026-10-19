@@ -35,6 +35,7 @@ import {
   resolvePptxPageFromInput,
   stepPptxZoom,
 } from "./pptxViewerLayout.js";
+import { cn } from "@/components/lib/utils.js";
 
 export function PptxPreviewSurface({
   data,
@@ -187,7 +188,7 @@ export function PptxPreviewSurface({
     <div
       {...rest}
       data-slot="pptx-preview-surface"
-      className={["flex h-full min-h-0 flex-col", className].filter(Boolean).join(" ")}
+      className={cn(["flex h-full min-h-0 flex-col", className])}
     >
       <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-1">
         <Button

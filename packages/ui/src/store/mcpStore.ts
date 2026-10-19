@@ -54,6 +54,25 @@ export function setMcpStoreDirectoryService(service: McpDirectoryService | null)
   mcpDirectoryService = service;
 }
 
+/**
+ * 本地 workspace 是否改用 host 的 MCP 目录服务。
+ * Electron 平台自己实现了目录读写，保留原路径（含 legacy common MCP 迁移）；
+ * Tauri 骨架期平台方法仍被显式拒绝，改由 host mcpSyncService 读取同一批配置文件。
+ */
+export function shouldUseHostMcpDirectory(params: {
+  platformSupportsLocalMcpDirectory?: boolean;
+  hasWorkspaceIdentity: boolean;
+  hasDirectoryService: boolean;
+}): boolean {
+  if (!params.hasDirectoryService) {
+    return false;
+  }
+  if (params.platformSupportsLocalMcpDirectory === false) {
+    return true;
+  }
+  return params.hasWorkspaceIdentity;
+}
+
 interface UpdateServerStatusOptions {
   invalidateStatusListRequests?: boolean;
 }
@@ -151,12 +170,17 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
     workspaceIdentity?: string | null,
   ): McpDirectoryService | null {
     const effectiveWorkspaceIdentity = workspaceIdentity ?? get().currentWorkspaceIdentity;
-    if (!effectiveWorkspaceIdentity?.trim()) {
-      // 本地 workspace 仍要走 desktop platform 路径，才能执行旧 common MCP
-      // 到用户级 Mode Agent MCP 的迁移；目录服务只用于远端 workspace 覆盖路由。
+    const service = directoryService ?? mcpDirectoryService;
+    if (!service) {
       return null;
     }
-    return directoryService ?? mcpDirectoryService;
+    return shouldUseHostMcpDirectory({
+      platformSupportsLocalMcpDirectory: mcpPlatformService?.supportsLocalMcpDirectory,
+      hasWorkspaceIdentity: Boolean(effectiveWorkspaceIdentity?.trim()),
+      hasDirectoryService: true,
+    })
+      ? service
+      : null;
   }
 
   function commitState(partial: {

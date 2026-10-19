@@ -2,6 +2,7 @@
 // （spec: docs/specs/m4-ui-foundation.md §2.3/§2.4）。只使用 DESIGN.md 的语义 token。
 
 import { resolveNestedRadius, type RadiusLevel } from "../lib/uiFoundation.js";
+import { cn } from "@/components/lib/utils.js";
 
 const NESTED_RADIUS_CLASSES: Record<RadiusLevel, string> = {
   none: "rounded-xl",
@@ -28,47 +29,43 @@ export interface CardClassNameOptions {
 }
 
 export function cardClassName(options: CardClassNameOptions = {}): string {
-  return [
+  return cn([
     "border border-card-border",
     options.lowEmphasis ? "bg-surface" : "bg-card",
     options.selected && "bg-card-selected",
     containerRadiusClass(options.parentRadius),
     options.padded === false ? null : "p-4",
     options.className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  ]);
 }
 
 export function cardHeaderClassName(className?: string): string {
-  return ["flex items-start justify-between gap-2", className].filter(Boolean).join(" ");
+  return cn(["flex items-start justify-between gap-2", className]);
 }
 
 export function cardTitleClassName(className?: string): string {
-  return ["text-ui-base font-medium text-foreground", className].filter(Boolean).join(" ");
+  return cn(["text-ui-base font-medium text-foreground", className]);
 }
 
 export function cardDescriptionClassName(className?: string): string {
-  return ["text-ui-sm text-foreground-subtle", className].filter(Boolean).join(" ");
+  return cn(["text-ui-sm text-foreground-subtle", className]);
 }
 
 export function cardContentClassName(className?: string): string {
-  return ["min-w-0", className].filter(Boolean).join(" ");
+  return cn(["min-w-0", className]);
 }
 
 export function cardFooterClassName(className?: string): string {
-  return ["flex items-center gap-2", className].filter(Boolean).join(" ");
+  return cn(["flex items-center gap-2", className]);
 }
 
 export function cardActionClassName(className?: string): string {
-  return ["shrink-0", className].filter(Boolean).join(" ");
+  return cn(["shrink-0", className]);
 }
 
 /** 菜单 shell：bg-menu + rounded-lg + shadow-md + p-1；交互浮层层级高于 Tooltip。 */
 export function menuClassName(className?: string): string {
-  return ["z-50 bg-menu border border-popover-border rounded-lg shadow-md p-1", className]
-    .filter(Boolean)
-    .join(" ");
+  return cn(["z-50 bg-menu border border-popover-border rounded-lg shadow-md p-1", className]);
 }
 
 export interface MenuItemClassNameOptions {
@@ -77,55 +74,51 @@ export interface MenuItemClassNameOptions {
 }
 
 export function menuItemClassName(options: MenuItemClassNameOptions = {}): string {
-  return [
+  return cn([
     "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-ui-base",
+    // 菜单项里的 Lucide 图标同样不能按 24px 默认值渲染；显式 size-/w-/h- 类优先。
+    "[&_svg]:shrink-0 [&_svg:not([class*='size-']):not([class*='w-']):not([class*='h-'])]:size-4",
     options.destructive ? "text-destructive" : "text-foreground",
     "hover:bg-menu-hover focus:bg-menu-hover focus:outline-none",
     "disabled:pointer-events-none disabled:opacity-50",
     options.className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  ]);
 }
 
 export function menuGroupClassName(className?: string): string {
-  return ["flex flex-col gap-0.5", className].filter(Boolean).join(" ");
+  return cn(["flex flex-col gap-0.5", className]);
 }
 
 export function menuLabelClassName(className?: string): string {
-  return ["px-2 py-1 text-ui-xs text-foreground-subtlest", className].filter(Boolean).join(" ");
+  return cn(["px-2 py-1 text-ui-xs text-foreground-subtlest", className]);
 }
 
 /** 独立浮层：bg-popover + 从 xl 起的嵌套半径；位于 Tooltip 之上。 */
 export function popoverClassName(parentRadius: RadiusLevel = "none", className?: string): string {
-  return [
+  return cn([
     "z-50 bg-popover border border-popover-border shadow-md",
     containerRadiusClass(parentRadius),
     className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  ]);
 }
 
 /** Dialog shell 固定 rounded-2xl；内部内容重新从 xl 起；位于 Tooltip 之上。 */
 export function dialogClassName(className?: string): string {
-  return ["z-50 bg-popover border border-popover-border rounded-2xl shadow-md", className]
-    .filter(Boolean)
-    .join(" ");
+  return cn(["z-50 bg-popover border border-popover-border rounded-2xl shadow-md", className]);
 }
 
 export function dialogHeaderClassName(className?: string): string {
-  return ["flex flex-col gap-1.5", className].filter(Boolean).join(" ");
+  return cn(["flex flex-col gap-1.5", className]);
 }
 
 export function dialogTitleClassName(className?: string): string {
-  return ["text-ui-lg font-medium text-foreground", className].filter(Boolean).join(" ");
+  return cn(["text-ui-lg font-medium text-foreground", className]);
 }
 
 export function dialogDescriptionClassName(className?: string): string {
-  return ["text-ui-sm text-foreground-subtle", className].filter(Boolean).join(" ");
+  return cn(["text-ui-sm text-foreground-subtle", className]);
 }
 
 export function dialogFooterClassName(className?: string): string {
-  return ["flex items-center justify-end gap-2 pt-2", className].filter(Boolean).join(" ");
+  return cn(["flex items-center justify-end gap-2 pt-2", className]);
 }

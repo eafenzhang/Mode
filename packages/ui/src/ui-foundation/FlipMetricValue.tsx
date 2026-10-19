@@ -2,6 +2,7 @@
 // 逐字符显示指标；值变化时仅让变化的字符做一次性淡入/上移动画。
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/components/lib/utils.js";
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -58,27 +59,23 @@ export function FlipMetricValue({
     <span
       aria-label={value}
       data-animate-initial={animateInitial ? "true" : undefined}
-      className={[
+      className={cn([
         "inline-flex max-w-full items-center overflow-hidden whitespace-nowrap align-middle leading-none",
         "tabular-nums",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      ])}
     >
       {characters.map((character, index) => (
         <span
           key={`${index}-${character}`}
           aria-hidden="true"
-          className={[
+          className={cn([
             "inline-flex justify-center",
             characterWidthClass(character),
             !reducedMotion && changedFlags[index]
               ? "animate-in fade-in-0 slide-in-from-bottom-1 duration-150"
               : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
+          ])}
         >
           {character === " " ? "\u00a0" : character}
         </span>

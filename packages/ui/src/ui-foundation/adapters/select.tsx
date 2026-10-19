@@ -30,6 +30,7 @@ import { SelectTrigger as FoundationSelectTrigger } from "../SelectTrigger.js";
 import { mergeRefs } from "./domTargets.js";
 import { computePopoverPoint, type PopoverAlign, type PopoverSide } from "./popoverPosition.js";
 import { SelectAdapterContext, useSelectAdapterState } from "./selectContext.js";
+import { cn } from "@/components/lib/utils.js";
 
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -166,7 +167,7 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
     const state = useSelectAdapterState();
     const fieldSize = size === "xs" ? "sm" : size;
     const variantClass = SELECT_TRIGGER_VARIANT_CLASS[variant] ?? "";
-    const mergedClassName = [className, variantClass].filter(Boolean).join(" ");
+    const mergedClassName = cn([className, variantClass]);
     return (
       <FoundationSelectTrigger
         {...rest}

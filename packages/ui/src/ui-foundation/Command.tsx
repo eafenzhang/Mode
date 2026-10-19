@@ -22,6 +22,7 @@ import {
   commandListClassName,
   commandShortcutClassName,
 } from "./commandStyles.js";
+import { cn } from "@/components/lib/utils.js";
 
 export type CommandInputProps = ComponentProps<typeof CmdkInput>;
 export type CommandItemProps = ComponentProps<typeof CmdkItem>;
@@ -77,12 +78,7 @@ export function CommandSeparator({
   className,
   ...rest
 }: ComponentProps<typeof CmdkSeparator>): ReactNode {
-  return (
-    <CmdkSeparator
-      {...rest}
-      className={["-mx-1 my-1 h-px bg-border", className].filter(Boolean).join(" ")}
-    />
-  );
+  return <CmdkSeparator {...rest} className={cn(["-mx-1 my-1 h-px bg-border", className])} />;
 }
 
 export function CommandShortcut({

@@ -56,20 +56,25 @@ fn started_at() -> &'static std::time::Instant {
 /// 守它的是 `apps/desktop-tauri/test/windowModeInjection.test.mts` 的
 /// 「壳侧窗口控制面的 rename 字面量必须与注入名一致」：它读本文件与
 /// `crates/sidecar-host/src/bridge.rs` 的 `CMD_*` 常量逐个对拍（两个方向都查）。
-pub const COMMAND_NAMES: &[&str] = &[CMD_EXECUTE_DESKTOP_COMMAND, CMD_WINDOW_CHROME_STATE];
+pub const COMMAND_NAMES: &[&str] = &[
+    CMD_EXECUTE_DESKTOP_COMMAND,
+    CMD_WINDOW_CHROME_STATE,
+];
 
 /// `executeDesktopCommand` 的 wire 名（注入层按它 `invoke`）。
 pub const CMD_EXECUTE_DESKTOP_COMMAND: &str = "executeDesktopCommand";
 /// `getDesktopWindowChromeState` 的 wire 名。
 pub const CMD_WINDOW_CHROME_STATE: &str = "getDesktopWindowChromeState";
-
 /// 本模块的命令，交给 [`crate::extra_handler`] 与 host 的命令合成同一个 `invoke_handler`。
 pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
     // 提前把计时起点钉住：`started_at()` 是惰性的，第一次调用才初始化的话，**第一条诊断行
     // 恒是 `at_ms=0`**（那正是最需要看清「是谁在什么时候调的」的那一条）。handler 在 app 构建期
     // 就被调用，所以这里初始化得到的起点≈进程启动。
     let _ = started_at();
-    tauri::generate_handler![execute_desktop_command, get_desktop_window_chrome_state]
+    tauri::generate_handler![
+        execute_desktop_command,
+        get_desktop_window_chrome_state
+    ]
 }
 
 /// `IPlatformService.executeDesktopCommand(command)`。
@@ -89,7 +94,19 @@ pub async fn execute_desktop_command<R: Runtime>(
             "[mode-tauri] window_control command={command} window={} routed=updater at_ms={at_ms}",
             window.label()
         );
-        return updater::command::check_and_install(window.app_handle()).await;
+        return updater::state::check_for_update(window.app_handle()).await;
+    }
+
+    // 帮助 → 关于：复用 Electron 线的自绘 About 窗口（about.html）。
+    if command == "showAbout" {
+        eprintln!(
+            "[mode-tauri] window_control command=showAbout window={}",
+            window.label()
+        );
+        return match show_about_window(&window) {
+            Ok(()) => json!({ "success": true }),
+            Err(error) => json!({ "success": false, "error": error }),
+        };
     }
 
     let outcome = apply_window_command(&window, &command);
@@ -114,6 +131,34 @@ pub async fn execute_desktop_command<R: Runtime>(
         Ok(()) => json!({ "success": true }),
         Err(reason) => json!({ "success": false, "error": reason }),
     }
+}
+
+/// 打开 Electron 线同款自绘 About 窗口；重复点击只聚焦已有窗口。
+fn show_about_window<R: Runtime>(parent: &WebviewWindow<R>) -> Result<(), String> {
+    let app = parent.app_handle();
+    if let Some(existing) = app.get_webview_window("about") {
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+    let version = app.package_info().version.to_string();
+    let url = tauri::WebviewUrl::App(std::path::PathBuf::from(format!(
+        "about.html?version={version}"
+    )));
+    let builder = tauri::WebviewWindowBuilder::new(app, "about", url)
+        .title("Mode")
+        .inner_size(256.0, 360.0)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .decorations(false)
+        .transparent(true)
+        .center();
+    let builder = builder.parent(parent).map_err(|error| error.to_string())?;
+    builder
+        .build()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 /// 把窗口级命令落到窗口上。

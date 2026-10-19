@@ -1782,6 +1782,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             >
                               <RemoteDesktopHome
                                 isDesktop={Boolean(isDesktop)}
+                                showWindowControls={usesInlineWindowControls}
                                 active={workspaceMainView === "remote-desktop"}
                                 topOverlayClearancePaddingClass={
                                   resolveTopOverlayClearancePaddingClass({
@@ -1803,6 +1804,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         >
                           <AutomationsMainBreadcrumbFrame
                             isDesktop={Boolean(isDesktop)}
+                            showWindowControls={usesInlineWindowControls}
                             sectionLabel={intl.formatMessage({
                               id: "settings.automations.title",
                             })}
@@ -1853,6 +1855,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         <main className="flex h-full min-h-0 flex-1 flex-col bg-background">
                           <AutomationsMainBreadcrumbFrame
                             isDesktop={Boolean(isDesktop)}
+                            showWindowControls={usesInlineWindowControls}
                             sectionLabel={intl.formatMessage({
                               id: "workspace.openPluginsSettings",
                             })}
@@ -1873,10 +1876,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             </div>
                           </AutomationsMainBreadcrumbFrame>
                         </main>
-                      ) : workspaceMainView ===
-                        "remote-desktop" ? // 远程桌面已由上方常驻层渲染（设备页与会话面在页面组件内切换；
-                      // 会话面需要整块空间承载视频，因此不套 breadcrumb 内容容器）。
-                      null : (
+                      ) : workspaceMainView === "remote-desktop" ? null : ( // 会话面需要整块空间承载视频，因此不套 breadcrumb 内容容器）。 // 远程桌面已由上方常驻层渲染（设备页与会话面在页面组件内切换；
                         <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                           {renderChatFindDialog()}
                           <ScopedErrorBoundary

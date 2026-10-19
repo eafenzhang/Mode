@@ -152,8 +152,7 @@ export default defineConfig(({ mode }) => {
     ...env,
     MODE_ENV: modeEnv,
   });
-  const e2eCoverageEnabled =
-    env.MODE_E2E_COVERAGE === "1" || process.env.MODE_E2E_COVERAGE === "1";
+  const e2eCoverageEnabled = env.MODE_E2E_COVERAGE === "1" || process.env.MODE_E2E_COVERAGE === "1";
   const e2eStoreBridgeEnabled =
     env.VITE_MODE_E2E_STORE_BRIDGE === "1" || process.env.VITE_MODE_E2E_STORE_BRIDGE === "1";
   const modeEndpointOrigin = resolveModeEndpointOrigin({
@@ -242,6 +241,7 @@ export default defineConfig(({ mode }) => {
           "resource-manager": resolve(__dirname, "src/renderer/resource-manager.html"),
           "cua-permission-panel": resolve(__dirname, "src/renderer/cua-permission-panel.html"),
           "data-root-decision": resolve(__dirname, "src/renderer/data-root-decision.html"),
+          about: resolve(__dirname, "src/renderer/about.html"),
         },
       },
     },

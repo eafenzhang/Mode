@@ -29,6 +29,7 @@ import {
   normalizeCodeViewSelection,
   type CodeViewSelection,
 } from "./codeViewSelection.js";
+import { cn } from "@/components/lib/utils.js";
 
 const MAX_HIGHLIGHT_CHARS = 200_000;
 
@@ -205,13 +206,11 @@ export function CodeView({
       {...rest}
       ref={assignContainerRef}
       data-slot="code-view"
-      className={[
+      className={cn([
         "group/code-view min-w-0 font-mono text-ui-sm",
         wrapLongLines ? "overflow-x-hidden" : "overflow-x-auto",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      ])}
       style={containerStyle}
     >
       {topComment ? (
@@ -259,12 +258,10 @@ export function CodeView({
                 : undefined
             }
             onPointerEnter={enableLineSelection ? () => extendSelection(model.number) : undefined}
-            className={[
+            className={cn([
               "flex min-w-0 items-start gap-2 px-3 py-px",
               model.focused || isCodeViewLineSelected(selection, model.number) ? "bg-selected" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            ])}
           >
             {enableGutterUtility ? (
               <button

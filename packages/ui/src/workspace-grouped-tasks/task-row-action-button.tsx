@@ -23,7 +23,8 @@ function TaskRowActionButton({
     <Button
       type="button"
       variant="ghost"
-      size="icon-sm"
+      // 行内容高 24px；hover 动作若用 28px 会把整行从 32px 撑到 36px。
+      size="icon-xs"
       className={className}
       disabled={Boolean(disabledReason)}
       data-testid={testId}

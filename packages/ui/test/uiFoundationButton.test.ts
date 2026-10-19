@@ -38,3 +38,26 @@ test("Button 类名通过排版守卫（不出现内置字号/任意 px）", () 
   const classes = buttonClassName({ variant: "primary", size: "default" });
   assert.deepEqual(findUiTypographyViolations([classes]), []);
 });
+
+test("Button 给未显式指定尺寸的 Lucide 图标兜底 size-4", () => {
+  const classes = buttonClassName();
+  assert.ok(
+    classes.includes("[&_svg:not([class*='size-']):not([class*='w-']):not([class*='h-'])]:size-4"),
+  );
+  assert.match(classes, /\[&_svg\]:shrink-0/);
+});
+
+test("调用方 className 会覆盖基础尺寸，而不是被基础类压住", () => {
+  const classes = buttonClassName({
+    size: "default",
+    className: "h-7 px-1.5 gap-1 w-auto",
+  });
+  assert.match(classes, /h-7/);
+  assert.doesNotMatch(classes, /(^|\s)h-8(\s|$)/);
+  assert.match(classes, /px-1\.5/);
+  assert.doesNotMatch(classes, /(^|\s)px-3(\s|$)/);
+  assert.match(classes, /gap-1/);
+  assert.doesNotMatch(classes, /(^|\s)gap-2(\s|$)/);
+  assert.match(classes, /w-auto/);
+  assert.doesNotMatch(classes, /(^|\s)w-full(\s|$)/);
+});

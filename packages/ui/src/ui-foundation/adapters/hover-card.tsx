@@ -26,6 +26,7 @@ import { createPortal } from "react-dom";
 import { Popover as FoundationPopover } from "../Popover.js";
 import { childRefOf, mergeRefs } from "./domTargets.js";
 import { computePopoverPoint, type PopoverAlign, type PopoverSide } from "./popoverPosition.js";
+import { cn } from "@/components/lib/utils.js";
 
 type ElementProps = Record<string, unknown>;
 
@@ -267,7 +268,7 @@ export const HoverCardContent = forwardRef<HTMLDivElement, HoverCardContentProps
         data-slot="hover-card-content"
         data-state="open"
         style={style}
-        className={["p-4", className].filter(Boolean).join(" ")}
+        className={cn(["p-4", className])}
         onPointerEnter={() => state?.cancelTimers()}
         onPointerLeave={() => state?.scheduleClose()}
       >

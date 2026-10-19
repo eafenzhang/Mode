@@ -176,8 +176,10 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
       <div
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute start-1/2 top-1/2 aspect-[5/4] w-[min(72vw,25rem)] -mt-10",
-          "-translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 text-foreground-subtlest",
+          // 水印放在问候语上方：原先以父容器中心定位，320px 高的 M 会压住问候文字，
+          // 在 800px 高的默认窗口里尤其明显。锚定到 bottom-full 后 Logo 与文案不再重叠。
+          "pointer-events-none absolute bottom-full start-1/2 mb-3 aspect-[5/4] w-[min(56vw,16rem)] max-h-[30vh]",
+          "-translate-x-1/2 rtl:translate-x-1/2 text-foreground-subtlest",
         )}
       >
         <ModeEmptyStateLogo className="h-full w-full" />
@@ -211,12 +213,12 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
 function ModeEmptyStateLogo({ className }: { className?: string }) {
   return (
     <>
-      {/* 夜间资源已自带渐变和透明度，公共容器叠加遮罩会让它重复变淡；渐隐效果只属于浅色线框。*/}
+      {/* 同一枚渐变 M 在明暗主题都可见；深色主题不再被 dark:hidden 隐藏。 */}
       <svg
         aria-hidden="true"
         className={cn(
           className,
-          "opacity-70 dark:hidden",
+          "opacity-70",
           "[-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_70%,transparent_100%)]",
           "[-webkit-mask-repeat:no-repeat] [-webkit-mask-size:100%_100%]",
           "[mask-image:linear-gradient(to_bottom,black_0%,transparent_70%,transparent_100%)]",

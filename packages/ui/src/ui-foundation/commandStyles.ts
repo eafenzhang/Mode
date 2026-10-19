@@ -1,7 +1,9 @@
+import { cn } from "@/components/lib/utils.js";
+
 // Command palette 视觉契约（spec: docs/specs/m4-ui-foundation.md §2.8）。
 
 function join(parts: Array<string | false | undefined>): string {
-  return parts.filter(Boolean).join(" ");
+  return cn(parts);
 }
 
 export function commandClassName(className?: string): string {

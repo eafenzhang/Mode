@@ -12,7 +12,12 @@ import type { EditorState } from "lexical";
 import { GoalIcon, Info, PaperclipIcon, PlusIcon, Workflow } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/ui-foundation/adapters/popover.js";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/ui-foundation/adapters/popover.js";
 import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
 import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { normalizeSlashCommandValue } from "@/slashCommandHelpers.js";
@@ -245,7 +250,7 @@ export function ChatPromptActionMenu({
           <Button
             type="button"
             variant="ghost"
-            size="icon-md"
+            size="icon-sm"
             className="gap-1 rounded-lg text-ui-base"
             onMouseDown={(event) => event.preventDefault()}
             aria-label={actionMenuTitle}

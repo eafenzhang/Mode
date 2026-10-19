@@ -14,6 +14,7 @@ import {
   CommandShortcut,
 } from "../Command.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
+import { cn } from "@/components/lib/utils.js";
 
 export {
   Command,
@@ -50,7 +51,7 @@ export function CommandDialog({
 }: CommandDialogProps): ReactNode {
   const titleId = useId();
   const descriptionId = useId();
-  const mergedClassName = ["overflow-hidden p-0", className].filter(Boolean).join(" ");
+  const mergedClassName = cn(["overflow-hidden p-0", className]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent

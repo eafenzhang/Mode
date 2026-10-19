@@ -1,6 +1,7 @@
 // P1.1 Kbd / KbdGroup primitive（spec: docs/specs/m4-ui-foundation.md §2.9）。
 
 import { forwardRef, type HTMLAttributes } from "react";
+import { cn } from "@/components/lib/utils.js";
 
 export interface KbdProps extends HTMLAttributes<HTMLElement> {}
 
@@ -9,12 +10,10 @@ export const Kbd = forwardRef<HTMLElement, KbdProps>(function Kbd({ className, .
     <kbd
       {...rest}
       ref={ref}
-      className={[
+      className={cn([
         "rounded-sm border border-border bg-surface px-1 text-ui-xs text-foreground-subtle",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      ])}
     />
   );
 });
@@ -25,11 +24,5 @@ export const KbdGroup = forwardRef<HTMLSpanElement, KbdGroupProps>(function KbdG
   { className, ...rest },
   ref,
 ) {
-  return (
-    <span
-      {...rest}
-      ref={ref}
-      className={["inline-flex items-center gap-1", className].filter(Boolean).join(" ")}
-    />
-  );
+  return <span {...rest} ref={ref} className={cn(["inline-flex items-center gap-1", className])} />;
 });

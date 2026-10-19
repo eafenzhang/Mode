@@ -31,10 +31,13 @@ type PeerListState =
 
 export function RemoteDesktopHome({
   isDesktop,
+  showWindowControls = false,
   active,
   topOverlayClearancePaddingClass,
 }: {
   isDesktop: boolean;
+  /** 本页不渲染 WorkspaceHeader，窗控由顶部拖拽区右侧自绘（Windows/Linux）。 */
+  showWindowControls?: boolean;
   /** 视图是否当前可见：分支常驻隐藏时为 false（spec UI 规则「切换保持连接」）。 */
   active: boolean;
   /** 左侧栏收起时让出顶部浮层左上入口宽度的 ps-* 类（仅会话面操作栏消费）。 */
@@ -197,6 +200,7 @@ export function RemoteDesktopHome({
     <div className="flex h-full min-h-0 flex-col">
       <AutomationsMainBreadcrumbFrame
         isDesktop={isDesktop}
+        showWindowControls={showWindowControls}
         sectionLabel={intl.formatMessage({ id: "remoteDesktop.title" })}
         ariaLabel={intl.formatMessage({ id: "remoteDesktop.breadcrumbLabel" })}
       >

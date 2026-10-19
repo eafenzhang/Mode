@@ -22,6 +22,7 @@
 //! 这件事在代码里可读，而不是散在构建脚本里。
 
 pub mod command;
+pub mod state;
 
 /// GitHub Releases feed 的所有者（与旧线 `electron-builder.config.js` 的 `publish.owner` 一致）。
 pub const RELEASE_FEED_OWNER: &str = "eafenzhang";

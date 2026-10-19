@@ -88,12 +88,16 @@ export function UpdateStatusDialog({
     </>
   );
   const contentClassName = cn(
-    "max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-hidden p-5 sm:max-w-lg",
-    edgeToEdge && !isDownloading
+    "grid max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-hidden p-5 sm:max-w-lg",
+    edgeToEdge
       ? // 普通/下载完成状态没有中间内容，不能继续使用 minmax(0,1fr)。
         // 否则 footer 会占满剩余窗口高度，按钮被垂直居中后看起来像中间有大块空白。
-        "grid-rows-[auto_auto]"
-      : "grid-rows-[auto_minmax(0,1fr)_auto]",
+        isDownloading
+        ? "grid-rows-[auto_minmax(0,1fr)_auto]"
+        : "grid-rows-[auto_auto]"
+      : // 页内弹窗按内容高度排版；auto 高度的 minmax(0,1fr) 会塌成 0，
+        // 进度区溢出到 footer，取消按钮就压在进度条上。
+        "grid-rows-[auto_auto_auto]",
     edgeToEdge
       ? // 独立更新窗口已经由 BrowserWindow 提供窗口边框和阴影。
         // 这里不能再保留页内 DialogContent 的边框、阴影和视口边距，否则会出现“窗中窗”。
@@ -280,6 +284,9 @@ export function UpdateStatusDialog({
         showOverlay={showOverlay}
         showCloseButton={false}
         className={contentClassName}
+        // tailwind-merge 会把 grid 与 grid-rows-* 合并掉，页内弹窗因此退化成 block，
+        // 进度区与 footer 重叠。display 用内联样式保证三行网格成立。
+        style={{ display: "grid" }}
       >
         {content}
       </DialogContent>

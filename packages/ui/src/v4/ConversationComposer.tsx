@@ -131,7 +131,10 @@ import {
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { usePrimaryFollowupModifier } from "@/v4/composer/usePrimaryFollowupModifier.js";
 import { consumeV4ComposerDraftWorkspaceTransferRequest } from "@/v4/composer/composerDraftWorkspaceTransfer.js";
-import { useComposerAttachments, isRemoteAttachmentTarget } from "@/v4/composer/useComposerAttachments.js";
+import {
+  useComposerAttachments,
+  isRemoteAttachmentTarget,
+} from "@/v4/composer/useComposerAttachments.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import { CodeCommentAttachmentChip } from "@/v4/composer/CodeCommentAttachmentChip.js";
 import { removeCodeCommentPreview } from "@/v4/composer/codeCommentPreviewSync.js";
@@ -1903,7 +1906,7 @@ function ConversationComposerImpl({
             <Button
               type="button"
               variant="secondary"
-              size="icon-md"
+              size="icon-sm"
               onClick={handleStopClick}
               data-testid={TID_V4_STOP}
               aria-label={stopTooltipTitle}
@@ -1921,7 +1924,7 @@ function ConversationComposerImpl({
           >
             <Button
               type="submit"
-              size="icon-md"
+              size="icon-sm"
               disabled={!canSend}
               onClick={handleSendButtonClick}
               data-testid={TID_V4_COMPOSER_SEND}

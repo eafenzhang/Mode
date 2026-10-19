@@ -11,6 +11,7 @@ import {
   type PanelProps,
   type SeparatorProps,
 } from "react-resizable-panels";
+import { cn } from "@/components/lib/utils.js";
 
 export type ResizablePanelProps = PanelProps;
 export type ResizableHandleProps = SeparatorProps;
@@ -58,12 +59,10 @@ export const ResizableHandle = forwardRef<HTMLDivElement, ResizableHandleProps>(
         {...rest}
         elementRef={ref as Ref<HTMLDivElement>}
         data-slot="resizable-handle"
-        className={[
+        className={cn([
           "relative flex items-center justify-center bg-transparent focus-visible:outline-none",
           className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        ])}
       />
     );
   },

@@ -53,6 +53,8 @@ fn main() {
         // 路由上（`mode_tauri::single_instance`）。
         deeplink::install(&handle)?;
         tray::install(&handle)?;
+        // 更新状态机：检查/下载/安装分开，状态经 mode:update-state 推给渲染层的原版更新弹窗。
+        app.manage(updater::state::UpdateManager::default());
 
         // Host sidecar：先起再建窗口（注入桥的 startupId 必须与它同代）。
         let host = mode_tauri::spawn_host(&handle);

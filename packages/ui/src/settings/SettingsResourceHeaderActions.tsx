@@ -73,7 +73,7 @@ export function SettingsResourceHeaderActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="icon-md" aria-label={moreActionsLabel}>
-              <MoreHorizontal aria-hidden="true" />
+              <MoreHorizontal className="size-4" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -83,7 +83,7 @@ export function SettingsResourceHeaderActions({
                 disabled={importDisabled}
                 onSelect={onImport}
               >
-                <SquareArrowRightEnter aria-hidden="true" />
+                <SquareArrowRightEnter className="size-4" aria-hidden="true" />
                 {importLabel}
               </DropdownMenuItem>
             ) : null}
@@ -93,7 +93,7 @@ export function SettingsResourceHeaderActions({
                 disabled={exportDisabled}
                 onSelect={onExport}
               >
-                <Download aria-hidden="true" />
+                <Download className="size-4" aria-hidden="true" />
                 {exportLabel}
               </DropdownMenuItem>
             ) : null}
@@ -112,9 +112,9 @@ export function SettingsResourceHeaderActions({
             onClick={onRefresh}
           >
             {refreshing ? (
-              <Loader2 className="animate-spin" aria-hidden="true" />
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
             ) : (
-              <RefreshCcw aria-hidden="true" />
+              <RefreshCcw className="size-4" aria-hidden="true" />
             )}
           </Button>
         </ControlHintTooltip>
@@ -131,7 +131,7 @@ export function SettingsResourceHeaderActions({
           disabled={newDisabled}
           onClick={onNew}
         >
-          <Plus data-icon="inline-start" aria-hidden="true" />
+          <Plus className="size-4" data-icon="inline-start" aria-hidden="true" />
           {newLabel}
         </Button>
       ) : null}

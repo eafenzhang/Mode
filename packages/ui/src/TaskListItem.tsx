@@ -417,7 +417,11 @@ export const MemoTaskItem = memo(function TaskListItem({
             onClick={handleArchive}
             data-testid={testId(TID_TASK_ARCHIVE, task.taskId)}
             // 归档确认态是显式等待用户决策的状态，必须持续显示 destructive 按钮。
-            className={cn("shrink-0 border-destructive/20 px-2", archiveActionVisibilityClassName)}
+            // h-6 与普通任务行内容高度一致，确认态不能把行高从 32px 撑到 36px。
+            className={cn(
+              "h-6 shrink-0 border-destructive/20 px-2",
+              archiveActionVisibilityClassName,
+            )}
             aria-label={archiveLabel}
           >
             <span>{intl.formatMessage({ id: "common.confirm" })}</span>
@@ -522,8 +526,7 @@ export const MemoTaskItem = memo(function TaskListItem({
                   : intl.formatMessage(
                       { id: "taskList.botBind.conversation.private" },
                       {
-                        name:
-                          binding.conversationLabel?.trim() || binding.conversationId,
+                        name: binding.conversationLabel?.trim() || binding.conversationId,
                       },
                     ),
             },

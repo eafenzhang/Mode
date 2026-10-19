@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { Button, type ButtonProps } from "./Button.js";
+import { cn } from "@/components/lib/utils.js";
 
 const GROUP_CLASS =
   "flex min-w-0 items-center overflow-hidden rounded-md border border-input-border bg-input text-foreground " +
@@ -25,12 +26,7 @@ export const InputGroup = forwardRef<HTMLDivElement, InputGroupProps>(function I
   ref,
 ) {
   return (
-    <div
-      {...rest}
-      ref={ref}
-      data-slot="input-group"
-      className={[GROUP_CLASS, className].filter(Boolean).join(" ")}
-    />
+    <div {...rest} ref={ref} data-slot="input-group" className={cn([GROUP_CLASS, className])} />
   );
 });
 
@@ -54,13 +50,11 @@ export const InputGroupAddon = forwardRef<HTMLDivElement, InputGroupAddonProps>(
         {...rest}
         ref={ref}
         data-align={align}
-        className={[
+        className={cn([
           "flex shrink-0 items-center gap-1 px-1.5 text-foreground-subtle",
           ADDON_ALIGN_CLASS[align],
           className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        ])}
       />
     );
   },
@@ -76,7 +70,7 @@ export const InputGroupButton = forwardRef<HTMLButtonElement, InputGroupButtonPr
         ref={ref}
         variant={variant}
         size={size}
-        className={["rounded-sm", className].filter(Boolean).join(" ")}
+        className={cn(["rounded-sm", className])}
       />
     );
   },
@@ -91,7 +85,7 @@ export const InputGroupInput = forwardRef<HTMLInputElement, InputGroupInputProps
         {...rest}
         ref={ref}
         data-slot="input-group-input"
-        className={[FIELD_CLASS, className].filter(Boolean).join(" ")}
+        className={cn([FIELD_CLASS, className])}
       />
     );
   },
@@ -106,7 +100,7 @@ export const InputGroupTextarea = forwardRef<HTMLTextAreaElement, InputGroupText
         {...rest}
         ref={ref}
         data-slot="input-group-textarea"
-        className={[FIELD_CLASS, className].filter(Boolean).join(" ")}
+        className={cn([FIELD_CLASS, className])}
       />
     );
   },
@@ -117,11 +111,7 @@ export interface InputGroupTextProps extends HTMLAttributes<HTMLSpanElement> {}
 export const InputGroupText = forwardRef<HTMLSpanElement, InputGroupTextProps>(
   function InputGroupText({ className, ...rest }, ref) {
     return (
-      <span
-        {...rest}
-        ref={ref}
-        className={["text-ui-sm text-foreground-subtle", className].filter(Boolean).join(" ")}
-      />
+      <span {...rest} ref={ref} className={cn(["text-ui-sm text-foreground-subtle", className])} />
     );
   },
 );

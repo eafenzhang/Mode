@@ -5,6 +5,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { useMemo } from "react";
 
 import type { CodePreviewSettings } from "@/store/index.js";
+import { cn } from "@/components/lib/utils.js";
 
 export type LightweightDiffLineKind = "added" | "removed" | "context";
 
@@ -63,13 +64,11 @@ export function LightweightDiffPreview({
     <div
       {...rest}
       data-slot="lightweight-diff-preview"
-      className={[
+      className={cn([
         "min-w-0 font-mono text-ui-sm",
         wrapLongLines ? "overflow-x-hidden" : "overflow-x-auto",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      ])}
       style={containerStyle}
     >
       {lines.map((line, index) => {

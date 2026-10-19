@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "M1 平台命令面的最小权限集。逐条对应 docs/specs/tauri-platform-commands.md 的 capability 规则节。",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "M1 平台命令面的最小权限集；main 与 about 共用 core:default + 关闭窗口权限。",
+  "windows": [
+    "main",
+    "about"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close"
+  ]
 }

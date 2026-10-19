@@ -26,7 +26,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/ui-foundation/adapters/dropdown-menu.js";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/ui-foundation/adapters/select.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/ui-foundation/adapters/select.js";
 import {
   Tooltip,
   TooltipContent,

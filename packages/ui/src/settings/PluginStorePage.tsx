@@ -35,10 +35,7 @@ import {
   resolvePluginDisplayName,
   type StorePluginItem,
 } from "@/settings/pluginStoreListing.js";
-import {
-  MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
-  isBuiltinDefaultMarketplaceId,
-} from "@mode/shared";
+import { MODE_OFFICIAL_PLUGIN_MARKETPLACE_ID, isBuiltinDefaultMarketplaceId } from "@mode/shared";
 import { PluginUninstallConfirmDialog } from "@/settings/PluginUninstallConfirmDialog.js";
 import { usePluginUninstall } from "@/settings/usePluginUninstall.js";
 import { claimMarketplaceAutoRefresh } from "@/settings/officialMarketplaceAutoRefresh.js";
@@ -145,7 +142,8 @@ export function PluginStorePage({
         // 判定"可渲染"而不是"非空"：旧缓存里的相对路径（./plugins/x/assets/icon.svg）
         // 渲染侧不认，刷新一次才会被解析成仓库直链。
         !availablePlugins.some(
-          (plugin) => plugin.marketplace === marketplace.id && isTrustedImageUrl(plugin.listing?.icon),
+          (plugin) =>
+            plugin.marketplace === marketplace.id && isTrustedImageUrl(plugin.listing?.icon),
         );
       if (!isOfficial && !isUnmaterializedDefault && !needsIconBackfill) {
         continue;
@@ -438,7 +436,7 @@ export function PluginStorePage({
                 type="button"
                 data-testid="plugin-store-refresh"
                 variant="outline"
-                size="icon-lg"
+                size="icon"
                 aria-label={
                   refreshing
                     ? intl.formatMessage({ id: "settings.plugins.refreshing" })
@@ -460,7 +458,7 @@ export function PluginStorePage({
                 type="button"
                 data-testid="plugin-store-sources-open"
                 variant="outline"
-                size="icon-lg"
+                size="icon"
                 aria-label={intl.formatMessage({ id: "settings.plugins.store.sources.title" })}
                 onClick={() => setSourcesOpen(true)}
               >

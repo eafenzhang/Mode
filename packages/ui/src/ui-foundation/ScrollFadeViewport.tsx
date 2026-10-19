@@ -10,6 +10,7 @@ import {
   type ComponentProps,
   type UIEvent,
 } from "react";
+import { cn } from "@/components/lib/utils.js";
 
 type FadeState = { top: boolean; bottom: boolean };
 
@@ -92,7 +93,7 @@ export const ScrollFadeViewport = forwardRef<HTMLDivElement, ScrollFadeViewportP
         data-fade-top={fade.top ? "" : undefined}
         data-fade-bottom={fade.bottom ? "" : undefined}
         onScroll={handleScroll}
-        className={[className, FADE_CLASS[fadeKey(fade)]].filter(Boolean).join(" ")}
+        className={cn([className, FADE_CLASS[fadeKey(fade)]])}
       >
         {children}
       </div>

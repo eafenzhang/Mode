@@ -33,6 +33,7 @@ import {
   useDropdownSubAdapterState,
 } from "./dropdownMenuContext.js";
 import { computePopoverPoint } from "./popoverPosition.js";
+import { cn } from "@/components/lib/utils.js";
 
 type ElementProps = Record<string, unknown>;
 
@@ -92,7 +93,7 @@ export const DropdownMenuSubTrigger = forwardRef<HTMLButtonElement, DropdownMenu
   function DropdownMenuSubTrigger({ inset, asChild, className, children, onClick, ...rest }, ref) {
     const state = useDropdownSubAdapterState();
     const root = useDropdownMenuAdapterState();
-    const merged = [className, inset ? "ps-7.5" : ""].filter(Boolean).join(" ");
+    const merged = cn([className, inset ? "ps-7.5" : ""]);
     const handleClick = (event: ReactMouseEvent<HTMLElement>): void => {
       onClick?.(event as ReactMouseEvent<HTMLButtonElement>);
       if (!event.defaultPrevented) {

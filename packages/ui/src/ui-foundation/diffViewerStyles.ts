@@ -2,6 +2,7 @@
 import type { CSSProperties } from "react";
 import type { BundledTheme } from "shiki";
 import type { FileDiffOptions } from "@pierre/diffs";
+import { cn } from "@/components/lib/utils.js";
 
 export interface DiffViewerThemeInput {
   options?: FileDiffOptions<undefined>;
@@ -47,5 +48,5 @@ export function buildDiffViewerStyle({ style, fontSizePx }: DiffViewerStyleInput
 }
 
 export function diffViewerContainerClassName(className?: string): string {
-  return ["min-w-0 overflow-auto", className].filter(Boolean).join(" ");
+  return cn(["min-w-0 overflow-auto", className]);
 }

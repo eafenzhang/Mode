@@ -37,6 +37,7 @@ import {
   useDropdownRadioGroupAdapterState,
   type MenuSelectEvent,
 } from "./dropdownMenuContext.js";
+import { cn } from "@/components/lib/utils.js";
 
 type ElementProps = Record<string, unknown>;
 
@@ -179,7 +180,7 @@ export const DropdownMenuItem = forwardRef<HTMLButtonElement, DropdownMenuItemPr
     ref,
   ) {
     const state = useDropdownMenuAdapterState();
-    const merged = [className, inset ? "ps-7.5" : ""].filter(Boolean).join(" ");
+    const merged = cn([className, inset ? "ps-7.5" : ""]);
     return (
       <MenuItem
         {...rest}
@@ -312,7 +313,7 @@ export function DropdownMenuLabel({
   children,
   ...rest
 }: DropdownMenuLabelProps): ReactNode {
-  const merged = [menuLabelClassName(className), inset ? "ps-7.5" : ""].filter(Boolean).join(" ");
+  const merged = cn([menuLabelClassName(className), inset ? "ps-7.5" : ""]);
   return (
     <div {...rest} data-inset={inset ? "" : undefined} className={merged}>
       {children}
@@ -325,12 +326,7 @@ export function DropdownMenuShortcut({
   ...rest
 }: HTMLAttributes<HTMLSpanElement>): ReactNode {
   return (
-    <span
-      {...rest}
-      className={["ms-auto text-ui-xs tracking-widest opacity-60", className]
-        .filter(Boolean)
-        .join(" ")}
-    />
+    <span {...rest} className={cn(["ms-auto text-ui-xs tracking-widest opacity-60", className])} />
   );
 }
 

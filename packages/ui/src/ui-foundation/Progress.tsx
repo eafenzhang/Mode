@@ -31,7 +31,11 @@ export const Progress = forwardRef<HTMLDivElement, ProgressProps>(function Progr
       aria-valuemax={max}
       className={progressTrackClassName(className)}
     >
-      <div className={progressIndicatorClassName()} style={{ width: `${percent}%` }} />
+      <div
+        data-slot="progress-indicator"
+        className={progressIndicatorClassName()}
+        style={{ width: `${percent}%` }}
+      />
     </div>
   );
 });
