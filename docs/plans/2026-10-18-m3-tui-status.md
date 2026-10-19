@@ -199,4 +199,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二十五批（`app-events`）：`turn_started` 设置活动 turn 与 thinking；`turn_error` 记录
   错误、追加系统消息并清空排队；`turn_complete` 收尾状态、用量映射、缓存与回退响应；
   未知事件不触发任何 handler；
+- 第二十六批（`app-question-state` 续）：Enter 选中当前项并进入 review；review 中再次
+  Enter 以 `modify` 决策提交（携带 answers/questions）；Escape 以 `deny` 放弃；缺少
+  questionState 时不改队列；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
