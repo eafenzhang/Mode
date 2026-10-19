@@ -177,3 +177,56 @@ test("forfeitConflictingDataRoot：整体备份且原目录内容保留", async 
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+function writeNamedManifestFile(base: string, name: string, raw: string): void {
+  const root = join(base, ".mode");
+  mkdirSync(root, { recursive: true });
+  writeFileSync(join(root, name), raw);
+}
+
+test("normal：缺失当前归属文件时兼容读取历史文件名", async () => {
+  const { readDataRootStatus } = await loadOwnership();
+  const base = makeBase();
+  try {
+    writeNamedManifestFile(base, ".zcodium-root.json", validManifest());
+    const status = readDataRootStatus(base);
+    assert.equal(status.kind, "normal");
+    if (status.kind === "normal") {
+      assert.equal(status.manifest.product, DATA_ROOT_PRODUCT_ID);
+    }
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+
+  const older = makeBase();
+  try {
+    writeNamedManifestFile(older, ".zcode-root.json", validManifest());
+    assert.equal(readDataRootStatus(older).kind, "normal");
+  } finally {
+    rmSync(older, { recursive: true, force: true });
+  }
+});
+
+test("corrupt：当前名与历史名同时存在时以当前名为准，不回退", async () => {
+  const { readDataRootStatus } = await loadOwnership();
+  const base = makeBase();
+  try {
+    writeManifestFile(base, "{ not-json");
+    writeNamedManifestFile(base, ".zcodium-root.json", validManifest());
+    const status = readDataRootStatus(base);
+    assert.equal(status.kind, "corrupt");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("normal：归属互认历史 product id（dev.zcodium.app）", async () => {
+  const { readDataRootStatus } = await loadOwnership();
+  const base = makeBase();
+  try {
+    writeManifestFile(base, validManifest({ product: "dev.zcodium.app" }));
+    assert.equal(readDataRootStatus(base).kind, "normal");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});

@@ -1,5 +1,6 @@
 /**
  * 数据根归属文件（{base}/.mode/.mode-root.json）读写与冲突目录备份。
+ * 读取时兼容历史文件名（`.zcodium-root.json` → `.zcode-root.json`），只读不改写。
  *
  * 分层规则：本文件是唯一允许直接读写归属文件的位置；其它模块通过
  * initializer 暴露的接口获取状态，不得自行解析归属文件。
@@ -10,6 +11,7 @@ import {
   DATA_ROOT_MANIFEST_FILE_NAME,
   DATA_ROOT_MANIFEST_SCHEMA_VERSION,
   DATA_ROOT_PRODUCT_ID,
+  LEGACY_DATA_ROOT_MANIFEST_FILE_NAMES,
   isAcceptedDataRootProduct,
   MODE_DATA_ROOT_DIR_NAME,
   parseDataRootManifest,
@@ -27,6 +29,19 @@ export function resolveDataRootDir(baseDir: string): string {
 }
 
 /**
+ * 归属文件路径：当前名优先，缺失时按由新到旧接受历史文件名。
+ * 命中旧名后仍走同一 schema/product 校验，不改写、不迁移。
+ */
+function resolveManifestPath(rootDir: string): string | undefined {
+  const candidates = [DATA_ROOT_MANIFEST_FILE_NAME, ...LEGACY_DATA_ROOT_MANIFEST_FILE_NAMES];
+  for (const name of candidates) {
+    const candidate = join(rootDir, name);
+    if (existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+/**
  * 判定 base 下数据根的合法性。
  *
  * - normal：归属文件存在、可解析、product 匹配、schemaVersion 支持；
@@ -39,8 +54,8 @@ export function readDataRootStatus(baseDir: string): DataRootStatus {
   if (!existsSync(rootDir)) {
     return { kind: "absent" };
   }
-  const manifestPath = join(rootDir, DATA_ROOT_MANIFEST_FILE_NAME);
-  if (!existsSync(manifestPath)) {
+  const manifestPath = resolveManifestPath(rootDir);
+  if (!manifestPath) {
     return { kind: "unowned", reason: "manifest-missing", rootDir };
   }
   let raw: string;
