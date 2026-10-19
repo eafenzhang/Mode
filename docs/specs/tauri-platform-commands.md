@@ -256,8 +256,8 @@ Rust 门禁（`cargo test` 六个 crate + `clippy -D warnings`）同期全绿。
 | `saveFile` 的 `sourceUrl` 分支 | 需要一个 HTTP 客户端与取回超时/大小上限的产品规则 | M3（sidecar 接入后） | **关闭**（§9.3：超时 30s / 上限 64 MiB，均有用例） |
 | `onOAuthCallback` / `onPaymentCallback` 之外的订阅型方法 | 依赖 sidecar 的事件源 | M3 | **深链驱动的两条关闭**（`onShareImport` / `onOpenWorkspacePath`，§9.4）；其余**逐条登记**在 §9.4，事件源不在本阶段范围 |
 | **深链的单实例转发** | Windows/Linux 上「应用已在运行 → 用户点 `mode://` 链接」会起新进程（新窗口）。单实例会改动窗口生命周期语义，与「每个窗口一个 window-scoped Local Host」绑在一起 | M3（窗口模型） | **关闭**（§9.1：第二实例不建窗口、不建 Host；窗口模型的约束与代价见该节） |
-| **Tauri 产物进 Release** | 产物名与旧 Electron 线完全一致，同名会 clobber 掉用户正在下载的安装包；故 M1–M4 只发 workflow artifacts | M5（「release.yml 只出 Tauri 产物」） |
-| 更新链的实际可用 | **M5 Task 1 关闭（Windows）**：`pubkey` 已从空串换成真实 minisign 公钥，发布构建产出 `latest.json`，产品入口 `executeDesktopCommand("checkForUpdates")` 已接到 `updater::command::check_and_install`。**空串仍是 fail closed**：没有 `pubkey` 的构建在 `PublicKey::decode("")` 处报错，永远无法更新——这一语义刻意保留。macOS/Linux 未演练（DR-M5-2） | M5 |
+| **Tauri 产物进 Release** | 产物名与旧 Electron 线完全一致，同名会 clobber 掉用户正在下载的安装包；故 M1–M4 只发 workflow artifacts | M5（「release.yml 只出 Tauri 产物」） | **关闭（2026-10-19）**：三平台安装包与校验片段进 Release；旧 Electron 线只发 workflow artifact（§8.1） |
+| 更新链的实际可用 | **M5 Task 1 关闭（Windows）**：`pubkey` 已从空串换成真实 minisign 公钥，发布构建产出 `latest.json`，产品入口 `executeDesktopCommand("checkForUpdates")` 已接到 `updater::command::check_and_install`。**空串仍是 fail closed**：没有 `pubkey` 的构建在 `PublicKey::decode("")` 处报错，永远无法更新——这一语义刻意保留。macOS/Linux 安装包自 2026-10-19 起同批发布，但 `latest.json` 仍只有 Windows 条目，两条腿的应用内更新未接（§8.1） | M5 |
 
 ## 6. 协议双端生成
 
@@ -287,7 +287,7 @@ owner/lease、`CommandInbox` 串行准入、`desktop-continuous` 与 `web-remote
 
 ## 8. 三平台出包与体积基线（M1 Task 5）
 
-### 8.1 产物去向：workflow artifacts，不进 Release
+### 8.1 产物去向：三平台安装包一起进 Release（2026-10-19 起）
 
 CI job `tauri`（`.github/workflows/release.yml`）按三平台矩阵出包：
 
@@ -297,24 +297,22 @@ CI job `tauri`（`.github/workflows/release.yml`）按三平台矩阵出包：
 | macOS | `macos-14` | `aarch64-apple-darwin` | `dmg` | `Mode-<版本>-mac-arm64.dmg` |
 | Linux | `ubuntu-24.04` | `x86_64-unknown-linux-gnu` | `appimage` | `Mode-<版本>-linux-x64.AppImage` |
 
-文件名格式与发布契约一致（`AGENTS.md`：`Mode-<版本>-<平台>-<架构>.<扩展名>`），但**只上传为
-workflow artifacts**：Tauri 线在 M5 之前不是发布线，而它与旧 Electron 线的产物名逐字相同，
-同名上传会 `--clobber` 掉用户正在下载的 Electron 安装包。M5 把上传目标换到 Release 即可，
-用户侧的文件名契约不用动。
+文件名格式与发布契约一致（`AGENTS.md`：`Mode-<版本>-<平台>-<架构>.<扩展名>`），三平台安装包
+与各自的 `sha256` 片段都上传同一个 Release。**2026-10-19 变更**（人决定，撤销 DR-M5-2 的
+Windows-only 偏差）：v0.0.59 的 CI 已实际产出 macOS arm64 dmg 与 Linux x64 AppImage，构建
+风险已收口，因此移除两条腿的 `continue-on-error`——任一腿失败都会让 `tauri.result = failure`，
+`checksums` / `publish` 不跑，Release 保持 draft，不会发布缺平台的版本。
+
+**旧 Electron `desktop` job 仍构建但只发 workflow artifact**（DR-M5-1 的回滚能力）：它不进
+`publish` 的 `needs`、不写 Release。因此运行页会看到两个 Windows job，但 Release 里只有一个
+Windows 安装包（Tauri 的 `Mode-<版本>-win-x64.exe`）。
+
+**应用内更新仍只有 Windows**：`latest.json` 只含 `windows-x86_64` 条目；macOS/Linux 目前是
+手动下载安装，发布说明必须写明这一点。它们的签名/公证与运行时验收仍未完成（见 §8.3）。
 
 **版本号由 CI 注入**：`tauri.conf.json` 的 `version` 是占位 `0.0.1`（JSON 不支持注释，
 写在这里说明），发布构建用 `tauri build --config '{"version":"<发布版本>"}'` 覆盖。
 不把版本写进配置文件是因为它与 Release tag 同源，写在两处必然漂移。
-
-**该 job 不在 `publish` 的 `needs` 里**：三条腿都没在本机验证过（本机只有 Windows + gnu
-工具链），把未验证的腿挂成发布门禁会让每次 push 都卡成 draft。转正是 M1 阶段收口时的事，
-条件写在下节。
-
-**macOS / Linux 两条腿先不处理**（2026-10-16 决定）：这两条腿编译失败**不该污染** Windows 腿
-与旧 Electron 线的绿灯，故 job 上加 `continue-on-error: ${{ matrix.target != 'win' }}`——
-只让非 Windows 腿不判红，**不删矩阵**：产物与日志仍然采集（编译失败时上面的步骤会失败，
-日志留在运行记录里），等真正要转正时这批证据就是起点。`continue-on-error` 与「不在 `needs` 里」
-是两件事：前者管 job 的成败判定，后者管发布是否被门禁卡住；转正时两者一起去掉。
 
 **更新产物（M5 Task 1 实测）**：`tauri.conf.json` 必须设
 `bundle.createUpdaterArtifacts: true`，否则 NSIS 目录里没有 `.sig`。设置了
@@ -332,8 +330,8 @@ workflow artifacts**：Tauri 线在 M5 之前不是发布线，而它与旧 Elec
 | Windows x64（NSIS，**真产品 UI + Host sidecar**，预算 **(a) 核心**） | **23.29 MiB** | **M3 Task 5 实测**（2026-10-17；`mode-tauri` 壳 + 内嵌 renderer 产物 + Host bundle + `config/`，**不含**随身 Node 与 externals） |
 | Windows x64（NSIS，**产品档总包**） | **51.50 MiB** | **M3 Task 5 实测**（= 上者 + 随包 Node v24.18.1 + 剪枝后的 externals 闭包） |
 | Windows x64（NSIS，**预算 (b) = 总包 − 核心**） | **28.22 MiB** | **M3 Task 5 实测**（整包 LZMA 的增量） |
-| macOS arm64（dmg） | 待首次 CI 记录 | 未测 |
-| Linux x64（AppImage） | 待首次 CI 记录 | 未测 |
+| macOS arm64（dmg） | 见 v0.0.59 CI 的 job summary | 构建已通过（2026-10-19 首次出包）；本机未复测 |
+| Linux x64（AppImage） | 见 v0.0.59 CI 的 job summary | 构建已通过（2026-10-19 首次出包）；本机未复测 |
 
 口径与路线图一致：**NSIS 安装包字节数**（`tauri-bundle-report.ts` 算 MiB = 字节 / 1024²，
 并写进 job summary 与 artifact 目录里的 `size.txt`）。目标初装 ≤30MB（争取 25MB）——
@@ -356,15 +354,18 @@ M1 的 7.19 MiB 是**验收台前端**时代的数，**没有含产品 UI 的 re
 > 历史上这个数字出过三次口径事故（载荷求和 / 传递闭包 / 不含壳 exe 的文件求和），
 > 所以本表的每一行都注明它测在哪张脸上。
 
-### 8.3 macOS / Linux 腿的已知风险（**当前不处理**，转正时再解决）
+### 8.3 macOS / Linux 腿的残余风险（构建已通过，运行时未验收）
 
-2026-10-16 决定这两条腿先不处理（§8.1）。下面两处**已知风险按未解决登记**，不是「没问题」；
-转正前必须逐条确认，届时若 Linux 仍失败，备选是改用 `--bundles deb`（只需 `dpkg-deb`，
-风险最低）并同步 matrix 的 `ext` 与 §8.1 的表。
+2026-10-19 起两条腿已进 Release 并阻断发布。v0.0.59 的 CI 证明**构建链路**可用：
 
-- **Linux**：`webkit2gtk` / `libsoup3` 的 dev 包名随发行版变动；AppImage 的打包器
-  （linuxdeploy）依赖 FUSE，容器里靠 `APPIMAGE_EXTRACT_AND_RUN=1` 绕过。**未验证**。
-- **macOS**：需确认产出的是 `aarch64-apple-darwin`（不是 Rosetta 下的 x86_64）。**未验证**。
+- **Linux**：`webkit2gtk` / `libsoup3` 的 dev 包名与 AppImage 打包（`APPIMAGE_EXTRACT_AND_RUN=1`
+  绕过构建容器里的 FUSE）均已通过；**终端用户的 FUSE 环境仍未验证**，发布说明给出
+  `--appimage-extract-and-run` 兜底。
+- **macOS**：矩阵确认产出 `aarch64-apple-darwin`；**未签名、未公证**，Gatekeeper 的首次打开
+  路径只在发布说明里给出操作指引，没有真机验收。
+
+以上是登记在案的**未验收项**，不是「已验证没问题」。升级路径：macOS/Linux 目前手动下载替换，
+应用内更新未接（§8.1）。
 
 ## 9. M3 Task 4：平台面缺口收口
 

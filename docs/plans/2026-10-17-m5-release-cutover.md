@@ -65,6 +65,18 @@ workflow run 里不能既上传 Electron 又上传 Tauri 到同一个 release**�
 按 M1 已登记的两条已知风险（Linux 的 webkit2gtk/soup3 包名与 AppImage 的 FUSE 绕过；macOS 需确认
 出的是 arm64）重新开一次决策，并把本条偏差撤销。
 
+**更新（人，2026-10-19）：解冻，改为 B（三平台安装包一起发布）。** 触发依据是 v0.0.59 的 CI：
+macOS arm64 dmg 与 Linux x64 AppImage 均首次出包成功，M1 登记的两条构建风险已实测收口。
+本次变更：
+
+- `.github/workflows/release.yml` 移除两条非 Windows 腿的 `continue-on-error`，任一腿失败即
+  保持 draft；三平台安装包与各自 `sha256` 片段都上传同一 Release。
+- 未签名/未公证（macOS）与运行时未验收（macOS/Linux）作为**已知残余风险**写进 Release 说明，
+  不宣称三平台 GA 已完全达成；应用内更新仍只有 Windows（`latest.json` 仅含 `windows-x86_64`）。
+- 旧 Electron `desktop` job 继续只发 workflow artifact（DR-M5-1 的回滚能力不变）。
+
+**仍未完成**：macOS/Linux 的真机安装/启动/升级验收，以及应用内更新清单的三平台化。
+
 ### DR-M5-2b：**已定：体积门禁放开**——改为持续测量项
 
 **决定（人，2026-10-17）**：「体积门禁放开」= 体积**不再作为发布阻断**。

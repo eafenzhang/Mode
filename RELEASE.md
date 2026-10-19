@@ -167,18 +167,19 @@ node scripts/tauri-update-manifest.ts \
 ① 官方体积口径是哪张脸；② sidecar 是否必须改成按需下载。给出之前，发布按「只记录、不阻断」执行。
 交叉引用：`docs/specs/tauri-renderer-host.md` §13.4.1、`docs/specs/tauri-platform-commands.md` §8.2。
 
-### 1.6 平台范围：Windows-only（登记偏差）
+### 1.6 平台范围：Windows + macOS arm64 + Linux x64（三平台安装包）
 
-- **决定**：M5 只发布 Windows x64 的 Tauri 版（DR-M5-2，人，2026-10-17）。
-- **偏差**：路线图 M5 验收写的是「三平台 GA」；本阶段不满足该条，且**不改路线图原文**。
-- **原因**：Ruling 20 把 macOS/Linux 移出 M3；两条腿从未出过真产物、从未验证。CI 的
-  `tauri` job 里 mac/linux 仍是 `continue-on-error`（`.github/workflows/release.yml` 的
-  `continue-on-error: ${{ matrix.target != 'win' }}`）。
-- **代价**：Windows 之外的用户在切换后没有 Tauri 版；旧 Electron 线的产物与回滚能力必须保留
-  （见第 5 节）。macOS/Linux 的体积、冷启动、webview 路径全部**未验**，不能从 Windows 结论外推。
-- **解冻条件**：先收口 `docs/specs/tauri-platform-commands.md` §8.3 的两条已知风险——
-  Linux 的 `webkit2gtk`/`libsoup3` 包名与 AppImage 的 FUSE 绕过；macOS 需确认产出的是
-  `aarch64-apple-darwin`。收口后重新开一次决策，再撤销本条偏差。
+- **决定（人，2026-10-19，更新 DR-M5-2）**：从下一个版本起，Tauri 三平台安装包一起发布：
+  `Mode-<版本>-win-x64.exe`、`Mode-<版本>-mac-arm64.dmg`、`Mode-<版本>-linux-x64.AppImage`，
+  外加 fnOS `.fpk`。三条 Tauri 腿都阻断发布；任一失败则保持 draft。
+- **依据**：v0.0.59 的 CI 首次成功产出 macOS dmg 与 Linux AppImage，
+  `docs/specs/tauri-platform-commands.md` §8.3 登记的两条构建风险（Linux
+  `webkit2gtk`/`libsoup3` 包名与 AppImage 的 FUSE 绕过；macOS arm64 目标）已实测收口。
+- **仍未验收**：macOS/Linux 的真机安装、启动、升级；macOS 未签名/未公证；Linux AppImage
+  在用户机器上的 FUSE 环境。发布说明必须写明这些限制，不能宣称三平台 GA 已完全达成。
+- **应用内更新**：仍只有 Windows。`latest.json` 只含 `windows-x86_64`；macOS/Linux 手动下载替换。
+- **旧 Electron 线**：`desktop` job 继续构建但只发 workflow artifact，不进 Release（DR-M5-1）；
+  因此运行页有两个 Windows job，Release 里只有一个 Windows 安装包。
 
 ### 1.7 安装身份与迁移：本版保持 `ModeTauri.exe`（开放决策）
 
@@ -267,9 +268,9 @@ Electron 诊断/回滚构建仍在使用、但不在根 workspace 里的独立 c
   用**已提交**的 `plugins.updater.pubkey` 做真正的 minisign 校验。缺 secret/`.sig`、
   空 pubkey、私钥与入库公钥不匹配或产物被改都会让 Windows 腿失败（fail closed）；
   仅「`.sig` 文件存在」不再构成通过条件。
-- **macOS / Linux 腿**仍只上传 14 天期的 workflow artifact，`continue-on-error`；
-  它们不产出校验片段。job 级 `continue-on-error` 会把它们的失败在 `needs` 里归一为
-  `success`，所以不挡 Windows-only 发布（见下方「重要」）。
+- **macOS / Linux 腿**（2026-10-19 起）与 Windows 一样上传安装包与校验片段到 Release，
+  且同样阻断发布（没有 `continue-on-error`）。任一腿失败 → `tauri.result = failure`，
+  Release 保持 draft；不会再出现「Windows 发了、mac/Linux 缺件」的版本。
 - **旧 Electron `desktop` job 仍构建**（保留回滚能力），但只上传
   `electron-desktop-*` / `electron-checksums-*` workflow artifact，不再写 Release；
   它已声明 `continue-on-error: true`——诊断构建失败不会把整次 run 判红，也不挡 `publish`。
@@ -287,13 +288,10 @@ pnpm lint
 pnpm verify:pre-push
 ```
 
-> **重要（M5 Task 3 之后）**：`publish` 与 `checksums` 现在**直接断言**
-> `needs.tauri.result == 'success'`。Windows 腿没有 `continue-on-error`，所以它失败时
+> **重要（2026-10-19 三平台发布）**：`publish` 与 `checksums` 现在**直接断言**
+> `needs.tauri.result == 'success'`。三条 Tauri 腿都没有 `continue-on-error`，任一腿失败
 > 结果是 `failure`，`publish` 不会公开 release——**不再**依赖「checksums 缺片段」这条
-> 间接证明。macOS/Linux 腿仍有 job 级 `continue-on-error`；GitHub 会把这种腿在
-> `needs` 结果里归一为 `success`（`actions/runner#1161`，UI 仍显示该腿失败），所以它们
-> 失败不会挡 Windows-only 发布（DR-M5-2）。`checksums` 仍保留：它证明安装包、`.sig` 与
-> `latest.json` 确实进了本次 Release。
+> 间接证明。`checksums` 的清单断言覆盖 `.exe` / `.dmg` / `.AppImage` / `.fpk` 四类安装包。
 > 同一次 run 里 Electron 的 `desktop` job 不再上传 Release，所以两条线不会互覆。
 
 **三指标与门禁（路线图 M5 第 241 行原文）**：
@@ -302,7 +300,7 @@ pnpm verify:pre-push
 | --- | --- | --- | --- | --- |
 | 重合度 | `pnpm verify:self-developed`（重合度 0） | `release.yml` 的 `verify` job：`Upstream overlap metric (roadmap M5; non-blocking until M4 tool exists)` | **已接线、不阻断**：`scripts/upstream-overlap-check.mjs` 缺失时打印醒目告警并 `exit 0`（缺失工具由 M4 交付） | **脚本出现即自动阻断**：`scripts/upstream-overlap-check.mjs` 存在时，步骤跑 `pnpm verify:self-developed`，失败即让 `verify` 红。届时删除缺失分支（注释里写死的重开条件） |
 | 语言 | `scripts/check-language-policy.mjs`（语言） | `verify` job：`Language policy metric (roadmap M5)`；`pnpm verify:pre-push` 也跑 | **今天阻断**（脚本存在且通过） | 已生效 |
-| 体积 | CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需） | `tauri` Windows 腿：`Collect installer and record size` + `Record installer size metric (roadmap M5; NSIS installer face, recorded only)` | **只记录、不设阈值**（DR-M5-2b）；记录失败仍会让 `tauri` 红 | **当前不因数值阻断**。只有人重开 DR-M5-2b 并给出阈值时才会变成数值门禁；不要自编数字 |
+| 体积 | CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需） | `tauri` 三平台腿：`Collect installer and record size` + `Record installer size metric (roadmap M5; recorded only)` | **只记录、不设阈值**（DR-M5-2b）；记录失败仍会让 `tauri` 红 | **当前不因数值阻断**。只有人重开 DR-M5-2b 并给出阈值时才会变成数值门禁；不要自编数字 |
 
 > 体积的脸必须写死：CI 的 `size.txt` 是**产品档总包**（core + 随包 Node/externals，当前
 > 51.50 MiB）在 **NSIS 安装包字节**这张脸上；路线图 M5 的「≤30MB 核心」在同一张脸上是
@@ -491,7 +489,8 @@ opt-in 用例共用固定的 sink 端口 `127.0.0.1:5177`，**必须一个一个
      演练后 `reg import`）、停止本地 feed。
 
   **边界（不要读成三平台都验过）**：演练在 Windows x64、gnu 本地工具链构建的 NSIS
-  安装包上完成；msvc 产物、macOS/Linux 均未演练（DR-M5-2）。
+  安装包上完成；msvc 产物、macOS/Linux 均未演练。2026-10-19 起 macOS/Linux 安装包会随
+  Release 发布，但它们的安装/启动/升级仍未真机验收（见 1.6）。
 
 ### 2.3 绿 CI 不覆盖什么
 
@@ -673,21 +672,23 @@ gh secret list --app actions | grep TAURI_SIGNING
   patch + 1；若该 tag 已被占用就继续 +1，直到不冲突。没有基线时从 `0.0.0` 起，即 `v0.0.1`。
 - 跳过：提交信息含 `[skip release]` 时整条流水线跳过。
 - 流程：`release`（校验版本、建 tag、建 draft release）→ `verify` →
-  `desktop`（Electron，诊断/回滚构建）与 `tauri`（Windows 发布线）+ `fnos` →
-  `checksums` → `publish`。
+  `desktop`（Electron，诊断/回滚构建）与 `tauri`（Windows + macOS + Linux 发布线）
+  + `fnos` → `checksums` → `publish`。
 - `publish` 在 `release`、`verify`、`tauri`、`checksums`、`fnos` 成功（或按既有规则
-  skipped）时公开 draft。**M5 Task 3 起 `tauri` 是硬门**：Windows 腿失败时
-  `needs.tauri.result == 'failure'`，`publish` 不跑；macOS/Linux 腿的失败被
-  `continue-on-error` 在 `needs` 里归一为 `success`，不挡 Windows-only 发布（见 2.1）。
-  `checksums` 继续证明安装包/签名/清单确实进了 Release。正式版用 `--latest`，预发布用
-  `--prerelease`。
-- **M5 Task 2 起**：自动发版发布的 Windows 安装包来自 **Tauri** 线；旧 Electron
-  `desktop` job 仍会构建，但只产出 workflow artifact，且 `continue-on-error: true`。
+  skipped）时公开 draft。**2026-10-19 起 `tauri` 三条腿都是硬门**：任一腿失败时
+  `needs.tauri.result == 'failure'`，`publish` 不跑。`checksums` 证明
+  `.exe`/`.dmg`/`.AppImage`/`.fpk` 四类安装包及校验片段确实进了 Release。
+  正式版用 `--latest`，预发布用 `--prerelease`。
+- **M5 Task 2 起**：自动发版发布的安装包来自 **Tauri** 线（2026-10-19 起含
+  Windows/macOS/Linux 三平台）；旧 Electron `desktop` job 仍会构建，但只产出
+  workflow artifact，且 `continue-on-error: true`。
 - **Release 说明必须与实际升级路径一致（M5 评审 B1/B5）**：自动生成的说明里必须写清
   「旧 Electron 用户需要手动安装一次」「本版之后的 Tauri 版本可在应用内
   『帮助 → 检查更新』升级」「主程序是 `ModeTauri.exe`，与旧版独立并存」。
   **不要**再写「已装过的用户不用手动下载」——切换后的 Release 没有 `latest.yml`，
   旧客户端的 `electron-updater` 拿到 404（见 5.2），不会就地升级。
+  2026-10-19 起还必须写清：macOS 仅 arm64、未签名/未公证；Linux 为 AppImage；
+  macOS/Linux 目前只能手动下载，应用内更新仍只有 Windows。
 
 ### 4.3 手工触发（指定版本 / 预发布）
 
@@ -746,9 +747,10 @@ gh release view <tag> --json isDraft,isLatest,assets \
 - [ ] 2.2 的 V1–V11 全部勾完；**V11 必须在本次发版前重跑**（M5 Task 1 的
       一次性演练不算本次；gnu 宿主 + 本地 feed 也不等于 msvc + GitHub feed）。
 - [ ] 3.4 的签名检查全部勾完；`pubkey` 不是空串。
-- [ ] 本次发布线是 **Tauri Windows-only**；旧 Electron 线的上一版资产仍可下载，
-      回滚步骤（5.2 / 5.5）可用。
-- [ ] 本次是 Windows-only，且已知「三平台 GA」是登记偏差（1.6）。
+- [ ] 本次发布线是 **Tauri 三平台安装包**（Windows/macOS/Linux）+ fnOS；旧 Electron
+      线的上一版资产仍可下载，回滚步骤（5.2 / 5.5）可用。
+- [ ] macOS/Linux 的未签名/未公证与运行时未验收已写进 Release 说明（1.6、4.2）；
+      应用内更新仍只有 Windows。
 - [ ] 本地提交已报告给人；推送由人执行（4.1）。
 
 ---
