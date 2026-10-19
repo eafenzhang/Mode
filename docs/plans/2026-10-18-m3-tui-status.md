@@ -216,4 +216,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第三十一批（`app-submit`）：非空 response 追加 agent 消息并保留既有消息；空/空白
   response 不追加但返回新数组；`restoredMessages` 存在时整体替换既有 transcript（空数组
   亦然）；恢复的 thought part 补 status/字符数，tool part 补 detailLines 与标题；
+- 第三十二批（`app-modified-files` 提取）：单文件 diff 按 workspaceDirectory 转相对路径，
+  无 workspace 保持绝对路径；多文件 diff 丢弃空路径、负数归 0、小数向下取整；未知 kind
+  或缺 display 返回空数组；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
