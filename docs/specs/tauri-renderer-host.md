@@ -89,11 +89,11 @@ DR-T3-2 的验收台处置、DR-T3-3 三条义务的逐条处置）都是本任�
 
 ## 1. 组件与所有权
 
-| 组件 | 位置 | 职责 | 不做什么 |
-| --- | --- | --- | --- |
-| Rust 壳 | `apps/desktop-tauri/src-tauri`（`main.rs`、`host.rs`、`window.rs`） | 建窗口 + 注入桥；spawn/监督 Host；两个 raw 帧命令 + 一个状态长轮询；退出时收 Host | 不持业务状态（`AGENTS.md` 的「进程、协议与远程控制」） |
-| Host sidecar | `packages/desktop/src/host-standalone/**`（Node，入口 `index.ts`） | 真 `ChannelServer` + **真服务面**（`createLocalServices`，40 个频道，§11.1）；数据根解析；帧形状校验；**三条守卫**（stdout 只走帧、`listen` 不抛、派发不炸）；真启动序列 | 不建窗口、不碰 Tauri；不实现窗口模型/远控（Task 3/4） |
-| 进程/传输库 | `crates/sidecar-host/**` | spawn/监督/帧编解码/桥脚本/启动状态/路径挑选纯函数 | **不引用任何 Tauri 类型**（理由见 §6） |
+| 组件         | 位置                                                                | 职责                                                                                                                                                                     | 不做什么                                               |
+| ------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| Rust 壳      | `apps/desktop-tauri/src-tauri`（`main.rs`、`host.rs`、`window.rs`） | 建窗口 + 注入桥；spawn/监督 Host；两个 raw 帧命令 + 一个状态长轮询；退出时收 Host                                                                                        | 不持业务状态（`AGENTS.md` 的「进程、协议与远程控制」） |
+| Host sidecar | `packages/desktop/src/host-standalone/**`（Node，入口 `index.ts`）  | 真 `ChannelServer` + **真服务面**（`createLocalServices`，40 个频道，§11.1）；数据根解析；帧形状校验；**三条守卫**（stdout 只走帧、`listen` 不抛、派发不炸）；真启动序列 | 不建窗口、不碰 Tauri；不实现窗口模型/远控（Task 3/4）  |
+| 进程/传输库  | `crates/sidecar-host/**`                                            | spawn/监督/帧编解码/桥脚本/启动状态/路径挑选纯函数                                                                                                                       | **不引用任何 Tauri 类型**（理由见 §6）                 |
 
 **「第一帧」为什么等于「服务面齐备」（Task 2 换掉了合成 ready）**：入口用
 `new ChannelServer(protocol, ctx, 1000, /* deferInit */ true)`，`server.ready()` 在
@@ -129,17 +129,19 @@ React 永远挂不上。顺序性质由两处断言守着——CI 的 `test/wind
 
 ## 2. 环境契约（壳 → Host）
 
-| 变量 | 由谁设置 | 含义 |
-| --- | --- | --- |
-| `MODE_HOST_STARTUP_ID` | 壳显式设置 | 本次实例的启动代 id（`[A-Za-z0-9_-]`） |
-| `MODE_DATA_BASE_DIR` | 壳显式设置 | 数据**基**目录（不是数据根；见 §4） |
-| `HOME` / `USERPROFILE` | **继承**（壳不显式覆写） | 家目录：壳用它派生基目录，Host 用它兜底派生 |
-| `MODE_HOST_SIDECAR_ENTRY` | 进程环境 → 壳 | 入口脚本显式路径（开发/测试用；打包形态走资源目录） |
-| `MODE_HOST_NODE` | 进程环境 → 壳 | Node 可执行文件（默认 PATH 上的 `node`） |
-| `MODE_HOST_SIDECAR_CWD` | 进程环境 → 壳 | Host 工作目录（`--import tsx` 的裸模块解析从它开始） |
-| `MODE_HOST_NATIVE_DEP_PROBE` | 进程环境 → Host | 设为 `spawn` 时原生依赖探针**真起一个 pty**（测试用；产品默认不设，见 §12） |
-| `MODE_BUILTIN_PROVIDER_CONFIG_FILE` | 进程环境 → Host | Mode Built-in Provider Config 的显式路径（第一优先，见 §12.2） |
-| `MODE_HOST_RESOURCES_DIR` | 进程环境 → Host | 打包形态的资源目录（第二优先；里面的 `config/provider/mode-builtin.json`） |
+| 变量                                                        | 由谁设置                        | 含义                                                                                                                                                    |
+| ----------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MODE_HOST_STARTUP_ID`                                      | 壳显式设置                      | 本次实例的启动代 id（`[A-Za-z0-9_-]`）                                                                                                                  |
+| `MODE_DATA_BASE_DIR`                                        | 壳显式设置                      | 数据**基**目录（不是数据根；见 §4）                                                                                                                     |
+| `HOME` / `USERPROFILE`                                      | **继承**（壳不显式覆写）        | 家目录：壳用它派生基目录，Host 用它兜底派生                                                                                                             |
+| `MODE_HOST_SIDECAR_ENTRY`                                   | 进程环境 → 壳                   | 入口脚本显式路径（开发/测试用；打包形态走资源目录）                                                                                                     |
+| `MODE_HOST_NODE`                                            | 进程环境 → 壳                   | Node 可执行文件（默认 PATH 上的 `node`）                                                                                                                |
+| `MODE_HOST_SIDECAR_CWD`                                     | 进程环境 → 壳                   | Host 工作目录（`--import tsx` 的裸模块解析从它开始）                                                                                                    |
+| `MODE_HOST_NATIVE_DEP_PROBE`                                | 进程环境 → Host                 | 设为 `spawn` 时原生依赖探针**真起一个 pty**（测试用；产品默认不设，见 §12）                                                                             |
+| `MODE_BUILTIN_PROVIDER_CONFIG_FILE`                         | 进程环境 → Host                 | Mode Built-in Provider Config 的显式路径（第一优先，见 §12.2）                                                                                          |
+| `MODE_HOST_RESOURCES_DIR`                                   | 进程环境 → Host                 | 打包形态的资源目录（第二优先；里面的 `config/provider/mode-builtin.json`）                                                                              |
+| `MODE_AGENT_SERVER_COMMAND` / `MODE_AGENT_SERVER_ARGS_JSON` | **Host 自动设置**（显式值优先） | 打包形态的 agent 运行时：`<resource>/agent/glm/mode.cjs` 存在且未显式配置时，Host 用当前 Node（随包 `node/node.exe`）执行 `mode.cjs app-server --stdio` |
+| `MODE_BUILTIN_PROVIDER_CONFIG_FILE`（随包自动注入）         | **Host 自动设置**（显式值优先） | 随包 `config/provider/mode-builtin.json` 存在时一并注入，供 agent 进程解析内置 provider                                                                 |
 
 `HOME`/`USERPROFILE` 一栏在 fix round 1 更正：壳**不**显式设置它们（早期版本的表写错。
 隔离靠「测试自己在父进程环境里覆写这两条 + 壳把值透传给子进程」实现——子进程默认继承父环境）。
@@ -152,16 +154,25 @@ CLI 布局走 `HOME`），所以用例与本地跑一律**双覆写**。
 没有覆写时按候选顺序取第一个存在的（资源目录 `<resource>/host-sidecar/index.{mjs,ts}` →
 debug 构建下的仓库相对路径）。**不硬编码绝对路径**：仓库相对那档只在 debug 构建存在。
 
+打包形态的 **agent 运行时**：发运集额外带 `agent/glm/`（`mode.cjs` + 官方插件 + bundled-skills，
+由 `pnpm --filter @mode/desktop prepare:agent-bundle` 产出，与 Electron 包同一份），
+`bundle.resources` 映射为安装资源目录下的 `agent/`。Host 在创建服务面前调用
+`applyBundledAgentRuntime()`：若 `MODE_AGENT_SERVER_COMMAND` 未显式设置且
+`<resource>/agent/glm/mode.cjs` 存在，则写入当前 Node 与
+`["…/mode.cjs","app-server","--stdio"]`；随包 provider config 存在时同时写入
+`MODE_BUILTIN_PROVIDER_CONFIG_FILE`（两条都只在未显式设置时写）。缺失这条接线时安装包能启动但**发送任务必失败**
+（v0.0.57 本机验收实测：`Mode agent server command is not configured`）；显式环境变量始终优先。
+
 ## 3. 两个方向的三条命令与失败语义
 
 命令名（前两条与 Task 0 spike 的 `spike_host_send`/`spike_host_recv` **同一对语义**，去掉 `spike_` 前缀；
 harness bin 保留原名，两者是不同二进制，互不影响）：
 
-| 命令 | 方向 | 形态 |
-| --- | --- | --- |
-| `host_send` | 页面 → 壳 → Host | raw body（`InvokeBody::Raw`），整帧写进 Host stdin |
-| `host_recv` | Host → 壳 → 页面 | 长轮询，返回 `tauri::ipc::Response`（raw bytes；页面上是 **`ArrayBuffer`**） |
-| `host_startup_state` | 壳 → 页面 | 长轮询（`{ since }`），返回 `databaseStartupStateSchema` 形状的状态对象 |
+| 命令                 | 方向             | 形态                                                                         |
+| -------------------- | ---------------- | ---------------------------------------------------------------------------- |
+| `host_send`          | 页面 → 壳 → Host | raw body（`InvokeBody::Raw`），整帧写进 Host stdin                           |
+| `host_recv`          | Host → 壳 → 页面 | 长轮询，返回 `tauri::ipc::Response`（raw bytes；页面上是 **`ArrayBuffer`**） |
+| `host_startup_state` | 壳 → 页面        | 长轮询（`{ since }`），返回 `databaseStartupStateSchema` 形状的状态对象      |
 
 **`host_startup_state` 是新增机制，不是改名**（复评 M12 纠正）：Task 0 的 spike 把
 `phase: "ready"` **硬编码在注入桥里**，没有状态通道；DR-T1-3 要求壳能主动推 `failed`，
@@ -180,12 +191,12 @@ harness bin 保留原名，两者是不同二进制，互不影响）：
 **失败语义**（DR-T1-3）：sidecar 的失败必须由壳**主动推** `phase: "failed"` + `errorCode`——
 状态一旦开始投递，渲染层就再没有自己的超时（§0）。映射（`StartupErrorCode`）：
 
-| 现场 | `errorCode` | 触发点 |
-| --- | --- | --- |
-| 拉不起进程（node/入口缺失、不可执行） | `open_failed` | `HostHandle::spawn` 返回 `Err` → 壳构造「已失败」句柄 |
-| 就绪前退出 / 传输断开（含**就绪后崩**） | `transport_closed` | reader 读 EOF / reaper 收到退出 |
-| 就绪期限内没有第一帧 | `startup_status_timeout` | 看门狗（默认 20s；渲染层那个计时器是 30s 且收到状态即拆除） |
-| 配置非法（既无入口、也无 node 参数、或数据基目录为空） | `unsupported_runtime` | `HostHandle::spawn` 的配置校验 |
+| 现场                                                                    | `errorCode`                                                                                                                                    | 触发点                                                                                 |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 拉不起进程（node/入口缺失、不可执行）                                   | `open_failed`                                                                                                                                  | `HostHandle::spawn` 返回 `Err` → 壳构造「已失败」句柄                                  |
+| 就绪前退出 / 传输断开（含**就绪后崩**）                                 | `transport_closed`                                                                                                                             | reader 读 EOF / reaper 收到退出                                                        |
+| 就绪期限内没有第一帧                                                    | `startup_status_timeout`                                                                                                                       | 看门狗（默认 20s；渲染层那个计时器是 30s 且收到状态即拆除）                            |
+| 配置非法（既无入口、也无 node 参数、或数据基目录为空）                  | `unsupported_runtime`                                                                                                                          | `HostHandle::spawn` 的配置校验                                                         |
 | **Host 自己报的启动失败**（stderr 的 `startup_failed … errorCode=<x>`） | **Host 报的那个码**（`storage_full`/`permission_denied`/`io_error`/`out_of_memory`/`corrupt`/`lock_timeout`/`checksum_mismatch`/`sql_failed`） | 壳读 Host stderr 的那一行（`host_stderr.rs`），在发布 `failed` 之前等它读干（有界 2s） |
 
 `failedPhase` **不再一律 `starting`**（Task 3 · DR-T3-3 ①）：Host 报阶段时就报它报的那一段
@@ -286,27 +297,27 @@ harness bin 保留原名，两者是不同二进制，互不影响）：
 
 ## 5. 覆盖分工（哪些自动化、哪些必须人工）
 
-| 层 | 覆盖方式 | 进 CI |
-| --- | --- | --- |
-| Host 的进程/监督/帧/启动状态 | `cargo test -p sidecar-host`（15 单测 + 9 集成；**真拉 Node 子进程**） | **是**（Windows 腿，release.yml） |
-| 跨语言帧边界（Rust 编码 ↔ Node 解码） | `the_shell_frame_path_reaches_the_host_and_gets_a_reply`：Rust 写一帧真请求、读回真应答 | **是**（同上） |
-| 端口往返（真实产品 Host） | `apps/desktop-tauri/test/portRoundTrip.test.mts`：真 Host + 真 `MessagePort` + 真 `ChannelClient`；含「未知命令显式报错」「订阅事件不杀 Host 且带走不了在途 RPC」「坏帧丢弃」「数据隔离（真写入 + 真实根未被碰）」 | **是**（verify job，release.yml） |
-| **原生依赖在 sidecar 里可用**（DR-T2-1） | `apps/desktop-tauri/test/nativeDeps.test.mts`：本进程 `node:sqlite` 真读写 + `node-pty` 原生 artifact；**再起生产 Host** 用 `MODE_HOST_NATIVE_DEP_PROBE=spawn` 在 sidecar 进程里**真起一个 pty** | **是**（verify job） |
-| **真服务面 / 守卫 / 真启动序列** | `apps/desktop-tauri/test/realServices.test.mts`（5 条）：真命令真返回、`listen` 守卫（Host 存活 + 在途 RPC + 零事件 + 可观察）、stdout 守卫（真服务日志不污染帧流）、数据根口径、启动序列（`ready` 只在频道全注册后发布） | **是**（verify job） |
-| **startup 映射（夹具驱动，四条路径）** | `packages/desktop/tests/startupMapping.test.mts`（8 条）+ `packages/desktop/tests/fixtures/startup-storage/*.json`（9 个夹具，覆盖 `starting` / 迁移中 / `ready` / `failed`）；另含**事实路径**（= 生产路径，含帧带不了的 `maintaining`）与**「入口不得自己写应用阶段」的源码扫描**（复评 I1） | **是**（verify job） |
-| **Host 启动失败的语义** | `packages/desktop/tests/startupFailure.test.mts`：错码必须落在渲染层 schema 的取值集里、失败时**零帧**、非零退出、不得越过失败点报 ready | **是**（verify job） |
-| **`window.mode` 的注入（顺序 + 切片 + 降级口径）** | `apps/desktop-tauri/test/windowModeInjection.test.mts`（5 条）：document-start 探针 + **敏感性对照**（晚注入变体必须读不到）+ 投递仍推迟到 `DOMContentLoaded` + M1 切片同名同参 + 必需成员的分类（被拒 Promise / 留痕空操作）与 `globals.d.ts` 声明形态**机械对拍** | **是**（verify job） |
-| **失败事实的解析**（DR-T3-3 ① 的壳侧） | `crates/sidecar-host/src/host_stderr.rs` 6 条单测（真机那一行的原文、非终态行、字段各自缺失、同名键取第一次、EOF 放行）+ `host_lifecycle.rs` 的端到端一条 | **是**（`cargo test -p sidecar-host`） |
-| **壳入口页的挑选** | `sidecar-host::pick_shell_entry` 单测（默认产品页；相对覆写生效；绝对路径/上跳一律退回） | **是**（同上） |
-| **真 renderer 产物的装配与「核心」体积** | `apps/desktop-tauri/scripts/build-renderer-for-tauri.ts`（装配 + 实测体积打印） | **否**（构建脚本，人工/发版流程跑；数字见 §13） |
-| **真产品 UI 挂载 + 业务帧双向往返** | `apps/desktop-tauri/test/productUiMount.test.mts`（**opt-in，默认 skip**，1 条） | **不能**（要真 webview） |
-| 纯端口路径回归（Task 0 的） | `test/portMessagePath.test.mts`、`test/hostChannelStdio.test.mts` | **是**（同上） |
-| 跨语言字面量（频道名/命令名/状态词汇） | `packages/desktop/tests/host-standalone.test.mts` | **是**（verify job） |
-| **打包形态产出得出来、且跑得起来** | `apps/desktop-tauri/scripts/build-host-sidecar.ts` 的自验档：esbuild 打包后用 `node` 直接起产物，走一次 `host.describe` RPC | **否**（构建脚本，人工/发版流程跑；体积数字见 §13） |
-| **真 webview 的注入/转移/ACL/时序 + 成功/失败两条路径** | `apps/desktop-tauri/test/webviewRoundTrip.test.mts`（**opt-in，默认 skip**，2 条） | **不能** |
-| `mode_tauri::host::{resolve_config, resolve_entry}`（壳侧的候选枚举、家目录、startupId 生成） | **无自动化覆盖**：要测它们就得把 `AppHandle`/具体 runtime 带进测试二进制（§6），只在 opt-in webview 跑里被走到 | 否（**登记在案的缺口**） |
-| `host_send`/`host_recv`/`host_startup_state` 的 Tauri 命令**包装层** | 命令体本身没有自动化（本仓不引入 `tauri::test` webview mock 运行时，M1 已定）；其**逻辑**（`send_frame`/`next_frame`/`wait_for_startup_change`/`to_state_json`）由 crate 用例覆盖 | 否（**登记在案的缺口**） |
-| 测试 harness 页面（`test/harness/**`）的**类型检查** | 不在任何 tsc 工程里（vite alias 解析到浏览器 shim 与真实渲染层源码，用 tsc 解析会把 node 侧 barrel 拉进 DOM 工程）；构建与运行由 vite/tsx 负责 | 否（**登记在案的缺口**） |
+| 层                                                                                            | 覆盖方式                                                                                                                                                                                                                                                                                       | 进 CI                                               |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Host 的进程/监督/帧/启动状态                                                                  | `cargo test -p sidecar-host`（15 单测 + 9 集成；**真拉 Node 子进程**）                                                                                                                                                                                                                         | **是**（Windows 腿，release.yml）                   |
+| 跨语言帧边界（Rust 编码 ↔ Node 解码）                                                         | `the_shell_frame_path_reaches_the_host_and_gets_a_reply`：Rust 写一帧真请求、读回真应答                                                                                                                                                                                                        | **是**（同上）                                      |
+| 端口往返（真实产品 Host）                                                                     | `apps/desktop-tauri/test/portRoundTrip.test.mts`：真 Host + 真 `MessagePort` + 真 `ChannelClient`；含「未知命令显式报错」「订阅事件不杀 Host 且带走不了在途 RPC」「坏帧丢弃」「数据隔离（真写入 + 真实根未被碰）」                                                                             | **是**（verify job，release.yml）                   |
+| **原生依赖在 sidecar 里可用**（DR-T2-1）                                                      | `apps/desktop-tauri/test/nativeDeps.test.mts`：本进程 `node:sqlite` 真读写 + `node-pty` 原生 artifact；**再起生产 Host** 用 `MODE_HOST_NATIVE_DEP_PROBE=spawn` 在 sidecar 进程里**真起一个 pty**                                                                                               | **是**（verify job）                                |
+| **真服务面 / 守卫 / 真启动序列**                                                              | `apps/desktop-tauri/test/realServices.test.mts`（5 条）：真命令真返回、`listen` 守卫（Host 存活 + 在途 RPC + 零事件 + 可观察）、stdout 守卫（真服务日志不污染帧流）、数据根口径、启动序列（`ready` 只在频道全注册后发布）                                                                      | **是**（verify job）                                |
+| **startup 映射（夹具驱动，四条路径）**                                                        | `packages/desktop/tests/startupMapping.test.mts`（8 条）+ `packages/desktop/tests/fixtures/startup-storage/*.json`（9 个夹具，覆盖 `starting` / 迁移中 / `ready` / `failed`）；另含**事实路径**（= 生产路径，含帧带不了的 `maintaining`）与**「入口不得自己写应用阶段」的源码扫描**（复评 I1） | **是**（verify job）                                |
+| **Host 启动失败的语义**                                                                       | `packages/desktop/tests/startupFailure.test.mts`：错码必须落在渲染层 schema 的取值集里、失败时**零帧**、非零退出、不得越过失败点报 ready                                                                                                                                                       | **是**（verify job）                                |
+| **`window.mode` 的注入（顺序 + 切片 + 降级口径）**                                            | `apps/desktop-tauri/test/windowModeInjection.test.mts`（5 条）：document-start 探针 + **敏感性对照**（晚注入变体必须读不到）+ 投递仍推迟到 `DOMContentLoaded` + M1 切片同名同参 + 必需成员的分类（被拒 Promise / 留痕空操作）与 `globals.d.ts` 声明形态**机械对拍**                            | **是**（verify job）                                |
+| **失败事实的解析**（DR-T3-3 ① 的壳侧）                                                        | `crates/sidecar-host/src/host_stderr.rs` 6 条单测（真机那一行的原文、非终态行、字段各自缺失、同名键取第一次、EOF 放行）+ `host_lifecycle.rs` 的端到端一条                                                                                                                                      | **是**（`cargo test -p sidecar-host`）              |
+| **壳入口页的挑选**                                                                            | `sidecar-host::pick_shell_entry` 单测（默认产品页；相对覆写生效；绝对路径/上跳一律退回）                                                                                                                                                                                                       | **是**（同上）                                      |
+| **真 renderer 产物的装配与「核心」体积**                                                      | `apps/desktop-tauri/scripts/build-renderer-for-tauri.ts`（装配 + 实测体积打印）                                                                                                                                                                                                                | **否**（构建脚本，人工/发版流程跑；数字见 §13）     |
+| **真产品 UI 挂载 + 业务帧双向往返**                                                           | `apps/desktop-tauri/test/productUiMount.test.mts`（**opt-in，默认 skip**，1 条）                                                                                                                                                                                                               | **不能**（要真 webview）                            |
+| 纯端口路径回归（Task 0 的）                                                                   | `test/portMessagePath.test.mts`、`test/hostChannelStdio.test.mts`                                                                                                                                                                                                                              | **是**（同上）                                      |
+| 跨语言字面量（频道名/命令名/状态词汇）                                                        | `packages/desktop/tests/host-standalone.test.mts`                                                                                                                                                                                                                                              | **是**（verify job）                                |
+| **打包形态产出得出来、且跑得起来**                                                            | `apps/desktop-tauri/scripts/build-host-sidecar.ts` 的自验档：esbuild 打包后用 `node` 直接起产物，走一次 `host.describe` RPC                                                                                                                                                                    | **否**（构建脚本，人工/发版流程跑；体积数字见 §13） |
+| **真 webview 的注入/转移/ACL/时序 + 成功/失败两条路径**                                       | `apps/desktop-tauri/test/webviewRoundTrip.test.mts`（**opt-in，默认 skip**，2 条）                                                                                                                                                                                                             | **不能**                                            |
+| `mode_tauri::host::{resolve_config, resolve_entry}`（壳侧的候选枚举、家目录、startupId 生成） | **无自动化覆盖**：要测它们就得把 `AppHandle`/具体 runtime 带进测试二进制（§6），只在 opt-in webview 跑里被走到                                                                                                                                                                                 | 否（**登记在案的缺口**）                            |
+| `host_send`/`host_recv`/`host_startup_state` 的 Tauri 命令**包装层**                          | 命令体本身没有自动化（本仓不引入 `tauri::test` webview mock 运行时，M1 已定）；其**逻辑**（`send_frame`/`next_frame`/`wait_for_startup_change`/`to_state_json`）由 crate 用例覆盖                                                                                                              | 否（**登记在案的缺口**）                            |
+| 测试 harness 页面（`test/harness/**`）的**类型检查**                                          | 不在任何 tsc 工程里（vite alias 解析到浏览器 shim 与真实渲染层源码，用 tsc 解析会把 node 侧 barrel 拉进 DOM 工程）；构建与运行由 vite/tsx 负责                                                                                                                                                 | 否（**登记在案的缺口**）                            |
 
 **崩溃重启策略：Task 2 仍然刻意不做，理由与代价写在 §14（DR-T2-4 的处置）**。
 
@@ -573,6 +584,7 @@ Host 通道（M3 Task 1）
 
 即「被强杀也不留孤儿」由 Host 自己的 stdin EOF 保护兜住（第二道保险）；隔离目录
 `D:/tmp/mode-local-run2/` 下只有一个空的 `home`——**基目录与 `.mode` 都没被创建**（Task 1 不写盘）。
+
 > 注：上面 §10.1–§10.3 是 **Task 1**（stub 时代）的证据，保留是因为它们是 C1/I2 的失败现场；
 > 其中「stub」相关的形态在 Task 2 已被真服务面取代（§10.7 起是 Task 2 的证据）。
 > §10.3 那句「基目录与 `.mode` 都没被创建」只在 Task 1 成立，Task 2 起 Host 会写盘（§4）。
@@ -732,10 +744,10 @@ ready                     ← 全部频道注册进 ChannelServer 之后（defer
 
 两个词汇表看起来像，其实不是一回事：
 
-| 来源 | phase 取值 | 说的是 |
-| --- | --- | --- |
-| 运行时 `startup/storageState` 帧 | `checking` / `waiting_for_lock` / `migrating` / `committing` / `ready` / `failed` | **一个数据库**此刻在干什么 |
-| 渲染层 `DatabaseStartupState` | `starting` / `preparing_host_storage` / `preparing_session_storage` / `starting_services` / `ready` / `failed` | **整个应用启动**走到哪一步 |
+| 来源                             | phase 取值                                                                                                     | 说的是                     |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| 运行时 `startup/storageState` 帧 | `checking` / `waiting_for_lock` / `migrating` / `committing` / `ready` / `failed`                              | **一个数据库**此刻在干什么 |
+| 渲染层 `DatabaseStartupState`    | `starting` / `preparing_host_storage` / `preparing_session_storage` / `starting_services` / `ready` / `failed` | **整个应用启动**走到哪一步 |
 
 映射规则（`packages/desktop/src/host-standalone/startupMapping.ts` 的 `StartupStateMachine`）：
 
@@ -771,11 +783,11 @@ ready                     ← 全部频道注册进 ChannelServer 之后（defer
 
 `packages/desktop/src/host-standalone/nativeDeps.ts`（**生产代码里的探针**，不只是测试）：
 
-| 资产 | 默认档（产品启动跑） | 深探测档（`MODE_HOST_NATIVE_DEP_PROBE=spawn`，测试用） |
-| --- | --- | --- |
-| `node:sqlite` | **真读写**：`:memory:` 建表 → 插入 41 → 查回 → 读 `sqlite_version()`（「import 没抛错」证明不了语句执行链路可用） | 同左 |
-| `node-pty` | 模块加载 + API 面（`spawn`/`fork`/`createTerminal`）+ **原生 artifact 存在性**（`build/Release` → `build/Debug` → `prebuilds/<platform>-<arch>`，与 node-pty 自己的搜索顺序一致） | 再**真起一个 pty** 跑 `cmd /c echo pty-ok`，断言退出码与输出 |
-| CUA 资产（经 `MODE_CUA_BUNDLED_HELPER_APP_PATH` 注入） | 未注入 = **不是失败**（opt-in 特性缺省关闭）；注入了不存在的路径 = **失败**（否则「配置写错」会被读成「CUA 正常但没启用」） | 同左 |
+| 资产                                                   | 默认档（产品启动跑）                                                                                                                                                              | 深探测档（`MODE_HOST_NATIVE_DEP_PROBE=spawn`，测试用）       |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `node:sqlite`                                          | **真读写**：`:memory:` 建表 → 插入 41 → 查回 → 读 `sqlite_version()`（「import 没抛错」证明不了语句执行链路可用）                                                                 | 同左                                                         |
+| `node-pty`                                             | 模块加载 + API 面（`spawn`/`fork`/`createTerminal`）+ **原生 artifact 存在性**（`build/Release` → `build/Debug` → `prebuilds/<platform>-<arch>`，与 node-pty 自己的搜索顺序一致） | 再**真起一个 pty** 跑 `cmd /c echo pty-ok`，断言退出码与输出 |
+| CUA 资产（经 `MODE_CUA_BUNDLED_HELPER_APP_PATH` 注入） | 未注入 = **不是失败**（opt-in 特性缺省关闭）；注入了不存在的路径 = **失败**（否则「配置写错」会被读成「CUA 正常但没启用」）                                                       | 同左                                                         |
 
 **为什么探针在生产代码里**：DR-M3-1 选 Node sidecar 的唯一理由是复用存量 `packages/services`，
 那层依赖 ABI 敏感的原生资产；「原生依赖到底好不好」若是只有测试知道的事实，产品每次启动时
@@ -899,11 +911,11 @@ dist/dev/assets/index-CBCUVagc.js   278.32 kB │ gzip: 74.41 kB │ map: 1,530.
 `vite build --mode production`——实测 15–17s。带 `--no-bench` 的那一档就是**发布路径**，
 与 `tauri.conf.json` 的 `beforeBuildCommand` 同一条命令。）
 
-| 项 | 字节 | 说明 |
-| --- | --- | --- |
-| 产品 UI 资产（不含 `*.map`） | **49.54 MiB** | renderer 生产构建产物，4328 个文件（`index.html` + `assets/**` + `material-icons/**` + `pdfjs/**`） |
-| Host bundle | **4.87 MiB** | Task 2 的产物（§13 上表） |
-| **「核心」合计（不含壳 exe）** | **54.41 MiB** | 对照 Ruling 26 的 (a) ≤30MB |
+| 项                             | 字节          | 说明                                                                                                |
+| ------------------------------ | ------------- | --------------------------------------------------------------------------------------------------- |
+| 产品 UI 资产（不含 `*.map`）   | **49.54 MiB** | renderer 生产构建产物，4328 个文件（`index.html` + `assets/**` + `material-icons/**` + `pdfjs/**`） |
+| Host bundle                    | **4.87 MiB**  | Task 2 的产物（§13 上表）                                                                           |
+| **「核心」合计（不含壳 exe）** | **54.41 MiB** | 对照 Ruling 26 的 (a) ≤30MB                                                                         |
 
 **这是一条实测出来的越界，必须读清它是什么、不是什么**：
 
@@ -922,12 +934,12 @@ dist/dev/assets/index-CBCUVagc.js   278.32 kB │ gzip: 74.41 kB │ map: 1,530.
 
 **54.41 MiB 量的是哪一面（复评裁定：不改门禁编号，但必须说清这个数字量在哪张脸上）**：
 
-| 维度 | 本任务的口径 |
-| --- | --- |
-| **哪张脸** | **磁盘上未压缩的文件字节之和**：`dist/`（= 产品 UI 资产，`*.map` 已排除）+ Host bundle 的 `node <bundle>` 单文件产物。**不是**安装包、不是压缩后、**也不含壳 exe** |
-| **含 / 不含** | 含：`index.html` + `assets/**` + `material-icons/**` + `pdfjs/**` + Host bundle。不含：壳 exe（`mode-tauri.exe`）、随包 Node 运行时、`node_modules` externals 闭包（那是 Ruling 26 的 (b) 份，见§13 上表） |
-| **和 (a) 的关系** | Ruling 26 的 (a)「核心 ≤30MB」按上面的口径量；本任务**不改它的编号与数值**，只把基准从「验收台时代」换成「真产品 UI 时代」 |
-| **Task 5 欠的两次测量** | ① **release exe 实测体积**（`tauri build` 产物，`frontendDist` 已内嵌 + `windows_subsystem = "windows"`）；② **冷启动耗时**。这两条只写在§13.1 与§20 里，本任务不代它量 |
+| 维度                    | 本任务的口径                                                                                                                                                                                               |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **哪张脸**              | **磁盘上未压缩的文件字节之和**：`dist/`（= 产品 UI 资产，`*.map` 已排除）+ Host bundle 的 `node <bundle>` 单文件产物。**不是**安装包、不是压缩后、**也不含壳 exe**                                         |
+| **含 / 不含**           | 含：`index.html` + `assets/**` + `material-icons/**` + `pdfjs/**` + Host bundle。不含：壳 exe（`mode-tauri.exe`）、随包 Node 运行时、`node_modules` externals 闭包（那是 Ruling 26 的 (b) 份，见§13 上表） |
+| **和 (a) 的关系**       | Ruling 26 的 (a)「核心 ≤30MB」按上面的口径量；本任务**不改它的编号与数值**，只把基准从「验收台时代」换成「真产品 UI 时代」                                                                                 |
+| **Task 5 欠的两次测量** | ① **release exe 实测体积**（`tauri build` 产物，`frontendDist` 已内嵌 + `windows_subsystem = "windows"`）；② **冷启动耗时**。这两条只写在§13.1 与§20 里，本任务不代它量                                    |
 
 **〔Task 5 追加·原地标注〕这两条都已实测**：① 换算到门禁脸是 core 档安装包 **23.29 MiB**（§13.4）；
 ② 冷启动 `T_ready` 中位数 **825 ms**、`T_surface` 中位数 **962 ms**（release，N=7，§13.5）。
@@ -1001,21 +1013,21 @@ MiB = 字节 / 1024²。落到具体路径是 `target/release/bundle/nsis/Mode_<
 **为什么 (a)/(b) 各自都能落在安装包字节面上**：NSIS 把全部载荷压成**一个** LZMA 流，
 从单一安装包里按文件读不回两半。所以做法是**出三个安装包**，用差值得到 (b)：
 
-| 记号 | 包里的资源 | 用途 |
-| --- | --- | --- |
-| `C_core` | `host-sidecar/index.mjs`（Host bundle）+ `config/provider/mode-builtin.json`；**不含** Node 运行时、**不含** externals 的 `node_modules` | 预算 **(a)** 的实测值 |
-| `C_pruned` | 上者 **+** 随包 Node **+** **剪枝后**的 externals `node_modules` | 预算总量 |
-| `C_unpruned` | 上者 **+** 随包 Node **+** **未剪枝**的 externals `node_modules` | 剪枝的**压缩**收益 |
+| 记号         | 包里的资源                                                                                                                               | 用途                  |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `C_core`     | `host-sidecar/index.mjs`（Host bundle）+ `config/provider/mode-builtin.json`；**不含** Node 运行时、**不含** externals 的 `node_modules` | 预算 **(a)** 的实测值 |
+| `C_pruned`   | 上者 **+** 随包 Node **+** **剪枝后**的 externals `node_modules`                                                                         | 预算总量              |
+| `C_unpruned` | 上者 **+** 随包 Node **+** **未剪枝**的 externals `node_modules`                                                                         | 剪枝的**压缩**收益    |
 
 三者的 `frontendDist`（产品 UI 资产）与壳 exe 完全相同，**唯一的变量就是资源目录的内容**。
 
-| 数字 | 定义 | 它测在哪张脸上 |
-| --- | --- | --- |
-| **(a) 核心预算** | `bytes(C_core)` | **安装包字节**（门禁脸） |
-| **(b) 运行时 + 服务面预算** | `bytes(C_pruned) − bytes(C_core)`（**增量**，算术结果） | **安装包字节**（门禁脸） |
-| 总包 | `bytes(C_pruned)` | **安装包字节** |
-| 剪枝：**原始**收益 | 未剪枝闭包字节 − 剪枝后闭包字节 | **诊断，不是门禁口径**（未压缩文件字节和） |
-| 剪枝：**压缩**收益 | `bytes(C_unpruned) − bytes(C_pruned)` | **安装包字节**（门禁脸） |
+| 数字                        | 定义                                                    | 它测在哪张脸上                             |
+| --------------------------- | ------------------------------------------------------- | ------------------------------------------ |
+| **(a) 核心预算**            | `bytes(C_core)`                                         | **安装包字节**（门禁脸）                   |
+| **(b) 运行时 + 服务面预算** | `bytes(C_pruned) − bytes(C_core)`（**增量**，算术结果） | **安装包字节**（门禁脸）                   |
+| 总包                        | `bytes(C_pruned)`                                       | **安装包字节**                             |
+| 剪枝：**原始**收益          | 未剪枝闭包字节 − 剪枝后闭包字节                         | **诊断，不是门禁口径**（未压缩文件字节和） |
+| 剪枝：**压缩**收益          | `bytes(C_unpruned) − bytes(C_pruned)`                   | **安装包字节**（门禁脸）                   |
 
 **说清 (b) 那个「增量」到底是什么**：LZMA 压的是**整包**，所以 `C_pruned − C_core` **不**等于
 「Node 运行时与 externals 各自单独压缩后的字节和」，而是「把这两样加进同一个包以后，
@@ -1035,10 +1047,10 @@ MiB = 字节 / 1024²。落到具体路径是 `target/release/bundle/nsis/Mode_<
 
 **两个段（都从同一时刻起算）**：
 
-| 记号 | 起 | 止（外部可观察点） |
-| --- | --- | --- |
-| `T_ready` | 测试进程调用 `spawn` 之前记下的时刻（≈ `CreateProcess`） | 壳的 stderr 上出现 **Host 转来的** `[mode-host-sidecar] ready startupId=… dataBaseDir=… dataRoot=… channels=…`（`packages/desktop/src/host-standalone/index.ts` 在 `server.ready()` **之后**打它） |
-| `T_surface` | 同上 | 壳的 stderr 上出现 `[mode-tauri] platform_surface implemented=… rejecting=… noop=… absent=… degraded=… reasons=…`（`host_platform_report`，由页面注入层在 `DOMContentLoaded` 上报） |
+| 记号        | 起                                                       | 止（外部可观察点）                                                                                                                                                                                 |
+| ----------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `T_ready`   | 测试进程调用 `spawn` 之前记下的时刻（≈ `CreateProcess`） | 壳的 stderr 上出现 **Host 转来的** `[mode-host-sidecar] ready startupId=… dataBaseDir=… dataRoot=… channels=…`（`packages/desktop/src/host-standalone/index.ts` 在 `server.ready()` **之后**打它） |
+| `T_surface` | 同上                                                     | 壳的 stderr 上出现 `[mode-tauri] platform_surface implemented=… rejecting=… noop=… absent=… degraded=… reasons=…`（`host_platform_report`，由页面注入层在 `DOMContentLoaded` 上报）                |
 
 `T_ready` 涵盖的正是 DR-M3-1 那笔代价：**壳进程启动 + 随包 Node 运行时启动 + Host 装载
 services + 存储准备 + `server.ready()`**。
@@ -1094,13 +1106,13 @@ $ node --import tsx apps/desktop-tauri/scripts/measure-installer-budgets.ts
 [budgets] **剪枝的压缩收益 = unpruned − pruned = 2932553 B (2.80 MiB)**（门禁脸）
 ```
 
-| 数字 | 实测值 | 它测在哪张脸上 |
-| --- | --- | --- |
-| **(a) 核心预算** | **24,416,114 B（23.29 MiB）** | **NSIS 安装包字节**（门禁脸） |
-| 总包（产品档） | **54,004,423 B（51.50 MiB）** | **NSIS 安装包字节** |
-| **(b) 运行时 + 服务面**（增量） | **29,588,309 B（28.22 MiB）** | **NSIS 安装包字节**（差值） |
-| 剪枝的**压缩**收益 | **2,932,553 B（2.80 MiB）** | **NSIS 安装包字节**（差值） |
-| 剪枝的**原始**收益 | **31,889,844 B（30.41 MiB）** | **诊断，不是门禁口径**（未压缩文件字节和） |
+| 数字                            | 实测值                        | 它测在哪张脸上                             |
+| ------------------------------- | ----------------------------- | ------------------------------------------ |
+| **(a) 核心预算**                | **24,416,114 B（23.29 MiB）** | **NSIS 安装包字节**（门禁脸）              |
+| 总包（产品档）                  | **54,004,423 B（51.50 MiB）** | **NSIS 安装包字节**                        |
+| **(b) 运行时 + 服务面**（增量） | **29,588,309 B（28.22 MiB）** | **NSIS 安装包字节**（差值）                |
+| 剪枝的**压缩**收益              | **2,932,553 B（2.80 MiB）**   | **NSIS 安装包字节**（差值）                |
+| 剪枝的**原始**收益              | **31,889,844 B（30.41 MiB）** | **诊断，不是门禁口径**（未压缩文件字节和） |
 
 **这份数字推翻了当初放宽 (a) 的理由，必须写清楚（DR-T5-3：数字与建议归本任务，改门禁归人）**：
 
@@ -1129,10 +1141,10 @@ $ node --import tsx apps/desktop-tauri/scripts/measure-installer-budgets.ts
 
 **DR-T5-2 的原始/压缩对照表**（同一个剪枝动作的两种读法）：
 
-| 读法 | 收益 | 倍数 |
-| --- | --- | --- |
-| **原始**（`prebuilds/win32-arm64` + `prebuilds/darwin-*` 28.17 MiB，加 `@types/node` 2.24 MiB） | **30,418,844 B（30.41 MiB）** | — |
-| **压缩后**（安装包字节：`unpruned − pruned`） | **2,932,553 B（2.80 MiB）** | 原始 / 压缩 ≈ **10.9 : 1** |
+| 读法                                                                                            | 收益                          | 倍数                       |
+| ----------------------------------------------------------------------------------------------- | ----------------------------- | -------------------------- |
+| **原始**（`prebuilds/win32-arm64` + `prebuilds/darwin-*` 28.17 MiB，加 `@types/node` 2.24 MiB） | **30,418,844 B（30.41 MiB）** | —                          |
+| **压缩后**（安装包字节：`unpruned − pruned`）                                                   | **2,932,553 B（2.80 MiB）**   | 原始 / 压缩 ≈ **10.9 : 1** |
 
 **这条推翻了 Task 2 给出的 4.3 : 1 估算，是方向相同的**：`.node` 的压缩比**比估的还好**，
 所以「裁掉 28 MiB 在门禁上只值几 MiB」这个结论**成立且更强**——它只值 **2.80 MiB**，
@@ -1208,10 +1220,10 @@ $ node --import tsx apps/desktop-tauri/scripts/measure-cold-start.ts --debug tar
 [cold-start] 去掉第 1 个之后的 T_surface 中位数 1358 ms，最小 1350 ms，最大 1369 ms（n=6）
 ```
 
-| 档 | `T_ready` 中位数（范围） | `T_surface` 中位数（范围） | 第 1 个样本（冷文件缓存） |
-| --- | --- | --- | --- |
-| **release（结论）** | **825 ms**（786–1111） | **962 ms**（945–1212） | 1111 / 1212 ms |
-| debug（对照） | 1030 ms（1002–1052） | 1359 ms（1350–1369） | 1030 / 1366 ms |
+| 档                  | `T_ready` 中位数（范围） | `T_surface` 中位数（范围） | 第 1 个样本（冷文件缓存） |
+| ------------------- | ------------------------ | -------------------------- | ------------------------- |
+| **release（结论）** | **825 ms**（786–1111）   | **962 ms**（945–1212）     | 1111 / 1212 ms            |
+| debug（对照）       | 1030 ms（1002–1052）     | 1359 ms（1350–1369）       | 1030 / 1366 ms            |
 
 **读法（不许读大）**：
 
@@ -1355,16 +1367,16 @@ Task 1 登记的理由是「Host 没有真存储，重启没有可恢复的状�
 
 ### 15.1 阶段验收的逐条映射（复评 I3 要求：不许把「半交付」读成「已达成」）
 
-| 阶段验收条目 | Task 2 的状态 |
-| --- | --- |
-| 1. 真实 `IServiceAccessor` 装配完成，UI 挂载后**至少一个真实业务面可用** | **达成**（40 个真频道；`system.info`/`setting.get` 返回真值、未知命令报 `Method not found`：§10.7；真机 RPC 走通：§10.5） |
-| 2. 闸门由**真实** startup 状态驱动；**失败时渲染层收到 `failed` + `errorCode`** | **半交付**：①「闸门由真启动驱动」**达成**（`deferInit` 使第一帧 = 服务面齐备，§1/§10.5）；②「失败**到达**渲染层」**达成**（§10.6 真机 `failed` + `transport_closed`）；③「失败**原因精确到阶段**」**未达成，且是 Task 3/4 的义务不是本任务的成果**——Host 的分段阶段没有离开进程，壳只能判断「就绪前退出」，所以渲染层看到的是粗粒度 `transport_closed`。**不要**把这一条读成已完成（§1 末段、§8.6、§10.6 的差额）。**〔Task 3 追加·原地标注，不改写当时的措辞〕③ 已做掉**：`failedPhase` 不再恒定 `starting`，壳把 Host 的结构化行 `[mode-host-sidecar] startup_failed phase=… failedPhase=… errorCode=…` 解析后写进状态，渲染层拿到阶段精确的失败（§3 的表、§10.8 的原始输出、§18 ① 的处置） |
-| 3. 原生依赖在 sidecar 里实测可用 + 自动化用例 | **达成**（§10.4/§12） |
-| 4. 没有任何服务因 `listen` 抛错杀死 Host（有断言） | **达成**（§3.1；两层守卫 + 4 个断言 + **合法订阅不被吞**的新断言，见 §15.2） |
-| 5. 数据隔离：测试与本地跑不碰真实 `~/.mode`，且无「忘设就指向真实根」的路径 | **达成**（§4：真写入落隔离根 + 真实根的具体路径未被创建；空 base 拒绝在 crate 用例里） |
-| 6. sidecar 打包形态落地且**体积实测** | **达成**（§13；闭包口径已按复评 I2 改为真实闭包，并给出下界列） |
-| 7. 渲染层未修改；`clippy -D warnings` 零告警、`pnpm verify:pre-push` 通过、新用例落在 CI 入口 | **达成**（§2.4） |
-| 8. 重启策略按 DR-T2-4 落地或明确登记 | **达成**（§14，含措辞订正 M7） |
+| 阶段验收条目                                                                                  | Task 2 的状态                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. 真实 `IServiceAccessor` 装配完成，UI 挂载后**至少一个真实业务面可用**                      | **达成**（40 个真频道；`system.info`/`setting.get` 返回真值、未知命令报 `Method not found`：§10.7；真机 RPC 走通：§10.5）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 2. 闸门由**真实** startup 状态驱动；**失败时渲染层收到 `failed` + `errorCode`**               | **半交付**：①「闸门由真启动驱动」**达成**（`deferInit` 使第一帧 = 服务面齐备，§1/§10.5）；②「失败**到达**渲染层」**达成**（§10.6 真机 `failed` + `transport_closed`）；③「失败**原因精确到阶段**」**未达成，且是 Task 3/4 的义务不是本任务的成果**——Host 的分段阶段没有离开进程，壳只能判断「就绪前退出」，所以渲染层看到的是粗粒度 `transport_closed`。**不要**把这一条读成已完成（§1 末段、§8.6、§10.6 的差额）。**〔Task 3 追加·原地标注，不改写当时的措辞〕③ 已做掉**：`failedPhase` 不再恒定 `starting`，壳把 Host 的结构化行 `[mode-host-sidecar] startup_failed phase=… failedPhase=… errorCode=…` 解析后写进状态，渲染层拿到阶段精确的失败（§3 的表、§10.8 的原始输出、§18 ① 的处置） |
+| 3. 原生依赖在 sidecar 里实测可用 + 自动化用例                                                 | **达成**（§10.4/§12）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 4. 没有任何服务因 `listen` 抛错杀死 Host（有断言）                                            | **达成**（§3.1；两层守卫 + 4 个断言 + **合法订阅不被吞**的新断言，见 §15.2）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 5. 数据隔离：测试与本地跑不碰真实 `~/.mode`，且无「忘设就指向真实根」的路径                   | **达成**（§4：真写入落隔离根 + 真实根的具体路径未被创建；空 base 拒绝在 crate 用例里）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 6. sidecar 打包形态落地且**体积实测**                                                         | **达成**（§13；闭包口径已按复评 I2 改为真实闭包，并给出下界列）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 7. 渲染层未修改；`clippy -D warnings` 零告警、`pnpm verify:pre-push` 通过、新用例落在 CI 入口 | **达成**（§2.4）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 8. 重启策略按 DR-T2-4 落地或明确登记                                                          | **达成**（§14，含措辞订正 M7）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ### 15.2 复评 I1：翻译只有一份实现（本轮的**行为改动**）
 
@@ -1424,21 +1436,21 @@ Task 1 登记的理由是「Host 没有真存储，重启没有可恢复的状�
 
 这一轮的改动**全部**是「把声称变成断言」与「把失真改回原文」，逐条落点如下（便于复核时按行找）：
 
-| 复评条目 | 改了什么 | 落点 |
-| --- | --- | --- |
-| **I1**（5 个成员没进任何列表） | `createTempTextAttachment`/`loadMcpFromUserDirectory`/`migrateLegacyCommonMcp`/`saveMcpToUserDirectory` 进 `REJECTING_REQUIRED`，`renameLanPairedPeer` 进 `NO_OP_REQUIRED`；**并把守卫从「只看声明文件」扩到「渲染层真实的调用面」**（扫 `packages/desktop/src/renderer` + `packages/ui/src` 里所有不加守卫的 `window.mode.X` 调用，逐个要求被注入覆盖） | `crates/sidecar-host/src/window_mode.ts`、`apps/desktop-tauri/test/windowModeInjection.test.mts` 的「必须全部被注入覆盖」用例 |
-| **I2**（两处声称没有对应断言） | 图标入参用 `deepEqual` 与 M1 的 `normalizeApplicationIconRequest` 对拍；深链 kind↔方法改成**行为**断言（喂 kind，只有对应方法被回调） | 同上文件的两条用例（原先只在注释里声称） |
-| **I3**（账本在 release 里不可观察） | 新增 `host_platform_report` 命令 + 壳的 `platform_surface` stderr 行 + 注入层上限 5 次上报；§0 的「缺失可见」改成准确口径并登记残留 | §17.1、§10.12、`crates/sidecar-host/src/window_mode.ts`、`crates/sidecar-host/src/bridge.rs`、`apps/desktop-tauri/src-tauri/src/host.rs` |
-| **I4**（§5 的核对清单过时） | 失败路径判据改成 `failedPhase: "preparing_host_storage"`/`errorCode: "sql_failed"` 并注明照旧值会假红；产品 UI 两条判据细化；开发形态改成 `build:frontend-with-bench` + `MODE_TAURI_SHELL_ENTRY=dev/index.html` | §5 |
-| **I5**（`build:frontend` 产出假的 `dist/`） | CI 那一步改成 `build:frontend-for-tauri`（与 `beforeBuildCommand` 同一条），步骤名与注释一并改 | `.github/workflows/release.yml` |
-| **Minor 6**（交叉引用） | §17 → §10.10 的两处 | §0 的两条 |
-| **Minor 7**（§15 要就地标注） | §15.1 第 2 行与 §15.3 的 M2 **原地加注**「〔Task 3 追加〕」并写明现在的状态，不改写当时的措辞 | §15.1/§15.3 |
-| **Minor 8**（lint 告警与抑制） | `unicorn/no-thenable` 的抑制注释挪到**紧贴代码**的那一行（原先中间夹了一行注释所以没生效）；`window_mode.ts` 不再出现在告警里 | `crates/sidecar-host/src/window_mode.ts` |
-| **Minor 9**（重建口径的注释） | 用例头注释不再拿「非惰性条件表达式」当依据，改成指向黑盒负向对照并注明那次读是违规 | `apps/desktop-tauri/test/windowModeInjection.test.mts` |
-| **Minor 10**（证据保真） | §13.1 的命令输出按真机逐字回填（转义吃掉的那截、BEL 控制符）；补上量验收台那次运行的命令与输出（1.73 MiB 的出处）；把「数字的口径」段落从项目符号列表中间挪出来 | §13.1 |
-| **Minor 11**（门住的 bin 没有 lint） | 就地写明单独跑 clippy 的命令；**这一轮真跑了它**，修掉两处 `let_unit_value`；结构性缺口登记为 Task 5 输入 | `apps/desktop-tauri/src-tauri/Cargo.toml`、§20 第 4 条 |
-| **Minor 12**（`probe.ts` 的细节） | 报告字段名与注释同步（`eagerPlatformCreated` → `platformCreated`，并补 `expect`/`windowErrors`） | `apps/desktop-tauri/test/harness/product-ui/probe.ts` |
-| **clean-room** | (a) §19.1 **如实登记为违规**（读了哪几行、为什么、用在哪、为什么仍是违规）+ §19.2 说明它已被黑盒负向对照取代 + §19.3 未读清单；§16 ② 的读法边界同步改写。 (b) 负向对照落地为可复用用例 | §19、§16、§10.11、`apps/desktop-tauri/test/productUiMount.test.mts` |
+| 复评条目                                    | 改了什么                                                                                                                                                                                                                                                                                                                                                 | 落点                                                                                                                                     |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **I1**（5 个成员没进任何列表）              | `createTempTextAttachment`/`loadMcpFromUserDirectory`/`migrateLegacyCommonMcp`/`saveMcpToUserDirectory` 进 `REJECTING_REQUIRED`，`renameLanPairedPeer` 进 `NO_OP_REQUIRED`；**并把守卫从「只看声明文件」扩到「渲染层真实的调用面」**（扫 `packages/desktop/src/renderer` + `packages/ui/src` 里所有不加守卫的 `window.mode.X` 调用，逐个要求被注入覆盖） | `crates/sidecar-host/src/window_mode.ts`、`apps/desktop-tauri/test/windowModeInjection.test.mts` 的「必须全部被注入覆盖」用例            |
+| **I2**（两处声称没有对应断言）              | 图标入参用 `deepEqual` 与 M1 的 `normalizeApplicationIconRequest` 对拍；深链 kind↔方法改成**行为**断言（喂 kind，只有对应方法被回调）                                                                                                                                                                                                                    | 同上文件的两条用例（原先只在注释里声称）                                                                                                 |
+| **I3**（账本在 release 里不可观察）         | 新增 `host_platform_report` 命令 + 壳的 `platform_surface` stderr 行 + 注入层上限 5 次上报；§0 的「缺失可见」改成准确口径并登记残留                                                                                                                                                                                                                      | §17.1、§10.12、`crates/sidecar-host/src/window_mode.ts`、`crates/sidecar-host/src/bridge.rs`、`apps/desktop-tauri/src-tauri/src/host.rs` |
+| **I4**（§5 的核对清单过时）                 | 失败路径判据改成 `failedPhase: "preparing_host_storage"`/`errorCode: "sql_failed"` 并注明照旧值会假红；产品 UI 两条判据细化；开发形态改成 `build:frontend-with-bench` + `MODE_TAURI_SHELL_ENTRY=dev/index.html`                                                                                                                                          | §5                                                                                                                                       |
+| **I5**（`build:frontend` 产出假的 `dist/`） | CI 那一步改成 `build:frontend-for-tauri`（与 `beforeBuildCommand` 同一条），步骤名与注释一并改                                                                                                                                                                                                                                                           | `.github/workflows/release.yml`                                                                                                          |
+| **Minor 6**（交叉引用）                     | §17 → §10.10 的两处                                                                                                                                                                                                                                                                                                                                      | §0 的两条                                                                                                                                |
+| **Minor 7**（§15 要就地标注）               | §15.1 第 2 行与 §15.3 的 M2 **原地加注**「〔Task 3 追加〕」并写明现在的状态，不改写当时的措辞                                                                                                                                                                                                                                                            | §15.1/§15.3                                                                                                                              |
+| **Minor 8**（lint 告警与抑制）              | `unicorn/no-thenable` 的抑制注释挪到**紧贴代码**的那一行（原先中间夹了一行注释所以没生效）；`window_mode.ts` 不再出现在告警里                                                                                                                                                                                                                            | `crates/sidecar-host/src/window_mode.ts`                                                                                                 |
+| **Minor 9**（重建口径的注释）               | 用例头注释不再拿「非惰性条件表达式」当依据，改成指向黑盒负向对照并注明那次读是违规                                                                                                                                                                                                                                                                       | `apps/desktop-tauri/test/windowModeInjection.test.mts`                                                                                   |
+| **Minor 10**（证据保真）                    | §13.1 的命令输出按真机逐字回填（转义吃掉的那截、BEL 控制符）；补上量验收台那次运行的命令与输出（1.73 MiB 的出处）；把「数字的口径」段落从项目符号列表中间挪出来                                                                                                                                                                                          | §13.1                                                                                                                                    |
+| **Minor 11**（门住的 bin 没有 lint）        | 就地写明单独跑 clippy 的命令；**这一轮真跑了它**，修掉两处 `let_unit_value`；结构性缺口登记为 Task 5 输入                                                                                                                                                                                                                                                | `apps/desktop-tauri/src-tauri/Cargo.toml`、§20 第 4 条                                                                                   |
+| **Minor 12**（`probe.ts` 的细节）           | 报告字段名与注释同步（`eagerPlatformCreated` → `platformCreated`，并补 `expect`/`windowErrors`）                                                                                                                                                                                                                                                         | `apps/desktop-tauri/test/harness/product-ui/probe.ts`                                                                                    |
+| **clean-room**                              | (a) §19.1 **如实登记为违规**（读了哪几行、为什么、用在哪、为什么仍是违规）+ §19.2 说明它已被黑盒负向对照取代 + §19.3 未读清单；§16 ② 的读法边界同步改写。 (b) 负向对照落地为可复用用例                                                                                                                                                                   | §19、§16、§10.11、`apps/desktop-tauri/test/productUiMount.test.mts`                                                                      |
 
 **三条 RED 证据**（复评要求「I1/I2 的新检查在缺口被重新引入时要红」；三条都是真的把缺口改回去再跑的）：
 
@@ -1550,7 +1562,7 @@ PRODUCT_UI_REPORT {"status":"ok","modeAtDocumentStart":"object","modeKeyCountAtD
 第一轮（只给「必选未实现」配同步抛错的桩）真机跑出来的界面是**错误屏**：
 
 ```text
-"uiText":"应用界面出了点问题 刚才的页面错误已经被拦住了，所以不会直接白屏。… 
+"uiText":"应用界面出了点问题 刚才的页面错误已经被拦住了，所以不会直接白屏。…
  not_implemented_until_m3: onRemoteConnectionLog 重试 刷新应用 …"
 ```
 
@@ -1760,8 +1772,9 @@ Tauri 的 `frontendDist` 指向的是**装配出来的根** `apps/desktop-tauri/
 判据是「本任务用不用得上它」：用得上，而且**它直接改变用户看到的东西**。
 壳读 Host 的结构化 stderr 行并把它当失败原因转发（`host_stderr.rs`），两个字段各自独立降级。
 覆盖：`host_stderr.rs` 的单测（含真机那一行的原文）+ `host_lifecycle.rs` 的端到端一条（真起子进程）
-+ opt-in 真机失败路径（§10.8）。**顺带的产物**：`test/webviewRoundTrip.test.mts` 的失败判据
-从「粗粒度」改成「阶段精确」，那条断言现在比原来强。
+
+- opt-in 真机失败路径（§10.8）。**顺带的产物**：`test/webviewRoundTrip.test.mts` 的失败判据
+  从「粗粒度」改成「阶段精确」，那条断言现在比原来强。
 
 ### ② `sequence` 归属 —— **移交 Task 4** 〔Task 4 追加：条件仍未触发，按原条件继续移交〕
 
@@ -1772,8 +1785,6 @@ Tauri 的 `frontendDist` 指向的是**装配出来的根** `apps/desktop-tauri/
 `sequence` 互不相干。**触发条件与接手方写死在 §20 第 6 条**（下一个把 Host 的中间阶段接进
 壳发布的状态流的人），不留匿名移交。
 
-
-
 **理由（不是「以后再说」）**：本任务**没有合并两股状态流**。新增的只有「读 Host 终态那一行的
 两个字段」，而**发布状态仍然全部由壳产生**（`StartupMonitor`），`sequence` 仍然是壳自己的单一计数器，
 Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的流里。**不合并就没有第二个拥有者**，
@@ -1783,7 +1794,6 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 （要么壳转发 Host 的序号、要么壳按自己的发布重编号、Host 的序号只作内部诊断），
 否则渲染层的 `acceptState`（拒绝 `sequence <= state.sequence`）会把合并流当旧状态丢掉。
 
-
 ### ③ `disk` 摘要 —— **移交（附判据）** 〔Task 4 追加：判据重查，结论不变〕
 
 **〔Task 4 的处置（2026-10-16）〕**：判据仍然是「有没有消费者」，**重查后答案仍是不消费**
@@ -1791,8 +1801,6 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 `packages/desktop/src/host/hostDatabaseStartup.ts` 使用，本任务的改动面不涉及它），
 所以 Task 4 **不产出**它——写一段没有消费者的代码是本仓库明确反对的形态。
 「谁产出、谁负责合并」写在 **§20 第 5 条**（接手方与条件都在那里，条目保持可见）。
-
-
 
 **判据是「渲染层是否消费它」，答案是「不消费」**：本 checkout 里没有任何一处读
 `state.disk`（`packages/ui/src` 里与 disk 有关的全是资源管理器的盘面卡片与 i18n 文案，
@@ -1870,37 +1878,37 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 
 ## 20. 本任务移交的开放项（**都带判据与接手方，不留「没人管」的条目**）
 
-| # | 开放项 | 判据 / 现状证据 | 接手方 |
-| --- | --- | --- | --- |
-| 1 | **发布构建里平台面清单没有稳定落点**：名单只打到壳的 stderr，而 `windows_subsystem = "windows"` 的窗口态发布构建没有控制台 | §17.1 的机制 + §10.12 的真机输出；被拒/空操作两类的可见性在窗口态发布里**无法**保证 | **Task 5**（随包 Node 的日志目录、或一个显式的诊断文件；这是打包与日志落点层面的决定） |
-| 2 | **release exe 的实测体积**（`frontendDist` 内嵌之后的真值） | §13.1：本任务只量了「未压缩文件字节之和」这张脸（54.41 MiB，**不含**壳 exe） | **Task 5** |
-| 3 | **冷启动耗时** | §13.1 末段：本任务只用 debug 构建跑通了功能，没有量过内嵌资产被解出/加载的耗时 | **Task 5** |
-| 4 | **`required-features` 门住的 bin 不在 clippy 覆盖里** | `clippy --workspace --all-targets -- -D warnings` 只覆盖默认 feature 的 target，所以三个 opt-in harness（`PortTransportHarness`/`HostRoundtripHarness`/`ProductUiHarness`）**没有 lint 覆盖**（`Cargo.toml` 里已就地写明要单独跑的命令）。**本轮真跑了它**，抓到并修掉两处 `clippy::let_unit_value`（两个 harness 的 watchdog 里 `let _ = exit_handle.exit(0)`）；跑过之后三个 bin 都干净，但「将来新加的 bin 会被自动 lint 吗」这个结构性问题仍在 | **Task 5**（把 `--features … --bins` 那一档接进 CI 门禁属于改门禁，超出本任务授权） |
+| #   | 开放项                                                                                                                     | 判据 / 现状证据                                                                                                                                                                                                                                                                                                                                                                                                                                    | 接手方                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 1   | **发布构建里平台面清单没有稳定落点**：名单只打到壳的 stderr，而 `windows_subsystem = "windows"` 的窗口态发布构建没有控制台 | §17.1 的机制 + §10.12 的真机输出；被拒/空操作两类的可见性在窗口态发布里**无法**保证                                                                                                                                                                                                                                                                                                                                                                | **Task 5**（随包 Node 的日志目录、或一个显式的诊断文件；这是打包与日志落点层面的决定） |
+| 2   | **release exe 的实测体积**（`frontendDist` 内嵌之后的真值）                                                                | §13.1：本任务只量了「未压缩文件字节之和」这张脸（54.41 MiB，**不含**壳 exe）                                                                                                                                                                                                                                                                                                                                                                       | **Task 5**                                                                             |
+| 3   | **冷启动耗时**                                                                                                             | §13.1 末段：本任务只用 debug 构建跑通了功能，没有量过内嵌资产被解出/加载的耗时                                                                                                                                                                                                                                                                                                                                                                     | **Task 5**                                                                             |
+| 4   | **`required-features` 门住的 bin 不在 clippy 覆盖里**                                                                      | `clippy --workspace --all-targets -- -D warnings` 只覆盖默认 feature 的 target，所以三个 opt-in harness（`PortTransportHarness`/`HostRoundtripHarness`/`ProductUiHarness`）**没有 lint 覆盖**（`Cargo.toml` 里已就地写明要单独跑的命令）。**本轮真跑了它**，抓到并修掉两处 `clippy::let_unit_value`（两个 harness 的 watchdog 里 `let _ = exit_handle.exit(0)`）；跑过之后三个 bin 都干净，但「将来新加的 bin 会被自动 lint 吗」这个结构性问题仍在 | **Task 5**（把 `--features … --bins` 那一档接进 CI 门禁属于改门禁，超出本任务授权）    |
 
 ### 20.1 Task 5 对第 1–4 条的处置（**原地标注，不改写原措辞**）
 
-| # | 现状 | 依据 |
-| --- | --- | --- |
-| 1 | **可观察的那一半关掉了，另一半仍登记**。安装后的 release exe（`windows_subsystem = "windows"`）在**父进程接管的管道**上确实打出了 `platform_surface`（§13.6 的原始输出）——这是 Task 3 当时只敢断言「被重定向时才可见」的那条的**实测**。**从资源管理器双击启动时没有控制台**，这一半**仍未关闭**；本条**继续为开放项**，代价：发布形态下用户侧的「降级清单」不可得，排障必须由发起进程带 `MODE_*` 跑法。两个候选设计（随包 Node 的日志目录 / 一个显式的诊断文件）都**需要改壳的行为**（新增落点、清理策略、隐私面），属产品逻辑，Task 5 的硬约束是「只打包与测量」，所以**不自行实施**，交 M5 定 | §13.6、`docs/plans/2026-10-17-m5-release-cutover-input.md` §6.3 |
-| 2 | **已实测**：门禁脸上是 core 档安装包 **23.29 MiB**（含壳 exe）；壳 exe 本身 52,908,544 B（未压缩，作为诊断） | §13.4（命令与原始输出）、§13.5（被测 exe 字节数） |
-| 3 | **已实测**：release `T_ready` 中位数 **825 ms**、`T_surface` 中位数 **962 ms**（N=7，每样本新空数据根）；debug 作对照为 1030 / 1359 ms。同代码另一轮为 839 / 983 与 1032 / 1366（重复性见 §13.5） | §13.5（两档完整原始输出） |
-| 4 | **本轮**再跑了一次单独那一档（`clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`，退出码 0）。**结构性缺口不变**：新加的 harness bin 仍可能悄悄漏 lint，且把这一档接进 CI 属于改门禁——本条继续为开放项，接手方仍是「下一个改 CI 门禁的人」 | 本任务的验证记录 |
-| 5 | **`disk` 摘要一直是 `[]`** | §18 ③（附判据）+ §15.3 的 M2 原地标注：壳侧 `to_state_json()` 写死 `disk: []`，上游没给事实。**〔Task 4 追加〕重查判据：`state.disk` 仍零消费方**，所以 Task 4 不产出（见 §18 ③ 的追加段） | **Task 4 之后的第一个「有消费者」的任务**，条件明写在两处之一出现时：① 渲染层/UI 开始读 `state.disk`；② 有人把 `startupDiskSampler`（`packages/desktop/src/host/startupDiskSampler.ts`）搬进 `packages/desktop/src/host-standalone/`。届时**那个人**定「谁产出、谁合并」，本条目保持可见直到那时 |
-| 6 | **`sequence` 的单一所有者** | §18 ② + §15.3 的 M6：Host 的 `StartupStateMachine` 与壳的 `StartupMonitor` 各自从 0 自增，渲染层的 `acceptState` 会丢掉 `sequence <= state.sequence` 的合并流。**〔Task 4 追加〕本任务没有引入合并流**（第二实例转发走的是无序号的事件通道），所以条件未触发 | **下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的「中间阶段」接进壳发布的状态流的那个人**（触发条件：任何一个 Host 侧产生的进度值进入壳发布的 `DatabaseStartupState` 流）。答案只有两种，且必须选一个：壳转发 Host 的序号，或壳按自己的发布重编号（Host 的序号只作内部诊断） |
-| 7 | **验收台（bench）留在开发档的代价** | §17 / DR-T3-2：1.73 MiB（§13.1 的 `dev/` 行是它的实测出处）+ 内部命令面暴露在开发档产物里；**发布产物里没有** | 已处置（DR-T3-2），无未决项 |
-| 8 | **一处 clean-room 违规** | §19.1：读过 `desktopPlatform.ts` 第 60–90 行的实现体；结论已由 §10.11 的黑盒负向对照取代 | 已登记（本任务），供复核 |
+| #   | 现状                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 依据                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **可观察的那一半关掉了，另一半仍登记**。安装后的 release exe（`windows_subsystem = "windows"`）在**父进程接管的管道**上确实打出了 `platform_surface`（§13.6 的原始输出）——这是 Task 3 当时只敢断言「被重定向时才可见」的那条的**实测**。**从资源管理器双击启动时没有控制台**，这一半**仍未关闭**；本条**继续为开放项**，代价：发布形态下用户侧的「降级清单」不可得，排障必须由发起进程带 `MODE_*` 跑法。两个候选设计（随包 Node 的日志目录 / 一个显式的诊断文件）都**需要改壳的行为**（新增落点、清理策略、隐私面），属产品逻辑，Task 5 的硬约束是「只打包与测量」，所以**不自行实施**，交 M5 定 | §13.6、`docs/plans/2026-10-17-m5-release-cutover-input.md` §6.3                                                                                                                                                                                              |
+| 2   | **已实测**：门禁脸上是 core 档安装包 **23.29 MiB**（含壳 exe）；壳 exe 本身 52,908,544 B（未压缩，作为诊断）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | §13.4（命令与原始输出）、§13.5（被测 exe 字节数）                                                                                                                                                                                                            |
+| 3   | **已实测**：release `T_ready` 中位数 **825 ms**、`T_surface` 中位数 **962 ms**（N=7，每样本新空数据根）；debug 作对照为 1030 / 1359 ms。同代码另一轮为 839 / 983 与 1032 / 1366（重复性见 §13.5）                                                                                                                                                                                                                                                                                                                                                                                                | §13.5（两档完整原始输出）                                                                                                                                                                                                                                    |
+| 4   | **本轮**再跑了一次单独那一档（`clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`，退出码 0）。**结构性缺口不变**：新加的 harness bin 仍可能悄悄漏 lint，且把这一档接进 CI 属于改门禁——本条继续为开放项，接手方仍是「下一个改 CI 门禁的人」                                                                                                                                                                                                                                                                                         | 本任务的验证记录                                                                                                                                                                                                                                             |
+| 5   | **`disk` 摘要一直是 `[]`**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | §18 ③（附判据）+ §15.3 的 M2 原地标注：壳侧 `to_state_json()` 写死 `disk: []`，上游没给事实。**〔Task 4 追加〕重查判据：`state.disk` 仍零消费方**，所以 Task 4 不产出（见 §18 ③ 的追加段）                                                                   | **Task 4 之后的第一个「有消费者」的任务**，条件明写在两处之一出现时：① 渲染层/UI 开始读 `state.disk`；② 有人把 `startupDiskSampler`（`packages/desktop/src/host/startupDiskSampler.ts`）搬进 `packages/desktop/src/host-standalone/`。届时**那个人**定「谁产出、谁合并」，本条目保持可见直到那时 |
+| 6   | **`sequence` 的单一所有者**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | §18 ② + §15.3 的 M6：Host 的 `StartupStateMachine` 与壳的 `StartupMonitor` 各自从 0 自增，渲染层的 `acceptState` 会丢掉 `sequence <= state.sequence` 的合并流。**〔Task 4 追加〕本任务没有引入合并流**（第二实例转发走的是无序号的事件通道），所以条件未触发 | **下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的「中间阶段」接进壳发布的状态流的那个人**（触发条件：任何一个 Host 侧产生的进度值进入壳发布的 `DatabaseStartupState` 流）。答案只有两种，且必须选一个：壳转发 Host 的序号，或壳按自己的发布重编号（Host 的序号只作内部诊断）        |
+| 7   | **验收台（bench）留在开发档的代价**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | §17 / DR-T3-2：1.73 MiB（§13.1 的 `dev/` 行是它的实测出处）+ 内部命令面暴露在开发档产物里；**发布产物里没有**                                                                                                                                                | 已处置（DR-T3-2），无未决项                                                                                                                                                                                                                                                                      |
+| 8   | **一处 clean-room 违规**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | §19.1：读过 `desktopPlatform.ts` 第 60–90 行的实现体；结论已由 §10.11 的黑盒负向对照取代                                                                                                                                                                     | 已登记（本任务），供复核                                                                                                                                                                                                                                                                         |
 
 ### 20.2 M5 Task 3 的最终处置（2026-10-17；不改写第 1–4 条与 §20.1 的原措辞）
 
 逐条收口：**关闭的带证据，仍开放的带成本与重开触发**。没有条目被静默删除。
 
-| # | 处置 | 证据 / 现状 | 成本与重开触发 |
-| --- | --- | --- | --- |
-| 1 | **仍开放**（re-registered） | §20.1 第 1 条：只在父进程接管的管道上可见；从资源管理器双击启动没有控制台。M5 的硬约束是「只动发布工程」，没有改壳的日志落点 | **成本**：发布形态下用户侧的降级清单不可得；排障必须由发起进程带 `MODE_*` 并以管道启动。**重开触发**：下一次改壳的日志/诊断（两个候选设计二选一：随包 Node 的日志目录，或显式诊断文件），或第一次需要向用户收集降级清单时。届时必须同时定清理策略与隐私面 |
-| 2 | **关闭** | §13.4 原始输出：门禁脸（NSIS 安装包字节）core 档 **24,416,114 B（23.29 MiB）**；壳 exe 本身 52,908,544 B 仅作未压缩诊断 | 无。数字与命令都在 §13.4；口径归属问题另见 §13.4.1（不是本条的重开） |
-| 3 | **关闭** | §13.5 原始输出：release `T_ready` 中位数 **825 ms**、`T_surface` **962 ms**（N=7，每样本新空数据根）；debug 对照 1030 / 1359 ms；另一轮 839 / 983 与 1032 / 1366 | 无。冷启动是报告项，不是硬阈值；数字与机器口径在 §13.5 |
-| 4 | **关闭** | M5 Task 3 把单独那一档接进**必跑门禁**：`.github/workflows/release.yml` 的 `tauri` Windows 腿新增 `Opt-in harness clippy (required-features bins)`，命令为 `cargo clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`；本机同一命令退出码 0（见 M5 Task 3 报告） | 无结构性缺口：新加的 harness bin 每次发布都会被 lint。若将来把 Windows 腿移出必跑路径，本条重开 |
-| 5 | **仍开放**（re-registered） | §18 ③ + §15.3：壳侧 `to_state_json()` 写死 `disk: []`，上游没给事实；重查仍**零消费方** | **成本**：启动状态里没有磁盘事实；当前没有用户可见缺陷，也没有消费者。**重开触发**（二者之一）：① 渲染层/UI 开始读 `state.disk`；② 有人把 `startupDiskSampler`（`packages/desktop/src/host/startupDiskSampler.ts`）搬进 `packages/desktop/src/host-standalone/`。届时由那个人定「谁产出、谁合并」 |
-| 6 | **仍开放**（re-registered） | §18 ② + §15.3 的 M6：Host 与壳各自从 0 自增；当前没有合并流（第二实例转发走无序号事件通道） | **成本**：若将来把 Host 的中间阶段接进壳发布的状态流，`acceptState` 可能丢掉 `sequence <= state.sequence` 的更新。**重开触发**：下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的中间阶段接进 `DatabaseStartupState` 的那个人。答案只能二选一：壳转发 Host 序号，或壳按自己的发布重编号（Host 序号只作内部诊断） |
-| 7 | **关闭**（已处置） | §17 / DR-T3-2：验收台只进开发档，发布路径用 `--no-bench`；发布产物里没有 `dist/dev/` | 无未决项 |
-| 8 | **关闭**（已登记，供复核） | §19.1：违规范围与替代判据都在；结论由 §10.11 的黑盒负向对照取代 | 无未决工程项；保留记录供复核 |
+| #   | 处置                        | 证据 / 现状                                                                                                                                                                                                                                                                                                                  | 成本与重开触发                                                                                                                                                                                                                                                                                                              |
+| --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **仍开放**（re-registered） | §20.1 第 1 条：只在父进程接管的管道上可见；从资源管理器双击启动没有控制台。M5 的硬约束是「只动发布工程」，没有改壳的日志落点                                                                                                                                                                                                 | **成本**：发布形态下用户侧的降级清单不可得；排障必须由发起进程带 `MODE_*` 并以管道启动。**重开触发**：下一次改壳的日志/诊断（两个候选设计二选一：随包 Node 的日志目录，或显式诊断文件），或第一次需要向用户收集降级清单时。届时必须同时定清理策略与隐私面                                                                   |
+| 2   | **关闭**                    | §13.4 原始输出：门禁脸（NSIS 安装包字节）core 档 **24,416,114 B（23.29 MiB）**；壳 exe 本身 52,908,544 B 仅作未压缩诊断                                                                                                                                                                                                      | 无。数字与命令都在 §13.4；口径归属问题另见 §13.4.1（不是本条的重开）                                                                                                                                                                                                                                                        |
+| 3   | **关闭**                    | §13.5 原始输出：release `T_ready` 中位数 **825 ms**、`T_surface` **962 ms**（N=7，每样本新空数据根）；debug 对照 1030 / 1359 ms；另一轮 839 / 983 与 1032 / 1366                                                                                                                                                             | 无。冷启动是报告项，不是硬阈值；数字与机器口径在 §13.5                                                                                                                                                                                                                                                                      |
+| 4   | **关闭**                    | M5 Task 3 把单独那一档接进**必跑门禁**：`.github/workflows/release.yml` 的 `tauri` Windows 腿新增 `Opt-in harness clippy (required-features bins)`，命令为 `cargo clippy -p mode-tauri --features port-transport-harness,host-roundtrip,product-ui-harness --bins -- -D warnings`；本机同一命令退出码 0（见 M5 Task 3 报告） | 无结构性缺口：新加的 harness bin 每次发布都会被 lint。若将来把 Windows 腿移出必跑路径，本条重开                                                                                                                                                                                                                             |
+| 5   | **仍开放**（re-registered） | §18 ③ + §15.3：壳侧 `to_state_json()` 写死 `disk: []`，上游没给事实；重查仍**零消费方**                                                                                                                                                                                                                                      | **成本**：启动状态里没有磁盘事实；当前没有用户可见缺陷，也没有消费者。**重开触发**（二者之一）：① 渲染层/UI 开始读 `state.disk`；② 有人把 `startupDiskSampler`（`packages/desktop/src/host/startupDiskSampler.ts`）搬进 `packages/desktop/src/host-standalone/`。届时由那个人定「谁产出、谁合并」                           |
+| 6   | **仍开放**（re-registered） | §18 ② + §15.3 的 M6：Host 与壳各自从 0 自增；当前没有合并流（第二实例转发走无序号事件通道）                                                                                                                                                                                                                                  | **成本**：若将来把 Host 的中间阶段接进壳发布的状态流，`acceptState` 可能丢掉 `sequence <= state.sequence` 的更新。**重开触发**：下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的中间阶段接进 `DatabaseStartupState` 的那个人。答案只能二选一：壳转发 Host 序号，或壳按自己的发布重编号（Host 序号只作内部诊断） |
+| 7   | **关闭**（已处置）          | §17 / DR-T3-2：验收台只进开发档，发布路径用 `--no-bench`；发布产物里没有 `dist/dev/`                                                                                                                                                                                                                                         | 无未决项                                                                                                                                                                                                                                                                                                                    |
+| 8   | **关闭**（已登记，供复核）  | §19.1：违规范围与替代判据都在；结论由 §10.11 的黑盒负向对照取代                                                                                                                                                                                                                                                              | 无未决工程项；保留记录供复核                                                                                                                                                                                                                                                                                                |

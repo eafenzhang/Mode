@@ -42,8 +42,8 @@
  * node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts --stage core --no-verify
  * ```
  */
-import { spawn } from "node:child_process";
-import { copyFileSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -269,6 +269,39 @@ function parseStageVariant(argv: string[]): ShipVariant | null {
  * 返回发运集里的入口脚本路径，供调用方**再跑一次**自验（剪枝后的文件集才是会被装到
  * 用户机器上的那一份；只验 bundle 等于没验剪枝）。
  */
+/**
+ * 随包 agent 的完整 glm 目录。缺失时调用 desktop 的 prepare 脚本构建
+ * （mode.cjs + 官方插件 + bundled-skills，与 Electron 包同一份产物）。
+ * 发运集必须带上它，否则 Tauri 安装后无法发送任务（v0.0.57 验收缺陷）。
+ */
+function ensureAgentBundleDir(): string {
+  const platformKey = `${process.platform}-${process.arch}`;
+  const glmDir = join(repoRoot, "packages/desktop/bundled-agents", platformKey, "glm");
+  const required = [
+    join(glmDir, "mode.cjs"),
+    join(glmDir, "packages", "bundled-skills", "skills", "dynamic-workflows", "SKILL.md"),
+  ];
+  if (required.every((path) => existsSync(path))) return glmDir;
+
+  console.log("[host-sidecar] 随包 agent 未就绪，执行 prepare:agent-bundle ...");
+  const result = spawnSync(
+    process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+    ["--filter", "@mode/desktop", "prepare:agent-bundle"],
+    {
+      cwd: repoRoot,
+      stdio: "inherit",
+      env: process.env,
+      shell: process.platform === "win32",
+    },
+  );
+  if (result.status !== 0 || !existsSync(join(glmDir, "mode.cjs"))) {
+    throw new Error(
+      `[host-sidecar] prepare:agent-bundle 未产出 ${join(glmDir, "mode.cjs")}（exit=${String(result.status)}）`,
+    );
+  }
+  return glmDir;
+}
+
 function reportShipSet(variant: ShipVariant): string {
   const closure = collectExternalClosure(RUNTIME_EXTERNALS, [appDir, repoRoot], require_.resolve);
   if (closure.collisions.length > 0) {
@@ -285,6 +318,8 @@ function reportShipSet(variant: ShipVariant): string {
     nodeSource,
     builtinProviderConfigSource: join(repoRoot, BUILTIN_PROVIDER_CONFIG),
     closure,
+    // core 档只测预算，不带运行时依赖，也不带 agent。
+    agentBundleDir: variant === "core" ? undefined : ensureAgentBundleDir(),
   });
 
   console.log(`[host-sidecar] 发运集档 = ${variant}（bundle.resources 指向 ${STAGE_ROOT}）`);

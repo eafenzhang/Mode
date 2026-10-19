@@ -21,28 +21,21 @@
     "resources": {
       "../dist-host-sidecar/ship/host-sidecar": "host-sidecar",
       "../dist-host-sidecar/ship/node": "node",
-      "../dist-host-sidecar/ship/config": "config"
+      "../dist-host-sidecar/ship/config": "config",
+      "../dist-host-sidecar/ship/agent": "agent"
     },
-    "icon": [
-      "icons/icon.ico",
-      "icons/icon.png",
-      "icons/icon.icns"
-    ]
+    "icon": ["icons/icon.ico", "icons/icon.png", "icons/icon.icns"]
   },
   "plugins": {
     "deep-link": {
       "desktop": [
         {
-          "schemes": [
-            "mode"
-          ]
+          "schemes": ["mode"]
         }
       ]
     },
     "updater": {
-      "endpoints": [
-        "https://github.com/eafenzhang/Mode/releases/latest/download/latest.json"
-      ],
+      "endpoints": ["https://github.com/eafenzhang/Mode/releases/latest/download/latest.json"],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI4RjUxNjBCMkRFRThCQkYKUldTL2krNHRDeGIxS0QrUGUzS1IrZ0ZtZDFLTmoybXJlZjl0Z0U5Si8vb2s3K0VtbThrck0xU3MK"
     }
   }

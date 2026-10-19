@@ -36,9 +36,18 @@
  * （安装包字节）两个收益：`.node` 二进制的压缩比与文本差一个量级，
  * 只报原始值会让一次 28 MiB 的裁切在门禁上看起来没作用。见 `docs/specs/tauri-renderer-host.md` §13.2。
  */
-import { copyFileSync, cpSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, relative, sep } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 
 /**
  * 保持 external 的运行时依赖（**逐字**取自 `packages/desktop/tsup.config.ts`：
@@ -278,6 +287,12 @@ export function stageShipSet(options: {
   nodeSource: string;
   builtinProviderConfigSource: string;
   closure: ExternalClosure;
+  /**
+   * 随包 agent 运行时的**完整 glm 目录**（mode.cjs + 官方插件 + bundled-skills）。
+   * 来自 `packages/desktop/bundled-agents/<platform>/glm`。缺省只用于 core 档/单测；
+   * 产品档必须提供，否则安装后无法发送任务（2026-10-19 v0.0.57 验收缺陷）。
+   */
+  agentBundleDir?: string;
 }): ShipSetReport {
   const { variant, bundleFile, stageRoot, nodeSource } = options;
   ensureDir(join(stageRoot, "host-sidecar", "node_modules"));
@@ -318,6 +333,24 @@ export function stageShipSet(options: {
   const configTarget = join(stageRoot, BUILTIN_PROVIDER_CONFIG);
   ensureDir(dirname(configTarget));
   copyFileSync(options.builtinProviderConfigSource, configTarget);
+
+  if (options.agentBundleDir) {
+    const sourceBundle = join(options.agentBundleDir, "mode.cjs");
+    if (!existsSync(sourceBundle)) {
+      throw new Error(
+        `[host-sidecar-ship] 随包 agent 缺少 ${sourceBundle}；先跑 pnpm --filter @mode/desktop prepare:agent-bundle`,
+      );
+    }
+    const agentTarget = join(stageRoot, "agent", "glm");
+    rmSync(agentTarget, { recursive: true, force: true });
+    ensureDir(agentTarget);
+    cpSync(options.agentBundleDir, agentTarget, {
+      recursive: true,
+      // pnpm 目录项是符号链接，跟进去拷。
+      dereference: true,
+      filter: (source) => !basename(source).startsWith(".DS_Store"),
+    });
+  }
 
   const files = walkFiles(stageRoot, () => false, false);
   return {

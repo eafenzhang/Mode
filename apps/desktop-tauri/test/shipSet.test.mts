@@ -144,3 +144,87 @@ test("发运集：core 档不带 Node 与 externals，但仍创建那两个空�
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("发运集：agentBundleDir 存在时把完整 glm 目录拷进 ship/agent/glm", () => {
+  const root = mkdtempSync(join(tmpdir(), "mode-ship-agent-"));
+  try {
+    const packageDir = makeFakeNodePty(root);
+    const bundleFile = join(root, "bundle.mjs");
+    writeFileSync(bundleFile, "export {};\n");
+    const nodeSource = join(root, "fake-node.exe");
+    writeFileSync(nodeSource, "z".repeat(64));
+    const configSource = join(root, "mode-builtin.json");
+    writeFileSync(configSource, "{}\n");
+
+    const agentDir = join(root, "glm");
+    mkdirSync(join(agentDir, "packages/bundled-skills/skills/dynamic-workflows"), {
+      recursive: true,
+    });
+    writeFileSync(join(agentDir, "mode.cjs"), "console.log('agent');\n");
+    writeFileSync(
+      join(agentDir, "packages/bundled-skills/skills/dynamic-workflows/SKILL.md"),
+      "# skill\n",
+    );
+
+    const stageRoot = join(root, "ship");
+    const report = stageShipSet({
+      variant: "pruned",
+      bundleFile,
+      stageRoot,
+      nodeSource,
+      builtinProviderConfigSource: configSource,
+      closure: makeClosure(packageDir),
+      agentBundleDir: agentDir,
+    });
+    assert.equal(existsSync(join(stageRoot, "agent", "glm", "mode.cjs")), true);
+    assert.equal(
+      existsSync(
+        join(
+          stageRoot,
+          "agent",
+          "glm",
+          "packages",
+          "bundled-skills",
+          "skills",
+          "dynamic-workflows",
+          "SKILL.md",
+        ),
+      ),
+      true,
+    );
+    assert.ok(report.files > 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("发运集：agentBundleDir 缺 mode.cjs 时明确失败", () => {
+  const root = mkdtempSync(join(tmpdir(), "mode-ship-agent-missing-"));
+  try {
+    const packageDir = makeFakeNodePty(root);
+    const bundleFile = join(root, "bundle.mjs");
+    writeFileSync(bundleFile, "export {};\n");
+    const nodeSource = join(root, "fake-node.exe");
+    writeFileSync(nodeSource, "z".repeat(64));
+    const configSource = join(root, "mode-builtin.json");
+    writeFileSync(configSource, "{}\n");
+    const agentDir = join(root, "glm");
+    mkdirSync(agentDir, { recursive: true });
+
+    assert.throws(
+      () =>
+        stageShipSet({
+          variant: "pruned",
+          bundleFile,
+          stageRoot: join(root, "ship"),
+          nodeSource,
+          builtinProviderConfigSource: configSource,
+          closure: makeClosure(packageDir),
+          agentBundleDir: agentDir,
+        }),
+      /随包 agent 缺少/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -55,6 +55,7 @@ import {
   probePtySpawn,
   type NativeDepsReport,
 } from "./nativeDeps.js";
+import { applyBundledAgentRuntime } from "./bundledAgentRuntime.js";
 import { createHostServiceSurface, type HostServiceSurface } from "./serviceAccessor.js";
 import { StartupStateMachine } from "./startupMapping.js";
 import { StdoutGuard } from "./stdoutGuard.js";
@@ -250,9 +251,8 @@ async function bootstrap(): Promise<ChannelServer> {
   //    **库内事实一律经 `startup.applyStorageFact` 翻译**（不在本文件里判断应用阶段）：
   //    那条路径就是夹具驱动用例断言的那一个函数（DR-T2-2 的「显式翻译」只有一份实现）。
   //    复评 I1 的原始缺陷正是这里把 "preparing_host_storage" 写成字面量——夹具测的是死代码。
-  const { getTasksIndexDatabasePath, prepareTasksIndexStorage } = await import(
-    "@mode/services/storage-startup"
-  );
+  const { getTasksIndexDatabasePath, prepareTasksIndexStorage } =
+    await import("@mode/services/storage-startup");
   const TASKS_INDEX_DATABASE = { databaseId: "tasks-index", databaseKind: "tasks-index" } as const;
   const reportTasksIndexPhase = (
     phase: Parameters<Parameters<typeof prepareTasksIndexStorage>[1]>[0],
@@ -275,6 +275,10 @@ async function bootstrap(): Promise<ChannelServer> {
   // ③ 真服务面（应用阶段 starting_services）。
   startup.report("starting_services");
   recordStartupState();
+  // 打包形态：在服务面创建前把随包 agent（资源目录 agent/glm/mode.cjs）接到
+  // MODE_AGENT_SERVER_COMMAND。显式环境变量优先；开发形态没有该文件则不动作。
+  const bundledAgentInjected = applyBundledAgentRuntime();
+  log(`bundled_agent_runtime injected=${String(bundledAgentInjected)}`);
   const surface = await createHostServiceSurface({ guards, log });
   serviceSurface = surface;
   log(
