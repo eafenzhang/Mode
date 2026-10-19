@@ -188,6 +188,7 @@ import {
   type BotSendFailureCode,
 } from "./outboundDelivery.js";
 import { createBotTurnGate } from "./botTurnGate.js";
+import { createInboundDeliveryDedupe } from "./inboundDedupe.js";
 import {
   getWorkspaceBoundBots,
   removeBotFromOtherWorkspaces,
@@ -824,7 +825,6 @@ const BOT_MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
 const BOT_ATTACHMENT_DOWNLOAD_TIMEOUT_MS = 30_000;
 const REMOTE_RECONNECT_DEDUPE_TTL_MS = 3_000;
 const REMOTE_RECONNECT_DELIVERY_DEDUPE_TTL_MS = 2 * 60_000;
-const BOT_INBOUND_DELIVERY_DEDUPE_TTL_MS = 2 * 60_000;
 const BOT_AUTOMATION_DELIVERY_WARNING_TTL_MS = 5 * 60_000;
 const BOT_ELICITATION_CUSTOM_OPTION_ID = "__custom__";
 const BOT_ELICITATION_SUBMIT_OPTION_ID = "__submit__";
@@ -876,7 +876,7 @@ export function createBotsService(
   const pendingRemoteReconnectsByKey = new Map<string, Promise<BotOutboundMessage[]>>();
   const recentRemoteReconnectAtByKey = new Map<string, number>();
   const recentRemoteReconnectDeliveryAtByKey = new Map<string, number>();
-  const recentInboundDeliveryAtByKey = new Map<string, number>();
+  const inboundDeliveryDedupe = createInboundDeliveryDedupe();
   const inboundProcessingQueuesByContext = new Map<string, Promise<void>>();
   let botStorageMigrationPromise: Promise<void> | null = null;
   const cachedWorkspaceRefsByKey = new Map<
@@ -3605,26 +3605,6 @@ export function createBotsService(
     );
   }
 
-  function buildInboundDeliveryKey(message: BotInboundMessage): string | null {
-    const providerMessageId = message.actor.providerMessageId?.trim();
-    if (!providerMessageId) {
-      return null;
-    }
-    return [
-      message.actor.botId,
-      message.actor.provider,
-      message.actor.chatId ?? message.actor.providerUserId,
-      providerMessageId,
-    ].join("::");
-  }
-
-  function releaseInboundDelivery(message: BotInboundMessage): void {
-    const deliveryKey = buildInboundDeliveryKey(message);
-    if (deliveryKey) {
-      recentInboundDeliveryAtByKey.delete(deliveryKey);
-    }
-  }
-
   async function enqueueInboundProcessing<T>(actor: BotActor, task: () => Promise<T>): Promise<T> {
     const actorContextKey = getActorContextKey(actor);
     const previous = inboundProcessingQueuesByContext.get(actorContextKey) ?? Promise.resolve();
@@ -3649,30 +3629,6 @@ export function createBotsService(
         inboundProcessingQueuesByContext.delete(actorContextKey);
       }
     }
-  }
-
-  function pruneRecentInboundDeliveryDedupe(now: number): void {
-    for (const [key, at] of recentInboundDeliveryAtByKey) {
-      if (now - at >= BOT_INBOUND_DELIVERY_DEDUPE_TTL_MS) {
-        recentInboundDeliveryAtByKey.delete(key);
-      }
-    }
-  }
-
-  function markInboundDelivery(message: BotInboundMessage): boolean {
-    const now = Date.now();
-    pruneRecentInboundDeliveryDedupe(now);
-    const deliveryKey = buildInboundDeliveryKey(message);
-    if (!deliveryKey) {
-      return true;
-    }
-    if (recentInboundDeliveryAtByKey.has(deliveryKey)) {
-      return false;
-    }
-    // Bugfix: 飞书 WebSocket 可能重投同一条 im.message.receive_v1，微信/Telegram 也可能在重试后重放同一 message id。
-    // 普通消息有创建/发送任务的副作用，必须在进入业务处理前按 provider message id 幂等，避免同一句 hello 被执行两轮。
-    recentInboundDeliveryAtByKey.set(deliveryKey, now);
-    return true;
   }
 
   async function sendTyping(bot: BotConfig, actor: BotActor): Promise<void> {
@@ -4279,7 +4235,7 @@ export function createBotsService(
           );
         }
       }
-      if (!markInboundDelivery(inboundMessage)) {
+      if (!inboundDeliveryDedupe.mark(inboundMessage)) {
         botsLogger.info(
           undefined,
           `provider callback duplicated provider=${provider} bot=${inboundMessage.botId} user=${inboundMessage.actor.providerUserId} messageId=${inboundMessage.actor.providerMessageId ?? ""}`,
@@ -4311,7 +4267,7 @@ export function createBotsService(
           outbound = await service.handleInboundMessage(inboundMessage);
         }
       } catch (error) {
-        releaseInboundDelivery(inboundMessage);
+        inboundDeliveryDedupe.release(inboundMessage);
         hadBusinessFailure = true;
         inboundBusinessFailure = true;
         const message = error instanceof Error ? error.message : String(error);
@@ -4458,7 +4414,7 @@ export function createBotsService(
           }
           await stopInboundTyping(bot, inboundMessage.actor);
         } catch (error) {
-          releaseInboundDelivery(inboundMessage);
+          inboundDeliveryDedupe.release(inboundMessage);
           throw error;
         }
       }
@@ -8977,7 +8933,7 @@ export function createBotsService(
       pendingRemoteReconnectsByKey.clear();
       recentRemoteReconnectAtByKey.clear();
       recentRemoteReconnectDeliveryAtByKey.clear();
-      recentInboundDeliveryAtByKey.clear();
+      inboundDeliveryDedupe.clear();
       automationDeliveryWarningAtByKey.clear();
       inboundProcessingQueuesByContext.clear();
       // Bugfix：host 的异步资源回收会优先调用 disposeAllAndWait。保留统一 Promise，确保并发关闭
