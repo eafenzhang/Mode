@@ -219,4 +219,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第三十二批（`app-modified-files` 提取）：单文件 diff 按 workspaceDirectory 转相对路径，
   无 workspace 保持绝对路径；多文件 diff 丢弃空路径、负数归 0、小数向下取整；未知 kind
   或缺 display 返回空数组；
+- 第三十三批（`app-tool-transcript` 投影）：Read 标题取文件名并展示 offset/limit；
+  Bash 只展示 command；Write 展示 file_path、Edit 只给标题；Grep/Glob 展示 pattern 与
+  可选 path；未知工具按数字/嵌套对象/数组/布尔/null 概括展示；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
