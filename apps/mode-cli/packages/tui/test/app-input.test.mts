@@ -6,6 +6,8 @@ import {
   filterEffortOptions,
   filterModelOptions,
   isValidClipboardImage,
+  toDraftAttachments,
+  toPromptInput,
   filterSlashCommands,
   modelCommandQuery,
   reconcileModelCommandSelection,
@@ -173,5 +175,86 @@ test("剪贴板图片：仅接受受支持的 image/* 且带 data URL 的输入"
   assert.equal(
     isValidClipboardImage({ mediaType: "", dataUrl: "data:image/png;base64,a" } as never),
     false,
+  );
+});
+
+test("提交输入：无附件时返回纯文本，仅保留正文引用到的附件", () => {
+  assert.equal(toPromptInput("hi", []), "hi");
+  const image = {
+    type: "image",
+    id: 1,
+    dataUrl: "data:image/png;base64,a",
+    mediaType: "image/png",
+    placeholder: "[image 1]",
+  } as never;
+  assert.equal(toPromptInput("no ref", [image]), "no ref");
+  assert.deepEqual(toPromptInput("see [image 1]", [image]), {
+    attachments: [{ content: "data:image/png;base64,a", path: "[image 1]", type: "image" }],
+    text: "see [image 1]",
+  });
+});
+
+test("提交输入：文件附件与模型选择按原样带入", () => {
+  const file = { type: "file", id: 2, path: "/a/b.txt", placeholder: "@a/b.txt" } as never;
+  assert.deepEqual(toPromptInput("open @a/b.txt", [file]), {
+    attachments: [{ path: "/a/b.txt", type: "file" }],
+    text: "open @a/b.txt",
+  });
+  assert.deepEqual(toPromptInput("hi", [], { providerId: "p", modelId: "m" }), {
+    attachments: [],
+    text: "hi",
+    modelSelection: { providerId: "p", modelId: "m" },
+  });
+});
+
+test("草稿附件：文件用 @path 占位，图片按 data URL 推导媒体类型", () => {
+  assert.deepEqual(
+    toDraftAttachments([{ type: "file", path: "/a/b.txt" }], () => 7),
+    [{ id: 7, path: "/a/b.txt", placeholder: "@/a/b.txt", type: "file" }],
+  );
+  assert.deepEqual(
+    toDraftAttachments(
+      [{ type: "image", content: "data:image/jpeg;base64,a", path: "[i]" }],
+      () => 8,
+    ),
+    [
+      {
+        dataUrl: "data:image/jpeg;base64,a",
+        id: 8,
+        mediaType: "image/jpeg",
+        placeholder: "[i]",
+        type: "image",
+      },
+    ],
+  );
+});
+
+test("草稿附件：缺 path 的文件与缺内容的图片被丢弃，空输入返回空数组", () => {
+  assert.deepEqual(
+    toDraftAttachments([{ type: "file" }], () => 1),
+    [],
+  );
+  assert.deepEqual(
+    toDraftAttachments([{ type: "image", path: "[i]" }], () => 1),
+    [],
+  );
+  assert.deepEqual(
+    toDraftAttachments(undefined, () => 1),
+    [],
+  );
+});
+
+test("草稿附件：图片无占位时用 [image #id] 生成", () => {
+  assert.deepEqual(
+    toDraftAttachments([{ type: "image", content: "data:image/png;base64,a" }], () => 3),
+    [
+      {
+        dataUrl: "data:image/png;base64,a",
+        id: 3,
+        mediaType: "image/png",
+        placeholder: "[image #3]",
+        type: "image",
+      },
+    ],
   );
 });

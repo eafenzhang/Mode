@@ -193,4 +193,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二十三批（`app-keyboard-suggestions`、`app-input` 剪贴板）：建议导航仅在选中态生效，
   上下键移动并在边界夹取、消费按键，优先级 model → effort → mode → slash；剪贴板图片只
   接受受支持的 image/\* 且 data URL 非空；
+- 第二十四批（`app-input` 提交/草稿转换）：`toPromptInput` 无附件时返回纯文本、只保留正文
+  引用到的附件并按类型映射，模型选择原样带入；`toDraftAttachments` 文件用 `@path` 占位、
+  图片按 data URL 推导媒体类型、缺 path/content 丢弃、无占位生成 `[image #id]`；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
