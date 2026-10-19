@@ -4,8 +4,11 @@ import test from "node:test";
 import {
   clampIndex,
   filterEffortOptions,
+  filterModelOptions,
   filterSlashCommands,
   modelCommandQuery,
+  reconcileModelCommandSelection,
+  selectedModelOption,
   reconcileEffortCommandSelection,
   selectedEffortOption,
   visibleEffortOptionWindow,
@@ -114,4 +117,36 @@ test("effort 可视窗口：越界夹取并滚动起点", () => {
     selectedIndex: 0,
     startIndex: 0,
   });
+});
+
+const MODELS = [
+  { ref: { providerId: "openai", modelId: "gpt-5" }, label: "GPT-5", providerLabel: "OpenAI" },
+  {
+    ref: { providerId: "anthropic", modelId: "claude" },
+    label: "Claude",
+    providerLabel: "Anthropic",
+  },
+] as never;
+
+test("model 过滤：按 provider/model 值、label、providerLabel 匹配", () => {
+  assert.deepEqual(filterModelOptions("/model gpt", MODELS), [MODELS[0]]);
+  assert.deepEqual(filterModelOptions("/model openai", MODELS), [MODELS[0]]);
+  assert.deepEqual(filterModelOptions("/model openai/gpt", MODELS), [MODELS[0]]);
+  assert.deepEqual(filterModelOptions("/model anthropic", MODELS), [MODELS[1]]);
+  assert.deepEqual(filterModelOptions("/model zzz", MODELS), []);
+  assert.deepEqual(filterModelOptions("hello", MODELS), []);
+});
+
+test("model 过滤：空查询返回全量", () => {
+  assert.deepEqual(filterModelOptions("/model ", MODELS), MODELS);
+});
+
+test("model 选择：命令态才产出选中项，下标夹取到有效范围", () => {
+  assert.deepEqual(reconcileModelCommandSelection("/model ", MODELS), { selectedIndex: 0 });
+  assert.equal(reconcileModelCommandSelection("hello", MODELS), undefined);
+  assert.equal(reconcileModelCommandSelection("/model ", [] as never), undefined);
+  assert.deepEqual(selectedModelOption("/model gpt", { selectedIndex: 0 }, MODELS), MODELS[0]);
+  assert.deepEqual(selectedModelOption("/model gpt", { selectedIndex: 9 }, MODELS), MODELS[1]);
+  assert.equal(selectedModelOption("hello", { selectedIndex: 0 }, MODELS), undefined);
+  assert.equal(selectedModelOption("/model gpt", undefined, MODELS), undefined);
 });

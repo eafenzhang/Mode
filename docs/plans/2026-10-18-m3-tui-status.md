@@ -187,4 +187,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   id/label/description 匹配）、命令选择与下标夹取、可视窗口；compact 时间线同 id 原位更新、
   不同 id 追加且保留非时间线消息，只有 failed 可重试并产出 `/compact`，失败收尾把最近
   started 置为 failed；
+- 第二十二批（`app-input` model、`app-shiki-diff-view`）：model 过滤按 `provider/model`
+  值、label 与 providerLabel 匹配，空查询全量，选择态产出与夹取；diff 视图在 121 列起
+  切分栏、120 列及以下统一视图；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
