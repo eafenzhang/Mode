@@ -232,4 +232,6 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第三十七批（`state` 基础助手）：asRecord 只接受对象、string/number/boolean 字段类型校验
   （空串与空白保留、NaN/Infinity 拒绝）；千分位与耗时单位；截断含省略号计入上限；
   大小写不敏感匹配与空查询恒匹配；prompt 归一与事件名下划线转空格；
+- 第三十八批（`app-turn-complete` 回退）：非空 response 追加 `streamProjected` agent 消息
+  并保留既有消息；空/空白/缺失不触发写入；`messageId` 不进入投影消息；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。

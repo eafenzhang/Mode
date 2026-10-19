@@ -230,3 +230,30 @@ test("normal：归属互认历史 product id（dev.zcodium.app）", async () => 
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+test("旧 setting.json：只读取非空字符串 dataBaseDir，其余一律 null", async () => {
+  const { readLegacyDataBaseDirFromSettings } = await loadOwnership();
+  const base = makeBase();
+  try {
+    assert.equal(readLegacyDataBaseDirFromSettings(join(base, ".mode")), null);
+
+    const root = join(base, ".mode");
+    mkdirSync(join(root, "v2"), { recursive: true });
+    writeFileSync(join(root, "v2", "setting.json"), "{ not-json");
+    assert.equal(readLegacyDataBaseDirFromSettings(root), null);
+
+    writeFileSync(join(root, "v2", "setting.json"), JSON.stringify({ dataBaseDir: "   " }));
+    assert.equal(readLegacyDataBaseDirFromSettings(root), null);
+
+    writeFileSync(join(root, "v2", "setting.json"), JSON.stringify({ dataBaseDir: 42 }));
+    assert.equal(readLegacyDataBaseDirFromSettings(root), null);
+
+    writeFileSync(
+      join(root, "v2", "setting.json"),
+      JSON.stringify({ dataBaseDir: "  /custom/base  " }),
+    );
+    assert.equal(readLegacyDataBaseDirFromSettings(root), "/custom/base");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
