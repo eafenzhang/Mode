@@ -7,6 +7,7 @@
 - **D1 会话作用域**：不升话题级。群会话按 `chatId`，私聊按用户；飞书 thread 只作为来源元数据，不进入会话键。
 - **D2 配置模型**：引入 Agent 拥有 Channel。Agent 持有工作区、默认模型/Runtime/权限、Heartbeat；Channel 持有凭据、私聊/群聊规则、投递模式和回复粒度。
 - **D3 接入 UI**：保留现有 `BotsDialog` 卡片式交互，不改成向导。新增 Agent 归属、群授权列表、投递模式；微信隐藏群聊。
+  - v4 迁移前落地口径：Agent 归属按迁移默认 `agent-{botId}` 在 UI 中只读投影，不新增持久化状态；v4 落地后替换为真实 Agent 实体。
 - **D4 运行时**：保留 `packages/services/src/bots` 的 Node 运行时，不迁 Rust。A+ 的 transport worker 是后续可选隔离层，Core 仍拥有业务状态。
 - **通道集合**：只保留 `weixin / wecom / feishu / dingtalk`。Telegram、webhook、discord、astrbot 退出产品面；历史配置按迁移策略处理，不新增第 5 个通道。
 - **微信群聊**：按参照行为仅私聊（`groups: none`），移除微信群聊入口与群消息处理。

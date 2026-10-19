@@ -45,6 +45,7 @@ import {
 import { ProviderSettingsCard } from "@/BotsDialog/ProviderSettingsCard.js";
 import { BotHeartbeatCard } from "@/BotsDialog/BotHeartbeatCard.js";
 import { BotDeliveryModeCard } from "@/BotsDialog/BotDeliveryModeCard.js";
+import { BotAgentOwnershipCard } from "@/BotsDialog/BotAgentOwnershipCard.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { BotGroupChatCard } from "@/BotsDialog/BotGroupChatCard.js";
 import { BotPrivateChatCard } from "@/BotsDialog/BotPrivateChatCard.js";
@@ -1627,6 +1628,11 @@ export function BotsDialog({
                 }
 
                 <SettingsGroupCard>
+                  <BotAgentOwnershipCard
+                    bot={selectedBot}
+                    boundWorkspace={botWorkspaceBindings[0] ?? null}
+                  />
+
                   <BotReplyGranularityCard bot={selectedBot} onPatchBot={patchSelectedBot} />
 
                   <BotHeartbeatCard bot={selectedBot} onPatchBot={patchSelectedBot} />

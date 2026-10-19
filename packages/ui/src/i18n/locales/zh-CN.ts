@@ -827,6 +827,10 @@ const zhCN: Record<string, string> = {
     "自动回复会直接推送；仅工具发送时普通 AI 输出不外发，需要显式使用 myagents im send-message。命令回执和权限/提问不受影响。",
   "bots.deliveryMode.auto": "自动回复",
   "bots.deliveryMode.toolOnly": "仅工具发送",
+  "bots.agentOwnership.title": "Agent 归属",
+  "bots.agentOwnership.description":
+    "当前版本一个通道对应一个 Agent；工作区、默认模型与 Heartbeat 由该 Agent 持有。",
+  "bots.agentOwnership.unbound": "未绑定工作区",
   "bots.heartbeat.title": "机器人心跳",
   "bots.heartbeat.description":
     "定时唤醒检查工作区（0 关闭，{min}–{max} 分钟）：有变化时汇报，正常时静默，可用 HEARTBEAT.md 自定义指引。",

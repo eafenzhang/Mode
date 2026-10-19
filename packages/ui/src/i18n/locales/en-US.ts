@@ -912,6 +912,10 @@ const enUS: Record<string, string> = {
     "Auto replies are pushed directly. With tool-only, ordinary AI output is not sent automatically; use myagents im send-message explicitly. Command receipts, permissions, and questions are unaffected.",
   "bots.deliveryMode.auto": "Auto reply",
   "bots.deliveryMode.toolOnly": "Tool only",
+  "bots.agentOwnership.title": "Agent ownership",
+  "bots.agentOwnership.description":
+    "One channel maps to one agent in this version; workspace, default model, and heartbeat are owned by the agent.",
+  "bots.agentOwnership.unbound": "No workspace bound",
   "bots.heartbeat.title": "Agent heartbeat",
   "bots.heartbeat.description":
     "Wake the agent periodically to inspect the workspace (0 disables, {min}–{max} min): report on change, stay quiet otherwise; add HEARTBEAT.md for custom guidance.",

@@ -78,6 +78,14 @@ export const ALL_BOT_WORKSPACES = "*";
 // 30 秒会让用户刚切过去就过期；5 分钟覆盖完整的手动路径，同时保留单次使用语义。
 export const BOT_BIND_CODE_TTL_MS = 5 * 60_000;
 
+/**
+ * A+ 迁移默认：一个 Bot 对应一个 Agent（Agent id = agent-{botId}）。
+ * v4 落地前，UI 用这个派生值做只读归属展示，不引入第二份状态。
+ */
+export function resolveBotAgentId(botId: string): string {
+  return `agent-${botId}`;
+}
+
 export interface BotWorkspaceRef {
   id: string;
   label: string;

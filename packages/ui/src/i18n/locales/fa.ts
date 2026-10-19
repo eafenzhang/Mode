@@ -918,6 +918,10 @@ const faIR: Record<string, string> = {
     "پاسخ خودکار مستقیماً ارسال می‌شود. در حالت فقط ابزار، خروجی معمولی هوش مصنوعی به‌طور خودکار ارسال نمی‌شود و باید از myagents im send-message استفاده شود. رسید فرمان‌ها و مجوزها/پرسش‌ها تغییر نمی‌کنند.",
   "bots.deliveryMode.auto": "پاسخ خودکار",
   "bots.deliveryMode.toolOnly": "فقط ابزار",
+  "bots.agentOwnership.title": "مالکیت Agent",
+  "bots.agentOwnership.description":
+    "در این نسخه هر کانال به یک Agent متصل است؛ فضای کاری، مدل پیش‌فرض و Heartbeat متعلق به Agent است.",
+  "bots.agentOwnership.unbound": "هیچ فضای کاری متصل نیست",
   "bots.heartbeat.title": "ضربان ربات",
   "bots.heartbeat.description":
     "بررسی دوره‌ای فضای کاری ({min}–{max} دقیقه؛ 0 یعنی خاموش) که فقط هنگام تغییر گزارش می‌دهد و می‌توانید با HEARTBEAT.md دستور سفارشی بدهید.",
