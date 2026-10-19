@@ -59,3 +59,41 @@ test("源码契约：tool_only 只抑制 automatic 输出，并跳过流式卡�
   const cardBody = source.slice(cardIndex, cardIndex + 500);
   assert.ok(cardBody.includes('bot.deliveryMode === "tool_only"'), "流式卡片缺少 tool_only 早退");
 });
+
+test("源码契约：普通 AI 输出全部标记 automatic，权限回复保持控制消息", async () => {
+  const source = await readFile(new URL("../src/bots/botsService.ts", import.meta.url), "utf8");
+
+  const flushIndex = source.indexOf("const flushAssistantReplyBuffer = async");
+  assert.ok(flushIndex >= 0, "缺少正文刷出函数");
+  const flushEnd = source.indexOf(
+    "const modeTaskService = await resolveModeTaskServiceForContext",
+    flushIndex,
+  );
+  assert.ok(flushEnd > flushIndex, "无法界定正文刷出函数边界");
+  assert.ok(
+    source.slice(flushIndex, flushEnd).includes("{ automatic: true }"),
+    "正文逐块刷出必须标记 automatic，否则 tool_only 会漏发",
+  );
+
+  const finalLoopIndex = source.indexOf("for (const text of replyMessages)");
+  assert.ok(finalLoopIndex >= 0, "缺少终稿发送循环");
+  assert.ok(
+    source.slice(finalLoopIndex, finalLoopIndex + 400).includes("{ automatic: true }"),
+    "终稿必须标记 automatic，否则 tool_only 会漏发",
+  );
+
+  const toolIndex = source.indexOf("formatBotToolCallReply(toolCall");
+  assert.ok(toolIndex >= 0, "缺少工具摘要发送");
+  assert.ok(
+    source.slice(toolIndex, toolIndex + 600).includes("{ automatic: true }"),
+    "工具摘要属于普通 AI 输出，必须标记 automatic",
+  );
+
+  // 权限卡片/选项是控制消息：tool_only 不能把它吞掉，否则用户无法响应权限请求。
+  const permissionIndex = source.indexOf("sendOutbound(bot, permissionReply)");
+  assert.ok(permissionIndex >= 0, "权限回复发送路径缺失");
+  assert.ok(
+    !source.slice(permissionIndex, permissionIndex + 160).includes("automatic: true"),
+    "权限回复是控制消息，不能标记 automatic",
+  );
+});
