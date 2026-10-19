@@ -213,4 +213,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第三十批（`app-queued-inputs`）：新 id 追加、同 id 原位更新、内容未变返回原数组；
   `preserveExistingText` 保留非空旧文本；按 id 批量移除，空列表返回原引用、无匹配返回
   新数组；
+- 第三十一批（`app-submit`）：非空 response 追加 agent 消息并保留既有消息；空/空白
+  response 不追加但返回新数组；`restoredMessages` 存在时整体替换既有 transcript（空数组
+  亦然）；恢复的 thought part 补 status/字符数，tool part 补 detailLines 与标题；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
