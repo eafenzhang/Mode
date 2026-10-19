@@ -210,4 +210,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二十九批（`app-question-state` 导航与多选）：上下键移动选中项（首项处向上保持），
   空格在单选下无效；多选时空格切换条目，Enter 把选中项汇总为逗号分隔答案并进入 review；
   先前“down 报错”是探针缺少 `sequence` 字段的伪像；
+- 第三十批（`app-queued-inputs`）：新 id 追加、同 id 原位更新、内容未变返回原数组；
+  `preserveExistingText` 保留非空旧文本；按 id 批量移除，空列表返回原引用、无匹配返回
+  新数组；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
