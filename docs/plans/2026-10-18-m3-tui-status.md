@@ -204,4 +204,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   questionState 时不改队列；
 - 第二十七批（`app-subagent-events`）：只有工具事件且 `payload.source = subagent` 才算子代理
   镜像；目录刷新由生命周期事件触发，镜像事件与逐 token 的 model_streaming 不触发；
+- 第二十八批（`app-network-events`）：请求事件缺字段/非法状态被忽略，合法事件补齐
+  source=unknown 与时间戳，同 id 原位更新并前置，最多保留 8 条；模型事件完成/进行/失败/
+  停滞/重试的状态映射、POST/source=model 归因、url 回退 model 与状态文案；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
