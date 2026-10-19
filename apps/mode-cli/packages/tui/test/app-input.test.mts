@@ -3,8 +3,12 @@ import test from "node:test";
 
 import {
   clampIndex,
+  filterEffortOptions,
   filterSlashCommands,
   modelCommandQuery,
+  reconcileEffortCommandSelection,
+  selectedEffortOption,
+  visibleEffortOptionWindow,
   visibleSlashCommandWindow,
 } from "../src/app-input.js";
 
@@ -64,6 +68,49 @@ test("visibleSlashCommandWindow：窗口跟随选中项并映射到窗口内下�
   });
   assert.deepEqual(visibleSlashCommandWindow(commands, 0, 0), {
     commands: [],
+    selectedIndex: 0,
+    startIndex: 0,
+  });
+});
+
+const EFFORTS = [
+  { id: "low", label: "Low" },
+  { id: "high", label: "High", description: "max effort" },
+] as never;
+
+test("effort 过滤：/effort 前缀、空查询全量、匹配 id/label/description", () => {
+  assert.deepEqual(filterEffortOptions("/effort ", EFFORTS), EFFORTS);
+  assert.deepEqual(filterEffortOptions("/effort h", EFFORTS), [EFFORTS[1]]);
+  assert.deepEqual(filterEffortOptions("/effort max", EFFORTS), [EFFORTS[1]]);
+  assert.deepEqual(filterEffortOptions("/effort zzz", EFFORTS), []);
+  assert.deepEqual(filterEffortOptions("hello", EFFORTS), []);
+});
+
+test("effort 选择：命令态才产出选中项，下标夹取到有效范围", () => {
+  assert.deepEqual(reconcileEffortCommandSelection("/effort ", EFFORTS), {
+    selectedIndex: 0,
+  });
+  assert.equal(reconcileEffortCommandSelection("hello", EFFORTS), undefined);
+  assert.equal(reconcileEffortCommandSelection("/effort ", [] as never), undefined);
+  assert.deepEqual(selectedEffortOption("/effort high", { selectedIndex: 1 }, EFFORTS), EFFORTS[1]);
+  assert.deepEqual(selectedEffortOption("/effort high", { selectedIndex: 9 }, EFFORTS), EFFORTS[1]);
+  assert.equal(selectedEffortOption("hello", { selectedIndex: 0 }, EFFORTS), undefined);
+  assert.equal(selectedEffortOption("/effort high", undefined, EFFORTS), undefined);
+});
+
+test("effort 可视窗口：越界夹取并滚动起点", () => {
+  assert.deepEqual(visibleEffortOptionWindow(EFFORTS, 1, 1), {
+    efforts: [EFFORTS[1]],
+    selectedIndex: 0,
+    startIndex: 1,
+  });
+  assert.deepEqual(visibleEffortOptionWindow(EFFORTS, 99, 2), {
+    efforts: EFFORTS,
+    selectedIndex: 1,
+    startIndex: 0,
+  });
+  assert.deepEqual(visibleEffortOptionWindow([], 0, 8), {
+    efforts: [],
     selectedIndex: 0,
     startIndex: 0,
   });

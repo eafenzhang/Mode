@@ -183,4 +183,8 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二十批（`app-event-data` 续）：`validContextUsage` 只保留非负数值的
   contextUsed/contextWindow；`modelNetworkRequestTargetFromPayload` 仅在 url 为非空字符串时
   采用，否则回退占位 `model`；
+- 第二十一批（`app-input` effort、`app-compact-timeline`）：effort 过滤（前缀/空查询/
+  id/label/description 匹配）、命令选择与下标夹取、可视窗口；compact 时间线同 id 原位更新、
+  不同 id 追加且保留非时间线消息，只有 failed 可重试并产出 `/compact`，失败收尾把最近
+  started 置为 failed；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
