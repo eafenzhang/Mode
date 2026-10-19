@@ -12,6 +12,15 @@
   行为没有因 Tauri 迁移而回退。
 - 仍缺的是**两台机器/真实 UI 的人工验收**，不是代码缺口。
 
+## 2026-10-19 更正：Tauri 产品壳仍有代码缺口
+
+上面「不是代码缺口」只适用于 Electron 服务层。Tauri 产品壳的 `window.mode` 仍把 LAN/RD
+方法列为拒绝/空操作，`connectRemote` 直接拒绝；`host-standalone` 也没有启动 LAN/RD/remote
+registry。真机证据：`.plan/browser-import-e2e-4.log:4395`（`not_implemented_until_m3:
+connectRemote`）。该缺口已独立立项，见
+`docs/plans/2026-10-19-lan-remote-sidecar-migration.md`；本文件的 M3 人工验收项在迁移完成前
+不能作为「Tauri 版已可用」的依据。
+
 ## 本轮自动化证据
 
 ```bash

@@ -221,6 +221,8 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 > `docs/plans/2026-10-18-m3-plugin-host.md`（含 DR-PH-1…5 与 Task 0 观察清单）；
 > LAN / 远程 / 远程桌面的验收现状见 `docs/plans/2026-10-18-m3-lan-remote-status.md`
 > （结论：由 Host sidecar 复用，38 条相关测试全绿，待两台机器人工验收）；
+> **Tauri 产品壳的接线缺口与迁移计划**见 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`
+> （2026-10-19 独立立项；旧文「不是代码缺口」只适用于 Electron 服务层）；
 > IM bot 见 `docs/plans/2026-10-18-m3-im-bot-status.md`（DR-IM-1：由 Host sidecar 复用，
 > 149 条现有测试全绿，M3 不新增 `crates/bots`；剩真账号逐通道人工验收）；
 > 插件市场见 `docs/plans/2026-10-18-m3-plugin-market-status.md`（DR-PM-1：sidecar 复用，
@@ -247,8 +249,8 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
       **M3 不新增 `crates/bots`**；Rust HTTP+WS 重写延后到运行时移出 sidecar 时再评估。
       剩余为飞书/企微/钉钉/微信的真账号人工验收，逐项见
       `docs/plans/2026-10-18-m3-im-bot-status.md`。
-- [ ] **LAN 远连**：UDP 广播发现 + 6 位配对码 + 桌面即服务端——对照 `lan-discovery/lan-remote-attach/lan-paired-devices` 三个 spec 逐条验收（含旧客户端兼容窗口期口径，按 `lan-no-pre-rename-compat` 记忆：改名前版本不兼容）。〔2026-10-18 已跑 38 条相关测试全绿；剩两台机器人工验收，见 `2026-10-18-m3-lan-remote-status.md`〕
-- [ ] **SSH/WSL/Docker 远程 + workspaceIdentity**：身份 key `trim() || path` 贯穿，跨 Host 路由与 stale-run 防护的对拍测试。〔2026-10-18 相关用例已在 40 条 desktop 远程测试中通过（含判等口径与对新对端归属）；实机远程连接仍待人验收〕
+- [ ] **LAN 远连**：UDP 广播发现 + 6 位配对码 + 桌面即服务端——对照 `lan-discovery/lan-remote-attach/lan-paired-devices` 三个 spec 逐条验收（含旧客户端兼容窗口期口径，按 `lan-no-pre-rename-compat` 记忆：改名前版本不兼容）。〔2026-10-18 已跑 38 条相关测试全绿；2026-10-19 立项补 Tauri 产品壳接线，见 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`；两台机器验收在迁移后执行〕
+- [ ] **SSH/WSL/Docker 远程 + workspaceIdentity**：身份 key `trim() || path` 贯穿，跨 Host 路由与 stale-run 防护的对拍测试。〔2026-10-18 相关用例已在 40 条 desktop 远程测试中通过（含判等口径与对新对端归属）；Tauri 产品壳的 `connectRemote` 与 scoped attachment 尚未接线，纳入 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`〕
 - [ ] **Web 端（axum）**：`web-remote-replayable` 链路 + 手机远控复用 Host attachment 的既有架构（AGENTS.md：不为手机另起运行时）。〔2026-10-18 盘点，DR-WEB-1〕由 Host sidecar 复用现有 `packages/server`，**M3 不新增 `crates/server`**；156 条相关测试全绿，剩两台设备人工验收，见 `2026-10-18-m3-web-remote-status.md`。
 - [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。〔2026-10-18 盘点，DR-TUI-1〕沿用现有 TS/React TUI（`@mode/tui`），**M3 不新增 `crates/tui`**；33 个场景清单见 `2026-10-18-m3-tui-status.md`；当前已有 156 条纯逻辑契约测试并接入 release verify，渲染/焦点/落盘等交互验收仍待人工。
 
