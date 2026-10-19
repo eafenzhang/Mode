@@ -196,4 +196,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二十四批（`app-input` 提交/草稿转换）：`toPromptInput` 无附件时返回纯文本、只保留正文
   引用到的附件并按类型映射，模型选择原样带入；`toDraftAttachments` 文件用 `@path` 占位、
   图片按 data URL 推导媒体类型、缺 path/content 丢弃、无占位生成 `[image #id]`；
+- 第二十五批（`app-events`）：`turn_started` 设置活动 turn 与 thinking；`turn_error` 记录
+  错误、追加系统消息并清空排队；`turn_complete` 收尾状态、用量映射、缓存与回退响应；
+  未知事件不触发任何 handler；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
