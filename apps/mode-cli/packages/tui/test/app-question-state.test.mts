@@ -110,3 +110,82 @@ test("question prompt：缺少 questionState 时不处理且不改队列", () =>
   assert.equal(run.status, undefined);
   assert.equal(run.resolved, undefined);
 });
+
+const DOWN = { name: "down", sequence: "\x1b[B" } as never;
+const UP = { name: "up", sequence: "\x1b[A" } as never;
+const SPACE = { name: "space", sequence: " " } as never;
+
+function runQuestionSequence(
+  input: unknown,
+  keys: Array<Record<string, unknown>>,
+): ReturnType<typeof createQuestionPromptState> {
+  let state = createQuestionPromptState(input as never);
+  for (const key of keys) {
+    const approval = {
+      questionState: state,
+      resolve: () => {},
+      reject: () => {},
+      cleanup: () => {},
+      request: {},
+      selectedDecision: "allow_once",
+    };
+    let queue: unknown;
+    handleQuestionKey(
+      key as never,
+      approval as never,
+      ((value: unknown) => {
+        queue =
+          typeof value === "function"
+            ? (value as (previous: unknown[]) => unknown)([approval])
+            : value;
+      }) as never,
+      (() => {}) as never,
+    );
+    const next = (queue as Array<{ questionState: unknown }> | undefined)?.[0]?.questionState;
+    if (next) state = next as ReturnType<typeof createQuestionPromptState>;
+  }
+  return state;
+}
+
+test("question prompt：上下键移动选中项，首项处向上保持", () => {
+  const downTwice = runQuestionSequence(INPUT, [DOWN, DOWN]);
+  assert.equal(downTwice.selectedOptionIndex, 2);
+  const upToOne = runQuestionSequence(INPUT, [DOWN, UP]);
+  assert.equal(upToOne.selectedOptionIndex, 0);
+  const upAtTop = runQuestionSequence(INPUT, [UP]);
+  assert.equal(upAtTop.selectedOptionIndex, 0);
+  const space = runQuestionSequence(INPUT, [SPACE]);
+  assert.equal(space.selectedOptionIndex, 0);
+});
+
+test("question prompt：多选空格切换选中项，Enter 汇总为逗号分隔答案", () => {
+  const multiInput = {
+    questions: [
+      {
+        question: "Pick many?",
+        header: "Pick",
+        multiSelect: true,
+        options: [
+          { label: "A", description: "a" },
+          { label: "B", description: "b" },
+        ],
+      },
+    ],
+  } as never;
+
+  const one = runQuestionSequence(multiInput, [SPACE]);
+  assert.deepEqual(one.multiSelections, { "Pick many?": ["A"] });
+  assert.deepEqual(one.answers, {});
+
+  const two = runQuestionSequence(multiInput, [SPACE, DOWN, SPACE]);
+  assert.deepEqual(two.multiSelections, { "Pick many?": ["A", "B"] });
+
+  const submitted = runQuestionSequence(multiInput, [
+    SPACE,
+    DOWN,
+    SPACE,
+    { name: "return", sequence: "\r" },
+  ]);
+  assert.equal(submitted.reviewing, true);
+  assert.equal(submitted.answers["Pick many?"], "A, B");
+});

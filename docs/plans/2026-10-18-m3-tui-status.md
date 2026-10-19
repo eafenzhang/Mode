@@ -207,4 +207,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二十八批（`app-network-events`）：请求事件缺字段/非法状态被忽略，合法事件补齐
   source=unknown 与时间戳，同 id 原位更新并前置，最多保留 8 条；模型事件完成/进行/失败/
   停滞/重试的状态映射、POST/source=model 归因、url 回退 model 与状态文案；
+- 第二十九批（`app-question-state` 导航与多选）：上下键移动选中项（首项处向上保持），
+  空格在单选下无效；多选时空格切换条目，Enter 把选中项汇总为逗号分隔答案并进入 review；
+  先前“down 报错”是探针缺少 `sequence` 字段的伪像；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
