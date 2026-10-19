@@ -95,3 +95,16 @@ settings-sync/skill-sync/skills/storage/subagents）、mode-server-cli 与 plugi
 产品 id 与 legacy 链）、`packages/desktop/src/host-standalone/dataRoot.ts` 的重复常量、
 `crates/sidecar-host/src/lib.rs`、Rust/TS 测试与 oracle 中的 `.mode` 夹具，以及
 `docs/specs/mode-data-root.md` 与 README。
+
+## 9. 当前硬阻塞（2026-10-19 实测）
+
+切换尝试在 `packages/mode-cua/**` 撞到并行会话所有权边界：`broker-server.js` 直接读
+`~/.mode/cli/config.json`（用户层）与 `<workspace>/.mode/config.json`（项目层），没有走
+`@mode/shared` 常量。若只切其他包，设置页写入 `~/.tutto/cli/config.json` 后 CUA 仍读旧根，
+「电脑控制」开关会静默失效（`cua-enablement` 用例当场变红）。
+
+因此常量切换必须与 CUA 包同批执行，而该目录当前归并行会话。已回退本轮未提交的常量
+切换，只保留无行为变化的前置收敛；CUA 一期收口后按第 8 节清单一次性切换。
+
+顺带修复：`discoverLegacyDataRootCandidates` 原先只探测 legacy 列表的第一项，现按
+`LEGACY_MODE_DATA_ROOT_DIR_NAMES` 由新到旧取第一个存在的根（多代迁移一致）。

@@ -1,5 +1,5 @@
 /**
- * 旧数据根（{base}/.mode）探测与复制迁移。
+ * 旧数据根（按 LEGACY_MODE_DATA_ROOT_DIR_NAMES 由新到旧探测，取第一个存在的）探测与复制迁移。
  *
  * 迁移只在用户确认（桌面决策/再次导入）或显式非交互策略（MODE_DATA_ROOT_ACTION=migrate）
  * 下执行；复制而非移动，旧根保留。复制先进入同卷 staging，成功后 rename 原子落位。
@@ -13,7 +13,7 @@ import {
   DATA_ROOT_MANIFEST_FILE_NAME,
   DATA_ROOT_MANIFEST_SCHEMA_VERSION,
   DATA_ROOT_PRODUCT_ID,
-  LEGACY_MODE_DATA_ROOT_DIR_NAME,
+  LEGACY_MODE_DATA_ROOT_DIR_NAMES,
   MODE_DATA_ROOT_DIR_NAME,
   type DataRootManifest,
   type DataRootManifestCreatedBy,
@@ -61,22 +61,33 @@ function expandHomeDir(value: string): string {
 export function discoverLegacyDataRootCandidates(baseDir: string): LegacyDataRootCandidate[] {
   const candidates: LegacyDataRootCandidate[] = [];
   const seen = new Set<string>();
-  const primaryLegacyRoot = join(baseDir, LEGACY_MODE_DATA_ROOT_DIR_NAME);
-  if (existsSync(primaryLegacyRoot)) {
+  const primaryLegacyRoot = findLegacyRootInBase(baseDir);
+  if (primaryLegacyRoot) {
     candidates.push({ baseDir, legacyRoot: primaryLegacyRoot, isPrimaryBase: true });
     seen.add(resolve(primaryLegacyRoot));
   }
-  // 旧版设置里的自定义数据目录：其 .mode 同样是用户真实数据，纳入候选。
-  const configuredBaseDir = readLegacyDataBaseDirFromSettings(primaryLegacyRoot);
+  // 旧版设置里的自定义数据目录：其历史根同样是用户真实数据，纳入候选。
+  const configuredBaseDir = primaryLegacyRoot
+    ? readLegacyDataBaseDirFromSettings(primaryLegacyRoot)
+    : undefined;
   if (configuredBaseDir) {
     const customBase = resolve(expandHomeDir(configuredBaseDir));
-    const customLegacyRoot = join(customBase, LEGACY_MODE_DATA_ROOT_DIR_NAME);
-    if (!seen.has(resolve(customLegacyRoot)) && existsSync(customLegacyRoot)) {
+    const customLegacyRoot = findLegacyRootInBase(customBase);
+    if (customLegacyRoot && !seen.has(resolve(customLegacyRoot))) {
       candidates.push({ baseDir: customBase, legacyRoot: customLegacyRoot, isPrimaryBase: false });
       seen.add(resolve(customLegacyRoot));
     }
   }
   return candidates;
+}
+
+/** 按由新到旧顺序取 base 下第一个存在的历史根。 */
+function findLegacyRootInBase(baseDir: string): string | undefined {
+  for (const name of LEGACY_MODE_DATA_ROOT_DIR_NAMES) {
+    const candidate = join(baseDir, name);
+    if (existsSync(candidate)) return candidate;
+  }
+  return undefined;
 }
 
 /** 递归统计候选目录大小/最后修改时间；单项失败按 0 计，不阻断。 */
