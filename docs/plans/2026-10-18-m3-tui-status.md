@@ -64,13 +64,13 @@
 
 ### C. 审批与提问
 
-| #   | 场景                                             | 证据来源                                                            | 状态                          |
-| --- | ------------------------------------------------ | ------------------------------------------------------------------- | ----------------------------- |
-| C1  | `allow_once`：批准后工具继续，规则不落盘         | `app-approval.ts`、`app-approval-panel.tsx`、`TuiRequestPermission` | 部分：文案/预览（批 13）      |
-| C2  | `allow_project`：批准后本项目后续同规则不再询问  | 同上                                                                | 部分：文案（批 13）           |
-| C3  | `deny`：拒绝文案、工具不执行、会话继续           | 同上                                                                | 部分：文案/取消（批 13、26）  |
-| C4  | `AskUserQuestion`：问题面板、多选/自由输入与取消 | `app-question-panel.tsx`、`app-question-state.ts`                   | 部分：状态机（批 12、26、29） |
-| C5  | 审批与流式并发：审批期间流式事件不丢、不越序     | `app-permission.ts`                                                 | 无自动化                      |
+| #   | 场景                                             | 证据来源                                                            | 状态                           |
+| --- | ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------ |
+| C1  | `allow_once`：批准后工具继续，规则不落盘         | `app-approval.ts`、`app-approval-panel.tsx`、`TuiRequestPermission` | 部分：文案/预览（批 13、36）   |
+| C2  | `allow_project`：批准后本项目后续同规则不再询问  | 同上                                                                | 部分：文案/作用域（批 13、36） |
+| C3  | `deny`：拒绝文案、工具不执行、会话继续           | 同上                                                                | 部分：文案/取消（批 13、26）   |
+| C4  | `AskUserQuestion`：问题面板、多选/自由输入与取消 | `app-question-panel.tsx`、`app-question-state.ts`                   | 部分：状态机（批 12、26、29）  |
+| C5  | 审批与流式并发：审批期间流式事件不丢、不越序     | `app-permission.ts`                                                 | 无自动化                       |
 
 ### D. 工具与 diff
 
@@ -226,4 +226,7 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第三十五批（`app-sidebar-keyboard`）：Ctrl+X 只消费按键并提示 leader；leader 后
   B/M/A 分别切换侧栏、修改文件区块、API 区块，按键被消费并按展开/可见状态给出文案；
   普通按键不消费也不改状态；
+- 第三十六批（`app-approval` 续）：描述优先 input.description、回退 reason；官方 CUA
+  项目审批需 allow + addRules 且规则命中官方能力，并映射专属文案；作用域只取 Bash allow
+  规则、前缀用省略号、最多 5 条，无 suggested updates 时从 input 取规则内容；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
