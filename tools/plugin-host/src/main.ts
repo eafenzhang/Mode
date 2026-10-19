@@ -12,11 +12,13 @@
 // high/system/artifact（观察值）。
 //
 // 未做：启用/禁用过滤（缺 installed_plugins.json 的稳定读取口径）、Skills（Skill 是内置工具）。
-import { MODE_DATA_ROOT_DIR_NAME } from "@mode/shared";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { join } from "node:path";
+
+/** 用户级数据根目录名；本文件被 esbuild 打成单文件，不能依赖 workspace 包解析。 */
+const MODE_DATA_ROOT_DIR_NAME = ".mode";
 
 const PROTOCOL_VERSION = 1;
 const PROTOCOL_ERROR_ID = 0;
@@ -179,7 +181,9 @@ class McpClient {
     }
   }
 
-  async listTools(): Promise<Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>> {
+  async listTools(): Promise<
+    Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>
+  > {
     const result = (await this.request("tools/list", {})) as {
       tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
     };
