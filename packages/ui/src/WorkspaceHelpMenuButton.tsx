@@ -13,7 +13,7 @@ import {
 } from "@/ui-foundation/adapters/dropdown-menu.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { updateCheckFeedback } from "@/desktopUpdateFeedback.js";
+import { runUpdateCheck } from "@/desktopUpdateFeedback.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useDesktopUpdateMenu } from "@/hooks/useDesktopUpdateMenu.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
@@ -46,6 +46,14 @@ export function WorkspaceHelpMenuButton({
   const execute = (command: DesktopCommandId) => {
     void platform.executeDesktopCommand(command);
   };
+  const formatMessage = (id: string, values?: Record<string, string | number>) =>
+    intl.formatMessage({ id }, values);
+  const checkForUpdates = () =>
+    runUpdateCheck({
+      execute: () => platform.executeDesktopCommand(DesktopCommandIds.CheckForUpdates),
+      formatMessage,
+      showToast: (message, options) => toast(message, options),
+    });
 
   return (
     <DropdownMenu>
@@ -80,9 +88,8 @@ export function WorkspaceHelpMenuButton({
           data-testid="workspace-help-menu-check-for-updates"
           disabled={updateMenu.disabled}
           onSelect={() => {
-            // 更新状态已知时沿用带状态文案与重启动作的入口，否则退回普通的手动检查。
-            if (updateMenu.visible) updateMenu.checkForUpdates();
-            else execute(DesktopCommandIds.CheckForUpdates);
+            // 菜单文案仍跟随更新状态；点击本身统一走一次检查并消费壳返回值。
+            void checkForUpdates();
           }}
         >
           <RefreshCwIcon className="size-4" aria-hidden="true" />

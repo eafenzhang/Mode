@@ -1,4 +1,4 @@
-import { DesktopCommandIds, type UpdateStatePayload } from "@mode/shared";
+import type { UpdateStatePayload } from "@mode/shared";
 import { useEffect, useState } from "react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import {
@@ -39,8 +39,5 @@ export function useDesktopUpdateMenu(isDesktop: boolean) {
     disabled: state?.enabled === false,
     labelId: getUpdateMenuLabelId(state),
     labelValues: getUpdateMenuLabelValues(state),
-    checkForUpdates: () => {
-      void platform.executeDesktopCommand(DesktopCommandIds.CheckForUpdates);
-    },
   };
 }
