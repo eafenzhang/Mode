@@ -120,7 +120,6 @@ import type {
   BotTransientInteractionCardHandle,
   BotTypingTarget,
 } from "./providers/types.js";
-import { createWebhookBotProvider } from "./providers/webhookProvider.js";
 import { createWeixinBotProvider } from "./providers/weixinProvider.js";
 import { createWeComBotProvider } from "./providers/wecomProvider.js";
 import {
@@ -602,7 +601,7 @@ function resolveAutomationBotDeliveryTarget(
   actor: BotActor,
 ): ModeAutomationBotDeliveryTarget | undefined {
   // 具备主动推送能力的平台：飞书/Lark、微信、企业微信智能机器人。
-  // webhook 是入站协议，不作为投递目标；Telegram 已退出产品面。
+  // 已下线通道（webhook/Telegram）不作为投递目标。
   // 注意：用直接条件而不是布尔别名，TS 需要它来完成联合类型窄化。
   if (
     actor.provider !== "feishu" &&
@@ -955,12 +954,10 @@ export function createBotsService(
   /** 一次性迁移标记：旧绑定表导入（settings.botBindingByWorkspace）与 path→identity key 升级共用。 */
   let workspaceKeyUpgradeChecked = false;
   const providers: Record<BotProvider, BotProviderAdapter | null> = {
-    // AstrBot/Telegram 等已下线通道只为历史配置解析保留，没有适配器。
+    // 已下线通道只为历史配置解析保留，没有适配器。
     astrbot: null,
     telegram: null,
-    webhook: createWebhookBotProvider({
-      loadCredential: (key) => deps.credentialService.load(key),
-    }),
+    webhook: null,
     feishu: createFeishuBotProvider({
       onDeliveryResult,
       loadCredential: (key) => deps.credentialService.load(key),
@@ -4157,19 +4154,8 @@ export function createBotsService(
     }
     const replies: BotOutboundMessage[] = [];
     let hadBusinessFailure = false;
-    const inboundSecret =
-      isRecord(preparedPayload) && typeof preparedPayload.webhookSecret === "string"
-        ? preparedPayload.webhookSecret
-        : undefined;
     for (const inbound of parsedInboundMessages) {
       const bot = findBot(config, inbound.botId);
-      if (bot?.provider === "webhook" && bot.webhookSecretRef) {
-        const expectedSecret = await deps.credentialService.load(bot.webhookSecretRef);
-        if (expectedSecret && expectedSecret !== inboundSecret) {
-          replies.push(createOutbound(inbound.actor, msg(locale, "webhookSecretInvalid")));
-          continue;
-        }
-      }
       if (bot && isFeishuBotProvider(bot.provider) && bot.webhookSecretRef) {
         const expectedToken = await deps.credentialService.load(bot.webhookSecretRef);
         const payloadHeader =
