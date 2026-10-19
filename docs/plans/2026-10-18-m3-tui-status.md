@@ -202,4 +202,6 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 第二十六批（`app-question-state` 续）：Enter 选中当前项并进入 review；review 中再次
   Enter 以 `modify` 决策提交（携带 answers/questions）；Escape 以 `deny` 放弃；缺少
   questionState 时不改队列；
+- 第二十七批（`app-subagent-events`）：只有工具事件且 `payload.source = subagent` 才算子代理
+  镜像；目录刷新由生命周期事件触发，镜像事件与逐 token 的 model_streaming 不触发；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
