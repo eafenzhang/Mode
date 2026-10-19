@@ -6354,6 +6354,7 @@ const faIR: Record<string, string> = {
   "remoteDesktop.consent.allow": "اجازه",
   "remoteDesktop.consent.deny": "رد",
   "remoteDesktop.consent.remember": "به خاطر سپردن این دستگاه",
+  "remoteDesktop.indicator.controlling": "این دستگاه از راه دور کنترل می‌شود",
   "remoteDesktop.consent.timeout": "تا {seconds} ثانیه دیگر خودکار رد می‌شود",
   "remoteDesktop.indicator.text": "{device} در حال کنترل این دستگاه است",
   "remoteDesktop.indicator.end": "پایان",

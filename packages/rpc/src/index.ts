@@ -70,6 +70,21 @@ export {
   createQueuePair,
 } from "./protocol.js";
 export { PersistentProtocol, type PersistentProtocolOptions } from "./persistent-protocol.js";
+export {
+  SCOPED_FRAME_MARKER,
+  CONTROL_FRAME_MARKER,
+  SCOPED_FRAME_HEADER_BYTES,
+  MAX_SCOPE_ID,
+  type DecodedFrame,
+  type AttachmentControl,
+  type FrameDemultiplexer,
+  type FrameDemultiplexerOptions,
+  encodeScopedFrame,
+  decodeFrame,
+  encodeControlFrame,
+  decodeControlFrame,
+  createFrameDemultiplexer,
+} from "./frameMultiplexer.js";
 
 // Layer 3: Channel RPC
 export {

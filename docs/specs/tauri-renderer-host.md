@@ -1938,3 +1938,186 @@ Host 的 `StartupStateMachine` 序号从来没有出现在渲染层能看到的�
 | 6   | **仍开放**（re-registered） | §18 ② + §15.3 的 M6：Host 与壳各自从 0 自增；当前没有合并流（第二实例转发走无序号事件通道）                                                                                                                                                                                                                                  | **成本**：若将来把 Host 的中间阶段接进壳发布的状态流，`acceptState` 可能丢掉 `sequence <= state.sequence` 的更新。**重开触发**：下一次改动 `crates/sidecar-host/src/startup.rs` 把 Host 报的中间阶段接进 `DatabaseStartupState` 的那个人。答案只能二选一：壳转发 Host 序号，或壳按自己的发布重编号（Host 序号只作内部诊断） |
 | 7   | **关闭**（已处置）          | §17 / DR-T3-2：验收台只进开发档，发布路径用 `--no-bench`；发布产物里没有 `dist/dev/`                                                                                                                                                                                                                                         | 无未决项                                                                                                                                                                                                                                                                                                                    |
 | 8   | **关闭**（已登记，供复核）  | §19.1：违规范围与替代判据都在；结论由 §10.11 的黑盒负向对照取代                                                                                                                                                                                                                                                              | 无未决工程项；保留记录供复核                                                                                                                                                                                                                                                                                                |
+
+## 21. LAN / 远程桌面 / 远程工作区：Host 服务面接线（LR 立项）
+
+前置：迁移计划 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`（LR-0..LR-5）；
+领域规格 `docs/specs/lan-discovery.md`、`lan-paired-devices.md`、`lan-host-server-mode.md`、
+`lan-remote-attach.md`、`in-app-remote-desktop.md`、`remote-workspace-identity.md`。
+
+本节定义**产品 renderer 读写的业务面**如何在 Tauri 壳里成立。它不改 Electron 线的写入路径
+（DR-LR-5），也不把 LAN/RD 业务搬进 Rust。
+
+### 21.1 所有权（与 §1 一致，只增不改）
+
+| 状态                                     | 唯一所有者                                     | 读取方                       |
+| ---------------------------------------- | ---------------------------------------------- | ---------------------------- |
+| LAN 被控监听、配对码、客户端记录         | `LanAccessServerHandle`（Host 进程内）         | `lan-access` RPC → renderer  |
+| LAN 开关 `lanAccessEnabled`              | Host 的 setting 服务                           | 同上；启动时据此恢复监听     |
+| 「我配对的对端」令牌与元数据             | Host 的 credential 服务                        | 同上                         |
+| 远程桌面被控状态、逐设备授权             | `RemoteDesktopHostServer` + credentials        | `remote-desktop` RPC（LR-2） |
+| 远程工作区 logical session 与 attachment | `windowRemoteConnectionRegistry`（每窗口一个） | `remote.*` RPC（LR-4）       |
+
+`window.mode` 的 LAN/RD 成员在 Tauri 里**保持拒绝/空操作**，作为回滚 fallback；
+产品路径不再依赖它们。
+
+### 21.2 频道与注册位置
+
+```ts
+ServiceChannels.LanAccess = "lan-access"; // LR-1
+ServiceChannels.RemoteDesktop = "remote-desktop"; // LR-2
+```
+
+| 层                 | 位置                                                               | 约束                                       |
+| ------------------ | ------------------------------------------------------------------ | ------------------------------------------ |
+| 契约（浏览器安全） | `packages/services/src/lan-access/lanAccessService.ts`（LR-1）     | 只导出 interface/descriptor 与纯类型       |
+| 实现（Node）       | `packages/desktop/src/host-standalone/lanAccessService.ts`         | 动态 import `@mode/services/node` 之后装载 |
+| 注册               | `packages/desktop/src/host-standalone/serviceAccessor.ts`          | 在 `exposeOnChannelServer` **之前**注册    |
+| 客户端代理         | `packages/client/src/remoteServiceAccess.ts` 的 `lanAccessService` | 可选字段；旧 Host 没有该频道时调用会拒绝   |
+
+**local-only（D2）**：`lan-access` 注册在**独立的 `ServiceCollection`**，只暴露给窗口 renderer 的
+`ChannelServer`。传给 `startLanAccessServer` 的仍是普通服务集合（不含 `lan-access`），
+因为 `packages/server/src/http.ts` 会把该集合暴露给每个 LAN WebSocket。
+`pairPeer` 会返回短期可见的长期令牌，**绝不允许**进入 peer-facing 集合；
+`serverRemoteInfoSchema.capabilities` 里也不声明管理能力。
+
+### 21.3 `ILanAccessService`（LR-1）
+
+所有参数用对象，避免位置参数演进：
+
+```ts
+interface ILanAccessService {
+  getState(): Promise<LanAccessState>;
+  setEnabled(params: { enabled: boolean }): Promise<LanAccessState>;
+  createPairCode(): Promise<LanAccessState>;
+  removeClient(params: { clientId: string }): Promise<LanAccessState>;
+  resetTokens(): Promise<LanAccessState>;
+  discoverPeers(): Promise<LanDiscoveredPeer[]>;
+  pairPeer(request: LanPairPeerRequest): Promise<LanAccessPairResult>;
+  listPairedPeers(): Promise<LanPairedPeer[]>;
+  getPeerWorkspaces(params: { serverId: string }): Promise<LanPairedPeerWorkspaces>;
+  removePairedPeer(params: { serverId: string }): Promise<void>;
+  renamePairedPeer(params: { serverId: string; name: string }): Promise<void>;
+  onDidChange: Event<LanAccessState>;
+}
+```
+
+语义：
+
+- `getState` 在监听未开启时返回 `readDisabledLanAccessState(credentials)`：`clients` 是持久化事实，
+  `port/addresses/pairCode` 为空；
+- `createPairCode` / `removeClient` / `resetTokens` 在监听未开启时**明确失败**，不返回假成功；
+- `removePairedPeer` / `renamePairedPeer` 必须真实写/删凭据；凭据缺失时给出可读错误。
+  它们不再走 `window.mode` 的静默 no-op；
+- `onDidChange` 只发**幂等状态快照**，在 setEnabled / createPairCode / removeClient / resetTokens
+  成功后以及启动恢复完成后触发。renderer 首个订阅者拿到的是最近一次快照（`ProxyChannel` 的
+  事件缓冲语义）。
+
+### 21.4 启动与销毁顺序（单 owner）
+
+```text
+Host bootstrap
+  createLocalServices
+    → 创建 lanAccess adapter（注入 setting/credential/startServer）
+    → 读 lanAccessEnabled；true 则 ensureStarted()
+    → 注册到 local-only ServiceCollection
+  services.exposeOnChannelServer（普通集合）
+  localOnly.exposeOnChannelServer（管理面）
+  server.ready()                      ← 第一帧：管理频道已可调用
+```
+
+- `ensureStarted` 是**单一启动 Promise**：并发 `setEnabled(true)` 共用同一次启动，
+  不存在 check-then-act 双监听；
+- 启动失败只告警并把状态留在 disabled，Host 不因此启动失败；
+- 销毁顺序：先 `lanAccess.dispose()`（停 UDP/HTTP、清空 handle），再释放普通服务资源；
+  不得留下孤儿监听。
+
+所有 UI 可见请求共用 **10s** 预算（`pairPeer` / `getPeerWorkspaces` 的网络超时也在此预算内），
+不再出现「UI 已超时、Host 却成功」。
+
+### 21.5 平台委托
+
+`packages/desktop/src/renderer/src/desktopPlatform.ts` 的 11 个 LAN 方法：
+
+```text
+Tauri runtime 且 getHostServices() 返回 lanAccessService
+  → Host RPC
+否则
+  → window.mode（Electron 既有 IPC；Tauri 下仍是明确拒绝）
+```
+
+委托判定与 fallback 在**方法内部逐条**完成，不在模块加载期绑定一次：
+renderer 的 `MessagePort` 在 `createDesktopPlatform` 之后才到，过早捕获会永久走 fallback。
+
+### 21.6 后续阶段的接口门槛
+
+- **LR-2（已落地）**：`remote-desktop` 频道承载 server state / enable / authorize / revoke /
+  peer capability / controlled state；`rdReadClipboardText` 留在壳命令面。
+  状态写路径不变——适配器把 RPC 调用翻译成 `RemoteDesktopHostServer` 既有的消息命令
+  （`SetServerEnabled` / `AuthorizeClient` / `RevokeClient` / `ServerStateRequest`），
+  经 `postToMain` 按 `requestId` 收状态快照；不直接改凭据，因此设置页、LAN 握手能力位与
+  同意流仍是同一所有者。`getControlledState` 读 server 的 busy 事实
+  （同意等待 / 待接线 / 进行中会话）。主控会话（`rdStartSession` / 信令 / 剪贴板 /
+  session events）仍走壳，未提前接管。
+- **LR-3（主控 + 被控协调路径已落地）**：
+  - **主控会话**：Host 侧 controller（`host/remoteDesktopController.ts`）承载对端票据、
+    信令 WS、单会话互斥、bye/error 收口与 retryable 标记；`rdStartSession` /
+    `rdSendSignal` / `rdEndSession` 在 Tauri 下委托 Host。Electron 线的
+    `main/remoteDesktop/controllerSession.ts` 不动（两份实现并存，Electron 线退役时再收口）。
+  - **事件**：`onDynamicSessionEvent` 承载连接状态与非幂等信令，**不缓冲、不重放**；
+    断线由 renderer 的会话级重连策略处理。
+  - **同意流**：`onConsentRequest` / `respondConsent` 已从 Host 暴露到 renderer；
+    已记住设备直通，未记住进入 60s 等待（早于被控 server 的 75s 兜底），超时按
+    `consent_timeout` 拒绝；Host 退出时拒绝挂起请求。Tauri 的同意窗是 renderer 模态
+    （`RemoteDesktopConsentDialog`，复用既有 i18n）；Electron 仍用 main 原生窗。
+  - **被控协调器**：`host/remoteDesktopControlledCoordinator.ts` 处理
+    `hello → monitors`、`select-monitor → media-open + MediaStart/MediaSwitch`、
+    `MediaStatus → freeze/unfreeze`、会话关闭 `MediaStop`；剪贴板门控仍由媒体中继
+    （`remoteDesktopMediaRelay`）负责。媒体密钥/盐只在 Host 内存与 helper 之间使用。
+  - **显示器快照**：renderer 从 Tauri `availableMonitors()` 读取物理矩形，
+    经 `remoteDesktopService.setLocalDisplays` 推给 Host（D7：Host 不直接枚举显示器）；
+    窗口 resize/move 去抖重推。`displayId` 按枚举顺序生成，会话内稳定。
+  - **退出**：Host 被控 server 的 `dispose` 先给主控带出 `bye{reason:"remote-end"}`，
+    再关 WS；`rdReadClipboardText` 仍留在壳能力面（Tauri 未实现，主控剪贴板同步降级）。
+  - **指示条**：`RemoteDesktopIndicator`（renderer 覆盖层）订阅
+    `onDidChangeControlledState`（同意等待 / 待接线 / 进行中会话），显示设备名与「结束」；
+    Electron 仍用 main 的原生指示窗。
+  - **剪贴板读取**：`rdReadClipboardText` 已是壳命令（Windows 读 CF_UNICODETEXT，
+    `crates/platform/src/commands/clipboard.rs`），主控剪贴板同步可用。
+  - **仍未做**：真机两机验收与 rd_media helper 打包形态验证。
+- **LR-4（LAN 主路径已落地）**：`connectRemote` 成功之后，每个 remote logical session 需要独立的
+  service scope。单端口多路复用已按 `docs/plans/2026-10-19-lr4-attachment-spike.md` 落地：
+  - remote 帧格式 `[0xFF][scopeId u32 BE][原帧]`，base 帧逐字节不变，Rust 壳零改动；
+  - `scope-ready` / `scope-detach` 控制帧（`0xFE + JSON`）由页面桥经同一条 `host_send`
+    发给 Host；Host 收到 ready 才对该 scope 调 `ChannelServer.ready()`，避免 Initialize
+    被解复用按未知 scope 丢弃；
+  - 页面桥暴露 `createScopedServicePort` / `releaseScopedServicePort`，端口仍以既有
+    `mode:scoped-service-port` 消息投递，renderer 的注册路径不需要改形状；
+  - Host 的 `remote` 频道把 `windowRemoteConnectionRegistry` 装进 standalone：
+    `connect/cancel/bindContext/dispose/attach/detach`；`attach` 用 registry 的 remote scope
+    （`remoteSessionId + workspacePath + workspaceIdentity`）取 scoped `ServiceCollection`。
+    **当前只接 LAN**；SSH/WSL/Docker 明确返回不支持。bot reconnect 与 UI 断线重连降级仍待做。
+
+### 21.7 验收门禁
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm --filter @mode/services test
+pnpm exec tsx --test packages/desktop/tests/*.test.mts
+pnpm --filter @mode/desktop-tauri test
+pnpm architecture:check --changed
+node scripts/check-language-policy.mjs
+```
+
+LR-1 的自动化至少覆盖：disabled 状态读取、enable/disable、配对码一次性、
+paired peers 排序、rename/remove 落凭据、local-only 不进入普通集合、`onDidChange` 端口往返、
+Host 销毁不留监听。
+
+LR-2 的自动化至少覆盖：server state 读取、总开关关闭后能力位立即为 false、授权/撤销/
+未知 client 三态、空 clientId 拒绝、对端能力探测（空 serverId 不发请求、异常归 offline）、
+被控状态、`onDidChangeServerState` 端口往返、dispose 收口。
+
+LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/connected/closed、单会话 busy、
+对端信令透传、bye/error 收口、传输断开 retryable、本地 end/dispose 带出 bye、
+`locally_controlled` 闸门、同意请求 60s 超时与已记住设备直通。

@@ -75,6 +75,40 @@ export { ISettingService } from "./setting/setting.js";
 // Credential service — ICredentialService is both a type (interface) and value (descriptor)
 export { ICredentialService } from "./credential/credential.js";
 
+// LAN 管理面（local-only RPC 频道；实现只能在 Host 侧装载）
+export {
+  ILanAccessService,
+  type LanAccessRemoveClientParams,
+  type LanAccessRenamePairedPeerParams,
+  type LanAccessServerIdParams,
+  type LanAccessSetEnabledParams,
+} from "./lan-access/lanAccessService.js";
+
+// 远程桌面被控设置面（local-only RPC 频道；主控会话在 LR-3 接入）
+export {
+  IRemoteDesktopService,
+  type RemoteDesktopClientParams,
+  type RemoteDesktopControlledState,
+  type RemoteDesktopEndSessionParams,
+  type RemoteDesktopPeerParams,
+  type RemoteDesktopSendSignalParams,
+  type RemoteDesktopSetServerEnabledParams,
+  type RemoteDesktopStartSessionParams,
+} from "./remote-desktop/remoteDesktopService.js";
+
+// 远程工作区管理面（LR-4；只注册给窗口 renderer）
+export {
+  IRemoteService,
+  type RemoteAttachmentDescriptor,
+  type RemoteBindContextParams,
+  type RemoteConnectParams,
+  type RemoteConnectResult,
+  type RemoteDetachParams,
+  type RemoteSessionParams,
+  type RemoteWorkspaceConnectionEvent,
+  type RemoteWorkspaceSessionSnapshot,
+} from "./remote/remoteService.js";
+
 // Broadcast service — IBroadcastService is both a type (interface) and value (descriptor)
 export { IBroadcastService } from "./broadcast/broadcast.js";
 

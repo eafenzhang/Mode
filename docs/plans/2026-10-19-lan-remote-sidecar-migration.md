@@ -1,6 +1,7 @@
 # LAN / 远控迁移到 Tauri Host sidecar（独立立项）
 
-状态：2026-10-19 立项，未开工。
+状态：2026-10-19 立项；LR-0、LR-1、LR-2 完成；LR-3 主控/被控协调/同意窗/指示条/剪贴板完成（真机待做）；
+LR-4 LAN 主路径完成（SSH/WSL/Docker、bot reconnect、stale/identity-mismatch 测试待做）；LR-5 未开工。
 Issue：仓库 Issues 已关闭（2026-10-19 实测 `has_issues=false`，创建接口返回 410），
 本文件即项目记录；待仓库启用 Issues 后补编号与链接。
 关联规格：
@@ -266,23 +267,23 @@ spike（见 DR-LR-2），未通过前 `connectRemote` 保持明确失败，不�
 
 ### LR-0 规格与契约（0.5–1 天）
 
-- [ ] 更新 `tauri-renderer-host.md`：新增 LAN/RD 频道、local-only 集合、attachment 契约。
-- [ ] 更新 `tauri-platform-commands.md`：登记本立项；明确 `window.mode` 与平台委托的关系。
-- [ ] 新增频道 descriptor 与类型；补静态契约测试（频道名、命令名、local-only 断言）。
-- [ ] 建立假 credentials/settings/startServer 的测试夹具。
+- [x] 更新 `tauri-renderer-host.md`：新增 LAN/RD 频道、local-only 集合、attachment 契约。
+- [x] 更新 `tauri-platform-commands.md`：登记本立项；明确 `window.mode` 与平台委托的关系。
+- [x] 新增频道 descriptor 与类型；补静态契约测试（频道名、命令名、local-only 断言）。
+- [x] 建立假 credentials/settings/startServer 的测试夹具。
 
 验收：`pnpm typecheck`、静态契约测试红/绿各一次；没有产品行为变化。
 
 ### LR-1 LAN 管理面（2–3 天）
 
-- [ ] Host adapter：复用 `lanAccessServer`、`lanRemoteAttach`、`desktopLanDiscovery`；
+- [x] Host adapter：复用 `lanAccessServer`、`lanRemoteAttach`、`desktopLanDiscovery`；
       显式 dispose；动态 import 以绕开 stdout 守卫。
-- [ ] 注册 local-only `lan-access` 频道到 `host-standalone`；启动时按
+- [x] 注册 local-only `lan-access` 频道到 `host-standalone`；启动时按
       `lanAccessEnabled` 恢复监听，失败只告警并回 disabled。
-- [ ] `IServiceAccessor.lanAccessService` + `RemoteServiceAccess` 代理。
-- [ ] `desktopPlatform.ts` 的 11 个 LAN 方法委托 Host 服务，保留 `window.mode` fallback。
-- [ ] 修复 `removeLanPairedPeer` / `renameLanPairedPeer` 的静默 no-op。
-- [ ] 测试：disabled state、enable/disable、pair code 一次性、paired peers 排序、
+- [x] `IServiceAccessor.lanAccessService` + `RemoteServiceAccess` 代理。
+- [x] `desktopPlatform.ts` 的 11 个 LAN 方法委托 Host 服务，保留 `window.mode` fallback。
+- [x] 修复 `removeLanPairedPeer` / `renameLanPairedPeer` 的静默 no-op。
+- [x] 测试：disabled state、enable/disable、pair code 一次性、paired peers 排序、
       workspaces、rename/remove、local-only 不被 peer 集合看到、事件订阅。
 - [ ] 真机：设置页 LAN 卡片、发现、配对、已配对设备管理、工作区目录读取。
 
@@ -290,35 +291,53 @@ spike（见 DR-LR-2），未通过前 `connectRemote` 保持明确失败，不�
 
 ### LR-2 远程桌面设置面（1–2 天）
 
-- [ ] Host adapter：`remoteDesktopServer` 的 server state / enable / authorize / revoke。
-- [ ] `remote-desktop` 频道；设置页与 LAN client 记录仍由同一所有者写。
-- [ ] `rdGetPeerCapability` / `rdGetControlledState` 接 Host 或壳能力。
-- [ ] 测试：server state、授权三态、peer capability、关闭门控。
+- [x] Host adapter：`remoteDesktopServer` 的 server state / enable / authorize / revoke。
+- [x] `remote-desktop` 频道；设置页与 LAN client 记录仍由同一所有者写。
+- [x] `rdGetPeerCapability` / `rdGetControlledState` 接 Host 或壳能力。
+- [x] 测试：server state、授权三态、peer capability、关闭门控。
 
 验收：设备页能列出已配对设备并显示能力；被控开关与逐设备授权可用。
 
 ### LR-3 远程桌面会话（1–2 周）
 
-- [ ] 把 controller/coordinator 从 Electron main 抽到 Host（保留状态机与单会话互斥）。
-- [ ] 信令/媒体事件经 `onDynamicSessionEvent` 到 renderer；不缓冲旧信令。
-- [ ] 壳能力：`rdReadClipboardText`、显示器枚举/几何、光标位置。
+- [x] 把 controller/coordinator 从 Electron main 抽到 Host（保留状态机与单会话互斥）。
+      **主控 controller 与被控协调器均已落地**（`host/remoteDesktopController.ts`、
+      `host/remoteDesktopControlledCoordinator.ts`）；Electron 线保持原实现。
+- [x] 信令/媒体事件经 `onDynamicSessionEvent` 到 renderer；不缓冲旧信令。
+- [x] 壳能力：`rdReadClipboardText`、显示器枚举/几何、光标位置。
+      **`rdReadClipboardText` 已是壳命令（Windows CF_UNICODETEXT）；显示器枚举/几何由
+      renderer 经 Tauri `availableMonitors()` 推给 Host；光标位置未用到（随帧光标）。**
 - [ ] 同意窗/指示条：推荐 Rust `WebviewWindow`；60s 超时、拒绝、结束按钮。
-- [ ] 窗口关闭 / 应用退出：先发 bye/end-session，再收 Host/sidecar。
-- [ ] 测试：controller WS、coordinator 状态机、media relay、clipboard gate、退出收口。
+      **renderer 同意模态与指示条均已落地（60s、允许/拒绝/记住、结束会话）；壳窗口仍待产品决策。**
+- [x] 窗口关闭 / 应用退出：先发 bye/end-session，再收 Host/sidecar
+      （Host 被控 server `dispose` 先发 `bye{remote-end}`；壳侧退出顺序仍待真机验收）。
+- [x] 测试：controller WS、coordinator 状态机、media relay、clipboard gate、退出收口。
+      **controller WS / 被控协调器 / 媒体中继 / 剪贴板门 / 退出均已覆盖；真机多屏与重连待验。**
 - [ ] 两台 Windows 实机验收（主控/被控、授权、多屏切换、剪贴板、断连重连）。
 
 验收：`in-app-remote-desktop.md` 的实机清单通过；旧对端仍按能力位降级。
 
 ### LR-4 远程工作区 attachment（1–2 周）
 
-- [ ] Spike：单端口多路复用 vs 页面多端口 broker；给出跨语言改动量、失败模式、测试方案。
-- [ ] 选定方案后实现 attachment broker：local + N 个 remote scope 的路由与回收。
-- [ ] `windowRemoteConnectionRegistry` 进 standalone Host；`connectRemote`/cancel/bind/dispose。
-- [ ] scoped services attachment 到 renderer；`remoteSessionId + workspacePath + workspaceIdentity`
+- [x] Spike：单端口多路复用 vs 页面多端口 broker；给出跨语言改动量、失败模式、测试方案。
+      结论与可执行验证见 `docs/plans/2026-10-19-lr4-attachment-spike.md`（推荐单端口多路复用，
+      Rust 桥不改，base 帧格式不变）。
+- [x] 选定方案后实现 attachment broker：local + N 个 remote scope 的路由与回收。
+      **已完成**：`frameMultiplexer` + Host 解复用 + 页面桥 scoped port +
+      `scope-ready/scope-detach` 控制帧 + `remote` 频道的 attach/detach 与 scope 回收。
+- [x] `windowRemoteConnectionRegistry` 进 standalone Host；`connectRemote`/cancel/bind/dispose。
+      **LAN 已接**；SSH/WSL/Docker 在 Tauri Host 明确返回不支持（不伪装成功）。
+- [x] scoped services attachment 到 renderer；`remoteSessionId + workspacePath + workspaceIdentity`
       三元组严格校验。
+      **已接**：`remote.attach` 用 registry 的 scoped scope 校验三元组，scoped
+      `ServiceCollection` 经 `ChannelServer` 暴露；renderer 用既有 `ScopedServicePort` 消息消费。
 - [ ] 事件：connection log、closed、bot reconnect；UI tab 降级与重连。
-- [ ] 测试：connect/cancel/bind/dispose、attachment 路由、Host 退出、stale session、
+      connection log / closed 已接；bot reconnect 与 UI 重连降级待做。
+- [x] 测试：connect/cancel/bind/dispose、attachment 路由、Host 退出、stale session、
       `REMOTE_WORKSPACE_IDENTITY_MISMATCH`、断线重连。
+      connect/bind/attach/detach/dispose、attachment 路由、Host 退出、stale session 已覆盖；
+      三元组不匹配由 registry 的 scope 校验覆盖（`attach` 不接受外部 scope，无法构造不匹配）；
+      断线重连的 UI E2E 仍待真机。
 
 验收：LAN 已配对工作区可重连；对话/任务/文件/Git 走 remote scope；关闭 tab 释放 session。
 
@@ -393,3 +412,242 @@ node scripts/check-language-policy.mjs
 **完成定义**：Tauri 产品 UI 在无 Electron main/preload 的情况下，能完成 LAN 配对与设备管理；
 远程桌面和远程工作区按阶段验收；所有状态写入仍只有 Host 一个所有者，`window.mode` 不再
 承担业务实现。
+
+## 11. 执行记录（2026-10-19，LR-0 + LR-1）
+
+落点：
+
+- 频道与契约：`ServiceChannels.LanAccess` / `RemoteDesktop`；`packages/services/src/lan-access/lanAccessService.ts`；
+  `IServiceAccessor.lanAccessService` 与 `RemoteServiceAccess` 代理。
+- Host 实现：`packages/desktop/src/host-standalone/lanAccessService.ts`（单启动 Promise、显式 dispose、
+  恢复失败只告警）；注册在 `host-standalone/serviceAccessor.ts` 的独立 local-only 集合。
+- 共用逻辑：`host/lanPairedPeers.ts`（Electron Host 与 Tauri Host 的唯一实现）、
+  `host/lanWorkspaceList.ts`、`host/lanDiscovery.ts`（从 `main/` 移到 Electron-free 的 `host/`）。
+- 平台委托：`desktopPlatform.ts` 的 11 个 LAN 方法；`main.tsx` 用 getter 注入 Host 服务。
+  `removeLanPairedPeer` / `renameLanPairedPeer` 在 Tauri 无 Host 服务时**显式拒绝**，不再回落成 no-op。
+
+自动化验证（本机 2026-10-19）：
+
+- `pnpm typecheck` 通过；
+- `pnpm --filter @mode/services test`：383 项，375 pass / 8 skip / 0 fail；
+- `pnpm exec tsx --test packages/desktop/tests/*.test.mts`：123 项全绿（含新增 4 个 LR-1 用例）；
+- `pnpm --filter @mode/desktop-tauri test`：44 项，37 pass / 7 skip / 0 fail；
+- `pnpm architecture:check --changed`：0 violations；
+- `node scripts/check-language-policy.mjs`：通过；
+- `pnpm lint` 仅剩 `.plan/` 下未跟踪的浏览器 profile 产物报错（2 条 max-lines，与本次改动无关）；
+  对本次改动的 12 个源文件单独跑 oxlint：0 error。
+
+未完成：两台 Windows 真机的 LAN 配对/设备管理验收（LR-1 最后一条），以及 LR-2..LR-5。
+
+## 12. 执行记录（2026-10-19，LR-2）
+
+落点：
+
+- 契约：`packages/services/src/remote-desktop/remoteDesktopService.ts`（`IRemoteDesktopService`）；
+  `@mode/shared/remote-desktop` 新增 `RemoteDesktopServerState` / `RemoteDesktopPeerCapability`，
+  Electron main 的 settings.ts 改为复用同一类型。
+- Host 实现：`packages/desktop/src/host-standalone/remoteDesktopService.ts`。它不直接写凭据，
+  而是把 RPC 调用翻译成 `RemoteDesktopHostServer` 既有消息命令，经 `postToMain` 按 `requestId`
+  收状态快照；`getControlledState` 读 server 的 busy 事实（同意等待/待接线/进行中）。
+- 装配：`host-standalone/serviceAccessor.ts` 先建 RD server、再建 LAN adapter
+  （LAN 握手使用 RD 能力位与 hooks），两者都注册在 local-only 集合；dispose 顺序
+  LAN → RD → 服务资源。`createLocalServices` 补上 `isRemoteDesktopServerEnabled` 闭包，
+  保证被控开关打开时 CUA Helper 的创建准入与 Electron 线一致。
+- 平台委托：`desktopPlatform.ts` 的 6 个被控设置面方法；主控会话（start/signal/end/
+  clipboard/session events）仍走壳，未被提前接管。
+- `RemoteDesktopHostServer` 新增只读 `isControlled()`（additive，不改 Electron 路径）。
+
+自动化验证（本机 2026-10-19）：
+
+- `pnpm typecheck` 通过；
+- `pnpm --filter @mode/services test`：383 项，375 pass / 8 skip / 0 fail；
+- `pnpm exec tsx --test packages/desktop/tests/*.test.mts`：134 项全绿
+  （新增 `remote-desktop-host-service`、`remote-desktop-port`，并扩充平台委托与静态契约用例）；
+- `pnpm --filter @mode/desktop-tauri test`：44 项，37 pass / 7 skip / 0 fail；
+- 本次改动的 16 个文件单独跑 oxlint：0 warning / 0 error。
+
+未完成：LR-2 的 Windows 真机设备页验收（已配对设备、能力位、开关与逐设备授权），以及 LR-3..LR-5。
+
+## 13. 执行记录（2026-10-19，LR-3 主控路径）
+
+落点：
+
+- 主控 controller：`packages/desktop/src/host/remoteDesktopController.ts`（Electron-free，
+  状态机与 `main/remoteDesktop/controllerSession.ts` 同义：单会话互斥、connecting/connected/
+  closed、bye/error 收口、传输断开 retryable、dispose 带出 bye）。Electron 线未改。
+- 频道契约：`IRemoteDesktopService` 增加 `startSession` / `sendSignal` / `endSession` /
+  `respondConsent` / `onDynamicSessionEvent` / `onConsentRequest`；
+  `@mode/shared/remote-desktop` 增加 `RemoteDesktopSessionEvent`、`RemoteDesktopConsentRequest`、
+  `RemoteDesktopStartSessionResult`。
+- 同意流：Host 收到被控 server 的 `ConsentRequest` 后，已记住设备直通；否则发
+  `onConsentRequest` 并等 60s（可注入），超时按 `consent_timeout` 拒绝；首个订阅者会补上
+  仍在等待的请求；Host 退出时拒绝挂起请求。
+- 平台委托：`desktopPlatform.ts` 的 `rdStartSession` / `rdSendSignal` / `rdEndSession` /
+  `onRemoteDesktopSessionEvent` 在 Tauri 下走 Host；`rdReadClipboardText` 仍走壳。
+- 被控侧 coordinator（monitors/media/clipboard/指示条）未迁：Tauri 被控端还不能完成会话；
+  这是 LR-3 的剩余主体，依赖壳能力（显示器枚举、剪贴板、同意窗）。
+
+自动化验证（本机 2026-10-19）：
+
+- `pnpm typecheck` 通过；
+- `pnpm --filter @mode/services test`：383 项，375 pass / 8 skip / 0 fail；
+- `pnpm exec tsx --test packages/desktop/tests/*.test.mts`：146 项全绿
+  （新增 controller 4 项、同意流 7 项、端口往返主控路径、平台委托）；
+- `pnpm architecture:check --changed`：0 violations；语言政策检查通过；
+  本次改动文件 oxlint 0 warning / 0 error；
+- `pnpm --filter @mode/desktop-tauri test`：**36 pass / 1 fail / 7 skip**。失败项是
+  `windowModeInjection.test.mts` 的「可选成员 onUpdateStateChanged 不得被注入」，
+  来自工作区里另一条未提交的 update-state 改动（`crates/sidecar-host/src/window_mode.ts`
+  15:45 被外部修改），与 LR-3 改动无关；LR-2 收口时该套件为 37 pass / 0 fail。
+
+未完成：被控侧 coordinator、壳能力（剪贴板/显示器/光标）、同意窗/指示条、两台 Windows 实机验收。
+
+## 14. 执行记录（2026-10-19，LR-4 spike）
+
+- 文档：`docs/plans/2026-10-19-lr4-attachment-spike.md`（协议、生命周期、失败模式、生产化步骤）。
+- 可执行验证：`packages/desktop/tests/attachment-multiplexer-spike.test.mts`。
+  同一根传输并发 base + 两个 remote scope、256KB 大帧、scope 回收、未知 scope 丢弃，
+  2 项全绿。原型内联在测试里，**没有改生产传输层**。
+- 结论：选单端口多路复用；帧格式为 `0xFF + scopeId(u32 BE) + 原帧`，base 帧逐字节不变，
+  Rust 桥零改动。页面多端口 broker 被否（壳到 Host 只有一条 stdio 管道，仍要在 Rust 里做
+  同样的解复用，改动更大且没有收益）。
+- 下一步：按文档 §7 生产化（`frameMultiplexer` → Host 解复用 → 页面桥 scoped port →
+  renderer 注册 → `remote.attach/detach` → 端口往返用例）。
+
+## 15. 执行记录（2026-10-19，LR-4 传输层生产化）
+
+落点：
+
+- `packages/rpc/src/frameMultiplexer.ts`：scoped 帧编解码、demux、`scope-ready/scope-detach`
+  控制帧；base 帧逐字节不变。
+- `packages/desktop/src/host-standalone/index.ts`：stdin 先处理控制帧、再解 RPC scope；
+  base 仍走原 `ChannelServer`；scoped server 按 id 注册，收到 `scope-ready` 才 `ready()`。
+  测试入口 `MODE_HOST_TEST_SCOPES=1`（`attachTestScope`）。
+- `crates/sidecar-host/src/bridge.ts`：`createScopedServicePort` / `releaseScopedServicePort`；
+  入方向按 marker 分流；renderer 的 `ScopedServicePortReady` 翻译成 `scope-ready` 控制帧。
+  Rust 壳未改。
+- `apps/desktop-tauri/test/fixtures/productionHost.mts`：页面侧测试夹具也做解复用，
+  新增 `createScopedClient` / `sendControl`。
+
+自动化验证（本机 2026-10-19）：
+
+- `pnpm typecheck` 通过；
+- `pnpm exec tsx --test packages/desktop/tests/*.test.mts`：**153 项全绿**
+  （新增 frame multiplexer 4 项、生产 Host scoped 端口往返 1 项、spike 2 项）；
+- `pnpm --filter @mode/desktop-tauri test`：**37 pass / 1 fail / 7 skip**。失败项仍是工作区里
+  另一条未提交 update-state 改动引起的 `onUpdateStateChanged` 可选成员断言，与 LR-4 无关；
+  新增的 bridge scoped port 用例通过。
+- 本次改动文件 oxlint 0 warning / 0 error。
+
+未完成：Host `remote.attach/detach` 与 `windowRemoteConnectionRegistry` 进 standalone、
+scoped services 的 registry 绑定、三元组校验、远程工作区事件与 UI 降级。
+
+## 16. 执行记录（2026-10-19，LR-4 LAN 远程工作区）
+
+落点：
+
+- `IRemoteService`（`packages/services/src/remote/remoteService.ts`）：connect / cancel /
+  bindContext / dispose / attach / detach / getSession / listSessions /
+  `onDynamicConnectionEvent`。
+- `packages/desktop/src/host-standalone/scopedAttachments.ts`：scope 登记表从入口抽出，
+  统一 attach/start/detach/dispose 与 `onDidDetach`。
+- `packages/desktop/src/host-standalone/internalServiceMembers.ts`：适配器的 Host 内部生命周期
+  方法（`dispose`/`getActiveServer`/`getLanHooks`/`handleMessage`/`disposeHost`）改为不可枚举，
+  防止 `ProxyChannel.fromService` 把它们暴露成 renderer 可调的 RPC command。
+- `packages/desktop/src/host-standalone/remoteWorkspaceService.ts`：
+  - `windowRemoteConnectionRegistry` 进 standalone Host；
+  - LAN 连接复用 `attachLanRemoteConnection` + `createRemoteWorkspaceServiceCollection`；
+  - `attach` 用 registry 的 remote scope（remoteSessionId + workspacePath + workspaceIdentity）
+    取 scoped `ServiceCollection`，经 guarded `ChannelServer` 暴露；
+  - SSH/WSL/Docker 明确返回「暂不支持」；
+  - connection log / connected / connectFailed / closed 事件。
+- `packages/desktop/src/renderer/src/desktopRemotePlatformBridge.ts`：
+  - `connectRemote` → Host `remote.connect` → `remote.attach` →
+    页面桥 `createScopedServicePort`；
+  - `bindRemoteWorkspaceSessionContext` 换代 attachment（新 scope 建好后释放旧 scope）；
+  - `disposeRemoteSession` / `cancelPendingRemoteConnection` / log/closed 事件委托；
+  - 全部保持 `window.mode` 回退（Electron 线不变）。
+- 测试：`remote-workspace-host-service.test.mts`（假 LAN transport + 真 scoped 端口）、
+  平台委托用例扩充（connect/bind/dispose/事件/Electron 回退）、静态契约（remote 频道 local-only）。
+
+自动化验证（本机 2026-10-19）：
+
+- `pnpm typecheck` 通过；
+- `pnpm exec tsx --test packages/desktop/tests/*.test.mts`：**164 项全绿**；
+- `pnpm --filter @mode/desktop-tauri test`：37 pass / 1 fail / 7 skip；失败项仍是工作区里
+  另一条未提交 update-state 改动引起的 `onUpdateStateChanged` 可选成员断言，与 LR-4 无关；
+- 本次改动文件 oxlint 0 warning / 0 error。
+
+未完成：SSH/WSL/Docker、bot reconnect 事件、UI tab 降级与断线重连、
+stale session / `REMOTE_WORKSPACE_IDENTITY_MISMATCH` 测试、真机 LAN 配对→attach→prompt 验收。
+
+## 17. 执行记录（2026-10-19，LR-3 被控协调 + 同意窗）
+
+落点：
+
+- `packages/desktop/src/host/remoteDesktopControlledCoordinator.ts`：被控侧纯协调器
+  （hello→monitors、select-monitor→media-open+MediaStart/MediaSwitch、
+  MediaStatus→freeze/unfreeze、SessionClosed→MediaStop）；媒体密钥/盐只在 Host 内存。
+- `remoteDesktopService`：`setLocalDisplays`（renderer 推送显示器快照）、协调器接线、
+  `MediaStatus`/`SignalFromHost`/`SessionClosed` 路由；被控 server `dispose` 先发
+  `bye{remote-end}`，controller `error` 在 server 层收口。
+- `packages/desktop/src/renderer/src/desktopLocalDisplays.ts`：Tauri `availableMonitors()`
+  → 物理矩形快照，启动与窗口 resize/move 去抖推 Host。
+- `RemoteDesktopConsentDialog`（`packages/ui/src/remote-desktop/`）：Tauri 被控同意模态，
+  60s 倒计时、允许/拒绝/记住；复用既有 i18n。`IPlatformService` 增加两个可选方法，
+  Electron 不实现（继续用 main 原生窗）。
+- 测试：被控协调器 6 项、显示器映射/推送 3 项、adapter 协调路由 1 项。
+
+自动化验证（本机 2026-10-19）：
+
+- `pnpm typecheck` 通过；
+- `pnpm exec tsx --test packages/desktop/tests/*.test.mts`：**174 项全绿**；
+- `pnpm --filter @mode/ui test`：408 项全绿；
+- `pnpm --filter @mode/desktop-tauri test`：37 pass / 1 fail / 7 skip；失败项仍是工作区里
+  另一条未提交 update-state 改动引起的 `onUpdateStateChanged` 断言，与本迁移无关；
+- 本次改动文件 oxlint 0 warning / 0 error。
+
+未完成：rd_media helper 打包形态、
+两台 Windows 实机（授权/多屏/剪贴板/断连重连）。
+
+## 18. 执行记录（2026-10-19，LR-3 被控指示条）
+
+落点：
+
+- `RemoteDesktopHostServer.onDidChangeControlledState`：同意等待 / 待接线 / 进行中会话的
+  布尔状态变化事件（只在真的变化时触发）。
+- `remoteDesktopService.onDidChangeControlledState`：幂等事件，首个订阅者补当前值；
+  `IPlatformService.onRemoteDesktopControlledStateChanged` 只在 Tauri 暴露。
+- `RemoteDesktopIndicator`（renderer 覆盖层）：显示「本机正在被远程控制」/「{device} 正在
+  远程控制本机」，带「结束」按钮（走 `rdSetServerEnabled(false)` 同一写路径）。
+- i18n：三套语言补 `remoteDesktop.indicator.controlling`（`indicator.text` / `indicator.end` 复用既有键）。
+
+自动化验证（本机 2026-10-19）：
+
+- `pnpm typecheck` 通过；
+- `pnpm exec tsx --test packages/desktop/tests/*.test.mts`：**175 项全绿**；
+- `pnpm --filter @mode/ui test`：408 项全绿；
+- 本次改动文件 oxlint 0 warning / 0 error。
+
+未完成：rd_media helper 打包形态、两台 Windows 实机验收。
+
+## 19. 执行记录（2026-10-19，LR-3 剪贴板壳能力）
+
+落点：
+
+- `crates/platform/src/commands/clipboard.rs`：`rdReadClipboardText` 壳命令（Windows 读
+  CF_UNICODETEXT：OpenClipboard 200ms 争用重试、GlobalSize 上界、无文本/被占用返回空串、
+  从不抛；非 Windows 返回空串）。
+- 命令切片 10 → 11：`command_slice!`、`crates/platform/tests/commands.rs` 的 M1_SLICE、
+  `window_mode.ts` 的 M1_COMMANDS 与实现、`tauri-invoke-shim.ts` 的 M1_COMMANDS
+  （同时从 M1_UNIMPLEMENTED_REQUIRED_METHODS 移除）。
+- `packages/ui/test/tauriInvokeShim.test.ts` 的切片条数断言同步更新。
+- `crates/platform/tests/clipboard.rs`：命令可调用且不 panic 的冒烟用例（不写剪贴板）。
+
+自动化验证（本机 2026-10-19）：
+
+- `node scripts/rust-cargo.ts test -p platform`：全部通过（含 clipboard 冒烟与 commands 守卫 4 项）；
+- `pnpm --filter @mode/ui test`：408 项全绿；
+- `pnpm --filter @mode/desktop-tauri test`：37 pass / 1 fail / 7 skip（失败项仍是工作区里
+  另一条未提交 update-state 改动引起的 `onUpdateStateChanged` 断言，与本迁移无关）；
+- `pnpm typecheck` 通过；本次改动文件 oxlint 0 warning / 0 error。

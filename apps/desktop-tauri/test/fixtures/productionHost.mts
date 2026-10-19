@@ -20,9 +20,14 @@ import { MessageChannel, type MessagePort as NodeMessagePort } from "node:worker
 
 import {
   ChannelClient,
-  MessagePortProtocol,
+  Emitter,
+  VSBuffer,
+  decodeFrame,
+  encodeControlFrame,
+  encodeScopedFrame,
+  type AttachmentControl,
   type IChannel,
-  type MessagePortLike,
+  type IMessagePassingProtocol,
   type MessagePortPayload,
 } from "@mode/rpc";
 
@@ -95,33 +100,19 @@ export interface ProductionHost {
   client: ChannelClient;
   /** 壳观测到「页面 → Host」的帧类型（断言出方向不需要包装）。 */
   clientFrameTypes: string[];
+  /**
+   * LR-4：为已 attach 的 scope 建一个客户端。帧经页面端口多路复用（base 帧不带前缀），
+   * 与页面桥的 scoped port 同一条路径。
+   */
+  createScopedClient: (scopeId: number) => ChannelClient;
+  /** 模拟页面桥发的附件控制帧（scope-ready / scope-detach）。 */
+  sendControl: (control: AttachmentControl) => void;
   stderr: () => string;
   stop: () => void;
 }
 
 const delayMs = (ms: number): Promise<void> =>
   new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
-
-/** 把 Node 的 `MessagePort` 包成 `packages/rpc` 要求的 `MessagePortLike`（形状见 protocol.ts）。 */
-function asMessagePortLike(port: NodeMessagePort): MessagePortLike {
-  return {
-    addEventListener(_type: "message", listener: (event: { data: MessagePortPayload }) => void) {
-      port.on("message", (data: MessagePortPayload) => listener({ data }));
-    },
-    removeEventListener(_type: "message", listener: (event: { data: MessagePortPayload }) => void) {
-      port.off("message", listener as unknown as (value: MessagePortPayload) => void);
-    },
-    postMessage(message: MessagePortPayload) {
-      port.postMessage(message);
-    },
-    start() {
-      port.start();
-    },
-    close() {
-      port.close();
-    },
-  };
-}
 
 /** RPC 调用一律带超时：挂住必须是**用例失败**，不能变成整轮测试静默卡死。 */
 export async function callWithTimeout<T>(
@@ -182,6 +173,21 @@ export async function connectProductionHost(options: {
   const { port1: pagePort, port2: shellPort } = new MessageChannel();
   const clientFrameTypes: string[] = [];
 
+  // LR-4：页面侧也做与生产桥相同的解复用。base 帧不带前缀；scope 帧按 id 投递。
+  const baseMessages = new Emitter<VSBuffer>();
+  const scopeMessages = new Map<number, Emitter<VSBuffer>>();
+  pagePort.on("message", (data: MessagePortPayload) => {
+    if (!(data instanceof Uint8Array)) return;
+    const decoded = decodeFrame(data);
+    if (!decoded) return;
+    if (decoded.scopeId === null) {
+      baseMessages.fire(VSBuffer.wrap(decoded.payload));
+      return;
+    }
+    scopeMessages.get(decoded.scopeId)?.fire(VSBuffer.wrap(decoded.payload));
+  });
+  pagePort.start();
+
   shellPort.on("message", (data: MessagePortPayload) => {
     clientFrameTypes.push(Object.prototype.toString.call(data));
     if (!(data instanceof Uint8Array)) return; // flow-control 之类的对象不进 RPC 帧
@@ -197,7 +203,20 @@ export async function connectProductionHost(options: {
     }),
   );
 
-  const client = new ChannelClient(new MessagePortProtocol(asMessagePortLike(pagePort)));
+  const baseProtocol: IMessagePassingProtocol = {
+    send: (buffer) => pagePort.postMessage(buffer.buffer),
+    onMessage: baseMessages.event,
+  };
+  const client = new ChannelClient(baseProtocol);
+  const createScopedClient = (scopeId: number): ChannelClient => {
+    const emitter = new Emitter<VSBuffer>();
+    scopeMessages.set(scopeId, emitter);
+    const protocol: IMessagePassingProtocol = {
+      send: (buffer) => pagePort.postMessage(encodeScopedFrame(scopeId, buffer.buffer)),
+      onMessage: emitter.event,
+    };
+    return new ChannelClient(protocol);
+  };
   const stop = (): void => {
     client.dispose();
     shellPort.close();
@@ -222,7 +241,16 @@ export async function connectProductionHost(options: {
 
   // 让 Host 把自己的初始化序列跑完（真服务面 + 真启动），再交还控制权。
   await delayMs(50);
-  return { child, pagePort, client, clientFrameTypes, stderr: () => stderrText, stop };
+  return {
+    child,
+    pagePort,
+    client,
+    clientFrameTypes,
+    createScopedClient,
+    sendControl: (control) => pagePort.postMessage(encodeControlFrame(control)),
+    stderr: () => stderrText,
+    stop,
+  };
 }
 
 /** 拿 `host.describe`（诊断频道，只报事实）。 */

@@ -18,7 +18,7 @@ Node/TS 侧提供，经 sidecar（M3）接入。因此本阶段：
 
 ## 1. 命令切片
 
-M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
+M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText`（共 11 条）。命令名与 `IPlatformService`
 （`packages/shared/src/platform.ts`）**逐字一致**——渲染层的适配层按同名映射，
 改名即断链。切片表的唯一真源是 `crates/platform/src/commands/mod.rs` 的宏调用：
 命令名与处理函数成对声明，`init()` 与 `registered_names()` 都从它派生。
@@ -49,6 +49,7 @@ M1 只实现下列 10 个 `#[tauri::command]`。命令名与 `IPlatformService`
 | 8 | `syncWindowTabs` | `(paths: string[]) -> void` | 覆盖式写入 `AppState` |
 | 9 | `syncWindowUnreadCount` | `(count: number) -> void` | 覆盖式写入 `AppState` |
 | 10 | `getApplicationIcon` | `(req: ApplicationIconRequest) -> IconInfo \| null` | **已实现（Windows，M3 Task 4 起）**：Shell 取图标资源 + GDI 取像素 → PNG data URL；按 locator 顺序尝试，**取不到返回 `null`（契约允许），从不抛**。**macOS 半边未实现且本阶段不验**（Ruling 20），见 §9.2 |
+| 11 | `rdReadClipboardText` | `() -> Promise<string>` | **已实现（LR-3，Windows）**：壳读 CF_UNICODETEXT（`OpenClipboard` 争用重试 200ms，无文本/被占用返回空串，从不抛）；非 Windows 返回空串。远程桌面主控剪贴板同步的读取口（D7：Host 不碰平台 API） |
 
 ### 非本地路径的处理
 
@@ -686,3 +687,77 @@ test result: ok. 6 passed; 0 failed
 - **命令面契约不动**：`crates/platform/tests/commands.rs` 的四条守卫（切片表、camelCase 映射、
   `rename` 源码扫描、无重名）在本任务后仍然全绿——本任务只换实现体。
 - **渲染层零改动**：`git diff -- packages/desktop/src/renderer/**` 为空（硬约束）。
+
+## 10. 独立立项登记：LAN / 远控 Host sidecar 迁移（2026-10-19）
+
+本阶段的命令面不变，但 LAN / 远程桌面 / 远程工作区的**业务面**不再由 `window.mode` 实现。
+迁移计划：`docs/plans/2026-10-19-lan-remote-sidecar-migration.md`；
+Host 侧契约：`docs/specs/tauri-renderer-host.md` §21。
+
+### 10.1 与 `window.mode` 的关系
+
+- `window.mode` 的 LAN/RD 成员**保持** `REJECTING_REQUIRED` / `NO_OP_REQUIRED` 的现有分类，
+  作为回滚 fallback；它们不再是产品能力的实现路径；
+- 产品 `IPlatformService`（`packages/desktop/src/renderer/src/desktopPlatform.ts`）在
+  Tauri runtime 下把 LAN/RD 请求委托给 Host 服务频道（`lan-access` / `remote-desktop`），
+  拿不到 Host 服务时才回退 `window.mode`；
+- `removeLanPairedPeer` / `renameLanPairedPeer` 的**静默空操作**是缺陷：Tauri 下必须经
+  Host 真实写/删凭据；Electron 下仍走既有 IPC。两者都不允许「看起来成功」；
+- 壳只保留 OS 能力（剪贴板读取、显示器枚举/几何、光标位置、同意窗）。Host 不直接读
+  系统剪贴板，也不枚举显示器。
+
+### 10.2 不新增 Tauri 命令
+
+LR-1/LR-2 的 LAN 与远程桌面管理面全部走**既有** `MessagePort` 上的 RPC 频道，
+不新增 `#[tauri::command]`，也不新增 Rust 事件通道。因此 §1 的切片表与
+`crates/sidecar-host/src/bridge.rs` 的命令名集合**不变**；
+`windowModeInjection.test.mts` 的声明面/调用面覆盖断言继续成立。
+
+### 10.3 门禁
+
+本节只登记接口关系，不改变本 spec 的验收场景。LR 各阶段的必跑命令与验收项见
+`docs/plans/2026-10-19-lan-remote-sidecar-migration.md` §7 与 Host 契约 §21.7。
+
+### 10.4 LR-2 的落地范围（2026-10-19）
+
+`remote-desktop` 频道（local-only）已接上被控设置面：`rdGetServerState`、
+`rdSetServerEnabled`、`rdAuthorizeClient`、`rdRevokeClient`、`rdGetPeerCapability`、
+`rdGetControlledState` 在 Tauri runtime 下委托 Host，Electron 保持 `window.mode` 路径。
+
+仍未迁移（LR-3）：`rdStartSession`、`rdSendSignal`、`rdEndSession`、`rdReadClipboardText`、
+`onRemoteDesktopSessionEvent`。它们在注入层继续按声明返回形态拒绝/空操作，
+`desktopPlatform` 也仍原样转发给壳，不被 LR-2 提前接管。
+
+`remote-desktop` 与 `lan-access` 一样只注册在窗口 renderer 的 local-only 集合：
+授权列表与管理面不对 LAN 对端开放。
+
+### 10.5 LR-3 的落地范围（2026-10-19）
+
+主控方向已迁到 Host：`rdStartSession`、`rdSendSignal`、`rdEndSession`、
+`onRemoteDesktopSessionEvent` 在 Tauri runtime 下委托 `remote-desktop` 频道；
+`onDynamicSessionEvent` 只发当前订阅者，不缓冲旧信令。被控同意请求经
+`onConsentRequest` / `respondConsent` 暴露给 renderer（60s 超时、已记住设备直通）。
+
+后续阶段补齐（2026-10-19 更新）：
+- **被控侧协调器**：已迁移到 Host（`host/remoteDesktopControlledCoordinator.ts`）；
+  剪贴板门控仍由媒体中继负责。
+- **`rdReadClipboardText`**：已是壳命令（§1 第 11 条，Windows CF_UNICODETEXT）；
+  主控剪贴板同步可用。
+- **同意窗/指示条**：renderer 模态（`RemoteDesktopConsentDialog` / `RemoteDesktopIndicator`）已落地；
+  壳 `WebviewWindow` 形态仍待产品决策（DR-LR-1）。
+
+### 10.6 LR-4 的落地范围（2026-10-19）
+
+`remote` 频道（local-only）已接 LAN 远程工作区：`connectRemote`、`cancelPendingRemoteConnection`、
+`bindRemoteWorkspaceSessionContext`、`disposeRemoteSession` 在 Tauri 下委托 Host；
+`onRemoteConnectionLog` / `onRemoteSessionClosed` 走 Host 动态事件。
+
+`connectRemote` 成功后会：
+1. Host `remote.connect` 建 logical session（LAN 复用既有配对令牌）；
+2. `remote.attach` 建 scoped `ChannelServer`；
+3. 页面桥 `createScopedServicePort` 投递 `mode:scoped-service-port`，renderer 用既有
+   `registerRemoteWorkspaceSession` 注册；
+4. renderer 的 `ScopedServicePortReady` 被桥翻译成 `scope-ready` 控制帧，Host 才发 Initialize。
+
+`bindRemoteWorkspaceSessionContext` 会换一个新 scope；旧 scope 由页面桥回收。
+SSH/WSL/Docker 在 Tauri Host 明确返回不支持；bot reconnect 与 UI 断线重连降级仍待做。

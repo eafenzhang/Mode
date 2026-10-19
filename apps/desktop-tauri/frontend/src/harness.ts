@@ -145,6 +145,12 @@ const COMMAND_SPECS = [
     fields: [{ key: "appId", label: "应用标识", initial: "", kind: "text" }],
     call: (platform, values) => platform.getApplicationIcon?.(values.appId ?? ""),
   },
+  {
+    name: "rdReadClipboardText",
+    summary: "LR-3：读系统剪贴板文本（Windows CF_UNICODETEXT；无文本为空串）",
+    fields: [],
+    call: (platform) => platform.rdReadClipboardText?.(),
+  },
 ] satisfies CommandSpec[];
 
 /**

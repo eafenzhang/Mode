@@ -90,7 +90,7 @@
   var CMD_EXECUTE_DESKTOP_COMMAND = "__MODE_HOST_CMD_EXECUTE_DESKTOP_COMMAND__";
   var CMD_WINDOW_CHROME_STATE = "__MODE_HOST_CMD_WINDOW_CHROME_STATE__";
 
-  /** M1 切片表的 10 条命令（与 `crates/platform/src/commands/mod.rs` 的切片表同名）。 */
+  /** M1 切片表 + LR-3 追加的 11 条命令（与 `crates/platform/src/commands/mod.rs` 的切片表同名）。 */
   var M1_COMMANDS = [
     "openExternal",
     "selectDirectory",
@@ -102,6 +102,8 @@
     "syncWindowTabs",
     "syncWindowUnreadCount",
     "getApplicationIcon",
+    // LR-3：远程桌面剪贴板读取（壳能力，`crates/platform/src/commands/clipboard.rs`）。
+    "rdReadClipboardText",
   ];
   /**
    * 通过**宿主深链事件通道**实现的订阅方法（不在命令表里）。
@@ -171,7 +173,6 @@
     "rdGetPeerCapability",
     "rdStartSession",
     "rdGetControlledState",
-    "rdReadClipboardText",
     "rdGetServerState",
     "rdSetServerEnabled",
     "rdRevokeClient",
@@ -575,6 +576,10 @@
     // 类型里是可选成员（renderer 用 `?.` 守卫），但 M1 命令面把它实现了，所以给出真实现。
     getApplicationIcon: function (request) {
       return invoke("getApplicationIcon", { request: normalizeIconRequest(request) });
+    },
+    // LR-3：远程桌面主控剪贴板同步的读取口（壳命令 `rd_read_clipboard_text`）。
+    rdReadClipboardText: function () {
+      return invoke("rdReadClipboardText");
     },
     // 窗口控制面：命令 id 的取值集合来自 `DesktopCommandIds`（`@mode/shared`），
     // 壳侧只实现窗口级的那些（见 `window_controls.rs`），其余 id 带回 `success: false`。

@@ -33,6 +33,7 @@ import { existsSync } from "node:fs";
 import type { IChannelServer, IServerChannel } from "@mode/rpc";
 
 import { DispatchGuards } from "./channelGuard.js";
+import type { ScopedAttachmentRegistry } from "./scopedAttachments.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -96,6 +97,8 @@ export interface CreateHostServiceAccessorOptions {
   guards: DispatchGuards;
   log: (line: string) => void;
   env?: NodeJS.ProcessEnv;
+  /** Host 入口持有的 scoped attachment 登记表（LR-4）。 */
+  scopedAttachments: ScopedAttachmentRegistry;
 }
 
 /**
@@ -111,10 +114,55 @@ export async function createHostServiceSurface(
   // 动态 import：必须在 stdout 守卫装好**之后**才装载 services（服务在模块初始化/构造期会
   // `console.log`，静态 import 会跑在守卫安装之前——实测 `cua-pip-session` 就是这种写入）。
   const { createLocalServices, disposeServiceResourcesAndWait } = await import("@mode/services/node");
+  // LAN/远程桌面/远程工作区管理面（LR-1/LR-2/LR-4）：descriptor 在浏览器安全的根入口，
+  // 实现是 Node-only 的本包模块。全部动态装载，避免绕过 stdout 守卫。
+  const [
+    { ServiceCollection, ILanAccessService, IRemoteDesktopService, IRemoteService },
+    { createLanAccessHostService },
+    { createRemoteDesktopHostService },
+    { createRemoteWorkspaceHostService },
+  ] = await Promise.all([
+    import("@mode/services"),
+    import("./lanAccessService.js"),
+    import("./remoteDesktopService.js"),
+    import("./remoteWorkspaceService.js"),
+  ]);
 
+  // 远程桌面被控开关是 CUA Helper 的创建准入之一（插件关闭但被控打开时仍需 raw_input 通道）。
+  // server 在 services 之后才建，所以用闭包现取；与 Electron Host 的装配口径一致。
+  let remoteDesktopCapability: { isServerEnabled(): boolean } | null = null;
   const services = createLocalServices({
     modeBuiltinProviderConfigFilePath: builtinProviderConfig.path,
+    isRemoteDesktopServerEnabled: () => remoteDesktopCapability?.isServerEnabled() ?? false,
   });
+
+  // **local-only 集合**：管理面只进窗口 renderer 的 ChannelServer，绝不进
+  // `startLanAccessServer` 拿到的普通服务集合——那份集合会被 `createHttpServer` 暴露给每个
+  // LAN 对端（docs/specs/tauri-renderer-host.md §21.2）。
+  const localOnly = new ServiceCollection();
+  let lanAccess: Awaited<ReturnType<typeof createLanAccessHostService>> | null = null;
+  // 远程桌面 server 先建：LAN 握手需要它的能力位与 hooks；它读 client 记录时再经闭包取 LAN。
+  const remoteDesktop = await createRemoteDesktopHostService({
+    services,
+    log: options.log,
+    getActiveLanAccessServer: () => lanAccess?.getActiveServer() ?? null,
+  });
+  remoteDesktopCapability = remoteDesktop;
+  lanAccess = await createLanAccessHostService({
+    services,
+    log: options.log,
+    getRemoteDesktop: () => remoteDesktop,
+  });
+  const remote = await createRemoteWorkspaceHostService({
+    services,
+    log: options.log,
+    scopedAttachments: options.scopedAttachments,
+    guardChannel: (channelName, channel) =>
+      options.guards.guardChannel(channelName, channel, options.log),
+  });
+  localOnly.register(ILanAccessService, lanAccess);
+  localOnly.register(IRemoteDesktopService, remoteDesktop);
+  localOnly.register(IRemoteService, remote);
 
   const channels: RegisteredServiceChannel[] = [];
   const guardedServer: IChannelServer<string> = {
@@ -126,12 +174,18 @@ export async function createHostServiceSurface(
     },
   };
   services.exposeOnChannelServer(guardedServer);
+  localOnly.exposeOnChannelServer(guardedServer);
 
   return {
     channels,
     channelNames: channels.map((entry) => entry.channelName),
     builtinProviderConfig,
     async dispose() {
+      // 先停局域网监听（UDP/HTTP），再收被控会话与远程工作区，最后释放普通服务资源：
+      // 否则服务销毁后监听/会话仍可能接单。
+      await lanAccess.dispose();
+      await remoteDesktop.dispose();
+      await remote.disposeHost();
       await disposeServiceResourcesAndWait(services);
     },
   };

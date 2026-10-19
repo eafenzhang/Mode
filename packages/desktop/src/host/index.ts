@@ -59,7 +59,6 @@ import {
   createHostApiNetworkTransport,
   createSettingServiceWithMigrations,
   getAppConfigDir,
-  getConversationWorkspaceDir,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
   type HostApiNetworkTransport,
@@ -95,10 +94,16 @@ import {
 } from "./lanPromptAttachments.js";
 import {
   attachLanRemoteConnection,
-  fetchLanPeerInfo,
   loadLanPeerToken,
   pairLanPeer,
 } from "./lanRemoteAttach.js";
+import {
+  getLanPairedPeerWorkspaces,
+  listLanPairedPeers,
+  removeLanPairedPeerRecord,
+  renameLanPairedPeerRecord,
+} from "./lanPairedPeers.js";
+import { collectLanAccessWorkspaces } from "./lanWorkspaceList.js";
 import { hostname } from "node:os";
 import {
   assertBoundSessionDispatchable,
@@ -113,11 +118,7 @@ import {
   type HostLanPairedPeerMessage,
   type LanAccessPairResult,
   type LanAccessState,
-  buildLanPeerTokenKey,
-  buildLanPeerMetaKey,
-  lanPeerMetaSchema,
   type LanPairedPeer,
-  type LanPeerMeta,
   type ServerRemoteWorkspaceInfo,
   formatLogPrefix,
   formatModeHostProcessName,
@@ -126,7 +127,6 @@ import {
   buildRemoteEnvironmentKey,
   isOffPeakTicketExpiredError,
   isRemoteWorkspaceIdentity,
-  isInternalConversationWorkspacePath,
   resolveWorkspaceKey,
   formatModelPickerValue,
   type ModePromptAttachment,
@@ -2277,50 +2277,6 @@ async function stopLanAccess(): Promise<void> {
   });
 }
 
-/** 供对端在「选择工作区」里挑选：最近打开的本机工作区 + 最近项目，去重后截断。 */
-async function collectLanAccessWorkspaces(
-  services: ServiceCollection,
-): Promise<Array<{ path: string; label: string; workspaceIdentity?: string }>> {
-  const settingService = services.getOptional(ISettingService);
-  const settings = await settingService?.get().catch(() => null);
-  const byPath = new Map<string, { path: string; label: string; workspaceIdentity?: string }>();
-  // 只暴露用户选择的路径：本机默认对话工作区（数据根内，非项目会话目录）是内部
-  // 目录，不外发给局域网对端（spec: docs/specs/lan-paired-devices.md）。
-  const conversationWorkspaceDir = getConversationWorkspaceDir();
-  const caseInsensitive = process.platform === "win32";
-  const add = (workspacePath: string, workspaceIdentity?: string) => {
-    const trimmed = workspacePath.trim();
-    if (!trimmed || byPath.has(trimmed)) {
-      return;
-    }
-    if (
-      isInternalConversationWorkspacePath(trimmed, conversationWorkspaceDir, { caseInsensitive })
-    ) {
-      return;
-    }
-    const label =
-      trimmed
-        .replace(/[\\/]+$/u, "")
-        .split(/[\\/]/u)
-        .pop() || trimmed;
-    byPath.set(trimmed, {
-      path: trimmed,
-      label,
-      ...(workspaceIdentity?.trim() ? { workspaceIdentity: workspaceIdentity.trim() } : {}),
-    });
-  };
-  for (const entry of settings?.lastWorkspaceSession ?? []) {
-    if (entry.kind !== "local") {
-      continue;
-    }
-    add(entry.workspacePath);
-  }
-  for (const recent of settings?.recentProjects ?? []) {
-    add(recent);
-  }
-  return [...byPath.values()].slice(0, 20);
-}
-
 /** 重启后自动恢复：设置里开着就监听，关着就不监听。 */
 async function restoreLanAccessIfEnabled(services: ServiceCollection): Promise<void> {
   const settingService = services.getOptional(ISettingService);
@@ -2375,22 +2331,11 @@ async function handleLanPairPeerMessage(
   }
 }
 
-function parseLanPeerMeta(raw: string | null): LanPeerMeta | null {
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = lanPeerMetaSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * 「我配对的对端」三动作（设置页客户端组）：
  * 枚举只读键名与元数据（令牌不回传）；拉工作区用已存令牌访问对端 server-info；
  * 删除让 token 与 meta 同生命周期收口。全部失败以可读错误回帖，UI 转「无法获取」。
+ * 实现唯一来源是 `lanPairedPeers.ts`（Tauri 的 `lan-access` 频道共用同一份）。
  */
 /** 「我配对的对端」消息类型 → 回帖响应类型（handler 与 services 未就绪兜底共用）。 */
 function lanPairedPeerReplyType(type: HostLanPairedPeerMessage["type"]): string {
@@ -2434,32 +2379,7 @@ async function handleLanPairedPeerMessage(
   }
   try {
     if (msg.type === "lan-paired-peers-list") {
-      const keys = await credentials.list("lan:peer:");
-      const peers: LanPairedPeer[] = [];
-      for (const key of keys) {
-        if (!key.startsWith("lan:peer:") || !key.endsWith(":token")) {
-          continue;
-        }
-        const serverId = key.slice("lan:peer:".length, -":token".length);
-        if (!serverId) {
-          continue;
-        }
-        const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(serverId)));
-        peers.push(
-          meta
-            ? {
-                serverId,
-                host: meta.host,
-                port: meta.port,
-                ...(meta.name ? { name: meta.name } : {}),
-                ...(meta.pairedAt ? { pairedAt: meta.pairedAt } : {}),
-              }
-            : // 旧配对没有 meta：地址未知也保留一行，至少还能删除。
-              { serverId, host: "", port: 0 },
-        );
-      }
-      peers.sort((a, b) => (b.pairedAt ?? 0) - (a.pairedAt ?? 0));
-      reply({ ok: true, peers });
+      reply({ ok: true, peers: await listLanPairedPeers(credentials) });
       return;
     }
 
@@ -2469,43 +2389,21 @@ async function handleLanPairedPeerMessage(
       return;
     }
     if (msg.type === "lan-paired-peer-remove") {
-      await credentials.delete(buildLanPeerTokenKey(serverId));
-      await credentials.delete(buildLanPeerMetaKey(serverId));
+      await removeLanPairedPeerRecord(credentials, serverId);
       reply({ ok: true });
       return;
     }
     if (msg.type === "lan-paired-peer-rename") {
-      const name = msg.name?.trim();
-      if (!name) {
-        reply({ ok: false, error: "缺少名称" });
-        return;
-      }
-      const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(serverId)));
-      if (!meta) {
-        reply({ ok: false, error: "该配对缺少元数据，无法重命名" });
-        return;
-      }
-      // 只改本机元数据里的名称：对端不受影响，令牌/地址不动（下次连接照常）。
-      await credentials.save(buildLanPeerMetaKey(serverId), JSON.stringify({ ...meta, name }));
+      await renameLanPairedPeerRecord(credentials, serverId, msg.name ?? "");
       reply({ ok: true });
       return;
     }
 
-    const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(serverId)));
-    if (!meta) {
-      reply({ ok: false, error: "该配对缺少地址信息，无法获取工作区" });
-      return;
-    }
-    const token = await loadLanPeerToken(credentials, serverId);
-    if (!token) {
-      reply({ ok: false, error: "尚未配对" });
-      return;
-    }
-    const info = await fetchLanPeerInfo({ host: meta.host, port: meta.port, token });
+    const result = await getLanPairedPeerWorkspaces(credentials, serverId);
     reply({
       ok: true,
-      ...(info.name ? { name: info.name } : {}),
-      workspaces: info.workspaces,
+      ...(result.name ? { name: result.name } : {}),
+      workspaces: result.workspaces,
     });
   } catch (error) {
     logger.warn("lan paired peer op failed", error);

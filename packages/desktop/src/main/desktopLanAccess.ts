@@ -14,7 +14,7 @@ import {
   type LanAccessState,
   type LanPairPeerRequest,
 } from "@mode/shared";
-import { discoverLanPeers } from "./desktopLanDiscovery.js";
+import { discoverLanPeers } from "../host/lanDiscovery.js";
 import { listLiveHostProcesses } from "./resourceManagerWindow.js";
 
 /**

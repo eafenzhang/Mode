@@ -137,7 +137,10 @@ export function mergeLanDiscoveredPeers(entries: LanDiscoveredPeer[]): LanDiscov
   const merged: LanDiscoveredPeer[] = [];
   for (const group of groups.values()) {
     if (group.length === 1) {
-      merged.push(group[0]);
+      const only = group[0];
+      if (only) {
+        merged.push(only);
+      }
       continue;
     }
     const byHost = new Map<string, LanDiscoveredPeer>();
@@ -149,7 +152,12 @@ export function mergeLanDiscoveredPeers(entries: LanDiscoveredPeer[]): LanDiscov
         Number(isTailscaleRangeAddress(left.host)) - Number(isTailscaleRangeAddress(right.host)) ||
         left.host.localeCompare(right.host),
     );
-    const [{ host, ...rest }] = ordered;
+    const first = ordered[0];
+    if (!first) {
+      // 空组：`group.length > 1` 已经排除了这种情况，保留守卫让类型与不变量一致。
+      continue;
+    }
+    const { host, ...rest } = first;
     merged.push({
       ...rest,
       host,

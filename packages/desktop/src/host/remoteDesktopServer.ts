@@ -112,8 +112,18 @@ export interface RemoteDesktopHostServer {
   };
   /** 能力位读取点（同步缓存，握手时现取；开关变更后立刻生效）。 */
   isServerEnabled(): boolean;
+  /**
+   * 本机是否处于被控中：同意等待、待接线或进行中会话均算（设备页置灰口径）。
+   * 与 Electron main 的 coordinator 状态机同义；Tauri 产品壳没有 main，由 Host 直接给事实。
+   */
+  isControlled(): boolean;
   /** 启动时把持久化的开关读入同步缓存（准备就绪前按「关」fail-closed）。 */
   loadServerState(): Promise<void>;
+  /**
+   * 被控会话状态变化（同意等待 / 已接管 / 已结束）。
+   * 指示条据此显示/隐藏；只在状态真的变化时触发。
+   */
+  onDidChangeControlledState(listener: (controlled: boolean) => void): { dispose(): void };
   handleMessage(message: RemoteDesktopMessageToHost): void;
   dispose(): void;
 }
@@ -127,7 +137,6 @@ export type RemoteDesktopMediaCall = (
   method: "rd_media_start" | "rd_media_switch" | "rd_media_stop",
   params: object,
 ) => Promise<unknown>;
-
 
 interface PendingConsent {
   clientId: string;
@@ -180,6 +189,23 @@ export function createRemoteDesktopHostServer(options: {
    * （冷启动即可显示提示）；不按 GPU 指纹分卡——GPU 变更由下一次真实会话自愈。
    */
   let encoderCapability: EncoderCapability = "unknown";
+  /** 被控状态监听（指示条）：只在 `isControlled()` 真的变化时通知。 */
+  const controlledListeners = new Set<(controlled: boolean) => void>();
+  let lastControlled = false;
+  const notifyControlled = (): void => {
+    const controlled = pendingConsent !== null || pendingSocket !== null || activeSession !== null;
+    if (controlled === lastControlled) {
+      return;
+    }
+    lastControlled = controlled;
+    for (const listener of controlledListeners) {
+      try {
+        listener(controlled);
+      } catch {
+        // 订阅方异常不得影响会话状态机。
+      }
+    }
+  };
   /** 观测值统一入口：内存更新 + 异步落盘（写失败只 warn，不影响会话）。 */
   const setEncoderCapability = (next: EncoderCapability): void => {
     encoderCapability = next;
@@ -255,13 +281,17 @@ export function createRemoteDesktopHostServer(options: {
       const pointer = remoteDesktopPointerEventSchema.safeParse(event);
       if (pointer.success) {
         // 合批（spec 事件顺序 ④）：pointer 进 0ms 聚合窗口同 tick 合并，不再逐事件一条管道连接。
-        injectBatcher.enqueuePointer(convertPointerEvent(pointer.data, rects.monitor, rects.virtual));
+        injectBatcher.enqueuePointer(
+          convertPointerEvent(pointer.data, rects.monitor, rects.virtual),
+        );
         return;
       }
       const control = remoteDesktopControlEventSchema.safeParse(event);
       if (control.success) {
         // control 即时 flush（缓冲的 pointer 先出，保持同帧先后）。
-        injectBatcher.enqueueControl(convertControlEvent(control.data, rects.monitor, rects.virtual));
+        injectBatcher.enqueueControl(
+          convertControlEvent(control.data, rects.monitor, rects.virtual),
+        );
         return;
       }
       dropMediaInput("not a control/pointer event");
@@ -270,7 +300,9 @@ export function createRemoteDesktopHostServer(options: {
   let disposed = false;
 
   const log = (message: string, detail?: unknown): void =>
-    detail === undefined ? logger.info(`[remote-desktop] ${message}`) : logger.info(`[remote-desktop] ${message}`, detail);
+    detail === undefined
+      ? logger.info(`[remote-desktop] ${message}`)
+      : logger.info(`[remote-desktop] ${message}`, detail);
 
   // ---- 设置存储（凭据服务；与 lan client 记录同一存储机制）----
 
@@ -368,7 +400,9 @@ export function createRemoteDesktopHostServer(options: {
         timer: setTimeout(() => {
           if (pendingSocket?.clientId === pending.clientId) {
             pendingSocket = null;
-            logger.info(`[remote-desktop] pending session socket expired, clientId=${pending.clientId}`);
+            logger.info(
+              `[remote-desktop] pending session socket expired, clientId=${pending.clientId}`,
+            );
           }
         }, PENDING_SOCKET_TTL_MS),
       };
@@ -385,6 +419,7 @@ export function createRemoteDesktopHostServer(options: {
         });
     }
     pending.resolve(result);
+    notifyControlled();
   };
 
   const clearPendingSocket = (): void => {
@@ -392,6 +427,7 @@ export function createRemoteDesktopHostServer(options: {
       clearTimeout(pendingSocket.timer);
       pendingSocket = null;
     }
+    notifyControlled();
   };
 
   const requestSession = async (
@@ -425,6 +461,7 @@ export function createRemoteDesktopHostServer(options: {
         settleConsent({ error: "consent_timeout" });
       }, CONSENT_SAFETY_TIMEOUT_MS);
       pendingConsent = { clientId, resolve, timer };
+      notifyControlled();
       log(`consent requested, clientId=${clientId}`);
       options.postToMain({
         type: RemoteDesktopHostMessageTypes.RemoteDesktopConsentRequest,
@@ -444,6 +481,7 @@ export function createRemoteDesktopHostServer(options: {
     mediaRelay.close();
     const session = activeSession;
     activeSession = null;
+    notifyControlled();
     if (!session) {
       return;
     }
@@ -484,10 +522,12 @@ export function createRemoteDesktopHostServer(options: {
     }
     clearPendingSocket();
     activeSession = { clientId, socket };
+    notifyControlled();
     log(`session socket attached, clientId=${clientId}`);
 
     socket.on("message", (data: unknown) => {
-      const text = typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString("utf8") : "";
+      const text =
+        typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString("utf8") : "";
       if (!text) {
         return;
       }
@@ -547,6 +587,16 @@ export function createRemoteDesktopHostServer(options: {
           type: RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed,
           reason: "peer-end",
         });
+        return;
+      }
+      if (message.data.type === "error") {
+        // 主控端以 error 收口（例如协议不支持）：转发后关闭本端，不留半开会话。
+        // Tauri 产品壳没有 main coordinator，这一步必须在 server 层收口。
+        closeActiveSocket(4008, "peer error");
+        options.postToMain({
+          type: RemoteDesktopHostMessageTypes.RemoteDesktopSessionClosed,
+          reason: "error",
+        });
       }
     });
 
@@ -555,6 +605,7 @@ export function createRemoteDesktopHostServer(options: {
       if (wasActive) {
         activeSession = null;
         clearSessionState();
+        notifyControlled();
         // 会话生命周期写 info 级日志（spec 安全边界：不记录画面内容）。
         log(`session closed (socket closed), clientId=${clientId}`);
         options.postToMain({
@@ -586,7 +637,9 @@ export function createRemoteDesktopHostServer(options: {
     // 归属复核（复用 pendingSocket/activeSession 判定）：媒体 WS 只接受「同意通过待接线」
     // 或「进行中」会话的 clientId——票据是必要非充分条件，会话收口后的迟到票据不留连接。
     if (pendingSocket?.clientId !== clientId && activeSession?.clientId !== clientId) {
-      logger.warn(`[remote-desktop] media socket without session owner rejected, clientId=${clientId}`);
+      logger.warn(
+        `[remote-desktop] media socket without session owner rejected, clientId=${clientId}`,
+      );
       try {
         socket.close(4001, "remote desktop session unavailable");
       } catch {
@@ -645,7 +698,10 @@ export function createRemoteDesktopHostServer(options: {
       return;
     }
     // 上限双保险：main 侧按帧已截断，这里再截一次保证任何来源都不越界（与 Rust 同口径）。
-    const bounded = events.length > REMOTE_DESKTOP_INJECT_MAX_EVENTS ? events.slice(0, REMOTE_DESKTOP_INJECT_MAX_EVENTS) : events;
+    const bounded =
+      events.length > REMOTE_DESKTOP_INJECT_MAX_EVENTS
+        ? events.slice(0, REMOTE_DESKTOP_INJECT_MAX_EVENTS)
+        : events;
     if (bounded.length < events.length) {
       logger.warn(`[remote-desktop] inject frame truncated: ${events.length} → ${bounded.length}`);
     }
@@ -686,6 +742,15 @@ export function createRemoteDesktopHostServer(options: {
   return {
     hooks: { requestSession, onSessionSocket, onMediaSocket },
     isServerEnabled: () => serverEnabled,
+    isControlled: () => pendingConsent !== null || pendingSocket !== null || activeSession !== null,
+    onDidChangeControlledState(listener) {
+      controlledListeners.add(listener);
+      return {
+        dispose: () => {
+          controlledListeners.delete(listener);
+        },
+      };
+    },
     /** 启动即把持久化的被控开关读入同步缓存（能力位按每次握手现取，此处只做一次冷读）。 */
     loadServerState: async (): Promise<void> => {
       serverEnabled = await loadEnabled();
@@ -712,10 +777,10 @@ export function createRemoteDesktopHostServer(options: {
           settleConsent({ ok: true });
           return;
         }
-        log(
-          `consent denied, clientId=${message.clientId}, reason=${message.reason ?? "user"}`,
-        );
-        settleConsent({ error: message.reason === "timeout" ? "consent_timeout" : "consent_denied" });
+        log(`consent denied, clientId=${message.clientId}, reason=${message.reason ?? "user"}`);
+        settleConsent({
+          error: message.reason === "timeout" ? "consent_timeout" : "consent_denied",
+        });
         return;
       }
       if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopSignalToHost) {
@@ -803,12 +868,14 @@ export function createRemoteDesktopHostServer(options: {
           monitor: toRemoteDesktopPxRect(message.rect),
           virtual: toRemoteDesktopPxRect(message.virtualRect),
         };
-        void options.callRdMedia?.("rd_media_switch", { rect: message.rect }).catch((error: unknown) => {
-          logger.warn(
-            "[remote-desktop] rd_media_switch failed:",
-            error instanceof Error ? error.message : error,
-          );
-        });
+        void options
+          .callRdMedia?.("rd_media_switch", { rect: message.rect })
+          .catch((error: unknown) => {
+            logger.warn(
+              "[remote-desktop] rd_media_switch failed:",
+              error instanceof Error ? error.message : error,
+            );
+          });
         return;
       }
       if (message.type === RemoteDesktopHostMessageTypes.RemoteDesktopMediaStop) {
@@ -877,6 +944,15 @@ export function createRemoteDesktopHostServer(options: {
         return;
       }
       disposed = true;
+      // 应用退出/窗口关闭：先给主控带出 bye，再关 WS（spec 事件顺序 ⑥ 的本地发起端）。
+      const active = activeSession;
+      if (active) {
+        try {
+          active.socket.send(JSON.stringify({ type: "bye", reason: "remote-end" }));
+        } catch {
+          // 通道已坏时直接进入收尾。
+        }
+      }
       clearSessionState();
       closeActiveSocket(1000, "disposed");
       // 媒体连接随 server 收口：不留半开的媒体 WS（票据已消费，连接本身也要释放）。
@@ -888,14 +964,13 @@ export function createRemoteDesktopHostServer(options: {
         }
       }
       mediaSockets.clear();
+      controlledListeners.clear();
     },
   };
 }
 
 /** 解析 host 侧入口消息：类型标签不在 RD 集合内 → null（调用方继续走共享 schema）。 */
-export function parseRemoteDesktopMessageToHost(
-  value: unknown,
-): RemoteDesktopMessageToHost | null {
+export function parseRemoteDesktopMessageToHost(value: unknown): RemoteDesktopMessageToHost | null {
   const type = (value as { type?: unknown } | null)?.type;
   if (typeof type !== "string" || !isRemoteDesktopMessageTypeTag(type)) {
     return null;

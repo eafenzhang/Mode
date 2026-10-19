@@ -16,6 +16,8 @@ import type {
 } from "./lanAccess.js";
 import type {
   RemoteDesktopCodec,
+  RemoteDesktopConsentRequest,
+  RemoteDesktopConsentResponse,
   RemoteDesktopEncoderCapability,
   RemoteDesktopErrorCode,
   RemoteDesktopQuality,
@@ -1109,5 +1111,19 @@ export interface IPlatformService {
           }
         | { kind: "signal"; message: RemoteDesktopSignalMessage },
     ) => void,
+  ): () => void;
+
+  /**
+   * Tauri 被控同意窗（renderer 模态）：Electron 用 main 的原生同意窗，不实现这两个方法。
+   * 只在 Tauri runtime 下存在；调用方必须用可选链判断。
+   */
+  onRemoteDesktopConsentRequest?(
+    handler: (request: RemoteDesktopConsentRequest) => void,
+  ): () => void;
+  /** 回应被控同意请求；Host 在 60s 无响应时按 timeout 拒绝。 */
+  respondRemoteDesktopConsent?(request: RemoteDesktopConsentResponse): Promise<void>;
+  /** 被控会话状态变化（Tauri 指示条）；Electron 由 main 的原生指示窗处理。 */
+  onRemoteDesktopControlledStateChanged?(
+    handler: (state: { controlled: boolean }) => void,
   ): () => void;
 }

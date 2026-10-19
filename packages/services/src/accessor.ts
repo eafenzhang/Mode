@@ -7,6 +7,9 @@ import type { ISystemService } from "./system/system.js";
 import type { ITerminalService } from "./terminal/terminal.js";
 import type { ISettingService } from "./setting/setting.js";
 import type { ICredentialService } from "./credential/credential.js";
+import type { ILanAccessService } from "./lan-access/lanAccessService.js";
+import type { IRemoteDesktopService } from "./remote-desktop/remoteDesktopService.js";
+import type { IRemoteService } from "./remote/remoteService.js";
 import type { IBroadcastService } from "./broadcast/broadcast.js";
 import type { IModeTaskService } from "./session/modeTaskService.js";
 import type { IModeAgentService } from "./mode-agent/modeAgent.js";
@@ -53,6 +56,15 @@ export interface IServiceAccessor {
   /** Onboarding 完成记录（本地持久化）；旧测试 double / 不支持的 host 可不提供。 */
   readonly onboardingRecordService?: IOnboardingRecordService;
   readonly credentialService: ICredentialService;
+  /**
+   * 局域网管理面（local-only）。只有窗口 Host 注册该频道；旧 Host / 远端 workspace
+   * attachment 不提供。缺省即「该 Host 没有管理面」，调用方不得把它读成空状态。
+   */
+  readonly lanAccessService?: ILanAccessService;
+  /** 远程桌面被控设置面（local-only）；旧 Host / 远端 attachment 不提供。 */
+  readonly remoteDesktopService?: IRemoteDesktopService;
+  /** 远程工作区管理面（local-only）；旧 Host 不提供。 */
+  readonly remoteService?: IRemoteService;
   readonly broadcastService: IBroadcastService;
   readonly modeTaskService: IModeTaskService;
   /** 窗口 Host 聚合面；旧 server wire 或测试 double 可暂不提供。 */

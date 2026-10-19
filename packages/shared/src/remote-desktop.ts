@@ -262,6 +262,85 @@ export const remoteDesktopEncoderCapabilitySchema = z.enum([
 ]);
 export type RemoteDesktopEncoderCapability = z.infer<typeof remoteDesktopEncoderCapabilitySchema>;
 
+// ---- 被控设置面（LR-2）----
+
+/** 已授权设备（只给设置页展示；授权事实挂在 lan client 记录上）。 */
+export interface RemoteDesktopAuthorizedClient {
+  id: string;
+  label: string;
+}
+
+/** 被控设置面快照：总开关 + 已授权设备 + 编码能力缓存。 */
+export interface RemoteDesktopServerState {
+  enabled: boolean;
+  authorizedClients: RemoteDesktopAuthorizedClient[];
+  encoderCapability: RemoteDesktopEncoderCapability;
+}
+
+/** 对端能力探测结果（旧对端缺能力键 = false）。 */
+export interface RemoteDesktopPeerCapability {
+  remoteDesktop: boolean;
+  remoteDesktopNative: boolean;
+  online: boolean;
+  name?: string;
+}
+
+// ---- 主控会话（LR-3）----
+
+export type RemoteDesktopControllerState = "connecting" | "connected" | "closed";
+
+/**
+ * 主控会话事件（renderer ← Host）。
+ *
+ * `state` 是幂等的连接生命周期；`signal` 是**非幂等**的对端信令——只发给当前订阅者，
+ * 不缓冲、不重放（断线重连由 renderer 的会话级重连策略处理）。
+ */
+export type RemoteDesktopSessionEvent =
+  | {
+      kind: "state";
+      state: RemoteDesktopControllerState;
+      error?: RemoteDesktopErrorCode;
+      /** 传输断开（非 bye/本地结束）：renderer 可走会话级重连退避。 */
+      retryable?: boolean;
+    }
+  | { kind: "signal"; message: RemoteDesktopSignalMessage };
+
+/** 主控发起结果：成功时携带媒体面地址（契约 E）。 */
+export type RemoteDesktopStartSessionResult =
+  | { ok: true; mediaUrl?: string }
+  | { error: RemoteDesktopErrorCode };
+
+/** 被控同意请求（Host → renderer；60s 无响应按超时拒绝）。 */
+export interface RemoteDesktopConsentRequest {
+  clientId: string;
+  label: string;
+}
+
+export interface RemoteDesktopConsentResponse {
+  clientId: string;
+  decision: "allow" | "deny";
+  remember: boolean;
+  /** 用户拒绝与超时同为 deny，但主控需要不同稳定错误码。 */
+  reason?: "user" | "timeout";
+}
+
+/**
+ * 被控端显示器快照（renderer 从 Tauri 壳读到后推给 Host）。
+ *
+ * 位置/尺寸都是**物理像素**（VIRTUALDESK 坐标域）；`displayId` 只在本会话内稳定，
+ * 由 renderer 按枚举顺序生成。Host 不直接枚举显示器（D7：OS 能力留在壳）。
+ */
+export interface RemoteDesktopLocalDisplay {
+  displayId: string;
+  label: string;
+  xPx: number;
+  yPx: number;
+  widthPx: number;
+  heightPx: number;
+  scaleFactor: number;
+  primary: boolean;
+}
+
 // ---- 剪贴板同步（P1.1，spec 产品规则 7）----
 
 /**

@@ -62,12 +62,18 @@ test("注入桥与验收台面板用的频道名等于 InternalChannels 的真�
   const allowed = new Set<string>([
     InternalChannels.DatabaseStartupState,
     InternalChannels.ServicePort,
+    InternalChannels.ScopedServicePort,
+    InternalChannels.ScopedServicePortReady,
     "mode:host-bridge-error",
   ]);
   for (const name of new Set(referenced)) {
     assert.ok(allowed.has(name), `注入桥出现未登记的 mode: 名字 ${name}`);
   }
-  for (const required of [InternalChannels.DatabaseStartupState, InternalChannels.ServicePort]) {
+  for (const required of [
+    InternalChannels.DatabaseStartupState,
+    InternalChannels.ServicePort,
+    InternalChannels.ScopedServicePort,
+  ]) {
     assert.ok(referenced.includes(required), `注入桥必须引用 ${required}`);
   }
 });

@@ -8,8 +8,8 @@
 //! 测试目标；放进 lib 单测则拿不到清单，进程启动即 `STATUS_ENTRYPOINT_NOT_FOUND`。
 use platform::commands::{registered_names, M1_HANDLER_PATHS};
 
-/// 切片表里的 10 个命令，顺序与 spec 表格一致。
-const M1_SLICE: [&str; 10] = [
+/// 切片表里的命令，顺序与 spec 表格一致。
+const M1_SLICE: [&str; 11] = [
     "openExternal",
     "selectDirectory",
     "selectFile",
@@ -20,6 +20,8 @@ const M1_SLICE: [&str; 10] = [
     "syncWindowTabs",
     "syncWindowUnreadCount",
     "getApplicationIcon",
+    // LR-3：远程桌面剪贴板读取（壳能力）。
+    "rdReadClipboardText",
 ];
 
 #[test]
@@ -88,6 +90,7 @@ const COMMAND_SOURCES: &[&str] = &[
     include_str!("../src/commands/notify.rs"),
     include_str!("../src/commands/window.rs"),
     include_str!("../src/commands/icon.rs"),
+    include_str!("../src/commands/clipboard.rs"),
 ];
 
 /// 线上真正的命令名 = `#[tauri::command(rename = "...")]` 的字面量。

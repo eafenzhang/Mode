@@ -125,6 +125,8 @@ export const M1_IMPLEMENTED_COMMANDS = [
   "syncWindowTabs",
   "syncWindowUnreadCount",
   "getApplicationIcon",
+  // LR-3：远程桌面剪贴板读取（壳命令 `rdReadClipboardText`）。
+  "rdReadClipboardText",
 ] as const;
 
 /** M1 未实现的**必选**方法：调用即抛 `not_implemented_until_m3`。 */
@@ -179,7 +181,6 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "rdGetControlledState",
   "rdSendSignal",
   "rdEndSession",
-  "rdReadClipboardText",
   "rdGetServerState",
   "rdSetServerEnabled",
   "rdRevokeClient",
@@ -336,6 +337,10 @@ export function createTauriPlatformService(
       return invoke("getApplicationIcon", {
         request: normalizeApplicationIconRequest(request),
       }) as ReturnType<NonNullable<IPlatformService["getApplicationIcon"]>>;
+    },
+    // LR-3：远程桌面主控剪贴板读取（壳命令；无文本返回空串）。
+    rdReadClipboardText(): Promise<string> {
+      return invoke("rdReadClipboardText") as Promise<string>;
     },
     onOAuthCallback(callback: (url: string) => void): () => void {
       const unsubscribe = subscribeDeepLink(

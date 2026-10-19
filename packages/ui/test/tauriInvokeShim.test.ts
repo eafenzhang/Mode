@@ -79,10 +79,10 @@ function recordingListen(options: { holdSetup?: boolean } = {}) {
 /** 不订阅任何事件的安静替身，给只测命令映射的用例。 */
 const noopListen = recordingListen().listen;
 
-test("M1 切片表的 10 条命令都被实现（不是靠抛错桩占位）", () => {
+test("M1 切片表的命令都被实现（不是靠抛错桩占位）", () => {
   const { invoke } = recordingInvoke();
   const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
-  assert.equal(M1_IMPLEMENTED_COMMANDS.length, 10);
+  assert.equal(M1_IMPLEMENTED_COMMANDS.length, 11);
   for (const name of M1_IMPLEMENTED_COMMANDS) {
     assert.equal(typeof service[name], "function", `${name} 应是函数`);
   }

@@ -18,7 +18,7 @@ import {
   discoverLanPeers,
   mergeLanDiscoveredPeers,
   parseTailscaleStatusIps,
-} from "../../src/main/desktopLanDiscovery.js";
+} from "../../src/host/lanDiscovery.js";
 
 // ── 1) status --json 解析（纯函数） ──
 const sampleStatus = JSON.stringify({

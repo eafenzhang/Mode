@@ -8,6 +8,8 @@
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false,
+    // 测试用例直接 import 跨包 fixture（`.mts` 扩展名）；本工程 noEmit，开放该选项没有产物影响。
+    "allowImportingTsExtensions": true,
     "lib": ["es2024"],
     "types": ["node"]
   },
@@ -28,6 +30,15 @@
     "src/host-standalone",
     "tests/host-standalone.test.mts",
     "tests/startupMapping.test.mts",
-    "tests/startupFailure.test.mts"
+    "tests/startupFailure.test.mts",
+    "tests/lan-access-host-service.test.mts",
+    "tests/remote-desktop-host-service.test.mts",
+    "tests/remote-desktop-controlled-coordinator.test.mts",
+    "tests/desktop-local-displays.test.mts",
+    "tests/remote-desktop-controller.test.mts",
+    "tests/attachment-multiplexer-spike.test.mts",
+    "tests/frame-multiplexer.test.mts",
+    "tests/scoped-attachment-port.test.mts",
+    "tests/remote-workspace-host-service.test.mts"
   ]
 }

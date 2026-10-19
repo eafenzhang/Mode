@@ -6154,6 +6154,7 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.consent.allow": "允许",
   "remoteDesktop.consent.deny": "拒绝",
   "remoteDesktop.consent.remember": "记住此设备",
+  "remoteDesktop.indicator.controlling": "本机正在被远程控制",
   "remoteDesktop.consent.timeout": "{seconds} 秒后自动拒绝",
   "remoteDesktop.indicator.text": "{device} 正在远程控制本机",
   "remoteDesktop.indicator.end": "结束",

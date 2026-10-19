@@ -68,6 +68,10 @@ windows-sys = { version = "0.61", features = [
   "Win32_System_Registry",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
+  # LR-3：远程桌面剪贴板读取（CF_UNICODETEXT）——DataExchange/Memory/Ole 三个模块。
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
 ] }
 # 图标编码成位图 data URL（PNG + base64）。
 png = "0.18"

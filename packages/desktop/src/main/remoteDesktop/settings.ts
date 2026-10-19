@@ -12,23 +12,12 @@ import {
   requestRemoteDesktopServerState,
   requestRemoteDesktopSetServerEnabled,
 } from "./hostBridge.js";
-import type { RemoteDesktopEncoderCapability } from "@mode/shared/remote-desktop";
+import type {
+  RemoteDesktopAuthorizedClient,
+  RemoteDesktopServerState,
+} from "@mode/shared/remote-desktop";
 
-export interface RemoteDesktopAuthorizedClient {
-  id: string;
-  label: string;
-}
-
-export interface RemoteDesktopServerState {
-  enabled: boolean;
-  authorizedClients: RemoteDesktopAuthorizedClient[];
-  /**
-   * 编码能力缓存（P1-3，2026-10-15 增 software 态）：unknown = 尚无真实会话观测；
-   * available = 硬件编码器可用；software = 无硬件编码器、已回退系统软件编码（能出画面，
-   * 但 CPU/延迟更高）；unavailable = 硬软两路都没有（会话起不来，UI 据此提示根因）。
-   */
-  encoderCapability: RemoteDesktopEncoderCapability;
-}
+export type { RemoteDesktopAuthorizedClient, RemoteDesktopServerState };
 
 type StateListener = (state: RemoteDesktopServerState) => void;
 

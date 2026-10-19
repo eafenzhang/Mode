@@ -141,6 +141,16 @@ export const ServiceChannels = {
   OnboardingRecord: "onboarding-record",
   /** 远程工作区对话记录镜像（本机与对端各存一份只读投影） */
   ConversationMirror: "conversation-mirror",
+  /**
+   * 局域网管理面（local-only）：状态/开关/配对码/已配对对端。
+   * 只注册给窗口 renderer，绝不进入 LAN 对端可见的服务集合
+   * （docs/specs/tauri-renderer-host.md §21.2）。
+   */
+  LanAccess: "lan-access",
+  /** 远程桌面被控设置与会话面（LR-2 起）。 */
+  RemoteDesktop: "remote-desktop",
+  /** 远程工作区管理面（LR-4）：connect/cancel/bind/dispose/attach/detach。 */
+  Remote: "remote",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];

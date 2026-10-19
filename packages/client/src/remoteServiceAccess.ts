@@ -9,6 +9,9 @@ import {
   ISettingService,
   IOnboardingRecordService,
   ICredentialService,
+  ILanAccessService,
+  IRemoteDesktopService,
+  IRemoteService,
   IBroadcastService,
   IModeTaskService,
   IModeAgentService,
@@ -59,6 +62,15 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly settingService: ISettingService;
   readonly onboardingRecordService: IOnboardingRecordService;
   readonly credentialService: ICredentialService;
+  /**
+   * LAN 管理面：只有窗口 Host 注册该 channel。这里总是建立代理（与其他服务同构），
+   * 是否可用由调用方按 Host 能力判定；旧 Host 上调用会以明确的 RPC 错误拒绝。
+   */
+  readonly lanAccessService: ILanAccessService;
+  /** 远程桌面被控设置面：窗口 Host 才注册；主控会话在 LR-3 接入。 */
+  readonly remoteDesktopService: IRemoteDesktopService;
+  /** 远程工作区管理面：窗口 Host 才注册。 */
+  readonly remoteService: IRemoteService;
   readonly broadcastService: IBroadcastService;
   readonly modeTaskService: IModeTaskService;
   readonly windowControllerService: IWindowControllerService;
@@ -124,6 +136,15 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.credentialService = ProxyChannel.toService<ICredentialService>(
       channelClient.getChannel(ICredentialService.channelName),
+    );
+    this.lanAccessService = ProxyChannel.toService<ILanAccessService>(
+      channelClient.getChannel(ILanAccessService.channelName),
+    );
+    this.remoteDesktopService = ProxyChannel.toService<IRemoteDesktopService>(
+      channelClient.getChannel(IRemoteDesktopService.channelName),
+    );
+    this.remoteService = ProxyChannel.toService<IRemoteService>(
+      channelClient.getChannel(IRemoteService.channelName),
     );
     this.broadcastService = ProxyChannel.toService<IBroadcastService>(
       channelClient.getChannel(IBroadcastService.channelName),

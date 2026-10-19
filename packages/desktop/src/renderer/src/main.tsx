@@ -27,6 +27,7 @@ import {
 import type { Locale } from "@mode/shared";
 import type { IServiceAccessor } from "@mode/services";
 import { createDesktopPlatform } from "./desktopPlatform.js";
+import { startLocalDisplaySync } from "./desktopLocalDisplays.js";
 import { startPerformanceTimelineCleanup } from "./performanceTimelineCleanup.js";
 import { buildRemoteWorkspaceSessionServices } from "./remoteWorkspaceSessionServices.js";
 import {
@@ -135,7 +136,11 @@ const initialLocale: Locale =
 let baseServicesForRemoteSessions: IServiceAccessor | null = null;
 const pendingRemoteWorkspaceServicePorts: RemoteWorkspaceServicePortRegistration[] = [];
 
-const desktopPlatform = createDesktopPlatform({ isLocalDevelopmentRuntime });
+const desktopPlatform = createDesktopPlatform({
+  isLocalDevelopmentRuntime,
+  // 端口在 initializeBusinessRoot 才送达；getter 保证 LAN 委托在收到 Host 服务后立即生效。
+  getHostServices: () => baseServicesForRemoteSessions,
+});
 /**
  * 等待 preload 通过 window.postMessage 转发 MessagePort。
  *
@@ -299,6 +304,8 @@ function initializeBusinessRoot(port: MessagePort): void {
   baseServicesForRemoteSessions = services;
   registerBaseWorkspaceServices(services);
   flushPendingRemoteWorkspaceServicePorts();
+  // LR-3 被控侧：把显示器快照推给 Host（Tauri 下才生效；Electron 无此服务）。
+  startLocalDisplaySync(services);
   const settingService = supportsSettings ? services.settingService : undefined;
   // 初始化稳定的设备 ID，确保所有 hook 在首次渲染前就使用正确的值
   setStreamClientId(desktopPlatform.getDeviceId());

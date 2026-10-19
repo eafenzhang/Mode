@@ -43,11 +43,16 @@ import {
   ChannelServer,
   Emitter,
   VSBuffer,
+  createFrameDemultiplexer,
+  decodeControlFrame,
+  decodeFrame,
+  type AttachmentControl,
   type IMessagePassingProtocol,
   type IServerChannel,
 } from "@mode/rpc";
 
 import { DispatchGuards } from "./channelGuard.js";
+import { createScopedAttachmentRegistry } from "./scopedAttachments.js";
 import { resolveDataRoot } from "./dataRoot.js";
 import {
   MODE_HOST_NATIVE_DEP_PROBE_ENV,
@@ -94,20 +99,81 @@ let nativeDeps: NativeDepsReport = probeNativeDeps(process.env);
 let serviceSurface: HostServiceSurface | undefined;
 
 const messages = new Emitter<VSBuffer>();
-const protocol: IMessagePassingProtocol = {
+const transport: IMessagePassingProtocol = {
   // 出方向：唯一的帧写入口（走 stdout 守卫的原始写函数，不经非帧判定）。
   send: (buffer) => stdoutGuard.writeFrameBytes(buffer.buffer),
   onMessage: messages.event,
 };
+/**
+ * LR-4：base + remote scope 的单端口解复用。base 帧逐字节不变；scope 帧由 scoped
+ * protocol 在发送时加前缀、在这里按 id 投递。Rust 壳继续只搬字节。
+ */
+const frameDemux = createFrameDemultiplexer(transport, {
+  onUnknownScope: (scopeId) => log(`scoped_frame_dropped scope=${scopeId}`),
+  onInvalidFrame: () => log("scoped_frame_invalid"),
+});
+const protocol = frameDemux.base;
+
+/** 测试用 scoped attachment（`MODE_HOST_TEST_SCOPES=1`）；生产由 `remote.attach` 接管。 */
+const scopedAttachments = createScopedAttachmentRegistry({ demux: frameDemux, log });
+
+function attachTestScope(): { scopeId: number } {
+  if (process.env.MODE_HOST_TEST_SCOPES?.trim() !== "1") {
+    throw new Error("test scopes disabled (MODE_HOST_TEST_SCOPES=1)");
+  }
+  const attachment = scopedAttachments.attach((server) => {
+    const echoChannel: IServerChannel<string> = {
+      async call<T>(_ctx: string, command: string, arg?: unknown): Promise<T> {
+        if (command === "echo") {
+          return { scopeId: attachment.scopeId, arg } as T;
+        }
+        throw new Error(`unknown command ${command}`);
+      },
+      listen(_ctx, event) {
+        throw new Error(`scope-echo 没有事件：${event}`);
+      },
+    };
+    server.registerChannel("scope-echo", guards.guardChannel("scope-echo", echoChannel, log));
+  });
+  return { scopeId: attachment.scopeId };
+}
+
+function handleAttachmentControl(control: AttachmentControl): void {
+  if (control.type === "scope-ready") {
+    scopedAttachments.start(control.scopeId);
+    return;
+  }
+  if (!scopedAttachments.detach(control.scopeId)) {
+    log(`scope_detach_unknown scope=${control.scopeId}`);
+  }
+}
+
+function detachTestScope(scopeId: number): void {
+  if (!scopedAttachments.detach(scopeId)) {
+    throw new Error(`scope ${scopeId} 不存在`);
+  }
+}
+
+function disposeScopes(): void {
+  scopedAttachments.disposeAll();
+  frameDemux.dispose();
+}
 
 let rejectedFrames = 0;
 process.stdin.on(
   "data",
   createFrameDecoder(
     (frame) => {
+      // 附件控制帧先于 RPC 校验：它不属于任何 scope，也不承载 RPC。
+      const control = decodeControlFrame(frame);
+      if (control) {
+        handleAttachmentControl(control);
+        return;
+      }
       // 形状校验必须在这里：`ChannelServer` 假设对端只发合法帧，投坏帧会让 Host 进程崩
-      // （spike §4.6 的实测崩溃）。坏帧只记账并留痕，绝不进协议层。
-      if (!isRpcRequestFrame(frame)) {
+      // （spike §4.6 的实测崩溃）。先剥 scope 头再校验 **payload**；坏帧只记账并留痕。
+      const decoded = decodeFrame(frame);
+      if (!decoded || !isRpcRequestFrame(decoded.payload)) {
         rejectedFrames += 1;
         log(`frame_rejected bytes=${frame.byteLength} firstByte=${frame[0] ?? "(none)"}`);
         return;
@@ -123,7 +189,12 @@ let shuttingDown = false;
 process.stdin.on("end", () => {
   shuttingDown = true;
   log("stdin_closed_exit");
-  // 先释放真服务（后台任务/子进程/句柄），再退出；释放失败也必须退出（否则留孤儿）。
+  // 先释放 scoped attachment 与真服务（后台任务/子进程/句柄），再退出；释放失败也必须退出。
+  try {
+    disposeScopes();
+  } catch (error) {
+    log(`dispose_scopes_failed ${describeError(error)}`);
+  }
   void (serviceSurface?.dispose() ?? Promise.resolve())
     .catch((error: unknown) => log(`dispose_failed ${describeError(error)}`))
     .finally(() => process.exit(0));
@@ -222,8 +293,15 @@ function describeHost(): HostDescribePayload {
 const hostChannel: IServerChannel<string> = {
   // `IServerChannel.call<T>` 是泛型的（客户端按自己的期望定型），实现只能把已知载荷
   // 断言成 T —— 断言收在这一处，不在每个分支里撒。
-  async call<T>(_ctx: string, command: string): Promise<T> {
+  async call<T>(_ctx: string, command: string, arg?: unknown): Promise<T> {
     if (command === "describe") return describeHost() as T;
+    // LR-4 的传输验证入口（默认关闭；生产 attachment 由 `remote.attach` 接管）。
+    if (command === "attachTestScope") return attachTestScope() as T;
+    if (command === "detachTestScope") {
+      const scopeId = Number((arg as { scopeId?: unknown } | undefined)?.scopeId);
+      detachTestScope(scopeId);
+      return undefined as T;
+    }
     throw new Error(`unknown command ${command}`);
   },
   listen(_ctx, event) {
@@ -279,7 +357,7 @@ async function bootstrap(): Promise<ChannelServer> {
   // MODE_AGENT_SERVER_COMMAND。显式环境变量优先；开发形态没有该文件则不动作。
   const bundledAgentInjected = applyBundledAgentRuntime();
   log(`bundled_agent_runtime injected=${String(bundledAgentInjected)}`);
-  const surface = await createHostServiceSurface({ guards, log });
+  const surface = await createHostServiceSurface({ guards, log, scopedAttachments });
   serviceSurface = surface;
   log(
     `services_ready channels=${surface.channelNames.length}` +

@@ -168,6 +168,11 @@ interface Page {
   invokes: Array<{ command: string; args: unknown }>;
   /** 注入脚本注册过的深链监听（I2 的配对断言用）。 */
   deepLinkListeners: Array<{ event: string; handler: (envelope: unknown) => void }>;
+  /** 页面里建过的 `MessageChannel`（LR-4 scoped port 断言用）。 */
+  createdChannels: Array<{ port1: FakePort; port2: FakePort }>;
+  /** 派发一条 `window` message（LR-4 ready ACK 断言用）。 */
+  dispatchWindowMessage(data: unknown): void;
+  windowMessageListenerCount(): number;
   readyState(): string;
 }
 
@@ -216,8 +221,17 @@ function createPage(): Page {
   sandbox.self = sandbox;
   sandbox.console = console;
   sandbox.Uint8Array = Uint8Array;
+  const createdChannels: Array<{ port1: FakePort; port2: FakePort }> = [];
+  const windowMessageListeners: Array<(event: { source: unknown; data: unknown }) => void> = [];
   sandbox.MessageChannel = function MessageChannelStub() {
-    return { port1: new FakePort(), port2: new FakePort() };
+    const created = { port1: new FakePort(), port2: new FakePort() };
+    createdChannels.push(created);
+    return created;
+  };
+  sandbox.TextEncoder = TextEncoder;
+  sandbox.TextDecoder = TextDecoder;
+  sandbox.addEventListener = (type: string, handler: (event: { source: unknown; data: unknown }) => void) => {
+    if (type === "message") windowMessageListeners.push(handler);
   };
   sandbox.CustomEvent = CustomEvent;
   // 测试里不让定时器自己跑：时序要能被显式控制，否则断言变成「等一会儿再看」。
@@ -276,6 +290,8 @@ function createPage(): Page {
   };
 
   const context = createContext(sandbox);
+  /** VM 里的 `window` 与宿主 sandbox 可能不是同一个对象；派发事件时用 VM 自己的那个。 */
+  const vmWindow = runInContext("window", context);
   return {
     evaluate: (script: string) => {
       runInContext(script, context);
@@ -294,6 +310,13 @@ function createPage(): Page {
     postMessages,
     invokes,
     deepLinkListeners: listenCalls,
+    createdChannels,
+    dispatchWindowMessage: (data: unknown) => {
+      for (const listener of windowMessageListeners) {
+        listener({ source: vmWindow, data });
+      }
+    },
+    windowMessageListenerCount: () => windowMessageListeners.length,
     readyState: () => (sandbox.document as { readyState: string }).readyState,
   };
 }
@@ -488,6 +511,84 @@ test("port 与状态流的投递仍然推迟到 DOMContentLoaded（spike §4.5 �
     false,
     "交给渲染层的那端由渲染层自己 start()，注入脚本不得替它启动",
   );
+});
+
+test("LR-4 scoped port：建端口、投递元数据、出方向帧带 scope 前缀", async () => {
+  const page = createPage();
+  page.evaluate(emitInjectedScript());
+  page.fireDomContentLoaded();
+  await page.flushMicrotasks();
+
+  const baseChannelCount = page.createdChannels.length;
+  assert.equal(
+    page.probe(
+      `window.__MODE_HOST_BRIDGE__.createScopedServicePort({
+         scopeId: 7,
+         attachmentId: "attachment-1",
+         sessionId: "session-1",
+         target: { kind: "lan", serverId: "server-1" },
+         capabilities: { computerUse: true }
+       })`,
+    ),
+    true,
+  );
+  assert.equal(page.createdChannels.length, baseChannelCount + 1, "必须新建一个页面端口");
+
+  const scopedMessage = page.postMessages.find(
+    (message) =>
+      (message.payload as { type?: string }).type === "mode:scoped-service-port",
+  );
+  assert.ok(scopedMessage, "scoped 端口必须以既有频道投递");
+  assert.equal(scopedMessage.transferred.length, 1);
+  const payload = scopedMessage.payload as {
+    attachmentId?: string;
+    sessionId?: string;
+    target?: { kind?: string };
+    capabilities?: { computerUse?: boolean };
+  };
+  assert.equal(payload.attachmentId, "attachment-1");
+  assert.equal(payload.sessionId, "session-1");
+  assert.equal(payload.target?.kind, "lan");
+  assert.equal(payload.capabilities?.computerUse, true);
+
+  // 出方向：renderer 侧端口发一帧，桥必须加 `0xFF + scopeId(u32 BE)` 前缀再送壳。
+  const scopedChannel = page.createdChannels.at(-1);
+  assert.ok(scopedChannel);
+  scopedChannel.port2.deliver(Uint8Array.of(100, 1, 2, 3));
+  await page.flushMicrotasks();
+  const sent = [...page.invokes].reverse().find((entry) => entry.command === "host_send");
+  assert.ok(sent, "scoped 帧必须经 host_send 出去");
+  const frame = sent.args as Uint8Array;
+  assert.ok(frame instanceof Uint8Array);
+  assert.equal(frame[0], 0xff);
+  assert.equal(
+    new DataView(frame.buffer, frame.byteOffset, frame.byteLength).getUint32(1, false),
+    7,
+  );
+  assert.deepEqual([...frame.subarray(5)], [100, 1, 2, 3]);
+
+  // renderer ready ACK → 桥发 scope-ready 控制帧（Host 收到后才发 Initialize）。
+  assert.ok(page.windowMessageListenerCount() >= 1, "桥必须注册 window message 监听");
+  page.dispatchWindowMessage({
+    type: "mode:scoped-service-port-ready",
+    attachmentId: "attachment-1",
+    sessionId: "session-1",
+  });
+  await page.flushMicrotasks();
+  const controlFrames = page.invokes
+    .filter((entry) => entry.command === "host_send")
+    .map((entry) => entry.args)
+    .filter(
+      (args): args is Uint8Array => args instanceof Uint8Array && args[0] === 0xfe,
+    );
+  assert.equal(controlFrames.length, 1, "ready ACK 必须翻译成一条控制帧");
+  assert.deepEqual(
+    JSON.parse(new TextDecoder().decode(controlFrames[0]!.subarray(1))),
+    { type: "scope-ready", scopeId: 7 },
+  );
+
+  assert.equal(page.probe(`window.__MODE_HOST_BRIDGE__.releaseScopedServicePort(7)`), true);
+  assert.equal(page.probe(`window.__MODE_HOST_BRIDGE__.releaseScopedServicePort(7)`), false);
 });
 
 /**

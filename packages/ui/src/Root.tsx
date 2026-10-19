@@ -13,6 +13,8 @@ import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { useDynamicWorkflowAvailabilityLoader } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
+import { RemoteDesktopConsentDialog } from "@/remote-desktop/RemoteDesktopConsentDialog.js";
+import { RemoteDesktopIndicator } from "@/remote-desktop/RemoteDesktopIndicator.js";
 import { useTabPersistence } from "@/hooks/useTabPersistence.js";
 import { useTokenRefresh } from "@/hooks/useTokenRefresh.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
@@ -123,6 +125,8 @@ export function Root(props: RootProps) {
                   >
                     <CodingPlanUpgradeDialogProvider>
                       <RootInner {...props} />
+                      <RemoteDesktopConsentDialog />
+                      <RemoteDesktopIndicator />
                     </CodingPlanUpgradeDialogProvider>
                   </AssistantCodeCommentFeatureProvider>
                 </DiffsWorkerPoolProvider>

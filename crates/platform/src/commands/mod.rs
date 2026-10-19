@@ -9,6 +9,8 @@ pub mod icon;
 pub mod notify;
 pub mod shell;
 pub mod window;
+/// LR-3：远程桌面剪贴板读取（壳能力，Host 不碰平台 API）。
+pub mod clipboard;
 
 /// 生成切片表、handler 注册与名字上报。
 ///
@@ -86,4 +88,6 @@ command_slice! {
     "syncWindowTabs" => window::sync_window_tabs,
     "syncWindowUnreadCount" => window::sync_window_unread_count,
     "getApplicationIcon" => icon::get_application_icon,
+    // LR-3：远程桌面主控剪贴板同步的读取口（壳能力）。
+    "rdReadClipboardText" => clipboard::rd_read_clipboard_text,
 }

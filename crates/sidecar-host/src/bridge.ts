@@ -26,7 +26,12 @@
   var CMD_RECV = "__MODE_HOST_CMD_RECV__";
   var CMD_STATE = "__MODE_HOST_CMD_STATE__";
   var CHANNEL_SERVICE_PORT = "mode:service-port";
+  var CHANNEL_SCOPED_SERVICE_PORT = "mode:scoped-service-port";
+  var CHANNEL_SCOPED_SERVICE_PORT_READY = "mode:scoped-service-port-ready";
   var CHANNEL_STARTUP_STATE = "mode:database-startup-state";
+  var SCOPED_FRAME_MARKER = 0xff;
+  var CONTROL_FRAME_MARKER = 0xfe;
+  var SCOPED_FRAME_HEADER_BYTES = 5;
 
   /** 页面可读的诊断面：验收台/集成测试用它看桥走到了哪一步。 */
   var bridgeState = {
@@ -44,6 +49,12 @@
     sentFrames: 0,
     /** 其中壳**收下**并且已经写进 Host stdin 的帧数（出方向端到端可用的强证据）。 */
     acceptedFrames: 0,
+    /** LR-4：已注册的 remote scope id（诊断面）。 */
+    scopedScopes: [],
+    /** 附件控制帧（scope-ready / scope-detach）的发送次数。 */
+    controlFrames: 0,
+    /** 未知/已回收 scope 的入方向帧数（必须丢弃，不能误投 base）。 */
+    droppedScopedFrames: 0,
     stateSequence: null,
     phase: null,
     error: null,
@@ -74,13 +85,58 @@
   }
   var rendererPort = channel.port1; // 交给渲染层的那端
   var shellPort = channel.port2; // 留给桥、对壳的一端
+  /** scopeId → 页面侧 scoped 端口的对壳端。 */
+  var scopedPorts = {};
+  /** attachmentId → scopeId 与反向表（renderer 的 ready ACK 只带 attachmentId）。 */
+  var scopedAttachments = {};
+  var scopedAttachmentIds = {};
 
-  // 出方向：协议层发出来的本来就是 Uint8Array（VSBuffer.buffer），整包过 IPC 即可。
-  shellPort.addEventListener("message", function (event) {
+  function encodeControlFrame(control) {
+    var body = new TextEncoder().encode(JSON.stringify(control));
+    var out = new Uint8Array(1 + body.byteLength);
+    out[0] = CONTROL_FRAME_MARKER;
+    out.set(body, 1);
+    return out;
+  }
+
+  function sendControlFrame(control) {
+    try {
+      bridgeState.controlFrames += 1;
+      internals.invoke(CMD_SEND, encodeControlFrame(control)).catch(function (error) {
+        fail("host_control_send_failed", error);
+      });
+    } catch (error) {
+      fail("host_control_send_threw", error);
+    }
+  }
+
+  function isScopedFrame(bytes) {
+    return bytes && bytes.byteLength >= SCOPED_FRAME_HEADER_BYTES && bytes[0] === SCOPED_FRAME_MARKER;
+  }
+
+  /** 读出 scope id 与去掉头部的 payload；调用方先过 isScopedFrame。 */
+  function splitScopedFrame(bytes) {
+    var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return {
+      scopeId: view.getUint32(1, false),
+      payload: bytes.subarray(SCOPED_FRAME_HEADER_BYTES),
+    };
+  }
+
+  function encodeScopedFrame(scopeId, bytes) {
+    var out = new Uint8Array(SCOPED_FRAME_HEADER_BYTES + bytes.byteLength);
+    out[0] = SCOPED_FRAME_MARKER;
+    new DataView(out.buffer, out.byteOffset, out.byteLength).setUint32(1, scopeId, false);
+    out.set(bytes, SCOPED_FRAME_HEADER_BYTES);
+    return out;
+  }
+
+  /** 出方向统一入口：base 原样、scoped 加前缀；计数与失败上报只有一份。 */
+  function sendFrame(bytes) {
     try {
       bridgeState.sentFrames += 1;
       internals
-        .invoke(CMD_SEND, event.data)
+        .invoke(CMD_SEND, bytes)
         .then(function () {
           // 壳收下了这一帧（已写进 Host 的 stdin）——出方向可用的**强**证据。
           bridgeState.acceptedFrames += 1;
@@ -91,11 +147,112 @@
     } catch (error) {
       fail("host_send_threw", error);
     }
+  }
+
+  // 出方向：协议层发出来的本来就是 Uint8Array（VSBuffer.buffer），整包过 IPC 即可。
+  shellPort.addEventListener("message", function (event) {
+    sendFrame(event.data);
   });
   shellPort.start();
 
+  /**
+   * LR-4：为一个 remote scope 建页面端口。调用方（renderer）从 `remote.attach` 拿到
+   * scopeId 与 attachment 元数据后调用；端口以既有 `mode:scoped-service-port` 消息投递，
+   * renderer 的 `parseRemoteWorkspaceServicePortMessage` 不需要改形状。
+   */
+  function createScopedServicePort(options) {
+    if (!options || typeof options !== "object") return false;
+    var scopeId = options.scopeId;
+    if (typeof scopeId !== "number" || scopeId % 1 !== 0 || scopeId <= 0) return false;
+    if (scopedPorts[scopeId]) return false;
+    var scopedChannel;
+    try {
+      scopedChannel = new MessageChannel();
+    } catch (error) {
+      fail("scoped_messagechannel_failed", error);
+      return false;
+    }
+    scopedPorts[scopeId] = scopedChannel.port2;
+    if (typeof options.attachmentId === "string" && options.attachmentId) {
+      scopedAttachments[options.attachmentId] = scopeId;
+      scopedAttachmentIds[scopeId] = options.attachmentId;
+    }
+    bridgeState.scopedScopes.push(scopeId);
+    scopedChannel.port2.addEventListener("message", function (event) {
+      if (!(event.data instanceof Uint8Array)) return;
+      sendFrame(encodeScopedFrame(scopeId, event.data));
+    });
+    scopedChannel.port2.start();
+    window.postMessage(
+      {
+        type: CHANNEL_SCOPED_SERVICE_PORT,
+        attachmentId: options.attachmentId,
+        sessionId: options.sessionId,
+        target: options.target,
+        capabilities: options.capabilities,
+      },
+      "*",
+      [scopedChannel.port1],
+    );
+    return true;
+  }
+
+  function releaseScopedServicePort(scopeId) {
+    var port = scopedPorts[scopeId];
+    if (!port) return false;
+    delete scopedPorts[scopeId];
+    var attachmentId = scopedAttachmentIds[scopeId];
+    if (attachmentId) {
+      delete scopedAttachmentIds[scopeId];
+      delete scopedAttachments[attachmentId];
+    }
+    bridgeState.scopedScopes = bridgeState.scopedScopes.filter(function (id) {
+      return id !== scopeId;
+    });
+    sendControlFrame({ type: "scope-detach", scopeId: scopeId });
+    try {
+      port.close();
+    } catch {
+      /* 已关闭时忽略 */
+    }
+    return true;
+  }
+
+  bridgeState.createScopedServicePort = createScopedServicePort;
+  bridgeState.releaseScopedServicePort = releaseScopedServicePort;
+
+  /**
+   * renderer 在 `MessagePort` 注册完成后 post 一条 ready ACK（`notifyRemoteWorkspaceServicePortReady`）。
+   * 桥把它翻译成 Host 控制帧：Host 收到后才对 scoped `ChannelServer` 发 Initialize——
+   * 提前发会被解复用按「未知 scope」丢弃，客户端永远停在未初始化。
+   */
+  window.addEventListener("message", function (event) {
+    if (event.source !== window) return;
+    var payload = event.data;
+    if (!payload || typeof payload !== "object") return;
+    if (payload.type !== CHANNEL_SCOPED_SERVICE_PORT_READY) return;
+    var attachmentId = payload.attachmentId;
+    if (typeof attachmentId !== "string" || !attachmentId) return;
+    var scopeId = scopedAttachments[attachmentId];
+    if (!scopeId) return;
+    sendControlFrame({ type: "scope-ready", scopeId: scopeId });
+  });
+
   // 入方向：长轮询。壳侧命令返回 raw bytes，页面拿到的是 ArrayBuffer。
   var pumpStopped = false;
+  function deliverInbound(bytes) {
+    if (isScopedFrame(bytes)) {
+      var scoped = splitScopedFrame(bytes);
+      var scopedPort = scopedPorts[scoped.scopeId];
+      if (scopedPort) {
+        scopedPort.postMessage(scoped.payload);
+      } else {
+        bridgeState.droppedScopedFrames += 1;
+      }
+      return;
+    }
+    shellPort.postMessage(bytes);
+  }
   function pump() {
     if (pumpStopped) return;
     internals
@@ -103,7 +260,7 @@
       .then(function (buffer) {
         if (buffer && buffer.byteLength > 0) {
           // 必须包一层 Uint8Array（spike §4.3）。
-          shellPort.postMessage(new Uint8Array(buffer));
+          deliverInbound(new Uint8Array(buffer));
           bridgeState.pumpFrames += 1;
         }
         if (!pumpStopped) setTimeout(pump, 0);

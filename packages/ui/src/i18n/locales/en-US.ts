@@ -6448,6 +6448,7 @@ const enUS: Record<string, string> = {
   "remoteDesktop.consent.allow": "Allow",
   "remoteDesktop.consent.deny": "Deny",
   "remoteDesktop.consent.remember": "Remember this device",
+  "remoteDesktop.indicator.controlling": "This device is being controlled remotely",
   "remoteDesktop.consent.timeout": "Denied automatically in {seconds}s",
   "remoteDesktop.indicator.text": "{device} is controlling this device",
   "remoteDesktop.indicator.end": "End",
