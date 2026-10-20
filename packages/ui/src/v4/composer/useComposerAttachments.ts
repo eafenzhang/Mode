@@ -44,9 +44,15 @@ import {
   type ComposerAttachmentUploadStatus,
 } from "@/store/composerAttachmentUploadStore.js";
 import { uploadComposerAttachment, type AttachmentPutFn } from "@/v4/composer/attachmentUpload.js";
+import {
+  attachmentAutoRetryDelayMs,
+  createManuallyRetriedAttachmentState,
+  createRequeuedAttachmentState,
+  isRecoverableAttachmentUploadFailure,
+} from "@/v4/composer/attachmentUploadRecovery.js";
+import { isRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceServiceError.js";
 
 const COMPOSER_ATTACHMENT_UPLOAD_CONCURRENCY = 2;
-const COMPOSER_ATTACHMENT_AUTO_RETRY_DELAY_MS = 500;
 const COMPOSER_ATTACHMENT_COMPLETE_VISIBLE_MS = 300;
 /**
  * 换代重传的兜底上限。dev 实测同一 workspace 可达 runtimeGeneration=4（3 次换代），
@@ -417,6 +423,14 @@ export function useComposerAttachments(
           (candidate) => candidate.id === attachmentId,
         );
         if (!current) return;
+        // 远端连接已断开不是附件失败：退回 waitingSession，等重连后的恢复触发点重新入队。
+        // 这样断链期间不会闪出红色 failed，也不会白烧一次自动重试。
+        if (isRemoteWorkspaceDisconnectedError(error)) {
+          updateItem(targetScopeKey, attachmentId, (item) =>
+            createRequeuedAttachmentState(item, "waitingSession"),
+          );
+          return;
+        }
         // 结构化超限错误在 UI 层按 locale 格式化（与 chatAttachments 序列化边界约定一致）。
         const message =
           error instanceof OversizedInlineVideoAttachmentError
@@ -446,7 +460,8 @@ export function useComposerAttachments(
                   ? error.message
                   : String(error);
         const transient = isTransientAttachmentUploadError(error);
-        if (transient && current.autoRetryCount < 1) {
+        const retryDelayMs = attachmentAutoRetryDelayMs(current.autoRetryCount);
+        if (transient && retryDelayMs !== undefined) {
           updateItem(targetScopeKey, attachmentId, (item) => ({
             ...item,
             uploadStatus: "queued",
@@ -459,7 +474,7 @@ export function useComposerAttachments(
           const timer = window.setTimeout(() => {
             retryTimersRef.current.delete(timerKey);
             enqueueUpload(targetScopeKey, attachmentId);
-          }, COMPOSER_ATTACHMENT_AUTO_RETRY_DELAY_MS);
+          }, retryDelayMs);
           retryTimersRef.current.set(timerKey, timer);
         } else {
           updateItem(targetScopeKey, attachmentId, (item) => ({
@@ -521,16 +536,18 @@ export function useComposerAttachments(
     const current = readComposerAttachmentScope(scopeKey);
     const remoteTargetReady =
       !isRemoteAttachmentTarget({ remoteSessionId, workspaceIdentity }) || Boolean(remoteSessionId);
-    if (attachmentSessionId && remoteTargetReady) {
-      for (const item of current) {
-        if (item.uploadStatus === "waitingSession") {
-          updateItem(scopeKey, item.id, (candidate) => ({
-            ...candidate,
-            uploadStatus: "queued",
-          }));
-          enqueueUpload(scopeKey, item.id);
-        }
+    if (!attachmentSessionId || !remoteTargetReady) return;
+    for (const item of current) {
+      // 新会话/新远端连接就是自动恢复的唯一触发点：waitingSession 重新入队；
+      // 已耗尽自动重试的 transient 失败也在这里获得一次新的上传机会。
+      // permanent / runtimeRestarted 保持失败，交给用户决定是否手动重试。
+      if (item.uploadStatus !== "waitingSession" && !isRecoverableAttachmentUploadFailure(item)) {
+        continue;
       }
+      updateItem(scopeKey, item.id, (candidate) =>
+        createRequeuedAttachmentState(candidate, "queued"),
+      );
+      enqueueUpload(scopeKey, item.id);
     }
   }, [
     attachmentSessionId,
@@ -565,6 +582,16 @@ export function useComposerAttachments(
           const key = `${targetScopeKey}\u0000${item.id}`;
           controllersRef.current.get(key)?.abort();
           controllersRef.current.delete(key);
+          // 作废必须连同自动重试一起撤销：残留的 500ms 定时器会在重建窗口里
+          // 用旧 session 再失败一次，把唯一一次自动重试烧成永久 failed。
+          const retryTimer = retryTimersRef.current.get(key);
+          if (retryTimer !== undefined) {
+            window.clearTimeout(retryTimer);
+            retryTimersRef.current.delete(key);
+          }
+          uploadQueueRef.current = uploadQueueRef.current.filter(
+            (entry) => !(entry.scopeKey === targetScopeKey && entry.attachmentId === item.id),
+          );
           if (item.staged) void target?.transferService.cleanup(item.operationId).catch(() => {});
           if (item.runtimeRebuildRetryCount >= COMPOSER_ATTACHMENT_REBUILD_RETRY_LIMIT) {
             // 重传配额用尽是真失败，无论静默与否都必须让用户看见。
@@ -586,23 +613,19 @@ export function useComposerAttachments(
           // 换代后 targetsRef 里的 sessionId 必然陈旧（它在渲染期写入，而换代事件先于
           // 下一次渲染到达），拿它入队会直撞 sessionNotFound。一律降到 waitingSession，
           // 由 restartEpoch / 新 attachmentSessionId 驱动的唤醒 effect 在会话可用后统一入队。
+          // 同时清零 autoRetryCount：新运行时应当获得一次新的瞬时错误重试预算；
+          // runtimeRebuildRetryCount 仍单独累计，防止 Helper 反复崩溃时无限重传。
           updateItem(targetScopeKey, item.id, (current) => ({
-            ...current,
-            uploadStatus: "waitingSession",
-            uploadProgress: 0,
+            ...createRequeuedAttachmentState(current, "waitingSession"),
+            runtimeRebuildRetryCount: current.runtimeRebuildRetryCount + 1,
             ...(silent
-              ? { uploadError: undefined, uploadErrorKind: undefined }
+              ? {}
               : {
                   uploadError: intl.formatMessage({
                     id: "chat.attachments.upload.runtimeRestarted",
                   }),
                   uploadErrorKind: "runtimeRestarted" as const,
                 }),
-            attachmentRef: undefined,
-            staged: false,
-            adopted: false,
-            showComplete: false,
-            runtimeRebuildRetryCount: current.runtimeRebuildRetryCount + 1,
           }));
         }
       }
@@ -631,6 +654,42 @@ export function useComposerAttachments(
       setRestartEpoch((current) => current + 1);
     });
   }, [invalidateAttachmentsForRuntimeChange, onRuntimeLifecycle, onRuntimeRestart]);
+
+  useEffect(() => {
+    return () => {
+      // 远端断链时 V4PaneConversationProvider 会进入 remote-waiting 并卸载 composer。
+      // 旧 owner 必须当场停掉在飞上传和重试定时器：否则它会在卸载后继续用已 dispose 的
+      // 远端服务再失败一次，把唯一一次自动重试烧成 failed；重连后的新 owner 又不会再把
+      // failed 入队，最终只剩一个必须手点重试的红点。
+      const ownedScopeKeys = new Set(targetsRef.current.keys());
+      for (const controller of controllersRef.current.values()) controller.abort();
+      controllersRef.current.clear();
+      for (const timer of retryTimersRef.current.values()) window.clearTimeout(timer);
+      retryTimersRef.current.clear();
+      for (const timer of completeTimersRef.current.values()) window.clearTimeout(timer);
+      completeTimersRef.current.clear();
+      uploadQueueRef.current = uploadQueueRef.current.filter(
+        (entry) => !ownedScopeKeys.has(entry.scopeKey),
+      );
+      for (const targetScopeKey of ownedScopeKeys) {
+        updateComposerAttachmentScope(targetScopeKey, (items) =>
+          items.map((item) => {
+            if (
+              item.referenceOwnership === "session" ||
+              item.localZeroCopy ||
+              (item.uploadStatus !== "queued" &&
+                item.uploadStatus !== "uploading" &&
+                item.uploadStatus !== "committing")
+            ) {
+              return item;
+            }
+            // 旧 owner 不再负责这次上传；降回 waitingSession 交给下一个 owner 重新入队。
+            return createRequeuedAttachmentState(item, "waitingSession");
+          }),
+        );
+      }
+    };
+  }, []);
 
   const showAttachmentLimitWarning = useCallback(() => {
     // 只更新输入框底部文字时，重复超限缺少明显反馈；每次添加都弹提示，同一输入框不堆叠。
@@ -966,19 +1025,9 @@ export function useComposerAttachments(
       if (!current || current.uploadStatus !== "failed") return;
       const target = targetsRef.current.get(scopeKey);
       void target?.transferService.cleanup(current.operationId).catch(() => {});
-      updateItem(scopeKey, id, (item) => ({
-        ...item,
-        uploadStatus: target?.sessionId ? "queued" : "waitingSession",
-        uploadProgress: 0,
-        uploadError: undefined,
-        uploadErrorKind: undefined,
-        attachmentRef: undefined,
-        autoRetryCount: 0,
-        runtimeRebuildRetryCount: 0,
-        staged: false,
-        adopted: false,
-        showComplete: false,
-      }));
+      updateItem(scopeKey, id, (item) =>
+        createManuallyRetriedAttachmentState(item, target?.sessionId ? "queued" : "waitingSession"),
+      );
       if (target?.sessionId) enqueueUpload(scopeKey, id);
     },
     [enqueueUpload, scopeKey, updateItem],

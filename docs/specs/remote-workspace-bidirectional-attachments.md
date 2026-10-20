@@ -73,16 +73,28 @@
 
 发向：
 
-| 场景                                       | 行为                                                                                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| LAN 单文件 >20 MiB                         | `stat` 先于事务校验，不发起上传，报「局域网连接附件单文件上限 20 MiB，请改用 SSH/WSL/Docker 工作区，或先把文件放到对端工作区」 |
-| 对端无 `putSessionAttachment`              | `fault.attachment.putUnsupported` → 「对端版本不支持附件上传」，不静默降级                                                     |
-| LAN 传输中断                               | stage 抛错 → composer 现有 `failed` + 重试；5 分钟 TTL 内 `begin` 按 `nextChunkIndex` 幂等续传                                 |
-| `staged:false`                             | 维持现状 `RemoteAttachmentNotStagedError` 拒发                                                                                 |
-| LAN materialize localPath >20 MiB 内联上限 | 可读错误拒发（不变量 1 优先）                                                                                                  |
-| materialize 排序判定两侧都不存在           | 可读错误拒发                                                                                                                   |
-| SSH 上传失败                               | 现状不动（「远端附件上传失败：<文件名>」+ 尽力回收）                                                                           |
-| 会话未就绪                                 | 现状 `waitingSession` 排队                                                                                                     |
+| 场景                                       | 行为                                                                                                                             |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| LAN 单文件 >20 MiB                         | `stat` 先于事务校验，不发起上传，报「局域网连接附件单文件上限 20 MiB，请改用 SSH/WSL/Docker 工作区，或先把文件放到对端工作区」   |
+| 对端无 `putSessionAttachment`              | `fault.attachment.putUnsupported` → 「对端版本不支持附件上传」，不静默降级                                                       |
+| LAN 传输中断                               | stage 抛错 → `failed`（可恢复失败）；连接/会话恢复后自动重传，见「失败恢复」；5 分钟 TTL 内 `begin` 按 `nextChunkIndex` 幂等续传 |
+| `staged:false`                             | 维持现状 `RemoteAttachmentNotStagedError` 拒发                                                                                   |
+| LAN materialize localPath >20 MiB 内联上限 | 可读错误拒发（不变量 1 优先）                                                                                                    |
+| materialize 排序判定两侧都不存在           | 可读错误拒发                                                                                                                     |
+| SSH 上传失败                               | 现状不动（「远端附件上传失败：<文件名>」+ 尽力回收）                                                                             |
+| 会话未就绪                                 | 现状 `waitingSession` 排队                                                                                                       |
+
+### 失败恢复（远端断链 / 运行时换代）
+
+- 状态所有者不变：renderer `composerAttachmentUploadStore`；上传控制器、自动重试定时器由当前 composer owner 持有。
+- **瞬时错误重试**：按 500ms → 1.5s → 3s 有界退避自动重试（覆盖远端重连、agent 冷启动与 cold-session-resume 的常见窗口）；用尽后仍失败才进入 `failed`。
+- **可恢复失败** = `uploadStatus:"failed" && uploadErrorKind:"transient"`（连接关闭、网络中断、会话暂不可用等非确定性错误）。`permanent`（超限、格式非法、对端不支持）与 `runtimeRestarted`（换代重传配额用尽）不自动恢复，避免重复失败或无限循环。
+- **恢复触发点**：`attachmentSessionId` 变为非空、`remoteSessionId` 变化、runtime 重新 available。触发时把可恢复失败与 `waitingSession` 项统一重置为 `queued`、清零 `autoRetryCount`，保留 `runtimeRebuildRetryCount`（换代配额仍受限），由唯一上传队列重传。
+- **owner 卸载**：`V4PaneConversationProvider` 在远端断链进入 remote-waiting 时会卸载 composer。旧 owner 必须中止在飞上传、清除重试/完成定时器、移除本 scope 队列项，并把 `queued|uploading|committing` 降为 `waitingSession`；下一个 owner 挂载后按恢复触发点重传。旧 owner 不得使用已 dispose 的远端服务再失败一次，否则会把自动重试预算烧成不会自动恢复的 `failed`。
+- **连接断开不是上传失败**：`MODE_REMOTE_WORKSPACE_DISCONNECTED` 直接退回 `waitingSession`，不消耗重试预算、不闪红色 `failed`。
+- **runtime unavailable 作废**：中止在飞上传并清除其重试定时器与队列项；不把作废写成 `failed`。
+- **手动重试**（附件上的重试图标）仍是显式用户动作：完整重置上传态与两类重试计数，优先级最高。
+- 失败原因必须可读（`uploadError` 进入 title / aria-label）。生产构建 renderer 日志关闭，不能依赖日志定位此类失败。
 
 收向：
 
