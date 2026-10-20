@@ -26,6 +26,9 @@ import {
   openSubagentSessionSidePane,
   openSubagentDirectorySidePane,
   openSelectionSideChatPane,
+  openModeAgentChatSidePane,
+  updateModeAgentChatSidePaneSessionId,
+  closeDraftModeAgentChatTabs,
   openPlanDetailSidePane,
   openWorkflowRunSidePane,
   replaceWorkflowRunSidePane,
@@ -64,6 +67,8 @@ import {
   openBackgroundBashSidePane,
   type OpenScopedSubagentDirectorySideTabRequest,
   type OpenSelectionSideChatRequest,
+  type ModeAgentChatDevice,
+  type ModeAgentChatSidePaneTab,
   type OpenScopedPlanDetailSideTabRequest,
   type OpenScopedWorkflowRunSideTabRequest,
   type OpenScopedWorkflowRunDirectorySideTabRequest,
@@ -255,7 +260,7 @@ export function useAppPanels(options: {
 
   const commitOpenedSidePaneState = useCallback(
     (updater: (current: WorkspaceSidePaneState | null) => WorkspaceSidePaneState | null) => {
-      commitSidePaneState((current) =>
+      return commitSidePaneState((current) =>
         stampSidePaneTabsOwnership(updater(current), {
           ownerTaskId: sidePaneOwnerIdRef.current,
           workspaceKey: activeWorkspaceKeyRef.current,
@@ -918,6 +923,50 @@ export function useAppPanels(options: {
     },
     [commitOpenedSidePaneState, revealSidePaneForCurrentOwner],
   );
+
+  const handleOpenModeAgentChat = useCallback(
+    (request: { device: ModeAgentChatDevice }) => {
+      revealSidePaneForCurrentOwner();
+      const next = commitOpenedSidePaneState((current) =>
+        openModeAgentChatSidePane(current, {
+          workspaceKey: activeWorkspaceKey,
+          workspacePath: workspaceAbsPath,
+          ...(workspaceIdentity ? { workspaceIdentity } : {}),
+          ...(workspaceRemoteSessionId ? { remoteSessionId: workspaceRemoteSessionId } : {}),
+          device: request.device,
+        }),
+      );
+      const tab = next?.tabs.find(
+        (entry): entry is ModeAgentChatSidePaneTab =>
+          entry.type === "mode-agent-chat" && entry.device.serverName === request.device.serverName,
+      );
+      logger.debug("[App] 打开 Mode Agent 设备对话", {
+        serverName: request.device.serverName,
+        sessionId: tab?.sessionId ?? null,
+      });
+    },
+    [
+      activeWorkspaceKey,
+      commitOpenedSidePaneState,
+      revealSidePaneForCurrentOwner,
+      workspaceAbsPath,
+      workspaceIdentity,
+      workspaceRemoteSessionId,
+    ],
+  );
+
+  const handleModeAgentChatSessionCreated = useCallback(
+    (tabId: string, sessionId: string) => {
+      commitSidePaneState((current) =>
+        updateModeAgentChatSidePaneSessionId(current, tabId, sessionId),
+      );
+    },
+    [commitSidePaneState],
+  );
+
+  const handleCloseDraftModeAgentChatTabs = useCallback(() => {
+    commitSidePaneState((current) => closeDraftModeAgentChatTabs(current));
+  }, [commitSidePaneState]);
 
   const handleOpenPlanDetail = useCallback(
     (request: OpenScopedPlanDetailSideTabRequest) => {
@@ -1594,6 +1643,9 @@ export function useAppPanels(options: {
     handleOpenSubagentDirectory,
     handleSyncSubagentSessionTabs,
     handleOpenSelectionSideChat,
+    handleOpenModeAgentChat,
+    handleModeAgentChatSessionCreated,
+    handleCloseDraftModeAgentChatTabs,
     handleOpenPlanDetail,
     handleOpenWorkflowRun,
     handleOpenWorkflowRunDirectory,

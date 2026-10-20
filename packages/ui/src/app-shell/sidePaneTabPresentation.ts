@@ -13,6 +13,7 @@ export interface SidePaneTabPresentationLabels {
   subagentTypeLabel: string;
   subagentDirectoryTitle: string;
   selectionChatTitle: string;
+  modeAgentChatTitle: string;
   planTitle: string;
   workflowRunTitle: string;
   workflowDirectoryTitle: string;
@@ -41,6 +42,9 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "workflow-artifact") {
     // 产物 id 是脚本里写死的字面量，用户与排查者手里往往就是它。
     return `${tab.title ?? ""} ${tab.artifactId} ${tab.runId} ${tab.parentSessionId} workflow artifact deliverable`;
+  }
+  if (tab.type === "mode-agent-chat") {
+    return `${tab.device.name} ${tab.device.serverName} ${tab.device.host}:${tab.device.port} mode agent chat`;
   }
   if (tab.type === "selection-side-chat") {
     return `${tab.parentSessionId} ${tab.childSessionId} ${tab.ordinal} selection side chat`;
@@ -106,6 +110,7 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "workflow-actor-session") return labels.workflowActorTitle;
   if (tab.type === "workflow-workspace") return labels.workflowScriptTitle;
   if (tab.type === "workflow-artifact") return labels.workflowArtifactTitle;
+  if (tab.type === "mode-agent-chat") return labels.modeAgentChatTitle;
   if (tab.type === "selection-side-chat") return labels.selectionChatTitle;
   if (tab.type === "subagent-session") {
     return tab.subagentType.trim() || labels.subagentTypeLabel;

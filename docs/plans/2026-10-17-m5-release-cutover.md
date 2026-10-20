@@ -35,7 +35,8 @@
 - **不改产品逻辑**：M5 只动发布工程与文档；需要改产品才能发布时**停下来回报**。
 - **发布不可由 agent 执行**：按 `AGENTS.md`，agent 只做本地提交，`git push` 由人执行（push `main`
   会自动发版）。所以本计划的每个任务都止于「可推送、已本地验证」，**推送与发版由人按**。
-- **旧线必须可回滚**：切换发布线时，旧 Electron 产物与最近一个可用版本不得被抹掉。
+- **旧线必须可回滚**〔2026-10-20 已被 `docs/specs/legacy-electron-eol.md` 取代：旧线已 EOL，
+  回滚只走 Tauri 正向修复〕：~~切换发布线时，旧 Electron 产物与最近一个可用版本不得被抹掉。~~
 - **体积口径按整包（NSIS 安装包字节）**：M3 实测整包 **51.50 MiB**、核心 23.29 MiB；
   原门禁「≤30MB」指的是**整包**。数字矛盾已登记（spec §13.4），**本计划不自行改数**。
 
@@ -174,7 +175,7 @@ Modify `docs/specs/*` 的相关节（如需要）。
 - **v0.0.59**：CI 首次同时产出 macOS arm64 dmg 与 Linux x64 AppImage，M1 登记的两条构建风险实测收口。
 - **v0.0.60**：`248b0937` 移除两条非 Windows 腿的 `continue-on-error`，三平台安装包与各自 `sha256` 一起上传同一 Release；旧 Electron `desktop` job 继续只发 workflow artifact，保留回滚能力。
 - **v0.0.61-audit.20261019**：本机真机验收（`docs/plans/2026-10-20-installed-0.0.61-acceptance.md`）核心任务链路、插件市场目录、LAN 监听/配对码/发现、远程控制设置页通过。远程桌面「对端不支持」的根因随后更正为 **Tauri 包未带 Windows CUA helper**（`rd_media_start` → `helper_unavailable` → 对端回 `unsupported`），不是 `mediaTicket`；`a2fdebf6` 已把 helper 纳入发运集/安装包并桥接 sidecar 资源目录，待真机复验。远程工作区设置页无 attach/打开入口，两台实机验收未完成。
-- 仍未完成：三平台签名、旧线 EOL、差分更新验证（见 M5 路线图「发布工程」）。
+- 仍未完成：三平台签名、差分更新验证（见 M5 路线图「发布工程」）。旧线 EOL 的代码/CI 已随 `d71ed992` 收口（`release.yml` 只剩 Tauri 产物），剩 EOL 公告与历史文档归档。
 
 ## 阶段验收
 
@@ -194,4 +195,4 @@ Modify `docs/specs/*` 的相关节（如需要）。
 | 「三平台 GA」被静默收窄            | DR-M5-2 摆明两条路，未定前不写死；选了就登记偏差                           |
 | 只有 CI 绿而人工项没做             | `RELEASE.md` 把人工项列成可勾清单，且写明它们不在 CI                       |
 | 又拿错尺子谈体积                   | 沿用整包口径（NSIS 安装包字节）；§13.4 的矛盾交人                          |
-| 回滚没有真实路径                   | 回滚步骤必须是「重新发布上一个 Electron 版本」的具体命令，不是「回滚即可」 |
+| 回滚没有真实路径                   | 旧线 EOL 后回滚按 `RELEASE.md` 5.2 走 Tauri 正向修复，不再有「重新发布 Electron」路径 |

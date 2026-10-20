@@ -67,7 +67,7 @@ Electron 诊断构建提供。
 - 旧 Electron 的 CI 诊断步骤（browser-import C# oracle 对拍）已搬进 `tauri` job 的
   Windows 腿，作为 `continue-on-error` 辅助验证；M0 P2 收口后应重新评估是否转正。
 
-## 执行记录（2026-10-20）
+## 执行记录（2026-10-20，提交 `d71ed992`）
 
 已删除：
 
@@ -104,5 +104,10 @@ Electron 诊断构建提供。
 | `pnpm --filter @mode/services test`（去掉继承的 `MODE_DATA_BASE_DIR`） | 392 passed / 8 skipped / 0 failed |
 | `pnpm --filter @mode/desktop-tauri test` | 39 passed / 7 skipped / 0 failed |
 | `pnpm --filter @mode/desktop-tauri run build:package-inputs` | 通过（renderer 49.37 MiB + Host bundle 5.47 MiB） |
+| `node scripts/check-language-policy.mjs`（2026-10-21 清单清理后） | 通过（193 受管 / 65 vendored / 128 清单 / 0 陈旧） |
+
+2026-10-21 补充：`scripts/language-policy-allowlist.txt` 删除 34 条随旧线删除的陈旧条目
+（162→128 条，陈旧 0）；`pnpm check:upstream-overlap` 复测 headline 9.20%
+（37,241 / 404,926 行，分母因旧线删除从 462,066 降至 404,926）。
 
 未执行/未覆盖：真实安装包启动、macOS/Linux 出包复验。

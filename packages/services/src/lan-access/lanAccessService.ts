@@ -42,6 +42,12 @@ export interface LanAccessRenamePairedPeerParams {
   name: string;
 }
 
+export interface LanAccessSetPeerPublicEndpointParams {
+  serverId: string;
+  /** 公网 HTTPS 基础地址；null = 清除。 */
+  publicBaseUrl: string | null;
+}
+
 export interface ILanAccessService {
   /** 监听未开启时 clients 仍从凭据读取（配对记录是持久化事实）。 */
   getState(): Promise<LanAccessState>;
@@ -65,6 +71,11 @@ export interface ILanAccessService {
   removePairedPeer(params: LanAccessServerIdParams): Promise<void>;
   /** 只改本机元数据里的展示名；缺元数据时抛错。 */
   renamePairedPeer(params: LanAccessRenamePairedPeerParams): Promise<void>;
+  /**
+   * 新增/替换/清除某设备的公网 HTTPS 端点（令牌与 LAN 端点不动）。
+   * 只接受 https；清除后没有其它端点时拒绝（调用方应改为删除配对）。
+   */
+  setPairedPeerPublicEndpoint(params: LanAccessSetPeerPublicEndpointParams): Promise<void>;
   /** 幂等状态快照；首个订阅者拿到最近一次快照。 */
   onDidChange: Event<LanAccessState>;
 }

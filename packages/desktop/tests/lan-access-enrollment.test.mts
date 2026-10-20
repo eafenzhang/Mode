@@ -2,6 +2,8 @@
  * Mode Agent 反向配对（docs/specs/legacy-windows-remote-agent.md）：
  * 被控端拿桌面生成的 LAN 配对码登记自己；桌面端验证码、探测 agent /health，
  * 并把 agent 写成一个用户级 HTTP MCP server。
+ * 统一配对码（docs/specs/remote-control-unified-pairing.md）：同一个一次性码
+ * 同时服务 `/api/lan/pair`（远程工作区/远程桌面）与 `/api/remote-agent/enroll`。
  */
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -115,6 +117,37 @@ test("被控端用桌面配对码反向登记：写 MCP、消费配对码、探�
     assert.equal(unreachable.status, 401);
     assert.equal(((await unreachable.json()) as { error?: string }).error, "agent_unreachable");
     assert.equal(saved.length, 1, "unreachable agent must not be saved");
+
+    // 同一套码：enroll 消费后，LAN 配对端点不能再兑换。
+    const lanPairAfterEnroll = await fetch(`http://127.0.0.1:${port}/api/lan/pair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, label: "cross-check" }),
+    });
+    assert.equal(lanPairAfterEnroll.status, 401);
+
+    // 反方向：LAN 配对消费后，Mode Agent 反向登记也不能再用同一个码。
+    const lanCode = lan.createPairCode().pairCode?.code;
+    assert.ok(lanCode, "desktop must create a pair code");
+    const lanPair = await fetch(`http://127.0.0.1:${port}/api/lan/pair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: lanCode, label: "cross-check" }),
+    });
+    assert.equal(lanPair.status, 200);
+    assert.ok(((await lanPair.json()) as { token?: string }).token);
+
+    const enrollAfterLan = await fetch(`http://127.0.0.1:${port}/api/remote-agent/enroll`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...body, code: lanCode }),
+    });
+    assert.equal(enrollAfterLan.status, 401);
+    assert.equal(
+      ((await enrollAfterLan.json()) as { error?: string }).error,
+      "invalid_pair_code",
+    );
+    assert.equal(saved.length, 1, "consumed LAN code must not write another MCP server");
   } finally {
     await lan.dispose();
     await new Promise<void>((resolve, reject) =>

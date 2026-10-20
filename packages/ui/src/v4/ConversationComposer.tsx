@@ -350,6 +350,8 @@ interface ConversationComposerProps {
   snapshot: ConversationSnapshot | null;
   /** 草稿 scope（sessionId；draft 态 null → "__draft__" scope）。 */
   sessionId?: string | null;
+  /** 侧栏等独立草稿 pane 的隔离 scope；缺省沿用 workspace 根 draft。 */
+  draftScopeIdOverride?: string;
   /** Skill catalog authority；草稿预热完成后为 prewarmSessionId，不改变 task/draft 身份。 */
   skillCatalogSessionId?: string | null;
   /** draft 态无 snapshot，但仍可 createSession 首发。 */
@@ -373,6 +375,8 @@ interface ConversationComposerProps {
   contextHeader?: ReactNode;
   /** 居中草稿布局（旧 shouldUseCenteredDraftChatLayout）：收窄 max-w-2xl、去 sticky。 */
   centered?: boolean;
+  /** 侧栏等场景的固定输入提示；缺省使用会话状态对应的动态文案。 */
+  placeholderOverride?: string;
   /**
    * v4 bottom dock 阻塞交互 id。存在时 composer 只隐藏不卸载，保留草稿、附件与编辑器实例。
    */
@@ -474,6 +478,7 @@ function formatAttachmentLineCount(attachment: ChatComposerAttachment, locale: s
 function ConversationComposerImpl({
   snapshot,
   sessionId = null,
+  draftScopeIdOverride,
   skillCatalogSessionId = sessionId,
   draftMode = false,
   draftConfig,
@@ -484,6 +489,7 @@ function ConversationComposerImpl({
   createSubmissionFromComposer,
   contextHeader,
   centered = false,
+  placeholderOverride,
   blockingRequestId = null,
   disabled = false,
   autoFocusEnabled = true,
@@ -527,7 +533,7 @@ function ConversationComposerImpl({
 }: ConversationComposerProps) {
   const { intl, locale } = useModeIntl();
   const services = useOptionalServices();
-  const draftScopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
+  const draftScopeId = sessionId ?? draftScopeIdOverride ?? V4_DRAFT_SCOPE_ROOT;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const configPickerScopeKey = `${workspaceKey}\0${draftScopeId}`;
   const [text, setText] = useState("");
@@ -1460,13 +1466,15 @@ function ConversationComposerImpl({
 
   // 动态 placeholder（旧 chatViewPlaceholder 语义）：无历史 → newTask；
   // 有历史空闲 → followUpAsk；有历史处理中 → followUpQueue。
-  const placeholder = intl.formatMessage({
-    id: resolveChatPlaceholderKey({
-      hasHistoryMessages: (snapshot?.rows.totalCount ?? 0) > 0,
-      isTaskProcessing: canStop,
-      compactNewTask: false,
-    }),
-  });
+  const placeholder =
+    placeholderOverride ??
+    intl.formatMessage({
+      id: resolveChatPlaceholderKey({
+        hasHistoryMessages: (snapshot?.rows.totalCount ?? 0) > 0,
+        isTaskProcessing: canStop,
+        compactNewTask: false,
+      }),
+    });
   const sendTooltipTitle = intl.formatMessage({
     id: mode === "enqueue" ? "chat.queue.enqueue" : "chat.send",
   });

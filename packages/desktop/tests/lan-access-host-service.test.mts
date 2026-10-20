@@ -347,10 +347,14 @@ test("已配对对端：排序、重命名与删除都真实落凭据", async ()
     await adapter.renamePairedPeer({ serverId: "server-old", name: "  Renamed  " });
     const meta = JSON.parse(store.get(buildLanPeerMetaKey("server-old")) ?? "{}") as {
       name?: string;
-      host?: string;
+      endpoints?: Array<{ scheme: string; host: string; port: number; kind: string }>;
     };
     assert.equal(meta.name, "Renamed", "名称要 trim 后落盘");
-    assert.equal(meta.host, "192.168.1.10", "重命名不动地址与令牌");
+    assert.deepEqual(
+      meta.endpoints,
+      [{ scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" }],
+      "重命名不动地址与令牌；旧记录按 LAN 端点归一化",
+    );
 
     await assert.rejects(adapter.renamePairedPeer({ serverId: "server-bare", name: "x" }));
     await assert.rejects(
@@ -364,6 +368,106 @@ test("已配对对端：排序、重命名与删除都真实落凭据", async ()
     // 缺元数据也能删。
     await adapter.removePairedPeer({ serverId: "server-bare" });
     assert.equal(store.has(buildLanPeerTokenKey("server-bare")), false);
+  } finally {
+    await adapter.dispose();
+  }
+});
+
+test("公网端点：新增/替换/清除只改 meta，LAN 端点与令牌不动", async () => {
+  const { credentials, store } = createFakeCredentials();
+  const settingService = createFakeSettingService();
+  const services = createServices({ credentials, settingService });
+  const adapter = await createLanAccessHostService({
+    services,
+    log: () => undefined,
+    restoreOnStart: false,
+  });
+  try {
+    store.set(buildLanPeerTokenKey("server-1"), "token-1");
+    store.set(
+      buildLanPeerMetaKey("server-1"),
+      JSON.stringify({ host: "192.168.1.10", port: 45880, name: "Desk", pairedAt: 10 }),
+    );
+
+    await adapter.setPairedPeerPublicEndpoint({
+      serverId: "server-1",
+      publicBaseUrl: "rd.example.com",
+    });
+    let meta = JSON.parse(store.get(buildLanPeerMetaKey("server-1")) ?? "{}") as {
+      endpoints: Array<{ scheme: string; host: string; port: number; kind: string }>;
+      name?: string;
+      pairedAt?: number;
+    };
+    assert.deepEqual(meta.endpoints, [
+      { scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" },
+      { scheme: "https", host: "rd.example.com", port: 443, kind: "public" },
+    ]);
+    assert.equal(meta.name, "Desk");
+    assert.equal(store.get(buildLanPeerTokenKey("server-1")), "token-1");
+    const peers = await adapter.listPairedPeers();
+    assert.equal(peers[0]?.host, "192.168.1.10", "列表主端点仍是 LAN");
+    assert.deepEqual(peers[0]?.endpoints, meta.endpoints);
+
+    await adapter.setPairedPeerPublicEndpoint({
+      serverId: "server-1",
+      publicBaseUrl: "https://rd2.example.com:8443",
+    });
+    meta = JSON.parse(store.get(buildLanPeerMetaKey("server-1")) ?? "{}") as typeof meta;
+    assert.deepEqual(
+      meta.endpoints,
+      [
+        { scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" },
+        { scheme: "https", host: "rd2.example.com", port: 8443, kind: "public" },
+      ],
+      "替换而非追加公网端点",
+    );
+
+    await assert.rejects(
+      adapter.setPairedPeerPublicEndpoint({
+        serverId: "server-1",
+        publicBaseUrl: "http://rd.example.com",
+      }),
+      /HTTPS/u,
+    );
+    await assert.rejects(
+      adapter.setPairedPeerPublicEndpoint({
+        serverId: "server-1",
+        publicBaseUrl: "https://rd.example.com/path",
+      }),
+      /HTTPS/u,
+    );
+
+    await adapter.setPairedPeerPublicEndpoint({ serverId: "server-1", publicBaseUrl: null });
+    meta = JSON.parse(store.get(buildLanPeerMetaKey("server-1")) ?? "{}") as typeof meta;
+    assert.deepEqual(meta.endpoints, [
+      { scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" },
+    ]);
+  } finally {
+    await adapter.dispose();
+  }
+});
+
+test("只有公网端点的设备拒绝清除地址", async () => {
+  const { credentials, store } = createFakeCredentials();
+  const settingService = createFakeSettingService();
+  const services = createServices({ credentials, settingService });
+  const adapter = await createLanAccessHostService({
+    services,
+    log: () => undefined,
+    restoreOnStart: false,
+  });
+  try {
+    store.set(buildLanPeerTokenKey("server-public"), "token-public");
+    store.set(
+      buildLanPeerMetaKey("server-public"),
+      JSON.stringify({
+        endpoints: [{ scheme: "https", host: "rd.example.com", port: 443, kind: "public" }],
+      }),
+    );
+    await assert.rejects(
+      adapter.setPairedPeerPublicEndpoint({ serverId: "server-public", publicBaseUrl: null }),
+      /删除配对/u,
+    );
   } finally {
     await adapter.dispose();
   }

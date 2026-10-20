@@ -254,6 +254,11 @@ export interface WorkspaceShellLayoutProps extends AppProps {
     request: import("@/lib/workspaceSidePane.js").SyncSubagentSessionTabsRequest,
   ) => void;
   handleOpenSelectionSideChat: (request: OpenSelectionSideChatRequest) => void;
+  handleOpenModeAgentChat: (request: {
+    device: import("@/lib/workspaceSidePane.js").ModeAgentChatDevice;
+  }) => void;
+  handleModeAgentChatSessionCreated: (tabId: string, sessionId: string) => void;
+  handleCloseDraftModeAgentChatTabs: () => void;
   handleOpenPlanDetail: (request: OpenScopedPlanDetailSideTabRequest) => void;
   handleOpenWorkflowRun: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   handleOpenWorkflowRunDirectory: (

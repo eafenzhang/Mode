@@ -52,11 +52,12 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 
 ---
 
-## 进度快照（2026-10-20）
+## 进度快照（2026-10-21）
 
 > 证据：`docs/plans/2026-10-20-installed-0.0.61-acceptance.md`（已安装 0.0.61 自动化门禁与真机验收）、
 > `docs/plans/2026-10-20-runtime-ui-fixes.md`（0.0.61→0.0.63 运行态修复）、
-> `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`（LR-0..LR-4 执行记录）。
+> `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`（LR-0..LR-4 执行记录）、
+> `docs/specs/legacy-electron-eol.md`（旧 Electron 线 EOL 执行记录）。
 
 | 阶段 | 状态 | 已达成 | 仍阻塞阶段关闭 |
 | --- | --- | --- | --- |
@@ -64,14 +65,16 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 | M1 | **已关闭（2026-10-20）** | v0.0.59 三平台出包首次全绿，v0.0.60/61 按三平台同发口径发布；10 命令 E2E、clippy/rustfmt、协议生成物 | 无；体积口径由 DR-M5-2b 放开，macOS/Linux 真机验收转入 M5 |
 | M2 | 代码面基本完成，验收未过 | 工具/权限/会话流/对拍矩阵与 CI 门禁；Rust workspace 30 suites / 202 passed（2026-10-20 验收） | stdio 审批帧映射待接；真实模型 20 个端到端任务未执行 |
 | M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过 | sidecar 按需下载未实现；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收 |
-| M4 | 进行中 | UI 基础件 adapter 全量切换、业务代码对旧 `components/ui/*` 引用清零；上游重合度 9.80% | 旧 UI 文件看屏验收与删除；重合度清零；Rust 台账 514 缺失项与法务收口 |
-| M5 | 进行中 | 三平台 Release 发布口径已启用、Windows 自动发版连续跑通 | 三平台签名、旧线 EOL、差分更新、mac/Linux 真机安装/升级 |
+| M4 | 进行中 | UI 基础件 adapter 全量切换、业务代码对旧 `components/ui/*` 引用清零；上游重合度 9.20% | 旧 UI 文件看屏验收与删除；重合度清零；Rust 台账 514 缺失项与法务收口 |
+| M5 | 进行中 | 三平台 Release 发布口径已启用、Windows 自动发版连续跑通；旧 Electron 线代码/CI 已下线（`d71ed992`） | 三平台签名、EOL 公告与历史文档归档、差分更新、mac/Linux 真机安装/升级 |
 
-> **范围外新增（2026-10-20）**：`apps/remote-agent/`（Go，旧版 Windows 远程被控端，
+> **范围外新增（2026-10-21 更新）**：`apps/remote-agent/`（Go，旧版 Windows 远程被控端，
 > 规格 `docs/specs/legacy-windows-remote-agent.md`、计划
-> `docs/plans/2026-10-20-legacy-windows-remote-agent.md`）当前未提交。它不在 M0–M5 的
-> Rust/Tauri 范围内；Go 也不在 `language-policy.md` 的允许语言内，入库前必须先决定
-> spec 例外/允许清单，否则语言门禁会在提交后失败。
+> `docs/plans/2026-10-20-legacy-windows-remote-agent.md`）已随 `8b64dcf5` 入库并通过
+> Windows 10 x86/x64 与 MCP 客户端验收，XP SP3 实机待验。它不在 M0–M5 的 Rust/Tauri
+> 范围内。`language-policy.md` 的允许语言未列 Go，但门禁脚本当前只拦
+> `.py/.cs/.js/.mjs/.cjs`，因此 Go 文件能通过门禁；是否把 Go 写入允许语言或禁入清单，
+> 仍待单独裁决（现状：不拦，属口径缺口）。
 
 ---
 
@@ -178,7 +181,8 @@ tray 1 / updater 2 / tauri-test-manifest 2）、`clippy -D warnings` 零告警�
 **两处口径差异（2026-10-19 已由人裁定并落地）**：
 
 - ~~Tauri 产物只发 workflow artifacts~~：`248b0937` 起三平台安装包与各自 `sha256` 一起进同一
-  Release；旧 Electron `desktop` job 继续只发 workflow artifact，保留 DR-M5-1 的回滚能力。
+  Release；旧 Electron `desktop` job 当时继续只发 workflow artifact（该 job 已于
+  `d71ed992` 随旧线 EOL 删除，见 `docs/specs/legacy-electron-eol.md`）。
 - ~~`tauri` job 没挂进 `publish` 的 `needs`~~：`248b0937` 移除两条非 Windows 腿的
   `continue-on-error`，任一腿失败即保持 draft；首次三腿全绿发生在 v0.0.59。
 
@@ -349,7 +353,7 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
       机器人页控制列溢出、Web/手机远控入口缺失与远端模型加载态误导；业务代码对旧
       `components/ui/*` 的引用保持为零，旧文件继续等待看屏验收后删除；UI foundation
       adapter 波次仍在继续。〕
-- [ ] **重合度归零**：`upstream-overlap-check` 在 CI 断言"逐字节一致 + 仅归一一致"两档的行数占比 = 0%；首次运行产出的残余清单按模块排期清零。〔2026-10-18 工具已交付 report 模式；**裁决 (c)**：`packages/services|shared|rpc|server|provider` 为 M4 范围豁免、随 Rust 运行时迁移清零，单列 deferred（514 文件/121,157 行）；M4 计分面 headline **9.80%**（2026-10-20 复测：identical 2654 文件/24,957 行，normalized 187 文件/20,309 行，共 462,066 行；2026-10-19 为 9.83%–9.84%，2026-10-18 为 10.60%）；`third-party/**`、`.agents/skills/**`、`scripts/license-texts/**` 单列不参与；`pnpm verify:self-developed` 为 strict，CI 清零前只跑 report；模块清单与阶段见 `2026-10-18-m4-overlap-reduction.md`，口径见 spec `upstream-overlap-metric.md`〕
+- [ ] **重合度归零**：`upstream-overlap-check` 在 CI 断言"逐字节一致 + 仅归一一致"两档的行数占比 = 0%；首次运行产出的残余清单按模块排期清零。〔2026-10-18 工具已交付 report 模式；**裁决 (c)**：`packages/services|shared|rpc|server|provider` 为 M4 范围豁免、随 Rust 运行时迁移清零，单列 deferred（514 文件/121,181 行）；M4 计分面 headline **9.20%**（2026-10-21 复测：identical 2,613 文件/21,846 行，normalized 145 文件/15,395 行，共 404,926 行；分母从 462,066 降至 404,926 含旧 Electron 线删除的影响，不能全部归因于重写；2026-10-20 为 9.80%，2026-10-19 为 9.83%–9.84%，2026-10-18 为 10.60%）；`third-party/**`、`.agents/skills/**`、`scripts/license-texts/**` 单列不参与；`pnpm verify:self-developed` 为 strict，CI 清零前只跑 report；模块清单与阶段见 `2026-10-18-m4-overlap-reduction.md`，口径见 spec `upstream-overlap-metric.md`〕
 - [ ] **第三方台账重建**：新依赖全量盘点（`scripts/licenses.mjs` 口径延续）；`copied-components.json` 中上游衍生条目删除、第三方条目（shadcn 思路自写组件、Material 图标去留、插件图标 reviewRequired）逐条复核。〔2026-10-18 缺口盘点见 `2026-10-18-m4-third-party-ledger.md`：Rust 台账只覆盖 CUA 的 63 个 crate，M2/M3 运行时依赖图 170 个中 142 个未入账、Tauri 壳 560 个中 485 个未入账；**T2 覆盖门禁已实现**（`pnpm check:rust-ledger`，实测 union external 558 / covered 44 / missing 514，report 模式）；**T1 生成器已实现**（候选台账 577 组件 / 300 份许可证文本；47 条按声明标识自动附标准文本，其中 **3 条仍需人工判断**且文本已附：`selectors` MPL-2.0、`r-efi` ×2 含 LGPL 选项；输出在 `.plan` 未入库，待 T3 Linux CI 重生成与人工 review；见 `2026-10-18-m4-rust-ledger-review.md`）；本机 `licenses.mjs` 因 EMFILE 无法重生成，权威路径是 Linux CI（需人推送）〕〔2026-10-20：`pnpm check:rust-ledger` 仍为 report——union external 558 / covered 44 / missing 514，覆盖门禁未转 strict。〕
 - [ ] **法务收口**：贡献者协议（CLA/DCO）挂进 PR 流程；软著登记材料（源码前后 30 页 + 说明）；"Mode"图形组合商标申请材料；`docs/specs/p2-mode-naming.md` 必须保留清单逐条复核不动。
 
@@ -361,12 +365,12 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
 
 **目标：** 新线 GA、旧线 EOL、三指标（语言/体积/重合度）落到终值。
 
-- [ ] **发布工程**：Tauri updater + 签名（三平台）、`release.yml` 只出 Tauri 产物、块映射/差分更新验证。〔2026-10-19：Windows Tauri 自动发版已连续跑通（v0.0.57 / v0.0.58：push → verify → 五腿构建 → publish）；2026-10-20 回填：v0.0.59 的 CI 首次三平台腿全绿，`248b0937`（v0.0.60）起三平台安装包与各自 `sha256` 一起发布，v0.0.60 / v0.0.61 已按该口径发布；0.0.61 真机核心链路通过。三平台签名、旧线 EOL 与差分更新仍未完成；macOS/Linux 真机安装/启动/升级仍属残余风险。〕
-- [ ] **旧线 EOL**：Electron 线打最后版本公告 EOL；`docs/plans` 与 spec 标注归档；仓库语言终态 = Rust + TS + HTML/CSS（目标 ≥99% 字节来自这两门 + 平台文件）。〔**2026-10-20 用户决定取消旧 Electron 线**：新增 `docs/specs/legacy-electron-eol.md`，删除 Electron main/preload/scheduler、Electron host 入口、electron-builder/electron-updater 打包与 `release.yml` 的 `desktop` job；保留 Tauri 复用的 renderer、host/host-standalone、agent/CUA 产物与 fnOS job。**代码与 CI 收口已完成**：
+- [ ] **发布工程**：Tauri updater + 签名（三平台）、`release.yml` 只出 Tauri 产物、块映射/差分更新验证。〔2026-10-19：Windows Tauri 自动发版已连续跑通（v0.0.57 / v0.0.58：push → verify → 五腿构建 → publish）；2026-10-20 回填：v0.0.59 的 CI 首次三平台腿全绿，`248b0937`（v0.0.60）起三平台安装包与各自 `sha256` 一起发布，v0.0.60 / v0.0.61 已按该口径发布；0.0.61 真机核心链路通过。2026-10-21 更新：`release.yml` 已只出 Tauri 产物（`d71ed992` 删除 `desktop` job）；三平台签名与差分更新仍未完成，macOS/Linux 真机安装/启动/升级仍属残余风险。〕
+- [ ] **旧线 EOL**：Electron 线打最后版本公告 EOL；`docs/plans` 与 spec 标注归档；仓库语言终态 = Rust + TS + HTML/CSS（目标 ≥99% 字节来自这两门 + 平台文件）。〔**2026-10-20 用户决定取消旧 Electron 线**：新增 `docs/specs/legacy-electron-eol.md`，删除 Electron main/preload/scheduler、Electron host 入口、electron-builder/electron-updater 打包与 `release.yml` 的 `desktop` job；保留 Tauri 复用的 renderer、host/host-standalone、agent/CUA 产物与 fnOS job。**代码与 CI 收口已完成并提交**（`d71ed992`，326 文件）：
 typecheck / lint / architecture / language policy / desktop tests / desktop-tauri tests /
-`build:package-inputs` 均通过；旧线回滚路径已删除。剩余 GA 发布与历史文档归档。详见该 spec。〕
+`build:package-inputs` 均通过；旧线回滚路径已删除。2026-10-21 补充：语言政策允许清单同步删除 34 条旧线陈旧条目（清单 162→128 条，陈旧 0），`check-language-policy` 通过。剩余 EOL 公告与历史文档归档。详见该 spec。〕
 - [ ] **数据迁移终验**：`.mode` 数据根原样复用（协议未变）；从旧线最后一版升级到新线的实机迁移演练。〔2026-10-20：0.0.61 与旧 Electron 0.0.52 已在同一台机器并存安装，新线核心任务链路可用；正式的「旧线最后一版 → 新线」升级演练仍未执行。〕
-- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕〔2026-10-20：语言门禁通过；重合度 report 降至 9.80%；0.0.62 本机 gnu 构建整包 51.79 MiB，三项均未成为阻断门禁。〕
+- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕〔2026-10-20：语言门禁通过；重合度 report 降至 9.80%；0.0.62 本机 gnu 构建整包 51.79 MiB，三项均未成为阻断门禁。〕〔2026-10-21：重合度 report 9.20%（37,241 / 404,926 行）；语言门禁通过且允许清单陈旧条目清零；三项仍未成为阻断门禁。〕
 
 **阶段验收：** 三平台 GA 发布；三指标全绿并进必跑门禁。
 

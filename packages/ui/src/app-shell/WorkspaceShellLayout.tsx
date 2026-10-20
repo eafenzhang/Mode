@@ -317,6 +317,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   handleOpenSubagentDirectory,
   handleSyncSubagentSessionTabs,
   handleOpenSelectionSideChat,
+  handleOpenModeAgentChat,
+  handleModeAgentChatSessionCreated,
+  handleCloseDraftModeAgentChatTabs,
   handleOpenPlanDetail,
   handleOpenWorkflowRun,
   handleOpenWorkflowRunDirectory,
@@ -371,6 +374,14 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       setRemoteDesktopVisited(true);
     }
   }, [workspaceMainView]);
+  // 设备对话草稿与主对话共用 workspace 草稿 scope；离开远程控制页时清掉未首发的 tab，
+  // 已创建 session 的 tab 保留（它不再是草稿，不会和主对话抢同一份输入）。
+  useEffect(() => {
+    if (workspaceMainView === "remote-desktop") {
+      return;
+    }
+    handleCloseDraftModeAgentChatTabs();
+  }, [handleCloseDraftModeAgentChatTabs, workspaceMainView]);
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
   const screenshotSurfaceRequest = useBrowserScreenshotSurfaceRequest(sidePaneState?.tabs ?? []);
   const screenshotSurfaceTab = screenshotSurfaceRequest
@@ -432,7 +443,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     // 截图 surface 由 browser-use tab 自己的 fixed 承载层提供尺寸，不能再把整个右侧
     // ResizablePanel 撑开；否则自动化页会闪出空白的 tab 栏，且面板过渡期间 guest surface
     // 仍可能被 Chromium 判定为不可合成。
-    open: workspaceMainView === "chat" && isSidePaneOpen,
+    open:
+      (workspaceMainView === "chat" || workspaceMainView === "remote-desktop") && isSidePaneOpen,
     expandedSize: SIDE_PANE_DEFAULT_EXPANDED_SIZE,
     rememberExpandedSize: true,
     resizeOnInitialVisibleMount: false,
@@ -1477,6 +1489,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       onOpenTerminalTab={handleOpenTerminalTab}
       onOpenReviewTab={handleToggleGit}
       onOpenSelectionSideConversation={handleOpenSelectionSideConversationLauncher}
+      onModeAgentChatSessionCreated={handleModeAgentChatSessionCreated}
       onRevealGitFileInTree={handleRevealGitFileInTree}
       onOpenBrowserUrl={handleOpenBrowserUrl}
       onOpenCodeViewer={handleOpenCodeViewer}
@@ -1782,9 +1795,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                             >
                               <RemoteDesktopHome
                                 isDesktop={Boolean(isDesktop)}
-                                showWindowControls={usesInlineWindowControls}
+                                showWindowControls={usesInlineWindowControls && !isSidePaneVisible}
                                 active={workspaceMainView === "remote-desktop"}
-                                onCreateTask={onCreateTask}
+                                onCreateTask={handleCreateTaskInChat}
+                                onOpenModeAgentChat={handleOpenModeAgentChat}
                                 isRemoteWorkspace={Boolean(workspaceRemoteSessionId)}
                                 topOverlayClearancePaddingClass={
                                   resolveTopOverlayClearancePaddingClass({

@@ -1,36 +1,16 @@
 import type { McpServerConfig, ModeMcpServer } from "@mode/shared";
 
 /**
- * Mode Agent 被控端配对（docs/specs/legacy-windows-remote-agent.md「一键安装与卸载」）：
- * - 目标机安装器展示配对码/配对 URI；
- * - 桌面端用配对码换长期 token，并把被控端写成一个普通 HTTP MCP server；
- * - 远程控制页以 MCP server 的命名前缀 + `modeAgent` 元数据识别已配对设备。
- *
- * 令牌只存在 MCP 配置的 Authorization header 中；这里不引入第二份存储。
+ * Mode Agent 被控端配对（docs/specs/remote-control-unified-pairing.md）：
+ * - 目标机安装器展示配对串；桌面端生成的一次性 LAN 配对码同时服务
+ *   `POST /api/remote-agent/enroll` 与 `POST /api/lan/pair`（远程工作区 / 远程桌面）；
+ * - 已配对设备 = MCP 配置中以 `mode-agent-` 开头且 `type=http` 的 server；
+ * - 令牌只存在 MCP 配置的 Authorization header 中，这里不引入第二份存储。
  */
 
-export const MODE_AGENT_MCP_PREFIX = "mode-agent-";
-export const MODE_AGENT_MCP_TIMEOUT_MS = 180_000;
+const MODE_AGENT_MCP_PREFIX = "mode-agent-";
 
-export interface ModeAgentPairInput {
-  host: string;
-  port: number;
-  code: string;
-  label?: string;
-}
-
-export interface ModeAgentPairResult {
-  token: string;
-  agentId: string;
-  name: string;
-  hostname?: string;
-  version?: string;
-  platform?: string;
-  port?: number;
-  addresses?: string[];
-}
-
-export interface ModeAgentMcpMetadata {
+interface ModeAgentMcpMetadata {
   agentId: string;
   name: string;
   host: string;
@@ -49,141 +29,45 @@ export interface ModeAgentServerRecord {
   port: number;
 }
 
-export interface ParsedModeAgentPairingText {
-  host?: string;
-  port?: number;
-  code: string;
+function addressHost(address: string): string {
+  const trimmed = address.trim();
+  if (trimmed.startsWith("[")) {
+    const end = trimmed.indexOf("]");
+    return end > 0 ? trimmed.slice(1, end) : trimmed;
+  }
+  const lastColon = trimmed.lastIndexOf(":");
+  return lastColon > 0 ? trimmed.slice(0, lastColon) : trimmed;
 }
 
-/** 去分隔符并大写；安装器展示的 `XXXX-XXXX` 与用户手输的 `xxxxxxxx` 等价。 */
-export function normalizeModeAgentCode(value: string): string {
-  return value.toUpperCase().replace(/[^0-9A-Z]/gu, "");
+/** IPv4 地址排序：家用/办公 LAN 优先，Tailscale/CGNAT 其次，链路本地最后。 */
+function addressRank(address: string): number {
+  const match = addressHost(address).match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u);
+  if (!match) {
+    return 6;
+  }
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  if (first === 192 && second === 168) return 0;
+  if (first === 10) return 1;
+  if (first === 172 && second >= 16 && second <= 31) return 2;
+  if (first === 100 && second >= 64 && second <= 127) return 3;
+  if (first === 169 && second === 254) return 9;
+  return 5;
 }
 
 /**
- * 接受三种输入：
- * - `mode-agent://pair?host=...&port=...&code=...`
- * - `host:port CODE` / `host port code`
- * - 单独的配对码（此时地址/端口由表单字段提供）
+ * 多网卡机器选配对串地址：与 Go 被控端的 primaryPairAddress 同一优先级。
+ * 同优先级保持调用方（OS）顺序，避免地址抖动。
  */
-export function parseModeAgentPairingText(value: string): ParsedModeAgentPairingText {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return { code: "" };
-  }
-  if (/^mode-agent:\/\//iu.test(trimmed)) {
-    try {
-      const parsed = new URL(trimmed);
-      const rawPort = Number(parsed.searchParams.get("port"));
-      return {
-        ...(parsed.searchParams.get("host")
-          ? { host: parsed.searchParams.get("host") ?? undefined }
-          : {}),
-        ...(Number.isInteger(rawPort) && rawPort > 0 && rawPort <= 65535
-          ? { port: rawPort }
-          : {}),
-        code: normalizeModeAgentCode(parsed.searchParams.get("code") ?? ""),
-      };
-    } catch {
-      return { code: normalizeModeAgentCode(trimmed) };
+export function pickPreferredLanAddress(addresses: readonly string[]): string | undefined {
+  let best: { address: string; rank: number } | undefined;
+  for (const address of addresses) {
+    const rank = addressRank(address);
+    if (!best || rank < best.rank) {
+      best = { address, rank };
     }
   }
-  const match = trimmed.match(/^(\S+?)(?::|\s+)(\d{1,5})(?:\s+|[,;]+)([0-9A-Za-z-]{8,12})$/u);
-  if (match) {
-    const port = Number(match[2]);
-    return {
-      host: match[1],
-      ...(port > 0 && port <= 65535 ? { port } : {}),
-      code: normalizeModeAgentCode(match[3] ?? ""),
-    };
-  }
-  return { code: normalizeModeAgentCode(trimmed) };
-}
-
-function normalizeHost(rawHost: string): string {
-  return rawHost
-    .trim()
-    .replace(/^https?:\/\//iu, "")
-    .replace(/\/.*$/u, "");
-}
-
-/** 用配对码换长期 token；返回的 token 由调用方写入 HTTP MCP 配置。 */
-export async function pairModeAgent(
-  input: ModeAgentPairInput,
-  fetchImpl: typeof fetch = fetch,
-): Promise<ModeAgentPairResult> {
-  let host = normalizeHost(input.host);
-  let port = input.port;
-  const hostWithPort = host.match(/^(\S+):(\d{1,5})$/u);
-  if (hostWithPort) {
-    host = hostWithPort[1] ?? host;
-    port = Number(hostWithPort[2]);
-  }
-  if (!host) {
-    throw new Error("请填写被控端地址");
-  }
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new Error("端口必须是 1–65535");
-  }
-  const code = normalizeModeAgentCode(input.code);
-  if (code.length !== 8) {
-    throw new Error("配对码应为 8 位字符");
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const response = await fetchImpl(`http://${host}:${port}/v1/pair`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, label: input.label ?? "Mode Desktop" }),
-      signal: controller.signal,
-    });
-    const data = (await response.json().catch(() => null)) as {
-      ok?: boolean;
-      result?: ModeAgentPairResult;
-      error?: { code?: string; message?: string };
-    } | null;
-    if (!response.ok || !data?.ok || !data.result) {
-      throw new Error(data?.error?.message ?? `配对失败（HTTP ${response.status}）`);
-    }
-    if (!data.result.token?.trim() || !data.result.agentId?.trim()) {
-      throw new Error("被控端返回的配对结果不完整");
-    }
-    return data.result;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-export function modeAgentServerName(agentId: string): string {
-  const safe = agentId
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, "")
-    .slice(0, 16);
-  return `${MODE_AGENT_MCP_PREFIX}${safe || "unknown"}`;
-}
-
-export function buildModeAgentMcpConfig(
-  result: ModeAgentPairResult,
-  input: Pick<ModeAgentPairInput, "host" | "port" | "code">,
-): McpServerConfig {
-  const host = normalizeHost(input.host);
-  const metadata: ModeAgentMcpMetadata = {
-    agentId: result.agentId,
-    name: result.name?.trim() || result.hostname?.trim() || host,
-    host,
-    port: input.port,
-    pairedAt: Date.now(),
-    ...(result.version ? { version: result.version } : {}),
-    ...(result.platform ? { platform: result.platform } : {}),
-  };
-  return {
-    type: "http",
-    url: `http://${host}:${input.port}/mcp`,
-    headers: { Authorization: `Bearer ${result.token}` },
-    timeoutMs: MODE_AGENT_MCP_TIMEOUT_MS,
-    modeAgent: metadata,
-  };
+  return best?.address;
 }
 
 /**
@@ -219,7 +103,30 @@ export function readModeAgentServers(servers: readonly ModeMcpServer[]): ModeAge
   return records.sort((left, right) => left.name.localeCompare(right.name));
 }
 
-/** 发起对话时预填的指令：明确要求模型使用该被控端的 MCP 工具，而不是本机工具。 */
+/** 只改展示名，保持 serverName/URL/Authorization 不变（MCP 配置是唯一事实源）。 */
+export function renameModeAgentServerConfig(
+  config: McpServerConfig,
+  record: Pick<ModeAgentServerRecord, "agentId" | "host" | "port">,
+  name: string,
+): McpServerConfig {
+  const nextName = name.trim();
+  if (!nextName) {
+    return config;
+  }
+  const metadata = (config as McpServerConfig & { modeAgent?: ModeAgentMcpMetadata }).modeAgent;
+  return {
+    ...config,
+    modeAgent: {
+      ...(metadata ?? {}),
+      agentId: metadata?.agentId?.trim() || record.agentId,
+      name: nextName,
+      host: metadata?.host?.trim() || record.host,
+      port: metadata?.port ?? record.port,
+      pairedAt: metadata?.pairedAt ?? Date.now(),
+    },
+  } as McpServerConfig;
+}
+
 /** 桌面生成码 → 被控端输入的配对串；address 允许是 host:port。 */
 export function buildDesktopEnrollmentUri(
   address: string,
@@ -237,6 +144,7 @@ export function buildDesktopEnrollmentUri(
   return `mode-agent://enroll?host=${encodeURIComponent(host)}&port=${port}&code=${encodeURIComponent(code)}`;
 }
 
+/** 发起对话时预填的指令：明确要求模型使用该被控端的 MCP 工具，而不是本机工具。 */
 export function buildModeAgentLaunchPrompt(record: {
   name: string;
   host: string;

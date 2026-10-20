@@ -1,6 +1,6 @@
 # 旧版 Windows 远程被控运行时（mode-agent）
 
-状态：2026-10-20 已实现；Windows 10 x86/x64、真实 MCP 客户端、一键安装/配对与桌面端配对逻辑验证通过，XP SP3 与桌面 UI 点击验收待执行。关联：[lan-remote-attach.md](./lan-remote-attach.md)（既有 LAN 挂接）、[lan-host-server-mode.md](./lan-host-server-mode.md)（Node 形态被连端）、[computer-use-windows-runtime.md](./computer-use-windows-runtime.md)（桌面控制能力边界）。
+状态：2026-10-20 已实现；Windows 10 x86/x64、真实 MCP 客户端、一键安装/配对与桌面端配对逻辑验证通过，XP SP3 与桌面 UI 点击验收待执行。2026-10-20 追加：远程桌面、远程工作区与 Mode Agent 统一使用桌面 LAN 一次性配对码，远程控制页合并为单一设备列表（[remote-control-unified-pairing.md](./remote-control-unified-pairing.md)）。关联：[lan-remote-attach.md](./lan-remote-attach.md)（既有 LAN 挂接）、[lan-host-server-mode.md](./lan-host-server-mode.md)（Node 形态被连端）、[computer-use-windows-runtime.md](./computer-use-windows-runtime.md)（桌面控制能力边界）。
 
 ## 背景与问题
 
@@ -265,22 +265,24 @@ UTF-8 JSON；错误统一：
 
 ## 桌面端五步闭环
 
-1. **桌面端生成配对码**：远程控制页 →「Mode Agent 被控端」→「生成配对码」。桌面确保局域网
-   访问监听已开启，生成 6 位一次性配对码（5 分钟 TTL），并展示
-   `mode-agent://enroll?host=<桌面地址>&port=<监听端口>&code=<配对码>`。
+1. **桌面端生成配对码**：远程控制页 →「生成配对码」。桌面确保局域网访问监听已开启，生成
+   6 位一次性配对码（5 分钟 TTL），并展示
+   `mode-agent://enroll?host=<桌面地址>&port=<监听端口>&code=<配对码>`。这个码与远程工作区 /
+   远程桌面接入共用同一个 `lanAccessServer.pairCode`；不再另生成第二套码。
 2. **目标机一键安装并输入配对串**：运行 `ModeAgent-Setup.exe`；安装器启动 agent 后弹窗要求
    粘贴桌面端配对串。被控端向 `POST http://<桌面>:<端口>/api/remote-agent/enroll` 发送自己的
    agentId、地址、端口、token、版本与平台。
 3. **桌面端自动安装 MCP**：桌面验证配对码、探测被控端 `/health`，成功后写入一个用户级 HTTP
    MCP server（URL `http://<目标>:<端口>/mcp`，Header `Authorization: Bearer <token>`）。
-4. **列表**：远程控制页从 MCP store 读取 `mode-agent-*` 且 `type=http` 的 server，展示名称、
-   地址、连接状态与工具数；MCP 配置是唯一事实源，不另存一份设备记录。
-5. **发起对话**：确保该 MCP server 启用，创建新任务草稿并预填远程指令（要求使用
-   `mcp__<serverName>__remote_*`，不要用本机工具）；用户补完任务后发送。
+4. **列表**：远程控制页把 LAN 已配对设备与 Mode Agent 设备合并到同一列表，展示名称、地址、
+   连接状态与能力/工具数；MCP 配置是 Mode Agent 设备的唯一事实源，LAN 配对记录是 LAN 设备的
+   唯一事实源，不另存一份设备表（[remote-control-unified-pairing.md](./remote-control-unified-pairing.md)）。
+5. **发起对话**：确保该 MCP server 启用，先切到对话主视图，再创建新任务草稿并预填远程指令
+   （要求使用 `mcp__<serverName>__remote_*`，不要用本机工具）；用户补完任务后发送。
 
-备用方向仍保留：被控端 `mode-agent pair` 生成 8 位目标端配对码，桌面端「手动配对」调用目标端
-`/v1/pair`；适合被控端无法反向访问桌面的网络。手动 MCP 路径也保留：设置 → MCP → 添加 HTTP
-MCP Server，或在 Mode 的 Bash 工具中调用 `mode-agent remote exec ...`。
+备用方向只保留 CLI：被控端 `mode-agent pair` 生成 8 位目标端配对码，桌面端不再提供「手动配对」
+表单，也不再展示这套 8 位码；需要该方向时用 CLI / 手动 MCP 配置。手动 MCP 路径保留：设置 →
+MCP → 添加 HTTP MCP Server，或在 Mode 的 Bash 工具中调用 `mode-agent remote exec ...`。
 
 ### 配对失败语义
 
@@ -318,8 +320,8 @@ MCP Server，或在 Mode 的 Bash 工具中调用 `mode-agent remote exec ...`�
 11. 一键安装/反向配对：单文件 `ModeAgent-Setup.exe` 在 x64 上解包 amd64、在模拟 32 位环境
     解包 386；安装后弹窗输入桌面配对串；`POST /api/remote-agent/enroll` 写 MCP、二次同码
     401、不可达 agent 401；`uninstall --purge` 停止进程并删除安装目录。
-12. 桌面闭环：远程控制页生成配对码/配对串 → 被控端输入 → 桌面刷新列表出现 `mode-agent-*`
-    HTTP MCP →「发起对话」创建预填远程指令的新任务草稿。
+12. 桌面闭环：远程控制页生成配对码/配对串 → 被控端输入 → 同一列表出现 `mode-agent-*`
+    设备（与 LAN 设备同屏）→「发起对话」切到对话视图并创建预填远程指令的新任务草稿。
 13. 审计日志包含请求记录且不包含命令/SQL/令牌明文；10 MiB 轮转。
 14. 构建：Go 1.10.8 产出 `mode-agent-xp-x86.exe`；现代 Go 产出 `mode-agent-win-x64.exe`；
     单文件安装器内嵌两套 agent 并带 Mode 图标。实机 XP 验收需一台 XP SP3 机器（当前环境不可用，

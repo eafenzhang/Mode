@@ -68,8 +68,8 @@ ModeAgent-Setup.exe uninstall --purge --yes
 安装包和 agent 都带 Mode 应用图标。桌面端「移除被控端」只清本机 MCP 配置；需要撤销被控端
 token 时在目标机执行 `install --force` 轮换。
 
-旧方向仍可用作备用：目标机运行 `mode-agent.exe pair` 生成 8 位配对码，桌面端在「手动配对」
-里输入目标地址与配对码；适合被控端无法反向访问桌面的网络。
+备用方向只保留 CLI：目标机运行 `mode-agent.exe pair` 生成 8 位配对码；桌面端不再提供
+「手动配对」表单，需要时用 CLI / 手动 MCP 配置。适合被控端无法反向访问桌面的网络。
 
 ## 手动配置（无安装器）
 

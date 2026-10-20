@@ -269,6 +269,12 @@ import {
 export interface SessionPaneProps {
   paneId: string;
   sessionId: string | null;
+  /** null session 的独立草稿 scope；侧栏设备对话用它隔离主对话草稿。 */
+  draftScopeId?: string;
+  /** 侧栏设备对话：隐藏草稿欢迎图/问候，输入框固定在底部。 */
+  hideDraftEmptyState?: boolean;
+  draftComposerAtBottom?: boolean;
+  composerPlaceholder?: string;
   rootSessionId?: string;
   /** subagent 右侧详情等观察视图：不显示 composer/input，也不发送行内编辑类命令。 */
   readOnly?: boolean;
@@ -464,6 +470,10 @@ function shouldRestoreQueuedComposerFromAck(status: CommandAck["status"]): boole
 export function SessionPane({
   paneId,
   sessionId,
+  draftScopeId,
+  hideDraftEmptyState = false,
+  draftComposerAtBottom = false,
+  composerPlaceholder,
   rootSessionId,
   readOnly = false,
   allowWorkspaceFileRewind = false,
@@ -4217,6 +4227,7 @@ export function SessionPane({
       // Snapshot 仍服务用量、路由与运行态；工具栏的 mode/model 只读下方 Composer Draft。
       snapshot={snapshot}
       sessionId={sessionId}
+      draftScopeIdOverride={draftScopeId}
       // 草稿 taskId 仍为 null，但 prewarm 已经拥有独立 AgentRuntime。
       // 只给 Skill catalog 下发 effective id，避免 UI 扫到 prewarm runtime 尚未加载的新 Skill。
       skillCatalogSessionId={effectiveSessionId}
@@ -4228,7 +4239,8 @@ export function SessionPane({
       updateComposerContent={updateComposerContent}
       createSubmissionFromComposer={createSubmissionFromComposer}
       contextHeader={isDraft ? draftComposerHeader : undefined}
-      centered={isDraft}
+      centered={isDraft && !draftComposerAtBottom}
+      placeholderOverride={composerPlaceholder}
       blockingRequestId={blockingInteractionId}
       listenAddToChatEvents={focused}
       externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
@@ -4399,7 +4411,9 @@ export function SessionPane({
       ) : null}
       {composerNode}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
-      {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
+      {isDraft &&
+      !hideDraftEmptyState &&
+      (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer
           className={isOfficeMode ? "mt-4" : "mt-6"}
           proactive={isOfficeMode}
@@ -4630,13 +4644,13 @@ export function SessionPane({
                 ) : null
               }
               emptyState={
-                isDraft ? (
+                isDraft && !hideDraftEmptyState ? (
                   <div data-testid={TID_CHAT_EMPTY} className="w-full">
                     <ConversationDraftEmptyState />
                   </div>
                 ) : null
               }
-              centerEmptyStateWithDock={isDraft}
+              centerEmptyStateWithDock={isDraft && !hideDraftEmptyState}
               summaryPanelLayout={statusPanelLayout}
               conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
               conversationFindActiveIndex={!isDraft && focused ? conversationFindActiveIndex : -1}

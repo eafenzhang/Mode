@@ -685,8 +685,7 @@ const faIR: Record<string, string> = {
   "bots.replyGranularity.summaryChanges.description":
     "فقط نتیجه نهایی و خلاصه تغییرات، مناسب اعلان‌های کم‌مزاحم.",
   "bots.replyGranularity.streamingCard": "پاسخ استریم",
-  "bots.replyGranularity.streamingCard.description":
-    "پاسخ را به‌صورت پیام استریم ارسال می‌کند.",
+  "bots.replyGranularity.streamingCard.description": "پاسخ را به‌صورت پیام استریم ارسال می‌کند.",
   "bots.add": "افزودن",
   "bots.channel.telegram": "Telegram",
   "bots.channel.weixin": "Weixin",
@@ -891,14 +890,12 @@ const faIR: Record<string, string> = {
   "bots.groupChat.title": "حالت گفتگوی گروهی",
   "bots.groupChat.description":
     "فقط کاربر متصل بات را هدایت می‌کند؛ پیام‌های بدون منشن زمینه می‌شوند.",
-  "bots.groupChat.descriptionAlways":
-    "هر پیام وارد نشست می‌شود و پاسخ را هوش مصنوعی تعیین می‌کند.",
+  "bots.groupChat.descriptionAlways": "هر پیام وارد نشست می‌شود و پاسخ را هوش مصنوعی تعیین می‌کند.",
   "bots.groupChat.descriptionNoMention":
     "این کانال منشن را تشخیص نمی‌دهد؛ هر پیام بات را فعال می‌کند.",
   "bots.groupChat.descriptionWecom":
     "WeCom پیام گروه را فقط با منشن می‌فرستد؛ تنها حالت @منشن ممکن است.",
-  "bots.groupChat.descriptionUnbound":
-    "ابتدا در چت خصوصی /bind را کامل کنید.",
+  "bots.groupChat.descriptionUnbound": "ابتدا در چت خصوصی /bind را کامل کنید.",
   "bots.groupChat.descriptionAllUsers":
     "چت خصوصی «همه کاربران» است: هر عضو گروه می‌تواند بات را هدایت کند.",
   "bots.groupChat.descriptionAllUsersAlways":
@@ -919,8 +916,7 @@ const faIR: Record<string, string> = {
   "bots.deliveryMode.auto": "پاسخ خودکار",
   "bots.deliveryMode.toolOnly": "فقط ابزار",
   "bots.heartbeat.title": "ضربان ربات",
-  "bots.heartbeat.description":
-    "بررسی دوره‌ای فضای کاری و گزارش فقط هنگام تغییر؛ 0 یعنی خاموش.",
+  "bots.heartbeat.description": "بررسی دوره‌ای فضای کاری و گزارش فقط هنگام تغییر؛ 0 یعنی خاموش.",
   "bots.heartbeat.intervalLabel": "بازه ضربان به دقیقه (0 یعنی خاموش)",
   "bots.heartbeat.intervalSuffix": "دقیقه",
   "bots.workspaceManagement.title": "فضای کاری",
@@ -933,8 +929,7 @@ const faIR: Record<string, string> = {
   "bots.privateChat.title": "حالت چت خصوصی",
   "bots.privateChat.description.boundUsers":
     "فقط کاربران متصل می‌توانند بات را هدایت کنند؛ برای پیوند /bind بفرستید.",
-  "bots.privateChat.description.allUsers":
-    "هر کاربر چت خصوصی می‌تواند بات را هدایت کند.",
+  "bots.privateChat.description.allUsers": "هر کاربر چت خصوصی می‌تواند بات را هدایت کند.",
   "bots.privateChat.mode.boundUsers": "کاربران متصل",
   "bots.privateChat.mode.allUsers": "همه کاربران",
   "bots.privateChat.boundUsersLabel": "کاربران متصل",
@@ -1100,6 +1095,8 @@ const faIR: Record<string, string> = {
   "sidePane.subagent": "ایجنت فرعی",
   "sidePane.subagentDirectory": "ایجنت‌های فرعی",
   "sidePane.selectionChat": "گفتگوی کناری",
+  "sidePane.modeAgentChat": "Mode Agent",
+  "remoteDesktop.modeAgentChat.placeholder": "یک کار یا فرمان وارد کنید",
   "sidePane.workflowRun": "اجرای گردش کار",
   "sidePane.workflowDirectory": "اجراهای گردش کار",
   "sidePane.workflowActor": "ایجنت فرعی گردش کار",
@@ -6313,8 +6310,7 @@ const faIR: Record<string, string> = {
   "workspace.openRemoteDesktop": "کنترل از راه دور",
   "remoteDesktop.title": "کنترل از راه دور",
   "remoteDesktop.breadcrumbLabel": "مسیر کنترل از راه دور",
-  "remoteDesktop.description":
-    "تصویر رایانه ویندوزیِ پیوندشده را زنده ببینید و کنترل کنید؛ در همین صفحه دستگاه‌های شبکه محلی را شناسایی، پیوند و مدیریت (تغییر نام/حذف) کنید؛ دستگاه مقابل پنجره تأیید و در طول نشست لایه کنترل را نمایش می‌دهد.",
+  "remoteDesktop.description": "مدیریت دسکتاپ‌ها و دستگاه‌های Mode Agent در یک جا.",
   "remoteDesktop.devices.refresh": "تازه‌سازی",
   "remoteDesktop.devices.loading": "در حال خواندن دستگاه‌های پیوندشده…",
   "remoteDesktop.devices.loadFailed": "خواندن دستگاه‌های پیوندشده ناموفق بود.",
@@ -6349,23 +6345,35 @@ const faIR: Record<string, string> = {
   "remoteDesktop.device.delete": "حذف",
   "remoteDesktop.device.deleteAsk": "«{name}» حذف شود؟ توکن پیوند و فراداده نیز پاک می‌شوند.",
   "remoteDesktop.device.deleteConfirm": "تأیید حذف",
+  "remoteDesktop.device.publicAddress": "نشانی عمومی",
+  "remoteDesktop.device.publicAddressHint":
+    "دامنه تونل HTTPS را وارد کنید؛ برای پاک کردن خالی بگذارید. فقط https.",
+  "remoteDesktop.device.publicAddressInvalid":
+    "نشانی عمومی باید HTTPS باشد، مثلاً https://rd.example.com",
+  "remoteDesktop.device.publicEndpoint": "عمومی",
+  "remoteDesktop.device.publicRoute": "اتصال از اینترنت",
+  "remoteDesktop.device.lanRoute": "اتصال از شبکه محلی",
   "remoteDesktop.modeAgents.generateCode": "ساخت کد جفت‌سازی",
   "remoteDesktop.modeAgents.manualPair": "جفت‌سازی دستی",
   "remoteDesktop.modeAgents.refreshList": "به‌روزرسانی فهرست",
   "remoteDesktop.modeAgents.desktopCodeTitle": "کد جفت‌سازی دسکتاپ",
   "remoteDesktop.modeAgents.desktopCodeExpiry": "۵ دقیقه معتبر است",
-  "remoteDesktop.modeAgents.desktopCodeHint": "این رشته را در پنجره نصب دستگاه وارد کنید و سپس فهرست را به‌روزرسانی کنید.",
+  "remoteDesktop.modeAgents.desktopCodeHint":
+    "این رشته را در پنجره نصب دستگاه وارد کنید و سپس فهرست را به‌روزرسانی کنید.",
   "remoteDesktop.modeAgents.copyPairUri": "رونوشت رشته جفت‌سازی",
   "remoteDesktop.modeAgents.copied": "رشته جفت‌سازی رونوشت شد",
   "remoteDesktop.modeAgents.copyFailed": "رونوشت رشته جفت‌سازی ناموفق بود",
   "remoteDesktop.modeAgents.refreshed": "فهرست دستگاه‌ها به‌روزرسانی شد",
   "remoteDesktop.modeAgents.refreshFailed": "به‌روزرسانی فهرست دستگاه‌ها ناموفق بود",
   "remoteDesktop.modeAgents.desktopCodeFailed": "ساخت کد جفت‌سازی ناموفق بود",
-  "remoteDesktop.modeAgents.manualPairHint": "اگر دستگاه کد نشان می‌دهد، نشانی و کد را اینجا وارد کنید.",
+  "remoteDesktop.modeAgents.manualPairHint":
+    "اگر دستگاه کد نشان می‌دهد، نشانی و کد را اینجا وارد کنید.",
   "remoteDesktop.modeAgents.title": "دستگاه‌های Mode Agent",
-  "remoteDesktop.modeAgents.description": "نشانی و کد جفت‌سازی را از نصب‌کننده وارد کنید؛ MCP به‌طور خودکار نصب می‌شود.",
+  "remoteDesktop.modeAgents.description":
+    "نشانی و کد جفت‌سازی را از نصب‌کننده وارد کنید؛ MCP به‌طور خودکار نصب می‌شود.",
   "remoteDesktop.modeAgents.add": "افزودن دستگاه",
-  "remoteDesktop.modeAgents.pasteHint": "اطلاعات جفت‌سازی را بچسبانید یا نشانی، پورت و کد را دستی وارد کنید.",
+  "remoteDesktop.modeAgents.pasteHint":
+    "اطلاعات جفت‌سازی را بچسبانید یا نشانی، پورت و کد را دستی وارد کنید.",
   "remoteDesktop.modeAgents.address": "نشانی",
   "remoteDesktop.modeAgents.port": "پورت",
   "remoteDesktop.modeAgents.code": "کد جفت‌سازی",
@@ -6378,6 +6386,7 @@ const faIR: Record<string, string> = {
   "remoteDesktop.modeAgents.remove": "حذف",
   "remoteDesktop.modeAgents.removeConfirm": "تأیید حذف",
   "remoteDesktop.modeAgents.removeSuccess": "«{name}» حذف شد",
+  "remoteDesktop.modeAgents.renameMissing": "پیکربندی دستگاه وجود ندارد؛ فهرست را به‌روزرسانی کنید.",
   "remoteDesktop.modeAgents.mcpInstalled": "MCP: {server}",
   "remoteDesktop.modeAgents.tools": "{count} ابزار",
   "remoteDesktop.modeAgents.statusConnected": "متصل",
@@ -6385,6 +6394,53 @@ const faIR: Record<string, string> = {
   "remoteDesktop.modeAgents.statusOffline": "آفلاین",
   "remoteDesktop.modeAgents.statusUnknown": "نامشخص",
   "remoteDesktop.modeAgents.chatUnavailable": "در این صفحه امکان شروع گفتگو نیست",
+  "remoteDesktop.pairing.title": "کد جفت‌سازی این دستگاه",
+  "remoteDesktop.pairing.description":
+    "سایر دستگاه‌های Mode (کارگاه از راه دور / رومیزی از راه دور) و نصب‌کننده Mode Agent با این کد به این دستگاه متصل می‌شوند.",
+  "remoteDesktop.pairing.generate": "ساخت کد جفت‌سازی",
+  "remoteDesktop.pairing.regenerate": "ساخت دوباره",
+  "remoteDesktop.pairing.codeLabel": "کد جفت‌سازی",
+  "remoteDesktop.pairing.expires": "انقضا تا {time}",
+  "remoteDesktop.pairing.address": "نشانی جفت‌سازی",
+  "remoteDesktop.pairing.copyCode": "رونوشت کد",
+  "remoteDesktop.pairing.copyUri": "رونوشت رشته جفت‌سازی",
+  "remoteDesktop.pairing.copied": "رونوشت شد",
+  "remoteDesktop.pairing.copyFailed": "رونوشت ناموفق بود",
+  "remoteDesktop.pairing.failed": "ساخت کد جفت‌سازی ناموفق بود",
+  "remoteDesktop.pairing.hint": "۵ دقیقه معتبر است؛ فقط یک بار استفاده می‌شود.",
+  "remoteDesktop.publicPairing.title": "دستگاه عمومی",
+  "remoteDesktop.publicPairing.description":
+    "برای نخستین جفت‌سازی، دامنه تونل HTTPS و کد ۶ رقمی نمایش‌داده‌شده روی دستگاه مقابل را وارد کنید.",
+  "remoteDesktop.publicPairing.addressLabel": "نشانی HTTPS",
+  "remoteDesktop.publicPairing.addressPlaceholder": "https://rd.example.com",
+  "remoteDesktop.publicPairing.codeLabel": "کد جفت‌سازی",
+  "remoteDesktop.publicPairing.pair": "جفت‌سازی",
+  "remoteDesktop.publicPairing.pairing": "در حال جفت‌سازی…",
+  "remoteDesktop.publicPairing.invalidAddress":
+    "نشانی عمومی باید HTTPS باشد، مثلاً https://rd.example.com",
+  "remoteDesktop.publicPairing.missingCode": "کد ۶ رقمی نمایش‌داده‌شده روی دستگاه مقابل را وارد کنید",
+  "remoteDesktop.publicPairing.failed": "جفت‌سازی عمومی ناموفق بود",
+  "remoteDesktop.publicPairing.hint":
+    "پس از جفت‌سازی، شبکه محلی در اولویت است و نشانی عمومی جایگزین می‌شود.",
+  "remoteDesktop.devices.scan": "افزودن دستگاه",
+  "remoteDesktop.devices.scanning": "در حال شناسایی…",
+  "remoteDesktop.devices.view.list": "نمای فهرست",
+  "remoteDesktop.devices.view.grid": "نمای شبکه‌ای",
+  "remoteDesktop.devices.emptyAll":
+    "هنوز دستگاهی نیست. کد جفت‌سازی بسازید یا شبکه محلی را شناسایی کنید.",
+  "remoteDesktop.devices.kind.lan": "LAN",
+  "remoteDesktop.devices.kind.modeAgent": "Mode Agent",
+  "remoteDesktop.devices.status.unpaired": "جفت‌نشده",
+  "remoteDesktop.devices.mcp": "MCP",
+  "remoteDesktop.devices.mcpTools": "MCP · {count} ابزار",
+  "remoteDesktop.devices.lanDetail": "رومیزی + کارگاه از راه دور",
+  "remoteDesktop.devices.discoveredHint": "در شبکه محلی پیدا شد",
+  "remoteDesktop.devices.pair": "جفت‌سازی",
+  "remoteDesktop.devices.pairing": "در حال جفت‌سازی…",
+  "remoteDesktop.devices.pairCodeHint":
+    "کد نمایش‌داده‌شده در صفحه «کنترل از راه دور» دستگاه مقابل را وارد کنید.",
+  "remoteDesktop.devices.dismiss": "رد کردن",
+  "remoteDesktop.devices.removeAsk": "«{name}» حذف شود؟",
   "remoteDesktop.addDevice.title": "افزودن دستگاه",
   "remoteDesktop.addDevice.detect": "شناسایی دستگاه‌ها",
   "remoteDesktop.addDevice.collapse": "بستن",

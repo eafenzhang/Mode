@@ -4,10 +4,15 @@ import { hostname } from "node:os";
 import {
   buildLanPeerTokenKey,
   buildLanPeerMetaKey,
+  dedupeLanPeerEndpoints,
+  parseLanPeerMeta,
+  parseLanPublicBaseUrl,
   serverRemoteInfoSchema,
+  sortLanPeerEndpoints,
   MODE_RPC_HOST_CAPABILITY_HEADER,
   type LanAccessPairResult,
   type LanAccessState,
+  type LanPeerEndpoint,
   type ServerRemoteInfo,
 } from "@mode/shared";
 import type { ICredentialService, IServiceAccessor } from "@mode/services";
@@ -30,12 +35,43 @@ const LAN_INFO_TIMEOUT_MS = 10_000;
  */
 const LAN_WS_HEARTBEAT_INTERVAL_MS = 30_000;
 
-function buildLanHttpBase(host: string, port: number): string {
-  return `http://${host}:${port}`;
+/** WebSocket 协议由 HTTP 端点协议推导：https → wss（公网必须走 TLS）。 */
+export function toWebSocketScheme(scheme: "http" | "https"): "ws" | "wss" {
+  return scheme === "https" ? "wss" : "ws";
 }
 
-function buildLanWsUrl(host: string, port: number): string {
-  return `ws://${host}:${port}/ws/host`;
+export function buildLanHttpBase(
+  host: string,
+  port: number,
+  scheme: "http" | "https" = "http",
+): string {
+  return `${scheme}://${host}:${port}`;
+}
+
+export function buildLanWsUrl(
+  host: string,
+  port: number,
+  scheme: "http" | "https" = "http",
+): string {
+  return `${toWebSocketScheme(scheme)}://${host}:${port}/ws/host`;
+}
+
+/**
+ * 端点请求错误：`retryable` 决定是否切换下一个端点。只有传输失败/超时/5xx/404/
+ * 协议不符可重试；401/403 等对端级结果不重试（同一令牌在另一个端点不会更好）。
+ */
+export class LanPeerRequestError extends Error {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+    readonly code?: "unauthorized" | "internal",
+  ) {
+    super(message);
+  }
+}
+
+export function isRetryableLanPeerError(error: unknown): boolean {
+  return error instanceof LanPeerRequestError && error.retryable;
 }
 
 async function fetchWithTimeout(
@@ -52,26 +88,77 @@ async function fetchWithTimeout(
   }
 }
 
+async function fetchPeerResponse(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  try {
+    return await fetchWithTimeout(url, init, timeoutMs);
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === "AbortError";
+    throw new LanPeerRequestError(
+      timedOut
+        ? `连接对端超时（${timeoutMs}ms）`
+        : `连接对端失败：${error instanceof Error ? error.message : String(error)}`,
+      true,
+    );
+  }
+}
+
 /** 读取对端信息（包含工作区列表）；协议版本不匹配时抛出可读错误。 */
 export async function fetchLanPeerInfo(params: {
+  scheme?: "http" | "https";
   host: string;
   port: number;
   token?: string;
+  /** 端点探测预算；缺省 10s（与既有 LAN 行为一致）。 */
+  timeoutMs?: number;
 }): Promise<ServerRemoteInfo> {
-  const url = new URL("/api/server-info", buildLanHttpBase(params.host, params.port));
+  const url = new URL(
+    "/api/server-info",
+    buildLanHttpBase(params.host, params.port, params.scheme ?? "http"),
+  );
   if (params.token) {
     url.searchParams.set("token", params.token);
   }
-  const response = await fetchWithTimeout(url.toString(), { method: "GET" }, LAN_INFO_TIMEOUT_MS);
-  if (response.status === 401) {
-    throw new Error("对端拒绝了本次访问：令牌无效或已被重置，需要重新配对");
+  const response = await fetchPeerResponse(
+    url.toString(),
+    { method: "GET" },
+    params.timeoutMs ?? LAN_INFO_TIMEOUT_MS,
+  );
+  if (response.status === 401 || response.status === 403) {
+    throw new LanPeerRequestError(
+      response.status === 401
+        ? "对端拒绝了本次访问：令牌无效或已被重置，需要重新配对"
+        : "对端拒绝了本次访问（HTTP 403）",
+      false,
+      "unauthorized",
+    );
   }
   if (!response.ok) {
-    throw new Error(`读取对端信息失败（HTTP ${response.status}）`);
+    // 404/5xx 通常来自反向代理或隧道（路由未就绪）；换下一个端点有意义。
+    const retryable =
+      response.status === 404 ||
+      response.status === 502 ||
+      response.status === 503 ||
+      response.status === 504 ||
+      response.status >= 500;
+    throw new LanPeerRequestError(`读取对端信息失败（HTTP ${response.status}）`, retryable);
   }
-  const parsed = serverRemoteInfoSchema.safeParse(await response.json());
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    // 反代/验证页返回 HTML 等：视为端点不可用，允许回退到另一个端点。
+    throw new LanPeerRequestError("对端返回的信息不是合法 JSON", true);
+  }
+  const parsed = serverRemoteInfoSchema.safeParse(payload);
   if (!parsed.success) {
-    throw new Error("对端返回的信息不符合局域网连接协议，请确认两端 Mode 版本一致");
+    throw new LanPeerRequestError(
+      "对端返回的信息不符合局域网连接协议，请确认两端 Mode 版本一致",
+      true,
+    );
   }
   return parsed.data;
 }
@@ -83,9 +170,34 @@ export async function pairLanPeer(params: {
   port: number;
   code: string;
   label?: string;
+  /** 主端点协议；缺省 http。https 用于公网地址配对。 */
+  scheme?: "http" | "https";
+  /** 可选：配对成功后一并记录的公网 HTTPS 基础地址。 */
+  publicBaseUrl?: string;
 }): Promise<LanAccessPairResult> {
+  const scheme = params.scheme === "https" ? "https" : "http";
+  const host = params.host.trim();
+  if (!host) {
+    throw new Error("缺少对端地址");
+  }
+  if (!Number.isInteger(params.port) || params.port <= 0 || params.port > 65535) {
+    throw new Error("对端端口无效");
+  }
+  const publicBaseUrl = params.publicBaseUrl?.trim() ?? "";
+  const publicEndpoint = publicBaseUrl ? parseLanPublicBaseUrl(publicBaseUrl) : null;
+  if (publicBaseUrl && !publicEndpoint) {
+    throw new Error("公网地址必须是 HTTPS，且不能带路径、查询参数或账号信息");
+  }
+  const primaryEndpoint: LanPeerEndpoint = {
+    scheme,
+    host,
+    port: params.port,
+    kind: scheme === "https" ? "public" : "lan",
+  };
+  // 端点顺序是连接优先级：LAN 在前、公网在后；同类保持调用方顺序。
+  const newEndpoints = [primaryEndpoint, ...(publicEndpoint ? [publicEndpoint] : [])];
   const response = await fetchWithTimeout(
-    new URL("/api/lan/pair", buildLanHttpBase(params.host, params.port)).toString(),
+    new URL("/api/lan/pair", buildLanHttpBase(host, params.port, scheme)).toString(),
     {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -116,14 +228,31 @@ export async function pairLanPeer(params: {
   };
   if (result.serverId) {
     await params.credentials.save(buildLanPeerTokenKey(result.serverId), result.token);
+    // 重复配对同一 serverId 时合并端点：本次配对的端点优先作为主地址；已有 LAN 端点
+    // 保留在后（换网络后旧地址可能失效，但探测会跳过它）；新配对带公网端点时替换旧
+    // 公网端点，否则保留已配置的公网地址。这样两个方向的重复配对都不会丢入口。
+    const existingMeta = parseLanPeerMeta(
+      await params.credentials.load(buildLanPeerMetaKey(result.serverId)),
+    );
+    const existingEndpoints = existingMeta?.endpoints ?? [];
+    const newPublic = newEndpoints.filter((endpoint) => endpoint.kind === "public");
+    const merged = sortLanPeerEndpoints(
+      dedupeLanPeerEndpoints([
+        ...newEndpoints,
+        ...existingEndpoints.filter((endpoint) => endpoint.kind === "lan"),
+        ...(newPublic.length > 0
+          ? []
+          : existingEndpoints.filter((endpoint) => endpoint.kind === "public")),
+      ]),
+    );
     // 配对元数据与令牌同生命周期：设置页「我配对的对端」凭它列出地址与名称，
-    // 枚举侧只读键名/元数据，不接触令牌本体。
+    // 枚举侧只读键名/元数据，不接触令牌本体。对端未自报名称时保留本机重命名。
+    const name = result.name ?? existingMeta?.name;
     await params.credentials.save(
       buildLanPeerMetaKey(result.serverId),
       JSON.stringify({
-        host: params.host.trim(),
-        port: params.port,
-        ...(result.name ? { name: result.name } : {}),
+        endpoints: merged,
+        ...(name ? { name } : {}),
         pairedAt: Date.now(),
       }),
     );
@@ -140,6 +269,26 @@ export async function loadLanPeerToken(
     return null;
   }
   return await credentials.load(buildLanPeerTokenKey(serverId.trim()));
+}
+
+/**
+ * 读取已配对对端的端点与令牌（令牌不出 Host）。端点顺序即连接优先级：
+ * LAN 在前、公网在后；旧记录由 parseLanPeerMeta 迁移为单个 LAN 端点。
+ */
+export async function readLanPeerEndpoints(
+  credentials: ICredentialService,
+  serverId: string,
+): Promise<{ endpoints: LanPeerEndpoint[]; token?: string } | null> {
+  const trimmed = serverId.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(trimmed)));
+  if (!meta) {
+    return null;
+  }
+  const token = (await credentials.load(buildLanPeerTokenKey(trimmed)))?.trim();
+  return { endpoints: meta.endpoints, ...(token ? { token } : {}) };
 }
 
 function wrapNodeWebSocket(ws: WebSocket): ISocket {
@@ -238,6 +387,7 @@ export interface LanRemoteConnection {
  * 令牌是长期凭据（配对时下发），capability 只是本次连接的提权声明。
  */
 export async function attachLanRemoteConnection(params: {
+  scheme?: "http" | "https";
   host: string;
   port: number;
   token: string;
@@ -245,7 +395,9 @@ export async function attachLanRemoteConnection(params: {
   /** 对端通道断开（含进程退出、网络中断）时回调：与 SSH backend.onDidDisconnect 语义一致。 */
   onClose?: () => void;
 }): Promise<LanRemoteConnection> {
+  const scheme = params.scheme ?? "http";
   const info = await fetchLanPeerInfo({
+    scheme,
     host: params.host,
     port: params.port,
     token: params.token,
@@ -255,7 +407,10 @@ export async function attachLanRemoteConnection(params: {
   }
 
   const capabilityResponse = await fetchWithTimeout(
-    new URL("/api/rpc-host-capability", buildLanHttpBase(params.host, params.port)).toString(),
+    new URL(
+      "/api/rpc-host-capability",
+      buildLanHttpBase(params.host, params.port, scheme),
+    ).toString(),
     {
       method: "POST",
       // 服务端只从 ?token= 或 mode_lite_token Cookie 取令牌；这里用 Cookie，避免令牌进 URL/日志。
@@ -271,7 +426,7 @@ export async function attachLanRemoteConnection(params: {
     throw new Error("对端未返回连接票据");
   }
 
-  const ws = new WebSocket(buildLanWsUrl(params.host, params.port), {
+  const ws = new WebSocket(buildLanWsUrl(params.host, params.port, scheme), {
     headers: {
       [MODE_RPC_HOST_CAPABILITY_HEADER]: capabilityPayload.capability,
       cookie: `mode_lite_token=${encodeURIComponent(params.token)}`,

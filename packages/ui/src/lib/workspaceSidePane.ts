@@ -166,6 +166,28 @@ export interface SubagentDirectorySidePaneTab {
   parentSessionId: string;
 }
 
+/** Mode Agent 设备对话：一个 workspace 只保留一个 tab；sessionId=null 表示尚未首发的草稿。 */
+export interface ModeAgentChatDevice {
+  serverName: string;
+  agentId: string;
+  name: string;
+  host: string;
+  port: number;
+}
+
+export interface ModeAgentChatSidePaneTab {
+  id: string;
+  type: "mode-agent-chat";
+  ownerTaskId?: string | null;
+  openedAt?: number;
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  sessionId: string | null;
+  device: ModeAgentChatDevice;
+}
+
 export interface SelectionSideChatPaneTab {
   id: string;
   type: "selection-side-chat";
@@ -526,6 +548,7 @@ export type WorkspaceSidePaneTab =
   | BrowserUseSidePaneTab
   | SubagentSessionSidePaneTab
   | SubagentDirectorySidePaneTab
+  | ModeAgentChatSidePaneTab
   | SelectionSideChatPaneTab
   | PlanDetailSidePaneTab
   | WorkflowRunSidePaneTab
@@ -1055,6 +1078,7 @@ const WORKSPACE_GLOBAL_SIDE_PANE_TAB_TYPES = new Set<WorkspaceSidePaneTab["type"
   "git",
   "developer-tools",
   "treemapping",
+  "mode-agent-chat",
 ]);
 
 function isWorkspaceGlobalSidePaneTab(tab: WorkspaceSidePaneTab): boolean {
@@ -1698,6 +1722,80 @@ export function openSelectionSideChatPane(
     );
   const nextTab = createSelectionSideChatPaneTab({ ...options, ordinal });
   return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
+}
+
+export interface OpenModeAgentChatSidePaneRequest {
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  device: ModeAgentChatDevice;
+}
+
+/**
+ * 打开/聚焦 Mode Agent 设备对话。一个 workspace 只保留一个 tab：
+ * 同一设备保留已创建的 session；切换设备时把 tab 重置为草稿。
+ */
+export function openModeAgentChatSidePane(
+  current: WorkspaceSidePaneState | null,
+  options: OpenModeAgentChatSidePaneRequest,
+): WorkspaceSidePaneState {
+  const existing = current?.tabs.find(
+    (tab): tab is ModeAgentChatSidePaneTab =>
+      tab.type === "mode-agent-chat" && tab.workspaceKey === options.workspaceKey,
+  );
+  const sameDevice = existing?.device.serverName === options.device.serverName;
+  const nextTab: ModeAgentChatSidePaneTab = {
+    id:
+      existing?.id ??
+      [
+        "mode-agent-chat",
+        encodeSidePaneTabIdPart(options.workspaceKey),
+        encodeSidePaneTabIdPart(options.device.serverName),
+      ].join(":"),
+    type: "mode-agent-chat",
+    openedAt: existing?.openedAt ?? Date.now(),
+    workspaceKey: options.workspaceKey,
+    workspacePath: options.workspacePath,
+    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
+    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
+    sessionId: existing && sameDevice ? existing.sessionId : null,
+    device: options.device,
+  };
+  return activateSidePaneTab(current, nextTab);
+}
+
+/** 设备对话首发后把 tab 从草稿绑定到真实 session。 */
+export function updateModeAgentChatSidePaneSessionId(
+  current: WorkspaceSidePaneState | null,
+  tabId: string,
+  sessionId: string,
+): WorkspaceSidePaneState | null {
+  if (!current) return null;
+  let changed = false;
+  const tabs = current.tabs.map((tab) => {
+    if (tab.type !== "mode-agent-chat" || tab.id !== tabId || tab.sessionId === sessionId) {
+      return tab;
+    }
+    changed = true;
+    return { ...tab, sessionId };
+  });
+  return changed ? { ...current, tabs } : current;
+}
+
+/** 离开远程控制页时清掉尚未首发的设备对话，避免与主对话共用 workspace 草稿。 */
+export function closeDraftModeAgentChatTabs(
+  current: WorkspaceSidePaneState | null,
+): WorkspaceSidePaneState | null {
+  if (!current) return null;
+  const tabs = current.tabs.filter(
+    (tab) => !(tab.type === "mode-agent-chat" && tab.sessionId === null),
+  );
+  if (tabs.length === current.tabs.length) return current;
+  const activeTabId = tabs.some((tab) => tab.id === current.activeTabId)
+    ? current.activeTabId
+    : (tabs.at(-1)?.id ?? "");
+  return { tabs, activeTabId };
 }
 
 function getNextSelectionSideChatOrdinal(

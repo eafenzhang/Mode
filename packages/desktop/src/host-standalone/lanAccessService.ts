@@ -17,6 +17,7 @@ import {
   type LanAccessRenamePairedPeerParams,
   type LanAccessServerIdParams,
   type LanAccessSetEnabledParams,
+  type LanAccessSetPeerPublicEndpointParams,
   type ServiceCollection,
 } from "@mode/services";
 
@@ -32,6 +33,7 @@ import {
   listLanPairedPeers,
   removeLanPairedPeerRecord,
   renameLanPairedPeerRecord,
+  setLanPairedPeerPublicEndpointRecord,
 } from "../host/lanPairedPeers.js";
 import { pairLanPeer } from "../host/lanRemoteAttach.js";
 import { collectLanAccessWorkspaces } from "../host/lanWorkspaceList.js";
@@ -235,6 +237,8 @@ export async function createLanAccessHostService(
         port: request.port,
         code: request.code,
         ...(request.label ? { label: request.label } : {}),
+        ...(request.scheme ? { scheme: request.scheme } : {}),
+        ...(request.publicBaseUrl ? { publicBaseUrl: request.publicBaseUrl } : {}),
       });
     },
 
@@ -250,6 +254,14 @@ export async function createLanAccessHostService(
 
     async renamePairedPeer(params: LanAccessRenamePairedPeerParams): Promise<void> {
       await renameLanPairedPeerRecord(requireCredentials(), params.serverId, params.name);
+    },
+
+    async setPairedPeerPublicEndpoint(params: LanAccessSetPeerPublicEndpointParams): Promise<void> {
+      await setLanPairedPeerPublicEndpointRecord(
+        requireCredentials(),
+        params.serverId,
+        params.publicBaseUrl,
+      );
     },
 
     onDidChange: onDidChangeEmitter.event,

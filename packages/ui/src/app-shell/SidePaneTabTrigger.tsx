@@ -10,6 +10,7 @@ import {
   FileDiffIcon,
   MapIcon,
   MessageSquareTextIcon,
+  MonitorSmartphoneIcon,
   ListTreeIcon,
   NotepadTextIcon,
   PackageIcon,
@@ -293,6 +294,9 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "workflow-artifact") {
     return <PackageIcon className="size-3.5" />;
   }
+  if (tab.type === "mode-agent-chat") {
+    return <MonitorSmartphoneIcon className="size-3.5" />;
+  }
   if (tab.type === "selection-side-chat") {
     return <MessageSquareTextIcon className="size-3.5" />;
   }
@@ -499,6 +503,9 @@ export function getSidePaneTabTitle(
     return (
       tab.title?.trim() || tab.artifactId || formatMessage({ id: "sidePane.workflowArtifact" })
     );
+  }
+  if (tab.type === "mode-agent-chat") {
+    return tab.device.name.trim() || tab.device.serverName;
   }
   if (tab.type === "selection-side-chat") {
     return `${formatMessage({ id: "sidePane.selectionChat" })} ${tab.ordinal}`;

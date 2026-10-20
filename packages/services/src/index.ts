@@ -82,6 +82,7 @@ export {
   type LanAccessRenamePairedPeerParams,
   type LanAccessServerIdParams,
   type LanAccessSetEnabledParams,
+  type LanAccessSetPeerPublicEndpointParams,
 } from "./lan-access/lanAccessService.js";
 
 // 远程桌面被控设置面（local-only RPC 频道；主控会话在 LR-3 接入）

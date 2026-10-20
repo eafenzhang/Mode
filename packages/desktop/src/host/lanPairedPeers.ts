@@ -1,14 +1,17 @@
 import {
   buildLanPeerMetaKey,
   buildLanPeerTokenKey,
-  lanPeerMetaSchema,
+  dedupeLanPeerEndpoints,
+  parseLanPeerMeta,
+  parseLanPublicBaseUrl,
+  sortLanPeerEndpoints,
   type LanPairedPeer,
   type LanPairedPeerWorkspaces,
   type LanPeerMeta,
 } from "@mode/shared";
 import type { ICredentialService } from "@mode/services";
 
-import { fetchLanPeerInfo, loadLanPeerToken } from "./lanRemoteAttach.js";
+import { fetchLanPeerInfo, isRetryableLanPeerError, loadLanPeerToken } from "./lanRemoteAttach.js";
 
 /**
  * 「我配对的对端」的凭据读写（Host 侧，Electron-free）。
@@ -16,19 +19,10 @@ import { fetchLanPeerInfo, loadLanPeerToken } from "./lanRemoteAttach.js";
  * 这份逻辑原先内联在 Electron Host 的 IPC handler 里。Tauri 的 `lan-access` 频道需要
  * **同一套语义**（只读元数据、令牌不出现、删除让 token/meta 同生命周期收口），
  * 所以抽成唯一实现，两条 Host 线都从这里调用。
+ *
+ * 公网端点（docs/specs/lan-remote-public-endpoints.md）：
+ * meta.endpoints 是唯一地址事实源；host/port 只是列表行的主端点投影（LAN 优先）。
  */
-
-export function parseLanPeerMeta(raw: string | null): LanPeerMeta | null {
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = lanPeerMetaSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * 枚举凭据里的对端记录：只读键名与元数据，不加载令牌本体。
@@ -48,14 +42,16 @@ export async function listLanPairedPeers(
       continue;
     }
     const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(serverId)));
+    const primary = meta?.endpoints[0];
     peers.push(
-      meta
+      meta && primary
         ? {
             serverId,
-            host: meta.host,
-            port: meta.port,
+            host: primary.host,
+            port: primary.port,
+            endpoints: meta.endpoints,
             ...(meta.name ? { name: meta.name } : {}),
-            ...(meta.pairedAt ? { pairedAt: meta.pairedAt } : {}),
+            ...(meta.pairedAt !== undefined ? { pairedAt: meta.pairedAt } : {}),
           }
         : { serverId, host: "", port: 0 },
     );
@@ -104,7 +100,50 @@ export async function renameLanPairedPeerRecord(
   );
 }
 
-/** 用已存令牌访问对端 server-info；令牌缺失/失效都转成可读错误。 */
+/**
+ * 新增/替换/清除公网端点。只接受 HTTPS（docs/specs/lan-remote-public-endpoints.md
+ * 产品规则 2）；令牌、LAN 端点、名称与 pairedAt 不动。
+ */
+export async function setLanPairedPeerPublicEndpointRecord(
+  credentials: ICredentialService,
+  serverId: string,
+  publicBaseUrl: string | null,
+): Promise<void> {
+  const trimmedId = serverId.trim();
+  if (!trimmedId) {
+    throw new Error("缺少 serverId");
+  }
+  const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(trimmedId)));
+  if (!meta) {
+    throw new Error("该配对缺少元数据，无法保存公网地址");
+  }
+  const withoutPublic = meta.endpoints.filter((endpoint) => endpoint.kind !== "public");
+  const trimmedUrl = publicBaseUrl?.trim() ?? "";
+  if (trimmedUrl) {
+    const endpoint = parseLanPublicBaseUrl(trimmedUrl);
+    if (!endpoint) {
+      throw new Error("公网地址必须是 HTTPS，且不能带路径、查询参数或账号信息");
+    }
+    const endpoints = sortLanPeerEndpoints(dedupeLanPeerEndpoints([...withoutPublic, endpoint]));
+    await saveLanPeerMeta(credentials, trimmedId, { ...meta, endpoints });
+    return;
+  }
+  if (withoutPublic.length === 0) {
+    // 只有公网端点的记录不能清成空地址；删除配对才是正确动作。
+    throw new Error("该设备只有公网地址；要移除请直接删除配对");
+  }
+  await saveLanPeerMeta(credentials, trimmedId, { ...meta, endpoints: withoutPublic });
+}
+
+async function saveLanPeerMeta(
+  credentials: ICredentialService,
+  serverId: string,
+  meta: LanPeerMeta,
+): Promise<void> {
+  await credentials.save(buildLanPeerMetaKey(serverId), JSON.stringify(meta));
+}
+
+/** 用已存令牌访问对端 server-info；先 LAN 后公网，失败按端点可重试性决定是否继续。 */
 export async function getLanPairedPeerWorkspaces(
   credentials: ICredentialService,
   serverId: string,
@@ -121,9 +160,27 @@ export async function getLanPairedPeerWorkspaces(
   if (!token) {
     throw new Error("尚未配对");
   }
-  const info = await fetchLanPeerInfo({ host: meta.host, port: meta.port, token });
-  return {
-    ...(info.name ? { name: info.name } : {}),
-    workspaces: info.workspaces,
-  };
+  let lastError: unknown = new Error("对端不可达");
+  for (const endpoint of meta.endpoints) {
+    try {
+      const info = await fetchLanPeerInfo({
+        scheme: endpoint.scheme,
+        host: endpoint.host,
+        port: endpoint.port,
+        token,
+        // 多端点时 LAN 探测预算短一些；公网端点给足 TLS/隧道启动时间。
+        timeoutMs: meta.endpoints.length > 1 && endpoint.kind === "lan" ? 2_500 : 8_000,
+      });
+      return {
+        ...(info.name ? { name: info.name } : {}),
+        workspaces: info.workspaces,
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableLanPeerError(error)) {
+        throw error;
+      }
+    }
+  }
+  throw lastError;
 }

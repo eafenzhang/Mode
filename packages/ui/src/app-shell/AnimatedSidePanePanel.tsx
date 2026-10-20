@@ -43,6 +43,7 @@ import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
 import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";
 import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
+import { ModeAgentChatSidePane } from "@/app-shell/ModeAgentChatSidePane.js";
 import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
 import { WorkflowRunSidePane } from "@/app-shell/WorkflowRunSidePane.js";
@@ -316,6 +317,7 @@ export function AnimatedSidePanePanel({
   onOpenTerminalTab,
   onOpenReviewTab,
   onOpenSelectionSideConversation,
+  onModeAgentChatSessionCreated,
   onRevealGitFileInTree,
   onOpenBrowserUrl,
   onOpenCodeViewer,
@@ -381,6 +383,7 @@ export function AnimatedSidePanePanel({
   onOpenTerminalTab: () => void;
   onOpenReviewTab: () => void;
   onOpenSelectionSideConversation: () => void;
+  onModeAgentChatSessionCreated: (tabId: string, sessionId: string) => void;
   onRevealGitFileInTree?: (path: string) => void;
   onOpenBrowserUrl: (url: string) => void;
   onOpenCodeViewer: (source: CodeViewerSource) => void;
@@ -893,6 +896,7 @@ export function AnimatedSidePanePanel({
         selectionChatTitle: intl.formatMessage({
           id: "sidePane.selectionChat",
         }),
+        modeAgentChatTitle: intl.formatMessage({ id: "sidePane.modeAgentChat" }),
         planTitle: intl.formatMessage({ id: "planTool.panel.planTab" }),
         workflowRunTitle: intl.formatMessage({ id: "sidePane.workflowRun" }),
         workflowDirectoryTitle: intl.formatMessage({ id: "sidePane.workflowDirectory" }),
@@ -1118,6 +1122,16 @@ export function AnimatedSidePanePanel({
                           <SubagentDirectorySidePane
                             tab={tab}
                             onOpenSubagentSession={onOpenSubagentSession}
+                          />
+                        ) : tab.type === "mode-agent-chat" ? (
+                          <ModeAgentChatSidePane
+                            tab={tab}
+                            focused={isVisible && tab.id === visibleActiveTabId}
+                            onSessionCreated={onModeAgentChatSessionCreated}
+                            onSessionDeleted={onCloseTab}
+                            onOpenBrowserUrl={onOpenBrowserUrl}
+                            onOpenCodeViewer={onOpenCodeViewer}
+                            onOpenFileLink={onOpenFileLink}
                           />
                         ) : tab.type === "selection-side-chat" ? (
                           <SelectionSideChatPane

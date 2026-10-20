@@ -164,6 +164,16 @@ export interface LanPairPeerRequest {
   port: number;
   code: string;
   label?: string;
+  /**
+   * 主端点协议；缺省 http（LAN 直连）。https 用于公网地址配对，
+   * 必须能通过证书校验（docs/specs/lan-remote-public-endpoints.md）。
+   */
+  scheme?: "http" | "https";
+  /**
+   * 可选：配对成功后一并记录的公网 HTTPS 基础地址（如 https://rd.example.com）。
+   * 主端点仍是 LAN 时，它作为第二个端点用于外网回退。
+   */
+  publicBaseUrl?: string;
 }
 
 /** 凭据服务键：已配对客户端注册表（JSON 数组）。 */
@@ -189,8 +199,35 @@ export function buildLanPeerMetaKey(serverId: string): string {
   return `lan:peer:${serverId}:meta`;
 }
 
-/** 配对时固化的对端元数据：地址与展示名，用于设置页列表与后续重连展示。 */
-export const lanPeerMetaSchema = z
+/** 对端端点类型：LAN 直连（http）或公网 HTTPS。 */
+export const lanPeerEndpointKindSchema = z.enum(["lan", "public"]);
+export type LanPeerEndpointKind = z.infer<typeof lanPeerEndpointKindSchema>;
+
+/**
+ * 一个已配对对端的可达端点。公网端点只允许 https（docs/specs/lan-remote-public-endpoints.md
+ * 产品规则 2）；schema 允许 http 是为了旧记录迁移与测试夹具，写入端必须校验。
+ */
+export const lanPeerEndpointSchema = z
+  .object({
+    scheme: z.enum(["http", "https"]),
+    host: lanTrimmedString,
+    port: z.number().int().positive().max(65535),
+    kind: lanPeerEndpointKindSchema,
+  })
+  .strict();
+export type LanPeerEndpoint = z.infer<typeof lanPeerEndpointSchema>;
+
+/** v2：一个对端可有多个端点（LAN 优先、公网兜底）。 */
+const lanPeerMetaEndpointsSchema = z
+  .object({
+    endpoints: z.array(lanPeerEndpointSchema).min(1).max(8),
+    name: z.string().trim().optional(),
+    pairedAt: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+/** v1：单地址；读取时迁移为 LAN http 端点，不要求用户重新配对。 */
+const lanPeerMetaLegacySchema = z
   .object({
     host: lanTrimmedString,
     port: z.number().int().positive().max(65535),
@@ -199,7 +236,126 @@ export const lanPeerMetaSchema = z
   })
   .strict();
 
-export type LanPeerMeta = z.infer<typeof lanPeerMetaSchema>;
+/** 配对时固化的对端元数据：端点和展示名，用于设置页列表与后续重连展示。 */
+export const lanPeerMetaSchema = z.union([lanPeerMetaEndpointsSchema, lanPeerMetaLegacySchema]);
+
+/** 归一化后的元数据（v1 已迁移为 endpoints）。 */
+export interface LanPeerMeta {
+  endpoints: LanPeerEndpoint[];
+  name?: string;
+  pairedAt?: number;
+}
+
+/** 端点排序：LAN 在前、公网在后；同类保持原顺序（Array#sort 稳定）。 */
+export function sortLanPeerEndpoints(endpoints: readonly LanPeerEndpoint[]): LanPeerEndpoint[] {
+  return [...endpoints].sort((left, right) => {
+    if (left.kind === right.kind) {
+      return 0;
+    }
+    return left.kind === "lan" ? -1 : 1;
+  });
+}
+
+/** 按 scheme + host + port 去重，保留首次出现的顺序。 */
+export function dedupeLanPeerEndpoints(endpoints: readonly LanPeerEndpoint[]): LanPeerEndpoint[] {
+  const seen = new Set<string>();
+  const result: LanPeerEndpoint[] = [];
+  for (const endpoint of endpoints) {
+    const key = `${endpoint.scheme}://${endpoint.host}:${endpoint.port}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(endpoint);
+  }
+  return result;
+}
+
+/** 把凭据里的原始 JSON 归一化为 v2 元数据；无法识别时返回 null。 */
+export function normalizeLanPeerMeta(value: unknown): LanPeerMeta | null {
+  const parsed = lanPeerMetaSchema.safeParse(value);
+  if (!parsed.success) {
+    return null;
+  }
+  const data = parsed.data;
+  if ("endpoints" in data) {
+    const endpoints = sortLanPeerEndpoints(dedupeLanPeerEndpoints(data.endpoints));
+    if (endpoints.length === 0) {
+      return null;
+    }
+    return {
+      endpoints,
+      ...(data.name ? { name: data.name } : {}),
+      ...(data.pairedAt !== undefined ? { pairedAt: data.pairedAt } : {}),
+    };
+  }
+  return {
+    endpoints: [{ scheme: "http", host: data.host, port: data.port, kind: "lan" }],
+    ...(data.name ? { name: data.name } : {}),
+    ...(data.pairedAt !== undefined ? { pairedAt: data.pairedAt } : {}),
+  };
+}
+
+export function parseLanPeerMeta(raw: string | null): LanPeerMeta | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    return normalizeLanPeerMeta(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 解析公网基础地址：只接受无 userinfo、无 path/query/hash 的 HTTPS 地址；
+ * 允许省略协议（rd.example.com → https://rd.example.com）与端口（默认 443）。
+ * 返回 null = 非法，调用方必须拒绝而不是猜测。
+ */
+export function parseLanPublicBaseUrl(value: string): LanPeerEndpoint | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//iu.test(trimmed);
+  if (hasScheme && !/^https:\/\//iu.test(trimmed)) {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(hasScheme ? trimmed : `https://${trimmed}`);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:") {
+    return null;
+  }
+  if (url.username || url.password) {
+    return null;
+  }
+  if (url.pathname !== "/" && url.pathname !== "") {
+    return null;
+  }
+  if (url.search || url.hash) {
+    return null;
+  }
+  const port = url.port ? Number.parseInt(url.port, 10) : 443;
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    return null;
+  }
+  if (!url.hostname) {
+    return null;
+  }
+  return { scheme: "https", host: url.hostname, port, kind: "public" };
+}
+
+/** 端点展示串：https:443 / http:80 省略端口。 */
+export function formatLanPeerEndpoint(endpoint: LanPeerEndpoint): string {
+  const defaultPort = endpoint.scheme === "https" ? 443 : 80;
+  return `${endpoint.scheme}://${endpoint.host}${
+    endpoint.port === defaultPort ? "" : `:${endpoint.port}`
+  }`;
+}
 
 /** 设置页「我配对的对端」一行；host 为空表示该配对缺少元数据（地址未知，仍可删除）。 */
 export const lanPairedPeerSchema = z
@@ -207,6 +363,7 @@ export const lanPairedPeerSchema = z
     serverId: lanTrimmedString,
     host: z.string(),
     port: z.number().int().nonnegative().max(65535),
+    endpoints: z.array(lanPeerEndpointSchema).optional(),
     name: z.string().optional(),
     pairedAt: z.number().int().nonnegative().optional(),
   })

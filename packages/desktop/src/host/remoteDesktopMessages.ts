@@ -83,12 +83,24 @@ export const RemoteDesktopHostMessageTypes = {
 } as const;
 
 /** 会话关闭原因（host → main）：对端主动 bye / WS 断开 / 内部错误。 */
-export const remoteDesktopSessionClosedReasonSchema = z.enum(["peer-end", "socket-closed", "error"]);
-export type RemoteDesktopSessionClosedReason = z.infer<typeof remoteDesktopSessionClosedReasonSchema>;
+export const remoteDesktopSessionClosedReasonSchema = z.enum([
+  "peer-end",
+  "socket-closed",
+  "error",
+]);
+export type RemoteDesktopSessionClosedReason = z.infer<
+  typeof remoteDesktopSessionClosedReasonSchema
+>;
 
 /** 注入事件（与 crates/mode-cua-ax `parse_raw_event` 的严格口径一致：未知键即拒绝）。 */
 export const remoteDesktopRawInputEventSchema = z.discriminatedUnion("k", [
-  z.object({ k: z.literal("move"), x: z.number().int().min(0).max(65535), y: z.number().int().min(0).max(65535) }).strict(),
+  z
+    .object({
+      k: z.literal("move"),
+      x: z.number().int().min(0).max(65535),
+      y: z.number().int().min(0).max(65535),
+    })
+    .strict(),
   z
     .object({
       k: z.literal("button"),
@@ -107,7 +119,9 @@ export const remoteDesktopRawInputEventSchema = z.discriminatedUnion("k", [
       y: z.number().int().min(0).max(65535),
     })
     .strict(),
-  z.object({ k: z.literal("key"), vk: z.number().int().min(1).max(255), down: z.boolean() }).strict(),
+  z
+    .object({ k: z.literal("key"), vk: z.number().int().min(1).max(255), down: z.boolean() })
+    .strict(),
   z.object({ k: z.literal("text"), text: z.string().min(1).max(4096) }).strict(),
 ]);
 export type RemoteDesktopRawInputEvent = z.infer<typeof remoteDesktopRawInputEventSchema>;
@@ -164,6 +178,10 @@ export const remoteDesktopPeerProbeResultSchema = z
     // 判定设备可连接（docs/specs/lan-remote-desktop-native-media.md 版本门 1）。
     remoteDesktopNative: z.boolean(),
     name: z.string().optional(),
+    // 本次命中的端点类型（docs/specs/lan-remote-public-endpoints.md）：只用于展示路由，
+    // 不参与可用性判定；旧 host 缺省。
+    endpointKind: z.enum(["lan", "public"]).optional(),
+    endpointHost: z.string().optional(),
   })
   .strict();
 

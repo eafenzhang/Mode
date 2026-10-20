@@ -34,7 +34,11 @@
   UI 表现为 `mode:get-lan-access-state` 8s 超时。
 - `LanAccessState` 读取语义：`enabled=false` 时 `clients` 仍返回持久化配对记录（读凭据），
   `port/addresses/pairCode` 为空；只有服务端动作（生成配对码/移除/重置）需要监听在跑。
-- 客户端侧配对元数据 `lan:peer:<serverId>:meta`（`{host, port, name?}`）：在 `pairLanPeer` 换到令牌的同一处写入，与 `lan:peer:<serverId>:token` 同生命周期。
+- 客户端侧配对元数据 `lan:peer:<serverId>:meta`：v2 为
+  `{endpoints: [{scheme, host, port, kind}], name?, pairedAt?}`，端点 LAN 优先、公网 HTTPS
+  兜底；v1 `{host, port, name?}` 读取时迁移为单个 LAN 端点。在 `pairLanPeer` 换到令牌的
+  同一处写入，与 `lan:peer:<serverId>:token` 同生命周期。公网端点规则见
+  [lan-remote-public-endpoints.md](./lan-remote-public-endpoints.md)。
 - 枚举与远端目录获取走平台接口（renderer 不直接枚举凭据）：
   - `getLanPairedPeers(): Promise<LanPairedPeer[]>`
   - `getLanPeerWorkspaces(serverId): Promise<LanPairedPeerWorkspaces>`（host 用已存令牌请求对端 server-info）

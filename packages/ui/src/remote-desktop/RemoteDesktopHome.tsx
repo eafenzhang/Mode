@@ -1,16 +1,16 @@
 /**
- * 远程桌面设备页（docs/specs/lan-remote-desktop.md UI 规则「主视图 · 设备页」）：
- * 列出既有 LAN 配对设备（`getLanPairedPeers`），逐设备拉能力位（`rdGetPeerCapability`）；
- * 能力位缺失/离线/旧对端缺键 → 入口置灰并给出稳定文案；未配对 → 空态引导跳「设置 · 远程控制」。
- * 单卡渲染与卡内交互拆在 RemoteDesktopDeviceCard（max-lines 约束，2026-10-13）。
+ * 远程控制设备页（docs/specs/remote-control-unified-pairing.md）：
+ * 一个本机配对码面板 + 一个设备列表。列表行 = LAN 已配对设备 / Mode Agent 设备 /
+ * 发现的未配对 LAN 设备；三类设备同屏，动作按类型区分。
  *
  * 能力位不缓存：每次进入设备页与点「刷新」都重新探测（旧对端升级后立即生效）。
- * 「检测设备」列表过滤已配对设备（`filterUnpairedDiscoveredPeers`）。
+ * 已配对设备 / 已忽略的发现结果从检测列表过滤。
  */
 import { useCallback, useEffect, useState } from "react";
-import { MonitorSmartphone, RefreshCw, Settings2 } from "lucide-react";
+import { LayoutGrid, List, MonitorSmartphone, Plus, RefreshCw, Settings2 } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
+import type { ModeAgentChatDevice } from "@/lib/workspaceSidePane.js";
 import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { DEFAULT_REMOTE_DESKTOP_QUALITY } from "@mode/shared/remote-desktop";
 import { Button } from "@/ui-foundation/adapters/button.js";
@@ -21,10 +21,14 @@ import { usePlatform } from "@/hooks/usePlatform.js";
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { logger } from "@/logger.js";
 import type { RemoteDesktopDeviceProbe } from "@/remote-desktop/deviceAvailability.js";
-import { RemoteDesktopAddDevice } from "@/remote-desktop/RemoteDesktopAddDevice.js";
-import { ModeAgentDevicesCard } from "@/remote-desktop/ModeAgentDevicesCard.js";
-import { RemoteDesktopDeviceCard } from "@/remote-desktop/RemoteDesktopDeviceCard.js";
+import { filterUnpairedDiscoveredPeers } from "@/remote-desktop/deviceAvailability.js";
+import { RemoteControlDeviceList } from "@/remote-desktop/RemoteControlDeviceList.js";
+import { RemoteControlPairingCodePanel } from "@/remote-desktop/RemoteControlPairingCodePanel.js";
+import { RemoteControlPublicPairing } from "@/remote-desktop/RemoteControlPublicPairing.js";
 import { RemoteDesktopSession } from "@/remote-desktop/RemoteDesktopSession.js";
+import { useDeviceViewMode } from "@/remote-desktop/useDeviceViewMode.js";
+import { useDiscoveredLanPeers } from "@/remote-desktop/useDiscoveredLanPeers.js";
+import { useModeAgentDevices } from "@/remote-desktop/useModeAgentDevices.js";
 
 type PeerListState =
   | { status: "loading" }
@@ -37,11 +41,13 @@ export function RemoteDesktopHome({
   active,
   topOverlayClearancePaddingClass,
   onCreateTask,
+  onOpenModeAgentChat,
   isRemoteWorkspace = false,
 }: {
   isDesktop: boolean;
   isRemoteWorkspace?: boolean;
   onCreateTask?: (request?: CreateTaskRequest) => void;
+  onOpenModeAgentChat?: (request: { device: ModeAgentChatDevice }) => void;
   /** 本页不渲染 WorkspaceHeader，窗控由顶部拖拽区右侧自绘（Windows/Linux）。 */
   showWindowControls?: boolean;
   /** 视图是否当前可见：分支常驻隐藏时为 false（spec UI 规则「切换保持连接」）。 */
@@ -51,6 +57,7 @@ export function RemoteDesktopHome({
 }) {
   const { intl } = useModeIntl();
   const platform = usePlatform();
+  const { viewMode, setViewMode } = useDeviceViewMode();
   // 与其它「跳设置分区」入口同款：先写入待消费分区意图，再由 tab store 打开设置 tab。
   const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
   const [peers, setPeers] = useState<PeerListState>({ status: "loading" });
@@ -62,14 +69,21 @@ export function RemoteDesktopHome({
   } | null>(null);
   // 画质档位（P1-3）：选择入口在会话面顶部操作栏，状态记忆在页级（跨连接保持本次运行的
   // 上次选择）；连接时以该档下发，会话中改档由会话面走「bye + P2-1 重连」重建。
-  // （spec: lan-remote-desktop-native-media.md「画质档位」2026-10-13 入口迁移。）
   const [quality, setQuality] = useState<RemoteDesktopQuality>(DEFAULT_REMOTE_DESKTOP_QUALITY);
-  // 设备管理操作（重命名/删除）跨卡互斥；错误与忙碌态上提到页级，卡片只报事件。
+  // 设备管理操作（重命名/删除）跨行互斥；错误与忙碌态上提到页级，行组件只报事件。
   const [peerActionBusy, setPeerActionBusy] = useState(false);
   const [peerActionError, setPeerActionError] = useState("");
+  const {
+    records: modeAgentRecords,
+    refresh: refreshModeAgents,
+    refreshStatus: refreshModeAgentStatus,
+    startChat: startModeAgentChat,
+    rename: renameModeAgent,
+    remove: removeModeAgent,
+  } = useModeAgentDevices({ isRemoteWorkspace, onCreateTask, onOpenModeAgentChat });
 
   /**
-   * 单设备能力位探测（进页批量探测与卡片「重新检测」共用一条写路径）：
+   * 单设备能力位探测（进页批量探测与行内「重新检测」共用一条写路径）：
    * 先置 probing 再覆盖结果，失败按 probe-failed（能力位不猜测）。
    */
   const probePeer = useCallback(
@@ -116,7 +130,12 @@ export function RemoteDesktopHome({
     }
   }, [platform, probePeer]);
 
-  /** 卡片「重新检测」：只重探该设备，不动列表与其它设备的探测结果。 */
+  const discovered = useDiscoveredLanPeers(loadPeers);
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadPeers(), refreshModeAgents()]);
+  }, [loadPeers, refreshModeAgents]);
+
+  /** 行内「重新检测」：只重探该设备，不动列表与其它设备的探测结果。 */
   const reprobePeer = useCallback(
     (serverId: string) => {
       void probePeer(serverId);
@@ -129,8 +148,9 @@ export function RemoteDesktopHome({
   useEffect(() => {
     if (active && !sessionTarget) {
       void loadPeers();
+      void refreshModeAgents();
     }
-  }, [active, sessionTarget, loadPeers]);
+  }, [active, sessionTarget, loadPeers, refreshModeAgents]);
 
   const openLanAccessSettings = useCallback(() => {
     // 合并后统一指向「远程控制」设置分区（被控 + 本机共享同一分区）。
@@ -141,7 +161,6 @@ export function RemoteDesktopHome({
   // 发起会话由会话面自己完成（先订阅 `rd/session-event` 再 rdStartSession）：
   // main 在「WS 建立 → connected」推送后需要 renderer 立刻回 hello，设备页先起会话
   // 再挂载会话面会丢掉这条推送，握手就停在等 monitors 上。
-  // 画质档位由会话面操作栏选择（页级记忆），此处只带 serverId/name 建目标。
   const connect = useCallback((peer: LanPairedPeer) => {
     setSessionTarget({
       serverId: peer.serverId,
@@ -154,7 +173,7 @@ export function RemoteDesktopHome({
     setSessionTarget(null);
   }, []);
 
-  /** 重命名（卡片编辑态提交）：只改本机记录的名称；成功后刷新列表。抛错由卡片转 onError。 */
+  /** 重命名（行内编辑提交）：只改本机记录的名称；成功后刷新列表。抛错由行转 onError。 */
   const renamePeer = useCallback(
     async (serverId: string, name: string) => {
       setPeerActionBusy(true);
@@ -169,13 +188,28 @@ export function RemoteDesktopHome({
     [loadPeers, platform],
   );
 
-  /** 删除（卡片两段式确认后执行）：清配对令牌与元数据，成功后刷新列表。 */
+  /** 删除（行内两段确认后执行）：清配对令牌与元数据，成功后刷新列表。 */
   const deletePeer = useCallback(
     async (serverId: string) => {
       setPeerActionBusy(true);
       setPeerActionError("");
       try {
         await platform.removeLanPairedPeer(serverId);
+        await loadPeers();
+      } finally {
+        setPeerActionBusy(false);
+      }
+    },
+    [loadPeers, platform],
+  );
+
+  /** 公网地址编辑：只改本机端点元数据，令牌与 LAN 端点不动；成功后刷新列表。 */
+  const setPublicAddress = useCallback(
+    async (serverId: string, publicBaseUrl: string | null) => {
+      setPeerActionBusy(true);
+      setPeerActionError("");
+      try {
+        await platform.setLanPeerPublicAddress(serverId, publicBaseUrl);
         await loadPeers();
       } finally {
         setPeerActionBusy(false);
@@ -199,8 +233,14 @@ export function RemoteDesktopHome({
 
   const peerList = peers.status === "ok" ? peers.peers : [];
   const pairedServerIds = peerList.map((peer) => peer.serverId);
+  const { visible: visibleDiscovered, hiddenCount } = filterUnpairedDiscoveredPeers(
+    discovered.peers,
+    pairedServerIds,
+  );
+  const hasDevices =
+    peerList.length > 0 || modeAgentRecords.length > 0 || visibleDiscovered.length > 0;
 
-  // 设备页与自动化/插件市场同款：面包屑/桌面拖拽顶栏 + 共享标题排版（spec: lan-remote-desktop UI 规则）。
+  // 设备页与自动化/插件市场同款：面包屑/桌面拖拽顶栏 + 共享标题排版。
   // 会话面（上方 sessionTarget 分支）保持整块无外框，视频占满主视图。
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -212,26 +252,73 @@ export function RemoteDesktopHome({
       >
         <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6">
-            <header className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground lg:text-3xl">
-                  {intl.formatMessage({ id: "remoteDesktop.title" })}
-                </h1>
-                <p className="mt-1 text-ui-base text-foreground-subtle">
+            <header className="space-y-5">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground lg:text-3xl">
+                {intl.formatMessage({ id: "remoteDesktop.title" })}
+              </h1>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <p className="min-w-0 flex-1 text-ui-base leading-6 text-foreground-subtle">
                   {intl.formatMessage({ id: "remoteDesktop.description" })}
                 </p>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={viewMode === "list" ? "default" : "outline"}
+                    size="icon"
+                    data-testid="remote-control-view-list"
+                    title={intl.formatMessage({ id: "remoteDesktop.devices.view.list" })}
+                    aria-label={intl.formatMessage({ id: "remoteDesktop.devices.view.list" })}
+                    onClick={() => setViewMode("list")}
+                  >
+                    <List className="size-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={viewMode === "grid" ? "default" : "outline"}
+                    size="icon"
+                    data-testid="remote-control-view-grid"
+                    title={intl.formatMessage({ id: "remoteDesktop.devices.view.grid" })}
+                    aria-label={intl.formatMessage({ id: "remoteDesktop.devices.view.grid" })}
+                    onClick={() => setViewMode("grid")}
+                  >
+                    <LayoutGrid className="size-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    data-testid="remote-control-refresh"
+                    title={intl.formatMessage({ id: "remoteDesktop.devices.refresh" })}
+                    aria-label={intl.formatMessage({ id: "remoteDesktop.devices.refresh" })}
+                    disabled={peers.status === "loading" || discovered.scanning}
+                    onClick={() => void refreshAll()}
+                  >
+                    <RefreshCw className="size-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    data-testid="remote-control-scan"
+                    disabled={discovered.scanning}
+                    onClick={() => void discovered.scan()}
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                    {intl.formatMessage({
+                      id: discovered.scanning
+                        ? "remoteDesktop.devices.scanning"
+                        : "remoteDesktop.devices.scan",
+                    })}
+                  </Button>
+                </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={peers.status === "loading"}
-                onClick={() => void loadPeers()}
-              >
-                <RefreshCw className="size-4" />
-                {intl.formatMessage({ id: "remoteDesktop.devices.refresh" })}
-              </Button>
             </header>
+
+            {isDesktop && !isRemoteWorkspace ? (
+              <>
+                <RemoteControlPairingCodePanel active={active} />
+                <RemoteControlPublicPairing onPaired={loadPeers} />
+              </>
+            ) : null}
 
             {peerActionError ? (
               <p className="rounded-lg border border-border bg-card px-3 py-2 text-ui-base text-destructive">
@@ -239,7 +326,7 @@ export function RemoteDesktopHome({
               </p>
             ) : null}
 
-            {/* 本机被控中：整页置灰的根因横幅（逐卡还有同样的原因文案）。 */}
+            {/* 本机被控中：整页置灰的根因横幅（逐行还有同样的原因文案）。 */}
             {locallyControlled ? (
               <p
                 data-testid="remote-desktop-locally-controlled"
@@ -249,32 +336,16 @@ export function RemoteDesktopHome({
               </p>
             ) : null}
 
-            {/* Mode Agent 被控端：配对后自动写入 HTTP MCP，并可直接发起对话。
-                远程 workspace 的 MCP 配置属于对端 Host，不能把本机被控端写进去。 */}
-            {isRemoteWorkspace ? null : <ModeAgentDevicesCard onCreateTask={onCreateTask} />}
+            {discovered.scanError ? (
+              <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-ui-base text-warning">
+                {discovered.scanError}
+              </p>
+            ) : null}
 
-            {/* 「检测设备 + 配对」在本页完成（从远程连接向导前移）；配对成功刷新设备列表。 */}
-            <RemoteDesktopAddDevice onPaired={loadPeers} pairedServerIds={pairedServerIds} />
-
-            {peers.status === "loading" ? (
-              <div className="grid gap-3 sm:grid-cols-2" data-testid="remote-desktop-loading">
-                {[0, 1].map((key) => (
-                  <div
-                    key={key}
-                    aria-hidden="true"
-                    className="flex animate-pulse flex-col overflow-hidden rounded-xl border border-border bg-card"
-                  >
-                    <div className="flex flex-col gap-3 p-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-5 w-14 shrink-0 rounded-full bg-surface" />
-                        <div className="h-3 w-1/2 rounded bg-surface" />
-                      </div>
-                      <div className="aspect-[16/9] w-full rounded-lg bg-surface" />
-                    </div>
-                    <div className="h-9 border-t border-border" />
-                  </div>
-                ))}
-              </div>
+            {peers.status === "loading" && !hasDevices ? (
+              <p className="rounded-lg border border-border bg-card px-3 py-2 text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "remoteDesktop.devices.loading" })}
+              </p>
             ) : null}
 
             {peers.status === "error" ? (
@@ -287,46 +358,76 @@ export function RemoteDesktopHome({
                   variant="outline"
                   size="sm"
                   className="mt-3"
-                  onClick={() => void loadPeers()}
+                  onClick={() => void refreshAll()}
                 >
                   {intl.formatMessage({ id: "remoteDesktop.devices.retry" })}
                 </Button>
               </div>
             ) : null}
 
-            {peers.status === "ok" && peerList.length === 0 ? (
+            {peers.status === "ok" && !hasDevices && !discovered.scanning ? (
               <div
-                data-testid="remote-desktop-empty"
+                data-testid="remote-control-empty"
                 className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-surface px-4 py-10 text-center"
               >
                 <MonitorSmartphone className="size-6 text-foreground-subtlest" />
                 <p className="max-w-md text-ui-base text-foreground-subtle">
-                  {intl.formatMessage({ id: "remoteDesktop.devices.empty" })}
+                  {intl.formatMessage({ id: "remoteDesktop.devices.emptyAll" })}
                 </p>
-                <Button type="button" variant="outline" size="sm" onClick={openLanAccessSettings}>
-                  <Settings2 className="size-4" />
-                  {intl.formatMessage({ id: "remoteDesktop.devices.openLanAccess" })}
-                </Button>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void discovered.scan()}
+                  >
+                    <Plus className="size-4" />
+                    {intl.formatMessage({ id: "remoteDesktop.devices.scan" })}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={openLanAccessSettings}>
+                    <Settings2 className="size-4" />
+                    {intl.formatMessage({ id: "remoteDesktop.devices.openLanAccess" })}
+                  </Button>
+                </div>
               </div>
             ) : null}
 
-            {peerList.length > 0 ? (
-              <ul className="grid gap-3 sm:grid-cols-2" data-testid="remote-desktop-devices">
-                {peerList.map((peer) => (
-                  <RemoteDesktopDeviceCard
-                    key={peer.serverId}
-                    peer={peer}
-                    probe={probes[peer.serverId]}
-                    locallyControlled={locallyControlled}
-                    busy={peerActionBusy}
-                    onRename={renamePeer}
-                    onDelete={deletePeer}
-                    onReprobe={reprobePeer}
-                    onConnect={connect}
-                    onError={setPeerActionError}
-                  />
-                ))}
-              </ul>
+            {hasDevices ? (
+              <RemoteControlDeviceList
+                lanPeers={peerList}
+                probes={probes}
+                modeAgents={modeAgentRecords}
+                discovered={visibleDiscovered}
+                viewMode={viewMode}
+                locallyControlled={locallyControlled}
+                busy={peerActionBusy}
+                onConnect={connect}
+                onRename={renamePeer}
+                onDelete={deletePeer}
+                onSetPublicAddress={setPublicAddress}
+                onReprobe={reprobePeer}
+                onStartChat={startModeAgentChat}
+                onRefreshModeAgent={refreshModeAgentStatus}
+                onRenameModeAgent={renameModeAgent}
+                onRemoveModeAgent={removeModeAgent}
+                onPairDiscovered={discovered.pair}
+                onDismissDiscovered={discovered.dismiss}
+                onError={setPeerActionError}
+              />
+            ) : null}
+
+            {hiddenCount > 0 ? (
+              <p className="text-ui-xs text-foreground-subtlest">
+                {intl.formatMessage(
+                  { id: "remoteDesktop.addDevice.pairedHidden" },
+                  { count: String(hiddenCount) },
+                )}
+              </p>
+            ) : null}
+            {discovered.scanning ? (
+              <p className="text-ui-xs text-foreground-subtlest">
+                {intl.formatMessage({ id: "remoteDesktop.devices.scanning" })}
+              </p>
             ) : null}
           </div>
         </div>

@@ -283,6 +283,9 @@ export interface RemoteDesktopPeerCapability {
   remoteDesktopNative: boolean;
   online: boolean;
   name?: string;
+  /** 本次探测命中的端点类型（LAN 优先、公网回退）；离线时缺省。 */
+  endpointKind?: "lan" | "public";
+  endpointHost?: string;
 }
 
 // ---- 主控会话（LR-3）----

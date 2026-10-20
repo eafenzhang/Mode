@@ -167,6 +167,15 @@ const fakeLanAccess = {
   renamePairedPeer: async ({ serverId, name }: { serverId: string; name: string }) => {
     calls.push(`host.renamePairedPeer:${serverId}:${name}`);
   },
+  setPairedPeerPublicEndpoint: async ({
+    serverId,
+    publicBaseUrl,
+  }: {
+    serverId: string;
+    publicBaseUrl: string | null;
+  }) => {
+    calls.push(`host.setPairedPeerPublicEndpoint:${serverId}:${publicBaseUrl ?? "clear"}`);
+  },
   onDidChange: () => ({ dispose() {} }),
 } satisfies ILanAccessService;
 
@@ -357,6 +366,7 @@ test("Tauri + Host 服务：LAN 调用委托 Host，不碰 window.mode", async (
   assert.equal(await platform.removeLanAccessClient("client-1"), HOST_STATE);
   await platform.removeLanPairedPeer("server-1");
   await platform.renameLanPairedPeer("server-2", "Desk");
+  await platform.setLanPeerPublicAddress("server-4", "https://rd.example.com");
   await platform.getLanPeerWorkspaces("server-3");
   assert.deepEqual(calls, [
     "host.getState",
@@ -364,6 +374,7 @@ test("Tauri + Host 服务：LAN 调用委托 Host，不碰 window.mode", async (
     "host.removeClient:client-1",
     "host.removePairedPeer:server-1",
     "host.renamePairedPeer:server-2:Desk",
+    "host.setPairedPeerPublicEndpoint:server-4:https://rd.example.com",
     "host.getPeerWorkspaces:server-3",
   ]);
   assert.equal(
@@ -406,6 +417,10 @@ test("Tauri 且无 Host 服务：删除/重命名显式拒绝，不回落成静�
   });
   await assert.rejects(platform.removeLanPairedPeer("server-1"), /Host 服务不可用/u);
   await assert.rejects(platform.renameLanPairedPeer("server-1", "x"), /Host 服务不可用/u);
+  await assert.rejects(
+    platform.setLanPeerPublicAddress("server-1", "https://rd.example.com"),
+    /Host 服务不可用/u,
+  );
   assert.equal(calls.includes("mode.removeLanPairedPeer"), false);
   assert.equal(calls.includes("mode.renameLanPairedPeer"), false);
 });

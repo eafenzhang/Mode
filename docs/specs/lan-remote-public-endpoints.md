@@ -1,0 +1,240 @@
+# 公网远程桌面端点（LAN 优先 + HTTPS/WSS 回退）
+
+状态：2026-10-21 实现中。关联：
+[in-app-remote-desktop.md](./in-app-remote-desktop.md)（远控产品规则）、
+[lan-remote-desktop-native-media.md](./lan-remote-desktop-native-media.md)（媒体面）、
+[lan-remote-attach.md](./lan-remote-attach.md)（挂接握手）、
+[remote-control-unified-pairing.md](./remote-control-unified-pairing.md)（统一配对码与设备列表）。
+
+## 背景与目标
+
+现役远控只在 LAN/Tailscale 直连下工作：对端地址被写成 `http://host:port`，信令与媒体
+WebSocket 固定 `ws://`，且一个已配对设备只保存一个地址。用户已有域名与 fnOS，能通过
+反向隧道把 Windows 被控端的 45880 暴露到公网，但客户端没有 HTTPS/WSS 与多端点能力，
+因此公网链路无法使用。
+
+本 spec 只解决**客户端侧的公网端点与连接顺序**。隧道/证书由用户自建（推荐 frp + 在
+Windows 被控端终止 TLS），仓库不新增 relay、NAT 穿透或打洞实现；这些仍属
+[in-app-remote-desktop.md](./in-app-remote-desktop.md) 的 P3。
+
+```text
+外部主控 ── https/wss://rd.example.com:443 ──► fnOS 反向隧道（只转 TCP）
+                                                     │
+                                                     ▼
+                                          Windows 被控端 Caddy（TLS 终止）
+                                                     │
+                                                     ▼
+                                              127.0.0.1:45880
+
+局域网主控 ── http/ws://192.168.x.x:45880 ──► Windows 被控端（路径不变）
+```
+
+## 产品规则
+
+1. **一个已配对设备可有多个端点**：LAN 端点（`http`）与公网端点（`https`）并存；
+   每个端点包含 `scheme` / `host` / `port` / `kind`。旧记录（只有 `host` + `port`）
+   在读取时按 LAN `http` 端点迁移，不要求用户重新配对。
+2. **公网端点必须是 HTTPS**：`kind = "public"` 只接受 `https`，并据此使用 `wss` 建
+   信令/媒体 WebSocket。拒绝 `http` 公网端点，**不允许静默降级到明文**。
+3. **LAN 优先、公网回退**：连接按 LAN → 公网的顺序尝试；有多个端点时 LAN 探测预算
+   短（2.5s），公网探测预算 8s；只有一个端点时沿用既有 10s。选择顺序由持久化的
+   `endpoints` 数组决定，LAN 端点始终排在公网端点之前。
+4. **对端级错误不重试另一个端点**：探测阶段只有传输失败/超时/5xx/404/协议不符才
+   切换端点；401/403 与合法 `server-info` 立即收口（同一令牌在另一个端点也不会更好）。
+   会话阶段先探测选出可达端点，再向该端点 POST；POST 返回的 `busy`、`consent_denied`、
+   `disabled`、`unauthorized`、`unsupported` 等都是对端级结果，**不得再向另一个端点
+   重发**，避免重复弹同意窗或重复占用会话。
+5. **配对**：
+   - LAN 配对路径不变（发现/手动地址 + 6 位码）。
+   - 已配对设备可在设备行新增/替换/清除公网地址；只改本机凭据里的端点，不动令牌。
+   - 远程控制页提供“公网地址 + 配对码”入口，允许在无法直连 LAN 时直接用 HTTPS
+     地址完成首次配对；成功后该设备以公网端点进入统一设备列表。
+   - 重复配对同一 `serverId` 时合并端点：本次配对的端点优先作为主地址；已有 LAN
+     端点保留在后；新配对带公网端点时替换旧公网端点，不带时保留已配置的公网端点。
+     令牌以本次配对下发的为准。
+6. **展示**：设备行显示主地址与公网地址；探测结果附带本次命中的端点类型
+   （`lan` / `public`），状态胶囊与“进入桌面”可用性判定保持既有口径（在线 + 能力位 +
+   原生媒体面版本门）。
+7. **局域网能力保留**：UDP 发现、配对码、LAN `http/ws` 直连、Tailscale 单播探测全部
+   不变；公网端点只是附加路径。
+
+## 状态所有者
+
+| 状态 | 唯一所有者 | 说明 |
+| --- | --- | --- |
+| 对端令牌 + 端点元数据 | Host 凭据服务（键 `lan:peer:<serverId>:token` / `:meta`） | 写入只经 `pairLanPeer` 与 `setPairedPeerPublicEndpoint` |
+| 端点编辑命令 | `lan-access` Host 服务（`ILanAccessService`） | renderer 只发命令并重读列表 |
+| 探测/会话端点选择 | `remoteDesktopPeerClient` | 只读凭据；不缓存、不持久化选择结果 |
+| 设备页探测状态 | `RemoteDesktopHome` 页级瞬态 | 与既有能力位探测同一所有者 |
+
+`remoteDesktopPeerClient` 不保存“上次成功的端点”；每次探测/会话重新按顺序尝试，避免
+网络切换后使用陈旧路由。写入端点的两个入口都做 HTTPS 校验，`kind` 不允许由调用方
+伪造为 `public` + `http`。
+
+## 接口
+
+### 共享 schema（`packages/shared/src/lanAccess.ts`）
+
+```ts
+type LanPeerEndpointKind = "lan" | "public";
+interface LanPeerEndpoint {
+  scheme: "http" | "https";
+  host: string;
+  port: number;
+  kind: LanPeerEndpointKind;
+}
+interface LanPeerMeta {
+  endpoints: LanPeerEndpoint[];
+  name?: string;
+  pairedAt?: number;
+}
+```
+
+- `lanPeerMetaSchema` 同时接受 v2（`endpoints`）与 v1（`host`/`port`）；v1 在
+  `parseLanPeerMeta` 中迁移为单个 LAN 端点。
+- `LanPairPeerRequest` 增加可选 `scheme?: "http" | "https"` 与
+  `publicBaseUrl?: string`；`publicBaseUrl` 支持 `rd.example.com[:port]` 简写，
+  统一按 HTTPS 解析，缺省端口 443。
+- `LanPairedPeer` 增加 `endpoints?: LanPeerEndpoint[]`；`host`/`port` 保留为主端点
+  （LAN 优先），兼容既有 UI/测试。
+- 公网 URL 解析器只接受无 userinfo、无 path/query/hash 的 HTTPS 地址；端口缺省 443。
+
+### Host 服务
+
+- `pairLanPeer({ host, port, code, scheme?, publicBaseUrl? })`：按主端点 scheme 发
+  `POST /api/lan/pair`，成功后把主端点与可选公网端点一起写入 meta。
+- `ILanAccessService.setPairedPeerPublicEndpoint({ serverId, publicBaseUrl })`：
+  `publicBaseUrl = null` 清除公网端点；清除后若没有其它端点则拒绝（提示直接删除配对）。
+  新增时替换已有公网端点，保留 LAN 端点、名称与令牌。
+- `probeRemoteDesktopPeer` / `openRemoteDesktopPeerSession` / `getLanPairedPeerWorkspaces`
+  统一按端点数组尝试；会话 URL 的 WebSocket 协议由端点 scheme 推导：
+  `https → wss`，`http → ws`。
+- `RemoteDesktopPeerCapability` 增加可选 `endpointKind` / `endpointHost`，只用于展示
+  本次命中的路由，不参与可用性判定。
+
+### UI
+
+- `RemoteControlPublicPairing`：HTTPS 地址 + 配对码，调用 `pairLanPeer({ scheme: "https" })`。
+- `RemoteControlLanPeerRow`：新增“公网地址”编辑入口；保存/清除后由设备页重读列表。
+- 设备行地址显示主端点，并在存在公网端点时追加 `· 公网 <host>`；探测命中公网时
+  详情文案标注“公网”。
+
+## 事件顺序
+
+```text
+① 配对（LAN）
+主控 ── POST http://<lan>:45880/api/lan/pair ──► 被控
+     ◄── {token, serverId} ── 写 meta{endpoints:[LAN, (可选)公网]}
+
+② 配对（公网）
+主控 ── POST https://<domain>/api/lan/pair ──► 隧道 ──► 被控
+     ◄── {token, serverId} ── 写 meta{endpoints:[公网]}
+
+③ 探测
+probeRemoteDesktopPeer → meta.endpoints
+  LAN 端点（若有）── GET /api/server-info（2.5s）──►
+    成功：返回 online + endpointKind=lan
+    可重试失败：下一个端点
+  PUBLIC 端点 ── GET https://.../api/server-info（8s）──►
+    成功：返回 online + endpointKind=public
+    失败：online:false
+
+④ 会话
+openRemoteDesktopPeerSession → 先探测选端点
+  ── POST <endpoint>/api/remote-desktop/session（90s，含同意窗）──►
+    成功：wsUrl/mediaUrl 用同一个端点的 scheme（https→wss）
+    对端级错误：原样返回稳定错误码，不再换端点
+
+⑤ 编辑公网地址
+UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS → 替换/清除 ──► 保存
+   ── 重读 listPairedPeers → 重新探测
+```
+
+## 失败语义
+
+- 公网地址不是 HTTPS、带 path/query/userinfo、端口非法 → 命令拒绝，UI 显示可读错误。
+- 证书不受信任/主机名不匹配 → 传输失败；**不回退到 http**，设备显示离线或内部错误。
+- LAN 端点不可达但公网可达 → 回退成功，设备在线；会话只向公网端点请求。
+- LAN 端点返回 401/403 → 直接收口（同一令牌），不尝试公网。
+- 会话 POST 返回 `busy` / `consent_denied` / `consent_timeout` / `disabled` /
+  `unauthorized` / `unsupported` / `locally_controlled` → 原样返回，不重发。
+- 所有端点都不可达 → 探测 `online:false`；会话返回 `internal`（保留最后一条传输错误
+  的可读文案）。
+- 旧 meta（只有 `host`/`port`）→ 按 LAN `http` 端点读取；重命名/删除/工作区读取行为不变。
+
+## 安全边界
+
+- 公网端点强制 TLS；令牌仍走 query/cookie，禁止在公网用明文 HTTP。
+- **TLS 应终止在被控 Windows 机器**（本地 Caddy/nginx），隧道只转 TCP 密文；若 TLS 在
+  第三方 relay 终止，relay 能看到明文令牌、键鼠事件与剪贴板上行——这需要先把上行
+  消息纳入端到端加密，属于 P3，不在本 spec。
+- 下行媒体仍是逐帧 AES-256-GCM；`wss` 只保护传输层，不替代媒体加密。
+- 日志不写令牌、`mediaTicket`、配对码或完整 URL query；只记录端点 kind/host 与错误类别。
+
+## 验收场景
+
+1. 旧记录迁移：凭据里只有 `{host,port,name}` 时，设备列表仍显示、可探测、可进入桌面。
+2. LAN 配对后新增 `https://rd.example.com`：设备行显示两个端点；在 LAN 内连接命中
+   `lan`；断开局域网/离开后连接命中 `public`，画面、输入、剪贴板正常。
+3. 公网地址配对：无 LAN 直连时输入 HTTPS 地址 + 6 位码，配对成功并出现在设备列表。
+4. 公网地址输成 `http://`、带 path 或端口非法 → 拒绝并提示；`https` 自签证书失败时
+   不降级到 http。
+5. 会话端点级错误（如 `busy`）只出现一次请求，不向另一端点重发（抓包/日志断言）。
+6. 清除公网地址后回到仅 LAN；只有公网端点的设备拒绝清除并提示删除配对。
+7. LAN 发现、配对码、Tailscale 直连、既有远程工作区挂接不回归。
+8. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 与相关 Node 测试全绿。
+
+## 部署示例（fnOS + frp + Windows Caddy，TLS 终止在被控端）
+
+以下只是参考拓扑，不是代码依赖；把 TLS 放在 Windows 被控端，fnOS 只看得到密文。
+
+1. **DNS**：`rd.example.com` 的 A/AAAA 指向 fnOS 公网 IP（动态 IP 用 DDNS）。
+2. **fnOS** `frps.toml`：
+   ```toml
+   bindPort = 7000
+   auth.method = "token"
+   auth.token = "<长随机串>"
+   ```
+   若 fnOS 的 443 已被网关占用，把下面的 `remotePort` 改成 8443，客户端地址相应写成
+   `https://rd.example.com:8443`。
+3. **Windows 被控端** `frpc.toml`：
+   ```toml
+   serverAddr = "rd.example.com"
+   serverPort = 7000
+   auth.method = "token"
+   auth.token = "<同一个长随机串>"
+
+   [[proxies]]
+   name = "rd-tls"
+   type = "tcp"
+   localIP = "127.0.0.1"
+   localPort = 8443
+   remotePort = 443
+   ```
+4. **Windows 被控端** `Caddyfile`（证书用 DNS-01 签发，80 端口不必暴露）：
+   ```caddyfile
+   rd.example.com:8443 {
+     tls C:\certs\rd.example.com\fullchain.pem C:\certs\rd.example.com\privkey.pem
+     reverse_proxy 127.0.0.1:45880
+   }
+   ```
+   Caddy 自动处理 WebSocket upgrade；证书续期后 reload。
+5. **防火墙**：fnOS 只开 443/7000；Windows 的 8443 只允许回环，45880 只允许局域网；
+   Windows 不需要入站 443。
+6. **配对**：主控在远程控制页的「公网设备」填入 `https://rd.example.com` + 被控端生成的
+   6 位码；或在 LAN 内先配对，再用设备行的「公网地址」补上域名。之后探测与会话按
+   LAN → 公网自动选择。
+
+注意：推荐 Let's Encrypt 等公共 CA；自签证书需要给 Host sidecar 配置
+`NODE_EXTRA_CA_CERTS`，并让 Windows/Tauri 信任根证书，否则 TLS 握手会失败（且不会
+回退到 http）。fnOS 若在 CGNAT 后面，域名无法直接解析到它，需要一台有公网 IP 的
+中转或 Tailscale/WireGuard 之类的叠加网。
+
+## 非目标
+
+- 不实现内建 relay、NAT 穿透、打洞、frp/Caddy 安装器；隧道与证书由用户自建。
+- 不实现手机/浏览器远控（Web 端 `rd*` 仍是 stub；需要独立立项）。
+- 不把远程工作区 attach 的 `RemoteTarget` 扩成 HTTPS（本次只覆盖远程桌面；向导的
+  LAN 手动地址仍按 HTTP 连接）。
+- 不在公网端点上做自动发现；公网地址必须由用户显式配置。
+- 不做上行输入/剪贴板的端到端加密（TLS 终止在中继时的前提，属 P3）。
