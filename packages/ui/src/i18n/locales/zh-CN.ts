@@ -686,7 +686,7 @@ const zhCN: Record<string, string> = {
   "bots.botTokenDescription.weixin": "扫码后自动保存凭据。",
   "bots.botTokenDescription.webhook": "用于连接这个 Webhook 机器人。",
   "bots.botTokenDescription.wecom": "扫码一键创建，或手动填写机器人凭据。",
-  "bots.wecom.credentialsMissing": "尚未配置企业微信机器人凭据。",
+  "bots.wecom.credentialsMissing": "企业微信凭据未配置。",
   "bots.wecom.registrationTitle": "扫码创建机器人",
   "bots.wecom.registrationDescription":
     "企业微信扫码一键创建机器人并自动填入 botId 与 secret，无需公网回调。",

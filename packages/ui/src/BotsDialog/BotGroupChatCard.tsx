@@ -62,10 +62,9 @@ export function BotGroupChatCard({
   };
 
   return (
-    <div className="space-y-3">
+    <div>
       <SettingsRow
         label={intl.formatMessage({ id: "bots.groupChat.title" })}
-        layout="stacked"
         description={intl.formatMessage(
           {
             id:
@@ -116,91 +115,95 @@ export function BotGroupChatCard({
         }
       />
 
-      {actionError ? <p className="text-xs text-[var(--error)]">{actionError}</p> : null}
+      <div className="mt-1 space-y-3 px-4 pb-3">
+        {actionError ? <p className="text-ui-caption text-destructive">{actionError}</p> : null}
 
-      {pending.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-[var(--warning)]">
-            {intl.formatMessage({ id: "bots.groupChat.permissions.pending" })}
-          </p>
-          {pending.map((permission) => (
-            <div
-              key={permission.groupId}
-              className="flex items-center justify-between gap-3 rounded-lg border border-[var(--warning)]/20 bg-[var(--warning)]/5 px-3 py-2"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm text-[var(--ink)]">
-                  {permission.groupName || permission.groupId}
-                </p>
-                <p className="text-xs text-[var(--ink-muted)]">{permission.groupId}</p>
-              </div>
-              <div className="flex shrink-0 gap-1.5">
-                <button
-                  type="button"
-                  disabled={busyGroupId === permission.groupId || !onApproveGroup}
-                  onClick={() =>
-                    void runGroupAction(permission.groupId, () =>
-                      onApproveGroup!(permission.groupId),
-                    )
-                  }
-                  className="rounded-md bg-[var(--accent)] px-2.5 py-1 text-xs text-[var(--on-accent)] disabled:opacity-50"
-                >
-                  {intl.formatMessage({ id: "bots.groupChat.permissions.approve" })}
-                </button>
-                <button
-                  type="button"
-                  disabled={busyGroupId === permission.groupId || !onRejectGroup}
-                  onClick={() =>
-                    void runGroupAction(permission.groupId, () =>
-                      onRejectGroup!(permission.groupId),
-                    )
-                  }
-                  className="rounded-md bg-[var(--paper-inset)] px-2.5 py-1 text-xs text-[var(--ink-muted)] disabled:opacity-50"
-                >
-                  {intl.formatMessage({ id: "bots.groupChat.permissions.reject" })}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {approved.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-[var(--ink-muted)]">
-            {intl.formatMessage({ id: "bots.groupChat.permissions.approved" })}
-          </p>
-          {approved.map((permission) => (
-            <div
-              key={permission.groupId}
-              className="flex items-center justify-between gap-3 rounded-lg bg-[var(--paper-inset)] px-3 py-2"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm text-[var(--ink)]">
-                  {permission.groupName || permission.groupId}
-                </p>
-                <p className="text-xs text-[var(--ink-muted)]">{permission.groupId}</p>
-              </div>
-              <button
-                type="button"
-                disabled={busyGroupId === permission.groupId || !onRemoveGroup}
-                onClick={() =>
-                  void runGroupAction(permission.groupId, () => onRemoveGroup!(permission.groupId))
-                }
-                className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--ink-muted)] hover:text-[var(--error)] disabled:opacity-50"
+        {pending.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-ui-caption font-medium text-warning">
+              {intl.formatMessage({ id: "bots.groupChat.permissions.pending" })}
+            </p>
+            {pending.map((permission) => (
+              <div
+                key={permission.groupId}
+                className="flex items-center justify-between gap-3 rounded-lg border border-warning/20 bg-warning/5 px-3 py-2"
               >
-                {intl.formatMessage({ id: "bots.groupChat.permissions.remove" })}
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
+                <div className="min-w-0">
+                  <p className="truncate text-ui-base text-foreground">
+                    {permission.groupName || permission.groupId}
+                  </p>
+                  <p className="text-ui-caption text-foreground-subtle">{permission.groupId}</p>
+                </div>
+                <div className="flex shrink-0 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={busyGroupId === permission.groupId || !onApproveGroup}
+                    onClick={() =>
+                      void runGroupAction(permission.groupId, () =>
+                        onApproveGroup!(permission.groupId),
+                      )
+                    }
+                    className="rounded-md bg-primary px-2.5 py-1 text-ui-caption text-primary-foreground disabled:opacity-50"
+                  >
+                    {intl.formatMessage({ id: "bots.groupChat.permissions.approve" })}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyGroupId === permission.groupId || !onRejectGroup}
+                    onClick={() =>
+                      void runGroupAction(permission.groupId, () =>
+                        onRejectGroup!(permission.groupId),
+                      )
+                    }
+                    className="rounded-md bg-surface px-2.5 py-1 text-ui-caption text-foreground-subtle disabled:opacity-50"
+                  >
+                    {intl.formatMessage({ id: "bots.groupChat.permissions.reject" })}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
-      {permissions.length === 0 ? (
-        <p className="text-xs text-[var(--ink-muted)]">
-          {intl.formatMessage({ id: "bots.groupChat.permissions.empty" })}
-        </p>
-      ) : null}
+        {approved.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-ui-caption font-medium text-foreground-subtle">
+              {intl.formatMessage({ id: "bots.groupChat.permissions.approved" })}
+            </p>
+            {approved.map((permission) => (
+              <div
+                key={permission.groupId}
+                className="flex items-center justify-between gap-3 rounded-lg bg-surface px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-ui-base text-foreground">
+                    {permission.groupName || permission.groupId}
+                  </p>
+                  <p className="text-ui-caption text-foreground-subtle">{permission.groupId}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busyGroupId === permission.groupId || !onRemoveGroup}
+                  onClick={() =>
+                    void runGroupAction(permission.groupId, () =>
+                      onRemoveGroup!(permission.groupId),
+                    )
+                  }
+                  className="shrink-0 rounded-md px-2.5 py-1 text-ui-caption text-foreground-subtle hover:text-destructive disabled:opacity-50"
+                >
+                  {intl.formatMessage({ id: "bots.groupChat.permissions.remove" })}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {permissions.length === 0 ? (
+          <p className="text-ui-caption text-foreground-subtle">
+            {intl.formatMessage({ id: "bots.groupChat.permissions.empty" })}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function DetailPanel({ children }: { children: ReactNode }) {
 function BotOnboardingStageRow({ stages }: { stages: BotOnboardingStage[] }) {
   const { intl } = useModeIntl();
   return (
-    <span className="inline-flex flex-wrap items-center justify-start gap-x-3 gap-y-1">
+    <span className="inline-flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
       {stages.map((stage) => (
         <span
           key={stage.id}
@@ -544,7 +544,7 @@ export function ProviderSettingsCard({
 
   if (isConnected) {
     control = (
-      <div className="flex items-center justify-start gap-3">
+      <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
         {stageRow}
         <Button variant="outline" size="lg" onClick={onRemoveSecret}>
           <Unlink className="size-4" />
@@ -637,7 +637,7 @@ export function ProviderSettingsCard({
     );
   } else {
     control = (
-      <div className="flex w-full flex-wrap items-center justify-start gap-2">
+      <div className="flex w-full flex-wrap items-center justify-end gap-2">
         {stageRow}
         <Button variant="outline" size="lg" onClick={onRemoveSecret}>
           {intl.formatMessage({ id: "bots.removeSecret" })}
@@ -732,7 +732,6 @@ export function ProviderSettingsCard({
     <SettingsGroupCard>
       <SettingsRow
         label={intl.formatMessage({ id: "bots.botToken" })}
-        layout="stacked"
         description={descriptionText}
         control={control}
         detail={

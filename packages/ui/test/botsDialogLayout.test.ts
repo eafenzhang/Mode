@@ -19,13 +19,13 @@ test("BotsDialog 右栏禁止横向滚动，纵向滚动保持", () => {
   assert.match(source, /overflow-x-hidden overflow-y-auto/);
 });
 
-test("Bot 详情设置使用 stacked 左对齐布局", () => {
+test("Bot 详情设置使用 inline 布局，控件在右列", () => {
   const settingsRow = read("../src/settings/SettingsPageParts.tsx");
-  assert.match(settingsRow, /layout === "stacked"/);
+  assert.ok(!settingsRow.includes('layout === "stacked"'), "SettingsRow 不再保留 stacked 分支");
   assert.match(
     settingsRow,
-    /justify-start gap-2/,
-    "stacked 布局的控件必须左对齐，不再是右侧 192px 列",
+    /justify-end gap-2/,
+    "inline 布局的控制列必须右对齐（标题/说明在左、控件在右）",
   );
 
   for (const file of [
@@ -35,9 +35,21 @@ test("Bot 详情设置使用 stacked 左对齐布局", () => {
     "../src/BotsDialog/BotGroupChatCard.tsx",
     "../src/BotsDialog/WorkspaceManagementCard.tsx",
     "../src/BotsDialog/BotDingtalkCardConfigCard.tsx",
+    "../src/BotsDialog/BotSummaryCard.tsx",
+    "../src/BotsDialog/ProviderSettingsCard.tsx",
   ]) {
-    assert.match(read(file), /layout="stacked"/, `${file} 必须使用 stacked 布局`);
+    assert.ok(!read(file).includes('layout="stacked"'), `${file} 不应再使用 stacked 布局`);
   }
+});
+
+test("BotsDialog 内容区有统一内边距，次要文字局部提亮", () => {
+  const source = read("../src/BotsDialog.tsx");
+  assert.match(
+    source,
+    /flex-col gap-3 overflow-hidden rounded-2xl p-4/,
+    "弹窗 shell 必须有 p-4 + gap-3，避免内容贴着圆角边缘",
+  );
+  assert.match(source, /--color-foreground-subtle/, "次要文字对比度应在弹窗范围内覆盖");
 });
 
 test("Bot 详情把设置合并为三组，并移除独立 Agent 卡", () => {

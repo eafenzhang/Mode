@@ -54,6 +54,7 @@ test("Select 内容/选项/组/值：菜单 shell 语言与占位色", () => {
   assert.match(content, /rounded-lg/);
   assert.match(content, /max-h-60/);
   assert.match(content, /overflow-y-auto/);
+  assert.match(content, /z-\[60\]/, "下拉面板必须高于 Dialog/Menu 的 z-50");
   assert.match(selectItemClassName(), /aria-selected:font-medium/);
   assert.match(selectGroupLabelClassName(), /text-ui-xs/);
   assert.match(selectValueClassName({ placeholder: true }), /text-foreground-subtlest/);

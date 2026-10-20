@@ -149,7 +149,7 @@ export function BotSummaryCard({
   );
 
   return (
-    <div className="flex items-center gap-3 pb-2 px-2">
+    <div className="flex items-center gap-3 px-4 pb-1">
       <ProviderIcon provider={bot.provider} className="size-12 shrink-0 text-foreground-subtle" />
       <div className="min-w-0 flex-1 space-y-1">
         {botNameControl}
@@ -182,7 +182,6 @@ export function BotReplyGranularityCard({
   return (
     <SettingsRow
       label={intl.formatMessage({ id: "bots.replyGranularity" })}
-      layout="stacked"
       description={intl.formatMessage({
         id: selectedGranularity.descriptionId,
       })}

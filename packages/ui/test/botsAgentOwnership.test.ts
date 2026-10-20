@@ -21,7 +21,7 @@ test("Agent 归属合并进工作区管理卡", () => {
     "工作区管理卡必须展示统一派生的 Agent id",
   );
   assert.ok(
-    workspaceCard.includes("layout=\"stacked\""),
-    "工作区管理使用左对齐的 stacked 布局",
+    workspaceCard.includes("SettingsRow"),
+    "Agent 归属继续通过工作区管理的设置行展示",
   );
 });

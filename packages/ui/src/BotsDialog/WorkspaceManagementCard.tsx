@@ -47,7 +47,6 @@ export function WorkspaceManagementCard({
   return (
     <SettingsRow
       label={intl.formatMessage({ id: "bots.workspaceManagement.title" })}
-      layout="stacked"
       description={
         <span className="block min-w-0 space-y-1">
           <span className="block">
@@ -69,7 +68,7 @@ export function WorkspaceManagementCard({
         </span>
       }
       control={
-        <div className="flex w-full min-w-0 items-center justify-start gap-2">
+        <div className="flex w-full min-w-0 items-center justify-end gap-2">
           {loading ? (
             <LoaderCircle className="size-4 shrink-0 animate-spin text-foreground-subtle" />
           ) : null}

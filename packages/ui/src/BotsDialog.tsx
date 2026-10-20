@@ -1,5 +1,13 @@
 /* eslint-disable max-lines -- BotsDialog 现在保留数据加载、保存和轮询编排；右侧卡片已拆到 BotsDialog/* 子组件，后续再继续下沉状态 hook。 */
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react";
 import QRCode from "qrcode";
 import { Bot, Loader2, Plus } from "lucide-react";
 import type {
@@ -67,6 +75,13 @@ import {
 function createEmptyConfig(): BotsConfigFile {
   return { version: 3, bots: [] };
 }
+
+// Bots 弹窗内的次要文字（说明、状态行、列表副标题）比全局 foreground-subtle 更亮一档：
+// 深色卡片上 60% 对比度实测约 4.3:1，中文小字号不易看清；78% 约 7:1。
+// 只在弹窗范围内覆盖，全局主/次/三级层级不变。
+const BOTS_DIALOG_TEXT_STYLE = {
+  "--color-foreground-subtle": "color-mix(in oklab, var(--color-foreground) 78%, transparent)",
+} as CSSProperties;
 
 function createDraftBot(params: { provider: BotProvider }): BotConfig {
   // Bugfix: Bot id 只是配置实体身份，不应该带 provider 前缀；
@@ -317,6 +332,8 @@ export function BotsDialog({
     async (target: BotWorkspaceRef) => {
       if (!selectedBot) return;
       setWorkspaceBindingSaving(true);
+      // 远端绑定 RPC 往返期间下拉仍读旧绑定，看起来像“选了没反应”；先回显目标工作区。
+      setBotWorkspaceBindings([target]);
       const targetPath = target.workspacePath;
       const targetIdentity = target.workspaceIdentity;
       try {
@@ -370,6 +387,7 @@ export function BotsDialog({
         const message = error instanceof Error ? error.message : String(error);
         logger.error("[BotsDialog] 绑定工作区失败", message);
         toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+        void refreshBotWorkspaceBindings(selectedBot.id);
       } finally {
         setWorkspaceBindingSaving(false);
       }
@@ -378,6 +396,7 @@ export function BotsDialog({
       botsService,
       intl,
       refresh,
+      refreshBotWorkspaceBindings,
       selectedBot,
       updateAvailableWorkspaces,
       workspaceIdentity,
@@ -388,6 +407,7 @@ export function BotsDialog({
   const handleUnbindFromWorkspace = useCallback(async () => {
     if (!selectedBot) return;
     setWorkspaceBindingSaving(true);
+    setBotWorkspaceBindings([]);
     try {
       await botsService.unbindBotFromWorkspace({
         botId: selectedBot.id,
@@ -407,10 +427,19 @@ export function BotsDialog({
       const message = error instanceof Error ? error.message : String(error);
       logger.error("[BotsDialog] 解除工作区绑定失败", message);
       toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+      void refreshBotWorkspaceBindings(selectedBot.id);
     } finally {
       setWorkspaceBindingSaving(false);
     }
-  }, [botsService, intl, refresh, selectedBot, workspaceIdentity, workspacePath]);
+  }, [
+    botsService,
+    intl,
+    refresh,
+    refreshBotWorkspaceBindings,
+    selectedBot,
+    workspaceIdentity,
+    workspacePath,
+  ]);
 
   useEffect(() => {
     if (
@@ -963,9 +992,21 @@ export function BotsDialog({
   const patchSelectedBot = useCallback(
     (patch: Partial<BotConfig>) => {
       if (!selectedBot) return;
-      void saveBot({ ...selectedBot, ...patch });
+      const nextBot = { ...selectedBot, ...patch };
+      // 远端 Host 上 saveBot 要等一次 RPC 往返；此前控件一直读旧配置，表现为“选了没反应”。
+      // 先本地落值让下拉/开关立即回显，失败再回滚并提示；写入仍只有 saveBot 一条路径。
+      setConfig((previous) => ({
+        ...previous,
+        bots: previous.bots.map((bot) => (bot.id === nextBot.id ? nextBot : bot)),
+      }));
+      void saveBot(nextBot).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("[BotsDialog] 保存 Bot 设置失败", message);
+        toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+        void refresh();
+      });
     },
-    [saveBot, selectedBot],
+    [intl, refresh, saveBot, selectedBot],
   );
 
   const startBotNameRename = useCallback(() => {
@@ -1426,11 +1467,14 @@ export function BotsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[calc(100vh-6rem)] max-h-168 max-w-4xl flex-col overflow-hidden rounded-2xl"
+        // 修复原因：M4 Dialog 适配器不含内边距，BotsDialog 的标题与左右栏曾直接贴着圆角边缘；
+        // 统一 p-4 + gap-3，让 header 与内容区共享同一内边距。
+        className="flex h-[calc(100vh-6rem)] max-h-168 max-w-4xl flex-col gap-3 overflow-hidden rounded-2xl p-4"
+        style={BOTS_DIALOG_TEXT_STYLE}
         onEscapeKeyDown={handleDialogEscapeKeyDown}
       >
         <DialogHeader>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pe-10">
             <Bot className="size-5 text-foreground" />
             <DialogTitle className="text-lg font-medium text-foreground">
               {intl.formatMessage({ id: "bots.title" })}
@@ -1477,7 +1521,7 @@ export function BotsDialog({
                         setSelectedBotId(bot.id);
                       }}
                       className={cn(
-                        "mb-1 w-full rounded-xl px-2.5 pe-4 py-3 text-start transition-colors",
+                        "mb-1 w-full rounded-xl ps-4 pe-4 py-3 text-start transition-colors",
                         selected
                           ? "bg-surface-hover text-foreground"
                           : "text-foreground-subtle hover:bg-surface-hover hover:text-foreground",

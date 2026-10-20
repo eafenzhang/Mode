@@ -112,40 +112,13 @@ export function SettingsRow({
   control,
   detail,
   controlLayout = "default",
-  layout = "inline",
 }: {
   label: ReactNode;
   description?: ReactNode;
   control: ReactNode;
   detail?: ReactNode;
   controlLayout?: "default" | "wide";
-  /**
-   * inline: 标签/说明在左、控制在右（设置页既有布局）。
-   * stacked: 标签/说明在上、控件在下一行并左对齐（Bot 详情页的紧凑表单）。
-   */
-  layout?: "inline" | "stacked";
 }) {
-  if (layout === "stacked") {
-    return (
-      <div className="border-t border-border px-4 py-3 first:border-t-0">
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="min-w-0">
-            <div className="text-ui-base font-medium text-foreground">{label}</div>
-            {description ? (
-              <div className="mt-1 text-ui-base leading-6 text-foreground-subtle">
-                {description}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-2">
-            {control}
-          </div>
-          {detail ? <div className="mt-1">{detail}</div> : null}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="border-t border-border px-4 py-3 first:border-t-0">
       <div
