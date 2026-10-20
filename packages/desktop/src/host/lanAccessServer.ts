@@ -1,5 +1,4 @@
 import { createSocket } from "node:dgram";
-import { networkInterfaces } from "node:os";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { WebSocket } from "ws";
 import {
@@ -21,10 +20,12 @@ import {
 } from "@mode/shared";
 import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { createHttpServer } from "@mode/server";
-import type { ICredentialService, ServiceCollection } from "@mode/services";
+import { type ICredentialService, type ServiceCollection } from "@mode/services";
 import { formatLogPrefix } from "@mode/shared";
+import { createRemoteAgentEnroller } from "./lanRemoteAgentEnrollment.js";
 import { closeListenableQuietly, waitForListenPort } from "./lanListenPort.js";
 import type { ListenableServer } from "./lanListenPort.js";
+import { listLanAddresses } from "./lanNetworkAddresses.js";
 
 const log = (...args: unknown[]) => console.log(formatLogPrefix("lanAccess", process.pid), ...args);
 const warn = (...args: unknown[]) =>
@@ -121,19 +122,6 @@ function createPairCode(): LanAccessPairCode {
     code: randomBytes(3).toString("hex").toUpperCase(),
     expiresAt: Date.now() + LAN_ACCESS_PAIR_CODE_TTL_MS,
   };
-}
-
-function listLanAddresses(port: number): string[] {
-  const addresses: string[] = [];
-  for (const infos of Object.values(networkInterfaces())) {
-    for (const info of infos ?? []) {
-      if (info.family !== "IPv4" || info.internal) {
-        continue;
-      }
-      addresses.push(`${info.address}:${port}`);
-    }
-  }
-  return addresses;
 }
 
 /**
@@ -286,17 +274,24 @@ export async function startLanAccessServer(
     });
   };
 
-  const redeem = async (request: LanAccessPairRequest): Promise<LanAccessPairResult | null> => {
+  const consumePairCode = (code: string): boolean => {
     const current = pairCode;
     if (!current || current.expiresAt <= Date.now()) {
       pairCode = null;
-      return null;
+      return false;
     }
-    if (!constantTimeEqual(current.code, request.code.trim().toUpperCase())) {
-      return null;
+    if (!constantTimeEqual(current.code, code.trim().toUpperCase())) {
+      return false;
     }
     // 一次性：无论后续写入是否成功都先作废，避免同码被重放。
     pairCode = null;
+    return true;
+  };
+
+  const redeem = async (request: LanAccessPairRequest): Promise<LanAccessPairResult | null> => {
+    if (!consumePairCode(request.code)) {
+      return null;
+    }
     const record: LanAccessClientRecord = {
       id: randomUUID(),
       label: request.label?.trim() || "LAN client",
@@ -312,12 +307,18 @@ export async function startLanAccessServer(
     return { token, serverId, name: params.machineName };
   };
 
+  const enrollRemoteAgent = createRemoteAgentEnroller({
+    services: params.services,
+    consumePairCode,
+  });
+
   const requestedPort = params.port ?? LAN_ACCESS_DEFAULT_PORT;
   const server = createHttpServer(params.services, requestedPort, {
     host: "0.0.0.0",
     authRequired: true,
     verifyAuthToken,
     lanPairing: { redeem },
+    remoteAgentEnrollment: { enroll: enrollRemoteAgent },
     resolveLanClientByToken,
     onLanClientWorkspace: recordClientWorkspace,
     serverId,

@@ -36,7 +36,9 @@ import {
   lanAccessEnableRequestSchema,
   lanAccessPairRequestSchema,
   remoteTargetSchema,
+  remoteAgentEnrollmentRequestSchema,
   type LanAccessPairingEndpoint,
+  type RemoteAgentEnrollmentEndpoint,
   type LanAccessState,
   SERVER_REMOTE_PROTOCOL_VERSION,
   MODE_RPC_HOST_CAPABILITY_HEADER,
@@ -242,6 +244,8 @@ interface HttpServerOptions {
   verifyAuthToken?: (token: string) => boolean;
   /** 局域网配对端点：提供时暴露 POST /api/lan/pair（该路由用一次性配对码自证，不要求既有令牌）。 */
   lanPairing?: LanAccessPairingEndpoint;
+  /** Mode Agent 反向配对：被控端拿桌面生成的配对码登记自己的 MCP 连接信息。 */
+  remoteAgentEnrollment?: RemoteAgentEnrollmentEndpoint;
   /**
    * 局域网多客户端：把 /ws/host 升级连接的长期令牌解析为客户端记录 id。
    * 与鉴权走同一令牌校验路径；未提供或解析不到时该连接不参与录制。
@@ -566,7 +570,8 @@ export function createHttpServer(
     app.use("*", async (c, next) => {
       const pathname = new URL(c.req.url).pathname;
       // 配对接口是「登录前引导」：客户端此时没有令牌，凭一次性配对码换取。
-      if (pathname === "/api/lan/pair") {
+      // Mode Agent 反向登记同理：被控端只有桌面生成的配对码，没有长期令牌。
+      if (pathname === "/api/lan/pair" || pathname === "/api/remote-agent/enroll") {
         await next();
         return;
       }
@@ -664,6 +669,24 @@ export function createHttpServer(
         return c.json({ error: "Invalid or expired pair code" }, 401);
       }
       return c.json(result);
+    });
+  }
+
+  if (options.remoteAgentEnrollment) {
+    const enrollment = options.remoteAgentEnrollment;
+    app.post("/api/remote-agent/enroll", async (c) => {
+      let rawBody: unknown;
+      try {
+        rawBody = await c.req.json();
+      } catch {
+        return c.json({ ok: false, error: "invalid_json" }, 400);
+      }
+      const parsedBody = remoteAgentEnrollmentRequestSchema.safeParse(rawBody);
+      if (!parsedBody.success) {
+        return c.json({ ok: false, error: `invalid_request: ${formatZodError(parsedBody.error)}` }, 400);
+      }
+      const result = await enrollment.enroll(parsedBody.data);
+      return c.json(result, result.ok ? 200 : 401);
     });
   }
 

@@ -99,3 +99,5 @@ packages/mode-cua/dist-cua-helper/
 # M3 Task 2：Host sidecar 的打包产物（bundle + external 子集），由
 # node --import tsx apps/desktop-tauri/scripts/build-host-sidecar.ts 生成。
 apps/desktop-tauri/dist-host-sidecar/
+
+/.tools/

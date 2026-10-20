@@ -1784,6 +1784,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                                 isDesktop={Boolean(isDesktop)}
                                 showWindowControls={usesInlineWindowControls}
                                 active={workspaceMainView === "remote-desktop"}
+                                onCreateTask={onCreateTask}
+                                isRemoteWorkspace={Boolean(workspaceRemoteSessionId)}
                                 topOverlayClearancePaddingClass={
                                   resolveTopOverlayClearancePaddingClass({
                                     isSidebarVisible,

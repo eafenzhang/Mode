@@ -285,6 +285,7 @@ export * from "./session-debug.js";
 
 export * from "./remoteWorkspaceConnection.js";
 export * from "./lanAccess.js";
+export * from "./remoteAgentEnrollment.js";
 export * from "./data-root.js";
 export * from "./data-root-decision.js";
 export * from "./env-names.js";

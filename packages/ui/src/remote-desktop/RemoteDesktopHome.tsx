@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { MonitorSmartphone, RefreshCw, Settings2 } from "lucide-react";
 import type { LanPairedPeer } from "@mode/shared";
+import type { CreateTaskRequest } from "@/app-shell/types.js";
 import type { RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { DEFAULT_REMOTE_DESKTOP_QUALITY } from "@mode/shared/remote-desktop";
 import { Button } from "@/ui-foundation/adapters/button.js";
@@ -21,6 +22,7 @@ import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadc
 import { logger } from "@/logger.js";
 import type { RemoteDesktopDeviceProbe } from "@/remote-desktop/deviceAvailability.js";
 import { RemoteDesktopAddDevice } from "@/remote-desktop/RemoteDesktopAddDevice.js";
+import { ModeAgentDevicesCard } from "@/remote-desktop/ModeAgentDevicesCard.js";
 import { RemoteDesktopDeviceCard } from "@/remote-desktop/RemoteDesktopDeviceCard.js";
 import { RemoteDesktopSession } from "@/remote-desktop/RemoteDesktopSession.js";
 
@@ -34,8 +36,12 @@ export function RemoteDesktopHome({
   showWindowControls = false,
   active,
   topOverlayClearancePaddingClass,
+  onCreateTask,
+  isRemoteWorkspace = false,
 }: {
   isDesktop: boolean;
+  isRemoteWorkspace?: boolean;
+  onCreateTask?: (request?: CreateTaskRequest) => void;
   /** 本页不渲染 WorkspaceHeader，窗控由顶部拖拽区右侧自绘（Windows/Linux）。 */
   showWindowControls?: boolean;
   /** 视图是否当前可见：分支常驻隐藏时为 false（spec UI 规则「切换保持连接」）。 */
@@ -242,6 +248,10 @@ export function RemoteDesktopHome({
                 {intl.formatMessage({ id: "remoteDesktop.devices.locallyControlledBanner" })}
               </p>
             ) : null}
+
+            {/* Mode Agent 被控端：配对后自动写入 HTTP MCP，并可直接发起对话。
+                远程 workspace 的 MCP 配置属于对端 Host，不能把本机被控端写进去。 */}
+            {isRemoteWorkspace ? null : <ModeAgentDevicesCard onCreateTask={onCreateTask} />}
 
             {/* 「检测设备 + 配对」在本页完成（从远程连接向导前移）；配对成功刷新设备列表。 */}
             <RemoteDesktopAddDevice onPaired={loadPeers} pairedServerIds={pairedServerIds} />
