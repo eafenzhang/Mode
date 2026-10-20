@@ -26,7 +26,7 @@
 - Helper 子进程入口（TS bundle）：fork IPC 握手、named pipe broker 服务、addon 加载。
 - Rust addon（新 crate）：UIA3 树读取、窗口枚举与启动、截图、输入注入。
 - 构建发布：Rust 工具链接入、`dist-cua-helper` 构建产物、`runtime-manifest.json` 生成、
-  electron-builder `resources/tools/cua-helper` 打包。
+  Tauri 安装包 `resources/tools/cua-helper` 打包。
 - 测试与实机验收。
 
 **不做**：
@@ -304,11 +304,8 @@
   `modeCuaRuntime:{schema:1, windows:{entry, nativeAddon}}`（相对包根的受包含路径，指向
   构建输出，gitignore）；`MODE_CUA_DEV_ROOT` 指到 `packages/mode-cua` 即可走
   `requireDevelopmentRuntimeRoot` 既有解析。
-- **打包**：electron-builder `extraResources` 仿 ripgrep 模式增加
-  `{from:"bundled-tools/<platform>/cua-helper", to:"tools/cua-helper"}`，仅 win32 目标 stage
-  （prepare 步骤把 `dist-cua-helper` 复制进 `bundled-tools/win32-x64/cua-helper`）。
-  打包态由 `resolvePackagedRuntime`（`resources/tools/cua-helper`）既有逻辑解析。
-  **Tauri 线同一落点**：`host-sidecar-ship` 把该目录 stage 进
+- **打包**：`host-sidecar-ship` 把 `bundled-tools/win32-x64/cua-helper`
+  （prepare 步骤把 `dist-cua-helper` 复制进来）stage 进
   `dist-host-sidecar/ship/tools/cua-helper`，Windows 平台的 `tauri.windows.conf.json`
   再把它映射到安装目录的 `tools/cua-helper`；CI 的 `tauri` job Windows 腿必须先执行
   `pnpm build:cua-helper`（与 `verify` job 同一 `MODE_CUA_AX_TARGET=x86_64-pc-windows-msvc`）。

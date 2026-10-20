@@ -11,7 +11,9 @@
 > **状态（2026-10-18 巡检回填）**：Task 0–3 的**实现提交均已落地**——
 > Task 0 `7ad16584`（`RELEASE.md` 已入库）、Task 1 `b54cfd71`、Task 2 `eee3a83e`、
 > Task 3 `f21c2b75`，后续修复 `693d851d`、`e6bd3604`、`5f4a07a2`、`b395951c`。
-> 本文 Task 0 的步骤复选框**未回填**；GA、旧线 EOL、数据迁移演练与三指标终值仍待人执行/发布时收口。
+> 本文 Task 0 的步骤复选框**未回填**；GA、数据迁移演练与三指标终值仍待人执行/发布时收口。
+> **2026-10-20 追加**：旧 Electron 线 EOL 已由用户决定并执行，见
+> `docs/specs/legacy-electron-eol.md`；旧线回滚路径已删除。
 
 **Goal:** 让 **Tauri 版成为发布线**：`release.yml` 产出并发布 Tauri 产物，更新链真正可用，且
 「发布」这件事有一条可执行、可回滚、含人工前置项的清单。
@@ -51,6 +53,11 @@ workflow run 里不能既上传 Electron 又上传 Tauri 到同一个 release**�
 产物保留为上一个 release 的资产（不删除、不覆盖）。**代价**：用户在切换点看到的是「新版本换了
 实现」，而文件名与安装方式没变；若 Tauri 版有问题，回滚方式是**重新发布上一个 Electron 版本**
 （所以旧线的构建能力不能在同一提交里被删）。
+
+> **2026-10-20 更新（本条已被 `docs/specs/legacy-electron-eol.md` 取代）**：用户决定取消旧
+> Electron 线，`desktop` job、`bundle:desktop` 与 Electron 运行时已删除。DR-M5-1 的
+> 「保留旧线构建能力用于回滚」不再成立；回滚只按 `RELEASE.md` 5.2 走 Tauri 正向修复。
+> 历史 Electron tag 的 Release 资产仍保留，但不再有新构建。
 
 ### DR-M5-2：**已定：A（Windows-only 先行）**——「三平台 GA」登记为偏差
 
@@ -164,6 +171,9 @@ Modify `docs/specs/*` 的相关节（如需要）。
 
 - **v0.0.57**：首个 Tauri 自动发版。首次 run 在 verify 失败（`tools/plugin-host` 误引 workspace 包，`0590b249` 修复）；重跑后五腿构建与 publish 成功。真机验收发现 **P0**：安装包未带 agent 运行时，发送任务/插件市场均不可用。
 - **v0.0.58**：`afb49a4c` 把 `agent/glm` 纳入发运集并注入启动命令；全部 job 绿，Release 已发布。本机安装后发送任务得到模型回复、插件市场目录正常加载。
+- **v0.0.59**：CI 首次同时产出 macOS arm64 dmg 与 Linux x64 AppImage，M1 登记的两条构建风险实测收口。
+- **v0.0.60**：`248b0937` 移除两条非 Windows 腿的 `continue-on-error`，三平台安装包与各自 `sha256` 一起上传同一 Release；旧 Electron `desktop` job 继续只发 workflow artifact，保留回滚能力。
+- **v0.0.61-audit.20261019**：本机真机验收（`docs/plans/2026-10-20-installed-0.0.61-acceptance.md`）核心任务链路、插件市场目录、LAN 监听/配对码/发现、远程控制设置页通过。远程桌面「对端不支持」的根因随后更正为 **Tauri 包未带 Windows CUA helper**（`rd_media_start` → `helper_unavailable` → 对端回 `unsupported`），不是 `mediaTicket`；`a2fdebf6` 已把 helper 纳入发运集/安装包并桥接 sidecar 资源目录，待真机复验。远程工作区设置页无 attach/打开入口，两台实机验收未完成。
 - 仍未完成：三平台签名、旧线 EOL、差分更新验证（见 M5 路线图「发布工程」）。
 
 ## 阶段验收

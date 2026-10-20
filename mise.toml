@@ -4,7 +4,6 @@ pnpm = "10.33.2"
 
 [env]
 COREPACK_ENABLE_PROJECT_SPEC = "0"
-ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
 
 [tasks.install]
 description = "Install root workspace dependencies with the pinned pnpm."
@@ -16,13 +15,13 @@ depends = ["install"]
 run = "mise exec -- node scripts/mise-run.mjs pnpm bootstrap"
 
 [tasks.dev]
-description = "Start the desktop app in an isolated local test environment."
-env = { MODE_DATA_BASE_DIR = "{{env.HOME}}/.mode-dev-home", MODE_DATA_BASE_DIR = "{{env.HOME}}/.mode-dev-home" }
-run = "mise exec -- node scripts/mise-run.mjs pnpm dev:desktop:test"
+description = "Start the Tauri desktop app in an isolated local test environment."
+env = { MODE_DATA_BASE_DIR = "{{env.HOME}}/.mode-dev-home" }
+run = "mise exec -- node scripts/mise-run.mjs pnpm dev:desktop"
 
 [tasks.dev-desktop-prod]
-description = "Start the desktop app against the production environment."
-run = "mise exec -- node scripts/mise-run.mjs pnpm dev:desktop:prod"
+description = "Start the Tauri desktop app against the production environment."
+run = "mise exec -- node scripts/mise-run.mjs pnpm dev:desktop"
 
 [tasks.dev-web]
 description = "Start the server and web client dev servers."

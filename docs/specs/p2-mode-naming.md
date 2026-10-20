@@ -16,7 +16,7 @@
 | 产物名 | `dist/mode.cjs`、`mode-<版本>.tar.gz` | `dist/mode.cjs`、`mode-<版本>.tar.gz` | 无（安装器与文档同步） |
 | 命令名 | `mode` | `mode` | 无 alias（P0 已定过同一口径） |
 | 用户数据根 | `{base}/.mode` | `{base}/.mode` | 多代迁移：`.mode` ← `.mode` ← `.mode`，迁移失败保留旧路径 |
-| Electron userData | `Mode` | `Mode` | 首次启动迁移旧目录，失败则继续用旧目录 |
+| 桌面端 userData（历史 Electron） | `Mode` | `Mode` | 旧 Electron 线已 EOL；Tauri 使用自己的应用数据目录，不复用 Electron userData |
 | 插件市场 id | `zcode-plugins-official` | `mode-plugins-official` | 落盘数据迁移（设置 / 安装记录 / cache 目录） |
 | 插件清单目录 | `.zcode-plugin/plugin.json` | `.mode-plugin/plugin.json` | 新名为主，**继续读旧路径**，第三方插件不作废 |
 | 忽略文件 | `.zcodeignore` | `.modeignore` | 读新名，兼容旧名 |
@@ -60,7 +60,7 @@ desktop 25/25、architecture 0/0/0）：
 - **S3** CLI 命令名 `mode`、`bin.mode`、发行包 `mode-<版本>.tar.gz`。
 - **S4** 数据根 `.mode` + 归属文件 `.mode-root.json` + 多代旧根（`.zcodium`、`.zcode`）；
   `isAcceptedDataRootProduct` 接受历史 product id（关键：避免存量根被判 unowned）；
-  91 个文件的路径字面量；Electron userData 改名带一次性复制迁移（失败继续用旧目录）；
+  91 个文件的路径字面量；旧 Electron userData 改名带一次性复制迁移（历史记录；旧线已 EOL）；
   i18n 迁移提示重写为真实旧目录名。
 - **S5a** 清单目录 `.mode-plugin` 与忽略文件 `.modeignore` 新名+旧名兼容读取。
 - **S5b** 随包插件（browser-use、node-repl-host）清单目录 git mv 到 `.mode-plugin`；

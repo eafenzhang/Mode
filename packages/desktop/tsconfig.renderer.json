@@ -7,7 +7,9 @@
     "jsx": "react-jsx",
     "noEmit": true
   },
-  "include": ["src/renderer"],
+  // globals.d.ts 提供 window.mode 声明；assets.d.ts 提供 `*.css` 声明。两者都是
+  // 全局声明文件，project references 不会自动把它们带进来，必须显式 include。
+  "include": ["src/renderer", "../client/src/globals.d.ts", "../ui/src/assets.d.ts"],
   // renderer 直接 import 了 shared；把它补进 references，避免 renderer 单独检查时再走源码回退路径。
   "references": [{ "path": "../shared" }, { "path": "../ui" }, { "path": "../client" }]
 }

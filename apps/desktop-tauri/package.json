@@ -15,12 +15,14 @@
     "build:rust": "cargo build -p mode-tauri",
     "test:rust": "cargo test -p platform -p protocol -p deeplink -p tray -p updater -p tauri-test-manifest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "tauri:dev": "cargo tauri dev",
     "tauri:build": "cargo tauri build",
     "test": "node --import tsx --test test/*.test.mts"
   },
   "devDependencies": {
     "@mode/rpc": "workspace:*",
     "@tauri-apps/cli": "^2",
+    "esbuild": "^0.27.7",
     "typescript": "^6.0.2",
     "vite": "^8.0.2"
   },

@@ -1,7 +1,7 @@
 # Mode
 
 <div align="center">
-  <img src="packages/desktop/build/icons/512x512.png" alt="Mode" width="96" height="96" />
+  <img src="apps/desktop-tauri/src-tauri/icons/icon.png" alt="Mode" width="96" height="96" />
   <p><strong>桌面端、浏览器与终端三端的 AI 编程工作区——源自 ZCode，独立维护。</strong></p>
 </div>
 
@@ -25,7 +25,7 @@ Mode 保留产品本身——一个陪你规划、改代码、跑命令、自我
 
 ## 功能一览
 
-- **一个 Agent，三种界面**：Electron 桌面端、浏览器工作区与终端 TUI 共用同一个 Agent 运行时和同一批会话；远程工作区支持 SSH、WSL、Docker，也支持**局域网里的另一台 Mode**。
+- **一个 Agent，三种界面**：Tauri 桌面端、浏览器工作区与终端 TUI 共用同一个 Agent 运行时和同一批会话；远程工作区支持 SSH、WSL、Docker，也支持**局域网里的另一台 Mode**。
 - **会规划、会改、会跑、会验证**：文件改动用 diff 呈现，终端命令带上下文，改完自己跑测试复核；需要网页任务时内置浏览器插件驱动真实浏览器。
 - **动手之前先征求许可**：每一次编辑、命令和工具调用都可以要求审批——仅本次允许、本项目内一直允许，或完全放行。
 - **IM 机器人**：在 微信 / 企业微信 / 飞书（中国）/ 钉钉 里直接驱动工作区。私聊按人、群聊按群各自绑定独立会话，回复流式发回聊天窗口，群聊可以保持安静（例如企业微信只在被 @ 时响应），可选心跳定时推送进展摘要。
@@ -54,8 +54,8 @@ SSH / WSL / Docker 远端工作区会复用主机上已有的运行时；本仓�
 前置：Git、Node.js **24.14.0**、pnpm **10.33.2**，版本以 [mise.toml](mise.toml) 为准。以下命令都在仓库根目录执行。
 
 ```bash
-pnpm bootstrap                 # 安装依赖并准备本地桌面运行时资源
-pnpm dev:desktop               # Electron 桌面端（默认生产配置；测试环境用 dev:desktop:test）
+pnpm bootstrap                 # 安装依赖并构建 workspace 包
+pnpm dev:desktop               # Tauri 桌面端（Rust + 共享产品 renderer）
 pnpm dev:web                   # 浏览器工作区
 pnpm --filter @mode/cli dev   # Agent CLI
 ```
@@ -68,14 +68,14 @@ pnpm --filter @mode/cli dev   # Agent CLI
 pnpm typecheck                                              # TypeScript 工程引用
 pnpm lint                                                   # oxlint
 pnpm --filter @mode/services test                          # 服务与契约测试
-node --test packages/desktop/tests/*.test.mjs               # 桌面端 node 测试
+pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts  # 桌面端 node 测试
 pnpm architecture:check -- --changed                        # 依赖方向策略检查
 ```
 
-本地打一个桌面安装包（产物在 `packages/desktop/dist`）：
+本地打一个桌面安装包（产物在 `dist/tauri`）：
 
 ```bash
-pnpm bundle:desktop -- --os win --arch x64
+pnpm --filter @mode/desktop-tauri run tauri:build
 ```
 
 ## 发版自动化
@@ -86,7 +86,8 @@ pnpm bundle:desktop -- --os win --arch x64
 
 | 路径                                                 | 内容                                                        |
 | ---------------------------------------------------- | ----------------------------------------------------------- |
-| `packages/desktop`                                   | Electron 主进程、host 与渲染端；局域网访问服务与发现        |
+| `apps/desktop-tauri`                                 | Tauri v2 壳（Rust 命令面、Host sidecar、打包）              |
+| `packages/desktop`                                   | 产品 renderer 与 Host 源码；局域网访问服务与发现             |
 | `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand store（设置页、插件商店） |
 | `packages/services`                                  | 业务服务（Agent 会话、机器人、插件、远程连接）              |
 | `packages/server`、`packages/web`                    | 浏览器工作区的服务端与客户端                                |

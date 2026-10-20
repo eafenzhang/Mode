@@ -57,15 +57,6 @@ function normalizeVersion(version) {
   return normalized || version;
 }
 
-function resolveInstalledPackageVersion(packageName, fallbackVersion) {
-  try {
-    const packageJsonPath = require.resolve(`${packageName}/package.json`, { paths: [desktopDir] });
-    return normalizeVersion(readJson(packageJsonPath).version);
-  } catch {
-    return normalizeVersion(fallbackVersion);
-  }
-}
-
 function resolveCommitId() {
   try {
     return execSync("git rev-parse --short=8 HEAD", {
@@ -81,7 +72,6 @@ function resolveCommitId() {
 
 export function collectBuildMetadata() {
   const rootPackageJson = readJson(resolve(workspaceDir, "package.json"));
-  const desktopPackageJson = readJson(resolve(desktopDir, "package.json"));
 
   return {
     // CI 发布时把完整 tag 版本（如 3.14.0-audit.20260922.6）通过 MODE_APP_VERSION 注入，
@@ -89,10 +79,6 @@ export function collectBuildMetadata() {
     appVersion: normalizeVersion(process.env.MODE_APP_VERSION?.trim() || rootPackageJson.version),
     buildCommitId: resolveCommitId(),
     buildTime: new Date().toISOString(),
-    electronBuilderVersion: resolveInstalledPackageVersion(
-      "electron-builder",
-      desktopPackageJson.devDependencies?.["electron-builder"],
-    ),
   };
 }
 

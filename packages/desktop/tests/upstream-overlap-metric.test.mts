@@ -79,7 +79,7 @@ test("M4 范围豁免只覆盖 sidecar/传输层前缀", () => {
     assert.equal(isDeferred(path), true, path);
   }
   assert.equal(isDeferred("packages/ui/src/App.tsx"), false);
-  assert.equal(isDeferred("packages/desktop/src/main/index.ts"), false);
+  assert.equal(isDeferred("packages/desktop/src/host-standalone/index.ts"), false);
   assert.equal(isDeferred("packages/services-extra/x.ts"), false);
 });
 

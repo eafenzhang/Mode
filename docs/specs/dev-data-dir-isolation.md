@@ -2,13 +2,13 @@
 
 ## 背景
 
-桌面开发实例（`pnpm dev:desktop:test`）曾绕过 mise 任务直接启动，缺少
+桌面开发实例（`pnpm dev:desktop`，Tauri）曾绕过 mise 任务直接启动，缺少
 `ZCODE_DATA_BASE_DIR`，实例直接读写开发者真实 `~/.mode`，重写了
 `credentials.json` / `provider_config.json`，导致宿主应用官方模型凭据失效。
 事后检查发现两层缺陷：
 
-1. `scripts/dev-desktop-env.mjs` 自身不注入隔离目录，隔离依赖 mise 任务层环境变量，
-   任何绕过 mise 的调用方式都会落到真实数据。
+1. 旧 Electron dev runner（`scripts/dev-desktop-env.mjs`，已随 EOL 删除）自身不注入隔离目录，
+   隔离依赖 mise 任务层环境变量，任何绕过 mise 的调用方式都会落到真实数据。
 2. `paths.ts` 文档声明优先级为 `setDataBaseDir() > env > homedir()`，而桌面主进程会在
    启动期读取**真实 HOME** 的 `setting.json` 并调用 `setDataBaseDir(dataBaseDir)`
    （`desktopDataBaseDirBootstrap.ts` 与 `main/index.ts`）。一旦开发者真实设置里配置了
@@ -36,4 +36,4 @@
    `getDataBaseDir()` 仍返回 `/isolated`。
 2. 未设置环境变量时 `setDataBaseDir(/real)` 生效（回归不受影响）。
 3. 环境变量生效时，桌面早期 bootstrap 不读取真实 HOME 的 `setting.json`。
-4. `pnpm dev:desktop:test` 不经过 mise 时，启动日志显示数据目录为 `~/.mode-dev-home`。
+4. `pnpm dev:desktop`（Tauri）不经过 mise 时，启动日志显示数据目录为 `~/.mode-dev-home`。

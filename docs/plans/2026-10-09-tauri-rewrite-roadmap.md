@@ -52,6 +52,29 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 
 ---
 
+## 进度快照（2026-10-20）
+
+> 证据：`docs/plans/2026-10-20-installed-0.0.61-acceptance.md`（已安装 0.0.61 自动化门禁与真机验收）、
+> `docs/plans/2026-10-20-runtime-ui-fixes.md`（0.0.61→0.0.63 运行态修复）、
+> `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`（LR-0..LR-4 执行记录）。
+
+| 阶段 | 状态 | 已达成 | 仍阻塞阶段关闭 |
+| --- | --- | --- | --- |
+| M0 | 进行中 | 语言门禁、clean-room spec、上游基线、Rust 工具链、helper P1 与黑盒对拍 | `browser-import-helper` C# 重写与真实 Windows 会话验收（P2） |
+| M1 | **已关闭（2026-10-20）** | v0.0.59 三平台出包首次全绿，v0.0.60/61 按三平台同发口径发布；10 命令 E2E、clippy/rustfmt、协议生成物 | 无；体积口径由 DR-M5-2b 放开，macOS/Linux 真机验收转入 M5 |
+| M2 | 代码面基本完成，验收未过 | 工具/权限/会话流/对拍矩阵与 CI 门禁；Rust workspace 30 suites / 202 passed（2026-10-20 验收） | stdio 审批帧映射待接；真实模型 20 个端到端任务未执行 |
+| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过 | sidecar 按需下载未实现；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收 |
+| M4 | 进行中 | UI 基础件 adapter 全量切换、业务代码对旧 `components/ui/*` 引用清零；上游重合度 9.80% | 旧 UI 文件看屏验收与删除；重合度清零；Rust 台账 514 缺失项与法务收口 |
+| M5 | 进行中 | 三平台 Release 发布口径已启用、Windows 自动发版连续跑通 | 三平台签名、旧线 EOL、差分更新、mac/Linux 真机安装/升级 |
+
+> **范围外新增（2026-10-20）**：`apps/remote-agent/`（Go，旧版 Windows 远程被控端，
+> 规格 `docs/specs/legacy-windows-remote-agent.md`、计划
+> `docs/plans/2026-10-20-legacy-windows-remote-agent.md`）当前未提交。它不在 M0–M5 的
+> Rust/Tauri 范围内；Go 也不在 `language-policy.md` 的允许语言内，入库前必须先决定
+> spec 例外/允许清单，否则语言门禁会在提交后失败。
+
+---
+
 ## M0 地基与纪律（2–4 周）
 
 **目标：** 把"语言收窄、自研纪律、可验收基线"三件事在旧仓库先钉死，并用一个小 Rust 构件验证工具链。
@@ -142,21 +165,32 @@ tray 1 / updater 2 / tauri-test-manifest 2）、`clippy -D warnings` 零告警�
 （NSIS 安装包 7.19 MiB）、`pnpm typecheck`（含壳前端）通过、协议生成物 `--check` 无漂移、
 语言政策门禁通过、release.yml 经 YAML 解析确认三平台矩阵。
 
-**M1 仍未关闭，只差一件**：
+**M1 关闭前的最后一件（2026-10-20 已消除）**：
 
 1. ~~**Task 4 Step 3 的人工 E2E**~~〔**2026-10-17 已执行**：10 命令 + 深链逐条核对，
    记录见 spec §4.4 与 `docs/plans/2026-10-15-tauri-skeleton.md` 的「第四批」；
    验收台补了 `saveFile(sourceUrl)` 入口，成功/取消/超限/超时四条分支均已核对〕。
-2. **macOS / Linux 两条出包腿的首次 CI 运行**（本机只有 Windows + gnu 工具链；需人推送触发）。
+2. ~~**macOS / Linux 两条出包腿的首次 CI 运行**~~〔**2026-10-20 回填**：v0.0.59 的 CI
+   首次同时产出 macOS arm64 dmg 与 Linux x64 AppImage，M1 登记的两条构建风险实测收口；
+   `248b0937`（v0.0.60）移除两条腿的 `continue-on-error`，三平台安装包与各自 `sha256`
+   片段一起上传同一 Release；v0.0.60 / v0.0.61 已按该口径发布〕。
 
-**两处需要人来决定的口径差异**（都已在 spec 登记）：
+**两处口径差异（2026-10-19 已由人裁定并落地）**：
 
-- Tauri 产物目前**只发 workflow artifacts**，因为它与旧 Electron 线产物名逐字相同；
-  改发 Release 要等 M5「release.yml 只出 Tauri 产物」。
-- `tauri` job **没挂进 `publish` 的 `needs`**：三条腿未验证过，挂上去会让每次 push 都卡成 draft；
-  建议在首次 CI 三腿全绿后再转正为门禁。
+- ~~Tauri 产物只发 workflow artifacts~~：`248b0937` 起三平台安装包与各自 `sha256` 一起进同一
+  Release；旧 Electron `desktop` job 继续只发 workflow artifact，保留 DR-M5-1 的回滚能力。
+- ~~`tauri` job 没挂进 `publish` 的 `needs`~~：`248b0937` 移除两条非 Windows 腿的
+  `continue-on-error`，任一腿失败即保持 draft；首次三腿全绿发生在 v0.0.59。
 
 详细记录见 `docs/plans/2026-10-15-tauri-skeleton.md` 的两份「2026-10-16 执行记录」。〕
+
+〔**2026-10-20 阶段关闭**：M1 验收中的「三平台安装包全绿」「10 命令 E2E」
+「`cargo clippy -D warnings` 零告警」均已满足。两处口径按后续决策更新：① 体积不再作为
+阻断门禁，按 DR-M5-2b 登记——骨架态 NSIS 7.19 MiB，当前含产品 UI / Host sidecar 的整包
+51.50 MiB、核心 23.29 MiB；② macOS/Linux 只验证了构建与出包，真机安装/启动/升级验收转入
+M5 残余风险。M1 的 Tauri 壳本身不依赖系统 Node，但 M3 sidecar 当前随包带 Node/agent 运行时，
+「不带任何 Node 运行时」的口径由 DR-01 的按需下载实现后才会在整包层面成立，该项仍在 M3
+跟踪。M1 阶段关闭不等于三平台 GA。〕
 
 ---
 
@@ -209,6 +243,15 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
       CI 门禁 `scripts/agent-runtime-parity-matrix.ts --check` 已挂进 release `verify`
       （60/60 归类、11/11 资产存在）。真实模型 20 个端到端任务仍属阶段验收第 3 条，未执行。
 
+〔**2026-10-20 回填**：0.0.61 验收时 `node scripts/rust-cargo.ts test --workspace --locked`
+为 30 suites / 202 passed / 0 failed，对拍矩阵 CI 门禁稳定。阶段验收第 3 条「真实模型 20 个
+端到端任务」仍未执行（需人参与与计费），**M2 不能关闭**。
+同日复跑补充：本机 gnu 路线下 `updater --lib` 与 `mode-tauri --lib` 的测试二进制启动失败
+（`0xc0000139 STATUS_ENTRYPOINT_NOT_FOUND`），其余 crate 测试全绿；疑为本机 WebView2/DLL
+加载环境问题，需在 CI/MSVC 复核，不能据此判定 Rust 代码回归。另：子计划 Task 6 Step 5 的
+stdio `interaction/requestPermission` 帧映射仍未接 host 层（`permission.rs` 与
+`permission_channel.rs` 的注释均标注「帧映射待接」），属于 M2 剩余代码项。〕
+
 **阶段验收：** 对拍套件全绿（工具序列 + 文件快照 + 事件流三层一致）；双链路 E2E 各自通过；用真实模型跑通 20 个端到端任务（改代码/跑测试/浏览器）无行为回归。
 
 ---
@@ -244,17 +287,39 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 
 - [ ] **Node sidecar 打包**：按 DR-01 —— Node 运行时 + 插件宿主 bundle 作为独立资产上 CDN；`plugin_host::ensure()` 首启用时下载、校验 sha256、健康探测；本地开发直连不下载。验收：断网时核心功能全在，仅插件功能提示"需下载组件"。〔2026-10-19 核对：M3 Task 1–5 的自动化面已完成——`crates/sidecar-host`、`host-standalone`、`window.mode` 注入、平台缺口（单实例/图标/sourceUrl）、Windows 安装包与两份体积预算均有测试/原始输出；`apps/desktop-tauri` 实测 35 pass / 7 opt-in skip。剩余是 DR-01 的 CDN 按需下载/校验与真机人工验收。〕
       〔2026-10-19 补记：v0.0.57 真机验收发现安装包未带 agent 运行时，发送任务与插件市场均失败；`afb49a4c` 把 `agent/glm` 纳入发运集并由 Host 注入启动命令，v0.0.58 本机复验任务发送与插件市场通过。〕
+      〔2026-10-20 回填：0.0.61 真机复验任务发送、插件市场目录、LAN 状态/配对码/发现均通过；
+      当前发运形态是 Host sidecar + Node + `agent/glm` **随包**，DR-01 的「CDN 按需下载 +
+      sha256 校验 + 健康探测」仍未实现，初装包仍包含 Node 运行时。〕
 - [ ] **插件市场迁移**：读旧 `installed_plugins.json`/marketplace 缓存原样可用；市场卡片 E2E 复用现有 `plugin-store-availability` spec 场景。〔2026-10-18 盘点，DR-PM-1〕读兼容与卡片投影已覆盖（32 + 5 条测试全绿），**M3 不新增 `crates/marketplace`**；剩真实窗口 UI E2E 与 sidecar 打包，详见 `2026-10-18-m3-plugin-market-status.md`。〔2026-10-19：v0.0.58 真机复验市场目录可正常加载（旧错误已随 agent 随包修复消失）；安装/卸载动作尚未逐项执行。〕
+      〔2026-10-20：0.0.61 市场页加载出完整插件卡片与「安装」按钮；安装/卸载动作仍未逐项
+      执行，真实窗口 UI E2E 未完成。〕
 - [ ] **IM bot 逐通道**：〔2026-10-18 盘点，DR-IM-1〕由 Host sidecar 复用现有实现（149 条测试全绿），
       **M3 不新增 `crates/bots`**；Rust HTTP+WS 重写延后到运行时移出 sidecar 时再评估。
       剩余为飞书/企微/钉钉/微信的真账号人工验收，逐项见
       `docs/plans/2026-10-18-m3-im-bot-status.md`。
+      〔2026-10-20：A+ 改造已落地（单实例全局有界并发、群授权管理、出站会话级队列、
+      Agent 归属只读投影），Webhook HTTP 入口与 Telegram 运行时已移除；四通道真账号
+      验收仍未执行。〕
 - [ ] **LAN 远连**：UDP 广播发现 + 6 位配对码 + 桌面即服务端——对照 `lan-discovery/lan-remote-attach/lan-paired-devices` 三个 spec 逐条验收（含旧客户端兼容窗口期口径，按 `lan-no-pre-rename-compat` 记忆：改名前版本不兼容）。〔2026-10-18 已跑 38 条相关测试全绿；2026-10-19 立项补 Tauri 产品壳接线，见 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`；两台机器验收在迁移后执行〕
+      〔2026-10-20 回填：LR-0..LR-4 的 Host sidecar 接线已随 `bd4c7e46` 落地（LAN 管理面、
+      远程桌面设置/会话、远程工作区 connect/attach、scoped attachment 多路复用）。
+      0.0.61 真机验证 LAN 监听、配对码、发现与已配对设备通过。远程桌面「对端不支持」的
+      根因已更正：不是 `mediaTicket`，而是 Tauri 包未带 Windows CUA helper
+      （`rd_media_start` → `helper_unavailable` → 对端回 `unsupported`）；`a2fdebf6` 已把
+      helper 纳入发运集/安装包并桥接 sidecar 资源目录，待真机复验。远程工作区设置页仍无
+      attach/打开入口，两台实机端到端验收未完成。〕
+      〔2026-10-20 追加修复：`13195643` 修复远程工作区断链卡死（WS close 接线 + 30s 心跳）
+      与 LAN 端口占用导致 Host 启动失败（EADDRINUSE 改为 rejection）；`a2fdebf6` 修复 CUA
+      helper 随包；`e5d78685` 修复 Tabs adapter 根节点布局；`a30b08c5` / `424d92fc` 修复
+      机器人接入、回复模式、设置面板布局与下拉选择。以上均为 M3/M4 运行态修复，不改变阶段边界。〕
 - [ ] **SSH/WSL/Docker 远程 + workspaceIdentity**：身份 key `trim() || path` 贯穿，跨 Host 路由与 stale-run 防护的对拍测试。〔2026-10-18 相关用例已在 40 条 desktop 远程测试中通过（含判等口径与对新对端归属）；Tauri 产品壳的 `connectRemote` 与 scoped attachment 尚未接线，纳入 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`〕
-- [ ] **Web 端（axum）**：`web-remote-replayable` 链路 + 手机远控复用 Host attachment 的既有架构（AGENTS.md：不为手机另起运行时）。〔2026-10-18 盘点，DR-WEB-1〕由 Host sidecar 复用现有 `packages/server`，**M3 不新增 `crates/server`**；156 条相关测试全绿，剩两台设备人工验收，见 `2026-10-18-m3-web-remote-status.md`。
-- [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。〔2026-10-18 盘点，DR-TUI-1〕沿用现有 TS/React TUI（`@mode/tui`），**M3 不新增 `crates/tui`**；33 个场景清单见 `2026-10-18-m3-tui-status.md`；当前已有 156 条纯逻辑契约测试并接入 release verify，渲染/焦点/落盘等交互验收仍待人工。
+      〔2026-10-20：`connectRemote` 与 scoped attachment 已随 LR-4 接线（LAN 主路径）；
+      Tauri Host 对 SSH/WSL/Docker 明确返回「暂不支持」，未伪装成功，SSH/WSL/Docker
+      仍属后续工作。〕
+- [ ] **Web 端（axum）**：`web-remote-replayable` 链路 + 手机远控复用 Host attachment 的既有架构（AGENTS.md：不为手机另起运行时）。〔2026-10-18 盘点，DR-WEB-1〕由 Host sidecar 复用现有 `packages/server`，**M3 不新增 `crates/server`**；156 条相关测试全绿，剩两台设备人工验收，见 `2026-10-18-m3-web-remote-status.md`。〔2026-10-20：0.0.61 移动端远程控制页仅验证了四个 IM 通道的占位 UI；两台设备 Web/手机远控回归仍未执行。〕
+- [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。〔2026-10-18 盘点，DR-TUI-1〕沿用现有 TS/React TUI（`@mode/tui`），**M3 不新增 `crates/tui`**；33 个场景清单见 `2026-10-18-m3-tui-status.md`；当前已有 156 条纯逻辑契约测试并接入 release verify，渲染/焦点/落盘等交互验收仍待人工。〔2026-10-20：2026-10-19 又补多批纯逻辑/契约测试（工作流进度、镜像、审批、输入、diff 等）并接入 release verify；33 个场景的渲染与交互验收仍需人工。〕
 
-**阶段验收：** 每个域有对照旧版的 E2E 清单且全绿；sidecar 断网降级符合预期；三平台安装包体积保持核心 ≤30MB。
+**阶段验收：** 每个域有对照旧版的 E2E 清单且全绿；sidecar 断网降级符合预期；三平台安装包体积保持核心 ≤30MB。〔2026-10-17 DR-M5-2b：体积不再作为阻断门禁，改为持续测量项；原 ≤30MB 目标保留为历史口径。〕
 
 ---
 
@@ -280,8 +345,12 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
 - Produces: `pnpm verify:self-developed`（= upstream-overlap-check + scancode/licensee 扫描 + 台账新鲜度），进 CI 必跑。
 
 - [ ] **UI 替换**：按 `DESIGN.md` + 既有交互 spec 重写组件（渲染的是新 Tauri 前端，不回填旧 renderer）；逐屏与旧版截图对拍（允许视觉差异、不允许功能差异）。〔2026-10-18 盘点完成：`packages/ui/src` 重叠 32,626 行（lib 5,778 / components 4,703 / settings 3,402 / v4 2,979 / hooks 2,825 …）；**2026-10-19 D8 裁决：原地重建 `packages/ui` + 逐屏 adapter，store/hooks 不动，旧实现验收后删除**；P1.1–P1.7 静态结构与接线映射见 `2026-10-18-m4-ui-replacement.md` / `2026-10-19-m4-ui-adapter-map.md`；**2026-10-19 清单内 21 个基础件模块已全部切到 adapter**（button 226、toast 63、dropdown-menu 38、dialog 33、select 28、switch 24、tooltip 18、popover 16、badge 15、tabs 12 等），旧 `components/ui/*` 保留到人工看屏验收后删除；后续波次的 `collapsible`(14)/`spinner`(11)/`context-menu`(14)/`command`(7)/`label`+`kbd`/`hover-card`(3)/`input-group`+`scroll-fade`/`chart`(6)/`resizable`(3)/`diff-viewer`(3)/`lightweight`+`highlighted` diff(2+2)/`flip-metric-value`(1)/`pdf-viewer`(6)/`pptx-selection-action-bar`(1)/`code-viewer` 全部渲染点/`pptx-preview-viewer` 亦已切换；**业务代码对旧 `components/ui/*` 的引用已清零**，旧文件待人工看屏后删除（清单见 `docs/plans/2026-10-19-m4-ui-acceptance-checklist.md`）〕
-- [ ] **重合度归零**：`upstream-overlap-check` 在 CI 断言"逐字节一致 + 仅归一一致"两档的行数占比 = 0%；首次运行产出的残余清单按模块排期清零。〔2026-10-18 工具已交付 report 模式；**裁决 (c)**：`packages/services|shared|rpc|server|provider` 为 M4 范围豁免、随 Rust 运行时迁移清零，单列 deferred（517 文件/122,689 行）；M4 计分面 headline **9.84%**（2026-10-19 复测：identical 2656 文件/25,042 行，normalized 188 文件/20,355 行，共 461,312 行；同日早先 9.86%，2026-10-18 为 10.60%）；`third-party/**`、`.agents/skills/**`、`scripts/license-texts/**` 单列不参与；`pnpm verify:self-developed` 为 strict，CI 清零前只跑 report；模块清单与阶段见 `2026-10-18-m4-overlap-reduction.md`，口径见 spec `upstream-overlap-metric.md`〕
-- [ ] **第三方台账重建**：新依赖全量盘点（`scripts/licenses.mjs` 口径延续）；`copied-components.json` 中上游衍生条目删除、第三方条目（shadcn 思路自写组件、Material 图标去留、插件图标 reviewRequired）逐条复核。〔2026-10-18 缺口盘点见 `2026-10-18-m4-third-party-ledger.md`：Rust 台账只覆盖 CUA 的 63 个 crate，M2/M3 运行时依赖图 170 个中 142 个未入账、Tauri 壳 560 个中 485 个未入账；**T2 覆盖门禁已实现**（`pnpm check:rust-ledger`，实测 union external 558 / covered 44 / missing 514，report 模式）；**T1 生成器已实现**（候选台账 577 组件 / 300 份许可证文本；47 条按声明标识自动附标准文本，其中 **3 条仍需人工判断**且文本已附：`selectors` MPL-2.0、`r-efi` ×2 含 LGPL 选项；输出在 `.plan` 未入库，待 T3 Linux CI 重生成与人工 review；见 `2026-10-18-m4-rust-ledger-review.md`）；本机 `licenses.mjs` 因 EMFILE 无法重生成，权威路径是 Linux CI（需人推送）〕
+      〔2026-10-20 回填：0.0.61 真机验收发现并修复 Dialog 遮罩未 portal、二级菜单不互斥、
+      机器人页控制列溢出、Web/手机远控入口缺失与远端模型加载态误导；业务代码对旧
+      `components/ui/*` 的引用保持为零，旧文件继续等待看屏验收后删除；UI foundation
+      adapter 波次仍在继续。〕
+- [ ] **重合度归零**：`upstream-overlap-check` 在 CI 断言"逐字节一致 + 仅归一一致"两档的行数占比 = 0%；首次运行产出的残余清单按模块排期清零。〔2026-10-18 工具已交付 report 模式；**裁决 (c)**：`packages/services|shared|rpc|server|provider` 为 M4 范围豁免、随 Rust 运行时迁移清零，单列 deferred（514 文件/121,157 行）；M4 计分面 headline **9.80%**（2026-10-20 复测：identical 2654 文件/24,957 行，normalized 187 文件/20,309 行，共 462,066 行；2026-10-19 为 9.83%–9.84%，2026-10-18 为 10.60%）；`third-party/**`、`.agents/skills/**`、`scripts/license-texts/**` 单列不参与；`pnpm verify:self-developed` 为 strict，CI 清零前只跑 report；模块清单与阶段见 `2026-10-18-m4-overlap-reduction.md`，口径见 spec `upstream-overlap-metric.md`〕
+- [ ] **第三方台账重建**：新依赖全量盘点（`scripts/licenses.mjs` 口径延续）；`copied-components.json` 中上游衍生条目删除、第三方条目（shadcn 思路自写组件、Material 图标去留、插件图标 reviewRequired）逐条复核。〔2026-10-18 缺口盘点见 `2026-10-18-m4-third-party-ledger.md`：Rust 台账只覆盖 CUA 的 63 个 crate，M2/M3 运行时依赖图 170 个中 142 个未入账、Tauri 壳 560 个中 485 个未入账；**T2 覆盖门禁已实现**（`pnpm check:rust-ledger`，实测 union external 558 / covered 44 / missing 514，report 模式）；**T1 生成器已实现**（候选台账 577 组件 / 300 份许可证文本；47 条按声明标识自动附标准文本，其中 **3 条仍需人工判断**且文本已附：`selectors` MPL-2.0、`r-efi` ×2 含 LGPL 选项；输出在 `.plan` 未入库，待 T3 Linux CI 重生成与人工 review；见 `2026-10-18-m4-rust-ledger-review.md`）；本机 `licenses.mjs` 因 EMFILE 无法重生成，权威路径是 Linux CI（需人推送）〕〔2026-10-20：`pnpm check:rust-ledger` 仍为 report——union external 558 / covered 44 / missing 514，覆盖门禁未转 strict。〕
 - [ ] **法务收口**：贡献者协议（CLA/DCO）挂进 PR 流程；软著登记材料（源码前后 30 页 + 说明）；"Mode"图形组合商标申请材料；`docs/specs/p2-mode-naming.md` 必须保留清单逐条复核不动。
 
 **阶段验收：** `verify:self-developed` 全绿（diff 0%）；UI 全量替换完成、旧 renderer 代码从产物中消失；第三方台账无 reviewRequired 中"上游衍生"类遗留；NOTICE §4 新措辞经人工复核。
@@ -292,10 +361,12 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
 
 **目标：** 新线 GA、旧线 EOL、三指标（语言/体积/重合度）落到终值。
 
-- [ ] **发布工程**：Tauri updater + 签名（三平台）、`release.yml` 只出 Tauri 产物、块映射/差分更新验证。〔2026-10-19：Windows Tauri 自动发版已连续跑通（v0.0.57 / v0.0.58：push → verify → 五腿构建 → publish）；三平台签名、旧线 EOL 与差分更新仍未完成。〕
-- [ ] **旧线 EOL**：Electron 线打最后版本公告 EOL；`docs/plans` 与 spec 标注归档；仓库语言终态 = Rust + TS + HTML/CSS（目标 ≥99% 字节来自这两门 + 平台文件）。
-- [ ] **数据迁移终验**：`.mode` 数据根原样复用（协议未变）；从旧线最后一版升级到新线的实机迁移演练。
-- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕
+- [ ] **发布工程**：Tauri updater + 签名（三平台）、`release.yml` 只出 Tauri 产物、块映射/差分更新验证。〔2026-10-19：Windows Tauri 自动发版已连续跑通（v0.0.57 / v0.0.58：push → verify → 五腿构建 → publish）；2026-10-20 回填：v0.0.59 的 CI 首次三平台腿全绿，`248b0937`（v0.0.60）起三平台安装包与各自 `sha256` 一起发布，v0.0.60 / v0.0.61 已按该口径发布；0.0.61 真机核心链路通过。三平台签名、旧线 EOL 与差分更新仍未完成；macOS/Linux 真机安装/启动/升级仍属残余风险。〕
+- [ ] **旧线 EOL**：Electron 线打最后版本公告 EOL；`docs/plans` 与 spec 标注归档；仓库语言终态 = Rust + TS + HTML/CSS（目标 ≥99% 字节来自这两门 + 平台文件）。〔**2026-10-20 用户决定取消旧 Electron 线**：新增 `docs/specs/legacy-electron-eol.md`，删除 Electron main/preload/scheduler、Electron host 入口、electron-builder/electron-updater 打包与 `release.yml` 的 `desktop` job；保留 Tauri 复用的 renderer、host/host-standalone、agent/CUA 产物与 fnOS job。**代码与 CI 收口已完成**：
+typecheck / lint / architecture / language policy / desktop tests / desktop-tauri tests /
+`build:package-inputs` 均通过；旧线回滚路径已删除。剩余 GA 发布与历史文档归档。详见该 spec。〕
+- [ ] **数据迁移终验**：`.mode` 数据根原样复用（协议未变）；从旧线最后一版升级到新线的实机迁移演练。〔2026-10-20：0.0.61 与旧 Electron 0.0.52 已在同一台机器并存安装，新线核心任务链路可用；正式的「旧线最后一版 → 新线」升级演练仍未执行。〕
+- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕〔2026-10-20：语言门禁通过；重合度 report 降至 9.80%；0.0.62 本机 gnu 构建整包 51.79 MiB，三项均未成为阻断门禁。〕
 
 **阶段验收：** 三平台 GA 发布；三指标全绿并进必跑门禁。
 

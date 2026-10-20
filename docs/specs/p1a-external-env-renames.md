@@ -39,5 +39,5 @@ ZCODE_PLUGIN_ROOT / ZCODE_PLUGIN_DATA ZCODIUM_PLUGIN_ROOT / ZCODIUM_PLUGIN_DATA
 ## 验收
 
 1. `ZCODIUM_DATA_BASE_DIR` 生效；仅设置旧名同样生效且打弃用警告。
-2. dev:desktop:test 隔离链路在纯新名下工作正常。
+2. `pnpm dev:desktop`（Tauri）隔离链路在纯新名下工作正常。
 3. typecheck / lint / services 测试全绿。

@@ -39,9 +39,8 @@ CI 在 `Collect installer and record size` 步骤里把 bundler 的本机名改�
 `target/x86_64-pc-windows-msvc/release/bundle/nsis/Mode_<版本>_x64-setup.exe`（下划线，且带
 setup 后缀）。不要直接把 bundler 原始名上传到 Release。
 
-旧 Electron 线的产物名同样是 `Mode-<版本>-win-x64.exe`
-（`packages/desktop/electron-builder.config.js` 的 `buildDesktopArtifactName("win")`）。
-这正是 DR-M5-1 要求「同一次 run 不能既传 Electron 又传 Tauri 到同一个 release」的原因。
+旧 Electron 线已 EOL（`docs/specs/legacy-electron-eol.md`），发布路径只有 Tauri 一条；
+不再存在两条线产出同名安装包的问题。
 
 ### 1.2 两条前端构建：产品页与验收台
 
@@ -178,25 +177,18 @@ node scripts/tauri-update-manifest.ts \
 - **仍未验收**：macOS/Linux 的真机安装、启动、升级；macOS 未签名/未公证；Linux AppImage
   在用户机器上的 FUSE 环境。发布说明必须写明这些限制，不能宣称三平台 GA 已完全达成。
 - **应用内更新**：仍只有 Windows。`latest.json` 只含 `windows-x86_64`；macOS/Linux 手动下载替换。
-- **旧 Electron 线**：`desktop` job 继续构建但只发 workflow artifact，不进 Release（DR-M5-1）；
-  因此运行页有两个 Windows job，Release 里只有一个 Windows 安装包。
+- **旧 Electron 线**：已 EOL，`desktop` job 与 Electron 构建链已删除；Release 里只有 Tauri 安装包。
 
 ### 1.7 安装身份与迁移：本版保持 `ModeTauri.exe`（开放决策）
 
 **本版决定（控制器 ruling，2026-10-17）：不重命名二进制，保持 `ModeTauri.exe`。**
 
-- 旧 Electron 线的主程序是 `Mode.exe`；Tauri 线是 `ModeTauri.exe`（Cargo 的
+- 旧 Electron 线已 EOL，不再发布新版本；Tauri 线主程序是 `ModeTauri.exe`（Cargo 的
   `[[bin]] name`，不是 `productName`）。
-- 因此本版与旧 Electron 版是**独立安装、并存**的：安装目录、快捷方式名称、卸载项
-  与用户数据目录都不共用。用户应预期「多出一份安装」，而不是就地升级旧版。
-  Release 说明必须把这件事写清楚（见 4.2）。
-- **为什么不现在改名**：改二进制名是打包身份变更，会同时改变
-  **① 安装路径、② 快捷方式名称、③ 卸载器条目、④ 用户数据目录**；每一项都需要
-  独立的安装/升级/回滚验证。在阻断项修复里盲改会制造比现状更糟的 bug。
-- **开放决策（未完成）**：把两条线的安装身份统一。它需要处理上面四项，并验证
-  「旧版 → 新版」的就地迁移（或明确的并行安装策略）。
-- **重开条件**：在这条发布线要**取代**旧版（而不是与旧版并存）的那个 release 之前；
-  届时先写迁移 spec 与验证场景，再改 bin 名/安装身份。**在此之前不要重命名。**
+- 若用户机器上仍有旧 Electron 安装，两者**独立安装、并存**：安装目录、快捷方式名称、
+  卸载项与用户数据目录都不共用。Release 说明必须把这件事写清楚（见 4.2）。
+- **安装身份统一**：旧线删除后，这条开放决策只剩「是否把 `ModeTauri.exe` 改名为
+  `Mode.exe`」；它仍是打包身份变更，需独立 spec 与迁移验证，**不在 EOL 收口里顺手改**。
 
 ---
 
@@ -243,10 +235,10 @@ pnpm --filter @mode/desktop prepare:browser-import-helper
 node --test packages/desktop/tests/browser-import-helper-contract.test.mjs
 ```
 
-Tauri/协议/updater/deeplink/sidecar-host 的 Rust 验证套件**不在这个 job 里**：
-M5 整批评审 B2 发现它原先只在这个不阻断的 job 里跑，已移到下面 `tauri` job 的
-Windows 腿（阻断路径）。两个 helper 的测试/clippy 留在这里，因为它们覆盖的是
-Electron 诊断/回滚构建仍在使用、但不在根 workspace 里的独立 crate。
+Tauri/协议/updater/deeplink/sidecar-host 的 Rust 验证套件在 `tauri` job 的 Windows 腿
+（阻断路径）。CUA helper 与 browser-import helper 的 Rust 测试/clippy 也在那里。
+Electron 诊断 job 删除后，browser-import 的 C# oracle 黑盒对拍已搬进 `tauri` job 的
+Windows 腿，作为 `continue-on-error` 的辅助验证；不阻断发布。
 
 **`release.yml` 的 `tauri` job** 构建 NSIS 安装包、改名、跑
 `node scripts/tauri-bundle-report.ts`（sha256 + 体积留痕）。M5 Task 2 起：
@@ -271,9 +263,7 @@ Electron 诊断/回滚构建仍在使用、但不在根 workspace 里的独立 c
 - **macOS / Linux 腿**（2026-10-19 起）与 Windows 一样上传安装包与校验片段到 Release，
   且同样阻断发布（没有 `continue-on-error`）。任一腿失败 → `tauri.result = failure`，
   Release 保持 draft；不会再出现「Windows 发了、mac/Linux 缺件」的版本。
-- **旧 Electron `desktop` job 仍构建**（保留回滚能力），但只上传
-  `electron-desktop-*` / `electron-checksums-*` workflow artifact，不再写 Release；
-  它已声明 `continue-on-error: true`——诊断构建失败不会把整次 run 判红，也不挡 `publish`。
+- **旧 Electron `desktop` job 已删除**（2026-10-20 EOL）；发布与回滚都只走 Tauri 线。
 
 > **M5 Task 1/2 之后的前置项**：`tauri.conf.json` 已开 `createUpdaterArtifacts` 且 pubkey 非空。
 > 如果 CI secrets 里没有 `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`，`Build Tauri bundles`
@@ -292,7 +282,7 @@ pnpm verify:pre-push
 > `needs.tauri.result == 'success'`。三条 Tauri 腿都没有 `continue-on-error`，任一腿失败
 > 结果是 `failure`，`publish` 不会公开 release——**不再**依赖「checksums 缺片段」这条
 > 间接证明。`checksums` 的清单断言覆盖 `.exe` / `.dmg` / `.AppImage` / `.fpk` 四类安装包。
-> 同一次 run 里 Electron 的 `desktop` job 不再上传 Release，所以两条线不会互覆。
+> 发布路径只有 Tauri 一条线，同名安装包不会互覆。
 
 **三指标与门禁（路线图 M5 第 241 行原文）**：
 
@@ -614,11 +604,10 @@ gh secret list --app actions | grep TAURI_SIGNING
   会因为缺少私钥而红（这是预期行为，不是新缺陷）。
 - **M5 Task 2 起**：`tauri` job 的 Windows 腿把 `latest.json` 与
   `Mode-<版本>-win-x64.exe.sig` 作为 Release 资产上传；`latest.json` 的
-  `url` 指向同一 tag 的安装包。`latest*.yml` / `*.blockmap` 属于旧 Electron 线，
-  新发布线不再上传它们；两个文件名不同，不冲突。
-- **同一次 run 只允许一条线上传安装包**：Electron 的 `desktop` job 仍构建，但只上传
-  workflow artifact（`electron-desktop-*`）。这是 DR-M5-1 的 no-clobber 机制：
-  产物名逐字相同，但本次 run 里只有 Tauri Windows 腿执行 `gh release upload`。
+  `url` 指向同一 tag 的安装包。旧 Electron 线的 `latest*.yml` / `*.blockmap` 已随 EOL
+  消失；发布路径只上传 `latest.json`、`.sig` 与安装包。
+- **同一次 run 只有 Tauri 一条线**上传安装包；旧 Electron 的 `desktop` job 已删除，
+  不存在同名互覆。
 - **不要把它和 CLI 的 `latest.json` 混淆**：`scripts/build-mode.mjs` 也会在
   `dist/mode/latest.json` 写一份 CLI tarball 的元数据（`scripts/mode-distribution` 用），
   但 `fnos` job 只上传 `.fpk`，不上传这个文件。Release 里的 `latest.json` 只有
@@ -672,20 +661,18 @@ gh secret list --app actions | grep TAURI_SIGNING
   patch + 1；若该 tag 已被占用就继续 +1，直到不冲突。没有基线时从 `0.0.0` 起，即 `v0.0.1`。
 - 跳过：提交信息含 `[skip release]` 时整条流水线跳过。
 - 流程：`release`（校验版本、建 tag、建 draft release）→ `verify` →
-  `desktop`（Electron，诊断/回滚构建）与 `tauri`（Windows + macOS + Linux 发布线）
-  + `fnos` → `checksums` → `publish`。
+  `tauri`（Windows + macOS + Linux 发布线）+ `fnos` → `checksums` → `publish`。
 - `publish` 在 `release`、`verify`、`tauri`、`checksums`、`fnos` 成功（或按既有规则
   skipped）时公开 draft。**2026-10-19 起 `tauri` 三条腿都是硬门**：任一腿失败时
   `needs.tauri.result == 'failure'`，`publish` 不跑。`checksums` 证明
   `.exe`/`.dmg`/`.AppImage`/`.fpk` 四类安装包及校验片段确实进了 Release。
   正式版用 `--latest`，预发布用 `--prerelease`。
 - **M5 Task 2 起**：自动发版发布的安装包来自 **Tauri** 线（2026-10-19 起含
-  Windows/macOS/Linux 三平台）；旧 Electron `desktop` job 仍会构建，但只产出
-  workflow artifact，且 `continue-on-error: true`。
+  Windows/macOS/Linux 三平台）；旧 Electron 线已 EOL，不再构建或发布。
 - **Release 说明必须与实际升级路径一致（M5 评审 B1/B5）**：自动生成的说明里必须写清
-  「旧 Electron 用户需要手动安装一次」「本版之后的 Tauri 版本可在应用内
-  『帮助 → 检查更新』升级」「主程序是 `ModeTauri.exe`，与旧版独立并存」。
-  **不要**再写「已装过的用户不用手动下载」——切换后的 Release 没有 `latest.yml`，
+  「旧 Electron 用户需要手动安装一次（旧线已 EOL）」「本版之后的 Tauri 版本可在应用内
+  『帮助 → 检查更新』升级」「主程序是 `ModeTauri.exe`」。
+  **不要**写「已装过的用户不用手动下载」——Tauri Release 没有 `latest.yml`，
   旧客户端的 `electron-updater` 拿到 404（见 5.2），不会就地升级。
   2026-10-19 起还必须写清：macOS 仅 arm64、未签名/未公证；Linux 为 AppImage；
   macOS/Linux 目前只能手动下载，应用内更新仍只有 Windows。
@@ -729,9 +716,8 @@ gh release view <tag> --json isDraft,isLatest,assets \
 - `Mode-<版本>-win-x64.exe.sig`（安装包签名；`tauri build` 原名是
   `Mode_<版本>_x64-setup.exe.sig`，CI 改名后与安装包同名）
 - `sha256.txt`（合并校验清单；`checksums` 由 Tauri Windows 腿的片段驱动）
-- **不应出现**旧的 `latest*.yml` / `*.blockmap`：新发布线不上传它们
-  （它们只属于旧 Electron release；与 `latest.json` 文件名不同，不会互覆）
-- 旧 Electron 线的上一版资产仍在它自己的 release 里，没有被覆盖
+- **不应出现**旧的 `latest*.yml` / `*.blockmap`：它们属于已 EOL 的 Electron 线，新发布线不上传。
+- 历史 Electron release 的资产仍保留在各自 tag 下，未被本次发布覆盖。
 
 期望：`draft=false`；正式版 `latest=true`。若任一资产缺失，发布不完整，按第 5 节止血，
 不要用「重跑一次」掩盖缺失。
@@ -748,7 +734,7 @@ gh release view <tag> --json isDraft,isLatest,assets \
       一次性演练不算本次；gnu 宿主 + 本地 feed 也不等于 msvc + GitHub feed）。
 - [ ] 3.4 的签名检查全部勾完；`pubkey` 不是空串。
 - [ ] 本次发布线是 **Tauri 三平台安装包**（Windows/macOS/Linux）+ fnOS；旧 Electron
-      线的上一版资产仍可下载，回滚步骤（5.2 / 5.5）可用。
+      线已 EOL，回滚只按 5.2 走 Tauri 正向修复。
 - [ ] macOS/Linux 的未签名/未公证与运行时未验收已写进 Release 说明（1.6、4.2）；
       应用内更新仍只有 Windows。
 - [ ] 本地提交已报告给人；推送由人执行（4.1）。
@@ -767,149 +753,24 @@ gh release view <tag> --json isDraft,isLatest,assets \
 3. 如果坏 release 还是 draft：不要公开；修好后重跑，或直接删除 draft 后重来。
 4. 如果坏 release 已经公开且成为 Latest：执行 5.2。
 
-### 5.2 主路径：重新发布上一个 Electron 版本
+### 5.2 主路径：正向修复并发布更高的 Tauri 版本
 
-DR-M5-1 的前提：发布线切换是**单一提交**，且旧 Electron 线的构建能力在该提交里**不被删除**。
-因此回滚不是「把用户降级」，而是**用旧线的构建能力发一个版本号更高的新 release**——
-`electron-updater` 只按版本号向前更新，发一个更小的版本号用户收不到。
+旧 Electron 线的构建能力已随 EOL 删除（`docs/specs/legacy-electron-eol.md`），因此**不存在通过重发 Electron 版本回滚的路径**。回滚只允许沿 Tauri 线向前：
 
-> **M5 Task 2 切换之后，这条路径仍然可执行。** 切换提交只把 `publish` 的产物来源换成
-> Tauri，**没有删除** Electron 的 `desktop` job、`bundle:desktop` 脚本或旧 tag 的
-> workflow。回滚机制就是下面第 4 步：**在上一 Electron tag 上重新触发 workflow**。
-> 它用旧 tag 的提交和旧 tag 的 `release.yml` 构建 Electron、创建全新的 tag；旧 tag
-> 的 Release 资产不会被本次 Tauri 发布触碰（不同 tag，且新流水线从不删除资产）。
->
-> **切换后的更新通道**：新的 Tauri release 只带 `latest.json`，没有 `latest.yml`。
-> 已安装的 Electron 用户在 `/releases/latest/download/latest.yml` 上得到 404，
-> `electron-updater` 会保持当前版本（不会误把 Tauri 安装包当成 Electron 更新）。
-> **因此旧 Electron 用户不会就地升级**：他们必须**手动下载并安装一次**本版
-> `Mode-<版本>-win-x64.exe`；装好之后，后续 Tauri 版本才走应用内
-> 「帮助 → 检查更新」。只有从旧 tag 重新发布的回滚 release 才带 `latest.yml`
-> 并成为 Latest，Electron 用户那时才会收到回滚版本。
+1. 在坏版本之后修复代码，发布一个版本号更高的 Tauri 版本（首选；已更新用户才能自动恢复）。
+2. 如果坏版本尚未广泛分发，可 revert 坏提交并重跑自动发版；仍必须产出更高的 Tauri 版本号。
+3. 不要删除坏 release；保留资产与 tag 供排障，必要时在说明里标注「勿下载」。
 
-步骤：
+### 5.3 已经在坏 Tauri 版本上的用户
 
-1. **找到上一个 Electron 版本 tag，并确认它的产物还在**
+- Tauri updater 默认只接受版本号更大的清单，没有 `allowDowngrades`；**没有自动降级路径**。
+- 已更新到坏版本的用户必须手动安装修复版；不要承诺「重发旧线就会自动回滚」。
+- 平台级止血只能靠正向修复版；旧 Electron 安装包仍可从历史 release 手动下载，但不再有新构建。
 
-   ```bash
-   gh release list --limit 20
-   gh release view <上一个 Electron tag> --json tagName,isDraft,assets \
-     --jq '{tag:.tagName,draft:.isDraft,assets:[.assets[].name]}'
-   ```
+### 5.4 回滚后验证与禁止项
 
-   必须看到该 tag 的 `Mode-<旧版本>-win-x64.exe` 与 `latest*.yml`。
-   Release 资产不会像 workflow artifact 那样 14 天过期；只要没人删 release，它们就还在。
-   **不要对该 tag 执行 `gh release delete`，也不要在该 tag 上使用 `--clobber`。**
-
-2. **确认旧 tag 的 workflow 具备本次需要的输入**
-
-   ```bash
-   git show <上一个 Electron tag>:.github/workflows/release.yml | sed -n '1,35p'
-   ```
-
-   需要看到 `workflow_dispatch` 的 `version`、`prerelease`、`build_artifacts`、`keep_draft`。
-   若旧 tag 的 workflow 没有这些输入，改用 5.5 的 revert 路径。
-
-3. **选一个新的、高于坏版本的正式版本号**
-
-   例如坏版本是 `3.14.4`，回滚发布用 `3.14.5`。先确认不冲突：
-
-   ```bash
-   git ls-remote --tags origin "refs/tags/v<新版本>"
-   gh release view "v<新版本>"   # 期望报 not found
-   ```
-
-4. **在旧 Electron tag 上手工触发 release**
-
-   ```bash
-   gh workflow run release.yml --ref <上一个 Electron tag> \
-     -f version=<新版本> \
-     -f prerelease=false \
-     -f build_artifacts=true \
-     -f keep_draft=false
-   ```
-
-   这里用的是 **`version` 输入**（必填）和 **`--ref <旧 tag>`**：workflow 会从旧 tag 的提交
-   构建 Electron 线，并创建新 tag `<新版本>`；旧 tag 的资产不受影响。
-   `prerelease=false` 让新 release 成为 `/releases/latest/`，旧线的 `electron-updater` 才会取到它。
-
-5. **观察并核对**
-
-   ```bash
-   gh run list --workflow=release.yml --limit 5
-   gh run watch <run-id>
-   gh release view "v<新版本>" --json isDraft,isLatest,assets \
-     --jq '{draft:.isDraft,latest:.isLatest,assets:[.assets[].name]}'
-   ```
-
-   期望：`draft=false`、`latest=true`，资产里有 `Mode-<新版本>-win-x64.exe`、`latest*.yml`、
-   `sha256.txt`。然后在一台装有上一个 Electron 版本的机器上触发「检查更新」，确认能升到
-   `<新版本>`。
-
-### 5.3 已经在坏 Tauri 版本上的用户（M5 Task 1 演练后的定稿）
-
-**结论：无自动降级路径。** 依据是 updater 的默认版本比较与一次真演练：
-
-- Tauri updater 默认只接受**版本号更大**的清单；代码里没有开 `allowDowngrades`。
-- 回滚 release 是 Electron 构建，**没有 `latest.json`**；Tauri 客户端访问
-  `/releases/latest/download/latest.json` 得到 404，按 fail closed 处理，继续运行当前版本。
-- 演练确认：签名/下载失败时不会安装，旧版本继续运行（不会「装一半」或静默降级）。
-
-因此处置顺序是：
-
-1. **首选：发一个版本号更高的 Tauri 修复版**（正向修复）。这是唯一能让已更新用户
-   自动回到可用状态的路径。
-2. **平台级止血**：按 5.2 从旧 Electron tag 发一个更高版本号的 Electron release，
-   让**尚未更新**的用户和手动下载的用户拿到可用安装包。
-3. **已装坏 Tauri 版的用户**：必须**手动**安装修复后的 Tauri 版或 Electron 安装包。
-   不要向他们承诺「重发 Electron 就会自动回滚」——不会发生。
-4. 如果坏版本就是 Tauri 发布线的第一个版本、且用户量还小：优先走 1；同时把坏 release
-   标注「勿下载」但**保留**，供排障。
-
-**不要做的**：不要为了「让用户降级」在清单里写一个更小的版本号（默认比较会直接忽略）；
-不要删除坏 release；不要在旧 tag 上用 `--clobber`。
-
-### 5.4 确保旧产物始终可下载
-
-- 每次发布前（尤其是切换提交前）做一次冷备份到仓库外：
-
-  ```bash
-  mkdir -p "<仓库外的临时目录>/<旧版本>"
-  gh release download <上一个 Electron tag> --dir "<仓库外的临时目录>/<旧版本>"
-  ```
-
-- 发布后再次核对旧 release 的资产列表（5.2 第 1 步），确认没有被本次上传覆盖。
-- 不同 tag 的 Release 资产相互独立；**同名覆盖只会在对同一个 tag 使用 `--clobber` 时发生**。
-  切换提交必须保证：新版本用新 tag，旧 tag 不动。
-- workflow artifact 有 14 天保留期，**不能**把它当作回滚来源；回滚只依赖 Release 资产与旧 tag
-  的构建能力。
-
-### 5.5 备选：revert 切换提交（**需要手工解决冲突**）
-
-> **M5 评审补充（2026-10-17）：这条路径已经不能干净地 `git revert`。**
-> 切换提交之后，`f21c2b75` 与 `693d851d` 又改了 `release.yml` / `RELEASE.md` 的同一区域
-> （publish 条件、指标步骤、Rust 门禁）。直接 revert 会在这些位置产生冲突；
-> 必须**手工解决冲突**并重新跑完整的本地验证。**优先使用 5.2 的主路径**
-> （在上一 Electron tag 上重跑 workflow），它不依赖当前分支的 revert。
-
-如果旧 tag 的 workflow 不可用，而切换确实是单一提交：
-
-1. revert 该切换提交（不改其他提交）。
-2. 人推 `main`；自动发版取「最近正式 tag 的 patch + 1」，`publish` 的产物来源
-   随 revert 回到 Electron 线。
-3. 按 5.2 第 5 步核对新 release 与更新。
-
-这条路径依赖「旧 Electron 线的构建能力没有被切换提交删除」。**M5 Task 2 的切换提交
-保留了 `desktop` job 与 `bundle:desktop` 脚本**，只把它的上传目标从 Release 改成
-workflow artifact；revert 会把上传目标一并恢复。若将来有人删除 Electron 构建链，
-本路径不可用，只能走 5.2。
-
-### 5.6 回滚后验证与禁止项
-
-- [ ] 新回滚 release 已公开且 `latest=true`。
-- [ ] 旧 Electron 用户能从上一版升到回滚版本。
-- [ ] 旧 release 的资产仍在，且没有被 `--clobber`/删除。
-- [ ] 坏版本 release 保留供排障（必要时在说明里标注「勿下载」）。
-- [ ] 已装坏 Tauri 版的用户得到了明确处置说明（正向修复或手动重装，见 5.3）。
-- 禁止：用删除 release 当作回滚；用 `--clobber` 覆盖旧 tag；把「重跑流水线」当作修复；
-  在未记录原始输出的情况下声称回滚完成。
+- [ ] 修复版 release 已公开且 `latest=true`。
+- [ ] 安装包、`.sig` 与 `latest.json` 的版本/签名/URL 一致。
+- [ ] 坏版本 release 保留供排障（必要时标注「勿下载」）。
+- [ ] 已装坏版本的用户得到明确的手动处置说明。
+- 禁止：用删除 release 当作回滚；用 `--clobber` 覆盖旧 tag；把「重跑流水线」当作修复；在未记录原始输出的情况下声称回滚完成。

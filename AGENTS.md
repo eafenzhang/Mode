@@ -27,7 +27,8 @@
 
 测试入口以目标包当前的 `package.json` 和实际测试文件为准，不假定存在统一的单测或 E2E 命令。
 
-- `packages/desktop`：Electron main、host、renderer。
+- `apps/desktop-tauri`：Tauri v2 桌面壳、Rust 命令面与打包。
+- `packages/desktop`：产品 renderer、Host 与 host-standalone（Tauri sidecar 复用）。
 - `packages/web`、`packages/server`：Web 客户端与服务端。
 - `packages/ui`：共享 React 组件、hooks 与 Zustand store。
 - `packages/services`：业务服务；`packages/rpc`：RPC 框架。

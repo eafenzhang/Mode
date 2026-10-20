@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           # 推送触发的自动发版：无需输入版本，取「最近一个正式版 tag 的 patch + 1」；
           # 该版本已被占用（同一次推送重跑、或并发）就继续 +1，保证 tag 不冲突、版本单调递增，
-          # 应用内自动更新（electron-updater 比版本号大小）才能一路升上去。
+          # 应用内自动更新（Tauri updater 比版本号大小）才能一路升上去。
           if [ "$EVENT_NAME" = "push" ]; then
             # 只认正式版 tag（v<major>.<minor>.<patch>）：预发布/审计 tag 不参与基线，
             # 否则自动版本会被推进到预发布序列上。
@@ -151,18 +151,18 @@ jobs:
           ## 安装与升级 / Install and update
 
           - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。
-            - **从旧 Electron 版升级**：这是 Tauri 实现的第一版，Release 里只有 `latest.json`、没有 `latest.yml`；旧客户端的应用内更新会拿到 404，**需要手动下载并安装一次**（`<PRODUCT>-<VERSION>-win-x64.exe`）。装好这一版后，后续 Tauri 版本可在应用内「帮助 → 检查更新」升级。
+            - **从旧 Electron 版迁移（旧线已 EOL）**：旧 Electron 线不再发布，Release 里只有 `latest.json`、没有 `latest.yml`；旧客户端的应用内更新会拿到 404，**需要手动下载并安装一次**（`<PRODUCT>-<VERSION>-win-x64.exe`）。装好这一版后，后续 Tauri 版本可在应用内「帮助 → 检查更新」升级。
             - **本版之后的 Tauri 版本**：应用内「帮助 → 检查更新」直接走本仓库 Releases 升级。
-            - **安装身份**：本版主程序是 `ModeTauri.exe`，旧 Electron 版是 `Mode.exe`。两者**独立安装、并存**（安装目录、快捷方式、卸载项和数据目录都不同），本版不会就地替换旧版；请预期多出一份安装。
+            - **安装身份**：本版主程序是 `ModeTauri.exe`；旧 Electron 线已 EOL，不再发布。若机器上仍有旧版，两者独立安装、并存（安装目录、快捷方式、卸载项和数据目录都不同），本版不会就地替换旧版。
           - **macOS（.dmg，Apple Silicon）**：`<PRODUCT>-<VERSION>-mac-arm64.dmg`。仅支持 arm64（Apple Silicon），Intel Mac 不适用；产物**未签名、未公证**，首次打开若被 Gatekeeper 拦截，请右键应用选「打开」，或执行 `xattr -dr com.apple.quarantine /Applications/<PRODUCT>.app`。macOS 产物尚未做真机运行验收。
           - **Linux（.AppImage，x64）**：`<PRODUCT>-<VERSION>-linux-x64.AppImage`。`chmod +x` 后直接运行；若系统缺少 FUSE，可加 `--appimage-extract-and-run`。Linux 产物尚未做真机运行验收。
           - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口打开（走飞牛统一网关，登录态直达，异地也可用）。
           - **校验与更新元数据**：`sha256.txt` 覆盖上方全部安装包。应用内自动更新目前只有 Windows 接入（`latest.json` 仅含 `windows-x86_64` 与安装包 `.sig`）；macOS/Linux 请手动下载新版替换。
 
           - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**.
-            - **Upgrading from the old Electron build**: this is the first Tauri release. It ships `latest.json` but no `latest.yml`, so the old client's in-app updater gets a 404; **download and install once manually** (`<PRODUCT>-<VERSION>-win-x64.exe`). After that one-time install, later Tauri releases update in place via **Help -> Check for updates**.
+            - **Migrating from the old Electron build (legacy line EOL)**: the old Electron line is no longer released. Releases ship `latest.json` but no `latest.yml`, so the old client's in-app updater gets a 404; **download and install once manually** (`<PRODUCT>-<VERSION>-win-x64.exe`). After that one-time install, later Tauri releases update in place via **Help -> Check for updates**.
             - **From this Tauri release onward**: in-app updates via **Help -> Check for updates** use this repository's Releases.
-            - **Install identity**: the main executable is `ModeTauri.exe`; the old Electron app is `Mode.exe`. They install **separately and side by side** (different install directory, shortcuts, uninstall entry, and user-data directory); this release does not replace the old app in place. Expect a second installation.
+            - **Install identity**: the main executable is `ModeTauri.exe`; the old Electron line is EOL and no longer released. If an old install remains, the two install separately and side by side (different install directory, shortcuts, uninstall entry, and user-data directory); this release does not replace the old app in place.
           - **macOS (.dmg, Apple Silicon)**: `<PRODUCT>-<VERSION>-mac-arm64.dmg`. arm64 only (Apple Silicon); not for Intel Macs. The build is **unsigned and not notarized**; if Gatekeeper blocks the first launch, right-click the app and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/<PRODUCT>.app`. macOS artifacts have not yet been runtime-tested on real hardware.
           - **Linux (.AppImage, x64)**: `<PRODUCT>-<VERSION>-linux-x64.AppImage`. `chmod +x` then run; if FUSE is unavailable, add `--appimage-extract-and-run`. Linux artifacts have not yet been runtime-tested on real hardware.
           - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry (routed through the fnOS gateway with your desktop login, works remotely too).
@@ -281,179 +281,13 @@ jobs:
           # docs/specs/tauri-renderer-host.md 的「覆盖分工」）。
           pnpm --filter @mode/desktop-tauri test
 
-  desktop:
-    needs: [release, verify]
-    if: ${{ github.event_name == 'push' || inputs.build_artifacts }}
-    # M5 Task 3：这是**诊断/回滚构建**，不是发布线的一部分。
-    # 它仍要跑（DR-M5-1/RELEASE.md 5.2：旧线构建能力必须可验证），但失败
-    # 不得把整次 run 判红、更不得挡住 publish。publish 的 needs 里没有它；
-    # 这里再把 job 级结果归一为 success（actions/runner#1161：continue-on-error
-    # 的 job 在 needs 里读到的仍是 success，UI 仍会显示这条腿失败）。
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        # 只发 Windows x64（桌面）与 fnOS（独立 job）。
-        # 想加回 macOS / Linux 时按下面格式补一行（Intel mac 用 macos-15-intel + mac/x64，
-        # Linux arm64 用 ubuntu-24.04-arm + linux/arm64），并同步三处：
-        #   - checksums job 的扩展名断言（补 .dmg / .AppImage）
-        #   - release job 说明里的安装段
-        #   - 远端资源平台列表
-        include:
-          - runner: windows-latest
-            target: win
-            arch: x64
-            glob: "*.exe"
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.2
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build project references
-        run: pnpm typecheck
-
-      # 以下四步仅 Windows 腿（matrix.target == 'win'）：cua-helper 是 win32-only
-      # 捆绑产物，mac/linux 腿 electron-builder 的 extraResources 不引用它。
-      # CI 跑在 MSVC runner 上（无 llvm-mingw），注入 msvc 目标三元组覆盖本地
-      # 默认的 gnu；cargo test/clippy 同样只在 Windows 腿执行（crate 依赖 Win32 API）。
-      # 仓内首用 dtolnay/rust-toolchain；@stable 浮动 tag 对齐本仓 actions 浮动惯例（@v4 同类）。
-      - name: Install Rust toolchain (msvc target)
-        if: matrix.target == 'win'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-          # --profile minimal 不含 clippy，clippy 门禁需要显式声明组件。
-          components: clippy
-
-      # 仓内首用 Swatinem/rust-cache；@v2 浮动 tag 对齐本仓 actions 浮动惯例（@v4 同类）。
-      - name: Cache cargo registry and build output
-        if: matrix.target == 'win'
-        uses: Swatinem/rust-cache@v2
-        with:
-          # `.` = 仓库根的 workspace（platform / protocol / updater / tray / deeplink /
-          # browser-import-helper / apps/desktop-tauri/src-tauri）。mode-cua-ax 刻意不在该
-          # workspace 里（见根 Cargo.toml 的 exclude 说明），所以它仍是独立条目。
-          workspaces: |
-            crates/mode-cua-ax
-            .
-
-      - name: Build and stage CUA helper
-        if: matrix.target == 'win'
-        env:
-          MODE_CUA_AX_TARGET: x86_64-pc-windows-msvc
-        run: pnpm build:cua-helper
-
-      - name: CUA helper crate tests and clippy
-        if: matrix.target == 'win'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo test --manifest-path crates/mode-cua-ax/Cargo.toml
-          cargo clippy --manifest-path crates/mode-cua-ax/Cargo.toml --all-targets -- -D warnings
-
-      # browser-import helper（M0 任务 6 的 C#→Rust 重写）：这里是纯逻辑层，
-      # 不碰 UAC 与真实 Chrome。P2（提权/服务通道/密钥解封）要真实交互式会话，
-      # 仍需人工实机验收；本步只覆盖可自动化的契约面。
-      - name: browser-import helper crate tests and clippy
-        if: matrix.target == 'win'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo test --manifest-path crates/browser-import-helper/Cargo.toml
-          cargo clippy --manifest-path crates/browser-import-helper/Cargo.toml --all-targets -- -D warnings
-          # 契约 A 的黑盒对拍：旧 C# 产物与 Rust 产物**共用同一落点**，所以先把旧产物
-          # 编出来留一份副本，再用 Rust 构建脚本覆盖落点，最后带着显式 oracle 路径跑契约测试
-          # （harness 未拿到 MODE_BROWSER_IMPORT_ORACLE_PATH 时会对拍用例整条 skip，不给假绿）。
-          node packages/desktop/scripts/build-windows-browser-import-helper.mjs
-          cp packages/desktop/bundled-tools/win32-x64/browser-import/mode-browser-import-helper.exe             "$RUNNER_TEMP/browser-import-oracle.exe"
-          MODE_BROWSER_IMPORT_TARGET=x86_64-pc-windows-msvc pnpm --filter @mode/desktop prepare:browser-import-helper
-          MODE_BROWSER_IMPORT_ORACLE_PATH="$RUNNER_TEMP/browser-import-oracle.exe"             node --test packages/desktop/tests/browser-import-helper-contract.test.mjs
-
-      # M5 评审 B2：Tauri/协议/updater/deeplink/sidecar-host 的 Rust 验证套件已移到
-      # `tauri` job 的 Windows 腿（阻断发布的那条腿），不再在这个诊断 job 里重复跑。
-      # 这里保留 CUA helper 与 browser-import helper 的测试/clippy：它们覆盖的是
-      # Electron 诊断/回滚构建仍在使用、但不在 workspace 里的独立 crate。
-
-      - name: Bundle desktop app
-        env:
-          MODE_ENV: production
-          # 文件名与应用版本带上完整审计版本（如 3.14.0-audit.20260922.6），不再只写 3.14.0。
-          MODE_APP_VERSION: ${{ needs.release.outputs.version }}
-          # 本仓库不再发布远端运行资源（zz-*），桌面安装包既不打包也不依赖它们；
-          # 需要时自己本地 prepare:remote-assets 并指定 MODE_REMOTE_ASSET_CDN_BASE_URL。
-          MODE_SKIP_REMOTE_ASSETS: "1"
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: pnpm bundle:desktop -- --os ${{ matrix.target }} --arch ${{ matrix.arch }}
-
-      # M5 Task 2（DR-M5-1）：Electron 线保留构建能力用于回滚，但**不再写 Release**。
-      # Tauri Windows 腿使用逐字相同的产物名（Mode-<版本>-win-x64.exe）；同一次 run
-      # 若两边都上传，后上传的会 clobber 掉先上传的。这里只把 Electron 产物留成
-      # workflow artifact（14 天），发布路径只允许 Tauri 一条线。
-      - name: Upload electron desktop bundle (diagnostic artifact)
-        uses: actions/upload-artifact@v4
-        with:
-          name: electron-desktop-${{ matrix.target }}-${{ matrix.arch }}
-          path: |
-            packages/desktop/dist/${{ matrix.glob }}
-            packages/desktop/dist/latest*.yml
-            packages/desktop/dist/*.zip
-            packages/desktop/dist/*.blockmap
-          if-no-files-found: error
-          retention-days: 14
-
-      # 校验片段：只覆盖用户会直接下载运行的安装包（当前为 exe / zip）。
-      # latest*.yml 与 *.blockmap 是 electron-updater 的更新元数据（应用内用其中
-      # 的 sha512 校验），且两个 mac 架构会先后覆盖同名 latest-mac.yml，不能在此落哈希。
-      # 用 node 计算（各 runner 都有），避免 sha256sum / shasum / certutil 的平台差异。
-      - name: Generate Electron checksums (diagnostic only)
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          cd packages/desktop/dist
-          checksummed=( ${{ matrix.glob }} *.zip )
-          if [ ${#checksummed[@]} -eq 0 ]; then
-            echo "::error::no desktop assets to checksum in packages/desktop/dist"
-            exit 1
-          fi
-          mkdir -p "$GITHUB_WORKSPACE/dist/release-checksums"
-          node -e '
-          const { createHash } = require("node:crypto");
-          const { readFileSync } = require("node:fs");
-          for (const file of process.argv.slice(1)) {
-            console.log(createHash("sha256").update(readFileSync(file)).digest("hex") + "  " + file);
-          }
-          ' "${checksummed[@]}" \
-            > "$GITHUB_WORKSPACE/dist/release-checksums/desktop-${{ matrix.target }}-${{ matrix.arch }}.txt"
-          cat "$GITHUB_WORKSPACE/dist/release-checksums/desktop-${{ matrix.target }}-${{ matrix.arch }}.txt"
-
-      # 刻意**不叫** `release-checksums-*`：checksums job 按这个名字下载并合并。
-      # Electron 线已退出发布线，它的同名 .exe 片段若被合并会与 Tauri 的片段产生
-      # 重复条目（checksums job 会以 duplicate checksum 失败），也会让旧线看起来
-      # 仍在发布路径上。
-      - uses: actions/upload-artifact@v4
-        with:
-          name: electron-checksums-desktop-${{ matrix.target }}-${{ matrix.arch }}
-          path: dist/release-checksums/desktop-${{ matrix.target }}-${{ matrix.arch }}.txt
-          retention-days: 1
-
   # M1 Tauri 骨架的三平台出包与体积基线（路线图 M1 Task 5）。
   #
   # **2026-10-19 起三平台安装包一起进 Release**（人决定，撤销 DR-M5-2 的 Windows-only 偏差）：
   # - Windows 腿上传安装包、`.sig` 与 `latest.json`（应用内更新清单仍只有 Windows）。
   # - macOS/Linux 腿上传 `.dmg` / `.AppImage` 与各自的校验片段；两条腿都成为发布门禁，
   #   任一失败 → `tauri.result = failure` → `checksums` / `publish` 不跑，Release 保持 draft。
-  # - 旧 Electron `desktop` job 仍构建（保留回滚能力），但只上传 workflow artifact，
-  #   所以同一次 run 里不会有第二条线上传同名 `Mode-<版本>-win-x64.exe`（DR-M5-1）。
+  # - 旧 Electron 线已 EOL（docs/specs/legacy-electron-eol.md），不再有第二个 job 上传同名安装包。
   #
   # 三平台腿**未在本机验证过**（本机只有 Windows + gnu 工具链）：macOS 与 Linux 腿按
   # Tauri v2 官方要求列依赖，首次 CI 运行必须盯一下这几处：
@@ -549,6 +383,21 @@ jobs:
         if: matrix.target == 'win'
         shell: bash
         run: pnpm --filter @mode/desktop-tauri test
+
+      # M0 browser-import helper：旧 Electron 诊断 job 删除后，把 Rust crate 测试与
+      # C# oracle 黑盒对拍搬到这里。它覆盖的是 M0 的辅助验证，不阻断发布。
+      - name: browser-import helper tests and oracle parity (diagnostic)
+        if: matrix.target == 'win'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path crates/browser-import-helper/Cargo.toml
+          cargo clippy --manifest-path crates/browser-import-helper/Cargo.toml --all-targets -- -D warnings
+          node packages/desktop/scripts/build-windows-browser-import-helper.mjs
+          cp packages/desktop/bundled-tools/win32-x64/browser-import/mode-browser-import-helper.exe             "$RUNNER_TEMP/browser-import-oracle.exe"
+          MODE_BROWSER_IMPORT_TARGET=x86_64-pc-windows-msvc pnpm --filter @mode/desktop prepare:browser-import-helper
+          MODE_BROWSER_IMPORT_ORACLE_PATH="$RUNNER_TEMP/browser-import-oracle.exe"             node --test packages/desktop/tests/browser-import-helper-contract.test.mjs
 
       # M5 评审 B2：Rust 验证套件必须在**阻断发布**的腿上跑。
       # 之前这些命令只在 `desktop`（continue-on-error、且不在 publish.needs）里，
@@ -710,9 +559,8 @@ jobs:
           echo "Note: the Windows line is the product package (core + bundled Node/externals); the roadmap M5 core budget (23.29 MiB <= 30 MB) is measured by measure-installer-budgets.ts, not by this line. No threshold is enforced (DR-M5-2b)."
 
       # 三平台安装包统一上传到同一个 Release。只上传明确文件，不用通配符——
-      # 旧 Electron 线的 `latest*.yml` / `*.blockmap` 与 Tauri 的 `latest.json` / `.sig`
-      # 文件名不同，但安装包名逐字相同；同一次 run 里 Electron 的 desktop job 已不再
-      # 上传 Release，所以 `--clobber` 只可能覆盖本腿自己重试的文件，不会碰到旧 tag。
+      # 旧 Electron 线已 EOL，发布路径只有 Tauri 一条，所以 `--clobber` 只可能覆盖
+      # 本腿自己重试的文件，不会碰到旧 tag。
       # Windows 额外带 `.sig` 与 `latest.json`（应用内更新清单目前只有 Windows）。
       - name: Upload Tauri installer to release
         shell: bash
@@ -851,9 +699,8 @@ jobs:
           retention-days: 1
 
   # 发布线的真正门：只合并 `release-checksums-*`。三条 Tauri 腿都在上传 Release
-  # **之后**才上传各自的校验片段；Electron 的片段叫 `electron-checksums-*`，不在
-  # 这个模式里。任一 Tauri 腿失败都会让 tauri.result = failure（2026-10-19 起没有
-  # continue-on-error），本 job 不跑，publish 保持 draft。
+  # **之后**才上传各自的校验片段。任一 Tauri 腿失败都会让 tauri.result = failure
+  # （2026-10-19 起没有 continue-on-error），本 job 不跑，publish 保持 draft。
   checksums:
     needs: [release, verify, tauri, fnos]
     # 三平台腿全部阻断发布：tauri 是矩阵 job，任一腿失败即 failure。
@@ -932,9 +779,6 @@ jobs:
   #     （此时 checksums 也 skipped），保持与改动前一致。
   #
   # checksums 仍在 needs 里：它证明四个安装包及其校验片段确实进了本次 Release。
-  #
-  # Electron 的 desktop job 仍构建（保留回滚能力），但不进 needs、不写 Release，
-  # 且已声明 `continue-on-error: true`（诊断构建不得把 run 判红）。
   publish:
     needs: [release, verify, tauri, checksums, fnos]
     if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.tauri.result == 'success' || needs.tauri.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}

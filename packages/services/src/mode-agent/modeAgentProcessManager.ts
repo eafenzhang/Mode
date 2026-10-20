@@ -355,24 +355,11 @@ function resolveBundledWorkspaceModeAgentCommand(
 ): ModeAgentCommand | null {
   const distEntrypoint = findUpward("apps/mode-cli/packages/cli/dist/mode.cjs");
   if (distEntrypoint) {
-    const useBytecode =
-      process.versions.electron && process.env.MODE_DESKTOP_AGENT_BYTECODE === "1";
-    const entrypoint = useBytecode
-      ? join(dirname(distEntrypoint), "mode.bytecode.cjs")
-      : distEntrypoint;
-    // 此同步 command resolver 沿用既有 existsSync 契约；显式试验不能静默回退成 JS。
-    if (useBytecode && !existsSync(entrypoint)) {
-      throw new Error("桌面 Agent 字节码入口缺失，请运行 pnpm build:desktop-agent:bytecode");
-    }
     return {
       command: process.execPath,
-      args: [entrypoint, "app-server", "--stdio"],
-      // Worker 与 Electron Node 子进程的 V8 snapshot 可不同；临时存储准备继续用 JS。
+      args: [distEntrypoint, "app-server", "--stdio"],
       storagePreparationEntry: distEntrypoint,
       cwd: context.workspacePath,
-      // 桌面端 host 运行在 Electron utility process 中，process.execPath 指向 Electron Helper。
-      // 这里显式启用 Node 运行模式，避免内置 mode-agent 被当成 Electron/Chromium 子进程启动并卡在 GPU 初始化。
-      env: { ELECTRON_RUN_AS_NODE: "1" },
     };
   }
 

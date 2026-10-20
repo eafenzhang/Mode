@@ -1,7 +1,7 @@
 # Mode
 
 <div align="center">
-  <img src="packages/desktop/build/icons/512x512.png" alt="Mode" width="96" height="96" />
+  <img src="apps/desktop-tauri/src-tauri/icons/icon.png" alt="Mode" width="96" height="96" />
   <p><strong>An AI coding workspace for desktop, browser and terminal — forked from ZCode, maintained independently.</strong></p>
 </div>
 
@@ -25,7 +25,7 @@ Mode keeps the product itself — an agent that plans, edits, runs and verifies 
 
 ## Highlights
 
-- **One agent, three interfaces**: the Electron desktop app, the browser workspace and the terminal TUI share one agent runtime and the same sessions. Remote workspaces work over SSH, WSL, Docker, or a **LAN peer** running Mode on another machine in the same network.
+- **One agent, three interfaces**: the Tauri desktop app, the browser workspace and the terminal TUI share one agent runtime and the same sessions. Remote workspaces work over SSH, WSL, Docker, or a **LAN peer** running Mode on another machine in the same network.
 - **Plans, edits, runs, verifies**: file changes arrive as diffs, terminal commands carry their context, and the agent checks its own work by running tests. A bundled browser plugin drives a real browser when a task needs one.
 - **Asks before it touches your project**: every edit, command and tool call can require approval — allow once, always in this project, or full access.
 - **IM bots**: drive a workspace from 微信 / 企业微信 / 飞书（中国）/ 钉钉. Each conversation keeps its own session binding (per person in private chat, per group in group chat), replies stream back into the chat, group chats can stay silent (WeCom only answers when mentioned), and an optional heartbeat posts a summary on a schedule.
@@ -54,8 +54,8 @@ Remote workspaces over SSH, WSL or Docker reuse a runtime that already exists on
 Prerequisites: Git, Node.js **24.14.0** and pnpm **10.33.2** — [mise.toml](mise.toml) is the source of truth for tool versions. Run everything from the repository root.
 
 ```bash
-pnpm bootstrap                 # install dependencies and prepare local desktop runtime assets
-pnpm dev:desktop               # Electron desktop app (production config; use dev:desktop:test for the test env)
+pnpm bootstrap                 # install dependencies and build workspace packages
+pnpm dev:desktop               # Tauri desktop app (Rust + the shared product renderer)
 pnpm dev:web                   # browser workspace
 pnpm --filter @mode/cli dev   # agent CLI
 ```
@@ -68,14 +68,14 @@ Useful checks before committing:
 pnpm typecheck                                              # TypeScript project references
 pnpm lint                                                   # oxlint
 pnpm --filter @mode/services test                          # service and contract tests
-node --test packages/desktop/tests/*.test.mjs               # desktop node tests
+pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts  # desktop node tests
 pnpm architecture:check -- --changed                        # dependency direction policy
 ```
 
-To produce a desktop installer locally (artifacts land in `packages/desktop/dist`):
+To produce a desktop installer locally (artifacts land in `dist/tauri`):
 
 ```bash
-pnpm bundle:desktop -- --os win --arch x64
+pnpm --filter @mode/desktop-tauri run tauri:build
 ```
 
 ## Release automation
@@ -86,7 +86,8 @@ Pushing to `main` builds and publishes a new version automatically: `.github/wor
 
 | Path                                                 | Contents                                                                   |
 | ---------------------------------------------------- | -------------------------------------------------------------------------- |
-| `packages/desktop`                                   | Electron main process, host and renderer; LAN access server and discovery  |
+| `apps/desktop-tauri`                                 | Tauri v2 shell (Rust commands, Host sidecar, packaging)                    |
+| `packages/desktop`                                   | Product renderer and Host sources; LAN access server and discovery         |
 | `packages/ui`                                        | Shared React components, hooks and Zustand stores (settings, plugin store) |
 | `packages/services`                                  | Business services (agent sessions, bots, plugins, remote connections)      |
 | `packages/server`, `packages/web`                    | Browser workspace server and client                                        |
