@@ -99,3 +99,12 @@ test("DropdownMenu adapter：子菜单 portal 内的点击不被父菜单当作�
   assert.equal(isInsideMenuPortal(inside, undefined), false);
   assert.equal(isInsideMenuPortal(null, "menu-root"), false);
 });
+
+test("DropdownMenu adapter：兄弟子菜单互斥判据（悬停切换到另一个 provider 时关闭旧子菜单）", async () => {
+  const { isSiblingSubmenuActive } =
+    await import("../src/ui-foundation/adapters/dropdownMenuContext.js");
+  assert.equal(isSiblingSubmenuActive("provider-a", "provider-a"), false);
+  assert.equal(isSiblingSubmenuActive("provider-a", "provider-b"), true);
+  assert.equal(isSiblingSubmenuActive(null, "provider-a"), false);
+  assert.equal(isSiblingSubmenuActive(undefined, "provider-a"), false);
+});

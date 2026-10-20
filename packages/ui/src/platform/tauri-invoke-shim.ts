@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- window.mode 适配层集中维护命令切片、事件订阅、拒绝桩与宿主直实现；拆分会破坏两处声明的逐项对拍。 */
 /**
  * Tauri `invoke()` 适配层（路线图 M1 Task 4 的 shim 部分 + Task 6 的事件通道）。
  *
@@ -29,7 +30,9 @@ import type {
   DeepLinkEventKind,
   DesktopCommandId,
   DesktopWindowChromeState,
+  EditorInfo,
   IPlatformService,
+  OpenInEditorOptions,
   SaveFileRequest,
   SaveFileResult,
   TaskNotificationPayload,
@@ -167,8 +170,6 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "onUpdateCheckResult",
   "onPostUpdateReleaseNotes",
   "acknowledgePostUpdateReleaseNotes",
-  "getInstalledEditors",
-  "openInEditor",
   "setApplicationLocale",
   "setTitleBarTheme",
   "getDeviceId",
@@ -238,10 +239,17 @@ export const UPDATE_STATE_METHODS = [
   "setAutoDownloadAndInstallUpdates",
 ] as const;
 
+/**
+ * 本地「打开方式」胶囊所需的平台面：由适配层直接实现（系统文件管理器 + 打开动作），
+ * 不经 Rust 命令切片，也不属于更新/深链事件面。
+ */
+export const HOST_INJECTED_IMPLEMENTED_METHODS = ["getInstalledEditors", "openInEditor"] as const;
+
 type ImplementedCommand = (typeof M1_IMPLEMENTED_COMMANDS)[number];
 type EventSubscribedCommand = (typeof EVENT_SUBSCRIBED_METHODS)[number];
 type WindowControlCommand = (typeof WINDOW_CONTROL_METHODS)[number];
 type UpdateStateMethod = (typeof UPDATE_STATE_METHODS)[number];
+type HostInjectedImplementedMethod = (typeof HOST_INJECTED_IMPLEMENTED_METHODS)[number];
 type UnimplementedRequired = (typeof M1_UNIMPLEMENTED_REQUIRED_METHODS)[number];
 
 /** `IPlatformService` 里没有 `?` 的成员名。 */
@@ -256,6 +264,7 @@ type UncoveredRequiredMember = Exclude<
   | EventSubscribedCommand
   | WindowControlCommand
   | UpdateStateMethod
+  | HostInjectedImplementedMethod
   | UnimplementedRequired
 >;
 
@@ -308,6 +317,18 @@ export function createTauriPlatformService(
    * 尚未装好的订阅。`notifyRendererReady` 必须等它们全部完成再握手（见下）。
    */
   const pendingSubscriptions: Promise<void>[] = [];
+  // 本地「打开方式」胶囊的最小可用面：只声明系统文件管理器（与注入层 window_mode.ts 同口径）。
+  // 图标留空，由 UI 回退到既有 FolderOpenIcon；Tauri 拿不到系统图标位图，不自造 SVG。
+  const fileManagerEditor = (): EditorInfo => {
+    const userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent;
+    if (/Windows/i.test(userAgent)) {
+      return { id: "explorer", name: "资源管理器", iconDataUrl: "" };
+    }
+    if (/Mac OS X|Macintosh/i.test(userAgent)) {
+      return { id: "finder", name: "Finder", iconDataUrl: "" };
+    }
+    return { id: "xdg-open", name: "文件管理器", iconDataUrl: "" };
+  };
 
   const service: Partial<IPlatformService> = {
     // MCP 目录读写仍在 M1_UNIMPLEMENTED_REQUIRED_METHODS 的拒绝桩里；本地读取由 host 服务承担。
@@ -327,6 +348,31 @@ export function createTauriPlatformService(
       return invoke("saveFile", { payload }) as Promise<SaveFileResult>;
     },
     openInFileManager(path: string): Promise<{ success: boolean; error?: string }> {
+      return invoke("openInFileManager", { path }) as Promise<{
+        success: boolean;
+        error?: string;
+      }>;
+    },
+    getInstalledEditors(): Promise<EditorInfo[]> {
+      return Promise.resolve([fileManagerEditor()]);
+    },
+    openInEditor(
+      editorId: string,
+      path: string,
+      options?: OpenInEditorOptions,
+    ): Promise<{ success: boolean; error?: string }> {
+      if (editorId !== fileManagerEditor().id) {
+        return Promise.resolve({
+          success: false,
+          error: `editor_unavailable: ${editorId}`,
+        });
+      }
+      if (options?.remoteTarget) {
+        return Promise.resolve({
+          success: false,
+          error: "remote_editor_unsupported",
+        });
+      }
       return invoke("openInFileManager", { path }) as Promise<{
         success: boolean;
         error?: string;

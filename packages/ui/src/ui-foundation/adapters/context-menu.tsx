@@ -59,6 +59,7 @@ export function ContextMenu({
   children,
 }: ContextMenuProps): ReactNode {
   const [uncontrolled, setUncontrolled] = useState(defaultOpen ?? false);
+  const [activeSubmenuId, setActiveSubmenuId] = useState<string | null>(null);
   const [point, setPoint] = useState<ContextMenuPoint | null>(null);
   const current = open ?? uncontrolled;
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -67,6 +68,9 @@ export function ContextMenu({
     (next: boolean) => {
       if (open === undefined) {
         setUncontrolled(next);
+      }
+      if (!next) {
+        setActiveSubmenuId(null);
       }
       onOpenChange?.(next);
     },
@@ -77,8 +81,16 @@ export function ContextMenu({
     triggerRef.current?.focus?.();
   }, [setOpen]);
   const state = useMemo(
-    () => ({ open: current, setOpen, closeMenu, triggerRef, contentId }),
-    [current, setOpen, closeMenu, contentId],
+    () => ({
+      open: current,
+      setOpen,
+      closeMenu,
+      triggerRef,
+      contentId,
+      activeSubmenuId,
+      setActiveSubmenuId,
+    }),
+    [current, setOpen, closeMenu, contentId, activeSubmenuId],
   );
   const pointState = useMemo(() => ({ point, setPoint }), [point]);
   return (

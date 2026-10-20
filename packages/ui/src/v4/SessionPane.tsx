@@ -74,6 +74,7 @@ import { useWorkspaceHomePath } from "@/hooks/useWorkspaceHomePath.js";
 import { prepareWorkspaceWithModeSessionService } from "@/hooks/useWorkspacePrepare.js";
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/modeCustomModelValue.js";
 import { parseModelPickerValue } from "@/lib/modeSessionProjection.js";
+import { completeNewModelSelection } from "@mode/provider";
 import { captureComposerRecentSubmission } from "@/lib/composerRecent.js";
 import { resolveProviderLabel } from "@/lib/registryProviderView.js";
 import {
@@ -3238,8 +3239,9 @@ export function SessionPane({
     snapshotSessionId,
   ]);
 
-  // Composer 选择表达“下一次提交”。点击只更新 renderer intent；Session Selection
-  // 在 Submission 真正开跑（Guide 为下一次 model-step）时由 CLI/Core 更新。
+  // 已有会话：先更新 draft intent，再发 switchModelConfig CAS 立即切换会话选择
+  // （远端 workspace 经同一个 modeSessionService 打到对端 Host）。
+  // 草稿/新任务没有会话可切，仍只保存 renderer intent，由首条 Submission 携带。
   const handleSelectModel = useCallback(
     (modelProvider: string, model: string, sourceModel: ModelSelectionSource | null) => {
       const resolvedProvider =
@@ -3247,11 +3249,53 @@ export function SessionPane({
       logger.debug("[v4-pane] onSelectModel", {
         modelProvider: resolvedProvider,
         model,
-        branch: "composer-submission-intent",
+        branch: sessionId ? "session-config-cas+draft-intent" : "composer-submission-intent",
       });
       handleDraftSelectModel(resolvedProvider, model);
+      if (!sessionId) {
+        return;
+      }
+      let parsedSelection: ReturnType<typeof parseModelPickerValue>;
+      try {
+        parsedSelection = parseModelPickerValue(
+          resolvedProvider ? `${resolvedProvider}/${model}` : model,
+        );
+      } catch (error) {
+        logger.warn("[v4-pane] 模型切换参数无法解析", {
+          error: error instanceof Error ? error.message : String(error),
+          modelProvider: resolvedProvider,
+          model,
+        });
+        return;
+      }
+      const completeSelection = modelSelectionView
+        ? (completeNewModelSelection(modelSelectionView, parsedSelection) ?? parsedSelection)
+        : parsedSelection;
+      void dispatchConfigCas(
+        "switchModelConfig",
+        {
+          provider: completeSelection.providerId,
+          model: completeSelection.modelId,
+          thought: completeSelection.options?.reasoningLevel ?? "",
+        },
+        { targetSessionId: sessionId },
+      )
+        .then((ack) => {
+          if (ack && ack.status !== "accepted" && ack.status !== "noop") {
+            logger.warn("[v4-pane] 已有会话模型切换被拒绝", {
+              status: ack.status,
+              reasonCode: ack.reasonCode,
+              provider: completeSelection.providerId,
+              model: completeSelection.modelId,
+              sessionId,
+            });
+          }
+        })
+        .catch((error) => {
+          logger.warn("[v4-pane] 已有会话模型切换失败", error);
+        });
     },
-    [draftConfigRef, handleDraftSelectModel],
+    [draftConfigRef, handleDraftSelectModel, sessionId, modelSelectionView, dispatchConfigCas],
   );
 
   const handleSelectThought = useCallback(

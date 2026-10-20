@@ -89,6 +89,31 @@
   // 窗口控制面的两个命令（壳 crate 的 `window_controls.rs`；`bridge.rs` 持有名字的真源）。
   var CMD_EXECUTE_DESKTOP_COMMAND = "__MODE_HOST_CMD_EXECUTE_DESKTOP_COMMAND__";
   var CMD_WINDOW_CHROME_STATE = "__MODE_HOST_CMD_WINDOW_CHROME_STATE__";
+  /**
+   * 本地「打开方式」胶囊的最小可用编辑器面：只声明系统文件管理器。
+   *
+   * 根因（2026-10-20 真机验收）：`WorkspaceEditorButtonGroup` 依赖 `getInstalledEditors()`；
+   * Tauri 注入层此前把它放在 REJECTING_REQUIRED 里，调用被拒后 `installedEditors` 为空，
+   * `selectedEditor` 为 null，整颗胶囊不渲染，本地工作区右上角就没有资源管理器入口。
+   * Electron 线由 main 的 editors.ts 返回完整列表；Tauri 壳这轮只补「系统文件管理器」
+   * 这一条真实可用的面，不伪造未安装的编辑器。
+   *
+   * 图标刻意留空：Tauri 拿不到系统图标位图，UI 会回退到既有 `FolderOpenIcon`
+   * （与远端 `WorkspaceFileManagerButton` 的兜底同一个图标），不再注入自造 SVG。
+   */
+  function fileManagerEditorInfo() {
+    var ua =
+      typeof navigator !== "undefined" && typeof navigator.userAgent === "string"
+        ? navigator.userAgent
+        : "";
+    if (/Windows/i.test(ua)) {
+      return { id: "explorer", name: "资源管理器", iconDataUrl: "" };
+    }
+    if (/Mac OS X|Macintosh/i.test(ua)) {
+      return { id: "finder", name: "Finder", iconDataUrl: "" };
+    }
+    return { id: "xdg-open", name: "文件管理器", iconDataUrl: "" };
+  }
 
   /** M1 切片表 + LR-3 追加的 11 条命令（与 `crates/platform/src/commands/mod.rs` 的切片表同名）。 */
   var M1_COMMANDS = [
@@ -182,8 +207,6 @@
     "migrateLegacyCommonMcp",
     "openExternalFile",
     "exportLogs",
-    "getInstalledEditors",
-    "openInEditor",
     "rdGetPeerCapability",
     "rdStartSession",
     "rdGetControlledState",
@@ -419,9 +442,10 @@
    */
   function subscribeWindowChromeState(handler) {
     var api = window.__TAURI__;
-    var current = api && api.window && typeof api.window.getCurrentWindow === "function"
-      ? api.window.getCurrentWindow()
-      : null;
+    var current =
+      api && api.window && typeof api.window.getCurrentWindow === "function"
+        ? api.window.getCurrentWindow()
+        : null;
     if (!current || typeof current.onResized !== "function") {
       // 降级但**不静默**（与深链订阅同款）：订阅装不上不是「订阅成功但没有回调」。
       degrade("no_window_api", "onDesktopWindowChromeStateChanged");
@@ -577,6 +601,43 @@
     },
     openInFileManager: function (path) {
       return invoke("openInFileManager", { path: path });
+    },
+    // 本地「打开方式」胶囊的数据源（见文件头的 fileManagerEditorInfo 注释）。
+    // 只返回系统文件管理器这一条真实可用的面；远端工作区由 WorkspaceFileManagerButton 承担。
+    getInstalledEditors: function () {
+      return Promise.resolve([fileManagerEditorInfo()]);
+    },
+    // 文件管理器 id 委托既有壳命令；未知 id / 远端目标失败关闭，不静默成功。
+    openInEditor: function (editorId, path, options) {
+      var fileManager = fileManagerEditorInfo();
+      if (editorId !== fileManager.id) {
+        return Promise.resolve({
+          success: false,
+          error: "editor_unavailable: " + String(editorId),
+        });
+      }
+      if (options && options.remoteTarget) {
+        return Promise.resolve({
+          success: false,
+          error: "remote_editor_unsupported",
+        });
+      }
+      return invoke("openInFileManager", { path: path }).then(
+        function (result) {
+          // 壳命令的返回形态是 { success, error? }；缺字段时按成功处理，
+          // 与 Electron main 的 openPathViaShell 语义保持一致。
+          if (result && typeof result === "object" && typeof result.success === "boolean") {
+            return result;
+          }
+          return { success: true };
+        },
+        function (error) {
+          return {
+            success: false,
+            error: String(error && error.message ? error.message : error),
+          };
+        },
+      );
     },
     showTaskNotification: function (payload) {
       fireAndForget("showTaskNotification", { payload: payload });

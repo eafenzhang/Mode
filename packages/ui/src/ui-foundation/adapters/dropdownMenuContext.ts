@@ -8,12 +8,26 @@ export interface DropdownMenuAdapterState {
   closeMenu: () => void;
   triggerRef: MutableRefObject<HTMLElement | null>;
   contentId: string;
+  /**
+   * 当前打开的子菜单 id（根菜单内唯一）。子菜单在指针进入时把自己设为 active，
+   * 其它子菜单据此关闭——否则从一个 provider 移到另一个时旧子菜单仍覆盖新内容。
+   */
+  activeSubmenuId: string | null;
+  setActiveSubmenuId: (id: string | null) => void;
 }
 
 export const DropdownMenuAdapterContext = createContext<DropdownMenuAdapterState | null>(null);
 
 export function useDropdownMenuAdapterState(): DropdownMenuAdapterState | null {
   return useContext(DropdownMenuAdapterContext);
+}
+
+/** 兄弟子菜单互斥判据：根菜单的 active 指向另一个子菜单时，当前子菜单必须关闭。 */
+export function isSiblingSubmenuActive(
+  activeSubmenuId: string | null | undefined,
+  submenuId: string,
+): boolean {
+  return Boolean(activeSubmenuId && activeSubmenuId !== submenuId);
 }
 
 export interface DropdownSubAdapterState {

@@ -135,7 +135,9 @@ export function SettingsRow({
             <div className="mt-1 text-ui-base leading-6 text-foreground-subtle">{description}</div>
           ) : null}
         </div>
-        <div className="flex w-full flex-nowrap items-center justify-end gap-2">
+        {/* 控制列固定 192/280px，但部分控制（渠道徽标 + 移除密钥、绑定码等）比列宽。
+            允许换行并显式 min-w-0，避免控制内容向右溢出、在 BotsDialog 右栏形成横向滚动。 */}
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
           {controlLayout === "wide" ? detail : null}
           {control}
         </div>

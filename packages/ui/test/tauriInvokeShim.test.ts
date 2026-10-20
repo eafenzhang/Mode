@@ -88,6 +88,25 @@ test("M1 切片表的命令都被实现（不是靠抛错桩占位）", () => {
   }
 });
 
+test("getInstalledEditors 返回系统文件管理器；openInEditor 委托 openInFileManager", async () => {
+  const { calls, invoke } = recordingInvoke({ success: true });
+  const service = createTauriPlatformService(invoke, noopListen);
+
+  const editors = await service.getInstalledEditors!();
+  assert.equal(editors.length, 1, "Tauri 壳只声明系统文件管理器这一条真实可用的面");
+  const editor = editors[0]!;
+  assert.ok(["explorer", "finder", "xdg-open"].includes(editor.id));
+  // Tauri 拿不到系统图标位图；空值让 UI 回退到既有 FolderOpenIcon（原版图标）。
+  assert.equal(editor.iconDataUrl, "");
+
+  const opened = await service.openInEditor!(editor.id, "D:/workspace");
+  assert.deepEqual(opened, { success: true });
+  assert.equal(calls.at(-1)?.command, "openInFileManager");
+
+  const unknown = await service.openInEditor!("vscode", "D:/workspace");
+  assert.equal(unknown.success, false, "未知编辑器必须失败关闭，不静默成功");
+});
+
 test("命令名逐字映射到 invoke，参数用命令签名的字段名", async () => {
   const { calls, invoke } = recordingInvoke(null);
   const service = createTauriPlatformService(invoke, noopListen);
@@ -105,7 +124,10 @@ test("命令名逐字映射到 invoke，参数用命令签名的字段名", asyn
     title: "标题",
     body: "正文",
   });
-  await service.saveFile?.({ data: new Uint8Array([1, 2]) as unknown as ArrayBuffer, suggestedName: "a.bin" } as never);
+  await service.saveFile?.({
+    data: new Uint8Array([1, 2]) as unknown as ArrayBuffer,
+    suggestedName: "a.bin",
+  } as never);
   await new Promise((resolve) => setTimeout(resolve, 0));
   // notifyRendererReady 先等订阅就位再 invoke（顺序语义在下面的专门用例里断言），
   // 因此它在序列里的落点取决于微任务调度，不适合放进「同步命令的先后顺序」断言。
@@ -167,8 +189,7 @@ test("未实现的**必选**方法调用即抛 not_implemented_until_m3（带方
     assert.throws(
       () => (service[name] as () => unknown)(),
       (error: unknown) =>
-        error instanceof Error &&
-        error.message === `not_implemented_until_m3: ${name}`,
+        error instanceof Error && error.message === `not_implemented_until_m3: ${name}`,
       `${name} 应抛带方法名的 not_implemented_until_m3`,
     );
   }
@@ -354,7 +375,10 @@ test("notifyRendererReady 必须等订阅装好再握手（否则冷启动深链
 
   releasePendingSetups();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(calls.map((call) => call.command), ["notifyRendererReady"]);
+  assert.deepEqual(
+    calls.map((call) => call.command),
+    ["notifyRendererReady"],
+  );
 });
 
 test("窗口控制面（自绘标题栏）真的走到壳：命令带 id、状态读回来、订阅可退订", async () => {
@@ -393,10 +417,10 @@ test("窗口控制面（自绘标题栏）真的走到壳：命令带 id、状�
 });
 
 test("事件订阅方法都在服务上真实存在（不是抛错桩）", () => {
-  const service = createTauriPlatformService(
-    recordingInvoke().invoke,
-    noopListen,
-  ) as Record<string, unknown>;
+  const service = createTauriPlatformService(recordingInvoke().invoke, noopListen) as Record<
+    string,
+    unknown
+  >;
   for (const name of EVENT_SUBSCRIBED_METHODS) {
     assert.equal(typeof service[name], "function", `${name} 应是函数`);
     // 事件订阅方法不该出现在「未实现必选」清单里——两处都登记会让抛错桩覆盖真实现。
@@ -405,9 +429,6 @@ test("事件订阅方法都在服务上真实存在（不是抛错桩）", () =>
       `${name} 不应同时登记为未实现`,
     );
     // 也不能出现在命令切片表里：它们走事件，Rust 侧没有同名命令。
-    assert.ok(
-      !(M1_IMPLEMENTED_COMMANDS as readonly string[]).includes(name),
-      `${name} 不是命令`,
-    );
+    assert.ok(!(M1_IMPLEMENTED_COMMANDS as readonly string[]).includes(name), `${name} 不是命令`);
   }
 });

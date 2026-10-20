@@ -71,13 +71,21 @@ export function DropdownMenu({
   children,
 }: DropdownMenuProps): ReactNode {
   const [uncontrolled, setUncontrolled] = useState(defaultOpen ?? false);
+  // 根菜单内唯一打开的子菜单；指针进入另一个子菜单时由它把旧内容关掉。
+  const [activeSubmenuId, setActiveSubmenuIdState] = useState<string | null>(null);
   const current = open ?? uncontrolled;
   const triggerRef = useRef<HTMLElement | null>(null);
   const contentId = useId();
+  const setActiveSubmenuId = useCallback((id: string | null) => {
+    setActiveSubmenuIdState(id);
+  }, []);
   const setOpen = useCallback(
     (next: boolean) => {
       if (open === undefined) {
         setUncontrolled(next);
+      }
+      if (!next) {
+        setActiveSubmenuIdState(null);
       }
       onOpenChange?.(next);
     },
@@ -88,8 +96,16 @@ export function DropdownMenu({
     triggerRef.current?.focus();
   }, [setOpen]);
   const state = useMemo(
-    () => ({ open: current, setOpen, closeMenu, triggerRef, contentId }),
-    [current, setOpen, closeMenu, contentId],
+    () => ({
+      open: current,
+      setOpen,
+      closeMenu,
+      triggerRef,
+      contentId,
+      activeSubmenuId,
+      setActiveSubmenuId,
+    }),
+    [current, setOpen, closeMenu, contentId, activeSubmenuId, setActiveSubmenuId],
   );
   return (
     <DropdownMenuAdapterContext.Provider value={state}>

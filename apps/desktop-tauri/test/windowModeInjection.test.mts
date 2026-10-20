@@ -44,6 +44,7 @@ import ts from "typescript";
 
 import {
   EVENT_SUBSCRIBED_METHODS,
+  HOST_INJECTED_IMPLEMENTED_METHODS,
   M1_IMPLEMENTED_COMMANDS,
   UPDATE_STATE_METHODS,
   WINDOW_CONTROL_METHODS,
@@ -66,7 +67,9 @@ const TEST_STARTUP_ID = "host-1234-5";
 
 /** 从生成物里读深链事件名（不 import `@mode/shared` 的 barrel：本包没有那条依赖）。 */
 function readDeepLinkEventName(): string {
-  const match = new RegExp(/export const DEEP_LINK_EVENT = "([^"]+)"/).exec(read(GENERATED_PROTOCOL));
+  const match = new RegExp(/export const DEEP_LINK_EVENT = "([^"]+)"/).exec(
+    read(GENERATED_PROTOCOL),
+  );
   assert.ok(match, `${GENERATED_PROTOCOL} 里应导出 DEEP_LINK_EVENT`);
   return match![1]!;
 }
@@ -97,14 +100,18 @@ function readInjectionManifest(bridgeRs: string): InjectionManifest {
   // 只看生产代码：`#[cfg(test)]` 段里的用例也会写 `.replace(...)`，那不是注入清单
   // （把测试代码当清单读，症状是「用例自己把清单解析搞坏」）。
   const production = bridgeRs.split("#[cfg(test)]")[0]!;
-  const templates = [...production.matchAll(/include_str!\("([^"]+)"\)/g)].map((match) => match[1]!);
+  const templates = [...production.matchAll(/include_str!\("([^"]+)"\)/g)].map(
+    (match) => match[1]!,
+  );
   assert.ok(templates.length > 0, `${BRIDGE_RUST} 里应有 include_str! 的模板清单`);
 
   const consts = new Map<string, string>();
   // wire 名既有 snake_case（Host 通道的四个）也有 camelCase（窗口控制面那两个，M1 的 rename
   // 契约要求命令名与 IPlatformService 逐字一致 → 就是 camelCase）。这里按**标识符**的字符集收，
   // 不要写成 `[a-z_]+`：那会让 camelCase 的命令在清单解析里静默消失（本用例自己踩过一次）。
-  for (const match of production.matchAll(/pub const (CMD_\w+): &str = "([A-Za-z][A-Za-z0-9_]*)"/g)) {
+  for (const match of production.matchAll(
+    /pub const (CMD_\w+): &str = "([A-Za-z][A-Za-z0-9_]*)"/g,
+  )) {
     consts.set(match[1]!, match[2]!);
   }
 
@@ -231,7 +238,10 @@ function createPage(): Page {
   };
   sandbox.TextEncoder = TextEncoder;
   sandbox.TextDecoder = TextDecoder;
-  sandbox.addEventListener = (type: string, handler: (event: { source: unknown; data: unknown }) => void) => {
+  sandbox.addEventListener = (
+    type: string,
+    handler: (event: { source: unknown; data: unknown }) => void,
+  ) => {
     if (type === "message") windowMessageListeners.push(handler);
   };
   sandbox.CustomEvent = CustomEvent;
@@ -268,11 +278,11 @@ function createPage(): Page {
       // 「改替身」与「改上一份读到的状态」变成同一件事，去重逻辑的断言就失去意义。
       const source =
         (sandbox.__chrome as Record<string, unknown> | undefined) ??
-        (((sandbox.__chrome = {
+        ((sandbox.__chrome = {
           isMaximized: false,
           macOSMajorVersion: null,
           supportsNativeRoundedCorners: false,
-        }) as unknown) as Record<string, unknown>);
+        }) as unknown as Record<string, unknown>);
       return Promise.resolve({ ...source });
     }
     return Promise.resolve(null);
@@ -360,7 +370,10 @@ function returnsNoConsumedValue(member: ts.MethodSignature | ts.PropertySignatur
     const name = declared.typeName.getText();
     const first = declared.typeArguments?.[0];
     // `Promise<void>` / `PromiseLike<void>`
-    if ((name === "Promise" || name === "PromiseLike") && first?.kind === ts.SyntaxKind.VoidKeyword) {
+    if (
+      (name === "Promise" || name === "PromiseLike") &&
+      first?.kind === ts.SyntaxKind.VoidKeyword
+    ) {
       return true;
     }
   }
@@ -400,7 +413,8 @@ function readWindowModeDeclaration(): ModeDeclaration {
   const requiredWithoutConsumedValue: string[] = [];
   for (const member of (modeType as ts.TypeLiteralNode).members) {
     // `window.mode` 的成员大多是 `MethodSignature`（`foo(): Promise<…>`），只有少数是属性签名。
-    if ((!ts.isMethodSignature(member) && !ts.isPropertySignature(member)) || !member.name) continue;
+    if ((!ts.isMethodSignature(member) && !ts.isPropertySignature(member)) || !member.name)
+      continue;
     const name = member.name.getText(file);
     if (member.questionToken) {
       optional.push(name);
@@ -503,7 +517,7 @@ test("port 与状态流的投递仍然推迟到 DOMContentLoaded（spike §4.5 �
   assert.equal(
     portMessage.transferred.length,
     1,
-    "端口必须以 transferable 形态交给渲染层（`window.postMessage(payload, \"*\", [port1])`）",
+    '端口必须以 transferable 形态交给渲染层（`window.postMessage(payload, "*", [port1])`）',
   );
   const rendererPort = portMessage.transferred[0] as FakePort;
   assert.ok(rendererPort instanceof FakePort, "转移的必须是页面内建的端口对象");
@@ -536,8 +550,7 @@ test("LR-4 scoped port：建端口、投递元数据、出方向帧带 scope 前
   assert.equal(page.createdChannels.length, baseChannelCount + 1, "必须新建一个页面端口");
 
   const scopedMessage = page.postMessages.find(
-    (message) =>
-      (message.payload as { type?: string }).type === "mode:scoped-service-port",
+    (message) => (message.payload as { type?: string }).type === "mode:scoped-service-port",
   );
   assert.ok(scopedMessage, "scoped 端口必须以既有频道投递");
   assert.equal(scopedMessage.transferred.length, 1);
@@ -579,14 +592,12 @@ test("LR-4 scoped port：建端口、投递元数据、出方向帧带 scope 前
   const controlFrames = page.invokes
     .filter((entry) => entry.command === "host_send")
     .map((entry) => entry.args)
-    .filter(
-      (args): args is Uint8Array => args instanceof Uint8Array && args[0] === 0xfe,
-    );
+    .filter((args): args is Uint8Array => args instanceof Uint8Array && args[0] === 0xfe);
   assert.equal(controlFrames.length, 1, "ready ACK 必须翻译成一条控制帧");
-  assert.deepEqual(
-    JSON.parse(new TextDecoder().decode(controlFrames[0]!.subarray(1))),
-    { type: "scope-ready", scopeId: 7 },
-  );
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(controlFrames[0]!.subarray(1))), {
+    type: "scope-ready",
+    scopeId: 7,
+  });
 
   assert.equal(page.probe(`window.__MODE_HOST_BRIDGE__.releaseScopedServicePort(7)`), true);
   assert.equal(page.probe(`window.__MODE_HOST_BRIDGE__.releaseScopedServicePort(7)`), false);
@@ -673,14 +684,23 @@ test("平台面清单会在 DOMContentLoaded 后上报给壳（入参形状对�
   await page.flushMicrotasks();
 
   const call = page.invokes.find((candidate) => candidate.command === "host_platform_report");
-  assert.ok(call, `DOMContentLoaded 后必须上报平台面清单，实际调用：${JSON.stringify(page.invokes)}`);
+  assert.ok(
+    call,
+    `DOMContentLoaded 后必须上报平台面清单，实际调用：${JSON.stringify(page.invokes)}`,
+  );
   const args = JSON.parse(JSON.stringify(call.args)) as {
     report?: Record<string, unknown>;
   };
-  assert.ok(args.report, `入参必须包在 \`report\` 参数名里（Tauri 按参数名映射）：${JSON.stringify(args)}`);
+  assert.ok(
+    args.report,
+    `入参必须包在 \`report\` 参数名里（Tauri 按参数名映射）：${JSON.stringify(args)}`,
+  );
   const report = args.report!;
   for (const field of ["implemented", "notImplemented", "noOp", "deliberatelyAbsent", "degraded"]) {
-    assert.ok(Array.isArray(report[field]), `清单里必须有 ${field}（与壳侧的 PlatformSurfaceReport 对应）`);
+    assert.ok(
+      Array.isArray(report[field]),
+      `清单里必须有 ${field}（与壳侧的 PlatformSurfaceReport 对应）`,
+    );
   }
   assert.ok(
     (report.implemented as string[]).includes("selectDirectory"),
@@ -782,10 +802,7 @@ test("注入的 window.mode 与 M1 适配层切片一致：命令同名同参，
   const kinds = readDeepLinkKinds();
   for (const kind of ["oauth-callback", "payment-callback"]) {
     assert.ok(kinds.includes(kind), `生成物里应声明深链 kind "${kind}"（M1 只接线这两条）`);
-    assert.ok(
-      modeWindow.includes(`"${kind}"`),
-      `注入脚本里的深链 kind "${kind}" 必须与生成物一致`,
-    );
+    assert.ok(modeWindow.includes(`"${kind}"`), `注入脚本里的深链 kind "${kind}" 必须与生成物一致`);
   }
   for (const method of EVENT_SUBSCRIBED_METHODS) {
     assert.ok(names.includes(method), `${method} 必须在注入的 window.mode 上（否则 OAuth 链断）`);
@@ -833,15 +850,9 @@ test("壳侧窗口控制面的 rename 字面量必须与注入名一致（漂移
       match[2]!,
     ]),
   );
-  const windowControlConstants = [
-    "CMD_EXECUTE_DESKTOP_COMMAND",
-    "CMD_WINDOW_CHROME_STATE",
-  ];
+  const windowControlConstants = ["CMD_EXECUTE_DESKTOP_COMMAND", "CMD_WINDOW_CHROME_STATE"];
   for (const name of windowControlConstants) {
-    assert.ok(
-      constants.has(name),
-      `${BRIDGE_RUST} 里应有 ${name}（注入层按它 invoke）`,
-    );
+    assert.ok(constants.has(name), `${BRIDGE_RUST} 里应有 ${name}（注入层按它 invoke）`);
   }
 
   // ① 壳注册的每个窗口控制命令都必须出现在 `bridge.rs` 的命令名常量里。
@@ -956,7 +967,9 @@ test("窗口 chrome 状态订阅：只在状态真的变了时回调，且退订
   );
 
   // 退订：disposer 同步返回且此后不再回调。
-  page.probe("window.__disposeChrome(); window.__chrome.isMaximized = false; window.__windowApi.resizedHandler();");
+  page.probe(
+    "window.__disposeChrome(); window.__chrome.isMaximized = false; window.__windowApi.resizedHandler();",
+  );
   page.fireTimers();
   await page.flushMicrotasks();
   assert.deepEqual(
@@ -1044,7 +1057,11 @@ test("深链订阅：kind 与方法的配对是可观察行为，不是「两个
     ["/w"],
     "workspace-open 必须打到 onOpenWorkspacePath，且给的是解析后的 path",
   );
-  assert.deepEqual(recorded("oauth"), ["mode://oauth/callback?state=oauth-1"], "别的订阅不得被追加");
+  assert.deepEqual(
+    recorded("oauth"),
+    ["mode://oauth/callback?state=oauth-1"],
+    "别的订阅不得被追加",
+  );
 
   // 缺字段的两条：跳过，不喂半个载荷（回调拿到 `undefined` 会二次崩）。
   deliver({ kind: "share-import", url: "mode://share/import" } as Record<string, unknown>);
@@ -1092,6 +1109,8 @@ test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成�
     ...EVENT_SUBSCRIBED_METHODS,
     ...WINDOW_CONTROL_METHODS,
     ...UPDATE_STATE_METHODS,
+    // 注入层直接实现、不经 Rust 命令切片的平台面（本地「打开方式」胶囊）。
+    ...HOST_INJECTED_IMPLEMENTED_METHODS,
   ]);
   const absent = new Set(DELIBERATELY_ABSENT_REQUIRED_MEMBERS);
   assert.deepEqual(
@@ -1196,9 +1215,17 @@ test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成�
          return { callable: callable, disposable: disposable, thenable: true };
        })()`,
     ) as { callable: boolean; disposable: unknown; thenable: boolean };
-    assert.equal(probe.callable, true, `${name} 的降级返回值必须可调用（订阅型调用方拿它当 disposer）`);
+    assert.equal(
+      probe.callable,
+      true,
+      `${name} 的降级返回值必须可调用（订阅型调用方拿它当 disposer）`,
+    );
     assert.equal(probe.disposable, true, `${name} 的降级 disposer 被调用时不得抛`);
-    assert.equal(probe.thenable, true, `${name} 的降级返回值必须可 await（通知型调用方会 await/catch）`);
+    assert.equal(
+      probe.thenable,
+      true,
+      `${name} 的降级返回值必须可 await（通知型调用方会 await/catch）`,
+    );
     await page.probe(`window.mode.${name}()`);
     await page.flushMicrotasks();
     const degraded = Array.from(page.probe("window.__MODE_WINDOW_MODE__.degraded") as string[]);
@@ -1211,7 +1238,9 @@ test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成�
   // ③ 分类必须**只由声明形态决定**：注入的两类集合要机械算出的两类一一对上。
   //    `Array.from`：注入脚本在另一个 realm（`node:vm`），跨 realm 的数组直接 deepStrictEqual
   //    会在原型上不等（内容一样也红）。
-  const injectedNoOps = Array.from(page.probe("window.__MODE_WINDOW_MODE__.noOp") as string[]).sort();
+  const injectedNoOps = Array.from(
+    page.probe("window.__MODE_WINDOW_MODE__.noOp") as string[],
+  ).sort();
   const injectedThrowers = Array.from(
     page.probe("window.__MODE_WINDOW_MODE__.notImplemented") as string[],
   ).sort();

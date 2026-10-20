@@ -332,9 +332,10 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="flex shrink-0 items-center gap-1.5">
-          {isDesktop && workspacePath ? (
+          {/* 远端工作区可能只有 workspaceIdentity、没有 workspacePath；两者任一有值都应显示入口。 */}
+          {isDesktop && (workspacePath || workspaceIdentity) ? (
             <WorkspaceWebRemoteControlTrigger
-              workspacePath={workspacePath}
+              workspacePath={workspacePath ?? ""}
               workspaceIdentity={workspaceIdentity}
               compact
             />

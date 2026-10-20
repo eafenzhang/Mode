@@ -1,9 +1,20 @@
-import { memo, useState } from "react";
-import type { BotProvider } from "@mode/shared";
-import { Bot as BotIcon, MonitorSmartphone, XIcon } from "lucide-react";
+/* eslint-disable max-lines -- 远控弹层同时维护 LAN 快照、二维码/配对码与 Bot Channel 入口；拆分会打散同一弹层的状态生命周期。 */
+import { memo, useEffect, useState } from "react";
+import type { BotProvider, LanAccessState } from "@mode/shared";
+import {
+  Bot as BotIcon,
+  Copy as CopyIcon,
+  LoaderIcon,
+  MonitorSmartphone,
+  QrCode,
+  RefreshCw,
+  XIcon,
+} from "lucide-react";
+import QRCode from "qrcode";
 import { BotsDialog } from "@/BotsDialog.js";
 import { ProviderIcon } from "@/BotsDialog/shared.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
+import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
   Dialog,
   DialogContent,
@@ -11,14 +22,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui-foundation/adapters/dialog.js";
+import { usePlatform } from "@/hooks/usePlatform.js";
+import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
+import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
+import { resolveWebRemoteUrl } from "@/lib/webRemoteEntry.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
 
-type RemoteControlBotProvider = Extract<
-  BotProvider,
-  "weixin" | "wecom" | "feishu" | "dingtalk"
->;
+function formatRemaining(expiresAt: number, now: number): string {
+  const remainingSeconds = Math.max(0, Math.round((expiresAt - now) / 1000));
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+type RemoteControlBotProvider = Extract<BotProvider, "weixin" | "wecom" | "feishu" | "dingtalk">;
 
 // 通道只保留微信 / 企业微信 / 飞书（中国域）/ 钉钉，且全部一次展示（不再折叠）。
 const REMOTE_CONTROL_ENTRIES: Array<{
@@ -42,8 +61,118 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   workspaceIdentity?: string;
 }) {
   const { intl } = useModeIntl();
+  const platform = usePlatform();
+  const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
+  const [lanState, setLanState] = useState<LanAccessState | null>(null);
+  const [lanLoading, setLanLoading] = useState(false);
+  const [lanBusy, setLanBusy] = useState(false);
+  const [lanError, setLanError] = useState("");
+  const [lanQrDataUrl, setLanQrDataUrl] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  // 打开弹层时读一次 LAN 状态；状态所有者仍是 Host 的 lanAccessServer，这里只读快照。
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let cancelled = false;
+    setLanLoading(true);
+    setLanError("");
+    void platform
+      .getLanAccessState()
+      .then((state) => {
+        if (!cancelled) {
+          setLanState(state);
+          setNow(Date.now());
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLanState(null);
+          setLanError(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLanLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, platform]);
+
+  const webUrl = resolveWebRemoteUrl(lanState);
+
+  // 二维码只做展示：地址来自 LAN 快照，不新增网络请求。
+  useEffect(() => {
+    if (!webUrl) {
+      setLanQrDataUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void QRCode.toDataURL(webUrl, { margin: 1, width: 160 })
+      .then((dataUrl) => {
+        if (!cancelled) {
+          setLanQrDataUrl(dataUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLanQrDataUrl(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [webUrl]);
+
+  useEffect(() => {
+    if (!lanState?.pairCode) {
+      return;
+    }
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [lanState?.pairCode]);
+
+  const handleCreatePairCode = async () => {
+    setLanBusy(true);
+    setLanError("");
+    try {
+      const next = await platform.createLanAccessPairCode();
+      setLanState(next);
+      setNow(Date.now());
+    } catch (error) {
+      setLanError(
+        `${intl.formatMessage({ id: "settings.lanAccess.pairCodeFailed" })}：${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    } finally {
+      setLanBusy(false);
+    }
+  };
+
+  const handleOpenLanSettings = () => {
+    setPendingSettingsSectionIntent("remoteDesktop");
+    openSettingsTab?.();
+    onOpenChange(false);
+  };
+
+  const handleCopyLink = async () => {
+    if (!webUrl) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(webUrl);
+      toast(intl.formatMessage({ id: "webRemoteControl.qr.copied" }));
+    } catch (error) {
+      logger.warn("[WebRemoteControlDialog] 复制远控链接失败", error);
+      toast(intl.formatMessage({ id: "webRemoteControl.qr.copyFailed" }));
+    }
+  };
 
   const handleOpenBotEntry = (provider: RemoteControlBotProvider) => {
     setBotEntryProvider(provider);
@@ -69,7 +198,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           showCloseButton={false}
-          className="max-h-[calc(100vh-6rem)] max-w-lg gap-0 overflow-hidden rounded-2xl p-0"
+          className="max-h-[calc(100vh-6rem)] max-w-4xl gap-0 overflow-hidden rounded-2xl p-0"
         >
           <Button
             type="button"
@@ -100,7 +229,136 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
               </div>
             </DialogHeader>
 
-            <div className="mt-5 grid gap-4">
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <section className="flex min-h-[360px] flex-col rounded-xl border border-border bg-card p-4">
+                <div className="flex items-start gap-2">
+                  <MonitorSmartphone className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
+                  <div className="min-w-0 space-y-1">
+                    <div className="text-ui-base font-medium text-foreground">
+                      {intl.formatMessage({ id: "webRemoteControl.qr.title" })}
+                    </div>
+                    <p className="text-ui-base/relaxed text-foreground-subtle">
+                      {intl.formatMessage({ id: "webRemoteControl.qr.description" })}
+                    </p>
+                  </div>
+                </div>
+                {lanLoading ? (
+                  <div className="mt-4 flex items-center gap-2 text-ui-base text-foreground-subtle">
+                    <LoaderIcon className="size-4 animate-spin" />
+                    {intl.formatMessage({ id: "webRemoteControl.web.loading" })}
+                  </div>
+                ) : lanState?.enabled ? (
+                  webUrl ? (
+                    <>
+                      <div className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+                        <span className="flex items-center gap-2 text-ui-base text-foreground-subtle">
+                          <span className="size-1.5 rounded-full bg-warning" />
+                          {intl.formatMessage({ id: "webRemoteControl.qr.waiting" })}
+                          <span className="inline-flex h-5 items-center rounded-full border border-border px-2 text-ui-xs font-medium text-foreground-subtle">
+                            {intl.formatMessage({ id: "webRemoteControl.qr.ready" })}
+                          </span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onOpenChange(false)}
+                        >
+                          {intl.formatMessage({ id: "webRemoteControl.qr.stop" })}
+                        </Button>
+                      </div>
+                      <p className="mt-3 text-ui-base/relaxed text-foreground-subtle">
+                        {intl.formatMessage({ id: "webRemoteControl.qr.hint" })}
+                      </p>
+                      <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface p-4">
+                        {lanQrDataUrl ? (
+                          <img
+                            src={lanQrDataUrl}
+                            alt={intl.formatMessage({ id: "webRemoteControl.web.qrAlt" })}
+                            className="size-52"
+                          />
+                        ) : (
+                          <QrCode className="size-12 text-foreground-subtle" />
+                        )}
+                        <div className="mt-3 w-full space-y-1 text-center">
+                          <div className="break-all font-mono text-ui-sm text-foreground">
+                            {webUrl}
+                          </div>
+                          {lanState.pairCode ? (
+                            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-ui-xs text-foreground-subtle">
+                              <span>
+                                {intl.formatMessage({ id: "webRemoteControl.web.pairCode" })}：
+                                <span className="font-mono text-ui-base tracking-[0.25em] text-foreground">
+                                  {lanState.pairCode.code}
+                                </span>
+                              </span>
+                              <span>
+                                {intl.formatMessage(
+                                  { id: "webRemoteControl.web.pairCodeExpires" },
+                                  { time: formatRemaining(lanState.pairCode.expiresAt, now) },
+                                )}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="text-ui-xs text-foreground-subtle">
+                              {intl.formatMessage({ id: "webRemoteControl.qr.pairCodeHint" })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="mt-3 text-ui-sm text-foreground-subtle">
+                        {intl.formatMessage({ id: "webRemoteControl.qr.unableHint" })}
+                      </p>
+                      <div className="mt-3 flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="lg"
+                          className="flex-1 justify-center"
+                          disabled={lanBusy}
+                          onClick={() => void handleCreatePairCode()}
+                        >
+                          {lanBusy ? (
+                            <LoaderIcon className="size-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="size-4" />
+                          )}
+                          {intl.formatMessage({ id: "webRemoteControl.qr.refresh" })}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="lg"
+                          className="flex-1 justify-center"
+                          onClick={() => void handleCopyLink()}
+                        >
+                          <CopyIcon className="size-4" />
+                          {intl.formatMessage({ id: "webRemoteControl.qr.copyLink" })}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-4 text-ui-base text-foreground-subtle">
+                      {intl.formatMessage({ id: "webRemoteControl.web.unavailable" })}
+                    </div>
+                  )
+                ) : (
+                  <div className="mt-4 flex flex-1 flex-col items-center justify-center gap-3">
+                    <span className="text-ui-base text-foreground-subtle">
+                      {intl.formatMessage({ id: "webRemoteControl.web.disabled" })}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      onClick={handleOpenLanSettings}
+                    >
+                      {intl.formatMessage({ id: "webRemoteControl.web.openSettings" })}
+                    </Button>
+                  </div>
+                )}
+                {lanError ? <p className="mt-3 text-ui-sm text-destructive">{lanError}</p> : null}
+              </section>
               <section className="flex min-h-[360px] flex-col rounded-xl border border-border bg-card p-4">
                 <div className="mb-4 flex items-start gap-2">
                   <BotIcon className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />

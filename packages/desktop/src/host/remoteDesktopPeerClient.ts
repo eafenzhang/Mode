@@ -187,10 +187,25 @@ export async function openRemoteDesktopPeerSession(
   }
   if (!mediaTicket) {
     // 旧对端（未升级到双票据协议）：媒体面无法建立，按版本过旧收口而不是先连上再失败。
+    // 失败分支额外读一次 server-info 取对端版本，把「对端不支持」变成可执行的诊断；
+    // 诊断请求失败不覆盖主错误，仍保留稳定错误码 unsupported。
+    let peerVersion = "";
+    try {
+      const info = await fetchLanPeerInfo({
+        host: target.host,
+        port: target.port,
+        ...(target.token ? { token: target.token } : {}),
+      });
+      peerVersion = info.version.trim();
+    } catch {
+      peerVersion = "";
+    }
     return {
       ok: false,
       errorCode: "unsupported",
-      error: "对端缺少媒体票据（版本过旧）",
+      error: peerVersion
+        ? `对端缺少媒体票据（对端版本 ${peerVersion}；请升级到同一版本并重启对端）`
+        : "对端缺少媒体票据（版本过旧）",
     };
   }
   // WS 升级与 POST 同样要出示设备令牌：服务端全局鉴权（http.ts isTokenProtectedPath 命中

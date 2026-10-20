@@ -58,8 +58,9 @@ export function WorkspaceFileManagerButton({
           return;
         }
         // 取本机文件管理器（finder/qspace/explorer）的彩色图标做视觉一致；拿不到就回退 lucide。
+        // Tauri 注入层返回空 iconDataUrl（拿不到系统图标位图），这里按空值走同一枚兜底图标。
         const fileManager = sortInstalledEditorsForOpenWith(editors).find(isFileManagerOpenTarget);
-        setFileManagerIconUrl(fileManager?.iconDataUrl ?? null);
+        setFileManagerIconUrl(fileManager?.iconDataUrl?.trim() || null);
       })
       .catch(() => {
         // 无图标只影响观感，入口本身不受影响。

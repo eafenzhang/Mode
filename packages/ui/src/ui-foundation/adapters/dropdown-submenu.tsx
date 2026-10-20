@@ -27,6 +27,7 @@ import { childRefOf, mergeRefs } from "./domTargets.js";
 import {
   DropdownSubAdapterContext,
   isInsideMenuPortal,
+  isSiblingSubmenuActive,
   menuItemNodes,
   moveMenuFocus,
   useDropdownMenuAdapterState,
@@ -73,6 +74,14 @@ export function DropdownMenuSub({
     }
   }, [parent, setOpen]);
 
+  // 兄弟互斥：根菜单只允许一个子菜单打开。指针进入另一个子菜单时关闭自己，
+  // 否则旧子菜单的 portal 内容会继续覆盖在新子菜单上（表现为悬停内容不切换）。
+  useEffect(() => {
+    if (isSiblingSubmenuActive(parent?.activeSubmenuId, contentId)) {
+      setOpen(false);
+    }
+  }, [parent?.activeSubmenuId, contentId, setOpen]);
+
   const state = useMemo(
     () => ({ open: current, setOpen, triggerRef, contentId }),
     [current, setOpen, contentId],
@@ -97,6 +106,7 @@ export const DropdownMenuSubTrigger = forwardRef<HTMLButtonElement, DropdownMenu
     const handleClick = (event: ReactMouseEvent<HTMLElement>): void => {
       onClick?.(event as ReactMouseEvent<HTMLButtonElement>);
       if (!event.defaultPrevented) {
+        root?.setActiveSubmenuId(state?.contentId ?? null);
         state?.setOpen(!state?.open);
       }
     };
@@ -106,7 +116,10 @@ export const DropdownMenuSubTrigger = forwardRef<HTMLButtonElement, DropdownMenu
       "aria-haspopup": "menu" as const,
       "aria-expanded": state?.open ?? false,
       "aria-controls": state?.open ? state.contentId : undefined,
-      onPointerEnter: () => state?.setOpen(true),
+      onPointerEnter: () => {
+        root?.setActiveSubmenuId(state?.contentId ?? null);
+        state?.setOpen(true);
+      },
       onClick: handleClick,
     };
     if (asChild && isValidElement(children)) {

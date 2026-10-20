@@ -16,6 +16,7 @@
  * 三件套不能全部门控在 config!==null 上——草稿态会整体不渲染。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LoaderCircle } from "lucide-react";
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   getModelProviderFamilySpec,
@@ -1024,6 +1025,11 @@ function V4ComposerModelControlsImpl({
                 ? "chat.toolbar.model.remoteWaiting"
                 : "chat.toolbar.model.targetMissing",
           })}
+        </span>
+      ) : modelSelectionState.status === "loading" ? (
+        <span className="inline-flex items-center gap-1.5 px-2 text-ui-sm text-foreground-subtle">
+          <LoaderCircle className="size-3.5 animate-spin" />
+          {intl.formatMessage({ id: "chat.toolbar.model.loading" })}
         </span>
       ) : modelMenuVisible ? (
         <ModelConfigSelect

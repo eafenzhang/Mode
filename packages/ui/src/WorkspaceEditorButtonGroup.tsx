@@ -1,7 +1,7 @@
 import { createOpenInEditorRemoteTarget, type EditorInfo, type RemoteTarget } from "@mode/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, FolderOpenIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -149,11 +149,16 @@ export function WorkspaceEditorButtonGroup({
           intl.formatMessage({ id: "appHeader.openInEditor" }, { editor: selectedEditor.name })
         }
       >
-        <img
-          src={selectedEditor.iconDataUrl}
-          alt={selectedEditor.name}
-          className={editorIconClassName}
-        />
+        {selectedEditor.iconDataUrl ? (
+          <img
+            src={selectedEditor.iconDataUrl}
+            alt={selectedEditor.name}
+            className={editorIconClassName}
+          />
+        ) : (
+          // Tauri 壳拿不到系统图标位图：与远端文件管理器入口同一枚 FolderOpenIcon。
+          <FolderOpenIcon className={editorIconClassName} aria-hidden="true" />
+        )}
       </Button>
 
       <DropdownMenu>
@@ -185,11 +190,15 @@ export function WorkspaceEditorButtonGroup({
           >
             {availableEditors.map((editor) => (
               <DropdownMenuRadioItem key={editor.id} value={editor.id}>
-                <img
-                  src={editor.iconDataUrl}
-                  alt={editor.name}
-                  className={editorMenuIconClassName}
-                />
+                {editor.iconDataUrl ? (
+                  <img
+                    src={editor.iconDataUrl}
+                    alt={editor.name}
+                    className={editorMenuIconClassName}
+                  />
+                ) : (
+                  <FolderOpenIcon className={editorMenuIconClassName} aria-hidden="true" />
+                )}
                 {editor.name}
               </DropdownMenuRadioItem>
             ))}

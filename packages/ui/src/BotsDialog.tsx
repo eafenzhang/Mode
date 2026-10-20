@@ -1505,7 +1505,7 @@ export function BotsDialog({
             </div>
           </aside>
 
-          <section className="min-w-0 flex-1 overflow-y-auto rounded-xl border border-border bg-background p-4">
+          <section className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto rounded-xl border border-border bg-background p-4">
             {creatingBot ? (
               <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-start gap-6">
                 <div className="space-y-2">
