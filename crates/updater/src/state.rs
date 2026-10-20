@@ -40,6 +40,7 @@ pub struct UpdateManager {
     bytes: Mutex<Option<Vec<u8>>>,
     checking: AtomicBool,
     auto_download: AtomicBool,
+    downloading: AtomicBool,
     cancelling: AtomicBool,
     skipped_version: Mutex<Option<String>>,
 }
@@ -53,9 +54,36 @@ impl Default for UpdateManager {
             bytes: Mutex::new(None),
             checking: AtomicBool::new(false),
             auto_download: AtomicBool::new(false),
+            downloading: AtomicBool::new(false),
             cancelling: AtomicBool::new(false),
             skipped_version: Mutex::new(None),
         }
+    }
+}
+
+/// 下载单飞守卫：所有返回路径（取消/失败/成功）都会把 `downloading` 复位。
+struct DownloadGuard<'a>(&'a AtomicBool);
+
+impl Drop for DownloadGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+fn skipped_version_matches(manager: &UpdateManager, version: &str) -> bool {
+    manager
+        .skipped_version
+        .lock()
+        .ok()
+        .and_then(|slot| slot.clone())
+        .map(|skipped| skipped.trim() == version.trim())
+        .unwrap_or(false)
+}
+
+impl UpdateManager {
+    /// 自动检查（startup / 后续轮询）使用；手动检查会先清掉跳过记录再查。
+    pub(crate) fn is_version_skipped(&self, version: &str) -> bool {
+        skipped_version_matches(self, version)
     }
 }
 
@@ -96,9 +124,15 @@ pub async fn check_for_update<R: Runtime>(app: &AppHandle<R>) -> Value {
     {
         return json!({ "status": "busy" });
     }
+    // 原版（Electron）语义：手动检查清掉跳过记录，让被跳过的版本仍可重新看到；
+    // 自动检查（check_and_install / 后续轮询）才尊重 skipped_version。
+    if let Ok(mut slot) = manager.skipped_version.lock() {
+        *slot = None;
+    }
     set_state(app, json!({ "kind": "checking", "enabled": true }));
 
     let current_version = app.package_info().version.to_string();
+    let mut auto_download_version: Option<String> = None;
     let result = match app.updater() {
         Ok(updater) => match updater.check().await {
             Ok(Some(update)) => {
@@ -111,6 +145,9 @@ pub async fn check_for_update<R: Runtime>(app: &AppHandle<R>) -> Value {
                 }
                 if let Ok(mut slot) = manager.bytes.lock() {
                     *slot = None;
+                }
+                if manager.auto_download.load(Ordering::SeqCst) {
+                    auto_download_version = Some(update.version.clone());
                 }
                 let state = json!({
                     "kind": "update-available",
@@ -146,6 +183,15 @@ pub async fn check_for_update<R: Runtime>(app: &AppHandle<R>) -> Value {
         }
     };
     manager.checking.store(false, Ordering::SeqCst);
+    if auto_download_version.is_some() {
+        // 偏好开启时，检查命中即进入下载；renderer 只消费 update-available →
+        // download-progress → update-downloaded，不再需要用户点「下载更新」。
+        // download_update 自带单飞互斥，手动按钮并发点击会拿到 busy。
+        let app_for_download = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = download_update(&app_for_download).await;
+        });
+    }
     result
 }
 
@@ -154,10 +200,19 @@ pub async fn download_update<R: Runtime>(app: &AppHandle<R>) -> Value {
     let Some(manager) = app.try_state::<UpdateManager>() else {
         return json!({ "status": "error", "error": "update manager unavailable" });
     };
+    if manager.downloading.swap(true, Ordering::SeqCst) {
+        return json!({ "status": "busy" });
+    }
+    // 所有返回路径都复位 downloading：取消、网络失败、成功、update 丢失。
+    let _download_guard = DownloadGuard(&manager.downloading);
     let update = match manager.update.lock().ok().and_then(|slot| slot.clone()) {
         Some(update) => update,
         None => return json!({ "status": "error", "error": "no update available" }),
     };
+    // 自动下载与「跳过」可能并发：跳过之后不再把该版本下载/标记为 ready。
+    if manager.is_version_skipped(&update.version) {
+        return json!({ "status": "skipped", "version": update.version });
+    }
     manager.cancelling.store(false, Ordering::SeqCst);
     let notes = manager
         .release_notes
@@ -215,6 +270,10 @@ pub async fn download_update<R: Runtime>(app: &AppHandle<R>) -> Value {
         );
         return json!({ "status": "cancelled" });
     }
+    if manager.is_version_skipped(&update.version) {
+        // 下载过程中用户点了“跳过”：不落 bytes、不进入 update-downloaded。
+        return json!({ "status": "skipped", "version": update.version });
+    }
     match downloaded {
         Ok(bytes) => {
             if let Ok(mut slot) = manager.bytes.lock() {
@@ -262,7 +321,10 @@ pub fn quit_and_install_update<R: Runtime>(app: &AppHandle<R>) -> Value {
 }
 
 #[tauri::command(rename = "getUpdateState")]
-pub fn get_update_state<R: Runtime>(app: AppHandle<R>, _manager: State<'_, UpdateManager>) -> Value {
+pub fn get_update_state<R: Runtime>(
+    app: AppHandle<R>,
+    _manager: State<'_, UpdateManager>,
+) -> Value {
     state_snapshot(&app)
 }
 
@@ -358,4 +420,22 @@ pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + 
         get_auto_update_preferences,
         set_auto_download_and_install_updates,
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skipped_version_matches_trims_and_ignores_other_versions() {
+        let manager = UpdateManager::default();
+        assert!(!manager.is_version_skipped("1.2.3"));
+
+        *manager
+            .skipped_version
+            .lock()
+            .expect("lock skipped version") = Some(" 1.2.3 ".into());
+        assert!(manager.is_version_skipped("1.2.3"));
+        assert!(!manager.is_version_skipped("1.2.4"));
+    }
 }

@@ -173,9 +173,16 @@ export function BotReplyGranularityCard({
   const replyGranularities = getBotReplyGranularitiesForProvider(bot.provider);
   const selectedGranularity = getBotReplyGranularityEntryForProvider(bot.provider, bot.replyMode);
 
+  // provider 只支持一种粒度时下拉没有可选项差异（飞书/Lark 只有流式卡片），
+  // 属于“不生效的项”，直接不渲染，避免用户以为可以切换。
+  if (replyGranularities.length <= 1) {
+    return null;
+  }
+
   return (
     <SettingsRow
       label={intl.formatMessage({ id: "bots.replyGranularity" })}
+      layout="stacked"
       description={intl.formatMessage({
         id: selectedGranularity.descriptionId,
       })}

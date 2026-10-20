@@ -608,7 +608,7 @@ const zhCN: Record<string, string> = {
   "bots.feishuRegistration.error": "注册失败。",
   "bots.enabledToggle": "启用 {name}",
   "bots.replyGranularity": "回复颗粒度",
-  "bots.replyGranularity.description": "选择回复包含的内容明细。",
+  "bots.replyGranularity.description": "选择回复内容。",
   "bots.replyGranularity.assistantChanges": "标准回复",
   "bots.replyGranularity.assistantChanges.description": "回复正文与文件变更，隐藏工具调用过程。",
   "bots.replyGranularity.assistantToolcallsChanges": "完整回复",
@@ -618,7 +618,7 @@ const zhCN: Record<string, string> = {
   "bots.replyGranularity.summaryChanges.description": "仅回复最终结果与变更摘要，适合低打扰通知。",
   "bots.replyGranularity.streamingCard": "流式回复",
   "bots.replyGranularity.streamingCard.description":
-    "飞书/Lark、Telegram、企业微信以流式消息输出打字机回复。",
+    "以流式消息逐步输出回复。",
   "bots.add": "添加",
   "bots.channel.telegram": "Telegram",
   "bots.channel.weixin": "微信",
@@ -803,16 +803,16 @@ const zhCN: Record<string, string> = {
   "taskList.botBind.boundToast": "已把 {name}（{botId}）的 {conversation} 绑定到这个会话",
   "taskList.botBind.unboundToast": "已解绑 {name}（{botId}）的 {conversation}",
   "bots.groupChat.title": "群聊方式",
-  "bots.groupChat.description": "群聊仅绑定用户可驱动，未被 @ 的消息会作为上下文记录。",
+  "bots.groupChat.description": "仅绑定用户可驱动；未 @ 的消息只记为上下文。",
   "bots.groupChat.descriptionAlways":
-    "每条消息都会进入会话（仅绑定用户可驱动），由 AI 判断是否回复，群内禁用本机读写。",
+    "每条消息都会进入会话，由 AI 决定是否回复。",
   "bots.groupChat.descriptionNoMention":
-    "该通道无法识别 @ 状态，「全部回复」时每条消息都会触发机器人。",
-  "bots.groupChat.descriptionWecom": "企微仅在 @机器人 时下发群消息，因此只能选择 @提及。",
-  "bots.groupChat.descriptionUnbound": "请先完成私聊绑定（发送 /bind），否则群消息会被静默忽略。",
-  "bots.groupChat.descriptionAllUsers": "「私聊方式」为「全部用户」：群里任何成员都能驱动机器人。",
+    "该通道无法识别 @，所有消息都会触发。",
+  "bots.groupChat.descriptionWecom": "企微仅在 @ 时下发群消息，只能选 @提及。",
+  "bots.groupChat.descriptionUnbound": "请先在私聊完成 /bind 绑定。",
+  "bots.groupChat.descriptionAllUsers": "私聊为「全部用户」：群成员均可驱动。",
   "bots.groupChat.descriptionAllUsersAlways":
-    "「私聊方式」为「全部用户」：任何成员的每条消息都会进入会话，由 AI 判断是否回复。",
+    "私聊为「全部用户」：每条消息都会进入会话。",
   "bots.groupChat.mode.disabled": "不响应群聊",
   "bots.groupChat.mode.mention": "@提及",
   "bots.groupChat.mode.always": "全部消息",
@@ -824,30 +824,26 @@ const zhCN: Record<string, string> = {
   "bots.groupChat.permissions.remove": "移除",
   "bots.deliveryMode.title": "消息发送方式",
   "bots.deliveryMode.description":
-    "自动回复会直接推送；仅工具发送时普通 AI 输出不外发，需要显式使用 myagents im send-message。命令回执和权限/提问不受影响。",
+    "自动回复直接发送；仅工具发送时只发显式工具消息。",
   "bots.deliveryMode.auto": "自动回复",
   "bots.deliveryMode.toolOnly": "仅工具发送",
-  "bots.agentOwnership.title": "Agent 归属",
-  "bots.agentOwnership.description":
-    "当前版本一个通道对应一个 Agent；工作区、默认模型与 Heartbeat 由该 Agent 持有。",
-  "bots.agentOwnership.unbound": "未绑定工作区",
   "bots.heartbeat.title": "机器人心跳",
   "bots.heartbeat.description":
-    "定时唤醒检查工作区（0 关闭，{min}–{max} 分钟）：有变化时汇报，正常时静默，可用 HEARTBEAT.md 自定义指引。",
+    "定时检查工作区，有变化才汇报；0 为关闭。",
   "bots.heartbeat.intervalLabel": "心跳间隔（分钟，0 为关闭）",
   "bots.heartbeat.intervalSuffix": "分钟",
   "bots.workspaceManagement.title": "工作区管理",
   "bots.workspaceManagement.description.unbound":
-    "绑定后消息固定进入该工作区并收窄访问范围；选「未绑定」可用 /项目 自由切换。",
+    "绑定后消息固定进入该工作区；选「未绑定」可自由切换。",
   "bots.workspaceManagement.description.bound":
-    "已绑定「{workspace}」（{botId}）：消息固定进入该工作区，改选其他工作区即为换绑。",
+    "已绑定「{workspace}」，改选其他工作区即换绑。",
   "bots.workspaceManagement.selectPlaceholder": "选择工作区",
   "bots.workspaceManagement.option.unbound": "未绑定（按 /项目 自由切换）",
   "bots.privateChat.title": "私聊方式",
   "bots.privateChat.description.boundUsers":
-    "仅绑定用户可驱动；点「绑定」生成绑定码，在私聊发送 /bind 完成绑定。",
+    "仅绑定用户可驱动；发送 /bind 完成绑定。",
   "bots.privateChat.description.allUsers":
-    "无需绑定，任何私聊用户都可驱动（主动消息发给最近说话的用户）。",
+    "任何私聊用户都可驱动。",
   "bots.privateChat.mode.boundUsers": "绑定用户",
   "bots.privateChat.mode.allUsers": "全部用户",
   "bots.privateChat.boundUsersLabel": "已绑定的用户",

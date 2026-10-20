@@ -199,7 +199,6 @@ import { planWeixinSelfIdMigration } from "./weixinSelfId.js";
 import {
   extractBotAssistantResponseMessages,
   formatBotAssistantReplyBlocks,
-  formatBotToolCallSummaryLine,
   formatBotPermissionRequestSummary,
   formatBotToolCallReply,
   isBotToolCallReplyTerminal,
@@ -5249,8 +5248,6 @@ export function createBotsService(
         Boolean(adapter?.createStreamingReplyCard) && Boolean(adapter?.updateStreamingReplyCard)
       );
     };
-    const buildStreamingToolSummaryTitle = (locale: Locale | undefined): string =>
-      msg(locale, "streamingToolSummaries");
     const appendStreamingCardMessageChunk = (content: string): void => {
       if (!content) {
         return;
@@ -5274,59 +5271,19 @@ export function createBotsService(
     };
     const hasStreamingCardMessageText = (): boolean =>
       streamingCardBlocks.some((block) => block.type === "message" && block.text.trim().length > 0);
-    const appendStreamingCardTool = (toolId: string): void => {
-      const existingBlock = streamingCardBlocks.find(
-        (block) => block.type === "tools" && block.toolIds.includes(toolId),
-      );
-      if (existingBlock) {
-        return;
-      }
-      const lastBlock = streamingCardBlocks.at(-1);
-      if (lastBlock?.type === "tools") {
-        lastBlock.toolIds.push(toolId);
-        return;
-      }
-      streamingCardBlocks.push({ type: "tools", toolIds: [toolId] });
-    };
     const buildStreamingCardBlocks = (locale: Locale | undefined): BotStreamingReplyCardBlock[] => {
-      // 工具摘要只作为"进行中"的过程提示：终稿（completed/sealed）里不再出现，
-      // 交付内容与「标准回复」保持一致（只留助手正文与文件变更摘要）。
+      // 流式卡片只交付助手正文与变更摘要；工具调用/思考不作为可见内容。
+      // 2026-10-20 用户口径：默认回复颗粒度对齐 MyAgents，避免流式过程中刷出一堆工具摘要。
       const running = streamingCardStatus === "running";
-      const toolSummaryTitle = buildStreamingToolSummaryTitle(locale);
-      const latestToolBlockIndex = streamingCardBlocks.reduce(
-        (latestIndex, block, index) => (block.type === "tools" ? index : latestIndex),
-        -1,
-      );
       const blocks: BotStreamingReplyCardBlock[] = [];
-      for (const [index, block] of streamingCardBlocks.entries()) {
-        if (block.type === "message") {
-          const text = block.text.trim();
-          if (text) {
-            blocks.push({ type: "message", text });
-          }
+      for (const block of streamingCardBlocks) {
+        if (block.type !== "message") {
           continue;
         }
-        if (!running) {
-          continue;
+        const text = block.text.trim();
+        if (text) {
+          blocks.push({ type: "message", text });
         }
-        const summaries = block.toolIds
-          .map((toolId) => toolCalls.get(toolId))
-          .filter((toolCall): toolCall is BotReplyToolCallState => Boolean(toolCall))
-          .map((toolCall) =>
-            formatBotToolCallSummaryLine(toolCall, {
-              workspacePath: context.workspacePath,
-              locale,
-            }),
-          );
-        if (summaries.length === 0) {
-          continue;
-        }
-        blocks.push({
-          type: "tools",
-          title: toolSummaryTitle,
-          summaries,
-          expanded: streamingCardStatus === "running" && index === latestToolBlockIndex,
-        });
       }
       if (blocks.length === 0) {
         blocks.push({
@@ -5552,9 +5509,6 @@ export function createBotsService(
         });
       }
       if (event.type === "tool_call" || event.type === "tool_call_update") {
-        if (supportsStreamingCardReply()) {
-          appendStreamingCardTool(event.toolId);
-        }
         if (!supportsStreamingCardReply()) {
           await flushAssistantReplyBuffer(true);
         }

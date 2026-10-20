@@ -27,6 +27,7 @@ export function BotDeliveryModeCard({
   return (
     <SettingsRow
       label={intl.formatMessage({ id: "bots.deliveryMode.title" })}
+      layout="stacked"
       description={intl.formatMessage({ id: "bots.deliveryMode.description" })}
       control={
         <Select

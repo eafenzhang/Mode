@@ -65,6 +65,7 @@ export function BotGroupChatCard({
     <div className="space-y-3">
       <SettingsRow
         label={intl.formatMessage({ id: "bots.groupChat.title" })}
+        layout="stacked"
         description={intl.formatMessage(
           {
             id:

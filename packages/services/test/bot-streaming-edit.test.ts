@@ -16,20 +16,19 @@ test("共享层能力表：企业微信支持 streaming_card，微信不支持",
   assert.deepEqual([...feishu], ["streaming_card"]);
 });
 
-test("企业微信流式渲染：正文/工具摘要拼接，空内容给占位文案", async () => {
+test("企业微信流式渲染：正文与空内容占位，不拼接工具摘要", async () => {
   const { renderWeComStreamText } = await import(
     "../src/bots/providers/wecomProvider.js"
   );
   const text = renderWeComStreamText({
     providerUserId: "u1",
     status: "running",
-    blocks: [
-      { type: "message", text: "正在分析日志。" },
-      { type: "tools", toolIds: [], summaries: ["read a.ts"], title: "工具摘要" },
-    ],
+    blocks: [{ type: "message", text: "正在分析日志。" }],
   });
-  assert.ok(text.includes("正在分析日志。"));
-  assert.ok(text.includes("**工具摘要**\n- read a.ts"));
+  assert.equal(text.trim(), "正在分析日志。");
+
+  // 渲染器仍兼容 tools 块，但服务层不再产出；产品文案不出现工具摘要。
+  assert.ok(!text.includes("工具摘要"));
 
   const placeholder = renderWeComStreamText({ providerUserId: "u1", status: "running", blocks: [] });
   assert.ok(placeholder.trim().length > 0, "empty state must render a placeholder");
@@ -54,15 +53,15 @@ test("企业微信 markdown 分片：短文本单片、长文本按段落切分�
   assert.equal(rejoined.length, long.replace(/\s/gu, "").length);
 });
 
-// 交付内容不出现工具摘要：工具块只作为"进行中"的过程提示，终稿（completed/sealed）里被过滤掉。
-// 行为测试需要整套服务图，这里用源码契约守住这条规则。
-test("流式卡片终稿隐藏工具摘要（仅进行中展示）", async () => {
+// 流式卡片只交付助手正文与变更摘要；工具调用/思考不作为可见内容（2026-10-20 用户口径，
+// 对齐 MyAgents 的默认回复颗粒度）。行为测试需要整套服务图，这里用源码契约守住规则。
+test("流式卡片不展示工具摘要", async () => {
   const source = await import("node:fs/promises").then((fs) =>
     fs.readFile(new URL("../src/bots/botsService.ts", import.meta.url), "utf8"),
   );
   const index = source.indexOf("const buildStreamingCardBlocks =");
   assert.ok(index >= 0, "缺少 buildStreamingCardBlocks");
-  const block = source.slice(index, index + 2600);
+  const block = source.slice(index, index + 1800);
   // 空白归一后再匹配：源码里的换行/缩进变化不应该让这条契约失效。
   const compact = block.replace(/\s+/g, " ");
   assert.ok(
@@ -70,16 +69,15 @@ test("流式卡片终稿隐藏工具摘要（仅进行中展示）", async () =>
     "必须区分进行中与终稿",
   );
   assert.ok(
-    compact.includes("if (!running) { continue; }"),
-    "终稿必须跳过工具块（否则工具摘要会留在交付内容里）",
+    !compact.includes('type: "tools"'),
+    "流式卡片构建不得包含工具块",
+  );
+  assert.ok(
+    !source.includes("appendStreamingCardTool"),
+    "工具调用不得写入流式卡片",
   );
   assert.ok(
     compact.includes('msg(locale, running ? "streamingWorking" : "taskCompleted")'),
     "纯工具回合的终稿兜底必须是完成提示而不是过程提示",
-  );
-  // 进行中仍然展示工具摘要（长工具阶段需要过程反馈）
-  assert.ok(
-    compact.includes('expanded: streamingCardStatus === "running" && index === latestToolBlockIndex'),
-    "进行中的工具摘要保持展开",
   );
 });

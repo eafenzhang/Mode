@@ -674,7 +674,7 @@ const faIR: Record<string, string> = {
   "bots.feishuManualSaved": "اعتبارنامه Feishu ذخیره شد. برای اتصال در چت /bind بفرستید.",
   "bots.enabledToggle": "فعال‌سازی {name}",
   "bots.replyGranularity": "سطح جزئیات پاسخ",
-  "bots.replyGranularity.description": "انتخاب کنید پاسخ چه چیزهایی را شامل شود.",
+  "bots.replyGranularity.description": "محتوای پاسخ را انتخاب کنید.",
   "bots.replyGranularity.assistantChanges": "پاسخ استاندارد",
   "bots.replyGranularity.assistantChanges.description":
     "متن دستیار و تغییرات فایل‌ها، بدون پیشرفت فراخوانی ابزارها.",
@@ -686,7 +686,7 @@ const faIR: Record<string, string> = {
     "فقط نتیجه نهایی و خلاصه تغییرات، مناسب اعلان‌های کم‌مزاحم.",
   "bots.replyGranularity.streamingCard": "پاسخ استریم",
   "bots.replyGranularity.streamingCard.description":
-    "Feishu/Lark، Telegram و WeCom پاسخ را به‌صورت پیام استریم و تایپی می‌فرستند.",
+    "پاسخ را به‌صورت پیام استریم ارسال می‌کند.",
   "bots.add": "افزودن",
   "bots.channel.telegram": "Telegram",
   "bots.channel.weixin": "Weixin",
@@ -890,19 +890,19 @@ const faIR: Record<string, string> = {
   "taskList.botBind.unboundToast": "اتصال {name} ({botId}) {conversation} قطع شد",
   "bots.groupChat.title": "حالت گفتگوی گروهی",
   "bots.groupChat.description":
-    "در گروه‌ها فقط کاربر متصل می‌تواند بات را هدایت کند؛ پیام‌های بدون منشن به‌عنوان زمینه نگه داشته می‌شوند.",
+    "فقط کاربر متصل بات را هدایت می‌کند؛ پیام‌های بدون منشن زمینه می‌شوند.",
   "bots.groupChat.descriptionAlways":
-    "هر پیام وارد نشست می‌شود (فقط کاربر متصل هدایت می‌کند) و هوش مصنوعی درباره پاسخ تصمیم می‌گیرد؛ ابزارهای محلی در گروه غیرفعال‌اند.",
+    "هر پیام وارد نشست می‌شود و پاسخ را هوش مصنوعی تعیین می‌کند.",
   "bots.groupChat.descriptionNoMention":
-    "این کانال منشن را تشخیص نمی‌دهد: با «پاسخ به همه» هر پیام بات را فعال می‌کند.",
+    "این کانال منشن را تشخیص نمی‌دهد؛ هر پیام بات را فعال می‌کند.",
   "bots.groupChat.descriptionWecom":
-    "WeCom پیام گروه را فقط هنگام منشن شدن بات می‌فرستد؛ پس تنها حالت @منشن ممکن است.",
+    "WeCom پیام گروه را فقط با منشن می‌فرستد؛ تنها حالت @منشن ممکن است.",
   "bots.groupChat.descriptionUnbound":
-    "ابتدا در چت خصوصی پیوند دهید (/bind)؛ تا آن زمان پیام‌های گروه بی‌صدا نادیده گرفته می‌شوند.",
+    "ابتدا در چت خصوصی /bind را کامل کنید.",
   "bots.groupChat.descriptionAllUsers":
-    "حالت چت خصوصی «همه کاربران» است: هر عضو گروه می‌تواند بات را هدایت کند.",
+    "چت خصوصی «همه کاربران» است: هر عضو گروه می‌تواند بات را هدایت کند.",
   "bots.groupChat.descriptionAllUsersAlways":
-    "حالت چت خصوصی «همه کاربران» است: هر پیام وارد نشست می‌شود و هوش مصنوعی درباره پاسخ تصمیم می‌گیرد.",
+    "چت خصوصی «همه کاربران» است: هر پیام وارد نشست می‌شود.",
   "bots.groupChat.mode.disabled": "نادیده گرفتن گروه‌ها",
   "bots.groupChat.mode.mention": "@منشن",
   "bots.groupChat.mode.always": "همه پیام‌ها",
@@ -915,30 +915,26 @@ const faIR: Record<string, string> = {
   "bots.groupChat.permissions.remove": "حذف",
   "bots.deliveryMode.title": "روش ارسال پیام",
   "bots.deliveryMode.description":
-    "پاسخ خودکار مستقیماً ارسال می‌شود. در حالت فقط ابزار، خروجی معمولی هوش مصنوعی به‌طور خودکار ارسال نمی‌شود و باید از myagents im send-message استفاده شود. رسید فرمان‌ها و مجوزها/پرسش‌ها تغییر نمی‌کنند.",
+    "پاسخ خودکار مستقیم ارسال می‌شود؛ در حالت فقط ابزار فقط پیام ابزار ارسال می‌شود.",
   "bots.deliveryMode.auto": "پاسخ خودکار",
   "bots.deliveryMode.toolOnly": "فقط ابزار",
-  "bots.agentOwnership.title": "مالکیت Agent",
-  "bots.agentOwnership.description":
-    "در این نسخه هر کانال به یک Agent متصل است؛ فضای کاری، مدل پیش‌فرض و Heartbeat متعلق به Agent است.",
-  "bots.agentOwnership.unbound": "هیچ فضای کاری متصل نیست",
   "bots.heartbeat.title": "ضربان ربات",
   "bots.heartbeat.description":
-    "بررسی دوره‌ای فضای کاری ({min}–{max} دقیقه؛ 0 یعنی خاموش) که فقط هنگام تغییر گزارش می‌دهد و می‌توانید با HEARTBEAT.md دستور سفارشی بدهید.",
+    "بررسی دوره‌ای فضای کاری و گزارش فقط هنگام تغییر؛ 0 یعنی خاموش.",
   "bots.heartbeat.intervalLabel": "بازه ضربان به دقیقه (0 یعنی خاموش)",
   "bots.heartbeat.intervalSuffix": "دقیقه",
   "bots.workspaceManagement.title": "فضای کاری",
   "bots.workspaceManagement.description.unbound":
-    "بات فقط به یک فضای کاری پیوند می‌شود ({botId})؛ پس از پیوند پیام‌ها همان‌جا می‌مانند و با «متصل نشده» می‌توانید آزادانه /workspace را عوض کنید.",
+    "پس از پیوند پیام‌ها در یک فضای کاری می‌مانند؛ «متصل نشده» یعنی تغییر آزاد.",
   "bots.workspaceManagement.description.bound":
-    "به «{workspace}» پیوند شده ({botId}): پیام‌ها همان‌جا می‌مانند و انتخاب فضای دیگر یعنی پیوند مجدد.",
+    "به «{workspace}» پیوند شده؛ انتخاب فضای دیگر یعنی پیوند مجدد.",
   "bots.workspaceManagement.selectPlaceholder": "انتخاب فضای کاری",
   "bots.workspaceManagement.option.unbound": "متصل نشده (پیروی از /workspace)",
   "bots.privateChat.title": "حالت چت خصوصی",
   "bots.privateChat.description.boundUsers":
-    "فقط کاربران متصل می‌توانند بات را هدایت کنند؛ «پیوند» را بزنید و /bind <کد> را در چت خصوصی بفرستید.",
+    "فقط کاربران متصل می‌توانند بات را هدایت کنند؛ برای پیوند /bind بفرستید.",
   "bots.privateChat.description.allUsers":
-    "بدون نیاز به پیوند: هر کاربر چت خصوصی می‌تواند بات را هدایت کند (پیام‌های فعالانه به آخرین گوینده می‌رسد).",
+    "هر کاربر چت خصوصی می‌تواند بات را هدایت کند.",
   "bots.privateChat.mode.boundUsers": "کاربران متصل",
   "bots.privateChat.mode.allUsers": "همه کاربران",
   "bots.privateChat.boundUsersLabel": "کاربران متصل",

@@ -2,6 +2,7 @@ import type { IPlatformService, UpdateStatePayload } from "@mode/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
+import { useSettings } from "@/hooks/useSettingService.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { UpdateStatusDialogController } from "@/UpdateStatusDialogController.js";
@@ -27,6 +28,7 @@ export function UpdateStatusButton({
   className?: string;
 }) {
   const { intl, locale } = useModeIntl();
+  const { settings: appSettings, update: updateAppSettings } = useSettings();
   const [dialogOpen, setDialogOpen] = useState(false);
   const releaseNotesCacheRef = useRef(
     new Map<
@@ -90,6 +92,15 @@ export function UpdateStatusButton({
   const handleOpenReleaseNotesExternalUrl = useCallback(
     (url: string) => platform.openExternal(url),
     [platform],
+  );
+  const handleAutoDownloadAndInstallUpdatesChange = useCallback(
+    async (enabled: boolean) => {
+      // Host setting.json 是唯一持久化真源；同时立即刷新 updater 运行期缓存，
+      // 不依赖同步 hook 的下一次 effect 调度。
+      await updateAppSettings({ autoDownloadAndInstallUpdates: enabled });
+      await platform.setAutoDownloadAndInstallUpdates?.(enabled);
+    },
+    [platform, updateAppSettings],
   );
   const handleUpdateEntryClick = useCallback(() => {
     if (platform.openUpdateStatusWindow) {
@@ -184,6 +195,8 @@ export function UpdateStatusButton({
         updateState={updateState}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        autoDownloadAndInstallUpdates={appSettings?.autoDownloadAndInstallUpdates === true}
+        onAutoDownloadAndInstallUpdatesChange={handleAutoDownloadAndInstallUpdatesChange}
       />
     </>
   );

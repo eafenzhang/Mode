@@ -63,9 +63,16 @@ async function fetchWeComQrJson(path: string): Promise<Record<string, unknown>> 
   return isRecord(payload.data) ? payload.data : payload;
 }
 
-/** scode 参与 URL 拼接，只允许字母数字（纵深防御，防止注入）。 */
+/**
+ * scode 参与 URL 拼接，只保留 URL-safe 字母表（纵深防御，防止注入）。
+ *
+ * 修复原因（2026-10-20 真机验收）：企微 generate 返回的 scode 是 URL-safe 字符串，
+ * 实测含 `-` 与 `_`（如 `dF3l53w8JGOL_tOf`）。此前只保留 `[a-zA-Z0-9]` 会把这两个
+ * 有效字符删掉，query_result 实际查的是另一个 scode，永远返回 pending，
+ * 扫码后 UI 一直停在"等待扫码"。scode 只用于 query 参数，允许 `-`/`_` 不构成注入面。
+ */
 export function sanitizeWeComScode(scode: string): string {
-  return scode.replace(/[^a-zA-Z0-9]/gu, "");
+  return scode.replace(/[^a-zA-Z0-9_-]/gu, "");
 }
 
 export async function beginWeComRegistration(): Promise<WeComRegistrationBeginResult> {

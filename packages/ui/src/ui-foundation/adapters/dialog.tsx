@@ -13,6 +13,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 import {
   Dialog as FoundationDialog,
@@ -138,47 +139,49 @@ export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(func
     hasMaxWidth ? "" : "max-w-lg",
   ]);
   return (
-    <div
-      data-slot="dialog-overlay"
-      onClick={showOverlay ? handleOverlayClick : undefined}
-      className={cn([
-        "fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4",
-        showOverlay ? "bg-black/50" : "",
-        overlayClassName,
-      ])}
-    >
-      <FoundationDialog
-        {...rest}
-        ref={ref}
-        open
-        onClose={() => state.setOpen(false)}
-        labelledBy={labelledBy}
-        data-slot="dialog-content"
-        className={mergedPanelClassName}
+    <DialogPortal>
+      <div
+        data-slot="dialog-overlay"
+        onClick={showOverlay ? handleOverlayClick : undefined}
+        className={cn([
+          "fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4",
+          showOverlay ? "bg-black/50" : "",
+          overlayClassName,
+        ])}
       >
-        {children}
-        {showCloseButton ? (
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={() => state.setOpen(false)}
-            className="absolute end-3 top-3 inline-flex size-6 items-center justify-center rounded-sm text-foreground-subtle hover:bg-hover"
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 16 16"
-              className="size-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
+        <FoundationDialog
+          {...rest}
+          ref={ref}
+          open
+          onClose={() => state.setOpen(false)}
+          labelledBy={labelledBy}
+          data-slot="dialog-content"
+          className={mergedPanelClassName}
+        >
+          {children}
+          {showCloseButton ? (
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => state.setOpen(false)}
+              className="absolute end-3 top-3 inline-flex size-6 items-center justify-center rounded-sm text-foreground-subtle hover:bg-hover"
             >
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
-        ) : null}
-      </FoundationDialog>
-    </div>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                className="size-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              >
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
+            </button>
+          ) : null}
+        </FoundationDialog>
+      </div>
+    </DialogPortal>
   );
 });
 
@@ -214,7 +217,18 @@ export function DialogClose({ children }: DialogCloseProps): ReactElement {
   });
 }
 
-/** 兼容旧导出名：foundation 由 Host/DOM 组合，不做 portal 分发。 */
+/**
+ * 旧 API 的 portal 语义：遮罩与面板统一挂到 document.body。
+ *
+ * 修复原因（2026-10-20 真机验收）：图片预览挂在虚拟列表行内，行容器带
+ * `transform: translateY(...)`；`position: fixed` 的遮罩会以该行为包含块，
+ * 结果只盖住聊天列，侧栏与右侧面板保持原色（截图实测：列内 #0B0B0B，
+ * 列外仍是 #161616）。portal 到 body 后遮罩恢复全窗口，事件冒泡与 context 不受影响。
+ * SSR/无 document 环境退回内联渲染，避免服务端渲染报错。
+ */
 export function DialogPortal({ children }: { children?: ReactNode }): ReactNode {
-  return children;
+  if (typeof document === "undefined" || !document.body) {
+    return children;
+  }
+  return createPortal(children, document.body);
 }

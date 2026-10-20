@@ -99,6 +99,13 @@ success/warning/destructive。
   hover `bg-menu-hover`；选中优先 check/radio/尾部标记，不用整行强填充；
 - Popover：`bg-popover` + `border-popover-border`，独立浮层从 `rounded-xl` 起；
 - Dialog shell：`rounded-2xl`（三个预览例外 `rounded-xl`），内容容器重新从 xl 起；
+- Dialog 的遮罩与面板必须经 portal 挂到 `document.body`，不能留在调用点的 DOM 子树里：
+  虚拟列表行、侧栏面板等祖先一旦带 `transform`，`position: fixed` 的遮罩会以该祖先为包含块，
+  导致遮罩只盖住一列/被 overflow 裁掉（图片预览、机器人弹层真机复现）。
+  SSR 无 `document` 时退回内联渲染，避免服务端渲染报错；
+- 全屏媒体预览（图片/视频）的关闭由预览组件自身 `onOpenChange(false)` 收口，
+  不依赖调用点的 `DialogClose`/上下文；Esc 走同一条关闭路径。输入框附件预览挂在
+  composer 的 `will-change: transform` 容器内，必须同时满足 portal + 自身关闭。
 - 交互浮层必须盖过 Tooltip；菜单阴影从第一帧到焦点/悬停都保持；
 - 焦点管理：打开时聚焦首个可交互项/对话框，Esc 关闭并把焦点还给 trigger，
   Tab 循环限制在 dialog 内（modal）。

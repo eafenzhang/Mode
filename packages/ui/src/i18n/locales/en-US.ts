@@ -674,7 +674,7 @@ const enUS: Record<string, string> = {
   "bots.feishuRegistration.error": "Registration failed.",
   "bots.enabledToggle": "Enable {name}",
   "bots.replyGranularity": "Reply granularity",
-  "bots.replyGranularity.description": "Choose what a reply includes.",
+  "bots.replyGranularity.description": "Choose what replies include.",
   "bots.replyGranularity.assistantChanges": "Standard reply",
   "bots.replyGranularity.assistantChanges.description":
     "Assistant text and file changes, without tool-call progress.",
@@ -686,7 +686,7 @@ const enUS: Record<string, string> = {
     "Only the final result and change summary, for quieter notifications.",
   "bots.replyGranularity.streamingCard": "Streaming reply",
   "bots.replyGranularity.streamingCard.description":
-    "Feishu/Lark, Telegram, and WeCom deliver typewriter replies as streaming messages.",
+    "Deliver replies progressively as streaming messages.",
   "bots.add": "Add",
   "bots.channel.telegram": "Telegram",
   "bots.channel.weixin": "Weixin",
@@ -884,19 +884,19 @@ const enUS: Record<string, string> = {
   "taskList.botBind.unboundToast": "Unbound {name} ({botId}) {conversation}",
   "bots.groupChat.title": "Group chat mode",
   "bots.groupChat.description":
-    "Only the bound user can drive the bot; messages without a mention are kept as context.",
+    "Only bound users can drive the bot; unmentioned messages are kept as context.",
   "bots.groupChat.descriptionAlways":
-    "Every message reaches the session (only the bound user drives it) and the AI decides whether to reply; local read/write tools are off in groups.",
+    "Every message enters the session and the AI decides whether to reply.",
   "bots.groupChat.descriptionNoMention":
-    'This channel cannot detect mentions: "Reply to all" triggers the bot on every message.',
+    "This channel cannot detect mentions, so every message triggers the bot.",
   "bots.groupChat.descriptionWecom":
-    "WeCom delivers group messages only when the bot is mentioned, so @mention is the only mode.",
+    "WeCom delivers group messages only when mentioned; @mention is the only mode.",
   "bots.groupChat.descriptionUnbound":
-    "Bind this bot in a private chat first (/bind); until then group messages are silently ignored.",
+    "Complete /bind in a private chat first.",
   "bots.groupChat.descriptionAllUsers":
-    'Private chat mode is "All users": any group member can drive the bot.',
+    'Private chat is "All users": any group member can drive the bot.',
   "bots.groupChat.descriptionAllUsersAlways":
-    'Private chat mode is "All users": every message enters the session and the AI decides whether to reply.',
+    'Private chat is "All users": every message enters the session.',
   "bots.groupChat.mode.disabled": "Ignore groups",
   "bots.groupChat.mode.mention": "@mention",
   "bots.groupChat.mode.always": "All messages",
@@ -909,30 +909,26 @@ const enUS: Record<string, string> = {
   "bots.groupChat.permissions.remove": "Remove",
   "bots.deliveryMode.title": "Message delivery",
   "bots.deliveryMode.description":
-    "Auto replies are pushed directly. With tool-only, ordinary AI output is not sent automatically; use myagents im send-message explicitly. Command receipts, permissions, and questions are unaffected.",
+    "Auto replies are sent directly; tool-only sends explicit tool messages only.",
   "bots.deliveryMode.auto": "Auto reply",
   "bots.deliveryMode.toolOnly": "Tool only",
-  "bots.agentOwnership.title": "Agent ownership",
-  "bots.agentOwnership.description":
-    "One channel maps to one agent in this version; workspace, default model, and heartbeat are owned by the agent.",
-  "bots.agentOwnership.unbound": "No workspace bound",
   "bots.heartbeat.title": "Agent heartbeat",
   "bots.heartbeat.description":
-    "Wake the agent periodically to inspect the workspace (0 disables, {min}–{max} min): report on change, stay quiet otherwise; add HEARTBEAT.md for custom guidance.",
+    "Periodically check the workspace and report only on change; 0 disables.",
   "bots.heartbeat.intervalLabel": "Heartbeat interval in minutes (0 disables)",
   "bots.heartbeat.intervalSuffix": "min",
   "bots.workspaceManagement.title": "Workspace",
   "bots.workspaceManagement.description.unbound":
-    'Once bound, messages stay in one workspace ({botId}) and access is limited to it; pick "Unbound" to keep switching with /workspace.',
+    'Bind to keep messages in one workspace; choose "Unbound" to switch freely.',
   "bots.workspaceManagement.description.bound":
-    'Bound to "{workspace}" ({botId}): messages stay there; picking another workspace rebinds.',
+    'Bound to "{workspace}"; choosing another workspace rebinds.',
   "bots.workspaceManagement.selectPlaceholder": "Select a workspace",
   "bots.workspaceManagement.option.unbound": "Unbound (follow /workspace)",
   "bots.privateChat.title": "Private chat",
   "bots.privateChat.description.boundUsers":
-    "Only bound users can drive this bot; click Bind, then send /bind <code> in a private chat.",
+    "Only bound users can drive this bot; send /bind to bind.",
   "bots.privateChat.description.allUsers":
-    "No binding needed: any private user can drive this bot (proactive messages go to the latest speaker).",
+    "Any private-chat user can drive this bot.",
   "bots.privateChat.mode.boundUsers": "Bound users",
   "bots.privateChat.mode.allUsers": "All users",
   "bots.privateChat.boundUsersLabel": "Bound users",

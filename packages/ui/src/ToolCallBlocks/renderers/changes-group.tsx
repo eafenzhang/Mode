@@ -4,7 +4,7 @@ import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { getFileDisplayPath } from "@/lib/fileDisplay.js";
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
-import { buildEditCodeViewerSource } from "@/ToolCallBlocks/renderers/edit.js";
+import { buildEditFileViewerSource } from "@/ToolCallBlocks/renderers/edit.js";
 import {
   readRawToolCallFileSummaries,
   type ToolCallBlockRenderContext,
@@ -140,7 +140,7 @@ function ResponsiveFileChipList({
               summary,
               clickable: isVisible && Boolean(onOpenCodeViewer),
               basePath: workspacePath,
-              onClick: () => onOpenCodeViewer?.(buildEditCodeViewerSource(summary)),
+              onClick: () => onOpenCodeViewer?.(buildEditFileViewerSource(summary)),
             })}
           </span>
         );

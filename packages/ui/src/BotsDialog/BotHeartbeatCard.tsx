@@ -54,13 +54,8 @@ export function BotHeartbeatCard({
   return (
     <SettingsRow
       label={intl.formatMessage({ id: "bots.heartbeat.title" })}
-      description={intl.formatMessage(
-        { id: "bots.heartbeat.description" },
-        {
-          min: String(BOT_HEARTBEAT_MIN_INTERVAL_MINUTES),
-          max: String(BOT_HEARTBEAT_MAX_INTERVAL_MINUTES),
-        },
-      )}
+      layout="stacked"
+      description={intl.formatMessage({ id: "bots.heartbeat.description" })}
       control={
         <div className="relative w-48">
           <Input
@@ -74,7 +69,7 @@ export function BotHeartbeatCard({
                 event.currentTarget.blur();
               }
             }}
-            className="w-full pe-11 text-end"
+            className="w-full pe-11"
             aria-label={intl.formatMessage({ id: "bots.heartbeat.intervalLabel" })}
           />
           <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 whitespace-nowrap text-ui-base text-foreground-subtle">

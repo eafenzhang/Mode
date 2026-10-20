@@ -1,14 +1,27 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const read = (relativePath: string): string =>
-  readFileSync(new URL(relativePath, import.meta.url), "utf8");
+// Agent 归属已合并进「工作区管理」（只读 Agent id + 绑定工作区同一行），
+// 独立卡片不再渲染，避免同一块信息占两行。
 
-test("BotsDialog 展示 Agent 归属只读投影", () => {
-  const dialog = read("../src/BotsDialog.tsx");
-  assert.ok(dialog.includes("<BotAgentOwnershipCard"), "BotsDialog 缺少 Agent 归属卡片");
-  const card = read("../src/BotsDialog/BotAgentOwnershipCard.tsx");
-  assert.ok(card.includes("resolveBotAgentId(bot.id)"), "Agent 归属必须使用统一派生 id");
-  assert.ok(card.includes("bots.agentOwnership.unbound"), "未绑定工作区需要明确文案");
+const dialog = await readFile(new URL("../src/BotsDialog.tsx", import.meta.url), "utf8");
+const workspaceCard = await readFile(
+  new URL("../src/BotsDialog/WorkspaceManagementCard.tsx", import.meta.url),
+  "utf8",
+);
+
+test("Agent 归属合并进工作区管理卡", () => {
+  assert.ok(
+    !dialog.includes("<BotAgentOwnershipCard"),
+    "BotsDialog 不再渲染独立的 Agent 归属卡片",
+  );
+  assert.ok(
+    workspaceCard.includes("resolveBotAgentId(bot.id)"),
+    "工作区管理卡必须展示统一派生的 Agent id",
+  );
+  assert.ok(
+    workspaceCard.includes("layout=\"stacked\""),
+    "工作区管理使用左对齐的 stacked 布局",
+  );
 });

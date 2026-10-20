@@ -34,8 +34,10 @@ use std::sync::{
 };
 
 use serde_json::{json, Value};
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_updater::UpdaterExt;
+
+use crate::state::UpdateManager;
 
 /// 产品 UI 通过 `executeDesktopCommand` 发来的更新命令 id。
 pub const CHECK_FOR_UPDATES_COMMAND: &str = "checkForUpdates";
@@ -101,6 +103,23 @@ async fn run<R: Runtime>(app: &AppHandle<R>) -> Value {
         "[mode-tauri] updater update_available current={} version={} target={} url={}",
         update.current_version, update.version, update.target, update.download_url
     );
+
+    // 自动检查路径尊重 skip；手动检查（state::check_for_update）会先清掉 skip 再查。
+    if app
+        .try_state::<UpdateManager>()
+        .map(|manager| manager.is_version_skipped(&update.version))
+        .unwrap_or(false)
+    {
+        eprintln!(
+            "[mode-tauri] updater skipped version={} current={}",
+            update.version, current_version
+        );
+        return json!({
+            "status": "skipped",
+            "currentVersion": current_version,
+            "version": update.version,
+        });
+    }
 
     let received = Arc::new(AtomicUsize::new(0));
     let on_chunk_received = received.clone();

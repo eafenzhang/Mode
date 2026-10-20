@@ -19,6 +19,8 @@ export function UpdateStatusDialogController({
   onOpenChange,
   edgeToEdge = false,
   showOverlay = true,
+  autoDownloadAndInstallUpdates: autoDownloadAndInstallUpdatesProp,
+  onAutoDownloadAndInstallUpdatesChange,
 }: {
   platform: IPlatformService;
   version: string | null;
@@ -27,10 +29,18 @@ export function UpdateStatusDialogController({
   onOpenChange: (open: boolean) => void;
   edgeToEdge?: boolean;
   showOverlay?: boolean;
+  /**
+   * Host 持久化的偏好。主应用传入后以它为准；独立更新窗口没有 setting service，
+   * 不传时退回 platform 的运行期缓存（旧行为）。
+   */
+  autoDownloadAndInstallUpdates?: boolean;
+  onAutoDownloadAndInstallUpdatesChange?: (enabled: boolean) => Promise<void> | void;
 }) {
   const { intl, locale } = useModeIntl();
   const requestConfirmation = useConfirmDialog();
-  const [autoDownloadAndInstallUpdates, setAutoDownloadAndInstallUpdates] = useState(false);
+  const [autoDownloadFallback, setAutoDownloadFallback] = useState(false);
+  const autoDownloadAndInstallUpdates =
+    autoDownloadAndInstallUpdatesProp ?? autoDownloadFallback;
   const [updateActionInFlight, setUpdateActionInFlightState] = useState<UpdateActionInFlight>(null);
   const updateActionInFlightRef = useRef<typeof updateActionInFlight>(null);
   const releaseNotesCacheRef = useRef(
@@ -85,6 +95,10 @@ export function UpdateStatusDialogController({
   }, [updateStatusViewModel]);
 
   useEffect(() => {
+    if (autoDownloadAndInstallUpdatesProp !== undefined) {
+      // 主应用以 Host 持久化设置为准；不要再被运行期缓存覆盖。
+      return undefined;
+    }
     let disposed = false;
 
     const refreshAutoUpdatePreferences = () => {
@@ -92,12 +106,12 @@ export function UpdateStatusDialogController({
         .getAutoUpdatePreferences?.()
         .then((preferences) => {
           if (!disposed) {
-            setAutoDownloadAndInstallUpdates(preferences.autoDownloadAndInstallUpdates);
+            setAutoDownloadFallback(preferences.autoDownloadAndInstallUpdates);
           }
         })
         .catch(() => {
           if (!disposed) {
-            setAutoDownloadAndInstallUpdates(false);
+            setAutoDownloadFallback(false);
           }
         });
     };
@@ -110,7 +124,7 @@ export function UpdateStatusDialogController({
       disposed = true;
       disposeSettingsChanged();
     };
-  }, [platform]);
+  }, [autoDownloadAndInstallUpdatesProp, platform]);
 
   useEffect(() => {
     if (!releaseNotesCacheKey || !localizedUpdateReleaseNotes) {
@@ -162,15 +176,26 @@ export function UpdateStatusDialogController({
   }, [platform, setUpdateActionInFlight]);
   const handleAutoDownloadAndInstallUpdatesChange = useCallback(
     async (enabled: boolean) => {
-      setAutoDownloadAndInstallUpdates(enabled);
-      await platform.setAutoDownloadAndInstallUpdates?.(enabled);
+      if (onAutoDownloadAndInstallUpdatesChange) {
+        // 主应用：写 Host 持久化设置；启动/设置变化的同步 hook 会把它推给 updater。
+        await onAutoDownloadAndInstallUpdatesChange(enabled);
+      } else {
+        // 独立更新窗口没有 setting service：只写运行期缓存（旧行为）。
+        await platform.setAutoDownloadAndInstallUpdates?.(enabled);
+      }
+      setAutoDownloadFallback(enabled);
       if (enabled && updateState?.kind === "update-available") {
         // 功能原因：用户在“已发现更新”弹窗里勾选自动下载时，期望当前版本也进入自动流程。
         // 这里只触发同一个下载入口；真正是否下载、缓存命中和状态广播仍由 main 进程裁决。
         await handleDownloadUpdate();
       }
     },
-    [handleDownloadUpdate, platform, updateState?.kind],
+    [
+      handleDownloadUpdate,
+      onAutoDownloadAndInstallUpdatesChange,
+      platform,
+      updateState?.kind,
+    ],
   );
   const handleCancelDownload = useCallback(async () => {
     if (updateActionInFlightRef.current) {

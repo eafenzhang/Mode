@@ -45,7 +45,6 @@ import {
 import { ProviderSettingsCard } from "@/BotsDialog/ProviderSettingsCard.js";
 import { BotHeartbeatCard } from "@/BotsDialog/BotHeartbeatCard.js";
 import { BotDeliveryModeCard } from "@/BotsDialog/BotDeliveryModeCard.js";
-import { BotAgentOwnershipCard } from "@/BotsDialog/BotAgentOwnershipCard.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { BotGroupChatCard } from "@/BotsDialog/BotGroupChatCard.js";
 import { BotPrivateChatCard } from "@/BotsDialog/BotPrivateChatCard.js";
@@ -769,7 +768,18 @@ export function BotsDialog({
         return;
       }
       try {
-        await botsService.testBot(saved.id);
+        const result = await botsService.testBot(saved.id);
+        if (!result.ok) {
+          // 修复原因：testBot 在鉴权失败时返回 { ok: false, message }，不会抛错。
+          // 此前只 await 不读 ok，错误凭据会被提示成"已保存并连接"，用户要等运行时
+          // 状态异常才发现（2026-10-20 手填绑定验收）。
+          logger.warn("[BotsDialog] 手填凭据在线验证未通过", result.message);
+          toast(
+            intl.formatMessage({ id: "bots.credentialsVerifyFailed" }, { error: result.message }),
+            { variant: "warning" },
+          );
+          return;
+        }
         toast(intl.formatMessage({ id: successMessageId }));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -1628,16 +1638,25 @@ export function BotsDialog({
                 }
 
                 <SettingsGroupCard>
-                  <BotAgentOwnershipCard
-                    bot={selectedBot}
-                    boundWorkspace={botWorkspaceBindings[0] ?? null}
-                  />
-
                   <BotReplyGranularityCard bot={selectedBot} onPatchBot={patchSelectedBot} />
 
                   <BotHeartbeatCard bot={selectedBot} onPatchBot={patchSelectedBot} />
 
                   <BotDeliveryModeCard bot={selectedBot} onPatchBot={patchSelectedBot} />
+                </SettingsGroupCard>
+
+                <SettingsGroupCard>
+                  <BotPrivateChatCard
+                    bot={selectedBot}
+                    bindCode={bindCode}
+                    bindExpired={bindExpired}
+                    bindRemainingMs={bindRemainingMs}
+                    bindCountdownProgress={bindCountdownProgress}
+                    onCreateBindCode={() => void handleCreateBindCode()}
+                    onCopyBindCommand={() => void copyBindCommand()}
+                    onUnbind={() => void handleUnbind()}
+                    onPatchBot={patchSelectedBot}
+                  />
 
                   {selectedBot.provider === "weixin" ? null : (
                     <BotGroupChatCard
@@ -1679,24 +1698,13 @@ export function BotsDialog({
                   {selectedBot.provider === "dingtalk" ? (
                     <BotDingtalkCardConfigCard bot={selectedBot} onPatchBot={patchSelectedBot} />
                   ) : null}
+                </SettingsGroupCard>
 
-                  <BotPrivateChatCard
-                    bot={selectedBot}
-                    bindCode={bindCode}
-                    bindExpired={bindExpired}
-                    bindRemainingMs={bindRemainingMs}
-                    bindCountdownProgress={bindCountdownProgress}
-                    onCreateBindCode={() => void handleCreateBindCode()}
-                    onCopyBindCommand={() => void copyBindCommand()}
-                    onUnbind={() => void handleUnbind()}
-                    onPatchBot={patchSelectedBot}
-                  />
-
-                  {/*
-                    暂不暴露命令权限编辑入口，避免用户在 bot 可用前把关键命令关掉。
-                    如果要恢复 UI，重新渲染 selectedBot.allowedCommands 的列表并用 patchSelectedBot 保存。
-                  */}
-
+                {/*
+                  暂不暴露命令权限编辑入口，避免用户在 bot 可用前把关键命令关掉。
+                  如果要恢复 UI，重新渲染 selectedBot.allowedCommands 的列表并用 patchSelectedBot 保存。
+                */}
+                <SettingsGroupCard>
                   <WorkspaceManagementCard
                     bot={selectedBot}
                     boundWorkspace={botWorkspaceBindings[0] ?? null}

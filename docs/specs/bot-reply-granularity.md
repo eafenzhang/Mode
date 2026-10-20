@@ -24,18 +24,18 @@
   只有 `replyMode` 未设置时才落 provider 默认。无 provider 上下文的展示/构造兜底
   （`formatReplyGranularityLabel` 无参分支等）仍回落全局默认。
 - 心跳回合强制 `summary_changes`，不随默认变化。
-- **存量迁移**（`botsConfigFileSchema` 的 preprocess，幂等）：provider=wecom 且
-  `replyMode` 为旧默认 `assistant_changes` 的记录，读取时翻转为 `streaming_card`；
-  其它 provider 与企微上显式选过的其它粒度保持原样。迁移无法区分「当年沿用默认」与
-  「当年显式点过标准回复」——接受该歧义：确实想要气泡的企微用户可用 `/reply` 改回并持久生效。
+- **不再做读取期默认值迁移**（2026-10-20 修复）：此前 `botsConfigFileSchema` 会把企微的
+  `assistant_changes` 在每次读取时翻成 `streaming_card`，导致用户在设置页切到「标准回复」
+  后又被读回「流式回复」，表现为无法切换。现在显式 `replyMode` 原样保留；
+  默认值只在字段缺省时由 `getDefaultBotReplyGranularity` 提供。
 
 ## 验收场景
 
 1. 单测（`bot-reply-granularity.test.ts`）：`normalizeBotReplyGranularity("wecom", undefined)`
    为 `streaming_card`；telegram/dingtalk/weixin 未设置为 `assistant_changes`；lark 为
    `streaming_card`；显式值（含企微显式 `assistant_changes`）优先于默认。
-2. schema 迁移：企微 `assistant_changes` → `streaming_card`；telegram 同值不动；
-   企微显式其它粒度不动；重复 parse 幂等。
+2. schema 读取：企微显式 `assistant_changes` / `streaming_card` / `summary_changes`
+   都保持原值，不被读取期迁移改写；其它 provider 同值不动。
 3. 新建 bot（BotsDialog）按 provider 默认播种 `replyMode`。
 4. `packages/services` 全量测试、`pnpm typecheck`、`pnpm lint`、
    `pnpm architecture:check --changed` 全绿。
@@ -107,13 +107,34 @@
 ### R3 不受影响的部分
 
 - `summary_changes`、`streaming_card` 两档的发送路径与时机不变；
-- **终稿构成不变**：仍只含助手正文 + 变更摘要，工具与思考不进交付内容。
+- **流式卡片全程只含助手正文 + 变更摘要**：工具调用与思考不作为可见内容，
+  进行中也不再输出「工具摘要」块（2026-10-20 用户口径，对齐 MyAgents 默认颗粒度）。
+  需要逐条查看工具调用时，显式选择 `assistant_toolcalls_changes`（完整回复）。
 
 ### 与既有「非目标」的关系
 
 [bot-outbound-target.md](./bot-outbound-target.md) 非目标里的「不改分片」是**那一轮**的边界
 （指卡片渲染构成与分片）；本轮改的是气泡档的**发送时机与边界**，卡片的渲染构成、
 占位流接管与出站目标均未改动。该条按本条更新理解，不另开 spec。
+
+### 2026-10-20 工具摘要下线（流式卡片）
+
+**背景**：用户反馈企微默认回复（`streaming_card`）在工具密集回合会刷出一长串工具摘要，
+与 MyAgents 的默认回复观感不一致。
+
+**规则**：
+- `streaming_card` 的卡片内容只来自助手正文与文件变更摘要；`buildStreamingCardBlocks`
+  不再消费工具块，`tool_call`/`tool_call_update` 也不再向卡片追加工具。
+- 「纯工具回合」仍按原逻辑兜底：进行中显示「正在处理」，终稿无正文时显示完成提示。
+- `assistant_toolcalls_changes`（完整回复）保持原语义：工具调用以独立消息显式发送；
+  这是用户主动选择的完整模式，不属于默认颗粒度。
+- 群聊「全部消息」的沉默契约不变：不建卡片、不中途发言。
+
+**验收**：
+- `bot-streaming-edit.test.ts` 锁定流式卡片构建不含 `type: "tools"`、服务层不再调用
+  `appendStreamingCardTool`；纯工具回合的进行中/终稿兜底文案仍是「正在处理」/完成提示。
+- 实机：企微默认档跑一个多工具任务，卡片只增长助手正文，不出现工具摘要列表；
+  切到「完整回复」后再看到工具调用消息。
 
 ### 验收场景
 

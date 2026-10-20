@@ -61,6 +61,23 @@ export function buildEditCodeViewerSource(
   };
 }
 
+/**
+ * Edit/Write 工具卡文件入口在右侧打开的 source。
+ *
+ * 工具卡折叠态的 inline preview 仍用 `buildEditCodeViewerSource`（保留 diff）；
+ * 但用户点文件 chip 时期的预期是看“写完之后文件现在是什么样”，不是再看一遍绿色 diff。
+ * 所以右侧固定打开 file source，diff 留在卡片内联预览里。
+ */
+export function buildEditFileViewerSource(
+  summary: NonNullable<ToolCallBlockRenderContext["rawFileSummaries"]>[number],
+): CodeViewerSource {
+  return {
+    type: "file",
+    title: summary.fileName,
+    path: summary.path,
+  };
+}
+
 function buildEditInlinePreview(
   summary: NonNullable<ToolCallBlockRenderContext["rawFileSummaries"]>[number] | null,
 ): ToolInlinePreview | undefined {
@@ -99,7 +116,7 @@ export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
         return;
       }
 
-      onOpenCodeViewer(buildEditCodeViewerSource(summary));
+      onOpenCodeViewer(buildEditFileViewerSource(summary));
     },
     [onOpenCodeViewer],
   );
@@ -387,7 +404,7 @@ function EditFileSummaryBlock({
       return;
     }
 
-    onOpenCodeViewer(buildEditCodeViewerSource(summary));
+    onOpenCodeViewer(buildEditFileViewerSource(summary));
   }, [onOpenCodeViewer, summary]);
   const primaryText = useMemo(
     () =>

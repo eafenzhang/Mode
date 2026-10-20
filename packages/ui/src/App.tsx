@@ -10,6 +10,7 @@ import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
 import { useGitRepository } from "@/hooks/useGitRepository.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { useAutoUpdatePreferenceSync } from "@/hooks/useAutoUpdatePreferenceSync.js";
 import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState.js";
 import { useEnsureWorkspaceMcpLoaded } from "@/hooks/useEnsureWorkspaceMcpLoaded.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
@@ -132,6 +133,8 @@ export function App({
   const { intl, locale, setLocale } = useModeIntl();
   const isOfficeMode = useIsOfficeMode();
   const platform = usePlatform();
+  // Host 设置是持久化真源；Tauri updater 只在进程内缓存，启动/设置变化时同步过去。
+  useAutoUpdatePreferenceSync();
   // 每窗口保留本地内存诊断日志；不通过平台桥上报资源样本。
   useEffect(() => {
     const memoryDiagnosticsLogger = startMemoryDiagnosticsLogger();

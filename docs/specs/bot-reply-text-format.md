@@ -12,7 +12,8 @@
 成体系地使用粗体（`helpHelp: "**/帮助** — ..."`，连微信专属的
 `weixinActivatedWelcome: "微信 Bot 已激活。发送 **/帮助** 查看命令..."` 也是），
 `replyFormatter.ts` 用行内代码包路径与命令（`` `src/a.ts` ``），
-流式卡片渲染器用 `####` 标题与 `**工具摘要**`。
+流式卡片渲染器使用 `####` 标题；卡片内容只含助手正文与变更摘要，不含工具摘要
+（2026-10-20 起，见 [bot-reply-granularity.md](./bot-reply-granularity.md)）。
 
 但**通道的渲染能力并不一致**（逐条对着 provider 的出站协议核实）：
 

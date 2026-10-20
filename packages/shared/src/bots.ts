@@ -860,33 +860,13 @@ function stripRetiredBotProviders(value: unknown): unknown {
 }
 
 /**
- * 企微回复粒度默认值迁移（docs/specs/bot-reply-granularity.md）：
- * 企微默认由 assistant_changes 改为 streaming_card 后，把「沿用旧默认」的企微记录
- * 一并翻转到新默认；其它 provider 与企微上显式选过的其它粒度保持原样。
- * 幂等：翻转后 replyMode 不再命中旧值，重复解析结果不变。
+ * 2026-10-20 起不再做「企微 assistant_changes → streaming_card」的读取期迁移：
+ * 该迁移会把用户在设置页显式选择的「标准回复」每次读取时又翻回流式卡片，
+ * 表现为无法切换标准模式。默认值仍由 getDefaultBotReplyGranularity 在
+ * replyMode 缺省时提供；显式选择必须原样保留。
  */
-function migrateWecomReplyGranularityDefault(value: unknown): unknown {
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-  const candidate = value as { bots?: unknown };
-  if (!Array.isArray(candidate.bots)) {
-    return value;
-  }
-  return {
-    ...candidate,
-    bots: candidate.bots.map((bot) => {
-      const record = bot as { provider?: unknown; replyMode?: unknown } | null;
-      if (record?.provider === "wecom" && record.replyMode === "assistant_changes") {
-        return { ...record, replyMode: "streaming_card" };
-      }
-      return bot;
-    }),
-  };
-}
-
 export const botsConfigFileSchema = z.preprocess(
-  (value) => migrateWecomReplyGranularityDefault(stripRetiredBotProviders(value)),
+  (value) => stripRetiredBotProviders(value),
   z
     .object({
       version: z.literal(3),

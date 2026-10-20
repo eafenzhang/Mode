@@ -34,9 +34,10 @@ export function BotDingtalkCardConfigCard({
   return (
     <SettingsRow
       label={intl.formatMessage({ id: "bots.dingtalkCard.title" })}
+      layout="stacked"
       description={intl.formatMessage({ id: "bots.dingtalkCard.description" })}
       control={
-        <div className="flex w-full min-w-0 items-center justify-end gap-2">
+        <div className="flex w-full min-w-0 items-center justify-start gap-2">
           <Input
             size="lg"
             value={templateValue}

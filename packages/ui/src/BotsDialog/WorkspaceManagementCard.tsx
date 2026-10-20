@@ -1,5 +1,6 @@
 import { LoaderCircle } from "lucide-react";
 import type { BotConfig, BotWorkspaceRef } from "@mode/shared";
+import { resolveBotAgentId } from "@mode/shared";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import {
   Select,
@@ -46,16 +47,29 @@ export function WorkspaceManagementCard({
   return (
     <SettingsRow
       label={intl.formatMessage({ id: "bots.workspaceManagement.title" })}
-      description={intl.formatMessage(
-        {
-          id: boundWorkspace
-            ? "bots.workspaceManagement.description.bound"
-            : "bots.workspaceManagement.description.unbound",
-        },
-        { botId: bot.id, workspace: boundWorkspace?.label ?? "" },
-      )}
+      layout="stacked"
+      description={
+        <span className="block min-w-0 space-y-1">
+          <span className="block">
+            {intl.formatMessage(
+              {
+                id: boundWorkspace
+                  ? "bots.workspaceManagement.description.bound"
+                  : "bots.workspaceManagement.description.unbound",
+              },
+              { workspace: boundWorkspace?.label ?? "" },
+            )}
+          </span>
+          <span
+            className="block truncate font-mono text-ui-sm text-foreground-subtlest"
+            title={resolveBotAgentId(bot.id)}
+          >
+            {resolveBotAgentId(bot.id)}
+          </span>
+        </span>
+      }
       control={
-        <div className="flex w-full min-w-0 items-center justify-end gap-2">
+        <div className="flex w-full min-w-0 items-center justify-start gap-2">
           {loading ? (
             <LoaderCircle className="size-4 shrink-0 animate-spin text-foreground-subtle" />
           ) : null}

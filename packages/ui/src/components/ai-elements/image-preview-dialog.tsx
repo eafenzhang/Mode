@@ -12,7 +12,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
-import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
+import { Dialog, DialogContent, DialogTitle } from "@/ui-foundation/adapters/dialog.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
@@ -397,6 +397,7 @@ export function ImagePreviewDialog({
         // Radix modal 会禁用 body 指针事件；预览层需显式恢复命中并退出 Electron 拖拽区。
         className="pointer-events-auto h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-none place-items-center gap-0 overflow-hidden border-0 bg-transparent p-10 shadow-none [app-region:no-drag] sm:h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)] platform-linux-desktop:h-[calc(100dvh-4rem)]"
         data-testid={dialogTestId}
+        onEscapeKeyDown={() => onOpenChange(false)}
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">
@@ -416,17 +417,20 @@ export function ImagePreviewDialog({
               <DownloadIcon />
             </Button>
           ) : null}
-          <DialogClose asChild>
-            <Button
-              type="button"
-              aria-label={intl.formatMessage({ id: "common.close" })}
-              className="rounded-full border border-border bg-background text-foreground shadow-md hover:bg-background/80"
-              size="icon-md"
-              variant="ghost"
-            >
-              <XIcon />
-            </Button>
-          </DialogClose>
+          {/* 修复原因（2026-10-20 输入框附件验收）：composer 的附件预览挂在一个
+              `will-change: transform` 容器里，经 DialogClose 的 cloneElement/context
+              关闭在真机上无响应。全屏预览的关闭直接由自身 onOpenChange 收口，
+              和原版预览一致，也不再依赖调用点的 DOM/上下文。 */}
+          <Button
+            type="button"
+            aria-label={intl.formatMessage({ id: "common.close" })}
+            className="rounded-full border border-border bg-background text-foreground shadow-md hover:bg-background/80"
+            onClick={() => onOpenChange(false)}
+            size="icon-md"
+            variant="ghost"
+          >
+            <XIcon />
+          </Button>
         </div>
         {hasMultiple ? (
           <>

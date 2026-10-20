@@ -58,6 +58,7 @@ export function BotPrivateChatCard({
     <>
       <SettingsRow
         label={intl.formatMessage({ id: "bots.privateChat.title" })}
+        layout="stacked"
         description={intl.formatMessage({
           id: isBoundUsersMode
             ? "bots.privateChat.description.boundUsers"
@@ -89,9 +90,10 @@ export function BotPrivateChatCard({
       {isBoundUsersMode ? (
         <SettingsRow
           label={intl.formatMessage({ id: "bots.privateChat.boundUsersLabel" })}
+          layout="stacked"
           description={intl.formatMessage({ id: "bots.privateChat.boundUsersHint" })}
           control={
-            <div className="flex w-full min-w-0 flex-col items-end gap-2">
+            <div className="flex w-full min-w-0 flex-col items-start gap-2">
               {primaryUserId || boundUsers.length > 0 ? (
                 <div className="flex w-full min-w-0 flex-col gap-1" data-bound-users-list="true">
                   {[primaryUserId, ...boundUsers]
@@ -99,7 +101,7 @@ export function BotPrivateChatCard({
                     .map((userId) => (
                       <span
                         key={userId}
-                        className="flex min-w-0 items-center justify-end gap-2 text-ui-base"
+                        className="flex min-w-0 items-center justify-start gap-2 text-ui-base"
                       >
                         <span className="min-w-0 truncate font-mono" title={userId}>
                           {userId}
