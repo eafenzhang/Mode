@@ -244,6 +244,42 @@ test("发运集：agentBundleDir 存在时把完整 glm 目录拷进 ship/agent/
   }
 });
 
+test("发运集：cuaHelperDir 存在时把三件套拷进 ship/tools/cua-helper", () => {
+  const root = mkdtempSync(join(tmpdir(), "mode-ship-cua-"));
+  try {
+    const packageDir = makeFakeNodePty(root);
+    const bundleFile = join(root, "bundle.mjs");
+    writeFileSync(bundleFile, "export {};\n");
+    const nodeSource = join(root, "fake-node.exe");
+    writeFileSync(nodeSource, "z".repeat(64));
+    const configSource = join(root, "mode-builtin.json");
+    writeFileSync(configSource, "{}\n");
+
+    const helperDir = join(root, "cua-helper");
+    mkdirSync(helperDir, { recursive: true });
+    for (const name of ["entry.cjs", "cua_ax.node", "runtime-manifest.json"]) {
+      writeFileSync(join(helperDir, name), `${name}\n`);
+    }
+
+    const stageRoot = join(root, "ship");
+    stageShipSet({
+      variant: "pruned",
+      bundleFile,
+      stageRoot,
+      nodeSource,
+      builtinProviderConfigSource: configSource,
+      closure: makeClosure(packageDir),
+      cuaHelperDir: helperDir,
+    });
+    // 产品态 `resolvePackagedRuntime` 只认 resources/tools/cua-helper；换落点等于没带。
+    for (const name of ["entry.cjs", "cua_ax.node", "runtime-manifest.json"]) {
+      assert.equal(existsSync(join(stageRoot, "tools", "cua-helper", name)), true, name);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("发运集：agentBundleDir 缺 mode.cjs 时明确失败", () => {
   const root = mkdtempSync(join(tmpdir(), "mode-ship-agent-missing-"));
   try {

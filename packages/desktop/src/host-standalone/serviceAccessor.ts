@@ -33,6 +33,7 @@ import { existsSync } from "node:fs";
 import type { IChannelServer, IServerChannel } from "@mode/rpc";
 
 import { DispatchGuards } from "./channelGuard.js";
+import { applyHostResourcesPath } from "./runtimeResources.js";
 import type { ScopedAttachmentRegistry } from "./scopedAttachments.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -109,6 +110,12 @@ export async function createHostServiceSurface(
   options: CreateHostServiceAccessorOptions,
 ): Promise<HostServiceSurface> {
   const env = options.env ?? process.env;
+  // 纯 Node sidecar 没有 Electron 注入的 `process.resourcesPath`；先桥接再装配服务，
+  // 让 CUA runtime / 随包工具的打包态解析能与 Electron 宿主得到同一个基准目录。
+  const resourcesPath = applyHostResourcesPath(env);
+  if (resourcesPath) {
+    options.log(`host_resources_path=${resourcesPath}`);
+  }
   const builtinProviderConfig = resolveBuiltinProviderConfig(env);
 
   // 动态 import：必须在 stdout 守卫装好**之后**才装载 services（服务在模块初始化/构造期会

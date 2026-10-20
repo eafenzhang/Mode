@@ -302,6 +302,28 @@ function ensureAgentBundleDir(): string {
   return glmDir;
 }
 
+/**
+ * 随包 CUA helper 运行时（仅 Windows 产品档）。Tauri 的 Host 是纯 Node sidecar，
+ * 没有 Electron 注入的 `process.resourcesPath`；helper 必须随包落到 `tools/cua-helper`，
+ * 否则远程桌面 `rd_media_start` 永远解析失败、主控显示「对端不支持远程桌面」。
+ *
+ * 产物由 `pnpm build:cua-helper`（构建 + stage 到 bundled-tools）产出；这里不自动触发
+ * Rust 构建（发布路径已单独执行那一步），缺件时直接报出可执行的命令。
+ */
+function ensureCuaHelperDir(): string | undefined {
+  if (process.platform !== "win32") {
+    return undefined;
+  }
+  const helperDir = join(repoRoot, "packages/desktop/bundled-tools/win32-x64/cua-helper");
+  const required = ["entry.cjs", "cua_ax.node", "runtime-manifest.json"];
+  if (required.every((name) => existsSync(join(helperDir, name)))) {
+    return helperDir;
+  }
+  throw new Error(
+    `[host-sidecar] 随包 CUA helper 未就绪（缺 ${helperDir}/${required.join(",")}）：先运行 pnpm build:cua-helper`,
+  );
+}
+
 function reportShipSet(variant: ShipVariant): string {
   const closure = collectExternalClosure(RUNTIME_EXTERNALS, [appDir, repoRoot], require_.resolve);
   if (closure.collisions.length > 0) {
@@ -318,8 +340,9 @@ function reportShipSet(variant: ShipVariant): string {
     nodeSource,
     builtinProviderConfigSource: join(repoRoot, BUILTIN_PROVIDER_CONFIG),
     closure,
-    // core 档只测预算，不带运行时依赖，也不带 agent。
+    // core 档只测预算，不带运行时依赖，也不带 agent 与 CUA helper。
     agentBundleDir: variant === "core" ? undefined : ensureAgentBundleDir(),
+    cuaHelperDir: variant === "core" ? undefined : ensureCuaHelperDir(),
   });
 
   console.log(`[host-sidecar] 发运集档 = ${variant}（bundle.resources 指向 ${STAGE_ROOT}）`);

@@ -329,6 +329,13 @@ export function stageShipSet(options: {
    * 产品档必须提供，否则安装后无法发送任务（2026-10-19 v0.0.57 验收缺陷）。
    */
   agentBundleDir?: string;
+  /**
+   * Windows CUA helper 运行时（entry.cjs / cua_ax.node / runtime-manifest.json）。
+   * 来自 `packages/desktop/bundled-tools/win32-x64/cua-helper`；缺省只用于 core 档/非
+   * Windows 目标。产品态解析基准是 `resources/tools/cua-helper`（见 product 分支的
+   * `resolvePackagedRuntime`），所以这里落 `tools/cua-helper` 而不是 host-sidecar 内部。
+   */
+  cuaHelperDir?: string;
 }): ShipSetReport {
   const { variant, bundleFile, stageRoot, nodeSource } = options;
   ensureDir(join(stageRoot, "host-sidecar", "node_modules"));
@@ -386,6 +393,15 @@ export function stageShipSet(options: {
       dereference: true,
       filter: (source) => !basename(source).startsWith(".DS_Store"),
     });
+  }
+
+  if (options.cuaHelperDir) {
+    // 与 Electron 的 `extraResources: {from: bundled-tools/<platform>/cua-helper, to: tools/cua-helper}`
+    // 同一落点：`resolvePackagedRuntime` 只认 `resources/tools/cua-helper`，换目录等于没带。
+    const helperTarget = join(stageRoot, "tools", "cua-helper");
+    rmSync(helperTarget, { recursive: true, force: true });
+    ensureDir(helperTarget);
+    cpSync(options.cuaHelperDir, helperTarget, { recursive: true, dereference: true });
   }
 
   const files = walkFiles(stageRoot, () => false, false);

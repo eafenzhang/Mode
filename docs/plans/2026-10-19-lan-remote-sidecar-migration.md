@@ -1,7 +1,12 @@
 # LAN / 远控迁移到 Tauri Host sidecar（独立立项）
 
-状态：2026-10-19 立项；LR-0、LR-1、LR-2 完成；LR-3 主控/被控协调/同意窗/指示条/剪贴板完成（真机待做）；
-LR-4 LAN 主路径完成（SSH/WSL/Docker、bot reconnect、stale/identity-mismatch 测试待做）；LR-5 未开工。
+状态：2026-10-19 立项；LR-0..LR-4 的代码与自动化面已随 `bd4c7e46` 落地；LR-5 未开工。
+2026-10-20 的 0.0.61 真机验收：LAN 监听、配对码、发现与已配对设备通过；远程桌面因对端缺
+`mediaTicket` 返回「对端不支持」；远程工作区在设置页仍无 attach/打开入口；两台实机端到端
+验收未完成。SSH/WSL/Docker 在 Tauri Host 明确返回不支持；bot reconnect 与 UI tab 降级待做。
+同日复现更正：`mediaTicket` 并不是根因，真正断点是 Tauri 包未带 Windows CUA helper
+（`rd_media_start` → `helper_unavailable` → 对端回 `unsupported`）；修复与复现口径见 §21。
+验收明细见 `docs/plans/2026-10-20-installed-0.0.61-acceptance.md`。
 Issue：仓库 Issues 已关闭（2026-10-19 实测 `has_issues=false`，创建接口返回 410），
 本文件即项目记录；待仓库启用 Issues 后补编号与链接。
 关联规格：
@@ -668,3 +673,40 @@ stale session / `REMOTE_WORKSPACE_IDENTITY_MISMATCH` 测试、真机 LAN 配对�
   远程桌面仅 Windows；LAN 按可信局域网模型（无 TLS）。
 
 验收通过后再发正式版 `v0.0.61`，并在发布说明写支持矩阵。
+
+## 21. 远程桌面「对端不支持」根因（2026-10-20 本机复现与修复）
+
+0.0.61 验收把远程桌面失败归为「对端缺 `mediaTicket`」，但 2026-10-20 用已配对令牌直接
+请求对端（同一 `0.0.0-dev` 构建）得到 **HTTP 200 + ticket + mediaTicket**；随后本机
+完整链路（会话 POST → 信令 WS → `hello` → `select-monitor`）在 `media-open` 后立刻收到
+对端 `error{unsupported}`，对端日志值为：
+
+```
+rd_media-start-failed: Computer Use Helper is not reachable for rd_media
+```
+
+根因不在票据，而在 **Tauri 安装包没有带 Windows CUA helper 运行时**，且 Host sidecar 是
+纯 Node 进程（没有 Electron 注入的 `process.resourcesPath`）：
+
+1. `resolveWindowsCuaRuntime` 的打包分支要求 `process.resourcesPath`；纯 Node 下恒为
+   `undefined` → `missing-resources-path`；
+2. 即使补上基准目录，Tauri 的发运集也只有 `host-sidecar/node/config/agent`，没有
+   `tools/cua-helper`。
+
+两者任一成立都会让 `rd_media_start` 固定失败，被控端按既有失败语义回
+`error{unsupported}`，主控 UI 于是显示「对端不支持远程桌面」。能力位探测、配对令牌、
+会话 POST 与双票据全部正常——这正是「设备页可用、一进会话就说对端不支持」的原因。
+
+修复：
+
+- Host 入口在装配服务前把 `MODE_HOST_RESOURCES_DIR` 桥接为 `process.resourcesPath`
+  （已存在不覆盖，相对路径不采用），见 `host-standalone/runtimeResources.ts`；
+- `host-sidecar-ship` 把 `packages/desktop/bundled-tools/win32-x64/cua-helper` 三件套
+  stage 进 `ship/tools/cua-helper`，Windows 平台配置把它映射到安装目录
+  `tools/cua-helper`；
+- `tauri` job 的 Windows 腿新增 `pnpm build:cua-helper`（msvc 目标），
+  `verify-installed` 增加三件套在位检查。
+
+复现口径（不依赖 UI）：用本机配对令牌对 `127.0.0.1:45880` 走
+`POST /api/remote-desktop/session` → 信令 WS `hello` → `select-monitor`；修复前在
+`media-open` 后收到 `unsupported`，修复后应进入媒体 WS 并持续收帧。

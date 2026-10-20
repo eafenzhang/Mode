@@ -308,6 +308,16 @@
   `{from:"bundled-tools/<platform>/cua-helper", to:"tools/cua-helper"}`，仅 win32 目标 stage
   （prepare 步骤把 `dist-cua-helper` 复制进 `bundled-tools/win32-x64/cua-helper`）。
   打包态由 `resolvePackagedRuntime`（`resources/tools/cua-helper`）既有逻辑解析。
+  **Tauri 线同一落点**：`host-sidecar-ship` 把该目录 stage 进
+  `dist-host-sidecar/ship/tools/cua-helper`，Windows 平台的 `tauri.windows.conf.json`
+  再把它映射到安装目录的 `tools/cua-helper`；CI 的 `tauri` job Windows 腿必须先执行
+  `pnpm build:cua-helper`（与 `verify` job 同一 `MODE_CUA_AX_TARGET=x86_64-pc-windows-msvc`）。
+- **纯 Node 宿主的资源基准**：`resolveWindowsCuaRuntime` / `resolveBundledCuaHelperAppPath`
+  读 `process.resourcesPath`，该字段只有 Electron 注入。Tauri Host 是纯 Node sidecar，
+  入口在装配服务前把壳传下来的 `MODE_HOST_RESOURCES_DIR` 桥接为 `process.resourcesPath`
+  （已存在时不覆盖，相对路径不采用）。缺这条桥的实测症状：远程桌面会话建立成功，但
+  `rd_media_start` 固定报 `Computer-use Helper is not reachable for rd_media`，主控显示
+  「对端不支持远程桌面」；CUA 工具同样不可用。
 - **CI**：windows job 装 rustup + cargo 缓存；`cargo test` 与构建纳入 verify；
   typecheck/lint/architecture:check 口径不变。release 产物文件名不变（helper 内嵌）。
 - **明确不接**官方 Helper CDN 下载（`MODE_CUA_HELPER_BUILD_ID` 维持无人消费）。

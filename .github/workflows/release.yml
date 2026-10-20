@@ -531,6 +531,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Windows 产品包装 CUA helper（远程桌面媒体面与 CUA 都依赖它）。Tauri 的 Host 是
+      # 纯 Node sidecar，打包态解析基准是 `resources/tools/cua-helper`；不随包会让
+      # `rd_media_start` 永远报 helper_unavailable（主控显示「对端不支持远程桌面」）。
+      # 与 `verify` job 同样的 msvc 目标；`build:package-inputs` 会把它 stage 进 ship 集。
+      - name: Build and stage CUA helper
+        if: matrix.target == 'win'
+        env:
+          MODE_CUA_AX_TARGET: x86_64-pc-windows-msvc
+        run: pnpm build:cua-helper
+
       # Ruling 20：`@mode/desktop-tauri` 的套件里有 Windows-only 用例（sidecar 内真起
       # pty、win32-x64 发运集）。它们在 Ubuntu 的 `verify` job 上显式 skip；为了不让这些
       # skip 变成「哪里都不跑」的假绿，整条套件必须在**阻断发布**的 Windows 腿再跑一遍

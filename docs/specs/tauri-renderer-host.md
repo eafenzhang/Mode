@@ -163,6 +163,14 @@ debug 构建下的仓库相对路径）。**不硬编码绝对路径**：仓库�
 `MODE_BUILTIN_PROVIDER_CONFIG_FILE`（两条都只在未显式设置时写）。缺失这条接线时安装包能启动但**发送任务必失败**
 （v0.0.57 本机验收实测：`Mode agent server command is not configured`）；显式环境变量始终优先。
 
+打包形态的 **Windows CUA runtime**：发运集额外带 `tools/cua-helper/`（`entry.cjs` /
+`cua_ax.node` / `runtime-manifest.json`，由 `pnpm build:cua-helper` 产出），
+`tauri.windows.conf.json` 把它映射为安装资源目录下的 `tools/`。Host 是纯 Node sidecar，
+没有 Electron 注入的 `process.resourcesPath`；入口在装配服务前把
+`MODE_HOST_RESOURCES_DIR` 桥接为该字段（`host-standalone/runtimeResources.ts`，已存在不覆盖），
+`resolveWindowsCuaRuntime` 才能按 manifest 校验并启动 helper。缺失时安装包能启动、任务也能跑，
+但远程桌面 `rd_media_start` 固定报 helper_unavailable（主控显示「对端不支持远程桌面」）。
+
 ## 3. 两个方向的三条命令与失败语义
 
 命令名（前两条与 Task 0 spike 的 `spike_host_send`/`spike_host_recv` **同一对语义**，去掉 `spike_` 前缀；

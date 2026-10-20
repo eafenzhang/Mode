@@ -189,6 +189,13 @@ async function main(): Promise<void> {
   check("安装目录里有 Host sidecar", existsSync(sidecar), sidecar);
   check("安装目录里有随包 Node", existsSync(bundledNode), bundledNode);
   check("安装目录里有 Built-in Provider Config", existsSync(builtinConfig), builtinConfig);
+  // 远程桌面媒体面与 CUA 都经 Windows helper；纯 Node sidecar 的解析基准是
+  // `process.resourcesPath/tools/cua-helper`（由 Host 从 MODE_HOST_RESOURCES_DIR 桥接）。
+  // 缺这三件时会话能建立，但 `rd_media_start` 固定失败（主控显示「对端不支持」）。
+  for (const name of ["entry.cjs", "cua_ax.node", "runtime-manifest.json"]) {
+    const helperFile = join(installDir, "tools", "cua-helper", name);
+    check(`安装目录里有 CUA helper（${name}）`, existsSync(helperFile), helperFile);
+  }
   checkEmbeddedFrontend(mainExe, installer, appDir, check);
   // 发布产物里不该有验收台的 dev/ 入口（§17 的 DR-T3-2 代价条款）。
   check(
