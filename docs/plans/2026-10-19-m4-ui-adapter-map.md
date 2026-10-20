@@ -17,7 +17,7 @@
 | `dropdown-menu.tsx` | 复合导出 | `adapters/dropdown-menu` | **已切换 38 处调用**（2026-10-19）；根/Trigger/Content/Sub 已接线，`loop`/`modal` 登记差异 |
 | `popover.tsx` | 复合导出 | `adapters/popover` | **已切换 16 处调用**（2026-10-19）；定位自算 fixed，`collisionBoundary/sticky/hideWhenDetached/updatePositionStrategy` 接受后忽略 |
 | `select.tsx` | 复合导出 | `adapters/select` | **已切换 28 处调用**（2026-10-19）；根状态/定位/键盘已接线，`item-aligned` 与 typeahead 登记差异 |
-| `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`、`tabsListVariants` | `adapters/tabs` | **已切换 12 处调用**（2026-10-19）；支持 `variant/asChild/forceMount` |
+| `tabs.tsx` | `Tabs`、`TabsList`、`TabsTrigger`、`TabsContent`、`tabsListVariants` | `adapters/tabs` | **已切换 12 处调用**（2026-10-19）；支持 `variant/asChild/forceMount`；根节点恢复旧版 `group/tabs flex data-horizontal:flex-col`，`TabsContent` 恢复 `flex-1 text-ui-base outline-none`（2026-10-20，修复侧栏预览无法滚动） |
 | `tooltip.tsx` | `Tooltip`、`TooltipContent`、`TooltipProvider`、`TooltipTrigger` | `adapters/tooltip` | **已切换 18 处调用**（2026-10-19）；悬停/聚焦/延迟/Escape 已接线，`skipDelayDuration`/`disableHoverableContent` 接受后忽略 |
 | `toast.tsx` | `ToastPosition`、`upsertToastItem`、`resolveToastStackClassName`、`toast/updateToast/dismissToast` | `adapters/toast` | **已切换 63 处调用**（2026-10-19）；命令式队列 + 四向栈已补，`anchorId`/动画登记差异 |
 | `badge.tsx` | `Badge`、`badgeVariants` | `adapters/badge` | **已切换 15 处调用**（2026-10-19） |

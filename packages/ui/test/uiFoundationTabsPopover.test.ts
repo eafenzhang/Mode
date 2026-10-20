@@ -44,6 +44,23 @@ test("Tabs adapter：defaultValue 选中首项，非激活内容默认不渲染"
   assert.doesNotMatch(html, /mcps-body/);
 });
 
+test("Tabs adapter：根节点保留旧版 flex 列布局（侧栏滚动回归）", () => {
+  const html = renderTabs(false);
+  assert.match(html, /data-slot="tabs"/);
+  assert.match(html, /class="[^"]*\bgroup\/tabs\b[^"]*"/);
+  assert.match(html, /class="[^"]*\bflex\b[^"]*"/);
+  assert.match(html, /class="[^"]*data-horizontal:flex-col[^"]*"/);
+});
+
+test("Tabs adapter：TabsContent 保留旧版高度与排版类", () => {
+  const html = renderTabs(false);
+  assert.match(html, /data-slot="tabs-content"/);
+  assert.match(
+    html,
+    /role="tabpanel"[^>]*class="[^"]*\bflex-1\b[^"]*\btext-ui-base\b[^"]*outline-none/,
+  );
+});
+
 test("Tabs adapter：forceMount 保留非激活内容并标记 inactive", () => {
   const html = renderTabs(true);
   assert.match(html, /mcps-body/);

@@ -116,6 +116,10 @@ success/warning/destructive。
 - 列表/选中行用 `bg-selected`；
 - 键盘：Tab 进入 tablist；`ArrowLeft`/`ArrowRight` 循环聚焦，`Home`/`End` 到首尾；
   焦点移动后由调用方决定是否激活（自动/手动激活模式），组件本身只移动焦点。
+- adapter 根节点必须保留旧组件的 `group/tabs flex data-horizontal:flex-col` 布局类，
+  `TabsContent` 保留 `flex-1 text-ui-base outline-none`；调用方在根节点下用
+  `flex-1` + `h-full` 分配高度，根节点退化成普通 block 会让滚动容器失去固定高度
+  （2026-10-19 引入的侧栏 README 预览无法纵向滚动回归）。
 
 ### 2.6 Tooltip / Toast
 

@@ -52,7 +52,15 @@ export function Tabs({
   const context = useMemo(() => ({ value: current, setValue }), [current, setValue]);
   return (
     <TabsAdapterContext.Provider value={context}>
-      <div {...rest} data-orientation="horizontal" className={className}>
+      {/* 旧 Radix 根节点自带 group/tabs + flex（横向为 flex-col）。侧栏、终端等调用方
+          在这层下面用 flex-1 + h-full 分配高度；根节点退化成普通 block 后整条高度链
+          会变成 auto，滚动容器不再产生纵向滚动。 */}
+      <div
+        {...rest}
+        data-slot="tabs"
+        data-orientation="horizontal"
+        className={cn("group/tabs flex data-horizontal:flex-col", className)}
+      >
         {children}
       </div>
     </TabsAdapterContext.Provider>
@@ -72,11 +80,15 @@ export const TabsList = forwardRef<HTMLDivElement, TabsListProps>(function TabsL
   { variant = "default", label, className, children, ...rest },
   ref,
 ) {
-  const merged = className
-    ? `${tabsListVariants(variant)} ${className}`
-    : tabsListVariants(variant);
   return (
-    <FoundationTabs {...rest} ref={ref} label={label} className={merged}>
+    <FoundationTabs
+      {...rest}
+      ref={ref}
+      label={label}
+      data-slot="tabs-list"
+      data-variant={variant}
+      className={cn(tabsListVariants(variant), className)}
+    >
       {children}
     </FoundationTabs>
   );
@@ -162,8 +174,9 @@ export const TabsContent = forwardRef<HTMLDivElement, TabsContentProps>(function
       {...rest}
       ref={ref}
       role="tabpanel"
+      data-slot="tabs-content"
       data-state={selected ? "active" : "inactive"}
-      className={className}
+      className={cn("flex-1 text-ui-base outline-none", className)}
     >
       {children}
     </div>
