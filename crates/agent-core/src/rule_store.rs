@@ -21,6 +21,7 @@
 //! 这是 D1 选 (a) 的已知代价，不是「已经解决」。
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use agent_protocol::permission::PermissionUpdate;
@@ -60,6 +61,15 @@ pub fn scope_id_for(cwd: &str) -> String {
         .collect();
     format!("proj_{}", normalized.join("-"))
 }
+
+/// 同进程所有 `SqliteRuleStore` 共用一把写锁。
+///
+/// SQLite 的写锁是文件级的：两个短连接同时 `BEGIN IMMEDIATE` 时，后来的连接会在
+/// busy_timeout 内反复重试。Windows CI 上这条路径实测会超过 5s 并报 `database is locked`
+/// （v0.0.64 发布失败）。每个会话会各自 `SqliteRuleStore::new`，锁放在实例里不共享，
+/// 所以用进程级静态锁串行化；规则写入很少，粗粒度足够。跨进程（Node Host）仍由
+/// busy_timeout 兜底。
+static APPEND_LOCK: Mutex<()> = Mutex::new(());
 
 /// 直接读写 `.mode/cli/db/db.sqlite` 的 `local_setting`。
 pub struct SqliteRuleStore {
@@ -104,6 +114,11 @@ impl RuleStore for SqliteRuleStore {
     }
 
     fn append(&self, scope_id: &str, updates: &[PermissionUpdate]) -> Result<(), String> {
+        // 先拿进程级写锁：避免同一进程的多个会话各开一个连接争抢 SQLite 文件锁。
+        // 事务在 panic 时由 Drop 回滚，锁中毒后继续复用是安全的。
+        let _append_guard = APPEND_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_millis() as i64)

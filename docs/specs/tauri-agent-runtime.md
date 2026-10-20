@@ -392,7 +392,10 @@ CREATE TABLE local_setting (
 `allow_project` 的规则在会话内立即生效，并由 `rule_store::SqliteRuleStore` **跨会话持久化**
 （`Session::with_sqlite_rules`）。写入采用 `BEGIN IMMEDIATE` + `busy_timeout(5s)` +
 **事务内读-合并-追加**（不是整份覆盖），两个会话并发追加不会互相丢规则；
-`rule_store.rs` 有一条 2 线程 × 20 次并发追加的用例。写失败记在 `rule_store_error()`。
+`rule_store.rs` 有一条 2 线程 × 20 次并发追加的用例。同进程的并发 append 还由
+`SqliteRuleStore` 内的 `Mutex` 串行化：Windows CI 上两个短连接同时抢文件写锁会等满
+`busy_timeout` 后报 `database is locked`（v0.0.64 发布失败），跨进程仍由 `busy_timeout` 兜底。
+写失败记在 `rule_store_error()`。
 与 M3 Node Host 同时打开同一 DB 的剩余风险是 **Host 侧长事务**导致的等待，而不是丢更新。
 
 审批的宿主适配已提供本地半边：`ChannelPermissionHandler`（请求/应答 channel，
