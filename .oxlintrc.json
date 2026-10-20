@@ -72,6 +72,7 @@
     "packages/ui/src/components/ai-elements",
     ".agents/skills",
     ".plan",
+    ".claude",
     "packages/formal-proof",
     "apps/mode-cli",
     "docs/electron"
