@@ -34,6 +34,7 @@ import type { IServiceAccessor } from "@mode/services";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
+import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
 import { createAgentConversationTransport } from "@/v4/agentConversationTransport.js";
 import type { ConversationAttachmentReadParams, ConversationTransport } from "@/v4/transport.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
@@ -82,6 +83,11 @@ export interface V4ConversationContextValue {
     params: V4AttachmentPutParams,
     options?: AttachmentUploadOptions,
   ): Promise<V4AttachmentPutResult>;
+  /**
+   * agent service proxy 的 renderer-local 单调代际。远端同一 remoteSessionId 换代时
+   * 会话 id 不变，附件恢复必须靠它触发重传（见 useComposerAttachments 的恢复 effect）。
+   */
+  attachmentGeneration: number;
   attachmentRead(
     params: ConversationAttachmentReadParams,
   ): ReturnType<ConversationTransport["attachmentRead"]>;
@@ -150,6 +156,7 @@ function ReadyV4ConversationProvider({
       workflowRuns: (params: V4ConversationWorkflowRunsParams) => transport.workflowRuns(params),
       attachmentPut: (params: V4AttachmentPutParams, options?: AttachmentUploadOptions) =>
         transport.attachmentPut(params, options),
+      attachmentGeneration: remoteAgentServiceGeneration(modeAgentService),
       attachmentRead: (params) => transport.attachmentRead(params),
       attachmentReadRange: (params) => transport.attachmentReadRange(params),
       onRuntimeRestart: (listener: () => void) => transport.onRuntimeRestart(listener),
@@ -315,6 +322,7 @@ function ReadyV4PaneConversationProvider({
           lease.transport.workflowRuns(params),
         attachmentPut: (params: V4AttachmentPutParams, options?: AttachmentUploadOptions) =>
           lease.transport.attachmentPut(params, options),
+        attachmentGeneration: remoteAgentServiceGeneration(agentService),
         attachmentRead: (params) => lease.transport.attachmentRead(params),
         attachmentReadRange: (params) => lease.transport.attachmentReadRange(params),
         onRuntimeRestart: (listener: () => void) => lease.transport.onRuntimeRestart(listener),

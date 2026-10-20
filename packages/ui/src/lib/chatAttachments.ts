@@ -82,6 +82,26 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+/** 部分剪贴板来源只把文件放在 `items` 里（`files` 为空），按 items 兜底。 */
+export function readClipboardFiles(clipboardData: Pick<DataTransfer, "files" | "items">): File[] {
+  const files = Array.from(clipboardData.files);
+  if (files.length > 0) return files;
+  const fromItems: File[] = [];
+  for (const item of Array.from(clipboardData.items)) {
+    if (item.kind !== "file") continue;
+    const file = item.getAsFile();
+    if (file) fromItems.push(file);
+  }
+  return fromItems;
+}
+
+/** 剪贴板截图可能没有文件名；空名会撞 wire schema 的 `fileName.min(1)`。 */
+function fallbackClipboardFilename(mimeType: string): string {
+  const subtype = mimeType.split(";", 1)[0]?.split("/", 2)[1]?.trim().toLowerCase();
+  const sanitized = subtype?.replace(/[^a-z0-9.+-]+/gu, "");
+  return sanitized ? `clipboard.${sanitized}` : "clipboard";
+}
+
 export function createChatComposerAttachment(
   file: File,
   localPath?: string,
@@ -90,7 +110,7 @@ export function createChatComposerAttachment(
   return {
     id: nanoid(),
     file,
-    filename: file.name,
+    filename: file.name.trim() || fallbackClipboardFilename(mimeType),
     localPath,
     mimeType,
     objectUrl: URL.createObjectURL(file),

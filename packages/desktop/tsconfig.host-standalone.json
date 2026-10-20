@@ -39,6 +39,8 @@
     "tests/attachment-multiplexer-spike.test.mts",
     "tests/frame-multiplexer.test.mts",
     "tests/scoped-attachment-port.test.mts",
+    "tests/renderer-connection-scope.test.mts",
+    "tests/platform-select-files.test.mts",
     "tests/remote-workspace-host-service.test.mts"
   ]
 }

@@ -89,7 +89,7 @@
 - 状态所有者不变：renderer `composerAttachmentUploadStore`；上传控制器、自动重试定时器由当前 composer owner 持有。
 - **瞬时错误重试**：按 500ms → 1.5s → 3s 有界退避自动重试（覆盖远端重连、agent 冷启动与 cold-session-resume 的常见窗口）；用尽后仍失败才进入 `failed`。
 - **可恢复失败** = `uploadStatus:"failed" && uploadErrorKind:"transient"`（连接关闭、网络中断、会话暂不可用等非确定性错误）。`permanent`（超限、格式非法、对端不支持）与 `runtimeRestarted`（换代重传配额用尽）不自动恢复，避免重复失败或无限循环。
-- **恢复触发点**：`attachmentSessionId` 变为非空、`remoteSessionId` 变化、runtime 重新 available。触发时把可恢复失败与 `waitingSession` 项统一重置为 `queued`、清零 `autoRetryCount`，保留 `runtimeRebuildRetryCount`（换代配额仍受限），由唯一上传队列重传。
+- **恢复触发点**：`attachmentSessionId` 变为非空、`remoteSessionId` 变化、远端 service proxy 代际变化（同一 `remoteSessionId` 换代时 id 不变，必须显式作为触发点）、runtime 重新 available。触发时把可恢复失败与 `waitingSession` 项统一重置为 `queued`、清零 `autoRetryCount`，保留 `runtimeRebuildRetryCount`（换代配额仍受限），由唯一上传队列重传。
 - **owner 卸载**：`V4PaneConversationProvider` 在远端断链进入 remote-waiting 时会卸载 composer。旧 owner 必须中止在飞上传、清除重试/完成定时器、移除本 scope 队列项，并把 `queued|uploading|committing` 降为 `waitingSession`；下一个 owner 挂载后按恢复触发点重传。旧 owner 不得使用已 dispose 的远端服务再失败一次，否则会把自动重试预算烧成不会自动恢复的 `failed`。
 - **连接断开不是上传失败**：`MODE_REMOTE_WORKSPACE_DISCONNECTED` 直接退回 `waitingSession`，不消耗重试预算、不闪红色 `failed`。
 - **runtime unavailable 作废**：中止在飞上传并清除其重试定时器与队列项；不把作废写成 `failed`。

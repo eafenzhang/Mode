@@ -395,6 +395,8 @@ interface ConversationComposerProps {
   /** 草稿态使用预热 session 作附件 transaction 载体。 */
   attachmentSessionId?: string | null;
   attachmentPut: AttachmentPutFn;
+  /** 远端 service proxy 代际；同一 remoteSessionId 换代时驱动附件重传。 */
+  attachmentGeneration?: number;
   onRuntimeRestart?: (listener: () => void) => () => void;
   /** 承载 transport 暴露 runtime 存活态时优先用它，替代 onRuntimeRestart。 */
   onRuntimeLifecycle?: (listener: (state: "available" | "unavailable") => void) => () => void;
@@ -493,6 +495,7 @@ function ConversationComposerImpl({
   modelSelectionReload,
   attachmentSessionId = null,
   attachmentPut,
+  attachmentGeneration = 0,
   onRuntimeRestart,
   onRuntimeLifecycle,
   provider,
@@ -604,6 +607,7 @@ function ConversationComposerImpl({
     scopeId: draftScopeId,
     attachmentSessionId,
     attachmentPut,
+    attachmentGeneration,
     onRuntimeRestart,
     onRuntimeLifecycle,
     disabled,

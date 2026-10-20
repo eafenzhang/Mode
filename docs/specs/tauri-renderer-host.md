@@ -734,6 +734,22 @@ $ cd apps/desktop-tauri && node --import tsx --test test/realServices.test.mts t
 缺省注入下这些能力各自表现为「不可用/空操作」（`parentPort` 传 null 时广播为空操作），
 不是静默走另一条路径。窗口模型与附件调度是 Task 3。
 
+**窗口端口必须携带 v4 可信连接作用域（2026-10-21 修订）**：`modeAgentService` 的附件事务
+（`attachmentBeginV4` / `attachmentChunkV4` / `attachmentCommitV4` / `attachmentAbortV4`）、
+附件读取与 `conversationRowsRangeV4` 都要求参数里带有 `__modeTrustedV4Connection` 载体，
+而该载体只能由 `createModeAgentConnectionScope` 在 host 侧注入。缺了这层作用域时，渲染层发起的
+分片上传会稳定得到 `fault.attachment.connectionUntrusted`；粘贴图片没有本地路径、必然走上传，
+于是表现为「文件树引用正常、粘贴图片全部上传失败」。因此窗口 renderer 的服务面必须在
+`exposeOnChannelServer` 前用 `createModeAgentConnectionScope(agentService, { clientMode:
+"desktop-continuous" })` 覆盖 `IModeAgentService` 频道；`IConversationShareService` 内部持有
+raw agent，也必须通过 `conversationShareConnectionScopeFactory` 复用同一个 scope（否则其
+rowsRange/附件读取同样 untrusted）。
+
+该作用域的生命周期跟随 Host 服务面：Host dispose 时先释放 scope（向 CLI 发送 `closed` 流转），
+再 `disposeServiceResourcesAndWait(services)`。当前 Tauri 壳每窗口一个 Host sidecar，
+因此一个服务面一个 scope；若将来改成多窗口共享 Host，必须按端口拆分 scope
+（scope 的 `clientHello` 绑定唯一 clientId，不能跨客户端复用）。
+
 ### 11.2 真启动序列（Host 进程内）
 
 ```text

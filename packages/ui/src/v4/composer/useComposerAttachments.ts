@@ -6,7 +6,9 @@ import type { AttachmentRef } from "@mode/shared/mode-protocol-v4";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import {
   MAX_CHAT_ATTACHMENTS,
+  MissingInlineImageContentError,
   MissingInlinePdfContentError,
+  OversizedInlineImageAttachmentError,
   OversizedInlinePdfAttachmentError,
   OversizedInlineVideoAttachmentError,
   createChatComposerAttachment,
@@ -15,6 +17,7 @@ import {
   createWorkspacePickPathAttachment,
   createClipboardTextPathComposerAttachment,
   formatAttachmentSize,
+  readClipboardFiles,
   revokeChatComposerAttachment,
   serializeChatComposerAttachment,
   shouldCreateClipboardTextAttachment,
@@ -33,7 +36,7 @@ import type { IPromptAttachmentTransferService } from "@mode/services";
 import type { IPlatformService } from "@mode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useModeIntl } from "@/i18n/IntlProvider.js";
+import { useModeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
   exposeComposerAttachmentScopeKeyForE2E,
@@ -117,6 +120,11 @@ interface UseComposerAttachmentsOptions {
   scopeId: string;
   attachmentSessionId?: string | null;
   attachmentPut: AttachmentPutFn;
+  /**
+   * 远端 service proxy 的代际。同一 remoteSessionId 换代时会话 id 不变，
+   * 恢复 effect 靠它触发 waitingSession / transient failed 的重传。
+   */
+  attachmentGeneration?: number;
   onRuntimeRestart?: (listener: () => void) => () => void;
   /**
    * 承载 transport 暴露 runtime 存活态时优先用它，替代 onRuntimeRestart。
@@ -162,8 +170,10 @@ class RemoteAttachmentNotStagedError extends Error {
 
 function isTransientAttachmentUploadError(error: unknown): boolean {
   if (isAbortError(error)) return false;
+  if (error instanceof OversizedInlineImageAttachmentError) return false;
   if (error instanceof OversizedInlineVideoAttachmentError) return false;
   if (error instanceof OversizedInlinePdfAttachmentError) return false;
+  if (error instanceof MissingInlineImageContentError) return false;
   if (error instanceof MissingInlinePdfContentError) return false;
   if (
     error instanceof Error &&
@@ -175,9 +185,59 @@ function isTransientAttachmentUploadError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   // video 超限错误必须在黑名单里，否则会触发一次无意义重试；按错误类型精确拦截，
   // 避免扩大 message 正则后改变 image 超限的既有判定。
-  return !/(?:payloadTooLarge|invalidBase64|invalidServerProgress|frameTooLarge|permission|EACCES|ENOENT|not found|unsupported|附件缺少|缺少可读取内容|远端附件未完成物化|局域网连接附件单文件上限|对端版本不支持附件上传|附件文件不存在)/iu.test(
+  // `connectionUntrusted` 是 Host 接线错误（端口没挂可信连接作用域），重试不会自愈；
+  // `checksumUnavailable` / `putUnsupported` 分别是 WebCrypto 缺失与对端能力缺失，
+  // 同属确定性失败。都必须按永久失败直出，否则每次粘贴都会白烧三次退避。
+  return !/(?:payloadTooLarge|invalidBase64|invalidServerProgress|frameTooLarge|permission|EACCES|ENOENT|not found|unsupported|connectionUntrusted|checksumUnavailable|putUnsupported|附件缺少|缺少可读取内容|远端附件未完成物化|局域网连接附件单文件上限|对端版本不支持附件上传|附件文件不存在)/iu.test(
     message,
   );
+}
+
+/** 上传失败文案：结构化错误按当前 locale 展开，未知错误保留原文便于诊断。 */
+function formatAttachmentUploadErrorMessage(error: unknown, intl: IntlInstance): string {
+  if (error instanceof OversizedInlineImageAttachmentError) {
+    return intl.formatMessage(
+      { id: "chat.attachments.oversizedInlineImage" },
+      {
+        filename: error.filename,
+        size: formatAttachmentSize(error.sizeBytes),
+        maxSize: formatAttachmentSize(error.maxSizeBytes),
+      },
+    );
+  }
+  if (error instanceof OversizedInlineVideoAttachmentError) {
+    return intl.formatMessage(
+      { id: "chat.attachments.oversizedInlineVideo" },
+      {
+        filename: error.filename,
+        size: formatAttachmentSize(error.sizeBytes),
+        maxSize: formatAttachmentSize(error.maxSizeBytes),
+      },
+    );
+  }
+  if (error instanceof OversizedInlinePdfAttachmentError) {
+    return intl.formatMessage(
+      { id: "chat.attachments.oversizedInlinePdf" },
+      {
+        filename: error.filename,
+        size: formatAttachmentSize(error.sizeBytes),
+        maxSize: formatAttachmentSize(error.maxSizeBytes),
+      },
+    );
+  }
+  if (error instanceof MissingInlineImageContentError) {
+    return intl.formatMessage(
+      { id: "chat.attachments.missingInlineImageContent" },
+      { filename: error.filename },
+    );
+  }
+  if (error instanceof MissingInlinePdfContentError) {
+    return intl.formatMessage(
+      { id: "chat.attachments.missingInlinePdfContent" },
+      { filename: error.filename },
+    );
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 function progressPercent(uploadedBytes: number, totalBytes: number): number {
@@ -219,6 +279,7 @@ export function useComposerAttachments(
     scopeId,
     attachmentSessionId = null,
     attachmentPut,
+    attachmentGeneration = 0,
     onRuntimeRestart,
     onRuntimeLifecycle,
     disabled = false,
@@ -432,33 +493,7 @@ export function useComposerAttachments(
           return;
         }
         // 结构化超限错误在 UI 层按 locale 格式化（与 chatAttachments 序列化边界约定一致）。
-        const message =
-          error instanceof OversizedInlineVideoAttachmentError
-            ? intl.formatMessage(
-                { id: "chat.attachments.oversizedInlineVideo" },
-                {
-                  filename: error.filename,
-                  size: formatAttachmentSize(error.sizeBytes),
-                  maxSize: formatAttachmentSize(error.maxSizeBytes),
-                },
-              )
-            : error instanceof OversizedInlinePdfAttachmentError
-              ? intl.formatMessage(
-                  { id: "chat.attachments.oversizedInlinePdf" },
-                  {
-                    filename: error.filename,
-                    size: formatAttachmentSize(error.sizeBytes),
-                    maxSize: formatAttachmentSize(error.maxSizeBytes),
-                  },
-                )
-              : error instanceof MissingInlinePdfContentError
-                ? intl.formatMessage(
-                    { id: "chat.attachments.missingInlinePdfContent" },
-                    { filename: error.filename },
-                  )
-                : error instanceof Error
-                  ? error.message
-                  : String(error);
+        const message = formatAttachmentUploadErrorMessage(error, intl);
         const transient = isTransientAttachmentUploadError(error);
         const retryDelayMs = attachmentAutoRetryDelayMs(current.autoRetryCount);
         if (transient && retryDelayMs !== undefined) {
@@ -538,7 +573,7 @@ export function useComposerAttachments(
       !isRemoteAttachmentTarget({ remoteSessionId, workspaceIdentity }) || Boolean(remoteSessionId);
     if (!attachmentSessionId || !remoteTargetReady) return;
     for (const item of current) {
-      // 新会话/新远端连接就是自动恢复的唯一触发点：waitingSession 重新入队；
+      // 新会话 / 新远端连接 / 远端 proxy 换代就是自动恢复的触发点：waitingSession 重新入队；
       // 已耗尽自动重试的 transient 失败也在这里获得一次新的上传机会。
       // permanent / runtimeRestarted 保持失败，交给用户决定是否手动重试。
       if (item.uploadStatus !== "waitingSession" && !isRecoverableAttachmentUploadFailure(item)) {
@@ -550,6 +585,7 @@ export function useComposerAttachments(
       enqueueUpload(scopeKey, item.id);
     }
   }, [
+    attachmentGeneration,
     attachmentSessionId,
     enqueueUpload,
     remoteSessionId,
@@ -821,7 +857,8 @@ export function useComposerAttachments(
   const handlePaste = useCallback(
     (event: ChatComposerPasteEvent) => {
       if (disabled || !event.clipboardData) return;
-      const files = Array.from(event.clipboardData.files);
+      // files 优先；部分来源只在 items 里暴露文件，用 items 兜底。
+      const files = readClipboardFiles(event.clipboardData);
       const text = event.clipboardData.getData("text/plain");
       const html = event.clipboardData.getData("text/html");
       const prefersSpreadsheetText =

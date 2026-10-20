@@ -259,6 +259,7 @@ Rust 门禁（`cargo test` 六个 crate + `clippy -D warnings`）同期全绿。
 | **深链的单实例转发** | Windows/Linux 上「应用已在运行 → 用户点 `mode://` 链接」会起新进程（新窗口）。单实例会改动窗口生命周期语义，与「每个窗口一个 window-scoped Local Host」绑在一起 | M3（窗口模型） | **关闭**（§9.1：第二实例不建窗口、不建 Host；窗口模型的约束与代价见该节） |
 | **Tauri 产物进 Release** | 产物名与旧 Electron 线完全一致，同名会 clobber 掉用户正在下载的安装包；故 M1–M4 只发 workflow artifacts | M5（「release.yml 只出 Tauri 产物」） | **关闭（2026-10-19）**：三平台安装包与校验片段进 Release；旧 Electron 线只发 workflow artifact（§8.1） |
 | **LAN / 远控 / 远程工作区的产品壳接线** | `window.mode` 的 LAN/RD 方法仍是拒绝/空操作；`connectRemote` 拒绝；`host-standalone` 未启动 LAN/RD/remote registry；remote scope 缺少 scoped attachment | M3.5（独立立项） | **未关闭（2026-10-19 立项）**：分阶段迁移计划见 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md` |
+| **附件多选与本地路径解析（`selectFiles` / `getPathForFile`）** | 壳命令切片只有单选 `selectFile`；`getPathForFile` 需要 WebView2 拖拽路径能力，两者都未实现 | M3.5（附件面） | **未关闭（2026-10-21）**：`desktopPlatform.selectFiles` 在 `window.mode.selectFiles` 缺席时**不得定义**，让 `openAttachmentPicker` 回退到 `selectFile`；定义空实现会让 "+" 按钮拿到空数组并静默无响应。`getPathForFile` 缺席时拖拽/粘贴统一走分片上传（依赖窗口端口可信连接作用域，见 `tauri-renderer-host.md` §11.1） |
 | 更新链的实际可用 | **M5 Task 1 关闭（Windows）**：`pubkey` 已从空串换成真实 minisign 公钥，发布构建产出 `latest.json`，产品入口 `executeDesktopCommand("checkForUpdates")` 已接到 `updater::command::check_and_install`。**空串仍是 fail closed**：没有 `pubkey` 的构建在 `PublicKey::decode("")` 处报错，永远无法更新——这一语义刻意保留。macOS/Linux 安装包自 2026-10-19 起同批发布，但 `latest.json` 仍只有 Windows 条目，两条腿的应用内更新未接（§8.1） | M5 |
 
 ## 6. 协议双端生成

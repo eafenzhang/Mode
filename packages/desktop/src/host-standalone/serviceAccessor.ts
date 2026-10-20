@@ -33,6 +33,7 @@ import { existsSync } from "node:fs";
 import type { IChannelServer, IServerChannel } from "@mode/rpc";
 
 import { DispatchGuards } from "./channelGuard.js";
+import { createRendererConnectionScope } from "./rendererConnectionScope.js";
 import { applyHostResourcesPath } from "./runtimeResources.js";
 import type { ScopedAttachmentRegistry } from "./scopedAttachments.js";
 
@@ -120,11 +121,23 @@ export async function createHostServiceSurface(
 
   // 动态 import：必须在 stdout 守卫装好**之后**才装载 services（服务在模块初始化/构造期会
   // `console.log`，静态 import 会跑在守卫安装之前——实测 `cua-pip-session` 就是这种写入）。
-  const { createLocalServices, disposeServiceResourcesAndWait } = await import("@mode/services/node");
+  const {
+    createLocalServices,
+    disposeServiceResourcesAndWait,
+    conversationShareConnectionScopeFactory,
+  } = await import("@mode/services/node");
   // LAN/远程桌面/远程工作区管理面（LR-1/LR-2/LR-4）：descriptor 在浏览器安全的根入口，
   // 实现是 Node-only 的本包模块。全部动态装载，避免绕过 stdout 守卫。
   const [
-    { ServiceCollection, ILanAccessService, IRemoteDesktopService, IRemoteService },
+    {
+      ServiceCollection,
+      ILanAccessService,
+      IRemoteDesktopService,
+      IRemoteService,
+      IModeAgentService,
+      IConversationShareService,
+      createModeAgentConnectionScope,
+    },
     { createLanAccessHostService },
     { createRemoteDesktopHostService },
     { createRemoteWorkspaceHostService },
@@ -180,7 +193,17 @@ export async function createHostServiceSurface(
       });
     },
   };
-  services.exposeOnChannelServer(guardedServer);
+  // 窗口端口必须有可信连接作用域（docs/specs/tauri-renderer-host.md §11.1）：
+  // 缺了它，渲染层发起的附件事务会以 fault.attachment.connectionUntrusted 失败。
+  const rendererScope = createRendererConnectionScope({
+    agentService: services.getOptional(IModeAgentService),
+    conversationShareService: services.getOptional(IConversationShareService),
+    agentChannelName: IModeAgentService.channelName,
+    conversationShareChannelName: IConversationShareService.channelName,
+    createConnectionScope: createModeAgentConnectionScope,
+    conversationShareScopeFactory: conversationShareConnectionScopeFactory,
+  });
+  services.exposeOnChannelServer(guardedServer, rendererScope.overrides);
   localOnly.exposeOnChannelServer(guardedServer);
 
   return {
@@ -193,6 +216,8 @@ export async function createHostServiceSurface(
       await lanAccess.dispose();
       await remoteDesktop.dispose();
       await remote.disposeHost();
+      // scope.dispose 会向 CLI 发送 closed 流转；必须排在 services 释放之前。
+      await rendererScope.dispose();
       await disposeServiceResourcesAndWait(services);
     },
   };

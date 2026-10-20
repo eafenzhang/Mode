@@ -39,19 +39,24 @@ test("管理面注册在 local-only 集合上，普通服务集合先暴露", ()
   assert.doesNotMatch(source, /services\.register\(ILanAccessService/u);
   assert.doesNotMatch(source, /services\.register\(IRemoteDesktopService/u);
   assert.doesNotMatch(source, /services\.register\(IRemoteService/u);
-  // 两个集合都注册到窗口 ChannelServer。
-  assert.match(source, /services\.exposeOnChannelServer\(guardedServer\)/u);
+  // 两个集合都注册到窗口 ChannelServer；普通集合必须带窗口级可信连接作用域。
+  assert.match(
+    source,
+    /services\.exposeOnChannelServer\(guardedServer, rendererScope\.overrides\)/u,
+  );
   assert.match(source, /localOnly\.exposeOnChannelServer\(guardedServer\)/u);
-  // 销毁顺序：先停监听，再收被控会话与远程工作区，最后释放服务资源。
+  // 销毁顺序：先停监听，再收被控会话与远程工作区，然后释放连接作用域，最后释放服务资源。
   const lanDispose = source.indexOf("await lanAccess.dispose()");
   const rdDispose = source.indexOf("await remoteDesktop.dispose()");
   const remoteDispose = source.indexOf("await remote.disposeHost()");
+  const scopeDispose = source.indexOf("await rendererScope.dispose()");
   const servicesDispose = source.indexOf("await disposeServiceResourcesAndWait(services)");
   assert.ok(
     lanDispose >= 0 &&
       rdDispose > lanDispose &&
       remoteDispose > rdDispose &&
-      servicesDispose > remoteDispose,
-    "dispose 顺序必须是 LAN 监听 → 被控会话 → 远程工作区 → 服务资源",
+      scopeDispose > remoteDispose &&
+      servicesDispose > scopeDispose,
+    "dispose 顺序必须是 LAN 监听 → 被控会话 → 远程工作区 → 连接作用域 → 服务资源",
   );
 });

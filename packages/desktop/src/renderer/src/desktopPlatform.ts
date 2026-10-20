@@ -9,6 +9,7 @@ import type {
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
 import { createDesktopRemotePlatformBridge } from "./desktopRemotePlatformBridge.js";
+import { resolveSelectFilesCapability } from "./platformSelectFiles.js";
 
 /** Tauri 壳的产品窗口同时注入这两个全局；Electron 两者都没有。 */
 function isTauriRendererRuntime(): boolean {
@@ -53,7 +54,8 @@ export function createDesktopPlatform(options: {
     supportsResourceManager: !isTauriRendererRuntime(),
     selectDirectory: () => window.mode.selectDirectory(),
     selectFile: () => window.mode.selectFile(),
-    selectFiles: () => window.mode.selectFiles?.() ?? Promise.resolve([]),
+    // 多选只在壳真的实现时暴露；空实现会让 openAttachmentPicker 静默停在空数组。
+    ...resolveSelectFilesCapability(window.mode.selectFiles),
     openDataRootImport: () => window.mode.openDataRootImport?.(),
     createTempTextAttachment: (payload) => window.mode.createTempTextAttachment(payload),
     onBotRemoteWorkspaceReconnected: (handler) =>

@@ -519,6 +519,7 @@ export function SessionPane({
     layer,
     sendCommand,
     attachmentPut,
+    attachmentGeneration,
     attachmentRead,
     attachmentReadRange,
     onRuntimeRestart,
@@ -4247,6 +4248,7 @@ export function SessionPane({
       modelSelectionReload={modelSelectionRead.reload}
       attachmentSessionId={effectiveSessionId}
       attachmentPut={attachmentPut}
+      attachmentGeneration={attachmentGeneration}
       onRuntimeRestart={onRuntimeRestart}
       onRuntimeLifecycle={onRuntimeLifecycle}
       provider={provider}
