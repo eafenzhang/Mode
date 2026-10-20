@@ -6204,7 +6204,7 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.pairing.hint": "5 分钟内有效，仅可使用一次。",
   "remoteDesktop.publicPairing.title": "公网设备",
   "remoteDesktop.publicPairing.description":
-    "无法直连局域网时，用已配置 HTTPS 隧道的域名 + 对端 6 位配对码完成首次配对。",
+    "无法直连局域网时，输入你为对端配置的 HTTPS 隧道域名 + 对端 6 位配对码完成首次配对。",
   "remoteDesktop.publicPairing.addressLabel": "HTTPS 地址",
   "remoteDesktop.publicPairing.addressPlaceholder": "https://rd.example.com",
   "remoteDesktop.publicPairing.codeLabel": "配对码",

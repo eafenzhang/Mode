@@ -169,6 +169,9 @@ UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS �
   第三方 relay 终止，relay 能看到明文令牌、键鼠事件与剪贴板上行——这需要先把上行
   消息纳入端到端加密，属于 P3，不在本 spec。
 - 下行媒体仍是逐帧 AES-256-GCM；`wss` 只保护传输层，不替代媒体加密。
+- 6 位配对码在公网暴露后必须限速：`/api/lan/pair` 与 `/api/remote-agent/enroll` 共用
+  同一个码，server 实例内统一限 30 次/分钟；5 分钟窗口最多 150 次尝试，远小于
+  6 位十六进制码空间（约 16.7M）。
 - 日志不写令牌、`mediaTicket`、配对码或完整 URL query；只记录端点 kind/host 与错误类别。
 
 ## 验收场景
@@ -228,7 +231,10 @@ UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS �
 注意：推荐 Let's Encrypt 等公共 CA；自签证书需要给 Host sidecar 配置
 `NODE_EXTRA_CA_CERTS`，并让 Windows/Tauri 信任根证书，否则 TLS 握手会失败（且不会
 回退到 http）。fnOS 若在 CGNAT 后面，域名无法直接解析到它，需要一台有公网 IP 的
-中转或 Tailscale/WireGuard 之类的叠加网。
+中转或 Tailscale/WireGuard 之类的叠加网。反向代理/隧道**不要记录完整 query**的访问
+日志：令牌、会话票据与 mediaTicket 都在 query 里，需要脱敏或关闭访问日志。配对完成后
+若不再需要公网配对，可在反代上只放行 `/api/server-info`、`/api/remote-desktop/session`
+与 `/ws/remote-desktop*`，关闭 `/api/lan/pair` 与 `/api/remote-agent/enroll`。
 
 ## 非目标
 

@@ -13,6 +13,13 @@ import {
 import { REMOTE_DESKTOP_SIGNAL_MAX_FRAME_BYTES } from "./remoteDesktopMessages.js";
 
 /**
+ * 信令 WS 保活：媒体 WS 有 3s 应用层 ping，但信令在会话稳定后可能长时间无帧。
+ * Cloudflare 等公网代理会断开空闲 WebSocket；每 30s 发一次协议层 ping（对端 ws
+ * 自动回 pong），让代理看到流量。LAN 下开销可忽略。
+ */
+const SIGNAL_HEARTBEAT_INTERVAL_MS = 30_000;
+
+/**
  * 主控方向会话（Host 侧，LR-3）。Electron 线的 `main/remoteDesktop/controllerSession.ts`
  * 依赖 `WebContents` 推事件与发起窗口销毁监听；Host 没有窗口，事件改为回调交给 RPC 频道。
  *

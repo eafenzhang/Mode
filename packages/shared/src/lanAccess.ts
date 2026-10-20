@@ -279,7 +279,12 @@ export function normalizeLanPeerMeta(value: unknown): LanPeerMeta | null {
   }
   const data = parsed.data;
   if ("endpoints" in data) {
-    const endpoints = sortLanPeerEndpoints(dedupeLanPeerEndpoints(data.endpoints));
+    // 公网端点只允许 HTTPS；即使凭据被手改成 http，也不让它进入连接路径。
+    const endpoints = sortLanPeerEndpoints(
+      dedupeLanPeerEndpoints(data.endpoints).filter(
+        (endpoint) => endpoint.kind !== "public" || endpoint.scheme === "https",
+      ),
+    );
     if (endpoints.length === 0) {
       return null;
     }

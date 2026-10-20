@@ -181,6 +181,20 @@ test("默认关闭：/api/lan/* 要求静态令牌；配对拒绝且不签发", 
   }
 });
 
+test("配对端点限速：同一分钟超过 30 次返回 429", async () => {
+  const fx = await startFixture();
+  try {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const response = await postJson(fx.base, "/api/lan/pair", { code: "000000" }, {});
+      assert.equal(response.status, 401, `第 ${attempt + 1} 次应为码无效而不是限速`);
+    }
+    const limited = await postJson(fx.base, "/api/lan/pair", { code: "000000" }, {});
+    assert.equal(limited.status, 429, "超过窗口上限必须限速");
+  } finally {
+    await fx.close();
+  }
+});
+
 test("配对 → server-info → capability → /ws/host 挂接与目录录制；静态令牌并存", async () => {
   const fx = await startFixture();
   let ws: WebSocket | undefined;

@@ -6410,7 +6410,7 @@ const faIR: Record<string, string> = {
   "remoteDesktop.pairing.hint": "۵ دقیقه معتبر است؛ فقط یک بار استفاده می‌شود.",
   "remoteDesktop.publicPairing.title": "دستگاه عمومی",
   "remoteDesktop.publicPairing.description":
-    "برای نخستین جفت‌سازی، دامنه تونل HTTPS و کد ۶ رقمی نمایش‌داده‌شده روی دستگاه مقابل را وارد کنید.",
+    "برای نخستین جفت‌سازی، دامنه تونل HTTPS که برای دستگاه مقابل پیکربندی کرده‌اید و کد ۶ رقمی آن را وارد کنید.",
   "remoteDesktop.publicPairing.addressLabel": "نشانی HTTPS",
   "remoteDesktop.publicPairing.addressPlaceholder": "https://rd.example.com",
   "remoteDesktop.publicPairing.codeLabel": "کد جفت‌سازی",

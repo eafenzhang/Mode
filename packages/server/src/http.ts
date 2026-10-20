@@ -150,10 +150,7 @@ class LanWorkspaceRecordingChannelServer<TContext> implements IChannelServer<TCo
   ) {}
 
   registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
-    this.inner.registerChannel(
-      channelName,
-      new LanRecordingServerChannel(channel, this.notify),
-    );
+    this.inner.registerChannel(channelName, new LanRecordingServerChannel(channel, this.notify));
   }
 
   ready(): void {
@@ -165,7 +162,10 @@ function setupChannelServer(
   ws: WebSocket,
   services: ServiceCollection,
   clientMode: "desktop-continuous" | "web-remote-replayable",
-  lanRecording?: { clientId: string; onWorkspace: (clientId: string, workspacePath: string) => void },
+  lanRecording?: {
+    clientId: string;
+    onWorkspace: (clientId: string, workspacePath: string) => void;
+  },
 ) {
   const socket = wrapWebSocket(ws);
   const protocol = new SocketProtocol(socket);
@@ -359,7 +359,9 @@ function resolveServerId(options: HttpServerOptions): string {
   );
 }
 
-async function resolveServerWorkspaces(options: HttpServerOptions): Promise<ServerRemoteWorkspaceInfo[]> {
+async function resolveServerWorkspaces(
+  options: HttpServerOptions,
+): Promise<ServerRemoteWorkspaceInfo[]> {
   if (typeof options.workspaces === "function") {
     try {
       return await options.workspaces();
@@ -564,6 +566,24 @@ export function createHttpServer(
   // 单次消费、互不能开对方端点」（spec media WS 消息节 + 本任务验收）。
   const remoteDesktopMediaTickets = createRemoteDesktopTicketStore();
 
+  // 6 位配对码一旦随公网隧道暴露，必须限速：30 次/分钟让 5 分钟窗口最多 150 次尝试，
+  // 远小于 16.7M 的码空间；/api/lan/pair 与 /api/remote-agent/enroll 共用同一个码，
+  // 必须一起限（docs/specs/lan-remote-public-endpoints.md 安全边界）。
+  const pairingAttempts: number[] = [];
+  const PAIRING_ATTEMPT_LIMIT = 30;
+  const PAIRING_ATTEMPT_WINDOW_MS = 60_000;
+  const allowPairingAttempt = (): boolean => {
+    const now = Date.now();
+    while (pairingAttempts.length > 0 && now - pairingAttempts[0]! > PAIRING_ATTEMPT_WINDOW_MS) {
+      pairingAttempts.shift();
+    }
+    if (pairingAttempts.length >= PAIRING_ATTEMPT_LIMIT) {
+      return false;
+    }
+    pairingAttempts.push(now);
+    return true;
+  };
+
   const authToken = options.authToken?.trim();
   const verifyAuthToken = options.verifyAuthToken;
   if (authToken || verifyAuthToken) {
@@ -654,6 +674,9 @@ export function createHttpServer(
   if (options.lanPairing) {
     const lanPairing = options.lanPairing;
     app.post("/api/lan/pair", async (c) => {
+      if (!allowPairingAttempt()) {
+        return c.json({ error: "Too many pairing attempts" }, 429);
+      }
       let rawBody: unknown;
       try {
         rawBody = await c.req.json();
@@ -675,6 +698,9 @@ export function createHttpServer(
   if (options.remoteAgentEnrollment) {
     const enrollment = options.remoteAgentEnrollment;
     app.post("/api/remote-agent/enroll", async (c) => {
+      if (!allowPairingAttempt()) {
+        return c.json({ ok: false, error: "rate_limited" }, 429);
+      }
       let rawBody: unknown;
       try {
         rawBody = await c.req.json();
@@ -683,7 +709,10 @@ export function createHttpServer(
       }
       const parsedBody = remoteAgentEnrollmentRequestSchema.safeParse(rawBody);
       if (!parsedBody.success) {
-        return c.json({ ok: false, error: `invalid_request: ${formatZodError(parsedBody.error)}` }, 400);
+        return c.json(
+          { ok: false, error: `invalid_request: ${formatZodError(parsedBody.error)}` },
+          400,
+        );
       }
       const result = await enrollment.enroll(parsedBody.data);
       return c.json(result, result.ok ? 200 : 401);
@@ -760,7 +789,9 @@ export function createHttpServer(
   const upgradeRemoteDesktopWebSocket = upgradeWebSocket((c) => ({
     onOpen(_event, ws) {
       // LAN 低延迟：显式关 Nagle（服务端 socket 不自带此设置；小控制帧会吃 Nagle×延迟 ACK 抖动）。
-      (ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } })._socket?.setNoDelay?.(true);
+      (
+        ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } }
+      )._socket?.setNoDelay?.(true);
       const remoteDesktop = options.remoteDesktop;
       const clientId = c.get("remoteDesktopClientId");
       if (!remoteDesktop || !clientId) {
@@ -800,7 +831,9 @@ export function createHttpServer(
   const upgradeRemoteDesktopMediaWebSocket = upgradeWebSocket((c) => ({
     onOpen(_event, ws) {
       // LAN 低延迟：媒体帧尾包与控制面小帧同样受益于关 Nagle（与信令通道同款设置）。
-      (ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } })._socket?.setNoDelay?.(true);
+      (
+        ws.raw as unknown as { _socket?: { setNoDelay?: (v?: boolean) => void } }
+      )._socket?.setNoDelay?.(true);
       const remoteDesktop = options.remoteDesktop;
       const clientId = c.get("remoteDesktopMediaClientId");
       if (!remoteDesktop?.onMediaSocket || !clientId) {

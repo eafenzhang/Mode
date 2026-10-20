@@ -11,7 +11,8 @@ import {
 } from "@mode/shared";
 import type { ICredentialService } from "@mode/services";
 
-import { fetchLanPeerInfo, isRetryableLanPeerError, loadLanPeerToken } from "./lanRemoteAttach.js";
+import { fetchLanPeerInfo, loadLanPeerToken } from "./lanRemoteAttach.js";
+import { isRetryableLanPeerError } from "./lanPeerTransport.js";
 
 /**
  * 「我配对的对端」的凭据读写（Host 侧，Electron-free）。

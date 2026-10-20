@@ -101,6 +101,22 @@ test("旧 meta 迁移为 LAN 端点，新 meta 按 LAN 优先排序", () => {
     "公网端点即使先写入也要排在 LAN 之后",
   );
   assert.equal(normalizeLanPeerMeta({ host: "", port: 1 }), null);
+  // 防御性：凭据被改成 public + http 时不得进入连接路径。
+  assert.deepEqual(
+    normalizeLanPeerMeta({
+      endpoints: [
+        { scheme: "https", host: "rd.example.com", port: 443, kind: "public" },
+        { scheme: "http", host: "evil.example.com", port: 80, kind: "public" },
+      ],
+    })?.endpoints,
+    [{ scheme: "https", host: "rd.example.com", port: 443, kind: "public" }],
+  );
+  assert.equal(
+    normalizeLanPeerMeta({
+      endpoints: [{ scheme: "http", host: "evil.example.com", port: 80, kind: "public" }],
+    }),
+    null,
+  );
 });
 
 test("探测与会话：LAN 不可达时回退公网，并用 wss 建链接", async () => {

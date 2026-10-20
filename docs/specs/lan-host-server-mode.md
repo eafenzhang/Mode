@@ -78,7 +78,9 @@
 - UDP 发现应答（桌面端已有；服务端形态先用「手动输入地址」挂接），列为后续。
 - 客户端侧「我配对的对端」（浏览器去连别的设备）仍为 Web stub。
 - 远程桌面 / 电脑控制能力位不声明（服务端形态非 win32 被控桌面）。
-- 配对尝试速率限制：与桌面端实现保持同口径（均无独立限速）；如后续加固，两端一起做。
+- 配对尝试速率限制：已在 `packages/server/src/http.ts` 统一实现（30 次/分钟，覆盖
+  `/api/lan/pair` 与 `/api/remote-agent/enroll`），桌面与 NAS 形态同口径
+  （见 [lan-remote-public-endpoints.md](./lan-remote-public-endpoints.md) 安全边界）。
 
 ## 验收场景
 

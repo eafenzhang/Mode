@@ -19,14 +19,13 @@ import {
   type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
 import type { ICredentialService } from "@mode/services";
+import { fetchLanPeerInfo, readLanPeerEndpoints } from "./lanRemoteAttach.js";
 import {
   buildLanHttpBase,
-  fetchLanPeerInfo,
   isRetryableLanPeerError,
   LanPeerRequestError,
-  readLanPeerEndpoints,
   toWebSocketScheme,
-} from "./lanRemoteAttach.js";
+} from "./lanPeerTransport.js";
 
 /**
  * 会话 POST 阻塞在被控同意流（60s 同意窗 + 75s 兜底，remoteDesktopServer.ts），

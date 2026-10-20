@@ -18,6 +18,14 @@ import {
 import type { ICredentialService, IServiceAccessor } from "@mode/services";
 import { WebSocket, type RawData } from "ws";
 
+import {
+  buildLanHttpBase,
+  buildLanWsUrl,
+  fetchPeerResponse,
+  fetchWithTimeout,
+  LanPeerRequestError,
+} from "./lanPeerTransport.js";
+
 /**
  * 局域网客户端（Host 侧）：配对换令牌、按令牌挂接对端的受信 RPC 通道。
  *
@@ -34,77 +42,6 @@ const LAN_INFO_TIMEOUT_MS = 10_000;
  * 连接，让既有 close 语义接管；不给业务 RPC 增加超时。
  */
 const LAN_WS_HEARTBEAT_INTERVAL_MS = 30_000;
-
-/** WebSocket 协议由 HTTP 端点协议推导：https → wss（公网必须走 TLS）。 */
-export function toWebSocketScheme(scheme: "http" | "https"): "ws" | "wss" {
-  return scheme === "https" ? "wss" : "ws";
-}
-
-export function buildLanHttpBase(
-  host: string,
-  port: number,
-  scheme: "http" | "https" = "http",
-): string {
-  return `${scheme}://${host}:${port}`;
-}
-
-export function buildLanWsUrl(
-  host: string,
-  port: number,
-  scheme: "http" | "https" = "http",
-): string {
-  return `${toWebSocketScheme(scheme)}://${host}:${port}/ws/host`;
-}
-
-/**
- * 端点请求错误：`retryable` 决定是否切换下一个端点。只有传输失败/超时/5xx/404/
- * 协议不符可重试；401/403 等对端级结果不重试（同一令牌在另一个端点不会更好）。
- */
-export class LanPeerRequestError extends Error {
-  constructor(
-    message: string,
-    readonly retryable: boolean,
-    readonly code?: "unauthorized" | "internal",
-  ) {
-    super(message);
-  }
-}
-
-export function isRetryableLanPeerError(error: unknown): boolean {
-  return error instanceof LanPeerRequestError && error.retryable;
-}
-
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function fetchPeerResponse(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  try {
-    return await fetchWithTimeout(url, init, timeoutMs);
-  } catch (error) {
-    const timedOut = error instanceof Error && error.name === "AbortError";
-    throw new LanPeerRequestError(
-      timedOut
-        ? `连接对端超时（${timeoutMs}ms）`
-        : `连接对端失败：${error instanceof Error ? error.message : String(error)}`,
-      true,
-    );
-  }
-}
 
 /** 读取对端信息（包含工作区列表）；协议版本不匹配时抛出可读错误。 */
 export async function fetchLanPeerInfo(params: {
@@ -213,6 +150,9 @@ export async function pairLanPeer(params: {
   );
   if (response.status === 401) {
     throw new Error("配对码无效或已过期，请在对端重新生成");
+  }
+  if (response.status === 429) {
+    throw new Error("配对尝试过于频繁，请稍后再试");
   }
   if (!response.ok) {
     throw new Error(`配对失败（HTTP ${response.status}）`);

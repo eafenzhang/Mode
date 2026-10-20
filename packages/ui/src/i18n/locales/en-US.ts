@@ -6506,7 +6506,7 @@ const enUS: Record<string, string> = {
   "remoteDesktop.pairing.hint": "Valid for 5 minutes; single use.",
   "remoteDesktop.publicPairing.title": "Public device",
   "remoteDesktop.publicPairing.description":
-    "Pair for the first time with your HTTPS tunnel domain and the 6-digit code shown on the peer.",
+    "Pair for the first time with the HTTPS tunnel domain you configured for the peer and its 6-digit code.",
   "remoteDesktop.publicPairing.addressLabel": "HTTPS address",
   "remoteDesktop.publicPairing.addressPlaceholder": "https://rd.example.com",
   "remoteDesktop.publicPairing.codeLabel": "Pairing code",
