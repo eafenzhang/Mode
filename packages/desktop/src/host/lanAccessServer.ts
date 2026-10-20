@@ -23,9 +23,12 @@ import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/
 import { createHttpServer } from "@mode/server";
 import type { ICredentialService, ServiceCollection } from "@mode/services";
 import { formatLogPrefix } from "@mode/shared";
+import { closeListenableQuietly, waitForListenPort } from "./lanListenPort.js";
+import type { ListenableServer } from "./lanListenPort.js";
 
 const log = (...args: unknown[]) => console.log(formatLogPrefix("lanAccess", process.pid), ...args);
-const warn = (...args: unknown[]) => console.warn(formatLogPrefix("lanAccess", process.pid), ...args);
+const warn = (...args: unknown[]) =>
+  console.warn(formatLogPrefix("lanAccess", process.pid), ...args);
 
 /** 远程桌面打包层 kill-switch 的 env 键（docs/specs/lan-remote-desktop.md 接口变更 6）。 */
 export const MODE_REMOTE_DESKTOP_KILL_SWITCH_ENV_KEY = "MODE_REMOTE_DESKTOP_KILL_SWITCH";
@@ -77,6 +80,8 @@ export interface StartLanAccessServerParams {
   getWorkspaces: () => Promise<ServerRemoteWorkspaceInfo[]>;
   appVersion: string;
   machineName: string;
+  /** 测试/隔离用监听端口覆写；生产缺省 `LAN_ACCESS_DEFAULT_PORT`。 */
+  port?: number;
   /**
    * 远程桌面被控总开关读取点（设置页「远程桌面」分区，默认关）。
    * 握手即时求值（能力位不持久化）；缺省 = 关闭。T6 接入设置存储。
@@ -129,24 +134,6 @@ function listLanAddresses(port: number): string[] {
     }
   }
   return addresses;
-}
-
-/** srvx/node server 的端口要等 listen 完成；轮询 address() 直到可用。 */
-async function waitForListenPort(server: unknown, fallback: number): Promise<number> {
-  const address = (server as { address?: () => unknown }).address;
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (typeof address === "function") {
-      const value = (server as { address: () => unknown }).address();
-      if (value && typeof value === "object" && "port" in value) {
-        const port = Number((value as { port: unknown }).port);
-        if (Number.isFinite(port) && port > 0) {
-          return port;
-        }
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  return fallback;
 }
 
 /**
@@ -292,7 +279,10 @@ export async function startLanAccessServer(
     }
     target.lastWorkspacePath = workspacePath;
     void persistClients().catch((error: unknown) => {
-      warn("persist client lastWorkspacePath failed:", error instanceof Error ? error.message : error);
+      warn(
+        "persist client lastWorkspacePath failed:",
+        error instanceof Error ? error.message : error,
+      );
     });
   };
 
@@ -322,7 +312,8 @@ export async function startLanAccessServer(
     return { token, serverId, name: params.machineName };
   };
 
-  const server = createHttpServer(params.services, LAN_ACCESS_DEFAULT_PORT, {
+  const requestedPort = params.port ?? LAN_ACCESS_DEFAULT_PORT;
+  const server = createHttpServer(params.services, requestedPort, {
     host: "0.0.0.0",
     authRequired: true,
     verifyAuthToken,
@@ -374,7 +365,19 @@ export async function startLanAccessServer(
         }),
     },
   });
-  const port = await waitForListenPort(server, LAN_ACCESS_DEFAULT_PORT);
+  const listenable = server as unknown as ListenableServer;
+  let port: number;
+  try {
+    port = await waitForListenPort(listenable, requestedPort, requestedPort);
+  } catch (error) {
+    // 监听失败：释放 server 上已挂的升级处理器，并把失败交给调用方按「LAN 不可用」处理。
+    closeListenableQuietly(listenable);
+    throw error;
+  }
+  // 监听成功后的运行期错误不能再变成未捕获事件（否则仍会杀 Host）；只记录并让请求失败。
+  listenable.on("error", (error: Error) => {
+    warn("lan access server error:", error.message);
+  });
 
   // 发现应答：只回应收到的探测，不做周期广播（少噪声，也少信息外泄）。
   const discoverySocket = createSocket({ type: "udp4", reuseAddr: true });
@@ -482,6 +485,3 @@ export async function startLanAccessServer(
     },
   };
 }
-
-/** 供测试与 UI 复用：局域网访问默认监听地址（不含端口）。 */
-export const LAN_ACCESS_BIND_HOST = "0.0.0.0";

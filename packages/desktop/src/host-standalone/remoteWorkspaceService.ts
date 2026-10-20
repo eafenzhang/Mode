@@ -79,6 +79,10 @@ export interface CreateRemoteWorkspaceHostServiceOptions {
     target: Extract<RemoteTarget, { kind: "lan" }>,
     signal: AbortSignal,
   ) => Promise<WindowRemoteConnectionHandle<ServiceCollection, RemoteCapabilities>>;
+  /** 测试注入点：替换真实 WS 挂接（用于覆盖关闭回调接线，不发起网络）。 */
+  attachLan?: typeof attachLanRemoteConnection;
+  /** 测试注入点：替换远端服务集合构造（避免单测创建本机 Node 服务）。 */
+  createRemoteWorkspaceServices?: typeof createRemoteWorkspaceServiceCollection;
   createId?: () => string;
 }
 
@@ -141,12 +145,32 @@ export async function createRemoteWorkspaceHostService(
     if (!token) {
       throw new Error("这台设备还没有配对：请先完成局域网配对");
     }
-    const connection = await attachLanRemoteConnection({
+    // LAN 断链是 logical session 的唯一降级信号：必须把 WS close 接到 handle 的
+    // onDidClose；否则 registry 永远认为连接在线，scoped RPC 会永久 pending。
+    const closeListeners = new Set<(event: WindowRemoteConnectionCloseEvent) => void>();
+    let disposed = false;
+    const notifyClose = (event: WindowRemoteConnectionCloseEvent): void => {
+      if (disposed) {
+        return;
+      }
+      for (const listener of Array.from(closeListeners)) {
+        listener(event);
+      }
+    };
+    const attachLan = options.attachLan ?? attachLanRemoteConnection;
+    const connection = await attachLan({
       host: target.host,
       port: target.port,
       token,
       signal,
+      onClose: () => notifyClose({ exitCode: null, signal: null }),
     });
+    if (signal.aborted) {
+      await connection.dispose();
+      throw new Error("远程连接已取消");
+    }
+    const createRemoteWorkspaceServices =
+      options.createRemoteWorkspaceServices ?? createRemoteWorkspaceServiceCollection;
     const promptAttachmentTransferService = createLanPromptAttachmentTransferService({
       channel: connection.services.modeAgentService,
     });
@@ -161,7 +185,7 @@ export async function createRemoteWorkspaceHostService(
       });
       return { content: result.content, attachments: result.attachments };
     };
-    const remoteServices = createRemoteWorkspaceServiceCollection({
+    const remoteServices = createRemoteWorkspaceServices({
       clientConfigService: services.get(IClientConfigService),
       connectionServices: connection.services,
       sourceServices: services,
@@ -182,13 +206,14 @@ export async function createRemoteWorkspaceHostService(
           log(`remote_runtime_preferences_failed ${describeError(error)}`),
       },
     });
-    const closeListeners = new Set<(event: WindowRemoteConnectionCloseEvent) => void>();
-    let disposed = false;
     return {
       services: remoteServices,
       capabilities:
         connection.info.capabilities.computerUse === true ? { computerUse: true } : undefined,
       onDidClose(listener) {
+        if (disposed) {
+          return { dispose: () => undefined };
+        }
         closeListeners.add(listener);
         return { dispose: () => closeListeners.delete(listener) };
       },

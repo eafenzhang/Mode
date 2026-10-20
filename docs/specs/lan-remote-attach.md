@@ -17,13 +17,17 @@ new WebSocket(url)
 ```
 
 - 失败语义：丢掉 `Initialize` 后**没有报错、没有日志**，`systemService.info()` / `fileService.readdir()` 等全部永久 pending——表现为连接成功但目录选择步骤永远「加载中…」。任何改动不得回到「先等 open 再挂监听」的顺序。
+- **关闭语义（2026-10-20 修复）**：WS `close` / `error` 必须**恰好一次**经 `attachLanRemoteConnection` 的 `onClose` 回调上抛；Host 的 `defaultConnectLan` 必须把它接到返回 handle 的 `onDidClose` 监听者。registry 收到后把 logical session 标记为 `disconnected` 并发出 `closed`，renderer 注销该 session、释放 scoped `ChannelClient`，挂起 RPC 以 `ConnectionClosed` reject。缺少这条接线时，renderer 会一直持有死连接，`modelSelectionService.getView()` 等请求永久 pending（表现为「正在加载模型…」且无法发送）。
+- **存活检测**：LAN WS 建立后由客户端发 `ping`，未在下一个周期前收到 `pong` 则 `terminate()`，走同一条 `close` 关闭语义。该检测只判定传输存活，不给业务 RPC 增加超时；不允许用请求级超时掩盖真实同步问题。
 - 不含改名前版本的兼容（用户已拍板不做）：cookie 名、凭据密钥的旧版兼容不在本 spec 范围。
 
 ## 验收场景
 
 1. 回归测试 `packages/desktop/tests/lan-attach-initialize.test.mjs`（CI `node --test packages/desktop/tests/*.test.mjs` 覆盖）：拉起真实 `createHttpServer`（含 capability 与 `/ws/host`），调用真实 `attachLanRemoteConnection`，断言首条 RPC（`systemService.info()`）在超时内返回——修复前必须红（Initialize 被丢、请求悬空），修复后绿。
 2. `/api/server-info` 返回 `capabilities.computerUse`（新对端为 boolean）；schema 校验对缺键（旧对端）通过且 UI 判为不支持。
-3. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
+3. 回归测试 `packages/desktop/tests/remote-workspace-host-service.test.mts`：走 `defaultConnectLan` 的默认路径（只注入 fake WS 挂接），触发 `onClose` 后必须收到 `closed` 事件；修复前 `onClose` 未接线，用例必须红。
+4. 回归测试 `packages/desktop/tests/lan-access-server.test.mts`：端口被占用时 `startLanAccessServer` 必须以 rejection 返回（`局域网端口 … 监听失败`），不得作为未捕获 `error` 事件杀死 Host；同一用例覆盖端口 0 的正常监听与 dispose。
+5. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
 
 ## 本轮验证状态
 

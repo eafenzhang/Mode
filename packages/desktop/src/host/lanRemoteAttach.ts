@@ -23,6 +23,12 @@ import { WebSocket, type RawData } from "ws";
 
 const LAN_PAIR_TIMEOUT_MS = 10_000;
 const LAN_INFO_TIMEOUT_MS = 10_000;
+/**
+ * WS 存活探测周期。网络切换 / 休眠恢复可能留下半开连接：TCP 不发 FIN/RST 时
+ * `close` 不会触发，UI 会一直停在「已连接」。ping 未在下一周期前收到 pong 即终止
+ * 连接，让既有 close 语义接管；不给业务 RPC 增加超时。
+ */
+const LAN_WS_HEARTBEAT_INTERVAL_MS = 30_000;
 
 function buildLanHttpBase(host: string, port: number): string {
   return `http://${host}:${port}`;
@@ -140,6 +146,25 @@ function wrapNodeWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
   const onClose = new Emitter<void>();
   const onEnd = new Emitter<void>();
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let alive = true;
+  let closed = false;
+  const stopHeartbeat = (): void => {
+    if (heartbeat !== undefined) {
+      clearInterval(heartbeat);
+      heartbeat = undefined;
+    }
+  };
+  // close / error / 心跳超时可能先后到达：关闭信号只发一次，避免 registry 重复收尸。
+  const emitClose = (): void => {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    stopHeartbeat();
+    onClose.fire();
+    onEnd.fire();
+  };
   ws.on("message", (data: RawData, isBinary: boolean) => {
     if (!isBinary) {
       // 该通道只承载二进制 RPC 帧；文本帧一律忽略，避免把协议噪声当帧喂给 ChannelClient。
@@ -152,14 +177,35 @@ function wrapNodeWebSocket(ws: WebSocket): ISocket {
         : Buffer.from(data as ArrayBuffer);
     onData.fire(VSBuffer.wrap(new Uint8Array(bytes)));
   });
-  ws.on("close", () => {
-    onClose.fire();
-    onEnd.fire();
+  ws.on("open", () => {
+    alive = true;
+    heartbeat = setInterval(() => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        stopHeartbeat();
+        return;
+      }
+      if (!alive) {
+        // 上一周期没有 pong：判定半开，主动 terminate 触发 close。
+        emitClose();
+        ws.terminate();
+        return;
+      }
+      alive = false;
+      try {
+        ws.ping();
+      } catch {
+        emitClose();
+        ws.terminate();
+      }
+    }, LAN_WS_HEARTBEAT_INTERVAL_MS);
+    // 心跳不能单独撑住进程退出（dispose 会 clearInterval；unref 再兜一层）。
+    heartbeat.unref?.();
   });
-  ws.on("error", () => {
-    onClose.fire();
-    onEnd.fire();
+  ws.on("pong", () => {
+    alive = true;
   });
+  ws.on("close", emitClose);
+  ws.on("error", emitClose);
   return {
     onData: onData.event,
     onClose: onClose.event,

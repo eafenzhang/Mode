@@ -14,7 +14,13 @@ import {
   type IChannel,
   type IMessagePassingProtocol,
 } from "@mode/rpc";
-import { ServiceCollection, createServiceDescriptor } from "@mode/services";
+import {
+  IClientConfigService,
+  ICredentialService,
+  ServiceCollection,
+  createServiceDescriptor,
+  type IServiceAccessor,
+} from "@mode/services";
 
 import type { WindowRemoteConnectionHandle } from "../src/host/windowRemoteConnectionRegistry.js";
 import { createRemoteWorkspaceHostService } from "../src/host-standalone/remoteWorkspaceService.js";
@@ -330,6 +336,76 @@ test("连接关闭：活动 attachment 被回收，之后 attach 明确失败", 
   } finally {
     await adapter.disposeHost();
   }
+});
+
+test("默认 LAN 连接：WS close 必须经 onDidClose 上报为 closed", async () => {
+  // 回归：defaultConnectLan 曾漏传 onClose，断链后 renderer 永远停在「已连接」，
+  // modelSelectionService.getView() 等 RPC 永久 pending（表现为「正在加载模型…」）。
+  const transport = transportPair();
+  const demux = createFrameDemultiplexer(transport.server);
+  const scopedAttachments = createScopedAttachmentRegistry({ demux, log: () => undefined });
+  const services = new ServiceCollection();
+  services.register(IClientConfigService, {} as IClientConfigService);
+  services.register(ICredentialService, {
+    load: async () => null,
+    save: async () => undefined,
+    delete: async () => undefined,
+    list: async () => [],
+  } as unknown as ICredentialService);
+
+  let captured: { onClose?: () => void } | null = null;
+  let attachDisposed = 0;
+  const connectionServices = {
+    modeAgentService: {},
+    fileService: {},
+  } as unknown as IServiceAccessor;
+  const adapter = await createRemoteWorkspaceHostService({
+    services,
+    log: () => undefined,
+    scopedAttachments,
+    guardChannel: (_name, channel) => channel,
+    attachLan: async (params) => {
+      captured = params;
+      return {
+        services: connectionServices,
+        info: { capabilities: { computerUse: true } } as never,
+        dispose: async () => {
+          attachDisposed += 1;
+        },
+      };
+    },
+    createRemoteWorkspaceServices: () => new ServiceCollection(),
+    createId: () => "id-default-close",
+  });
+  const events: string[] = [];
+  const subscription = adapter.onDynamicConnectionEvent()((event) => {
+    if (event.kind !== "log") events.push(event.kind);
+  });
+  try {
+    const result = await adapter.connect({
+      target: {
+        kind: "lan",
+        host: "127.0.0.1",
+        port: 45880,
+        serverId: "peer-1",
+        token: "token-1",
+      },
+      workspacePath: "/w",
+      workspaceIdentity: "remote:lan:127.0.0.1:45880:/w",
+    });
+    assert.equal(result.ok, true);
+    const onClose = (captured as { onClose?: () => void } | null)?.onClose;
+    assert.equal(typeof onClose, "function", "WS 关闭必须接到 handle");
+    onClose?.();
+    await delay(20);
+    assert.ok(events.includes("closed"), "WS 关闭必须产出 closed 事件");
+    const sessionId = result.ok ? result.descriptor.remoteSessionId : "";
+    assert.equal((await adapter.getSession({ sessionId }))?.state, "disconnected");
+  } finally {
+    subscription.dispose();
+    await adapter.disposeHost();
+  }
+  assert.equal(attachDisposed, 1, "Host 退出必须释放底层连接");
 });
 
 test("Host 退出：活动会话与 scoped attachment 一并回收", async () => {

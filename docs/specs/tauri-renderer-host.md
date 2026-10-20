@@ -2037,6 +2037,9 @@ Host bootstrap
 - `ensureStarted` 是**单一启动 Promise**：并发 `setEnabled(true)` 共用同一次启动，
   不存在 check-then-act 双监听；
 - 启动失败只告警并把状态留在 disabled，Host 不因此启动失败；
+  **监听错误（如 `EADDRINUSE`）必须以 rejection 形式从 `startLanAccessServer` 返回**，
+  不得作为 HTTP server 的未捕获 `error` 事件杀死 Host。端口被占用是「本次 LAN 不可用」，
+  不是「应用无法启动」；
 - 销毁顺序：先 `lanAccess.dispose()`（停 UDP/HTTP、清空 handle），再释放普通服务资源；
   不得留下孤儿监听。
 
@@ -2104,7 +2107,10 @@ renderer 的 `MessagePort` 在 `createDesktopPlatform` 之后才到，过早捕�
   - Host 的 `remote` 频道把 `windowRemoteConnectionRegistry` 装进 standalone：
     `connect/cancel/bindContext/dispose/attach/detach`；`attach` 用 registry 的 remote scope
     （`remoteSessionId + workspacePath + workspaceIdentity`）取 scoped `ServiceCollection`。
-    **当前只接 LAN**；SSH/WSL/Docker 明确返回不支持。bot reconnect 与 UI 断线重连降级仍待做。
+  - **LAN 断链降级（2026-10-20 修复）**：`defaultConnectLan` 把 WS 的 `onClose` 接到返回
+    handle 的 `onDidClose` 监听者；registry 收到后发 `closed`，renderer 注销 session 并释放
+    scoped 端口。缺这条接线会留下「已连接但所有 RPC 永久 pending」的死状态。
+    **当前只接 LAN**；SSH/WSL/Docker 明确返回不支持。bot reconnect 仍待做。
 
 ### 21.7 验收门禁
 
