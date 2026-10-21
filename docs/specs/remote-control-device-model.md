@@ -82,7 +82,9 @@ interface RemoteDevice {
    浏览器首次进入用被控端 6 位配对码换取 LAN 令牌（`/api/lan/pair`，响应写
    `mode_lite_token` HttpOnly Cookie），随后复用现有鉴权；`web-remote-replayable`
    语义不变。打包时 `packages/web/dist` 映射为资源目录 `web/`，开发态可用
-   `MODE_WEB_STATIC_ROOT` 覆盖。
+   `MODE_WEB_STATIC_ROOT` 覆盖。安装包构建必须使用 `build:package`
+   （`vite build --sourcemap false`）：source map 在运行期没有消费者，却会让
+   `web/dist` 从 ~58MB 膨胀到 ~144MB（压缩后多约 16MB），并随各平台安装包一起分发。
 7. **迁移**：旧 `lan:peer:*:meta`（只有 `host`/`port`）读取时迁移为单个 LAN 端点；
    旧 `RemoteTarget`（只有 `host`/`port`）按 http + LAN 端点处理，不要求重新配对。
 
