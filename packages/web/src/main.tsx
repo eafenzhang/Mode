@@ -317,6 +317,15 @@ function createWebPlatform(): IPlatformService {
 // ws 端点与 HTTP 端点都必须跟随 base，否则网关形态下资产与连接全部 404。
 function resolveBasePath(): string {
   const base = typeof import.meta.env.BASE_URL === "string" ? import.meta.env.BASE_URL : "/";
+  // 统一构建（desktop 的 web.html）使用相对 base "./"，浏览器实际挂载点由页面目录决定：
+  // LAN 根路径 => ""（/api、/ws），子路径部署则保留该目录。独立 Web 构建仍是绝对 base。
+  if (base === "./" || base === "") {
+    const pathname = window.location.pathname;
+    const directory = pathname.endsWith("/")
+      ? pathname
+      : pathname.slice(0, pathname.lastIndexOf("/") + 1);
+    return directory === "/" ? "" : directory.replace(/\/+$/u, "");
+  }
   return base.endsWith("/") ? base.slice(0, -1) : base;
 }
 

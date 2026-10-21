@@ -5,8 +5,14 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 // 见 tsup.config.ts 同名注释：构建配置需要相对路径导入 shared 源码，避免 Node 原生加载 .ts。
-import { resolveModeEndpointOrigin, pickProductEndpointEnv } from "../shared/src/modeEndpoint.js";
+import {
+  resolveModeEndpointOrigin,
+  pickProductEndpointEnv,
+  resolveZaiOAuthClientId,
+  resolveZaiOAuthOrigin,
+} from "../shared/src/modeEndpoint.js";
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
+import { thirdPartyNoticesVitePlugin } from "../../scripts/third-party-notices.mjs";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { resolveDesktopProductFlavor } from "./scripts/desktop-product-identity.mjs";
 
@@ -165,11 +171,17 @@ export default defineConfig(({ mode }) => {
   });
   const codingPlanWebviewOrigin =
     env.VITE_CODING_PLAN_WEBVIEW_ORIGIN ?? process.env.VITE_CODING_PLAN_WEBVIEW_ORIGIN ?? "";
+  // Web 入口与桌面入口共享同一次构建；OAuth 公开配置也必须在这里注入，
+  // 否则 web.html 在浏览器里拿到的是 undefined（独立 web 构建的等价配置见 packages/web/vite.config.ts）。
+  const endpointEnv = { ...env, MODE_ENV: modeEnv };
+  const zaiOAuthOrigin = resolveZaiOAuthOrigin(endpointEnv);
+  const zaiOAuthClientId = resolveZaiOAuthClientId(endpointEnv);
   const plugins = [
     ...(e2eCoverageEnabled ? [createE2EUIRendererCoveragePlugin(repoRoot)] : []),
     pdfJsCMapsPlugin(),
     react(),
     tailwindcss(),
+    thirdPartyNoticesVitePlugin(),
   ];
 
   return {
@@ -189,6 +201,10 @@ export default defineConfig(({ mode }) => {
         // 导致 spinner、alert 等组件里的内部导入在构建时全部失效。
         // 这里在消费端补齐别名，比逐个改组件导入更稳，也能和 web 端保持一致。
         "@": resolve(__dirname, "../ui/src"),
+        // 统一构建：web.html 通过这个别名把浏览器入口作为副作用模块引入。
+        // 用别名 + 本地 .d.ts 声明隔离，避免 desktop 的 tsconfig（rootDir=src/renderer）
+        // 把 packages/web 整棵源码拉进来重复检查。
+        "@mode/web-entry": resolve(__dirname, "../web/src/main.tsx"),
         ...desktopRendererDependencyAliases,
         // Recharts 通过 d3-shape 读取 d3-path 的 Path 导出；hoisted node_modules
         // 里可能残留 d3-shape/node_modules/d3-path@1.x，Vite 预构建会优先命中旧包并报 Missing export。
@@ -210,6 +226,8 @@ export default defineConfig(({ mode }) => {
       // 兼容旧 renderer 读取名；新代码统一读 VITE_MODE_BASE_URL。
       "import.meta.env.VITE_MODE_ENDPOINT_ORIGIN": JSON.stringify(modeEndpointOrigin),
       "import.meta.env.VITE_CODING_PLAN_WEBVIEW_ORIGIN": JSON.stringify(codingPlanWebviewOrigin),
+      "import.meta.env.VITE_ZAI_OAUTH_CLIENT_ID": JSON.stringify(zaiOAuthClientId),
+      "import.meta.env.VITE_ZAI_OAUTH_ORIGIN": JSON.stringify(zaiOAuthOrigin),
       "import.meta.env.VITE_REWARDS_WEBVIEW_ORIGIN": JSON.stringify(
         env.VITE_REWARDS_WEBVIEW_ORIGIN ?? process.env.VITE_REWARDS_WEBVIEW_ORIGIN ?? "",
       ),
@@ -235,10 +253,12 @@ export default defineConfig(({ mode }) => {
       // 生产使用 hidden sourcemap：本地/发布流程保留 .map，不在产物里暴露映射入口。
       sourcemap: mode === "production" ? "hidden" : true,
       rollupOptions: {
-        // Tauri 产品 renderer：主窗口 + 关于页。Electron-only 浮窗/选择页随旧线 EOL 删除。
+        // 一次构建两个入口：index=桌面（Tauri 内嵌），web=浏览器/LAN 远控。
+        // 共享 @mode/ui 与静态资源由 Rollup 拆成公共 chunk，安装包因此只带一份前端。
         input: {
           index: resolve(__dirname, "src/renderer/index.html"),
           about: resolve(__dirname, "src/renderer/about.html"),
+          web: resolve(__dirname, "src/renderer/web.html"),
         },
       },
     },

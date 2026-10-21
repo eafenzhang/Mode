@@ -266,6 +266,11 @@ interface HttpServerOptions {
   lanAccessHost?: LanAccessHostEndpoint;
   spaFallback?: boolean;
   staticRoot?: string;
+  /**
+   * 静态目录的入口文件名（默认 index.html）。桌面 LAN 服务传 `web.html`：
+   * 统一前端构建同时产出桌面 `index.html` 与浏览器 `web.html`，浏览器入口不能返回桌面壳。
+   */
+  staticIndexFile?: string;
   /** 工作区列表：静态数组或按请求求值（局域网服务端要反映「刚刚打开的工作区」）。 */
   workspaces?: ServerRemoteWorkspaceInfo[] | (() => Promise<ServerRemoteWorkspaceInfo[]>);
   /**
@@ -510,9 +515,11 @@ async function resolveStaticFile(
   staticRoot: string,
   pathname: string,
   spaFallback: boolean,
+  staticIndexFile?: string,
 ): Promise<string | null> {
   const root = resolve(staticRoot);
-  const normalizedPathname = pathname === "/" ? "/index.html" : pathname;
+  const indexFile = staticIndexFile?.trim() || "index.html";
+  const normalizedPathname = pathname === "/" ? `/${indexFile}` : pathname;
   const relativePath = decodeURIComponent(normalizedPathname).replace(/^\/+/, "");
   let candidate = resolve(root, relativePath);
   if (!isInsideDirectory(root, candidate)) {
@@ -522,7 +529,7 @@ async function resolveStaticFile(
   try {
     const candidateStat = await stat(candidate);
     if (candidateStat.isDirectory()) {
-      candidate = resolve(candidate, "index.html");
+      candidate = resolve(candidate, indexFile);
       if (!isInsideDirectory(root, candidate)) {
         return null;
       }
@@ -539,10 +546,10 @@ async function resolveStaticFile(
   if (!spaFallback || !isStaticFallbackAllowed(pathname)) {
     return null;
   }
-  const indexFile = resolve(root, "index.html");
+  const fallbackFile = resolve(root, indexFile);
   try {
-    const indexStat = await stat(indexFile);
-    return indexStat.isFile() ? indexFile : null;
+    const indexStat = await stat(fallbackFile);
+    return indexStat.isFile() ? fallbackFile : null;
   } catch {
     return null;
   }
@@ -928,7 +935,12 @@ export function createHttpServer(
     const staticRoot = options.staticRoot.trim();
     app.get("*", async (c) => {
       const pathname = new URL(c.req.url).pathname;
-      const filePath = await resolveStaticFile(staticRoot, pathname, options.spaFallback ?? true);
+      const filePath = await resolveStaticFile(
+        staticRoot,
+        pathname,
+        options.spaFallback ?? true,
+        options.staticIndexFile,
+      );
       if (!filePath) {
         return c.notFound();
       }

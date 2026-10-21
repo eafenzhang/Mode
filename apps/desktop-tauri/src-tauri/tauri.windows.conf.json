@@ -6,8 +6,7 @@
       "../dist-host-sidecar/ship/node": "node",
       "../dist-host-sidecar/ship/config": "config",
       "../dist-host-sidecar/ship/agent": "agent",
-      "../dist-host-sidecar/ship/tools": "tools",
-      "../../../packages/web/dist": "web"
+      "../dist-host-sidecar/ship/tools": "tools"
     }
   }
 }

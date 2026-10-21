@@ -8,7 +8,7 @@
     "build:frontend-for-tauri": "node --import tsx scripts/build-renderer-for-tauri.ts --no-bench",
     "build:frontend-with-bench": "node --import tsx scripts/build-renderer-for-tauri.ts",
     "build:host-sidecar": "node --import tsx scripts/build-host-sidecar.ts",
-    "build:package-inputs": "pnpm --dir ../.. --filter @mode/web run build:package && node --import tsx scripts/build-renderer-for-tauri.ts --no-bench && node --import tsx scripts/build-host-sidecar.ts --stage",
+    "build:package-inputs": "node --import tsx scripts/build-renderer-for-tauri.ts --no-bench && node --import tsx scripts/build-host-sidecar.ts --stage",
     "measure:installer-budgets": "node --import tsx scripts/measure-installer-budgets.ts",
     "measure:cold-start": "node --import tsx scripts/measure-cold-start.ts",
     "dev:frontend": "vite",

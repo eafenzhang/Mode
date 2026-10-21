@@ -1,4 +1,6 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { WebSocket } from "ws";
 import {
   LAN_ACCESS_CLIENTS_CREDENTIAL_KEY,
@@ -274,10 +276,19 @@ export async function startLanAccessServer(
   });
 
   const requestedPort = params.port ?? LAN_ACCESS_DEFAULT_PORT;
+  // 打包形态的 webRoot 来自统一构建（web.html）；开发态回退到独立 web 构建（index.html）。
+  const webIndexFile =
+    params.webRoot && existsSync(join(params.webRoot, "web.html")) ? "web.html" : undefined;
   const server = createHttpServer(params.services, requestedPort, {
     host: "0.0.0.0",
     authRequired: true,
-    ...(params.webRoot ? { staticRoot: params.webRoot, spaFallback: true } : {}),
+    ...(params.webRoot
+      ? {
+          staticRoot: params.webRoot,
+          spaFallback: true,
+          ...(webIndexFile ? { staticIndexFile: webIndexFile } : {}),
+        }
+      : {}),
     verifyAuthToken,
     lanPairing: { redeem },
     publicRelay: () => publicRelay,

@@ -105,6 +105,9 @@ pub fn resolve_config<R: Runtime>(app: &AppHandle<R>) -> HostConfig {
     // Host 按它解析 `config/provider/mode-builtin.json`（host-standalone 的
     // `resolveBuiltinProviderConfig` 第二档）。传空目录没有意义，所以只在真有资源目录时传。
     config.resources_dir = resource_dir;
+    // 统一前端构建：内嵌资源给 Tauri 窗口用，同时解压一份给 Host 的 LAN Web 服务。
+    // 解压失败只影响浏览器入口，桌面窗口仍走内嵌资源。
+    config.web_static_root = crate::web_assets::extract(app);
     config.startup_id = startup_id.clone();
     config.attempt_id = format!("{startup_id}-a1");
     // `MODE_DATA_BASE_DIR` 是**基**目录：原样透传给子进程，由 Host 派生 `{base}/.mode`

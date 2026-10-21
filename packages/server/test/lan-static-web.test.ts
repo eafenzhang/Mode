@@ -95,3 +95,48 @@ test("LAN 服务静态首页免令牌，配对响应写 mode_lite_token Cookie",
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("staticIndexFile 可让 LAN 服务用 web.html 作为首页与 SPA 回退", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mode-lan-web-index-"));
+  await mkdir(join(root, "assets"), { recursive: true });
+  await writeFile(join(root, "index.html"), "<!doctype html><title>Desktop</title>");
+  await writeFile(join(root, "web.html"), "<!doctype html><title>Browser</title>");
+  await writeFile(join(root, "assets", "app.js"), "console.log('mode')");
+  const services = {
+    getOptional: () => undefined,
+    exposeOnChannelServer: () => undefined,
+  } as unknown as ServiceCollection;
+
+  const server = createHttpServer(services, 0, {
+    host: "127.0.0.1",
+    authRequired: true,
+    authToken: "unused",
+    verifyAuthToken: () => false,
+    serverId: "server-1",
+    name: "host",
+    workspaces: [],
+    staticRoot: root,
+    spaFallback: true,
+    staticIndexFile: "web.html",
+  });
+
+  try {
+    await new Promise<void>((resolve) => server.once("listening", () => resolve()));
+    const address = server.address() as AddressInfo;
+    const base = `http://127.0.0.1:${address.port}`;
+
+    const home = await fetch(`${base}/`);
+    assert.equal(home.status, 200);
+    assert.match(await home.text(), /Browser/);
+
+    const spa = await fetch(`${base}/share/callback`);
+    assert.equal(spa.status, 200);
+    assert.match(await spa.text(), /Browser/);
+
+    const asset = await fetch(`${base}/assets/app.js`);
+    assert.equal(asset.status, 200);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});

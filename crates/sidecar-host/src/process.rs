@@ -71,6 +71,9 @@ pub struct HostConfig {
     /// **静默走到第三档**（仓库相对路径，安装后不存在）→ `exists=false`、内置 Provider 配置缺失。
     /// 这种「不报错的错配置」正是要靠显式传参挡住的。
     pub resources_dir: Option<PathBuf>,
+    /// 桌面 LAN Web 服务的静态根（经 `MODE_WEB_STATIC_ROOT` 传给 Host）。
+    /// 由壳从内嵌前端资源解压得到；`None` = 不启用 Web 静态面（开发形态或解压失败）。
+    pub web_static_root: Option<PathBuf>,
     pub ready_timeout: Duration,
     pub inbound_capacity: usize,
 }
@@ -96,6 +99,7 @@ impl HostConfig {
             attempt_id: String::new(),
             data_base_dir: PathBuf::new(),
             resources_dir: None,
+            web_static_root: None,
             ready_timeout: DEFAULT_READY_TIMEOUT,
             inbound_capacity: DEFAULT_INBOUND_CAPACITY,
         }
@@ -115,6 +119,7 @@ impl HostConfig {
             attempt_id: String::new(),
             data_base_dir: PathBuf::new(),
             resources_dir: None,
+            web_static_root: None,
             ready_timeout: DEFAULT_READY_TIMEOUT,
             inbound_capacity: DEFAULT_INBOUND_CAPACITY,
         }
@@ -248,6 +253,10 @@ impl HostHandle {
         config.cwd = crate::strip_verbatim_prefix(&config.cwd);
         config.data_base_dir = crate::strip_verbatim_prefix(&config.data_base_dir);
         config.resources_dir = config.resources_dir.as_deref().map(crate::strip_verbatim_prefix);
+        config.web_static_root = config
+            .web_static_root
+            .as_deref()
+            .map(crate::strip_verbatim_prefix);
         let mut command = config.command();
         command
             .current_dir(&config.cwd)
@@ -263,6 +272,11 @@ impl HostHandle {
         // 不让一条空字符串把 Host 的「显式覆写优先」误触发成 `exists=false`）。
         if let Some(resources_dir) = &config.resources_dir {
             command.env("MODE_HOST_RESOURCES_DIR", resources_dir);
+        }
+        // 统一前端构建：壳把内嵌的 index/web 入口解压到本机缓存，Host 的 LAN 服务
+        // 用同一份文件提供 web.html；解压失败时不设，保持 API-only。
+        if let Some(web_static_root) = &config.web_static_root {
+            command.env("MODE_WEB_STATIC_ROOT", web_static_root);
         }
 
         let mut child = command.spawn().map_err(HostError::Spawn)?;

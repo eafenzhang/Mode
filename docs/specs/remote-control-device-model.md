@@ -81,10 +81,11 @@ interface RemoteDevice {
 6. **Web/手机远控**：桌面 Host 的 LAN HTTP 服务挂载 Web 静态资源（`staticRoot`），
    浏览器首次进入用被控端 6 位配对码换取 LAN 令牌（`/api/lan/pair`，响应写
    `mode_lite_token` HttpOnly Cookie），随后复用现有鉴权；`web-remote-replayable`
-   语义不变。打包时 `packages/web/dist` 映射为资源目录 `web/`，开发态可用
-   `MODE_WEB_STATIC_ROOT` 覆盖。安装包构建必须使用 `build:package`
-   （`vite build --sourcemap false`）：source map 在运行期没有消费者，却会让
-   `web/dist` 从 ~58MB 膨胀到 ~144MB（压缩后多约 16MB），并随各平台安装包一起分发。
+   语义不变。桌面安装包不再携带 `packages/web/dist`：桌面 renderer 的统一构建同时产出
+   `index.html`（Tauri）与 `web.html`（浏览器），安装包只内嵌一份前端；壳启动时把内嵌资源
+   解压到 `web-assets/<version>` 并设置 `MODE_WEB_STATIC_ROOT`，LAN 服务以 `web.html` 为入口
+   （详见 [unified-frontend-build.md](./unified-frontend-build.md)）。开发态仍可用
+   `MODE_WEB_STATIC_ROOT` 覆盖。
 7. **迁移**：旧 `lan:peer:*:meta`（只有 `host`/`port`）读取时迁移为单个 LAN 端点；
    旧 `RemoteTarget`（只有 `host`/`port`）按 http + LAN 端点处理，不要求重新配对。
 

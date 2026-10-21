@@ -69,8 +69,10 @@ footer 的 `workspacePath` 条件还可能把入口隐藏。
 - 浏览器首次进入：输入被控端 6 位配对码 → `POST /api/lan/pair` → 被控端写入
   `mode_lite_token` Cookie → 重载后 `/ws` 以 `web-remote-replayable` 建连。
   错误/过期码保留输入框并提示重试；不得把长期令牌写进 URL 或日志。
-- 打包：`packages/web` 的 `dist` 作为桌面资源 `web/` 随包；开发态由
-  `MODE_WEB_STATIC_ROOT` 指向 `packages/web/dist`。
+- 打包：桌面 renderer 的统一构建同时产出 `web.html`，壳启动时把内嵌资源解压到
+  `web-assets/<version>` 并通过 `MODE_WEB_STATIC_ROOT` 交给 Host（详见
+  [unified-frontend-build.md](./unified-frontend-build.md)）；安装包不再携带
+  `packages/web/dist`，开发态仍可由 `MODE_WEB_STATIC_ROOT` 指向 `packages/web/dist`。
 - 验收：Node 集成测试启动真实 LAN 服务 + 临时静态目录，完成 `GET /`、
   `/api/lan/pair`、带 Cookie 的 `/api/server-info` 与 `/ws` 升级。
 
