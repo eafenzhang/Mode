@@ -2126,7 +2126,9 @@ renderer 的 `MessagePort` 在 `createDesktopPlatform` 之后才到，过早捕�
   - **LAN 断链降级（2026-10-20 修复）**：`defaultConnectLan` 把 WS 的 `onClose` 接到返回
     handle 的 `onDidClose` 监听者；registry 收到后发 `closed`，renderer 注销 session 并释放
     scoped 端口。缺这条接线会留下「已连接但所有 RPC 永久 pending」的死状态。
-    **当前只接 LAN**；SSH/WSL/Docker 明确返回不支持。bot reconnect 仍待做。
+    LAN 走 HTTP/WS；SSH/WSL/Docker 复用 `@mode/server/remote` 的 `createRemoteBackend` +
+    `connectRemote`，共用同一 registry / workspace bind / attachment 生命周期（remote assets
+    源缺失时在发起前返回可读错误）。bot reconnect 仍待做。
 
 ### 21.7 验收门禁
 

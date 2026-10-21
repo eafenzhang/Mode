@@ -1501,7 +1501,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                       })}
                                     </DropdownMenuItem>
                                     {onOpenRemoteWorkspace ? (
-                                      <DropdownMenuItem onSelect={onOpenRemoteWorkspace}>
+                                      <DropdownMenuItem
+                                        onSelect={() => onOpenRemoteWorkspace()}
+                                      >
                                         <Cloud className="size-4" />
                                         {intl.formatMessage({
                                           id: "remote.trigger",

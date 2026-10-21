@@ -7,6 +7,7 @@ import {
   isInternalConversationWorkspacePath,
   parseRemoteWorkspaceIdentity,
   remoteTargetSchema,
+  resolveLanTargetEndpoints,
   stripRemoteTargetSecrets,
   type LanConnectOptions,
 } from "../src/index.js";
@@ -40,6 +41,58 @@ test("remoteTargetSchema 接受 lan 目标并校验端口范围", () => {
     remoteTargetSchema.safeParse({ ...lanTarget, host: "  " }).success,
     false,
     "空主机名非法",
+  );
+});
+
+test("lan 目标端点：公网优先、LAN 回退，显式列表去重且主端点补齐", () => {
+  const endpoints = resolveLanTargetEndpoints({
+    ...lanTarget,
+    scheme: "http",
+    endpoints: [
+      { scheme: "http", host: "192.168.1.20", port: 45880, kind: "lan" },
+      {
+        scheme: "https",
+        host: "relay.example.com",
+        port: 443,
+        kind: "public",
+        path: "/d/tunnel-1",
+      },
+    ],
+  });
+  assert.deepEqual(
+    endpoints.map((endpoint) => endpoint.kind),
+    ["public", "lan"],
+    "公网必须排在 LAN 前",
+  );
+  assert.equal(endpoints[0]?.path, "/d/tunnel-1");
+});
+
+test("lan 目标端点：没有显式列表时用主端点构造 http LAN 端点", () => {
+  assert.deepEqual(resolveLanTargetEndpoints(lanTarget), [
+    { scheme: "http", host: "192.168.1.20", port: 45880, kind: "lan" },
+  ]);
+  assert.deepEqual(
+    resolveLanTargetEndpoints({ ...lanTarget, scheme: "https", path: "/d/t1" }),
+    [{ scheme: "https", host: "192.168.1.20", port: 45880, kind: "public", path: "/d/t1" }],
+  );
+});
+
+test("remoteTargetSchema 接受 lan 端点和 path 前缀", () => {
+  const parsed = remoteTargetSchema.parse({
+    ...lanTarget,
+    scheme: "https",
+    path: "/d/tunnel-1",
+    endpoints: [
+      { scheme: "https", host: "relay.example.com", port: 443, kind: "public", path: "/d/tunnel-1" },
+      { scheme: "http", host: "192.168.1.20", port: 45880, kind: "lan" },
+    ],
+  });
+  assert.equal(parsed.kind, "lan");
+  assert.equal("endpoints" in parsed ? parsed.endpoints?.length : 0, 2);
+  assert.equal(
+    remoteTargetSchema.safeParse({ ...lanTarget, path: "d/tunnel-1" }).success,
+    false,
+    "path 必须以 / 开头",
   );
 });
 

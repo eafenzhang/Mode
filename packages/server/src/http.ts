@@ -698,6 +698,8 @@ export function createHttpServer(
       if (!result) {
         return c.json({ error: "Invalid or expired pair code" }, 401);
       }
+      // 浏览器/手机首次配对：令牌只经 HttpOnly Cookie 落到页面，不要求 JS 读取。
+      rememberLiteTokenCookie(c, result.token);
       return c.json(result);
     });
   }

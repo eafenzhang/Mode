@@ -34,7 +34,9 @@ import type { IChannelServer, IServerChannel } from "@mode/rpc";
 
 import { DispatchGuards } from "./channelGuard.js";
 import { createRendererConnectionScope } from "./rendererConnectionScope.js";
+import { resolveRemoteAssetDirs } from "./remoteAssets.js";
 import { applyHostResourcesPath } from "./runtimeResources.js";
+import { resolveWebStaticRoot } from "./webAssets.js";
 import type { ScopedAttachmentRegistry } from "./scopedAttachments.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -192,12 +194,14 @@ export async function createHostServiceSurface(
     services,
     log: options.log,
     getRemoteDesktop: () => remoteDesktop,
+    webRoot: resolveWebStaticRoot(),
     ...relayOptions,
   });
   const remote = await createRemoteWorkspaceHostService({
     services,
     log: options.log,
     scopedAttachments: options.scopedAttachments,
+    remoteAssets: resolveRemoteAssetDirs(),
     guardChannel: (channelName, channel) =>
       options.guards.guardChannel(channelName, channel, options.log),
   });

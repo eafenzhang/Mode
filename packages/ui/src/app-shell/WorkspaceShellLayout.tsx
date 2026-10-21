@@ -47,6 +47,7 @@ import type {
 import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
 import { PluginStorePage } from "@/settings/PluginStorePage.js";
 import { RemoteDesktopHome } from "@/remote-desktop/RemoteDesktopHome.js";
+import { lanPeerToRemoteTarget } from "@/remote-desktop/remoteDeviceModel.js";
 import { TaskFindDialog } from "@/quickpick/TaskFindDialog.js";
 import { WorkspaceHeader } from "@/WorkspaceHeader.js";
 import { WorkspaceSidebar, type SidebarFileTreeOpenRequest } from "@/WorkspaceSidebar.js";
@@ -1799,6 +1800,16 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                                 active={workspaceMainView === "remote-desktop"}
                                 onCreateTask={handleCreateTaskInChat}
                                 onOpenModeAgentChat={handleOpenModeAgentChat}
+                                onConnectWorkspace={
+                                  onOpenRemoteWorkspace
+                                    ? (peer) => {
+                                        const target = lanPeerToRemoteTarget(peer);
+                                        if (target) {
+                                          onOpenRemoteWorkspace({ initialTarget: target });
+                                        }
+                                      }
+                                    : undefined
+                                }
                                 isRemoteWorkspace={Boolean(workspaceRemoteSessionId)}
                                 topOverlayClearancePaddingClass={
                                   resolveTopOverlayClearancePaddingClass({

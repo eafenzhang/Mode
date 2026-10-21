@@ -6339,6 +6339,7 @@ const faIR: Record<string, string> = {
   "remoteDesktop.device.status.offline": "آفلاین",
   "remoteDesktop.device.status.unsupported": "پشتیبانی نمی‌شود",
   "remoteDesktop.device.open": "ورود به دسکتاپ",
+  "remoteDesktop.device.connectWorkspace": "اتصال به فضای کاری",
   "remoteDesktop.device.reprobe": "بررسی دوباره",
   "remoteDesktop.device.rename": "تغییر نام",
   "remoteDesktop.device.save": "ذخیره",

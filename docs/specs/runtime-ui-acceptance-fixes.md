@@ -63,6 +63,16 @@ footer 的 `workspacePath` 条件还可能把入口隐藏。
   - 为 Web 入口地址生成二维码（`qrcode`，纯展示，不新增网络请求）；
   - LAN 访问未开启时给出「去设置开启」入口，跳转既有远程控制设置分区。
 - 地址、配对码的唯一所有者仍是 Host 的 LAN 服务；弹层只读快照与调用既有动作，不持久化。
+- 桌面 Host 的 LAN 服务必须挂载 Web 静态资源（`staticRoot`）：优先
+  `MODE_WEB_STATIC_ROOT`，其次 `<MODE_HOST_RESOURCES_DIR>/web`；没有静态资源时
+  `GET /` 不再返回可用的二维码目标。
+- 浏览器首次进入：输入被控端 6 位配对码 → `POST /api/lan/pair` → 被控端写入
+  `mode_lite_token` Cookie → 重载后 `/ws` 以 `web-remote-replayable` 建连。
+  错误/过期码保留输入框并提示重试；不得把长期令牌写进 URL 或日志。
+- 打包：`packages/web` 的 `dist` 作为桌面资源 `web/` 随包；开发态由
+  `MODE_WEB_STATIC_ROOT` 指向 `packages/web/dist`。
+- 验收：Node 集成测试启动真实 LAN 服务 + 临时静态目录，完成 `GET /`、
+  `/api/lan/pair`、带 Cookie 的 `/api/server-info` 与 `/ws` 升级。
 
 ## 5. 远程工作区模型选择加载态
 

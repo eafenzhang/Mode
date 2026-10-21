@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 配对、端点探测与挂接握手必须共享同一令牌/关闭语义，拆分易产生第二份实现。 */
 import { Emitter, SocketProtocol, VSBuffer, type ISocket } from "@mode/rpc";
 import { connectViaProtocol } from "@mode/client";
 import { hostname } from "node:os";
@@ -388,17 +389,21 @@ export async function attachLanRemoteConnection(params: {
   path?: string;
   token: string;
   signal?: AbortSignal;
+  /** 已通过端点探测拿到的 server-info：避免“选端点 + 挂接”重复请求。 */
+  info?: ServerRemoteInfo;
   /** 对端通道断开（含进程退出、网络中断）时回调：与 SSH backend.onDidDisconnect 语义一致。 */
   onClose?: () => void;
 }): Promise<LanRemoteConnection> {
   const scheme = params.scheme ?? "http";
-  const info = await fetchLanPeerInfo({
-    scheme,
-    host: params.host,
-    port: params.port,
-    ...(params.path ? { path: params.path } : {}),
-    token: params.token,
-  });
+  const info =
+    params.info ??
+    (await fetchLanPeerInfo({
+      scheme,
+      host: params.host,
+      port: params.port,
+      ...(params.path ? { path: params.path } : {}),
+      token: params.token,
+    }));
   if (params.signal?.aborted) {
     throw new Error("远程连接已取消");
   }

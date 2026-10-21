@@ -194,6 +194,9 @@ function createRemoteTargetSnapshot(
         kind: "lan",
         host: target.host,
         port: target.port,
+        ...(target.scheme ? { scheme: target.scheme } : {}),
+        ...(target.path ? { path: target.path } : {}),
+        ...(target.endpoints?.length ? { endpoints: target.endpoints } : {}),
         ...(target.serverId?.trim() ? { serverId: target.serverId.trim() } : {}),
         ...(target.serverName?.trim() ? { serverName: target.serverName.trim() } : {}),
       };
@@ -238,6 +241,9 @@ export function createRemoteTargetFromSnapshot(
         kind: "lan",
         host: snapshot.host,
         port: snapshot.port,
+        ...(snapshot.scheme ? { scheme: snapshot.scheme } : {}),
+        ...(snapshot.path ? { path: snapshot.path } : {}),
+        ...(snapshot.endpoints?.length ? { endpoints: snapshot.endpoints } : {}),
         ...(snapshot.serverId ? { serverId: snapshot.serverId } : {}),
         ...(snapshot.serverName ? { serverName: snapshot.serverName } : {}),
       };

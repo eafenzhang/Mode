@@ -10,7 +10,7 @@
  * （http）与公网（https）端点；探测按公网 → LAN 回退，会话先探测选出可达端点再 POST。
  * https 端点的信令/媒体 WebSocket 必须用 wss，禁止降级到明文。
  */
-import type { LanPeerEndpoint } from "@mode/shared";
+import type { LanPeerEndpoint, ServerRemoteInfo } from "@mode/shared";
 import {
   DEFAULT_REMOTE_DESKTOP_CODEC,
   DEFAULT_REMOTE_DESKTOP_QUALITY,
@@ -21,9 +21,12 @@ import {
 import type { ICredentialService } from "@mode/services";
 import { fetchLanPeerInfo, readLanPeerEndpoints } from "./lanRemoteAttach.js";
 import {
+  endpointRequest,
+  selectReachableLanPeerEndpoint,
+} from "./lanPeerEndpoints.js";
+import {
   buildLanApiUrl,
   buildLanHttpBase,
-  isRetryableLanPeerError,
   LanPeerRequestError,
   toWebSocketScheme,
 } from "./lanPeerTransport.js";
@@ -35,10 +38,6 @@ import {
  * 由 fetchLanPeerInfo 自带短超时。
  */
 const SESSION_REQUEST_TIMEOUT_MS = 90_000;
-/** 多端点时 LAN 回退探测预算：公网不可达时不长时间卡在局域网地址上。 */
-const LAN_FALLBACK_PROBE_TIMEOUT_MS = 2_500;
-/** 多端点时公网探测预算：覆盖 TLS 握手与反向隧道冷启动。 */
-const PUBLIC_PROBE_TIMEOUT_MS = 8_000;
 
 export interface RemoteDesktopPeerInfo {
   online: boolean;
@@ -81,31 +80,6 @@ async function readPeerTarget(
     : { endpoints: target.endpoints, token: "" };
 }
 
-function endpointProbeTimeoutMs(
-  endpoint: LanPeerEndpoint,
-  endpointCount: number,
-): number | undefined {
-  if (endpointCount <= 1) {
-    // 单端点沿用既有 10s 预算（fetchLanPeerInfo 缺省值）。
-    return undefined;
-  }
-  return endpoint.kind === "lan" ? LAN_FALLBACK_PROBE_TIMEOUT_MS : PUBLIC_PROBE_TIMEOUT_MS;
-}
-
-function endpointRequest(endpoint: LanPeerEndpoint): {
-  scheme: "http" | "https";
-  host: string;
-  port: number;
-  path?: string;
-} {
-  return {
-    scheme: endpoint.scheme,
-    host: endpoint.host,
-    port: endpoint.port,
-    ...(endpoint.path ? { path: endpoint.path } : {}),
-  };
-}
-
 /**
  * 探测：公网优先、LAN 回退。401/403 等对端级错误立即收口；只有传输失败/超时/5xx/404/
  * 协议不符才尝试下一个端点（同一令牌在另一个端点不会更好）。
@@ -118,31 +92,24 @@ export async function probeRemoteDesktopPeer(
   if (!target || !target.token) {
     return offlineProbe();
   }
-  for (const endpoint of target.endpoints) {
-    try {
-      const timeoutMs = endpointProbeTimeoutMs(endpoint, target.endpoints.length);
-      const info = await fetchLanPeerInfo({
-        ...endpointRequest(endpoint),
-        token: target.token,
-        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-      });
-      return {
-        online: true,
-        // 缺键 = 旧对端不支持（docs/specs/lan-remote-desktop.md 产品规则 5）。
-        remoteDesktop: info.capabilities?.remoteDesktop === true,
-        // 原生媒体面版本门：同样缺键 = 旧对端（纯直替，缺 native = 不进会话）。
-        remoteDesktopNative: info.capabilities?.remoteDesktopNative === true,
-        ...(info.name ? { name: info.name } : {}),
-        endpointKind: endpoint.kind,
-        endpointHost: endpoint.host,
-      };
-    } catch (error) {
-      if (!isRetryableLanPeerError(error)) {
-        return offlineProbe();
-      }
-    }
+  const selection = await selectReachableLanPeerEndpoint({
+    endpoints: target.endpoints,
+    token: target.token,
+  });
+  if (!selection.ok) {
+    return offlineProbe();
   }
-  return offlineProbe();
+  const { endpoint, info } = selection;
+  return {
+    online: true,
+    // 缺键 = 旧对端不支持（docs/specs/lan-remote-desktop.md 产品规则 5）。
+    remoteDesktop: info.capabilities?.remoteDesktop === true,
+    // 原生媒体面版本门：同样缺键 = 旧对端（纯直替，缺 native = 不进会话）。
+    remoteDesktopNative: info.capabilities?.remoteDesktopNative === true,
+    ...(info.name ? { name: info.name } : {}),
+    endpointKind: endpoint.kind,
+    endpointHost: endpoint.host,
+  };
 }
 
 /**
@@ -151,25 +118,13 @@ export async function probeRemoteDesktopPeer(
  */
 async function selectReachableEndpoint(
   target: PeerTarget,
-): Promise<{ ok: true; endpoint: LanPeerEndpoint } | { ok: false; error: unknown }> {
-  let lastError: unknown = new LanPeerRequestError("对端不可达", true);
-  for (const endpoint of target.endpoints) {
-    const timeoutMs = endpointProbeTimeoutMs(endpoint, target.endpoints.length);
-    try {
-      await fetchLanPeerInfo({
-        ...endpointRequest(endpoint),
-        token: target.token,
-        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-      });
-      return { ok: true, endpoint };
-    } catch (error) {
-      lastError = error;
-      if (!isRetryableLanPeerError(error)) {
-        return { ok: false, error };
-      }
-    }
-  }
-  return { ok: false, error: lastError };
+): Promise<
+  { ok: true; endpoint: LanPeerEndpoint; info: ServerRemoteInfo } | { ok: false; error: unknown }
+> {
+  return selectReachableLanPeerEndpoint({
+    endpoints: target.endpoints,
+    token: target.token,
+  });
 }
 
 /**

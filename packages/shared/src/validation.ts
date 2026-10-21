@@ -1,5 +1,9 @@
 import { databaseStartupControlSchema, databaseStartupStateSchema } from "./database-startup.js";
-import { lanAccessStateSchema, lanPairedPeerSchema } from "./lanAccess.js";
+import {
+  lanAccessStateSchema,
+  lanPairedPeerSchema,
+  lanPeerEndpointSchema,
+} from "./lanAccess.js";
 import { serverRemoteWorkspaceInfoSchema } from "./server-remote.js";
 /* eslint-disable max-lines -- 运行时 schema 当前集中在共享包入口，外部 relay payload 校验加入后先保持单一导出面。 */
 import { z } from "zod";
@@ -92,6 +96,14 @@ export const lanConnectOptionsSchema = z.object({
   kind: z.literal("lan"),
   host: nonEmptyStringSchema,
   port: z.number().int().positive().max(65535),
+  scheme: z.enum(["http", "https"]).optional(),
+  path: z
+    .string()
+    .trim()
+    .max(512)
+    .regex(/^\/[^?#]*$/u, "path must start with / and contain no query/hash")
+    .optional(),
+  endpoints: z.array(lanPeerEndpointSchema).max(8).optional(),
   serverId: nonEmptyStringSchema.optional(),
   serverName: z.string().optional(),
   token: z.string().optional(),

@@ -43,7 +43,7 @@ export type {
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
-export { stripRemoteTargetSecrets } from "./remoteTarget.js";
+export { resolveLanTargetEndpoints, stripRemoteTargetSecrets } from "./remoteTarget.js";
 export { buildSshRemoteHostKey } from "./remoteSshHostKey.js";
 export { buildRemoteEnvironmentKey } from "./remoteEnvironmentKey.js";
 export type {
@@ -84,6 +84,7 @@ export * from "./remote-workspace-identity.js";
 export * from "./mode-api-retry-status.js";
 export * from "./mode-network-debug-status.js";
 export * from "./mode-session-visible-content.js";
+export * from "./bot-channel-context.js";
 export * from "./official-mcp-auth.js";
 export * from "./official-mcp-tool-error.js";
 export * from "./conversation-message-projection-policy.js";

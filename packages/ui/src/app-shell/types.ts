@@ -94,7 +94,7 @@ export interface AppProps {
   onResolveConversationWorkspace?: () => Promise<string>;
   onOpenWorkspace: () => void;
   onOpenFolderFromWorkspaceMenu: () => void;
-  onOpenRemoteWorkspace?: () => void;
+  onOpenRemoteWorkspace?: (preference?: RemoteConnectionOpenPreference) => void;
   onCreateScratchWorkspace: (name: string) => Promise<string | null>;
   remoteConnectionInProgress?: boolean;
   onReturnToWorkspace?: () => void;
@@ -117,6 +117,13 @@ export interface GitChangeSummary {
 }
 
 export type WorkspaceMainView = "chat" | "automations" | "plugin-store" | "remote-desktop";
+
+/** 打开远程连接向导时的偏好；initialTarget 用于远程控制页直接发起工作区连接。 */
+export interface RemoteConnectionOpenPreference {
+  preferredKind?: RemoteTarget["kind"];
+  preferredWslDistro?: string;
+  initialTarget?: RemoteTarget;
+}
 
 export interface WorkspaceShellLayoutProps extends AppProps {
   workspaceReadOnlyReason?: string;

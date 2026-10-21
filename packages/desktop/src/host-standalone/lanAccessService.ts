@@ -79,6 +79,8 @@ export interface CreateLanAccessHostServiceOptions {
   discover?: () => Promise<LanDiscoveredPeer[]>;
   /** 部署写入的内置中继配置；缺省由 startLanAccessServer 读 env。 */
   relay?: { baseUrl?: string; token?: string };
+  /** Web/手机远控静态资源目录；缺省不挂载静态资源。 */
+  webRoot?: string;
   /**
    * 启动时按设置恢复监听。Host 入口保持默认 true；适配器单测传 false，
    * 避免在测试机绑定 45880/45879。
@@ -165,6 +167,7 @@ export async function createLanAccessHostService(
           appVersion,
           machineName,
           isRemoteDesktopServerEnabled: () => remoteDesktop?.isServerEnabled() ?? false,
+          ...(options.webRoot ? { webRoot: options.webRoot } : {}),
           ...(options.relay ? { relay: options.relay } : {}),
           ...(remoteDesktop ? { remoteDesktop: remoteDesktop.getLanHooks() } : {}),
         });

@@ -39,14 +39,8 @@ export function useLanConnectionForm(options: { open: boolean; kind: string }) {
   /** 已配对设备（凭据服务元数据；令牌不出 host）：向导里首选直连，免配对码。 */
   const loadLanPairedPeers = useCallback(async () => {
     try {
-      const peers = await platform.getLanPairedPeers();
-      // 远程工作区 attach 仍走 HTTP（docs/specs/lan-remote-public-endpoints.md 非目标）；
-      // 只有公网端点的设备不进入向导，避免选中后必然失败。缺 endpoints 的旧记录保留。
-      setLanPairedPeers(
-        peers.filter(
-          (peer) => !peer.endpoints || peer.endpoints.some((endpoint) => endpoint.kind === "lan"),
-        ),
-      );
+      // 远程工作区与远程桌面共用 endpoints；公网-only 设备同样可连接。
+      setLanPairedPeers(await platform.getLanPairedPeers());
     } catch {
       setLanPairedPeers([]); // 读取失败不打断手工填写/配对路径
     }

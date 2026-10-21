@@ -1,3 +1,4 @@
+import type { LanPeerEndpoint } from "./lanAccess.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
@@ -160,6 +161,11 @@ export interface LanRemoteTargetSnapshot {
   kind: "lan";
   host: string;
   port: number;
+  /** 主端点协议/路径；缺省 http + 根路径（旧快照兼容）。 */
+  scheme?: "http" | "https";
+  path?: string;
+  /** 同一设备的公网/LAN 端点；不含令牌。 */
+  endpoints?: LanPeerEndpoint[];
   serverId?: string;
   serverName?: string;
 }

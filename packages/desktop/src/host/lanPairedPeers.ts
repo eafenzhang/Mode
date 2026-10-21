@@ -11,8 +11,8 @@ import {
 } from "@mode/shared";
 import type { ICredentialService } from "@mode/services";
 
-import { fetchLanPeerInfo, loadLanPeerToken } from "./lanRemoteAttach.js";
-import { isRetryableLanPeerError } from "./lanPeerTransport.js";
+import { selectReachableLanPeerEndpoint } from "./lanPeerEndpoints.js";
+import { loadLanPeerToken } from "./lanRemoteAttach.js";
 
 /**
  * 「我配对的对端」的凭据读写（Host 侧，Electron-free）。
@@ -161,28 +161,15 @@ export async function getLanPairedPeerWorkspaces(
   if (!token) {
     throw new Error("尚未配对");
   }
-  let lastError: unknown = new Error("对端不可达");
-  for (const endpoint of meta.endpoints) {
-    try {
-      const info = await fetchLanPeerInfo({
-        scheme: endpoint.scheme,
-        host: endpoint.host,
-        port: endpoint.port,
-        ...(endpoint.path ? { path: endpoint.path } : {}),
-        token,
-        // 多端点时 LAN 探测预算短一些；公网端点给足 TLS/隧道启动时间。
-        timeoutMs: meta.endpoints.length > 1 && endpoint.kind === "lan" ? 2_500 : 8_000,
-      });
-      return {
-        ...(info.name ? { name: info.name } : {}),
-        workspaces: info.workspaces,
-      };
-    } catch (error) {
-      lastError = error;
-      if (!isRetryableLanPeerError(error)) {
-        throw error;
-      }
-    }
+  const selection = await selectReachableLanPeerEndpoint({
+    endpoints: meta.endpoints,
+    token,
+  });
+  if (!selection.ok) {
+    throw selection.error;
   }
-  throw lastError;
+  return {
+    ...(selection.info.name ? { name: selection.info.name } : {}),
+    workspaces: selection.info.workspaces,
+  };
 }

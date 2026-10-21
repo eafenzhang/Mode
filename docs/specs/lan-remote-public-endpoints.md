@@ -1,6 +1,7 @@
 # 公网远程桌面端点（内置中继 + 公网优先 + LAN 回退）
 
-状态：2026-10-21 实现中。关联：
+状态：2026-10-21 实现中；同日扩展到远程工作区（`/ws/host` 与 HTTPS/WSS 端点）。
+关联：[remote-control-device-model.md](./remote-control-device-model.md)（统一设备/端点模型）、
 [in-app-remote-desktop.md](./in-app-remote-desktop.md)（远控产品规则）、
 [lan-remote-desktop-native-media.md](./lan-remote-desktop-native-media.md)（媒体面）、
 [lan-remote-attach.md](./lan-remote-attach.md)（挂接握手）、
@@ -64,6 +65,11 @@ WebSocket 固定 `ws://`，且一个已配对设备只保存一个地址。用�
    原生媒体面版本门）。
 7. **局域网能力保留**：UDP 发现、配对码、LAN `http/ws` 直连、Tailscale 单播探测全部
    不变；公网端点只是附加路径。
+8. **远程工作区同源**：远程工作区的 `RemoteTarget` 携带同一个 `endpoints` 数组；
+   `server-info`、`/api/rpc-host-capability`、`/ws/host` 全部按选中端点的
+   `scheme`/`path` 拼接，`https → wss`。远程工作区与远程桌面共享端点排序、探测预算
+   （公网 8s、LAN 2.5s）、401/403 立即收口与“会话阶段不换端点”的语义。仅公网端点的
+   设备必须能连接工作区，不再被向导过滤。
 
 ## 状态所有者
 
@@ -172,6 +178,12 @@ openRemoteDesktopPeerSession → 先探测选端点
     成功：wsUrl/mediaUrl 用同一个端点的 scheme（https→wss）
     对端级错误：原样返回稳定错误码，不再换端点
 
+④' 远程工作区
+RemoteTarget.endpoints → 按同一顺序探测 /api/server-info
+  ── POST <endpoint>/api/rpc-host-capability（Cookie 令牌）──►
+  ── WS <endpoint>/ws/host（scheme https→wss，path 保留 /d/<tunnelId>）──►
+    成功后该连接绑定选中的端点；会话期间不换端点；断开即 logical session closed
+
 ⑤ 编辑公网地址
 UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS → 替换/清除 ──► 保存
    ── 重读 listPairedPeers → 重新探测
@@ -213,7 +225,10 @@ UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS �
    不降级到 http。
 5. 会话端点级错误（如 `busy`）只出现一次请求，不向另一端点重发（抓包/日志断言）。
 6. 清除公网地址后回到仅 LAN；只有公网端点的设备拒绝清除并提示删除配对。
-7. LAN 发现、配对码、Tailscale 直连、既有远程工作区挂接不回归。
+7. LAN 发现、配对码、Tailscale 直连、既有 LAN 远程工作区挂接不回归。
+7'. 远程工作区：同一设备公网可达时 `/api/server-info`、`/api/rpc-host-capability` 与
+   `/ws/host` 全部命中公网端点并使用 `wss`；公网断开后回退 LAN；仅公网端点的设备
+   可以完成目录选择与工作区打开，不再被向导过滤。
 8. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 与相关 Node 测试全绿。
 9. 内置中继：被控端配置中继令牌后，配对响应带 `publicRelay`；主控自动出现公网端点且
    排在 LAN 之前，用户不需要手填地址。
@@ -275,8 +290,8 @@ UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS �
 - 不实现 NAT 穿透/打洞、frp/Caddy 安装器；内置 relay 的部署见
   [wss-relay-mvp.md](./wss-relay-mvp.md)。
 - 不做中继侧账号体系与逐设备令牌签发；当前中继令牌是部署级共享 secret。
-- 不实现手机/浏览器远控（Web 端 `rd*` 仍是 stub；需要独立立项）。
-- 不把远程工作区 attach 的 `RemoteTarget` 扩成 HTTPS（本次只覆盖远程桌面；向导的
-  LAN 手动地址仍按 HTTP 连接）。
+- 不在公网端点上新增 Web/手机远控协议：浏览器远控复用 LAN 服务的静态资源与
+  `web-remote-replayable`，公网访问仍经 HTTPS/WSS 反代或内置中继。
+- 不做远程工作区的会话级端点切换：连接建立后断开即收口，由用户/重连重新选端点。
 - 不在公网端点上做独立发现；由被控端在配对/`server-info` 中自动下发，显式地址可覆盖。
 - 不做上行输入/剪贴板的端到端加密（TLS 终止在中继时的前提，属 P3）。

@@ -22,7 +22,8 @@
       "../dist-host-sidecar/ship/host-sidecar": "host-sidecar",
       "../dist-host-sidecar/ship/node": "node",
       "../dist-host-sidecar/ship/config": "config",
-      "../dist-host-sidecar/ship/agent": "agent"
+      "../dist-host-sidecar/ship/agent": "agent",
+      "../../../packages/web/dist": "web"
     },
     "icon": ["icons/icon.ico", "icons/icon.png", "icons/icon.icns"]
   },

@@ -103,6 +103,15 @@ async function bundle(): Promise<number> {
     minify: false,
     legalComments: "none",
     logLevel: "warning",
+    // 发布构建把 remote assets 自建源编译进 Host；运行时 env 仍优先（见 remoteAssets.ts）。
+    define: {
+      __MODE_REMOTE_ASSET_CDN_BASE_URL__: JSON.stringify(
+        process.env.MODE_REMOTE_ASSET_CDN_BASE_URL?.trim() ||
+          process.env.ZCODIUM_REMOTE_ASSET_CDN_BASE_URL?.trim() ||
+          process.env.ZCODE_REMOTE_ASSET_CDN_BASE_URL?.trim() ||
+          "",
+      ),
+    },
     // **实测踩到的坑**：内联进来的 CJS 依赖里有**动态** `require("events")` 这类调用，
     // esbuild 的 ESM 产物把它们留成 `__require`，运行时报
     // `Dynamic require of "events" is not supported` —— 而且是在**服务面装配那一步**才炸

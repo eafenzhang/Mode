@@ -61,6 +61,8 @@ interface RemoteConnectionDialogProps {
   onFlowRequestIdChange?: (requestId: string | null) => void;
   preferredKind?: RemoteTarget["kind"];
   preferredWslDistro?: string;
+  /** 远程控制页直接指定目标：打开后跳过 kind/settings，直接进入连接步骤。 */
+  initialTarget?: RemoteTarget;
 }
 
 export function RemoteConnectionDialog({
@@ -81,6 +83,7 @@ export function RemoteConnectionDialog({
   onFlowRequestIdChange,
   preferredKind,
   preferredWslDistro,
+  initialTarget,
 }: RemoteConnectionDialogProps) {
   const { intl } = useModeIntl();
   const confirmDialog = useConfirmDialog();
@@ -95,6 +98,7 @@ export function RemoteConnectionDialog({
   const [pendingRemoteTarget, setPendingRemoteTarget] = useState<RemoteTarget | null>(null);
   const [selectingDirectory, setSelectingDirectory] = useState(false);
   const selectingDirectoryRef = useRef(false);
+  const initialTargetRef = useRef<RemoteTarget | null>(null);
   const { connectionLogs, resetConnectionLogs } = useRemoteConnectionLogs(connectingRequestId);
   const open = controlledOpen ?? uncontrolledOpen;
   const {
@@ -315,6 +319,23 @@ export function RemoteConnectionDialog({
       setLoading(false);
     }
   };
+
+  // 远程控制页「连接工作区」：目标已确定，跳过 kind/settings，直接进入连接与目录选择。
+  useEffect(() => {
+    if (!open) {
+      initialTargetRef.current = null;
+      return;
+    }
+    if (!initialTarget || initialTargetRef.current === initialTarget) {
+      return;
+    }
+    initialTargetRef.current = initialTarget;
+    // 连接步骤文案按 kind 取方法名；LAN 目标必须显示“局域网”，不能沿用表单默认的 SSH。
+    setKind(initialTarget.kind);
+    void startRemoteConnection(initialTarget);
+    // startRemoteConnection 依赖当前表单状态；初始目标路径只按目标对象身份触发一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTarget, open]);
 
   const handleConnect = async () => {
     if (loading) {

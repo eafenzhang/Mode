@@ -29,6 +29,7 @@ import { RemoteDesktopSession } from "@/remote-desktop/RemoteDesktopSession.js";
 import { useDeviceViewMode } from "@/remote-desktop/useDeviceViewMode.js";
 import { useDiscoveredLanPeers } from "@/remote-desktop/useDiscoveredLanPeers.js";
 import { useModeAgentDevices } from "@/remote-desktop/useModeAgentDevices.js";
+import { buildRemoteDevices } from "@/remote-desktop/remoteDeviceModel.js";
 
 type PeerListState =
   | { status: "loading" }
@@ -42,12 +43,15 @@ export function RemoteDesktopHome({
   topOverlayClearancePaddingClass,
   onCreateTask,
   onOpenModeAgentChat,
+  onConnectWorkspace,
   isRemoteWorkspace = false,
 }: {
   isDesktop: boolean;
   isRemoteWorkspace?: boolean;
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenModeAgentChat?: (request: { device: ModeAgentChatDevice }) => void;
+  /** 统一设备入口：LAN 设备行“连接工作区”直接把目标交给远程连接向导。 */
+  onConnectWorkspace?: (target: LanPairedPeer) => void;
   /** 本页不渲染 WorkspaceHeader，窗控由顶部拖拽区右侧自绘（Windows/Linux）。 */
   showWindowControls?: boolean;
   /** 视图是否当前可见：分支常驻隐藏时为 false（spec UI 规则「切换保持连接」）。 */
@@ -168,6 +172,13 @@ export function RemoteDesktopHome({
     });
   }, []);
 
+  const connectWorkspace = useCallback(
+    (peer: LanPairedPeer) => {
+      onConnectWorkspace?.(peer);
+    },
+    [onConnectWorkspace],
+  );
+
   const exitSession = useCallback(() => {
     // 回设备列表的刷新由上方 active/sessionTarget effect 统一触发（含本机被控状态重读）。
     setSessionTarget(null);
@@ -237,8 +248,13 @@ export function RemoteDesktopHome({
     discovered.peers,
     pairedServerIds,
   );
-  const hasDevices =
-    peerList.length > 0 || modeAgentRecords.length > 0 || visibleDiscovered.length > 0;
+  const devices = buildRemoteDevices({
+    lanPeers: peerList,
+    probes,
+    modeAgents: modeAgentRecords,
+    discovered: visibleDiscovered,
+  });
+  const hasDevices = devices.length > 0;
 
   // 设备页与自动化/插件市场同款：面包屑/桌面拖拽顶栏 + 共享标题排版。
   // 会话面（上方 sessionTarget 分支）保持整块无外框，视频占满主视图。
@@ -394,14 +410,12 @@ export function RemoteDesktopHome({
 
             {hasDevices ? (
               <RemoteControlDeviceList
-                lanPeers={peerList}
-                probes={probes}
-                modeAgents={modeAgentRecords}
-                discovered={visibleDiscovered}
+                devices={devices}
                 viewMode={viewMode}
                 locallyControlled={locallyControlled}
                 busy={peerActionBusy}
                 onConnect={connect}
+                onConnectWorkspace={onConnectWorkspace ? connectWorkspace : undefined}
                 onRename={renamePeer}
                 onDelete={deletePeer}
                 onSetPublicAddress={setPublicAddress}

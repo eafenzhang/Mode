@@ -174,6 +174,54 @@ test("connect → bind → attach → scoped 调用 → detach/dispose", async (
   }
 });
 
+test("SSH/WSL/Docker 目标走 connectStdio，不再被 Tauri Host 拒绝", async () => {
+  const transport = transportPair();
+  const demux = createFrameDemultiplexer(transport.server);
+  const scopedAttachments = createScopedAttachmentRegistry({
+    demux,
+    log: () => undefined,
+  });
+  let receivedKind = "";
+  let receivedRemoteAssets: unknown = null;
+  const handle: WindowRemoteConnectionHandle<ServiceCollection, { computerUse?: boolean }> = {
+    services: createRemoteServices("ssh"),
+    async dispose() {},
+  };
+  const adapter = await createRemoteWorkspaceHostService({
+    services: new ServiceCollection(),
+    log: () => undefined,
+    scopedAttachments,
+    guardChannel: (_channelName, channel) => channel,
+    connectStdio: async (target, remoteAssets) => {
+      receivedKind = target.kind;
+      receivedRemoteAssets = remoteAssets;
+      return handle;
+    },
+    remoteAssets: { remoteCacheDir: "C:/tmp/mode-remote-assets" },
+    createId: (() => {
+      let next = 0;
+      return () => `stdio-${++next}`;
+    })(),
+  });
+  try {
+    const result = await adapter.connect({
+      target: {
+        kind: "ssh",
+        host: "example.test",
+        port: 22,
+        username: "dev",
+      },
+      workspacePath: "/home/dev/proj",
+      workspaceIdentity: "remote:ssh:example.test:22:dev:/home/dev/proj",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(receivedKind, "ssh");
+    assert.deepEqual(receivedRemoteAssets, { remoteCacheDir: "C:/tmp/mode-remote-assets" });
+  } finally {
+    await adapter.disposeHost();
+  }
+});
+
 test("scoped services 的 guard 与事件：listen 抛错不逃逸", async () => {
   // 该用例只验证 guardChannel 被用于 scoped 频道：传入一个把 listen 包成抛错的 guard，
   // 事件订阅应被 Host 的 channel guard 拦住，而不是带走进程。这里直接断言 guard 被调用。
@@ -206,27 +254,6 @@ test("scoped services 的 guard 与事件：listen 抛错不逃逸", async () =>
     assert.ok(session);
     await adapter.attach({ sessionId: session.remoteSessionId });
     assert.ok(guarded.includes("test-echo"), "scoped 频道必须经过同一份 listen 守卫");
-  } finally {
-    await adapter.disposeHost();
-  }
-});
-
-test("非 LAN target 明确不支持", async () => {
-  const transport = transportPair();
-  const demux = createFrameDemultiplexer(transport.server);
-  const scopedAttachments = createScopedAttachmentRegistry({ demux, log: () => undefined });
-  const adapter = await createRemoteWorkspaceHostService({
-    services: new ServiceCollection(),
-    log: () => undefined,
-    scopedAttachments,
-    guardChannel: (_name, channel) => channel,
-  });
-  try {
-    const result = await adapter.connect({
-      target: { kind: "wsl", distro: "Ubuntu" },
-    });
-    assert.equal(result.ok, false);
-    assert.match(result.ok ? "" : result.error, /暂不支持/u);
   } finally {
     await adapter.disposeHost();
   }
@@ -406,6 +433,76 @@ test("默认 LAN 连接：WS close 必须经 onDidClose 上报为 closed", async
     await adapter.disposeHost();
   }
   assert.equal(attachDisposed, 1, "Host 退出必须释放底层连接");
+});
+
+test("默认 LAN 连接：公网端点优先，attach 收到 https + path", async () => {
+  const transport = transportPair();
+  const demux = createFrameDemultiplexer(transport.server);
+  const scopedAttachments = createScopedAttachmentRegistry({ demux, log: () => undefined });
+  const services = new ServiceCollection();
+  services.register(IClientConfigService, {} as IClientConfigService);
+  services.register(ICredentialService, {
+    load: async () => null,
+    save: async () => undefined,
+    delete: async () => undefined,
+    list: async () => [],
+  } as unknown as ICredentialService);
+  let captured:
+    | { scheme?: "http" | "https"; host?: string; path?: string; token?: string }
+    | null = null;
+  const adapter = await createRemoteWorkspaceHostService({
+    services,
+    log: () => undefined,
+    scopedAttachments,
+    guardChannel: (_name, channel) => channel,
+    attachLan: async (params) => {
+      captured = params;
+      return {
+        services: { modeAgentService: {}, fileService: {} } as unknown as IServiceAccessor,
+        info: { capabilities: {} } as never,
+        dispose: async () => undefined,
+      };
+    },
+    createRemoteWorkspaceServices: () => new ServiceCollection(),
+    createId: () => "id-public-first",
+  });
+  try {
+    const result = await adapter.connect({
+      target: {
+        kind: "lan",
+        host: "192.168.1.20",
+        port: 45880,
+        serverId: "peer-1",
+        token: "token-1",
+        scheme: "https",
+        path: "/d/tunnel-1",
+        endpoints: [
+          {
+            scheme: "https",
+            host: "relay.example.com",
+            port: 443,
+            kind: "public",
+            path: "/d/tunnel-1",
+          },
+          { scheme: "http", host: "192.168.1.20", port: 45880, kind: "lan" },
+        ],
+      },
+      workspacePath: "/w",
+      workspaceIdentity: "remote:lan:192.168.1.20:45880:/w",
+    });
+    assert.equal(result.ok, true);
+    const cap = captured as {
+      scheme?: "http" | "https";
+      host?: string;
+      path?: string;
+    } | null;
+    assert.deepEqual(
+      { scheme: cap?.scheme, host: cap?.host, path: cap?.path },
+      { scheme: "https", host: "relay.example.com", path: "/d/tunnel-1" },
+    );
+  } finally {
+    await adapter.disposeHost();
+  }
 });
 
 test("Host 退出：活动会话与 scoped attachment 一并回收", async () => {

@@ -15,7 +15,8 @@ import { createServiceDescriptor } from "../descriptors.js";
  * logical session、连接复用、workspace bind 与 attachment 都由它管。renderer 只通过本频道
  * 发起/取消连接、绑定上下文、申请 scoped attachment；scoped service 走单独的 MessagePort。
  *
- * 当前 Tauri Host 只接 LAN 目标；SSH/WSL/Docker 明确返回不支持（不伪装成功）。
+ * Tauri Host 接 LAN（HTTP/WS）与 SSH/WSL/Docker（`@mode/server/remote`）；四条路径
+ * 共用同一个 registry、workspace bind 与 attachment 生命周期。
  */
 
 export interface RemoteConnectParams {

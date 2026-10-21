@@ -29,6 +29,9 @@ remote:lan:<host>:<port>:<path>        ← path 见下
 - 路径归一：`\` → `/`、折叠重复分隔符、去收尾斜杠；盘符形态保留 `X:/` 前缀。
 - 存量影响：已持久化的 identity 字符串形态不迁移（identity 本身就是 workspaceKey，
   改形态会导致历史条目失联）；构造器输出形态变更只影响**新绑定**。
+- **端点切换不改 identity**：`lan` 的 authority 取 `RemoteTarget.host/port`（主端点），
+  不取运行时命中的 LAN/公网端点；同一设备保存多个 `endpoints` 或公网优先回退时，
+  已绑定会话的 workspaceIdentity 保持不变。
 
 ## 验收场景
 

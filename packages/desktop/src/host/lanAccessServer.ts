@@ -92,6 +92,8 @@ export interface StartLanAccessServerParams {
   startTunnel?: (options: RelayTunnelStartOptions) => { close(): void };
   /** 测试/隔离用监听端口覆写；生产缺省 `LAN_ACCESS_DEFAULT_PORT`。 */
   port?: number;
+  /** Web/手机远控静态资源目录；缺省 API-only。 */
+  webRoot?: string;
   /**
    * 远程桌面被控总开关读取点（设置页「远程桌面」分区，默认关）。
    * 握手即时求值（能力位不持久化）；缺省 = 关闭。T6 接入设置存储。
@@ -275,6 +277,7 @@ export async function startLanAccessServer(
   const server = createHttpServer(params.services, requestedPort, {
     host: "0.0.0.0",
     authRequired: true,
+    ...(params.webRoot ? { staticRoot: params.webRoot, spaFallback: true } : {}),
     verifyAuthToken,
     lanPairing: { redeem },
     publicRelay: () => publicRelay,

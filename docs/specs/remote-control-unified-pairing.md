@@ -1,7 +1,8 @@
 # 远程控制：统一配对码与单一设备列表
 
-状态：2026-10-20 已拍板，实现与验收随本次变更交付。关联：
-[legacy-windows-remote-agent.md](./legacy-windows-remote-agent.md)、
+状态：2026-10-20 已拍板；2026-10-21 按
+[remote-control-device-model.md](./remote-control-device-model.md) 统一设备/端点/通道模型。
+关联：[legacy-windows-remote-agent.md](./legacy-windows-remote-agent.md)、
 [in-app-remote-desktop.md](./in-app-remote-desktop.md)、
 [lan-paired-devices.md](./lan-paired-devices.md)、
 [lan-remote-attach.md](./lan-remote-attach.md)。
@@ -34,34 +35,42 @@
 - 无法直连 LAN 时，远程控制页提供「公网地址 + 配对码」入口：仍调用同一个
   `pairLanPeer`、消费同一个码，不新增第二套码或第二份 TTL；公网地址必须是 HTTPS
   （[lan-remote-public-endpoints.md](./lan-remote-public-endpoints.md)）。
+- 云端微信登录的 6 位十进制码与 Bot `/bind` 码**不是配对码**，只用于账号绑定；
+  UI 不再用“配对码”称呼它们（[mode-cloud-account-directory.md](./mode-cloud-account-directory.md)）。
 
-### R2 单一设备列表
+### R2 单一设备入口
 
-远程控制页只有一个设备列表，行类型固定为三类：
+**远程控制页是已配对设备的唯一入口**（[remote-control-device-model.md](./remote-control-device-model.md)）。
+页面只消费统一 `RemoteDevice[]`，来源固定为：
 
 1. **LAN 已配对设备**：`getLanPairedPeers()`；同一行同时代表远程工作区与远程桌面
-   能力，能力位按需实时探测。
+   能力，能力位按需实时探测。地址来自 `endpoints`（公网优先、LAN 回退）。
 2. **Mode Agent 已配对设备**：MCP 配置中的 `mode-agent-*` HTTP server；MCP 配置是
    唯一事实源，不另建设备表。
 3. **发现的未配对 LAN 设备**：`discoverLanPeers()` 结果，过滤已配对 serverId 与
    用户已忽略项；行内提供对端配对码输入。
+4. **云目录设备**：在 Mode 账号弹窗里选设备并输入被控端配对码；配对成功后写入
+   `lan:peer:*`，回到本页设备列表，不再维护第二份云设备列表。
 
 页面顶部区域只保留：本机配对码面板（生成/复制配对串）、添加设备（触发扫描）、刷新。
 不再有独立的「Mode Agent 被控端」卡片、「添加设备」卡片或 LAN 设备网格分区。
+新建连接向导只负责 SSH/WSL/Docker，不再提供 LAN 设备选择，避免同一设备出现第二个入口。
 
 列表视觉：标题独占一行，副标题与右侧动作（列表/宫格、刷新、添加设备）按插件市场页
 的头部样式对齐；列表模式为单卡片 + 分隔线行，宫格模式为两列卡片，动作按钮在两种模式下
 都右对齐。每行两行信息（名称/状态/类型 + 地址/能力摘要），次要动作使用图标按钮并提供
 `title`/`aria-label`；文案保持短句。列表/宫格偏好只存本机 localStorage。
 
-行内动作：
+行内动作（按 `channels` 渲染，不是按设备类型）：
 
-| 类型 | 主操作 | 次操作 |
+| 通道 | 主操作 | 次操作 |
 | --- | --- | --- |
-| LAN 已配对 | 进入桌面（能力位不满足时置灰并给原因） | 重新检测 / 重命名 / 删除 |
-| Mode Agent | 发起对话 | 刷新 / 重命名 / 移除（两段确认） |
+| `workspace` | 连接工作区 | 重新检测 / 重命名 / 删除 |
+| `desktop` | 进入桌面（能力位不满足时置灰并给原因） | 重新检测 / 重命名 / 删除 |
+| `conversation` | 发起对话 | 刷新 / 重命名 / 移除（两段确认） |
 | 发现的未配对 | 配对（行内输码） | 忽略 |
 
+同一台 LAN 设备可同时出现“连接工作区”和“进入桌面”；公网端点对两条通道都可用。
 Mode Agent 的刷新走 MCP `listWorkspaceMcpServerStatuses(mode="connect")`，更新连接状态与工具数；
 重命名只写 MCP 配置里的 `modeAgent.name`，保持 serverName、URL、Authorization 不变。
 
@@ -100,6 +109,9 @@ Mode Agent 的刷新走 MCP `listWorkspaceMcpServerStatuses(mode="connect")`，�
 | Mode Agent 设备 | MCP 配置 `mode-agent-*`（既有） |
 | 发现的未配对设备 | `RemoteDesktopHome` 页级瞬态 |
 | 设备列表 / 能力位探测 | `RemoteDesktopHome` |
+| 统一 `RemoteDevice[]` 投影 | `RemoteDesktopHome`（纯投影，不持久化） |
+| 远程工作区会话 | `windowRemoteConnectionRegistry`（既有） |
+| 远程桌面会话 | `RemoteDesktopHostServer` / 主控 controller（既有） |
 | 主视图切换 | `WorkspaceShellLayout.handleCreateTaskInChat` |
 
 ## 接口
@@ -135,4 +147,5 @@ Mode Agent 的刷新走 MCP `listWorkspaceMcpServerStatuses(mode="connect")`，�
 
 - 不改 LAN 配对协议、令牌格式、远程桌面会话协议。
 - 不移除 Go agent 的 `pair` / `/v1/pair` CLI 能力（仅从产品 UI 隐藏）。
-- 不把远程工作区连接向导并入本页；本页只统一配对码与设备列表。
+- 不把 SSH/WSL/Docker 的凭据表单并入本页；它们继续由新建连接向导创建，但创建后
+  的会话与 LAN 远程工作区共用同一 registry 与 attachment 生命周期。

@@ -28,8 +28,7 @@ function buildAvailableKinds(options: { isWindowsDesktop: boolean }): RemoteKind
   // 当探测能力暂时不可用、或用户还没切到 Docker 时，入口会直接消失，
   // 用户甚至不知道这里支持 Docker 连接。改为始终展示入口，切换后再懒加载探测结果。
   kinds.push("docker");
-  // 局域网：连接同一网段内已开启「允许局域网访问」的 Mode 实例。
-  kinds.push("lan");
+  // 局域网设备统一从远程控制页进入；向导只负责 SSH/WSL/Docker 这类非配对目标。
   return kinds;
 }
 

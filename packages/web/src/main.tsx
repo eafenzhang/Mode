@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- Web 入口集中编排启动、路由与 workspace shell wiring，与 Root.tsx 同样先保持入口收口，避免跨层状态拆散。 */
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AppErrorBoundary,
@@ -389,10 +390,125 @@ function renderWebBootstrapError(error: unknown): void {
   );
 }
 
+function isChineseLocale(): boolean {
+  return /^zh\b/i.test(navigator.language);
+}
+
+/**
+ * 浏览器/手机首次进入：用被控端远程控制页的 6 位配对码换 LAN 令牌。
+ * 服务端在 /api/lan/pair 响应上写 HttpOnly Cookie，页面只负责重载。
+ */
+function WebLanPairingScreen({ basePath }: { basePath: string }) {
+  const zh = isChineseLocale();
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed || busy) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`${basePath}/api/lan/pair`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: trimmed, label: "Web browser" }),
+      });
+      if (!response.ok) {
+        setError(
+          response.status === 429
+            ? zh
+              ? "尝试过于频繁，请稍后再试。"
+              : "Too many attempts. Try again later."
+            : response.status === 404
+              ? zh
+                ? "此 Web 服务未开启配对，请使用带 ?token= 的访问链接。"
+                : "Pairing is not enabled on this Web server. Open the URL that includes ?token=."
+              : zh
+                ? "配对码无效或已过期，请在被控端重新生成。"
+                : "The pairing code is invalid or expired. Generate a new one.",
+        );
+        return;
+      }
+      window.location.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex h-dvh min-h-dvh w-screen items-center justify-center bg-background px-4 text-foreground">
+      <section className="w-full max-w-md rounded-xl border border-card-border bg-card p-5">
+        <h1 className="text-ui-base font-medium">
+          {zh ? "连接到这台 Mode 设备" : "Connect to this Mode device"}
+        </h1>
+        <p className="mt-2 text-ui-xs/relaxed text-foreground-subtle">
+          {zh
+            ? "在桌面端「远程控制」页生成 6 位配对码，然后输入到这里。"
+            : "Generate a 6-digit pairing code on the desktop Remote Control page, then enter it here."}
+        </p>
+        <input
+          className="mt-4 w-full rounded-lg border border-border bg-surface px-3 py-2 font-mono text-ui-base tracking-[0.3em] outline-none focus:border-input-border-focused"
+          value={code}
+          maxLength={8}
+          autoFocus
+          inputMode="text"
+          autoCapitalize="characters"
+          placeholder="XXXXXX"
+          onChange={(event) => setCode(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void submit();
+          }}
+        />
+        {error ? <p className="mt-3 text-ui-xs text-destructive">{error}</p> : null}
+        <button
+          type="button"
+          className="mt-4 w-full rounded-lg border border-border bg-surface px-3 py-2 text-ui-base font-medium hover:bg-surface-hover disabled:opacity-60"
+          disabled={busy || !code.trim()}
+          onClick={() => void submit()}
+        >
+          {busy ? (zh ? "正在连接…" : "Connecting…") : zh ? "连接" : "Connect"}
+        </button>
+        <p className="mt-3 text-ui-xs/relaxed text-foreground-subtle">
+          {zh
+            ? "如果这是独立部署的 Web 服务，请使用带 ?token= 的访问链接。"
+            : "For a standalone Web deployment, open the URL that includes ?token=."}
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function renderWebLanPairing(basePath: string): void {
+  document.title = "Mode - Web";
+  root.render(<WebLanPairingScreen basePath={basePath} />);
+}
+
+/** 401 = 需要 LAN 令牌；其他状态交给正常 bootstrap 报错。 */
+async function needsLanPairing(basePath: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${basePath}/api/server-info`, { cache: "no-store" });
+    return response.status === 401;
+  } catch {
+    return false;
+  }
+}
+
 async function bootstrapWebApp() {
   const params = new URLSearchParams(window.location.search);
   if (isWebOAuthCallback(params)) {
     renderWebAuthCallbackPage();
+    return;
+  }
+
+  const basePath = resolveBasePath();
+  if (await needsLanPairing(basePath)) {
+    renderWebLanPairing(basePath);
     return;
   }
 
