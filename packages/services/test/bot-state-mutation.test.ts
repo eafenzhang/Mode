@@ -1,25 +1,34 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import type { BotsStateFile, BotConversationState } from "@mode/shared";
-import { setDataBaseDir } from "../src/paths.js";
 
 // 背景：bot-state 曾是 readState→改→writeState 快照覆盖，两次文件锁之间
 // 跨对话/跨窗口并发会丢更新（docs/specs/bot-state-ownership.md）。
 // 本测试把「锁内原子 RMW」的零丢失承诺固定下来。
+//
+// 隔离方式与 bot-config-mutation 相同：MODE_DATA_BASE_DIR 必须先于 services 模块加载
+// 设置（setDataBaseDir 在 env 固定时是 no-op），并在写入前复核 getAppConfigDir()。
+const previousDataBaseDir = process.env.MODE_DATA_BASE_DIR;
+const dataDir = mkdtempSync(join(tmpdir(), "mode-bot-state-mutation-"));
+process.env.MODE_DATA_BASE_DIR = dataDir;
+mkdirSync(join(dataDir, ".mode", "v2"), { recursive: true });
+
+after(() => {
+  if (previousDataBaseDir === undefined) delete process.env.MODE_DATA_BASE_DIR;
+  else process.env.MODE_DATA_BASE_DIR = previousDataBaseDir;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 async function withTempDataDir(run: (dir: string) => Promise<void>): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "mode-bot-state-mutation-"));
-  setDataBaseDir(dir);
-  try {
-    await mkdir(join(dir, ".mode", "v2"), { recursive: true });
-    await run(dir);
-  } finally {
-    setDataBaseDir(null);
-    await rm(dir, { recursive: true, force: true });
-  }
+  const { getAppConfigDir } = await import("../src/paths.js");
+  assert.ok(
+    getAppConfigDir().startsWith(dataDir),
+    `测试数据目录隔离失败：${getAppConfigDir()} 不在 ${dataDir} 下，拒绝写入真实数据目录`,
+  );
+  await run(dataDir);
 }
 
 function makeConversation(botId: string, id: string): BotConversationState {

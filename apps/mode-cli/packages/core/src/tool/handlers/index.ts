@@ -13,6 +13,7 @@ import {
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
   RESUME_WORKFLOW_RUN_TOOL_NAME,
   SAVE_WORKFLOW_TOOL_NAME,
+  SEND_FILE_TOOL_NAME,
   SUBMIT_RESULT_TOOL_NAME,
   type JsonSchema,
 } from "@mode/contracts";
@@ -44,6 +45,7 @@ import {
   cronUpdateToolEntry,
 } from "./cron.js";
 import { offPeakCreateToolEntry, offPeakListToolEntry } from "./off-peak.js";
+import { sendFileToolEntry } from "./send-file.js";
 import {
   createEnterPlanModeToolEntry,
   enterPlanModeToolEntry,
@@ -91,6 +93,8 @@ export const builtInTools: ToolEntry[] = [
   cronDeleteToolEntry,
   offPeakCreateToolEntry,
   offPeakListToolEntry,
+  // bot 回合内把工作区文件发到当前 IM 会话；端口由 Host 按 botDeliveryTarget 注入。
+  sendFileToolEntry,
   enterPlanModeToolEntry,
   exitPlanModeToolEntry,
   askUserQuestionToolEntry,
@@ -174,6 +178,8 @@ interface RegisterBuiltInToolsOptions {
   includeAutomation?: boolean;
   /** Off-Peak 会话内创建工具面；由 host 的 offPeakToolEnabled flag（灰度/远程门）驱动。 */
   includeOffPeak?: boolean;
+  /** IM bot 回合的 SendFile；端口存在即注册，具体轮次由 turn disallowlist 收口。 */
+  includeBotMedia?: boolean;
   /**
    * 动态工作流灰度门。**只有显式 false
    * 才下架** DYNAMIC_WORKFLOW_TOOL_NAMES：缺席代表调用方不参与灰度（TUI、headless、
@@ -251,6 +257,9 @@ export function registerBuiltInTools(
       (entry.metadata.name === "OffPeakCreate" || entry.metadata.name === "OffPeakList") &&
       options.includeOffPeak !== true
     ) {
+      continue;
+    }
+    if (entry.metadata.name === SEND_FILE_TOOL_NAME && options.includeBotMedia !== true) {
       continue;
     }
     if (

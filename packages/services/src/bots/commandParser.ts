@@ -28,6 +28,10 @@ export function parseBotCommand(text: string): BotCommand {
       return rest ? { type: "bind", code: rest } : { type: "unknown", name, raw: text };
     case "help":
     case "帮助":
+    // /start 是各 IM 平台的新用户入口（A+ 核心命令集）；行为等同 /help，
+    // 仍走 withAuthorizedContext("help")，未绑定时返回绑定指引。
+    case "start":
+    case "开始":
       return { type: "help" };
     case "cancel":
     case "取消":

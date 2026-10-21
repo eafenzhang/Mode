@@ -31,6 +31,7 @@ import {
   TID_V4_FORK,
   TID_V4_ROW,
   TID_V4_ROW_ATTACHMENTS,
+  stripBotChannelContextForDisplay,
   testId,
 } from "@mode/shared";
 import type {
@@ -1101,7 +1102,9 @@ const UserInputRowView = memo(function UserInputRowView({
   const { intl } = useModeIntl();
   // 引擎尾注折叠：正文只到 epilogueStart，
   // 之后的引擎文本折进气泡底部的披露。提示词上下文解析也只看正文——尾注里没有用户引用。
-  const { body: bodyText, epilogue } = splitUserInputEpilogue(row.text, row.epilogueStart);
+  const { body, epilogue } = splitUserInputEpilogue(row.text, row.epilogueStart);
+  // Bot 回合的渠道上下文/引用行只给模型看，不能渲染成用户气泡正文。
+  const bodyText = stripBotChannelContextForDisplay(body);
   const parsedPrompt = useMemo(
     () =>
       parseComposerPromptContexts(bodyText, {
@@ -1119,7 +1122,7 @@ const UserInputRowView = memo(function UserInputRowView({
   );
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [draft, setDraft] = useState(row.text);
+  const [draft, setDraft] = useState(() => stripBotChannelContextForDisplay(row.text));
   const [editAttachments, setEditAttachments] = useState<AttachmentRef[]>(() => [
     ...(row.attachments ?? []),
   ]);

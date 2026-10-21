@@ -18,6 +18,7 @@ export const BOT_QUEUED_ATTACHMENT_BUDGET_BYTES = 20 * 1024 * 1024;
 
 export interface BotQueuedMessageInput {
   text: string;
+  quotedText?: string;
   providerUserId?: string;
   displayName?: string;
   chatId?: string;
@@ -77,6 +78,7 @@ export function enqueueQueuedMessage(
     {
       text: trimmed,
       receivedAt: now,
+      ...(input.quotedText ? { quotedText: input.quotedText } : {}),
       ...(input.providerUserId ? { providerUserId: input.providerUserId } : {}),
       ...(input.displayName ? { displayName: input.displayName } : {}),
       ...(input.chatId ? { chatId: input.chatId } : {}),

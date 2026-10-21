@@ -12,6 +12,7 @@ import type {
   BrowserControlPort,
   ExecutionShellSelection,
   AutomationPort,
+  BotMediaPort,
   OffPeakPort,
   FileSystemPort,
   HttpClientPort,
@@ -105,6 +106,8 @@ export interface ToolExecutorOptions {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
+  /** IM bot 回合的 SendFile 端口；只在 Host 注入 botDeliveryTarget 的会话存在。 */
+  botMediaPort?: BotMediaPort;
   offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
@@ -211,6 +214,8 @@ export interface ToolExecutorDeps {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
+  /** IM bot 回合的 SendFile 端口；只在 Host 注入 botDeliveryTarget 的会话存在。 */
+  botMediaPort?: BotMediaPort;
   offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;

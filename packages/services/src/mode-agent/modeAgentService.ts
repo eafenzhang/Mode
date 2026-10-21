@@ -55,6 +55,7 @@ import {
   modePluginsDescribeResultSchema,
   modeAutomationCheckTaskBindingParamsSchema,
   modeAutomationCreateParamsSchema,
+  modeBotSendMediaParamsSchema,
   modeAutomationDeleteParamsSchema,
   modeAutomationListParamsSchema,
   modeAutomationUpdateParamsSchema,
@@ -296,6 +297,7 @@ import { ModeAgentMcpStatusModeUnsupportedError } from "#src/mode-agent/modeAgen
 import { ModeAgentProcessManager } from "./modeAgentProcessManager.js";
 import type { ModeAgentProcessManagerOptions } from "./modeAgentProcessManager.js";
 import type { IOffPeakTaskService } from "#src/session/offPeakTask.js";
+import type { IBotsService } from "#src/bots/bots.js";
 import {
   ModeProtocolRequestTimeoutError,
   type ModeProtocolClient,
@@ -891,6 +893,12 @@ interface CreateModeAgentServiceOptions extends Omit<
   resolveOffPeakTaskService?: () =>
     | Pick<IOffPeakTaskService, "createTask" | "list" | "getCodingPlanSupport">
     | undefined;
+  /**
+   * Bot 回合内 agent 的 SendFile 经此回到 botsService.sendBotMedia。
+   * 装配顺序上 modeAgentService 先于 botsService 创建，因此用前向引用持有者惰性绑定；
+   * 缺省（纯 CLI / 无 bot 的 Host）时 bots/sendMedia 返回明确错误。
+   */
+  resolveBotMediaSender?: () => Pick<IBotsService, "sendBotMedia"> | undefined;
   /**
    * browser-use 执行桥：把 agent 的 interaction/browserExecute 反向请求转发到 main
    * （WebContentsView+CDP）。desktop host 装配时注入；缺省（纯 CLI/远控无 main）则
@@ -2546,6 +2554,45 @@ export function createModeAgentService(
               }
               await client.respond(request.id, {
                 automation: toProtocolAutomation(automation),
+              });
+            } catch (error) {
+              await client.respondError(request.id, {
+                code: -32603,
+                message: error instanceof Error ? error.message : String(error),
+              });
+            }
+          })();
+          return;
+        }
+
+        if (request.method === modeProtocolMethods.botSendMedia) {
+          const parsed = modeBotSendMediaParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid bot send media params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          void (async () => {
+            try {
+              const sender = options?.resolveBotMediaSender?.();
+              if (!sender) {
+                throw new Error("Bot media delivery is not available on this host.");
+              }
+              // 目标由 Host 在 bot prompt 时注入（模型不可见）；这里只做转发，
+              // 路径白名单、限额与目标解析继续由 botsService.deliverBotMedia 唯一负责。
+              const result = await sender.sendBotMedia({
+                botId: parsed.data.target.botId,
+                provider: parsed.data.target.provider,
+                filePath: parsed.data.filePath,
+                ...(parsed.data.caption ? { caption: parsed.data.caption } : {}),
+                chatId: parsed.data.target.providerUserId,
+              });
+              await client.respond(request.id, {
+                filename: result.filename,
+                kind: result.kind,
               });
             } catch (error) {
               await client.respondError(request.id, {

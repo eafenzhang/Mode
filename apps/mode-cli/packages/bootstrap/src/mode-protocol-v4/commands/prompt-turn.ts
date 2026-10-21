@@ -3,7 +3,11 @@
 // Core admission 只负责接受输入并建立 session-scoped reservation；本文件不再拥有
 // activeAbortController，也不等待 projection commit。这样 TurnStarted 之后的任意 Core
 // starting/active 状态都会继续挡住同一 session 的第二次 start。
-import { type TurnBackgroundAttribution, type TurnInputIntentMetadata } from "@mode/contracts";
+import {
+  SEND_FILE_TOOL_NAME,
+  type TurnBackgroundAttribution,
+  type TurnInputIntentMetadata,
+} from "@mode/contracts";
 import type { TurnAttachment } from "@mode/core";
 import type { ModeAutomationBotDeliveryTarget } from "@mode/shared";
 import type { SendInputOptions, SendInputResult } from "../../app/types.js";
@@ -214,7 +218,10 @@ function clearPromptRecordState(
 }
 
 function buildTurnToolDisallowlist(
-  params: Pick<StartPromptTurnParams, "automationId" | "offPeakTaskId" | "toolDisallowlist">,
+  params: Pick<
+    StartPromptTurnParams,
+    "automationId" | "offPeakTaskId" | "toolDisallowlist" | "botDeliveryTarget"
+  >,
   activeAutomationId = params.automationId,
   activeOffPeakTaskId = params.offPeakTaskId,
 ): readonly string[] | undefined {
@@ -227,6 +234,11 @@ function buildTurnToolDisallowlist(
     // 闲时派发轮隐藏 OffPeakCreate（防递归自我派生）；OffPeakList 只读保留。
     // automation 轮不加此项——cron 轮放行 OffPeakCreate（定时派生闲时任务）。
     for (const toolName of OFF_PEAK_MUTATION_TOOL_NAMES) tools.add(toolName);
+  }
+  if (!params.botDeliveryTarget) {
+    // SendFile 的目标由 bot 回合的 botDeliveryTarget 注入；没有目标的回合（桌面输入、
+    // 自动化、子代理）必须在模型工具面上隐藏，避免模型尝试向不存在的 IM 会话发送。
+    tools.add(SEND_FILE_TOOL_NAME);
   }
   return tools.size > 0 ? [...tools] : undefined;
 }

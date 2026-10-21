@@ -47,9 +47,9 @@
 5. `/bind` 只允许私聊，TTL 5 分钟，单次使用；已绑定用户重复绑定码静默忽略。
 6. `/new` 只允许私聊；创建新 Session 并轮换 peer binding，历史保留。
 7. 私聊是 Heartbeat、Task、Cron 的唯一投递目标；群活动不得覆盖。
-8. 命令核心集：`/new`、`/model`、`/status`、`/help`、`/start`、`/bind`。现有扩展命令保留时必须在群聊中静默丢弃。
-9. 私聊每条消息注入渠道上下文；不注入群历史。
-10. `auto` 模式自动推送；`tool_only` 模式普通输出不外发，显式发送与必要控制消息仍可用。
+8. 命令核心集：`/new`、`/model`、`/status`、`/help`、`/start`、`/bind`。现有扩展命令保留时必须在群聊中静默丢弃；**`/help`（含 `/start`）与 `/send` 例外**——前者是只读说明、群文案已承诺支持；后者是用户显式的消息级动作，私聊与群聊都放行，见 [bot-outbound-media.md](./bot-outbound-media.md)。
+9. 私聊每条消息注入渠道上下文；平台提供引用消息时，把被引用内容一并作为上下文（不进入命令解析）；不注入群历史。注入块只对模型可见：桌面/手机用户气泡与任务标题取原始用户输入，不渲染 `<system-reminder>`、群历史与发送者元数据（`stripBotChannelContextForDisplay`）。
+10. `auto` 模式自动推送；`tool_only` 模式普通输出不外发，显式发送（agent 的 `SendFile` 工具、用户 `/send`）与必要控制消息仍可用。
 
 ## 群聊规则
 

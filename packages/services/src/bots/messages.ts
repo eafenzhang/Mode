@@ -41,6 +41,12 @@ const messages = {
     sendMediaFailed: "发送文件失败：{message}",
     sendMediaMissing: "用法：**/send <路径>**，路径需在当前工作区内（或系统临时目录）。",
     groupCommandUnsupported: "群聊中仅支持对话与 /help、/stop；管理命令请在私聊使用。",
+    privatePromptHeader:
+      "[渠道信息] 你正在通过{platform}私聊与用户对话。你的回复会直接发送到 IM 聊天窗口，用户看不到桌面端。",
+    privatePromptReplyStyle: "回复保持简洁，优先给结论；不要要求用户打开桌面端或点击界面。",
+    privatePromptFileHint:
+      "用户要求在聊天里收到文件时，调用 SendFile 工具发送；只回复文件路径没有用。",
+    quotedMessageLine: "[引用消息] {text}",
     groupPromptDefaultBotName: "助手",
     groupPromptHeader:
       "[群聊信息] 你正在「{group}」{platform}群聊中。你的名字是「{botName}」。",
@@ -207,6 +213,13 @@ const messages = {
     sendMediaMissing: "Usage: **/send <path>**. The path must be inside the current workspace (or the system temp dir).",
     groupCommandUnsupported:
       "Group chats only support conversation, /help and /stop. Use management commands in a private chat.",
+    privatePromptHeader:
+      "[Channel] You are chatting with the user in a {platform} private chat. Your reply is delivered straight to the IM window; the user cannot see the desktop app.",
+    privatePromptReplyStyle:
+      "Keep replies concise and lead with the answer; do not ask the user to open the desktop app or click UI.",
+    privatePromptFileHint:
+      "When the user asks to receive a file in this chat, call the SendFile tool; replying with a path alone does not deliver it.",
+    quotedMessageLine: "[Quoted message] {text}",
     groupPromptDefaultBotName: "Assistant",
     groupPromptHeader:
       "[Group chat] You are in the {platform} group \"{group}\". Your name is \"{botName}\".",

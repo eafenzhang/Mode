@@ -52,6 +52,7 @@ import {
   type BotStructuredElicitationResponse,
   isFeishuBotProvider,
   isBotEligibleForSessionBinding,
+  stripBotChannelContextForDisplay,
   normalizeBotWorkspaceBindings,
   BOT_BINDINGS_FILE_VERSION,
   type BotProvider,
@@ -92,6 +93,7 @@ import type {
   BotSaveBotParams,
   BotTestResult,
   BotSendMediaParams,
+  BotSendMediaResult,
   BotUiFocusParams,
   BotUserConfigOptionsParams,
   BotWorkspaceBindingInfo,
@@ -153,6 +155,7 @@ import {
   isGroupSilenceReply,
   type GroupTurnPromptInput,
 } from "./groupPrompt.js";
+import { buildPrivateTurnPrompt } from "./privatePrompt.js";
 import {
   isHeartbeatDue,
   isHeartbeatOkOnly,
@@ -815,6 +818,8 @@ const BOT_TASK_META_RETRY_DELAYS_MS = [80, 160, 320] as const;
 const BOT_WORKSPACE_REFS_CACHE_TTL_MS = 5_000;
 const BOT_MAX_ATTACHMENTS_PER_MESSAGE = 4;
 const BOT_MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
+/** 引用消息只作为上下文，超长截断，避免把整段历史再次灌进 prompt。 */
+const BOT_QUOTED_TEXT_LIMIT = 1_000;
 const BOT_ATTACHMENT_DOWNLOAD_TIMEOUT_MS = 30_000;
 const REMOTE_RECONNECT_DEDUPE_TTL_MS = 3_000;
 const REMOTE_RECONNECT_DELIVERY_DEDUPE_TTL_MS = 2 * 60_000;
@@ -1267,6 +1272,7 @@ export function createBotsService(
       }
       const enqueued = enqueueQueuedMessage(existing.queuedMessages, {
         text: message.text,
+        ...(message.quotedText ? { quotedText: message.quotedText } : {}),
         providerUserId: message.actor.providerUserId,
         displayName: message.actor.displayName,
         chatId: message.actor.chatId,
@@ -1356,6 +1362,7 @@ export function createBotsService(
           botId: bot.id,
           actor,
           text: queued.text,
+          ...(queued.quotedText ? { quotedText: queued.quotedText } : {}),
           ...(drainedAttachments.length > 0 ? { attachments: drainedAttachments } : {}),
           receivedAt: queued.receivedAt,
         });
@@ -1733,7 +1740,7 @@ export function createBotsService(
     filePath: string;
     caption?: string;
     chatId?: string;
-  }): Promise<void> {
+  }): Promise<{ filename: string; kind: "image" | "file" }> {
     const adapter = providers[params.bot.provider];
     if (!adapter?.sendMedia) {
       throw new Error("This channel does not support sending files.");
@@ -1808,6 +1815,7 @@ export function createBotsService(
         ...(params.caption?.trim() ? { caption: params.caption.trim() } : {}),
       },
     );
+    return { filename, kind };
   }
 
   /**
@@ -2329,8 +2337,15 @@ export function createBotsService(
       );
     }
     const trimmed = message.text.trim();
-    const baseContent =
-      trimmed || (rawAttachments.length > 0 ? msg(locale, "attachmentOnlyPrompt") : "");
+    // 平台侧的“引用/回复某条消息”作为当前输入的上下文，放在正文之前；
+    // 命令解析仍只用 text，引用前缀不会把 /send 之类的命令打成普通消息。
+    const quoted = message.quotedText?.trim();
+    const baseContent = [
+      quoted ? msg(locale, "quotedMessageLine", { text: quoted.slice(0, BOT_QUOTED_TEXT_LIMIT) }) : "",
+      trimmed || (rawAttachments.length > 0 ? msg(locale, "attachmentOnlyPrompt") : ""),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
     return {
       content: [baseContent, ...fileLines].filter(Boolean).join("\n\n"),
       modeAttachments,
@@ -6696,6 +6711,11 @@ export function createBotsService(
         ),
       ];
     }
+    // 标题只取用户原始输入：后面的群/私聊 system-reminder 是给模型的上下文，
+    // 不能出现在侧栏任务名里（旧实现把 [群聊信息]/[渠道信息] 当成了标题开头）。
+    // 引用消息同理：有正文时用正文，附件-only 消息才回退到剥离引用行后的内容。
+    const titleSource =
+      message.text.trim() || stripBotChannelContextForDisplay(preparedMessage.content);
     // 群聊被触发：注入群身份/回复规则 + 未参与期间的历史 + 带发送者与 @ 标记的当前消息。
     // 「全部消息」模式下模型可用 <NO_REPLY> 保持沉默（回复侧收口见 watchTaskStream）。
     const isGroupTurn = message.actor.chatType === "group";
@@ -6726,6 +6746,23 @@ export function createBotsService(
       preparedMessage = {
         ...preparedMessage,
         content: buildGroupTurnPrompt(groupPromptInput),
+      };
+    } else if (message.actor.chatType === "private") {
+      // A+ 规则 9：私聊每条消息注入渠道上下文。此前只有群聊有 system-reminder，
+      // 模型在私聊里会按桌面端习惯回答（让用户点界面、只说文件路径），也不会主动用 SendFile。
+      preparedMessage = {
+        ...preparedMessage,
+        content: buildPrivateTurnPrompt({
+          providerLabel: formatBotProviderLabel(message.actor.provider),
+          // 平台能力以 provider 是否实现 sendMedia 为准，避免微信/钉钉被提示去调用
+          // 一个必然报错的 SendFile（群聊能力表同口径）。lark 是 feishu 的历史别名。
+          mediaEnabled: Boolean(
+            providers[isFeishuBotProvider(auth.bot.provider) ? "feishu" : auth.bot.provider]
+              ?.sendMedia,
+          ),
+          content: preparedMessage.content,
+          locale: auth.locale,
+        }),
       };
     }
     if (auth.context.mode === "draft" || !auth.context.activeTaskId) {
@@ -6768,7 +6805,7 @@ export function createBotsService(
       // 否则侧栏会冒出"[心跳] 主动检查…"这种任务名。
       const taskTitle = options.heartbeat
         ? msg(auth.locale, "heartbeatTaskTitle")
-        : deriveTaskTitle(preparedMessage.content, preparedMessage.modeAttachments);
+        : deriveTaskTitle(titleSource, preparedMessage.modeAttachments);
       const broadcastTask = taskTitle ? { ...task, title: taskTitle } : task;
       const traceId = generateTraceId(task.taskId);
       try {
@@ -7812,13 +7849,26 @@ export function createBotsService(
       }
     },
 
-    async sendBotMedia(params: BotSendMediaParams): Promise<void> {
+    async sendBotMedia(params: BotSendMediaParams): Promise<BotSendMediaResult> {
       const config = await repo.readConfig();
       const bot = findBot(config, params.botId);
       if (!bot) {
         throw new Error(`Bot not found: ${params.botId}`);
       }
-      await deliverBotMedia({
+      // 修复原因：SendFile 的目标由 Host 注入并与 botId 一起跨进程传递，
+      // 这里必须再校验通道一致，避免 provider 与 bot 记录错配后把文件发到
+      // 另一个通道的会话（目标解析由 deliverBotMedia 唯一负责）。
+      if (
+        params.provider &&
+        bot.provider !== params.provider &&
+        // feishu/lark 是同一通道的历史别名，不按不一致处理。
+        !(isFeishuBotProvider(bot.provider) && isFeishuBotProvider(params.provider))
+      ) {
+        throw new Error(
+          `Bot provider mismatch: expected ${bot.provider}, received ${params.provider}.`,
+        );
+      }
+      return deliverBotMedia({
         bot,
         filePath: params.filePath,
         ...(params.caption ? { caption: params.caption } : {}),
@@ -7946,10 +7996,15 @@ export function createBotsService(
           command.type !== "message" &&
           command.type !== "stop" &&
           command.type !== "approve" &&
-          command.type !== "deny"
+          command.type !== "deny" &&
+          command.type !== "help" &&
+          command.type !== "send"
         ) {
           // A+：群聊管理命令静默丢弃，不交给 AI、不写 binding、不回“仅支持私聊”提示。
-          // 只保留对话、停止和权限响应这类控制消息。
+          // 只保留对话、帮助（含 /start）、停止、权限响应与显式发文件（/send）。
+          // /help 是只读说明且群文案已承诺支持，不能和“管理命令”一起静默吞掉。
+          // /send 的授权仍走 withAuthorizedContext("message")，目标由 deliverBotMedia
+          // 按群 chatId 解析，不会退化成发送者私聊（docs/specs/bot-outbound-media.md）。
           return [];
         }
         switch (command.type) {

@@ -71,6 +71,7 @@ import type {
   BrowserControlPort,
   ExecutionShellSelection,
   AutomationPort,
+  BotMediaPort,
   OffPeakPort,
   FileSystemPort,
   HttpClientPort,
@@ -366,6 +367,8 @@ export interface AgentRuntimeDeps {
   runtimeTaskRegistry?: RuntimeTaskRegistry;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
+  /** IM bot 回合的 SendFile 端口；只在 Host 注入 botDeliveryTarget 的会话存在。 */
+  botMediaPort?: BotMediaPort;
   offPeakPort?: OffPeakPort;
   contextSourcePort?: ContextSourcePort;
   eventSink?: SessionEventSink;

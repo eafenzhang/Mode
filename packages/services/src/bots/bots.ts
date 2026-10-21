@@ -73,11 +73,22 @@ export interface BotAutomationRunWatchParams {
 
 export interface BotSendMediaParams {
   botId: string;
+  /** bot 的通道类型；由 Host 注入的投递目标携带，用于防止 botId/provider 错配。 */
+  provider?: BotProvider;
   /** 绝对路径，或相对 bot 当前工作区的路径。 */
   filePath: string;
   caption?: string;
-  /** 群聊显式指定 chatId；私聊省略时发给绑定的用户。 */
+  /**
+   * 显式投递目标：群聊 chatId / 私聊 userid。SendFile 工具总是传入 Host 注入的目标；
+   * 省略时按“群 chatId → 绑定用户 → 最近对话”的既有链推导。
+   */
   chatId?: string;
+}
+
+/** 出站媒体发送结果；文件名与类型用于工具回执，不参与路由。 */
+export interface BotSendMediaResult {
+  filename: string;
+  kind: "image" | "file";
 }
 
 export interface BotWorkspaceBindingParams {
@@ -249,7 +260,7 @@ export interface IBotsService {
    * 把受信目录（当前工作区 / 应用数据目录 / 系统临时目录）内的文件作为媒体发到会话。
    * 路径越界、文件不存在或超过平台大小上限都会抛错。
    */
-  sendBotMedia(params: BotSendMediaParams): Promise<void>;
+  sendBotMedia(params: BotSendMediaParams): Promise<BotSendMediaResult>;
   /** 当前被机器人绑定的任务列表（桌面任务行的绿点标识用）。 */
   listBotTaskBindings(): Promise<
     Array<{

@@ -1,21 +1,31 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import type { BotsConfigFile } from "@mode/shared";
-import { setDataBaseDir } from "../src/paths.js";
+
+// 事故依据（2026-10-21）：MODE_DATA_BASE_DIR 已由宿主环境固定时，setDataBaseDir()
+// 按设计是 no-op；旧写法仍会继续写真实 ~/.mode/v2，测试夹具曾覆盖开发者 bot-config。
+// 现在必须在任何 services 模块加载前设置环境变量，并用 getAppConfigDir() 复核隔离。
+const previousDataBaseDir = process.env.MODE_DATA_BASE_DIR;
+const dataDir = mkdtempSync(join(tmpdir(), "mode-bot-config-mutation-"));
+process.env.MODE_DATA_BASE_DIR = dataDir;
+mkdirSync(join(dataDir, ".mode", "v2"), { recursive: true });
+
+after(() => {
+  if (previousDataBaseDir === undefined) delete process.env.MODE_DATA_BASE_DIR;
+  else process.env.MODE_DATA_BASE_DIR = previousDataBaseDir;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 async function withTempDataDir(run: () => Promise<void>): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "mode-bot-config-mutation-"));
-  setDataBaseDir(dir);
-  try {
-    await mkdir(join(dir, ".mode", "v2"), { recursive: true });
-    await run();
-  } finally {
-    setDataBaseDir(null);
-    await rm(dir, { recursive: true, force: true });
-  }
+  const { getAppConfigDir } = await import("../src/paths.js");
+  assert.ok(
+    getAppConfigDir().startsWith(dataDir),
+    `测试数据目录隔离失败：${getAppConfigDir()} 不在 ${dataDir} 下，拒绝写入真实数据目录`,
+  );
+  await run();
 }
 
 function config(): BotsConfigFile {

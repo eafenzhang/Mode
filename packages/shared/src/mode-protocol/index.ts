@@ -3445,6 +3445,28 @@ export const modeAutomationCreateResultSchema = z
   .strict();
 export type ModeAutomationCreateProtocolResult = z.infer<typeof modeAutomationCreateResultSchema>;
 
+/**
+ * Bot agent → Host 的显式文件发送（SendFile 工具）。
+ * 目标只能由 Host 在 bot 回合里注入，模型参数不暴露 providerUserId / chatId；
+ * 路径校验、白名单、限额与 provider 分发统一由 Host 的 botsService 执行。
+ */
+export const modeBotSendMediaParamsSchema = z
+  .object({
+    target: modeAutomationBotDeliveryTargetSchema,
+    filePath: nonEmptyString,
+    caption: nonEmptyString.optional(),
+  })
+  .strict();
+export type ModeBotSendMediaProtocolParams = z.infer<typeof modeBotSendMediaParamsSchema>;
+
+export const modeBotSendMediaResultSchema = z
+  .object({
+    filename: nonEmptyString,
+    kind: z.enum(["image", "file"]),
+  })
+  .strict();
+export type ModeBotSendMediaProtocolResult = z.infer<typeof modeBotSendMediaResultSchema>;
+
 export const modeAutomationUpdateParamsSchema = z
   .object({
     automationId: nonEmptyString,
@@ -3679,6 +3701,8 @@ export const modeProtocolMethods = {
   automationCheckTaskBinding: "automation/checkTaskBinding",
   automationList: "automation/list",
   automationDelete: "automation/delete",
+  // Bot 回合内 agent 的显式文件发送；目标由 Host 注入，模型只给 path/caption。
+  botSendMedia: "bots/sendMedia",
   // Off-Peak 会话内创建：与 automation 兄弟并列的独立方法族。
   offPeakCreate: "offPeak/create",
   offPeakList: "offPeak/list",

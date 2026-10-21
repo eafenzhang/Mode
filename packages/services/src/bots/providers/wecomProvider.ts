@@ -114,6 +114,34 @@ function readWeComInboundText(body: BaseMessage): string {
   }
 }
 
+/**
+ * 用户“引用/回复某条消息”时，把被引用内容作为上下文交给模型。
+ * 只影响 prompt，不进入命令解析；媒体引用只保留类型占位，不重复下载。
+ */
+function readWeComQuotedText(body: BaseMessage): string {
+  const quote = body.quote;
+  if (!quote) {
+    return "";
+  }
+  switch (quote.msgtype) {
+    case "text":
+      return quote.text?.content?.trim() ?? "";
+    case "voice":
+      return quote.voice?.content?.trim() ?? "";
+    case "mixed":
+      return (quote.mixed?.msg_item ?? [])
+        .map((item) => (item.msgtype === "text" ? (item.text?.content ?? "") : "[图片]"))
+        .filter((item) => item.trim().length > 0)
+        .join("\n");
+    case "image":
+      return "[图片]";
+    case "file":
+      return "[文件]";
+    default:
+      return "";
+  }
+}
+
 function readWeComInboundAttachments(body: BaseMessage): BotInboundAttachment[] {
   const attachments: BotInboundAttachment[] = [];
   const pushMedia = (
@@ -467,6 +495,7 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
       // createOutbound 会按 chatId 路由到群。
       const text = readWeComInboundText(body);
       const attachments = readWeComInboundAttachments(body);
+      const quotedText = readWeComQuotedText(body);
       if (!text.trim() && attachments.length === 0) {
         return [];
       }
@@ -474,6 +503,7 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
         {
           botId,
           text,
+          ...(quotedText ? { quotedText } : {}),
           ...(attachments.length > 0 ? { attachments } : {}),
           actor: {
             provider: "wecom",
@@ -501,11 +531,51 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
         type: media.kind === "image" ? "image" : "file",
         filename: media.filename,
       });
+      // 企微媒体消息没有内联 caption 字段；`/send 文件 | 说明` 的说明改为独立文本，
+      // 不能静默丢弃（docs/specs/bot-outbound-media.md 规则 4）。
+      const caption = media.caption?.trim();
+      // 媒体同样是“真正出站”：等待期占位流必须在这里收口。否则 tool_only 回合
+      // 抑制了自动文本后，未收口的 replyStream 会在企微 PC 上永久显示 loading
+      // （wecom-reply-feedback.md 的收口规则同样适用于媒体）。
+      await waitPendingTypingOpen(bot, target.providerUserId);
+      const pending = takePendingTypingStream(bot, target.providerUserId);
+      let captionHandled = false;
+      if (pending) {
+        try {
+          // 有 caption 时让它原地替换占位文案；没有时至少以文件名收口，
+          // 避免留下一条永远 loading 的空消息。
+          await connection.client.replyStream(
+            pending.frame,
+            pending.streamId,
+            caption || media.filename,
+            true,
+          );
+          captionHandled = Boolean(caption);
+        } catch {
+          // 帧过期（占位已不可寻址）：放弃占位，caption 回落到独立文本，不阻断媒体。
+        }
+      }
+      const mediaType = media.kind === "image" ? "image" : "file";
+      const videoOptions = media.kind === "file" ? { title: media.filename } : undefined;
+      // 有该会话的入站帧时优先走被动回复：说明与文件都挂在触发消息下，和文字回复一致，
+      // 也避免把用户主动请求的文件变成一条独立的主动推送（docs/specs/bot-outbound-media.md）。
+      const frame = connection.getLastFrame(target.providerUserId);
+      if (caption && !captionHandled) {
+        if (frame) {
+          await connection.client.replyStream(frame, generateReqId("stream"), caption, true);
+        } else {
+          await pushMarkdownChunks(connection.client, target.providerUserId, caption);
+        }
+      }
+      if (frame) {
+        await connection.client.replyMedia(frame, mediaType, uploaded.media_id, videoOptions);
+        return;
+      }
       await connection.client.sendMediaMessage(
         target.providerUserId,
-        media.kind === "image" ? "image" : "file",
+        mediaType,
         uploaded.media_id,
-        media.kind === "file" ? { title: media.filename } : undefined,
+        videoOptions,
       );
     },
 

@@ -733,6 +733,7 @@ export async function createModeApp(options: ModeAppOptions): Promise<ModeApp> {
       dynamicWorkflowSnippetPort,
       modelCatalogPort,
       automationPort: options.automationPort,
+      botMediaPort: options.botMediaPort,
       offPeakPort: options.offPeakPort,
       appVersion,
       traceContext,

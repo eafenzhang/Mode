@@ -355,6 +355,8 @@ export interface BotQueuedAttachment {
 /** 任务运行中暂存的入站消息；任务终态后按序自动投递。 */
 export interface BotQueuedMessage {
   text: string;
+  /** 平台侧的引用消息原文；入队后补投时仍要作为模型上下文。 */
+  quotedText?: string;
   receivedAt: number;
   /** 发送者私聊身份快照；重投递时用于重建 actor 与回执投递目标 */
   providerUserId?: string;
@@ -593,6 +595,11 @@ export interface BotInboundMessage {
   botId: string;
   actor: BotActor;
   text: string;
+  /**
+   * 平台侧“引用/回复某条消息”的原文。只作为模型上下文，不参与命令解析：
+   * `/send ...` 等命令仍只看 `text`，避免引用前缀把命令打成普通消息。
+   */
+  quotedText?: string;
   attachments?: BotInboundAttachment[];
   elicitationResponse?: BotStructuredElicitationResponse;
   receivedAt?: number;
@@ -946,6 +953,7 @@ const botConversationStateSchema = z.object({
       z
         .object({
           text: z.string(),
+          quotedText: z.string().optional(),
           receivedAt: z.number(),
           providerUserId: z.string().min(1).optional(),
           displayName: z.string().optional(),

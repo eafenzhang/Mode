@@ -2271,6 +2271,9 @@ export function createLocalServices(options: {
   // OffPeakTaskService 单例在下方 DI register IIFE 中创建（晚于 agent service）；
   // 用前向引用 holder 惰性绑定——offPeak/create 协议请求只会发生在服务集合装配完成后。
   let offPeakTaskServiceForAgent: OffPeakTaskService | undefined;
+  // Bot 的 SendFile 同理：botsService 在下面的注册链里创建，晚于 modeAgentService。
+  // 请求只会在服务集合装配完成后到达，所以这里用同一套前向引用 holder。
+  let botsServiceForAgent: Pick<IBotsService, "sendBotMedia"> | undefined;
   // desktop-attached-remote 装配不暴露 Off-Peak 工具面（远程不在支持范围）。
   const offPeakToolWiring =
     options?.serviceAuthorityMode === "desktop-attached-remote"
@@ -2286,6 +2289,7 @@ export function createLocalServices(options: {
     accountRequestAuthService,
     ...(modelSelectionReadinessSource ? { modelSelectionReadinessSource } : {}),
     authorizeLocalMediaPreviewPath: options?.authorizeLocalMediaPreviewPath,
+    resolveBotMediaSender: () => botsServiceForAgent,
     ...offPeakToolWiring,
     // 动态工作流灰度：与 Off-Peak 不同，
     // 这里不按 serviceAuthorityMode 裁剪——SSH/WSL/Docker 的 desktop-attached-remote Host
@@ -2869,6 +2873,8 @@ export function createLocalServices(options: {
   // 见 sharedSqliteRepos 声明处注释：登记全部 tasks-index sqlite 句柄，dispose 链统一关闭
   sqliteReposToClose.push(taskIndexRepo);
   sharedSqliteRepos.set(services, sqliteReposToClose);
+  // 服务集合装配完成后再回写 Bot SendFile 的前向引用；协议请求只会在返回后到达。
+  botsServiceForAgent = services.getOptional(IBotsService);
   return services;
 }
 
