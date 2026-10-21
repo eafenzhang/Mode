@@ -10,20 +10,41 @@ export function toWebSocketScheme(scheme: "http" | "https"): "ws" | "wss" {
   return scheme === "https" ? "wss" : "ws";
 }
 
+function normalizeBasePath(path: string | undefined): string {
+  const trimmed = path?.trim() ?? "";
+  if (!trimmed) {
+    return "";
+  }
+  const withLeading = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return withLeading.replace(/\/+$/u, "");
+}
+
 export function buildLanHttpBase(
   host: string,
   port: number,
   scheme: "http" | "https" = "http",
+  path?: string,
 ): string {
-  return `${scheme}://${host}:${port}`;
+  return `${scheme}://${host}:${port}${normalizeBasePath(path)}`;
 }
 
 export function buildLanWsUrl(
   host: string,
   port: number,
   scheme: "http" | "https" = "http",
+  path?: string,
 ): string {
-  return `${toWebSocketScheme(scheme)}://${host}:${port}/ws/host`;
+  return `${toWebSocketScheme(scheme)}://${host}:${port}${normalizeBasePath(path)}/ws/host`;
+}
+
+/**
+ * 在带路径前缀的 base 上追加 API 路径。`new URL("/api/...", base)` 会丢掉
+ * base 的路径（中继的 `/d/<id>` 前缀），这里用相对路径保留前缀。
+ */
+export function buildLanApiUrl(base: string, path: string): string {
+  const root = base.endsWith("/") ? base : `${base}/`;
+  const relative = path.startsWith("/") ? path.slice(1) : path;
+  return new URL(relative, root).toString();
 }
 
 /**

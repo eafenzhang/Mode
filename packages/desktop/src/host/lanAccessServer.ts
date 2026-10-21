@@ -1,20 +1,17 @@
-import { createSocket } from "node:dgram";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { WebSocket } from "ws";
 import {
   LAN_ACCESS_CLIENTS_CREDENTIAL_KEY,
   LAN_ACCESS_DEFAULT_PORT,
-  LAN_ACCESS_DISCOVERY_PORT,
   LAN_ACCESS_PAIR_CODE_TTL_MS,
-  LAN_ACCESS_PROBE,
   LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY,
   buildLanAccessClientTokenKey,
-  buildLanAnnouncementPayload,
   type LanAccessClientRecord,
   type LanAccessPairCode,
   type LanAccessPairRequest,
   type LanAccessPairResult,
   type LanAccessState,
+  type LanPublicRelayInfo,
   type ServerRemoteWorkspaceInfo,
   isModeCuaInternalFeatureEnabled,
 } from "@mode/shared";
@@ -22,6 +19,14 @@ import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/
 import { createHttpServer } from "@mode/server";
 import { type ICredentialService, type ServiceCollection } from "@mode/services";
 import { formatLogPrefix } from "@mode/shared";
+import { readLanAccessClientRecords } from "./lanAccessRecords.js";
+import { startLanDiscoveryResponder } from "./lanDiscoveryResponder.js";
+import {
+  buildPublicRelayUrl,
+  resolveLanRelayIdentity,
+  startLanRelayTunnel,
+  type RelayTunnelStartOptions,
+} from "./lanRelayTunnel.js";
 import { createRemoteAgentEnroller } from "./lanRemoteAgentEnrollment.js";
 import { closeListenableQuietly, waitForListenPort } from "./lanListenPort.js";
 import type { ListenableServer } from "./lanListenPort.js";
@@ -55,17 +60,14 @@ export function computeRemoteDesktopCapability(params: {
   return params.platform === "win32" && !params.killSwitchEngaged && params.serverEnabled;
 }
 
-/**
- * 逐设备远程桌面授权（docs/specs/lan-remote-desktop.md 状态所有者「逐设备授权」）：
- * 挂在既有 lan client 记录上的可选布尔字段，旧数据缺键 = 未授权（兼容）。
- */
-export interface LanAccessClientRecordWithRemoteDesktop extends LanAccessClientRecord {
-  remoteDesktopAuthorized?: boolean;
-}
-
 /** 局域网访问服务端：监听局域网、应答发现、校验逐设备令牌、受理配对码。 */
 export interface LanAccessServerHandle {
   getState(): LanAccessState;
+  /**
+   * 用云端登录下发的 relay token 启动隧道（幂等）。LAN 监听启动时没有令牌也能先生成
+   * tunnelId；登录成功后再调用本方法。
+   */
+  startRelayTunnel(token: string): void;
   createPairCode(): LanAccessState;
   removeClient(clientId: string): Promise<LanAccessState>;
   resetTokens(): Promise<LanAccessState>;
@@ -81,6 +83,13 @@ export interface StartLanAccessServerParams {
   getWorkspaces: () => Promise<ServerRemoteWorkspaceInfo[]>;
   appVersion: string;
   machineName: string;
+  /**
+   * 内置公网中继覆写：缺省 baseUrl 用 DEFAULT_PUBLIC_RELAY_BASE_URL、token 读
+   * MODE_RELAY_TOKEN。拿到 token 才启动隧道并下发 publicRelay；否则保持仅局域网。
+   */
+  relay?: { baseUrl?: string; token?: string };
+  /** 测试注入点：默认 startRelayTunnelClient。 */
+  startTunnel?: (options: RelayTunnelStartOptions) => { close(): void };
   /** 测试/隔离用监听端口覆写；生产缺省 `LAN_ACCESS_DEFAULT_PORT`。 */
   port?: number;
   /**
@@ -124,72 +133,6 @@ function createPairCode(): LanAccessPairCode {
   };
 }
 
-/**
- * 读 lan client 记录（凭据服务 JSON 数组）。导出给远程桌面的逐设备授权读写入口复用，
- * 避免第二处复刻记录形状（唯一真相 = 这个键与这份字段集合）。
- */
-export async function readLanAccessClientRecords(
-  credentials: ICredentialService,
-): Promise<LanAccessClientRecordWithRemoteDesktop[]> {
-  const raw = await credentials.load(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY);
-  if (!raw) {
-    return [];
-  }
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed
-      .filter((item): item is LanAccessClientRecordWithRemoteDesktop => {
-        if (!item || typeof item !== "object") {
-          return false;
-        }
-        const record = item as Partial<LanAccessClientRecordWithRemoteDesktop>;
-        return typeof record.id === "string" && record.id.length > 0;
-      })
-      .map((record) => ({
-        id: record.id,
-        label: typeof record.label === "string" ? record.label : "",
-        createdAt: typeof record.createdAt === "number" ? record.createdAt : Date.now(),
-        lastUsedAt: typeof record.lastUsedAt === "number" ? record.lastUsedAt : null,
-        ...(typeof record.lastWorkspacePath === "string" && record.lastWorkspacePath
-          ? { lastWorkspacePath: record.lastWorkspacePath }
-          : {}),
-        // 远程桌面逐设备授权：只认显式 true（缺键/旧数据 = 未授权），写回时必须保留。
-        ...(record.remoteDesktopAuthorized === true ? { remoteDesktopAuthorized: true } : {}),
-      }));
-  } catch {
-    return [];
-  }
-}
-
-/** 写回 lan client 记录数组（仅无活 handle 的远程桌面授权写路径使用；见 remoteDesktopServer.ts）。 */
-export async function writeLanAccessClientRecords(
-  credentials: ICredentialService,
-  records: LanAccessClientRecordWithRemoteDesktop[],
-): Promise<void> {
-  await credentials.save(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY, JSON.stringify(records));
-}
-
-/**
- * 监听未开启时的状态快照（纯读取，不依赖服务端在跑）：
- * clients 从凭据读取——配对记录与逐设备授权是持久化事实，监听开关只管「现在能不能连进来」。
- * 设置页「已配对设备」单列表消费这份快照（spec: docs/specs/lan-paired-devices.md）；
- * port/addresses/pairCode 为空（生成配对码/移除/重置等动作仍需要服务端）。
- */
-export async function readDisabledLanAccessState(
-  credentials: ICredentialService,
-): Promise<LanAccessState> {
-  return {
-    enabled: false,
-    port: null,
-    addresses: [],
-    pairCode: null,
-    clients: await readLanAccessClientRecords(credentials),
-  };
-}
-
 export async function startLanAccessServer(
   params: StartLanAccessServerParams,
 ): Promise<LanAccessServerHandle> {
@@ -200,6 +143,15 @@ export async function startLanAccessServer(
     serverId = randomUUID();
     await credentials.save(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, serverId);
   }
+
+  // 内置公网中继：地址有默认值，令牌是部署 secret（不写进仓库，读 env/注入）。
+  // 没有令牌时保持纯 LAN，不向主控下发不可达的公网端点。
+  const relayIdentity = await resolveLanRelayIdentity({
+    credentials,
+    ...(params.relay ? { relay: params.relay } : {}),
+    warn,
+  });
+  let publicRelay: LanPublicRelayInfo | undefined;
 
   let clients = await readLanAccessClientRecords(credentials);
   /** clientId → token 的内存缓存；真相仍在凭据服务里。 */
@@ -213,6 +165,8 @@ export async function startLanAccessServer(
 
   let pairCode: LanAccessPairCode | null = null;
   let disposed = false;
+  /** 内置公网中继的出站隧道；未配置 token 时为 null（仅 LAN）。 */
+  let tunnel: { close(): void } | null = null;
   const lastTouchAt = new Map<string, number>();
 
   const persistClients = async (): Promise<void> => {
@@ -304,7 +258,12 @@ export async function startLanAccessServer(
     await credentials.save(buildLanAccessClientTokenKey(record.id), token);
     await persistClients();
     log("paired new lan client:", record.label);
-    return { token, serverId, name: params.machineName };
+    return {
+      token,
+      serverId,
+      name: params.machineName,
+      ...(publicRelay ? { publicRelay } : {}),
+    };
   };
 
   const enrollRemoteAgent = createRemoteAgentEnroller({
@@ -318,6 +277,7 @@ export async function startLanAccessServer(
     authRequired: true,
     verifyAuthToken,
     lanPairing: { redeem },
+    publicRelay: () => publicRelay,
     remoteAgentEnrollment: { enroll: enrollRemoteAgent },
     resolveLanClientByToken,
     onLanClientWorkspace: recordClientWorkspace,
@@ -380,34 +340,39 @@ export async function startLanAccessServer(
     warn("lan access server error:", error.message);
   });
 
-  // 发现应答：只回应收到的探测，不做周期广播（少噪声，也少信息外泄）。
-  const discoverySocket = createSocket({ type: "udp4", reuseAddr: true });
-  const announcement = buildLanAnnouncementPayload({
+  const discovery = await startLanDiscoveryResponder({
     serverId,
     name: params.machineName,
     version: params.appVersion,
     port,
-    requiresPairing: true,
-    platform: process.platform,
+    isDisposed: () => disposed,
+    warn,
   });
-  discoverySocket.on("message", (message, rinfo) => {
-    if (message.toString("utf8").trim() !== LAN_ACCESS_PROBE || disposed) {
+
+  // 监听已建立后再启动出站隧道：本地 127.0.0.1:<port> 必须可达。
+  // 隧道连接失败不阻断 LAN：startRelayTunnelClient 自己退避重连，LAN 照常可用。
+  const startRelayTunnel = (token: string): void => {
+    if (!relayIdentity || tunnel) {
       return;
     }
-    discoverySocket.send(announcement, rinfo.port, rinfo.address, (error) => {
-      if (error) {
-        warn("lan discovery reply failed:", error.message);
-      }
+    const started = startLanRelayTunnel({
+      config: { publicRelay: relayIdentity, token: token.trim() },
+      localPort: port,
+      ...(params.startTunnel ? { startTunnel: params.startTunnel } : {}),
+      log,
+      warn,
     });
-  });
-  discoverySocket.on("error", (error) => {
-    warn("lan discovery socket error:", error.message);
-  });
-  await new Promise<void>((resolve) => {
-    discoverySocket.bind(LAN_ACCESS_DISCOVERY_PORT, "0.0.0.0", () => resolve());
-    // 同机多实例时发现端口可能已被占用：降级为「仅手动地址可达」，不影响已配对的监听。
-    discoverySocket.once("error", () => resolve());
-  });
+    if (started) {
+      tunnel = started;
+      publicRelay = relayIdentity;
+    }
+  };
+  const initialRelayToken = (
+    params.relay?.token ?? process.env.MODE_RELAY_TOKEN ?? ""
+  ).trim();
+  if (initialRelayToken) {
+    startRelayTunnel(initialRelayToken);
+  }
 
   const getState = (): LanAccessState => {
     if (pairCode && pairCode.expiresAt <= Date.now()) {
@@ -419,11 +384,13 @@ export async function startLanAccessServer(
       addresses: listLanAddresses(port),
       pairCode: pairCode ? { ...pairCode } : null,
       clients: clients.map((client) => ({ ...client })),
+      publicRelayUrl: publicRelay ? buildPublicRelayUrl(publicRelay) : null,
     };
   };
 
   return {
     getState,
+    startRelayTunnel,
     createPairCode(): LanAccessState {
       pairCode = createPairCode();
       return getState();
@@ -468,11 +435,9 @@ export async function startLanAccessServer(
       }
       disposed = true;
       pairCode = null;
-      try {
-        discoverySocket.close();
-      } catch {
-        // 关闭未绑定的 socket 会抛错：忽略即可。
-      }
+      tunnel?.close();
+      tunnel = null;
+      discovery.close();
       await new Promise<void>((resolve) => {
         const closable = server as unknown as {
           close: (callback?: () => void) => void;

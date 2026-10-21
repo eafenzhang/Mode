@@ -7,7 +7,7 @@
  * 不写日志、不进 renderer。
  *
  * 公网端点（docs/specs/lan-remote-public-endpoints.md）：一个已配对设备可同时保存 LAN
- * （http）与公网（https）端点；探测按 LAN → 公网回退，会话先探测选出可达端点再 POST。
+ * （http）与公网（https）端点；探测按公网 → LAN 回退，会话先探测选出可达端点再 POST。
  * https 端点的信令/媒体 WebSocket 必须用 wss，禁止降级到明文。
  */
 import type { LanPeerEndpoint } from "@mode/shared";
@@ -21,6 +21,7 @@ import {
 import type { ICredentialService } from "@mode/services";
 import { fetchLanPeerInfo, readLanPeerEndpoints } from "./lanRemoteAttach.js";
 import {
+  buildLanApiUrl,
   buildLanHttpBase,
   isRetryableLanPeerError,
   LanPeerRequestError,
@@ -34,7 +35,7 @@ import {
  * 由 fetchLanPeerInfo 自带短超时。
  */
 const SESSION_REQUEST_TIMEOUT_MS = 90_000;
-/** 多端点时 LAN 探测预算：离开局域网后不长时间卡在不可达地址上。 */
+/** 多端点时 LAN 回退探测预算：公网不可达时不长时间卡在局域网地址上。 */
 const LAN_FALLBACK_PROBE_TIMEOUT_MS = 2_500;
 /** 多端点时公网探测预算：覆盖 TLS 握手与反向隧道冷启动。 */
 const PUBLIC_PROBE_TIMEOUT_MS = 8_000;
@@ -91,8 +92,22 @@ function endpointProbeTimeoutMs(
   return endpoint.kind === "lan" ? LAN_FALLBACK_PROBE_TIMEOUT_MS : PUBLIC_PROBE_TIMEOUT_MS;
 }
 
+function endpointRequest(endpoint: LanPeerEndpoint): {
+  scheme: "http" | "https";
+  host: string;
+  port: number;
+  path?: string;
+} {
+  return {
+    scheme: endpoint.scheme,
+    host: endpoint.host,
+    port: endpoint.port,
+    ...(endpoint.path ? { path: endpoint.path } : {}),
+  };
+}
+
 /**
- * 探测：LAN 优先。401/403 等对端级错误立即收口；只有传输失败/超时/5xx/404/
+ * 探测：公网优先、LAN 回退。401/403 等对端级错误立即收口；只有传输失败/超时/5xx/404/
  * 协议不符才尝试下一个端点（同一令牌在另一个端点不会更好）。
  */
 export async function probeRemoteDesktopPeer(
@@ -107,9 +122,7 @@ export async function probeRemoteDesktopPeer(
     try {
       const timeoutMs = endpointProbeTimeoutMs(endpoint, target.endpoints.length);
       const info = await fetchLanPeerInfo({
-        scheme: endpoint.scheme,
-        host: endpoint.host,
-        port: endpoint.port,
+        ...endpointRequest(endpoint),
         token: target.token,
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       });
@@ -144,9 +157,7 @@ async function selectReachableEndpoint(
     const timeoutMs = endpointProbeTimeoutMs(endpoint, target.endpoints.length);
     try {
       await fetchLanPeerInfo({
-        scheme: endpoint.scheme,
-        host: endpoint.host,
-        port: endpoint.port,
+        ...endpointRequest(endpoint),
         token: target.token,
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       });
@@ -201,8 +212,8 @@ export async function openRemoteDesktopPeerSession(
   }
   const endpoint = selection.endpoint;
   // 端点协议决定整条链路：https 的 HTTP 请求 + wss 的信令/媒体 WebSocket。
-  const base = buildLanHttpBase(endpoint.host, endpoint.port, endpoint.scheme);
-  const url = new URL("/api/remote-desktop/session", base);
+  const base = buildLanHttpBase(endpoint.host, endpoint.port, endpoint.scheme, endpoint.path);
+  const url = new URL(buildLanApiUrl(base, "/api/remote-desktop/session"));
   url.searchParams.set("token", target.token);
   // 画质档位（P1-3）：被控据此定 fps/maxWidth/初始码率；旧对端忽略该参数。
   url.searchParams.set("quality", quality);
@@ -270,9 +281,7 @@ export async function openRemoteDesktopPeerSession(
     let peerVersion = "";
     try {
       const info = await fetchLanPeerInfo({
-        scheme: endpoint.scheme,
-        host: endpoint.host,
-        port: endpoint.port,
+        ...endpointRequest(endpoint),
         token: target.token,
       });
       peerVersion = info.version.trim();
@@ -289,7 +298,7 @@ export async function openRemoteDesktopPeerSession(
   }
   // WS 升级与 POST 同样要出示设备令牌：服务端全局鉴权（http.ts isTokenProtectedPath 命中
   // /ws/*）与升级中间件 resolveLanClientId 都从 query 读令牌，只带 ticket 会被 401 拒绝。
-  const wsUrl = new URL("/ws/remote-desktop", base);
+  const wsUrl = new URL(buildLanApiUrl(base, "/ws/remote-desktop"));
   wsUrl.protocol = `${toWebSocketScheme(endpoint.scheme)}:`;
   wsUrl.searchParams.set("ticket", ticket);
   wsUrl.searchParams.set("token", target.token);
@@ -297,7 +306,7 @@ export async function openRemoteDesktopPeerSession(
   // 由主控 host 从被控 POST 响应拼出，经 rdStartSession 返回值直达 renderer。
   // 票据即凭证：media 端点豁免全局令牌鉴权（服务端按 spec 以单次消费票据为唯一凭证），
   // 因此这里不带 token，renderer 拿 mediaUrl 即可直连（信令 wsUrl 仍需 token）。
-  const mediaUrl = new URL("/ws/remote-desktop-media", base);
+  const mediaUrl = new URL(buildLanApiUrl(base, "/ws/remote-desktop-media"));
   mediaUrl.protocol = `${toWebSocketScheme(endpoint.scheme)}:`;
   mediaUrl.searchParams.set("mediaTicket", mediaTicket);
   return { ok: true, wsUrl: wsUrl.toString(), mediaUrl: mediaUrl.toString() };

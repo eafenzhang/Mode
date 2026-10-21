@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
-import type { IDisposable } from "@mode/rpc";
+import { Emitter, type IDisposable } from "@mode/rpc";
 import { completeNewModelSelection } from "@mode/provider";
 import {
   ALL_BOT_WORKSPACES,
@@ -830,6 +830,10 @@ export function createBotsService(
   const runStartupBackgroundTasks = deps.runStartupBackgroundTasks !== false;
   const repo = new BotsRepo();
   const bindCodes = new Map<string, BindCodeRecord>();
+  const onDidChangeEmitter = new Emitter<void>();
+  const notifyConfigChanged = (): void => {
+    onDidChangeEmitter.fire();
+  };
   const automationDeliveryWarningAtByKey = new Map<string, number>();
   const streamSubscriptions = new Map<string, IDisposable>();
   const streamingCardRequestControllers = new Set<AbortController>();
@@ -6335,6 +6339,7 @@ export function createBotsService(
       bots: config.bots.map((item) => (item.id === nextBot.id ? nextBot : item)),
     });
     bindCodes.delete(record.code);
+    notifyConfigChanged();
     // 绑定成功不再自动回复"绑定成功 + 命令清单"：绑定是用户主动发起的动作，
     // 后续命令清单可由 **/帮助** 主动索取（这里保持静默，避免每条绑定都刷一屏帮助）。
     return [];
@@ -7118,6 +7123,7 @@ export function createBotsService(
   }
 
   service = {
+    onDidChange: onDidChangeEmitter.event,
     async syncAppRuntimePreferences(preferences) {
       await deps.remoteWorkspaceService?.syncAppRuntimePreferences?.(preferences);
     },
@@ -7175,6 +7181,7 @@ export function createBotsService(
     },
     async saveConfig(config) {
       const savedConfig = await repo.writeConfig(normalizeConfigBots(config));
+      notifyConfigChanged();
       clearCandidateCaches();      weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
       wecomRuntime.scheduleRefresh(savedConfig);
@@ -7242,6 +7249,7 @@ export function createBotsService(
       feishuRuntime.scheduleRefresh(savedConfig);
       wecomRuntime.scheduleRefresh(savedConfig);
       dingtalkRuntime.scheduleRefresh(savedConfig);
+      notifyConfigChanged();
       return bot;
     },
     async removeBotSecret(botId: string) {
@@ -7284,6 +7292,7 @@ export function createBotsService(
       if (bot.webhookSecretRef) {
         await deps.credentialService.delete(bot.webhookSecretRef);
       }
+      notifyConfigChanged();
       return nextBot;
     },
     async deleteBot(botId: string) {
@@ -7305,6 +7314,7 @@ export function createBotsService(
         ...config,
         bots: config.bots.filter((item) => item.id !== botId),
       });
+      notifyConfigChanged();
       clearCandidateCaches();      weixinRuntime.scheduleRefresh();
       wecomRuntime.scheduleRefresh();
       dingtalkRuntime.scheduleRefresh();
@@ -8886,6 +8896,7 @@ export function createBotsService(
         return shutdownPromise;
       }
       stopBotHeartbeatScheduler();
+      onDidChangeEmitter.dispose();
       memoryDiagnostics.dispose();
       for (const controller of streamingCardRequestControllers) {
         controller.abort(new Error("Bot service disposed."));

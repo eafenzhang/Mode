@@ -147,6 +147,8 @@ export const ServiceChannels = {
    * （docs/specs/tauri-renderer-host.md §21.2）。
    */
   LanAccess: "lan-access",
+  /** Mode Cloud 账号与设备目录（local-only；只在 Host 侧装载）。 */
+  CloudAccount: "cloud-account",
   /** 远程桌面被控设置与会话面（LR-2 起）。 */
   RemoteDesktop: "remote-desktop",
   /** 远程工作区管理面（LR-4）：connect/cancel/bind/dispose/attach/detach。 */

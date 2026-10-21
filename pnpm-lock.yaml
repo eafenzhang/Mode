@@ -611,6 +611,25 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
 
+  packages/cloud-relay:
+    dependencies:
+      ws:
+        specifier: ^8.20.0
+        version: 8.20.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.6.0
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: ^4.19.4
+        version: 4.21.0
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+
   packages/desktop:
     dependencies:
       '@babel/runtime':
@@ -628,6 +647,9 @@ importers:
       '@mode/client':
         specifier: workspace:*
         version: link:../client
+      '@mode/cloud-relay':
+        specifier: workspace:*
+        version: link:../cloud-relay
       '@mode/cua':
         specifier: workspace:*
         version: link:../mode-cua

@@ -64,11 +64,13 @@ import {
 } from "./inputConversion.js";
 import {
   isRemoteDesktopKillSwitchEngaged,
+  type LanAccessServerHandle,
+} from "./lanAccessServer.js";
+import {
   readLanAccessClientRecords,
   writeLanAccessClientRecords,
   type LanAccessClientRecordWithRemoteDesktop,
-  type LanAccessServerHandle,
-} from "./lanAccessServer.js";
+} from "./lanAccessRecords.js";
 import { evaluateRemoteDesktopRequest } from "./remoteDesktopAdmission.js";
 import { createRemoteDesktopMediaRelay } from "./remoteDesktopMediaRelay.js";
 

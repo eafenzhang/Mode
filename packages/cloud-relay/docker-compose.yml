@@ -1,0 +1,25 @@
+services:
+  relay:
+    build:
+      context: .
+      args:
+        NODE_IMAGE: "${MODE_RELAY_NODE_IMAGE:-node:24-alpine}"
+        NPM_REGISTRY: "${MODE_RELAY_NPM_REGISTRY:-https://registry.npmjs.org}"
+    restart: unless-stopped
+    ports:
+      # 默认只绑定回环，交给 fnOS 上的 Caddy/nginx 反代。
+      # 反代在另一个容器时改 MODE_RELAY_BIND=0.0.0.0，并用防火墙限制来源。
+      - "${MODE_RELAY_BIND:-127.0.0.1}:${MODE_RELAY_PORT:-8787}:8787"
+    environment:
+      MODE_RELAY_TOKEN: "${MODE_RELAY_TOKEN:?set MODE_RELAY_TOKEN}"
+      MODE_RELAY_PUBLIC_BASE_URL: "${MODE_RELAY_PUBLIC_BASE_URL:-https://relay.example.com}"
+      # Mode Cloud 账号/设备目录；留空 = 关闭控制面（只保留中继）。
+      MODE_CLOUD_DB_PATH: "${MODE_CLOUD_DB_PATH:-/data/cloud.sqlite}"
+      MODE_CLOUD_ENROLL_TOKEN: "${MODE_CLOUD_ENROLL_TOKEN:-}"
+      MODE_CLOUD_ACCOUNT_PEPPER: "${MODE_CLOUD_ACCOUNT_PEPPER:-}"
+      # 云端微信 Bot（独立 iLink token）；设置后启用 /v1/auth/* 登录。
+      MODE_CLOUD_WECHAT_TOKEN: "${MODE_CLOUD_WECHAT_TOKEN:-}"
+      MODE_CLOUD_WECHAT_ALLOWED_USER: "${MODE_CLOUD_WECHAT_ALLOWED_USER:-}"
+      MODE_CLOUD_WECHAT_BASE_URL: "${MODE_CLOUD_WECHAT_BASE_URL:-}"
+    volumes:
+      - "${MODE_CLOUD_DATA_DIR:-./data}:/data"

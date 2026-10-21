@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 process.env.MODE_DATA_BASE_DIR = await mkdtemp(join(tmpdir(), "mode-lan-disabled-state-"));
-const { readDisabledLanAccessState } = await import("../../src/host/lanAccessServer.js");
+const { readDisabledLanAccessState } = await import("../../src/host/lanAccessRecords.js");
 const { LAN_ACCESS_CLIENTS_CREDENTIAL_KEY, hostLanAccessStateResponseSchema } = await import(
   "@mode/shared"
 );

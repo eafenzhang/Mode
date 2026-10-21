@@ -244,6 +244,11 @@ interface HttpServerOptions {
   verifyAuthToken?: (token: string) => boolean;
   /** 局域网配对端点：提供时暴露 POST /api/lan/pair（该路由用一次性配对码自证，不要求既有令牌）。 */
   lanPairing?: LanAccessPairingEndpoint;
+  /**
+   * 内置公网中继：提供且返回非空时，/api/server-info 下发 publicRelay，
+   * 主控据此自动补全公网端点（docs/specs/lan-remote-public-endpoints.md）。
+   */
+  publicRelay?: () => { baseUrl: string; tunnelId: string } | undefined;
   /** Mode Agent 反向配对：被控端拿桌面生成的配对码登记自己的 MCP 连接信息。 */
   remoteAgentEnrollment?: RemoteAgentEnrollmentEndpoint;
   /**
@@ -382,6 +387,7 @@ async function resolveServerWorkspaces(
 }
 
 async function createServerInfo(options: HttpServerOptions): Promise<ServerRemoteInfo> {
+  const publicRelay = options.publicRelay?.();
   return {
     serverId: resolveServerId(options),
     ...(options.name?.trim() || readTrimmedEnv("MODE_SERVER_NAME")
@@ -391,6 +397,7 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
     protocolVersion: SERVER_REMOTE_PROTOCOL_VERSION,
     authRequired: options.authRequired ?? Boolean(readTrimmedEnv("MODE_SERVER_TOKEN")),
     workspaces: await resolveServerWorkspaces(options),
+    ...(publicRelay ? { publicRelay } : {}),
     capabilities: {
       desktopContinuous: true,
       websocketRpc: true,

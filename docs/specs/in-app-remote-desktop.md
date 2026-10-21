@@ -49,7 +49,7 @@
 
 非目标（本轮不做，逐项对标见末节）：macOS/Linux 对端、手机 Web 端、公网 rendezvous/中继/打洞、
 文件传输、虚拟显示器、打印机重定向、多会话 tab、WOL、Web 客户端、SAS 的特权服务化实现（见 P1）。
-公网地址直连（LAN 优先 + HTTPS/WSS 回退）已单独落在
+公网地址直连（公网优先 + LAN 回退）已单独落在
 [lan-remote-public-endpoints.md](./lan-remote-public-endpoints.md)，不含中继与打洞。
 
 ## 产品规则
@@ -212,7 +212,7 @@ DXGI Desktop Duplication 是**按输出（output）** 的，一张 DUPL 只能�
 - **P1 补齐缺口**：剪贴板文本双向、音频（被控→主控）、多显示器全部铺开、SAS 现状明示；
   会话面开关与 i18n 三份。
 - **P2 质量**：传输层抽象出可替换点（为 UDP/抗丢包预留）、动态分辨率、弱网自适应阈值实测标定。
-- **P3 组网**：公网端点（LAN 优先 + HTTPS/WSS 回退）已落在
+- **P3 组网**：公网端点（公网优先 + LAN 回退）已落在
   [lan-remote-public-endpoints.md](./lan-remote-public-endpoints.md)；公网 rendezvous + 中继 + 打洞
   仍未实现（若需要，另立 spec）。
 - **P4 周边**：文件传输、虚拟显示器、多会话 tab、打印机重定向——逐项单独评估，非承诺。

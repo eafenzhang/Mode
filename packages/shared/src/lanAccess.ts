@@ -19,6 +19,13 @@ export const LAN_ACCESS_PROTOCOL_VERSION = 1;
 export const LAN_ACCESS_PAIR_CODE_TTL_MS = 5 * 60_000;
 /** 服务端首选监听端口；被占用时回落到系统分配的可用端口。 */
 export const LAN_ACCESS_DEFAULT_PORT = 45880;
+/**
+ * 内置公网中继基础地址：主控不需要手填公网地址，被控端配对时自动下发
+ * `https://<base>/d/<tunnelId>`。可用 `MODE_PUBLIC_RELAY_BASE_URL` 覆写。
+ */
+export const DEFAULT_PUBLIC_RELAY_BASE_URL = "https://relay.mymode.cloud";
+/** 被控端持久化的中继路径 ID（tunnelId）；首次启用中继时生成。 */
+export const LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY = "lan:access:relay-tunnel-id";
 
 const lanTrimmedString = z.string().trim().min(1);
 
@@ -122,6 +129,8 @@ export const lanAccessStateSchema = z
     addresses: z.array(z.string()),
     pairCode: lanAccessPairCodeSchema.nullable(),
     clients: z.array(lanAccessClientRecordSchema),
+    // 内置公网中继的公开地址；未启用/未配置时 null。旧 Host 不返回该键。
+    publicRelayUrl: z.string().url().nullable().optional(),
   })
   .strict();
 
@@ -134,6 +143,8 @@ export interface LanAccessState {
   /** 当前有效配对码；未启用或未生成时为 null。 */
   pairCode: LanAccessPairCode | null;
   clients: LanAccessClientRecord[];
+  /** 内置公网中继的公开地址；未启用/未配置时 null。 */
+  publicRelayUrl?: string | null;
 }
 
 /** 服务端实现、packages/server 消费的配对端点契约（配对码 → 长期令牌）。 */
@@ -151,11 +162,22 @@ export type LanAccessPairRequest = z.infer<typeof lanAccessPairRequestSchema>;
 /** 服务端形态「允许局域网访问」开关请求体（设置页 ↔ packages/server 的 lanAccessHost）。 */
 export const lanAccessEnableRequestSchema = z.object({ enabled: z.boolean() }).strict();
 
+/** 被控端的内置公网中继信息：基础地址 + 本机持久化 tunnelId。 */
+export interface LanPublicRelayInfo {
+  baseUrl: string;
+  tunnelId: string;
+}
+
 /** 配对成功响应：令牌只在此处下发一次。 */
 export interface LanAccessPairResult {
   token: string;
   serverId: string;
   name?: string;
+  /**
+   * 被控端已配置公网中继时下发；主控据此自动写入公网端点，
+   * 不需要用户再手填公网地址（docs/specs/lan-remote-public-endpoints.md）。
+   */
+  publicRelay?: LanPublicRelayInfo;
 }
 
 /** 客户端发起的配对请求（host 侧执行 HTTP，令牌落凭据服务）。 */
@@ -174,6 +196,8 @@ export interface LanPairPeerRequest {
    * 主端点仍是 LAN 时，它作为第二个端点用于外网回退。
    */
   publicBaseUrl?: string;
+  /** 主端点的路径前缀（中继/反代，如 `/d/<tunnelId>`）；缺省根路径。 */
+  path?: string;
 }
 
 /** 凭据服务键：已配对客户端注册表（JSON 数组）。 */
@@ -213,11 +237,21 @@ export const lanPeerEndpointSchema = z
     host: lanTrimmedString,
     port: z.number().int().positive().max(65535),
     kind: lanPeerEndpointKindSchema,
+    /**
+     * 反向代理/中继的路径前缀（如 `/d/<tunnelId>`）。缺省 = 根路径；
+     * 远端 API/WS 都追加在该前缀之后（docs/specs/wss-relay-mvp.md）。
+     */
+    path: z
+      .string()
+      .trim()
+      .max(512)
+      .regex(/^\/[^?#]*$/u, "path must start with / and contain no query/hash")
+      .optional(),
   })
   .strict();
 export type LanPeerEndpoint = z.infer<typeof lanPeerEndpointSchema>;
 
-/** v2：一个对端可有多个端点（LAN 优先、公网兜底）。 */
+/** v2：一个对端可有多个端点（公网优先、LAN 兜底）。 */
 const lanPeerMetaEndpointsSchema = z
   .object({
     endpoints: z.array(lanPeerEndpointSchema).min(1).max(8),
@@ -246,13 +280,16 @@ export interface LanPeerMeta {
   pairedAt?: number;
 }
 
-/** 端点排序：LAN 在前、公网在后；同类保持原顺序（Array#sort 稳定）。 */
+/**
+ * 端点排序：公网在前、LAN 在后（公网优先，连不上再回退局域网）；
+ * 同类保持原顺序（Array#sort 稳定）。顺序即连接优先级。
+ */
 export function sortLanPeerEndpoints(endpoints: readonly LanPeerEndpoint[]): LanPeerEndpoint[] {
   return [...endpoints].sort((left, right) => {
     if (left.kind === right.kind) {
       return 0;
     }
-    return left.kind === "lan" ? -1 : 1;
+    return left.kind === "public" ? -1 : 1;
   });
 }
 
@@ -261,7 +298,7 @@ export function dedupeLanPeerEndpoints(endpoints: readonly LanPeerEndpoint[]): L
   const seen = new Set<string>();
   const result: LanPeerEndpoint[] = [];
   for (const endpoint of endpoints) {
-    const key = `${endpoint.scheme}://${endpoint.host}:${endpoint.port}`;
+    const key = `${endpoint.scheme}://${endpoint.host}:${endpoint.port}${endpoint.path ?? ""}`;
     if (seen.has(key)) {
       continue;
     }
@@ -338,10 +375,12 @@ export function parseLanPublicBaseUrl(value: string): LanPeerEndpoint | null {
   if (url.username || url.password) {
     return null;
   }
-  if (url.pathname !== "/" && url.pathname !== "") {
+  if (url.search || url.hash) {
     return null;
   }
-  if (url.search || url.hash) {
+  // 允许中继/反代的路径前缀；根路径归一为缺省，尾部斜杠去掉。
+  const path = url.pathname === "/" ? "" : url.pathname.replace(/\/+$/u, "");
+  if (path.length > 512) {
     return null;
   }
   const port = url.port ? Number.parseInt(url.port, 10) : 443;
@@ -351,7 +390,13 @@ export function parseLanPublicBaseUrl(value: string): LanPeerEndpoint | null {
   if (!url.hostname) {
     return null;
   }
-  return { scheme: "https", host: url.hostname, port, kind: "public" };
+  return {
+    scheme: "https",
+    host: url.hostname,
+    port,
+    kind: "public",
+    ...(path ? { path } : {}),
+  };
 }
 
 /** 端点展示串：https:443 / http:80 省略端口。 */
@@ -359,7 +404,7 @@ export function formatLanPeerEndpoint(endpoint: LanPeerEndpoint): string {
   const defaultPort = endpoint.scheme === "https" ? 443 : 80;
   return `${endpoint.scheme}://${endpoint.host}${
     endpoint.port === defaultPort ? "" : `:${endpoint.port}`
-  }`;
+  }${endpoint.path ?? ""}`;
 }
 
 /** 设置页「我配对的对端」一行；host 为空表示该配对缺少元数据（地址未知，仍可删除）。 */

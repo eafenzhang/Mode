@@ -81,6 +81,7 @@ function createFakeServerHandle(initial?: Partial<LanAccessState>): {
   let disposeCount = 0;
   const handle: LanAccessServerHandle = {
     getState: () => state,
+    startRelayTunnel: () => undefined,
     createPairCode: () => {
       state = { ...state, pairCode: { code: "ABCDEF", expiresAt: Date.now() + 60_000 } };
       return state;
@@ -399,13 +400,13 @@ test("公网端点：新增/替换/清除只改 meta，LAN 端点与令牌不动
       pairedAt?: number;
     };
     assert.deepEqual(meta.endpoints, [
-      { scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" },
       { scheme: "https", host: "rd.example.com", port: 443, kind: "public" },
+      { scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" },
     ]);
     assert.equal(meta.name, "Desk");
     assert.equal(store.get(buildLanPeerTokenKey("server-1")), "token-1");
     const peers = await adapter.listPairedPeers();
-    assert.equal(peers[0]?.host, "192.168.1.10", "列表主端点仍是 LAN");
+    assert.equal(peers[0]?.host, "rd.example.com", "列表主端点优先公网");
     assert.deepEqual(peers[0]?.endpoints, meta.endpoints);
 
     await adapter.setPairedPeerPublicEndpoint({
@@ -416,11 +417,28 @@ test("公网端点：新增/替换/清除只改 meta，LAN 端点与令牌不动
     assert.deepEqual(
       meta.endpoints,
       [
-        { scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" },
         { scheme: "https", host: "rd2.example.com", port: 8443, kind: "public" },
+        { scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" },
       ],
       "替换而非追加公网端点",
     );
+
+    // 中继路径前缀：允许 https 路径，写入后仍是 public 端点。
+    await adapter.setPairedPeerPublicEndpoint({
+      serverId: "server-1",
+      publicBaseUrl: "https://relay.example.com/d/secret",
+    });
+    meta = JSON.parse(store.get(buildLanPeerMetaKey("server-1")) ?? "{}") as typeof meta;
+    assert.deepEqual(meta.endpoints, [
+      {
+        scheme: "https",
+        host: "relay.example.com",
+        port: 443,
+        kind: "public",
+        path: "/d/secret",
+      },
+      { scheme: "http", host: "192.168.1.10", port: 45880, kind: "lan" },
+    ]);
 
     await assert.rejects(
       adapter.setPairedPeerPublicEndpoint({
@@ -432,7 +450,7 @@ test("公网端点：新增/替换/清除只改 meta，LAN 端点与令牌不动
     await assert.rejects(
       adapter.setPairedPeerPublicEndpoint({
         serverId: "server-1",
-        publicBaseUrl: "https://rd.example.com/path",
+        publicBaseUrl: "https://rd.example.com?x=1",
       }),
       /HTTPS/u,
     );

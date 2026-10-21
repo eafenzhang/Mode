@@ -22,11 +22,11 @@ import {
 } from "@mode/services";
 
 import {
-  readDisabledLanAccessState,
   startLanAccessServer,
   type LanAccessServerHandle,
   type StartLanAccessServerParams,
 } from "../host/lanAccessServer.js";
+import { readDisabledLanAccessState } from "../host/lanAccessRecords.js";
 import { discoverLanPeers } from "../host/lanDiscovery.js";
 import {
   getLanPairedPeerWorkspaces,
@@ -77,6 +77,8 @@ export interface CreateLanAccessHostServiceOptions {
   startServer?: (params: StartLanAccessServerParams) => Promise<LanAccessServerHandle>;
   /** 测试注入点：默认真实 UDP/Tailscale 探测。 */
   discover?: () => Promise<LanDiscoveredPeer[]>;
+  /** 部署写入的内置中继配置；缺省由 startLanAccessServer 读 env。 */
+  relay?: { baseUrl?: string; token?: string };
   /**
    * 启动时按设置恢复监听。Host 入口保持默认 true；适配器单测传 false，
    * 避免在测试机绑定 45880/45879。
@@ -163,6 +165,7 @@ export async function createLanAccessHostService(
           appVersion,
           machineName,
           isRemoteDesktopServerEnabled: () => remoteDesktop?.isServerEnabled() ?? false,
+          ...(options.relay ? { relay: options.relay } : {}),
           ...(remoteDesktop ? { remoteDesktop: remoteDesktop.getLanHooks() } : {}),
         });
         handle = started;
@@ -239,6 +242,7 @@ export async function createLanAccessHostService(
         ...(request.label ? { label: request.label } : {}),
         ...(request.scheme ? { scheme: request.scheme } : {}),
         ...(request.publicBaseUrl ? { publicBaseUrl: request.publicBaseUrl } : {}),
+        ...(request.path ? { path: request.path } : {}),
       });
     },
 

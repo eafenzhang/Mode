@@ -10,6 +10,7 @@ import {
   IOnboardingRecordService,
   ICredentialService,
   ILanAccessService,
+  ICloudAccountService,
   IRemoteDesktopService,
   IRemoteService,
   IBroadcastService,
@@ -67,6 +68,8 @@ export class RemoteServiceAccess implements IServiceAccessor {
    * 是否可用由调用方按 Host 能力判定；旧 Host 上调用会以明确的 RPC 错误拒绝。
    */
   readonly lanAccessService: ILanAccessService;
+  /** Mode Cloud 账号与设备目录：窗口 Host 才注册；旧 Host 调用会明确拒绝。 */
+  readonly cloudAccountService: ICloudAccountService;
   /** 远程桌面被控设置面：窗口 Host 才注册；主控会话在 LR-3 接入。 */
   readonly remoteDesktopService: IRemoteDesktopService;
   /** 远程工作区管理面：窗口 Host 才注册。 */
@@ -139,6 +142,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.lanAccessService = ProxyChannel.toService<ILanAccessService>(
       channelClient.getChannel(ILanAccessService.channelName),
+    );
+    this.cloudAccountService = ProxyChannel.toService<ICloudAccountService>(
+      channelClient.getChannel(ICloudAccountService.channelName),
     );
     this.remoteDesktopService = ProxyChannel.toService<IRemoteDesktopService>(
       channelClient.getChannel(IRemoteDesktopService.channelName),

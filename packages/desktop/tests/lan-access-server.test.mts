@@ -75,3 +75,89 @@ test("端口 0：正常监听返回实际端口，dispose 后不再保留监听"
     await handle.dispose();
   }
 });
+
+test("内置中继：生成稳定 tunnelId、启动隧道并在配对/server-info 下发 publicRelay", async () => {
+  const started: Array<{
+    relayUrl: string;
+    token: string;
+    tunnelId: string;
+    localBaseUrl: string;
+  }> = [];
+  let closed = 0;
+  const handle = await startLanAccessServer({
+    ...startParams(0),
+    relay: { baseUrl: "https://relay.example.com", token: "relay-token" },
+    startTunnel: (options) => {
+      started.push({
+        relayUrl: options.relayUrl,
+        token: options.token,
+        tunnelId: options.tunnelId,
+        localBaseUrl: options.localBaseUrl,
+      });
+      return {
+        close: () => {
+          closed += 1;
+        },
+      };
+    },
+  });
+  try {
+    const state = handle.getState();
+    assert.equal(state.enabled, true);
+    assert.ok(state.port !== null && state.port > 0);
+    assert.equal(started.length, 1);
+    const tunnel = started[0];
+    assert.ok(tunnel);
+    assert.equal(tunnel.relayUrl, "wss://relay.example.com/_tunnel");
+    assert.equal(tunnel.token, "relay-token");
+    assert.equal(tunnel.localBaseUrl, `http://127.0.0.1:${state.port}`);
+    assert.match(tunnel.tunnelId, /^[A-Za-z0-9_-]{16,128}$/u);
+    assert.equal(state.publicRelayUrl, `https://relay.example.com/d/${tunnel.tunnelId}`);
+
+    const pairCode = handle.createPairCode().pairCode;
+    assert.ok(pairCode);
+    const pairResponse = await fetch(`http://127.0.0.1:${state.port}/api/lan/pair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: pairCode.code }),
+    });
+    assert.equal(pairResponse.status, 200);
+    const paired = (await pairResponse.json()) as {
+      token?: string;
+      publicRelay?: { baseUrl?: string; tunnelId?: string };
+    };
+    assert.equal(paired.publicRelay?.baseUrl, "https://relay.example.com");
+    assert.equal(paired.publicRelay?.tunnelId, tunnel.tunnelId);
+    assert.ok(paired.token);
+
+    const infoResponse = await fetch(
+      `http://127.0.0.1:${state.port}/api/server-info?token=${encodeURIComponent(paired.token ?? "")}`,
+    );
+    assert.equal(infoResponse.status, 200);
+    const info = (await infoResponse.json()) as {
+      publicRelay?: { baseUrl?: string; tunnelId?: string };
+    };
+    assert.equal(info.publicRelay?.tunnelId, tunnel.tunnelId);
+  } finally {
+    await handle.dispose();
+  }
+  assert.equal(closed, 1, "dispose 必须关闭中继隧道");
+});
+
+test("未配置中继 token：不启动隧道，状态保持 LAN-only", async () => {
+  let starts = 0;
+  const handle = await startLanAccessServer({
+    ...startParams(0),
+    relay: { baseUrl: "https://relay.example.com", token: "" },
+    startTunnel: () => {
+      starts += 1;
+      return { close: () => undefined };
+    },
+  });
+  try {
+    assert.equal(starts, 0);
+    assert.equal(handle.getState().publicRelayUrl, null);
+  } finally {
+    await handle.dispose();
+  }
+});

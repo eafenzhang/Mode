@@ -1032,7 +1032,7 @@ export interface IPlatformService {
     online: boolean;
     /** 对端自报名（可选）。 */
     name?: string;
-    /** 本次探测命中的端点类型（LAN 优先、公网回退）；离线时缺省。 */
+    /** 本次探测命中的端点类型（公网优先、LAN 回退）；离线时缺省。 */
     endpointKind?: "lan" | "public";
     endpointHost?: string;
   }>;

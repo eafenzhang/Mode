@@ -1,5 +1,5 @@
 /* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
-import type { Locale, UserInfo } from "@mode/shared";
+import type { CloudAccountState, Locale, UserInfo } from "@mode/shared";
 import { memo, useCallback, useEffect, useState } from "react";
 import { DesktopCommandIds, TID_LOGIN_TRIGGER, TID_TASK_SETTINGS_BUTTON } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -23,14 +24,18 @@ import {
   PencilRuler,
   Globe,
   Loader2,
+  LogOut,
   Maximize,
   Palette,
   Settings,
+  UserRound,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { useServices } from "@/hooks/useServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
+import { ModeAccountDialog } from "@/ModeAccountDialog.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useModeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
@@ -112,10 +117,46 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const zoomOutShortcutLabel = useShortcutCommandLabel("zoomOut");
   const resetZoomShortcutLabel = useShortcutCommandLabel("resetZoom");
   const isRestoringOAuthSession = useModeStore((state) => state.isRestoringOAuthSession);
-  const profileBadge = getSidebarProfileBadge(user);
-  const avatarFallbackText = getAvatarFallbackText(user);
-  const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
-  const showAuthRestoreLoading = !user && isRestoringOAuthSession;
+  const services = useServices();
+  const cloudAccountService = services.cloudAccountService;
+  const [cloudAccount, setCloudAccount] = useState<CloudAccountState | null>(null);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  useEffect(() => {
+    if (!cloudAccountService) {
+      return;
+    }
+    let cancelled = false;
+    void cloudAccountService
+      .getState()
+      .then((next) => {
+        if (!cancelled) {
+          setCloudAccount(next);
+        }
+      })
+      .catch(() => undefined);
+    const subscription = cloudAccountService.onDidChange((next) => {
+      if (!cancelled) {
+        setCloudAccount(next);
+      }
+    });
+    return () => {
+      cancelled = true;
+      subscription.dispose();
+    };
+  }, [cloudAccountService]);
+  const cloudAccountName =
+    cloudAccount?.account?.displayName?.trim() ||
+    cloudAccount?.boundWeixinName?.trim() ||
+    "";
+  const effectiveUser: UserInfo | null =
+    user ??
+    (cloudAccountName
+      ? { id: "mode-cloud", username: cloudAccountName, displayName: cloudAccountName }
+      : null);
+  const profileBadge = getSidebarProfileBadge(effectiveUser);
+  const avatarFallbackText = getAvatarFallbackText(effectiveUser);
+  const avatarKey = effectiveUser?.avatarUrl ?? effectiveUser?.id ?? "guest";
+  const showAuthRestoreLoading = !effectiveUser && isRestoringOAuthSession;
   const usageSummaryState = useWorkspaceSidebarFooterUsageSummaryState({
     enabled: true,
     workspaceIdentity,
@@ -124,9 +165,11 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const profileContent = (
     <>
       <Avatar key={avatarKey} size="default">
-        {user?.avatarUrl ? <AvatarImage src={user.avatarUrl} alt={profileBadge} /> : null}
+        {effectiveUser?.avatarUrl ? (
+          <AvatarImage src={effectiveUser.avatarUrl} alt={profileBadge} />
+        ) : null}
         <AvatarFallback className="bg-background text-foreground">
-          {user ? (
+          {effectiveUser ? (
             avatarFallbackText
           ) : showAuthRestoreLoading ? (
             <>
@@ -328,9 +371,37 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             ) : null}
-            {/* 审计版移除官方账户与升级入口：语言/主题/界面模式/缩放保留为本地偏好。*/}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => setAccountDialogOpen(true)}
+              data-testid="sidebar-mode-account"
+            >
+              <UserRound className="size-4" />
+              {intl.formatMessage({
+                id:
+                  cloudAccount?.status === "bound"
+                    ? "modeAccount.title"
+                    : "modeAccount.login",
+              })}
+            </DropdownMenuItem>
+            {cloudAccount?.status === "bound" ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  void cloudAccountService?.unbind();
+                }}
+              >
+                <LogOut className="size-4" />
+                {intl.formatMessage({ id: "modeAccount.logout" })}
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
+        <ModeAccountDialog
+          open={accountDialogOpen}
+          onOpenChange={setAccountDialogOpen}
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+        />
         <div className="flex shrink-0 items-center gap-1.5">
           {/* 远端工作区可能只有 workspaceIdentity、没有 workspacePath；两者任一有值都应显示入口。 */}
           {isDesktop && (workspacePath || workspaceIdentity) ? (

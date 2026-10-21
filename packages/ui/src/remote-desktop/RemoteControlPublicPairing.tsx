@@ -37,6 +37,7 @@ export function RemoteControlPublicPairing({ onPaired }: { onPaired: () => void 
         port: endpoint.port,
         code: code.trim(),
         scheme: "https",
+        ...(endpoint.path ? { path: endpoint.path } : {}),
       });
       setAddress("");
       setCode("");

@@ -15,6 +15,17 @@ export const serverRemoteInfoSchema = z.object({
   protocolVersion: z.literal(SERVER_REMOTE_PROTOCOL_VERSION),
   authRequired: z.boolean(),
   workspaces: z.array(serverRemoteWorkspaceInfoSchema),
+  /**
+   * 内置公网中继：被控端已配置中继时随 server-info 下发，主控可据此自动补全
+   * 公网端点；旧对端缺键 = 未配置（docs/specs/lan-remote-public-endpoints.md）。
+   */
+  publicRelay: z
+    .object({
+      baseUrl: z.string().url(),
+      tunnelId: z.string().trim().min(16).max(128),
+    })
+    .strict()
+    .optional(),
   capabilities: z.object({
     desktopContinuous: z.literal(true),
     websocketRpc: z.literal(true),

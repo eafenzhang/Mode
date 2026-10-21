@@ -1,3 +1,4 @@
+import type { Event } from "@mode/rpc";
 import { ServiceChannels } from "@mode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 import type {
@@ -196,6 +197,8 @@ export interface IBotsService {
   syncAppRuntimePreferences(preferences: ModeAgentAppRuntimePreferences): Promise<void>;
   getStatus(): Promise<BotServiceStatus>;
   getConfig(): Promise<BotsConfigFile>;
+  /** Bot 配置/绑定变化（/bind、saveBot、删除、解绑）；只发信号，调用方自行重读。 */
+  onDidChange: Event<void>;
   listWorkspaceRefs(params?: BotListWorkspaceRefsParams): Promise<BotWorkspaceRef[]>;
   getUserConfigOptions(params: BotUserConfigOptionsParams): Promise<ModeConfigOption[]>;
   /** 把 bot 绑定为某个工作区的专属 bot；绑定后 bot 上下文钉定该工作区，禁用 /workspace 切换。 */

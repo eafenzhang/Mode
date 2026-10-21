@@ -22,7 +22,7 @@ import { isRetryableLanPeerError } from "./lanPeerTransport.js";
  * 所以抽成唯一实现，两条 Host 线都从这里调用。
  *
  * 公网端点（docs/specs/lan-remote-public-endpoints.md）：
- * meta.endpoints 是唯一地址事实源；host/port 只是列表行的主端点投影（LAN 优先）。
+ * meta.endpoints 是唯一地址事实源；host/port 只是列表行的主端点投影（公网优先）。
  */
 
 /**
@@ -168,6 +168,7 @@ export async function getLanPairedPeerWorkspaces(
         scheme: endpoint.scheme,
         host: endpoint.host,
         port: endpoint.port,
+        ...(endpoint.path ? { path: endpoint.path } : {}),
         token,
         // 多端点时 LAN 探测预算短一些；公网端点给足 TLS/隧道启动时间。
         timeoutMs: meta.endpoints.length > 1 && endpoint.kind === "lan" ? 2_500 : 8_000,

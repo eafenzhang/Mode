@@ -19,6 +19,7 @@
     "@lydell/node-pty-linux-arm64": "1.2.0-beta.10",
     "@lydell/node-pty-linux-x64": "1.2.0-beta.10",
     "@mode/client": "workspace:*",
+    "@mode/cloud-relay": "workspace:*",
     "@mode/provider": "workspace:*",
     "@mode/provider-node": "workspace:*",
     "@mode/rpc": "workspace:*",

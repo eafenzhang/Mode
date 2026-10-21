@@ -13,12 +13,14 @@ import {
   type LanAccessPairResult,
   type LanAccessState,
   type LanPeerEndpoint,
+  type LanPublicRelayInfo,
   type ServerRemoteInfo,
 } from "@mode/shared";
 import type { ICredentialService, IServiceAccessor } from "@mode/services";
 import { WebSocket, type RawData } from "ws";
 
 import {
+  buildLanApiUrl,
   buildLanHttpBase,
   buildLanWsUrl,
   fetchPeerResponse,
@@ -48,13 +50,16 @@ export async function fetchLanPeerInfo(params: {
   scheme?: "http" | "https";
   host: string;
   port: number;
+  path?: string;
   token?: string;
   /** 端点探测预算；缺省 10s（与既有 LAN 行为一致）。 */
   timeoutMs?: number;
 }): Promise<ServerRemoteInfo> {
   const url = new URL(
-    "/api/server-info",
-    buildLanHttpBase(params.host, params.port, params.scheme ?? "http"),
+    buildLanApiUrl(
+      buildLanHttpBase(params.host, params.port, params.scheme ?? "http", params.path),
+      "/api/server-info",
+    ),
   );
   if (params.token) {
     url.searchParams.set("token", params.token);
@@ -100,6 +105,37 @@ export async function fetchLanPeerInfo(params: {
   return parsed.data;
 }
 
+/**
+ * 解析被控端下发的内置公网中继。tunnelId 必须符合 relay 服务的 16-128 字符约束；
+ * baseUrl 只接受 HTTPS（parseLanPublicBaseUrl 会再校验一次），否则返回 null。
+ */
+function parsePublicRelayInfo(value: unknown): LanPublicRelayInfo | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const { baseUrl, tunnelId } = value as { baseUrl?: unknown; tunnelId?: unknown };
+  if (typeof baseUrl !== "string" || typeof tunnelId !== "string") {
+    return null;
+  }
+  if (!/^[A-Za-z0-9_-]{16,128}$/u.test(tunnelId)) {
+    return null;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:") {
+    return null;
+  }
+  return { baseUrl, tunnelId };
+}
+
+function buildAutoPublicEndpoint(relay: LanPublicRelayInfo): LanPeerEndpoint | null {
+  return parseLanPublicBaseUrl(`${relay.baseUrl.replace(/\/+$/u, "")}/d/${relay.tunnelId}`);
+}
+
 /** 用一次性配对码换取该设备专属长期令牌，并写入凭据服务。 */
 export async function pairLanPeer(params: {
   credentials: ICredentialService;
@@ -111,6 +147,8 @@ export async function pairLanPeer(params: {
   scheme?: "http" | "https";
   /** 可选：配对成功后一并记录的公网 HTTPS 基础地址。 */
   publicBaseUrl?: string;
+  /** 主端点的路径前缀（中继/反代）。 */
+  path?: string;
 }): Promise<LanAccessPairResult> {
   const scheme = params.scheme === "https" ? "https" : "http";
   const host = params.host.trim();
@@ -120,21 +158,24 @@ export async function pairLanPeer(params: {
   if (!Number.isInteger(params.port) || params.port <= 0 || params.port > 65535) {
     throw new Error("对端端口无效");
   }
+  const basePath = params.path?.trim() ?? "";
+  if (basePath && (!/^\/[^?#]*$/u.test(basePath) || basePath.length > 512)) {
+    throw new Error("路径前缀无效");
+  }
   const publicBaseUrl = params.publicBaseUrl?.trim() ?? "";
   const publicEndpoint = publicBaseUrl ? parseLanPublicBaseUrl(publicBaseUrl) : null;
   if (publicBaseUrl && !publicEndpoint) {
-    throw new Error("公网地址必须是 HTTPS，且不能带路径、查询参数或账号信息");
+    throw new Error("公网地址必须是 HTTPS，且不能带查询参数或账号信息");
   }
   const primaryEndpoint: LanPeerEndpoint = {
     scheme,
     host,
     port: params.port,
     kind: scheme === "https" ? "public" : "lan",
+    ...(basePath ? { path: basePath } : {}),
   };
-  // 端点顺序是连接优先级：LAN 在前、公网在后；同类保持调用方顺序。
-  const newEndpoints = [primaryEndpoint, ...(publicEndpoint ? [publicEndpoint] : [])];
   const response = await fetchWithTimeout(
-    new URL("/api/lan/pair", buildLanHttpBase(host, params.port, scheme)).toString(),
+    buildLanApiUrl(buildLanHttpBase(host, params.port, scheme, basePath), "/api/lan/pair"),
     {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -157,15 +198,29 @@ export async function pairLanPeer(params: {
   if (!response.ok) {
     throw new Error(`配对失败（HTTP ${response.status}）`);
   }
-  const payload = (await response.json()) as Partial<LanAccessPairResult>;
+  const payload = (await response.json()) as Partial<LanAccessPairResult> & {
+    publicRelay?: unknown;
+  };
   if (typeof payload.token !== "string" || !payload.token) {
     throw new Error("配对响应缺少令牌");
   }
+  const publicRelay = parsePublicRelayInfo(payload.publicRelay);
   const result: LanAccessPairResult = {
     token: payload.token,
     serverId: typeof payload.serverId === "string" && payload.serverId ? payload.serverId : "",
     ...(typeof payload.name === "string" && payload.name ? { name: payload.name } : {}),
+    ...(publicRelay ? { publicRelay } : {}),
   };
+  // 内置公网中继：被控端随配对响应下发 baseUrl + tunnelId，主控自动生成公网端点。
+  // 显式传入的 publicBaseUrl 优先（允许覆盖/自建域名）；否则用内置中继。
+  const autoPublicEndpoint =
+    publicEndpoint || !publicRelay ? null : buildAutoPublicEndpoint(publicRelay);
+  // 端点顺序是连接优先级：公网在前、LAN 在后；同类保持调用方顺序。
+  const newEndpoints = [
+    primaryEndpoint,
+    ...(publicEndpoint ? [publicEndpoint] : []),
+    ...(autoPublicEndpoint ? [autoPublicEndpoint] : []),
+  ];
   if (result.serverId) {
     await params.credentials.save(buildLanPeerTokenKey(result.serverId), result.token);
     // 重复配对同一 serverId 时合并端点：本次配对的端点优先作为主地址；已有 LAN 端点
@@ -213,7 +268,7 @@ export async function loadLanPeerToken(
 
 /**
  * 读取已配对对端的端点与令牌（令牌不出 Host）。端点顺序即连接优先级：
- * LAN 在前、公网在后；旧记录由 parseLanPeerMeta 迁移为单个 LAN 端点。
+ * 公网在前、LAN 在后；旧记录由 parseLanPeerMeta 迁移为单个 LAN 端点。
  */
 export async function readLanPeerEndpoints(
   credentials: ICredentialService,
@@ -330,6 +385,7 @@ export async function attachLanRemoteConnection(params: {
   scheme?: "http" | "https";
   host: string;
   port: number;
+  path?: string;
   token: string;
   signal?: AbortSignal;
   /** 对端通道断开（含进程退出、网络中断）时回调：与 SSH backend.onDidDisconnect 语义一致。 */
@@ -340,6 +396,7 @@ export async function attachLanRemoteConnection(params: {
     scheme,
     host: params.host,
     port: params.port,
+    ...(params.path ? { path: params.path } : {}),
     token: params.token,
   });
   if (params.signal?.aborted) {
@@ -347,10 +404,10 @@ export async function attachLanRemoteConnection(params: {
   }
 
   const capabilityResponse = await fetchWithTimeout(
-    new URL(
+    buildLanApiUrl(
+      buildLanHttpBase(params.host, params.port, scheme, params.path),
       "/api/rpc-host-capability",
-      buildLanHttpBase(params.host, params.port, scheme),
-    ).toString(),
+    ),
     {
       method: "POST",
       // 服务端只从 ?token= 或 mode_lite_token Cookie 取令牌；这里用 Cookie，避免令牌进 URL/日志。
@@ -366,7 +423,7 @@ export async function attachLanRemoteConnection(params: {
     throw new Error("对端未返回连接票据");
   }
 
-  const ws = new WebSocket(buildLanWsUrl(params.host, params.port, scheme), {
+  const ws = new WebSocket(buildLanWsUrl(params.host, params.port, scheme, params.path), {
     headers: {
       [MODE_RPC_HOST_CAPABILITY_HEADER]: capabilityPayload.capability,
       cookie: `mode_lite_token=${encodeURIComponent(params.token)}`,

@@ -136,16 +136,21 @@ export async function createHostServiceSurface(
       IRemoteService,
       IModeAgentService,
       IConversationShareService,
+      ICloudAccountService,
       createModeAgentConnectionScope,
     },
     { createLanAccessHostService },
     { createRemoteDesktopHostService },
     { createRemoteWorkspaceHostService },
+    { createCloudAccountHostService },
+    { loadCloudDeploymentConfig },
   ] = await Promise.all([
     import("@mode/services"),
     import("./lanAccessService.js"),
     import("./remoteDesktopService.js"),
     import("./remoteWorkspaceService.js"),
+    import("../host/cloudAccountService.js"),
+    import("../host/cloudDeploymentConfig.js"),
   ]);
 
   // 远程桌面被控开关是 CUA Helper 的创建准入之一（插件关闭但被控打开时仍需 raw_input 通道）。
@@ -155,6 +160,21 @@ export async function createHostServiceSurface(
     modeBuiltinProviderConfigFilePath: builtinProviderConfig.path,
     isRemoteDesktopServerEnabled: () => remoteDesktopCapability?.isServerEnabled() ?? false,
   });
+
+  // 部署配置：安装时写入一次，之后每台机器不再逐机设置环境变量。
+  // 显式 env 仍优先，便于测试/临时覆盖。
+  const deployment = loadCloudDeploymentConfig(env);
+  const relayToken = env.MODE_RELAY_TOKEN?.trim() || deployment.relayToken;
+  const relayBaseUrl = env.MODE_PUBLIC_RELAY_BASE_URL?.trim() || deployment.cloudBaseUrl;
+  const relayOptions =
+    relayToken || relayBaseUrl
+      ? {
+          relay: {
+            ...(relayBaseUrl ? { baseUrl: relayBaseUrl } : {}),
+            ...(relayToken ? { token: relayToken } : {}),
+          },
+        }
+      : {};
 
   // **local-only 集合**：管理面只进窗口 renderer 的 ChannelServer，绝不进
   // `startLanAccessServer` 拿到的普通服务集合——那份集合会被 `createHttpServer` 暴露给每个
@@ -172,6 +192,7 @@ export async function createHostServiceSurface(
     services,
     log: options.log,
     getRemoteDesktop: () => remoteDesktop,
+    ...relayOptions,
   });
   const remote = await createRemoteWorkspaceHostService({
     services,
@@ -180,7 +201,14 @@ export async function createHostServiceSurface(
     guardChannel: (channelName, channel) =>
       options.guards.guardChannel(channelName, channel, options.log),
   });
+  const cloudAccount = await createCloudAccountHostService({
+    services,
+    log: options.log,
+    deploymentConfig: deployment,
+    getLanAccessServer: () => lanAccess?.getActiveServer() ?? null,
+  });
   localOnly.register(ILanAccessService, lanAccess);
+  localOnly.register(ICloudAccountService, cloudAccount);
   localOnly.register(IRemoteDesktopService, remoteDesktop);
   localOnly.register(IRemoteService, remote);
 
@@ -213,6 +241,7 @@ export async function createHostServiceSurface(
     async dispose() {
       // 先停局域网监听（UDP/HTTP），再收被控会话与远程工作区，最后释放普通服务资源：
       // 否则服务销毁后监听/会话仍可能接单。
+      await cloudAccount.dispose();
       await lanAccess.dispose();
       await remoteDesktop.dispose();
       await remote.disposeHost();
