@@ -1,6 +1,8 @@
 /**
  * 公网配对 fixtures：pairLanPeer 在配对成功后把主端点 + 可选公网端点一起写入 meta；
- * 非 HTTPS 公网地址在发请求前就被拒绝。失效模式：只保存 host/port 或接受 http 公网地址。
+ * 端点按公网优先排序（见 docs/specs/lan-remote-public-endpoints.md），
+ * 非 HTTPS 公网地址在发请求前就被拒绝。失效模式：只保存 host/port、接受 http 公网地址，
+ * 或退回 LAN 优先顺序。
  */
 import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
@@ -42,8 +44,8 @@ try {
   });
   const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey("public-pair-server")));
   assert.deepEqual(meta?.endpoints, [
-    { scheme: "http", host: "127.0.0.1", port, kind: "lan" },
     { scheme: "https", host: "rd.example.com", port: 443, kind: "public" },
+    { scheme: "http", host: "127.0.0.1", port, kind: "lan" },
   ]);
 
   await assert.rejects(
@@ -69,8 +71,8 @@ try {
     await credentials.load(buildLanPeerMetaKey("public-pair-server")),
   );
   assert.deepEqual(replaced?.endpoints, [
-    { scheme: "http", host: "127.0.0.1", port, kind: "lan" },
     { scheme: "https", host: "rd2.example.com", port: 443, kind: "public" },
+    { scheme: "http", host: "127.0.0.1", port, kind: "lan" },
   ]);
 
   // 不带公网地址的重复配对保留已配置的公网端点。
@@ -84,8 +86,8 @@ try {
     await credentials.load(buildLanPeerMetaKey("public-pair-server")),
   );
   assert.deepEqual(preserved?.endpoints, [
-    { scheme: "http", host: "127.0.0.1", port, kind: "lan" },
     { scheme: "https", host: "rd2.example.com", port: 443, kind: "public" },
+    { scheme: "http", host: "127.0.0.1", port, kind: "lan" },
   ]);
 
   console.log("LAN_PUBLIC_PAIR_OK");

@@ -267,6 +267,8 @@ jobs:
           pnpm --filter "@mode/bootstrap..." build
           pnpm --filter "@mode/core..." build
           pnpm --filter @mode/shared test
+          # WSS 中继 + /v1 控制面（SQLite）；测试自带临时库与本地端口，无 workspace dist 依赖。
+          pnpm --filter @mode/cloud-relay test
           pnpm --filter @mode/services test
           pnpm --filter @mode/server test
           pnpm --filter @mode/ui test
