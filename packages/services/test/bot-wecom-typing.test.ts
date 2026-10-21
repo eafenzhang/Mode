@@ -21,6 +21,8 @@ interface HarnessOptions {
   withFrame?: boolean;
   /** 让第一次 replyStream 挂起，模拟 typing 打开与出站发送的并发窗口。 */
   deferFirstStream?: boolean;
+  /** 让所有 replyStream 失败，模拟入站帧过期/平台拒绝。 */
+  failStreams?: boolean;
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -37,6 +39,9 @@ function createHarness(options: HarnessOptions = {}) {
   const client = {
     replyStream(...args: unknown[]) {
       calls.push({ method: "replyStream", args });
+      if (options.failStreams) {
+        return Promise.reject(new Error("stream unavailable"));
+      }
       if (firstStreamPending) {
         firstStreamPending = false;
         return firstStreamGate!.then(() => ({}));
@@ -321,21 +326,61 @@ test("群会话键一致：占位/取帧/卡片同键，终稿落在同一条流
   );
 });
 
-test("无帧降级不换收件人：终稿主动推送到会话键（群 chatid）", async () => {
+test("无帧时不提供流式通道：canWrite=false、建卡返回 null（交服务层回退气泡）", async () => {
   const { provider, calls } = createHarness({ withFrame: false });
   const groupKey = "chat-oc-group-1";
+  assert.equal(
+    provider.canWriteStreamingReply!(bot, groupKey),
+    false,
+    "没有入站帧就不能 replyStream，服务层必须改走离散气泡",
+  );
   const state: BotStreamingReplyCardState = {
     providerUserId: groupKey,
     status: "running",
     blocks: [{ type: "message", text: "处理中" }],
   };
   const handle = await provider.createStreamingReplyCard!(bot, state);
-  assert.ok(handle, "无帧时仍要建卡（仅终稿推送模式）");
-
-  await provider.updateStreamingReplyCard!(bot, handle!, { ...state, status: "completed" });
-  const pushes = calls.filter((call) => call.method === "sendMessage");
-  assert.equal(pushes.length, 1, "终稿必须送达");
-  assert.equal(pushes[0]!.args[0], groupKey, "降级只换通道不换会话——必须发到群 chatid");
+  assert.equal(handle, null, "无帧时不得返回降级句柄（那会让中间帧全部静默）");
   assert.equal(streamCalls(calls).length, 0, "无帧时不开流");
+
+  // 气泡回退仍复用统一出站目标：群回合必须发到群 chatid，不能换收件人。
+  await provider.send(bot, {
+    botId: "bot-1",
+    provider: "wecom",
+    providerUserId: groupKey,
+    text: "分次回复",
+  });
+  const pushes = calls.filter((call) => call.method === "sendMessage");
+  assert.equal(pushes.length, 1, "回退正文必须主动推送");
+  assert.equal(pushes[0]!.args[0], groupKey, "降级只换通道不换会话");
+});
+
+test("有帧但首帧 replyStream 失败：抛错交服务层重试/回退，不再登记 null 帧", async () => {
+  const { provider, calls } = createHarness({ failStreams: true });
+  const state: BotStreamingReplyCardState = {
+    providerUserId: chatKey,
+    status: "running",
+    blocks: [{ type: "message", text: "处理中" }],
+  };
+  await assert.rejects(
+    () => provider.createStreamingReplyCard!(bot, state),
+    /stream unavailable/,
+    "首帧失败必须上抛：返回降级句柄会让中间帧全部静默到终稿",
+  );
+  assert.equal(streamCalls(calls).length, 1, "失败后不得继续用失效帧重试同一 streamId");
+});
+
+test("有帧时 canWrite=true：建卡成功并返回句柄", async () => {
+  const { provider, calls } = createHarness();
+  assert.equal(provider.canWriteStreamingReply!(bot, chatKey), true);
+  const state: BotStreamingReplyCardState = {
+    providerUserId: chatKey,
+    status: "running",
+    blocks: [{ type: "message", text: "处理中" }],
+  };
+  const handle = await provider.createStreamingReplyCard!(bot, state);
+  assert.ok(handle, "有帧时必须返回可更新句柄");
+  assert.equal(streamCalls(calls).length, 1, "首帧走 replyStream");
+  assert.equal(streamCalls(calls)[0]!.args[3], false, "首帧未收口");
 });
 

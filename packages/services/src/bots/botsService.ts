@@ -5227,15 +5227,19 @@ export function createBotsService(
     let streamingCardConsecutiveFailures = 0;
     let streamingCardNextAttemptAt = 0;
     let streamingCardCircuitOpen = false;
+    // 本回合是否已判定「卡片写不出去」（无入站帧 / 连续失败熔断）。
+    // 一旦置位就回退离散气泡：不能把正文继续攒在缓冲区里等终稿
+    // （docs/specs/bot-reply-granularity.md「流式不可用时回退逐块气泡」）。
+    let streamingCardUnavailable = false;
     let streamingCardQueue: Promise<void> = Promise.resolve();
-    const supportsStreamingCardReply = () => {
+    /** 用户选择了流式卡片档、且 provider/配置具备卡片能力（不含本回合的通道可用性）。 */
+    const streamingCardRequested = () => {
       const adapter = providers[bot.provider];
       // 可能沉默的回合（群聊「全部消息」）不建卡片：沉默时不留下需要撤回的空卡片。
       if (groupSilenceCapable) {
         return false;
       }
-      // 能力协商由 adapter 决定：飞书走 Card JSON 2.0，Telegram 走 sendMessage+editMessageText
-      // 的打字机编辑，企微走 replyStream，钉钉走 AI 卡片。
+      // 能力协商由 adapter 决定：飞书走 Card JSON 2.0，企微走 replyStream，钉钉走 AI 卡片。
       if (getMode() !== "streaming_card") {
         return false;
       }
@@ -5247,6 +5251,27 @@ export function createBotsService(
       return (
         Boolean(adapter?.createStreamingReplyCard) && Boolean(adapter?.updateStreamingReplyCard)
       );
+    };
+    /**
+     * 本回合此刻能否写流式卡片。
+     * 注意：探测到通道级不可用时会顺手把 `streamingCardUnavailable` 置位（本回合内不再尝试卡片），
+     * 因为入站帧只随用户下一条消息出现，等不到。
+     */
+    const supportsStreamingCardReply = () => {
+      if (!streamingCardRequested() || streamingCardUnavailable) {
+        return false;
+      }
+      const adapter = providers[bot.provider];
+      // 通道级可用性（如企微要求目标会话有入站帧）不满足时，本回合永久回退气泡：
+      // 帧只随用户下一条消息出现，本回合内等不到。
+      if (
+        adapter?.canWriteStreamingReply &&
+        !adapter.canWriteStreamingReply(bot, resolveOutboundTarget(actor))
+      ) {
+        streamingCardUnavailable = true;
+        return false;
+      }
+      return true;
     };
     const appendStreamingCardMessageChunk = (content: string): void => {
       if (!content) {
@@ -5295,18 +5320,32 @@ export function createBotsService(
       }
       return blocks;
     };
-    const syncStreamingCardReply = async (trigger: string, force = false): Promise<void> => {
+    /**
+     * 同步流式卡片。
+     * - `sent`：本次内容已写入卡片（调用方可丢弃已交付正文）；
+     * - `skipped`：节流/首帧门槛/退避中，稍后还会再试；
+     * - `failed`：本次失败但未熔断，稍后重试；
+     * - `unavailable`：本回合卡片不可用，调用方必须改走气泡路径。
+     */
+    const syncStreamingCardReply = async (
+      trigger: string,
+      force = false,
+    ): Promise<"sent" | "skipped" | "failed" | "unavailable"> => {
       if (bot.deliveryMode === "tool_only") {
-        return;
+        return "skipped";
       }
       if (!supportsStreamingCardReply()) {
-        return;
+        return "unavailable";
       }
       const now = Date.now();
       // Bugfix：旧实现只在成功后更新时间基准，Feishu 失败时每个 stream event 都会真实发请求；
       // force 路径还会绕过普通节流。失败退避和熔断必须先于 force 判断，避免单次 400 被放大成风暴。
-      if (streamingCardCircuitOpen || now < streamingCardNextAttemptAt) {
-        return;
+      if (streamingCardCircuitOpen) {
+        streamingCardUnavailable = true;
+        return "unavailable";
+      }
+      if (now < streamingCardNextAttemptAt) {
+        return "skipped";
       }
       // 首帧门槛：纯文本增量还没成形时先不创建流式消息，避免出现只有一两个字符的首帧；
       // 工具活动（tool_call 等）不受此限——它本身就要立刻给出"正在处理"的反馈。
@@ -5317,7 +5356,7 @@ export function createBotsService(
           .map((block) => block.text)
           .join("");
         if (!hasSentenceBoundary(accumulatedText)) {
-          return;
+          return "skipped";
         }
       }
       if (
@@ -5327,7 +5366,7 @@ export function createBotsService(
           (STREAMING_CARD_MIN_UPDATE_INTERVAL_MS_BY_PROVIDER[bot.provider] ??
             FEISHU_STREAMING_CARD_MIN_UPDATE_INTERVAL_MS)
       ) {
-        return;
+        return "skipped";
       }
       const adapter = providers[bot.provider];
       const locale = await readMessageLocale();
@@ -5341,6 +5380,10 @@ export function createBotsService(
         status: streamingCardStatus,
       };
       const states = adapter?.splitStreamingReplyCardStates?.(state) ?? [state];
+      if (states.length === 0) {
+        return "skipped";
+      }
+      let syncFailed = false;
       streamingCardQueue = streamingCardQueue
         .catch(() => undefined)
         .then(async () => {
@@ -5397,12 +5440,14 @@ export function createBotsService(
           } catch (error) {
             // Bugfix: 第三方卡片只是 best-effort 展示，超时/失败不能阻塞 task_complete、
             // task_error 或 typing 清理等生命周期事件。
+            syncFailed = true;
             streamingCardConsecutiveFailures += 1;
             const errorMessage = error instanceof Error ? error.message : String(error);
             if (
               streamingCardConsecutiveFailures >= FEISHU_STREAMING_CARD_FAILURE_CIRCUIT_THRESHOLD
             ) {
               streamingCardCircuitOpen = true;
+              streamingCardUnavailable = true;
               botsLogger.warn(
                 undefined,
                 `Feishu streaming card circuit opened task=${context.activeTaskId} trigger=${trigger} operation=${operation} failures=${streamingCardConsecutiveFailures}: ${errorMessage}`,
@@ -5423,6 +5468,10 @@ export function createBotsService(
           }
         });
       await streamingCardQueue;
+      if (!syncFailed) {
+        return "sent";
+      }
+      return streamingCardUnavailable ? "unavailable" : "failed";
     };
     const sealStreamingCardReply = async (): Promise<void> => {
       if (!streamingCardHandle) {
@@ -5431,7 +5480,14 @@ export function createBotsService(
       // 修复原因：阻塞交互前的 Agent 输出与交互后的 continuation 属于两个可读段落。
       // 旧实现继续复用同一 message_id，导致问题/Plan 卡夹在中间但后续正文回写到旧卡。
       streamingCardStatus = "sealed";
-      await syncStreamingCardReply("seal", true);
+      const sealResult = await syncStreamingCardReply("seal", true);
+      if (sealResult === "sent") {
+        // 卡片已交付封存前的正文；气泡回退只需要接续交互之后的新内容。
+        assistantReplyBuffer = "";
+      } else {
+        // 封存没送达：旧卡片不可再更新，缓冲里的正文交给后续气泡回退，不能丢。
+        streamingCardUnavailable = true;
+      }
       streamingCardHandle = null;
       streamingCardSegmentIndex = 0;
       streamingCardBlocks.length = 0;
@@ -5489,9 +5545,25 @@ export function createBotsService(
           type: "content",
           content: event.content,
         });
-        if (supportsStreamingCardReply()) {
-          appendStreamingCardMessageChunk(event.content);
-          await syncStreamingCardReply(event.type, false);
+        if (streamingCardRequested()) {
+          const cardWritable = supportsStreamingCardReply();
+          if (cardWritable) {
+            appendStreamingCardMessageChunk(event.content);
+          }
+          // 卡片路径同样累积正文：卡片写不出去时这份缓冲就是气泡回退的唯一内容来源。
+          assistantReplyBuffer += event.content;
+          if (!cardWritable) {
+            // 无入站帧等通道级不可用：从第一个增量起就走逐块气泡，不等终稿。
+            await flushAssistantReplyBuffer(false);
+            return;
+          }
+          const syncResult = await syncStreamingCardReply(event.type, false);
+          if (syncResult === "sent") {
+            // 卡片已显示到当前正文，缓冲区只保留尚未交付的部分。
+            assistantReplyBuffer = "";
+          } else if (syncResult === "unavailable") {
+            await flushAssistantReplyBuffer(false);
+          }
           return;
         }
         if (getMode() !== "summary_changes") {
@@ -5688,8 +5760,12 @@ export function createBotsService(
                   }),
                 ]);
               }
-              await syncStreamingCardReply(event.type, true);
-              return;
+              const errorResult = await syncStreamingCardReply(event.type, true);
+              if (errorResult === "sent") {
+                return;
+              }
+              // 卡片不可用/终稿失败：落到下面的主动推送，失败原因不能丢。
+              streamingCardUnavailable = true;
             }
             await sendOutbound(
               bot,
@@ -5750,9 +5826,13 @@ export function createBotsService(
               appendStreamingCardMessages(changeSummaryMessages);
             }
             streamingCardStatus = "completed";
-            await syncStreamingCardReply(event.type, true);
-            sentAnyAssistantReply = true;
-            return;
+            const finalResult = await syncStreamingCardReply(event.type, true);
+            if (finalResult === "sent") {
+              sentAnyAssistantReply = true;
+              return;
+            }
+            // 终稿是最后一次落点：卡片没送达时改为气泡路径，剩余正文 + 变更摘要都必须送达。
+            streamingCardUnavailable = true;
           }
           let replyMessages: string[] = [];
           if (mode === "summary_changes") {

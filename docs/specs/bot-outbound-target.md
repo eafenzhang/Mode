@@ -46,7 +46,9 @@
      维持 weixin-provider-self-id 规则 5，只继续充当心跳身份与门槛；
    - `queuedMessages`、`pendingDeliveryQueue`、媒体目标链、typing 目标既有 chatId 语义不动；
    - 群授权门、replyMode 默认值、卡片内容构成（正文 + 变更摘要）不动。
-4. **失败降级**：拿不到会话帧时沿用既有降级（仅终稿主动推送到**同一目标**）；
+4. **失败降级**：拿不到会话帧时不再「攒到终稿一次推送」，而是由服务层回退逐块气泡，
+   仍发往**同一目标**（企微走主动推送 `aibot_send_msg`）——见
+   [bot-reply-granularity.md](./bot-reply-granularity.md)「流式不可用时回退逐块气泡」；
    「降级」不允许改变会话——推不动就换帧或改走主动推送，不换收件人。
 5. ** provider 无关**：本规则对全部 provider 生效。飞书 `oc_` 前缀解析为 `receive_id_type=chat_id`、
    钉钉 `group:` 前缀走群发送、Telegram `chat_id` 直传、企微 chatid 直传，均已在各自
@@ -61,7 +63,7 @@ startTyping/sendTyping ──▶ 占位流（键 = resolveOutboundTarget(actor) 
                  │
 watchTaskStream 流式卡片 ──▶ state.providerUserId = resolveOutboundTarget(actor)
                  │            ├─ 有群帧 ──▶ replyStream 在群里原地接管占位（同 streamId）
-                 │            └─ 无帧   ──▶ 降级：仅终稿 sendMessage(chatId)（仍在群里）
+                 │            └─ 无帧   ──▶ 回退逐块气泡 sendMessage(chatId)（仍在群里，不等到终稿）
 task 终态 ──▶ 卡片终稿收口；命令/错误/澄清/媒体走 createOutbound(chatId)（群）
 
 桌面发起回合 ──▶ buildConversationActor(chatId) ──▶ 同一卡片路径（群）

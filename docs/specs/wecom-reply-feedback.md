@@ -86,8 +86,9 @@ botsService 接单
   需同步更新 `WECOM_TYPING_PLACEHOLDER` 与对应单测。
 - 群聊 + `streaming_card` 的帧缓存键错位已修复（2026-10-12，见
   [bot-outbound-target.md](./bot-outbound-target.md)）：卡片目标与占位流同为
-  `resolveOutboundTarget(actor)` = 群 chatid——能取到群帧就在群里同流接管占位，
-  取不到才走「仅终稿推送」，且推送目标仍是 chatid（**降级不换收件人**）。
+  `resolveOutboundTarget(actor)` = 群 chatid——能取到群帧就在群里同流接管占位；
+  取不到时（2026-10-21 起）服务层回退**逐块气泡**，目标仍是 chatid
+  （**降级不换收件人**，见 [bot-reply-granularity.md](./bot-reply-granularity.md)）。
   修复前卡片按发送者 `providerUserId` 找帧，群帧必然落空 → 终稿推进发送者私聊、
   群里占位无人收口，是本轮实机问题的根因。
 - 企微群聊只有 mention 语义（`capabilities.always` 为 false），不存在「沉默回合」，

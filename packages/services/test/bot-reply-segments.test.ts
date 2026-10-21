@@ -87,3 +87,72 @@ test("源码契约：非强制刷出按逐块切分，且群聊「全部消息�
     "强制刷出（工具边界 / 回合末）仍用既有整段提取，保证终稿内容与分片不变",
   );
 });
+
+// 流式卡片不可用时回退逐块气泡（docs/specs/bot-reply-granularity.md 2026-10-21 补充）：
+// 企微没有入站帧（桌面端发起的回合）或 replyStream 失败时，旧实现会返回一个
+// “仅终稿推送”的句柄，中间帧全部静默——用户直到桌面回合结束才收到整段回复。
+test("源码契约：流式卡片通道不可用时从第一个增量起回退气泡", async () => {
+  const source = await readFile(serviceUrl, "utf8");
+  const compact = source.replace(/\s+/g, " ");
+
+  const supportsStart = compact.indexOf("const supportsStreamingCardReply = () => {");
+  assert.ok(supportsStart >= 0, "缺少 supportsStreamingCardReply");
+  const supportsBody = compact.slice(supportsStart, supportsStart + 900);
+  assert.ok(
+    supportsBody.includes("streamingCardUnavailable") &&
+      supportsBody.includes("canWriteStreamingReply"),
+    "卡片可用性必须包含本回合通道探测（企微无入站帧时不可流式）",
+  );
+
+  // 增量路径：卡片写不出去时立即 flush 气泡，不能把正文留到终稿。
+  const chunkStart = compact.indexOf('if (event.type === "agent_message_chunk") {');
+  assert.ok(chunkStart >= 0, "缺少 agent_message_chunk 分支");
+  const chunkBody = compact.slice(chunkStart, chunkStart + 1600);
+  assert.ok(
+    chunkBody.includes("const cardWritable = supportsStreamingCardReply();") &&
+      chunkBody.includes("if (!cardWritable)") &&
+      chunkBody.includes("await flushAssistantReplyBuffer(false);"),
+    "卡片不可用分支必须立即走逐块气泡",
+  );
+  assert.ok(
+    chunkBody.includes('if (syncResult === "sent")') &&
+      chunkBody.includes("assistantReplyBuffer = \"\";"),
+    "卡片成功投递后才丢弃已交付正文，失败时保留给气泡回退",
+  );
+
+  // 终稿：卡片没送达时必须落回气泡路径，不能直接 return 丢内容。
+  const completeStart = compact.indexOf('if (event.type === "task_complete" || event.type === "task_error") {');
+  assert.ok(completeStart >= 0, "缺少终态分支");
+  const completeBody = compact.slice(completeStart, completeStart + 9000);
+  assert.ok(
+    completeBody.includes('const finalResult = await syncStreamingCardReply(event.type, true);') &&
+      completeBody.includes('if (finalResult === "sent")') &&
+      completeBody.includes("streamingCardUnavailable = true;"),
+    "终稿卡片失败必须置 unavailable 并落到气泡路径",
+  );
+  assert.ok(
+    completeBody.includes("await flushAssistantReplyBuffer(true);") &&
+      completeBody.includes("formatBotAssistantReplyBlocks(changeSummaryBlocks"),
+    "气泡回退必须补发剩余正文与变更摘要",
+  );
+});
+
+test("源码契约：企微不再登记 null 帧的『仅终稿推送』模式", async () => {
+  const providerSource = await readFile(
+    new URL("../src/bots/providers/wecomProvider.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    !providerSource.includes("streamFrames.set(streamId, null)"),
+    "无帧/失败不得登记 null 帧后静默吞掉中间帧",
+  );
+  assert.ok(
+    providerSource.includes("canWriteStreamingReply(bot, targetProviderUserId)"),
+    "企微必须实现通道级流式可用性探测",
+  );
+  assert.ok(
+    providerSource.includes("if (!connection || !frame) {") &&
+      providerSource.includes("return null;"),
+    "无入站帧时 create 必须返回 null，交服务层回退气泡",
+  );
+});

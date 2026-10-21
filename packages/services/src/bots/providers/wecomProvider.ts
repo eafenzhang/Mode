@@ -30,7 +30,9 @@ import type { WeComConnectionRegistry } from "../wecomConnection.js";
  * - 主动消息走 aibot_send_msg（markdown），不依赖入站帧；
  * - 流式回复走 aibot_respond_msg + stream（replyStream / replyStreamNonBlocking），
  *   需要透传入站帧的 req_id，因此 create 时按 streamId 记住该会话最近一帧；
- * - 帧不可用（过期/后端推送）时降级为“仅终稿主动推送”，保证内容不丢。
+ * - 帧不可用（过期/后端推送）时 `canWriteStreamingReply` 返回 false，
+ *   服务层本回合回退逐块气泡；建卡首帧失败直接抛错交服务层重试/熔断，
+ *   不再用「仅终稿推送」把中间正文全部静默到回合结束。
  *
  * 等待期反馈（typing）：
  * - 企微 SDK 没有原生「正在输入」命令（对照飞书 Typing reaction / Telegram chatAction），
@@ -154,9 +156,9 @@ function readWeComInboundAttachments(body: BaseMessage): BotInboundAttachment[] 
 
 export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdapter {
   /**
-   * streamId → 入站帧（null 表示“仅终稿推送”降级模式）。
-   * create 时登记，终稿后清理：流式更新必须复用同一帧的 req_id，
-   * 且不受运行时帧缓存的 LRU 淘汰影响。
+   * streamId → 入站帧。
+   * create 只在有帧时登记并返回句柄；无帧返回 null，由服务层回退气泡，
+   * 不再登记 null 帧的「仅终稿推送」模式。
    */
   const streamFrames = new Map<string, WsFrame | null>();
 
@@ -347,6 +349,13 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
     // 占位由紧随其后的真正出站接管（send/流式卡片）原地替换。
     async stopTyping(_bot: BotConfig, _target: BotTypingTarget) {},
 
+    // 企微流式回复必须透传入站帧的 req_id；没有该会话的帧就无法在生成过程中更新消息。
+    // 服务层据此直接走离散气泡，避免「卡片句柄存在但中间帧全被吞掉、回合结束才推送」。
+    canWriteStreamingReply(bot, targetProviderUserId) {
+      const connection = deps.connection.getConnection(bot.id);
+      return Boolean(connection?.getLastFrame(targetProviderUserId));
+    },
+
     // 流式回复：aibot_respond_msg + stream 增量刷新同一条消息。
     async createStreamingReplyCard(bot, state) {
       const connection = deps.connection.getConnection(bot.id);
@@ -369,17 +378,18 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
           streamFrames.set(pending.streamId, pending.frame);
           return { providerMessageId: pending.streamId };
         } catch {
-          // 占位首帧失败（帧过期）：不复用失效流，落入下面的常规创建/降级路径。
+          // 占位首帧失败（帧过期）：不复用失效流，落入下面的常规创建/重试路径。
           // 占位流不归还——同帧重建同样会失败，归还只会卡死后续 typing 打开。
         }
       }
       const frame = connection?.getLastFrame(state.providerUserId) ?? null;
-      const streamId = generateReqId("stream");
-      // 无可用帧时进入“仅终稿推送”降级模式：不建流，终稿由 update 走主动推送。
-      streamFrames.set(streamId, frame);
+      // 修复原因：无帧时不能再返回「降级句柄」——服务层会以为卡片可用而继续缓存正文，
+      // 用户直到回合结束才收到整段推送。返回 null 交给服务层重试/回退逐块气泡。
       if (!connection || !frame) {
-        return { providerMessageId: streamId };
+        return null;
       }
+      const streamId = generateReqId("stream");
+      streamFrames.set(streamId, frame);
       try {
         await connection.client.replyStream(
           frame,
@@ -387,9 +397,10 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
           text.slice(0, WECOM_STREAM_TEXT_LIMIT),
           false,
         );
-      } catch {
-        // 帧可能已过期：转为推送模式，避免后续继续用失效帧。
-        streamFrames.set(streamId, null);
+      } catch (error) {
+        // 帧过期/平台拒绝：清掉登记并交给服务层退避重试，熔断后回退气泡。
+        streamFrames.delete(streamId);
+        throw error;
       }
       return { providerMessageId: streamId };
     },
@@ -401,7 +412,8 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
       const text = renderWeComStreamText(state);
       const isFinal = state.status !== "running";
 
-      // 推送模式（无帧）：中间态静默，终稿用主动推送保证送达。
+      // 安全网：正常路径下 create 只在有帧时返回句柄，这里只在帧在 create 之后丢失时命中。
+      // 中间态静默，终稿用主动推送保证送达（不再作为常规降级模式）。
       if (!connection || !frame || !frame.headers?.req_id) {
         if (!isFinal) {
           return;

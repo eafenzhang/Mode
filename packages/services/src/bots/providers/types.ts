@@ -89,6 +89,13 @@ export interface BotProviderAdapter {
     message?: BotOutboundMessage,
     signal?: AbortSignal,
   ): Promise<BotProviderAcknowledgeResult | void>;
+  /**
+   * 该会话此刻是否具备流式写通道（企微必须拿到入站帧的 req_id 才能 replyStream）。
+   * 返回 false 时服务层本回合直接走离散气泡，不把正文攒到终稿
+   * （docs/specs/bot-reply-granularity.md「流式不可用时回退逐块气泡」）。
+   * 未实现的 provider 视为「总是可写」，由 create 失败进入既有退避/熔断。
+   */
+  canWriteStreamingReply?(bot: BotConfig, targetProviderUserId: string): boolean;
   createStreamingReplyCard?(
     bot: BotConfig,
     state: BotStreamingReplyCardState,

@@ -147,3 +147,72 @@
    `pnpm architecture:check --changed` 全绿。
 4. **待实机**：微信 / 钉钉私聊发一个多段回答，正文应随生成分次到达，而不是回合末整段落下；
    群里（`always` 模式）仍应保持沉默无痕。
+
+## 流式不可用时回退逐块气泡（2026-10-21 补充）
+
+### 背景
+
+实机反馈：企微机器人在真实对话里**桌面回合跑完才收到整段回复**，过程中看不到正文增长，
+与 MyAgents「同一条消息持续增长」的观感不一致。
+
+根因在「流式卡片不可用」时的降级路径：
+
+- 企微流式回复必须透传入站帧的 `req_id`（`replyStream(frame, …)`）。**桌面端发起的回合**
+  没有入站帧；入站帧过期/不可寻址时 `replyStream` 也会失败。
+- `wecomProvider.createStreamingReplyCard` 在无帧时仍返回一个句柄，并把该 `streamId`
+  标记为「仅终稿推送」：进行中的 `updateStreamingReplyCard` **直接 return**，直到终稿才
+  `pushMarkdownChunks` 整段推送。服务层因此认为卡片可用，继续把正文留在缓冲区——
+  用户侧表现为「回合结束才回复」。
+- 卡片创建连续失败触发熔断后，`syncStreamingCardReply` 对终稿也直接返回；而终态分支
+  只走卡片路径并 `return`，**终稿回复可能整体丢失**。
+
+### 产品规则
+
+- **流式能力按回合目标判定，不只按 provider**：`BotProviderAdapter` 新增可选
+  `canWriteStreamingReply(bot, target)`。企微在无连接/无该会话入站帧时返回 `false`；
+  服务层据此从第一个增量起就走离散气泡，不再等终稿。
+- **流式卡片不可用时，正文按离散档规则逐块刷出**：卡片路径仍累积助手正文；
+  每次卡片投递成功后丢弃已交付前缀。一旦判定不可用（能力探测为 false、创建返回
+  `null`、或熔断打开），立即把未交付内容交给 `flushAssistantReplyBuffer(false)`，
+  不把正文攒到回合结束。
+- **终稿必须有落点**：终态若卡片不可用，走气泡路径发送剩余正文与变更摘要；
+  不允许因为「以为卡片可用」而丢弃终稿。
+- **企微 provider 不再提供「仅终稿推送」模式**：
+  - `createStreamingReplyCard` 无连接/无帧时返回 `null`（服务层按可重试失败处理）；
+  - 首次 `replyStream` 失败时直接抛错（重试/熔断后由服务层回退气泡）；
+  - 不再把 `streamId` 登记为 `null` 帧后静默吞掉中间帧。
+- 首帧门槛（20 字符/句末标点/工具事件）与既有逐块刷出边界不变；本轮只修
+  「不可用时憋到终稿」和「终稿丢失」。
+
+### 状态所有者与时序
+
+流式可用性状态（`streamingCardUnavailable`）归 `watchTaskStream` 的单次回合闭包所有，
+不落盘、不进协议；provider 只回答「此刻能否写流」，不持有服务层状态。
+
+```text
+agent_message_chunk
+  ├─ 卡片路径（canWrite=true）
+  │    ├─ append 正文 → sync
+  │    ├─ 成功 → 丢弃已交付前缀
+  │    └─ 不可用 → 置 unavailable → flush 气泡（逐块）
+  └─ 气泡路径（canWrite=false / 非卡片档）
+       └─ flushAssistantReplyBuffer(false)
+
+task_complete
+  ├─ 卡片可用 → 终稿卡片（正文 + 变更摘要）
+  └─ 卡片不可用 → flush(force) 剩余正文 + 变更摘要气泡
+```
+
+### 验收场景
+
+1. 单测（`bot-wecom-typing.test.ts` 或新增工具用例）：企微 `canWriteStreamingReply`
+   无帧为 `false`、有帧为 `true`；`createStreamingReplyCard` 无帧返回 `null`；
+   首帧 `replyStream` 失败时抛出而不是返回降级句柄。
+2. 源码契约（`bot-reply-segments.test.ts`）：`flushAssistantReplyBuffer` 的卡片早退
+   必须带 `!streamingCardUnavailable`；终态分支在卡片不可用时必须落到气泡路径
+   （`flushAssistantReplyBuffer(true)` + 变更摘要）；provider 源码不再出现
+   `streamFrames.set(streamId, null)` 的「仅终稿推送」路径。
+3. 回归：`pnpm --filter @mode/services test`、`pnpm typecheck`、`pnpm lint`、
+   `pnpm architecture:check --changed` 全绿。
+4. **待实机**：企微私聊跑一个多工具任务，过程中正文随生成出现在同一条/多条消息里；
+   桌面端发起的绑定会话回合也能在 IM 侧看到分次回复，而不是回合末整段出现。
