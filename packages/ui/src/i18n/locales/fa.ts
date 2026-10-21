@@ -710,6 +710,7 @@ const faIR: Record<string, string> = {
     "اسکن کنید تا بات ساخته شود، سپس برای پیوند یک پیام بفرستید.",
   "bots.empty": "باتی پیکربندی نشده است.",
   "bots.name": "نام بات",
+  "bots.rename": "تغییر نام بات",
   "bots.provider": "کانال",
   "bots.enabled": "فعال",
   "bots.enabled.description": "روشن یا خاموش کردن این بات و پاک کردن وضعیت زمان اجرای آن.",

@@ -68,7 +68,7 @@ export function BotHeartbeatCard({
                 event.currentTarget.blur();
               }
             }}
-            className="w-full pe-11 text-end"
+            className="w-full pe-11 text-start"
             aria-label={intl.formatMessage({ id: "bots.heartbeat.intervalLabel" })}
           />
           <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 whitespace-nowrap text-ui-base text-foreground-subtle">

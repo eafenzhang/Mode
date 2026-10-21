@@ -708,6 +708,7 @@ const enUS: Record<string, string> = {
   "bots.newBot.providerDescription.wecom": "Scan to create the bot, then send a message to bind.",
   "bots.empty": "No bots configured.",
   "bots.name": "Bot name",
+  "bots.rename": "Rename bot",
   "bots.provider": "Channel",
   "bots.enabled": "Enabled",
   "bots.enabled.description": "Turn this bot on or off and clear its runtime state.",

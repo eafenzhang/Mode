@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Clock3, Trash2 } from "lucide-react";
+import { Clock3, Pencil, Trash2 } from "lucide-react";
 import type { BotConfig, BotReplyGranularity, BotServiceStatus } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import {
@@ -101,7 +101,7 @@ export function BotSummaryCard({
             type="button"
             tabIndex={-1}
             aria-hidden="true"
-            className="pointer-events-none absolute start-0 top-0 invisible max-w-md overflow-hidden rounded-sm px-1 text-start text-ui-lg font-medium"
+            className="pointer-events-none absolute start-0 top-0 invisible max-w-md overflow-hidden rounded-sm px-1 text-start text-ui-lg font-medium text-foreground"
             // 隐藏测量节点默认会折叠首尾空格，导致输入名称带空格时宽度偏小；保留空白才能和 input 的实际内容宽度一致。
             style={{ whiteSpace: "pre" }}
           >
@@ -109,7 +109,7 @@ export function BotSummaryCard({
           </button>
           <input
             autoFocus
-            className="w-full min-w-0 truncate rounded-sm border-0 bg-transparent px-1 py-0 text-start text-ui-lg font-medium leading-normal text-foreground outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-input-border-focused"
+            className="w-full min-w-0 truncate rounded-sm border-0 bg-surface px-1 py-0.5 text-start text-ui-lg font-medium leading-normal text-foreground ring-1 ring-border outline-none focus-visible:ring-input-border-focused"
             value={selectedBotName}
             onBlur={onCommitNameDraft}
             onChange={(event) => onNameDraftChange(event.target.value)}
@@ -121,18 +121,32 @@ export function BotSummaryCard({
           />
         </label>
       ) : (
-        <button
-          type="button"
-          className="min-w-0 max-w-md truncate rounded-sm px-1 text-start text-ui-lg font-medium hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-input-border-focused"
-          onClick={onStartRename}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              onStartRename();
-            }
-          }}
-        >
-          {selectedBotDisplayName}
-        </button>
+        <span className="flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            title={intl.formatMessage({ id: "bots.rename" })}
+            className="min-w-0 max-w-md truncate rounded-sm px-1 text-start text-ui-lg font-medium text-foreground hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-input-border-focused"
+            onClick={onStartRename}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                onStartRename();
+              }
+            }}
+          >
+            {selectedBotDisplayName}
+          </button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-foreground-subtle hover:text-foreground"
+            title={intl.formatMessage({ id: "bots.rename" })}
+            aria-label={intl.formatMessage({ id: "bots.rename" })}
+            onClick={onStartRename}
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+        </span>
       )}
     </div>
   );

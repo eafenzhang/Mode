@@ -638,6 +638,7 @@ const zhCN: Record<string, string> = {
   "bots.newBot.providerDescription.wecom": "扫码创建BOT，发送消息绑定。",
   "bots.empty": "还没有配置机器人。",
   "bots.name": "机器人名称",
+  "bots.rename": "重命名机器人",
   "bots.provider": "渠道",
   "bots.enabled": "启用",
   "bots.enabled.description": "开启或关闭这个机器人，也可以清理它的运行状态。",
