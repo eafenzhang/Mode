@@ -37,8 +37,14 @@ export function ModeAccountDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl" data-testid="mode-account-dialog">
-          <DialogHeader>
+        <DialogContent
+          // 修复原因（2026-10-21）：M4 Dialog 适配器本身不含内边距，账号弹窗的标题、
+          // 说明和 Mode Cloud 卡片曾直接贴着圆角边缘；与 BotsDialog 一样显式补
+          // p-4 + 纵向 gap，并给 header 预留右上角关闭按钮的位置。
+          className="flex max-w-2xl flex-col gap-4 p-4"
+          data-testid="mode-account-dialog"
+        >
+          <DialogHeader className="pe-10">
             <DialogTitle>{message("modeAccount.title")}</DialogTitle>
             <DialogDescription>{message("modeAccount.description")}</DialogDescription>
           </DialogHeader>
