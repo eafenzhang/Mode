@@ -45,7 +45,7 @@
 
 | #   | 场景                                                          | 证据来源                                      | 状态                          |
 | --- | ------------------------------------------------------------- | --------------------------------------------- | ----------------------------- |
-| A1  | 冷启动：读取 `TuiStartupOptions`，建立会话并绘制空 transcript | `app-startup.tsx`、`app-empty-transcript.tsx` | 无自动化                      |
+| A1  | 冷启动：读取 `TuiStartupOptions`，建立会话并绘制空 transcript | `app-startup.tsx`、`app-empty-transcript.tsx` | 自动化（PTY harness，2026-10-22） |
 | A2  | 恢复/切换会话：会话元信息、标题、消息数正确                   | `TuiSessionMetadata`、`app-turn-complete.ts`  | 无自动化                      |
 | A3  | 一轮对话完成：终态、用量/耗时、错误分支                       | `app-turn-complete.ts`、`app-result.ts`       | 部分：事件归约（批 25）       |
 | A4  | 紧凑时间线：长会话折叠与展开                                  | `app-compact-timeline.ts`                     | 部分：识别/时间线（批 6、21） |
@@ -56,7 +56,7 @@
 
 | #   | 场景                                                          | 证据来源                                                             | 状态                    |
 | --- | ------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------- |
-| B1  | 文本增量：`text_delta` 逐块追加，不重排                       | `app-model-streaming.ts`、`app-transcript-stream.ts`                 | 部分：文本投影（批 16） |
+| B1  | 文本增量：`text_delta` 逐块追加，不重排                       | `app-model-streaming.ts`、`app-transcript-stream.ts`                 | 自动化（PTY harness）+ 文本投影（批 16） |
 | B2  | 工具输入增量：`tool_input_start/delta/end` 与最终 `tool_call` | 同上                                                                 | 无自动化                |
 | B3  | 思考块：reasoning 与正文分区渲染                              | `app-thought-components.tsx`                                         | 部分：思考增量（批 16） |
 | B4  | Markdown/代码高亮：主题与终端宽度变化重排                     | `app-markdown.tsx`、`app-markdown-theme.ts`、`app-terminal-width.ts` | 无自动化                |
@@ -241,3 +241,18 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   `run-started` 建出运行态条目（revision 1、running、空 usage/actors/nodes）；同一事件
   重放保持引用；`log` 折叠空白并追加到日志尾，空白日志不改日志；
 - 后续可继续覆盖 `app-input-history` 等纯逻辑模块；交互场景仍待人工终端验收。
+
+## PTY harness（2026-10-22）
+
+- 落点：`apps/mode-cli/packages/tui/test/tui-pty.test.mts` +
+  `test/fixtures/tuiPtyFixture.mts`；`node-pty` 作为包 devDependency。
+- 形态：夹具直接调真 `runTui`（不提供 `loadStartupOptions`，跳过启动屏），
+  `submitPrompt` 按脚本推 `model_streaming` 文本增量；测试用 `node-pty` 提供 TTY、
+  收集并去 ANSI 后断言屏幕文本。
+- 已覆盖：A1 冷启动首屏（`Build` + 输入提示）、B1 两个 `text_delta` 依次上屏。
+- 平台注意：Windows 的 PTY 主端忽略 `encoding` 选项、中文会按系统代码页变乱码，
+  所以夹具固定 `locale: "en-US"` 并只用 ASCII 标记断言；清理无语义退出（会话屏
+  Ctrl-C 带防误退/中断流语义），键盘退出仍由 `scripts/mode-distribution-smoke.mjs`
+  在发行包上覆盖。
+- 其余 31 个场景按同一骨架追加：改夹具的 `submitPrompt` 事件脚本（审批走
+  `options.requestPermission`、工具/问题走对应 `SessionEventType`）+ 一条屏幕断言。
