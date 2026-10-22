@@ -340,8 +340,9 @@ spike（见 DR-LR-2），未通过前 `connectRemote` 保持明确失败，不�
 - [ ] 事件：connection log、closed、bot reconnect；UI tab 降级与重连。
       connection log / closed 已接；bot reconnect 于 2026-10-22 接通（见 §22）；
       UI tab 断连降级逻辑已实现（`onRemoteSessionClosed` → 清 `remoteSessionId` +
-      running 任务收口）并于同日补纯逻辑回归（见 §25）；**自动重连口径待 UX 决策**，
-      当前实现只走用户手动重连。
+      running 任务收口）并于同日补纯逻辑回归（见 §25）；自动重连按**决策 B**落地：
+      1s/3s/9s 最多 3 次、干净退出与鉴权/版本错误不重试（见
+      `docs/specs/remote-workspace-auto-reconnect.md`）。启动仍不自动连接。
 - [x] 测试：connect/cancel/bind/dispose、attachment 路由、Host 退出、stale session、
       `REMOTE_WORKSPACE_IDENTITY_MISMATCH`、断线重连。
       connect/bind/attach/detach/dispose、attachment 路由、Host 退出、stale session 已覆盖；
@@ -806,5 +807,17 @@ Host sidecar 不做数据根初始化（归属文件、迁移都只有 server �
 - optimistic running 参与收口；无运行任务返回 0；
 - 同一 workspaceIdentity 的多个 tab 去重；不同 workspace 的同名 taskId 独立计数。
 
-**仍待决策（UX 口径）**：断连后当前只支持用户手动重连（tab 留在断连态、任务显示失败）。
-要不要做自动重连、重试次数/退避、以及重连失败后的提示层级，属产品行为，未擅自实现。
+**UX 口径已定（2026-10-22，决策 B）并落地**：断连后有限自动重连，最多 3 次、退避
+1s / 3s / 9s；干净退出与鉴权/版本类错误不重试；触底后停在断连态并 toast 一次，用户可手动重连。
+启动阶段仍不自动连接（保留「打开应用不触发远端连接」的历史约束）。落点：
+
+- `packages/ui/src/lib/remoteWorkspaceAutoReconnect.ts`：断连分类 + 调度器（纯逻辑）；
+- `useRemoteWorkspaceHistory`：断连事件后调度；手动/Bot/移除 tab/卸载均取消；
+  Bot 重连成功时还按 requestId 取消 UI 侧在途 connect；
+- `RemoteSessionClosedEvent` 增加可选 `error`，Host 关闭事件的错误经桌面桥透传，
+  用于区分「传输断开」与「鉴权/版本不兼容」；
+- 规范：`docs/specs/remote-workspace-auto-reconnect.md`；
+- 用例：`packages/ui/test/remoteWorkspaceAutoReconnect.test.ts`（6 项）+
+  桌面桥错误透传断言。
+
+真机（拔网/杀对端进程/断链后来回切）仍待 LR-5 验收。

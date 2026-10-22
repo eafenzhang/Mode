@@ -1637,6 +1637,8 @@ const zhCN: Record<string, string> = {
   "workspaceSidebar.windowsReservedNameRisk":
     "已移除项目，但检测到 {count} 个 Windows 保留名文件，可能影响后续删除或重命名目录：{path}",
   "workspaceSidebar.reconnect": "重新连接",
+  "remoteWorkspace.autoReconnect.failed": "自动重连失败：{error}",
+  "remoteWorkspace.autoReconnect.failedGeneric": "自动重连失败，请手动重试",
   "workspaceSidebar.connecting": "连接中",
   "workspaceSidebar.notConnected": "未连接",
   "workspaceSidebar.empty": "暂无工作区，请先打开一个工作区。",

@@ -456,6 +456,11 @@ export interface RemoteSessionClosedEvent {
   reason: "host-exit";
   exitCode: number | null;
   signal: string | null;
+  /**
+   * 关闭时后端给出的错误（可缺省）。自动重连用它区分「传输断开」与
+   * 「鉴权/版本不兼容」——后者重试没有意义。
+   */
+  error?: string;
 }
 
 export interface EmbeddedBrowserOpenUrlRequest {

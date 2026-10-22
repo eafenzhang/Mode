@@ -105,6 +105,7 @@ export function createDesktopRemotePlatformBridge(options: {
             reason: "host-exit",
             exitCode: event.exitCode,
             signal: event.signal,
+            ...(event.error ? { error: event.error } : {}),
           });
         }
       });

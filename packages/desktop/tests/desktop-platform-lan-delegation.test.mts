@@ -575,6 +575,7 @@ test("Tauri + Host：远程连接日志与关闭事件走 Host 动态事件", as
     sessionId: "session-1",
     exitCode: 1,
     signal: null,
+    error: "connection reset by peer",
   });
   remoteEvents.emit({
     kind: "botReconnected",
@@ -595,7 +596,14 @@ test("Tauri + Host：远程连接日志与关闭事件走 Host 动态事件", as
     },
   ]);
   assert.deepEqual(closed, [
-    { sessionId: "session-1", reason: "host-exit", exitCode: 1, signal: null },
+    {
+      sessionId: "session-1",
+      reason: "host-exit",
+      exitCode: 1,
+      signal: null,
+      // 自动重连要据此区分传输断开与鉴权/版本错误；桥接不得把后端 error 丢掉。
+      error: "connection reset by peer",
+    },
   ]);
   assert.deepEqual(reconnected, [
     {

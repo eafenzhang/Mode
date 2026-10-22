@@ -1774,6 +1774,8 @@ const enUS: Record<string, string> = {
   "workspaceSidebar.windowsReservedNameRisk":
     "Project removed, but {count} Windows reserved-name file(s) were detected and may affect later folder deletion or renaming: {path}",
   "workspaceSidebar.reconnect": "Reconnect",
+  "remoteWorkspace.autoReconnect.failed": "Auto-reconnect failed: {error}",
+  "remoteWorkspace.autoReconnect.failedGeneric": "Auto-reconnect failed. Please retry manually.",
   "workspaceSidebar.connecting": "Connecting",
   "workspaceSidebar.notConnected": "Not connected",
   "workspaceSidebar.empty": "No workspaces yet. Open a workspace to get started.",

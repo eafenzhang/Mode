@@ -45,6 +45,11 @@ import {
 } from "@/root/reconnectRemoteWorkspaceHistoryEntry.js";
 import { useRemoteConnectionEntryVisibility } from "@/hooks/useRemoteConnectionEntryVisibility.js";
 import { markRemoteWorkspaceRunningTasksFailed } from "@/lib/remoteWorkspaceSessionRuntime.js";
+import {
+  classifyRemoteSessionClose,
+  createRemoteAutoReconnectScheduler,
+  type RemoteAutoReconnectScheduler,
+} from "@/lib/remoteWorkspaceAutoReconnect.js";
 
 export { reconnectRemoteWorkspaceHistoryEntry };
 
@@ -934,6 +939,79 @@ export function useRemoteWorkspaceHistory({
     [runReconnectRemoteWorkspaceEntry, tabStoreApi],
   );
 
+  /**
+   * 断连后的有限自动重连（产品决策 B：1s / 3s / 9s，最多 3 次）。
+   *
+   * 只在 `onRemoteSessionClosed` 之后调度；启动恢复仍然只还原断连态 tab，不发起连接。
+   * 手动重连、Bot 重连、tab 关闭与组件卸载都会取消待执行尝试。attempt 通过 ref 读取
+   * 最新的回调，避免依赖变化重建调度器而丢掉已挂的定时器。
+   */
+  const autoReconnectRuntimeRef = useRef({
+    canUseRemoteWorkspace,
+    runReconnectRemoteWorkspace,
+  });
+  autoReconnectRuntimeRef.current = {
+    canUseRemoteWorkspace,
+    runReconnectRemoteWorkspace,
+  };
+  const autoReconnectSchedulerRef = useRef<RemoteAutoReconnectScheduler | null>(null);
+  if (!autoReconnectSchedulerRef.current) {
+    autoReconnectSchedulerRef.current = createRemoteAutoReconnectScheduler({
+      attempt: async (workspaceKey) => {
+        const runtime = autoReconnectRuntimeRef.current;
+        if (!runtime.canUseRemoteWorkspace) {
+          return { ok: true };
+        }
+        // 已有别的重连路径在跑（手动 / 历史 / Bot）：让位，停止本组重试。
+        if (inflightReconnectWorkspaceKeysRef.current.has(workspaceKey)) {
+          return { ok: true };
+        }
+        const tab = tabStoreApi
+          .getState()
+          .tabs.find(
+            (candidate): candidate is import("@/store/tabStore.js").WorkspaceTabState =>
+              isWorkspaceTab(candidate) && buildWorkspaceSessionKey(candidate) === workspaceKey,
+          );
+        if (!tab || tab.remoteSessionId) {
+          // tab 已被移除，或已经连上（手动/Bot 重连成功）：无事可做。
+          return { ok: true };
+        }
+        try {
+          await reconnectRemoteWorkspaceByKey({
+            workspaceKey,
+            canUseRemoteWorkspace: runtime.canUseRemoteWorkspace,
+            getRemoteSessions: () => remoteWorkspaceSessionsRef.current,
+            runReconnectRemoteWorkspace: runtime.runReconnectRemoteWorkspace,
+            options: {
+              activateWorkspaceAfterReconnect: false,
+              showErrorToast: false,
+              throwOnFailure: true,
+            },
+          });
+          logger.info("[Root] 远程 workspace 自动重连成功", { workspaceKey });
+          return { ok: true };
+        } catch (error) {
+          const message = getErrorMessage(error);
+          logger.warn("[Root] 远程 workspace 自动重连尝试失败", {
+            workspaceKey,
+            error: message,
+          });
+          return { ok: false, error: message };
+        }
+      },
+      onExhausted: (workspaceKey, error) => {
+        logger.warn("[Root] 远程 workspace 自动重连已停止", { workspaceKey, error });
+        toast(
+          error
+            ? intl.formatMessage({ id: "remoteWorkspace.autoReconnect.failed" }, { error })
+            : intl.formatMessage({ id: "remoteWorkspace.autoReconnect.failedGeneric" }),
+        );
+      },
+    });
+  }
+  const autoReconnectScheduler = autoReconnectSchedulerRef.current;
+  useEffect(() => () => autoReconnectScheduler.cancelAll(), [autoReconnectScheduler]);
+
   useEffect(() => {
     // 这里原来是启动自动重连 effect。
     // 删除 effect 本身会让 Fast Refresh 中已挂载的 RootInner 后续 hook 全部前移，
@@ -1049,6 +1127,8 @@ export function useRemoteWorkspaceHistory({
 
   const handleReconnectRemoteWorkspace = useCallback(
     async (workspaceKey: string, options?: ReconnectRemoteWorkspaceOptions) => {
+      // 用户手动重连优先：取消同 workspace 的自动重试，避免两条链各自建连。
+      autoReconnectScheduler.cancel(workspaceKey);
       await reconnectRemoteWorkspaceByKey({
         workspaceKey,
         canUseRemoteWorkspace,
@@ -1062,7 +1142,7 @@ export function useRemoteWorkspaceHistory({
         },
       });
     },
-    [canUseRemoteWorkspace, runReconnectRemoteWorkspace],
+    [autoReconnectScheduler, canUseRemoteWorkspace, runReconnectRemoteWorkspace],
   );
 
   const handleOpenRemoteWorkspaceFromHistory = useCallback(
@@ -1070,6 +1150,9 @@ export function useRemoteWorkspaceHistory({
       if (!canUseRemoteWorkspace) {
         return;
       }
+
+      // 从历史打开也是显式重连意图：取消自动重试，避免重复建连。
+      autoReconnectScheduler.cancel(workspaceKey);
 
       // 远程历史入口与侧栏重连都可能命中“重连中被用户移除”的竞态。
       // 这里抽成统一入口，确保两条路径共享相同的并发保护、保留校验与错误处理语义。
@@ -1106,6 +1189,7 @@ export function useRemoteWorkspaceHistory({
       services.credentialService,
       tabStoreApi,
       canUseRemoteWorkspace,
+      autoReconnectScheduler,
     ],
   );
 
@@ -1207,8 +1291,51 @@ export function useRemoteWorkspaceHistory({
           }),
         );
       }
+
+      // 有限自动重连：只对已建立连接的异常关闭生效；干净退出与鉴权/版本类错误不重试。
+      if (!canUseRemoteWorkspace || matchedWorkspaceKeys.length === 0) {
+        return;
+      }
+      const classification = classifyRemoteSessionClose({
+        exitCode: event.exitCode,
+        signal: event.signal,
+        ...(event.error ? { error: event.error } : {}),
+      });
+      if (!classification.retryable) {
+        logger.info("[Root] 远程 workspace 断连不自动重连", {
+          detail: classification.detail,
+          exitCode: event.exitCode,
+          signal: event.signal,
+          error: event.error ?? null,
+          workspaceKeys: matchedWorkspaceKeys,
+        });
+        return;
+      }
+      const scheduledWorkspaceKeys: string[] = [];
+      for (const workspaceKey of matchedWorkspaceKeys) {
+        if (
+          inflightReconnectWorkspaceKeysRef.current.has(workspaceKey) ||
+          pendingReconnectRequestIdsRef.current.has(workspaceKey)
+        ) {
+          // 手动/Bot 重连已经在处理这个 workspace：不叠加自动重试。
+          continue;
+        }
+        autoReconnectScheduler.schedule(workspaceKey);
+        scheduledWorkspaceKeys.push(workspaceKey);
+      }
+      if (scheduledWorkspaceKeys.length > 0) {
+        logger.info("[Root] 远程 workspace 断连，安排有限自动重连", {
+          detail: classification.detail,
+          workspaceKeys: scheduledWorkspaceKeys,
+        });
+      }
     },
-    [commitRemoteWorkspaceSessionMutation, tabStoreApi],
+    [
+      commitRemoteWorkspaceSessionMutation,
+      tabStoreApi,
+      canUseRemoteWorkspace,
+      autoReconnectScheduler,
+    ],
   );
 
   const handleBotRemoteWorkspaceReconnected = useCallback(
@@ -1243,6 +1370,17 @@ export function useRemoteWorkspaceHistory({
           resolvedWorkspacePath,
           target: remoteSession.target,
         });
+        // Bot 已经把这个 workspace 重连成功：取消 UI 侧的自动重试；若 UI 有一次自动
+        // 重连正在建连，按 requestId 取消它，避免同一个 workspace 出现两个 session。
+        const reconnectedWorkspaceKey = resolvedWorkspaceIdentity.trim() || resolvedWorkspacePath;
+        autoReconnectScheduler.cancel(reconnectedWorkspaceKey);
+        const pendingReconnectRequestId =
+          pendingReconnectRequestIdsRef.current.get(reconnectedWorkspaceKey);
+        if (pendingReconnectRequestId && platform.cancelPendingRemoteConnection) {
+          void platform.cancelPendingRemoteConnection(pendingReconnectRequestId).catch(() => {
+            // 取消失败不阻断 Bot 重连后的 UI 同步；Host 侧仍以已建立的 session 为准。
+          });
+        }
 
         bindRemoteWorkspacePath(resolvedWorkspacePath, sessionId);
         bindRemoteWorkspaceIdentity(resolvedWorkspaceIdentity, sessionId);
@@ -1290,6 +1428,8 @@ export function useRemoteWorkspaceHistory({
       resolveRemoteWorkspaceCanonicalPath,
       tabStoreApi,
       waitForRemoteWorkspaceSessionReady,
+      autoReconnectScheduler,
+      platform,
     ],
   );
 
@@ -1312,6 +1452,11 @@ export function useRemoteWorkspaceHistory({
       }
 
       const workspaceKeySet = new Set(workspaceKeys);
+
+      // 用户移除 tab：停止该 workspace 的自动重试，避免关掉后又把连接建回来。
+      for (const workspaceKey of workspaceKeys) {
+        autoReconnectScheduler.cancel(workspaceKey);
+      }
 
       void (async () => {
         // 关闭断连态 remote tab 时，tab 上还没有 remoteSessionId，但 main 进程可能已经在上传 remote runtime。
@@ -1357,7 +1502,7 @@ export function useRemoteWorkspaceHistory({
         }
       })();
     },
-    [platform, services.credentialService, syncPersistedWorkspaceSession],
+    [platform, services.credentialService, syncPersistedWorkspaceSession, autoReconnectScheduler],
   );
 
   const remoteWorkspaceErrorByWorkspaceKey = useMemo(

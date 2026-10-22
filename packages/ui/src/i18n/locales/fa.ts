@@ -1766,6 +1766,8 @@ const faIR: Record<string, string> = {
   "workspaceSidebar.windowsReservedNameRisk":
     "پروژه حذف شد، اما {count} فایل با نام رزروشده ویندوز شناسایی شد که ممکن است بعداً در حذف یا تغییر نام پوشه مشکل ایجاد کند: {path}",
   "workspaceSidebar.reconnect": "اتصال دوباره",
+  "remoteWorkspace.autoReconnect.failed": "اتصال مجدد خودکار ناموفق بود: {error}",
+  "remoteWorkspace.autoReconnect.failedGeneric": "اتصال مجدد خودکار ناموفق بود. لطفاً دستی دوباره تلاش کنید.",
   "workspaceSidebar.connecting": "در حال اتصال",
   "workspaceSidebar.notConnected": "متصل نیست",
   "workspaceSidebar.empty": "هنوز فضای کاری وجود ندارد. برای شروع، یک فضای کاری باز کنید.",
