@@ -27,6 +27,7 @@ test("services 测试按域归类，未分类返回 null", () => {
     "not-translatable",
   );
   assert.equal(classifyServicesTestFile("credential-service.test.ts")?.domain, "misc");
+  assert.equal(classifyServicesTestFile("settings-user-nickname.test.ts")?.domain, "misc");
   assert.equal(classifyServicesTestFile("brand-new-runtime.test.ts"), null);
 });
 

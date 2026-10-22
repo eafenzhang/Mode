@@ -79,12 +79,13 @@ const RULES: readonly ClassificationRule[] = [
   {
     domain: "misc",
     verdict: "not-applicable",
-    reason: "凭据 / 通道注册 / CUA 根",
+    reason: "凭据 / 通道注册 / CUA 根 / 设置归一化",
     files: new Set([
       "credential-service.test.ts",
       "wecom-registration.test.ts",
       "weixin-provider-self-id.test.ts",
       "windowsCuaDevRootContract.test.ts",
+      "settings-user-nickname.test.ts",
     ]),
   },
 ];
