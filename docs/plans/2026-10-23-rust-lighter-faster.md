@@ -92,10 +92,16 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 
 | # | 删除项 | 规模 | 收益 | 风险与前提 |
 | --- | --- | --- | --- | --- |
-| 1 | `packages/server/src/remote/` 的 **SSH/WSL/Docker 后端与部署栈**（`ssh-backend`/`wsl-backend`/`docker-backend`/`deploy`/`modeAgentDeploy`/`remoteAssetInstaller` 等，≈4k 行）+ `ssh2` 依赖 | 4k 行 + 1 个 native 依赖 | 桌面形态不再随包携带「把 agent 部署到远端机器」的能力与依赖闭包；`tools/` 与 `node_modules` 双双收缩 | 需要产品确认「远端部署 agent」是 mode-server-cli 的可选资产而不是桌面核心；`packages/mode-server-cli` 保留该路径 |
-| 2 | `packages/server/src/http.ts` 的 `/ws/remote/:id` 远程连接桥（≈60 行 + 远端 services 装配） | — | 去掉第二条「远端工作区」实现路径，只保留 Host attachment 一条 | LR-4 已经用 Host registry 接管；该桥是 CLI 时代遗留 |
-| 3 | `packages/server` 的 `ssh2` / `combined-stream` / `follow-redirects` / `form-data` / `proxy-from-env` 依赖 | — | 依赖树与第三方台账（514 缺失项）同时收缩 | 仅在 #1 之后成立 |
-| 4 | 旧 Electron 线残留（main/preload/scheduler/electron-builder） | 326 文件已删 | 已完成（`d71ed992`） | — |
+| 1 | 旧 Electron 线残留（main/preload/scheduler/electron-builder） | 326 文件已删 | 已完成（`d71ed992`） | — |
+
+> **2026-10-23 用户裁决：SSH/WSL/Docker 后端保留**（含 `ssh2` 等依赖与
+> `/ws/remote/:id` 桥）。原计划把 `packages/server/src/remote/` 的部署栈与后端列为
+> 「立即可删」，判断有误：Tauri Host 的 SSH/WSL/Docker 远程工作区**直接依赖它**——
+> `packages/desktop/src/host-standalone/remoteWorkspaceService.ts` 的
+> `defaultConnectStdio` 动态 `import("@mode/server/remote")`，用
+> `createRemoteBackend` / `connectRemote` / `pickRemoteRuntimeEnv` 建连（LR-4 第三阶段的
+> SSH/WSL/Docker 路径）。删掉它们会直接断掉这条产品能力，而不是「少一个 CLI 遗留」。
+> 因此该删除项撤销；体积收益改由 M4b（Host 并入壳）与 M5a（Node 运行时退场）承担。
 
 ### 3.2 随「Host 并入壳」消失（M4b）
 
@@ -180,7 +186,7 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 
 | 阶段 | 内容 | 交付判据 | 依赖 |
 | --- | --- | --- | --- |
-| **M4a（1–2 周）** | bench 脚本与基线入库；§3.1 立即可删项落地（server/remote 裁剪、`/ws/remote/:id` 移除、依赖收缩）；发布门禁补一条「发运集核心载荷 ≤ 25MB」的**观测**项 | bench 全绿并写入 roadmap 度量表；删除项不改变任何现有测试语义 | 无 |
+| **M4a（1–2 周）** | bench 脚本与基线入库（§5 四项）；发布门禁补一条「发运集核心载荷 ≤ 25MB」的**观测**项。**本阶段不做删除**（SSH/WSL/Docker 后端已裁决保留，其余删除全部依赖 M4b/M5a） | bench 全绿并写入 roadmap 度量表；三类指标的基线数字落库 | 无 |
 | **M4b（2–4 周）** | settings/credentials/task-index/file-ops 最小面 Rust 化 → Host 并入壳 → IPC 换代（CBOR）；`T_ready` ≤ 500ms | §1.3 表同口径复测；35 MB 载荷从发运集消失 | M4a |
 | **M5a（4–8 周）** | Agent 工具注册表补全 → 双跑开关 → parity 升级 → 翻转默认值 → 删除 §3.3 全部内容 | 对拍矩阵全绿；真实模型 20 任务验收；`T_ready` ≤ 400ms、`node/` 从发运集消失 | M2 验收 + M4b |
 | **M5b（收口）** | provider/凭据/共享协议真源翻转；第三方台账 514 缺失项复核；三指标仪表转成 CI 硬门禁 | 三门禁（体积/语言/重合度）+ 新增性能门禁全绿 | M5a |
@@ -191,7 +197,7 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 2. **插件/技能生态**：QuickJS 嵌入意味着放弃 npm 生态；在没有真实插件需求驱动前不要动手。
 3. **macOS/Linux**：本计划所有测量面目前只有 Windows（Ruling 20）；跨平台真机验收仍是 M5 的独立风险。
 4. **Clean-room 纪律**：重写任何模块时，旧实现体只能黑盒对拍，不得读上游衍生实现（`clean-room-policy.md`）。
-5. **产品确认项**：IM bot 是否随核心包、远端部署是否降为可选资产、插件宿主是否需要 npm 生态——这三条决定 §3.1 与 §3.3 的删除面是否完全成立。
+5. **产品确认项**：IM bot 是否随核心包、插件宿主是否需要 npm 生态。远端部署/SSH 后端已于 2026-10-23 裁决保留，不再是确认项。
 
 ## 8. 与既有计划的关系
 

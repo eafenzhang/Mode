@@ -80,8 +80,8 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 
 > 触发：Rust 改造不能只看体积，还要在性能与效率上提高。现状的实测基线（发运集 ≈153 MB、
 > `T_ready` 825 ms / `T_surface` 962 ms、常驻 3–4 进程、帧协议 JSON+base64）与三类指标
-> （体积 / 冷启动 / 常驻进程与内存）、**可删除清单**（含 3.1 立即可删的 4 项、3.3 随
-> 「Agent 切 Rust」消失的 ≈230k 行 TS 与 89 MB Node）、**需重做的模块排序**（P0 Host 并入壳、
+> （体积 / 冷启动 / 常驻进程与内存）、**可删除清单**（3.1 原列的 server/remote 删除已撤销，
+> SSH/WSL/Docker 后端 2026-10-23 裁决保留；删除面集中在 M4b 与 M5a：≈230k 行 TS 与 89 MB Node）、**需重做的模块排序**（P0 Host 并入壳、
 > P0 Agent 切换、P1 provider/凭据/设置、P1 CUA helper）与 M4a→M5b 的分阶段见
 > `docs/plans/2026-10-23-rust-lighter-faster.md`。本节只登记指针，细节以该计划为准。
 >
