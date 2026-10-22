@@ -60,7 +60,7 @@
 | B2  | 工具输入增量：`tool_input_start/delta/end` 与最终 `tool_call` | 同上                                                                 | 自动化（PTY，增量不入正文） |
 | B3  | 思考块：reasoning 与正文分区渲染                              | `app-thought-components.tsx`                                         | 自动化（PTY，折叠块）+ 思考增量（批 16） |
 | B4  | Markdown/代码高亮：主题与终端宽度变化重排                     | `app-markdown.tsx`、`app-markdown-theme.ts`、`app-terminal-width.ts` | 无自动化                |
-| B5  | 中断/取消：用户中断后流停止、终态正确                         | `app-submit.ts`、`app-submit-controller.ts`                          | 无自动化                |
+| B5  | 中断/取消：用户中断后流停止、终态正确                         | `app-submit.ts`、`app-submit-controller.ts`                          | 自动化（PTY，Esc 中止） |
 
 ### C. 审批与提问
 
@@ -69,7 +69,7 @@
 | C1  | `allow_once`：批准后工具继续，规则不落盘         | `app-approval.ts`、`app-approval-panel.tsx`、`TuiRequestPermission` | 部分：文案/预览（批 13、36）   |
 | C2  | `allow_project`：批准后本项目后续同规则不再询问  | 同上                                                                | 部分：文案/作用域（批 13、36） |
 | C3  | `deny`：拒绝文案、工具不执行、会话继续           | 同上                                                                | 自动化（PTY，deny）+ 文案/取消（批 13、26） |
-| C4  | `AskUserQuestion`：问题面板、多选/自由输入与取消 | `app-question-panel.tsx`、`app-question-state.ts`                   | 部分：状态机（批 12、26、29）  |
+| C4  | `AskUserQuestion`：问题面板、多选/自由输入与取消 | `app-question-panel.tsx`、`app-question-state.ts`                   | 自动化（PTY，作答+Review 提交）+ 状态机（批 12、26、29） |
 | C5  | 审批与流式并发：审批期间流式事件不丢、不越序     | `app-permission.ts`                                                 | 无自动化                       |
 
 ### D. 工具与 diff
@@ -249,9 +249,10 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 形态：夹具直接调真 `runTui`（不提供 `loadStartupOptions`，跳过启动屏），
   `submitPrompt` 按脚本推 `model_streaming` 文本增量；测试用 `node-pty` 提供 TTY、
   收集并去 ANSI 后断言屏幕文本。
-- 已覆盖（10/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、A5 busy 排队面板、
-  B1 两段 `text_delta`、B2 工具输入增量不入正文、B3 折叠思考块、
-  C3 审批面板 + 默认 Deny 确认、D1 工具卡 running→completed、E2 `/` 补全 + Tab 提交、
+- 已覆盖（12/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、A5 busy 排队面板、
+  B1 两段 `text_delta`、B2 工具输入增量不入正文、B3 折叠思考块、B5 Esc 中止进行中回合、
+  C3 审批面板 + 默认 Deny 确认、C4 问题面板 + 作答 + Review 提交、
+  D1 工具卡 running→completed、E2 `/` 补全 + Tab 提交、
   E3 Shift+Tab 触发 `setMode`。
   A5 的「空闲后按序提交」由 runtime 负责，PTY 用例只证明输入进入了队列面板。
 - 平台注意：Windows 的 PTY 主端忽略 `encoding` 选项、中文会按系统代码页变乱码，
@@ -259,11 +260,12 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   Ctrl-C 带防误退/中断流语义），键盘退出仍由 `scripts/mode-distribution-smoke.mjs`
   在发行包上覆盖。
 - 控制信号两条路：**屏幕短标记**（`PTY_MODE_edit` 等，适合一次性可观察信号）与
-  **结果文件**（`PTY_RESULT_FILE` 追加，适合会被重绘覆盖/裁掉、或需要轮询重发按键的信号）。
+  **结果文件**（`PTY_RESULT_FILE` 追加，适合会被重绘覆盖/裁掉、或需要轮询重发按键的信号；
+  B5/C4 用它）。
   C3 用后者：轮询结果文件期间周期性重发 Enter，避免「首个按键在负载下偶发丢失」的竞态。
 - 仍被按键编码阻塞的两条：**C1**（审批面板上移选择）与 **A6**（空草稿上键召回）。
   已试过 `\u001b[A` / `\u001b[1;1A` / `\u001bOA`，方向键均未到达处理器（疑似被输入编辑器
   消费）；需要先确认 opentui 在本环境的方向键编码，或改用鼠标/数字快捷键。
-- 其余 23 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
+- 其余 21 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
   `options.requestPermission`，busy 输入走 `sendInput`，工具/问题走对应 `SessionEventType`）
   + 一条屏幕断言。

@@ -53,9 +53,18 @@ function recordControl(line: string): void {
 }
 
 type SubmitOptions = {
+  abortSignal?: AbortSignal;
   onEvent?: (event: SessionEvent) => unknown;
   requestPermission?: (request: unknown, options?: unknown) => Promise<{ decision: string }>;
 };
+
+/** A=allow_once / B=allow_project / M=modify（问题作答） / D=deny。 */
+function decisionCodeOf(decision: string | undefined): string {
+  if (decision === "allow_once") return "A";
+  if (decision === "allow_project") return "B";
+  if (decision === "modify") return "M";
+  return "D";
+}
 
 function promptTextOf(prompt: unknown): string {
   if (typeof prompt === "string") return prompt;
@@ -228,11 +237,60 @@ async function submit(prompt: unknown, options: SubmitOptions) {
       requestedAt: new Date(),
     });
     // 短标记：TUI 重绘会覆盖长行，`PTY_APPROVAL_allow_once` 的尾巴可能被裁掉。
-    const decisionCode =
-      result?.decision === "allow_once" ? "A" : result?.decision === "allow_project" ? "B" : "D";
+    const decisionCode = decisionCodeOf(result?.decision);
     process.stderr.write(`PTY_APPROVAL_${decisionCode}\n`);
     recordControl(`PTY_APPROVAL_${decisionCode}`);
     return { response: "" };
+  }
+
+  if (scenario === "question") {
+    const result = await options.requestPermission?.({
+      requestId: "pty-question-request",
+      sessionId,
+      traceId,
+      toolCallId: "tool-question",
+      toolName: "AskUserQuestion",
+      input: {
+        questions: [
+          {
+            question: "Pick one?",
+            header: "Approach",
+            options: [
+              { label: "Approach A", description: "first option" },
+              { label: "Approach B", description: "second option" },
+            ],
+            multiSelect: false,
+          },
+        ],
+      },
+      mode: "build",
+      ruleId: "pty-question",
+      reason: "Clarify the approach in the fixture",
+      riskLevel: "low",
+      requestedAt: new Date(),
+    });
+    const decisionCode = decisionCodeOf(result?.decision);
+    process.stderr.write(`PTY_APPROVAL_${decisionCode}\n`);
+    recordControl(`PTY_APPROVAL_${decisionCode}`);
+    return { response: "" };
+  }
+
+  if (scenario === "interrupt") {
+    // 提交已进到运行时：结果文件是确定性信号（屏幕标记会被重绘吃掉）。
+    recordControl("PTY_INTERRUPT_SUBMITTED");
+    // 一直等到上游 abort（用户 Esc / Ctrl-C 的中断路径），不主动完成回合。
+    const signal = options.abortSignal;
+    await new Promise<void>((resolvePromise) => {
+      if (signal?.aborted) {
+        resolvePromise();
+        return;
+      }
+      signal?.addEventListener("abort", () => resolvePromise(), { once: true });
+      setTimeout(resolvePromise, 15_000);
+    });
+    recordControl("PTY_ABORTED");
+    process.stderr.write("PTY_ABORTED\n");
+    throw new Error("PTY_INTERRUPTED");
   }
 
   // 默认：A1/B1 的文本增量场景。

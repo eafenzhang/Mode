@@ -10,7 +10,9 @@
  * - B1 文本增量：两次 `text_delta` 都出现；
  * - B2 工具输入增量：不进入正文，最终工具卡完成；
  * - B3 思考块：`reasoning_delta` 以折叠块呈现；
+ * - B5 中断：Esc 中止进行中的回合；
  * - C3 审批：面板出现，默认 Deny 确认后返回 deny；
+ * - C4 提问：问题面板、作答与 Review 提交；
  * - D1 工具卡片：running → completed 状态都上屏；
  * - E2 斜杠命令：输入 `/` 出现补全，Tab 补全后提交；
  * - E3 模式切换：Shift+Tab 调用客户端的 setMode（标记写入，界面标签不在断言面）。
@@ -167,6 +169,51 @@ test("TUI PTY B3：reasoning 以折叠思考块呈现", async () => {
   }
 });
 
+test("TUI PTY B5：Esc 中止进行中的回合", async () => {
+  const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-interrupt-"));
+  const resultFile = join(resultDir, "result.txt");
+  const session = startTui("interrupt", { PTY_RESULT_FILE: resultFile });
+  try {
+    await waitForReady(session);
+    session.write("long running task\r");
+    // 提交是否进到运行时以结果文件为准（屏幕标记会被重绘吃掉）。
+    const startedDeadline = Date.now() + 8_000;
+    let started = false;
+    while (Date.now() < startedDeadline) {
+      try {
+        if (readFileSync(resultFile, "utf8").includes("PTY_INTERRUPT_SUBMITTED")) {
+          started = true;
+          break;
+        }
+      } catch {
+        // 文件尚未创建：继续轮询。
+      }
+      await delay(200);
+    }
+    assert.ok(started, `回合未开始\n--- screen ---\n${session.screen()}`);
+    await delay(300);
+    session.write("\u001b");
+
+    const deadline = Date.now() + 8_000;
+    let aborted = false;
+    while (Date.now() < deadline) {
+      try {
+        if (readFileSync(resultFile, "utf8").includes("PTY_ABORTED")) {
+          aborted = true;
+          break;
+        }
+      } catch {
+        // 文件尚未创建：继续轮询。
+      }
+      await delay(200);
+    }
+    assert.ok(aborted, `Esc 未中止进行中的回合\n--- screen ---\n${session.screen()}`);
+  } finally {
+    session.stop();
+    rmSync(resultDir, { recursive: true, force: true });
+  }
+});
+
 test("TUI PTY C3：审批面板出现，默认 Deny 确认", async () => {
   const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-approval-"));
   const resultFile = join(resultDir, "result.txt");
@@ -193,6 +240,45 @@ test("TUI PTY C3：审批面板出现，默认 Deny 确认", async () => {
       }
     }
     assert.equal(decided, true, `审批未在期限内返回 deny\n--- screen ---\n${session.screen()}`);
+  } finally {
+    session.stop();
+    rmSync(resultDir, { recursive: true, force: true });
+  }
+});
+
+test("TUI PTY C4：问题面板渲染、作答并提交", async () => {
+  const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-question-"));
+  const resultFile = join(resultDir, "result.txt");
+  const session = startTui("question", { PTY_RESULT_FILE: resultFile });
+  try {
+    await waitForReady(session);
+    session.write("ask\r");
+    await session.waitForSubstring("Question 1/1: Approach", "问题面板标题");
+    await session.waitForSubstring("Pick one?", "问题文本");
+    await session.waitForSubstring("Approach A", "选项标签");
+
+    // Enter 作答 → Review；Review 再 Enter 提交（decision: modify）。
+    // 首个按键在负载下可能丢失，与 C3 同样用轮询重发。
+    const deadline = Date.now() + 10_000;
+    let sawReview = false;
+    let submitted = false;
+    while (Date.now() < deadline) {
+      session.write("ask".slice(0, 0) + "\r");
+      await delay(300);
+      if (!sawReview && session.screen().includes("Review answers")) {
+        sawReview = true;
+      }
+      try {
+        if (readFileSync(resultFile, "utf8").includes("PTY_APPROVAL_M")) {
+          submitted = true;
+          break;
+        }
+      } catch {
+        // 文件尚未创建：继续重试。
+      }
+    }
+    assert.ok(sawReview, `未进入 Review\n--- screen ---\n${session.screen()}`);
+    assert.ok(submitted, `问题作答未提交（decision: modify）\n--- screen ---\n${session.screen()}`);
   } finally {
     session.stop();
     rmSync(resultDir, { recursive: true, force: true });
