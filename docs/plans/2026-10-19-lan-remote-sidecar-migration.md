@@ -774,3 +774,20 @@ Host sidecar 不做数据根初始化（归属文件、迁移都只有 server �
 
 自动化验证：`packages/services/test/data-root-host-drill.test.ts` 1 项全绿
 （`tsx --test` 下 spawn 生产 Host，约 3s）。
+
+## 24. 执行记录（2026-10-22，Web 单机回环 E2E）
+
+`packages/server/test/web-remote-loopback-e2e.test.ts`（`pnpm --filter @mode/server test`）：
+单进程内起发布形态 HTTP/WS 启动器（`createHttpServer` + `createLanAccessHost`），用真 LAN
+配对码换设备令牌，再以该令牌连 `/ws`：
+
+- `helloConversationV4` 必须返回 `clientMode=web-remote-replayable`、
+  `deliveryProfile=replayable`；`clientHello` 完成后才算 `assertReady`；
+- 订阅 `sessions-index`：假 agent 基座在 ACK **之前**推送 initial 帧，连接 facade 按 ACK
+  归属把 pending 帧回放给订阅者（覆盖「响应之后的有主通知」时序）；
+- replayable 连接上的 continuous-only 事件（CUA 权限观察）不得到达，但同一 workspace 的
+  live sessions-index 帧继续投递——拒绝的是事件族，不是整条连接；
+- `/ws` 在线数经 `onWebSessionChange` +1/-1 收回 0。
+
+边界：用假 agent 基座（不起真 runtime/模型），验证的是传输与连接模式语义；真机双端与
+`web-remote-replayable` 恢复链路的 UI 回归仍待 LR-5。
