@@ -6431,6 +6431,14 @@ const faIR: Record<string, string> = {
   "modeAccount.bindBot": "اتصال ربات وی‌چت",
   "modeAccount.bindHint":
     "پس از اتصال، ورود و همگام‌سازی خودکار انجام می‌شود؛ ربات ورود ابری دیگر روی این رایانه نظرسنجی نمی‌کند.",
+  "modeAccount.nickname.title": "نام مستعار",
+  "modeAccount.nickname.description":
+    "در ناحیه حساب پایین‌چپ و تنظیمات نمایش داده می‌شود؛ فقط روی این دستگاه ذخیره می‌شود. خالی بگذارید تا از نام حساب استفاده شود.",
+  "modeAccount.nickname.placeholder": "نام مستعار را وارد کنید",
+  "modeAccount.nickname.save": "ذخیره",
+  "modeAccount.nickname.saving": "در حال ذخیره…",
+  "modeAccount.nickname.saved": "ذخیره شد",
+  "modeAccount.nickname.requiresAccount": "برای تنظیم نام مستعار وارد حساب Mode شوید.",
   "modeAccount.unsupported": "حساب Mode در این محیط در دسترس نیست.",
   "remoteDesktop.cloud.description":
     "دستگاه‌های خود را در فهرست حساب پیدا کنید و با کد ۶ رقمی نمایش‌داده‌شده روی دستگاه مقابل جفت شوید؛ نیازی به رونوشت پیوند نیست.",

@@ -262,6 +262,11 @@ export interface AppSettings {
   shortcutBindings?: Record<string, string[]>;
   /** 界面语言偏好；locale 保存偏好解析后的实际语言，供 main/menu/远控等非浏览器上下文使用。 */
   localePreference?: LocalePreference;
+  /**
+   * 本机显示昵称，只覆盖左下角账号区与设置页的用户名展示。
+   * 不修改 OAuth / Mode Cloud 账号资料；留空表示回退到账号自带显示名。
+   */
+  userNickname?: string;
   /** 是否尽量继承系统终端 profile、shell 环境和字体 */
   terminalInheritSystemProfile?: boolean;
   /** 用户显式覆盖的终端字体；为空时从系统终端配置自动探测 */

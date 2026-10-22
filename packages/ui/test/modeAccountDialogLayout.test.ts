@@ -20,3 +20,16 @@ test("ModeAccountDialog 标题区给右上角关闭按钮留位", () => {
   const source = read("../src/ModeAccountDialog.tsx");
   assert.match(source, /<DialogHeader className="pe-10">/, "header 需预留关闭按钮空间");
 });
+
+// 昵称入口必须在 Mode 账号弹窗内，且写的是本机 AppSettings.userNickname，
+// 不能把微信 bot 的 openid 当作用户展示名（docs/specs/user-profile-display.md）。
+test("ModeAccountDialog 提供昵称编辑并写入 userNickname", () => {
+  const source = read("../src/ModeAccountDialog.tsx");
+  assert.match(source, /mode-account-nickname-input/, "弹窗需有昵称输入框");
+  assert.match(source, /update\(\{ userNickname:/, "保存动作需写入 AppSettings.userNickname");
+  assert.match(
+    source,
+    /resolveSidebarProfile\(\{/,
+    "是否已登录 / 显示名必须复用统一解析，不能在弹窗内另写一套",
+  );
+});

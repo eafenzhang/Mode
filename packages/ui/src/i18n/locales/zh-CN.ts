@@ -6224,6 +6224,14 @@ const zhCN: Record<string, string> = {
   "modeAccount.logout": "退出账号",
   "modeAccount.bindBot": "绑定微信 Bot",
   "modeAccount.bindHint": "绑定后会自动登录并同步；用于云端登录的 Bot 会从桌面轮询中移除。",
+  "modeAccount.nickname.title": "昵称",
+  "modeAccount.nickname.description":
+    "显示在左下角账号区和设置页；只保存在本机，留空则使用账号名称。",
+  "modeAccount.nickname.placeholder": "输入昵称",
+  "modeAccount.nickname.save": "保存",
+  "modeAccount.nickname.saving": "保存中…",
+  "modeAccount.nickname.saved": "已保存",
+  "modeAccount.nickname.requiresAccount": "登录 Mode 账号后可设置昵称。",
   "modeAccount.unsupported": "当前环境不支持 Mode 账号。",
   "remoteDesktop.cloud.description":
     "从账号设备目录直接找到你的设备；配对只需输入被控端显示的 6 位码，不用再复制链接。",

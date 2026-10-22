@@ -5,6 +5,7 @@ import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
+import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { RemoteControlCloudBotSetupPanel } from "@/remote-desktop/RemoteControlCloudBotSetupPanel.js";
 import { RemoteControlCloudLoginPanel } from "@/remote-desktop/RemoteControlCloudLoginPanel.js";
 
@@ -25,7 +26,10 @@ export function RemoteControlCloudSection({
   onPaired: () => void | Promise<void>;
 }) {
   const services = useServices();
-  const service = services.cloudAccountService;
+  const baseServices = useOptionalBaseWorkspaceServices();
+  // Mode Cloud 账号是本机 app-global 能力；远端 workspace 的 service 集合没有该频道，
+  // 直接按 context 取会让同一账号在不同页面/窗口表现不一致。
+  const service = baseServices?.cloudAccountService ?? services.cloudAccountService;
   const { intl } = useModeIntl();
   const [state, setState] = useState<CloudAccountState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -329,9 +333,7 @@ export function RemoteControlCloudSection({
                   disabled={busy !== null || !code.trim()}
                   onClick={() => void pair()}
                 >
-                  {busy === "pair" ? (
-                    <LoaderIcon className="size-4 animate-spin" />
-                  ) : null}
+                  {busy === "pair" ? <LoaderIcon className="size-4 animate-spin" /> : null}
                   {message(
                     busy === "pair"
                       ? "remoteDesktop.cloud.pairing"
@@ -357,9 +359,7 @@ export function RemoteControlCloudSection({
             </div>
           ) : null}
 
-          {error ? (
-            <p className="text-ui-base text-destructive">{error}</p>
-          ) : null}
+          {error ? <p className="text-ui-base text-destructive">{error}</p> : null}
         </div>
       ) : null}
     </section>

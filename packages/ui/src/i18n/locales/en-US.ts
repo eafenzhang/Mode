@@ -6527,6 +6527,14 @@ const enUS: Record<string, string> = {
   "modeAccount.bindBot": "Bind WeChat bot",
   "modeAccount.bindHint":
     "After binding, the app signs in and syncs automatically; a cloud login bot stops polling on this desktop.",
+  "modeAccount.nickname.title": "Nickname",
+  "modeAccount.nickname.description":
+    "Shown in the bottom-left account area and Settings. Stored on this device; leave empty to use the account name.",
+  "modeAccount.nickname.placeholder": "Enter a nickname",
+  "modeAccount.nickname.save": "Save",
+  "modeAccount.nickname.saving": "Saving…",
+  "modeAccount.nickname.saved": "Saved",
+  "modeAccount.nickname.requiresAccount": "Sign in to your Mode account to set a nickname.",
   "modeAccount.unsupported": "Mode account is not available in this environment.",
   "remoteDesktop.cloud.description":
     "Find your devices in the account directory and pair with the 6-digit code shown on the target — no link copying.",

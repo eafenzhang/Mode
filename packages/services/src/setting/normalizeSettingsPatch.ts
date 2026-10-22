@@ -13,6 +13,12 @@ export function normalizeSettingsPatch(patch: Partial<AppSettings>): Partial<App
     normalizedPatch.localePreference = normalizedPatch.locale;
   }
 
+  if ("userNickname" in normalizedPatch && typeof normalizedPatch.userNickname === "string") {
+    // 昵称允许清空回退账号名；RPC 传输会吞掉 undefined，用空串表达删除覆盖。
+    const trimmedUserNickname = normalizedPatch.userNickname.trim();
+    normalizedPatch.userNickname = trimmedUserNickname.length > 0 ? trimmedUserNickname : undefined;
+  }
+
   if (
     "terminalFontFamily" in normalizedPatch &&
     typeof normalizedPatch.terminalFontFamily === "string"

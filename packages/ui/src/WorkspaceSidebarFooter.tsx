@@ -34,8 +34,11 @@ import {
 } from "lucide-react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
+import { useSettings } from "@/hooks/useSettingService.js";
+import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { ModeAccountDialog } from "@/ModeAccountDialog.js";
+import { resolveSidebarProfile } from "@/lib/sidebarProfile.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useModeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
@@ -49,30 +52,6 @@ import {
 
 const DESKTOP_ZOOM_MIN_LEVEL = -3;
 const DESKTOP_ZOOM_MAX_LEVEL = 5;
-
-function getSidebarProfileName(user?: UserInfo | null): string {
-  const displayName = user?.displayName?.trim();
-  if (displayName) {
-    return displayName;
-  }
-
-  const username = user?.username?.trim();
-  if (username) {
-    return username;
-  }
-
-  return "Mode";
-}
-
-function getSidebarProfileBadge(user: UserInfo | null | undefined): string {
-  // 审计版没有官方账户体系：未登录时显示应用名，不再显示 "Connect / 连接使用"。
-  return getSidebarProfileName(user);
-}
-
-function getAvatarFallbackText(user: UserInfo | null | undefined): string {
-  const source = user?.displayName?.trim() || user?.username?.trim() || "Z";
-  return source[0]?.toUpperCase() ?? "Z";
-}
 
 export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterComponent({
   theme,
@@ -118,7 +97,11 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const resetZoomShortcutLabel = useShortcutCommandLabel("resetZoom");
   const isRestoringOAuthSession = useModeStore((state) => state.isRestoringOAuthSession);
   const services = useServices();
-  const cloudAccountService = services.cloudAccountService;
+  const baseServices = useOptionalBaseWorkspaceServices();
+  // Cloud 账号是 app-global、local-only 能力：优先读根 Host，避免远端 workspace
+  // 的 service 集合没有该频道时，首页/设置页一处显示账号、一处退回 Mode。
+  const cloudAccountService = baseServices?.cloudAccountService ?? services.cloudAccountService;
+  const { settings: appSettings } = useSettings();
   const [cloudAccount, setCloudAccount] = useState<CloudAccountState | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   useEffect(() => {
@@ -144,19 +127,14 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
       subscription.dispose();
     };
   }, [cloudAccountService]);
-  const cloudAccountName =
-    cloudAccount?.account?.displayName?.trim() ||
-    cloudAccount?.boundWeixinName?.trim() ||
-    "";
-  const effectiveUser: UserInfo | null =
-    user ??
-    (cloudAccountName
-      ? { id: "mode-cloud", username: cloudAccountName, displayName: cloudAccountName }
-      : null);
-  const profileBadge = getSidebarProfileBadge(effectiveUser);
-  const avatarFallbackText = getAvatarFallbackText(effectiveUser);
-  const avatarKey = effectiveUser?.avatarUrl ?? effectiveUser?.id ?? "guest";
-  const showAuthRestoreLoading = !effectiveUser && isRestoringOAuthSession;
+  const profile = resolveSidebarProfile({
+    user,
+    cloudAccount,
+    nickname: appSettings?.userNickname,
+  });
+  const profileBadge = profile.displayName;
+  const avatarKey = profile.avatarUrl ?? user?.id ?? cloudAccount?.account?.id ?? "guest";
+  const showAuthRestoreLoading = !profile.hasAccount && isRestoringOAuthSession;
   const usageSummaryState = useWorkspaceSidebarFooterUsageSummaryState({
     enabled: true,
     workspaceIdentity,
@@ -165,12 +143,12 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const profileContent = (
     <>
       <Avatar key={avatarKey} size="default">
-        {effectiveUser?.avatarUrl ? (
-          <AvatarImage src={effectiveUser.avatarUrl} alt={profileBadge} />
-        ) : null}
+        {profile.avatarUrl ? <AvatarImage src={profile.avatarUrl} alt={profileBadge} /> : null}
         <AvatarFallback className="bg-background text-foreground">
-          {effectiveUser ? (
-            avatarFallbackText
+          {profile.hasAccount ? (
+            // 登录后没有头像时统一展示默认用户图标：账号名可能是不可读的 id，
+            // 用首字母拼头像既不稳定也不像用户头像（docs/specs/user-profile-display.md）。
+            <UserRound className="size-4" aria-hidden="true" />
           ) : showAuthRestoreLoading ? (
             <>
               {/* OAuth 启动恢复未落定前，footer 之前会直接显示未登录头像，
@@ -378,10 +356,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
             >
               <UserRound className="size-4" />
               {intl.formatMessage({
-                id:
-                  cloudAccount?.status === "bound"
-                    ? "modeAccount.title"
-                    : "modeAccount.login",
+                id: cloudAccount?.status === "bound" ? "modeAccount.title" : "modeAccount.login",
               })}
             </DropdownMenuItem>
             {cloudAccount?.status === "bound" ? (
@@ -401,6 +376,8 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           onOpenChange={setAccountDialogOpen}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
+          user={user}
+          cloudAccount={cloudAccount}
         />
         <div className="flex shrink-0 items-center gap-1.5">
           {/* 远端工作区可能只有 workspaceIdentity、没有 workspacePath；两者任一有值都应显示入口。 */}
