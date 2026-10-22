@@ -174,3 +174,18 @@ main 模块加载
 10. E2E/dev 隔离 base → 自动初始化，不弹窗。
 11. `ZCODE_DATA_BASE_DIR` 隔离实例 → 决策/初始化发生在隔离 base 内。
 12. 降级（schemaVersion 过新）→ corrupt 分支，不静默读取。
+
+## Tauri Host 线的现状（2026-10-22 登记）
+
+- **Host sidecar 不执行数据根初始化**：`packages/desktop/src/host-standalone/index.ts` 直接由
+  `MODE_DATA_BASE_DIR` 派生 `{base}/.mode` 并开始写盘，不读写归属文件、也不做迁移。
+  当前只有 `packages/server` 的 HTTP/stdio 入口调用
+  `initializeDataRootNonInteractive()`。
+- **迁移演练已覆盖「初始化器 → Host 消费」**：`packages/services/test/data-root-host-drill.test.ts`
+  先用 `initializeDataRootNonInteractive({ action: "migrate" })` 把合成旧根复制到新根，
+  再启动生产 Host（`test/fixtures/hostStdioClient.ts` 的真实 stdio 客户端），断言 Host 读到
+  迁移后的设置、新写入落新根、旧根逐字节不变。
+- **待决策（接线前必须先定）**：现有 Tauri 安装的 `.mode` 由服务隐式创建、**没有归属文件**。
+  若直接把初始化器接进 Host 并用非交互默认 `fresh`，这些根会被判成 `unowned` 并整体备份让路
+  ——对升级用户等同于「数据被移走、界面变空」。接线时必须先决定：把无归属的既有 `.mode`
+  视为正常根补写归属，还是接回桌面决策窗（`DataRootDecisionApp`）。

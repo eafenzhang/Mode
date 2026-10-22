@@ -752,3 +752,25 @@ rd_media-start-failed: Computer Use Helper is not reachable for rd_media
   （新增 `botReconnected` 事件委托与 disposer）。
 
 未完成：UI tab 降级（远端断开后的 tab 状态与自动重连）仍待真机；SSH/WSL/Docker 真机未验。
+
+## 23. 执行记录（2026-10-22，数据根迁移夹具演练）
+
+落点：
+
+- `packages/services/test/data-root-host-drill.test.ts` 新增「数据根迁移演练」：合成旧
+  `.zcodium`（含 `v2/setting.json` 与一份 db 字节），用
+  `initializeDataRootNonInteractive({ action: "migrate" })` 走真实复制（归属文件 + 旧根保留），
+  再启动**生产 Host**，断言：
+  - Host 的 `setting.get()` 读到旧根里的 `locale`（迁移结果真的被消费）；
+  - `setting.update()` 的写入落在新根；
+  - 旧根 setting 文件逐字节不变（只复制、不删除）。
+- `packages/services/test/fixtures/hostStdioClient.ts`：演练用的最小生产 Host 客户端
+  （真实 stdio 帧 + Initialize + 超时；不复制页面端口模型，跨包只按进程边界交互）。
+
+**演练暴露的缺口（登记在 `docs/specs/mode-data-root.md`「Tauri Host 线的现状」）**：
+Host sidecar 不做数据根初始化（归属文件、迁移都只有 server 入口在执行）；现有 Tauri 安装的
+`.mode` 没有归属文件，直接接非交互 `fresh` 会被判成 `unowned` 并整体备份让路。接线前必须先决定
+「无归属的既有根补写归属」还是「接回桌面决策窗」，否则升级用户会看到数据被移走。
+
+自动化验证：`packages/services/test/data-root-host-drill.test.ts` 1 项全绿
+（`tsx --test` 下 spawn 生产 Host，约 3s）。
