@@ -131,8 +131,10 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 - `packages/ui` 19k + HTML/CSS（渲染层已是「轻」的形态，别动）。
 - **TUI 14k**：DR-TUI-1 已定沿用 TS；只有当「CLI 要变成 Rust 单二进制」时才评估 ratatui。
 - 插件 / 技能的 JS 执行面（需要 JS 引擎；QuickJS 嵌入是 P2 评估项，不是承诺）。
-- IM bot SDK（`@larksuiteoapi/node-sdk`、`@wecom/aibot-node-sdk`）：改为**可选 feature**，
-  不随核心桌面包安装，而不是现在就重写。
+- IM bot SDK（`@larksuiteoapi/node-sdk`、`@wecom/aibot-node-sdk`）：**2026-10-23 已裁决为可选
+  feature**——不随核心桌面包安装、也不重写。落地口径：`packages/services/bots` 的 SDK 静态
+  import 改为按通道动态 import，SDK 移出核心发运集闭包；未启用 bot 通道时加载失败不影响启动
+  （实现项见 §6 M4a 可选项）。
 
 ## 4. 需要重做的模块（按收益/风险排序）
 
@@ -186,7 +188,7 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 
 | 阶段 | 内容 | 交付判据 | 依赖 |
 | --- | --- | --- | --- |
-| **M4a（1–2 周）** | bench 脚本与基线入库（§5 四项）；发布门禁补一条「发运集核心载荷 ≤ 25MB」的**观测**项。**本阶段不做删除**（SSH/WSL/Docker 后端已裁决保留，其余删除全部依赖 M4b/M5a） | bench 全绿并写入 roadmap 度量表；三类指标的基线数字落库 | 无 |
+| **M4a（1–2 周）** | bench 脚本与基线入库（§5 四项）；发布门禁补一条「发运集核心载荷 ≤ 25MB」的**观测**项。**本阶段不做删除**（SSH/WSL/Docker 后端已裁决保留，其余删除全部依赖 M4b/M5a）。**可选项**：IM bot SDK 可选化（larksuite/wecom SDK 改按通道动态 import，移出核心发运集闭包） | bench 全绿并写入 roadmap 度量表；三类指标的基线数字落库；若做可选项：未启用 bot 通道时启动不受影响，SDK 不出现在核心闭包清单 | 无 |
 | **M4b（2–4 周）** | settings/credentials/task-index/file-ops 最小面 Rust 化 → Host 并入壳 → IPC 换代（CBOR）；`T_ready` ≤ 500ms | §1.3 表同口径复测；35 MB 载荷从发运集消失 | M4a |
 | **M5a（4–8 周）** | Agent 工具注册表补全 → 双跑开关 → parity 升级 → 翻转默认值 → 删除 §3.3 全部内容 | 对拍矩阵全绿；真实模型 20 任务验收；`T_ready` ≤ 400ms、`node/` 从发运集消失 | M2 验收 + M4b |
 | **M5b（收口）** | provider/凭据/共享协议真源翻转；第三方台账 514 缺失项复核；三指标仪表转成 CI 硬门禁 | 三门禁（体积/语言/重合度）+ 新增性能门禁全绿 | M5a |
@@ -197,7 +199,7 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 2. **插件/技能生态**：QuickJS 嵌入意味着放弃 npm 生态；在没有真实插件需求驱动前不要动手。
 3. **macOS/Linux**：本计划所有测量面目前只有 Windows（Ruling 20）；跨平台真机验收仍是 M5 的独立风险。
 4. **Clean-room 纪律**：重写任何模块时，旧实现体只能黑盒对拍，不得读上游衍生实现（`clean-room-policy.md`）。
-5. **产品确认项**：IM bot 是否随核心包、插件宿主是否需要 npm 生态。远端部署/SSH 后端已于 2026-10-23 裁决保留，不再是确认项。
+5. **产品确认项**：只剩「插件宿主是否需要 npm 生态」（决定 P2 是否上 QuickJS）。IM bot SDK 已于 2026-10-23 裁决为可选 feature；远端部署/SSH 后端同日裁决保留。
 
 ## 8. 与既有计划的关系
 
