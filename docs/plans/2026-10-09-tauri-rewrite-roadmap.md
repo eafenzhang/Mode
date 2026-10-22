@@ -46,8 +46,8 @@ M0 地基与纪律   ▸ 2–4 周    语言冻结/合规基线/对拍机制/Rus
 M1 Tauri 骨架   ▸ 2–3 月    壳+平台服务层+协议双端+三平台出包
 M2 运行时 Rust  ▸ 4–6 月    agent 会话/工具/权限/双链路语义
 M3 生态层       ▸ 3–5 月    sidecar/插件市场/IM bot/LAN/远程/Web/TUI
-M4 自研验收     ▸ 2–3 月    UI clean-room 替换+上游 diff 清零+台账重建
-M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
+M4 轻更快+验收  ▸ M4a 1–2w → M4b 2–4w  bench 基线/Host 并入壳 + UI 替换/diff 清零/台账/法务(并行)
+M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名/EOL/迁移终验/四仪表
 ```
 
 ---
@@ -75,20 +75,6 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 > 范围内。`language-policy.md` 的允许语言未列 Go，但门禁脚本当前只拦
 > `.py/.cs/.js/.mjs/.cjs`，因此 Go 文件能通过门禁；是否把 Go 写入允许语言或禁入清单，
 > 仍待单独裁决（现状：不拦，属口径缺口）。
-
-## 2026-10-23 重排：「更轻更快」的目标与指标
-
-> 触发：Rust 改造不能只看体积，还要在性能与效率上提高。现状的实测基线（发运集 ≈153 MB、
-> `T_ready` 825 ms / `T_surface` 962 ms、常驻 3–4 进程、帧协议 JSON+base64）与三类指标
-> （体积 / 冷启动 / 常驻进程与内存）、**可删除清单**（3.1 原列的 server/remote 删除已撤销，
-> SSH/WSL/Docker 后端 2026-10-23 裁决保留；删除面集中在 M4b 与 M5a：≈230k 行 TS 与 89 MB Node）、**需重做的模块排序**（P0 Host 并入壳、
-> P0 Agent 切换、P1 provider/凭据/设置、P1 CUA helper）与 M4a→M5b 的分阶段见
-> `docs/plans/2026-10-23-rust-lighter-faster.md`。本节只登记指针，细节以该计划为准。
->
-> 三条不变的约束：① 删除 TS 运行时前它仍是 oracle（DR-07）；② 性能目标必须标注测量面
-> （DR-T5-1 的口径扩展）；③ 所有删除项都要过 clean-room（黑盒对拍，不读上游衍生实现）。
-
----
 
 ## M0 地基与纪律（2–4 周）
 
@@ -345,14 +331,102 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 
 ---
 
-## M4 自研验收 + UI clean-room 替换（2–3 个月）
+## M4 轻更快性能轴 + 自研验收与 UI 收口（2026-10-23 重排；M4a 1–2 周 → M4b 2–4 周）
 
-**目标：** 删光上游衍生代码，"与上游逐文件 diff 清零"成为 CI 可跑的硬门禁，台账与 NOTICE 收口。
+> **2026-10-23 重排**：Rust 改造不能只看体积，还要在性能与效率上提高。本节把「轻更快」从口号
+> 变成三类可测指标，并把删除/重做的顺序排进 M4a/M4b 与 M5a/M5b；原 M4 的自研验收与 UI
+> clean-room 替换作为**并行子线**照常推进，不与性能轴互相阻塞。
+>
+> 三条不变的约束：① 删除 TS 运行时前它仍是 oracle（DR-07）；② 性能目标必须标注测量面
+> （DR-T5-1 的口径扩展）；③ 所有删除项都要过 clean-room（黑盒对拍，不读上游衍生实现）。
+
+**目标：** 删光上游衍生代码（并行子线）；同时给出体积/冷启动/常驻的实测基线，并把 Host 并入壳。
+
+### 基线（2026-10-23 实测）
+
+**发运集组成**（`dist-host-sidecar/ship/`，未压缩字节；门禁口径是安装包字节，沿用 DR-T5-1）：
+
+| 组成 | 体积 | 说明 |
+| --- | --- | --- |
+| `node/` | **89 MB** | 随包 Node 运行时；最大单项 |
+| `host-sidecar/` | 35 MB | Host bundle + external 依赖闭包 |
+| `agent/glm/` | 20 MB | `mode.cjs` + 官方插件 + bundled-skills |
+| `tools/` | 8.6 MB | cua-helper / browser-import / ripgrep |
+| `config/` | 0.2 MB | 内置 provider 配置 |
+| **合计** | **≈153 MB** | 未压缩载荷；压缩后另测 |
+
+**进程与 IPC**：常驻 3–4 进程（壳 / sidecar Node / agent Node `mode.cjs` / CUA helper）；
+帧协议 JSON + base64（每帧一次解析 + 一次编解码 + 一次拷贝），是流式路径的固定开销。
+
+**冷启动**：`T_ready` 825 ms / `T_surface` 962 ms（release，N=7，口径见 `tauri-renderer-host.md` §13.5）。
+
+**代码量**：TS ≈394k 行（mode-cli 208k / services 109k / shared 44k / ui 19k / desktop 13k /
+server 12k / rpc 3.5k）vs Rust ≈23.5k 行（mode-cua-ax 7.9k / agent-tools 3.8k / agent-core 2.1k /
+sidecar-host 2k / platform 1.3k …）。
+
+### 目标指标（每个数字标注测量面，混用即无效）
+
+| 维度 | 指标 | 现状 | 目标 | 测量面 |
+| --- | --- | --- | --- | --- |
+| 轻 | 发运集核心载荷 | ≈63 MB（host-sidecar + agent + tools） | **≤ 25 MB** | 安装包字节（NSIS）+ 未压缩诊断 |
+| 轻 | Node 运行时（核心发运集内） | 89 MB | **0**；npm-MCP 回退时按需出现 | 发运集目录 |
+| 快 | 冷启动 `T_ready` | 825 ms | **≤ 400 ms** | `measure:cold-start` 同口径 |
+| 快 | 首屏 `T_surface` | 962 ms | **≤ 600 ms** | 同上 |
+| 快 | 流式增量端到端 p95 | 未测 | **≤ 80 ms**（本机 loopback） | 新增 bench |
+| 省 | 常驻进程数 | 3–4 | **2**（壳 + helper） | 进程快照 |
+| 省 | 会话空闲内存 | 未测 | **≤ 150 MB**（壳含 renderer） | 新增 bench |
+
+> 目标值是承诺值；第一轮 bench 落地后若与现状冲突，**改目标而不是改尺子**。
+
+### 可删除清单（三档）
+
+**3.1 立即删**：只余旧 Electron 线删除（已完成，`d71ed992`）。
+**裁决（2026-10-23）：SSH/WSL/Docker 后端保留**（含 `ssh2` 与 `/ws/remote/:id` 桥）——
+Tauri Host 的 `defaultConnectStdio` 直接 `import("@mode/server/remote")` 建连（LR-4 第三阶段），
+删掉会断掉这条产品能力；体积收益改由 M4b/M5a 承担。
+
+**3.2 随 M4b「Host 并入壳」消失**：35 MB `host-sidecar/`；stdio 帧编解码与
+`stdioFrames`/`stdoutGuard`（≈2k 行）；`bundledAgentRuntime.ts`（≈80 行）。
+
+**3.3 随 M5a「Agent 切 Rust」消失（最大一块）**：Node 89 MB；`agent/glm/mode.cjs` 20 MB；
+`packages/services` 运行时面 ≈43k 行（mode-agent / session / model-provider / process /
+skills / subagents / plugin-sync / mcp-*）；`apps/mode-cli` 运行时装配 ≈190k 行
+（bootstrap / adapters / core / contracts / cli / dynamic-workflow，**TUI 14k 不在此列**）；
+`packages/rpc` 3.5k；8 个 Node 依赖（node-forge / ws / axios / undici / node-pty / yaml /
+smol-toml / yazl）。
+
+**3.4 明确不可删**：`packages/ui` 19k + HTML/CSS；TUI 14k（DR-TUI-1，除非 CLI 要单二进制）；
+IM bot SDK（**2026-10-23 裁决为可选 feature**：按通道动态 import、移出核心闭包，
+larksuite 25 MB / wecom 568 KB）；插件/技能的 JS 执行面（执行面保留，承载方式改为
+子进程 + 自家二进制，见 M5 P2 裁决）。
+
+**删除的硬前置**：TS 运行时仍是 oracle（DR-07）——对拍矩阵全绿 + 真实模型 20 个端到端任务
+验收 + 性能 bench 不回退，三者缺一不可。
+
+### M4a（1–2 周）：bench 与基线
+
+bench 脚本与基线入库（见「度量与预算」的性能四件）；发布门禁补「发运集核心载荷 ≤ 25 MB」的
+**观测**项。**本阶段不做删除**。**可选项**：IM bot SDK 可选化（larksuite/wecom SDK 改按通道
+动态 import，移出核心发运集闭包）。
+判据：bench 全绿并写入度量表；三类指标基线落库；若做可选项：未启用 bot 通道时启动不受影响、
+SDK 不出现在核心闭包清单。
+
+### M4b（2–4 周）：Host 并入壳 + IPC 换代
+
+先把 `settings / credentials / task-index sqlite / file ops` 四件最小面 Rust 化
+（`node-forge`→ring、`node:sqlite`→rusqlite），再把 `host-standalone` 的服务装配搬进壳的
+async runtime（tokio + tauri state），renderer↔Host 从「stdio 帧 + JSON+base64」改为同进程
+通道 / CBOR。收益：35 MB 消失、`T_ready` 保守省 200–400 ms。
+判据：同口径复测 `T_ready` ≤ 500 ms；35 MB 载荷从发运集消失。
+风险：服务面依赖 Node 生态，四件最小面不先行会陷入「为并入壳先重写一半服务」。
+
+### 并行子线（M4a/M4b 期间照常推进，不阻塞性能轴）
 
 **Files:**
 
 - Create: `packages/ui-next/`（或按 `DESIGN.md` 重建 `packages/ui` 替代品）、`scripts/upstream-overlap-check.ts`（对 `upstream/zcode-baseline` 逐文件哈希对比 + 品牌归一哈希对比，口径见 `docs/specs/upstream-overlap-metric.md`：逐字节一致 / 仅品牌归一一致 / 实质不同三档。**2026-10-18 已交付 report 模式**；文件名用 `.ts` 以过语言政策）
 - Modify: `THIRD-PARTY-NOTICES.md`、`third-party/copied-components.json`（重建：删除全部"上游衍生"条目，保留第三方组件条目）、`NOTICE.md` §4（diff 清零后改写为"当前代码不含上游实现，历史版本的 Apache 义务见基线分支"——**仍保留 zai-org/ZCode 链接与历史声明，不删**）
+
 
 **子计划（2026-10-18）：** `docs/plans/2026-10-18-m4-overlap-reduction.md`——首轮 report 的
 模块残余清单（ui 3.3 万行、services 1.3 万、desktop 9 千…）、P0–P4 阶段划分，以及
@@ -361,10 +435,12 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 `docs/plans/2026-10-18-m4-ui-replacement.md`（`packages/ui/src` 32,626 行的子目录拆分、
 P1.1–P1.7 顺序、验收与两项待裁决）。
 
+
 **Interfaces:**
 
 - Consumes: M1–M3 全部产出；`DESIGN.md`（作为 UI 重写的唯一规格）。
 - Produces: `pnpm verify:self-developed`（= upstream-overlap-check + scancode/licensee 扫描 + 台账新鲜度），进 CI 必跑。
+
 
 - [ ] **UI 替换**：按 `DESIGN.md` + 既有交互 spec 重写组件（渲染的是新 Tauri 前端，不回填旧 renderer）；逐屏与旧版截图对拍（允许视觉差异、不允许功能差异）。〔2026-10-18 盘点完成：`packages/ui/src` 重叠 32,626 行（lib 5,778 / components 4,703 / settings 3,402 / v4 2,979 / hooks 2,825 …）；**2026-10-19 D8 裁决：原地重建 `packages/ui` + 逐屏 adapter，store/hooks 不动，旧实现验收后删除**；P1.1–P1.7 静态结构与接线映射见 `2026-10-18-m4-ui-replacement.md` / `2026-10-19-m4-ui-adapter-map.md`；**2026-10-19 清单内 21 个基础件模块已全部切到 adapter**（button 226、toast 63、dropdown-menu 38、dialog 33、select 28、switch 24、tooltip 18、popover 16、badge 15、tabs 12 等），旧 `components/ui/*` 保留到人工看屏验收后删除；后续波次的 `collapsible`(14)/`spinner`(11)/`context-menu`(14)/`command`(7)/`label`+`kbd`/`hover-card`(3)/`input-group`+`scroll-fade`/`chart`(6)/`resizable`(3)/`diff-viewer`(3)/`lightweight`+`highlighted` diff(2+2)/`flip-metric-value`(1)/`pdf-viewer`(6)/`pptx-selection-action-bar`(1)/`code-viewer` 全部渲染点/`pptx-preview-viewer` 亦已切换；**业务代码对旧 `components/ui/*` 的引用已清零**，旧文件待人工看屏后删除（清单见 `docs/plans/2026-10-19-m4-ui-acceptance-checklist.md`）〕
       〔2026-10-20 回填：0.0.61 真机验收发现并修复 Dialog 遮罩未 portal、二级菜单不互斥、
@@ -375,25 +451,60 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
 - [ ] **第三方台账重建**：新依赖全量盘点（`scripts/licenses.mjs` 口径延续）；`copied-components.json` 中上游衍生条目删除、第三方条目（shadcn 思路自写组件、Material 图标去留、插件图标 reviewRequired）逐条复核。〔2026-10-18 缺口盘点见 `2026-10-18-m4-third-party-ledger.md`：Rust 台账只覆盖 CUA 的 63 个 crate，M2/M3 运行时依赖图 170 个中 142 个未入账、Tauri 壳 560 个中 485 个未入账；**T2 覆盖门禁已实现**（`pnpm check:rust-ledger`，实测 union external 558 / covered 44 / missing 514，report 模式）；**T1 生成器已实现**（候选台账 577 组件 / 300 份许可证文本；47 条按声明标识自动附标准文本，其中 **3 条仍需人工判断**且文本已附：`selectors` MPL-2.0、`r-efi` ×2 含 LGPL 选项；输出在 `.plan` 未入库，待 T3 Linux CI 重生成与人工 review；见 `2026-10-18-m4-rust-ledger-review.md`）；本机 `licenses.mjs` 因 EMFILE 无法重生成，权威路径是 Linux CI（需人推送）〕〔2026-10-20：`pnpm check:rust-ledger` 仍为 report——union external 558 / covered 44 / missing 514，覆盖门禁未转 strict。〕
 - [ ] **法务收口**：贡献者协议（CLA/DCO）挂进 PR 流程；软著登记材料（源码前后 30 页 + 说明）；"Mode"图形组合商标申请材料；`docs/specs/p2-mode-naming.md` 必须保留清单逐条复核不动。
 
-**阶段验收：** `verify:self-developed` 全绿（diff 0%）；UI 全量替换完成、旧 renderer 代码从产物中消失；第三方台账无 reviewRequired 中"上游衍生"类遗留；NOTICE §4 新措辞经人工复核。
+**阶段验收：**（性能轴）`T_ready` ≤ 500 ms、35 MB 载荷从发运集消失、bench 四件全部有基线入库。（子线）`verify:self-developed` 全绿（diff 0%）；UI 全量替换完成、旧 renderer 代码从产物中消失；第三方台账无 reviewRequired 中"上游衍生"类遗留；NOTICE §4 新措辞经人工复核。
 
 ---
+## M5 Agent 切换与发布收口（2026-10-23 重排；M5a 4–8 周 → M5b 收口）
 
-## M5 发布与收口（1–2 个月）
+**目标：** Agent 运行时切到 Rust 并让 Node 从**核心**发运集退场；新线 GA、旧线 EOL、四仪表门禁落到终值。
 
-**目标：** 新线 GA、旧线 EOL、三指标（语言/体积/重合度）落到终值。
+### 需要重做的模块（2026-10-23 排序）
+
+- **P0-B Agent 切产品路径**：Host 侧新增 `agent_runtime: rust | node` 双跑开关（默认 node，
+  验收后翻转）；Rust 路径进程内调用（不经 stdio）；parity matrix 从「两侧夹具对拍」升级为
+  「同一批夹具在两种运行时下跑」。收益：Node 89 MB → 0、agent 20 MB → 0、进程 4 → 2、
+  流式事件少一层 JS 分配。**风险**：`agent-tools` 目前只有 Read/Write/Edit/Bash，
+  **必须先补齐工具注册表与权限等级**，否则 parity 会红。
+- **P1-A provider / 凭据 / 设置 / 任务索引**：provider 5.5k TS + shared 44k 协议面 → Rust
+  （reqwest + rustls 已在 `crates/platform` 用过）；`node-forge` → ring；`node:sqlite` → rusqlite；
+  shared 拆成「serde 真源 + TS 镜像」，减少双写。
+- **P1-B CUA helper 合并入壳**：再省一个进程与一份 IPC。**风险**：独立进程是有意的安全隔离
+  （`lan-remote-computer-use` spec），无安全评审不动手；先量化它的内存与启动成本再决定。
+- **P2 插件宿主（2026-10-23 已裁决：A + 按需回退）**：维持 bundle-only 契约与独立子进程
+  （DR-PH-1），子进程可执行文件从「随包 Node」换成「带嵌入 JS 引擎（QuickJS 级）的自家二进制」；
+  协议（DR-PH-2 NDJSON JSON-RPC）与资产层（`crates/plugin-host` 的 manifest/AssetCache）不变。
+  稳定性：子进程隔离保留（不做进程内嵌入）、无 native ABI/DLL、bundle 是冻结字节。
+  通用性：作者契约零变化；native addon 类插件 fail closed；npm-MCP 的通用性由「按需 JS 运行时
+  资产」回退承担（sha256 + CDN，复用 AssetCache 骨架）——89 MB 的 Node 从「随包常驻」变成
+  「装了 npm MCP 才出现」。其余两项（IM bot Rust 化、TUI ratatui）仍按需评估。
+
+### M5a（4–8 周）：Agent 切产品路径 + Node 退场
+
+Agent 工具注册表补全 → 双跑开关 → parity 升级 → 翻转默认值 → 删除 §「可删除清单 3.3」全部内容。
+**硬前置**：插件宿主 A 形态（或 npm-MCP 按需 JS 运行时回退）就绪，否则删掉 Node 会让插件与
+npm MCP 全部失效。
+判据：对拍矩阵全绿；真实模型 20 个端到端任务验收；`T_ready` ≤ 400 ms、`node/` 从**核心**
+发运集消失；插件与 npm MCP 在无随包 Node 下可用。
+
+### M5b：发布与收口
 
 - [ ] **发布工程**：Tauri updater + 签名（三平台）、`release.yml` 只出 Tauri 产物、块映射/差分更新验证。〔2026-10-19：Windows Tauri 自动发版已连续跑通（v0.0.57 / v0.0.58：push → verify → 五腿构建 → publish）；2026-10-20 回填：v0.0.59 的 CI 首次三平台腿全绿，`248b0937`（v0.0.60）起三平台安装包与各自 `sha256` 一起发布，v0.0.60 / v0.0.61 已按该口径发布；0.0.61 真机核心链路通过。2026-10-21 更新：`release.yml` 已只出 Tauri 产物（`d71ed992` 删除 `desktop` job）；三平台签名与差分更新仍未完成，macOS/Linux 真机安装/启动/升级仍属残余风险。〕
 - [ ] **旧线 EOL**：Electron 线打最后版本公告 EOL；`docs/plans` 与 spec 标注归档；仓库语言终态 = Rust + TS + HTML/CSS（目标 ≥99% 字节来自这两门 + 平台文件）。〔**2026-10-20 用户决定取消旧 Electron 线**：新增 `docs/specs/legacy-electron-eol.md`，删除 Electron main/preload/scheduler、Electron host 入口、electron-builder/electron-updater 打包与 `release.yml` 的 `desktop` job；保留 Tauri 复用的 renderer、host/host-standalone、agent/CUA 产物与 fnOS job。**代码与 CI 收口已完成并提交**（`d71ed992`，326 文件）：
 typecheck / lint / architecture / language policy / desktop tests / desktop-tauri tests /
 `build:package-inputs` 均通过；旧线回滚路径已删除。2026-10-21 补充：语言政策允许清单同步删除 34 条旧线陈旧条目（清单 162→128 条，陈旧 0），`check-language-policy` 通过。剩余 EOL 公告与历史文档归档。详见该 spec。〕
 - [ ] **数据迁移终验**：`.mode` 数据根原样复用（协议未变）；从旧线最后一版升级到新线的实机迁移演练。〔2026-10-20：0.0.61 与旧 Electron 0.0.52 已在同一台机器并存安装，新线核心任务链路可用；正式的「旧线最后一版 → 新线」升级演练仍未执行。〕
-- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（按 DR-M5-2b 的两份预算：核心 ≤30MB；Node 运行时 + sidecar 单独测量）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕〔2026-10-20：语言门禁通过；重合度 report 降至 9.80%；0.0.62 本机 gnu 构建整包 51.79 MiB，三项均未成为阻断门禁。〕〔2026-10-21：重合度 report 9.20%（37,241 / 404,926 行）；语言门禁通过且允许清单陈旧条目清零；三项仍未成为阻断门禁。〕
+- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（按 DR-M5-2b 的两份预算：核心 ≤30MB；Node 运行时 + sidecar 单独测量）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕〔2026-10-20：语言门禁通过；重合度 report 降至 9.80%；0.0.62 本机 gnu 构建整包 51.79 MiB，三项均未成为阻断门禁。〕〔2026-10-21：重合度 report 9.20%（37,241 / 404,926 行）；语言门禁通过且允许清单陈旧条目清零；三项仍未成为阻断门禁。]
+- [ ] **Agent 真源翻转**
 
-**阶段验收：** 三平台 GA 发布；三指标全绿并进必跑门禁。
+- [ ] **Agent 真源翻转**：删除 TS 运行时前把协议真源从 TS 翻到 Rust（DR-07 的翻转点写进
+      `agent-runtime-parity-matrix.md`），parity matrix 从「两侧夹具对拍」改为「单真源 + 回归」。
+- [ ] **三仪表 → 四仪表**：在原三件（语言/重合度/体积）上加**性能门禁**（`T_ready` 与核心载荷），
+      与安装包字节同口径标注测量面。
+
+**阶段验收：** 三平台 GA 发布；四仪表全绿并进必跑门禁；插件与 npm MCP 在无随包 Node 下可用；
+20 个真实模型端到端任务验收通过。
 
 ---
-
 ## 风险与对冲
 
 | 风险                                          | 对冲                                                                                                  |
@@ -403,9 +514,14 @@ typecheck / lint / architecture / language policy / desktop tests / desktop-taur
 | clean-room 被 AI 提示词无意破坏               | 禁读规则写进 AGENTS.md 与任务模板；PR 检查清单 + M4 硬门禁兜底                                        |
 | 工期失控（单人 18–30 个月）                   | 阶段门禁可停可续：每个 M 结束都是可发布检查点；旧线持续维护保住产品不失血                             |
 | 并行会话/多人同仓冲突                         | pathspec 提交纪律（已入记忆）、新目录（`crates/`、`apps/desktop-tauri`）与旧栈零重叠                  |
+| 删除 TS 运行时过早，对拍失去 oracle | 双跑开关 + parity matrix CI 门禁 + 20 个真实任务；翻转点写进 `agent-runtime-parity-matrix.md` |
+| 插件宿主 A 未就绪就删 Node | M5a 硬前置：A 形态或 npm-MCP 按需 JS 运行时回退先就绪；AssetCache 校验 sha256 |
+| 性能目标与实测冲突 | 目标值是承诺值；基线落库后**改目标不改尺子**（DR-T5-1 口径扩展） |
 
 ## 度量与预算
 
 - **仪表三件**：语言占比（linguist + language-policy 脚本）、上游重合度（upstream-overlap-check）、安装包字节（CI 记录）。
+- **性能仪表四件（2026-10-23 新增）**：`bench/cold-start`（`T_ready` / `T_surface` / `T_agent_ready` 三段，扩展现有 `measure:cold-start`）、`bench/stream-latency`（`text_delta` 产生到 renderer 收到的 p50/p95）、`bench/memory`（壳 / sidecar / agent 三进程 30 分钟 RSS 曲线）、`bench/ipc-throughput`（帧吞吐 MB/s 与每帧分配次数）。落点 `apps/desktop-tauri/bench/` 与 `pnpm measure:*`；**改任何性能代码前先入库基线**。
+- **目标值**（承诺值，标注测量面）：核心发运集载荷 ≤25 MB、核心发运集内 Node =0、`T_ready` ≤400 ms、`T_surface` ≤600 ms、流式增量 p95 ≤80 ms、常驻进程 2、空闲 RSS ≤150 MB。冲突时改目标不改尺子。
 - **预算**（沿用 2026-10-09 估算）：DeepSeek API 全程 ¥5k–3 万（flash 为主）；人力为大头：2–3 人 × 12–17 个月 ≈ ¥100–200 万，单人则为时间机会成本。
 - **子计划节奏**：每阶段开工前 1 周内用 `writing-plans` 产出该阶段细粒度计划并过评审；本文件只在阶段边界变化时修订。
