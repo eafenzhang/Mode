@@ -47,7 +47,7 @@
 | --- | ------------------------------------------------------------- | --------------------------------------------- | ----------------------------- |
 | A1  | 冷启动：读取 `TuiStartupOptions`，建立会话并绘制空 transcript | `app-startup.tsx`、`app-empty-transcript.tsx` | 自动化（PTY harness，2026-10-22） |
 | A2  | 恢复/切换会话：会话元信息、标题、消息数正确                   | `TuiSessionMetadata`、`app-turn-complete.ts`  | 无自动化                      |
-| A3  | 一轮对话完成：终态、用量/耗时、错误分支                       | `app-turn-complete.ts`、`app-result.ts`       | 部分：事件归约（批 25）       |
+| A3  | 一轮对话完成：终态、用量/耗时、错误分支                       | `app-turn-complete.ts`、`app-result.ts`       | 自动化（PTY，终态响应）+ 事件归约（批 25） |
 | A4  | 紧凑时间线：长会话折叠与展开                                  | `app-compact-timeline.ts`                     | 部分：识别/时间线（批 6、21） |
 | A5  | 排队输入：busy 时输入进入队列，空闲后按序提交                 | `app-queued-inputs.tsx`                       | 部分：队列逻辑（批 30）       |
 | A6  | 输入历史：上下键召回与持久化边界                              | `app-input-history.ts`                        | 无自动化                      |
@@ -58,7 +58,7 @@
 | --- | ------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------- |
 | B1  | 文本增量：`text_delta` 逐块追加，不重排                       | `app-model-streaming.ts`、`app-transcript-stream.ts`                 | 自动化（PTY harness）+ 文本投影（批 16） |
 | B2  | 工具输入增量：`tool_input_start/delta/end` 与最终 `tool_call` | 同上                                                                 | 无自动化                |
-| B3  | 思考块：reasoning 与正文分区渲染                              | `app-thought-components.tsx`                                         | 部分：思考增量（批 16） |
+| B3  | 思考块：reasoning 与正文分区渲染                              | `app-thought-components.tsx`                                         | 自动化（PTY，折叠块）+ 思考增量（批 16） |
 | B4  | Markdown/代码高亮：主题与终端宽度变化重排                     | `app-markdown.tsx`、`app-markdown-theme.ts`、`app-terminal-width.ts` | 无自动化                |
 | B5  | 中断/取消：用户中断后流停止、终态正确                         | `app-submit.ts`、`app-submit-controller.ts`                          | 无自动化                |
 
@@ -68,7 +68,7 @@
 | --- | ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------ |
 | C1  | `allow_once`：批准后工具继续，规则不落盘         | `app-approval.ts`、`app-approval-panel.tsx`、`TuiRequestPermission` | 部分：文案/预览（批 13、36）   |
 | C2  | `allow_project`：批准后本项目后续同规则不再询问  | 同上                                                                | 部分：文案/作用域（批 13、36） |
-| C3  | `deny`：拒绝文案、工具不执行、会话继续           | 同上                                                                | 部分：文案/取消（批 13、26）   |
+| C3  | `deny`：拒绝文案、工具不执行、会话继续           | 同上                                                                | 自动化（PTY，deny）+ 文案/取消（批 13、26） |
 | C4  | `AskUserQuestion`：问题面板、多选/自由输入与取消 | `app-question-panel.tsx`、`app-question-state.ts`                   | 部分：状态机（批 12、26、29）  |
 | C5  | 审批与流式并发：审批期间流式事件不丢、不越序     | `app-permission.ts`                                                 | 无自动化                       |
 
@@ -76,7 +76,7 @@
 
 | #   | 场景                                                   | 证据来源                                            | 状态                         |
 | --- | ------------------------------------------------------ | --------------------------------------------------- | ---------------------------- |
-| D1  | 工具卡片：scheduled/started/progress/result/batch 五态 | `app-tool-components.tsx`、`app-tool-transcript.ts` | 部分：输入投影（批 33）      |
+| D1  | 工具卡片：scheduled/started/progress/result/batch 五态 | `app-tool-components.tsx`、`app-tool-transcript.ts` | 自动化（PTY，running/completed）+ 输入投影（批 33） |
 | D2  | diff 呈现：新增/删除行、上下文折叠                     | `app-tool-diff-display.ts`                          | 部分：展示/宽度（批 15、22） |
 | D3  | 路径展示：相对路径、过长路径截断                       | `app-tool-path-display.ts`                          | 自动化（批 18、19）          |
 | D4  | 工具错误：`tool_execution_failed` 与未注册工具         | `app-transcript-errors.ts`                          | 部分：错误文案（批 14）      |
@@ -249,10 +249,13 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 形态：夹具直接调真 `runTui`（不提供 `loadStartupOptions`，跳过启动屏），
   `submitPrompt` 按脚本推 `model_streaming` 文本增量；测试用 `node-pty` 提供 TTY、
   收集并去 ANSI 后断言屏幕文本。
-- 已覆盖：A1 冷启动首屏（`Build` + 输入提示）、B1 两个 `text_delta` 依次上屏。
+- 已覆盖（6/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、B1 两段 `text_delta`、
+  B3 折叠思考块、C3 审批面板 + 默认 Deny 确认、D1 工具卡 running→completed。
 - 平台注意：Windows 的 PTY 主端忽略 `encoding` 选项、中文会按系统代码页变乱码，
-  所以夹具固定 `locale: "en-US"` 并只用 ASCII 标记断言；清理无语义退出（会话屏
-  Ctrl-C 带防误退/中断流语义），键盘退出仍由 `scripts/mode-distribution-smoke.mjs`
-  在发行包上覆盖。
-- 其余 31 个场景按同一骨架追加：改夹具的 `submitPrompt` 事件脚本（审批走
+  所以夹具固定 `locale: "en-US"` 并只用 ASCII 标记断言；控件信号用短标记
+  （`PTY_APPROVAL_D`）避免 TUI 重绘裁掉长行。清理无语义退出（会话屏 Ctrl-C 带防误退/
+  中断流语义），键盘退出仍由 `scripts/mode-distribution-smoke.mjs` 在发行包上覆盖。
+- C1 (`allow_once`) 尚未自动化：审批面板默认选中 Deny，上移键在当前 PTY 下解码不稳，
+  需要先确定 opentui 的方向键编码或改用鼠标/数字快捷键，再补用例。
+- 其余 27 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
   `options.requestPermission`、工具/问题走对应 `SessionEventType`）+ 一条屏幕断言。
