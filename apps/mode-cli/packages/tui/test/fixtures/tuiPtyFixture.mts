@@ -42,9 +42,27 @@ type SubmitOptions = {
   requestPermission?: (request: unknown, options?: unknown) => Promise<{ decision: string }>;
 };
 
-async function submit(_prompt: unknown, options: SubmitOptions) {
+function promptTextOf(prompt: unknown): string {
+  if (typeof prompt === "string") return prompt;
+  if (
+    prompt &&
+    typeof prompt === "object" &&
+    typeof (prompt as { text?: unknown }).text === "string"
+  ) {
+    return (prompt as { text: string }).text;
+  }
+  return "";
+}
+
+let sendInputCount = 0;
+
+async function submit(prompt: unknown, options: SubmitOptions) {
   submitCount += 1;
   process.stderr.write(`PTY_SUBMIT_${submitCount}\n`);
+  if (promptTextOf(prompt).trim().startsWith("/help")) {
+    // E2：补全后的命令确实进入提交入口。
+    process.stderr.write("PTY_PROMPT_HELP\n");
+  }
   const emit = (type: SessionEvent["type"], payload: Record<string, unknown>, turnId?: string) => {
     void options.onEvent?.(event(type, payload, turnId));
   };
@@ -89,6 +107,72 @@ async function submit(_prompt: unknown, options: SubmitOptions) {
     streamText("PTY_REASONING_ANSWER");
     await delay(150);
     return { response: "PTY_REASONING_ANSWER" };
+  }
+
+  if (scenario === "toolinput") {
+    emit(SessionEventType.ModelStreaming, {
+      kind: "tool_input_start",
+      toolName: "Bash",
+      delta: "",
+      done: false,
+      assistantMessageId,
+    });
+    // 每个增量之间留一帧：状态行在 burst 里会被后续状态覆盖，来不及绘制。
+    await delay(120);
+    emit(SessionEventType.ModelStreaming, {
+      kind: "tool_input_delta",
+      toolName: "Bash",
+      delta: "PTY_TOOL_INPUT_DELTA",
+      done: false,
+      assistantMessageId,
+    });
+    await delay(120);
+    emit(SessionEventType.ModelStreaming, {
+      kind: "tool_input_end",
+      toolName: "Bash",
+      delta: "",
+      done: false,
+      assistantMessageId,
+    });
+    await delay(120);
+    emit(SessionEventType.ModelStreaming, {
+      kind: "tool_call",
+      toolName: "Bash",
+      toolCallId: "tool-input-1",
+      delta: "",
+      done: false,
+      assistantMessageId,
+    });
+    await delay(120);
+    emit(SessionEventType.ToolCallScheduled, {
+      toolCallId: "tool-input-1",
+      toolName: "Bash",
+      input: { command: "echo from-input" },
+      schedule: { kind: "immediate" },
+    });
+    await delay(120);
+    emit(SessionEventType.ToolCallStarted, {
+      toolCallId: "tool-input-1",
+      toolName: "Bash",
+      startedAt: new Date(),
+    });
+    await delay(120);
+    emit(SessionEventType.ToolCallResult, {
+      toolCallId: "tool-input-1",
+      result: { content: "from-input" },
+      duration: 120,
+    });
+    await delay(150);
+    return { response: "" };
+  }
+
+  if (scenario === "queue") {
+    emit(SessionEventType.TurnStarted, {}, "pty-turn-1");
+    streamText("PTY_QUEUE_TURN ");
+    // 保持 busy，让第二次提交进入 sendInput 队列。
+    await delay(2_500);
+    emit(SessionEventType.TurnComplete, { response: "PTY_QUEUE_TURN_DONE" });
+    return { response: "PTY_QUEUE_TURN_DONE" };
   }
 
   if (scenario === "tool") {
@@ -154,5 +238,17 @@ process.exitCode = await runTui({
   // 场景断言只依赖英文文案与 ASCII 标记。
   locale: "en-US",
   workspaceDirectory: process.cwd(),
+  slashCommands: [{ name: "help", summary: "Show help", usage: "/help" }],
   submitPrompt: submit,
+  // 仅 busy 时被调用；返回 queued，让 TUI 渲染排队面板。
+  sendInput: async () => {
+    sendInputCount += 1;
+    process.stderr.write(`PTY_SEND_INPUT_${sendInputCount}\n`);
+    return {
+      kind: "queued" as const,
+      pendingInputId: `pending-${sendInputCount}`,
+      queueLength: sendInputCount,
+      turnId: "pty-turn-1",
+    };
+  },
 });

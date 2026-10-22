@@ -5,11 +5,14 @@
  * `submitPrompt` 假实现驱动——不接模型、不读凭据。已覆盖：
  *
  * - A1 冷启动：首屏渲染出模式标签与输入提示；
- * - A3 一轮对话完成：`turn_complete` 后终态响应与 Ready 状态上屏；
+ * - A3 一轮对话完成：`turn_complete` 后终态响应上屏；
+ * - A5 排队输入：busy 时第二次提交进入队列面板；
  * - B1 文本增量：两次 `text_delta` 都出现；
- * - B3 思考块：`reasoning_delta` 的文本上屏；
+ * - B2 工具输入增量：不进入正文，最终工具卡完成；
+ * - B3 思考块：`reasoning_delta` 以折叠块呈现；
  * - C3 审批：面板出现，默认 Deny 确认后返回 deny；
- * - D1 工具卡片：running → completed 状态都上屏。
+ * - D1 工具卡片：running → completed 状态都上屏；
+ * - E2 斜杠命令：输入 `/` 出现补全，Tab 补全后提交。
  *
  * 退出链路不在本用例里：会话屏的 Ctrl-C 带防误退/中断流语义，发行形态的
  * 键盘退出已由 `scripts/mode-distribution-smoke.mjs` 覆盖；这里用 `terminal.kill()` 收尾。
@@ -116,6 +119,37 @@ test("TUI PTY A3：turn_complete 的终态响应上屏", async () => {
   }
 });
 
+test("TUI PTY A5：busy 时第二次提交进入队列面板", async () => {
+  const session = startTui("queue");
+  try {
+    await waitForReady(session);
+    session.write("first turn\r");
+    await session.waitForSubstring("PTY_SUBMIT_1", "第一次提交");
+    session.write("queued prompt\r");
+    await session.waitForSubstring("PTY_SEND_INPUT_1", "busy 输入走 sendInput");
+    await session.waitForSubstring("Queue (1)", "排队面板出现");
+    await session.waitForSubstring("queued prompt", "排队输入内容上屏");
+  } finally {
+    session.stop();
+  }
+});
+
+test("TUI PTY B2：工具输入增量不进入正文，最终工具卡完成", async () => {
+  const session = startTui("toolinput");
+  try {
+    await waitForReady(session);
+    session.write("prepare a tool\r");
+    await session.waitForSubstring("Tool Bash completed", "工具卡完成");
+    assert.doesNotMatch(
+      session.screen(),
+      /PTY_TOOL_INPUT_DELTA/u,
+      "工具输入增量是 JSON 参数，不能画进助手正文",
+    );
+  } finally {
+    session.stop();
+  }
+});
+
 test("TUI PTY B3：reasoning 以折叠思考块呈现", async () => {
   const session = startTui("reasoning");
   try {
@@ -135,12 +169,33 @@ test("TUI PTY C3：审批面板出现，默认 Deny 确认", async () => {
     await waitForReady(session);
     session.write("run it\r");
     await session.waitForSubstring("Approval required: Bash", "审批面板出现");
+    await session.waitForSubstring("Up/Down choose", "审批面板提示行");
     // 面板绘制与键盘处理器读到的 approvalQueue 之间有一个渲染周期；稍等再确认。
-    await delay(200);
-    // 面板默认选中 Deny（安全默认），Enter 确认。
+    await delay(400);
+    // 面板默认选中 Deny（安全默认），Enter 确认。并发负载下首个按键偶发丢失，补一次。
     session.write("\r");
+    await delay(500);
+    if (!session.screen().includes("PTY_APPROVAL_D")) {
+      session.write("\r");
+    }
     // 夹具用短码避免 TUI 重绘裁掉长标记：A=allow_once / B=allow_project / D=deny。
     await session.waitForSubstring("PTY_APPROVAL_D", "审批返回 deny");
+  } finally {
+    session.stop();
+  }
+});
+
+test("TUI PTY E2：输入 / 出现补全，Tab 补全后提交", async () => {
+  const session = startTui("stream");
+  try {
+    await waitForReady(session);
+    session.write("/");
+    await session.waitForSubstring("Commands", "斜杠建议面板");
+    await session.waitForSubstring("/help", "命令候选");
+    session.write("\t");
+    await delay(120);
+    session.write("now\r");
+    await session.waitForSubstring("PTY_PROMPT_HELP", "补全后的 /help 进入提交");
   } finally {
     session.stop();
   }

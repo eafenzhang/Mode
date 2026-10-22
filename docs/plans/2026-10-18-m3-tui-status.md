@@ -49,7 +49,7 @@
 | A2  | 恢复/切换会话：会话元信息、标题、消息数正确                   | `TuiSessionMetadata`、`app-turn-complete.ts`  | 无自动化                      |
 | A3  | 一轮对话完成：终态、用量/耗时、错误分支                       | `app-turn-complete.ts`、`app-result.ts`       | 自动化（PTY，终态响应）+ 事件归约（批 25） |
 | A4  | 紧凑时间线：长会话折叠与展开                                  | `app-compact-timeline.ts`                     | 部分：识别/时间线（批 6、21） |
-| A5  | 排队输入：busy 时输入进入队列，空闲后按序提交                 | `app-queued-inputs.tsx`                       | 部分：队列逻辑（批 30）       |
+| A5  | 排队输入：busy 时输入进入队列，空闲后按序提交                 | `app-queued-inputs.tsx`                       | 自动化（PTY，排队面板）+ 队列逻辑（批 30） |
 | A6  | 输入历史：上下键召回与持久化边界                              | `app-input-history.ts`                        | 无自动化                      |
 
 ### B. 流式输出
@@ -57,7 +57,7 @@
 | #   | 场景                                                          | 证据来源                                                             | 状态                    |
 | --- | ------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------- |
 | B1  | 文本增量：`text_delta` 逐块追加，不重排                       | `app-model-streaming.ts`、`app-transcript-stream.ts`                 | 自动化（PTY harness）+ 文本投影（批 16） |
-| B2  | 工具输入增量：`tool_input_start/delta/end` 与最终 `tool_call` | 同上                                                                 | 无自动化                |
+| B2  | 工具输入增量：`tool_input_start/delta/end` 与最终 `tool_call` | 同上                                                                 | 自动化（PTY，增量不入正文） |
 | B3  | 思考块：reasoning 与正文分区渲染                              | `app-thought-components.tsx`                                         | 自动化（PTY，折叠块）+ 思考增量（批 16） |
 | B4  | Markdown/代码高亮：主题与终端宽度变化重排                     | `app-markdown.tsx`、`app-markdown-theme.ts`、`app-terminal-width.ts` | 无自动化                |
 | B5  | 中断/取消：用户中断后流停止、终态正确                         | `app-submit.ts`、`app-submit-controller.ts`                          | 无自动化                |
@@ -86,7 +86,7 @@
 | #   | 场景                                 | 证据来源                                                                                | 状态                                    |
 | --- | ------------------------------------ | --------------------------------------------------------------------------------------- | --------------------------------------- |
 | E1  | 输入面板：光标、换行、粘贴、状态行   | `app-input-pane.tsx`、`app-input-status.tsx`                                            | 无自动化                                |
-| E2  | 斜杠命令：补全、执行、错误           | `app-keyboard-suggestions.ts`、`TuiSlashCommandSuggestion`                              | 部分：补全/窗口（批 11、34）            |
+| E2  | 斜杠命令：补全、执行、错误           | `app-keyboard-suggestions.ts`、`TuiSlashCommandSuggestion`                              | 自动化（PTY，补全+提交）+ 补全/窗口（批 11、34） |
 | E3  | 模式/模型/effort：切换命令与建议面板 | `app-mode-command.ts`、`app-model-command.ts`、`app-effort-command.ts`、`TuiSetMode`    | 部分：过滤/选择/补全（批 21、22、34）   |
 | E4  | 文件提及：`@` 补全与工作区建议       | `app-file-mentions.ts`、`app-file-mention-panel.tsx`、`TuiListWorkspacePathSuggestions` | 部分：可视窗口（批 16）                 |
 | E5  | 键盘帮助与快捷键：平台差异           | `app-keyboard.ts`、`app-keyboard-helpers.ts`                                            | 部分：快捷键逻辑（批 2、5、23、34、35） |
@@ -249,13 +249,17 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 形态：夹具直接调真 `runTui`（不提供 `loadStartupOptions`，跳过启动屏），
   `submitPrompt` 按脚本推 `model_streaming` 文本增量；测试用 `node-pty` 提供 TTY、
   收集并去 ANSI 后断言屏幕文本。
-- 已覆盖（6/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、B1 两段 `text_delta`、
-  B3 折叠思考块、C3 审批面板 + 默认 Deny 确认、D1 工具卡 running→completed。
+- 已覆盖（9/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、A5 busy 排队面板、
+  B1 两段 `text_delta`、B2 工具输入增量不入正文、B3 折叠思考块、
+  C3 审批面板 + 默认 Deny 确认、D1 工具卡 running→completed、E2 `/` 补全 + Tab 提交。
+  A5 的「空闲后按序提交」由 runtime 负责，PTY 用例只证明输入进入了队列面板。
 - 平台注意：Windows 的 PTY 主端忽略 `encoding` 选项、中文会按系统代码页变乱码，
   所以夹具固定 `locale: "en-US"` 并只用 ASCII 标记断言；控件信号用短标记
   （`PTY_APPROVAL_D`）避免 TUI 重绘裁掉长行。清理无语义退出（会话屏 Ctrl-C 带防误退/
   中断流语义），键盘退出仍由 `scripts/mode-distribution-smoke.mjs` 在发行包上覆盖。
 - C1 (`allow_once`) 尚未自动化：审批面板默认选中 Deny，上移键在当前 PTY 下解码不稳，
   需要先确定 opentui 的方向键编码或改用鼠标/数字快捷键，再补用例。
-- 其余 27 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
-  `options.requestPermission`、工具/问题走对应 `SessionEventType`）+ 一条屏幕断言。
+- 其余 24 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
+  `options.requestPermission`，busy 输入走 `sendInput`，工具/问题走对应 `SessionEventType`）
+  + 一条屏幕断言。C3 在并发负载下首个 Enter 偶发丢失，用「看到提示行 + 400ms 后再确认，
+  500ms 未见结果补一次」稳定。
