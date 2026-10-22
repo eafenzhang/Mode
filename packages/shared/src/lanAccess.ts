@@ -187,15 +187,10 @@ export interface LanPairPeerRequest {
   code: string;
   label?: string;
   /**
-   * 主端点协议；缺省 http（LAN 直连）。https 用于公网地址配对，
+   * 主端点协议；缺省 http（LAN 直连）。https 用于经目录/内置中继的公网配对，
    * 必须能通过证书校验（docs/specs/lan-remote-public-endpoints.md）。
    */
   scheme?: "http" | "https";
-  /**
-   * 可选：配对成功后一并记录的公网 HTTPS 基础地址（如 https://rd.example.com）。
-   * 主端点仍是 LAN 时，它作为第二个端点用于外网回退。
-   */
-  publicBaseUrl?: string;
   /** 主端点的路径前缀（中继/反代，如 `/d/<tunnelId>`）；缺省根路径。 */
   path?: string;
 }

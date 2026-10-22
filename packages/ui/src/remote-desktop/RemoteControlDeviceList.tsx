@@ -19,7 +19,6 @@ export function RemoteControlDeviceList({
   onConnectWorkspace,
   onRename,
   onDelete,
-  onSetPublicAddress,
   onReprobe,
   onStartChat,
   onRefreshModeAgent,
@@ -37,7 +36,6 @@ export function RemoteControlDeviceList({
   onConnectWorkspace?: (peer: LanPairedPeer) => void;
   onRename: (serverId: string, name: string) => Promise<void>;
   onDelete: (serverId: string) => Promise<void>;
-  onSetPublicAddress: (serverId: string, publicBaseUrl: string | null) => Promise<void>;
   onReprobe: (serverId: string) => void;
   onStartChat: (record: ModeAgentServerRecord) => Promise<void>;
   onRefreshModeAgent: (record: ModeAgentServerRecord) => Promise<void>;
@@ -71,7 +69,6 @@ export function RemoteControlDeviceList({
               onConnectWorkspace={onConnectWorkspace}
               onRename={onRename}
               onDelete={onDelete}
-              onSetPublicAddress={onSetPublicAddress}
               onReprobe={onReprobe}
               onError={onError}
             />

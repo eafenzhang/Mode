@@ -4,8 +4,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 // 公网配对回归（docs/specs/lan-remote-public-endpoints.md）：
-// 配对成功后 meta 同时保存 LAN 与公网端点；非 HTTPS 公网地址在发请求前拒绝。
-test("pairLanPeer：公网端点随配对落 meta，http 公网地址被拒绝", async () => {
+// 配对成功后 meta 同时保存 LAN 与内置中继下发的公网端点；非法 publicRelay 被忽略。
+test("pairLanPeer：内置中继端点随配对落 meta，非法 tunnelId 被忽略", async () => {
   const fixture = fileURLToPath(new URL("./fixtures/lan-public-pair.ts", import.meta.url));
   const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
   const child = spawn(process.execPath, ["--import", "tsx", fixture], {
@@ -37,6 +37,6 @@ test("pairLanPeer：公网端点随配对落 meta，http 公网地址被拒绝",
     });
   });
 
-  assert.equal(exitCode, 0, `夹具失败（公网端点未落 meta 或 http 未被拒绝）：\n${output}`);
+  assert.equal(exitCode, 0, `夹具失败（中继端点未落 meta 或非法 tunnelId 未被忽略）：\n${output}`);
   assert.match(output, /LAN_PUBLIC_PAIR_OK/u, `夹具未完成断言：\n${output}`);
 });

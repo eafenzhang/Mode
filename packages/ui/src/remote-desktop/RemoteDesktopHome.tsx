@@ -24,7 +24,6 @@ import type { RemoteDesktopDeviceProbe } from "@/remote-desktop/deviceAvailabili
 import { filterUnpairedDiscoveredPeers } from "@/remote-desktop/deviceAvailability.js";
 import { RemoteControlDeviceList } from "@/remote-desktop/RemoteControlDeviceList.js";
 import { RemoteControlPairingCodePanel } from "@/remote-desktop/RemoteControlPairingCodePanel.js";
-import { RemoteControlPublicPairing } from "@/remote-desktop/RemoteControlPublicPairing.js";
 import { RemoteDesktopSession } from "@/remote-desktop/RemoteDesktopSession.js";
 import { useDeviceViewMode } from "@/remote-desktop/useDeviceViewMode.js";
 import { useDiscoveredLanPeers } from "@/remote-desktop/useDiscoveredLanPeers.js";
@@ -214,21 +213,6 @@ export function RemoteDesktopHome({
     [loadPeers, platform],
   );
 
-  /** 公网地址编辑：只改本机端点元数据，令牌与 LAN 端点不动；成功后刷新列表。 */
-  const setPublicAddress = useCallback(
-    async (serverId: string, publicBaseUrl: string | null) => {
-      setPeerActionBusy(true);
-      setPeerActionError("");
-      try {
-        await platform.setLanPeerPublicAddress(serverId, publicBaseUrl);
-        await loadPeers();
-      } finally {
-        setPeerActionBusy(false);
-      }
-    },
-    [loadPeers, platform],
-  );
-
   if (sessionTarget) {
     return (
       <RemoteDesktopSession
@@ -329,11 +313,9 @@ export function RemoteDesktopHome({
               </div>
             </header>
 
+            {/* 公网地址由内置中继随配对响应自动下发，页面不再提供手填入口。 */}
             {isDesktop && !isRemoteWorkspace ? (
-              <>
-                <RemoteControlPairingCodePanel active={active} />
-                <RemoteControlPublicPairing onPaired={loadPeers} />
-              </>
+              <RemoteControlPairingCodePanel active={active} />
             ) : null}
 
             {peerActionError ? (
@@ -418,7 +400,6 @@ export function RemoteDesktopHome({
                 onConnectWorkspace={onConnectWorkspace ? connectWorkspace : undefined}
                 onRename={renamePeer}
                 onDelete={deletePeer}
-                onSetPublicAddress={setPublicAddress}
                 onReprobe={reprobePeer}
                 onStartChat={startModeAgentChat}
                 onRefreshModeAgent={refreshModeAgentStatus}

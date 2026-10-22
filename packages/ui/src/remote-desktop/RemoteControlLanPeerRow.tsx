@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ArrowRight, Check, FolderOpen, Globe, Pencil, RefreshCw, Trash2 } from "lucide-react";
-import { formatLanPeerEndpoint, parseLanPublicBaseUrl, type LanPairedPeer } from "@mode/shared";
+import { ArrowRight, Check, FolderOpen, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { formatLanPeerEndpoint, type LanPairedPeer } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
 import { cn } from "@/components/lib/utils.js";
@@ -28,7 +28,6 @@ export function RemoteControlLanPeerRow({
   onConnectWorkspace,
   onRename,
   onDelete,
-  onSetPublicAddress,
   onReprobe,
   onError,
 }: {
@@ -41,13 +40,11 @@ export function RemoteControlLanPeerRow({
   onConnectWorkspace?: (peer: LanPairedPeer) => void;
   onRename: (serverId: string, name: string) => Promise<void>;
   onDelete: (serverId: string) => Promise<void>;
-  onSetPublicAddress: (serverId: string, publicBaseUrl: string | null) => Promise<void>;
   onReprobe: (serverId: string) => void;
   onError: (message: string) => void;
 }) {
   const { intl } = useModeIntl();
   const [editingName, setEditingName] = useState<string | null>(null);
-  const [editingPublic, setEditingPublic] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const name = resolveRemoteDesktopDeviceLabel(peer);
   const publicEndpoint = peer.endpoints?.find((endpoint) => endpoint.kind === "public");
@@ -90,91 +87,38 @@ export function RemoteControlLanPeerRow({
     }
   };
 
-  const savePublicAddress = async () => {
-    const next = editingPublic?.trim() ?? "";
-    if (next && !parseLanPublicBaseUrl(next)) {
-      onError(intl.formatMessage({ id: "remoteDesktop.device.publicAddressInvalid" }));
-      return;
-    }
-    try {
-      await onSetPublicAddress(peer.serverId, next || null);
-      setEditingPublic(null);
-    } catch (error) {
-      onError(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const editor =
-    editingPublic !== null ? (
-      <div className="space-y-2">
-        <p className="text-ui-xs text-foreground-subtle">
-          {intl.formatMessage({ id: "remoteDesktop.device.publicAddressHint" })}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            size="lg"
-            data-testid="remote-control-lan-peer-public-input"
-            value={editingPublic}
-            placeholder="https://rd.example.com"
-            onChange={(event) => setEditingPublic(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void savePublicAddress();
-              if (event.key === "Escape") setEditingPublic(null);
-            }}
-          />
-          <Button
-            type="button"
-            size="sm"
-            disabled={busy}
-            data-testid="remote-control-lan-peer-public-save"
-            onClick={() => void savePublicAddress()}
-          >
-            <Check className="size-4" />
-            {intl.formatMessage({ id: "remoteDesktop.device.save" })}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => setEditingPublic(null)}
-          >
-            {intl.formatMessage({ id: "remoteDesktop.device.cancel" })}
-          </Button>
-        </div>
-      </div>
-    ) : editingName ? (
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          size="lg"
-          data-testid="remote-control-lan-peer-name-input"
-          value={editingName}
-          onChange={(event) => setEditingName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") void saveRename();
-            if (event.key === "Escape") setEditingName(null);
-          }}
-        />
-        <Button
-          type="button"
-          size="sm"
-          disabled={busy || !editingName.trim()}
-          onClick={() => void saveRename()}
-        >
-          <Check className="size-4" />
-          {intl.formatMessage({ id: "remoteDesktop.device.save" })}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          onClick={() => setEditingName(null)}
-        >
-          {intl.formatMessage({ id: "remoteDesktop.device.cancel" })}
-        </Button>
-      </div>
-    ) : undefined;
+  const editor = editingName ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        size="lg"
+        data-testid="remote-control-lan-peer-name-input"
+        value={editingName}
+        onChange={(event) => setEditingName(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void saveRename();
+          if (event.key === "Escape") setEditingName(null);
+        }}
+      />
+      <Button
+        type="button"
+        size="sm"
+        disabled={busy || !editingName.trim()}
+        onClick={() => void saveRename()}
+      >
+        <Check className="size-4" />
+        {intl.formatMessage({ id: "remoteDesktop.device.save" })}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={busy}
+        onClick={() => setEditingName(null)}
+      >
+        {intl.formatMessage({ id: "remoteDesktop.device.cancel" })}
+      </Button>
+    </div>
+  ) : undefined;
 
   return (
     <RowShell testId="remote-control-lan-peer" presentation={presentation} editor={editor}>
@@ -185,7 +129,7 @@ export function RemoteControlLanPeerRow({
         address={address}
         detail={reason}
       />
-      {editingName || editingPublic !== null ? null : confirmingDelete ? (
+      {editingName ? null : confirmingDelete ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="text-ui-xs text-foreground-subtle">
             {intl.formatMessage({ id: "remoteDesktop.device.deleteAsk" }, { name })}
@@ -261,29 +205,12 @@ export function RemoteControlLanPeerRow({
             type="button"
             variant="ghost"
             size="icon-sm"
-            data-testid="remote-control-lan-peer-public"
-            title={intl.formatMessage({ id: "remoteDesktop.device.publicAddress" })}
-            aria-label={intl.formatMessage({ id: "remoteDesktop.device.publicAddress" })}
-            disabled={busy}
-            onClick={() => {
-              onError("");
-              setEditingName(null);
-              setEditingPublic(publicEndpoint ? formatLanPeerEndpoint(publicEndpoint) : "");
-            }}
-          >
-            <Globe className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
             data-testid="remote-control-lan-peer-rename"
             title={intl.formatMessage({ id: "remoteDesktop.device.rename" })}
             aria-label={intl.formatMessage({ id: "remoteDesktop.device.rename" })}
             disabled={busy}
             onClick={() => {
               onError("");
-              setEditingPublic(null);
               setEditingName(name);
             }}
           >

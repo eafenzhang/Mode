@@ -655,11 +655,6 @@ export interface IPlatformService {
   removeLanPairedPeer(serverId: string): Promise<void>;
   /** 重命名某个已配对对端（只改本机记录的名称，不影响对端；1~64 字符）。 */
   renameLanPairedPeer(serverId: string, name: string): Promise<void>;
-  /**
-   * 新增/替换/清除某个已配对对端的公网 HTTPS 地址（LAN 端点与令牌不动）。
-   * 只接受 https；清除后没有其它端点时拒绝。
-   */
-  setLanPeerPublicAddress(serverId: string, publicBaseUrl: string | null): Promise<void>;
 
   /** 列出本机可用的 WSL 发行版 */
   listWSLDistros(): Promise<WSLDistro[]>;

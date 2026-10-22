@@ -1,13 +1,9 @@
 import {
   buildLanPeerMetaKey,
   buildLanPeerTokenKey,
-  dedupeLanPeerEndpoints,
   parseLanPeerMeta,
-  parseLanPublicBaseUrl,
-  sortLanPeerEndpoints,
   type LanPairedPeer,
   type LanPairedPeerWorkspaces,
-  type LanPeerMeta,
 } from "@mode/shared";
 import type { ICredentialService } from "@mode/services";
 
@@ -23,6 +19,7 @@ import { loadLanPeerToken } from "./lanRemoteAttach.js";
  *
  * 公网端点（docs/specs/lan-remote-public-endpoints.md）：
  * meta.endpoints 是唯一地址事实源；host/port 只是列表行的主端点投影（公网优先）。
+ * 公网端点只由配对响应的 `publicRelay` 自动写入，不提供手动编辑。
  */
 
 /**
@@ -99,49 +96,6 @@ export async function renameLanPairedPeerRecord(
     buildLanPeerMetaKey(trimmedId),
     JSON.stringify({ ...meta, name: trimmedName }),
   );
-}
-
-/**
- * 新增/替换/清除公网端点。只接受 HTTPS（docs/specs/lan-remote-public-endpoints.md
- * 产品规则 2）；令牌、LAN 端点、名称与 pairedAt 不动。
- */
-export async function setLanPairedPeerPublicEndpointRecord(
-  credentials: ICredentialService,
-  serverId: string,
-  publicBaseUrl: string | null,
-): Promise<void> {
-  const trimmedId = serverId.trim();
-  if (!trimmedId) {
-    throw new Error("缺少 serverId");
-  }
-  const meta = parseLanPeerMeta(await credentials.load(buildLanPeerMetaKey(trimmedId)));
-  if (!meta) {
-    throw new Error("该配对缺少元数据，无法保存公网地址");
-  }
-  const withoutPublic = meta.endpoints.filter((endpoint) => endpoint.kind !== "public");
-  const trimmedUrl = publicBaseUrl?.trim() ?? "";
-  if (trimmedUrl) {
-    const endpoint = parseLanPublicBaseUrl(trimmedUrl);
-    if (!endpoint) {
-      throw new Error("公网地址必须是 HTTPS，且不能带路径、查询参数或账号信息");
-    }
-    const endpoints = sortLanPeerEndpoints(dedupeLanPeerEndpoints([...withoutPublic, endpoint]));
-    await saveLanPeerMeta(credentials, trimmedId, { ...meta, endpoints });
-    return;
-  }
-  if (withoutPublic.length === 0) {
-    // 只有公网端点的记录不能清成空地址；删除配对才是正确动作。
-    throw new Error("该设备只有公网地址；要移除请直接删除配对");
-  }
-  await saveLanPeerMeta(credentials, trimmedId, { ...meta, endpoints: withoutPublic });
-}
-
-async function saveLanPeerMeta(
-  credentials: ICredentialService,
-  serverId: string,
-  meta: LanPeerMeta,
-): Promise<void> {
-  await credentials.save(buildLanPeerMetaKey(serverId), JSON.stringify(meta));
 }
 
 /** 用已存令牌访问对端 server-info；先 LAN 后公网，失败按端点可重试性决定是否继续。 */

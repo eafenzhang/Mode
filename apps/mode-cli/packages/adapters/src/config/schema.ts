@@ -52,6 +52,11 @@ const mcpServerBaseSchema = {
   protocolVersion: z.enum(["auto", "legacy", "2026-07-28"]).optional(),
   enabled: z.boolean().optional(),
   timeoutMs: positiveNumberSchema.optional(),
+  // Bug 原因：桌面端把 Mode Agent 设备的展示名/地址/配对时间写进同一个 MCP server 的
+  // modeAgent 元数据，而这里的 strict schema 不认识该键，导致远端设备 server 被整体跳过
+  // （config.mcp_server.skipped），「发起对话」退化成不带远端工具的本机工作区会话。
+  // runtime 不消费该元数据，但必须原样保留，不能因 UI 扩展字段丢掉整个 server。
+  modeAgent: unknownRecordSchema.optional(),
 };
 
 const mcpOAuthSchema = z.union([

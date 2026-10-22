@@ -152,7 +152,6 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "getLanPeerWorkspaces",
   "removeLanPairedPeer",
   "renameLanPairedPeer",
-  "setLanPeerPublicAddress",
   "listWSLDistros",
   "listDockerContainers",
   "listSSHConfigAliases",

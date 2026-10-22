@@ -18,7 +18,8 @@ WebSocket 固定 `ws://`，且一个已配对设备只保存一个地址。用�
 `packages/cloud-relay`（WSS 中继 + 出站隧道，见
 [wss-relay-mvp.md](./wss-relay-mvp.md)）。被控端配置中继令牌后自动启动出站隧道，
 并把 `https://relay.mymode.cloud/d/<tunnelId>` 随配对响应与 `server-info` 下发给主控。
-仍不实现 NAT 穿透/打洞；用户自建的 frp/Caddy 入口仍可作为显式公网地址覆盖。
+仍不实现 NAT 穿透/打洞；公网地址只由内置中继自动下发，产品 UI 不提供手填入口
+（自建部署通过 `MODE_PUBLIC_RELAY_BASE_URL` 替换内置中继基础地址）。
 
 ```text
 主控 ── https/wss://relay.mymode.cloud/d/<id> ──► Cloudflare Tunnel ──► fnOS 中继
@@ -37,9 +38,9 @@ WebSocket 固定 `ws://`，且一个已配对设备只保存一个地址。用�
 1. **一个已配对设备可有多个端点**：LAN 端点（`http`）与公网端点（`https`）并存；
    每个端点包含 `scheme` / `host` / `port` / `kind`。旧记录（只有 `host` + `port`）
    在读取时按 LAN `http` 端点迁移，不要求用户重新配对。
-   公网端点默认由被控端随配对响应/`server-info` 的 `publicRelay` 自动下发
-   （内置 `DEFAULT_PUBLIC_RELAY_BASE_URL` + 持久化 `tunnelId`），主控不需要手填；
-   显式输入的 `publicBaseUrl` 仍可覆盖。
+   公网端点只由被控端随配对响应/`server-info` 的 `publicRelay` 自动下发
+   （内置 `DEFAULT_PUBLIC_RELAY_BASE_URL` + 持久化 `tunnelId`），主控不需要、也不提供
+   手填入口。
 2. **公网端点必须是 HTTPS**：`kind = "public"` 只接受 `https`，并据此使用 `wss` 建
    信令/媒体 WebSocket。拒绝 `http` 公网端点，**不允许静默降级到明文**。
 3. **公网优先、LAN 回退**：连接按公网 → LAN 的顺序尝试；有多个端点时公网探测预算
@@ -53,10 +54,11 @@ WebSocket 固定 `ws://`，且一个已配对设备只保存一个地址。用�
 5. **配对**：
    - LAN 配对路径不变（发现/手动地址 + 6 位码）。
    - 被控端配置了内置中继时，配对响应带 `publicRelay`；主控自动写入
-     `https://<baseUrl>/d/<tunnelId>` 作为公网端点。显式输入的 `publicBaseUrl` 优先。
-   - 已配对设备可在设备行新增/替换/清除公网地址；只改本机凭据里的端点，不动令牌。
-   - 远程控制页提供“公网地址 + 配对码”入口，允许在无法直连 LAN 时直接用 HTTPS
-     地址完成首次配对；成功后该设备以公网端点进入统一设备列表。
+     `https://<baseUrl>/d/<tunnelId>` 作为公网端点，用户不输入地址。
+   - 无法直连 LAN 时走 Mode Cloud 设备目录：主控在 Mode 账号弹窗选择账号设备并输入
+     对端 6 位码，目录返回的 `relayUrl` 就是内置中继地址
+     （[mode-cloud-account-directory.md](./mode-cloud-account-directory.md)）。
+   - 设备行只读展示自动下发的公网端点（含命中路由），不提供新增/替换/清除入口。
    - 重复配对同一 `serverId` 时合并端点：本次配对的端点优先作为主地址；已有 LAN
      端点保留在后；新配对带公网端点时替换旧公网端点，不带时保留已配置的公网端点。
      令牌以本次配对下发的为准。
@@ -75,7 +77,7 @@ WebSocket 固定 `ws://`，且一个已配对设备只保存一个地址。用�
 
 | 状态 | 唯一所有者 | 说明 |
 | --- | --- | --- |
-| 对端令牌 + 端点元数据 | Host 凭据服务（键 `lan:peer:<serverId>:token` / `:meta`） | 写入只经 `pairLanPeer` 与 `setPairedPeerPublicEndpoint` |
+| 对端令牌 + 端点元数据 | Host 凭据服务（键 `lan:peer:<serverId>:token` / `:meta`） | 写入只经 `pairLanPeer`（含自动下发的公网端点） |
 | 端点编辑命令 | `lan-access` Host 服务（`ILanAccessService`） | renderer 只发命令并重读列表 |
 | 中继 tunnelId | Host 凭据服务（`lan:access:relay-tunnel-id`） | 首次启用中继时生成并持久化；配对/`server-info` 只读 |
 | 中继隧道生命周期 | `LanAccessServerHandle` | 启用 LAN 且配置中继令牌时启动，dispose 时关闭 |
@@ -118,9 +120,9 @@ interface LanPublicRelayInfo {
 - `LanAccessState.publicRelayUrl?: string | null`：设置页展示当前公网入口。
 - `lanPeerMetaSchema` 同时接受 v2（`endpoints`）与 v1（`host`/`port`）；v1 在
   `parseLanPeerMeta` 中迁移为单个 LAN 端点。
-- `LanPairPeerRequest` 增加可选 `scheme?: "http" | "https"` 与
-  `publicBaseUrl?: string`；`publicBaseUrl` 支持 `rd.example.com[:port]` 简写，
-  统一按 HTTPS 解析，缺省端口 443。
+- `LanPairPeerRequest` 增加可选 `scheme?: "http" | "https"` 与 `path?: string`
+  （公网配对时由目录/中继给出主端点协议与路径前缀）；不再接受 `publicBaseUrl`，
+  公网端点一律来自响应里的 `publicRelay`。
 - `LanPairedPeer` 增加 `endpoints?: LanPeerEndpoint[]`；`host`/`port` 保留为主端点
   （公网优先），兼容既有 UI/测试。
 - 公网 URL 解析器只接受无 userinfo、无 query/hash 的 HTTPS 地址；允许中继路径前缀，
@@ -128,17 +130,16 @@ interface LanPublicRelayInfo {
 
 ### Host 服务
 
-- `pairLanPeer({ host, port, code, scheme?, publicBaseUrl? })`：按主端点 scheme 发
-  `POST /api/lan/pair`，成功后把主端点与公网端点一起写入 meta；公网端点来自显式
-  `publicBaseUrl`，否则取响应里的 `publicRelay` 自动生成
-  `https://<baseUrl>/d/<tunnelId>`。
+- `pairLanPeer({ host, port, code, scheme?, path? })`：按主端点 scheme 发
+  `POST /api/lan/pair`，成功后把主端点与响应 `publicRelay` 自动生成的公网端点
+  （`https://<baseUrl>/d/<tunnelId>`）一起写入 meta。响应没有 `publicRelay` 时保持
+  LAN-only。
+- `ILanAccessService` 不再提供手动公网端点写入/清除命令；端点元数据只能由配对路径
+  写入。
 - `startLanAccessServer({ relay?, startTunnel? })`：`relay.token` 非空时生成/复用
   `tunnelId`，启动 `startRelayTunnelClient`（`wss://<baseUrl>/_tunnel` →
   `http://127.0.0.1:<port>`），并在配对响应与 `server-info` 中带 `publicRelay`；
   未配置令牌时保持 LAN-only。
-- `ILanAccessService.setPairedPeerPublicEndpoint({ serverId, publicBaseUrl })`：
-  `publicBaseUrl = null` 清除公网端点；清除后若没有其它端点则拒绝（提示直接删除配对）。
-  新增时替换已有公网端点，保留 LAN 端点、名称与令牌。
 - `probeRemoteDesktopPeer` / `openRemoteDesktopPeerSession` / `getLanPairedPeerWorkspaces`
   统一按端点数组尝试；会话 URL 的 WebSocket 协议由端点 scheme 推导：
   `https → wss`，`http → ws`。
@@ -147,8 +148,9 @@ interface LanPublicRelayInfo {
 
 ### UI
 
-- `RemoteControlPublicPairing`：HTTPS 地址 + 配对码，调用 `pairLanPeer({ scheme: "https" })`。
-- `RemoteControlLanPeerRow`：新增“公网地址”编辑入口；保存/清除后由设备页重读列表。
+- `RemoteControlPublicPairing` 已删除：远程控制页不再提供公网地址输入；公网配对照旧
+  消费同一个 6 位码，入口在 Mode 账号弹窗的云设备目录。
+- `RemoteControlLanPeerRow`：公网端点只读展示，不提供“公网地址”编辑/清除入口。
 - 设备行地址显示主端点（有公网端点时即公网），并在存在 LAN 端点时追加 LAN 地址；
   探测命中公网时详情文案标注“公网”。
 
@@ -159,8 +161,9 @@ interface LanPublicRelayInfo {
 主控 ── POST http://<lan>:45880/api/lan/pair ──► 被控
      ◄── {token, serverId, publicRelay?} ── 写 meta{endpoints:[公网(自动), LAN]}
 
-② 配对（公网）
-主控 ── POST https://<domain>/api/lan/pair ──► 隧道 ──► 被控
+② 配对（公网，走 Mode Cloud 目录）
+主控 ── GET /v1/devices（账号令牌）──► 目录 ── 返回 relayUrl=https://<relay>/d/<id>
+主控 ── POST https://<relay>/d/<id>/api/lan/pair（+6 位码）──► 隧道 ──► 被控
      ◄── {token, serverId, publicRelay?} ── 写 meta{endpoints:[公网]}
 
 ③ 探测
@@ -181,17 +184,17 @@ openRemoteDesktopPeerSession → 先探测选端点
 ④' 远程工作区
 RemoteTarget.endpoints → 按同一顺序探测 /api/server-info
   ── POST <endpoint>/api/rpc-host-capability（Cookie 令牌）──►
-  ── WS <endpoint>/ws/host（scheme https→wss，path 保留 /d/<tunnelId>）──►
+   ── WS <endpoint>/ws/host（scheme https→wss，path 保留 /d/<tunnelId>）──►
     成功后该连接绑定选中的端点；会话期间不换端点；断开即 logical session closed
-
-⑤ 编辑公网地址
-UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS → 替换/清除 ──► 保存
-   ── 重读 listPairedPeers → 重新探测
 ```
+
+公网端点没有独立的编辑事件：新增只发生在配对成功时（由 `publicRelay` 自动生成），
+移除只发生在删除配对时。
 
 ## 失败语义
 
-- 公网地址不是 HTTPS、带 query/userinfo、端口非法 → 命令拒绝，UI 显示可读错误。
+- 被控端下发的 `publicRelay` 非法（baseUrl 非 HTTPS、tunnelId 格式不符、端口/路径非法）
+  → 主控忽略该公网端点、仍以主端点配对成功；不写入非法地址。
 - 证书不受信任/主机名不匹配 → 传输失败；**不回退到 http**，设备显示离线或内部错误。
 - 公网端点不可达但 LAN 可达 → 回退成功，设备在线；会话只向 LAN 端点请求。
 - 公网端点返回 401/403 → 直接收口（同一令牌），不尝试 LAN。
@@ -218,13 +221,15 @@ UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS �
 ## 验收场景
 
 1. 旧记录迁移：凭据里只有 `{host,port,name}` 时，设备列表仍显示、可探测、可进入桌面。
-2. LAN 配对后新增 `https://rd.example.com`：设备行显示两个端点；公网可达时连接命中
-   `public`；公网断开/不可达后回退 `lan`，画面、输入、剪贴板正常。
-3. 公网地址配对：无 LAN 直连时输入 HTTPS 地址 + 6 位码，配对成功并出现在设备列表。
-4. 公网地址输成 `http://`、带 path 或端口非法 → 拒绝并提示；`https` 自签证书失败时
-   不降级到 http。
+2. LAN 配对 + 被控端已配置中继：配对响应带 `publicRelay`，设备行自动显示公网端点；
+   公网可达时连接命中 `public`；公网断开/不可达后回退 `lan`，画面、输入、剪贴板正常。
+3. 公网配对：无 LAN 直连时在 Mode 账号弹窗的设备目录选设备 + 输入 6 位码；目录返回的
+   `relayUrl` 自动成为公网端点，配对成功并出现在设备列表，全程不出现地址输入框。
+4. 被控端下发的 `publicRelay` 为 `http`、tunnelId 非法或地址带 query/userinfo → 主控
+   忽略公网端点、保持 LAN-only；`https` 自签证书失败时不降级到 http。
 5. 会话端点级错误（如 `busy`）只出现一次请求，不向另一端点重发（抓包/日志断言）。
-6. 清除公网地址后回到仅 LAN；只有公网端点的设备拒绝清除并提示删除配对。
+6. 远程控制页不再出现「公网设备」面板或设备行「公网地址」按钮；删除配对会同时移除
+   令牌与全部端点。
 7. LAN 发现、配对码、Tailscale 直连、既有 LAN 远程工作区挂接不回归。
 7'. 远程工作区：同一设备公网可达时 `/api/server-info`、`/api/rpc-host-capability` 与
    `/ws/host` 全部命中公网端点并使用 `wss`；公网断开后回退 LAN；仅公网端点的设备
@@ -236,62 +241,31 @@ UI ── setPairedPeerPublicEndpoint ──► Host 读 meta → 校验 HTTPS �
     `wss`/`ws` 随端点协议切换。
 11. 未配置中继令牌：配对响应无 `publicRelay`，行为与旧版 LAN-only 一致。
 
-## 部署示例（fnOS + frp + Windows Caddy，TLS 终止在被控端）
+## 自建部署
 
-以下只是参考拓扑，不是代码依赖；把 TLS 放在 Windows 被控端，fnOS 只看得到密文。
+公网地址是内置中继的自动下发结果，不再支持在客户端手填域名：
 
-1. **DNS**：`rd.example.com` 的 A/AAAA 指向 fnOS 公网 IP（动态 IP 用 DDNS）。
-2. **fnOS** `frps.toml`：
-   ```toml
-   bindPort = 7000
-   auth.method = "token"
-   auth.token = "<长随机串>"
-   ```
-   若 fnOS 的 443 已被网关占用，把下面的 `remotePort` 改成 8443，客户端地址相应写成
-   `https://rd.example.com:8443`。
-3. **Windows 被控端** `frpc.toml`：
-   ```toml
-   serverAddr = "rd.example.com"
-   serverPort = 7000
-   auth.method = "token"
-   auth.token = "<同一个长随机串>"
+1. 在被控端/中继侧部署 `packages/cloud-relay`（WSS 中继 + 出站隧道），部署步骤见
+   [wss-relay-mvp.md](./wss-relay-mvp.md)。
+2. 用自己的域名时，把 Host/中继的 `MODE_PUBLIC_RELAY_BASE_URL` 指向该 HTTPS 入口；
+   主控仍从配对响应/`server-info` 的 `publicRelay` 自动获得
+   `https://<base>/d/<tunnelId>`。
+3. 证书必须被 Host sidecar 信任（自签需 `NODE_EXTRA_CA_CERTS`）；TLS 失败时不回退
+   明文 HTTP。
 
-   [[proxies]]
-   name = "rd-tls"
-   type = "tcp"
-   localIP = "127.0.0.1"
-   localPort = 8443
-   remotePort = 443
-   ```
-4. **Windows 被控端** `Caddyfile`（证书用 DNS-01 签发，80 端口不必暴露）：
-   ```caddyfile
-   rd.example.com:8443 {
-     tls C:\certs\rd.example.com\fullchain.pem C:\certs\rd.example.com\privkey.pem
-     reverse_proxy 127.0.0.1:45880
-   }
-   ```
-   Caddy 自动处理 WebSocket upgrade；证书续期后 reload。
-5. **防火墙**：fnOS 只开 443/7000；Windows 的 8443 只允许回环，45880 只允许局域网；
-   Windows 不需要入站 443。
-6. **配对**：主控在远程控制页的「公网设备」填入 `https://rd.example.com` + 被控端生成的
-   6 位码；或在 LAN 内先配对，再用设备行的「公网地址」补上域名。之后探测与会话按
-   公网 → LAN 自动选择。内置中继的部署见 [wss-relay-mvp.md](./wss-relay-mvp.md)。
-
-注意：推荐 Let's Encrypt 等公共 CA；自签证书需要给 Host sidecar 配置
-`NODE_EXTRA_CA_CERTS`，并让 Windows/Tauri 信任根证书，否则 TLS 握手会失败（且不会
-回退到 http）。fnOS 若在 CGNAT 后面，域名无法直接解析到它，需要一台有公网 IP 的
-中转或 Tailscale/WireGuard 之类的叠加网。反向代理/隧道**不要记录完整 query**的访问
-日志：令牌、会话票据与 mediaTicket 都在 query 里，需要脱敏或关闭访问日志。配对完成后
-若不再需要公网配对，可在反代上只放行 `/api/server-info`、`/api/remote-desktop/session`
-与 `/ws/remote-desktop*`，关闭 `/api/lan/pair` 与 `/api/remote-agent/enroll`。
+反向代理/隧道**不要记录完整 query**的访问日志：令牌、会话票据与 mediaTicket 都在
+query 里，需要脱敏或关闭访问日志。配对完成后若不再需要公网配对，可在反代上只放行
+`/api/server-info`、`/api/remote-desktop/session` 与 `/ws/remote-desktop*`，关闭
+`/api/lan/pair` 与 `/api/remote-agent/enroll`。
 
 ## 非目标
 
-- 不实现 NAT 穿透/打洞、frp/Caddy 安装器；内置 relay 的部署见
-  [wss-relay-mvp.md](./wss-relay-mvp.md)。
+- 不实现 NAT 穿透/打洞；内置 relay 的部署见 [wss-relay-mvp.md](./wss-relay-mvp.md)，
+  自建入口只通过 `MODE_PUBLIC_RELAY_BASE_URL` 接入同一套中继机制。
 - 不做中继侧账号体系与逐设备令牌签发；当前中继令牌是部署级共享 secret。
 - 不在公网端点上新增 Web/手机远控协议：浏览器远控复用 LAN 服务的静态资源与
   `web-remote-replayable`，公网访问仍经 HTTPS/WSS 反代或内置中继。
 - 不做远程工作区的会话级端点切换：连接建立后断开即收口，由用户/重连重新选端点。
-- 不在公网端点上做独立发现；由被控端在配对/`server-info` 中自动下发，显式地址可覆盖。
+- 不在公网端点上做独立发现，也不提供手动地址覆盖：公网端点只由被控端在配对/
+  `server-info` 中自动下发。
 - 不做上行输入/剪贴板的端到端加密（TLS 终止在中继时的前提，属 P3）。

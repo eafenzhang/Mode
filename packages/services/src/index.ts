@@ -82,7 +82,6 @@ export {
   type LanAccessRenamePairedPeerParams,
   type LanAccessServerIdParams,
   type LanAccessSetEnabledParams,
-  type LanAccessSetPeerPublicEndpointParams,
 } from "./lan-access/lanAccessService.js";
 
 // Mode Cloud 账号与设备目录（local-only RPC 频道；只在 Host 侧装载）

@@ -144,10 +144,8 @@ export async function pairLanPeer(params: {
   port: number;
   code: string;
   label?: string;
-  /** 主端点协议；缺省 http。https 用于公网地址配对。 */
+  /** 主端点协议；缺省 http。https 用于经目录/中继的公网配对。 */
   scheme?: "http" | "https";
-  /** 可选：配对成功后一并记录的公网 HTTPS 基础地址。 */
-  publicBaseUrl?: string;
   /** 主端点的路径前缀（中继/反代）。 */
   path?: string;
 }): Promise<LanAccessPairResult> {
@@ -162,11 +160,6 @@ export async function pairLanPeer(params: {
   const basePath = params.path?.trim() ?? "";
   if (basePath && (!/^\/[^?#]*$/u.test(basePath) || basePath.length > 512)) {
     throw new Error("路径前缀无效");
-  }
-  const publicBaseUrl = params.publicBaseUrl?.trim() ?? "";
-  const publicEndpoint = publicBaseUrl ? parseLanPublicBaseUrl(publicBaseUrl) : null;
-  if (publicBaseUrl && !publicEndpoint) {
-    throw new Error("公网地址必须是 HTTPS，且不能带查询参数或账号信息");
   }
   const primaryEndpoint: LanPeerEndpoint = {
     scheme,
@@ -212,16 +205,11 @@ export async function pairLanPeer(params: {
     ...(typeof payload.name === "string" && payload.name ? { name: payload.name } : {}),
     ...(publicRelay ? { publicRelay } : {}),
   };
-  // 内置公网中继：被控端随配对响应下发 baseUrl + tunnelId，主控自动生成公网端点。
-  // 显式传入的 publicBaseUrl 优先（允许覆盖/自建域名）；否则用内置中继。
-  const autoPublicEndpoint =
-    publicEndpoint || !publicRelay ? null : buildAutoPublicEndpoint(publicRelay);
+  // 内置公网中继：被控端随配对响应下发 baseUrl + tunnelId，主控自动生成公网端点；
+  // 产品 UI 不提供手填地址，公网端点只来自这里（含经目录配对时的 relayUrl）。
+  const autoPublicEndpoint = publicRelay ? buildAutoPublicEndpoint(publicRelay) : null;
   // 端点顺序是连接优先级：公网在前、LAN 在后；同类保持调用方顺序。
-  const newEndpoints = [
-    primaryEndpoint,
-    ...(publicEndpoint ? [publicEndpoint] : []),
-    ...(autoPublicEndpoint ? [autoPublicEndpoint] : []),
-  ];
+  const newEndpoints = [primaryEndpoint, ...(autoPublicEndpoint ? [autoPublicEndpoint] : [])];
   if (result.serverId) {
     await params.credentials.save(buildLanPeerTokenKey(result.serverId), result.token);
     // 重复配对同一 serverId 时合并端点：本次配对的端点优先作为主地址；已有 LAN 端点

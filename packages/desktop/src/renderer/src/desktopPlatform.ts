@@ -126,16 +126,6 @@ export function createDesktopPlatform(options: {
         ? Promise.reject(new Error("lan-access Host 服务不可用，无法重命名配对"))
         : window.mode.renameLanPairedPeer(serverId, name);
     },
-    // 公网端点只在 Host 侧落凭据；Tauri 注入层没有这条 IPC，拿不到 Host 服务就显式拒绝。
-    setLanPeerPublicAddress: (serverId, publicBaseUrl) => {
-      const lan = resolveLanAccessService();
-      if (lan) {
-        return lan.setPairedPeerPublicEndpoint({ serverId, publicBaseUrl });
-      }
-      return isTauriRendererRuntime()
-        ? Promise.reject(new Error("lan-access Host 服务不可用，无法保存公网地址"))
-        : Promise.reject(new Error("当前版本不支持保存公网地址"));
-    },
     // 局域网远程桌面（main 的 rd/* IPC；通道名与形状冻结在 main/remoteDesktop/ipcChannels.ts）。
     // 设置面（LR-2）与主控会话（LR-3）在 Tauri 下走 Host；剪贴板读取仍留在壳（LR-3 缺口）。
     rdGetPeerCapability: (serverId) => {

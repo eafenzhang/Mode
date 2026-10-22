@@ -6443,11 +6443,6 @@ const enUS: Record<string, string> = {
   "remoteDesktop.device.deleteAsk":
     'Delete "{name}"? Its pairing token and metadata will be removed.',
   "remoteDesktop.device.deleteConfirm": "Confirm delete",
-  "remoteDesktop.device.publicAddress": "Public address",
-  "remoteDesktop.device.publicAddressHint":
-    "Enter the domain of your HTTPS tunnel; leave empty to clear. HTTPS only.",
-  "remoteDesktop.device.publicAddressInvalid":
-    "Public address must be HTTPS, e.g. https://rd.example.com",
   "remoteDesktop.device.publicEndpoint": "Public",
   "remoteDesktop.device.publicRoute": "Connected over the internet",
   "remoteDesktop.device.lanRoute": "Connected over LAN",
@@ -6506,20 +6501,6 @@ const enUS: Record<string, string> = {
   "remoteDesktop.pairing.copyFailed": "Copy failed",
   "remoteDesktop.pairing.failed": "Failed to generate pairing code",
   "remoteDesktop.pairing.hint": "Valid for 5 minutes; single use.",
-  "remoteDesktop.publicPairing.title": "Public device",
-  "remoteDesktop.publicPairing.description":
-    "Pair for the first time with the HTTPS tunnel domain you configured for the peer and its 6-digit code.",
-  "remoteDesktop.publicPairing.addressLabel": "HTTPS address",
-  "remoteDesktop.publicPairing.addressPlaceholder": "https://rd.example.com",
-  "remoteDesktop.publicPairing.codeLabel": "Pairing code",
-  "remoteDesktop.publicPairing.pair": "Pair",
-  "remoteDesktop.publicPairing.pairing": "Pairing…",
-  "remoteDesktop.publicPairing.invalidAddress":
-    "Public address must be HTTPS, e.g. https://rd.example.com",
-  "remoteDesktop.publicPairing.missingCode": "Enter the 6-digit pairing code shown on the peer",
-  "remoteDesktop.publicPairing.failed": "Public pairing failed",
-  "remoteDesktop.publicPairing.hint":
-    "After pairing, LAN is preferred and the public endpoint is used as a fallback.",
   "remoteDesktop.cloud.title": "Mode Cloud",
   "remoteDesktop.cloud.wechatLogin": "Sign in with WeChat",
   "remoteDesktop.cloud.wechatStarting": "Generating login code…",

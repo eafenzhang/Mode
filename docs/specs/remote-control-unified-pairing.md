@@ -32,9 +32,9 @@
   不进入产品 UI。
 - 方向语义：本机码供其他设备接入**本机**；「添加设备」输入的是**对端**的同一类码。
   两个方向共用格式、TTL 与单次消费语义。
-- 无法直连 LAN 时，远程控制页提供「公网地址 + 配对码」入口：仍调用同一个
-  `pairLanPeer`、消费同一个码，不新增第二套码或第二份 TTL；公网地址必须是 HTTPS
-  （[lan-remote-public-endpoints.md](./lan-remote-public-endpoints.md)）。
+- 无法直连 LAN 时走 Mode Cloud 设备目录：在 Mode 账号弹窗选择账号设备并输入同一个
+  6 位码；目录下发的内置中继地址自动成为公网端点，远程控制页不提供公网地址输入
+  （[mode-cloud-account-directory.md](./mode-cloud-account-directory.md)）。
 - 云端微信登录的 6 位十进制码与 Bot `/bind` 码**不是配对码**，只用于账号绑定；
   UI 不再用“配对码”称呼它们（[mode-cloud-account-directory.md](./mode-cloud-account-directory.md)）。
 
@@ -73,6 +73,12 @@
 同一台 LAN 设备可同时出现“连接工作区”和“进入桌面”；公网端点对两条通道都可用。
 Mode Agent 的刷新走 MCP `listWorkspaceMcpServerStatuses(mode="connect")`，更新连接状态与工具数；
 重命名只写 MCP 配置里的 `modeAgent.name`，保持 serverName、URL、Authorization 不变。
+
+`modeAgent` 元数据（`agentId` / `name` / `host` / `port` / `pairedAt` / 版本与平台）与
+server 同存一份配置，属于跨 UI 与 runtime 的配置契约：CLI/runtime 的 MCP server schema
+必须接受并原样保留该键。strict 校验不能因为未知元数据丢弃整个 server——否则设备从
+可用的 MCP 工具面消失，「发起对话」会退化成普通本机工作区会话（表现为
+`config.mcp_server.skipped`、会话 `mcpServerCount: 0`）。
 
 空态：没有任何设备时展示统一空态；扫描无结果只在列表内提示，不新增独立卡片。
 
@@ -130,7 +136,8 @@ Mode Agent 的刷新走 MCP `listWorkspaceMcpServerStatuses(mode="connect")`，�
 生成码：确保 LAN 监听开启 → createLanAccessPairCode → 展示 code + 配对串
 接入：对端/agent POST 同一码 → consumePairCode → LAN 发令牌 / agent 探活并写 MCP
 扫描：discoverLanPeers → 过滤已配对/已忽略 → 合并进同一列表
-发起对话：确保 MCP 启用 → handleCreateTaskInChat → showChatMainView → startDraft + 预填
+发起对话：确保 MCP 启用 → 有 Side Pane 宿主时打开 mode-agent-chat tab（无宿主回退 handleCreateTaskInChat）
+首发：createSession(当前 workspace) → 会话加载 modeAgent server 的 MCP 工具 → tab 绑定 sessionId
 ```
 
 ## 验收场景
@@ -141,7 +148,10 @@ Mode Agent 的刷新走 MCP `listWorkspaceMcpServerStatuses(mode="connect")`，�
    输入框在底部且为空（无 Logo/问候），直接输入任务即可；首发后 tab 绑定到真实 session。
 4. 8 位「手动配对」UI 不再出现。
 5. 多地址机器默认选 `192.168/10` 地址；切换地址后配对串随之变化。
-6. `pnpm typecheck`、`pnpm lint` 与相关 UI/desktop 测试通过。
+6. 已配对 Mode Agent 的 MCP 配置带 `modeAgent` 元数据时，runtime 仍加载该 server
+  （会话 `mcpServerCount > 0`，无 `config.mcp_server.skipped`）；设备对话里的请求能调用
+  该设备的 MCP 工具，而不是只由本机工作区 Agent 回答。
+7. `pnpm typecheck`、`pnpm lint` 与相关 UI/desktop 测试通过。
 
 ## 不做
 

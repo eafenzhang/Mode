@@ -6347,11 +6347,6 @@ const faIR: Record<string, string> = {
   "remoteDesktop.device.delete": "حذف",
   "remoteDesktop.device.deleteAsk": "«{name}» حذف شود؟ توکن پیوند و فراداده نیز پاک می‌شوند.",
   "remoteDesktop.device.deleteConfirm": "تأیید حذف",
-  "remoteDesktop.device.publicAddress": "نشانی عمومی",
-  "remoteDesktop.device.publicAddressHint":
-    "دامنه تونل HTTPS را وارد کنید؛ برای پاک کردن خالی بگذارید. فقط https.",
-  "remoteDesktop.device.publicAddressInvalid":
-    "نشانی عمومی باید HTTPS باشد، مثلاً https://rd.example.com",
   "remoteDesktop.device.publicEndpoint": "عمومی",
   "remoteDesktop.device.publicRoute": "اتصال از اینترنت",
   "remoteDesktop.device.lanRoute": "اتصال از شبکه محلی",
@@ -6410,20 +6405,6 @@ const faIR: Record<string, string> = {
   "remoteDesktop.pairing.copyFailed": "رونوشت ناموفق بود",
   "remoteDesktop.pairing.failed": "ساخت کد جفت‌سازی ناموفق بود",
   "remoteDesktop.pairing.hint": "۵ دقیقه معتبر است؛ فقط یک بار استفاده می‌شود.",
-  "remoteDesktop.publicPairing.title": "دستگاه عمومی",
-  "remoteDesktop.publicPairing.description":
-    "برای نخستین جفت‌سازی، دامنه تونل HTTPS که برای دستگاه مقابل پیکربندی کرده‌اید و کد ۶ رقمی آن را وارد کنید.",
-  "remoteDesktop.publicPairing.addressLabel": "نشانی HTTPS",
-  "remoteDesktop.publicPairing.addressPlaceholder": "https://rd.example.com",
-  "remoteDesktop.publicPairing.codeLabel": "کد جفت‌سازی",
-  "remoteDesktop.publicPairing.pair": "جفت‌سازی",
-  "remoteDesktop.publicPairing.pairing": "در حال جفت‌سازی…",
-  "remoteDesktop.publicPairing.invalidAddress":
-    "نشانی عمومی باید HTTPS باشد، مثلاً https://rd.example.com",
-  "remoteDesktop.publicPairing.missingCode": "کد ۶ رقمی نمایش‌داده‌شده روی دستگاه مقابل را وارد کنید",
-  "remoteDesktop.publicPairing.failed": "جفت‌سازی عمومی ناموفق بود",
-  "remoteDesktop.publicPairing.hint":
-    "پس از جفت‌سازی، شبکه محلی در اولویت است و نشانی عمومی جایگزین می‌شود.",
   "remoteDesktop.cloud.title": "Mode Cloud",
   "remoteDesktop.cloud.wechatLogin": "ورود با وی‌چت",
   "remoteDesktop.cloud.wechatStarting": "در حال ساخت کد ورود…",
