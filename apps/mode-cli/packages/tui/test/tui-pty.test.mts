@@ -12,7 +12,8 @@
  * - B3 思考块：`reasoning_delta` 以折叠块呈现；
  * - C3 审批：面板出现，默认 Deny 确认后返回 deny；
  * - D1 工具卡片：running → completed 状态都上屏；
- * - E2 斜杠命令：输入 `/` 出现补全，Tab 补全后提交。
+ * - E2 斜杠命令：输入 `/` 出现补全，Tab 补全后提交；
+ * - E3 模式切换：Shift+Tab 调用客户端的 setMode（标记写入，界面标签不在断言面）。
  *
  * 退出链路不在本用例里：会话屏的 Ctrl-C 带防误退/中断流语义，发行形态的
  * 键盘退出已由 `scripts/mode-distribution-smoke.mjs` 覆盖；这里用 `terminal.kill()` 收尾。
@@ -20,8 +21,10 @@
  * 其余场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支 + 这里加一条断言。
  */
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
 import test from "node:test";
 
 import * as pty from "node-pty";
@@ -50,7 +53,7 @@ interface TuiSession {
   stop(): void;
 }
 
-function startTui(scenario: string): TuiSession {
+function startTui(scenario: string, extraEnv: Record<string, string> = {}): TuiSession {
   const terminal = pty.spawn(process.execPath, ["--import", "tsx", fixture], {
     name: "xterm-256color",
     cols: 110,
@@ -61,6 +64,7 @@ function startTui(scenario: string): TuiSession {
       TERM: "xterm-256color",
       NO_COLOR: "1",
       PTY_SCENARIO: scenario,
+      ...extraEnv,
     },
   });
   let output = "";
@@ -164,24 +168,34 @@ test("TUI PTY B3：reasoning 以折叠思考块呈现", async () => {
 });
 
 test("TUI PTY C3：审批面板出现，默认 Deny 确认", async () => {
-  const session = startTui("approval");
+  const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-approval-"));
+  const resultFile = join(resultDir, "result.txt");
+  const session = startTui("approval", { PTY_RESULT_FILE: resultFile });
   try {
     await waitForReady(session);
     session.write("run it\r");
     await session.waitForSubstring("Approval required: Bash", "审批面板出现");
     await session.waitForSubstring("Up/Down choose", "审批面板提示行");
-    // 面板绘制与键盘处理器读到的 approvalQueue 之间有一个渲染周期；稍等再确认。
-    await delay(400);
-    // 面板默认选中 Deny（安全默认），Enter 确认。并发负载下首个按键偶发丢失，补一次。
-    session.write("\r");
-    await delay(500);
-    if (!session.screen().includes("PTY_APPROVAL_D")) {
+    // 面板默认选中 Deny（安全默认），Enter 确认。首个按键在负载下偶发丢失，
+    // 改为「轮询结果文件 + 期间周期性重发 Enter」，直到夹具记录 deny。
+    const deadline = Date.now() + 8_000;
+    let decided = false;
+    while (Date.now() < deadline) {
       session.write("\r");
+      await delay(300);
+      try {
+        if (readFileSync(resultFile, "utf8").includes("PTY_APPROVAL_D")) {
+          decided = true;
+          break;
+        }
+      } catch {
+        // 文件尚未创建：继续重试。
+      }
     }
-    // 夹具用短码避免 TUI 重绘裁掉长标记：A=allow_once / B=allow_project / D=deny。
-    await session.waitForSubstring("PTY_APPROVAL_D", "审批返回 deny");
+    assert.equal(decided, true, `审批未在期限内返回 deny\n--- screen ---\n${session.screen()}`);
   } finally {
     session.stop();
+    rmSync(resultDir, { recursive: true, force: true });
   }
 });
 
@@ -196,6 +210,22 @@ test("TUI PTY E2：输入 / 出现补全，Tab 补全后提交", async () => {
     await delay(120);
     session.write("now\r");
     await session.waitForSubstring("PTY_PROMPT_HELP", "补全后的 /help 进入提交");
+  } finally {
+    session.stop();
+  }
+});
+
+test("TUI PTY E3：Shift+Tab 触发模式切换", async () => {
+  const session = startTui("stream");
+  try {
+    await waitForReady(session);
+    // 初始 Build；切换顺序 plan → build → edit → yolo，所以下一档是 edit。
+    for (const sequence of ["\u001b[9;2u", "\u001b[1;2Z", "\u001b[Z"]) {
+      session.write(sequence);
+      await delay(300);
+      if (/PTY_MODE_/u.test(session.screen())) break;
+    }
+    await session.waitForSubstring("PTY_MODE_edit", "setMode 收到 edit");
   } finally {
     session.stop();
   }

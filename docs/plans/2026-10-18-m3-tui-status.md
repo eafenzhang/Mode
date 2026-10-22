@@ -87,7 +87,7 @@
 | --- | ------------------------------------ | --------------------------------------------------------------------------------------- | --------------------------------------- |
 | E1  | 输入面板：光标、换行、粘贴、状态行   | `app-input-pane.tsx`、`app-input-status.tsx`                                            | 无自动化                                |
 | E2  | 斜杠命令：补全、执行、错误           | `app-keyboard-suggestions.ts`、`TuiSlashCommandSuggestion`                              | 自动化（PTY，补全+提交）+ 补全/窗口（批 11、34） |
-| E3  | 模式/模型/effort：切换命令与建议面板 | `app-mode-command.ts`、`app-model-command.ts`、`app-effort-command.ts`、`TuiSetMode`    | 部分：过滤/选择/补全（批 21、22、34）   |
+| E3  | 模式/模型/effort：切换命令与建议面板 | `app-mode-command.ts`、`app-model-command.ts`、`app-effort-command.ts`、`TuiSetMode`    | 自动化（PTY，Shift+Tab→setMode）+ 过滤/选择/补全（批 21、22、34） |
 | E4  | 文件提及：`@` 补全与工作区建议       | `app-file-mentions.ts`、`app-file-mention-panel.tsx`、`TuiListWorkspacePathSuggestions` | 部分：可视窗口（批 16）                 |
 | E5  | 键盘帮助与快捷键：平台差异           | `app-keyboard.ts`、`app-keyboard-helpers.ts`                                            | 部分：快捷键逻辑（批 2、5、23、34、35） |
 
@@ -249,17 +249,21 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 形态：夹具直接调真 `runTui`（不提供 `loadStartupOptions`，跳过启动屏），
   `submitPrompt` 按脚本推 `model_streaming` 文本增量；测试用 `node-pty` 提供 TTY、
   收集并去 ANSI 后断言屏幕文本。
-- 已覆盖（9/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、A5 busy 排队面板、
+- 已覆盖（10/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、A5 busy 排队面板、
   B1 两段 `text_delta`、B2 工具输入增量不入正文、B3 折叠思考块、
-  C3 审批面板 + 默认 Deny 确认、D1 工具卡 running→completed、E2 `/` 补全 + Tab 提交。
+  C3 审批面板 + 默认 Deny 确认、D1 工具卡 running→completed、E2 `/` 补全 + Tab 提交、
+  E3 Shift+Tab 触发 `setMode`。
   A5 的「空闲后按序提交」由 runtime 负责，PTY 用例只证明输入进入了队列面板。
 - 平台注意：Windows 的 PTY 主端忽略 `encoding` 选项、中文会按系统代码页变乱码，
-  所以夹具固定 `locale: "en-US"` 并只用 ASCII 标记断言；控件信号用短标记
-  （`PTY_APPROVAL_D`）避免 TUI 重绘裁掉长行。清理无语义退出（会话屏 Ctrl-C 带防误退/
-  中断流语义），键盘退出仍由 `scripts/mode-distribution-smoke.mjs` 在发行包上覆盖。
-- C1 (`allow_once`) 尚未自动化：审批面板默认选中 Deny，上移键在当前 PTY 下解码不稳，
-  需要先确定 opentui 的方向键编码或改用鼠标/数字快捷键，再补用例。
-- 其余 24 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
+  所以夹具固定 `locale: "en-US"` 并只用 ASCII 标记断言。清理无语义退出（会话屏
+  Ctrl-C 带防误退/中断流语义），键盘退出仍由 `scripts/mode-distribution-smoke.mjs`
+  在发行包上覆盖。
+- 控制信号两条路：**屏幕短标记**（`PTY_MODE_edit` 等，适合一次性可观察信号）与
+  **结果文件**（`PTY_RESULT_FILE` 追加，适合会被重绘覆盖/裁掉、或需要轮询重发按键的信号）。
+  C3 用后者：轮询结果文件期间周期性重发 Enter，避免「首个按键在负载下偶发丢失」的竞态。
+- 仍被按键编码阻塞的两条：**C1**（审批面板上移选择）与 **A6**（空草稿上键召回）。
+  已试过 `\u001b[A` / `\u001b[1;1A` / `\u001bOA`，方向键均未到达处理器（疑似被输入编辑器
+  消费）；需要先确认 opentui 在本环境的方向键编码，或改用鼠标/数字快捷键。
+- 其余 23 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
   `options.requestPermission`，busy 输入走 `sendInput`，工具/问题走对应 `SessionEventType`）
-  + 一条屏幕断言。C3 在并发负载下首个 Enter 偶发丢失，用「看到提示行 + 400ms 后再确认，
-  500ms 未见结果补一次」稳定。
+  + 一条屏幕断言。

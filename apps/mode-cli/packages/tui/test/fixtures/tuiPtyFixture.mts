@@ -10,6 +10,7 @@
  * - `PTY_STREAM_*` / `PTY_TURN_*` / `PTY_THOUGHT_*` / 工具名等则经真实的 TUI 渲染路径显示。
  */
 import { randomUUID } from "node:crypto";
+import { appendFileSync } from "node:fs";
 
 import { SessionEventType, type SessionEvent } from "@mode/contracts";
 import { runTui } from "../../src/index.js";
@@ -36,6 +37,20 @@ function event(type: SessionEvent["type"], payload: unknown, turnId?: string): S
 }
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * 控制信号旁路：PTY 屏幕会被 TUI 重绘覆盖，长标记也可能被裁掉。
+ * 测试可通过 `PTY_RESULT_FILE` 指定一个文件，夹具把关键结果追加进去，避免靠屏幕轮询。
+ */
+const resultFile = process.env.PTY_RESULT_FILE?.trim();
+function recordControl(line: string): void {
+  if (!resultFile) return;
+  try {
+    appendFileSync(resultFile, `${line}\n`);
+  } catch {
+    // 结果文件写失败不影响 TUI 本身；stderr 仍保留同样的标记供人工排障。
+  }
+}
 
 type SubmitOptions = {
   onEvent?: (event: SessionEvent) => unknown;
@@ -216,6 +231,7 @@ async function submit(prompt: unknown, options: SubmitOptions) {
     const decisionCode =
       result?.decision === "allow_once" ? "A" : result?.decision === "allow_project" ? "B" : "D";
     process.stderr.write(`PTY_APPROVAL_${decisionCode}\n`);
+    recordControl(`PTY_APPROVAL_${decisionCode}`);
     return { response: "" };
   }
 
@@ -240,6 +256,11 @@ process.exitCode = await runTui({
   workspaceDirectory: process.cwd(),
   slashCommands: [{ name: "help", summary: "Show help", usage: "/help" }],
   submitPrompt: submit,
+  // E3：Shift+Tab 的模式切换必须打到客户端能力面。
+  setMode: async (mode) => {
+    process.stderr.write(`PTY_MODE_${mode}\n`);
+    return { mode };
+  },
   // 仅 busy 时被调用；返回 queued，让 TUI 渲染排队面板。
   sendInput: async () => {
     sendInputCount += 1;
