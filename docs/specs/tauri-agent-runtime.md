@@ -295,6 +295,31 @@ b
 ⇒ 计划里的 `AllowOnce | AllowAlways | ProjectAlways | Deny` **四态应改成三态**；`allow_always`
 只是 `allow_project` 这条选项的 `kind` 标签，**没有独立的全局一直允许**。
 
+**宿主帧映射（Task 6 Step 5，2026-10-22 落地）**
+
+运行时与 host 之间的审批只走 stdio 反向请求，不另设进程内旁路：
+
+| 方向 | 帧 |
+| --- | --- |
+| 运行时 → host | `{"id":"server-<n>","method":"interaction/requestPermission","params":<上面的请求参数>}` |
+| host → 运行时 | `{"id":"<同一 id>","result":<PermissionResponse>}`，或 `{"id":…,"error":{code,message,data?}}` |
+
+- `id` 由运行时侧**按连接共享**的分配器单调分配（`server-1` 起，与
+  `session/requestRuntimePreferences` 的反向请求同一 id 空间）；多个会话/多个反向请求
+  发射点必须复用同一个分配器，否则 id 碰撞会让应答被错误的请求认领。应答靠 id 关联，
+  不按到达顺序配对。
+- `params` 就是上面的请求对象原样序列化（`camelCase`，含 `options[]`）。host 解析失败时按 §1.3
+  的失败语义显式回错误，不静默丢弃；TS host 的观察值是 `-32602` /
+  `Invalid permission request params`。
+- `result` 只要求 `decision`；`reason` / `modifiedInput` / `permissionUpdates` 缺省按 `None`。
+- **fail closed**：错误应答、`result` 解码失败、反向通道关闭、序列化失败，一律转成 `deny`
+  （理由带上失败事实），不把「没答上来」当成允许。
+- 与本请求 id 不匹配的应答帧会被忽略（属于该连接上其他 pending 反向请求）；本处理器不缓存、
+  不重放。
+- 通道必须是**专用**的：出向只承载反向请求，入向只承载应答；通知帧（`session/event`）走宿主
+  自己的事件循环，不进这条通道。
+- 本层**不做**规则落库：`allow_project` 的持久化仍由运行时直连 `db.sqlite`（D1 裁决 (a)）。
+
 **落盘（Task 3 Step 1 的产物：格式以 oracle 观察为准）**
 
 `allow_project` **不写任何文件**（`cwd` 与数据根都无新增文件），它写的是运行时 DB 的一行——
@@ -398,8 +423,9 @@ CREATE TABLE local_setting (
 写失败记在 `rule_store_error()`。
 与 M3 Node Host 同时打开同一 DB 的剩余风险是 **Host 侧长事务**导致的等待，而不是丢更新。
 
-审批的宿主适配已提供本地半边：`ChannelPermissionHandler`（请求/应答 channel，
-通道断开按 deny）；把它接到 stdio 的 `interaction/requestPermission` 反向请求仍待 host 层。
+审批的宿主适配已有两半：`ChannelPermissionHandler`（进程内 channel，通道断开按 deny）与
+`FramePermissionHandler`（stdio 帧映射，2026-10-22：反向请求/应答与 id 关联，见 §3.3
+「宿主帧映射」）；后者负责把 channel 两端接到 `interaction/requestPermission`。
 
 **未决（写进计划，不自行拍板）**：这条持久化归**谁**写？观察里是运行时装进程自己写的，但
 目标架构中 DB 由 M3 的 Node Host 侧持有（`node:sqlite`）。Rust 侧是直连 sqlite 还是经 Host 代理，

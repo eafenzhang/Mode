@@ -18,7 +18,45 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::frame::ExtraFields;
+use crate::frame::{ExtraFields, Frame, RequestFrame, RequestId, ResponseFrame};
+
+/// 审批反向请求的方法名（stdio 实测，见 spec §1.3 / §3.3）。
+pub const REQUEST_PERMISSION_METHOD: &str = "interaction/requestPermission";
+
+/// 审批帧映射失败：方法名不符，或 `params` / `result` 解不开。
+///
+/// 宿主侧与运行时侧共用：解析失败必须显式暴露，不能把「没覆盖」当成「已覆盖」。
+#[derive(Debug)]
+pub enum PermissionFrameError {
+    UnexpectedMethod(String),
+    MissingParams,
+    InvalidParams(serde_json::Error),
+    InvalidResponse(serde_json::Error),
+}
+
+impl std::fmt::Display for PermissionFrameError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnexpectedMethod(method) => write!(formatter, "unexpected method {method:?}"),
+            Self::MissingParams => write!(formatter, "permission request params are missing"),
+            Self::InvalidParams(error) => {
+                write!(formatter, "invalid permission request params: {error}")
+            }
+            Self::InvalidResponse(error) => {
+                write!(formatter, "invalid permission response: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PermissionFrameError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::UnexpectedMethod(_) | Self::MissingParams => None,
+            Self::InvalidParams(error) | Self::InvalidResponse(error) => Some(error),
+        }
+    }
+}
 
 /// 审批请求（`interaction/requestPermission` 的 `params`）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -131,4 +169,44 @@ pub struct PermissionRuleValue {
     pub rule_content: String,
     #[serde(flatten)]
     pub extra: ExtraFields,
+}
+
+impl PermissionRequest {
+    /// 构造运行时 → host 的反向请求帧（`interaction/requestPermission`）。
+    ///
+    /// `id` 由调用方分配并按连接单调递增（反向请求观察到的形状是 `"server-<n>"`）。
+    pub fn to_request_frame(&self, id: RequestId) -> Result<Frame, PermissionFrameError> {
+        let params = serde_json::to_value(self).map_err(PermissionFrameError::InvalidParams)?;
+        Ok(Frame::Request(RequestFrame {
+            id,
+            method: REQUEST_PERMISSION_METHOD.to_string(),
+            params: Some(params),
+            trace: None,
+        }))
+    }
+
+    /// 从反向请求帧解析审批请求（宿主侧使用）；方法名不符或 `params` 解不开即报错。
+    pub fn from_request_frame(frame: &RequestFrame) -> Result<Self, PermissionFrameError> {
+        if frame.method != REQUEST_PERMISSION_METHOD {
+            return Err(PermissionFrameError::UnexpectedMethod(frame.method.clone()));
+        }
+        let params = frame
+            .params
+            .clone()
+            .ok_or(PermissionFrameError::MissingParams)?;
+        serde_json::from_value(params).map_err(PermissionFrameError::InvalidParams)
+    }
+}
+
+impl PermissionResponse {
+    /// 构造 host → 运行时的应答帧（`{"id":…,"result":…}`）。
+    pub fn to_response_frame(&self, id: RequestId) -> Result<Frame, PermissionFrameError> {
+        let result = serde_json::to_value(self).map_err(PermissionFrameError::InvalidResponse)?;
+        Ok(Frame::Response(ResponseFrame { id, result }))
+    }
+
+    /// 从应答帧解析审批答复；`id` 关联由调用方负责。
+    pub fn from_response_frame(frame: &ResponseFrame) -> Result<Self, PermissionFrameError> {
+        serde_json::from_value(frame.result.clone()).map_err(PermissionFrameError::InvalidResponse)
+    }
 }

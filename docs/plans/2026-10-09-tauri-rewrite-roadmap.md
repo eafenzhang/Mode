@@ -52,7 +52,7 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 
 ---
 
-## 进度快照（2026-10-21）
+## 进度快照（2026-10-22）
 
 > 证据：`docs/plans/2026-10-20-installed-0.0.61-acceptance.md`（已安装 0.0.61 自动化门禁与真机验收）、
 > `docs/plans/2026-10-20-runtime-ui-fixes.md`（0.0.61→0.0.63 运行态修复）、
@@ -63,7 +63,7 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 | --- | --- | --- | --- |
 | M0 | 进行中 | 语言门禁、clean-room spec、上游基线、Rust 工具链、helper P1 与黑盒对拍 | `browser-import-helper` C# 重写与真实 Windows 会话验收（P2） |
 | M1 | **已关闭（2026-10-20）** | v0.0.59 三平台出包首次全绿，v0.0.60/61 按三平台同发口径发布；10 命令 E2E、clippy/rustfmt、协议生成物 | 无；体积口径由 DR-M5-2b 放开，macOS/Linux 真机验收转入 M5 |
-| M2 | 代码面基本完成，验收未过 | 工具/权限/会话流/对拍矩阵与 CI 门禁；Rust workspace 30 suites / 202 passed（2026-10-20 验收） | stdio 审批帧映射待接；真实模型 20 个端到端任务未执行 |
+| M2 | 代码面完成，验收未过 | 工具/权限/会话流/对拍矩阵与 CI 门禁；Rust workspace 30 suites / 202 passed（2026-10-20 验收）；stdio 审批帧映射（2026-10-22，+13 用例） | 真实模型 20 个端到端任务未执行 |
 | M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过 | sidecar 按需下载未实现；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收 |
 | M4 | 进行中 | UI 基础件 adapter 全量切换、业务代码对旧 `components/ui/*` 引用清零；上游重合度 9.20% | 旧 UI 文件看屏验收与删除；重合度清零；Rust 台账 514 缺失项与法务收口 |
 | M5 | 进行中 | 三平台 Release 发布口径已启用、Windows 自动发版连续跑通；旧 Electron 线代码/CI 已下线（`d71ed992`） | 三平台签名、EOL 公告与历史文档归档、差分更新、mac/Linux 真机安装/升级 |
@@ -252,9 +252,11 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 端到端任务」仍未执行（需人参与与计费），**M2 不能关闭**。
 同日复跑补充：本机 gnu 路线下 `updater --lib` 与 `mode-tauri --lib` 的测试二进制启动失败
 （`0xc0000139 STATUS_ENTRYPOINT_NOT_FOUND`），其余 crate 测试全绿；疑为本机 WebView2/DLL
-加载环境问题，需在 CI/MSVC 复核，不能据此判定 Rust 代码回归。另：子计划 Task 6 Step 5 的
-stdio `interaction/requestPermission` 帧映射仍未接 host 层（`permission.rs` 与
-`permission_channel.rs` 的注释均标注「帧映射待接」），属于 M2 剩余代码项。〕
+加载环境问题，需在 CI/MSVC 复核，不能据此判定 Rust 代码回归。
+〔**2026-10-22 回填**：Task 6 Step 5 已落地——`FramePermissionHandler`（`agent-core`）与
+`agent-protocol::permission` 的帧编解码把 channel 两端接到 `interaction/requestPermission`；
+新增 13 条用例（协议 6 + 会话 7）全绿，`clippy -D warnings` 与 rustfmt 通过。M2 剩余代码项
+清零，**只剩真实模型 20 个端到端任务这一条人工验收**。〕
 
 **阶段验收：** 对拍套件全绿（工具序列 + 文件快照 + 事件流三层一致）；双链路 E2E 各自通过；用真实模型跑通 20 个端到端任务（改代码/跑测试/浏览器）无行为回归。
 

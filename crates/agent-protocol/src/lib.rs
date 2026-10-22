@@ -55,9 +55,10 @@ pub mod session_event;
 
 pub use frame::{
     ErrorObject, ErrorResponseFrame, ExtraFields, Frame, NotificationFrame, RequestFrame,
-    RequestId, ResponseFrame,
+    RequestId, ResponseFrame, ReverseRequestIds,
 };
 pub use permission::{
-    PermissionDecision, PermissionOption, PermissionOptionKind, PermissionRequest,
-    PermissionResponse, PermissionRuleValue, PermissionUpdate, PermissionUpdateType, RuleBehavior,
+    PermissionDecision, PermissionFrameError, PermissionOption, PermissionOptionKind,
+    PermissionRequest, PermissionResponse, PermissionRuleValue, PermissionUpdate,
+    PermissionUpdateType, RuleBehavior, REQUEST_PERMISSION_METHOD,
 };

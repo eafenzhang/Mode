@@ -16,6 +16,7 @@
 //! `params` / `result` 内部**不在这里**建模：它们的类型由会话事件与 host 命令各自的模块负责；
 //! 未建模的部分按原样保留，不因为一处未建模就整帧解析失败（见 crate 文档的严格度规则）。
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -31,6 +32,23 @@ use serde_json::Value;
 pub enum RequestId {
     Number(i64),
     String(String),
+}
+
+/// 同一条 stdio 连接上反向请求的 id 分配器（`server-1`、`server-2` …，实测形状）。
+///
+/// **必须按连接共享**：多个会话、多个反向请求发射点各自从 1 开始会让 id 碰撞，
+/// 应答会被错误的请求认领。用原子计数是为了让共享实例可以安全地被多个处理器并发持有。
+#[derive(Debug, Default)]
+pub struct ReverseRequestIds {
+    next: AtomicU64,
+}
+
+impl ReverseRequestIds {
+    /// 取下一个 id。
+    pub fn next(&self) -> RequestId {
+        let value = self.next.fetch_add(1, Ordering::Relaxed) + 1;
+        RequestId::String(format!("server-{value}"))
+    }
 }
 
 /// 反向请求 / 请求（`{"id":…,"method":…,"params":…}`）。

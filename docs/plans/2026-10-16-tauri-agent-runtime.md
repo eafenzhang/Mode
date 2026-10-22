@@ -472,8 +472,13 @@ git commit -m "feat(agent-tools): M2 Task 2——只读工具 Read/Glob/Grep 与
       `Session::with_sqlite_rules`；跨会话用例覆盖，写入失败不静默。
 - [x] **Step 4: 跨线程适配**（2026-10-18）：`ChannelPermissionHandler` 用请求/应答 channel
       把审批交给宿主线程；通道断开按 **deny**（fail closed）。3 条用例覆盖 allow/deny/断开。
-- [ ] **Step 5: stdio 帧映射**：把 channel 两端接到 `interaction/requestPermission` 的
-      反向请求/应答（host 层；D1 选 (a) 后 Host 不再代理落库）。
+- [x] **Step 5: stdio 帧映射**（2026-10-22）：`FramePermissionHandler` 把 channel 两端接到
+      `interaction/requestPermission` 反向请求/应答；id 按 `server-<n>` 单调分配、按 id 关联，
+      错误应答/解码失败/通道关闭一律 deny（fail closed）。帧编解码在
+      `agent-protocol::permission`（`to_request_frame` / `from_request_frame` /
+      `to_response_frame` / `from_response_frame`）。契约见 spec §3.3「宿主帧映射」；
+      用例：`agent-protocol/tests/permission_frame.rs` 6 条 + `agent-core/tests/permission_frame.rs`
+      7 条（allow / error / malformed / 无关 id / 断开 / 批量 id 单调）。D1 选 (a) 后 Host 不代理落库。
 
 数据文件与旧版同格式（同 Task 3 的做法：格式取自 oracle）。工具级确认（Tool-level confirmation）
 与 `AskUserQuestion` 的交互面复用 M1 的命令面。

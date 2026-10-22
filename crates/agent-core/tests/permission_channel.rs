@@ -1,6 +1,7 @@
 //! `ChannelPermissionHandler`：宿主线程应答 allow / deny / 通道断开。
 //!
-//! 这是 stdio `interaction/requestPermission` 的本地半边；帧映射仍待 host 层接线。
+//! 这是 stdio `interaction/requestPermission` 的进程内半边；帧映射（反向请求/应答与
+//! id 关联）见 `permission_frame.rs`。
 
 use std::fs;
 use std::path::PathBuf;

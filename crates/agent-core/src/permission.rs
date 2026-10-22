@@ -17,9 +17,11 @@
 //! （保守方向）；`deny` 是用户答复，不是策略输出，所以 [`Decision`] 没有 Deny 变体。
 
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Arc;
 
 use serde_json::Value;
 
+use agent_protocol::frame::{Frame, ReverseRequestIds};
 use agent_protocol::permission::{PermissionDecision, PermissionRequest, PermissionResponse};
 use agent_protocol::ExtraFields;
 use agent_tools::{ModeToolFamily, ToolSpec};
@@ -88,6 +90,80 @@ impl PermissionHandler for ChannelPermissionHandler {
     }
 }
 
+/// stdio 帧映射的运行时半边：把审批接到 `interaction/requestPermission` 反向请求。
+///
+/// 与 [`ChannelPermissionHandler`] 的区别只在线上形状：请求按
+/// [`agent_protocol::permission::REQUEST_PERMISSION_METHOD`] 封成反向请求帧，应答按
+/// `server-<n>` id 关联。失败一律 **deny**（fail closed）：错误应答、`result` 解不开、
+/// 通道关闭、请求序列化失败都不会被当成允许。
+///
+/// 入向通道只应承载应答帧（通知帧走宿主自己的事件循环）；id 不匹配的应答被忽略，
+/// 因为同一条连接上可能还有别的 pending 反向请求。
+pub struct FramePermissionHandler {
+    outbound: Sender<Frame>,
+    inbound: Receiver<Frame>,
+    ids: Arc<ReverseRequestIds>,
+}
+
+impl FramePermissionHandler {
+    /// 返回 `(handler, 宿主侧出向接收端, 宿主侧入向发送端)`。
+    ///
+    /// 两条通道都必须是**专用**的：出向只收反向请求，入向只发对应答帧。
+    /// 单会话测试可直接用；生产宿主应按连接共享 [`ReverseRequestIds`]（见
+    /// [`Self::pair_with_ids`]），否则多会话的 id 会碰撞。
+    pub fn pair() -> (Self, Receiver<Frame>, Sender<Frame>) {
+        Self::pair_with_ids(Arc::new(ReverseRequestIds::default()))
+    }
+
+    /// 用连接级 id 分配器构造，多个会话共享同一个实例。
+    pub fn pair_with_ids(ids: Arc<ReverseRequestIds>) -> (Self, Receiver<Frame>, Sender<Frame>) {
+        let (outbound, host_inbound) = mpsc::channel();
+        let (host_outbound, inbound) = mpsc::channel();
+        (
+            Self {
+                outbound,
+                inbound,
+                ids,
+            },
+            host_inbound,
+            host_outbound,
+        )
+    }
+}
+
+impl PermissionHandler for FramePermissionHandler {
+    fn request(&mut self, request: &PermissionRequest) -> PermissionResponse {
+        let id = self.ids.next();
+        let frame = match request.to_request_frame(id.clone()) {
+            Ok(frame) => frame,
+            Err(error) => return denied(&format!("permission request frame failed: {error}")),
+        };
+        if self.outbound.send(frame).is_err() {
+            return denied("permission frame channel closed");
+        }
+        loop {
+            let frame = match self.inbound.recv() {
+                Ok(frame) => frame,
+                Err(_) => return denied("permission frame channel closed"),
+            };
+            match frame {
+                Frame::Response(response) if response.id == id => {
+                    return PermissionResponse::from_response_frame(&response).unwrap_or_else(
+                        |error| denied(&format!("permission response frame failed: {error}")),
+                    );
+                }
+                Frame::ErrorResponse(error) if error.id == id => {
+                    return denied(&format!(
+                        "permission request failed: {} (code {})",
+                        error.error.message, error.error.code
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
 fn denied(reason: &str) -> PermissionResponse {
     PermissionResponse {
         decision: PermissionDecision::Deny,
@@ -150,10 +226,7 @@ pub fn evaluate(tool: &ToolSpec, args: &Value, ruleset: &Ruleset) -> Decision {
         } else {
             SIDE_EFFECT_REASON
         };
-        return Decision::Ask {
-            risk_level,
-            reason,
-        };
+        return Decision::Ask { risk_level, reason };
     }
     match tool.family {
         ModeToolFamily::FileRead => Decision::Allow,
