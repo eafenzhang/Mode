@@ -4,7 +4,7 @@
 
 **Goal:** 把产品收敛为 TypeScript（前端/工具链）+ Rust（核心/平台）两门语言，用 Rust + Tauri v2 重写全栈，并在重写过程中以 clean-room 纪律实现与上游 `zai-org/ZCode` 的版权切分，达成真正的自研。
 
-**Architecture:** 同仓库绞杀者演进——现有 Electron/TS 栈冻结为"参照实现 + 测试预言机"，新增 `crates/`（Rust workspace）与 `apps/desktop-tauri/`（Tauri v2 壳）；协议类型双端生成并对拍；插件生态以 Node sidecar 按需下载的方式保留在核心之外；体积目标（初装 ≤30MB 核心）由"无 Chromium、无捆绑 Node 核心 + sidecar 按需"达成。
+**Architecture:** 同仓库绞杀者演进——现有 Electron/TS 栈冻结为"参照实现 + 测试预言机"，新增 `crates/`（Rust workspace）与 `apps/desktop-tauri/`（Tauri v2 壳）；协议类型双端生成并对拍；插件生态以 Node sidecar 保留在核心之外（**Host sidecar 随包发布，插件/MCP/Skills 负载按需下载**，见 DR-M3-2）；体积按 DR-M5-2b 拆成「核心」与「Node 运行时 + sidecar」两份预算管理（原「初装 ≤30MB 核心 + sidecar 按需」口径已被 DR-M3-1/DR-M3-2 推翻）。
 
 **Tech Stack:** Rust 1.8x / Tauri v2（tauri-plugin-updater、deep-link、os、tray）、tokio、axum、russh、ratatui、rmcp、portable-pty、notify、schemars/typeshare、React 18 + TS 5（存量前端）、Node sidecar（存量插件宿主）。
 
@@ -24,13 +24,13 @@
 
 1. **语言收窄不在旧仓库全面执行**：旧栈 56% 是上游代码、终将被替换，在它上面做 122 个 `.mjs → .ts` 大迁移是消耗性工作。旧仓库只做两件零风险动作（vendored 标记、语言政策冻结），收窄在新代码里天然成立。
 2. **自研通过重写实现**：重写即换血。只要全程 clean-room，M4 结束时"与上游逐文件 diff 清零"自然成立，不需要单独的清洗项目。
-3. **体积由架构解决**：Tauri 核心无 Chromium；Node 运行时不进初装包，随插件 sidecar 按需下载（复用既有 `MODE_REMOTE_ASSET_CDN_BASE_URL`/`prepare:remote-assets` 基建）。
+3. **体积由架构解决**：Tauri 核心无 Chromium；插件/MCP/Skills 负载按需下载（复用既有 `MODE_REMOTE_ASSET_CDN_BASE_URL`/`prepare:remote-assets` 基建）。**口径更正（DR-M3-2）**：Host sidecar（含 Node 运行时）是 UI 能渲染的前提，随安装包发布，不走按需下载；因此「Node 运行时不进初装包」不再成立，体积按 DR-M5-2b 的两份预算测量。
 
 ## 先拍板的五个决策（M0 决策记录，DR-01…DR-05）
 
 | #     | 决策                        | 结论                                                                                                                                                                                                                                                                                                                     | 依据                                                                                                      |
 | ----- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| DR-01 | 插件宿主                    | Rust 核心 + **Node sidecar 子进程**跑存量 TS 插件/MCP 工具/Skills；sidecar 首启按需下载                                                                                                                                                                                                                                  | 插件生态是 npm/TS（272 插件目录、Claude/Codex 兼容），换引擎=放弃生态；插件属第三方代码，不在"自研"口径内 |
+| DR-01 | 插件宿主                    | Rust 核心 + **Node sidecar 子进程**跑存量 TS 插件/MCP 工具/Skills；sidecar 首启按需下载〔**DR-M3-2 更正（2026-10-16）**：Host sidecar（含 Node 运行时）改为**随安装包发布**；按需下载仅保留插件/MCP/Skills **负载**，见 `docs/plans/2026-10-16-tauri-m3-ecosystem.md`〕                                                                                                                                                                     | 插件生态是 npm/TS（272 插件目录、Claude/Codex 兼容），换引擎=放弃生态；插件属第三方代码，不在"自研"口径内 |
 | DR-02 | 前端 UI 策略                | 骨架期（M1–M3）**可挂载现有 React UI** 加速联调（开发期不分发，不产生额外义务）；**M4 完成 clean-room 替换**，1.0 发布前删除全部上游衍生 UI                                                                                                                                                                              | `packages/ui` 有 15.8 万行仅改名上游代码，终态必须替换；但第一版就重写 UI 会拖死骨架进度                  |
 | DR-03 | 上游同步                    | **立刻停掉** `upstream-audit.yml` 的定时同步（改 `workflow_dispatch`）                                                                                                                                                                                                                                                   | 继续同步=持续引入上游新版权，自研永远还不完                                                               |
 | DR-04 | 上游基线                    | 把上游 main 导入为本仓库 `upstream/zcode-baseline` 分支（一次性 fetch + branch）                                                                                                                                                                                                                                         | 兑现 NOTICE"对照上游仓库 diff 追溯"；给 M4 的 diff 清零验收当标尺                                         |
@@ -64,7 +64,7 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
 | M0 | 进行中 | 语言门禁、clean-room spec、上游基线、Rust 工具链、helper P1 与黑盒对拍 | `browser-import-helper` C# 重写与真实 Windows 会话验收（P2） |
 | M1 | **已关闭（2026-10-20）** | v0.0.59 三平台出包首次全绿，v0.0.60/61 按三平台同发口径发布；10 命令 E2E、clippy/rustfmt、协议生成物 | 无；体积口径由 DR-M5-2b 放开，macOS/Linux 真机验收转入 M5 |
 | M2 | 代码面完成，验收未过 | 工具/权限/会话流/对拍矩阵与 CI 门禁；Rust workspace 30 suites / 202 passed（2026-10-20 验收）；stdio 审批帧映射（2026-10-22，+13 用例） | 真实模型 20 个端到端任务未执行 |
-| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过 | sidecar 按需下载未实现；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收 |
+| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过 | 插件/MCP/Skills **负载**的 CDN 发布与产品接线（Host sidecar 已按 DR-M3-2 随包发布，不是缺口）；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收 |
 | M4 | 进行中 | UI 基础件 adapter 全量切换、业务代码对旧 `components/ui/*` 引用清零；上游重合度 9.20% | 旧 UI 文件看屏验收与删除；重合度清零；Rust 台账 514 缺失项与法务收口 |
 | M5 | 进行中 | 三平台 Release 发布口径已启用、Windows 自动发版连续跑通；旧 Electron 线代码/CI 已下线（`d71ed992`） | 三平台签名、EOL 公告与历史文档归档、差分更新、mac/Linux 真机安装/升级 |
 
@@ -159,7 +159,7 @@ M5 发布收口     ▸ 1–2 月    更新链/签名/旧线 EOL/软著商标
       （与旧线共用 `eafenzhang/Mode`、版本号延续），只声明 `latest.json` 端点 + 注册插件；
       不注册更新命令、不设 pubkey（让 `check()` 明确失败而不是静默放行未签名更新）。
 
-**阶段验收：** 三平台安装包全绿且 Windows ≤30MB（争取 25MB；renderer 资产 53MB 解包口径是主要变量）；Tauri 版可完成"打开窗口 → 渲染 UI → 走通 10 个平台命令"的 E2E；`cargo clippy -D warnings` 零告警；不带任何 Node 运行时。
+**阶段验收：** 三平台安装包全绿且 Windows ≤30MB（争取 25MB；renderer 资产 53MB 解包口径是主要变量）；Tauri 版可完成"打开窗口 → 渲染 UI → 走通 10 个平台命令"的 E2E；`cargo clippy -D warnings` 零告警；不带任何 Node 运行时。〔骨架态成立；产品线按 DR-M3-1/DR-M3-2 随包带 Node，见下方 2026-10-20 阶段关闭记录。〕
 
 〔**2026-10-16 进度（第二批后）**：Task 1–6 的代码与自动化都已经落地，
 本机实测 `cargo test` **35 用例全绿**（platform 3 / protocol 6+5 / deeplink 7+9 /
@@ -192,9 +192,9 @@ tray 1 / updater 2 / tauri-test-manifest 2）、`clippy -D warnings` 零告警�
 「`cargo clippy -D warnings` 零告警」均已满足。两处口径按后续决策更新：① 体积不再作为
 阻断门禁，按 DR-M5-2b 登记——骨架态 NSIS 7.19 MiB，当前含产品 UI / Host sidecar 的整包
 51.50 MiB、核心 23.29 MiB；② macOS/Linux 只验证了构建与出包，真机安装/启动/升级验收转入
-M5 残余风险。M1 的 Tauri 壳本身不依赖系统 Node，但 M3 sidecar 当前随包带 Node/agent 运行时，
-「不带任何 Node 运行时」的口径由 DR-01 的按需下载实现后才会在整包层面成立，该项仍在 M3
-跟踪。M1 阶段关闭不等于三平台 GA。〕
+M5 残余风险。M1 的 Tauri 壳本身不依赖系统 Node。**口径更正（DR-M3-2）**：Host sidecar
+（含 Node/agent 运行时）按决策**随安装包发布**，因此「整包不带任何 Node 运行时」不会在产品线
+成立；该项不再作为 M3 跟踪项，体积按 DR-M5-2b 的两份预算持续测量。M1 阶段关闭不等于三平台 GA。〕
 
 ---
 
@@ -289,14 +289,18 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 **Interfaces:**
 
 - Consumes: `agent_core::runtime`（插件工具注入点）、`crates/marketplace`（M2 的工具注册表）。
-- Produces: `plugin_host::Sidecar::ensure()`（返回可执行路径，缺失则按 manifest 下载）、`server::app()`（axum Router，路由与旧 server 一一对应，契约测试对拍）。
+- Produces: `plugin_host::AssetCache::ensure()`（返回 bundle 路径，缺失则按 manifest 下载、校验 sha256、缓存）、`plugin_host::supervisor`（进程监督）、`server::app()`（axum Router，路由与旧 server 一一对应，契约测试对拍）。
 
-- [ ] **Node sidecar 打包**：按 DR-01 —— Node 运行时 + 插件宿主 bundle 作为独立资产上 CDN；`plugin_host::ensure()` 首启用时下载、校验 sha256、健康探测；本地开发直连不下载。验收：断网时核心功能全在，仅插件功能提示"需下载组件"。〔2026-10-19 核对：M3 Task 1–5 的自动化面已完成——`crates/sidecar-host`、`host-standalone`、`window.mode` 注入、平台缺口（单实例/图标/sourceUrl）、Windows 安装包与两份体积预算均有测试/原始输出；`apps/desktop-tauri` 实测 35 pass / 7 opt-in skip。剩余是 DR-01 的 CDN 按需下载/校验与真机人工验收。〕
+- [ ] **插件宿主负载按需下载（Host sidecar 随包）**：按 DR-01 + DR-M3-2 —— Host sidecar
+      （含 Node 运行时与 `agent/glm`）**随安装包发布**，保证全新安装 + 断网也能渲染 UI；
+      按需下载只针对插件/MCP/Skills **宿主负载**：bundle 作为独立资产上 CDN，
+      `plugin_host::AssetCache::ensure()` 首启用时下载、校验 sha256、健康探测；本地开发直连不下载。
+      验收：断网时核心功能全在，仅插件功能提示"需下载组件"。〔2026-10-19 核对：M3 Task 1–5 的自动化面已完成——`crates/sidecar-host`、`host-standalone`、`window.mode` 注入、平台缺口（单实例/图标/sourceUrl）、Windows 安装包与两份体积预算均有测试/原始输出；`apps/desktop-tauri` 实测 35 pass / 7 opt-in skip。剩余是插件负载的 CDN 发布/真实 `assetUrl` 填充与真机人工验收；下载/校验/缓存逻辑已由 `crates/plugin-host` 实现并有本地 HTTP 用例。〕
       〔2026-10-19 补记：v0.0.57 真机验收发现安装包未带 agent 运行时，发送任务与插件市场均失败；`afb49a4c` 把 `agent/glm` 纳入发运集并由 Host 注入启动命令，v0.0.58 本机复验任务发送与插件市场通过。〕
       〔2026-10-20 回填：0.0.61 真机复验任务发送、插件市场目录、LAN 状态/配对码/发现均通过；
-      当前发运形态是 Host sidecar + Node + `agent/glm` **随包**，DR-01 的「CDN 按需下载 +
-      sha256 校验 + 健康探测」仍未实现，初装包仍包含 Node 运行时。〕
-- [ ] **插件市场迁移**：读旧 `installed_plugins.json`/marketplace 缓存原样可用；市场卡片 E2E 复用现有 `plugin-store-availability` spec 场景。〔2026-10-18 盘点，DR-PM-1〕读兼容与卡片投影已覆盖（32 + 5 条测试全绿），**M3 不新增 `crates/marketplace`**；剩真实窗口 UI E2E 与 sidecar 打包，详见 `2026-10-18-m3-plugin-market-status.md`。〔2026-10-19：v0.0.58 真机复验市场目录可正常加载（旧错误已随 agent 随包修复消失）；安装/卸载动作尚未逐项执行。〕
+      当前发运形态是 Host sidecar + Node + `agent/glm` **随包**（符合 DR-M3-2）；仍未实现的是
+      插件/MCP/Skills 负载的 CDN 发布与产品接线。初装包含 Node 是决策结果，不是缺陷。〕
+- [ ] **插件市场迁移**：读旧 `installed_plugins.json`/marketplace 缓存原样可用；市场卡片 E2E 复用现有 `plugin-store-availability` spec 场景。〔2026-10-18 盘点，DR-PM-1〕读兼容与卡片投影已覆盖（32 + 5 条测试全绿），**M3 不新增 `crates/marketplace`**；剩真实窗口 UI E2E 与插件负载的 CDN 发布/产品接线，详见 `2026-10-18-m3-plugin-market-status.md`。〔2026-10-19：v0.0.58 真机复验市场目录可正常加载（旧错误已随 agent 随包修复消失）；安装/卸载动作尚未逐项执行。〕
       〔2026-10-20：0.0.61 市场页加载出完整插件卡片与「安装」按钮；安装/卸载动作仍未逐项
       执行，真实窗口 UI E2E 未完成。〕
 - [ ] **IM bot 逐通道**：〔2026-10-18 盘点，DR-IM-1〕由 Host sidecar 复用现有实现（149 条测试全绿），
@@ -325,7 +329,7 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 - [ ] **Web 端（axum）**：`web-remote-replayable` 链路 + 手机远控复用 Host attachment 的既有架构（AGENTS.md：不为手机另起运行时）。〔2026-10-18 盘点，DR-WEB-1〕由 Host sidecar 复用现有 `packages/server`，**M3 不新增 `crates/server`**；156 条相关测试全绿，剩两台设备人工验收，见 `2026-10-18-m3-web-remote-status.md`。〔2026-10-20：0.0.61 移动端远程控制页仅验证了四个 IM 通道的占位 UI；两台设备 Web/手机远控回归仍未执行。〕
 - [ ] **TUI（ratatui）**：对照旧 TUI 的会话/审批/流式场景清单逐项过。〔2026-10-18 盘点，DR-TUI-1〕沿用现有 TS/React TUI（`@mode/tui`），**M3 不新增 `crates/tui`**；33 个场景清单见 `2026-10-18-m3-tui-status.md`；当前已有 156 条纯逻辑契约测试并接入 release verify，渲染/焦点/落盘等交互验收仍待人工。〔2026-10-20：2026-10-19 又补多批纯逻辑/契约测试（工作流进度、镜像、审批、输入、diff 等）并接入 release verify；33 个场景的渲染与交互验收仍需人工。〕
 
-**阶段验收：** 每个域有对照旧版的 E2E 清单且全绿；sidecar 断网降级符合预期；三平台安装包体积保持核心 ≤30MB。〔2026-10-17 DR-M5-2b：体积不再作为阻断门禁，改为持续测量项；原 ≤30MB 目标保留为历史口径。〕
+**阶段验收：** 每个域有对照旧版的 E2E 清单且全绿；插件负载与 Host sidecar 的断网语义符合预期（Host 随包，核心不依赖网络；无缓存的插件功能提示"需下载组件"）；三平台安装包体积按 DR-M5-2b 的两份预算持续测量。〔2026-10-17 DR-M5-2b：体积不再作为阻断门禁；原单一「核心 ≤30MB」目标保留为历史口径。〕
 
 ---
 
@@ -372,7 +376,7 @@ P1.1–P1.7 顺序、验收与两项待裁决）。
 typecheck / lint / architecture / language policy / desktop tests / desktop-tauri tests /
 `build:package-inputs` 均通过；旧线回滚路径已删除。2026-10-21 补充：语言政策允许清单同步删除 34 条旧线陈旧条目（清单 162→128 条，陈旧 0），`check-language-policy` 通过。剩余 EOL 公告与历史文档归档。详见该 spec。〕
 - [ ] **数据迁移终验**：`.mode` 数据根原样复用（协议未变）；从旧线最后一版升级到新线的实机迁移演练。〔2026-10-20：0.0.61 与旧 Electron 0.0.52 已在同一台机器并存安装，新线核心任务链路可用；正式的「旧线最后一版 → 新线」升级演练仍未执行。〕
-- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（初装 ≤30MB 核心 + sidecar 按需）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕〔2026-10-20：语言门禁通过；重合度 report 降至 9.80%；0.0.62 本机 gnu 构建整包 51.79 MiB，三项均未成为阻断门禁。〕〔2026-10-21：重合度 report 9.20%（37,241 / 404,926 行）；语言门禁通过且允许清单陈旧条目清零；三项仍未成为阻断门禁。〕
+- [ ] **三指标仪表入库**：`pnpm verify:self-developed`（重合度 0）、`scripts/check-language-policy.mjs`（语言）、CI 记录安装包体积（按 DR-M5-2b 的两份预算：核心 ≤30MB；Node 运行时 + sidecar 单独测量）。〔2026-10-18：语言门禁已在 `verify`；重合度工具已交付但只跑 report（M4 计分面 headline 10.60%，deferred 另计；M4 清零后改 strict）；体积按 DR-M5-2b 为持续测量项〕〔2026-10-20：语言门禁通过；重合度 report 降至 9.80%；0.0.62 本机 gnu 构建整包 51.79 MiB，三项均未成为阻断门禁。〕〔2026-10-21：重合度 report 9.20%（37,241 / 404,926 行）；语言门禁通过且允许清单陈旧条目清零；三项仍未成为阻断门禁。〕
 
 **阶段验收：** 三平台 GA 发布；三指标全绿并进必跑门禁。
 
