@@ -353,9 +353,9 @@ spike（见 DR-LR-2），未通过前 `connectRemote` 保持明确失败，不�
 - [ ] 手机/Web 远控复用 Host attachment 的回归（`web-remote-replayable`）。
 - [ ] Tauri 产品 UI E2E：设置页、设备页、连接向导、工作区重连。
 - [ ] 逐项移除 `window.mode` 的 rejecting/no-op 条目，并更新注入测试的期望集合。
-      〔2026-10-22：`createTempTextAttachment` 已从 `REJECTING_REQUIRED` 升级为壳命令
-      （`crates/platform/src/commands/temp_attachment.rs`，M1 切片第 5 条），注入测试与
-      验收台已同步；其余条目仍待逐项迁移。〕
+      〔2026-10-22：`createTempTextAttachment` 与 `openExternalFile` 已从
+      `REJECTING_REQUIRED` 升级为壳命令（`crates/platform/src/commands/temp_attachment.rs`、
+      `shell.rs`），注入测试与验收台已同步；其余条目仍待逐项迁移。〕
 - [ ] 发布说明写清支持矩阵；Windows-only 的 RD 不对外宣称跨平台。
 
 验收：LR-1..LR-4 的测试与真机项全绿；没有双写路径；Host 崩溃/退出不留孤儿会话。

@@ -1,4 +1,4 @@
-//! shell 面：`openExternal` / `openInFileManager`。
+//! shell 面：`openExternal` / `openInFileManager` / `openExternalFile`。
 use std::path::Path;
 
 use protocol::OpenPathResult;
@@ -57,5 +57,44 @@ pub fn open_in_file_manager<R: tauri::Runtime>(
             success: false,
             error: Some(format!("path_unavailable: {error}")),
         },
+    }
+}
+
+/// `IPlatformService.openExternalFile(path): Promise<{success, error?}>`
+///
+/// 用系统默认应用打开一个**本地文件**（例如 `OpenSplitButton` 打开本地网站入口）。
+/// 目录不走这条命令（目录用 `openInFileManager`）；路径不存在或不是文件时明确失败，
+/// 不把目录交给默认应用。
+#[tauri::command(rename = "openExternalFile")]
+pub fn open_external_file<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    path: String,
+) -> OpenPathResult {
+    if let Some(error) = external_file_target_error(Path::new(&path)) {
+        return OpenPathResult {
+            success: false,
+            error: Some(error),
+        };
+    }
+    match app.opener().open_path(path, None::<&str>) {
+        Ok(()) => OpenPathResult {
+            success: true,
+            error: None,
+        },
+        Err(error) => OpenPathResult {
+            success: false,
+            error: Some(error.to_string()),
+        },
+    }
+}
+
+/// `openExternalFile` 的前置校验：只接受存在的**文件**。
+///
+/// 抽成纯函数是为了让用例能覆盖「不存在 / 目录 / 文件」三种形态，而不真的启动系统应用。
+pub fn external_file_target_error(path: &Path) -> Option<String> {
+    match path.metadata() {
+        Ok(metadata) if metadata.is_file() => None,
+        Ok(_) => Some("not_a_file".to_string()),
+        Err(error) => Some(format!("path_unavailable: {error}")),
     }
 }

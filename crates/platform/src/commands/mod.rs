@@ -86,6 +86,8 @@ command_slice! {
     // 长粘贴文本 → 临时附件（Tauri 线真实实现；Electron main IPC 已随旧线 EOL 删除）。
     "createTempTextAttachment" => temp_attachment::create_temp_text_attachment,
     "openInFileManager" => shell::open_in_file_manager,
+    // 用系统默认应用打开本地文件（目录仍走 openInFileManager）。
+    "openExternalFile" => shell::open_external_file,
     "showTaskNotification" => notify::show_task_notification,
     "notifyRendererReady" => window::notify_renderer_ready,
     "syncWindowTabs" => window::sync_window_tabs,

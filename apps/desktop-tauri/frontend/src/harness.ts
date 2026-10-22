@@ -120,6 +120,12 @@ const COMMAND_SPECS = [
     call: (platform, values) => platform.openInFileManager?.(values.path ?? ""),
   },
   {
+    name: "openExternalFile",
+    summary: "用系统默认应用打开本地文件；目录/不存在→success:false",
+    fields: [{ key: "path", label: "path", initial: "", kind: "text" }],
+    call: (platform, values) => platform.openExternalFile?.(values.path ?? ""),
+  },
+  {
     name: "showTaskNotification",
     summary: "系统通知（是否展示由系统决定）",
     fields: [
@@ -263,7 +269,8 @@ function renderCommandRow(spec: CommandSpec, platform: FrontendPlatform): HTMLEl
       } catch (error) {
         // 失败**原样显示**，不吞：spec §4 的判据里「抛错」本身就是一种失败信号。
         output.className = "result result-error";
-        output.textContent = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+        output.textContent =
+          error instanceof Error ? `${error.name}: ${error.message}` : String(error);
       }
     })();
   });

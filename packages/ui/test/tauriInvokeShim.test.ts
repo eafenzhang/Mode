@@ -82,7 +82,7 @@ const noopListen = recordingListen().listen;
 test("M1 切片表的命令都被实现（不是靠抛错桩占位）", () => {
   const { invoke } = recordingInvoke();
   const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
-  assert.equal(M1_IMPLEMENTED_COMMANDS.length, 12);
+  assert.equal(M1_IMPLEMENTED_COMMANDS.length, 13);
   for (const name of M1_IMPLEMENTED_COMMANDS) {
     assert.equal(typeof service[name], "function", `${name} 应是函数`);
   }
@@ -118,6 +118,7 @@ test("命令名逐字映射到 invoke，参数用命令签名的字段名", asyn
   service.syncWindowUnreadCount?.(3);
   service.notifyRendererReady?.();
   await service.openInFileManager?.("D:/ws");
+  await service.openExternalFile?.("D:/ws/site.html");
   service.showTaskNotification?.({
     taskId: "t1",
     status: "completed",
@@ -143,6 +144,7 @@ test("命令名逐字映射到 invoke，参数用命令签名的字段名", asyn
     "syncWindowTabs",
     "syncWindowUnreadCount",
     "openInFileManager",
+    "openExternalFile",
     "showTaskNotification",
     "saveFile",
     "createTempTextAttachment",
@@ -157,6 +159,7 @@ test("命令名逐字映射到 invoke，参数用命令签名的字段名", asyn
   assert.deepEqual(argsOf("syncWindowTabs"), { paths: ["D:/ws/a", "D:/ws/b"] });
   assert.deepEqual(argsOf("syncWindowUnreadCount"), { count: 3 });
   assert.deepEqual(argsOf("openInFileManager"), { path: "D:/ws" });
+  assert.deepEqual(argsOf("openExternalFile"), { path: "D:/ws/site.html" });
   assert.deepEqual(argsOf("showTaskNotification"), {
     payload: { taskId: "t1", status: "completed", title: "标题", body: "正文" },
   });

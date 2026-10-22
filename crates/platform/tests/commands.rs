@@ -6,16 +6,18 @@
 //! 本文件必须留在 `tests/`（集成测试目标）：`crates/platform/build.rs` 只对**测试目标**
 //! 注入 comctl32 v6 清单（`rustc-link-arg-tests`），而 cargo 只把 `tests/` 下的目标算作
 //! 测试目标；放进 lib 单测则拿不到清单，进程启动即 `STATUS_ENTRYPOINT_NOT_FOUND`。
+use platform::commands::shell::external_file_target_error;
 use platform::commands::{registered_names, M1_HANDLER_PATHS};
 
 /// 切片表里的命令，顺序与 spec 表格一致。
-const M1_SLICE: [&str; 12] = [
+const M1_SLICE: [&str; 13] = [
     "openExternal",
     "selectDirectory",
     "selectFile",
     "saveFile",
     "createTempTextAttachment",
     "openInFileManager",
+    "openExternalFile",
     "showTaskNotification",
     "notifyRendererReady",
     "syncWindowTabs",
@@ -159,4 +161,32 @@ fn slice_has_no_duplicate_names() {
     let before = names.len();
     names.dedup();
     assert_eq!(before, names.len(), "命令名有重复：{names:?}");
+}
+
+#[test]
+fn external_file_target_requires_an_existing_file() {
+    let dir = std::env::temp_dir().join(format!("mode-open-external-file-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("建临时目录");
+
+    let missing = dir.join("missing.txt");
+    let error = external_file_target_error(&missing).expect("不存在路径必须失败");
+    assert!(
+        error.starts_with("path_unavailable:"),
+        "错误应带稳定前缀：{error}"
+    );
+
+    let directory = dir.join("sub");
+    std::fs::create_dir_all(&directory).expect("建子目录");
+    assert_eq!(
+        external_file_target_error(&directory).as_deref(),
+        Some("not_a_file"),
+        "目录不得交给默认应用（目录走 openInFileManager）"
+    );
+
+    let file = dir.join("a.txt");
+    std::fs::write(&file, b"x").expect("写文件");
+    assert_eq!(external_file_target_error(&file), None);
+
+    std::fs::remove_dir_all(&dir).expect("清理");
 }

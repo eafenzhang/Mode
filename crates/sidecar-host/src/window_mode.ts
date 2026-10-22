@@ -125,6 +125,8 @@
     // LR-5：长粘贴文本 → 临时附件（Electron main IPC 已随旧线 EOL 删除）。
     "createTempTextAttachment",
     "openInFileManager",
+    // 用系统默认应用打开本地文件（目录仍走 openInFileManager）。
+    "openExternalFile",
     "showTaskNotification",
     "notifyRendererReady",
     "syncWindowTabs",
@@ -207,7 +209,6 @@
     "canOpenCommunity",
     "loadMcpFromUserDirectory",
     "migrateLegacyCommonMcp",
-    "openExternalFile",
     "exportLogs",
     "rdGetPeerCapability",
     "rdStartSession",
@@ -606,6 +607,9 @@
     },
     openInFileManager: function (path) {
       return invoke("openInFileManager", { path: path });
+    },
+    openExternalFile: function (path) {
+      return invoke("openExternalFile", { path: path });
     },
     // 本地「打开方式」胶囊的数据源（见文件头的 fileManagerEditorInfo 注释）。
     // 只返回系统文件管理器这一条真实可用的面；远端工作区由 WorkspaceFileManagerButton 承担。
