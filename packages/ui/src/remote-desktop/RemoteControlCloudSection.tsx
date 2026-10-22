@@ -194,17 +194,19 @@ export function RemoteControlCloudSection({
               <MessageCircle className="size-4" />
               {message("remoteDesktop.cloud.wechatLogin")}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              data-testid="remote-control-cloud-bot-setup"
-              disabled={busy !== null || showBotSetup}
-              onClick={() => setShowBotSetup(true)}
-            >
-              <RefreshCw className="size-4" />
-              {message("remoteDesktop.cloud.setupBot")}
-            </Button>
+            {state.enrollmentConfigured ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-testid="remote-control-cloud-bot-setup"
+                disabled={busy !== null || showBotSetup}
+                onClick={() => setShowBotSetup(true)}
+              >
+                <RefreshCw className="size-4" />
+                {message("remoteDesktop.cloud.setupBot")}
+              </Button>
+            ) : null}
             {state.enrollmentConfigured ? (
               <Button
                 type="button"
@@ -234,16 +236,6 @@ export function RemoteControlCloudSection({
               onClose={() => setShowBotSetup(false)}
             />
           ) : null}
-          {showWechatLogin ? (
-            <RemoteControlCloudLoginPanel
-              service={service}
-              onBound={(next) => {
-                setState(next);
-                setShowWechatLogin(false);
-              }}
-              onClose={() => setShowWechatLogin(false)}
-            />
-          ) : null}
           {!state.enrollmentConfigured && !showWechatLogin ? (
             <p className="text-ui-xs text-foreground-subtlest">
               {message("remoteDesktop.cloud.notConfigured")}
@@ -257,16 +249,40 @@ export function RemoteControlCloudSection({
           <p className="text-ui-base text-destructive" data-testid="remote-control-cloud-error">
             {error || state.error || message("remoteDesktop.cloud.error")}
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy !== null}
-            onClick={() => void bind()}
-          >
-            {message("remoteDesktop.cloud.rebind")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy !== null}
+              onClick={() => void bind()}
+            >
+              {message("remoteDesktop.cloud.rebind")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-testid="remote-control-cloud-wechat-login"
+              disabled={busy !== null || showWechatLogin}
+              onClick={() => setShowWechatLogin(true)}
+            >
+              <MessageCircle className="size-4" />
+              {message("remoteDesktop.cloud.wechatLogin")}
+            </Button>
+          </div>
         </div>
+      ) : null}
+
+      {showWechatLogin ? (
+        <RemoteControlCloudLoginPanel
+          service={service}
+          onBound={(next) => {
+            setState(next);
+            setShowWechatLogin(false);
+          }}
+          onClose={() => setShowWechatLogin(false)}
+        />
       ) : null}
 
       {state?.status === "bound" ? (

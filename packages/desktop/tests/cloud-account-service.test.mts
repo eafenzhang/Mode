@@ -402,17 +402,22 @@ test("Host 启动时已绑定 Bot 也会自动登录（不依赖 onDidChange）"
   }
 });
 
-test("未配置 enrollment token 时为 unavailable；配置但未绑定为 unbound", async () => {
+test("未配置 enrollment token 时仍为 unbound（微信登录可用）；部署密钥绑定被拒绝", async () => {
   const { credentials } = createFakeCredentials();
-  const unavailable = await createService({
+  const withoutEnrollment = await createService({
     credentials,
     bots: createFakeBots("wx-user-1"),
     env: {},
   });
   try {
-    assert.equal((await unavailable.getState()).status, "unavailable");
+    const state = await withoutEnrollment.getState();
+    // 微信 6 位码登录不依赖部署密钥，未配置时不能把整个云账号判成不可用。
+    assert.equal(state.status, "unbound");
+    assert.equal(state.enrollmentConfigured, false);
+    assert.equal(state.boundWeixinName, "微信用户");
+    await assert.rejects(withoutEnrollment.bind(), /MODE_CLOUD_ENROLL_TOKEN/u);
   } finally {
-    await unavailable.dispose();
+    await withoutEnrollment.dispose();
   }
 
   const unbound = await createService({
@@ -423,6 +428,7 @@ test("未配置 enrollment token 时为 unavailable；配置但未绑定为 unbo
   try {
     const state = await unbound.getState();
     assert.equal(state.status, "unbound");
+    assert.equal(state.enrollmentConfigured, true);
     assert.equal(state.boundWeixinName, "微信用户");
   } finally {
     await unbound.dispose();

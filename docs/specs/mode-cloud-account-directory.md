@@ -140,8 +140,11 @@ cloud_device_tokens(
   2. `bind()` 注册/登录设备；
   3. `syncCloudLoginBot` 上传该 Bot token 到云端并停用本地副本。
 - 已绑定账号后不再自动动其他 Bot，避免误停用主 Bot；后续换 Bot 走账号弹窗里的手动同步。
-- 自动流程依赖部署 enrollment secret；没有 secret 的机器应使用“使用微信登录”的 6 位码路径。
-  未配置时账号弹窗不得继续显示“绑定微信 Bot 后自动登录”的承诺，改为提示缺少部署配置。
+- 自动流程依赖部署 enrollment secret；没有 secret 的机器使用“使用微信登录”的 6 位码路径。
+  未配置时账号状态仍是 `unbound`（不是 `unavailable`），账号弹窗与远控云分区必须保留
+  “使用微信登录”入口；只隐藏依赖 enrollment 的自动登录承诺、部署密钥绑定与 Bot 同步按钮，
+  并说明自动登录需要部署密钥。
+- `unavailable` 仅表示 Host 没有 cloud-account 频道/服务，不代表未配置部署密钥。
 - 同步失败只记录 `cloud_auto_provision_failed`，不阻断 Bot/账号其他操作。
 
 ### 云端 Bot 登录（推荐，换机零配置）

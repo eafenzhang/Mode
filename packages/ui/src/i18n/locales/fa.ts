@@ -6423,6 +6423,8 @@ const faIR: Record<string, string> = {
     "پس از اتصال ربات وی‌چت، به‌طور خودکار وارد Mode Cloud می‌شوید و دستگاه در فهرست حساب همگام می‌شود.",
   "modeAccount.description.unavailable":
     "Mode Cloud روی این دستگاه پیکربندی نشده است؛ اتصال ربات وی‌چت باعث ورود خودکار نمی‌شود. ابتدا cloud-deployment.json را مستقر کنید یا MODE_CLOUD_ENROLL_TOKEN را تنظیم کنید.",
+  "modeAccount.description.wechatOnly":
+    "کلید استقرار روی این دستگاه پیکربندی نشده است؛ اتصال ربات وی‌چت باعث ورود خودکار نمی‌شود. برای اتصال حساب Mode از «ورود با وی‌چت» در پایین استفاده کنید.",
   "modeAccount.login": "ورود به حساب Mode",
   "modeAccount.logout": "خروج",
   "modeAccount.bindBot": "اتصال ربات وی‌چت",
@@ -6430,6 +6432,8 @@ const faIR: Record<string, string> = {
     "پس از اتصال، ورود و همگام‌سازی خودکار انجام می‌شود؛ ربات ورود ابری دیگر روی این رایانه نظرسنجی نمی‌کند.",
   "modeAccount.bindHint.unavailable":
     "ربات همچنان می‌تواند به‌صورت محلی متصل شود؛ ورود خودکار به پیکربندی استقرار Mode Cloud نیاز دارد.",
+  "modeAccount.bindHint.wechatOnly":
+    "ربات همچنان می‌تواند به‌صورت محلی متصل شود؛ ورود خودکار به کلید استقرار نیاز دارد. در این حالت از «ورود با وی‌چت» استفاده کنید.",
   "modeAccount.nickname.title": "نام مستعار",
   "modeAccount.nickname.description":
     "در ناحیه حساب پایین‌چپ و تنظیمات نمایش داده می‌شود؛ فقط روی این دستگاه ذخیره می‌شود. خالی بگذارید تا از نام حساب استفاده شود.",
@@ -6450,7 +6454,7 @@ const faIR: Record<string, string> = {
   "remoteDesktop.cloud.bind": "اتصال به Mode Cloud",
   "remoteDesktop.cloud.binding": "در حال اتصال…",
   "remoteDesktop.cloud.notConfigured":
-    "MODE_CLOUD_ENROLL_TOKEN پیکربندی نشده است؛ اتصال ممکن نیست.",
+    "کلید استقرار پیکربندی نشده است: ورود خودکار و همگام‌سازی Bot در دسترس نیست؛ برای اتصال حساب از «ورود با وی‌چت» استفاده کنید.",
   "remoteDesktop.cloud.error": "خواندن دستگاه‌های Mode Cloud ناموفق بود.",
   "remoteDesktop.cloud.rebind": "اتصال مجدد",
   "remoteDesktop.cloud.account": "حساب: {name}",

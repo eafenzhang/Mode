@@ -6215,12 +6215,16 @@ const zhCN: Record<string, string> = {
   "modeAccount.description": "绑定微信 Bot 后自动登录 Mode Cloud，并把设备同步到账号目录。",
   "modeAccount.description.unavailable":
     "当前设备未配置 Mode Cloud，绑定微信 Bot 不会自动登录；请先部署 cloud-deployment.json 或设置 MODE_CLOUD_ENROLL_TOKEN。",
+  "modeAccount.description.wechatOnly":
+    "当前设备未配置部署密钥，绑定微信 Bot 不会自动登录；请使用下方「使用微信登录」完成 Mode 账号绑定。",
   "modeAccount.login": "登录 Mode 账号",
   "modeAccount.logout": "退出账号",
   "modeAccount.bindBot": "绑定微信 Bot",
   "modeAccount.bindHint": "绑定后会自动登录并同步；用于云端登录的 Bot 会从桌面轮询中移除。",
   "modeAccount.bindHint.unavailable":
     "Bot 仍可绑定到本机；自动登录需要先完成 Mode Cloud 部署配置。",
+  "modeAccount.bindHint.wechatOnly":
+    "Bot 仍可绑定到本机；自动登录需要部署密钥，未配置时请使用「使用微信登录」。",
   "modeAccount.nickname.title": "昵称",
   "modeAccount.nickname.description":
     "显示在左下角账号区和设置页；只保存在本机，留空则使用账号名称。",
@@ -6240,7 +6244,8 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.cloud.noWeixin": "还没有绑定微信 Bot。先在 Bot 设置里完成绑定，再回来绑定 Mode Cloud。",
   "remoteDesktop.cloud.bind": "绑定到 Mode Cloud",
   "remoteDesktop.cloud.binding": "绑定中…",
-  "remoteDesktop.cloud.notConfigured": "未配置 MODE_CLOUD_ENROLL_TOKEN，无法绑定。",
+  "remoteDesktop.cloud.notConfigured":
+    "未配置部署密钥：自动登录与 Bot 同步不可用；可使用「使用微信登录」完成绑定。",
   "remoteDesktop.cloud.error": "读取 Mode Cloud 设备失败。",
   "remoteDesktop.cloud.rebind": "重新绑定",
   "remoteDesktop.cloud.account": "账号：{name}",

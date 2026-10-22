@@ -6517,6 +6517,8 @@ const enUS: Record<string, string> = {
     "Binding a WeChat bot signs you in to Mode Cloud automatically and syncs this device to the account directory.",
   "modeAccount.description.unavailable":
     "Mode Cloud is not configured on this device, so binding a WeChat bot will not sign you in. Deploy cloud-deployment.json or set MODE_CLOUD_ENROLL_TOKEN first.",
+  "modeAccount.description.wechatOnly":
+    "The deployment key is not configured on this device, so binding a WeChat bot will not sign you in automatically. Use \"Sign in with WeChat\" below to link your Mode account.",
   "modeAccount.login": "Sign in to Mode account",
   "modeAccount.logout": "Sign out",
   "modeAccount.bindBot": "Bind WeChat bot",
@@ -6524,6 +6526,8 @@ const enUS: Record<string, string> = {
     "After binding, the app signs in and syncs automatically; a cloud login bot stops polling on this desktop.",
   "modeAccount.bindHint.unavailable":
     "The bot can still be bound locally; automatic sign-in requires the Mode Cloud deployment config.",
+  "modeAccount.bindHint.wechatOnly":
+    "The bot can still be bound locally; automatic sign-in requires the deployment key. Use \"Sign in with WeChat\" instead.",
   "modeAccount.nickname.title": "Nickname",
   "modeAccount.nickname.description":
     "Shown in the bottom-left account area and Settings. Stored on this device; leave empty to use the account name.",
@@ -6545,7 +6549,7 @@ const enUS: Record<string, string> = {
   "remoteDesktop.cloud.bind": "Bind to Mode Cloud",
   "remoteDesktop.cloud.binding": "Binding…",
   "remoteDesktop.cloud.notConfigured":
-    "MODE_CLOUD_ENROLL_TOKEN is not configured; binding is unavailable.",
+    "Deployment key not configured: automatic sign-in and bot sync are unavailable; use \"Sign in with WeChat\" to link the account.",
   "remoteDesktop.cloud.error": "Failed to load Mode Cloud devices.",
   "remoteDesktop.cloud.rebind": "Rebind",
   "remoteDesktop.cloud.account": "Account: {name}",

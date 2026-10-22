@@ -205,7 +205,9 @@ export async function createCloudAccountHostService(
       ...(boundWeixinName ? { boundWeixinName } : {}),
     };
     if (!token) {
-      return { ...base, status: enrollmentConfigured ? "unbound" : "unavailable" };
+      // 未配置 enrollment secret 不等于云账号不可用：微信 6 位码登录不依赖它，
+      // 仍是可用的零配置路径。`unavailable` 只留给没有 cloud-account 服务的 Host。
+      return { ...base, status: "unbound" };
     }
     try {
       const { account, devices } = await readDirectory(token);
