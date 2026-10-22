@@ -70,7 +70,7 @@
 | C2  | `allow_project`：批准后本项目后续同规则不再询问  | 同上                                                                | 部分：文案/作用域（批 13、36） |
 | C3  | `deny`：拒绝文案、工具不执行、会话继续           | 同上                                                                | 自动化（PTY，deny）+ 文案/取消（批 13、26） |
 | C4  | `AskUserQuestion`：问题面板、多选/自由输入与取消 | `app-question-panel.tsx`、`app-question-state.ts`                   | 自动化（PTY，作答+Review 提交）+ 状态机（批 12、26、29） |
-| C5  | 审批与流式并发：审批期间流式事件不丢、不越序     | `app-permission.ts`                                                 | 无自动化                       |
+| C5  | 审批与流式并发：审批期间流式事件不丢、不越序     | `app-permission.ts`                                                 | 自动化（PTY，等待期间流式不丢） |
 
 ### D. 工具与 diff
 
@@ -79,7 +79,7 @@
 | D1  | 工具卡片：scheduled/started/progress/result/batch 五态 | `app-tool-components.tsx`、`app-tool-transcript.ts` | 自动化（PTY，running/completed）+ 输入投影（批 33） |
 | D2  | diff 呈现：新增/删除行、上下文折叠                     | `app-tool-diff-display.ts`                          | 部分：展示/宽度（批 15、22） |
 | D3  | 路径展示：相对路径、过长路径截断                       | `app-tool-path-display.ts`                          | 自动化（批 18、19）          |
-| D4  | 工具错误：`tool_execution_failed` 与未注册工具         | `app-transcript-errors.ts`                          | 部分：错误文案（批 14）      |
+| D4  | 工具错误：`tool_execution_failed` 与未注册工具         | `app-transcript-errors.ts`                          | 自动化（PTY，failed 卡 + 错误文本）+ 错误文案（批 14） |
 
 ### E. 输入与命令中心
 
@@ -88,7 +88,7 @@
 | E1  | 输入面板：光标、换行、粘贴、状态行   | `app-input-pane.tsx`、`app-input-status.tsx`                                            | 无自动化                                |
 | E2  | 斜杠命令：补全、执行、错误           | `app-keyboard-suggestions.ts`、`TuiSlashCommandSuggestion`                              | 自动化（PTY，补全+提交）+ 补全/窗口（批 11、34） |
 | E3  | 模式/模型/effort：切换命令与建议面板 | `app-mode-command.ts`、`app-model-command.ts`、`app-effort-command.ts`、`TuiSetMode`    | 自动化（PTY，Shift+Tab→setMode）+ 过滤/选择/补全（批 21、22、34） |
-| E4  | 文件提及：`@` 补全与工作区建议       | `app-file-mentions.ts`、`app-file-mention-panel.tsx`、`TuiListWorkspacePathSuggestions` | 部分：可视窗口（批 16）                 |
+| E4  | 文件提及：`@` 补全与工作区建议       | `app-file-mentions.ts`、`app-file-mention-panel.tsx`、`TuiListWorkspacePathSuggestions` | 自动化（PTY，@ 面板 + Tab 补全）+ 可视窗口（批 16） |
 | E5  | 键盘帮助与快捷键：平台差异           | `app-keyboard.ts`、`app-keyboard-helpers.ts`                                            | 部分：快捷键逻辑（批 2、5、23、34、35） |
 
 ### F. 侧栏、子代理与工作流
@@ -249,11 +249,11 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
 - 形态：夹具直接调真 `runTui`（不提供 `loadStartupOptions`，跳过启动屏），
   `submitPrompt` 按脚本推 `model_streaming` 文本增量；测试用 `node-pty` 提供 TTY、
   收集并去 ANSI 后断言屏幕文本。
-- 已覆盖（12/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、A5 busy 排队面板、
+- 已覆盖（15/33）：A1 冷启动首屏、A3 `turn_complete` 终态响应、A5 busy 排队面板、
   B1 两段 `text_delta`、B2 工具输入增量不入正文、B3 折叠思考块、B5 Esc 中止进行中回合、
-  C3 审批面板 + 默认 Deny 确认、C4 问题面板 + 作答 + Review 提交、
-  D1 工具卡 running→completed、E2 `/` 补全 + Tab 提交、
-  E3 Shift+Tab 触发 `setMode`。
+  C3 审批面板 + 默认 Deny 确认、C4 问题面板 + 作答 + Review 提交、C5 审批等待期间流式不丢、
+  D1 工具卡 running→completed、D4 工具 failed 卡与错误文本、
+  E2 `/` 补全 + Tab 提交、E3 Shift+Tab 触发 `setMode`、E4 `@` 面板 + Tab 补全路径。
   A5 的「空闲后按序提交」由 runtime 负责，PTY 用例只证明输入进入了队列面板。
 - 平台注意：Windows 的 PTY 主端忽略 `encoding` 选项、中文会按系统代码页变乱码，
   所以夹具固定 `locale: "en-US"` 并只用 ASCII 标记断言。清理无语义退出（会话屏
@@ -263,9 +263,10 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   **结果文件**（`PTY_RESULT_FILE` 追加，适合会被重绘覆盖/裁掉、或需要轮询重发按键的信号；
   B5/C4 用它）。
   C3 用后者：轮询结果文件期间周期性重发 Enter，避免「首个按键在负载下偶发丢失」的竞态。
-- 仍被按键编码阻塞的两条：**C1**（审批面板上移选择）与 **A6**（空草稿上键召回）。
-  已试过 `\u001b[A` / `\u001b[1;1A` / `\u001bOA`，方向键均未到达处理器（疑似被输入编辑器
-  消费）；需要先确认 opentui 在本环境的方向键编码，或改用鼠标/数字快捷键。
-- 其余 21 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
+- 仍被按键编码阻塞的三条：**C1**（审批面板上移选择）、**A6**（空草稿上键召回）、
+  **E1**（Shift+Enter 换行）。方向键试过 `\u001b[A` / `\u001b[1;1A` / `\u001bOA`，
+  换行试过 `\u001b[13;2u` / `\u001b\r` / `\n`，均未到达对应处理器（疑似被输入编辑器消费）；
+  需要先确认 opentui 在本环境的方向键/换行编码，或改用鼠标/快捷键。
+- 其余 18 个场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支（审批走
   `options.requestPermission`，busy 输入走 `sendInput`，工具/问题走对应 `SessionEventType`）
   + 一条屏幕断言。

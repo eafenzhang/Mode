@@ -11,10 +11,13 @@
  * - B2 工具输入增量：不进入正文，最终工具卡完成；
  * - B3 思考块：`reasoning_delta` 以折叠块呈现；
  * - B5 中断：Esc 中止进行中的回合；
+ * - C5 并发：审批等待期间的流式事件不丢；
  * - C3 审批：面板出现，默认 Deny 确认后返回 deny；
  * - C4 提问：问题面板、作答与 Review 提交；
  * - D1 工具卡片：running → completed 状态都上屏；
+ * - D4 工具失败：failed 状态与错误文本；
  * - E2 斜杠命令：输入 `/` 出现补全，Tab 补全后提交；
+ * - E4 文件提及：@ 面板 + Tab 补全路径；
  * - E3 模式切换：Shift+Tab 调用客户端的 setMode（标记写入，界面标签不在断言面）。
  *
  * 退出链路不在本用例里：会话屏的 Ctrl-C 带防误退/中断流语义，发行形态的
@@ -285,8 +288,67 @@ test("TUI PTY C4：问题面板渲染、作答并提交", async () => {
   }
 });
 
+test("TUI PTY C5：审批等待期间的流式事件不丢", async () => {
+  const session = startTui("approvalstream");
+  try {
+    await waitForReady(session);
+    session.write("ask then stream\r");
+    await session.waitForSubstring("Approval required: Bash", "审批面板出现");
+    await session.waitForSubstring("PTY_STREAM_DURING_APPROVAL", "审批等待期间的流式文本");
+  } finally {
+    session.stop();
+  }
+});
+
+test("TUI PTY D4：工具失败卡片与错误文本", async () => {
+  const session = startTui("toolerror");
+  try {
+    await waitForReady(session);
+    session.write("run a failing tool\r");
+    await session.waitForSubstring("Tool Bash failed", "工具 failed 状态");
+    await session.waitForSubstring("PTY_TOOL_ERROR", "错误文本上屏");
+  } finally {
+    session.stop();
+  }
+});
+
+test("TUI PTY E4：@ 触发文件提及，Tab 补全后提交路径", async () => {
+  const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-mention-"));
+  const resultFile = join(resultDir, "result.txt");
+  const session = startTui("stream", { PTY_RESULT_FILE: resultFile });
+  try {
+    await waitForReady(session);
+    session.write("@");
+    await session.waitForSubstring("Files", "文件提及面板");
+    await session.waitForSubstring("/w/pty-mention.ts", "路径候选");
+    session.write("\t");
+    await delay(150);
+    session.write("now\r");
+
+    const deadline = Date.now() + 8_000;
+    let submitted = false;
+    while (Date.now() < deadline) {
+      try {
+        if (readFileSync(resultFile, "utf8").includes("PTY_MENTION")) {
+          submitted = true;
+          break;
+        }
+      } catch {
+        // 文件尚未创建：继续轮询。
+      }
+      await delay(200);
+    }
+    assert.ok(submitted, `提及路径未进入提交\n--- screen ---\n${session.screen()}`);
+  } finally {
+    session.stop();
+    rmSync(resultDir, { recursive: true, force: true });
+  }
+});
+
 test("TUI PTY E2：输入 / 出现补全，Tab 补全后提交", async () => {
-  const session = startTui("stream");
+  const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-help-"));
+  const resultFile = join(resultDir, "result.txt");
+  const session = startTui("stream", { PTY_RESULT_FILE: resultFile });
   try {
     await waitForReady(session);
     session.write("/");
@@ -295,9 +357,24 @@ test("TUI PTY E2：输入 / 出现补全，Tab 补全后提交", async () => {
     session.write("\t");
     await delay(120);
     session.write("now\r");
-    await session.waitForSubstring("PTY_PROMPT_HELP", "补全后的 /help 进入提交");
+
+    const deadline = Date.now() + 8_000;
+    let submitted = false;
+    while (Date.now() < deadline) {
+      try {
+        if (readFileSync(resultFile, "utf8").includes("PTY_PROMPT_HELP")) {
+          submitted = true;
+          break;
+        }
+      } catch {
+        // 文件尚未创建：继续轮询。
+      }
+      await delay(200);
+    }
+    assert.ok(submitted, `补全后的 /help 未进入提交\n--- screen ---\n${session.screen()}`);
   } finally {
     session.stop();
+    rmSync(resultDir, { recursive: true, force: true });
   }
 });
 

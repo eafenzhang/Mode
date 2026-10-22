@@ -48,7 +48,7 @@ function recordControl(line: string): void {
   try {
     appendFileSync(resultFile, `${line}\n`);
   } catch {
-    // 结果文件写失败不影响 TUI 本身；stderr 仍保留同样的标记供人工排障。
+    // 结果文件写失败不影响 TUI 本身；该场景的断言会以超时暴露。
   }
 }
 
@@ -83,9 +83,19 @@ let sendInputCount = 0;
 async function submit(prompt: unknown, options: SubmitOptions) {
   submitCount += 1;
   process.stderr.write(`PTY_SUBMIT_${submitCount}\n`);
-  if (promptTextOf(prompt).trim().startsWith("/help")) {
+  const promptText = promptTextOf(prompt);
+  if (promptText.trim().startsWith("/help")) {
     // E2：补全后的命令确实进入提交入口。
     process.stderr.write("PTY_PROMPT_HELP\n");
+    recordControl("PTY_PROMPT_HELP");
+  }
+  if (promptText.includes("\n")) {
+    // E1：Shift+Enter 插入换行后提交的 prompt 必须带 \n（换行键编码仍待确认）。
+    recordControl("PTY_MULTILINE");
+  }
+  if (promptText.includes("pty-mention")) {
+    // E4：文件提及补全后的路径进入提交。
+    recordControl("PTY_MENTION");
   }
   const emit = (type: SessionEvent["type"], payload: Record<string, unknown>, turnId?: string) => {
     void options.onEvent?.(event(type, payload, turnId));
@@ -243,6 +253,46 @@ async function submit(prompt: unknown, options: SubmitOptions) {
     return { response: "" };
   }
 
+  if (scenario === "approvalstream") {
+    const permission = options.requestPermission?.({
+      requestId: "pty-stream-approval-request",
+      sessionId,
+      traceId,
+      toolCallId: "tool-stream-approval",
+      toolName: "Bash",
+      input: { command: "echo stream" },
+      mode: "build",
+      ruleId: "pty-stream-approval",
+      reason: "Approve while streaming in the fixture",
+      riskLevel: "low",
+      requestedAt: new Date(),
+    });
+    // C5：审批等待期间到达的流式事件不得丢。
+    await delay(300);
+    streamText("PTY_STREAM_DURING_APPROVAL");
+    const result = await permission;
+    const decisionCode = decisionCodeOf(result?.decision);
+    process.stderr.write(`PTY_APPROVAL_${decisionCode}\n`);
+    recordControl(`PTY_APPROVAL_${decisionCode}`);
+    return { response: "" };
+  }
+
+  if (scenario === "toolerror") {
+    emit(SessionEventType.ToolCallScheduled, {
+      toolCallId: "tool-error-1",
+      toolName: "Bash",
+      input: { command: "false" },
+      schedule: { kind: "immediate" },
+    });
+    await delay(150);
+    emit(SessionEventType.ToolCallError, {
+      toolCallId: "tool-error-1",
+      error: { message: "PTY_TOOL_ERROR" },
+    });
+    await delay(150);
+    return { response: "" };
+  }
+
   if (scenario === "question") {
     const result = await options.requestPermission?.({
       requestId: "pty-question-request",
@@ -313,6 +363,10 @@ process.exitCode = await runTui({
   locale: "en-US",
   workspaceDirectory: process.cwd(),
   slashCommands: [{ name: "help", summary: "Show help", usage: "/help" }],
+  listWorkspacePathSuggestions: async () => ({
+    items: [{ kind: "file" as const, path: "/w/pty-mention.ts" }],
+    truncated: false,
+  }),
   submitPrompt: submit,
   // E3：Shift+Tab 的模式切换必须打到客户端能力面。
   setMode: async (mode) => {
