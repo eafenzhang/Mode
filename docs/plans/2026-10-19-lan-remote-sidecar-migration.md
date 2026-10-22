@@ -339,7 +339,9 @@ spike（见 DR-LR-2），未通过前 `connectRemote` 保持明确失败，不�
       `ServiceCollection` 经 `ChannelServer` 暴露；renderer 用既有 `ScopedServicePort` 消息消费。
 - [ ] 事件：connection log、closed、bot reconnect；UI tab 降级与重连。
       connection log / closed 已接；bot reconnect 于 2026-10-22 接通（见 §22）；
-      UI 重连降级仍待真机。
+      UI tab 断连降级逻辑已实现（`onRemoteSessionClosed` → 清 `remoteSessionId` +
+      running 任务收口）并于同日补纯逻辑回归（见 §25）；**自动重连口径待 UX 决策**，
+      当前实现只走用户手动重连。
 - [x] 测试：connect/cancel/bind/dispose、attachment 路由、Host 退出、stale session、
       `REMOTE_WORKSPACE_IDENTITY_MISMATCH`、断线重连。
       connect/bind/attach/detach/dispose、attachment 路由、Host 退出、stale session 已覆盖；
@@ -791,3 +793,18 @@ Host sidecar 不做数据根初始化（归属文件、迁移都只有 server �
 
 边界：用假 agent 基座（不起真 runtime/模型），验证的是传输与连接模式语义；真机双端与
 `web-remote-replayable` 恢复链路的 UI 回归仍待 LR-5。
+
+## 25. 执行记录（2026-10-22，UI tab 断连降级回归）
+
+**结论先说**：降级代码已经在 `useRemoteWorkspaceHistory` 里（`onRemoteSessionClosed`
+→ 清掉 tab 的 `remoteSessionId`、注销 session、把 running/streaming 任务收口为 failed、
+记录断连原因），此前没有任何回归测试。本轮补纯逻辑用例：
+`packages/ui/test/remoteWorkspaceSessionRuntime.test.ts`（4 项，`pnpm --filter @mode/ui test`）：
+
+- active task + runtime running + meta running 同任务去重，只收口一次并带原因；
+- 本地 runtime 已是终态时，滞后的 meta running 不得被改回 failed；
+- optimistic running 参与收口；无运行任务返回 0；
+- 同一 workspaceIdentity 的多个 tab 去重；不同 workspace 的同名 taskId 独立计数。
+
+**仍待决策（UX 口径）**：断连后当前只支持用户手动重连（tab 留在断连态、任务显示失败）。
+要不要做自动重连、重试次数/退避、以及重连失败后的提示层级，属产品行为，未擅自实现。
