@@ -15,7 +15,8 @@ UI 绑定菜单 → botsService.bindBotToTask
 ```
 
 main 侧按 target 判等的唯一口径是 `isSameRemoteTarget`
-（`packages/desktop/src/main/remoteTargetMatch.ts`），三个消费方共用：
+（迁移前的 `packages/desktop/src/main/remoteTargetMatch.ts`；Tauri Host 线已收口到
+`packages/shared/src/remoteTarget.ts`，见下面的「Tauri Host 的直连接线」），三个消费方共用：
 
 1. `hasRemoteWorkspaceSessionForTarget`——Bot 桥的连接状态查询（`isConnected`）；
 2. `createBotRemoteWorkspaceRuntimePort`——绑定/心跳/入站消息建立流观看时的 runtime attachment；
@@ -27,6 +28,29 @@ main 侧按 target 判等的唯一口径是 `isSameRemoteTarget`
 「未找到可供 Bot attachment 的远程 logical session」、`/重连` 永远新建 session；
 `bindBotToTask` 必抛错，而绑定菜单 `handleBind` 只有 `finally` 没有 `catch`，
 用户点「绑定」**没有任何提示与效果**——即「远程工作区无法绑定 IM 机器人」。
+
+## Tauri Host 的直连接线（2026-10-22）
+
+迁移到 Tauri Host sidecar 后，`BotsService` 与 `windowRemoteConnectionRegistry` 在**同一个
+Host 进程**里（`packages/desktop/src/host-standalone/serviceAccessor.ts` 装配），
+`parentPort → main` 这一跳不再存在。Bot 桥改为接受 Host 注入的**直连传输**：
+
+```text
+botsService → botRemoteWorkspaceBridge（transport）
+  → serviceAccessor 注入的实现（延迟绑定，remote 服务创建后赋值）
+  → remoteWorkspaceService.queryBotConnectionStatus / reconnectBotWorkspace / createBotRuntimePort
+  → windowRemoteConnectionRegistry（唯一所有者）
+```
+
+| 方法 | 语义 |
+| --- | --- |
+| `queryConnectionStatus` | 按 `isSameRemoteTarget`（四种 kind 全覆盖）+ `workspaceIdentity` 扫 online session。查询**异常**返回 `null`（桥回退到本地标记），不把「查不到」伪装成「未连接」 |
+| `reconnectBotWorkspace` | 同 target + identity 已有 online session 就**复用**（不新建 logical session、不广播）；否则走 `registry.connect`（底层连接按 target 复用），成功后广播 `botReconnected` 动态事件，`target` 先脱敏 |
+| `createBotRuntimePort` | 为 Bot 建**进程内** scoped attachment：远端服务集合经 `MessageChannel` + `ChannelServer` 暴露成 RPC 端点，端口直接交给桥；**不经过**页面桥/帧解复用，也没有 `scope-ready`。端口由桥按 workspace 缓存，桥 `dispose` 或 Host 退出时关闭 |
+
+renderer 侧由 `desktopRemotePlatformBridge` 订阅 Host 的 `botReconnected` 并转成
+`onBotRemoteWorkspaceReconnected`；`window.mode` 只在 Host 服务缺席时作为 fallback
+（Tauri 注入层该成员仍是留痕空操作，不伪造事件）。
 
 ## 产品规则
 
@@ -76,10 +100,11 @@ main 侧按 target 判等的唯一口径是 `isSameRemoteTarget`
 
 ## 验收场景
 
-1. 回归测试 `packages/desktop/tests/remote-target-match.test.mjs`（CI
-   `node --test packages/desktop/tests/*.test.mjs` 覆盖）：同 host+port 的
-   lan target 判等为 `true`（修复前该函数无 lan 分支，必红），port/host 不同
-   判 `false`，kind 不同判 `false`，ssh 判等口径不变。
+1. 回归测试 `packages/shared/test/remote-target-match.test.ts`（CI
+   `pnpm --filter @mode/shared test` 覆盖；判等函数已随迁移收口到
+   `packages/shared/src/remoteTarget.ts`）：同 host+port 的 lan target 判等为 `true`，
+   port/host 不同判 `false`，kind 不同判 `false`，ssh/wsl/docker 口径按上表，
+   secret 与展示字段不参与。
 2. 回归测试 `packages/services/test/bot-remote-workspace-identity.test.ts`
    （CI `pnpm --filter @mode/services test` 覆盖）：
    - settings 读出缺 identity 的 remote 条目被补齐为统一构造器的派生值；
@@ -92,3 +117,10 @@ main 侧按 target 判等的唯一口径是 `isSameRemoteTarget`
 3. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 全绿。
 4. 实机（LAN 对端已配对且工作区已打开）：右键会话 → IM 机器人 → 绑定，
    成功 toast 且绿点亮起；断开后 Bot 侧消息收到「远端未连接」而非静默。
+5. Tauri Host 直连（2026-10-22）：
+   - `packages/desktop/tests/remote-workspace-host-service.test.mts`「Bot 远端桥」+
+     `packages/services/test/bot-remote-workspace-transport.test.ts`：状态查询按
+     target + identity 命中/拒绝；重连复用时不广播、新建时广播 `botReconnected`；
+     runtime port 经进程内 `MessageChannel` 真能 RPC，桥 `dispose` 关闭端口；
+   - `packages/desktop/tests/desktop-platform-lan-delegation.test.mts`：Tauri + Host
+     时 `onBotRemoteWorkspaceReconnected` 订阅 Host 动态事件，disposer 生效。

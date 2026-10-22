@@ -1,10 +1,20 @@
 /* eslint-disable max-lines -- LAN/SSH/WSL/Docker 共用同一 registry、workspace bind 与 attachment 生命周期，拆分会让单 owner 状态机跨文件。 */
 import { randomUUID } from "node:crypto";
+import { MessageChannel } from "node:worker_threads";
 
-import { Emitter, type IServerChannel } from "@mode/rpc";
+import {
+  ChannelServer,
+  Emitter,
+  MessagePortProtocol,
+  type IServerChannel,
+  type MessagePortLike,
+} from "@mode/rpc";
 import {
   buildRemoteWorkspaceIdentity,
+  isSameRemoteTarget,
   MODE_VERSION,
+  stripRemoteTargetSecrets,
+  type BotRemoteWorkspaceReconnectedEvent,
   type ModePromptAttachment,
   type RemoteConnectionRuntimeLog,
   type RemoteTarget,
@@ -38,10 +48,7 @@ import {
   loadLanPeerToken,
   readLanPeerEndpoints,
 } from "../host/lanRemoteAttach.js";
-import {
-  endpointsForLanTarget,
-  selectReachableLanPeerEndpoint,
-} from "../host/lanPeerEndpoints.js";
+import { endpointsForLanTarget, selectReachableLanPeerEndpoint } from "../host/lanPeerEndpoints.js";
 import {
   createLanPromptAttachmentTransferService,
   materializeLanPromptAttachments,
@@ -79,7 +86,35 @@ interface AttachmentRecord {
   dispose: () => void;
 }
 
+/** Bot 侧的远端 workspace 目标（与 `@mode/services` 的直连传输同形）。 */
+export interface BotRemoteWorkspaceHostTarget {
+  workspacePath: string;
+  workspaceIdentity: string;
+  target: RemoteTarget;
+}
+
 export interface RemoteWorkspaceHostService extends IRemoteService {
+  /** Bot 查询该 workspace 是否已有 online logical session（按 target + identity 判等）。 */
+  queryBotConnectionStatus(target: BotRemoteWorkspaceHostTarget): Promise<boolean>;
+  /** Bot 重连：复用已有 online session，否则新建连接；成功后向 renderer 发事件。 */
+  reconnectBotWorkspace(target: BotRemoteWorkspaceHostTarget): Promise<
+    | { ok: true; sessionId: string }
+    | {
+        ok: false;
+        error: string;
+      }
+  >;
+  /**
+   * 给 Bot 建一条**进程内** scoped attachment：远端服务集合经 MessageChannel 暴露成
+   * RPC 端点，端口直接交给 Bot 桥（不经页面桥/帧解复用）。调用方负责调用 `dispose`。
+   */
+  createBotRuntimePort(target: BotRemoteWorkspaceHostTarget): Promise<
+    | { ok: true; port: unknown; dispose: () => void }
+    | {
+        ok: false;
+        error: string;
+      }
+  >;
   /** Host 退出：释放 registry、所有 attachment 与底层连接。 */
   disposeHost(): Promise<void>;
 }
@@ -337,9 +372,8 @@ export async function createRemoteWorkspaceHostService(
         "SSH/WSL/Docker 远程工作区缺少 remote assets 源：请设置 MODE_REMOTE_ASSET_CDN_BASE_URL，或提供本地 mock-cdn。",
       );
     }
-    const { createRemoteBackend, connectRemote, pickRemoteRuntimeEnv } = await import(
-      "@mode/server/remote"
-    );
+    const { createRemoteBackend, connectRemote, pickRemoteRuntimeEnv } =
+      await import("@mode/server/remote");
     const closeBridge = createRemoteCloseBridge();
     const backend = await createRemoteBackend(target);
     const connection = await connectRemote(backend, {
@@ -347,9 +381,7 @@ export async function createRemoteWorkspaceHostService(
       appVersion: MODE_VERSION,
       remoteRuntimeEnv: pickRemoteRuntimeEnv(process.env),
       ...(remoteAssets.mockCdnDir ? { mockCdnDir: remoteAssets.mockCdnDir } : {}),
-      ...(remoteAssets.remoteCdnBaseUrl
-        ? { remoteCdnBaseUrl: remoteAssets.remoteCdnBaseUrl }
-        : {}),
+      ...(remoteAssets.remoteCdnBaseUrl ? { remoteCdnBaseUrl: remoteAssets.remoteCdnBaseUrl } : {}),
       ...(remoteAssets.remoteCdnBaseUrls?.length
         ? { remoteCdnBaseUrls: remoteAssets.remoteCdnBaseUrls }
         : {}),
@@ -427,6 +459,32 @@ export async function createRemoteWorkspaceHostService(
       });
     },
   });
+
+  /**
+   * Bot 视角的 session 查找：target 按 `isSameRemoteTarget` 判等（四种 kind 全覆盖），
+   * workspace 按 identity 判等（缺省回退 path），只认 online。
+   *
+   * 为什么不能只比 remoteSessionId：Bot 侧只有 settings 里的 target 与 identity，
+   * 没有 UI 的连接句柄；重连与 runtime attachment 都必须能从这两项找回同一个 session。
+   */
+  const findBotSession = (target: BotRemoteWorkspaceHostTarget) => {
+    const identity = target.workspaceIdentity.trim();
+    return (
+      registry
+        .listSessions()
+        .find(
+          (session) =>
+            session.state === "online" &&
+            isSameRemoteTarget(session.target, target.target) &&
+            (identity
+              ? (session.workspaceIdentity ?? "").trim() === identity
+              : (session.workspacePath ?? "") === target.workspacePath),
+        ) ?? null
+    );
+  };
+
+  /** 进程内 bot runtime 端口的回收函数；Host dispose 时统一关闭。 */
+  const botRuntimePortDisposers = new Set<() => void>();
 
   function detachSessionAttachments(sessionId: string): void {
     for (const record of Array.from(attachments.values())) {
@@ -572,10 +630,101 @@ export async function createRemoteWorkspaceHostService(
 
     onDynamicConnectionEvent: (_sessionId?: string) => events.event,
 
+    // ---- Bot 远端桥（进程内直连；不暴露成 renderer RPC command） ---------------------
+    async queryBotConnectionStatus(target: BotRemoteWorkspaceHostTarget): Promise<boolean> {
+      return findBotSession(target) !== null;
+    },
+
+    async reconnectBotWorkspace(target: BotRemoteWorkspaceHostTarget) {
+      const existing = findBotSession(target);
+      if (existing) {
+        // 已有同 target + identity 的 online session：复用，不重复建 logical session。
+        return { ok: true as const, sessionId: existing.remoteSessionId };
+      }
+      const result = await service.connect({
+        target: target.target,
+        workspacePath: target.workspacePath,
+        ...(target.workspaceIdentity.trim()
+          ? { workspaceIdentity: target.workspaceIdentity.trim() }
+          : {}),
+      });
+      if (!result.ok) {
+        return { ok: false as const, error: result.error };
+      }
+      const sessionId = result.descriptor.remoteSessionId;
+      const event: BotRemoteWorkspaceReconnectedEvent = {
+        sessionId,
+        workspacePath: target.workspacePath,
+        workspaceIdentity: target.workspaceIdentity,
+        // 令牌只在连接流程内使用；事件跨到 renderer，一律脱敏。
+        target: stripRemoteTargetSecrets(target.target),
+      };
+      events.fire({ kind: "botReconnected", event });
+      emitLog("info", "Bot 已重连远端工作区", { sessionId, source: "host/bot" });
+      return { ok: true as const, sessionId };
+    },
+
+    async createBotRuntimePort(target: BotRemoteWorkspaceHostTarget) {
+      const session = findBotSession(target);
+      if (!session?.workspacePath || !session.workspaceIdentity) {
+        return { ok: false as const, error: "远端 workspace 尚未连接或未绑定上下文。" };
+      }
+      let remoteServices: ServiceCollection;
+      try {
+        remoteServices = registry.resolveScopedServices({
+          kind: "remote",
+          remoteSessionId: session.remoteSessionId,
+          workspacePath: session.workspacePath,
+          workspaceIdentity: session.workspaceIdentity,
+        });
+      } catch (error) {
+        return { ok: false as const, error: describeError(error) };
+      }
+      // 进程内 MessageChannel：一端挂 ChannelServer 暴露远端服务集合，另一端直接交给 Bot 桥。
+      // 这条路径不经过页面桥与帧解复用（没有 renderer 参与），所以也无需 `scope-ready`。
+      const channel = new MessageChannel();
+      const server = new ChannelServer(
+        new MessagePortProtocol(channel.port1 as unknown as MessagePortLike),
+        `mode-host/bot-runtime-${session.remoteSessionId}`,
+        1000,
+        true,
+      );
+      remoteServices.exposeOnChannelServer({
+        registerChannel(channelName: string, channelServer: IServerChannel<string>) {
+          server.registerChannel(channelName, options.guardChannel(channelName, channelServer));
+        },
+      });
+      server.ready();
+      let closed = false;
+      const dispose = (): void => {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        botRuntimePortDisposers.delete(dispose);
+        server.dispose();
+        channel.port1.close();
+        channel.port2.close();
+        emitLog("info", "Bot runtime attachment 已释放", {
+          sessionId: session.remoteSessionId,
+          source: "host/bot",
+        });
+      };
+      botRuntimePortDisposers.add(dispose);
+      emitLog("info", "Bot runtime attachment 已创建", {
+        sessionId: session.remoteSessionId,
+        source: "host/bot",
+      });
+      return { ok: true as const, port: channel.port2, dispose };
+    },
+
     async disposeHost(): Promise<void> {
       scopeSubscription.dispose();
       for (const record of Array.from(attachments.values())) {
         record.dispose();
+      }
+      for (const disposePort of Array.from(botRuntimePortDisposers)) {
+        disposePort();
       }
       attachments.clear();
       attachmentsByScope.clear();
@@ -584,5 +733,11 @@ export async function createRemoteWorkspaceHostService(
     },
   };
   // Host 内部生命周期方法不能被 ProxyChannel 暴露成 RPC command。
-  return hideInternalServiceMembers(service, ["disposeHost"]);
+  // Bot 三个方法同理：`createBotRuntimePort` 甚至返回 MessagePort（不可 JSON 序列化）。
+  return hideInternalServiceMembers(service, [
+    "disposeHost",
+    "queryBotConnectionStatus",
+    "reconnectBotWorkspace",
+    "createBotRuntimePort",
+  ]);
 }

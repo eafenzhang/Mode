@@ -3,7 +3,8 @@
 状态：2026-10-19 立项；LR-0..LR-4 的代码与自动化面已随 `bd4c7e46` 落地；LR-5 未开工。
 2026-10-20 的 0.0.61 真机验收：LAN 监听、配对码、发现与已配对设备通过；远程桌面因对端缺
 `mediaTicket` 返回「对端不支持」；远程工作区在设置页仍无 attach/打开入口；两台实机端到端
-验收未完成。SSH/WSL/Docker 在 Tauri Host 明确返回不支持；bot reconnect 与 UI tab 降级待做。
+验收未完成。SSH/WSL/Docker 已接 `connectStdio`（自动化覆盖，真机未验）；bot reconnect 已接通
+（2026-10-22，Host 直连传输 + 进程内 runtime port + `botReconnected` 事件）；UI tab 降级仍待做。
 同日复现更正：`mediaTicket` 并不是根因，真正断点是 Tauri 包未带 Windows CUA helper
 （`rd_media_start` → `helper_unavailable` → 对端回 `unsupported`）；修复与复现口径见 §21。
 验收明细见 `docs/plans/2026-10-20-installed-0.0.61-acceptance.md`。
@@ -337,7 +338,8 @@ spike（见 DR-LR-2），未通过前 `connectRemote` 保持明确失败，不�
       **已接**：`remote.attach` 用 registry 的 scoped scope 校验三元组，scoped
       `ServiceCollection` 经 `ChannelServer` 暴露；renderer 用既有 `ScopedServicePort` 消息消费。
 - [ ] 事件：connection log、closed、bot reconnect；UI tab 降级与重连。
-      connection log / closed 已接；bot reconnect 与 UI 重连降级待做。
+      connection log / closed 已接；bot reconnect 于 2026-10-22 接通（见 §22）；
+      UI 重连降级仍待真机。
 - [x] 测试：connect/cancel/bind/dispose、attachment 路由、Host 退出、stale session、
       `REMOTE_WORKSPACE_IDENTITY_MISMATCH`、断线重连。
       connect/bind/attach/detach/dispose、attachment 路由、Host 退出、stale session 已覆盖；
@@ -713,3 +715,40 @@ rd_media-start-failed: Computer Use Helper is not reachable for rd_media
 复现口径（不依赖 UI）：用本机配对令牌对 `127.0.0.1:45880` 走
 `POST /api/remote-desktop/session` → 信令 WS `hello` → `select-monitor`；修复前在
 `media-open` 后收到 `unsupported`，修复后应进入媒体 WS 并持续收帧。
+
+## 22. 执行记录（2026-10-22，LR-4 bot reconnect）
+
+落点（Tauri Host 内直连，不再经 `parentPort → main`）：
+
+- `packages/shared/src/remoteTarget.ts`：新增 `isSameRemoteTarget`——按 spec 的 authority
+  口径覆盖 lan/ssh/wsl/docker；secret 与展示字段不参与。判等函数从已删除的
+  `packages/desktop/src/main/remoteTargetMatch.ts` 收口到 shared，Host 与 services 共用。
+- `packages/services/src/bots/botRemoteWorkspaceBridge.ts`：新增
+  `BotRemoteWorkspaceTransport`（`queryConnectionStatus` / `reconnect` / `createRuntimePort`）。
+  无 `parentPort` 但有直连传输时照常创建；查询失败返回 null 让桥回退本地标记；
+  runtime port 的释放函数随桥 `dispose` 一起关闭。
+- `packages/desktop/src/host-standalone/remoteWorkspaceService.ts`：
+  - `queryBotConnectionStatus`：`isSameRemoteTarget` + `workspaceIdentity` 扫 online session；
+  - `reconnectBotWorkspace`：同 target + identity 复用，否则 `registry.connect`，成功后
+    `events.fire({ kind: "botReconnected" })`（target 脱敏）；
+  - `createBotRuntimePort`：`MessageChannel` + `ChannelServer` 暴露 scoped 服务集合，
+    端口直接交给 Bot 桥；不经页面桥/帧解复用，Host 退出统一关闭；
+  - 三个方法都加入 `hideInternalServiceMembers`（`createBotRuntimePort` 返回 MessagePort，
+    绝不能进 renderer RPC 面）。
+- `packages/desktop/src/host-standalone/serviceAccessor.ts`：注入直连传输（延迟绑定到
+  `remote` 服务）；`createLocalServices` 新增 `botRemoteWorkspaceTransport` 选项。
+- `packages/desktop/src/renderer/src/desktopRemotePlatformBridge.ts`：
+  `onBotRemoteWorkspaceReconnected` 订阅 Host 动态事件；`desktopPlatform` 删除直接委托
+  `window.mode` 的那一行（Host 服务缺席时才回退）。
+
+自动化验证（本机 2026-10-22）：
+
+- `pnpm typecheck` 通过；
+- `pnpm --filter @mode/shared test`：95 项全绿（新增 5 项 target 判等）；
+- `packages/services/test/bot-remote-workspace-transport.test.ts`：5 项全绿；
+- `packages/desktop/tests/remote-workspace-host-service.test.mts`：10 项全绿
+  （新增 bot 状态/重连/进程内 runtime port RPC）；
+- `packages/desktop/tests/desktop-platform-lan-delegation.test.mts`：10 项全绿
+  （新增 `botReconnected` 事件委托与 disposer）。
+
+未完成：UI tab 降级（远端断开后的 tab 状态与自动重连）仍待真机；SSH/WSL/Docker 真机未验。

@@ -137,6 +137,7 @@ const fakeMode = {
   },
   onRemoteConnectionLog: () => () => {},
   onRemoteSessionClosed: () => () => {},
+  onBotRemoteWorkspaceReconnected: () => () => {},
 };
 
 const fakeLanAccess = {
@@ -552,8 +553,12 @@ test("Tauri + Host：远程连接日志与关闭事件走 Host 动态事件", as
   });
   const logs: Array<{ message: string }> = [];
   const closed: Array<{ sessionId: string }> = [];
+  const reconnected: Array<{ sessionId: string; workspaceIdentity: string }> = [];
   const disposeLog = platform.onRemoteConnectionLog((entry) => logs.push(entry));
   const disposeClosed = platform.onRemoteSessionClosed((event) => closed.push(event));
+  const disposeReconnected = platform.onBotRemoteWorkspaceReconnected((event) =>
+    reconnected.push(event),
+  );
 
   remoteEvents.emit({
     kind: "log",
@@ -571,6 +576,15 @@ test("Tauri + Host：远程连接日志与关闭事件走 Host 动态事件", as
     exitCode: 1,
     signal: null,
   });
+  remoteEvents.emit({
+    kind: "botReconnected",
+    event: {
+      sessionId: "bot-session",
+      workspacePath: "/w",
+      workspaceIdentity: "remote:lan:192.168.1.9:45880:/w",
+      target: { kind: "lan", host: "192.168.1.9", port: 45880 },
+    },
+  });
   assert.deepEqual(logs, [
     {
       label: "remote",
@@ -583,11 +597,30 @@ test("Tauri + Host：远程连接日志与关闭事件走 Host 动态事件", as
   assert.deepEqual(closed, [
     { sessionId: "session-1", reason: "host-exit", exitCode: 1, signal: null },
   ]);
+  assert.deepEqual(reconnected, [
+    {
+      sessionId: "bot-session",
+      workspacePath: "/w",
+      workspaceIdentity: "remote:lan:192.168.1.9:45880:/w",
+      target: { kind: "lan", host: "192.168.1.9", port: 45880 },
+    },
+  ]);
 
   disposeLog();
   disposeClosed();
+  disposeReconnected();
   remoteEvents.emit({ kind: "closed", sessionId: "session-2", exitCode: null, signal: null });
+  remoteEvents.emit({
+    kind: "botReconnected",
+    event: {
+      sessionId: "bot-session-2",
+      workspacePath: "/w",
+      workspaceIdentity: "remote:lan:192.168.1.9:45880:/w",
+      target: { kind: "lan", host: "192.168.1.9", port: 45880 },
+    },
+  });
   assert.equal(closed.length, 1, "disposer 后不再收事件");
+  assert.equal(reconnected.length, 1, "bot reconnect 订阅同样在 disposer 后停止");
 });
 
 test("非 Tauri：远程工作区保持 window.mode 路径", async () => {

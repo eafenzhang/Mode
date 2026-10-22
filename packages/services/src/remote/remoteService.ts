@@ -1,5 +1,6 @@
 import type { Event } from "@mode/rpc";
 import type {
+  BotRemoteWorkspaceReconnectedEvent,
   RemoteConnectionRuntimeLog,
   RemoteTarget,
   WindowHostRemoteWorkspaceDescriptor,
@@ -74,7 +75,12 @@ export type RemoteWorkspaceConnectionEvent =
       exitCode: number | null;
       signal: string | null;
       error?: string;
-    };
+    }
+  /**
+   * Bot 为某个远端 workspace 主动重连成功（`/reconnect` 或入站消息触发的
+   * `ensureConnected`）。renderer 据此刷新该 workspace 的会话历史与 tab 状态。
+   */
+  | { kind: "botReconnected"; event: BotRemoteWorkspaceReconnectedEvent };
 
 export interface IRemoteService {
   /** 建立 logical session；失败返回可读错误（不抛跨进程细节）。 */

@@ -58,8 +58,6 @@ export function createDesktopPlatform(options: {
     ...resolveSelectFilesCapability(window.mode.selectFiles),
     openDataRootImport: () => window.mode.openDataRootImport?.(),
     createTempTextAttachment: (payload) => window.mode.createTempTextAttachment(payload),
-    onBotRemoteWorkspaceReconnected: (handler) =>
-      window.mode.onBotRemoteWorkspaceReconnected(handler),
     activateOrSetWorkspace: (path) =>
       window.mode.activateOrSetWorkspace?.(path) ?? Promise.resolve({ activated: false }),
     // 远程工作区（LR-4）：connect/bind/dispose 与事件订阅集中在 helper 里。

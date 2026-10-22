@@ -96,6 +96,53 @@ export function resolveLanTargetEndpoints(target: LanConnectOptions): LanPeerEnd
     });
 }
 
+/**
+ * 两个 `RemoteTarget` 是否指向同一个远端（bots 绑定/重连的唯一判等口径）。
+ *
+ * 只比较定位对端所需的 authority（口径见 `docs/specs/im-bot-remote-workspace-binding.md`）：
+ *
+ * | kind | 比较字段 |
+ * | --- | --- |
+ * | ssh | host（小写）、port（缺省 22）、username、privateKeyPath |
+ * | wsl | distro（缺省 default）、user |
+ * | docker | container |
+ * | lan | host（小写）、port |
+ *
+ * secret（token、密码、私钥口令）与展示性字段（serverName、sshConfigAlias）**不参与比较**：
+ * settings 快照与连接期 live target 的 secret 形态不同，比较它们必然把同一个对端判成两个。
+ */
+export function isSameRemoteTarget(left: RemoteTarget, right: RemoteTarget): boolean {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+  switch (left.kind) {
+    case "ssh":
+      return (
+        right.kind === "ssh" &&
+        left.host.trim().toLowerCase() === right.host.trim().toLowerCase() &&
+        (left.port ?? 22) === (right.port ?? 22) &&
+        left.username.trim() === right.username.trim() &&
+        (left.privateKeyPath?.trim() ?? "") === (right.privateKeyPath?.trim() ?? "")
+      );
+    case "wsl":
+      return (
+        right.kind === "wsl" &&
+        (left.distro?.trim() || "default") === (right.distro?.trim() || "default") &&
+        (left.user?.trim() ?? "") === (right.user?.trim() ?? "")
+      );
+    case "docker":
+      return right.kind === "docker" && left.container.trim() === right.container.trim();
+    case "lan":
+      return (
+        right.kind === "lan" &&
+        left.host.trim().toLowerCase() === right.host.trim().toLowerCase() &&
+        left.port === right.port
+      );
+    default:
+      return false;
+  }
+}
+
 /** 删除只应存在于当前连接流程中的 secret，供长期内存状态和跨进程回包使用。 */
 export function stripRemoteTargetSecrets(target: RemoteTarget): RemoteTarget {
   if (target.kind === "ssh") {

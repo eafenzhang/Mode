@@ -9,6 +9,7 @@ import test from "node:test";
 
 import {
   ChannelClient,
+  MessagePortProtocol,
   VSBuffer,
   createFrameDemultiplexer,
   type IChannel,
@@ -447,9 +448,8 @@ test("默认 LAN 连接：公网端点优先，attach 收到 https + path", asyn
     delete: async () => undefined,
     list: async () => [],
   } as unknown as ICredentialService);
-  let captured:
-    | { scheme?: "http" | "https"; host?: string; path?: string; token?: string }
-    | null = null;
+  let captured: { scheme?: "http" | "https"; host?: string; path?: string; token?: string } | null =
+    null;
   const adapter = await createRemoteWorkspaceHostService({
     services,
     log: () => undefined,
@@ -535,4 +535,105 @@ test("Host 退出：活动会话与 scoped attachment 一并回收", async () =>
   await adapter.disposeHost();
   assert.equal(disposed, 1, "Host 退出必须释放底层 transport");
   assert.equal(scopedAttachments.count(), 0, "Host 退出必须回收 scoped attachment");
+});
+
+test("Bot 远端桥：状态按 target+identity 命中；重连复用/新建并广播；runtime port 真能 RPC", async () => {
+  // spec: docs/specs/im-bot-remote-workspace-binding.md + 迁移计划 §5.4（botRemote.reconnected）。
+  // Tauri Host 里 registry 与 BotsService 同进程，Bot 桥不再经 parentPort 转发给 main。
+  const transport = transportPair();
+  const demux = createFrameDemultiplexer(transport.server);
+  const scopedAttachments = createScopedAttachmentRegistry({ demux, log: () => undefined });
+  let connectCount = 0;
+  const adapter = await createRemoteWorkspaceHostService({
+    services: new ServiceCollection(),
+    log: () => undefined,
+    scopedAttachments,
+    guardChannel: (_channelName, channel) => channel,
+    connectLan: async () => {
+      connectCount += 1;
+      return {
+        services: createRemoteServices("bot"),
+        onDidClose: () => ({ dispose() {} }),
+        dispose: async () => undefined,
+      };
+    },
+    // Bot runtime 端口只需证明「远端服务集合经端口可调」；用测试 echo 频道代替真实服务。
+    createRemoteWorkspaceServices: () => createRemoteServices("bot"),
+    createId: (() => {
+      let next = 0;
+      return () => `bot-${++next}`;
+    })(),
+  });
+  try {
+    const lanTarget = { kind: "lan" as const, host: "127.0.0.1", port: 45880 };
+    const workspaceIdentity = "remote:lan:127.0.0.1:45880:/w";
+    const connected = await adapter.connect({
+      target: lanTarget,
+      workspacePath: "/w",
+      workspaceIdentity,
+    });
+    assert.equal(connected.ok, true);
+    const sessionId = connected.ok ? connected.descriptor.remoteSessionId : "";
+    const botTarget = { workspacePath: "/w", workspaceIdentity, target: lanTarget };
+
+    assert.equal(await adapter.queryBotConnectionStatus(botTarget), true);
+    assert.equal(
+      await adapter.queryBotConnectionStatus({ ...botTarget, workspaceIdentity: "other" }),
+      false,
+      "identity 不同不得命中（同 target 的另一个 workspace）",
+    );
+    assert.equal(
+      await adapter.queryBotConnectionStatus({
+        ...botTarget,
+        target: { kind: "lan", host: "127.0.0.1", port: 1 },
+      }),
+      false,
+      "target 不同不得命中",
+    );
+
+    const events: string[] = [];
+    const subscription = adapter.onDynamicConnectionEvent()((event) => events.push(event.kind));
+    // 已有 online session：复用，不新建、不广播 botReconnected。
+    const reused = await adapter.reconnectBotWorkspace(botTarget);
+    assert.deepEqual(reused, { ok: true, sessionId });
+    assert.equal(connectCount, 1, "复用不应重新建立底层连接");
+    assert.equal(events.includes("botReconnected"), false, "复用不应广播重连事件");
+
+    // 同一 target 的另一个 workspace：新建 logical session 并广播。
+    const otherIdentity = "remote:lan:127.0.0.1:45880:/w2";
+    const reconnected = await adapter.reconnectBotWorkspace({
+      workspacePath: "/w2",
+      workspaceIdentity: otherIdentity,
+      target: lanTarget,
+    });
+    assert.equal(reconnected.ok, true);
+    assert.notEqual(reconnected.ok ? reconnected.sessionId : "", sessionId);
+    assert.equal(events.includes("botReconnected"), true, "新建连接必须广播 botReconnected");
+    assert.equal((await adapter.listSessions()).length, 2);
+
+    // runtime port：远端服务集合经进程内 MessageChannel 真能 RPC。
+    const runtime = await adapter.createBotRuntimePort(botTarget);
+    assert.equal(runtime.ok, true);
+    if (!runtime.ok) {
+      throw new Error("runtime port 未创建");
+    }
+    // Node 的 MessagePort 与浏览器同形（addEventListener/postMessage/start/close）。
+    const client = new ChannelClient(new MessagePortProtocol(runtime.port as never));
+    const echo = await client
+      .getChannel<IChannel>("test-echo")
+      .call<{ scopeId: string }>("echo", [{ n: 1 }]);
+    assert.deepEqual(echo, { scopeId: "bot", arg: { n: 1 } });
+    runtime.dispose();
+    // 未连接/未绑定的 workspace 明确失败，不返回半个端口。
+    const missing = await adapter.createBotRuntimePort({
+      workspacePath: "/missing",
+      workspaceIdentity: "missing",
+      target: lanTarget,
+    });
+    assert.deepEqual(missing, { ok: false, error: "远端 workspace 尚未连接或未绑定上下文。" });
+
+    subscription.dispose();
+  } finally {
+    await adapter.disposeHost();
+  }
 });

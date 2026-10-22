@@ -31,6 +31,10 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 
 import type { IChannelServer, IServerChannel } from "@mode/rpc";
+import type {
+  BotRemoteWorkspaceTransport,
+  BotRemoteWorkspaceTransportTarget,
+} from "@mode/services/node";
 
 import { DispatchGuards } from "./channelGuard.js";
 import { createRendererConnectionScope } from "./rendererConnectionScope.js";
@@ -158,9 +162,45 @@ export async function createHostServiceSurface(
   // 远程桌面被控开关是 CUA Helper 的创建准入之一（插件关闭但被控打开时仍需 raw_input 通道）。
   // server 在 services 之后才建，所以用闭包现取；与 Electron Host 的装配口径一致。
   let remoteDesktopCapability: { isServerEnabled(): boolean } | null = null;
+  /**
+   * Bot 远端桥的进程内直连传输（LR-4 剩余项）：
+   * registry（`remote`）与 BotsService 同在 Host 进程，不再经 parentPort 转发给 main。
+   * `remote` 在 `createLocalServices` 之后才创建，所以这里用可变引用延迟绑定；
+   * 绑定前查询返回 null（回退到 Bot 桥的本地 Set），重连/建端口返回显式错误。
+   */
+  let botRemoteHost: {
+    queryBotConnectionStatus(target: BotRemoteWorkspaceTransportTarget): Promise<boolean>;
+    reconnectBotWorkspace(target: BotRemoteWorkspaceTransportTarget): Promise<
+      | { ok: true; sessionId: string }
+      | {
+          ok: false;
+          error: string;
+        }
+    >;
+    createBotRuntimePort(target: BotRemoteWorkspaceTransportTarget): Promise<
+      | { ok: true; port: unknown; dispose: () => void }
+      | {
+          ok: false;
+          error: string;
+        }
+    >;
+  } | null = null;
+  const botRemoteWorkspaceTransport: BotRemoteWorkspaceTransport = {
+    queryConnectionStatus: async (target) =>
+      botRemoteHost ? await botRemoteHost.queryBotConnectionStatus(target) : null,
+    reconnect: async (target) =>
+      botRemoteHost
+        ? await botRemoteHost.reconnectBotWorkspace(target)
+        : { ok: false, error: "远程工作区服务尚未就绪。" },
+    createRuntimePort: async (target) =>
+      botRemoteHost
+        ? await botRemoteHost.createBotRuntimePort(target)
+        : { ok: false, error: "远程工作区服务尚未就绪。" },
+  };
   const services = createLocalServices({
     modeBuiltinProviderConfigFilePath: builtinProviderConfig.path,
     isRemoteDesktopServerEnabled: () => remoteDesktopCapability?.isServerEnabled() ?? false,
+    botRemoteWorkspaceTransport,
   });
 
   // 部署配置：安装时写入一次，之后每台机器不再逐机设置环境变量。
@@ -205,6 +245,8 @@ export async function createHostServiceSurface(
     guardChannel: (channelName, channel) =>
       options.guards.guardChannel(channelName, channel, options.log),
   });
+  // Bot 桥在 `createLocalServices` 里已建好，这里补上它真正依赖的 registry 实现。
+  botRemoteHost = remote;
   const cloudAccount = await createCloudAccountHostService({
     services,
     log: options.log,

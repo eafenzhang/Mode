@@ -43,7 +43,11 @@ export type {
   SSHConnectOptions,
   WSLConnectOptions,
 } from "./remoteTarget.js";
-export { resolveLanTargetEndpoints, stripRemoteTargetSecrets } from "./remoteTarget.js";
+export {
+  isSameRemoteTarget,
+  resolveLanTargetEndpoints,
+  stripRemoteTargetSecrets,
+} from "./remoteTarget.js";
 export { buildSshRemoteHostKey } from "./remoteSshHostKey.js";
 export { buildRemoteEnvironmentKey } from "./remoteEnvironmentKey.js";
 export type {

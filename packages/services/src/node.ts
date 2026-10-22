@@ -393,7 +393,13 @@ import { createModeTaskIndexSyncer } from "./mode-agent/modeTaskIndexSyncer.js";
 import { TaskIndexRepo } from "./session/taskIndexRepo.js";
 import { createBotsService } from "./bots/botsService.js";
 
-import { createBotRemoteWorkspaceService } from "./bots/botRemoteWorkspaceBridge.js";
+import {
+  createBotRemoteWorkspaceService,
+  type BotRemoteWorkspaceTransport,
+  type BotRemoteWorkspaceTransportTarget,
+} from "./bots/botRemoteWorkspaceBridge.js";
+
+export type { BotRemoteWorkspaceTransport, BotRemoteWorkspaceTransportTarget };
 import type { SessionMessageSendRequested } from "#src/session/sessionMailbox.js";
 import { createFileWatcherService } from "./fileWatcher/fileWatcherService.js";
 import { createOAuthService } from "./oauth/oauthService.js";
@@ -1392,6 +1398,11 @@ function cuaHelperStartErrorDetail(error: unknown): string {
  */
 export function createLocalServices(options: {
   parentPort?: Parameters<typeof createBroadcastService>[0];
+  /**
+   * Bot 远端 workspace 的进程内直连传输（Tauri Host）：registry 与 BotsService 同进程时，
+   * 不再经 parentPort 转发给 main。缺省时仍走 parentPort（Electron 线）。
+   */
+  botRemoteWorkspaceTransport?: BotRemoteWorkspaceTransport;
   /** Host 装配层注入的设置权威；与网络 transport 必须来自同一 Window Host 生命周期。 */
   settingService?: ISettingService;
   /** 与注入的本地 Setting 共用写队列；外部远端 Setting 不传，由其权威 Host 完成迁移。 */
@@ -2523,6 +2534,7 @@ export function createLocalServices(options: {
   });
   const botRemoteWorkspaceService = createBotRemoteWorkspaceService({
     parentPort: options?.parentPort,
+    transport: options?.botRemoteWorkspaceTransport,
     settingService,
     credentialService,
   });

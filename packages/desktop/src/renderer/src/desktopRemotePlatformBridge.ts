@@ -34,6 +34,7 @@ type RemotePlatformMethods = Pick<
   IPlatformService,
   | "onRemoteConnectionLog"
   | "onRemoteSessionClosed"
+  | "onBotRemoteWorkspaceReconnected"
   | "connectRemote"
   | "cancelPendingRemoteConnection"
   | "bindRemoteWorkspaceSessionContext"
@@ -105,6 +106,19 @@ export function createDesktopRemotePlatformBridge(options: {
             exitCode: event.exitCode,
             signal: event.signal,
           });
+        }
+      });
+      return () => disposable.dispose();
+    },
+    onBotRemoteWorkspaceReconnected: (handler) => {
+      const remote = options.getRemoteService();
+      if (!remote) {
+        // Tauri 注入层目前仍是留痕空操作；Host 服务缺席时保持原语义（不伪造事件）。
+        return window.mode.onBotRemoteWorkspaceReconnected(handler);
+      }
+      const disposable = remote.onDynamicConnectionEvent()((event) => {
+        if (event.kind === "botReconnected") {
+          handler(event.event);
         }
       });
       return () => disposable.dispose();
