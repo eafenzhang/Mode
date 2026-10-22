@@ -76,7 +76,7 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 | 维度 | 指标 | 现状 | 目标 | 测量面 |
 | --- | --- | --- | --- | --- |
 | 轻 | 发运集「核心」载荷 | ≈63 MB（host-sidecar + agent + tools） | **≤ 25 MB** | 安装包字节（NSIS）+ 未压缩诊断 |
-| 轻 | Node 运行时 | 89 MB | **0**（Tauri 形态） | 发运集目录 |
+| 轻 | Node 运行时（核心发运集内） | 89 MB | **0**；npm-MCP 回退时按需出现（不再是随包常驻） | 发运集目录 |
 | 快 | 冷启动 `T_ready` | 825 ms | **≤ 400 ms** | `measure:cold-start` 同口径 |
 | 快 | 首屏 `T_surface` | 962 ms | **≤ 600 ms** | 同上 |
 | 快 | 流式增量端到端 p95 | 未测 | **≤ 80 ms**（本机 loopback） | 新增 bench（§5） |
@@ -130,7 +130,8 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 
 - `packages/ui` 19k + HTML/CSS（渲染层已是「轻」的形态，别动）。
 - **TUI 14k**：DR-TUI-1 已定沿用 TS；只有当「CLI 要变成 Rust 单二进制」时才评估 ratatui。
-- 插件 / 技能的 JS 执行面（需要 JS 引擎；QuickJS 嵌入是 P2 评估项，不是承诺）。
+- 插件 / 技能的 JS 执行面：**执行面保留**（插件仍是 JS），但承载方式按 2026-10-23 裁决改为
+  「子进程 + 带嵌入 JS 引擎的自家二进制」，随包 Node 退为按需资产（见 §4 P2）。
 - IM bot SDK（`@larksuiteoapi/node-sdk`、`@wecom/aibot-node-sdk`）：**2026-10-23 已裁决为可选
   feature**——不随核心桌面包安装、也不重写。落地口径：`packages/services/bots` 的 SDK 静态
   import 改为按通道动态 import，SDK 移出核心发运集闭包；未启用 bot 通道时加载失败不影响启动
@@ -169,9 +170,25 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 - 风险：权限边界（helper 独立是**有意**的安全隔离，见 `lan-remote-computer-use` spec）；
   **不建议在没有安全评审前合并**，先量化它的内存与启动成本再决定。
 
-### P2：插件宿主 QuickJS 嵌入 / IM bot Rust 化 / TUI ratatui
+### P2：插件宿主形态（**2026-10-23 已裁决：A + 按需回退**）/ IM bot Rust 化 / TUI ratatui
 
-- 三者都是「收益中、风险高、或有生态前提」的项，放到 M5 之后按需评估，不进本次承诺。
+**插件宿主（方向已定）**：**A——维持 bundle-only 契约，插件仍跑在独立子进程（DR-PH-1），
+但子进程的可执行文件从「随包 Node」换成「带嵌入 JS 引擎（QuickJS 级）的自家二进制」**。
+
+- 协议不变（DR-PH-2 的 NDJSON JSON-RPC over stdio），资产层（`crates/plugin-host` 的
+  manifest/AssetCache）与 CDN 按需下载不变；
+- **稳定性**：子进程崩溃隔离保留（不做进程内嵌入，避免插件 OOM/死循环拖死宿主）；
+  无 native ABI/DLL 依赖；CDN 上的 bundle 是冻结字节，没有 `postinstall` 与版本漂移；
+- **通用性**：我们的插件本来就是单文件 bundle，作者契约零变化；native addon 类插件
+  明确不支持（fail closed，错误可诊断）；
+- **MCP 的通用性由按需回退承担**：MCP 是 stdio 子进程协议，宿主只需能 spawn 可执行文件；
+  npm 分发的 MCP server 没有二进制时，按需下载 JS 运行时资产（sha256 + CDN，复用
+  AssetCache 骨架）——89 MB 的 Node 从「随包常驻」变成「装了 npm MCP 才出现」。
+
+**排序约束（硬）**：M5a 的「`node/` 从**核心**发运集消失」以本项（或其回退链路）就绪为
+前置；否则删掉 Node 会让所有插件与 npm MCP 直接失效。
+
+其余两项（IM bot Rust 化、TUI ratatui）仍是按需评估，不进本次承诺。
 
 ## 5. 指标与测量（M4a 先行）
 
@@ -190,16 +207,16 @@ debug 对照 1030 / 1359 ms。冷启动的大头是 **Node 进程启动与 bundl
 | --- | --- | --- | --- |
 | **M4a（1–2 周）** | bench 脚本与基线入库（§5 四项）；发布门禁补一条「发运集核心载荷 ≤ 25MB」的**观测**项。**本阶段不做删除**（SSH/WSL/Docker 后端已裁决保留，其余删除全部依赖 M4b/M5a）。**可选项**：IM bot SDK 可选化（larksuite/wecom SDK 改按通道动态 import，移出核心发运集闭包） | bench 全绿并写入 roadmap 度量表；三类指标的基线数字落库；若做可选项：未启用 bot 通道时启动不受影响，SDK 不出现在核心闭包清单 | 无 |
 | **M4b（2–4 周）** | settings/credentials/task-index/file-ops 最小面 Rust 化 → Host 并入壳 → IPC 换代（CBOR）；`T_ready` ≤ 500ms | §1.3 表同口径复测；35 MB 载荷从发运集消失 | M4a |
-| **M5a（4–8 周）** | Agent 工具注册表补全 → 双跑开关 → parity 升级 → 翻转默认值 → 删除 §3.3 全部内容 | 对拍矩阵全绿；真实模型 20 任务验收；`T_ready` ≤ 400ms、`node/` 从发运集消失 | M2 验收 + M4b |
+| **M5a（4–8 周）** | Agent 工具注册表补全 → 双跑开关 → parity 升级 → 翻转默认值 → 删除 §3.3 全部内容；**前置：插件宿主 A 形态（或 npm-MCP 按需 JS 运行时回退）就绪** | 对拍矩阵全绿；真实模型 20 任务验收；`T_ready` ≤ 400ms、`node/` 从**核心**发运集消失；插件与 npm MCP 在无随包 Node 下可用 | M2 验收 + M4b + 插件宿主 A |
 | **M5b（收口）** | provider/凭据/共享协议真源翻转；第三方台账 514 缺失项复核；三指标仪表转成 CI 硬门禁 | 三门禁（体积/语言/重合度）+ 新增性能门禁全绿 | M5a |
 
 ## 7. 风险与开放决策
 
 1. **oracle 真源**：删除 TS 运行时前，它仍是行为真源（DR-07）。「双跑」与「删除」之间必须有明确的翻转点，写进 `agent-runtime-parity-matrix.md`。
-2. **插件/技能生态**：QuickJS 嵌入意味着放弃 npm 生态；在没有真实插件需求驱动前不要动手。
+2. **插件生态（已按 A 裁决）**：边界变为「native addon 插件不支持」与「按需 JS 运行时资产的下载/校验链路可用性」；AssetCache 骨架已有，风险从「放弃生态」转为「回退资产的体积与可用性」。
 3. **macOS/Linux**：本计划所有测量面目前只有 Windows（Ruling 20）；跨平台真机验收仍是 M5 的独立风险。
 4. **Clean-room 纪律**：重写任何模块时，旧实现体只能黑盒对拍，不得读上游衍生实现（`clean-room-policy.md`）。
-5. **产品确认项**：只剩「插件宿主是否需要 npm 生态」（决定 P2 是否上 QuickJS）。IM bot SDK 已于 2026-10-23 裁决为可选 feature；远端部署/SSH 后端同日裁决保留。
+5. **产品确认项：已全部裁决**（2026-10-23）——SSH/WSL/Docker 后端保留；IM bot SDK 可选 feature；插件宿主 = A（bundle-only + 子进程 + 自家二进制）+ npm-MCP 按需 JS 运行时回退。**当前无待拍板项**。
 
 ## 8. 与既有计划的关系
 
