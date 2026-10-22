@@ -63,6 +63,11 @@ footer 的 `workspacePath` 条件还可能把入口隐藏。
   - 为 Web 入口地址生成二维码（`qrcode`，纯展示，不新增网络请求）；
   - LAN 访问未开启时给出「去设置开启」入口，跳转既有远程控制设置分区。
 - 地址、配对码的唯一所有者仍是 Host 的 LAN 服务；弹层只读快照与调用既有动作，不持久化。
+- **在线状态（2026-10-22）**：Host 统计已鉴权的普通 `/ws` 连接数（`web-remote-replayable`），
+  作为 `LanAccessState.activeWebSessions` 下发；弹层订阅 LAN 服务的 `onDidChange`，
+  `>0` 时显示「已连接 N 个会话 / 在线」，否则显示「等待手机连接 / 已就绪」。
+  旧 Host 缺该键按 0 处理；没有 base 服务时弹层每 3s 轮询一次快照兜底。
+  状态行右侧按钮语义只是关闭弹层，文案为「关闭」，不宣称停止任何服务端能力。
 - 桌面 Host 的 LAN 服务必须挂载 Web 静态资源（`staticRoot`）：优先
   `MODE_WEB_STATIC_ROOT`，其次 `<MODE_HOST_RESOURCES_DIR>/web`；没有静态资源时
   `GET /` 不再返回可用的二维码目标。

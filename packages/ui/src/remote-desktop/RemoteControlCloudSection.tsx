@@ -165,9 +165,14 @@ export function RemoteControlCloudSection({
       ) : null}
 
       {state?.status === "unavailable" ? (
-        <p className="mt-3 text-ui-base text-foreground-subtle">
-          {message("remoteDesktop.cloud.unavailable")}
-        </p>
+        <div className="mt-3 space-y-1">
+          <p className="text-ui-base text-foreground-subtle">
+            {message("remoteDesktop.cloud.unavailable")}
+          </p>
+          <p className="text-ui-xs text-foreground-subtlest">
+            {message("remoteDesktop.cloud.unavailableHint")}
+          </p>
+        </div>
       ) : null}
 
       {state?.status === "unbound" ? (

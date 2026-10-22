@@ -11,14 +11,22 @@ import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
+import { WebSocket } from "ws";
 
+import {
+  LAN_ACCESS_CLIENTS_CREDENTIAL_KEY,
+  buildLanAccessClientTokenKey,
+} from "@mode/shared";
 import { ServiceCollection, type ICredentialService } from "@mode/services";
 
 import { startLanAccessServer } from "../src/host/lanAccessServer.js";
 
-function createFakeCredentials(): ICredentialService {
+function createFakeCredentialsStore(): {
+  credentials: ICredentialService;
+  store: Map<string, string>;
+} {
   const store = new Map<string, string>();
-  return {
+  const credentials = {
     load: async (key: string) => store.get(key) ?? null,
     save: async (key: string, value: string) => {
       store.set(key, value);
@@ -28,6 +36,11 @@ function createFakeCredentials(): ICredentialService {
     },
     list: async (prefix: string) => [...store.keys()].filter((key) => key.startsWith(prefix)),
   } as unknown as ICredentialService;
+  return { credentials, store };
+}
+
+function createFakeCredentials(): ICredentialService {
+  return createFakeCredentialsStore().credentials;
 }
 
 function startParams(port: number) {
@@ -71,6 +84,49 @@ test("端口 0：正常监听返回实际端口，dispose 后不再保留监听"
     const state = handle.getState();
     assert.equal(state.enabled, true);
     assert.ok(state.port !== null && state.port > 0, "必须返回系统分配的真实端口");
+  } finally {
+    await handle.dispose();
+  }
+});
+
+test("在线 web 会话计入 LanAccessState.activeWebSessions 并触发状态回调", async () => {
+  let changes = 0;
+  const { credentials, store } = createFakeCredentialsStore();
+  store.set(
+    LAN_ACCESS_CLIENTS_CREDENTIAL_KEY,
+    JSON.stringify([
+      { id: "client-1", label: "Web browser", createdAt: Date.now(), lastUsedAt: null },
+    ]),
+  );
+  store.set(buildLanAccessClientTokenKey("client-1"), "client-token");
+  const handle = await startLanAccessServer({
+    ...startParams(0),
+    credentials,
+    onWebSessionChange: () => {
+      changes += 1;
+    },
+  });
+  try {
+    const port = handle.getState().port;
+    assert.ok(port && port > 0);
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=client-token`);
+    try {
+      const openDeadline = Date.now() + 3_000;
+      while (handle.getState().activeWebSessions !== 1 && Date.now() < openDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(handle.getState().activeWebSessions, 1, "连接建立后应计为在线");
+      assert.ok(changes >= 1, "状态变化必须通知所有者刷新快照");
+
+      ws.close();
+      const closeDeadline = Date.now() + 3_000;
+      while (handle.getState().activeWebSessions !== 0 && Date.now() < closeDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(handle.getState().activeWebSessions, 0, "连接关闭后应回收");
+    } finally {
+      ws.terminate();
+    }
   } finally {
     await handle.dispose();
   }

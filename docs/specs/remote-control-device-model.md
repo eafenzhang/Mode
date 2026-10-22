@@ -62,8 +62,9 @@ interface RemoteDevice {
    - `workspace` → “连接工作区”；
    - `desktop` → “进入桌面”；
    - `conversation` → “发起对话”。
-   新建连接向导只负责创建 SSH/WSL/Docker 这类**非配对设备**连接；LAN 设备不在向导里
-   重复出现（向导不再显示 LAN 类型）。
+   新建连接向导负责 SSH/WSL/Docker，以及**只读选择已配对设备**的 LAN 方式；
+   LAN 的发现/配对/管理仍只在本页（[lan-paired-devices.md](./lan-paired-devices.md) §向导），
+   向导不得写入配对记录或提供手动地址/配对码。
 2. **配对码唯一**：6 位十六进制、5 分钟 TTL、单次消费；同时服务
    `/api/lan/pair` 与 `/api/remote-agent/enroll`（[remote-control-unified-pairing.md](./remote-control-unified-pairing.md)）。
    云端微信登录的 6 位十进制码与 Bot `/bind` 码不叫“配对码”，UI 必须区分文案。

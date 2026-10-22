@@ -165,6 +165,10 @@ export async function createLanAccessHostService(
           appVersion,
           machineName,
           isRemoteDesktopServerEnabled: () => remoteDesktop?.isServerEnabled() ?? false,
+          // 在线 web 会话数变化：把新快照推给订阅者（远控弹窗据此切换“等待/已连接”）。
+          onWebSessionChange: () => {
+            void publish().catch(() => undefined);
+          },
           ...(options.webRoot ? { webRoot: options.webRoot } : {}),
           ...(options.relay ? { relay: options.relay } : {}),
           ...(remoteDesktop ? { remoteDesktop: remoteDesktop.getLanHooks() } : {}),

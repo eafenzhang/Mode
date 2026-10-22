@@ -1869,8 +1869,10 @@ const enUS: Record<string, string> = {
   "webRemoteControl.qr.description":
     "Scan the QR code with your phone camera to open this workspace on your phone.",
   "webRemoteControl.qr.waiting": "Waiting for your phone",
+  "webRemoteControl.qr.connected": "{count} session(s) connected",
   "webRemoteControl.qr.ready": "Ready",
-  "webRemoteControl.qr.stop": "Stop",
+  "webRemoteControl.qr.online": "Online",
+  "webRemoteControl.qr.close": "Close",
   "webRemoteControl.qr.hint": "Scan the QR code, or open the link on your phone.",
   "webRemoteControl.qr.unableHint": "Can't scan? You can open the link on your phone instead.",
   "webRemoteControl.qr.refresh": "Refresh QR code",
@@ -1920,26 +1922,18 @@ const enUS: Record<string, string> = {
   "remote.kind.wsl.wizardDescription": "Windows Subsystem for Linux",
   "remote.kind.docker.wizardDescription": "Local container",
   "remote.kind.lan": "LAN",
-  "remote.kind.lan.wizardDescription": "Mode instances shared on your LAN",
+  "remote.kind.lan.wizardDescription": "Paired LAN devices",
   "remote.lan.description":
-    "Find Mode instances on your network that allow LAN access; the first connection needs the pairing code shown on the other machine.",
-  "remote.lan.discoveredTitle": "Discovered devices",
+    "Choose a device that is already paired in Remote Control; pairing is done there.",
   "remote.lan.pairedTitle": "Paired devices",
-  "remote.lan.pairedHint": "Paired device — you can connect directly without a pairing code.",
-  "remote.lan.rescan": "Search again",
-  "remote.lan.scanning": "Searching for Mode on your network…",
-  "remote.lan.empty":
-    "No device found. Enter the address manually, or check that LAN access is enabled on the other machine.",
-  "remote.lan.hostLabel": "Address",
-  "remote.lan.portLabel": "Port",
-  "remote.lan.pairCodeLabel": "Pairing code",
-  "remote.lan.pair": "Pair",
-  "remote.lan.pairCodeHint":
-    "Generate the code under Settings → LAN access on the other machine; it stays valid for 5 minutes.",
-  "remote.lan.validation.hostRequired": "Enter the peer address.",
-  "remote.lan.validation.hostInvalid":
-    "The address cannot contain a colon (IPv6 literals are not supported yet).",
-  "remote.lan.validation.portInvalid": "Port must be a number between 1 and 65535.",
+  "remote.lan.pairedLoading": "Loading paired devices…",
+  "remote.lan.pairedEmpty": "No paired devices yet. Pair one in Remote Control first.",
+  "remote.lan.pairedLoadFailed": "Could not load paired devices. Try again later.",
+  "remote.lan.pairedOnlyHint":
+    "Pairing happens on the Remote Control page; this step only lists paired devices.",
+  "remote.lan.validation.pairedRequired": "Select a paired device.",
+  "remote.lan.validation.pairedUnavailable":
+    "This pairing has no address information. Pair the device again.",
   "remote.connect": "Connect",
   "remote.connecting": "Connecting...",
   "remote.minimize": "Minimize remote connection window",
@@ -6522,11 +6516,15 @@ const enUS: Record<string, string> = {
   "modeAccount.title": "Mode account",
   "modeAccount.description":
     "Binding a WeChat bot signs you in to Mode Cloud automatically and syncs this device to the account directory.",
+  "modeAccount.description.unavailable":
+    "Mode Cloud is not configured on this device, so binding a WeChat bot will not sign you in. Deploy cloud-deployment.json or set MODE_CLOUD_ENROLL_TOKEN first.",
   "modeAccount.login": "Sign in to Mode account",
   "modeAccount.logout": "Sign out",
   "modeAccount.bindBot": "Bind WeChat bot",
   "modeAccount.bindHint":
     "After binding, the app signs in and syncs automatically; a cloud login bot stops polling on this desktop.",
+  "modeAccount.bindHint.unavailable":
+    "The bot can still be bound locally; automatic sign-in requires the Mode Cloud deployment config.",
   "modeAccount.nickname.title": "Nickname",
   "modeAccount.nickname.description":
     "Shown in the bottom-left account area and Settings. Stored on this device; leave empty to use the account name.",
@@ -6540,6 +6538,8 @@ const enUS: Record<string, string> = {
     "Find your devices in the account directory and pair with the 6-digit code shown on the target — no link copying.",
   "remoteDesktop.cloud.loading": "Loading cloud devices…",
   "remoteDesktop.cloud.unavailable": "Mode Cloud is not available in this environment.",
+  "remoteDesktop.cloud.unavailableHint":
+    "Place cloud-deployment.json in ~/.mode/v2/ (or set MODE_CLOUD_ENROLL_TOKEN) and retry; the config is picked up on the next read.",
   "remoteDesktop.cloud.boundWeixin": "Using the bound WeChat account: {name}",
   "remoteDesktop.cloud.noWeixin":
     "No WeChat bot is bound yet. Bind one in Bot settings, then return here.",

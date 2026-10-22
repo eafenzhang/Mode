@@ -96,6 +96,51 @@ test("LAN 服务静态首页免令牌，配对响应写 mode_lite_token Cookie",
   }
 });
 
+test("普通 /ws 连接通过 onWebSessionChange 上报 +1 / -1", async () => {
+  const services = {
+    getOptional: () => undefined,
+    exposeOnChannelServer: () => undefined,
+  } as unknown as ServiceCollection;
+  const deltas: Array<1 | -1> = [];
+  const server = createHttpServer(services, 0, {
+    host: "127.0.0.1",
+    authRequired: true,
+    authToken: "unused",
+    verifyAuthToken: (token) => token === "paired-token",
+    serverId: "server-1",
+    name: "host",
+    workspaces: [],
+    onWebSessionChange: (delta) => deltas.push(delta),
+  });
+
+  const waitFor = async (predicate: () => boolean, label: string) => {
+    const deadline = Date.now() + 3_000;
+    while (!predicate() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.ok(predicate(), label);
+  };
+
+  try {
+    await new Promise<void>((resolve) => server.once("listening", () => resolve()));
+    const address = server.address() as AddressInfo;
+    const ws = new WebSocket(`ws://127.0.0.1:${address.port}/ws`, {
+      headers: { cookie: "mode_lite_token=paired-token" },
+    });
+    try {
+      await waitFor(() => deltas.length >= 1, "连接建立必须上报 +1");
+      assert.deepEqual(deltas, [1]);
+      ws.close();
+      await waitFor(() => deltas.length >= 2, "连接关闭必须上报 -1");
+      assert.deepEqual(deltas, [1, -1]);
+    } finally {
+      ws.terminate();
+    }
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test("staticIndexFile 可让 LAN 服务用 web.html 作为首页与 SPA 回退", async () => {
   const root = await mkdtemp(join(tmpdir(), "mode-lan-web-index-"));
   await mkdir(join(root, "assets"), { recursive: true });

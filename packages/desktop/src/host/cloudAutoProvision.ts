@@ -82,6 +82,11 @@ export function startCloudAutoProvision(
       ? bots.onDidChange(() => schedule())
       : null;
 
+  // 首次绑定可能发生在上一个 Host 进程里（或 Bot 配置先于 Host 启动就已存在），
+  // 只监听 onDidChange 会让「已绑定 Bot + 已配置 enrollment」永远等不到自动登录。
+  // 启动时先跑一次；run() 自身按 deviceToken/Bot 条件幂等短路。
+  schedule();
+
   return {
     dispose() {
       subscription?.dispose();

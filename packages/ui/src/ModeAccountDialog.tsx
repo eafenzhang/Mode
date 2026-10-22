@@ -48,9 +48,41 @@ export function ModeAccountDialog({
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [nicknameSaved, setNicknameSaved] = useState(false);
+  // footer 的云账号状态只在挂载/本进程事件时刷新；弹窗打开时补一次实时读取，
+  // 避免“云端已经绑定、昵称区仍提示未登录”（跨进程写入时 onDidChange 不会到当前窗口）。
+  const [liveCloudAccount, setLiveCloudAccount] = useState<CloudAccountState | null>(
+    cloudAccount ?? null,
+  );
+  useEffect(() => {
+    if (!open || !service) {
+      return;
+    }
+    let cancelled = false;
+    void service
+      .getState()
+      .then((next) => {
+        if (!cancelled) {
+          setLiveCloudAccount(next);
+        }
+      })
+      .catch(() => undefined);
+    const subscription = service.onDidChange((next) => {
+      if (!cancelled) {
+        setLiveCloudAccount(next);
+      }
+    });
+    return () => {
+      cancelled = true;
+      subscription.dispose();
+    };
+  }, [open, service]);
+  const effectiveCloudAccount = liveCloudAccount ?? cloudAccount ?? null;
+  // 未部署 Mode Cloud（或当前 Host 没有该频道）时，绑定 Bot 不会触发自动登录，
+  // 不能继续显示“绑定后自动登录”的承诺（spec: mode-cloud-account-directory.md）。
+  const cloudUnavailable = !service || effectiveCloudAccount?.status === "unavailable";
   const profile = resolveSidebarProfile({
     user,
-    cloudAccount,
+    cloudAccount: effectiveCloudAccount,
     nickname: settings?.userNickname,
   });
   const savedNickname = settings?.userNickname?.trim() ?? "";
@@ -95,7 +127,13 @@ export function ModeAccountDialog({
         >
           <DialogHeader className="pe-10">
             <DialogTitle>{message("modeAccount.title")}</DialogTitle>
-            <DialogDescription>{message("modeAccount.description")}</DialogDescription>
+            <DialogDescription>
+              {message(
+                cloudUnavailable
+                  ? "modeAccount.description.unavailable"
+                  : "modeAccount.description",
+              )}
+            </DialogDescription>
           </DialogHeader>
           <section className="rounded-xl border border-border bg-card px-4 py-3">
             <h2 className="text-ui-lg font-medium text-foreground">
@@ -147,7 +185,13 @@ export function ModeAccountDialog({
                 <UserRound className="size-4" />
                 {message("modeAccount.bindBot")}
               </Button>
-              <p className="text-ui-xs text-foreground-subtle">{message("modeAccount.bindHint")}</p>
+              <p className="text-ui-xs text-foreground-subtle">
+                {message(
+                  cloudUnavailable
+                    ? "modeAccount.bindHint.unavailable"
+                    : "modeAccount.bindHint",
+                )}
+              </p>
             </div>
             {service ? (
               <RemoteControlCloudSection active={open} onPaired={() => undefined} />

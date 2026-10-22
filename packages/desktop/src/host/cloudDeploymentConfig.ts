@@ -11,7 +11,7 @@
  * 文件是 secret 载体：权限 0600，不能提交到仓库。缺失时回退到现有 env，最后才
  * 保持 LAN-only。
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { getAppConfigDir } from "@mode/services/node";
@@ -22,7 +22,15 @@ export interface CloudDeploymentConfig {
   relayToken?: string;
 }
 
-let cached: CloudDeploymentConfig | null = null;
+interface CachedDeploymentConfig {
+  value: CloudDeploymentConfig;
+  /** 命中的文件路径；null = 所有候选都不存在，下次调用重新扫描。 */
+  source: string | null;
+  mtimeMs: number;
+  size: number;
+}
+
+let cached: CachedDeploymentConfig | null = null;
 
 function pickString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
@@ -66,22 +74,36 @@ export function loadCloudDeploymentConfig(
   env: NodeJS.ProcessEnv = process.env,
   cwd: string = process.cwd(),
 ): CloudDeploymentConfig {
-  if (cached) {
-    return cached;
+  // 缓存按命中文件的 mtime + size 失效：部署文件在 Host 启动后才写入/更新时，
+  // 不需要重启就能生效（否则 loadCloudDeploymentConfig 的空结果会锁死整个进程）。
+  if (cached?.source) {
+    try {
+      const stat = statSync(cached.source);
+      if (stat.mtimeMs === cached.mtimeMs && stat.size === cached.size) {
+        return cached.value;
+      }
+    } catch {
+      // 命中文件被删除/不可读：继续重新扫描全部候选。
+    }
   }
   for (const candidate of configCandidates(env, cwd)) {
     try {
+      const stat = statSync(candidate);
+      if (!stat.isFile()) {
+        continue;
+      }
       const parsed = parseConfig(JSON.parse(readFileSync(candidate, "utf8")));
       if (parsed) {
-        cached = parsed;
+        cached = { value: parsed, source: candidate, mtimeMs: stat.mtimeMs, size: stat.size };
         return parsed;
       }
     } catch {
       // 文件不存在/不可读/格式错误：继续尝试下一个候选。
     }
   }
-  cached = {};
-  return cached;
+  // 没有命中任何文件：下次调用重新扫描，配置后放不必重启。
+  cached = { value: {}, source: null, mtimeMs: 0, size: 0 };
+  return cached.value;
 }
 
 /** 测试用：清空缓存，允许在不同临时目录间切换。 */

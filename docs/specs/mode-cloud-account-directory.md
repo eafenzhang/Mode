@@ -133,12 +133,15 @@ cloud_device_tokens(
 ### 绑定后自动登录并同步
 
 - `IBotsService.onDidChange` 在 `/bind`、`saveBot`、`removeBotSecret`、`deleteBot`、`saveConfig` 后触发。
+- Host **启动时先执行一次**自动登录，再监听 `onDidChange`：Bot 可能在上一个 Host 进程里
+  就已绑定，只监听变更会让「已绑定 Bot + 已配置 enrollment」永远等不到自动登录。
 - Host 的 `cloudAutoProvision` 只在**账号尚未绑定**（没有 device token）时工作：
   1. 找到启用且已绑定的微信 Bot；
   2. `bind()` 注册/登录设备；
   3. `syncCloudLoginBot` 上传该 Bot token 到云端并停用本地副本。
 - 已绑定账号后不再自动动其他 Bot，避免误停用主 Bot；后续换 Bot 走账号弹窗里的手动同步。
 - 自动流程依赖部署 enrollment secret；没有 secret 的机器应使用“使用微信登录”的 6 位码路径。
+  未配置时账号弹窗不得继续显示“绑定微信 Bot 后自动登录”的承诺，改为提示缺少部署配置。
 - 同步失败只记录 `cloud_auto_provision_failed`，不阻断 Bot/账号其他操作。
 
 ### 云端 Bot 登录（推荐，换机零配置）
@@ -209,6 +212,9 @@ Desktop 读取顺序：
 
 显式 env 优先于文件，便于测试/临时覆盖。文件同时提供云端地址、enrollment secret
 和 relay token；Desktop 不再需要逐机 `setx`。
+
+配置缓存按命中文件的 mtime + size 失效；首次扫描没命中时不缓存空结果（下次调用重新扫描）。
+因此安装/后放 `cloud-deployment.json` 后无需重启 Host 即可被下一次读取发现。
 
 ### 环境变量（仍支持，优先级更高）
 

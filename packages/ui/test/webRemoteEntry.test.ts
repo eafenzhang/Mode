@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveWebRemoteAddress, resolveWebRemoteUrl } from "../src/lib/webRemoteEntry.js";
+import {
+  resolveActiveWebSessions,
+  resolveWebRemoteAddress,
+  resolveWebRemoteUrl,
+} from "../src/lib/webRemoteEntry.js";
 
 const base = {
   enabled: true,
@@ -26,4 +30,12 @@ test("Web 远控地址在未启用/无端口时为空，不拼出假地址", () 
   assert.equal(resolveWebRemoteAddress(null), "");
   assert.equal(resolveWebRemoteUrl(null), "");
   assert.equal(resolveWebRemoteAddress({ ...base, enabled: false, port: null }), "");
+});
+
+test("在线会话数：旧 Host 缺键按 0，异常值收敛到 0，正整数原样返回", () => {
+  assert.equal(resolveActiveWebSessions(null), 0);
+  assert.equal(resolveActiveWebSessions(base), 0);
+  assert.equal(resolveActiveWebSessions({ ...base, activeWebSessions: -1 }), 0);
+  assert.equal(resolveActiveWebSessions({ ...base, activeWebSessions: Number.NaN }), 0);
+  assert.equal(resolveActiveWebSessions({ ...base, activeWebSessions: 2 }), 2);
 });

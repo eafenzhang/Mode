@@ -129,6 +129,9 @@ export const lanAccessStateSchema = z
     addresses: z.array(z.string()),
     pairCode: lanAccessPairCodeSchema.nullable(),
     clients: z.array(lanAccessClientRecordSchema),
+    // 当前在线的 web/手机远控会话数（已通过 LAN 令牌鉴权的 /ws 连接）。
+    // 旧 Host 不返回该键；缺失按 0 处理。
+    activeWebSessions: z.number().int().nonnegative().optional(),
     // 内置公网中继的公开地址；未启用/未配置时 null。旧 Host 不返回该键。
     publicRelayUrl: z.string().url().nullable().optional(),
   })
@@ -143,6 +146,8 @@ export interface LanAccessState {
   /** 当前有效配对码；未启用或未生成时为 null。 */
   pairCode: LanAccessPairCode | null;
   clients: LanAccessClientRecord[];
+  /** 当前在线的 web/手机远控会话数；旧 Host 缺失时按 0 处理。 */
+  activeWebSessions?: number;
   /** 内置公网中继的公开地址；未启用/未配置时 null。 */
   publicRelayUrl?: string | null;
 }

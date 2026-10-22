@@ -73,6 +73,7 @@ export async function readDisabledLanAccessState(
     addresses: [],
     pairCode: null,
     clients: await readLanAccessClientRecords(credentials),
+    activeWebSessions: 0,
     publicRelayUrl: null,
   };
 }

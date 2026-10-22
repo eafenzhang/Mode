@@ -375,6 +375,33 @@ test("绑定 Bot 后自动登录并同步云端，随后停用本地 Bot", async
   }
 });
 
+test("Host 启动时已绑定 Bot 也会自动登录（不依赖 onDidChange）", async () => {
+  const restoreFetch = installFetch();
+  const { credentials, store } = createFakeCredentials();
+  store.set(LAN_ACCESS_SERVER_ID_CREDENTIAL_KEY, "device-1");
+  store.set(LAN_ACCESS_RELAY_TUNNEL_ID_CREDENTIAL_KEY, RELAY_TUNNEL_ID);
+  store.set("bot:bot-auto:credential", "wechat-token");
+  // 刻意不调用 fire()：模拟 Bot 在上一个 Host 进程里就已绑定。
+  const { bots, saved } = createEventBots();
+  const service = await createService({
+    credentials,
+    bots,
+    env: { MODE_CLOUD_ENROLL_TOKEN: "enroll-token", MODE_CLOUD_BASE_URL: BASE_URL },
+  });
+  try {
+    const deadline = Date.now() + 3_000;
+    while (store.get("cloud:device:token") === undefined && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.equal(store.get("cloud:device:token"), "device-token");
+    assert.equal(saved.length, 1, "自动同步应停用本地 Bot");
+    assert.equal(saved[0]?.enabled, false);
+  } finally {
+    await service.dispose();
+    restoreFetch();
+  }
+});
+
 test("未配置 enrollment token 时为 unavailable；配置但未绑定为 unbound", async () => {
   const { credentials } = createFakeCredentials();
   const unavailable = await createService({

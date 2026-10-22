@@ -17,7 +17,7 @@ import {
 type RemoteKind = RemoteTarget["kind"];
 export type SSHAuthMethod = "password" | "privateKey";
 
-function buildAvailableKinds(options: { isWindowsDesktop: boolean }): RemoteKind[] {
+export function buildAvailableKinds(options: { isWindowsDesktop: boolean }): RemoteKind[] {
   const kinds: RemoteKind[] = ["ssh"];
   // 远程连接入口里 WSL 和 SSH 同属主机类连接。
   // Windows 下先放 WSL 再放 Docker，避免 WSL 被 Docker 隔开后在选择页显得离 SSH 很远。
@@ -28,7 +28,9 @@ function buildAvailableKinds(options: { isWindowsDesktop: boolean }): RemoteKind
   // 当探测能力暂时不可用、或用户还没切到 Docker 时，入口会直接消失，
   // 用户甚至不知道这里支持 Docker 连接。改为始终展示入口，切换后再懒加载探测结果。
   kinds.push("docker");
-  // 局域网设备统一从远程控制页进入；向导只负责 SSH/WSL/Docker 这类非配对目标。
+  // 局域网方式保留在向导里，但只列已配对设备；配对/发现仍在远程控制页
+  // （docs/specs/remote-control-unified-pairing.md R2、lan-paired-devices.md §向导）。
+  kinds.push("lan");
   return kinds;
 }
 
@@ -363,7 +365,6 @@ export function useRemoteConnectionForm({
     setWslUser,
     setDockerContainer,
     setManualDockerContainer,
-    ...lan,
     // Docker 容器列表是运行态数据，之前只在进入 Docker 页时拉一次。
     // 下拉每次打开都通过这个回调按需刷新，避免用户看到已过期的容器列表。
     refreshDockerContainers: () => refreshDockerContainers({ clearContainersOnError: false }),

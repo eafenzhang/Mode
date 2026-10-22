@@ -1,6 +1,7 @@
-import type { RemoteAssetInstallMode, RemoteTarget } from "@mode/shared";
+import type { LanPairedPeer, RemoteAssetInstallMode, RemoteTarget } from "@mode/shared";
 import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@mode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
+import { lanPeerToRemoteTarget } from "@/remote-desktop/remoteDeviceModel.js";
 import type { RemoteWizardStep } from "@/RemoteConnectionWizardChrome.js";
 
 type WizardIntlLike = {
@@ -22,13 +23,8 @@ interface RemoteConnectionFormSnapshot {
   wslUser?: string;
   dockerContainer: string;
   manualDockerContainer?: string;
-  // 局域网：地址可来自发现列表或手动输入；配对成功后带 serverId/name 与令牌。
-  lanHost: string;
-  lanPort: string;
-  lanServerId: string;
-  lanServerName: string;
-  lanToken: string;
-  lanPairCode: string;
+  // 局域网：向导只允许选择已配对设备；地址、端点与身份都从该记录投影。
+  lanPeer?: LanPairedPeer | null;
 }
 
 export function getRemoteWizardStepCopy(
@@ -76,27 +72,17 @@ export function buildRemoteTarget(
 ): { target?: RemoteTarget; errorMessage?: string } {
   switch (snapshot.kind) {
     case "lan": {
-      const host = snapshot.lanHost.trim();
-      if (!host) {
-        return { errorMessage: intl.formatMessage({ id: "remote.lan.validation.hostRequired" }) };
+      // 配对在「远程控制」页完成，向导只消费已配对记录（spec: lan-paired-devices.md §向导）。
+      if (!snapshot.lanPeer) {
+        return { errorMessage: intl.formatMessage({ id: "remote.lan.validation.pairedRequired" }) };
       }
-      if (host.includes(":")) {
-        return { errorMessage: intl.formatMessage({ id: "remote.lan.validation.hostInvalid" }) };
+      const target = lanPeerToRemoteTarget(snapshot.lanPeer);
+      if (!target) {
+        return {
+          errorMessage: intl.formatMessage({ id: "remote.lan.validation.pairedUnavailable" }),
+        };
       }
-      const port = Number.parseInt(snapshot.lanPort.trim(), 10);
-      if (!Number.isFinite(port) || port <= 0 || port > 65535) {
-        return { errorMessage: intl.formatMessage({ id: "remote.lan.validation.portInvalid" }) };
-      }
-      return {
-        target: {
-          kind: "lan",
-          host,
-          port,
-          ...(snapshot.lanServerId.trim() ? { serverId: snapshot.lanServerId.trim() } : {}),
-          ...(snapshot.lanServerName.trim() ? { serverName: snapshot.lanServerName.trim() } : {}),
-          ...(snapshot.lanToken.trim() ? { token: snapshot.lanToken.trim() } : {}),
-        },
-      };
+      return { target };
     }
     case "ssh":
       if (!snapshot.host || !snapshot.username) {

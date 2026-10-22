@@ -118,6 +118,11 @@ export interface StartLanAccessServerParams {
     ) => void;
     onMediaSocket?: (clientId: string, socket: WebSocket) => void;
   };
+  /**
+   * 在线 web/手机远控会话数变化（/ws 建立/关闭）。Host 侧用它刷新 `LanAccessState`
+   * 并触发 onDidChange，让远控弹窗显示真实的「已连接」状态。
+   */
+  onWebSessionChange?: () => void;
 }
 
 /** 定长比较；长度不同直接失败，不做 pad（令牌是 base64url 定长串）。 */
@@ -172,6 +177,8 @@ export async function startLanAccessServer(
   /** 内置公网中继的出站隧道；未配置 token 时为 null（仅 LAN）。 */
   let tunnel: { close(): void } | null = null;
   const lastTouchAt = new Map<string, number>();
+  /** 已鉴权的 /ws 连接数（web/手机远控会话）；连接关闭时回收，不落盘。 */
+  let activeWebSessions = 0;
 
   const persistClients = async (): Promise<void> => {
     await credentials.save(LAN_ACCESS_CLIENTS_CREDENTIAL_KEY, JSON.stringify(clients));
@@ -295,6 +302,12 @@ export async function startLanAccessServer(
     remoteAgentEnrollment: { enroll: enrollRemoteAgent },
     resolveLanClientByToken,
     onLanClientWorkspace: recordClientWorkspace,
+    onWebSessionChange: (delta) => {
+      activeWebSessions = Math.max(0, activeWebSessions + delta);
+      if (!disposed) {
+        params.onWebSessionChange?.();
+      }
+    },
     serverId,
     name: params.machineName,
     workspaces: () => params.getWorkspaces(),
@@ -398,6 +411,7 @@ export async function startLanAccessServer(
       addresses: listLanAddresses(port),
       pairCode: pairCode ? { ...pairCode } : null,
       clients: clients.map((client) => ({ ...client })),
+      activeWebSessions,
       publicRelayUrl: publicRelay ? buildPublicRelayUrl(publicRelay) : null,
     };
   };

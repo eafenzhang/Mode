@@ -19,3 +19,14 @@ export function resolveWebRemoteUrl(state: LanAccessState | null | undefined): s
   const address = resolveWebRemoteAddress(state);
   return address ? `http://${address}/` : "";
 }
+
+/**
+ * 在线 web/手机远控会话数：旧 Host 不下发该键，按 0 处理；异常值同样收敛到 0，
+ * 避免弹层把负值/NaN 当成「已连接」。
+ */
+export function resolveActiveWebSessions(state: LanAccessState | null | undefined): number {
+  const count = state?.activeWebSessions;
+  return typeof count === "number" && Number.isFinite(count) && count > 0
+    ? Math.floor(count)
+    : 0;
+}

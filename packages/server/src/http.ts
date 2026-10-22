@@ -259,6 +259,11 @@ interface HttpServerOptions {
   /** 局域网多客户端：该客户端连接上出现携带 workspacePath 的 RPC 时回调（最近在本机打开的目录）。 */
   onLanClientWorkspace?: (clientId: string, workspacePath: string) => void;
   /**
+   * 已鉴权的 web/手机远控会话数变化（普通 `/ws` 连接建立/关闭各一次）。
+   * 桌面 Host 用它把 `activeWebSessions` 投到 `LanAccessState`，供远控弹窗显示真实在线状态。
+   */
+  onWebSessionChange?: (delta: 1 | -1) => void;
+  /**
    * 服务端形态的局域网被连端（docs/specs/lan-host-server-mode.md）：提供时暴露
    * /api/lan/state 与四个动作端点（开关 / 配对码 / 移除对端 / 重置，均走 /api/* 既有令牌中间件）。
    * 配对端点与逐设备令牌校验分别经 lanPairing / verifyAuthToken 组合提供。
@@ -766,7 +771,12 @@ export function createHttpServer(
     "/ws",
     upgradeWebSocket(() => ({
       onOpen(_event, ws) {
+        // /ws 走全局令牌鉴权（isTokenProtectedPath），能升级成功即代表一台已配对客户端在线。
+        options.onWebSessionChange?.(1);
         setupChannelServer(ws.raw as WebSocket, services, "web-remote-replayable");
+      },
+      onClose() {
+        options.onWebSessionChange?.(-1);
       },
     })),
   );

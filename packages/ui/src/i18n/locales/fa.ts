@@ -1860,8 +1860,10 @@ const faIR: Record<string, string> = {
   "webRemoteControl.qr.description":
     "کد QR را با دوربین موبایل اسکن کنید تا این فضای کاری در موبایل باز شود.",
   "webRemoteControl.qr.waiting": "در انتظار اتصال موبایل",
+  "webRemoteControl.qr.connected": "{count} نشست متصل است",
   "webRemoteControl.qr.ready": "آماده",
-  "webRemoteControl.qr.stop": "توقف",
+  "webRemoteControl.qr.online": "آنلاین",
+  "webRemoteControl.qr.close": "بستن",
   "webRemoteControl.qr.hint": "کد QR را اسکن کنید یا پیوند را در موبایل باز کنید.",
   "webRemoteControl.qr.unableHint": "نمی‌توانید اسکن کنید؟ می‌توانید پیوند را در موبایل باز کنید.",
   "webRemoteControl.qr.refresh": "تازه‌سازی کد QR",
@@ -1913,25 +1915,19 @@ const faIR: Record<string, string> = {
   "remote.kind.wsl.wizardDescription": "Windows Subsystem for Linux",
   "remote.kind.docker.wizardDescription": "کانتینر محلی",
   "remote.kind.lan": "شبکه محلی",
-  "remote.kind.lan.wizardDescription": "نمونه‌های Mode در شبکه محلی",
+  "remote.kind.lan.wizardDescription": "دستگاه‌های LAN پیوندشده",
   "remote.lan.description":
-    "نمونه‌های Mode را در شبکه پیدا کنید که دسترسی شبکه محلی دارند؛ اتصال نخست به کد پیوندی نیاز دارد که در دستگاه دیگر نمایش داده می‌شود.",
-  "remote.lan.discoveredTitle": "دستگاه‌های یافت‌شده",
+    "دستگاهی را انتخاب کنید که قبلاً در «کنترل از راه دور» پیوند داده شده است؛ پیوند همان‌جا انجام می‌شود.",
   "remote.lan.pairedTitle": "دستگاه‌های پیوندشده",
-  "remote.lan.pairedHint": "دستگاه پیوندشده — اتصال مستقیم بدون کد پیوند.",
-  "remote.lan.rescan": "جست‌وجوی دوباره",
-  "remote.lan.scanning": "در حال جست‌وجوی Mode در شبکه…",
-  "remote.lan.empty":
-    "دستگاهی یافت نشد. نشانی را دستی وارد کنید یا بررسی کنید که در دستگاه دیگر دسترسی شبکه محلی روشن باشد.",
-  "remote.lan.hostLabel": "نشانی",
-  "remote.lan.portLabel": "درگاه",
-  "remote.lan.pairCodeLabel": "کد پیوند",
-  "remote.lan.pair": "پیوند",
-  "remote.lan.pairCodeHint":
-    "کد را در دستگاه دیگر از «تنظیمات ← دسترسی شبکه محلی» بسازید؛ تا ۵ دقیقه معتبر است.",
-  "remote.lan.validation.hostRequired": "نشانی دستگاه مقابل را وارد کنید.",
-  "remote.lan.validation.hostInvalid": "نشانی نباید دو نقطه داشته باشد (IPv6 پشتیبانی نمی‌شود).",
-  "remote.lan.validation.portInvalid": "درگاه باید عددی بین ۱ تا ۶۵۵۳۵ باشد.",
+  "remote.lan.pairedLoading": "در حال خواندن دستگاه‌های پیوندشده…",
+  "remote.lan.pairedEmpty":
+    "هنوز دستگاه پیوندشده‌ای ندارید. ابتدا در صفحه «کنترل از راه دور» یک دستگاه را پیوند دهید.",
+  "remote.lan.pairedLoadFailed": "خواندن دستگاه‌های پیوندشده ناموفق بود. بعداً دوباره تلاش کنید.",
+  "remote.lan.pairedOnlyHint":
+    "پیوند در صفحه «کنترل از راه دور» انجام می‌شود؛ این مرحله فقط دستگاه‌های پیوندشده را نشان می‌دهد.",
+  "remote.lan.validation.pairedRequired": "یک دستگاه پیوندشده انتخاب کنید.",
+  "remote.lan.validation.pairedUnavailable":
+    "این پیوند اطلاعات نشانی ندارد؛ دستگاه را دوباره پیوند دهید.",
   "remote.connect": "اتصال",
   "remote.connecting": "در حال اتصال...",
   "remote.minimize": "کوچک کردن پنجره اتصال از راه دور",
@@ -6426,11 +6422,15 @@ const faIR: Record<string, string> = {
   "modeAccount.title": "حساب Mode",
   "modeAccount.description":
     "پس از اتصال ربات وی‌چت، به‌طور خودکار وارد Mode Cloud می‌شوید و دستگاه در فهرست حساب همگام می‌شود.",
+  "modeAccount.description.unavailable":
+    "Mode Cloud روی این دستگاه پیکربندی نشده است؛ اتصال ربات وی‌چت باعث ورود خودکار نمی‌شود. ابتدا cloud-deployment.json را مستقر کنید یا MODE_CLOUD_ENROLL_TOKEN را تنظیم کنید.",
   "modeAccount.login": "ورود به حساب Mode",
   "modeAccount.logout": "خروج",
   "modeAccount.bindBot": "اتصال ربات وی‌چت",
   "modeAccount.bindHint":
     "پس از اتصال، ورود و همگام‌سازی خودکار انجام می‌شود؛ ربات ورود ابری دیگر روی این رایانه نظرسنجی نمی‌کند.",
+  "modeAccount.bindHint.unavailable":
+    "ربات همچنان می‌تواند به‌صورت محلی متصل شود؛ ورود خودکار به پیکربندی استقرار Mode Cloud نیاز دارد.",
   "modeAccount.nickname.title": "نام مستعار",
   "modeAccount.nickname.description":
     "در ناحیه حساب پایین‌چپ و تنظیمات نمایش داده می‌شود؛ فقط روی این دستگاه ذخیره می‌شود. خالی بگذارید تا از نام حساب استفاده شود.",
@@ -6444,6 +6444,8 @@ const faIR: Record<string, string> = {
     "دستگاه‌های خود را در فهرست حساب پیدا کنید و با کد ۶ رقمی نمایش‌داده‌شده روی دستگاه مقابل جفت شوید؛ نیازی به رونوشت پیوند نیست.",
   "remoteDesktop.cloud.loading": "در حال خواندن دستگاه‌های ابری…",
   "remoteDesktop.cloud.unavailable": "Mode Cloud در این محیط فعال نیست.",
+  "remoteDesktop.cloud.unavailableHint":
+    "فایل cloud-deployment.json را در ‎~/.mode/v2/‎ قرار دهید (یا MODE_CLOUD_ENROLL_TOKEN را تنظیم کنید) و دوباره تلاش کنید؛ پیکربندی در خواندن بعدی اعمال می‌شود.",
   "remoteDesktop.cloud.boundWeixin": "استفاده از حساب وی‌چت متصل: {name}",
   "remoteDesktop.cloud.noWeixin": "هنوز ربات وی‌چت متصل نشده است. ابتدا در تنظیمات Bot آن را متصل کنید.",
   "remoteDesktop.cloud.bind": "اتصال به Mode Cloud",

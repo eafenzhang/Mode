@@ -13,6 +13,7 @@ import {
 import QRCode from "qrcode";
 import { BotsDialog } from "@/BotsDialog.js";
 import { ProviderIcon } from "@/BotsDialog/shared.js";
+import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { toast } from "@/ui-foundation/adapters/toast.js";
 import {
@@ -23,9 +24,10 @@ import {
   DialogTitle,
 } from "@/ui-foundation/adapters/dialog.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
-import { resolveWebRemoteUrl } from "@/lib/webRemoteEntry.js";
+import { resolveActiveWebSessions, resolveWebRemoteUrl } from "@/lib/webRemoteEntry.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
@@ -62,6 +64,8 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
 }) {
   const { intl } = useModeIntl();
   const platform = usePlatform();
+  const baseServices = useOptionalBaseWorkspaceServices();
+  const lanService = baseServices?.lanAccessService;
   const openSettingsTab = useOptionalTabStore((state) => state.openSettingsTab);
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
@@ -104,7 +108,37 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     };
   }, [open, platform]);
 
+  // 在线会话数由 Host 的 /ws 连接统计随 onDidChange 推送；没有 base 服务（Web/SSR）时轮询兜底，
+  // 否则弹层会永远停在「等待手机连接」。
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let cancelled = false;
+    const apply = (next: LanAccessState) => {
+      if (!cancelled) {
+        setLanState(next);
+      }
+    };
+    if (lanService) {
+      const subscription = lanService.onDidChange(apply);
+      return () => {
+        cancelled = true;
+        subscription.dispose();
+      };
+    }
+    const timer = setInterval(() => {
+      void platform.getLanAccessState().then(apply).catch(() => undefined);
+    }, 3_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [open, lanService, platform]);
+
   const webUrl = resolveWebRemoteUrl(lanState);
+  const activeWebSessions = resolveActiveWebSessions(lanState);
+  const webConnected = activeWebSessions > 0;
 
   // 二维码只做展示：地址来自 LAN 快照，不新增网络请求。
   useEffect(() => {
@@ -252,10 +286,24 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                     <>
                       <div className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2">
                         <span className="flex items-center gap-2 text-ui-base text-foreground-subtle">
-                          <span className="size-1.5 rounded-full bg-warning" />
-                          {intl.formatMessage({ id: "webRemoteControl.qr.waiting" })}
+                          <span
+                            className={cn(
+                              "size-1.5 rounded-full",
+                              webConnected ? "bg-success" : "bg-warning",
+                            )}
+                          />
+                          {webConnected
+                            ? intl.formatMessage(
+                                { id: "webRemoteControl.qr.connected" },
+                                { count: String(activeWebSessions) },
+                              )
+                            : intl.formatMessage({ id: "webRemoteControl.qr.waiting" })}
                           <span className="inline-flex h-5 items-center rounded-full border border-border px-2 text-ui-xs font-medium text-foreground-subtle">
-                            {intl.formatMessage({ id: "webRemoteControl.qr.ready" })}
+                            {intl.formatMessage({
+                              id: webConnected
+                                ? "webRemoteControl.qr.online"
+                                : "webRemoteControl.qr.ready",
+                            })}
                           </span>
                         </span>
                         <Button
@@ -264,7 +312,7 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                           size="sm"
                           onClick={() => onOpenChange(false)}
                         >
-                          {intl.formatMessage({ id: "webRemoteControl.qr.stop" })}
+                          {intl.formatMessage({ id: "webRemoteControl.qr.close" })}
                         </Button>
                       </div>
                       <p className="mt-3 text-ui-base/relaxed text-foreground-subtle">
