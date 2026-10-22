@@ -6428,7 +6428,6 @@ const enUS: Record<string, string> = {
   "remoteDesktop.device.status.offline": "Offline",
   "remoteDesktop.device.status.unsupported": "Unsupported",
   "remoteDesktop.device.open": "Open desktop",
-  "remoteDesktop.device.connectWorkspace": "Connect workspace",
   "remoteDesktop.device.reprobe": "Check again",
   "remoteDesktop.device.rename": "Rename",
   "remoteDesktop.device.save": "Save",

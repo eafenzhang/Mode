@@ -84,8 +84,6 @@ const DEFAULT_LUCIDE_STROKE_WIDTH = 1.5;
 interface RemoteConnectionOpenPreference {
   preferredKind?: RemoteTarget["kind"];
   preferredWslDistro?: string;
-  /** 远程控制页直接指定 LAN 目标，跳过向导的设备选择/配置步骤。 */
-  initialTarget?: RemoteTarget;
 }
 
 type WelcomeScreenOpenReason =
@@ -871,7 +869,6 @@ function RootInner({
       onFlowRequestIdChange={setRemoteConnectionRequestId}
       preferredKind={remoteConnectionOpenPreference?.preferredKind}
       preferredWslDistro={remoteConnectionOpenPreference?.preferredWslDistro}
-      initialTarget={remoteConnectionOpenPreference?.initialTarget}
       hideTriggerWhenClosed
     />
   ) : null;

@@ -292,7 +292,7 @@ export function DirectoryBrowser({
                 return (
                   <div
                     key={entry.path}
-                    className="flex w-full shrink-0 items-center gap-2 px-3 py-2 text-start text-ui-base"
+                    className="flex w-full shrink-0 items-center gap-2 px-3 py-2 text-start text-ui-base text-foreground"
                   >
                     <FileIcon className="size-4 shrink-0 text-foreground-subtle" />
                     <span className="truncate">{entry.name}</span>
@@ -315,7 +315,7 @@ export function DirectoryBrowser({
                     })
                   }
                   className={cn(
-                    "flex w-full shrink-0 cursor-pointer items-center gap-2 px-3 py-2 text-start text-ui-base transition hover:bg-hover/50",
+                    "flex w-full shrink-0 cursor-pointer items-center gap-2 px-3 py-2 text-start text-ui-base text-foreground transition hover:bg-hover/50",
                     selected && "bg-accent/60",
                   )}
                 >
@@ -332,7 +332,7 @@ export function DirectoryBrowser({
               <button
                 key={entry.path}
                 onClick={() => navigateTo(entry.path)}
-                className="flex w-full shrink-0 cursor-pointer items-center gap-2 px-3 py-2 text-start text-ui-base transition hover:bg-hover/50"
+                className="flex w-full shrink-0 cursor-pointer items-center gap-2 px-3 py-2 text-start text-ui-base text-foreground transition hover:bg-hover/50"
               >
                 <EntryIcon className="size-4 shrink-0 text-foreground-subtle" />
                 <span className="truncate">{entry.name}</span>

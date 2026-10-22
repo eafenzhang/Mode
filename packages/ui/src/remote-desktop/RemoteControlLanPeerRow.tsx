@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Check, FolderOpen, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowRight, Check, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { formatLanPeerEndpoint, type LanPairedPeer } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Input } from "@/ui-foundation/adapters/input.js";
@@ -25,7 +25,6 @@ export function RemoteControlLanPeerRow({
   locallyControlled,
   busy,
   onConnect,
-  onConnectWorkspace,
   onRename,
   onDelete,
   onReprobe,
@@ -37,7 +36,6 @@ export function RemoteControlLanPeerRow({
   locallyControlled: boolean;
   busy: boolean;
   onConnect: (peer: LanPairedPeer) => void;
-  onConnectWorkspace?: (peer: LanPairedPeer) => void;
   onRename: (serverId: string, name: string) => Promise<void>;
   onDelete: (serverId: string) => Promise<void>;
   onReprobe: (serverId: string) => void;
@@ -164,19 +162,6 @@ export function RemoteControlLanPeerRow({
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-end gap-1.5">
-          {onConnectWorkspace ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid="remote-control-lan-peer-workspace"
-              disabled={busy || (!primaryEndpoint && (!peer.host || !peer.port))}
-              onClick={() => onConnectWorkspace(peer)}
-            >
-              <FolderOpen className="size-4" />
-              {intl.formatMessage({ id: "remoteDesktop.device.connectWorkspace" })}
-            </Button>
-          ) : null}
           <Button
             type="button"
             variant="outline"

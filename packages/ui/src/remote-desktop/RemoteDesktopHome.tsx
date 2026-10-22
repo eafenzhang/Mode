@@ -42,15 +42,12 @@ export function RemoteDesktopHome({
   topOverlayClearancePaddingClass,
   onCreateTask,
   onOpenModeAgentChat,
-  onConnectWorkspace,
   isRemoteWorkspace = false,
 }: {
   isDesktop: boolean;
   isRemoteWorkspace?: boolean;
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenModeAgentChat?: (request: { device: ModeAgentChatDevice }) => void;
-  /** 统一设备入口：LAN 设备行“连接工作区”直接把目标交给远程连接向导。 */
-  onConnectWorkspace?: (target: LanPairedPeer) => void;
   /** 本页不渲染 WorkspaceHeader，窗控由顶部拖拽区右侧自绘（Windows/Linux）。 */
   showWindowControls?: boolean;
   /** 视图是否当前可见：分支常驻隐藏时为 false（spec UI 规则「切换保持连接」）。 */
@@ -170,13 +167,6 @@ export function RemoteDesktopHome({
       name: peer.name?.trim() || peer.serverId,
     });
   }, []);
-
-  const connectWorkspace = useCallback(
-    (peer: LanPairedPeer) => {
-      onConnectWorkspace?.(peer);
-    },
-    [onConnectWorkspace],
-  );
 
   const exitSession = useCallback(() => {
     // 回设备列表的刷新由上方 active/sessionTarget effect 统一触发（含本机被控状态重读）。
@@ -397,7 +387,6 @@ export function RemoteDesktopHome({
                 locallyControlled={locallyControlled}
                 busy={peerActionBusy}
                 onConnect={connect}
-                onConnectWorkspace={onConnectWorkspace ? connectWorkspace : undefined}
                 onRename={renamePeer}
                 onDelete={deletePeer}
                 onReprobe={reprobePeer}

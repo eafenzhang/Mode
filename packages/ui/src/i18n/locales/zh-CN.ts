@@ -6129,7 +6129,6 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.device.status.offline": "离线",
   "remoteDesktop.device.status.unsupported": "不支持",
   "remoteDesktop.device.open": "进入桌面",
-  "remoteDesktop.device.connectWorkspace": "连接工作区",
   "remoteDesktop.device.reprobe": "重新检测",
   "remoteDesktop.device.rename": "重命名",
   "remoteDesktop.device.save": "保存",

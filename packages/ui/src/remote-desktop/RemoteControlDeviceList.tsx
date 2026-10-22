@@ -16,7 +16,6 @@ export function RemoteControlDeviceList({
   locallyControlled,
   busy,
   onConnect,
-  onConnectWorkspace,
   onRename,
   onDelete,
   onReprobe,
@@ -33,7 +32,6 @@ export function RemoteControlDeviceList({
   locallyControlled: boolean;
   busy: boolean;
   onConnect: (peer: LanPairedPeer) => void;
-  onConnectWorkspace?: (peer: LanPairedPeer) => void;
   onRename: (serverId: string, name: string) => Promise<void>;
   onDelete: (serverId: string) => Promise<void>;
   onReprobe: (serverId: string) => void;
@@ -66,7 +64,6 @@ export function RemoteControlDeviceList({
               locallyControlled={locallyControlled}
               busy={busy}
               onConnect={onConnect}
-              onConnectWorkspace={onConnectWorkspace}
               onRename={onRename}
               onDelete={onDelete}
               onReprobe={onReprobe}
