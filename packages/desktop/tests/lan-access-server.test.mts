@@ -111,6 +111,12 @@ test("在线 web 会话计入 LanAccessState.activeWebSessions 并触发状态�
     assert.ok(port && port > 0);
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?token=client-token`);
     try {
+      // 必须先等客户端握手完成：服务端 onOpen 可能先于客户端 OPEN，
+      // 此时直接 ws.close() 会抛 "closed before the connection was established"。
+      await new Promise<void>((resolve, reject) => {
+        ws.once("open", () => resolve());
+        ws.once("error", reject);
+      });
       const openDeadline = Date.now() + 3_000;
       while (handle.getState().activeWebSessions !== 1 && Date.now() < openDeadline) {
         await new Promise((resolve) => setTimeout(resolve, 20));
@@ -118,7 +124,10 @@ test("在线 web 会话计入 LanAccessState.activeWebSessions 并触发状态�
       assert.equal(handle.getState().activeWebSessions, 1, "连接建立后应计为在线");
       assert.ok(changes >= 1, "状态变化必须通知所有者刷新快照");
 
-      ws.close();
+      await new Promise<void>((resolve) => {
+        ws.once("close", () => resolve());
+        ws.close();
+      });
       const closeDeadline = Date.now() + 3_000;
       while (handle.getState().activeWebSessions !== 0 && Date.now() < closeDeadline) {
         await new Promise((resolve) => setTimeout(resolve, 20));
