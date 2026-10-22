@@ -66,8 +66,10 @@
      微信注册后仍显示运行态而非"未绑定"；
    - `/bind` 成功检测（BotsDialog 绑定码轮询 `targetBot?.providerUserId`）**不变**——
      它检测的是 /bind 写入的真实用户，与注册无关；
-   - `BotPrivateChatCard` / `BotGroupChatCard` / `ProviderSettingsCard` **不变**：
-     微信注册后"绑定用户"列表如实为空（可手动 /bind 绑真实用户），群描述
+   - `BotPrivateChatCard` / `BotGroupChatCard` / `ProviderSettingsCard` 的绑定展示语义不变：
+     微信注册后"已绑定用户"列表如实为空（可手动 /bind 绑真实用户）。2026-10-21 起微信私聊
+     缺省为 `all_users`（[bot-weixin-open-dm.md](./bot-weixin-open-dm.md)），默认不渲染绑定区；
+     只有显式切到 `bound_users` 时才出现上述空列表与 `/bind` 入口。群描述
      `descriptionUnbound` 与群授权门实际行为一致（迁移后 `boundUserId` 为空，
      bound_users 群消息静默忽略——与迁移前"自身份 id 永不等于发送者"行为相同）。
 9. **已知边界（接受）**：微信 bound_users 且**仅剩群对话、无私聊对话**时心跳不再触发

@@ -63,7 +63,7 @@
 
 | 通道             | 凭据获取             | 是否支持手填                         | 绑定阶段            | 「已连接」判据                                    |
 | ---------------- | -------------------- | ------------------------------------ | ------------------- | ------------------------------------------------- |
-| 微信 weixin      | 仅扫码注册           | 否（无手填字段）                     | **无** `/bind` 阶段 | `credentialRef`（`ProviderSettingsCard.tsx:438`） |
+| 微信 weixin      | 仅扫码注册           | 否（无手填字段）                     | 默认无（`all_users`）；显式 `bound_users` 时 `/bind` | `credentialRef`（`ProviderSettingsCard.tsx:438`） |
 | 企微 wecom       | 扫码注册 **或** 手填 | 是（`wecomBotId` + secret）          | 有，自动 `/bind`    | `providerUserId`                                  |
 | 飞书 feishu/lark | 仅扫码注册           | **否**（手填入口已在 UI 重构中移除） | 有，自动 `/bind`    | `providerUserId`                                  |
 | 钉钉 dingtalk    | 仅手填               | 是（`dingtalkClientId` + AppSecret） | 有，自动 `/bind`    | `providerUserId`                                  |
@@ -105,8 +105,9 @@
 - 企微：扫码 + 手填（现状即双路，作为模板）；
 - 飞书：扫码为默认路径，**补回手填**（见 R3-1）；
 - 钉钉：手填为默认路径，**扫码为可选补齐**（见 R3-3）；
-- 微信：扫码为唯一路径，**不引入 `/bind` 阶段**（其绑定语义由平台在扫码时一并完成，
-  见 R3-2 的显式化要求）。
+- 微信：扫码为唯一凭据路径；私聊方式缺省 `all_users`（扫码即可用，见
+  [bot-weixin-open-dm.md](./bot-weixin-open-dm.md)），显式切回 `bound_users` 时仍保留
+  `/bind` 与绑定 UI。
 
 ### R3 本轮补齐项（需评审确认后实现）
 
@@ -128,11 +129,12 @@
    现状 `isConnected = credentialRef`，把"凭据已就绪"和"机器人已可用"混成一个点：
    扫码成功后圆点即变绿、文案为"已连通"，但此时机器人还收不到消息。
    按 R1 口径拆成两段呈现：凭据就绪（`credentialRef`）与已激活（`weixinActivatedAt` 存在）。
-   - 落地方式：微信不设「绑定」段（扫码时平台一并完成身份绑定，`/bind` 对它不适用，
-     这是 spec R2 刻意保留的不对称），第三段改为「激活」，就绪判据为 `weixinActivatedAt`；
-     未激活时为灰点「待激活」，不再显示绿色的「已连通」。
-   - 未改变的部分：现有激活提示文案（提示用户发首条消息）保留，不新增阻塞性步骤，
-     也不添加 `/bind` 入口。
+   - 落地方式：微信默认不要求绑定（私聊方式缺省 `all_users`，见
+     [bot-weixin-open-dm.md](./bot-weixin-open-dm.md)），状态行只呈现「凭据 / 激活」两段，
+     第三段就绪判据为 `weixinActivatedAt`；未激活时为灰点「待激活」，不再显示绿色的「已连通」。
+   - 显式 `bound_users` 时恢复绑定段与 `/bind` 入口；扫码注册本身不写 `providerUserId`
+     （`weixin-provider-self-id.md`），不存在“扫码自动绑定主人”的事实。
+   - 未改变的部分：现有激活提示文案（提示用户发首条消息）保留，不新增阻塞性步骤。
 3. **钉钉扫码注册 —— 判定为「不做」（既定差异）。**（2026-10-14）
    证据：仓库里企微（`wecomRegistration.ts`）、飞书（`feishuAppRegistration.ts`）、
    微信（`weixinRegistration.ts`）都有完整的扫码注册模块，**钉钉没有任何注册实现**——
@@ -335,7 +337,11 @@ UI 只读 getStatus() / getConfig() ◀─────────────�
      `saveBot` 里落 `feishuAppId` + 凭据（不绕 `credentialService`）并复用既有校验状态机。
      仍未覆盖的是**渲染结果本身**（按钮是否可见、DOM 结构），要等引入 DOM 环境另立任务。
 3. **微信两态**：仅有 `credentialRef` 时显示"凭据就绪、未激活"；收到首条入站消息写入
-   `weixinActivatedAt` 后转为"已激活"。不出现 `/bind` 入口。
+   `weixinActivatedAt` 后转为"已激活"。默认 `all_users` 下不出现绑定入口；
+   显式切到 `bound_users` 时保留。
+   `getStatus().botRuntime` 必须把通道状态里的 `weixinActivatedAt` 合并进对应 runtime 条目，
+   不能只在没有 runtime 的兜底分支返回——微信 Bot 启用后一定有 runtime（长轮询/错误态），
+   否则已激活的 Bot 会一直显示「待激活」。
 4. **三段状态一致性**：卡片状态行与 `getStatus()` 输出逐项一致（同一 bot 在扫码前 / 扫码后 /
    绑定后 / 运行异常四个时刻的呈现）。
 5. **回归**：`pnpm --filter @mode/services test`、`pnpm typecheck`、`pnpm lint`、

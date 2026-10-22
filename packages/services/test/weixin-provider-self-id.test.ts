@@ -156,7 +156,7 @@ test("出站兼容：微信 send 的 from_user_id 用 providerSelfId 并回退 p
   );
 });
 
-test("心跳目标：resolveBotProactiveUserId 私聊对话回落早于 privateChatMode 判断", async () => {
+test("心跳目标：resolveBotProactiveUserId 私聊对话回落早于私聊方式判断", async () => {
   const source = await import("node:fs/promises").then((fs) =>
     fs.readFile(new URL("../src/bots/botsService.ts", import.meta.url), "utf8"),
   );
@@ -166,12 +166,13 @@ test("心跳目标：resolveBotProactiveUserId 私聊对话回落早于 privateC
   const fnBody = lines.slice(fnStart, fnStart + 40).join("\n");
 
   const privateFallbackIndex = fnBody.indexOf("conversation.conversationId");
-  const modeIndex = fnBody.indexOf("privateChatMode");
+  // 私聊方式统一走共享解析函数，不能再按 `privateChatMode` 字段名找本地分支。
+  const modeIndex = fnBody.indexOf("resolveBotPrivateChatMode");
   assert.ok(privateFallbackIndex >= 0, "缺少私聊对话回落");
-  assert.ok(modeIndex >= 0, "缺少 privateChatMode 分支");
+  assert.ok(modeIndex >= 0, "缺少私聊方式分支");
   assert.ok(
     privateFallbackIndex < modeIndex,
-    "私聊回落必须在 privateChatMode 判断之前（迁移后微信 boundUserId 为空仍能拿到真实对端）",
+    "私聊回落必须在私聊方式判断之前（迁移后微信 boundUserId 为空仍能拿到真实对端）",
   );
 });
 

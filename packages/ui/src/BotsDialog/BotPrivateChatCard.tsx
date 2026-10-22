@@ -1,5 +1,9 @@
 import { X } from "lucide-react";
-import type { BotConfig, BotPrivateChatMode } from "@mode/shared";
+import {
+  resolveBotPrivateChatMode,
+  type BotConfig,
+  type BotPrivateChatMode,
+} from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   Select,
@@ -40,7 +44,7 @@ export function BotPrivateChatCard({
   onPatchBot: (patch: Partial<BotConfig>) => void;
 }) {
   const { intl } = useModeIntl();
-  const mode: BotPrivateChatMode = bot.privateChatMode ?? "bound_users";
+  const mode: BotPrivateChatMode = resolveBotPrivateChatMode(bot);
   const boundUsers = bot.allowedUsers ?? [];
   const primaryUserId = bot.providerUserId?.trim() ?? "";
   const showBindCode = bindCode?.botId === bot.id && !bindExpired;

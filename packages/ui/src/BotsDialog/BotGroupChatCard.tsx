@@ -1,6 +1,9 @@
 import { useState } from "react";
 import type { BotConfig, BotGroupActivation } from "@mode/shared";
-import { resolveBotGroupChatCapabilities } from "@mode/shared";
+import {
+  resolveBotGroupChatCapabilities,
+  resolveBotPrivateChatMode,
+} from "@mode/shared";
 import {
   Select,
   SelectContent,
@@ -44,7 +47,7 @@ export function BotGroupChatCard({
   const activation: BotGroupActivation =
     !capabilities.always && configured === "always" ? "mention" : configured;
   const boundUser = Boolean(bot.providerUserId?.trim());
-  const privateAllUsers = (bot.privateChatMode ?? "bound_users") === "all_users";
+  const privateAllUsers = resolveBotPrivateChatMode(bot) === "all_users";
   const permissions = bot.groupChat?.permissions ?? [];
   const pending = permissions.filter((permission) => permission.status === "pending");
   const approved = permissions.filter((permission) => permission.status === "approved");

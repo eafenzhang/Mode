@@ -1,5 +1,6 @@
 import {
   normalizeBotReplyGranularity,
+  resolveBotPrivateChatMode,
   type BotActor,
   type BotCommandPolicy,
   type BotConfig,
@@ -49,11 +50,13 @@ export function findAuthorizedBot(config: BotsConfigFile, actor: BotActor): BotC
 
 export function findBoundUser(bot: BotConfig, actor: BotActor): BotConfig | null {
   // 绑定用户、allowedUsers、all_users 三种放行方式对所有平台一致。
-  // 微信不再无条件放行：A+ 要求微信/企微/飞书/钉钉共用同一套私聊准入。
+  // 微信不再无条件放行：A+ 要求微信/企微/飞书/钉钉共用同一套私聊准入；
+  // 微信的缺省私聊方式为 all_users（spec bot-weixin-open-dm），由共享解析函数给出，
+  // 不在各调用点手写 provider 分支。
   if (bot.providerUserId === actor.providerUserId) {
     return bot;
   }
-  if (actor.chatType === "private" && (bot.privateChatMode ?? "bound_users") === "all_users") {
+  if (actor.chatType === "private" && resolveBotPrivateChatMode(bot) === "all_users") {
     return bot;
   }
   return bot.allowedUsers?.includes(actor.providerUserId) ? bot : null;

@@ -22,6 +22,7 @@ import {
   createUuid,
   isFeishuBotProvider,
   normalizeBotReplyGranularity,
+  resolveBotPrivateChatMode,
 } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import {
@@ -92,6 +93,8 @@ function createDraftBot(params: { provider: BotProvider }): BotConfig {
     name: "",
     provider: params.provider,
     enabled: true,
+    // 显式落盘 provider 缺省值：微信 all_users（扫码即可用），其余 bound_users。
+    privateChatMode: resolveBotPrivateChatMode({ provider: params.provider }),
     allowedWorkspaces: [ALL_BOT_WORKSPACES],
     allowedCommands: createDefaultCommands(),
     currentOptions: {},

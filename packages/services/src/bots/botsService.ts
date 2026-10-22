@@ -54,6 +54,7 @@ import {
   isBotEligibleForSessionBinding,
   stripBotChannelContextForDisplay,
   normalizeBotWorkspaceBindings,
+  resolveBotPrivateChatMode,
   BOT_BINDINGS_FILE_VERSION,
   type BotProvider,
   type BotProviderCallbackResult,
@@ -115,6 +116,7 @@ import {
 import { BOT_MENU_COMMAND_ORDER } from "./commandOrder.js";
 import { parseBotCommand } from "./commandParser.js";
 import { BotsRepo } from "./repo.js";
+import { projectBotRuntimeInfo } from "./botRuntimeProjection.js";
 import type {
   BotProviderAdapter,
   BotStreamingReplyCardBlock,
@@ -1838,7 +1840,7 @@ export function createBotsService(
     if (conversation?.conversationKind === "private") {
       return conversation.conversationId;
     }
-    if ((bot.privateChatMode ?? "bound_users") === "all_users") {
+    if (resolveBotPrivateChatMode(bot) === "all_users") {
       // 私聊已在上方返回；这里只处理群聊主动投递：回最近说话的私聊用户
       // （原来记在 lastPrivateUserId，现在按对话表推导）。
       const recentPrivate = state
@@ -6174,7 +6176,7 @@ export function createBotsService(
     const locale = await readMessageLocale();
     const config = await repo.readConfig();
     const bot = findAuthorizedBot(config, message.actor);
-    const privateChatAllUsers = (bot?.privateChatMode ?? "bound_users") === "all_users";
+    const privateChatAllUsers = bot !== null && resolveBotPrivateChatMode(bot) === "all_users";
     if (!bot || bot.id !== message.botId) {
       return {
         ok: false,
@@ -7175,20 +7177,13 @@ export function createBotsService(
           (total, channel) => total + Object.keys(channel.conversations).length,
           0,
         ),
-        botRuntime: config.bots.map((bot) => {
-          const runtime = runtimeByBotId.get(bot.id);
-          return (
-            runtime ?? {
-              botId: bot.id,
-              provider: bot.provider,
-              status: bot.enabled ? "idle" : "disabled",
-              message: bot.enabled ? "Bot is configured." : "Bot is disabled.",
-              ...(state.bots[bot.id]?.weixinActivatedAt !== undefined
-                ? { weixinActivatedAt: state.bots[bot.id]!.weixinActivatedAt }
-                : {}),
-            }
-          );
-        }),
+        botRuntime: config.bots.map((bot) =>
+          projectBotRuntimeInfo({
+            bot,
+            runtime: runtimeByBotId.get(bot.id),
+            channelState: state.bots[bot.id],
+          }),
+        ),
       };
     },
     getConfig: async () => {

@@ -242,7 +242,7 @@ export interface BotHeartbeatConfig {
   activeHours?: { start: string; end: string };
 }
 
-/** 私聊方式：bound_users = 仅绑定用户可驱动（默认）；all_users = 任何私聊用户都可驱动，无需绑定。 */
+/** 私聊方式：bound_users = 仅绑定用户可驱动；all_users = 任何私聊用户都可驱动，无需绑定。 */
 export type BotPrivateChatMode = "bound_users" | "all_users";
 
 export interface BotConfig {
@@ -262,7 +262,10 @@ export interface BotConfig {
    * 预判对话/心跳目标/绑定展示只读 providerUserId。详见 spec weixin-provider-self-id。
    */
   providerSelfId?: string;
-  /** 私聊方式；缺省按 bound_users（与历史行为一致）。 */
+  /**
+   * 私聊方式；缺省按 provider 解析：微信 `all_users`（扫码即可用），其余 `bound_users`。
+   * 解析唯一入口 `resolveBotPrivateChatMode`，不要在调用方各写一份缺省值。
+   */
   privateChatMode?: BotPrivateChatMode;
   displayName?: string;
   /** 企业微信智能机器人 ID（botid）；secret 走 credentialRef 加密存储 */
@@ -288,6 +291,23 @@ export interface BotConfig {
   allowedCommands: BotAllowedCommands;
   currentOptions: BotCurrentOptions;
   replyMode: BotReplyMode;
+}
+
+/**
+ * 私聊方式的唯一缺省解析入口。
+ *
+ * 微信扫码只注册 bot（返回 providerSelfId + 凭据），不返回扫码人的用户 id，
+ * 因此不存在“扫码即自动绑定主人”的事实；对齐 MyAgents 的扫码即用形态，
+ * 缺省按 `all_users` 开放。其它通道保持历史默认 `bound_users`。
+ * 显式配置永远优先，用户仍可收紧到 `bound_users` 走 /bind。
+ */
+export function resolveBotPrivateChatMode(
+  bot: Pick<BotConfig, "provider" | "privateChatMode">,
+): BotPrivateChatMode {
+  if (bot.privateChatMode) {
+    return bot.privateChatMode;
+  }
+  return bot.provider === "weixin" ? "all_users" : "bound_users";
 }
 
 export interface BotPendingPermissionOption {
