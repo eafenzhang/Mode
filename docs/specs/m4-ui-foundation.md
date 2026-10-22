@@ -248,6 +248,9 @@ success/warning/destructive。
 ### 2.20 CodeView（只读代码块）
 
 - 用于聊天代码块等只读场景：逐行渲染，行号从 `firstLineNumber` 起；
+- 空行必须渲染成一个 `\n` 文本节点（与旧 `CodeViewer`/@pierre/diffs 一致）：
+  浏览器复制会跳过没有任何文本的块，空行不渲染换行就会在复制结果里丢失；
+  行号加 `select-none`，鼠标选区复制时不进入复制结果；
 - `markedLines` 只改行号颜色（警示色），不改代码内容；
 - `focusedRange` 给行加选中背景；`focusRequestId` 变化时把该范围滚到可视区；
 - `enableSyntaxHighlighting=false` 或语言不支持时渲染纯文本；否则异步 Shiki token；

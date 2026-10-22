@@ -291,13 +291,19 @@ export function CodeView({
                 wrapLongLines ? "whitespace-pre-wrap break-words" : "whitespace-pre",
               ].join(" ")}
             >
-              {lineTokens
-                ? lineTokens.map((token, tokenIndex) => (
-                    <span key={tokenIndex} style={{ color: token.color }}>
-                      {token.content}
-                    </span>
-                  ))
-                : line}
+              {line === "" ? (
+                // 空行没有任何可复制文本，浏览器会跳过整个空块，复制出的代码因此丢失空行；
+                // 原版 CodeViewer（@pierre/diffs）同样给空行补一个换行文本节点。
+                "\n"
+              ) : lineTokens && lineTokens.length > 0 ? (
+                lineTokens.map((token, tokenIndex) => (
+                  <span key={tokenIndex} style={{ color: token.color }}>
+                    {token.content}
+                  </span>
+                ))
+              ) : (
+                line
+              )}
             </span>
           </div>
         );

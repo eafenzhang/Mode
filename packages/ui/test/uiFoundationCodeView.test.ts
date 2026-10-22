@@ -126,6 +126,19 @@ test("选区文本：按 firstLineNumber 切片并夹取边界", () => {
   assert.equal(getCodeViewSelectedText(lines, null, 10), "");
 });
 
+test("空行：渲染换行文本节点，复制时不丢空行", () => {
+  const html = renderToStaticMarkup(
+    createElement(CodeView, {
+      code: ["a", "", "b"].join(String.fromCharCode(10)),
+      language: "text",
+      enableSyntaxHighlighting: false,
+    }),
+  );
+  // 浏览器复制会跳过没有任何文本的块；空行必须渲染成 "\n" 才能保留（原版 @pierre/diffs 行为）。
+  assert.equal((html.match(/\n/g) ?? []).length, 1);
+  assert.match(html, /<span class="[^"]*whitespace-pre">\n<\/span>/);
+});
+
 test("gutter：启用后每行有 add 按钮", () => {
   const html = renderToStaticMarkup(
     createElement(CodeView, {
