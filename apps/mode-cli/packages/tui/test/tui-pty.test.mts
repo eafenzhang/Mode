@@ -24,6 +24,9 @@
  * 键盘退出已由 `scripts/mode-distribution-smoke.mjs` 覆盖；这里用 `terminal.kill()` 收尾。
  *
  * 其余场景按同一骨架追加：在夹具里加 `PTY_SCENARIO` 分支 + 这里加一条断言。
+ *
+ * 平台：这套用例依赖 Windows 的 PTY 行为。Ubuntu runner 上 TUI 停在独占空会话的
+ * 启动画面（等不到 `Build` 标签），因此非 Windows 平台整体 skip；Windows 本地全绿。
  */
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -33,6 +36,8 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import * as pty from "node-pty";
+
+const ptyTest = process.platform === "win32" ? test : test.skip;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(here, "..");
@@ -102,7 +107,7 @@ async function waitForReady(session: TuiSession): Promise<void> {
   await session.waitFor(/Type a prompt|Ask Mode/iu, "输入提示");
 }
 
-test("TUI PTY A1+B1：冷启动渲染 → 提交后文本增量上屏", async () => {
+ptyTest("TUI PTY A1+B1：冷启动渲染 → 提交后文本增量上屏", async () => {
   const session = startTui("stream");
   try {
     await waitForReady(session);
@@ -116,7 +121,7 @@ test("TUI PTY A1+B1：冷启动渲染 → 提交后文本增量上屏", async ()
   }
 });
 
-test("TUI PTY A3：turn_complete 的终态响应上屏", async () => {
+ptyTest("TUI PTY A3：turn_complete 的终态响应上屏", async () => {
   const session = startTui("turn");
   try {
     await waitForReady(session);
@@ -128,7 +133,7 @@ test("TUI PTY A3：turn_complete 的终态响应上屏", async () => {
   }
 });
 
-test("TUI PTY A5：busy 时第二次提交进入队列面板", async () => {
+ptyTest("TUI PTY A5：busy 时第二次提交进入队列面板", async () => {
   const session = startTui("queue");
   try {
     await waitForReady(session);
@@ -143,7 +148,7 @@ test("TUI PTY A5：busy 时第二次提交进入队列面板", async () => {
   }
 });
 
-test("TUI PTY B2：工具输入增量不进入正文，最终工具卡完成", async () => {
+ptyTest("TUI PTY B2：工具输入增量不进入正文，最终工具卡完成", async () => {
   const session = startTui("toolinput");
   try {
     await waitForReady(session);
@@ -159,7 +164,7 @@ test("TUI PTY B2：工具输入增量不进入正文，最终工具卡完成", a
   }
 });
 
-test("TUI PTY B3：reasoning 以折叠思考块呈现", async () => {
+ptyTest("TUI PTY B3：reasoning 以折叠思考块呈现", async () => {
   const session = startTui("reasoning");
   try {
     await waitForReady(session);
@@ -172,7 +177,7 @@ test("TUI PTY B3：reasoning 以折叠思考块呈现", async () => {
   }
 });
 
-test("TUI PTY B5：Esc 中止进行中的回合", async () => {
+ptyTest("TUI PTY B5：Esc 中止进行中的回合", async () => {
   const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-interrupt-"));
   const resultFile = join(resultDir, "result.txt");
   const session = startTui("interrupt", { PTY_RESULT_FILE: resultFile });
@@ -217,7 +222,7 @@ test("TUI PTY B5：Esc 中止进行中的回合", async () => {
   }
 });
 
-test("TUI PTY C3：审批面板出现，默认 Deny 确认", async () => {
+ptyTest("TUI PTY C3：审批面板出现，默认 Deny 确认", async () => {
   const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-approval-"));
   const resultFile = join(resultDir, "result.txt");
   const session = startTui("approval", { PTY_RESULT_FILE: resultFile });
@@ -249,7 +254,7 @@ test("TUI PTY C3：审批面板出现，默认 Deny 确认", async () => {
   }
 });
 
-test("TUI PTY C4：问题面板渲染、作答并提交", async () => {
+ptyTest("TUI PTY C4：问题面板渲染、作答并提交", async () => {
   const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-question-"));
   const resultFile = join(resultDir, "result.txt");
   const session = startTui("question", { PTY_RESULT_FILE: resultFile });
@@ -288,7 +293,7 @@ test("TUI PTY C4：问题面板渲染、作答并提交", async () => {
   }
 });
 
-test("TUI PTY C5：审批等待期间的流式事件不丢", async () => {
+ptyTest("TUI PTY C5：审批等待期间的流式事件不丢", async () => {
   const session = startTui("approvalstream");
   try {
     await waitForReady(session);
@@ -300,7 +305,7 @@ test("TUI PTY C5：审批等待期间的流式事件不丢", async () => {
   }
 });
 
-test("TUI PTY D4：工具失败卡片与错误文本", async () => {
+ptyTest("TUI PTY D4：工具失败卡片与错误文本", async () => {
   const session = startTui("toolerror");
   try {
     await waitForReady(session);
@@ -312,7 +317,7 @@ test("TUI PTY D4：工具失败卡片与错误文本", async () => {
   }
 });
 
-test("TUI PTY E4：@ 触发文件提及，Tab 补全后提交路径", async () => {
+ptyTest("TUI PTY E4：@ 触发文件提及，Tab 补全后提交路径", async () => {
   const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-mention-"));
   const resultFile = join(resultDir, "result.txt");
   const session = startTui("stream", { PTY_RESULT_FILE: resultFile });
@@ -345,7 +350,7 @@ test("TUI PTY E4：@ 触发文件提及，Tab 补全后提交路径", async () =
   }
 });
 
-test("TUI PTY E2：输入 / 出现补全，Tab 补全后提交", async () => {
+ptyTest("TUI PTY E2：输入 / 出现补全，Tab 补全后提交", async () => {
   const resultDir = mkdtempSync(join(tmpdir(), "mode-pty-help-"));
   const resultFile = join(resultDir, "result.txt");
   const session = startTui("stream", { PTY_RESULT_FILE: resultFile });
@@ -378,7 +383,7 @@ test("TUI PTY E2：输入 / 出现补全，Tab 补全后提交", async () => {
   }
 });
 
-test("TUI PTY E3：Shift+Tab 触发模式切换", async () => {
+ptyTest("TUI PTY E3：Shift+Tab 触发模式切换", async () => {
   const session = startTui("stream");
   try {
     await waitForReady(session);
@@ -394,7 +399,7 @@ test("TUI PTY E3：Shift+Tab 触发模式切换", async () => {
   }
 });
 
-test("TUI PTY D1：工具卡片 running → completed 状态上屏", async () => {
+ptyTest("TUI PTY D1：工具卡片 running → completed 状态上屏", async () => {
   const session = startTui("tool");
   try {
     await waitForReady(session);

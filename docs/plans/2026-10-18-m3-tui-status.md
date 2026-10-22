@@ -259,6 +259,9 @@ cd apps/mode-cli/packages/tui && pnpm exec tsc --noEmit
   所以夹具固定 `locale: "en-US"` 并只用 ASCII 标记断言。清理无语义退出（会话屏
   Ctrl-C 带防误退/中断流语义），键盘退出仍由 `scripts/mode-distribution-smoke.mjs`
   在发行包上覆盖。
+- CI 平台：release verify 跑在 Ubuntu。这套 PTY 用例在 Linux runner 上会停在空会话
+  启动画面（等不到 `Build` 标签），因此非 Windows 平台整体 skip；Windows 本地全绿。
+  在 Linux 上修好渲染差异前，不要把 skip 去掉。
 - 控制信号两条路：**屏幕短标记**（`PTY_MODE_edit` 等，适合一次性可观察信号）与
   **结果文件**（`PTY_RESULT_FILE` 追加，适合会被重绘覆盖/裁掉、或需要轮询重发按键的信号；
   B5/C4 用它）。
