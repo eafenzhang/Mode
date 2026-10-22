@@ -46,6 +46,7 @@ import {
   EVENT_SUBSCRIBED_METHODS,
   HOST_INJECTED_IMPLEMENTED_METHODS,
   M1_IMPLEMENTED_COMMANDS,
+  UPDATE_STATE_EVENT,
   UPDATE_STATE_METHODS,
   WINDOW_CONTROL_METHODS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
@@ -1079,6 +1080,90 @@ test("深链订阅：kind 与方法的配对是可观察行为，不是「两个
     "畸形载荷必须被跳过（否则一次畸形事件会打断整条订阅）",
   );
   assert.deepEqual(recorded("payment"), ["mode://pay/callback?state=pay-1"]);
+});
+
+test("更新状态事件名与 Rust 真源一致；更新面成员全部注入（写错即静默收不到）", () => {
+  // 事件名是**跨语言字面量**：Rust emit 一份、注入层订阅一份。写错不会报错，
+  // 症状是「订阅装上了但永远收不到」——正是本仓库反复吃亏的那类静默失效。
+  const rust = read("crates/updater/src/state.rs");
+  const match = /pub const UPDATE_STATE_EVENT: &str = "([^"]+)"/.exec(rust);
+  assert.ok(match, "crates/updater/src/state.rs 里应声明 UPDATE_STATE_EVENT");
+  assert.equal(match[1], UPDATE_STATE_EVENT, "适配层导出的更新状态事件名必须与 Rust 真源一致");
+  assert.ok(
+    read("crates/sidecar-host/src/window_mode.ts").includes(`"${UPDATE_STATE_EVENT}"`),
+    "注入层必须订阅同一个更新状态事件名（写错即静默失效）",
+  );
+
+  // 适配层把 `UPDATE_STATE_METHODS` 列为「已实现」；注入层不能反向缺件，
+  // 否则渲染层在真壳里会拿到 `window.mode.X is not a function`。
+  const page = createPage();
+  page.evaluate(emitInjectedScript());
+  const names = Array.from(page.probe("Object.keys(window.mode)") as string[]);
+  for (const name of UPDATE_STATE_METHODS) {
+    assert.ok(names.includes(name), `${name} 必须在注入的 window.mode 上（更新面已接通）`);
+  }
+});
+
+test("onUpdateReady 从 mode:update-state 派生：downloaded 触发、其它状态清除、晚订阅回放", async () => {
+  const page = createPage();
+  page.evaluate(emitInjectedScript());
+  page.probe(
+    "window.__ready = [];" +
+      "window.__readyDispose = window.mode.onUpdateReady(function (version) {" +
+      "  window.__ready.push(version);" +
+      "});",
+  );
+  await page.flushMicrotasks();
+
+  const updateListeners = page.deepLinkListeners.filter(
+    (listener) => listener.event === UPDATE_STATE_EVENT,
+  );
+  assert.equal(
+    updateListeners.length,
+    1,
+    "onUpdateReady 必须真的订阅更新状态事件（与 onUpdateStateChanged 同一条通道）",
+  );
+  const deliver = (payload: Record<string, unknown>): void => {
+    for (const listener of updateListeners) {
+      listener.handler({ event: UPDATE_STATE_EVENT, payload });
+    }
+  };
+  const recorded = (key: "ready" | "late" | "stale"): unknown[] =>
+    Array.from(page.probe(`window.__${key}`) as unknown[]);
+
+  // 仅发现新版本不算 ready。
+  deliver({ kind: "update-available", enabled: true, version: "2.0.0" });
+  assert.deepEqual(recorded("ready"), []);
+
+  deliver({ kind: "update-downloaded", enabled: true, version: "2.0.0" });
+  assert.deepEqual(recorded("ready"), ["2.0.0"], "进入 update-downloaded 必须通知");
+
+  // 同一个版本重复上报：不重复通知（避免每次状态重放都弹一次 toast）。
+  deliver({ kind: "update-downloaded", enabled: true, version: "2.0.0" });
+  assert.deepEqual(recorded("ready"), ["2.0.0"], "同版本的重复 downloaded 不得重复通知");
+
+  // 晚订阅回放：一次性事件，错过就永远收不到。
+  page.probe(
+    "window.__late = []; window.mode.onUpdateReady(function (version) { window.__late.push(version); });",
+  );
+  assert.deepEqual(recorded("late"), ["2.0.0"], "晚订阅必须回放当前 ready 版本");
+
+  // 离开 downloaded（取消/跳过/staging error）→ 清缓存，不得再用失效版本。
+  deliver({ kind: "idle", enabled: true });
+  page.probe(
+    "window.__stale = []; window.mode.onUpdateReady(function (version) { window.__stale.push(version); });",
+  );
+  assert.deepEqual(recorded("stale"), [], "离开 downloaded 后不得再回放旧版本");
+
+  // 再次下载完成：所有活跃订阅重新收到。
+  deliver({ kind: "update-downloaded", enabled: true, version: "2.0.0" });
+  assert.deepEqual(recorded("ready"), ["2.0.0", "2.0.0"], "清除后再次 ready 必须重新通知");
+  assert.deepEqual(recorded("late"), ["2.0.0", "2.0.0"]);
+
+  // disposer 真的摘掉订阅。
+  page.probe("window.__readyDispose()");
+  deliver({ kind: "update-downloaded", enabled: true, version: "3.0.0" });
+  assert.deepEqual(recorded("ready"), ["2.0.0", "2.0.0"], "退订后不得再回调");
 });
 
 test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成员一律缺席（两处声明真源都守）", async () => {

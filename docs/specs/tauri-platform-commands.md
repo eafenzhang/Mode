@@ -495,7 +495,24 @@ M1 §5 登记的是「`onOAuthCallback` / `onPaymentCallback` 之外的订阅型
 | `onWindowFullscreenChanged` | **登记为不做** | 壳**有**窗口事件的来源（`RunEvent::WindowEvent` + `is_fullscreen()`），但发它需要**新增一个事件名**（协议 + 注入层 + 生成物三处一起动）。本任务的授权是「复用既有通道」，新增通道属窗口模型（M4）的改动。**注意它没有随 §9.5 一起接上**：§9.5 的 chrome 状态里没有 `isFullscreen` 字段（声明如此），所以那个布尔值没有来源 |
 | `executeDesktopCommand` / `getDesktopWindowChromeState` / `onDesktopWindowChromeStateChanged` | **实现**（fix round，用户报障） | 见 §9.5：自绘标题栏依赖它们，而注入层从前把它们当「降级空操作 / 缺席」 |
 | `onRemoteConnectionLog` / `onRemoteSessionClosed` / `onBotRemoteWorkspaceReconnected` / `onRemoteDesktopSessionEvent` | **独立立项（2026-10-19）** | 事件源在远控链路（attachment 调度、远端传输）；迁移计划见 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`。在 LR-4 完成前仍保持拒绝/空操作，不伪装成功 |
-| `onUpdateReady` / `onUpdateCheckResult` / `onPostUpdateReleaseNotes` | **登记为不做** | M5 Task 1 接了**命令式**触发（`executeDesktopCommand("checkForUpdates")` → `updater::command::check_and_install`），但没有把更新进度投影成这些事件；渲染层仍拿不到 `onUpdate*` 事件源，属后续增量 |
+| `onUpdateReady` | **实现**（2026-10-22 增量） | **派生视图**：壳没有独立的 `update-ready` 事件，`mode:update-state` 的 `kind === "update-downloaded"` 就是「已下载完毕」。语义见下面的「更新就绪的派生」 |
+| `onUpdateCheckResult` / `onPostUpdateReleaseNotes` | **登记为不做** | M5 Task 1 起手动检查走 `executeDesktopCommand("checkForUpdates")` → `updater::state::check_for_update`，状态经 `mode:update-state` 推送；但「本次手动检查的结果」仍是**命令返回值**，没有事件源。`onPostUpdateReleaseNotes` 需要「安装后首次启动」的检测，壳尚未产出。两者继续按声明形态降级/拒绝，不伪装成功 |
+
+**更新就绪的派生（`onUpdateReady`，2026-10-22）**：Electron 线由 main 发一次性
+`update-ready`，preload 另用 `update-state-changed` 维护「最近一次 ready 版本」缓存，并在订阅时回放。
+Tauri 线只复用已有的 `mode:update-state`，不新增事件名；规则与 Electron 的缓存语义逐条对齐：
+
+| 状态事件 | 行为 |
+| --- | --- |
+| `kind === "update-downloaded"` 且版本与缓存不同 | 记入缓存并通知全部订阅方 |
+| 同版本重复的 `update-downloaded` | 不重复通知（避免每次状态重放都弹 toast） |
+| 其它任何 `kind`（`idle` / `checking` / `update-available` / `download-progress`） | 清空缓存——取消、跳过或 staging error 后不得再用失效版本撑出「重启以更新」 |
+| 订阅时缓存非空 | 立即回放（一次性事件，晚挂载的组件否则永远收不到） |
+| 首次订阅 | 用 `getUpdateState` 补一次快照（页面加载可能晚于下载完成）；快照与实时事件用 revision 去重，在途旧快照不得覆盖更新的实时状态 |
+
+两处适配（注入层 `window_mode.ts` 与验收台 `tauri-invoke-shim.ts`）实现同一条状态机；事件名
+`mode:update-state` 的真源是 `crates/updater/src/state.rs` 的 `UPDATE_STATE_EVENT`，由
+`windowModeInjection.test.mts` 对拍，写错即红（否则症状是「订阅装上了却永远收不到」）。
 
 **「登记为不做」不等于沉默**：这些成员在注入层按**声明返回形态**分成两类——
 要读值的（`Promise<T>`，T ≠ void）返回**带方法名的被拒 Promise**，没有要读的值的返回

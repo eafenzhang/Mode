@@ -165,10 +165,15 @@
   /**
    * 自动更新面（壳的 updater `extra_handler` + `mode:update-state` 事件）。
    * 不在 M1 命令切片里，但注入层是实现；诊断与测试都按这份清单认「已实现」。
+   *
+   * `onUpdateReady` 也在这份清单里：它不是一条独立事件，而是**从 `mode:update-state` 派生**的
+   * 兼容视图——壳没有第二个「ready」事件源，`kind === "update-downloaded"` 就是「已下载完毕」。
+   * 派生规则与 Electron 线 preload 的缓存语义一致，见下面 `applyUpdateState` 的注释。
    */
   var UPDATE_STATE = [
     "getUpdateState",
     "onUpdateStateChanged",
+    "onUpdateReady",
     "downloadUpdate",
     "cancelUpdateDownload",
     "quitAndInstallUpdate",
@@ -252,7 +257,6 @@
     "registerOAuthState",
     "syncTelemetryContext",
     "reportTelemetryEvent",
-    "onUpdateReady",
     "onUpdateCheckResult",
     "onPostUpdateReleaseNotes",
     "acknowledgePostUpdateReleaseNotes",
@@ -508,10 +512,10 @@
   }
 
   /**
-   * 订阅深链事件里某一类 `kind`，返回同步的 disposer。
+   * 订阅更新状态事件（`onUpdateStateChanged`），返回同步的 disposer。
    *
-   * `project` 把事件载荷投影成**该订阅方法要的东西**：五种 `kind` 共用一个事件名，
-   * 投影是它们唯一的差别（oauth/payment 要原文，share 要 `{shareCode}`，workspace-open 要 `path`）。
+   * 事件名 `mode:update-state` 的真源是 `crates/updater/src/state.rs` 的 `UPDATE_STATE_EVENT`；
+   * 写错是**静默失效**（订阅装上了却永远收不到），所以由验收用例把两边对拍。
    */
   function subscribeUpdateState(callback) {
     var api = window.__TAURI__;
@@ -545,6 +549,77 @@
       if (typeof stop === "function") stop();
       stop = null;
     };
+  }
+
+  /**
+   * `onUpdateReady` 的共享缓存与派生（见 `UPDATE_STATE` 里的说明）。
+   *
+   * Electron 线的语义分两条事件：`update-ready` 触发回调，`update-state-changed` 维护缓存
+   * （`kind === "update-downloaded"` 时记版本，其它状态清空）。Tauri 线只有后一条，所以在这里
+   * 用**同一份状态机**推导出前者：
+   *
+   * - 进入 `update-downloaded` 且版本变了 → 通知订阅方；
+   * - 离开 `update-downloaded`（取消、跳过、staging error）→ 清空缓存，避免 UI 拿失效版本
+   *   撑出「重启以更新」按钮；
+   * - 订阅时回放缓存：`update-downloaded` 只出现一次，晚挂载的组件否则永远收不到。
+   *
+   * 首次订阅还会用 `getUpdateState` 补一次快照（页面加载可能晚于下载完成，此时没有新事件）。
+   * 快照与实时事件用 `updateStateRevision` 去重：快照在途期间来了实时事件，就以实时事件为准。
+   */
+  var updateReadyCache = null;
+  var updateReadyCallbacks = [];
+  var updateStateRevision = 0;
+  var updateStateBridgeStarted = false;
+
+  function projectReadyVersion(payload) {
+    if (!payload || typeof payload !== "object") return null;
+    if (payload.kind !== "update-downloaded") return null;
+    return typeof payload.version === "string" && payload.version.length > 0
+      ? payload.version
+      : null;
+  }
+
+  function notifyUpdateReady(version) {
+    var callbacks = updateReadyCallbacks.slice();
+    for (var index = 0; index < callbacks.length; index += 1) {
+      try {
+        callbacks[index](version);
+      } catch (error) {
+        // 一个订阅方抛错不该打断其它订阅方（与深链订阅同一条纪律）。
+        degrade("update_ready_callback_failed", error);
+      }
+    }
+  }
+
+  function applyUpdateState(payload) {
+    updateStateRevision += 1;
+    var next = projectReadyVersion(payload);
+    var previous = updateReadyCache;
+    updateReadyCache = next;
+    if (next === null || next === previous) return;
+    notifyUpdateReady(next);
+  }
+
+  function ensureUpdateStateBridge() {
+    if (updateStateBridgeStarted) return;
+    updateStateBridgeStarted = true;
+    // 订阅先装、快照后取：`subscribeUpdateState` 同步返回，listen 的 Promise 在内部兑现。
+    // 这样「快照在途时来了实时事件」一定被 revision 拦住，不会用旧快照覆盖新状态。
+    subscribeUpdateState(applyUpdateState);
+    var seededRevision = updateStateRevision;
+    try {
+      Promise.resolve(invoke("getUpdateState")).then(
+        function (snapshot) {
+          if (updateStateRevision !== seededRevision) return;
+          applyUpdateState(snapshot);
+        },
+        function (error) {
+          degrade("update_state_seed_failed", error);
+        },
+      );
+    } catch (error) {
+      degrade("update_state_seed_threw", error);
+    }
   }
 
   function subscribeDeepLink(kind, project, callback) {
@@ -684,6 +759,27 @@
     },
     onUpdateStateChanged: function (callback) {
       return subscribeUpdateState(callback);
+    },
+    // 更新就绪是**派生视图**：订阅即回放缓存，状态离开 update-downloaded 即清除（见上面的注释）。
+    onUpdateReady: function (callback) {
+      if (typeof callback !== "function") {
+        degrade("update_ready_invalid_callback", typeof callback);
+        return function () {};
+      }
+      ensureUpdateStateBridge();
+      updateReadyCallbacks.push(callback);
+      var cached = updateReadyCache;
+      if (cached !== null) {
+        try {
+          callback(cached);
+        } catch (error) {
+          degrade("update_ready_callback_failed", error);
+        }
+      }
+      return function () {
+        var index = updateReadyCallbacks.indexOf(callback);
+        if (index !== -1) updateReadyCallbacks.splice(index, 1);
+      };
     },
     downloadUpdate: function () {
       return invoke("downloadUpdate");

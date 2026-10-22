@@ -9,6 +9,8 @@ import { DEEP_LINK_EVENT } from "@mode/shared";
 import {
   createTauriPlatformService,
   EVENT_SUBSCRIBED_METHODS,
+  UPDATE_STATE_EVENT,
+  UPDATE_STATE_METHODS,
   WINDOW_CONTROL_METHODS,
   M1_IMPLEMENTED_COMMANDS,
   M1_UNIMPLEMENTED_REQUIRED_METHODS,
@@ -208,18 +210,19 @@ test("可选的未实现方法**保持缺席**，让调用方的 ?. 守卫继续
   const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
   // 这些在 IPlatformService 里带 ? 且**本层没实现**，塞抛错桩会把「不支持就跳过」变成「直接崩」。
   //
-  // 注意：这份清单只该列**真的没实现**的可选成员。三个名字先后从它里面挪走了，理由各自如下
+  // 注意：这份清单只该列**真的没实现**的可选成员。四个名字先后从它里面挪走了，理由各自如下
   // （不写理由的挪动等于把这条纪律悄悄放宽）：
   // - `onShareImport` / `onOpenWorkspacePath`：宿主确实会发那两个深链 kind，**有真实现**
   //   （见 `EVENT_SUBSCRIBED_METHODS`）；
   // - `getDesktopWindowChromeState`：**有真实现**（M3 Task 4 fix round，见 `WINDOW_CONTROL_METHODS`）
-  //   ——它是产品自绘标题栏读初态的成员，用户报的「标题栏点了没反应」里就包括它的缺席。
+  //   ——它是产品自绘标题栏读初态的成员，用户报的「标题栏点了没反应」里就包括它的缺席；
+  // - `getUpdateState`：**有真实现**（见 `UPDATE_STATE_METHODS`）——更新面已接通，
+  //   它现在真的 invoke 壳的 `getUpdateState`，不再是缺席。
   for (const name of [
     "selectFiles",
     "printPageToPdf",
     "onBrowserViewRestore",
     "onCloseActiveContextRequest",
-    "getUpdateState",
   ]) {
     assert.equal(service[name], undefined, `${name} 应缺席而不是抛错桩`);
   }
@@ -439,4 +442,152 @@ test("事件订阅方法都在服务上真实存在（不是抛错桩）", () =>
     // 也不能出现在命令切片表里：它们走事件，Rust 侧没有同名命令。
     assert.ok(!(M1_IMPLEMENTED_COMMANDS as readonly string[]).includes(name), `${name} 不是命令`);
   }
+});
+
+// ------------------------------------------------------------------ 自动更新面
+
+test("自动更新面：命令逐条映射到壳，id 与参数名不猜", async () => {
+  const { calls, invoke } = recordingInvoke({ kind: "idle", enabled: true });
+  const service = createTauriPlatformService(invoke, noopListen);
+  for (const name of UPDATE_STATE_METHODS) {
+    assert.equal(
+      typeof (service as Record<string, unknown>)[name],
+      "function",
+      `${name} 应存在（注入层已实现，适配层不能反向缺件）`,
+    );
+  }
+
+  await service.getUpdateState?.();
+  await service.downloadUpdate();
+  await service.cancelUpdateDownload();
+  await service.quitAndInstallUpdate();
+  await service.skipUpdateVersion("2.0.0");
+  await service.getAutoUpdatePreferences?.();
+  await service.setAutoDownloadAndInstallUpdates?.(true);
+
+  assert.deepEqual(
+    calls.map((call) => call.command),
+    [
+      "getUpdateState",
+      "downloadUpdate",
+      "cancelUpdateDownload",
+      "quitAndInstallUpdate",
+      "skipUpdateVersion",
+      "getAutoUpdatePreferences",
+      "setAutoDownloadAndInstallUpdates",
+    ],
+    "每条更新命令都必须真的打到同名壳命令（空操作桩不会产生这些调用）",
+  );
+  assert.deepEqual(
+    calls.find((call) => call.command === "skipUpdateVersion")?.args,
+    { version: "2.0.0" },
+    "skipUpdateVersion 按壳的参数名传 version",
+  );
+  assert.deepEqual(
+    calls.find((call) => call.command === "setAutoDownloadAndInstallUpdates")?.args,
+    { enabled: true },
+    "setAutoDownloadAndInstallUpdates 按壳的参数名传 enabled",
+  );
+});
+
+test("onUpdateReady 从 mode:update-state 派生：downloaded 触发、其它状态清除、晚订阅回放", async () => {
+  // 为什么不测「有没有这个方法」：Electron 线的语义是一次性事件 + 缓存回放，
+  // 一个永远不回调的订阅同样能通过形状断言。这里按行为验证四个事实。
+  const { listen, emit, unlistened } = recordingListen();
+  const { invoke, calls } = recordingInvoke({ kind: "idle", enabled: true });
+  const service = createTauriPlatformService(invoke, listen);
+  const versions: string[] = [];
+  const dispose = service.onUpdateReady((version) => versions.push(version));
+
+  // 快照（getUpdateState）在订阅时补一次；先放行微任务，让 idle 快照落地（不触发回调）。
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.ok(
+    calls.some((call) => call.command === "getUpdateState"),
+    "首次订阅必须用 getUpdateState 补一次快照（页面加载可能晚于下载完成）",
+  );
+
+  emit(UPDATE_STATE_EVENT, { kind: "update-available", enabled: true, version: "2.0.0" });
+  assert.deepEqual(versions, [], "仅发现新版本不算 ready");
+
+  emit(UPDATE_STATE_EVENT, { kind: "update-downloaded", enabled: true, version: "2.0.0" });
+  assert.deepEqual(versions, ["2.0.0"], "进入 update-downloaded 必须通知");
+
+  // 同一个版本重复上报：不重复通知（避免每次状态重放都弹一次 toast）。
+  emit(UPDATE_STATE_EVENT, { kind: "update-downloaded", enabled: true, version: "2.0.0" });
+  assert.deepEqual(versions, ["2.0.0"], "同版本的重复 downloaded 不得重复通知");
+
+  // 晚订阅者：缓存回放（一次性事件，错过就永远收不到）。
+  const lateVersions: string[] = [];
+  const disposeLate = service.onUpdateReady((version) => lateVersions.push(version));
+  assert.deepEqual(lateVersions, ["2.0.0"], "晚订阅必须回放当前 ready 版本");
+
+  // 状态离开 downloaded（取消/跳过/staging error）→ 清缓存，不得再用失效版本。
+  emit(UPDATE_STATE_EVENT, { kind: "idle", enabled: true });
+  const staleVersions: string[] = [];
+  const disposeStale = service.onUpdateReady((version) => staleVersions.push(version));
+  assert.deepEqual(staleVersions, [], "离开 downloaded 后不得再回放旧版本");
+
+  // 再次下载完成：重新通知（版本从 null 变为 2.0.0）。
+  emit(UPDATE_STATE_EVENT, { kind: "update-downloaded", enabled: true, version: "2.0.0" });
+  assert.deepEqual(versions, ["2.0.0", "2.0.0"], "清除后再次 ready 必须重新通知");
+  assert.deepEqual(lateVersions, ["2.0.0", "2.0.0"]);
+
+  // 退订后不再收到。
+  dispose();
+  disposeLate();
+  disposeStale();
+  emit(UPDATE_STATE_EVENT, { kind: "idle", enabled: true });
+  emit(UPDATE_STATE_EVENT, { kind: "update-downloaded", enabled: true, version: "3.0.0" });
+  assert.deepEqual(versions, ["2.0.0", "2.0.0"], "退订后不得再回调");
+
+  // 共享订阅仍挂着（别的订阅者已退订，但桥本身不拆）；最后确认事件名取自 Rust 真源。
+  assert.deepEqual(unlistened, []);
+  assert.equal(UPDATE_STATE_EVENT, "mode:update-state");
+});
+
+test("onUpdateReady 的快照会被更晚的实时事件压制（不用旧快照覆盖新状态）", async () => {
+  // 快照是异步的；若在途期间来了实时事件，必须以实时事件为准。
+  const { listen, emit } = recordingListen();
+  let releaseSnapshot: (value: unknown) => void = () => {};
+  const invoke: TauriInvoke = (command) => {
+    if (command === "getUpdateState") {
+      return new Promise((resolve) => {
+        releaseSnapshot = resolve;
+      });
+    }
+    return Promise.resolve(null);
+  };
+  const service = createTauriPlatformService(invoke, listen);
+  const versions: string[] = [];
+  service.onUpdateReady((version) => versions.push(version));
+
+  // 快照还没回来，实时事件先说「已下载 2.0.0」。
+  emit(UPDATE_STATE_EVENT, { kind: "update-downloaded", enabled: true, version: "2.0.0" });
+  assert.deepEqual(versions, ["2.0.0"]);
+
+  // 随后旧快照才回来（idle）：不得把刚拿到的 ready 清掉。
+  releaseSnapshot({ kind: "idle", enabled: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const probe: string[] = [];
+  service.onUpdateReady((version) => probe.push(version));
+  assert.deepEqual(probe, ["2.0.0"], "实时事件优先于在途的旧快照");
+});
+
+test("onUpdateStateChanged 透传载荷，退订后不再收到", async () => {
+  const { listen, emit, unlistened } = recordingListen();
+  const service = createTauriPlatformService(recordingInvoke().invoke, listen);
+  const payloads: string[] = [];
+  const dispose = service.onUpdateStateChanged?.((payload) => payloads.push(payload.kind));
+
+  emit(UPDATE_STATE_EVENT, { kind: "checking", enabled: true });
+  emit(UPDATE_STATE_EVENT, undefined);
+  emit(UPDATE_STATE_EVENT, { kind: "idle", enabled: true });
+  assert.deepEqual(payloads, ["checking", "idle"], "畸形载荷跳过，正常载荷按序透传");
+
+  // `listen` 的 unlisten 是异步兑现的：退订前先让 Promise 落地，否则测的是「未装好就退订」那条竞态。
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  dispose?.();
+  emit(UPDATE_STATE_EVENT, { kind: "checking", enabled: true });
+  assert.deepEqual(payloads, ["checking", "idle"]);
+  assert.deepEqual(unlistened, [UPDATE_STATE_EVENT]);
 });

@@ -18,11 +18,15 @@
  * 覆盖关系由下面的 `_allRequiredMembersCovered` 在**编译期**校验：协议新增一条必选方法
  * 而本文件没跟上时，`pnpm typecheck` 会直接报错。
  *
- * ## 事件通道（M1 唯一一条：深链回调）
+ * ## 事件通道
  *
- * `onOAuthCallback` / `onPaymentCallback` 订阅的是宿主 emit 的同一个深链事件
- * [`DEEP_LINK_EVENT`]，按载荷里的 `kind` 分流。事件名、载荷类型与 `kind` 取值全部来自
- * `crates/protocol`（生成物），不手抄——事件名写错是**静默失效**（订阅装上了却永远收不到）。
+ * - **深链回调**：`onOAuthCallback` / `onPaymentCallback` / `onShareImport` /
+ *   `onOpenWorkspacePath` 订阅宿主 emit 的同一个 [`DEEP_LINK_EVENT`]，按载荷里的 `kind` 分流。
+ *   事件名、载荷类型与 `kind` 取值全部来自 `crates/protocol`（生成物），不手抄——事件名写错是
+ *   **静默失效**（订阅装上了却永远收不到）。
+ * - **更新状态**：`onUpdateStateChanged` 订阅 [`UPDATE_STATE_EVENT`]；`onUpdateReady` 是它的
+ *   **派生视图**（`update-downloaded` 即「已下载完毕」+ 订阅回放 + `getUpdateState` 快照），
+ *   与注入层 `window_mode.ts` 同一条状态机。
  */
 import type {
   ApplicationIconRequest,
@@ -38,6 +42,7 @@ import type {
   SaveFileRequest,
   SaveFileResult,
   TaskNotificationPayload,
+  UpdateStatePayload,
 } from "@mode/shared";
 import { DEEP_LINK_EVENT } from "@mode/shared";
 
@@ -72,6 +77,15 @@ export type TauriListen = <T>(
  */
 const EXECUTE_DESKTOP_COMMAND = "executeDesktopCommand";
 const GET_WINDOW_CHROME_STATE = "getDesktopWindowChromeState";
+
+/**
+ * 更新状态事件名。
+ *
+ * 真源是 `crates/updater/src/state.rs` 的 `UPDATE_STATE_EVENT`（Rust 侧 emit 与注入层订阅
+ * 都用同一个字面量）。写错是**静默失效**——订阅装上了却永远收不到，所以
+ * `windowModeInjection.test.mts` 会把这份字面量与 Rust 真源对拍。
+ */
+export const UPDATE_STATE_EVENT = "mode:update-state";
 
 /** 深链回调映射到事件载荷的 `kind` 值。取值来自生成物，不手抄。 */
 const DEEP_LINK_CALLBACK_KINDS = {
@@ -172,7 +186,6 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "onWindowFullscreenChanged",
   "onTaskNotificationClick",
   "exportLogs",
-  "onUpdateReady",
   "onUpdateCheckResult",
   "onPostUpdateReleaseNotes",
   "acknowledgePostUpdateReleaseNotes",
@@ -230,13 +243,18 @@ export const WINDOW_CONTROL_METHODS = [
 /**
  * **自动更新面**：壳的 updater 命令（`crates/updater` 的 `extra_handler`）与事件订阅。
  *
- * 这些成员不在 M1 命令切片里（Rust 侧走壳的追加 handler），但注入层**确实实现了**它们。
- * 单列一份是为了让测试的「可选成员不得被注入」判定有第二处真源可查——早先它们被误判成
- * 「未实现的可选成员」，CI 因此红。
+ * 这些成员不在 M1 命令切片里（Rust 侧走壳的追加 handler），但两层适配**都实现了**它们：
+ * 注入层（`window_mode.ts`）与验收台（本文件）。单列一份是为了让测试的「可选成员不得被注入」
+ * 判定有第二处真源可查——早先它们被误判成「未实现的可选成员」，CI 因此红。
+ *
+ * `onUpdateReady` 不在 Rust 命令面里：它是**从 `mode:update-state` 派生**的兼容视图
+ * （`update-downloaded` 即「已下载完毕」），见 `createTauriPlatformService` 里
+ * `ensureUpdateStateBridge` 的注释。
  */
 export const UPDATE_STATE_METHODS = [
   "getUpdateState",
   "onUpdateStateChanged",
+  "onUpdateReady",
   "downloadUpdate",
   "cancelUpdateDownload",
   "quitAndInstallUpdate",
@@ -334,6 +352,63 @@ export function createTauriPlatformService(
       return { id: "finder", name: "Finder", iconDataUrl: "" };
     }
     return { id: "xdg-open", name: "文件管理器", iconDataUrl: "" };
+  };
+
+  /**
+   * 更新就绪的派生缓存（与注入层 `window_mode.ts` 同一条状态机）。
+   *
+   * Electron 线的 `onUpdateReady` 是 main 的一次性 `update-ready` 事件 + preload 缓存回放；
+   * Tauri 线没有第二个事件源，`mode:update-state` 的 `kind === "update-downloaded"` 就是
+   * 「已下载完毕」。规则：
+   *
+   * - 进入 `update-downloaded` 且版本变了 → 通知订阅方；
+   * - 离开该状态（取消/跳过/staging error）→ 清缓存，避免 UI 拿失效版本撑出「重启以更新」；
+   * - 订阅时回放缓存（一次性事件，晚订阅就永远收不到）；
+   * - 首次订阅用 `getUpdateState` 补一次快照（页面加载可能晚于下载完成），
+   *   快照与实时事件用 `updateStateRevision` 去重。
+   */
+  let latestReadyUpdateVersion: string | null = null;
+  const updateReadyCallbacks = new Set<(version: string) => void>();
+  let updateStateRevision = 0;
+  let updateStateBridgeStarted = false;
+
+  const notifyUpdateReady = (version: string): void => {
+    // 直接迭代 Set（与 Electron 线 preload 同口径）：迭代期间 delete 未被访问的元素是安全的，
+    // 订阅方在回调里退订不会影响本轮其它订阅者。
+    for (const callback of updateReadyCallbacks) {
+      try {
+        callback(version);
+      } catch (error) {
+        // 一个订阅方抛错不该打断其它订阅方（与深链订阅同一条纪律）。
+        logger.warn("[tauri-platform] onUpdateReady 回调抛错", error);
+      }
+    }
+  };
+
+  const applyUpdateState = (payload: UpdateStatePayload | undefined): void => {
+    updateStateRevision += 1;
+    const next = payload?.kind === "update-downloaded" ? payload.version : null;
+    const previous = latestReadyUpdateVersion;
+    latestReadyUpdateVersion = next;
+    if (next === null || next === previous) return;
+    notifyUpdateReady(next);
+  };
+
+  const ensureUpdateStateBridge = (): void => {
+    if (updateStateBridgeStarted) return;
+    updateStateBridgeStarted = true;
+    // 订阅先装、快照后取：快照在途时来了实时事件，以实时事件为准。
+    subscribeUpdateState(listen, applyUpdateState);
+    const seededRevision = updateStateRevision;
+    void (invoke("getUpdateState") as Promise<UpdateStatePayload>).then(
+      (snapshot) => {
+        if (updateStateRevision !== seededRevision) return;
+        applyUpdateState(snapshot);
+      },
+      (error: unknown) => {
+        logger.warn("[tauri-platform] getUpdateState 快照失败", error);
+      },
+    );
   };
 
   const service: Partial<IPlatformService> = {
@@ -484,6 +559,47 @@ export function createTauriPlatformService(
     ): () => void {
       return subscribeWindowChromeState(invoke, handler);
     },
+    // ---- 自动更新面（壳的 updater extra_handler + mode:update-state 事件）---------------
+    getUpdateState(): Promise<UpdateStatePayload> {
+      return invoke("getUpdateState") as Promise<UpdateStatePayload>;
+    },
+    onUpdateStateChanged(callback: (payload: UpdateStatePayload) => void): () => void {
+      return subscribeUpdateState(listen, callback);
+    },
+    onUpdateReady(callback: (version: string) => void): () => void {
+      ensureUpdateStateBridge();
+      updateReadyCallbacks.add(callback);
+      if (latestReadyUpdateVersion !== null) {
+        try {
+          callback(latestReadyUpdateVersion);
+        } catch (error) {
+          logger.warn("[tauri-platform] onUpdateReady 回调抛错", error);
+        }
+      }
+      return () => {
+        updateReadyCallbacks.delete(callback);
+      };
+    },
+    downloadUpdate(): Promise<void> {
+      return invoke("downloadUpdate") as Promise<void>;
+    },
+    cancelUpdateDownload(): Promise<void> {
+      return invoke("cancelUpdateDownload") as Promise<void>;
+    },
+    quitAndInstallUpdate(): Promise<void> {
+      return invoke("quitAndInstallUpdate") as Promise<void>;
+    },
+    skipUpdateVersion(version: string): Promise<void> {
+      return invoke("skipUpdateVersion", { version }) as Promise<void>;
+    },
+    getAutoUpdatePreferences(): Promise<{ autoDownloadAndInstallUpdates: boolean }> {
+      return invoke("getAutoUpdatePreferences") as Promise<{
+        autoDownloadAndInstallUpdates: boolean;
+      }>;
+    },
+    setAutoDownloadAndInstallUpdates(enabled: boolean): Promise<void> {
+      return invoke("setAutoDownloadAndInstallUpdates", { enabled }) as Promise<void>;
+    },
   };
 
   for (const method of M1_UNIMPLEMENTED_REQUIRED_METHODS) {
@@ -584,6 +700,44 @@ function subscribeWindowChromeState(
       clearTimeout(timer);
       timer = null;
     }
+    unlisten?.();
+    unlisten = null;
+  };
+}
+
+/**
+ * 订阅更新状态事件（`onUpdateStateChanged`）。
+ *
+ * 事件名来自 [`UPDATE_STATE_EVENT`]（Rust 真源对拍）。与深链订阅同一套竞态处理：
+ * 返回同步 `dispose`（接口契约），`listen` 的 Promise 兑现时若已退订就立刻自己退订。
+ */
+function subscribeUpdateState(
+  listen: TauriListen,
+  callback: (payload: UpdateStatePayload) => void,
+): () => void {
+  let disposed = false;
+  let unlisten: TauriUnlisten | null = null;
+
+  void listen<UpdateStatePayload>(UPDATE_STATE_EVENT, (envelope) => {
+    const payload = envelope?.payload;
+    // IPC 来的载荷不假设类型：形状不对就跳过，一个畸形事件不该打断整条订阅。
+    if (!payload || typeof payload !== "object") return;
+    callback(payload);
+  }).then(
+    (stop) => {
+      if (disposed) {
+        stop();
+        return;
+      }
+      unlisten = stop;
+    },
+    (error: unknown) => {
+      logger.warn(`[tauri-platform] 订阅 ${UPDATE_STATE_EVENT} 失败`, error);
+    },
+  );
+
+  return () => {
+    disposed = true;
     unlisten?.();
     unlisten = null;
   };
