@@ -22,6 +22,7 @@ const (
 	maxJSONBody       = 1 << 20
 	maxFSWriteBody    = 16 << 20
 	maxResponseMemory = 16 << 20
+	maxPanelBody      = panelMaxBase64 + panelMaxTextBytes + (64 << 10)
 )
 
 type agentServer struct {
@@ -39,6 +40,7 @@ type agentServer struct {
 
 	allowCIDRs   []*net.IPNet
 	pairing      *pairingState
+	panel        *panelController
 	stopGC       chan struct{}
 	shutdownCh   chan struct{}
 	shutdownOnce sync.Once
@@ -66,6 +68,7 @@ func newAgentServer(cfg *Config) (*agentServer, error) {
 		dbSem:      make(chan struct{}, 4),
 		allowCIDRs: cidrs,
 		pairing:    newPairingState(),
+		panel:      newPanelController(),
 		stopGC:     make(chan struct{}),
 		shutdownCh: make(chan struct{}),
 	}
@@ -74,7 +77,11 @@ func newAgentServer(cfg *Config) (*agentServer, error) {
 }
 
 func (s *agentServer) requestShutdown() {
-	s.shutdownOnce.Do(func() { close(s.shutdownCh) })
+	s.shutdownOnce.Do(func() {
+		// 守护进程靠这个文件区分“用户主动退出”和“进程被杀”；没有它会在退出后重启。
+		writeStopFile(s.cfg)
+		close(s.shutdownCh)
+	})
 }
 
 func (s *agentServer) close() {
@@ -224,6 +231,8 @@ func (s *agentServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.requestShutdown()
 		s.writeResult(sw, http.StatusOK, requestID, map[string]interface{}{"shuttingDown": true})
+	case path == "/v1/panel":
+		s.handlePanel(sw, r, requestID)
 	case path == "/v1/exec":
 		if r.Method != "POST" {
 			s.methodNotAllowed(sw, requestID, "POST")
@@ -387,6 +396,52 @@ func (s *agentServer) handleInfo(w http.ResponseWriter, requestID string) {
 	s.writeResult(w, http.StatusOK, requestID, info)
 }
 
+func (s *agentServer) panelAccessError() *APIError {
+	if !panelSupported() {
+		return apiError("capability_unavailable", "panel UI is only supported on Windows", 501)
+	}
+	if !s.cfg.AllowDesktopControl {
+		return capabilityDisabled("desktop control")
+	}
+	return nil
+}
+
+func (s *agentServer) handlePanel(w http.ResponseWriter, r *http.Request, requestID string) {
+	if apiErr := s.panelAccessError(); apiErr != nil {
+		s.writeError(w, requestID, apiErr)
+		return
+	}
+	switch r.Method {
+	case "GET":
+		status := s.panel.status()
+		s.writeResult(w, http.StatusOK, requestID, status)
+	case "POST":
+		var content PanelContent
+		if apiErr := s.readJSON(w, r, &content, maxPanelBody); apiErr != nil {
+			s.writeError(w, requestID, apiErr)
+			return
+		}
+		status, apiErr := s.panel.set(content)
+		if apiErr != nil {
+			s.writeError(w, requestID, apiErr)
+			return
+		}
+		showAgentPanel()
+		// 面板可能刚被创建为隐藏窗口；show 之后再刷一次，保证状态里的 visible 是最新值。
+		updated := s.panel.status()
+		if updated.Visible {
+			status = &updated
+		}
+		s.writeResult(w, http.StatusOK, requestID, status)
+	case "DELETE":
+		status := s.panel.clear()
+		notifyPanelChanged()
+		s.writeResult(w, http.StatusOK, requestID, status)
+	default:
+		s.methodNotAllowed(w, requestID, "GET, POST, DELETE")
+	}
+}
+
 func (s *agentServer) capabilities() Capabilities {
 	return Capabilities{
 		Shell:          s.cfg.AllowShell,
@@ -395,6 +450,7 @@ func (s *agentServer) capabilities() Capabilities {
 		DesktopControl: s.cfg.AllowDesktopControl,
 		Database:       s.cfg.AllowDB,
 		DatabaseWrite:  s.cfg.AllowDBWrite,
+		Panel:          panelSupported() && s.cfg.AllowDesktopControl,
 	}
 }
 

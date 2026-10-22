@@ -25,20 +25,19 @@ try {
   $savedCGO = $env:CGO_ENABLED
   $savedModule = $env:GO111MODULE
   $icon = Join-Path $PSScriptRoot "assets\mode-agent.ico"
-  $rcedit = Join-Path $repoRoot "node_modules\electron-winstaller\vendor\rcedit.exe"
+  $iconScript = Join-Path $PSScriptRoot "set-icon.ps1"
 
   function Set-AppIcon([string]$Path, [string]$Description) {
-    if (-not (Test-Path $rcedit)) {
-      Write-Warning "rcedit not found; skipping icon for $Path"
-      return
-    }
     if (-not (Test-Path $Path)) {
       Write-Warning "executable not found; skipping icon for $Path"
       return
     }
-    & $rcedit $Path --set-icon $icon
-    if ($LASTEXITCODE -ne 0) {
-      Write-Warning "rcedit failed for $Path"
+    try {
+      & powershell -NoProfile -ExecutionPolicy Bypass -File $iconScript -Exe $Path -Ico $icon | Out-Null
+      if ($LASTEXITCODE -ne 0) { throw "icon updater exited $LASTEXITCODE" }
+      Write-Host "icon: $Path ($Description)"
+    } catch {
+      Write-Warning "icon injection failed for ${Path}: $_"
     }
   }
 
@@ -54,7 +53,9 @@ try {
       $env:GOOS = $GoOs
       $env:GOARCH = $GoArch
       $env:CGO_ENABLED = "0"
-      & $Go @ExtraArgs build -ldflags "-s -w -X main.version=$Version" -o (Join-Path $OutDir $Output) .
+      $ldflags = "-s -w -X main.version=$Version"
+      if ($GoOs -eq "windows") { $ldflags = "$ldflags -H windowsgui" }
+      & $Go @ExtraArgs build -ldflags $ldflags -o (Join-Path $OutDir $Output) .
       if ($LASTEXITCODE -ne 0) { throw "build failed: $GoOs/$GoArch" }
     } finally {
       Restore-GoEnv
@@ -111,7 +112,7 @@ try {
     $env:GOARCH = "386"
     $env:CGO_ENABLED = "0"
     $env:GO111MODULE = "off"
-    & $XpGo build -ldflags "-s -w" -o $bootstrap ./setup
+    & $XpGo build -ldflags "-s -w -H windowsgui" -o $bootstrap ./setup
     if ($LASTEXITCODE -ne 0) { throw "bootstrap build failed" }
   } finally {
     Restore-GoEnv

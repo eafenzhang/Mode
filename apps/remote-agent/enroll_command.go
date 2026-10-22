@@ -64,14 +64,17 @@ func cmdEnroll(args []string) int {
 	if raw == "" && strings.TrimSpace(*desktop) != "" && strings.TrimSpace(*code) != "" {
 		raw = strings.TrimSpace(*desktop) + " " + strings.TrimSpace(*code)
 	}
+	if raw == "" && strings.TrimSpace(*code) != "" {
+		raw = strings.TrimSpace(*code)
+	}
 	if raw == "" {
 		if *noDialog {
-			fmt.Fprintln(os.Stderr, "需要 --uri，或 --desktop + --code")
+			fmt.Fprintln(os.Stderr, "需要 --code，或 --uri / --desktop + --code")
 			return 2
 		}
 		raw, _ = promptForText(
 			"Mode Agent 配对",
-			"请粘贴 Mode 桌面端生成的配对串（mode-agent://enroll?...），\n或输入 桌面地址:端口 配对码。",
+			"请输入 Mode 桌面端生成的 6 位配对码。\n（无需输入链接或地址）",
 			"",
 		)
 	}
@@ -79,7 +82,7 @@ func cmdEnroll(args []string) int {
 		fmt.Fprintln(os.Stderr, "未输入配对信息")
 		return 1
 	}
-	serverName, err := enrollWithDesktop(cfg, raw, strings.TrimSpace(*agentHost))
+	serverName, err := enrollWithCode(cfg, raw, strings.TrimSpace(*agentHost))
 	if err != nil {
 		if *jsonOutput {
 			data, _ := json.Marshal(map[string]interface{}{"ok": false, "error": err.Error()})
@@ -155,11 +158,49 @@ func normalizeEnrollCode(value string) string {
 	return code
 }
 
+// enrollWithCode 支持三种输入：
+//   - 6 位配对码：自动发现同一 LAN/Tailscale 内的桌面端并逐个尝试；
+//   - mode-agent://enroll?... 完整配对串；
+//   - 桌面地址:端口 配对码（CLI 兼容）。
+func enrollWithCode(cfg *Config, raw, agentHost string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("请输入桌面端生成的 6 位配对码")
+	}
+	if strings.HasPrefix(strings.ToLower(trimmed), "mode-agent://") || len(strings.Fields(trimmed)) >= 2 {
+		return enrollWithDesktop(cfg, trimmed, agentHost)
+	}
+	code := normalizeEnrollCode(trimmed)
+	if len(code) != 6 {
+		return "", fmt.Errorf("配对码应为 6 位")
+	}
+	peers := discoverDesktops(1800 * time.Millisecond)
+	if len(peers) == 0 {
+		return "", fmt.Errorf("未发现 Mode 桌面端；请确认与桌面在同一局域网或 Tailscale，并已开启局域网访问")
+	}
+	var lastErr error
+	for _, peer := range peers {
+		serverName, err := enrollWithTarget(cfg, enrollTarget{Host: peer.Host, Port: peer.Port, Code: code}, agentHost)
+		if err == nil {
+			return serverName, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("没有可用的桌面端")
+	}
+	return "", fmt.Errorf("配对失败：%v", lastErr)
+}
+
 func enrollWithDesktop(cfg *Config, raw, agentHost string) (string, error) {
 	target, err := parseEnrollTarget(raw)
 	if err != nil {
 		return "", err
 	}
+	return enrollWithTarget(cfg, target, agentHost)
+}
+
+func enrollWithTarget(cfg *Config, target enrollTarget, agentHost string) (string, error) {
 	if strings.TrimSpace(agentHost) == "" {
 		agentHost = primaryPairAddress()
 	}

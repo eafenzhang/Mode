@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package main
@@ -17,20 +18,23 @@ import (
 )
 
 type installOptions struct {
-	Dir         string
-	Bind        string
-	Port        int
-	Token       string
-	Force       bool
-	NoStart     bool
-	NoAutostart bool
-	NoFirewall  bool
-	Quiet       bool
-	NoDesktop   bool
-	AllowWrite  bool
-	AllowDelete bool
-	Yes         bool
-	Purge       bool
+	Dir             string
+	Bind            string
+	Port            int
+	Token           string
+	Force           bool
+	NoStart         bool
+	NoAutostart     bool
+	NoTray          bool
+	EnableAutostart bool
+	EnableTray      bool
+	NoFirewall      bool
+	Quiet           bool
+	NoDesktop       bool
+	AllowWrite      bool
+	AllowDelete     bool
+	Yes             bool
+	Purge           bool
 }
 
 type installPaths struct {
@@ -56,6 +60,8 @@ type installInfo struct {
 	PairURI     string
 	MCPURL      string
 	Autostart   string
+	Panel       string
+	Tray        string
 	Firewall    string
 	Agent       string
 	PairError   string
@@ -109,6 +115,9 @@ func addInstallFlags(fs *flag.FlagSet, opts *installOptions) {
 	fs.BoolVar(&opts.Force, "force", false, "overwrite an existing config and rotate the token")
 	fs.BoolVar(&opts.NoStart, "no-start", false, "install without starting the agent")
 	fs.BoolVar(&opts.NoAutostart, "no-autostart", false, "do not add the logon autostart entry")
+	fs.BoolVar(&opts.NoTray, "no-tray", false, "do not create the notification-area icon")
+	fs.BoolVar(&opts.EnableAutostart, "autostart", false, "enable the logon autostart entry")
+	fs.BoolVar(&opts.EnableTray, "tray", false, "create the notification-area icon")
 	fs.BoolVar(&opts.NoFirewall, "no-firewall", false, "do not add a Windows Firewall rule")
 	fs.BoolVar(&opts.Quiet, "quiet", false, "print install information instead of a dialog")
 	fs.BoolVar(&opts.NoDesktop, "no-desktop", false, "disable remote desktop input")
@@ -138,37 +147,63 @@ func cmdSetup(args []string) int {
 	}
 	paths := resolveInstallPaths(opts.Dir)
 	if _, err := os.Stat(paths.Config); err == nil {
-		exe, _ := os.Executable()
-		runningInstalled := exe != "" && samePath(exe, paths.Exe)
-		// 从下载目录再次运行安装包 = 更新；从安装目录的 exe 双击 = 输入桌面配对码。
-		if opts.Yes || (!runningInstalled && messageBox("更新 Mode Agent", "检测到已安装。使用当前安装包更新并重新配对？", mbYesNo|mbIconQuestion) == mbYes) {
-			return runInstall(opts)
-		}
 		cfg, loadErr := loadConfig(paths.Config)
 		if loadErr != nil {
 			messageBox("Mode Agent", "已安装，但配置无法读取：\n"+loadErr.Error(), mbOK|mbIconWarning)
 			return 1
 		}
-		if !agentHealthy(cfg) {
-			if _, startErr := startInstalledAgent(paths.Exe, paths.Config, cfg); startErr != nil {
-				showErrorDialog("Mode Agent 启动失败", startErr.Error())
-				return 1
+		exe, _ := os.Executable()
+		runningInstalled := exe != "" && samePath(exe, paths.Exe)
+		// 从安装目录的 exe 显式运行 setup = 重新配对；从下载目录再次运行安装包 = 更新。
+		if runningInstalled && !opts.Yes {
+			if !agentHealthy(cfg) {
+				if _, startErr := startInstalledAgent(paths.Exe, paths.Config, cfg, false); startErr != nil {
+					showErrorDialog("Mode Agent 启动失败", startErr.Error())
+					return 1
+				}
 			}
+			return promptAndEnroll(paths, cfg)
 		}
-		return promptAndEnroll(paths, cfg)
+		if opts.Yes {
+			return runInstall(opts)
+		}
+		autostartDefault := cfg.Panel.Autostart
+		trayDefault := cfg.Panel.ShowTray
+		if !cfg.panelConfigured {
+			// 旧安装没有 panel 字段；升级时默认补齐为“全部开启”，用户仍可取消。
+			autostartDefault = true
+			trayDefault = true
+		}
+		autostart, tray, ok := promptInstallOptions(
+			"更新 Mode Agent",
+			"检测到已安装。使用当前安装包更新并保留现有配对令牌。",
+			"安装",
+			autostartDefault,
+			trayDefault,
+		)
+		if !ok {
+			return 0
+		}
+		opts.NoAutostart = !autostart
+		opts.NoTray = !tray
+		return runInstall(opts)
 	}
 	if opts.Yes {
 		return runInstall(opts)
 	}
-	answer := messageBox(
+	autostart, tray, ok := promptInstallOptions(
 		"安装 Mode Agent",
 		"安装后，Mode 可以远程执行命令、读取文件并控制此电脑桌面。\n\n"+
-			"安装器会复制程序到当前用户目录、写入登录自启动，并尝试放行 TCP 端口。\n\n继续安装？",
-		mbYesNo|mbIconQuestion,
+			"安装器会复制程序到当前用户目录，并尝试放行 TCP 端口。",
+		"安装",
+		true,
+		true,
 	)
-	if answer != mbYes {
+	if !ok {
 		return 0
 	}
+	opts.NoAutostart = !autostart
+	opts.NoTray = !tray
 	return runInstall(opts)
 }
 
@@ -210,6 +245,9 @@ func cmdUninstall(args []string) int {
 		removeFile(filepath.Join(paths.Dir, "agent-key.pem"))
 		removeFile(filepath.Join(paths.Dir, "audit.log"))
 		removeFile(filepath.Join(paths.Dir, "audit.log.1"))
+		removeFile(filepath.Join(paths.Dir, "agent.log"))
+		removeFile(filepath.Join(paths.Dir, "supervisor.log"))
+		removeFile(filepath.Join(paths.Dir, stopFileName))
 		removeFile(filepath.Join(paths.Dir, pidFileName))
 		if exe, err := os.Executable(); err == nil && !samePath(exe, paths.Exe) {
 			removeFileWithRetry(paths.Exe, 3*time.Second)
@@ -237,13 +275,15 @@ func runInstall(opts installOptions) int {
 		fmt.Fprintf(os.Stderr, "prepare config: %v\n", err)
 		return 1
 	}
-	autostart := "skipped"
-	if !opts.NoAutostart {
-		if err := installAutostartWithExe(paths.Exe, paths.Config, true); err != nil {
+	autostart := "disabled"
+	if cfg.Panel.Autostart {
+		if err := installAutostartWithExe(paths.Exe, paths.Config); err != nil {
 			autostart = "failed: " + err.Error()
 		} else {
 			autostart = "installed"
 		}
+	} else {
+		_ = uninstallAutostart()
 	}
 	firewall := "skipped"
 	if !opts.NoFirewall {
@@ -252,7 +292,7 @@ func runInstall(opts installOptions) int {
 	agent := "skipped"
 	var startErr error
 	if !opts.NoStart {
-		agent, startErr = startInstalledAgent(paths.Exe, paths.Config, cfg)
+		agent, startErr = startInstalledAgent(paths.Exe, paths.Config, cfg, false)
 	}
 	info := buildInstallInfo(paths, cfg, agent, autostart, firewall, nil, nil)
 	info.Enrollment = "pending"
@@ -287,15 +327,15 @@ func runInstall(opts installOptions) int {
 func promptAndEnroll(paths installPaths, cfg *Config) int {
 	raw, ok := promptForText(
 		"Mode Agent 配对",
-		"请粘贴 Mode 桌面端生成的配对串（mode-agent://enroll?...），\n或输入 桌面地址:端口 配对码。",
+		"请输入 Mode 桌面端生成的 6 位配对码。\n（无需输入链接或地址）",
 		"",
 	)
 	if !ok || strings.TrimSpace(raw) == "" {
 		appendInstallInfo(paths.Info, "enrollment=canceled")
-		showInfoDialog("Mode Agent 已安装", "已安装并启动。\n稍后可运行 mode-agent.exe enroll 完成配对。")
+		showInfoDialog("Mode Agent 已启动", "稍后可运行 mode-agent.exe enroll，或右键托盘「设置与配对」完成配对。")
 		return 0
 	}
-	serverName, err := enrollWithDesktop(cfg, raw, "")
+	serverName, err := enrollWithCode(cfg, raw, "")
 	if err != nil {
 		appendInstallInfo(paths.Info, "enrollment=failed", "enrollError="+err.Error())
 		showErrorDialog("Mode Agent 配对失败", err.Error())
@@ -319,7 +359,45 @@ func appendInstallInfo(path string, lines ...string) {
 
 func loadOrCreateInstallConfig(opts installOptions, paths installPaths) (*Config, error) {
 	if _, err := os.Stat(paths.Config); err == nil && !opts.Force {
-		return loadConfig(paths.Config)
+		cfg, err := loadConfig(paths.Config)
+		if err != nil {
+			return nil, err
+		}
+		changed := false
+		if !cfg.panelConfigured {
+			// 旧配置升级：安装器负责补默认值；CLI 手工配置不会被 serve 自动改写。
+			cfg.Panel = PanelConfig{
+				Enabled:   true,
+				ShowTray:  !opts.NoTray,
+				Autostart: !opts.NoAutostart,
+			}
+			cfg.panelConfigured = true
+			changed = true
+		} else {
+			if opts.EnableTray {
+				cfg.Panel.ShowTray = true
+			}
+			if opts.EnableAutostart {
+				cfg.Panel.Autostart = true
+			}
+			if opts.NoTray {
+				cfg.Panel.ShowTray = false
+			}
+			if opts.NoAutostart {
+				cfg.Panel.Autostart = false
+			}
+		}
+		// 本地面板固定启用，旧配置中的 enabled=false 一并迁移。
+		if !cfg.Panel.Enabled {
+			cfg.Panel.Enabled = true
+			changed = true
+		}
+		if changed {
+			if err := saveConfig(cfg, paths.Config); err != nil {
+				return nil, err
+			}
+		}
+		return cfg, nil
 	}
 	cfg := defaultConfig()
 	cfg.Bind = opts.Bind
@@ -351,6 +429,12 @@ func loadOrCreateInstallConfig(opts installOptions, paths installPaths) (*Config
 	cfg.AllowDelete = opts.AllowDelete
 	cfg.AllowDBWrite = false
 	cfg.DSNs = map[string]string{}
+	cfg.Panel = PanelConfig{
+		Enabled:   true,
+		ShowTray:  !opts.NoTray,
+		Autostart: !opts.NoAutostart,
+	}
+	cfg.panelConfigured = true
 	if err := saveConfig(cfg, paths.Config); err != nil {
 		return nil, err
 	}
@@ -399,6 +483,8 @@ func stopInstalledAgent(paths installPaths, cfg *Config) {
 		if strings.TrimSpace(cfg.DataDir) != "" {
 			dataDir = cfg.DataDir
 		}
+		// 先写 stop 文件，避免守护进程把这次正常退出当成崩溃又拉起来。
+		writeStopFile(cfg)
 		_ = requestShutdown(cfg)
 		deadline := time.Now().Add(3 * time.Second)
 		for time.Now().Before(deadline) {
@@ -406,6 +492,19 @@ func stopInstalledAgent(paths installPaths, cfg *Config) {
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
+		}
+		// 守护进程观察到 stop 文件后会自行退出并删除它；等它收口，避免卸载/覆盖 exe 竞争。
+		if stopPath := supervisorStopPath(cfg); stopPath != "" {
+			deadline = time.Now().Add(4 * time.Second)
+			for time.Now().Before(deadline) {
+				if _, statErr := os.Stat(stopPath); os.IsNotExist(statErr) {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			if _, statErr := os.Stat(stopPath); statErr == nil {
+				_ = os.Remove(stopPath)
+			}
 		}
 	}
 	pid, err := readPIDFile(dataDir)
@@ -434,17 +533,24 @@ func requestShutdown(cfg *Config) error {
 	return nil
 }
 
-func startInstalledAgent(exe, configPath string, cfg *Config) (string, error) {
+func startInstalledAgent(exe, configPath string, cfg *Config, openPanel bool) (string, error) {
 	if agentHealthy(cfg) {
+		if openPanel {
+			openAgentPanelWindow(cfg)
+		}
 		return "already-running", nil
 	}
-	command := exec.Command(exe, "serve", "--config", configPath)
+	args := []string{"start", "--config", configPath}
+	if openPanel {
+		args = append(args, "--open-panel")
+	}
+	command := exec.Command(exe, args...)
 	command.SysProcAttr = newSysProcAttr()
 	if err := command.Start(); err != nil {
 		return "failed", err
 	}
 	_ = command.Process.Release()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if agentHealthy(cfg) {
 			return "running", nil
@@ -461,7 +567,11 @@ func agentHealthy(cfg *Config) bool {
 		return false
 	}
 	defer response.Body.Close()
-	return response.StatusCode == http.StatusOK
+	if response.StatusCode != http.StatusOK {
+		return false
+	}
+	body, _ := ioutil.ReadAll(response.Body)
+	return strings.Contains(string(body), `"agent":"mode-agent"`)
 }
 
 func ensureFirewallRule(port int) (string, error) {
@@ -522,6 +632,8 @@ func buildInstallInfo(paths installPaths, cfg *Config, agent, autostart, firewal
 		Addresses:   strings.Join(localIPv4Addresses(), ","),
 		MCPURL:      fmt.Sprintf("http://%s:%d/mcp", host, cfg.Port),
 		Autostart:   autostart,
+		Panel:       fmt.Sprintf("%t", cfg.Panel.Enabled),
+		Tray:        fmt.Sprintf("%t", cfg.Panel.ShowTray),
 		Firewall:    firewall,
 		Agent:       agent,
 	}
@@ -552,6 +664,8 @@ func writeInstallInfo(path string, info installInfo) error {
 		"pairUri=" + info.PairURI,
 		"mcpUrl=" + info.MCPURL,
 		"autostart=" + info.Autostart,
+		"panel=" + info.Panel,
+		"tray=" + info.Tray,
 		"firewall=" + info.Firewall,
 		"agent=" + info.Agent,
 		"pairError=" + info.PairError,
@@ -573,6 +687,8 @@ func printInstallInfo(info installInfo) {
 		"pairUri=" + info.PairURI,
 		"mcpUrl=" + info.MCPURL,
 		"autostart=" + info.Autostart,
+		"panel=" + info.Panel,
+		"tray=" + info.Tray,
 		"firewall=" + info.Firewall,
 		"agent=" + info.Agent,
 		"info=" + info.InfoPath,

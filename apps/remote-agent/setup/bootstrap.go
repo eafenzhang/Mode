@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package main
@@ -22,9 +23,42 @@ const (
 )
 
 var (
-	user32          = syscall.NewLazyDLL("user32.dll")
-	procMessageBoxW = user32.NewProc("MessageBoxW")
+	user32            = syscall.NewLazyDLL("user32.dll")
+	kernel32          = syscall.NewLazyDLL("kernel32.dll")
+	procMessageBoxW   = user32.NewProc("MessageBoxW")
+	procAttachConsole = kernel32.NewProc("AttachConsole")
+	procGetStdHandle  = kernel32.NewProc("GetStdHandle")
+	procGetFileType   = kernel32.NewProc("GetFileType")
 )
+
+// 安装包是 GUI 子系统；从 cmd/PowerShell 运行 --quiet 等命令时附加到父控制台，
+// 这样脚本仍能拿到输出。资源管理器双击时 AttachConsole 失败，不会创建新窗口。
+func attachParentConsole() {
+	if stdoutHandleUsable() {
+		return
+	}
+	const attachParentProcess = ^uintptr(0)
+	if ok, _, _ := procAttachConsole.Call(attachParentProcess); ok == 0 {
+		return
+	}
+	if out, err := os.OpenFile("CONOUT$", os.O_WRONLY, 0); err == nil {
+		os.Stdout = out
+		os.Stderr = out
+	}
+	if in, err := os.OpenFile("CONIN$", os.O_RDONLY, 0); err == nil {
+		os.Stdin = in
+	}
+}
+
+func stdoutHandleUsable() bool {
+	const stdOutputHandle = uintptr(0xFFFFFFF5)
+	handle, _, _ := procGetStdHandle.Call(stdOutputHandle)
+	if handle == 0 || handle == ^uintptr(0) {
+		return false
+	}
+	fileType, _, _ := procGetFileType.Call(handle)
+	return fileType != 0
+}
 
 func showError(message string) {
 	titlePtr, _ := syscall.UTF16PtrFromString("Mode Agent 安装器")
@@ -116,7 +150,12 @@ func run() error {
 	if closeErr != nil {
 		return closeErr
 	}
-	command := exec.Command(target, os.Args[1:]...)
+	args := os.Args[1:]
+	if len(args) == 0 {
+		// 双击安装包仍进入安装流程；免安装形态由 agent exe 自身承担。
+		args = []string{"setup"}
+	}
+	command := exec.Command(target, args...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
@@ -124,6 +163,7 @@ func run() error {
 }
 
 func main() {
+	attachParentConsole()
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		showError(err.Error())

@@ -411,6 +411,38 @@ func (s *agentServer) callMCPTool(ctx context.Context, name string, args map[str
 			return mcpToolResult{}, apiErr
 		}
 		return textMCPResult(result)
+	case "remote_panel_show":
+		if apiErr := s.panelAccessError(); apiErr != nil {
+			return mcpToolResult{}, apiErr
+		}
+		title, _ := argString(args, "title")
+		text, _ := argString(args, "text")
+		imageBase64, _ := argString(args, "imageBase64")
+		imageMimeType, _ := argString(args, "imageMimeType")
+		status, apiErr := s.panel.set(PanelContent{
+			Title:         title,
+			Text:          text,
+			ImageBase64:   imageBase64,
+			ImageMimeType: imageMimeType,
+		})
+		if apiErr != nil {
+			return mcpToolResult{}, apiErr
+		}
+		showAgentPanel()
+		return textMCPResult(status)
+	case "remote_panel_clear":
+		if apiErr := s.panelAccessError(); apiErr != nil {
+			return mcpToolResult{}, apiErr
+		}
+		status := s.panel.clear()
+		notifyPanelChanged()
+		return textMCPResult(status)
+	case "remote_panel_status":
+		if apiErr := s.panelAccessError(); apiErr != nil {
+			return mcpToolResult{}, apiErr
+		}
+		status := s.panel.status()
+		return textMCPResult(status)
 	case "remote_db_drivers":
 		if !s.cfg.AllowDB {
 			return mcpToolResult{}, capabilityDisabled("database")
@@ -702,6 +734,21 @@ func mcpTools() []mcpTool {
 			Name:        "remote_window_focus",
 			Description: "Restore and focus a top-level window by hwnd from remote_windows_list.",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"hwnd":{"type":"string"}},"required":["hwnd"],"additionalProperties":false}`),
+		},
+		{
+			Name:        "remote_panel_show",
+			Description: "Show content on the agent's local fixed 300x400 panel and bring it to front. Plain text and PNG/JPEG only; no HTML. Requires allowDesktopControl.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string","maxLength":200},"text":{"type":"string","maxLength":65536},"imageBase64":{"type":"string","maxLength":8388608},"imageMimeType":{"type":"string","enum":["image/png","image/jpeg"]}},"additionalProperties":false}`),
+		},
+		{
+			Name:        "remote_panel_clear",
+			Description: "Clear the agent's local panel back to a blank surface. Requires allowDesktopControl.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		},
+		{
+			Name:        "remote_panel_status",
+			Description: "Return the agent panel's visibility and current content metadata without image bytes. Requires allowDesktopControl.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
 		},
 		{
 			Name:        "remote_db_drivers",

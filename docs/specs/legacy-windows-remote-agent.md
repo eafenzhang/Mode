@@ -1,6 +1,6 @@
 # 旧版 Windows 远程被控运行时（mode-agent）
 
-状态：2026-10-20 已实现；Windows 10 x86/x64、真实 MCP 客户端、一键安装/配对与桌面端配对逻辑验证通过，XP SP3 与桌面 UI 点击验收待执行。2026-10-20 追加：远程桌面、远程工作区与 Mode Agent 统一使用桌面 LAN 一次性配对码，远程控制页合并为单一设备列表（[remote-control-unified-pairing.md](./remote-control-unified-pairing.md)）。关联：[lan-remote-attach.md](./lan-remote-attach.md)（既有 LAN 挂接）、[lan-host-server-mode.md](./lan-host-server-mode.md)（Node 形态被连端）、[computer-use-windows-runtime.md](./computer-use-windows-runtime.md)（桌面控制能力边界）。
+状态：2026-10-20 已实现；Windows 10 x86/x64、真实 MCP 客户端、一键安装/配对与桌面端配对逻辑验证通过，XP SP3 与桌面 UI 点击验收待执行。2026-10-20 追加：远程桌面、远程工作区与 Mode Agent 统一使用桌面 LAN 一次性配对码，远程控制页合并为单一设备列表（[remote-control-unified-pairing.md](./remote-control-unified-pairing.md)）。2026-10-22 追加：交付形态改为**单个免安装 GUI exe**，带守护重启、托盘、固定 300×400 受控面板、无控制台与统一图标；规则见 [mode-agent-tray-panel.md](./mode-agent-tray-panel.md)。关联：[lan-remote-attach.md](./lan-remote-attach.md)（既有 LAN 挂接）、[lan-host-server-mode.md](./lan-host-server-mode.md)（Node 形态被连端）、[computer-use-windows-runtime.md](./computer-use-windows-runtime.md)（桌面控制能力边界）。
 
 ## 背景与问题
 
@@ -94,9 +94,17 @@ Mode 通过它执行命令、读取数据库、截屏和注入鼠标键盘，覆
   "allowDesktopControl": false,
   "allowDb": true,
   "allowDbWrite": false,
-  "dsns": {}
+  "dsns": {},
+  "panel": {
+    "enabled": true,
+    "showTray": true,
+    "autostart": true
+  }
 }
 ```
+
+`panel` 只影响本地 UI（300×400 动画面板、托盘、登录自启），不是权限边界；面板内容的读写仍由
+`allowDesktopControl` 控制。详见 [mode-agent-tray-panel.md](./mode-agent-tray-panel.md)。
 
 规则：
 
@@ -121,60 +129,65 @@ Mode 通过它执行命令、读取数据库、截屏和注入鼠标键盘，覆
 9. **权限等价**：agent 以启动它的 Windows 用户身份运行。非提权进程无法操作高完整性窗口
    （UIPI），无法注入 Ctrl+Alt+Del；这些是明确的失败语义，不尝试绕过。
 
-## 一键安装与卸载
+## 免安装运行与可选安装
 
-目标：目标机器上只需双击一个 exe，完成落盘、令牌、登录自启动、防火墙放行、立即启动，并把
-MCP 地址与令牌写到可复制的位置。命令行部署可用同一份程序的 `install` / `uninstall`。
+目标：目标机器上只需复制并双击一个 GUI exe，完成令牌生成、可选登录自启动、守护启动；没有
+控制台窗口，也不需要安装目录。完整规则见 [mode-agent-tray-panel.md](./mode-agent-tray-panel.md)。
 
-### 安装布局
+### 免安装形态（推荐）
 
-- 安装目录：`%LOCALAPPDATA%\ModeAgent`（Vista+）或 `%APPDATA%\ModeAgent`（XP）。
-  `install --dir <path>` 可覆盖，用于测试或定制部署。
-- 安装后的可执行文件：`<installDir>\mode-agent.exe`；配置文件：`<installDir>\mode-agent.json`；
-  连接信息：`<installDir>\install-info.txt`；PID：`<installDir>\agent.pid`。
-- 从下载目录再次运行安装包时，先把自身复制到安装目录；若安装目录里已有配置，默认保留原
-  token 与设置（升级不轮换令牌）。`--force` 才重新生成配置与令牌。
-
-### 一键安装默认值与确认
-
+- 产物：`mode-agent-win-x64.exe` / `mode-agent-win-x86.exe` / `mode-agent-xp-x86.exe`，均为
+  GUI 子系统、单文件、无运行时依赖。
+- 首次双击：显示首次运行对话框（开机自启 / 托盘 / 面板），在 exe 同目录生成
+  `mode-agent.json`；目录不可写时回退 `%APPDATA%\ModeAgent\mode-agent.json`。
 - 默认：`bind=0.0.0.0`、`port=47821`、`allowShell=true`、`allowDesktopControl=true`、
   `allowDb=true`；`allowWrite`、`allowDelete`、`allowDbWrite` 保持关闭。
-- 无参数双击时先弹 Windows 确认框，明确说明：会允许远程执行命令/控制桌面、写入当前用户
-  登录自启动、尝试创建 TCP 47821 防火墙规则。用户选择“是”才继续。
-- 安装并启动后，被控端弹窗要求**输入桌面端生成的配对串**；输入后向桌面
-  `POST /api/remote-agent/enroll` 登记。取消则安装保留，`install-info.txt` 记录
-  `enrollment=canceled`，可稍后运行 `mode-agent enroll`。
-- `install`/`setup --yes` 是脚本路径，不做交互确认；`--quiet` 不弹配对框，调用方负责后续
-  `enroll` 或手动 MCP 配置。
-- 防火墙规则创建是 best-effort：需要管理员权限，失败不阻断安装，结果写入安装信息并打印；
-  `--no-firewall` 跳过。规则名固定为 `ModeAgent`，端口取实际配置端口。
-- 立即启动：安装后以隐藏窗口启动 `<installDir>\mode-agent.exe serve --config ...`，轮询
-  `/health` 最多 5 秒；已在运行则跳过。`--no-start` 只安装不启动。
-- 登录自启动：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\ModeAgent`，以当前
-  用户身份运行（保证桌面控制可用）；`--no-autostart` 跳过。服务形态的 Session 0 限制不变。
+- 启动后：`start` supervisor 拉起 `serve --ui` 子进程，创建托盘与固定 300×400 动画面板；
+  HTTP 就绪后自动弹出配对页（只输入 6 位配对码）。之后点击面板标题栏左侧的 Mode 图标，
+  菜单「设置...」和「配对...」分别打开两个独立页面，不需要运行安装器。
+- 登录自启动：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run\ModeAgent`，命令为
+  `"<exe>" start --config "<config>"`；不经过 `cmd.exe`，登录时不闪控制台。
+- 守护：`serve` 子进程崩溃或被结束后自动重启；托盘退出、`/v1/shutdown` 或 `mode-agent stop`
+  写 `mode-agent.stop`，supervisor 看到后不再重启并退出。
+- 日志：`agent.log`、`supervisor.log`，与配置同目录；面板内容不落盘。
+- 移动 exe 后自启项会失效；重新运行一次 exe 并在托盘中重开自启即可。
 
-### 卸载
+### 可选安装形态
 
-- `uninstall`：移除登录自启动、按 PID 停止 agent、尝试删除 `ModeAgent` 防火墙规则。
-- `uninstall --purge`：额外删除配置、证书/私钥、连接信息、审计日志、PID 文件与安装目录。
-- 若卸载程序本身就是已安装的 exe（Windows 无法删除运行中的自身），保留 exe 并提示手动删除；
-  从安装包（下载目录）运行卸载时可以删除已安装的副本。
+- **`ModeAgent-Setup.exe`**：32 位引导器内嵌 x86/x64 两套 agent，按系统位数解包；双击默认进入
+  `setup`（GUI 子系统，无控制台）。
+- 安装目录：`%LOCALAPPDATA%\ModeAgent`（Vista+）或 `%APPDATA%\ModeAgent`（XP）。
+  `install --dir <path>` 可覆盖。
+- 布局：`<installDir>\mode-agent.exe`、`mode-agent.json`、`install-info.txt`、`agent.pid`；
+  日志与 stop 文件也在这里。
+- 安装默认值同免安装形态；交互安装对话框可取消自启/托盘（本地面板固定 300×400）。
+  `--no-autostart`、`--no-tray` 为脚本路径；`--autostart`、`--tray` 可重新开启。
+- 安装后启动 supervisor（不是直接 `serve`），轮询 `/health` 最多 10 秒；`--no-start` 只安装。
+- `install`/`setup --yes` 不做交互确认；`--quiet` 不弹配对框，调用方负责 `enroll` 或手动 MCP。
+- 防火墙规则 best-effort：`--no-firewall` 跳过；规则名固定 `ModeAgent`，端口取实际配置端口。
+- 安装并启动后会弹配对框；输入桌面端生成的 6 位配对码后向
+  `POST /api/remote-agent/enroll` 登记。取消则保留安装，`install-info.txt` 记录
+  `enrollment=canceled`，可稍后 `mode-agent enroll`。
+- `uninstall`：写 stop 文件、停止 agent、移除自启、尝试删除防火墙规则。
+  `uninstall --purge` 额外删除配置、证书/私钥、连接信息、审计日志、PID、日志与安装目录。
+- Windows 无法删除运行中的自身 exe；从安装包运行卸载时可以删除已安装的副本。
 
 ### 单实例与升级
 
-- `serve` 启动时把 PID 写入 `agent.pid`，退出时删除。
-- 安装/卸载通过 PID 文件停止旧进程；PID 失效时以 `/health` 与实际监听端口判断。
-- 同一端口重复启动由 `net.Listen` 失败兜底；不建立第二套写入路径或后台守护进程。
+- supervisor 使用命名互斥体 `Local\ModeAgentSupervisor_<config-path-hash>`；再次运行 exe
+  只打开面板，不启动第二套服务。
+- `serve` 启动时把 PID 写入 `agent.pid`，退出时删除；安装/卸载先写 stop 文件再按 PID 收口。
+- 端口被另一个 token 不同的 agent 占用时，supervisor 记录日志并弹一次警告，每 10 秒重试；
+  不会把对方当成自己的 agent。
+- 同一端口重复启动由 `net.Listen` 失败兜底；不存在第二套业务写入路径。
 
-### 一键安装产物
+### 构建与图标
 
-- **`ModeAgent-Setup.exe`**：唯一的安装包。32 位引导器内嵌 `mode-agent-x86.exe` 与
-  `mode-agent-x64.exe`；在 x64 Windows 上解包 64 位 agent（可见 64 位 ODBC 驱动），
-  在 XP/32 位 Windows 上解包 32 位 agent。
-- 引导器本身用 Go 1.10 构建（XP 可运行），载荷用 zip 追加 + 固定 footer 定位；引导器解包到
-  临时目录后透传参数给对应 agent，agent 负责安装/配对/弹窗。
-- 安装包、agent 与解包后的副本使用 `assets/mode-agent.ico`（Mode 图标，32 位多尺寸 ICO）
-  通过 rcedit 写入 PE，Windows 资源管理器、任务栏和配对弹窗显示统一图标。
+- 所有 Windows 产物用 `-H windowsgui` 构建；CLI 命令在 stdout 未被重定向时附加父控制台。
+- 图标由 `set-icon.ps1` 直接写入 PE 的 `RT_GROUP_ICON`（组 ID 1）与多尺寸 `RT_ICON`，
+  不依赖 rcedit；exe、窗口、托盘、首次运行/配对对话框统一使用 `assets/mode-agent.ico`。
+- 安装包 = 引导器 exe + zip 载荷 + footer；引导器与 agent 都带图标，且都是 GUI 子系统。
+  引导器默认参数为 `setup`，双击安装包不会误入免安装模式。
 
 ## API 面
 
@@ -194,8 +207,11 @@ UTF-8 JSON；错误统一：
 | GET | `/health` | 免鉴权健康检查 |
 | POST | `/v1/pair` | 备用方向：免鉴权（配对码即凭据），配对码换长期 token；仅该端点开放 CORS |
 | POST | `/v1/pair-code` | 备用方向：令牌鉴权，生成/轮换 8 位配对码（10 分钟 TTL） |
-| POST | `/v1/shutdown` | 令牌鉴权：优雅停止 agent（安装/卸载用） |
+| POST | `/v1/shutdown` | 令牌鉴权：优雅停止 agent（写 stop 文件，supervisor 不再重启） |
 | GET | `/v1/info` | 主机、Windows 版本、会话、能力开关、屏幕尺寸 |
+| GET | `/v1/panel` | 令牌鉴权 + `allowDesktopControl`：读取面板状态 |
+| POST | `/v1/panel` | 令牌鉴权 + `allowDesktopControl`：写入标题/文本/图片并显示面板 |
+| DELETE | `/v1/panel` | 令牌鉴权 + `allowDesktopControl`：清空面板 |
 | POST | `/v1/exec` | 同步执行，返回 exitCode/stdout/stderr/duration/truncated |
 | POST | `/v1/jobs` | 启动作业，立即返回 jobId |
 | GET | `/v1/jobs` | 列出作业摘要 |
@@ -256,7 +272,8 @@ UTF-8 JSON；错误统一：
 `remote_job_cancel`、`remote_job_list`、`remote_fs_list`、`remote_fs_read`、`remote_fs_write`、
 `remote_fs_stat`、`remote_fs_remove`、`remote_process_list`、`remote_process_kill`、
 `remote_screen_capture`、`remote_mouse`、`remote_keyboard`、`remote_windows_list`、
-`remote_window_focus`、`remote_db_drivers`、`remote_db_query`。
+`remote_window_focus`、`remote_panel_show`、`remote_panel_clear`、`remote_panel_status`、
+`remote_db_drivers`、`remote_db_query`。
 
 - `tools/list` 返回 JSON Schema；`tools/call` 返回 MCP content blocks。
 - 截屏返回 `{type:"image", mimeType:"image/png", data:<base64>}`，另附尺寸文本块。
@@ -269,8 +286,10 @@ UTF-8 JSON；错误统一：
    6 位一次性配对码（5 分钟 TTL），并展示
    `mode-agent://enroll?host=<桌面地址>&port=<监听端口>&code=<配对码>`。这个码与远程工作区 /
    远程桌面接入共用同一个 `lanAccessServer.pairCode`；不再另生成第二套码。
-2. **目标机一键安装并输入配对串**：运行 `ModeAgent-Setup.exe`；安装器启动 agent 后弹窗要求
-   粘贴桌面端配对串。被控端向 `POST http://<桌面>:<端口>/api/remote-agent/enroll` 发送自己的
+2. **目标机运行并输入配对码**：直接把免安装 exe 复制到目标机双击（首次运行对话框 → 生成配置）；
+   或运行可选的 `ModeAgent-Setup.exe`。免安装 exe 启动后会自动弹出配对页；之后可从
+   点击面板标题栏左侧的 Mode 图标打开原生系统菜单，选择「设置...」或「配对...」。
+   被控端向 `POST http://<桌面>:<端口>/api/remote-agent/enroll` 发送自己的
    agentId、地址、端口、token、版本与平台。
 3. **桌面端自动安装 MCP**：桌面验证配对码、探测被控端 `/health`，成功后写入一个用户级 HTTP
    MCP server（URL `http://<目标>:<端口>/mcp`，Header `Authorization: Bearer <token>`）。
@@ -317,13 +336,17 @@ MCP → 添加 HTTP MCP Server，或在 Mode 的 Bash 工具中调用 `mode-agen
 9. ODBC：`/v1/db/drivers` 列出驱动；只读连接执行 `SELECT` 成功，`UPDATE` 被只读策略拒绝。
 10. MCP：用 `@modelcontextprotocol/client` 的 `StreamableHTTPClientTransport` 连接 `/mcp`，
     完成 initialize → tools/list → remote_info → remote_exec → remote_screen_capture。
-11. 一键安装/反向配对：单文件 `ModeAgent-Setup.exe` 在 x64 上解包 amd64、在模拟 32 位环境
-    解包 386；安装后弹窗输入桌面配对串；`POST /api/remote-agent/enroll` 写 MCP、二次同码
-    401、不可达 agent 401；`uninstall --purge` 停止进程并删除安装目录。
-12. 桌面闭环：远程控制页生成配对码/配对串 → 被控端输入 → 同一列表出现 `mode-agent-*`
+11. 免安装/守护：全新目录双击 GUI exe → 首次运行对话框 → 生成配置、无控制台、托盘与
+    300×400 动画面板；结束 `serve` 子进程后数秒内自动重启；`stop` 后 supervisor 与 agent 都退出。
+12. 可选安装/反向配对：单文件 `ModeAgent-Setup.exe` 在 x64 上解包 amd64、在模拟 32 位环境
+    解包 386；双击默认进入 `setup`；安装后弹窗输入桌面端 6 位配对码；`POST /api/remote-agent/enroll`
+    写 MCP、二次同码 401、不可达 agent 401；`uninstall --purge` 停止进程并删除安装目录。
+13. 面板/图标：`remote_panel_show` 渲染标题+文本+PNG，`remote_panel_clear` 恢复默认代码雨动画；
+    exe/窗口/托盘/对话框均显示 Mode 图标；`build.ps1` 四个 Windows 产物子系统=2。
+14. 桌面闭环：远程控制页生成 6 位配对码 → 被控端输入 → 同一列表出现 `mode-agent-*`
     设备（与 LAN 设备同屏）→「发起对话」切到对话视图并创建预填远程指令的新任务草稿。
-13. 审计日志包含请求记录且不包含命令/SQL/令牌明文；10 MiB 轮转。
-14. 构建：Go 1.10.8 产出 `mode-agent-xp-x86.exe`；现代 Go 产出 `mode-agent-win-x64.exe`；
+15. 审计日志包含请求记录且不包含命令/SQL/令牌明文；10 MiB 轮转。
+16. 构建：Go 1.10.8 产出 `mode-agent-xp-x86.exe`；现代 Go 产出 `mode-agent-win-x64.exe`；
     单文件安装器内嵌两套 agent 并带 Mode 图标。实机 XP 验收需一台 XP SP3 机器（当前环境不可用，
     登记为待办）。
 

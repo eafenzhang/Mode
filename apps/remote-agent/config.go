@@ -29,6 +29,14 @@ const (
 	defaultPort = 47821
 )
 
+// PanelConfig 控制安装形态的本地 UI。它不是安全边界；面板内容的读写仍由
+// allowDesktopControl 统一闸门约束。
+type PanelConfig struct {
+	Enabled   bool `json:"enabled"`
+	ShowTray  bool `json:"showTray"`
+	Autostart bool `json:"autostart"`
+}
+
 type Config struct {
 	Bind                string            `json:"bind"`
 	Port                int               `json:"port"`
@@ -46,8 +54,10 @@ type Config struct {
 	AllowDB             bool              `json:"allowDb"`
 	AllowDBWrite        bool              `json:"allowDbWrite"`
 	DSNs                map[string]string `json:"dsns,omitempty"`
+	Panel               PanelConfig       `json:"panel"`
 
-	configPath string
+	configPath      string
+	panelConfigured bool
 }
 
 func defaultConfig() *Config {
@@ -112,6 +122,14 @@ func loadConfig(path string) (*Config, error) {
 	cfg := defaultConfig()
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config %s: %v", path, err)
+	}
+	// 旧配置没有 panel 字段。安装器升级时据此补默认值，而 CLI 手工配置保持无 UI，
+	// 避免 `serve` 在控制台调试时突然隐藏窗口。
+	var probe struct {
+		Panel *PanelConfig `json:"panel"`
+	}
+	if err := json.Unmarshal(data, &probe); err == nil {
+		cfg.panelConfigured = probe.Panel != nil
 	}
 	cfg.configPath = path
 	if strings.TrimSpace(cfg.Bind) == "" {

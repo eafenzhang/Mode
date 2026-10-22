@@ -62,6 +62,7 @@ type Capabilities struct {
 	DesktopControl bool `json:"desktopControl"`
 	Database       bool `json:"database"`
 	DatabaseWrite  bool `json:"databaseWrite"`
+	Panel          bool `json:"panel"`
 }
 
 type ScreenSize struct {

@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package main
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -21,6 +23,10 @@ func cmdServe(args []string) int {
 	configFlag := fs.String("config", "", "config file path")
 	bind := fs.String("bind", "", "override listen address")
 	port := fs.Int("port", -1, "override listen port (0 = ephemeral)")
+	uiFlag := fs.Bool("ui", false, "start the tray panel (default from config)")
+	noUI := fs.Bool("no-ui", false, "disable the tray panel")
+	openPanel := fs.Bool("open-panel", false, "open the panel window on start")
+	pairOnStart := fs.Bool("pair-on-start", false, "show the desktop pairing prompt after startup")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -60,10 +66,40 @@ func cmdServe(args []string) int {
 	}
 	fmt.Fprintf(os.Stderr, "%s %s (%s) listening on %s://%s\n", agentName, version, goVersion, scheme, listener.Addr().String())
 
+	// 面板关闭但托盘开启时仍启动 UI：用户需要托盘里的「设置与配对」重新打开面板。
+	uiEnabled := cfg.Panel.Enabled || cfg.Panel.ShowTray || *uiFlag
+	if *noUI {
+		uiEnabled = false
+	}
+	if *openPanel {
+		uiEnabled = true
+	}
+	var ui *agentUIHandle
+	if uiEnabled {
+		ui, err = startAgentUI(cfg, server.panel, server.requestShutdown)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "panel UI disabled: %v\n", err)
+			ui = nil
+		}
+	}
+	if ui != nil {
+		defer ui.stop()
+		if *openPanel {
+			ui.show()
+		}
+	}
+
 	httpServer := &http.Server{
 		Handler:           server,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
+	}
+	if *pairOnStart {
+		// 等 HTTP 监听就绪后再弹配对页：桌面端登记时会探测 /health。
+		go func() {
+			time.Sleep(700 * time.Millisecond)
+			promptPortablePairing(cfg)
+		}()
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
@@ -84,4 +120,18 @@ func cmdServe(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func promptPortablePairing(cfg *Config) {
+	if cfg == nil || cfg.configPath == "" {
+		return
+	}
+	dir := filepath.Dir(cfg.configPath)
+	paths := installPaths{
+		Dir:    dir,
+		Exe:    filepath.Join(dir, "mode-agent.exe"),
+		Config: cfg.configPath,
+		Info:   filepath.Join(dir, "install-info.txt"),
+	}
+	promptAndEnroll(paths, cfg)
 }

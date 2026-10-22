@@ -7,14 +7,19 @@ import (
 )
 
 func main() {
+	maybeAttachConsole(os.Args)
 	if len(os.Args) < 2 {
 		if runtime.GOOS == "windows" {
-			os.Exit(cmdSetup(nil))
+			os.Exit(cmdLaunch())
 		}
 		usage()
 		os.Exit(2)
 	}
 	switch os.Args[1] {
+	case "start":
+		os.Exit(cmdStart(os.Args[2:]))
+	case "stop":
+		os.Exit(cmdStop(os.Args[2:]))
 	case "init":
 		os.Exit(cmdInit(os.Args[2:]))
 	case "install":
@@ -53,13 +58,16 @@ func usage() {
 	fmt.Fprint(os.Stderr, `mode-agent - remote Windows runtime for Mode
 
 Usage:
-  mode-agent install [--dir PATH] [--port N] [--no-firewall] [--no-autostart] [--no-start] [--quiet]
+  mode-agent                         portable mode: create config beside the exe and start the supervisor
+  mode-agent start [--config PATH] [--open-panel]
+  mode-agent stop [--config PATH]
+  mode-agent install [--dir PATH] [--port N] [--no-firewall] [--no-autostart] [--no-tray] [--no-start] [--quiet]
   mode-agent setup [--yes] [--dir PATH]
   mode-agent uninstall [--dir PATH] [--purge] [--yes]
   mode-agent enroll [--config PATH] [--uri URI | --desktop HOST:PORT --code CODE] [--no-dialog]
   mode-agent pair [--config PATH] [--no-dialog]
   mode-agent init [--config PATH] [--lan] [--tls] [--port N] [--force]
-  mode-agent serve [--config PATH] [--bind ADDR] [--port N]
+  mode-agent serve [--config PATH] [--bind ADDR] [--port N] [--ui] [--no-ui] [--open-panel]
   mode-agent token [--config PATH]
   mode-agent install-autostart [--config PATH] [--minimized]
   mode-agent uninstall-autostart

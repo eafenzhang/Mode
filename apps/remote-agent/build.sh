@@ -19,23 +19,27 @@ fi
 build() {
   local go="$1" goos="$2" goarch="$3" output="$4" module_mode="$5"
   echo "build $goos/$goarch -> $output"
+  local ldflags="-s -w -X main.version=$version"
+  if [[ "$goos" == "windows" ]]; then
+    ldflags="$ldflags -H windowsgui"
+  fi
   GO111MODULE="$module_mode" GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-    "$go" build -ldflags "-s -w -X main.version=$version" -o "$out_dir/$output" .
+    "$go" build -ldflags "$ldflags" -o "$out_dir/$output" .
 }
 
 set_icon() {
   local path="$1" description="$2"
-  local rcedit="$repo_root/node_modules/electron-winstaller/vendor/rcedit.exe"
-  if [[ ! -f "$rcedit" ]]; then
-    echo "rcedit not found; skipping icon for $path" >&2
+  if [[ ! -f "$path" ]]; then
+    echo "executable not found; skipping icon for $path" >&2
     return
   fi
-  if [[ ! -x "$rcedit" ]]; then
-    echo "rcedit cannot run on this host; skipping icon for $path" >&2
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    echo "powershell not available; skipping icon for $path" >&2
     return
   fi
-  "$rcedit" "$path" --set-icon "$PWD/assets/mode-agent.ico" >/dev/null 2>&1 || \
-    echo "rcedit failed for $path" >&2
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PWD/set-icon.ps1" \
+    -Exe "$(cygpath -w "$path")" -Ico "$(cygpath -w "$PWD/assets/mode-agent.ico")" >/dev/null || \
+    echo "icon injection failed for $path" >&2
 }
 
 echo "XP toolchain: $xp_go"
@@ -70,7 +74,7 @@ if [[ ! -f "$out_dir/mode-agent-win-x64.exe" ]]; then
 fi
 bootstrap="$out_dir/mode-agent-setup-bootstrap.exe"
 GO111MODULE=off GOOS=windows GOARCH=386 CGO_ENABLED=0 \
-  "$xp_go" build -ldflags "-s -w" -o "$bootstrap" ./setup
+  "$xp_go" build -ldflags "-s -w -H windowsgui" -o "$bootstrap" ./setup
 set_icon "$bootstrap" "Mode Agent installer"
 "$modern_go" run ./setup/pack/main.go \
   -bootstrap "$bootstrap" \

@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package main
@@ -16,7 +17,7 @@ func cmdInstallAutostart(args []string) int {
 	fs := flag.NewFlagSet("install-autostart", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	configFlag := fs.String("config", "", "config file path")
-	minimized := fs.Bool("minimized", true, "start the console minimized")
+	fs.Bool("minimized", true, "ignored; kept for CLI compatibility")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -25,7 +26,7 @@ func cmdInstallAutostart(args []string) int {
 		fmt.Fprintf(os.Stderr, "config not found: %s\n", configPath)
 		return 1
 	}
-	if err := installAutostart(configPath, *minimized); err != nil {
+	if err := installAutostart(configPath); err != nil {
 		fmt.Fprintf(os.Stderr, "install autostart: %v\n", err)
 		return 1
 	}
@@ -47,19 +48,17 @@ func cmdUninstallAutostart(args []string) int {
 	return 0
 }
 
-func installAutostart(configPath string, minimized bool) error {
+func installAutostart(configPath string) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	return installAutostartWithExe(exe, configPath, minimized)
+	return installAutostartWithExe(exe, configPath)
 }
 
-func installAutostartWithExe(exe, configPath string, minimized bool) error {
-	command := fmt.Sprintf(`"%s" serve --config "%s"`, exe, configPath)
-	if minimized {
-		command = fmt.Sprintf(`cmd.exe /c start "" /min "%s" serve --config "%s"`, exe, configPath)
-	}
+// 自启动直接指向 GUI 子系统的 exe；不再经过 cmd.exe，因此登录时不会闪命令行窗口。
+func installAutostartWithExe(exe, configPath string) error {
+	command := fmt.Sprintf(`"%s" start --config "%s"`, exe, configPath)
 	output, err := exec.Command("reg.exe", "add", runKeyPath, "/v", "ModeAgent", "/t", "REG_SZ", "/d", command, "/f").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(decodeConsoleBytes(output, "ansi")))
