@@ -140,10 +140,6 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - @extend-ai/react-xlsx@0.16.0 — MIT
 
-- @fiahfy/icns@0.0.7 — MIT
-
-- @fiahfy/packbits@0.0.6 — MIT
-
 - @floating-ui/core@1.7.5 — MIT
 
 - @floating-ui/dom@1.7.6 — MIT
@@ -802,8 +798,6 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - buildcheck@0.0.7 — MIT
 
-- builder-util-runtime@9.5.1 — MIT
-
 - bun-ffi-structs@0.2.2 — MIT
 
 - bundle-name@4.1.0 — MIT
@@ -1068,8 +1062,6 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - electron-to-chromium@1.5.336 — ISC
 
-- electron-updater@6.8.3 — MIT
-
 - embla-carousel-react@8.6.0 — MIT
 
 - embla-carousel-reactive-utils@8.6.0 — MIT
@@ -1179,8 +1171,6 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - framer-motion@12.38.0 — MIT
 
 - fresh@2.0.0 — MIT
-
-- fs-extra@10.1.0 — MIT
 
 - fs-extra@11.3.4 — MIT
 
@@ -1412,8 +1402,6 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - layout-base@2.0.1 — MIT
 
-- lazy-val@1.0.5 — MIT
-
 - lexical@0.42.0 — MIT
 
 - lib0@0.2.117 — MIT
@@ -1428,11 +1416,7 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - lodash-es@4.18.1 — MIT
 
-- lodash.escaperegexp@4.1.2 — MIT
-
 - lodash.identity@3.0.0 — MIT
-
-- lodash.isequal@4.5.0 — MIT
 
 - lodash.merge@4.6.2 — MIT
 
@@ -2026,8 +2010,6 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - tiny-invariant@1.3.3 — MIT
 
-- tiny-typed-emitter@2.1.0 — MIT
-
 - tinycolor2@1.6.0 — MIT
 
 - tinyexec@1.1.1 — MIT
@@ -2265,8 +2247,6 @@ Some publishers provide only a license identifier or a short README license sect
 - @hono/node-ws@1.3.0: https://registry.npmjs.org/@hono%2fnode-ws/1.3.0
 
 - strict-event-emitter@0.5.1: https://registry.npmjs.org/strict-event-emitter/0.5.1
-
-- lazy-val@1.0.5: https://registry.npmjs.org/lazy-val/1.0.5
 
 - semaphore@1.1.0: https://registry.npmjs.org/semaphore/1.1.0
 
@@ -3434,39 +3414,6 @@ SOFTWARE.
 ## License
 
 See the repository license for usage terms.
-
-````
-
-### Notice e0ada792e41aae00426826d7d778bb3bf5ad39fe4ae86760e59df108b3bfe805
-
-- @fiahfy/icns@0.0.7: LICENSE
-
-- @fiahfy/packbits@0.0.6: LICENSE
-
-
-
-````text
-MIT License
-
-Copyright (c) 2018 fiahfy
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 ````
 
@@ -8329,40 +8276,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
-````
-
-### Notice bed8d0ab3e6031817f775a641ff37313b0f5591bc8ba0ed79b978dafbd4231ce
-
-- builder-util-runtime@9.5.1: LICENSE
-
-- electron-updater@6.8.3: LICENSE
-
-
-
-````text
-The MIT License (MIT)
-
-Copyright (c) 2015 Loopline Systems
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
 ````
 
 ### Notice f2046b2f212d286d06a53214867136c8152a481737e62fcda49c1412488c3a74
@@ -15436,52 +15349,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ````
 
-### Notice 1e76029602ae9b21cc4e612db2496d92febed882ba13ba745f8b3309e85f9d39
-
-- fs-extra@10.1.0: LICENSE
-
-
-
-````text
-(The MIT License)
-
-Copyright (c) 2011-2017 JP Richardson
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
-(the 'Software'), to deal in the Software without restriction, including without limitation the rights to use, copy, modify,
- merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
- furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
-OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-````
-
-### Notice 99418da6b0279959da793d62433978847d00236e852c4be780f384b7f506d425
-
-- fs-extra@10.1.0: README.md (license section)
-
-
-
-````text
-License
--------
-
-Licensed under MIT
-
-Copyright (c) 2011-2017 [JP Richardson](https://github.com/jprichardson)
-
-[1]: http://nodejs.org/docs/latest/api/fs.html
-
-
-[jsonfile]: https://github.com/jprichardson/node-jsonfile
-
-````
-
 ### Notice c6a7de1428955aa5a692f4d3a3d3ede658d959616944713337cda296736442e1
 
 - fs-extra@11.3.4: LICENSE
@@ -20922,43 +20789,6 @@ SOFTWARE.
 
 ````
 
-### Notice f18c12b8e7daf98d572518b7db133b2dc66a713921dac4825410dd656e0c1a1a
-
-- lazy-val@1.0.5: https://registry.npmjs.org/lazy-val/1.0.5
-
-
-
-````text
-lazy-val@1.0.5
-Publisher-declared license: MIT
-Evidence: https://registry.npmjs.org/lazy-val/1.0.5
-The published package/upstream snapshot did not supply a separate copyright notice.
-No copyright holder or year has been inferred from the npm author field.
-The following is the standard license text, not a claim that an upstream LICENSE file was published.
-
-MIT License
-
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-````
-
 ### Notice 5446db1e43fe52faf3faab7e9959fe3762ac11bdc61c0945934c498affd52d73
 
 - lib0@0.2.117: LICENSE
@@ -21155,65 +20985,6 @@ terms above.
 
 ````
 
-### Notice ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272
-
-- lodash.escaperegexp@4.1.2: LICENSE
-
-- lodash.pickby@4.6.0: LICENSE
-
-
-
-````text
-Copyright jQuery Foundation and other contributors <https://jquery.org/>
-
-Based on Underscore.js, copyright Jeremy Ashkenas,
-DocumentCloud and Investigative Reporters & Editors <http://underscorejs.org/>
-
-This software consists of voluntary contributions made by many
-individuals. For exact contribution history, see the revision history
-available at https://github.com/lodash/lodash
-
-The following license applies to all parts of this software except as
-documented below:
-
-====
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-====
-
-Copyright and related rights for sample code are waived via CC0. Sample
-code is defined as all source code displayed within the prose of the
-documentation.
-
-CC0: http://creativecommons.org/publicdomain/zero/1.0/
-
-====
-
-Files located in the node_modules and vendor directories are externally
-maintained libraries used by this software which have their own
-licenses; we recommend you read them, as their terms may differ from the
-terms above.
-
-````
-
 ### Notice 2b61a34ef17beffb1e555efa8b46110d25398d47f2e88b2cacc46f8bd382c639
 
 - lodash.identity@3.0.0: LICENSE.txt
@@ -21246,14 +21017,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ````
 
-### Notice e159c6d48c989185448658f276375bfb2300362ec6d4ae5525a2d49c4bcb947d
+### Notice ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272
 
-- lodash.isequal@4.5.0: LICENSE
+- lodash.pickby@4.6.0: LICENSE
 
 
 
 ````text
-Copyright JS Foundation and other contributors <https://js.foundation/>
+Copyright jQuery Foundation and other contributors <https://jquery.org/>
 
 Based on Underscore.js, copyright Jeremy Ashkenas,
 DocumentCloud and Investigative Reporters & Editors <http://underscorejs.org/>
@@ -33542,37 +33313,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-````
-
-### Notice 4b3faf884ee71eec3df920b66c98fc6618af28e824cf3a32ef3d8774048cc76d
-
-- tiny-typed-emitter@2.1.0: LICENSE
-
-
-
-````text
-MIT License
-
-Copyright (c) 2020 Zurab Benashvili (binier) <zura.bena@gmail.com>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
 ````
 
 ### Notice c6cb470a9ba0a50d57611aeec1f31da609c5aefdbee8eac7f289bcb0e30625fa

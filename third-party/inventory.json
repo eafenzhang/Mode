@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets, native tools and Rust crates; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "d377f30642f4fd16ae43bd4211a8184332d3062c4fbc2277087c6e950566f7a4",
+  "noticesSha256": "f29f389f76a2c1e7008bc72eadbcdbf6953a04379d47f5d482e52cf6c2a12b37",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "dd710caa186742b6aebaccca4ce9d28bdc7a0e04a20c20891daad9d6703a5878",
     ".agents/skills/agent-browser/references/commands.md": "a7efdc0e2b22dab2a52adaead8ac80043e6b400cc5154bdc5c81f43542b9e49d",
@@ -403,7 +403,7 @@
     ".agents/skills/xlsx/scripts/office/validators/redlining.py": "08a4d895807474b9bb9131864bad991f6a14f06857a4981ab67ea27bfa21eb14",
     ".agents/skills/xlsx/scripts/recalc.py": "483cf07b175e8de51bcd3e3dcc61f02c67915269065843bd034b04597df73608",
     ".agents/skills/xlsx/SKILL.md": "a814fdbb9af5b4217262aaf09c3dc50a43ffde709c43b6936a99b0e203e7e98c",
-    "apps/desktop-tauri/package.json": "bc9e494dd95b32ec6d7784f945306357214b577d4c3688c2f3adc69697131892",
+    "apps/desktop-tauri/package.json": "0a8cbbdf7a0a0b799925c4587678ba57e7c134abc58a637bdcf4d34e16561a1f",
     "apps/mode-cli/package.json": "4891fdf508823da07aad626b07fd3c456b2fb91f591b7b419c04856a3e671448",
     "apps/mode-cli/packages/adapters/package.json": "b30ea05fc778c2b10e9d30a306421b8f4b85f867d8f31a1f7e72caae83afc5b4",
     "apps/mode-cli/packages/bootstrap/package.json": "bb321b260c5b0fcc3a910c5759638d6b96ab1a2b1a0407daa6d5310a95f5a0cf",
@@ -426,10 +426,11 @@
     "apps/mode-cli/tools/typescript/package.json": "d31f0abdcc4052b9175259a34ed03e4ad73bb1e146d56cecd5658dd0c7d4c8b8",
     "crates/mode-cua-ax/Cargo.lock": "a2d1bfe1f258c55ad1175f31c7097444120d89710f6b91b70fab36ed5664028d",
     "crates/mode-cua-ax/Cargo.toml": "abd3b4a09bf4484e6f95b4bbf1a9db00e838effc6fe6602d786f44ee4598f35b",
-    "package.json": "3b78ecfb7df3dbe6b67d190db525aa2144e8d4a14aa2af35f5cef1fae576666f",
+    "package.json": "ab26951219f7add44965a5c262b663e8823ff43e73934c8eead85d3261adfc9b",
     "packages/browser-import-extension/package.json": "42761a048984ca2e14c10fdb9180481e572235f830a2f7d23c2a6c3a486e0c82",
     "packages/client/package.json": "ca66f666e9c5a1095a03c14b176fe95932e900cc4010a26b54bcf4be66e34097",
-    "packages/desktop/package.json": "3d73d390b455280e5d323be9bd6c55fbb5465f3f18b4909f77abf244c4b72798",
+    "packages/cloud-relay/package.json": "fa27a951b8edaeccbdaecd5e64516d4e7ff64a3f9a4c69e8c318fa1fb52a6cc0",
+    "packages/desktop/package.json": "80da0f000e789e721ba7d4cecc78246e14499352c45ba91c305d58bf765f41db",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/desktop/src/renderer/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
     "packages/desktop/src/renderer/public/material-icons/abc.svg": "d1a68020e8f020ef29dca5f94dc8613b7ae8fb5b212d8b1cc23b0f975ac7acda",
@@ -1902,7 +1903,7 @@
     "packages/ui/src/components/ai-elements/conversation.tsx": "ee982d5861121cd32ac050fe41e072cfba43d5a84e1f721e8258b493e5d80b7d",
     "packages/ui/src/components/ai-elements/diagram-preview-dialog.tsx": "243b859d7e8f8b6bb999be84953de54e7705613c0bf1b9fc4f82c4733147e078",
     "packages/ui/src/components/ai-elements/edge.tsx": "01eca71713601eeeb898d83cdb4a654ebd90e692a5536f70172b8bde323e0a49",
-    "packages/ui/src/components/ai-elements/image-preview-dialog.tsx": "ffdbea7a64b1ffec59d241b34eba817ba54dd4cb87330d7afc54f1532b6c43be",
+    "packages/ui/src/components/ai-elements/image-preview-dialog.tsx": "08efc71b5d214b398d140a9923eb82921328a8bcc88f18acfe53feab20db9523",
     "packages/ui/src/components/ai-elements/image-thumbnail-gallery.tsx": "185766c039c6c4852ae12360360f7cf29e844a1463358b8cc2c6de972dcdaf43",
     "packages/ui/src/components/ai-elements/image.tsx": "2c7e73931fb30b5fe95d79644147a57045922457bf63cf5a05599d185425bf10",
     "packages/ui/src/components/ai-elements/markdown-blockquote.tsx": "7a3b16c68d3e06e6882f1abaa4a373f5db8371dcbd7eb75f69c07864a7f49645",
@@ -1983,7 +1984,7 @@
     "packages/ui/src/fonts/Vazirmatn-Regular.woff2": "369424e212c17abb0604319c26b510e6a9a8fd7f2e1e6803b6e0e6de893ed65b",
     "packages/ui/src/lib/builtinSkillI18n.ts": "e98949cbad3babbc11b3cc790659a87ab2c348b16ea5cce9b61cde54b54134a0",
     "packages/ui/src/styles.css": "18972c83abb2f020d3740b8fed6e49715a3ee60298b9b1ae0ba91ea463ba511e",
-    "packages/web/package.json": "3b25ac26cd34cf343465d91e2ee30bf04e5df4d86785769e2cc42d5221220d31",
+    "packages/web/package.json": "39f2a30471a9a517db93e701e3d2eba63982a87c13a9f8ee0563ea90e2222b77",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
     "packages/web/public/material-icons/abc.svg": "d1a68020e8f020ef29dca5f94dc8613b7ae8fb5b212d8b1cc23b0f975ac7acda",
@@ -3132,8 +3133,8 @@
     "packages/web/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
     "patches/@ai-sdk__anthropic@3.0.81.patch": "d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18",
     "patches/@ai-sdk__openai-compatible@2.0.60.patch": "9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b",
-    "pnpm-lock.yaml": "07bd24eab572f3e32bb7a33f38bb2b499259372c1e486c5183231d7fc82e5b83",
-    "pnpm-workspace.yaml": "bc5e2a313d995ae81b8a01726843059a431b102b877d69765d5c9ed1020fd380",
+    "pnpm-lock.yaml": "6fb086c714da73f2e41f8a6ddb889beff7f8def3dbdf9f30a2900eed1764b043",
+    "pnpm-workspace.yaml": "141c530cc35387b46e1ab6e6e2ad68d6010a016b1e981f503abc78cbc91d8a85",
     "scripts/license-texts/01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f.txt": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
     "scripts/license-texts/025436edff4cfcdde17a5811fdea78892d8482efd1abdec5a17872d07a4f2112.txt": "025436edff4cfcdde17a5811fdea78892d8482efd1abdec5a17872d07a4f2112",
     "scripts/license-texts/0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39.txt": "0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39",
@@ -3294,7 +3295,7 @@
     "third-party/native-search/licenses/f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af.txt": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
     "third-party/native-search/licenses/f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505.txt": "f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505",
     "third-party/native-search/sources.json": "442dcafa1e719395631079164322a227a50687566f09a4ca453ff52c42454949",
-    "third-party/npm-overrides.json": "bf9947d17db21240769cb64e988debdb81ade4815e84a253877827c4e77df3e4",
+    "third-party/npm-overrides.json": "9971b674e523f51b7ce552d9fb3ae079a0f1bb2834939b573fc4a21cb76b5634",
     "third-party/runtime/node-22.16.0-LICENSE.txt": "1ae62e2015784ba438db7b04ebd33f3c4ff3efdb824c111c4ececd99945fd52d",
     "third-party/runtime/node-24.14.0-LICENSE.txt": "4573185d56580da2b890ba34a85a409257640f1c5632eade4300137266194d18",
     "third-party/runtime/sources.json": "b27bc8d81aeb71108e523602364ffbb6a1b19c2d5d47733fd43094b769006741",
@@ -3371,7 +3372,6 @@
     "third-party/upstream/e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c.txt": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c",
     "third-party/upstream/ebb2e920800c6353474e3e23d84f714ee8aaecd8f5a71851aa03594a4129d855.txt": "ebb2e920800c6353474e3e23d84f714ee8aaecd8f5a71851aa03594a4129d855",
     "third-party/upstream/f158b3bd10b867740fdbf81447216f1f8685473acf61e6a105ef91ba9fe8ebc3.txt": "f158b3bd10b867740fdbf81447216f1f8685473acf61e6a105ef91ba9fe8ebc3",
-    "third-party/upstream/f18c12b8e7daf98d572518b7db133b2dc66a713921dac4825410dd656e0c1a1a.txt": "f18c12b8e7daf98d572518b7db133b2dc66a713921dac4825410dd656e0c1a1a",
     "third-party/upstream/f29b60ea39a2132e3baa98927c2d473b349a54143da44a0c6762b243e6459452.txt": "f29b60ea39a2132e3baa98927c2d473b349a54143da44a0c6762b243e6459452",
     "third-party/upstream/f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af.txt": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
     "third-party/upstream/fc7d762e0ebf8720d0a03cf00058aaa3a198347e9651be2f50a25e3b3ec13985.txt": "fc7d762e0ebf8720d0a03cf00058aaa3a198347e9651be2f50a25e3b3ec13985"
@@ -4214,30 +4214,6 @@
         {
           "member": "README.md (license section)",
           "sha256": "bca603cabc880342e6b5b1e6a3e7b498225df28fb0d4df747f63160e8daae7f0"
-        }
-      ]
-    },
-    {
-      "name": "@fiahfy/icns",
-      "version": "0.0.7",
-      "license": "MIT",
-      "repository": "git+https://github.com/fiahfy/icns.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "e0ada792e41aae00426826d7d778bb3bf5ad39fe4ae86760e59df108b3bfe805"
-        }
-      ]
-    },
-    {
-      "name": "@fiahfy/packbits",
-      "version": "0.0.6",
-      "license": "MIT",
-      "repository": "git+https://github.com/fiahfy/packbits.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "e0ada792e41aae00426826d7d778bb3bf5ad39fe4ae86760e59df108b3bfe805"
         }
       ]
     },
@@ -8427,18 +8403,6 @@
       ]
     },
     {
-      "name": "builder-util-runtime",
-      "version": "9.5.1",
-      "license": "MIT",
-      "repository": "git+https://github.com/electron-userland/electron-builder.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "bed8d0ab3e6031817f775a641ff37313b0f5591bc8ba0ed79b978dafbd4231ce"
-        }
-      ]
-    },
-    {
       "name": "bun-ffi-structs",
       "version": "0.2.2",
       "license": "MIT",
@@ -10211,18 +10175,6 @@
       ]
     },
     {
-      "name": "electron-updater",
-      "version": "6.8.3",
-      "license": "MIT",
-      "repository": "git+https://github.com/electron-userland/electron-builder.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "bed8d0ab3e6031817f775a641ff37313b0f5591bc8ba0ed79b978dafbd4231ce"
-        }
-      ]
-    },
-    {
       "name": "embla-carousel-react",
       "version": "8.6.0",
       "license": "MIT",
@@ -11003,22 +10955,6 @@
         {
           "member": "README.md (license section)",
           "sha256": "415657352a5a182c4e3aae6941fff39eb8fe4e0cbd275fcc06a870504317818f"
-        }
-      ]
-    },
-    {
-      "name": "fs-extra",
-      "version": "10.1.0",
-      "license": "MIT",
-      "repository": "https://github.com/jprichardson/node-fs-extra",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "1e76029602ae9b21cc4e612db2496d92febed882ba13ba745f8b3309e85f9d39"
-        },
-        {
-          "member": "README.md (license section)",
-          "sha256": "99418da6b0279959da793d62433978847d00236e852c4be780f384b7f506d425"
         }
       ]
     },
@@ -12655,18 +12591,6 @@
       ]
     },
     {
-      "name": "lazy-val",
-      "version": "1.0.5",
-      "license": "MIT",
-      "repository": "develar/lazy-val",
-      "notices": [
-        {
-          "member": "https://registry.npmjs.org/lazy-val/1.0.5",
-          "sha256": "f18c12b8e7daf98d572518b7db133b2dc66a713921dac4825410dd656e0c1a1a"
-        }
-      ]
-    },
-    {
       "name": "lexical",
       "version": "0.42.0",
       "license": "MIT",
@@ -12767,18 +12691,6 @@
       ]
     },
     {
-      "name": "lodash.escaperegexp",
-      "version": "4.1.2",
-      "license": "MIT",
-      "repository": "lodash/lodash",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272"
-        }
-      ]
-    },
-    {
       "name": "lodash.identity",
       "version": "3.0.0",
       "license": "MIT",
@@ -12787,18 +12699,6 @@
         {
           "member": "LICENSE.txt",
           "sha256": "2b61a34ef17beffb1e555efa8b46110d25398d47f2e88b2cacc46f8bd382c639"
-        }
-      ]
-    },
-    {
-      "name": "lodash.isequal",
-      "version": "4.5.0",
-      "license": "MIT",
-      "repository": "lodash/lodash",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "e159c6d48c989185448658f276375bfb2300362ec6d4ae5525a2d49c4bcb947d"
         }
       ]
     },
@@ -17059,18 +16959,6 @@
       ]
     },
     {
-      "name": "tiny-typed-emitter",
-      "version": "2.1.0",
-      "license": "MIT",
-      "repository": "https://github.com/binier/tiny-typed-emitter.git",
-      "notices": [
-        {
-          "member": "LICENSE",
-          "sha256": "4b3faf884ee71eec3df920b66c98fc6618af28e824cf3a32ef3d8774048cc76d"
-        }
-      ]
-    },
-    {
       "name": "tinycolor2",
       "version": "1.6.0",
       "license": "MIT",
@@ -19141,7 +19029,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/image-preview-dialog.tsx",
-          "sha256": "ffdbea7a64b1ffec59d241b34eba817ba54dd4cb87330d7afc54f1532b6c43be"
+          "sha256": "08efc71b5d214b398d140a9923eb82921328a8bcc88f18acfe53feab20db9523"
         },
         {
           "file": "packages/ui/src/components/ai-elements/image-thumbnail-gallery.tsx",
@@ -31556,26 +31444,6 @@
       }
     },
     {
-      "package": "lazy-val@1.0.5",
-      "repo": "develar/lazy-val",
-      "refs": [
-        "b69ad4119f1b19bdab13c61ee2fcc88d46b89071"
-      ],
-      "file": "third-party/upstream/f18c12b8e7daf98d572518b7db133b2dc66a713921dac4825410dd656e0c1a1a.txt",
-      "sha256": "f18c12b8e7daf98d572518b7db133b2dc66a713921dac4825410dd656e0c1a1a",
-      "source": "https://registry.npmjs.org/lazy-val/1.0.5",
-      "evidenceKind": "publisher-license-identifier-and-standard-terms",
-      "license": "MIT",
-      "reviewEvidence": {
-        "checkedOn": "2026-09-21",
-        "result": "The versioned npm archive contains no standalone complete LICENSE; existing publisher declaration and original README license sections remain preserved. Upstream authorization/copyright material is still required to close this review.",
-        "npmArchiveSha256": "7d8602ad98db3d19fbd5b46fbf3831dd996197a013ef1ff7badc205e41435372",
-        "sourceRevision": "b69ad4119f1b19bdab13c61ee2fcc88d46b89071",
-        "sourceTreeUrl": "https://api.github.com/repos/develar/lazy-val/git/trees/b69ad4119f1b19bdab13c61ee2fcc88d46b89071?recursive=1",
-        "upstreamLicenseFiles": []
-      }
-    },
-    {
       "package": "semaphore@1.1.0",
       "repo": "abrkn/semaphore.js",
       "refs": [
@@ -31989,10 +31857,6 @@
     },
     {
       "id": "strict-event-emitter@0.5.1",
-      "reason": "Original version-specific publisher copyright/license material remains incomplete."
-    },
-    {
-      "id": "lazy-val@1.0.5",
       "reason": "Original version-specific publisher copyright/license material remains incomplete."
     },
     {
