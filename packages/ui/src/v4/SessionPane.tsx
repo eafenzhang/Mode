@@ -1178,6 +1178,7 @@ export function SessionPane({
     workspaceIdentity,
     provider,
     sessionId,
+    draftScopeId,
     sessionConfig: snapshot?.sessionId === sessionId ? snapshot.config : null,
     agentStartupAllowed: draftAgentStartupAllowed,
     modelSelectionService,

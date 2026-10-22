@@ -6,7 +6,7 @@ import { applyComposerPermissionGrant } from "@/v4/composer/composerPermissionGr
 // Workspace presentation 水合只提供 mode 与 slash commands；模型候选、能力和首选值
 // 统一来自目标 Host ModelSelectionView。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MODE_AGENT_PROVIDER, resolveExecutionState } from "@mode/shared";
+import { MODE_AGENT_PROVIDER } from "@mode/shared";
 import { applyComposerPlanTransition } from "@/v4/composer/composerPlanTransition.js";
 import type {
   ModeConfigOption,
@@ -26,12 +26,14 @@ import { prepareWorkspaceWithModeSessionService } from "@/hooks/useWorkspacePrep
 import { useModeSessionService } from "@/hooks/useModeSessionService.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { parseModelPickerValue } from "@/lib/modeSessionProjection.js";
-import { initializeNewTaskDraft } from "@/v4/composer/newTaskDraft.js";
+import {
+  initializeComposerDraftFromSeed,
+  resolveComposerDraftScopeId,
+} from "@/v4/composer/composerDraftInitialization.js";
 import {
   clearV4ComposerDraft,
   persistV4ComposerDraft,
   readV4ComposerDraft,
-  V4_DRAFT_SCOPE_ROOT,
   type V4ComposerDraft,
 } from "@/v4/composer/composerDraftStore.js";
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
@@ -105,6 +107,8 @@ export function useDraftConfigControl(params: {
   provider?: ModeProvider;
   /** 会话切换读取对应 scope；已有空选择也必须保留。 */
   sessionId: string | null;
+  /** 面板级草稿 scope（如设备对话）；缺省时草稿态使用 __draft__。 */
+  draftScopeId?: string;
   /** 仅匹配当前 Session 的首份投影可用作初始化；null 表示还没恢复完成。 */
   sessionConfig?: Partial<SessionConfigState> | null;
   /** provider registry 已通过 renderer readiness 门禁后才允许拉起 Agent。 */
@@ -116,6 +120,7 @@ export function useDraftConfigControl(params: {
     workspaceIdentity,
     provider,
     sessionId,
+    draftScopeId,
     sessionConfig,
     agentStartupAllowed = true,
     modelSelectionService,
@@ -125,7 +130,7 @@ export function useDraftConfigControl(params: {
   const modeSessionService = useModeSessionService(workspacePath, null, workspaceIdentity);
   const { settings: sharedSettings } = useSettings();
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
-  const scopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
+  const scopeId = resolveComposerDraftScopeId(sessionId, draftScopeId);
   const scopeKey = JSON.stringify([workspaceKey, scopeId]);
   const loadedScope = useMemo(
     () => ({
@@ -151,20 +156,19 @@ export function useDraftConfigControl(params: {
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
   const initializeAsNewTask = sessionId === null || draft.initializeFromNewTask === true;
-  if (!draft.mode && (initializeAsNewTask ? modelSelectionView !== null : sessionConfig != null)) {
-    const mode = submissionModeSchema.safeParse(sessionConfig?.mode);
-    // Recent 是初始化原意图，不先按旧 Provider 是否仍在候选中删掉；下一次输入读取
-    // 由同一解析入口对应当前账号，或暂时留空。否则冷启动会绕过统一账号对应规则。
-    // mode 是已初始化标记：历史恢复给出的空选择也是确定结果，后续 Snapshot 不得填满。
-    draft =
-      initializeAsNewTask && modelSelectionView
-        ? initializeNewTaskDraft(draft, workspacePath, workspaceIdentity, modelSelectionView)
-        : {
-            ...draft,
-            mode: mode.success && mode.data !== "plan" ? mode.data : "build",
-            planEnabled: resolveExecutionState(sessionConfig ?? {}).planEnabled,
-            modelSelection: sessionConfig?.modelSelection,
-          };
+  // Recent 是初始化原意图，不先按旧 Provider 是否仍在候选中删掉；下一次输入读取
+  // 由同一解析入口对应当前账号，或暂时留空。否则冷启动会绕过统一账号对应规则。
+  // mode 是已初始化标记：历史恢复给出的空选择也是确定结果，后续 Snapshot 不得填满。
+  const initializedDraft = initializeComposerDraftFromSeed({
+    draft,
+    initializeAsNewTask,
+    modelSelectionView,
+    sessionConfig: sessionConfig ?? null,
+    workspacePath,
+    workspaceIdentity,
+  });
+  if (initializedDraft) {
+    draft = initializedDraft;
   }
   if (sessionConfig) {
     draft = applyComposerPlanTransition(draft, sessionConfig.planTransition);
@@ -303,10 +307,11 @@ export function useDraftConfigControl(params: {
 
   const promoteComposerDraft = useCallback(
     (createdSessionId: string) => {
-      if (stateRef.current.scopeKey !== scopeKey || scopeId !== V4_DRAFT_SCOPE_ROOT) return;
+      // 只有草稿态可以提升；真实会话的 draft 不能迁移到另一个 session。
+      if (stateRef.current.scopeKey !== scopeKey || sessionId !== null) return;
       const targetSessionId = createdSessionId.trim();
       if (!targetSessionId) return;
-      // 首发成功曾直接删除 Root scope，真实 Session 没有 Composer Draft，
+      // 首发成功曾直接删除草稿 scope，真实 Session 没有 Composer Draft，
       // 重挂载后又从 Snapshot 初始化。先写目标、再删来源，保留完整正文/模式/选择。
       const written = persistV4ComposerDraft(
         workspacePath,
@@ -315,9 +320,9 @@ export function useDraftConfigControl(params: {
         stateRef.current.draft,
       );
       if (!written) return;
-      clearV4ComposerDraft(workspacePath, workspaceIdentity, V4_DRAFT_SCOPE_ROOT);
+      clearV4ComposerDraft(workspacePath, workspaceIdentity, scopeId);
     },
-    [scopeId, scopeKey, workspaceIdentity, workspacePath],
+    [scopeId, scopeKey, sessionId, workspaceIdentity, workspacePath],
   );
 
   // ── workspace 目录水合（见文件头说明）──

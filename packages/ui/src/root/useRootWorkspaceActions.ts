@@ -28,7 +28,12 @@ import {
 import { resolveWorkbenchNewTaskTarget } from "@/v4/workbenchNewTaskTarget.js";
 import type { WorkbenchNewTaskTarget } from "@/v4/workbenchNewTaskTarget.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
-import { persistV4ComposerDraft, V4_DRAFT_SCOPE_ROOT } from "@/v4/composer/composerDraftStore.js";
+import {
+  readV4ComposerDraft,
+  persistV4ComposerDraft,
+  V4_DRAFT_SCOPE_ROOT,
+} from "@/v4/composer/composerDraftStore.js";
+import { buildInitialPromptComposerDraft } from "@/v4/composer/composerDraftInitialization.js";
 
 interface OpenRemoteConnectionPreference {
   preferredKind?: RemoteTarget["kind"];
@@ -259,14 +264,20 @@ export function useRootWorkspaceActions({
         // insert request 被首个 composer 消费后会清空；如果随后因 pane/config
         // 切换 remount，新 composer 会从空的 __draft__ 恢复并覆盖预填。先写草稿事实源，
         // 再发即时插入请求：当前 composer 立即可见，后续 remount 也恢复同一文本。
+        // 只替换正文相关字段，保留用户已经选好的模型/模式意图。
         persistV4ComposerDraft(
           newTaskTarget.workspacePath,
           newTaskTarget.workspaceIdentity ?? undefined,
           V4_DRAFT_SCOPE_ROOT,
-          {
-            text: initialPrompt,
-            ...(initialPromptMention ? { mention: initialPromptMention } : {}),
-          },
+          buildInitialPromptComposerDraft(
+            readV4ComposerDraft(
+              newTaskTarget.workspacePath,
+              newTaskTarget.workspaceIdentity ?? undefined,
+              V4_DRAFT_SCOPE_ROOT,
+            ),
+            initialPrompt,
+            initialPromptMention,
+          ),
         );
         useModeSessionStore
           .getState()
