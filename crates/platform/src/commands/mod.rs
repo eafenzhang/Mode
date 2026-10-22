@@ -4,13 +4,14 @@
 //! 成对给出，`init()` 用它注册 handler，[`registered_names()`] 用它对外报名字。
 //! 这样「注册的命令」与「适配层会调的名字」不会各写一份而漂移。
 
+/// LR-3：远程桌面剪贴板读取（壳能力，Host 不碰平台 API）。
+pub mod clipboard;
 pub mod dialog;
 pub mod icon;
 pub mod notify;
 pub mod shell;
+pub mod temp_attachment;
 pub mod window;
-/// LR-3：远程桌面剪贴板读取（壳能力，Host 不碰平台 API）。
-pub mod clipboard;
 
 /// 生成切片表、handler 注册与名字上报。
 ///
@@ -82,6 +83,8 @@ command_slice! {
     "selectDirectory" => dialog::select_directory,
     "selectFile" => dialog::select_file,
     "saveFile" => dialog::save_file,
+    // 长粘贴文本 → 临时附件（Tauri 线真实实现；Electron main IPC 已随旧线 EOL 删除）。
+    "createTempTextAttachment" => temp_attachment::create_temp_text_attachment,
     "openInFileManager" => shell::open_in_file_manager,
     "showTaskNotification" => notify::show_task_notification,
     "notifyRendererReady" => window::notify_renderer_ready,

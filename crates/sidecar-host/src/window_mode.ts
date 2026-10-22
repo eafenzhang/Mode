@@ -39,9 +39,10 @@
  * - `packages/client/src/globals.d.ts` 是 `window.mode` 的声明真源——按声明返回形态自动分类；
  * - **renderer 的调用面**是第二处真源：它引用了 123 个成员、其中 11 个**没有**在那份声明里
  *   （它们由 `IPlatformService`（`packages/shared/src/platform.ts`）声明，适配层直接透传）。
- *   本文件据此补上渲染层**不加守卫就会调**的那些（`createTempTextAttachment`、
- *   `loadMcpFromUserDirectory`、`saveMcpToUserDirectory`、`migrateLegacyCommonMcp`、
- *   `renameLanPairedPeer`），分类同样按 `IPlatformService` 的返回形态。
+ *   本文件据此补上渲染层**不加守卫就会调**的那些（`loadMcpFromUserDirectory`、
+ *   `saveMcpToUserDirectory`、`migrateLegacyCommonMcp`、`renameLanPairedPeer`；
+ *   `createTempTextAttachment` 已从拒绝桩升级为真命令，见 M1_COMMANDS），
+ *   分类同样按 `IPlatformService` 的返回形态。
  *
  * `windowModeInjection.test.mts` 两头都守：声明面逐名对拍 + **扫渲染层源码取出「被直接调用
  * （没有 `?.`）的成员名」再要求它们全部被覆盖**。只守声明面是不够的——「从一个文件枚举面、
@@ -115,12 +116,14 @@
     return { id: "xdg-open", name: "文件管理器", iconDataUrl: "" };
   }
 
-  /** M1 切片表 + LR-3 追加的 11 条命令（与 `crates/platform/src/commands/mod.rs` 的切片表同名）。 */
+  /** M1 切片表 + LR-3/LR-5 追加的命令（与 `crates/platform/src/commands/mod.rs` 的切片表同名）。 */
   var M1_COMMANDS = [
     "openExternal",
     "selectDirectory",
     "selectFile",
     "saveFile",
+    // LR-5：长粘贴文本 → 临时附件（Electron main IPC 已随旧线 EOL 删除）。
+    "createTempTextAttachment",
     "openInFileManager",
     "showTaskNotification",
     "notifyRendererReady",
@@ -188,7 +191,6 @@
    */
   var REJECTING_REQUIRED = [
     "connectRemote",
-    "createTempTextAttachment",
     "isDockerAvailable",
     "listWSLDistros",
     "listDockerContainers",
@@ -598,6 +600,9 @@
     },
     saveFile: function (payload) {
       return invoke("saveFile", { payload: payload });
+    },
+    createTempTextAttachment: function (payload) {
+      return invoke("createTempTextAttachment", { payload: payload });
     },
     openInFileManager: function (path) {
       return invoke("openInFileManager", { path: path });

@@ -61,7 +61,8 @@ Electron 诊断构建提供。
 - `packages/desktop/tsconfig.renderer.json` 目前不在根 `typecheck` 里：一旦接入，会暴露
   `window.mode` 声明与 `IPlatformService` 之间的既有缺口（`createTempTextAttachment`、
   `renameLanPairedPeer`、`getWindowControlsOverlayMetrics` 等）。本 spec 不把它扩大成
-  类型重构；待 Tauri 平台面收敛后单独补。
+  类型重构；待 Tauri 平台面收敛后单独补。〔2026-10-22：`createTempTextAttachment` 已升级为
+  Tauri 壳命令（`crates/platform/src/commands/temp_attachment.rs`），不再属于该缺口。〕
 - `packages/desktop/tests/remote-desktop.test.mts` 只保留 host 侧输入换算与编码能力缓存；
   main 侧会话状态机/消息镜像覆盖随 Electron 一起删除。
 - 旧 Electron 的 CI 诊断步骤（browser-import C# oracle 对拍）已搬进 `tauri` job 的

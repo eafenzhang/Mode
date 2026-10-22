@@ -25,6 +25,18 @@ export interface ApplicationIconRequest {
   "locators": ApplicationIconLocator[];
 }
 
+export interface CreateTempTextAttachmentRequest {
+  "filename"?: string;
+  "text": string;
+}
+
+export interface CreateTempTextAttachmentResult {
+  "filename": string;
+  "localPath": string;
+  "mimeType": TempTextMimeType;
+  "sizeBytes": number;
+}
+
 export interface DeepLinkEvent {
   "code"?: string;
   "kind": DeepLinkEventKind;
@@ -61,3 +73,5 @@ export interface TaskNotificationPayload {
 }
 
 export type TaskNotificationStatus = "completed" | "failed" | "permission_request" | "elicitation_request" | "feedback_update";
+
+export type TempTextMimeType = "text/plain";

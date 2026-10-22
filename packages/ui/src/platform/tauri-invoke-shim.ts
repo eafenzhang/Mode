@@ -26,6 +26,8 @@
  */
 import type {
   ApplicationIconRequest,
+  CreateTempTextAttachmentRequest,
+  CreateTempTextAttachmentResult,
   DeepLinkEvent,
   DeepLinkEventKind,
   DesktopCommandId,
@@ -122,6 +124,8 @@ export const M1_IMPLEMENTED_COMMANDS = [
   "selectDirectory",
   "selectFile",
   "saveFile",
+  // LR-5：长粘贴文本 → 临时附件（壳命令 `createTempTextAttachment`）。
+  "createTempTextAttachment",
   "openInFileManager",
   "showTaskNotification",
   "notifyRendererReady",
@@ -346,6 +350,13 @@ export function createTauriPlatformService(
     },
     saveFile(payload: SaveFileRequest): Promise<SaveFileResult> {
       return invoke("saveFile", { payload }) as Promise<SaveFileResult>;
+    },
+    createTempTextAttachment(
+      payload: CreateTempTextAttachmentRequest,
+    ): Promise<CreateTempTextAttachmentResult> {
+      return invoke("createTempTextAttachment", {
+        payload,
+      }) as Promise<CreateTempTextAttachmentResult>;
     },
     openInFileManager(path: string): Promise<{ success: boolean; error?: string }> {
       return invoke("openInFileManager", { path }) as Promise<{

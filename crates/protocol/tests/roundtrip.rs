@@ -4,9 +4,10 @@
 //! 判别联合的 `kind` 取值。生成物 `packages/shared/src/generated/tauri-protocol.ts` 由同一份
 //! schemars 元数据产出，所以这里过就等于 TS 侧的形状也对得上。
 use protocol::{
-    ApplicationIconInfo, ApplicationIconLocator, ApplicationIconRequest, OpenPathResult,
+    ApplicationIconInfo, ApplicationIconLocator, ApplicationIconRequest,
+    CreateTempTextAttachmentRequest, CreateTempTextAttachmentResult, OpenPathResult,
     SaveFileRequest, SaveFileRequestError, SaveFileResult, TaskNotificationPayload,
-    TaskNotificationStatus,
+    TaskNotificationStatus, TempTextMimeType,
 };
 
 #[test]
@@ -190,5 +191,43 @@ fn result_shapes_omit_absent_options() {
     assert_eq!(
         serde_json::to_value(&icon).expect("serialize"),
         serde_json::json!({ "iconDataUrl": "data:image/png;base64,AA==" })
+    );
+}
+
+#[test]
+fn create_temp_text_attachment_uses_camel_case_and_omits_absent_filename() {
+    let request = CreateTempTextAttachmentRequest {
+        text: "x\n".to_string(),
+        filename: None,
+    };
+    assert_eq!(
+        serde_json::to_value(&request).expect("serialize"),
+        serde_json::json!({ "text": "x\n" }),
+        "filename 为 None 时必须整个字段缺席，不能写成 null"
+    );
+
+    let named = CreateTempTextAttachmentRequest {
+        filename: Some("paste.txt".to_string()),
+        ..request
+    };
+    assert_eq!(
+        serde_json::to_value(&named).expect("serialize"),
+        serde_json::json!({ "text": "x\n", "filename": "paste.txt" })
+    );
+
+    let result = CreateTempTextAttachmentResult {
+        filename: "paste.txt".to_string(),
+        local_path: r"C:\tmp\paste.txt".to_string(),
+        mime_type: TempTextMimeType::TextPlain,
+        size_bytes: 2,
+    };
+    assert_eq!(
+        serde_json::to_value(&result).expect("serialize"),
+        serde_json::json!({
+            "filename": "paste.txt",
+            "localPath": r"C:\tmp\paste.txt",
+            "mimeType": "text/plain",
+            "sizeBytes": 2,
+        })
     );
 }

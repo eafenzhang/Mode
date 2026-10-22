@@ -1147,7 +1147,8 @@ test("必选成员要么是真实现、要么被拒 / 降级留痕；可选成�
       `${name} 被渲染层直接调用，但 globals.d.ts 与 IPlatformService 都没声明它——` +
         `形态未知就不能猜，必须先确定它的返回形态`,
     );
-    classify(name, withoutConsumedValue);
+    // 已实现 / 故意留空的成员不再进入「被拒 / 空操作」的期望集——与上面两处声明循环同口径。
+    if (!implemented.has(name) && !absent.has(name)) classify(name, withoutConsumedValue);
   }
 
   // 可选成员不得被塞桩：调用方用 `?.` 守卫，「缺席」才是正确形态。

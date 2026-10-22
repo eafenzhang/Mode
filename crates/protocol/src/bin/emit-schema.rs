@@ -24,6 +24,13 @@ fn main() {
         "ApplicationIconInfo": schemars::schema_for!(protocol::ApplicationIconInfo),
         "SaveFileRequest": schemars::schema_for!(protocol::SaveFileRequest),
         "SaveFileResult": schemars::schema_for!(protocol::SaveFileResult),
+        "CreateTempTextAttachmentRequest": schemars::schema_for!(
+            protocol::CreateTempTextAttachmentRequest
+        ),
+        "CreateTempTextAttachmentResult": schemars::schema_for!(
+            protocol::CreateTempTextAttachmentResult
+        ),
+        "TempTextMimeType": schemars::schema_for!(protocol::TempTextMimeType),
         "OpenPathResult": schemars::schema_for!(protocol::OpenPathResult),
     });
     match serde_json::to_string_pretty(&bundle) {

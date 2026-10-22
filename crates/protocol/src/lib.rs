@@ -122,6 +122,35 @@ pub struct OpenPathResult {
     pub error: Option<String>,
 }
 
+/// `packages/shared/src/platform.ts` 的 `CreateTempTextAttachmentRequest`。
+///
+/// 长粘贴文本在桌面端落成临时文件后再作为附件提交（Web 端没有本地文件系统，返回不支持）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTempTextAttachmentRequest {
+    pub text: String,
+    /// 期望文件名；缺省时由壳生成 `attachment.txt`。壳会去掉路径分量与非法字符。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+}
+
+/// `CreateTempTextAttachmentResult["mimeType"]` 的取值；当前只允许 `text/plain`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub enum TempTextMimeType {
+    #[serde(rename = "text/plain")]
+    TextPlain,
+}
+
+/// `packages/shared/src/platform.ts` 的 `CreateTempTextAttachmentResult`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTempTextAttachmentResult {
+    pub filename: String,
+    pub local_path: String,
+    pub mime_type: TempTextMimeType,
+    pub size_bytes: u64,
+}
+
 /// 渲染层订阅的深链事件名。
 ///
 /// 真源在 Rust 侧（`crates/deeplink` 用它 emit，渲染层用它 `listen`）。事件名写错是

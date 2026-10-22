@@ -82,7 +82,7 @@ const noopListen = recordingListen().listen;
 test("M1 切片表的命令都被实现（不是靠抛错桩占位）", () => {
   const { invoke } = recordingInvoke();
   const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
-  assert.equal(M1_IMPLEMENTED_COMMANDS.length, 11);
+  assert.equal(M1_IMPLEMENTED_COMMANDS.length, 12);
   for (const name of M1_IMPLEMENTED_COMMANDS) {
     assert.equal(typeof service[name], "function", `${name} 应是函数`);
   }
@@ -128,6 +128,7 @@ test("命令名逐字映射到 invoke，参数用命令签名的字段名", asyn
     data: new Uint8Array([1, 2]) as unknown as ArrayBuffer,
     suggestedName: "a.bin",
   } as never);
+  await service.createTempTextAttachment?.({ text: "hello", filename: "paste.txt" });
   await new Promise((resolve) => setTimeout(resolve, 0));
   // notifyRendererReady 先等订阅就位再 invoke（顺序语义在下面的专门用例里断言），
   // 因此它在序列里的落点取决于微任务调度，不适合放进「同步命令的先后顺序」断言。
@@ -144,6 +145,7 @@ test("命令名逐字映射到 invoke，参数用命令签名的字段名", asyn
     "openInFileManager",
     "showTaskNotification",
     "saveFile",
+    "createTempTextAttachment",
   ]);
   assert.ok(
     calls.some((call) => call.command === "notifyRendererReady"),
@@ -157,6 +159,9 @@ test("命令名逐字映射到 invoke，参数用命令签名的字段名", asyn
   assert.deepEqual(argsOf("openInFileManager"), { path: "D:/ws" });
   assert.deepEqual(argsOf("showTaskNotification"), {
     payload: { taskId: "t1", status: "completed", title: "标题", body: "正文" },
+  });
+  assert.deepEqual(argsOf("createTempTextAttachment"), {
+    payload: { text: "hello", filename: "paste.txt" },
   });
 });
 

@@ -101,6 +101,19 @@ const COMMAND_SPECS = [
       } as never),
   },
   {
+    name: "createTempTextAttachment",
+    summary: "长粘贴文本 → 临时附件；返回 filename/localPath/mimeType/sizeBytes",
+    fields: [
+      { key: "text", label: "文本", initial: "hello from Tauri skeleton\n", kind: "text" },
+      { key: "filename", label: "filename", initial: "paste.txt", kind: "text" },
+    ],
+    call: (platform, values) =>
+      platform.createTempTextAttachment?.({
+        text: values.text ?? "",
+        ...(values.filename ? { filename: values.filename } : {}),
+      }),
+  },
+  {
     name: "openInFileManager",
     summary: "目录→打开；文件→在父目录里选中；不存在→success:false",
     fields: [{ key: "path", label: "path", initial: "", kind: "text" }],

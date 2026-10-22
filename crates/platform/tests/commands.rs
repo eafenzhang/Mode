@@ -9,11 +9,12 @@
 use platform::commands::{registered_names, M1_HANDLER_PATHS};
 
 /// 切片表里的命令，顺序与 spec 表格一致。
-const M1_SLICE: [&str; 11] = [
+const M1_SLICE: [&str; 12] = [
     "openExternal",
     "selectDirectory",
     "selectFile",
     "saveFile",
+    "createTempTextAttachment",
     "openInFileManager",
     "showTaskNotification",
     "notifyRendererReady",
@@ -91,6 +92,7 @@ const COMMAND_SOURCES: &[&str] = &[
     include_str!("../src/commands/window.rs"),
     include_str!("../src/commands/icon.rs"),
     include_str!("../src/commands/clipboard.rs"),
+    include_str!("../src/commands/temp_attachment.rs"),
 ];
 
 /// 线上真正的命令名 = `#[tauri::command(rename = "...")]` 的字面量。

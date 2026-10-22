@@ -18,7 +18,8 @@ Node/TS 侧提供，经 sidecar（M3）接入。因此本阶段：
 
 ## 1. 命令切片
 
-M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText`（共 11 条）。命令名与 `IPlatformService`
+M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText` + LR-5 追加的
+`createTempTextAttachment`（共 12 条）。命令名与 `IPlatformService`
 （`packages/shared/src/platform.ts`）**逐字一致**——渲染层的适配层按同名映射，
 改名即断链。切片表的唯一真源是 `crates/platform/src/commands/mod.rs` 的宏调用：
 命令名与处理函数成对声明，`init()` 与 `registered_names()` 都从它派生。
@@ -43,13 +44,14 @@ M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText`（共 11 条）。命
 | 2 | `selectDirectory` | `() -> Promise<string \| null>` | `tauri-plugin-dialog` `pick_folder`；取消 → `null` |
 | 3 | `selectFile` | `() -> Promise<string \| null>` | `pick_file`；取消 → `null` |
 | 4 | `saveFile` | `(payload: SaveFileRequest) -> Promise<SaveFileResult>` | **已实现（M3 Task 4 起）**：`data` 分支与 `sourceUrl` 分支都完整；`sourceUrl` 走**有上限**的取回（超时 30s / 字节上限 64 MiB，见 §9.3），失败**不写任何字节**。M1 的占位错码 `save_file_source_url_not_implemented_until_m3` 已作废 |
-| 5 | `openInFileManager` | `(path: string) -> Promise<{success, error?}>` | 按路径类型分派：目录 → 文件管理器打开；文件 → 在父目录中选中；路径不可用 → `success: false` |
-| 6 | `showTaskNotification` | `(payload: TaskNotificationPayload) -> void` | `tauri-plugin-notification`；是否真正展示交系统 |
-| 7 | `notifyRendererReady` | `() -> void` | 记录就绪位到 `AppState`；**冷启动深链在这里回放**（缓存与回放时序在 `crates/deeplink` 的 router，有单测）。运行期与第二实例转发见 §2 与 §9.1 |
-| 8 | `syncWindowTabs` | `(paths: string[]) -> void` | 覆盖式写入 `AppState` |
-| 9 | `syncWindowUnreadCount` | `(count: number) -> void` | 覆盖式写入 `AppState` |
-| 10 | `getApplicationIcon` | `(req: ApplicationIconRequest) -> IconInfo \| null` | **已实现（Windows，M3 Task 4 起）**：Shell 取图标资源 + GDI 取像素 → PNG data URL；按 locator 顺序尝试，**取不到返回 `null`（契约允许），从不抛**。**macOS 半边未实现且本阶段不验**（Ruling 20），见 §9.2 |
-| 11 | `rdReadClipboardText` | `() -> Promise<string>` | **已实现（LR-3，Windows）**：壳读 CF_UNICODETEXT（`OpenClipboard` 争用重试 200ms，无文本/被占用返回空串，从不抛）；非 Windows 返回空串。远程桌面主控剪贴板同步的读取口（D7：Host 不碰平台 API） |
+| 5 | `createTempTextAttachment` | `(payload: CreateTempTextAttachmentRequest) -> Promise<CreateTempTextAttachmentResult>` | **已实现（LR-5，2026-10-22）**：写入系统临时目录 `mode-temp-attachments/<pid>-<纳秒>/<filename>`；文件名去路径分量、非法字符替换为 `_`，空名/`.`/`..` 回退 `attachment.txt`；每次调用独立子目录，同名不覆盖。失败返回稳定码 `create_temp_text_attachment_failed`，IO 细节只进 stderr |
+| 6 | `openInFileManager` | `(path: string) -> Promise<{success, error?}>` | 按路径类型分派：目录 → 文件管理器打开；文件 → 在父目录中选中；路径不可用 → `success: false` |
+| 7 | `showTaskNotification` | `(payload: TaskNotificationPayload) -> void` | `tauri-plugin-notification`；是否真正展示交系统 |
+| 8 | `notifyRendererReady` | `() -> void` | 记录就绪位到 `AppState`；**冷启动深链在这里回放**（缓存与回放时序在 `crates/deeplink` 的 router，有单测）。运行期与第二实例转发见 §2 与 §9.1 |
+| 9 | `syncWindowTabs` | `(paths: string[]) -> void` | 覆盖式写入 `AppState` |
+| 10 | `syncWindowUnreadCount` | `(count: number) -> void` | 覆盖式写入 `AppState` |
+| 11 | `getApplicationIcon` | `(req: ApplicationIconRequest) -> IconInfo \| null` | **已实现（Windows，M3 Task 4 起）**：Shell 取图标资源 + GDI 取像素 → PNG data URL；按 locator 顺序尝试，**取不到返回 `null`（契约允许），从不抛**。**macOS 半边未实现且本阶段不验**（Ruling 20），见 §9.2 |
+| 12 | `rdReadClipboardText` | `() -> Promise<string>` | **已实现（LR-3，Windows）**：壳读 CF_UNICODETEXT（`OpenClipboard` 争用重试 200ms，无文本/被占用返回空串，从不抛）；非 Windows 返回空串。远程桌面主控剪贴板同步的读取口（D7：Host 不碰平台 API） |
 
 ### 非本地路径的处理
 
@@ -742,7 +744,7 @@ LR-1/LR-2 的 LAN 与远程桌面管理面全部走**既有** `MessagePort` 上�
 后续阶段补齐（2026-10-19 更新）：
 - **被控侧协调器**：已迁移到 Host（`host/remoteDesktopControlledCoordinator.ts`）；
   剪贴板门控仍由媒体中继负责。
-- **`rdReadClipboardText`**：已是壳命令（§1 第 11 条，Windows CF_UNICODETEXT）；
+- **`rdReadClipboardText`**：已是壳命令（§1 第 12 条，Windows CF_UNICODETEXT）；
   主控剪贴板同步可用。
 - **同意窗/指示条**：renderer 模态（`RemoteDesktopConsentDialog` / `RemoteDesktopIndicator`）已落地；
   壳 `WebviewWindow` 形态仍待产品决策（DR-LR-1）。
