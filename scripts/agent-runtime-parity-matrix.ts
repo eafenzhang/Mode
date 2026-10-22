@@ -51,7 +51,7 @@ const RULES: readonly ClassificationRule[] = [
     domain: "data",
     verdict: "not-applicable",
     reason: "存储路径/迁移；归 Host（M3）",
-    match: /^(dataRoot|dataBaseDir).*\.test\.ts$/,
+    match: /^(dataRoot|dataBaseDir|data-root-).*\.test\.ts$/,
   },
   {
     domain: "plugin",

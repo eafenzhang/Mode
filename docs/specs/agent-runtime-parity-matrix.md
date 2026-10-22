@@ -1,10 +1,10 @@
 # M2 对拍覆盖率矩阵（Task 7 输入）
 
-状态：2026-10-18 首版；2026-10-22 补入 `settings-user-nickname`。**这是盘点，不是验收通过**；具体用例归属以各测试文件为准。
+状态：2026-10-18 首版；2026-10-22 补入 `settings-user-nickname`；2026-10-23 补入 `data-root-host-drill` 与 `bot-remote-workspace-transport`。**这是盘点，不是验收通过**；具体用例归属以各测试文件为准。
 
 ## 结论先说
 
-- `packages/services/test` 共 **69** 个 `*.test.ts`，其中 **0** 个引用运行时会话面
+- `packages/services/test` 共 **71** 个 `*.test.ts`，其中 **0** 个引用运行时会话面
   （`SessionEvent` / `session/send` / `agentSession` / `CommandInbox` / `tool.updated`）。
 - 因此阶段计划 Task 7 的「在 services 的 ~198 个测试里挑运行时用例」**前提已过期**：
   服务包的测试以 IM bot / CUA / 插件市场 / provider 配置 / 存储路径为主。
@@ -16,13 +16,13 @@
 - **建议**：把 Task 7 的盘点对象改成上面四项；`packages/services/test` 只保留「不适用」的
   判定记录，不再逐文件转写。
 
-## `packages/services/test` 分类（69 个文件）
+## `packages/services/test` 分类（71 个文件）
 
 | 域 | 数量 | 判定 | 理由 |
 | --- | --- | --- | --- |
-| `bot-*` | 33 | 不适用 | IM bot 业务；M2 不含 bot 宿主（M3） |
+| `bot-*` | 34 | 不适用 | IM bot 业务；M2 不含 bot 宿主（M3） |
 | `cua-*` | 8 | 不适用 | 电脑控制独立线 |
-| `dataRoot*` / `dataBaseDir*` | 5 | 不适用 | 存储路径/迁移；归 Host（M3） |
+| `dataRoot*` / `dataBaseDir*` / `data-root-*` | 6 | 不适用 | 存储路径/迁移；归 Host（M3） |
 | `plugin-*` / `official-plugin-attribution` | 5 | 不适用 | 插件市场（M3） |
 | `provider*` / `orcarouter*` / `remoteModelCatalog` / `retiredZhipu*` | 9 | 不适用 | provider 配置层；Rust 侧目前只有脚本化 fake（DR-T5-2） |
 | `conversationMirror*` / `importedClaudeRecovery` / `nonCliAcpRetirement` / `conversation-typing-bubble` | 4 | 转不动（登记原因） | 镜像/会话存储/宿主层；不是 stdio 运行时事件面 |
@@ -31,21 +31,21 @@
 <details>
 <summary>逐文件清单</summary>
 
-- **bot（33）**：`bot-attachment-cache-retention`、`bot-change-summary-kinds`、
+- **bot（34）**：`bot-attachment-cache-retention`、`bot-change-summary-kinds`、
   `bot-config-mutation`、`bot-config-schema`、`bot-conversation-session`、`bot-delivery-mode`、
   `bot-dingtalk`、`bot-group-chat`、`bot-group-history-store`、`bot-group-permission-service`、
   `bot-group-prompt`、`bot-heartbeat`、`bot-inbound-context`、`bot-inbound-dedupe`、
   `bot-message-queue`、`bot-outbound-delivery`、`bot-outbound-media`、`bot-outbound-target`、
-  `bot-private-admission`、`bot-remote-workspace-identity`、`bot-reply-granularity`、
-  `bot-reply-segments`、`bot-reply-text-format`、`bot-runtime-projection`、
+  `bot-private-admission`、`bot-remote-workspace-identity`、`bot-remote-workspace-transport`、
+  `bot-reply-granularity`、`bot-reply-segments`、`bot-reply-text-format`、`bot-runtime-projection`、
   `bot-session-binding-eligibility`、`bot-state-mutation`、`bot-streaming-edit`、
   `bot-text-media`、`bot-typing-feedback`、`bot-wecom-typing`、`bot-weixin-typing`、
   `bot-workspace-binding`、`bot-workspace-turn-gate`
 - **cua（8）**：`cua-enablement`、`cua-helper-admission`、`cua-helper-stdio-relay`、
   `cua-overview-attribution`、`cua-permission-observation-gate`、`cua-plugin-distribution`、
   `cua-raw-input`、`cua-rd-media`
-- **data（5）**：`dataBaseDirDefault`、`dataBaseDirEnvLock`、`dataRootInitializer`、
-  `dataRootMigration`、`dataRootOwnership`
+- **data（6）**：`dataBaseDirDefault`、`dataBaseDirEnvLock`、`data-root-host-drill`、
+  `dataRootInitializer`、`dataRootMigration`、`dataRootOwnership`
 - **plugin（5）**：`plugin-description-translation`、`plugin-detail-components-state`、
   `plugin-marketplace-defaults`、`plugin-marketplace-id-compat`、`official-plugin-attribution`
 - **provider（9）**：`providerBalanceParsing`、`providerBalanceProvider`、

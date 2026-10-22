@@ -20,6 +20,7 @@ test("services 测试按域归类，未分类返回 null", () => {
   assert.equal(classifyServicesTestFile("bot-dingtalk.test.ts")?.domain, "bot");
   assert.equal(classifyServicesTestFile("cua-helper-admission.test.ts")?.domain, "cua");
   assert.equal(classifyServicesTestFile("dataRootMigration.test.ts")?.domain, "data");
+  assert.equal(classifyServicesTestFile("data-root-host-drill.test.ts")?.domain, "data");
   assert.equal(classifyServicesTestFile("plugin-marketplace-defaults.test.ts")?.domain, "plugin");
   assert.equal(classifyServicesTestFile("providerConfigMigration.test.ts")?.domain, "provider");
   assert.equal(
