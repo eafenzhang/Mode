@@ -436,7 +436,14 @@ memory 脚本已入库并用现役实例验证分类器，30 min 正式基线待
 **59.77 MiB**（host-sidecar 31.60 + agent 19.49 + tools 8.50 + config 0.19，over-target
 标注正常；与 2026-10-23 基线 ≈63MB 同量级）；stream-latency 的 **agent 段**基线已入库
 （中位 3ms / p95 35ms，详见「度量与预算」），Host→renderer 段待产品壳 E2E；
-性能四件的脚本面至此全部落地，memory 的 30min 正式基线待无实例窗口。〕
+性能四件的脚本面至此全部落地，memory 的 30min 正式基线待无实例窗口。
+**可选项 IM bot SDK 可选化：动态 import 半件已落地**（2026-10-24）——wecom 的静态
+值 import 收口为 `wecomSdk.ts` 懒加载器（feishu 侧此前已是动态），Host 启动不再拉起
+两个 SDK 的模块图（bundle 自验通过 + 守卫测试钉住「无静态值 import」）；
+**「移出 ship 闭包」半件未做**：SDK 仍在 `RUNTIME_EXTERNALS`，直接摘除会让 esbuild
+把 25 MB larksuite 内联进单文件 bundle（更糟）或让已装产品的企微/飞书通道
+module-not-found；真正摘除需要「按需资产下发」基建（复用 AssetCache 骨架）或
+产品拍板「无 SDK 时通道 fail-closed」，属待人工/后续项。〕
 
 ### M4b（2–4 周）：Host 并入壳 + IPC 换代
 

@@ -4,9 +4,9 @@ import type {
   Logger as WeComSdkLogger,
   WsFrame,
 } from "@wecom/aibot-node-sdk";
-import { WSAuthFailureError, WSClient } from "@wecom/aibot-node-sdk";
 import type { WeComConnection, WeComConnectionRegistry } from "./wecomConnection.js";
 import { resolveWeComChatKey } from "./wecomConnection.js";
+import { loadWeComSdk } from "./wecomSdk.js";
 import type { BotConfig, BotProviderCallbackResult, BotsConfigFile } from "@mode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import {
@@ -143,6 +143,12 @@ export function createWeComChannelRuntime(deps: WeComChannelRuntimeDeps) {
     lock: { release(): Promise<void> },
     signal: AbortSignal,
   ): Promise<void> {
+    // SDK 全量源码不进 Host 启动模块图：只有这条通道真的连上来才加载（M4a 可选化）。
+    const { WSAuthFailureError, WSClient } = await loadWeComSdk();
+    // 加载期间通道可能已停用，迟到的模块不能重建连接（与 feishu 侧同语义）。
+    if (signal.aborted) {
+      throw new Error("WeCom channel startup aborted.");
+    }
     // 去重表从磁盘恢复（跨重启 + 重连窗口内不重复处理）。
     const now0 = Date.now();
     const persisted = await deps.readWecomDedup(bot.id).catch(() => []);

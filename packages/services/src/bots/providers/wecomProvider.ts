@@ -7,9 +7,9 @@ import type {
   TextMessage,
   VideoMessage,
   VoiceMessage,
+  WSClient,
   WsFrame,
 } from "@wecom/aibot-node-sdk";
-import { generateReqId, WSClient, WSAuthFailureError } from "@wecom/aibot-node-sdk";
 import type {
   BotConfig,
   BotInboundAttachment,
@@ -18,6 +18,7 @@ import type {
 } from "@mode/shared";
 import type { BotProviderAdapter, BotStreamingReplyCardState, BotTypingTarget } from "./types.js";
 import { formatBotMessage } from "../messages.js";
+import { loadWeComSdk } from "../wecomSdk.js";
 import { splitBotText } from "../botText.js";
 import { renderStreamingBlocksToMarkdown } from "./streamingText.js";
 import type { WeComConnectionRegistry } from "../wecomConnection.js";
@@ -225,6 +226,7 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
     }
     const open = (async () => {
       try {
+        const { generateReqId } = await loadWeComSdk();
         const streamId = generateReqId("stream");
         // 首帧即 MyAgents 同款占位：开流后企微 PC 立刻显示原生 loading，
         // 思考期不发任何刷新帧（与 MyAgents 的零帧行为一致）。
@@ -266,6 +268,7 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
   }
 
   async function probeAuthentication(botId: string, secret: string): Promise<void> {
+    const { WSAuthFailureError, WSClient } = await loadWeComSdk();
     await new Promise<void>((resolve, reject) => {
       const client = new WSClient({
         botId,
@@ -416,6 +419,7 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
       if (!connection || !frame) {
         return null;
       }
+      const { generateReqId } = await loadWeComSdk();
       const streamId = generateReqId("stream");
       streamFrames.set(streamId, frame);
       try {
@@ -562,6 +566,7 @@ export function createWeComBotProvider(deps: WeComProviderDeps): BotProviderAdap
       const frame = connection.getLastFrame(target.providerUserId);
       if (caption && !captionHandled) {
         if (frame) {
+          const { generateReqId } = await loadWeComSdk();
           await connection.client.replyStream(frame, generateReqId("stream"), caption, true);
         } else {
           await pushMarkdownChunks(connection.client, target.providerUserId, caption);
