@@ -29,7 +29,10 @@
 
 ### R1 缺省值按 provider 解析
 
-私聊方式的缺省值唯一由 `resolveBotPrivateChatMode`（`packages/shared/src/bots.ts`）解析：
+私聊方式的缺省值唯一由 `resolveBotPrivateChatMode`（`packages/shared/src/bots.ts`）解析。
+
+2026-10-23 起降级为**存量推导规则**：新建微信 Bot 缺省改为 `whitelist`
+（[bot-access-mode.md](./bot-access-mode.md) R5）；本表只用于无 `accessMode` 字段的存量配置。
 
 | provider | 缺省 `privateChatMode` | 含义                         |
 | -------- | ---------------------- | ---------------------------- |
@@ -76,7 +79,7 @@
 - 保留「私聊方式」下拉，默认显示「全部用户」；
 - 按现有 `isBoundUsersMode` 分支，「全部用户」下自然隐藏「已绑定用户」和绑定码区域，
   不新增 `if provider === "weixin"` 的展示分支；
-- 新建 Bot 时由 `createDraftBot` 显式落盘解析后的缺省值（`all_users` / `bound_users`），
+- 新建 Bot 时由 `createDraftBot` 显式落盘 `accessMode: "whitelist"`（全渠道），
   存量配置未写该字段时由 R1 的解析函数兜底；
 - 微信扫码成功提示保持「发送任意消息激活」，不承诺自动绑定。
 

@@ -278,8 +278,9 @@ G6 / G7 / G9 都依赖"话题"这个维度，而它是**我们领域模型里目
 
 ### R3 群说话权只由既有开关决定
 
-「私聊方式」+「群聊激活模式」是唯一的准入开关（`im-bot-onboarding.md` R2 的不对称保持）。
-新增的 @ 解析、管理员关注等能力**不得**引入第二套授权模型。
+R3（2026-10-23 修订，bot-access-mode.md）：`accessMode`（whitelist/free）+ 群激活模式
+（disabled/mention/always）是唯一准入开关，禁止引入第二套授权模型；`blockedUsers` /
+`blockedGroups` 是对准入结果的纯否决层（只减不加、最先检查），不算第二条授权路径。
 
 ### R4 平台能力分档，不造假界面
 

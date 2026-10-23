@@ -63,7 +63,7 @@
 
 | 通道             | 凭据获取             | 是否支持手填                         | 绑定阶段            | 「已连接」判据                                    |
 | ---------------- | -------------------- | ------------------------------------ | ------------------- | ------------------------------------------------- |
-| 微信 weixin      | 仅扫码注册           | 否（无手填字段）                     | 默认无（`all_users`）；显式 `bound_users` 时 `/bind` | `credentialRef`（`ProviderSettingsCard.tsx:438`） |
+| 微信 weixin      | 仅扫码注册           | 否（无手填字段）                     | 缺省见 [bot-access-mode.md](./bot-access-mode.md) R5：新建 `whitelist`（`/bind` 或切 free）、存量推导 `free` | `credentialRef`（`ProviderSettingsCard.tsx:438`） |
 | 企微 wecom       | 扫码注册 **或** 手填 | 是（`wecomBotId` + secret）          | 有，自动 `/bind`    | `providerUserId`                                  |
 | 飞书 feishu/lark | 仅扫码注册           | **否**（手填入口已在 UI 重构中移除） | 有，自动 `/bind`    | `providerUserId`                                  |
 | 钉钉 dingtalk    | 仅手填               | 是（`dingtalkClientId` + AppSecret） | 有，自动 `/bind`    | `providerUserId`                                  |
@@ -105,8 +105,8 @@
 - 企微：扫码 + 手填（现状即双路，作为模板）；
 - 飞书：扫码为默认路径，**补回手填**（见 R3-1）；
 - 钉钉：手填为默认路径，**扫码为可选补齐**（见 R3-3）；
-- 微信：扫码为唯一凭据路径；私聊方式缺省 `all_users`（扫码即可用，见
-  [bot-weixin-open-dm.md](./bot-weixin-open-dm.md)），显式切回 `bound_users` 时仍保留
+- 微信：扫码为唯一凭据路径；缺省按 [bot-access-mode.md](./bot-access-mode.md) R5
+  （存量无 `accessMode` 字段推导 `free`，新建显式落盘 `whitelist`），`whitelist` 下仍保留
   `/bind` 与绑定 UI。
 
 ### R3 本轮补齐项（需评审确认后实现）
@@ -129,8 +129,9 @@
    现状 `isConnected = credentialRef`，把"凭据已就绪"和"机器人已可用"混成一个点：
    扫码成功后圆点即变绿、文案为"已连通"，但此时机器人还收不到消息。
    按 R1 口径拆成两段呈现：凭据就绪（`credentialRef`）与已激活（`weixinActivatedAt` 存在）。
-   - 落地方式：微信默认不要求绑定（私聊方式缺省 `all_users`，见
-     [bot-weixin-open-dm.md](./bot-weixin-open-dm.md)），状态行只呈现「凭据 / 激活」两段，
+   - 落地方式：微信缺省按 [bot-access-mode.md](./bot-access-mode.md) R5（存量无
+     `accessMode` 字段推导 `free`，`free` 下不要求绑定；新建缺省 `whitelist`），状态行只呈现
+     「凭据 / 激活」两段，
      第三段就绪判据为 `weixinActivatedAt`；未激活时为灰点「待激活」，不再显示绿色的「已连通」。
    - 显式 `bound_users` 时恢复绑定段与 `/bind` 入口；扫码注册本身不写 `providerUserId`
      （`weixin-provider-self-id.md`），不存在“扫码自动绑定主人”的事实。
@@ -337,8 +338,8 @@ UI 只读 getStatus() / getConfig() ◀─────────────�
      `saveBot` 里落 `feishuAppId` + 凭据（不绕 `credentialService`）并复用既有校验状态机。
      仍未覆盖的是**渲染结果本身**（按钮是否可见、DOM 结构），要等引入 DOM 环境另立任务。
 3. **微信两态**：仅有 `credentialRef` 时显示"凭据就绪、未激活"；收到首条入站消息写入
-   `weixinActivatedAt` 后转为"已激活"。默认 `all_users` 下不出现绑定入口；
-   显式切到 `bound_users` 时保留。
+   `weixinActivatedAt` 后转为"已激活"。`free`（存量推导）下不出现绑定入口；
+   `whitelist`（新建缺省）下保留（缺省语义见 [bot-access-mode.md](./bot-access-mode.md) R5）。
    `getStatus().botRuntime` 必须把通道状态里的 `weixinActivatedAt` 合并进对应 runtime 条目，
    不能只在没有 runtime 的兜底分支返回——微信 Bot 启用后一定有 runtime（长轮询/错误态），
    否则已激活的 Bot 会一直显示「待激活」。

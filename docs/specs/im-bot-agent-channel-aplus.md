@@ -41,9 +41,9 @@
 ## 私聊规则
 
 1. 会话键：`agent:{agentId}:{provider}:private:{peerId}`。
-2. 准入模式：`bound_users`（绑定用户或 `allowedUsers`）或 `all_users`。缺省按 provider 解析：微信 `all_users`，其余 `bound_users`（[bot-weixin-open-dm.md](./bot-weixin-open-dm.md)）。
+2. 准入模式：`bound_users`（绑定用户或 `allowedUsers`）或 `all_users`。缺省一律 `whitelist`（新建显式落盘）；存量无 `accessMode` 字段时按 `resolveBotAccessMode` 推导（微信 free、其余 whitelist），见 [bot-access-mode.md](./bot-access-mode.md) R5。
 3. 空名单 + `bound_users`：拒绝，直到 `/bind` 成功；不复制参照项目 transport 的空名单放行差异。
-4. 微信不再绕过准入；微信、企微、飞书、钉钉共用同一套判定。微信的差异只在缺省值（`all_users`），不在闸门分支。
+4. 微信不再绕过准入；微信、企微、飞书、钉钉共用同一套判定。微信的差异只在存量缺省推导（`free`），新建一律 whitelist；闸门分支四通道完全一致。
 5. `/bind` 只允许私聊，TTL 5 分钟，单次使用；已绑定用户重复绑定码静默忽略。
 6. `/new` 只允许私聊；创建新 Session 并轮换 peer binding，历史保留。
 7. 私聊是 Heartbeat、Task、Cron 的唯一投递目标；群活动不得覆盖。
