@@ -911,6 +911,27 @@ const faIR: Record<string, string> = {
   "bots.groupChat.permissions.approve": "تأیید",
   "bots.groupChat.permissions.reject": "رد",
   "bots.groupChat.permissions.remove": "حذف",
+  // 访问控制统一双模式（docs/specs/bot-access-mode.md R6）新增键：值暂用 en 文案占位，待翻译。
+  "bots.groupChat.registered": "Registered groups (auto-approved in Free mode)",
+  "bots.groupChat.registeredEmpty":
+    "No registered groups yet; in Free mode a group registers after its first message.",
+  "bots.groupChat.block": "Block",
+  "bots.accessMode.title": "Access mode",
+  "bots.accessMode.description":
+    "Whitelist: only bound users and approved groups can drive the bot; Free: any private chat and any group it is in works automatically and gets registered.",
+  "bots.accessMode.mode.whitelist": "Whitelist",
+  "bots.accessMode.mode.free": "Free",
+  "bots.accessMode.blockedUsers": "Blocked users",
+  "bots.accessMode.blockedGroups": "Blocked groups",
+  "bots.accessMode.unblockUser": "Unblock",
+  "bots.accessMode.unblockGroup": "Unblock",
+  "bots.accessMode.empty": "Nothing blocked yet.",
+  "bots.registry.title": "Registered users",
+  "bots.registry.empty":
+    "No registrations yet; in Free mode the first private message registers automatically.",
+  "bots.registry.remove": "Remove",
+  "bots.registry.block": "Block",
+  "bots.registry.blockedBadge": "Blocked",
   "bots.deliveryMode.title": "روش ارسال پیام",
   "bots.deliveryMode.description":
     "پاسخ خودکار مستقیم ارسال می‌شود؛ در حالت فقط ابزار فقط پیام ابزار ارسال می‌شود.",
@@ -927,12 +948,6 @@ const faIR: Record<string, string> = {
     "به «{workspace}» پیوند شده؛ انتخاب فضای دیگر یعنی پیوند مجدد.",
   "bots.workspaceManagement.selectPlaceholder": "انتخاب فضای کاری",
   "bots.workspaceManagement.option.unbound": "متصل نشده (پیروی از /workspace)",
-  "bots.privateChat.title": "حالت چت خصوصی",
-  "bots.privateChat.description.boundUsers":
-    "فقط کاربران متصل می‌توانند بات را هدایت کنند؛ برای پیوند /bind بفرستید.",
-  "bots.privateChat.description.allUsers": "هر کاربر چت خصوصی می‌تواند بات را هدایت کند.",
-  "bots.privateChat.mode.boundUsers": "کاربران متصل",
-  "bots.privateChat.mode.allUsers": "همه کاربران",
   "bots.privateChat.boundUsersLabel": "کاربران متصل",
   "bots.privateChat.boundUsersHint":
     "کاربران دیگر با همان کد پیوند اضافه می‌شوند؛ حذف هرکدام نیاز به پیوند مجدد دارد.",

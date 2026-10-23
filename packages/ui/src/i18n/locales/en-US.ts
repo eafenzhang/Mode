@@ -944,12 +944,6 @@ const enUS: Record<string, string> = {
     'Bound to "{workspace}"; choosing another workspace rebinds.',
   "bots.workspaceManagement.selectPlaceholder": "Select a workspace",
   "bots.workspaceManagement.option.unbound": "Unbound (follow /workspace)",
-  "bots.privateChat.title": "Private chat",
-  "bots.privateChat.description.boundUsers":
-    "Only bound users can drive this bot; send /bind to bind.",
-  "bots.privateChat.description.allUsers": "Any private-chat user can drive this bot.",
-  "bots.privateChat.mode.boundUsers": "Bound users",
-  "bots.privateChat.mode.allUsers": "All users",
   "bots.privateChat.boundUsersLabel": "Bound users",
   "bots.privateChat.boundUsersHint":
     "Other users join with the same bind code; removing one requires rebinding.",
