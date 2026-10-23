@@ -78,3 +78,74 @@ test("botConfigSchema：新增字段能严格解析并往返", async () => {
   assert.equal(parsed.bots[0]?.blockedGroups?.[0]?.groupId, "g-black");
   assert.equal(parsed.bots[0]?.userRegistry?.[0]?.providerUserId, "u1");
 });
+
+test("findBoundUser：free 模式任何私聊用户放行，whitelist 按绑定收紧", async () => {
+  const { findBoundUser } = await import("../src/bots/botConfigHelpers.js");
+  const free = {
+    id: "b1",
+    provider: "wecom",
+    providerUserId: "owner",
+    allowedUsers: ["t1"],
+    accessMode: "free",
+  } as never;
+  const whitelist = { ...free, accessMode: "whitelist" } as never;
+  const actor = (providerUserId: string) =>
+    ({ provider: "wecom", botId: "b1", providerUserId, chatType: "private" }) as never;
+  assert.ok(findBoundUser(free, actor("stranger")), "free 模式陌生私聊必须放行");
+  assert.equal(findBoundUser(whitelist, actor("stranger")), null, "whitelist 必须拒绝陌生私聊");
+  assert.ok(findBoundUser(whitelist, actor("t1")), "whitelist 放行 allowedUsers");
+});
+
+test("黑名单纯函数：按 bot 配置精确命中，缺席不误伤", async () => {
+  const { isUserBlocked, isGroupBlocked } = await import("../src/bots/botConfigHelpers.js");
+  const bot = {
+    id: "b1",
+    provider: "wecom",
+    blockedUsers: ["u-black"],
+    blockedGroups: [{ groupId: "g-black", platform: "wecom", blockedAt: 1 }],
+  } as never;
+  assert.equal(isUserBlocked(bot, "u-black"), true);
+  assert.equal(isUserBlocked(bot, "u-ok"), false);
+  assert.equal(isGroupBlocked(bot, "g-black"), true);
+  assert.equal(isGroupBlocked(bot, "g-ok"), false);
+  assert.equal(
+    isUserBlocked({ id: "b1", provider: "wecom" } as never, "u-any"),
+    false,
+    "无字段视为未拉黑",
+  );
+});
+
+test("normalizeBotConfig：回填 accessMode（存量推导不锁死，显式值原样保留）", async () => {
+  const { normalizeBotConfig } = await import("../src/bots/botConfigHelpers.js");
+  const base = {
+    id: "b1",
+    name: "b",
+    provider: "weixin",
+    enabled: true,
+    allowedWorkspaces: ["*"],
+    // 简报原样写的是 {}，但 botAllowedCommandsSchema 有 6 个必填布尔
+    // （status/new/workspace/model/thoughtLevel/reply）；此处补齐以与上方 schema 用例一致。
+    allowedCommands: {
+      status: true,
+      new: true,
+      workspace: true,
+      model: true,
+      thoughtLevel: true,
+      reply: true,
+    },
+    currentOptions: {},
+    replyMode: "assistant_changes",
+  } as never;
+  assert.equal(normalizeBotConfig(base).accessMode, "free", "存量微信无字段推导 free");
+  assert.equal(
+    normalizeBotConfig({ ...base, accessMode: "whitelist" } as never).accessMode,
+    "whitelist",
+    "显式值原样保留",
+  );
+  assert.equal(
+    normalizeBotConfig({ ...base, provider: "wecom", privateChatMode: "all_users" } as never)
+      .accessMode,
+    "free",
+    "存量 all_users 推导 free",
+  );
+});

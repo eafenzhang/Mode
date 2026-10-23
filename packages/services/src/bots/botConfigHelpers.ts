@@ -1,6 +1,6 @@
 import {
   normalizeBotReplyGranularity,
-  resolveBotPrivateChatMode,
+  resolveBotAccessMode,
   type BotActor,
   type BotCommandPolicy,
   type BotConfig,
@@ -49,14 +49,15 @@ export function findAuthorizedBot(config: BotsConfigFile, actor: BotActor): BotC
 }
 
 export function findBoundUser(bot: BotConfig, actor: BotActor): BotConfig | null {
-  // 绑定用户、allowedUsers、all_users 三种放行方式对所有平台一致。
+  // 绑定用户、allowedUsers、free 三种放行方式对所有平台一致。
   // 微信不再无条件放行：A+ 要求微信/企微/飞书/钉钉共用同一套私聊准入；
-  // 微信的缺省私聊方式为 all_users（spec bot-weixin-open-dm），由共享解析函数给出，
+  // 访问模式由共享解析函数 resolveBotAccessMode 统一给出（spec bot-access-mode R1），
   // 不在各调用点手写 provider 分支。
   if (bot.providerUserId === actor.providerUserId) {
     return bot;
   }
-  if (actor.chatType === "private" && resolveBotPrivateChatMode(bot) === "all_users") {
+  // free 模式任何私聊用户可驱动（原 all_users 语义，已切换到统一 accessMode，spec R1）。
+  if (actor.chatType === "private" && resolveBotAccessMode(bot) === "free") {
     return bot;
   }
   return bot.allowedUsers?.includes(actor.providerUserId) ? bot : null;
@@ -71,6 +72,8 @@ export function normalizeBotConfig(bot: BotConfig): BotConfig {
     currentOptions: normalizeBotCurrentOptions(bot.currentOptions),
     // Bugfix: Feishu/Lark 的回复颗粒度依赖 Card JSON 2.0 单卡更新，旧配置不能继续保留普通消息模式。
     replyMode: normalizeBotReplyGranularity(bot.provider, bot.replyMode),
+    // 读取期回填访问模式：存量推导结果随下次写盘持久化（spec R5），显式值原样保留。
+    accessMode: resolveBotAccessMode(bot),
   };
   if (normalized.provider !== "weixin") {
     return normalized;
@@ -121,4 +124,17 @@ export function normalizeConfigBots(config: BotsConfigFile): BotsConfigFile {
     ...config,
     bots: config.bots.map(normalizeBotConfig),
   };
+}
+
+/** 私聊黑名单命中（spec bot-access-mode R2）：纯否决层，无字段视为未拉黑。 */
+export function isUserBlocked(bot: BotConfig, providerUserId: string): boolean {
+  return bot.blockedUsers?.includes(providerUserId) ?? false;
+}
+
+/** 群黑名单命中（spec bot-access-mode R2）；groupId 为空串不命中。 */
+export function isGroupBlocked(bot: BotConfig, groupId: string): boolean {
+  if (!groupId) {
+    return false;
+  }
+  return bot.blockedGroups?.some((item) => item.groupId === groupId) ?? false;
 }
