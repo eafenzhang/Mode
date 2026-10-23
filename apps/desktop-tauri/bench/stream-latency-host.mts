@@ -58,9 +58,11 @@
  * **诊断工具**：stderr wrapper——Host spawn 的不是真 CLI 而是本脚本生成的 CJS 壳，
  * 壳把 CLI 的 stderr tee 到日志文件（Host 的 protocol-close 清理路径会吞掉 CLI 崩溃栈）。
  *
- * **顺带发现（未修，登记）**：CLI 的 `turn.started` 事件 payload 带
- * `executionStartedAt` 字段，Host schema 判 `unrecognized_keys` 整事件丢弃
- * （不影响 delta 流，属 CLI↔Host 协议 schema 漂移，待产品侧对齐）。
+ * **顺带发现（已修，2026-10-24）**：CLI 的 `turn.started` 事件 payload 带
+ * `executionStartedAt` 字段，Host schema 曾判 `unrecognized_keys` 整事件丢弃——
+ * 已在 `modeTurnStartedEventPayloadSchema` 补声明（浮点 epoch 毫秒可选键），
+ * 本 bench 的丢弃日志清零即其端到端证据；回归
+ * `packages/shared/test/mode-protocol-turn-started.test.ts`。
  *
  * 扩展名 `.mts` 与既有 bench/探针同理由：不进 tsconfig include（被 include 拉进来的
  * driver/fixtures 从未被任何 tsc 程序覆盖，会暴露与本 bench 无关的既有类型缺口）。

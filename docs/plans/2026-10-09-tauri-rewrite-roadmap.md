@@ -576,8 +576,10 @@ typecheck / lint / architecture / language policy / desktop tests / desktop-taur
     已解：stderr wrapper 抓到 CLI 真因——数据根无归属文件 → CLI 判 unowned →
     rename「备份让路」撞 Host 目录句柄 EPERM；修法是起 Host 前先
     `initializeDataRootNonInteractive`。八条接线坑与 wrapper 诊断法见脚本文件头。
-    **顺带发现（未修，待产品对齐）**：CLI 的 `turn.started` payload 带
-    `executionStartedAt`，Host schema 判 unrecognized_keys 整事件丢弃（不影响 delta 流）。
+    **顺带发现（同日已修）**：CLI 的 `turn.started` payload 带 `executionStartedAt`，
+    Host schema 曾判 unrecognized_keys 整事件丢弃——schema 已补声明（浮点 epoch 毫秒
+    可选键），bench 丢弃日志清零为端到端证据；`tool.updated`/`started` 的
+    readOnly/sideEffectScope 半边仍待决（锚点见 `tauri-agent-runtime.md` §6.6）。
     两段相加 ≈ 8–9 ms（稳态），对照「端到端 p95 ≤ 80 ms」余量巨大；WebView 段仍待产品壳 E2E。
   - `bench/memory`（壳 / sidecar / agent 三进程 30 分钟 RSS 曲线）——**脚本已入库**
     （`measure:memory`，2026-10-23）：Win32_Process 过滤采样 + 安装目录/命令行特征归类，

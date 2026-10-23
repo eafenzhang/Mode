@@ -42,20 +42,23 @@ const FIXTURE_DIR = fileURLToPath(
 );
 
 /**
- * v1 共享 schema **落后于线上**的两处载荷字段（Task 1 实测，2026-10-16）。
+ * v1 共享 schema **落后于线上**的载荷字段（Task 1 实测，2026-10-16；两处之一已于
+ * 2026-10-24 修复）。
  *
  * 后果不是「文档不准」，而是**线上正在丢事件**：宿主路径用 `modeSessionEventSchema.safeParse(...)`
- * 校验 `session/event`，解析失败就把整条事件记日志丢掉。而这两条载荷都带 schema 未声明的键，
- * 且各成员是 `.strict()` —— 拿两组真实帧跑一遍 zod，两条都被 `unrecognized_keys` 拒绝。
- * 也就是说：**每一次 `turn.started`、每一次 `tool.updated` / `kind:"started"` 今天都被宿主丢掉了。**
+ * 校验 `session/event`，解析失败就把整条事件记日志丢掉。载荷带 schema 未声明的键、
+ * 且各成员是 `.strict()` —— `unrecognized_keys` 会拒绝整条事件。
  *
- * 本任务不修它（属产品侧 schema 变更，影响面横跨桌面与远端，要独立调查与决定，见
- * `docs/specs/tauri-agent-runtime.md` §6 的「已知缺陷（待决）」一项）。这里把它钉成显式常量，
- * 并断言「被拒绝的键逐字等于表里的键」：谁补齐了 schema、或运行时又加了新字段，这条断言都会红。
+ * 历史两处：
+ * - `turn.started` / `executionStartedAt`：**已修**（2026-10-24，schema 补声明浮点
+ *   epoch 毫秒可选键；回归见 `packages/shared/test/mode-protocol-turn-started.test.ts`，
+ *   端到端证据：stream-latency-host bench 的丢弃日志清零）——本表相应条目已删；
+ * - `tool.updated:started`：仍未修（`readOnly` / `sideEffectScope`），继续钉在这里。
+ *
+ * 断言「被拒绝的键逐字等于表里的键」：谁补齐了 schema、或运行时又加了新字段，这条断言都会红。
  * **删这张表之前先解决那处缺陷**——别让「为什么有这张表」消失。
  */
 const KNOWN_V1_PAYLOAD_LAG: Record<string, readonly string[]> = {
-  "turn.started": ["executionStartedAt"],
   "tool.updated:started": ["readOnly", "sideEffectScope"],
 };
 

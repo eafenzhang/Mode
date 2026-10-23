@@ -1201,6 +1201,13 @@ export const modeTurnStartedEventPayloadSchema = z
     targetId: nonEmptyString.optional(),
     messageId: nonEmptyString.optional(),
     foregroundExecutionId: nonEmptyString.optional(),
+    // 执行入口的单调 epoch 毫秒（CLI 契约 TurnStartedPayloadBase.executionStartedAt）：
+    // hooks/持久化发生在 TurnStarted 发布前，消费方不能据发布时间反推执行开始。
+    // 与 backgroundSource 同款理由——strict schema 必须同步声明，否则 unrecognized_keys
+    // 丢弃整条 turn.started（2026-10-24 stream-latency-host bench 实测踩到）。
+    // 刻意不用 timestampMsSchema：CLI 发的是 performance.timeOrigin + performance.now()
+    // 的**浮点**毫秒，int-only schema 会同样拒收（换一种方式重复同一起丢弃事故）。
+    executionStartedAt: z.number().nonnegative().optional(),
     intent: jsonObjectSchema.optional(),
     originMeta: jsonObjectSchema.optional(),
     // runtime 会透传后台唤醒来源，strict schema 必须同步声明以免丢弃整条事件。
