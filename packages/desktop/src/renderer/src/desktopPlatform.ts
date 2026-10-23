@@ -1,4 +1,4 @@
-import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@mode/shared";
+import { buildLocalMediaPreviewUrl, type IPlatformService } from "@mode/shared";
 import type { RemoteDesktopSignalMessage } from "@mode/shared/remote-desktop";
 import type {
   ILanAccessService,
@@ -220,7 +220,8 @@ export function createDesktopPlatform(options: {
     saveMcpToUserDirectory: (payload) => window.mode.saveMcpToUserDirectory(payload),
     migrateLegacyCommonMcp: (payload) => window.mode.migrateLegacyCommonMcp(payload),
     openExternal: (url) => window.mode.openExternal(url),
-    openCommunity: () => window.mode.executeDesktopCommand(DesktopCommandIds.OpenCommunity),
+    // 社群入口在 LR-5 从拒绝桩升级为注入层真实现（spec §10.7），这里恢复直通委托。
+    openCommunity: () => window.mode.openCommunity(),
     canOpenCommunity: (locale) => window.mode.canOpenCommunity(locale),
     openInFileManager: (path) => window.mode.openInFileManager(path),
     openExternalFile: (path) => window.mode.openExternalFile(path),

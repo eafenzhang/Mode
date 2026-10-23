@@ -190,7 +190,8 @@
    * 所以**绝不返回假值**。
    *
    * **为什么是「被拒的 Promise」而不是同步抛**（M3 Task 3 的真机跑逼出来的，两轮）：
-   * 渲染层在**渲染期**就会不加守卫地调这类方法（实测 `canOpenCommunity`），同步抛出会变成
+   * 渲染层在**渲染期**就会不加守卫地调这类方法（当时实测 `canOpenCommunity`；该方法已于
+   * 2026-10-23 改为适配层直接实现并移出本清单，见 spec §10.7），同步抛出会变成
    * 一次 render 错误——错误边界把整个界面区域换成错误屏（原始输出见 spec §10.8/§10.9）。
    * 被拒的 Promise 保留了 M1 口径的全部价值（错误里带着方法名，日志/诊断能看到，
    * 不是 `undefined is not a function`、也不是假值），但把失败**限制在调用点的 Promise 语义里**，
@@ -211,7 +212,6 @@
     "pairLanPeer",
     "getLanPairedPeers",
     "getLanPeerWorkspaces",
-    "canOpenCommunity",
     "loadMcpFromUserDirectory",
     "migrateLegacyCommonMcp",
     "exportLogs",
@@ -685,6 +685,21 @@
     },
     openExternalFile: function (path) {
       return invoke("openExternalFile", { path: path });
+    },
+    // 社群入口（LR-5，spec §10.7）：官方帮助配置已整体下线
+    // （`isOfficialServiceEnabled("clientConfig")` 恒 false，见 `@mode/shared` 的
+    // officialPlatformPolicy），helpAppConfig 读取器对三语（zh-CN/en-US/fa-IR）一律返回
+    // 兜底入口 MODE_ISSUES_URL，不发起网络请求——所以「是否存在入口」对任意 Locale 恒真。
+    // 真源在 `packages/shared/src/officialPlatformPolicy.ts`；本注入层无导入能力，
+    // 地址按其值硬抄，改址时两处同步。
+    canOpenCommunity: function () {
+      return Promise.resolve(true);
+    },
+    openCommunity: function () {
+      // 与 Web 线同语义：打开复用壳命令 openExternal；失败留在 Promise 语义里（invokeAsync）。
+      return invokeAsync("openExternal", {
+        url: "https://github.com/eafenzhang/Mode/issues",
+      });
     },
     // 本地「打开方式」胶囊的数据源（见文件头的 fileManagerEditorInfo 注释）。
     // 只返回系统文件管理器这一条真实可用的面；远端工作区由 WorkspaceFileManagerButton 承担。

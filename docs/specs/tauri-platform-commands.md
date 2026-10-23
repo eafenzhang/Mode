@@ -782,3 +782,21 @@ LR-1/LR-2 的 LAN 与远程桌面管理面全部走**既有** `MessagePort` 上�
 
 `bindRemoteWorkspaceSessionContext` 会换一个新 scope；旧 scope 由页面桥回收。
 SSH/WSL/Docker 在 Tauri Host 明确返回不支持；bot reconnect 与 UI 断线重连降级仍待做。
+
+### 10.7 LR-5：`canOpenCommunity` / `openCommunity` 升级为注入层真实现（2026-10-23）
+
+这两条从 `window.mode` 的 `REJECTING_REQUIRED` 移出，改为**注入层直接实现**
+（与 `getInstalledEditors` / `openInEditor` 同一模式，登记在 shim 的
+`HOST_INJECTED_IMPLEMENTED_METHODS`——不经 Rust 命令切片，不新增壳命令）：
+
+- **语义依据**：官方帮助配置已整体下线（`isOfficialServiceEnabled("clientConfig")` 恒 false，
+  真源 `packages/shared/src/officialPlatformPolicy.ts`），helpAppConfig 读取器对
+  zh-CN / en-US / fa-IR 三语一律返回兜底入口 `MODE_ISSUES_URL`，不发起网络请求。
+- **`canOpenCommunity(locale)`**：注入层直接 `Promise.resolve(true)`（三语入口恒存在）。
+- **`openCommunity()`**：复用壳命令 `openExternal` 打开 `MODE_ISSUES_URL`；
+  失败留在 Promise 语义里（`invokeAsync`），不留静默成功。
+- 注入层无导入能力，URL 按 shared 真源硬抄，注释标明改址需两处同步；
+  验收台（`tauri-invoke-shim.ts`）与注入层同语义，由 `windowModeInjection.test.mts` 对拍。
+- `desktopPlatform` 恢复直通委托（`window.mode.canOpenCommunity` / `openCommunity`）。
+- `exportLogs` 仍在 `REJECTING_REQUIRED`：需要壳先产出「日志落盘路径 + 导出对话框」的
+  产品设计（Tauri 线日志落盘口径未确认），属待设计项，不假装成功。

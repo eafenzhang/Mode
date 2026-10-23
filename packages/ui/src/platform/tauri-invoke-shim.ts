@@ -175,8 +175,6 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "listWSLDistros",
   "listDockerContainers",
   "listSSHConfigAliases",
-  "openCommunity",
-  "canOpenCommunity",
   "registerOAuthState",
   "syncActiveTaskSession",
   "onFocusTab",
@@ -264,10 +262,18 @@ export const UPDATE_STATE_METHODS = [
 ] as const;
 
 /**
- * 本地「打开方式」胶囊所需的平台面：由适配层直接实现（系统文件管理器 + 打开动作），
- * 不经 Rust 命令切片，也不属于更新/深链事件面。
+ * 注入层直接实现的平台面：不经 Rust 命令切片，也不属于更新/深链事件面。
+ *
+ * - 本地「打开方式」胶囊：系统文件管理器 + 打开动作；
+ * - 社群入口（LR-5，spec §10.7）：`canOpenCommunity` 恒真（官方帮助配置已下线，
+ *   三语兜底入口恒存在），`openCommunity` 复用壳命令 `openExternal`。
  */
-export const HOST_INJECTED_IMPLEMENTED_METHODS = ["getInstalledEditors", "openInEditor"] as const;
+export const HOST_INJECTED_IMPLEMENTED_METHODS = [
+  "getInstalledEditors",
+  "openInEditor",
+  "canOpenCommunity",
+  "openCommunity",
+] as const;
 
 type ImplementedCommand = (typeof M1_IMPLEMENTED_COMMANDS)[number];
 type EventSubscribedCommand = (typeof EVENT_SUBSCRIBED_METHODS)[number];
@@ -446,6 +452,16 @@ export function createTauriPlatformService(
         success: boolean;
         error?: string;
       }>;
+    },
+    // 社群入口（LR-5，spec §10.7）：与注入层同语义——官方帮助配置已下线，
+    // 三语兜底入口恒存在；打开复用壳命令 openExternal。
+    canOpenCommunity(): Promise<boolean> {
+      return Promise.resolve(true);
+    },
+    openCommunity(): Promise<void> {
+      return invoke("openExternal", {
+        url: "https://github.com/eafenzhang/Mode/issues",
+      }) as Promise<void>;
     },
     getInstalledEditors(): Promise<EditorInfo[]> {
       return Promise.resolve([fileManagerEditor()]);

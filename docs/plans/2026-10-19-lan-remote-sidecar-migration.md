@@ -821,3 +821,42 @@ Host sidecar 不做数据根初始化（归属文件、迁移都只有 server �
   桌面桥错误透传断言。
 
 真机（拔网/杀对端进程/断链后来回切）仍待 LR-5 验收。
+
+## 26. 执行记录（2026-10-23，LR-5 社群入口两条）
+
+**结论**：`canOpenCommunity` / `openCommunity` 从 `REJECTING_REQUIRED` 升级为**注入层真实现**
+（与 `getInstalledEditors` / `openInEditor` 同一模式，不新增壳命令），拒绝桩清单 26 → 24 条。
+
+语义依据：官方帮助配置已整体下线（`isOfficialServiceEnabled("clientConfig")` 恒 false），
+helpAppConfig 读取器对三语一律返回兜底入口 `MODE_ISSUES_URL`，不发网络请求——所以
+`canOpenCommunity` 恒真；`openCommunity` 复用壳命令 `openExternal` 打开该地址，
+失败留在 Promise 语义里（`invokeAsync`）。
+
+落点：
+
+- `crates/sidecar-host/src/window_mode.ts`：两个成员进 `mode` 对象真实现；
+  `REJECTING_REQUIRED` 移除 `canOpenCommunity`（历史注释保留该方法作为
+  「渲染期同步抛会掀翻树」的实测出处，并标注已移出）。
+- `packages/ui/src/platform/tauri-invoke-shim.ts`：两成员并入
+  `HOST_INJECTED_IMPLEMENTED_METHODS` 并在验收台同语义实现；从
+  `M1_UNIMPLEMENTED_REQUIRED_METHODS` 移除。
+- `packages/desktop/src/renderer/src/desktopPlatform.ts`：恢复直通委托
+  （`window.mode.canOpenCommunity` / `openCommunity`；`openCommunity` 不再走
+  `executeDesktopCommand(OpenCommunity)`——该 id 在壳侧只有 success:false）。
+- `docs/specs/tauri-platform-commands.md` §10.7：登记本处置。
+- `exportLogs` 仍在拒绝清单：Tauri 线日志落盘口径未确认，「导出到哪、什么格式、
+  谁出对话框」缺产品设计，属待设计项，不假装成功。
+
+自动化验证（本机 2026-10-23）：
+
+- `pnpm --filter @mode/ui exec tsx --test test/tauriInvokeShim.test.ts`：22 项全绿；
+- `pnpm --filter @mode/desktop-tauri exec tsx --test test/windowModeInjection.test.mts`：
+  14 项全绿（首轮红：`canOpenCommunity 必须注入`——证明「适配层直实现、注入层缺席」
+  路线违反注入面完整性不变量，遂改为注入层真实现后转绿）；
+- `pnpm typecheck`：通过（0 errors）；
+- `pnpm lint`：0 errors（85 warnings 均为既有）；
+- `pnpm architecture:check --changed`：0 violations；
+- `git diff --check`：通过（LF→CRLF 提示属正常）。
+- 无 Rust 改动，rustfmt/clippy/platform cargo 用例不适用本轮。
+
+未完成：`exportLogs`（待产品设计）；LR-5 其余条目（真机验收、发布支持矩阵）仍待人工。
