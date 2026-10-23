@@ -907,6 +907,26 @@ const enUS: Record<string, string> = {
   "bots.groupChat.permissions.approve": "Approve",
   "bots.groupChat.permissions.reject": "Reject",
   "bots.groupChat.permissions.remove": "Remove",
+  "bots.groupChat.registered": "Registered groups (auto-approved in Free mode)",
+  "bots.groupChat.registeredEmpty":
+    "No registered groups yet; in Free mode a group registers after its first message.",
+  "bots.groupChat.block": "Block",
+  "bots.accessMode.title": "Access mode",
+  "bots.accessMode.description":
+    "Whitelist: only bound users and approved groups can drive the bot; Free: any private chat and any group it is in works automatically and gets registered.",
+  "bots.accessMode.mode.whitelist": "Whitelist",
+  "bots.accessMode.mode.free": "Free",
+  "bots.accessMode.blockedUsers": "Blocked users",
+  "bots.accessMode.blockedGroups": "Blocked groups",
+  "bots.accessMode.unblockUser": "Unblock",
+  "bots.accessMode.unblockGroup": "Unblock",
+  "bots.accessMode.empty": "Nothing blocked yet.",
+  "bots.registry.title": "Registered users",
+  "bots.registry.empty":
+    "No registrations yet; in Free mode the first private message registers automatically.",
+  "bots.registry.remove": "Remove",
+  "bots.registry.block": "Block",
+  "bots.registry.blockedBadge": "Blocked",
   "bots.deliveryMode.title": "Message delivery",
   "bots.deliveryMode.description":
     "Auto replies are sent directly; tool-only sends explicit tool messages only.",

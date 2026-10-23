@@ -77,6 +77,7 @@
 ### R5 UI 不新增微信专属控件
 
 - 保留「私聊方式」下拉，默认显示「全部用户」；
+  （2026-10-23 修订：下拉移入访问模式卡（bot-access-mode.md R6））
 - 按现有 `isBoundUsersMode` 分支，「全部用户」下自然隐藏「已绑定用户」和绑定码区域，
   不新增 `if provider === "weixin"` 的展示分支；
 - 新建 Bot 时由 `createDraftBot` 显式落盘 `accessMode: "whitelist"`（全渠道），
@@ -84,6 +85,8 @@
 - 微信扫码成功提示保持「发送任意消息激活」，不承诺自动绑定。
 
 ### R6 同步修正过期 spec
+
+> 2026-10-23 起新建渠道缺省 whitelist，本文件旧断言降级为存量描述。
 
 `im-bot-onboarding.md` 的 R2 / R3-2 与验收项 3 曾写「微信不设 `/bind` 阶段 / 不出现
 `/bind` 入口」。该表述描述的是当时的 UI 行为，与 `weixin-provider-self-id.md` 规则 8

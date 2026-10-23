@@ -22,7 +22,6 @@ import {
   createUuid,
   isFeishuBotProvider,
   normalizeBotReplyGranularity,
-  resolveBotPrivateChatMode,
 } from "@mode/shared";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import {
@@ -57,6 +56,7 @@ import { BotDeliveryModeCard } from "@/BotsDialog/BotDeliveryModeCard.js";
 import { useModeSessionStore } from "@/store/modeSessionStore.js";
 import { BotGroupChatCard } from "@/BotsDialog/BotGroupChatCard.js";
 import { BotPrivateChatCard } from "@/BotsDialog/BotPrivateChatCard.js";
+import { BotAccessModeCard } from "@/BotsDialog/BotAccessModeCard.js";
 import { BotDingtalkCardConfigCard } from "@/BotsDialog/BotDingtalkCardConfigCard.js";
 import { WorkspaceManagementCard } from "@/BotsDialog/WorkspaceManagementCard.js";
 import { refreshBotTaskBindings } from "@/store/botTaskBindingsStore.js";
@@ -93,8 +93,9 @@ function createDraftBot(params: { provider: BotProvider }): BotConfig {
     name: "",
     provider: params.provider,
     enabled: true,
-    // 显式落盘 provider 缺省值：微信 all_users（扫码即可用），其余 bound_users。
-    privateChatMode: resolveBotPrivateChatMode({ provider: params.provider }),
+    // 新建一律显式落盘白名单缺省（全渠道含微信，spec bot-access-mode R5）；
+    // 存量配置的旧缺省推导由 resolveBotAccessMode 在读取期处理。
+    accessMode: "whitelist",
     allowedWorkspaces: [ALL_BOT_WORKSPACES],
     allowedCommands: createDefaultCommands(),
     currentOptions: {},
@@ -512,6 +513,30 @@ export function BotsDialog({
       return saved;
     },
     [botsService, refresh],
+  );
+
+  /**
+   * 访问控制服务方法的统一回写 helper（docs/specs/bot-access-mode.md R6）：
+   * Task 5 的六个方法（setBotAccessMode / block / unblock / removeRegistry）都返回
+   * 更新后的 BotConfig，这里统一 map 替换本地配置，消除各回调重复的 setConfig 模板。
+   * 失败反馈对齐 patchSelectedBot：toast 提示后刷新，避免 UI 停在乐观值上。
+   */
+  const patchFromService = useCallback(
+    async (op: () => Promise<BotConfig>) => {
+      try {
+        const updated = await op();
+        setConfig((previous) => ({
+          ...previous,
+          bots: previous.bots.map((bot) => (bot.id === updated.id ? updated : bot)),
+        }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("[BotsDialog] 更新 Bot 访问控制失败", message);
+        toast(intl.formatMessage({ id: "bots.saveFailed" }, { error: message }));
+        void refresh();
+      }
+    },
+    [intl, refresh],
   );
 
   const createBindCodeForBot = useCallback(
@@ -1693,6 +1718,31 @@ export function BotsDialog({
                 </SettingsGroupCard>
 
                 <SettingsGroupCard>
+                  <BotAccessModeCard
+                    bot={selectedBot}
+                    onSetAccessMode={(accessMode) => {
+                      void patchFromService(() =>
+                        botsService.setBotAccessMode({
+                          botId: selectedBot.id,
+                          accessMode,
+                        }),
+                      );
+                    }}
+                    onUnblockUser={(userId) => {
+                      void patchFromService(() =>
+                        botsService.unblockBotUser({
+                          botId: selectedBot.id,
+                          providerUserId: userId,
+                        }),
+                      );
+                    }}
+                    onUnblockGroup={(groupId) => {
+                      void patchFromService(() =>
+                        botsService.unblockBotGroup({ botId: selectedBot.id, groupId }),
+                      );
+                    }}
+                  />
+
                   <BotPrivateChatCard
                     bot={selectedBot}
                     bindCode={bindCode}
@@ -1703,41 +1753,51 @@ export function BotsDialog({
                     onCopyBindCommand={() => void copyBindCommand()}
                     onUnbind={() => void handleUnbind()}
                     onPatchBot={patchSelectedBot}
+                    onRemoveRegistryUser={(userId) => {
+                      void patchFromService(() =>
+                        botsService.removeBotRegisteredUser({
+                          botId: selectedBot.id,
+                          providerUserId: userId,
+                        }),
+                      );
+                    }}
+                    onBlockUser={(userId) => {
+                      void patchFromService(() =>
+                        botsService.blockBotUser({
+                          botId: selectedBot.id,
+                          providerUserId: userId,
+                        }),
+                      );
+                    }}
                   />
 
                   {selectedBot.provider === "weixin" ? null : (
                     <BotGroupChatCard
                       bot={selectedBot}
                       onPatchBot={patchSelectedBot}
-                      onApproveGroup={async (groupId) => {
-                        const updated = await botsService.approveBotGroup({
-                          botId: selectedBot.id,
-                          groupId,
-                        });
-                        setConfig((previous) => ({
-                          ...previous,
-                          bots: previous.bots.map((bot) => (bot.id === updated.id ? updated : bot)),
-                        }));
-                      }}
-                      onRejectGroup={async (groupId) => {
-                        const updated = await botsService.rejectBotGroup({
-                          botId: selectedBot.id,
-                          groupId,
-                        });
-                        setConfig((previous) => ({
-                          ...previous,
-                          bots: previous.bots.map((bot) => (bot.id === updated.id ? updated : bot)),
-                        }));
-                      }}
-                      onRemoveGroup={async (groupId) => {
-                        const updated = await botsService.removeBotGroup({
-                          botId: selectedBot.id,
-                          groupId,
-                        });
-                        setConfig((previous) => ({
-                          ...previous,
-                          bots: previous.bots.map((bot) => (bot.id === updated.id ? updated : bot)),
-                        }));
+                      onApproveGroup={(groupId) =>
+                        patchFromService(() =>
+                          botsService.approveBotGroup({ botId: selectedBot.id, groupId }),
+                        )
+                      }
+                      onRejectGroup={(groupId) =>
+                        patchFromService(() =>
+                          botsService.rejectBotGroup({ botId: selectedBot.id, groupId }),
+                        )
+                      }
+                      onRemoveGroup={(groupId) =>
+                        patchFromService(() =>
+                          botsService.removeBotGroup({ botId: selectedBot.id, groupId }),
+                        )
+                      }
+                      onBlockGroup={(groupId, groupName) => {
+                        void patchFromService(() =>
+                          botsService.blockBotGroup({
+                            botId: selectedBot.id,
+                            groupId,
+                            groupName,
+                          }),
+                        );
                       }}
                     />
                   )}
