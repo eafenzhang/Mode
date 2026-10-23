@@ -428,12 +428,18 @@ bench 脚本与基线入库（见「度量与预算」的性能四件）；发�
 判据：bench 全绿并写入度量表；三类指标基线落库；若做可选项：未启用 bot 通道时启动不受影响、
 SDK 不出现在核心闭包清单。
 
+〔2026-10-23 进度：ipc-throughput 基线已入库（§基线·IPC，含「JSON+base64」描述更正）；
+memory 脚本已入库并用现役实例验证分类器，30 min 正式基线待无实例窗口；cold-start 的
+`T_agent_ready` 第三段经调研**撤销**（agent 懒启动，冷启动无此事件，改挂首任务延迟，见
+「度量与预算」）；stream-latency 与「核心载荷 ≤25MB 观测项」仍待做。〕
+
 ### M4b（2–4 周）：Host 并入壳 + IPC 换代
 
 先把 `settings / credentials / task-index sqlite / file ops` 四件最小面 Rust 化
 （`node-forge`→ring、`node:sqlite`→rusqlite），再把 `host-standalone` 的服务装配搬进壳的
-async runtime（tokio + tauri state），renderer↔Host 从「stdio 帧 + JSON+base64」改为同进程
-通道 / CBOR。收益：35 MB 消失、`T_ready` 保守省 200–400 ms。
+async runtime（tokio + tauri state），renderer↔Host 从「stdio 帧 + 二进制 RPC 序列化」
+改为同进程通道 / CBOR〔2026-10-23 更正：原写「JSON+base64」与现役实现不符，见 §基线·IPC〕。
+收益：35 MB 消失、`T_ready` 保守省 200–400 ms。
 判据：同口径复测 `T_ready` ≤ 500 ms；35 MB 载荷从发运集消失。
 风险：服务面依赖 Node 生态，四件最小面不先行会陷入「为并入壳先重写一半服务」。
 
@@ -538,7 +544,22 @@ typecheck / lint / architecture / language policy / desktop tests / desktop-taur
 ## 度量与预算
 
 - **仪表三件**：语言占比（linguist + language-policy 脚本）、上游重合度（upstream-overlap-check）、安装包字节（CI 记录）。
-- **性能仪表四件（2026-10-23 新增）**：`bench/cold-start`（`T_ready` / `T_surface` / `T_agent_ready` 三段，扩展现有 `measure:cold-start`）、`bench/stream-latency`（`text_delta` 产生到 renderer 收到的 p50/p95）、`bench/memory`（壳 / sidecar / agent 三进程 30 分钟 RSS 曲线）、`bench/ipc-throughput`（帧吞吐 MB/s 与每帧分配次数）。落点 `apps/desktop-tauri/bench/` 与 `pnpm measure:*`；**改任何性能代码前先入库基线**。
+- **性能仪表四件（2026-10-23 新增；同日两处口径落地/更正）**：
+  - `bench/cold-start`（`T_ready` / `T_surface` 两段，既有 `measure:cold-start`）。
+    **口径更正（2026-10-23）**：初版写的第三段 `T_agent_ready` **撤销**——agent 是懒启动的
+    （`modeAgentProcessManager.markReady` 只在首次 provider/model 门禁通过后调用；启动即零
+    Helper 常驻是刻意设计），冷启动路径上不存在 agent ready 事件，硬加探针就是改被测对象。
+    agent 启动耗时改挂**首任务延迟**（spawn → ready 的 `startupDurationMs`，已有
+    `onReady` 结构化上报），与 `bench/stream-latency` 同属首任务面，不混入冷启动口径。
+  - `bench/stream-latency`（`text_delta` 产生到 renderer 收到的 p50/p95）——**待建**。
+  - `bench/memory`（壳 / sidecar / agent 三进程 30 分钟 RSS 曲线）——**脚本已入库**
+    （`measure:memory`，2026-10-23）：Win32_Process 过滤采样 + 安装目录/命令行特征归类，
+    分类器已对现役实例验证（shell/sidecar/agent 全命中）；**前置**是被测机无运行中实例
+    （单实例守卫会让新壳静默秒退，脚本显式检查并报错）。90 s 冒烟被「用户实例在跑」阻塞
+    （不代杀），30 min 正式基线待无实例窗口跑并抄数。
+  - `bench/ipc-throughput`（帧吞吐 MB/s 与每帧分配次数）——**基线已入库**（2026-10-23，
+    数字见 §基线·IPC；同时更正了「JSON + base64」的过时描述）。
+  落点 `apps/desktop-tauri/bench/` 与 `pnpm measure:*`；**改任何性能代码前先入库基线**。
 - **目标值**（承诺值，标注测量面）：核心发运集载荷 ≤25 MB、核心发运集内 Node =0、`T_ready` ≤400 ms、`T_surface` ≤600 ms、流式增量 p95 ≤80 ms、常驻进程 2、空闲 RSS ≤150 MB。冲突时改目标不改尺子。
 - **预算**（沿用 2026-10-09 估算）：DeepSeek API 全程 ¥5k–3 万（flash 为主）；人力为大头：2–3 人 × 12–17 个月 ≈ ¥100–200 万，单人则为时间机会成本。
 - **子计划节奏**：每阶段开工前 1 周内用 `writing-plans` 产出该阶段细粒度计划并过评审；本文件只在阶段边界变化时修订。
