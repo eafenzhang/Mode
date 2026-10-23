@@ -233,6 +233,12 @@ func (s *agentServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.writeResult(sw, http.StatusOK, requestID, map[string]interface{}{"shuttingDown": true})
 	case path == "/v1/panel":
 		s.handlePanel(sw, r, requestID)
+	case path == "/v1/panel/actions":
+		if r.Method != "GET" {
+			s.methodNotAllowed(sw, requestID, "GET")
+			return
+		}
+		s.handlePanelActions(sw, r, requestID)
 	case path == "/v1/exec":
 		if r.Method != "POST" {
 			s.methodNotAllowed(sw, requestID, "POST")
@@ -440,6 +446,17 @@ func (s *agentServer) handlePanel(w http.ResponseWriter, r *http.Request, reques
 	default:
 		s.methodNotAllowed(w, requestID, "GET, POST, DELETE")
 	}
+}
+
+func (s *agentServer) handlePanelActions(w http.ResponseWriter, r *http.Request, requestID string) {
+	if apiErr := s.panelAccessError(); apiErr != nil {
+		s.writeError(w, requestID, apiErr)
+		return
+	}
+	// ?peek=1 只读不消费；默认消费。
+	consume := r.URL.Query().Get("peek") != "1"
+	actions := s.panel.takeActions(consume)
+	s.writeResult(w, http.StatusOK, requestID, map[string]interface{}{"actions": actions})
 }
 
 func (s *agentServer) capabilities() Capabilities {

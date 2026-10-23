@@ -1,6 +1,7 @@
 # Mode Agent 免安装托盘面板
 
-状态：2026-10-22 实现并验证。适用 `apps/remote-agent` 的 Windows 形态（XP–Win11）。
+状态：2026-10-22 实现并验证；2026-10-23 声明式 UI 块（`blocks`）实现并验证（双工具链编译 + 测试通过）。
+适用 `apps/remote-agent` 的 Windows 形态（XP–Win11）。
 关联：[legacy-windows-remote-agent.md](./legacy-windows-remote-agent.md)（被控端协议与安全边界）、
 [remote-control-unified-pairing.md](./remote-control-unified-pairing.md)（配对与设备列表）。
 
@@ -21,6 +22,11 @@
 `ModeAgent-Setup.exe` 保留为可选的“安装到 `%LOCALAPPDATA%` + 防火墙规则 + 卸载”路径，
 不再是推荐入口。
 
+2026-10-23 增补：Agent 需要在面板上展示**结构化报告**（例如数据库清单：卡片标题、
+类型副行、状态徽章、底部操作按钮）。纯文本画不出卡片与徽章，截图推送又依赖主机侧
+浏览器且不可交互。为此引入受控的声明式 UI 块：桌面端下发有限的块类型，agent 在本地
+用既有 GDI 管线确定性绘制；仍然**不渲染 HTML/CSS/脚本、不加载外部资源**。
+
 ## 目标与非目标
 
 **做**：
@@ -33,12 +39,16 @@
 - 固定 `300 × 400` 客户区的面板；无内容时播放默认代码雨动画，内容只能由已配对的桌面端
   通过 MCP/HTTP 写入。
 - exe、窗口、托盘、对话框统一使用 Mode 图标。
+- 声明式 UI 块（`blocks`）：`stat` / `card` 两种内容块 + 可选 `footer` 动作按钮；
+  超高列表滚轮滚动；按钮点击产生动作事件供桌面端消费。
 
 **不做**：
 
 - 不做 Windows 服务形态；supervisor 与 agent 都在登录用户会话内运行，桌面控制能力不变。
 - 不做“supervisor 和 agent 同时被杀仍能立刻自愈”；这种情况由开机自启或手动再启动恢复。
-- 不做本地编辑器、浏览器或任意 HTML/URL 渲染；面板只渲染纯文本与 PNG/JPEG 图片。
+- 不做本地编辑器、浏览器或任意 HTML/URL/CSS/脚本渲染；面板只渲染纯文本、PNG/JPEG
+  图片与本 spec 定义的受控声明式块。块类型是闭集，不开放自定义颜色、字体与布局参数。
+- 不做 agent 侧动作执行：footer 点击只产生事件，业务语义（如同步、重试）由桌面端自行实现。
 - 不新增第二套配对或鉴权；沿用被控端 bearer token 与 `allowDesktopControl` 能力闸门。
 - 不改变 LAN 协议、MCP 协议或桌面端设备模型。
 
@@ -50,7 +60,8 @@ ModeAgent.exe（GUI 子系统，无控制台）
        └─ serve --config ... --ui      agent 子进程
             ├─ HTTP/MCP 服务           唯一业务状态所有者
             ├─ 托盘图标 + 固定 300×400 面板
-            └─ /v1/panel 内容           仅内存，重启后回到默认动画
+            ├─ /v1/panel 内容           仅内存，重启后回到默认动画
+            └─ /v1/panel 动作队列       仅内存，消费即删，重启即空
 ```
 
 | 状态 | 唯一所有者 | 说明 |
@@ -59,7 +70,8 @@ ModeAgent.exe（GUI 子系统，无控制台）
 | 开机自启 | `HKCU\...\Run\ModeAgent` | 由配置派生；命令固定为 `"exe" start --config "..."` |
 | 守护与重启 | `start` supervisor | 健康 + token 探测；单实例命名互斥体 |
 | agent 进程 | `serve` 子进程 | HTTP/MCP、审计、作业、面板窗口 |
-| 面板内容 | agent 进程内存 | 桌面端写入；不落盘；清空后回到默认动画 |
+| 面板内容（含 `blocks`） | agent 进程内存 | 桌面端写入；不落盘；清空后回到默认动画 |
+| 面板动作队列 | agent 进程内存 | 点击入队，消费即删；上限 16 条，满则丢最旧 |
 | 主动退出 | `mode-agent.stop` | 存在即表示用户主动退出，supervisor 不再重启 |
 
 ## 产品规则
@@ -75,7 +87,7 @@ ModeAgent.exe（GUI 子系统，无控制台）
    `supervisor.log`；主动退出标记为 `mode-agent.stop`。
 4. **窗口尺寸**：面板客户区固定 `300 × 400` 逻辑像素，按系统 DPI 缩放；不可调整大小、
    不可最大化。窗口标题固定 `Mode Agent`。
-5. **默认首页动画**：面板无标题/文本/图片时显示 Matrix 风格快速代码雨（黑色背景、绿色字符、
+5. **默认首页动画**：面板无标题/文本/图片/块时显示 Matrix 风格快速代码雨（黑色背景、绿色字符、
    快速下落，无中央图形与扫描线）；有内容时切换为内容视图，清空后动画恢复。双击 exe、
    双击托盘图标或桌面端写入内容时显示；关闭按钮只隐藏，不改变 agent 运行状态。
 6. **内容所有权**：面板内容只存在于 agent 进程内存；唯一写入方是携带有效 token 且
@@ -120,8 +132,18 @@ ModeAgent.exe（GUI 子系统，无控制台）
     （会一直等到常驻 supervisor 退出），应轮询 `/health` 判断完成；`uninstall` 可用 `-Wait`。
 15. **兼容性**：Go 1.10 产物（XP）与当前 Go 产物（x64/x86）共用同一实现；除 Win32
     API 外不引入新依赖。非 Windows 构建返回 `capability_unavailable`。
+16. **声明式 UI 块**：`blocks` 是受控闭集视图，agent 只在本地 GDI 管线绘制本 spec 定义的
+    块类型；不解释 HTML/CSS/脚本、不加载外部字体或图片资源、不开放任意颜色与布局参数。
+    调色板与字体由 agent 硬编码（浅灰页面底、白卡片、四档语义徽章色）。未知块类型、未知
+    `tone`、非法 `action` 一律 `invalid_argument` 拒绝，不降级猜测。`blocks` 与
+    `text`/`imageBase64` 互斥，不能同帧混用。
+17. **动作事件**：footer 按钮点击只把 `{action, at}` 入队，agent 不执行任何业务语义、
+    不发起网络请求；队列仅内存、消费即删。动作上报是桌面端**拉取**语义（轮询），
+    不新增 agent → 桌面端的推送通道。
 
 ## 内容模型
+
+原有文本/图片模型（继续有效）：
 
 ```json
 {
@@ -132,26 +154,62 @@ ModeAgent.exe（GUI 子系统，无控制台）
 }
 ```
 
-- `title`、`text`、`imageBase64` 至少一个非空；空请求返回 `invalid_argument`。
-- 文本按 UTF-8 处理，换行保留；面板使用 `DrawTextW` 自动换行，不解析 Markdown/HTML。
-- 图片等比缩放适配面板；与文本同时存在时，图片占上半部分，文本在下半部分。
-- `remote_panel_status` 不返回图片数据，只返回 `hasImage`、标题、文本长度、更新时间和可见状态。
+声明式 UI 块模型（2026-10-23 增补）：
+
+```json
+{
+  "title": "可选页眉标题（≤ 200 字符）",
+  "blocks": [
+    { "kind": "stat", "label": "本日上传订单", "value": "0" },
+    { "kind": "card", "title": "hub-monitor",
+      "badge": { "text": "已匹配", "tone": "success" },
+      "lines": ["SQLite", "10172026091809K3"] },
+    { "kind": "card", "title": "oil_system1",
+      "badge": { "text": "未登录", "tone": "danger" },
+      "lines": ["Access", "1017121212"] }
+  ],
+  "footer": { "label": "一键同步", "action": "sync-all" }
+}
+```
+
+规则与校验：
+
+- `title`、`text`、`imageBase64`、`blocks` 至少一个非空；空请求返回 `invalid_argument`。
+- `blocks` 非空时进入结构化视图：`text` 与 `imageBase64` 必须同时为空，否则
+  `invalid_argument`。`title` 在结构化视图中渲染为页眉。
+- 块类型闭集，当前仅 `stat` 与 `card`：
+  - `stat`：居中统计块。`label`（≤ 100 字符，小号灰字）+ `value`（≤ 32 字符，大号粗体）。
+  - `card`：列表卡片。`title`（≤ 200 字符，粗体，左上）+ 可选 `badge` + `lines`
+    （0–4 行，每行 ≤ 200 字符，灰色副行）。
+- `badge`：`text`（≤ 16 字符）+ `tone`（闭集 `success` / `danger` / `warning` /
+  `muted`，对应绿/红/琥珀/灰四档硬编码语义色）。省略 `badge` 则不显示徽章。
+- `footer`：可选，整宽底部按钮。`label`（≤ 24 字符）+ `action`（≤ 64 字符，字符集
+  `[A-Za-z0-9._-]`）。`action` 省略时按钮纯展示、不可点击。
+- 数量与体积上限：`blocks` ≤ 24 个；整个请求体 ≤ 64 KiB。超限 `invalid_argument`。
+- 未知字段忽略（向前兼容），未知 `kind`/`tone`、非法 `action` 拒绝。
+- 溢出：块总高超过可视区域时内容区鼠标滚轮滚动；页眉与 footer 固定不滚。
+- 布局与视觉（agent 硬编码）：浅灰页面底、白色圆角卡片、卡片间 8–10px 间距；
+  字体使用系统 UI 字体（Segoe UI / 微软雅黑回退），XP 回退宋体；DPI 缩放沿用现有管线。
+- `remote_panel_status` 返回 `hasBlocks` 布尔值与 footer 的 `action` 名（如有），
+  不返回 blocks 原文。
 
 ## 接口
 
 | 方法 | 路径 | 语义 |
 | --- | --- | --- |
-| GET | `/v1/panel` | 读取面板状态（不含图片内容） |
-| POST | `/v1/panel` | 写入标题/文本/图片并显示面板 |
-| DELETE | `/v1/panel` | 清空内容（恢复默认代码雨动画，不隐藏窗口） |
+| GET | `/v1/panel` | 读取面板状态（不含图片与 blocks 原文） |
+| POST | `/v1/panel` | 写入标题/文本/图片或 `blocks` 并显示面板 |
+| DELETE | `/v1/panel` | 清空内容与动作队列（恢复默认代码雨动画，不隐藏窗口） |
+| GET | `/v1/panel/actions` | 拉取并消费动作队列；`?peek=1` 只读不消费 |
 
 MCP 工具（均需 `allowDesktopControl`）：
 
-- `remote_panel_show`：参数同上，写入并显示；
-- `remote_panel_clear`：清空；
-- `remote_panel_status`：读取状态。
+- `remote_panel_show`：参数同上（含可选 `blocks`、`footer`），写入并显示；
+- `remote_panel_clear`：清空内容与动作队列；
+- `remote_panel_status`：读取状态；
+- `remote_panel_actions`：拉取动作队列，参数 `consume`（默认 `true`）。
 
-`/v1/panel` 与 MCP 共用同一组内容函数，不存在第二套写入路径。
+`/v1/panel` 与 MCP 共用同一组内容函数，不存在第二套写入路径；动作队列同理。
 
 ## 状态与事件顺序
 
@@ -164,8 +222,10 @@ MCP 工具（均需 `allowDesktopControl`）：
 设置页: 原生系统菜单「设置...」→ 修改 config → 立即应用自启/托盘
 配对页: 原生系统菜单「配对...」→ 输入 6 位码 → LAN/Tailscale 发现
           → 逐个 POST /api/remote-agent/enroll → 桌面端写 MCP 配置
-桌面写入: POST /v1/panel（或 MCP）→ token/能力校验 → 解码内容 → 更新内存
-          → PostMessage(显示+重绘) → 面板 WM_PAINT
+桌面写入: POST /v1/panel（或 MCP）→ token/能力校验 → 解码/校验内容 → 更新内存
+          → PostMessage(显示+重绘) → 面板 WM_PAINT（文本/图片或结构化块）
+footer 点击: WM_LBUTTONDOWN 命中测试 → {action, at} 入队（上限 16，满丢最旧）
+          → 按钮绘制按下态 → 桌面端轮询 GET /v1/panel/actions 消费
 崩溃/被杀: supervisor 健康探测失败 → 5s 防抖 → 拉起 serve（保留 --open-panel 意图）
 主动退出: 托盘退出 / /v1/shutdown / stop → 写 mode-agent.stop → agent 退出
           → supervisor 看到 stop 文件 → 删除并退出
@@ -179,6 +239,9 @@ MCP 工具（均需 `allowDesktopControl`）：
 | `allowDesktopControl=false` | `capability_disabled` | 403 |
 | 空内容 / 超长 / 非法 base64 | `invalid_argument` | 400 |
 | 图片解码失败 | `invalid_argument` | 400 |
+| `blocks` 与 `text`/`imageBase64` 混用 | `invalid_argument` | 400 |
+| 未知块 `kind` / 未知 `tone` / 非法 `action` | `invalid_argument` | 400 |
+| `blocks` 超过 24 个 / 请求体超 64 KiB | `invalid_argument` | 400 |
 | 非 Windows 或 UI 未启用 | `capability_unavailable` | 501 |
 | 请求体超限 | `payload_too_large` | 413 |
 
@@ -188,6 +251,7 @@ MCP 工具（均需 `allowDesktopControl`）：
   不会把对方的 agent 当成自己。
 - supervisor 单实例：第二个 `start` 只尝试打开面板，不启动第二套服务。
 - 配置损坏：GUI 启动弹错误框；supervisor 启动失败写入 `supervisor.log`。
+- 结构化视图渲染失败（内部错误）：记录 `agent.log` 并保持上一帧，不崩溃窗口。
 
 ## 验收场景
 
@@ -215,3 +279,13 @@ MCP 工具（均需 `allowDesktopControl`）：
     立即恢复；自启从未开状态保存不会删除其他实例的 Run 项。
 15. 配对页只接受 6 位配对码：空输入提示；同 LAN/Tailscale 有桌面端时自动发现并登记；
     无桌面端时给出明确提示；完整配对串仍可通过 CLI `enroll --uri` 使用。
+16. 发送 `blocks`（1 个 stat + 2 张 card + footer）→ 面板渲染页眉、统计块、两张带徽章的
+    卡片与底部按钮；`tone=success` 显示绿徽章、`tone=danger` 显示红徽章；页面底浅灰、
+    卡片白底圆角。
+17. 发送 24 个 card（超过一屏）→ 内容区滚轮可滚动，页眉与 footer 不随内容滚动。
+18. 点击 footer 按钮 → `GET /v1/panel/actions` 返回 `{action, at}` 且队列清空；
+    `?peek=1` 只读不消费；连续点击超过 16 次只保留最新 16 条。
+19. `blocks` 与 `text` 同帧发送、未知 `kind`（如 `"webview"`）、未知 `tone`（如 `"blue"`）、
+    `action` 含空格 → 均返回 `invalid_argument`，面板保持上一帧内容不撕裂。
+20. 旧客户端只发 `title`/`text`/`imageBase64` 的请求行为不变；Go 1.10（XP）产物包含
+    `blocks` 渲染且 `go.mod` 无新增依赖。

@@ -419,12 +419,29 @@ func (s *agentServer) callMCPTool(ctx context.Context, name string, args map[str
 		text, _ := argString(args, "text")
 		imageBase64, _ := argString(args, "imageBase64")
 		imageMimeType, _ := argString(args, "imageMimeType")
-		status, apiErr := s.panel.set(PanelContent{
+		blocksJSON, _ := argString(args, "blocks")
+		footerJSON, _ := argString(args, "footer")
+		content := PanelContent{
 			Title:         title,
 			Text:          text,
 			ImageBase64:   imageBase64,
 			ImageMimeType: imageMimeType,
-		})
+		}
+		if blocksJSON != "" {
+			var blocks []PanelBlock
+			if err := json.Unmarshal([]byte(blocksJSON), &blocks); err != nil {
+				return mcpToolResult{}, invalidArg("blocks is not valid JSON: " + err.Error())
+			}
+			content.Blocks = blocks
+		}
+		if footerJSON != "" {
+			var footer PanelFooter
+			if err := json.Unmarshal([]byte(footerJSON), &footer); err != nil {
+				return mcpToolResult{}, invalidArg("footer is not valid JSON: " + err.Error())
+			}
+			content.Footer = &footer
+		}
+		status, apiErr := s.panel.set(content)
 		if apiErr != nil {
 			return mcpToolResult{}, apiErr
 		}
@@ -443,6 +460,13 @@ func (s *agentServer) callMCPTool(ctx context.Context, name string, args map[str
 		}
 		status := s.panel.status()
 		return textMCPResult(status)
+	case "remote_panel_actions":
+		if apiErr := s.panelAccessError(); apiErr != nil {
+			return mcpToolResult{}, apiErr
+		}
+		consume, _ := argBool(args, "consume", true)
+		actions := s.panel.takeActions(consume)
+		return textMCPResult(map[string]interface{}{"actions": actions})
 	case "remote_db_drivers":
 		if !s.cfg.AllowDB {
 			return mcpToolResult{}, capabilityDisabled("database")
@@ -737,8 +761,8 @@ func mcpTools() []mcpTool {
 		},
 		{
 			Name:        "remote_panel_show",
-			Description: "Show content on the agent's local fixed 300x400 panel and bring it to front. Plain text and PNG/JPEG only; no HTML. Requires allowDesktopControl.",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string","maxLength":200},"text":{"type":"string","maxLength":65536},"imageBase64":{"type":"string","maxLength":8388608},"imageMimeType":{"type":"string","enum":["image/png","image/jpeg"]}},"additionalProperties":false}`),
+			Description: "Show content on the agent's local fixed 300x400 panel and bring it to front. Plain text, PNG/JPEG, or declarative UI blocks (JSON string) only; no HTML. Requires allowDesktopControl.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string","maxLength":200},"text":{"type":"string","maxLength":65536},"imageBase64":{"type":"string","maxLength":8388608},"imageMimeType":{"type":"string","enum":["image/png","image/jpeg"]},"blocks":{"type":"string","maxLength":65536,"description":"JSON array of declarative UI blocks. Mutually exclusive with text/imageBase64."},"footer":{"type":"string","maxLength":1024,"description":"JSON object {label, action} for a bottom action button. Requires blocks."}},"additionalProperties":false}`),
 		},
 		{
 			Name:        "remote_panel_clear",
@@ -749,6 +773,11 @@ func mcpTools() []mcpTool {
 			Name:        "remote_panel_status",
 			Description: "Return the agent panel's visibility and current content metadata without image bytes. Requires allowDesktopControl.",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+		},
+		{
+			Name:        "remote_panel_actions",
+			Description: "Pull footer-button click actions from the panel. Consumes by default; set consume=false to peek. Requires allowDesktopControl.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"consume":{"type":"boolean","default":true}},"additionalProperties":false}`),
 		},
 		{
 			Name:        "remote_db_drivers",

@@ -25,6 +25,9 @@ const (
 	wmGetMinMaxInfo = 0x0024
 	wmTimer         = 0x0113
 	wmSysCommand    = 0x0112
+	wmLButtonDown   = 0x0201
+	wmLButtonUp     = 0x0202
+	wmMouseWheel    = 0x020A
 	wmApp           = 0x8000
 	wmTrayCallback  = wmApp + 1
 	wmPanelShow     = wmApp + 2
@@ -42,10 +45,15 @@ const (
 	swHide       = 0
 	swShowNormal = 1
 
-	dtLeft      = 0x0000
-	dtTop       = 0x0000
-	dtWordBreak = 0x0010
-	dtNoPrefix  = 0x2000
+	dtLeft       = 0x0000
+	dtTop        = 0x0000
+	dtCenter     = 0x0001
+	dtVCenter    = 0x0002
+	dtWordBreak  = 0x0010
+	dtSingleLine = 0x0100
+	dtCalcrect   = 0x0400
+	dtNoPrefix   = 0x2000
+	psSolid      = 0
 
 	animationTimerID    = 1
 	animationIntervalMS = 50
@@ -104,16 +112,22 @@ var (
 	procSetTimer              = user32.NewProc("SetTimer")
 	procKillTimer             = user32.NewProc("KillTimer")
 
-	procSetTextColor     = gdi32.NewProc("SetTextColor")
-	procSetBkMode        = gdi32.NewProc("SetBkMode")
-	procGetStockObject   = gdi32.NewProc("GetStockObject")
-	procCreateSolidBrush = gdi32.NewProc("CreateSolidBrush")
-	procCreateFontW      = gdi32.NewProc("CreateFontW")
-	procTextOutW         = gdi32.NewProc("TextOutW")
-	procStretchDIBits    = gdi32.NewProc("StretchDIBits")
-	procGetDeviceCaps    = gdi32.NewProc("GetDeviceCaps")
-	procCreateCompatDC   = gdi32.NewProc("CreateCompatibleDC")
-	procCreateCompatBmp  = gdi32.NewProc("CreateCompatibleBitmap")
+	procSetTextColor          = gdi32.NewProc("SetTextColor")
+	procSetBkMode             = gdi32.NewProc("SetBkMode")
+	procGetStockObject        = gdi32.NewProc("GetStockObject")
+	procCreateSolidBrush      = gdi32.NewProc("CreateSolidBrush")
+	procCreateFontW           = gdi32.NewProc("CreateFontW")
+	procTextOutW              = gdi32.NewProc("TextOutW")
+	procStretchDIBits         = gdi32.NewProc("StretchDIBits")
+	procGetDeviceCaps         = gdi32.NewProc("GetDeviceCaps")
+	procCreateCompatDC        = gdi32.NewProc("CreateCompatibleDC")
+	procCreateCompatBmp       = gdi32.NewProc("CreateCompatibleBitmap")
+	procRoundRect             = gdi32.NewProc("RoundRect")
+	procCreatePen             = gdi32.NewProc("CreatePen")
+	procSaveDC                = gdi32.NewProc("SaveDC")
+	procRestoreDC             = gdi32.NewProc("RestoreDC")
+	procIntersectClipRect     = gdi32.NewProc("IntersectClipRect")
+	procGetTextExtentPoint32W = gdi32.NewProc("GetTextExtentPoint32W")
 
 	procFreeConsole = kernel32.NewProc("FreeConsole")
 
@@ -212,6 +226,18 @@ type agentUIHandle struct {
 	textFont  uintptr
 	rainFont  uintptr
 	tray      bool
+
+	// 声明式 UI 块的渲染状态（仅 UI 线程访问）。
+	boldFont      uintptr
+	smallFont     uintptr
+	statFont      uintptr
+	badgeFont     uintptr
+	footerFont    uintptr
+	scrollY       int32 // 结构化视图当前滚动偏移（物理像素）
+	footerRect    uiRect
+	footerEnabled bool
+	footerPressed bool
+	lastStamp     time.Time // 上一次渲染的内容时间戳，内容变化时重置滚动
 
 	memDC        uintptr
 	memBitmap    uintptr
@@ -489,6 +515,11 @@ func (ui *agentUIHandle) run() {
 	ui.mu.Unlock()
 	ui.titleFont = createUIFont(scaleDIP(20, ui.dpi), fwBold)
 	ui.textFont = createUIFont(scaleDIP(14, ui.dpi), fwNormal)
+	ui.boldFont = createUIFont(scaleDIP(15, ui.dpi), fwBold)
+	ui.smallFont = createUIFont(scaleDIP(13, ui.dpi), fwNormal)
+	ui.statFont = createUIFont(scaleDIP(28, ui.dpi), fwBold)
+	ui.badgeFont = createUIFont(scaleDIP(12, ui.dpi), fwNormal)
+	ui.footerFont = createUIFont(scaleDIP(15, ui.dpi), fwBold)
 	ui.rainFont = createFontWithFace("Consolas", scaleDIP(14, ui.dpi), fwNormal)
 	if ui.rainFont == 0 {
 		ui.rainFont = createFontWithFace("Courier New", scaleDIP(14, ui.dpi), fwNormal)
@@ -600,6 +631,30 @@ func panelWindowProc(hwnd, message, wParam, lParam uintptr) uintptr {
 		if ui != nil {
 			ui.showPairing()
 			return 0
+		}
+	case wmMouseWheel:
+		if ui != nil {
+			// GET_WHEEL_DELTA_WPARAM：wParam 高 16 位是有符号 delta，向上滚为正。
+			delta := int32(int16((wParam >> 16) & 0xFFFF))
+			if delta != 0 && ui.scrollBy(-delta) {
+				return 0
+			}
+		}
+	case wmLButtonDown:
+		if ui != nil && lParam != 0 {
+			x := int32(int16(lParam & 0xFFFF))
+			y := int32(int16((lParam >> 16) & 0xFFFF))
+			if ui.beginFooterPress(x, y) {
+				return 0
+			}
+		}
+	case wmLButtonUp:
+		if ui != nil && lParam != 0 {
+			x := int32(int16(lParam & 0xFFFF))
+			y := int32(int16((lParam >> 16) & 0xFFFF))
+			if ui.completeFooterPress(x, y) {
+				return 0
+			}
 		}
 	case wmTimer:
 		if ui != nil && wParam == animationTimerID {
@@ -718,7 +773,7 @@ func (ui *agentUIHandle) paint() {
 }
 
 func panelSnapshotBlank(snapshot PanelSnapshot) bool {
-	return snapshot.Title == "" && snapshot.Text == "" && !snapshot.HasImage
+	return snapshot.Title == "" && snapshot.Text == "" && !snapshot.HasImage && len(snapshot.Blocks) == 0
 }
 
 func (ui *agentUIHandle) ensureBackBuffer(hdc uintptr, width, height int32) {
@@ -761,6 +816,10 @@ func (ui *agentUIHandle) releaseBackBuffer() {
 }
 
 func (ui *agentUIHandle) drawContent(dc uintptr, snapshot PanelSnapshot, width, height int32) {
+	if len(snapshot.Blocks) > 0 {
+		ui.drawBlocks(dc, snapshot, width, height)
+		return
+	}
 	brush, _, _ := procCreateSolidBrush.Call(uintptr(rgb(255, 255, 255)))
 	rect := uiRect{Right: width, Bottom: height}
 	procFillRect.Call(dc, uintptr(unsafe.Pointer(&rect)), brush)
@@ -805,6 +864,370 @@ func (ui *agentUIHandle) drawContent(dc uintptr, snapshot PanelSnapshot, width, 
 			procSelectObject.Call(dc, old)
 		}
 	}
+}
+
+// 结构化视图布局参数（DIP，绘制时统一按 DPI 缩放）。
+const (
+	blockMarginX  = 12
+	blockGapY     = 10
+	cardPadX      = 14
+	cardPadY      = 12
+	cardGapInner  = 6
+	badgeHeight   = 20
+	badgePadX     = 8
+	footerHeight  = 48
+	footerMarginX = 12
+	footerMarginY = 10
+	scrollStepDIP = 48
+	contentPadTop = 12
+)
+
+var blockToneColors = map[string][2]uint32{
+	// [背景, 前景]
+	"success": {rgb(220, 252, 231), rgb(22, 101, 52)},
+	"danger":  {rgb(254, 226, 226), rgb(185, 28, 28)},
+	"warning": {rgb(254, 243, 199), rgb(161, 94, 10)},
+	"muted":   {rgb(243, 244, 246), rgb(107, 114, 128)},
+}
+
+// drawBlocks 渲染声明式 UI 块：浅灰页面底、白色圆角卡片、固定页眉与 footer，
+// 内容区按 scrollY 裁剪滚动。所有布局在物理像素下计算。
+func (ui *agentUIHandle) drawBlocks(dc uintptr, snapshot PanelSnapshot, width, height int32) {
+	// 内容更新时重置滚动，避免新内容从中间开始。
+	if !snapshot.UpdatedAt.Equal(ui.lastStamp) {
+		ui.scrollY = 0
+		ui.lastStamp = snapshot.UpdatedAt
+	}
+
+	brush, _, _ := procCreateSolidBrush.Call(uintptr(rgb(245, 245, 245)))
+	rect := uiRect{Right: width, Bottom: height}
+	procFillRect.Call(dc, uintptr(unsafe.Pointer(&rect)), brush)
+	procDeleteObject.Call(brush)
+
+	padding := scaleDIP(blockMarginX, ui.dpi)
+	cursorY := scaleDIP(contentPadTop, ui.dpi)
+	if snapshot.Title != "" {
+		cursorY = ui.drawBlockText(dc, snapshot.Title, ui.titleFont, padding, cursorY, width-2*padding, rgb(30, 30, 30), dtWordBreak) + scaleDIP(10, ui.dpi)
+	}
+
+	footerH := int32(0)
+	if snapshot.Footer != nil {
+		footerH = scaleDIP(footerHeight+footerMarginY, ui.dpi)
+	}
+	contentTop := cursorY
+	contentBottom := height - footerH
+
+	// 计算内容总高并夹紧滚动偏移。
+	totalH := int32(0)
+	for index := range snapshot.Blocks {
+		totalH += ui.blockHeight(&snapshot.Blocks[index]) + scaleDIP(blockGapY, ui.dpi)
+	}
+	viewportH := contentBottom - contentTop - scaleDIP(10, ui.dpi)
+	maxScroll := totalH - viewportH
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if ui.scrollY > maxScroll {
+		ui.scrollY = maxScroll
+	}
+	if ui.scrollY < 0 {
+		ui.scrollY = 0
+	}
+
+	// 裁剪到内容区，卡片不越界到 footer。
+	procSaveDC.Call(dc)
+	clipRect := uiRect{Left: 0, Top: contentTop, Right: width, Bottom: contentBottom}
+	procIntersectClipRect.Call(dc,
+		uintptr(uint32(clipRect.Left)), uintptr(uint32(clipRect.Top)),
+		uintptr(uint32(clipRect.Right)), uintptr(uint32(clipRect.Bottom)))
+
+	y := contentTop - ui.scrollY
+	for index := range snapshot.Blocks {
+		block := &snapshot.Blocks[index]
+		h := ui.drawBlock(dc, block, padding, y, width-2*padding)
+		y += h + scaleDIP(blockGapY, ui.dpi)
+	}
+	_ = y
+	procRestoreDC.Call(dc, 0xFFFFFFFF)
+
+	// footer 固定在底部，记录命中矩形。
+	ui.footerEnabled = false
+	if snapshot.Footer != nil {
+		left := scaleDIP(footerMarginX, ui.dpi)
+		top := height - scaleDIP(footerHeight+footerMarginY, ui.dpi) + scaleDIP(footerMarginY/2, ui.dpi)
+		btnRect := uiRect{Left: left, Top: top, Right: width - left, Bottom: top + scaleDIP(footerHeight, ui.dpi)}
+		ui.footerRect = btnRect
+		bg := rgb(37, 99, 235)
+		if ui.footerPressed {
+			bg = rgb(29, 78, 216)
+		}
+		ui.roundRectFill(dc, btnRect, scaleDIP(10, ui.dpi), bg)
+		label := snapshot.Footer.Label
+		labelW := ui.textWidth(dc, label, ui.footerFont)
+		th := ui.textHeight(label, ui.footerFont)
+		tx := btnRect.Left + (btnRect.Right-btnRect.Left-labelW)/2
+		ty := btnRect.Top + (btnRect.Bottom-btnRect.Top-th)/2
+		ui.drawTextAt(dc, label, ui.footerFont, tx, ty, rgb(255, 255, 255))
+		if snapshot.Footer.Action != "" {
+			ui.footerEnabled = true
+		}
+	} else {
+		ui.footerRect = uiRect{}
+	}
+}
+
+func (ui *agentUIHandle) drawBlock(dc uintptr, block *PanelBlock, x, y, w int32) int32 {
+	if block.Kind == "stat" {
+		return ui.drawStatBlock(dc, block, x, y, w)
+	}
+	return ui.drawCardBlock(dc, block, x, y, w)
+}
+
+func (ui *agentUIHandle) drawStatBlock(dc uintptr, block *PanelBlock, x, y, w int32) int32 {
+	h := scaleDIP(72, ui.dpi)
+	if block.Label != "" {
+		// drawBlockText 返回结束 Y（绝对坐标），value 直接接在它后面。
+		labelEnd := ui.drawBlockText(dc, block.Label, ui.smallFont, x, y+scaleDIP(8, ui.dpi), w, rgb(107, 114, 128), dtCenter)
+		ui.drawBlockText(dc, block.Value, ui.statFont, x, labelEnd+scaleDIP(10, ui.dpi), w, rgb(17, 17, 27), dtCenter)
+	} else {
+		ui.drawBlockText(dc, block.Value, ui.statFont, x, y+scaleDIP(16, ui.dpi), w, rgb(17, 17, 27), dtCenter)
+	}
+	return h
+}
+
+func (ui *agentUIHandle) drawCardBlock(dc uintptr, block *PanelBlock, x, y, w int32) int32 {
+	// 先量高：标题行 + 每行副文本 + 内边距。
+	titleH := ui.textHeight(block.Title, ui.boldFont)
+	h := scaleDIP(cardPadY, ui.dpi) + titleH + scaleDIP(cardPadY, ui.dpi)
+	lineHeights := make([]int32, 0, len(block.Lines))
+	for _, line := range block.Lines {
+		lh := ui.textHeight(line, ui.smallFont)
+		lineHeights = append(lineHeights, lh)
+		h += scaleDIP(cardGapInner, ui.dpi) + lh
+	}
+	if h < scaleDIP(56, ui.dpi) {
+		h = scaleDIP(56, ui.dpi)
+	}
+
+	cardRect := uiRect{Left: x, Top: y, Right: x + w, Bottom: y + h}
+	ui.roundRectFill(dc, cardRect, scaleDIP(10, ui.dpi), rgb(255, 255, 255))
+
+	cx := x + scaleDIP(cardPadX, ui.dpi)
+	cy := y + scaleDIP(cardPadY, ui.dpi)
+	titleRight := cardRect.Right - scaleDIP(cardPadX, ui.dpi)
+	if block.Badge != nil {
+		badgeW := ui.textWidth(dc, block.Badge.Text, ui.badgeFont) + 2*scaleDIP(badgePadX, ui.dpi)
+		badgeH := scaleDIP(badgeHeight, ui.dpi)
+		badgeRect := uiRect{
+			Left:   cardRect.Right - scaleDIP(cardPadX, ui.dpi) - badgeW,
+			Top:    cy,
+			Right:  cardRect.Right - scaleDIP(cardPadX, ui.dpi),
+			Bottom: cy + badgeH,
+		}
+		colors := blockToneColors[block.Badge.Tone]
+		if colors == ([2]uint32{}) {
+			colors = blockToneColors["muted"]
+		}
+		ui.roundRectFill(dc, badgeRect, badgeH/2, colors[0])
+		labelW := ui.textWidth(dc, block.Badge.Text, ui.badgeFont)
+		labelTH := ui.textHeight(block.Badge.Text, ui.badgeFont)
+		ui.drawTextAt(dc, block.Badge.Text, ui.badgeFont,
+			badgeRect.Left+(badgeW-labelW)/2,
+			badgeRect.Top+(badgeH-labelTH)/2,
+			colors[1])
+		titleRight = badgeRect.Left - scaleDIP(cardGapInner, ui.dpi)
+	}
+	// 标题单行裁剪到徽章左侧。
+	procSaveDC.Call(dc)
+	titleClip := uiRect{Left: cx, Top: cy, Right: titleRight, Bottom: cy + titleH}
+	procIntersectClipRect.Call(dc,
+		uintptr(uint32(titleClip.Left)), uintptr(uint32(titleClip.Top)),
+		uintptr(uint32(titleClip.Right)), uintptr(uint32(titleClip.Bottom)))
+	ui.drawTextAt(dc, block.Title, ui.boldFont, cx, cy, rgb(17, 17, 27))
+	procRestoreDC.Call(dc, 0xFFFFFFFF)
+
+	cy += titleH
+	for index, line := range block.Lines {
+		cy += scaleDIP(cardGapInner, ui.dpi)
+		ui.drawTextAt(dc, line, ui.smallFont, cx, cy, rgb(107, 114, 128))
+		cy += lineHeights[index]
+	}
+	return h
+}
+
+func (ui *agentUIHandle) blockHeight(block *PanelBlock) int32 {
+	if block.Kind == "stat" {
+		return scaleDIP(72, ui.dpi)
+	}
+	h := scaleDIP(cardPadY, ui.dpi) + ui.textHeight(block.Title, ui.boldFont) + scaleDIP(cardPadY, ui.dpi)
+	for _, line := range block.Lines {
+		h += scaleDIP(cardGapInner, ui.dpi) + ui.textHeight(line, ui.smallFont)
+	}
+	if h < scaleDIP(56, ui.dpi) {
+		h = scaleDIP(56, ui.dpi)
+	}
+	return h
+}
+
+// roundRectFill 用 RoundRect 画圆角矩形：笔刷和描边同色，填充后擦掉描边感。
+func (ui *agentUIHandle) roundRectFill(dc uintptr, rect uiRect, radius int32, color uint32) {
+	brush, _, _ := procCreateSolidBrush.Call(uintptr(color))
+	pen, _, _ := procCreatePen.Call(psSolid, 1, uintptr(color))
+	oldBrush, _, _ := procSelectObject.Call(dc, brush)
+	oldPen, _, _ := procSelectObject.Call(dc, pen)
+	procRoundRect.Call(dc,
+		uintptr(uint32(rect.Left)), uintptr(uint32(rect.Top)),
+		uintptr(uint32(rect.Right)), uintptr(uint32(rect.Bottom)),
+		uintptr(uint32(radius)), uintptr(uint32(radius)))
+	procSelectObject.Call(dc, oldBrush)
+	procSelectObject.Call(dc, oldPen)
+	procDeleteObject.Call(brush)
+	procDeleteObject.Call(pen)
+}
+
+// drawBlockText 先用 DT_CALCRECT 量出文本高度，再在 (x, y) 绘制，返回结束 Y。
+// 不依赖 DrawTextW 对 rect 的回写（Bottom=极大值时部分环境不更新，会把后续块画到标题上）。
+func (ui *agentUIHandle) drawBlockText(dc uintptr, text string, font uintptr, x, y, w int32, color uint32, extraFlags uint32) int32 {
+	if text == "" {
+		return y
+	}
+	old := uintptr(0)
+	if font != 0 {
+		old, _, _ = procSelectObject.Call(dc, font)
+	}
+	procSetBkMode.Call(dc, transparentBkMode)
+	textPtr, _ := syscall.UTF16PtrFromString(text)
+
+	measureRect := uiRect{Left: x, Top: 0, Right: x + w, Bottom: 0}
+	measureFlags := uint32(dtTop|dtNoPrefix|dtCalcrect) | extraFlags
+	procDrawTextW.Call(dc, uintptr(unsafe.Pointer(textPtr)), uintptr(0xFFFFFFFF), uintptr(unsafe.Pointer(&measureRect)), uintptr(measureFlags))
+	height := measureRect.Bottom - measureRect.Top
+	if height <= 0 {
+		height = scaleDIP(18, ui.dpi)
+	}
+
+	procSetTextColor.Call(dc, uintptr(color))
+	drawRect := uiRect{Left: x, Top: y, Right: x + w, Bottom: y + height}
+	drawFlags := uint32(dtLeft|dtTop|dtNoPrefix) | extraFlags
+	procDrawTextW.Call(dc, uintptr(unsafe.Pointer(textPtr)), uintptr(0xFFFFFFFF), uintptr(unsafe.Pointer(&drawRect)), uintptr(drawFlags))
+	runtime.KeepAlive(textPtr)
+	if old != 0 {
+		procSelectObject.Call(dc, old)
+	}
+	return y + height
+}
+
+func (ui *agentUIHandle) drawTextAt(dc uintptr, text string, font uintptr, x, y int32, color uint32) {
+	if text == "" {
+		return
+	}
+	old := uintptr(0)
+	if font != 0 {
+		old, _, _ = procSelectObject.Call(dc, font)
+	}
+	procSetTextColor.Call(dc, uintptr(color))
+	procSetBkMode.Call(dc, transparentBkMode)
+	textPtr, _ := syscall.UTF16PtrFromString(text)
+	procTextOutW.Call(dc, uintptr(uint32(x)), uintptr(uint32(y)),
+		uintptr(unsafe.Pointer(textPtr)), uintptr(len([]rune(text))))
+	runtime.KeepAlive(textPtr)
+	if old != 0 {
+		procSelectObject.Call(dc, old)
+	}
+}
+
+func (ui *agentUIHandle) textWidth(dc uintptr, text string, font uintptr) int32 {
+	if text == "" || dc == 0 {
+		return 0
+	}
+	old := uintptr(0)
+	if font != 0 {
+		old, _, _ = procSelectObject.Call(dc, font)
+	}
+	textPtr, _ := syscall.UTF16PtrFromString(text)
+	var size uiPoint
+	procGetTextExtentPoint32W.Call(dc,
+		uintptr(unsafe.Pointer(textPtr)),
+		uintptr(len([]rune(text))),
+		uintptr(unsafe.Pointer(&size)))
+	runtime.KeepAlive(textPtr)
+	if old != 0 {
+		procSelectObject.Call(dc, old)
+	}
+	return size.X
+}
+
+func (ui *agentUIHandle) textHeight(text string, font uintptr) int32 {
+	// 逻辑近似：按字号估行高，不为量高创建临时 DC。
+	line := scaleDIP(18, ui.dpi)
+	if font == ui.titleFont {
+		line = scaleDIP(28, ui.dpi)
+	} else if font == ui.statFont {
+		line = scaleDIP(38, ui.dpi)
+	}
+	if text == "" {
+		return line
+	}
+	return line
+}
+
+// scrollBy 处理滚轮；返回是否消费了消息。
+func (ui *agentUIHandle) scrollBy(wheelDelta int32) bool {
+	snapshot := ui.panel.snapshot()
+	if len(snapshot.Blocks) == 0 {
+		return false
+	}
+	steps := wheelDelta / 120
+	if steps == 0 {
+		if wheelDelta > 0 {
+			steps = 1
+		} else if wheelDelta < 0 {
+			steps = -1
+		}
+	}
+	ui.mu.Lock()
+	ui.scrollY -= steps * scaleDIP(scrollStepDIP, ui.dpi)
+	if ui.scrollY < 0 {
+		ui.scrollY = 0
+	}
+	ui.mu.Unlock()
+	// 夹紧到内容底在 drawBlocks 里做；这里先请求重绘。
+	procInvalidateRect.Call(ui.hwndOf(), 0, 1)
+	return true
+}
+
+func (ui *agentUIHandle) hwndOf() uintptr {
+	ui.mu.Lock()
+	defer ui.mu.Unlock()
+	return ui.hwnd
+}
+
+func (ui *agentUIHandle) beginFooterPress(x, y int32) bool {
+	if !ui.footerEnabled || !pointInRect(x, y, ui.footerRect) {
+		return false
+	}
+	ui.footerPressed = true
+	procInvalidateRect.Call(ui.hwndOf(), uintptr(unsafe.Pointer(&ui.footerRect)), 1)
+	return true
+}
+
+func (ui *agentUIHandle) completeFooterPress(x, y int32) bool {
+	if !ui.footerPressed {
+		return false
+	}
+	ui.footerPressed = false
+	procInvalidateRect.Call(ui.hwndOf(), uintptr(unsafe.Pointer(&ui.footerRect)), 1)
+	if pointInRect(x, y, ui.footerRect) {
+		snapshot := ui.panel.snapshot()
+		if snapshot.Footer != nil && snapshot.Footer.Action != "" {
+			ui.panel.pushAction(snapshot.Footer.Action)
+		}
+	}
+	return true
+}
+
+func pointInRect(x, y int32, rect uiRect) bool {
+	return x >= rect.Left && x < rect.Right && y >= rect.Top && y < rect.Bottom
 }
 
 func (ui *agentUIHandle) drawAnimation(dc uintptr, width, height int32) {
@@ -1093,17 +1516,12 @@ func (ui *agentUIHandle) setTrayEnabled(enabled bool) {
 }
 
 func (ui *agentUIHandle) deleteFonts() {
-	if ui.titleFont != 0 {
-		procDeleteObject.Call(ui.titleFont)
-		ui.titleFont = 0
-	}
-	if ui.textFont != 0 {
-		procDeleteObject.Call(ui.textFont)
-		ui.textFont = 0
-	}
-	if ui.rainFont != 0 {
-		procDeleteObject.Call(ui.rainFont)
-		ui.rainFont = 0
+	fonts := []*uintptr{&ui.titleFont, &ui.textFont, &ui.rainFont, &ui.boldFont, &ui.smallFont, &ui.statFont, &ui.badgeFont, &ui.footerFont}
+	for _, slot := range fonts {
+		if *slot != 0 {
+			procDeleteObject.Call(*slot)
+			*slot = 0
+		}
 	}
 }
 
