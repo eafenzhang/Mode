@@ -434,7 +434,9 @@ memory 脚本已入库并用现役实例验证分类器，30 min 正式基线待
 「度量与预算」）；**「核心载荷 ≤25MB 观测项」已接线**——`measure:ship-core-payload`
 量 ship 集四目录未压缩字节和（node/ 除外），release.yml 三平台腿记录不阻断，本机实测
 **59.77 MiB**（host-sidecar 31.60 + agent 19.49 + tools 8.50 + config 0.19，over-target
-标注正常；与 2026-10-23 基线 ≈63MB 同量级）；stream-latency 仍待做。〕
+标注正常；与 2026-10-23 基线 ≈63MB 同量级）；stream-latency 的 **agent 段**基线已入库
+（中位 3ms / p95 35ms，详见「度量与预算」），Host→renderer 段待产品壳 E2E；
+性能四件的脚本面至此全部落地，memory 的 30min 正式基线待无实例窗口。〕
 
 ### M4b（2–4 周）：Host 并入壳 + IPC 换代
 
@@ -554,7 +556,13 @@ typecheck / lint / architecture / language policy / desktop tests / desktop-taur
     Helper 常驻是刻意设计），冷启动路径上不存在 agent ready 事件，硬加探针就是改被测对象。
     agent 启动耗时改挂**首任务延迟**（spawn → ready 的 `startupDurationMs`，已有
     `onReady` 结构化上报），与 `bench/stream-latency` 同属首任务面，不混入冷启动口径。
-  - `bench/stream-latency`（`text_delta` 产生到 renderer 收到的 p50/p95）——**待建**。
+  - `bench/stream-latency`（`text_delta` 产生到 renderer 收到的 p50/p95）——**agent 段基线
+    已入库**（2026-10-23，`measure:stream-latency`）：真 CLI（oracle driver + 本地 mock
+    provider，零计费）测「模型端点 SSE 写出 → agent stdout text_delta 帧」段，n=10
+    **中位 3 ms / p95 35 ms**（首轮 35ms 为 JIT 预热，稳态 3–4ms）。**不含** Host 转发与
+    WebView 段——对照「端到端 p95 ≤ 80 ms」这是下界组成段；Host→renderer 段需产品壳
+    E2E，待做。mock/driver 各加一个纯观测钩子（`onContentBlockDeltaWrite`），oracle
+    既有回归全绿。
   - `bench/memory`（壳 / sidecar / agent 三进程 30 分钟 RSS 曲线）——**脚本已入库**
     （`measure:memory`，2026-10-23）：Win32_Process 过滤采样 + 安装目录/命令行特征归类，
     分类器已对现役实例验证（shell/sidecar/agent 全命中）；**前置**是被测机无运行中实例

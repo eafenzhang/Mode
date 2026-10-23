@@ -63,6 +63,7 @@ function writeSseResponse(
   res: import("node:http").ServerResponse,
   step: MockStepBody,
   index: number,
+  onContentBlockDeltaWrite?: (at: number) => void,
 ): void {
   res.writeHead(200, {
     "content-type": "text/event-stream",
@@ -99,6 +100,7 @@ function writeSseResponse(
         index: position,
         delta: { type: "input_json_delta", partial_json: JSON.stringify(call.input) },
       });
+      onContentBlockDeltaWrite?.(Date.now());
       sse(res, "content_block_stop", { type: "content_block_stop", index: position });
     });
     sse(res, "message_delta", {
@@ -117,6 +119,7 @@ function writeSseResponse(
       index: 0,
       delta: { type: "text_delta", text: step.text },
     });
+    onContentBlockDeltaWrite?.(Date.now());
     sse(res, "content_block_stop", { type: "content_block_stop", index: 0 });
     sse(res, "message_delta", {
       type: "message_delta",
@@ -154,6 +157,14 @@ export type MockProviderOptions = {
    * 钩子是只读观察，抛异常会原样冒到 HTTP 处理路径，不吞不掩。
    */
   onRequestBody?: (path: string, body: AnthropicBody) => void;
+  /**
+   * 纯观测钩子：每写出一个 `content_block_delta`（SSE）前回调一次，参数是写出时刻。
+   *
+   * 存在的理由（M4a stream-latency bench）：测「模型端点字节 → agent 事件出口」的
+   * 转发延迟需要一个**发送侧时间戳**；与 `onRequestBody` 同模式——只读观察，
+   * 抛异常原样冒出。时刻由调用方传入的时钟决定（bench 用 `performance.now`）。
+   */
+  onContentBlockDeltaWrite?: (at: number) => void;
 };
 
 export async function startMockProvider(
@@ -192,7 +203,7 @@ export async function startMockProvider(
         response.end(JSON.stringify({ error: "oracle mock provider: empty script" }));
         return;
       }
-      writeSseResponse(response, step, index);
+      writeSseResponse(response, step, index, options.onContentBlockDeltaWrite);
     });
   });
 

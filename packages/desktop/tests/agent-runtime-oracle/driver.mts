@@ -107,6 +107,14 @@ export type OracleRuntimeOptions = {
    */
   onMockRequestBody?: (path: string, body: Record<string, unknown>) => void;
   /**
+   * 纯观测钩子：mock provider 每写出一个 `content_block_delta`（SSE）前回调一次（透传给
+   * `startMockProvider` 的同名钩子）。
+   *
+   * 存在的理由（M4a stream-latency bench）：测「模型端点字节 → agent 事件出口」的转发
+   * 延迟需要发送侧时间戳；与 `onMockRequestBody` 同模式——只读观察，抛异常原样冒出来。
+   */
+  onMockContentBlockDeltaWrite?: (at: number) => void;
+  /**
    * 追加到 `app-server --stdio` 之后的 CLI 参数，**只为诊断工具面**（Task 2 加的）。
    *
    * 实测（2026-10-16，探针 `probe-tool-surface.mts` 的 `tools` 组，自动化版是 `tool-surface.test.mts`）：
@@ -241,6 +249,7 @@ export async function startOracleRuntime(options: OracleRuntimeOptions): Promise
     onRequestBody: options.onMockRequestBody as
       | ((path: string, body: { tools?: unknown[] }) => void)
       | undefined,
+    onContentBlockDeltaWrite: options.onMockContentBlockDeltaWrite,
   });
   await writeOracleProviderConfig(mockPersonalConfigPath, mock.baseUrl);
 
