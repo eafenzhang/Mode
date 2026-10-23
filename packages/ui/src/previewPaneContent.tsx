@@ -226,6 +226,7 @@ export function PreviewPaneContent({
         codeTheme={codeTheme}
         theme={theme}
         wrapLongLines={wrapLongLines}
+        fillContainer
         comments={codeComments}
         enableLineSelection={enableCodeLineSelection}
         enableGutterUtility={enableCodeGutterUtility}
@@ -436,6 +437,7 @@ export function PreviewPaneContent({
       codeTheme={codeTheme}
       theme={theme}
       wrapLongLines={wrapLongLines}
+      fillContainer
       comments={codeReviewProjection?.inlineComments ?? codeComments}
       topComment={codeReviewProjection?.topComment}
       topCommentShowRange={false}

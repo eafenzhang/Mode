@@ -55,6 +55,8 @@ export interface CodeViewProps extends Omit<HTMLAttributes<HTMLDivElement>, "chi
   onDeleteCodeComment?: (commentId: string) => void;
   enableLineSelection?: boolean;
   enableGutterUtility?: boolean;
+  /** 预览面板链路：本节点自身即滚动容器，需要高度约束 + 纵向 overflow。 */
+  fillContainer?: boolean;
   scrollContainerRef?: Ref<HTMLDivElement>;
   onSubmitCodeComment?: (params: {
     range: { startLine: number; endLine: number };
@@ -83,6 +85,7 @@ export function CodeView({
   onDeleteCodeComment,
   enableLineSelection = false,
   enableGutterUtility = false,
+  fillContainer = false,
   scrollContainerRef,
   onSubmitCodeComment,
   className,
@@ -208,6 +211,10 @@ export function CodeView({
       data-slot="code-view"
       className={cn([
         "group/code-view min-w-0 font-mono text-ui-sm",
+        // 预览面板把本节点当滚动容器：父级是确定高度的 flex item，
+        // 缺高度约束时长文件会被 aside 的 overflow-hidden 裁掉，滚动条和换行开关都失效。
+        // 聊天代码块（fillContainer=false）父级自适应，不加约束，避免 100% 参照被内容撑高后截断。
+        fillContainer ? "h-full overflow-y-auto" : "",
         wrapLongLines ? "overflow-x-hidden" : "overflow-x-auto",
         className,
       ])}
@@ -246,18 +253,6 @@ export function CodeView({
             data-line-number={model.number}
             data-focused={model.focused ? "true" : undefined}
             data-selected={isCodeViewLineSelected(selection, model.number) ? "true" : undefined}
-            onPointerDown={
-              enableLineSelection
-                ? (event) => {
-                    if (event.button !== 0) {
-                      return;
-                    }
-                    event.preventDefault();
-                    beginSelection(model.number);
-                  }
-                : undefined
-            }
-            onPointerEnter={enableLineSelection ? () => extendSelection(model.number) : undefined}
             className={cn([
               "flex min-w-0 items-start gap-2 px-3 py-px",
               model.focused || isCodeViewLineSelected(selection, model.number) ? "bg-selected" : "",
@@ -277,10 +272,26 @@ export function CodeView({
             {showLineNumbers ? (
               <span
                 aria-hidden="true"
-                className={[
+                data-line-number-gutter={model.number}
+                onPointerDown={
+                  enableLineSelection
+                    ? (event) => {
+                        if (event.button !== 0) {
+                          return;
+                        }
+                        event.preventDefault();
+                        beginSelection(model.number);
+                      }
+                    : undefined
+                }
+                onPointerEnter={
+                  enableLineSelection ? () => extendSelection(model.number) : undefined
+                }
+                className={cn([
                   "w-8 shrink-0 select-none pe-2 text-end tabular-nums",
+                  enableLineSelection ? "cursor-pointer" : "",
                   model.marked ? "text-warning" : "text-foreground-subtlest",
-                ].join(" ")}
+                ])}
               >
                 {model.number}
               </span>

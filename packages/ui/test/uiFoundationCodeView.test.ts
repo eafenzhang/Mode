@@ -103,6 +103,47 @@ test("CodeView 第二层：topComment 范围/提示与行后注释卡", () => {
   assert.match(html, /rename this/);
 });
 
+test("滚动容器：fillContainer 时根节点自带高度约束与纵向 overflow，长文件不被父级裁掉", () => {
+  const html = renderToStaticMarkup(
+    createElement(CodeView, {
+      code: "line1",
+      language: "typescript",
+      enableSyntaxHighlighting: false,
+      fillContainer: true,
+    }),
+  );
+  const rootTag = html.slice(0, html.indexOf(">") + 1);
+  assert.match(rootTag, /\bh-full\b/);
+  assert.match(rootTag, /\boverflow-y-auto\b/);
+});
+
+test("聊天代码块不加高度约束：父级自适应，避免 100% 参照被内容撑高后截断", () => {
+  const html = renderToStaticMarkup(
+    createElement(CodeView, {
+      code: "line1",
+      language: "typescript",
+      enableSyntaxHighlighting: false,
+    }),
+  );
+  const rootTag = html.slice(0, html.indexOf(">") + 1);
+  assert.doesNotMatch(rootTag, /\bh-full\b/);
+});
+
+test("行选拦截只落在行号槽位，代码区不再 preventDefault 复制", () => {
+  const html = renderToStaticMarkup(
+    createElement(CodeView, {
+      code: "line1",
+      language: "typescript",
+      enableSyntaxHighlighting: false,
+      enableLineSelection: true,
+    }),
+  );
+  // 行选从行号槽位发起；行本身不再挂 onPointerDown，否则点代码区会 preventDefault，
+  // 原生文本选区被杀掉，右侧栏无法复制。
+  assert.match(html, /data-line-number-gutter="1"/);
+  assert.doesNotMatch(html, /data-line-number="1"[^>]*onpointerdown/);
+});
+
 test("选区：反向拖拽归一，选中判断按闭区间", () => {
   const range = normalizeCodeViewSelection(5, 3);
   assert.deepEqual(range, { startLine: 3, endLine: 5 });

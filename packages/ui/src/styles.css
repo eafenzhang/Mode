@@ -197,6 +197,13 @@ body {
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace;
+  /* sans 栈与 mono 同理：Windows 的 system-ui（Segoe UI）不含中文字形，Tailwind 默认栈
+   * 在部分环境会让中文落到宋体（观感「字体不对」）。在通用 sans-serif 前显式加入各平台
+   * CJK 无衬线字体；西文命中链不变（system-ui 仍优先），CJK 专用字形按平台就近取。 */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei",
+    "PingFang SC", "Noto Sans CJK SC", sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
   --text-ui-xl: calc(var(--ui-font-size) + 4px);
   --text-ui-lg: calc(var(--ui-font-size) + 2px);
   --text-ui-base: var(--ui-font-size);

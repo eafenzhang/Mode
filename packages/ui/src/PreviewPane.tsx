@@ -19,6 +19,7 @@ import {
   ExternalLinkIcon,
   FileCode2Icon,
   CopyIcon,
+  FolderOpenIcon,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { Button } from "@/ui-foundation/adapters/button.js";
@@ -484,6 +485,7 @@ export function PreviewPane({
   onOpenCodeViewer,
   renderHeavyContent = true,
   markdownSelectionTarget,
+  isDesktop = false,
 }: {
   source: CodeViewerSource | null;
   onClose: () => void;
@@ -492,6 +494,8 @@ export function PreviewPane({
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   renderHeavyContent?: boolean;
   markdownSelectionTarget?: MarkdownSelectionTarget;
+  /** 本地文件管理器入口只在桌面端出现；Web 端没有对应系统能力。 */
+  isDesktop?: boolean;
 }) {
   const platform = usePlatform();
   const { intl } = useModeIntl();
@@ -513,7 +517,12 @@ export function PreviewPane({
     source?.workspaceRemoteSessionId ||
     matchedOpenContext.isRemoteWorkspace,
   );
-  const fileActions = useFileContextActions();
+  const fileActions = useFileContextActions({
+    canOpenLocalFileManager: isDesktop,
+    isRemoteWorkspace: isRemoteSource,
+    remoteTarget: openInEditorRemoteTarget,
+    workspaceIdentity: source?.workspaceIdentity,
+  });
   const { fileService, fileWatcherService, mediaPreviewService } = useWorkspaceServices(
     sourceWorkspacePath,
     source?.workspaceRemoteSessionId,
@@ -1690,6 +1699,16 @@ export function PreviewPane({
                       <CopyIcon className="size-4" />
                       {intl.formatMessage({ id: "fileActions.copyRelativePath" })}
                     </DropdownMenuItem>
+                    {fileActions.canRevealInFileManager({ path: source.path }) ? (
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          void fileActions.revealInFileManager({ path: source.path! })
+                        }
+                      >
+                        <FolderOpenIcon className="size-4" />
+                        {intl.formatMessage({ id: "appHeader.openInFileManager" })}
+                      </DropdownMenuItem>
+                    ) : null}
                   </>
                 ) : null}
               </DropdownMenuContent>

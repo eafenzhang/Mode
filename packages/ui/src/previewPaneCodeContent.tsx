@@ -26,6 +26,7 @@ interface CodeContentProps {
   focusRequestId?: string;
   enableLineSelection?: boolean;
   enableGutterUtility?: boolean;
+  fillContainer?: boolean;
   labels?: Partial<CodeCommentLabels>;
   onSubmitCodeComment?: (params: {
     range: CodeCommentRange;
@@ -54,6 +55,7 @@ export function CodeContent({
   focusRequestId,
   enableLineSelection = false,
   enableGutterUtility = false,
+  fillContainer = false,
   labels,
   onSubmitCodeComment,
   onDeleteCodeComment,
@@ -94,6 +96,7 @@ export function CodeContent({
       focusRequestId={focusRequestId}
       enableLineSelection={enableLineSelection}
       enableGutterUtility={enableGutterUtility}
+      fillContainer
       labels={labels}
       onSubmitCodeComment={onSubmitCodeComment}
       onDeleteCodeComment={onDeleteCodeComment}
