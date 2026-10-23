@@ -158,6 +158,7 @@ import {
   isGroupSilenceReply,
   type GroupTurnPromptInput,
 } from "./groupPrompt.js";
+import { buildHandoffInboundPrompt, formatHandoffTargets } from "./handoffPrompt.js";
 import { buildPrivateTurnPrompt } from "./privatePrompt.js";
 import {
   isHeartbeatDue,
@@ -6807,6 +6808,35 @@ export function createBotsService(
         }),
       };
     }
+    // 跨聊天交接标注（spec bot-cross-chat-handoff R3）：标题已在上方用原始 text 推导，
+    // 这里注入不影响任务名；<system-reminder> 由展示层 strip 统一隐藏。
+    if (message.handoff) {
+      preparedMessage = {
+        ...preparedMessage,
+        content: buildHandoffInboundPrompt({
+          source: `${message.handoff.sourceKey}${
+            message.handoff.sourceLabel ? `（${message.handoff.sourceLabel}）` : ""
+          }`,
+          ...(message.handoff.context ? { context: message.handoff.context } : {}),
+          content: preparedMessage.content,
+          locale: auth.locale,
+        }),
+      };
+    }
+    // 交接目标清单（spec R2）：仅非心跳的 bot 回合注入；无其他对话时不注入。
+    if (options.heartbeat !== true) {
+      const botState = await repo.readState();
+      const currentKey = getBotActorConversation(message.actor).key;
+      const otherConversations = listConversations(botState, auth.bot.id).filter(
+        (item) => item.conversationKey !== currentKey,
+      );
+      if (otherConversations.length > 0) {
+        preparedMessage = {
+          ...preparedMessage,
+          content: `${preparedMessage.content}\n\n${formatHandoffTargets(otherConversations, auth.locale)}`,
+        };
+      }
+    }
     if (auth.context.mode === "draft" || !auth.context.activeTaskId) {
       const draftOptions =
         auth.context.draftOptions ?? (await buildInitializedDraftOptions(auth.context));
@@ -8015,7 +8045,24 @@ export function createBotsService(
         botId: bot.id,
         actor: targetActor,
         text: params.message,
-        ...(params.context ? { handoff: { sourceKey, context: params.context } } : { handoff: { sourceKey } }),
+        ...(params.context
+          ? {
+              handoff: {
+                sourceKey,
+                ...(sourceConversation.conversationLabel
+                  ? { sourceLabel: sourceConversation.conversationLabel }
+                  : {}),
+                context: params.context,
+              },
+            }
+          : {
+              handoff: {
+                sourceKey,
+                ...(sourceConversation.conversationLabel
+                  ? { sourceLabel: sourceConversation.conversationLabel }
+                  : {}),
+              },
+            }),
         receivedAt: Date.now(),
       };
       const targetContext = await readContext(targetActor, bot);

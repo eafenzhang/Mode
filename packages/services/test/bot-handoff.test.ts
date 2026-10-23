@@ -389,3 +389,19 @@ test("handoffMessage：非法附件在任何投递前整次拒绝", async () => 
   assert.ok(afterInvalid, "合法附件的首次调用必须进入派发链路（不被上次失败卡成 duplicate）");
   assert.doesNotMatch(afterInvalid!, /File not found/);
 });
+
+test("handleMessage：交接注入与目标清单挂在标题推导之后、非心跳分支", () => {
+  const source = readFileSync(
+    new URL("../src/bots/botsService.ts", import.meta.url),
+    "utf8",
+  );
+  // 注入发生在 titleSource 推导之后（保证任务标题取原始 text）
+  const titleIndex = source.indexOf("const titleSource");
+  const handoffIndex = source.indexOf("buildHandoffInboundPrompt(");
+  const targetsIndex = source.indexOf("formatHandoffTargets(");
+  assert.ok(titleIndex > 0 && handoffIndex > titleIndex, "交接注入必须在标题推导之后");
+  assert.ok(targetsIndex > handoffIndex, "目标清单在交接包装之后");
+  assert.match(source, /message\.handoff/);
+  assert.match(source, /options\.heartbeat !== true/, "心跳回合不注入目标清单");
+  assert.match(source, /enqueueInboundProcessing\(targetActor/, "交接按目标对话串行准入");
+});
