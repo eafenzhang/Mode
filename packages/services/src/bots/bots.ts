@@ -92,6 +92,24 @@ export interface BotSendMediaResult {
   kind: "image" | "file";
 }
 
+/** 跨聊天交接请求（docs/specs/bot-cross-chat-handoff.md）：target 为 Host 注入的
+ *  源回合身份（模型不可伪造 bot 归属）；conversationKey 为目标对话键。 */
+export interface BotHandoffParams {
+  target: ModeAutomationBotDeliveryTarget;
+  conversationKey: string;
+  message: string;
+  context?: string;
+  attachments?: string[];
+  /** 幂等键：TTL 内同键重复调用静默丢弃（入站去重同语义）。 */
+  toolCallId: string;
+}
+
+/** 跨聊天交接结果：submitted=已注入目标回合；queued=目标任务运行中已排队；duplicate=幂等丢弃。 */
+export interface BotHandoffResult {
+  status: "submitted" | "queued" | "duplicate";
+  conversationKey: string;
+}
+
 export interface BotWorkspaceBindingParams {
   botId: string;
   workspacePath: string;
@@ -272,6 +290,9 @@ export interface IBotsService {
    * 路径越界、文件不存在或超过平台大小上限都会抛错。
    */
   sendBotMedia(params: BotSendMediaParams): Promise<BotSendMediaResult>;
+  /** 跨聊天交接（docs/specs/bot-cross-chat-handoff.md）：校验后把消息注入目标对话的
+   * 串行队列，附件经 deliverBotMedia 投递到目标聊天；源对话不产生出站。 */
+  handoffMessage(params: BotHandoffParams): Promise<BotHandoffResult>;
   /** 当前被机器人绑定的任务列表（桌面任务行的绿点标识用）。 */
   listBotTaskBindings(): Promise<
     Array<{

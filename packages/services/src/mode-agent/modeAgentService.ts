@@ -55,6 +55,7 @@ import {
   modePluginsDescribeResultSchema,
   modeAutomationCheckTaskBindingParamsSchema,
   modeAutomationCreateParamsSchema,
+  modeBotHandoffParamsSchema,
   modeBotSendMediaParamsSchema,
   modeAutomationDeleteParamsSchema,
   modeAutomationListParamsSchema,
@@ -894,11 +895,16 @@ interface CreateModeAgentServiceOptions extends Omit<
     | Pick<IOffPeakTaskService, "createTask" | "list" | "getCodingPlanSupport">
     | undefined;
   /**
-   * Bot 回合内 agent 的 SendFile 经此回到 botsService.sendBotMedia。
+   * Bot 回合内 agent 的 SendFile / HandoffMessage 经此回到 botsService。
    * 装配顺序上 modeAgentService 先于 botsService 创建，因此用前向引用持有者惰性绑定；
-   * 缺省（纯 CLI / 无 bot 的 Host）时 bots/sendMedia 返回明确错误。
+   * 缺省（纯 CLI / 无 bot 的 Host）时对应调用返回明确错误。
+   * handoffMessage 用 Partial：node.ts 的 botsServiceForAgent 声明类型是
+   * Pick<IBotsService, "sendBotMedia">（不动 node.ts），运行时持有完整 IBotsService；
+   * 声明上缺失时 handoff 协议按「不可用」报错。
    */
-  resolveBotMediaSender?: () => Pick<IBotsService, "sendBotMedia"> | undefined;
+  resolveBotMediaSender?: () =>
+    | (Pick<IBotsService, "sendBotMedia"> & Partial<Pick<IBotsService, "handoffMessage">>)
+    | undefined;
   /**
    * browser-use 执行桥：把 agent 的 interaction/browserExecute 反向请求转发到 main
    * （WebContentsView+CDP）。desktop host 装配时注入；缺省（纯 CLI/远控无 main）则
@@ -2593,6 +2599,44 @@ export function createModeAgentService(
               await client.respond(request.id, {
                 filename: result.filename,
                 kind: result.kind,
+              });
+            } catch (error) {
+              await client.respondError(request.id, {
+                code: -32603,
+                message: error instanceof Error ? error.message : String(error),
+              });
+            }
+          })();
+          return;
+        }
+
+        if (request.method === modeProtocolMethods.botHandoff) {
+          const parsed = modeBotHandoffParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid bot handoff params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          void (async () => {
+            try {
+              const sender = options?.resolveBotMediaSender?.();
+              if (!sender?.handoffMessage) {
+                throw new Error("Bot handoff is not available on this host.");
+              }
+              const result = await sender.handoffMessage({
+                target: parsed.data.target,
+                conversationKey: parsed.data.conversationKey,
+                message: parsed.data.message,
+                ...(parsed.data.context ? { context: parsed.data.context } : {}),
+                ...(parsed.data.attachments ? { attachments: parsed.data.attachments } : {}),
+                toolCallId: parsed.data.toolCallId,
+              });
+              await client.respond(request.id, {
+                status: result.status,
+                conversationKey: result.conversationKey,
               });
             } catch (error) {
               await client.respondError(request.id, {

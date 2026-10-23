@@ -94,6 +94,8 @@ import type {
   BotTestResult,
   BotSendMediaParams,
   BotSendMediaResult,
+  BotHandoffParams,
+  BotHandoffResult,
   BotUiFocusParams,
   BotUserConfigOptionsParams,
   BotWorkspaceBindingInfo,
@@ -7929,6 +7931,147 @@ export function createBotsService(
         ...(params.caption ? { caption: params.caption } : {}),
         ...(params.chatId ? { chatId: params.chatId } : {}),
       });
+    },
+
+    async handoffMessage(params: BotHandoffParams): Promise<BotHandoffResult> {
+      const config = await repo.readConfig();
+      const bot = findBot(config, params.target.botId);
+      if (!bot || !bot.enabled || bot.provider !== params.target.provider) {
+        throw new Error("Handoff source bot is not available.");
+      }
+      const parsed = parseBotConversationKey(params.conversationKey);
+      if (!parsed) {
+        throw new Error(`Invalid target conversation key: ${params.conversationKey}`);
+      }
+      const sourceKey = getBotActorConversation(params.target).key;
+      if (params.conversationKey === sourceKey) {
+        throw new Error("Cannot hand off to the current conversation.");
+      }
+      const state = await repo.readState();
+      const channel = state.bots[bot.id];
+      const available = Object.keys(channel?.conversations ?? {});
+      const targetConversation = channel?.conversations[params.conversationKey];
+      if (!targetConversation) {
+        // spec R2：报错必须回显可用目标清单，模型可自助纠正
+        throw new Error(
+          `Target conversation not found: ${params.conversationKey}. Available: ${available.join(", ") || "(none)"}`,
+        );
+      }
+      // 黑名单硬否决（spec bot-access-mode R2 与交接共用否决层；R3 目标准入按目标对话自己执行）
+      const targetBlocked =
+        parsed.kind === "private"
+          ? isUserBlocked(bot, parsed.id)
+          : isGroupBlocked(bot, parsed.id);
+      if (targetBlocked) {
+        throw new Error("Target conversation is blocked.");
+      }
+      if (parsed.kind === "group") {
+        if ((bot.groupChat?.activation ?? "disabled") === "disabled") {
+          throw new Error("Target group chat is disabled.");
+        }
+        const approved =
+          bot.groupChat?.permissions?.some(
+            (item) => item.groupId === parsed.id && item.status === "approved",
+          ) ?? false;
+        if (!approved && resolveBotAccessMode(bot) !== "free") {
+          throw new Error("Target group chat is not authorized.");
+        }
+      } else {
+        const probeActor: BotActor = {
+          provider: bot.provider,
+          botId: bot.id,
+          providerUserId: parsed.id,
+          chatType: "private",
+        };
+        if (!findBoundUser(bot, probeActor)) {
+          throw new Error("Target user is not admitted on this bot.");
+        }
+      }
+      const sourceConversation = channel?.conversations[sourceKey];
+      if (!sourceConversation) {
+        throw new Error(`Source conversation not found: ${sourceKey}`);
+      }
+      // 附件校验必须发生在任何注入/投递之前（spec R4：非法路径整次拒绝，不部分投递）
+      const validatedPaths: string[] = [];
+      for (const raw of params.attachments ?? []) {
+        const validated = await resolveValidatedMediaFile(
+          sourceConversation.workspacePath,
+          raw,
+        );
+        validatedPaths.push(validated.real);
+      }
+      const targetActor: BotActor = {
+        provider: bot.provider,
+        botId: bot.id,
+        providerUserId: parsed.kind === "private" ? parsed.id : params.target.providerUserId,
+        chatType: parsed.kind === "private" ? "private" : "group",
+        ...(parsed.kind === "group"
+          ? { chatId: parsed.id, isMention: true } // 交接是定向投递：mention 闸门等价于被 @（spec R3 决策注释）
+          : {}),
+        // 幂等键走既有入站去重（spec R5）：TTL 内重复调用静默丢弃
+        providerMessageId: `handoff:${params.toolCallId}`,
+      };
+      const synthetic: BotInboundMessage = {
+        botId: bot.id,
+        actor: targetActor,
+        text: params.message,
+        ...(params.context ? { handoff: { sourceKey, context: params.context } } : { handoff: { sourceKey } }),
+        receivedAt: Date.now(),
+      };
+      const targetContext = await readContext(targetActor, bot);
+      if (!targetContext) {
+        throw new Error("Target conversation has no workspace context.");
+      }
+      if (targetContext.pendingElicitation) {
+        // 交接不是对目标会话提问的回答；handleMessage 的 elicitation 拦截会吞掉它（spec 边界决策）
+        throw new Error("Target conversation is awaiting an answer; handoff deferred is not supported.");
+      }
+      if (!inboundDeliveryDedupe.mark(synthetic)) {
+        return { status: "duplicate", conversationKey: params.conversationKey };
+      }
+      const busyBefore =
+        targetContext.mode === "task" &&
+        Boolean(targetContext.activeTaskId) &&
+        (await isContextActiveTaskRunning(targetContext));
+      let replies: BotOutboundMessage[];
+      try {
+        // 与 drain/heartbeat 同路：绕过命令解析（交接正文可能以 / 开头也绝不当命令），
+        // 但仍按目标对话串行准入（spec R3「按目标对话自己的回合准入执行」）。
+        replies = await enqueueInboundProcessing(targetActor, () => handleMessage(synthetic));
+      } catch (error) {
+        // 失败释放幂等键，允许重试（spec R5 + 入站去重同语义）
+        inboundDeliveryDedupe.release(synthetic);
+        throw error;
+      }
+      if (busyBefore) {
+        // 排队提示只进工具结果，不发给任何聊天（spec R3）
+        return { status: "queued", conversationKey: params.conversationKey };
+      }
+      if (replies.length > 0) {
+        // 预检之外剩余的非空回复 = 准入/工作区类拒绝（如 noWorkspaceAllowed）；如实上抛给调用方 Agent。
+        // 拒绝即未投递 → 释放幂等键允许重试（spec R5：去重只针对「已发生的目标侧副作用」）。
+        inboundDeliveryDedupe.release(synthetic);
+        // 已知有界竞态：check 与调用之间目标任务刚起跑时 replies 会是排队提示而被误抛——窗口极窄，接受。
+        throw new Error(replies.map((item) => item.text).join("\n"));
+      }
+      for (const real of validatedPaths) {
+        try {
+          await deliverBotMedia({
+            bot,
+            filePath: real,
+            chatId: targetConversation.conversationId,
+            workspaceRoot: sourceConversation.workspacePath, // 文件在源工作区，白名单根随源（spec R4）
+          });
+        } catch (error) {
+          // 消息已注入目标回合，不释放幂等键（重试会双投正文）；附件损失在错误里说清楚
+          throw new Error(
+            `Handoff message was delivered to the target, but an attachment failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+      return { status: "submitted", conversationKey: params.conversationKey };
     },
     /** 所有对话上下文（展平）：UI 用它显示每个 bot 当前挂着的会话/工作区。 */
     async getBotStates() {
