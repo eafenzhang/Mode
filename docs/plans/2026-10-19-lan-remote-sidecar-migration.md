@@ -860,3 +860,24 @@ helpAppConfig 读取器对三语一律返回兜底入口 `MODE_ISSUES_URL`，不
 - 无 Rust 改动，rustfmt/clippy/platform cargo 用例不适用本轮。
 
 未完成：`exportLogs`（待产品设计）；LR-5 其余条目（真机验收、发布支持矩阵）仍待人工。
+
+## 27. LR-5 第 5 条收口登记（2026-10-23）：可自动化项清零
+
+`window_mode.ts` 的 `REJECTING_REQUIRED` 与 shim 的 `M1_UNIMPLEMENTED_REQUIRED_METHODS`
+逐项排查完毕，剩余条目全部**不该**迁成壳命令或注入层真实现：
+
+| 条目 | 处置 | 理由 |
+| --- | --- | --- |
+| LAN 11 条 + `connectRemote` | 保持拒绝桩（决策 D1） | 业务面由 desktopPlatform 委托 Host 服务；`window.mode` 只是回退 |
+| RD 7 条 + `rdSendSignal`/`rdEndSession` | 保持拒绝桩（决策 D1） | 同上 |
+| `isDockerAvailable`/`listWSLDistros`/`listDockerContainers`/`listSSHConfigAliases` | 保持拒绝桩 | Tauri Host 明确返回不支持（LR-4 口径），不伪装成功 |
+| `loadMcpFromUserDirectory`/`migrateLegacyCommonMcp`/`saveMcpToUserDirectory` | 保持拒绝桩 | 渲染层已改走 host 的 mcpSyncService |
+| `exportLogs` | **待设计（人工）** | 契约在、调用方为零（`sidebar.exportLogs` 文案无组件引用）；导出内容/格式/对话框归属无产品设计。Electron 处理器已随 `d71ed992` 删除，Tauri 线日志落盘口径未确认。设计拍板后再迁 |
+| 事件订阅面（`onFocusTab` 等） | 登记为不做（spec §9.4） | 壳没有事件发送方 |
+| `onUpdateCheckResult`/`onPostUpdateReleaseNotes`/`acknowledgePostUpdateReleaseNotes` | 登记为不做（spec §9.4） | 无事件源 |
+| `getDeviceId`/`setApplicationLocale`/`setTitleBarTheme`/`activateOrSetWorkspace`/`registerOAuthState`/`syncActiveTaskSession`/`disposeRemoteSession`/`removeLanPairedPeer`/`renameLanPairedPeer` | 保持现状 | 业务面/Host 委托面或无产品入口 |
+
+**第 5 条的自动化迁移部分至此完成**（本线共升级 13 条：createTempTextAttachment、
+openExternalFile、rdReadClipboardText、更新面 9 项、社群入口 2 项）。
+剩余为人工项：两台 Windows 实机验收、同意窗壳窗口产品决策、`exportLogs` 产品设计、
+发布说明支持矩阵。

@@ -22,5 +22,5 @@
   // 刻意**不含** `test/harness/**`：那些页面靠 vite 的 alias 解析 `@mode/shared`（浏览器 shim）
   // 与真实渲染层源码，用 tsc 解析它们会把 node 侧的 shared barrel 拉进一个 DOM 工程，
   // 检查出来的错与这些页面无关（构建与运行由 vite/tsx 负责，见各自的 vite.config）。
-  "include": ["frontend/src/**/*.ts", "scripts/**/*.ts", "vite.config.ts", "test/*.test.mts"]
+  "include": ["frontend/src/**/*.ts", "scripts/**/*.ts", "bench/**/*.ts", "vite.config.ts", "test/*.test.mts"]
 }

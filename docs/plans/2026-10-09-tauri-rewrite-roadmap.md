@@ -356,7 +356,24 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 | **合计** | **≈153 MB** | 未压缩载荷；压缩后另测 |
 
 **进程与 IPC**：常驻 3–4 进程（壳 / sidecar Node / agent Node `mode.cjs` / CUA helper）；
-帧协议 JSON + base64（每帧一次解析 + 一次编解码 + 一次拷贝），是流式路径的固定开销。
+帧协议是**二进制 `@mode/rpc` 序列化 + 4 字节大端长度前缀**（`stdioFrames.ts`），
+每帧一次 serialize + 一次 deserialize + 拷贝，是流式路径的固定开销。
+〔2026-10-23 更正：本节初版写的「JSON + base64」与现役实现不符——stdio 帧路径无 base64
+编解码；实测与证据见 `apps/desktop-tauri/bench/ipc-throughput.ts` 与 §基线·IPC。〕
+
+**IPC 吞吐（2026-10-23 基线，`pnpm --filter @mode/desktop-tauri measure:ipc-throughput`）**：
+Node 侧帧编解码往返（serialize → 长度前缀 → 粘包还原 → deserialize，1 KiB 碎片投喂）：
+
+| 档 | 帧均 | 编码 | 编码+解码往返 | 每帧堆增量（估算） |
+| --- | --- | --- | --- | --- |
+| control（小控制帧） | 26 B | 6.2 MB/s（25.1 万帧/s） | 3.3 MB/s（13.3 万帧/s） | ≈7.9 KiB |
+| delta（流式文本增量） | 327 B | 43.1 MB/s（13.8 万帧/s） | 21.3 MB/s（6.8 万帧/s） | ≈10.6 KiB |
+| bulk（256 KiB 附件分片） | 256 KiB | 1267.8 MB/s | 43.6 MB/s（174 帧/s） | ≈0.5 KiB |
+
+读法：流式 delta 的 Node 侧帧成本约 **15 µs/帧**（往返 6.8 万帧/s）——按 30 fps 输出折算
+占用 <0.1% 单核，**帧编解码不是流式延迟瓶颈**；端到端 p95 仍需 `bench/stream-latency`
+覆盖（含壳与 WebView 段，未测）。bulk 档往返被 1 KiB 碎片投喂的 concat 拷贝主导，
+只反映「分片到达」形态，不代表大帧整段吞吐。
 
 **冷启动**：`T_ready` 825 ms / `T_surface` 962 ms（release，N=7，口径见 `tauri-renderer-host.md` §13.5）。
 
