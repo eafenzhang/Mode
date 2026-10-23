@@ -77,6 +77,8 @@ pending→UI 批准流程，缺**黑名单**（两种模式下可否决）、**�
   2. 显式 `privateChatMode`：`bound_users→whitelist`、`all_users→free`；
   3. 都缺省：微信→`free`（沿用 bot-weixin-open-dm R1 的旧缺省）、其余→`whitelist`。
 - 配置文件保持 v3、不升版本；`privateChatMode` 字段保留一版供回滚解析，不再写入。
+  回滚需恢复配置文件备份——queuedMessages 等 strict schema 已登记新字段，
+  旧二进制无法解析带新字段的状态文件。
 - 主动投递目标 `resolveBotProactiveUserId` 把 `free` 等价于旧 `all_users` 处理，
   优先级链不变（weixin-open-dm R4）。
 
@@ -87,7 +89,7 @@ pending→UI 批准流程，缺**黑名单**（两种模式下可否决）、**�
 - `BotPrivateChatCard` 移除「私聊方式」下拉（移到访问模式卡）；`free` 下展示
   `userRegistry` 列表（移除、拉黑），`whitelist` 下保留已绑定用户 + 绑定码入口。
 - `BotGroupChatCard`：`whitelist` 下显示现有待审批列表；`free` 下改为显示
-  自动登记群（`addedBy === "auto"` 标记，可拉黑、可移除），不再出现审批按钮；
+  自动登记群（可拉黑、可移除；登记来源见 addedBy 字段），不再出现审批按钮；
   激活模式下拉两模式都保留。
 - 微信不渲染群卡与群黑名单段（群能力表不变）。
 - 不新增 `if provider === "weixin"` 的准入展示分支；差异只来自缺省值与能力表。
@@ -128,11 +130,13 @@ createDraftBot（UI）──► bot-config.v3.json: accessMode（新建显式 wh
    - free 群首条触发消息写 `permissions[]` 且 `status:"approved" + addedBy:"auto"`，
      无审批步骤直接可触发；
    - whitelist 下群仍走 pending→批准，未批准只记历史；
-   - blockedUsers 命中：whitelist/free 都静默拒绝，不登记、不写历史；
+   - blockedUsers 命中：whitelist/free 都静默拒绝，不登记、不写历史
+     （不写历史由入口闸门先于 `groupHistory.append` 结构性保证——
+     `handleInboundMessage` 黑名单闸门在命令解析前返回 `[]`，实机抽验）；
    - blockedGroups 命中已批准群：拒绝优先，`/help`、`/send` 例外是否放行按
      A+ 私聊规则 8 的例外表（黑名单不豁免例外表，即例外命令同样被拒——
-     黑名单是硬否决）；
-   - 解除拉黑后恢复原模式行为。
+     黑名单是硬否决；hermetic 用例覆盖 `/help`、`/send` 被拒）；
+   - 解除拉黑后恢复原模式行为（block→unblock→消息重新进触发链路并登记）。
 2. `packages/ui` 契约测试：`BotAccessModeCard` 调 `resolveBotAccessMode`；
    新建 bot 显式写 whitelist；free 下群卡无审批按钮。
 3. 实机：新建微信 bot 私聊被拒（缺省收紧可见）；切自由模式后任意用户可用且

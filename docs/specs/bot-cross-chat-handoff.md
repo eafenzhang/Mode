@@ -100,13 +100,21 @@ handoff 服务（新，bots/ 下纯函数 + 服务方法）
    - 目标存在：A 对话调用后，目标对话收到注入（含 context 与不可信标注），
      目标回合回复出现在目标聊天出站链路，源对话无出站；
    - 目标不存在 / 跨 bot：工具报错并回显可用目标，无入队；
-   - 目标忙：入队排队，源回合正常结束；队满：报错含原因；
+   - 目标忙且无附件：入队排队（排队消息保留 handoff 标注，回放仍注入 untrusted
+     包装），源回合正常结束；目标忙且带附件：整次拒绝并释放幂等键，错误串说明
+     目标忙、附件未投递、请稍后重试；队满沿用 messageQueue 现有上限语义
+     （丢弃最旧，排队提示回工具结果）；
    - 非法附件路径：整次拒绝，目标无部分投递；
-   - 同一工具调用 id 重复投递：第二次静默丢弃；
+   - 同一工具调用 id 重复投递：TTL 内静默丢弃（duplicate。成功态需实机验证——
+     hermetic 下派发必败走幂等键释放路径，见验收场景 3）；
    - 目标为群：禁用工具档位按群规则生效。
-2. 暴露面测试：桌面会话构造工具面不含 `handoff_message`；IM 回合包含。
+2. 暴露面测试：桌面会话构造工具面不含 `handoff_message`；IM 回合包含；
+   bootstrap 协议端口镜像测试 `apps/mode-cli/packages/bootstrap/test/bot-handoff-port.test.mts`
+   （注入本会话 bot 目标并透传、无目标时拒绝且不发 Host 请求）。
 3. 实机：企微私聊 A 中 Agent 交接到同 bot 的群 B，群里收到结合 B 历史的回复；
-   目标不存在时报错文案可读。
+   目标不存在时报错文案可读；排队回放保留交接标注（目标群看到 untrusted 注入
+   后的处理，而非无标注的普通用户消息）；同一 toolCallId 的重复调用在成功投递后
+   返回 duplicate。
 4. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、
    `pnpm --filter @mode/services test` 通过。
 

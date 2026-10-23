@@ -292,6 +292,39 @@ test("黑名单：已批准群被拉黑后静默（黑名单优先于授权，sp
   );
 });
 
+test("黑名单：/help 例外命令同样被拒（入口闸门先于命令解析，spec 场景 1）", async () => {
+  await writeBotsConfig([baseBot({ accessMode: "free", blockedUsers: ["u-black"] })]);
+  const botsService = await getBotsService();
+  assert.deepEqual(
+    await botsService.handleInboundMessage(inbound({ providerUserId: "u-black", text: "/help" })),
+    [],
+    "黑名单是硬否决：A+ 私聊规则 8 的 /help 例外表不豁免",
+  );
+  assert.deepEqual(
+    await botsService.handleInboundMessage(inbound({ providerUserId: "u-black", text: "/send a.png" })),
+    [],
+    "/send 例外命令同样被拒",
+  );
+});
+
+test("黑名单：解除拉黑后恢复原模式行为（block→unblock→进触发链路并登记）", async () => {
+  await writeBotsConfig([baseBot({ accessMode: "free", blockedUsers: ["u-back"] })]);
+  const botsService = await getBotsService();
+  assert.deepEqual(
+    await botsService.handleInboundMessage(inbound({ providerUserId: "u-back" })),
+    [],
+    "拉黑期间静默",
+  );
+  await botsService.unblockBotUser({ botId: "bot-acc", providerUserId: "u-back" });
+  const replies = await botsService.handleInboundMessage(
+    inbound({ providerUserId: "u-back", providerMessageId: "m-back", displayName: "Bob" }),
+  );
+  assert.ok(replies.length > 0, "解除拉黑后消息必须进入触发链路（无工作区 → noWorkspaceAllowed 回复）");
+  const bot = (await botsService.getConfig()).bots.find((b) => b.id === "bot-acc");
+  assert.equal(bot?.userRegistry?.[0]?.providerUserId, "u-back", "解除拉黑后 free 模式恢复自动登记");
+  assert.equal(bot?.blockedUsers?.length ?? 0, 0);
+});
+
 test("free 模式：私聊首条通过准入的消息自动登记 userRegistry，第二条不重复", async () => {
   await writeBotsConfig([baseBot({ accessMode: "free" })]);
   const botsService = await getBotsService();

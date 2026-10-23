@@ -1,5 +1,8 @@
 # 微信私聊默认开放（扫码即可用）
 
+> 状态注记（2026-10-23）：新建渠道缺省收紧为 `whitelist`，见
+> [bot-access-mode.md](./bot-access-mode.md) R5；本文其余断言降级为存量描述。
+
 状态：已批准（2026-10-21，用户指令「执行优化」）。
 关联：[im-bot-onboarding.md](./im-bot-onboarding.md)、[weixin-provider-self-id.md](./weixin-provider-self-id.md)、
 [im-bot-agent-channel-aplus.md](./im-bot-agent-channel-aplus.md)、[bot-outbound-delivery.md](./bot-outbound-delivery.md)、
@@ -92,14 +95,15 @@
 `/bind` 入口」。该表述描述的是当时的 UI 行为，与 `weixin-provider-self-id.md` 规则 8
 （微信可手动 `/bind` 真实用户）和当前实现不一致。本次统一改为：
 
-- 微信默认不需要绑定（`all_users`）；
+- 存量 free 配置下微信默认不需要绑定；新建渠道缺省 `whitelist`
+  （[bot-access-mode.md](./bot-access-mode.md) R5）；
 - 显式 `bound_users` 时保留 `/bind` 与绑定 UI；
 - 状态行的「凭据 / 激活」两段呈现不变。
 
 ## 状态所有者
 
 ```text
-createDraftBot（UI）──► bot-config.v3.json: privateChatMode（显式缺省值）
+createDraftBot（UI）──► bot-config.v3.json: accessMode（新建显式 whitelist）
 存量配置未写 ─────────► resolveBotPrivateChatMode（纯函数）
                               │
         ┌─────────────────────┼──────────────────────┐
@@ -119,10 +123,11 @@ findBoundUser         resolveBotProactiveUserId   BotPrivateChatCard / BotGroupC
    - 微信显式 `bound_users` → 陌生私聊拒绝；
    - 企微未配置 → 陌生私聊拒绝（非微信默认不变）。
 2. `packages/ui/test/botWeixinOpenDm.test.ts`（源码契约）：
-   - `BotPrivateChatCard` / `BotGroupChatCard` 使用 `resolveBotPrivateChatMode`；
-   - 新建 Bot 显式落盘解析后的缺省值。
-3. 实机：新建微信 Bot 详情页「私聊方式」显示「全部用户」，不再出现「绑定」按钮；
-   微信里用任意账号发消息可驱动；切回「绑定用户」后绑定码与已绑定用户列表恢复。
+   - `BotPrivateChatCard` / `BotGroupChatCard` 使用 `resolveBotAccessMode`
+     （存量推导链含 `resolveBotPrivateChatMode`，见 [bot-access-mode.md](./bot-access-mode.md) R5）；
+   - 新建 Bot 显式落盘 `accessMode: "whitelist"`（含微信）。
+3. 实机判定沿用 [bot-access-mode.md](./bot-access-mode.md) 验收场景 3：
+   新建微信私聊被拒（缺省收紧可见）；切自由模式后任意用户可用。
 4. `pnpm typecheck`、`pnpm lint`、`pnpm --filter @mode/services test` 通过。
 
 ## 非目标
