@@ -1278,6 +1278,9 @@ export function createBotsService(
         displayName: message.actor.displayName,
         chatId: message.actor.chatId,
         ...(attachments && attachments.length > 0 ? { attachments: [...attachments] } : {}),
+        // 交接标注必须随排队消息落盘（docs/specs/bot-cross-chat-handoff.md R3）：
+        // 丢失会让 drain 回放把交接内容当成普通用户消息，绕过 untrusted 注入。
+        ...(message.handoff ? { handoff: message.handoff } : {}),
       });
       result = enqueued;
       channel.conversations[context.conversationKey] = {
@@ -1365,6 +1368,8 @@ export function createBotsService(
           text: queued.text,
           ...(queued.quotedText ? { quotedText: queued.quotedText } : {}),
           ...(drainedAttachments.length > 0 ? { attachments: drainedAttachments } : {}),
+          // 排队回放保留交接标注：handleMessage 仍会注入 untrusted 包装（spec R3）。
+          ...(queued.handoff ? { handoff: queued.handoff } : {}),
           receivedAt: queued.receivedAt,
         });
       } catch (error) {
@@ -8076,12 +8081,23 @@ export function createBotsService(
       if (!inboundDeliveryDedupe.mark(synthetic)) {
         return { status: "duplicate", conversationKey: params.conversationKey };
       }
-      const busyBefore =
-        targetContext.mode === "task" &&
-        Boolean(targetContext.activeTaskId) &&
-        (await isContextActiveTaskRunning(targetContext));
+      // busyBefore 在 try 内计算（释放语义闭合）：其后的 isContextActiveTaskRunning
+      // 若抛错也必须释放幂等键，否则重试会撞 duplicate。
+      let busyBefore = false;
       let replies: BotOutboundMessage[];
       try {
+        busyBefore =
+          targetContext.mode === "task" &&
+          Boolean(targetContext.activeTaskId) &&
+          (await isContextActiveTaskRunning(targetContext));
+        if (busyBefore && validatedPaths.length > 0) {
+          // 忙 + 附件：正文走排队而附件只能在回合后补投；若照常排队再提前返回，
+          // 幂等键被保留，重试撞 duplicate 会让附件永久丢失（C2）。
+          // 整次拒绝并释放幂等键：稍后目标空闲重试时正文与附件一起完整投递。
+          throw new Error(
+            "Target conversation is busy; the handoff message and its attachments were not delivered. Retry later.",
+          );
+        }
         // 与 drain/heartbeat 同路：绕过命令解析（交接正文可能以 / 开头也绝不当命令），
         // 但仍按目标对话串行准入（spec R3「按目标对话自己的回合准入执行」）。
         replies = await enqueueInboundProcessing(targetActor, () => handleMessage(synthetic));
@@ -8091,7 +8107,7 @@ export function createBotsService(
         throw error;
       }
       if (busyBefore) {
-        // 排队提示只进工具结果，不发给任何聊天（spec R3）
+        // 排队提示只进工具结果，不发给任何聊天（spec R3）；附件非空的情形上一步已整次拒绝。
         return { status: "queued", conversationKey: params.conversationKey };
       }
       if (replies.length > 0) {

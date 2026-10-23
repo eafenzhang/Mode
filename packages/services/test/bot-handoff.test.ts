@@ -405,3 +405,99 @@ test("handleMessage：交接注入与目标清单挂在标题推导之后、非�
   assert.match(source, /options\.heartbeat !== true/, "心跳回合不注入目标清单");
   assert.match(source, /enqueueInboundProcessing\(targetActor/, "交接按目标对话串行准入");
 });
+
+// —— C2：busy 排队交接三重丢失（docs/specs/bot-cross-chat-handoff.md R3/R5）——
+// hermetic 下 runningTasks 是 botsService 进程内 Set，无法从外部制造「目标任务运行中」，
+// busy 终态归 spec 验收场景 3（实机）；这里覆盖可确定性部分：
+// 1) 排队消息 handoff 字段的入队保留 + strict schema 落盘往返；
+// 2) 源码契约：入队/重建两端都透传 handoff；busy+附件在派发前整次拒绝。
+// busy+附件拒绝走与既有「幂等键失败释放」用例相同的 catch → release 路径，
+// 同 toolCallId 重试不会撞 duplicate（该用例已验证 release 语义对抛错生效）。
+
+test("排队消息透传 handoff：入队保留字段且 strict schema 落盘往返", async () => {
+  const { enqueueQueuedMessage } = await import("../src/bots/messageQueue.js");
+  const enqueued = enqueueQueuedMessage([], {
+    text: "转达内容",
+    providerUserId: "u2",
+    handoff: { sourceKey: "private:u1", sourceLabel: "Alice", context: "背景" },
+  });
+  assert.equal(enqueued.queue[0]?.handoff?.sourceKey, "private:u1");
+  assert.equal(enqueued.queue[0]?.handoff?.sourceLabel, "Alice");
+  assert.equal(enqueued.queue[0]?.handoff?.context, "背景");
+
+  // 落盘往返：queuedMessages 的 strict schema 必须登记 handoff，
+  // 否则排队状态文件在解析期直接失败（更谈不上回放保留标注）。
+  const { botsStateFileSchema } = await import("@mode/shared");
+  const parsed = botsStateFileSchema.parse({
+    version: 4,
+    bots: {
+      "bot-q": {
+        botId: "bot-q",
+        conversations: {
+          "private:u2": {
+            botId: "bot-q",
+            conversationKey: "private:u2",
+            conversationKind: "private",
+            conversationId: "u2",
+            workspacePath: join(tmpdir(), "bot-handoff-q-ws"),
+            mode: "task",
+            activeTaskId: "t-1",
+            updatedAt: Date.now(),
+            queuedMessages: [
+              {
+                text: "转达内容",
+                receivedAt: Date.now(),
+                providerUserId: "u2",
+                handoff: { sourceKey: "private:u1", sourceLabel: "Alice", context: "背景" },
+              },
+            ],
+          },
+        },
+        updatedAt: Date.now(),
+      },
+    },
+  });
+  const roundTrip =
+    parsed.bots["bot-q"]?.conversations["private:u2"]?.queuedMessages?.[0]?.handoff;
+  assert.equal(roundTrip?.sourceKey, "private:u1");
+  assert.equal(roundTrip?.sourceLabel, "Alice");
+  assert.equal(roundTrip?.context, "背景");
+});
+
+test("C2 源码契约：入队/重建两端透传 handoff；busy+附件在派发前整次拒绝", () => {
+  const source = readFileSync(
+    new URL("../src/bots/botsService.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    source,
+    /message\.handoff \? \{ handoff: message\.handoff \}/,
+    "queueContextMessage 必须把 handoff 写进排队消息",
+  );
+  assert.match(
+    source,
+    /queued\.handoff \? \{ handoff: queued\.handoff \}/,
+    "drain 重建消息必须透传 handoff（否则回放丢 untrusted 注入）",
+  );
+  const busyRejectIndex = source.indexOf("busyBefore && validatedPaths.length > 0");
+  const dispatchIndex = source.indexOf("enqueueInboundProcessing(targetActor");
+  assert.ok(
+    busyRejectIndex > 0 && busyRejectIndex < dispatchIndex,
+    "busy+附件必须在派发之前整次拒绝（不留下排队正文/占用幂等键）",
+  );
+  assert.match(
+    source,
+    /Target conversation is busy; the handoff message and its attachments were not delivered/,
+    "错误串必须说明目标忙、附件未投递、请稍后重试",
+  );
+  // busyBefore 在 try 内计算：其后抛错也走 catch 的 release（释放语义闭合）
+  const markIndex = source.indexOf("inboundDeliveryDedupe.mark(synthetic)");
+  const busyBeforeIndex = source.indexOf("let busyBefore = false;");
+  const tryIndex = source.indexOf(
+    "replies = await enqueueInboundProcessing(targetActor",
+  );
+  assert.ok(
+    markIndex > 0 && busyBeforeIndex > markIndex && tryIndex > busyBeforeIndex,
+    "busyBefore 计算必须在 mark 之后、派发 try 之内",
+  );
+});

@@ -24,6 +24,8 @@ export interface BotQueuedMessageInput {
   chatId?: string;
   /** 入队前已物化的附件（本地路径 + 展示元数据）。 */
   attachments?: BotQueuedAttachment[];
+  /** 跨聊天交接标注；入队/出队两端都必须透传（docs/specs/bot-cross-chat-handoff.md R3）。 */
+  handoff?: { sourceKey: string; sourceLabel?: string; context?: string };
 }
 
 export interface EnqueueQueuedMessageResult {
@@ -83,6 +85,7 @@ export function enqueueQueuedMessage(
       ...(input.displayName ? { displayName: input.displayName } : {}),
       ...(input.chatId ? { chatId: input.chatId } : {}),
       ...(attachments ? { attachments } : {}),
+      ...(input.handoff ? { handoff: input.handoff } : {}),
     },
   ];
   let dropped: BotQueuedMessage | undefined;

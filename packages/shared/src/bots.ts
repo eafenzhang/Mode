@@ -429,6 +429,12 @@ export interface BotQueuedMessage {
   chatId?: string;
   /** 入队前已物化的附件；补投时按 localPath 读回，不再访问会过期的下载链接。 */
   attachments?: BotQueuedAttachment[];
+  /**
+   * 跨聊天交接标注（docs/specs/bot-cross-chat-handoff.md R3）：
+   * 交接消息排队时必须原样透传，否则 drain 重建的消息丢掉 handoff 字段，
+   * 回放回合不再注入 untrusted 标注，等于把交接内容降级成普通用户消息。
+   */
+  handoff?: { sourceKey: string; sourceLabel?: string; context?: string };
 }
 
 /** 出站投递失败后停放的回复（微信 context 过期等场景），随对话槽位持久化，新入站后按序补投。 */
@@ -1066,6 +1072,15 @@ const botConversationStateSchema = z.object({
                 })
                 .strict(),
             )
+            .optional(),
+          // 交接标注随排队消息持久化（docs/specs/bot-cross-chat-handoff.md R3）；
+          // strict schema 不登记该字段会让排队回放的状态文件解析直接失败。
+          handoff: z
+            .object({
+              sourceKey: z.string().min(1),
+              sourceLabel: z.string().optional(),
+              context: z.string().optional(),
+            })
             .optional(),
         })
         .strict(),

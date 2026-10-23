@@ -10,6 +10,14 @@ const BOT_CONTEXT_MARKERS = [
   "[Channel]",
   "[群聊信息]",
   "[Group chat]",
+  // 跨聊天交接（docs/specs/bot-cross-chat-handoff.md R3）：交接前导块
+  // （handoffPrompt.buildHandoffInboundPrompt）与回合尾部的目标清单
+  // （formatHandoffTargets）都包在 <system-reminder> 里，块内没有方括号标记，
+  // 必须按文案首句识别，否则交接回合原文会整段泄漏进用户气泡。
+  "跨聊天交接",
+  "Cross-chat handoff",
+  "同一机器人的其他对话",
+  "Other conversations",
 ] as const;
 
 const QUOTE_PREFIXES = ["[引用消息] ", "[Quoted message] "] as const;
@@ -38,6 +46,24 @@ export function stripBotChannelContextForDisplay(text: string): string {
     }
     sawBotContext = true;
     result = trimmed.slice(closeIndex + SYSTEM_REMINDER_CLOSE.length).trimStart();
+  }
+  // 尾部 marker 块同样剥离：交接回合会把目标清单（formatHandoffTargets）追加在
+  // 回复末尾；不剥的话普通多对话回合尾部会永远挂着裸 <system-reminder>。
+  // 不置 sawBotContext：尾块不代表正文被 prompt 包装，[from:]/当前消息裁剪不应被触发。
+  for (;;) {
+    const trimmed = result.trimEnd();
+    if (!trimmed.endsWith(SYSTEM_REMINDER_CLOSE)) {
+      break;
+    }
+    const openIndex = trimmed.lastIndexOf(SYSTEM_REMINDER_OPEN);
+    if (openIndex < 0) {
+      break;
+    }
+    const block = trimmed.slice(openIndex);
+    if (!BOT_CONTEXT_MARKERS.some((marker) => block.includes(marker))) {
+      break;
+    }
+    result = trimmed.slice(0, openIndex).trimEnd();
   }
   if (sawBotContext) {
     // 群聊 prompt 的结构是：历史（多行 [from: ...]）+ 当前消息 [from: ...] + @ 标记 + 正文。
