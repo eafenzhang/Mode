@@ -36,7 +36,7 @@ Agent 在 A 对话的回合中无法把内容投给同一 bot 的 B 对话。
 ### R2 目标列表注入
 
 - bot 回合构造上下文时，注入该 bot 当前全部对话的键与显示名
-  （私聊显示用户 id/昵称，群显示群名），作为 `handoff_message` 的可选目标清单；
+  （私聊显示用户 id/昵称，群显示群名），作为 `HandoffMessage` 的可选目标清单；
 - `target` 不在清单内：工具返回错误，错误文本回显可用目标清单，不投递、不建对话。
 
 ### R3 投递语义
@@ -77,7 +77,7 @@ Agent 在 A 对话的回合中无法把内容投给同一 bot 的 B 对话。
 
 ```text
 Agent IM 回合（源对话）
-  │ handoff_message(target, message, context?, attachments?)
+  │ HandoffMessage(target, message, context?, attachments?)
   ▼
 handoff 服务（新，bots/ 下纯函数 + 服务方法）
   ├─ 目标校验：parseBotConversationKey + 本 bot 对话清单
@@ -108,7 +108,7 @@ handoff 服务（新，bots/ 下纯函数 + 服务方法）
    - 同一工具调用 id 重复投递：TTL 内静默丢弃（duplicate。成功态需实机验证——
      hermetic 下派发必败走幂等键释放路径，见验收场景 3）；
    - 目标为群：禁用工具档位按群规则生效。
-2. 暴露面测试：桌面会话构造工具面不含 `handoff_message`；IM 回合包含；
+2. 暴露面测试：桌面会话构造工具面不含 `HandoffMessage`；IM 回合包含；
    bootstrap 协议端口镜像测试 `apps/mode-cli/packages/bootstrap/test/bot-handoff-port.test.mts`
    （注入本会话 bot 目标并透传、无目标时拒绝且不发 Host 请求）。
 3. 实机：企微私聊 A 中 Agent 交接到同 bot 的群 B，群里收到结合 B 历史的回复；
