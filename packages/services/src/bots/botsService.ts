@@ -1,9 +1,8 @@
 /* eslint-disable max-lines -- Bots 服务仍复用原 RPC 文件名，先把鉴权、命令路由、Mode Agent 桥接收口集中在同一服务内。 */
 import { Buffer } from "node:buffer";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { Emitter, type IDisposable } from "@mode/rpc";
 import { completeNewModelSelection } from "@mode/provider";
 import {
@@ -164,12 +163,7 @@ import {
   normalizeBotHeartbeat,
   pickHeartbeatConversation,
 } from "./botHeartbeat.js";
-import {
-  BOT_MEDIA_FILE_LIMIT_BYTES,
-  BOT_MEDIA_IMAGE_LIMIT_BYTES,
-  isPathInside,
-  resolveOutboundMediaKind,
-} from "./botMedia.js";
+import { resolveValidatedMediaFile } from "./botMedia.js";
 import {
   BOT_QUEUED_ATTACHMENT_BUDGET_BYTES,
   attachmentBytes,
@@ -1744,6 +1738,9 @@ export function createBotsService(
     filePath: string;
     caption?: string;
     chatId?: string;
+    /** 交接等场景：文件位于源对话工作区而非目标对话工作区时显式指定校验根；
+     *  白名单集合不变（该根 + app data + tmp），spec bot-cross-chat-handoff R4。 */
+    workspaceRoot?: string;
   }): Promise<{ filename: string; kind: "image" | "file" }> {
     const adapter = providers[params.bot.provider];
     if (!adapter?.sendMedia) {
@@ -1763,43 +1760,10 @@ export function createBotsService(
       ) ??
       conversations[0];
     void channel;
-    const workspaceRoot = conversation?.workspacePath;
-    const rawPath = params.filePath.trim();
-    const candidate = isAbsolute(rawPath)
-      ? rawPath
-      : workspaceRoot
-        ? resolvePath(workspaceRoot, rawPath)
-        : null;
-    if (!candidate) {
-      throw new Error("No workspace context to resolve the file path.");
-    }
-    const real = await realpath(candidate).catch(() => null);
-    if (!real) {
-      throw new Error(`File not found: ${rawPath}`);
-    }
-    const allowedRoots = [workspaceRoot, getAppConfigDir(), tmpdir()].filter(
-      (root): root is string => Boolean(root?.trim()),
-    );
-    // 根目录本身也可能是符号链接（macOS 的 /tmp→/private/tmp），realpath 后再比较。
-    const resolvedRoots = await Promise.all(
-      allowedRoots.map((root) => realpath(root).catch(() => resolvePath(root))),
-    );
-    if (!resolvedRoots.some((root) => isPathInside(root, real))) {
-      throw new Error("Path is outside the allowed directories (workspace / app data / temp).");
-    }
-    const fileStat = await stat(real);
-    if (!fileStat.isFile()) {
-      throw new Error("The path is not a regular file.");
-    }
-    const filename = basename(real);
-    const { kind, mimeType } = resolveOutboundMediaKind(filename);
-    const limit = kind === "image" ? BOT_MEDIA_IMAGE_LIMIT_BYTES : BOT_MEDIA_FILE_LIMIT_BYTES;
-    if (fileStat.size > limit) {
-      throw new Error(
-        `File is too large (${Math.round(fileStat.size / 1024 / 1024)}MB > ${Math.round(limit / 1024 / 1024)}MB).`,
-      );
-    }
-    const data = await readFile(real);
+    // 显式校验根优先（交接场景文件在源工作区），缺省保持目标对话工作区的原行为。
+    const workspaceRoot = params.workspaceRoot ?? conversation?.workspacePath;
+    const validated = await resolveValidatedMediaFile(workspaceRoot, params.filePath.trim());
+    const data = await readFile(validated.real);
     // 目标链：群 chatId → 绑定用户 → 对话 id。迁移后的微信 providerUserId 为空，
     // 回落到上面已解析的对话（按 chatId 匹配、否则最近活跃），否则 /send 必抛
     // "no bound chat"（spec weixin-provider-self-id 规则 6）。
@@ -1812,14 +1776,14 @@ export function createBotsService(
       params.bot,
       { providerUserId: target },
       {
-        kind,
-        filename,
-        mimeType,
+        kind: validated.kind,
+        filename: validated.filename,
+        mimeType: validated.mimeType,
         data: new Uint8Array(data),
         ...(params.caption?.trim() ? { caption: params.caption.trim() } : {}),
       },
     );
-    return { filename, kind };
+    return { filename: validated.filename, kind: validated.kind };
   }
 
   /**
