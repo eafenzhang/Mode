@@ -2318,7 +2318,9 @@ export function AutomationEditView({
                           // 视觉重构误删了 E2E 稳定选择器，导致保存后无法重新打开 Custom Repeat 验证复原值。
                           data-testid={TID_AUTOMATION_CUSTOM_REPEAT_EDIT}
                           onClick={() => setCustomRepeatOpen(true)}
-                          className="inline-flex h-auto items-center gap-0.5 rounded-full bg-hover py-px ps-2 pe-0.5 text-ui-base leading-5 text-foreground hover:bg-selected"
+                          // flex 行内按钮默认可收缩到内容宽度以下，「每10分钟」会被压成两行；
+                          // pill 不参与收缩且不换行，空间不足时由行的 overflow-hidden 截断。
+                          className="inline-flex h-auto shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full bg-hover py-px ps-2 pe-0.5 text-ui-base leading-5 text-foreground hover:bg-selected"
                         >
                           <span>
                             {intl.formatMessage(

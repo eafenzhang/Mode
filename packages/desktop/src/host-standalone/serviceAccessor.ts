@@ -34,6 +34,7 @@ import { existsSync } from "node:fs";
 import type { IChannelServer, IServerChannel } from "@mode/rpc";
 import { isRemoteWorkspaceIdentity } from "@mode/shared";
 import type {
+  AutomationRuntime,
   BotRemoteWorkspaceTransport,
   BotRemoteWorkspaceTransportTarget,
 } from "@mode/services/node";
@@ -134,6 +135,7 @@ export async function createHostServiceSurface(
     createLocalServices,
     disposeServiceResourcesAndWait,
     conversationShareConnectionScopeFactory,
+    createAutomationRuntime,
   } = await import("@mode/services/node");
   // LAN/远程桌面/远程工作区管理面（LR-1/LR-2/LR-4）：descriptor 在浏览器安全的根入口，
   // 实现是 Node-only 的本包模块。全部动态装载，避免绕过 stdout 守卫。
@@ -173,12 +175,6 @@ export async function createHostServiceSurface(
    * `remote` 在 `createLocalServices` 之后才创建，所以这里用可变引用延迟绑定；
    * 绑定前查询返回 null（回退到 Bot 桥的本地 Set），重连/建端口返回显式错误。
    */
-  /**
-   * window-controller 聚合运行时（docs/specs/window-host-controller-service.md）。
-   * 远程 lifecycle 钩子在 `remote` 创建时就要引用它，而它又依赖 `remote` 的 source 解析——
-   * 与 botRemoteHost 同款可变引用延迟绑定。
-   */
-  let windowControllerRuntime: ReturnType<typeof createWindowHostControllerRuntime> | null = null;
   let botRemoteHost: {
     queryBotConnectionStatus(target: BotRemoteWorkspaceTransportTarget): Promise<boolean>;
     reconnectBotWorkspace(target: BotRemoteWorkspaceTransportTarget): Promise<
@@ -196,6 +192,14 @@ export async function createHostServiceSurface(
         }
     >;
   } | null = null;
+  /** Automation 运行时（docs/specs/automation-runtime.md）：manual dispatcher 延迟绑定的目标。 */
+  let automationRuntime: AutomationRuntime | null = null;
+  /**
+   * window-controller 聚合运行时（docs/specs/window-host-controller-service.md）。
+   * 远程 lifecycle 钩子在 `remote` 创建时就要引用它，而它又依赖 `remote` 的 source 解析——
+   * 与 botRemoteHost/automationRuntime 同款可变引用延迟绑定。
+   */
+  let windowControllerRuntime: ReturnType<typeof createWindowHostControllerRuntime> | null = null;
   const botRemoteWorkspaceTransport: BotRemoteWorkspaceTransport = {
     queryConnectionStatus: async (target) =>
       botRemoteHost ? await botRemoteHost.queryBotConnectionStatus(target) : null,
@@ -212,6 +216,15 @@ export async function createHostServiceSurface(
     modeBuiltinProviderConfigFilePath: builtinProviderConfig.path,
     isRemoteDesktopServerEnabled: () => remoteDesktopCapability?.isServerEnabled() ?? false,
     botRemoteWorkspaceTransport,
+    // Automation manual 直派入口（docs/specs/automation-runtime.md）：runtime 在 remote 之后
+    // 创建（resolveTargetServices 依赖 registry），dispatcher 经可变引用延迟绑定；UI 只会在
+    // Host ready 之后触发 run-now，此时 runtime 必已赋值。
+    onAutomationManualRunRequested: async (params) => {
+      if (!automationRuntime) {
+        throw new Error("Automation runtime is not ready.");
+      }
+      await automationRuntime.dispatchManualRun(params);
+    },
   });
 
   // 部署配置：安装时写入一次，之后每台机器不再逐机设置环境变量。
@@ -266,6 +279,20 @@ export async function createHostServiceSurface(
   });
   // Bot 桥在 `createLocalServices` 里已建好，这里补上它真正依赖的 registry 实现。
   botRemoteHost = remote;
+  // Automation 运行时：调度循环与 manual 直派在单进程 sidecar 内完成；远端 workspace 经
+  // registry 的 scoped services 派发，identity 是远端但无在线会话时抛错不回退本地。
+  automationRuntime = createAutomationRuntime({
+    resolveTargetServices: (request) => {
+      const remoteTarget = remote.resolveAutomationTargetServices(request);
+      if (remoteTarget) return remoteTarget.services;
+      if (request.workspaceIdentity && isRemoteWorkspaceIdentity(request.workspaceIdentity)) {
+        throw new Error("Automation 目标 Remote Host 当前不可用");
+      }
+      return services;
+    },
+    log: (level, message) => options.log(`${level === "info" ? "" : `${level} `}${message}`),
+  });
+  automationRuntime.start();
   // window-controller 聚合运行时：renderer 与手机 Web 远控的侧栏任务视图
   // （任务分区/置顶/时间线/grouped enrich）唯一数据源。source 路由必须先问远程 registry，
   // 远程身份绝不回落本地 tasks-index（同路径不同 authority 会串读）。
@@ -358,8 +385,9 @@ export async function createHostServiceSurface(
     channelNames: channels.map((entry) => entry.channelName),
     builtinProviderConfig,
     async dispose() {
-      // 先停局域网监听（UDP/HTTP），再收被控会话与远程工作区，最后释放普通服务资源：
-      // 否则服务销毁后监听/会话仍可能接单。
+      // 先停 automation 轮询并释放其在途认领，再停局域网监听、收被控会话与远程工作区，
+      // 最后释放普通服务资源：否则服务销毁后 automation 仍可能向已释放的 services 派发。
+      await automationRuntime?.stop();
       await cloudAccount.dispose();
       await lanAccess.dispose();
       await remoteDesktop.dispose();

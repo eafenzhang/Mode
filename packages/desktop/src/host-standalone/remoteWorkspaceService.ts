@@ -116,6 +116,14 @@ export interface RemoteWorkspaceHostService extends IRemoteService {
       }
   >;
   /**
+   * Automation 派发路由（进程内，不走 RPC）：按 workspace 找到已连接远端会话的 scoped
+   * services；本地 workspace（identity 缺失或无匹配会话）返回 null，由调用方决定回退。
+   */
+  resolveAutomationTargetServices(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): { services: ServiceCollection; workspaceIdentity: string } | null;
+  /**
    * window-controller source 解析（进程内，不走 RPC）：按 workspace 找到远程会话并回它的
    * scoped services。online 会话返回 services；离线占位会话返回 offline（Controller 冻结
    * 最后可信投影）；无匹配会话返回 null（是否回落本地由调用方按 identity 判断）。
@@ -780,6 +788,25 @@ export async function createRemoteWorkspaceHostService(
       return { ok: true as const, port: channel.port2, dispose };
     },
 
+    resolveAutomationTargetServices(params: {
+      workspacePath: string;
+      workspaceIdentity?: string;
+    }): { services: ServiceCollection; workspaceIdentity: string } | null {
+      const session = registry.findSessionForWorkspace(params);
+      if (!session?.workspacePath || !session.workspaceIdentity) return null;
+      // resolveScopedServices 对 offline/未 ready 的会话抛 WindowRemoteConnectionUnavailableError：
+      // 派发按 transient 失败结算重试，不回退本地。
+      return {
+        services: registry.resolveScopedServices({
+          kind: "remote",
+          remoteSessionId: session.remoteSessionId,
+          workspacePath: session.workspacePath,
+          workspaceIdentity: session.workspaceIdentity,
+        }),
+        workspaceIdentity: session.workspaceIdentity,
+      };
+    },
+
     resolveControllerRemoteSource(params: {
       workspacePath: string;
       workspaceIdentity?: string;
@@ -796,8 +823,8 @@ export async function createRemoteWorkspaceHostService(
         // 而不是把它当成「无匹配」误落本地 tasks-index。
         return { remoteSessionId: session.remoteSessionId, sourceAvailability: "offline" };
       }
-      // resolveScopedServices 对 online 会话不会抛；异常向上传播由 Controller 的
-      // onSourceError 记账。
+      // resolveScopedServices 对 online 会话不会抛；这里与 resolveAutomationTargetServices
+      // 同口径直接解析，异常向上传播由 Controller 的 onSourceError 记账。
       return {
         remoteSessionId: session.remoteSessionId,
         services: registry.resolveScopedServices({
@@ -831,6 +858,7 @@ export async function createRemoteWorkspaceHostService(
     "queryBotConnectionStatus",
     "reconnectBotWorkspace",
     "createBotRuntimePort",
+    "resolveAutomationTargetServices",
     "resolveControllerRemoteSource",
   ]);
 }

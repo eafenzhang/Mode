@@ -16,7 +16,7 @@
 - **建议**：把 Task 7 的盘点对象改成上面四项；`packages/services/test` 只保留「不适用」的
   判定记录，不再逐文件转写。
 
-## `packages/services/test` 分类（71 个文件）
+## `packages/services/test` 分类（73 个文件）
 
 | 域 | 数量 | 判定 | 理由 |
 | --- | --- | --- | --- |
@@ -24,7 +24,8 @@
 | `cua-*` | 8 | 不适用 | 电脑控制独立线 |
 | `dataRoot*` / `dataBaseDir*` / `data-root-*` | 6 | 不适用 | 存储路径/迁移；归 Host（M3） |
 | `plugin-*` / `official-plugin-attribution` | 5 | 不适用 | 插件市场（M3） |
-| `provider*` / `orcarouter*` / `remoteModelCatalog` / `retiredZhipu*` | 9 | 不适用 | provider 配置层；Rust 侧目前只有脚本化 fake（DR-T5-2） |
+| `provider*` / `orcarouter*` / `remoteModelCatalog` / `retiredZhipu*` / `modelSelection*` | 10 | 不适用 | provider 配置层；Rust 侧目前只有脚本化 fake（DR-T5-2） |
+| `automationRuntime*` | 1 | 不适用 | Automation 调度/派发链；归 Host（Tauri 单进程），不是 stdio 运行时事件面 |
 | `conversationMirror*` / `importedClaudeRecovery` / `nonCliAcpRetirement` / `conversation-typing-bubble` | 4 | 转不动（登记原因） | 镜像/会话存储/宿主层；不是 stdio 运行时事件面 |
 | `credential-service` / `wecom-registration` / `weixin-provider-self-id` / `windowsCuaDevRootContract` / `settings-user-nickname` | 5 | 不适用 | 凭据 / 通道注册 / CUA 根 / 设置归一化 |
 
@@ -48,9 +49,11 @@
   `dataRootInitializer`、`dataRootMigration`、`dataRootOwnership`
 - **plugin（5）**：`plugin-description-translation`、`plugin-detail-components-state`、
   `plugin-marketplace-defaults`、`plugin-marketplace-id-compat`、`official-plugin-attribution`
-- **provider（9）**：`providerBalanceParsing`、`providerBalanceProvider`、
+- **provider（10）**：`providerBalanceParsing`、`providerBalanceProvider`、
   `providerBalanceTargetResolver`、`providerConfigMigration`、`remoteModelCatalog`、
-  `retiredZhipuProviderMigration`、`orcarouter.live`、`orcarouter`、`orcarouterProviderOverlay`
+  `retiredZhipuProviderMigration`、`orcarouter.live`、`orcarouter`、`orcarouterProviderOverlay`、
+  `modelSelectionSaveDefault`
+- **automation（1）**：`automationRuntime`
 - **host/转不动（4）**：`conversationMirrorService`、`importedClaudeRecovery`、
   `nonCliAcpRetirement`、`conversation-typing-bubble`
 - **misc（5）**：`credential-service`、`wecom-registration`、`weixin-provider-self-id`、

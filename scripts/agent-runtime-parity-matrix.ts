@@ -63,7 +63,13 @@ const RULES: readonly ClassificationRule[] = [
     domain: "provider",
     verdict: "not-applicable",
     reason: "provider 配置层；Rust 侧目前只有脚本化 fake（DR-T5-2）",
-    match: /^(provider|remoteModelCatalog|retiredZhipu|orcarouter).*\.test\.ts$/,
+    match: /^(provider|remoteModelCatalog|retiredZhipu|orcarouter|modelSelection).*\.test\.ts$/,
+  },
+  {
+    domain: "automation",
+    verdict: "not-applicable",
+    reason: "Automation 调度/派发链；归 Host（Tauri 单进程），不是 stdio 运行时事件面",
+    match: /^automationRuntime.*\.test\.ts$/,
   },
   {
     domain: "host-untranslatable",
