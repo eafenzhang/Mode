@@ -115,6 +115,7 @@ export type {
   Logger,
   AttachmentStorageMetadata,
   AutomationPort,
+  BotHandoffPort,
   BotMediaPort,
   OffPeakPort,
   BackgroundExecutionSnapshot,

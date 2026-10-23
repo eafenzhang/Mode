@@ -7,6 +7,7 @@ import {
   CREATE_WORKFLOW_TOOL_NAME,
   EVAL_WORKFLOW_SNIPPET_TOOL_NAME,
   GET_WORKFLOW_RUN_TOOL_NAME,
+  HANDOFF_MESSAGE_TOOL_NAME,
   LIST_MODELS_TOOL_NAME,
   LIST_SAVED_WORKFLOWS_TOOL_NAME,
   LIST_WORKFLOW_RUNS_TOOL_NAME,
@@ -46,6 +47,7 @@ import {
 } from "./cron.js";
 import { offPeakCreateToolEntry, offPeakListToolEntry } from "./off-peak.js";
 import { sendFileToolEntry } from "./send-file.js";
+import { handoffMessageToolEntry } from "./handoff-message.js";
 import {
   createEnterPlanModeToolEntry,
   enterPlanModeToolEntry,
@@ -95,6 +97,8 @@ export const builtInTools: ToolEntry[] = [
   offPeakListToolEntry,
   // bot 回合内把工作区文件发到当前 IM 会话；端口由 Host 按 botDeliveryTarget 注入。
   sendFileToolEntry,
+  // bot 回合内把消息交给同一机器人的另一个聊天；与 SendFile 同一条注入门。
+  handoffMessageToolEntry,
   enterPlanModeToolEntry,
   exitPlanModeToolEntry,
   askUserQuestionToolEntry,
@@ -180,6 +184,8 @@ interface RegisterBuiltInToolsOptions {
   includeOffPeak?: boolean;
   /** IM bot 回合的 SendFile；端口存在即注册，具体轮次由 turn disallowlist 收口。 */
   includeBotMedia?: boolean;
+  /** IM bot 回合的 HandoffMessage；与 includeBotMedia 同门同理由。 */
+  includeBotHandoff?: boolean;
   /**
    * 动态工作流灰度门。**只有显式 false
    * 才下架** DYNAMIC_WORKFLOW_TOOL_NAMES：缺席代表调用方不参与灰度（TUI、headless、
@@ -260,6 +266,9 @@ export function registerBuiltInTools(
       continue;
     }
     if (entry.metadata.name === SEND_FILE_TOOL_NAME && options.includeBotMedia !== true) {
+      continue;
+    }
+    if (entry.metadata.name === HANDOFF_MESSAGE_TOOL_NAME && options.includeBotHandoff !== true) {
       continue;
     }
     if (

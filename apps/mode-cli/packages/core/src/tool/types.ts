@@ -5,6 +5,7 @@
 import type {
   ExecutionShellSelection,
   AutomationPort,
+  BotHandoffPort,
   BotMediaPort,
   OffPeakPort,
   EmbeddedSearchBackend,
@@ -169,6 +170,8 @@ export interface ToolExecutionContext {
   automationPort?: AutomationPort;
   /** IM bot 回合的 SendFile 端口；只在 Host 注入 botDeliveryTarget 的会话存在。 */
   botMediaPort?: BotMediaPort;
+  /** IM bot 回合的 HandoffMessage 端口；与 botMediaPort 同一条注入门。 */
+  botHandoffPort?: BotHandoffPort;
   offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;

@@ -51,6 +51,7 @@ export class ToolExecutorImpl implements ToolExecutor {
       artifactStore: options.artifactStore,
       automationPort: options.automationPort,
       botMediaPort: options.botMediaPort,
+      botHandoffPort: options.botHandoffPort,
       offPeakPort: options.offPeakPort,
       sessionStore: options.sessionStore,
       sessionModePort: options.sessionModePort,

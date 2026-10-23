@@ -734,6 +734,7 @@ export async function createModeApp(options: ModeAppOptions): Promise<ModeApp> {
       modelCatalogPort,
       automationPort: options.automationPort,
       botMediaPort: options.botMediaPort,
+      botHandoffPort: options.botHandoffPort,
       offPeakPort: options.offPeakPort,
       appVersion,
       traceContext,

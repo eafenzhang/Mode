@@ -12,6 +12,7 @@ import { repairPersistedRemoteSessionPaths, type TurnAttachment } from "@mode/co
 import {
   CoreErrorType,
   SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
+  HANDOFF_MESSAGE_TOOL_NAME,
   SEND_FILE_TOOL_NAME,
   createMessageId,
   createPartId,
@@ -110,6 +111,7 @@ import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.
 import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import { createProtocolAutomationPort } from "./automation-port.js";
 import { createProtocolBotMediaPort } from "./bot-media-port.js";
+import { createProtocolBotHandoffPort } from "./bot-handoff-port.js";
 import { createProtocolOffPeakPort } from "./offpeak-port.js";
 import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
 import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
@@ -2557,8 +2559,9 @@ function buildPromptTurnToolDisallowlist(
     for (const toolName of ["OffPeakCreate", "SendMessage", "Workflow"]) tools.add(toolName);
   }
   if (!params.botDeliveryTarget) {
-    // 与 V4 prompt-turn 同口径：无 bot 投递目标的回合隐藏 SendFile。
+    // 与 V4 prompt-turn 同口径：无 bot 投递目标的回合隐藏 SendFile 与 HandoffMessage。
     tools.add(SEND_FILE_TOOL_NAME);
+    tools.add(HANDOFF_MESSAGE_TOOL_NAME);
   }
   return tools.size > 0 ? [...tools] : undefined;
 }
@@ -3444,6 +3447,9 @@ async function createRecord(
     // SendFile：端口常驻（Host 是受信边界）；某轮是否可见由 prompt 的
     // botDeliveryTarget → turn toolDisallowlist 决定，见 prompt-turn.ts。
     botMediaPort: createProtocolBotMediaPort(context, () => ownSessionRecord),
+    // HandoffMessage：端口常驻（Host 是受信边界）；某轮是否可见由 prompt 的
+    // botDeliveryTarget → turn toolDisallowlist 决定，见 prompt-turn.ts。
+    botHandoffPort: createProtocolBotHandoffPort(context, () => ownSessionRecord),
     // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
     // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。
     ...(("offPeakToolEnabled" in params && params.offPeakToolEnabled === true) ||

@@ -4,6 +4,7 @@
 // activeAbortController，也不等待 projection commit。这样 TurnStarted 之后的任意 Core
 // starting/active 状态都会继续挡住同一 session 的第二次 start。
 import {
+  HANDOFF_MESSAGE_TOOL_NAME,
   SEND_FILE_TOOL_NAME,
   type TurnBackgroundAttribution,
   type TurnInputIntentMetadata,
@@ -236,9 +237,12 @@ function buildTurnToolDisallowlist(
     for (const toolName of OFF_PEAK_MUTATION_TOOL_NAMES) tools.add(toolName);
   }
   if (!params.botDeliveryTarget) {
-    // SendFile 的目标由 bot 回合的 botDeliveryTarget 注入；没有目标的回合（桌面输入、
-    // 自动化、子代理）必须在模型工具面上隐藏，避免模型尝试向不存在的 IM 会话发送。
+    // SendFile / HandoffMessage 的目标都由 bot 回合的 botDeliveryTarget 注入；没有目标的
+    // 回合（桌面输入、自动化、子代理）必须在模型工具面上隐藏，避免模型尝试向不存在的
+    // IM 会话发送或跨聊天转达。
     tools.add(SEND_FILE_TOOL_NAME);
+    // HandoffMessage 与 SendFile 同门：目标身份来自 bot 回合注入，桌面/自动化轮必须隐藏。
+    tools.add(HANDOFF_MESSAGE_TOOL_NAME);
   }
   return tools.size > 0 ? [...tools] : undefined;
 }

@@ -32,6 +32,7 @@ import type { ModelProviderSourceTitle } from "../model-config.js";
 import type { ModeInstalledPluginData } from "../plugins.js";
 import type {
   AutomationPort,
+  BotHandoffPort,
   BotMediaPort,
   OffPeakPort,
   BackgroundTaskCancelResult,
@@ -181,6 +182,8 @@ export interface ModeAppOptions {
   automationPort?: AutomationPort;
   /** IM bot 回合的 SendFile 端口；只在 Host 注入 botDeliveryTarget 的会话存在。 */
   botMediaPort?: BotMediaPort;
+  /** IM bot 回合的 HandoffMessage 端口；与 botMediaPort 同一条注入门。 */
+  botHandoffPort?: BotHandoffPort;
   offPeakPort?: OffPeakPort;
   /** 首次真实用户执行或 cold-resume fallback 时解析一次，之后由 app 生命周期缓存。 */
   resolveInitialBashShellSelection?: () => Promise<ExecutionShellSelection | undefined>;
