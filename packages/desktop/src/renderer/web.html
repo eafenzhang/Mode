@@ -73,13 +73,24 @@
       body {
         background: var(--mode-bootstrap-bg, var(--color-background, #0f172a));
         color: var(--mode-bootstrap-fg, var(--color-foreground, #e2e8f0));
-        font-family:
-          Inter,
+        /* 这条内联规则优先于 Tailwind preflight（preflight 只写在 html 上），整个应用
+         * 的文本都继承它。栈里没有任何 CJK 字形时，中文会落到泛型 sans-serif——
+         * 在部分 Windows 机器上被解析成宋体，深色底上细笔画不可读（bot 弹窗字体发虚）。
+         * app CSS 就绪后 --font-sans 生效；就绪前用同一份 CJK 回退，避免启动壳换字体。 */
+        font-family: var(
+          --font-sans,
+          ui-sans-serif,
+          system-ui,
           -apple-system,
           BlinkMacSystemFont,
           "Segoe UI",
           "Vazirmatn",
-          sans-serif;
+          "Microsoft YaHei UI",
+          "Microsoft YaHei",
+          "PingFang SC",
+          "Noto Sans CJK SC",
+          sans-serif
+        );
       }
 
       html[data-mode-bootstrap-theme="light"] body {

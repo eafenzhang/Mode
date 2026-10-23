@@ -6,7 +6,11 @@
     <style>
       :root {
         color-scheme: light dark;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        /* 关于页有中文文本；栈里没有 CJK 字形时中文落到泛型 sans-serif，
+         * 在部分 Windows 机器上解析成宋体——与 web.html 的内联栈同一修法。 */
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Microsoft YaHei UI",
+          "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
         --startup-page-bg: #f4f4f5;
         --about-primary: #0a0a0a;
         --about-primary-foreground: #fafafa;
