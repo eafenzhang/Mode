@@ -29,34 +29,43 @@
  * node --import tsx apps/desktop-tauri/bench/stream-latency-host.mts --turns 8
  * ```
  *
- * ## 状态（2026-10-24）：opt-in WIP，被 agent 二次生成启动失败阻塞
+ * ## 状态（2026-10-24）：基线已入库
  *
- * 接线已走通的部分（本脚本即这四条坑的复现/防回归载体）：
+ * 首轮实测（5 turns）：冷 turn 39 ms（含 agent spawn + 存储初始化）；
+ * 稳态 **中位 4 ms / p95 5 ms（n=4）**。对照「端到端 p95 ≤ 80 ms」：agent 段
+ * （stream-latency.mts，稳态 3–4 ms）+ 本段 ≈ 8–9 ms，余量巨大；WebView 段仍待产品壳 E2E。
+ *
+ * 接线过程中踩实的坑（本脚本即它们的防回归载体）：
  * 1. `call` 的第二参是**位置参数数组**（ProxyChannel 服务端 `apply(handler, args)`）；
  * 2. Host 自己的 provider 注册表读 `{dataBaseDir}/.mode/v2/provider_config.json`
  *    ——mock 配置必须落数据根规范位置，只给 CLI 注 env 会被判「没有可用的模型供应商」；
  * 3. workspace cwd 必须真实存在（Windows 上 spawn cwd 缺失报成「可执行文件 ENOENT」，
  *    极具误导性）；
  * 4. `listen` 的 arg 不是数组（直接传对象），且 `onDynamicTaskEvent` 是 task 级事件面，
- *    订阅参数必须带真 taskId、每 turn 独立建立。
+ *    订阅参数必须带真 taskId、每 turn 独立建立；Event 的订阅返回值才是 IDisposable
+ *    （把 Event 本身当订阅存起来会在 dispose 时炸）；
+ * 5. **数据根必须先初始化出归属文件再起 Host**（`initializeDataRootNonInteractive`）：
+ *    否则 CLI 第 2 代把无主 `.mode` 判成 unowned，rename「备份让路」在 Windows 上
+ *    撞 Host 未释放的目录句柄 → EPERM → exit 1；这条曾伪装成「node.exe 不存在」级的
+ *    假象链，靠 stderr wrapper 才抓到真因；
+ * 6. mock 剧本消费按会话内 assistant 消息数推进——每 turn 新 task 恒消费第 0 步，
+ *    各步文本必须相同、按顺序配对（按 marker 内容配对会漏配）；
+ * 7. 建后立刻发首条输入要 `deferPersistenceUntilFirstPrompt: true`（否则
+ *    session_input 外键账本撞 FOREIGN KEY），`sendPrompt` 带 `clientMode:
+ *    "desktop-continuous"`（与产品桌面/automation 派发同口径）；
+ * 8. mock 配置声明 reasoningLevel 选项档时 session/create 要求显式档位。
  *
- * **阻塞卡点**：`agent.initialize`（agent 第 1 代）成功，但 `createTask` 触发的
- * agent 第 2 代进程 ~2s 内 `stdout_closed`（Host 只见 protocol-close；CLI 自身 stderr
- * 被吞——`Mode agent process exited unexpectedly` 日志只在 terminationKind=unexpected
- * 时携带 stderr，protocol-close 路径不打）。已排除的口径：
- * - 给 `MODE_HOST_RESOURCES_DIR`（打包形态）→ initialize 反而挂死
- *   （libuv `fs-event.c:72` 断言 + 90s 超时）；
- * - 最小 env（剔除开发机全局 MODE_*）→ 同样失败；
- * - 手动以相同 args/cwd/env 直跑 CLI → 正常（差异在 Host spawn 的 spawnEnv 细节）。
+ * **诊断工具**：stderr wrapper——Host spawn 的不是真 CLI 而是本脚本生成的 CJS 壳，
+ * 壳把 CLI 的 stderr tee 到日志文件（Host 的 protocol-close 清理路径会吞掉 CLI 崩溃栈）。
  *
- * **下一步建议**：在 `modeAgentProcessManager` 的 protocol-close 清理路径临时打印
- * stderrTail（或用 ProcMon/调试器挂 CLI 子进程），定位 gen2 的真实退出原因；
- * 本脚本修通后即可产出 Host 段基线数字。
+ * **顺带发现（未修，登记）**：CLI 的 `turn.started` 事件 payload 带
+ * `executionStartedAt` 字段，Host schema 判 `unrecognized_keys` 整事件丢弃
+ * （不影响 delta 流，属 CLI↔Host 协议 schema 漂移，待产品侧对齐）。
  *
  * 扩展名 `.mts` 与既有 bench/探针同理由：不进 tsconfig include（被 include 拉进来的
  * driver/fixtures 从未被任何 tsc 程序覆盖，会暴露与本 bench 无关的既有类型缺口）。
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,6 +82,7 @@ import {
   startMockProvider,
   writeOracleProviderConfig,
 } from "../../../packages/desktop/tests/agent-runtime-oracle/mock-provider.mts";
+import { initializeDataRootNonInteractive } from "../../../packages/services/src/data-root/initializer.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TSX_CLI = join(REPO_ROOT, "node_modules", "tsx", "dist", "cli.mjs");
@@ -133,6 +143,41 @@ async function main(): Promise<void> {
   // 「可执行文件 ENOENT」（实测报 node.exe 不存在，极具误导性）。
   mkdirSync(workspacePath, { recursive: true });
   const personalConfigPath = join(workRoot, "oracle-personal-provider.json");
+
+  // stderr 诊断 wrapper（不改生产代码）：Host spawn 的不是真 CLI 而是这个 CJS 壳，
+  // 壳再 spawn 真 CLI 并把子进程 stderr tee 到日志文件 + 透传给自己继承的 stderr。
+  // 动机（2026-10-24 阻塞）：agent 第 2 代 ~2s 内 stdout_closed 时，CLI 自身的崩溃栈
+  // 被 Host 的 protocol-close 清理路径吞掉（unexpected 日志只在 terminationKind=
+  // unexpected 时带 stderrTail）——wrapper 让 stderr 落到一个 Host 管不到的文件里。
+  const agentStderrLog = join(workRoot, "agent-stderr.log");
+  const wrapperPath = join(workRoot, "agent-stderr-wrapper.cjs");
+  writeFileSync(
+    wrapperPath,
+    [
+      '"use strict";',
+      'const { spawn } = require("node:child_process");',
+      'const fs = require("node:fs");',
+      'const logPath = process.env.MODE_BENCH_AGENT_STDERR_LOG;',
+      'function log(text) {',
+      "  if (!logPath) return;",
+      "  try { fs.appendFileSync(logPath, text); } catch {}",
+      "}",
+      '// argv: [tsxCli, cliEntry, ...cliArgs]——CLI 由 Host 的 MODE_AGENT_SERVER_ARGS_JSON 决定。',
+      "const child = spawn(process.execPath, process.argv.slice(2), {",
+      '  stdio: ["inherit", "inherit", "pipe"],',
+      "  env: process.env,",
+      "});",
+      'child.stderr.on("data", (chunk) => {',
+      "  log(chunk.toString());",
+      "  process.stderr.write(chunk);",
+      "});",
+      'child.on("exit", (code, signal) => {',
+      "  log(`\\n[wrapper] exit code=${code} signal=${signal}\\n`);",
+      "  process.exit(code == null ? 1 : code);",
+      "});",
+    ].join("\n"),
+    "utf8",
+  );
   const watchdog = setTimeout(() => {
     console.error("[stream-latency-host] 看门狗到时（300s）——按失败收场");
     process.exit(1);
@@ -140,11 +185,23 @@ async function main(): Promise<void> {
 
   const sentAt: number[] = [];
   const receivedAt: number[] = [];
-  const receivedContents: string[] = [];
+  // 数据根必须**先初始化出归属文件**再起 Host（与数据根演练测试同一顺序语义）：
+  // 否则 Host 会隐式创建无归属的 `.mode`，后续 CLI 第 2 代按 unowned 判定尝试
+  // 「备份让路」rename——Windows 上 Host 还持有目录句柄，rename 必 EPERM，
+  // CLI exit 1（2026-10-24 wrapper 抓到的真实死因：`.mode` → `.mode.unowned-*` EPERM）。
+  const dataRootInit = await initializeDataRootNonInteractive({
+    baseDir: dataBaseDir,
+    createdBy: "desktop",
+    appVersion: "0.0.0-bench",
+    action: "fresh",
+  });
+  console.log(`[stream-latency-host] 数据根初始化：${dataRootInit.state}`);
   const mock = await startMockProvider(
-    Array.from({ length: turns }, (_, index) => ({
-      text: `host-latency-sample-${String(index)}`,
-    })),
+    // 每 turn 一个新 task = 新会话 → 请求里 assistant 消息数恒 0 → 剧本永远消费
+    // 第 0 步。所以各步文本必须相同，按**顺序**配对 sentAt/receivedAt（turn 串行，
+    // 每 turn 恰一个 delta），不能按 marker 内容区分（首版按 marker 配对，
+    // turn 1 的 delta 文本是 step0 的内容，实测漏配）。
+    Array.from({ length: turns }, () => ({ text: "host-latency-sample" })),
     {
       onContentBlockDeltaWrite: (at) => {
         sentAt.push(at);
@@ -190,7 +247,9 @@ async function main(): Promise<void> {
     extraEnv: {
       // Host 按这两个变量 spawn agent；指向真 CLI（tsx 直跑源码，与 oracle driver 同口径）。
       MODE_AGENT_SERVER_COMMAND: process.execPath,
-      MODE_AGENT_SERVER_ARGS_JSON: JSON.stringify([TSX_CLI, CLI_ENTRY, "app-server", "--stdio"]),
+      // 经 stderr wrapper 间接起 CLI：wrapper 负责把 CLI 的 stderr 落盘（见上）。
+      MODE_AGENT_SERVER_ARGS_JSON: JSON.stringify([wrapperPath, TSX_CLI, CLI_ENTRY, "app-server", "--stdio"]),
+      MODE_BENCH_AGENT_STDERR_LOG: agentStderrLog,
       MODE_BUILTIN_PROVIDER_CONFIG_FILE: BUILTIN_PROVIDER_CONFIG,
       MODE_PERSONAL_PROVIDER_CONFIG_FILE: join(hostProviderConfigDir, "provider_config.json"),
     },
@@ -209,13 +268,22 @@ async function main(): Promise<void> {
     const taskChannel = host.client.getChannel<IChannel>("mode-task");
 
     for (let turn = 0; turn < turns; turn += 1) {
-      const marker = `host-latency-sample-${String(turn)}`;
       console.log(`[stream-latency-host] turn ${String(turn)}：createTask …`);
       const created = (await withStepTimeout(
         taskChannel.call("createTask", [
           {
             workspacePath,
-            modelSelection: { providerId: ORACLE_MOCK_PROVIDER_ID, modelId: ORACLE_MOCK_MODEL_ID },
+            modelSelection: {
+              providerId: ORACLE_MOCK_PROVIDER_ID,
+              modelId: ORACLE_MOCK_MODEL_ID,
+              // mock 配置声明了 reasoningLevel 选项档 → session/create 要求显式档位
+              // （实测缺省直接拒：`Reasoning level is required`）；延迟基准用 disabled。
+              options: { reasoningLevel: "disabled" },
+            },
+            // 建后立刻发首条输入的无界面形态：用 deferred，让输入 admission 先统一
+            // 持久化 session 主记录再写 session_input 外键账本（实测缺省路径直接
+            // sendPrompt 会撞 `FOREIGN KEY constraint failed — session=…`）。
+            deferPersistenceUntilFirstPrompt: true,
           },
         ]),
         60_000,
@@ -230,22 +298,30 @@ async function main(): Promise<void> {
         content?: string;
         taskId?: string;
       }>("onDynamicTaskEvent", { workspacePath, taskId: created.taskId });
-      subscriptions.push(turnEvents);
 
       // 等本 turn 终态（task_complete / task_error），保证 turn 边界干净。
+      // 记录本 turn 收到的事件 type 序列：超时时把它带进错误消息——「没事件」与
+      // 「有事件但没终态」是两种完全不同的故障，不能靠猜。
+      const seenTypes: string[] = [];
+      let chunkCaptured = false;
       const turnDone = new Promise<void>((resolveTurn, rejectTurn) => {
         const timer = setTimeout(() => {
-          rejectTurn(new Error(`turn ${String(turn)} 60s 内未到终态`));
+          rejectTurn(
+            new Error(
+              `turn ${String(turn)} 60s 内未到终态；已见事件：` +
+                `${seenTypes.slice(0, 20).join(", ") || "（无）"}`,
+            ),
+          );
         }, 60_000);
         subscriptions.push(
           turnEvents((payload) => {
+            seenTypes.push(`${payload.type}:${payload.taskId ?? "-"}`);
             if (payload.taskId !== created.taskId) return;
             const at = Date.now();
-            if (payload.type === "agent_message_chunk" && typeof payload.content === "string") {
-              if (payload.content.includes(marker)) {
-                receivedAt.push(at);
-                receivedContents.push(payload.content);
-              }
+            // 每 turn 恰一个 text delta：只记首个 chunk（顺序配对，见 mock 剧本注释）。
+            if (!chunkCaptured && payload.type === "agent_message_chunk") {
+              chunkCaptured = true;
+              receivedAt.push(at);
             }
             if (payload.type === "task_complete" || payload.type === "task_error") {
               clearTimeout(timer);
@@ -261,6 +337,8 @@ async function main(): Promise<void> {
             taskId: created.taskId,
             traceId: created.traceId,
             content: `第 ${String(turn + 1)} 轮 Host 段流式样本，直接回一句话即可。`,
+            // 与产品桌面路径同口径（automationRuntime 派发同款）。
+            clientMode: "desktop-continuous",
           },
         ]),
         30_000,
@@ -304,6 +382,13 @@ async function main(): Promise<void> {
     const stderrTail = host.stderr().split(/\r?\n/).slice(-60).join("\n");
     if (stderrTail.trim().length > 0) {
       console.error(`[stream-latency-host] Host stderr 尾部：\n${stderrTail}`);
+    }
+    // wrapper 落盘的 CLI stderr（Host 管不到的旁路）——gen2 死因就在这里。
+    if (existsSync(agentStderrLog)) {
+      const agentLog = readFileSync(agentStderrLog, "utf8");
+      if (agentLog.trim().length > 0) {
+        console.error(`[stream-latency-host] CLI stderr（wrapper 落盘）：\n${agentLog}`);
+      }
     }
     await disposeHost(host).catch(() => undefined);
     await mock.close();

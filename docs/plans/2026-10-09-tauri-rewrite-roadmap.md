@@ -569,11 +569,16 @@ typecheck / lint / architecture / language policy / desktop tests / desktop-taur
     **中位 3 ms / p95 35 ms**（首轮 35ms 为 JIT 预热，稳态 3–4ms）。**不含** Host 转发与
     WebView 段——对照「端到端 p95 ≤ 80 ms」这是下界组成段；Host→renderer 段需产品壳
     E2E，待做。mock/driver 各加一个纯观测钩子（`onContentBlockDeltaWrite`），oracle
-    既有回归全绿。**Host 段**（2026-10-24）：`measure:stream-latency-host` 的接线与
-    四条坑已入库（call 参数数组 / provider 配置落数据根 / spawn cwd 必须存在 / task 级
-    订阅参数），但被「agent 第 2 代进程 ~2s 内 stdout_closed」阻塞（initialize 的第 1 代
-    正常；CLI 自身 stderr 被 protocol-close 路径吞掉；已排除 resources-dir 与最小 env
-    两种口径）——复现与下一步建议见该脚本文件头，属待人工/后续轮次。
+    既有回归全绿。**Host 段基线已入库**（2026-10-24，`measure:stream-latency-host`）：
+    真 Host spawn 真 CLI + 本地 mock provider，经 mode-task 频道测「mock SSE 写出 →
+    频道订阅者收到 agent_message_chunk」，5 turns：冷 turn 39 ms（含 agent spawn），
+    稳态 **中位 4 ms / p95 5 ms（n=4）**。前一日的「agent 第 2 代 stdout_closed」阻塞
+    已解：stderr wrapper 抓到 CLI 真因——数据根无归属文件 → CLI 判 unowned →
+    rename「备份让路」撞 Host 目录句柄 EPERM；修法是起 Host 前先
+    `initializeDataRootNonInteractive`。八条接线坑与 wrapper 诊断法见脚本文件头。
+    **顺带发现（未修，待产品对齐）**：CLI 的 `turn.started` payload 带
+    `executionStartedAt`，Host schema 判 unrecognized_keys 整事件丢弃（不影响 delta 流）。
+    两段相加 ≈ 8–9 ms（稳态），对照「端到端 p95 ≤ 80 ms」余量巨大；WebView 段仍待产品壳 E2E。
   - `bench/memory`（壳 / sidecar / agent 三进程 30 分钟 RSS 曲线）——**脚本已入库**
     （`measure:memory`，2026-10-23）：Win32_Process 过滤采样 + 安装目录/命令行特征归类，
     分类器已对现役实例验证（shell/sidecar/agent 全命中）；**前置**是被测机无运行中实例
