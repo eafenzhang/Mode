@@ -100,10 +100,18 @@ export type ProviderSettingsConnectivityTester = (
 export interface IModelSelectionService {
   readonly onDidChange: Event<ModelSelectionView>;
   getView(input?: ModelSelectionViewInput): Promise<ModelSelectionView>;
+  /**
+   * 用户显式选中模型后写回 Personal 配置的 defaultModelSelection（CLI /model 同语义）。
+   * 可选方法：旧 Host 或未装配写入能力的 Environment 没有该方法，
+   * 调用方必须容错（RPC 对端缺方法会以 Method not found 拒绝）。
+   */
+  saveConfiguredDefault?(selection: ModelSelection): Promise<void>;
 }
 
 export interface ModelSelectionConfiguredDefaultSource {
   read(): Promise<ModelSelection | undefined>;
+  /** Node 侧 Repository 已有同名方法；Web/测试 Environment 未装配时省略。 */
+  saveConfiguredDefault?(selection: ModelSelection): Promise<unknown>;
   onDidChange?(listener: () => void): () => void;
 }
 
@@ -266,6 +274,13 @@ export function createModelSelectionService(
       return { dispose: () => listeners.delete(listener) };
     },
     getView,
+    saveConfiguredDefault: configuredDefaultSource?.saveConfiguredDefault
+      ? async (selection) => {
+          await ensureReady();
+          if (disposed) throw new Error("ModelSelectionService 已 dispose");
+          await configuredDefaultSource.saveConfiguredDefault!(selection);
+        }
+      : undefined,
     dispose() {
       if (disposed) return;
       disposed = true;

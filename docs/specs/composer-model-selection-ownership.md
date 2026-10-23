@@ -41,6 +41,9 @@ v4 Composer 的“下一次提交配置”（模式、模型、推理档位）�
    `mode`/`planEnabled`/`modelSelection`/授权标记。
 6. 无法被当前 ModelSelectionView 解析的选择保持原样；界面可以显示为未解析/要求
    重选，但不能把草稿清空。
+7. 用户显式选模（模型菜单点击）后，除写草稿外还要把完整选择写回 Host 的
+   `defaultModelSelection`（Personal 配置文件字段）；这一步是跨 localStorage 的
+   持久兜底，写失败只记日志，不阻断选择。
 
 ## 事件顺序
 
@@ -54,11 +57,21 @@ v4 Composer 的“下一次提交配置”（模式、模型、推理档位）�
 
 ## 兼容与迁移
 
-- 不改变 localStorage key 与草稿 JSON 版本。
+- 当前 localStorage key 与草稿 JSON 版本不变（`mode-v4-composer-drafts:v1:<key>` /
+  `mode-model-selection-recent-v1:<key>`，version 1）。
+- P2 改名（17e0dd22）曾把 `zcode-` 前缀换成 `mode-` 但没有迁移旧键：升级后旧键里的
+  草稿与最近提交选择读不到，重启表现为丢模型/丢正文。读取侧在新键为空时做一次性
+  搬迁：旧键有数据 → 写入同后缀新键并删除旧键；搬迁失败（配额/异常）只降级为不
+  迁移，不影响输入。写入侧永远只写新键。
 - 旧草稿没有 `mode` 但有 `modelSelection` 时，按规则 1 保留原模型，只补
   `mode`/`planEnabled`。
 - 旧设备对话草稿可能写在 `__draft__` 下，升级后不会再被设备面板读取；属于一次性
   可见变化，不回填、不迁移，避免把主新任务草稿误判为设备对话内容。
+- 显式选模后 Renderer 通过 `IModelSelectionService.saveConfiguredDefault` 把完整
+  选择（含 reasoningLevel）写回 Personal 配置的 `defaultModelSelection`，与 CLI
+  `/model` 同语义。该方法是可选 RPC 方法：旧 Host 或未装配写入的 Environment 没有
+  它，调用方必须容错（失败只记 warn，不影响本次选择）。新任务初始化读到有效
+  `defaultModelSelection` 时优先于 registry 首选；失效默认仍按 Registry 顺序回退。
 
 ## 验收
 
@@ -67,4 +80,8 @@ v4 Composer 的“下一次提交配置”（模式、模型、推理档位）�
 2. 设备对话（尚无 session）选择模型不改变主新任务面板的模型；主面板发送后
    设备对话草稿不丢失。
 3. 带 `initialPrompt` 新建任务时，已有的模型/模式意图保留，正文被替换。
-4. `pnpm --filter @mode/ui test`、`pnpm typecheck`、`pnpm lint` 通过。
+4. localStorage 里只有旧 `zcode-` 前缀键时，打开工作区后草稿与最近选择仍可读，
+   旧键被搬迁到 `mode-` 前缀并删除。
+5. 显式选模后 `provider_config.json` 的 `defaultModelSelection` 更新为所选完整
+   清单；删除 localStorage 后新建任务草稿仍恢复到该模型。
+6. `pnpm --filter @mode/ui test`、`pnpm typecheck`、`pnpm lint` 通过。

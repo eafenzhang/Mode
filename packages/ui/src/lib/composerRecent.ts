@@ -5,10 +5,14 @@ import { logger } from "@/logger.js";
 
 // 沿用旧 key，读取时兼容只保存 ModelSelection 的历史记录。
 const COMPOSER_RECENT_KEY_PREFIX = "mode-model-selection-recent-v1";
+// P2 重命名（17e0dd22）把 zcode- 前缀换成 mode- 但没有迁移旧键：升级后最近一次
+// 提交的模型选择读不到，重启后新任务草稿回落到 registry 首选，表现为丢模型。
+const LEGACY_COMPOSER_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
 
 interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  removeItem(key: string): void;
 }
 
 interface ComposerRecent {
@@ -24,6 +28,21 @@ function resolveComposerRecentKey(workspacePath: string, workspaceIdentity?: str
   return `${COMPOSER_RECENT_KEY_PREFIX}:${workspaceKey}`;
 }
 
+/** 旧 zcode- 键 → 新 mode- 键的一次性搬迁；成功后删除旧键，失败只降级为不迁移。 */
+function migrateLegacyComposerRecent(storage: StorageLike, key: string): string | null {
+  if (!key.startsWith(`${COMPOSER_RECENT_KEY_PREFIX}:`)) return null;
+  const legacyKey = `${LEGACY_COMPOSER_RECENT_KEY_PREFIX}:${key.slice(COMPOSER_RECENT_KEY_PREFIX.length + 1)}`;
+  try {
+    const legacyRaw = storage.getItem(legacyKey);
+    if (!legacyRaw) return null;
+    storage.setItem(key, legacyRaw);
+    storage.removeItem(legacyKey);
+    return legacyRaw;
+  } catch {
+    return null;
+  }
+}
+
 export function readComposerRecent(
   workspacePath: string,
   workspaceIdentity?: string,
@@ -31,7 +50,8 @@ export function readComposerRecent(
 ): ComposerRecent | null {
   if (!storage) return null;
   try {
-    const raw = storage.getItem(resolveComposerRecentKey(workspacePath, workspaceIdentity));
+    const key = resolveComposerRecentKey(workspacePath, workspaceIdentity);
+    const raw = storage.getItem(key) ?? migrateLegacyComposerRecent(storage, key);
     if (!raw) return null;
     const record: unknown = JSON.parse(raw);
     if (!record || typeof record !== "object" || Array.isArray(record)) return null;

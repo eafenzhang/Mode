@@ -35,6 +35,9 @@ interface V4DraftFile {
 }
 
 const STORAGE_KEY_PREFIX = "mode-v4-composer-drafts:v1:";
+// P2 重命名（17e0dd22）把 zcode- 前缀换成 mode- 但没有迁移旧键：升级后旧键里的
+// 草稿（含 modelSelection）读不到，重启表现为丢模型/丢正文。新键为空时一次性搬迁。
+const LEGACY_STORAGE_KEY_PREFIX = "zcode-v4-composer-drafts:v1:";
 export const V4_DRAFT_SCOPE_ROOT = "__draft__";
 const warnedStorageKeys = new Set<string>();
 
@@ -63,10 +66,26 @@ function getV4ComposerDraftStorageKey(workspacePath: string, workspaceIdentity?:
   return `${STORAGE_KEY_PREFIX}${encodeURIComponent(workspaceKey)}`;
 }
 
+/** 旧 zcode- 键 → 新 mode- 键的一次性搬迁；成功后删除旧键，失败只降级为不迁移。 */
+function migrateLegacyDraftFile(storage: Storage | null, key: string): string | null {
+  if (!storage || !key.startsWith(STORAGE_KEY_PREFIX)) return null;
+  const legacyKey = `${LEGACY_STORAGE_KEY_PREFIX}${key.slice(STORAGE_KEY_PREFIX.length)}`;
+  try {
+    const legacyRaw = storage.getItem(legacyKey);
+    if (!legacyRaw) return null;
+    storage.setItem(key, legacyRaw);
+    storage.removeItem(legacyKey);
+    return legacyRaw;
+  } catch (error) {
+    warnStorageFailure(legacyKey, error);
+    return null;
+  }
+}
+
 function readDraftFile(key: string): V4DraftFile {
   const storage = getStorage();
   try {
-    const raw = storage?.getItem(key);
+    const raw = storage?.getItem(key) ?? migrateLegacyDraftFile(storage, key);
     if (!raw) return { version: 1, scopes: {} };
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed) || parsed.version !== 1 || !isRecord(parsed.scopes)) {

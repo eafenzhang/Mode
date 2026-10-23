@@ -430,8 +430,20 @@ export function useDraftConfigControl(params: {
         workspaceIdentity: workspaceIdentity ?? null,
       });
       updateDraftConfig((current) => applyDraftModelSelection(current, modelSelection));
+      // 显式选模后写回配置默认（CLI /model 同语义）：localStorage 丢失或新装环境时，
+      // 新任务草稿仍能从 provider_config.json 的 defaultModelSelection 恢复上次选择。
+      // 旧 Host/远端对端没有该方法时 RPC 会拒绝，只记日志不影响本次选择。
+      void modelSelectionService?.saveConfiguredDefault?.(modelSelection)?.catch((error: unknown) => {
+        logger.warn("[v4-draft-config] 保存默认模型选择失败", {
+          error: error instanceof Error ? error.message : String(error),
+          providerId: modelSelection.providerId,
+          modelId: modelSelection.modelId,
+          workspacePath,
+          workspaceIdentity: workspaceIdentity ?? null,
+        });
+      });
     },
-    [modelSelectionView, updateDraftConfig, workspaceIdentity, workspacePath],
+    [modelSelectionService, modelSelectionView, updateDraftConfig, workspaceIdentity, workspacePath],
   );
 
   const handleDraftSelectThought = useCallback(
