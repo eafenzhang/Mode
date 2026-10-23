@@ -20,6 +20,9 @@ export * from "./todo.js";
 export * from "./automation.js";
 export * from "./off-peak.js";
 export * from "./send-file.js";
+// 跨聊天交接的工具面（docs/specs/bot-cross-chat-handoff.md R1）：名字常量被 core 的
+// 工具注册与 Host 侧注入读走，漏掉这行消费方拿不到 schema 与 HANDOFF_MESSAGE_TOOL_NAME。
+export * from "./handoff-message.js";
 export * from "./target.js";
 export * from "./plan-mode.js";
 export * from "./ask-user-question.js";

@@ -28,6 +28,7 @@ export * from "./interfaces/model-catalog.port.js";
 export * from "./interfaces/automation.port.js";
 export * from "./interfaces/off-peak.port.js";
 export * from "./interfaces/bot-media.port.js";
+export * from "./interfaces/bot-handoff.port.js";
 export * from "./interfaces/mcp.port.js";
 
 export * from "./interfaces/runtime-input-presentation.js";
