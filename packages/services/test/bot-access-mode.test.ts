@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -204,6 +204,9 @@ test("黑名单纯函数：按 bot 配置精确命中，缺席不误伤", async 
     false,
     "无字段视为未拉黑",
   );
+  // T3 审查遗留：空串 groupId（私聊无 chatId 时的 gateChatId 兜底值）必须不命中，
+  // 否则 blockedGroups 里任何一条都能把私聊误杀。
+  assert.equal(isGroupBlocked(bot, ""), false, "空串 groupId 不命中（守卫）");
 });
 
 test("normalizeBotConfig：回填 accessMode（存量推导不锁死，显式值原样保留）", async () => {
@@ -332,4 +335,53 @@ test("whitelist 模式：群发现仍登记 pending 并静默（A+ 行为不回�
     .find((b) => b.id === "bot-acc")
     ?.groupChat?.permissions?.find((p) => p.groupId === "g-wl");
   assert.equal(permission?.status, "pending");
+});
+
+// —— 配置操作方法（docs/specs/bot-access-mode.md R1/R2/R3）——
+
+test("配置操作：mode 切换、拉黑/解除、登记移除均为锁内 RMW 且互不串扰", async () => {
+  await writeBotsConfig([
+    baseBot({
+      accessMode: "whitelist",
+      blockedUsers: ["u-x"],
+      userRegistry: [{ providerUserId: "u-keep", discoveredAt: 1 }],
+      groupChat: {
+        activation: "always",
+        permissions: [
+          {
+            groupId: "g-1",
+            groupName: "G1",
+            platform: "wecom",
+            status: "approved",
+            discoveredAt: 1,
+          },
+        ],
+      },
+    }),
+  ]);
+  const botsService = await getBotsService();
+  let bot = await botsService.setBotAccessMode({ botId: "bot-acc", accessMode: "free" });
+  assert.equal(bot.accessMode, "free");
+
+  bot = await botsService.blockBotUser({ botId: "bot-acc", providerUserId: "u-new" });
+  assert.deepEqual(bot.blockedUsers, ["u-x", "u-new"], "追加不覆盖既有黑名单");
+
+  bot = await botsService.unblockBotUser({ botId: "bot-acc", providerUserId: "u-x" });
+  assert.deepEqual(bot.blockedUsers, ["u-new"]);
+
+  bot = await botsService.blockBotGroup({ botId: "bot-acc", groupId: "g-1", groupName: "G1" });
+  assert.equal(bot.blockedGroups?.[0]?.groupId, "g-1");
+  assert.equal(bot.blockedGroups?.[0]?.platform, "wecom");
+
+  bot = await botsService.unblockBotGroup({ botId: "bot-acc", groupId: "g-1" });
+  assert.equal(bot.blockedGroups?.length, 0);
+
+  bot = await botsService.removeBotRegisteredUser({ botId: "bot-acc", providerUserId: "u-keep" });
+  assert.equal(bot.userRegistry?.length, 0);
+
+  // 全部落盘（T4 harness：configDir 即 node.getAppConfigDir()）。
+  const persisted = JSON.parse(
+    readFileSync(join(node.getAppConfigDir(), "bot-config.v3.json"), "utf8"),
+  ) as { bots: Array<Record<string, unknown>> };
+  assert.equal(persisted.bots[0]?.accessMode, "free");
 });

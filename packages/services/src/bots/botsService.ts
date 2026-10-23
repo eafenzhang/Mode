@@ -7235,6 +7235,24 @@ export function createBotsService(
     });
   }
 
+  /** 配置字段的锁内 RMW：找不到 bot 时抛错，否则在 mutateConfig 内原子修改后返回该 bot 记录。 */
+  async function mutateBotConfigField(
+    botId: string,
+    mutate: (bot: BotConfig) => void,
+  ): Promise<BotConfig> {
+    let saved: BotConfig | undefined;
+    await repo.mutateConfig((nextConfig) => {
+      const target = nextConfig.bots.find((candidate) => candidate.id === botId);
+      if (!target) {
+        throw new Error(`Bot not found: ${botId}`);
+      }
+      mutate(target);
+      saved = target;
+    });
+    if (!saved) throw new Error(`Bot not found: ${botId}`);
+    return saved;
+  }
+
   service = {
     onDidChange: onDidChangeEmitter.event,
     async syncAppRuntimePreferences(preferences) {
@@ -8043,6 +8061,53 @@ export function createBotsService(
       const savedBot = saved.bots.find((candidate) => candidate.id === params.botId);
       if (!savedBot) throw new Error(`Bot not found: ${params.botId}`);
       return savedBot;
+    },
+    // —— 访问控制配置操作（docs/specs/bot-access-mode.md R1/R2/R3）——
+    // 全部经 mutateBotConfigField 走 repo.mutateConfig 锁内 RMW，返回更新后的 bot 记录。
+    async setBotAccessMode(params) {
+      return mutateBotConfigField(params.botId, (bot) => {
+        bot.accessMode = params.accessMode;
+      });
+    },
+    async blockBotUser(params) {
+      return mutateBotConfigField(params.botId, (bot) => {
+        const list = bot.blockedUsers ?? [];
+        if (!list.includes(params.providerUserId)) {
+          bot.blockedUsers = [...list, params.providerUserId];
+        }
+      });
+    },
+    async unblockBotUser(params) {
+      return mutateBotConfigField(params.botId, (bot) => {
+        bot.blockedUsers = (bot.blockedUsers ?? []).filter((id) => id !== params.providerUserId);
+      });
+    },
+    async blockBotGroup(params) {
+      return mutateBotConfigField(params.botId, (bot) => {
+        const list = bot.blockedGroups ?? [];
+        if (list.some((item) => item.groupId === params.groupId)) return;
+        bot.blockedGroups = [
+          ...list,
+          {
+            groupId: params.groupId,
+            ...(params.groupName ? { groupName: params.groupName } : {}),
+            platform: bot.provider,
+            blockedAt: Date.now(),
+          },
+        ];
+      });
+    },
+    async unblockBotGroup(params) {
+      return mutateBotConfigField(params.botId, (bot) => {
+        bot.blockedGroups = (bot.blockedGroups ?? []).filter((item) => item.groupId !== params.groupId);
+      });
+    },
+    async removeBotRegisteredUser(params) {
+      return mutateBotConfigField(params.botId, (bot) => {
+        bot.userRegistry = (bot.userRegistry ?? []).filter(
+          (item) => item.providerUserId !== params.providerUserId,
+        );
+      });
     },
     watchAutomationRun,
     async handleInboundMessage(message: BotInboundMessage) {

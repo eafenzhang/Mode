@@ -4,6 +4,7 @@ import { createServiceDescriptor } from "../descriptors.js";
 import type {
   ModeConfigOption,
   ModeProvider,
+  BotAccessMode,
   BotConfig,
   BotConversationKind,
   BotConversationState,
@@ -252,6 +253,16 @@ export interface IBotsService {
   resetBotState(contextKey: string): Promise<void>;
   /** 批准群授权；批准后该群所有成员可触发（仍受 mention gate 限制）。 */
   approveBotGroup(params: { botId: string; groupId: string }): Promise<BotConfig>;
+  /** 切换渠道访问模式（spec bot-access-mode R1）。 */
+  setBotAccessMode(params: { botId: string; accessMode: BotAccessMode }): Promise<BotConfig>;
+  /** 拉黑/解除拉黑私聊用户（spec R2；纯否决层，不改动授权字段）。 */
+  blockBotUser(params: { botId: string; providerUserId: string }): Promise<BotConfig>;
+  unblockBotUser(params: { botId: string; providerUserId: string }): Promise<BotConfig>;
+  /** 拉黑/解除拉黑群（spec R2）。 */
+  blockBotGroup(params: { botId: string; groupId: string; groupName?: string }): Promise<BotConfig>;
+  unblockBotGroup(params: { botId: string; groupId: string }): Promise<BotConfig>;
+  /** 移除 free 模式自动登记的用户（spec R3；移除≠拉黑，下条消息会重新登记）。 */
+  removeBotRegisteredUser(params: { botId: string; providerUserId: string }): Promise<BotConfig>;
   /** 拒绝待审批群；清空该群历史。 */
   rejectBotGroup(params: { botId: string; groupId: string }): Promise<BotConfig>;
   /** 移除已批准群；清空该群历史，后续消息只记历史不再触发。 */
