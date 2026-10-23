@@ -115,8 +115,27 @@ export interface RemoteWorkspaceHostService extends IRemoteService {
         error: string;
       }
   >;
+  /**
+   * window-controller source 解析（进程内，不走 RPC）：按 workspace 找到远程会话并回它的
+   * scoped services。online 会话返回 services；离线占位会话返回 offline（Controller 冻结
+   * 最后可信投影）；无匹配会话返回 null（是否回落本地由调用方按 identity 判断）。
+   */
+  resolveControllerRemoteSource(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }):
+    | { remoteSessionId: string; services: ServiceCollection; sourceAvailability: "online" }
+    | { remoteSessionId: string; sourceAvailability: "offline"; services?: undefined }
+    | null;
   /** Host 退出：释放 registry、所有 attachment 与底层连接。 */
   disposeHost(): Promise<void>;
+}
+
+/** window-controller 的 source 生命周期事件；scope 三元组与 Controller source 键一致。 */
+export interface ControllerSourceLifecycleScope {
+  remoteSessionId: string;
+  workspacePath: string;
+  workspaceIdentity: string;
 }
 
 export interface CreateRemoteWorkspaceHostServiceOptions {
@@ -143,6 +162,13 @@ export interface CreateRemoteWorkspaceHostServiceOptions {
   /** 测试注入点：替换远端服务集合构造（避免单测创建本机 Node 服务）。 */
   createRemoteWorkspaceServices?: typeof createRemoteWorkspaceServiceCollection;
   createId?: () => string;
+  /**
+   * window-controller 生命周期接线（docs/specs/window-host-controller-service.md）：
+   * 连接断开冻结投影、session 释放摘除 source、bindContext 换绑摘除旧 scope。
+   * runtime 在本服务之后创建，经可变引用延迟绑定；未赋值时为空操作。
+   */
+  onControllerSourceDisconnected?: (scope: ControllerSourceLifecycleScope) => void;
+  onControllerSourceDisposed?: (scope: ControllerSourceLifecycleScope) => void;
 }
 
 function describeError(error: unknown): string {
@@ -447,6 +473,16 @@ export async function createRemoteWorkspaceHostService(
     createId,
     onSessionClosed: (event) => {
       detachSessionAttachments(event.remoteSessionId);
+      // 连接断开时 registry 保留 disconnected 占位 session（不清出 sessionsById），
+      // 这里能读到完整 scope；Controller 据此冻结该 source 的最后可信投影。
+      const closedSession = registry.getSession(event.remoteSessionId);
+      if (closedSession?.workspacePath && closedSession.workspaceIdentity) {
+        options.onControllerSourceDisconnected?.({
+          remoteSessionId: event.remoteSessionId,
+          workspacePath: closedSession.workspacePath,
+          workspaceIdentity: closedSession.workspaceIdentity,
+        });
+      }
       events.fire({
         kind: "closed",
         sessionId: event.remoteSessionId,
@@ -548,6 +584,16 @@ export async function createRemoteWorkspaceHostService(
       if (!session) {
         throw new Error(`未找到远程 logical session，sessionId=${params.sessionId}`);
       }
+      // 换绑前先记旧 scope：bind 成功后 Controller 要摘掉旧 source，
+      // 否则旧投影以同 identity 的 offline 行滞留在 tasks-index topic 里。
+      const previousScope =
+        session.workspacePath && session.workspaceIdentity
+          ? {
+              remoteSessionId: params.sessionId,
+              workspacePath: session.workspacePath,
+              workspaceIdentity: session.workspaceIdentity,
+            }
+          : undefined;
       const workspacePath = params.workspacePath?.trim();
       if (!workspacePath) {
         throw new Error("workspacePath 不能为空");
@@ -560,12 +606,28 @@ export async function createRemoteWorkspaceHostService(
         workspacePath,
         workspaceIdentity,
       });
+      if (
+        previousScope &&
+        (previousScope.workspacePath !== workspacePath ||
+          previousScope.workspaceIdentity !== workspaceIdentity)
+      ) {
+        options.onControllerSourceDisposed?.(previousScope);
+      }
       emitLog("info", "远程 workspace 上下文已绑定", { sessionId: params.sessionId });
     },
 
     async dispose(params: RemoteSessionParams): Promise<void> {
+      // disposeSession 会把 session 从 registry 删除，scope 只能先取。
+      const disposedSession = registry.getSession(params.sessionId);
       detachSessionAttachments(params.sessionId);
       await registry.disposeSession(params.sessionId);
+      if (disposedSession?.workspacePath && disposedSession.workspaceIdentity) {
+        options.onControllerSourceDisposed?.({
+          remoteSessionId: params.sessionId,
+          workspacePath: disposedSession.workspacePath,
+          workspaceIdentity: disposedSession.workspaceIdentity,
+        });
+      }
       emitLog("info", "远程 workspace session 已释放", { sessionId: params.sessionId });
     },
 
@@ -718,6 +780,36 @@ export async function createRemoteWorkspaceHostService(
       return { ok: true as const, port: channel.port2, dispose };
     },
 
+    resolveControllerRemoteSource(params: {
+      workspacePath: string;
+      workspaceIdentity?: string;
+    }):
+      | { remoteSessionId: string; services: ServiceCollection; sourceAvailability: "online" }
+      | { remoteSessionId: string; sourceAvailability: "offline"; services?: undefined }
+      | null {
+      const session = registry.findSessionForWorkspace(params);
+      if (!session?.workspacePath || !session.workspaceIdentity) {
+        return null;
+      }
+      if (session.sourceAvailability !== "online") {
+        // 离线占位也要回给 Controller：它需要按 remoteSessionId 冻结该 source 的投影，
+        // 而不是把它当成「无匹配」误落本地 tasks-index。
+        return { remoteSessionId: session.remoteSessionId, sourceAvailability: "offline" };
+      }
+      // resolveScopedServices 对 online 会话不会抛；异常向上传播由 Controller 的
+      // onSourceError 记账。
+      return {
+        remoteSessionId: session.remoteSessionId,
+        services: registry.resolveScopedServices({
+          kind: "remote",
+          remoteSessionId: session.remoteSessionId,
+          workspacePath: session.workspacePath,
+          workspaceIdentity: session.workspaceIdentity,
+        }),
+        sourceAvailability: "online",
+      };
+    },
+
     async disposeHost(): Promise<void> {
       scopeSubscription.dispose();
       for (const record of Array.from(attachments.values())) {
@@ -739,5 +831,6 @@ export async function createRemoteWorkspaceHostService(
     "queryBotConnectionStatus",
     "reconnectBotWorkspace",
     "createBotRuntimePort",
+    "resolveControllerRemoteSource",
   ]);
 }

@@ -41,6 +41,7 @@
     "tests/scoped-attachment-port.test.mts",
     "tests/renderer-connection-scope.test.mts",
     "tests/platform-select-files.test.mts",
-    "tests/remote-workspace-host-service.test.mts"
+    "tests/remote-workspace-host-service.test.mts",
+    "tests/window-host-controller.test.mts"
   ]
 }

@@ -27,10 +27,12 @@
  * 而不是静默走另一条路径（例如 `parentPort` 传 null 时广播为空操作）。
  */
 import { dirname, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 
 import type { IChannelServer, IServerChannel } from "@mode/rpc";
+import { isRemoteWorkspaceIdentity } from "@mode/shared";
 import type {
   BotRemoteWorkspaceTransport,
   BotRemoteWorkspaceTransportTarget,
@@ -41,6 +43,7 @@ import { createRendererConnectionScope } from "./rendererConnectionScope.js";
 import { resolveRemoteAssetDirs } from "./remoteAssets.js";
 import { applyHostResourcesPath } from "./runtimeResources.js";
 import { resolveWebStaticRoot } from "./webAssets.js";
+import { createWindowHostControllerRuntime } from "./windowController/windowHostControllerService.js";
 import type { ScopedAttachmentRegistry } from "./scopedAttachments.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -141,6 +144,8 @@ export async function createHostServiceSurface(
       IRemoteDesktopService,
       IRemoteService,
       IModeAgentService,
+      IModeTaskService,
+      IWindowControllerService,
       IConversationShareService,
       ICloudAccountService,
       createModeAgentConnectionScope,
@@ -168,6 +173,12 @@ export async function createHostServiceSurface(
    * `remote` 在 `createLocalServices` 之后才创建，所以这里用可变引用延迟绑定；
    * 绑定前查询返回 null（回退到 Bot 桥的本地 Set），重连/建端口返回显式错误。
    */
+  /**
+   * window-controller 聚合运行时（docs/specs/window-host-controller-service.md）。
+   * 远程 lifecycle 钩子在 `remote` 创建时就要引用它，而它又依赖 `remote` 的 source 解析——
+   * 与 botRemoteHost 同款可变引用延迟绑定。
+   */
+  let windowControllerRuntime: ReturnType<typeof createWindowHostControllerRuntime> | null = null;
   let botRemoteHost: {
     queryBotConnectionStatus(target: BotRemoteWorkspaceTransportTarget): Promise<boolean>;
     reconnectBotWorkspace(target: BotRemoteWorkspaceTransportTarget): Promise<
@@ -244,9 +255,67 @@ export async function createHostServiceSurface(
     remoteAssets: resolveRemoteAssetDirs(),
     guardChannel: (channelName, channel) =>
       options.guards.guardChannel(channelName, channel, options.log),
+    onControllerSourceDisconnected: (scope) => {
+      // 远程连接断开：冻结该 source 的最后可信投影为 offline，行不消失。
+      windowControllerRuntime?.disconnectSource({ kind: "remote", ...scope });
+    },
+    onControllerSourceDisposed: (scope) => {
+      // session 释放 / bindContext 换绑：连同冻结投影一起摘除。
+      windowControllerRuntime?.removeSource({ kind: "remote", ...scope });
+    },
   });
   // Bot 桥在 `createLocalServices` 里已建好，这里补上它真正依赖的 registry 实现。
   botRemoteHost = remote;
+  // window-controller 聚合运行时：renderer 与手机 Web 远控的侧栏任务视图
+  // （任务分区/置顶/时间线/grouped enrich）唯一数据源。source 路由必须先问远程 registry，
+  // 远程身份绝不回落本地 tasks-index（同路径不同 authority 会串读）。
+  windowControllerRuntime = createWindowHostControllerRuntime({
+    createId: randomUUID,
+    onSourceError: (scope, operation, error) => {
+      const workspaceKey = scope.workspaceIdentity?.trim() || scope.workspacePath;
+      const message = error instanceof Error ? error.message : String(error);
+      options.log(
+        `window_controller_source_${operation}_failed scope=${scope.kind} workspaceKey=${workspaceKey} error=${message}`,
+      );
+    },
+    resolveSource: (scope) => {
+      const remoteSession = remote.resolveControllerRemoteSource(scope);
+      if (remoteSession) {
+        const controllerScope = {
+          kind: "remote" as const,
+          remoteSessionId: remoteSession.remoteSessionId,
+          workspacePath: scope.workspacePath,
+          workspaceIdentity: scope.workspaceIdentity ?? "",
+        };
+        if (remoteSession.sourceAvailability !== "online") {
+          return { scope: controllerScope, sourceAvailability: "offline" as const };
+        }
+        return {
+          scope: controllerScope,
+          taskService: remoteSession.services.get(IModeTaskService),
+          agentService: remoteSession.services.getOptional(IModeAgentService),
+          sourceAvailability: "online" as const,
+        };
+      }
+      if (scope.workspaceIdentity && isRemoteWorkspaceIdentity(scope.workspaceIdentity)) {
+        return null;
+      }
+      const taskService = services.getOptional(IModeTaskService);
+      if (!taskService) {
+        return null;
+      }
+      return {
+        scope: {
+          kind: "local" as const,
+          workspacePath: scope.workspacePath,
+          ...(scope.workspaceIdentity ? { workspaceIdentity: scope.workspaceIdentity } : {}),
+        },
+        taskService,
+        agentService: services.getOptional(IModeAgentService),
+        sourceAvailability: "online" as const,
+      };
+    },
+  });
   const cloudAccount = await createCloudAccountHostService({
     services,
     log: options.log,
@@ -277,6 +346,10 @@ export async function createHostServiceSurface(
     createConnectionScope: createModeAgentConnectionScope,
     conversationShareScopeFactory: conversationShareConnectionScopeFactory,
   });
+  // window-controller 进 `services` 集合：窗口 renderer（MessagePort 服务面）与手机 Web
+  // 远控（/ws/host，`packages/server` setupChannelServer）共用同一投影；本地管理面
+  // （localOnly）不含它，LAN HTTP API 也不经集合暴露频道。
+  services.register(IWindowControllerService, windowControllerRuntime.service);
   services.exposeOnChannelServer(guardedServer, rendererScope.overrides);
   localOnly.exposeOnChannelServer(guardedServer);
 
@@ -291,6 +364,8 @@ export async function createHostServiceSurface(
       await lanAccess.dispose();
       await remoteDesktop.dispose();
       await remote.disposeHost();
+      // Controller 订阅了远程/本地 source 的事件与 V4 topics；必须在 services 释放前摘除。
+      windowControllerRuntime?.dispose();
       // scope.dispose 会向 CLI 发送 closed 流转；必须排在 services 释放之前。
       await rendererScope.dispose();
       await disposeServiceResourcesAndWait(services);
