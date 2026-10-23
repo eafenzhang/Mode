@@ -15,6 +15,7 @@
     "measure:memory": "node --import tsx bench/memory.ts",
     "measure:ship-core-payload": "node --import tsx scripts/measure-ship-core-payload.ts",
     "measure:stream-latency": "node --import tsx bench/stream-latency.mts",
+    "measure:stream-latency-host": "node --import tsx bench/stream-latency-host.mts",
     "dev:frontend": "vite",
     "build:rust": "cargo build -p mode-tauri",
     "test:rust": "cargo test -p platform -p protocol -p deeplink -p tray -p updater -p tauri-test-manifest",
