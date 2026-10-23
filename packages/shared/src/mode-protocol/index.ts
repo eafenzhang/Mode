@@ -1370,6 +1370,17 @@ export const modeToolUpdatedEventPayloadSchema = z.discriminatedUnion("kind", [
     .extend({
       kind: z.literal("started"),
       startedAt: protocolInstantSchema,
+      // 这次调用**解析后**的副作用能力（CLI 契约 ToolCallStartedPayload）：事件在
+      // handler 动手之前发出，订阅者能在第一个字节落盘前知道「要写了」
+      // （dynamic-workflow 的 driver 据此关闭 amend-resume 导入缓存）。
+      // 与 turn.started/executionStartedAt 同款教训（2026-10-24 修的那半边）——
+      // strict schema 漏声明会让 unrecognized_keys 丢弃整条事件：此前每一次
+      // tool.updated/started 都被宿主丢掉（KNOWN_V1_PAYLOAD_LAG 的另一半，已随本声明清除）。
+      readOnly: z.boolean().optional(),
+      // 与 CLI 契约 ToolSideEffectScope / ModelToolSideEffectScope 同一 7 值词表。
+      sideEffectScope: z
+        .enum(["none", "workspace", "git", "network", "system", "session", "userInteraction"])
+        .optional(),
     })
     .strict(),
   modeToolCallBasePayloadSchema

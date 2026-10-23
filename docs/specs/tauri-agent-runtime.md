@@ -912,7 +912,7 @@ oracle 同形的 `tool_not_found`」，并由行为夹具 `read-absent-search-to
    夹具里的 `read-twice-one-turn` 保留**单元素** `parallelGroups`（两个独立批次），
    因为那是最贴合「同一次 turn 里连续两次工具调用」这条要求、且不依赖竞态的形状；
    并行批次的折叠规则由 `compare.test.mts` 的纯函数用例覆盖。
-6. **已知缺陷（部分已修）：v1 宿主 schema 曾落后于线上，host 会丢掉两类会话事件。**
+6. **已修复缺陷（2026-10-24 全部收口）：v1 宿主 schema 曾落后于线上，host 会丢掉两类会话事件。**
    （Task 1 发现，2026-10-16 复评确认；本项**不在 Task 1 修**，需独立调查与决定。）
    实测证据（两条真实帧 + 跑一遍 zod 即可复现）：运行时发出的
    `turn.started` 载荷带 `executionStartedAt`（小数毫秒），
@@ -921,17 +921,20 @@ oracle 同形的 `tool_not_found`」，并由行为夹具 `read-absent-search-to
    且各成员都是 `.strict()` ⇒ `modeSessionEventSchema.safeParse(真实帧)` 失败，
    报 `unrecognized_keys`。宿主路径用同一个 `modeSessionEventSchema` 校验 `session/event`，
    失败即记日志并丢弃整条事件——**每一次对应事件都被丢掉**（不是"文档不准"，是线上丢事件）。
-   - **`turn.started` / `executionStartedAt`：已修（2026-10-24）**——schema 补声明
+   两半边均已于 2026-10-24 修复：
+   - **`turn.started` / `executionStartedAt`**——schema 补声明
      `executionStartedAt: z.number().nonnegative().optional()`（刻意不用 int-only 的
      `timestampMsSchema`：CLI 发的是 `performance.timeOrigin + performance.now()` 的
-     **浮点**毫秒，int schema 会换一种方式重复同一起丢弃事故）。回归
-     `packages/shared/test/mode-protocol-turn-started.test.ts`；端到端证据：
+     **浮点**毫秒，int schema 会换一种方式重复同一起丢弃事故）；端到端证据：
      stream-latency-host bench 的「丢弃无效 Mode Protocol session event」日志清零。
-     `KNOWN_V1_PAYLOAD_LAG` 的 turn.started 条目已随之删除。
-   - **`tool.updated`/`started`（`readOnly` / `sideEffectScope`）：仍待决**——锚点：
-   - 常数 `KNOWN_V1_PAYLOAD_LAG`（`packages/desktop/tests/agent-runtime-oracle/protocol-fixtures.test.mts`）
-     —— 它断言「被拒绝的键逐字等于表里的键」，schema 或运行时任一侧动了都会红；
-   - 本节 —— 它说明这张表为什么存在、后果是什么。
+   - **`tool.updated`/`started`（`readOnly` / `sideEffectScope`）**——started 变体补声明
+     `readOnly: z.boolean().optional()` + `sideEffectScope` 7 值枚举（与 CLI 契约
+     `ToolSideEffectScope` 同词表：none/workspace/git/network/system/session/userInteraction）；
+     端到端证据：协议夹具的 started 帧从「靠滞后表放行」变为全量 parse 通过。
+   - 回归（家族）：`packages/shared/test/mode-protocol-session-event-drift.test.ts`。
+   - 锚点保留：常数 `KNOWN_V1_PAYLOAD_LAG`（`protocol-fixtures.test.mts`）已清空成**墓碑**，
+     断言「被拒绝的键逐字等于表里的键」仍是长期绊网——未来任何被 schema 拒绝的会话事件
+     夹具都会直接红；本节记录这张表为什么曾存在、后果是什么。
    Rust 镜像按**线上取值**建模（`execution_started_at: Option<f64>`、`read_only`、`side_effect_scope`），
    即镜像跟线上走、与 v1 schema 的滞后无关。
 7. **协议夹具（Task 1）的规范化口径**：协议夹具住

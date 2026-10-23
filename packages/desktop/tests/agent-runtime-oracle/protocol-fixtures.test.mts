@@ -42,25 +42,25 @@ const FIXTURE_DIR = fileURLToPath(
 );
 
 /**
- * v1 共享 schema **落后于线上**的载荷字段（Task 1 实测，2026-10-16；两处之一已于
- * 2026-10-24 修复）。
+ * v1 共享 schema **落后于线上**的载荷字段（Task 1 实测，2026-10-16）。
  *
  * 后果不是「文档不准」，而是**线上正在丢事件**：宿主路径用 `modeSessionEventSchema.safeParse(...)`
  * 校验 `session/event`，解析失败就把整条事件记日志丢掉。载荷带 schema 未声明的键、
  * 且各成员是 `.strict()` —— `unrecognized_keys` 会拒绝整条事件。
  *
- * 历史两处：
- * - `turn.started` / `executionStartedAt`：**已修**（2026-10-24，schema 补声明浮点
- *   epoch 毫秒可选键；回归见 `packages/shared/test/mode-protocol-turn-started.test.ts`，
- *   端到端证据：stream-latency-host bench 的丢弃日志清零）——本表相应条目已删；
- * - `tool.updated:started`：仍未修（`readOnly` / `sideEffectScope`），继续钉在这里。
+ * **两处滞后已于 2026-10-24 全部修复**（表清空，作为墓碑保留）：
+ * - `turn.started` / `executionStartedAt`：schema 补声明浮点 epoch 毫秒可选键
+ *   （回归 `packages/shared/test/mode-protocol-session-event-drift.test.ts`，
+ *   端到端证据：stream-latency-host bench 的丢弃日志清零）；
+ * - `tool.updated:started` / `readOnly`+`sideEffectScope`：schema 补声明
+ *   布尔 + 7 值 scope 枚举（同一回归文件；端到端证据：本套夹具的 started 帧从
+ *   「靠滞后表放行」变为全量 parse 通过）。
  *
- * 断言「被拒绝的键逐字等于表里的键」：谁补齐了 schema、或运行时又加了新字段，这条断言都会红。
- * **删这张表之前先解决那处缺陷**——别让「为什么有这张表」消失。
+ * 断言「被拒绝的键逐字等于表里的键」保留为**长期绊网**：表现在是空的，
+ * 任何未来被 schema 拒绝的会话事件夹具都会直接红（提示：要么补镜像/补 schema，
+ * 要么显式登记新滞后并说明后果）——别让「为什么有这张表」消失。
  */
-const KNOWN_V1_PAYLOAD_LAG: Record<string, readonly string[]> = {
-  "tool.updated:started": ["readOnly", "sideEffectScope"],
-};
+const KNOWN_V1_PAYLOAD_LAG: Record<string, readonly string[]> = {};
 
 /** 事件夹具的事件类型 → `KNOWN_V1_PAYLOAD_LAG` 的键。 */
 function lagKeyOf(params: Record<string, unknown>): string {
