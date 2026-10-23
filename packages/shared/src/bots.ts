@@ -245,6 +245,25 @@ export interface BotHeartbeatConfig {
 /** 私聊方式：bound_users = 仅绑定用户可驱动；all_users = 任何私聊用户都可驱动，无需绑定。 */
 export type BotPrivateChatMode = "bound_users" | "all_users";
 
+/** 渠道访问模式（docs/specs/bot-access-mode.md R1）：
+ * whitelist = 绑定/白名单 + 群批准；free = 私聊与群聊免批、自动登记实际使用者。 */
+export type BotAccessMode = "whitelist" | "free";
+
+/** 群黑名单：与群授权记录同构但独立存放，准入时最先检查（spec R2 纯否决层）。 */
+export interface BotBlockedGroup {
+  groupId: string;
+  groupName?: string;
+  platform: BotProvider;
+  blockedAt: number;
+}
+
+/** free 模式自动登记的私聊使用者（spec R3）；登记只服务可见与可管理，不是授权路径。 */
+export interface BotRegisteredUser {
+  providerUserId: string;
+  displayName?: string;
+  discoveredAt: number;
+}
+
 export interface BotConfig {
   id: string;
   name: string;
@@ -267,6 +286,17 @@ export interface BotConfig {
    * 解析唯一入口 `resolveBotPrivateChatMode`，不要在调用方各写一份缺省值。
    */
   privateChatMode?: BotPrivateChatMode;
+  /**
+   * 渠道访问模式；缺省解析唯一入口 `resolveBotAccessMode`。
+   * 新建渠道一律显式落盘 "whitelist"（spec R5）；存量无字段时由旧 privateChatMode / provider 缺省推导。
+   */
+  accessMode?: BotAccessMode;
+  /** 被拉黑的平台用户 id；两种模式下最先检查，命中即静默拒绝（spec R2）。 */
+  blockedUsers?: string[];
+  /** 被拉黑的群；同上。 */
+  blockedGroups?: BotBlockedGroup[];
+  /** free 模式自动登记的实际私聊使用者（spec R3）。 */
+  userRegistry?: BotRegisteredUser[];
   displayName?: string;
   /** 企业微信智能机器人 ID（botid）；secret 走 credentialRef 加密存储 */
   wecomBotId?: string;
@@ -308,6 +338,21 @@ export function resolveBotPrivateChatMode(
     return bot.privateChatMode;
   }
   return bot.provider === "weixin" ? "all_users" : "bound_users";
+}
+
+/**
+ * 访问模式唯一解析入口（docs/specs/bot-access-mode.md R1/R5）。
+ * 优先级：显式 accessMode → 存量 privateChatMode（all_users→free、bound_users→whitelist）
+ * → 旧 provider 缺省（resolveBotPrivateChatMode 内含：微信 free、其余 whitelist）。
+ * 存量推导保证「已在用 free 的微信配置」升级后不被锁死；新建渠道由 createDraftBot 显式写 whitelist。
+ */
+export function resolveBotAccessMode(
+  bot: Pick<BotConfig, "provider" | "accessMode" | "privateChatMode">,
+): BotAccessMode {
+  if (bot.accessMode) {
+    return bot.accessMode;
+  }
+  return resolveBotPrivateChatMode(bot) === "all_users" ? "free" : "whitelist";
 }
 
 export interface BotPendingPermissionOption {
@@ -802,6 +847,31 @@ export const botConfigSchema = z
     // botConfigSchema 是 .strict()：新增字段必须同步登记，否则保存直接抛 ZodError。
     providerSelfId: z.string().min(1).optional(),
     privateChatMode: z.enum(["bound_users", "all_users"]).optional(),
+    accessMode: z.enum(["whitelist", "free"]).optional(),
+    blockedUsers: z.array(z.string().min(1)).optional(),
+    blockedGroups: z
+      .array(
+        z
+          .object({
+            groupId: z.string().min(1),
+            groupName: z.string().optional(),
+            platform: z.enum(botProviders),
+            blockedAt: z.number(),
+          })
+          .strict(),
+      )
+      .optional(),
+    userRegistry: z
+      .array(
+        z
+          .object({
+            providerUserId: z.string().min(1),
+            displayName: z.string().optional(),
+            discoveredAt: z.number(),
+          })
+          .strict(),
+      )
+      .optional(),
     displayName: z.string().optional(),
     wecomBotId: z.string().min(1).optional(),
     dingtalkClientId: z.string().min(1).optional(),
