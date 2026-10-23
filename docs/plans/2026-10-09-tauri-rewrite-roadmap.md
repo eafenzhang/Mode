@@ -385,7 +385,7 @@ sidecar-host 2k / platform 1.3k …）。
 
 | 维度 | 指标 | 现状 | 目标 | 测量面 |
 | --- | --- | --- | --- | --- |
-| 轻 | 发运集核心载荷 | ≈63 MB（host-sidecar + agent + tools） | **≤ 25 MB** | 安装包字节（NSIS）+ 未压缩诊断 |
+| 轻 | 发运集核心载荷 | 59.77 MiB（2026-10-23 `measure:ship-core-payload` 实测：host-sidecar 31.60 + agent 19.49 + tools 8.50 + config 0.19） | **≤ 25 MB** | ship 集未压缩目录字节（node/ 除外；CI 记录不阻断） |
 | 轻 | Node 运行时（核心发运集内） | 89 MB | **0**；npm-MCP 回退时按需出现 | 发运集目录 |
 | 快 | 冷启动 `T_ready` | 825 ms | **≤ 400 ms** | `measure:cold-start` 同口径 |
 | 快 | 首屏 `T_surface` | 962 ms | **≤ 600 ms** | 同上 |
@@ -431,7 +431,10 @@ SDK 不出现在核心闭包清单。
 〔2026-10-23 进度：ipc-throughput 基线已入库（§基线·IPC，含「JSON+base64」描述更正）；
 memory 脚本已入库并用现役实例验证分类器，30 min 正式基线待无实例窗口；cold-start 的
 `T_agent_ready` 第三段经调研**撤销**（agent 懒启动，冷启动无此事件，改挂首任务延迟，见
-「度量与预算」）；stream-latency 与「核心载荷 ≤25MB 观测项」仍待做。〕
+「度量与预算」）；**「核心载荷 ≤25MB 观测项」已接线**——`measure:ship-core-payload`
+量 ship 集四目录未压缩字节和（node/ 除外），release.yml 三平台腿记录不阻断，本机实测
+**59.77 MiB**（host-sidecar 31.60 + agent 19.49 + tools 8.50 + config 0.19，over-target
+标注正常；与 2026-10-23 基线 ≈63MB 同量级）；stream-latency 仍待做。〕
 
 ### M4b（2–4 周）：Host 并入壳 + IPC 换代
 

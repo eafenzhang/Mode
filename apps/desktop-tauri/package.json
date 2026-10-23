@@ -13,6 +13,7 @@
     "measure:cold-start": "node --import tsx scripts/measure-cold-start.ts",
     "measure:ipc-throughput": "node --import tsx --expose-gc bench/ipc-throughput.ts",
     "measure:memory": "node --import tsx bench/memory.ts",
+    "measure:ship-core-payload": "node --import tsx scripts/measure-ship-core-payload.ts",
     "dev:frontend": "vite",
     "build:rust": "cargo build -p mode-tauri",
     "test:rust": "cargo test -p platform -p protocol -p deeplink -p tray -p updater -p tauri-test-manifest",

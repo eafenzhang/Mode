@@ -560,6 +560,18 @@ jobs:
           cat dist/tauri/size.txt
           echo "Note: the Windows line is the product package (core + bundled Node/externals); the roadmap M5 core budget (23.29 MiB <= 30 MB) is measured by measure-installer-budgets.ts, not by this line. No threshold is enforced (DR-M5-2b)."
 
+      # 路线图 M4a：「发布门禁补『发运集核心载荷 ≤ 25 MB』的观测项」。
+      # 口径：ship 集里 host-sidecar + agent + tools + config 的**未压缩目录字节和**
+      # （node/ 是预算 (b)，刻意不进核心数）；与上面的安装包字节是两个测量面，不可混用。
+      # **只记录，不阻断**（DR-M5-2b：体积不作为发布阻断）：脚本超 25 MB 只标 over-target。
+      # ship 集由三平台腿 tauri build 的 beforeBuildCommand（build:package-inputs）stage，
+      # 所以三条腿都能跑；缺 ship 目录时脚本自己会响亮失败（0 MB 假绿是更坏的结局）。
+      - name: Record ship core payload metric (roadmap M4a; recorded only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --import tsx apps/desktop-tauri/scripts/measure-ship-core-payload.ts
+
       # 三平台安装包统一上传到同一个 Release。只上传明确文件，不用通配符——
       # 旧 Electron 线已 EOL，发布路径只有 Tauri 一条，所以 `--clobber` 只可能覆盖
       # 本腿自己重试的文件，不会碰到旧 tag。
