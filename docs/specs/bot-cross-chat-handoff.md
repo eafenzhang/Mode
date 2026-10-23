@@ -21,7 +21,7 @@ Agent 在 A 对话的回合中无法把内容投给同一 bot 的 B 对话。
 
 ### R1 工具与暴露面
 
-- 新增 Agent 工具 `handoff_message`，入参：
+- 新增 Agent 工具 `HandoffMessage`（工具名采用仓库 PascalCase 约定，与 `SendFile` 一致，2026-10-23 修订），入参：
   - `target`（必填）：目标对话键，与现有 `parseBotConversationKey` 格式一致
     （`private:<userId>` / `group:<chatId>`）；
   - `message`（必填）：交接正文；

@@ -667,6 +667,12 @@ export interface BotInboundMessage {
   quotedText?: string;
   attachments?: BotInboundAttachment[];
   elicitationResponse?: BotStructuredElicitationResponse;
+  /**
+   * 跨聊天交接标注（docs/specs/bot-cross-chat-handoff.md R3）：
+   * 仅 botsService.handoffMessage 合成消息时设置；回合正文注入 <system-reminder> 包装，
+   * 标题仍取 text 原文（注入发生在标题推导之后，展示层由既有 strip 语义隐藏）。
+   */
+  handoff?: { sourceKey: string; sourceLabel?: string; context?: string };
   receivedAt?: number;
 }
 

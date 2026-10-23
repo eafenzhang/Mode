@@ -3467,6 +3467,28 @@ export const modeBotSendMediaResultSchema = z
   .strict();
 export type ModeBotSendMediaProtocolResult = z.infer<typeof modeBotSendMediaResultSchema>;
 
+/** 跨聊天交接：target 为 Host 注入的源回合身份（模型不可伪造 bot 归属）；
+ * conversationKey 为模型从回合上下文清单中选择的目标对话。 */
+export const modeBotHandoffParamsSchema = z
+  .object({
+    target: modeAutomationBotDeliveryTargetSchema,
+    conversationKey: z.string().trim().min(1),
+    message: z.string().trim().min(1).max(8_000),
+    context: z.string().trim().max(4_000).optional(),
+    attachments: z.array(z.string().trim().min(1)).max(10).optional(),
+    toolCallId: nonEmptyString,
+  })
+  .strict();
+export type ModeBotHandoffParams = z.infer<typeof modeBotHandoffParamsSchema>;
+
+export const modeBotHandoffResultSchema = z
+  .object({
+    status: z.enum(["submitted", "queued", "duplicate"]),
+    conversationKey: nonEmptyString,
+  })
+  .strict();
+export type ModeBotHandoffResult = z.infer<typeof modeBotHandoffResultSchema>;
+
 export const modeAutomationUpdateParamsSchema = z
   .object({
     automationId: nonEmptyString,
@@ -3703,6 +3725,8 @@ export const modeProtocolMethods = {
   automationDelete: "automation/delete",
   // Bot 回合内 agent 的显式文件发送；目标由 Host 注入，模型只给 path/caption。
   botSendMedia: "bots/sendMedia",
+  // 跨聊天交接：Agent 把消息/背景/附件交给同一 bot 的另一对话处理（docs/specs/bot-cross-chat-handoff.md）。
+  botHandoff: "bots/handoff",
   // Off-Peak 会话内创建：与 automation 兄弟并列的独立方法族。
   offPeakCreate: "offPeak/create",
   offPeakList: "offPeak/list",
