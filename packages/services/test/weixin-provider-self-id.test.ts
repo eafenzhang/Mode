@@ -166,8 +166,9 @@ test("心跳目标：resolveBotProactiveUserId 私聊对话回落早于私聊方
   const fnBody = lines.slice(fnStart, fnStart + 40).join("\n");
 
   const privateFallbackIndex = fnBody.indexOf("conversation.conversationId");
-  // 私聊方式统一走共享解析函数，不能再按 `privateChatMode` 字段名找本地分支。
-  const modeIndex = fnBody.indexOf("resolveBotPrivateChatMode");
+  // 访问模式统一走共享解析函数（bot-access-mode R1 起为 resolveBotAccessMode，
+  // 取代旧 resolveBotPrivateChatMode），不能再按 `privateChatMode` 字段名找本地分支。
+  const modeIndex = fnBody.indexOf("resolveBotAccessMode");
   assert.ok(privateFallbackIndex >= 0, "缺少私聊对话回落");
   assert.ok(modeIndex >= 0, "缺少私聊方式分支");
   assert.ok(

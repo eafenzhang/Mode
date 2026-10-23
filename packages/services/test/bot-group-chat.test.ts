@@ -138,7 +138,10 @@ test(
 
     const gateIndex = source.indexOf("const activation = bot.groupChat?.activation");
     assert.ok(gateIndex >= 0, "未找到群聊激活门控");
-    const gate = source.slice(gateIndex, gateIndex + 2400);
+    // 窗口只需覆盖「群门控分支」内的判定标记：Task 4 在同一分支内插入了
+    // free 模式免批登记（spec bot-access-mode R3，约 1000 字符），
+    // 把 mention 判定推到 2400 之外，窗口随之放宽，断言语义不变。
+    const gate = source.slice(gateIndex, gateIndex + 4000);
     assert.ok(gate.includes("approved"), "缺少群授权判定");
     assert.ok(gate.includes("isAllowedSender"), "缺少白名单发送者判定");
     assert.ok(gate.includes("reply: []"), "未授权群消息必须静默忽略");

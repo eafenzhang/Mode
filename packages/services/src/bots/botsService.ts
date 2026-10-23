@@ -54,7 +54,7 @@ import {
   isBotEligibleForSessionBinding,
   stripBotChannelContextForDisplay,
   normalizeBotWorkspaceBindings,
-  resolveBotPrivateChatMode,
+  resolveBotAccessMode,
   BOT_BINDINGS_FILE_VERSION,
   type BotProvider,
   type BotProviderCallbackResult,
@@ -216,6 +216,8 @@ import {
   findAuthorizedBot,
   findCallbackBot,
   findBot,
+  isGroupBlocked,
+  isUserBlocked,
   isUserCommandAllowed,
   normalizeBotConfig,
   normalizeConfigBots,
@@ -1822,7 +1824,7 @@ export function createBotsService(
 
   /**
    * 主动消息（心跳 / 流订阅 / 桌面镜像）的投递目标：
-   * 绑定用户优先；私聊方式=全部用户时回落到最近一次私聊的用户（没有就跳过本轮）。
+   * 绑定用户优先；free（原 all_users）模式下回落到最近一次私聊的用户（没有就跳过本轮）。
    */
   function resolveBotProactiveUserId(
     bot: BotConfig,
@@ -1840,7 +1842,8 @@ export function createBotsService(
     if (conversation?.conversationKind === "private") {
       return conversation.conversationId;
     }
-    if (resolveBotPrivateChatMode(bot) === "all_users") {
+    // free（原 all_users）：主动投递目标解析同样只认统一入口 resolveBotAccessMode（spec R1）。
+    if (resolveBotAccessMode(bot) === "free") {
       // 私聊已在上方返回；这里只处理群聊主动投递：回最近说话的私聊用户
       // （原来记在 lastPrivateUserId，现在按对话表推导）。
       const recentPrivate = state
@@ -2343,7 +2346,9 @@ export function createBotsService(
     // 命令解析仍只用 text，引用前缀不会把 /send 之类的命令打成普通消息。
     const quoted = message.quotedText?.trim();
     const baseContent = [
-      quoted ? msg(locale, "quotedMessageLine", { text: quoted.slice(0, BOT_QUOTED_TEXT_LIMIT) }) : "",
+      quoted
+        ? msg(locale, "quotedMessageLine", { text: quoted.slice(0, BOT_QUOTED_TEXT_LIMIT) })
+        : "",
       trimmed || (rawAttachments.length > 0 ? msg(locale, "attachmentOnlyPrompt") : ""),
     ]
       .filter(Boolean)
@@ -6176,12 +6181,25 @@ export function createBotsService(
     const locale = await readMessageLocale();
     const config = await repo.readConfig();
     const bot = findAuthorizedBot(config, message.actor);
-    const privateChatAllUsers = bot !== null && resolveBotPrivateChatMode(bot) === "all_users";
+    // 统一双模式（spec bot-access-mode R1）：free 取代旧 all_users 语义。
+    const accessMode = bot ? resolveBotAccessMode(bot) : "whitelist";
+    const freeMode = accessMode === "free";
     if (!bot || bot.id !== message.botId) {
       return {
         ok: false,
         reply: [createOutbound(message.actor, msg(locale, "botDisabled"))],
       };
+    }
+    // 黑名单第二道闸门：覆盖不经 handleInboundMessage 的入口（心跳、队列出队重投），
+    // 与入口闸门共用纯函数，语义一致（spec bot-access-mode R2）。
+    // 这里的 bot 已通过上方 !bot 校验（必非空），无需再判空。
+    const gateChatId = message.actor.chatId ?? "";
+    const blocked =
+      message.actor.chatType === "group"
+        ? isGroupBlocked(bot, gateChatId)
+        : isUserBlocked(bot, message.actor.providerUserId);
+    if (blocked) {
+      return { ok: false, reply: [] };
     }
     if (message.actor.chatType !== "private") {
       const activation = bot.groupChat?.activation ?? "disabled";
@@ -6194,12 +6212,44 @@ export function createBotsService(
       const approved = permissions.some(
         (permission) => permission.groupId === chatId && permission.status === "approved",
       );
+      // free 模式群免批（spec bot-access-mode R3）：首次出现登记 approved+auto；
+      // whitelist 时代遗留的 pending 在 free 下首条消息同样升级为 approved
+      // （addedBy 记 auto 以供 UI 识别来源）。
+      if (freeMode && !approved) {
+        await repo.mutateConfig((nextConfig) => {
+          const target = nextConfig.bots.find((candidate) => candidate.id === bot.id);
+          if (!target) return;
+          const current = target.groupChat?.permissions ?? [];
+          const existing = current.find((item) => item.groupId === chatId);
+          target.groupChat = {
+            activation: target.groupChat?.activation ?? activation,
+            ...target.groupChat,
+            permissions: existing
+              ? current.map((item) =>
+                  item.groupId === chatId
+                    ? { ...item, status: "approved" as const, addedBy: "auto" }
+                    : item,
+                )
+              : [
+                  ...current,
+                  {
+                    groupId: chatId,
+                    groupName: chatId,
+                    platform: bot.provider,
+                    status: "approved" as const,
+                    discoveredAt: Date.now(),
+                    addedBy: "auto",
+                  },
+                ],
+          };
+        });
+      }
       const boundUserId = bot.providerUserId?.trim();
       const isAllowedSender =
-        privateChatAllUsers ||
+        freeMode ||
         (Boolean(boundUserId) && boundUserId === message.actor.providerUserId) ||
         Boolean(bot.allowedUsers?.includes(message.actor.providerUserId));
-      if (!approved && !isAllowedSender) {
+      if (!approved && !isAllowedSender && !freeMode) {
         // 首次发现未知群时登记 pending；未批准群只记录历史，不回复。
         if (!permissions.some((permission) => permission.groupId === chatId)) {
           await repo.mutateConfig((nextConfig) => {
@@ -6241,11 +6291,11 @@ export function createBotsService(
         return { ok: false, reply: [] };
       }
     }
-    // 私聊方式=全部用户：不要求绑定，任何私聊用户都能驱动（命令权限按 bot 自身配置）。
+    // free（原 all_users）模式：不要求绑定，任何私聊用户都能驱动（命令权限按 bot 自身配置）。
     // 群聊在闸门处已经完成授权；群内任何成员都不应再被私聊绑定关系拦一次。
     const user =
       message.actor.chatType === "private"
-        ? privateChatAllUsers
+        ? freeMode
           ? bot
           : findBoundUser(bot, message.actor)
         : bot;
@@ -6254,6 +6304,30 @@ export function createBotsService(
         ok: false,
         reply: [createOutbound(message.actor, msg(locale, "userNotBound"))],
       };
+    }
+    // free 模式自动登记实际使用者（spec bot-access-mode R3）：只登记通过准入的用户；
+    // 锁内 RMW 幂等，重复消息不重复登记。登记不是授权路径，黑名单已在上方拦截。
+    if (freeMode && message.actor.chatType === "private") {
+      const registryId = message.actor.providerUserId;
+      const alreadyRegistered = bot.userRegistry?.some(
+        (item) => item.providerUserId === registryId,
+      );
+      if (!alreadyRegistered) {
+        await repo.mutateConfig((nextConfig) => {
+          const target = nextConfig.bots.find((candidate) => candidate.id === bot.id);
+          if (!target) return;
+          const registry = target.userRegistry ?? [];
+          if (registry.some((item) => item.providerUserId === registryId)) return;
+          target.userRegistry = [
+            ...registry,
+            {
+              providerUserId: registryId,
+              ...(message.actor.displayName ? { displayName: message.actor.displayName } : {}),
+              discoveredAt: Date.now(),
+            },
+          ];
+        });
+      }
     }
     if (!isUserCommandAllowed(user, requestedCommand)) {
       return {
@@ -7214,7 +7288,8 @@ export function createBotsService(
     async saveConfig(config) {
       const savedConfig = await repo.writeConfig(normalizeConfigBots(config));
       notifyConfigChanged();
-      clearCandidateCaches();      weixinRuntime.scheduleRefresh(savedConfig);
+      clearCandidateCaches();
+      weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
       wecomRuntime.scheduleRefresh(savedConfig);
       dingtalkRuntime.scheduleRefresh(savedConfig);
@@ -7277,7 +7352,8 @@ export function createBotsService(
       const bots = config.bots.filter((item) => item.id !== bot.id);
       bots.push(bot);
       const savedConfig = await repo.writeConfig({ ...config, bots });
-      clearCandidateCaches();      weixinRuntime.scheduleRefresh(savedConfig);
+      clearCandidateCaches();
+      weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
       wecomRuntime.scheduleRefresh(savedConfig);
       dingtalkRuntime.scheduleRefresh(savedConfig);
@@ -7314,7 +7390,8 @@ export function createBotsService(
       await repo.mutateState((state) => {
         delete state.bots[bot.id];
       });
-      clearCandidateCaches();      weixinRuntime.scheduleRefresh(savedConfig);
+      clearCandidateCaches();
+      weixinRuntime.scheduleRefresh(savedConfig);
       feishuRuntime.scheduleRefresh(savedConfig);
       wecomRuntime.scheduleRefresh(savedConfig);
       dingtalkRuntime.scheduleRefresh(savedConfig);
@@ -7347,7 +7424,8 @@ export function createBotsService(
         bots: config.bots.filter((item) => item.id !== botId),
       });
       notifyConfigChanged();
-      clearCandidateCaches();      weixinRuntime.scheduleRefresh();
+      clearCandidateCaches();
+      weixinRuntime.scheduleRefresh();
       wecomRuntime.scheduleRefresh();
       dingtalkRuntime.scheduleRefresh();
       // 锁内原子 RMW；removedConversations 在 mutator 内捕获，dispose 在锁外
@@ -7969,6 +8047,21 @@ export function createBotsService(
     watchAutomationRun,
     async handleInboundMessage(message: BotInboundMessage) {
       return enqueueInboundProcessing(message.actor, async () => {
+        // 黑名单硬否决必须先于命令解析、微信激活与 elicitation 处理（spec bot-access-mode R2）：
+        // 被拉黑发送者的消息不得产生任何副作用——不登记 pending、不写群历史、不触发激活欢迎。
+        // 空 chatId 由 isGroupBlocked 内部按未命中处理，等价于 Boolean(chatId) 前置判断。
+        const gateConfig = await repo.readConfig();
+        const gateBot = findAuthorizedBot(gateConfig, message.actor);
+        if (gateBot) {
+          const gateChatId = message.actor.chatId ?? "";
+          const blocked =
+            message.actor.chatType === "group"
+              ? isGroupBlocked(gateBot, gateChatId)
+              : isUserBlocked(gateBot, message.actor.providerUserId);
+          if (blocked) {
+            return [];
+          }
+        }
         if (message.elicitationResponse) {
           return handleStructuredElicitationResponse(message, message.elicitationResponse);
         }
