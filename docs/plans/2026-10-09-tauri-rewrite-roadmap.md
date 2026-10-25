@@ -331,6 +331,10 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
       与 LAN 端口占用导致 Host 启动失败（EADDRINUSE 改为 rejection）；`a2fdebf6` 修复 CUA
       helper 随包；`e5d78685` 修复 Tabs adapter 根节点布局；`a30b08c5` / `424d92fc` 修复
       机器人接入、回复模式、设置面板布局与下拉选择。以上均为 M3/M4 运行态修复，不改变阶段边界。〕
+      〔2026-10-25 追加修复：`d5ba0671` Host 传输死亡渲染层 fail-closed 收口——0.0.85 真机验收
+      实测 RD 会话异常结束后窗口全部服务 RPC 永久 pending（根因：main.tsx 启动完成后丢弃
+      状态流，ChannelClient 永不 dispose）；现在 post-boot failed 会终止 base/scoped 连接并切
+      启动失败终态。口径与开放项见 `docs/specs/tauri-renderer-host.md` §22。〕
 - [ ] **SSH/WSL/Docker 远程 + workspaceIdentity**：身份 key `trim() || path` 贯穿，跨 Host 路由与 stale-run 防护的对拍测试。〔2026-10-18 相关用例已在 40 条 desktop 远程测试中通过（含判等口径与对新对端归属）；Tauri 产品壳的 `connectRemote` 与 scoped attachment 尚未接线，纳入 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`〕
       〔2026-10-20：`connectRemote` 与 scoped attachment 已随 LR-4 接线（LAN 主路径）；
       Tauri Host 对 SSH/WSL/Docker 明确返回「暂不支持」，未伪装成功，SSH/WSL/Docker
