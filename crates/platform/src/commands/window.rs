@@ -64,15 +64,62 @@ impl Default for WindowCloseBehavior {
 pub struct SyncAppSettingsPatch {
     /// 「关闭窗口时隐藏到托盘」（设置页仅在 Windows 呈现）；补丁缺键时保持现值。
     close_to_tray_on_windows: Option<bool>,
+    /// 「保持电脑运行」（阻止空闲休眠）；补丁缺键时保持现值。
+    keep_awake_while_running: Option<bool>,
 }
 
 /// `IPlatformService.syncAppSettings(patch: Partial<AppSettings>): void`
 ///
 /// 渲染层单向告知壳窗口行为类设置的当前事实；壳不读业务存储
 /// （AGENTS.md「进程、协议与远程控制」：窗口与进程调度属壳）。
+/// 「保持电脑运行」的壳侧事实（同 WindowCloseBehavior，AtomicBool 供无锁读写）。
+pub struct KeepAwakeBehavior(pub std::sync::atomic::AtomicBool);
+
+impl Default for KeepAwakeBehavior {
+    fn default() -> Self {
+        Self(std::sync::atomic::AtomicBool::new(false))
+    }
+}
+
+/// 把「保持电脑运行」落到 Windows 电源管理：`SetThreadExecutionState(ES_CONTINUOUS |
+/// ES_SYSTEM_REQUIRED)` 阻止系统因空闲进入休眠（手动睡眠/合盖不受影响，与设置描述一致）。
+/// 关闭时只保留 ES_CONTINUOUS（= 清除阻止）。非 Windows：no-op（设置页同门控只在 Windows 呈现）。
+#[cfg(windows)]
+fn apply_keep_awake(enabled: bool) {
+    const ES_CONTINUOUS: u32 = 0x8000_0000;
+    const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+    let flags = if enabled {
+        ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+    } else {
+        ES_CONTINUOUS
+    };
+    // 返回值是上一次的执行状态（诊断用途）；失败返回 0，此处无事可做——
+    // 下一次设置变更会再次尝试，不缓存失败。
+    let _previous = unsafe { windows_sys::Win32::System::Power::SetThreadExecutionState(flags) };
+}
+
+#[cfg(not(windows))]
+fn apply_keep_awake(_enabled: bool) {}
+
+/// `IPlatformService.syncAppSettings(patch: Partial<AppSettings>): void`
+///
+/// 渲染层单向告知壳窗口行为类设置的当前事实；壳不读业务存储
+/// （AGENTS.md「进程、协议与远程控制」：窗口与进程调度属壳）。
 #[tauri::command(rename = "syncAppSettings")]
-pub fn sync_app_settings(state: State<'_, WindowCloseBehavior>, patch: SyncAppSettingsPatch) {
+pub fn sync_app_settings(
+    close_behavior: State<'_, WindowCloseBehavior>,
+    keep_awake: State<'_, KeepAwakeBehavior>,
+    patch: SyncAppSettingsPatch,
+) {
     if let Some(enabled) = patch.close_to_tray_on_windows {
-        state.0.store(enabled, std::sync::atomic::Ordering::SeqCst);
+        close_behavior
+            .0
+            .store(enabled, std::sync::atomic::Ordering::SeqCst);
+    }
+    if let Some(enabled) = patch.keep_awake_while_running {
+        keep_awake
+            .0
+            .store(enabled, std::sync::atomic::Ordering::SeqCst);
+        apply_keep_awake(enabled);
     }
 }

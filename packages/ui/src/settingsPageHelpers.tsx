@@ -656,7 +656,7 @@ export function GeneralSectionContent({
             }
           />
         ) : null}
-        {isDesktop ? (
+        {isWindowsDesktop ? (
           <SettingsRow
             label={intl.formatMessage({ id: "settings.keepAwakeWhileRunning" })}
             description={intl.formatMessage({

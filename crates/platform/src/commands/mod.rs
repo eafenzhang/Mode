@@ -63,6 +63,7 @@ macro_rules! command_slice {
                 .plugin(tauri_plugin_opener::init())
                 .manage(crate::AppState::default())
                 .manage(window::WindowCloseBehavior::default())
+                .manage(window::KeepAwakeBehavior::default())
                 .invoke_handler(move |invoke| {
                     if M1_COMMANDS.contains(&invoke.message.command()) {
                         slice(invoke)

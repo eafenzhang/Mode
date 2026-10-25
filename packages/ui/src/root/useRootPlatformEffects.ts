@@ -273,7 +273,10 @@ export function useRootPlatformEffects({
       .get()
       .then((settings) => {
         if (!cancelled) {
-          platform.syncAppSettings({ closeToTrayOnWindows: settings.closeToTrayOnWindows ?? true });
+          platform.syncAppSettings({
+            closeToTrayOnWindows: settings.closeToTrayOnWindows ?? true,
+            keepAwakeWhileRunning: settings.keepAwakeWhileRunning === true,
+          });
         }
       })
       .catch(() => {

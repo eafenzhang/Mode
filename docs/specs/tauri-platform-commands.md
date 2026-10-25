@@ -53,7 +53,7 @@ M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText` + LR-5 追加的
 | 11 | `syncWindowUnreadCount` | `(count: number) -> void` | 覆盖式写入 `AppState` |
 | 12 | `getApplicationIcon` | `(req: ApplicationIconRequest) -> IconInfo \| null` | **已实现（Windows，M3 Task 4 起）**：Shell 取图标资源 + GDI 取像素 → PNG data URL；按 locator 顺序尝试，**取不到返回 `null`（契约允许），从不抛**。**macOS 半边未实现且本阶段不验**（Ruling 20），见 §9.2 |
 | 13 | `rdReadClipboardText` | `() -> Promise<string>` | **已实现（LR-3，Windows）**：壳读 CF_UNICODETEXT（`OpenClipboard` 争用重试 200ms，无文本/被占用返回空串，从不抛）；非 Windows 返回空串。远程桌面主控剪贴板同步的读取口（D7：Host 不碰平台 API） |
-| 14 | `syncAppSettings` | `(patch: Partial<AppSettings>) -> void` | **已实现（2026-10-25）**：窗口行为类设置的壳侧同步口。壳只解释它执行的键（现 `closeToTrayOnWindows`，落 `WindowCloseBehavior` AtomicBool），其余键不解释；缺省 `false` = 直接退出（fail-safe）。**关闭拦截**在壳 `main.rs` 的 `CloseRequested` 统一做：开关为开且托盘可用（`tray::TRAY_ID` 可查）→ `prevent_close` + `hide`（自绘关闭按钮/Alt+F4/任务栏三条路径全汇聚于此）；托盘不可用即使开关为开也放行关闭——「隐藏到不存在的托盘」等于应用凭空消失。开关事实由渲染层同步：启动时一次（`useRootPlatformEffects`，Windows 门控）+ 设置页变更补丁；壳不读业务存储 |
+| 14 | `syncAppSettings` | `(patch: Partial<AppSettings>) -> void` | **已实现（2026-10-25）**：窗口行为类设置的壳侧同步口。壳只解释它执行的键（现 `closeToTrayOnWindows`，落 `WindowCloseBehavior` AtomicBool），其余键不解释；缺省 `false` = 直接退出（fail-safe）。**关闭拦截**在壳 `main.rs` 的 `CloseRequested` 统一做：开关为开且托盘可用（`tray::TRAY_ID` 可查）→ `prevent_close` + `hide`（自绘关闭按钮/Alt+F4/任务栏三条路径全汇聚于此）；托盘不可用即使开关为开也放行关闭——「隐藏到不存在的托盘」等于应用凭空消失。开关事实由渲染层同步：启动时一次（`useRootPlatformEffects`，Windows 门控）+ 设置页变更补丁；壳不读业务存储。补丁当前消费两个键：`closeToTrayOnWindows`（见上）与 `keepAwakeWhileRunning`（**保持电脑运行**：`SetThreadExecutionState(ES_CONTINUOUS\|ES_SYSTEM_REQUIRED)` 阻止空闲休眠、手动睡眠/合盖不受影响；设置页同门控仅 Windows 呈现，非 Windows 执行器 no-op） |
 
 ### 非本地路径的处理
 
