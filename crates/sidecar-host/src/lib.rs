@@ -39,6 +39,7 @@ pub mod bridge;
 pub mod frame;
 pub mod host_stderr;
 pub mod process;
+pub mod settings_probe;
 pub mod startup;
 
 pub use process::{HostConfig, HostError, HostHandle};
@@ -83,7 +84,10 @@ pub fn pick_entry(env_override: Option<&OsStr>, candidates: &[PathBuf]) -> Optio
         let path = PathBuf::from(explicit);
         return path.exists().then_some(path);
     }
-    candidates.iter().find(|candidate| candidate.exists()).cloned()
+    candidates
+        .iter()
+        .find(|candidate| candidate.exists())
+        .cloned()
 }
 
 /// Node 可执行文件的挑选（纯函数，因此可被用例覆盖）。
@@ -179,7 +183,8 @@ pub fn pick_shell_entry(env_override: Option<&OsStr>) -> PathBuf {
     let Some(text) = raw.to_str() else {
         return default.to_path_buf();
     };
-    if text.starts_with('/') || text.starts_with('\\') || text.contains(':') || text.contains("..") {
+    if text.starts_with('/') || text.starts_with('\\') || text.contains(':') || text.contains("..")
+    {
         return default.to_path_buf();
     }
     PathBuf::from(text)
@@ -204,9 +209,7 @@ pub fn pick_shell_entry(env_override: Option<&OsStr>) -> PathBuf {
 pub fn decorations_for_shell_entry(env_override: Option<&OsStr>) -> bool {
     // 空值视同未设置：与 `pick_shell_entry` 同口径（不然 `MODE_TAURI_SHELL_ENTRY=` 会让
     // 产品窗口变成有边框、或让验收台变成无边框——两种都错）。
-    env_override
-        .filter(|value| !value.is_empty())
-        .is_some()
+    env_override.filter(|value| !value.is_empty()).is_some()
 }
 
 #[cfg(test)]
@@ -230,7 +233,10 @@ mod tests {
     #[test]
     fn falls_back_to_home_and_empty_is_treated_as_unset() {
         let home = Path::new("C:/Users/someone");
-        assert_eq!(data_base_dir_from(None, home), PathBuf::from("C:/Users/someone"));
+        assert_eq!(
+            data_base_dir_from(None, home),
+            PathBuf::from("C:/Users/someone")
+        );
         assert_eq!(
             data_root_from_base(&data_base_dir_from(None, home)),
             PathBuf::from("C:/Users/someone/.mode")
@@ -273,7 +279,11 @@ mod tests {
         assert_eq!(
             pick_entry(
                 None,
-                &[PathBuf::from("missing-1"), existing.clone(), existing.clone()]
+                &[
+                    PathBuf::from("missing-1"),
+                    existing.clone(),
+                    existing.clone()
+                ]
             ),
             Some(existing.clone()),
             "没有覆写时取第一个存在的候选"
@@ -312,7 +322,10 @@ mod tests {
         let bundled = manifest.join("Cargo.toml"); // 用一个真实存在的文件当「随包 node」
 
         assert_eq!(
-            pick_node(Some(OsStr::new("D:/custom/node.exe")), std::slice::from_ref(&bundled)),
+            pick_node(
+                Some(OsStr::new("D:/custom/node.exe")),
+                std::slice::from_ref(&bundled)
+            ),
             PathBuf::from("D:/custom/node.exe"),
             "显式覆写优先，且原样生效（合法路径不因不存在被改写）"
         );
@@ -351,7 +364,12 @@ mod tests {
             "空覆写等于没有覆写"
         );
         // 这个值会直接进 `WebviewUrl::App`：绝对路径与上跳都不接受，一律退回产品页。
-        for hostile in ["C:/Windows/win.ini", "/etc/passwd", "\\\\server\\share", "../../secret.html"] {
+        for hostile in [
+            "C:/Windows/win.ini",
+            "/etc/passwd",
+            "\\\\server\\share",
+            "../../secret.html",
+        ] {
             assert_eq!(
                 pick_shell_entry(Some(OsStr::new(hostile))),
                 PathBuf::from("index.html"),
@@ -370,7 +388,9 @@ mod tests {
     #[test]
     fn verbatim_windows_prefixes_are_stripped_and_normal_paths_pass_through() {
         assert_eq!(
-            strip_verbatim_prefix(Path::new(r"\\?\C:\Users\someone\install\host-sidecar\index.mjs")),
+            strip_verbatim_prefix(Path::new(
+                r"\\?\C:\Users\someone\install\host-sidecar\index.mjs"
+            )),
             PathBuf::from(r"C:\Users\someone\install\host-sidecar\index.mjs"),
             "驱动器形态：剥掉 \\\\?\\ 之后就是普通绝对路径"
         );

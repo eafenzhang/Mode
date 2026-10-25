@@ -2234,3 +2234,39 @@ LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/conne
 
 - 用户**手动**编辑默认根 setting.json 的 dataBaseDir 指向别处同样生效（指针就是接口）；
 - `MODE_DATA_BASE_DIR` 环境变量优先级高于指针（开发/测试隔离不受影响）。
+
+## 24. Host 文件日志与壳侧早期设置探针（2026-10-25 立项并落地）
+
+### 24.1 Host 文件日志
+
+**背景**：`~/.mode/v2/logs/*.log` 是旧 Electron main 写的，随 2026-10-20 旧线 EOL 停止；
+Host sidecar 的日志只写壳的 stderr，安装版（无控制台）上不可见——Host 进程死亡（wedge，
+两次自然复现）时零现场可查。
+
+**口径**：
+- Host 既有 `log()` 出口镜像一份到 `<dataRoot>/v2/logs/host-<YYYY-MM-DD>.log`
+  （storageCatalog 的 logs 域同一位置；`host-` 前缀与旧 Electron 线的日期文件区分）。
+- best-effort：目录建不出来/写失败一次后静默退化为仅 stderr，绝不影响 Host 运行；
+  sink 异步就绪前的行进 200 行有界缓冲（顺序保留）。
+- **串行写链**：并发 `appendFile` 在 Windows 上完成顺序不保证（实测后行先落盘），
+  每条写等上一条完成后再发起——日志顺序是可读性前提。
+- 启动时清理超期（7 个自然日，按文件名日期午夜起算）的 `host-*.log`；其它文件不动。
+
+### 24.2 壳侧早期设置探针（WebView 创建前）
+
+WebView2 浏览器参数只能在环境**创建时**读取——窗口建出来再改就晚了。壳在 `setup`
+最早期同步读**默认根引导文件**（§23 的 `~/.mode/v2/setting.json`，恒在用户主目录、
+不随数据目录迁移），只取自己执行的键：
+
+- `desktopChromiumHardwareAccelerationEnabled === false` →
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--disable-gpu`（WebView2 官方注入点）；
+  显式 env 已设置时不覆盖（开发/测试注入远程调试等参数的流程优先）。
+- 判定纯函数在 `sidecar_host::settings_probe`（测试目标本地可跑；mode-tauri 的测试
+  目标在本地 gnu 工具链链不起来）；坏 JSON 按缺键处理（fail-open 到默认启用）。
+
+### 24.3 开放项
+
+- `receivePreviewUpdates`（预览版更新）：客户端动态换 updater 端点可行
+  （`UpdaterExt::updater_builder().endpoints(...)`），但需要**发布流水线先产出预发布
+  清单资产**（现仅 `releases/latest/download/latest.json` 单通道，GitHub latest 不含
+  prerelease）——属发版基建决策，未实现，登记于此。

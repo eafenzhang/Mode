@@ -12,6 +12,7 @@ use tauri::Runtime;
 pub mod host;
 pub mod single_instance;
 pub mod web_assets;
+pub mod webview_settings;
 pub mod window;
 pub mod window_controls;
 

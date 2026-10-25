@@ -51,6 +51,12 @@ fn main() {
         // 深链面：托管路由状态（冷启动队列的唯一所有者，见 crates/deeplink/src/router.rs）+
         // 注册 scheme + 接线运行期回调与冷启动 argv。第二实例转发进来的 argv 也落到这一份
         // 路由上（`mode_tauri::single_instance`）。
+        // 硬件加速设置必须在**首个 WebView 创建之前**生效（窗口建完再改就晚了）：
+        // 读默认根 setting.json，desktopChromiumHardwareAccelerationEnabled === false 时
+        // 注入 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--disable-gpu（显式 env 不覆盖）。
+        if let Ok(home) = handle.path().home_dir() {
+            mode_tauri::webview_settings::apply_webview_settings(&home);
+        }
         deeplink::install(&handle)?;
         tray::install(&handle)?;
         // 更新状态机：检查/下载/安装分开，状态经 mode:update-state 推给渲染层的原版更新弹窗。
