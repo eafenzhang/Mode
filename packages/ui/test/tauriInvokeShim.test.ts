@@ -84,7 +84,7 @@ const noopListen = recordingListen().listen;
 test("M1 切片表的命令都被实现（不是靠抛错桩占位）", () => {
   const { invoke } = recordingInvoke();
   const service = createTauriPlatformService(invoke, noopListen) as Record<string, unknown>;
-  assert.equal(M1_IMPLEMENTED_COMMANDS.length, 13);
+  assert.equal(M1_IMPLEMENTED_COMMANDS.length, 14);
   for (const name of M1_IMPLEMENTED_COMMANDS) {
     assert.equal(typeof service[name], "function", `${name} 应是函数`);
   }

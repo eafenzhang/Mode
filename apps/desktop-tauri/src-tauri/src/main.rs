@@ -59,7 +59,10 @@ fn main() {
         // Host sidecar：先起再建窗口（注入桥的 startupId 必须与它同代）。
         let host = mode_tauri::spawn_host(&handle);
         let startup_id = host.startup_id().to_string();
-        eprintln!("[mode-tauri] host startupId={startup_id} pid={}", host.pid());
+        eprintln!(
+            "[mode-tauri] host startupId={startup_id} pid={}",
+            host.pid()
+        );
         app.manage(host);
 
         // 窗口必须在 Rust 侧建：`WindowConfig` 没有 `initialization_script` 字段，
@@ -77,7 +80,7 @@ fn main() {
         // 它在调用点写反过一次（`!entry_overridden`），症状就是用户报的「系统标题栏还在」。
         // 理由与拖动为什么仍然可用见 `mode_tauri::window` 的模块文档。
         let entry_override = std::env::var_os("MODE_TAURI_SHELL_ENTRY");
-        mode_tauri::build_host_window(
+        let main_window = mode_tauri::build_host_window(
             &handle,
             mode_tauri::MAIN_WINDOW_LABEL,
             tauri::WebviewUrl::App(sidecar_host::pick_shell_entry(entry_override.as_deref())),
@@ -87,6 +90,28 @@ fn main() {
             None,
             sidecar_host::decorations_for_shell_entry(entry_override.as_deref()),
         )?;
+
+        // 关闭窗口时隐藏到托盘（Windows 设置 `closeToTrayOnWindows`，spec 命令表 `syncAppSettings`）。
+        // 三条关闭路径——自绘标题栏关闭按钮（`closeWindow` → `window.close()`）、Alt+F4、
+        // 任务栏/系统菜单——全部汇聚在 CloseRequested，在这一处统一拦截，不逐路分发。
+        // 开关事实由渲染层经 `syncAppSettings` 推送（壳不读业务存储），缺省 false = 直接退出
+        // （与补丁同步前的现网行为一致）。fail-safe：托盘不可用（部分 Linux 桌面降级）时
+        // 即使开关为开也放行关闭——「隐藏到不存在的托盘」等于应用凭空消失。
+        let close_window = main_window.clone();
+        let event_handle = handle.clone();
+        main_window.on_window_event(move |event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let hide_to_tray = event_handle
+                    .state::<platform::commands::window::WindowCloseBehavior>()
+                    .0
+                    .load(std::sync::atomic::Ordering::SeqCst)
+                    && event_handle.tray_by_id(tray::TRAY_ID).is_some();
+                if hide_to_tray {
+                    api.prevent_close();
+                    let _ = close_window.hide();
+                }
+            }
+        });
 
         // 更新演练用的确定性触发（M5 Task 1）：产品里的入口是「帮助 → 检查更新」，那需要人点；
         // 安装后的自动化演练没有可靠的点按面，所以提供一个显式环境变量，走**同一条**

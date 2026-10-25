@@ -62,6 +62,8 @@ export function createDesktopPlatform(options: {
       window.mode.activateOrSetWorkspace?.(path) ?? Promise.resolve({ activated: false }),
     // 远程工作区（LR-4）：connect/bind/dispose 与事件订阅集中在 helper 里。
     ...createDesktopRemotePlatformBridge({ getRemoteService: resolveRemoteService }),
+    // 窗口行为类设置（关闭隐藏到托盘）同步给壳：壳是唯一执行者且不读业务存储。
+    syncAppSettings: (patch) => window.mode.syncAppSettings(patch),
     isDockerAvailable: () => window.mode.isDockerAvailable(),
     listWSLDistros: () => window.mode.listWSLDistros(),
     listDockerContainers: () => window.mode.listDockerContainers(),

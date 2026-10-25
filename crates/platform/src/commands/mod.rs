@@ -62,6 +62,7 @@ macro_rules! command_slice {
                 .plugin(tauri_plugin_notification::init())
                 .plugin(tauri_plugin_opener::init())
                 .manage(crate::AppState::default())
+                .manage(window::WindowCloseBehavior::default())
                 .invoke_handler(move |invoke| {
                     if M1_COMMANDS.contains(&invoke.message.command()) {
                         slice(invoke)
@@ -92,6 +93,8 @@ command_slice! {
     "notifyRendererReady" => window::notify_renderer_ready,
     "syncWindowTabs" => window::sync_window_tabs,
     "syncWindowUnreadCount" => window::sync_window_unread_count,
+    // 窗口行为类设置同步（关闭隐藏到托盘的唯一执行者是壳；spec 命令表第 14 行）。
+    "syncAppSettings" => window::sync_app_settings,
     "getApplicationIcon" => icon::get_application_icon,
     // LR-3：远程桌面主控剪贴板同步的读取口（壳能力）。
     "rdReadClipboardText" => clipboard::rd_read_clipboard_text,

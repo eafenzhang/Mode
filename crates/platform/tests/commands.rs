@@ -10,7 +10,7 @@ use platform::commands::shell::external_file_target_error;
 use platform::commands::{registered_names, M1_HANDLER_PATHS};
 
 /// 切片表里的命令，顺序与 spec 表格一致。
-const M1_SLICE: [&str; 13] = [
+const M1_SLICE: [&str; 14] = [
     "openExternal",
     "selectDirectory",
     "selectFile",
@@ -25,6 +25,8 @@ const M1_SLICE: [&str; 13] = [
     "getApplicationIcon",
     // LR-3：远程桌面剪贴板读取（壳能力）。
     "rdReadClipboardText",
+    // 窗口行为类设置同步（关闭隐藏到托盘的唯一执行者是壳）。
+    "syncAppSettings",
 ];
 
 #[test]

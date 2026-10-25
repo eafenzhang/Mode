@@ -759,8 +759,12 @@ export interface IPlatformService {
   /** 当前窗口 active task 变化；Main 只在该窗口前台时发布全局 PiP focus。 */
   syncActiveTaskSession(sessionId: string | null): void;
 
-  /** 同步需要 main 进程即时感知的应用设置；Web fallback 可忽略 */
-  syncAppSettings?(patch: Partial<AppSettings>): void;
+  /**
+   * 同步需要宿主（壳/main）即时感知的应用设置补丁；窗口行为类设置（如「关闭窗口时隐藏到
+   * 托盘」）的唯一执行者是壳，壳不读业务存储，渲染层在设置加载与变更时把补丁推给它。
+   * Web 无宿主窗口行为，fallback 实现为空操作。
+   */
+  syncAppSettings(patch: Partial<AppSettings>): void;
 
   /** 快捷键设置页录制态开关；桌面端 main 据此暂时摘除可配置菜单 accelerator，Web 可忽略 */
   setShortcutRecordingActive?(active: boolean): void;

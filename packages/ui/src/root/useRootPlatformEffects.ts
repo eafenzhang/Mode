@@ -30,6 +30,7 @@ export function useRootPlatformEffects({
   setWorkspaceActionError,
   allowOpenWorkspace = true,
   isDesktop,
+  isWindowsDesktop,
   locale,
   tabs,
   activeWorkspacePath,
@@ -63,6 +64,8 @@ export function useRootPlatformEffects({
   setWorkspaceActionError: (message: string | null) => void;
   allowOpenWorkspace?: boolean;
   isDesktop?: boolean;
+  /** 关闭到托盘是 Windows 专属设置（设置页同门控）；同步给壳的行为仅在 Windows 生效。 */
+  isWindowsDesktop?: boolean;
   locale: ReturnType<typeof import("@/i18n/IntlProvider.js").useModeIntl>["locale"];
   tabs: WindowTabState[];
   activeWorkspacePath?: string | null;
@@ -239,7 +242,6 @@ export function useRootPlatformEffects({
     };
   }, [activeWorkspaceIdentity, activeWorkspacePath, platform, tabs]);
 
-
   useEffect(() => {
     if (!isDesktop || !shouldPublishCompleteWorkspaceSnapshot(hasCompletedFullTabRestore)) {
       return;
@@ -254,6 +256,33 @@ export function useRootPlatformEffects({
       .map((tab) => tab.workspacePath);
     platform.syncWindowTabs(paths);
   }, [hasCompletedFullTabRestore, isDesktop, platform, tabs]);
+
+  // 关闭窗口时隐藏到托盘（Windows 专属设置）：壳是唯一执行者且不读业务存储。
+  // 启动时把当前事实同步一次给壳；此后的变更由设置页的 syncAppSettings 补丁维护。
+  // 未同步前壳缺省「直接退出」，不因补丁迟到改变关闭语义（fail-safe）。
+  useEffect(() => {
+    if (!isDesktop || !isWindowsDesktop) {
+      return;
+    }
+    const settingService = baseServices?.settingService;
+    if (!settingService) {
+      return;
+    }
+    let cancelled = false;
+    void settingService
+      .get()
+      .then((settings) => {
+        if (!cancelled) {
+          platform.syncAppSettings({ closeToTrayOnWindows: settings.closeToTrayOnWindows ?? true });
+        }
+      })
+      .catch(() => {
+        // 设置读取失败：壳保持缺省「直接退出」，设置页下次变更会再同步。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [baseServices, isDesktop, isWindowsDesktop, platform]);
 
   useEffect(() => {
     if (isDesktop) {

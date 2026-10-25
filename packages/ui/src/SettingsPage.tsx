@@ -921,7 +921,7 @@ export function SettingsPage({
   const handleCloseToTrayOnWindowsChange = useCallback(
     async (enabled: boolean) => {
       await services.settingService.update({ closeToTrayOnWindows: enabled });
-      platform.syncAppSettings?.({ closeToTrayOnWindows: enabled });
+      platform.syncAppSettings({ closeToTrayOnWindows: enabled });
       setCloseToTrayOnWindows(enabled);
     },
     [services.settingService, platform],

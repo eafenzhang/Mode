@@ -170,6 +170,23 @@ const COMMAND_SPECS = [
     fields: [],
     call: (platform) => platform.rdReadClipboardText?.(),
   },
+  {
+    name: "syncAppSettings",
+    summary:
+      "窗口行为类设置同步（壳唯一执行者）：closeToTrayOnWindows=true 且托盘可用时，关闭窗口改为隐藏到托盘",
+    fields: [
+      {
+        key: "closeToTrayOnWindows",
+        label: "closeToTrayOnWindows",
+        initial: "true",
+        kind: "text",
+      },
+    ],
+    call: (platform, values) =>
+      platform.syncAppSettings?.({
+        closeToTrayOnWindows: (values.closeToTrayOnWindows ?? "true").trim() === "true",
+      }),
+  },
 ] satisfies CommandSpec[];
 
 /**

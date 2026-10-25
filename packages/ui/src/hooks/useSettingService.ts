@@ -140,7 +140,7 @@ export function useSettings() {
   const update = useCallback(
     async (patch: Partial<AppSettings>) => {
       await settingService.update(patch);
-      platform.syncAppSettings?.(patch);
+      platform.syncAppSettings(patch);
       await refresh();
       if (
         typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||

@@ -250,6 +250,8 @@ function createWebPlatform(): IPlatformService {
     syncWindowTabs: () => {},
     // Web 端没有宿主层 Dock / 任务栏徽标，保持空实现以兼容统一平台接口
     syncWindowUnreadCount: () => {},
+    // Web 无宿主窗口行为（关闭即关页），同步设置为空操作（接口注释的 fallback 语义）
+    syncAppSettings: () => {},
     syncActiveTaskSession: () => {},
     onFocusTab: () => () => {},
     onNewTab: () => () => {},

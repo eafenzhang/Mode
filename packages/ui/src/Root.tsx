@@ -615,6 +615,7 @@ function RootInner({
     setWorkspaceActionError,
     allowOpenWorkspace,
     isDesktop,
+    isWindowsDesktop,
     locale,
     tabs,
     activeWorkspacePath,

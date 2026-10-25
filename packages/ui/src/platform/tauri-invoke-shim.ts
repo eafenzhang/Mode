@@ -150,6 +150,8 @@ export const M1_IMPLEMENTED_COMMANDS = [
   "getApplicationIcon",
   // LR-3：远程桌面剪贴板读取（壳命令 `rdReadClipboardText`）。
   "rdReadClipboardText",
+  // 窗口行为类设置同步（关闭隐藏到托盘的唯一执行者是壳）。
+  "syncAppSettings",
 ] as const;
 
 /** M1 未实现的**必选**方法：调用即抛 `not_implemented_until_m3`。 */
@@ -507,6 +509,10 @@ export function createTauriPlatformService(
     },
     syncWindowUnreadCount(count: number): void {
       fireAndForget(invoke, "syncWindowUnreadCount", { count });
+    },
+    // 窗口行为类设置（关闭隐藏到托盘）的唯一事实通道：壳不读业务存储。
+    syncAppSettings(patch: Partial<import("@mode/shared").AppSettings>): void {
+      fireAndForget(invoke, "syncAppSettings", { patch });
     },
     getApplicationIcon(request: string | ApplicationIconRequest) {
       return invoke("getApplicationIcon", {

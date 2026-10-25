@@ -42,3 +42,37 @@ pub fn sync_window_tabs(state: State<'_, AppState>, paths: Vec<String>) {
 pub fn sync_window_unread_count(state: State<'_, AppState>, count: u32) {
     let _ = state.set_unread_count(count);
 }
+
+/// 窗口行为类设置的壳侧事实（渲染层经 `syncAppSettings` 推送，本状态是唯一落点）。
+///
+/// 为什么独立于 [`crate::AppState`]：关闭事件钩子（壳 `main.rs` 的 `on_window_event`）
+/// 要**同步读**这个开关，AtomicBool 无锁取值；AppState 是 M1 的占位快照面，语义不同。
+/// 缺省 `false` = 直接退出（现网行为 fail-safe）：渲染层还没同步过设置时，
+/// 不因补丁迟到而擅自改变关闭语义。
+pub struct WindowCloseBehavior(pub std::sync::atomic::AtomicBool);
+
+impl Default for WindowCloseBehavior {
+    fn default() -> Self {
+        Self(std::sync::atomic::AtomicBool::new(false))
+    }
+}
+
+/// `syncAppSettings` 的补丁入参：壳只消费它执行的窗口行为字段，
+/// 其余设置键（provider/终端/通知…）归业务所有者（Host settings 服务），壳不解释。
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncAppSettingsPatch {
+    /// 「关闭窗口时隐藏到托盘」（设置页仅在 Windows 呈现）；补丁缺键时保持现值。
+    close_to_tray_on_windows: Option<bool>,
+}
+
+/// `IPlatformService.syncAppSettings(patch: Partial<AppSettings>): void`
+///
+/// 渲染层单向告知壳窗口行为类设置的当前事实；壳不读业务存储
+/// （AGENTS.md「进程、协议与远程控制」：窗口与进程调度属壳）。
+#[tauri::command(rename = "syncAppSettings")]
+pub fn sync_app_settings(state: State<'_, WindowCloseBehavior>, patch: SyncAppSettingsPatch) {
+    if let Some(enabled) = patch.close_to_tray_on_windows {
+        state.0.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    }
+}

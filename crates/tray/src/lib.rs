@@ -19,6 +19,11 @@ pub const MENU_ID_SHOW: &str = "mode-tray-show";
 /// 菜单项 id：退出应用。
 pub const MENU_ID_QUIT: &str = "mode-tray-quit";
 
+/// 托盘图标 id：壳的关闭拦截用它判断「托盘真的可用」——
+/// 部分桌面环境托盘装不上（降级为仅主窗口），此时「隐藏到托盘」等于应用凭空消失，
+/// 壳侧 fail-safe 直接放行关闭。有 id 才能从 `Manager::tray_by_id` 查询。
+pub const TRAY_ID: &str = "mode-tray";
+
 /// 主窗口 label（与 `tauri.conf.json` 的 `app.windows[].label` 一致）。
 const MAIN_WINDOW_LABEL: &str = "main";
 
@@ -29,7 +34,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, MENU_ID_QUIT, "退出", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &separator, &quit])?;
 
-    let mut builder = TrayIconBuilder::new()
+    let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Mode")
         .menu(&menu)
         // 左键点击图标时**不**弹菜单：主窗口才是默认动作，弹菜单会让单击变成两步。

@@ -134,6 +134,8 @@
     "getApplicationIcon",
     // LR-3：远程桌面剪贴板读取（壳能力，`crates/platform/src/commands/clipboard.rs`）。
     "rdReadClipboardText",
+    // 窗口行为类设置同步（关闭隐藏到托盘的唯一执行者是壳）。
+    "syncAppSettings",
   ];
   /**
    * 通过**宿主深链事件通道**实现的订阅方法（不在命令表里）。
@@ -749,6 +751,11 @@
     },
     syncWindowUnreadCount: function (count) {
       fireAndForget("syncWindowUnreadCount", { count: count });
+    },
+    // 窗口行为类设置（关闭隐藏到托盘）的唯一事实通道：壳不读业务存储，
+    // 渲染层在设置加载与变更时把补丁推给壳（spec 命令表第 14 行）。
+    syncAppSettings: function (patch) {
+      fireAndForget("syncAppSettings", { patch: patch });
     },
     // 类型里是可选成员（renderer 用 `?.` 守卫），但 M1 命令面把它实现了，所以给出真实现。
     getApplicationIcon: function (request) {
