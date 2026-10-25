@@ -262,6 +262,15 @@ Task 3–7 开工时各出子计划）。**开工前先读它的「与路线图 
 同日复跑补充：本机 gnu 路线下 `updater --lib` 与 `mode-tauri --lib` 的测试二进制启动失败
 （`0xc0000139 STATUS_ENTRYPOINT_NOT_FOUND`），其余 crate 测试全绿；疑为本机 WebView2/DLL
 加载环境问题，需在 CI/MSVC 复核，不能据此判定 Rust 代码回归。
+〔**2026-10-26 收口**：`updater --lib` 的 `0xc0000139` 根因查明并修复（证据链见
+`docs/plans/2026-10-25-installed-0.0.85-acceptance.md`「updater 0xC0000139 收口」）：
+`tauri-test-manifest` 发的 `cargo:rustc-link-arg-tests` **不是 stable cargo（1.99 全系）
+的合法指令**——全新构建直接 `invalid instruction` 硬失败，target 缓存回放时被**静默忽略**，
+GNU 测试二进制因此从未带上 comctl32 v6 清单，运行即 0xC0000139（导入表精确比对定位到
+`TaskDialogIndirect` 只在 v6 导出）。CI 绿是 rust-cache 命中旧产物的假象（win 腿零编译）。
+已改用合法的 `cargo:rustc-link-arg`（不向依赖方传播，防 app 清单撞车的设计不变），
+updater/platform/deeplink 三包测试本机首次全绿。`mode-tauri --lib` 的
+web_assets_extraction 仍维持 CI/MSVC 权威口径。〕
 〔**2026-10-22 回填**：Task 6 Step 5 已落地——`FramePermissionHandler`（`agent-core`）与
 `agent-protocol::permission` 的帧编解码把 channel 两端接到 `interaction/requestPermission`；
 新增 13 条用例（协议 6 + 会话 7）全绿，`clippy -D warnings` 与 rustfmt 通过。M2 剩余代码项

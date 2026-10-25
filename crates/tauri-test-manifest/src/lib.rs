@@ -20,10 +20,17 @@
 //!
 //! ## 做法
 //!
-//! 只发 `rustc-link-arg-tests`（按目标类型限定，**不向依赖方传播**），并按目标环境选注入方式：
+//! 只发 `cargo:rustc-link-arg`（**不向依赖方传播**——cargo 的 link-arg 只作用于本包
+//! 自己的链接产物，这正是与 `rustc-link-lib` 的关键区别），并按目标环境选注入方式：
 //!
 //! - `msvc`：交给 link.exe 的 `/MANIFESTINPUT:<fragment>`，**不需要任何外部工具**；
 //! - 其它（gnu/mingw）：用 `windres` 把 `.rc` 编成 COFF 目标文件再链进去。
+//!
+//! 历史教训（2026-10-26）：这里曾用不存在的 `cargo:rustc-link-arg-tests`（stable
+//! cargo 1.99 全系没有这条指令）。全新构建直接 `invalid instruction` 硬失败；更阴险的
+//! 是**target 缓存回放时会静默忽略**——测试二进制照常产出但没有清单，GNU 链接下运行
+//! 即 0xC0000139，且 CI 因 rust-cache 命中旧产物从未暴露。link-arg 家族在 stable 上
+//! 只有 `rustc-link-arg` / `-bins` / `-bin=NAME=` / `-benches` 可用。
 //!
 //! ## 为什么是独立 crate 而不是每处抄一份
 //!
@@ -83,11 +90,8 @@ fn emit_test_link_args(crate_name: &str) -> Result<(), String> {
     if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
         // link.exe 的清单片段合并：`/MANIFESTINPUT` 让链接器把这段依赖并进最终清单。
         // 全程不需要 rc.exe，避免 CI 上「SDK 的 bin 是否在 PATH」这种环境假设。
-        println!("cargo:rustc-link-arg-tests=/MANIFEST:EMBED");
-        println!(
-            "cargo:rustc-link-arg-tests=/MANIFESTINPUT:{}",
-            manifest.display()
-        );
+        println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
         return Ok(());
     }
 
@@ -111,7 +115,7 @@ fn emit_test_link_args(crate_name: &str) -> Result<(), String> {
     if !status.success() {
         return Err(format!("{tool} 退出码 {status}"));
     }
-    println!("cargo:rustc-link-arg-tests={}", object.display());
+    println!("cargo:rustc-link-arg={}", object.display());
     Ok(())
 }
 
