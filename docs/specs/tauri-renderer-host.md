@@ -2205,3 +2205,32 @@ LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/conne
 3. **Host 死亡的现场取证**：安装版不落盘服务日志（LR-5 §27 `exportLogs` 欠账），
    Host 为何死亡（怀疑 RD 原生媒体路径）仍需 dev 版复现 + 服务日志定位；本收口保证
    死亡在渲染层**可见且可复制诊断**，不再静默。
+
+## 23. 数据目录切换的重启生效：默认根引导指针（2026-10-25 立项并落地）
+
+### 23.1 缺陷（2026-10-25 设置页核查 + 真机点击）
+
+`updateDataBaseDir` 复制数据并持久化 `{dataBaseDir}` 后，**重启不生效**：壳只在
+`MODE_DATA_BASE_DIR` 环境变量存在时覆写数据基目录（`dataRoot.ts` 的两档口径），而
+持久化设置躺在数据根里——壳不读业务存储，Host 又在解析出数据根**之前**没有别的途径
+读到它。Electron main 的注入消费者已随旧线 EOL。真机验证：改数据目录 → 复制成功 →
+重启回落默认根。
+
+### 23.2 口径
+
+- **指针位置**：默认根 `~/.mode/v2/setting.json` 的 `dataBaseDir` 键。选默认根是因为
+  它不随迁移移动（自定义根可能在任意盘符），且 Host 启动时无需任何先验知识即可定位。
+- **写入方**：`updateDataBaseDir` 在 copy+update 完成后维护默认根指针（读-改-写、原子写）；
+  当前根=默认根时与 `update()` 是同一文件，幂等跳过二次写。`newDir` 为空（改回默认）→
+  删除指针键。
+- **读取方**：Host 启动解析 `resolveDataRoot` 后，无 env 覆写（source=home）时读默认根
+  setting.json，`dataBaseDir` 非空则改写解析结果（source=`home-pointer`）。坏 JSON/缺键/
+  读取失败一律回落默认根（与 settingService 的坏文件容忍同口径）。
+- **指针指向目录已删除**：本次不做存在性校验——指向失效目录时 Host 服务按各自 fail
+  路径报错，行为与「用户手动删了数据目录」一致；启动指针的生存期跟随下一次
+  updateDataBaseDir。
+
+### 23.3 已知边界
+
+- 用户**手动**编辑默认根 setting.json 的 dataBaseDir 指向别处同样生效（指针就是接口）；
+- `MODE_DATA_BASE_DIR` 环境变量优先级高于指针（开发/测试隔离不受影响）。

@@ -28,8 +28,12 @@ import { join } from "node:path";
 /** `~/.mode` 这个命名空间的目录名（与 `packages/services/src/paths.ts` 的 `MODE_DATA_ROOT_DIR_NAME` 一致）。 */
 export const MODE_DATA_ROOT_DIR_NAME = ".mode";
 
-/** 数据基目录的来源，便于对「隔离是否生效」做可断言的上报（不靠猜）。 */
-export type DataBaseDirSource = "MODE_DATA_BASE_DIR" | "home";
+/**
+ * 数据基目录的来源，便于对「隔离是否生效」做可断言的上报（不靠猜）。
+ * `home-pointer`：默认根 `~/.mode/v2/setting.json` 里持久化的 `dataBaseDir` 指针
+ * （用户改过数据目录后重启，壳不会传 env，Host 靠它回到自定义根；spec §23）。
+ */
+export type DataBaseDirSource = "MODE_DATA_BASE_DIR" | "home-pointer" | "home";
 
 export interface DataRootResolution {
   /** 数据**基**目录（`MODE_DATA_BASE_DIR` 或家目录）。 */
@@ -60,5 +64,44 @@ export function resolveDataRoot(env: NodeJS.ProcessEnv): DataRootResolution {
     dataRoot: join(dataBaseDir, MODE_DATA_ROOT_DIR_NAME),
     homeDir,
     source: override ? "MODE_DATA_BASE_DIR" : "home",
+  };
+}
+
+/** 默认根的设置文件路径（`~/.mode/v2/setting.json`）——重启引导指针的读取位置。 */
+export function defaultRootSettingsFile(homeDir: string): string {
+  return join(homeDir, MODE_DATA_ROOT_DIR_NAME, "v2", "setting.json");
+}
+
+/** 从 setting.json 原文解析持久化的 `dataBaseDir` 指针；坏 JSON/缺键/空串一律视为无指针。 */
+export function persistedDataBaseDirFromSettings(
+  raw: string | null | undefined,
+): string | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(raw) as { dataBaseDir?: unknown };
+    if (typeof parsed.dataBaseDir === "string" && parsed.dataBaseDir.trim()) {
+      return parsed.dataBaseDir.trim();
+    }
+  } catch {
+    // 用户手动编辑或半截 JSON：按无指针处理，回落默认根（与 settingService 的坏文件容忍同口径）。
+  }
+  return undefined;
+}
+
+/** 把解析结果改写到持久化指针指向的基目录（env 覆写优先级不变，指针只在无覆写时生效）。 */
+export function withPersistedDataBaseDir(
+  resolution: DataRootResolution,
+  pointerBaseDir: string | undefined,
+): DataRootResolution {
+  if (!pointerBaseDir || resolution.source !== "home") {
+    return resolution;
+  }
+  return {
+    ...resolution,
+    dataBaseDir: pointerBaseDir,
+    dataRoot: join(pointerBaseDir, MODE_DATA_ROOT_DIR_NAME),
+    source: "home-pointer",
   };
 }

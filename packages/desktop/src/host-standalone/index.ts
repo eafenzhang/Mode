@@ -53,7 +53,13 @@ import {
 
 import { DispatchGuards } from "./channelGuard.js";
 import { createScopedAttachmentRegistry } from "./scopedAttachments.js";
-import { resolveDataRoot } from "./dataRoot.js";
+import { readFileSync } from "node:fs";
+import {
+  defaultRootSettingsFile,
+  persistedDataBaseDirFromSettings,
+  resolveDataRoot,
+  withPersistedDataBaseDir,
+} from "./dataRoot.js";
 import {
   MODE_HOST_NATIVE_DEP_PROBE_ENV,
   probeNativeDeps,
@@ -77,7 +83,20 @@ const log = (line: string): void => {
 };
 
 const startupId = process.env.MODE_HOST_STARTUP_ID?.trim() || `host-${process.pid}`;
-const dataRoot = resolveDataRoot(process.env);
+const resolvedDataRoot = resolveDataRoot(process.env);
+// 重启引导指针（spec §23）：用户改过数据目录后，壳不会传 MODE_DATA_BASE_DIR，
+// Host 靠默认根 setting.json 里的持久化指针回到自定义根。读失败/坏文件回落默认根。
+let persistedPointer: string | undefined;
+if (resolvedDataRoot.source === "home") {
+  try {
+    persistedPointer = persistedDataBaseDirFromSettings(
+      readFileSync(defaultRootSettingsFile(resolvedDataRoot.homeDir), "utf8"),
+    );
+  } catch {
+    persistedPointer = undefined;
+  }
+}
+const dataRoot = withPersistedDataBaseDir(resolvedDataRoot, persistedPointer);
 const guards = new DispatchGuards();
 const startup = new StartupStateMachine({
   startupId,
