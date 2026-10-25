@@ -430,10 +430,14 @@ jobs:
           # agent-* / plugin-host* 是 M2/M3 的运行时与插件宿主：虽然暂未随 Tauri 安装包
           # 发布，但它们的对拍/生命周期套件必须持续跑，否则会在本地绿、发布时才发现腐烂。
           # 这些测试会 spawn node 与 bash（GitHub Windows runner 的 PATH 上都有）。
+          # mode-tauri 的 web_assets_extraction（内嵌前端解压回归）此前不在本列表：
+          # 它只会在本地跑，而本地 gnu 工具链下 build.rs 的 /MANIFEST 链接参数直接链接
+          # 失败——MSVC runner 是它唯一的权威验证路径，漏掉等于从未跑过。
           cargo test --locked \
             -p platform -p protocol -p updater -p deeplink -p sidecar-host -p browser-import-host \
             -p agent-protocol -p agent-tools -p agent-core \
-            -p plugin-host -p plugin-host-adapter
+            -p plugin-host -p plugin-host-adapter \
+            -p mode-tauri
           # `--all-targets` 覆盖 workspace 全部 crate 的 lib/bin/test/bench；
           # 被 required-features 门住的三个 harness bin 由下面的单独步骤覆盖。
           cargo clippy --locked --workspace --all-targets -- -D warnings
