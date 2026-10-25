@@ -357,6 +357,9 @@ export function createSettingServiceWithMigrations(): {
         log("data directory copy done");
       }
 
+      // dataBaseDir 键随本 update() 持久化进默认根 setting.json（getSettingsDir 恒在
+      // 用户主目录，不随数据根迁移）——它本身就是 Host 启动引导指针
+      // （dataRoot.ts 的 home-pointer 档，spec tauri-renderer-host.md §23），无需第二处维护。
       await this.update({ dataBaseDir: newDir });
     },
 
