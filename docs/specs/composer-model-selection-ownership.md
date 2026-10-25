@@ -44,6 +44,16 @@ v4 Composer 的“下一次提交配置”（模式、模型、推理档位）�
 7. 用户显式选模（模型菜单点击）后，除写草稿外还要把完整选择写回 Host 的
    `defaultModelSelection`（Personal 配置文件字段）；这一步是跨 localStorage 的
    持久兜底，写失败只记日志，不阻断选择。
+8. **会话真值回填（2026-10-25，重启丢模型修复）**：已有会话（sessionId 非空）的草稿
+   `modelSelection` 为空（undefined——没有显式值，也没有被初始化种子填充）而会话
+   Snapshot `config.modelSelection` 存在时，把会话真值回填进草稿。判据与边界：
+   - 草稿持久化是 best-effort localStorage（配额/键丢失/历史版本都可能丢
+     modelSelection），agent 会话配置才是既有会话的权威事实；没有这条回填，
+     重启后选择器永远回落默认模型（2026-10-25 用户实测）。
+   - 只填**空**草稿：草稿已有任何 modelSelection（用户显式选择，含与快照不同）
+     时不碰——规则 2 的「不得覆盖显式值」不变。
+   - 已有会话选模即时发 `switchModelConfig`，agent 侧事实随之更新；因此即使草稿
+     持久化失败，重启也能经本条从 agent 真值还原。
 
 ## 事件顺序
 
@@ -53,6 +63,9 @@ v4 Composer 的“下一次提交配置”（模式、模型、推理档位）�
   → 已有会话: switchModelConfig (CAS, Host)
   → 会话 Snapshot 到达: 只补缺失的 mode/plan，不覆盖 modelSelection
   → 提交: 冻结 draft 的 modelSelection 作为本次 intent
+重启/草稿丢失
+  → 草稿 modelSelection 为空 + 会话 Snapshot config.modelSelection 存在
+  → 回填草稿（规则 8）；已有显式值不碰
 ```
 
 ## 兼容与迁移

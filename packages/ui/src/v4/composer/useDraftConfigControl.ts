@@ -28,6 +28,7 @@ import { useSettings } from "@/hooks/useSettingService.js";
 import { parseModelPickerValue } from "@/lib/modeSessionProjection.js";
 import {
   initializeComposerDraftFromSeed,
+  reconcileMissingDraftModelSelection,
   resolveComposerDraftScopeId,
 } from "@/v4/composer/composerDraftInitialization.js";
 import {
@@ -273,6 +274,32 @@ export function useDraftConfigControl(params: {
     },
     [scopeKey, updateComposerDraft],
   );
+  // 会话真值回填（spec 规则 8）：重启/草稿丢失后，已有会话的草稿没有模型选择而
+  // Snapshot 带选择时补齐——agent 会话配置是既有会话的权威事实，草稿持久化只是
+  // best-effort。只填空草稿；用户显式选择（含待发送的新意图）不碰（规则 2）。
+  const sessionConfigModelSelection = sessionConfig?.modelSelection;
+  useEffect(() => {
+    if (sessionId === null || sessionConfigModelSelection === undefined) {
+      return;
+    }
+    if (stateRef.current.scopeKey !== scopeKey) {
+      return;
+    }
+    if (
+      reconcileMissingDraftModelSelection(stateRef.current.draft, {
+        modelSelection: sessionConfigModelSelection,
+      }) === null
+    ) {
+      return;
+    }
+    updateComposerDraft(
+      (current) =>
+        reconcileMissingDraftModelSelection(current, {
+          modelSelection: sessionConfigModelSelection,
+        }) ?? current,
+    );
+  }, [sessionConfigModelSelection, scopeKey, sessionId, updateComposerDraft]);
+
   const resolveInitialDraftConfig = useCallback((): Partial<SessionConfigState> | undefined => {
     if (!draftConfigRef.current.mode) return undefined;
     const config = { ...draftConfigRef.current };
@@ -433,17 +460,25 @@ export function useDraftConfigControl(params: {
       // 显式选模后写回配置默认（CLI /model 同语义）：localStorage 丢失或新装环境时，
       // 新任务草稿仍能从 provider_config.json 的 defaultModelSelection 恢复上次选择。
       // 旧 Host/远端对端没有该方法时 RPC 会拒绝，只记日志不影响本次选择。
-      void modelSelectionService?.saveConfiguredDefault?.(modelSelection)?.catch((error: unknown) => {
-        logger.warn("[v4-draft-config] 保存默认模型选择失败", {
-          error: error instanceof Error ? error.message : String(error),
-          providerId: modelSelection.providerId,
-          modelId: modelSelection.modelId,
-          workspacePath,
-          workspaceIdentity: workspaceIdentity ?? null,
+      void modelSelectionService
+        ?.saveConfiguredDefault?.(modelSelection)
+        ?.catch((error: unknown) => {
+          logger.warn("[v4-draft-config] 保存默认模型选择失败", {
+            error: error instanceof Error ? error.message : String(error),
+            providerId: modelSelection.providerId,
+            modelId: modelSelection.modelId,
+            workspacePath,
+            workspaceIdentity: workspaceIdentity ?? null,
+          });
         });
-      });
     },
-    [modelSelectionService, modelSelectionView, updateDraftConfig, workspaceIdentity, workspacePath],
+    [
+      modelSelectionService,
+      modelSelectionView,
+      updateDraftConfig,
+      workspaceIdentity,
+      workspacePath,
+    ],
   );
 
   const handleDraftSelectThought = useCallback(

@@ -5,6 +5,7 @@ import type { ModelSelectionView } from "@mode/services";
 import {
   buildInitialPromptComposerDraft,
   initializeComposerDraftFromSeed,
+  reconcileMissingDraftModelSelection,
   resolveComposerDraftScopeId,
 } from "../src/v4/composer/composerDraftInitialization.js";
 import type { V4ComposerDraft } from "../src/v4/composer/composerDraftStore.js";
@@ -159,4 +160,52 @@ test("没有旧草稿时带初始 Prompt 新建任务仍可正常写入", () => 
   assert.equal(next.text, "新正文");
   assert.equal(next.mode, undefined);
   assert.equal(next.modelSelection, undefined);
+});
+
+// ── 会话真值回填（spec 规则 8，2026-10-25 重启丢模型修复）──
+
+test("草稿缺选择且 Snapshot 带选择：回填会话真值", () => {
+  const draft: V4ComposerDraft = { text: "", mode: "build", updatedAt: 1 };
+  const next = reconcileMissingDraftModelSelection(draft, {
+    modelSelection: { ...sessionSelection },
+  });
+  assert.deepEqual(next?.modelSelection, sessionSelection);
+});
+
+test("草稿已有显式选择（含与快照不同）：不覆盖（规则 2）", () => {
+  const draft: V4ComposerDraft = {
+    text: "",
+    mode: "build",
+    modelSelection: { ...userSelection },
+    updatedAt: 1,
+  };
+  assert.equal(
+    reconcileMissingDraftModelSelection(draft, {
+      modelSelection: { ...sessionSelection },
+    }),
+    null,
+  );
+});
+
+test("Snapshot 没有选择：不回填（保持空态语义）", () => {
+  const draft: V4ComposerDraft = { text: "", mode: "build", updatedAt: 1 };
+  assert.equal(reconcileMissingDraftModelSelection(draft, {}), null);
+  assert.equal(reconcileMissingDraftModelSelection(draft, null), null);
+});
+
+test("回填结果保留草稿其余字段", () => {
+  const draft: V4ComposerDraft = {
+    text: "hello",
+    mode: "build",
+    planEnabled: true,
+    lastPermissionGrantId: "perm-1",
+    updatedAt: 9,
+  };
+  const next = reconcileMissingDraftModelSelection(draft, {
+    modelSelection: { ...sessionSelection },
+  });
+  assert.equal(next?.text, "hello");
+  assert.equal(next?.planEnabled, true);
+  assert.equal(next?.lastPermissionGrantId, "perm-1");
+  assert.deepEqual(next?.modelSelection, sessionSelection);
 });

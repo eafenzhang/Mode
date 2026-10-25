@@ -52,6 +52,27 @@ export function initializeComposerDraftFromSeed(params: {
   return draft.modelSelection ? { ...seeded, modelSelection: draft.modelSelection } : seeded;
 }
 
+/**
+ * 会话真值回填（spec 规则 8，2026-10-25 重启丢模型修复）：已有会话的草稿
+ * modelSelection 为空而 Snapshot config 带选择时，把会话真值填进草稿。
+ * 草稿持久化是 best-effort localStorage（配额/键丢失/历史版本都可能丢选择），
+ * agent 会话配置才是既有会话的权威事实；不回填则重启后选择器永远回落默认模型。
+ * 只填空草稿——已有任何显式选择（含与快照不同）一律不动（规则 2）。
+ */
+export function reconcileMissingDraftModelSelection(
+  draft: V4ComposerDraft,
+  sessionConfig: { modelSelection?: V4ComposerDraft["modelSelection"] } | null,
+): V4ComposerDraft | null {
+  if (draft.modelSelection !== undefined) {
+    return null;
+  }
+  const selection = sessionConfig?.modelSelection;
+  if (!selection) {
+    return null;
+  }
+  return { ...draft, modelSelection: selection };
+}
+
 /** 带初始 Prompt 新建任务时只替换正文，保留已有配置意图。 */
 export function buildInitialPromptComposerDraft(
   existing: V4ComposerDraft | null,
