@@ -31,6 +31,7 @@ export { StoreProvider, useModeStore } from "./store/StoreProvider.js";
 export type { ModeState } from "./store/index.js";
 export {
   bindRemoteWorkspacePath,
+  disposeAllRemoteWorkspaceSessions,
   getRemoteWorkspaceSession,
   registerBaseWorkspaceServices,
   registerRemoteWorkspaceSession,

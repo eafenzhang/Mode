@@ -2153,3 +2153,55 @@ LR-2 的自动化至少覆盖：server state 读取、总开关关闭后能力�
 LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/connected/closed、单会话 busy、
 对端信令透传、bye/error 收口、传输断开 retryable、本地 end/dispose 带出 bye、
 `locally_controlled` 闸门、同意请求 60s 超时与已记住设备直通。
+
+## 22. Host 传输死亡的渲染层收口（2026-10-25 立项并落地）
+
+### 22.1 缺陷与证据链（2026-10-25 已安装 0.0.85 验收）
+
+远程桌面会话异常结束后，该窗口的全部 Host 服务调用（RD 设置面、LAN 状态、设备列表、
+模型选择）**永久挂起**：横幅「结束」按钮因 `busy` 永久禁用、弹层停在「正在读取监听地址…」、
+模型选择停在「正在加载模型…」。重启应用即全部恢复（纯运行态，无持久化损伤）。
+
+机制链（逐环核实）：
+
+1. Host 进程死亡 → 壳侧读线程 stdout EOF（`process.rs` 的 `read_loop`）→
+   `fail_with_host_facts(TransportClosed, "host_stdout_eof")` 发布 failed 状态 + `mark_closed`；
+   此后 `host_recv` 拒绝（`TransportClosed`）、`host_send` 拒绝。
+2. 注入桥（`bridge.ts`）的入方向泵在 `host_recv` 拒绝时**停止搬运**——这本身正确
+   （传输已死，无帧可搬）；注释约定的「失败上报主路径是状态流」也确实发生：
+   `pollState` 会收到 `phase: "failed"` 并 `window.postMessage` 投给渲染层。
+3. **缺口在渲染层**：`main.tsx` 的 `handleServicePortMessage` 在 `appInitialized` 后把一切
+   启动状态消息**静默丢弃**（`if (!result.success || appInitialized) return;`）——post-boot 的
+   failed 状态没有任何消费者。
+4. 于是渲染层的 `ChannelClient` 永不 `dispose`：MessagePort 对端死亡不产生任何事件，
+   `sendRequest` 的发送失败也被静默吞掉，**所有已发出与后续 RPC 永久 pending**。
+   服务本身没有问题（`remoteDesktopServer` 的写路径、`host-standalone` 的 `requestState`
+   都自带 10s 超时），挂起发生在共享传输的死亡不可见。
+
+### 22.2 规则（本任务落地的收口口径）
+
+**Host 传输死亡的事实必须沿既有状态流送达渲染层，且渲染层在启动完成后仍消费它。**
+
+- 判定：`appInitialized === true` 且状态 `phase === "failed"` 且 `startupId` 与本窗口
+  **准入过**的 startupId 同代（换代保护：异代状态不得误杀本窗连接）。
+- 动作（一次性）：
+  1. base 服务连接 fail-closed `dispose(reason)` —— `ChannelClient.dispose` 把全部挂起
+     Promise 拒绝（机制已在 `@mode/rpc`），后续调用立即以「ChannelClient is disposed」拒绝；
+  2. 全部在册 remote scoped session 走同一 `dispose(reason)`（scoped attachment 复用同一
+     Host stdio，Host 死即全死）；
+  3. 界面切换到既有启动失败终态（复用 `GlobalDatabaseStartupLoading`），带
+     `errorCode`/诊断复制入口——**不允许停留在「看似活着但一切调用永不返回」的静默挂起**。
+- 恢复语义：本次只做 fail-closed，**不做** Host 自动重生（respawn + 端口重建是独立立项，
+  涉及 startupId/attempt 换代与端口重投）。
+
+### 22.3 开放项（都带判据，不留「没人管」）
+
+1. **`DatabaseStartupControl` 在 Tauri 线无消费者**：失败终态屏的 retry/exit 按钮投出的
+   `mode:database-startup-control` 消息在壳/注入层无人接（Electron main 已随旧线 EOL）。
+   判据：`grep -r "database-startup-control" apps/desktop-tauri crates/sidecar-host` 为空。
+   处置：随「Host 自动重生」立项一并设计（retry = respawn + 同 startupId 换代）。
+2. **进程活着但管道停摆不可检测**：本口径只覆盖「进程死亡」（有 stdout EOF 事实）。
+   半开管道需要心跳/驻留帧，属传输层独立任务；在此之前，运输停摆仍表现为挂起。
+3. **Host 死亡的现场取证**：安装版不落盘服务日志（LR-5 §27 `exportLogs` 欠账），
+   Host 为何死亡（怀疑 RD 原生媒体路径）仍需 dev 版复现 + 服务日志定位；本收口保证
+   死亡在渲染层**可见且可复制诊断**，不再静默。

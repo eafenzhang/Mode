@@ -10,11 +10,15 @@ import {
   registerBaseWorkspaceServices,
   registerRemoteWorkspaceSession,
   createRemoteWorkspaceDisconnectedError,
+  disposeAllRemoteWorkspaceSessions,
   playTaskNotificationSound,
   setStreamClientId,
 } from "@mode/ui";
 import "@mode/ui/styles.css";
-import { connectViaMessagePort, createMessagePortServiceConnection } from "@mode/client";
+import {
+  createMessagePortServiceConnection,
+  type MessagePortServiceConnection,
+} from "@mode/client";
 import {
   InternalChannels,
   databaseStartupStateSchema,
@@ -27,6 +31,7 @@ import {
 import type { Locale } from "@mode/shared";
 import type { IServiceAccessor } from "@mode/services";
 import { createDesktopPlatform } from "./desktopPlatform.js";
+import { isPostBootHostTransportDeath } from "./hostTransportDeath.js";
 import { startLocalDisplaySync } from "./desktopLocalDisplays.js";
 import { startPerformanceTimelineCleanup } from "./performanceTimelineCleanup.js";
 import { buildRemoteWorkspaceSessionServices } from "./remoteWorkspaceSessionServices.js";
@@ -134,6 +139,13 @@ const initialLocale: Locale =
     ? initialLocaleFlag
     : DEFAULT_LOCALE;
 let baseServicesForRemoteSessions: IServiceAccessor | null = null;
+/**
+ * base 连接的生命周期句柄：Host 传输死亡（post-boot failed，spec §22）时需要显式
+ * dispose 让全部挂起与后续 RPC fail-closed，而不是留在静默 pending 里。
+ */
+let baseConnection: MessagePortServiceConnection | null = null;
+/** post-boot 传输死亡只收口一次；后续 failed 状态不再重复处理。 */
+let hostTransportDeathHandled = false;
 const pendingRemoteWorkspaceServicePorts: RemoteWorkspaceServicePortRegistration[] = [];
 
 const desktopPlatform = createDesktopPlatform({
@@ -259,7 +271,14 @@ function StartupReadyNotifier() {
 function handleServicePortMessage(event: MessageEvent): void {
   if (event.source === window && event.data?.type === InternalChannels.DatabaseStartupState) {
     const result = databaseStartupStateSchema.safeParse(event.data.state);
-    if (!result.success || appInitialized) return;
+    if (!result.success) return;
+    if (appInitialized) {
+      // 启动准入完成后状态流仍在持续推送（bridge.ts 的 pollState 只在 sequence 变化时投递）。
+      // Host 进程死亡会在这里送来 phase:"failed"——这是传输死亡唯一抵达渲染层的事实，
+      // 必须消费并 fail-closed 收口，而不是像过去那样静默丢弃（spec §22 的缺陷根因）。
+      handlePostBootStartupState(result.data);
+      return;
+    }
     const next = result.data;
     if (!databaseStartupAdmission.acceptState(next)) return;
     if (firstStartupStateTimer) clearTimeout(firstStartupStateTimer);
@@ -298,9 +317,46 @@ function handleServicePortMessage(event: MessageEvent): void {
   enterAppIfPrepared();
 }
 
+/**
+ * Host 传输死亡（post-boot failed）的 fail-closed 收口（docs/specs/tauri-renderer-host.md §22）。
+ *
+ * 2026-10-25 验收缺陷：RD 会话异常结束后 Host 进程死亡，壳与桥都如实上报了 failed 状态，
+ * 但本模块在 `appInitialized` 后把状态流静默丢弃——ChannelClient 永不 dispose，
+ * MessagePort 对端死亡又没有事件，于是全部服务 RPC 永久 pending（横幅 busy 卡死、
+ * 模型/LAN 加载永挂）。收口动作：
+ * 1. base 连接 dispose：挂起与后续 RPC 立即拒绝（ChannelClient 的 fail-closed 既有机制）；
+ * 2. 全部在册 remote scoped session 同步收口（scoped attachment 复用同一条 Host stdio）；
+ * 3. 界面切到既有启动失败终态， errorCode 可复制诊断——不允许留在静默挂起里。
+ * 恢复语义：只做 fail-closed，不做 Host 自动重生（respawn 属独立立项，见 §22.3）。
+ */
+function handlePostBootStartupState(state: DatabaseStartupState): void {
+  const admittedStartupId = databaseStartupAdmission.state?.startupId ?? null;
+  if (
+    !isPostBootHostTransportDeath(state, {
+      appInitialized,
+      admittedStartupId,
+      alreadyHandled: hostTransportDeathHandled,
+    })
+  ) {
+    return;
+  }
+  hostTransportDeathHandled = true;
+  const reason = new Error(
+    `Host 传输已关闭（${state.errorCode ?? "unknown"}），服务调用已全部终止`,
+  );
+  baseConnection?.dispose(reason);
+  baseConnection = null;
+  disposeAllRemoteWorkspaceSessions(reason);
+  // 复用启动失败终态屏：带 errorCode 与诊断复制；与 boot 期失败同一渲染路径。
+  databaseStartupAdmission.state = state;
+  renderDatabaseStartup();
+}
+
 function initializeBusinessRoot(port: MessagePort): void {
   appInitialized = true;
-  const services = connectViaMessagePort(port);
+  const connection = createMessagePortServiceConnection(port);
+  baseConnection = connection;
+  const services = connection.services;
   baseServicesForRemoteSessions = services;
   registerBaseWorkspaceServices(services);
   flushPendingRemoteWorkspaceServicePorts();

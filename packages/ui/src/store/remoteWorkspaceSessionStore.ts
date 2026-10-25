@@ -150,6 +150,21 @@ export function unregisterRemoteWorkspaceSession(sessionId: string): void {
   session?.dispose?.(createRemoteWorkspaceDisconnectedError());
 }
 
+/**
+ * 本机 Host 传输死亡（post-boot failed，spec tauri-renderer-host.md §22）时收口全部
+ * 在册远程 scoped session：scoped attachment 复用同一条 Host stdio，Host 死即全死。
+ * 走与 unregister 相同的「先摘索引、再 dispose(reason)」路径，保证挂起 RPC 全部拒绝，
+ * 不留「看似注册、实际永挂」的会话。
+ */
+export function disposeAllRemoteWorkspaceSessions(reason: Error): void {
+  const sessionIds = Object.keys(useRemoteWorkspaceSessionStore.getState().sessionsById);
+  for (const sessionId of sessionIds) {
+    const session = useRemoteWorkspaceSessionStore.getState().sessionsById[sessionId];
+    useRemoteWorkspaceSessionStore.getState().unregisterSession(sessionId);
+    session?.dispose?.(reason);
+  }
+}
+
 export function bindRemoteWorkspacePath(workspacePath: string, sessionId: string): void {
   useRemoteWorkspaceSessionStore.getState().bindWorkspacePath(workspacePath, sessionId);
 }
