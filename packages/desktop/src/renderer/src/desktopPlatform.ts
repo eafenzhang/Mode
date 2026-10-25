@@ -56,7 +56,11 @@ export function createDesktopPlatform(options: {
     selectFile: () => window.mode.selectFile(),
     // 多选只在壳真的实现时暴露；空实现会让 openAttachmentPicker 静默停在空数组。
     ...resolveSelectFilesCapability(window.mode.selectFiles),
-    openDataRootImport: () => window.mode.openDataRootImport?.(),
+    // Tauri 注入层没有 openDataRootImport（数据目录导入窗是旧线 main 能力）：
+    // 按方法存在做能力声明，缺失时设置页同键隐藏入口，而不是留一个点了没反应的死按钮。
+    ...(window.mode.openDataRootImport
+      ? { openDataRootImport: () => window.mode.openDataRootImport!() }
+      : {}),
     createTempTextAttachment: (payload) => window.mode.createTempTextAttachment(payload),
     activateOrSetWorkspace: (path) =>
       window.mode.activateOrSetWorkspace?.(path) ?? Promise.resolve({ activated: false }),

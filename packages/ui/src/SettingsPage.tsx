@@ -631,6 +631,8 @@ export function SettingsPage({
   );
   const selectDirectory = useSelectDirectory();
   const openDataRootImport = useOpenDataRootImport();
+  // Tauri 壳未实现数据目录导入窗：按方法存在门控入口，避免死按钮（能力检测与 usePlatform 同键）。
+  const canOpenDataRootImport = typeof platform.openDataRootImport === "function";
   const services = useServices();
   const onboardingRecordService = services.onboardingRecordService;
   const localHostServices = useBaseWorkspaceServices();
@@ -1384,7 +1386,9 @@ export function SettingsPage({
                             modelIoFullRetentionEnabled={modelIoFullRetentionEnabled}
                             onDataBaseDirChange={handleDataBaseDirChange}
                             onSelectDataBaseDir={selectDirectory}
-                            onOpenDataRootImport={() => openDataRootImport()}
+                            {...(canOpenDataRootImport
+                              ? { onOpenDataRootImport: () => void openDataRootImport() }
+                              : {})}
                             onTerminalInheritSystemProfileChange={
                               handleTerminalInheritSystemProfileChange
                             }
