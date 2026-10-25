@@ -54,6 +54,7 @@ import {
 import { DispatchGuards } from "./channelGuard.js";
 import { createScopedAttachmentRegistry } from "./scopedAttachments.js";
 import { readFileSync } from "node:fs";
+import { createHostLogFileSink, type HostLogFileSink } from "./logFile.js";
 import {
   defaultRootSettingsFile,
   persistedDataBaseDirFromSettings,
@@ -78,8 +79,21 @@ export const HOST_CHANNEL = "host";
 /** 第一件事：接管 stdout。任何在此之后装载的模块写到 stdout 的字节都会被转到 stderr。 */
 const stdoutGuard = new StdoutGuard();
 
+// 文件日志（2026-10-25）：Host 自身的日志镜像到数据根 v2/logs/host-<date>.log。
+// sink 异步就绪，就绪前的行进有界缓冲（顺序保留）；文件写失败静默退化为仅 stderr。
+let hostLogFileSink: HostLogFileSink | null = null;
+const pendingHostLogLines: string[] = [];
 const log = (line: string): void => {
-  process.stderr.write(`[mode-host-sidecar] ${line}\n`);
+  const full = `[mode-host-sidecar] ${line}`;
+  process.stderr.write(`${full}\n`);
+  if (hostLogFileSink) {
+    hostLogFileSink.write(full);
+  } else {
+    pendingHostLogLines.push(full);
+    if (pendingHostLogLines.length > 200) {
+      pendingHostLogLines.splice(0, pendingHostLogLines.length - 200);
+    }
+  }
 };
 
 const startupId = process.env.MODE_HOST_STARTUP_ID?.trim() || `host-${process.pid}`;
@@ -97,6 +111,13 @@ if (resolvedDataRoot.source === "home") {
   }
 }
 const dataRoot = withPersistedDataBaseDir(resolvedDataRoot, persistedPointer);
+
+void createHostLogFileSink(dataRoot.dataRoot).then((sink) => {
+  hostLogFileSink = sink;
+  for (const line of pendingHostLogLines.splice(0)) {
+    sink.write(line);
+  }
+});
 const guards = new DispatchGuards();
 const startup = new StartupStateMachine({
   startupId,
