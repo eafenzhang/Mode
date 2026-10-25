@@ -77,7 +77,7 @@ export function BotAccessModeCard({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="shrink-0 text-foreground-subtle hover:text-destructive"
+                  className="shrink-0 hover:text-destructive"
                   onClick={() => onUnblockUser(userId)}
                 >
                   {intl.formatMessage({ id: "bots.accessMode.unblockUser" })}
@@ -110,7 +110,7 @@ export function BotAccessModeCard({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="shrink-0 text-foreground-subtle hover:text-destructive"
+                    className="shrink-0 hover:text-destructive"
                     onClick={() => onUnblockGroup(group.groupId)}
                   >
                     {intl.formatMessage({ id: "bots.accessMode.unblockGroup" })}

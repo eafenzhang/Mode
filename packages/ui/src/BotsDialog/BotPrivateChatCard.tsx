@@ -135,7 +135,7 @@ export function BotPrivateChatCard({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="shrink-0 text-foreground-subtle hover:text-destructive"
+                          className="shrink-0 hover:text-destructive"
                           onClick={() => onRemoveRegistryUser(entry.providerUserId)}
                         >
                           {intl.formatMessage({ id: "bots.registry.remove" })}
@@ -144,7 +144,7 @@ export function BotPrivateChatCard({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="shrink-0 text-foreground-subtle hover:text-destructive"
+                          className="shrink-0 hover:text-destructive"
                           onClick={() => onBlockUser(entry.providerUserId)}
                         >
                           {intl.formatMessage({ id: "bots.registry.block" })}

@@ -148,7 +148,7 @@ export function BotGroupChatCard({
                     type="button"
                     disabled={!onBlockGroup}
                     onClick={() => onBlockGroup?.(permission.groupId, permission.groupName)}
-                    className="rounded-md bg-surface px-2.5 py-1 text-ui-caption text-foreground-subtle hover:text-destructive disabled:opacity-50"
+                    className="rounded-md bg-surface px-2.5 py-1 text-ui-caption text-foreground hover:text-destructive disabled:opacity-50"
                   >
                     {intl.formatMessage({ id: "bots.groupChat.block" })}
                   </button>
@@ -160,7 +160,7 @@ export function BotGroupChatCard({
                         onRemoveGroup!(permission.groupId),
                       )
                     }
-                    className="rounded-md px-2.5 py-1 text-ui-caption text-foreground-subtle hover:text-destructive disabled:opacity-50"
+                    className="rounded-md px-2.5 py-1 text-ui-caption text-foreground hover:text-destructive disabled:opacity-50"
                   >
                     {intl.formatMessage({ id: "bots.groupChat.permissions.remove" })}
                   </button>
@@ -246,7 +246,7 @@ export function BotGroupChatCard({
                           onRemoveGroup!(permission.groupId),
                         )
                       }
-                      className="shrink-0 rounded-md px-2.5 py-1 text-ui-caption text-foreground-subtle hover:text-destructive disabled:opacity-50"
+                      className="shrink-0 rounded-md px-2.5 py-1 text-ui-caption text-foreground hover:text-destructive disabled:opacity-50"
                     >
                       {intl.formatMessage({ id: "bots.groupChat.permissions.remove" })}
                     </button>
