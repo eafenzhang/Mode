@@ -116,7 +116,10 @@ function readInjectionManifest(bridgeRs: string): InjectionManifest {
     consts.set(match[1]!, match[2]!);
   }
 
-  const placeholders = [...production.matchAll(/\.replace\("(__MODE_\w+__)",\s*([^)]+)\)/g)].map(
+  // `\s*` 允许 rustfmt 把长链拆成 `.replace(\n  "__X__",\n  CONST,\n)` 的多行形态——
+  // 2026-10-26 被它咬过：收紧成 `.replace("` 紧贴后，两个窗口控制占位符静默漏出清单，
+  // 注入脚本里留下字面量，两条窗口控制用例红得莫名其妙。
+  const placeholders = [...production.matchAll(/\.replace\(\s*"(__MODE_\w+__)",\s*([^)]+)\)/g)].map(
     (match) => {
       const placeholder = match[1]!;
       const expression = match[2]!.trim();

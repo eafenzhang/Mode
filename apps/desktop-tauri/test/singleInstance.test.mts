@@ -125,6 +125,13 @@ test("单实例接线：插件最先注册、第二实例的转发走既有深�
       `${SINGLE_INSTANCE_RS} 里不得出现 ${forbidden}（转发路径只允许聚焦既有窗口）`,
     );
   }
+  // ⑤ 聚焦既有窗口必须**先 show**：关闭到托盘是 `hide()`，而 `unminimize()` 只处理最小化。
+  //    2026-10-26 真人模拟实测过反例：托盘模式下双击图标，单实例接管后窗口仍隐藏（点了没反应）。
+  assert.ok(
+    /window\.show\(\)[\s\S]*window\.set_focus\(\)/.test(singleInstance),
+    `${SINGLE_INSTANCE_RS} 的 focus_existing_main_window 必须先 show() 再 set_focus()` +
+      `（hide 到托盘的窗口 unminimize 不会显示）`,
+  );
   // ⑤ deeplink 侧的转发入口与 on_open_url 走**同一个**投递实现（不是第二套 emit）。
   const deeplinkLib = read(DEEPLINK_LIB_RS);
   assert.ok(

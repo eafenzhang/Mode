@@ -61,13 +61,18 @@ fn handoff<R: Runtime>(app: &AppHandle<R>, args: Vec<String>, _cwd: String) {
     focus_existing_main_window(app);
 }
 
-/// 聚焦（必要时先还原）既有主窗口；窗口不在时静默返回。
+/// 显示、还原并聚焦既有主窗口；窗口不在时静默返回。
 fn focus_existing_main_window<R: Runtime>(app: &AppHandle<R>) {
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
         eprintln!("[single-instance] 主窗口 {MAIN_WINDOW_LABEL} 不在，无法聚焦（不新建）");
         return;
     };
     // 失败只可能因为没有窗口系统支持（例如无桌面会话）：诊断留痕，不影响转发已经完成的事实。
+    //
+    // `show()` 不能省：关闭到托盘把窗口 `hide()` 掉了（实测 bounds 变成 -32000 的隐藏位），
+    // 而 `unminimize()` 只处理「最小化」这一种非可见态——2026-10-26 真人模拟实测：托盘模式
+    // 下双击程序图标，进程被单实例接管后窗口**仍然隐藏**，用户看到的是「点了没反应」。
+    let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_focus();
 }
