@@ -2195,6 +2195,7 @@ const faIR: Record<string, string> = {
   "sidebar.exportLogs": "برون‌برد لاگ‌ها",
   "sidebar.exportLogs.pending": "در حال برون‌برد لاگ‌ها...",
   "sidebar.exportLogs.error": "برون‌برد لاگ‌ها ناموفق بود: {error}",
+  "sidebar.exportLogs.success": "لاگ‌ها در {path} برون‌برد شدند",
   "sidebar.newTask": "وظیفه جدید",
   "settings.title": "تنظیمات",
   "settings.breadcrumbLabel": "مسیر تنظیمات",

@@ -3,7 +3,13 @@ import {
   TID_WORKSPACE_HELP_MENU_TRIGGER,
   type DesktopCommandId,
 } from "@mode/shared";
-import { CircleHelpIcon, InfoIcon, RefreshCwIcon, SquareLibraryIcon } from "lucide-react";
+import {
+  CircleHelpIcon,
+  FileDownIcon,
+  InfoIcon,
+  RefreshCwIcon,
+  SquareLibraryIcon,
+} from "lucide-react";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import {
   DropdownMenu,
@@ -14,15 +20,18 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { runUpdateCheck } from "@/desktopUpdateFeedback.js";
-import { toast } from "@/ui-foundation/adapters/toast.js";
+import { dismissToast, toast } from "@/ui-foundation/adapters/toast.js";
 import { useDesktopUpdateMenu } from "@/hooks/useDesktopUpdateMenu.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 
 /**
- * 右上角「帮助」入口：菜单里只保留三项——资源管理器、检查更新、关于 Mode。
- * 社区 / 问题反馈 / 功能建议 / 导出日志 / 开发者工具 / 清除数据等入口已下线（程序更新由静默更新承担，
- * 手动检查更新只作为明确入口保留）。菜单标题与条目文案复用既有 i18n 键，不再新增。
+ * 右上角「帮助」入口：资源管理器、检查更新、导出日志、关于 Mode。
+ *
+ * 社区 / 问题反馈 / 功能建议 / 开发者工具 / 清除数据等入口已下线（程序更新由静默更新承担，
+ * 手动检查更新只作为明确入口保留）。**导出日志是 2026-10-26 恢复的入口**：壳命令已实现
+ * （spec `tauri-platform-commands.md` 第 15 行），此前拒绝桩时代把入口一起下线了。
+ * 菜单标题与条目文案复用既有 i18n 键（成功提示新增 `sidebar.exportLogs.success`）。
  * Web 端没有资源管理器窗口，不渲染。
  */
 export function WorkspaceHelpMenuButton({
@@ -54,6 +63,33 @@ export function WorkspaceHelpMenuButton({
       formatMessage,
       showToast: (message, options) => toast(message, options),
     });
+  /**
+   * 导出日志：壳命令把 Host 文件日志打成一个文本包并经保存对话框落盘（spec 第 15 行）。
+   *
+   * 三种结局分开处理：成功 → 给出落盘路径；**用户取消（success:false 且无 error）不弹错**；
+   * 真失败才提示 error 码。pending toast 常驻到结局再收起，避免失败时误留一条「正在导出」。
+   */
+  const exportLogs = async () => {
+    const pendingId = toast(formatMessage("sidebar.exportLogs.pending"), {
+      durationMs: Number.POSITIVE_INFINITY,
+    });
+    try {
+      const result = await platform.exportLogs();
+      if (result.success) {
+        toast(formatMessage("sidebar.exportLogs.success", { path: result.path ?? "" }));
+      } else if (result.error) {
+        toast(formatMessage("sidebar.exportLogs.error", { error: result.error }));
+      }
+    } catch (error) {
+      toast(
+        formatMessage("sidebar.exportLogs.error", {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    } finally {
+      dismissToast(pendingId);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -101,6 +137,15 @@ export function WorkspaceHelpMenuButton({
             },
             updateMenu.visible ? updateMenu.labelValues : undefined,
           )}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="workspace-help-menu-export-logs"
+          onSelect={() => {
+            void exportLogs();
+          }}
+        >
+          <FileDownIcon className="size-4" aria-hidden="true" />
+          {intl.formatMessage({ id: "titleBar.menu.help.exportLogs" })}
         </DropdownMenuItem>
         <DropdownMenuItem
           data-testid="workspace-help-menu-about"
