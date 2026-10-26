@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mode — 会规划、会改、会跑、会验证的编程智能体</title>
+  <meta name="description" content="Mode 是跑在你桌面上的编程智能体：改动以 diff 呈现、命令带着上下文、测试自动复核。桌面端、浏览器与终端共用同一个 Agent 运行时，核心以 Rust 重写。" />
+  <meta property="og:title" content="Mode — 会规划、会改、会跑、会验证的编程智能体" />
+  <meta property="og:description" content="桌面端、浏览器与终端三端一体的 AI 编程工作区，每一次编辑、命令与工具调用都可审批。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://mymode.cloud/" />
+  <meta property="og:image" content="https://mymode.cloud/assets/icon.png" />
+  <meta name="twitter:card" content="summary" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/assets/icon.png" />
+  <link rel="canonical" href="https://mymode.cloud/" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="skip">跳到主要内容</a>
+
+  <header class="nav">
+    <div class="shell nav-inner">
+      <a class="brand" href="/" aria-label="Mode 首页">
+        <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="1" y="1" width="62" height="62" rx="15" class="brand-plate" />
+          <path d="M16 46 V23 L32 39 L48 23 V46" fill="none" stroke="url(#brandGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+          <defs>
+            <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#38bdf8" /><stop offset="1" stop-color="#818cf8" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <span class="brand-name">Mode</span>
+      </a>
+      <nav class="nav-links" aria-label="页面导航">
+        <a href="#features" data-i18n="nav.features">功能</a>
+        <a href="#surfaces" data-i18n="nav.surfaces">三端</a>
+        <a href="#download" data-i18n="nav.download">下载</a>
+        <a href="https://github.com/eafenzhang/Mode" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <div class="nav-actions">
+        <button id="langToggle" class="chip-btn" type="button" aria-label="切换语言 / Switch language">EN</button>
+        <button id="themeToggle" class="chip-btn" type="button" aria-label="切换主题">
+          <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><g stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.2 5.2l1.9 1.9M16.9 16.9l1.9 1.9M18.8 5.2l-1.9 1.9M7.1 16.9l-1.9 1.9"/></g></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6a8.5 8.5 0 1 0 10.6 10.6Z" fill="currentColor"/></svg>
+        </button>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/eafenzhang/Mode" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A7.99 7.99 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          <span class="gh-label" data-i18n="nav.star">Star</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">
+            <span data-i18n="hero.eyebrow1">开源</span><i>·</i><span data-i18n="hero.eyebrow2">MIT License</span><i>·</i><span data-i18n="hero.eyebrow3">Rust 核心</span>
+          </p>
+          <h1 class="hero-title" data-i18n-html="hero.title">会规划、会改、会跑、<em>会验证</em></h1>
+          <p class="hero-sub" data-i18n-html="hero.sub">
+            Mode 是跑在你桌面上的编程智能体：改动以 diff 呈现，命令带着上下文，测试自动复核。
+            桌面端、浏览器与终端，同一个 Agent，同一批会话。
+          </p>
+          <div class="hero-cta">
+            <a id="downloadBtn" class="btn btn-primary" href="https://github.com/eafenzhang/Mode/releases" data-i18n="hero.download">下载 Mode</a>
+            <a class="btn btn-ghost" href="https://github.com/eafenzhang/Mode" target="_blank" rel="noopener" data-i18n="hero.source">查看源码</a>
+          </div>
+          <p class="hero-meta">
+            <span id="versionChip" class="version-chip" hidden>…</span>
+            <span data-i18n-html="hero.meta">Windows · macOS · Linux　未签名，附 sha256 校验与自动更新</span>
+          </p>
+        </div>
+
+        <div class="hero-term" aria-hidden="true">
+          <div class="term-window">
+            <div class="term-bar">
+              <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+              <span class="term-title">mode — session</span>
+            </div>
+            <div class="term-body" id="termBody"></div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-fade" aria-hidden="true"></div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+      <div class="shell">
+        <header class="section-head">
+          <h2 data-i18n="features.title">为长会话而生的工作区</h2>
+          <p data-i18n="features.sub">冷静、密集、可操作——每一个能力都围绕「动手之前可审批、做完之后可验证」。</p>
+        </header>
+        <div class="feature-grid">
+          <article class="feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 12.5l2.2 2.2L15.5 10M12 3.5l7.5 3v5c0 4.6-3 7.9-7.5 9.5-4.5-1.6-7.5-4.9-7.5-9.5v-5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3 data-i18n="f1.h">会自我验证</h3>
+            <p data-i18n="f1.p">改完自己跑测试复核，结果回到会话里；每一处改动都以 diff 呈现，不静默改文件。</p>
+          </article>
+          <article class="feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="9.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10M12 14v2.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+            <h3 data-i18n="f2.h">动手前先许可</h3>
+            <p data-i18n="f2.p">每一次编辑、命令与工具调用都可要求审批——仅本次允许、本项目内一直允许，或完全放行。</p>
+          </article>
+          <article class="feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 9h17M10 9v10.5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></div>
+            <h3 data-i18n="f3.h">一个 Agent，三种界面</h3>
+            <p data-i18n="f3.p">Tauri 桌面端、浏览器工作区与终端 TUI 共用同一个运行时和同一批会话。</p>
+          </article>
+          <article class="feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4.5 6.5h15v9.5h-8l-4 3.5v-3.5h-3Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.5 11.5h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+            <h3 data-i18n="f4.h">IM 机器人</h3>
+            <p data-i18n="f4.p">在微信 / 企业微信 / 飞书 / 钉钉里驱动工作区：私聊按人、群聊按群各自绑定独立会话。</p>
+          </article>
+          <article class="feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.8 10.5c4-3 12.4-3 16.4 0M5.5 15.5c3.6-2.4 9.4-2.4 13 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="18.5" r="1.1" fill="currentColor"/></svg></div>
+            <h3 data-i18n="f5.h">局域网远程</h3>
+            <p data-i18n="f5.p">UDP 广播发现同一网络里的另一台 Mode，一次性 6 位配对码授权后像本地一样使用。</p>
+          </article>
+          <article class="feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 20h8M12 16v4M7.5 9l2.5 2-2.5 2M12.5 13H16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3 data-i18n="f6.h">远程被控端</h3>
+            <p data-i18n="f6.p">Windows 机器运行单文件 mode-agent，经 MCP Streamable HTTP 接受指令：命令、文件、进程、截屏与键鼠。</p>
+          </article>
+          <article class="feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="2.6"/><circle cx="5.2" cy="6" r="1.7"/><circle cx="18.8" cy="6" r="1.7"/><circle cx="5.2" cy="18" r="1.7"/><circle cx="18.8" cy="18" r="1.7"/><path d="M10.2 10.4 6.8 7.4M13.8 10.4l3.4-3M10.2 13.6l-3.4 3M13.8 13.6l3.4 3"/></g></svg></div>
+            <h3 data-i18n="f7.h">插件、技能与 MCP</h3>
+            <p data-i18n="f7.p">内置插件市场，公开目录随包离线分发；MCP 服务按用户或工作区配置。</p>
+          </article>
+          <article class="feature">
+            <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 3v3.5M14.5 3v3.5M9.5 17.5V21M14.5 17.5V21M3 9.5h3.5M3 14.5h3.5M17.5 9.5H21M17.5 14.5H21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg></div>
+            <h3 data-i18n="f8.h">自带模型</h3>
+            <p data-i18n="f8.p">内置 DeepSeek、OpenAI、Anthropic、Kimi、GLM、xAI 等预设，也支持完全自定义端点。</p>
+          </article>
+        </div>
+
+        <div class="model-strip">
+          <span class="model-label" data-i18n="models.label">开箱即用的模型预设</span>
+          <ul class="model-chips">
+            <li>DeepSeek</li><li>OpenAI</li><li>Anthropic</li><li>Kimi</li><li>MiniMax</li><li>GLM</li><li>Qwen</li><li>xAI</li><li>MiMo</li><li>OpenRouter</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Surfaces -->
+    <section class="section section-alt" id="surfaces">
+      <div class="shell">
+        <header class="section-head">
+          <h2 data-i18n="srf.title">桌面、浏览器与终端，同一批会话</h2>
+          <p data-i18n="srf.sub">同一 workspace 的状态、审批与运行结果在三端之间保持一致；远程工作区支持 SSH、WSL 与 Docker。</p>
+        </header>
+        <div class="surface-grid">
+          <article class="surface">
+            <div class="mock mock-desktop" aria-hidden="true">
+              <div class="mk-bar"><i></i><i></i><i></i></div>
+              <div class="mk-body">
+                <div class="mk-side"><span class="on"></span><span></span><span></span><span></span></div>
+                <div class="mk-main"><b class="w60"></b><b class="w40"></b><b class="w75"></b><em class="diff-a"></em><em class="diff-b"></em></div>
+              </div>
+            </div>
+            <h3 data-i18n="s1.h">桌面端</h3>
+            <p data-i18n="s1.p">Rust + Tauri v2 壳：窗口、托盘、深链、更新与 Host sidecar 监督都落在本地。</p>
+          </article>
+          <article class="surface">
+            <div class="mock mock-web" aria-hidden="true">
+              <div class="mk-bar mk-url"><i></i><u></u><i></i></div>
+              <div class="mk-body">
+                <div class="mk-main"><b class="w50"></b><b class="w70"></b><b class="w35"></b><em class="diff-b"></em><em class="diff-a"></em></div>
+              </div>
+            </div>
+            <h3 data-i18n="s2.h">浏览器</h3>
+            <p data-i18n="s2.p">浏览器工作区与手机远控共用 Host attachment，路上也能盯住长任务的进展。</p>
+          </article>
+          <article class="surface">
+            <div class="mock mock-tui" aria-hidden="true">
+              <div class="mk-tui">
+                <p><i class="t-p">❯</i> mode "梳理启动竞态"</p>
+                <p class="t-dim">◆ plan · 3 steps</p>
+                <p><i class="t-g">✓</i> 12 passed · 1.8s</p>
+                <p class="t-cur">▊</p>
+              </div>
+            </div>
+            <h3 data-i18n="s3.h">终端 TUI</h3>
+            <p data-i18n="s3.p">mode-cli 把同一个运行时带进终端，脚本化与键盘工作流的原生入口。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download -->
+    <section class="section" id="download">
+      <div class="shell">
+        <header class="section-head">
+          <h2 data-i18n="dl.title">下载 Mode</h2>
+          <p data-i18n="dl.sub">安装包在 GitHub Releases 发布。产物没有代码签名，首次启动会被系统拦截一次——这是预期行为，可用同页面的 sha256.txt 自行校验。</p>
+        </header>
+        <div class="dl-grid">
+          <a class="dl-card" href="https://github.com/eafenzhang/Mode/releases" target="_blank" rel="noopener">
+            <div class="dl-os" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9ZM11.5 4.2 21 3v8.5h-9.5V4.2Zm0 8.3H21V21l-9.5-1.3v-7.2Z" fill="currentColor"/></svg></div>
+            <h3>Windows</h3>
+            <code>Mode-&lt;版本&gt;-win-x64.exe</code>
+            <p data-i18n="dl.win">SmartScreen 提示时：更多信息 → 仍要运行</p>
+          </a>
+          <a class="dl-card" href="https://github.com/eafenzhang/Mode/releases" target="_blank" rel="noopener">
+            <div class="dl-os" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16.6 12.9c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.7-3.1.7-.6 0-1.6-.7-2.7-.7-1.4 0-2.7.8-3.4 2-1.4 2.5-.4 6.2 1 8.2.7 1 1.5 2.1 2.6 2.1s1.4-.7 2.7-.7 1.6.7 2.7.7 1.8-1 2.5-2c.8-1.1 1.1-2.2 1.1-2.3-.1 0-2.2-.9-2.2-3.2ZM14.6 6.7c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6 1 .1 2-.5 2.5-1.2Z" fill="currentColor"/></svg></div>
+            <h3>macOS</h3>
+            <code>Mode-&lt;版本&gt;-mac-arm64.dmg</code>
+            <p data-i18n="dl.mac">需先执行 xattr 移除隔离属性（见 Releases 说明）</p>
+          </a>
+          <a class="dl-card" href="https://github.com/eafenzhang/Mode/releases" target="_blank" rel="noopener">
+            <div class="dl-os" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.5c-.4 1.4-.1 2.8.6 3.9-1-.3-2.2-.1-3.2.5-1-.6-2.2-.8-3.2-.5C6.9 5.3 7.2 3.9 6.8 2.5c2 0 3.4.9 4.1 2 .3-.9.6-1.6 1.1-2Zm-5.8 4.9c1.2.1 2.4.8 3 2-1.6.8-2.7 2.4-2.7 4.3 0 1.1.4 2.1 1 2.9-.9.5-1.5 1.4-1.6 2.5-1.6-1.2-2.7-3.2-2.7-5.4 0-2.5 1.2-4.9 3-6.3Zm11.6 0c1.8 1.4 3 3.8 3 6.3 0 2.2-1.1 4.2-2.7 5.4-.1-1.1-.7-2-1.6-2.5.6-.8 1-1.8 1-2.9 0-1.9-1.1-3.5-2.7-4.3.6-1.2 1.8-1.9 3-2ZM12 10c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4Z" fill="currentColor"/></svg></div>
+            <h3>Linux</h3>
+            <code>Mode-&lt;版本&gt;-linux-x86_64.AppImage</code>
+            <p data-i18n="dl.linux">chmod +x 后直接运行</p>
+          </a>
+        </div>
+        <p class="dl-note" data-i18n="dl.note">已安装的桌面端会从 GitHub Releases 自动更新；安装包命名与校验和以 Releases 页面为准。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer-grid">
+      <div class="footer-brand">
+        <div class="brand brand-footer">
+          <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="1" y="1" width="62" height="62" rx="15" class="brand-plate"/><path d="M16 46 V23 L32 39 L48 23 V46" fill="none" stroke="url(#brandGrad)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="brand-name">Mode</span>
+        </div>
+        <p data-i18n="foot.tag">桌面端、浏览器与终端三端的 AI 编程工作区，核心以 Rust 重写。</p>
+      </div>
+      <nav class="footer-col" aria-label="链接">
+        <h4 data-i18n="foot.project">项目</h4>
+        <a href="https://github.com/eafenzhang/Mode" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/eafenzhang/Mode/releases" target="_blank" rel="noopener" data-i18n="foot.releases">Releases</a>
+        <a href="https://github.com/eafenzhang/Mode/issues" target="_blank" rel="noopener">Issues</a>
+      </nav>
+      <div class="footer-col">
+        <h4 data-i18n="foot.legal">许可</h4>
+        <a href="https://github.com/eafenzhang/Mode/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <span class="footer-dom">mymode.cloud</span>
+      </div>
+    </div>
+    <div class="shell footer-line">
+      <span data-i18n="foot.copy">© 2026 Mode contributors · 以 MIT 协议开源</span>
+    </div>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>
