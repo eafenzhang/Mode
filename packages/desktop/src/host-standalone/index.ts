@@ -335,6 +335,9 @@ const hostChannel: IServerChannel<string> = {
   // 断言成 T —— 断言收在这一处，不在每个分支里撒。
   async call<T>(_ctx: string, command: string, arg?: unknown): Promise<T> {
     if (command === "describe") return describeHost() as T;
+    // 活性探测（半开管道心跳，spec §22.5）：故意做在 host 频道上而不是走业务服务——
+    // 探测必须与业务负载无关，且停摆的事件循环回不了任何帧（含这一条）。
+    if (command === "ping") return { pong: true } as T;
     // LR-4 的传输验证入口（默认关闭；生产 attachment 由 `remote.attach` 接管）。
     if (command === "attachTestScope") return attachTestScope() as T;
     if (command === "detachTestScope") {

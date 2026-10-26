@@ -23,6 +23,7 @@ import {
   InternalChannels,
   databaseStartupStateSchema,
   type DatabaseStartupControl,
+  type DatabaseStartupState,
   parseLaunchMarks,
   LAUNCH_MARKS_QUERY_KEY,
   type LaunchMarks,
@@ -32,6 +33,13 @@ import type { Locale } from "@mode/shared";
 import type { IServiceAccessor } from "@mode/services";
 import { createDesktopPlatform } from "./desktopPlatform.js";
 import { isPostBootHostTransportDeath } from "./hostTransportDeath.js";
+import {
+  HOST_LIVENESS_DEADLINE_MS,
+  HOST_LIVENESS_INTERVAL_MS,
+  HOST_LIVENESS_STRIKES,
+  startHostLivenessWatchdog,
+  type HostLivenessWatchdog,
+} from "./hostLivenessWatchdog.js";
 import { startLocalDisplaySync } from "./desktopLocalDisplays.js";
 import { startPerformanceTimelineCleanup } from "./performanceTimelineCleanup.js";
 import { buildRemoteWorkspaceSessionServices } from "./remoteWorkspaceSessionServices.js";
@@ -146,6 +154,8 @@ let baseServicesForRemoteSessions: IServiceAccessor | null = null;
 let baseConnection: MessagePortServiceConnection | null = null;
 /** post-boot 传输死亡只收口一次；后续 failed 状态不再重复处理。 */
 let hostTransportDeathHandled = false;
+/** 半开管道心跳（spec §22.5）：只在 base 连接存活期间运行，fail-closed 时停止。 */
+let hostLivenessWatchdog: HostLivenessWatchdog | null = null;
 const pendingRemoteWorkspaceServicePorts: RemoteWorkspaceServicePortRegistration[] = [];
 
 const desktopPlatform = createDesktopPlatform({
@@ -327,7 +337,7 @@ function handleServicePortMessage(event: MessageEvent): void {
  * 1. base 连接 dispose：挂起与后续 RPC 立即拒绝（ChannelClient 的 fail-closed 既有机制）；
  * 2. 全部在册 remote scoped session 同步收口（scoped attachment 复用同一条 Host stdio）；
  * 3. 界面切到既有启动失败终态， errorCode 可复制诊断——不允许留在静默挂起里。
- * 恢复语义：只做 fail-closed，不做 Host 自动重生（respawn 属独立立项，见 §22.3）。
+ * 恢复语义：进程死亡由壳自动重生 + 整页 reload（§22.4）；「活着但停摆」由心跳 kill（§22.5）。
  */
 function handlePostBootStartupState(state: DatabaseStartupState): void {
   const admittedStartupId = databaseStartupAdmission.state?.startupId ?? null;
@@ -340,15 +350,38 @@ function handlePostBootStartupState(state: DatabaseStartupState): void {
   ) {
     return;
   }
+  failCloseHostTransport(state);
+}
+
+/**
+ * 传输死亡收口的唯一实现（§22.2 规则 1-3）：进程死亡（state stream）与心跳停摆（§22.5）
+ * 共用同一条路径。state 缺省时复用最近一次准入状态改写失败字段——终态屏需要合法的
+ * startupId/attemptId 才能渲染诊断 ID。
+ */
+function failCloseHostTransport(state?: DatabaseStartupState): void {
   hostTransportDeathHandled = true;
-  const reason = new Error(
-    `Host 传输已关闭（${state.errorCode ?? "unknown"}），服务调用已全部终止`,
-  );
+  hostLivenessWatchdog?.stop();
+  hostLivenessWatchdog = null;
+  const errorCode = state?.errorCode ?? "transport_closed";
+  const reason = new Error(`Host 传输已关闭（${errorCode}），服务调用已全部终止`);
   baseConnection?.dispose(reason);
   baseConnection = null;
   disposeAllRemoteWorkspaceSessions(reason);
   // 复用启动失败终态屏：带 errorCode 与诊断复制；与 boot 期失败同一渲染路径。
-  databaseStartupAdmission.state = state;
+  const current = databaseStartupAdmission.state;
+  databaseStartupAdmission.state = state ?? {
+    ...(current ?? {
+      schemaVersion: 1,
+      startupId: "unknown",
+      attemptId: "unknown",
+      sequence: 0,
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+    }),
+    phase: "failed",
+    errorCode: "transport_closed",
+    failedPhase: "starting",
+  };
   renderDatabaseStartup();
 }
 
@@ -360,6 +393,24 @@ function initializeBusinessRoot(port: MessagePort): void {
   baseServicesForRemoteSessions = services;
   registerBaseWorkspaceServices(services);
   flushPendingRemoteWorkspaceServicePorts();
+  // 半开管道心跳（spec §22.5）：进程死亡走 state stream failed；「活着但事件循环停摆」
+  // 只能靠应用层 ping。连续两次拿不到 pong → 先请求壳 kill 当前 Host（走重生换代），
+  // 再本地 fail-closed。顺序不能反：dispose 之后渲染层能发出去的只剩桥面控制消息。
+  hostLivenessWatchdog = startHostLivenessWatchdog({
+    intervalMs: HOST_LIVENESS_INTERVAL_MS,
+    deadlineMs: HOST_LIVENESS_DEADLINE_MS,
+    strikesToFail: HOST_LIVENESS_STRIKES,
+    ping: () => connection.pingHost(HOST_LIVENESS_DEADLINE_MS),
+    onStalled: () => {
+      // 停摆的可观测性在壳侧（kill → 重生会打 `Host 重生：startupId=…`， Host 日志可见）。
+      try {
+        sendStartupControl({ action: "kill" });
+      } catch {
+        // 控制消息发不出去也得本地收口；壳侧即使没收到，重载/退出仍由用户兜底。
+      }
+      failCloseHostTransport("transport_closed");
+    },
+  });
   // LR-3 被控侧：把显示器快照推给 Host（Tauri 下才生效；Electron 无此服务）。
   startLocalDisplaySync(services);
   const settingService = supportsSettings ? services.settingService : undefined;

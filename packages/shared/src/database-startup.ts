@@ -157,6 +157,8 @@ export const databaseStartupControlSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("snapshot") }).strict(),
   z.object({ action: z.literal("exit") }).strict(),
   z.object({ action: z.literal("retry"), attemptId: z.string().min(1).max(128) }).strict(),
+  /** 心跳判定传输停摆后由渲染层发出：壳**杀掉**当前 Host（即使进程还活着）并走重生换代。 */
+  z.object({ action: z.literal("kill") }).strict(),
 ]);
 export type DatabaseStartupControl = z.infer<typeof databaseStartupControlSchema>;
 

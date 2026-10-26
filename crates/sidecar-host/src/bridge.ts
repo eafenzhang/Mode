@@ -329,7 +329,7 @@
       }
       return;
     }
-    if (action !== "retry" && action !== "exit") return;
+    if (action !== "retry" && action !== "exit" && action !== "kill") return;
     try {
       internals.invoke(CMD_STARTUP_CONTROL, { action: action }).catch(function (error) {
         fail("host_startup_control_failed", error);

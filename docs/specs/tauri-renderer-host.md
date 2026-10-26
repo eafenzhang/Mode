@@ -2198,8 +2198,8 @@ LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/conne
 1. ~~**`DatabaseStartupControl` 在 Tauri 线无消费者**~~ **已收口（2026-10-26，§22.4）**：
    桥监听 `mode:database-startup-control` 并转发 `host_startup_control`——retry = 壳重置
    退避并重生（存活时只 reload）、exit = 退出应用、snapshot = 回放最后一帧。
-2. **进程活着但管道停摆不可检测**：本口径只覆盖「进程死亡」（有 stdout EOF 事实）。
-   半开管道需要心跳/驻留帧，属传输层独立任务；在此之前，运输停摆仍表现为挂起。
+2. ~~**进程活着但管道停摆不可检测**~~ **已收口（2026-10-26，§22.5）**：渲染层心跳对
+   `host` 频道发 `ping` 限时等 `pong`，连续两次无 pong 判定停摆 → kill + fail-closed + 重生。
 3. **Host 死亡的现场取证**：安装版不落盘服务日志（LR-5 §27 `exportLogs` 欠账），
    Host 为何死亡（怀疑 RD 原生媒体路径）仍需 dev 版复现 + 服务日志定位；本收口保证
    死亡在渲染层**可见且可复制诊断**，不再静默。
@@ -2249,6 +2249,39 @@ LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/conne
    崩溃循环放弃后的失败屏**没有重试按钮**，只能退出重开。
 6. **边界**：多窗口不在本口径（当前只有主窗口）；半开管道（进程活着但传输停摆）仍不可
    检测，见 §22.3 第 2 条。
+
+### 22.5 半开管道心跳（2026-10-26 立项并落地）
+
+**问题**：§22.2/§22.4 只覆盖「进程死亡」（stdout EOF 是进程事实）。Host 进程活着但事件循环
+停摆（双 wedge 的另一形态）时，所有 RPC 永久 pending 而 EOF 永不到来——需要**应用层活性探测**。
+
+**所有者与事件序**：
+
+```
+渲染层 watchdog（hostLivenessWatchdog，base 连接存活期间运行）
+  每 30s: getChannel("host").call("ping") → 限时 10s 等 {pong:true}
+    ├─ pong           → strike = 0，下一轮
+    └─ 超时/形状不对  → strike + 1
+         连续 2 次 →
+           ① 控制消息 kill（先发：dispose 后只剩桥面还能出去）
+              → 壳杀当前 Host（进程活着也杀）→ 监督线程按一次崩溃重生换代
+           ② 本地 failCloseHostTransport（dispose + 终态屏，§22.2 同一路径）
+           → 重生后整页 reload，回到正常启动链
+```
+
+**规则**：
+
+1. **探测做在 `host` 频道的 `ping` 命令上**（`{pong:true}`），刻意不走业务服务：探测必须与
+   业务负载无关；停摆的事件循环回不了任何帧（包括这一条）。
+2. **防误杀**：deadline 10s 远大于正常 pong（毫秒级）；要**连续** 2 次；迟到 pong 不回滚
+   strike——事件循环停摆 20s 对用户已等效死亡。kill 计一次崩溃，仍受 §22.4 的 3 次上限约束
+   （反复僵死的 Host 最终会停在终态屏，等人工重试）。
+3. **kill 控制动作**：`databaseStartupControlSchema` 新增 `{action:"kill"}` → 壳
+   `kill_current()`——杀当前代但**不**标记壳退出，监督线程按普通死亡走重生换代。
+4. **收口同路径**：心跳停摆与进程死亡共用 `failCloseHostTransport`（dispose + scoped
+   session 收口 + 终态屏），watchdog 随之停止；页面由重生后的 reload 重建。
+5. **边界**：心跳只覆盖 base 连接（§22.2 同口径）；渲染层后台节流最多让探测变稀，不会误报
+   （deadline 内有 pong 就重置）；Web/手机线无此通道，不适用。
 
 ## 23. 数据目录切换的重启生效：默认根引导指针（2026-10-25 立项并落地）
 

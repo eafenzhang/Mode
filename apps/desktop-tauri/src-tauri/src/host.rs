@@ -216,6 +216,14 @@ impl HostSupervisor {
         }
     }
 
+    /// 杀掉当前代但**不**标记壳退出（心跳判定传输停摆后的 kill 动作）：
+    /// 监督线程看到进程退出，按一次崩溃计账并走重生换代。
+    pub fn kill_current(&self) {
+        if let Err(error) = self.current().shutdown() {
+            eprintln!("[mode-tauri] kill Host 失败：{error}");
+        }
+    }
+
     /// 终态屏「重试」：给一整轮新的重试预算。
     ///
     /// 进程还活着时只刷新页面（用户的「重试」针对的是渲染层状态，杀 Host 会打断任务）；
@@ -379,6 +387,7 @@ pub fn host_startup_id(supervisor: State<'_, Arc<HostSupervisor>>) -> String {
 
 /// 终态屏控制（`mode:database-startup-control`）：旧 Electron main 的消费者已随旧线 EOL，
 /// 由桥转发到这里。`retry` = 重置退避并重生（存活时只 reload）；`exit` = 退出应用；
+/// `kill` = 心跳判定传输停摆：杀掉当前 Host（即使进程活着）并走重生换代；
 /// `snapshot` = 无需动作（状态流本就连续，桥会直接回放最后一帧）。
 #[tauri::command(rename = "host_startup_control")]
 pub fn host_startup_control<R: Runtime>(
@@ -389,6 +398,10 @@ pub fn host_startup_control<R: Runtime>(
     match action.as_str() {
         "retry" => {
             supervisor.force_restart(&app);
+            Ok(())
+        }
+        "kill" => {
+            supervisor.kill_current();
             Ok(())
         }
         "exit" => {
