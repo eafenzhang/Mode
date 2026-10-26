@@ -49,3 +49,18 @@ test("sink 写入落盘：追加、自动补换行、保持顺序", async () => 
   const raw = await readFile(join(hostLogDir(root), hostLogFileName()), "utf8");
   assert.ok(raw.includes(`line-1${NL}line-2`), `actual=${JSON.stringify(raw)}`);
 });
+
+test("跨日按写入时刻滚动到新文件（不沿用 sink 创建日的文件名）", async () => {
+  const root = await mkdtemp(join(tmpdir(), "mode-log-rollover-"));
+  let now = new Date(2026, 9, 25, 23, 59, 0);
+  const sink = await createHostLogFileSink(root, { now: () => now });
+  sink.write("day-1");
+  now = new Date(2026, 9, 26, 0, 0, 1);
+  sink.write("day-2");
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const day1 = await readFile(join(hostLogDir(root), "host-2026-10-25.log"), "utf8");
+  const day2 = await readFile(join(hostLogDir(root), "host-2026-10-26.log"), "utf8");
+  assert.ok(day1.includes("day-1"), `day1=${JSON.stringify(day1)}`);
+  assert.ok(!day1.includes("day-2"), `跨日后不得再写旧文件：${JSON.stringify(day1)}`);
+  assert.ok(day2.includes("day-2"), `day2=${JSON.stringify(day2)}`);
+});

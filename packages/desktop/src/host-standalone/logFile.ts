@@ -51,11 +51,19 @@ export interface HostLogFileSink {
   write(line: string): void;
 }
 
+export interface HostLogFileSinkOptions {
+  /** 写入时刻的时钟（用例注入；产品用真实时间）。 */
+  now?: () => Date;
+}
+
 /**
  * 建 sink：目录建不出来/首批写入失败时返回仍可安全调用的 no-op sink
  * （写失败一次后不再重试，避免每条日志都打一次失败的 stderr 噪音）。
  */
-export async function createHostLogFileSink(dataRoot: string): Promise<HostLogFileSink> {
+export async function createHostLogFileSink(
+  dataRoot: string,
+  options: HostLogFileSinkOptions = {},
+): Promise<HostLogFileSink> {
   const dir = hostLogDir(dataRoot);
   try {
     await mkdir(dir, { recursive: true });
@@ -63,7 +71,7 @@ export async function createHostLogFileSink(dataRoot: string): Promise<HostLogFi
     return { write: () => {} };
   }
   let broken = false;
-  const writeDate = new Date();
+  const now = options.now ?? (() => new Date());
   let writeChain: Promise<void> = Promise.resolve();
   // 启动时顺手清理超期文件（best-effort；失败不影响本进程写日志）。
   void (async () => {
@@ -82,8 +90,10 @@ export async function createHostLogFileSink(dataRoot: string): Promise<HostLogFi
       if (broken) {
         return;
       }
-      // 跨日滚动：写时按当前日期取文件名（同日追加、跨日自然切文件）。
-      const file = join(dir, hostLogFileName(writeDate));
+      // 跨日滚动：**写入时**取日期（同日追加、跨日自然切文件）。
+      // 这里曾经在 sink 创建时缓存 `new Date()`：10-25 启动的 Host 在 10-26 仍往
+      // `host-2026-10-25.log` 写（0.0.86 安装版实测），滚动形同虚设。
+      const file = join(dir, hostLogFileName(now()));
       // 串行写链：并发的 appendFile 在 Windows 上完成顺序不保证（实测出现后行先行落盘），
       // 日志顺序是可读性的前提——每条写等上一条完成后再发起。
       writeChain = writeChain
