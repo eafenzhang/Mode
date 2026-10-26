@@ -99,6 +99,19 @@ fn main() {
             sidecar_host::decorations_for_shell_entry(entry_override.as_deref()),
         )?;
 
+        // 通知点击跳转（spec 命令表第 8 行）：点击系统通知 → 显示并聚焦主窗口。
+        // 必须在任何通知发出**之前**注册（插件口径：首个 handler 之前展示的通知不上报）；
+        // handler 进插件的全局表，整个生命周期只注册这一次。Windows 口径：toast 在屏时
+        // 点击才上报，进了操作中心就不报。焦点语义与单实例二次启动共用同一实现。
+        platform::commands::notify::register_click_to_focus(&handle, {
+            let notification_handle = handle.clone();
+            move || {
+                eprintln!("[mode-tauri] notification click -> focus main window");
+                mode_tauri::single_instance::focus_existing_main_window(&notification_handle);
+            }
+        })
+        .expect("register notification click handler");
+
         // 关闭窗口时隐藏到托盘（Windows 设置 `closeToTrayOnWindows`，spec 命令表 `syncAppSettings`）。
         // 三条关闭路径——自绘标题栏关闭按钮（`closeWindow` → `window.close()`）、Alt+F4、
         // 任务栏/系统菜单——全部汇聚在 CloseRequested，在这一处统一拦截，不逐路分发。

@@ -62,7 +62,10 @@ fn handoff<R: Runtime>(app: &AppHandle<R>, args: Vec<String>, _cwd: String) {
 }
 
 /// 显示、还原并聚焦既有主窗口；窗口不在时静默返回。
-fn focus_existing_main_window<R: Runtime>(app: &AppHandle<R>) {
+///
+/// 两个消费者：单实例二次启动（点程序图标）、通知点击（spec 平台命令表第 8 行）——
+/// 同一个「让主窗口回到用户面前」的语义，只有一份实现。
+pub fn focus_existing_main_window<R: Runtime>(app: &AppHandle<R>) {
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
         eprintln!("[single-instance] 主窗口 {MAIN_WINDOW_LABEL} 不在，无法聚焦（不新建）");
         return;

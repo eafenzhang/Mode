@@ -47,7 +47,7 @@ M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText` + LR-5 追加的
 | 5 | `createTempTextAttachment` | `(payload: CreateTempTextAttachmentRequest) -> Promise<CreateTempTextAttachmentResult>` | **已实现（LR-5，2026-10-22）**：写入系统临时目录 `mode-temp-attachments/<pid>-<纳秒>/<filename>`；文件名去路径分量、非法字符替换为 `_`，空名/`.`/`..` 回退 `attachment.txt`；每次调用独立子目录，同名不覆盖。失败返回稳定码 `create_temp_text_attachment_failed`，IO 细节只进 stderr |
 | 6 | `openInFileManager` | `(path: string) -> Promise<{success, error?}>` | 按路径类型分派：目录 → 文件管理器打开；文件 → 在父目录中选中；路径不可用 → `success: false` |
 | 7 | `openExternalFile` | `(path: string) -> Promise<{success, error?}>` | **已实现（LR-5，2026-10-22）**：用系统默认应用打开**存在的文件**；目录返回 `not_a_file`（目录走 `openInFileManager`），不存在返回 `path_unavailable: …`。校验抽成纯函数，用例覆盖不存在/目录/文件三种形态 |
-| 8 | `showTaskNotification` | `(payload: TaskNotificationPayload) -> void` | `tauri-plugin-notification`；是否真正展示交系统 |
+| 8 | `showTaskNotification` | `(payload: TaskNotificationPayload) -> void` | `tauri-plugin-notification`；是否真正展示交系统。**点击行为（2026-10-26 落地）**：壳在启动时经 `notify::register_click_to_focus` 注册一次 `on_action`（必须先于任何通知；handler 进插件全局表，重复注册会累积）——点击通知 → `show()/unminimize()/set_focus()` 主窗口（与单实例二次启动共用同一焦点实现）。Windows 口径：toast **在屏时**点击才上报，进操作中心后不报 |
 | 9 | `notifyRendererReady` | `() -> void` | 记录就绪位到 `AppState`；**冷启动深链在这里回放**（缓存与回放时序在 `crates/deeplink` 的 router，有单测）。运行期与第二实例转发见 §2 与 §9.1 |
 | 10 | `syncWindowTabs` | `(paths: string[]) -> void` | 覆盖式写入 `AppState` |
 | 11 | `syncWindowUnreadCount` | `(count: number) -> void` | 覆盖式写入 `AppState` |
@@ -511,7 +511,7 @@ M1 §5 登记的是「`onOAuthCallback` / `onPaymentCallback` 之外的订阅型
 | `onOpenWorkspacePath` | **关闭**（真实现） | 同上（「main 进程通过 deep link 直接打开本地工作区目录」），`workspace-open` 一直是投递中的 kind |
 | `onOAuthCallback` / `onPaymentCallback` | 已实现（M1） | — |
 | `onFocusTab` / `onNewTab` / `onNewTask` / `onOpenWorkspace` | **登记为不做** | 事件源是**壳自己的菜单/托盘/快捷键**（旧线由 Electron main 发）。本阶段壳没有这些入口的**发送方**，也没有窗口模型（多 tab 语义属 M4） |
-| `onTaskNotificationClick` | **登记为不做** | 需要「通知被点」的回调链（`tauri-plugin-notification` 的通知点击事件 + 任务 id 回传）。当前只做了「展示通知」（`showTaskNotification`） |
+| `onTaskNotificationClick` | **事件面仍不做；点击跳转已实现（2026-10-26，命令表第 8 行）** | 渲染层不需要逐次回调：壳在启动时注册一次 `on_action`，任何通知被点都直接 `show/unminimize/set_focus` 主窗口（Windows：toast 在屏时才上报）。「带任务 id 的点击回传到具体任务」仍无消费方，维持不做 |
 | `onWindowFullscreenChanged` | **登记为不做** | 壳**有**窗口事件的来源（`RunEvent::WindowEvent` + `is_fullscreen()`），但发它需要**新增一个事件名**（协议 + 注入层 + 生成物三处一起动）。本任务的授权是「复用既有通道」，新增通道属窗口模型（M4）的改动。**注意它没有随 §9.5 一起接上**：§9.5 的 chrome 状态里没有 `isFullscreen` 字段（声明如此），所以那个布尔值没有来源 |
 | `executeDesktopCommand` / `getDesktopWindowChromeState` / `onDesktopWindowChromeStateChanged` | **实现**（fix round，用户报障） | 见 §9.5：自绘标题栏依赖它们，而注入层从前把它们当「降级空操作 / 缺席」 |
 | `onRemoteConnectionLog` / `onRemoteSessionClosed` / `onBotRemoteWorkspaceReconnected` / `onRemoteDesktopSessionEvent` | **独立立项（2026-10-19）** | 事件源在远控链路（attachment 调度、远端传输）；迁移计划见 `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`。在 LR-4 完成前仍保持拒绝/空操作，不伪装成功 |
