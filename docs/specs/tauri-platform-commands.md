@@ -19,7 +19,7 @@ Node/TS 侧提供，经 sidecar（M3）接入。因此本阶段：
 ## 1. 命令切片
 
 M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText` + LR-5 追加的
-`createTempTextAttachment` / `openExternalFile`（共 13 条）。命令名与 `IPlatformService`
+`createTempTextAttachment` / `openExternalFile` / `exportLogs`（共 14 条）。命令名与 `IPlatformService`
 （`packages/shared/src/platform.ts`）**逐字一致**——渲染层的适配层按同名映射，
 改名即断链。切片表的唯一真源是 `crates/platform/src/commands/mod.rs` 的宏调用：
 命令名与处理函数成对声明，`init()` 与 `registered_names()` 都从它派生。
@@ -54,6 +54,25 @@ M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText` + LR-5 追加的
 | 12 | `getApplicationIcon` | `(req: ApplicationIconRequest) -> IconInfo \| null` | **已实现（Windows，M3 Task 4 起）**：Shell 取图标资源 + GDI 取像素 → PNG data URL；按 locator 顺序尝试，**取不到返回 `null`（契约允许），从不抛**。**macOS 半边未实现且本阶段不验**（Ruling 20），见 §9.2 |
 | 13 | `rdReadClipboardText` | `() -> Promise<string>` | **已实现（LR-3，Windows）**：壳读 CF_UNICODETEXT（`OpenClipboard` 争用重试 200ms，无文本/被占用返回空串，从不抛）；非 Windows 返回空串。远程桌面主控剪贴板同步的读取口（D7：Host 不碰平台 API） |
 | 14 | `syncAppSettings` | `(patch: Partial<AppSettings>) -> void` | **已实现（2026-10-25）**：窗口行为类设置的壳侧同步口。壳只解释它执行的键（现 `closeToTrayOnWindows`，落 `WindowCloseBehavior` AtomicBool），其余键不解释；缺省 `false` = 直接退出（fail-safe）。**关闭拦截**在壳 `main.rs` 的 `CloseRequested` 统一做：开关为开且托盘可用（`tray::TRAY_ID` 可查）→ `prevent_close` + `hide`（自绘关闭按钮/Alt+F4/任务栏三条路径全汇聚于此）；托盘不可用即使开关为开也放行关闭——「隐藏到不存在的托盘」等于应用凭空消失。开关事实由渲染层同步：启动时一次（`useRootPlatformEffects`，Windows 门控）+ 设置页变更补丁；壳不读业务存储。补丁当前消费两个键：`closeToTrayOnWindows`（见上）与 `keepAwakeWhileRunning`（**保持电脑运行**：`SetThreadExecutionState(ES_CONTINUOUS\|ES_SYSTEM_REQUIRED)` 阻止空闲休眠、手动睡眠/合盖不受影响；设置页同门控仅 Windows 呈现，非 Windows 执行器 no-op） |
+
+| 15 | `exportLogs` | `() -> Promise<{ success: boolean; path?: string; error?: string }>` | **已实现（2026-10-26，LR-5 §27）**：把 Host sidecar 的文件日志打成一个**单文件文本包**，经系统保存对话框落盘。**日志目录与 Host 同口径解析**：数据基目录 = `MODE_DATA_BASE_DIR`（非空）→ 默认根 `~/.mode/v2/setting.json` 的持久化 `dataBaseDir` 指针 → 家目录；日志目录 = `<基目录>/.mode/v2/logs`（壳是 Host 的父进程，两处输入一致；纯函数在 `sidecar_host::settings_probe`，含用例）。内容 = 该目录下全部 `*.log`（按名升序），包格式见 §1.1。**不引入压缩依赖**（单文件可直读、三平台一致）。对话框归属壳，默认文件名 `Mode-logs-YYYYMMDD-HHMMSS.log`；**用户取消 → `{success:false}` 且无 `error`**（取消不是失败）；无日志可导 → `{success:false, error:"no_logs"}`（不导出空文件冒充成功）；写盘失败 → `{success:false, error:"write_failed"}`，细节只进 stderr |
+
+### 1.1 `exportLogs` 的包格式
+
+```
+Mode logs export
+exportedAt: <RFC 3339 UTC>
+logDir: <绝对路径>
+files: <数量>
+
+===== <文件名> (<字节数> bytes) =====
+<文件原文（非 UTF-8 字节按 lossy 替换）>
+
+===== <下一个文件> … =====
+```
+
+行为确定：文件按名称升序拼接、每段之间以空行分隔、末尾补一个换行。写盘不承诺原子性
+（诊断导出而非业务数据；失败返回 `write_failed`，可能留下不完整文件）。
 
 ### 非本地路径的处理
 
@@ -799,5 +818,6 @@ SSH/WSL/Docker 在 Tauri Host 明确返回不支持；bot reconnect 与 UI 断�
 - 注入层无导入能力，URL 按 shared 真源硬抄，注释标明改址需两处同步；
   验收台（`tauri-invoke-shim.ts`）与注入层同语义，由 `windowModeInjection.test.mts` 对拍。
 - `desktopPlatform` 恢复直通委托（`window.mode.canOpenCommunity` / `openCommunity`）。
-- `exportLogs` 仍在 `REJECTING_REQUIRED`：需要壳先产出「日志落盘路径 + 导出对话框」的
-  产品设计（Tauri 线日志落盘口径未确认），属待设计项，不假装成功。
+- `exportLogs` **已从 `REJECTING_REQUIRED` 迁出**（2026-10-26）：日志落盘口径已由 Host
+  文件日志（`466dcb0e`）确定，壳命令 `exportLogs` 按命令表第 15 行实现；两处注入面同步
+  改为真实现，由 `windowModeInjection.test.mts` 对拍。

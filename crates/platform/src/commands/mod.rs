@@ -8,6 +8,8 @@
 pub mod clipboard;
 pub mod dialog;
 pub mod icon;
+/// LR-5 §27：Host 文件日志导出（单文件文本包 + 保存对话框）。
+pub mod logs;
 pub mod notify;
 pub mod shell;
 pub mod temp_attachment;
@@ -99,4 +101,6 @@ command_slice! {
     "getApplicationIcon" => icon::get_application_icon,
     // LR-3：远程桌面主控剪贴板同步的读取口（壳能力）。
     "rdReadClipboardText" => clipboard::rd_read_clipboard_text,
+    // LR-5 §27：Host 文件日志导出（spec 命令表第 15 行）。
+    "exportLogs" => logs::export_logs,
 }

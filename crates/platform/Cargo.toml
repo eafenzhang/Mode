@@ -22,6 +22,10 @@ protocol = { path = "../protocol" }
 # 深链的冷启动队列由 `notifyRendererReady` 触发回放（见 commands/window.rs），
 # 所以 platform 需要拿到 deeplink 的托管状态。依赖方向单向：platform -> deeplink。
 deeplink = { path = "../deeplink" }
+# `exportLogs` 要按 Host 同口径解析数据根：默认根 setting.json 的指针解析是纯函数、
+# 已带用例（`sidecar_host::settings_probe`），复用而不在壳里重写一份。方向单向、
+# sidecar-host 只依赖 serde_json，无环。
+sidecar-host = { path = "../sidecar-host" }
 serde.workspace = true
 serde_json.workspace = true
 # 对话框命令是回调式 API，用 oneshot 把它接成 async command 的返回值。

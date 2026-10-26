@@ -1,4 +1,4 @@
-//! 壳在 **WebView/Host 起来之前**就要消费的设置探针（当前：硬件加速开关）。
+//! 壳在 **WebView/Host 起来之前**就要消费的设置探针（当前：硬件加速开关、数据基目录指针）。
 //!
 //! 为什么放本 crate：判定是纯函数、要单测；`mode-tauri` 的测试目标在本地 gnu 工具链
 //! 链不起来（见 2026-10-25 验收记录），把可测面放在这里让 CI 与本地都跑得到。
@@ -22,6 +22,16 @@ pub fn gpu_disabled_from_settings(raw: &str) -> bool {
     value
         .get("desktopChromiumHardwareAccelerationEnabled")
         .is_some_and(|flag| flag.as_bool() == Some(false))
+}
+
+/// 从 setting.json 原文解析持久化的数据基目录指针 `dataBaseDir`
+/// （TS 侧 `persistedDataBaseDirFromSettings` 的逐字对应）：坏 JSON / 缺键 / 非字符串 /
+/// 空串一律 `None`，回落家目录。指针只在 `MODE_DATA_BASE_DIR` 未设置时生效——
+/// 优先级与 Host 侧 `resolveDataRoot` + `withPersistedDataBaseDir` 一致。
+pub fn persisted_data_base_dir_from_settings(raw: &str) -> Option<String> {
+    let value = serde_json::from_str::<serde_json::Value>(raw).ok()?;
+    let dir = value.get("dataBaseDir")?.as_str()?.trim();
+    (!dir.is_empty()).then(|| dir.to_string())
 }
 
 #[cfg(test)]
@@ -54,6 +64,29 @@ mod tests {
         assert!(!gpu_disabled_from_settings(
             r#"{"desktopChromiumHardwareAccelerationEnabled":"false"}"#
         ));
+    }
+
+    #[test]
+    fn persisted_pointer_is_trimmed() {
+        assert_eq!(
+            persisted_data_base_dir_from_settings(r#"{"dataBaseDir":"  D:/ModeData  "}"#),
+            Some("D:/ModeData".to_string())
+        );
+    }
+
+    #[test]
+    fn missing_or_unusable_pointer_falls_back() {
+        assert_eq!(persisted_data_base_dir_from_settings("{}"), None);
+        assert_eq!(
+            persisted_data_base_dir_from_settings(r#"{"dataBaseDir":"   "}"#),
+            None
+        );
+        assert_eq!(
+            persisted_data_base_dir_from_settings(r#"{"dataBaseDir":42}"#),
+            None
+        );
+        assert_eq!(persisted_data_base_dir_from_settings("{:wq}"), None);
+        assert_eq!(persisted_data_base_dir_from_settings(""), None);
     }
 
     #[test]

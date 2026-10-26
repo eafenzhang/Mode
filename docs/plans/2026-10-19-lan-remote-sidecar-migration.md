@@ -872,7 +872,7 @@ helpAppConfig 读取器对三语一律返回兜底入口 `MODE_ISSUES_URL`，不
 | RD 7 条 + `rdSendSignal`/`rdEndSession` | 保持拒绝桩（决策 D1） | 同上 |
 | `isDockerAvailable`/`listWSLDistros`/`listDockerContainers`/`listSSHConfigAliases` | 保持拒绝桩 | Tauri Host 明确返回不支持（LR-4 口径），不伪装成功 |
 | `loadMcpFromUserDirectory`/`migrateLegacyCommonMcp`/`saveMcpToUserDirectory` | 保持拒绝桩 | 渲染层已改走 host 的 mcpSyncService |
-| `exportLogs` | **待设计（人工）** | 契约在、调用方为零（`sidebar.exportLogs` 文案无组件引用）；导出内容/格式/对话框归属无产品设计。Electron 处理器已随 `d71ed992` 删除，Tauri 线日志落盘口径未确认。设计拍板后再迁 |
+| `exportLogs` | **已实现（2026-10-26）** | 日志落盘口径由 Host 文件日志（`466dcb0e`，`<dataRoot>/v2/logs/host-*.log`）确定；壳命令 `exportLogs`（spec 命令表第 15 行 + §1.1 包格式）按 Host 同口径解析目录，把全部 `.log` 打成一个文本包经保存对话框落盘。产品决策：不引压缩依赖、取消不算失败、无日志回 `no_logs`。两处注入面同步迁出拒绝清单 |
 | 事件订阅面（`onFocusTab` 等） | 登记为不做（spec §9.4） | 壳没有事件发送方 |
 | `onUpdateCheckResult`/`onPostUpdateReleaseNotes`/`acknowledgePostUpdateReleaseNotes` | 登记为不做（spec §9.4） | 无事件源 |
 | `getDeviceId`/`setApplicationLocale`/`setTitleBarTheme`/`activateOrSetWorkspace`/`registerOAuthState`/`syncActiveTaskSession`/`disposeRemoteSession`/`removeLanPairedPeer`/`renameLanPairedPeer` | 保持现状 | 业务面/Host 委托面或无产品入口 |

@@ -3,14 +3,15 @@
 //! 命令名必须与 `IPlatformService`（`packages/shared/src/platform.ts`）逐字一致 —— 渲染层
 //! 的 `invoke()` 适配层按同名映射，改名即断链。
 //!
-//! 本文件必须留在 `tests/`（集成测试目标）：`crates/platform/build.rs` 只对**测试目标**
-//! 注入 comctl32 v6 清单（`rustc-link-arg-tests`），而 cargo 只把 `tests/` 下的目标算作
-//! 测试目标；放进 lib 单测则拿不到清单，进程启动即 `STATUS_ENTRYPOINT_NOT_FOUND`。
+//! comctl32 v6 清单由 `crates/platform/build.rs` 注入（`tauri-test-manifest`，2026-10-26
+//! 起改用合法的 `cargo:rustc-link-arg`，本包所有链接产物——含 lib 单测——都会带上）。
+//! 早先放在 `tests/` 是为了只有集成测试目标能拿到清单；现在不再有这个限制，
+//! 目录位置保持不动（改动无收益）。
 use platform::commands::shell::external_file_target_error;
 use platform::commands::{registered_names, M1_HANDLER_PATHS};
 
 /// 切片表里的命令，顺序与 spec 表格一致。
-const M1_SLICE: [&str; 14] = [
+const M1_SLICE: [&str; 15] = [
     "openExternal",
     "selectDirectory",
     "selectFile",
@@ -27,6 +28,8 @@ const M1_SLICE: [&str; 14] = [
     "rdReadClipboardText",
     // 窗口行为类设置同步（关闭隐藏到托盘的唯一执行者是壳）。
     "syncAppSettings",
+    // LR-5 §27：Host 文件日志导出（壳把日志打成一个文本包）。
+    "exportLogs",
 ];
 
 #[test]
@@ -97,6 +100,7 @@ const COMMAND_SOURCES: &[&str] = &[
     include_str!("../src/commands/icon.rs"),
     include_str!("../src/commands/clipboard.rs"),
     include_str!("../src/commands/temp_attachment.rs"),
+    include_str!("../src/commands/logs.rs"),
 ];
 
 /// 线上真正的命令名 = `#[tauri::command(rename = "...")]` 的字面量。

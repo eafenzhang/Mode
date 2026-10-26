@@ -136,6 +136,8 @@
     "rdReadClipboardText",
     // 窗口行为类设置同步（关闭隐藏到托盘的唯一执行者是壳）。
     "syncAppSettings",
+    // LR-5 §27：Host 文件日志导出（壳打成单文件文本包 + 保存对话框）。
+    "exportLogs",
   ];
   /**
    * 通过**宿主深链事件通道**实现的订阅方法（不在命令表里）。
@@ -216,7 +218,6 @@
     "getLanPeerWorkspaces",
     "loadMcpFromUserDirectory",
     "migrateLegacyCommonMcp",
-    "exportLogs",
     "rdGetPeerCapability",
     "rdStartSession",
     "rdGetControlledState",
@@ -678,6 +679,11 @@
     },
     saveFile: function (payload) {
       return invoke("saveFile", { payload: payload });
+    },
+    // LR-5 §27：导出 Host 文件日志（壳命令打成一个文本包并弹保存对话框）。
+    // 语义：`{ success, path?, error? }`；用户取消 = `success:false` 且无 error。
+    exportLogs: function () {
+      return invoke("exportLogs");
     },
     createTempTextAttachment: function (payload) {
       return invoke("createTempTextAttachment", { payload: payload });

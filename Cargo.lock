@@ -3000,6 +3000,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "sidecar-host",
  "tauri",
  "tauri-plugin-dialog",
  "tauri-plugin-notification",

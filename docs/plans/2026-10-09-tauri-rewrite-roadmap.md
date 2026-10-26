@@ -81,8 +81,8 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > （§基线·IPC / 核心载荷 59.77 MiB / stream-latency 两段）、IM bot SDK 动态 import 半件、
 > `KNOWN_V1_PAYLOAD_LAG` 两处协议 schema 漂移全部修复（`tauri-agent-runtime.md` §6.6）、
 > 仪表刷新（重合度 9.17%）。**剩余均为人工项，无自动化可推进点**，逐项索引：
-> 真机/真账号验收（M0 P2 UAC、M2 20 任务、M3 各域见快照表）、`exportLogs` 产品设计
-> （LR-5 §27）、同意窗壳窗口决策（LR-3）、IM bot SDK 移出 ship 闭包的按需资产基建或
+> 真机/真账号验收（M0 P2 UAC、M2 20 任务、M3 各域见快照表）、同意窗壳窗口决策（LR-3）、
+> IM bot SDK 移出 ship 闭包的按需资产基建或
 > fail-closed 拍板（M4a 可选项注记）、memory 30min 正式基线（等无实例窗口，脚本已就绪）、
 > M4 并行子线人工段（UI 看屏/台账 Linux CI/法务）、M5 三平台签名与 EOL 公告。
 > 复核入口：本节 + 快照表各阶段「仍阻塞」列。

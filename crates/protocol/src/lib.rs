@@ -113,6 +113,21 @@ pub struct SaveFileResult {
     pub success: bool,
 }
 
+/// `exportLogs` 的返回形状（TS 侧 `packages/shared/src/platform.ts:879` 是内联对象
+/// 字面量 `{ success: boolean; path?: string; error?: string }`）。
+///
+/// 取消（用户关掉保存对话框）是 `success:false` 且**无 `error`**——取消不是失败；
+/// `error` 只在真正出错时给出稳定码（`no_logs` / `write_failed` / `home_unavailable`）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportLogsResult {
+    pub success: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 /// `openInFileManager` 的返回形状（TS 侧是内联对象字面量，这里是它的具名 Rust 对应）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]

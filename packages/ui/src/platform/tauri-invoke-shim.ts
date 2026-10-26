@@ -152,6 +152,8 @@ export const M1_IMPLEMENTED_COMMANDS = [
   "rdReadClipboardText",
   // 窗口行为类设置同步（关闭隐藏到托盘的唯一执行者是壳）。
   "syncAppSettings",
+  // LR-5 §27：Host 文件日志导出（壳打成单文件文本包 + 保存对话框）。
+  "exportLogs",
 ] as const;
 
 /** M1 未实现的**必选**方法：调用即抛 `not_implemented_until_m3`。 */
@@ -185,7 +187,6 @@ export const M1_UNIMPLEMENTED_REQUIRED_METHODS = [
   "onOpenWorkspace",
   "onWindowFullscreenChanged",
   "onTaskNotificationClick",
-  "exportLogs",
   "onUpdateCheckResult",
   "onPostUpdateReleaseNotes",
   "acknowledgePostUpdateReleaseNotes",
@@ -435,6 +436,10 @@ export function createTauriPlatformService(
     },
     saveFile(payload: SaveFileRequest): Promise<SaveFileResult> {
       return invoke("saveFile", { payload }) as Promise<SaveFileResult>;
+    },
+    /** LR-5 §27：导出 Host 文件日志；用户取消 = `success:false` 且无 `error`。 */
+    exportLogs(): Promise<{ success: boolean; path?: string; error?: string }> {
+      return invoke("exportLogs") as Promise<{ success: boolean; path?: string; error?: string }>;
     },
     createTempTextAttachment(
       payload: CreateTempTextAttachmentRequest,

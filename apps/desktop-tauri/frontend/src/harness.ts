@@ -187,6 +187,13 @@ const COMMAND_SPECS = [
         closeToTrayOnWindows: (values.closeToTrayOnWindows ?? "true").trim() === "true",
       }),
   },
+  {
+    name: "exportLogs",
+    summary:
+      "LR-5 §27：Host 文件日志导出成单文件文本包（保存对话框；取消 = success:false 且无 error）",
+    fields: [],
+    call: (platform) => platform.exportLogs?.(),
+  },
 ] satisfies CommandSpec[];
 
 /**

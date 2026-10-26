@@ -14,7 +14,9 @@ use tokio::sync::oneshot;
 use crate::source_url;
 
 /// 把回调式对话框接成 `async` 结果；回调被丢弃（对话框被外部关闭）时视为取消。
-async fn await_pick<F>(open: F) -> Option<FilePath>
+///
+/// `pub(crate)`：`exportLogs` 的保存对话框复用同一接线（一处实现，不各写一份）。
+pub(crate) async fn await_pick<F>(open: F) -> Option<FilePath>
 where
     F: FnOnce(Box<dyn FnOnce(Option<FilePath>) + Send + 'static>),
 {
@@ -28,7 +30,7 @@ where
 
 /// 选中路径转字符串；非本地文件系统路径（如 `content://`）视为取消，
 /// 因为契约要求返回「agent 可访问的本地绝对路径」。
-fn path_string(picked: Option<FilePath>) -> Option<String> {
+pub(crate) fn path_string(picked: Option<FilePath>) -> Option<String> {
     picked
         .and_then(|file_path| file_path.into_path().ok())
         .map(|path| path.to_string_lossy().into_owned())
