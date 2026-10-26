@@ -1,6 +1,6 @@
 //! M3 Task 3 · Step 4 的 **opt-in 真 webview harness**（**测试资产**，不是产品入口）。
 //!
-//! 与 Task 1 的 `HostRoundtripHarness` 是**同一套产品部件**（`mode_tauri::spawn_host` +
+//! 与 Task 1 的 `HostRoundtripHarness` 是**同一套产品部件**（`mode_tauri::host::start` +
 //! `mode_tauri::build_host_window`），差别只有两处，而这两处正是本任务要验的东西：
 //!
 //! 1. 加载的是 **`index.html`**——真 renderer 的构建产物（`frontendDist` 装配后的产品页），
@@ -77,17 +77,16 @@ fn main() {
         // 那是真机上的持久副作用（测试不该改用户的注册表）。见 `deeplink::manage_state`。
         deeplink::manage_state(&handle);
 
-        let host = mode_tauri::spawn_host(&handle);
-        let startup_id = host.startup_id().to_string();
-        println!("HARNESS host startupId={startup_id} pid={}", host.pid());
+        // 产品接线：监督器起第一代；注入桥在文档启动时采用当前代（不再注入 id 字面量）。
+        let supervisor = mode_tauri::host::start(&handle);
 
         // 与产品壳**同一段注入**（`bridge_script` 内含 `window.mode`），入口页也取产品默认值
         // （`pick_shell_entry` 在未覆写时返回 `index.html`）。
         let withhold = withhold_window_mode();
         let injection = if withhold {
-            sidecar_host::bridge::host_bridge_script(&startup_id)
+            sidecar_host::bridge::host_bridge_script()
         } else {
-            sidecar_host::bridge::bridge_script(&startup_id)
+            sidecar_host::bridge::bridge_script()
         };
         let probe = PROBE_SCRIPT
             .replace(
@@ -101,11 +100,12 @@ fn main() {
                 if window_controls() { "1" } else { "0" },
             );
         println!(
-            "HARNESS injection={} startupId={startup_id} pid={}",
+            "HARNESS injection={} startupId={} pid={}",
             if withhold { "bridge_only" } else { "window_mode+bridge" },
-            host.pid()
+            supervisor.current().startup_id(),
+            supervisor.current().pid()
         );
-        app.manage(host);
+        app.manage(supervisor);
         // **产品页 → 无边框**：与产品壳同一个判据（`decorations_for_shell_entry(None)`），
         // 不在这里另写一遍——调用点自己写判据正是这次判错的地方。对照档见 `force_decorations`。
         let expected_decorations = force_decorations() || sidecar_host::decorations_for_shell_entry(None);
@@ -144,9 +144,12 @@ fn main() {
 
     app.run(|app_handle, event| {
         if let tauri::RunEvent::Exit = event {
-            if let Some(host) = app_handle.try_state::<sidecar_host::HostHandle>() {
-                let _ = host.shutdown();
-                println!("HARNESS host_shutdown pid={}", host.pid());
+            if let Some(supervisor) =
+                app_handle.try_state::<std::sync::Arc<mode_tauri::host::HostSupervisor>>()
+            {
+                let pid = supervisor.current().pid();
+                supervisor.shutdown();
+                println!("HARNESS host_shutdown pid={pid}");
             }
         }
     });

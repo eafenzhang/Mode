@@ -22,8 +22,8 @@
 //!    （M3 Task 4 fix round 把早先那句「必须在 install 之前 manage」改掉了——那时确实是
 //!    main.rs 自己管的，现在不是了）。
 //! 3. 托盘最后装：它是附加入口，任何一步先失败都不应该连带它。
-//! 4. **Host 先起、窗口后建**（M3 Task 1）：窗口的注入桥要拿 `startupId`，而 startupId 是
-//!    起 Host 时生成的；先建窗口就会拿到一个没有对应 Host 的 id。
+//! 4. **Host 先起、窗口后建**（M3 Task 1）：注入桥在文档启动时经 `host_startup_id` 采用
+//!    当前代，先起 Host 才能保证这笔调用有代可读（未起先建窗口会拿到空 id，桥拒绝投端口）。
 //! 5. 退出时收 Host：`RunEvent::Exit` 里 `shutdown()`（不留孤儿，DR-T1-3）。
 //!
 //! ## 命令面为什么只有一个 `invoke_handler`
@@ -62,14 +62,16 @@ fn main() {
         // 更新状态机：检查/下载/安装分开，状态经 mode:update-state 推给渲染层的原版更新弹窗。
         app.manage(updater::state::UpdateManager::default());
 
-        // Host sidecar：先起再建窗口（注入桥的 startupId 必须与它同代）。
-        let host = mode_tauri::spawn_host(&handle);
-        let startup_id = host.startup_id().to_string();
+        // Host sidecar：起第一代并交给监督器（进程死亡后按退避策略自动重生 + 整页重载，
+        // 见 `host.rs` 的 `watch_loop`）。注入桥不再需要 startupId：它在文档启动时经
+        // `host_startup_id` 采用**当前代**，所以重生换代后 reload 的新文档自动绑定新 id。
+        let supervisor = mode_tauri::host::start(&handle);
         eprintln!(
-            "[mode-tauri] host startupId={startup_id} pid={}",
-            host.pid()
+            "[mode-tauri] host startupId={} pid={}",
+            supervisor.current().startup_id(),
+            supervisor.current().pid()
         );
-        app.manage(host);
+        app.manage(supervisor);
 
         // 窗口必须在 Rust 侧建：`WindowConfig` 没有 `initialization_script` 字段，
         // 配置里的窗口拿不到注入（见 mode_tauri::window 的模块文档）。
@@ -92,7 +94,7 @@ fn main() {
             tauri::WebviewUrl::App(sidecar_host::pick_shell_entry(entry_override.as_deref())),
             "Mode",
             // 产品注入：`window.mode`（平台面适配层）+ Host 桥，一段脚本文本、document-start 求值。
-            &sidecar_host::bridge::bridge_script(&startup_id),
+            &sidecar_host::bridge::bridge_script(),
             None,
             sidecar_host::decorations_for_shell_entry(entry_override.as_deref()),
         )?;
@@ -142,10 +144,12 @@ fn main() {
 
     app.run(|app_handle, event| {
         if let tauri::RunEvent::Exit = event {
-            // 壳正常退出 → 收掉 sidecar（不留孤儿）。被强杀时靠 Host 自己的 stdin EOF 保护兜底，
-            // 见 packages/desktop/src/host-standalone/index.ts。
-            if let Some(host) = app_handle.try_state::<sidecar_host::HostHandle>() {
-                let _ = host.shutdown();
+            // 壳正常退出 → 收掉 sidecar（不留孤儿）并停止自动重生。被强杀时靠 Host 自己的
+            // stdin EOF 保护兜底，见 packages/desktop/src/host-standalone/index.ts。
+            if let Some(supervisor) =
+                app_handle.try_state::<std::sync::Arc<mode_tauri::host::HostSupervisor>>()
+            {
+                supervisor.shutdown();
             }
         }
     });

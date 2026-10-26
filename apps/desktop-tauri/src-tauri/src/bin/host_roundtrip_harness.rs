@@ -2,7 +2,7 @@
 //!
 //! 它只做测试需要的三件事，产品壳（`src/main.rs`）与它共用同一套部件：
 //!
-//! 1. 用**产品接线**起 Host（`mode_tauri::spawn_host`：真 sidecar 入口、真桥脚本、真 startupId）；
+//! 1. 用**产品接线**起 Host（`mode_tauri::host::start`：真 sidecar 入口、真桥脚本、运行时采用 startupId）；
 //! 2. 用**产品窗口装配**（`mode_tauri::build_host_window`）加载集成测试页
 //!    （`harness/host-sidecar/index.html`，由 `test/harness/host-sidecar/vite.config.ts` 产出）；
 //! 3. 看门狗到点后 `app.exit(0)`，让 `RunEvent::Exit` 的 Host 收摊跑一遍——测试据此断言
@@ -34,10 +34,14 @@ fn main() {
     let builder = builder.setup(|app| {
         let handle = app.handle().clone();
 
-        let host = mode_tauri::spawn_host(&handle);
-        let startup_id = host.startup_id().to_string();
-        println!("HARNESS host startupId={startup_id} pid={} dataRootHint=见 host.describe", host.pid());
-        app.manage(host);
+        // 与产品接线一致：监督器起第一代、注入桥在文档启动时采用当前代（不再注入 id 字面量）。
+        let supervisor = mode_tauri::host::start(&handle);
+        println!(
+            "HARNESS host startupId={} pid={} dataRootHint=见 host.describe",
+            supervisor.current().startup_id(),
+            supervisor.current().pid()
+        );
+        app.manage(supervisor);
 
         mode_tauri::build_host_window(
             &handle,
@@ -46,7 +50,7 @@ fn main() {
             tauri::WebviewUrl::App(std::path::PathBuf::from("harness/host-sidecar/index.html")),
             "M3 Task 1 · host round trip",
             // 这个 harness 也要**产品注入**：它验的是产品路径（含 `window.mode`）。
-            &sidecar_host::bridge::bridge_script(&startup_id),
+            &sidecar_host::bridge::bridge_script(),
             // 页面是测试资产（自己实现接收形状），不需要窗外的探针。
             None,
             // 集成测试页**不是产品入口** → 保留系统栏：无边框会让它既移不动也关不掉
@@ -71,9 +75,12 @@ fn main() {
 
     app.run(|app_handle, event| {
         if let tauri::RunEvent::Exit = event {
-            if let Some(host) = app_handle.try_state::<sidecar_host::HostHandle>() {
-                let _ = host.shutdown();
-                println!("HARNESS host_shutdown pid={}", host.pid());
+            if let Some(supervisor) =
+                app_handle.try_state::<std::sync::Arc<mode_tauri::host::HostSupervisor>>()
+            {
+                let pid = supervisor.current().pid();
+                supervisor.shutdown();
+                println!("HARNESS host_shutdown pid={pid}");
             }
         }
     });

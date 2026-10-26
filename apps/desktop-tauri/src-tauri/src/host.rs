@@ -14,9 +14,15 @@
 //! 与 M1 的 `platform_commands` 守卫同一种做法。
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::thread;
+use std::time::{Duration, Instant};
 
-use sidecar_host::bridge::{CMD_PLATFORM_REPORT, CMD_RECV, CMD_SEND, CMD_STATE};
+use sidecar_host::bridge::{
+    CMD_PLATFORM_REPORT, CMD_RECV, CMD_SEND, CMD_STARTUP_CONTROL, CMD_STARTUP_ID, CMD_STATE,
+};
+use sidecar_host::respawn::{RespawnHistory, MAX_QUICK_CRASHES};
 use sidecar_host::{data_base_dir_from, HostConfig, HostHandle};
 use tauri::{AppHandle, Manager, Runtime, State};
 
@@ -56,7 +62,10 @@ fn resolve_entry<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
     #[cfg(debug_assertions)]
     candidates.push(repo_root().join("packages/desktop/src/host-standalone/index.ts"));
 
-    sidecar_host::pick_entry(std::env::var_os("MODE_HOST_SIDECAR_ENTRY").as_deref(), &candidates)
+    sidecar_host::pick_entry(
+        std::env::var_os("MODE_HOST_SIDECAR_ENTRY").as_deref(),
+        &candidates,
+    )
 }
 
 /// 开发形态下的默认工作目录：仓库根（`--import tsx` 的裸模块解析从这里开始）。
@@ -119,33 +128,220 @@ pub fn resolve_config<R: Runtime>(app: &AppHandle<R>) -> HostConfig {
     config
 }
 
-/// 起 Host。**不返回 `Result`**：起不来时返回一个「已失败」的句柄，渲染层照样能拿到
+/// 起一代 Host。**不返回 `Result`**：起不来时返回一个「已失败」的句柄，渲染层照样能拿到
 /// `phase: "failed"` + `errorCode`（DR-T1-3：失败必须被推给渲染层，而不是让壳先死）。
-pub fn spawn_host<R: Runtime>(app: &AppHandle<R>) -> HostHandle {
-    let config = resolve_config(app);
+fn spawn_or_failed(config: &HostConfig) -> HostHandle {
     match HostHandle::spawn(config.clone()) {
         Ok(handle) => handle,
         Err(error) => {
             eprintln!("[mode-tauri] 起 Host 失败：{error}（渲染层会收到 failed 状态）");
-            HostHandle::failed(&config, &error)
+            HostHandle::failed(config, &error)
         }
+    }
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    // 锁中毒只可能是某个线程 panic；继续用可能有偏差的数据，也别让壳二次 panic。
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// 起第一代 Host 并返回带监督线程的管理器（壳装配用；`main.rs` 与往返 harness 共用）。
+pub fn start<R: Runtime>(app: &AppHandle<R>) -> Arc<HostSupervisor> {
+    HostSupervisor::start(app)
+}
+
+/// 一个窗口的 Host 代际管理者：命令面只读 [`HostSupervisor::current`]，监督线程在**进程死亡**
+/// （不是渲染层收到 failed）后按退避策略换代（spec `tauri-renderer-host.md` §22.4）。
+///
+/// 为什么需要它而不是直接托管 `HostHandle`：Tauri 的托管状态不可替换，而自动重生必须换句柄；
+/// 另外「同一个代只计一次死亡」「连续快速退出后放弃」「人工重试」都需要一块壳侧状态。
+pub struct HostSupervisor {
+    current: Mutex<HostHandle>,
+    state: Mutex<SupervisorState>,
+    wake: Condvar,
+    shutting_down: AtomicBool,
+}
+
+struct SupervisorState {
+    history: RespawnHistory,
+    /// 已经处理过死亡的代：同一个代只计一次，重生换代后清空。
+    handled_death_for: Option<String>,
+    /// 人工重试请求（终态屏 retry）：唤醒可能停在「放弃后等待」的监督线程。
+    retry_requested: bool,
+}
+
+impl HostSupervisor {
+    fn new(handle: HostHandle) -> Self {
+        let mut state = SupervisorState {
+            history: RespawnHistory::default(),
+            handled_death_for: None,
+            retry_requested: false,
+        };
+        state.history.record_spawn(Instant::now());
+        Self {
+            current: Mutex::new(handle),
+            state: Mutex::new(state),
+            wake: Condvar::new(),
+            shutting_down: AtomicBool::new(false),
+        }
+    }
+
+    /// 起第一代并启动监督线程（返回 `Arc`：命令面与线程共享同一份）。
+    pub fn start<R: Runtime>(app: &AppHandle<R>) -> Arc<Self> {
+        let config = resolve_config(app);
+        let supervisor = Arc::new(Self::new(spawn_or_failed(&config)));
+        let watcher = Arc::clone(&supervisor);
+        let watcher_app = app.clone();
+        thread::spawn(move || watch_loop(watcher_app, watcher));
+        supervisor
+    }
+
+    /// 当前代的句柄快照（命令面每次调用都取最新一代）。
+    pub fn current(&self) -> HostHandle {
+        lock(&self.current).clone()
+    }
+
+    pub fn is_shutting_down(&self) -> bool {
+        self.shutting_down.load(Ordering::SeqCst)
+    }
+
+    /// 壳退出：标记停止并收掉当前代（幂等）。监督线程醒来后自行退出，不再重生。
+    pub fn shutdown(&self) {
+        self.shutting_down.store(true, Ordering::SeqCst);
+        self.wake.notify_all();
+        if let Err(error) = self.current().shutdown() {
+            eprintln!("[mode-tauri] 收 Host 失败：{error}");
+        }
+    }
+
+    /// 终态屏「重试」：给一整轮新的重试预算。
+    ///
+    /// 进程还活着时只刷新页面（用户的「重试」针对的是渲染层状态，杀 Host 会打断任务）；
+    /// 已经死亡时置 `retry_requested` 唤醒监督线程，由它重生并 reload。
+    pub fn force_restart<R: Runtime>(&self, app: &AppHandle<R>) {
+        if self.is_shutting_down() {
+            return;
+        }
+        let running = self.current().is_running();
+        {
+            let mut state = lock(&self.state);
+            state.history.reset();
+            if !running {
+                state.retry_requested = true;
+            }
+        }
+        if running {
+            reload_main_window(app);
+        } else {
+            self.wake.notify_all();
+        }
+    }
+
+    /// 换代：替换句柄并清空「已处理死亡」标记（新一代的死亡要重新计）。
+    fn replace(&self, handle: HostHandle) {
+        *lock(&self.current) = handle;
+        let mut state = lock(&self.state);
+        state.handled_death_for = None;
+        state.retry_requested = false;
+        state.history.record_spawn(Instant::now());
+    }
+}
+
+/// 监督线程：等当前代**进程退出** → 退避策略 → 重生 → 整页 reload。
+///
+/// 为什么要 reload：注入脚本在 document-start 拼好，桥的 startupId 是**启动时采用**的；
+/// 重生换代后旧文档的桥会按换代保护拒收新代状态。reload 让新文档重新走
+/// 「采用当前代 → 投端口 → 状态流」，渲染层的启动闸门与既有启动链一行都不用改。
+fn watch_loop<R: Runtime>(app: AppHandle<R>, supervisor: Arc<HostSupervisor>) {
+    loop {
+        let handle = supervisor.current();
+        handle.wait_for_exit();
+        if supervisor.is_shutting_down() {
+            return;
+        }
+        let generation = handle.startup_id().to_string();
+        let mut state = lock(&supervisor.state);
+        if state.handled_death_for.as_deref() == Some(generation.as_str()) {
+            // 这一代已经判过（放弃自动重生，或重生被中断）：等人工重试。
+            while !state.retry_requested && !supervisor.is_shutting_down() {
+                state = supervisor
+                    .wake
+                    .wait(state)
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+            }
+            if supervisor.is_shutting_down() {
+                return;
+            }
+            state.retry_requested = false;
+            // 人工重试允许对同一代重新判断（预算已由 force_restart 重置）。
+            state.handled_death_for = None;
+            drop(state);
+            continue;
+        }
+        state.handled_death_for = Some(generation);
+        let delay = state.history.record_death(Instant::now());
+        drop(state);
+
+        let Some(delay) = delay else {
+            eprintln!(
+                "[mode-tauri] Host 连续 {MAX_QUICK_CRASHES} 次快速退出，暂停自动重生（启动失败屏可手动重试）"
+            );
+            continue; // 下一圈命中「已处理死亡」→ 等人工重试
+        };
+        if !delay.is_zero() {
+            thread::sleep(delay);
+            if supervisor.is_shutting_down() {
+                return;
+            }
+        }
+        let config = resolve_config(&app);
+        let next = spawn_or_failed(&config);
+        eprintln!(
+            "[mode-tauri] Host 重生：startupId={} pid={}",
+            next.startup_id(),
+            next.pid()
+        );
+        supervisor.replace(next);
+        reload_main_window(&app);
+    }
+}
+
+/// 让主窗口整页重载（新一代的注入脚本会采用新 startupId）。
+fn reload_main_window<R: Runtime>(app: &AppHandle<R>) {
+    match app.get_webview_window(crate::MAIN_WINDOW_LABEL) {
+        Some(window) => {
+            if let Err(error) = window.reload() {
+                eprintln!("[mode-tauri] 重载主窗口失败：{error}");
+            }
+        }
+        None => eprintln!("[mode-tauri] 主窗口不存在，跳过重载"),
     }
 }
 
 /// 页面 → Host：整帧 raw body 写进 sidecar 的 stdin。
 #[tauri::command(rename = "host_send")]
-pub fn host_send(handle: State<'_, HostHandle>, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+pub fn host_send(
+    supervisor: State<'_, Arc<HostSupervisor>>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), String> {
     let bytes = match request.body() {
         tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
         other => return Err(format!("host_send 期望 raw body，实收 {other:?}")),
     };
-    handle.send_frame(&bytes).map_err(|error| error.to_string())
+    supervisor
+        .current()
+        .send_frame(&bytes)
+        .map_err(|error| error.to_string())
 }
 
 /// Host → 页面：长轮询一帧，按 raw bytes 返回（页面拿到 `ArrayBuffer`，必须自己包 `Uint8Array`）。
 #[tauri::command(rename = "host_recv")]
-pub async fn host_recv(handle: State<'_, HostHandle>) -> Result<tauri::ipc::Response, String> {
-    let handle = handle.inner().clone();
+pub async fn host_recv(
+    supervisor: State<'_, Arc<HostSupervisor>>,
+) -> Result<tauri::ipc::Response, String> {
+    let handle = supervisor.current();
     let frame = tauri::async_runtime::spawn_blocking(move || handle.next_frame(RECV_TIMEOUT))
         .await
         .map_err(|error| error.to_string())?
@@ -156,15 +352,46 @@ pub async fn host_recv(handle: State<'_, HostHandle>) -> Result<tauri::ipc::Resp
 /// 启动状态长轮询：返回 `databaseStartupStateSchema` 形状的最新状态（不含任何业务判断）。
 #[tauri::command(rename = "host_startup_state")]
 pub async fn host_startup_state(
-    handle: State<'_, HostHandle>,
+    supervisor: State<'_, Arc<HostSupervisor>>,
     since: Option<u32>,
 ) -> Result<serde_json::Value, String> {
-    let handle = handle.inner().clone();
+    let handle = supervisor.current();
     tauri::async_runtime::spawn_blocking(move || {
-        handle.wait_for_startup_change(since, STATE_TIMEOUT).to_state_json()
+        handle
+            .wait_for_startup_change(since, STATE_TIMEOUT)
+            .to_state_json()
     })
     .await
     .map_err(|error| error.to_string())
+}
+
+/// 当前 Host 代 id：桥在文档启动时采用它（reload 后自动绑定新代，见 `bridge.ts` 的注释）。
+#[tauri::command(rename = "host_startup_id")]
+pub fn host_startup_id(supervisor: State<'_, Arc<HostSupervisor>>) -> String {
+    supervisor.current().startup_id().to_string()
+}
+
+/// 终态屏控制（`mode:database-startup-control`）：旧 Electron main 的消费者已随旧线 EOL，
+/// 由桥转发到这里。`retry` = 重置退避并重生（存活时只 reload）；`exit` = 退出应用；
+/// `snapshot` = 无需动作（状态流本就连续，桥会直接回放最后一帧）。
+#[tauri::command(rename = "host_startup_control")]
+pub fn host_startup_control<R: Runtime>(
+    app: AppHandle<R>,
+    supervisor: State<'_, Arc<HostSupervisor>>,
+    action: String,
+) -> Result<(), String> {
+    match action.as_str() {
+        "retry" => {
+            supervisor.force_restart(&app);
+            Ok(())
+        }
+        "exit" => {
+            app.exit(0);
+            Ok(())
+        }
+        "snapshot" => Ok(()),
+        other => Err(format!("未知的启动控制动作：{other}")),
+    }
 }
 
 /// 页面上报的平台面清单（`window.mode` 的切片与降级）。字段名与
@@ -231,9 +458,18 @@ pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + 
         host_send,
         host_recv,
         host_startup_state,
+        host_startup_id,
+        host_startup_control,
         host_platform_report
     ]
 }
 
 /// 命令名清单（与 `sidecar_host::bridge::COMMAND_NAMES` 同源；由 Node 侧守卫用例比对）。
-pub const COMMAND_NAMES: &[&str] = &[CMD_SEND, CMD_RECV, CMD_STATE, CMD_PLATFORM_REPORT];
+pub const COMMAND_NAMES: &[&str] = &[
+    CMD_SEND,
+    CMD_RECV,
+    CMD_STATE,
+    CMD_STARTUP_ID,
+    CMD_STARTUP_CONTROL,
+    CMD_PLATFORM_REPORT,
+];

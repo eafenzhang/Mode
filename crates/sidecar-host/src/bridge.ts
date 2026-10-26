@@ -15,27 +15,34 @@
  *    状态一变就 `window.postMessage`。端口与状态都只在 `DOMContentLoaded` 之后投递——
  *    渲染层的 `window.addEventListener("message", …)` 注册在模块脚本里，提前投递会白丢一次（spike §4.5）。
  *
- * 三个占位符由 Rust 侧替换（`crate::bridge::bridge_script`）：startupId 与三个命令名。
- * 两个频道名是字面量，由 `packages/desktop/tests/host-standalone.test.mts` 逐个比对
+ * 命令名占位符由 Rust 侧替换（`crate::bridge::bridge_script`）。**startupId 不是占位符**：
+ * 它在文档启动时经 `host_startup_id` 采用**当前代**——Host 自动重生会换代，reload 后的新文档
+ * 必须绑定新 id（写死旧 id 会让换代保护拒收新代状态，闸门永远不放行）。
+ * 频道名是字面量，由 `packages/desktop/tests/host-standalone.test.mts` 逐个比对
  * `InternalChannels` 的真实常量（改名即红）。
  */
 (function () {
   var internals = window.__TAURI_INTERNALS__;
-  var STARTUP_ID = "__MODE_HOST_STARTUP_ID__";
+  /** 当前 Host 代（启动时由壳给出）。 */
+  var STARTUP_ID = null;
   var CMD_SEND = "__MODE_HOST_CMD_SEND__";
   var CMD_RECV = "__MODE_HOST_CMD_RECV__";
   var CMD_STATE = "__MODE_HOST_CMD_STATE__";
+  var CMD_STARTUP_ID = "__MODE_HOST_CMD_STARTUP_ID__";
+  var CMD_STARTUP_CONTROL = "__MODE_HOST_CMD_STARTUP_CONTROL__";
   var CHANNEL_SERVICE_PORT = "mode:service-port";
   var CHANNEL_SCOPED_SERVICE_PORT = "mode:scoped-service-port";
   var CHANNEL_SCOPED_SERVICE_PORT_READY = "mode:scoped-service-port-ready";
   var CHANNEL_STARTUP_STATE = "mode:database-startup-state";
+  var CHANNEL_STARTUP_CONTROL = "mode:database-startup-control";
   var SCOPED_FRAME_MARKER = 0xff;
   var CONTROL_FRAME_MARKER = 0xfe;
   var SCOPED_FRAME_HEADER_BYTES = 5;
 
   /** 页面可读的诊断面：验收台/集成测试用它看桥走到了哪一步。 */
   var bridgeState = {
-    startupId: STARTUP_ID,
+    /** 启动时采用当前代后填充；此前为 null。 */
+    startupId: null,
     portDelivered: false,
     /** 入方向（Host → 页面）搬运过的帧数。 */
     pumpFrames: 0,
@@ -59,6 +66,8 @@
     phase: null,
     error: null,
   };
+  /** 最近一次投给渲染层的状态（`snapshot` 控制消息重新对账时再投一次）。 */
+  var lastState = null;
   window.__MODE_HOST_BRIDGE__ = bridgeState;
 
   function fail(stage, error) {
@@ -291,6 +300,7 @@
           setTimeout(pollState, 0);
           return;
         }
+        lastState = state;
         window.postMessage({ type: CHANNEL_STARTUP_STATE, state: state }, "*");
         setTimeout(pollState, 0);
       })
@@ -301,20 +311,63 @@
       });
   }
 
-  function start() {
-    try {
-      window.postMessage(
-        { type: CHANNEL_SERVICE_PORT, databaseStartupId: STARTUP_ID },
-        "*",
-        [rendererPort],
-      );
-      bridgeState.portDelivered = true;
-    } catch (error) {
-      fail("deliver_port_failed", error);
+  /**
+   * 终态屏（`GlobalDatabaseStartupLoading`）的启动控制：Electron main 的消费者已随旧线 EOL，
+   * Tauri 线由壳接（`host_startup_control`）。retry = 壳清退避历史并重生 Host（随后整页
+   * reload 绑定新代）；exit = 退出应用；snapshot = 把当前状态再投一次。
+   */
+  window.addEventListener("message", function (event) {
+    if (event.source !== window) return;
+    var payload = event.data;
+    if (!payload || typeof payload !== "object") return;
+    if (payload.type !== CHANNEL_STARTUP_CONTROL) return;
+    var control = payload.control;
+    var action = control && control.action;
+    if (action === "snapshot") {
+      if (lastState) {
+        window.postMessage({ type: CHANNEL_STARTUP_STATE, state: lastState }, "*");
+      }
+      return;
     }
-    // 端口先投、状态随后（渲染层的准入把两者分别存下，齐了才放行）。
-    pollState();
-    pump();
+    if (action !== "retry" && action !== "exit") return;
+    try {
+      internals.invoke(CMD_STARTUP_CONTROL, { action: action }).catch(function (error) {
+        fail("host_startup_control_failed", error);
+      });
+    } catch (error) {
+      fail("host_startup_control_threw", error);
+    }
+  });
+
+  /** 采用当前代 → 投端口 → 起状态流与泵。id 拿不到就不投端口（闸门不会放行，30s 失败屏可见）。 */
+  function start() {
+    internals
+      .invoke(CMD_STARTUP_ID)
+      .then(function (startupId) {
+        if (typeof startupId !== "string" || !startupId) {
+          fail("host_startup_id_invalid", startupId);
+          return;
+        }
+        STARTUP_ID = startupId;
+        bridgeState.startupId = startupId;
+        try {
+          window.postMessage(
+            { type: CHANNEL_SERVICE_PORT, databaseStartupId: STARTUP_ID },
+            "*",
+            [rendererPort],
+          );
+          bridgeState.portDelivered = true;
+        } catch (error) {
+          fail("deliver_port_failed", error);
+          return;
+        }
+        // 端口先投、状态随后（渲染层的准入把两者分别存下，齐了才放行）。
+        pollState();
+        pump();
+      })
+      .catch(function (error) {
+        fail("host_startup_id_failed", error);
+      });
   }
 
   if (document.readyState === "loading") {

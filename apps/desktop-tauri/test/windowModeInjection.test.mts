@@ -120,11 +120,6 @@ function readInjectionManifest(bridgeRs: string): InjectionManifest {
     (match) => {
       const placeholder = match[1]!;
       const expression = match[2]!.trim();
-      // startupId 那个占位符由用例给值；按**占位符名**判断而不是按代入表达式的写法，
-      // 这样重命名 Rust 侧的局部变量不会把用例搞红（`sanitized_startup_id` 撞过一次）。
-      if (placeholder === "__MODE_HOST_STARTUP_ID__") {
-        return { placeholder, value: TEST_STARTUP_ID };
-      }
       const referenced = [...consts.keys()].find((name) => expression.includes(name));
       assert.ok(
         referenced,
@@ -272,6 +267,8 @@ function createPage(): Page {
   const recordInvoke = (command: string, args?: unknown): Promise<unknown> => {
     invokes.push({ command, args });
     if (command === "host_recv") return new Promise(() => {});
+    // 桥在文档启动时采用当前代（Host 自动重生后 id 不再是注入字面量）。
+    if (command === "host_startup_id") return Promise.resolve(TEST_STARTUP_ID);
     // 窗口 chrome 状态：壳的返回形状是 `{ isMaximized, … }`，替身也得给形状
     // （注入层对形状做校验：给 null 会被判成「读取失败」，那条路径单独有用例）。
     if (command === "getDesktopWindowChromeState") {

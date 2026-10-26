@@ -195,6 +195,10 @@ struct HostInner {
     capacity: usize,
     /// Host stderr 的观察者：留痕 + 结构化失败事实（DR-T3-3 ①）。
     stderr: Arc<StderrMonitor>,
+    /// 进程已退出（reaper 写、壳内监督线程读）。与 `startup` 状态**分开**：状态是给渲染层的
+    /// 语义（含就绪/失败发布），这个是给自动重生用的**进程事实**——只有它触发 respawn。
+    exited: Mutex<bool>,
+    exit_cv: Condvar,
 }
 
 /// 壳持有的句柄：可克隆（Tauri 的 `State` 需要共享），生命周期由 Rust 壳负责。
@@ -219,7 +223,9 @@ impl std::fmt::Debug for HostHandle {
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     // 锁中毒只可能是某个线程 panic；此时宁可继续用可能有偏差的数据，也不能让壳二次 panic。
-    mutex.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 impl HostHandle {
@@ -234,7 +240,8 @@ impl HostHandle {
         // 隔离必须由配置类型/校验保证，不能靠每个调用点记得设。
         if config.data_base_dir.as_os_str().is_empty() {
             return Err(HostError::InvalidConfig(
-                "data_base_dir 为空：拒绝在没有显式数据基目录的情况下启动 Host（隔离纪律）".to_string(),
+                "data_base_dir 为空：拒绝在没有显式数据基目录的情况下启动 Host（隔离纪律）"
+                    .to_string(),
             ));
         }
         // **交给 Node 之前统一去掉 verbatim 前缀**（`\\?\`），唯一的一处收口。
@@ -252,7 +259,10 @@ impl HostHandle {
         config.entry = config.entry.as_deref().map(crate::strip_verbatim_prefix);
         config.cwd = crate::strip_verbatim_prefix(&config.cwd);
         config.data_base_dir = crate::strip_verbatim_prefix(&config.data_base_dir);
-        config.resources_dir = config.resources_dir.as_deref().map(crate::strip_verbatim_prefix);
+        config.resources_dir = config
+            .resources_dir
+            .as_deref()
+            .map(crate::strip_verbatim_prefix);
         config.web_static_root = config
             .web_static_root
             .as_deref()
@@ -301,6 +311,8 @@ impl HostHandle {
             startup: StartupMonitor::new(config.startup_id.clone(), config.attempt_id.clone()),
             capacity: config.inbound_capacity.max(1),
             stderr: Arc::clone(&stderr_monitor),
+            exited: Mutex::new(false),
+            exit_cv: Condvar::new(),
         });
 
         let reader_inner = inner.clone();
@@ -355,6 +367,10 @@ impl HostHandle {
             startup: StartupMonitor::new(config.startup_id.clone(), config.attempt_id.clone()),
             capacity: 1,
             stderr: StderrMonitor::new(),
+            // 没有进程可等：监督方调用 `wait_for_exit` 必须立刻返回（失败代不值得再重生，
+            // 但让监督线程卡死在这里会把「起不来」变成「监督面也停摆」）。
+            exited: Mutex::new(true),
+            exit_cv: Condvar::new(),
         });
         inner.startup.publish(
             StartupPhase::Failed,
@@ -377,7 +393,11 @@ impl HostHandle {
     }
 
     /// 长轮询状态变更（渲染层的状态流就靠它推；`since` 传上次拿到的 `sequence`）。
-    pub fn wait_for_startup_change(&self, since: Option<u32>, timeout: Duration) -> StartupSnapshot {
+    pub fn wait_for_startup_change(
+        &self,
+        since: Option<u32>,
+        timeout: Duration,
+    ) -> StartupSnapshot {
         self.inner.startup.wait_for_change(since, timeout)
     }
 
@@ -425,7 +445,24 @@ impl HostHandle {
         // 关 stdin 是第二道保险：Host 自带 `stdin end` 退出保护，即使杀树失败也不会变孤儿。
         lock(&self.inner.stdin).take();
         mark_closed(&self.inner);
+        // 主动收摊也算「退出已发生」：监督线程据此醒来并检查 shutting_down，
+        // 不必等 reaper 收尸（杀树失败的极端情况下它可能真的收不到）。
+        mark_exited(&self.inner);
         Ok(())
+    }
+
+    /// 等进程真正退出（可重复调用；`failed()` 句柄立即返回）。
+    ///
+    /// 自动重生的触发点是**进程事实**。`shutdown()` 也会唤醒它（壳退出时监督线程要能收摊）。
+    pub fn wait_for_exit(&self) {
+        let mut exited = lock(&self.inner.exited);
+        while !*exited {
+            exited = self
+                .inner
+                .exit_cv
+                .wait(exited)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
     }
 
     /// 进程是否还活着（用例断言用；`try_wait` 需要 `&mut Child`，这里按 pid 查）。
@@ -459,7 +496,11 @@ fn read_loop(inner: Arc<HostInner>, mut stdout: BufReader<impl Read>) {
                 return;
             }
             Err(_) => {
-                fail_with_host_facts(&inner, StartupErrorCode::TransportClosed, "host_stdout_error");
+                fail_with_host_facts(
+                    &inner,
+                    StartupErrorCode::TransportClosed,
+                    "host_stdout_error",
+                );
                 mark_closed(&inner);
                 return;
             }
@@ -473,6 +514,7 @@ fn reap_loop(inner: Arc<HostInner>, mut child: Child) {
     if exiting {
         // 主动收摊：不推 failed（否则渲染层会把一次正常退出读成故障）。
         mark_closed(&inner);
+        mark_exited(&inner);
         return;
     }
     let reason = match status {
@@ -481,6 +523,13 @@ fn reap_loop(inner: Arc<HostInner>, mut child: Child) {
     };
     fail_with_host_facts(&inner, StartupErrorCode::TransportClosed, &reason);
     mark_closed(&inner);
+    mark_exited(&inner);
+}
+
+/// 置「进程已退出」并唤醒 `wait_for_exit` 的等待者（幂等）。
+fn mark_exited(inner: &HostInner) {
+    *lock(&inner.exited) = true;
+    inner.exit_cv.notify_all();
 }
 
 /// 发布失败**之前**先把 Host 报来的结构化失败事实收齐（DR-T3-3 ①）。
@@ -512,7 +561,12 @@ fn fail_if_not_shutting_down(inner: &HostInner, code: StartupErrorCode, reason: 
     }
     if inner
         .lifecycle
-        .compare_exchange(current, LIFECYCLE_FAILED, Ordering::SeqCst, Ordering::SeqCst)
+        .compare_exchange(
+            current,
+            LIFECYCLE_FAILED,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        )
         .is_err()
     {
         return;

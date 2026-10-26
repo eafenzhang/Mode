@@ -30,7 +30,7 @@
  * （M1 §4.3 记录过这个副作用，当时靠 `reg export`/`reg import` 还原）——在**修复前**（RED）
  * B 会走完整启动路径，于是这条用例会顺手改用户的注册表；② 真壳的窗口里没有探针（页面不许改），
  * 第 3 条判据就无从观察。所以 A 与 B 都取 `ProductUiHarness`——它用**同一批产品部件**
- * （`mode_tauri::single_instance` + `mode_tauri::spawn_host` + `mode_tauri::build_host_window`），
+ * （`mode_tauri::single_instance` + `mode_tauri::host::start` + `mode_tauri::build_host_window`），
  * 只是多了一段探针注入。第二实例的**早退**发生在 `setup` 之前（插件 setup 钩子先于 app setup，
  * 见 spec 的窗口模型一节），所以 B 走的是哪条分支与它自己是不是产品壳无关。
  *
@@ -104,7 +104,7 @@ test("单实例接线：插件最先注册、第二实例的转发走既有深�
   );
 
   // ② 建窗口与起 Host 仍然**只在** app setup 里 —— 这才是「早退 = 什么都不建」成立的前提。
-  for (const call of ["mode_tauri::spawn_host(", "mode_tauri::build_host_window("]) {
+  for (const call of ["mode_tauri::host::start(", "mode_tauri::build_host_window("]) {
     const at = main.indexOf(call);
     assert.ok(at >= 0, `${MAIN_RS} 里应有 ${call}`);
     assert.ok(at > appSetup, `${MAIN_RS} 里 ${call} 必须在 app setup 之内`);
@@ -119,7 +119,7 @@ test("单实例接线：插件最先注册、第二实例的转发走既有深�
       `（复用既有的 DeepLinkRouter + mode:deep-link 事件；另造 IPC 会让渲染层多一条通道）`,
   );
   // ④ 转发路径不得自己建窗口——单实例的全部意义就是「第二实例不建第二个窗口」。
-  for (const forbidden of ["build_host_window", "WebviewWindowBuilder", "spawn_host"]) {
+  for (const forbidden of ["build_host_window", "WebviewWindowBuilder", "host::start"]) {
     assert.ok(
       !singleInstance.includes(forbidden),
       `${SINGLE_INSTANCE_RS} 里不得出现 ${forbidden}（转发路径只允许聚焦既有窗口）`,

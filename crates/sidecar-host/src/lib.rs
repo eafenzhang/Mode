@@ -11,14 +11,11 @@
 //! 说成不可避免的）：
 //!
 //! 1. 本 crate 的第一版把窗口装配与命令面也放在里面，`cargo test -p sidecar-host` 的测试二进制
-//!    以 `STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139)` 起不来，`objdump -p` 显示它同时导入了
-//!    `comctl32.dll` 与 `WebView2Loader.dll`（对照 `crates/platform` 的测试二进制：两者都没有，
-//!    跑得起来）；
-//! 2. `crates/tauri-test-manifest`（comctl32 v6 测试清单注入）**当时已经接上**——build script
-//!    发出了 `rustc-link-arg-tests`、`out/*.coff.o` 里也有 `.rsrc` 段——但**链出来的测试 exe 里
-//!    没有 `.rsrc` 段**，即那份清单在这个目标上没有生效。**机制未查明**；
-//! 3. `WebView2Loader.dll` 那一半同样未查明（把 `target/debug/WebView2Loader.dll` 拷到
-//!    `target/debug/deps/` 旁边也没解决）。
+//!    以 `STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139)` 起不来（导入表里是 comctl32 的
+//!    `TaskDialogIndirect`，只有 v6 提供；根因是清单没进链接参数——2026-10-26 已查明并修复，
+//!    见 `crates/tauri-test-manifest` 的文档与验收记录）；
+//! 2. 把窗口装配与 `AppHandle` 泛型留在 app crate 之后，本 crate 的测试二进制不再引用
+//!    Tauri runtime，用例能在本机 gnu 路线真跑——这条分工仍然成立，与清单问题无冲突。
 //!
 //! 所以这不是「Tauri 类型一律不能用」：`platform` 同样引用 Tauri。去掉**具体 runtime**引用后
 //! （`AppHandle` 走泛型、窗口装配移出）测试二进制不再导入那两个 DLL、用例能真跑。
@@ -39,6 +36,7 @@ pub mod bridge;
 pub mod frame;
 pub mod host_stderr;
 pub mod process;
+pub mod respawn;
 pub mod settings_probe;
 pub mod startup;
 

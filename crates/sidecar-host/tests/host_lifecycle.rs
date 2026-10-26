@@ -15,7 +15,8 @@ use std::time::Duration;
 
 use sidecar_host::process::process_exists;
 use sidecar_host::{
-    HostConfig, HostError, HostHandle, StartupErrorCode, StartupPhase, StartupSnapshot, StartupStage,
+    HostConfig, HostError, HostHandle, StartupErrorCode, StartupPhase, StartupSnapshot,
+    StartupStage,
 };
 
 /// 仓库根（`crates/sidecar-host` 上溯两级）。
@@ -132,7 +133,10 @@ fn real_sidecar_becomes_ready_on_its_first_frame_and_shuts_down_cleanly() {
 
     handle.shutdown().expect("shutdown 成功");
     assert!(!handle.is_running(), "shutdown 后 Host 必须已经退出");
-    assert!(wait_until_gone(pid), "进程表里不得残留 sidecar（pid {pid}）");
+    assert!(
+        wait_until_gone(pid),
+        "进程表里不得残留 sidecar（pid {pid}）"
+    );
     handle.shutdown().expect("重复 shutdown 必须无害");
 }
 
@@ -195,7 +199,9 @@ fn next_frame_reports_timeout_then_closed_for_a_silent_host() {
 
     let handle = HostHandle::spawn(config).expect("拉起沉默 Host");
     assert_eq!(
-        handle.next_frame(Duration::from_millis(200)).expect("超时不是错误"),
+        handle
+            .next_frame(Duration::from_millis(200))
+            .expect("超时不是错误"),
         None,
         "期限内没有帧应返回 Ok(None)"
     );
@@ -243,6 +249,37 @@ fn a_host_that_exits_before_ready_reports_failed_with_an_error_code() {
     );
     assert_eq!(snapshot.failed_phase, Some(StartupStage::Starting));
     let _ = handle.shutdown();
+}
+
+/// 自动重生的触发点是**进程事实**：`wait_for_exit` 在子进程退出后立即唤醒；
+/// `shutdown()` 也要唤醒它（壳退出时监督线程据此收摊，不能卡在等待里）。
+#[test]
+fn wait_for_exit_wakes_on_process_exit_and_on_shutdown() {
+    let config = silent_config("exit-signal", "setTimeout(function () {}, 30);");
+    let handle = HostHandle::spawn(config).expect("拉起短命子进程");
+    let waiter = handle.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        waiter.wait_for_exit();
+        let _ = tx.send(());
+    });
+    rx.recv_timeout(Duration::from_secs(15))
+        .expect("子进程退出后 wait_for_exit 必须返回（监督线程靠它触发重生）");
+    // 已退出的句柄再等：立即返回（幂等）。
+    handle.wait_for_exit();
+
+    let config = silent_config("shutdown-signal", "setInterval(function () {}, 1000);");
+    let handle = HostHandle::spawn(config).expect("拉起长命子进程");
+    let waiter = handle.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        waiter.wait_for_exit();
+        let _ = tx.send(());
+    });
+    std::thread::sleep(Duration::from_millis(200));
+    handle.shutdown().expect("shutdown 幂等");
+    rx.recv_timeout(Duration::from_secs(15))
+        .expect("shutdown 必须唤醒 wait_for_exit");
 }
 
 #[test]
@@ -334,7 +371,10 @@ fn a_host_that_never_writes_hits_the_ready_deadline_and_gets_killed() {
         snapshot.error_code,
         Some(StartupErrorCode::StartupStatusTimeout)
     );
-    assert!(wait_until_gone(pid), "超期的 Host 必须被壳收掉（pid {pid}）");
+    assert!(
+        wait_until_gone(pid),
+        "超期的 Host 必须被壳收掉（pid {pid}）"
+    );
     let _ = handle.shutdown();
 }
 
@@ -372,7 +412,10 @@ fn spawn_refuses_an_empty_data_base_dir_instead_of_targeting_the_real_root() {
     let error = HostHandle::spawn(config).expect_err("空数据基目录必须被拒绝");
     assert!(matches!(error, HostError::InvalidConfig(_)));
     let message = error.to_string();
-    assert!(message.contains("data_base_dir"), "错误要点名字段：{message}");
+    assert!(
+        message.contains("data_base_dir"),
+        "错误要点名字段：{message}"
+    );
 }
 
 /// 打包形态的 verbatim 入口（`\\?\C:\…`）也必须能起到 `ready`。
@@ -443,7 +486,9 @@ fn spawning_node_requests_a_hidden_console() {
         SOURCE.contains("const CREATE_NO_WINDOW: u32 = 0x0800_0000;"),
         "CREATE_NO_WINDOW 必须是 Win32 的 0x0800_0000"
     );
-    let call_sites = SOURCE.matches("without_console_window(&mut command);").count();
+    let call_sites = SOURCE
+        .matches("without_console_window(&mut command);")
+        .count();
     assert!(
         call_sites >= 3,
         "node / taskkill / tasklist 三处 spawn 都要隐藏控制台；实际只有 {call_sites} 处"

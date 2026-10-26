@@ -2191,20 +2191,58 @@ LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/conne
      Host stdio，Host 死即全死）；
   3. 界面切换到既有启动失败终态（复用 `GlobalDatabaseStartupLoading`），带
      `errorCode`/诊断复制入口——**不允许停留在「看似活着但一切调用永不返回」的静默挂起**。
-- 恢复语义：本次只做 fail-closed，**不做** Host 自动重生（respawn + 端口重建是独立立项，
-  涉及 startupId/attempt 换代与端口重投）。
+- 恢复语义：本次只做 fail-closed；Host 自动重生见 §22.4（2026-10-26 落地）。
 
 ### 22.3 开放项（都带判据，不留「没人管」）
 
-1. **`DatabaseStartupControl` 在 Tauri 线无消费者**：失败终态屏的 retry/exit 按钮投出的
-   `mode:database-startup-control` 消息在壳/注入层无人接（Electron main 已随旧线 EOL）。
-   判据：`grep -r "database-startup-control" apps/desktop-tauri crates/sidecar-host` 为空。
-   处置：随「Host 自动重生」立项一并设计（retry = respawn + 同 startupId 换代）。
+1. ~~**`DatabaseStartupControl` 在 Tauri 线无消费者**~~ **已收口（2026-10-26，§22.4）**：
+   桥监听 `mode:database-startup-control` 并转发 `host_startup_control`——retry = 壳重置
+   退避并重生（存活时只 reload）、exit = 退出应用、snapshot = 回放最后一帧。
 2. **进程活着但管道停摆不可检测**：本口径只覆盖「进程死亡」（有 stdout EOF 事实）。
    半开管道需要心跳/驻留帧，属传输层独立任务；在此之前，运输停摆仍表现为挂起。
 3. **Host 死亡的现场取证**：安装版不落盘服务日志（LR-5 §27 `exportLogs` 欠账），
    Host 为何死亡（怀疑 RD 原生媒体路径）仍需 dev 版复现 + 服务日志定位；本收口保证
    死亡在渲染层**可见且可复制诊断**，不再静默。
+
+### 22.4 Host 自动重生（2026-10-26 立项并落地）
+
+**目标**：Host 进程死亡后自动恢复，不把用户留在终态屏或半死界面；同时不让崩溃循环伪装成
+「一直加载」。
+
+**所有者与事件序**：
+
+```
+壳 HostSupervisor（唯一所有者：current 句柄 + 退避预算 + 监督线程）
+  命令面(host_send/recv/state/startup_id) ──每次读 current()──▶ 最新一代
+  watch_loop:
+    wait_for_exit(当前代)           ← reaper/收摊唤醒（进程事实，非渲染层状态）
+      ├── shutting_down? → 退出线程（不重生）
+      ├── 该代已判过？ → 等 retry_requested（人工重试/放弃后）
+      └── record_death → 0s/2s/10s → spawn 新代 → replace → reload 主窗口
+                                            ↓
+  新文档（document-start 注入脚本不变）：宿主桥 invoke(host_startup_id) 采用新代
+    → 投业务端口(databaseStartupId=新代) → 状态流 → 渲染层既有启动闸门放行
+```
+
+**规则**：
+
+1. **触发点是进程事实**：`HostHandle::wait_for_exit`（reaper 收尸与主动 `shutdown()` 都会
+   唤醒），不是渲染层收到的 `failed`。渲染层的 fail-closed（§22.2）与重生成互不依赖。
+2. **换代**：每次 spawn 生成新 startupId（既有 `new_startup_id`）。注入桥**不再注入 id
+   字面量**——旧方案会把 document 绑定到启动那一刻的代，重生后 reload 的新文档仍拿旧 id，
+   换代保护会拒收新代状态（闸门永远不放行）。现在桥在启动时经 `host_startup_id` 采用
+   当前代；顺带消除了「外部字符串拼进注入脚本」这个旧注入面。
+3. **reload 语义**：重生后**整页重载**主窗口。注入脚本与 MessagePort 都是 document 级
+   一次性物，原地重连要复活已 fail-closed 的 ChannelClient 并重接全部业务服务，风险远大于
+   收益；reload 让渲染层走**既有**启动链（会话/草稿恢复均已有），渲染层零改动。
+4. **退避与放弃**：距上次起进程 < 60s 记为一次快速崩溃；等待 0s / 2s / 10s；连续 3 次
+   快速崩溃后暂停自动重生（stderr 留一行），终态屏 retry 可再给一整轮预算。稳定运行 ≥60s
+   后死亡视为新一轮，立即重生。策略是纯函数（`sidecar_host::respawn`，含用例）。
+5. **人工控制**：`host_startup_control`——`retry`（存活时仅 reload，不杀 Host 以免打断
+   任务；死亡时清预算并重生）、`exit`（`app.exit(0)`，走既有 `RunEvent::Exit` 收 Host）、
+   `snapshot`（桥直接回放最后一帧，状态流本就连续）。
+6. **边界**：多窗口不在本口径（当前只有主窗口）；半开管道（进程活着但传输停摆）仍不可
+   检测，见 §22.3 第 2 条。
 
 ## 23. 数据目录切换的重启生效：默认根引导指针（2026-10-25 立项并落地）
 

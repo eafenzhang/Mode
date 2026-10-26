@@ -13,6 +13,10 @@ pub const CMD_SEND: &str = "host_send";
 pub const CMD_RECV: &str = "host_recv";
 /// 启动状态长轮询的命令名。
 pub const CMD_STATE: &str = "host_startup_state";
+/// 读当前 Host 代的 startupId（桥在文档启动时采用它——reload 后自动绑定新代）。
+pub const CMD_STARTUP_ID: &str = "host_startup_id";
+/// 终态屏控制消息（`retry` / `exit` / `snapshot`）的转发口。
+pub const CMD_STARTUP_CONTROL: &str = "host_startup_control";
 /// 页面上报平台面清单（`window.mode` 的切片与降级）的命令名。
 pub const CMD_PLATFORM_REPORT: &str = "host_platform_report";
 /// 窗口级命令（自绘标题栏的三个按钮 + 全屏/重置尺寸）的命令名。
@@ -29,6 +33,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     CMD_SEND,
     CMD_RECV,
     CMD_STATE,
+    CMD_STARTUP_ID,
+    CMD_STARTUP_CONTROL,
     CMD_PLATFORM_REPORT,
     CMD_EXECUTE_DESKTOP_COMMAND,
     CMD_WINDOW_CHROME_STATE,
@@ -45,31 +51,28 @@ const TEMPLATE: &str = include_str!("bridge.ts");
 /// 所以它必须排在前面，且两者同属**一个** `initialization_script`（document-start 求值）。
 const WINDOW_MODE_TEMPLATE: &str = include_str!("window_mode.ts");
 
-/// startupId 的白名单化：注入脚本是字符串拼接，一个引号就能改脚本语义，所以只放行
-/// `[A-Za-z0-9_-]`（不合法字符替换为 `-`）。
-fn sanitize_startup_id(startup_id: &str) -> String {
-    startup_id
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
-                character
-            } else {
-                '-'
-            }
-        })
-        .collect()
-}
-
-/// 填入 startupId 与全部命令名占位符。
-fn substitute(template: &str, sanitized_startup_id: &str) -> String {
+/// 填入全部命令名占位符。
+///
+/// **startupId 不再是注入字面量**（2026-10-26，Host 自动重生）：注入脚本在 document-start
+/// 一次性拼好，而重生会换新代；把 id 写死进脚本会让 reload 后的新文档仍绑定旧代
+/// （桥的换代保护拒收新代状态 → 渲染层永远等不到 ready）。现在桥在启动时经
+/// `host_startup_id` 采用**当前代**，顺带也消除了「把外部字符串拼进脚本」这个注入面。
+fn substitute(template: &str) -> String {
     template
-        .replace("__MODE_HOST_STARTUP_ID__", sanitized_startup_id)
         .replace("__MODE_HOST_CMD_SEND__", CMD_SEND)
         .replace("__MODE_HOST_CMD_RECV__", CMD_RECV)
         .replace("__MODE_HOST_CMD_STATE__", CMD_STATE)
+        .replace("__MODE_HOST_CMD_STARTUP_ID__", CMD_STARTUP_ID)
+        .replace("__MODE_HOST_CMD_STARTUP_CONTROL__", CMD_STARTUP_CONTROL)
         .replace("__MODE_HOST_CMD_PLATFORM_REPORT__", CMD_PLATFORM_REPORT)
-        .replace("__MODE_HOST_CMD_EXECUTE_DESKTOP_COMMAND__", CMD_EXECUTE_DESKTOP_COMMAND)
-        .replace("__MODE_HOST_CMD_WINDOW_CHROME_STATE__", CMD_WINDOW_CHROME_STATE)
+        .replace(
+            "__MODE_HOST_CMD_EXECUTE_DESKTOP_COMMAND__",
+            CMD_EXECUTE_DESKTOP_COMMAND,
+        )
+        .replace(
+            "__MODE_HOST_CMD_WINDOW_CHROME_STATE__",
+            CMD_WINDOW_CHROME_STATE,
+        )
 }
 
 /// **产品注入**：`window.mode` + Host 桥，拼成一段脚本交给一个 `initialization_script`。
@@ -77,11 +80,8 @@ fn substitute(template: &str, sanitized_startup_id: &str) -> String {
 /// `window.mode` 在前：renderer 的**入口模块求值期**就会读它（见 `window_mode.ts` 的文件头）。
 /// 两段拼成一段脚本文本而不是两次 `initialization_script`：同一段文本的求值顺序是确定的，
 /// 不依赖 Tauri 对多次注册的拼接顺序。
-pub fn bridge_script(startup_id: &str) -> String {
-    substitute(
-        &format!("{WINDOW_MODE_TEMPLATE}\n{TEMPLATE}"),
-        &sanitize_startup_id(startup_id),
-    )
+pub fn bridge_script() -> String {
+    substitute(&format!("{WINDOW_MODE_TEMPLATE}\n{TEMPLATE}"))
 }
 
 /// **仅 Host 桥**（不含 `window.mode`）：留给「清醒的负向对照」的注入。
@@ -92,8 +92,8 @@ pub fn bridge_script(startup_id: &str) -> String {
 /// opt-in 真机用例可以**只撤掉注入**去观察那个抛（`productUiMount.test.mts` 的负向对照用例），
 /// 结论就落在**观察到的行为**上而不是落在读上游实现体上——这正是
 /// `docs/specs/clean-room-policy.md` 要的东西。
-pub fn host_bridge_script(startup_id: &str) -> String {
-    substitute(TEMPLATE, &sanitize_startup_id(startup_id))
+pub fn host_bridge_script() -> String {
+    substitute(TEMPLATE)
 }
 
 #[cfg(test)]
@@ -102,12 +102,13 @@ mod tests {
 
     #[test]
     fn substitutes_every_placeholder() {
-        let script = bridge_script("host-1234-1");
+        let script = bridge_script();
         for placeholder in [
-            "__MODE_HOST_STARTUP_ID__",
             "__MODE_HOST_CMD_SEND__",
             "__MODE_HOST_CMD_RECV__",
             "__MODE_HOST_CMD_STATE__",
+            "__MODE_HOST_CMD_STARTUP_ID__",
+            "__MODE_HOST_CMD_STARTUP_CONTROL__",
             "__MODE_HOST_CMD_EXECUTE_DESKTOP_COMMAND__",
             "__MODE_HOST_CMD_WINDOW_CHROME_STATE__",
         ] {
@@ -117,9 +118,11 @@ mod tests {
             );
         }
         for name in COMMAND_NAMES {
-            assert!(script.contains(&format!("\"{name}\"")), "脚本里应带上命令名 {name}");
+            assert!(
+                script.contains(&format!("\"{name}\"")),
+                "脚本里应带上命令名 {name}"
+            );
         }
-        assert!(script.contains("\"host-1234-1\""));
         // 频道名是字面量：跨语言一致性由 packages/desktop/tests/host-standalone.test.mts 守住。
         assert!(script.contains("\"mode:service-port\""));
         assert!(script.contains("\"mode:database-startup-state\""));
@@ -133,23 +136,22 @@ mod tests {
         );
     }
 
+    /// startupId 不再是注入字面量：脚本里没有 id 赋值，必须经 `host_startup_id` 运行时采用
+    /// （Host 自动重生后 reload 的新文档要绑定**新代**，写死旧 id 会让桥拒收新代状态）。
     #[test]
-    fn sanitizes_startup_id_before_injection() {
-        let script = bridge_script("bad\"; window.__pwned = 1; var x = \"");
+    fn startup_id_is_adopted_at_runtime_not_injected() {
+        let script = bridge_script();
         assert!(
-            !script.contains("window.__pwned"),
-            "注入脚本是字符串拼接：startupId 必须白名单化，否则一个引号就能改脚本语义"
+            !script.contains("var STARTUP_ID = \""),
+            "注入脚本不得再写死 startupId（重生换代后旧字面量会卡死启动闸门）"
         );
-        // 精确断言：`var STARTUP_ID = "…"` 里那段字面量只剩白名单字符。
-        let prefix = "var STARTUP_ID = \"";
-        let start = script.find(prefix).expect("模板里有 STARTUP_ID 赋值") + prefix.len();
-        let end = script[start..].find('"').expect("字面量有结束引号") + start;
-        let injected = &script[start..end];
         assert!(
-            injected
-                .chars()
-                .all(|character| character.is_ascii_alphanumeric() || character == '-' || character == '_'),
-            "注入的 id 只允许 [A-Za-z0-9_-]，实际：{injected}"
+            script.contains(CMD_STARTUP_ID),
+            "桥必须在启动时调用 {CMD_STARTUP_ID} 采用当前代"
+        );
+        assert!(
+            script.contains(CMD_STARTUP_CONTROL),
+            "桥必须转发终态屏的 {CMD_STARTUP_CONTROL}"
         );
     }
 
@@ -158,7 +160,7 @@ mod tests {
     /// `apps/desktop-tauri/test/windowModeInjection.test.mts`（真跑脚本、真读探针）。
     #[test]
     fn window_mode_is_installed_before_the_rest_of_the_bridge() {
-        let script = bridge_script("host-sequencing");
+        let script = bridge_script();
         let mode_assignment = script
             .find("window.mode = mode")
             .expect("注入脚本必须赋值 window.mode（renderer 入口模块求值期就读它）");

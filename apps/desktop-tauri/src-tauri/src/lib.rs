@@ -16,7 +16,7 @@ pub mod webview_settings;
 pub mod window;
 pub mod window_controls;
 
-pub use host::{resolve_config, spawn_host, COMMAND_NAMES};
+pub use host::{resolve_config, HostSupervisor, COMMAND_NAMES};
 pub use window::{build_host_window, DEFAULT_WINDOW_SIZE, MAIN_WINDOW_LABEL};
 pub use window_controls::COMMAND_NAMES as WINDOW_CONTROL_COMMAND_NAMES;
 
