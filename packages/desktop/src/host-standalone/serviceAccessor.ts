@@ -213,6 +213,12 @@ export async function createHostServiceSurface(
         : { ok: false, error: "远程工作区服务尚未就绪。" },
   };
   const services = createLocalServices({
+    // **Tauri Host 就是桌面本地权威**：CUA Helper 的准入（远程桌面的 raw_input 与 rd_media
+    // 媒体面都经它）要求 `serviceAuthorityMode === "desktop-local"`（见
+    // `shouldCreateDefaultCuaProductHelper`）。旧 Electron main 装配过这个值，Tauri Host 移植时
+    // 漏传 → Helper 永不创建 → 被控端 `rd_media_start failed: Computer Use Helper is not
+    // reachable for rd_media`（2026-10-26 实机日志）。别删这一行。
+    serviceAuthorityMode: "desktop-local",
     modeBuiltinProviderConfigFilePath: builtinProviderConfig.path,
     isRemoteDesktopServerEnabled: () => remoteDesktopCapability?.isServerEnabled() ?? false,
     botRemoteWorkspaceTransport,
