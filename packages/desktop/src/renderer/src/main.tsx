@@ -370,20 +370,20 @@ function failCloseHostTransport(state?: DatabaseStartupState): void {
   disposeAllRemoteWorkspaceSessions(reason);
   // 复用启动失败终态屏：带 errorCode 与诊断复制；与 boot 期失败同一渲染路径。
   const current = databaseStartupAdmission.state;
-  databaseStartupAdmission.state = state ?? {
-    ...(current ?? {
-      schemaVersion: 1,
-      startupId: "unknown",
-      attemptId: "unknown",
-      sequence: 0,
-      startedAt: Date.now(),
-      updatedAt: Date.now(),
-    }),
-    phase: "failed",
-    errorCode: "transport_closed",
-    failedPhase: "starting",
-  };
-  renderDatabaseStartup();
+  const next: DatabaseStartupState | null = state
+    ? state
+    : current
+      ? {
+          ...current,
+          phase: "failed",
+          errorCode: "transport_closed",
+          failedPhase: "starting",
+        }
+      : null;
+  databaseStartupAdmission.state = next;
+  if (next) {
+    renderDatabaseStartup();
+  }
 }
 
 function initializeBusinessRoot(port: MessagePort): void {
@@ -409,7 +409,7 @@ function initializeBusinessRoot(port: MessagePort): void {
       } catch {
         // 控制消息发不出去也得本地收口；壳侧即使没收到，重载/退出仍由用户兜底。
       }
-      failCloseHostTransport("transport_closed");
+      failCloseHostTransport();
     },
   });
   // LR-3 被控侧：把显示器快照推给 Host（Tauri 下才生效；Electron 无此服务）。

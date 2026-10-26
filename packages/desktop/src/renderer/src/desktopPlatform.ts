@@ -12,7 +12,7 @@ import { createDesktopRemotePlatformBridge } from "./desktopRemotePlatformBridge
 import { resolveSelectFilesCapability } from "./platformSelectFiles.js";
 
 /** Tauri 壳的产品窗口同时注入这两个全局；Electron 两者都没有。 */
-function isTauriRendererRuntime(): boolean {
+export function isTauriRendererRuntime(): boolean {
   return (
     typeof globalThis !== "undefined" &&
     ("__TAURI__" in globalThis || "__TAURI_INTERNALS__" in globalThis)

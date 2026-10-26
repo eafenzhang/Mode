@@ -110,26 +110,22 @@ export function createShellTerminalService(deps: {
 
     onDynamicData(id: string): Event<string> {
       ensureListeners();
-      const emitter = new Emitter<string>();
-      dataEmitters.set(id, emitter);
-      return () => {
-        emitter.dispose();
-        if (dataEmitters.get(id) === emitter) {
-          dataEmitters.delete(id);
-        }
-      };
+      let emitter = dataEmitters.get(id);
+      if (!emitter) {
+        emitter = new Emitter<string>();
+        dataEmitters.set(id, emitter);
+      }
+      return emitter.event;
     },
 
     onDynamicExit(id: string): Event<number> {
       ensureListeners();
-      const emitter = new Emitter<number>();
-      exitEmitters.set(id, emitter);
-      return () => {
-        emitter.dispose();
-        if (exitEmitters.get(id) === emitter) {
-          exitEmitters.delete(id);
-        }
-      };
+      let emitter = exitEmitters.get(id);
+      if (!emitter) {
+        emitter = new Emitter<number>();
+        exitEmitters.set(id, emitter);
+      }
+      return emitter.event;
     },
   };
 }
