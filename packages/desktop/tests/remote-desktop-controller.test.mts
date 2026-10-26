@@ -63,12 +63,18 @@ async function waitForEvent(
   throw new Error(`等待 ${what} 超时；已收到：${JSON.stringify(events)}`);
 }
 
-function createController(open: () => Promise<{ ok: true; wsUrl: string; mediaUrl?: string }>) {
+function createController(
+  open: () => Promise<{ ok: true; wsUrl: string; mediaUrl?: string }>,
+  options?: { handshakeTimeoutMs?: number },
+) {
   const events: RemoteDesktopSessionEvent[] = [];
   const controller = createRemoteDesktopHostController({
     openSession: open,
     logger: { info: () => undefined, warn: () => undefined },
     push: (event) => events.push(event),
+    ...(options?.handshakeTimeoutMs !== undefined
+      ? { handshakeTimeoutMs: options.handshakeTimeoutMs }
+      : {}),
   });
   return { controller, events };
 }
@@ -236,6 +242,65 @@ test("dispose 先带出 bye 再关闭 WS", async () => {
     }
     assert.ok(peer.received.some((frame) => frame.includes('"type":"bye"')));
   } finally {
+    await peer.close();
+  }
+});
+
+test("握手窗口内对端一帧不回 → unsupported 收口（不再永久挂着）", async () => {
+  // 实测症状（2026-10-26）：对端跑旧版本，信令 schema 把新版本 hello 当非法帧静默丢弃，
+  // 主控停在 connected 永远等——用户只看到「连不上」。窗口到期必须收口且不可重试。
+  const peer = await startFakePeer();
+  const { controller, events } = createController(
+    async () => ({ ok: true, wsUrl: peer.url }),
+    { handshakeTimeoutMs: 80 },
+  );
+  try {
+    const result = await controller.start({ serverId: "server-silent" });
+    assert.deepEqual(result, { ok: true });
+    await waitForEvent(
+      events,
+      (event) => event.kind === "state" && event.state === "connected",
+      "connected",
+    );
+    const closed = await waitForEvent(
+      events,
+      (event) => event.kind === "state" && event.state === "closed",
+      "closed",
+    );
+    assert.equal(closed.kind === "state" ? closed.error : undefined, "unsupported");
+    assert.equal(
+      closed.kind === "state" ? (closed.retryable ?? false) : "missing",
+      false,
+      "版本不匹配重试无意义，不得标记 retryable",
+    );
+  } finally {
+    await controller.dispose();
+    await peer.close();
+  }
+});
+
+test("对端及时回一帧则不触发握手超时", async () => {
+  const peer = await startFakePeer();
+  const { controller, events } = createController(
+    async () => ({ ok: true, wsUrl: peer.url }),
+    { handshakeTimeoutMs: 120 },
+  );
+  try {
+    await controller.start({ serverId: "server-alive" });
+    await waitForEvent(
+      events,
+      (event) => event.kind === "state" && event.state === "connected",
+      "connected",
+    );
+    const socket = [...peer.sockets][0]!;
+    socket.send(JSON.stringify({ type: "hello", protocolVersion: 2 }));
+    await delay(250);
+    assert.ok(
+      !events.some((event) => event.kind === "state" && event.state === "closed"),
+      `对端有回帧时不得因握手超时收口；实际：${JSON.stringify(events)}`,
+    );
+  } finally {
+    await controller.dispose();
     await peer.close();
   }
 });

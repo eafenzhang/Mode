@@ -54,6 +54,15 @@ export interface CreateRemoteDesktopHostControllerOptions {
   logger: { info(...args: unknown[]): void; warn(...args: unknown[]): void };
   /** 事件出口；不缓冲，只发给当前订阅者。 */
   push: (event: RemoteDesktopSessionEvent) => void;
+  /**
+   * 握手窗口：WS 建连后到**收到对端第一帧**的上限（缺省 15s）。
+   *
+   * 为什么必须有：旧对端的信令 schema 会把新版本的 `hello` 当非法帧**静默丢弃**
+   * （不回报错、不关连接），主控于是永久停在 connected——用户只看到「连不上」。
+   * 窗口内一帧都没有 → 按 `unsupported` 收口（UI 文案指向「对端未开启或版本过旧」），
+   * 不重试（版本不匹配重试无意义）。
+   */
+  handshakeTimeoutMs?: number;
 }
 
 export interface RemoteDesktopHostController {
@@ -93,6 +102,14 @@ export function createRemoteDesktopHostController(
   let starting = false;
   /** start 在途时到来 end/dispose：结果作废，不再建立 socket（终态已推）。 */
   let startAborted = false;
+  const handshakeTimeoutMs = options.handshakeTimeoutMs ?? 15_000;
+  let handshakeTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearHandshakeTimer = (): void => {
+    if (handshakeTimer !== undefined) {
+      clearTimeout(handshakeTimer);
+      handshakeTimer = undefined;
+    }
+  };
 
   const pushState = (
     state: "connecting" | "connected" | "closed",
@@ -114,6 +131,7 @@ export function createRemoteDesktopHostController(
 
   /** 收口唯一出口（幂等）：关 WS、推 closed。 */
   const teardown = (error?: RemoteDesktopErrorCode, teardownOptions?: { retryable?: boolean }) => {
+    clearHandshakeTimer();
     const current = socket;
     socket = null;
     if (current) {
@@ -134,6 +152,18 @@ export function createRemoteDesktopHostController(
       }
       options.logger.info("[remote-desktop] controller signal socket connected");
       pushState("connected");
+      // 对端在握手窗口内一个字都不回 → 收口而不是永久挂着（旧版本静默丢 hello 的实测症状）。
+      clearHandshakeTimer();
+      handshakeTimer = setTimeout(() => {
+        if (socket !== ws) {
+          return;
+        }
+        options.logger.warn(
+          `[remote-desktop] handshake timeout after ${handshakeTimeoutMs}ms：对端未回任何信令帧` +
+            "（最常见：对端版本过旧，信令 schema 丢弃了新版本 hello）",
+        );
+        teardown("unsupported", { retryable: false });
+      }, handshakeTimeoutMs);
     });
     ws.on("message", (data: unknown) => {
       if (socket !== ws) {
@@ -141,6 +171,10 @@ export function createRemoteDesktopHostController(
       }
       const text =
         typeof data === "string" ? data : Buffer.isBuffer(data) ? data.toString("utf8") : "";
+      if (text) {
+        // 收到任何非空帧都说明对端活着（格式是否合法由下面的 schema 判），握手窗口到此为止。
+        clearHandshakeTimer();
+      }
       if (!text) {
         return;
       }
