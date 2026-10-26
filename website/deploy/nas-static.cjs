@@ -55,10 +55,21 @@ const MIME = {
   ".woff2": "font/woff2",
 };
 
+// 错误响应统一带 no-store：CF 会按扩展名对可缓存对象做边缘缓存，
+// 404 一旦被缓存会在 TTL 内遮住后续部署的同名文件（已实际踩过）。
+function fail(res, code, msg, extra) {
+  res.writeHead(code, {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "no-store",
+    ...extra,
+  });
+  res.end(msg);
+}
+
 http
   .createServer(async (req, res) => {
     if (req.method !== "GET" && req.method !== "HEAD") {
-      res.writeHead(405, { Allow: "GET, HEAD" }).end();
+      fail(res, 405, "Method Not Allowed", { Allow: "GET, HEAD" });
       return;
     }
     if (req.url === "/healthz") {
@@ -69,14 +80,14 @@ http
     try {
       pathname = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
     } catch {
-      res.writeHead(400).end();
+      fail(res, 400, "Bad Request");
       return;
     }
     if (pathname.endsWith("/")) pathname += "index.html";
     const file = path.normalize(path.join(ROOT, pathname));
     const rel = path.relative(ROOT, file);
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
-      res.writeHead(403).end();
+      fail(res, 403, "Forbidden");
       return;
     }
     try {
@@ -93,7 +104,7 @@ http
       });
       res.end(req.method === "HEAD" ? undefined : buf);
     } catch {
-      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }).end("404 Not Found");
+      fail(res, 404, "404 Not Found");
     }
   })
   .listen(PORT, () => console.log(`mymode-site static server listening on :${PORT}`));

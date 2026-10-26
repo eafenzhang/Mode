@@ -59,6 +59,15 @@ ssh eafen@100.104.219.122 python3 /tmp/setup-cloudflare.py
   只在 NAS 上被读取，不进入仓库、不落本机。
 - SSH 用 `~/.ssh/mode-fnos-deploy` 密钥连 `eafen@100.104.219.122`（Tailscale）。
 
+## Cloudflare zone 设置备忘
+
+- **Browser Cache TTL = 0（Respect Existing Headers）**：默认值 14400 会把源站的
+  `no-cache`/`max-age` 覆盖成 4 小时浏览器缓存，部署后客户端最长 4 小时看不到更新
+  （2026-10-27 实际踩过，靠改名 script.js→app.js 才恢复）。已改为遵循源站头，
+  源站对 HTML/CSS/JS/JSON 统一发 `no-cache`。
+- 若日后调整缓存策略，记得静态服务的错误响应带 `no-store`（404 会被按扩展名
+  边缘缓存，遮住后续部署的同名文件）。
+
 ## 诊断
 
 ```bash
