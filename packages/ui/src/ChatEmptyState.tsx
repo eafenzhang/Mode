@@ -312,7 +312,12 @@ export function ChatEmptyWorkspacePreviewMenu({
           </Button>
         </DropdownMenuTrigger>
       </div>
-      <DropdownMenuContent align="start" side="top" className="w-72 p-0">
+      {/*
+        alignOffset = 触发按钮的 ps-3（12px）：胶囊按钮的左内边距不属于「内容起点」，
+        弹层左缘要与胶囊里的图标/文字起点对齐（原版口径：弹层左缘 = 胶囊内容左缘）。
+        不加时弹层贴的是按钮外框，视觉上比胶囊内容偏左一截（2026-10-26 对拍发现）。
+      */}
+      <DropdownMenuContent align="start" side="top" alignOffset={12} className="w-72 p-0">
         <div
           data-slot="command-input-wrapper"
           className="p-1 border-b border-border"
