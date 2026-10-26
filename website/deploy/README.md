@@ -9,7 +9,7 @@ Mode 官网（`website/public/`）部署在 fnOS NAS 上，经 Cloudflare Tunnel
   → Cloudflare 边缘（HTTPS 终结，proxied）
   → cloudflared 隧道（fnOS「Tunnel」应用，token 方式远程托管，ingress 在云端配置）
   → 宿主 127.0.0.1:8095
-  → docker 容器 mymode-www（node:24-alpine 运行 nas-static.js）
+  → docker 容器 mymode-www（node:24-alpine 运行 nas-static.cjs）
   → /vol1/docker/mymode-site/（站点文件，由 deploy.sh 同步）
 ```
 
@@ -20,8 +20,18 @@ NAS 目录只是运行时副本。NAS 拉取不了 Docker Hub，因此静态服�
 ## 日常更新（改完站点后）
 
 ```bash
-./website/deploy/deploy.sh        # tar 流同步文件到 NAS + 确保容器在跑
+./website/deploy/deploy.sh        # tar 流同步文件到 NAS + 重建容器（约 2 秒中断）
 ```
+
+每次部署都会重建容器：`nas-static.cjs` 以只读挂载进容器，只有重建才能让新脚本与
+新挂载参数生效。站点目录不带 `:ro`，因为容器内的版本号刷新进程要写 `version.json`。
+
+## 版本号
+
+页面下载卡的 `<版本>` 占位与首屏徽标由 `/version.json` 填充。该文件由 `nas-static.cjs`
+在容器内每 10 分钟从 GitHub API（`releases/latest`）刷新——GitHub API 在国内浏览器
+直连不可靠，所以刷新放在 NAS 侧，页面只做同源读取。文件缺失或拉取失败时，页面
+静默保留占位符，不影响其他功能。
 
 ## 变更路由 / DNS（很少需要）
 

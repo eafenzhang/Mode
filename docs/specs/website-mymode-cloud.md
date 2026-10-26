@@ -20,7 +20,7 @@
 ## 技术约束
 
 - 位置 `website/`，不进入 pnpm workspace，不引入任何 npm 依赖。
-- 交互仅原生 JS：i18n 字典切换、主题切换、终端打字动画（`prefers-reduced-motion` 时静态呈现）、版本号经 GitHub API 拉取（失败静默隐藏）。
+- 交互仅原生 JS：i18n 字典切换、主题切换、终端打字动画（`prefers-reduced-motion` 时静态呈现）、版本号同源读取 `/version.json`（缺失时静默隐藏徽标并保留 `<版本>` 占位）。
 - 视觉对齐 `DESIGN.md`：冷静、克制、信息密度优先；品牌色 sky（暗色 `#38bdf8` / 亮色 `#0ea5e9`）、中性底色（暗 `#161616` / 亮 `#f8f8f8`），不使用大面积品牌填充。
 - 响应式覆盖桌面到手机；键盘焦点可见。
 
@@ -29,7 +29,8 @@
 - 状态所有者：站点文件唯一来源是仓库 `website/public/`；NAS 目录 `/vol1/docker/mymode-site/` 是运行时副本；DNS 与隧道 ingress 的所有者是 Cloudflare（zone `b46948a0c3898dc215c46f2763f731c3`，账号下远程托管隧道）。
 - 链路：`浏览器 → Cloudflare 边缘（proxied）→ cloudflared 隧道（fnOS NAS）→ nginx 容器 127.0.0.1:8095 → /vol1/docker/mymode-site/`。
 - apex 与 `www` 通过 CNAME（apex 依赖 Cloudflare 扁平化）指向 `<tunnel-id>.cfargotunnel.com`；切换时删除 apex 原有指向失效源站的 A 记录。隧道 ingress 需在既有 4 条业务路由（relay / agentgo / hub-cmd / gashub）之前插入两条新规则，catch-all 保持最后。
-- 更新站点 = `website/deploy/deploy.sh`（tar 流传输到 NAS）；DNS / ingress 变更 = `website/deploy/setup-cloudflare.py`（幂等，可重复执行）。
+- 更新站点 = `website/deploy/deploy.sh`（tar 流传输到 NAS 并重建容器）；DNS / ingress 变更 = `website/deploy/setup-cloudflare.py`（幂等，可重复执行）。
+- 版本号来源：NAS 端静态服务（`nas-static.cjs`）每 10 分钟从 GitHub API 刷新并写 `version.json` 到站点目录，页面同源读取——GitHub API 在国内浏览器直连不可靠，因此刷新发生在 NAS 侧。
 - Cloudflare API token 不入库，运行时从 fnOS `/vol1/@appconf/com.dustinky.tunnel/config.json` 读取。
 
 ## 验收场景

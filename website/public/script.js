@@ -207,15 +207,21 @@
     targets.forEach((el) => io.observe(el));
   }
 
-  /* ---------- 最新版本号 ---------- */
+  /* ---------- 最新版本号 ----------
+     版本号由 NAS 端静态服务定时从 GitHub API 刷新到站点目录（见 website/deploy/nas-static.js），
+     页面只做同源读取，不依赖浏览器直连 GitHub（国内网络不可靠）。 */
   const chip = $("#versionChip");
-  fetch("https://api.github.com/repos/eafenzhang/Mode/releases/latest")
+  fetch("/version.json", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
-      if (d && d.tag_name) {
-        chip.textContent = d.tag_name;
-        chip.hidden = false;
-      }
+      const tag = d && typeof d.tag === "string" ? d.tag : null;
+      if (!tag) return;
+      chip.textContent = tag;
+      chip.hidden = false;
+      const ver = tag.replace(/^v/, "");
+      $$(".dl-card code").forEach((el) => {
+        el.textContent = el.textContent.replace("<版本>", ver);
+      });
     })
     .catch(() => {});
 })();
