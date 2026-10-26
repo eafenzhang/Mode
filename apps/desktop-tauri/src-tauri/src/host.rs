@@ -298,6 +298,12 @@ fn watch_loop<R: Runtime>(app: AppHandle<R>, supervisor: Arc<HostSupervisor>) {
         }
         let config = resolve_config(&app);
         let next = spawn_or_failed(&config);
+        // spawn 与 shutdown 可能并发（退避睡眠的窗口）：若壳在 spawn 期间决定退出，
+        // 这里必须立刻收掉刚拉起的进程，否则 RunEvent::Exit 已经过去、它会成为孤儿。
+        if supervisor.is_shutting_down() {
+            let _ = next.shutdown();
+            return;
+        }
         eprintln!(
             "[mode-tauri] Host 重生：startupId={} pid={}",
             next.startup_id(),

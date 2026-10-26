@@ -339,8 +339,10 @@
     }
   });
 
-  /** 采用当前代 → 投端口 → 起状态流与泵。id 拿不到就不投端口（闸门不会放行，30s 失败屏可见）。 */
-  function start() {
+  /** 采用当前代 → 投端口 → 起状态流与泵。有界重试：IPC 一次性抖动不该让整条启动链白等 30s。 */
+  var STARTUP_ID_ATTEMPTS = 3;
+  var STARTUP_ID_RETRY_MS = 400;
+  function adoptStartupId(attempt) {
     internals
       .invoke(CMD_STARTUP_ID)
       .then(function (startupId) {
@@ -366,8 +368,18 @@
         pump();
       })
       .catch(function (error) {
+        if (attempt < STARTUP_ID_ATTEMPTS) {
+          setTimeout(function () {
+            adoptStartupId(attempt + 1);
+          }, STARTUP_ID_RETRY_MS);
+          return;
+        }
         fail("host_startup_id_failed", error);
       });
+  }
+
+  function start() {
+    adoptStartupId(1);
   }
 
   if (document.readyState === "loading") {
