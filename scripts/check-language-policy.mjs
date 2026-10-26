@@ -20,7 +20,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const bannedExtensions = [".py", ".cs", ".js", ".mjs", ".cjs"];
-const exemptPrefixes = [".agents/skills/", "third-party/"];
+// website/**（2026-10-27，mymode.cloud 官网上线）：公开静态站是部署工件目录，不是
+// 桌面产品源码；其原生 JS/部署脚本不参与语言收窄（决策随 86c0d975 的网站上线一起
+// 做出，见 docs/specs/language-policy.md 的豁免清单）。
+const exemptPrefixes = [".agents/skills/", "third-party/", "website/"];
 
 // 以脚本自身位置定位仓库根，cd 进去执行，保证从任意目录可跑
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

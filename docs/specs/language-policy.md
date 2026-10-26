@@ -37,6 +37,9 @@ verify job，本仓无通用 PR CI，且不改 `upstream-audit.yml`）、R7（�
 
 - `.agents/skills/**`
 - `third-party/**`
+- `website/**`（2026-10-27 追加：mymode.cloud 公开静态站随网站上线一并豁免——部署
+  工件目录，非桌面产品源码；其原生 JS/部署脚本不参与语言收窄。决策随 `86c0d975`
+  一起做出，v0.0.90 verify 首次撞线后补记。）
 
 依据：`third-party/copied-components.json` 台账（第三方复制件的来源与许可记录）
 与 `.gitattributes` 的 `linguist-vendored` 标记（`.agents/skills/**`，含其自带的
