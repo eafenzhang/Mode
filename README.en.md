@@ -6,7 +6,7 @@
 </div>
 
 <p align="center">
-  <a href="README.md">简体中文</a> | English
+  <a href="README.md">简体中文</a> | English | <a href="https://mymode.cloud/">Website</a>
 </p>
 
 <p align="center">

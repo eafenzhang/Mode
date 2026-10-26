@@ -6,7 +6,7 @@
 </div>
 
 <p align="center">
-  简体中文 | <a href="README.en.md">English</a>
+  简体中文 | <a href="README.en.md">English</a> | <a href="https://mymode.cloud/">官网</a>
 </p>
 
 <p align="center">
