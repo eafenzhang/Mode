@@ -44,3 +44,5 @@ windows-sys.workspace = true
 # 图标编码：PNG 容器 + base64 data URL。
 png.workspace = true
 base64.workspace = true
+# 终端 PTY 会话管理（spec `terminal-pty-in-shell.md`）：进程下沉到壳。
+portable-pty.workspace = true

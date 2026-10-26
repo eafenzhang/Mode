@@ -65,6 +65,10 @@ fn main() {
         // Host sidecar：起第一代并交给监督器（进程死亡后按退避策略自动重生 + 整页重载，
         // 见 `host.rs` 的 `watch_loop`）。注入桥不再需要 startupId：它在文档启动时经
         // `host_startup_id` 采用**当前代**，所以重生换代后 reload 的新文档自动绑定新 id。
+        // 终端 PTY 会话（spec `terminal-pty-in-shell.md`）：进程所有权在壳，事件经
+        // `terminal://data|exit` 推给渲染层；Host 死亡/重生不再影响终端。
+        app.manage(mode_tauri::terminal::create_manager(&handle));
+
         let supervisor = mode_tauri::host::start(&handle);
         eprintln!(
             "[mode-tauri] host startupId={} pid={}",

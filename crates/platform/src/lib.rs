@@ -9,5 +9,6 @@ pub mod commands;
 pub mod icon_windows;
 pub mod source_url;
 mod state;
+pub mod terminal;
 
 pub use state::AppState;

@@ -11,6 +11,7 @@ use tauri::Runtime;
 
 pub mod host;
 pub mod single_instance;
+pub mod terminal;
 pub mod web_assets;
 pub mod webview_settings;
 pub mod window;
@@ -34,11 +35,14 @@ pub fn extra_handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + S
     let window_controls = window_controls::handler::<R>();
     let update_state = updater::state::handler::<R>();
     let host = host::handler::<R>();
+    let terminal = terminal::handler::<R>();
     move |invoke| {
         if updater::state::COMMAND_NAMES.contains(&invoke.message.command()) {
             update_state(invoke)
         } else if window_controls::COMMAND_NAMES.contains(&invoke.message.command()) {
             window_controls(invoke)
+        } else if terminal::COMMAND_NAMES.contains(&invoke.message.command()) {
+            terminal(invoke)
         } else {
             host(invoke)
         }

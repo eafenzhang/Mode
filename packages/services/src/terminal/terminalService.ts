@@ -4,7 +4,11 @@ import { delimiter, dirname, join, resolve } from "node:path";
 import { Emitter, type Event } from "@mode/rpc";
 import type { IPty } from "node-pty";
 import type { ISettingService } from "../setting/setting.js";
-import type { ITerminalService, TerminalWindowsPtyInfo } from "./terminal.js";
+import type {
+  ITerminalService,
+  TerminalProfileInfo,
+  TerminalWindowsPtyInfo,
+} from "./terminal.js";
 import {
   resolveTerminalFontProfile,
   type TerminalFontFamilySource,
@@ -349,7 +353,36 @@ export function createTerminalService(dependencies: {
     terminals.delete(id);
   }
 
+  /** profile 解析（shell/cwd/字体/主题）——create 与 profile 共用同一实现。 */
+  const resolveProfile = async (params: { cwd?: string }): Promise<TerminalProfileInfo> => {
+    const shell = resolveTerminalShell();
+    const cwd = resolveTerminalCwd(params.cwd);
+    const terminalProfileSettings = await dependencies.settingService.get().catch(() => ({
+      terminalFontFamily: undefined,
+      terminalInheritSystemProfile: true,
+    }));
+    const fontProfile = resolveTerminalFontProfile({
+      settings: terminalProfileSettings,
+      env: process.env,
+    });
+    return {
+      shell,
+      cwd,
+      fontFamily: fontProfile.fontFamily,
+      fontSize: fontProfile.fontSize,
+      theme: fontProfile.theme,
+      fontFamilySource: fontProfile.source,
+      windowsPty: resolveTerminalWindowsPtyInfo(),
+    };
+  };
+
   const service: ITerminalService & { disposeAll(): void } = {
+    // profile 权威（spec `terminal-pty-in-shell.md`）：shell 选择/字体/主题/cwd 回退
+    // 都留在这里；桌面端壳-backed 实现拿它去壳侧拉起 PTY。
+    async profile(params: { cwd?: string }): Promise<TerminalProfileInfo> {
+      return resolveProfile(params);
+    },
+
     async create(params: { cols: number; rows: number; cwd?: string }): Promise<{
       id: string;
       shell: string;
@@ -359,18 +392,9 @@ export function createTerminalService(dependencies: {
       fontFamilySource: TerminalFontFamilySource;
       windowsPty?: TerminalWindowsPtyInfo;
     }> {
+      const profile = await resolveProfile(params);
       const id = String(nextId++);
-      const shell = resolveTerminalShell();
-      const cwd = resolveTerminalCwd(params.cwd);
       const env = resolveTerminalEnv();
-      const terminalProfileSettings = await dependencies.settingService.get().catch(() => ({
-        terminalFontFamily: undefined,
-        terminalInheritSystemProfile: true,
-      }));
-      const fontProfile = resolveTerminalFontProfile({
-        settings: terminalProfileSettings,
-        env: process.env,
-      });
       const nodePty = await loadNodePtyModule();
       ensureNodePtySpawnHelperExecutable();
       const dataEmitter = new Emitter<string>();
@@ -380,15 +404,15 @@ export function createTerminalService(dependencies: {
       try {
         p = spawnTerminalProcess({
           nodePty,
-          shell,
+          shell: profile.shell,
           cols: params.cols,
           rows: params.rows,
-          cwd,
+          cwd: profile.cwd,
           env,
         });
       } catch (error) {
         throw new Error(
-          `Failed to start terminal with shell '${shell}' in '${cwd}': ${getErrorMessage(error)}`,
+          `Failed to start terminal with shell '${profile.shell}' in '${profile.cwd}': ${getErrorMessage(error)}`,
         );
       }
 
@@ -403,12 +427,12 @@ export function createTerminalService(dependencies: {
       terminals.set(id, { pty: p, dataEmitter, exitEmitter });
       return {
         id,
-        shell,
-        fontFamily: fontProfile.fontFamily,
-        fontSize: fontProfile.fontSize,
-        theme: fontProfile.theme,
-        fontFamilySource: fontProfile.source,
-        windowsPty: resolveTerminalWindowsPtyInfo(),
+        shell: profile.shell,
+        fontFamily: profile.fontFamily,
+        fontSize: profile.fontSize,
+        theme: profile.theme,
+        fontFamilySource: profile.fontFamilySource,
+        windowsPty: profile.windowsPty,
       };
     },
 

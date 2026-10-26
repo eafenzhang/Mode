@@ -31,7 +31,8 @@ import {
 } from "@mode/shared";
 import type { Locale } from "@mode/shared";
 import type { IServiceAccessor } from "@mode/services";
-import { createDesktopPlatform } from "./desktopPlatform.js";
+import { createDesktopPlatform, isTauriRendererRuntime } from "./desktopPlatform.js";
+import { createShellTerminalService } from "./desktopTerminalBridge.js";
 import { isPostBootHostTransportDeath } from "./hostTransportDeath.js";
 import {
   HOST_LIVENESS_DEADLINE_MS,
@@ -413,6 +414,23 @@ function initializeBusinessRoot(port: MessagePort): void {
   });
   // LR-3 被控侧：把显示器快照推给 Host（Tauri 下才生效；Electron 无此服务）。
   startLocalDisplaySync(services);
+  // 终端 PTY 下沉（spec `terminal-pty-in-shell.md`）：Tauri 下用壳-backed 实现覆盖
+  // terminalService——profile 仍由 Host 提供，进程在壳侧，Host 崩溃/重生不再带走终端。
+  // registerBaseWorkspaceServices/baseServicesForRemoteSessions 保持原服务（远端
+  // scoped session 用远端 Host 的终端，不适用本覆盖）。
+  let uiServices: IServiceAccessor = services;
+  if (isTauriRendererRuntime() && services.terminalService.profile) {
+    const hostProfile = services.terminalService.profile.bind(services.terminalService);
+    const shellTerminal = createShellTerminalService({ profile: hostProfile });
+    uiServices = new Proxy(services, {
+      get(target, prop, receiver) {
+        if (prop === "terminalService") {
+          return shellTerminal;
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+  }
   const settingService = supportsSettings ? services.settingService : undefined;
   // 初始化稳定的设备 ID，确保所有 hook 在首次渲染前就使用正确的值
   setStreamClientId(desktopPlatform.getDeviceId());
@@ -426,7 +444,7 @@ function initializeBusinessRoot(port: MessagePort): void {
       >
         <StartupReadyNotifier />
         <Root
-          services={services}
+          services={uiServices}
           platform={desktopPlatform}
           isDesktop
           assistantCodeCommentCardsEnabled

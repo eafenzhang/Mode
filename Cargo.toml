@@ -82,3 +82,5 @@ base64 = "0.22"
 # （`ring` provider，避开 aws-lc-rs 的原生构建）。
 rcgen = { version = "0.14", default-features = false, features = ["ring"] }
 tauri-plugin-notification = "2"
+# 终端 PTY（spec `terminal-pty-in-shell.md`）：壳持有终端进程，Host 崩溃/重生不再带走终端。
+portable-pty = "0.9"
