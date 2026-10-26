@@ -64,7 +64,7 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 | M0 | 进行中 | 语言门禁、clean-room spec、上游基线、Rust 工具链、helper P1 与黑盒对拍 | `browser-import-helper` C# 重写与真实 Windows 会话验收（P2） |
 | M1 | **已关闭（2026-10-20）** | v0.0.59 三平台出包首次全绿，v0.0.60/61 按三平台同发口径发布；10 命令 E2E、clippy/rustfmt、协议生成物 | 无；体积口径由 DR-M5-2b 放开，macOS/Linux 真机验收转入 M5 |
 | M2 | 代码面完成，验收未过 | 工具/权限/会话流/对拍矩阵与 CI 门禁；Rust workspace 30 suites / 202 passed（2026-10-20 验收）；stdio 审批帧映射（2026-10-22，+13 用例） | 真实模型 20 个端到端任务未执行 |
-| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过 | 插件/MCP/Skills **负载**的 CDN 发布与产品接线（Host sidecar 已按 DR-M3-2 随包发布，不是缺口）；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收 |
+| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过；**Host 进程自动重生（§22.4）与 `exportLogs`（§27）已实现（2026-10-26）** | 插件/MCP/Skills **负载**的 CDN 发布与产品接线（Host sidecar 已按 DR-M3-2 随包发布，不是缺口）；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收 |
 | M4 | 进行中 | UI 基础件 adapter 全量切换、业务代码对旧 `components/ui/*` 引用清零；上游重合度 9.17%（2026-10-24 复测） | 旧 UI 文件看屏验收与删除；重合度清零；Rust 台账 514 缺失项与法务收口 |
 | M5 | 进行中 | 三平台 Release 发布口径已启用、Windows 自动发版连续跑通；旧 Electron 线代码/CI 已下线（`d71ed992`） | 三平台签名、EOL 公告与历史文档归档、差分更新、mac/Linux 真机安装/升级 |
 
@@ -76,6 +76,12 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > `.py/.cs/.js/.mjs/.cjs`，因此 Go 文件能通过门禁；是否把 Go 写入允许语言或禁入清单，
 > 仍待单独裁决（现状：不拦，属口径缺口）。
 
+> **2026-10-26 追加**：自动化面又被推进三项并收口——`exportLogs`（LR-5 §27，命令第 15 行 +
+> 单文件文本包 + 保存对话框）、Host 自动重生（spec §22.4，进程事实驱动 + 退避换代 + 整页
+> reload + 终态屏 retry/exit 控制，真机杀进程 E2E 通过）、日志跨日滚动修复；另把
+> `updater --lib` 的 `0xC0000139` 根因查明（测试清单指令非法，已修）。**仍未自动化的只剩
+> 半开管道心跳（传输层独立立项）**；其余阻塞项与下方清单一致，均需人工/真机/真账号。
+>
 > **自动化推进收口（sess_9664bbd9，2026-10-23→24）**：本会话负责的可自动化面已清零。
 > 本会话落地：LR-5 桩升级 13 条并收口登记（§26–27）、M4a 四件 bench 脚本与三件实测基线
 > （§基线·IPC / 核心载荷 59.77 MiB / stream-latency 两段）、IM bot SDK 动态 import 半件、
