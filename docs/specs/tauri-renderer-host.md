@@ -2241,6 +2241,12 @@ LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/conne
 5. **人工控制**：`host_startup_control`——`retry`（存活时仅 reload，不杀 Host 以免打断
    任务；死亡时清预算并重生）、`exit`（`app.exit(0)`，走既有 `RunEvent::Exit` 收 Host）、
    `snapshot`（桥直接回放最后一帧，状态流本就连续）。
+   **失败屏的重试判据同步修正**（`canRetryDatabaseStartup`，`packages/shared`）：
+   `transport_closed` / `startup_status_timeout` 不再排除——它们就是「进程死了/没起来」，
+   在重生语义下重试等价于退出重开且不丢窗口；`corrupt` / `checksum_mismatch` /
+   `unsupported_runtime` 与 `failedPhase === "starting_services"` 仍不给重试
+   （重启同级进程不会变好 / 避免重复装配副作用）。2026-10-26 装后验收实测：旧判据导致
+   崩溃循环放弃后的失败屏**没有重试按钮**，只能退出重开。
 6. **边界**：多窗口不在本口径（当前只有主窗口）；半开管道（进程活着但传输停摆）仍不可
    检测，见 §22.3 第 2 条。
 

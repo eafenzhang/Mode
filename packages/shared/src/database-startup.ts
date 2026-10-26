@@ -160,19 +160,24 @@ export const databaseStartupControlSchema = z.discriminatedUnion("action", [
 ]);
 export type DatabaseStartupControl = z.infer<typeof databaseStartupControlSchema>;
 
-/** 迁移可手动重试；已部分装配服务或损坏/失联时通过退出重开恢复，避免重复启动副作用。 */
+/**
+ * 迁移可手动重试；已部分装配服务或**环境性损坏**时不给重试（重启同级进程不会变好），
+ * 避免重复启动副作用。
+ *
+ * 2026-10-26 口径修正（Tauri 线 `retry = 壳重生 Host`，spec `tauri-renderer-host.md` §22.4）：
+ * `transport_closed` / `startup_status_timeout` 从排除表里移除。这两个错码的含义是
+ * **Host 进程死了或没起来**——旧 Electron 线的重试只能在同一个死连接上重发、所以只能
+ * 退出重开；现在壳会换新一代 Host（带退避上限），重试等价于「退出并重新打开」但不丢窗口。
+ * 崩溃循环仍有壳侧 3 次上限兜底，不会因按钮被反复点击而空转。
+ */
 export function canRetryDatabaseStartup(
   state: Pick<DatabaseStartupState, "phase" | "failedPhase" | "errorCode">,
 ): boolean {
   return (
     state.phase === "failed" &&
     state.failedPhase !== "starting_services" &&
-    ![
-      "corrupt",
-      "checksum_mismatch",
-      "transport_closed",
-      "startup_status_timeout",
-      "unsupported_runtime",
-    ].includes(state.errorCode ?? "sql_failed")
+    !["corrupt", "checksum_mismatch", "unsupported_runtime"].includes(
+      state.errorCode ?? "sql_failed",
+    )
   );
 }
