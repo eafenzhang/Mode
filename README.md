@@ -2,11 +2,11 @@
 
 <div align="center">
   <img src="apps/desktop-tauri/src-tauri/icons/icon.png" alt="Mode" width="96" height="96" />
-  <p><strong>An AI coding workspace for desktop, browser and terminal — forked from ZCode, maintained independently.</strong></p>
+  <p><strong>桌面端、浏览器与终端三端的 AI 编程工作区，核心以 Rust 重写。</strong></p>
 </div>
 
 <p align="center">
-  <a href="README.zh-CN.md">简体中文</a> | English
+  简体中文 | <a href="README.en.md">English</a>
 </p>
 
 <p align="center">
@@ -14,93 +14,89 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-Mode keeps the product itself — an agent that plans, edits, runs and verifies code with you — and rebuilds it from the public source with monitoring and telemetry removed and the vendor platform retired. It is an independent audit fork of [zai-org/ZCode](https://github.com/zai-org/ZCode); the lineage is recorded in [NOTICE.md](NOTICE.md), and changes against the upstream baseline are traced by diffing this repository against that repo.
+Mode 是一个陪你规划、改代码、跑命令、自我验证的编程智能体。桌面端以 Rust + Tauri v2 重建：窗口与平台能力、协议真源、更新 / 托盘 / 深链、Host sidecar 监督都落在 Rust workspace（`crates/`）里，Agent 会话运行时与工具执行的重写对应 `crates/agent-core` 与 `crates/agent-tools`；界面复用共享 React 组件，插件、IM 机器人等生态能力由随包的 Host sidecar 承载，按路线图逐步并入 Rust。
 
-## What this fork is about
+## 功能一览
 
-- **No monitoring, no telemetry**: the client monitoring SDK, usage and network reporting, crash collection, resource sampling and UI instrumentation are gone, with regression checks that keep them out.
-- **Official platform retired**: sign-in, coding plans, official MCP credentials, feedback upload and the official plugin marketplace no longer connect anywhere. There is no switch that turns them back on.
-- **Offline plugin catalog**: the "Public" segment of the plugin store ships the official plugin list inside the app (icons and Chinese descriptions included), so it browses without touching a CDN; the "Personal" segment is whatever directories you add yourself, such as the Claude Code plugin directory.
-- **Built for daily use**: IM bots, LAN remote connections and silent updates, described below.
+- **一个 Agent，三种界面**：Tauri 桌面端、浏览器工作区与终端 TUI 共用同一个 Agent 运行时和同一批会话；远程工作区支持 SSH、WSL、Docker，也支持**局域网里的另一台 Mode**。
+- **会规划、会改、会跑、会验证**：文件改动用 diff 呈现，终端命令带上下文，改完自己跑测试复核；需要网页任务时内置浏览器插件驱动真实浏览器。
+- **动手之前先征求许可**：每一次编辑、命令和工具调用都可以要求审批——仅本次允许、本项目内一直允许，或完全放行。
+- **IM 机器人**：在 微信 / 企业微信 / 飞书（中国）/ 钉钉 里直接驱动工作区。私聊按人、群聊按群各自绑定独立会话，回复流式发回聊天窗口，群聊可以保持安静（例如企业微信只在被 @ 时响应），可选心跳定时推送进展摘要。
+- **局域网远程连接**：同一网络里跑着 Mode 的机器通过 UDP 广播被发现，用一次性 6 位配对码授权后即可当作远程主机使用——选一个对端工作区，像本地一样对话。
+- **远程被控端**：Windows（XP 至 11）机器可运行单文件 `mode-agent`，经标准 MCP Streamable HTTP 接受指令——命令与后台作业、文件、进程、截屏与键鼠控制，详见 [apps/remote-agent](apps/remote-agent/README.md)。
+- **多智能体协作**：子代理、动态工作流、技能与定时自动化。
+- **插件、技能与 MCP**：内置插件 + 插件市场；「公开」分段随包内置离线目录（含图标与中文描述），浏览不请求 CDN，「个人」分段放你自己登记的目录，例如 Claude Code 插件目录。MCP 服务按用户或工作区配置。
+- **自带模型**：内置 DeepSeek、OpenAI、Anthropic、Moonshot Kimi、MiniMax、Z.AI（GLM）、阿里、xAI、小米 MiMo、OpenRouter 预设，也支持完全自定义端点（Chat Completions / Responses / Anthropic Messages）。
+- **静默更新**：应用自己检查本仓库的 GitHub Releases，遵循你设置的代理，按你的设置退出时安装。
 
-## Highlights
+## 下载与安装
 
-- **One agent, three interfaces**: the Tauri desktop app, the browser workspace and the terminal TUI share one agent runtime and the same sessions. Remote workspaces work over SSH, WSL, Docker, or a **LAN peer** running Mode on another machine in the same network.
-- **Plans, edits, runs, verifies**: file changes arrive as diffs, terminal commands carry their context, and the agent checks its own work by running tests. A bundled browser plugin drives a real browser when a task needs one.
-- **Asks before it touches your project**: every edit, command and tool call can require approval — allow once, always in this project, or full access.
-- **IM bots**: drive a workspace from 微信 / 企业微信 / 飞书（中国）/ 钉钉. Each conversation keeps its own session binding (per person in private chat, per group in group chat), replies stream back into the chat, group chats can stay silent (WeCom only answers when mentioned), and an optional heartbeat posts a summary on a schedule.
-- **LAN remote connection**: another machine in the same network running Mode is discovered over UDP broadcast, paired with a one-time 6-digit code, and then used as a remote host — pick a workspace on it and chat as if it were local.
-- **Multi-agent collaboration**: sub-agents, dynamic workflows, skills and scheduled automations.
-- **Plugins, skills and MCP**: a built-in plugin set plus a marketplace with an offline official catalog; MCP servers are configured per user or workspace.
-- **Bring your own model**: built-in presets for DeepSeek, OpenAI, Anthropic, Moonshot Kimi, MiniMax, Z.AI (GLM), Alibaba, xAI, Xiaomi MiMo and OpenRouter, plus fully custom endpoints (Chat Completions, Responses, Anthropic Messages).
-- **Silent updates**: the app checks this repository's GitHub Releases itself, honors your proxy settings, and installs on quit when you let it.
+安装包都在 [Releases](https://github.com/eafenzhang/Mode/releases) 页面。产物**没有代码签名**，各系统首次启动都会拦一次——这是预期行为，下载后可以对照同页面的 `sha256.txt` 自行校验（Windows `certutil -hashfile <文件> SHA256`，macOS `shasum -a 256 <文件>`，Linux `sha256sum <文件>`）。
 
-## Download and install
+| 平台                | 产物                                | 首次启动                                                                                  |
+| ------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| Windows x64         | `Mode-<版本>-win-x64.exe`           | SmartScreen 提示时点「更多信息」→「仍要运行」                                             |
+| macOS Apple Silicon | `Mode-<版本>-mac-arm64.dmg`         | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"` |
+| Linux x86_64        | `Mode-<版本>-linux-x86_64.AppImage` | `chmod +x` 后直接运行                                                                     |
 
-Installers are attached to the [Releases](https://github.com/eafenzhang/Mode/releases) page. Builds are **not code-signed**, so each system blocks the first launch once — that is expected, and the download can be verified against `sha256.txt` on the same release page (`certutil -hashfile <file> SHA256` on Windows, `shasum -a 256 <file>` on macOS, `sha256sum <file>` on Linux).
+已安装的桌面端会从本仓库的 Releases 自动更新。
 
-| Platform            | Asset                                  | First launch                                                                              |
-| ------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Windows x64         | `Mode-<version>-win-x64.exe`           | SmartScreen warns: **More info** → **Run anyway**                                         |
-| macOS Apple Silicon | `Mode-<version>-mac-arm64.dmg`         | `sudo /usr/bin/xattr -rd com.apple.quarantine "/Applications/Mode.app" && open -a "Mode"` |
-| Linux x86_64        | `Mode-<version>-linux-x86_64.AppImage` | `chmod +x` the file, then run it                                                          |
+SSH / WSL / Docker 远端工作区会复用主机上已有的运行时；本仓库不发布预构建的远端运行资源。要给一台什么都没有的主机做首次部署，可以本地执行 `pnpm prepare:remote-assets` 自己准备，并用 `MODE_REMOTE_ASSET_CDN_BASE_URL` 指向你的存放位置。
 
-Installed desktop clients update themselves from this repository's releases.
+## 从源码运行
 
-Remote workspaces over SSH, WSL or Docker reuse a runtime that already exists on the host; this repository does not publish the prebuilt runtime bundles. To provision a host that has none, build them locally with `pnpm prepare:remote-assets` and point `MODE_REMOTE_ASSET_CDN_BASE_URL` at wherever you host them.
-
-## Build and run from source
-
-Prerequisites: Git, Node.js **24.14.0** and pnpm **10.33.2** — [mise.toml](mise.toml) is the source of truth for tool versions. Run everything from the repository root.
+前置：Git、Node.js **24.14.0**、pnpm **10.33.2**（以 [mise.toml](mise.toml) 为准）、Rust stable 工具链（[rust-toolchain.toml](rust-toolchain.toml)，含 clippy 与 rustfmt）。以下命令都在仓库根目录执行。
 
 ```bash
-pnpm bootstrap                 # install dependencies and build workspace packages
-pnpm dev:desktop               # Tauri desktop app (Rust + the shared product renderer)
-pnpm dev:web                   # browser workspace
-pnpm --filter @mode/cli dev   # agent CLI
+pnpm bootstrap                 # 安装依赖并构建 workspace 包
+pnpm dev:desktop               # Tauri 桌面端（Rust 壳 + 共享 renderer）
+pnpm dev:web                   # 浏览器工作区
+pnpm --filter @mode/cli dev   # Agent CLI
 ```
 
-Set `MODE_DATA_BASE_DIR` to develop against an isolated data directory instead of your real one.
+设置 `MODE_DATA_BASE_DIR` 可以让开发实例使用独立的数据目录，不动你正在用的那份；`mise run dev` 已内置该隔离。
 
-Useful checks before committing:
+提交前的常用校验：
 
 ```bash
-pnpm typecheck                                              # TypeScript project references
-pnpm lint                                                   # oxlint
-pnpm --filter @mode/services test                          # service and contract tests
-pnpm exec tsx --test packages/desktop/tests/*.test.mjs packages/desktop/tests/*.test.mts  # desktop node tests
-pnpm architecture:check -- --changed                        # dependency direction policy
+pnpm typecheck                            # TypeScript 工程引用
+pnpm lint                                 # oxlint
+cargo test --workspace                    # Rust workspace 测试
+cargo clippy --all-targets -- -D warnings # Rust 静态检查
+pnpm architecture:check -- --changed      # 依赖方向策略检查
 ```
 
-To produce a desktop installer locally (artifacts land in `dist/tauri`):
+Windows 本机没有 VS Build Tools 时，Rust 命令可改走 `mise run rust -- test --workspace`（自动装配 gnu 工具链；CI 与常规环境直接用 `cargo` 即可）。
+
+本地打一个桌面安装包（产物在 `dist/tauri`）：
 
 ```bash
 pnpm --filter @mode/desktop-tauri run tauri:build
 ```
 
-## Release automation
+## 发版自动化
 
-Pushing to `main` builds and publishes a new version automatically: `.github/workflows/release.yml` takes the latest stable tag, bumps its patch (for example `v0.0.1` → `v0.0.2`), runs the `verify` gate (typecheck, lint, service and desktop tests), builds the desktop clients for Windows x64, macOS Apple Silicon and Linux x64, uploads everything into a **draft** release, and publishes it only after every artifact is in place — a failed build leaves the release as a draft, so download pages never resolve to a half-built version. Put `[skip release]` in the commit message to push without releasing, or trigger the workflow manually to pick an explicit version or a pre-release.
+推送 `main` 就会自动构建并发布新版本：`.github/workflows/release.yml` 取最近一个正式版 tag 把 patch 号 +1（例如 `v0.0.1` → `v0.0.2`），先跑 `verify` 闸门（类型检查、Lint、服务与桌面端测试），再构建 Windows x64 / macOS Apple Silicon / Linux x64 三个桌面客户端，全部上传进一个 **draft** Release，等所有产物齐了才公开——构建失败就停在 draft，下载页永远不会解析到一个半成品版本。提交信息里带 `[skip release]` 可以只推代码不发版；需要指定版本号或发预发布时，手工触发这个 workflow。
 
-## Repository layout
+## 仓库结构
 
-| Path                                                 | Contents                                                                   |
-| ---------------------------------------------------- | -------------------------------------------------------------------------- |
-| `apps/desktop-tauri`                                 | Tauri v2 shell (Rust commands, Host sidecar, packaging)                    |
-| `packages/desktop`                                   | Product renderer and Host sources; LAN access server and discovery         |
-| `packages/ui`                                        | Shared React components, hooks and Zustand stores (settings, plugin store) |
-| `packages/services`                                  | Business services (agent sessions, bots, plugins, remote connections)      |
-| `packages/server`, `packages/web`                    | Browser workspace server and client                                        |
-| `packages/client`, `packages/rpc`, `packages/shared` | Agent client SDK, RPC framework, shared contracts                          |
-| `apps/mode-cli`                                     | Agent CLI and runtime (also embedded by the desktop app)                   |
-| `harness/lan`                                        | How to try the LAN remote connection between two machines                  |
+| 路径                                                 | 内容                                                                              |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `crates/`                                            | Rust workspace：协议真源（`protocol`）、会话运行时（`agent-core`、`agent-tools`）、平台命令面（`platform`）、Host sidecar 监督（`sidecar-host`）、插件宿主、更新器、托盘、深链等 |
+| `apps/desktop-tauri`                                 | Tauri v2 桌面壳（Rust 命令面、打包）                                              |
+| `apps/remote-agent`                                  | Windows 远控被控端 `mode-agent`（Go，XP 至 11）                                   |
+| `apps/mode-cli`                                      | Agent CLI 与运行时                                                                |
+| `packages/desktop`                                   | 产品 renderer 与 Host sidecar 源码；局域网访问服务与发现                          |
+| `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand store（设置页、插件商店）                       |
+| `packages/services`                                  | 业务服务（Agent 会话、机器人、插件、远程连接）                                    |
+| `packages/web`、`packages/server`                    | 浏览器工作区的客户端与服务端                                                      |
+| `packages/client`、`packages/rpc`、`packages/shared` | Agent 客户端 SDK、RPC 框架、共享契约                                              |
+| `docs/specs`                                         | 产品规则、协议与验收场景                                                          |
 
-## License and provenance
+## 许可与说明
 
-First-party code in this repository is MIT licensed ([LICENSE](LICENSE)); the upstream ZCode source it forks is Apache-2.0 ([LICENSE-APACHE](LICENSE-APACHE)). Third-party components and their licenses are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); what the app may do on your machine — file access, commands, hooks, browser automation, background tasks — is described in [NOTICE.md](NOTICE.md) (also available as [NOTICE.zh-CN.md](NOTICE.zh-CN.md)).
+本仓库第一方代码以 MIT 发布（[LICENSE](LICENSE)）；源自 Apache-2.0 项目的代码沿用其许可（[LICENSE-APACHE](LICENSE-APACHE)）。第三方组件及许可见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；应用可能在你机器上做什么——文件读写、命令执行、钩子、浏览器自动化、后台任务——以及对应边界，见 [NOTICE.zh-CN.md](NOTICE.zh-CN.md)（英文版 [NOTICE.md](NOTICE.md)）。
 
-The telemetry removals that started this fork are documented, with their limits, in the [desktop](packages/desktop/specs/telemetry-removal-report.md), [CLI](apps/mode-cli/specs/telemetry-removal-report.md) and [UI](packages/ui/specs/telemetry-removal-report.md) reports.
+## 反馈
 
-## Feedback
-
-Bugs, questions and feature requests: [open an issue](https://github.com/eafenzhang/Mode/issues). Please check the existing issues first, and include the version shown in **Settings → About**.
+问题、疑问与功能建议请[开 Issue](https://github.com/eafenzhang/Mode/issues)；先翻一下已有 Issue，并附上「设置 → 关于」里显示的版本号。
