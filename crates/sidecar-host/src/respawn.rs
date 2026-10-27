@@ -14,7 +14,12 @@
 use std::time::{Duration, Instant};
 
 /// 距上次起进程不足这个时长就死亡 = 一次「快速崩溃」。
-pub const QUICK_CRASH_WINDOW: Duration = Duration::from_secs(60);
+///
+/// 2026-10-27 由一个真 bug 修正：窗口曾设 60s，而心跳误杀循环的间隔恰好 ~61s——
+/// 每一次都被当成「活得够久的新一轮崩溃」，退避上限永远不触发，Host 无限重生。
+/// 300s 覆盖「起来没多久又被弄死」的所有形态（含心跳/外部杀的循环），代价只有
+/// 「活过 5 分钟才死」的偶发崩溃也会多计一次预算——可接受。
+pub const QUICK_CRASH_WINDOW: Duration = Duration::from_secs(300);
 
 /// 快速崩溃的容忍次数（含第一次）。超了就放弃自动重生。
 pub const MAX_QUICK_CRASHES: u32 = 3;
@@ -94,6 +99,18 @@ mod tests {
             "第四次快速崩溃应放弃"
         );
         assert_eq!(history.quick_crashes(), 4);
+    }
+
+    #[test]
+    fn a_kill_loop_at_61s_still_counts_as_quick_crash() {
+        // 61s 恰好越过旧窗口 60s 的真实杀戳间隔：必须按快速崩溃计，否则上限失效。
+        let start = Instant::now();
+        let mut history = RespawnHistory::default();
+        history.record_spawn(start);
+        assert_eq!(history.record_death(at(start, 61)), Some(Duration::ZERO));
+        assert_eq!(history.record_death(at(start, 122)), Some(Duration::from_secs(2)));
+        assert_eq!(history.record_death(at(start, 183)), Some(Duration::from_secs(10)));
+        assert_eq!(history.record_death(at(start, 244)), None, "第四次 61s 间隔必须放弃");
     }
 
     #[test]

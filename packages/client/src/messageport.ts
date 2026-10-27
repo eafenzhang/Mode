@@ -56,12 +56,14 @@ export function createMessagePortServiceConnection(
       const deadline = new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("host ping timeout")), timeoutMs);
       });
+      // 存活判定 = 「Host 的事件循环给出**任何**应答」：成功、缺字段、甚至服务端错误码，
+      // 都证明它还在跑。只有**没有任何应答**（deadline 到期）才算停摆。
+      // 2026-10-27 装后验收踩过反例：把服务端错误响应当成死 → 每 61s 杀一次 Host。
       return Promise.race([
-        channel.call<{ pong?: boolean }>("ping").then((result) => {
-          if (result?.pong !== true) {
-            throw new Error("host ping malformed response");
-          }
-        }),
+        channel.call("ping").then(
+          () => undefined,
+          () => undefined,
+        ),
         deadline,
       ]).finally(() => {
         if (timer !== undefined) {
