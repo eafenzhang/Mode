@@ -4421,8 +4421,15 @@ const enUS: Record<string, string> = {
   "chat.empty.cliMenu": "Choose CLI",
   "chat.empty.home": "Home",
   "chat.empty.createWorkspace.title": "Create workspace",
-  "chat.empty.createWorkspace.placeholder": "Workspace name",
-  "chat.empty.createWorkspace.locationHint": "Location: {path}",
+  "chat.empty.createWorkspace.description":
+    "Create an empty workspace on this computer and open it right away.",
+  "chat.empty.createWorkspace.nameLabel": "Workspace name",
+  "chat.empty.createWorkspace.placeholder": "New workspace",
+  "chat.empty.createWorkspace.locationLabel": "Location",
+  "chat.empty.createWorkspace.locationHint": "{path}",
+  "chat.empty.createWorkspace.locationDescription":
+    "An empty workspace will be created at this location.",
+  "chat.empty.createWorkspace.confirm": "Create workspace",
   "chat.empty.createWorkspace.error.required": "Workspace name is required.",
   "chat.empty.createWorkspace.error.separator": "Workspace name cannot contain / or \\.",
   "chat.empty.createWorkspace.error.createFailed": "Could not create workspace.",

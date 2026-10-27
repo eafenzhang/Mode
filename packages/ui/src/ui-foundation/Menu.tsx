@@ -68,10 +68,23 @@ export function MenuSeparator({ className }: { className?: string }): ReactNode 
 export interface MenuCheckboxItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   checked: boolean;
   destructive?: boolean;
+  /** 选中标记的位置；默认前置，工作区菜单按原版口径使用行尾。 */
+  indicatorPosition?: "start" | "end";
 }
 
 export const MenuCheckboxItem = forwardRef<HTMLButtonElement, MenuCheckboxItemProps>(
-  function MenuCheckboxItem({ checked, destructive, className, children, type, ...rest }, ref) {
+  function MenuCheckboxItem(
+    { checked, destructive, indicatorPosition = "start", className, children, type, ...rest },
+    ref,
+  ) {
+    const indicator = (
+      <span
+        aria-hidden="true"
+        className={indicatorPosition === "end" ? "ms-auto w-3 shrink-0 text-end" : "w-3 shrink-0"}
+      >
+        {checked ? "✓" : null}
+      </span>
+    );
     return (
       <button
         {...rest}
@@ -81,10 +94,9 @@ export const MenuCheckboxItem = forwardRef<HTMLButtonElement, MenuCheckboxItemPr
         aria-checked={checked}
         className={menuItemClassName({ destructive, className })}
       >
-        <span aria-hidden="true" className="w-3 shrink-0">
-          {checked ? "✓" : null}
-        </span>
+        {indicatorPosition === "start" ? indicator : null}
         {children}
+        {indicatorPosition === "end" ? indicator : null}
       </button>
     );
   },

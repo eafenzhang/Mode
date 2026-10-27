@@ -7,6 +7,15 @@
       "../dist-host-sidecar/ship/config": "config",
       "../dist-host-sidecar/ship/agent": "agent",
       "../dist-host-sidecar/ship/tools": "tools"
+    },
+    "windows": {
+      "nsis": {
+        "languages": ["SimpChinese"],
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "sidebarImage": "icons/nsis-sidebar.bmp",
+        "installerHooks": "nsis-hooks.nsh"
+      }
     }
   }
 }

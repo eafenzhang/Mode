@@ -160,8 +160,8 @@ async function main(): Promise<void> {
   mkdirSync(workDir, { recursive: true });
 
   console.log(`[verify] 安装包 ${installer} ${mib(statSync(installer).size)}`);
-  // 主 exe 的名字是 **Cargo 的 bin 名**（`ModeTauri.exe`），不是 `productName`——写死别的名字
-  // 会得到「装完了却报找不到 exe」（见 `findMainExe` 的说明）。
+  // 新包的主 exe 是 `mainBinaryName` 决定的 `Mode.exe`，历史包是 `ModeTauri.exe`；
+  // 这里按目录扫描而不是写死名字，否则旧包会「装完了却报找不到 exe」。
   let mainExe = findMainExeOrNull(installDir);
   if (mainExe === null) {
     mainExe = await installSilently(installer, installDir);

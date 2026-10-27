@@ -256,6 +256,8 @@ async function waitForExit(child: ChildProcess, timeoutMs: number): Promise<void
  */
 function runningModeTauriInstances(): string[] {
   const images = [
+    // 安装后的产品壳是 Mode.exe（mainBinaryName）；cargo 直接构建仍是 ModeTauri.exe。
+    "Mode.exe",
     "ModeTauri.exe",
     "ProductUiHarness.exe",
     "HostRoundtripHarness.exe",

@@ -220,6 +220,14 @@ export const TID_COMPOSER_REMOTE_CONNECTION = "composer-remote-connection";
 export const TID_COMPOSER_PROJECT_DETACH = "composer-project-detach";
 /** Composer workspace 菜单的非项目工作入口 */
 export const TID_COMPOSER_WORK_OUTSIDE_PROJECT = "composer-work-outside-project";
+/** Composer workspace 菜单的创建工作区入口 */
+export const TID_COMPOSER_CREATE_WORKSPACE = "composer-create-workspace";
+/** 创建工作区对话框 */
+export const TID_COMPOSER_CREATE_WORKSPACE_DIALOG = "composer-create-workspace-dialog";
+/** 创建工作区对话框的名称输入 */
+export const TID_COMPOSER_CREATE_WORKSPACE_INPUT = "composer-create-workspace-input";
+/** 创建工作区对话框的提交按钮 */
+export const TID_COMPOSER_CREATE_WORKSPACE_CONFIRM = "composer-create-workspace-confirm";
 // ChatView
 /** 聊天视图容器 */
 export const TID_CHAT_VIEW = "chat-view";

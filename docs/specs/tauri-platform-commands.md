@@ -340,6 +340,22 @@ Windows 安装包（Tauri 的 `Mode-<版本>-win-x64.exe`）。
 写在这里说明），发布构建用 `tauri build --config '{"version":"<发布版本>"}'` 覆盖。
 不把版本写进配置文件是因为它与 Release tag 同源，写在两处必然漂移。
 
+**Windows 安装器本地化与安装身份（2026-10-27）**：
+
+- `tauri.windows.conf.json` 设 `bundle.windows.nsis.languages: ["SimpChinese"]`：
+  安装/卸载界面固定中文，不弹语言选择。
+- NSIS 图标：`installerIcon` / `uninstallerIcon` 用 `icons/icon.ico`；`sidebarImage`
+  用 `icons/nsis-sidebar.bmp`（164x314，Mode 图标 + 字样），欢迎/完成页不再显示
+  NSIS 默认的通用盒子图标。
+- `tauri.conf.json` 设 `mainBinaryName: "Mode"`：`tauri build` 在打包前把 cargo
+  产物 `ModeTauri.exe` 重命名为 `Mode.exe`。**cargo 直接构建**（`cargo run`、
+  harness、单实例测试）仍产出 `ModeTauri.exe`；安装目录、快捷方式与进程名以
+  `Mode.exe` 为准。验收脚本按安装目录扫描 `.exe`，不写死主程序名。
+- `nsis-hooks.nsh` 的 `POSTINSTALL` / `POSTUNINSTALL` 清理旧包的
+  `$INSTDIR\ModeTauri.exe`：同名同目录升级时新文件清单不包含旧主程序，
+  不清理会让用户看到两个 exe。旧进程正在运行时删除失败是可接受的（由下次
+  安装/卸载再清理），不为此增加强制结束进程的行为。
+
 **更新产物（M5 Task 1 实测）**：`tauri.conf.json` 必须设
 `bundle.createUpdaterArtifacts: true`，否则 NSIS 目录里没有 `.sig`。设置了
 `TAURI_SIGNING_PRIVATE_KEY` 后，`tauri build` 产出

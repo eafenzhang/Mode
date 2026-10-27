@@ -4,7 +4,8 @@
  * ## 测量面（混用即无效）
  *
  * 产品壳跑起来之后，**三个常驻进程**的 RSS 曲线：
- * - 壳（`ModeTauri.exe`，含 renderer 的 WebView2 子进程归属壳目录取并集）；
+ * - 壳（安装件的主 exe——`tauri build` 产物是 `Mode.exe`，cargo 产物是
+ *   `ModeTauri.exe`；含 renderer 的 WebView2 子进程归属壳目录取并集）；
  * - sidecar Node（安装目录 `node/` 下的 node.exe，命令行含 host-sidecar bundle）；
  * - agent Node（安装目录 `node/` 下的 node.exe，命令行含 `agent/…/mode.cjs`）。
  *
@@ -18,17 +19,17 @@
  * - 采样源：`Get-CimInstance Win32_Process` 的 `WorkingSetSize`（每进程 RSS）；
  * - 采样间隔默认 5 s；时长默认 30 min（路线图口径），`--duration <秒>` 可覆盖——
  *   **短跑只验证脚本正确性，不构成基线**；30 min 正式基线单独跑并抄进路线图；
- * - 壳进程按「安装目录前缀」归属（含 WebView2 子进程 `ModeTauri.exe` 同名派生）；
+ * - 壳进程按「安装目录前缀 + 被测 exe 文件名」归属（含 WebView2 子进程同名派生）；
  *   sidecar / agent 按命令行特征区分（bundle 路径 / `mode.cjs`）；
- * - 必须 `--exe <安装目录里的 ModeTauri.exe>` 指定被测安装件，不猜默认路径；
+ * - 必须 `--exe <安装目录里的 Mode.exe>` 指定被测安装件，不猜默认路径；
  * - **前置**：被测机器上不能有正在运行的同名实例（产品壳带单实例守卫，新实例会静默
  *   秒退）；脚本会先检查并明确报错。用户的在跑会话属于用户，bench 不代杀。
  *
  * ```bash
  * # 短跑冒烟（90 秒，验证脚本正确性）
- * pnpm --filter @mode/desktop-tauri measure:memory -- --exe "C:/Users/.../ModeTauri.exe" --duration 90
+ * pnpm --filter @mode/desktop-tauri measure:memory -- --exe "C:/Users/.../Mode.exe" --duration 90
  * # 正式基线（30 分钟，路线图口径）
- * pnpm --filter @mode/desktop-tauri measure:memory -- --exe "C:/Users/.../ModeTauri.exe"
+ * pnpm --filter @mode/desktop-tauri measure:memory -- --exe "C:/Users/.../Mode.exe"
  * ```
  */
 import { spawnSync } from "node:child_process";
@@ -77,9 +78,10 @@ function sleep(ms: number): Promise<void> {
  * CommandLine，stdout 超限被截断 → JSON 解析失败 → 静默空采样（2026-10-23 冒烟实测踩到）。
  * 过滤只减量；归属判定仍在 Node 侧的 classify() 里做，不在查询里预判。
  */
-function snapshotProcesses(): ProcessRow[] {
+function snapshotProcesses(exeName: string): ProcessRow[] {
+  // 主 exe 名来自 --exe：安装包是 Mode.exe，cargo 构建是 ModeTauri.exe，不能写死。
   const script =
-    "Get-CimInstance Win32_Process -Filter \"Name='ModeTauri.exe' OR Name='node.exe'\" | " +
+    `Get-CimInstance Win32_Process -Filter "Name='${exeName}' OR Name='node.exe'" | ` +
     "Select-Object ProcessId,ExecutablePath,CommandLine,WorkingSetSize | ConvertTo-Json -Compress";
   const result = spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], {
     encoding: "utf8",
@@ -97,7 +99,11 @@ function snapshotProcesses(): ProcessRow[] {
 }
 
 /** 按安装目录与命令行特征把进程归类；不归属的（utility/GPU 等）返回 null 不计入。 */
-function classify(row: ProcessRow, installDir: string): { kind: ProcessKind; pid: number; rss: number } | null {
+function classify(
+  row: ProcessRow,
+  installDir: string,
+  exeName: string,
+): { kind: ProcessKind; pid: number; rss: number } | null {
   if (typeof row.ExecutablePath !== "string" || typeof row.WorkingSetSize !== "number") return null;
   const path = row.ExecutablePath.toLowerCase();
   const command = typeof row.CommandLine === "string" ? row.CommandLine.toLowerCase() : "";
@@ -105,7 +111,7 @@ function classify(row: ProcessRow, installDir: string): { kind: ProcessKind; pid
   const rss = Number(row.WorkingSetSize);
   if (!Number.isFinite(pid) || !Number.isFinite(rss)) return null;
   const prefix = installDir.toLowerCase();
-  if (path.startsWith(prefix) && path.endsWith("modetauri.exe")) {
+  if (path.startsWith(prefix) && path.endsWith(exeName.toLowerCase())) {
     return { kind: "shell", pid, rss };
   }
   // node.exe 必须在安装目录的 node/ 运行时下——不误收用户自己装的全局 node。
@@ -189,7 +195,7 @@ function assertNoRunningInstance(exe: string): void {
 function parseArgs(argv: string[]): { exe: string; durationSeconds: number } {
   const exeIndex = argv.indexOf("--exe");
   if (exeIndex < 0 || argv[exeIndex + 1] === undefined) {
-    throw new Error('需要 --exe <安装目录里的 ModeTauri.exe>（不猜默认路径，被测安装件必须显式指定）');
+    throw new Error('需要 --exe <安装目录里的 Mode.exe>（不猜默认路径，被测安装件必须显式指定）');
   }
   const exe = resolve(argv[exeIndex + 1] as string);
   const durationIndex = argv.indexOf("--duration");
@@ -208,6 +214,10 @@ async function main(): Promise<void> {
     throw new Error("当前只支持 Windows（采样依赖 Win32_Process）；其他平台待补采集器后再测");
   }
   const { exe, durationSeconds } = parseArgs(process.argv.slice(2));
+  const exeName = exe.split(/[\\/]/u).pop() ?? "";
+  if (exeName.length === 0) {
+    throw new Error(`--exe 不是可执行文件路径：${exe}`);
+  }
   const installDir = `${dirname(exe)}\\`;
   assertNoRunningInstance(exe);
   const isBaselineRun = durationSeconds >= DEFAULT_DURATION_SECONDS;
@@ -225,8 +235,8 @@ async function main(): Promise<void> {
     const started = Date.now();
     while (sampling) {
       const atMs = Date.now() - started;
-      for (const row of snapshotProcesses()) {
-        const classified = classify(row, installDir);
+      for (const row of snapshotProcesses(exeName)) {
+        const classified = classify(row, installDir, exeName);
         if (classified) {
           samples.push({
             atMs,
@@ -269,8 +279,8 @@ async function main(): Promise<void> {
 
   // 收尾残留检查：正常退出路径下三类进程应全部消失；留着就是泄漏，必须显式警告。
   await sleep(2_000);
-  const leftover = snapshotProcesses()
-    .map((row) => classify(row, installDir))
+  const leftover = snapshotProcesses(exeName)
+    .map((row) => classify(row, installDir, exeName))
     .filter((entry): entry is { kind: ProcessKind; pid: number; rss: number } => entry !== null);
   if (leftover.length > 0) {
     console.warn(

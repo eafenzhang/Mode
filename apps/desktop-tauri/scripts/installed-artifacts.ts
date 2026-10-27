@@ -7,8 +7,9 @@
  *
  * 三个判定各有来历（都是实测出来的，别顺手简化）：
  *
- * 1. **主 exe 名是 Cargo 的 bin 名**（`ModeTauri.exe`），不是 `productName`；
- *    写死别的名字的症状是「装完了却报找不到 exe」。
+ * 1. **主 exe 名由 `mainBinaryName` 决定**（`Mode` → `Mode.exe`）。历史包曾直接使用
+ *    Cargo 的 bin 名（`ModeTauri.exe`），所以这里按目录扫描 `.exe` 而不是写死名字；
+ *    写死单个名字的症状是「装完了却报找不到 exe」。
  * 2. **内嵌资产名的比对基准必须与安装包同批**（`<安装包>.index.html` 快照）：
  *    renderer 产物在两次 Vite 构建之间有几百字节波动，入口 chunk 与 CSS chunk 的哈希会变，
  *    拿当前 dist 核对更早的包会得到 2/277 的**假红**。
@@ -28,10 +29,10 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 /**
  * 找装出来的**主可执行文件**。
  *
- * 为什么不是写死 `Mode.exe`：Tauri 的 NSIS 装出来的是 **Cargo 的 bin 名**
- * （本包 `[[bin]] name = "ModeTauri"` → `ModeTauri.exe`），**不是** `productName`。
- * 第一版写死 `Mode.exe` 的后果是「装完了却报找不到 exe」——而安装其实是成功的。
- * 这条命名差异本身是 M5 的输入（切换发布线时要不要把两个发布线的可执行文件名对齐）。
+ * 为什么扫描而不是写死 `Mode.exe`：历史 Tauri 包直接使用 Cargo 的 bin 名
+ * （`ModeTauri.exe`），2026-10-27 起 `mainBinaryName` 才把它改成 `Mode.exe`；
+ * 两种包都要能被同一套验收脚本识别。第一版写死单个名字的后果是
+ * 「装完了却报找不到 exe」——而安装其实是成功的。
  */
 export function findMainExe(installDir: string): string {
   const candidates = readdirSync(installDir)

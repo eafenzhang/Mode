@@ -226,13 +226,25 @@ export interface DropdownMenuCheckboxItemProps extends Omit<
   onCheckedChange?: (checked: boolean) => void;
   onSelect?: (event: MenuSelectEvent) => void;
   inset?: boolean;
+  /** 选中标记位置；默认前置，工作区菜单按原版口径用行尾。 */
+  indicatorPosition?: "start" | "end";
 }
 
 export const DropdownMenuCheckboxItem = forwardRef<
   HTMLButtonElement,
   DropdownMenuCheckboxItemProps
 >(function DropdownMenuCheckboxItem(
-  { checked = false, onCheckedChange, onSelect, inset, className, onClick, children, ...rest },
+  {
+    checked = false,
+    onCheckedChange,
+    onSelect,
+    inset,
+    indicatorPosition,
+    className,
+    onClick,
+    children,
+    ...rest
+  },
   ref,
 ) {
   const state = useDropdownMenuAdapterState();
@@ -241,6 +253,7 @@ export const DropdownMenuCheckboxItem = forwardRef<
       {...rest}
       ref={ref}
       checked={checked === true}
+      indicatorPosition={indicatorPosition}
       data-inset={inset ? "" : undefined}
       className={className}
       onClick={(event) => {

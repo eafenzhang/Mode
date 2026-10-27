@@ -153,7 +153,7 @@ jobs:
           - **Windows（.exe）**：`<PRODUCT>-<VERSION>-win-x64.exe`。安装包没有代码签名，SmartScreen 会提示「Windows 已保护你的电脑」——点「更多信息」→「仍要运行」即可。
             - **从旧 Electron 版迁移（旧线已 EOL）**：旧 Electron 线不再发布，Release 里只有 `latest.json`、没有 `latest.yml`；旧客户端的应用内更新会拿到 404，**需要手动下载并安装一次**（`<PRODUCT>-<VERSION>-win-x64.exe`）。装好这一版后，后续 Tauri 版本可在应用内「帮助 → 检查更新」升级。
             - **本版之后的 Tauri 版本**：应用内「帮助 → 检查更新」直接走本仓库 Releases 升级。
-            - **安装身份**：本版主程序是 `ModeTauri.exe`；旧 Electron 线已 EOL，不再发布。若机器上仍有旧版，两者独立安装、并存（安装目录、快捷方式、卸载项和数据目录都不同），本版不会就地替换旧版。
+            - **安装身份**：本版主程序是 `Mode.exe`；旧 Electron 线已 EOL，不再发布。若机器上仍有旧版，两者独立安装、并存（安装目录、快捷方式、卸载项和数据目录都不同），本版不会就地替换旧版。
           - **macOS（.dmg，Apple Silicon）**：`<PRODUCT>-<VERSION>-mac-arm64.dmg`。仅支持 arm64（Apple Silicon），Intel Mac 不适用；产物**未签名、未公证**，首次打开若被 Gatekeeper 拦截，请右键应用选「打开」，或执行 `xattr -dr com.apple.quarantine /Applications/<PRODUCT>.app`。macOS 产物尚未做真机运行验收。
           - **Linux（.AppImage，x64）**：`<PRODUCT>-<VERSION>-linux-x64.AppImage`。`chmod +x` 后直接运行；若系统缺少 FUSE，可加 `--appimage-extract-and-run`。Linux 产物尚未做真机运行验收。
           - **fnOS（.fpk）**：`mode-<VERSION>-x86_64.fpk`，飞牛应用中心「手动安装」选择该文件；安装后从飞牛桌面入口打开（走飞牛统一网关，登录态直达，异地也可用）。
@@ -162,7 +162,7 @@ jobs:
           - **Windows (.exe)**: `<PRODUCT>-<VERSION>-win-x64.exe`. Unsigned build, so SmartScreen shows "Windows protected your PC" - click **More info** -> **Run anyway**.
             - **Migrating from the old Electron build (legacy line EOL)**: the old Electron line is no longer released. Releases ship `latest.json` but no `latest.yml`, so the old client's in-app updater gets a 404; **download and install once manually** (`<PRODUCT>-<VERSION>-win-x64.exe`). After that one-time install, later Tauri releases update in place via **Help -> Check for updates**.
             - **From this Tauri release onward**: in-app updates via **Help -> Check for updates** use this repository's Releases.
-            - **Install identity**: the main executable is `ModeTauri.exe`; the old Electron line is EOL and no longer released. If an old install remains, the two install separately and side by side (different install directory, shortcuts, uninstall entry, and user-data directory); this release does not replace the old app in place.
+            - **Install identity**: the main executable is `Mode.exe`; the old Electron line is EOL and no longer released. If an old install remains, the two install separately and side by side (different install directory, shortcuts, uninstall entry, and user-data directory); this release does not replace the old app in place.
           - **macOS (.dmg, Apple Silicon)**: `<PRODUCT>-<VERSION>-mac-arm64.dmg`. arm64 only (Apple Silicon); not for Intel Macs. The build is **unsigned and not notarized**; if Gatekeeper blocks the first launch, right-click the app and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/<PRODUCT>.app`. macOS artifacts have not yet been runtime-tested on real hardware.
           - **Linux (.AppImage, x64)**: `<PRODUCT>-<VERSION>-linux-x64.AppImage`. `chmod +x` then run; if FUSE is unavailable, add `--appimage-extract-and-run`. Linux artifacts have not yet been runtime-tested on real hardware.
           - **fnOS (.fpk)**: `mode-<VERSION>-x86_64.fpk`; install it from the fnOS App Center via "Manual install", then open it from the fnOS desktop entry (routed through the fnOS gateway with your desktop login, works remotely too).

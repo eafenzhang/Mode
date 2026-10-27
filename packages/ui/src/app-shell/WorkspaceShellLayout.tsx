@@ -1206,6 +1206,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           }
           onSelectConversationWorkspace={handleSelectConversationWorkspace}
           onOpenFolder={onOpenFolderFromWorkspaceMenu}
+          onCreateWorkspace={onCreateScratchWorkspace}
           allowOpenWorkspace={allowOpenWorkspace}
           allowRemoteWorkspace={allowRemoteWorkspace}
           remoteWorkspaceSessions={remoteWorkspaceSessions}
@@ -1253,6 +1254,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       isWindowsDesktop,
       onCancelRemoteProject,
       onConnectRemote,
+      onCreateScratchWorkspace,
       onOpenFolderFromWorkspaceMenu,
       onSelectRemoteProject,
       remoteWorkspaceSessions,

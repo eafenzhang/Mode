@@ -20,6 +20,7 @@ import {
   ChevronDownIcon,
   Cloud,
   Folder,
+  FolderOpen,
   FolderPlus,
   House,
   MessageCircle,
@@ -36,7 +37,9 @@ import {
 } from "@/lib/remoteWorkspaceHistory.js";
 import { logger } from "@/logger.js";
 import { SSHDialog } from "@/SSHDialog.js";
+import { ChatEmptyScratchWorkspaceDialog } from "@/ChatEmptyScratchWorkspaceDialog.js";
 import {
+  TID_COMPOSER_CREATE_WORKSPACE,
   TID_COMPOSER_PROJECT_DETACH,
   TID_COMPOSER_REMOTE_CONNECTION,
   TID_COMPOSER_WORK_OUTSIDE_PROJECT,
@@ -175,6 +178,7 @@ export function ChatEmptyWorkspacePreviewMenu({
   onSelectWorkspace,
   onSelectConversationWorkspace,
   onOpenFolder,
+  onCreateWorkspace,
   allowOpenWorkspace = true,
   allowRemoteWorkspace = true,
   remoteWorkspaceSessions = [],
@@ -195,6 +199,8 @@ export function ChatEmptyWorkspacePreviewMenu({
   onSelectWorkspace: (workspaceTab: ChatEmptyWorkspaceMenuTab) => void;
   onSelectConversationWorkspace: () => void | Promise<void>;
   onOpenFolder: () => void;
+  /** 提供时显示「创建工作区」入口；成功返回新工作区路径，不支持时返回 `null`。 */
+  onCreateWorkspace?: (name: string) => Promise<string | null>;
   allowOpenWorkspace?: boolean;
   allowRemoteWorkspace?: boolean;
   remoteWorkspaceSessions?: RemoteWorkspaceSessionEntry[];
@@ -214,6 +220,7 @@ export function ChatEmptyWorkspacePreviewMenu({
 }) {
   const { intl } = useModeIntl();
   const [sshDialogOpen, setSshDialogOpen] = useState(false);
+  const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
   const showRemoteConnectionEntry = useRemoteConnectionEntryVisibility();
   // Web 普通模式没有完整远程 workspace 会话链路，不能只依赖全局 feature visibility。
@@ -358,6 +365,7 @@ export function ChatEmptyWorkspacePreviewMenu({
                   workspacePath,
                   workspaceIdentity,
                 })}
+                indicatorPosition="end"
                 onSelect={() => {
                   onSelectWorkspace(workspaceTab);
                 }}
@@ -374,9 +382,22 @@ export function ChatEmptyWorkspacePreviewMenu({
           ) : null}
 
           <DropdownMenuSeparator />
+          {onCreateWorkspace ? (
+            <DropdownMenuItem
+              data-testid={TID_COMPOSER_CREATE_WORKSPACE}
+              onSelect={() => {
+                // 与远程连接入口一致：让 DropdownMenu 走默认关闭流程，
+                // 否则父菜单会盖住随后打开的对话框。
+                setCreateWorkspaceOpen(true);
+              }}
+            >
+              <FolderPlus className="size-4 text-foreground-subtle" />
+              <span>{intl.formatMessage({ id: "chat.empty.createWorkspace.title" })}</span>
+            </DropdownMenuItem>
+          ) : null}
           {allowOpenWorkspace ? (
             <DropdownMenuItem onSelect={onOpenFolder}>
-              <FolderPlus className="size-4 text-foreground-subtle" />
+              <FolderOpen className="size-4 text-foreground-subtle" />
               <span>{intl.formatMessage({ id: "workspace.openFolder" })}</span>
             </DropdownMenuItem>
           ) : null}
@@ -400,6 +421,7 @@ export function ChatEmptyWorkspacePreviewMenu({
             <DropdownMenuCheckboxItem
               data-testid={TID_COMPOSER_WORK_OUTSIDE_PROJECT}
               checked={isConversationWorkspace}
+              indicatorPosition="end"
               onSelect={() => void Promise.resolve(onSelectConversationWorkspace())}
             >
               <MessageCircle className="size-4 text-foreground-subtle" />
@@ -419,6 +441,13 @@ export function ChatEmptyWorkspacePreviewMenu({
           open={sshDialogOpen}
           onOpenChange={setSshDialogOpen}
           hideTriggerWhenClosed
+        />
+      ) : null}
+      {onCreateWorkspace ? (
+        <ChatEmptyScratchWorkspaceDialog
+          open={createWorkspaceOpen}
+          onOpenChange={setCreateWorkspaceOpen}
+          onCreate={onCreateWorkspace}
         />
       ) : null}
     </DropdownMenu>
