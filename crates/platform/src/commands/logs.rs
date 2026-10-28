@@ -2,7 +2,8 @@
 //!
 //! 日志由 Host sidecar 写（`<数据基目录>/.mode/v2/logs/host-YYYY-MM-DD.log`，7 日滚动，
 //! 见 `packages/desktop/src/host-standalone/logFile.ts`）。本命令只做三件事：
-//! 「按 Host 同口径找目录 → 把全部 `.log` 打成一个文本包 → 系统保存对话框落盘」。
+//! 「按 Host 同口径找目录 → 选 Host 线 `host-*.log` 打成一个文本包 → 系统保存对话框落盘」。
+//! 旧 Electron 线的日期日志只列入包头的 `omitted` manifest，不默认打包（单份可达 231 MB）。
 //! 壳不持有日志真源；默认根 `~/.mode/v2/setting.json` 是 Host 与壳共知的引导文件
 //! （`docs/specs/tauri-renderer-host.md` §23），这里只读它的 `dataBaseDir` 指针。
 //!
@@ -72,10 +73,93 @@ pub fn collect_log_files(dir: &Path) -> Vec<(String, Vec<u8>)> {
     files
 }
 
-/// 渲染文本包（格式钉在 spec §1.1）：头 + 每段 `===== 文件名 (N bytes) =====`。
+/// 追加一行到任意日志文件（壳诊断用；自动创建父目录）。
+///
+/// 与 Host 文件日志分开命名（例如 `host-shell.log`），避免和 Host 的跨日滚动写者抢同一文件；
+/// 仍是 `host-*.log` 前缀，`exportLogs` 会一并导出。失败只返回 IO 错误，调用方自行忽略。
+pub fn append_log_line(path: &Path, line: &str) -> std::io::Result<()> {
+    use std::io::Write as _;
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    writeln!(file, "{line}")
+}
+
+/// Host 线日志文件名：`host-YYYY-MM-DD.log`（大小写不敏感的前后缀）。
+fn is_host_log_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.starts_with("host-") && lower.ends_with(".log")
+}
+
+/// 按日滚动的 Host 日志：`host-YYYY-MM-DD.log`。`host-shell.log` 这类壳诊断日志
+/// 同样属于 Host 线，但不受 7 日名额限制（否则会挤掉一天的真实 Host 日志）。
+fn is_dated_host_log_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    if bytes.len() != "host-YYYY-MM-DD.log".len() {
+        return false;
+    }
+    let lower = name.to_ascii_lowercase();
+    let lower = lower.as_bytes();
+    lower[..5].eq_ignore_ascii_case(b"host-")
+        && lower[5..9].iter().all(u8::is_ascii_digit)
+        && lower[9] == b'-'
+        && lower[10..12].iter().all(u8::is_ascii_digit)
+        && lower[12] == b'-'
+        && lower[13..15].iter().all(u8::is_ascii_digit)
+        && lower[15..].eq_ignore_ascii_case(b".log")
+}
+
+/// 导出选取结果：`omitted` 保留文件名与字节数，写进包头 manifest，避免静默丢弃。
+pub struct LogSelection {
+    pub included: Vec<(String, Vec<u8>)>,
+    pub omitted: Vec<(String, usize)>,
+}
+
+/// 只选 Host 线；其中的日滚动日志按名称保留最新 7 份（Host 自身保留 7 天，
+/// 这里兜底清理滞后）。`host-shell.log` 等非日滚动诊断日志不清除，也不占用 7 份名额。
+/// 非 Host 的旧线日志全部列入 `omitted`——它们不在当前排障链路上，且单份可能非常大。
+pub fn select_log_files(files: Vec<(String, Vec<u8>)>) -> LogSelection {
+    let (host, others): (Vec<_>, Vec<_>) = files
+        .into_iter()
+        .partition(|(name, _)| is_host_log_name(name));
+    let (mut dated, non_dated): (Vec<_>, Vec<_>) = host
+        .into_iter()
+        .partition(|(name, _)| is_dated_host_log_name(name));
+    dated.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let mut included = non_dated;
+    let mut omitted: Vec<(String, usize)> = others
+        .into_iter()
+        .map(|(name, bytes)| (name, bytes.len()))
+        .collect();
+    if dated.len() > 7 {
+        let split_at = dated.len() - 7;
+        omitted.extend(
+            dated
+                .drain(..split_at)
+                .map(|(name, bytes)| (name, bytes.len())),
+        );
+    }
+    included.extend(dated);
+    included.sort_by(|a, b| a.0.cmp(&b.0));
+    omitted.sort_by(|a, b| a.0.cmp(&b.0));
+    LogSelection { included, omitted }
+}
+
+/// 渲染文本包（格式钉在 spec §1.1）：头 + `omitted` manifest + 每段 `===== 文件名 (N bytes) =====`。
 ///
 /// 行尾统一 `\n`；非 UTF-8 字节按 lossy 替换（日志里有混合编码时不因一次替换失败丢整段）。
-pub fn render_bundle(exported_at: &str, log_dir: &Path, files: &[(String, Vec<u8>)]) -> String {
+pub fn render_bundle(
+    exported_at: &str,
+    log_dir: &Path,
+    files: &[(String, Vec<u8>)],
+    omitted: &[(String, usize)],
+) -> String {
     use std::fmt::Write as _;
 
     let mut out = String::new();
@@ -83,6 +167,10 @@ pub fn render_bundle(exported_at: &str, log_dir: &Path, files: &[(String, Vec<u8
     let _ = writeln!(out, "exportedAt: {exported_at}");
     let _ = writeln!(out, "logDir: {}", log_dir.display());
     let _ = writeln!(out, "files: {}", files.len());
+    let _ = writeln!(out, "omitted: {}", omitted.len());
+    for (name, size) in omitted {
+        let _ = writeln!(out, "omittedFile: {name} ({size} bytes)");
+    }
     for (name, bytes) in files {
         let _ = write!(out, "\n===== {name} ({} bytes) =====\n", bytes.len());
         out.push_str(&String::from_utf8_lossy(bytes));
@@ -189,14 +277,18 @@ pub async fn export_logs<R: tauri::Runtime>(app: AppHandle<R>) -> ExportLogsResu
     let base = resolve_data_base_dir(&home, env_override.as_deref(), settings_raw.as_deref());
     let log_dir = log_dir_for_data_base_dir(&base);
 
-    let files = collect_log_files(&log_dir);
-    if files.is_empty() {
-        eprintln!("[exportLogs] 没有可导出的日志：{}", log_dir.display());
+    let selection = select_log_files(collect_log_files(&log_dir));
+    if selection.included.is_empty() {
+        eprintln!(
+            "[exportLogs] 没有可导出的 Host 日志：{}（omitted {} 个旧线文件）",
+            log_dir.display(),
+            selection.omitted.len()
+        );
         return failed("no_logs");
     }
 
     let now = SystemTime::now();
-    let bundle = render_bundle(&rfc3339_utc(now), &log_dir, &files);
+    let bundle = render_bundle(&rfc3339_utc(now), &log_dir, &selection.included, &selection.omitted);
     let suggested_name = default_file_name(now);
     let picked = await_pick(move |callback| {
         app.dialog()
@@ -282,20 +374,129 @@ mod tests {
             ("host-2026-10-25.log".to_string(), b"a\n".to_vec()),
             ("host-2026-10-26.log".to_string(), b"b".to_vec()),
         ];
-        let bundle = render_bundle("2026-10-26T01:02:03Z", Path::new("/x/logs"), &files);
+        let bundle = render_bundle("2026-10-26T01:02:03Z", Path::new("/x/logs"), &files, &[]);
         assert!(bundle.starts_with("Mode logs export\n"));
         assert!(bundle.contains("exportedAt: 2026-10-26T01:02:03Z\n"));
         assert!(bundle.contains("logDir: /x/logs\n"));
         assert!(bundle.contains("files: 2\n"));
+        assert!(bundle.contains("omitted: 0\n"));
         assert!(bundle.contains("\n===== host-2026-10-25.log (2 bytes) =====\na\n"));
         // 无尾换行的文件补一个换行，段与段之间不粘连。
         assert!(bundle.contains("\n===== host-2026-10-26.log (1 bytes) =====\nb\n"));
     }
 
     #[test]
+    fn bundle_lists_omitted_files() {
+        let files = vec![("host-2026-10-26.log".to_string(), b"a\n".to_vec())];
+        let omitted = vec![("2026-10-15.log".to_string(), 231_653_577usize)];
+        let bundle = render_bundle("now", Path::new("/x/logs"), &files, &omitted);
+        assert!(bundle.contains("files: 1\n"));
+        assert!(bundle.contains("omitted: 1\n"));
+        assert!(bundle.contains("omittedFile: 2026-10-15.log (231653577 bytes)\n"));
+    }
+
+    #[test]
+    fn selection_keeps_host_line_and_omits_legacy_logs() {
+        let files = vec![
+            ("2026-10-15.log".to_string(), b"legacy".to_vec()),
+            ("host-2026-10-25.log".to_string(), b"a".to_vec()),
+            ("host-2026-10-26.log".to_string(), b"b".to_vec()),
+        ];
+        let selection = select_log_files(files);
+        assert_eq!(
+            selection
+                .included
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["host-2026-10-25.log", "host-2026-10-26.log"]
+        );
+        assert_eq!(selection.omitted, vec![("2026-10-15.log".to_string(), 6)]);
+    }
+
+    #[test]
+    fn selection_keeps_only_newest_seven_host_logs() {
+        let mut files = Vec::new();
+        for day in 20..=27 {
+            files.push((format!("host-2026-10-{day}.log"), b"x".to_vec()));
+        }
+        let selection = select_log_files(files);
+        assert_eq!(selection.included.len(), 7);
+        assert_eq!(selection.included[0].0, "host-2026-10-21.log");
+        assert_eq!(selection.included[6].0, "host-2026-10-27.log");
+        assert_eq!(selection.omitted.len(), 1);
+        assert_eq!(selection.omitted[0].0, "host-2026-10-20.log");
+    }
+
+    #[test]
+    fn selection_keeps_shell_log_outside_the_seven_day_cap() {
+        let mut files = Vec::new();
+        for day in 20..=27 {
+            files.push((format!("host-2026-10-{day}.log"), b"x".to_vec()));
+        }
+        files.push(("host-shell.log".to_string(), b"shell".to_vec()));
+
+        let selection = select_log_files(files);
+        let names: Vec<&str> = selection
+            .included
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect();
+        // 7 份日日志 + 1 份壳诊断；day 20 被 7 日名额挤掉，shell 不占名额。
+        assert_eq!(
+            names,
+            vec![
+                "host-2026-10-21.log",
+                "host-2026-10-22.log",
+                "host-2026-10-23.log",
+                "host-2026-10-24.log",
+                "host-2026-10-25.log",
+                "host-2026-10-26.log",
+                "host-2026-10-27.log",
+                "host-shell.log",
+            ]
+        );
+        assert_eq!(selection.omitted, vec![("host-2026-10-20.log".to_string(), 1)]);
+    }
+
+    #[test]
+    fn dated_host_log_name_rejects_non_date_suffixes() {
+        assert!(is_dated_host_log_name("host-2026-10-27.log"));
+        assert!(is_dated_host_log_name("HOST-2026-10-27.LOG"));
+        assert!(!is_dated_host_log_name("host-shell.log"));
+        assert!(!is_dated_host_log_name("host-2026-10-2.log"));
+        assert!(!is_dated_host_log_name("host-2026-1a-27.log"));
+        assert!(!is_dated_host_log_name("2026-10-27.log"));
+    }
+
+    #[test]
+    fn selection_without_host_logs_returns_no_included_files() {
+        let selection = select_log_files(vec![(
+            "2026-10-15.log".to_string(),
+            b"legacy".to_vec(),
+        )]);
+        assert!(selection.included.is_empty());
+        assert_eq!(selection.omitted.len(), 1);
+    }
+
+    #[test]
+    fn append_log_line_creates_parent_and_appends() {
+        let dir = std::env::temp_dir().join(format!("mode-shell-log-{}", std::process::id()));
+        let path = dir.join("nested").join("host-shell.log");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        append_log_line(&path, "[t1] first").expect("first append");
+        append_log_line(&path, "[t2] second").expect("second append");
+
+        let content = std::fs::read_to_string(&path).expect("read shell log");
+        assert_eq!(content, "[t1] first\n[t2] second\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn bundle_tolerates_non_utf8_bytes() {
         let files = vec![("weird.log".to_string(), vec![0xFF, 0xFE, b'o', b'k'])];
-        let bundle = render_bundle("now", Path::new("/x"), &files);
+        let bundle = render_bundle("now", Path::new("/x"), &files, &[]);
         assert!(bundle.contains("ok"));
     }
 

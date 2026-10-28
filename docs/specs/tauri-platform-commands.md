@@ -55,7 +55,7 @@ M1 的 10 条命令 + LR-3 追加的 `rdReadClipboardText` + LR-5 追加的
 | 13 | `rdReadClipboardText` | `() -> Promise<string>` | **已实现（LR-3，Windows）**：壳读 CF_UNICODETEXT（`OpenClipboard` 争用重试 200ms，无文本/被占用返回空串，从不抛）；非 Windows 返回空串。远程桌面主控剪贴板同步的读取口（D7：Host 不碰平台 API） |
 | 14 | `syncAppSettings` | `(patch: Partial<AppSettings>) -> void` | **已实现（2026-10-25）**：窗口行为类设置的壳侧同步口。壳只解释它执行的键（现 `closeToTrayOnWindows`，落 `WindowCloseBehavior` AtomicBool），其余键不解释；缺省 `false` = 直接退出（fail-safe）。**关闭拦截**在壳 `main.rs` 的 `CloseRequested` 统一做：开关为开且托盘可用（`tray::TRAY_ID` 可查）→ `prevent_close` + `hide`（自绘关闭按钮/Alt+F4/任务栏三条路径全汇聚于此）；托盘不可用即使开关为开也放行关闭——「隐藏到不存在的托盘」等于应用凭空消失。开关事实由渲染层同步：启动时一次（`useRootPlatformEffects`，Windows 门控）+ 设置页变更补丁；壳不读业务存储。补丁当前消费两个键：`closeToTrayOnWindows`（见上）与 `keepAwakeWhileRunning`（**保持电脑运行**：`SetThreadExecutionState(ES_CONTINUOUS\|ES_SYSTEM_REQUIRED)` 阻止空闲休眠、手动睡眠/合盖不受影响；设置页同门控仅 Windows 呈现，非 Windows 执行器 no-op） |
 
-| 15 | `exportLogs` | `() -> Promise<{ success: boolean; path?: string; error?: string }>` | **已实现（2026-10-26，LR-5 §27）**：把 Host sidecar 的文件日志打成一个**单文件文本包**，经系统保存对话框落盘。**日志目录与 Host 同口径解析**：数据基目录 = `MODE_DATA_BASE_DIR`（非空）→ 默认根 `~/.mode/v2/setting.json` 的持久化 `dataBaseDir` 指针 → 家目录；日志目录 = `<基目录>/.mode/v2/logs`（壳是 Host 的父进程，两处输入一致；纯函数在 `sidecar_host::settings_probe`，含用例）。内容 = 该目录下全部 `*.log`（按名升序），包格式见 §1.1。**不引入压缩依赖**（单文件可直读、三平台一致）。对话框归属壳，默认文件名 `Mode-logs-YYYYMMDD-HHMMSS.log`；**用户取消 → `{success:false}` 且无 `error`**（取消不是失败）；无日志可导 → `{success:false, error:"no_logs"}`（不导出空文件冒充成功）；写盘失败 → `{success:false, error:"write_failed"}`，细节只进 stderr。**UI 入口**（2026-10-26 恢复）：帮助菜单「导出日志」→ `platform.exportLogs()`，成功 toast 带落盘路径、取消静默、失败显示错误码（`WorkspaceHelpMenuButton`） |
+| 15 | `exportLogs` | `() -> Promise<{ success: boolean; path?: string; error?: string }>` | **已实现（2026-10-26，LR-5 §27）**：把 Host sidecar 的文件日志打成一个**单文件文本包**，经系统保存对话框落盘。**日志目录与 Host 同口径解析**：数据基目录 = `MODE_DATA_BASE_DIR`（非空）→ 默认根 `~/.mode/v2/setting.json` 的持久化 `dataBaseDir` 指针 → 家目录；日志目录 = `<基目录>/.mode/v2/logs`（壳是 Host 的父进程，两处输入一致；纯函数在 `sidecar_host::settings_probe`，含用例）。内容默认只导出 Host 线 `host-*.log`（Host 自身按 7 日滚动清理），按名升序；旧 Electron 线的 `YYYY-MM-DD.log` 等非 Host 文件不再默认打包。2026-10-27 实测旧线日志可达 231 MB/份，全部导出会把排障包膨胀到 276 MB，因此改为「Host 线 + 头部 manifest」：被过滤的文件以 `omittedFile` 逐条列出（含字节数），不静默截断。**不引入压缩依赖**（单文件可直读、三平台一致）。对话框归属壳，默认文件名 `Mode-logs-YYYYMMDD-HHMMSS.log`；**用户取消 → `{success:false}` 且无 `error`**（取消不是失败）；无日志可导 → `{success:false, error:"no_logs"}`（不导出空文件冒充成功）；写盘失败 → `{success:false, error:"write_failed"}`，细节只进 stderr。**UI 入口**（2026-10-26 恢复）：帮助菜单「导出日志」→ `platform.exportLogs()`，成功 toast 带落盘路径、取消静默、失败显示错误码（`WorkspaceHelpMenuButton`） |
 
 ### 1.1 `exportLogs` 的包格式
 
@@ -64,6 +64,9 @@ Mode logs export
 exportedAt: <RFC 3339 UTC>
 logDir: <绝对路径>
 files: <数量>
+omitted: <数量>
+omittedFile: <文件名> (<字节数> bytes)
+omittedFile: …
 
 ===== <文件名> (<字节数> bytes) =====
 <文件原文（非 UTF-8 字节按 lossy 替换）>
@@ -71,8 +74,11 @@ files: <数量>
 ===== <下一个文件> … =====
 ```
 
-行为确定：文件按名称升序拼接、每段之间以空行分隔、末尾补一个换行。写盘不承诺原子性
-（诊断导出而非业务数据；失败返回 `write_failed`，可能留下不完整文件）。
+行为确定：只选 `host-*.log`；其中 `host-YYYY-MM-DD.log` 按日滚动，超过 7 份时按名称
+保留最新 7 份，其余列入 `omitted`。`host-shell.log` 等非日滚动诊断日志始终包含，且不占
+这 7 份名额。非 Host 的旧线日志（`YYYY-MM-DD.log` 等）全部列入 `omitted`。`omitted` 为 0 时仍写出
+该行，便于确认没有静默丢弃。文件按名称升序拼接、每段之间以空行分隔、末尾补一个换行。
+写盘不承诺原子性（诊断导出而非业务数据；失败返回 `write_failed`，可能留下不完整文件）。
 
 ### 非本地路径的处理
 
