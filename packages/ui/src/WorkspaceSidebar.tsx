@@ -19,6 +19,7 @@ import {
   Cloud,
   Folder,
   FolderOpen,
+  FolderPlus,
   Hash,
   ListFilter,
   Maximize2,
@@ -53,11 +54,13 @@ import {
   TID_CONVERSATION_SECTION,
   TID_AUTOMATIONS_OPEN,
   TID_PROJECT_ADD,
+  TID_PROJECT_CREATE_WORKSPACE,
   TID_PROJECT_SECTION,
   TID_SIDEBAR,
   TID_WORKSPACE_LIST,
 } from "@mode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import { ChatEmptyScratchWorkspaceDialog } from "@/ChatEmptyScratchWorkspaceDialog.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { Tabs, TabsList, TabsTrigger } from "@/ui-foundation/adapters/tabs.js";
 import {
@@ -233,6 +236,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateTask,
   onCreateConversationTask,
   onOpenFolderFromWorkspaceMenu,
+  onCreateWorkspace,
   onOpenRemoteWorkspace,
   theme,
   onConnectRemote: _onConnectRemote,
@@ -283,6 +287,8 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateTask: (request?: CreateTaskRequest) => void;
   onCreateConversationTask: () => void;
   onOpenFolderFromWorkspaceMenu: () => void;
+  /** 创建工作区（与空态菜单共用同一动作；缺省时侧边栏不渲染该入口）。 */
+  onCreateWorkspace?: (name: string) => Promise<string | null>;
   onOpenRemoteWorkspace?: () => void;
   theme: Theme;
   onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;
@@ -323,6 +329,8 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
 }) {
   const { intl, localePreference, setLocalePreference } = useModeIntl();
   const platform = usePlatform();
+  // 侧边栏「项目 +」的创建工作区对话框；与空态共用组件，创建成功后由壳层切换工作区。
+  const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const handleTaskRowSelect = useCallback(
     (
       targetWorkspacePath: string,
@@ -1475,46 +1483,66 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                               onOpenChange={handleProjectSectionOpenChange}
                               testId={TID_PROJECT_SECTION}
                               action={
-                                <DropdownMenu>
-                                  <ControlHintTooltip
-                                    title={intl.formatMessage({
-                                      id: "workspaceSidebar.addProject",
-                                    })}
-                                  >
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        className="text-foreground-subtle hover:text-foreground data-[state=open]:text-foreground"
-                                        aria-label={intl.formatMessage({
-                                          id: "workspaceSidebar.addProject",
-                                        })}
-                                        data-testid={TID_PROJECT_ADD}
-                                      >
-                                        <Plus className="size-3.5" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                  </ControlHintTooltip>
-                                  <DropdownMenuContent align="end" className="min-w-44">
-                                    <DropdownMenuItem onSelect={onOpenFolderFromWorkspaceMenu}>
-                                      <FolderOpen className="size-4" />
-                                      {intl.formatMessage({
-                                        id: "workspace.openFolder",
+                                <>
+                                  <DropdownMenu>
+                                    <ControlHintTooltip
+                                      title={intl.formatMessage({
+                                        id: "workspaceSidebar.addProject",
                                       })}
-                                    </DropdownMenuItem>
-                                    {onOpenRemoteWorkspace ? (
-                                      <DropdownMenuItem
-                                        onSelect={() => onOpenRemoteWorkspace()}
-                                      >
-                                        <Cloud className="size-4" />
+                                    >
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          className="text-foreground-subtle hover:text-foreground data-[state=open]:text-foreground"
+                                          aria-label={intl.formatMessage({
+                                            id: "workspaceSidebar.addProject",
+                                          })}
+                                          data-testid={TID_PROJECT_ADD}
+                                        >
+                                          <Plus className="size-3.5" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                    </ControlHintTooltip>
+                                    <DropdownMenuContent align="end" className="min-w-44">
+                                      {onCreateWorkspace ? (
+                                        <DropdownMenuItem
+                                          data-testid={TID_PROJECT_CREATE_WORKSPACE}
+                                          onSelect={() => setCreateWorkspaceOpen(true)}
+                                        >
+                                          <FolderPlus className="size-4" />
+                                          {intl.formatMessage({
+                                            id: "chat.empty.createWorkspace.title",
+                                          })}
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                      <DropdownMenuItem onSelect={onOpenFolderFromWorkspaceMenu}>
+                                        <FolderOpen className="size-4" />
                                         {intl.formatMessage({
-                                          id: "remote.trigger",
+                                          id: "workspace.openFolder",
                                         })}
                                       </DropdownMenuItem>
-                                    ) : null}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                      {onOpenRemoteWorkspace ? (
+                                        <DropdownMenuItem
+                                          onSelect={() => onOpenRemoteWorkspace()}
+                                        >
+                                          <Cloud className="size-4" />
+                                          {intl.formatMessage({
+                                            id: "remote.trigger",
+                                          })}
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  {onCreateWorkspace ? (
+                                    <ChatEmptyScratchWorkspaceDialog
+                                      open={createWorkspaceOpen}
+                                      onOpenChange={setCreateWorkspaceOpen}
+                                      onCreate={onCreateWorkspace}
+                                    />
+                                  ) : null}
+                                </>
                               }
                             >
                               {projectWorkspaceTabs.length === 0 ? (

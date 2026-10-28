@@ -66,6 +66,19 @@ test("创建工作区入口只在壳层提供创建能力时渲染", () => {
   assert.match(shell, /onCreateWorkspace=\{onCreateScratchWorkspace\}/);
 });
 
+test("侧边栏「项目 +」同步创建入口，与空态共用动作和对话框", () => {
+  const source = read("../src/WorkspaceSidebar.tsx");
+  const createIndex = source.indexOf('id: "chat.empty.createWorkspace.title"');
+  const openIndex = source.indexOf('id: "workspace.openFolder"');
+
+  assert.ok(createIndex >= 0, "侧边栏「项目 +」菜单必须渲染「创建工作区」入口");
+  assert.ok(openIndex > createIndex, "侧边栏「创建工作区」必须在「打开文件夹」之前");
+  assert.match(source, /data-testid=\{TID_PROJECT_CREATE_WORKSPACE\}/);
+  assert.match(source, /<ChatEmptyScratchWorkspaceDialog/);
+  assert.match(source, /onCreate=\{onCreateWorkspace\}/);
+  assert.match(source, /\{onCreateWorkspace \? \(/, "缺省创建能力时不渲染入口");
+});
+
 test("对话框提交只委托 onCreate，不自行拼路径或写目录", () => {
   const source = read("../src/ChatEmptyScratchWorkspaceDialog.tsx");
   assert.match(source, /await onCreate\(trimmedName\)/);
