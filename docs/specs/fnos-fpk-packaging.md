@@ -89,6 +89,10 @@
 - 环境注入：`MODE_DATA_BASE_DIR`、`MODE_CREDENTIAL_SECRET`、`HOME=$TRIM_PKGHOME`、`PATH` 前置 `runtime/bin`（agent 子进程内 `node` 即捆绑运行时）；在线升级另注入 `MODE_FNOS_UPDATE=1`、`MODE_FNOS_APPDEST`、`MODE_FNOS_MAIN_SCRIPT`、`MODE_FNOS_INFO_LOG`、`MODE_FNOS_INFO_LOG_ARCHIVE`、`MODE_FNOS_UPDATE_PUBLIC_KEY`（读取 `$TRIM_PKGETC/update-public-key`，缺失则为空 = 不启用验签），并透传 `TRIM_APPDEST` / `TRIM_PKGVAR` / `TRIM_PKGETC` / `TRIM_SERVICE_PORT` 等生命周期变量，供 `cmd/main restart` 与日志导出复用同一所有者。
 - `cmd/main` 子命令：`start` / `stop` / `status` / **`restart`**（restart 供应用内升级在载荷交换后调用，仍是 PID 唯一写入方）。
 - `info.log` 由 `cmd/main` 管理：Host 的 stdout/stderr 全部追加到 `$TRIM_PKGVAR/info.log`，每次 `start` 前检查大小，超过 10 MiB 改名为 `info.log.1`（只保留一份归档，磁盘上限约 20 MiB）。归档路径经 `MODE_FNOS_INFO_LOG_ARCHIVE` 交给服务进程，`/api/logs/export` 同时打包当前文件与归档；日志导出本身按文件 5 MiB / 总量 20 MiB 截尾。
+- `cmd/main` 由 `packages/server/test/fnosMainLifecycle.test.ts`（Linux CI）用合成载荷
+  回归 `start` / `status` / `stop` 与「新载荷秒退 → 按 `.update/backup` 回滚后重启旧载荷」；
+  Windows 默认跳过（POSIX 进程/信号语义），可在 Git Bash 用
+  `MODE_FPK_LIFECYCLE_TEST_WINDOWS=1` 强制运行。
 
 ## 事件顺序
 

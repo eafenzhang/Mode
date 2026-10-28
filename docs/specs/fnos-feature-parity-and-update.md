@@ -192,7 +192,8 @@ POST /api/app-update/apply    -> { ok: boolean; restarting: boolean; error?: str
 5. 人为破坏新载荷的 `bin/mode.mjs`：重启失败后自动回滚，旧版本可继续访问。
 6. 更新端点无令牌返回 401；`.update` 不通过静态路径可访问。
 7. 单元测试覆盖版本比较、fpk 资产选择、sha256 解析、外壳/载荷版本一致性、可选签名、
-   载荷结构检查与交换/回滚。
+   载荷结构检查与交换/回滚；`packages/server/test/fnosMainLifecycle.test.ts` 在 Linux
+   CI 上用合成载荷执行真实的 `cmd/main start/status/stop` 与「失败升级回滚」。
 8. 配置公钥后：缺失/错误签名的发布包停在 `error`，正确签名可到 `ready`；未配置公钥时
    不请求 `.sig`、行为与旧版一致。
 
