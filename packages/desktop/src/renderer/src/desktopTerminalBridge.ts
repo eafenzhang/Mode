@@ -120,6 +120,16 @@ export function createShellTerminalService(deps: {
       exitEmitters.delete(params.id);
     },
 
+    async disposeByKey(params: { sessionKey: string }): Promise<void> {
+      const id = await invokeViaTauri<string | null>("terminalDisposeByKey", {
+        key: params.sessionKey,
+      });
+      if (id) {
+        dataEmitters.delete(id);
+        exitEmitters.delete(id);
+      }
+    },
+
     onDynamicData(id: string): Event<string> {
       ensureListeners();
       let emitter = dataEmitters.get(id);

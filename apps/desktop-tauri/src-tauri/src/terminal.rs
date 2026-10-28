@@ -30,6 +30,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "terminalWrite",
     "terminalResize",
     "terminalDispose",
+    "terminalDisposeByKey",
 ];
 
 #[tauri::command(rename = "terminalCreate")]
@@ -76,13 +77,22 @@ pub fn terminal_dispose(
     state.dispose(&id)
 }
 
+#[tauri::command(rename = "terminalDisposeByKey")]
+pub fn terminal_dispose_by_key(
+    state: State<'_, Arc<TerminalSessionManager>>,
+    key: String,
+) -> Result<Option<String>, String> {
+    state.dispose_by_key(&key)
+}
+
 /// 本模块注册的 handler（命令面）。
 pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         terminal_create,
         terminal_write,
         terminal_resize,
-        terminal_dispose
+        terminal_dispose,
+        terminal_dispose_by_key
     ]
 }
 

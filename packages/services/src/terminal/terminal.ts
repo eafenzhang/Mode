@@ -51,6 +51,12 @@ export interface ITerminalService {
   write(params: { id: string; data: string }): Promise<void>;
   resize(params: { id: string; cols: number; rows: number }): Promise<void>;
   dispose(params: { id: string }): Promise<void>;
+  /**
+   * 按稳定 key 结束会话（**可选成员**，仅壳-backed 实现提供）。
+   * 带 `sessionKey` 的终端在组件卸载时保活（Host 换代 fail-closed、workspace 切换），
+   * 用户显式关闭 tab 时用本方法释放，避免 PTY 泄漏。
+   */
+  disposeByKey?(params: { sessionKey: string }): Promise<void>;
   onDynamicData(id: string): Event<string>;
   onDynamicExit(id: string): Event<number>;
 }

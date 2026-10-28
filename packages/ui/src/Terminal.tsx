@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList } from "@/ui-foundation/adapters/tabs.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { TerminalTabTrigger } from "@/terminal/TerminalTabTrigger.js";
 import { TerminalSession } from "@/terminal/TerminalSession.js";
+import { sidePaneTerminalSessionRegistry } from "@/terminal/sidePaneTerminalSessionRegistry.js";
 import {
   closeTerminalSession,
   createTerminalSession,
@@ -22,6 +23,24 @@ import {
   type TerminalPanelState,
   type TerminalSessionDescriptor,
 } from "@/terminal/terminalPanelState.js";
+
+/**
+ * 底部终端初始 tab 的稳定 PTY key：整页 reload 后按同一 key 重新挂接壳侧 PTY。
+ * 额外 tab 的 UI 状态不持久化，不带 key，关闭/卸载时按旧行为回收。
+ */
+function terminalKeyForSession(session: TerminalSessionDescriptor): string | undefined {
+  return session.index === 1 ? `bottom:${session.workspaceKey}:1` : undefined;
+}
+
+/**
+ * 带稳定 key 的底部终端把 PTY 生命周期交给 key 而不是组件树：卸载（含 Host 死亡触发的
+ * fail-close 卸载）只 detach，PTY 留给 reload 后的新文档按 key reattach；真正关闭 tab /
+ * 关闭 workspace 时才 release。没有 key 的额外 tab 仍在组件 cleanup 里自行 dispose。
+ */
+function releaseKeyedTerminal(session: TerminalSessionDescriptor | undefined): void {
+  const key = session ? terminalKeyForSession(session) : undefined;
+  if (key) sidePaneTerminalSessionRegistry.release(key);
+}
 
 export function Terminal({
   services,
@@ -63,6 +82,10 @@ export function Terminal({
     };
   });
   const closePanelAfterExitWorkspaceRef = useRef<string | null>(null);
+  // 事件回调里读最新 panelState（回收 keyed 终端需要在 setPanelState 之前拿到 descriptor），
+  // 不把 panelState 挂进每个 callback 的依赖，避免依赖抖动。
+  const panelStateRef = useRef(panelState);
+  panelStateRef.current = panelState;
 
   useEffect(() => {
     if (!isVisible) {
@@ -102,6 +125,16 @@ export function Terminal({
     // 对应的隐藏终端不能继续占着 PTY 进程；这里按仍打开的 workspace key 做回收。
     const retainedWorkspaceKeys = new Set(openWorkspaceKeys);
     retainedWorkspaceKeys.add(workspaceKey);
+    const removedSessions: TerminalSessionDescriptor[] = [];
+    for (const [removedWorkspaceKey, workspaceState] of Object.entries(panelState.workspaces)) {
+      if (retainedWorkspaceKeys.has(removedWorkspaceKey)) continue;
+      for (const sessionId of workspaceState.sessionIds) {
+        const session = panelState.sessions[sessionId];
+        if (session) removedSessions.push(session);
+      }
+    }
+    // keyed 终端（初始 tab）的 PTY 不随组件卸载回收，必须在 workspace 真正关闭时显式 release。
+    for (const session of removedSessions) releaseKeyedTerminal(session);
     setPanelState((current) => {
       const removedWorkspaceKeys = Object.keys(current.workspaces).filter(
         (key) => !retainedWorkspaceKeys.has(key),
@@ -205,6 +238,16 @@ export function Terminal({
         return;
       }
 
+      // keyed 终端卸载时不 dispose（见 TerminalSession 清理注释），关闭 tab 必须在这里
+      // 按键显式释放，否则 PTY 会一直活到应用退出。
+      const closing = panelState.sessions[sessionId];
+      const closingKey = closing ? terminalKeyForSession(closing) : undefined;
+      if (closingKey) {
+        void services.terminalService.disposeByKey?.({ sessionKey: closingKey });
+      }
+
+      // 真正关闭 tab 才回收 PTY（卸载只 detach，见 releaseKeyedTerminal）。
+      releaseKeyedTerminal(panelStateRef.current.sessions[sessionId]);
       setPanelState((current) => {
         const session = current.sessions[sessionId];
         const next = closeTerminalSession(current, sessionId);
@@ -219,11 +262,13 @@ export function Terminal({
         return next;
       });
     },
-    [onClose, panelState, workspaceKey],
+    [onClose, panelState, services, workspaceKey],
   );
 
   const handleSessionExit = useCallback(
     (sessionId: string, exitCode: number) => {
+      // PTY 已退出：回收 registry 里的常驻 entry，避免 keyed 终端留下已死的条目。
+      releaseKeyedTerminal(panelStateRef.current.sessions[sessionId]);
       setPanelState((current) => {
         const exitedWorkspaceKey = current.sessions[sessionId]?.workspaceKey;
         const result = exitTerminalSession(current, sessionId, workspaceKey);
@@ -365,9 +410,7 @@ export function Terminal({
             >
               <TerminalSession
                 sessionId={session.id}
-                terminalKey={
-                  session.index === 1 ? `bottom:${session.workspaceKey}:1` : undefined
-                }
+                terminalKey={terminalKeyForSession(session)}
                 services={session.services}
                 cwd={session.cwd}
                 isVisible={

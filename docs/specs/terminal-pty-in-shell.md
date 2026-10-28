@@ -59,6 +59,14 @@
    - side pane：`side:<workspaceKey>:<tab sessionId>`（tab 由 workspace 布局恢复）；
    - 底部终端：仅初始 tab `bottom:<workspaceKey>:1` 带 key；额外 tab 的 UI 状态不持久化，
      不带 key，reload 后仍按旧行为消失，避免留下无法回收的孤儿 PTY。
+8. **keyed 会话的卸载与释放（2026-10-29，P2-4 装后回归）**：带 `sessionKey` 的终端在
+   组件卸载时**不 dispose PTY**——Host 死亡触发的 fail-closed 换屏、workspace 切换、
+   整页 reload 都必须让壳侧会话继续运行，否则 reload 后无 PTY 可挂。释放路径收敛为：
+   - 用户关闭非最后一个 tab → `terminalDisposeByKey`（壳按 key 找 id、杀进程并返回 id，
+     渲染层清对应事件 emitter）；
+   - 关闭面板 / 关闭最后一个 tab → 只收起 UI，保活 PTY（与既有语义一致）；
+   - 应用退出 → 壳进程结束，全部 PTY 随之结束。
+   无 key 的会话保持旧行为：卸载即 dispose。
 
 ## 4. 已知边界
 

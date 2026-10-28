@@ -908,7 +908,8 @@ export function TerminalSession({
       .then(
         ({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty, replay }) => {
         if (disposed) {
-          terminalService.dispose({ id });
+          // keyed 会话保留在壳侧，下次挂载用同一 key reattach；无 key 的孤儿照旧回收。
+          if (!terminalKey) terminalService.dispose({ id });
           return;
         }
 
@@ -1089,7 +1090,9 @@ export function TerminalSession({
       lastSentTerminalSizeRef.current = null;
       resizeInFlightRef.current = false;
       for (const d of disposables) d.dispose();
-      if (terminalIdRef.current) {
+      // 带 terminalKey 的会话由壳按 key 保活：Host 换代 fail-closed、workspace 切换等
+      // 卸载场景不 dispose PTY，reload/重挂后用同一 key reattach；显式关闭 tab 见 Terminal.tsx。
+      if (terminalIdRef.current && !terminalKey) {
         terminalService.dispose({ id: terminalIdRef.current });
       }
       terminalIdRef.current = undefined;
@@ -1108,6 +1111,7 @@ export function TerminalSession({
     services,
     sessionId,
     persistentKey,
+    terminalKey,
   ]);
 
   const handleCopy = () => {

@@ -247,6 +247,20 @@ impl TerminalSessionManager {
             .map_err(|error| format!("terminal resize failed: {error}"))
     }
 
+    /// 按稳定 key 结束会话（渲染层关闭带 key 的 tab 时用）。
+    /// key 不存在或会话已退出按幂等成功处理，避免关闭旧 tab 时报错；
+    /// 返回被释放的会话 id，供渲染层清理按 id 登记的事件 emitter。
+    pub fn dispose_by_key(&self, key: &str) -> Result<Option<String>, String> {
+        let id = lock(&self.keys).get(key).map(str::to_string);
+        match id {
+            Some(id) => {
+                self.dispose(&id)?;
+                Ok(Some(id))
+            }
+            None => Ok(None),
+        }
+    }
+
     /// 结束会话：杀进程；Exit 事件与会话移除交给退出监视线程统一处理（幂等——
     /// 对已死进程 kill 的错误按已退出处理）。
     pub fn dispose(&self, id: &str) -> Result<(), String> {
@@ -548,6 +562,33 @@ mod tests {
 
         manager.dispose(&first.id).expect("dispose first");
         manager.dispose(&other.id).expect("dispose other");
+    }
+
+    #[test]
+    fn dispose_by_key_kills_session_and_allows_new_create() {
+        let collector = Collector::new();
+        let manager = Arc::new(TerminalSessionManager::new(collector_emit(&collector)));
+
+        let first = manager
+            .create_with_key(80, 24, None, TEST_SHELL, Some("bottom:test:1"))
+            .expect("first create");
+        assert_eq!(
+            manager.dispose_by_key("bottom:test:1").expect("dispose by key"),
+            Some(first.id.clone())
+        );
+        // 幂等：重复释放不报错，且不再返回 id。
+        assert_eq!(
+            manager.dispose_by_key("bottom:test:1").expect("second dispose"),
+            None
+        );
+
+        let second = manager
+            .create_with_key(80, 24, None, TEST_SHELL, Some("bottom:test:1"))
+            .expect("create after dispose");
+        assert!(!second.reattached);
+        assert_ne!(second.id, first.id);
+
+        manager.dispose(&second.id).expect("dispose second");
     }
 
     #[test]
