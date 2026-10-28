@@ -201,8 +201,16 @@ test("内置中继：生成稳定 tunnelId、启动隧道并在配对/server-inf
     assert.equal(infoResponse.status, 200);
     const info = (await infoResponse.json()) as {
       publicRelay?: { baseUrl?: string; tunnelId?: string };
+      capabilities?: { lanPeerController?: boolean };
     };
     assert.equal(info.publicRelay?.tunnelId, tunnel.tunnelId);
+    // 手机经桌面 LAN 服务也能做主控（docs/specs/web-remote-workspace-ssh-docker.md）。
+    assert.equal(info.capabilities?.lanPeerController, true);
+    const peersResponse = await fetch(
+      `http://127.0.0.1:${state.port}/api/lan/peers?token=${encodeURIComponent(paired.token ?? "")}`,
+    );
+    assert.equal(peersResponse.status, 200);
+    assert.ok(Array.isArray(await peersResponse.json()));
   } finally {
     await handle.dispose();
   }

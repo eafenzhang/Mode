@@ -531,23 +531,25 @@ export function RemoteConnectionFields({
                   spellCheck={false}
                   data-testid={TID_SSH_PRIVATE_KEY_INPUT}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-lg"
-                  className="absolute top-1/2 end-0.5 -translate-y-1/2"
-                  title={intl.formatMessage({ id: "ssh.privateKeySelect" })}
-                  onClick={() => {
-                    void (async () => {
-                      const selectedPath = await platform.selectFile();
-                      if (selectedPath) {
-                        setPrivateKeyPath(selectedPath);
-                      }
-                    })();
-                  }}
-                >
-                  <Plus className="size-4" />
-                </Button>
+                {platform.canSelectFilePath ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-lg"
+                    className="absolute top-1/2 end-0.5 -translate-y-1/2"
+                    title={intl.formatMessage({ id: "ssh.privateKeySelect" })}
+                    onClick={() => {
+                      void (async () => {
+                        const selectedPath = await platform.selectFile();
+                        if (selectedPath) {
+                          setPrivateKeyPath(selectedPath);
+                        }
+                      })();
+                    }}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                ) : null}
               </div>
               <label className="mb-1 block text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "ssh.privateKeyPassphrase" })}

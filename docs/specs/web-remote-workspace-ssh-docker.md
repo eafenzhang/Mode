@@ -48,8 +48,8 @@
 ## 3. 产品规则
 
 - **入口**：新建连接向导的 SSH / Docker 步骤在 Web 与桌面一致；不新增独立页面。
-  私有密钥路径是**服务器本机路径**（NAS 上的文件），Web 的文件选择按钮不可用，
-  但输入框允许手输绝对路径。
+  私有密钥路径是**服务器本机路径**（NAS 上的文件），Web 上不渲染文件选择按钮，
+  输入框允许手输绝对路径。
 - **凭据**：SSH 密码/私钥口令只存在于 `POST /api/connect-remote` 请求体与服务端
   内存中的 backend；不写凭据服务、不写日志、不回显到响应。连接释放即消失。
 - **资产源**：`resolveRemoteAssetDirs()` 按 `MODE_MOCK_CDN_DIR` > `MODE_REMOTE_ASSET_CDN_BASE_URL`
