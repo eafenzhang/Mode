@@ -209,7 +209,9 @@ POST /api/app-update/apply    -> { ok: boolean; restarting: boolean; error?: str
 ## 5. P1：帮助菜单、日志导出与临时附件（2026-10-27 / 10-28）
 
 - `GET /api/logs/export`（既有 `/api/*` 鉴权）：与桌面 `exportLogs` 同包格式；
-  只选 `host-*.log` 最新 7 份，旧线/非 Host 文件进 `omitted` manifest。
+  只选 `host-*.log` 最新 7 份，旧线/非 Host 文件进 `omitted` manifest。导出按
+  「先 stat 选文件、再只读各自尾部」执行（单文件 5 MiB / 总量 20 MiB），
+  NAS 上单个大日志不会整文件读入内存。
 - fpk 的 `cmd/main` 通过 `MODE_FNOS_INFO_LOG` 把 `info.log` 交给服务端，作为额外
   文件随包导出；桌面 LAN 服务同样装配 `logsExport`，手机/浏览器的 Help 菜单可用。
 - Web 平台 `exportLogs` 触发浏览器下载；`WorkspaceHelpMenuButton` 在 Web 端渲染
