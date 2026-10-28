@@ -14,6 +14,7 @@ import {
   type SessionsIndexScope,
 } from "@/v4/sessionsIndexRegistry.js";
 import type { SessionsIndexStoreStatus } from "@/v4/sessionsIndexStore.js";
+import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 
 type FormatMessage = IntlInstance["formatMessage"];
 type TaskNotificationPlatform = Pick<IPlatformService, "showTaskNotification">;
@@ -97,15 +98,34 @@ export function useWorkspaceTerminalTaskNotifications({
   const { modeAgentService } = useServices();
   const workspaceIdentity = trimOptional(rawWorkspaceIdentity);
   const endpointKey = trimOptional(rawEndpointKey);
+  // 远程 workspace 的 endpointKey 必须与 agentService 实际归属的远程 session 一致，
+  // 否则与本机 __base__ 共用 entry，sessions-index 订阅永远不 live、通知静默。
+  // App 正常会传 workspaceRemoteSessionId；这里再从已注册的远程 session 反查兜底，
+  // 覆盖 Settings/嵌套 pane 等丢掉 remoteSessionId 的调用点。
+  const resolvedEndpointKey = useRemoteWorkspaceSessionStore((state) => {
+    if (endpointKey) return endpointKey;
+    if (workspaceIdentity) {
+      const sessionId = state.sessionIdByWorkspaceIdentity[workspaceIdentity];
+      if (sessionId) return sessionId;
+    }
+    const sessionIdByPath = state.sessionIdByWorkspacePath[workspacePath];
+    if (sessionIdByPath) return sessionIdByPath;
+    for (const session of Object.values(state.sessionsById)) {
+      if (session.services.modeAgentService === modeAgentService) {
+        return session.sessionId;
+      }
+    }
+    return undefined;
+  });
   const workspaceKey = workspaceIdentity ?? workspacePath;
   const signature = useMemo(
     () =>
       buildWorkspaceNotificationSignature({
         workspacePath,
         ...(workspaceIdentity ? { workspaceIdentity } : {}),
-        ...(endpointKey ? { endpointKey } : {}),
+        ...(resolvedEndpointKey ? { endpointKey: resolvedEndpointKey } : {}),
       }),
-    [endpointKey, workspaceIdentity, workspacePath],
+    [resolvedEndpointKey, workspaceIdentity, workspacePath],
   );
   const [indexState, setIndexState] = useState<SessionsIndexNotificationState>({
     signature,
@@ -113,9 +133,11 @@ export function useWorkspaceTerminalTaskNotifications({
     status: "idle",
   });
   const previousBySessionIdRef = useRef<Map<string, SessionSummary> | null>(null);
+  const baselineReadyRef = useRef(false);
 
   useEffect(() => {
     previousBySessionIdRef.current = null;
+    baselineReadyRef.current = false;
     setIndexState({ signature, sessions: [], status: "idle" });
   }, [signature]);
 
@@ -125,6 +147,7 @@ export function useWorkspaceTerminalTaskNotifications({
       // 只看用户开关就订阅 sessions-index，从而越过 conversation 的 readiness gate
       // 访问断连代理。这里共用 workspace rpcReady；本地 workspace 始终为 true。
       previousBySessionIdRef.current = null;
+      baselineReadyRef.current = false;
       setIndexState({ signature, sessions: [], status: "idle" });
       return;
     }
@@ -133,7 +156,7 @@ export function useWorkspaceTerminalTaskNotifications({
       workspaceKey,
       workspacePath,
       ...(workspaceIdentity ? { workspaceIdentity } : {}),
-      ...(endpointKey ? { endpointKey } : {}),
+      ...(resolvedEndpointKey ? { endpointKey: resolvedEndpointKey } : {}),
     };
     const store = acquireSessionsIndex(registryScope, modeAgentService);
     const syncState = () => {
@@ -152,7 +175,7 @@ export function useWorkspaceTerminalTaskNotifications({
     };
   }, [
     enabled,
-    endpointKey,
+    resolvedEndpointKey,
     platform,
     rpcReady,
     signature,
@@ -175,7 +198,9 @@ export function useWorkspaceTerminalTaskNotifications({
     const previousBySessionId = previousBySessionIdRef.current;
     const nextBySessionId = toSessionMap(indexState.sessions);
     if (!previousBySessionId) {
+      // 首个 live 快照只作为基线；之后新出现的终态会话也要通知。
       previousBySessionIdRef.current = nextBySessionId;
+      baselineReadyRef.current = true;
       return;
     }
 
@@ -183,6 +208,7 @@ export function useWorkspaceTerminalTaskNotifications({
       previousBySessionId,
       sessions: indexState.sessions,
       formatMessage,
+      includeNewTerminalSessions: baselineReadyRef.current,
     });
     for (const payload of payloads) {
       showTaskNotification(platform, payload);

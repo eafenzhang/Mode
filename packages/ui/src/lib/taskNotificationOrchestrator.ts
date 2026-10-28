@@ -60,6 +60,12 @@ export function collectTerminalTaskNotificationPayloads(params: {
   previousBySessionId: ReadonlyMap<string, SessionSummary>;
   sessions: readonly SessionSummary[];
   formatMessage: FormatMessage;
+  /**
+   * 首次 live 快照只作为基线，避免恢复历史会话时重放旧通知。
+   * 基线之后新出现的终态会话（例如短任务在首帧前就完成）也要通知，
+   * 否则 `previous` 永远缺席、通知永远不发。
+   */
+  includeNewTerminalSessions?: boolean;
 }): TaskNotificationPayload[] {
   const payloads: TaskNotificationPayload[] = [];
   for (const session of params.sessions) {
@@ -67,7 +73,12 @@ export function collectTerminalTaskNotificationPayloads(params: {
     if (!status) continue;
 
     const previous = params.previousBySessionId.get(session.sessionId);
-    if (!previous) continue;
+    if (!previous) {
+      if (params.includeNewTerminalSessions) {
+        payloads.push(terminalPayloadForSession(session, status, params.formatMessage));
+      }
+      continue;
+    }
 
     const previousStatus = terminalStatusForPhase(previous.phase);
     if (previousStatus === status) continue;
