@@ -138,7 +138,7 @@ function evaluate(rawExpression) {
 }
 
 /**
- * 把一个 SPDX 风格许可证表达式分类为 `scripts/licenses.mjs` 的 bucket。
+ * 把一个 SPDX 风格许可证表达式分类为 `scripts/licenses.ts` 的 bucket。
  * 解析失败或空表达式按 review/unresolved 处理，绝不返回 green。
  */
 export function classifyLicenseExpression(raw) {

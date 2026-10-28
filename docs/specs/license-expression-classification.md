@@ -2,7 +2,7 @@
 
 状态：2026-10-28 实现。关联：
 [2026-10-18-m4-third-party-ledger.md](../plans/2026-10-18-m4-third-party-ledger.md)（第三方台账）、
-`scripts/licenses.mjs`（许可门禁）。
+`scripts/licenses.ts`（许可门禁）。
 
 ## 目的
 
@@ -12,8 +12,8 @@
 
 ## 规则
 
-1. **唯一所有者**：`scripts/lib/license-classification.mjs` 负责表达式解析与分类；
-   `scripts/licenses.mjs` 只消费结果，不再保留第二套分类实现。
+1. **唯一所有者**：`scripts/lib/license-classification.ts` 负责表达式解析与分类；
+   `scripts/licenses.ts` 只消费结果，不再保留第二套分类实现。
 2. **OR 取最宽松**：满足任意一个分支即可，选择限制最少的分支。
    例如 `MIT OR GPL-3.0` → green。
 3. **AND 取最严格**：所有分支都必须满足，取限制最多的分支。
@@ -26,7 +26,7 @@
 7. **严重度顺序**（低 → 高）：
    `green` < `yellow-cc` < `yellow-weak` < `yellow-lgpl` < `review` <
    `red-nc` < `red-semiopen` < `red-gpl` < `red-agpl` < `unresolved`。
-8. **门禁行为不变**：`scripts/licenses.mjs check` 仍只允许 green；yellow 仅在
+8. **门禁行为不变**：`scripts/licenses.ts check` 仍只允许 green；yellow 仅在
    `WEAK_ALLOW` 登记的构建依赖上放行；red/review/unresolved 一律失败。
 
 ## 失败语义
@@ -44,4 +44,4 @@
 5. `GPL-3.0 AND (MIT OR Apache-2.0)` → `red-gpl`。
 6. `AGPL-3.0 AND MIT` → `red-agpl`；`LGPL-2.1-only AND MIT` → `yellow-lgpl`。
 7. `UNLICENSED`、`SEE LICENSE IN LICENSE` → `unresolved`；`FooLicense` → `review`。
-8. `node --test scripts/test/license-classification.test.mjs` 通过。
+8. `pnpm exec tsx --test scripts/test/license-classification.test.ts` 通过。

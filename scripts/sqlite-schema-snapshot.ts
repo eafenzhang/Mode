@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { SQLITE_MIGRATIONS } from "../apps/mode-cli/packages/adapters/src/storage/session-store/migrations.ts";
 import { runTasksDatabaseMigrations } from "../packages/services/src/session/tasksDatabase/migrations.ts";
-import { normalizeSchemaSql, SQLITE_SCHEMA_SNAPSHOT_VERSION } from "./lib/sqlite-schema.mjs";
+import { normalizeSchemaSql, SQLITE_SCHEMA_SNAPSHOT_VERSION } from "./lib/sqlite-schema.js";
 
 const EXCLUDED_TABLES = new Set(["tasks_schema_migration", "schema_migration"]);
 

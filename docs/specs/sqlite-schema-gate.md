@@ -15,7 +15,7 @@
 - `scripts/sqlite-schema-snapshot.ts`：从真实迁移生成两个数据库的结构快照：
   - `tasks`：桌面任务库，调用 `runTasksDatabaseMigrations`；
   - `session-store`：CLI 会话库，按 `SQLITE_MIGRATIONS` 顺序执行 SQL。
-- `scripts/lib/sqlite-schema.mjs`：纯比较逻辑，唯一判定「只增」的地方。
+- `scripts/lib/sqlite-schema.ts`：纯比较逻辑，唯一判定「只增」的地方。
 - `scripts/check-sqlite-schema.ts`：检查/更新基线。
   - 默认 check：当前迁移产出的快照必须与 `scripts/sqlite-schema-baseline.json` 完全一致。
   - `--update`：先确认当前快照相对旧基线只增，再写新基线。
@@ -47,4 +47,4 @@
 2. 删除列、修改列类型、删除索引、修改索引 SQL：check 与 update 都失败。
 3. 同时删除列并修改基线：`--base-ref <旧分支>` 仍失败。
 4. 两个数据库的快照都纳入基线。
-5. `node --test scripts/test/sqlite-schema.test.mjs` 覆盖上述纯比较分支。
+5. `pnpm exec tsx --test scripts/test/sqlite-schema.test.ts` 覆盖上述纯比较分支。

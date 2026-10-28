@@ -5,7 +5,7 @@ import {
   canonicalSchemaJson,
   compareSchemaSnapshots,
   formatSchemaViolation,
-} from "../lib/sqlite-schema.mjs";
+} from "../lib/sqlite-schema.js";
 
 const column = (name, overrides = {}) => ({
   name,

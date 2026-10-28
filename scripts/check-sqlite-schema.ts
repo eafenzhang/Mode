@@ -7,8 +7,8 @@ import {
   canonicalSchemaJson,
   compareSchemaSnapshots,
   formatSchemaViolation,
-} from "./lib/sqlite-schema.mjs";
-import { buildSchemaSnapshot } from "./sqlite-schema-snapshot.ts";
+} from "./lib/sqlite-schema.js";
+import { buildSchemaSnapshot } from "./sqlite-schema-snapshot.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BASELINE_RELATIVE_PATH = "scripts/sqlite-schema-baseline.json";

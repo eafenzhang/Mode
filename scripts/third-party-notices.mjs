@@ -20,7 +20,9 @@ export async function readVerifiedNotices(root = repositoryRoot, { requireComple
   for (const [file, expected] of Object.entries(manifest.inputs)) {
     // 工作区文本允许 Windows checkout 的 CRLF；原始许可和发行声明另用字节哈希校验。
     if (hash((await readFile(resolve(root, file), "utf8")).replaceAll("\r\n", "\n")) !== expected) {
-      throw new Error(`Third-party input changed: ${file}. Run node scripts/licenses.mjs notices`);
+      throw new Error(
+        `Third-party input changed: ${file}. Run pnpm exec tsx scripts/licenses.ts notices`,
+      );
     }
   }
   if (requireComplete && !Array.isArray(manifest.reviewRequired))

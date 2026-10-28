@@ -1,7 +1,7 @@
-# 许可声明重生成：必须在 Linux 上跑 `node scripts/licenses.mjs notices`。
+# 许可声明重生成：必须在 Linux 上跑 `pnpm exec tsx scripts/licenses.ts notices`。
 #
 # 为什么不能在本机跑：
-# scripts/licenses.mjs 的 notices 走 collectNpmNotices -> scanInstalledPackages，
+# scripts/licenses.ts 的 notices 走 collectNpmNotices -> scanInstalledPackages，
 # 按「磁盘上真实安装的 node_modules」收集许可文件，而不是只读锁文件；缺任何一个生产
 # 依赖就抛 `Missing installed dependency`。而安装树里含大量平台相关 optional 依赖
 # （@napi-rs/canvas-*、@tailwindcss/oxide-* 等），pnpm 只落当前平台能匹配的那一份。
@@ -119,12 +119,12 @@ jobs:
             || { echo "::error::pnpm-workspace.yaml 未能还原，台账输入哈希会失真"; exit 1; }
 
       - name: Regenerate third-party notices
-        run: node scripts/licenses.mjs notices
+        run: pnpm exec tsx scripts/licenses.ts notices
 
       # 生成通过后再跑一次许可标识门禁：check 校验全量实装包（prod + dev）的许可
       # 分类，以及声明新鲜度。只跑 notices 会漏掉构建依赖侧的越界许可。
       - name: Run license identifier gate
-        run: node scripts/licenses.mjs check
+        run: pnpm exec tsx scripts/licenses.ts check
 
       # licenses.mjs 两类硬失败都只报第一个命中项（Missing installed dependency /
       # Stale npm notice override），这里在失败时把两个集合一次性打全，省得每次只为

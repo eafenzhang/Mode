@@ -103,7 +103,6 @@ scripts/fetch-plugin-icons-by-name.mjs
 scripts/fnos-fpk/proxy.mjs
 scripts/generate-third-party-notices.mjs
 scripts/intranetDefaults.mjs
-scripts/licenses.mjs
 scripts/load-endpoint-env.mjs
 scripts/mise-run.mjs
 scripts/mise-toolchain-env.mjs

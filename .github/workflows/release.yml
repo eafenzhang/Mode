@@ -310,7 +310,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Remote asset publisher contract tests
-        run: node --test scripts/test/publish-remote-assets.test.mjs
+        run: pnpm exec tsx --test scripts/test/publish-remote-assets.test.ts
       - name: Prepare linux-x64 remote assets
         env:
           # manifest 的 appVersion 必须与客户端 MODE_VERSION 完全一致；发布版用 tag 版本。

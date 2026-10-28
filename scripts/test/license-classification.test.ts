@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { classifyLicenseExpression } from "../lib/license-classification.mjs";
+import { classifyLicenseExpression } from "../lib/license-classification.js";
 
 // 回归：AND 必须取最严格成员，OR 取最宽松成员。
 // 旧实现取首个 AND 成员，MIT AND GPL-3.0 会被误判为 green。

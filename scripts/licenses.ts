@@ -3,15 +3,15 @@
 // 三方 license 盘点/声明/门禁 一体脚本
 //
 // 用法：
-//   node scripts/licenses.mjs notices   生成 THIRD-PARTY-NOTICES.md（精确版本、原始版权和许可文本）
-//   node scripts/licenses.mjs check     手动门禁：出现 allowlist 之外或许可未知的包即退出码 1
+//   pnpm exec tsx scripts/licenses.ts notices   生成 THIRD-PARTY-NOTICES.md（精确版本、原始版权和许可文本）
+//   pnpm exec tsx scripts/licenses.ts check     手动门禁：出现 allowlist 之外或许可未知的包即退出码 1
 //
 // 数据口径：
 // - 实装清单 = 全 workspace node_modules 的递归集合，含嵌套版本与符号链接。
 // - 声明生成：third-party-npm.mjs 按生产依赖的精确版本收集真实许可文件。
 // - prod 判定按锁文件生产图中的精确版本。
 // - 商用/半开放检查作用于全量实装包（prod+dev）
-import { classifyLicenseExpression } from "./lib/license-classification.mjs";
+import { classifyLicenseExpression } from "./lib/license-classification.js";
 import { generateThirdPartyNotices } from "./generate-third-party-notices.mjs";
 import { readVerifiedNotices } from "./third-party-notices.mjs";
 import { readFile } from "node:fs/promises";
@@ -82,7 +82,7 @@ if (command === "check") {
     console.error(`✗ license 检查失败：${bad.length} 个包超出 allowlist：`);
     for (const r of bad.sort((a, b) => a.name.localeCompare(b.name)))
       console.error(`  [${r.bucket}] ${r.name}@${r.version} → ${r.license}`);
-    console.error("\n处置：替换依赖，或在 scripts/licenses.mjs 的 WEAK_ALLOW 登记人工复核结论。");
+    console.error("\n处置：替换依赖，或在 scripts/licenses.ts 的 WEAK_ALLOW 登记人工复核结论。");
     process.exit(1);
   }
   await readVerifiedNotices(ROOT, { requireComplete: process.argv.includes("--strict") });
@@ -91,13 +91,13 @@ if (command === "check") {
       .reviewRequired ?? [];
   if (reviewRequired.length)
     console.warn(
-      `待补齐/核验材料 ${reviewRequired.length} 项；发布前运行 node scripts/licenses.mjs check --strict，不得将基础检查通过视为合规完成。`,
+      `待补齐/核验材料 ${reviewRequired.length} 项；发布前运行 pnpm exec tsx scripts/licenses.ts check --strict，不得将基础检查通过视为合规完成。`,
     );
   const n = installed.size;
   console.log(
     `✓ 许可标识与声明新鲜度检查通过：${n} 个实装包（构建依赖复核 ${[...installed.values()].filter((r) => r.bucket.startsWith("yellow")).length} 项）；材料限制见 third-party/README.md`,
   );
 } else {
-  console.error("用法: node scripts/licenses.mjs [notices|check]");
+  console.error("用法: pnpm exec tsx scripts/licenses.ts [notices|check]");
   process.exit(2);
 }

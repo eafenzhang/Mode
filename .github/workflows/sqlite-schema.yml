@@ -10,9 +10,9 @@ on:
       - "apps/mode-cli/packages/adapters/src/storage/session-store/**"
       - "scripts/check-sqlite-schema.ts"
       - "scripts/sqlite-schema-snapshot.ts"
-      - "scripts/lib/sqlite-schema.mjs"
+      - "scripts/lib/sqlite-schema.ts"
       - "scripts/sqlite-schema-baseline.json"
-      - "scripts/test/sqlite-schema.test.mjs"
+      - "scripts/test/sqlite-schema.test.ts"
       - "package.json"
   push:
     paths:
@@ -20,9 +20,9 @@ on:
       - "apps/mode-cli/packages/adapters/src/storage/session-store/**"
       - "scripts/check-sqlite-schema.ts"
       - "scripts/sqlite-schema-snapshot.ts"
-      - "scripts/lib/sqlite-schema.mjs"
+      - "scripts/lib/sqlite-schema.ts"
       - "scripts/sqlite-schema-baseline.json"
-      - "scripts/test/sqlite-schema.test.mjs"
+      - "scripts/test/sqlite-schema.test.ts"
       - "package.json"
   workflow_dispatch:
 
@@ -65,4 +65,4 @@ jobs:
             pnpm check:sqlite-schema
           fi
       - name: SQLite schema comparison unit tests
-        run: node --test scripts/test/sqlite-schema.test.mjs
+        run: pnpm exec tsx --test scripts/test/sqlite-schema.test.ts
