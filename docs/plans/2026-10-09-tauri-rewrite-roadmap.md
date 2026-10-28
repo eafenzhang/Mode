@@ -52,19 +52,21 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 
 ---
 
-## 进度快照（2026-10-22）
+## 进度快照（2026-10-27 更新）
 
 > 证据：`docs/plans/2026-10-20-installed-0.0.61-acceptance.md`（已安装 0.0.61 自动化门禁与真机验收）、
 > `docs/plans/2026-10-20-runtime-ui-fixes.md`（0.0.61→0.0.63 运行态修复）、
 > `docs/plans/2026-10-19-lan-remote-sidecar-migration.md`（LR-0..LR-4 执行记录）、
-> `docs/specs/legacy-electron-eol.md`（旧 Electron 线 EOL 执行记录）。
+> `docs/specs/legacy-electron-eol.md`（旧 Electron 线 EOL 执行记录）、
+> `docs/plans/2026-10-25-installed-0.0.85-acceptance.md`（0.0.85→0.0.92 逐版验收；0.0.92 节为本快照输入）、
+> `docs/plans/2026-10-27-0.0.92-acceptance-followups.md`（0.0.92 验收后改造项与判据）。
 
 | 阶段 | 状态 | 已达成 | 仍阻塞阶段关闭 |
 | --- | --- | --- | --- |
 | M0 | 进行中 | 语言门禁、clean-room spec、上游基线、Rust 工具链、helper P1 与黑盒对拍 | `browser-import-helper` C# 重写与真实 Windows 会话验收（P2） |
 | M1 | **已关闭（2026-10-20）** | v0.0.59 三平台出包首次全绿，v0.0.60/61 按三平台同发口径发布；10 命令 E2E、clippy/rustfmt、协议生成物 | 无；体积口径由 DR-M5-2b 放开，macOS/Linux 真机验收转入 M5 |
 | M2 | 代码面完成，验收未过 | 工具/权限/会话流/对拍矩阵与 CI 门禁；Rust workspace 30 suites / 202 passed（2026-10-20 验收）；stdio 审批帧映射（2026-10-22，+13 用例） | 真实模型 20 个端到端任务未执行 |
-| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过；**Host 进程自动重生（§22.4）与 `exportLogs`（§27）已实现（2026-10-26）** | 插件/MCP/Skills **负载**的 CDN 发布与产品接线（Host sidecar 已按 DR-M3-2 随包发布，不是缺口）；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收 |
+| M3 | 进行中 | LR-0..LR-4 Host sidecar 接线；插件市场/IM/Web/TUI 复用既有实现；0.0.61 真机核心链路通过；**Host 自动重生（§22.4）、`exportLogs`（§27）（2026-10-26），半开管道心跳（§22.5）、终端 PTY 下沉到壳、通知点击聚焦（2026-10-27）**；0.0.92 真人操作验收核心链路通过 | 插件/MCP/Skills **负载**的 CDN 发布与产品接线（Host sidecar 已按 DR-M3-2 随包发布，不是缺口）；插件安装/卸载、IM 真账号、两台实机 LAN/RD/Web、TUI 交互验收；**杀 Host/心跳/失败屏 retry 真机用例（需外部会话）、远程工作区任务通知、出站 RD 首帧、exportLogs 体积口径** |
 | M4 | 进行中 | UI 基础件 adapter 全量切换、业务代码对旧 `components/ui/*` 引用清零；上游重合度 9.17%（2026-10-24 复测） | 旧 UI 文件看屏验收与删除；重合度清零；Rust 台账 514 缺失项与法务收口 |
 | M5 | 进行中 | 三平台 Release 发布口径已启用、Windows 自动发版连续跑通；旧 Electron 线代码/CI 已下线（`d71ed992`） | 三平台签名、EOL 公告与历史文档归档、差分更新、mac/Linux 真机安装/升级 |
 
@@ -82,6 +84,23 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > `updater --lib` 的 `0xC0000139` 根因查明（测试清单指令非法，已修）。**仍未自动化的只剩
 > 半开管道心跳（传输层独立立项）**；其余阻塞项与下方清单一致，均需人工/真机/真账号。
 >
+> **2026-10-27 追加（0.0.92 安装版真人操作验收）**：核心链路通过——启动/基础对话/
+> 帮助菜单导出日志/托盘隐藏恢复/终端 PTY 父进程为壳/本机被控侧 CUA Helper。M3 的自动化面
+> 本轮再收口三项：半开管道心跳（`cd2ea888`）、终端 PTY 下沉（`0f84ebbe`）、通知点击聚焦
+> （`5a4a0f15`）；终端 shell 与 conhost 的父进程都是 `ModeTauri.exe`（PTY 下沉成立）。
+> **三条破坏性用例已由脱离 Host 进程树的 WMI 编排器实测**：自然杀 Host 换代通过、
+> 半开管道心跳 kill+换代通过、崩溃循环失败屏「重试」通过；但 Case A 暴露**终端跨整页
+> reload 未存活**——reload 销毁渲染层 terminalId，现有实现没有 reattach/持久化，
+> 已登记 P2-4（`terminal-pty-in-shell.md` 承诺与实现的缺口）；Case B 还暴露心跳 kill
+> 后渲染层卡启动 Logo（Host 已 ready，Ctrl+R 无效，再杀一次 Host 才恢复），已登记
+> P1-3。同轮代码修复：远程通知
+> endpoint 反查 + 新终态会话通知（5 条单测）、`exportLogs` 只导 Host 线并输出 omitted
+> manifest（12 条 crate 用例）、渲染层 typecheck 接入 root `typecheck` 并清零 19 个
+> 存量错误（现为硬门禁）。
+> 仍待人工/双机：出站 MX121212 远程桌面首帧、通知真机 toast/点击聚焦、P2-4 终端
+> reattach。细化工作项、判据与 spec 落点见
+> `docs/plans/2026-10-27-0.0.92-acceptance-followups.md`。
+>
 > **自动化推进收口（sess_9664bbd9，2026-10-23→24）**：本会话负责的可自动化面已清零。
 > 本会话落地：LR-5 桩升级 13 条并收口登记（§26–27）、M4a 四件 bench 脚本与三件实测基线
 > （§基线·IPC / 核心载荷 59.77 MiB / stream-latency 两段）、IM bot SDK 动态 import 半件、
@@ -92,6 +111,11 @@ M5 切换与收口   ▸ M5a 4–8w → M5b  Agent 切 Rust+Node 退场 + 签名
 > fail-closed 拍板（M4a 可选项注记）、memory 30min 正式基线（等无实例窗口，脚本已就绪）、
 > M4 并行子线人工段（UI 看屏/台账 Linux CI/法务）、M5 三平台签名与 EOL 公告。
 > 复核入口：本节 + 快照表各阶段「仍阻塞」列。
+>
+> **2026-10-27 复核（对「无自动化可推进点」的修正）**：0.0.92 验收暴露出两项仍可自动化
+> 推进的工程面——P0-1 外部编排脚本（绕开「验收会话自托管于目标 Host」的限制，自动跑
+> 杀 Host/心跳/失败屏三条用例）与 P2-1 渲染层 typecheck 接入 CI（当前 19 个存量错误）。
+> 二者见 `docs/plans/2026-10-27-0.0.92-acceptance-followups.md`。
 
 ## M0 地基与纪律（2–4 周）
 
