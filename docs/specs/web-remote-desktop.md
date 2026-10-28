@@ -97,7 +97,7 @@ POST /api/remote-desktop/peer-session/:id/end
 | 浏览器信令 WS 断开 | 服务端收口对端会话；UI 页面重连时重新发起 |
 | 浏览器媒体 WS 断开 | 服务端保留对端媒体 60s；UI 重连到同一 mediaPath 继续 |
 | 浏览器页面刷新 | 旧会话由信令 WS close 收口；不跨页面恢复远程桌面 |
-| 浏览器不支持 WebCodecs | 本机预检（`typeof VideoDecoder !== "function"`）在发起前返回 `decoder_unsupported`：不请求对端、不弹同意框，文案提示改用最新版 Chrome/Edge |
+| 浏览器缺少 WebCodecs/WebCrypto 或非安全上下文 | 本机预检（`VideoDecoder` 与 `crypto.subtle`）在发起前返回 `decoder_unsupported`：不请求对端、不弹同意框；文案提示改用 HTTPS（飞牛网关）或 localhost，以及最新版 Chrome/Edge |
 | 解码器运行期失败 | 沿用 `nativeMediaSession` 失败归因（HEVC 降级一次后仍失败即收口） |
 
 ## 7. 安全边界
@@ -126,14 +126,17 @@ POST /api/remote-desktop/peer-session/:id/end
 - Web 平台实现 `rdGetPeerCapability`、`rdStartSession`、`rdSendSignal`、`rdEndSession`、
   `onRemoteDesktopSessionEvent`、`rdReadClipboardText`；`rdStartSession` 返回 NAS 中继
   `mediaUrl`，现有 `useRemoteDesktopSession`/`nativeMediaSession` 无改动直接复用。
-- 本机解码能力预检：`rdStartSession` 在发请求前检查 `VideoDecoder`；缺失时新增错误码
-  `decoder_unsupported`（与对端 `unsupported` 区分）直接收口到会话关闭层。
+- 本机解码能力预检：`rdStartSession` 在发请求前检查 `VideoDecoder` 与 `crypto.subtle`
+  （后者同时覆盖非安全上下文）；缺失时新增错误码 `decoder_unsupported`（与对端
+  `unsupported` 区分）直接收口到会话关闭层。
 - 已验证：`remote-desktop-relay.test.ts` 用 fake 对端信令/媒体 WS 完成
   浏览器 hello → 对端、对端 monitors → 浏览器、浏览器 `ready`/输入 → 对端、
   对端二进制帧 → 浏览器、关闭收口；无配对会话返回 401、能力探测离线收口。
   **待真机**：Windows 对端同意 → 浏览器首帧 → 键鼠输入 → 关闭释放。
-- 已知限制：浏览器需支持 WebCodecs（Chrome/Edge/Safari 现代版本；H.264 由对端默认回退）；
-  页面刷新结束远程桌面会话；浏览器媒体断开 60s 后释放对端媒体，超时后的媒体重连需重新
+- 已知限制：浏览器需支持 WebCodecs + WebCrypto，且页面必须处于安全上下文（HTTPS 或
+  localhost）；通过 `http://<NAS 地址>:3030` 直连时浏览器不提供这两个 API，预检会以
+  `decoder_unsupported` 拦住并提示改用 HTTPS 网关。页面刷新结束远程桌面会话；
+  浏览器媒体断开 60s 后释放对端媒体，超时后的媒体重连需重新
   发起会话（UI 的媒体级退避上限约 14s，落在 60s 窗口内）；服务端中继不解密，媒体加密
   仍由对端 key/salt + 浏览器 WebCrypto 完成。
 

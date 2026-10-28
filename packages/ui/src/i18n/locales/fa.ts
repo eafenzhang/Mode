@@ -6576,7 +6576,7 @@ const faIR: Record<string, string> = {
   "remoteDesktop.error.locally_controlled":
     "این دستگاه از راه دور کنترل می‌شود؛ ابتدا آن را قطع کنید.",
   "remoteDesktop.error.decoder_unsupported":
-    "این مرورگر نمی‌تواند جریان ویدیو را رمزگشایی کند (WebCodecs)؛ از آخرین نسخه Chrome یا Edge استفاده کنید.",
+    "این مرورگر نمی‌تواند صفحه دستگاه مقابل را رمزگشایی کند. آن را از طریق HTTPS (مثلاً دروازه fnOS) یا localhost باز کنید و از آخرین نسخه Chrome یا Edge استفاده کنید.",
   "remoteDesktop.error.internal": "خطای داخلی رخ داد؛ دوباره تلاش کنید.",
   "remoteDesktop.consent.title": "{device} درخواست کنترل این دستگاه را دارد",
   "remoteDesktop.consent.allow": "اجازه",

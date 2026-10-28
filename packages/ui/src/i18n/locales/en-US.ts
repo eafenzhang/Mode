@@ -6671,7 +6671,7 @@ const enUS: Record<string, string> = {
   "remoteDesktop.error.locally_controlled":
     "This device is being remotely controlled; disconnect it first.",
   "remoteDesktop.error.decoder_unsupported":
-    "This browser can't decode the video stream (WebCodecs); use the latest Chrome or Edge.",
+    "This browser can't decode the remote screen. Open it over HTTPS (for example the fnOS gateway) or localhost, and use the latest Chrome or Edge.",
   "remoteDesktop.error.internal": "An internal error occurred; try again.",
   "remoteDesktop.consent.title": "{device} wants to control this device",
   "remoteDesktop.consent.allow": "Allow",

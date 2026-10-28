@@ -6358,7 +6358,7 @@ const zhCN: Record<string, string> = {
   "remoteDesktop.error.stale_ticket": "会话票据已过期，请重试。",
   "remoteDesktop.error.locally_controlled": "本机正在被远程控制，请先断开。",
   "remoteDesktop.error.decoder_unsupported":
-    "当前浏览器不支持视频解码（WebCodecs），请改用最新版 Chrome 或 Edge。",
+    "当前浏览器无法解码远程画面：请通过 HTTPS（如飞牛网关）或 localhost 访问，并使用最新版 Chrome 或 Edge。",
   "remoteDesktop.error.internal": "发生内部错误，请重试。",
   "remoteDesktop.consent.title": "{device} 请求远程控制本机",
   "remoteDesktop.consent.allow": "允许",

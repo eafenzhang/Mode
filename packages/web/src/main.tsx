@@ -263,12 +263,18 @@ function toRemoteDesktopErrorCode(value: unknown): RemoteDesktopErrorCode {
 }
 
 /**
- * 浏览器解码能力预检（WebCodecs）：媒体帧只能由 nativeMediaSession 用 VideoDecoder 解。
- * 缺失时在发起会话前直接报错，避免对端弹同意框、建好中继后才在本地解码失败，
- * 用户看到的将是「连接失败」而不是「换浏览器」。
+ * 浏览器解码能力预检（WebCodecs + WebCrypto）：媒体帧由 nativeMediaSession 用
+ * VideoDecoder 解码、crypto.subtle 解密。两者都是 secure-context API：
+ * `http://<NAS 地址>:3030` 直连时浏览器不提供，表现为「解码不了」——必须在发请求前
+ * 拦住，否则对端先弹同意框、建好中继后才在本地失败。缺失时统一报
+ * `decoder_unsupported`，文案同时提示改用 HTTPS（飞牛网关）或 localhost。
  */
 function browserCanDecodeRemoteMedia(): boolean {
-  return typeof globalThis.VideoDecoder === "function";
+  return (
+    typeof globalThis.VideoDecoder === "function" &&
+    typeof globalThis.crypto?.subtle === "object" &&
+    globalThis.crypto.subtle !== null
+  );
 }
 
 const remoteDesktopSessionHandlers = new Set<(event: RemoteDesktopSessionEvent) => void>();
