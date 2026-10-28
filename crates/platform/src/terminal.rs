@@ -41,11 +41,48 @@ struct Session {
     master: Box<dyn MasterPty + Send>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
+    /// 跨整页 reload reattach 的输出回放（有界；见 `HISTORY_LIMIT`）。
+    history: Arc<Mutex<Vec<u8>>>,
+}
+
+/// 输出回放上限：只保证 reattach 后能看到当前屏附近的内容，不承诺完整 scrollback。
+const HISTORY_LIMIT: usize = 256 * 1024;
+
+/// `create_with_key` 的返回：`reattached=true` 时 `replay` 是已有会话的输出快照。
+pub struct TerminalCreateResult {
+    pub id: String,
+    pub replay: String,
+    pub reattached: bool,
+}
+
+/// 稳定 key → 会话 id 的双向索引；进程退出/dispose 时按 id 清理，避免 key 指向死会话。
+#[derive(Default)]
+struct KeyIndex {
+    by_key: HashMap<String, String>,
+    by_id: HashMap<String, String>,
+}
+
+impl KeyIndex {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.by_key.get(key).map(String::as_str)
+    }
+
+    fn insert(&mut self, key: &str, id: &str) {
+        self.by_key.insert(key.to_string(), id.to_string());
+        self.by_id.insert(id.to_string(), key.to_string());
+    }
+
+    fn remove_id(&mut self, id: &str) {
+        if let Some(key) = self.by_id.remove(id) {
+            self.by_key.remove(&key);
+        }
+    }
 }
 
 /// 终端会话表。`create/write/resize/dispose` 均可从多线程调用（命令面）。
 pub struct TerminalSessionManager {
     sessions: Mutex<HashMap<String, Session>>,
+    keys: Mutex<KeyIndex>,
     next_id: AtomicU64,
     emit: TerminalEmit,
 }
@@ -54,6 +91,7 @@ impl TerminalSessionManager {
     pub fn new(emit: TerminalEmit) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
+            keys: Mutex::new(KeyIndex::default()),
             next_id: AtomicU64::new(1),
             emit,
         }
@@ -70,6 +108,39 @@ impl TerminalSessionManager {
         cwd: Option<&str>,
         shell: &str,
     ) -> Result<String, String> {
+        self.create_with_key(cols, rows, cwd, shell, None)
+            .map(|result| result.id)
+    }
+
+    /// 带稳定 key 的创建/重挂接：key 命中活会话时返回原 id + 有界输出回放；
+    /// 否则按普通 create 起新会话并登记 key。key 只用于壳内 reattach，不参与进程语义。
+    pub fn create_with_key(
+        self: &Arc<Self>,
+        cols: u16,
+        rows: u16,
+        cwd: Option<&str>,
+        shell: &str,
+        key: Option<&str>,
+    ) -> Result<TerminalCreateResult, String> {
+        if let Some(key) = key {
+            let existing_id = lock(&self.keys).get(key).map(str::to_string);
+            if let Some(id) = existing_id {
+                let history = lock(&self.sessions)
+                    .get(&id)
+                    .map(|session| Arc::clone(&session.history));
+                if let Some(history) = history {
+                    let replay = String::from_utf8_lossy(&lock(&history)).into_owned();
+                    return Ok(TerminalCreateResult {
+                        id,
+                        replay,
+                        reattached: true,
+                    });
+                }
+                // 会话已退出但索引还没清：清掉陈旧 key，走新建。
+                lock(&self.keys).remove_id(&id);
+            }
+        }
+
         let pty_system = native_pty_system();
         let pair = pty_system
             .openpty(PtySize {
@@ -101,13 +172,15 @@ impl TerminalSessionManager {
         ));
 
         let id = format!("term-{}", self.next_id.fetch_add(1, Ordering::SeqCst));
+        let history = Arc::new(Mutex::new(Vec::new()));
 
         {
             let emit = Arc::clone(&self.emit);
             let pump_id = id.clone();
             let pump_writer = Arc::clone(&writer);
+            let pump_history = Arc::clone(&history);
             thread::spawn(move || {
-                pump_output(pump_id, reader, emit, pump_writer);
+                pump_output(pump_id, reader, emit, pump_writer, pump_history);
             });
         }
         self.insert(
@@ -116,14 +189,22 @@ impl TerminalSessionManager {
                 master: pair.master,
                 writer,
                 child: Mutex::new(child),
+                history,
             },
         );
+        if let Some(key) = key {
+            lock(&self.keys).insert(key, &id);
+        }
         {
             let manager = Arc::clone(self);
             let exit_id = id.clone();
             thread::spawn(move || watch_exit(manager, exit_id));
         }
-        Ok(id)
+        Ok(TerminalCreateResult {
+            id,
+            replay: String::new(),
+            reattached: false,
+        })
     }
 
     fn insert(&self, id: &str, session: Session) {
@@ -131,6 +212,7 @@ impl TerminalSessionManager {
     }
 
     fn remove(&self, id: &str) -> Option<Session> {
+        lock(&self.keys).remove_id(id);
         lock(&self.sessions).remove(id)
     }
 
@@ -168,6 +250,9 @@ impl TerminalSessionManager {
     /// 结束会话：杀进程；Exit 事件与会话移除交给退出监视线程统一处理（幂等——
     /// 对已死进程 kill 的错误按已退出处理）。
     pub fn dispose(&self, id: &str) -> Result<(), String> {
+        // 先摘 key：dispose 与退出监视线程之间有 200ms 窗口，期间同 key 的重挂应新建而不是
+        // 命中一个正在被杀死的会话。
+        lock(&self.keys).remove_id(id);
         let sessions = lock(&self.sessions);
         let Some(session) = sessions.get(id) else {
             return Ok(());
@@ -220,6 +305,7 @@ fn pump_output(
     mut reader: impl Read,
     emit: TerminalEmit,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
+    history: Arc<Mutex<Vec<u8>>>,
 ) {
     let mut chunk = [0u8; 8192];
     let mut pending: Vec<u8> = Vec::new();
@@ -236,6 +322,7 @@ fn pump_output(
                         // 先拷成 owned 解除对 pending 的借用：clear 与 DSR 检查都在其后。
                         let text = text.to_string();
                         if !text.is_empty() {
+                            append_history(&history, text.as_bytes());
                             emit(TerminalEvent::Data {
                                 id: id.clone(),
                                 data: text.clone(),
@@ -258,6 +345,7 @@ fn pump_output(
                         if valid > 0 {
                             let text = std::str::from_utf8(&pending[..valid])
                                 .expect("valid_up_to 前缀必为合法 UTF-8");
+                            append_history(&history, text.as_bytes());
                             emit(TerminalEvent::Data {
                                 id: id.clone(),
                                 data: text.to_string(),
@@ -277,6 +365,21 @@ fn pump_output(
             Err(_) => return,
         }
     }
+}
+
+/// 追加输出到有界回放缓冲；超出上限时从头部丢弃，并退到 UTF-8 字符边界，
+/// 避免 replay 从一个多字节字符中间开始（快照本身仍用 lossy 兜底）。
+fn append_history(history: &Mutex<Vec<u8>>, bytes: &[u8]) {
+    let mut buffer = lock(history);
+    buffer.extend_from_slice(bytes);
+    if buffer.len() <= HISTORY_LIMIT {
+        return;
+    }
+    let mut drain_to = buffer.len() - HISTORY_LIMIT;
+    while drain_to < buffer.len() && (buffer[drain_to] & 0xC0) == 0x80 {
+        drain_to += 1;
+    }
+    buffer.drain(..drain_to);
 }
 
 #[cfg(test)]
@@ -354,15 +457,38 @@ mod tests {
         let good = "好".as_bytes();
         // 「好」= 3 字节：前 2 字节一批、第 3 字节一批，跨块必须只解码出一次。
         let writer = Arc::new(Mutex::new(Box::new(Vec::new()) as Box<dyn Write + Send>));
+        let history = Arc::new(Mutex::new(Vec::new()));
         pump_output(
             "t".to_string(),
             &good[..2] as &[u8],
             Arc::clone(&emit),
             Arc::clone(&writer),
+            Arc::clone(&history),
         );
-        pump_output("t".to_string(), good, emit, writer);
+        pump_output("t".to_string(), good, emit, writer, Arc::clone(&history));
         let text = lock(&collected).join("");
         assert_eq!(text, "好");
+        assert_eq!(std::str::from_utf8(&lock(&history)).unwrap(), "好");
+    }
+
+    #[test]
+    fn key_index_removes_by_id_and_ignores_stale_keys() {
+        let mut index = KeyIndex::default();
+        index.insert("side:1", "term-1");
+        assert_eq!(index.get("side:1"), Some("term-1"));
+        index.remove_id("term-1");
+        assert_eq!(index.get("side:1"), None);
+        index.remove_id("term-1");
+        assert_eq!(index.get("side:1"), None);
+    }
+
+    #[test]
+    fn history_is_bounded_and_keeps_utf8_boundary() {
+        let history = Mutex::new(Vec::new());
+        append_history(&history, "好".repeat(HISTORY_LIMIT / 3 + 10).as_bytes());
+        let buffer = lock(&history);
+        assert!(buffer.len() <= HISTORY_LIMIT + 4);
+        assert!(std::str::from_utf8(&buffer).is_ok());
     }
 
     #[test]
@@ -395,6 +521,33 @@ mod tests {
         );
         // 会话已随退出移除：再次 write 报 not found。
         assert!(manager.write(&id, "x").is_err());
+    }
+
+    #[test]
+    fn create_with_key_reattaches_same_session() {
+        let collector = Collector::new();
+        let manager = Arc::new(TerminalSessionManager::new(collector_emit(&collector)));
+
+        let first = manager
+            .create_with_key(80, 24, None, TEST_SHELL, Some("bottom:test:1"))
+            .expect("first create");
+        assert!(!first.reattached);
+        assert!(first.replay.is_empty());
+
+        let second = manager
+            .create_with_key(80, 24, None, TEST_SHELL, Some("bottom:test:1"))
+            .expect("reattach");
+        assert!(second.reattached);
+        assert_eq!(second.id, first.id);
+
+        let other = manager
+            .create_with_key(80, 24, None, TEST_SHELL, Some("bottom:test:2"))
+            .expect("different key");
+        assert!(!other.reattached);
+        assert_ne!(other.id, first.id);
+
+        manager.dispose(&first.id).expect("dispose first");
+        manager.dispose(&other.id).expect("dispose other");
     }
 
     #[test]

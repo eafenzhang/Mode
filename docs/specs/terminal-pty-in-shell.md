@@ -23,11 +23,13 @@
 事件序：
 
 ```
-渲染层 shellTerminalService.create({cols,rows,cwd})
+渲染层 shellTerminalService.create({cols,rows,cwd,sessionKey?})
   ① host.terminalService.profile({cwd})      → {shell, fontFamily, fontSize?, theme?,
   │                                             fontFamilySource, windowsPty?, cwd}
-  ② invoke("terminalCreate")                  → {id}（壳 portable-pty spawn；输出泵线程启动）
-  ③ 返回 {id, ...profile}
+  ② invoke("terminalCreate", {key: sessionKey?})
+     → {id}（壳 portable-pty spawn；输出泵线程启动）
+     → 或 key 命中活会话：{id, replay, reattached:true}（不 spawn）
+  ③ 返回 {id, ...profile, replay?, reattached?}
 渲染层 write/resize/dispose → invoke terminalWrite/Resize/Dispose
 壳 输出线程 → emit("terminal://data", {id, data})；退出 → emit("terminal://exit", {id, code})
 渲染层 onDynamicData/onDynamicExit(id) → listen("terminal://*") 按 id 过滤
@@ -48,6 +50,15 @@
    darwin PATH 修补不适用（本项目终端仅在 Windows 提供先例，mac 走 Host 原路径）。
 6. **新依赖**：`portable-pty`（wezterm，MIT）——licenses 台账按既有循环在 CI 重生成后
    回填（同 `a92d42f4`）。
+7. **跨整页 reload 的 reattach（2026-10-27，P2-4）**：`ITerminalService.create` 增加
+   可选 `sessionKey`；壳侧 `TerminalSessionManager` 维护 key→id 索引，命中活会话时
+   返回原 id + 有界输出回放（256 KB，UTF-8 边界），不重新 spawn。key 在 dispose /
+   进程退出时按 id 清理；`terminalDispose` 先摘 key，避免命中正在被杀死的会话。
+   渲染层先写 `replay` 再订阅 live data；回放与 live 之间的极小缺口不伪造完整
+   scrollback。当前 key 口径：
+   - side pane：`side:<workspaceKey>:<tab sessionId>`（tab 由 workspace 布局恢复）；
+   - 底部终端：仅初始 tab `bottom:<workspaceKey>:1` 带 key；额外 tab 的 UI 状态不持久化，
+     不带 key，reload 后仍按旧行为消失，避免留下无法回收的孤儿 PTY。
 
 ## 4. 已知边界
 
@@ -57,3 +68,6 @@
   cwd 失效回退 HOME），与 Host 共享**行为口径**而非代码；对拍用例锚住（shell 选择顺序、
   cwd 回退顺序）。
 - Host 原路径（node-pty）在 Tauri 渲染层不再被调用，但服务与其实现保留（Web/远程线）。
+- 整页 reload 后只有带 `sessionKey` 的会话重新挂接；无 key 的会话（额外底部 tab）随
+  reload 消失。壳侧不主动列/杀所有无 key 会话，避免误伤其他窗口；若后续要恢复全部
+  底部 tab，需要先持久化 tab 列表再补 `terminalPrune`。

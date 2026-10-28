@@ -69,14 +69,24 @@ export function createShellTerminalService(deps: {
   };
 
   return {
-    async create(params: { cols: number; rows: number; cwd?: string }) {
+    async create(params: {
+      cols: number;
+      rows: number;
+      cwd?: string;
+      sessionKey?: string;
+    }) {
       // profile 权威在 Host（shell/字体/主题/cwd 回退）；缺席 = 旧远端实现，如实报错。
       const profile = await deps.profile({ cwd: params.cwd });
-      const { id } = await invokeViaTauri<{ id: string }>("terminalCreate", {
+      const { id, replay, reattached } = await invokeViaTauri<{
+        id: string;
+        replay?: string;
+        reattached?: boolean;
+      }>("terminalCreate", {
         cols: params.cols,
         rows: params.rows,
         cwd: profile.cwd,
         shell: profile.shell,
+        key: params.sessionKey,
       });
       ensureListeners();
       return {
@@ -87,6 +97,8 @@ export function createShellTerminalService(deps: {
         theme: profile.theme,
         fontFamilySource: profile.fontFamilySource,
         windowsPty: profile.windowsPty,
+        ...(replay ? { replay } : {}),
+        ...(reattached ? { reattached } : {}),
       };
     },
 

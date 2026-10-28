@@ -39,9 +39,14 @@ pub fn terminal_create(
     rows: u16,
     cwd: Option<String>,
     shell: String,
+    key: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let id = state.create(cols, rows, cwd.as_deref(), &shell)?;
-    Ok(serde_json::json!({ "id": id }))
+    let result = state.create_with_key(cols, rows, cwd.as_deref(), &shell, key.as_deref())?;
+    Ok(serde_json::json!({
+        "id": result.id,
+        "replay": result.replay,
+        "reattached": result.reattached,
+    }))
 }
 
 #[tauri::command(rename = "terminalWrite")]

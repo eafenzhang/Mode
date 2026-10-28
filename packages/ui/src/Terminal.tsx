@@ -365,6 +365,9 @@ export function Terminal({
             >
               <TerminalSession
                 sessionId={session.id}
+                terminalKey={
+                  session.index === 1 ? `bottom:${session.workspaceKey}:1` : undefined
+                }
                 services={session.services}
                 cwd={session.cwd}
                 isVisible={

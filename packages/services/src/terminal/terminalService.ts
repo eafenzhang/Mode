@@ -383,7 +383,13 @@ export function createTerminalService(dependencies: {
       return resolveProfile(params);
     },
 
-    async create(params: { cols: number; rows: number; cwd?: string }): Promise<{
+    async create(params: {
+      cols: number;
+      rows: number;
+      cwd?: string;
+      /** Host PTY 路径没有跨 reload 会话，key 只由壳-backed 实现消费。 */
+      sessionKey?: string;
+    }): Promise<{
       id: string;
       shell: string;
       fontFamily: string;

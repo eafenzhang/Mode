@@ -39,6 +39,7 @@ export function SidePaneTerminalPane({
         sessionId={sessionId}
         persistentKey={sessionId}
         workspaceKey={workspaceKey}
+        terminalKey={`side:${workspaceKey ?? cwd ?? ""}:${sessionId}`}
         services={services}
         cwd={cwd}
         isVisible={isVisible}

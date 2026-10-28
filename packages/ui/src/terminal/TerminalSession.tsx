@@ -96,6 +96,7 @@ export function TerminalSession({
   onOpenBrowserUrl,
   persistentKey,
   workspaceKey,
+  terminalKey,
 }: {
   sessionId: string;
   services: IServiceAccessor;
@@ -120,6 +121,11 @@ export function TerminalSession({
    * 不传时 fallback 到 cwd。下侧 terminal 不传 persistentKey，此值不生效。
    */
   workspaceKey?: string;
+  /**
+   * 跨整页 reload 的稳定 PTY key（壳侧 reattach）。同一 key 在 reload 后命中同一 PTY，
+   * 壳返回有界输出回放；不传时每次 create 都是新会话（旧行为）。
+   */
+  terminalKey?: string;
 }) {
   const { intl } = useModeIntl();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -545,8 +551,13 @@ export function TerminalSession({
       // 创建 PTY（异步）
       const initialCreateSize = initialTerminalSize ?? { cols: term.cols, rows: term.rows };
       void services.terminalService
-        .create({ cols: initialCreateSize.cols, rows: initialCreateSize.rows, cwd })
-        .then(({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty }) => {
+        .create({
+          cols: initialCreateSize.cols,
+          rows: initialCreateSize.rows,
+          cwd,
+          ...(terminalKey ? { sessionKey: terminalKey } : {}),
+        })
+        .then(({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty, replay }) => {
           if (ptyCancelled) {
             // cleanup 已发生：杀掉这个孤儿 PTY，不进 entry
             void services.terminalService.dispose({ id });
@@ -581,6 +592,11 @@ export function TerminalSession({
           scheduleFitAndResize("init");
           if (isVisibleRef.current) {
             requestFocus();
+          }
+          if (replay) {
+            // 壳侧 reattach 回放：先写历史，再订阅 live data。回放与 live 之间若有极小缺口，
+            // 由壳的 ring buffer 在下次重挂时覆盖；不在这里伪造完整 scrollback。
+            term.write(replay);
           }
 
           // data 订阅 → term.write（进 registry，detached 时仍累积 scrollback）
@@ -883,8 +899,14 @@ export function TerminalSession({
     // 优先使用 workspace 路径作为 terminal 工作目录，未设置时后端回退到 HOME
     const initialCreateSize = initialTerminalSize ?? { cols: term.cols, rows: term.rows };
     terminalService
-      .create({ cols: initialCreateSize.cols, rows: initialCreateSize.rows, cwd })
-      .then(({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty }) => {
+      .create({
+        cols: initialCreateSize.cols,
+        rows: initialCreateSize.rows,
+        cwd,
+        ...(terminalKey ? { sessionKey: terminalKey } : {}),
+      })
+      .then(
+        ({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty, replay }) => {
         if (disposed) {
           terminalService.dispose({ id });
           return;
@@ -917,6 +939,10 @@ export function TerminalSession({
         scheduleFitAndResize("init");
         if (isVisibleRef.current) {
           requestFocus();
+        }
+        if (replay) {
+          // 壳侧 reattach 回放：先写历史，再订阅 live data（缺口同 persistent 路径注释）。
+          term.write(replay);
         }
 
         disposables.push(
