@@ -443,6 +443,9 @@ importers:
         specifier: ^8.5.0
         version: 8.5.1(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)(keycharm@0.4.0)(moment@2.30.1)(propagating-hammerjs@3.0.0(@egjs/hammerjs@2.0.17))(uuid@11.1.0)(vis-data@8.0.4(uuid@11.1.0)(vis-util@6.0.0(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1)))(vis-util@6.0.0(@egjs/hammerjs@2.0.17)(component-emitter@1.3.1))(xss@1.0.15)
     devDependencies:
+      '@mode/shared':
+        specifier: workspace:*
+        version: link:../../../../packages/shared
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
