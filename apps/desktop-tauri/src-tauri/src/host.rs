@@ -40,6 +40,43 @@ fn new_startup_id() -> String {
     format!("host-{}-{}", std::process::id(), millis)
 }
 
+/// 壳侧生命周期日志：与 Host 文件日志同目录的 `host-shell.log`。
+///
+/// 为什么单独一个文件：Host 的写者按 `host-YYYY-MM-DD.log` 跨日滚动，壳不能和它抢同一个文件；
+/// `host-` 前缀让 `exportLogs` 的 Host 线过滤会一并导出。渲染层 `window.mode.log` 在 Tauri
+/// 下是刻意缺席的，P1-3（心跳 kill 后卡启动 Logo）只能靠壳侧记录 reload/startupId 采用顺序。
+fn shell_log_path() -> Option<PathBuf> {
+    let home = std::env::var("USERPROFILE")
+        .ok()
+        .or_else(|| std::env::var("HOME").ok())?;
+    let home = PathBuf::from(home.trim());
+    if home.as_os_str().is_empty() {
+        return None;
+    }
+    let env_override = std::env::var("MODE_DATA_BASE_DIR").ok();
+    let settings_raw = std::fs::read_to_string(
+        sidecar_host::settings_probe::default_root_settings_file(&home),
+    )
+    .ok();
+    let base = platform::commands::logs::resolve_data_base_dir(
+        &home,
+        env_override.as_deref(),
+        settings_raw.as_deref(),
+    );
+    Some(platform::commands::logs::log_dir_for_data_base_dir(&base).join("host-shell.log"))
+}
+
+fn shell_log(message: &str) {
+    let Some(path) = shell_log_path() else {
+        return;
+    };
+    let line = format!(
+        "[{}] {message}",
+        platform::commands::logs::rfc3339_utc(std::time::SystemTime::now())
+    );
+    let _ = platform::commands::logs::append_log_line(&path, &line);
+}
+
 /// 仓库根（仅 debug 构建：`apps/desktop-tauri/src-tauri` 上溯三级）。
 #[cfg(debug_assertions)]
 fn repo_root() -> PathBuf {
@@ -270,6 +307,7 @@ fn watch_loop<R: Runtime>(app: AppHandle<R>, supervisor: Arc<HostSupervisor>) {
             return;
         }
         let generation = handle.startup_id().to_string();
+        shell_log(&format!("host_death generation={generation}"));
         let mut state = lock(&supervisor.state);
         if state.handled_death_for.as_deref() == Some(generation.as_str()) {
             // 这一代已经判过（放弃自动重生，或重生被中断）：等人工重试。
@@ -312,12 +350,18 @@ fn watch_loop<R: Runtime>(app: AppHandle<R>, supervisor: Arc<HostSupervisor>) {
             let _ = next.shutdown();
             return;
         }
+        let next_startup_id = next.startup_id().to_string();
+        let next_pid = next.pid();
         eprintln!(
-            "[mode-tauri] Host 重生：startupId={} pid={}",
-            next.startup_id(),
-            next.pid()
+            "[mode-tauri] Host 重生：startupId={next_startup_id} pid={next_pid}"
         );
         supervisor.replace(next);
+        shell_log(&format!(
+            "host_respawn startupId={next_startup_id} pid={next_pid}"
+        ));
+        shell_log(&format!(
+            "reload_main_window startupId={next_startup_id}"
+        ));
         reload_main_window(&app);
     }
 }
@@ -370,19 +414,37 @@ pub async fn host_startup_state(
     since: Option<u32>,
 ) -> Result<serde_json::Value, String> {
     let handle = supervisor.current();
-    tauri::async_runtime::spawn_blocking(move || {
+    let state = tauri::async_runtime::spawn_blocking(move || {
         handle
             .wait_for_startup_change(since, STATE_TIMEOUT)
             .to_state_json()
     })
     .await
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+    let startup_id = state
+        .get("startupId")
+        .and_then(|value| value.as_str())
+        .unwrap_or("?");
+    let phase = state
+        .get("phase")
+        .and_then(|value| value.as_str())
+        .unwrap_or("?");
+    let sequence = state
+        .get("sequence")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(0);
+    shell_log(&format!(
+        "host_startup_state since={since:?} startupId={startup_id} phase={phase} seq={sequence}"
+    ));
+    Ok(state)
 }
 
 /// 当前 Host 代 id：桥在文档启动时采用它（reload 后自动绑定新代，见 `bridge.ts` 的注释）。
 #[tauri::command(rename = "host_startup_id")]
 pub fn host_startup_id(supervisor: State<'_, Arc<HostSupervisor>>) -> String {
-    supervisor.current().startup_id().to_string()
+    let startup_id = supervisor.current().startup_id().to_string();
+    shell_log(&format!("host_startup_id returned={startup_id}"));
+    startup_id
 }
 
 /// 终态屏控制（`mode:database-startup-control`）：旧 Electron main 的消费者已随旧线 EOL，
@@ -395,6 +457,7 @@ pub fn host_startup_control<R: Runtime>(
     supervisor: State<'_, Arc<HostSupervisor>>,
     action: String,
 ) -> Result<(), String> {
+    shell_log(&format!("host_startup_control action={action}"));
     match action.as_str() {
         "retry" => {
             supervisor.force_restart(&app);

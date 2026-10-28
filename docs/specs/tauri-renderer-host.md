@@ -2282,6 +2282,13 @@ LR-3（主控路径）的自动化至少覆盖：controller 的 connecting/conne
    session 收口 + 终态屏），watchdog 随之停止；页面由重生后的 reload 重建。
 5. **边界**：心跳只覆盖 base 连接（§22.2 同口径）；渲染层后台节流最多让探测变稀，不会误报
    （deadline 内有 pong 就重置）；Web/手机线无此通道，不适用。
+6. **壳侧诊断日志（2026-10-27，P1-3）**：壳把 `host_death` / `host_respawn` /
+   `reload_main_window` / `host_startup_id` / `host_startup_control` /
+   `host_startup_state` 追加到 `<日志目录>/host-shell.log`（与 Host 文件日志同目录，
+   `host-` 前缀会被 `exportLogs` 的 Host 线过滤一并导出）。原因是渲染层
+   `window.mode.log` 在 Tauri 下刻意缺席，心跳 kill 后卡启动闸门时只能靠壳侧记录
+   「新文档采用了哪个 startupId、状态流到了哪一帧」来定位。该文件只追加、不参与
+   Host 的跨日滚动/清理。
 
 ## 23. 数据目录切换的重启生效：默认根引导指针（2026-10-25 立项并落地）
 
