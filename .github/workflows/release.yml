@@ -296,7 +296,7 @@ jobs:
   # `--platforms` 与这里的 `--platforms` 一起加回来。
   remote-assets:
     needs: [release, verify]
-    if: ${{ always() && needs.release.result == 'success' && needs.verify.result == 'success' && inputs.build_artifacts != false }}
+    if: ${{ always() && needs.release.result == 'success' && needs.verify.result == 'success' && (github.event_name == 'push' || inputs.build_artifacts) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
