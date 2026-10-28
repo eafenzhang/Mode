@@ -230,6 +230,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Typecheck
+        # P2-1（2026-10-27）：`pnpm typecheck` 现包含 `typecheck:renderer`，
+        # tsconfig.renderer.json 的 19 个存量错误已清零；这条从此是硬门禁。
         run: pnpm typecheck
       - name: CLI check (registry + typecheck)
         # 根 `pnpm typecheck` 不包含 apps/mode-cli；CLI 发布包的类型错误和命令注册表过期

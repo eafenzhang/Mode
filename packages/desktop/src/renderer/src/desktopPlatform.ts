@@ -67,7 +67,6 @@ export function createDesktopPlatform(options: {
     // 远程工作区（LR-4）：connect/bind/dispose 与事件订阅集中在 helper 里。
     ...createDesktopRemotePlatformBridge({ getRemoteService: resolveRemoteService }),
     // 窗口行为类设置（关闭隐藏到托盘）同步给壳：壳是唯一执行者且不读业务存储。
-    syncAppSettings: (patch) => window.mode.syncAppSettings(patch),
     isDockerAvailable: () => window.mode.isDockerAvailable(),
     listWSLDistros: () => window.mode.listWSLDistros(),
     listDockerContainers: () => window.mode.listDockerContainers(),
@@ -222,9 +221,11 @@ export function createDesktopPlatform(options: {
           },
         }
       : {}),
-    loadMcpFromUserDirectory: (payload) => window.mode.loadMcpFromUserDirectory(payload),
-    saveMcpToUserDirectory: (payload) => window.mode.saveMcpToUserDirectory(payload),
-    migrateLegacyCommonMcp: (payload) => window.mode.migrateLegacyCommonMcp(payload),
+    // 这三个在 IPlatformService 里是可选的，但两条注入面（旧 preload / Tauri shim）
+    // 都提供了实现；可选链会把「平台不支持」伪装成 undefined 返回值，故用非空断言。
+    loadMcpFromUserDirectory: (payload) => window.mode.loadMcpFromUserDirectory!(payload),
+    saveMcpToUserDirectory: (payload) => window.mode.saveMcpToUserDirectory!(payload),
+    migrateLegacyCommonMcp: (payload) => window.mode.migrateLegacyCommonMcp!(payload),
     openExternal: (url) => window.mode.openExternal(url),
     // 社群入口在 LR-5 从拒绝桩升级为注入层真实现（spec §10.7），这里恢复直通委托。
     openCommunity: () => window.mode.openCommunity(),

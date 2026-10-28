@@ -21,7 +21,16 @@ import type {
   BrowserViewRestoreTabsRequest,
   BrowserViewportSize,
   ChromeBrowserDataImportResult,
+  CreateTempTextAttachmentRequest,
+  CreateTempTextAttachmentResult,
   DockerContainerInfo,
+  LoadCliMcpFromUserDirectoryRequest,
+  LoadCliMcpFromUserDirectoryResult,
+  MigrateLegacyCommonMcpRequest,
+  MigrateLegacyCommonMcpResult,
+  ModeStdioTapDevState,
+  SaveCliMcpToUserDirectoryRequest,
+  WindowControlsOverlayMetrics,
   EmbeddedBrowserOpenUrlRequest,
   EditorInfo,
   ApplicationIconInfo,
@@ -141,6 +150,40 @@ declare global {
       syncActiveTaskSession(sessionId: string | null): void;
       /** 同步需要 main 进程即时感知的应用设置 */
       syncAppSettings?(patch: Partial<AppSettings>): void;
+      /** 在宿主临时目录创建文本附件（Tauri 注入层实现；Electron 旧线 EOL）。 */
+      createTempTextAttachment(
+        payload: CreateTempTextAttachmentRequest,
+      ): Promise<CreateTempTextAttachmentResult>;
+      /** 重命名已配对对端（Host/壳实现）。 */
+      renameLanPairedPeer(serverId: string, name: string): Promise<void>;
+      /** 读取宿主原生 MCP 用户目录配置。 */
+      loadMcpFromUserDirectory?(
+        payload?: LoadCliMcpFromUserDirectoryRequest,
+      ): Promise<LoadCliMcpFromUserDirectoryResult>;
+      /** 写入宿主原生 MCP 用户目录配置。 */
+      saveMcpToUserDirectory?(
+        payload: SaveCliMcpToUserDirectoryRequest,
+      ): Promise<{ success: boolean; error?: string }>;
+      /** 迁移旧版 Common MCP 配置。 */
+      migrateLegacyCommonMcp?(
+        payload?: MigrateLegacyCommonMcpRequest,
+      ): Promise<MigrateLegacyCommonMcpResult>;
+      /** 打开用户社群入口。 */
+      openCommunity(): Promise<void>;
+      /** 注册分享导入 deep link 回调。 */
+      onShareImport?(callback: (payload: { shareCode: string }) => void): () => void;
+      /** 快捷键设置页录制态开关。 */
+      setShortcutRecordingActive?(active: boolean): void;
+      /** 注册关闭当前上下文的回调。 */
+      onCloseActiveContextRequest?(handler: () => void): () => void;
+      /** 同步读取原生窗口控制区安全边距。 */
+      getWindowControlsOverlayMetrics?(): WindowControlsOverlayMetrics | null;
+      /** 注册原生窗口控制区安全边距变化回调。 */
+      onWindowControlsOverlayChanged?(
+        handler: (metrics: WindowControlsOverlayMetrics) => void,
+      ): () => void;
+      /** 开发环境 stdio tap proxy 开关状态。 */
+      getModeStdioTapDevState?(): Promise<ModeStdioTapDevState>;
       /** 注册 main 进程要求聚焦指定 workspace tab 的回调，返回 disposer */
       onFocusTab(handler: (path: string) => void): () => void;
       /** 注册 main 进程触发新建 tab 的回调，返回 disposer */
@@ -264,7 +307,7 @@ declare global {
         remoteSessionId?: string;
         sessionId?: string;
         residencyGeneration?: number;
-      }): Promise<void>;
+      }): Promise<BrowserGuestAttachResult>;
       /** 重建 `<webview>` 前让 main 精确断开旧 guest 的 CDP。 */
       browserViewDetachGuest?(payload: { key: string; webContentsId: number }): Promise<boolean>;
       browserViewCloseTab?(payload: BrowserViewCloseTabRequest): Promise<void>;
@@ -353,6 +396,7 @@ declare global {
       rdStartSession(
         serverId: string,
         quality?: import("@mode/shared/remote-desktop").RemoteDesktopQuality,
+        codec?: import("@mode/shared/remote-desktop").RemoteDesktopCodec,
       ): ReturnType<import("@mode/shared").IPlatformService["rdStartSession"]>;
       /** 读取本机被控状态（设备页置灰用） */
       rdGetControlledState(): ReturnType<
