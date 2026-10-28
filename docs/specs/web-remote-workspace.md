@@ -71,7 +71,9 @@ POST /api/remote-workspace/:id/release -> { ok }
   1. LAN target → POST `/api/connect-remote-lan`；
   2. 用 `connectViaWebSocket(/ws/remote/<id>)` 建浏览器侧 accessor；
   3. `registerRemoteWorkspaceSession({ sessionId, target, services, dispose })`；
-  4. 返回 `{ success: true, sessionId }`。SSH/WSL/Docker 维持明确 unsupported。
+  4. 返回 `{ success: true, sessionId }`。SSH/Docker 走
+     [web-remote-workspace-ssh-docker.md](./web-remote-workspace-ssh-docker.md)
+     （2026-10-28 起，不再返回 unsupported）。
 - `disposeRemoteSession` → `unregisterRemoteWorkspaceSession` + 关闭 WS + POST release。
 - `pairLanPeer` / `getLanPairedPeers` / `getLanPeerWorkspaces` / `removeLanPairedPeer`
   映射到 HTTP 面；`allowRemoteWorkspace=true`。
@@ -100,7 +102,7 @@ POST /api/remote-workspace/:id/release -> { ok }
 | 浏览器 WS 建立失败 | 释放 server 侧 attach；connectRemote 抛错 |
 | 目录读取失败 | 保留 session，允许换目录；关闭向导则释放 |
 | 页面刷新/关闭 | WS close → server release；不持久化 remote tab 的临时 connect |
-| SSH/WSL/Docker | 明确返回 `unsupported`，不伪装成功 |
+| SSH/Docker | 走独立 spec：缺资产源时 `409 remote_assets_unavailable`，其余错误按协议返回 |
 
 ### 4.6 验收
 
@@ -139,7 +141,8 @@ POST /api/remote-workspace/:id/release -> { ok }
 
 ## 6. 非目标
 
-- SSH/WSL/Docker 主控（需要远程资产发布源；另立 spec）。
+- SSH/WSL/Docker 主控：已另立 spec
+  [web-remote-workspace-ssh-docker.md](./web-remote-workspace-ssh-docker.md)（M1 已接线）。
 - 远程桌面（P3；浏览器信令 + WebCodecs）。
 - 多用户权限：仍由 LAN 长期令牌与 fnOS 网关登录态决定。
 - 移动端窄屏的远程 tab 交互（复用现有响应式布局，不新增设计）。

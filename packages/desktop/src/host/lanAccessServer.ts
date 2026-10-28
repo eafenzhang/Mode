@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- LAN 服务、被控 hooks、网关代理与主控控制器共享同一 dispose 收口，拆分需重排生命周期。 */
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -19,6 +20,8 @@ import {
 } from "@mode/shared";
 import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { createHttpServer } from "@mode/server";
+import { LanPeerController } from "@mode/server/remote/lanPeerController.js";
+import { RemoteDesktopPeerController } from "@mode/server/remote/remoteDesktopPeerController.js";
 import { type ICredentialService, type ServiceCollection } from "@mode/services";
 import { getAppConfigDir } from "@mode/services/node";
 import { formatLogPrefix } from "@mode/shared";
@@ -98,6 +101,11 @@ export interface StartLanAccessServerParams {
   /** Web/手机远控静态资源目录；缺省 API-only。 */
   webRoot?: string;
   /**
+   * SSH/WSL/Docker 远程工作区的 remote assets 源（与桌面 renderer 同一解析结果）。
+   * 手机经本机 LAN 服务发起远程工作区时复用，避免两处对 CDN/内置 define 的判断不一致。
+   */
+  remoteAssetDirs?: import("@mode/server/remote/remoteAssetSource.js").ServerRemoteAssetDirs;
+  /**
    * 远程桌面被控总开关读取点（设置页「远程桌面」分区，默认关）。
    * 握手即时求值（能力位不持久化）；缺省 = 关闭。T6 接入设置存储。
    */
@@ -175,6 +183,10 @@ export async function startLanAccessServer(
 
   let pairCode: LanAccessPairCode | null = null;
   let disposed = false;
+  // 手机/浏览器经桌面 LAN 服务也能做主控（docs/specs/web-remote-workspace-ssh-docker.md）：
+  // LAN 设备页/远程桌面走两个 controller；SSH/Docker 用既有 /api/connect-remote。
+  const lanPeers = new LanPeerController(credentials, log);
+  const remoteDesktopPeers = new RemoteDesktopPeerController(credentials, log);
   /** 内置公网中继的出站隧道；未配置 token 时为 null（仅 LAN）。 */
   let tunnel: { close(): void } | null = null;
   const lastTouchAt = new Map<string, number>();
@@ -299,6 +311,9 @@ export async function startLanAccessServer(
       : {}),
     verifyAuthToken,
     lanPairing: { redeem },
+    lanPeers,
+    remoteDesktopPeers,
+    ...(params.remoteAssetDirs ? { remoteAssetDirs: params.remoteAssetDirs } : {}),
     publicRelay: () => publicRelay,
     remoteAgentEnrollment: { enroll: enrollRemoteAgent },
     resolveLanClientByToken,
@@ -469,6 +484,8 @@ export async function startLanAccessServer(
       tunnel?.close();
       tunnel = null;
       discovery.close();
+      // 先释放控制器持有的对端 WS/远程桌面会话，再关 HTTP 服务。
+      await Promise.allSettled([lanPeers.disposeAll(), remoteDesktopPeers.disposeAll()]);
       await new Promise<void>((resolve) => {
         const closable = server as unknown as {
           close: (callback?: () => void) => void;

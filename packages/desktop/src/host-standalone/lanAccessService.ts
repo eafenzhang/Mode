@@ -25,6 +25,7 @@ import {
   type LanAccessServerHandle,
   type StartLanAccessServerParams,
 } from "../host/lanAccessServer.js";
+import { resolveRemoteAssetDirs } from "./remoteAssets.js";
 import { readDisabledLanAccessState } from "../host/lanAccessRecords.js";
 import { discoverLanPeers } from "../host/lanDiscovery.js";
 import {
@@ -172,6 +173,9 @@ export async function createLanAccessHostService(
           ...(options.webRoot ? { webRoot: options.webRoot } : {}),
           ...(options.relay ? { relay: options.relay } : {}),
           ...(remoteDesktop ? { remoteDesktop: remoteDesktop.getLanHooks() } : {}),
+          // 手机经本 Host 发起的 SSH/Docker 连接与桌面 renderer 使用同一份资产源解析
+          //（含构建期内置 CDN 与开发态 mock-cdn）；不传则服务端只能读 env。
+          remoteAssetDirs: resolveRemoteAssetDirs(),
         });
         handle = started;
         log(`lan_access_started port=${started.getState().port ?? "?"}`);

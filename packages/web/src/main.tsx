@@ -20,6 +20,7 @@ import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.
 import { resolveWebCommunityUrl } from "./communityUrl.js";
 import type {
   CreateTempTextAttachmentResult,
+  DockerContainerInfo,
   FnosAppUpdateApplyResult,
   FnosAppUpdateState,
   IPlatformService,
@@ -31,6 +32,7 @@ import type {
   RemoteSessionClosedEvent,
   RemoteTarget,
   ServerRemoteInfo,
+  SSHConfigAliasOption,
 } from "@mode/shared";
 import { lanAccessStateSchema, type LanAccessState } from "@mode/shared";
 import type {
@@ -203,13 +205,130 @@ async function requestApplyFnosAppUpdate(): Promise<FnosAppUpdateApplyResult> {
   return (await response.json()) as FnosAppUpdateApplyResult;
 }
 
-const lanRemoteSockets = new Map<string, WebSocket>();
+const remoteWorkspaceSockets = new Map<string, WebSocket>();
 const remoteSessionClosedHandlers = new Set<(event: RemoteSessionClosedEvent) => void>();
 
 function emitRemoteSessionClosed(event: RemoteSessionClosedEvent): void {
   for (const handler of remoteSessionClosedHandlers) {
     handler(event);
   }
+}
+
+/**
+ * 浏览器接管服务端已建立的远程连接（SSH/Docker/LAN 共用）：
+ * 连 /ws/remote/:id → 注册 session → 关闭/断线时摘除。
+ * `releasePath` 只给 LAN 用；stdio 连接由服务端在 WS close 时释放。
+ */
+async function attachRemoteWorkspaceSession(params: {
+  sessionId: string;
+  target: RemoteTarget;
+  releasePath?: string;
+}): Promise<{ success: true; sessionId: string } | { success: false; error: string }> {
+  const { sessionId, target, releasePath } = params;
+  let disposed = false;
+  const releaseOnServer = () => {
+    if (!releasePath) {
+      return;
+    }
+    void fetch(`${resolveBasePath()}${releasePath}`, { method: "POST" }).catch(() => undefined);
+  };
+  try {
+    const services = await connectViaWebSocket(
+      `${resolveDefaultWsOrigin()}/ws/remote/${sessionId}`,
+      {
+        onOpenSocket: (ws) => {
+          remoteWorkspaceSockets.set(sessionId, ws);
+        },
+        onClose: (event) => {
+          // 对端/网络断开：摘掉 renderer 侧 session；服务端在 WS close 时自行释放。
+          // 用户主动 dispose 会先把 disposed 置 true，此时不再派发「异常关闭」事件。
+          const wasDisposed = disposed;
+          remoteWorkspaceSockets.delete(sessionId);
+          unregisterRemoteWorkspaceSession(sessionId);
+          if (!wasDisposed) {
+            emitRemoteSessionClosed({
+              sessionId,
+              reason: "host-exit",
+              exitCode: null,
+              signal: null,
+              ...(event.reason ? { error: event.reason } : {}),
+            });
+          }
+        },
+      },
+    );
+    const dispose = () => {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      const current = remoteWorkspaceSockets.get(sessionId);
+      remoteWorkspaceSockets.delete(sessionId);
+      current?.close();
+      releaseOnServer();
+    };
+    registerRemoteWorkspaceSession({ sessionId, target, services, dispose });
+    return { success: true, sessionId };
+  } catch (error) {
+    const current = remoteWorkspaceSockets.get(sessionId);
+    remoteWorkspaceSockets.delete(sessionId);
+    current?.close();
+    releaseOnServer();
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function readHttpError(response: Response): Promise<string> {
+  let message = `HTTP ${String(response.status)}`;
+  try {
+    const payload = (await response.json()) as { error?: unknown; message?: unknown };
+    if (typeof payload.error === "string" && payload.error) {
+      message = payload.error;
+    }
+    if (typeof payload.message === "string" && payload.message) {
+      message = `${message}: ${payload.message}`;
+    }
+  } catch {
+    // 非 JSON 错误体：保留状态码。
+  }
+  return message;
+}
+
+let dockerEnvironmentPromise: Promise<{
+  available: boolean;
+  containers: DockerContainerInfo[];
+}> | null = null;
+
+/** 表单同时问「是否可用」和「容器列表」：短缓存避免同一轮表单触发两次 docker ps。 */
+function loadDockerEnvironment() {
+  if (!dockerEnvironmentPromise) {
+    dockerEnvironmentPromise = fetch(`${resolveBasePath()}/api/remote-environments/docker`, {
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          return { available: false, containers: [] };
+        }
+        const payload = (await response.json()) as {
+          available?: unknown;
+          containers?: unknown;
+        };
+        return {
+          available: payload.available === true,
+          containers: Array.isArray(payload.containers)
+            ? (payload.containers as DockerContainerInfo[])
+            : [],
+        };
+      })
+      .catch(() => ({ available: false, containers: [] }));
+    window.setTimeout(() => {
+      dockerEnvironmentPromise = null;
+    }, 5_000);
+  }
+  return dockerEnvironmentPromise;
 }
 
 async function fetchLanPeerJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -343,106 +462,77 @@ function createWebPlatform(supportsLanPeerController = false): IPlatformService 
     // Web 端无多窗口管理
     activateOrSetWorkspace: () => Promise.resolve({ activated: false }),
     /**
-     * LAN 主控（docs/specs/web-remote-workspace.md）：
-     * POST 让服务端 attach 对端 `/ws/host` → 浏览器再连 `/ws/remote/:id` 拿完整 services
-     * → 注册进 remoteWorkspaceSessionStore，复用现有向导/目录浏览器/远程 tab。
+     * 远程工作区主控：
+     * - LAN（docs/specs/web-remote-workspace.md）：服务端 attach 对端 `/ws/host`；
+     * - SSH/Docker（docs/specs/web-remote-workspace-ssh-docker.md）：服务端建 backend、
+     *   部署/握手后返回 id，浏览器接管 `/ws/remote/:id`。
+     * 两条路径共用 attachRemoteWorkspaceSession，复用现有向导/目录浏览器/远程 tab。
      */
     async connectRemote(options: RemoteTarget) {
-      if (options.kind !== "lan") {
-        return {
-          success: false,
-          error: `Remote ${options.kind} is not supported in Web mode yet`,
-        };
+      if (options.kind === "lan") {
+        const response = await fetch(`${resolveBasePath()}/api/connect-remote-lan`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(options),
+        });
+        if (!response.ok) {
+          return { success: false, error: await readHttpError(response) };
+        }
+        const { remoteSessionId } = (await response.json()) as { remoteSessionId?: unknown };
+        if (typeof remoteSessionId !== "string" || !remoteSessionId) {
+          return { success: false, error: "Remote session was not created" };
+        }
+        return attachRemoteWorkspaceSession({
+          sessionId: remoteSessionId,
+          target: options,
+          releasePath: `/api/remote-workspace/${remoteSessionId}/release`,
+        });
       }
-      const response = await fetch(`${resolveBasePath()}/api/connect-remote-lan`, {
+
+      // SSH / Docker（WSL 只在 Windows 桌面端出现）：密码/私钥随请求体一次性发送，
+      // 只存在于服务端内存的连接对象里；不写凭据服务、不回显。
+      const response = await fetch(`${resolveBasePath()}/api/connect-remote`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(options),
       });
       if (!response.ok) {
-        let message = `HTTP ${String(response.status)}`;
-        try {
-          const payload = (await response.json()) as { error?: unknown };
-          if (typeof payload.error === "string" && payload.error) {
-            message = payload.error;
-          }
-        } catch {
-          // 非 JSON 错误体：保留状态码。
-        }
-        return { success: false, error: message };
+        return { success: false, error: await readHttpError(response) };
       }
-      const { remoteSessionId } = (await response.json()) as { remoteSessionId?: unknown };
-      if (typeof remoteSessionId !== "string" || !remoteSessionId) {
-        return { success: false, error: "Remote session was not created" };
+      const { id } = (await response.json()) as { id?: unknown };
+      if (typeof id !== "string" || !id) {
+        return { success: false, error: "Remote connection was not created" };
       }
-      let disposed = false;
-      try {
-        const services = await connectViaWebSocket(
-          `${resolveDefaultWsOrigin()}/ws/remote/${remoteSessionId}`,
-          {
-            onOpenSocket: (ws) => {
-              lanRemoteSockets.set(remoteSessionId, ws);
-            },
-            onClose: (event) => {
-              // 对端/网络断开：摘掉 renderer 侧 session；server 侧由 WS close 自行 dispose。
-              // 用户主动 dispose 会先把 disposed 置 true，此时不再派发「异常关闭」事件。
-              const wasDisposed = disposed;
-              lanRemoteSockets.delete(remoteSessionId);
-              unregisterRemoteWorkspaceSession(remoteSessionId);
-              if (!wasDisposed) {
-                emitRemoteSessionClosed({
-                  sessionId: remoteSessionId,
-                  reason: "host-exit",
-                  exitCode: null,
-                  signal: null,
-                  ...(event.reason ? { error: event.reason } : {}),
-                });
-              }
-            },
-          },
-        );
-        const dispose = () => {
-          if (disposed) {
-            return;
-          }
-          disposed = true;
-          const current = lanRemoteSockets.get(remoteSessionId);
-          lanRemoteSockets.delete(remoteSessionId);
-          current?.close();
-          void fetch(`${resolveBasePath()}/api/remote-workspace/${remoteSessionId}/release`, {
-            method: "POST",
-          }).catch(() => undefined);
-        };
-        registerRemoteWorkspaceSession({
-          sessionId: remoteSessionId,
-          target: options,
-          services,
-          dispose,
-        });
-        return { success: true, sessionId: remoteSessionId };
-      } catch (error) {
-        lanRemoteSockets.get(remoteSessionId)?.close();
-        lanRemoteSockets.delete(remoteSessionId);
-        await fetch(`${resolveBasePath()}/api/remote-workspace/${remoteSessionId}/release`, {
-          method: "POST",
-        }).catch(() => undefined);
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
+      // stdio 连接由服务端在浏览器 WS close 时释放，没有单独的 release 端点。
+      return attachRemoteWorkspaceSession({ sessionId: id, target: options });
     },
     cancelPendingRemoteConnection: (_requestId?: string) => Promise.resolve(),
     disposeRemoteSession: (sessionId: string) => {
-      // store 的 unregister 会调用 session.dispose（关闭 WS + server release）。
+      // store 的 unregister 会调用 session.dispose（关闭 WS + 服务端释放）。
       unregisterRemoteWorkspaceSession(sessionId);
-      lanRemoteSockets.delete(sessionId);
+      remoteWorkspaceSockets.delete(sessionId);
       return Promise.resolve();
     },
-    isDockerAvailable: () => Promise.resolve(false),
+    isDockerAvailable: () => loadDockerEnvironment().then((env) => env.available),
     listWSLDistros: () => Promise.resolve([]),
-    listDockerContainers: () => Promise.resolve([]),
-    listSSHConfigAliases: () => Promise.resolve([]),
+    listDockerContainers: () => loadDockerEnvironment().then((env) => env.containers),
+    listSSHConfigAliases: async (): Promise<SSHConfigAliasOption[]> => {
+      try {
+        const response = await fetch(
+          `${resolveBasePath()}/api/remote-environments/ssh-aliases`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          return [];
+        }
+        const payload = (await response.json()) as { aliases?: unknown };
+        return Array.isArray(payload.aliases)
+          ? (payload.aliases as SSHConfigAliasOption[])
+          : [];
+      } catch {
+        return [];
+      }
+    },
     // 局域网访问（服务端视角）：Web/NAS 形态由服务端 lanAccessHost 提供
     // （docs/specs/lan-host-server-mode.md）；浏览器只经 /api/lan/* 读写状态。
     getLanAccessState: () => requestLanAccessState("state"),

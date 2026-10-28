@@ -52,10 +52,18 @@ import {
   type RemoteDesktopErrorCode,
   type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
-import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
+import { connectRemote, createRemoteBackend, pickRemoteRuntimeEnv } from "./remote/index.js";
 import { createRemoteServiceCollection } from "./remote/remoteServiceCollection.js";
+import {
+  hasRemoteAssetSource,
+  REMOTE_ASSET_SOURCE_REQUIRED_MESSAGE,
+  resolveServerRemoteAssetDirs,
+} from "./remote/remoteAssetSource.js";
+import { PendingRemoteConnections } from "./remote/pendingRemoteConnections.js";
 import type { LanPeerController } from "./remote/lanPeerController.js";
 import type { RemoteDesktopPeerController } from "./remote/remoteDesktopPeerController.js";
+import { isDockerAvailable, listDockerContainers } from "./remote/docker-detect.js";
+import { listSSHConfigAliasesFromLocalConfig } from "@mode/services/node";
 import { createHostCapabilityStore } from "./hostCapability.js";
 import { createRemoteDesktopTicketStore } from "./remoteDesktopTicket.js";
 import { createLogBundle } from "./logExport.js";
@@ -230,19 +238,12 @@ function setupChannelServer(
   });
 }
 
-/** 存储 web 模式下的远程连接，key 为随机 ID */
-const remoteConnections = new Map<string, RemoteConnection>();
-
 /** 服务端 fpk 更新器的 HTTP 边界；实现与状态所有者见 appUpdate/manager.ts。 */
 export interface FnosAppUpdateEndpoint {
   getState(): FnosAppUpdateState;
   check(): Promise<FnosAppUpdateState>;
   download(): Promise<FnosAppUpdateState>;
   apply(): Promise<FnosAppUpdateApplyResult>;
-}
-
-function generateId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 interface HttpServerOptions {
@@ -258,6 +259,11 @@ interface HttpServerOptions {
   verifyAuthToken?: (token: string) => boolean;
   /** 局域网配对端点：提供时暴露 POST /api/lan/pair（该路由用一次性配对码自证，不要求既有令牌）。 */
   lanPairing?: LanAccessPairingEndpoint;
+  /**
+   * SSH/WSL/Docker 的 remote assets 源；缺省读 env。桌面 Host 传入自己解析好的结果，
+   * 让手机经 LAN 服务发起的连接与桌面 renderer 使用同一份 CDN/内置 define。
+   */
+  remoteAssetDirs?: import("./remote/remoteAssetSource.js").ServerRemoteAssetDirs;
   /**
    * 内置公网中继：提供且返回非空时，/api/server-info 下发 publicRelay，
    * 主控据此自动补全公网端点（docs/specs/lan-remote-public-endpoints.md）。
@@ -649,6 +655,9 @@ export function createHttpServer(
   const app = new Hono<{ Variables: HttpServerVariables }>();
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
   const hostCapabilities = createHostCapabilityStore();
+  // SSH/WSL/Docker 连接在浏览器接管 `/ws/remote/:id` 之前先落在这里：
+  // 60s 未接管即释放，避免 POST 后不接管的连接永久占住 SSH 会话/远端进程。
+  const pendingRemoteConnections = new PendingRemoteConnections({ log });
   // 远程桌面票据与 host capability 分开存放：消费方、绑定关系（clientId）与生命周期都不同。
   const remoteDesktopTickets = createRemoteDesktopTicketStore();
   // 信令票与媒体票各一个 store（接口签名不变，靠实例隔离）：混用同一 store 会让两张票
@@ -709,6 +718,27 @@ export function createHttpServer(
 
   app.get("/api/server-info", async (c) => c.json(await createServerInfo(options)));
   app.post("/api/rpc-host-capability", (c) => c.json(hostCapabilities.issue()));
+
+  // Web 主控的 SSH/Docker 表单数据来源：读服务器本机 SSH 别名与 Docker 容器列表。
+  // 探测失败按空结果返回，不阻塞用户手动输入（docs/specs/web-remote-workspace-ssh-docker.md）。
+  app.get("/api/remote-environments/ssh-aliases", async (c) => {
+    try {
+      return c.json({ aliases: await listSSHConfigAliasesFromLocalConfig() });
+    } catch {
+      return c.json({ aliases: [] });
+    }
+  });
+
+  app.get("/api/remote-environments/docker", async (c) => {
+    try {
+      if (!(await isDockerAvailable())) {
+        return c.json({ available: false, containers: [] });
+      }
+      return c.json({ available: true, containers: await listDockerContainers() });
+    } catch {
+      return c.json({ available: false, containers: [] });
+    }
+  });
 
   /** 与鉴权同一令牌校验路径：把当前请求出示的令牌解析为已配对客户端 id（解析不到返回 null）。 */
   const resolveLanClientId = (c: Context): string | null => {
@@ -1182,7 +1212,7 @@ export function createHttpServer(
   });
   app.get("/ws/remote-desktop-media", upgradeRemoteDesktopMediaWebSocket);
 
-  // Web 模式下发起远程连接
+  // Web 模式下发起远程连接（SSH / WSL / Docker）
   app.post("/api/connect-remote", async (c) => {
     const rawBody = await c.req.json();
     const parsedBody = remoteTargetSchema.safeParse(rawBody);
@@ -1190,15 +1220,36 @@ export function createHttpServer(
       return c.json({ error: `Invalid request body: ${formatZodError(parsedBody.error)}` }, 400);
     }
     const body = parsedBody.data;
+    if (body.kind === "lan") {
+      // LAN 目标必须在发起端本地做令牌/端点解析；服务端不接收任意 URL + 令牌组合。
+      return c.json({ error: "LAN targets must use /api/connect-remote-lan" }, 400);
+    }
 
+    // 资产源必须在建 backend 之前检查：否则会先连上 SSH 再在部署阶段失败。
+    const assetDirs = options.remoteAssetDirs ?? resolveServerRemoteAssetDirs();
+    if (!hasRemoteAssetSource(assetDirs)) {
+      return c.json(
+        { error: "remote_assets_unavailable", message: REMOTE_ASSET_SOURCE_REQUIRED_MESSAGE },
+        409,
+      );
+    }
+
+    let connection: Awaited<ReturnType<typeof connectRemote>> | null = null;
     try {
       const backend = await createRemoteBackend(body);
-      const connection = await connectRemote(backend);
-      const id = generateId();
-      remoteConnections.set(id, connection);
-
-      return c.json({ id });
+      connection = await connectRemote(backend, {
+        ...assetDirs,
+        appVersion: MODE_VERSION,
+        remoteRuntimeEnv: pickRemoteRuntimeEnv(process.env),
+      });
+      const added = pendingRemoteConnections.add(connection);
+      if (!added.ok) {
+        connection.dispose();
+        return c.json({ error: added.error }, 503);
+      }
+      return c.json({ id: added.id });
     } catch (err: unknown) {
+      connection?.dispose();
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: message }, 500);
     }
@@ -1216,11 +1267,10 @@ export function createHttpServer(
             ws.close(4000, "Missing remote connection id");
             return;
           }
-          // SSH/WSL/Docker 的 stdio connection 与 LAN attach 的 connection 各自一个 map；
-          // 浏览器只拿到一个 id，因此两个来源都查一次，取出即从原 map 删除。
-          const stdioConnection = remoteConnections.get(id);
+          // SSH/WSL/Docker 的 stdio connection 与 LAN attach 的 connection 各自一个来源；
+          // 浏览器只拿到一个 id，因此两个来源都查一次，取出即从原来源删除。
+          const stdioConnection = pendingRemoteConnections.take(id);
           if (stdioConnection) {
-            remoteConnections.delete(id);
             disposeConnection = () => stdioConnection.dispose();
             setupChannelServer(
               ws.raw as WebSocket,
@@ -1288,6 +1338,9 @@ export function createHttpServer(
   });
 
   injectWebSocket(server);
+
+  // 服务关闭时释放尚未被浏览器接管的 SSH/Docker 连接；已接管的由各自 WS close 负责。
+  server.on("close", () => pendingRemoteConnections.disposeAll());
 
   return server;
 }
