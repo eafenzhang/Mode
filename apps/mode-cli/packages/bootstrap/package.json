@@ -19,7 +19,7 @@
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.mts",
+    "test": "node ../../../../node_modules/tsx/dist/cli.mjs --test test/*.test.mts",
     "lint": "oxlint src --no-ignore",
     "lint:fix": "oxlint --write src --no-ignore"
   },
@@ -37,9 +37,9 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@mode/formal-proof": "workspace:*",
     "@types/node": "^24.0.0",
     "@types/yazl": "^3.3.1",
-    "@mode/formal-proof": "workspace:*",
     "yazl": "^3.3.1"
   }
 }

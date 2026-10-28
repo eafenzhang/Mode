@@ -84,6 +84,7 @@ import type {
   ConversationTurnRenderUnit,
   ConversationTurnWorkSegment,
 } from "@/v4/conversationTurnRenderUnits.js";
+import type { ReplySpeed } from "@/v4/conversationReplySpeedModel.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
 import { ConversationTurnRow, resolveAssistantCopyText } from "@/v4/ConversationTurnRow.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
@@ -109,6 +110,8 @@ interface ConversationTurnGroupProps {
     selectedRowIds: ReadonlySet<number>;
     onToggle: (rowId: number) => void;
   };
+  /** 轮尾 prefill/decode 速度；由 Timeline 从 session/debug 轮次匹配后注入。 */
+  replySpeed?: ReplySpeed | null;
 }
 
 interface CronAutomationTurnCard {
@@ -1150,6 +1153,7 @@ function ConversationTurnGroupImpl({
   onFeedbackChange,
   onEdit,
   shareSelection,
+  replySpeed = null,
 }: ConversationTurnGroupProps) {
   const isOfficeMode = useIsOfficeMode();
   const { intl } = useModeIntl();
@@ -1469,10 +1473,11 @@ function ConversationTurnGroupImpl({
               onFeedbackChange={onFeedbackChange}
               hookInvocations={unit.hookInvocations}
               turnId={unit.turnId}
-              className="opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100"
+              speed={replySpeed}
+              className="mt-1"
             />
           ) : hasHookActions ? (
-            <MessageActions className="opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100">
+            <MessageActions className="mt-1">
               <ConversationHookDetailsAction rows={unit.hookInvocations} turnId={unit.turnId} />
             </MessageActions>
           ) : null}

@@ -17,8 +17,8 @@ export function buildReleaseBaseCandidates(remoteCdnBaseUrls: string[], version:
     const normalizedBase = remoteCdnBaseUrl.replace(/\/+$/, "");
     // 当调用方已经传入带版本的 CDN 基址时，继续盲目拼 `${base}/${version}`
     // 会先走一次必然失败的双版本路径（例如 .../0.2.10/0.2.10），产生无意义 404 噪音。
-    // 这里识别“已固定到当前版本”的场景，直接使用原基址即可。
-    if (normalizedBase.endsWith(`/${version}`)) {
+    // GitHub Release 的版本目录是 `v<version>`，所以固定版本判定同时接受两种形态。
+    if (extractPinnedReleaseVersionFromCdnBaseUrl(normalizedBase) === version) {
       return [normalizedBase];
     }
     return [`${normalizedBase}/${version}`, normalizedBase];
@@ -179,7 +179,9 @@ function extractPinnedReleaseVersionFromCdnBaseUrl(remoteCdnBaseUrl: string): st
     return null;
   }
 
-  return isSemverLike(lastSegment) ? lastSegment : null;
+  // GitHub Release 的下载目录是 `.../download/v0.0.94`；版本比较仍用去掉 v 的语义版本。
+  const normalizedVersion = /^v\d/i.test(lastSegment) ? lastSegment.slice(1) : lastSegment;
+  return isSemverLike(normalizedVersion) ? normalizedVersion : null;
 }
 
 function tryParseUrlPathname(urlOrPath: string): string | null {

@@ -231,6 +231,13 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm typecheck
+      - name: CLI check (registry + typecheck)
+        # 根 `pnpm typecheck` 不包含 apps/mode-cli；CLI 发布包的类型错误和命令注册表过期
+        # 都不能等到发布后才发现。registry 哈希已按平台归一，Windows/Linux 结果一致。
+        run: pnpm check:cli
+      - name: SQLite schema additive gate
+        # 当前迁移必须与已提交基线一致；目标分支反篡改比较在 sqlite-schema.yml。
+        run: pnpm check:sqlite-schema
       - name: Lint
         run: pnpm lint
       # 路线图 M5「三指标仪表入库」第 1 项：语言占比。
@@ -282,6 +289,60 @@ jobs:
           # 用例自己起 node 子进程；opt-in 的真 webview 那条默认 skip（CI 没有真窗口，覆盖分工见
           # docs/specs/tauri-renderer-host.md 的「覆盖分工」）。
           pnpm --filter @mode/desktop-tauri test
+
+  # SSH/Docker 远程工作区的 linux-x64 运行时资产。发布到同一个 Release 的扁平布局，
+  # 桌面 Host 构建期注入 `.../releases/download/v<version>`；服务端仍可用环境变量覆盖。
+  # 只构建 linux-x64（fpk/NAS 与常见 SSH 主机）；其它平台按需把 prepare 的
+  # `--platforms` 与这里的 `--platforms` 一起加回来。
+  remote-assets:
+    needs: [release, verify]
+    if: ${{ always() && needs.release.result == 'success' && needs.verify.result == 'success' && inputs.build_artifacts != false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Remote asset publisher contract tests
+        run: node --test scripts/test/publish-remote-assets.test.mjs
+      - name: Prepare linux-x64 remote assets
+        env:
+          # manifest 的 appVersion 必须与客户端 MODE_VERSION 完全一致；发布版用 tag 版本。
+          MODE_APP_VERSION: ${{ needs.release.outputs.version }}
+        run: pnpm --filter @mode/desktop prepare:remote-assets
+      - name: Convert to GitHub Release flat layout
+        run: |
+          set -euo pipefail
+          node scripts/publish-remote-assets.mjs \
+            --version "${{ needs.release.outputs.version }}" \
+            --platforms linux-x64
+      - name: Upload remote assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/remote-assets-github/*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::remote asset layout is empty"
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"; then
+              exit 0
+            fi
+            echo "::warning::remote asset upload failed (attempt $attempt/3), retrying in 10s"
+            sleep 10
+          done
+          echo "::error::remote asset upload failed after 3 attempts"
+          exit 1
 
   # M1 Tauri 骨架的三平台出包与体积基线（路线图 M1 Task 5）。
   #
@@ -452,6 +513,9 @@ jobs:
           # AppImage 的打包器（linuxdeploy）默认要求能挂载 FUSE，容器里没有；
           # 这个变量让 AppImage 以自解压方式运行，绕开 FUSE。
           APPIMAGE_EXTRACT_AND_RUN: "1"
+          # 自建 remote assets 源：桌面 Host 的 SSH/Docker 部署优先从这里取运行时；
+          # 运行时环境变量仍可覆盖。URL 必须指向版本目录（GitHub 的 v<version> 形式）。
+          MODE_REMOTE_ASSET_CDN_BASE_URL: https://github.com/${{ github.repository }}/releases/download/v${{ needs.release.outputs.version }}
           # Updater 签名（M5 Task 1/2）。`createUpdaterArtifacts: true` + 非空 pubkey
           # 时，缺私钥会让 `tauri build` 以非 0 退出（fail closed，实测报错
           # "A public key has been found, but no private key..."），不会静默发布
@@ -798,8 +862,8 @@ jobs:
   #
   # checksums 仍在 needs 里：它证明四个安装包及其校验片段确实进了本次 Release。
   publish:
-    needs: [release, verify, tauri, checksums, fnos]
-    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.tauri.result == 'success' || needs.tauri.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') }}
+    needs: [release, verify, tauri, checksums, fnos, remote-assets]
+    if: ${{ always() && inputs.keep_draft != true && needs.release.result == 'success' && needs.verify.result == 'success' && (needs.tauri.result == 'success' || needs.tauri.result == 'skipped') && (needs.checksums.result == 'success' || needs.checksums.result == 'skipped') && (needs.fnos.result == 'success' || needs.fnos.result == 'skipped') && (needs.remote-assets.result == 'success' || needs.remote-assets.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

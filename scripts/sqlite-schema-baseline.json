@@ -1,0 +1,3480 @@
+{
+  "schemaVersion": 1,
+  "databases": {
+    "tasks": {
+      "tables": {
+        "automation_runs": {
+          "columns": [
+            {
+              "name": "attempts",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "automation_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "created_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "dispatch_status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'claimed'",
+              "primaryKey": 0
+            },
+            {
+              "name": "error",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "model_selection",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "outcome",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "run_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "scheduled_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "trigger",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'schedule'",
+              "primaryKey": 0
+            },
+            {
+              "name": "updated_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_key",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_automation_runs_by_automation",
+              "sql": "CREATE INDEX idx_automation_runs_by_automation ON automation_runs (automation_id, created_at DESC)"
+            }
+          ]
+        },
+        "automations": {
+          "columns": [
+            {
+              "name": "automation_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "bot_delivery_target",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "claimed_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "created_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "cron_expr",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "dispatch_attempts",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "dispatch_status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'idle'",
+              "primaryKey": 0
+            },
+            {
+              "name": "enabled",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "1",
+              "primaryKey": 0
+            },
+            {
+              "name": "end_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "last_error",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "last_run_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "lifecycle_status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'active'",
+              "primaryKey": 0
+            },
+            {
+              "name": "location_kind",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'local'",
+              "primaryKey": 0
+            },
+            {
+              "name": "max_runs",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "mode",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "model",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "model_selection",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "next_run_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "prompt",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "provider",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "recurring",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "1",
+              "primaryKey": 0
+            },
+            {
+              "name": "retry_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "run_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "running",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "schedule_edited_by_user",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "schedule_rule",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "scheduled_run_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "target_task_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "thought_level",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "title",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "''",
+              "primaryKey": 0
+            },
+            {
+              "name": "updated_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_identity",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_key",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_path",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_automations_due",
+              "sql": "CREATE INDEX idx_automations_due ON automations (enabled, next_run_at)"
+            },
+            {
+              "name": "idx_automations_retry",
+              "sql": "CREATE INDEX idx_automations_retry ON automations (enabled, retry_at)"
+            },
+            {
+              "name": "idx_automations_target_task",
+              "sql": "CREATE INDEX idx_automations_target_task ON automations(target_task_id) WHERE target_task_id IS NOT NULL"
+            },
+            {
+              "name": "idx_automations_workspace",
+              "sql": "CREATE INDEX idx_automations_workspace ON automations (workspace_key)"
+            }
+          ]
+        },
+        "off_peak_tasks": {
+          "columns": [
+            {
+              "name": "attempt_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "claim_running",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "claimed_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "conversation_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "created_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "ended_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "failure_reason",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "files_changed",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "history_deleted_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "last_error",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "model",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "model_selection",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "next_poll_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "off_peak_task_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "permission_mode",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "prompt",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "queue_position",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "queued_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "registered_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "schedulable",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "server_ticket_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "settled_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "started_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "thought_level",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "title",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "''",
+              "primaryKey": 0
+            },
+            {
+              "name": "updated_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_identity",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_key",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_path",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_off_peak_bound_active",
+              "sql": "CREATE UNIQUE INDEX idx_off_peak_bound_active ON off_peak_tasks(workspace_key,session_id) WHERE session_id IS NOT NULL AND status NOT IN ('completed','failed','cancelled')"
+            },
+            {
+              "name": "idx_off_peak_pick",
+              "sql": "CREATE INDEX idx_off_peak_pick ON off_peak_tasks (status, queued_at)"
+            },
+            {
+              "name": "idx_off_peak_ws",
+              "sql": "CREATE INDEX idx_off_peak_ws ON off_peak_tasks (workspace_key, status)"
+            }
+          ]
+        },
+        "task_group_members": {
+          "columns": [
+            {
+              "name": "added_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "created_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "group_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "sort_order",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "task_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 2
+            },
+            {
+              "name": "updated_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_identity",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_key",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "workspace_path",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_task_group_members_group_order",
+              "sql": "CREATE INDEX idx_task_group_members_group_order ON task_group_members (group_id, sort_order, added_at)"
+            }
+          ]
+        },
+        "task_group_view_node_orders": {
+          "columns": [
+            {
+              "name": "created_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "node_key",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 2
+            },
+            {
+              "name": "node_type",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "sort_order",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "updated_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_task_group_view_node_orders_order",
+              "sql": "CREATE INDEX idx_task_group_view_node_orders_order ON task_group_view_node_orders (sort_order, created_at)"
+            }
+          ]
+        },
+        "task_group_workspace_bootstraps": {
+          "columns": [
+            {
+              "name": "created_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "group_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "updated_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_key",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            }
+          ],
+          "indexes": []
+        },
+        "task_groups": {
+          "columns": [
+            {
+              "name": "color",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'gray'",
+              "primaryKey": 0
+            },
+            {
+              "name": "created_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "group_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "title",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "updated_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": []
+        },
+        "tasks": {
+          "columns": [
+            {
+              "name": "archived",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "created_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "cron_automation_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "deleted",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "forked_from_task_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "last_unread_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "meta_json",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'{}'",
+              "primaryKey": 0
+            },
+            {
+              "name": "migration_source",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "mode",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'build'",
+              "primaryKey": 0
+            },
+            {
+              "name": "model",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "off_peak_task_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "pinned",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "provider",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "searchable_text",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "''",
+              "primaryKey": 0
+            },
+            {
+              "name": "task_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 2
+            },
+            {
+              "name": "task_status",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "title",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "''",
+              "primaryKey": 0
+            },
+            {
+              "name": "title_overridden",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "unread_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "updated_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_identity",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_key",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "workspace_path",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_tasks_cron_automation",
+              "sql": "CREATE INDEX idx_tasks_cron_automation ON tasks(cron_automation_id, updated_at DESC) WHERE cron_automation_id IS NOT NULL AND deleted=0"
+            },
+            {
+              "name": "idx_tasks_off_peak_task",
+              "sql": "CREATE INDEX idx_tasks_off_peak_task ON tasks(off_peak_task_id, updated_at DESC) WHERE off_peak_task_id IS NOT NULL AND deleted=0"
+            },
+            {
+              "name": "idx_tasks_workspace_archived_updated",
+              "sql": "CREATE INDEX idx_tasks_workspace_archived_updated ON tasks (workspace_key, archived, updated_at DESC) WHERE deleted = 0"
+            },
+            {
+              "name": "idx_tasks_workspace_pinned_updated",
+              "sql": "CREATE INDEX idx_tasks_workspace_pinned_updated ON tasks (workspace_key, pinned, updated_at DESC) WHERE deleted = 0"
+            }
+          ]
+        }
+      }
+    },
+    "session-store": {
+      "tables": {
+        "dwf_actor": {
+          "columns": [
+            {
+              "name": "id",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "name",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "ordinal",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "persona_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "resolved_model",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "run_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "site_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "dwf_actor_run_idx",
+              "sql": "CREATE INDEX dwf_actor_run_idx on dwf_actor(run_id)"
+            }
+          ]
+        },
+        "dwf_event": {
+          "columns": [
+            {
+              "name": "id",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "payload_json",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "run_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "sequence",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "type",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "dwf_event_artifact_idx",
+              "sql": "CREATE INDEX dwf_event_artifact_idx on dwf_event(run_id, json_extract(payload_json, '$.artifactId'), sequence)"
+            }
+          ]
+        },
+        "dwf_node": {
+          "columns": [
+            {
+              "name": "actor_ordinal",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "actor_seq",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "actor_site_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "artifact_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "input_hash",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "input_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "kind",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "message_boundary",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "ordinal",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "result_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "run_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "site_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "stats_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "dwf_node_artifact_idx",
+              "sql": "CREATE INDEX dwf_node_artifact_idx on dwf_node(run_id, artifact_id)"
+            },
+            {
+              "name": "dwf_node_run_idx",
+              "sql": "CREATE INDEX dwf_node_run_idx on dwf_node(run_id)"
+            }
+          ]
+        },
+        "dwf_run": {
+          "columns": [
+            {
+              "name": "args_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "caps_max_concurrency",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "cwd",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "failure_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "name",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "parent_session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "result_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "resumed_from",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "script_hash",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "script_text",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "spent_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "tool_call_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "dwf_run_cwd_idx",
+              "sql": "CREATE INDEX dwf_run_cwd_idx on dwf_run(cwd, time_updated)"
+            }
+          ]
+        },
+        "input_history": {
+          "columns": [
+            {
+              "name": "attachments",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "kind",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "project_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "text",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "input_history_project_time_idx",
+              "sql": "CREATE INDEX input_history_project_time_idx on input_history(project_id, time_created desc, id desc)"
+            },
+            {
+              "name": "input_history_time_idx",
+              "sql": "CREATE INDEX input_history_time_idx on input_history(time_created desc, id desc)"
+            }
+          ]
+        },
+        "local_setting": {
+          "columns": [
+            {
+              "name": "key",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 4
+            },
+            {
+              "name": "namespace",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 3
+            },
+            {
+              "name": "schema_version",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "scope",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "scope_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 2
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "value",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "local_setting_namespace_key_idx",
+              "sql": "CREATE INDEX local_setting_namespace_key_idx on local_setting(namespace, key)"
+            },
+            {
+              "name": "local_setting_scope_idx",
+              "sql": "CREATE INDEX local_setting_scope_idx on local_setting(scope, scope_id)"
+            }
+          ]
+        },
+        "message": {
+          "columns": [
+            {
+              "name": "data",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "sequence",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "message_session_sequence_idx",
+              "sql": "CREATE INDEX message_session_sequence_idx on message(session_id, sequence, time_created, id)"
+            },
+            {
+              "name": "message_session_time_created_id_idx",
+              "sql": "CREATE INDEX message_session_time_created_id_idx on message(session_id, time_created, id)"
+            }
+          ]
+        },
+        "model_usage": {
+          "columns": [
+            {
+              "name": "agent",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "assistant_message_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "attempt_index",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "cache_creation_input_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "cache_read_input_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "cancelled_by_user",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "completed_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "computed_total_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "context_exceeded",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "duration_ms",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_code",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_message",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_type",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "finish_reason",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "first_token_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "input_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "logical_request_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "mode",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "model_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "output_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "parent_user_message_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "provider_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "provider_metadata_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "provider_total_tokens",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "query_source",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "raw_usage_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "reasoning_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "retry_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "retryable",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "span_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "started_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "task_type",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_to_first_token_ms",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "tool_call_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "trace_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "turn_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "variant",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "model_usage_query_source_idx",
+              "sql": "CREATE INDEX model_usage_query_source_idx on model_usage(query_source)"
+            },
+            {
+              "name": "model_usage_session_turn_idx",
+              "sql": "CREATE INDEX model_usage_session_turn_idx on model_usage(session_id, turn_id)"
+            },
+            {
+              "name": "model_usage_started_model_idx",
+              "sql": "CREATE INDEX model_usage_started_model_idx on model_usage(started_at, provider_id, model_id)"
+            },
+            {
+              "name": "model_usage_trace_idx",
+              "sql": "CREATE INDEX model_usage_trace_idx on model_usage(trace_id)"
+            }
+          ]
+        },
+        "part": {
+          "columns": [
+            {
+              "name": "data",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "message_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "sequence",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "part_message_id_id_idx",
+              "sql": "CREATE INDEX part_message_id_id_idx on part(message_id, id)"
+            },
+            {
+              "name": "part_message_sequence_idx",
+              "sql": "CREATE INDEX part_message_sequence_idx on part(message_id, sequence, time_created, id)"
+            },
+            {
+              "name": "part_session_idx",
+              "sql": "CREATE INDEX part_session_idx on part(session_id)"
+            },
+            {
+              "name": "part_session_message_sequence_idx",
+              "sql": "CREATE INDEX part_session_message_sequence_idx on part(session_id, message_id, sequence)"
+            }
+          ]
+        },
+        "permission": {
+          "columns": [
+            {
+              "name": "data",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "project_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": []
+        },
+        "session": {
+          "columns": [
+            {
+              "name": "directory",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "parent_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "path",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "permission",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "project_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "revert",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "share_url",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "slug",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "summary_additions",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "summary_deletions",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "summary_diffs",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "summary_files",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "task_type",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'interactive'",
+              "primaryKey": 0
+            },
+            {
+              "name": "time_archived",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_compacting",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_title_updated",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "title",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "title_message_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "title_source",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'first_input'",
+              "primaryKey": 0
+            },
+            {
+              "name": "trace_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "version",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "workspace_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "session_parent_idx",
+              "sql": "CREATE INDEX session_parent_idx on session(parent_id)"
+            },
+            {
+              "name": "session_project_idx",
+              "sql": "CREATE INDEX session_project_idx on session(project_id)"
+            },
+            {
+              "name": "session_task_type_idx",
+              "sql": "CREATE INDEX session_task_type_idx on session(task_type)"
+            },
+            {
+              "name": "session_trace_idx",
+              "sql": "CREATE INDEX session_trace_idx on session(trace_id)"
+            },
+            {
+              "name": "session_workspace_idx",
+              "sql": "CREATE INDEX session_workspace_idx on session(workspace_id)"
+            }
+          ]
+        },
+        "session_entry": {
+          "columns": [
+            {
+              "name": "data",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "type",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "session_entry_session_idx",
+              "sql": "CREATE INDEX session_entry_session_idx on session_entry(session_id)"
+            },
+            {
+              "name": "session_entry_session_type_idx",
+              "sql": "CREATE INDEX session_entry_session_type_idx on session_entry(session_id, type)"
+            },
+            {
+              "name": "session_entry_time_created_idx",
+              "sql": "CREATE INDEX session_entry_time_created_idx on session_entry(time_created)"
+            }
+          ]
+        },
+        "session_input": {
+          "columns": [
+            {
+              "name": "admitted_sequence",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "delivery",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "kind",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "payload",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "promoted_message_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "promoted_sequence",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status_reason",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "session_input_session_admitted_idx",
+              "sql": "CREATE INDEX session_input_session_admitted_idx on session_input(session_id, admitted_sequence)"
+            },
+            {
+              "name": "session_input_session_status_idx",
+              "sql": "CREATE INDEX session_input_session_status_idx on session_input(session_id, status)"
+            }
+          ]
+        },
+        "session_target": {
+          "columns": [
+            {
+              "name": "active_input_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "active_run_last_seen_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "active_run_started_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "objective",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "summary_title",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "target_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_used_seconds",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "token_budget",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "tokens_used",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            }
+          ],
+          "indexes": []
+        },
+        "session_task_link": {
+          "columns": [
+            {
+              "name": "activity_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "agent_type",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "child_session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "depth",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "label",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "model",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "parent_link_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "parent_session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "path",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "phase",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "role",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "root_workflow_run_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "session_task_link_activity_idx",
+              "sql": "CREATE INDEX session_task_link_activity_idx on session_task_link(activity_id)"
+            },
+            {
+              "name": "session_task_link_parent_idx",
+              "sql": "CREATE INDEX session_task_link_parent_idx on session_task_link(parent_link_id)"
+            },
+            {
+              "name": "session_task_link_root_workflow_idx",
+              "sql": "CREATE INDEX session_task_link_root_workflow_idx on session_task_link(root_workflow_run_id, depth, path)"
+            }
+          ]
+        },
+        "todo": {
+          "columns": [
+            {
+              "name": "content",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "position",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 2
+            },
+            {
+              "name": "priority",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "todo_session_idx",
+              "sql": "CREATE INDEX todo_session_idx on todo(session_id)"
+            }
+          ]
+        },
+        "tool_usage": {
+          "columns": [
+            {
+              "name": "approval_status",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "cancelled_by_user",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "completed_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "destructive",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "duration_ms",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_code",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_message",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_type",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "exit_code",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "first_output_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "output_bytes",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "read_only",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "retry_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "retryable",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "side_effect_scope",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "started_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "stderr_bytes",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "stdout_bytes",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "time_to_first_output_ms",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "tool_call_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "tool_name",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "trace_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "truncated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "turn_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "tool_usage_session_tool_call_idx",
+              "sql": "CREATE UNIQUE INDEX tool_usage_session_tool_call_idx on tool_usage(session_id, tool_call_id)"
+            },
+            {
+              "name": "tool_usage_session_turn_idx",
+              "sql": "CREATE INDEX tool_usage_session_turn_idx on tool_usage(session_id, turn_id)"
+            },
+            {
+              "name": "tool_usage_started_tool_idx",
+              "sql": "CREATE INDEX tool_usage_started_tool_idx on tool_usage(started_at, tool_name)"
+            }
+          ]
+        },
+        "turn_usage": {
+          "columns": [
+            {
+              "name": "cache_creation_input_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "cache_read_input_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "cancelled_by_user",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "completed_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "computed_total_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "context_exceeded",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "duration_ms",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_code",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_type",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "first_model_start_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "first_token_at",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "input_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "model_request_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "model_retry_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "output_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "reasoning_tokens",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "retryable",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "session_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "started_at",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_to_first_token_ms",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "tool_call_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "tool_error_count",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "trace_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "turn_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 2
+            },
+            {
+              "name": "user_message_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "turn_usage_started_idx",
+              "sql": "CREATE INDEX turn_usage_started_idx on turn_usage(started_at)"
+            }
+          ]
+        },
+        "workflow_activity": {
+          "columns": [
+            {
+              "name": "attempt",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "1",
+              "primaryKey": 0
+            },
+            {
+              "name": "call_index",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "call_path",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "child_session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "error_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "input_hash",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "label",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "opts_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "parent_activity_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "phase",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "prompt",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "result_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "run_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_completed",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_started",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "type",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "workflow_activity_child_session_idx",
+              "sql": "CREATE INDEX workflow_activity_child_session_idx on workflow_activity(child_session_id)"
+            },
+            {
+              "name": "workflow_activity_run_status_idx",
+              "sql": "CREATE INDEX workflow_activity_run_status_idx on workflow_activity(run_id, status, call_index)"
+            }
+          ]
+        },
+        "workflow_definition": {
+          "columns": [
+            {
+              "name": "enabled",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "1",
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "meta_json",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "name",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "scope",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'explicit'",
+              "primaryKey": 0
+            },
+            {
+              "name": "script_hash",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "script_path",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "source",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "trusted",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "workflow_definition_source_idx",
+              "sql": "CREATE INDEX workflow_definition_source_idx on workflow_definition(source, enabled)"
+            }
+          ]
+        },
+        "workflow_event": {
+          "columns": [
+            {
+              "name": "activity_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "payload_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "phase",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "run_id",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "sequence",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "type",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "workflow_event_run_sequence_idx",
+              "sql": "CREATE INDEX workflow_event_run_sequence_idx on workflow_event(run_id, sequence)"
+            }
+          ]
+        },
+        "workflow_run": {
+          "columns": [
+            {
+              "name": "args_hash",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "args_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "budget_spent",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": "0",
+              "primaryKey": 0
+            },
+            {
+              "name": "budget_total",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "current_phase",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "cwd",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "definition_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "failure_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 1
+            },
+            {
+              "name": "kind",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": "'script'",
+              "primaryKey": 0
+            },
+            {
+              "name": "name",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "parent_session_id",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "script_hash",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "script_path",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "stats_json",
+              "type": "TEXT",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "status",
+              "type": "TEXT",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_completed",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_created",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_started",
+              "type": "INTEGER",
+              "notNull": false,
+              "defaultValue": null,
+              "primaryKey": 0
+            },
+            {
+              "name": "time_updated",
+              "type": "INTEGER",
+              "notNull": true,
+              "defaultValue": null,
+              "primaryKey": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "workflow_run_cwd_status_idx",
+              "sql": "CREATE INDEX workflow_run_cwd_status_idx on workflow_run(cwd, status, time_updated desc)"
+            },
+            {
+              "name": "workflow_run_definition_idx",
+              "sql": "CREATE INDEX workflow_run_definition_idx on workflow_run(definition_id)"
+            },
+            {
+              "name": "workflow_run_parent_session_idx",
+              "sql": "CREATE INDEX workflow_run_parent_session_idx on workflow_run(parent_session_id)"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

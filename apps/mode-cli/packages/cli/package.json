@@ -18,7 +18,7 @@
     "sea": "node scripts/build-sea.mjs",
     "upload:sea": "node scripts/upload-sea-smb.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
-    "dev": "tsx src/main.ts",
+    "dev": "node ../../../../node_modules/tsx/dist/cli.mjs src/main.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src"

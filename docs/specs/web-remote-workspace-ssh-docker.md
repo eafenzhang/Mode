@@ -132,16 +132,20 @@ WS   /ws/remote/:id                                  // 既有，取出即删；
 - 桌面 LAN 控制面复用逐设备令牌；未配对设备 401。
 - 不把对端长期令牌或私钥写进响应、日志或凭据服务。
 
-## 9. 后续阶段：remote assets 发布
+## 9. remote assets 发布（2026-10-28 已接入 Release CDN）
 
-M1 之后需要二选一（另行立项）：
-
-1. **Release CDN**：CI 在发布 tag 时执行 `prepare:remote-assets --platforms linux-x64`，
-   把 `releases/<version>/manifest-linux-x64.json` 与 `components/linux-x64/*` 上传到
-   Release/对象存储，构建期把 `MODE_REMOTE_ASSET_CDN_BASE_URL` 注入 server/Host。
-2. **随 fpk 自带**：把 linux-x64 组件（约 56 MiB 压缩）打进 fpk 的 `remote-assets/`，
-   `cmd/main` 注入 `MODE_MOCK_CDN_DIR=$TRIM_APPDEST/remote-assets`，安装即可用，
-   代价是安装包体积增加。
+1. **Release CDN（已实现）**：`release.yml` 的 `remote-assets` job 在发布 tag 时执行
+   `prepare:remote-assets`（默认 linux-x64），再用 `scripts/publish-remote-assets.mjs`
+   转成 GitHub Release 扁平布局并上传到同一个 draft Release。布局仍是
+   `manifest-linux-x64.json` + 扁平 component 资产，与 `deploy.ts` 现有 manifest 协议一致。
+2. **桌面 Host 注入（已实现）**：Tauri 构建期把
+   `MODE_REMOTE_ASSET_CDN_BASE_URL=https://github.com/<repo>/releases/download/v<version>`
+   编入 Host；`remoteAssetCdn.ts` 同时识别 `v<version>` 与 `<version>` 固定版本目录，
+   不会重复拼版本。运行时环境变量仍优先。
+3. **服务端/fpk**：服务端仍从运行时环境读取 `MODE_REMOTE_ASSET_CDN_BASE_URL` 或
+   `MODE_MOCK_CDN_DIR`；随 fpk 自带 linux-x64 组件仍是可选的体积换离线方案，本次未接。
+4. **发布门禁**：`remote-assets` 失败时 `publish` 不公开 Release；Tauri 安装包先作为
+   draft 构建，避免把指向缺失资产的 Host 发布出去。
 
 ## 10. 验收
 
@@ -178,5 +182,8 @@ M1 之后需要二选一（另行立项）：
   手机浏览器获得 LAN 设备页、配对与远程桌面主控能力；`dispose` 时先释放控制器再关服务。
 - 测试：`pendingRemoteConnections.test.ts`（TTL/上限/take/disposeAll）、
   `remoteEnvironments.test.ts`（鉴权、空结果、schema、LAN 拒绝、缺资产源 409）。
-- **未完成**：remote assets 的发布/自带（§9），因此真实 SSH/Docker 连接仍要求部署侧
-  配置资产源；真机 SSH/Docker 连接与手机经桌面 LAN 的端到端验收待执行。
+- **2026-10-28 补齐**：`release.yml` 新增 `remote-assets` job，发布 linux-x64
+  `manifest + flat components` 到同一个 Release；Tauri 构建注入版本化 CDN 基址，
+  `remoteAssetCdn.ts` 支持 `v<version>` 固定目录；`publish` 等待资产 job，失败不公开。
+- **仍未完成**：随 fpk 自带资产的体积换离线方案；真实 SSH/Docker 连接与手机经桌面
+  LAN 的端到端验收待执行（发布版现在可由桌面 Host 自动下载资产，无需部署侧手配）。

@@ -5,7 +5,9 @@ import { HookEventName as HookEventNameValue } from "@mode/contracts";
 import { fileExists, isRecord, resolveInside } from "./helpers.js";
 import type { LoadedPlugin } from "./types.js";
 
-const STANDARD_HOOKS_PATH = join("hooks", "hooks.json");
+// 优先级即数组顺序：Claude 的 hooks/hooks.json 优先；Codex 插件的根 hooks.json
+// 只作为 fallback，避免同一插件同时带两套布局时重复注册 hook。
+const HOOK_LAYOUT_PATHS = [join("hooks", "hooks.json"), "hooks.json"] as const;
 
 const SUPPORTED_HOOK_EVENTS = new Set<string>(Object.values(HookEventNameValue));
 
@@ -16,8 +18,8 @@ interface PluginHookSource {
 }
 
 /**
- * 统一发现插件 hook 来源文件，避免详情枚举和真实 loader 对 `hooks/hooks.json`
- * 与 `manifest.hooks` 的读取口径漂移。
+ * 统一发现插件 hook 来源文件，避免详情枚举和真实 loader 对 `hooks/hooks.json`、
+ * 根 `hooks.json`（Codex 布局）与 `manifest.hooks` 的读取口径漂移。
  */
 export function listPluginHookSources(input: {
   diagnostics: PluginDiagnostic[];
@@ -25,17 +27,19 @@ export function listPluginHookSources(input: {
 }): PluginHookSource[] {
   const sources: PluginHookSource[] = [];
   const loadedHookPaths = new Set<string>();
-  const standardHooksPath = join(input.loaded.rootPath, STANDARD_HOOKS_PATH);
+  const layoutHooksPath = HOOK_LAYOUT_PATHS.map((relativePath) =>
+    join(input.loaded.rootPath, relativePath),
+  ).find(fileExists);
 
-  if (fileExists(standardHooksPath)) {
+  if (layoutHooksPath) {
     const source = loadPluginHookSource({
       diagnostics: input.diagnostics,
       loaded: input.loaded,
-      path: standardHooksPath,
+      path: layoutHooksPath,
     });
     if (source) {
       sources.push(source);
-      loadedHookPaths.add(realpathOrSelf(standardHooksPath));
+      loadedHookPaths.add(realpathOrSelf(layoutHooksPath));
     }
   }
 

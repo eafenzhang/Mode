@@ -6,6 +6,7 @@ import {
 import {
   SESSION_DEBUG_LIMITS,
   calculateOutputTps,
+  calculatePrefillTps,
   sessionDebugParamsSchema,
   modeTaskNetworkDebugStatusFromPayload,
   type SessionDebugSnapshot,
@@ -104,6 +105,8 @@ export function observeSessionDebug(record: SessionRecord, event: SessionEvent):
   const first = token(payload.timeToFirstContentMs);
   const generationDurationMs =
     duration !== undefined && first !== undefined && duration > first ? duration - first : null;
+  // TTFT 即 prefill 时长；全缓存直出时 first 可能为 0，helper 会返回 null。
+  const prefillDurationMs = first ?? null;
   observation.hasUnknownCacheUsage ||= inputTokens === undefined || cacheReadTokens === undefined;
   const previous = state.cache;
   const totalInputTokens = (previous?.totalInputTokens ?? 0) + (inputTokens ?? 0);
@@ -143,6 +146,8 @@ export function observeSessionDebug(record: SessionRecord, event: SessionEvent):
           : null,
       generationDurationMs,
       tokensPerSecond: calculateOutputTps(outputTokens, generationDurationMs),
+      prefillDurationMs,
+      prefillTokensPerSecond: calculatePrefillTps(inputTokens, cacheReadTokens, prefillDurationMs),
     },
   ].slice(-SESSION_DEBUG_LIMITS.rounds);
 }

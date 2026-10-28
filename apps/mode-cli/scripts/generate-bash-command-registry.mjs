@@ -1,13 +1,5 @@
 import { createHash } from "node:crypto";
-import {
-  mkdtemp,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -98,7 +90,11 @@ if (check) {
       readFile(temporaryOutput),
       readFile(DEFAULT_OUTPUT),
     ]);
-    if (!actual.equals(expected)) {
+    // Windows 检出会把 .ts 归一成 CRLF，生成器写 LF；只比较行尾会让同一份内容在
+    // Windows 上永远判为 stale。这里先统一 LF，再比较字节。
+    const normalizeLineEndings = (buffer) =>
+      Buffer.from(buffer.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
+    if (!normalizeLineEndings(actual).equals(normalizeLineEndings(expected))) {
       throw new Error(
         "Generated Bash command registry is stale. Run `pnpm --dir apps/mode-cli registry:generate`.",
       );
@@ -200,7 +196,9 @@ async function hashBuildFiles(directory) {
   const files = await listFiles(directory);
   const hash = createHash("sha256");
   for (const filePath of files) {
-    const relativePath = filePath.slice(directory.length + 1);
+    // 相对路径必须归一成 `/`：Windows 的 `\` 与 Linux 的 `/` 参与哈希会让同一份
+    // @withfig/autocomplete 在不同平台算出不同 hash，registry:check 随之误报过期。
+    const relativePath = filePath.slice(directory.length + 1).replaceAll("\\", "/");
     hash.update(relativePath);
     hash.update("\0");
     hash.update(await readFile(filePath));
@@ -224,7 +222,8 @@ async function listFiles(directory) {
 }
 
 function renderGeneratedModule(registry, contentHash, stats) {
-  return `/* eslint-disable */\n` +
+  return (
+    `/* eslint-disable */\n` +
     `// 此文件由 scripts/generate-bash-command-registry.mjs 确定性生成，请勿手改。\n` +
     `// Source: @withfig/autocomplete@${FIG_VERSION} (ISC); hash: ${contentHash}.\n` +
     `// Skipped: imports=${stats.skippedImport}, dynamicSubcommands=${stats.skippedDynamicSubcommands}, invalidNodes=${stats.skippedInvalidNodes}, loadSpecNodes=${stats.skippedLoadSpecNodes}.\n` +
@@ -232,5 +231,6 @@ function renderGeneratedModule(registry, contentHash, stats) {
     `export type BashCommandRegistryNode = readonly [readonly string[], readonly BashCommandRegistryOption[], number, readonly BashCommandRegistryNode[]];\n` +
     `export const BASH_COMMAND_REGISTRY_VERSION = "fig-${FIG_VERSION}";\n` +
     `export const BASH_COMMAND_REGISTRY_HASH = "${contentHash}";\n` +
-    `export const BASH_COMMAND_REGISTRY: Readonly<Record<string, BashCommandRegistryNode>> = ${JSON.stringify(registry)};\n`;
+    `export const BASH_COMMAND_REGISTRY: Readonly<Record<string, BashCommandRegistryNode>> = ${JSON.stringify(registry)};\n`
+  );
 }

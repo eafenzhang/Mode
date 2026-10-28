@@ -247,6 +247,21 @@
   5. 用例：`packages/desktop/tests/plugin-host-bundle.test.mts`（随 CI 的 desktop 测试跑）。
 - **未做**：CDN 上传与真实 `assetUrl` 的部署、JS bundle 的 Node 版本矩阵。
 
+## 5.10 Hook 来源布局（2026-10-28）
+
+- 插件 hook 文件按以下优先级发现：
+  1. `hooks/hooks.json`（Claude 约定）；
+  2. 根目录 `hooks.json`（Codex 插件约定，仅在标准路径不存在时启用）；
+  3. `manifest.hooks` 声明的路径或内联对象。
+- 标准路径存在时不读取根 `hooks.json`，避免同一插件同时带两套布局时重复注册 hook；
+  根 `hooks.json` 与 `manifest.hooks` 指向同一文件时按 realpath 去重。
+- 根 `hooks.json` 与标准路径一样使用 `{ "hooks": { ... } }` 包装结构；缺少 `hooks`
+  对象时按 `plugin_hook_invalid` 报错，不静默跳过。
+- 事件名仍只允许 `HookEventName` 闭集；未知事件产生 `plugin_hook_unsupported_event`
+  警告，不阻塞插件其余组件。
+- 验收：`apps/mode-cli/packages/adapters/test/plugin-hook-sources-compat.test.mts`
+  覆盖根 `hooks.json`、标准路径优先、manifest 路径去重与缺失 `hooks` 包装。
+
 ## 6. 复现
 
 ```bash

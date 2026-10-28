@@ -23,6 +23,9 @@ export const sessionDebugRoundSchema = z
     hitRate: count.nullable(),
     generationDurationMs: count.nullable(),
     tokensPerSecond: count.nullable(),
+    // TTFT（首 token 延迟）与未命中缓存输入 token 的 prefill 速度；optional 兼容旧 CLI。
+    prefillDurationMs: count.nullable().optional(),
+    prefillTokensPerSecond: count.nullable().optional(),
   })
   .strict();
 export const sessionDebugNetworkEntrySchema = z
@@ -97,5 +100,33 @@ export function calculateOutputTps(
   )
     return null;
   const tps = (outputTokens * 1000) / generationDurationMs;
+  return Number.isFinite(tps) ? tps : null;
+}
+
+/**
+ * prefill 速度 = 未命中缓存的输入 token / 首 token 延迟。
+ * 全缓存直出（uncached=0）或 TTFT 未知时返回 null，避免把 0 当成真实速度展示。
+ */
+export function calculatePrefillTps(
+  inputTokens: number | undefined,
+  cachedInputTokens: number | undefined,
+  prefillDurationMs: number | null,
+): number | null {
+  if (
+    inputTokens === undefined ||
+    !Number.isFinite(inputTokens) ||
+    inputTokens < 0 ||
+    prefillDurationMs === null ||
+    !Number.isFinite(prefillDurationMs) ||
+    prefillDurationMs <= 0
+  )
+    return null;
+  const cached =
+    cachedInputTokens !== undefined && Number.isFinite(cachedInputTokens) && cachedInputTokens >= 0
+      ? Math.min(cachedInputTokens, inputTokens)
+      : 0;
+  const uncachedInputTokens = inputTokens - cached;
+  if (uncachedInputTokens <= 0) return null;
+  const tps = (uncachedInputTokens * 1000) / prefillDurationMs;
   return Number.isFinite(tps) ? tps : null;
 }

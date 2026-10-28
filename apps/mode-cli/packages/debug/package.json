@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.server.json && vite build",
-    "dev": "tsx scripts/dev.ts",
+    "dev": "node ../../../../node_modules/tsx/dist/cli.mjs scripts/dev.ts",
     "lint": "oxlint src server scripts",
     "lint:fix": "oxlint --write src server scripts",
     "start": "node dist-server/server/index.js",

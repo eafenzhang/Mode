@@ -29,14 +29,14 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src --no-ignore",
     "lint:fix": "oxlint --fix src --no-ignore",
-    "test": "tsx --test test/*.test.mts"
+    "test": "node ../../../../node_modules/tsx/dist/cli.mjs --test test/*.test.mts"
   },
   "dependencies": {
     "@mode/contracts": "workspace:*",
+    "@mode/cua": "workspace:*",
     "@mode/dynamic-workflow": "workspace:*",
     "@mode/shared": "workspace:*",
     "@mode/shared-types": "workspace:*",
-    "@mode/cua": "workspace:*",
     "cheerio": "^1.0.0",
     "diff": "^9.0.0",
     "ipaddr.js": "1.9.1",

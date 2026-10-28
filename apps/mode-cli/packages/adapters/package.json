@@ -97,19 +97,19 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src",
-    "test": "tsx --test test/*.test.mts"
+    "test": "node ../../../../node_modules/tsx/dist/cli.mjs --test test/*.test.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.81",
     "@ai-sdk/openai": "^3.0.58",
     "@ai-sdk/openai-compatible": "^2.0.58",
-    "@modelcontextprotocol/client": "2.0.0",
     "@mode/contracts": "workspace:*",
+    "@mode/cua": "workspace:*",
     "@mode/dynamic-workflow": "workspace:*",
     "@mode/model-option-map": "workspace:*",
     "@mode/provider": "workspace:*",
     "@mode/shared": "workspace:*",
-    "@mode/cua": "workspace:*",
+    "@modelcontextprotocol/client": "2.0.0",
     "ai": "6.0.193",
     "cheerio": "^1.0.0",
     "iconv-lite": "0.7.2",

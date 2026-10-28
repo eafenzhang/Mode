@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
     "lint:fix": "oxlint --write src",
-    "test": "tsx --test test/*.test.mts"
+    "test": "node ../../../../node_modules/tsx/dist/cli.mjs --test test/*.test.mts"
   },
   "dependencies": {
     "@mbears/opentui-core": "0.2.15",

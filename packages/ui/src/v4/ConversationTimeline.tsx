@@ -36,6 +36,8 @@ import type { AssistantFeedbackHandler } from "@/v4/ConversationRowView.js";
 import { ConversationTurnNavigator } from "@/v4/ConversationTurnNavigator.js";
 import { syncConversationShareSelectionPanelLayout } from "@/v4/conversationShareSelectionPanelLayout.js";
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
+import { collectConversationTurnWindows } from "@/v4/conversationReplySpeedModel.js";
+import { useConversationReplySpeeds } from "@/v4/useConversationReplySpeeds.js";
 import { splitConversationTimelineLiveTail } from "@/v4/conversationTimelineLiveTail.js";
 import {
   getConversationContentWidthClassName,
@@ -419,6 +421,13 @@ function ConversationTimelineImpl({
     [renderUnits],
   );
   const hasRunningUnit = useMemo(() => renderUnits.some((unit) => unit.isRunning), [renderUnits]);
+  const turnWindows = useMemo(() => collectConversationTurnWindows(renderUnits), [renderUnits]);
+  const replySpeeds = useConversationReplySpeeds({
+    workspacePath: rowContext.workspacePath,
+    workspaceIdentity: rowContext.workspaceIdentity,
+    sessionId: rowContext.sessionId ?? null,
+    windows: turnWindows,
+  });
   const turnNavigatorQueryRowIds = useMemo(
     () =>
       new Set(
@@ -1839,6 +1848,7 @@ function ConversationTimelineImpl({
                         onFeedbackChange={onFeedbackChange}
                         onEdit={onEdit}
                         shareSelection={shareSelection}
+                        replySpeed={replySpeeds.get(unit.turnId) ?? null}
                       />
                     </div>
                   );
@@ -1869,6 +1879,7 @@ function ConversationTimelineImpl({
                     onFeedbackChange={onFeedbackChange}
                     onEdit={onEdit}
                     shareSelection={shareSelection}
+                    replySpeed={replySpeeds.get(liveUnit.turnId) ?? null}
                   />
                 </div>
               ) : null}

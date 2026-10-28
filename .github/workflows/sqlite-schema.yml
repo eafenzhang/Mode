@@ -1,0 +1,68 @@
+# SQLite schema 只增门禁：迁移只能加表/列/索引，不能删除或改定义。
+# 独立 workflow 是因为 release.yml 的 verify 只检查「当前基线一致」，没有目标分支基线可比；
+# 这里带 --base-ref，阻止「删列同时改基线」绕过。规则见 docs/specs/sqlite-schema-gate.md。
+name: sqlite-schema
+
+on:
+  pull_request:
+    paths:
+      - "packages/services/src/session/tasksDatabase/**"
+      - "apps/mode-cli/packages/adapters/src/storage/session-store/**"
+      - "scripts/check-sqlite-schema.ts"
+      - "scripts/sqlite-schema-snapshot.ts"
+      - "scripts/lib/sqlite-schema.mjs"
+      - "scripts/sqlite-schema-baseline.json"
+      - "scripts/test/sqlite-schema.test.mjs"
+      - "package.json"
+  push:
+    paths:
+      - "packages/services/src/session/tasksDatabase/**"
+      - "apps/mode-cli/packages/adapters/src/storage/session-store/**"
+      - "scripts/check-sqlite-schema.ts"
+      - "scripts/sqlite-schema-snapshot.ts"
+      - "scripts/lib/sqlite-schema.mjs"
+      - "scripts/sqlite-schema-baseline.json"
+      - "scripts/test/sqlite-schema.test.mjs"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 需要目标分支历史里的基线文件做反篡改比较。
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: SQLite schema additive gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_REF=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BASE_REF="${{ github.event.before }}"
+            if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "0000000000000000000000000000000000000000" ]; then
+              BASE_REF=""
+            fi
+          fi
+          if [ -n "$BASE_REF" ]; then
+            pnpm check:sqlite-schema --base-ref "$BASE_REF"
+          else
+            pnpm check:sqlite-schema
+          fi
+      - name: SQLite schema comparison unit tests
+        run: node --test scripts/test/sqlite-schema.test.mjs

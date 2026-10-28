@@ -11,6 +11,7 @@
 // - 声明生成：third-party-npm.mjs 按生产依赖的精确版本收集真实许可文件。
 // - prod 判定按锁文件生产图中的精确版本。
 // - 商用/半开放检查作用于全量实装包（prod+dev）
+import { classifyLicenseExpression } from "./lib/license-classification.mjs";
 import { generateThirdPartyNotices } from "./generate-third-party-notices.mjs";
 import { readVerifiedNotices } from "./third-party-notices.mjs";
 import { readFile } from "node:fs/promises";
@@ -57,33 +58,10 @@ for (const [key, { pkg }] of scanned) {
   });
 }
 // ---------- 分类 ----------
-const GREEN =
-  /^(MIT|MIT-0|ISC|BSD-2-Clause|BSD-3-Clause|BSD-4-Clause|0BSD|Unlicense|Apache-2\.0|Zlib|WTFPL|Artistic-2\.0|BlueOak-1\.0\.0|CC0-1\.0|CC-BY-4\.0|CC-BY-3\.0|BSD|Python-2\.0)$/i;
-function classify(raw) {
-  const s = raw.replace(/[()]/g, " ").trim();
-  if (s === "(missing)" || s === "missing" || s === "") return "missing";
-  if (/^UNLICENSED|SEE LICEN[CS]E IN|UNKNOWN|N\/A$/i.test(s)) return "unresolved";
-  const or = s
-    .split(/\s+OR\s+/i)
-    .map((x) => x.trim())
-    .filter(Boolean);
-  if (or.length > 1 && or.some((x) => GREEN.test(x))) return "green";
-  const and = s
-    .split(/\s+AND\s+/i)
-    .map((x) => x.trim())
-    .filter(Boolean);
-  if (and.length > 1 && and.every((x) => GREEN.test(x))) return "green";
-  const t = or[0] || and[0] || s;
-  if (/\bAGPL/i.test(t)) return "red-agpl";
-  if (/\bLGPL/i.test(t)) return "yellow-lgpl";
-  if (/\bGPL/i.test(t)) return "red-gpl";
-  if (/^(MPL|EPL|CDDL)/i.test(t)) return "yellow-weak";
-  if (/^(BUSL|BSL|Elastic|SSPL|PolyForm|FSL|CAL-1)/i.test(t)) return "red-semiopen";
-  if (/^CC-BY-NC/i.test(t)) return "red-nc";
-  if (/^CC-BY-(ND|SA)/i.test(t)) return "yellow-cc";
-  return GREEN.test(t) ? "green" : "review";
-}
-for (const r of installed.values()) r.bucket = classify(r.license);
+// AND 必须同时满足，OR 可以任选其一；具体规则与严重度顺序见
+// docs/specs/license-expression-classification.md。旧的「取首个 AND 成员」兜底会把
+// MIT AND GPL-3.0 误判为 green，这里统一交给唯一分类实现。
+for (const r of installed.values()) r.bucket = classifyLicenseExpression(r.license);
 
 // ---------- 构建工具许可标识复核（不是二进制发行义务豁免） ----------
 const WEAK_ALLOW = [[/^lightningcss/, "当前仅构建依赖；进入生产图时需重新核对 MPL 源码提供义务"]];

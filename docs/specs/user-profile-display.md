@@ -29,6 +29,9 @@
 7. **两端一致**：首页侧栏与设置页复用 `WorkspaceSidebarFooter` / `sidebarProfile` 解析；
    Cloud 账号状态从本机 base services 读取（账号是 app-global、local-only 能力，不能被远端 workspace
    service 集合覆盖）。
+8. **应用版本号**：左下角账号区在显示名/品牌名旁显示 `v<MODE_VERSION>`，来源是构建期
+   `@mode/shared` 的 `MODE_VERSION`，只读、不新增持久化状态。版本号始终展示（登录与否都显示），
+   不受昵称、Cloud 绑定或远端 workspace 影响；未注入构建常量时回退 `0.0.0-dev`，不隐藏。
 
 ## 状态所有者
 
@@ -47,3 +50,4 @@
 3. OAuth 用户有头像：两处显示头像图片；无头像：显示默认用户图标，不显示首字母。
 4. 昵称填 32 个字符可保存，超过 32 个字符被输入框限制；清空昵称并保存后回退到账号名。
 5. 在设置页修改昵称后返回首页，侧栏展示无需重启即可跟随（同一 settingService 快照）。
+6. 首页与设置页左下角都显示与当前构建一致的 `v<MODE_VERSION>`；登录、退出、改昵称都不改变该值。

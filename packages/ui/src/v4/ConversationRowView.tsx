@@ -5,14 +5,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArchiveIcon,
   ArrowRightLeftIcon,
-  CheckIcon,
-  CopyIcon,
   DownloadIcon,
   FileClockIcon,
   FileIcon,
   GitBranchIcon,
   GoalIcon,
-  PencilIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
   TrendingUpDownIcon,
@@ -20,7 +17,6 @@ import {
 } from "lucide-react";
 import {
   TID_V4_ATTACHMENT_DOWNLOAD,
-  TID_V4_EDIT,
   TID_V4_EDIT_ATTACHMENT_REMOVE,
   TID_V4_EDIT_CANCEL,
   TID_V4_EDIT_INPUT,
@@ -128,6 +124,9 @@ import {
   splitUserInputEpilogue,
 } from "@/v4/ConversationUserInputEpilogue.js";
 import { ConversationHookDetailsAction } from "@/v4/ConversationHookDetailsAction.js";
+import { ConversationReplySpeed } from "@/v4/ConversationReplySpeed.js";
+import { ConversationUserTextActions, CopyRowAction } from "@/v4/ConversationUserTextActions.js";
+import type { ReplySpeed } from "@/v4/conversationReplySpeedModel.js";
 import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import { formatMessageTimeLabel } from "@/v4/messageTimeLabel.js";
 import { parseConversationShareContext } from "@/lib/conversationShareContext.js";
@@ -239,7 +238,9 @@ const ArtifactRowView = memo(function ArtifactRowView({
       const isLocalUrl = "url" in result;
       const url = isLocalUrl
         ? result.url
-        : URL.createObjectURL(new Blob([Uint8Array.from(result.bytes)], { type: result.mediaType }));
+        : URL.createObjectURL(
+            new Blob([Uint8Array.from(result.bytes)], { type: result.mediaType }),
+          );
       if (previewRequestRef.current !== requestId) {
         if (!isLocalUrl) URL.revokeObjectURL(url);
         return;
@@ -329,41 +330,6 @@ const ArtifactRowView = memo(function ArtifactRowView({
         />
       ) : null}
     </>
-  );
-});
-
-/** 复制行文本：图标 ghost 按钮 + 1200ms 打勾态（对齐旧版 message copy）。
- *  label/tooltip 必须由调用方传入 i18n 文案，禁止硬编码语言。 */
-const CopyRowAction = memo(function CopyRowAction({
-  text,
-  rowId,
-  label,
-  tooltip = label,
-}: {
-  text: string;
-  rowId: number;
-  label: string;
-  tooltip?: string;
-}) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
-    if (!text || !navigator.clipboard) return;
-    void navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    });
-  }, [text]);
-  return (
-    <MessageAction
-      aria-label={label}
-      label={label}
-      tooltip={tooltip}
-      data-testid={`v4-copy-${rowId}`}
-      disabled={text.length === 0}
-      onClick={handleCopy}
-    >
-      {copied ? <CheckIcon className="size-3.5 text-success" /> : <CopyIcon className="size-3.5" />}
-    </MessageAction>
   );
 });
 
@@ -1519,30 +1485,14 @@ const UserInputRowView = memo(function UserInputRowView({
           {status}
         </div>
       ) : null}
-      {/* 手机远控没有 hover，v4 迁移时漏掉了旧 UserMessage 的常显分支，
-          导致复制和编辑入口不可发现；远控直接显示，桌面端继续通过 hover/focus 降噪。 */}
-      <MessageActions
-        className={cn(
-          "mt-1",
-          "opacity-0 transition-opacity group-hover/user-row:opacity-100 focus-within:opacity-100",
-        )}
-      >
-        <CopyRowAction
-          text={row.text}
-          rowId={row.rowId}
-          label={intl.formatMessage({ id: "chat.message.copy" })}
-        />
-        {onEdit && row.entityId ? (
-          <MessageAction
-            label={intl.formatMessage({ id: "chat.message.edit" })}
-            tooltip={intl.formatMessage({ id: "chat.message.edit" })}
-            data-testid={testId(TID_V4_EDIT, String(row.rowId))}
-            onClick={handleOpenEdit}
-          >
-            <PencilIcon className="size-3.5" />
-          </MessageAction>
-        ) : null}
-      </MessageActions>
+      {/* 动作行常驻：远控/触屏没有 hover，复制、编辑和时间不能依赖悬停才可见。 */}
+      <ConversationUserTextActions
+        rowId={row.rowId}
+        text={row.text}
+        createdAt={row.createdAt}
+        canEdit={Boolean(onEdit && row.entityId)}
+        onEdit={handleOpenEdit}
+      />
     </RowShell>
   );
 });
@@ -1558,6 +1508,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   turnId,
   onFork,
   onFeedbackChange,
+  speed = null,
   className,
 }: {
   rowId: number;
@@ -1571,6 +1522,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onFeedbackChange?: AssistantFeedbackHandler;
+  speed?: ReplySpeed | null;
   className?: string;
 }) {
   const { intl, locale } = useModeIntl();
@@ -1686,6 +1638,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
       {turnId && hookInvocations ? (
         <ConversationHookDetailsAction rows={hookInvocations} turnId={turnId} />
       ) : null}
+      <ConversationReplySpeed speed={speed} />
       {/* 旧 conversation surface 删除后，V4 动作栏漏掉了消息创建时间；
           时间是 row.createdAt 的只读派生展示，不新增 renderer 状态。 */}
       {timeLabel ? (
@@ -1786,7 +1739,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           />
         </div>
       ) : null}
-      {/* 完成态动作行悬停显现（对齐旧 MessageActions）：复制 + fork（图标 ghost）。
+      {/* 完成态动作行常驻：复制 + fork（图标 ghost）。
           一轮对用户是一个回复：action 只在轮尾段（hideActions 由 TurnGroup 裁决），
           复制内容 = 整轮全部 text 段合并（copyText 覆盖）。 */}
       {row.state === "complete" && !hideActions && !deferActions ? (
@@ -1800,10 +1753,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           onFork={onFork}
           onRetry={onRetry}
           onFeedbackChange={onFeedbackChange}
-          className={cn(
-            "mt-1",
-            "opacity-0 transition-opacity group-hover/assistant-row:opacity-100 focus-within:opacity-100",
-          )}
+          className="mt-1"
         />
       ) : null}
     </RowShell>

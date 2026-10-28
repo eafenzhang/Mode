@@ -5,19 +5,19 @@
   "description": "A cross-platform TypeScript Node.js CLI with a small TUI and optional SEA packaging.",
   "type": "module",
   "scripts": {
-    "build": "turbo run build",
+    "build": "node ../../node_modules/turbo/bin/turbo run build",
     "build:sea": "pnpm --filter @mode/cli build:sea",
-    "check": "pnpm registry:check && turbo run typecheck",
-    "clean": "turbo run clean",
+    "check": "pnpm registry:check && node ../../node_modules/turbo/bin/turbo run typecheck",
+    "clean": "node ../../node_modules/turbo/bin/turbo run clean",
     "cli:build": "pnpm --filter @mode/cli build",
     "cli:dev": "pnpm --filter @mode/cli dev",
     "cli:upload-sea": "pnpm --filter @mode/cli upload:sea",
     "dev": "pnpm --filter @mode/cli dev",
     "format": "oxfmt --write package.json \"packages/**/*.json\" \"packages/**/*.ts\" \"packages/**/*.mjs\"",
     "format:check": "oxfmt --check package.json \"packages/**/*.json\" \"packages/**/*.ts\" \"packages/**/*.mjs\"",
-    "lint": "turbo run lint",
+    "lint": "node ../../node_modules/turbo/bin/turbo run lint",
     "lint:count": "node scripts/count-ts-lines.mjs",
-    "lint:fix": "turbo run lint:fix",
+    "lint:fix": "node ../../node_modules/turbo/bin/turbo run lint:fix",
     "prompt-trajectory:model-io": "pnpm --filter @mode/prompt-trajectory model-io --",
     "prompt-trajectory:prompt": "pnpm --filter @mode/prompt-trajectory record:prompt --",
     "registry:check": "node scripts/generate-bash-command-registry.mjs --check",
@@ -25,15 +25,15 @@
     "release": "node ../../node_modules/release-it/bin/release-it.js --config .release-it.json",
     "release:dry": "pnpm run release --release-version",
     "sea": "pnpm --filter @mode/cli sea",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "node ../../node_modules/turbo/bin/turbo run typecheck"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
     "proxy-agent": "^8.0.1"
   },
   "devDependencies": {
-    "@withfig/autocomplete": "2.692.3",
     "@types/node": "^24.0.0",
+    "@withfig/autocomplete": "2.692.3",
     "c8": "^11.0.0",
     "esbuild": "^0.25.0",
     "oxfmt": "^0.47.0",

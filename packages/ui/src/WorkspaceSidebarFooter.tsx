@@ -38,6 +38,7 @@ import { useSettings } from "@/hooks/useSettingService.js";
 import { useOptionalBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { ModeAccountDialog } from "@/ModeAccountDialog.js";
+import { SidebarAppVersion } from "@/SidebarAppVersion.js";
 import { resolveSidebarProfile } from "@/lib/sidebarProfile.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useModeStore } from "@/store/StoreProvider.js";
@@ -168,6 +169,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
             {profileBadge}
           </span>
           {user ? <WorkspaceSidebarFooterPlanBadge state={usageSummaryState} /> : null}
+          <SidebarAppVersion />
         </div>
       </div>
     </>
