@@ -2399,6 +2399,26 @@ const enUS: Record<string, string> = {
   "settings.autoDownloadAndInstallUpdates": "Automatically download and install updates",
   "settings.autoDownloadAndInstallUpdatesDescription":
     "When enabled, updates start downloading as soon as they are found. Restart still requires confirmation when tasks are running.",
+  "settings.fnosAppUpdate.title": "App update",
+  "settings.fnosAppUpdate.description": "Current version {current}",
+  "settings.fnosAppUpdate.check": "Check for updates",
+  "settings.fnosAppUpdate.checking": "Checking…",
+  "settings.fnosAppUpdate.upToDate": "You are on the latest version",
+  "settings.fnosAppUpdate.available": "Version {version} is available",
+  "settings.fnosAppUpdate.download": "Download update",
+  "settings.fnosAppUpdate.downloading": "Downloading {progress}%",
+  "settings.fnosAppUpdate.ready": "Version {version} is ready",
+  "settings.fnosAppUpdate.apply": "Restart and update",
+  "settings.fnosAppUpdate.applying": "Restarting and updating…",
+  "settings.fnosAppUpdate.error": "Update failed: {error}",
+  "settings.fnosAppUpdate.confirm.title": "Restart and update to {version}?",
+  "settings.fnosAppUpdate.confirm.description":
+    "The service will be briefly unavailable and running tasks will be interrupted. The page reloads after the update.",
+  "settings.fnosAppUpdate.confirm.ok": "Restart and update",
+  "settings.fnosAppUpdate.confirm.cancel": "Cancel",
+  "settings.about.version": "Version {version}",
+  "settings.about.description": "Mode is a local-first AI workspace.",
+  "settings.about.project": "Project home",
   "settings.notification": "Task notifications",
   "settings.notificationDescription":
     "Send desktop notifications when a task completes, fails, or needs approval.",
@@ -6650,6 +6670,8 @@ const enUS: Record<string, string> = {
   "remoteDesktop.error.stale_ticket": "The session ticket expired; try again.",
   "remoteDesktop.error.locally_controlled":
     "This device is being remotely controlled; disconnect it first.",
+  "remoteDesktop.error.decoder_unsupported":
+    "This browser can't decode the video stream (WebCodecs); use the latest Chrome or Edge.",
   "remoteDesktop.error.internal": "An internal error occurred; try again.",
   "remoteDesktop.consent.title": "{device} wants to control this device",
   "remoteDesktop.consent.allow": "Allow",

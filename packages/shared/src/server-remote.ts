@@ -39,6 +39,10 @@ export const serverRemoteInfoSchema = z.object({
     // 原生媒体面版本门（纯直替兼容闸）：本期原生媒体面就是唯一媒体面，
     // 旧对端缺键 = 不支持（docs/specs/lan-remote-desktop-native-media.md 版本门 1）。
     remoteDesktopNative: z.boolean().optional(),
+    // Web/fpk 作为 LAN 主控：服务端提供 /api/lan/peers 与 /api/connect-remote-lan。
+    // 桌面 LAN 静态站/旧服务端缺键 = 没有主控面，远程控制页不展示
+    //（docs/specs/web-remote-workspace.md）。
+    lanPeerController: z.boolean().optional(),
   }),
 });
 

@@ -78,6 +78,7 @@ import { useModeStore } from "@/store/StoreProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly, isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
 import { useWorkspaceTaskLists } from "@/hooks/useWorkspaceTaskLists.js";
+import { usePlatform } from "@/hooks/usePlatform.js";
 import {
   persistSidebarTaskPreferences,
   readSidebarTaskPreferences,
@@ -321,6 +322,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onFileTreeOpenChange?: (open: boolean) => void;
 }) {
   const { intl, localePreference, setLocalePreference } = useModeIntl();
+  const platform = usePlatform();
   const handleTaskRowSelect = useCallback(
     (
       targetWorkspacePath: string,
@@ -1353,8 +1355,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
               <Blocks className="size-4" />
               {intl.formatMessage({ id: "workspace.openPluginsSettings" })}
             </Button>
-            {/* 远程桌面：两端 Windows 桌面端的实时画面 + 键鼠控制；其他平台没有宿主采集/注入面，入口不渲染。 */}
-            {isWindowsDesktop ? (
+            {/* 远程控制页：Windows 桌面端提供实时画面；Web/fpk 在服务端声明 LAN 主控
+                能力时用于配对与设备列表（远端桌面动作由 rdGetPeerCapability 能力位隐藏）。 */}
+            {isWindowsDesktop || (!isDesktop && platform.supportsLanPeerController === true) ? (
               <Button
                 variant="ghost"
                 onClick={handleOpenRemoteDesktopMain}

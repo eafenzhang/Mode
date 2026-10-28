@@ -185,6 +185,8 @@ export type {
   ApplicationIconInfo,
   ApplicationIconLocator,
   ApplicationIconRequest,
+  FnosAppUpdateApplyResult,
+  FnosAppUpdateState,
   BrowserGuestAttachRejectReason,
   BrowserGuestAttachResult,
   EmbeddedBrowserDataClearResult,

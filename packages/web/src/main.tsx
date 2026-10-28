@@ -7,7 +7,9 @@ import {
   ModeIntlProvider,
   generateMobileDeviceFingerprint,
   playTaskNotificationSound,
+  registerRemoteWorkspaceSession,
   setStreamClientId,
+  unregisterRemoteWorkspaceSession,
   type Theme,
 } from "@mode/ui";
 import "@mode/ui/styles.css";
@@ -16,8 +18,27 @@ import { WebCallbackPage } from "./auth/WebCallbackPage.js";
 import { createWebAuthService } from "./auth/webAuthService.js";
 import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.js";
 import { resolveWebCommunityUrl } from "./communityUrl.js";
-import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@mode/shared";
+import type {
+  CreateTempTextAttachmentResult,
+  FnosAppUpdateApplyResult,
+  FnosAppUpdateState,
+  IPlatformService,
+  LanAccessPairRequest,
+  LanAccessPairResult,
+  LanDiscoveredPeer,
+  LanPairedPeer,
+  LanPairedPeerWorkspaces,
+  RemoteSessionClosedEvent,
+  RemoteTarget,
+  ServerRemoteInfo,
+} from "@mode/shared";
 import { lanAccessStateSchema, type LanAccessState } from "@mode/shared";
+import type {
+  RemoteDesktopCodec,
+  RemoteDesktopErrorCode,
+  RemoteDesktopQuality,
+  RemoteDesktopSignalMessage,
+} from "@mode/shared/remote-desktop";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
@@ -67,6 +88,8 @@ interface WebBootstrapResult {
   initialTaskId?: string;
   restoreSession?: boolean;
   allowOpenWorkspace?: boolean;
+  /** 服务端是否装配 LAN 主控（`/api/lan/peers`、`/api/connect-remote-lan`）。 */
+  supportsLanPeerController?: boolean;
 }
 
 function isWebOAuthCallback(params: URLSearchParams): boolean {
@@ -125,33 +148,291 @@ async function requestLanAccessState(path: string, init?: RequestInit): Promise<
   return parsed.data;
 }
 
-function createWebPlatform(): IPlatformService {
+async function requestFnosAppUpdate(
+  path: string,
+  method: "GET" | "POST" = "GET",
+): Promise<FnosAppUpdateState> {
+  const response = await fetch(`${resolveBasePath()}/api/app-update/${path}`, {
+    method,
+    cache: "no-store",
+  });
+  // 桌面 Host 的 LAN 静态站也复用 Web 前端，但它不装配 fpk 更新端点；
+  // 404 视为「该部署不支持」，让设置卡片保持隐藏，而不是报一个无意义错误。
+  if (response.status === 404) {
+    return { enabled: false, currentVersion: "", phase: "idle", canApply: false };
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return (await response.json()) as FnosAppUpdateState;
+}
+
+async function downloadLogsExport(): Promise<{ success: boolean; path?: string; error?: string }> {
+  const response = await fetch(`${resolveBasePath()}/api/logs/export`, { cache: "no-store" });
+  if (response.status === 404) {
+    return { success: false, error: "no_logs" };
+  }
+  if (!response.ok) {
+    return { success: false, error: `http_${String(response.status)}` };
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const fileName = /filename="([^"]+)"/u.exec(disposition)?.[1] ?? "Mode-logs.log";
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+  return { success: true, path: fileName };
+}
+
+async function requestApplyFnosAppUpdate(): Promise<FnosAppUpdateApplyResult> {
+  const response = await fetch(`${resolveBasePath()}/api/app-update/apply`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  if (response.status === 404) {
+    return { ok: false, restarting: false, error: "disabled" };
+  }
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return (await response.json()) as FnosAppUpdateApplyResult;
+}
+
+const lanRemoteSockets = new Map<string, WebSocket>();
+const remoteSessionClosedHandlers = new Set<(event: RemoteSessionClosedEvent) => void>();
+
+function emitRemoteSessionClosed(event: RemoteSessionClosedEvent): void {
+  for (const handler of remoteSessionClosedHandlers) {
+    handler(event);
+  }
+}
+
+async function fetchLanPeerJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${resolveBasePath()}/api/lan/peers${path}`, {
+    cache: "no-store",
+    ...init,
+  });
+  if (!response.ok) {
+    let message = `HTTP ${String(response.status)}`;
+    try {
+      const payload = (await response.json()) as { error?: unknown };
+      if (typeof payload.error === "string" && payload.error) {
+        message = payload.error;
+      }
+    } catch {
+      // 非 JSON 错误体：保留状态码。
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as T;
+}
+
+type RemoteDesktopSessionEvent = Parameters<
+  Parameters<IPlatformService["onRemoteDesktopSessionEvent"]>[0]
+>[0];
+
+interface ActiveRemoteDesktopSession {
+  id: string;
+  signal: WebSocket | null;
+  closedNotified: boolean;
+  disposed: boolean;
+}
+
+const REMOTE_DESKTOP_ERROR_CODES = new Set<string>([
+  "consent_denied",
+  "consent_timeout",
+  "disabled",
+  "busy",
+  "unsupported",
+  "unauthorized",
+  "stale_ticket",
+  "locally_controlled",
+  "decoder_unsupported",
+  "internal",
+]);
+
+function toRemoteDesktopErrorCode(value: unknown): RemoteDesktopErrorCode {
+  return typeof value === "string" && REMOTE_DESKTOP_ERROR_CODES.has(value)
+    ? (value as RemoteDesktopErrorCode)
+    : "internal";
+}
+
+/**
+ * 浏览器解码能力预检（WebCodecs）：媒体帧只能由 nativeMediaSession 用 VideoDecoder 解。
+ * 缺失时在发起会话前直接报错，避免对端弹同意框、建好中继后才在本地解码失败，
+ * 用户看到的将是「连接失败」而不是「换浏览器」。
+ */
+function browserCanDecodeRemoteMedia(): boolean {
+  return typeof globalThis.VideoDecoder === "function";
+}
+
+const remoteDesktopSessionHandlers = new Set<(event: RemoteDesktopSessionEvent) => void>();
+let activeRemoteDesktopSession: ActiveRemoteDesktopSession | null = null;
+
+function emitRemoteDesktopSessionEvent(event: RemoteDesktopSessionEvent): void {
+  for (const handler of remoteDesktopSessionHandlers) {
+    handler(event);
+  }
+}
+
+function closeActiveRemoteDesktopSession(options: {
+  endOnServer: boolean;
+  emitClosed: boolean;
+}): void {
+  const session = activeRemoteDesktopSession;
+  if (!session) {
+    return;
+  }
+  activeRemoteDesktopSession = null;
+  session.disposed = true;
+  session.signal?.close();
+  if (options.endOnServer) {
+    void fetch(`${resolveBasePath()}/api/remote-desktop/peer-session/${session.id}/end`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason: "user-end" }),
+    }).catch(() => undefined);
+  }
+  if (options.emitClosed && !session.closedNotified) {
+    emitRemoteDesktopSessionEvent({ kind: "state", state: "closed", retryable: false });
+  }
+}
+
+function createWebPlatform(supportsLanPeerController = false): IPlatformService {
   return {
     canSelectFilePath: false,
+    supportsLanPeerController,
+    // 浏览器没有“在系统文件管理器中显示”的入口；隐藏 Help 菜单里的资源管理器项。
+    supportsResourceManager: false,
     // Web 端无法打开系统目录选择框
     selectDirectory: () => Promise.resolve(null),
     // Web 端无法打开系统文件选择框
     selectFile: () => Promise.resolve(null),
     selectFiles: () => Promise.resolve([]),
     getPathForFile: () => null,
-    createTempTextAttachment: () =>
-      Promise.reject(new Error("Temporary text attachments require a desktop host")),
+    createTempTextAttachment: async (payload) => {
+      const response = await fetch(`${resolveBasePath()}/api/attachments/temp-text`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${String(response.status)}`);
+      }
+      return (await response.json()) as CreateTempTextAttachmentResult;
+    },
     onRemoteConnectionLog: () => () => {},
-    onRemoteSessionClosed: () => () => {},
+    onRemoteSessionClosed: (handler) => {
+      remoteSessionClosedHandlers.add(handler);
+      return () => {
+        remoteSessionClosedHandlers.delete(handler);
+      };
+    },
     onBotRemoteWorkspaceReconnected: () => () => {},
     // Web 端无多窗口管理
     activateOrSetWorkspace: () => Promise.resolve({ activated: false }),
-    // TODO(web-remote-workspace): 普通 Web 模式先只保证 server 本地工作区可用。
-    // 远程 WebSocket 只暴露部分 service，与 Root/RemoteServiceAccess 需要的完整
-    // accessor 不匹配，直接打开 ?remote=<id> 会在项目向导或首屏卡住。
-    connectRemote(options: RemoteTarget) {
-      return Promise.resolve({
-        success: false,
-        error: `Remote connect is not supported in Web mode yet: ${options.kind}`,
+    /**
+     * LAN 主控（docs/specs/web-remote-workspace.md）：
+     * POST 让服务端 attach 对端 `/ws/host` → 浏览器再连 `/ws/remote/:id` 拿完整 services
+     * → 注册进 remoteWorkspaceSessionStore，复用现有向导/目录浏览器/远程 tab。
+     */
+    async connectRemote(options: RemoteTarget) {
+      if (options.kind !== "lan") {
+        return {
+          success: false,
+          error: `Remote ${options.kind} is not supported in Web mode yet`,
+        };
+      }
+      const response = await fetch(`${resolveBasePath()}/api/connect-remote-lan`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(options),
       });
+      if (!response.ok) {
+        let message = `HTTP ${String(response.status)}`;
+        try {
+          const payload = (await response.json()) as { error?: unknown };
+          if (typeof payload.error === "string" && payload.error) {
+            message = payload.error;
+          }
+        } catch {
+          // 非 JSON 错误体：保留状态码。
+        }
+        return { success: false, error: message };
+      }
+      const { remoteSessionId } = (await response.json()) as { remoteSessionId?: unknown };
+      if (typeof remoteSessionId !== "string" || !remoteSessionId) {
+        return { success: false, error: "Remote session was not created" };
+      }
+      let disposed = false;
+      try {
+        const services = await connectViaWebSocket(
+          `${resolveDefaultWsOrigin()}/ws/remote/${remoteSessionId}`,
+          {
+            onOpenSocket: (ws) => {
+              lanRemoteSockets.set(remoteSessionId, ws);
+            },
+            onClose: (event) => {
+              // 对端/网络断开：摘掉 renderer 侧 session；server 侧由 WS close 自行 dispose。
+              // 用户主动 dispose 会先把 disposed 置 true，此时不再派发「异常关闭」事件。
+              const wasDisposed = disposed;
+              lanRemoteSockets.delete(remoteSessionId);
+              unregisterRemoteWorkspaceSession(remoteSessionId);
+              if (!wasDisposed) {
+                emitRemoteSessionClosed({
+                  sessionId: remoteSessionId,
+                  reason: "host-exit",
+                  exitCode: null,
+                  signal: null,
+                  ...(event.reason ? { error: event.reason } : {}),
+                });
+              }
+            },
+          },
+        );
+        const dispose = () => {
+          if (disposed) {
+            return;
+          }
+          disposed = true;
+          const current = lanRemoteSockets.get(remoteSessionId);
+          lanRemoteSockets.delete(remoteSessionId);
+          current?.close();
+          void fetch(`${resolveBasePath()}/api/remote-workspace/${remoteSessionId}/release`, {
+            method: "POST",
+          }).catch(() => undefined);
+        };
+        registerRemoteWorkspaceSession({
+          sessionId: remoteSessionId,
+          target: options,
+          services,
+          dispose,
+        });
+        return { success: true, sessionId: remoteSessionId };
+      } catch (error) {
+        lanRemoteSockets.get(remoteSessionId)?.close();
+        lanRemoteSockets.delete(remoteSessionId);
+        await fetch(`${resolveBasePath()}/api/remote-workspace/${remoteSessionId}/release`, {
+          method: "POST",
+        }).catch(() => undefined);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
     },
     cancelPendingRemoteConnection: (_requestId?: string) => Promise.resolve(),
-    disposeRemoteSession: () => Promise.resolve(),
+    disposeRemoteSession: (sessionId: string) => {
+      // store 的 unregister 会调用 session.dispose（关闭 WS + server release）。
+      unregisterRemoteWorkspaceSession(sessionId);
+      lanRemoteSockets.delete(sessionId);
+      return Promise.resolve();
+    },
     isDockerAvailable: () => Promise.resolve(false),
     listWSLDistros: () => Promise.resolve([]),
     listDockerContainers: () => Promise.resolve([]),
@@ -165,28 +446,222 @@ function createWebPlatform(): IPlatformService {
     removeLanAccessClient: (clientId: string) =>
       requestLanAccessState(`clients/${encodeURIComponent(clientId)}`, { method: "DELETE" }),
     resetLanAccessTokens: () => requestLanAccessState("reset", { method: "POST" }),
-    discoverLanPeers: () => Promise.resolve([]),
-    pairLanPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
-    getLanPairedPeers: () => Promise.resolve([]),
-    getLanPeerWorkspaces: () => Promise.reject(new Error("Web mode cannot reach LAN peers")),
-    removeLanPairedPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
-    renameLanPairedPeer: () => Promise.reject(new Error("Web mode cannot pair LAN peers")),
-    // 局域网远程桌面需要宿主 Helper 与屏幕采集面，Web / 浏览器端不具备：
-    // 入口本身有 win32 桌面门，这里只保证平台合同完整（读返回空态，写直接拒绝）。
-    rdGetPeerCapability: () =>
-      Promise.resolve({ remoteDesktop: false, remoteDesktopNative: false, online: false }),
-    rdStartSession: () => Promise.resolve({ error: "unsupported" as const }),
+    discoverLanPeers: () => fetchLanPeerJson<LanDiscoveredPeer[]>("/discover", { method: "POST" }),
+    async pairLanPeer(request: LanAccessPairRequest): Promise<LanAccessPairResult> {
+      const peer = await fetchLanPeerJson<LanPairedPeer>("/pair", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(request),
+      });
+      // 令牌留在 server credential service；UI 不使用返回的 token，置空避免误传播。
+      return {
+        token: "",
+        serverId: peer.serverId,
+        ...(peer.name ? { name: peer.name } : {}),
+      };
+    },
+    getLanPairedPeers: () => fetchLanPeerJson<LanPairedPeer[]>("/"),
+    getLanPeerWorkspaces: (serverId: string) =>
+      fetchLanPeerJson<LanPairedPeerWorkspaces>(
+        `/${encodeURIComponent(serverId)}/workspaces`,
+      ),
+    removeLanPairedPeer: (serverId: string) =>
+      fetchLanPeerJson<{ ok: boolean }>(`/${encodeURIComponent(serverId)}`, {
+        method: "DELETE",
+      }).then(() => undefined),
+    renameLanPairedPeer: (serverId: string, name: string) =>
+      fetchLanPeerJson<{ ok: boolean }>(`/${encodeURIComponent(serverId)}/rename`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      }).then(() => undefined),
+    // 远程桌面主控（docs/specs/web-remote-desktop.md）：服务端中继对端信令/媒体，
+    // 浏览器用现有 nativeMediaSession 解密/WebCodecs 解码；令牌不出服务端。
+    async rdGetPeerCapability(serverId: string) {
+      try {
+        const response = await fetch(
+          `${resolveBasePath()}/api/remote-desktop/peer-capability?serverId=${encodeURIComponent(serverId)}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          return { online: false, remoteDesktop: false, remoteDesktopNative: false };
+        }
+        return (await response.json()) as Awaited<
+          ReturnType<IPlatformService["rdGetPeerCapability"]>
+        >;
+      } catch {
+        return { online: false, remoteDesktop: false, remoteDesktopNative: false };
+      }
+    },
+    async rdStartSession(
+      serverId: string,
+      quality?: RemoteDesktopQuality,
+      codec?: RemoteDesktopCodec,
+    ) {
+      // 本机能力先于对端：不支持 WebCodecs 时不发起请求（对端不会收到同意弹窗）。
+      if (!browserCanDecodeRemoteMedia()) {
+        emitRemoteDesktopSessionEvent({
+          kind: "state",
+          state: "closed",
+          error: "decoder_unsupported",
+          retryable: false,
+        });
+        return { error: "decoder_unsupported" as const };
+      }
+      closeActiveRemoteDesktopSession({ endOnServer: true, emitClosed: false });
+      emitRemoteDesktopSessionEvent({ kind: "state", state: "connecting" });
+      let response: Response;
+      try {
+        response = await fetch(`${resolveBasePath()}/api/remote-desktop/peer-session`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ serverId, quality, codec }),
+        });
+      } catch {
+        emitRemoteDesktopSessionEvent({
+          kind: "state",
+          state: "closed",
+          error: "internal",
+          retryable: false,
+        });
+        return { error: "internal" as const };
+      }
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+      const record = (payload ?? {}) as {
+        sessionId?: unknown;
+        signalPath?: unknown;
+        mediaPath?: unknown;
+        errorCode?: unknown;
+      };
+      if (
+        !response.ok ||
+        typeof record.sessionId !== "string" ||
+        !record.sessionId ||
+        typeof record.signalPath !== "string" ||
+        typeof record.mediaPath !== "string"
+      ) {
+        const code = toRemoteDesktopErrorCode(record.errorCode);
+        emitRemoteDesktopSessionEvent({
+          kind: "state",
+          state: "closed",
+          error: code,
+          retryable: false,
+        });
+        return { error: code };
+      }
+
+      const session: ActiveRemoteDesktopSession = {
+        id: record.sessionId,
+        signal: null,
+        closedNotified: false,
+        disposed: false,
+      };
+      activeRemoteDesktopSession = session;
+      const signal = new WebSocket(`${resolveDefaultWsOrigin()}${record.signalPath}`);
+      session.signal = signal;
+      signal.onmessage = (event) => {
+        if (activeRemoteDesktopSession !== session || session.disposed) {
+          return;
+        }
+        let envelope: unknown;
+        try {
+          envelope = JSON.parse(String(event.data));
+        } catch {
+          return;
+        }
+        const kind = (envelope as { kind?: unknown }).kind;
+        if (kind === "state") {
+          const state = (envelope as { state?: unknown }).state;
+          if (state === "closed") {
+            session.closedNotified = true;
+          }
+          const error = (envelope as { error?: unknown }).error;
+          const retryable = (envelope as { retryable?: unknown }).retryable;
+          emitRemoteDesktopSessionEvent({
+            kind: "state",
+            state: state === "connected" ? "connected" : "closed",
+            ...(typeof error === "string" ? { error: toRemoteDesktopErrorCode(error) } : {}),
+            ...(typeof retryable === "boolean" ? { retryable } : {}),
+          });
+          return;
+        }
+        if (kind !== "signal") {
+          return;
+        }
+        const message = (envelope as { message?: unknown }).message;
+        if (
+          message &&
+          typeof message === "object" &&
+          typeof (message as { type?: unknown }).type === "string"
+        ) {
+          emitRemoteDesktopSessionEvent({
+            kind: "signal",
+            message: message as RemoteDesktopSignalMessage,
+          });
+        }
+      };
+      signal.onclose = () => {
+        if (activeRemoteDesktopSession !== session || session.disposed) {
+          return;
+        }
+        activeRemoteDesktopSession = null;
+        if (!session.closedNotified) {
+          emitRemoteDesktopSessionEvent({
+            kind: "state",
+            state: "closed",
+            retryable: true,
+          });
+        }
+      };
+      signal.onerror = () => {
+        // close 事件随后到。
+      };
+      return {
+        ok: true as const,
+        mediaUrl: `${resolveDefaultWsOrigin()}${record.mediaPath}`,
+      };
+    },
     rdGetControlledState: () => Promise.resolve({ controlled: false }),
-    rdSendSignal: () => {},
-    rdEndSession: () => Promise.resolve(),
-    // Web / 浏览器端没有本机剪贴板观测面：返回空文本，读侧据此判「无变化」。
-    rdReadClipboardText: () => Promise.resolve(""),
+    rdSendSignal: (message: RemoteDesktopSignalMessage) => {
+      const session = activeRemoteDesktopSession;
+      if (!session?.signal || session.signal.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      session.signal.send(JSON.stringify({ kind: "signal", message }));
+    },
+    rdEndSession: (reason?: "user-end" | "error") => {
+      const session = activeRemoteDesktopSession;
+      if (session?.signal && session.signal.readyState === WebSocket.OPEN) {
+        session.signal.send(
+          JSON.stringify({ kind: "signal", message: { type: "bye", reason } }),
+        );
+      }
+      closeActiveRemoteDesktopSession({ endOnServer: true, emitClosed: false });
+      return Promise.resolve();
+    },
+    rdReadClipboardText: async () => {
+      try {
+        return await navigator.clipboard.readText();
+      } catch {
+        return "";
+      }
+    },
     rdGetServerState: () =>
       Promise.resolve({ enabled: false, authorizedClients: [], encoderCapability: "unknown" }),
     rdSetServerEnabled: () => Promise.reject(new Error("Web mode does not serve remote desktop")),
     rdRevokeClient: () => Promise.reject(new Error("Web mode does not serve remote desktop")),
     rdAuthorizeClient: () => Promise.reject(new Error("Web mode does not serve remote desktop")),
-    onRemoteDesktopSessionEvent: () => () => {},
+    onRemoteDesktopSessionEvent: (handler) => {
+      remoteDesktopSessionHandlers.add(handler);
+      return () => {
+        remoteDesktopSessionHandlers.delete(handler);
+      };
+    },
     loadMcpFromUserDirectory: () => Promise.resolve({ servers: [] }),
     saveMcpToUserDirectory: () =>
       Promise.resolve({
@@ -261,7 +736,7 @@ function createWebPlatform(): IPlatformService {
     onOpenWorkspace: () => () => {},
     onWindowFullscreenChanged: () => () => {},
     onTaskNotificationClick: () => () => {},
-    exportLogs: () => Promise.resolve({ success: false, error: "Not supported in web mode" }),
+    exportLogs: () => downloadLogsExport(),
     importChromeBrowserData: (_options) =>
       Promise.resolve({
         success: false,
@@ -285,6 +760,18 @@ function createWebPlatform(): IPlatformService {
     getUpdateState: () => Promise.resolve({ kind: "idle", enabled: true }),
     downloadUpdate: () => Promise.resolve(),
     cancelUpdateDownload: () => Promise.resolve(),
+    getAppVersion: async () => {
+      const response = await fetch(`${resolveBasePath()}/api/server-info`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${String(response.status)}`);
+      }
+      const info = (await response.json()) as { version?: string };
+      return typeof info.version === "string" ? info.version : "unknown";
+    },
+    getFnosAppUpdateState: () => requestFnosAppUpdate("state"),
+    checkFnosAppUpdate: () => requestFnosAppUpdate("check", "POST"),
+    downloadFnosAppUpdate: () => requestFnosAppUpdate("download", "POST"),
+    applyFnosAppUpdate: () => requestApplyFnosAppUpdate(),
     getDesktopSessionActivity: () => Promise.resolve({ runningAgentSessionCount: 0 }),
     getDesktopZoomLevel: () => Promise.resolve({ zoomLevel: 0 }),
     onDesktopZoomLevelChanged: () => () => {},
@@ -360,6 +847,7 @@ async function resolveWebBootstrap(): Promise<WebBootstrapResult> {
       ...(workspace?.workspaceIdentity
         ? { initialWorkspaceIdentity: workspace.workspaceIdentity }
         : {}),
+      supportsLanPeerController: serverInfo.capabilities?.lanPeerController === true,
     };
   } catch {
     return { wsUrl };
@@ -534,7 +1022,7 @@ async function bootstrapWebApp() {
     const services = await connectViaWebSocket(bootstrap.wsUrl, {
       onClose: () => {},
     });
-    const platform = createWebPlatform();
+    const platform = createWebPlatform(bootstrap.supportsLanPeerController === true);
     document.title = "Mode - Web + Server";
 
     root.render(
@@ -553,7 +1041,10 @@ async function bootstrapWebApp() {
             allowOpenWorkspace={bootstrap.allowOpenWorkspace}
             preferDirectoryBrowser
             supportsEmbeddedBrowser={false}
-            allowRemoteWorkspace={false}
+            // LAN 主控已接通（docs/specs/web-remote-workspace.md）；SSH/WSL/Docker
+            // 仍由 platform.connectRemote 明确拒绝。桌面 LAN 静态站没有该主控面时
+            // 保持关闭，避免把用户带进必然失败的向导。
+            allowRemoteWorkspace={bootstrap.supportsLanPeerController === true}
           />
         </ModeIntlProvider>
       </AppErrorBoundary>,

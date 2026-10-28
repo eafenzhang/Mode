@@ -24,10 +24,6 @@ import {
   ServiceCollection,
   IModeAgentService,
   createModeAgentConnectionScope,
-  IFileService,
-  IGitService,
-  ISystemService,
-  ITerminalService,
   IProviderProvisioningTargetService,
 } from "@mode/services";
 import {
@@ -43,6 +39,8 @@ import {
   SERVER_REMOTE_PROTOCOL_VERSION,
   MODE_RPC_HOST_CAPABILITY_HEADER,
   MODE_VERSION,
+  type FnosAppUpdateApplyResult,
+  type FnosAppUpdateState,
   type ServerRemoteInfo,
   type ServerRemoteWorkspaceInfo,
 } from "@mode/shared";
@@ -55,8 +53,16 @@ import {
   type RemoteDesktopQuality,
 } from "@mode/shared/remote-desktop";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
+import { createRemoteServiceCollection } from "./remote/remoteServiceCollection.js";
+import type { LanPeerController } from "./remote/lanPeerController.js";
+import type { RemoteDesktopPeerController } from "./remote/remoteDesktopPeerController.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
 import { createRemoteDesktopTicketStore } from "./remoteDesktopTicket.js";
+import { createLogBundle } from "./logExport.js";
+import {
+  createTempTextAttachment,
+  TEMP_ATTACHMENT_MAX_BYTES,
+} from "./tempAttachments.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -227,6 +233,14 @@ function setupChannelServer(
 /** 存储 web 模式下的远程连接，key 为随机 ID */
 const remoteConnections = new Map<string, RemoteConnection>();
 
+/** 服务端 fpk 更新器的 HTTP 边界；实现与状态所有者见 appUpdate/manager.ts。 */
+export interface FnosAppUpdateEndpoint {
+  getState(): FnosAppUpdateState;
+  check(): Promise<FnosAppUpdateState>;
+  download(): Promise<FnosAppUpdateState>;
+  apply(): Promise<FnosAppUpdateApplyResult>;
+}
+
 function generateId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -251,6 +265,32 @@ interface HttpServerOptions {
   publicRelay?: () => { baseUrl: string; tunnelId: string } | undefined;
   /** Mode Agent 反向配对：被控端拿桌面生成的配对码登记自己的 MCP 连接信息。 */
   remoteAgentEnrollment?: RemoteAgentEnrollmentEndpoint;
+  /**
+   * fnOS fpk 在线升级（docs/specs/fnos-feature-parity-and-update.md）。
+   * 提供时暴露 /api/app-update/*；普通 Web/桌面部署不传，前端据 enabled=false 隐藏入口。
+   */
+  appUpdate?: FnosAppUpdateEndpoint;
+  /**
+   * Web/fpk 日志导出：Host 日志目录 + 额外文件（fpk 的 info.log）。
+   * 提供时暴露 GET /api/logs/export；普通桌面壳的 exportLogs 仍走原生保存对话框。
+   */
+  logsExport?: { logDir: string; extraFiles?: readonly string[] };
+  /**
+   * Web/fpk 长粘贴文本附件落盘根目录；提供时暴露 POST /api/attachments/temp-text。
+   * 桌面端仍走 Tauri 的 createTempTextAttachment 命令。
+   */
+  tempAttachmentsRoot?: string;
+  /**
+   * Web/fpk 作为 LAN 主控：配对记录/挂接连接的所有者
+   * （docs/specs/web-remote-workspace.md）。提供时暴露 /api/lan/peers/* 与
+   * /api/connect-remote-lan；桌面 Host 的 LAN 主控仍走本地 attachment。
+   */
+  lanPeers?: LanPeerController;
+  /**
+   * Web/fpk 远程桌面主控中继（docs/specs/web-remote-desktop.md）。
+   * 提供时暴露 peer-capability / peer-session 与浏览器信令/媒体中继 WS。
+   */
+  remoteDesktopPeers?: RemoteDesktopPeerController;
   /**
    * 局域网多客户端：把 /ws/host 升级连接的长期令牌解析为客户端记录 id。
    * 与鉴权走同一令牌校验路径；未提供或解析不到时该连接不参与录制。
@@ -357,6 +397,36 @@ function remoteDesktopErrorStatus(code: RemoteDesktopErrorCode): 401 | 403 | 409
     case "locally_controlled":
       return 409;
     case "unsupported":
+    // decoder_unsupported 只在 Web 主控本地产生（浏览器缺 WebCodecs），被控不会返回；
+    // 这里按「不支持」归类仅为枚举穷尽。
+    case "decoder_unsupported":
+      return 501;
+    case "internal":
+      return 500;
+  }
+}
+
+/** Web 主控中继的会话请求错误 → HTTP 状态；0 个 code 按内部错误。 */
+function rdPeerErrorStatus(
+  code: RemoteDesktopErrorCode | undefined,
+): 401 | 403 | 409 | 500 | 501 | 504 {
+  if (!code) {
+    return 500;
+  }
+  switch (code) {
+    case "unauthorized":
+    case "stale_ticket":
+      return 401;
+    case "consent_denied":
+    case "disabled":
+      return 403;
+    case "consent_timeout":
+      return 504;
+    case "busy":
+    case "locally_controlled":
+      return 409;
+    case "unsupported":
+    case "decoder_unsupported":
       return 501;
     case "internal":
       return 500;
@@ -416,6 +486,7 @@ async function createServerInfo(options: HttpServerOptions): Promise<ServerRemot
       ...(options.computerUseCapability !== undefined
         ? { computerUse: options.computerUseCapability }
         : {}),
+      ...(options.lanPeers ? { lanPeerController: true } : {}),
       // remoteDesktop 同口径：不声明 = 缺键 = 不支持（docs/specs/lan-remote-desktop.md）。
       ...(options.remoteDesktopCapability !== undefined
         ? {
@@ -765,6 +836,230 @@ export function createHttpServer(
     app.post("/api/lan/reset", async (c) => c.json(await lanAccessHost.resetTokens()));
   }
 
+  // fnOS fpk 在线升级：状态读取与三个动作。所有请求都经过上面的 /api/* 令牌鉴权；
+  // 更新器自身只读写 $TRIM_APPDEST，不解析请求体，也不接受客户端传入 URL/版本。
+  if (options.appUpdate) {
+    const appUpdate = options.appUpdate;
+    app.get("/api/app-update/state", (c) => c.json(appUpdate.getState()));
+    app.post("/api/app-update/check", async (c) => c.json(await appUpdate.check()));
+    app.post("/api/app-update/download", async (c) => c.json(await appUpdate.download(), 202));
+    app.post("/api/app-update/apply", async (c) => c.json(await appUpdate.apply()));
+  }
+
+  // Web/fpk 作为 LAN 主控（docs/specs/web-remote-workspace.md）。
+  // 令牌只留在 credential service；所有响应都不包含 token。
+  if (options.lanPeers) {
+    const lanPeers = options.lanPeers;
+    app.get("/api/lan/peers", async (c) => c.json(await lanPeers.listPeers()));
+    app.post("/api/lan/peers/pair", async (c) => {
+      let rawBody: unknown;
+      try {
+        rawBody = await c.req.json();
+      } catch {
+        return c.json({ error: "invalid_json" }, 400);
+      }
+      const body = (rawBody ?? {}) as Record<string, unknown>;
+      const host = typeof body.host === "string" ? body.host.trim() : "";
+      const port = typeof body.port === "number" ? body.port : 0;
+      const code = typeof body.code === "string" ? body.code.trim() : "";
+      if (!host || !Number.isInteger(port) || port <= 0 || port > 65535 || !code) {
+        return c.json({ error: "invalid_pair_request" }, 400);
+      }
+      try {
+        return c.json(
+          await lanPeers.pairPeer({
+            host,
+            port,
+            code,
+            ...(typeof body.label === "string" ? { label: body.label } : {}),
+            ...(body.scheme === "https" || body.scheme === "http"
+              ? { scheme: body.scheme }
+              : {}),
+            ...(typeof body.path === "string" ? { path: body.path } : {}),
+          }),
+        );
+      } catch (error) {
+        return c.json(
+          { error: error instanceof Error ? error.message : String(error) },
+          502,
+        );
+      }
+    });
+    app.post("/api/lan/peers/discover", async (c) => c.json(await lanPeers.discoverPeers()));
+    app.get("/api/lan/peers/:serverId/workspaces", async (c) => {
+      try {
+        return c.json(await lanPeers.getPeerWorkspaces(c.req.param("serverId")));
+      } catch (error) {
+        return c.json(
+          { error: error instanceof Error ? error.message : String(error) },
+          502,
+        );
+      }
+    });
+    app.post("/api/lan/peers/:serverId/rename", async (c) => {
+      let rawBody: unknown;
+      try {
+        rawBody = await c.req.json();
+      } catch {
+        return c.json({ error: "invalid_json" }, 400);
+      }
+      const name = (rawBody as { name?: unknown } | null)?.name;
+      if (typeof name !== "string") {
+        return c.json({ error: "invalid_name" }, 400);
+      }
+      await lanPeers.renamePeer(c.req.param("serverId"), name);
+      return c.json({ ok: true });
+    });
+    app.delete("/api/lan/peers/:serverId", async (c) => {
+      await lanPeers.removePeer(c.req.param("serverId"));
+      return c.json({ ok: true });
+    });
+    app.post("/api/connect-remote-lan", async (c) => {
+      let rawBody: unknown;
+      try {
+        rawBody = await c.req.json();
+      } catch {
+        return c.json({ error: "invalid_json" }, 400);
+      }
+      const parsed = remoteTargetSchema.safeParse(rawBody);
+      if (!parsed.success || parsed.data.kind !== "lan") {
+        return c.json({ error: "invalid_lan_target" }, 400);
+      }
+      try {
+        return c.json(await lanPeers.connectRemote(parsed.data));
+      } catch (error) {
+        return c.json(
+          { error: error instanceof Error ? error.message : String(error) },
+          502,
+        );
+      }
+    });
+    app.post("/api/remote-workspace/:id/release", async (c) => {
+      await lanPeers.releaseRemote(c.req.param("id"));
+      return c.json({ ok: true });
+    });
+  }
+
+  // Web/fpk 远程桌面主控中继（docs/specs/web-remote-desktop.md）。
+  if (options.remoteDesktopPeers) {
+    const rdPeers = options.remoteDesktopPeers;
+    app.get("/api/remote-desktop/peer-capability", async (c) => {
+      const serverId = c.req.query("serverId")?.trim();
+      if (!serverId) {
+        return c.json({ error: "missing_server_id" }, 400);
+      }
+      try {
+        return c.json(await rdPeers.probe(serverId));
+      } catch {
+        return c.json({ online: false, remoteDesktop: false, remoteDesktopNative: false });
+      }
+    });
+    app.post("/api/remote-desktop/peer-session", async (c) => {
+      let rawBody: unknown;
+      try {
+        rawBody = await c.req.json();
+      } catch {
+        return c.json({ error: "invalid_json" }, 400);
+      }
+      const body = (rawBody ?? {}) as Record<string, unknown>;
+      const serverId = typeof body.serverId === "string" ? body.serverId.trim() : "";
+      if (!serverId) {
+        return c.json({ error: "missing_server_id" }, 400);
+      }
+      const quality = remoteDesktopQualitySchema.safeParse(body.quality);
+      const codec = remoteDesktopCodecSchema.safeParse(body.codec);
+      const result = await rdPeers.start(
+        serverId,
+        quality.success ? quality.data : undefined,
+        codec.success ? codec.data : undefined,
+      );
+      if (!result.ok) {
+        return c.json(result, rdPeerErrorStatus(result.errorCode));
+      }
+      return c.json(result);
+    });
+    app.post("/api/remote-desktop/peer-session/:id/end", async (c) => {
+      let reason: "user-end" | "error" = "user-end";
+      try {
+        const body = (await c.req.json()) as { reason?: unknown };
+        if (body?.reason === "error") {
+          reason = "error";
+        }
+      } catch {
+        // 无 body / 非 JSON：按默认 user-end。
+      }
+      rdPeers.end(c.req.param("id"), reason);
+      return c.json({ ok: true });
+    });
+    app.get(
+      "/ws/remote-desktop-peer/:id/signal",
+      upgradeWebSocket((c) => {
+        const id = c.req.param("id");
+        return {
+          onOpen(_event, ws) {
+            rdPeers.attachBrowserSignal(id ?? "", ws.raw as WebSocket);
+          },
+        };
+      }),
+    );
+    app.get(
+      "/ws/remote-desktop-peer/:id/media",
+      upgradeWebSocket((c) => {
+        const id = c.req.param("id");
+        return {
+          onOpen(_event, ws) {
+            rdPeers.attachBrowserMedia(id ?? "", ws.raw as WebSocket);
+          },
+        };
+      }),
+    );
+  }
+
+  // Web/fpk 长粘贴文本：落成服务端临时文件，路径随后由 Host fileService 读取。
+  if (options.tempAttachmentsRoot) {
+    const tempAttachmentsRoot = options.tempAttachmentsRoot;
+    app.post("/api/attachments/temp-text", async (c) => {
+      let rawBody: unknown;
+      try {
+        rawBody = await c.req.json();
+      } catch {
+        return c.json({ error: "invalid_json" }, 400);
+      }
+      if (
+        !rawBody ||
+        typeof rawBody !== "object" ||
+        typeof (rawBody as { text?: unknown }).text !== "string"
+      ) {
+        return c.json({ error: "invalid_request" }, 400);
+      }
+      const body = rawBody as { text: string; filename?: unknown };
+      if (Buffer.byteLength(body.text, "utf8") > TEMP_ATTACHMENT_MAX_BYTES) {
+        return c.json({ error: "payload_too_large" }, 413);
+      }
+      const result = await createTempTextAttachment(tempAttachmentsRoot, {
+        text: body.text,
+        ...(typeof body.filename === "string" ? { filename: body.filename } : {}),
+      });
+      return c.json(result);
+    });
+  }
+
+  // Web/fpk 日志导出：直接返回文本包下载（浏览器端由 Web 平台触发）。
+  if (options.logsExport) {
+    const logsExport = options.logsExport;
+    app.get("/api/logs/export", async (c) => {
+      const result = await createLogBundle(logsExport);
+      if (!result) {
+        return c.json({ error: "no_logs" }, 404);
+      }
+      return c.body(result.bundle, 200, {
+        "content-type": "text/plain; charset=utf-8",
+        "content-disposition": `attachment; filename="${result.fileName}"`,
+        "cache-control": "no-store",
+      });
+    });
+  }
+
   // 普通 `/ws` 永远是 terminal-client；浏览器/任意客户端设置旧 mode header
   // 都不能再把自己提升为 trusted host。
   app.get(
@@ -914,28 +1209,50 @@ export function createHttpServer(
     "/ws/remote/:id",
     upgradeWebSocket((c) => {
       const id = c.req.param("id");
+      let disposeConnection: (() => void) | null = null;
       return {
         onOpen(_event, ws) {
           if (!id) {
             ws.close(4000, "Missing remote connection id");
             return;
           }
-          const connection = remoteConnections.get(id);
-          if (!connection) {
-            ws.close(4004, "Remote connection not found");
+          // SSH/WSL/Docker 的 stdio connection 与 LAN attach 的 connection 各自一个 map；
+          // 浏览器只拿到一个 id，因此两个来源都查一次，取出即从原 map 删除。
+          const stdioConnection = remoteConnections.get(id);
+          if (stdioConnection) {
+            remoteConnections.delete(id);
+            disposeConnection = () => stdioConnection.dispose();
+            setupChannelServer(
+              ws.raw as WebSocket,
+              createRemoteServiceCollection(stdioConnection.services),
+              "web-remote-replayable",
+            );
             return;
           }
-          // 一个连接只给一个 WS 客户端使用，取出后从 Map 移除
-          remoteConnections.delete(id);
-
-          // 将远程 services 包装为 ServiceCollection，复用 exposeOnChannelServer 统一注册
-          const remoteServices = new ServiceCollection()
-            .register(IFileService, connection.services.fileService)
-            .register(IGitService, connection.services.gitService)
-            .register(ISystemService, connection.services.systemService)
-            .register(ITerminalService, connection.services.terminalService);
-
-          setupChannelServer(ws.raw as WebSocket, remoteServices, "web-remote-replayable");
+          const lanConnection =
+            options.lanPeers?.takeRemoteConnection(id, () => {
+              // 对端先断：主动关掉浏览器 WS，让页面走正常断线收口，而不是停在半死服务上。
+              try {
+                ws.close(4001, "Remote disconnected");
+              } catch {
+                // WS 可能已经在关闭中。
+              }
+            }) ?? null;
+          if (lanConnection) {
+            disposeConnection = () => void lanConnection.dispose();
+            setupChannelServer(
+              ws.raw as WebSocket,
+              createRemoteServiceCollection(lanConnection.services),
+              "web-remote-replayable",
+            );
+            return;
+          }
+          ws.close(4004, "Remote connection not found");
+        },
+        onClose() {
+          // 浏览器刷新/关 tab 即释放 server 侧 remote attachment；重复 dispose 幂等。
+          disposeConnection?.();
+          disposeConnection = null;
         },
       };
     }),

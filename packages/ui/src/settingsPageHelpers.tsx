@@ -28,6 +28,7 @@ import { Input } from "@/ui-foundation/adapters/input.js";
 import { Button } from "@/ui-foundation/adapters/button.js";
 import { SettingsBadge, SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
+import { FnosAppUpdateCard } from "@/settings/FnosAppUpdateCard.js";
 import { useModeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
@@ -618,6 +619,7 @@ export function GeneralSectionContent({
             />
           </>
         ) : null}
+        <FnosAppUpdateCard />
         <SettingsRow
           label={intl.formatMessage({ id: "settings.notification" })}
           description={intl.formatMessage({

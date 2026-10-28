@@ -1,4 +1,5 @@
 import { hostname } from "node:os";
+import { join } from "node:path";
 import {
   createLocalServices,
   getAppConfigDir,
@@ -13,6 +14,13 @@ import {
 } from "./bundledModeBuiltinProviderConfig.js";
 import { createHttpServer } from "./http.js";
 import { createLanAccessHost } from "./lanAccess.js";
+import { createFnosAppUpdaterFromEnv } from "./appUpdate/manager.js";
+import { LanPeerController } from "./remote/lanPeerController.js";
+import { RemoteDesktopPeerController } from "./remote/remoteDesktopPeerController.js";
+import {
+  sweepTempAttachments,
+  TEMP_ATTACHMENT_SWEEP_INTERVAL_MS,
+} from "./tempAttachments.js";
 
 async function main(): Promise<void> {
   // 数据根必须先于任何路径写入完成初始化/合法化（materialize 会写 getAppConfigDir()）。
@@ -33,6 +41,25 @@ async function main(): Promise<void> {
     modeBuiltinProviderConfigFilePath,
     providerProvisioningTargetEnabled: Boolean(authToken),
   });
+  // fpk 部署才 enabled；普通 Web 部署仍注册端点，但状态固定为 enabled:false，
+  // 前端据此隐藏入口，不用把部署形态写进前端。
+  const appUpdate = createFnosAppUpdaterFromEnv();
+  // Host 文件日志与桌面同口径：{base}/.mode/v2/logs；fpk 另带 cmd/main 的
+  // info.log 与滚动归档（cmd/main 在超过 10MB 时轮转）。
+  const extraInfoLogs = ["MODE_FNOS_INFO_LOG", "MODE_FNOS_INFO_LOG_ARCHIVE"]
+    .map((key) => process.env[key]?.trim())
+    .filter((value): value is string => Boolean(value));
+  const logsExport = {
+    logDir: join(getAppConfigDir(), "logs"),
+    ...(extraInfoLogs.length > 0 ? { extraFiles: extraInfoLogs } : {}),
+  };
+  // 临时附件由服务端持久化，必须定期清理，避免长期运行吃满数据盘。
+  const tempAttachmentsRoot = join(getAppConfigDir(), "tmp", "attachments");
+  void sweepTempAttachments(tempAttachmentsRoot);
+  const tempAttachmentSweepTimer = setInterval(() => {
+    void sweepTempAttachments(tempAttachmentsRoot);
+  }, TEMP_ATTACHMENT_SWEEP_INTERVAL_MS);
+  tempAttachmentSweepTimer.unref();
 
   // 设备展示名与 server-info 的 name 保持同一来源。
   const serverName = process.env["MODE_SERVER_NAME"]?.trim() || hostname() || "mode-server";
@@ -43,10 +70,20 @@ async function main(): Promise<void> {
     authToken && credentialService
       ? await createLanAccessHost({ credentials: credentialService, port, name: serverName })
       : undefined;
+  // Web/fpk 作为 LAN 主控：与 desktop Host 共用同一套配对/挂接实现（P2）。
+  const lanPeers = credentialService ? new LanPeerController(credentialService) : undefined;
+  const remoteDesktopPeers = credentialService
+    ? new RemoteDesktopPeerController(credentialService)
+    : undefined;
 
   createHttpServer(services, port, {
     ...(host ? { host } : {}),
     ...(staticRoot ? { staticRoot, spaFallback: true } : {}),
+    appUpdate,
+    logsExport,
+    tempAttachmentsRoot,
+    ...(lanPeers ? { lanPeers } : {}),
+    ...(remoteDesktopPeers ? { remoteDesktopPeers } : {}),
     ...(authToken
       ? {
           authToken,

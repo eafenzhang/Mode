@@ -56,3 +56,38 @@ export type UpdateStatePayload =
       channel?: ElectronReleaseChannel;
       releaseNotes?: PostUpdateReleaseNotesPayload;
     };
+
+/**
+ * fpk 在线升级（docs/specs/fnos-feature-parity-and-update.md）。
+ *
+ * 与桌面自动更新状态机是两套所有者：桌面归 Tauri updater；这里归服务端
+ * `FnosAppUpdater`，只通过 `/api/app-update/*` 投影给 Web UI。
+ */
+export type FnosAppUpdatePhase =
+  | "idle"
+  | "checking"
+  | "up-to-date"
+  | "available"
+  | "downloading"
+  | "ready"
+  | "applying"
+  | "error";
+
+export interface FnosAppUpdateState {
+  enabled: boolean;
+  currentVersion: string;
+  phase: FnosAppUpdatePhase;
+  latestVersion?: string;
+  /** 0..100；仅在 downloading 阶段有值。 */
+  progress?: number;
+  /** 稳定错误码或可读文本；仅在 error 阶段有值。 */
+  error?: string;
+  checkedAt?: string;
+  canApply: boolean;
+}
+
+export interface FnosAppUpdateApplyResult {
+  ok: boolean;
+  restarting: boolean;
+  error?: string;
+}

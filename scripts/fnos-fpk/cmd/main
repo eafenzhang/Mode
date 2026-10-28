@@ -9,6 +9,7 @@ source ./lib.sh
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 PROXY_PID_FILE="${TRIM_PKGVAR}/proxy.pid"
 LOG_FILE="${TRIM_PKGVAR}/info.log"
+LOG_ROTATE_MAX_BYTES=10485760
 ENTRY="${TRIM_APPDEST}/bin/mode.mjs"
 PROXY_ENTRY="${TRIM_APPDEST}/proxy.mjs"
 GATEWAY_SOCKET="${TRIM_APPDEST}/app.sock"
@@ -71,10 +72,64 @@ resolve_workspace() {
     fi
 }
 
+# 在线升级的回滚：.update/in-progress 存在时，把 backup 里的旧载荷原位恢复。
+# 回滚同时删掉「只在新载荷里存在」的顶层项，避免新旧混合。
+rollback_update() {
+    local update_dir="${TRIM_APPDEST}/.update"
+    local backup_dir="${update_dir}/backup"
+    local entry name
+    [ -d "$backup_dir" ] || return 0
+    mode_log "rolling back staged update"
+    for entry in "$TRIM_APPDEST"/*; do
+        [ -e "$entry" ] || continue
+        name="$(basename "$entry")"
+        case "$name" in
+        app.sock | .update) continue ;;
+        esac
+        [ -e "$backup_dir/$name" ] && continue
+        rm -rf "$entry" 2>/dev/null || true
+    done
+    for entry in "$backup_dir"/*; do
+        [ -e "$entry" ] || continue
+        name="$(basename "$entry")"
+        rm -rf "${TRIM_APPDEST:?}/$name" 2>/dev/null || true
+        mv "$entry" "$TRIM_APPDEST/$name" 2>/dev/null || true
+    done
+    rm -f "${update_dir}/in-progress"
+    rm -rf "$update_dir"
+}
+
+recover_interrupted_update() {
+    if [ -f "${TRIM_APPDEST}/.update/in-progress" ]; then
+        mode_log "found interrupted update marker"
+        rollback_update
+    fi
+}
+
+# info.log 轮转：fpk 里 Host 的 stdout/stderr 全部重定向到这一个文件，
+# 长期运行会无限增长吃满数据盘。超过 10MB 时把当前文件改名为 info.log.1，
+# 只保留一份归档；归档路径经 MODE_FNOS_INFO_LOG_ARCHIVE 交给服务进程，
+# 日志导出可同时打包当前文件与归档。
+rotate_info_log() {
+    [ -f "$LOG_FILE" ] || return 0
+    local size
+    size="$(wc -c < "$LOG_FILE" 2>/dev/null | tr -d '[:space:]')"
+    [ -n "$size" ] || return 0
+    if [ "$size" -lt "$LOG_ROTATE_MAX_BYTES" ]; then
+        return 0
+    fi
+    rm -f "${LOG_FILE}.1" 2>/dev/null || true
+    mv "$LOG_FILE" "${LOG_FILE}.1" 2>/dev/null || return 0
+    mode_log "rotated info.log (${size} bytes) -> ${LOG_FILE}.1"
+}
+
 start_process() {
+    local allow_update_recovery="${1:-1}"
     if is_running; then
         return 0
     fi
+    rotate_info_log
+    recover_interrupted_update
     [ -f "$ENTRY" ] || mode_fail "缺少入口文件：${ENTRY}"
     ensure_node_binary || mode_fail "内置 Node 运行时不可用：${NODE_BIN}"
 
@@ -112,12 +167,40 @@ start_process() {
         runuser -u "${TRIM_USERNAME}" -- env \
             MODE_DATA_BASE_DIR="${TRIM_PKGVAR}" \
             MODE_CREDENTIAL_SECRET="${secret}" \
+            MODE_FNOS_UPDATE=1 \
+            MODE_FNOS_APPDEST="${TRIM_APPDEST}" \
+            MODE_FNOS_MAIN_SCRIPT="${PWD}/main" \
+            MODE_FNOS_INFO_LOG="${LOG_FILE}" \
+            MODE_FNOS_INFO_LOG_ARCHIVE="${LOG_FILE}.1" \
+            MODE_FNOS_UPDATE_PUBLIC_KEY="$(cat "${TRIM_PKGETC}/update-public-key" 2>/dev/null)" \
+            TRIM_APPDEST="${TRIM_APPDEST}" \
+            TRIM_PKGVAR="${TRIM_PKGVAR}" \
+            TRIM_PKGETC="${TRIM_PKGETC}" \
+            TRIM_PKGHOME="${home_dir}" \
+            TRIM_SERVICE_PORT="${PORT}" \
+            TRIM_DATA_ACCESSIBLE_PATHS="${TRIM_DATA_ACCESSIBLE_PATHS:-}" \
+            TRIM_USERNAME="${TRIM_USERNAME:-}" \
+            TRIM_TEMP_LOGFILE="${TRIM_TEMP_LOGFILE:-}" \
             HOME="${home_dir}" \
             PATH="${run_path}" \
             bash -c "${cmd}" >> "$LOG_FILE" 2>&1 &
     else
         MODE_DATA_BASE_DIR="${TRIM_PKGVAR}" \
         MODE_CREDENTIAL_SECRET="${secret}" \
+        MODE_FNOS_UPDATE=1 \
+        MODE_FNOS_APPDEST="${TRIM_APPDEST}" \
+        MODE_FNOS_MAIN_SCRIPT="${PWD}/main" \
+        MODE_FNOS_INFO_LOG="${LOG_FILE}" \
+        MODE_FNOS_INFO_LOG_ARCHIVE="${LOG_FILE}.1" \
+        MODE_FNOS_UPDATE_PUBLIC_KEY="$(cat "${TRIM_PKGETC}/update-public-key" 2>/dev/null)" \
+        TRIM_APPDEST="${TRIM_APPDEST}" \
+        TRIM_PKGVAR="${TRIM_PKGVAR}" \
+        TRIM_PKGETC="${TRIM_PKGETC}" \
+        TRIM_PKGHOME="${home_dir}" \
+        TRIM_SERVICE_PORT="${PORT}" \
+        TRIM_DATA_ACCESSIBLE_PATHS="${TRIM_DATA_ACCESSIBLE_PATHS:-}" \
+        TRIM_USERNAME="${TRIM_USERNAME:-}" \
+        TRIM_TEMP_LOGFILE="${TRIM_TEMP_LOGFILE:-}" \
         HOME="${home_dir}" \
         PATH="${run_path}" \
             bash -c "${cmd}" >> "$LOG_FILE" 2>&1 &
@@ -127,6 +210,14 @@ start_process() {
     sleep 1
     if ! check_process "$pid"; then
         rm -f "$PID_FILE"
+        # 新载荷起不来时优先回滚到 update/backup；回滚成功再重试一次启动，
+        # 避免一次坏包把应用中心里的应用变成永久不可用。
+        if [ "$allow_update_recovery" = "1" ] && [ -d "${TRIM_APPDEST}/.update/backup" ]; then
+            mode_log "new payload failed to start; recovering previous payload"
+            rollback_update
+            start_process 0
+            return $?
+        fi
         # 把日志尾部写进用户可见渠道（应用中心展示的失败提示），避免只留一个用户不好找的日志路径。
         if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
             {
@@ -137,6 +228,8 @@ start_process() {
         mode_fail "Mode 启动失败，请查看日志：${LOG_FILE}"
     fi
     mode_log "started pid=${pid}"
+    # 新载荷已经成功起来，升级备份不再需要；仅清理 .update，不动 app.sock。
+    rm -rf "${TRIM_APPDEST}/.update"
     start_gateway_proxy
 }
 
@@ -198,6 +291,12 @@ stop_process() {
 
 case "$1" in
 start)
+    start_process
+    ;;
+restart)
+    # 在线升级交换完载荷后由服务进程 detach 调用；stop 会结束当前 runner/proxy，
+    # start 重新用新载荷拉起，PID 仍由本脚本唯一写入。
+    stop_process
     start_process
     ;;
 stop)

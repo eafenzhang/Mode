@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   DesktopCommandIds,
   TID_WORKSPACE_HELP_MENU_TRIGGER,
@@ -11,6 +12,14 @@ import {
   SquareLibraryIcon,
 } from "lucide-react";
 import { Button } from "@/ui-foundation/adapters/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/ui-foundation/adapters/dialog.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +41,8 @@ import { useModeIntl } from "@/i18n/IntlProvider.js";
  * 手动检查更新只作为明确入口保留）。**导出日志是 2026-10-26 恢复的入口**：壳命令已实现
  * （spec `tauri-platform-commands.md` 第 15 行），此前拒绝桩时代把入口一起下线了。
  * 菜单标题与条目文案复用既有 i18n 键（成功提示新增 `sidebar.exportLogs.success`）。
- * Web 端没有资源管理器窗口，不渲染。
+ * Web/fpk 没有资源管理器与桌面更新器：只保留「导出日志」与「关于」，前者走服务端
+ * 日志包下载，后者用本组件的只读对话框。
  */
 export function WorkspaceHelpMenuButton({
   className,
@@ -48,9 +58,17 @@ export function WorkspaceHelpMenuButton({
   const { intl } = useModeIntl();
   const platform = usePlatform();
   const updateMenu = useDesktopUpdateMenu(isDesktop);
-  if (!isDesktop) {
-    return null;
-  }
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [aboutVersion, setAboutVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (!aboutOpen || aboutVersion !== null) {
+      return;
+    }
+    void platform.getAppVersion?.().then(
+      (version) => setAboutVersion(version),
+      () => setAboutVersion("unknown"),
+    );
+  }, [aboutOpen, aboutVersion, platform]);
   const menuLabel = intl.formatMessage({ id: "workspaceHeader.help.menu" });
   const execute = (command: DesktopCommandId) => {
     void platform.executeDesktopCommand(command);
@@ -92,69 +110,113 @@ export function WorkspaceHelpMenuButton({
   };
 
   return (
-    <DropdownMenu>
-      <ControlHintTooltip title={menuLabel} side="bottom">
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-md"
-            // Settings 页会把入口绝对定位在 Electron 顶部拖拽区上方。
-            // 只依赖外层容器 no-drag 时，真实 trigger 仍可能被标题栏 drag 区吞掉点击。
-            className={cn(
-              "text-foreground hover:bg-hover hover:text-foreground [app-region:no-drag]",
-              className,
-            )}
-            aria-label={menuLabel}
-            data-testid={TID_WORKSPACE_HELP_MENU_TRIGGER}
-          >
-            <CircleHelpIcon className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-      </ControlHintTooltip>
-      <DropdownMenuContent align="end" className="[app-region:no-drag]">
-        {platform.supportsResourceManager !== false ? (
+    <>
+      <DropdownMenu>
+        <ControlHintTooltip title={menuLabel} side="bottom">
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-md"
+              // Settings 页会把入口绝对定位在 Electron 顶部拖拽区上方。
+              // 只依赖外层容器 no-drag 时，真实 trigger 仍可能被标题栏 drag 区吞掉点击。
+              className={cn(
+                "text-foreground hover:bg-hover hover:text-foreground [app-region:no-drag]",
+                className,
+              )}
+              aria-label={menuLabel}
+              data-testid={TID_WORKSPACE_HELP_MENU_TRIGGER}
+            >
+              <CircleHelpIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </ControlHintTooltip>
+        <DropdownMenuContent align="end" className="[app-region:no-drag]">
+          {isDesktop && platform.supportsResourceManager !== false ? (
+            <DropdownMenuItem
+              data-testid="workspace-help-menu-resource-manager"
+              onSelect={() => execute(DesktopCommandIds.OpenResourceManager)}
+            >
+              <SquareLibraryIcon className="size-4" aria-hidden="true" />
+              {intl.formatMessage({ id: "titleBar.menu.help.resourceManager" })}
+            </DropdownMenuItem>
+          ) : null}
+          {isDesktop ? (
+            <DropdownMenuItem
+              data-testid="workspace-help-menu-check-for-updates"
+              disabled={updateMenu.disabled}
+              onSelect={() => {
+                // 菜单文案仍跟随更新状态；点击本身统一走一次检查并消费壳返回值。
+                void checkForUpdates();
+              }}
+            >
+              <RefreshCwIcon className="size-4" aria-hidden="true" />
+              {intl.formatMessage(
+                {
+                  id: updateMenu.visible
+                    ? updateMenu.labelId
+                    : "titleBar.menu.help.checkForUpdates",
+                },
+                updateMenu.visible ? updateMenu.labelValues : undefined,
+              )}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
-            data-testid="workspace-help-menu-resource-manager"
-            onSelect={() => execute(DesktopCommandIds.OpenResourceManager)}
+            data-testid="workspace-help-menu-export-logs"
+            onSelect={() => {
+              void exportLogs();
+            }}
           >
-            <SquareLibraryIcon className="size-4" aria-hidden="true" />
-            {intl.formatMessage({ id: "titleBar.menu.help.resourceManager" })}
+            <FileDownIcon className="size-4" aria-hidden="true" />
+            {intl.formatMessage({ id: "titleBar.menu.help.exportLogs" })}
           </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem
-          data-testid="workspace-help-menu-check-for-updates"
-          disabled={updateMenu.disabled}
-          onSelect={() => {
-            // 菜单文案仍跟随更新状态；点击本身统一走一次检查并消费壳返回值。
-            void checkForUpdates();
-          }}
-        >
-          <RefreshCwIcon className="size-4" aria-hidden="true" />
-          {intl.formatMessage(
-            {
-              id: updateMenu.visible ? updateMenu.labelId : "titleBar.menu.help.checkForUpdates",
-            },
-            updateMenu.visible ? updateMenu.labelValues : undefined,
-          )}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          data-testid="workspace-help-menu-export-logs"
-          onSelect={() => {
-            void exportLogs();
-          }}
-        >
-          <FileDownIcon className="size-4" aria-hidden="true" />
-          {intl.formatMessage({ id: "titleBar.menu.help.exportLogs" })}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          data-testid="workspace-help-menu-about"
-          onSelect={() => execute(DesktopCommandIds.ShowAbout)}
-        >
-          <InfoIcon className="size-4" aria-hidden="true" />
-          {intl.formatMessage({ id: "titleBar.menu.help.about" })}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem
+            data-testid="workspace-help-menu-about"
+            onSelect={() => {
+              if (isDesktop) {
+                execute(DesktopCommandIds.ShowAbout);
+                return;
+              }
+              setAboutOpen(true);
+            }}
+          >
+            <InfoIcon className="size-4" aria-hidden="true" />
+            {intl.formatMessage({ id: "titleBar.menu.help.about" })}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
+        <DialogContent className="max-w-sm gap-0 overflow-hidden rounded-2xl p-0">
+          <DialogHeader className="gap-2 px-6 py-5 pb-0">
+            <DialogTitle className="text-lg font-medium text-foreground">
+              {intl.formatMessage({ id: "titleBar.menu.help.about" })}
+            </DialogTitle>
+            <DialogDescription className="text-ui-base leading-6 text-foreground-subtle">
+              {intl.formatMessage(
+                { id: "settings.about.version" },
+                { version: aboutVersion ?? "…" },
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="px-6 py-5 text-ui-base leading-6 text-foreground-subtle">
+            {intl.formatMessage({ id: "settings.about.description" })}
+          </p>
+          <DialogFooter className="gap-2 px-6 pb-5">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                void platform.openExternal("https://github.com/eafenzhang/Mode");
+              }}
+            >
+              {intl.formatMessage({ id: "settings.about.project" })}
+            </Button>
+            <Button type="button" onClick={() => setAboutOpen(false)}>
+              {intl.formatMessage({ id: "common.close" })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

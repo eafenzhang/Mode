@@ -2376,6 +2376,26 @@ const faIR: Record<string, string> = {
   "settings.autoDownloadAndInstallUpdates": "دانلود و نصب خودکار به‌روزرسانی‌ها",
   "settings.autoDownloadAndInstallUpdatesDescription":
     "با فعال‌سازی، دانلود به‌روزرسانی‌ها به‌محض یافتن آغاز می‌شود. راه‌اندازی دوباره هنگام اجرای وظایف همچنان نیاز به تأیید دارد.",
+  "settings.fnosAppUpdate.title": "به‌روزرسانی برنامه",
+  "settings.fnosAppUpdate.description": "نسخه فعلی {current}",
+  "settings.fnosAppUpdate.check": "بررسی به‌روزرسانی",
+  "settings.fnosAppUpdate.checking": "در حال بررسی…",
+  "settings.fnosAppUpdate.upToDate": "آخرین نسخه را دارید",
+  "settings.fnosAppUpdate.available": "نسخه {version} در دسترس است",
+  "settings.fnosAppUpdate.download": "دانلود به‌روزرسانی",
+  "settings.fnosAppUpdate.downloading": "در حال دانلود {progress}%",
+  "settings.fnosAppUpdate.ready": "نسخه {version} آماده است",
+  "settings.fnosAppUpdate.apply": "راه‌اندازی دوباره و به‌روزرسانی",
+  "settings.fnosAppUpdate.applying": "در حال راه‌اندازی دوباره و به‌روزرسانی…",
+  "settings.fnosAppUpdate.error": "به‌روزرسانی ناموفق بود: {error}",
+  "settings.fnosAppUpdate.confirm.title": "راه‌اندازی دوباره و به‌روزرسانی به {version}؟",
+  "settings.fnosAppUpdate.confirm.description":
+    "سرویس برای مدت کوتاهی در دسترس نخواهد بود و وظایف در حال اجرا متوقف می‌شوند. صفحه پس از به‌روزرسانی بازخوانی می‌شود.",
+  "settings.fnosAppUpdate.confirm.ok": "راه‌اندازی دوباره و به‌روزرسانی",
+  "settings.fnosAppUpdate.confirm.cancel": "لغو",
+  "settings.about.version": "نسخه {version}",
+  "settings.about.description": "Mode یک فضای کاری هوش مصنوعی محلی‌محور است.",
+  "settings.about.project": "صفحه پروژه",
   "settings.notification": "اعلان‌های وظیفه",
   "settings.notificationDescription":
     "زمانی که وظیفه‌ای کامل می‌شود، ناموفق می‌ماند یا به تأیید نیاز دارد، اعلان دسکتاپ ارسال می‌شود.",
@@ -6555,6 +6575,8 @@ const faIR: Record<string, string> = {
   "remoteDesktop.error.stale_ticket": "بلیت نشست منقضی شد؛ دوباره تلاش کنید.",
   "remoteDesktop.error.locally_controlled":
     "این دستگاه از راه دور کنترل می‌شود؛ ابتدا آن را قطع کنید.",
+  "remoteDesktop.error.decoder_unsupported":
+    "این مرورگر نمی‌تواند جریان ویدیو را رمزگشایی کند (WebCodecs)؛ از آخرین نسخه Chrome یا Edge استفاده کنید.",
   "remoteDesktop.error.internal": "خطای داخلی رخ داد؛ دوباره تلاش کنید.",
   "remoteDesktop.consent.title": "{device} درخواست کنترل این دستگاه را دارد",
   "remoteDesktop.consent.allow": "اجازه",

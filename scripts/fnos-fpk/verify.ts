@@ -127,6 +127,13 @@ export async function verifyStructure({
   const nodeSize = await checkElf(join(verifyDir, "runtime/bin/node"), "payload 捆绑 Node");
   assert.ok(nodeSize > 50 * 1024 * 1024, "payload 捆绑 Node 体积异常");
 
+  // 在线升级按「外壳 manifest / 载荷 package.json / latest.json 三者同版本」校验，
+  // 构建期先在这里失败，避免把版本错位的包发出去后要等用户下载才被拒绝。
+  const payloadPackage = JSON.parse(await readFile(join(verifyDir, "package.json"), "utf8")) as {
+    version?: unknown;
+  };
+  assert.equal(payloadPackage.version, version, "payload package.json 版本应与 fpk 外壳一致");
+
   const uiConfig = JSON.parse(await readFile(join(verifyDir, "ui", "config"), "utf8")) as {
     ".url": Record<
       string,

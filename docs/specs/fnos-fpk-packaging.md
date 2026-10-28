@@ -86,7 +86,9 @@
 - 桌面入口走 **fnOS 统一网关**（schema 对齐官方 fndepot 应用）：`app/ui/config` 声明 `type=iframe + gatewayPrefix=/app/mode + gatewaySocket=app.sock`；fnOS 校验登录态后把 `/app/mode/*` 转发到 `$TRIM_APPDEST/app.sock`。同源 iframe，异地经中转域/隧道访问也可用，不再依赖 NAS 内网 IP。
 - web 构建以 `MODE_WEB_BASE=/app/mode/` 为 vite base：资产、`/api`、`/ws` 全部跟随网关子路径（默认 `/` 时行为不变）。
 - `proxy.mjs` 是 app.sock 的唯一监听者：前缀剥离（兼容网关带前缀或已剥离两种转发形态）+ 令牌注入（网关流量已由 fnOS 鉴权，代理补访问令牌 Cookie）；LAN 直连 `http://<nas>:3030` 仍由服务端严格校验令牌，地址见 `etc/access-url.txt`。
-- 环境注入：`MODE_DATA_BASE_DIR`、`MODE_CREDENTIAL_SECRET`、`HOME=$TRIM_PKGHOME`、`PATH` 前置 `runtime/bin`（agent 子进程内 `node` 即捆绑运行时）。
+- 环境注入：`MODE_DATA_BASE_DIR`、`MODE_CREDENTIAL_SECRET`、`HOME=$TRIM_PKGHOME`、`PATH` 前置 `runtime/bin`（agent 子进程内 `node` 即捆绑运行时）；在线升级另注入 `MODE_FNOS_UPDATE=1`、`MODE_FNOS_APPDEST`、`MODE_FNOS_MAIN_SCRIPT`、`MODE_FNOS_INFO_LOG`、`MODE_FNOS_INFO_LOG_ARCHIVE`、`MODE_FNOS_UPDATE_PUBLIC_KEY`（读取 `$TRIM_PKGETC/update-public-key`，缺失则为空 = 不启用验签），并透传 `TRIM_APPDEST` / `TRIM_PKGVAR` / `TRIM_PKGETC` / `TRIM_SERVICE_PORT` 等生命周期变量，供 `cmd/main restart` 与日志导出复用同一所有者。
+- `cmd/main` 子命令：`start` / `stop` / `status` / **`restart`**（restart 供应用内升级在载荷交换后调用，仍是 PID 唯一写入方）。
+- `info.log` 由 `cmd/main` 管理：Host 的 stdout/stderr 全部追加到 `$TRIM_PKGVAR/info.log`，每次 `start` 前检查大小，超过 10 MiB 改名为 `info.log.1`（只保留一份归档，磁盘上限约 20 MiB）。归档路径经 `MODE_FNOS_INFO_LOG_ARCHIVE` 交给服务进程，`/api/logs/export` 同时打包当前文件与归档；日志导出本身按文件 5 MiB / 总量 20 MiB 截尾。
 
 ## 事件顺序
 
@@ -97,6 +99,7 @@
         ├─ 写 etc/access-url.txt（含令牌；ui 入口为静态网关配置，无需改写）
         └─ TRIM_TEMP_LOGFILE 输出访问地址（含令牌）
 启动：AppCenter → cmd/main start
+        ├─ 超过 10 MiB 时轮转 info.log → info.log.1；检测到中断的升级标记先回滚
         ├─ re-exec 到 bash（防 sh/dash 调用）；Node --version 预检（失败时回退 $TRIM_PKGVAR 副本）
         ├─ runner(mode --web) ──PID→ var/app.pid → server(entry-http) → 按会话 spawn agent（同一捆绑 Node）
         ├─ proxy.mjs ──PID→ var/proxy.pid，监听 target/app.sock（网关请求 → 127.0.0.1:3030）
@@ -105,6 +108,9 @@
       LAN 直连：http://<nas>:3030/?token=…（etc/access-url.txt）
 停止：AppCenter → cmd/main stop → SIGTERM → 10s → SIGKILL 升级
 升级：AppCenter 停服务 → 替换 target → cmd/upgrade_callback（重写令牌/权限）→ start
+应用内升级：server /api/app-update/* → 下载并校验新 fpk → 交换 $TRIM_APPDEST 载荷
+        → cmd/main restart（stop + start）；启动失败按 .update/backup 自动回滚
+        （详见 docs/specs/fnos-feature-parity-and-update.md）
 ```
 
 ## Windows 打包的执行位问题
@@ -134,5 +140,6 @@ fnpack 在 Windows 上打包不写入执行位（tar 成员一律 0666，官方�
 - 设置页「局域网访问」的被连能力由服务端 lanAccessHost 提供（见 [lan-host-server-mode.md](./lan-host-server-mode.md)）：NAS 可作为被连端供桌面端配对挂接。
 - arm64 未验证（发行侧有 linux-arm64 目标，fnOS ARM 版尚不普及）。
 - fnOS 手动安装的版本比较对带点预发布后缀（如 `0.0.21-dev.2`）不友好：真机实测会被判为「已安装相同或更高版本」而拒绝；fpk 发版使用纯数字版本（`0.0.21`），避免点分预发布后缀。
-- 自动更新跟随 fpk 升级，不接 Mode release catalog。
+- 外壳升级仍跟随应用中心安装新 fpk；**载荷**可在应用内检查/下载/升级，
+  规则、协议与回滚见 [fnos-feature-parity-and-update.md](./fnos-feature-parity-and-update.md)。
 - Electron 桌面端功能（窗口、auto-update、原生对话框）不在 Web 形态内，属预期降级。

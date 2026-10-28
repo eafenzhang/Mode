@@ -34,6 +34,9 @@ export const remoteDesktopErrorCodeSchema = z.enum([
   "stale_ticket",
   // 本机被控中发起主控（spec 产品规则 9：被控中不可发起，断开被控后重试）。
   "locally_controlled",
+  // 主控端本机缺少 WebCodecs 视频解码（浏览器能力预检，docs/specs/web-remote-desktop.md）。
+  // 与 unsupported（对端能力/版本）区分，否则用户会去升级对端而不是换浏览器。
+  "decoder_unsupported",
   "internal",
 ]);
 export type RemoteDesktopErrorCode = z.infer<typeof remoteDesktopErrorCodeSchema>;

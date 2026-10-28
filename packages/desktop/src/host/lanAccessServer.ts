@@ -20,6 +20,7 @@ import {
 import type { RemoteDesktopErrorCode, RemoteDesktopQuality } from "@mode/shared/remote-desktop";
 import { createHttpServer } from "@mode/server";
 import { type ICredentialService, type ServiceCollection } from "@mode/services";
+import { getAppConfigDir } from "@mode/services/node";
 import { formatLogPrefix } from "@mode/shared";
 import { readLanAccessClientRecords } from "./lanAccessRecords.js";
 import { startLanDiscoveryResponder } from "./lanDiscoveryResponder.js";
@@ -310,6 +311,8 @@ export async function startLanAccessServer(
     },
     serverId,
     name: params.machineName,
+    // 浏览器/手机远控页复用 Web 前端；Help 菜单的「导出日志」走同一 Host 日志目录。
+    logsExport: { logDir: join(getAppConfigDir(), "logs") },
     workspaces: () => params.getWorkspaces(),
     // LAN 对端是完整 desktop（desktop-local authority）。能力位 = 平台 win/mac && 打包层
     // kill-switch 关（isModeCuaInternalFeatureEnabled 为「只能关不能开」语义）。

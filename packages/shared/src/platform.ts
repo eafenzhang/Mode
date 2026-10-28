@@ -39,11 +39,15 @@ import type {
 } from "./cuaAccessibilitySettings.js";
 import type { BrowserViewportSize } from "./browser-use/command-metadata.js";
 import type {
+  FnosAppUpdateApplyResult,
+  FnosAppUpdateState,
   PostUpdateReleaseNotesPayload,
   UpdateCheckResultPayload,
   UpdateStatePayload,
 } from "./update.js";
 export type {
+  FnosAppUpdateApplyResult,
+  FnosAppUpdateState,
   PostUpdateReleaseNotesPayload,
   UpdateCheckResultPayload,
   UpdateStatePayload,
@@ -985,6 +989,16 @@ export interface IPlatformService {
   /** 用户确认重启安装更新 */
   quitAndInstallUpdate(): Promise<void>;
 
+  /** 当前服务/应用版本；Web 从 `/api/server-info` 读取，桌面端可省略。 */
+  getAppVersion?(): Promise<string>;
+
+  // fnOS fpk 在线升级（docs/specs/fnos-feature-parity-and-update.md）。
+  // 只有 fpk 部署的 Web 平台实现；桌面与普通 Web 省略，UI 据此隐藏入口。
+  getFnosAppUpdateState?(): Promise<FnosAppUpdateState>;
+  checkFnosAppUpdate?(): Promise<FnosAppUpdateState>;
+  downloadFnosAppUpdate?(): Promise<FnosAppUpdateState>;
+  applyFnosAppUpdate?(): Promise<FnosAppUpdateApplyResult>;
+
   /** 获取系统中已安装的编辑器/终端列表（含图标） */
   getInstalledEditors(): Promise<EditorInfo[]>;
 
@@ -1005,6 +1019,9 @@ export interface IPlatformService {
    * Tauri 骨架期尚未移植该窗口，菜单应隐藏入口，避免出现点击无反馈的死项。
    */
   supportsResourceManager?: boolean;
+
+  /** Web/fpk 服务端是否提供 LAN 主控（配对/发现/远程工作区挂接）。 */
+  supportsLanPeerController?: boolean;
 
   /** 同步应用菜单语言，驱动 main 进程重建原生菜单 */
   setApplicationLocale(locale: Locale): Promise<void>;

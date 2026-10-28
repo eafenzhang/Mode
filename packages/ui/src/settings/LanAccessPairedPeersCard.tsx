@@ -78,6 +78,11 @@ export function LanAccessPairedPeersCard({ onError }: { onError: (message: strin
     }
   };
 
+  // 桌面 LAN 静态站没有 `/api/lan/peers` 主控面；不要把「读不到」显示成空列表/错误。
+  if (platform.supportsLanPeerController === false) {
+    return null;
+  }
+
   return (
     <SettingsGroupCard>
       <SettingsRow
