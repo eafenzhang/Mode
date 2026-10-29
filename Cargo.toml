@@ -20,6 +20,7 @@ members = [
   "crates/browser-import-helper",
   "crates/browser-import-host",
   "crates/platform",
+  "crates/project-memory",
   "crates/protocol",
   "crates/rpc-wire",
   "crates/rpc-host",

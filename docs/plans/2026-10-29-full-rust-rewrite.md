@@ -84,6 +84,11 @@ settings、data-root、paths、credential（`ring` + 系统钥匙串）、fs/fil
 SQLite（任务库、会话库、迁移）、日志、进程管理（spawn/kill/taskkill 语义）、storage
 （磁盘用量）、system（环境/OS 信息）、media-preview。
 
+**`memory` 频道已可接管（2026-10-29）**：`crates/project-memory` 是 `memory` 的两个
+只读方法的完整实现（目录契约、符号链接拒绝、大小写精确、5 MiB 上限、快照校验），
+见 `docs/specs/project-memory-service.md`，7 条用例。它取代 `setting` 成为第一个本地频道：
+`setting` 有四个方法且含数据目录搬迁，留在 W3。
+
 **已完成（2026-10-29）**：`crates/atomic-file` —— 原子写（临时文件 + rename + 退避重试 +
 过期临时文件清理）与跨进程文件锁（目录 CAS + owner 文件 + 死进程/无主锁回收 + 超时），
 对应 `docs/specs/atomic-file.md`，8 条用例（含 6 线程并发写不产生半截）。它是 settings /

@@ -144,10 +144,12 @@ bytes ──► FrameRouter::route
 `FrameRouter` 的 owned 集合为空，所有帧走 Legacy，行为与今天逐字节一致；回滚只需去掉该
 环境变量重启。
 
-**先接的频道（2026-10-29 更正）**：**不能用 `host` 诊断面**。渲染层的半开管道心跳就是走
-`host.ping`（spec §22.5），把它搬进壳等于让看门狗去测壳自己的事件循环——Node Host 真停摆时
-再也发现不了，属于功能回归。第一个本地频道改为 W1-1 的 `setting`（无活性语义、无跨进程
-状态，且壳已经在读 `settings.json`），在 W1 完成后接入。
+**先接的频道（2026-10-29 二次更正）**：**不能用 `host` 诊断面**——渲染层的半开管道心跳
+走 `host.ping`（spec §22.5），搬进壳等于让看门狗测壳自己，Node Host 停摆就发现不了。
+也**不用 `setting`**：它有四个方法，其中 `updateDataBaseDir` 要拷贝整个数据目录，属 W3 的
+完整域迁移。第一个本地频道改为 **`memory`**——两个只读方法、无写路径、无活性语义，
+Rust 实现已完成（`crates/project-memory` + `docs/specs/project-memory-service.md`，
+7 条用例），可直接接路由开关。
 
 ### M4b-4 逐域迁移（按风险从低到高）
 
